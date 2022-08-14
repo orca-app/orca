@@ -1,0 +1,115 @@
+
+
+Shortlist
+---------
+[x] let pass flat args in ui_size_push() and ui_box_set_size()
+[>>] separate style stacks
+[>] margins? as part of size, or different styling stack?
+[>] animation time stack
+[ ] Let build code set target style directly, and animate from current to target
+[ ] filter styles stack by tag
+[ ] image backgrounds/gradients?
+[ ] animating open/close widgets?
+
+
+Canvas Drawing
+--------------
+[.] Correctly handle resizing / viewport
+	[x] associate surfaces with mp_windows
+	[x] window resize resizes surface. Surface always renders to whole mp_window
+	[x] Add ability to create sub-views, and create surfaces for these
+		- window comes with a main view, so we can get a surface for the whole window
+	[>] Clean native mp_window_data struct (don't need to cache a lot of stuff here)
+
+[.] Add images bliting
+	[x] Clean, rename uv vs texUV stuff
+	[>] Destroy stuff
+	[>] More unified handle system
+	[.] Rounded images (sortof)
+	[ ] path clipped images
+
+[ ] Add color gradients?
+[ ] Make canvas implicit?
+[/] Handle based error signaling
+[/] Allow polling events in main thread, and updating/rendering in background thread.
+
+[x] font metrics shouldn't depend on surface, & font
+    shouldn't really depend on canvas either???
+	> meaning we should be able to pass fonts without canvas in ui
+	> and only pass canvas when drawing at the end...
+
+UI
+--
+[x] Make gui context implicit?
+[x] Uniform ui_box struct + cache widgets
+[x] Prune unused boxes
+[.] Layout boxes
+	[x] basic two pass layout
+	[x] Layout from start or end
+	[>] Add overflow flags to layout, & solve conflicts
+
+[x] Temporarily push transform and text flip when rendering UI, so that the coord system is y down, origin at top left
+[x] Canvas render the same size on a high-dpi surface
+	> it works with abstract 'pixel' units, which are transformed to pixels in the shader, according to backing store scaling
+
+[.] Style struct and style stack
+	[ ] Maybe use individual stack for different style attributes
+[x] Pass initial style in ui_begin_frame()
+
+[.] Draw boxes
+	[x] use flags to enable/disable drawing each feature
+	[ ] active/hovered transitions
+
+[x] Change input state handling a move it to app layer
+[x] Compute signals for ui_box
+[x] Use ui_size_push() and pass axis instead of ui_width/height_push()
+[>] Use value is ui_size as margin when kind == text or == children?
+
+[ ] Allow animating sizes according to hot/active?
+
+[ ] Basic helpers
+	[.] button
+	[.] slider (or rather, scroll bar)
+	[.] simple spacers
+		[ ] have a flag for non-cached stuff
+	[.] scrolling panel
+		[ ] Allow/disallow scrolling in x/y
+		[ ] Scroll with mousewheel
+		[/] add margins to scrollbars (disallow scrollbars crossing)
+
+[?] Maybe let builder code handle "active"/"hot" state, since it
+    depends on the widgets
+    [ ] On the other hand, this state must be set before layouting, in
+        particular font/fontSize -> maybe do a pass for static layout,
+        instead of doing it in box creation...
+    [ ] this way we can compute styling after user has set active/hot, but before layout
+	> Maybe just let user set style selector, and provide persistent state bits that can
+	> be used in any way? (to replace eg active/hot?) or perhaps not needed if we have just
+	> 'dragging' state
+
+
+[x] Mask mouse outside of parent rects -> maintain clip stack and clip mouse against it
+[x] Mask mouse below panels/other widgets
+[x] popups and tooltips
+	[x] allow pushing/popping boxes irrespective of parent/child relation
+	[x] ui_begin_frame() prepares two containers, user ui goes in the first one
+	[x] tooltips and menus go to the second one
+	[x] Add menus
+[ ] line editing widget
+
+Misc
+----
+[x] Split metal surface and metal painter (but put them in the same compilation unit?)
+[x] Have only one rect struct
+[x] Shorten mp_string to str8
+
+[ ] Better/Simpler time API
+
+[/] Frame throttling
+	[x] For now, we always wait on vblank during mg_surface_present(), regardless of target fps
+	[ ] Then actually get the correct display interval from the surface's current monitor
+	[ ] Allow waiting for more display interval than one? (ie allow throttling at 30fps for a 60fps display)
+
+[/] split osx_app and move all platform independant stuff outside
+
+[ ] Sort out mg_matrix_push/pop() -> transform vs. set...
