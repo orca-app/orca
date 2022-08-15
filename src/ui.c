@@ -96,11 +96,17 @@ typedef struct ui_context
 
 } ui_context;
 
-__thread ui_context __uiContext = {0};
+__thread ui_context __uiThreadContext = {0};
+__thread ui_context* __uiCurrentContext = 0;
 
 ui_context* ui_get_context()
 {
-	return(&__uiContext);
+	return(__uiCurrentContext);
+}
+
+void ui_set_context(ui_context* context)
+{
+	__uiCurrentContext = context;
 }
 
 //-----------------------------------------------------------------------------
@@ -583,7 +589,7 @@ void ui_box_set_size(ui_box* box, ui_axis axis, ui_size_kind kind, f32 value, f3
 void ui_box_set_floating(ui_box* box, ui_axis axis, f32 pos)
 {
 	box->floating[axis] = true;
-	box->rect.c[axis] = pos;
+	box->targetRect.c[axis] = pos;
 }
 
 void ui_box_set_closed(ui_box* box, bool closed)
@@ -722,11 +728,11 @@ void ui_layout_prepass(ui_context* ui, ui_box* box)
 
 		if(size.kind == UI_SIZE_TEXT)
 		{
-			box->rect.c[2+i] = textBox.c[2+i] + desiredSize[i].value*2;
+			box->targetRect.c[2+i] = textBox.c[2+i] + desiredSize[i].value*2;
 		}
 		else if(size.kind == UI_SIZE_PIXELS)
 		{
-			box->rect.c[2+i] = size.value;
+			box->targetRect.c[2+i] = size.value;
 		}
 	}
 
@@ -751,7 +757,7 @@ void ui_layout_upward_dependent_size(ui_context* ui, ui_box* box, int axis)
 		if(  parent
 		  && parent->computedStyle.size[axis].kind != UI_SIZE_CHILDREN)
 		{
-			box->rect.c[2+axis] = parent->rect.c[2+axis] * size->value;
+			box->targetRect.c[2+axis] = parent->targetRect.c[2+axis] * size->value;
 		}
 		//TODO else?
 	}
@@ -774,7 +780,7 @@ void ui_layout_downward_dependent_size(ui_context* ui, ui_box* box, int axis)
 				ui_layout_downward_dependent_size(ui, child, axis);
 				if(!child->floating[axis])
 				{
-					sum += child->rect.c[2+axis];
+					sum += child->targetRect.c[2+axis];
 				}
 			}
 		}
@@ -788,7 +794,7 @@ void ui_layout_downward_dependent_size(ui_context* ui, ui_box* box, int axis)
 				ui_layout_downward_dependent_size(ui, child, axis);
 				if(!child->floating[axis])
 				{
-					sum = maximum(sum, child->rect.c[2+axis]);
+					sum = maximum(sum, child->targetRect.c[2+axis]);
 				}
 			}
 		}
@@ -799,7 +805,7 @@ void ui_layout_downward_dependent_size(ui_context* ui, ui_box* box, int axis)
 	ui_size* size = &box->computedStyle.size[axis];
 	if(size->kind == UI_SIZE_CHILDREN)
 	{
-		box->rect.c[2+axis] = sum  + size->value*2;
+		box->targetRect.c[2+axis] = sum  + size->value*2;
 	}
 }
 
@@ -815,8 +821,8 @@ void ui_layout_compute_rect(ui_context* ui, ui_box* box, vec2 pos)
 		return;
 	}
 
-	box->rect.x = pos.x;
-	box->rect.y = pos.y;
+	box->targetRect.x = pos.x;
+	box->targetRect.y = pos.y;
 	box->z = ui->z;
 	ui->z++;
 
@@ -824,12 +830,12 @@ void ui_layout_compute_rect(ui_context* ui, ui_box* box, vec2 pos)
 	ui_axis secondAxis = (layoutAxis == UI_AXIS_X) ? UI_AXIS_Y : UI_AXIS_X;
 	ui_align* align = box->layout.align;
 
-	vec2 origin = {box->rect.x - box->scroll.x,
-	               box->rect.y - box->scroll.y};
+	vec2 origin = {box->targetRect.x - box->scroll.x,
+	               box->targetRect.y - box->scroll.y};
 	vec2 currentPos = origin;
 
-	vec2 contentsSize = {maximum(box->rect.w, box->childrenSum[UI_AXIS_X]),
-	                     maximum(box->rect.h, box->childrenSum[UI_AXIS_Y])};
+	vec2 contentsSize = {maximum(box->targetRect.w, box->childrenSum[UI_AXIS_X]),
+	                     maximum(box->targetRect.h, box->childrenSum[UI_AXIS_Y])};
 
 	for(int i=0; i<UI_AXIS_COUNT; i++)
 	{
@@ -847,7 +853,7 @@ void ui_layout_compute_rect(ui_context* ui, ui_box* box, vec2 pos)
 	{
 		if(align[secondAxis] == UI_ALIGN_CENTER)
 		{
-			currentPos.c[secondAxis] = origin.c[secondAxis] + 0.5*(contentsSize.c[secondAxis] - child->rect.c[2+secondAxis]);
+			currentPos.c[secondAxis] = origin.c[secondAxis] + 0.5*(contentsSize.c[secondAxis] - child->targetRect.c[2+secondAxis]);
 		}
 
 		vec2 childPos = currentPos;
@@ -855,7 +861,7 @@ void ui_layout_compute_rect(ui_context* ui, ui_box* box, vec2 pos)
 		{
 			if(child->floating[i])
 			{
-				childPos.c[i] = origin.c[i] + child->rect.c[i];
+				childPos.c[i] = origin.c[i] + child->targetRect.c[i];
 			}
 		}
 
@@ -863,8 +869,22 @@ void ui_layout_compute_rect(ui_context* ui, ui_box* box, vec2 pos)
 
 		if(!child->floating[layoutAxis])
 		{
-			currentPos.c[layoutAxis] += child->rect.c[2+layoutAxis];
+			currentPos.c[layoutAxis] += child->targetRect.c[2+layoutAxis];
 		}
+	}
+
+	if(box->targetStyle->animationTime)
+	{
+		ui_animate_f32(ui, &box->rect.x, box->targetRect.x, box->targetStyle->animationTime);
+		ui_animate_f32(ui, &box->rect.y, box->targetRect.y, box->targetStyle->animationTime);
+
+		//NOTE: size is already animated by the size property
+		box->rect.w = box->targetRect.w;
+		box->rect.h = box->targetRect.h;
+	}
+	else
+	{
+		box->rect = box->targetRect;
 	}
 }
 
@@ -1126,9 +1146,11 @@ void ui_end_frame()
 //-----------------------------------------------------------------------------
 void ui_init()
 {
-	ui_context* ui = ui_get_context();
+	ui_context* ui = &__uiThreadContext;
 	if(!ui->init)
 	{
+		__uiCurrentContext = &__uiThreadContext;
+
 		memset(ui, 0, sizeof(ui_context));
 		mem_arena_init(&ui->frameArena);
 		mem_pool_init(&ui->boxPool, sizeof(ui_box));

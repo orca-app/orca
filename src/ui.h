@@ -148,6 +148,7 @@ struct ui_box
 	bool floating[UI_AXIS_COUNT];
 	ui_layout layout;
 	f32 childrenSum[2];
+	mp_rect targetRect;
 	mp_rect rect;
 
 	// signals
@@ -166,7 +167,11 @@ struct ui_box
 	f32 activeTransition;
 };
 
+typedef struct ui_context ui_context;
+
 void ui_init();
+ui_context* ui_get_context();
+void ui_set_context(ui_context* context);
 
 void ui_begin_frame(u32 width, u32 height, ui_style defaultStyle);
 void ui_end_frame();
