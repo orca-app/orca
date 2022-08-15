@@ -3153,16 +3153,36 @@ mg_glyph_info* mg_font_get_glyph_info(mg_font_info* fontInfo, u32 glyphIndex)
 	return(&(fontInfo->glyphs[glyphIndex-1]));
 }
 
-int mg_font_get_extents(mg_font font, mg_font_extents* outExtents)
+mg_font_extents mg_font_get_extents(mg_font font)
 {
 	mg_font_info* fontInfo = mg_get_font_info(font);
 	if(!fontInfo)
 	{
-		return(-1);
+		return((mg_font_extents){});
 	}
-	*outExtents = fontInfo->extents;
-	return(0);
+	return(fontInfo->extents);
 }
+
+mg_font_extents mg_font_get_scaled_extents(mg_font font, f32 emSize)
+{
+	mg_font_info* fontInfo = mg_get_font_info(font);
+	if(!fontInfo)
+	{
+		return((mg_font_extents){});
+	}
+	f32 scale = emSize/fontInfo->unitsPerEm;
+	mg_font_extents extents = fontInfo->extents;
+
+	extents.ascent *= scale;
+	extents.descent *= scale;
+	extents.leading *= scale;
+	extents.xHeight *= scale;
+	extents.capHeight *= scale;
+	extents.width *= scale;
+
+	return(extents);
+}
+
 
 f32 mg_font_get_scale_for_em_pixels(mg_font font, f32 emSize)
 {
@@ -3761,6 +3781,23 @@ mp_rect mg_glyph_outlines(mg_canvas handle, str32 glyphIndices)
 		return((mp_rect){});
 	}
 	return(mg_glyph_outlines_from_font_info(context, fontInfo, glyphIndices));
+}
+
+void mg_codepoints_outlines(mg_canvas handle, str32 codePoints)
+{
+	mg_canvas_data* context = mg_canvas_ptr_from_handle(handle);
+	if(!context)
+	{
+		return;
+	}
+	mg_font_info* fontInfo = mg_get_font_info(context->attributes.font);
+	if(!fontInfo)
+	{
+		return;
+	}
+
+	str32 glyphIndices = mg_font_push_glyph_indices(context->attributes.font, mem_scratch(), codePoints);
+	mg_glyph_outlines_from_font_info(context, fontInfo, glyphIndices);
 }
 
 void mg_text_outlines(mg_canvas handle, str8 text)

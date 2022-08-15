@@ -592,10 +592,7 @@ static void mp_update_key_state(mp_key_state* key, bool down)
 		key->lastUpdate = frameCounter;
 	}
 
-	if(key->down != down)
-	{
-		key->transitionCounter++;
-	}
+	key->transitionCounter++;
 	key->down = down;
 }
 
@@ -630,6 +627,8 @@ static void mp_update_mouse_wheel(f32 deltaX, f32 deltaY)
 
 static void mp_update_text(utf32 codepoint)
 {
+
+	printf("update text\n");
 	u64 frameCounter = __mpAppData.inputState.frameCounter;
 	mp_text_state* text = &__mpAppData.inputState.text;
 

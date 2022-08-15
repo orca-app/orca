@@ -564,6 +564,12 @@ ui_box* ui_box_end()
 	return(box);
 }
 
+void ui_box_set_render_proc(ui_box* box, ui_box_render_proc proc, void* data)
+{
+	box->renderProc = proc;
+	box->renderData = data;
+}
+
 void ui_box_set_layout(ui_box* box, ui_axis axis, ui_align alignX, ui_align alignY)
 {
 	box->layout = (ui_layout){axis, {alignX, alignY}};
@@ -716,7 +722,7 @@ void ui_layout_prepass(ui_context* ui, ui_box* box)
 
 		if(size.kind == UI_SIZE_TEXT)
 		{
-			box->rect.c[2+i] = textBox.c[2+i];
+			box->rect.c[2+i] = textBox.c[2+i] + desiredSize[i].value*2;
 		}
 		else if(size.kind == UI_SIZE_PIXELS)
 		{
@@ -793,7 +799,7 @@ void ui_layout_downward_dependent_size(ui_context* ui, ui_box* box, int axis)
 	ui_size* size = &box->computedStyle.size[axis];
 	if(size->kind == UI_SIZE_CHILDREN)
 	{
-		box->rect.c[2+axis] = sum;
+		box->rect.c[2+axis] = sum  + size->value*2;
 	}
 }
 
@@ -978,6 +984,11 @@ void ui_draw_box(mg_canvas canvas, ui_box* box)
 		mg_move_to(canvas, x, y);
 		mg_text_outlines(canvas, box->string);
 		mg_fill(canvas);
+	}
+
+	if((box->flags & UI_FLAG_DRAW_RENDER_PROC) && box->renderProc)
+	{
+		box->renderProc(canvas, box, box->renderData);
 	}
 
 	if(box->flags & UI_FLAG_CLIP)
@@ -1284,7 +1295,7 @@ ui_box* ui_scrollbar(const char* label, f32 thumbRatio, f32* scrollValue)
 	return(frame);
 }
 
-void ui_panel_begin(const char* name)
+ui_box* ui_panel_begin(const char* name)
 {
 	ui_flags panelFlags = UI_FLAG_DRAW_BACKGROUND
 	                    | UI_FLAG_DRAW_BORDER
@@ -1293,6 +1304,8 @@ void ui_panel_begin(const char* name)
 	ui_box* panel = ui_box_begin(name, panelFlags);
 
 	ui_box* innerView = ui_box_begin(name, 0);
+
+	return(panel);
 }
 
 void ui_panel_end()
@@ -1794,9 +1807,54 @@ str32 ui_edit_perform_operation(ui_context* ui, ui_edit_op operation, ui_edit_mo
 			ui->editMark = codepoints.len;
 		} break;
 	}
-	ui->editCursorBlinkStart  = ui->frameTime;
+	ui->editCursorBlinkStart = ui->frameTime;
 
 	return(codepoints);
+}
+
+void ui_text_box_render(mg_canvas canvas, ui_box* box, void* data)
+{
+	str32 codepoints = *(str32*)data;
+	ui_context* ui = ui_get_context();
+
+	u32 firstDisplayedChar = 0;
+	if(ui_box_active(box))
+	{
+		firstDisplayedChar = ui->editFirstDisplayedChar;
+	}
+
+	ui_style* style = &box->computedStyle;
+	mg_font_extents extents = mg_font_get_scaled_extents(style->font, style->fontSize);
+	f32 lineHeight = extents.ascent + extents.descent;
+
+	str32 before = str32_slice(codepoints, 0, firstDisplayedChar);
+	mp_rect beforeBox = mg_text_bounding_box_utf32(style->font, style->fontSize, before);
+
+	f32 textMargin = 5;
+
+	f32 textX = textMargin + box->rect.x - beforeBox.w;
+	f32 textTop = box->rect.y + 0.5*(box->rect.h - lineHeight);
+	f32 textY = textTop + extents.ascent ;
+
+	if(box->active && !((u64)(2*(ui->frameTime - ui->editCursorBlinkStart)) & 1))
+	{
+		str32 beforeCaret = str32_slice(codepoints, 0, ui->editCursor);
+		mp_rect beforeCaretBox = mg_text_bounding_box_utf32(style->font, style->fontSize, beforeCaret);
+
+		f32 caretX = box->rect.x + textMargin - beforeBox.w + beforeCaretBox.w;
+		f32 caretY = textTop;
+
+		mg_set_color_rgba(canvas, 0, 0, 0, 1);
+		mg_rectangle_fill(canvas, caretX, caretY, 2, lineHeight);
+	}
+
+	mg_set_font(canvas, style->font);
+	mg_set_font_size(canvas, style->fontSize);
+	mg_set_color(canvas, style->fontColor);
+
+	mg_move_to(canvas, textX, textY);
+	mg_codepoints_outlines(canvas, codepoints);
+	mg_fill(canvas);
 }
 
 ui_text_box_result ui_text_box(const char* name, mem_arena* arena, str8 text)
@@ -1809,18 +1867,13 @@ ui_text_box_result ui_text_box(const char* name, mem_arena* arena, str8 text)
 	                    | UI_FLAG_DRAW_BACKGROUND
 	                    | UI_FLAG_DRAW_BORDER
 	                    | UI_FLAG_CLIP
+	                    | UI_FLAG_DRAW_RENDER_PROC
 	                    | UI_FLAG_SCROLLABLE;
 
 	ui_box* frame = ui_box_make(name, frameFlags);
-	ui_box_set_layout(frame, UI_AXIS_X, UI_ALIGN_START, UI_ALIGN_CENTER);
-
-	ui_box_push(frame);
-
-	ui_flags contentsFlags = UI_FLAG_DRAW_TEXT;
-
-	ui_box* contents = ui_box_make_str8(text, contentsFlags);
-	ui_box_set_size(contents, UI_AXIS_X, UI_SIZE_TEXT, 0, 1);
-	ui_box_set_size(contents, UI_AXIS_Y, UI_SIZE_PARENT_RATIO, 1, 1);
+	ui_style* style = &frame->computedStyle;
+	mg_font_extents extents = mg_font_get_scaled_extents(style->font, style->fontSize);
+	ui_box_set_size(frame, UI_AXIS_Y, UI_SIZE_PIXELS, extents.ascent+extents.descent+10, 1);
 
 	ui_sig sig = ui_box_sig(frame);
 
@@ -1865,7 +1918,6 @@ ui_text_box_result ui_text_box(const char* name, mem_arena* arena, str8 text)
 	if(ui_box_active(frame))
 	{
 		str32 codepoints = utf8_push_to_codepoints(&ui->frameArena, text);
-
 		ui->editCursor = Clamp(ui->editCursor, 0, codepoints.len);
 		ui->editMark = Clamp(ui->editMark, 0, codepoints.len);
 
@@ -1873,9 +1925,8 @@ ui_text_box_result ui_text_box(const char* name, mem_arena* arena, str8 text)
 		str32 input = mp_input_text_utf32(&ui->frameArena);
 		if(input.len)
 		{
-			printf("text edit got input\n");
-
 			codepoints = ui_edit_replace_selection_with_codepoints(ui, codepoints, input);
+			ui->editCursorBlinkStart = ui->frameTime;
 		}
 
 		//NOTE handle shortcuts
@@ -1891,27 +1942,30 @@ ui_text_box_result ui_text_box(const char* name, mem_arena* arena, str8 text)
 			}
 		}
 
+		//NOTE(martin): text box focus shortcuts
+		if(mp_input_key_pressed(MP_KEY_ENTER))
+		{
+			//TODO(martin): extract in gui_edit_complete() (and use below)
+			ui_box_deactivate(frame);
+			ui->focus = 0;
+		}
+
 		result.text = utf8_push_from_codepoints(arena, codepoints);
-		contents->string = str8_push_copy(&ui->frameArena, result.text);
 
-		//NOTE slide contents
+		//TODO slide contents
 
-		//NOTE position caret
-
-		str32 displayedBeforeCaret = str32_slice(codepoints, ui->editFirstDisplayedChar, ui->editCursor);
-		ui_style* style = &contents->computedStyle;
-		mp_rect extents = mg_text_bounding_box_utf32(style->font, style->fontSize, displayedBeforeCaret);
-
-		ui_push_fg_color((mg_color){0, 0, 0, 1});
-		ui_box* caret = ui_box_make("caret", UI_FLAG_DRAW_FOREGROUND);
-		ui_box_set_size(caret, UI_AXIS_X, UI_SIZE_PIXELS, 2, 1);
-		ui_box_set_size(caret, UI_AXIS_Y, UI_SIZE_PARENT_RATIO, 0.9, 1);
-		ui_box_set_floating(caret, UI_AXIS_X, extents.x + extents.w);
-
-		ui_pop_fg_color();
+		//NOTE: set renderer
+		str32* renderCodepoints = mem_arena_alloc_type(&ui->frameArena, str32);
+		*renderCodepoints = str32_push_copy(&ui->frameArena, codepoints);
+		ui_box_set_render_proc(frame, ui_text_box_render, renderCodepoints);
 	}
-
-	ui_box_pop();
+	else
+	{
+		//NOTE: set renderer
+		str32* renderCodepoints = mem_arena_alloc_type(&ui->frameArena, str32);
+		*renderCodepoints = utf8_push_to_codepoints(&ui->frameArena, text);
+		ui_box_set_render_proc(frame, ui_text_box_render, renderCodepoints);
+	}
 
 	return(result);
 }

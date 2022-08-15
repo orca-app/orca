@@ -29,6 +29,7 @@ typedef enum
 	UI_FLAG_DRAW_FOREGROUND  = (1<<7),
 	UI_FLAG_DRAW_BORDER      = (1<<8),
 	UI_FLAG_DRAW_TEXT        = (1<<9),
+	UI_FLAG_DRAW_RENDER_PROC = (1<<10),
 
 } ui_flags;
 
@@ -118,6 +119,8 @@ typedef struct ui_sig
 
 } ui_sig;
 
+typedef void(*ui_box_render_proc)(mg_canvas canvas, ui_box* box, void* data);
+
 struct ui_box
 {
 	// hierarchy
@@ -135,6 +138,9 @@ struct ui_box
 	str8 string;
 
 	// styling and layout
+	ui_box_render_proc renderProc;
+	void* renderData;
+
 	ui_style_tag tag;
 	ui_style* targetStyle;
 	ui_style computedStyle;
@@ -173,6 +179,12 @@ ui_box* ui_box_begin_str8(str8 string, ui_flags flags);
 ui_box* ui_box_end();
 #define ui_container(name, flags) defer_loop(ui_box_begin(name, flags), ui_box_end())
 
+void ui_box_push(ui_box* box);
+void ui_box_pop();
+ui_box* ui_box_top();
+
+void ui_box_set_render_proc(ui_box* box, ui_box_render_proc proc, void* data);
+
 void ui_box_set_layout(ui_box* box, ui_axis axis, ui_align alignX, ui_align alignY);
 void ui_box_set_size(ui_box* box, ui_axis axis, ui_size_kind kind, f32 value, f32 strictness);
 void ui_box_set_floating(ui_box* box, ui_axis axis, f32 pos);
@@ -193,6 +205,7 @@ void ui_push_font_color(mg_color color);
 void ui_push_border_size(f32 size);
 void ui_push_border_color(mg_color color);
 void ui_push_roundness(f32 roundness);
+void ui_push_animation_time(f32 time);
 
 void ui_push_bg_color_ext(ui_style_tag tag, ui_style_selector selector, mg_color color);
 void ui_push_fg_color_ext(ui_style_tag tag, ui_style_selector selector, mg_color color);
@@ -202,6 +215,7 @@ void ui_push_font_color_ext(ui_style_tag tag, ui_style_selector selector, mg_col
 void ui_push_border_size_ext(ui_style_tag tag, ui_style_selector selector, f32 size);
 void ui_push_border_color_ext(ui_style_tag tag, ui_style_selector selector, mg_color color);
 void ui_push_roundness_ext(ui_style_tag tag, ui_style_selector selector, f32 roundness);
+void ui_push_animation_time_ext(ui_style_tag tag, ui_style_selector selector, f32 time);
 
 void ui_pop_bg_color();
 void ui_pop_fg_color();
@@ -211,7 +225,7 @@ void ui_pop_font_color();
 void ui_pop_border_size();
 void ui_pop_border_color();
 void ui_pop_roundness();
-
+void ui_pop_animation_time();
 // Basic helpers
 
 enum {
@@ -228,7 +242,7 @@ ui_sig ui_label(const char* label);
 ui_sig ui_button(const char* label);
 ui_box* ui_scrollbar(const char* label, f32 thumbRatio, f32* scrollValue);
 
-void ui_panel_begin(const char* name);
+ui_box* ui_panel_begin(const char* name);
 void ui_panel_end();
 #define ui_panel(name) defer_loop(ui_panel_begin(name), ui_panel_end())
 

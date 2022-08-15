@@ -101,12 +101,12 @@ kernel void TileKernel(const device float4* boxArray [[buffer(0)]],
                        constant vector_uint2* viewport [[buffer(3)]],
                        uint gid [[thread_position_in_grid]])
 {
-	uint2 tilesMatrixDim = (*viewport + RENDERER_TILE_SIZE - 1) / RENDERER_TILE_SIZE;
+	uint2 tilesMatrixDim = (*viewport - 1) / RENDERER_TILE_SIZE + 1;
 	uint nTilesX = tilesMatrixDim.x;
 	uint nTilesY = tilesMatrixDim.y;
 
 	uint triangleIndex = gid;
-	uint4 box = uint4(floor(boxArray[triangleIndex]/RENDERER_TILE_SIZE));
+	uint4 box = uint4(floor(boxArray[triangleIndex]))/RENDERER_TILE_SIZE;
 	uint xMin = max((uint)0, box.x);
 	uint yMin = max((uint)0, box.y);
 	uint xMax = min(box.z, nTilesX-1);
@@ -185,15 +185,39 @@ kernel void RenderKernel(texture2d<float, access::write> outTexture [[texture(0)
                          uint2 gridSize [[threads_per_grid]])
 {
 	//TODO: guard against thread group size not equal to tile size?
-	const uint2 tilesMatrixDim = (gridSize + RENDERER_TILE_SIZE - 1) / RENDERER_TILE_SIZE;
-	const uint2 tilePos = tgid * threadsPerThreadgroup / RENDERER_TILE_SIZE;
+	const uint2 tilesMatrixDim = (gridSize - 1) / RENDERER_TILE_SIZE + 1;
+//	const uint2 tilePos = tgid * threadsPerThreadgroup / RENDERER_TILE_SIZE;
+	const uint2 tilePos = gid/RENDERER_TILE_SIZE;
 	const uint tileIndex = tilePos.y * tilesMatrixDim.x + tilePos.x;
 	const device uint* tileBuffer = tilesArray + tileIndex * RENDERER_TILE_BUFFER_SIZE;
 
 	const uint tileBufferSize = tileCounters[tileIndex];
 
+
+//#define RENDERER_DEBUG_TILES
 #ifdef RENDERER_DEBUG_TILES
 	//NOTE(martin): color code debug values and show the tile grid
+	uint nTileX = tilesMatrixDim.x;
+	uint nTileY = tilesMatrixDim.y;
+
+	if(tilePos.x == 2 && tilePos.y == 12)
+	{
+		outTexture.write(float4(1, 0.5, 1, 1), gid);
+		return;
+	}
+
+	if(nTileY != 13 || nTileX != 13)
+	{
+		outTexture.write(float4(1, 1, 0, 1), gid);
+		return;
+	}
+
+	if(tilePos.x > nTileX || tilePos.y > nTileY)
+	{
+		outTexture.write(float4(0, 1, 1, 1), gid);
+		return;
+	}
+
 	if((gid.x % RENDERER_TILE_SIZE == 0) || (gid.y % RENDERER_TILE_SIZE == 0))
 	{
 		outTexture.write(float4(0, 0, 0, 1), gid);
@@ -202,6 +226,11 @@ kernel void RenderKernel(texture2d<float, access::write> outTexture [[texture(0)
 	if(tileBufferSize <= 0)
 	{
 		outTexture.write(float4(0, 1, 0, 1), gid);
+		return;
+	}
+	else
+	{
+		outTexture.write(float4(1, 0, 0, 1), gid);
 		return;
 	}
 #endif

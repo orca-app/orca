@@ -115,13 +115,15 @@ void mg_stream_append(mg_canvas context, mg_stream stream);
 //------------------------------------------------------------------------------------------
 //NOTE(martin): fonts management
 //------------------------------------------------------------------------------------------
+mg_font mg_font_nil();
 mg_font mg_font_create_from_memory(u32 size, byte* buffer, u32 rangeCount, unicode_range* ranges);
 void mg_font_destroy(mg_font font);
 
 //NOTE(martin): the following int valued functions return -1 if font is invalid or codepoint is not present in font//
 //TODO(martin): add enum error codes
 
-int mg_font_get_extents(mg_font font, mg_font_extents* outExtents);
+mg_font_extents mg_font_get_extents(mg_font font);
+mg_font_extents mg_font_get_scaled_extents(mg_font font, f32 emSize);
 f32 mg_font_get_scale_for_em_pixels(mg_font font, f32 emSize);
 
 //NOTE(martin): if you need to process more than one codepoint, first convert your codepoints to glyph indices, then use the
@@ -187,6 +189,7 @@ void mg_cubic_to(mg_canvas context, f32 x1, f32 y1, f32 x2, f32 y2, f32 x3, f32 
 void mg_close_path(mg_canvas context);
 
 mp_rect mg_glyph_outlines(mg_canvas context, str32 glyphIndices);
+void mg_codepoints_outlines(mg_canvas context, str32 string);
 void mg_text_outlines(mg_canvas context, str8 string);
 
 //------------------------------------------------------------------------------------------
