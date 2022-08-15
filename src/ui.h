@@ -84,6 +84,17 @@ typedef enum { UI_STYLE_SEL_NORMAL = 1<<0,
 typedef u32 ui_style_tag;
 #define UI_STYLE_TAG_ANY (ui_style_tag)0
 
+typedef enum { UI_STYLE_ANIMATE_SIZE         = 1<<1,
+               UI_STYLE_ANIMATE_BG_COLOR     = 1<<2,
+               UI_STYLE_ANIMATE_FG_COLOR     = 1<<3,
+               UI_STYLE_ANIMATE_BORDER_COLOR = 1<<4,
+               UI_STYLE_ANIMATE_FONT_COLOR   = 1<<5,
+               UI_STYLE_ANIMATE_FONT_SIZE    = 1<<6,
+               UI_STYLE_ANIMATE_BORDER_SIZE  = 1<<7,
+               UI_STYLE_ANIMATE_ROUNDNESS    = 1<<8,
+               UI_STYLE_ANIMATE_POS          = 1<<9,
+             } ui_style_animation_flags;
+
 typedef struct ui_style
 {
 	ui_size size[UI_AXIS_COUNT];
@@ -96,6 +107,7 @@ typedef struct ui_style
 	f32 borderSize;
 	f32 roundness;
 	f32 animationTime;
+	ui_style_animation_flags animationFlags;
 } ui_style;
 
 typedef struct ui_box ui_box;
@@ -146,9 +158,10 @@ struct ui_box
 	ui_style computedStyle;
 	u32 z;
 	bool floating[UI_AXIS_COUNT];
+	vec2 floatPos;
+	vec2 floatTarget;
 	ui_layout layout;
 	f32 childrenSum[2];
-	mp_rect targetRect;
 	mp_rect rect;
 
 	// signals
@@ -211,6 +224,7 @@ void ui_push_border_size(f32 size);
 void ui_push_border_color(mg_color color);
 void ui_push_roundness(f32 roundness);
 void ui_push_animation_time(f32 time);
+void ui_push_animation_flags(u32 flags);
 
 void ui_push_bg_color_ext(ui_style_tag tag, ui_style_selector selector, mg_color color);
 void ui_push_fg_color_ext(ui_style_tag tag, ui_style_selector selector, mg_color color);
@@ -221,6 +235,7 @@ void ui_push_border_size_ext(ui_style_tag tag, ui_style_selector selector, f32 s
 void ui_push_border_color_ext(ui_style_tag tag, ui_style_selector selector, mg_color color);
 void ui_push_roundness_ext(ui_style_tag tag, ui_style_selector selector, f32 roundness);
 void ui_push_animation_time_ext(ui_style_tag tag, ui_style_selector selector, f32 time);
+void ui_push_animation_flags_ext(ui_style_tag tag, ui_style_selector selector, u32 flags);
 
 void ui_pop_bg_color();
 void ui_pop_fg_color();
@@ -231,6 +246,7 @@ void ui_pop_border_size();
 void ui_pop_border_color();
 void ui_pop_roundness();
 void ui_pop_animation_time();
+void ui_pop_animation_flags();
 // Basic helpers
 
 enum {
