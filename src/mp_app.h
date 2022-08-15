@@ -342,6 +342,9 @@ void mp_set_target_fps(u32 fps); // or use wait vblank?
 void mp_pump_events(f64 timeout);
 bool mp_next_event(mp_event* event);
 
+typedef void(*mp_live_resize_callback)(mp_event event, void* data);
+void mp_set_live_resize_callback(mp_live_resize_callback callback, void* data);
+
 //--------------------------------------------------------------------
 // Input state polling
 //--------------------------------------------------------------------

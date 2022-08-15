@@ -171,6 +171,11 @@ struct mp_app_data
 	mp_input_state inputState;
 	ringbuffer eventQueue;
 
+	mp_live_resize_callback liveResizeCallback;
+	void* liveResizeData;
+
+	CVDisplayLinkRef displayLink;
+
 	mp_frame_stats frameStats;
 
 	NSTimer* frameTimer;
@@ -180,7 +185,6 @@ struct mp_app_data
 
 	mp_view_data viewPool[MP_APP_MAX_VIEWS];
 	list_info viewFreeList;
-
 
 	TISInputSourceRef kbLayoutInputSource;
 	void* kbLayoutUnicodeData;
@@ -839,7 +843,24 @@ static void mp_queue_event(mp_event* event)
 	mp_rect viewFrame = {0, 0, contentRect.size.width, contentRect.size.height};
 	mp_view_set_frame(mpWindow->mainView, viewFrame);
 
+
+	if(__mpAppData.liveResizeCallback)
+	{
+		__mpAppData.liveResizeCallback(event, __mpAppData.liveResizeData);
+	}
+
+	//TODO: also ensure we don't overflow the queue during live resize...
 	mp_queue_event(&event);
+}
+
+-(void)windowWillStartLiveResize:(NSNotification *)notification
+{
+	CVDisplayLinkStart(__mpAppData.displayLink);
+}
+
+-(void)windowDidEndLiveResize:(NSNotification *)notification
+{
+	CVDisplayLinkStop(__mpAppData.displayLink);
 }
 
 - (void)windowWillClose:(NSNotification *)notification
@@ -1297,6 +1318,7 @@ static const NSRange kEmptyRange = { NSNotFound, 0 };
 {
 }
 
+
 @end //@implementation MPNativeView
 
 /*
@@ -1325,6 +1347,25 @@ f64 mp_get_elapsed_seconds()
 	return(1.e-9*(f64)mp_get_elapsed_nanoseconds());
 }
 */
+
+CVReturn DisplayLinkCallback(CVDisplayLinkRef displayLink,
+                             const CVTimeStamp *inNow,
+                             const CVTimeStamp *inOutputTime,
+                             CVOptionFlags flagsIn,
+                             CVOptionFlags *flagsOut,
+                             void *displayLinkContext)
+{
+	if(__mpAppData.liveResizeCallback)
+	{
+		mp_event event = {};
+		event.type = MP_EVENT_FRAME;
+
+		__mpAppData.liveResizeCallback(event, __mpAppData.liveResizeData);
+	}
+
+	return(0);
+}
+
 
 //***************************************************************
 //			public API
@@ -1366,6 +1407,10 @@ void mp_init()
 
 		LOG_MESSAGE("run application\n");
 		[NSApp run];
+
+		CGDirectDisplayID displayID = CGMainDisplayID();
+		CVDisplayLinkCreateWithCGDisplay(displayID, &__mpAppData.displayLink);
+		CVDisplayLinkSetOutputCallback(__mpAppData.displayLink, DisplayLinkCallback, 0);
 
 		[NSApp setActivationPolicy:NSApplicationActivationPolicyRegular];
 		[NSApp activateIgnoringOtherApps:YES];
@@ -1992,6 +2037,12 @@ void mp_end_frame()
 //--------------------------------------------------------------------
 // Events handling
 //--------------------------------------------------------------------
+
+void mp_set_live_resize_callback(mp_live_resize_callback callback, void* data)
+{
+	__mpAppData.liveResizeCallback = callback;
+	__mpAppData.liveResizeData = data;
+}
 
 void mp_pump_events(f64 timeout)
 {
