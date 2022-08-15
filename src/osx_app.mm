@@ -174,8 +174,6 @@ struct mp_app_data
 	mp_live_resize_callback liveResizeCallback;
 	void* liveResizeData;
 
-	CVDisplayLinkRef displayLink;
-
 	mp_frame_stats frameStats;
 
 	NSTimer* frameTimer;
@@ -855,12 +853,12 @@ static void mp_queue_event(mp_event* event)
 
 -(void)windowWillStartLiveResize:(NSNotification *)notification
 {
-	CVDisplayLinkStart(__mpAppData.displayLink);
+	//TODO
 }
 
 -(void)windowDidEndLiveResize:(NSNotification *)notification
 {
-	CVDisplayLinkStop(__mpAppData.displayLink);
+	//TODO
 }
 
 - (void)windowWillClose:(NSNotification *)notification
@@ -1347,7 +1345,7 @@ f64 mp_get_elapsed_seconds()
 	return(1.e-9*(f64)mp_get_elapsed_nanoseconds());
 }
 */
-
+/*
 CVReturn DisplayLinkCallback(CVDisplayLinkRef displayLink,
                              const CVTimeStamp *inNow,
                              const CVTimeStamp *inOutputTime,
@@ -1365,7 +1363,7 @@ CVReturn DisplayLinkCallback(CVDisplayLinkRef displayLink,
 
 	return(0);
 }
-
+*/
 
 //***************************************************************
 //			public API
@@ -1408,10 +1406,11 @@ void mp_init()
 		LOG_MESSAGE("run application\n");
 		[NSApp run];
 
+		/*TODO: maybe some day send frame events during live resize, without breaking everyting...
 		CGDirectDisplayID displayID = CGMainDisplayID();
 		CVDisplayLinkCreateWithCGDisplay(displayID, &__mpAppData.displayLink);
 		CVDisplayLinkSetOutputCallback(__mpAppData.displayLink, DisplayLinkCallback, 0);
-
+		*/
 		[NSApp setActivationPolicy:NSApplicationActivationPolicyRegular];
 		[NSApp activateIgnoringOtherApps:YES];
 
