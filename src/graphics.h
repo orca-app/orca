@@ -135,6 +135,7 @@ int mg_font_get_codepoint_extents(mg_font font, utf32 codePoint, mg_text_extents
 
 int mg_font_get_glyph_extents(mg_font font, str32 glyphIndices, mg_text_extents* outExtents);
 
+mp_rect mg_text_bounding_box_utf32(mg_font font, f32 fontSize, str32 text);
 mp_rect mg_text_bounding_box(mg_font font, f32 fontSize, str8 text);
 
 //------------------------------------------------------------------------------------------

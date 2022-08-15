@@ -7,6 +7,7 @@
 *
 *****************************************************************/
 #include<stdlib.h>
+#include<string.h>
 #include"milepost.h"
 
 #define LOG_SUBSYSTEM "Main"
@@ -137,36 +138,24 @@ int main()
 
 		mp_rect windowRect = mp_window_get_content_rect(window);
 
-		ui_style defaultStyle = {.borderSize = 2,
+		ui_style defaultStyle = {.bgColor = {0.9, 0.9, 0.9, 1},
+		                         .borderSize = 2,
 		                         .borderColor = {0, 0, 1, 1},
-		                         .textColor = {0, 0, 0, 1},
+		                         .fontColor = {0, 0, 0, 1},
 		                         .font = font,
 		                         .fontSize = 32};
 
-		ui_style buttonStyle[UI_STYLE_SELECTOR_COUNT];
-		for(int i=0; i<UI_STYLE_SELECTOR_COUNT; i++)
-		{
-			buttonStyle[i] = (ui_style){ .backgroundColor = {0.8, 0.8, 0.8, 1},
-			                             .foregroundColor = {0.5, 0.5, 0.5, 1},
-			                             .borderSize = 2,
-			                             .borderColor = {0, 0, 1, 1},
-			                             .textColor = {0, 0, 0, 1},
-			                             .font = font,
-			                             .fontSize = 32 };
-		}
-		buttonStyle[UI_STYLE_HOT].borderColor = (mg_color){1, 0, 0, 1};
-		buttonStyle[UI_STYLE_ACTIVE].borderColor = (mg_color){1, 0, 0, 1};
-		buttonStyle[UI_STYLE_ACTIVE].foregroundColor = (mg_color){0.1, 0.1, 0.1, 1};
-
 		ui_begin_frame(windowRect.w, windowRect.h, defaultStyle);
 		{
-			ui_size_push(UI_AXIS_X, UI_SIZE_PIXELS, 600, 0);
-			ui_size_push(UI_AXIS_Y, UI_SIZE_PIXELS, 200, 0);
+			ui_push_bg_color_ext(UI_STYLE_TAG_BUTTON, UI_STYLE_SEL_ANY, (mg_color){0.8, 0.8, 0.8, 1});
+			ui_push_fg_color_ext(UI_STYLE_TAG_BUTTON, UI_STYLE_SEL_ANY, (mg_color){0.5, 0.5, 0.5, 1});
+			ui_push_border_color_ext(UI_STYLE_TAG_BUTTON, UI_STYLE_SEL_ANY, (mg_color){0, 0, 1, 1});
 
-			for(int i=0; i<UI_STYLE_SELECTOR_COUNT; i++)
-			{
-				ui_style_push(i, buttonStyle[i]);
-			}
+			ui_push_border_color_ext(UI_STYLE_TAG_BUTTON, UI_STYLE_SEL_HOT|UI_STYLE_SEL_ACTIVE, (mg_color){1, 0, 0, 1});
+			ui_push_fg_color_ext(UI_STYLE_TAG_BUTTON, UI_STYLE_SEL_ACTIVE, (mg_color){0.1, 0.1, 0.1, 1});
+
+			ui_push_size(UI_AXIS_X, UI_SIZE_PIXELS, 600, 0);
+			ui_push_size(UI_AXIS_Y, UI_SIZE_PIXELS, 200, 0);
 
 			ui_menu_bar("menu")
 			{
@@ -194,8 +183,8 @@ int main()
 			ui_box* container = ui_box_begin("Test", UI_FLAG_DRAW_BORDER | UI_FLAG_DRAW_BACKGROUND);
 			ui_box_set_layout(container, UI_AXIS_X, UI_ALIGN_END, UI_ALIGN_CENTER);
 			{
-				ui_size_push(UI_AXIS_X, UI_SIZE_TEXT, 0, 0);
-				ui_size_push(UI_AXIS_Y, UI_SIZE_PARENT_RATIO, 0.25, 0);
+				ui_push_size(UI_AXIS_X, UI_SIZE_TEXT, 0, 0);
+				ui_push_size(UI_AXIS_Y, UI_SIZE_PARENT_RATIO, 0.25, 0);
 
 				ui_sig sig1 = ui_button("Child1");
 				if(sig1.hovering)
@@ -220,29 +209,29 @@ int main()
 				ui_box_set_floating(block, UI_AXIS_X, 100);
 				ui_box_set_floating(block, UI_AXIS_Y, 100);
 
-				ui_size_push(UI_AXIS_X, UI_SIZE_PIXELS, 200, 0);
-				ui_size_push(UI_AXIS_Y, UI_SIZE_PIXELS, 20, 0);
+				ui_push_size(UI_AXIS_X, UI_SIZE_PIXELS, 200, 0);
+				ui_push_size(UI_AXIS_Y, UI_SIZE_PIXELS, 20, 0);
 
 				static f32 scrollValue = 0.;
 				ui_scrollbar("scroll", .25, &scrollValue);
 
-				ui_size_pop(UI_AXIS_X);
-				ui_size_pop(UI_AXIS_Y);
+				ui_pop_size(UI_AXIS_X);
+				ui_pop_size(UI_AXIS_Y);
 
-				ui_size_pop(UI_AXIS_X);
-				ui_size_pop(UI_AXIS_Y);
+				ui_pop_size(UI_AXIS_X);
+				ui_pop_size(UI_AXIS_Y);
 
 			} ui_box_end();
 
-			ui_size_pop(UI_AXIS_X);
-			ui_size_pop(UI_AXIS_Y);
+			ui_pop_size(UI_AXIS_X);
+			ui_pop_size(UI_AXIS_Y);
 
-			ui_size_push(UI_AXIS_X, UI_SIZE_PIXELS, 200, 0);
-			ui_size_push(UI_AXIS_Y, UI_SIZE_PIXELS, 200, 0);
+			ui_push_size(UI_AXIS_X, UI_SIZE_PIXELS, 200, 0);
+			ui_push_size(UI_AXIS_Y, UI_SIZE_PIXELS, 200, 0);
 			ui_panel_begin("panel");
 
-			ui_size_push(UI_AXIS_X, UI_SIZE_TEXT, 0, 0);
-			ui_size_push(UI_AXIS_Y, UI_SIZE_TEXT, 0, 0);
+			ui_push_size(UI_AXIS_X, UI_SIZE_TEXT, 0, 0);
+			ui_push_size(UI_AXIS_Y, UI_SIZE_TEXT, 0, 0);
 
 			ui_box* b = ui_box_begin("container", 0);
 			ui_box_set_size(b, UI_AXIS_X, UI_SIZE_CHILDREN, 0, 0);
@@ -250,19 +239,24 @@ int main()
 				ui_button("Hello 1");
 				ui_button("Hello 2");
 				ui_button("Hello 3");
+
+				const u32 backingMaxSize = 4096;
+				static char backing[4096];
+				static str8 text = {};
+
+				ui_text_box_result res = ui_text_box("textbox", mem_scratch(), text);
+				memcpy(backing, res.text.ptr, minimum(res.text.len, backingMaxSize));
+				text = str8_from_buffer(res.text.len, backing);
+
 			ui_box_end();
 
-			ui_size_pop(UI_AXIS_X);
-			ui_size_pop(UI_AXIS_Y);
+			ui_pop_size(UI_AXIS_X);
+			ui_pop_size(UI_AXIS_Y);
 
 			ui_panel_end();
-			ui_size_pop(UI_AXIS_X);
-			ui_size_pop(UI_AXIS_Y);
+			ui_pop_size(UI_AXIS_X);
+			ui_pop_size(UI_AXIS_Y);
 
-			for(int i=0; i<UI_STYLE_SELECTOR_COUNT; i++)
-			{
-				ui_style_pop(i);
-			}
 
 		} ui_end_frame();
 
@@ -271,6 +265,8 @@ int main()
 		mg_canvas_flush(canvas);
 
 		mg_surface_present(surface);
+
+		mem_arena_clear(mem_scratch());
 	}
 
 	mg_surface_destroy(surface);

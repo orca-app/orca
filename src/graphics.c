@@ -3215,9 +3215,9 @@ int mg_font_get_codepoint_extents(mg_font font, utf32 codePoint, mg_text_extents
 	return(0);
 }
 
-mp_rect mg_text_bounding_box(mg_font font, f32 fontSize, str8 text)
+mp_rect mg_text_bounding_box_utf32(mg_font font, f32 fontSize, str32 codePoints)
 {
-	if(!text.len || !text.ptr)
+	if(!codePoints.len || !codePoints.ptr)
 	{
 		return((mp_rect){});
 	}
@@ -3229,7 +3229,6 @@ mp_rect mg_text_bounding_box(mg_font font, f32 fontSize, str8 text)
 	}
 
 	mem_arena* scratch = mem_scratch();
-	str32 codePoints = utf8_push_to_codepoints(scratch, text);
 	str32 glyphIndices = mg_font_push_glyph_indices(font, scratch, codePoints);
 
 	//NOTE(martin): find width of missing character
@@ -3300,6 +3299,18 @@ mp_rect mg_text_bounding_box(mg_font font, f32 fontSize, str8 text)
 	f32 fontScale = mg_font_get_scale_for_em_pixels(font, fontSize);
 	mp_rect rect = {0, -fontInfo->extents.ascent * fontScale, width * fontScale, (y + lineHeight) * fontScale };
 	return(rect);
+}
+
+mp_rect mg_text_bounding_box(mg_font font, f32 fontSize, str8 text)
+{
+	if(!text.len || !text.ptr)
+	{
+		return((mp_rect){});
+	}
+
+	mem_arena* scratch = mem_scratch();
+	str32 codePoints = utf8_push_to_codepoints(scratch, text);
+	return(mg_text_bounding_box_utf32(font, fontSize, codePoints));
 }
 
 //-----------------------------------------------------------------------------------------------------------

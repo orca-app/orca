@@ -82,6 +82,23 @@ str32 str32_push_buffer(mem_arena* arena, u64 len, u32* buffer);
 str32 str32_push_copy(mem_arena* arena, str32 s);
 str32 str32_push_slice(mem_arena* arena, str32 s, u64 start, u64 end);
 
+typedef struct str32_elt
+{
+	list_elt listElt;
+	str32 string;
+} str32_elt;
+
+typedef struct str32_list
+{
+	list_info list;
+	u64 eltCount;
+	u64 len;
+} str32_list;
+
+void str32_list_push(mem_arena* arena, str32_list* list, str32 str);
+str32 str32_list_join(mem_arena* arena, str32_list list);
+str32_list str32_split(mem_arena* arena, str32 str, str32_list separators);
+
 //----------------------------------------------------------------------------------
 // Paths helpers
 //----------------------------------------------------------------------------------

@@ -257,6 +257,57 @@ str32 str32_push_slice(mem_arena* arena, str32 s, u64 start, u64 end)
 	return(str32_push_copy(arena, slice));
 }
 
+void str32_list_init(str32_list* list)
+{
+	ListInit(&list->list);
+	list->eltCount = 0;
+	list->len = 0;
+}
+
+void str32_list_push(mem_arena* arena, str32_list* list, str32 str)
+{
+	str32_elt* elt = mem_arena_alloc_type(arena, str32_elt);
+	elt->string = str;
+	ListAppend(&list->list, &elt->listElt);
+	list->eltCount++;
+	list->len += str.len;
+}
+
+str32 str32_list_collate(mem_arena* arena, str32_list list, str32 prefix, str32 separator, str32 postfix)
+{
+	str32 str = {};
+	str.len = prefix.len + list.len + list.eltCount*separator.len + postfix.len;
+	str.ptr = mem_arena_alloc_array(arena, u32, str.len);
+	char* dst = (char*)str.ptr;
+	memcpy(dst, prefix.ptr, prefix.len*sizeof(u32));
+	dst += prefix.len*sizeof(u32);
+
+	str32_elt* elt = ListFirstEntry(&list.list, str32_elt, listElt);
+	if(elt)
+	{
+		memcpy(dst, elt->string.ptr, elt->string.len*sizeof(u32));
+		dst += elt->string.len*sizeof(u32);
+		elt = ListNextEntry(&list.list, elt, str32_elt, listElt);
+	}
+
+	for( ; elt != 0; elt = ListNextEntry(&list.list, elt, str32_elt, listElt))
+	{
+		memcpy(dst, separator.ptr, separator.len*sizeof(u32));
+		dst += separator.len*sizeof(u32);
+		memcpy(dst, elt->string.ptr, elt->string.len*sizeof(u32));
+		dst += elt->string.len*sizeof(u32);
+	}
+	memcpy(dst, postfix.ptr, postfix.len*sizeof(u32));
+	return(str);
+}
+
+str32 str32_list_join(mem_arena* arena, str32_list list)
+{
+	str32 empty = {.len = 0, .ptr = 0};
+	return(str32_list_collate(arena, list, empty, empty, empty));
+}
+
+
 //----------------------------------------------------------------------------------
 // Paths helpers
 //----------------------------------------------------------------------------------

@@ -74,17 +74,22 @@ typedef struct ui_size
 	f32 strictness;
 } ui_size;
 
-typedef enum { UI_STYLE_NORMAL,
-               UI_STYLE_HOT,
-               UI_STYLE_ACTIVE,
-               UI_STYLE_SELECTOR_COUNT } ui_style_selector;
+typedef enum { UI_STYLE_SEL_NORMAL = 1<<0,
+               UI_STYLE_SEL_HOT    = 1<<1,
+               UI_STYLE_SEL_ACTIVE = 1<<2,
+               UI_STYLE_SEL_ANY    = UI_STYLE_SEL_NORMAL|UI_STYLE_SEL_HOT|UI_STYLE_SEL_ACTIVE,
+             } ui_style_selector;
+
+typedef u32 ui_style_tag;
+#define UI_STYLE_TAG_ANY (ui_style_tag)0
 
 typedef struct ui_style
 {
-	mg_color backgroundColor;
-	mg_color foregroundColor;
+	ui_size size[UI_AXIS_COUNT];
+	mg_color bgColor;
+	mg_color fgColor;
 	mg_color borderColor;
-	mg_color textColor;
+	mg_color fontColor;
 	mg_font font;
 	f32 fontSize;
 	f32 borderSize;
@@ -129,18 +134,15 @@ struct ui_box
 	ui_flags flags;
 	str8 string;
 
-	// layout
+	// styling and layout
+	ui_style_tag tag;
+	ui_style* targetStyle;
+	ui_style computedStyle;
 	u32 z;
 	bool floating[UI_AXIS_COUNT];
-	ui_size desiredSize[UI_AXIS_COUNT];
 	ui_layout layout;
-	mp_rect rect;
 	f32 childrenSum[2];
-
-	// styling
-	ui_style* styles[UI_STYLE_SELECTOR_COUNT];
-	ui_style computedStyle;
-	ui_style_selector styleSelector;
+	mp_rect rect;
 
 	// signals
 	ui_sig* sig;
@@ -149,6 +151,7 @@ struct ui_box
 	bool closed;
 	bool parentClosed;
 	bool dragging;
+	bool hot;
 	bool active;
 	vec2 scroll;
 
@@ -178,14 +181,50 @@ void ui_box_set_style_selector(ui_box* box, ui_style_selector selector);
 
 ui_sig ui_box_sig(ui_box* box);
 
-void ui_size_push(ui_axis axis, ui_size_kind kind, f32 value, f32 strictness);
-void ui_size_pop(ui_axis axis);
-void ui_style_push(ui_style_selector selector, ui_style style);
-void ui_style_pop(ui_style_selector selector);
+void ui_push_size(ui_axis axis, ui_size_kind kind, f32 value, f32 strictness);
+void ui_push_size_ext(ui_style_tag tag, ui_style_selector selector, ui_axis axis, ui_size_kind kind, f32 value, f32 strictness);
+void ui_pop_size(ui_axis axis);
+
+void ui_push_bg_color(mg_color color);
+void ui_push_fg_color(mg_color color);
+void ui_push_font(mg_font font);
+void ui_push_font_size(f32 size);
+void ui_push_font_color(mg_color color);
+void ui_push_border_size(f32 size);
+void ui_push_border_color(mg_color color);
+void ui_push_roundness(f32 roundness);
+
+void ui_push_bg_color_ext(ui_style_tag tag, ui_style_selector selector, mg_color color);
+void ui_push_fg_color_ext(ui_style_tag tag, ui_style_selector selector, mg_color color);
+void ui_push_font_ext(ui_style_tag tag, ui_style_selector selector, mg_font font);
+void ui_push_font_size_ext(ui_style_tag tag, ui_style_selector selector, f32 size);
+void ui_push_font_color_ext(ui_style_tag tag, ui_style_selector selector, mg_color color);
+void ui_push_border_size_ext(ui_style_tag tag, ui_style_selector selector, f32 size);
+void ui_push_border_color_ext(ui_style_tag tag, ui_style_selector selector, mg_color color);
+void ui_push_roundness_ext(ui_style_tag tag, ui_style_selector selector, f32 roundness);
+
+void ui_pop_bg_color();
+void ui_pop_fg_color();
+void ui_pop_font();
+void ui_pop_font_size();
+void ui_pop_font_color();
+void ui_pop_border_size();
+void ui_pop_border_color();
+void ui_pop_roundness();
 
 // Basic helpers
-ui_sig ui_label(const char* label);
 
+enum {
+	UI_STYLE_TAG_USER_MAX = 1<<16,
+	UI_STYLE_TAG_LABEL,
+	UI_STYLE_TAG_BUTTON,
+	UI_STYLE_TAG_SCROLLBAR,
+	UI_STYLE_TAG_PANEL,
+	UI_STYLE_TAG_TOOLTIP,
+	UI_STYLE_TAG_MENU
+};
+
+ui_sig ui_label(const char* label);
 ui_sig ui_button(const char* label);
 ui_box* ui_scrollbar(const char* label, f32 thumbRatio, f32* scrollValue);
 
@@ -204,6 +243,16 @@ void ui_menu_bar_end();
 void ui_menu_begin(const char* label);
 void ui_menu_end();
 #define ui_menu(name) defer_loop(ui_menu_begin(name), ui_menu_end())
+
+typedef struct ui_text_box_result
+{
+	bool changed;
+	bool accepted;
+	str8 text;
+
+}ui_text_box_result;
+
+ui_text_box_result ui_text_box(const char* name, mem_arena* arena, str8 text);
 
 #ifdef __cplusplus
 } // extern "C"

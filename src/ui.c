@@ -26,6 +26,19 @@ typedef struct ui_input_text
 
 } ui_input_text;
 
+typedef struct ui_style_attr
+{
+	ui_style_tag tag;
+	ui_style_selector selector;
+	union
+	{
+		ui_size size;
+		mg_color color;
+		mg_font font;
+		f32 value;
+	};
+} ui_style_attr;
+
 typedef struct ui_stack_elt ui_stack_elt;
 struct ui_stack_elt
 {
@@ -35,7 +48,7 @@ struct ui_stack_elt
 		ui_box* box;
 		ui_size size;
 		mp_rect clip;
-		ui_style style;
+		ui_style_attr attr;
 	};
 };
 
@@ -59,12 +72,27 @@ typedef struct ui_context
 	ui_box* root;
 	ui_box* overlay;
 	ui_stack_elt* boxStack;
-	ui_stack_elt* sizeStack[UI_AXIS_COUNT];
-	ui_stack_elt* styleStack[UI_STYLE_SELECTOR_COUNT];
 	ui_stack_elt* clipStack;
+
+	ui_stack_elt* sizeStack[UI_AXIS_COUNT];
+	ui_stack_elt* bgColorStack;
+	ui_stack_elt* fgColorStack;
+	ui_stack_elt* borderColorStack;
+	ui_stack_elt* fontColorStack;
+	ui_stack_elt* fontStack;
+	ui_stack_elt* fontSizeStack;
+	ui_stack_elt* borderSizeStack;
+	ui_stack_elt* roundnessStack;
+	ui_stack_elt* animationTimeStack;
 
 	u32 z;
 	ui_box* hovered;
+
+	ui_box* focus;
+	u32 editCursor;
+	u32 editMark;
+	u32 editFirstDisplayedChar;
+	f64 editCursorBlinkStart;
 
 } ui_context;
 
@@ -97,64 +125,6 @@ void ui_stack_pop(ui_stack_elt** stack)
 	{
 		LOG_ERROR("ui stack underflow\n");
 	}
-}
-
-void ui_size_push(ui_axis axis, ui_size_kind kind, f32 value, f32 strictness)
-{
-	ui_context* ui = ui_get_context();
-	ui_stack_elt* elt = ui_stack_push(ui, &ui->sizeStack[axis]);
-	elt->size = (ui_size){.kind = kind, .value = value, .strictness = strictness};
-}
-
-void ui_size_pop(ui_axis axis)
-{
-	ui_context* ui = ui_get_context();
-	ui_stack_pop(&ui->sizeStack[axis]);
-}
-
-ui_size ui_size_top(ui_axis axis)
-{
-	ui_context* ui = ui_get_context();
-	ui_size size = {0};
-	if(ui->sizeStack[axis])
-	{
-		size = ui->sizeStack[axis]->size;
-	}
-	return(size);
-}
-
-ui_stack_elt** ui_style_stack_select(ui_context* ui, ui_style_selector selector)
-{
-	DEBUG_ASSERT(selector < UI_STYLE_SELECTOR_COUNT);
-	ui_stack_elt** stack = &ui->styleStack[selector];
-	return(stack);
-}
-
-void ui_style_push(ui_style_selector selector, ui_style style)
-{
-	ui_context* ui = ui_get_context();
-	ui_stack_elt** stack = ui_style_stack_select(ui, selector);
-	ui_stack_elt* elt = ui_stack_push(ui, stack);
-	elt->style = style;
-}
-
-void ui_style_pop(ui_style_selector selector)
-{
-	ui_context* ui = ui_get_context();
-	ui_stack_elt** stack = ui_style_stack_select(ui, selector);
-	ui_stack_pop(stack);
-}
-
-ui_style* ui_style_top(ui_style_selector selector)
-{
-	ui_context* ui = ui_get_context();
-	ui_stack_elt* stack = *ui_style_stack_select(ui, selector);
-	ui_style* style = 0;
-	if(stack)
-	{
-		style = &stack->style;
-	}
-	return(style);
 }
 
 mp_rect ui_intersect_rects(mp_rect lhs, mp_rect rhs)
@@ -223,6 +193,153 @@ void ui_box_pop()
 	}
 
 	ui_stack_pop(&ui->boxStack);
+}
+
+ui_style_attr* ui_push_style_attr(ui_context* ui, ui_stack_elt** stack)
+{
+	ui_stack_elt* elt = ui_stack_push(ui, stack);
+	return(&elt->attr);
+}
+
+void ui_push_size(ui_axis axis, ui_size_kind kind, f32 value, f32 strictness)
+{
+	ui_push_size_ext(UI_STYLE_TAG_ANY, UI_STYLE_SEL_ANY, axis, kind, value, strictness);
+
+}
+
+void ui_push_size_ext(ui_style_tag tag, ui_style_selector selector, ui_axis axis, ui_size_kind kind, f32 value, f32 strictness)
+{
+	ui_context* ui = ui_get_context();
+	ui_style_attr* attr = ui_push_style_attr(ui, &ui->sizeStack[axis]);
+	attr->tag = tag;
+	attr->selector = selector;
+	attr->size = (ui_size){kind, value, strictness};
+}
+
+void ui_pop_size(ui_axis axis)
+{
+	ui_context* ui = ui_get_context();
+	ui_stack_pop(&ui->sizeStack[axis]);
+}
+
+#define UI_STYLE_STACK_OP_DEF(name, stack, type, arg) \
+void _cat3_(ui_push_, name, _ext)(ui_style_tag tag, ui_style_selector selector, type arg) \
+{ \
+	ui_context* ui = ui_get_context(); \
+	ui_style_attr* attr = ui_push_style_attr(ui, &ui->stack); \
+	attr->tag = tag; \
+	attr->selector = selector; \
+	attr->arg = arg; \
+} \
+void _cat2_(ui_push_, name)(type arg) \
+{ \
+	_cat3_(ui_push_, name, _ext)(UI_STYLE_TAG_ANY, UI_STYLE_SEL_ANY, arg); \
+} \
+void _cat2_(ui_pop_, name)() \
+{ \
+	ui_context* ui = ui_get_context(); \
+	ui_stack_pop(&ui->stack); \
+}
+
+UI_STYLE_STACK_OP_DEF(bg_color, bgColorStack, mg_color, color)
+UI_STYLE_STACK_OP_DEF(fg_color, fgColorStack, mg_color, color)
+UI_STYLE_STACK_OP_DEF(border_color, borderColorStack, mg_color, color)
+UI_STYLE_STACK_OP_DEF(font_color, fontColorStack, mg_color, color)
+UI_STYLE_STACK_OP_DEF(font, fontStack, mg_font, font)
+UI_STYLE_STACK_OP_DEF(font_size, fontSizeStack, f32, value)
+UI_STYLE_STACK_OP_DEF(border_size, borderSizeStack, f32, value)
+UI_STYLE_STACK_OP_DEF(roundness, roundnessStack, f32, value)
+UI_STYLE_STACK_OP_DEF(animation_time, animationTimeStack, f32, value)
+
+ui_style_attr* ui_style_attr_query(ui_stack_elt* stack, ui_style_tag tag, ui_style_selector selector)
+{
+	ui_style_attr* result = 0;
+	while(stack)
+	{
+		ui_style_attr* attr = &stack->attr;
+		bool matchTag = (attr->tag == UI_STYLE_TAG_ANY)
+		              ||(attr->tag == tag);
+
+		bool matchSel = attr->selector & selector;
+
+		if(matchTag && matchSel)
+		{
+			result = attr;
+			break;
+		}
+		stack = stack->parent;
+	}
+	return(result);
+}
+
+mg_color ui_style_color_query(ui_stack_elt* stack, ui_style_tag tag, ui_style_selector selector)
+{
+	ui_style_attr* attr = ui_style_attr_query(stack, tag, selector);
+	if(attr)
+	{
+		return(attr->color);
+	}
+	else
+	{
+		return((mg_color){});
+	}
+}
+
+mg_font ui_style_font_query(ui_stack_elt* stack, ui_style_tag tag, ui_style_selector selector)
+{
+	ui_style_attr* attr = ui_style_attr_query(stack, tag, selector);
+	if(attr)
+	{
+		return(attr->font);
+	}
+	else
+	{
+		return(mg_font_nil());
+	}
+}
+
+f32 ui_style_float_query(ui_stack_elt* stack, ui_style_tag tag, ui_style_selector selector)
+{
+	ui_style_attr* attr = ui_style_attr_query(stack, tag, selector);
+	if(attr)
+	{
+		return(attr->value);
+	}
+	else
+	{
+		return(0);
+	}
+}
+
+ui_size ui_style_size_query(ui_stack_elt* stack, ui_style_tag tag, ui_style_selector selector)
+{
+	ui_style_attr* attr = ui_style_attr_query(stack, tag, selector);
+	if(attr)
+	{
+		return(attr->size);
+	}
+	else
+	{
+		return((ui_size){});
+	}
+}
+
+ui_style* ui_collate_style(ui_context* context, ui_style_tag tag, ui_style_selector selector)
+{
+	ui_style* style = mem_arena_alloc_type(&context->frameArena, ui_style);
+
+	style->size[UI_AXIS_X] = ui_style_size_query(context->sizeStack[UI_AXIS_X], tag, selector);
+	style->size[UI_AXIS_Y] = ui_style_size_query(context->sizeStack[UI_AXIS_Y], tag, selector);
+	style->bgColor = ui_style_color_query(context->bgColorStack, tag, selector);
+	style->fgColor = ui_style_color_query(context->fgColorStack, tag, selector);
+	style->borderColor = ui_style_color_query(context->borderColorStack, tag, selector);
+	style->fontColor = ui_style_color_query(context->fontColorStack, tag, selector);
+	style->font = ui_style_font_query(context->fontStack, tag, selector);
+	style->fontSize = ui_style_float_query(context->fontSizeStack, tag, selector);
+	style->borderSize = ui_style_float_query(context->borderSizeStack, tag, selector);
+	style->roundness = ui_style_float_query(context->roundnessStack, tag, selector);
+	style->animationTime = ui_style_float_query(context->animationTimeStack, tag, selector);
+	return(style);
 }
 
 //-----------------------------------------------------------------------------
@@ -397,19 +514,22 @@ ui_box* ui_box_make_str8(str8 string, ui_flags flags)
 
 	box->floating[UI_AXIS_X] = false;
 	box->floating[UI_AXIS_Y] = false;
-
-	box->desiredSize[UI_AXIS_X] = ui_size_top(UI_AXIS_X);
-	box->desiredSize[UI_AXIS_Y] = ui_size_top(UI_AXIS_Y);
 	box->layout = box->parent ? box->parent->layout : (ui_layout){0};
-
-	for(int i=0; i<UI_STYLE_SELECTOR_COUNT; i++)
-	{
-		box->styles[i] = ui_style_top(i);
-	}
-	box->styleSelector = UI_STYLE_NORMAL;
 
 	//NOTE: compute input signals
 	ui_box_compute_signals(ui, box);
+
+	//NOTE: compute style
+	ui_style_selector selector = UI_STYLE_SEL_NORMAL;
+	if(box->hot)
+	{
+		selector = UI_STYLE_SEL_HOT;
+	}
+	if(box->active)
+	{
+		selector = UI_STYLE_SEL_ACTIVE;
+	}
+	box->targetStyle = ui_collate_style(ui, box->tag, selector);
 
 	return(box);
 }
@@ -451,18 +571,13 @@ void ui_box_set_layout(ui_box* box, ui_axis axis, ui_align alignX, ui_align alig
 
 void ui_box_set_size(ui_box* box, ui_axis axis, ui_size_kind kind, f32 value, f32 strictness)
 {
-	box->desiredSize[axis] = (ui_size){kind, value, strictness};
+	box->targetStyle->size[axis] = (ui_size){kind, value, strictness};
 }
 
 void ui_box_set_floating(ui_box* box, ui_axis axis, f32 pos)
 {
 	box->floating[axis] = true;
 	box->rect.c[axis] = pos;
-}
-
-void ui_box_set_style_selector(ui_box* box, ui_style_selector selector)
-{
-	box->styleSelector = selector;
 }
 
 void ui_box_set_closed(ui_box* box, bool closed)
@@ -473,6 +588,36 @@ void ui_box_set_closed(ui_box* box, bool closed)
 bool ui_box_closed(ui_box* box)
 {
 	return(box->closed);
+}
+
+void ui_box_activate(ui_box* box)
+{
+	box->active = true;
+}
+
+void ui_box_deactivate(ui_box* box)
+{
+	box->active = false;
+}
+
+bool ui_box_active(ui_box* box)
+{
+	return(box->active);
+}
+
+void ui_box_set_hot(ui_box* box, bool hot)
+{
+	box->hot = hot;
+}
+
+bool ui_box_hot(ui_box* box)
+{
+	return(box->hot);
+}
+
+void ui_box_set_tag(ui_box* box, ui_style_tag tag)
+{
+	box->tag = tag;
 }
 
 ui_sig ui_box_sig(ui_box* box)
@@ -523,69 +668,19 @@ void ui_animate_color(ui_context* ui, mg_color* color, mg_color target, f32 anim
 
 void ui_box_compute_styling(ui_context* ui, ui_box* box)
 {
-	ui_style* targetStyle = box->styles[box->styleSelector];
-	if(!targetStyle)
-	{
-		targetStyle = box->styles[UI_STYLE_NORMAL];
-	}
+	ui_style* targetStyle = box->targetStyle;
 	DEBUG_ASSERT(targetStyle);
 
 	f32 animationTime = targetStyle->animationTime;
 
-	/*
-	f32 transitionValue = 0;
-
-	//NOTE: update transition values
-	if(box->styleSelector == UI_STYLE_ACTIVE)
-	{
-		//NOTE: transition from normal or hot to active
-		if(box->hotTransition)
-		{
-			//NOTE: transition from hot to active
-			baseStyle = box->styles[UI_STYLE_HOT];
-		}
-		else
-		{
-			//NOTE: transition from normal to active
-			baseStyle = box->styles[UI_STYLE_NORMAL];
-		}
-
-		box->hotTransition = ui_update_transition(ui, box->activeTransition, 1, animationTime);
-		box->activeTransition = ui_update_transition(ui, box->activeTransition, 1, animationTime);
-		transitionValue = box->activeTransition;
-	}
-	else if(box->styleSelector == UI_STYLE_HOT)
-	{
-		box->activeTransition = ui_update_transition(ui, box->activeTransition, 0, animationTime);
-		box->hotTransition = ui_update_transition(ui, box->hotTransition, 1, animationTime);
-
-		if(box->activeTransition)
-		{
-			//NOTE: transition from active to hot
-			transitionValue = box->activeTransition;
-			baseStyle = box->styles[UI_STYLE_ACTIVE];
-		}
-		else
-		{
-			//NOTE: transition from normal to hot
-			transitionValue = box->hotTransition;
-			baseStyle = box->styles[UI_STYLE_NORMAL];
-		}
-	}
-	else
-	{
-		//NOTE: transition from hot or active to normal
-		box->activeTransition = 0;
-		box->hotTransition = ui_update_transition(ui, box->hotTransition, 0, animationTime);
-		transitionValue = box->hotTransition;
-	}
-	*/
+	box->computedStyle.size[UI_AXIS_X] = targetStyle->size[UI_AXIS_X];
+	box->computedStyle.size[UI_AXIS_Y] = targetStyle->size[UI_AXIS_Y];
 
 	//TODO: interpolate based on transition values
-	ui_animate_color(ui, &box->computedStyle.backgroundColor, targetStyle->backgroundColor, animationTime);
-	ui_animate_color(ui, &box->computedStyle.foregroundColor, targetStyle->foregroundColor, animationTime);
+	ui_animate_color(ui, &box->computedStyle.bgColor, targetStyle->bgColor, animationTime);
+	ui_animate_color(ui, &box->computedStyle.fgColor, targetStyle->fgColor, animationTime);
 	ui_animate_color(ui, &box->computedStyle.borderColor, targetStyle->borderColor, animationTime);
-	ui_animate_color(ui, &box->computedStyle.textColor, targetStyle->textColor, animationTime);
+	ui_animate_color(ui, &box->computedStyle.fontColor, targetStyle->fontColor, animationTime);
 
 	box->computedStyle.font = targetStyle->font;
 	ui_animate_f32(ui, &box->computedStyle.fontSize, targetStyle->fontSize, animationTime);
@@ -606,15 +701,18 @@ void ui_layout_prepass(ui_context* ui, ui_box* box)
 	ui_style* style = &box->computedStyle;
 
 	mp_rect textBox = {};
-	if( box->desiredSize[UI_AXIS_X].kind == UI_SIZE_TEXT
-	  ||box->desiredSize[UI_AXIS_Y].kind == UI_SIZE_TEXT)
+	ui_size desiredSize[2] = {box->computedStyle.size[UI_AXIS_X],
+	                          box->computedStyle.size[UI_AXIS_Y]};
+
+	if( desiredSize[UI_AXIS_X].kind == UI_SIZE_TEXT
+	  ||desiredSize[UI_AXIS_Y].kind == UI_SIZE_TEXT)
 	{
 		textBox = mg_text_bounding_box(style->font, style->fontSize, box->string);
 	}
 
 	for(int i=0; i<UI_AXIS_COUNT; i++)
 	{
-		ui_size size = box->desiredSize[i];
+		ui_size size = desiredSize[i];
 
 		if(size.kind == UI_SIZE_TEXT)
 		{
@@ -639,13 +737,13 @@ void ui_layout_upward_dependent_size(ui_context* ui, ui_box* box, int axis)
 		return;
 	}
 
-	ui_size* size = &box->desiredSize[axis];
+	ui_size* size = &box->computedStyle.size[axis];
 
 	if(size->kind == UI_SIZE_PARENT_RATIO)
 	{
 		ui_box* parent = box->parent;
 		if(  parent
-		  && parent->desiredSize[axis].kind != UI_SIZE_CHILDREN)
+		  && parent->computedStyle.size[axis].kind != UI_SIZE_CHILDREN)
 		{
 			box->rect.c[2+axis] = parent->rect.c[2+axis] * size->value;
 		}
@@ -692,7 +790,7 @@ void ui_layout_downward_dependent_size(ui_context* ui, ui_box* box, int axis)
 
 	box->childrenSum[axis] = sum;
 
-	ui_size* size = &box->desiredSize[axis];
+	ui_size* size = &box->computedStyle.size[axis];
 	if(size->kind == UI_SIZE_CHILDREN)
 	{
 		box->rect.c[2+axis] = sum;
@@ -851,7 +949,7 @@ void ui_draw_box(mg_canvas canvas, ui_box* box)
 
 	if(box->flags & UI_FLAG_DRAW_BACKGROUND)
 	{
-		mg_set_color(canvas, style->backgroundColor);
+		mg_set_color(canvas, style->bgColor);
 		ui_rectangle_fill(canvas, box->rect, style->roundness);
 	}
 
@@ -862,7 +960,7 @@ void ui_draw_box(mg_canvas canvas, ui_box* box)
 
 	if(box->flags & UI_FLAG_DRAW_FOREGROUND)
 	{
-		mg_set_color(canvas, style->foregroundColor);
+		mg_set_color(canvas, style->fgColor);
 		ui_rectangle_fill(canvas, box->rect, style->roundness);
 	}
 
@@ -875,7 +973,7 @@ void ui_draw_box(mg_canvas canvas, ui_box* box)
 
 		mg_set_font(canvas, style->font);
 		mg_set_font_size(canvas, style->fontSize);
-		mg_set_color(canvas, style->textColor);
+		mg_set_color(canvas, style->fontColor);
 
 		mg_move_to(canvas, x, y);
 		mg_text_outlines(canvas, box->string);
@@ -935,18 +1033,38 @@ void ui_begin_frame(u32 width, u32 height, ui_style defaultStyle)
 	ui->boxStack = 0;
 	ui->sizeStack[UI_AXIS_X] = 0;
 	ui->sizeStack[UI_AXIS_Y] = 0;
-	for(int i=0; i<UI_STYLE_SELECTOR_COUNT; i++)
-	{
-		ui->styleStack[i] = 0;
-	}
+	ui->bgColorStack = 0;
+	ui->fgColorStack = 0;
+	ui->borderColorStack = 0;
+	ui->fontColorStack = 0;
+	ui->fontStack = 0;
+	ui->fontSizeStack = 0;
+	ui->borderSizeStack = 0;
+	ui->roundnessStack = 0;
+
 
 	ui->clipStack = 0;
 	ui->z = 0;
 
-	ui_style_push(UI_STYLE_NORMAL, defaultStyle);
+	for(int i=0; i<UI_AXIS_COUNT; i++)
+	{
+		ui_push_size(i,
+		             defaultStyle.size[i].kind,
+		             defaultStyle.size[i].value,
+		             defaultStyle.size[i].strictness);
+	}
+	ui_push_bg_color(defaultStyle.bgColor);
+	ui_push_fg_color(defaultStyle.fgColor);
+	ui_push_border_color(defaultStyle.borderColor);
+	ui_push_font_color(defaultStyle.fontColor);
+	ui_push_font(defaultStyle.font);
+	ui_push_font_size(defaultStyle.fontSize);
+	ui_push_border_size(defaultStyle.borderSize);
+	ui_push_roundness(defaultStyle.roundness);
 
-	ui_size_push(UI_AXIS_X, UI_SIZE_PIXELS, width, 0);
-	ui_size_push(UI_AXIS_Y, UI_SIZE_PIXELS, height, 0);
+
+	ui_push_size(UI_AXIS_X, UI_SIZE_PIXELS, width, 0);
+	ui_push_size(UI_AXIS_Y, UI_SIZE_PIXELS, height, 0);
 
 	ui->root = ui_box_begin("_root_", 0);
 
@@ -959,8 +1077,8 @@ void ui_begin_frame(u32 width, u32 height, ui_style defaultStyle)
 	ui_box_set_floating(ui->overlay, UI_AXIS_X, 0);
 	ui_box_set_floating(ui->overlay, UI_AXIS_Y, 0);
 
-	ui_size_pop(UI_AXIS_X);
-	ui_size_pop(UI_AXIS_Y);
+	ui_pop_size(UI_AXIS_X);
+	ui_pop_size(UI_AXIS_Y);
 
 	ui_box_push(contents);
 }
@@ -974,7 +1092,7 @@ void ui_end_frame()
 	ui_box* box = ui_box_end();
 	DEBUG_ASSERT(box == ui->root, "unbalanced box stack");
 
-	ui_style_pop(UI_STYLE_NORMAL);
+	//TODO: check balancing of style stacks
 
 	//NOTE: layout
 	ui_solve_layout(ui);
@@ -1043,15 +1161,24 @@ ui_sig ui_button(const char* label)
 	               | UI_FLAG_ACTIVE_ANIMATION;
 
 	ui_box* box = ui_box_make(label, flags);
+	ui_box_set_tag(box, UI_STYLE_TAG_BUTTON);
 	ui_sig sig = ui_box_sig(box);
 
 	if(sig.hovering)
 	{
-		ui_box_set_style_selector(box, UI_STYLE_HOT);
+		ui_box_set_hot(box, true);
 		if(sig.dragging)
 		{
-			ui_box_set_style_selector(box, UI_STYLE_ACTIVE);
+			ui_box_activate(box);
 		}
+	}
+	else
+	{
+		ui_box_set_hot(box, false);
+	}
+	if(!sig.dragging)
+	{
+		ui_box_deactivate(box);
 	}
 
 	return(sig);
@@ -1067,24 +1194,14 @@ ui_box* ui_scrollbar(const char* label, f32 thumbRatio, f32* scrollValue)
 		f32 roundness = 0.5*frame->rect.c[2+secondAxis];
 		f32 animationTime = 0.5;
 
-		ui_style style[UI_STYLE_SELECTOR_COUNT] = {
-			[UI_STYLE_NORMAL] = {.backgroundColor = {0, 0, 0, 0},
-			                 	 .foregroundColor = {0, 0, 0, 0},
-			                 	 .roundness = roundness,
-			                 	 .animationTime = animationTime},
-			[UI_STYLE_HOT] = {.backgroundColor = {0, 0, 0, 0.5},
-			              	  .foregroundColor = {0, 0, 0, 0.7},
-			              	  .roundness = roundness,
-			              	  .animationTime = animationTime},
-			[UI_STYLE_ACTIVE] = {.backgroundColor = {0, 0, 0, 0.5},
-			                 	 .foregroundColor = {0, 0, 0, 0.7},
-			                 	 .roundness = roundness,
-			                 	 .animationTime = animationTime}};
+		ui_push_bg_color((mg_color){0, 0, 0, 0});
+		ui_push_fg_color((mg_color){0, 0, 0, 0});
+		ui_push_roundness(roundness);
 
-		for(int i=0; i<UI_STYLE_SELECTOR_COUNT; i++)
-		{
-			ui_style_push(i, style[i]);
-		}
+		ui_push_bg_color_ext(UI_STYLE_TAG_ANY, UI_STYLE_SEL_HOT|UI_STYLE_SEL_ACTIVE, (mg_color){0, 0, 0, 0.5});
+		ui_push_fg_color_ext(UI_STYLE_TAG_ANY, UI_STYLE_SEL_HOT|UI_STYLE_SEL_ACTIVE, (mg_color){0, 0, 0, 0.7});
+		ui_push_roundness_ext(UI_STYLE_TAG_ANY, UI_STYLE_SEL_HOT|UI_STYLE_SEL_ACTIVE, roundness);
+		ui_push_animation_time_ext(UI_STYLE_TAG_ANY, UI_STYLE_SEL_ANY, 1.);
 
 		ui_flags trackFlags = UI_FLAG_CLIP
 	                    	| UI_FLAG_DRAW_BACKGROUND
@@ -1119,10 +1236,13 @@ ui_box* ui_scrollbar(const char* label, f32 thumbRatio, f32* scrollValue)
 
 		ui_box_end();
 
-		for(int i=0; i<UI_STYLE_SELECTOR_COUNT; i++)
-		{
-			ui_style_pop(i);
-		}
+		ui_pop_bg_color();
+		ui_pop_fg_color();
+		ui_pop_roundness();
+		ui_pop_bg_color();
+		ui_pop_fg_color();
+		ui_pop_roundness();
+		ui_pop_animation_time();
 
 		//NOTE: interaction
 		ui_sig thumbSig = ui_box_sig(thumb);
@@ -1139,13 +1259,24 @@ ui_box* ui_scrollbar(const char* label, f32 thumbRatio, f32* scrollValue)
 		ui_sig trackSig = ui_box_sig(track);
 		if(trackSig.hovering)
 		{
-			ui_box_set_style_selector(track, UI_STYLE_HOT);
-			ui_box_set_style_selector(thumb, UI_STYLE_HOT);
+			ui_box_set_hot(track, true);
+			ui_box_set_hot(thumb, true);
 		}
+		else
+		{
+			ui_box_set_hot(track, false);
+			ui_box_set_hot(thumb, false);
+		}
+
 		if(thumbSig.dragging)
 		{
-			ui_box_set_style_selector(track, UI_STYLE_ACTIVE);
-			ui_box_set_style_selector(thumb, UI_STYLE_ACTIVE);
+			ui_box_activate(track);
+			ui_box_activate(thumb);
+		}
+		else
+		{
+			ui_box_deactivate(track);
+			ui_box_deactivate(thumb);
 		}
 
 	} ui_box_end();
@@ -1234,21 +1365,6 @@ void ui_tooltip_end()
 	ui_box_pop(); // ui->overlay
 }
 
-void ui_box_activate(ui_box* box)
-{
-	box->active = true;
-}
-
-void ui_box_deactivate(ui_box* box)
-{
-	box->active = false;
-}
-
-bool ui_box_active(ui_box* box)
-{
-	return(box->active);
-}
-
 void ui_menu_bar_begin(const char* name)
 {
 	ui_box* bar = ui_box_begin(name, UI_FLAG_DRAW_BACKGROUND);
@@ -1256,9 +1372,8 @@ void ui_menu_bar_begin(const char* name)
 	ui_box_set_size(bar, UI_AXIS_Y, UI_SIZE_CHILDREN, 0, 0);
 	ui_box_set_layout(bar, UI_AXIS_X, UI_ALIGN_START, UI_ALIGN_START);
 
-	ui_size_push(UI_AXIS_X, UI_SIZE_TEXT, 0, 0);
-	ui_size_push(UI_AXIS_Y, UI_SIZE_TEXT, 0, 0);
-
+	ui_push_size(UI_AXIS_X, UI_SIZE_TEXT, 0, 0);
+	ui_push_size(UI_AXIS_Y, UI_SIZE_TEXT, 0, 0);
 
 	ui_sig sig = ui_box_sig(bar);
 	if(!sig.hovering && mp_input_mouse_released(MP_MOUSE_LEFT))
@@ -1269,8 +1384,8 @@ void ui_menu_bar_begin(const char* name)
 
 void ui_menu_bar_end()
 {
-	ui_size_pop(UI_AXIS_X);
-	ui_size_pop(UI_AXIS_Y);
+	ui_pop_size(UI_AXIS_X);
+	ui_pop_size(UI_AXIS_Y);
 	ui_box_end(); // menu bar
 }
 
@@ -1326,7 +1441,480 @@ void ui_menu_end()
 	ui_box_pop(); // overlay;
 }
 
+////////////////////////////////////////////////////////////////////////////////////////////////
 
+/*
+void ui_edit_set_cursor_from_mouse(ui_context* gui, ui_style* style, f32 textStartX)
+{
+	mp_graphics_font_extents fontExtents;
+	mp_graphics_font_get_extents(gui->graphics, style->font, &fontExtents);
+	f32 fontScale = mp_graphics_font_get_scale_for_em_pixels(gui->graphics, style->font, style->fontSize);
+
+	//NOTE(martin): find cursor position from mouse position
+	gui->editCursor = gui->editBufferSize;
+
+	mp_graphics_text_extents glyphExtents[UI_EDIT_BUFFER_MAX_SIZE];
+	mp_string32 codePoints = {gui->editBufferSize, gui->editBuffer};
+	mp_string32 glyphs = mp_graphics_font_push_glyph_indices(gui->graphics, style->font, mem_scratch(), codePoints);
+	mp_graphics_font_get_glyph_extents(gui->graphics, style->font, glyphs, glyphExtents);
+
+	mp_graphics_set_font(gui->graphics, style->font);
+	vec2 dimToFirst = mp_graphics_get_glyphs_dimensions(gui->graphics, mp_string32_slice(glyphs, 0, gui->firstDisplayedChar));
+
+	ui_transform tr = ui_transform_top(gui);
+	f32 x = gui->input.mouse.x + tr.x - textStartX;
+	f32 glyphX = -dimToFirst.x;
+
+	for(int i=0; i<gui->editBufferSize; i++)
+	{
+		if(x < glyphX + glyphExtents[i].xAdvance*fontScale/2)
+		{
+			gui->editCursor = i;
+			return;
+		}
+		glyphX += glyphExtents[i].xAdvance*fontScale;
+	}
+	return;
+}
+*/
+
+str32 ui_edit_replace_selection_with_codepoints(ui_context* ui, str32 codepoints, str32 input)
+{
+	u32 start = minimum(ui->editCursor, ui->editMark);
+	u32 end = maximum(ui->editCursor, ui->editMark);
+
+	str32 before = str32_slice(codepoints, 0, start);
+	str32 after = str32_slice(codepoints, end, codepoints.len);
+
+	str32_list list = {};
+	str32_list_push(&ui->frameArena, &list, before);
+	str32_list_push(&ui->frameArena, &list, input);
+	str32_list_push(&ui->frameArena, &list, after);
+
+	codepoints = str32_list_join(&ui->frameArena, list);
+
+	ui->editCursor = start + input.len;
+	ui->editMark = ui->editCursor;
+	return(codepoints);
+}
+
+str32 ui_edit_delete_selection(ui_context* ui, str32 codepoints)
+{
+	return(ui_edit_replace_selection_with_codepoints(ui, codepoints, (str32){0}));
+}
+
+void ui_edit_copy_selection_to_clipboard(ui_context* ui, str32 codepoints)
+{
+	if(ui->editCursor == ui->editMark)
+	{
+		return;
+	}
+	u32 start = minimum(ui->editCursor, ui->editMark);
+	u32 end = maximum(ui->editCursor, ui->editMark);
+	str32 selection = str32_slice(codepoints, start, end);
+
+	str8 string = utf8_push_from_codepoints(&ui->frameArena, selection);
+
+	mp_clipboard_clear();
+	mp_clipboard_set_string(string);
+}
+
+str32 ui_edit_replace_selection_with_clipboard(ui_context* ui, str32 codepoints)
+{
+	str8 string = mp_clipboard_get_string(&ui->frameArena);
+	str32 input = utf8_push_to_codepoints(&ui->frameArena, string);
+	str32 result = ui_edit_replace_selection_with_codepoints(ui, codepoints, input);
+	return(result);
+}
+
+typedef enum {
+	UI_EDIT_MOVE,
+	UI_EDIT_SELECT,
+	UI_EDIT_SELECT_EXTEND,
+	UI_EDIT_DELETE,
+	UI_EDIT_CUT,
+	UI_EDIT_COPY,
+	UI_EDIT_PASTE,
+	UI_EDIT_SELECT_ALL } ui_edit_op;
+
+typedef enum {
+	UI_EDIT_MOVE_NONE = 0,
+	UI_EDIT_MOVE_ONE,
+	UI_EDIT_MOVE_WORD,
+	UI_EDIT_MOVE_LINE } ui_edit_move;
+
+typedef struct ui_edit_command
+{
+	mp_key_code key;
+	mp_key_mods mods;
+
+	ui_edit_op operation;
+	ui_edit_move move;
+	int direction;
+
+} ui_edit_command;
+
+const ui_edit_command UI_EDIT_COMMANDS[] = {
+	//NOTE(martin): move one left
+	{
+		.key = MP_KEY_LEFT,
+		.operation = UI_EDIT_MOVE,
+		.move = UI_EDIT_MOVE_ONE,
+		.direction = -1
+	},
+	//NOTE(martin): move one right
+	{
+		.key = MP_KEY_RIGHT,
+		.operation = UI_EDIT_MOVE,
+		.move = UI_EDIT_MOVE_ONE,
+		.direction = 1
+	},
+	//NOTE(martin): move start
+	{
+		.key = MP_KEY_Q,
+		.mods = MP_KEYMOD_CTRL,
+		.operation = UI_EDIT_MOVE,
+		.move = UI_EDIT_MOVE_LINE,
+		.direction = -1
+	},
+	{
+		.key = MP_KEY_UP,
+		.operation = UI_EDIT_MOVE,
+		.move = UI_EDIT_MOVE_LINE,
+		.direction = -1
+	},
+	//NOTE(martin): move end
+	{
+		.key = MP_KEY_E,
+		.mods = MP_KEYMOD_CTRL,
+		.operation = UI_EDIT_MOVE,
+		.move = UI_EDIT_MOVE_LINE,
+		.direction = 1
+	},
+	{
+		.key = MP_KEY_DOWN,
+		.operation = UI_EDIT_MOVE,
+		.move = UI_EDIT_MOVE_LINE,
+		.direction = 1
+	},
+	//NOTE(martin): select one left
+	{
+		.key = MP_KEY_LEFT,
+		.mods = MP_KEYMOD_SHIFT,
+		.operation = UI_EDIT_SELECT,
+		.move = UI_EDIT_MOVE_ONE,
+		.direction = -1
+	},
+	//NOTE(martin): select one right
+	{
+		.key = MP_KEY_RIGHT,
+		.mods = MP_KEYMOD_SHIFT,
+		.operation = UI_EDIT_SELECT,
+		.move = UI_EDIT_MOVE_ONE,
+		.direction = 1
+	},
+	//NOTE(martin): extend select to start
+	{
+		.key = MP_KEY_Q,
+		.mods = MP_KEYMOD_CTRL | MP_KEYMOD_SHIFT,
+		.operation = UI_EDIT_SELECT_EXTEND,
+		.move = UI_EDIT_MOVE_LINE,
+		.direction = -1
+	},
+	{
+		.key = MP_KEY_UP,
+		.mods = MP_KEYMOD_SHIFT,
+		.operation = UI_EDIT_SELECT_EXTEND,
+		.move = UI_EDIT_MOVE_LINE,
+		.direction = -1
+	},
+	//NOTE(martin): extend select to end
+	{
+		.key = MP_KEY_E,
+		.mods = MP_KEYMOD_CTRL | MP_KEYMOD_SHIFT,
+		.operation = UI_EDIT_SELECT_EXTEND,
+		.move = UI_EDIT_MOVE_LINE,
+		.direction = 1
+	},
+	{
+		.key = MP_KEY_DOWN,
+		.mods = MP_KEYMOD_SHIFT,
+		.operation = UI_EDIT_SELECT_EXTEND,
+		.move = UI_EDIT_MOVE_LINE,
+		.direction = 1
+	},
+	//NOTE(martin): select all
+	{
+		.key = MP_KEY_Q,
+		.mods = MP_KEYMOD_CMD,
+		.operation = UI_EDIT_SELECT_ALL,
+		.move = UI_EDIT_MOVE_NONE
+	},
+	//NOTE(martin): delete
+	{
+		.key = MP_KEY_DELETE,
+		.operation = UI_EDIT_DELETE,
+		.move = UI_EDIT_MOVE_ONE,
+		.direction = 1
+	},
+	//NOTE(martin): backspace
+	{
+		.key = MP_KEY_BACKSPACE,
+		.operation = UI_EDIT_DELETE,
+		.move = UI_EDIT_MOVE_ONE,
+		.direction = -1
+	},
+	//NOTE(martin): cut
+	{
+		.key = MP_KEY_X,
+		.mods = MP_KEYMOD_CMD,
+		.operation = UI_EDIT_CUT,
+		.move = UI_EDIT_MOVE_NONE
+	},
+	//NOTE(martin): copy
+	{
+		.key = MP_KEY_C,
+		.mods = MP_KEYMOD_CMD,
+		.operation = UI_EDIT_COPY,
+		.move = UI_EDIT_MOVE_NONE
+	},
+	//NOTE(martin): paste
+	{
+		.key = MP_KEY_V,
+		.mods = MP_KEYMOD_CMD,
+		.operation = UI_EDIT_PASTE,
+		.move = UI_EDIT_MOVE_NONE
+	}
+};
+
+const u32 UI_EDIT_COMMAND_COUNT = sizeof(UI_EDIT_COMMANDS)/sizeof(ui_edit_command);
+
+void ui_edit_perform_move(ui_context* ui, ui_edit_move move, int direction, u32 textLen, u32 cursor)
+{
+	switch(move)
+	{
+		case UI_EDIT_MOVE_NONE:
+			break;
+
+		case UI_EDIT_MOVE_ONE:
+		{
+			if(direction < 0 && cursor > 0)
+			{
+				cursor--;
+			}
+			else if(direction > 0 && cursor < textLen)
+			{
+				cursor++;
+			}
+		} break;
+
+		case UI_EDIT_MOVE_LINE:
+		{
+			if(direction < 0)
+			{
+				cursor = 0;
+			}
+			else if(direction > 0)
+			{
+				cursor = textLen;
+			}
+		} break;
+
+		case UI_EDIT_MOVE_WORD:
+			DEBUG_ASSERT(0, "not implemented yet");
+			break;
+	}
+	ui->editCursor = cursor;
+}
+
+str32 ui_edit_perform_operation(ui_context* ui, ui_edit_op operation, ui_edit_move move, int direction, str32 codepoints)
+{
+	switch(operation)
+	{
+		case UI_EDIT_MOVE:
+		{
+			//NOTE(martin): we place the cursor on the direction-most side of the selection
+			//              before performing the move
+			u32 cursor = direction < 0 ?
+				     minimum(ui->editCursor, ui->editMark) :
+				     maximum(ui->editCursor, ui->editMark);
+
+			if(ui->editCursor == ui->editMark || move != UI_EDIT_MOVE_ONE)
+			{
+				//NOTE: we special case move-one when there is a selection
+				//      (just place the cursor at begining/end of selection)
+				ui_edit_perform_move(ui, move, direction, codepoints.len, cursor);
+			}
+			ui->editMark = ui->editCursor;
+		} break;
+
+		case UI_EDIT_SELECT:
+		{
+			ui_edit_perform_move(ui, move, direction, codepoints.len, ui->editCursor);
+		} break;
+
+		case UI_EDIT_SELECT_EXTEND:
+		{
+			u32 cursor = direction > 0 ?
+			            (ui->editCursor > ui->editMark ? ui->editCursor : ui->editMark) :
+				        (ui->editCursor < ui->editMark ? ui->editCursor : ui->editMark);
+
+			ui_edit_perform_move(ui, move, direction, codepoints.len, cursor);
+		} break;
+
+		case UI_EDIT_DELETE:
+		{
+			if(ui->editCursor == ui->editMark)
+			{
+				ui_edit_perform_move(ui, move, direction, codepoints.len, ui->editCursor);
+			}
+			codepoints = ui_edit_delete_selection(ui, codepoints);
+			ui->editMark = ui->editCursor;
+		} break;
+
+		case UI_EDIT_CUT:
+		{
+			ui_edit_copy_selection_to_clipboard(ui, codepoints);
+			codepoints = ui_edit_delete_selection(ui, codepoints);
+		} break;
+
+		case UI_EDIT_COPY:
+		{
+			ui_edit_copy_selection_to_clipboard(ui, codepoints);
+		} break;
+
+		case UI_EDIT_PASTE:
+		{
+			codepoints = ui_edit_replace_selection_with_clipboard(ui, codepoints);
+		} break;
+
+		case UI_EDIT_SELECT_ALL:
+		{
+			ui->editCursor = 0;
+			ui->editMark = codepoints.len;
+		} break;
+	}
+	ui->editCursorBlinkStart  = ui->frameTime;
+
+	return(codepoints);
+}
+
+ui_text_box_result ui_text_box(const char* name, mem_arena* arena, str8 text)
+{
+	ui_context* ui = ui_get_context();
+
+	ui_text_box_result result = {.text = text};
+
+	ui_flags frameFlags = UI_FLAG_CLICKABLE
+	                    | UI_FLAG_DRAW_BACKGROUND
+	                    | UI_FLAG_DRAW_BORDER
+	                    | UI_FLAG_CLIP
+	                    | UI_FLAG_SCROLLABLE;
+
+	ui_box* frame = ui_box_make(name, frameFlags);
+	ui_box_set_layout(frame, UI_AXIS_X, UI_ALIGN_START, UI_ALIGN_CENTER);
+
+	ui_box_push(frame);
+
+	ui_flags contentsFlags = UI_FLAG_DRAW_TEXT;
+
+	ui_box* contents = ui_box_make_str8(text, contentsFlags);
+	ui_box_set_size(contents, UI_AXIS_X, UI_SIZE_TEXT, 0, 1);
+	ui_box_set_size(contents, UI_AXIS_Y, UI_SIZE_PARENT_RATIO, 1, 1);
+
+	ui_sig sig = ui_box_sig(frame);
+
+	if(sig.hovering)
+	{
+		ui_box_set_hot(frame, true);
+
+		if(sig.pressed)
+		{
+			if(!ui_box_active(frame))
+			{
+				ui_box_activate(frame);
+
+				//NOTE: focus
+				ui->focus = frame;
+				ui->editFirstDisplayedChar = 0;
+				ui->editCursor = 0;
+				ui->editMark = 0;
+				ui->editCursorBlinkStart = ui->frameTime;
+			}
+			//TODO: set cursor on mouse pos
+
+		}
+
+	}
+	else
+	{
+		ui_box_set_hot(frame, false);
+
+		if(sig.pressed)
+		{
+			if(ui_box_active(frame))
+			{
+				ui_box_deactivate(frame);
+
+				//NOTE loose focus
+				ui->focus = 0;
+			}
+		}
+	}
+
+	if(ui_box_active(frame))
+	{
+		str32 codepoints = utf8_push_to_codepoints(&ui->frameArena, text);
+
+		ui->editCursor = Clamp(ui->editCursor, 0, codepoints.len);
+		ui->editMark = Clamp(ui->editMark, 0, codepoints.len);
+
+		//NOTE replace selection with input codepoints
+		str32 input = mp_input_text_utf32(&ui->frameArena);
+		if(input.len)
+		{
+			printf("text edit got input\n");
+
+			codepoints = ui_edit_replace_selection_with_codepoints(ui, codepoints, input);
+		}
+
+		//NOTE handle shortcuts
+		mp_key_mods mods = mp_input_key_mods();
+
+		for(int i=0; i<UI_EDIT_COMMAND_COUNT; i++)
+		{
+			const ui_edit_command* command = &(UI_EDIT_COMMANDS[i]);
+			if(mp_input_key_pressed(command->key) && mods == command->mods)
+			{
+				codepoints = ui_edit_perform_operation(ui, command->operation, command->move, command->direction, codepoints);
+				break;
+			}
+		}
+
+		result.text = utf8_push_from_codepoints(arena, codepoints);
+		contents->string = str8_push_copy(&ui->frameArena, result.text);
+
+		//NOTE slide contents
+
+		//NOTE position caret
+
+		str32 displayedBeforeCaret = str32_slice(codepoints, ui->editFirstDisplayedChar, ui->editCursor);
+		ui_style* style = &contents->computedStyle;
+		mp_rect extents = mg_text_bounding_box_utf32(style->font, style->fontSize, displayedBeforeCaret);
+
+		ui_push_fg_color((mg_color){0, 0, 0, 1});
+		ui_box* caret = ui_box_make("caret", UI_FLAG_DRAW_FOREGROUND);
+		ui_box_set_size(caret, UI_AXIS_X, UI_SIZE_PIXELS, 2, 1);
+		ui_box_set_size(caret, UI_AXIS_Y, UI_SIZE_PARENT_RATIO, 0.9, 1);
+		ui_box_set_floating(caret, UI_AXIS_X, extents.x + extents.w);
+
+		ui_pop_fg_color();
+	}
+
+	ui_box_pop();
+
+	return(result);
+}
 
 
 #undef LOG_SUBSYSTEM

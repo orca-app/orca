@@ -3,14 +3,19 @@
 Shortlist
 ---------
 [x] let pass flat args in ui_size_push() and ui_box_set_size()
-[>>] separate style stacks
+[x] separate style stacks
+[x] animation time stack
 [>] margins? as part of size, or different styling stack?
-[>] animation time stack
+
 [ ] Let build code set target style directly, and animate from current to target
 [ ] filter styles stack by tag
 [ ] image backgrounds/gradients?
 [ ] animating open/close widgets?
 
+[.] Text box widget
+	[ ] Draw selection
+	[ ] Set cursor on click
+	[ ] Scroll to cursor
 
 Canvas Drawing
 --------------

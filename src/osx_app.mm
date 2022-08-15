@@ -636,7 +636,9 @@ static void mp_update_text(utf32 codepoint)
 	if(text->lastUpdate != frameCounter)
 	{
 		text->codePoints.len = 0;
+		text->lastUpdate = frameCounter;
 	}
+
 	text->codePoints.ptr = text->backing;
 	if(text->codePoints.len < MP_INPUT_TEXT_BACKING_SIZE)
 	{
