@@ -1078,7 +1078,7 @@ static void mp_queue_event(mp_event* event)
 	event.move.x = 0;
 	event.move.y = 0;
 	event.move.deltaX = [nsEvent scrollingDeltaX]*factor;
-	event.move.deltaY = -[nsEvent scrollingDeltaY]*factor;
+	event.move.deltaY = [nsEvent scrollingDeltaY]*factor;
 	event.move.mods = mp_convert_osx_mods([nsEvent modifierFlags]);
 
 	mp_update_mouse_wheel(event.move.deltaX, event.move.deltaY);

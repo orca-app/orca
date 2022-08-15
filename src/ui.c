@@ -1268,12 +1268,22 @@ ui_box* ui_scrollbar(const char* label, f32 thumbRatio, f32* scrollValue)
 		}
 
 		ui_sig trackSig = ui_box_sig(track);
+
+		if(ui_box_active(frame))
+		{
+			//NOTE: activated from outside
+			ui_box_set_hot(track, true);
+			ui_box_set_hot(thumb, true);
+			ui_box_activate(track);
+			ui_box_activate(thumb);
+		}
+
 		if(trackSig.hovering)
 		{
 			ui_box_set_hot(track, true);
 			ui_box_set_hot(thumb, true);
 		}
-		else
+		else if(thumbSig.wheel.c[trackAxis] == 0)
 		{
 			ui_box_set_hot(track, false);
 			ui_box_set_hot(thumb, false);
@@ -1284,10 +1294,11 @@ ui_box* ui_scrollbar(const char* label, f32 thumbRatio, f32* scrollValue)
 			ui_box_activate(track);
 			ui_box_activate(thumb);
 		}
-		else
+		else if(thumbSig.wheel.c[trackAxis] == 0)
 		{
 			ui_box_deactivate(track);
 			ui_box_deactivate(thumb);
+			ui_box_deactivate(frame);
 		}
 
 	} ui_box_end();
@@ -1303,50 +1314,69 @@ ui_box* ui_panel_begin(const char* name)
 	                    | UI_FLAG_BLOCK_MOUSE;
 	ui_box* panel = ui_box_begin(name, panelFlags);
 
-	ui_box* innerView = ui_box_begin(name, 0);
-
 	return(panel);
 }
 
 void ui_panel_end()
 {
-	ui_box* innerView = ui_box_top();
-	ui_box_end();
-
 	ui_box* panel = ui_box_top();
+	ui_sig sig = ui_box_sig(panel);
 
-	f32 contentsW = ClampLowBound(innerView->childrenSum[0], innerView->rect.w);
-	f32 contentsH = ClampLowBound(innerView->childrenSum[1], innerView->rect.h);
+	f32 contentsW = ClampLowBound(panel->childrenSum[0], panel->rect.w);
+	f32 contentsH = ClampLowBound(panel->childrenSum[1], panel->rect.h);
 
 	contentsW = ClampLowBound(contentsW, 1);
 	contentsH = ClampLowBound(contentsH, 1);
 
-	if(contentsW > innerView->rect.w)
-	{
-		f32 thumbRatioX = innerView->rect.w / contentsW;
-		f32 sliderX = innerView->scroll.x /(contentsW - innerView->rect.w);
+	ui_box* scrollBarX = 0;
+	ui_box* scrollBarY = 0;
 
-		ui_box* scrollBarX = ui_scrollbar("scrollerX", thumbRatioX, &sliderX);
+	if(contentsW > panel->rect.w)
+	{
+		f32 thumbRatioX = panel->rect.w / contentsW;
+		f32 sliderX = panel->scroll.x /(contentsW - panel->rect.w);
+
+		scrollBarX = ui_scrollbar("scrollerX", thumbRatioX, &sliderX);
 		ui_box_set_size(scrollBarX, UI_AXIS_X, UI_SIZE_PARENT_RATIO, 1., 0);
 		ui_box_set_size(scrollBarX, UI_AXIS_Y, UI_SIZE_PIXELS, 10, 0);
-		ui_box_set_floating(scrollBarX, UI_AXIS_X, 0);
-		ui_box_set_floating(scrollBarX, UI_AXIS_Y, panel->rect.h - 12);
 
-		innerView->scroll.x = sliderX * (contentsW - innerView->rect.w);
+		panel->scroll.x = sliderX * (contentsW - panel->rect.w);
+		if(sig.hovering)
+		{
+			panel->scroll.x += sig.wheel.x;
+			ui_box_activate(scrollBarX);
+		}
+		panel->scroll.x = Clamp(panel->scroll.x, 0, contentsW - panel->rect.w);
 	}
 
-	if(contentsH > innerView->rect.h)
+	if(contentsH > panel->rect.h)
 	{
-		f32 thumbRatioY = innerView->rect.h / contentsH;
-		f32 sliderY = innerView->scroll.y /(contentsH - innerView->rect.h);
+		f32 thumbRatioY = panel->rect.h / contentsH;
+		f32 sliderY = panel->scroll.y /(contentsH - panel->rect.h);
 
-		ui_box* scrollBarY = ui_scrollbar("scrollerY", thumbRatioY, &sliderY);
+		scrollBarY = ui_scrollbar("scrollerY", thumbRatioY, &sliderY);
 		ui_box_set_size(scrollBarY, UI_AXIS_X, UI_SIZE_PIXELS, 10, 0);
 		ui_box_set_size(scrollBarY, UI_AXIS_Y, UI_SIZE_PARENT_RATIO, 1., 0);
-		ui_box_set_floating(scrollBarY, UI_AXIS_X, panel->rect.w - 12);
-		ui_box_set_floating(scrollBarY, UI_AXIS_Y, 0);
 
-		innerView->scroll.y = sliderY * (contentsH - innerView->rect.h);
+		panel->scroll.y = sliderY * (contentsH - panel->rect.h);
+		if(sig.hovering)
+		{
+			panel->scroll.y += sig.wheel.y;
+			ui_box_activate(scrollBarY);
+		}
+		panel->scroll.y = Clamp(panel->scroll.y, 0, contentsH - panel->rect.h);
+	}
+
+	if(scrollBarX)
+	{
+		ui_box_set_floating(scrollBarX, UI_AXIS_X, panel->scroll.x);
+		ui_box_set_floating(scrollBarX, UI_AXIS_Y, panel->scroll.y + panel->rect.h - 12);
+	}
+
+	if(scrollBarY)
+	{
+		ui_box_set_floating(scrollBarY, UI_AXIS_X, panel->scroll.x + panel->rect.w - 12);
+		ui_box_set_floating(scrollBarY, UI_AXIS_Y, panel->scroll.y);
 	}
 
 	ui_box_end();
