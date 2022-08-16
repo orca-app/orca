@@ -174,9 +174,14 @@ struct mp_app_data
 	mp_live_resize_callback liveResizeCallback;
 	void* liveResizeData;
 
+	//TODO: we should probably use a CVDisplayLink, but it complexifies things since
+	//      it's called from another thread
+	NSTimer* frameTimer;
+	mp_event_callback eventCallback;
+	void* eventData;
+
 	mp_frame_stats frameStats;
 
-	NSTimer* frameTimer;
 	NSCursor* cursor;
 	mp_window_data windowPool[MP_APP_MAX_WINDOWS];
 	list_info windowFreeList;
@@ -665,6 +670,14 @@ static void mp_queue_event(mp_event* event)
 	}
 }
 
+static void mp_dispatch_event(mp_event* event)
+{
+	if(__mpAppData.eventCallback)
+	{
+		__mpAppData.eventCallback(*event, __mpAppData.eventData);
+	}
+}
+
 //---------------------------------------------------------------
 // Application and app delegate
 //---------------------------------------------------------------
@@ -693,7 +706,7 @@ static void mp_queue_event(mp_event* event)
 	__mpAppData.shouldQuit = true;
 	mp_event event = {};
 	event.type = MP_EVENT_QUIT;
-	mp_queue_event(&event);
+	mp_dispatch_event(&event);
 
 	return(NSTerminateCancel);
 }
@@ -721,7 +734,7 @@ static void mp_queue_event(mp_event* event)
 {
 	mp_event event = {};
 	event.type = MP_EVENT_FRAME;
-	mp_queue_event(&event);
+	mp_dispatch_event(&event);
 }
 
 - (void)applicationDidFinishLaunching:(NSNotification *)notification
@@ -795,7 +808,7 @@ static void mp_queue_event(mp_event* event)
 
 	mpWindow->hidden = false;
 
-	mp_queue_event(&event);
+	mp_dispatch_event(&event);
 }
 
 - (void)windowDidResignKey:(NSNotification*)notification
@@ -804,7 +817,7 @@ static void mp_queue_event(mp_event* event)
 	event.window = mp_window_handle_from_ptr(mpWindow);
 	event.type = MP_EVENT_WINDOW_UNFOCUS;
 
-	mp_queue_event(&event);
+	mp_dispatch_event(&event);
 }
 
 - (void)windowDidMove:(NSNotification *)notification
@@ -821,7 +834,7 @@ static void mp_queue_event(mp_event* event)
 	event.frame.rect.w = contentRect.size.width;
 	event.frame.rect.h = contentRect.size.height;
 
-	mp_queue_event(&event);
+	mp_dispatch_event(&event);
 }
 
 - (void)windowDidResize:(NSNotification *)notification
@@ -848,7 +861,7 @@ static void mp_queue_event(mp_event* event)
 	}
 
 	//TODO: also ensure we don't overflow the queue during live resize...
-	mp_queue_event(&event);
+	mp_dispatch_event(&event);
 }
 
 -(void)windowWillStartLiveResize:(NSNotification *)notification
@@ -880,7 +893,7 @@ static void mp_queue_event(mp_event* event)
 	event.window = mp_window_handle_from_ptr(mpWindow);
 	event.type = MP_EVENT_WINDOW_CLOSE;
 
-	mp_queue_event(&event);
+	mp_dispatch_event(&event);
 
 	return(mpWindow->shouldClose);
 }
@@ -987,7 +1000,7 @@ static void mp_queue_event(mp_event* event)
 		__mpAppData.inputState.mouse.buttons[event.key.code].doubleClicked = true;
 	}
 
-	mp_queue_event(&event);
+	mp_dispatch_event(&event);
 
 	[window->nsWindow makeFirstResponder:self];
 }
@@ -1004,7 +1017,7 @@ static void mp_queue_event(mp_event* event)
 
 	mp_update_key_state(&__mpAppData.inputState.mouse.buttons[event.key.code], false);
 
-	mp_queue_event(&event);
+	mp_dispatch_event(&event);
 }
 
 - (void)rightMouseDown:(NSEvent*)nsEvent
@@ -1018,7 +1031,7 @@ static void mp_queue_event(mp_event* event)
 
 	mp_update_key_state(&__mpAppData.inputState.mouse.buttons[event.key.code], true);
 
-	mp_queue_event(&event);
+	mp_dispatch_event(&event);
 }
 
 - (void)rightMouseUp:(NSEvent*)nsEvent
@@ -1032,7 +1045,7 @@ static void mp_queue_event(mp_event* event)
 
 		mp_update_key_state(&__mpAppData.inputState.mouse.buttons[event.key.code], false);
 
-	mp_queue_event(&event);
+	mp_dispatch_event(&event);
 }
 
 - (void)otherMouseDown:(NSEvent*)nsEvent
@@ -1046,7 +1059,7 @@ static void mp_queue_event(mp_event* event)
 
 	mp_update_key_state(&__mpAppData.inputState.mouse.buttons[event.key.code], true);
 
-	mp_queue_event(&event);
+	mp_dispatch_event(&event);
 }
 
 - (void)otherMouseUp:(NSEvent*)nsEvent
@@ -1060,7 +1073,7 @@ static void mp_queue_event(mp_event* event)
 
 	mp_update_key_state(&__mpAppData.inputState.mouse.buttons[event.key.code], false);
 
-	mp_queue_event(&event);
+	mp_dispatch_event(&event);
 }
 
 - (void)mouseDragged:(NSEvent*)nsEvent
@@ -1084,7 +1097,7 @@ static void mp_queue_event(mp_event* event)
 
 	mp_update_mouse_move(p.x, p.y, event.move.deltaX, event.move.deltaY);
 
-	mp_queue_event(&event);
+	mp_dispatch_event(&event);
 }
 
 - (void)scrollWheel:(NSEvent*)nsEvent
@@ -1102,7 +1115,7 @@ static void mp_queue_event(mp_event* event)
 
 	mp_update_mouse_wheel(event.move.deltaX, event.move.deltaY);
 
-	mp_queue_event(&event);
+	mp_dispatch_event(&event);
 }
 
 - (void)mouseExited:(NSEvent *)nsEvent
@@ -1110,7 +1123,7 @@ static void mp_queue_event(mp_event* event)
 	mp_event event = {};
 	event.window = mp_window_handle_from_ptr(window);
 	event.type = MP_EVENT_MOUSE_LEAVE;
-	mp_queue_event(&event);
+	mp_dispatch_event(&event);
 }
 
 - (void)mouseEntered:(NSEvent *)nsEvent
@@ -1118,7 +1131,7 @@ static void mp_queue_event(mp_event* event)
 	mp_event event = {};
 	event.window = mp_window_handle_from_ptr(window);
 	event.type = MP_EVENT_MOUSE_ENTER;
-	mp_queue_event(&event);
+	mp_dispatch_event(&event);
 }
 
 
@@ -1138,7 +1151,7 @@ static void mp_queue_event(mp_event* event)
 
 	mp_update_key_state(&__mpAppData.inputState.keyboard.keys[event.key.code], true);
 
-	mp_queue_event(&event);
+	mp_dispatch_event(&event);
 
 	[self interpretKeyEvents:@[nsEvent]];
 }
@@ -1154,7 +1167,7 @@ static void mp_queue_event(mp_event* event)
 
 	mp_update_key_state(&__mpAppData.inputState.keyboard.keys[event.key.code], false);
 
-	mp_queue_event(&event);
+	mp_dispatch_event(&event);
 }
 
 - (void) flagsChanged:(NSEvent*)nsEvent
@@ -1166,7 +1179,7 @@ static void mp_queue_event(mp_event* event)
 
 	mp_update_key_mods(event.key.mods);
 
-	mp_queue_event(&event);
+	mp_dispatch_event(&event);
 }
 
 - (BOOL)performKeyEquivalent:(NSEvent*)nsEvent
@@ -1185,7 +1198,7 @@ static void mp_queue_event(mp_event* event)
 			mp_event event = {};
 			event.type = MP_EVENT_QUIT;
 
-			mp_queue_event(&event);
+			mp_dispatch_event(&event);
 
 			//[NSApp terminate:self];
 			return(YES);
@@ -1306,7 +1319,7 @@ static const NSRange kEmptyRange = { NSNotFound, 0 };
 
 			mp_update_text(codepoint);
 
-			mp_queue_event(&event);
+			mp_dispatch_event(&event);
 		}
 	}
 	[self unmarkText];
@@ -1353,12 +1366,9 @@ CVReturn DisplayLinkCallback(CVDisplayLinkRef displayLink,
                              CVOptionFlags *flagsOut,
                              void *displayLinkContext)
 {
-	if(__mpAppData.liveResizeCallback)
+	if(__mpAppData.displayRefreshCallback)
 	{
-		mp_event event = {};
-		event.type = MP_EVENT_FRAME;
-
-		__mpAppData.liveResizeCallback(event, __mpAppData.liveResizeData);
+		__mpAppData.displayRefreshCallback(__mpAppData.displayRefreshData);
 	}
 
 	return(0);
@@ -1406,11 +1416,12 @@ void mp_init()
 		LOG_MESSAGE("run application\n");
 		[NSApp run];
 
-		/*TODO: maybe some day send frame events during live resize, without breaking everyting...
+		/*
 		CGDirectDisplayID displayID = CGMainDisplayID();
 		CVDisplayLinkCreateWithCGDisplay(displayID, &__mpAppData.displayLink);
 		CVDisplayLinkSetOutputCallback(__mpAppData.displayLink, DisplayLinkCallback, 0);
 		*/
+
 		[NSApp setActivationPolicy:NSApplicationActivationPolicyRegular];
 		[NSApp activateIgnoringOtherApps:YES];
 
@@ -1446,7 +1457,7 @@ void mp_request_quit()
 	__mpAppData.shouldQuit = true;
 	mp_event event = {};
 	event.type = MP_EVENT_QUIT;
-	mp_queue_event(&event);
+	mp_dispatch_event(&event);
 }
 
 void mp_set_cursor(mp_mouse_cursor cursor)
@@ -1980,10 +1991,6 @@ void mp_view_set_frame(mp_view viewHandle, mp_rect frame)
 //--------------------------------------------------------------------
 // Main loop throttle
 //--------------------------------------------------------------------
-/*
-////////////////////////////////////////////////////////////
-//TODO
-////////////////////////////////////////////////////////////
 
 void mp_set_target_fps(u32 fps)
 {
@@ -2004,7 +2011,7 @@ void mp_set_target_fps(u32 fps)
 
 	[[NSRunLoop currentRunLoop] addTimer:__mpAppData.frameTimer forMode:NSRunLoopCommonModes];
 }
-
+/*
 void mp_begin_frame()
 {
 	__mpAppData.frameStats.start = mp_get_elapsed_seconds();
@@ -2041,6 +2048,13 @@ void mp_set_live_resize_callback(mp_live_resize_callback callback, void* data)
 {
 	__mpAppData.liveResizeCallback = callback;
 	__mpAppData.liveResizeData = data;
+}
+
+
+void mp_set_event_callback(mp_event_callback callback, void* data)
+{
+	__mpAppData.eventCallback = callback;
+	__mpAppData.eventData = data;
 }
 
 void mp_pump_events(f64 timeout)
@@ -2103,6 +2117,27 @@ bool mp_next_event(mp_event* event)
 		return(false);
 	}
 }
+
+void mp_run_loop()
+{@autoreleasepool {
+
+	//CVDisplayLinkStart(__mpAppData.displayLink);
+
+	while(!__mpAppData.shouldQuit)
+	{
+		NSEvent* event = [NSApp nextEventMatchingMask: NSEventMaskAny
+					untilDate:[NSDate distantFuture]
+					inMode: NSDefaultRunLoopMode
+					dequeue: YES];
+
+		if(event != nil)
+		{
+			[NSApp sendEvent:event];
+		}
+	}
+
+	//CVDisplayLinkStop(__mpAppData.displayLink);
+}}
 
 //--------------------------------------------------------------------
 // Input state polling

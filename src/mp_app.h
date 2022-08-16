@@ -331,19 +331,21 @@ mp_view mp_view_bring_to_front(mp_view view);
 mp_view mp_view_send_to_back(mp_view view);
 */
 //--------------------------------------------------------------------
-// Main loop throttle
+// Main loop and events handling
 //--------------------------------------------------------------------
 
-void mp_set_target_fps(u32 fps); // or use wait vblank?
+typedef void(*mp_event_callback)(mp_event event, void* data);
+void mp_set_event_callback(mp_event_callback callback, void* data);
+void mp_set_target_fps(u32 fps);
+void mp_run_loop();
 
-//--------------------------------------------------------------------
-// Events handling
-//--------------------------------------------------------------------
 void mp_pump_events(f64 timeout);
 bool mp_next_event(mp_event* event);
 
 typedef void(*mp_live_resize_callback)(mp_event event, void* data);
 void mp_set_live_resize_callback(mp_live_resize_callback callback, void* data);
+
+
 
 //--------------------------------------------------------------------
 // Input state polling
