@@ -168,6 +168,7 @@ struct ui_box
 	ui_sig* sig;
 
 	// stateful behaviour
+	bool fresh;
 	bool closed;
 	bool parentClosed;
 	bool dragging;

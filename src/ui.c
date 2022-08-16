@@ -519,7 +519,12 @@ ui_box* ui_box_make_str8(str8 string, ui_flags flags)
 		memset(box, 0, sizeof(ui_box));
 
 		box->key = key;
+		box->fresh = true;
 		ui_box_cache(ui, box);
+	}
+	else
+	{
+		box->fresh = false;
 	}
 
 	//NOTE: setup hierarchy
@@ -709,69 +714,76 @@ void ui_box_compute_styling(ui_context* ui, ui_box* box)
 	//TODO: interpolate based on transition values
 	u32 flags = box->computedStyle.animationFlags;
 
-	if(flags & UI_STYLE_ANIMATE_BG_COLOR)
+	if(box->fresh)
 	{
-		ui_animate_color(ui, &box->computedStyle.bgColor, targetStyle->bgColor, animationTime);
+		box->computedStyle = *targetStyle;
 	}
 	else
 	{
-		box->computedStyle.bgColor = targetStyle->bgColor;
-	}
+		if(flags & UI_STYLE_ANIMATE_BG_COLOR)
+		{
+			ui_animate_color(ui, &box->computedStyle.bgColor, targetStyle->bgColor, animationTime);
+		}
+		else
+		{
+			box->computedStyle.bgColor = targetStyle->bgColor;
+		}
 
-	if(flags & UI_STYLE_ANIMATE_FG_COLOR)
-	{
-		ui_animate_color(ui, &box->computedStyle.fgColor, targetStyle->fgColor, animationTime);
-	}
-	else
-	{
-		box->computedStyle.fgColor = targetStyle->fgColor;
-	}
+		if(flags & UI_STYLE_ANIMATE_FG_COLOR)
+		{
+			ui_animate_color(ui, &box->computedStyle.fgColor, targetStyle->fgColor, animationTime);
+		}
+		else
+		{
+			box->computedStyle.fgColor = targetStyle->fgColor;
+		}
 
-	if(flags & UI_STYLE_ANIMATE_BORDER_COLOR)
-	{
-		ui_animate_color(ui, &box->computedStyle.borderColor, targetStyle->borderColor, animationTime);
-	}
-	else
-	{
-		box->computedStyle.borderColor = targetStyle->borderColor;
-	}
+		if(flags & UI_STYLE_ANIMATE_BORDER_COLOR)
+		{
+			ui_animate_color(ui, &box->computedStyle.borderColor, targetStyle->borderColor, animationTime);
+		}
+		else
+		{
+			box->computedStyle.borderColor = targetStyle->borderColor;
+		}
 
-	if(flags & UI_STYLE_ANIMATE_FONT_COLOR)
-	{
-		ui_animate_color(ui, &box->computedStyle.fontColor, targetStyle->fontColor, animationTime);
-	}
-	else
-	{
-		box->computedStyle.fontColor = targetStyle->fontColor;
-	}
+		if(flags & UI_STYLE_ANIMATE_FONT_COLOR)
+		{
+			ui_animate_color(ui, &box->computedStyle.fontColor, targetStyle->fontColor, animationTime);
+		}
+		else
+		{
+			box->computedStyle.fontColor = targetStyle->fontColor;
+		}
 
-	if(flags & UI_STYLE_ANIMATE_FONT_SIZE)
-	{
-		ui_animate_f32(ui, &box->computedStyle.fontSize, targetStyle->fontSize, animationTime);
-	}
-	else
-	{
-		box->computedStyle.fontSize = targetStyle->fontSize;
-	}
+		if(flags & UI_STYLE_ANIMATE_FONT_SIZE)
+		{
+			ui_animate_f32(ui, &box->computedStyle.fontSize, targetStyle->fontSize, animationTime);
+		}
+		else
+		{
+			box->computedStyle.fontSize = targetStyle->fontSize;
+		}
 
-	if(flags & UI_STYLE_ANIMATE_BORDER_SIZE)
-	{
-		ui_animate_f32(ui, &box->computedStyle.borderSize, targetStyle->borderSize, animationTime);
-	}
-	else
-	{
-		box->computedStyle.borderSize = targetStyle->borderSize;
-	}
+		if(flags & UI_STYLE_ANIMATE_BORDER_SIZE)
+		{
+			ui_animate_f32(ui, &box->computedStyle.borderSize, targetStyle->borderSize, animationTime);
+		}
+		else
+		{
+			box->computedStyle.borderSize = targetStyle->borderSize;
+		}
 
-	if(flags & UI_STYLE_ANIMATE_ROUNDNESS)
-	{
-		ui_animate_f32(ui, &box->computedStyle.roundness, targetStyle->roundness, animationTime);
+		if(flags & UI_STYLE_ANIMATE_ROUNDNESS)
+		{
+			ui_animate_f32(ui, &box->computedStyle.roundness, targetStyle->roundness, animationTime);
+		}
+		else
+		{
+			box->computedStyle.roundness = targetStyle->roundness;
+		}
+		box->computedStyle.font = targetStyle->font;
 	}
-	else
-	{
-		box->computedStyle.roundness = targetStyle->roundness;
-	}
-	box->computedStyle.font = targetStyle->font;
 }
 
 void ui_layout_prepass(ui_context* ui, ui_box* box)
@@ -936,7 +948,8 @@ void ui_layout_compute_rect(ui_context* ui, ui_box* box, vec2 pos)
 			if(child->floating[i])
 			{
 				ui_style* style = child->targetStyle;
-				if(child->targetStyle->animationFlags & UI_STYLE_ANIMATE_POS)
+				if((child->targetStyle->animationFlags & UI_STYLE_ANIMATE_POS)
+				  && !child->fresh)
 				{
 					ui_animate_f32(ui, &child->floatPos.c[i], child->floatTarget.c[i], style->animationTime);
 				}
@@ -1437,7 +1450,6 @@ void ui_panel_end()
 			panel->scroll.x += sig.wheel.x;
 			ui_box_activate(scrollBarX);
 		}
-		panel->scroll.x = Clamp(panel->scroll.x, 0, contentsW - panel->rect.w);
 	}
 
 	if(contentsH > panel->rect.h)
@@ -1455,8 +1467,10 @@ void ui_panel_end()
 			panel->scroll.y += sig.wheel.y;
 			ui_box_activate(scrollBarY);
 		}
-		panel->scroll.y = Clamp(panel->scroll.y, 0, contentsH - panel->rect.h);
 	}
+
+	panel->scroll.x = Clamp(panel->scroll.x, 0, contentsW - panel->rect.w);
+	panel->scroll.y = Clamp(panel->scroll.y, 0, contentsH - panel->rect.h);
 
 	if(scrollBarX)
 	{
