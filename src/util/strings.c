@@ -24,7 +24,14 @@ str8 str8_from_buffer(u64 len, char* buffer)
 
 str8 str8_from_cstring(char* str)
 {
-	return(str8_from_buffer(strlen(str), (char*)str));
+	if(!str)
+	{
+		return((str8){0});
+	}
+	else
+	{
+		return(str8_from_buffer(strlen(str), (char*)str));
+	}
 }
 
 str8 str8_slice(str8 s, u64 start, u64 end)
@@ -44,7 +51,14 @@ str8 str8_push_buffer(mem_arena* arena, u64 len, char* buffer)
 
 str8 str8_push_cstring(mem_arena* arena, const char* str)
 {
-	return(str8_push_buffer(arena, strlen(str), (char*)str));
+	if(!str)
+	{
+		return((str8){0});
+	}
+	else
+	{
+		return(str8_push_buffer(arena, strlen(str), (char*)str));
+	}
 }
 
 str8 str8_push_copy(mem_arena* arena, str8 s)

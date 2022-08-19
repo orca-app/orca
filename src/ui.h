@@ -84,15 +84,16 @@ typedef enum { UI_STYLE_SEL_NORMAL = 1<<0,
 typedef u32 ui_style_tag;
 #define UI_STYLE_TAG_ANY (ui_style_tag)0
 
-typedef enum { UI_STYLE_ANIMATE_SIZE         = 1<<1,
-               UI_STYLE_ANIMATE_BG_COLOR     = 1<<2,
-               UI_STYLE_ANIMATE_FG_COLOR     = 1<<3,
-               UI_STYLE_ANIMATE_BORDER_COLOR = 1<<4,
-               UI_STYLE_ANIMATE_FONT_COLOR   = 1<<5,
-               UI_STYLE_ANIMATE_FONT_SIZE    = 1<<6,
-               UI_STYLE_ANIMATE_BORDER_SIZE  = 1<<7,
-               UI_STYLE_ANIMATE_ROUNDNESS    = 1<<8,
-               UI_STYLE_ANIMATE_POS          = 1<<9,
+typedef enum { UI_STYLE_ANIMATE_SIZE_X       = 1<<1,
+               UI_STYLE_ANIMATE_SIZE_Y       = 1<<2,
+               UI_STYLE_ANIMATE_BG_COLOR     = 1<<3,
+               UI_STYLE_ANIMATE_FG_COLOR     = 1<<4,
+               UI_STYLE_ANIMATE_BORDER_COLOR = 1<<5,
+               UI_STYLE_ANIMATE_FONT_COLOR   = 1<<6,
+               UI_STYLE_ANIMATE_FONT_SIZE    = 1<<7,
+               UI_STYLE_ANIMATE_BORDER_SIZE  = 1<<8,
+               UI_STYLE_ANIMATE_ROUNDNESS    = 1<<9,
+               UI_STYLE_ANIMATE_POS          = 1<<10,
              } ui_style_animation_flags;
 
 typedef struct ui_style
@@ -183,31 +184,41 @@ struct ui_box
 
 typedef struct ui_context ui_context;
 
-void ui_init();
-ui_context* ui_get_context();
+void ui_init(void);
+ui_context* ui_get_context(void);
 void ui_set_context(ui_context* context);
 
 void ui_begin_frame(u32 width, u32 height, ui_style defaultStyle);
-void ui_end_frame();
+void ui_end_frame(void);
 void ui_draw(mg_canvas canvas);
 
+ui_box* ui_box_lookup(const char* string);
+ui_box* ui_box_lookup_str8(str8 string);
 ui_box* ui_box_make(const char* string, ui_flags flags);
 ui_box* ui_box_begin(const char* string, ui_flags flags);
 ui_box* ui_box_make_str8(str8 string, ui_flags flags);
 ui_box* ui_box_begin_str8(str8 string, ui_flags flags);
-ui_box* ui_box_end();
+ui_box* ui_box_end(void);
 #define ui_container(name, flags) defer_loop(ui_box_begin(name, flags), ui_box_end())
 
 void ui_box_push(ui_box* box);
-void ui_box_pop();
-ui_box* ui_box_top();
+void ui_box_pop(void);
+ui_box* ui_box_top(void);
+
+bool ui_box_closed(ui_box* box);
+void ui_box_set_closed(ui_box* box, bool closed);
+
+bool ui_box_active(ui_box* box);
+void ui_box_activate(ui_box* box);
+void ui_box_deactivate(ui_box* box);
+
+bool ui_box_hot(ui_box* box);
+void ui_box_set_hot(ui_box* box, bool hot);
 
 void ui_box_set_render_proc(ui_box* box, ui_box_render_proc proc, void* data);
-
 void ui_box_set_layout(ui_box* box, ui_axis axis, ui_align alignX, ui_align alignY);
 void ui_box_set_size(ui_box* box, ui_axis axis, ui_size_kind kind, f32 value, f32 strictness);
 void ui_box_set_floating(ui_box* box, ui_axis axis, f32 pos);
-
 void ui_box_set_style_selector(ui_box* box, ui_style_selector selector);
 
 ui_sig ui_box_sig(ui_box* box);
@@ -238,16 +249,16 @@ void ui_push_roundness_ext(ui_style_tag tag, ui_style_selector selector, f32 rou
 void ui_push_animation_time_ext(ui_style_tag tag, ui_style_selector selector, f32 time);
 void ui_push_animation_flags_ext(ui_style_tag tag, ui_style_selector selector, u32 flags);
 
-void ui_pop_bg_color();
-void ui_pop_fg_color();
-void ui_pop_font();
-void ui_pop_font_size();
-void ui_pop_font_color();
-void ui_pop_border_size();
-void ui_pop_border_color();
-void ui_pop_roundness();
-void ui_pop_animation_time();
-void ui_pop_animation_flags();
+void ui_pop_bg_color(void);
+void ui_pop_fg_color(void);
+void ui_pop_font(void);
+void ui_pop_font_size(void);
+void ui_pop_font_color(void);
+void ui_pop_border_size(void);
+void ui_pop_border_color(void);
+void ui_pop_roundness(void);
+void ui_pop_animation_time(void);
+void ui_pop_animation_flags(void);
 // Basic helpers
 
 enum {
@@ -261,23 +272,26 @@ enum {
 };
 
 ui_sig ui_label(const char* label);
+ui_sig ui_label_str8(str8 label);
+
 ui_sig ui_button(const char* label);
+ui_sig ui_button_str8(str8 label);
 ui_box* ui_scrollbar(const char* label, f32 thumbRatio, f32* scrollValue);
 
 ui_box* ui_panel_begin(const char* name);
-void ui_panel_end();
+void ui_panel_end(void);
 #define ui_panel(name) defer_loop(ui_panel_begin(name), ui_panel_end())
 
 ui_sig ui_tooltip_begin(const char* name);
-void ui_tooltip_end();
+void ui_tooltip_end(void);
 #define ui_tooltip(name) defer_loop(ui_tooltip_begin(name), ui_tooltip_end())
 
 void ui_menu_bar_begin(const char* label);
-void ui_menu_bar_end();
+void ui_menu_bar_end(void);
 #define ui_menu_bar(name) defer_loop(ui_menu_bar_begin(name), ui_menu_bar_end())
 
 void ui_menu_begin(const char* label);
-void ui_menu_end();
+void ui_menu_end(void);
 #define ui_menu(name) defer_loop(ui_menu_begin(name), ui_menu_end())
 
 typedef struct ui_text_box_result

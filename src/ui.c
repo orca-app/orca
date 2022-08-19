@@ -101,7 +101,7 @@ typedef struct ui_context
 __thread ui_context __uiThreadContext = {0};
 __thread ui_context* __uiCurrentContext = 0;
 
-ui_context* ui_get_context()
+ui_context* ui_get_context(void)
 {
 	return(__uiCurrentContext);
 }
@@ -146,7 +146,7 @@ mp_rect ui_intersect_rects(mp_rect lhs, mp_rect rhs)
 	return(r);
 }
 
-mp_rect ui_clip_top()
+mp_rect ui_clip_top(void)
 {
 	mp_rect r = {-FLT_MAX/2, -FLT_MAX/2, FLT_MAX, FLT_MAX};
 	ui_context* ui = ui_get_context();
@@ -166,13 +166,13 @@ void ui_clip_push(mp_rect clip)
 	elt->clip = ui_intersect_rects(current, clip);
 }
 
-void ui_clip_pop()
+void ui_clip_pop(void)
 {
 	ui_context* ui = ui_get_context();
 	ui_stack_pop(&ui->clipStack);
 }
 
-ui_box* ui_box_top()
+ui_box* ui_box_top(void)
 {
 	ui_context* ui = ui_get_context();
 	ui_stack_elt* elt = ui->boxStack;
@@ -191,7 +191,7 @@ void ui_box_push(ui_box* box)
 	}
 }
 
-void ui_box_pop()
+void ui_box_pop(void)
 {
 	ui_context* ui = ui_get_context();
 	ui_box* box = ui_box_top();
@@ -243,7 +243,7 @@ void _cat2_(ui_push_, name)(type arg) \
 { \
 	_cat3_(ui_push_, name, _ext)(UI_STYLE_TAG_ANY, UI_STYLE_SEL_ANY, arg); \
 } \
-void _cat2_(ui_pop_, name)() \
+void _cat2_(ui_pop_, name)(void) \
 { \
 	ui_context* ui = ui_get_context(); \
 	ui_stack_pop(&ui->stack); \
@@ -395,7 +395,7 @@ void ui_box_cache(ui_context* ui, ui_box* box)
 	ListAppend(&(ui->boxMap[index]), &box->bucketElt);
 }
 
-ui_box* ui_box_lookup(ui_context* ui, ui_key key)
+ui_box* ui_box_lookup_with_key(ui_context* ui, ui_key key)
 {
 	u64 index = key.hash & (UI_BOX_MAP_BUCKET_COUNT-1);
 
@@ -407,6 +407,18 @@ ui_box* ui_box_lookup(ui_context* ui, ui_key key)
 		}
 	}
 	return(0);
+}
+
+ui_box* ui_box_lookup_str8(str8 string)
+{
+	ui_context* ui = ui_get_context();
+	ui_key key = ui_key_from_string(string);
+	return(ui_box_lookup_with_key(ui, key));
+}
+
+ui_box* ui_box_lookup(const char* string)
+{
+	return(ui_box_lookup_str8(str8_from_cstring((char*)string)));
 }
 
 //-----------------------------------------------------------------------------
@@ -432,7 +444,7 @@ bool ui_box_hovering(ui_box* box, vec2 p)
 	return(result);
 }
 
-vec2 ui_mouse_position()
+vec2 ui_mouse_position(void)
 {
 	ui_context* ui = ui_get_context();
 
@@ -441,7 +453,7 @@ vec2 ui_mouse_position()
 	return(mousePos);
 }
 
-vec2 ui_mouse_delta()
+vec2 ui_mouse_delta(void)
 {
 	ui_context* ui = ui_get_context();
 	vec2 delta = mp_input_mouse_delta();
@@ -449,7 +461,7 @@ vec2 ui_mouse_delta()
 	return(delta);
 }
 
-vec2 ui_mouse_wheel()
+vec2 ui_mouse_wheel(void)
 {
 	ui_context* ui = ui_get_context();
 	vec2 delta = mp_input_mouse_wheel();
@@ -457,61 +469,12 @@ vec2 ui_mouse_wheel()
 	return(delta);
 }
 
-void ui_box_compute_signals(ui_context* ui, ui_box* box)
-{
-	ui_sig* sig = mem_arena_alloc_type(&ui->frameArena, ui_sig);
-	memset(sig, 0, sizeof(ui_sig));
-
-	if(!box->closed && !box->parentClosed)
-	{
-		vec2 mousePos = ui_mouse_position();
-
-		sig->hovering = ui_box_hovering(box, mousePos);
-
-		if(box->flags & UI_FLAG_CLICKABLE)
-		{
-			if(sig->hovering)
-			{
-				sig->pressed = mp_input_mouse_pressed(MP_MOUSE_LEFT);
-				if(sig->pressed)
-				{
-					box->dragging = true;
-				}
-
-				sig->clicked = mp_input_mouse_clicked(MP_MOUSE_LEFT);
-				sig->doubleClicked = mp_input_mouse_clicked(MP_MOUSE_LEFT);
-			}
-
-			sig->released = mp_input_mouse_released(MP_MOUSE_LEFT);
-			if(sig->released)
-			{
-				if(box->dragging && sig->hovering)
-				{
-					sig->triggered = true;
-				}
-			}
-
-			if(!mp_input_mouse_down(MP_MOUSE_LEFT))
-			{
-				box->dragging = false;
-			}
-
-			sig->dragging = box->dragging;
-		}
-
-		sig->mouse = (vec2){mousePos.x - box->rect.x, mousePos.y - box->rect.y};
-		sig->delta = ui_mouse_delta();
-		sig->wheel = ui_mouse_wheel();
-	}
-	box->sig = sig;
-}
-
 ui_box* ui_box_make_str8(str8 string, ui_flags flags)
 {
 	ui_context* ui = ui_get_context();
 
 	ui_key key = ui_key_from_string(string);
-	ui_box* box = ui_box_lookup(ui, key);
+	ui_box* box = ui_box_lookup_with_key(ui, key);
 
 	if(!box)
 	{
@@ -544,9 +507,6 @@ ui_box* ui_box_make_str8(str8 string, ui_flags flags)
 	box->floating[UI_AXIS_X] = false;
 	box->floating[UI_AXIS_Y] = false;
 	box->layout = box->parent ? box->parent->layout : (ui_layout){0};
-
-	//NOTE: compute input signals
-	ui_box_compute_signals(ui, box);
 
 	//NOTE: compute style
 	ui_style_selector selector = UI_STYLE_SEL_NORMAL;
@@ -583,7 +543,7 @@ ui_box* ui_box_begin(const char* cstring, ui_flags flags)
 	return(ui_box_begin_str8(string, flags));
 }
 
-ui_box* ui_box_end()
+ui_box* ui_box_end(void)
 {
 	ui_context* ui = ui_get_context();
 	ui_box* box = ui_box_top();
@@ -657,7 +617,53 @@ void ui_box_set_tag(ui_box* box, ui_style_tag tag)
 
 ui_sig ui_box_sig(ui_box* box)
 {
-	return(*box->sig);
+	//NOTE: compute input signals
+	ui_sig sig = {0};
+
+	sig.box = box;
+
+	if(!box->closed && !box->parentClosed)
+	{
+		vec2 mousePos = ui_mouse_position();
+
+		sig.hovering = ui_box_hovering(box, mousePos);
+
+		if(box->flags & UI_FLAG_CLICKABLE)
+		{
+			if(sig.hovering)
+			{
+				sig.pressed = mp_input_mouse_pressed(MP_MOUSE_LEFT);
+				if(sig.pressed)
+				{
+					box->dragging = true;
+				}
+
+				sig.clicked = mp_input_mouse_clicked(MP_MOUSE_LEFT);
+				sig.doubleClicked = mp_input_mouse_double_clicked(MP_MOUSE_LEFT);
+			}
+
+			sig.released = mp_input_mouse_released(MP_MOUSE_LEFT);
+			if(sig.released)
+			{
+				if(box->dragging && sig.hovering)
+				{
+					sig.triggered = true;
+				}
+			}
+
+			if(!mp_input_mouse_down(MP_MOUSE_LEFT))
+			{
+				box->dragging = false;
+			}
+
+			sig.dragging = box->dragging;
+		}
+
+		sig.mouse = (vec2){mousePos.x - box->rect.x, mousePos.y - box->rect.y};
+		sig.delta = ui_mouse_delta();
+		sig.wheel = ui_mouse_wheel();
+	}
+	return(sig);
 }
 
 bool ui_box_hidden(ui_box* box)
@@ -701,6 +707,13 @@ void ui_animate_color(ui_context* ui, mg_color* color, mg_color target, f32 anim
 	}
 }
 
+void ui_animate_ui_size(ui_context* ui, ui_size* size, ui_size target, f32 animationTime)
+{
+	size->kind = target.kind;
+	ui_animate_f32(ui, &size->value, target.value, animationTime);
+	ui_animate_f32(ui, &size->strictness, target.strictness, animationTime);
+}
+
 void ui_box_compute_styling(ui_context* ui, ui_box* box)
 {
 	ui_style* targetStyle = box->targetStyle;
@@ -708,11 +721,8 @@ void ui_box_compute_styling(ui_context* ui, ui_box* box)
 
 	f32 animationTime = targetStyle->animationTime;
 
-	box->computedStyle.size[UI_AXIS_X] = targetStyle->size[UI_AXIS_X];
-	box->computedStyle.size[UI_AXIS_Y] = targetStyle->size[UI_AXIS_Y];
-
-	//TODO: interpolate based on transition values
-	u32 flags = box->computedStyle.animationFlags;
+	//NOTE: interpolate based on transition values
+	u32 flags = box->targetStyle->animationFlags;
 
 	if(box->fresh)
 	{
@@ -720,6 +730,24 @@ void ui_box_compute_styling(ui_context* ui, ui_box* box)
 	}
 	else
 	{
+		if(flags & UI_STYLE_ANIMATE_SIZE_X)
+		{
+			ui_animate_ui_size(ui, &box->computedStyle.size[UI_AXIS_X], targetStyle->size[UI_AXIS_X], animationTime);
+		}
+		else
+		{
+			box->computedStyle.size[UI_AXIS_X] = targetStyle->size[UI_AXIS_X];
+		}
+
+		if(flags & UI_STYLE_ANIMATE_SIZE_Y)
+		{
+			ui_animate_ui_size(ui, &box->computedStyle.size[UI_AXIS_Y], targetStyle->size[UI_AXIS_Y], animationTime);
+		}
+		else
+		{
+			box->computedStyle.size[UI_AXIS_Y] = targetStyle->size[UI_AXIS_Y];
+		}
+
 		if(flags & UI_STYLE_ANIMATE_BG_COLOR)
 		{
 			ui_animate_color(ui, &box->computedStyle.bgColor, targetStyle->bgColor, animationTime);
@@ -920,6 +948,17 @@ void ui_layout_compute_rect(ui_context* ui, ui_box* box, vec2 pos)
 	               box->rect.y - box->scroll.y};
 	vec2 currentPos = origin;
 
+	vec2 margin = {0, 0};
+	for(int i=0; i<UI_AXIS_COUNT; i++)
+	{
+		if(box->computedStyle.size[i].kind == UI_SIZE_CHILDREN)
+		{
+			margin.c[i] = box->computedStyle.size[i].value;
+		}
+	}
+	currentPos.x += margin.x;
+	currentPos.y += margin.y;
+
 	vec2 contentsSize = {maximum(box->rect.w, box->childrenSum[UI_AXIS_X]),
 	                     maximum(box->rect.h, box->childrenSum[UI_AXIS_Y])};
 
@@ -927,7 +966,7 @@ void ui_layout_compute_rect(ui_context* ui, ui_box* box, vec2 pos)
 	{
 		if(align[i] == UI_ALIGN_END)
 		{
-			currentPos.c[i] += contentsSize.c[i] - box->childrenSum[i];
+			currentPos.c[i] += contentsSize.c[i] - box->childrenSum[i] - margin.c[i];
 		}
 	}
 	if(align[layoutAxis] == UI_ALIGN_CENTER)
@@ -1061,6 +1100,11 @@ void ui_draw_box(mg_canvas canvas, ui_box* box)
 		ui_rectangle_fill(canvas, box->rect, style->roundness);
 	}
 
+	if((box->flags & UI_FLAG_DRAW_RENDER_PROC) && box->renderProc)
+	{
+		box->renderProc(canvas, box, box->renderData);
+	}
+
 	for_each_in_list(&box->children, child, ui_box, listElt)
 	{
 		ui_draw_box(canvas, child);
@@ -1086,11 +1130,6 @@ void ui_draw_box(mg_canvas canvas, ui_box* box)
 		mg_move_to(canvas, x, y);
 		mg_text_outlines(canvas, box->string);
 		mg_fill(canvas);
-	}
-
-	if((box->flags & UI_FLAG_DRAW_RENDER_PROC) && box->renderProc)
-	{
-		box->renderProc(canvas, box, box->renderData);
 	}
 
 	if(box->flags & UI_FLAG_CLIP)
@@ -1196,7 +1235,7 @@ void ui_begin_frame(u32 width, u32 height, ui_style defaultStyle)
 	ui_box_push(contents);
 }
 
-void ui_end_frame()
+void ui_end_frame(void)
 {
 	ui_context* ui = ui_get_context();
 
@@ -1226,7 +1265,7 @@ void ui_end_frame()
 //-----------------------------------------------------------------------------
 // Init / cleanup
 //-----------------------------------------------------------------------------
-void ui_init()
+void ui_init(void)
 {
 	ui_context* ui = &__uiThreadContext;
 	if(!ui->init)
@@ -1240,7 +1279,7 @@ void ui_init()
 	}
 }
 
-void ui_cleanup()
+void ui_cleanup(void)
 {
 	ui_context* ui = ui_get_context();
 	mem_arena_release(&ui->frameArena);
@@ -1253,11 +1292,11 @@ void ui_cleanup()
 // Basic helpers
 //-----------------------------------------------------------------------------
 
-ui_sig ui_label(const char* label)
+ui_sig ui_label_str8(str8 label)
 {
 	ui_flags flags = UI_FLAG_CLIP
 	               | UI_FLAG_DRAW_TEXT;
-	ui_box* box = ui_box_make(label, flags);
+	ui_box* box = ui_box_make_str8(label, flags);
 	ui_box_set_size(box, UI_AXIS_X, UI_SIZE_TEXT, 0, 0);
 	ui_box_set_size(box, UI_AXIS_Y, UI_SIZE_TEXT, 0, 0);
 
@@ -1265,7 +1304,12 @@ ui_sig ui_label(const char* label)
 	return(sig);
 }
 
-ui_sig ui_button(const char* label)
+ui_sig ui_label(const char* label)
+{
+	return(ui_label_str8(str8_from_cstring((char*)label)));
+}
+
+ui_sig ui_button_str8(str8 label)
 {
 	ui_flags flags = UI_FLAG_CLICKABLE
 	               | UI_FLAG_CLIP
@@ -1275,7 +1319,7 @@ ui_sig ui_button(const char* label)
 	               | UI_FLAG_HOT_ANIMATION
 	               | UI_FLAG_ACTIVE_ANIMATION;
 
-	ui_box* box = ui_box_make(label, flags);
+	ui_box* box = ui_box_make_str8(label, flags);
 	ui_box_set_tag(box, UI_STYLE_TAG_BUTTON);
 	ui_sig sig = ui_box_sig(box);
 
@@ -1299,6 +1343,11 @@ ui_sig ui_button(const char* label)
 	return(sig);
 }
 
+ui_sig ui_button(const char* label)
+{
+	return(ui_button_str8(str8_from_cstring((char*)label)));
+}
+
 ui_box* ui_scrollbar(const char* label, f32 thumbRatio, f32* scrollValue)
 {
 	ui_box* frame = ui_box_begin(label, 0);
@@ -1317,6 +1366,7 @@ ui_box* ui_scrollbar(const char* label, f32 thumbRatio, f32* scrollValue)
 		ui_push_fg_color_ext(UI_STYLE_TAG_ANY, UI_STYLE_SEL_HOT|UI_STYLE_SEL_ACTIVE, (mg_color){0, 0, 0, 0.7});
 		ui_push_roundness_ext(UI_STYLE_TAG_ANY, UI_STYLE_SEL_HOT|UI_STYLE_SEL_ACTIVE, roundness);
 		ui_push_animation_time_ext(UI_STYLE_TAG_ANY, UI_STYLE_SEL_ANY, 1.);
+		ui_push_animation_flags_ext(UI_STYLE_TAG_ANY, UI_STYLE_SEL_ANY, UI_STYLE_ANIMATE_BG_COLOR|UI_STYLE_ANIMATE_FG_COLOR);
 
 		ui_flags trackFlags = UI_FLAG_CLIP
 	                    	| UI_FLAG_DRAW_BACKGROUND
@@ -1358,6 +1408,7 @@ ui_box* ui_scrollbar(const char* label, f32 thumbRatio, f32* scrollValue)
 		ui_pop_fg_color();
 		ui_pop_roundness();
 		ui_pop_animation_time();
+		ui_pop_animation_flags();
 
 		//NOTE: interaction
 		ui_sig thumbSig = ui_box_sig(thumb);
@@ -1507,7 +1558,7 @@ ui_sig ui_tooltip_begin(const char* name)
 	return(ui_box_sig(tooltip));
 }
 
-void ui_tooltip_end()
+void ui_tooltip_end(void)
 {
 	ui_box_pop(); // tooltip
 	ui_box_pop(); // ui->overlay
@@ -1530,7 +1581,7 @@ void ui_menu_bar_begin(const char* name)
 	}
 }
 
-void ui_menu_bar_end()
+void ui_menu_bar_end(void)
 {
 	ui_pop_size(UI_AXIS_X);
 	ui_pop_size(UI_AXIS_Y);
@@ -1583,7 +1634,7 @@ void ui_menu_begin(const char* label)
 	ui_box_push(menu);
 }
 
-void ui_menu_end()
+void ui_menu_end(void)
 {
 	ui_box_pop(); // menu
 	ui_box_pop(); // overlay;

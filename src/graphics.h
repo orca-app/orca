@@ -23,6 +23,7 @@ typedef struct mg_surface { u64 h; } mg_surface;
 
 typedef enum { MG_BACKEND_DUMMY,
                MG_BACKEND_METAL,
+               MG_BACKEND_GLES,
                //...
              } mg_backend_id;
 
@@ -31,13 +32,34 @@ void mg_init();
 mg_surface mg_surface_nil();
 mg_surface mg_surface_create_for_window(mp_window window, mg_backend_id backend);
 mg_surface mg_surface_create_for_view(mp_view view, mg_backend_id backend);
+mg_surface mg_surface_create_offscreen(mg_backend_id backend);
+
 void mg_surface_destroy(mg_surface surface);
+void* mg_surface_get_os_resource(mg_surface surface);
 
 void mg_surface_prepare(mg_surface surface);
 void mg_surface_present(mg_surface surface);
 void mg_surface_resize(mg_surface surface, int width, int height);
+void mg_surface_set_hidden(mg_surface surface, bool hidden);
 
 vec2 mg_surface_size(mg_surface surface);
+
+//------------------------------------------------------------------------------------------
+//NOTE(martin): graphics surface sharing
+//------------------------------------------------------------------------------------------
+typedef void* mg_surface_server_id;
+
+typedef struct mg_surface_server { u64 h; } mg_surface_server;
+typedef struct mg_surface_client { u64 h; } mg_surface_client;
+
+mg_surface_server mg_surface_server_create(mg_surface surface);
+void mg_surface_server_destroy(mg_surface_server server);
+mg_surface_server_id mg_surface_server_get_id(mg_surface_server server);
+
+mg_surface_client mg_surface_client_create(mg_surface_server_id id);
+void mg_surface_client_destroy(mg_surface_client client);
+void mg_surface_client_attach_to_view(mg_surface_client client, mp_view view);
+void mg_surface_client_detach(mg_surface_client client);
 
 //------------------------------------------------------------------------------------------
 //NOTE(martin): canvas drawing structs
@@ -181,7 +203,7 @@ bool mg_get_text_flip(mg_canvas context);
 //------------------------------------------------------------------------------------------
 //NOTE(martin): path construction
 //------------------------------------------------------------------------------------------
-void mg_get_current_position(mg_canvas context, f32* x, f32* y);
+vec2 mg_get_position(mg_canvas context);
 void mg_move_to(mg_canvas context, f32 x, f32 y);
 void mg_line_to(mg_canvas context, f32 x, f32 y);
 void mg_quadratic_to(mg_canvas context, f32 x1, f32 y1, f32 x2, f32 y2);
@@ -217,12 +239,16 @@ void mg_arc(mg_canvas handle, f32 x, f32 y, f32 r, f32 arcAngle, f32 startAngle)
 //------------------------------------------------------------------------------------------
 typedef struct mg_image { u64 h; } mg_image;
 
+mg_image mg_image_nil();
+bool mg_image_equal(mg_image a, mg_image b);
+
 mg_image mg_image_create_from_rgba8(mg_canvas canvas, u32 width, u32 height, u8* pixels);
 mg_image mg_image_create_from_data(mg_canvas canvas, str8 data, bool flip);
 mg_image mg_image_create_from_file(mg_canvas canvas, str8 path, bool flip);
 
 void mg_image_drestroy(mg_canvas canvas, mg_image image);
 
+vec2 mg_image_size(mg_canvas canvas, mg_image image);
 void mg_image_draw(mg_canvas canvas, mg_image image, mp_rect rect);
 void mg_rounded_image_draw(mg_canvas handle, mg_image image, mp_rect rect, f32 roundness);
 

@@ -219,26 +219,43 @@ typedef struct mg_font_info
 // internal handle system
 //---------------------------------------------------------------
 
-const u32 MG_MAX_SURFACES = 256,
+const u32 MG_MAX_RESOURCE_SLOTS = 256,
           MG_MAX_CONTEXTS = 256,
           MG_FONT_MAX_COUNT = 256;
 
-typedef struct mg_surface_slot
+typedef struct mg_resource_slot
 {
 	list_elt freeListElt;
 	u32 generation;
-	mg_surface_info* surface;
+	union
+	{
+		mg_surface_info* surface;
+		mg_surface_server_info* server;
+		mg_surface_client_info* client;
+	};
 
-} mg_surface_slot;
+} mg_resource_slot;
+
+typedef struct mg_resource_pool
+{
+	mg_resource_slot slots[MG_MAX_RESOURCE_SLOTS];
+	list_info freeList;
+	u32 nextIndex;
+
+} mg_resource_pool;
 
 typedef struct mg_info
 {
 	bool init;
-	list_info surfaceFreeList;
+
+	mg_resource_pool surfaces;
+	mg_resource_pool servers;
+	mg_resource_pool clients;
+
 	list_info contextFreeList;
 	list_info fontFreeList;
 	u32 fontsNextIndex;
-	mg_surface_slot surfaceSlots[MG_MAX_SURFACES];
+
 	mg_canvas_data contexts[MG_MAX_CONTEXTS];
 	mg_font_info fonts[MG_FONT_MAX_COUNT];
 
@@ -246,16 +263,14 @@ typedef struct mg_info
 
 static mg_info __mgInfo = {0};
 
+
 void mg_init()
 {
 	if(!__mgInfo.init)
 	{
-		ListInit(&__mgInfo.surfaceFreeList);
-		for(int i=0; i<MG_MAX_SURFACES; i++)
-		{
-			__mgInfo.surfaceSlots[i].generation = 1;
-			ListAppend(&__mgInfo.surfaceFreeList, &__mgInfo.surfaceSlots[i].freeListElt);
-		}
+		__mgInfo.init = true;
+
+		//TODO: make context handles suitable for zero init
 
 		ListInit(&__mgInfo.contextFreeList);
 		for(int i=0; i<MG_MAX_CONTEXTS; i++)
@@ -263,18 +278,24 @@ void mg_init()
 			__mgInfo.contexts[i].generation = 1;
 			ListAppend(&__mgInfo.contextFreeList, &__mgInfo.contexts[i].freeListElt);
 		}
-
-		__mgInfo.init = true;
 	}
 }
 
-mg_surface_slot* mg_surface_slot_alloc()
+mg_resource_slot* mg_resource_slot_alloc(mg_resource_pool* pool)
 {
-	return(ListPopEntry(&__mgInfo.surfaceFreeList, mg_surface_slot, freeListElt));
+	mg_resource_slot* slot = ListPopEntry(&pool->freeList, mg_resource_slot, freeListElt);
+	if(!slot && pool->nextIndex < MG_MAX_RESOURCE_SLOTS)
+	{
+		slot = &pool->slots[pool->nextIndex];
+		slot->generation = 1;
+		pool->nextIndex++;
+	}
+	return(slot);
 }
 
-void mg_surface_slot_recycle(mg_surface_slot* slot)
+void mg_resource_slot_recycle(mg_resource_pool* pool, mg_resource_slot* slot)
 {
+	DEBUG_ASSERT(slot >= pool->slots && slot < pool->slots + MG_MAX_RESOURCE_SLOTS);
 	#ifdef DEBUG
 		if(slot->generation == UINT32_MAX)
 		{
@@ -282,18 +303,18 @@ void mg_surface_slot_recycle(mg_surface_slot* slot)
 		}
 	#endif
 	slot->generation++;
-	ListPush(&__mgInfo.surfaceFreeList, &slot->freeListElt);
+	ListPush(&pool->freeList, &slot->freeListElt);
 }
 
-mg_surface_slot* mg_surface_slot_from_handle(mg_surface surface)
+mg_resource_slot* mg_resource_slot_from_handle(mg_resource_pool* pool, u64 h)
 {
-	u32 index = surface.h>>32;
-	u32 generation = surface.h & 0xffffffff;
-	if(index >= MG_MAX_SURFACES)
+	u32 index = h>>32;
+	u32 generation = h & 0xffffffff;
+	if(index >= MG_MAX_RESOURCE_SLOTS)
 	{
 		return(0);
 	}
-	mg_surface_slot* slot = &__mgInfo.surfaceSlots[index];
+	mg_resource_slot* slot = &pool->slots[index];
 	if(slot->generation != generation)
 	{
 		return(0);
@@ -304,9 +325,42 @@ mg_surface_slot* mg_surface_slot_from_handle(mg_surface surface)
 	}
 }
 
+u64 mg_resource_handle_from_slot(mg_resource_pool* pool, mg_resource_slot* slot)
+{
+	DEBUG_ASSERT(  (slot - pool->slots) >= 0
+	            && (slot - pool->slots) < MG_MAX_RESOURCE_SLOTS);
+
+	u64 h = ((u64)(slot - pool->slots))<<32
+	       |((u64)(slot->generation));
+	return(h);
+}
+
+//------------------------------------------------------------------------
+// surface handles
+//------------------------------------------------------------------------
+
+mg_surface mg_surface_nil()
+{
+	return((mg_surface){.h = 0});
+}
+
+mg_surface mg_surface_alloc_handle(mg_surface_info* surface)
+{
+	mg_resource_slot* slot = mg_resource_slot_alloc(&__mgInfo.surfaces);
+	if(!slot)
+	{
+		LOG_ERROR("no more surface slots\n");
+		return(mg_surface_nil());
+	}
+	slot->surface = surface;
+	u64 h = mg_resource_handle_from_slot(&__mgInfo.surfaces, slot);
+	mg_surface handle = {h};
+	return(handle);
+}
+
 mg_surface_info* mg_surface_ptr_from_handle(mg_surface surface)
 {
-	mg_surface_slot* slot = mg_surface_slot_from_handle(surface);
+	mg_resource_slot* slot = mg_resource_slot_from_handle(&__mgInfo.surfaces, surface.h);
 	if(slot)
 	{
 		return(slot->surface);
@@ -317,29 +371,80 @@ mg_surface_info* mg_surface_ptr_from_handle(mg_surface surface)
 	}
 }
 
-mg_surface mg_surface_handle_from_slot(mg_surface_slot* slot)
-{
-	DEBUG_ASSERT(  (slot - __mgInfo.surfaceSlots) >= 0
-	            && (slot - __mgInfo.surfaceSlots) < MG_MAX_SURFACES);
+//------------------------------------------------------------------------
+// surface server handles
+//------------------------------------------------------------------------
 
-	u64 h = ((u64)(slot - __mgInfo.surfaceSlots))<<32
-	       |((u64)(slot->generation));
-	return((mg_surface){.h = h});
+mg_surface_server mg_surface_server_nil()
+{
+	return((mg_surface_server){.h = 0});
 }
 
-mg_surface mg_surface_alloc_handle(mg_surface_info* surface)
+mg_surface_server mg_surface_server_alloc_handle(mg_surface_server_info* server)
 {
-	mg_surface_slot* slot = mg_surface_slot_alloc();
-	slot->surface = surface;
-	mg_surface handle = mg_surface_handle_from_slot(slot);
+	mg_resource_slot* slot = mg_resource_slot_alloc(&__mgInfo.servers);
+	if(!slot)
+	{
+		LOG_ERROR("no more server slots\n");
+		return(mg_surface_server_nil());
+	}
+	slot->server = server;
+	u64 h = mg_resource_handle_from_slot(&__mgInfo.servers, slot);
+	mg_surface_server handle = {h};
 	return(handle);
 }
 
-mg_surface mg_surface_nil()
+mg_surface_server_info* mg_surface_server_ptr_from_handle(mg_surface_server server)
 {
-	return((mg_surface){.h = 0});
+	mg_resource_slot* slot = mg_resource_slot_from_handle(&__mgInfo.servers, server.h);
+	if(slot)
+	{
+		return(slot->server);
+	}
+	else
+	{
+		return(0);
+	}
 }
 
+//------------------------------------------------------------------------
+// surface client handles
+//------------------------------------------------------------------------
+mg_surface_client mg_surface_client_nil()
+{
+	return((mg_surface_client){.h = 0});
+}
+
+mg_surface_client mg_surface_client_alloc_handle(mg_surface_client_info* client)
+{
+	mg_resource_slot* slot = mg_resource_slot_alloc(&__mgInfo.clients);
+	if(!slot)
+	{
+		LOG_ERROR("no more client slots\n");
+		return(mg_surface_client_nil());
+	}
+	slot->client = client;
+	u64 h = mg_resource_handle_from_slot(&__mgInfo.clients, slot);
+	mg_surface_client handle = {h};
+	return(handle);
+}
+
+mg_surface_client_info* mg_surface_client_ptr_from_handle(mg_surface_client client)
+{
+	mg_resource_slot* slot = mg_resource_slot_from_handle(&__mgInfo.clients, client.h);
+	if(slot)
+	{
+		return(slot->client);
+	}
+	else
+	{
+		return(0);
+	}
+}
+
+//------------------------------------------------------------------------
+// canvas
+//------------------------------------------------------------------------
 mg_canvas_data* mg_canvas_alloc()
 {
 	return(ListPopEntry(&__mgInfo.contextFreeList, mg_canvas_data, freeListElt));
@@ -416,10 +521,15 @@ mg_image_data* mg_image_ptr_from_handle(mg_canvas_data* context, mg_image handle
 //---------------------------------------------------------------
 
 #ifdef MG_IMPLEMENTS_BACKEND_METAL
-//NOTE: function is defined in metal_backend.mm
-mg_surface mg_metal_surface_create_for_window(mp_window window);
-mg_surface mg_metal_surface_create_for_view(mp_view view);
+	//NOTE: function is defined in metal_backend.mm
+	mg_surface mg_metal_surface_create_for_window(mp_window window);
+	mg_surface mg_metal_surface_create_for_view(mp_view view);
 #endif //MG_IMPLEMENTS_BACKEND_METAL
+
+#ifdef MG_IMPLEMENTS_BACKEND_GLES
+	mg_surface mg_gles_surface_create_offscreen();
+	mg_surface_server mg_gles_surface_create_server(mg_surface_info* surface);
+#endif //MG_IMPLEMENTS_BACKEND_GLES
 
 void mg_init();
 
@@ -469,16 +579,51 @@ mg_surface mg_surface_create_for_view(mp_view view, mg_backend_id backend)
 	return(surface);
 }
 
+mg_surface mg_surface_create_offscreen(mg_backend_id backend)
+{
+	DEBUG_ASSERT(__mgInfo.init);
+
+	mg_surface surface = mg_surface_nil();
+
+	switch(backend)
+	{
+		#ifdef MG_IMPLEMENTS_BACKEND_GLES
+			case MG_BACKEND_GLES:
+				surface = mg_gles_surface_create_offscreen();
+				break;
+		#endif
+
+		//...
+
+			default:
+				break;
+	}
+
+	return(surface);
+}
+
+void* mg_surface_get_os_resource(mg_surface surface)
+{
+	DEBUG_ASSERT(__mgInfo.init);
+
+	void* res = 0;
+	mg_resource_slot* slot = mg_resource_slot_from_handle(&__mgInfo.surfaces, surface.h);
+	if(slot)
+	{
+		res = slot->surface->getOSResource(slot->surface);
+	}
+	return(res);
+}
 
 void mg_surface_destroy(mg_surface handle)
 {
 	DEBUG_ASSERT(__mgInfo.init);
 
-	mg_surface_slot* slot = mg_surface_slot_from_handle(handle);
+	mg_resource_slot* slot = mg_resource_slot_from_handle(&__mgInfo.surfaces, handle.h);
 	if(slot)
 	{
 		slot->surface->destroy(slot->surface);
-		mg_surface_slot_recycle(slot);
+		mg_resource_slot_recycle(&__mgInfo.surfaces, slot);
 	}
 }
 
@@ -515,6 +660,18 @@ void mg_surface_present(mg_surface surface)
 	}
 }
 
+void mg_surface_set_hidden(mg_surface surface, bool hidden)
+{
+	DEBUG_ASSERT(__mgInfo.init);
+
+	mg_surface_info* surfaceInfo = mg_surface_ptr_from_handle(surface);
+	if(surfaceInfo)
+	{
+		surfaceInfo->setHidden(surfaceInfo, hidden);
+	}
+}
+
+
 vec2 mg_surface_size(mg_surface surface)
 {
 	DEBUG_ASSERT(__mgInfo.init);
@@ -527,6 +684,97 @@ vec2 mg_surface_size(mg_surface surface)
 	return(res);
 }
 
+//---------------------------------------------------------------
+// graphics surface server
+//---------------------------------------------------------------
+
+mg_surface_server mg_surface_server_create(mg_surface surface)
+{
+	mg_surface_server server = mg_surface_server_nil();
+
+	mg_surface_info* surfaceInfo = mg_surface_ptr_from_handle(surface);
+	if(surfaceInfo)
+	{
+		switch(surfaceInfo->backend)
+		{
+			case MG_BACKEND_GLES:
+				server = mg_gles_surface_create_server(surfaceInfo);
+				break;
+
+			default:
+				break;
+		}
+	}
+	return(server);
+}
+
+void mg_surface_server_destroy(mg_surface_server handle)
+{
+	mg_resource_slot* slot = mg_resource_slot_from_handle(&__mgInfo.servers, handle.h);
+	if(slot)
+	{
+		slot->server->destroy(slot->server);
+		mg_resource_slot_recycle(&__mgInfo.servers, slot);
+	}
+}
+
+mg_surface_server_id mg_surface_server_get_id(mg_surface_server server)
+{
+	mg_surface_server_info* serverInfo = mg_surface_server_ptr_from_handle(server);
+	if(serverInfo)
+	{
+		return(serverInfo->getID(serverInfo));
+	}
+	else
+	{
+		return(0);
+	}
+}
+
+//---------------------------------------------------------------
+// graphics surface client
+//---------------------------------------------------------------
+
+//TODO: move elsewhere, guard with OS ifdef
+mg_surface_client mg_osx_surface_client_create(mg_surface_server_id id);
+
+mg_surface_client mg_surface_client_create(mg_surface_server_id id)
+{
+	mg_surface_client client = mg_surface_client_nil();
+
+	client = mg_osx_surface_client_create(id);
+	return(client);
+}
+
+void mg_surface_client_destroy(mg_surface_client handle)
+{
+	mg_resource_slot* slot = mg_resource_slot_from_handle(&__mgInfo.clients, handle.h);
+	if(slot)
+	{
+		slot->client->destroy(slot->client);
+		mg_resource_slot_recycle(&__mgInfo.clients, slot);
+	}
+}
+
+void mg_surface_client_attach_to_view(mg_surface_client client, mp_view view)
+{
+	mg_surface_client_info* clientInfo = mg_surface_client_ptr_from_handle(client);
+
+	if(clientInfo)
+	{
+		clientInfo->attachment = view;
+		clientInfo->attach(clientInfo);
+	}
+}
+
+void mg_surface_client_detach(mg_surface_client client)
+{
+	mg_surface_client_info* clientInfo = mg_surface_client_ptr_from_handle(client);
+	if(clientInfo)
+	{
+		clientInfo->detach(clientInfo);
+	}
+}
 
 //---------------------------------------------------------------
 // graphics stream handles
@@ -3606,15 +3854,14 @@ void mg_clear(mg_canvas handle)
 	mg_push_command(context, (mg_primitive){.cmd = MG_CMD_CLEAR, .attributes = context->attributes});
 }
 
-void mg_get_current_position(mg_canvas handle, f32* x, f32* y)
+vec2 mg_get_position(mg_canvas handle)
 {
 	mg_canvas_data* context = mg_canvas_ptr_from_handle(handle);
 	if(!context)
 	{
-		return;
+		return((vec2){0, 0});
 	}
-	*x = context->subPathLastPoint.x;
-	*y = context->subPathLastPoint.y;
+	return(context->subPathLastPoint);
 }
 
 void mg_path_push_elements(mg_canvas_data* context, u32 count, mg_path_elt* elements)
@@ -4004,6 +4251,11 @@ void mg_arc(mg_canvas handle, f32 x, f32 y, f32 r, f32 arcAngle, f32 startAngle)
 
 mg_image mg_image_nil() { return((mg_image){0}); }
 
+bool mg_image_equal(mg_image a, mg_image b)
+{
+	return(a.h == b.h);
+}
+
 mg_image mg_image_handle_from_ptr(mg_canvas_data* canvas, mg_image_data* imageData)
 {
 	DEBUG_ASSERT(  (imageData - canvas->images) >= 0
@@ -4053,9 +4305,9 @@ mg_image mg_image_create_from_rgba8(mg_canvas handle, u32 width, u32 height, u8*
 			  && context->atlasPos.y + height < MG_ATLAS_SIZE)
 			{
 				imageData->rect = (mp_rect){context->atlasPos.x,
-				                                    context->atlasPos.y,
-				                                    width,
-				                                    height};
+				                            context->atlasPos.y,
+				                            width,
+				                            height};
 
 				context->atlasPos.x += width;
 				context->atlasLineHeight = maximum(context->atlasLineHeight, height);
@@ -4114,6 +4366,21 @@ void mg_image_destroy(mg_canvas handle, mg_image image)
 	//TODO invalidate image handle, maybe free atlas area
 }
 
+vec2 mg_image_size(mg_canvas handle, mg_image image)
+{
+	vec2 size = {0};
+	mg_canvas_data* context = mg_canvas_ptr_from_handle(handle);
+	if(context)
+	{
+		mg_image_data* imageData = mg_image_ptr_from_handle(context, image);
+		if(imageData)
+		{
+			size = (vec2){imageData->rect.w, imageData->rect.h};
+		}
+	}
+	return(size);
+}
+
 void mg_image_draw(mg_canvas handle, mg_image image, mp_rect rect)
 {
 	mg_canvas_data* context = mg_canvas_ptr_from_handle(handle);
@@ -4122,7 +4389,7 @@ void mg_image_draw(mg_canvas handle, mg_image image, mp_rect rect)
 		return;
 	}
 	mg_primitive primitive = {.cmd = MG_CMD_IMAGE_DRAW,
-	                          .rect = (mp_rect){rect.x, rect.y, rect.h, rect.w},
+	                          .rect = (mp_rect){rect.x, rect.y, rect.w, rect.h},
 	                          .attributes = context->attributes};
 	primitive.attributes.image = image;
 
@@ -4137,7 +4404,7 @@ void mg_rounded_image_draw(mg_canvas handle, mg_image image, mp_rect rect, f32 r
 		return;
 	}
 	mg_primitive primitive = {.cmd = MG_CMD_ROUNDED_IMAGE_DRAW,
-	                          .roundedRect = {rect.x, rect.y, rect.h, rect.w, roundness},
+	                          .roundedRect = {rect.x, rect.y, rect.w, rect.h, roundness},
 	                          .attributes = context->attributes};
 	primitive.attributes.image = image;
 

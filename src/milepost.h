@@ -27,5 +27,6 @@
 #include"mp_app.h"
 #include"graphics.h"
 #include"ui.h"
+#include"hash.h"
 
 #endif //__MILEPOST_H_

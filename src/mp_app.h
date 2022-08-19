@@ -338,14 +338,13 @@ typedef void(*mp_event_callback)(mp_event event, void* data);
 void mp_set_event_callback(mp_event_callback callback, void* data);
 void mp_set_target_fps(u32 fps);
 void mp_run_loop();
+void mp_end_input_frame();
 
 void mp_pump_events(f64 timeout);
 bool mp_next_event(mp_event* event);
 
 typedef void(*mp_live_resize_callback)(mp_event event, void* data);
 void mp_set_live_resize_callback(mp_live_resize_callback callback, void* data);
-
-
 
 //--------------------------------------------------------------------
 // Input state polling
@@ -373,7 +372,7 @@ str8 mp_input_text_utf8(mem_arena* arena);
 //--------------------------------------------------------------------
 // app resources
 //--------------------------------------------------------------------
-int mp_app_get_resource_path(const char* name, char** result);
+str8 mp_app_get_resource_path(mem_arena* arena, const char* name);
 str8 mp_app_get_executable_path(mem_arena* arena);
 
 //--------------------------------------------------------------------

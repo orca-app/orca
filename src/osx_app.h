@@ -14,7 +14,7 @@
 #include"mp_app.h"
 #include"graphics.h"
 
-struct mp_window_data
+typedef struct mp_window_data
 {
 	list_elt freeListElt;
 	u32 generation;
@@ -31,9 +31,9 @@ struct mp_window_data
 	bool hidden;
 
 	mp_view mainView;
-};
+} mp_window_data;
 
-struct mp_view_data
+typedef struct mp_view_data
 {
 	list_elt freeListElt;
 	u32 generation;
@@ -41,7 +41,7 @@ struct mp_view_data
 	mp_window window;
 	NSView*   nsView;
 	mg_surface surface;
-};
+} mp_view_data;
 
 @interface MPNativeWindow : NSWindow
 {

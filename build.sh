@@ -24,7 +24,7 @@ if [ $OS = "Darwin" ] ; then
 	CXX=clang++
 	DYLIB_SUFFIX='dylib'
 	SYS_LIBS=''
-	FLAGS="-mmacos-version-min=10.15.4 -DMG_IMPLEMENTS_BACKEND_METAL -maes"
+	FLAGS="-mmacos-version-min=10.15.4 -DMG_IMPLEMENTS_BACKEND_METAL -DMG_IMPLEMENTS_BACKEND_GLES -maes"
 	CFLAGS="-std=c11"
 
 elif [ $OS = "Linux" ] ; then
@@ -40,8 +40,9 @@ fi
 #--------------------------------------------------------------
 BINDIR="./bin"
 SRCDIR="./src"
+EXTDIR="./ext"
 RESDIR="./resources"
-INCLUDES="-I$SRCDIR -I$SRCDIR/util -I$SRCDIR/platform"
+INCLUDES="-I$SRCDIR -I$SRCDIR/util -I$SRCDIR/platform -I$EXTDIR/angle_headers"
 
 #--------------------------------------------------------------
 # Build
@@ -60,7 +61,7 @@ if [ $target = 'lib' ] ; then
 	# compile milepost. We use one compilation unit for all C code, and one compilation
 	# unit for all ObjectiveC code
 	$CC $DEBUG_FLAGS -c -o $BINDIR/milepost_c.o $CFLAGS $FLAGS $INCLUDES $SRCDIR/milepost.c
-	$CC $DEBUG_FLAGS -c -o $BINDIR/milepost_objc.o $FLAGS $INCLUDES $SRCDIR/milepost.mm
+	$CC $DEBUG_FLAGS -c -o $BINDIR/milepost_objc.o $FLAGS $INCLUDES $SRCDIR/milepost.m
 
 	# build the static library
 	libtool -static -o $BINDIR/libmilepost.a $BINDIR/milepost_c.o $BINDIR/milepost_objc.o
