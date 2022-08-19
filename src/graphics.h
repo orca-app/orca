@@ -32,7 +32,7 @@ void mg_init();
 mg_surface mg_surface_nil();
 mg_surface mg_surface_create_for_window(mp_window window, mg_backend_id backend);
 mg_surface mg_surface_create_for_view(mp_view view, mg_backend_id backend);
-mg_surface mg_surface_create_offscreen(mg_backend_id backend);
+mg_surface mg_surface_create_offscreen(mg_backend_id backend, u32 width, u32 height);
 
 void mg_surface_destroy(mg_surface surface);
 void* mg_surface_get_os_resource(mg_surface surface);
@@ -53,6 +53,7 @@ typedef struct mg_surface_server { u64 h; } mg_surface_server;
 typedef struct mg_surface_client { u64 h; } mg_surface_client;
 
 mg_surface_server mg_surface_server_create(mg_surface surface);
+mg_surface_server mg_surface_server_create_native(void* p);
 void mg_surface_server_destroy(mg_surface_server server);
 mg_surface_server_id mg_surface_server_get_id(mg_surface_server server);
 

@@ -42,7 +42,7 @@ typedef struct mg_surface_info
 } mg_surface_info;
 
 mg_surface mg_surface_alloc_handle(mg_surface_info* surface);
-
+mg_surface_info* mg_surface_ptr_from_handle(mg_surface handle);
 //---------------------------------------------------------------------------------------------
 // Surface servers
 //---------------------------------------------------------------------------------------------

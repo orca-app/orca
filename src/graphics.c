@@ -527,7 +527,7 @@ mg_image_data* mg_image_ptr_from_handle(mg_canvas_data* context, mg_image handle
 #endif //MG_IMPLEMENTS_BACKEND_METAL
 
 #ifdef MG_IMPLEMENTS_BACKEND_GLES
-	mg_surface mg_gles_surface_create_offscreen();
+	mg_surface mg_gles_surface_create_offscreen(u32 width, u32 height);
 	mg_surface_server mg_gles_surface_create_server(mg_surface_info* surface);
 #endif //MG_IMPLEMENTS_BACKEND_GLES
 
@@ -579,7 +579,7 @@ mg_surface mg_surface_create_for_view(mp_view view, mg_backend_id backend)
 	return(surface);
 }
 
-mg_surface mg_surface_create_offscreen(mg_backend_id backend)
+mg_surface mg_surface_create_offscreen(mg_backend_id backend, u32 width, u32 height)
 {
 	DEBUG_ASSERT(__mgInfo.init);
 
@@ -589,7 +589,7 @@ mg_surface mg_surface_create_offscreen(mg_backend_id backend)
 	{
 		#ifdef MG_IMPLEMENTS_BACKEND_GLES
 			case MG_BACKEND_GLES:
-				surface = mg_gles_surface_create_offscreen();
+				surface = mg_gles_surface_create_offscreen(width, height);
 				break;
 		#endif
 
@@ -687,6 +687,13 @@ vec2 mg_surface_size(mg_surface surface)
 //---------------------------------------------------------------
 // graphics surface server
 //---------------------------------------------------------------
+
+mg_surface_server mg_gles_surface_server_create_native(void* p);
+
+mg_surface_server mg_surface_server_create_native(void* p)
+{
+	return(mg_gles_surface_server_create_native(p));
+}
 
 mg_surface_server mg_surface_server_create(mg_surface surface)
 {
