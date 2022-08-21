@@ -411,6 +411,12 @@ int mp_alert_popup(const char* title,
                    u32 count,
                    const char** options);
 
+
+//--------------------------------------------------------------------
+// file system stuff... //TODO: move elsewhere
+//--------------------------------------------------------------------
+int mp_file_move(str8 from, str8 to);
+
 #ifdef __cplusplus
 } // extern "C"
 #endif

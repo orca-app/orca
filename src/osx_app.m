@@ -2616,4 +2616,24 @@ int mp_alert_popup(const char* title,
 }
 
 
+//--------------------------------------------------------------------
+// file system stuff... //TODO: move elsewhere
+//--------------------------------------------------------------------
+
+int mp_file_move(str8 from, str8 to)
+{@autoreleasepool{
+	NSString* nsFrom = [[NSString alloc] initWithBytes:from.ptr length:from.len encoding: NSUTF8StringEncoding];
+	NSString* nsTo = [[NSString alloc] initWithBytes:to.ptr length:to.len encoding: NSUTF8StringEncoding];
+	NSError* err;
+	if([[NSFileManager defaultManager] moveItemAtPath:nsFrom toPath:nsTo error:&err] == YES)
+	{
+		return(0);
+	}
+	else
+	{
+		return(-1);
+	}
+}}
+
+
 #undef LOG_SUBSYSTEM
