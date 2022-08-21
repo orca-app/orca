@@ -168,6 +168,8 @@ typedef struct mp_app_data
 	bool init;
 	bool shouldQuit;
 
+	str8 pendingPathDrop;
+	mem_arena eventArena;
 	mp_input_state inputState;
 	ringbuffer eventQueue;
 
@@ -674,6 +676,10 @@ static void mp_dispatch_event(mp_event* event)
 	{
 		__mpAppData.eventCallback(*event, __mpAppData.eventData);
 	}
+	else
+	{
+		mp_queue_event(event);
+	}
 }
 
 //---------------------------------------------------------------
@@ -689,9 +695,21 @@ static void mp_dispatch_event(mp_event* event)
 @end
 
 @interface MPAppDelegate : NSObject <NSApplicationDelegate>
+-(id)init;
 @end
 
 @implementation MPAppDelegate
+
+-(id)init
+{
+	self = [super init];
+	[[NSAppleEventManager sharedAppleEventManager] setEventHandler:self
+	                                               andSelector:@selector(handleAppleEvent:withReplyEvent:)
+	                                               forEventClass:kInternetEventClass
+	                                               andEventID:kAEGetURL];
+
+	return(self);
+}
 
 - (NSApplicationTerminateReply)applicationShouldTerminate:(NSApplication *)sender
 {
@@ -726,6 +744,7 @@ static void mp_dispatch_event(mp_event* event)
 	[appMenu addItemWithTitle: @"Quit"
 		 action: @selector(terminate:)
 		 keyEquivalent: @"q"];
+
 }}
 
 - (void)timerElapsed:(NSTimer*)timer
@@ -744,6 +763,7 @@ static void mp_dispatch_event(mp_event* event)
 	//		versions of macOS.
 
 	//NOTE(martin): send a dummy event to wake-up the run loop and exit from the run loop.
+
 	NSEvent* event = [NSEvent otherEventWithType:NSEventTypeApplicationDefined
 					    location:NSMakePoint(0, 0)
 				       modifierFlags:0
@@ -753,9 +773,33 @@ static void mp_dispatch_event(mp_event* event)
 					     subtype:0
 					       data1:0
 					       data2:0];
+
 	[NSApp postEvent:event atStart:YES];
 	[NSApp stop:nil];
 }}
+
+- (BOOL)application:(NSApplication *)application openFile:(NSString *)filename
+{
+	mp_event event = {};
+	event.window = (mp_window){0};
+	event.type = MP_EVENT_PATHDROP;
+	event.path = str8_push_cstring(&__mpAppData.eventArena, [filename UTF8String]);
+
+	mp_dispatch_event(&event);
+	return(YES);
+}
+
+- (void)handleAppleEvent:(NSAppleEventDescriptor*)appleEvent withReplyEvent:(NSAppleEventDescriptor*)replyEvent
+{
+	NSString* nsPath = [[appleEvent paramDescriptorForKeyword:keyDirectObject] stringValue];
+
+	mp_event event = {};
+	event.window = (mp_window){0};
+	event.type = MP_EVENT_PATHDROP;
+	event.path = str8_push_cstring(&__mpAppData.eventArena, [nsPath UTF8String]);
+
+	mp_dispatch_event(&event);
+}
 
 @end // @implementation MPAppDelegate
 
@@ -773,6 +817,85 @@ static void mp_dispatch_event(mp_event* event)
 {
 	return(!(mpWindow->style & MP_WINDOW_STYLE_NO_FOCUS));
 }
+/*
+- (NSDragOperation)draggingEntered:(id <NSDraggingInfo>)sender
+{
+	if([sender draggingSourceOperationMask] & NSDragOperationGeneric)
+	{
+		return NSDragOperationGeneric;
+	}
+	return NSDragOperationNone;
+}
+
+- (BOOL)performDragOperation:(id <NSDraggingInfo>)sender
+{@autoreleasepool
+{
+	NSPasteboard *pasteboard = [sender draggingPasteboard];
+	NSArray *types = [NSArray arrayWithObject:NSFilenamesPboardType];
+	NSString *desiredType = [pasteboard availableTypeFromArray:types];
+
+	NSData *data;
+	NSArray *array;
+	NSPoint point;
+
+	if (desiredType == nil) {
+    	return NO;
+	}
+
+	data = [pasteboard dataForType:desiredType];
+	if (data == nil) {
+    	return NO;
+	}
+
+	SDL_assert([desiredType isEqualToString:NSFilenamesPboardType]);
+	array = [pasteboard propertyListForType:@"NSFilenamesPboardType"];
+
+	// Code addon to update the mouse location
+	point = [sender draggingLocation];
+	mouse = SDL_GetMouse();
+	x = (int)point.x;
+	y = (int)(sdlwindow->h - point.y);
+	if (x >= 0 && x < sdlwindow->w && y >= 0 && y < sdlwindow->h) {
+    	SDL_SendMouseMotion(sdlwindow, mouse->mouseID, 0, x, y);
+	}
+	// Code addon to update the mouse location
+
+	for (NSString *path in array) {
+    	NSURL *fileURL = [NSURL fileURLWithPath:path];
+    	NSNumber *isAlias = nil;
+
+    	[fileURL getResourceValue:&isAlias forKey:NSURLIsAliasFileKey error:nil];
+
+    	// If the URL is an alias, resolve it.
+    	if ([isAlias boolValue]) {
+        	NSURLBookmarkResolutionOptions opts = NSURLBookmarkResolutionWithoutMounting | NSURLBookmarkResolutionWithoutUI;
+        	NSData *bookmark = [NSURL bookmarkDataWithContentsOfURL:fileURL error:nil];
+        	if (bookmark != nil) {
+            	NSURL *resolvedURL = [NSURL URLByResolvingBookmarkData:bookmark
+                                                           	options:opts
+                                                     	relativeToURL:nil
+                                               	bookmarkDataIsStale:nil
+                                                             	error:nil];
+
+            	if (resolvedURL != nil) {
+                	fileURL = resolvedURL;
+            	}
+        	}
+    	}
+
+    	if (!SDL_SendDropFile(sdlwindow, [[fileURL path] UTF8String])) {
+        	return NO;
+    	}
+	}
+
+	SDL_SendDropComplete(sdlwindow);
+	return YES;
+}
+
+- (BOOL)wantsPeriodicDraggingUpdates;
+- (BOOL)validateMenuItem:(NSMenuItem *)menuItem;
+*/
+
 @end //@implementation MPNativeWindow
 
 //---------------------------------------------------------------
@@ -1388,6 +1511,8 @@ void mp_init()
 	{
 		memset(&__mpAppData, 0, sizeof(__mpAppData));
 
+		mem_arena_init(&__mpAppData.eventArena);
+
 		mp_clock_init();
 
 		LOG_MESSAGE("init keys\n");
@@ -1432,6 +1557,7 @@ void mp_terminate()
 	//TODO: proper app data cleanup (eg delegate, etc)
 	if(__mpAppData.init)
 	{
+		mem_arena_release(&__mpAppData.eventArena);
 		__mpAppData = (mp_app_data){0};
 	}
 }
@@ -2124,14 +2250,24 @@ void mp_run_loop()
 
 	while(!__mpAppData.shouldQuit)
 	{
-		NSEvent* event = [NSApp nextEventMatchingMask: NSEventMaskAny
+		mp_event event;
+		while(mp_next_event(&event))
+		{
+			//send pending event that might have accumulated before we started run loop
+			if(__mpAppData.eventCallback)
+			{
+				__mpAppData.eventCallback(event, __mpAppData.eventData);
+			}
+		}
+
+		NSEvent* nsEvent = [NSApp nextEventMatchingMask: NSEventMaskAny
 					untilDate:[NSDate distantFuture]
 					inMode: NSDefaultRunLoopMode
 					dequeue: YES];
 
-		if(event != nil)
+		if(nsEvent != nil)
 		{
-			[NSApp sendEvent:event];
+			[NSApp sendEvent:nsEvent];
 		}
 	}
 
@@ -2141,6 +2277,7 @@ void mp_run_loop()
 void mp_end_input_frame()
 {
 	__mpAppData.inputState.frameCounter++;
+	mem_arena_clear(&__mpAppData.eventArena);
 }
 
 //--------------------------------------------------------------------
@@ -2299,35 +2436,21 @@ str8 mp_input_text_utf8(mem_arena* arena)
 
 str8 mp_app_get_resource_path(mem_arena* arena, const char* name)
 {
-	str8 cwd = {0};
-	@autoreleasepool
-	{
-		NSBundle* mainBundle = [NSBundle mainBundle];
-		if(!mainBundle)
-		{
-			//NOTE(martin): we assume we are running from the command line in debug mode
-			char* currentPath = getcwd(0, 0);
-			cwd = str8_push_cstring(arena, currentPath);
-			free(currentPath);
-		}
-		else
-		{
-			NSString* nsName = [[NSString alloc] initWithUTF8String:name];
-			NSString* nsPath = [mainBundle executablePath];
-			const char* utf8Path = [nsPath UTF8String];
-			const char* dir = dirname((char*)utf8Path);
-			cwd = str8_push_cstring(arena, dir);
-		}
-	}
-	char* buffer = mem_arena_alloc_array(arena, char, cwd.len + strlen(name) + 2);
-	strncpy(buffer, cwd.ptr, cwd.len);
-	buffer[cwd.len] = '\0';
-	strcat(buffer, "/");
-	strcat(buffer, name);
-	char* real = realpath(buffer, 0);
+	str8_list list = {};
+	mem_arena* scratch = mem_scratch();
+
+	str8 executablePath = mp_app_get_executable_path(scratch);
+	str8 dirPath = mp_path_directory(executablePath);
+
+	str8_list_push(scratch, &list, dirPath);
+	str8_list_push(scratch, &list, str8_lit("/"));
+	str8_list_push(scratch, &list, str8_push_cstring(scratch, name));
+	str8 path = str8_list_join(scratch, list);
+	char* pathCString = str8_to_cstring(scratch, path);
+	char* buffer = mem_arena_alloc_array(scratch, char, path.len+1);
+	char* real = realpath(pathCString, buffer);
 
 	str8 result = str8_push_cstring(arena, real);
-
 	return(result);
 }
 

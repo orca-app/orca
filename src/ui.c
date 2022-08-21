@@ -491,12 +491,20 @@ ui_box* ui_box_make_str8(str8 string, ui_flags flags)
 	}
 
 	//NOTE: setup hierarchy
-	ListInit(&box->children);
-	box->parent = ui_box_top();
-	if(box->parent)
+	if(box->frameCounter != ui->frameCounter)
 	{
-		ListAppend(&box->parent->children, &box->listElt);
-		box->parentClosed = box->parent->closed || box->parent->parentClosed;
+		ListInit(&box->children);
+		box->parent = ui_box_top();
+		if(box->parent)
+		{
+			ListAppend(&box->parent->children, &box->listElt);
+			box->parentClosed = box->parent->closed || box->parent->parentClosed;
+		}
+	}
+	else
+	{
+		//maybe this should be a warning that we're trying to make the box twice in the same frame?
+		LOG_WARNING("trying to make ui box '%.*s' multiple times in the same frame\n", (int)box->string.len, box->string.ptr);
 	}
 
 	//NOTE: setup per-frame state

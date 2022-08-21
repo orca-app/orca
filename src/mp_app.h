@@ -254,6 +254,7 @@ typedef struct mp_event
 		mp_char_event  character;
 		mp_move_event  move;
 		mp_frame_event frame;
+		str8 path;
 	};
 
 	//TODO(martin): chain externally ?
