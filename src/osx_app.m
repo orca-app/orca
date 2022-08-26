@@ -2635,5 +2635,18 @@ int mp_file_move(str8 from, str8 to)
 	}
 }}
 
+int mp_file_remove(str8 path)
+{@autoreleasepool{
+	NSString* nsPath = [[NSString alloc] initWithBytes:path.ptr length:path.len encoding: NSUTF8StringEncoding];
+	NSError* err;
+	if([[NSFileManager defaultManager] removeItemAtPath:nsPath error:&err] == YES)
+	{
+		return(0);
+	}
+	else
+	{
+		return(-1);
+	}
+}}
 
 #undef LOG_SUBSYSTEM

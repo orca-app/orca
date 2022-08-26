@@ -416,6 +416,7 @@ int mp_alert_popup(const char* title,
 // file system stuff... //TODO: move elsewhere
 //--------------------------------------------------------------------
 int mp_file_move(str8 from, str8 to);
+int mp_file_remove(str8 path);
 
 #ifdef __cplusplus
 } // extern "C"
