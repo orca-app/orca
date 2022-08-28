@@ -418,6 +418,8 @@ int mp_alert_popup(const char* title,
 int mp_file_move(str8 from, str8 to);
 int mp_file_remove(str8 path);
 
+int mp_directory_create(str8 path);
+
 #ifdef __cplusplus
 } // extern "C"
 #endif

@@ -112,7 +112,7 @@ mg_surface mg_gles_surface_create_offscreen(u32 width, u32 height)
 
 	eglBindAPI(EGL_OPENGL_ES_API);
 	EGLint contextAttributes[] = {
-		EGL_CONTEXT_MAJOR_VERSION_KHR, 2,
+		EGL_CONTEXT_MAJOR_VERSION_KHR, 3,
 		EGL_CONTEXT_MINOR_VERSION_KHR, 0,
 		EGL_CONTEXT_BIND_GENERATES_RESOURCE_CHROMIUM, EGL_TRUE,
 		EGL_CONTEXT_CLIENT_ARRAYS_ENABLED_ANGLE, EGL_TRUE,
@@ -121,56 +121,6 @@ mg_surface mg_gles_surface_create_offscreen(u32 width, u32 height)
 
 	surface->eglContext = eglCreateContext(surface->eglDisplay, surface->eglConfig, EGL_NO_CONTEXT, contextAttributes);
 	eglMakeCurrent(surface->eglDisplay, surface->eglSurface, surface->eglSurface, surface->eglContext);
-	/*
-		EGLAttrib displayAttribs[] = {
-			EGL_PLATFORM_ANGLE_TYPE_ANGLE, EGL_PLATFORM_ANGLE_TYPE_DEFAULT_ANGLE,
-			EGL_PLATFORM_ANGLE_DEVICE_TYPE_ANGLE, EGL_PLATFORM_ANGLE_DEVICE_TYPE_HARDWARE_ANGLE,
-			EGL_NONE };
-
-		surface->eglDisplay = eglGetPlatformDisplay(EGL_PLATFORM_ANGLE_ANGLE, (void*)EGL_DEFAULT_DISPLAY, displayAttribs);
-		eglInitialize(surface->eglDisplay, NULL, NULL);
-
-		EGLint const configAttributes[] = {
-			EGL_SURFACE_TYPE, EGL_WINDOW_BIT,
-			EGL_RED_SIZE, 8,
-			EGL_GREEN_SIZE, 8,
-			EGL_BLUE_SIZE, 8,
-			EGL_ALPHA_SIZE, 8,
-			EGL_DEPTH_SIZE, 24,
-			EGL_STENCIL_SIZE, 8,
-			EGL_SAMPLE_BUFFERS, 0,
-			EGL_SAMPLES, EGL_DONT_CARE,
-			EGL_COLOR_COMPONENT_TYPE_EXT, EGL_COLOR_COMPONENT_TYPE_FIXED_EXT,
-			EGL_NONE };
-
-		eglChooseConfig(surface->eglDisplay, configAttributes, &surface->eglConfig, 1, &surface->numConfigs);
-
-		EGLint const surfaceAttributes[] = {EGL_NONE};
-		surface->eglSurface = eglCreateWindowSurface(surface->eglDisplay, &surface->eglConfig, surface->layer, surfaceAttributes);
-
-		eglBindAPI(EGL_OPENGL_ES_API);
-
-		EGLint contextAttributes[] = {
-			EGL_CONTEXT_MAJOR_VERSION_KHR, 2,
-			EGL_CONTEXT_MINOR_VERSION_KHR, 0,
-			EGL_CONTEXT_BIND_GENERATES_RESOURCE_CHROMIUM, EGL_TRUE,
-			EGL_CONTEXT_CLIENT_ARRAYS_ENABLED_ANGLE, EGL_TRUE,
-			EGL_CONTEXT_OPENGL_BACKWARDS_COMPATIBLE_ANGLE, EGL_FALSE,
-			EGL_NONE};
-
-		surface->eglContext = eglCreateContext(surface->eglDisplay, &surface->eglConfig, EGL_NO_CONTEXT, contextAttributes);
-		eglMakeCurrent(surface->eglDisplay, surface->eglSurface, surface->eglSurface, surface->eglContext);
-
-	GLuint err = eglGetError();
-	if(err != EGL_SUCCESS)
-	{
-		printf("egl error %u\n", err);
-	}
-	else
-	{
-		printf("egl OK\n");
-	}
-	*/
 
 	mg_surface handle = mg_surface_alloc_handle((mg_surface_info*)surface);
 	return(handle);

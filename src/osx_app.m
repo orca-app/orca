@@ -2649,4 +2649,22 @@ int mp_file_remove(str8 path)
 	}
 }}
 
+int mp_directory_create(str8 path)
+{@autoreleasepool{
+
+	NSString* nsPath = [[NSString alloc] initWithBytes:path.ptr length:path.len encoding: NSUTF8StringEncoding];
+	NSError* err;
+	if([[NSFileManager defaultManager] createDirectoryAtPath: nsPath
+	                                withIntermediateDirectories: YES
+	                                attributes:nil
+	                                error:&err] == YES)
+	{
+		return(0);
+	}
+	else
+	{
+		return(-1);
+	}
+}}
+
 #undef LOG_SUBSYSTEM
