@@ -1,3 +1,9 @@
 .DS_Store
 bin/*
 *.metallib
+
+*.pdb
+*.exe
+*.ilk
+*.vs
+*.obj

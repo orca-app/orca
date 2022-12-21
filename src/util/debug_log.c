@@ -17,14 +17,15 @@ static const char* LOG_HEADINGS[LOG_LEVEL_COUNT] = {
 	"Debug"};
 
 static const char* LOG_FORMATS[LOG_LEVEL_COUNT] = {
-	"\e[38;5;9m\e[1m",
-	"\e[38;5;13m\e[1m",
-	"\e[38;5;10m\e[1m",
-	"\e[38;5;14m\e[1m" };
+	"\033[38;5;9m\033[1m",
+	"\033[38;5;13m\033[1m",
+	"\033[38;5;10m\033[1m",
+	"\033[38;5;14m\033[1m" };
 
-static const char* LOG_FORMAT_STOP = "\e[m";
+static const char* LOG_FORMAT_STOP = "\033[m";
 
-const int LOG_SUBSYSTEM_MAX_COUNT = 16;
+enum {
+	LOG_SUBSYSTEM_MAX_COUNT = 16 };
 
 typedef struct log_config
 {
@@ -37,8 +38,8 @@ typedef struct log_config
 
 static log_config __log_config = {.out = 0,
                                   .level = LOG_DEFAULT_LEVEL,
-				  .subsystemNames = {},
-				  .subsystemLevels = {}};
+                                  .subsystemNames = {0},
+                                  .subsystemLevels = {0}};
 
 int LogFindSubsystem(const char* subsystem)
 {

@@ -9,8 +9,14 @@
 #ifndef __RINGBUFFER_H_
 #define __RINGBUFFER_H_
 
-#include<stdatomic.h>
 #include"typedefs.h"
+
+#if defined(_MSC_VER) && defined(__STDC_NO_ATOMICS__)
+	#define _Atomic(t) volatile t
+#else
+	#include<stdatomic.h>
+#endif
+
 
 #ifdef __cplusplus
 extern "C" {

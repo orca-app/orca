@@ -20,7 +20,7 @@ static const u32 MEM_ARENA_COMMIT_ALIGNMENT = 1<<20;
 //--------------------------------------------------------------------------------
 void mem_arena_init(mem_arena* arena)
 {
-	mem_arena_init_with_options(arena, &(mem_arena_options){});
+	mem_arena_init_with_options(arena, &(mem_arena_options){0});
 }
 
 void mem_arena_init_with_options(mem_arena* arena, mem_arena_options* options)
@@ -68,7 +68,7 @@ void mem_arena_clear(mem_arena* arena)
 //--------------------------------------------------------------------------------
 void mem_pool_init(mem_pool* pool, u64 blockSize)
 {
-	mem_pool_init_with_options(pool, blockSize, &(mem_pool_options){});
+	mem_pool_init_with_options(pool, blockSize, &(mem_pool_options){0});
 }
 void mem_pool_init_with_options(mem_pool* pool, u64 blockSize, mem_pool_options* options)
 {
@@ -112,7 +112,13 @@ void mem_pool_clear(mem_pool* pool)
 //NOTE(martin): per-thread scratch arena
 //--------------------------------------------------------------------------------
 
-__thread mem_arena __scratchArena = {};
+//TODO: move that somewhere in context cracking code
+#ifdef _WIN32
+	#define __thread __declspec(thread)
+#endif
+
+__thread mem_arena __scratchArena = {0};
+
 
 mem_arena* mem_scratch()
 {

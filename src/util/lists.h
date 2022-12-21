@@ -23,9 +23,13 @@ extern "C" {
 		    const decltype( ((type *)0)->member ) *__mptr = (ptr);    \
 		    (type *)( (char *)__mptr - OFFSET_OF_CONTAINER(type,member) );})
 #else
+/*
 #define CONTAINER_OF(ptr, type, member) ({          \
 		    const char *__mptr = (char*)(ptr);    \
 		    (type *)(__mptr - OFFSET_OF_CONTAINER(type,member) );})
+*/
+#define CONTAINER_OF(ptr, type, member) (type *)((char*)(ptr) - OFFSET_OF_CONTAINER(type,member))
+
 #endif
 
 //-------------------------------------------------------------------------

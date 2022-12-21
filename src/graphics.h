@@ -1,4 +1,4 @@
-	/************************************************************//**
+/************************************************************//**
 *
 *	@file: graphics.h
 *	@author: Martin Fouilleul
@@ -23,6 +23,7 @@ typedef struct mg_surface { u64 h; } mg_surface;
 
 typedef enum { MG_BACKEND_DUMMY,
                MG_BACKEND_METAL,
+               MG_BACKEND_GL,
                MG_BACKEND_GLES,
                //...
              } mg_backend_id;

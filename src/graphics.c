@@ -6,6 +6,8 @@
 *	@revision:
 *
 *****************************************************************/
+
+#define _USE_MATH_DEFINES //NOTE: necessary for MSVC
 #include<math.h>
 
 #define STB_TRUETYPE_IMPLEMENTATION
@@ -121,8 +123,11 @@ typedef struct mg_glyph_info
 
 } mg_glyph_info;
 
-const u32 MG_STREAM_MAX_COUNT = 128;
-const u32 MG_IMAGE_MAX_COUNT = 128;
+enum
+{
+	MG_STREAM_MAX_COUNT = 128,
+	MG_IMAGE_MAX_COUNT = 128
+};
 
 typedef struct mg_stream_data
 {
@@ -147,10 +152,13 @@ typedef struct mg_image_data
 
 } mg_image_data;
 
-const u32 MG_MATRIX_STACK_MAX_DEPTH = 64;
-const u32 MG_CLIP_STACK_MAX_DEPTH = 64;
-const u32 MG_MAX_PATH_ELEMENT_COUNT = 2<<20;
-const u32 MG_MAX_PRIMITIVE_COUNT = 8<<10;
+enum
+{
+	MG_MATRIX_STACK_MAX_DEPTH = 64,
+	MG_CLIP_STACK_MAX_DEPTH = 64,
+	MG_MAX_PATH_ELEMENT_COUNT = 2<<20,
+	MG_MAX_PRIMITIVE_COUNT = 8<<10
+};
 
 typedef struct mg_canvas_data
 {
@@ -219,9 +227,12 @@ typedef struct mg_font_info
 // internal handle system
 //---------------------------------------------------------------
 
-const u32 MG_MAX_RESOURCE_SLOTS = 256,
-          MG_MAX_CONTEXTS = 256,
-          MG_FONT_MAX_COUNT = 256;
+enum
+{
+	MG_MAX_RESOURCE_SLOTS = 128,
+	MG_MAX_CONTEXTS = 32,
+	MG_FONT_MAX_COUNT = 128
+};
 
 typedef struct mg_resource_slot
 {
@@ -531,6 +542,11 @@ mg_image_data* mg_image_ptr_from_handle(mg_canvas_data* context, mg_image handle
 	mg_surface_server mg_gles_surface_create_server(mg_surface_info* surface);
 #endif //MG_IMPLEMENTS_BACKEND_GLES
 
+#ifdef MG_IMPLEMENTS_BACKEND_GL
+	mg_surface mg_gl_surface_create_for_window(mp_window window);
+	//TODO for view
+#endif
+
 void mg_init();
 
 mg_surface mg_surface_create_for_window(mp_window window, mg_backend_id backend)
@@ -547,6 +563,11 @@ mg_surface mg_surface_create_for_window(mp_window window, mg_backend_id backend)
 				break;
 		#endif
 
+		#ifdef MG_IMPLEMENTS_BACKEND_GL
+			case MG_BACKEND_GL:
+				surface = mg_gl_surface_create_for_window(window);
+				break;
+		#endif
 		//...
 
 			default:
@@ -675,7 +696,7 @@ void mg_surface_set_hidden(mg_surface surface, bool hidden)
 vec2 mg_surface_size(mg_surface surface)
 {
 	DEBUG_ASSERT(__mgInfo.init);
-	vec2 res = {};
+	vec2 res = {0};
 	mg_surface_info* surfaceInfo = mg_surface_ptr_from_handle(surface);
 	if(surfaceInfo)
 	{
@@ -688,12 +709,14 @@ vec2 mg_surface_size(mg_surface surface)
 // graphics surface server
 //---------------------------------------------------------------
 
+/*
 mg_surface_server mg_gles_surface_server_create_native(void* p);
 
 mg_surface_server mg_surface_server_create_native(void* p)
 {
 	return(mg_gles_surface_server_create_native(p));
 }
+*/
 
 mg_surface_server mg_surface_server_create(mg_surface surface)
 {
@@ -704,10 +727,11 @@ mg_surface_server mg_surface_server_create(mg_surface surface)
 	{
 		switch(surfaceInfo->backend)
 		{
+#ifdef MG_IMPLEMENTS_BACKEND_GLES
 			case MG_BACKEND_GLES:
 				server = mg_gles_surface_create_server(surfaceInfo);
 				break;
-
+#endif
 			default:
 				break;
 		}
@@ -743,6 +767,7 @@ mg_surface_server_id mg_surface_server_get_id(mg_surface_server server)
 //---------------------------------------------------------------
 
 //TODO: move elsewhere, guard with OS ifdef
+#ifdef __APPLE__
 mg_surface_client mg_osx_surface_client_create(mg_surface_server_id id);
 
 mg_surface_client mg_surface_client_create(mg_surface_server_id id)
@@ -752,6 +777,8 @@ mg_surface_client mg_surface_client_create(mg_surface_server_id id)
 	client = mg_osx_surface_client_create(id);
 	return(client);
 }
+
+#endif
 
 void mg_surface_client_destroy(mg_surface_client handle)
 {
@@ -2639,8 +2666,10 @@ mg_canvas_painter* mg_canvas_painter_create_for_surface(mg_surface surfaceHandle
 
 	switch(surface->backend)
 	{
+#ifdef MG_IMPLEMENTS_BACKED_METAL
 		case MG_BACKEND_METAL:
 			return(mg_metal_painter_create_for_surface((mg_metal_surface*)surface, viewPort));
+#endif
 
 		default:
 			return(0);
@@ -3380,7 +3409,7 @@ str32 mg_font_get_glyph_indices(mg_font font, str32 codePoints, str32 backing)
 	mg_font_info* fontInfo = mg_get_font_info(font);
 	if(!fontInfo)
 	{
-		return((str32){});
+		return((str32){0});
 	}
 	return(mg_font_get_glyph_indices_from_font_info(fontInfo, codePoints, backing));
 }
@@ -3413,7 +3442,7 @@ mg_font_extents mg_font_get_extents(mg_font font)
 	mg_font_info* fontInfo = mg_get_font_info(font);
 	if(!fontInfo)
 	{
-		return((mg_font_extents){});
+		return((mg_font_extents){0});
 	}
 	return(fontInfo->extents);
 }
@@ -3423,7 +3452,7 @@ mg_font_extents mg_font_get_scaled_extents(mg_font font, f32 emSize)
 	mg_font_info* fontInfo = mg_get_font_info(font);
 	if(!fontInfo)
 	{
-		return((mg_font_extents){});
+		return((mg_font_extents){0});
 	}
 	f32 scale = emSize/fontInfo->unitsPerEm;
 	mg_font_extents extents = fontInfo->extents;
@@ -3494,13 +3523,13 @@ mp_rect mg_text_bounding_box_utf32(mg_font font, f32 fontSize, str32 codePoints)
 {
 	if(!codePoints.len || !codePoints.ptr)
 	{
-		return((mp_rect){});
+		return((mp_rect){0});
 	}
 
 	mg_font_info* fontInfo = mg_get_font_info(font);
 	if(!fontInfo)
 	{
-		return((mp_rect){});
+		return((mp_rect){0});
 	}
 
 	mem_arena* scratch = mem_scratch();
@@ -3580,7 +3609,7 @@ mp_rect mg_text_bounding_box(mg_font font, f32 fontSize, str8 text)
 {
 	if(!text.len || !text.ptr)
 	{
-		return((mp_rect){});
+		return((mp_rect){0});
 	}
 
 	mem_arena* scratch = mem_scratch();
@@ -4027,12 +4056,12 @@ mp_rect mg_glyph_outlines(mg_canvas handle, str32 glyphIndices)
 	mg_canvas_data* context = mg_canvas_ptr_from_handle(handle);
 	if(!context)
 	{
-		return((mp_rect){});
+		return((mp_rect){0});
 	}
 	mg_font_info* fontInfo = mg_get_font_info(context->attributes.font);
 	if(!fontInfo)
 	{
-		return((mp_rect){});
+		return((mp_rect){0});
 	}
 	return(mg_glyph_outlines_from_font_info(context, fontInfo, glyphIndices));
 }

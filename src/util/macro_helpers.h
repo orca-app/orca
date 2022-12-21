@@ -60,11 +60,8 @@
 			def(u32, ##__VA_ARGS__) def(i32, ##__VA_ARGS__) def(u64, ##__VA_ARGS__) def(i64, ##__VA_ARGS__) \
 			def(f32, ##__VA_ARGS__) def(f64, ##__VA_ARGS__)
 
-	// This macro generates the name of a typed variant
-	#define tga_variant_name(name, type) _cat3_(name, _, type)
-
-	// This macro generates a _Generic association between a type and its variant
-	#define tga_variant_association(type, name) , type: tga_variant_name(name, type)
+	// This macro generates one _Generic association between a type and its variant
+	#define tga_variant_association(type, name) , type: _cat3_(name, _, type)
 
 	// This macros selects the appropriate variant for a 2 parameters functions
 	#define tga_select_binary(name, a, b) \
@@ -75,10 +72,10 @@
 			_Generic((a) tga_generate_variants(tga_variant_association, name))(a)
 
 	//NOTE(martin): type generic templates
-	#define minimum_def(type) static inline type tga_variant_name(minimum_safe, type)(type a, type b) {return(a < b ? a : b);}
-	#define maximum_def(type) static inline type tga_variant_name(maximum_safe, type)(type a, type b) {return(a > b ? a : b);}
-	#define square_def(type) static inline type tga_variant_name(square_safe, type)(type a) {return(a*a);}
-	#define cube_def(type) static inline type tga_variant_name(cube_safe, type)(type a) {return(a*a*a);}
+	#define minimum_def(type) static inline type _cat3_(minimum_safe, _, type)(type a, type b) {return(a < b ? a : b);}
+	#define maximum_def(type) static inline type _cat3_(maximum_safe, _, type)(type a, type b) {return(a > b ? a : b);}
+	#define square_def(type) static inline type _cat3_(square_safe, _, type)(type a) {return(a*a);}
+	#define cube_def(type) static inline type _cat3_(cube_safe, _, type)(type a) {return(a*a*a);}
 
 	//NOTE(martin): instantiante our templates for all arithmetic types
 	tga_generate_variants(minimum_def)
@@ -86,7 +83,7 @@
 	tga_generate_variants(square_def)
 	tga_generate_variants(cube_def)
 
-	//NOTE(martin): select the correct variant according to the argument types
+	//NOTE(martin): generate the _Generic associations between each type and its associated variant
 	#define minimum_safe(a, b) tga_select_binary(minimum_safe, a, b)
 	#define maximum_safe(a, b) tga_select_binary(maximum_safe, a, b)
 	#define square_safe(a) tga_select_unary(square_safe, a)

@@ -12,6 +12,7 @@
 
 #include"typedefs.h"
 #include"macro_helpers.h"
+#include"strings.h"
 
 #ifdef __cplusplus
 extern "C" {

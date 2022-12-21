@@ -42,7 +42,7 @@ str8 str8_slice(str8 s, u64 start, u64 end)
 
 str8 str8_push_buffer(mem_arena* arena, u64 len, char* buffer)
 {
-	str8 str = {};
+	str8 str = {0};
 	str.len = len;
 	str.ptr = mem_arena_alloc_array(arena, char, len);
 	memcpy(str.ptr, buffer, len);
@@ -82,7 +82,7 @@ str8 str8_pushfv(mem_arena* arena, const char* format, va_list args)
 	//      and every case, and that would be a difficult bug to spot, so it seems better to
 	//      waste one byte and be safe.
 	char dummy;
-	str8 str = {};
+	str8 str = {0};
 	va_list argCopy;
 	va_copy(argCopy, args);
 	str.len = vsnprintf(&dummy, 0, format, argCopy);
@@ -151,7 +151,7 @@ void str8_list_pushf(mem_arena* arena, str8_list* list, const char* format, ...)
 
 str8 str8_list_collate(mem_arena* arena, str8_list list, str8 prefix, str8 separator, str8 postfix)
 {
-	str8 str = {};
+	str8 str = {0};
 	str.len = prefix.len + list.len + list.eltCount*separator.len + postfix.len;
 	str.ptr = mem_arena_alloc_array(arena, char, str.len);
 	char* dst = str.ptr;
@@ -185,7 +185,7 @@ str8 str8_list_join(mem_arena* arena, str8_list list)
 
 str8_list str8_split(mem_arena* arena, str8 str, str8_list separators)
 {
-	str8_list list = {};
+	str8_list list = {0};
 	ListInit(&list.list);
 
 	char* ptr = str.ptr;
@@ -253,7 +253,7 @@ str32 str32_slice(str32 s, u64 start, u64 end)
 
 str32 str32_push_buffer(mem_arena* arena, u64 len, u32* buffer)
 {
-	str32 str = {};
+	str32 str = {0};
 	str.len = len;
 	str.ptr = mem_arena_alloc_array(arena, u32, len);
 	memcpy(str.ptr, buffer, len*sizeof(u32));
@@ -289,7 +289,7 @@ void str32_list_push(mem_arena* arena, str32_list* list, str32 str)
 
 str32 str32_list_collate(mem_arena* arena, str32_list list, str32 prefix, str32 separator, str32 postfix)
 {
-	str32 str = {};
+	str32 str = {0};
 	str.len = prefix.len + list.len + list.eltCount*separator.len + postfix.len;
 	str.ptr = mem_arena_alloc_array(arena, u32, str.len);
 	char* dst = (char*)str.ptr;
