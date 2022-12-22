@@ -9,10 +9,11 @@
 #ifndef __MACRO_HELPERS_H_
 #define __MACRO_HELPERS_H_
 
+#include"typedefs.h"
+
 //NOTE(martin): macro concatenation
 #define _cat2_(a, b) a##b
 #define _cat3_(a, b, c) a##b##c
-
 
 //NOTE(martin): inline, but still generate code
 //		(eg. use the inline version inside a library, but still exports the function for client code)

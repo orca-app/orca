@@ -9,20 +9,10 @@
 #include<stdlib.h>
 #include<string.h>
 
-#include"platform.h"
-#include"win32_app.c"
-#include"debug_log.c"
-#include"memory.c"
-#include"strings.c"
+#define _USE_MATH_DEFINES //NOTE: necessary for MSVC
+#include<math.h>
 
-
-#include"ringbuffer.c"
-#include"win32_base_allocator.c"
-#include"utf8.c"
-
-#define MG_IMPLEMENTS_BACKEND_GL
-#include"graphics.c"
-#include"win32_gl_surface.c"
+#include"milepost.h"
 
 #define LOG_SUBSYSTEM "Main"
 

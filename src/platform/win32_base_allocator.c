@@ -6,6 +6,7 @@
 *	@revision:
 *
 *****************************************************************/
+#define WIN32_LEAN_AND_MEAN
 #include<windows.h>
 #include"platform_base_allocator.h"
 

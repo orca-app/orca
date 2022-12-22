@@ -7,12 +7,13 @@
 *
 *****************************************************************/
 
-#include<GL/gl.h>
-#include"GL/glext.h"
-#include"GL/wglext.h"
+#define WIN32_GL_LOADER_IMPL
+#include"win32_gl_loader.h"
 
-#include"graphics.h"
+#include"graphics_internal.h"
 #include"win32_app.h"
+
+#define MG_IMPLEMENTS_BACKEND_GL
 
 typedef struct mg_gl_surface
 {
