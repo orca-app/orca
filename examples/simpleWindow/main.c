@@ -9,6 +9,7 @@
 #include<stdlib.h>
 #include<string.h>
 
+#include"platform.h"
 #include"win32_app.c"
 #include"debug_log.c"
 #include"memory.c"

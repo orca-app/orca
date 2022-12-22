@@ -8,6 +8,7 @@
 *****************************************************************/
 #include<string.h> // memset
 
+#include"platform.h"
 #include"memory.h"
 #include"platform_base_allocator.h"
 #include"macro_helpers.h"
@@ -112,13 +113,7 @@ void mem_pool_clear(mem_pool* pool)
 //NOTE(martin): per-thread scratch arena
 //--------------------------------------------------------------------------------
 
-//TODO: move that somewhere in context cracking code
-#ifdef _WIN32
-	#define __thread __declspec(thread)
-#endif
-
-__thread mem_arena __scratchArena = {0};
-
+mp_thread_local mem_arena __scratchArena = {0};
 
 mem_arena* mem_scratch()
 {

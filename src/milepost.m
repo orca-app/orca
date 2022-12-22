@@ -7,12 +7,6 @@
 *
 *****************************************************************/
 
-#ifdef _WIN32
-
-#include"win32_app.c"
-
-#else
-
 #include"osx_app.m"
 #include"metal_surface.m"
 #include"metal_painter.m"
@@ -23,5 +17,3 @@
 #pragma clang diagnostic pop
 
 #include"osx_surface_client.m"
-
-#endif
