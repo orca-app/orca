@@ -166,7 +166,7 @@ mg_surface mg_gl_surface_create_for_window(mp_window window)
 			WGL_STENCIL_BITS_ARB, 8,
 			0};
 
-		HDC hDC = GetDC(windowData->windowHandle);
+		HDC hDC = GetDC(windowData->win32.hWnd);
 		u32 numFormats = 0;
 
 		wglChoosePixelFormatARB(hDC, pixelFormatAttrs, 0, 1, &pixelFormat, &numFormats);

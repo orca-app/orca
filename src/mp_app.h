@@ -42,7 +42,7 @@ static const mp_window_style MP_WINDOW_STYLE_NO_TITLE	 = 0x01<<0,
                       MP_WINDOW_STYLE_NO_BUTTONS = 0x01<<7;
 
 typedef enum { MP_EVENT_NONE,
-               MP_EVENT_KEYBOARD_MODS,
+               MP_EVENT_KEYBOARD_MODS, //TODO: remove, keep only key?
                MP_EVENT_KEYBOARD_KEY,
                MP_EVENT_KEYBOARD_CHAR,
                MP_EVENT_MOUSE_BUTTON,
@@ -54,10 +54,9 @@ typedef enum { MP_EVENT_NONE,
                MP_EVENT_WINDOW_MOVE,
                MP_EVENT_WINDOW_FOCUS,
                MP_EVENT_WINDOW_UNFOCUS,
-               MP_EVENT_WINDOW_HIDE,
-               MP_EVENT_WINDOW_SHOW,
+               MP_EVENT_WINDOW_HIDE, // rename to minimize?
+               MP_EVENT_WINDOW_SHOW, // rename to restore?
                MP_EVENT_WINDOW_CLOSE,
-               MP_EVENT_CLIPBOARD,
                MP_EVENT_PATHDROP,
                MP_EVENT_FRAME,
                MP_EVENT_QUIT } mp_event_type;
@@ -67,7 +66,10 @@ typedef enum { MP_KEY_NO_ACTION,
                MP_KEY_RELEASE,
                MP_KEY_REPEAT } mp_key_action;
 
-typedef enum { MP_KEY_UNKNOWN    = -1,
+typedef enum { MP_KEY_UNKNOWN    = 0,
+               MP_KEY_SPACE      = 32,
+               MP_KEY_APOSTROPHE = 39,  /* ' */
+               MP_KEY_COMMA      = 44,  /* , */
                MP_KEY_MINUS      = 45, // -
                MP_KEY_PERIOD     = 46, // .
                MP_KEY_SLASH      = 47, // /
@@ -185,24 +187,22 @@ typedef enum { MP_KEY_UNKNOWN    = -1,
                MP_KEY_RIGHT_ALT   = 346,
                MP_KEY_RIGHT_SUPER = 347,
                MP_KEY_MENU        = 348,
-               MP_KEY_MAX } mp_key_code;
+               MP_KEY_COUNT } mp_key_code;
 
-typedef u8 mp_key_mods;
-static const mp_key_mods MP_KEYMOD_NONE  = 0x00,
-                  MP_KEYMOD_ALT   = 0x01,
-                  MP_KEYMOD_SHIFT = 0x02,
-                  MP_KEYMOD_CTRL  = 0x04,
-                  MP_KEYMOD_CMD   = 0x08;
+typedef enum {
+	MP_KEYMOD_NONE  = 0x00,
+	MP_KEYMOD_ALT   = 0x01,
+	MP_KEYMOD_SHIFT = 0x02,
+	MP_KEYMOD_CTRL  = 0x04,
+	MP_KEYMOD_CMD   = 0x08 } mp_key_mods;
 
-typedef i32 mp_mouse_button;
-static const mp_mouse_button MP_MOUSE_LEFT	  = 0x00,
-                      MP_MOUSE_RIGHT  = 0x01,
-                      MP_MOUSE_MIDDLE = 0x02,
-                      MP_MOUSE_EXT1   = 0x03,
-                      MP_MOUSE_EXT2   = 0x04;
-
-static const u32 MP_KEY_COUNT          = MP_KEY_MAX+1,
-          MP_MOUSE_BUTTON_COUNT = 5;
+typedef enum {
+	MP_MOUSE_LEFT	= 0x00,
+	MP_MOUSE_RIGHT  = 0x01,
+	MP_MOUSE_MIDDLE = 0x02,
+	MP_MOUSE_EXT1   = 0x03,
+	MP_MOUSE_EXT2   = 0x04,
+	MP_MOUSE_BUTTON_COUNT } mp_mouse_button;
 
 typedef struct mp_key_event		// keyboard and mouse buttons input
 {
@@ -263,53 +263,62 @@ void mp_init();
 void mp_terminate();
 
 bool mp_should_quit();
-void mp_do_quit();
-void mp_request_quit();
 void mp_cancel_quit();
+void mp_request_quit();
 
 void mp_set_cursor(mp_mouse_cursor cursor);
 
 //--------------------------------------------------------------------
-// window management
+// Main loop and events handling
 //--------------------------------------------------------------------
 
-//#include"graphics.h"
+void mp_pump_events(f64 timeout);
+bool mp_next_event(mp_event* event);
+
+typedef void(*mp_live_resize_callback)(mp_event event, void* data);
+void mp_set_live_resize_callback(mp_live_resize_callback callback, void* data);
+
+//--------------------------------------------------------------------
+// window management
+//--------------------------------------------------------------------
 
 bool mp_window_handle_is_null(mp_window window);
 mp_window mp_window_null_handle();
 
 mp_window mp_window_create(mp_rect contentRect, const char* title, mp_window_style style);
 void mp_window_destroy(mp_window window);
+void* mp_window_native_pointer(mp_window window);
 
 bool mp_window_should_close(mp_window window);
 void mp_window_request_close(mp_window window);
 void mp_window_cancel_close(mp_window window);
 
-void* mp_window_native_pointer(mp_window window);
-
-void mp_window_center(mp_window window);
-
 bool mp_window_is_hidden(mp_window window);
-bool mp_window_is_focused(mp_window window);
-
 void mp_window_hide(mp_window window);
+void mp_window_show(mp_window window);
+
+bool mp_window_is_minimized(mp_window window);
+bool mp_window_is_maximized(mp_window window);
+void mp_window_minimize(mp_window window);
+void mp_window_maximize(mp_window window);
+void mp_window_restore(mp_window window);
+
+bool mp_window_has_focus(mp_window window);
 void mp_window_focus(mp_window window);
+void mp_window_unfocus(mp_window window);
+
 void mp_window_send_to_back(mp_window window);
 void mp_window_bring_to_front(mp_window window);
 
-void mp_window_bring_to_front_and_focus(mp_window window);
+mp_rect mp_window_get_content_rect(mp_window window);
+mp_rect mp_window_get_frame_rect(mp_window window);
+void mp_window_set_content_rect(mp_window window, mp_rect contentRect);
+void mp_window_set_frame_rect(mp_window window, mp_rect frameRect);
+
+void mp_window_center(mp_window window);
 
 mp_rect mp_window_content_rect_for_frame_rect(mp_rect frameRect, mp_window_style style);
 mp_rect mp_window_frame_rect_for_content_rect(mp_rect contentRect, mp_window_style style);
-
-mp_rect mp_window_get_content_rect(mp_window window);
-mp_rect mp_window_get_absolute_content_rect(mp_window window);
-mp_rect mp_window_get_frame_rect(mp_window window);
-
-void mp_window_set_content_rect(mp_window window, mp_rect contentRect);
-void mp_window_set_frame_rect(mp_window window, mp_rect frameRect);
-void mp_window_set_frame_size(mp_window window, int width, int height);
-void mp_window_set_content_size(mp_window window, int width, int height);
 
 //--------------------------------------------------------------------
 // View management
@@ -320,26 +329,6 @@ bool mp_view_is_nil(mp_view view);
 mp_view mp_view_create(mp_window window, mp_rect frame);
 void mp_view_destroy(mp_view view);
 void mp_view_set_frame(mp_view view, mp_rect frame);
-
-/*TODO
-mp_view mp_view_bring_to_front(mp_view view);
-mp_view mp_view_send_to_back(mp_view view);
-*/
-//--------------------------------------------------------------------
-// Main loop and events handling
-//--------------------------------------------------------------------
-
-typedef void(*mp_event_callback)(mp_event event, void* data);
-void mp_set_event_callback(mp_event_callback callback, void* data);
-void mp_set_target_fps(u32 fps);
-void mp_run_loop();
-void mp_end_input_frame();
-
-void mp_pump_events(f64 timeout);
-bool mp_next_event(mp_event* event);
-
-typedef void(*mp_live_resize_callback)(mp_event event, void* data);
-void mp_set_live_resize_callback(mp_live_resize_callback callback, void* data);
 
 //--------------------------------------------------------------------
 // Input state polling
@@ -364,11 +353,6 @@ vec2 mp_input_mouse_wheel();
 
 str32 mp_input_text_utf32(mem_arena* arena);
 str8 mp_input_text_utf8(mem_arena* arena);
-//--------------------------------------------------------------------
-// app resources
-//--------------------------------------------------------------------
-str8 mp_app_get_resource_path(mem_arena* arena, const char* name);
-str8 mp_app_get_executable_path(mem_arena* arena);
 
 //--------------------------------------------------------------------
 // Clipboard
@@ -413,6 +397,10 @@ int mp_file_move(str8 from, str8 to);
 int mp_file_remove(str8 path);
 
 int mp_directory_create(str8 path);
+
+str8 mp_app_get_resource_path(mem_arena* arena, const char* name);
+str8 mp_app_get_executable_path(mem_arena* arena);
+
 
 #ifdef __cplusplus
 } // extern "C"

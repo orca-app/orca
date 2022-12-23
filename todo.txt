@@ -1,4 +1,67 @@
 
+Windows port
+------------
+[.] Finish events handling
+	[x] window
+	[x] mouse move/buttons/enter/leave
+	[x] mouse wheel
+	[.] keys
+		[!] set key label
+	[x] text input
+	[/] pathdrop
+
+[x] Unify app struct and window structs for different platforms?
+	> define common app and window struct in mp_app_internal.h
+	> this file conditionally includes platform specific headers, win32_app.h, osx_app.h, etc...
+	> these define a macro to fill the common app and window structures with platform specific stuff.
+	> Common app/window proc are defined in mp_app.c
+	> Platform specific stuff is defined in platform specific files win32_app.c, osx_app.m, etc...
+	(mp_app.c can 'see' platform specific stuff, so ObjectiveC defs pose a problem, but we can define id as void*
+	when not in ObjC...)
+
+[.] Implement input polling
+	[ ] Simplify input polling API names
+	[/] Try to simplify input state and polling once we have UI usage code
+
+[ ] Finish window properties query/setting
+
+[ ] use isARepeat in macos keyDown event and simplify update key state
+
+[ ] Implement clipboard
+[ ] Implement file dialogs
+[ ] Impement resource path... -> maybe in abstracted file handling
+
+
+[ ] Clean backend selection (compile time and runtime)
+[ ] Finish OpenGL loader
+[ ] Test compute shaders
+[ ] Initial version of vector graphics backend
+[ ] Check integration of UI.
+
+[ ] Views (using docked windows?) -- or see if we can use surfaces and restrict their location?
+
+[ ] test new run loop structure on macos
+[ ] Remove unused APIs
+
+
+
+Misc
+----
+[ ] Clean-up file structure
+	[ ] Move stb libs to ext/
+
+[ ] Renaming/clean-up pass
+	[ ] Separate Internal/API functions in mp_app.c
+	[ ] Remove MP_EVENT_KEYBOARD_MODS
+	[ ] Rename MP_EVENT_HIDE/SHOW to MINMIZE/UNMINIMIZE
+	[ ] Remove frame
+	[ ] Remove sequence from char event?
+	[ ] Replace frame_event with mp_rect
+	[ ] Document/unify quit/request_quit etc
+	[ ] Document/unify close/request_close etc
+	[ ] Cleanup window management
+	[ ] Remove unused run loop constructs
+	[ ]
 
 Shortlist
 ---------
