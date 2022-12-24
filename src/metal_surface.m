@@ -259,7 +259,7 @@ mg_surface mg_metal_surface_create_for_window(mp_window window)
 	}
 	else
 	{
-		return(mg_metal_surface_create_for_view(windowData->mainView));
+		return(mg_metal_surface_create_for_view(windowData->osx.mainView));
 	}
 }
 

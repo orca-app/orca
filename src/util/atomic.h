@@ -19,4 +19,4 @@
 	#include<stdatomic.h>
 #endif
 
-#endif __ATOMIC_H_
+#endif //__ATOMIC_H_

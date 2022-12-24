@@ -19,18 +19,27 @@ Windows port
 	(mp_app.c can 'see' platform specific stuff, so ObjectiveC defs pose a problem, but we can define id as void*
 	when not in ObjC...)
 
+[ ] Check changes in macos version
+	[x] Restructure macos version to use mp_app_internal.h/mp_app.c
+	[x] test new run loop structure on macos
+	[x] Fix resize crash when there's no surface
+	[ ] separate data for key and mouse event?
+	[ ] Clarify how we want to do view handling across platforms
+		[ ] Views (using docked windows?) -- or see if we can use surfaces and restrict their location?
+		[ ] pull views in common stuff
+	[ ] use isARepeat in macos keyDown event and simplify update key state
+
+[ ] Simplify event structs
+
 [.] Implement input polling
 	[ ] Simplify input polling API names
 	[/] Try to simplify input state and polling once we have UI usage code
 
 [ ] Finish window properties query/setting
 
-[ ] use isARepeat in macos keyDown event and simplify update key state
-
 [ ] Implement clipboard
 [ ] Implement file dialogs
 [ ] Impement resource path... -> maybe in abstracted file handling
-
 
 [ ] Clean backend selection (compile time and runtime)
 [ ] Finish OpenGL loader
@@ -38,11 +47,11 @@ Windows port
 [ ] Initial version of vector graphics backend
 [ ] Check integration of UI.
 
-[ ] Views (using docked windows?) -- or see if we can use surfaces and restrict their location?
-
-[ ] test new run loop structure on macos
 [ ] Remove unused APIs
 
+[ ] OpenGL backend on OSX
+[ ] Port vector graphics to OpenGL
+[ ] Check OpenGL vector graphics on windows
 
 
 Misc

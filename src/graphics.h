@@ -31,6 +31,7 @@ typedef enum { MG_BACKEND_DUMMY,
 void mg_init();
 
 mg_surface mg_surface_nil();
+bool mg_surface_is_nil(mg_surface surface);
 mg_surface mg_surface_create_for_window(mp_window window, mg_backend_id backend);
 mg_surface mg_surface_create_for_view(mp_view view, mg_backend_id backend);
 mg_surface mg_surface_create_offscreen(mg_backend_id backend, u32 width, u32 height);

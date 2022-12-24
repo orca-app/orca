@@ -207,7 +207,7 @@ typedef enum {
 typedef struct mp_key_event		// keyboard and mouse buttons input
 {
 	mp_key_action action;
-	mp_key_code	code;
+	i32	code;
 	mp_key_mods	mods;
 	char label[8];
 	u8 labelLen;

@@ -136,6 +136,9 @@ typedef struct mp_app
 	mp_window_data windowPool[MP_APP_MAX_WINDOWS];
 	list_info windowFreeList;
 
+	mp_live_resize_callback liveResizeCallback;
+	void* liveResizeData;
+
 	mp_input_state inputState;
 
 	mp_key_utf8 keyLabels[256];

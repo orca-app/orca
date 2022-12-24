@@ -355,6 +355,11 @@ mg_surface mg_surface_nil()
 	return((mg_surface){.h = 0});
 }
 
+bool mg_surface_is_nil(mg_surface surface)
+{
+	return(surface.h == 0);
+}
+
 mg_surface mg_surface_alloc_handle(mg_surface_info* surface)
 {
 	mg_resource_slot* slot = mg_resource_slot_alloc(&__mgInfo.surfaces);

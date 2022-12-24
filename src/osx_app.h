@@ -9,29 +9,32 @@
 #ifndef __OSX_APP_H_
 #define __OSX_APP_H_
 
-#import<Cocoa/Cocoa.h>
-#import<Carbon/Carbon.h>
 #include"mp_app.h"
 #include"graphics.h"
 
-typedef struct mp_window_data
-{
-	list_elt freeListElt;
-	u32 generation;
+#ifdef __OBJC__
+	#import<Cocoa/Cocoa.h>
+#else
+	#define NSWindow void
+	#define NSView void
+	#define NSObject void
+	#define NSTimer void
+	#define NSCursor void
+#endif
 
+#include<Carbon/Carbon.h>
+
+typedef struct osx_window_data
+{
 	NSWindow* nsWindow;
 	NSView*   nsView;
 	NSObject* nsWindowDelegate;
 
-	mp_rect contentRect;
-	mp_rect frameRect;
-	mp_window_style	style;
-
-	bool shouldClose; //TODO could be in status flags
-	bool hidden;
-
 	mp_view mainView;
-} mp_window_data;
+
+} osx_window_data;
+
+#define MP_PLATFORM_WINDOW_DATA osx_window_data osx;
 
 typedef struct mp_view_data
 {
@@ -43,15 +46,23 @@ typedef struct mp_view_data
 	mg_surface surface;
 } mp_view_data;
 
-@interface MPNativeWindow : NSWindow
-{
-	mp_window_data* mpWindow;
-}
-- (id)initWithMPWindow:(mp_window_data*) window contentRect:(NSRect) rect styleMask:(uint32) style;
-@end
+const u32 MP_APP_MAX_VIEWS = 128;
 
-mp_window_data* mp_window_ptr_from_handle(mp_window handle);
-mp_view_data* mp_view_ptr_from_handle(mp_view handle);
+typedef struct osx_app_data
+{
+	NSTimer* frameTimer;
+	NSCursor* cursor;
+
+	TISInputSourceRef kbLayoutInputSource;
+	void* kbLayoutUnicodeData;
+	id kbLayoutListener;
+
+	list_info viewFreeList;
+	mp_view_data viewPool[MP_APP_MAX_VIEWS];
+
+} osx_app_data;
+
+#define MP_PLATFORM_APP_DATA osx_app_data osx;
 
 
 

@@ -10,12 +10,13 @@
 
 #include<stdlib.h> // malloc/free
 
-#include"osx_app.h"
 #include"lists.h"
 #include"ringbuffer.h"
 #include"memory.h"
 #include"macro_helpers.h"
 #include"platform_clock.h"
+
+#include"mp_app.c"
 
 #define LOG_SUBSYSTEM "Application"
 
@@ -47,10 +48,10 @@ static void mp_window_update_rect_cache(mp_window_data* window)
 {
 	@autoreleasepool
 	{
-		NSRect frame = [window->nsWindow frame];
+		NSRect frame = [window->osx.nsWindow frame];
 		window->frameRect = mp_osx_to_user_screen_rect((mp_rect){frame.origin.x, frame.origin.y, frame.size.width, frame.size.height});
 
-		const NSRect contentRect = [[window->nsWindow contentView] frame];
+		const NSRect contentRect = [[window->osx.nsWindow contentView] frame];
 
 		window->contentRect = (mp_rect){ contentRect.origin.x,
 							 contentRect.origin.y,
@@ -91,185 +92,22 @@ static u32 mp_osx_get_window_style_mask(mp_window_style style)
 //---------------------------------------------------------------
 // App struct and utility functions
 //---------------------------------------------------------------
-
-const u32 MP_APP_MAX_WINDOWS = 128;
-const u32 MP_APP_MAX_VIEWS = 128;
-
-typedef struct mp_frame_stats
-{
-	f64 start;
-	f64 workTime;
-	f64 remainingTime;
-	f64 targetFramePeriod;
-} mp_frame_stats;
-
-typedef struct mp_key_utf8
-{
-	u8 labelLen;
-	char label[8];
-} mp_key_utf8;
-
-typedef struct mp_key_state
-{
-	u64 lastUpdate;
-	u32 transitionCounter;
-	bool down;
-	bool clicked;
-	bool doubleClicked;
-
-} mp_key_state;
-
-typedef struct mp_keyboard_state
-{
-	mp_key_state keys[MP_KEY_COUNT];
-	mp_key_mods  mods;
-} mp_keyboard_state;
-
-typedef struct mp_mouse_state
-{
-	u64 lastUpdate;
-	vec2 pos;
-	vec2 delta;
-	vec2 wheel;
-
-	union
-	{
-		mp_key_state buttons[MP_MOUSE_BUTTON_COUNT];
-		struct
-		{
-			mp_key_state left;
-			mp_key_state right;
-			mp_key_state middle;
-			mp_key_state ext1;
-			mp_key_state ext2;
-		};
-	};
-} mp_mouse_state;
-
-const u32 MP_INPUT_TEXT_BACKING_SIZE = 64;
-
-typedef struct mp_text_state
-{
-	u64 lastUpdate;
-	utf32 backing[MP_INPUT_TEXT_BACKING_SIZE];
-	str32 codePoints;
-} mp_text_state;
-
-typedef struct mp_input_state
-{
-	u64 frameCounter;
-	mp_keyboard_state keyboard;
-	mp_mouse_state	mouse;
-	mp_text_state text;
-} mp_input_state;
-
-typedef struct mp_app_data
-{
-	bool init;
-	bool shouldQuit;
-
-	str8 pendingPathDrop;
-	mem_arena eventArena;
-	mp_input_state inputState;
-	ringbuffer eventQueue;
-
-	mp_live_resize_callback liveResizeCallback;
-	void* liveResizeData;
-
-	//TODO: we should probably use a CVDisplayLink, but it complexifies things since
-	//      it's called from another thread
-	NSTimer* frameTimer;
-	mp_event_callback eventCallback;
-	void* eventData;
-
-	mp_frame_stats frameStats;
-
-	NSCursor* cursor;
-	mp_window_data windowPool[MP_APP_MAX_WINDOWS];
-	list_info windowFreeList;
-
-	mp_view_data viewPool[MP_APP_MAX_VIEWS];
-	list_info viewFreeList;
-
-	TISInputSourceRef kbLayoutInputSource;
-	void* kbLayoutUnicodeData;
-	id kbLayoutListener;
-	mp_key_utf8 mpKeyToLabel[256];
-
-	int mpKeysToNative[MP_KEY_MAX];
-	int nativeToMPKeys[256];
-
-} mp_app_data;
-
-static mp_app_data __mpAppData = {};
-
-////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-void mp_init_window_handles()
-{
-	ListInit(&__mpAppData.windowFreeList);
-	for(int i=0; i<MP_APP_MAX_WINDOWS; i++)
-	{
-		__mpAppData.windowPool[i].generation = 1;
-		ListAppend(&__mpAppData.windowFreeList, &__mpAppData.windowPool[i].freeListElt);
-	}
-}
-
-mp_window_data* mp_window_alloc()
-{
-	return(ListPopEntry(&__mpAppData.windowFreeList, mp_window_data, freeListElt));
-}
-
-mp_window_data* mp_window_ptr_from_handle(mp_window handle)
-{
-	u32 index = handle.h>>32;
-	u32 generation = handle.h & 0xffffffff;
-	if(index >= MP_APP_MAX_WINDOWS)
-	{
-		return(0);
-	}
-	mp_window_data* window = &__mpAppData.windowPool[index];
-	if(window->generation != generation)
-	{
-		return(0);
-	}
-	else
-	{
-		return(window);
-	}
-}
-
-mp_window mp_window_handle_from_ptr(mp_window_data* window)
-{
-	DEBUG_ASSERT(  (window - __mpAppData.windowPool) >= 0
-	            && (window - __mpAppData.windowPool) < MP_APP_MAX_WINDOWS);
-
-	u64 h = ((u64)(window - __mpAppData.windowPool))<<32
-	      | ((u64)window->generation);
-
-	return((mp_window){h});
-}
-
-void mp_window_recycle_ptr(mp_window_data* window)
-{
-	window->generation++;
-	ListPush(&__mpAppData.windowFreeList, &window->freeListElt);
-}
-
+/////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 void mp_init_view_handles()
 {
-	ListInit(&__mpAppData.viewFreeList);
+	ListInit(&__mpApp.osx.viewFreeList);
 	for(int i=0; i<MP_APP_MAX_VIEWS; i++)
 	{
-		__mpAppData.viewPool[i].generation = 1;
-		ListAppend(&__mpAppData.viewFreeList, &__mpAppData.viewPool[i].freeListElt);
+		__mpApp.osx.viewPool[i].generation = 1;
+		ListAppend(&__mpApp.osx.viewFreeList, &__mpApp.osx.viewPool[i].freeListElt);
 	}
 }
 
+
 mp_view_data* mp_view_alloc()
 {
-	return(ListPopEntry(&__mpAppData.viewFreeList, mp_view_data, freeListElt));
+	return(ListPopEntry(&__mpApp.osx.viewFreeList, mp_view_data, freeListElt));
 }
 
 mp_view_data* mp_view_ptr_from_handle(mp_view handle)
@@ -280,7 +118,7 @@ mp_view_data* mp_view_ptr_from_handle(mp_view handle)
 	{
 		return(0);
 	}
-	mp_view_data* view = &__mpAppData.viewPool[index];
+	mp_view_data* view = &__mpApp.osx.viewPool[index];
 	if(view->generation != generation)
 	{
 		return(0);
@@ -293,10 +131,10 @@ mp_view_data* mp_view_ptr_from_handle(mp_view handle)
 
 mp_view mp_view_handle_from_ptr(mp_view_data* view)
 {
-	DEBUG_ASSERT(  (view - __mpAppData.viewPool) >= 0
-	            && (view - __mpAppData.viewPool) < MP_APP_MAX_VIEWS);
+	DEBUG_ASSERT(  (view - __mpApp.osx.viewPool) >= 0
+	            && (view - __mpApp.osx.viewPool) < MP_APP_MAX_VIEWS);
 
-	u64 h = ((u64)(view - __mpAppData.viewPool))<<32
+	u64 h = ((u64)(view - __mpApp.osx.viewPool))<<32
 	      | ((u64)view->generation);
 
 	return((mp_view){h});
@@ -305,146 +143,138 @@ mp_view mp_view_handle_from_ptr(mp_view_data* view)
 void mp_view_recycle_ptr(mp_view_data* view)
 {
 	view->generation++;
-	ListPush(&__mpAppData.viewFreeList, &view->freeListElt);
+	ListPush(&__mpApp.osx.viewFreeList, &view->freeListElt);
 }
 
-/*
-void mp_app_set_process_event_callback(mp_app_process_event_callback callback, void* userData)
-{
-	DEBUG_ASSERT(callback);
-	__mpAppData.userData = userData;
-	__mpAppData.processEvent = callback;
-}
-*/
 /////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 
 static void mp_init_osx_keys()
 {
-	memset(__mpAppData.nativeToMPKeys, MP_KEY_UNKNOWN, 256*sizeof(int));
+	memset(__mpApp.keyCodes, MP_KEY_UNKNOWN, 256*sizeof(int));
 
-	__mpAppData.nativeToMPKeys[0x1D] = MP_KEY_0;
-	__mpAppData.nativeToMPKeys[0x12] = MP_KEY_1;
-	__mpAppData.nativeToMPKeys[0x13] = MP_KEY_2;
-	__mpAppData.nativeToMPKeys[0x14] = MP_KEY_3;
-	__mpAppData.nativeToMPKeys[0x15] = MP_KEY_4;
-	__mpAppData.nativeToMPKeys[0x17] = MP_KEY_5;
-	__mpAppData.nativeToMPKeys[0x16] = MP_KEY_6;
-	__mpAppData.nativeToMPKeys[0x1A] = MP_KEY_7;
-	__mpAppData.nativeToMPKeys[0x1C] = MP_KEY_8;
-	__mpAppData.nativeToMPKeys[0x19] = MP_KEY_9;
-	__mpAppData.nativeToMPKeys[0x00] = MP_KEY_A;
-	__mpAppData.nativeToMPKeys[0x0B] = MP_KEY_B;
-	__mpAppData.nativeToMPKeys[0x08] = MP_KEY_C;
-	__mpAppData.nativeToMPKeys[0x02] = MP_KEY_D;
-	__mpAppData.nativeToMPKeys[0x0E] = MP_KEY_E;
-	__mpAppData.nativeToMPKeys[0x03] = MP_KEY_F;
-	__mpAppData.nativeToMPKeys[0x05] = MP_KEY_G;
-	__mpAppData.nativeToMPKeys[0x04] = MP_KEY_H;
-	__mpAppData.nativeToMPKeys[0x22] = MP_KEY_I;
-	__mpAppData.nativeToMPKeys[0x26] = MP_KEY_J;
-	__mpAppData.nativeToMPKeys[0x28] = MP_KEY_K;
-	__mpAppData.nativeToMPKeys[0x25] = MP_KEY_L;
-	__mpAppData.nativeToMPKeys[0x2E] = MP_KEY_M;
-	__mpAppData.nativeToMPKeys[0x2D] = MP_KEY_N;
-	__mpAppData.nativeToMPKeys[0x1F] = MP_KEY_O;
-	__mpAppData.nativeToMPKeys[0x23] = MP_KEY_P;
-	__mpAppData.nativeToMPKeys[0x0C] = MP_KEY_Q;
-	__mpAppData.nativeToMPKeys[0x0F] = MP_KEY_R;
-	__mpAppData.nativeToMPKeys[0x01] = MP_KEY_S;
-	__mpAppData.nativeToMPKeys[0x11] = MP_KEY_T;
-	__mpAppData.nativeToMPKeys[0x20] = MP_KEY_U;
-	__mpAppData.nativeToMPKeys[0x09] = MP_KEY_V;
-	__mpAppData.nativeToMPKeys[0x0D] = MP_KEY_W;
-	__mpAppData.nativeToMPKeys[0x07] = MP_KEY_X;
-	__mpAppData.nativeToMPKeys[0x10] = MP_KEY_Y;
-	__mpAppData.nativeToMPKeys[0x06] = MP_KEY_Z;
+	__mpApp.keyCodes[0x1D] = MP_KEY_0;
+	__mpApp.keyCodes[0x12] = MP_KEY_1;
+	__mpApp.keyCodes[0x13] = MP_KEY_2;
+	__mpApp.keyCodes[0x14] = MP_KEY_3;
+	__mpApp.keyCodes[0x15] = MP_KEY_4;
+	__mpApp.keyCodes[0x17] = MP_KEY_5;
+	__mpApp.keyCodes[0x16] = MP_KEY_6;
+	__mpApp.keyCodes[0x1A] = MP_KEY_7;
+	__mpApp.keyCodes[0x1C] = MP_KEY_8;
+	__mpApp.keyCodes[0x19] = MP_KEY_9;
+	__mpApp.keyCodes[0x00] = MP_KEY_A;
+	__mpApp.keyCodes[0x0B] = MP_KEY_B;
+	__mpApp.keyCodes[0x08] = MP_KEY_C;
+	__mpApp.keyCodes[0x02] = MP_KEY_D;
+	__mpApp.keyCodes[0x0E] = MP_KEY_E;
+	__mpApp.keyCodes[0x03] = MP_KEY_F;
+	__mpApp.keyCodes[0x05] = MP_KEY_G;
+	__mpApp.keyCodes[0x04] = MP_KEY_H;
+	__mpApp.keyCodes[0x22] = MP_KEY_I;
+	__mpApp.keyCodes[0x26] = MP_KEY_J;
+	__mpApp.keyCodes[0x28] = MP_KEY_K;
+	__mpApp.keyCodes[0x25] = MP_KEY_L;
+	__mpApp.keyCodes[0x2E] = MP_KEY_M;
+	__mpApp.keyCodes[0x2D] = MP_KEY_N;
+	__mpApp.keyCodes[0x1F] = MP_KEY_O;
+	__mpApp.keyCodes[0x23] = MP_KEY_P;
+	__mpApp.keyCodes[0x0C] = MP_KEY_Q;
+	__mpApp.keyCodes[0x0F] = MP_KEY_R;
+	__mpApp.keyCodes[0x01] = MP_KEY_S;
+	__mpApp.keyCodes[0x11] = MP_KEY_T;
+	__mpApp.keyCodes[0x20] = MP_KEY_U;
+	__mpApp.keyCodes[0x09] = MP_KEY_V;
+	__mpApp.keyCodes[0x0D] = MP_KEY_W;
+	__mpApp.keyCodes[0x07] = MP_KEY_X;
+	__mpApp.keyCodes[0x10] = MP_KEY_Y;
+	__mpApp.keyCodes[0x06] = MP_KEY_Z;
 
-	__mpAppData.nativeToMPKeys[0x27] = MP_KEY_APOSTROPHE;
-	__mpAppData.nativeToMPKeys[0x2A] = MP_KEY_BACKSLASH;
-	__mpAppData.nativeToMPKeys[0x2B] = MP_KEY_COMMA;
-	__mpAppData.nativeToMPKeys[0x18] = MP_KEY_EQUAL;
-	__mpAppData.nativeToMPKeys[0x32] = MP_KEY_GRAVE_ACCENT;
-	__mpAppData.nativeToMPKeys[0x21] = MP_KEY_LEFT_BRACKET;
-	__mpAppData.nativeToMPKeys[0x1B] = MP_KEY_MINUS;
-	__mpAppData.nativeToMPKeys[0x2F] = MP_KEY_PERIOD;
-	__mpAppData.nativeToMPKeys[0x1E] = MP_KEY_RIGHT_BRACKET;
-	__mpAppData.nativeToMPKeys[0x29] = MP_KEY_SEMICOLON;
-	__mpAppData.nativeToMPKeys[0x2C] = MP_KEY_SLASH;
-	__mpAppData.nativeToMPKeys[0x0A] = MP_KEY_WORLD_1;
+	__mpApp.keyCodes[0x27] = MP_KEY_APOSTROPHE;
+	__mpApp.keyCodes[0x2A] = MP_KEY_BACKSLASH;
+	__mpApp.keyCodes[0x2B] = MP_KEY_COMMA;
+	__mpApp.keyCodes[0x18] = MP_KEY_EQUAL;
+	__mpApp.keyCodes[0x32] = MP_KEY_GRAVE_ACCENT;
+	__mpApp.keyCodes[0x21] = MP_KEY_LEFT_BRACKET;
+	__mpApp.keyCodes[0x1B] = MP_KEY_MINUS;
+	__mpApp.keyCodes[0x2F] = MP_KEY_PERIOD;
+	__mpApp.keyCodes[0x1E] = MP_KEY_RIGHT_BRACKET;
+	__mpApp.keyCodes[0x29] = MP_KEY_SEMICOLON;
+	__mpApp.keyCodes[0x2C] = MP_KEY_SLASH;
+	__mpApp.keyCodes[0x0A] = MP_KEY_WORLD_1;
 
-	__mpAppData.nativeToMPKeys[0x33] = MP_KEY_BACKSPACE;
-	__mpAppData.nativeToMPKeys[0x39] = MP_KEY_CAPS_LOCK;
-	__mpAppData.nativeToMPKeys[0x75] = MP_KEY_DELETE;
-	__mpAppData.nativeToMPKeys[0x7D] = MP_KEY_DOWN;
-	__mpAppData.nativeToMPKeys[0x77] = MP_KEY_END;
-	__mpAppData.nativeToMPKeys[0x24] = MP_KEY_ENTER;
-	__mpAppData.nativeToMPKeys[0x35] = MP_KEY_ESCAPE;
-	__mpAppData.nativeToMPKeys[0x7A] = MP_KEY_F1;
-	__mpAppData.nativeToMPKeys[0x78] = MP_KEY_F2;
-	__mpAppData.nativeToMPKeys[0x63] = MP_KEY_F3;
-	__mpAppData.nativeToMPKeys[0x76] = MP_KEY_F4;
-	__mpAppData.nativeToMPKeys[0x60] = MP_KEY_F5;
-	__mpAppData.nativeToMPKeys[0x61] = MP_KEY_F6;
-	__mpAppData.nativeToMPKeys[0x62] = MP_KEY_F7;
-	__mpAppData.nativeToMPKeys[0x64] = MP_KEY_F8;
-	__mpAppData.nativeToMPKeys[0x65] = MP_KEY_F9;
-	__mpAppData.nativeToMPKeys[0x6D] = MP_KEY_F10;
-	__mpAppData.nativeToMPKeys[0x67] = MP_KEY_F11;
-	__mpAppData.nativeToMPKeys[0x6F] = MP_KEY_F12;
-	__mpAppData.nativeToMPKeys[0x69] = MP_KEY_F13;
-	__mpAppData.nativeToMPKeys[0x6B] = MP_KEY_F14;
-	__mpAppData.nativeToMPKeys[0x71] = MP_KEY_F15;
-	__mpAppData.nativeToMPKeys[0x6A] = MP_KEY_F16;
-	__mpAppData.nativeToMPKeys[0x40] = MP_KEY_F17;
-	__mpAppData.nativeToMPKeys[0x4F] = MP_KEY_F18;
-	__mpAppData.nativeToMPKeys[0x50] = MP_KEY_F19;
-	__mpAppData.nativeToMPKeys[0x5A] = MP_KEY_F20;
-	__mpAppData.nativeToMPKeys[0x73] = MP_KEY_HOME;
-	__mpAppData.nativeToMPKeys[0x72] = MP_KEY_INSERT;
-	__mpAppData.nativeToMPKeys[0x7B] = MP_KEY_LEFT;
-	__mpAppData.nativeToMPKeys[0x3A] = MP_KEY_LEFT_ALT;
-	__mpAppData.nativeToMPKeys[0x3B] = MP_KEY_LEFT_CONTROL;
-	__mpAppData.nativeToMPKeys[0x38] = MP_KEY_LEFT_SHIFT;
-	__mpAppData.nativeToMPKeys[0x37] = MP_KEY_LEFT_SUPER;
-	__mpAppData.nativeToMPKeys[0x6E] = MP_KEY_MENU;
-	__mpAppData.nativeToMPKeys[0x47] = MP_KEY_NUM_LOCK;
-	__mpAppData.nativeToMPKeys[0x79] = MP_KEY_PAGE_DOWN;
-	__mpAppData.nativeToMPKeys[0x74] = MP_KEY_PAGE_UP;
-	__mpAppData.nativeToMPKeys[0x7C] = MP_KEY_RIGHT;
-	__mpAppData.nativeToMPKeys[0x3D] = MP_KEY_RIGHT_ALT;
-	__mpAppData.nativeToMPKeys[0x3E] = MP_KEY_RIGHT_CONTROL;
-	__mpAppData.nativeToMPKeys[0x3C] = MP_KEY_RIGHT_SHIFT;
-	__mpAppData.nativeToMPKeys[0x36] = MP_KEY_RIGHT_SUPER;
-	__mpAppData.nativeToMPKeys[0x31] = MP_KEY_SPACE;
-	__mpAppData.nativeToMPKeys[0x30] = MP_KEY_TAB;
-	__mpAppData.nativeToMPKeys[0x7E] = MP_KEY_UP;
+	__mpApp.keyCodes[0x33] = MP_KEY_BACKSPACE;
+	__mpApp.keyCodes[0x39] = MP_KEY_CAPS_LOCK;
+	__mpApp.keyCodes[0x75] = MP_KEY_DELETE;
+	__mpApp.keyCodes[0x7D] = MP_KEY_DOWN;
+	__mpApp.keyCodes[0x77] = MP_KEY_END;
+	__mpApp.keyCodes[0x24] = MP_KEY_ENTER;
+	__mpApp.keyCodes[0x35] = MP_KEY_ESCAPE;
+	__mpApp.keyCodes[0x7A] = MP_KEY_F1;
+	__mpApp.keyCodes[0x78] = MP_KEY_F2;
+	__mpApp.keyCodes[0x63] = MP_KEY_F3;
+	__mpApp.keyCodes[0x76] = MP_KEY_F4;
+	__mpApp.keyCodes[0x60] = MP_KEY_F5;
+	__mpApp.keyCodes[0x61] = MP_KEY_F6;
+	__mpApp.keyCodes[0x62] = MP_KEY_F7;
+	__mpApp.keyCodes[0x64] = MP_KEY_F8;
+	__mpApp.keyCodes[0x65] = MP_KEY_F9;
+	__mpApp.keyCodes[0x6D] = MP_KEY_F10;
+	__mpApp.keyCodes[0x67] = MP_KEY_F11;
+	__mpApp.keyCodes[0x6F] = MP_KEY_F12;
+	__mpApp.keyCodes[0x69] = MP_KEY_F13;
+	__mpApp.keyCodes[0x6B] = MP_KEY_F14;
+	__mpApp.keyCodes[0x71] = MP_KEY_F15;
+	__mpApp.keyCodes[0x6A] = MP_KEY_F16;
+	__mpApp.keyCodes[0x40] = MP_KEY_F17;
+	__mpApp.keyCodes[0x4F] = MP_KEY_F18;
+	__mpApp.keyCodes[0x50] = MP_KEY_F19;
+	__mpApp.keyCodes[0x5A] = MP_KEY_F20;
+	__mpApp.keyCodes[0x73] = MP_KEY_HOME;
+	__mpApp.keyCodes[0x72] = MP_KEY_INSERT;
+	__mpApp.keyCodes[0x7B] = MP_KEY_LEFT;
+	__mpApp.keyCodes[0x3A] = MP_KEY_LEFT_ALT;
+	__mpApp.keyCodes[0x3B] = MP_KEY_LEFT_CONTROL;
+	__mpApp.keyCodes[0x38] = MP_KEY_LEFT_SHIFT;
+	__mpApp.keyCodes[0x37] = MP_KEY_LEFT_SUPER;
+	__mpApp.keyCodes[0x6E] = MP_KEY_MENU;
+	__mpApp.keyCodes[0x47] = MP_KEY_NUM_LOCK;
+	__mpApp.keyCodes[0x79] = MP_KEY_PAGE_DOWN;
+	__mpApp.keyCodes[0x74] = MP_KEY_PAGE_UP;
+	__mpApp.keyCodes[0x7C] = MP_KEY_RIGHT;
+	__mpApp.keyCodes[0x3D] = MP_KEY_RIGHT_ALT;
+	__mpApp.keyCodes[0x3E] = MP_KEY_RIGHT_CONTROL;
+	__mpApp.keyCodes[0x3C] = MP_KEY_RIGHT_SHIFT;
+	__mpApp.keyCodes[0x36] = MP_KEY_RIGHT_SUPER;
+	__mpApp.keyCodes[0x31] = MP_KEY_SPACE;
+	__mpApp.keyCodes[0x30] = MP_KEY_TAB;
+	__mpApp.keyCodes[0x7E] = MP_KEY_UP;
 
-	__mpAppData.nativeToMPKeys[0x52] = MP_KEY_KP_0;
-	__mpAppData.nativeToMPKeys[0x53] = MP_KEY_KP_1;
-	__mpAppData.nativeToMPKeys[0x54] = MP_KEY_KP_2;
-	__mpAppData.nativeToMPKeys[0x55] = MP_KEY_KP_3;
-	__mpAppData.nativeToMPKeys[0x56] = MP_KEY_KP_4;
-	__mpAppData.nativeToMPKeys[0x57] = MP_KEY_KP_5;
-	__mpAppData.nativeToMPKeys[0x58] = MP_KEY_KP_6;
-	__mpAppData.nativeToMPKeys[0x59] = MP_KEY_KP_7;
-	__mpAppData.nativeToMPKeys[0x5B] = MP_KEY_KP_8;
-	__mpAppData.nativeToMPKeys[0x5C] = MP_KEY_KP_9;
-	__mpAppData.nativeToMPKeys[0x45] = MP_KEY_KP_ADD;
-	__mpAppData.nativeToMPKeys[0x41] = MP_KEY_KP_DECIMAL;
-	__mpAppData.nativeToMPKeys[0x4B] = MP_KEY_KP_DIVIDE;
-	__mpAppData.nativeToMPKeys[0x4C] = MP_KEY_KP_ENTER;
-	__mpAppData.nativeToMPKeys[0x51] = MP_KEY_KP_EQUAL;
-	__mpAppData.nativeToMPKeys[0x43] = MP_KEY_KP_MULTIPLY;
-	__mpAppData.nativeToMPKeys[0x4E] = MP_KEY_KP_SUBTRACT;
+	__mpApp.keyCodes[0x52] = MP_KEY_KP_0;
+	__mpApp.keyCodes[0x53] = MP_KEY_KP_1;
+	__mpApp.keyCodes[0x54] = MP_KEY_KP_2;
+	__mpApp.keyCodes[0x55] = MP_KEY_KP_3;
+	__mpApp.keyCodes[0x56] = MP_KEY_KP_4;
+	__mpApp.keyCodes[0x57] = MP_KEY_KP_5;
+	__mpApp.keyCodes[0x58] = MP_KEY_KP_6;
+	__mpApp.keyCodes[0x59] = MP_KEY_KP_7;
+	__mpApp.keyCodes[0x5B] = MP_KEY_KP_8;
+	__mpApp.keyCodes[0x5C] = MP_KEY_KP_9;
+	__mpApp.keyCodes[0x45] = MP_KEY_KP_ADD;
+	__mpApp.keyCodes[0x41] = MP_KEY_KP_DECIMAL;
+	__mpApp.keyCodes[0x4B] = MP_KEY_KP_DIVIDE;
+	__mpApp.keyCodes[0x4C] = MP_KEY_KP_ENTER;
+	__mpApp.keyCodes[0x51] = MP_KEY_KP_EQUAL;
+	__mpApp.keyCodes[0x43] = MP_KEY_KP_MULTIPLY;
+	__mpApp.keyCodes[0x4E] = MP_KEY_KP_SUBTRACT;
 
-	memset(__mpAppData.mpKeysToNative, 0, sizeof(int)*MP_KEY_COUNT);
+	memset(__mpApp.nativeKeys, 0, sizeof(int)*MP_KEY_COUNT);
 	for(int nativeKey=0; nativeKey<256; nativeKey++)
 	{
-		mp_key_code mpKey = __mpAppData.nativeToMPKeys[nativeKey];
+		mp_key_code mpKey = __mpApp.keyCodes[nativeKey];
 		if(mpKey)
 		{
-			__mpAppData.mpKeysToNative[mpKey] = nativeKey;
+			__mpApp.nativeKeys[mpKey] = nativeKey;
 		}
 	}
 }
@@ -457,7 +287,7 @@ static int mp_convert_osx_key(unsigned short nsCode)
 	}
 	else
 	{
-		return(__mpAppData.nativeToMPKeys[nsCode]);
+		return(__mpApp.keyCodes[nsCode]);
 	}
 }
 
@@ -485,38 +315,38 @@ static mp_key_mods mp_convert_osx_mods(NSUInteger nsFlags)
 
 static void mp_update_keyboard_layout()
 {
-	if(__mpAppData.kbLayoutInputSource)
+	if(__mpApp.osx.kbLayoutInputSource)
 	{
-		CFRelease(__mpAppData.kbLayoutInputSource);
-		__mpAppData.kbLayoutInputSource = 0;
-		__mpAppData.kbLayoutUnicodeData = nil;
+		CFRelease(__mpApp.osx.kbLayoutInputSource);
+		__mpApp.osx.kbLayoutInputSource = 0;
+		__mpApp.osx.kbLayoutUnicodeData = nil;
 	}
 
-	__mpAppData.kbLayoutInputSource = TISCopyCurrentKeyboardLayoutInputSource();
-	if(!__mpAppData.kbLayoutInputSource)
+	__mpApp.osx.kbLayoutInputSource = TISCopyCurrentKeyboardLayoutInputSource();
+	if(!__mpApp.osx.kbLayoutInputSource)
 	{
 		LOG_ERROR("Failed to load keyboard layout input source");
 	}
 
-	__mpAppData.kbLayoutUnicodeData = TISGetInputSourceProperty(__mpAppData.kbLayoutInputSource,
+	__mpApp.osx.kbLayoutUnicodeData = TISGetInputSourceProperty(__mpApp.osx.kbLayoutInputSource,
 	                                                            kTISPropertyUnicodeKeyLayoutData);
-	if(!__mpAppData.kbLayoutUnicodeData)
+	if(!__mpApp.osx.kbLayoutUnicodeData)
 	{
 		LOG_ERROR("Failed to load keyboard layout unicode data");
 	}
 
-	memset(__mpAppData.mpKeyToLabel, 0, sizeof(mp_key_utf8)*MP_KEY_COUNT);
+	memset(__mpApp.keyLabels, 0, sizeof(mp_key_utf8)*MP_KEY_COUNT);
 
 	for(int key=0; key<MP_KEY_COUNT; key++)
 	{
 		//TODO: check that the key is printable
-		int nativeKey = __mpAppData.mpKeysToNative[key];
+		int nativeKey = __mpApp.nativeKeys[key];
 
 		UInt32 deadKeyState = 0;
 		UniChar characters[4];
 		UniCharCount characterCount = 0;
 
-		if(UCKeyTranslate((UCKeyboardLayout*)[(NSData*) __mpAppData.kbLayoutUnicodeData bytes],
+		if(UCKeyTranslate((UCKeyboardLayout*)[(NSData*) __mpApp.osx.kbLayoutUnicodeData bytes],
 	             		nativeKey,
 	             		kUCKeyActionDisplay,
 	             		0,
@@ -527,22 +357,22 @@ static void mp_update_keyboard_layout()
 	             		&characterCount,
 	             		characters) != noErr)
 		{
-			__mpAppData.mpKeyToLabel[key].labelLen = 0;
+			__mpApp.keyLabels[key].labelLen = 0;
 		}
 		else
 		{
 			NSString* nsString = [[NSString alloc] initWithCharacters: characters length: characterCount];
 			const char* cstring = [nsString UTF8String];
 			u32 len = strlen(cstring);
-			__mpAppData.mpKeyToLabel[key].labelLen = minimum(len, 8);
-			memcpy(__mpAppData.mpKeyToLabel[key].label, cstring, __mpAppData.mpKeyToLabel[key].labelLen);
+			__mpApp.keyLabels[key].labelLen = minimum(len, 8);
+			memcpy(__mpApp.keyLabels[key].label, cstring, __mpApp.keyLabels[key].labelLen);
 		}
 	}
 }
 
 str8 mp_key_to_label(mp_key_code key)
 {
-	mp_key_utf8* keyInfo = &(__mpAppData.mpKeyToLabel[key]);
+	mp_key_utf8* keyInfo = &(__mpApp.keyLabels[key]);
 	str8 label = str8_from_buffer(keyInfo->labelLen, keyInfo->label);
 	return(label);
 }
@@ -563,6 +393,15 @@ mp_key_code mp_label_to_key(str8 label)
 	return(res);
 }
 
+
+@interface MPNativeWindow : NSWindow
+{
+	mp_window_data* mpWindow;
+}
+- (id)initWithMPWindow:(mp_window_data*) window contentRect:(NSRect) rect styleMask:(uint32) style;
+@end
+
+
 @interface MPKeyboardLayoutListener : NSObject
 @end
 
@@ -577,9 +416,9 @@ mp_key_code mp_label_to_key(str8 label)
 
 void mp_install_keyboard_layout_listener()
 {
-	__mpAppData.kbLayoutListener = [[MPKeyboardLayoutListener alloc] init];
+	__mpApp.osx.kbLayoutListener = [[MPKeyboardLayoutListener alloc] init];
 	[[NSDistributedNotificationCenter defaultCenter]
-		addObserver: __mpAppData.kbLayoutListener
+		addObserver: __mpApp.osx.kbLayoutListener
 		selector: @selector(selectedKeyboardInputSourceChanged:)
 		name:(__bridge NSString*)kTISNotifySelectedKeyboardInputSourceChanged
 		object:nil];
@@ -587,99 +426,7 @@ void mp_install_keyboard_layout_listener()
 
 static void mp_update_key_mods(mp_key_mods mods)
 {
-	__mpAppData.inputState.keyboard.mods = mods;
-}
-
-static void mp_update_key_state(mp_key_state* key, bool down)
-{
-	u64 frameCounter = __mpAppData.inputState.frameCounter;
-	if(key->lastUpdate != frameCounter)
-	{
-		key->transitionCounter = 0;
-		key->clicked = false;
-		key->doubleClicked = false;
-		key->lastUpdate = frameCounter;
-	}
-
-	key->transitionCounter++;
-	key->down = down;
-}
-
-static void mp_update_mouse_move(f32 x, f32 y, f32 deltaX, f32 deltaY)
-{
-	u64 frameCounter = __mpAppData.inputState.frameCounter;
-	mp_mouse_state* mouse = &__mpAppData.inputState.mouse;
-	if(mouse->lastUpdate != frameCounter)
-	{
-		mouse->delta = (vec2){0, 0};
-		mouse->wheel = (vec2){0, 0};
-		mouse->lastUpdate = frameCounter;
-	}
-	mouse->pos = (vec2){x, y};
-	mouse->delta.x += deltaX;
-	mouse->delta.y += deltaY;
-}
-
-static void mp_update_mouse_wheel(f32 deltaX, f32 deltaY)
-{
-	u64 frameCounter = __mpAppData.inputState.frameCounter;
-	mp_mouse_state* mouse = &__mpAppData.inputState.mouse;
-	if(mouse->lastUpdate != frameCounter)
-	{
-		mouse->delta = (vec2){0, 0};
-		mouse->wheel = (vec2){0, 0};
-		mouse->lastUpdate = frameCounter;
-	}
-	mouse->wheel.x += deltaX;
-	mouse->wheel.y += deltaY;
-}
-
-static void mp_update_text(utf32 codepoint)
-{
-	u64 frameCounter = __mpAppData.inputState.frameCounter;
-	mp_text_state* text = &__mpAppData.inputState.text;
-
-	if(text->lastUpdate != frameCounter)
-	{
-		text->codePoints.len = 0;
-		text->lastUpdate = frameCounter;
-	}
-
-	text->codePoints.ptr = text->backing;
-	if(text->codePoints.len < MP_INPUT_TEXT_BACKING_SIZE)
-	{
-		text->codePoints.ptr[text->codePoints.len] = codepoint;
-		text->codePoints.len++;
-	}
-	else
-	{
-		LOG_WARNING("too many input codepoints per frame, dropping input");
-	}
-}
-
-static void mp_queue_event(mp_event* event)
-{
-	if(ringbuffer_write_available(&__mpAppData.eventQueue) < sizeof(mp_event))
-	{
-		LOG_ERROR("event queue full\n");
-	}
-	else
-	{
-		u32 written = ringbuffer_write(&__mpAppData.eventQueue, sizeof(mp_event), (u8*)event);
-		DEBUG_ASSERT(written == sizeof(mp_event));
-	}
-}
-
-static void mp_dispatch_event(mp_event* event)
-{
-	if(__mpAppData.eventCallback)
-	{
-		__mpAppData.eventCallback(*event, __mpAppData.eventData);
-	}
-	else
-	{
-		mp_queue_event(event);
-	}
+	__mpApp.inputState.keyboard.mods = mods;
 }
 
 //---------------------------------------------------------------
@@ -719,10 +466,10 @@ static void mp_dispatch_event(mp_event* event)
 	//	false, mp_event_loop() will exit, and the user can execute any cleanup needed and
 	//	exit the program.
 
-	__mpAppData.shouldQuit = true;
+	__mpApp.shouldQuit = true;
 	mp_event event = {};
 	event.type = MP_EVENT_QUIT;
-	mp_dispatch_event(&event);
+	mp_queue_event(&event);
 
 	return(NSTerminateCancel);
 }
@@ -751,7 +498,7 @@ static void mp_dispatch_event(mp_event* event)
 {
 	mp_event event = {};
 	event.type = MP_EVENT_FRAME;
-	mp_dispatch_event(&event);
+	mp_queue_event(&event);
 }
 
 - (void)applicationDidFinishLaunching:(NSNotification *)notification
@@ -783,9 +530,9 @@ static void mp_dispatch_event(mp_event* event)
 	mp_event event = {};
 	event.window = (mp_window){0};
 	event.type = MP_EVENT_PATHDROP;
-	event.path = str8_push_cstring(&__mpAppData.eventArena, [filename UTF8String]);
+	event.path = str8_push_cstring(&__mpApp.eventArena, [filename UTF8String]);
 
-	mp_dispatch_event(&event);
+	mp_queue_event(&event);
 	return(YES);
 }
 
@@ -796,9 +543,9 @@ static void mp_dispatch_event(mp_event* event)
 	mp_event event = {};
 	event.window = (mp_window){0};
 	event.type = MP_EVENT_PATHDROP;
-	event.path = str8_push_cstring(&__mpAppData.eventArena, [nsPath UTF8String]);
+	event.path = str8_push_cstring(&__mpApp.eventArena, [nsPath UTF8String]);
 
-	mp_dispatch_event(&event);
+	mp_queue_event(&event);
 }
 
 @end // @implementation MPAppDelegate
@@ -929,7 +676,7 @@ static void mp_dispatch_event(mp_event* event)
 
 	mpWindow->hidden = false;
 
-	mp_dispatch_event(&event);
+	mp_queue_event(&event);
 }
 
 - (void)windowDidResignKey:(NSNotification*)notification
@@ -938,12 +685,12 @@ static void mp_dispatch_event(mp_event* event)
 	event.window = mp_window_handle_from_ptr(mpWindow);
 	event.type = MP_EVENT_WINDOW_UNFOCUS;
 
-	mp_dispatch_event(&event);
+	mp_queue_event(&event);
 }
 
 - (void)windowDidMove:(NSNotification *)notification
 {
-	const NSRect contentRect = [[mpWindow->nsWindow contentView] frame];
+	const NSRect contentRect = [[mpWindow->osx.nsWindow contentView] frame];
 
 	mp_window_update_rect_cache(mpWindow);
 
@@ -955,12 +702,12 @@ static void mp_dispatch_event(mp_event* event)
 	event.frame.rect.w = contentRect.size.width;
 	event.frame.rect.h = contentRect.size.height;
 
-	mp_dispatch_event(&event);
+	mp_queue_event(&event);
 }
 
 - (void)windowDidResize:(NSNotification *)notification
 {
-	const NSRect contentRect = [[mpWindow->nsWindow contentView] frame];
+	const NSRect contentRect = [[mpWindow->osx.nsWindow contentView] frame];
 
 	mp_window_update_rect_cache(mpWindow);
 
@@ -973,16 +720,16 @@ static void mp_dispatch_event(mp_event* event)
 	event.frame.rect.h = contentRect.size.height;
 
 	mp_rect viewFrame = {0, 0, contentRect.size.width, contentRect.size.height};
-	mp_view_set_frame(mpWindow->mainView, viewFrame);
+	mp_view_set_frame(mpWindow->osx.mainView, viewFrame);
 
 
-	if(__mpAppData.liveResizeCallback)
+	if(__mpApp.liveResizeCallback)
 	{
-		__mpAppData.liveResizeCallback(event, __mpAppData.liveResizeData);
+		__mpApp.liveResizeCallback(event, __mpApp.liveResizeData);
 	}
 
 	//TODO: also ensure we don't overflow the queue during live resize...
-	mp_dispatch_event(&event);
+	mp_queue_event(&event);
 }
 
 -(void)windowWillStartLiveResize:(NSNotification *)notification
@@ -997,11 +744,11 @@ static void mp_dispatch_event(mp_event* event)
 
 - (void)windowWillClose:(NSNotification *)notification
 {
-	mpWindow->nsWindow = nil;
-	[mpWindow->nsView release];
-	mpWindow->nsView = nil;
-	[mpWindow->nsWindowDelegate release];
-	mpWindow->nsWindowDelegate = nil;
+	mpWindow->osx.nsWindow = nil;
+	[mpWindow->osx.nsView release];
+	mpWindow->osx.nsView = nil;
+	[mpWindow->osx.nsWindowDelegate release];
+	mpWindow->osx.nsWindowDelegate = nil;
 
 	mp_window_recycle_ptr(mpWindow);
 }
@@ -1014,7 +761,7 @@ static void mp_dispatch_event(mp_event* event)
 	event.window = mp_window_handle_from_ptr(mpWindow);
 	event.type = MP_EVENT_WINDOW_CLOSE;
 
-	mp_dispatch_event(&event);
+	mp_queue_event(&event);
 
 	return(mpWindow->shouldClose);
 }
@@ -1042,7 +789,7 @@ static void mp_dispatch_event(mp_event* event)
 	if(self != nil)
 	{
 		window = mpWindow;
-		mpWindow->nsView = self;
+		mpWindow->osx.nsView = self;
 
 		NSTrackingAreaOptions trackingOptions =	  NSTrackingMouseEnteredAndExited
 							| NSTrackingMouseMoved
@@ -1080,7 +827,7 @@ static void mp_dispatch_event(mp_event* event)
 	if(window->style & MP_WINDOW_STYLE_NO_TITLE)
 	{
 		[NSGraphicsContext restoreGraphicsState];
-		[window->nsWindow invalidateShadow];
+		[window->osx.nsWindow invalidateShadow];
 	}
 }
 
@@ -1091,9 +838,9 @@ static void mp_dispatch_event(mp_event* event)
 
 - (void)cursorUpdate:(NSEvent*)event
 {
-	if(__mpAppData.cursor)
+	if(__mpApp.osx.cursor)
 	{
-		[__mpAppData.cursor set];
+		[__mpApp.osx.cursor set];
 	}
 	else
 	{
@@ -1111,20 +858,20 @@ static void mp_dispatch_event(mp_event* event)
 	event.key.mods = mp_convert_osx_mods([nsEvent modifierFlags]);
 	event.key.clickCount = [nsEvent clickCount];
 
-	mp_update_key_state(&__mpAppData.inputState.mouse.buttons[event.key.code], true);
+	mp_update_key_state(&__mpApp.inputState.mouse.buttons[event.key.code], true);
 	if(event.key.clickCount >= 1)
 	{
-		__mpAppData.inputState.mouse.buttons[event.key.code].clicked = true;
+		__mpApp.inputState.mouse.buttons[event.key.code].clicked = true;
 	}
 	if(event.key.clickCount >= 2)
 	{
 
-		__mpAppData.inputState.mouse.buttons[event.key.code].doubleClicked = true;
+		__mpApp.inputState.mouse.buttons[event.key.code].doubleClicked = true;
 	}
 
-	mp_dispatch_event(&event);
+	mp_queue_event(&event);
 
-	[window->nsWindow makeFirstResponder:self];
+	[window->osx.nsWindow makeFirstResponder:self];
 }
 
 - (void)mouseUp:(NSEvent*)nsEvent
@@ -1137,9 +884,9 @@ static void mp_dispatch_event(mp_event* event)
 	event.key.mods = mp_convert_osx_mods([nsEvent modifierFlags]);
 	event.key.clickCount = [nsEvent clickCount];
 
-	mp_update_key_state(&__mpAppData.inputState.mouse.buttons[event.key.code], false);
+	mp_update_key_state(&__mpApp.inputState.mouse.buttons[event.key.code], false);
 
-	mp_dispatch_event(&event);
+	mp_queue_event(&event);
 }
 
 - (void)rightMouseDown:(NSEvent*)nsEvent
@@ -1151,9 +898,9 @@ static void mp_dispatch_event(mp_event* event)
 	event.key.code = MP_MOUSE_RIGHT;
 	event.key.mods = mp_convert_osx_mods([nsEvent modifierFlags]);
 
-	mp_update_key_state(&__mpAppData.inputState.mouse.buttons[event.key.code], true);
+	mp_update_key_state(&__mpApp.inputState.mouse.buttons[event.key.code], true);
 
-	mp_dispatch_event(&event);
+	mp_queue_event(&event);
 }
 
 - (void)rightMouseUp:(NSEvent*)nsEvent
@@ -1165,9 +912,9 @@ static void mp_dispatch_event(mp_event* event)
 	event.key.code = MP_MOUSE_RIGHT;
 	event.key.mods = mp_convert_osx_mods([nsEvent modifierFlags]);
 
-		mp_update_key_state(&__mpAppData.inputState.mouse.buttons[event.key.code], false);
+		mp_update_key_state(&__mpApp.inputState.mouse.buttons[event.key.code], false);
 
-	mp_dispatch_event(&event);
+	mp_queue_event(&event);
 }
 
 - (void)otherMouseDown:(NSEvent*)nsEvent
@@ -1179,9 +926,9 @@ static void mp_dispatch_event(mp_event* event)
 	event.key.code = [nsEvent buttonNumber];
 	event.key.mods = mp_convert_osx_mods([nsEvent modifierFlags]);
 
-	mp_update_key_state(&__mpAppData.inputState.mouse.buttons[event.key.code], true);
+	mp_update_key_state(&__mpApp.inputState.mouse.buttons[event.key.code], true);
 
-	mp_dispatch_event(&event);
+	mp_queue_event(&event);
 }
 
 - (void)otherMouseUp:(NSEvent*)nsEvent
@@ -1193,9 +940,9 @@ static void mp_dispatch_event(mp_event* event)
 	event.key.code = [nsEvent buttonNumber];
 	event.key.mods = mp_convert_osx_mods([nsEvent modifierFlags]);
 
-	mp_update_key_state(&__mpAppData.inputState.mouse.buttons[event.key.code], false);
+	mp_update_key_state(&__mpApp.inputState.mouse.buttons[event.key.code], false);
 
-	mp_dispatch_event(&event);
+	mp_queue_event(&event);
 }
 
 - (void)mouseDragged:(NSEvent*)nsEvent
@@ -1207,7 +954,7 @@ static void mp_dispatch_event(mp_event* event)
 {
 	NSPoint p = [self convertPoint:[nsEvent locationInWindow] fromView:nil];
 
-	NSRect frame = [[window->nsWindow contentView] frame];
+	NSRect frame = [[window->osx.nsWindow contentView] frame];
 	mp_event event = {};
 	event.type = MP_EVENT_MOUSE_MOVE;
 	event.window = mp_window_handle_from_ptr(window);
@@ -1219,7 +966,7 @@ static void mp_dispatch_event(mp_event* event)
 
 	mp_update_mouse_move(p.x, p.y, event.move.deltaX, event.move.deltaY);
 
-	mp_dispatch_event(&event);
+	mp_queue_event(&event);
 }
 
 - (void)scrollWheel:(NSEvent*)nsEvent
@@ -1237,7 +984,7 @@ static void mp_dispatch_event(mp_event* event)
 
 	mp_update_mouse_wheel(event.move.deltaX, event.move.deltaY);
 
-	mp_dispatch_event(&event);
+	mp_queue_event(&event);
 }
 
 - (void)mouseExited:(NSEvent *)nsEvent
@@ -1245,7 +992,7 @@ static void mp_dispatch_event(mp_event* event)
 	mp_event event = {};
 	event.window = mp_window_handle_from_ptr(window);
 	event.type = MP_EVENT_MOUSE_LEAVE;
-	mp_dispatch_event(&event);
+	mp_queue_event(&event);
 }
 
 - (void)mouseEntered:(NSEvent *)nsEvent
@@ -1253,7 +1000,7 @@ static void mp_dispatch_event(mp_event* event)
 	mp_event event = {};
 	event.window = mp_window_handle_from_ptr(window);
 	event.type = MP_EVENT_MOUSE_ENTER;
-	mp_dispatch_event(&event);
+	mp_queue_event(&event);
 }
 
 
@@ -1271,9 +1018,9 @@ static void mp_dispatch_event(mp_event* event)
 	event.key.labelLen = label.len;
 	memcpy(event.key.label, label.ptr, label.len);
 
-	mp_update_key_state(&__mpAppData.inputState.keyboard.keys[event.key.code], true);
+	mp_update_key_state(&__mpApp.inputState.keyboard.keys[event.key.code], true);
 
-	mp_dispatch_event(&event);
+	mp_queue_event(&event);
 
 	[self interpretKeyEvents:@[nsEvent]];
 }
@@ -1287,9 +1034,9 @@ static void mp_dispatch_event(mp_event* event)
 	event.key.code = mp_convert_osx_key([nsEvent keyCode]);
 	event.key.mods = mp_convert_osx_mods([nsEvent modifierFlags]);
 
-	mp_update_key_state(&__mpAppData.inputState.keyboard.keys[event.key.code], false);
+	mp_update_key_state(&__mpApp.inputState.keyboard.keys[event.key.code], false);
 
-	mp_dispatch_event(&event);
+	mp_queue_event(&event);
 }
 
 - (void) flagsChanged:(NSEvent*)nsEvent
@@ -1301,7 +1048,7 @@ static void mp_dispatch_event(mp_event* event)
 
 	mp_update_key_mods(event.key.mods);
 
-	mp_dispatch_event(&event);
+	mp_queue_event(&event);
 }
 
 - (BOOL)performKeyEquivalent:(NSEvent*)nsEvent
@@ -1310,17 +1057,17 @@ static void mp_dispatch_event(mp_event* event)
 	{
 		if([nsEvent charactersIgnoringModifiers] == [NSString stringWithUTF8String:"w"])
 		{
-			[window->nsWindow performClose:self];
+			[window->osx.nsWindow performClose:self];
 			return(YES);
 		}
 		else if([nsEvent charactersIgnoringModifiers] == [NSString stringWithUTF8String:"q"])
 		{
-			__mpAppData.shouldQuit = true;
+			__mpApp.shouldQuit = true;
 
 			mp_event event = {};
 			event.type = MP_EVENT_QUIT;
 
-			mp_dispatch_event(&event);
+			mp_queue_event(&event);
 
 			//[NSApp terminate:self];
 			return(YES);
@@ -1394,7 +1141,7 @@ static const NSRange kEmptyRange = { NSNotFound, 0 };
 - (NSRect)firstRectForCharacterRange:(NSRange)range
                          actualRange:(NSRangePointer)actualRange
 {
-	NSRect frame = [window->nsView frame];
+	NSRect frame = [window->osx.nsView frame];
 	return(NSMakeRect(frame.origin.x, frame.origin.y, 0.0, 0.0));
 }
 
@@ -1441,7 +1188,7 @@ static const NSRange kEmptyRange = { NSNotFound, 0 };
 
 			mp_update_text(codepoint);
 
-			mp_dispatch_event(&event);
+			mp_queue_event(&event);
 		}
 	}
 	[self unmarkText];
@@ -1488,9 +1235,9 @@ CVReturn DisplayLinkCallback(CVDisplayLinkRef displayLink,
                              CVOptionFlags *flagsOut,
                              void *displayLinkContext)
 {
-	if(__mpAppData.displayRefreshCallback)
+	if(__mpApp.displayRefreshCallback)
 	{
-		__mpAppData.displayRefreshCallback(__mpAppData.displayRefreshData);
+		__mpApp.displayRefreshCallback(__mpApp.displayRefreshData);
 	}
 
 	return(0);
@@ -1507,11 +1254,11 @@ CVReturn DisplayLinkCallback(CVDisplayLinkRef displayLink,
 
 void mp_init()
 {@autoreleasepool {
-	if(!__mpAppData.init)
+	if(!__mpApp.init)
 	{
-		memset(&__mpAppData, 0, sizeof(__mpAppData));
+		memset(&__mpApp, 0, sizeof(__mpApp));
 
-		mem_arena_init(&__mpAppData.eventArena);
+		mem_arena_init(&__mpApp.eventArena);
 
 		mp_clock_init();
 
@@ -1525,7 +1272,7 @@ void mp_init()
 		mp_init_view_handles();
 
 		LOG_MESSAGE("init event queue\n");
-		ringbuffer_init(&__mpAppData.eventQueue, 16);
+		ringbuffer_init(&__mpApp.eventQueue, 16);
 
 		[MPApplication sharedApplication];
 		MPAppDelegate* delegate = [[MPAppDelegate alloc] init];
@@ -1535,15 +1282,15 @@ void mp_init()
 		                         toTarget:NSApp
 		                         withObject:nil];
 
-		__mpAppData.init = true;
+		__mpApp.init = true;
 
 		LOG_MESSAGE("run application\n");
 		[NSApp run];
 
 		/*
 		CGDirectDisplayID displayID = CGMainDisplayID();
-		CVDisplayLinkCreateWithCGDisplay(displayID, &__mpAppData.displayLink);
-		CVDisplayLinkSetOutputCallback(__mpAppData.displayLink, DisplayLinkCallback, 0);
+		CVDisplayLinkCreateWithCGDisplay(displayID, &__mpApp.displayLink);
+		CVDisplayLinkSetOutputCallback(__mpApp.displayLink, DisplayLinkCallback, 0);
 		*/
 
 		[NSApp setActivationPolicy:NSApplicationActivationPolicyRegular];
@@ -1555,34 +1302,34 @@ void mp_init()
 void mp_terminate()
 {
 	//TODO: proper app data cleanup (eg delegate, etc)
-	if(__mpAppData.init)
+	if(__mpApp.init)
 	{
-		mem_arena_release(&__mpAppData.eventArena);
-		__mpAppData = (mp_app_data){0};
+		mem_arena_release(&__mpApp.eventArena);
+		__mpApp = (mp_app){0};
 	}
 }
 
 bool mp_should_quit()
 {
-	return(__mpAppData.shouldQuit);
+	return(__mpApp.shouldQuit);
 }
 
 void mp_do_quit()
 {
-	__mpAppData.shouldQuit = true;
+	__mpApp.shouldQuit = true;
 }
 
 void mp_cancel_quit()
 {
-	__mpAppData.shouldQuit = false;
+	__mpApp.shouldQuit = false;
 }
 
 void mp_request_quit()
 {
-	__mpAppData.shouldQuit = true;
+	__mpApp.shouldQuit = true;
 	mp_event event = {};
 	event.type = MP_EVENT_QUIT;
-	mp_dispatch_event(&event);
+	mp_queue_event(&event);
 }
 
 void mp_set_cursor(mp_mouse_cursor cursor)
@@ -1591,30 +1338,30 @@ void mp_set_cursor(mp_mouse_cursor cursor)
 	{
 		case MP_MOUSE_CURSOR_ARROW:
 		{
-			__mpAppData.cursor = [NSCursor arrowCursor];
+			__mpApp.osx.cursor = [NSCursor arrowCursor];
 		} break;
 		case MP_MOUSE_CURSOR_RESIZE_0:
 		{
-			__mpAppData.cursor = [[NSCursor class] performSelector:@selector(_windowResizeEastWestCursor)];
+			__mpApp.osx.cursor = [[NSCursor class] performSelector:@selector(_windowResizeEastWestCursor)];
 		} break;
 		case MP_MOUSE_CURSOR_RESIZE_90:
 		{
-			__mpAppData.cursor = [[NSCursor class] performSelector:@selector(_windowResizeNorthSouthCursor)];
+			__mpApp.osx.cursor = [[NSCursor class] performSelector:@selector(_windowResizeNorthSouthCursor)];
 		} break;
 		case MP_MOUSE_CURSOR_RESIZE_45:
 		{
-			__mpAppData.cursor = [[NSCursor class] performSelector:@selector(_windowResizeNorthEastSouthWestCursor)];
+			__mpApp.osx.cursor = [[NSCursor class] performSelector:@selector(_windowResizeNorthEastSouthWestCursor)];
 		} break;
 		case MP_MOUSE_CURSOR_RESIZE_135:
 		{
-			__mpAppData.cursor = [[NSCursor class] performSelector:@selector(_windowResizeNorthWestSouthEastCursor)];
+			__mpApp.osx.cursor = [[NSCursor class] performSelector:@selector(_windowResizeNorthWestSouthEastCursor)];
 		} break;
 		case MP_MOUSE_CURSOR_TEXT:
 		{
-			__mpAppData.cursor = [NSCursor IBeamCursor];
+			__mpApp.osx.cursor = [NSCursor IBeamCursor];
 		} break;
 	}
-	[__mpAppData.cursor set];
+	[__mpApp.osx.cursor set];
 }
 
 void mp_clipboard_clear()
@@ -1697,16 +1444,6 @@ str8 mp_clipboard_get_data_for_tag(mem_arena* arena, const char* tag)
 // Window public API
 //---------------------------------------------------------------
 
-bool mp_window_handle_is_null(mp_window window)
-{
-	return(window.h == 0);
-}
-
-mp_window mp_window_null_handle()
-{
-	return((mp_window){.h = 0});
-}
-
 /*
 //TODO(martin): review include scheme
 extern "C" {
@@ -1737,42 +1474,42 @@ mp_window mp_window_create(mp_rect contentRect, const char* title, mp_window_sty
 				 contentRect.w,
 				 contentRect.h);
 
-	window->nsWindow = [[MPNativeWindow alloc] initWithMPWindow: window contentRect:rect styleMask:styleMask];
-	window->nsWindowDelegate = [[MPNativeWindowDelegate alloc] initWithMPWindow:window];
+	window->osx.nsWindow = [[MPNativeWindow alloc] initWithMPWindow: window contentRect:rect styleMask:styleMask];
+	window->osx.nsWindowDelegate = [[MPNativeWindowDelegate alloc] initWithMPWindow:window];
 
-	[window->nsWindow setDelegate:(id)window->nsWindowDelegate];
-	[window->nsWindow setTitle:[NSString stringWithUTF8String:title]];
+	[window->osx.nsWindow setDelegate:(id)window->osx.nsWindowDelegate];
+	[window->osx.nsWindow setTitle:[NSString stringWithUTF8String:title]];
 
 	if(style & MP_WINDOW_STYLE_NO_TITLE)
 	{
-		[window->nsWindow setOpaque:NO];
-		[window->nsWindow setBackgroundColor:[NSColor clearColor]];
-		[window->nsWindow setHasShadow:YES];
+		[window->osx.nsWindow setOpaque:NO];
+		[window->osx.nsWindow setBackgroundColor:[NSColor clearColor]];
+		[window->osx.nsWindow setHasShadow:YES];
 	}
 	if(style & MP_WINDOW_STYLE_FLOAT)
 	{
-		[window->nsWindow setLevel:NSFloatingWindowLevel];
-		[window->nsWindow setHidesOnDeactivate:YES];
+		[window->osx.nsWindow setLevel:NSFloatingWindowLevel];
+		[window->osx.nsWindow setHidesOnDeactivate:YES];
 	}
 	if(style & MP_WINDOW_STYLE_NO_BUTTONS)
 	{
-		[[window->nsWindow standardWindowButton:NSWindowCloseButton] setHidden:YES];
-		[[window->nsWindow standardWindowButton:NSWindowMiniaturizeButton] setHidden:YES];
-		[[window->nsWindow standardWindowButton:NSWindowZoomButton] setHidden:YES];
+		[[window->osx.nsWindow standardWindowButton:NSWindowCloseButton] setHidden:YES];
+		[[window->osx.nsWindow standardWindowButton:NSWindowMiniaturizeButton] setHidden:YES];
+		[[window->osx.nsWindow standardWindowButton:NSWindowZoomButton] setHidden:YES];
 	}
 
 	MPNativeView* view = [[MPNativeView alloc] initWithMPWindow:window];
 
-	[window->nsWindow setContentView:view];
-	[window->nsWindow makeFirstResponder:view];
-	[window->nsWindow setAcceptsMouseMovedEvents:YES];
+	[window->osx.nsWindow setContentView:view];
+	[window->osx.nsWindow makeFirstResponder:view];
+	[window->osx.nsWindow setAcceptsMouseMovedEvents:YES];
 
 	mp_window_update_rect_cache(window);
 
 	mp_window windowHandle = mp_window_handle_from_ptr(window);
 
 	mp_rect mainViewFrame = {0, 0, contentRect.w, contentRect.h};
-	window->mainView = mp_view_create(windowHandle, mainViewFrame);
+	window->osx.mainView = mp_view_create(windowHandle, mainViewFrame);
 
 	return(windowHandle);
 }//autoreleasepool
@@ -1783,16 +1520,16 @@ void mp_window_destroy(mp_window window)
 	mp_window_data* windowData = mp_window_ptr_from_handle(window);
 	if(windowData)
 	{
-		[windowData->nsWindow orderOut:nil];
+		[windowData->osx.nsWindow orderOut:nil];
 
-		[windowData->nsWindow setDelegate:nil];
-		[windowData->nsWindowDelegate release];
-		windowData->nsWindowDelegate = nil;
+		[windowData->osx.nsWindow setDelegate:nil];
+		[windowData->osx.nsWindowDelegate release];
+		windowData->osx.nsWindowDelegate = nil;
 
-		[windowData->nsView release];
-		windowData->nsView = nil;
+		[windowData->osx.nsView release];
+		windowData->osx.nsView = nil;
 
-		[windowData->nsWindow close]; //also release the window
+		[windowData->osx.nsWindow close]; //also release the window
 
 		mp_window_recycle_ptr(windowData);
 	}
@@ -1826,7 +1563,7 @@ void mp_window_request_close(mp_window window)
 	mp_window_data* windowData = mp_window_ptr_from_handle(window);
 	if(windowData)
 	{
-		[windowData->nsWindow close];
+		[windowData->osx.nsWindow close];
 		//NOTE(martin): this will call our window delegate willClose method
 	}
 }
@@ -1836,7 +1573,7 @@ void* mp_window_native_pointer(mp_window window)
 	mp_window_data* windowData = mp_window_ptr_from_handle(window);
 	if(windowData)
 	{
-		return((__bridge void*)windowData->nsWindow);
+		return((__bridge void*)windowData->osx.nsWindow);
 	}
 	else
 	{
@@ -1849,7 +1586,7 @@ void mp_window_center(mp_window window)
 	mp_window_data* windowData = mp_window_ptr_from_handle(window);
 	if(windowData)
 	{
-		[windowData->nsWindow center];
+		[windowData->osx.nsWindow center];
 	}
 }}
 
@@ -1871,7 +1608,7 @@ bool mp_window_is_focused(mp_window window)
 	mp_window_data* windowData = mp_window_ptr_from_handle(window);
 	if(windowData)
 	{
-		return([windowData->nsWindow isKeyWindow]);
+		return([windowData->osx.nsWindow isKeyWindow]);
 	}
 	else
 	{
@@ -1885,7 +1622,7 @@ void mp_window_hide(mp_window window)
 	if(windowData)
 	{
 		windowData->hidden = true;
-		[windowData->nsWindow orderOut:nil];
+		[windowData->osx.nsWindow orderOut:nil];
 	}
 }}
 
@@ -1894,7 +1631,7 @@ void mp_window_focus(mp_window window)
 	mp_window_data* windowData = mp_window_ptr_from_handle(window);
 	if(windowData)
 	{
-		[windowData->nsWindow makeKeyWindow];
+		[windowData->osx.nsWindow makeKeyWindow];
 	}
 }}
 
@@ -1903,7 +1640,7 @@ void mp_window_send_to_back(mp_window window)
 	mp_window_data* windowData = mp_window_ptr_from_handle(window);
 	if(windowData)
 	{
-		[windowData->nsWindow orderBack:nil];
+		[windowData->osx.nsWindow orderBack:nil];
 	}
 }}
 
@@ -1913,7 +1650,7 @@ void mp_window_bring_to_front(mp_window window)
 	if(windowData)
 	{
 		windowData->hidden = false;
-		[windowData->nsWindow orderFront:nil];
+		[windowData->osx.nsWindow orderFront:nil];
 	}
 }}
 
@@ -1999,7 +1736,7 @@ void mp_window_set_content_rect(mp_window window, mp_rect contentRect)
 		NSRect content = NSMakeRect(nativeRect.x, nativeRect.y, nativeRect.w, nativeRect.h);
 		NSRect frame = [NSWindow frameRectForContentRect:content styleMask:mask];
 
-		[windowData->nsWindow setFrame:frame display:YES];
+		[windowData->osx.nsWindow setFrame:frame display:YES];
 
 		mp_window_update_rect_cache(windowData);
 	}
@@ -2011,10 +1748,10 @@ void mp_window_set_frame_rect(mp_window window, mp_rect frameRect)
 	{
 		mp_rect nativeRect = mp_user_to_osx_screen_rect(frameRect);
 		NSRect frame = NSMakeRect(nativeRect.x, nativeRect.y, nativeRect.w, nativeRect.h);
-		[windowData->nsWindow setFrame:frame display:YES];
+		[windowData->osx.nsWindow setFrame:frame display:YES];
 
 		mp_window_update_rect_cache(windowData);
-		NSRect contentRect = [[windowData->nsWindow contentView] frame];
+		NSRect contentRect = [[windowData->osx.nsWindow contentView] frame];
 	}
 }}
 
@@ -2076,7 +1813,7 @@ mp_view mp_view_create(mp_window windowHandle, mp_rect frame)
 	view->nsView = [[NSView alloc] initWithFrame: nsFrame];
 	[view->nsView setWantsLayer:YES];
 
-	[[window->nsWindow contentView] addSubview: view->nsView];
+	[[window->osx.nsWindow contentView] addSubview: view->nsView];
 
 	return(mp_view_handle_from_ptr(view));
 }}
@@ -2110,7 +1847,11 @@ void mp_view_set_frame(mp_view viewHandle, mp_rect frame)
 
 	NSRect nsFrame = {{frame.x, frame.y}, {frame.w, frame.h}};
 	[view->nsView setFrame: nsFrame];
-	mg_surface_resize(view->surface, frame.w, frame.h);
+
+	if(!mg_surface_is_nil(view->surface))
+	{
+		mg_surface_resize(view->surface, frame.w, frame.h);
+	}
 }
 
 //--------------------------------------------------------------------
@@ -2119,48 +1860,48 @@ void mp_view_set_frame(mp_view viewHandle, mp_rect frame)
 
 void mp_set_target_fps(u32 fps)
 {
-	__mpAppData.frameStats.targetFramePeriod = 1./(f64)fps;
-	__mpAppData.frameStats.workTime = 0;
-	__mpAppData.frameStats.remainingTime = 0;
+	__mpApp.frameStats.targetFramePeriod = 1./(f64)fps;
+	__mpApp.frameStats.workTime = 0;
+	__mpApp.frameStats.remainingTime = 0;
 
-	if(__mpAppData.frameTimer)
+	if(__mpApp.osx.frameTimer)
 	{
-		[__mpAppData.frameTimer invalidate];
+		[__mpApp.osx.frameTimer invalidate];
 	}
 
-	__mpAppData.frameTimer = [NSTimer timerWithTimeInterval: __mpAppData.frameStats.targetFramePeriod
+	__mpApp.osx.frameTimer = [NSTimer timerWithTimeInterval: __mpApp.frameStats.targetFramePeriod
 	                          target: [NSApp delegate]
 				  selector:@selector(timerElapsed:)
 				  userInfo:nil
 				  repeats:YES];
 
-	[[NSRunLoop currentRunLoop] addTimer:__mpAppData.frameTimer forMode:NSRunLoopCommonModes];
+	[[NSRunLoop currentRunLoop] addTimer:__mpApp.osx.frameTimer forMode:NSRunLoopCommonModes];
 }
 /*
 void mp_begin_frame()
 {
-	__mpAppData.frameStats.start = mp_get_elapsed_seconds();
+	__mpApp.frameStats.start = mp_get_elapsed_seconds();
 
 	LOG_DEBUG("workTime = %.6f (%.6f fps), remaining = %.6f\n",
-	             __mpAppData.frameStats.workTime,
-	             1/__mpAppData.frameStats.workTime,
-	             __mpAppData.frameStats.remainingTime);
+	             __mpApp.frameStats.workTime,
+	             1/__mpApp.frameStats.workTime,
+	             __mpApp.frameStats.remainingTime);
 
 }
 
 void mp_end_frame()
 {
-	__mpAppData.frameStats.workTime = mp_get_elapsed_seconds() - __mpAppData.frameStats.start;
-	__mpAppData.frameStats.remainingTime = __mpAppData.frameStats.targetFramePeriod - __mpAppData.frameStats.workTime;
+	__mpApp.frameStats.workTime = mp_get_elapsed_seconds() - __mpApp.frameStats.start;
+	__mpApp.frameStats.remainingTime = __mpApp.frameStats.targetFramePeriod - __mpApp.frameStats.workTime;
 
-	while(__mpAppData.frameStats.remainingTime > 100e-9)
+	while(__mpApp.frameStats.remainingTime > 100e-9)
 	{
-		if(__mpAppData.frameStats.remainingTime > 10e-6)
+		if(__mpApp.frameStats.remainingTime > 10e-6)
 		{
-			mp_sleep_nanoseconds(__mpAppData.frameStats.remainingTime*0.8*1e9);
+			mp_sleep_nanoseconds(__mpApp.frameStats.remainingTime*0.8*1e9);
 		}
-		__mpAppData.frameStats.workTime = mp_get_elapsed_seconds() - __mpAppData.frameStats.start;
-		__mpAppData.frameStats.remainingTime = __mpAppData.frameStats.targetFramePeriod - __mpAppData.frameStats.workTime;
+		__mpApp.frameStats.workTime = mp_get_elapsed_seconds() - __mpApp.frameStats.start;
+		__mpApp.frameStats.remainingTime = __mpApp.frameStats.targetFramePeriod - __mpApp.frameStats.workTime;
 	}
 }
 */
@@ -2171,20 +1912,14 @@ void mp_end_frame()
 
 void mp_set_live_resize_callback(mp_live_resize_callback callback, void* data)
 {
-	__mpAppData.liveResizeCallback = callback;
-	__mpAppData.liveResizeData = data;
+	__mpApp.liveResizeCallback = callback;
+	__mpApp.liveResizeData = data;
 }
 
-
-void mp_set_event_callback(mp_event_callback callback, void* data)
-{
-	__mpAppData.eventCallback = callback;
-	__mpAppData.eventData = data;
-}
 
 void mp_pump_events(f64 timeout)
 {
-	__mpAppData.inputState.frameCounter++;
+	__mpApp.inputState.frameCounter++;
 
 	@autoreleasepool
 	{
@@ -2228,35 +1963,21 @@ void mp_pump_events(f64 timeout)
 	}
 }
 
-bool mp_next_event(mp_event* event)
-{
-	//NOTE pop and return event from queue
-	if(ringbuffer_read_available(&__mpAppData.eventQueue) >= sizeof(mp_event))
-	{
-		u64 read = ringbuffer_read(&__mpAppData.eventQueue, sizeof(mp_event), (u8*)event);
-		DEBUG_ASSERT(read == sizeof(mp_event));
-		return(true);
-	}
-	else
-	{
-		return(false);
-	}
-}
-
+/*
 void mp_run_loop()
 {@autoreleasepool {
 
-	//CVDisplayLinkStart(__mpAppData.displayLink);
+	//CVDisplayLinkStart(__mpApp.displayLink);
 
-	while(!__mpAppData.shouldQuit)
+	while(!__mpApp.shouldQuit)
 	{
 		mp_event event;
 		while(mp_next_event(&event))
 		{
 			//send pending event that might have accumulated before we started run loop
-			if(__mpAppData.eventCallback)
+			if(__mpApp.eventCallback)
 			{
-				__mpAppData.eventCallback(event, __mpAppData.eventData);
+				__mpApp.eventCallback(event, __mpApp.eventData);
 			}
 		}
 
@@ -2271,16 +1992,16 @@ void mp_run_loop()
 		}
 	}
 
-	//CVDisplayLinkStop(__mpAppData.displayLink);
+	//CVDisplayLinkStop(__mpApp.displayLink);
 }}
-
+*/
 void mp_end_input_frame()
 {
 	//////////////////////////////////////////////////////////////////////////////////////////////
 	//TODO: make sure we call arena clear once per event frame, even when using runloop etc...
 	//////////////////////////////////////////////////////////////////////////////////////////////
-	__mpAppData.inputState.frameCounter++;
-	mem_arena_clear(&__mpAppData.eventArena);
+	__mpApp.inputState.frameCounter++;
+	mem_arena_clear(&__mpApp.eventArena);
 }
 
 //--------------------------------------------------------------------
