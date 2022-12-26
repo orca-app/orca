@@ -75,8 +75,6 @@ typedef struct mg_surface_client_info
 	mg_surface_client_attach_proc attach;
 	mg_surface_client_detach_proc detach;
 
-	mp_view attachment;
-
 } mg_surface_client_info;
 
 mg_surface_client mg_surface_client_alloc_handle(mg_surface_client_info* client);

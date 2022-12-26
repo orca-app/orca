@@ -90,64 +90,6 @@ static u32 mp_osx_get_window_style_mask(mp_window_style style)
 }
 
 //---------------------------------------------------------------
-// App struct and utility functions
-//---------------------------------------------------------------
-/////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-void mp_init_view_handles()
-{
-	ListInit(&__mpApp.osx.viewFreeList);
-	for(int i=0; i<MP_APP_MAX_VIEWS; i++)
-	{
-		__mpApp.osx.viewPool[i].generation = 1;
-		ListAppend(&__mpApp.osx.viewFreeList, &__mpApp.osx.viewPool[i].freeListElt);
-	}
-}
-
-
-mp_view_data* mp_view_alloc()
-{
-	return(ListPopEntry(&__mpApp.osx.viewFreeList, mp_view_data, freeListElt));
-}
-
-mp_view_data* mp_view_ptr_from_handle(mp_view handle)
-{
-	u32 index = handle.h>>32;
-	u32 generation = handle.h & 0xffffffff;
-	if(index >= MP_APP_MAX_VIEWS)
-	{
-		return(0);
-	}
-	mp_view_data* view = &__mpApp.osx.viewPool[index];
-	if(view->generation != generation)
-	{
-		return(0);
-	}
-	else
-	{
-		return(view);
-	}
-}
-
-mp_view mp_view_handle_from_ptr(mp_view_data* view)
-{
-	DEBUG_ASSERT(  (view - __mpApp.osx.viewPool) >= 0
-	            && (view - __mpApp.osx.viewPool) < MP_APP_MAX_VIEWS);
-
-	u64 h = ((u64)(view - __mpApp.osx.viewPool))<<32
-	      | ((u64)view->generation);
-
-	return((mp_view){h});
-}
-
-void mp_view_recycle_ptr(mp_view_data* view)
-{
-	view->generation++;
-	ListPush(&__mpApp.osx.viewFreeList, &view->freeListElt);
-}
-
-/////////////////////////////////////////////////////////////////////////////////////////////////////////
-
 
 static void mp_init_osx_keys()
 {
@@ -719,10 +661,6 @@ static void mp_update_key_mods(mp_key_mods mods)
 	event.frame.rect.w = contentRect.size.width;
 	event.frame.rect.h = contentRect.size.height;
 
-	mp_rect viewFrame = {0, 0, contentRect.size.width, contentRect.size.height};
-	mp_view_set_frame(mpWindow->osx.mainView, viewFrame);
-
-
 	if(__mpApp.liveResizeCallback)
 	{
 		__mpApp.liveResizeCallback(event, __mpApp.liveResizeData);
@@ -1269,7 +1207,6 @@ void mp_init()
 
 		LOG_MESSAGE("init handles\n");
 		mp_init_window_handles();
-		mp_init_view_handles();
 
 		LOG_MESSAGE("init event queue\n");
 		ringbuffer_init(&__mpApp.eventQueue, 16);
@@ -1507,9 +1444,6 @@ mp_window mp_window_create(mp_rect contentRect, const char* title, mp_window_sty
 	mp_window_update_rect_cache(window);
 
 	mp_window windowHandle = mp_window_handle_from_ptr(window);
-
-	mp_rect mainViewFrame = {0, 0, contentRect.w, contentRect.h};
-	window->osx.mainView = mp_view_create(windowHandle, mainViewFrame);
 
 	return(windowHandle);
 }//autoreleasepool
@@ -1780,17 +1714,7 @@ void mp_window_set_content_size(mp_window window, int width, int height)
 //--------------------------------------------------------------------
 // view management
 //--------------------------------------------------------------------
-
-mp_view mp_view_nil()
-{
-	return((mp_view){0});
-}
-
-bool mp_view_is_nil(mp_view view)
-{
-	return(!view.h);
-}
-
+/*
 mp_view mp_view_create(mp_window windowHandle, mp_rect frame)
 {@autoreleasepool{
 	mp_window_data* window = mp_window_ptr_from_handle(windowHandle);
@@ -1853,7 +1777,7 @@ void mp_view_set_frame(mp_view viewHandle, mp_rect frame)
 		mg_surface_resize(view->surface, frame.w, frame.h);
 	}
 }
-
+*/
 //--------------------------------------------------------------------
 // Main loop throttle
 //--------------------------------------------------------------------

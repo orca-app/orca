@@ -22,7 +22,6 @@ extern "C" {
 //--------------------------------------------------------------------
 
 typedef struct mp_window { u64 h; } mp_window;
-typedef struct mp_view { u64 h; } mp_view;
 
 typedef enum { MP_MOUSE_CURSOR_ARROW,
 	           MP_MOUSE_CURSOR_RESIZE_0,
@@ -319,16 +318,6 @@ void mp_window_center(mp_window window);
 
 mp_rect mp_window_content_rect_for_frame_rect(mp_rect frameRect, mp_window_style style);
 mp_rect mp_window_frame_rect_for_content_rect(mp_rect contentRect, mp_window_style style);
-
-//--------------------------------------------------------------------
-// View management
-//--------------------------------------------------------------------
-
-mp_view mp_view_nil();
-bool mp_view_is_nil(mp_view view);
-mp_view mp_view_create(mp_window window, mp_rect frame);
-void mp_view_destroy(mp_view view);
-void mp_view_set_frame(mp_view view, mp_rect frame);
 
 //--------------------------------------------------------------------
 // Input state polling

@@ -16,4 +16,4 @@
 	#include"osx_gles_surface.m"
 #pragma clang diagnostic pop
 
-#include"osx_surface_client.m"
+//#include"osx_surface_client.m"

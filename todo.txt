@@ -19,23 +19,62 @@ Windows port
 	(mp_app.c can 'see' platform specific stuff, so ObjectiveC defs pose a problem, but we can define id as void*
 	when not in ObjC...)
 
-[ ] Check changes in macos version
+[.] Check changes in macos version
 	[x] Restructure macos version to use mp_app_internal.h/mp_app.c
 	[x] test new run loop structure on macos
 	[x] Fix resize crash when there's no surface
-	[ ] separate data for key and mouse event?
-	[ ] Clarify how we want to do view handling across platforms
-		[ ] Views (using docked windows?) -- or see if we can use surfaces and restrict their location?
-		[ ] pull views in common stuff
-	[ ] use isARepeat in macos keyDown event and simplify update key state
+	[>] separate data for key and mouse event?
+	[>] Simplify event structs
+		[ ] use isARepeat in macos keyDown event and simplify update key state
 
-[ ] Simplify event structs
+	[>] Clarify how we want to do view handling across platforms
+		[.] use surfaces to define restricted drawing locations
+			[x] Implement with NSView subviews on osx
+				[/] Maybe switch to just using CALayers?
+			[ ] Clarify metal-specific surface API
+			    > right now mg_surface doesn't really give access to directly drawing in metal
+				we only need render encoder from the surface? -> if we just want to issue draw calls.
+				We'll likely need the command buffer if we want other passes?  or also have get_compute_encoder().
+				We only need the command buffer/command queue if we want to manually create encoders, eg with different clear color
+
+				-> get pixel format / command buffer / texture
+				(don't get drawable as it is specific to the kind of target (window or image))
+				-> as helper, get simple encoders in the command buffer
+
+				maybe even _just_ get a CAMetalDrawable and pixel format, and let user code create commandQueue, buffers, encoders...
+				-> but we need to present the drawable to a specific commandbuffer
+				-> so, maybe the view should also maintain a command buffer
+				-> pixel format, drawable, command buffer, + helpers for encoders(passes)
+
+				--> but then, mg_surface doesn't really abstract anything (usage code needs to know which kind of surface it is to be able to draw inside it)
+				(well, it abstracts the creation of the context and the presentation...)
+
+				maybe we should actually abstract over that, a la sokol_gfx... And then the 2D vector graphics uses this abstract API?
+				-> but this is a bigger endeavour
+
+				Maybe keep surface simple, write an opengl version, then try to port painter to opengl version,
+				and then we will have more info to decide if we want to abstract over the different APIs.
+
+				Do surfaces for different graphics API even need to be abstracted? don't we always know which surface we're using?
+
+
+
+		->> how much do we abstract graphics API vs how much we give access to native calls...
+
+		ie we could abstract shaders, buffers, textures, pipeline, encoders, etc... but also provide access to native data structures
+
+
+
+
+	[ ] Cleanup graphics backend compile-time/runtime selection
+	[ ] Implement surfaces with child windows on win32
+		[/] Maybe implement compositing directly in d3d and opengl compat extension...
 
 [.] Implement input polling
 	[ ] Simplify input polling API names
 	[/] Try to simplify input state and polling once we have UI usage code
 
-[ ] Finish window properties query/setting
+[ ] Finish win32 window create flags and properties query/setting
 
 [ ] Implement clipboard
 [ ] Implement file dialogs

@@ -154,7 +154,6 @@ void mg_metal_surface_set_hidden(mg_surface_info* interface, bool hidden)
 	}
 }
 
-
 vec2 mg_metal_surface_get_size(mg_surface_info* interface)
 {
 	mg_metal_surface* surface = (mg_metal_surface*)interface;
@@ -175,10 +174,10 @@ void* mg_metal_surface_get_os_resource(mg_surface_info* interface)
 
 static const f32 MG_METAL_SURFACE_CONTENTS_SCALING = 2;
 
-mg_surface mg_metal_surface_create_for_view(mp_view view)
+mg_surface mg_metal_surface_create_for_window(mp_window window)
 {
-	mp_view_data* viewData = mp_view_ptr_from_handle(view);
-	if(!viewData)
+	mp_window_data* windowData = mp_window_ptr_from_handle(window);
+	if(!windowData)
 	{
 		return(mg_surface_nil());
 	}
@@ -198,6 +197,12 @@ mg_surface mg_metal_surface_create_for_view(mp_view view)
 
 		@autoreleasepool
 		{
+			NSRect frame = [[windowData->osx.nsWindow contentView] frame];
+			surface->view = [[NSView alloc] initWithFrame: frame];
+			[surface->view setWantsLayer:YES];
+
+			[[windowData->osx.nsWindow contentView] addSubview: surface->view];
+
 			surface->drawableSemaphore = dispatch_semaphore_create(MP_METAL_MAX_DRAWABLES_IN_FLIGHT);
 
 			//-----------------------------------------------------------
@@ -210,8 +215,6 @@ mg_surface mg_metal_surface_create_for_view(mp_view view)
 			[surface->metalLayer setOpaque:NO];
 
 			surface->metalLayer.device = surface->device;
-
-			surface->view = viewData->nsView;
 
 			//-----------------------------------------------------------
 			//NOTE(martin): set the size and scaling
@@ -244,23 +247,51 @@ mg_surface mg_metal_surface_create_for_view(mp_view view)
 		}
 
 		mg_surface handle = mg_surface_alloc_handle((mg_surface_info*)surface);
-		viewData->surface = handle;
-
 		return(handle);
 	}
 }
 
-mg_surface mg_metal_surface_create_for_window(mp_window window)
+void* mg_metal_surface_layer(mg_surface surface)
 {
-	mp_window_data* windowData = mp_window_ptr_from_handle(window);
-	if(!windowData)
+	mg_surface_info* surfaceData = mg_surface_ptr_from_handle(surface);
+	if(surfaceData && surfaceData->backend == MG_BACKEND_METAL)
 	{
-		return(mg_surface_nil());
+		mg_metal_surface* metalSurface = (mg_metal_surface*)surfaceData;
+		return(metalSurface->metalLayer);
 	}
 	else
 	{
-		return(mg_metal_surface_create_for_view(windowData->osx.mainView));
+		return(nil);
 	}
 }
+
+void* mg_metal_surface_drawable(mg_surface surface)
+{
+	mg_surface_info* surfaceData = mg_surface_ptr_from_handle(surface);
+	if(surfaceData && surfaceData->backend == MG_BACKEND_METAL)
+	{
+		mg_metal_surface* metalSurface = (mg_metal_surface*)surfaceData;
+		return(metalSurface->drawable);
+	}
+	else
+	{
+		return(nil);
+	}
+}
+
+void* mg_metal_surface_command_buffer(mg_surface surface)
+{
+	mg_surface_info* surfaceData = mg_surface_ptr_from_handle(surface);
+	if(surfaceData && surfaceData->backend == MG_BACKEND_METAL)
+	{
+		mg_metal_surface* metalSurface = (mg_metal_surface*)surfaceData;
+		return(metalSurface->commandBuffer);
+	}
+	else
+	{
+		return(nil);
+	}
+}
+
 
 #undef LOG_SUBSYSTEM

@@ -30,21 +30,9 @@ typedef struct osx_window_data
 	NSView*   nsView;
 	NSObject* nsWindowDelegate;
 
-	mp_view mainView;
-
 } osx_window_data;
 
 #define MP_PLATFORM_WINDOW_DATA osx_window_data osx;
-
-typedef struct mp_view_data
-{
-	list_elt freeListElt;
-	u32 generation;
-
-	mp_window window;
-	NSView*   nsView;
-	mg_surface surface;
-} mp_view_data;
 
 const u32 MP_APP_MAX_VIEWS = 128;
 
@@ -56,9 +44,6 @@ typedef struct osx_app_data
 	TISInputSourceRef kbLayoutInputSource;
 	void* kbLayoutUnicodeData;
 	id kbLayoutListener;
-
-	list_info viewFreeList;
-	mp_view_data viewPool[MP_APP_MAX_VIEWS];
 
 } osx_app_data;
 

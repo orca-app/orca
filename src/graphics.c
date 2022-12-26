@@ -537,15 +537,13 @@ mg_image_data* mg_image_ptr_from_handle(mg_canvas_data* context, mg_image handle
 //---------------------------------------------------------------
 
 #ifdef MG_IMPLEMENTS_BACKEND_METAL
-	//NOTE: function is defined in metal_backend.mm
-	mg_surface mg_metal_surface_create_for_window(mp_window window);
-	mg_surface mg_metal_surface_create_for_view(mp_view view);
-#endif //MG_IMPLEMENTS_BACKEND_METAL
+	#include"metal_surface.h"
+#endif
 
 #ifdef MG_IMPLEMENTS_BACKEND_GLES
 	mg_surface mg_gles_surface_create_offscreen(u32 width, u32 height);
 	mg_surface_server mg_gles_surface_create_server(mg_surface_info* surface);
-#endif //MG_IMPLEMENTS_BACKEND_GLES
+#endif
 
 #ifdef MG_IMPLEMENTS_BACKEND_GL
 	mg_surface mg_gl_surface_create_for_window(mp_window window);
@@ -573,29 +571,6 @@ mg_surface mg_surface_create_for_window(mp_window window, mg_backend_id backend)
 				surface = mg_gl_surface_create_for_window(window);
 				break;
 		#endif
-		//...
-
-			default:
-				break;
-	}
-
-	return(surface);
-}
-
-mg_surface mg_surface_create_for_view(mp_view view, mg_backend_id backend)
-{
-	DEBUG_ASSERT(__mgInfo.init);
-
-	mg_surface surface = mg_surface_nil();
-
-	switch(backend)
-	{
-		#ifdef MG_IMPLEMENTS_BACKEND_METAL
-			case MG_BACKEND_METAL:
-				surface = mg_metal_surface_create_for_view(view);
-				break;
-		#endif
-
 		//...
 
 			default:
@@ -792,17 +767,6 @@ void mg_surface_client_destroy(mg_surface_client handle)
 	{
 		slot->client->destroy(slot->client);
 		mg_resource_slot_recycle(&__mgInfo.clients, slot);
-	}
-}
-
-void mg_surface_client_attach_to_view(mg_surface_client client, mp_view view)
-{
-	mg_surface_client_info* clientInfo = mg_surface_client_ptr_from_handle(client);
-
-	if(clientInfo)
-	{
-		clientInfo->attachment = view;
-		clientInfo->attach(clientInfo);
 	}
 }
 

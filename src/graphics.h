@@ -33,7 +33,6 @@ void mg_init();
 mg_surface mg_surface_nil();
 bool mg_surface_is_nil(mg_surface surface);
 mg_surface mg_surface_create_for_window(mp_window window, mg_backend_id backend);
-mg_surface mg_surface_create_for_view(mp_view view, mg_backend_id backend);
 mg_surface mg_surface_create_offscreen(mg_backend_id backend, u32 width, u32 height);
 
 void mg_surface_destroy(mg_surface surface);
@@ -41,10 +40,13 @@ void* mg_surface_get_os_resource(mg_surface surface);
 
 void mg_surface_prepare(mg_surface surface);
 void mg_surface_present(mg_surface surface);
+
 void mg_surface_resize(mg_surface surface, int width, int height);
+void mg_surface_set_frame(mg_surface surface, mp_rect frame);
 void mg_surface_set_hidden(mg_surface surface, bool hidden);
 
 vec2 mg_surface_size(mg_surface surface);
+mp_rect mg_surface_frame(mg_surface surface);
 
 //------------------------------------------------------------------------------------------
 //NOTE(martin): graphics surface sharing
@@ -61,8 +63,6 @@ mg_surface_server_id mg_surface_server_get_id(mg_surface_server server);
 
 mg_surface_client mg_surface_client_create(mg_surface_server_id id);
 void mg_surface_client_destroy(mg_surface_client client);
-void mg_surface_client_attach_to_view(mg_surface_client client, mp_view view);
-void mg_surface_client_detach(mg_surface_client client);
 
 //------------------------------------------------------------------------------------------
 //NOTE(martin): canvas drawing structs
