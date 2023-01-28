@@ -207,6 +207,8 @@ mg_surface mg_gl_surface_create_for_window(mp_window window)
 		surface->interface.prepare = mg_gl_surface_prepare;
 		surface->interface.present = mg_gl_surface_present;
 
+		//TODO: get/set frame/hidden
+
 		surface->hDC = hDC;
 		surface->glContext = glContext;
 

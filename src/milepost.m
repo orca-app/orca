@@ -9,7 +9,7 @@
 
 #include"osx_app.m"
 #include"metal_surface.m"
-#include"metal_painter.m"
+#include"metal_canvas.m"
 
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"

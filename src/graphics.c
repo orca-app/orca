@@ -1,8 +1,8 @@
 /************************************************************//**
 *
-*	@file: graphics.cpp
+*	@file: graphics.c
 *	@author: Martin Fouilleul
-*	@date: 01/08/2022
+*	@date: 23/01/2023
 *	@revision:
 *
 *****************************************************************/
@@ -13,239 +13,37 @@
 #define STB_TRUETYPE_IMPLEMENTATION
 #include"stb_truetype.h"
 
-#include"lists.h"
-#include"memory.h"
-#include"macro_helpers.h"
+#define STB_IMAGE_IMPLEMENTATION
+#include"stb_image.h"
+
+#include"debug_log.h"
 #include"graphics_internal.h"
 
 #define LOG_SUBSYSTEM "Graphics"
 
-//---------------------------------------------------------------
-// graphics canvas structs
-//---------------------------------------------------------------
-
-typedef enum { MG_PATH_MOVE,
-               MG_PATH_LINE,
-	           MG_PATH_QUADRATIC,
-	           MG_PATH_CUBIC } mg_path_elt_type;
-
-typedef struct mg_path_elt
-{
-	mg_path_elt_type type;
-	vec2 p[3];
-
-} mg_path_elt;
-
-typedef struct mg_path_descriptor
-{
-	u32 startIndex;
-	u32 count;
-	vec2 startPoint;
-
-} mg_path_descriptor;
-
-typedef struct mg_attributes
-{
-	f32 width;
-	f32 tolerance;
-	mg_color color;
-	mg_joint_type joint;
-	f32 maxJointExcursion;
-	mg_cap_type cap;
-
-	mg_font font;
-	f32 fontSize;
-
-	mg_image image;
-
-	mp_rect clip;
-
-} mg_attributes;
-
-typedef struct mg_rounded_rect
-{
-	f32 x;
-	f32 y;
-	f32 w;
-	f32 h;
-	f32 r;
-} mg_rounded_rect;
-
-typedef enum { MG_CMD_CLEAR = 0,
-	       MG_CMD_FILL,
-	       MG_CMD_STROKE,
-	       MG_CMD_RECT_FILL,
-	       MG_CMD_RECT_STROKE,
-	       MG_CMD_ROUND_RECT_FILL,
-	       MG_CMD_ROUND_RECT_STROKE,
-	       MG_CMD_ELLIPSE_FILL,
-	       MG_CMD_ELLIPSE_STROKE,
-	       MG_CMD_JUMP,
-	       MG_CMD_MATRIX_PUSH,
-	       MG_CMD_MATRIX_POP,
-	       MG_CMD_CLIP_PUSH,
-	       MG_CMD_CLIP_POP,
-	       MG_CMD_IMAGE_DRAW,
-	       MG_CMD_ROUNDED_IMAGE_DRAW,
-	     } mg_primitive_cmd;
-
-typedef struct mg_primitive
-{
-	mg_primitive_cmd cmd;
-	mg_attributes attributes;
-
-	union
-	{
-		mg_path_descriptor path;
-		mp_rect rect;
-		mg_rounded_rect roundedRect;
-		utf32 codePoint;
-		u32 jump;
-		mg_mat2x3 matrix;
-	};
-
-} mg_primitive;
-
-typedef struct mg_glyph_map_entry
-{
-	unicode_range range;
-	u32 firstGlyphIndex;
-
-} mg_glyph_map_entry;
-
-typedef struct mg_glyph_info
-{
-	bool exists;
-	utf32 codePoint;
-	mg_path_descriptor pathDescriptor;
-	mg_text_extents extents;
-	//...
-
-} mg_glyph_info;
-
-enum
-{
-	MG_STREAM_MAX_COUNT = 128,
-	MG_IMAGE_MAX_COUNT = 128
-};
-
-typedef struct mg_stream_data
-{
-	list_elt freeListElt;
-	u32 generation;
-	u64 frame;
-
-	u32 firstCommand;
-	u32 lastCommand;
-	u32 count;
-
-	bool pendingJump;
-
-} mg_stream_data;
-
-typedef struct mg_image_data
-{
-	list_elt listElt;
-	u32 generation;
-
-	mp_rect rect;
-
-} mg_image_data;
-
-enum
-{
-	MG_MATRIX_STACK_MAX_DEPTH = 64,
-	MG_CLIP_STACK_MAX_DEPTH = 64,
-	MG_MAX_PATH_ELEMENT_COUNT = 2<<20,
-	MG_MAX_PRIMITIVE_COUNT = 8<<10
-};
-
-typedef struct mg_canvas_data
-{
-	list_elt freeListElt;
-	u32 generation;
-
-	mg_stream_data streams[MG_STREAM_MAX_COUNT];
-	list_info streamsFreeList;
-	u64 frameCounter;
-
-	mg_stream_data* currentStream;
-
-	mg_mat2x3 transform;
-	mp_rect clip;
-
-	mg_attributes attributes;
-	bool textFlip;
-	mg_path_elt pathElements[MG_MAX_PATH_ELEMENT_COUNT];
-	mg_path_descriptor path;
-	vec2 subPathStartPoint;
-	vec2 subPathLastPoint;
-
-	mg_mat2x3 matrixStack[MG_MATRIX_STACK_MAX_DEPTH];
-	u32 matrixStackSize;
-
-	mp_rect clipStack[MG_CLIP_STACK_MAX_DEPTH];
-	u32 clipStackSize;
-
-	u32 nextZIndex;
-	u32 primitiveCount;
-	mg_primitive primitives[MG_MAX_PRIMITIVE_COUNT];
-
-	u32 vertexCount;
-	u32 indexCount;
-
-	mg_canvas_painter* painter;
-
-	mg_image_data images[MG_IMAGE_MAX_COUNT];
-	u32 imageNextIndex;
-	list_info imageFreeList;
-
-	vec2 atlasPos;
-	u32 atlasLineHeight;
-	mg_image blankImage;
-
-} mg_canvas_data;
-
-typedef struct mg_font_info
-{
-	list_elt freeListElt;
-	u32 generation;
-
-	u32 rangeCount;
-	u32 glyphCount;
-	u32 outlineCount;
-	mg_glyph_map_entry* glyphMap;
-	mg_glyph_info*      glyphs;
-	mg_path_elt* outlines;
-
-	f32 unitsPerEm;
-	mg_font_extents extents;
-
-} mg_font_info;
-
-//---------------------------------------------------------------
-// internal handle system
-//---------------------------------------------------------------
-
-enum
-{
-	MG_MAX_RESOURCE_SLOTS = 128,
-	MG_MAX_CONTEXTS = 32,
-	MG_FONT_MAX_COUNT = 128
-};
-
+//------------------------------------------------------------------------
+// graphics handles structs
+//------------------------------------------------------------------------
 typedef struct mg_resource_slot
 {
 	list_elt freeListElt;
 	u32 generation;
 	union
 	{
-		mg_surface_info* surface;
-		mg_surface_server_info* server;
-		mg_surface_client_info* client;
+		mg_surface_data* surface;
+		mg_image_data* image;
+		mg_canvas_data* canvas;
+		mg_font_data* font;
+		//...
 	};
 
 } mg_resource_slot;
+
+enum
+{
+	MG_MAX_RESOURCE_SLOTS = 128,
+	//...
+};
 
 typedef struct mg_resource_pool
 {
@@ -255,45 +53,40 @@ typedef struct mg_resource_pool
 
 } mg_resource_pool;
 
-typedef struct mg_info
+typedef struct mg_data
 {
 	bool init;
 
 	mg_resource_pool surfaces;
-	mg_resource_pool servers;
-	mg_resource_pool clients;
+	mg_resource_pool canvases;
+	mg_resource_pool fonts;
+	//...
 
-	list_info contextFreeList;
-	list_info fontFreeList;
-	u32 fontsNextIndex;
+} mg_data;
 
-	mg_canvas_data contexts[MG_MAX_CONTEXTS];
-	mg_font_info fonts[MG_FONT_MAX_COUNT];
-
-} mg_info;
-
-static mg_info __mgInfo = {0};
-
+static mg_data __mgData = {0};
 
 void mg_init()
 {
-	if(!__mgInfo.init)
+	if(!__mgData.init)
 	{
-		__mgInfo.init = true;
-
-		//TODO: make context handles suitable for zero init
-
-		ListInit(&__mgInfo.contextFreeList);
-		for(int i=0; i<MG_MAX_CONTEXTS; i++)
-		{
-			__mgInfo.contexts[i].generation = 1;
-			ListAppend(&__mgInfo.contextFreeList, &__mgInfo.contexts[i].freeListElt);
-		}
+		__mgData.init = true;
+		//...
 	}
 }
 
+//------------------------------------------------------------------------
+// handle pools procedures
+//------------------------------------------------------------------------
+
 mg_resource_slot* mg_resource_slot_alloc(mg_resource_pool* pool)
 {
+	if(!__mgData.init)
+	{
+		//TODO: see if we require an init at all, and if we want to make it explicit to the user
+		mg_init();
+	}
+
 	mg_resource_slot* slot = ListPopEntry(&pool->freeList, mg_resource_slot, freeListElt);
 	if(!slot && pool->nextIndex < MG_MAX_RESOURCE_SLOTS)
 	{
@@ -346,170 +139,99 @@ u64 mg_resource_handle_from_slot(mg_resource_pool* pool, mg_resource_slot* slot)
 	return(h);
 }
 
+void mg_resource_handle_recycle(mg_resource_pool* pool, u64 h)
+{
+	mg_resource_slot* slot = mg_resource_slot_from_handle(pool, h);
+	if(slot)
+	{
+		mg_resource_slot_recycle(pool, slot);
+	}
+}
+
 //------------------------------------------------------------------------
 // surface handles
 //------------------------------------------------------------------------
 
-mg_surface mg_surface_nil()
-{
-	return((mg_surface){.h = 0});
-}
+mg_surface mg_surface_nil() { return((mg_surface){.h = 0}); }
+bool mg_surface_is_nil(mg_surface surface) { return(surface.h == 0); }
 
-bool mg_surface_is_nil(mg_surface surface)
+mg_surface mg_surface_alloc_handle(mg_surface_data* surface)
 {
-	return(surface.h == 0);
-}
-
-mg_surface mg_surface_alloc_handle(mg_surface_info* surface)
-{
-	mg_resource_slot* slot = mg_resource_slot_alloc(&__mgInfo.surfaces);
+	mg_resource_slot* slot = mg_resource_slot_alloc(&__mgData.surfaces);
 	if(!slot)
 	{
 		LOG_ERROR("no more surface slots\n");
 		return(mg_surface_nil());
 	}
 	slot->surface = surface;
-	u64 h = mg_resource_handle_from_slot(&__mgInfo.surfaces, slot);
+	u64 h = mg_resource_handle_from_slot(&__mgData.surfaces, slot);
 	mg_surface handle = {h};
 	return(handle);
 }
 
-mg_surface_info* mg_surface_ptr_from_handle(mg_surface surface)
+mg_surface_data* mg_surface_data_from_handle(mg_surface surface)
 {
-	mg_resource_slot* slot = mg_resource_slot_from_handle(&__mgInfo.surfaces, surface.h);
+	mg_resource_slot* slot = mg_resource_slot_from_handle(&__mgData.surfaces, surface.h);
+	mg_surface_data* data = 0;
 	if(slot)
 	{
-		return(slot->surface);
+		data = slot->surface;
 	}
-	else
-	{
-		return(0);
-	}
+	return(data);
 }
 
 //------------------------------------------------------------------------
-// surface server handles
+// canvas handles
 //------------------------------------------------------------------------
+mg_canvas mg_canvas_nil() { return((mg_canvas){.h = 0}); }
+bool mg_canvas_is_nil(mg_canvas canvas) { return(canvas.h == 0); }
 
-mg_surface_server mg_surface_server_nil()
+mg_canvas mg_canvas_alloc_handle(mg_canvas_data* canvas)
 {
-	return((mg_surface_server){.h = 0});
-}
-
-mg_surface_server mg_surface_server_alloc_handle(mg_surface_server_info* server)
-{
-	mg_resource_slot* slot = mg_resource_slot_alloc(&__mgInfo.servers);
+	mg_resource_slot* slot = mg_resource_slot_alloc(&__mgData.canvases);
 	if(!slot)
 	{
-		LOG_ERROR("no more server slots\n");
-		return(mg_surface_server_nil());
+		LOG_ERROR("no more canvas slots\n");
+		return(mg_canvas_nil());
 	}
-	slot->server = server;
-	u64 h = mg_resource_handle_from_slot(&__mgInfo.servers, slot);
-	mg_surface_server handle = {h};
+	slot->canvas = canvas;
+	u64 h = mg_resource_handle_from_slot(&__mgData.canvases, slot);
+	mg_canvas handle = {h};
 	return(handle);
 }
 
-mg_surface_server_info* mg_surface_server_ptr_from_handle(mg_surface_server server)
+mg_canvas_data* mg_canvas_data_from_handle(mg_canvas canvas)
 {
-	mg_resource_slot* slot = mg_resource_slot_from_handle(&__mgInfo.servers, server.h);
+	mg_canvas_data* data = 0;
+	mg_resource_slot* slot = mg_resource_slot_from_handle(&__mgData.canvases, canvas.h);
 	if(slot)
 	{
-		return(slot->server);
+		data = slot->canvas;
 	}
-	else
-	{
-		return(0);
-	}
+	return(data);
 }
 
 //------------------------------------------------------------------------
-// surface client handles
+// image handles
 //------------------------------------------------------------------------
-mg_surface_client mg_surface_client_nil()
+
+mg_image mg_image_nil() { return((mg_image){.h = 0}); }
+bool mg_image_is_nil(mg_image image) { return(image.h == 0); }
+
+mg_image mg_image_handle_from_ptr(mg_canvas_data* canvas, mg_image_data* imageData)
 {
-	return((mg_surface_client){.h = 0});
+	DEBUG_ASSERT(  (imageData - canvas->images) >= 0
+	            && (imageData - canvas->images) < MG_IMAGE_MAX_COUNT);
+
+	u64 h = ((u64)(imageData - canvas->images))<<32
+	       |((u64)(imageData->generation));
+	return((mg_image){.h = h});
 }
 
-mg_surface_client mg_surface_client_alloc_handle(mg_surface_client_info* client)
+void mg_image_data_recycle(mg_canvas_data* canvas, mg_image_data* image)
 {
-	mg_resource_slot* slot = mg_resource_slot_alloc(&__mgInfo.clients);
-	if(!slot)
-	{
-		LOG_ERROR("no more client slots\n");
-		return(mg_surface_client_nil());
-	}
-	slot->client = client;
-	u64 h = mg_resource_handle_from_slot(&__mgInfo.clients, slot);
-	mg_surface_client handle = {h};
-	return(handle);
-}
-
-mg_surface_client_info* mg_surface_client_ptr_from_handle(mg_surface_client client)
-{
-	mg_resource_slot* slot = mg_resource_slot_from_handle(&__mgInfo.clients, client.h);
-	if(slot)
-	{
-		return(slot->client);
-	}
-	else
-	{
-		return(0);
-	}
-}
-
-//------------------------------------------------------------------------
-// canvas
-//------------------------------------------------------------------------
-mg_canvas_data* mg_canvas_alloc()
-{
-	return(ListPopEntry(&__mgInfo.contextFreeList, mg_canvas_data, freeListElt));
-}
-
-void mg_canvas_recycle(mg_canvas_data* context)
-{
-	#ifdef DEBUG
-		if(context->generation == UINT32_MAX)
-		{
-			LOG_ERROR("graphics context generation wrap around\n");
-		}
-	#endif
-	context->generation++;
-	ListPush(&__mgInfo.contextFreeList, &context->freeListElt);
-}
-
-mg_canvas_data* mg_canvas_ptr_from_handle(mg_canvas handle)
-{
-	u32 index = handle.h>>32;
-	u32 generation = handle.h & 0xffffffff;
-	if(index >= MG_MAX_CONTEXTS)
-	{
-		return(0);
-	}
-	mg_canvas_data* context = &__mgInfo.contexts[index];
-	if(context->generation != generation)
-	{
-		return(0);
-	}
-	else
-	{
-		return(context);
-	}
-}
-
-mg_canvas mg_canvas_handle_from_ptr(mg_canvas_data* context)
-{
-	DEBUG_ASSERT(  (context - __mgInfo.contexts) >= 0
-	            && (context - __mgInfo.contexts) < MG_MAX_CONTEXTS);
-
-	u64 h = ((u64)(context - __mgInfo.contexts))<<32
-	       |((u64)(context->generation));
-	return((mg_canvas){.h = h});
-}
-
-mg_canvas mg_canvas_nil()
-{
-	return((mg_canvas){.h = 0});
+	image->generation++;
+	ListPush(&canvas->imageFreeList, &image->listElt);
 }
 
 mg_image_data* mg_image_ptr_from_handle(mg_canvas_data* context, mg_image handle)
@@ -532,342 +254,125 @@ mg_image_data* mg_image_ptr_from_handle(mg_canvas_data* context, mg_image handle
 	}
 }
 
-//---------------------------------------------------------------
-// graphics surface API
-//---------------------------------------------------------------
+//------------------------------------------------------------------------
+// font handles
+//------------------------------------------------------------------------
 
-#ifdef MG_IMPLEMENTS_BACKEND_METAL
-	#include"metal_surface.h"
-#endif
+mg_font mg_font_nil() { return((mg_font){.h = 0}); }
+bool mg_font_is_nil(mg_font font) { return(font.h == 0); }
 
-#ifdef MG_IMPLEMENTS_BACKEND_GLES
-	mg_surface mg_gles_surface_create_offscreen(u32 width, u32 height);
-	mg_surface_server mg_gles_surface_create_server(mg_surface_info* surface);
-#endif
-
-#ifdef MG_IMPLEMENTS_BACKEND_GL
-	mg_surface mg_gl_surface_create_for_window(mp_window window);
-	//TODO for view
-#endif
-
-void mg_init();
-
-mg_surface mg_surface_create_for_window(mp_window window, mg_backend_id backend)
+mg_font mg_font_alloc_handle(mg_font_data* font)
 {
-	DEBUG_ASSERT(__mgInfo.init);
-
-	mg_surface surface = mg_surface_nil();
-
-	switch(backend)
+	mg_resource_slot* slot = mg_resource_slot_alloc(&__mgData.fonts);
+	if(!slot)
 	{
-		#ifdef MG_IMPLEMENTS_BACKEND_METAL
-			case MG_BACKEND_METAL:
-				surface = mg_metal_surface_create_for_window(window);
-				break;
-		#endif
-
-		#ifdef MG_IMPLEMENTS_BACKEND_GL
-			case MG_BACKEND_GL:
-				surface = mg_gl_surface_create_for_window(window);
-				break;
-		#endif
-		//...
-
-			default:
-				break;
+		LOG_ERROR("no more font slots\n");
+		return(mg_font_nil());
 	}
-
-	return(surface);
+	slot->font = font;
+	u64 h = mg_resource_handle_from_slot(&__mgData.fonts, slot);
+	mg_font handle = {h};
+	return(handle);
 }
 
-mg_surface mg_surface_create_offscreen(mg_backend_id backend, u32 width, u32 height)
+mg_font_data* mg_font_data_from_handle(mg_font font)
 {
-	DEBUG_ASSERT(__mgInfo.init);
-
-	mg_surface surface = mg_surface_nil();
-
-	switch(backend)
-	{
-		#ifdef MG_IMPLEMENTS_BACKEND_GLES
-			case MG_BACKEND_GLES:
-				surface = mg_gles_surface_create_offscreen(width, height);
-				break;
-		#endif
-
-		//...
-
-			default:
-				break;
-	}
-
-	return(surface);
-}
-
-void* mg_surface_get_os_resource(mg_surface surface)
-{
-	DEBUG_ASSERT(__mgInfo.init);
-
-	void* res = 0;
-	mg_resource_slot* slot = mg_resource_slot_from_handle(&__mgInfo.surfaces, surface.h);
+	mg_font_data* data = 0;
+	mg_resource_slot* slot = mg_resource_slot_from_handle(&__mgData.fonts, font.h);
 	if(slot)
 	{
-		res = slot->surface->getOSResource(slot->surface);
+		data = slot->font;
 	}
-	return(res);
+	return(data);
 }
+
+//---------------------------------------------------------------
+// surface API
+//---------------------------------------------------------------
 
 void mg_surface_destroy(mg_surface handle)
 {
-	DEBUG_ASSERT(__mgInfo.init);
-
-	mg_resource_slot* slot = mg_resource_slot_from_handle(&__mgInfo.surfaces, handle.h);
+	DEBUG_ASSERT(__mgData.init);
+	mg_resource_slot* slot = mg_resource_slot_from_handle(&__mgData.surfaces, handle.h);
 	if(slot)
 	{
 		slot->surface->destroy(slot->surface);
-		mg_resource_slot_recycle(&__mgInfo.surfaces, slot);
-	}
-}
-
-void mg_surface_resize(mg_surface surface, int width, int height)
-{
-	DEBUG_ASSERT(__mgInfo.init);
-
-	mg_surface_info* surfaceInfo = mg_surface_ptr_from_handle(surface);
-	if(surfaceInfo)
-	{
-		surfaceInfo->resize(surfaceInfo, width, height);
+		mg_resource_slot_recycle(&__mgData.surfaces, slot);
 	}
 }
 
 void mg_surface_prepare(mg_surface surface)
 {
-	DEBUG_ASSERT(__mgInfo.init);
-
-	mg_surface_info* surfaceInfo = mg_surface_ptr_from_handle(surface);
-	if(surfaceInfo)
+	DEBUG_ASSERT(__mgData.init);
+	mg_surface_data* surfaceData = mg_surface_data_from_handle(surface);
+	if(surfaceData)
 	{
-		surfaceInfo->prepare(surfaceInfo);
+		surfaceData->prepare(surfaceData);
 	}
 }
 
 void mg_surface_present(mg_surface surface)
 {
-	DEBUG_ASSERT(__mgInfo.init);
-
-	mg_surface_info* surfaceInfo = mg_surface_ptr_from_handle(surface);
-	if(surfaceInfo)
+	DEBUG_ASSERT(__mgData.init);
+	mg_surface_data* surfaceData = mg_surface_data_from_handle(surface);
+	if(surfaceData)
 	{
-		surfaceInfo->present(surfaceInfo);
+		surfaceData->present(surfaceData);
 	}
 }
 
-void mg_surface_set_hidden(mg_surface surface, bool hidden)
+void mg_surface_set_frame(mg_surface surface, mp_rect frame)
 {
-	DEBUG_ASSERT(__mgInfo.init);
-
-	mg_surface_info* surfaceInfo = mg_surface_ptr_from_handle(surface);
-	if(surfaceInfo)
+	DEBUG_ASSERT(__mgData.init);
+	mg_surface_data* surfaceData = mg_surface_data_from_handle(surface);
+	if(surfaceData)
 	{
-		surfaceInfo->setHidden(surfaceInfo, hidden);
+		surfaceData->setFrame(surfaceData, frame);
 	}
 }
 
-
-vec2 mg_surface_size(mg_surface surface)
+mp_rect mg_surface_get_frame(mg_surface surface)
 {
-	DEBUG_ASSERT(__mgInfo.init);
-	vec2 res = {0};
-	mg_surface_info* surfaceInfo = mg_surface_ptr_from_handle(surface);
-	if(surfaceInfo)
+	DEBUG_ASSERT(__mgData.init);
+	mp_rect res = {0};
+	mg_surface_data* surfaceData = mg_surface_data_from_handle(surface);
+	if(surfaceData)
 	{
-		res = surfaceInfo->getSize(surfaceInfo);
+		res = surfaceData->getFrame(surfaceData);
 	}
 	return(res);
 }
 
-//---------------------------------------------------------------
-// graphics surface server
-//---------------------------------------------------------------
-
-/*
-mg_surface_server mg_gles_surface_server_create_native(void* p);
-
-mg_surface_server mg_surface_server_create_native(void* p)
+void mg_surface_set_hidden(mg_surface surface, bool hidden)
 {
-	return(mg_gles_surface_server_create_native(p));
-}
-*/
-
-mg_surface_server mg_surface_server_create(mg_surface surface)
-{
-	mg_surface_server server = mg_surface_server_nil();
-
-	mg_surface_info* surfaceInfo = mg_surface_ptr_from_handle(surface);
-	if(surfaceInfo)
+	DEBUG_ASSERT(__mgData.init);
+	mg_surface_data* surfaceData = mg_surface_data_from_handle(surface);
+	if(surfaceData)
 	{
-		switch(surfaceInfo->backend)
-		{
-#ifdef MG_IMPLEMENTS_BACKEND_GLES
-			case MG_BACKEND_GLES:
-				server = mg_gles_surface_create_server(surfaceInfo);
-				break;
-#endif
-			default:
-				break;
-		}
-	}
-	return(server);
-}
-
-void mg_surface_server_destroy(mg_surface_server handle)
-{
-	mg_resource_slot* slot = mg_resource_slot_from_handle(&__mgInfo.servers, handle.h);
-	if(slot)
-	{
-		slot->server->destroy(slot->server);
-		mg_resource_slot_recycle(&__mgInfo.servers, slot);
+		surfaceData->setHidden(surfaceData, hidden);
 	}
 }
 
-mg_surface_server_id mg_surface_server_get_id(mg_surface_server server)
+bool mg_surface_get_hidden(mg_surface surface)
 {
-	mg_surface_server_info* serverInfo = mg_surface_server_ptr_from_handle(server);
-	if(serverInfo)
+	DEBUG_ASSERT(__mgData.init);
+	bool res = false;
+	mg_surface_data* surfaceData = mg_surface_data_from_handle(surface);
+	if(surfaceData)
 	{
-		return(serverInfo->getID(serverInfo));
+		res = surfaceData->getHidden(surfaceData);
 	}
-	else
-	{
-		return(0);
-	}
+	return(res);
 }
 
-//---------------------------------------------------------------
-// graphics surface client
-//---------------------------------------------------------------
+//------------------------------------------------------------------------------------------
+//NOTE(martin): graphics canvas internal
+//------------------------------------------------------------------------------------------
 
-//TODO: move elsewhere, guard with OS ifdef
-#ifdef __APPLE__
-mg_surface_client mg_osx_surface_client_create(mg_surface_server_id id);
+mp_thread_local mg_canvas_data* __mgCurrentCanvas = 0;
+mp_thread_local mg_canvas __mgCurrentCanvasHandle = {0};
 
-mg_surface_client mg_surface_client_create(mg_surface_server_id id)
-{
-	mg_surface_client client = mg_surface_client_nil();
-
-	client = mg_osx_surface_client_create(id);
-	return(client);
-}
-
-#endif
-
-void mg_surface_client_destroy(mg_surface_client handle)
-{
-	mg_resource_slot* slot = mg_resource_slot_from_handle(&__mgInfo.clients, handle.h);
-	if(slot)
-	{
-		slot->client->destroy(slot->client);
-		mg_resource_slot_recycle(&__mgInfo.clients, slot);
-	}
-}
-
-void mg_surface_client_detach(mg_surface_client client)
-{
-	mg_surface_client_info* clientInfo = mg_surface_client_ptr_from_handle(client);
-	if(clientInfo)
-	{
-		clientInfo->detach(clientInfo);
-	}
-}
-
-//---------------------------------------------------------------
-// graphics stream handles
-//---------------------------------------------------------------
-/*
-	Graphics command stream handles are invalidated when the command stream is appended to the current stream,
-	and at the end of the frame.
-	Thus command streams handles contain the index of the stream, the frame of the stream, and a generation
-	count inside that frame:
-
-	0                                  40                       56           64
-	+---------------------------------+------------------------+------------+
-	|          frameCounter           |      generation        |    index   |
-	+---------------------------------+------------------------+------------+
-	               40 bits                     16 bits              8 bits
-
-	(This gives use 2^40 frames, ie ~600 years at 60Hz, 65536 possible reuse per frames and max 256 simultaneous streams.)
-
-	This way we can invalidate use of old handles in the same frame by incrementing the generation counter of the recycled stream,
-	and we can invalidate all previous handles at the end of a frame by just incrementing the frame counter of the graphics context.
-*/
-mg_stream_data* mg_stream_alloc(mg_canvas_data* context)
-{
-	mg_stream_data* stream = ListPopEntry(&context->streamsFreeList, mg_stream_data, freeListElt);
-	if(stream)
-	{
-		stream->frame = context->frameCounter;
-		stream->pendingJump = false;
-		stream->count = 0;
-		stream->firstCommand = 0;
-		stream->lastCommand = 0;
-	}
-	return(stream);
-}
-
-void mg_stream_recycle(mg_canvas_data* context, mg_stream_data* stream)
-{
-	#ifdef DEBUG
-		if(stream->generation == UINT32_MAX)
-		{
-			LOG_ERROR("graphics command stream generation wrap around\n");
-		}
-	#endif
-	stream->generation++;
-	ListPush(&context->streamsFreeList, &stream->freeListElt);
-}
-
-mg_stream_data* mg_stream_ptr_from_handle(mg_canvas_data* context, mg_stream handle)
-{
-	u32 index = handle.h>>56;
-	u32 generation = (handle.h>>40) & 0xffff;
-	u64 frame = handle.h & 0xffffffffff;
-
-	if(index >= MG_STREAM_MAX_COUNT)
-	{
-		return(0);
-	}
-	mg_stream_data* stream = &context->streams[index];
-	if( stream->generation != generation
-	  ||stream->frame != context->frameCounter)
-	{
-		return(0);
-	}
-	else
-	{
-		return(stream);
-	}
-}
-
-mg_stream mg_stream_handle_from_ptr(mg_canvas_data* context, mg_stream_data* stream)
-{
-	DEBUG_ASSERT(  (stream - context->streams) >= 0
-	            && (stream - context->streams) < MG_STREAM_MAX_COUNT);
-
-	u64 h = ((u64)(stream - context->streams))<<56
-	       |((u64)(stream->generation))<<40
-	       |((u64)(context->frameCounter));
-
-	return((mg_stream){.h = h});
-}
-
-mg_stream mg_stream_null_handle()
-{
-	return((mg_stream){.h = 0});
-}
-
-//---------------------------------------------------------------
-// internal graphics context functions
-//---------------------------------------------------------------
-
+//TODO: move elsewhere?
 mg_mat2x3 mg_mat2x3_mul_m(mg_mat2x3 lhs, mg_mat2x3 rhs)
 {
 	mg_mat2x3 res;
@@ -888,55 +393,84 @@ vec2 mg_mat2x3_mul(mg_mat2x3 m, vec2 p)
 	return((vec2){x, y});
 }
 
-void mg_reset_z_index(mg_canvas_data* context)
+
+void mg_push_command(mg_canvas_data* canvas, mg_primitive primitive)
 {
-	context->nextZIndex = 1;
+	//NOTE(martin): push primitive and updates current stream, eventually patching a pending jump.
+	ASSERT(canvas->primitiveCount < MG_MAX_PRIMITIVE_COUNT);
+	canvas->primitives[canvas->primitiveCount] = primitive;
+	canvas->primitiveCount++;
 }
 
-u32 mg_get_next_z_index(mg_canvas_data* context)
+void mg_new_path(mg_canvas_data* canvas)
 {
-	return(context->nextZIndex++);
+	canvas->path.startIndex += canvas->path.count;
+	canvas->path.count = 0;
+	canvas->subPathStartPoint = canvas->subPathLastPoint;
+	canvas->path.startPoint = canvas->subPathStartPoint;
+}
+
+void mg_path_push_elements(mg_canvas_data* canvas, u32 count, mg_path_elt* elements)
+{
+	ASSERT(canvas->path.count + canvas->path.startIndex + count <= MG_MAX_PATH_ELEMENT_COUNT);
+	memcpy(canvas->pathElements + canvas->path.startIndex + canvas->path.count, elements, count*sizeof(mg_path_elt));
+	canvas->path.count += count;
+}
+
+void mg_path_push_element(mg_canvas_data* canvas, mg_path_elt elt)
+{
+	mg_path_push_elements(canvas, 1, &elt);
+}
+
+void mg_reset_z_index(mg_canvas_data* canvas)
+{
+	canvas->nextZIndex = 1;
+}
+
+u32 mg_get_next_z_index(mg_canvas_data* canvas)
+{
+	return(canvas->nextZIndex++);
 }
 
 ///////////////////////////////////////  WIP  /////////////////////////////////////////////////////////////////////////
-u32 mg_vertices_base_index(mg_canvas_data* context)
+u32 mg_vertices_base_index(mg_canvas_data* canvas)
 {
-	return(context->vertexCount);
+	return(canvas->vertexCount);
 }
 
-void mg_push_textured_vertex(mg_canvas_data* context, vec2 pos, vec4 cubic, vec2 uv, mg_color color, u64 zIndex)
+void mg_push_textured_vertex(mg_canvas_data* canvas, vec2 pos, vec4 cubic, vec2 uv, mg_color color, u64 zIndex)
 {
-	mgc_vertex_layout* layout = &context->painter->vertexLayout;
+	mg_vertex_layout* layout = &canvas->backend->vertexLayout;
 
-	DEBUG_ASSERT(context->vertexCount < layout->maxVertexCount);
+	DEBUG_ASSERT(canvas->vertexCount < layout->maxVertexCount);
 
-	u32 offset = context->vertexCount;
+	u32 offset = canvas->vertexCount;
 
 	*(vec2*)(((char*)layout->posBuffer) + offset*layout->posStride) = pos;
 	*(vec4*)(((char*)layout->cubicBuffer) + offset*layout->cubicStride) = cubic;
 	*(vec2*)(((char*)layout->uvBuffer) + offset*layout->uvStride) = uv;
 	*(mg_color*)(((char*)layout->colorBuffer) + offset*layout->colorStride) = color;
 	*(u32*)(((char*)layout->zIndexBuffer) + offset*layout->zIndexStride) = zIndex;
-	*(mp_rect*)(((char*)layout->clipsBuffer) + offset*layout->clipsStride) = context->clip;
+	*(mp_rect*)(((char*)layout->clipsBuffer) + offset*layout->clipsStride) = canvas->clip;
 
-	context->vertexCount++;
+	canvas->vertexCount++;
 }
 
-void mg_push_vertex(mg_canvas_data* context, vec2 pos, vec4 cubic, mg_color color, u64 zIndex)
+void mg_push_vertex(mg_canvas_data* canvas, vec2 pos, vec4 cubic, mg_color color, u64 zIndex)
 {
-	mg_push_textured_vertex(context, pos, cubic, (vec2){0, 0}, color, zIndex);
+	mg_push_textured_vertex(canvas, pos, cubic, (vec2){0, 0}, color, zIndex);
 }
 
 
 ///////////////////////////////////////  WIP  /////////////////////////////////////////////////////////////////////////
 
-int* mg_reserve_indices(mg_canvas_data* context, u32 indexCount)
+int* mg_reserve_indices(mg_canvas_data* canvas, u32 indexCount)
 {
-	mgc_vertex_layout* layout = &context->painter->vertexLayout;
+	mg_vertex_layout* layout = &canvas->backend->vertexLayout;
 
-	ASSERT(context->indexCount + indexCount < layout->maxIndexCount);
-	int* base = ((int*)layout->indexBuffer) + context->indexCount;
-	context->indexCount += indexCount;
+	ASSERT(canvas->indexCount + indexCount < layout->maxIndexCount);
+	int* base = ((int*)layout->indexBuffer) + canvas->indexCount;
+	canvas->indexCount += indexCount;
 	return(base);
 }
 
@@ -944,30 +478,30 @@ int* mg_reserve_indices(mg_canvas_data* context, u32 indexCount)
 // Path Filling
 //-----------------------------------------------------------------------------------------------------------
 //NOTE(martin): forward declarations
-void mg_render_fill_cubic(mg_canvas_data* context, vec2 p[4], u32 zIndex, mg_color color);
+void mg_render_fill_cubic(mg_canvas_data* canvas, vec2 p[4], u32 zIndex, mg_color color);
 
 //NOTE(martin): quadratics filling
 
-void mg_render_fill_quadratic(mg_canvas_data* context, vec2 p[3], u32 zIndex, mg_color color)
+void mg_render_fill_quadratic(mg_canvas_data* canvas, vec2 p[3], u32 zIndex, mg_color color)
 {
-	u32 baseIndex = mg_vertices_base_index(context);
+	u32 baseIndex = mg_vertices_base_index(canvas);
 
-	i32* indices = mg_reserve_indices(context, 3);
+	i32* indices = mg_reserve_indices(canvas, 3);
 
-	mg_push_vertex(context,
-	               mg_mat2x3_mul(context->transform, (vec2){p[0].x, p[0].y}),
+	mg_push_vertex(canvas,
+	               mg_mat2x3_mul(canvas->transform, (vec2){p[0].x, p[0].y}),
 	               (vec4){0, 0, 0, 1},
 	               color,
 	               zIndex);
 
-	mg_push_vertex(context,
-	               mg_mat2x3_mul(context->transform, (vec2){p[1].x, p[1].y}),
+	mg_push_vertex(canvas,
+	               mg_mat2x3_mul(canvas->transform, (vec2){p[1].x, p[1].y}),
 	               (vec4){0.5, 0, 0.5, 1},
 	               color,
 	               zIndex);
 
-	mg_push_vertex(context,
-	               mg_mat2x3_mul(context->transform, (vec2){p[2].x, p[2].y}),
+	mg_push_vertex(canvas,
+	               mg_mat2x3_mul(canvas->transform, (vec2){p[2].x, p[2].y}),
 	               (vec4){1, 1, 1, 1},
 	               color,
 	               zIndex);
@@ -979,7 +513,7 @@ void mg_render_fill_quadratic(mg_canvas_data* context, vec2 p[3], u32 zIndex, mg
 
 //NOTE(martin): cubic filling
 
-void mg_split_and_fill_cubic(mg_canvas_data* context, vec2 p[4], f32 tSplit, u32 zIndex, mg_color color)
+void mg_split_and_fill_cubic(mg_canvas_data* canvas, vec2 p[4], f32 tSplit, u32 zIndex, mg_color color)
 {
 	int subVertexCount = 0;
 	int subIndexCount = 0;
@@ -1008,23 +542,23 @@ void mg_split_and_fill_cubic(mg_canvas_data* context, vec2 p[4], f32 tSplit, u32
 	vec2 subPointsHigh[4] = {split, r1, q2, p[3]};
 
 	//NOTE(martin): add base triangle
-	u32 baseIndex = mg_vertices_base_index(context);
-	i32* indices = mg_reserve_indices(context, 3);
+	u32 baseIndex = mg_vertices_base_index(canvas);
+	i32* indices = mg_reserve_indices(canvas, 3);
 
-	mg_push_vertex(context,
-	                mg_mat2x3_mul(context->transform, (vec2){p[0].x, p[0].y}),
+	mg_push_vertex(canvas,
+	                mg_mat2x3_mul(canvas->transform, (vec2){p[0].x, p[0].y}),
 	                (vec4){1, 1, 1, 1},
 	                color,
 	                zIndex);
 
-	mg_push_vertex(context,
-	               mg_mat2x3_mul(context->transform, (vec2){split.x, split.y}),
+	mg_push_vertex(canvas,
+	               mg_mat2x3_mul(canvas->transform, (vec2){split.x, split.y}),
 	               (vec4){1, 1, 1, 1},
 	               color,
 	               zIndex);
 
-	mg_push_vertex(context,
-	               mg_mat2x3_mul(context->transform, (vec2){p[3].x, p[3].y}),
+	mg_push_vertex(canvas,
+	               mg_mat2x3_mul(canvas->transform, (vec2){p[3].x, p[3].y}),
 	               (vec4){1, 1, 1, 1},
 	               color,
 	               zIndex);
@@ -1033,13 +567,13 @@ void mg_split_and_fill_cubic(mg_canvas_data* context, vec2 p[4], f32 tSplit, u32
 	indices[1] = baseIndex + 1;
 	indices[2] = baseIndex + 2;
 
-	mg_render_fill_cubic(context, subPointsLow, zIndex, color);
-	mg_render_fill_cubic(context, subPointsHigh, zIndex, color);
+	mg_render_fill_cubic(canvas, subPointsLow, zIndex, color);
+	mg_render_fill_cubic(canvas, subPointsHigh, zIndex, color);
 
 	return;
 }
 
-void mg_render_fill_cubic(mg_canvas_data* context, vec2 p[4], u32 zIndex, mg_color color)
+void mg_render_fill_cubic(mg_canvas_data* canvas, vec2 p[4], u32 zIndex, mg_color color)
 {
 	LOG_DEBUG("graphics render fill cubic\n");
 
@@ -1111,7 +645,7 @@ void mg_render_fill_cubic(mg_canvas_data* context, vec2 p[4], u32 zIndex, mg_col
 		                             {1.5*p[1].x - 0.5*p[0].x, 1.5*p[1].y - 0.5*p[0].y},
 				  	     p[3]};
 
-		mg_render_fill_quadratic(context, quadControlPoints, zIndex, color);
+		mg_render_fill_quadratic(canvas, quadControlPoints, zIndex, color);
 		return;
 	}
 	else if( (discrFactor2 > 0 && d1 != 0)
@@ -1180,13 +714,13 @@ void mg_render_fill_cubic(mg_canvas_data* context, vec2 p[4], u32 zIndex, mg_col
 		if(sd != 0 && td/sd < 0.99 && td/sd > 0.01)
 		{
 			LOG_DEBUG("split curve at first double point\n");
-			mg_split_and_fill_cubic(context, p, td/sd, zIndex, color);
+			mg_split_and_fill_cubic(canvas, p, td/sd, zIndex, color);
 			return;
 		}
 		if(se != 0 && te/se < 0.99 && te/se > 0.01)
 		{
 			LOG_DEBUG("split curve at second double point\n");
-			mg_split_and_fill_cubic(context, p, te/se, zIndex, color);
+			mg_split_and_fill_cubic(canvas, p, te/se, zIndex, color);
 			return;
 		}
 
@@ -1388,15 +922,15 @@ void mg_render_fill_cubic(mg_canvas_data* context, vec2 p[4], u32 zIndex, mg_col
 			outsideTest = -1;
 		}
 
-		u32 baseIndex = mg_vertices_base_index(context);
-		i32* indices = mg_reserve_indices(context, 3);
+		u32 baseIndex = mg_vertices_base_index(canvas);
+		i32* indices = mg_reserve_indices(canvas, 3);
 
 		for(int i=0; i<3; i++)
 		{
-			vec2 pos = mg_mat2x3_mul(context->transform, p[orderedHullIndices[i]]);
+			vec2 pos = mg_mat2x3_mul(canvas->transform, p[orderedHullIndices[i]]);
 			vec4 cubic = testCoords[orderedHullIndices[i]];
 			cubic.w = outsideTest;
-			mg_push_vertex(context, pos, cubic, color, zIndex);
+			mg_push_vertex(canvas, pos, cubic, color, zIndex);
 
 			indices[i] = baseIndex + i;
 		}
@@ -1420,41 +954,41 @@ void mg_render_fill_cubic(mg_canvas_data* context, vec2 p[4], u32 zIndex, mg_col
 			outsideTest2 = -1;
 		}
 
-		u32 baseIndex = mg_vertices_base_index(context);
-		i32* indices = mg_reserve_indices(context, 6);
+		u32 baseIndex = mg_vertices_base_index(canvas);
+		i32* indices = mg_reserve_indices(canvas, 6);
 
-		mg_push_vertex(context,
-		               mg_mat2x3_mul(context->transform, p[orderedHullIndices[0]]),
+		mg_push_vertex(canvas,
+		               mg_mat2x3_mul(canvas->transform, p[orderedHullIndices[0]]),
 		               (vec4){vec4_expand_xyz(testCoords[orderedHullIndices[0]]), outsideTest1},
 		               color,
 		               zIndex);
 
-		mg_push_vertex(context,
-		               mg_mat2x3_mul(context->transform, p[orderedHullIndices[1]]),
+		mg_push_vertex(canvas,
+		               mg_mat2x3_mul(canvas->transform, p[orderedHullIndices[1]]),
 		               (vec4){vec4_expand_xyz(testCoords[orderedHullIndices[1]]), outsideTest1},
 		               color,
 		               zIndex);
 
-		mg_push_vertex(context,
-		               mg_mat2x3_mul(context->transform, p[orderedHullIndices[2]]),
+		mg_push_vertex(canvas,
+		               mg_mat2x3_mul(canvas->transform, p[orderedHullIndices[2]]),
 		               (vec4){vec4_expand_xyz(testCoords[orderedHullIndices[2]]), outsideTest1},
 		               color,
 		               zIndex);
 
-		mg_push_vertex(context,
-		               mg_mat2x3_mul(context->transform, p[orderedHullIndices[0]]),
+		mg_push_vertex(canvas,
+		               mg_mat2x3_mul(canvas->transform, p[orderedHullIndices[0]]),
 		               (vec4){vec4_expand_xyz(testCoords[orderedHullIndices[0]]), outsideTest2},
 		               color,
 		               zIndex);
 
-		mg_push_vertex(context,
-		               mg_mat2x3_mul(context->transform, p[orderedHullIndices[2]]),
+		mg_push_vertex(canvas,
+		               mg_mat2x3_mul(canvas->transform, p[orderedHullIndices[2]]),
 		               (vec4){vec4_expand_xyz(testCoords[orderedHullIndices[2]]), outsideTest2},
 		               color,
 		               zIndex);
 
-		mg_push_vertex(context,
-		               mg_mat2x3_mul(context->transform, p[orderedHullIndices[3]]),
+		mg_push_vertex(canvas,
+		               mg_mat2x3_mul(canvas->transform, p[orderedHullIndices[3]]),
 		               (vec4){vec4_expand_xyz(testCoords[orderedHullIndices[3]]), outsideTest2},
 		               color,
 		               zIndex);
@@ -1475,13 +1009,13 @@ void mg_render_fill_cubic(mg_canvas_data* context, vec2 p[4], u32 zIndex, mg_col
 			outsideTest = -1;
 		}
 
-		u32 baseIndex = mg_vertices_base_index(context);
-		i32* indices = mg_reserve_indices(context, 6);
+		u32 baseIndex = mg_vertices_base_index(canvas);
+		i32* indices = mg_reserve_indices(canvas, 6);
 
 		for(int i=0; i<4; i++)
 		{
-			mg_push_vertex(context,
-		                   mg_mat2x3_mul(context->transform, p[orderedHullIndices[i]]),
+			mg_push_vertex(canvas,
+		                   mg_mat2x3_mul(canvas->transform, p[orderedHullIndices[i]]),
 		                   (vec4){vec4_expand_xyz(testCoords[orderedHullIndices[i]]), outsideTest},
 		                   color,
 		                   zIndex);
@@ -1498,7 +1032,7 @@ void mg_render_fill_cubic(mg_canvas_data* context, vec2 p[4], u32 zIndex, mg_col
 
 //NOTE(martin): global path fill
 
-void mg_render_fill(mg_canvas_data* context, mg_path_elt* elements, mg_path_descriptor* path, u32 zIndex, mg_color color)
+void mg_render_fill(mg_canvas_data* canvas, mg_path_elt* elements, mg_path_descriptor* path, u32 zIndex, mg_color color)
 {
 	u32 eltCount = path->count;
 	vec2 startPoint = path->startPoint;
@@ -1528,32 +1062,32 @@ void mg_render_fill(mg_canvas_data* context, mg_path_elt* elements, mg_path_desc
 
 			case MG_PATH_QUADRATIC:
 			{
-				mg_render_fill_quadratic(context, controlPoints, zIndex, color);
+				mg_render_fill_quadratic(canvas, controlPoints, zIndex, color);
 				endPoint = controlPoints[2];
 
 			} break;
 
 			case MG_PATH_CUBIC:
 			{
-				mg_render_fill_cubic(context, controlPoints, zIndex, color);
+				mg_render_fill_cubic(canvas, controlPoints, zIndex, color);
 				endPoint = controlPoints[3];
 			} break;
 		}
 
 		//NOTE(martin): now fill interior triangle
-		u32 baseIndex = mg_vertices_base_index(context);
-		int* indices = mg_reserve_indices(context, 3);
+		u32 baseIndex = mg_vertices_base_index(canvas);
+		int* indices = mg_reserve_indices(canvas, 3);
 
 		vec2 pos[3];
-		pos[0] = mg_mat2x3_mul(context->transform, startPoint);
-		pos[1] = mg_mat2x3_mul(context->transform, currentPoint);
-		pos[2] = mg_mat2x3_mul(context->transform, endPoint);
+		pos[0] = mg_mat2x3_mul(canvas->transform, startPoint);
+		pos[1] = mg_mat2x3_mul(canvas->transform, currentPoint);
+		pos[2] = mg_mat2x3_mul(canvas->transform, endPoint);
 
 		vec4 cubic = {1, 1, 1, 1};
 
 		for(int i=0; i<3; i++)
 		{
-			mg_push_vertex(context, pos[i], cubic, color, zIndex);
+			mg_push_vertex(canvas, pos[i], cubic, color, zIndex);
 			indices[i] = baseIndex + i;
 		}
 
@@ -1565,7 +1099,7 @@ void mg_render_fill(mg_canvas_data* context, mg_path_elt* elements, mg_path_desc
 // Path Stroking
 //-----------------------------------------------------------------------------------------------------------
 
-void mg_render_stroke_line(mg_canvas_data* context, vec2 p[2], u32 zIndex, mg_attributes* attributes)
+void mg_render_stroke_line(mg_canvas_data* canvas, vec2 p[2], u32 zIndex, mg_attributes* attributes)
 {
 	//NOTE(martin): get normals multiplied by halfWidth
 	f32 halfW = attributes->width/2;
@@ -1579,29 +1113,29 @@ void mg_render_stroke_line(mg_canvas_data* context, vec2 p[2], u32 zIndex, mg_at
 
 	mg_color color = attributes->color;
 
-	u32 baseIndex = mg_vertices_base_index(context);
-	i32* indices = mg_reserve_indices(context, 6);
+	u32 baseIndex = mg_vertices_base_index(canvas);
+	i32* indices = mg_reserve_indices(canvas, 6);
 
-	mg_push_vertex(context,
-	               mg_mat2x3_mul(context->transform, (vec2){p[0].x + n0.x, p[0].y + n0.y}),
+	mg_push_vertex(canvas,
+	               mg_mat2x3_mul(canvas->transform, (vec2){p[0].x + n0.x, p[0].y + n0.y}),
 	               (vec4){1, 1, 1, 1},
 	               color,
 	               zIndex);
 
-	mg_push_vertex(context,
-	               mg_mat2x3_mul(context->transform, (vec2){p[1].x + n0.x, p[1].y + n0.y}),
+	mg_push_vertex(canvas,
+	               mg_mat2x3_mul(canvas->transform, (vec2){p[1].x + n0.x, p[1].y + n0.y}),
 	               (vec4){1, 1, 1, 1},
 	               color,
 	               zIndex);
 
-	mg_push_vertex(context,
-	               mg_mat2x3_mul(context->transform, (vec2){p[1].x - n0.x, p[1].y - n0.y}),
+	mg_push_vertex(canvas,
+	               mg_mat2x3_mul(canvas->transform, (vec2){p[1].x - n0.x, p[1].y - n0.y}),
 	               (vec4){1, 1, 1, 1},
 	               color,
 	               zIndex);
 
-	mg_push_vertex(context,
-	               mg_mat2x3_mul(context->transform, (vec2){p[0].x - n0.x, p[0].y - n0.y}),
+	mg_push_vertex(canvas,
+	               mg_mat2x3_mul(canvas->transform, (vec2){p[0].x - n0.x, p[0].y - n0.y}),
 	               (vec4){1, 1, 1, 1},
 	               color,
 	               zIndex);
@@ -1730,7 +1264,7 @@ void mg_quadratic_split(vec2 p[3], f32 t, vec2 outLeft[3], vec2 outRight[3])
 }
 
 
-void mg_render_stroke_quadratic(mg_canvas_data* context, vec2 p[4], u32 zIndex, mg_attributes* attributes)
+void mg_render_stroke_quadratic(mg_canvas_data* canvas, vec2 p[4], u32 zIndex, mg_attributes* attributes)
 {
 	#define CHECK_SAMPLE_COUNT 5
 	f32 checkSamples[CHECK_SAMPLE_COUNT] = {1./6, 2./6, 3./6, 4./6, 5./6};
@@ -1784,42 +1318,42 @@ void mg_render_stroke_quadratic(mg_canvas_data* context, vec2 p[4], u32 zIndex, 
 		vec2 splitLeft[3];
 		vec2 splitRight[3];
 		mg_quadratic_split(p, maxOvershootParameter, splitLeft, splitRight);
-		mg_render_stroke_quadratic(context, splitLeft, zIndex, attributes);
-		mg_render_stroke_quadratic(context, splitRight, zIndex, attributes);
+		mg_render_stroke_quadratic(canvas, splitLeft, zIndex, attributes);
+		mg_render_stroke_quadratic(canvas, splitRight, zIndex, attributes);
 	}
 	else
 	{
 		//NOTE(martin): push the actual fill commands for the offset contour
 
-		u32 zIndex = mg_get_next_z_index(context);
+		u32 zIndex = mg_get_next_z_index(canvas);
 
-		mg_render_fill_quadratic(context, positiveOffsetHull, zIndex, attributes->color);
-		mg_render_fill_quadratic(context, negativeOffsetHull, zIndex, attributes->color);
+		mg_render_fill_quadratic(canvas, positiveOffsetHull, zIndex, attributes->color);
+		mg_render_fill_quadratic(canvas, negativeOffsetHull, zIndex, attributes->color);
 
 		//NOTE(martin):	add base triangles
-		u32 baseIndex = mg_vertices_base_index(context);
-		i32* indices = mg_reserve_indices(context, 6);
+		u32 baseIndex = mg_vertices_base_index(canvas);
+		i32* indices = mg_reserve_indices(canvas, 6);
 
-		mg_push_vertex(context,
-		               mg_mat2x3_mul(context->transform, positiveOffsetHull[0]),
+		mg_push_vertex(canvas,
+		               mg_mat2x3_mul(canvas->transform, positiveOffsetHull[0]),
 		               (vec4){1, 1, 1, 1},
 		               attributes->color,
 		               zIndex);
 
-		mg_push_vertex(context,
-		               mg_mat2x3_mul(context->transform, positiveOffsetHull[2]),
+		mg_push_vertex(canvas,
+		               mg_mat2x3_mul(canvas->transform, positiveOffsetHull[2]),
 		               (vec4){1, 1, 1, 1},
 		               attributes->color,
 		               zIndex);
 
-		mg_push_vertex(context,
-		               mg_mat2x3_mul(context->transform, negativeOffsetHull[2]),
+		mg_push_vertex(canvas,
+		               mg_mat2x3_mul(canvas->transform, negativeOffsetHull[2]),
 		               (vec4){1, 1, 1, 1},
 		               attributes->color,
 		               zIndex);
 
-		mg_push_vertex(context,
-		               mg_mat2x3_mul(context->transform, negativeOffsetHull[0]),
+		mg_push_vertex(canvas,
+		               mg_mat2x3_mul(canvas->transform, negativeOffsetHull[0]),
 		               (vec4){1, 1, 1, 1},
 		               attributes->color,
 		               zIndex);
@@ -1888,7 +1422,7 @@ void mg_cubic_split(vec2 p[4], f32 t, vec2 outLeft[4], vec2 outRight[4])
 	outRight[3] = p[3];
 }
 
-void mg_render_stroke_cubic(mg_canvas_data* context, vec2 p[4], u32 zIndex, mg_attributes* attributes)
+void mg_render_stroke_cubic(mg_canvas_data* canvas, vec2 p[4], u32 zIndex, mg_attributes* attributes)
 {
 	#define CHECK_SAMPLE_COUNT 5
 	f32 checkSamples[CHECK_SAMPLE_COUNT] = {1./6, 2./6, 3./6, 4./6, 5./6};
@@ -1942,43 +1476,43 @@ void mg_render_stroke_cubic(mg_canvas_data* context, vec2 p[4], u32 zIndex, mg_a
 		vec2 splitLeft[4];
 		vec2 splitRight[4];
 		mg_cubic_split(p, maxOvershootParameter, splitLeft, splitRight);
-		mg_render_stroke_cubic(context, splitLeft, zIndex, attributes);
-		mg_render_stroke_cubic(context, splitRight, zIndex, attributes);
+		mg_render_stroke_cubic(canvas, splitLeft, zIndex, attributes);
+		mg_render_stroke_cubic(canvas, splitRight, zIndex, attributes);
 	}
 	else
 	{
 		//NOTE(martin): push the actual fill commands for the offset contour
 
-		u32 zIndex = mg_get_next_z_index(context);
+		u32 zIndex = mg_get_next_z_index(canvas);
 
-		mg_render_fill_cubic(context, positiveOffsetHull, zIndex, attributes->color);
-		mg_render_fill_cubic(context, negativeOffsetHull, zIndex, attributes->color);
+		mg_render_fill_cubic(canvas, positiveOffsetHull, zIndex, attributes->color);
+		mg_render_fill_cubic(canvas, negativeOffsetHull, zIndex, attributes->color);
 
 		//NOTE(martin):	add base triangles
-		u32 baseIndex = mg_vertices_base_index(context);
-		i32* indices = mg_reserve_indices(context, 6);
+		u32 baseIndex = mg_vertices_base_index(canvas);
+		i32* indices = mg_reserve_indices(canvas, 6);
 
 
-		mg_push_vertex(context,
-		                mg_mat2x3_mul(context->transform, positiveOffsetHull[0]),
+		mg_push_vertex(canvas,
+		                mg_mat2x3_mul(canvas->transform, positiveOffsetHull[0]),
 		                (vec4){1, 1, 1, 1},
 		                attributes->color,
 		                zIndex);
 
-		mg_push_vertex(context,
-		               mg_mat2x3_mul(context->transform, positiveOffsetHull[3]),
+		mg_push_vertex(canvas,
+		               mg_mat2x3_mul(canvas->transform, positiveOffsetHull[3]),
 		               (vec4){1, 1, 1, 1},
 		               attributes->color,
 		               zIndex);
 
-		mg_push_vertex(context,
-		               mg_mat2x3_mul(context->transform, negativeOffsetHull[3]),
+		mg_push_vertex(canvas,
+		               mg_mat2x3_mul(canvas->transform, negativeOffsetHull[3]),
 		               (vec4){1, 1, 1, 1},
 		               attributes->color,
 		               zIndex);
 
-		mg_push_vertex(context,
-		               mg_mat2x3_mul(context->transform, negativeOffsetHull[0]),
+		mg_push_vertex(canvas,
+		               mg_mat2x3_mul(canvas->transform, negativeOffsetHull[0]),
 		               (vec4){1, 1, 1, 1},
 		               attributes->color,
 		               zIndex);
@@ -1993,7 +1527,7 @@ void mg_render_stroke_cubic(mg_canvas_data* context, vec2 p[4], u32 zIndex, mg_a
 	#undef CHECK_SAMPLE_COUNT
 }
 
-void mg_stroke_cap(mg_canvas_data* context, vec2 p0, vec2 direction, mg_attributes* attributes)
+void mg_stroke_cap(mg_canvas_data* canvas, vec2 p0, vec2 direction, mg_attributes* attributes)
 {
 	//NOTE(martin): compute the tangent and normal vectors (multiplied by half width) at the cap point
 
@@ -2006,31 +1540,31 @@ void mg_stroke_cap(mg_canvas_data* context, vec2 p0, vec2 direction, mg_attribut
 	vec2 m0 = {alpha*direction.x,
 	           alpha*direction.y};
 
-	u32 zIndex = mg_get_next_z_index(context);
+	u32 zIndex = mg_get_next_z_index(canvas);
 
-	u32 baseIndex = mg_vertices_base_index(context);
-	i32* indices = mg_reserve_indices(context, 6);
+	u32 baseIndex = mg_vertices_base_index(canvas);
+	i32* indices = mg_reserve_indices(canvas, 6);
 
-	mg_push_vertex(context,
-	               mg_mat2x3_mul(context->transform, (vec2){p0.x + n0.x, p0.y + n0.y}),
+	mg_push_vertex(canvas,
+	               mg_mat2x3_mul(canvas->transform, (vec2){p0.x + n0.x, p0.y + n0.y}),
 	               (vec4){1, 1, 1, 1},
 	               attributes->color,
 	               zIndex);
 
-	mg_push_vertex(context,
-	               mg_mat2x3_mul(context->transform, (vec2){p0.x + n0.x + m0.x, p0.y + n0.y + m0.y}),
+	mg_push_vertex(canvas,
+	               mg_mat2x3_mul(canvas->transform, (vec2){p0.x + n0.x + m0.x, p0.y + n0.y + m0.y}),
 	               (vec4){1, 1, 1, 1},
 	               attributes->color,
 	               zIndex);
 
-	mg_push_vertex(context,
-	               mg_mat2x3_mul(context->transform, (vec2){p0.x - n0.x + m0.x, p0.y - n0.y + m0.y}),
+	mg_push_vertex(canvas,
+	               mg_mat2x3_mul(canvas->transform, (vec2){p0.x - n0.x + m0.x, p0.y - n0.y + m0.y}),
 	               (vec4){1, 1, 1, 1},
 	               attributes->color,
 	               zIndex);
 
-	mg_push_vertex(context,
-	               mg_mat2x3_mul(context->transform, (vec2){p0.x - n0.x, p0.y - n0.y}),
+	mg_push_vertex(canvas,
+	               mg_mat2x3_mul(canvas->transform, (vec2){p0.x - n0.x, p0.y - n0.y}),
 	               (vec4){1, 1, 1, 1},
 	               attributes->color,
 	               zIndex);
@@ -2043,7 +1577,7 @@ void mg_stroke_cap(mg_canvas_data* context, vec2 p0, vec2 direction, mg_attribut
 	indices[5] = baseIndex + 3;
 }
 
-void mg_stroke_joint(mg_canvas_data* context,
+void mg_stroke_joint(mg_canvas_data* canvas,
                               vec2 p0,
 			      vec2 t0,
 			      vec2 t1,
@@ -2072,7 +1606,7 @@ void mg_stroke_joint(mg_canvas_data* context,
 		n1.y *= -1;
 	}
 
-	u32 zIndex = mg_get_next_z_index(context);
+	u32 zIndex = mg_get_next_z_index(canvas);
 
 	//NOTE(martin): use the same code as hull offset to find mitter point...
 	/*NOTE(martin): let vector u = (n0+n1) and vector v = pIntersect - p1
@@ -2092,29 +1626,29 @@ void mg_stroke_joint(mg_canvas_data* context,
 	{
 		vec2 mitterPoint = {p0.x + v.x, p0.y + v.y};
 
-		u32 baseIndex = mg_vertices_base_index(context);
-		i32* indices = mg_reserve_indices(context, 6);
+		u32 baseIndex = mg_vertices_base_index(canvas);
+		i32* indices = mg_reserve_indices(canvas, 6);
 
-		mg_push_vertex(context,
-		               mg_mat2x3_mul(context->transform, p0),
+		mg_push_vertex(canvas,
+		               mg_mat2x3_mul(canvas->transform, p0),
 		               (vec4){1, 1, 1, 1},
 		               attributes->color,
 		               zIndex);
 
-		mg_push_vertex(context,
-		               mg_mat2x3_mul(context->transform, (vec2){p0.x + n0.x*halfW, p0.y + n0.y*halfW}),
+		mg_push_vertex(canvas,
+		               mg_mat2x3_mul(canvas->transform, (vec2){p0.x + n0.x*halfW, p0.y + n0.y*halfW}),
 		               (vec4){1, 1, 1, 1},
 		               attributes->color,
 		               zIndex);
 
-		mg_push_vertex(context,
-		               mg_mat2x3_mul(context->transform, mitterPoint),
+		mg_push_vertex(canvas,
+		               mg_mat2x3_mul(canvas->transform, mitterPoint),
 		               (vec4){1, 1, 1, 1},
 		               attributes->color,
 		               zIndex);
 
-		mg_push_vertex(context,
-	                   mg_mat2x3_mul(context->transform, (vec2){p0.x + n1.x*halfW, p0.y + n1.y*halfW}),
+		mg_push_vertex(canvas,
+	                   mg_mat2x3_mul(canvas->transform, (vec2){p0.x + n1.x*halfW, p0.y + n1.y*halfW}),
 	                   (vec4){1, 1, 1, 1},
 	                   attributes->color,
 	                   zIndex);
@@ -2129,23 +1663,23 @@ void mg_stroke_joint(mg_canvas_data* context,
 	else
 	{
 		//NOTE(martin): add a bevel joint
-		u32 baseIndex = mg_vertices_base_index(context);
-		i32* indices = mg_reserve_indices(context, 3);
+		u32 baseIndex = mg_vertices_base_index(canvas);
+		i32* indices = mg_reserve_indices(canvas, 3);
 
-		mg_push_vertex(context,
-		                        mg_mat2x3_mul(context->transform, p0),
+		mg_push_vertex(canvas,
+		                        mg_mat2x3_mul(canvas->transform, p0),
 		                        (vec4){1, 1, 1, 1},
 		                        attributes->color,
 		                        zIndex);
 
-		mg_push_vertex(context,
-		                        mg_mat2x3_mul(context->transform, (vec2){p0.x + n0.x*halfW, p0.y + n0.y*halfW}),
+		mg_push_vertex(canvas,
+		                        mg_mat2x3_mul(canvas->transform, (vec2){p0.x + n0.x*halfW, p0.y + n0.y*halfW}),
 		                        (vec4){1, 1, 1, 1},
 		                        attributes->color,
 		                        zIndex);
 
-		mg_push_vertex(context,
-		                        mg_mat2x3_mul(context->transform, (vec2){p0.x + n1.x*halfW, p0.y + n1.y*halfW}),
+		mg_push_vertex(canvas,
+		                        mg_mat2x3_mul(canvas->transform, (vec2){p0.x + n1.x*halfW, p0.y + n1.y*halfW}),
 		                        (vec4){1, 1, 1, 1},
 		                        attributes->color,
 		                        zIndex);
@@ -2158,7 +1692,7 @@ void mg_stroke_joint(mg_canvas_data* context,
 	}
 }
 
-void mg_render_stroke_element(mg_canvas_data* context,
+void mg_render_stroke_element(mg_canvas_data* canvas,
                                       mg_path_elt* element,
 				      mg_attributes* attributes,
 				      vec2 currentPoint,
@@ -2168,22 +1702,22 @@ void mg_render_stroke_element(mg_canvas_data* context,
 {
 	vec2 controlPoints[4] = {currentPoint, element->p[0], element->p[1], element->p[2]};
 	int endPointIndex = 0;
-	u32 zIndex = mg_get_next_z_index(context);
+	u32 zIndex = mg_get_next_z_index(canvas);
 
 	switch(element->type)
 	{
 		case MG_PATH_LINE:
-			mg_render_stroke_line(context, controlPoints, zIndex, attributes);
+			mg_render_stroke_line(canvas, controlPoints, zIndex, attributes);
 			endPointIndex = 1;
 			break;
 
 		case MG_PATH_QUADRATIC:
-			mg_render_stroke_quadratic(context, controlPoints, zIndex, attributes);
+			mg_render_stroke_quadratic(canvas, controlPoints, zIndex, attributes);
 			endPointIndex = 2;
 			break;
 
 		case MG_PATH_CUBIC:
-			mg_render_stroke_cubic(context, controlPoints, zIndex, attributes);
+			mg_render_stroke_cubic(canvas, controlPoints, zIndex, attributes);
 			endPointIndex = 3;
 			break;
 
@@ -2202,7 +1736,7 @@ void mg_render_stroke_element(mg_canvas_data* context,
 
 }
 
-u32 mg_render_stroke_subpath(mg_canvas_data* context,
+u32 mg_render_stroke_subpath(mg_canvas_data* canvas,
                                      mg_path_elt* elements,
 				      mg_path_descriptor* path,
 				      mg_attributes* attributes,
@@ -2220,7 +1754,7 @@ u32 mg_render_stroke_subpath(mg_canvas_data* context,
 	vec2 endTangent = {0, 0};
 
 	//NOTE(martin): render first element and compute first tangent
-	mg_render_stroke_element(context, elements + startIndex, attributes, currentPoint, &startTangent, &endTangent, &endPoint);
+	mg_render_stroke_element(canvas, elements + startIndex, attributes, currentPoint, &startTangent, &endTangent, &endPoint);
 
 	firstTangent = startTangent;
 	previousEndTangent = endTangent;
@@ -2232,11 +1766,11 @@ u32 mg_render_stroke_subpath(mg_canvas_data* context,
 	    eltIndex<eltCount && elements[eltIndex].type != MG_PATH_MOVE;
 	    eltIndex++)
 	{
-		mg_render_stroke_element(context, elements + eltIndex, attributes, currentPoint, &startTangent, &endTangent, &endPoint);
+		mg_render_stroke_element(canvas, elements + eltIndex, attributes, currentPoint, &startTangent, &endTangent, &endPoint);
 
 		if(attributes->joint != MG_JOINT_NONE)
 		{
-			mg_stroke_joint(context, currentPoint, previousEndTangent, startTangent, attributes);
+			mg_stroke_joint(canvas, currentPoint, previousEndTangent, startTangent, attributes);
 		}
 		previousEndTangent = endTangent;
 		currentPoint = endPoint;
@@ -2251,21 +1785,21 @@ u32 mg_render_stroke_subpath(mg_canvas_data* context,
 		if(attributes->joint != MG_JOINT_NONE)
 		{
 			//NOTE(martin): add a closing joint if the path is closed
-			mg_stroke_joint(context, endPoint, endTangent, firstTangent, attributes);
+			mg_stroke_joint(canvas, endPoint, endTangent, firstTangent, attributes);
 		}
 	}
 	else if(attributes->cap == MG_CAP_SQUARE)
 	{
 		//NOTE(martin): add start and end cap
-		mg_stroke_cap(context, startPoint, (vec2){-startTangent.x, -startTangent.y}, attributes);
-		mg_stroke_cap(context, endPoint, startTangent, attributes);
+		mg_stroke_cap(canvas, startPoint, (vec2){-startTangent.x, -startTangent.y}, attributes);
+		mg_stroke_cap(canvas, endPoint, startTangent, attributes);
 	}
 
 	return(eltIndex);
 }
 
 
-void mg_render_stroke(mg_canvas_data* context,
+void mg_render_stroke(mg_canvas_data* canvas,
                               mg_path_elt* elements,
 			      mg_path_descriptor* path,
 			      mg_attributes* attributes)
@@ -2287,7 +1821,7 @@ void mg_render_stroke(mg_canvas_data* context,
 
 		if(startIndex < eltCount)
 		{
-			startIndex = mg_render_stroke_subpath(context, elements, path, attributes, startIndex, startPoint);
+			startIndex = mg_render_stroke_subpath(canvas, elements, path, attributes, startIndex, startPoint);
 		}
 	}
 }
@@ -2296,12 +1830,12 @@ void mg_render_stroke(mg_canvas_data* context,
 // Fast shapes primitives
 //-----------------------------------------------------------------------------------------------------------
 
-void mg_render_rectangle_fill(mg_canvas_data* context, mp_rect rect, mg_attributes* attributes)
+void mg_render_rectangle_fill(mg_canvas_data* canvas, mp_rect rect, mg_attributes* attributes)
 {
-	u32 baseIndex = mg_vertices_base_index(context);
-	i32* indices = mg_reserve_indices(context, 6);
+	u32 baseIndex = mg_vertices_base_index(canvas);
+	i32* indices = mg_reserve_indices(canvas, 6);
 
-	u32 zIndex = mg_get_next_z_index(context);
+	u32 zIndex = mg_get_next_z_index(canvas);
 
 	vec2 points[4] = {{rect.x, rect.y},
 	                  {rect.x + rect.w, rect.y},
@@ -2311,8 +1845,8 @@ void mg_render_rectangle_fill(mg_canvas_data* context, mp_rect rect, mg_attribut
 	vec4 cubic = {1, 1, 1, 1};
 	for(int i=0; i<4; i++)
 	{
-		vec2 pos = mg_mat2x3_mul(context->transform, points[i]);
-		mg_push_vertex(context, pos, cubic, attributes->color, zIndex);
+		vec2 pos = mg_mat2x3_mul(canvas->transform, points[i]);
+		mg_push_vertex(canvas, pos, cubic, attributes->color, zIndex);
 	}
 	indices[0] = baseIndex + 0;
 	indices[1] = baseIndex + 1;
@@ -2322,13 +1856,13 @@ void mg_render_rectangle_fill(mg_canvas_data* context, mp_rect rect, mg_attribut
 	indices[5] = baseIndex + 3;
 }
 
-void mg_render_rectangle_stroke(mg_canvas_data* context, mp_rect rect, mg_attributes* attributes)
+void mg_render_rectangle_stroke(mg_canvas_data* canvas, mp_rect rect, mg_attributes* attributes)
 {
 	//NOTE(martin): stroke a rectangle by fill two scaled rectangles with the same zIndex.
-	u32 baseIndex = mg_vertices_base_index(context);
-	i32* indices = mg_reserve_indices(context, 12);
+	u32 baseIndex = mg_vertices_base_index(canvas);
+	i32* indices = mg_reserve_indices(canvas, 12);
 
-	u32 zIndex = mg_get_next_z_index(context);
+	u32 zIndex = mg_get_next_z_index(canvas);
 
 	//NOTE(martin): limit stroke width to the minimum dimension of the rectangle
 	f32 width = minimum(attributes->width, minimum(rect.w, rect.h));
@@ -2347,14 +1881,14 @@ void mg_render_rectangle_stroke(mg_canvas_data* context, mp_rect rect, mg_attrib
 	vec4 cubic = {1, 1, 1, 1};
 	for(int i=0; i<4; i++)
 	{
-		vec2 pos = mg_mat2x3_mul(context->transform, outerPoints[i]);
-		mg_push_vertex(context, pos, cubic, attributes->color, zIndex);
+		vec2 pos = mg_mat2x3_mul(canvas->transform, outerPoints[i]);
+		mg_push_vertex(canvas, pos, cubic, attributes->color, zIndex);
 	}
 
 	for(int i=0; i<4; i++)
 	{
-		vec2 pos = mg_mat2x3_mul(context->transform, innerPoints[i]);
-		mg_push_vertex(context, pos, cubic, attributes->color, zIndex);
+		vec2 pos = mg_mat2x3_mul(canvas->transform, innerPoints[i]);
+		mg_push_vertex(canvas, pos, cubic, attributes->color, zIndex);
 	}
 
 	indices[0] = baseIndex + 0;
@@ -2371,11 +1905,11 @@ void mg_render_rectangle_stroke(mg_canvas_data* context, mp_rect rect, mg_attrib
 	indices[11] = baseIndex + 7;
 }
 
-void mg_render_fill_arc_corner(mg_canvas_data* context, f32 x, f32 y, f32 rx, f32 ry, u32 zIndex, mg_color color)
+void mg_render_fill_arc_corner(mg_canvas_data* canvas, f32 x, f32 y, f32 rx, f32 ry, u32 zIndex, mg_color color)
 {
 	//NOTE(martin): draw a precomputed arc corner, using a bezier approximation
-	u32 baseIndex = mg_vertices_base_index(context);
-	i32* indices = mg_reserve_indices(context, 6);
+	u32 baseIndex = mg_vertices_base_index(canvas);
+	i32* indices = mg_reserve_indices(canvas, 6);
 
 	static const vec4 cubics[4] = {{-3.76797, -9.76362, 5.47912, -1},
 	                            {-4.19896, -9.45223, 7.534, -1},
@@ -2392,8 +1926,8 @@ void mg_render_fill_arc_corner(mg_canvas_data* context, f32 x, f32 y, f32 rx, f3
 
 	for(int i=0; i<4; i++)
 	{
-		vec2 pos = mg_mat2x3_mul(context->transform, points[i]);
-		mg_push_vertex(context, pos, cubics[i], color, zIndex);
+		vec2 pos = mg_mat2x3_mul(canvas->transform, points[i]);
+		mg_push_vertex(canvas, pos, cubics[i], color, zIndex);
 	}
 	indices[0] = baseIndex + 0;
 	indices[1] = baseIndex + 1;
@@ -2403,7 +1937,7 @@ void mg_render_fill_arc_corner(mg_canvas_data* context, f32 x, f32 y, f32 rx, f3
 	indices[5] = baseIndex + 3;
 }
 
-void mg_render_rounded_rectangle_fill_with_z_index(mg_canvas_data* context,
+void mg_render_rounded_rectangle_fill_with_z_index(mg_canvas_data* canvas,
 							                       mg_rounded_rect rect,
 							                       mg_attributes* attributes,
 							                       u32 zIndex)
@@ -2411,8 +1945,8 @@ void mg_render_rounded_rectangle_fill_with_z_index(mg_canvas_data* context,
 	//NOTE(martin): draw a rounded rectangle by drawing a normal rectangle and 4 corners,
 	//              approximating an arc by a precomputed bezier curve
 
-	u32 baseIndex = mg_vertices_base_index(context);
-	i32* indices = mg_reserve_indices(context, 18);
+	u32 baseIndex = mg_vertices_base_index(canvas);
+	i32* indices = mg_reserve_indices(canvas, 18);
 
 	//NOTE(martin): inner cutted corner rectangle
 	vec2 points[8] = {{rect.x + rect.r, rect.y},
@@ -2428,8 +1962,8 @@ void mg_render_rounded_rectangle_fill_with_z_index(mg_canvas_data* context,
 
 	for(int i=0; i<8; i++)
 	{
-		vec2 pos = mg_mat2x3_mul(context->transform, points[i]);
-		mg_push_vertex(context, pos, cubic, attributes->color, zIndex);
+		vec2 pos = mg_mat2x3_mul(canvas->transform, points[i]);
+		mg_push_vertex(canvas, pos, cubic, attributes->color, zIndex);
 	}
 
 	static const i32 fanIndices[18] = { 0, 1, 2, 0, 2, 3, 0, 3, 4, 0, 4, 5, 0, 5, 6, 0, 6, 7 }; // inner fan
@@ -2438,22 +1972,22 @@ void mg_render_rounded_rectangle_fill_with_z_index(mg_canvas_data* context,
 		indices[i] = fanIndices[i] + baseIndex;
 	}
 
-	mg_render_fill_arc_corner(context, rect.x, rect.y, rect.r, rect.r, zIndex, attributes->color);
-	mg_render_fill_arc_corner(context, rect.x + rect.w, rect.y, -rect.r, rect.r, zIndex, attributes->color);
-	mg_render_fill_arc_corner(context, rect.x + rect.w, rect.y + rect.h, -rect.r, -rect.r, zIndex, attributes->color);
-	mg_render_fill_arc_corner(context, rect.x, rect.y + rect.h, rect.r, -rect.r, zIndex, attributes->color);
+	mg_render_fill_arc_corner(canvas, rect.x, rect.y, rect.r, rect.r, zIndex, attributes->color);
+	mg_render_fill_arc_corner(canvas, rect.x + rect.w, rect.y, -rect.r, rect.r, zIndex, attributes->color);
+	mg_render_fill_arc_corner(canvas, rect.x + rect.w, rect.y + rect.h, -rect.r, -rect.r, zIndex, attributes->color);
+	mg_render_fill_arc_corner(canvas, rect.x, rect.y + rect.h, rect.r, -rect.r, zIndex, attributes->color);
 }
 
 
-void mg_render_rounded_rectangle_fill(mg_canvas_data* context,
+void mg_render_rounded_rectangle_fill(mg_canvas_data* canvas,
                                               mg_rounded_rect rect,
 					      mg_attributes* attributes)
 {
-	u32 zIndex = mg_get_next_z_index(context);
-	mg_render_rounded_rectangle_fill_with_z_index(context, rect, attributes, zIndex);
+	u32 zIndex = mg_get_next_z_index(canvas);
+	mg_render_rounded_rectangle_fill_with_z_index(canvas, rect, attributes, zIndex);
 }
 
-void mg_render_rounded_rectangle_stroke(mg_canvas_data* context,
+void mg_render_rounded_rectangle_stroke(mg_canvas_data* canvas,
 						mg_rounded_rect rect,
 						mg_attributes* attributes)
 {
@@ -2464,12 +1998,12 @@ void mg_render_rounded_rectangle_stroke(mg_canvas_data* context,
 	mg_rounded_rect inner = {rect.x + halfW, rect.y + halfW, rect.w - width, rect.h - width, rect.r - halfW};
 	mg_rounded_rect outer = {rect.x - halfW, rect.y - halfW, rect.w + width, rect.h + width, rect.r + halfW};
 
-	u32 zIndex = mg_get_next_z_index(context);
-	mg_render_rounded_rectangle_fill_with_z_index(context, outer, attributes, zIndex);
-	mg_render_rounded_rectangle_fill_with_z_index(context, inner, attributes, zIndex);
+	u32 zIndex = mg_get_next_z_index(canvas);
+	mg_render_rounded_rectangle_fill_with_z_index(canvas, outer, attributes, zIndex);
+	mg_render_rounded_rectangle_fill_with_z_index(canvas, inner, attributes, zIndex);
 }
 
-void mg_render_ellipse_fill_with_z_index(mg_canvas_data* context,
+void mg_render_ellipse_fill_with_z_index(mg_canvas_data* canvas,
                                                  mp_rect rect,
 						 mg_attributes* attributes,
 						 u32 zIndex)
@@ -2477,8 +2011,8 @@ void mg_render_ellipse_fill_with_z_index(mg_canvas_data* context,
 	//NOTE(martin): draw a filled ellipse by drawing a diamond and 4 corners,
 	//              approximating an arc by a precomputed bezier curve
 
-	u32 baseIndex = mg_vertices_base_index(context);
-	i32* indices = mg_reserve_indices(context, 6);
+	u32 baseIndex = mg_vertices_base_index(canvas);
+	i32* indices = mg_reserve_indices(canvas, 6);
 
 	f32 rx = rect.w/2;
 	f32 ry = rect.h/2;
@@ -2493,8 +2027,8 @@ void mg_render_ellipse_fill_with_z_index(mg_canvas_data* context,
 
 	for(int i=0; i<4; i++)
 	{
-		vec2 pos = mg_mat2x3_mul(context->transform, points[i]);
-		mg_push_vertex(context, pos, cubic, attributes->color, zIndex);
+		vec2 pos = mg_mat2x3_mul(canvas->transform, points[i]);
+		mg_push_vertex(canvas, pos, cubic, attributes->color, zIndex);
 	}
 
 	indices[0] = baseIndex + 0;
@@ -2504,19 +2038,19 @@ void mg_render_ellipse_fill_with_z_index(mg_canvas_data* context,
 	indices[4] = baseIndex + 2;
 	indices[5] = baseIndex + 3;
 
-	mg_render_fill_arc_corner(context, rect.x, rect.y, rx, ry, zIndex, attributes->color);
-	mg_render_fill_arc_corner(context, rect.x + rect.w, rect.y, -rx, ry, zIndex, attributes->color);
-	mg_render_fill_arc_corner(context, rect.x + rect.w, rect.y + rect.h, -rx, -ry, zIndex, attributes->color);
-	mg_render_fill_arc_corner(context, rect.x, rect.y + rect.h, rx, -ry, zIndex, attributes->color);
+	mg_render_fill_arc_corner(canvas, rect.x, rect.y, rx, ry, zIndex, attributes->color);
+	mg_render_fill_arc_corner(canvas, rect.x + rect.w, rect.y, -rx, ry, zIndex, attributes->color);
+	mg_render_fill_arc_corner(canvas, rect.x + rect.w, rect.y + rect.h, -rx, -ry, zIndex, attributes->color);
+	mg_render_fill_arc_corner(canvas, rect.x, rect.y + rect.h, rx, -ry, zIndex, attributes->color);
 }
 
-void mg_render_ellipse_fill(mg_canvas_data* context, mp_rect rect, mg_attributes* attributes)
+void mg_render_ellipse_fill(mg_canvas_data* canvas, mp_rect rect, mg_attributes* attributes)
 {
-	u32 zIndex = mg_get_next_z_index(context);
-	mg_render_ellipse_fill_with_z_index(context, rect, attributes, zIndex);
+	u32 zIndex = mg_get_next_z_index(canvas);
+	mg_render_ellipse_fill_with_z_index(canvas, rect, attributes, zIndex);
 }
 
-void mg_render_ellipse_stroke(mg_canvas_data* context, mp_rect rect, mg_attributes* attributes)
+void mg_render_ellipse_stroke(mg_canvas_data* canvas, mp_rect rect, mg_attributes* attributes)
 {
 	//NOTE(martin): stroke by filling two scaled ellipsis with the same zIndex
 	f32 width = minimum(attributes->width, minimum(rect.w, rect.h));
@@ -2525,23 +2059,23 @@ void mg_render_ellipse_stroke(mg_canvas_data* context, mp_rect rect, mg_attribut
 	mp_rect inner = {rect.x + halfW, rect.y + halfW, rect.w - width, rect.h - width};
 	mp_rect outer = {rect.x - halfW, rect.y - halfW, rect.w + width, rect.h + width};
 
-	u32 zIndex = mg_get_next_z_index(context);
-	mg_render_ellipse_fill_with_z_index(context, outer, attributes, zIndex);
-	mg_render_ellipse_fill_with_z_index(context, inner, attributes, zIndex);
+	u32 zIndex = mg_get_next_z_index(canvas);
+	mg_render_ellipse_fill_with_z_index(canvas, outer, attributes, zIndex);
+	mg_render_ellipse_fill_with_z_index(canvas, inner, attributes, zIndex);
 }
 
-void mg_render_image(mg_canvas_data* context, mg_image image, mp_rect rect)
+void mg_render_image(mg_canvas_data* canvas, mg_image image, mp_rect rect)
 {
-	mg_image_data* imageData = mg_image_ptr_from_handle(context, image);
+	mg_image_data* imageData = mg_image_ptr_from_handle(canvas, image);
 	if(!imageData)
 	{
 		return;
 	}
 
-	u32 baseIndex = mg_vertices_base_index(context);
-	i32* indices = mg_reserve_indices(context, 6);
+	u32 baseIndex = mg_vertices_base_index(canvas);
+	i32* indices = mg_reserve_indices(canvas, 6);
 
-	u32 zIndex = mg_get_next_z_index(context);
+	u32 zIndex = mg_get_next_z_index(canvas);
 
 	vec2 points[4] = {{rect.x, rect.y},
 	                  {rect.x + rect.w, rect.y},
@@ -2560,8 +2094,8 @@ void mg_render_image(mg_canvas_data* context, mg_image image, mp_rect rect)
 	{
 		vec2 transformedUV = {uv[i].x / MG_ATLAS_SIZE, uv[i].y / MG_ATLAS_SIZE};
 
-		vec2 pos = mg_mat2x3_mul(context->transform, points[i]);
-		mg_push_textured_vertex(context, pos, cubic, transformedUV, color, zIndex);
+		vec2 pos = mg_mat2x3_mul(canvas->transform, points[i]);
+		mg_push_textured_vertex(canvas, pos, cubic, transformedUV, color, zIndex);
 	}
 	indices[0] = baseIndex + 0;
 	indices[1] = baseIndex + 1;
@@ -2571,9 +2105,9 @@ void mg_render_image(mg_canvas_data* context, mg_image image, mp_rect rect)
 	indices[5] = baseIndex + 3;
 }
 
-void mg_render_rounded_image(mg_canvas_data* context, mg_image image, mg_rounded_rect rect, mg_attributes* attributes)
+void mg_render_rounded_image(mg_canvas_data* canvas, mg_image image, mg_rounded_rect rect, mg_attributes* attributes)
 {
-	mg_image_data* imageData = mg_image_ptr_from_handle(context, image);
+	mg_image_data* imageData = mg_image_ptr_from_handle(canvas, image);
 	if(!imageData)
 	{
 		return;
@@ -2586,18 +2120,18 @@ void mg_render_rounded_image(mg_canvas_data* context, mg_image image, mg_rounded
 	vec2 uvMax = {(imageData->rect.x + imageData->rect.w - 0.5) / MG_ATLAS_SIZE, (imageData->rect.y + imageData->rect.h - 0.5) / MG_ATLAS_SIZE};
 	mp_rect uvRect = {uvMin.x, uvMin.y, uvMax.x - uvMin.x, uvMax.y - uvMin.y};
 
-	vec2 pMin = mg_mat2x3_mul(context->transform, (vec2){rect.x, rect.y});
-	vec2 pMax = mg_mat2x3_mul(context->transform, (vec2){rect.x + rect.w, rect.y + rect.h});
+	vec2 pMin = mg_mat2x3_mul(canvas->transform, (vec2){rect.x, rect.y});
+	vec2 pMax = mg_mat2x3_mul(canvas->transform, (vec2){rect.x + rect.w, rect.y + rect.h});
 	mp_rect pRect = {pMin.x, pMin.y, pMax.x - pMin.x, pMax.y - pMin.y};
 
-	u32 startIndex = mg_vertices_base_index(context);
+	u32 startIndex = mg_vertices_base_index(canvas);
 
-	mgc_vertex_layout* layout = &context->painter->vertexLayout;
+	mg_vertex_layout* layout = &canvas->backend->vertexLayout;
 
 	attributes->color = (mg_color){1, 1, 1, 1};
-	mg_render_rounded_rectangle_fill(context, rect, attributes);
+	mg_render_rounded_rectangle_fill(canvas, rect, attributes);
 
-	u32 indexCount = mg_vertices_base_index(context) - startIndex;
+	u32 indexCount = mg_vertices_base_index(canvas) - startIndex;
 
 	for(int i=0; i<indexCount; i++)
 	{
@@ -2616,573 +2150,65 @@ void mg_render_rounded_image(mg_canvas_data* context, mg_image image, mg_rounded
 
 }
 
-//-----------------------------------------------------------------------------------------------------------
-// Graphics canvas
-//-----------------------------------------------------------------------------------------------------------
-
-#ifdef MG_IMPLEMENTS_BACKEND_METAL
-	typedef struct mg_metal_surface mg_metal_surface;
-	mg_canvas_painter* mg_metal_painter_create_for_surface(mg_metal_surface* surface, mp_rect viewPort);
-#endif
-
-mg_canvas_painter* mg_canvas_painter_create_for_surface(mg_surface surfaceHandle, mp_rect viewPort)
-{
-	mg_surface_info* surface = mg_surface_ptr_from_handle(surfaceHandle);
-	if(!surface)
-	{
-		return(0);
-	}
-
-	switch(surface->backend)
-	{
-#ifdef MG_IMPLEMENTS_BACKED_METAL
-		case MG_BACKEND_METAL:
-			return(mg_metal_painter_create_for_surface((mg_metal_surface*)surface, viewPort));
-#endif
-
-		default:
-			return(0);
-	}
-}
-
-void mg_canvas_reset_streams(mg_canvas_data* context)
-{
-	ListInit(&context->streamsFreeList);
-	for(int i=0; i<MG_STREAM_MAX_COUNT; i++)
-	{
-		ListAppend(&context->streamsFreeList, &context->streams[i].freeListElt);
-		context->streams[i].generation = 1;
-	}
-	context->currentStream = mg_stream_alloc(context);
-}
-
-mg_canvas mg_canvas_create(mg_surface surface, mp_rect viewPort)
-{
-	mg_canvas_data* context = mg_canvas_alloc();
-	if(!context)
-	{
-		return(mg_canvas_nil());
-	}
-
-	context->path.startIndex = 0;
-	context->path.count = 0;
-	context->nextZIndex = 1;
-	context->attributes.color = (mg_color){0, 0, 0, 1};
-	context->attributes.tolerance = 1;
-	context->attributes.width = 10;
-	context->attributes.clip = (mp_rect){-FLT_MAX/2, -FLT_MAX/2, FLT_MAX, FLT_MAX};
-
-	context->transform = (mg_mat2x3){{1, 0, 0,
-	                                  0, 1, 0}};
-
-	mg_canvas_reset_streams(context);
-
-	context->painter = mg_canvas_painter_create_for_surface(surface, viewPort);
-	if(!context->painter)
-	{
-		LOG_ERROR("Couldn't create painter for surface\n");
-		mg_canvas_recycle(context);
-		return(mg_canvas_nil());
-	}
-
-	mg_canvas handle = mg_canvas_handle_from_ptr(context);
-
-	//NOTE: create a blank image
-	u8 bytes[4] = {255, 255, 255, 255};
-	context->blankImage = mg_image_create_from_rgba8(handle, 1, 1, bytes);
-
-	return(handle);
-}
-
-void mg_canvas_destroy(mg_canvas handle)
-{
-	mg_canvas_data* context = mg_canvas_ptr_from_handle(handle);
-	if(!context)
-	{
-		return;
-	}
-	mg_canvas_recycle(context);
-}
-
-void mg_canvas_viewport(mg_canvas handle, mp_rect viewport)
-{
-	mg_canvas_data* context = mg_canvas_ptr_from_handle(handle);
-	if(!context)
-	{
-		return;
-	}
-	context->painter->setViewPort(context->painter, viewport);
-}
-
-void mg_canvas_begin_draw(mg_canvas handle)
-{
-	mg_canvas_data* context = mg_canvas_ptr_from_handle(handle);
-	if(!context)
-	{
-		return;
-	}
-	context->vertexCount = 0;
-	context->indexCount = 0;
-	context->path.startIndex = 0;
-	context->path.count = 0;
-}
-
-mg_mat2x3 mg_matrix_stack_top(mg_canvas_data* context)
-{
-	if(context->matrixStackSize == 0)
-	{
-		return((mg_mat2x3){1, 0, 0,
-				   0, 1, 0});
-	}
-	else
-	{
-		return(context->matrixStack[context->matrixStackSize-1]);
-	}
-}
-
-void mg_matrix_stack_push(mg_canvas_data* context, mg_mat2x3 transform)
-{
-	if(context->matrixStackSize >= MG_MATRIX_STACK_MAX_DEPTH)
-	{
-		LOG_ERROR("matrix stack overflow\n");
-	}
-	else
-	{
-		context->matrixStack[context->matrixStackSize] = transform;
-		context->matrixStackSize++;
-		context->transform = transform;
-	}
-}
-
-void mg_matrix_stack_pop(mg_canvas_data* context)
-{
-	if(context->matrixStackSize == 0)
-	{
-		LOG_ERROR("matrix stack underflow\n");
-	}
-	else
-	{
-		context->matrixStackSize--;
-		context->transform = mg_matrix_stack_top(context);
-	}
-}
-
-
-mp_rect mg_clip_stack_top(mg_canvas_data* context)
-{
-	if(context->clipStackSize == 0)
-	{
-		return((mp_rect){-FLT_MAX/2, -FLT_MAX/2, FLT_MAX, FLT_MAX});
-	}
-	else
-	{
-		return(context->clipStack[context->clipStackSize-1]);
-	}
-}
-
-void mg_clip_stack_push(mg_canvas_data* context, mp_rect clip)
-{
-	if(context->clipStackSize >= MG_CLIP_STACK_MAX_DEPTH)
-	{
-		LOG_ERROR("clip stack overflow\n");
-	}
-	else
-	{
-		context->clipStack[context->clipStackSize] = clip;
-		context->clipStackSize++;
-		context->clip = clip;
-	}
-}
-
-void mg_clip_stack_pop(mg_canvas_data* context)
-{
-	if(context->clipStackSize == 0)
-	{
-		LOG_ERROR("clip stack underflow\n");
-	}
-	else
-	{
-		context->clipStackSize--;
-		context->clip = mg_clip_stack_top(context);
-	}
-}
-
-void mg_do_clip_push(mg_canvas_data* context, mp_rect clip)
-{
-	//NOTE(martin): transform clip
-	vec2 p0 = mg_mat2x3_mul(context->transform, (vec2){clip.x, clip.y});
-	vec2 p1 = mg_mat2x3_mul(context->transform, (vec2){clip.x + clip.w, clip.y});
-	vec2 p2 = mg_mat2x3_mul(context->transform, (vec2){clip.x + clip.w, clip.y + clip.h});
-	vec2 p3 = mg_mat2x3_mul(context->transform, (vec2){clip.x, clip.y + clip.h});
-
-	f32 x0 = minimum(p0.x, minimum(p1.x, minimum(p2.x, p3.x)));
-	f32 y0 = minimum(p0.y, minimum(p1.y, minimum(p2.y, p3.y)));
-	f32 x1 = maximum(p0.x, maximum(p1.x, maximum(p2.x, p3.x)));
-	f32 y1 = maximum(p0.y, maximum(p1.y, maximum(p2.y, p3.y)));
-
-	mp_rect current = mg_clip_stack_top(context);
-
-	//NOTE(martin): intersect with current clip
-	x0 = maximum(current.x, x0);
-	y0 = maximum(current.y, y0);
-	x1 = minimum(current.x + current.w, x1);
-	y1 = minimum(current.y + current.h, y1);
-
-	mp_rect r = {x0, y0, maximum(0, x1-x0), maximum(0, y1-y0)};
-	mg_clip_stack_push(context, r);
-}
-
-void mg_canvas_flush(mg_canvas contextHandle)
-{
-	mg_canvas_data* context = mg_canvas_ptr_from_handle(contextHandle);
-	if(!context)
-	{
-		return;
-	}
-
-	mg_color clearColor = {0, 0, 0, 1};
-
-	u32 count = context->primitiveCount;
-
-	mg_stream_data* stream = context->currentStream;
-	DEBUG_ASSERT(stream);
-	DEBUG_ASSERT(stream->count <= count);
-
-	u32 nextIndex = stream->firstCommand;
-
-	mg_reset_z_index(context);
-	context->transform = (mg_mat2x3){1, 0, 0,
-	                                 0, 1, 0};
-	context->clip = (mp_rect){-FLT_MAX/2, -FLT_MAX/2, FLT_MAX, FLT_MAX};
-
-	for(int i=0; i<stream->count; i++)
-	{
-		if(nextIndex >= count)
-		{
-			LOG_ERROR("invalid location '%i' in graphics command buffer would cause an overrun\n", nextIndex);
-			break;
-		}
-		mg_primitive* primitive = &(context->primitives[nextIndex]);
-		nextIndex++;
-
-		switch(primitive->cmd)
-		{
-			case MG_CMD_CLEAR:
-			{
-				//NOTE(martin): clear buffers
-				context->vertexCount = 0;
-				context->indexCount = 0;
-
-				clearColor = primitive->attributes.color;
-			} break;
-
-			case MG_CMD_FILL:
-			{
-				u32 zIndex = mg_get_next_z_index(context);
-				mg_render_fill(context,
-						       context->pathElements + primitive->path.startIndex,
-						       &primitive->path,
-						       zIndex,
-						       primitive->attributes.color);
-			} break;
-
-			case MG_CMD_STROKE:
-			{
-				mg_render_stroke(context,
-							 context->pathElements + primitive->path.startIndex,
-							 &primitive->path,
-							 &primitive->attributes);
-			} break;
-
-
-			case MG_CMD_RECT_FILL:
-				mg_render_rectangle_fill(context, primitive->rect, &primitive->attributes);
-				break;
-
-			case MG_CMD_RECT_STROKE:
-				mg_render_rectangle_stroke(context, primitive->rect, &primitive->attributes);
-				break;
-
-			case MG_CMD_ROUND_RECT_FILL:
-				mg_render_rounded_rectangle_fill(context, primitive->roundedRect, &primitive->attributes);
-				break;
-
-			case MG_CMD_ROUND_RECT_STROKE:
-				mg_render_rounded_rectangle_stroke(context, primitive->roundedRect, &primitive->attributes);
-				break;
-
-			case MG_CMD_ELLIPSE_FILL:
-				mg_render_ellipse_fill(context, primitive->rect, &primitive->attributes);
-				break;
-
-			case MG_CMD_ELLIPSE_STROKE:
-				mg_render_ellipse_stroke(context, primitive->rect, &primitive->attributes);
-				break;
-
-			case MG_CMD_JUMP:
-			{
-				if(primitive->jump == ~0)
-				{
-					//NOTE(martin): normal end of stream marker
-					goto exit_command_loop;
-				}
-				else if(primitive->jump >= count)
-				{
-					LOG_ERROR("invalid jump location '%i' in graphics command buffer\n", primitive->jump);
-					goto exit_command_loop;
-				}
-				else
-				{
-					nextIndex = primitive->jump;
-				}
-			} break;
-
-			case MG_CMD_MATRIX_PUSH:
-			{
-				mg_mat2x3 transform = mg_matrix_stack_top(context);
-				mg_matrix_stack_push(context, mg_mat2x3_mul_m(transform, primitive->matrix));
-			} break;
-
-			case MG_CMD_MATRIX_POP:
-			{
-				mg_matrix_stack_pop(context);
-			} break;
-
-			case MG_CMD_CLIP_PUSH:
-			{
-				//TODO(martin): use only aligned rect and avoid this
-				mp_rect r = {primitive->rect.x, primitive->rect.y, primitive->rect.w, primitive->rect.h};
-				mg_do_clip_push(context, r);
-			} break;
-
-			case MG_CMD_CLIP_POP:
-			{
-				mg_clip_stack_pop(context);
-			} break;
-
-			case MG_CMD_IMAGE_DRAW:
-			{
-				mg_render_image(context, primitive->attributes.image, primitive->rect);
-			} break;
-
-			case MG_CMD_ROUNDED_IMAGE_DRAW:
-			{
-				mg_render_rounded_image(context, primitive->attributes.image, primitive->roundedRect, &primitive->attributes);
-			} break;
-
-		}
-	}
-	exit_command_loop: ;
-
-	if(context->painter && context->painter->drawBuffers)
-	{
-		context->painter->drawBuffers(context->painter, context->vertexCount, context->indexCount, clearColor);
-	}
-
-	//NOTE(martin): clear buffers
-	context->primitiveCount = 0;
-	context->vertexCount = 0;
-	context->indexCount = 0;
-
-	context->path.startIndex = 0;
-	context->path.count = 0;
-
-	//NOTE(martin): invalidate all streams
-	context->frameCounter++;
-	mg_canvas_reset_streams(context);
-}
-
-void mg_push_command(mg_canvas_data* context, mg_primitive primitive)
-{
-	//NOTE(martin): push primitive and updates current stream, eventually patching a pending jump.
-	ASSERT(context->primitiveCount < MG_MAX_PRIMITIVE_COUNT);
-	context->primitives[context->primitiveCount] = primitive;
-	context->primitiveCount++;
-
-	mg_stream_data* stream = context->currentStream;
-	DEBUG_ASSERT(stream);
-
-	u32 lastCommand = context->primitiveCount-1;
-	if(stream->pendingJump)
-	{
-		DEBUG_ASSERT(context->primitives[stream->lastCommand].cmd == MG_CMD_JUMP);
-		context->primitives[stream->lastCommand].jump = lastCommand;
-		stream->pendingJump = false;
-	}
-	stream->lastCommand = lastCommand;
-	stream->count++;
-}
-
-//-----------------------------------------------------------------------------------------------------------
-// Graphics command streams
-//-----------------------------------------------------------------------------------------------------------
-
-mg_stream mg_stream_create(mg_canvas contextHandle)
-{
-	mg_canvas_data* context = mg_canvas_ptr_from_handle(contextHandle);
-	if(!context)
-	{
-		return(mg_stream_null_handle());
-	}
-
-	mg_stream_data* stream = mg_stream_alloc(context);
-	if(!stream)
-	{
-		return(mg_stream_null_handle());
-	}
-
-	return(mg_stream_handle_from_ptr(context, stream));
-}
-
-mg_stream mg_stream_swap(mg_canvas contextHandle, mg_stream streamHandle)
-{
-	mg_canvas_data* context = mg_canvas_ptr_from_handle(contextHandle);
-	if(!context)
-	{
-		return(mg_stream_null_handle());
-	}
-	mg_stream_data* stream = mg_stream_ptr_from_handle(context, streamHandle);
-	if(!stream)
-	{
-		return(mg_stream_null_handle());
-	}
-
-	if(stream == context->currentStream)
-	{
-		//NOTE(martin): prevent swapping for itself
-		return(mg_stream_null_handle());
-	}
-
-	//NOTE(martin): push an unitialized jump to the current stream
-	mg_push_command(context, (mg_primitive){.cmd = MG_CMD_JUMP, .jump = ~0});
-	context->currentStream->pendingJump = true;
-
-	//NOTE(martin): set the new current stream
-	mg_stream_data* oldStream = context->currentStream;
-	context->currentStream = stream;
-
-	if(!stream->count)
-	{
-		//NOTE(martin): if stream is new, set the first command to the current offset in command buffer
-		stream->firstCommand = context->primitiveCount;
-		stream->lastCommand = stream->firstCommand;
-	}
-	else
-	{
-		//NOTE(martin): else, we just make sure there is a pending jump to be patched when we push the next command
-		DEBUG_ASSERT(stream->pendingJump);
-	}
-
-	return(mg_stream_handle_from_ptr(context, oldStream));
-}
-
-void mg_stream_append(mg_canvas contextHandle, mg_stream streamHandle)
-{
-	mg_canvas_data* context = mg_canvas_ptr_from_handle(contextHandle);
-	if(!context)
-	{
-		return;
-	}
-	mg_stream_data* stream = mg_stream_ptr_from_handle(context, streamHandle);
-	if(!stream)
-	{
-		return;
-	}
-	if(stream == context->currentStream)
-	{
-		//NOTE(martin): prevent appending to itself
-		return;
-	}
-
-	if(stream->count)
-	{
-		//NOTE(martin): push a jump set to the appended stream's first command
-		mg_push_command(context, (mg_primitive){.cmd = MG_CMD_JUMP, .jump = stream->firstCommand});
-
-		//NOTE(martin): update current stream last command and make sure it's a jump
-		context->currentStream->lastCommand = stream->lastCommand;
-		context->currentStream->count += stream->count;
-		context->currentStream->pendingJump = true;
-
-		DEBUG_ASSERT(context->primitives[context->currentStream->lastCommand].cmd == MG_CMD_JUMP);
-	}
-
-	//NOTE(martin): invalidate appended stream
-	mg_stream_recycle(context, stream);
-}
-
-//-----------------------------------------------------------------------------------------------------------
-// Fonts management
-//-----------------------------------------------------------------------------------------------------------
-
-mg_font mg_font_nil()
-{
-	return((mg_font){0});
-}
+//------------------------------------------------------------------------------------------
+//NOTE(martin): fonts
+//------------------------------------------------------------------------------------------
 
 mg_font mg_font_create_from_memory(u32 size, byte* buffer, u32 rangeCount, unicode_range* ranges)
 {
-	mg_font_info* fontInfo = ListPopEntry(&__mgInfo.fontFreeList, mg_font_info, freeListElt);
-	if(!fontInfo)
+	mg_font_data* fontData = malloc_type(mg_font_data);
+	mg_font font = mg_font_alloc_handle(fontData);
+
+	if(mg_font_is_nil(font))
 	{
-		if(__mgInfo.fontsNextIndex < MG_FONT_MAX_COUNT)
-		{
-			fontInfo = &(__mgInfo.fonts[__mgInfo.fontsNextIndex]);
-			__mgInfo.fontsNextIndex++;
-			memset(fontInfo, 0, sizeof(*fontInfo));
-			fontInfo->generation = 1;
-		}
-		else
-		{
-			LOG_ERROR("can't allocate new font\n");
-			return((mg_font){0});
-		}
+		free(fontData);
+		return(font);
 	}
 
 	stbtt_fontinfo stbttFontInfo;
 	stbtt_InitFont(&stbttFontInfo, buffer, 0);
 
 	//NOTE(martin): load font metrics data
-	fontInfo->unitsPerEm = 1./stbtt_ScaleForMappingEmToPixels(&stbttFontInfo, 1);
+	fontData->unitsPerEm = 1./stbtt_ScaleForMappingEmToPixels(&stbttFontInfo, 1);
 
 	int ascent, descent, lineGap, x0, x1, y0, y1;
 	stbtt_GetFontVMetrics(&stbttFontInfo, &ascent, &descent, &lineGap);
 	stbtt_GetFontBoundingBox(&stbttFontInfo, &x0, &y0, &x1, &y1);
 
-	fontInfo->extents.ascent = ascent;
-	fontInfo->extents.descent = -descent;
-	fontInfo->extents.leading = lineGap;
-	fontInfo->extents.width = x1 - x0;
+	fontData->extents.ascent = ascent;
+	fontData->extents.descent = -descent;
+	fontData->extents.leading = lineGap;
+	fontData->extents.width = x1 - x0;
 
 	stbtt_GetCodepointBox(&stbttFontInfo, 'x', &x0, &y0, &x1, &y1);
-	fontInfo->extents.xHeight = y1 - y0;
+	fontData->extents.xHeight = y1 - y0;
 
 	stbtt_GetCodepointBox(&stbttFontInfo, 'M', &x0, &y0, &x1, &y1);
-	fontInfo->extents.capHeight = y1 - y0;
+	fontData->extents.capHeight = y1 - y0;
 
 	//NOTE(martin): load codepoint ranges
-	fontInfo->rangeCount = rangeCount;
-	fontInfo->glyphMap = malloc_array(mg_glyph_map_entry, rangeCount);
-	fontInfo->glyphCount = 0;
+	fontData->rangeCount = rangeCount;
+	fontData->glyphMap = malloc_array(mg_glyph_map_entry, rangeCount);
+	fontData->glyphCount = 0;
 
 	for(int i=0; i<rangeCount; i++)
 	{
 		//NOTE(martin): initialize the map entry.
 		//              The glyph indices are offseted by 1, to reserve 0 as an invalid glyph index.
-		fontInfo->glyphMap[i].range = ranges[i];
-		fontInfo->glyphMap[i].firstGlyphIndex = fontInfo->glyphCount + 1;
-		fontInfo->glyphCount += ranges[i].count;
+		fontData->glyphMap[i].range = ranges[i];
+		fontData->glyphMap[i].firstGlyphIndex = fontData->glyphCount + 1;
+		fontData->glyphCount += ranges[i].count;
 	}
 
-	fontInfo->glyphs = malloc_array(mg_glyph_info, fontInfo->glyphCount);
+	fontData->glyphs = malloc_array(mg_glyph_data, fontData->glyphCount);
 
 	//NOTE(martin): first do a count of outlines
 	int outlineCount = 0;
 	for(int rangeIndex=0; rangeIndex<rangeCount; rangeIndex++)
 	{
-		utf32 codePoint = fontInfo->glyphMap[rangeIndex].range.firstCodePoint;
-		u32 firstGlyphIndex = fontInfo->glyphMap[rangeIndex].firstGlyphIndex;
-		u32 endGlyphIndex = firstGlyphIndex + fontInfo->glyphMap[rangeIndex].range.count;
+		utf32 codePoint = fontData->glyphMap[rangeIndex].range.firstCodePoint;
+		u32 firstGlyphIndex = fontData->glyphMap[rangeIndex].firstGlyphIndex;
+		u32 endGlyphIndex = firstGlyphIndex + fontData->glyphMap[rangeIndex].range.count;
 
 		for(int glyphIndex = firstGlyphIndex;
 		    glyphIndex < endGlyphIndex; glyphIndex++)
@@ -3202,20 +2228,20 @@ mg_font mg_font_create_from_memory(u32 size, byte* buffer, u32 rangeCount, unico
 		}
 	}
 	//NOTE(martin): allocate outlines
-	fontInfo->outlines = malloc_array(mg_path_elt, outlineCount);
-	fontInfo->outlineCount = 0;
+	fontData->outlines = malloc_array(mg_path_elt, outlineCount);
+	fontData->outlineCount = 0;
 
 	//NOTE(martin): load metrics and outlines
 	for(int rangeIndex=0; rangeIndex<rangeCount; rangeIndex++)
 	{
-		utf32 codePoint = fontInfo->glyphMap[rangeIndex].range.firstCodePoint;
-		u32 firstGlyphIndex = fontInfo->glyphMap[rangeIndex].firstGlyphIndex;
-		u32 endGlyphIndex = firstGlyphIndex + fontInfo->glyphMap[rangeIndex].range.count;
+		utf32 codePoint = fontData->glyphMap[rangeIndex].range.firstCodePoint;
+		u32 firstGlyphIndex = fontData->glyphMap[rangeIndex].firstGlyphIndex;
+		u32 endGlyphIndex = firstGlyphIndex + fontData->glyphMap[rangeIndex].range.count;
 
 		for(int glyphIndex = firstGlyphIndex;
 		    glyphIndex < endGlyphIndex; glyphIndex++)
 		{
-			mg_glyph_info* glyph = &(fontInfo->glyphs[glyphIndex-1]);
+			mg_glyph_data* glyph = &(fontData->glyphs[glyphIndex-1]);
 
 			int stbttGlyphIndex = stbtt_FindGlyphIndex(&stbttFontInfo, codePoint);
 			if(stbttGlyphIndex == 0)
@@ -3247,12 +2273,12 @@ mg_font mg_font_create_from_memory(u32 size, byte* buffer, u32 rangeCount, unico
 			stbtt_vertex* vertices = 0;
 			int vertexCount = stbtt_GetGlyphShape(&stbttFontInfo, stbttGlyphIndex, &vertices);
 
-			glyph->pathDescriptor = (mg_path_descriptor){.startIndex = fontInfo->outlineCount,
+			glyph->pathDescriptor = (mg_path_descriptor){.startIndex = fontData->outlineCount,
 			                                                      .count = vertexCount,
 									      .startPoint = {0, 0}};
 
-			mg_path_elt* elements = fontInfo->outlines + fontInfo->outlineCount;
-			fontInfo->outlineCount += vertexCount;
+			mg_path_elt* elements = fontData->outlines + fontData->outlineCount;
+			fontData->outlineCount += vertexCount;
 			vec2 currentPos = {0, 0};
 
 			for(int vertIndex = 0; vertIndex < vertexCount; vertIndex++)
@@ -3296,65 +2322,50 @@ mg_font mg_font_create_from_memory(u32 size, byte* buffer, u32 rangeCount, unico
 			codePoint++;
 		}
 	}
-	u64 h = ((u64)(fontInfo - __mgInfo.fonts))<<32 | ((u64)fontInfo->generation);
-	return((mg_font){h});
-}
-
-mg_font_info* mg_get_font_info(mg_font fontHandle)
-{
-	u32 fontIndex = (u32)(fontHandle.h >> 32);
-	u32 fontGeneration = (u32)(fontHandle.h & 0xffffffff);
-
-	if(  fontIndex >= MG_FONT_MAX_COUNT
-	  || fontIndex >= __mgInfo.fontsNextIndex
-	  || fontGeneration != __mgInfo.fonts[fontIndex].generation)
-	{
-		LOG_WARNING("invalid font handle\n");
-		return(0);
-	}
-	return(&(__mgInfo.fonts[fontIndex]));
+	return(font);
 }
 
 void mg_font_destroy(mg_font fontHandle)
 {
-	mg_font_info* fontInfo = mg_get_font_info(fontHandle);
-	if(!fontInfo)
+	mg_font_data* fontData = mg_font_data_from_handle(fontHandle);
+	if(!fontData)
 	{
 		return;
 	}
 	#ifdef DEBUG
-		if(fontInfo->generation == UINT32_MAX)
+		if(fontData->generation == UINT32_MAX)
 		{
 			LOG_ERROR("font info generation wrap around\n");
 		}
 	#endif
-	fontInfo->generation++;
+	fontData->generation++;
 
-	free(fontInfo->glyphMap);
-	free(fontInfo->glyphs);
-	free(fontInfo->outlines);
+	free(fontData->glyphMap);
+	free(fontData->glyphs);
+	free(fontData->outlines);
 
-	ListPush(&__mgInfo.fontFreeList, &fontInfo->freeListElt);
+	free(fontData);
+	mg_resource_handle_recycle(&__mgData.fonts, fontHandle.h);
 }
 
-str32 mg_font_get_glyph_indices_from_font_info(mg_font_info* fontInfo, str32 codePoints, str32 backing)
+str32 mg_font_get_glyph_indices_from_font_data(mg_font_data* fontData, str32 codePoints, str32 backing)
 {
 	u64 count = minimum(codePoints.len, backing.len);
 
 	for(int i = 0; i<count; i++)
 	{
 		u32 glyphIndex = 0;
-		for(int rangeIndex=0; rangeIndex < fontInfo->rangeCount; rangeIndex++)
+		for(int rangeIndex=0; rangeIndex < fontData->rangeCount; rangeIndex++)
 		{
-			if(codePoints.ptr[i] >= fontInfo->glyphMap[rangeIndex].range.firstCodePoint
-			  && codePoints.ptr[i] < (fontInfo->glyphMap[rangeIndex].range.firstCodePoint + fontInfo->glyphMap[rangeIndex].range.count))
+			if(codePoints.ptr[i] >= fontData->glyphMap[rangeIndex].range.firstCodePoint
+			  && codePoints.ptr[i] < (fontData->glyphMap[rangeIndex].range.firstCodePoint + fontData->glyphMap[rangeIndex].range.count))
 			{
-				u32 rangeOffset = codePoints.ptr[i] - fontInfo->glyphMap[rangeIndex].range.firstCodePoint;
-				glyphIndex = fontInfo->glyphMap[rangeIndex].firstGlyphIndex + rangeOffset;
+				u32 rangeOffset = codePoints.ptr[i] - fontData->glyphMap[rangeIndex].range.firstCodePoint;
+				glyphIndex = fontData->glyphMap[rangeIndex].firstGlyphIndex + rangeOffset;
 				break;
 			}
 		}
-		if(glyphIndex && !fontInfo->glyphs[glyphIndex].exists)
+		if(glyphIndex && !fontData->glyphs[glyphIndex].exists)
 		{
 			backing.ptr[i] = 0;
 		}
@@ -3364,23 +2375,23 @@ str32 mg_font_get_glyph_indices_from_font_info(mg_font_info* fontInfo, str32 cod
 	return(res);
 }
 
-u32 mg_font_get_glyph_index_from_font_info(mg_font_info* fontInfo, utf32 codePoint)
+u32 mg_font_get_glyph_index_from_font_data(mg_font_data* fontData, utf32 codePoint)
 {
 	u32 glyphIndex = 0;
 	str32 codePoints = {1, &codePoint};
 	str32 backing = {1, &glyphIndex};
-	mg_font_get_glyph_indices_from_font_info(fontInfo, codePoints, backing);
+	mg_font_get_glyph_indices_from_font_data(fontData, codePoints, backing);
 	return(glyphIndex);
 }
 
 str32 mg_font_get_glyph_indices(mg_font font, str32 codePoints, str32 backing)
 {
-	mg_font_info* fontInfo = mg_get_font_info(font);
-	if(!fontInfo)
+	mg_font_data* fontData = mg_font_data_from_handle(font);
+	if(!fontData)
 	{
 		return((str32){0});
 	}
-	return(mg_font_get_glyph_indices_from_font_info(fontInfo, codePoints, backing));
+	return(mg_font_get_glyph_indices_from_font_data(fontData, codePoints, backing));
 }
 
 str32 mg_font_push_glyph_indices(mg_font font, mem_arena* arena, str32 codePoints)
@@ -3399,32 +2410,32 @@ u32 mg_font_get_glyph_index(mg_font font, utf32 codePoint)
 	return(glyphIndex);
 }
 
-mg_glyph_info* mg_font_get_glyph_info(mg_font_info* fontInfo, u32 glyphIndex)
+mg_glyph_data* mg_font_get_glyph_data(mg_font_data* fontData, u32 glyphIndex)
 {
 	DEBUG_ASSERT(glyphIndex);
-	DEBUG_ASSERT(glyphIndex < fontInfo->glyphCount);
-	return(&(fontInfo->glyphs[glyphIndex-1]));
+	DEBUG_ASSERT(glyphIndex < fontData->glyphCount);
+	return(&(fontData->glyphs[glyphIndex-1]));
 }
 
 mg_font_extents mg_font_get_extents(mg_font font)
 {
-	mg_font_info* fontInfo = mg_get_font_info(font);
-	if(!fontInfo)
+	mg_font_data* fontData = mg_font_data_from_handle(font);
+	if(!fontData)
 	{
 		return((mg_font_extents){0});
 	}
-	return(fontInfo->extents);
+	return(fontData->extents);
 }
 
 mg_font_extents mg_font_get_scaled_extents(mg_font font, f32 emSize)
 {
-	mg_font_info* fontInfo = mg_get_font_info(font);
-	if(!fontInfo)
+	mg_font_data* fontData = mg_font_data_from_handle(font);
+	if(!fontData)
 	{
 		return((mg_font_extents){0});
 	}
-	f32 scale = emSize/fontInfo->unitsPerEm;
-	mg_font_extents extents = fontInfo->extents;
+	f32 scale = emSize/fontData->unitsPerEm;
+	mg_font_extents extents = fontData->extents;
 
 	extents.ascent *= scale;
 	extents.descent *= scale;
@@ -3439,52 +2450,52 @@ mg_font_extents mg_font_get_scaled_extents(mg_font font, f32 emSize)
 
 f32 mg_font_get_scale_for_em_pixels(mg_font font, f32 emSize)
 {
-	mg_font_info* fontInfo = mg_get_font_info(font);
-	if(!fontInfo)
+	mg_font_data* fontData = mg_font_data_from_handle(font);
+	if(!fontData)
 	{
 		return(0);
 	}
-	return(emSize/fontInfo->unitsPerEm);
+	return(emSize/fontData->unitsPerEm);
 }
 
-void mg_font_get_glyph_extents_from_font_info(mg_font_info* fontInfo,
+void mg_font_get_glyph_extents_from_font_data(mg_font_data* fontData,
                                               str32 glyphIndices,
                                               mg_text_extents* outExtents)
 {
 	for(int i=0; i<glyphIndices.len; i++)
 	{
-		if(!glyphIndices.ptr[i] || glyphIndices.ptr[i] >= fontInfo->glyphCount)
+		if(!glyphIndices.ptr[i] || glyphIndices.ptr[i] >= fontData->glyphCount)
 		{
 			continue;
 		}
-		mg_glyph_info* glyph = mg_font_get_glyph_info(fontInfo, glyphIndices.ptr[i]);
+		mg_glyph_data* glyph = mg_font_get_glyph_data(fontData, glyphIndices.ptr[i]);
 		outExtents[i] = glyph->extents;
 	}
 }
 
 int mg_font_get_glyph_extents(mg_font font, str32 glyphIndices, mg_text_extents* outExtents)
 {
-	mg_font_info* fontInfo = mg_get_font_info(font);
-	if(!fontInfo)
+	mg_font_data* fontData = mg_font_data_from_handle(font);
+	if(!fontData)
 	{
 		return(-1);
 	}
-	mg_font_get_glyph_extents_from_font_info(fontInfo, glyphIndices, outExtents);
+	mg_font_get_glyph_extents_from_font_data(fontData, glyphIndices, outExtents);
 	return(0);
 }
 
 int mg_font_get_codepoint_extents(mg_font font, utf32 codePoint, mg_text_extents* outExtents)
 {
-	mg_font_info* fontInfo = mg_get_font_info(font);
-	if(!fontInfo)
+	mg_font_data* fontData = mg_font_data_from_handle(font);
+	if(!fontData)
 	{
 		return(-1);
 	}
 	u32 glyphIndex = 0;
 	str32 codePoints = {1, &codePoint};
 	str32 backing = {1, &glyphIndex};
-	str32 glyphs = mg_font_get_glyph_indices_from_font_info(fontInfo, codePoints, backing);
-	mg_font_get_glyph_extents_from_font_info(fontInfo, glyphs, outExtents);
+	str32 glyphs = mg_font_get_glyph_indices_from_font_data(fontData, codePoints, backing);
+	mg_font_get_glyph_extents_from_font_data(fontData, glyphs, outExtents);
 	return(0);
 }
 
@@ -3495,8 +2506,8 @@ mp_rect mg_text_bounding_box_utf32(mg_font font, f32 fontSize, str32 codePoints)
 		return((mp_rect){0});
 	}
 
-	mg_font_info* fontInfo = mg_get_font_info(font);
-	if(!fontInfo)
+	mg_font_data* fontData = mg_font_data_from_handle(font);
+	if(!fontData)
 	{
 		return((mp_rect){0});
 	}
@@ -3507,31 +2518,31 @@ mp_rect mg_text_bounding_box_utf32(mg_font font, f32 fontSize, str32 codePoints)
 	//NOTE(martin): find width of missing character
 	//TODO(martin): should cache that at font creation...
 	mg_text_extents missingGlyphExtents;
-	u32 missingGlyphIndex = mg_font_get_glyph_index_from_font_info(fontInfo, 0xfffd);
+	u32 missingGlyphIndex = mg_font_get_glyph_index_from_font_data(fontData, 0xfffd);
 
 	if(missingGlyphIndex)
 	{
-		mg_font_get_glyph_extents_from_font_info(fontInfo, (str32){1, &missingGlyphIndex}, &missingGlyphExtents);
+		mg_font_get_glyph_extents_from_font_data(fontData, (str32){1, &missingGlyphIndex}, &missingGlyphExtents);
 	}
 	else
 	{
 		//NOTE(martin): could not find replacement glyph, try to get an 'x' to get a somewhat correct width
 		//              to render an empty rectangle. Otherwise just render with the max font width
-		f32 boxWidth = fontInfo->extents.width * 0.8;
-		f32 xBearing = fontInfo->extents.width * 0.1;
-		f32 xAdvance = fontInfo->extents.width;
+		f32 boxWidth = fontData->extents.width * 0.8;
+		f32 xBearing = fontData->extents.width * 0.1;
+		f32 xAdvance = fontData->extents.width;
 
-		missingGlyphIndex = mg_font_get_glyph_index_from_font_info(fontInfo, 'x');
+		missingGlyphIndex = mg_font_get_glyph_index_from_font_data(fontData, 'x');
 		if(missingGlyphIndex)
 		{
-			mg_font_get_glyph_extents_from_font_info(fontInfo, (str32){1, &missingGlyphIndex}, &missingGlyphExtents);
+			mg_font_get_glyph_extents_from_font_data(fontData, (str32){1, &missingGlyphIndex}, &missingGlyphExtents);
 		}
 		else
 		{
-			missingGlyphExtents.xBearing = fontInfo->extents.width * 0.1;
+			missingGlyphExtents.xBearing = fontData->extents.width * 0.1;
 			missingGlyphExtents.yBearing = 0;
-			missingGlyphExtents.width = fontInfo->extents.width * 0.8;
-			missingGlyphExtents.xAdvance = fontInfo->extents.width;
+			missingGlyphExtents.width = fontData->extents.width * 0.8;
+			missingGlyphExtents.xAdvance = fontData->extents.width;
 			missingGlyphExtents.yAdvance = 0;
 		}
 	}
@@ -3540,21 +2551,21 @@ mp_rect mg_text_bounding_box_utf32(mg_font font, f32 fontSize, str32 codePoints)
 	f32 width = 0;
 	f32 x = 0;
 	f32 y = 0;
-	f32 lineHeight = fontInfo->extents.descent + fontInfo->extents.ascent;
+	f32 lineHeight = fontData->extents.descent + fontData->extents.ascent;
 
 	for(int i=0; i<glyphIndices.len; i++)
 	{
 		//TODO(martin): make it failsafe for fonts that don't have a glyph for the line-feed codepoint ?
 
-		mg_glyph_info* glyph = 0;
+		mg_glyph_data* glyph = 0;
 		mg_text_extents extents;
-		if(!glyphIndices.ptr[i] || glyphIndices.ptr[i] >= fontInfo->glyphCount)
+		if(!glyphIndices.ptr[i] || glyphIndices.ptr[i] >= fontData->glyphCount)
 		{
 			extents = missingGlyphExtents;
 		}
 		else
 		{
-			glyph = mg_font_get_glyph_info(fontInfo, glyphIndices.ptr[i]);
+			glyph = mg_font_get_glyph_data(fontData, glyphIndices.ptr[i]);
 			extents = glyph->extents;
 		}
 		x += extents.xAdvance;
@@ -3564,13 +2575,13 @@ mp_rect mg_text_bounding_box_utf32(mg_font font, f32 fontSize, str32 codePoints)
 		{
 			width = maximum(width, x);
 			x = 0;
-			y += lineHeight + fontInfo->extents.leading;
+			y += lineHeight + fontData->extents.leading;
 		}
 	}
 	width = maximum(width, x);
 
 	f32 fontScale = mg_font_get_scale_for_em_pixels(font, fontSize);
-	mp_rect rect = {0, -fontInfo->extents.ascent * fontScale, width * fontScale, (y + lineHeight) * fontScale };
+	mp_rect rect = {0, -fontData->extents.ascent * fontScale, width * fontScale, (y + lineHeight) * fontScale };
 	return(rect);
 }
 
@@ -3586,423 +2597,738 @@ mp_rect mg_text_bounding_box(mg_font font, f32 fontSize, str8 text)
 	return(mg_text_bounding_box_utf32(font, fontSize, codePoints));
 }
 
-//-----------------------------------------------------------------------------------------------------------
-// Transform matrix settings
-//-----------------------------------------------------------------------------------------------------------
+//------------------------------------------------------------------------------------------
+//NOTE(martin): graphics canvas API
+//------------------------------------------------------------------------------------------
 
-void mg_matrix_push(mg_canvas handle, mg_mat2x3 matrix)
+#ifdef MG_IMPLEMENTS_BACKEND_METAL
+	mg_canvas_backend* mg_metal_canvas_create(mg_surface surface);
+#endif
+
+mg_canvas mg_canvas_create(mg_surface surface)
 {
-	mg_canvas_data* context = mg_canvas_ptr_from_handle(handle);
-	if(!context)
+	mg_canvas canvas = mg_canvas_nil();
+	mg_surface_data* surfaceData = mg_surface_data_from_handle(surface);
+	if(surfaceData)
+	{
+		mg_canvas_backend* backend = 0;
+		switch(surfaceData->backend)
+		{
+		#ifdef MG_IMPLEMENTS_BACKEND_METAL
+			case MG_BACKEND_METAL:
+				backend = mg_metal_canvas_create(surface);
+				break;
+		#endif
+
+		/*
+			case MG_BACKEND_OPENGL:
+				canvasData = mg_opengl_canvas_create(surface);
+				break;
+		*/
+			default:
+				break;
+		}
+
+		if(backend)
+		{
+			mg_canvas_data* canvasData = malloc_type(mg_canvas_data);
+			memset(canvasData, 0, sizeof(mg_canvas_data));
+
+			canvasData->backend = backend;
+
+			canvasData->primitiveCount = 0;
+			canvasData->path.startIndex = 0;
+			canvasData->path.count = 0;
+			canvasData->nextZIndex = 1;
+			canvasData->attributes.color = (mg_color){0, 0, 0, 1};
+			canvasData->attributes.tolerance = 1;
+			canvasData->attributes.width = 10;
+			canvasData->attributes.clip = (mp_rect){-FLT_MAX/2, -FLT_MAX/2, FLT_MAX, FLT_MAX};
+
+			canvasData->transform = (mg_mat2x3){{1, 0, 0,
+	                                  		0, 1, 0}};
+
+
+	        //TODO: review this ////////////////////////////////////////////////////////////////////////
+	        canvas = mg_canvas_alloc_handle(canvasData);
+	        mg_canvas_set_current(canvas);
+
+			//NOTE: create a blank image
+			//WARN: this requires setting the current context before
+			u8 bytes[4] = {255, 255, 255, 255};
+			canvasData->blankImage = mg_image_create_from_rgba8(1, 1, bytes);
+			////////////////////////////////////////////////////////////////////////////////////////////////////
+		}
+	}
+	return(canvas);
+}
+
+void mg_canvas_destroy(mg_canvas handle)
+{
+	mg_canvas_data* canvas = mg_canvas_data_from_handle(handle);
+	if(canvas)
+	{
+		if(__mgCurrentCanvas == canvas)
+		{
+			__mgCurrentCanvas = 0;
+			__mgCurrentCanvasHandle = mg_canvas_nil();
+		}
+
+		if(canvas->backend && canvas->backend->destroy)
+		{
+			canvas->backend->destroy(canvas->backend);
+		}
+		free(canvas);
+		mg_resource_handle_recycle(&__mgData.canvases, handle.h);
+	}
+}
+
+mg_canvas mg_canvas_set_current(mg_canvas canvas)
+{
+	mg_canvas old = __mgCurrentCanvasHandle;
+
+	__mgCurrentCanvasHandle = canvas;
+	__mgCurrentCanvas = mg_canvas_data_from_handle(canvas);
+
+	return(old);
+}
+////////////////////////////////////////////////////////////
+
+mg_mat2x3 mg_matrix_stack_top(mg_canvas_data* canvas)
+{
+	if(canvas->matrixStackSize == 0)
+	{
+		return((mg_mat2x3){1, 0, 0,
+				   0, 1, 0});
+	}
+	else
+	{
+		return(canvas->matrixStack[canvas->matrixStackSize-1]);
+	}
+}
+
+void mg_matrix_stack_push(mg_canvas_data* canvas, mg_mat2x3 transform)
+{
+	if(canvas->matrixStackSize >= MG_MATRIX_STACK_MAX_DEPTH)
+	{
+		LOG_ERROR("matrix stack overflow\n");
+	}
+	else
+	{
+		canvas->matrixStack[canvas->matrixStackSize] = transform;
+		canvas->matrixStackSize++;
+		canvas->transform = transform;
+	}
+}
+
+void mg_matrix_stack_pop(mg_canvas_data* canvas)
+{
+	if(canvas->matrixStackSize == 0)
+	{
+		LOG_ERROR("matrix stack underflow\n");
+	}
+	else
+	{
+		canvas->matrixStackSize--;
+		canvas->transform = mg_matrix_stack_top(canvas);
+	}
+}
+
+
+mp_rect mg_clip_stack_top(mg_canvas_data* canvas)
+{
+	if(canvas->clipStackSize == 0)
+	{
+		return((mp_rect){-FLT_MAX/2, -FLT_MAX/2, FLT_MAX, FLT_MAX});
+	}
+	else
+	{
+		return(canvas->clipStack[canvas->clipStackSize-1]);
+	}
+}
+
+void mg_clip_stack_push(mg_canvas_data* canvas, mp_rect clip)
+{
+	if(canvas->clipStackSize >= MG_CLIP_STACK_MAX_DEPTH)
+	{
+		LOG_ERROR("clip stack overflow\n");
+	}
+	else
+	{
+		canvas->clipStack[canvas->clipStackSize] = clip;
+		canvas->clipStackSize++;
+		canvas->clip = clip;
+	}
+}
+
+void mg_clip_stack_pop(mg_canvas_data* canvas)
+{
+	if(canvas->clipStackSize == 0)
+	{
+		LOG_ERROR("clip stack underflow\n");
+	}
+	else
+	{
+		canvas->clipStackSize--;
+		canvas->clip = mg_clip_stack_top(canvas);
+	}
+}
+
+void mg_do_clip_push(mg_canvas_data* canvas, mp_rect clip)
+{
+	//NOTE(martin): transform clip
+	vec2 p0 = mg_mat2x3_mul(canvas->transform, (vec2){clip.x, clip.y});
+	vec2 p1 = mg_mat2x3_mul(canvas->transform, (vec2){clip.x + clip.w, clip.y});
+	vec2 p2 = mg_mat2x3_mul(canvas->transform, (vec2){clip.x + clip.w, clip.y + clip.h});
+	vec2 p3 = mg_mat2x3_mul(canvas->transform, (vec2){clip.x, clip.y + clip.h});
+
+	f32 x0 = minimum(p0.x, minimum(p1.x, minimum(p2.x, p3.x)));
+	f32 y0 = minimum(p0.y, minimum(p1.y, minimum(p2.y, p3.y)));
+	f32 x1 = maximum(p0.x, maximum(p1.x, maximum(p2.x, p3.x)));
+	f32 y1 = maximum(p0.y, maximum(p1.y, maximum(p2.y, p3.y)));
+
+	mp_rect current = mg_clip_stack_top(canvas);
+
+	//NOTE(martin): intersect with current clip
+	x0 = maximum(current.x, x0);
+	y0 = maximum(current.y, y0);
+	x1 = minimum(current.x + current.w, x1);
+	y1 = minimum(current.y + current.h, y1);
+
+	mp_rect r = {x0, y0, maximum(0, x1-x0), maximum(0, y1-y0)};
+	mg_clip_stack_push(canvas, r);
+}
+
+void mg_flush()
+{
+	mg_canvas_data* canvas = __mgCurrentCanvas;
+	if(!canvas)
 	{
 		return;
 	}
 
-	mg_push_command(context, (mg_primitive){.cmd = MG_CMD_MATRIX_PUSH, .matrix = matrix});
-}
+	mg_color clearColor = {0, 0, 0, 1};
 
-void mg_matrix_pop(mg_canvas handle)
+	u32 count = canvas->primitiveCount;
+
+	u32 nextIndex = 0;
+
+	mg_reset_z_index(canvas);
+	canvas->transform = (mg_mat2x3){1, 0, 0,
+	                                 0, 1, 0};
+	canvas->clip = (mp_rect){-FLT_MAX/2, -FLT_MAX/2, FLT_MAX, FLT_MAX};
+
+	for(int i=0; i<count; i++)
+	{
+		if(nextIndex >= count)
+		{
+			LOG_ERROR("invalid location '%i' in graphics command buffer would cause an overrun\n", nextIndex);
+			break;
+		}
+		mg_primitive* primitive = &(canvas->primitives[nextIndex]);
+		nextIndex++;
+
+		switch(primitive->cmd)
+		{
+			case MG_CMD_CLEAR:
+			{
+				//NOTE(martin): clear buffers
+				canvas->vertexCount = 0;
+				canvas->indexCount = 0;
+
+				clearColor = primitive->attributes.color;
+			} break;
+
+			case MG_CMD_FILL:
+			{
+				u32 zIndex = mg_get_next_z_index(canvas);
+				mg_render_fill(canvas,
+						       canvas->pathElements + primitive->path.startIndex,
+						       &primitive->path,
+						       zIndex,
+						       primitive->attributes.color);
+			} break;
+
+			case MG_CMD_STROKE:
+			{
+				mg_render_stroke(canvas,
+							 canvas->pathElements + primitive->path.startIndex,
+							 &primitive->path,
+							 &primitive->attributes);
+			} break;
+
+
+			case MG_CMD_RECT_FILL:
+				mg_render_rectangle_fill(canvas, primitive->rect, &primitive->attributes);
+				break;
+
+			case MG_CMD_RECT_STROKE:
+				mg_render_rectangle_stroke(canvas, primitive->rect, &primitive->attributes);
+				break;
+
+			case MG_CMD_ROUND_RECT_FILL:
+				mg_render_rounded_rectangle_fill(canvas, primitive->roundedRect, &primitive->attributes);
+				break;
+
+			case MG_CMD_ROUND_RECT_STROKE:
+				mg_render_rounded_rectangle_stroke(canvas, primitive->roundedRect, &primitive->attributes);
+				break;
+
+			case MG_CMD_ELLIPSE_FILL:
+				mg_render_ellipse_fill(canvas, primitive->rect, &primitive->attributes);
+				break;
+
+			case MG_CMD_ELLIPSE_STROKE:
+				mg_render_ellipse_stroke(canvas, primitive->rect, &primitive->attributes);
+				break;
+
+			case MG_CMD_JUMP:
+			{
+				if(primitive->jump == ~0)
+				{
+					//NOTE(martin): normal end of stream marker
+					goto exit_command_loop;
+				}
+				else if(primitive->jump >= count)
+				{
+					LOG_ERROR("invalid jump location '%i' in graphics command buffer\n", primitive->jump);
+					goto exit_command_loop;
+				}
+				else
+				{
+					nextIndex = primitive->jump;
+				}
+			} break;
+
+			case MG_CMD_MATRIX_PUSH:
+			{
+				mg_mat2x3 transform = mg_matrix_stack_top(canvas);
+				mg_matrix_stack_push(canvas, mg_mat2x3_mul_m(transform, primitive->matrix));
+			} break;
+
+			case MG_CMD_MATRIX_POP:
+			{
+				mg_matrix_stack_pop(canvas);
+			} break;
+
+			case MG_CMD_CLIP_PUSH:
+			{
+				//TODO(martin): use only aligned rect and avoid this
+				mp_rect r = {primitive->rect.x, primitive->rect.y, primitive->rect.w, primitive->rect.h};
+				mg_do_clip_push(canvas, r);
+			} break;
+
+			case MG_CMD_CLIP_POP:
+			{
+				mg_clip_stack_pop(canvas);
+			} break;
+
+			case MG_CMD_IMAGE_DRAW:
+			{
+				mg_render_image(canvas, primitive->attributes.image, primitive->rect);
+			} break;
+
+			case MG_CMD_ROUNDED_IMAGE_DRAW:
+			{
+				mg_render_rounded_image(canvas, primitive->attributes.image, primitive->roundedRect, &primitive->attributes);
+			} break;
+
+		}
+	}
+	exit_command_loop: ;
+
+	if(canvas->backend && canvas->backend->drawBuffers)
+	{
+		canvas->backend->drawBuffers(canvas->backend, canvas->vertexCount, canvas->indexCount, clearColor);
+	}
+
+	//NOTE(martin): clear buffers
+	canvas->primitiveCount = 0;
+	canvas->vertexCount = 0;
+	canvas->indexCount = 0;
+
+	canvas->path.startIndex = 0;
+	canvas->path.count = 0;
+
+	canvas->primitiveCount = 0;
+	canvas->frameCounter++;
+}
+////////////////////////////////////////////////////////////
+
+//------------------------------------------------------------------------------------------
+//NOTE(martin): transform, viewport and clipping
+//------------------------------------------------------------------------------------------
+
+void mg_matrix_push(mg_mat2x3 matrix)
 {
-	mg_canvas_data* context = mg_canvas_ptr_from_handle(handle);
-	if(!context)
+	mg_canvas_data* canvas = __mgCurrentCanvas;
+	if(!canvas)
 	{
 		return;
 	}
-	mg_push_command(context, (mg_primitive){.cmd = MG_CMD_MATRIX_POP});
+	mg_push_command(canvas, (mg_primitive){.cmd = MG_CMD_MATRIX_PUSH, .matrix = matrix});
 }
-//-----------------------------------------------------------------------------------------------------------
-// Graphics attributes settings
-//-----------------------------------------------------------------------------------------------------------
 
-void mg_set_color(mg_canvas handle, mg_color color)
+void mg_matrix_pop()
 {
-	mg_canvas_data* context = mg_canvas_ptr_from_handle(handle);
-	if(!context)
+	mg_canvas_data* canvas = __mgCurrentCanvas;
+	if(!canvas)
 	{
 		return;
 	}
-	context->attributes.color = color;
+	mg_push_command(canvas, (mg_primitive){.cmd = MG_CMD_MATRIX_POP});
 }
 
-void mg_set_color_rgba(mg_canvas handle, f32 r, f32 g, f32 b, f32 a)
+void mg_clip_push(f32 x, f32 y, f32 w, f32 h)
 {
-	mg_set_color(handle, (mg_color){r, g, b, a});
-}
-
-void mg_set_width(mg_canvas handle, f32 width)
-{
-	mg_canvas_data* context = mg_canvas_ptr_from_handle(handle);
-	if(!context)
+	mg_canvas_data* canvas = __mgCurrentCanvas;
+	if(!canvas)
 	{
 		return;
 	}
-	context->attributes.width = width;
+	mg_push_command(canvas, (mg_primitive){.cmd = MG_CMD_CLIP_PUSH,
+	                                        .rect = (mp_rect){x, y, w, h}});
 }
 
-void mg_set_tolerance(mg_canvas handle, f32 tolerance)
+void mg_clip_pop()
 {
-	mg_canvas_data* context = mg_canvas_ptr_from_handle(handle);
-	if(!context)
+	mg_canvas_data* canvas = __mgCurrentCanvas;
+	if(!canvas)
 	{
 		return;
 	}
-	context->attributes.tolerance = tolerance;
+	mg_push_command(canvas, (mg_primitive){.cmd = MG_CMD_CLIP_POP});
 }
 
-void mg_set_joint(mg_canvas handle, mg_joint_type joint)
+//------------------------------------------------------------------------------------------
+//NOTE(martin): graphics attributes setting/getting
+//------------------------------------------------------------------------------------------
+void mg_set_color(mg_color color)
 {
-	mg_canvas_data* context = mg_canvas_ptr_from_handle(handle);
-	if(!context)
+	mg_canvas_data* canvas = __mgCurrentCanvas;
+	if(!canvas)
 	{
 		return;
 	}
-	context->attributes.joint = joint;
+	canvas->attributes.color = color;
 }
 
-void mg_set_max_joint_excursion(mg_canvas handle, f32 maxJointExcursion)
+void mg_set_color_rgba(f32 r, f32 g, f32 b, f32 a)
 {
-	mg_canvas_data* context = mg_canvas_ptr_from_handle(handle);
-	if(!context)
+	mg_set_color((mg_color){r, g, b, a});
+}
+
+void mg_set_width(f32 width)
+{
+	mg_canvas_data* canvas = __mgCurrentCanvas;
+	if(!canvas)
 	{
 		return;
 	}
-	context->attributes.maxJointExcursion = maxJointExcursion;
+	canvas->attributes.width = width;
 }
 
-void mg_set_cap(mg_canvas handle, mg_cap_type cap)
+void mg_set_tolerance(f32 tolerance)
 {
-	mg_canvas_data* context = mg_canvas_ptr_from_handle(handle);
-	if(!context)
+	mg_canvas_data* canvas = __mgCurrentCanvas;
+	if(!canvas)
 	{
 		return;
 	}
-	context->attributes.cap = cap;
+	canvas->attributes.tolerance = tolerance;
 }
 
-void mg_set_font(mg_canvas handle, mg_font font)
+void mg_set_joint(mg_joint_type joint)
 {
-	mg_canvas_data* context = mg_canvas_ptr_from_handle(handle);
-	if(!context)
+	mg_canvas_data* canvas = __mgCurrentCanvas;
+	if(!canvas)
 	{
 		return;
 	}
-	context->attributes.font = font;
+	canvas->attributes.joint = joint;
 }
 
-void mg_set_font_size(mg_canvas handle, f32 fontSize)
+void mg_set_max_joint_excursion(f32 maxJointExcursion)
 {
-	mg_canvas_data* context = mg_canvas_ptr_from_handle(handle);
-	if(!context)
+	mg_canvas_data* canvas = __mgCurrentCanvas;
+	if(!canvas)
 	{
 		return;
 	}
-	context->attributes.fontSize = fontSize;
+	canvas->attributes.maxJointExcursion = maxJointExcursion;
 }
 
-void mg_set_text_flip(mg_canvas handle, bool flip)
+void mg_set_cap(mg_cap_type cap)
 {
-	mg_canvas_data* context = mg_canvas_ptr_from_handle(handle);
-	if(!context)
+	mg_canvas_data* canvas = __mgCurrentCanvas;
+	if(!canvas)
 	{
 		return;
 	}
-	context->textFlip = flip;
+	canvas->attributes.cap = cap;
 }
 
+void mg_set_font(mg_font font)
+{
+	mg_canvas_data* canvas = __mgCurrentCanvas;
+	if(!canvas)
+	{
+		return;
+	}
+	canvas->attributes.font = font;
+}
 
+void mg_set_font_size(f32 fontSize)
+{
+	mg_canvas_data* canvas = __mgCurrentCanvas;
+	if(!canvas)
+	{
+		return;
+	}
+	canvas->attributes.fontSize = fontSize;
+}
 
-mg_color mg_get_color(mg_canvas handle)
+void mg_set_text_flip(bool flip)
+{
+	mg_canvas_data* canvas = __mgCurrentCanvas;
+	if(!canvas)
+	{
+		return;
+	}
+	canvas->textFlip = flip;
+}
+
+mg_color mg_get_color()
 {
 	mg_color color = {0};
-	mg_canvas_data* context = mg_canvas_ptr_from_handle(handle);
-	if(context)
+	mg_canvas_data* canvas = __mgCurrentCanvas;
+	if(canvas)
 	{
-		color = context->attributes.color;
+		color = canvas->attributes.color;
 	}
 	return(color);
 }
 
-f32 mg_get_width(mg_canvas handle)
+f32 mg_get_width()
 {
 	f32 width = 0;
-	mg_canvas_data* context = mg_canvas_ptr_from_handle(handle);
-	if(context)
+	mg_canvas_data* canvas = __mgCurrentCanvas;
+	if(canvas)
 	{
-		width = context->attributes.width;
+		width = canvas->attributes.width;
 	}
 	return(width);
 }
 
-f32 mg_get_tolerance(mg_canvas handle)
+f32 mg_get_tolerance()
 {
 	f32 tolerance = 0;
-	mg_canvas_data* context = mg_canvas_ptr_from_handle(handle);
-	if(context)
+	mg_canvas_data* canvas = __mgCurrentCanvas;
+	if(canvas)
 	{
-		tolerance = context->attributes.tolerance;
+		tolerance = canvas->attributes.tolerance;
 	}
 	return(tolerance);
 }
 
-mg_joint_type mg_get_joint(mg_canvas handle)
+mg_joint_type mg_get_joint()
 {
 	mg_joint_type joint = 0;
-	mg_canvas_data* context = mg_canvas_ptr_from_handle(handle);
-	if(context)
+	mg_canvas_data* canvas = __mgCurrentCanvas;
+	if(canvas)
 	{
-		joint = context->attributes.joint;
+		joint = canvas->attributes.joint;
 	}
 	return(joint);
 }
 
-f32 mg_get_max_joint_excursion(mg_canvas handle)
+f32 mg_get_max_joint_excursion()
 {
 	f32 maxJointExcursion = 0;
-	mg_canvas_data* context = mg_canvas_ptr_from_handle(handle);
-	if(context)
+	mg_canvas_data* canvas = __mgCurrentCanvas;
+	if(canvas)
 	{
-		maxJointExcursion = context->attributes.maxJointExcursion;
+		maxJointExcursion = canvas->attributes.maxJointExcursion;
 	}
 	return(maxJointExcursion);
 }
 
-mg_cap_type mg_get_cap(mg_canvas handle)
+mg_cap_type mg_get_cap()
 {
 	mg_cap_type cap = 0;
-	mg_canvas_data* context = mg_canvas_ptr_from_handle(handle);
-	if(context)
+	mg_canvas_data* canvas = __mgCurrentCanvas;
+	if(canvas)
 	{
-		cap = context->attributes.cap;
+		cap = canvas->attributes.cap;
 	}
 	return(cap);
 }
 
-mg_font mg_get_font(mg_canvas handle)
+mg_font mg_get_font()
 {
 	mg_font font = mg_font_nil();
-	mg_canvas_data* context = mg_canvas_ptr_from_handle(handle);
-	if(context)
+	mg_canvas_data* canvas = __mgCurrentCanvas;
+	if(canvas)
 	{
-		font = context->attributes.font;
+		font = canvas->attributes.font;
 	}
 	return(font);
 }
 
-f32 mg_get_font_size(mg_canvas handle)
+f32 mg_get_font_size()
 {
 	f32 fontSize = 0;
-	mg_canvas_data* context = mg_canvas_ptr_from_handle(handle);
-	if(context)
+	mg_canvas_data* canvas = __mgCurrentCanvas;
+	if(canvas)
 	{
-		fontSize = context->attributes.fontSize;
+		fontSize = canvas->attributes.fontSize;
 	}
 	return(fontSize);
 }
 
-bool mg_get_text_flip(mg_canvas handle)
+bool mg_get_text_flip()
 {
 	bool flip = false;
-	mg_canvas_data* context = mg_canvas_ptr_from_handle(handle);
-	if(context)
+	mg_canvas_data* canvas = __mgCurrentCanvas;
+	if(canvas)
 	{
-		flip = context->textFlip;
+		flip = canvas->textFlip;
 	}
 	return(flip);
 }
 
-
-
-//-----------------------------------------------------------------------------------------------------------
-// Clip
-//-----------------------------------------------------------------------------------------------------------
-
-void mg_clip_push(mg_canvas handle, f32 x, f32 y, f32 w, f32 h)
+//------------------------------------------------------------------------------------------
+//NOTE(martin): path construction
+//------------------------------------------------------------------------------------------
+vec2 mg_get_position()
 {
-	mg_canvas_data* context = mg_canvas_ptr_from_handle(handle);
-	if(!context)
-	{
-		return;
-	}
-	mg_push_command(context, (mg_primitive){.cmd = MG_CMD_CLIP_PUSH,
-	                                        .rect = (mp_rect){x, y, w, h}});
-}
-
-void mg_clip_pop(mg_canvas handle)
-{
-	mg_canvas_data* context = mg_canvas_ptr_from_handle(handle);
-	if(!context)
-	{
-		return;
-	}
-	mg_push_command(context, (mg_primitive){.cmd = MG_CMD_CLIP_POP});
-}
-
-//-----------------------------------------------------------------------------------------------------------
-// Path construction
-//-----------------------------------------------------------------------------------------------------------
-
-void mg_new_path(mg_canvas_data* context)
-{
-	context->path.startIndex += context->path.count;
-	context->path.count = 0;
-	context->subPathStartPoint = context->subPathLastPoint;
-	context->path.startPoint = context->subPathStartPoint;
-}
-
-void mg_clear(mg_canvas handle)
-{
-	mg_canvas_data* context = mg_canvas_ptr_from_handle(handle);
-	if(!context)
-	{
-		return;
-	}
-	mg_push_command(context, (mg_primitive){.cmd = MG_CMD_CLEAR, .attributes = context->attributes});
-}
-
-vec2 mg_get_position(mg_canvas handle)
-{
-	mg_canvas_data* context = mg_canvas_ptr_from_handle(handle);
-	if(!context)
+	mg_canvas_data* canvas = __mgCurrentCanvas;
+	if(!canvas)
 	{
 		return((vec2){0, 0});
 	}
-	return(context->subPathLastPoint);
+	return(canvas->subPathLastPoint);
 }
 
-void mg_path_push_elements(mg_canvas_data* context, u32 count, mg_path_elt* elements)
+void mg_move_to(f32 x, f32 y)
 {
-	ASSERT(context->path.count + context->path.startIndex + count <= MG_MAX_PATH_ELEMENT_COUNT);
-	memcpy(context->pathElements + context->path.startIndex + context->path.count, elements, count*sizeof(mg_path_elt));
-	context->path.count += count;
-}
-
-void mg_path_push_element(mg_canvas_data* context, mg_path_elt elt)
-{
-	mg_path_push_elements(context, 1, &elt);
-}
-
-
-
-void mg_move_to(mg_canvas handle, f32 x, f32 y)
-{
-	mg_canvas_data* context = mg_canvas_ptr_from_handle(handle);
-	if(!context)
+	mg_canvas_data* canvas = __mgCurrentCanvas;
+	if(!canvas)
 	{
 		return;
 	}
-	mg_path_push_element(context, ((mg_path_elt){.type = MG_PATH_MOVE, .p[0] = {x, y}}));
-	context->subPathStartPoint = (vec2){x, y};
-	context->subPathLastPoint = (vec2){x, y};
+	mg_path_push_element(canvas, ((mg_path_elt){.type = MG_PATH_MOVE, .p[0] = {x, y}}));
+	canvas->subPathStartPoint = (vec2){x, y};
+	canvas->subPathLastPoint = (vec2){x, y};
 }
 
-void mg_line_to(mg_canvas handle, f32 x, f32 y)
+void mg_line_to(f32 x, f32 y)
 {
-	mg_canvas_data* context = mg_canvas_ptr_from_handle(handle);
-	if(!context)
+	mg_canvas_data* canvas = __mgCurrentCanvas;
+	if(!canvas)
 	{
 		return;
 	}
-	mg_path_push_element(context, ((mg_path_elt){.type = MG_PATH_LINE, .p[0] = {x, y}}));
-	context->subPathLastPoint = (vec2){x, y};
+	mg_path_push_element(canvas, ((mg_path_elt){.type = MG_PATH_LINE, .p[0] = {x, y}}));
+	canvas->subPathLastPoint = (vec2){x, y};
 }
 
-void mg_quadratic_to(mg_canvas handle, f32 x1, f32 y1, f32 x2, f32 y2)
+void mg_quadratic_to(f32 x1, f32 y1, f32 x2, f32 y2)
 {
-	mg_canvas_data* context = mg_canvas_ptr_from_handle(handle);
-	if(!context)
+	mg_canvas_data* canvas = __mgCurrentCanvas;
+	if(!canvas)
 	{
 		return;
 	}
-	mg_path_push_element(context, ((mg_path_elt){.type = MG_PATH_QUADRATIC, .p = {{x1, y1}, {x2, y2}}}));
-	context->subPathLastPoint = (vec2){x2, y2};
+	mg_path_push_element(canvas, ((mg_path_elt){.type = MG_PATH_QUADRATIC, .p = {{x1, y1}, {x2, y2}}}));
+	canvas->subPathLastPoint = (vec2){x2, y2};
 }
 
-void mg_cubic_to(mg_canvas handle, f32 x1, f32 y1, f32 x2, f32 y2, f32 x3, f32 y3)
+void mg_cubic_to(f32 x1, f32 y1, f32 x2, f32 y2, f32 x3, f32 y3)
 {
-	mg_canvas_data* context = mg_canvas_ptr_from_handle(handle);
-	if(!context)
+	mg_canvas_data* canvas = __mgCurrentCanvas;
+	if(!canvas)
 	{
 		return;
 	}
-	mg_path_push_element(context, ((mg_path_elt){.type = MG_PATH_CUBIC, .p = {{x1, y1}, {x2, y2}, {x3, y3}}}));
-	context->subPathLastPoint = (vec2){x3, y3};
+	mg_path_push_element(canvas, ((mg_path_elt){.type = MG_PATH_CUBIC, .p = {{x1, y1}, {x2, y2}, {x3, y3}}}));
+	canvas->subPathLastPoint = (vec2){x3, y3};
 }
 
-void mg_close_path(mg_canvas handle)
+void mg_close_path()
 {
-	mg_canvas_data* context = mg_canvas_ptr_from_handle(handle);
-	if(!context)
+	mg_canvas_data* canvas = __mgCurrentCanvas;
+	if(!canvas)
 	{
 		return;
 	}
-	if(  context->subPathStartPoint.x != context->subPathLastPoint.x
-	  || context->subPathStartPoint.y != context->subPathLastPoint.y)
+	if(  canvas->subPathStartPoint.x != canvas->subPathLastPoint.x
+	  || canvas->subPathStartPoint.y != canvas->subPathLastPoint.y)
 	{
-		mg_line_to(handle, context->subPathStartPoint.x, context->subPathStartPoint.y);
+		mg_line_to(canvas->subPathStartPoint.x, canvas->subPathStartPoint.y);
 	}
-	context->subPathStartPoint = context->subPathLastPoint;
+	canvas->subPathStartPoint = canvas->subPathLastPoint;
 }
 
-mp_rect mg_glyph_outlines_from_font_info(mg_canvas_data* context, mg_font_info* fontInfo, str32 glyphIndices)
+mp_rect mg_glyph_outlines_from_font_data(mg_font_data* fontData, str32 glyphIndices)
 {
-	mg_canvas contextHandle = mg_canvas_handle_from_ptr(context);
+	mg_canvas_data* canvas = __mgCurrentCanvas;
 
-	f32 startX = context->subPathLastPoint.x;
-	f32 startY = context->subPathLastPoint.y;
+	f32 startX = canvas->subPathLastPoint.x;
+	f32 startY = canvas->subPathLastPoint.y;
 	f32 maxWidth = 0;
 
-	f32 scale = context->attributes.fontSize/fontInfo->unitsPerEm;
+	f32 scale = canvas->attributes.fontSize/fontData->unitsPerEm;
 
 	for(int i=0; i<glyphIndices.len; i++)
 	{
 		u32 glyphIndex = glyphIndices.ptr[i];
 
-		f32 xOffset = context->subPathLastPoint.x;
-		f32 yOffset = context->subPathLastPoint.y;
-		f32 flip = context->textFlip ? -1 : 1;
+		f32 xOffset = canvas->subPathLastPoint.x;
+		f32 yOffset = canvas->subPathLastPoint.y;
+		f32 flip = canvas->textFlip ? -1 : 1;
 
-		if(!glyphIndex || glyphIndex >= fontInfo->glyphCount)
+		if(!glyphIndex || glyphIndex >= fontData->glyphCount)
 		{
 			LOG_WARNING("code point is not present in font ranges\n");
 			//NOTE(martin): try to find the replacement character
-			glyphIndex = mg_font_get_glyph_index_from_font_info(fontInfo, 0xfffd);
+			glyphIndex = mg_font_get_glyph_index_from_font_data(fontData, 0xfffd);
 			if(!glyphIndex)
 			{
 				//NOTE(martin): could not find replacement glyph, try to get an 'x' to get a somewhat correct width
 				//              to render an empty rectangle. Otherwise just render with the max font width
-				f32 boxWidth = fontInfo->extents.width * 0.8;
-				f32 xBearing = fontInfo->extents.width * 0.1;
-				f32 xAdvance = fontInfo->extents.width;
+				f32 boxWidth = fontData->extents.width * 0.8;
+				f32 xBearing = fontData->extents.width * 0.1;
+				f32 xAdvance = fontData->extents.width;
 
-				glyphIndex = mg_font_get_glyph_index_from_font_info(fontInfo, 'x');
+				glyphIndex = mg_font_get_glyph_index_from_font_data(fontData, 'x');
 				if(glyphIndex)
 				{
-					mg_glyph_info* glyph = &(fontInfo->glyphs[glyphIndex]);
+					mg_glyph_data* glyph = &(fontData->glyphs[glyphIndex]);
 					boxWidth = glyph->extents.width;
 					xBearing = glyph->extents.xBearing;
 					xAdvance = glyph->extents.xAdvance;
 				}
-				f32 oldStrokeWidth = context->attributes.width;
+				f32 oldStrokeWidth = canvas->attributes.width;
 
-				mg_set_width(contextHandle, boxWidth*0.005);
-				mg_rectangle_stroke(contextHandle,
-				                    xOffset + xBearing * scale,
+				mg_set_width(boxWidth*0.005);
+				mg_rectangle_stroke(xOffset + xBearing * scale,
 				                    yOffset,
 				                    boxWidth * scale * flip,
-				                    fontInfo->extents.capHeight*scale);
+				                    fontData->extents.capHeight*scale);
 
-				mg_set_width(contextHandle, oldStrokeWidth);
-				mg_move_to(contextHandle, xOffset + xAdvance * scale, yOffset);
+				mg_set_width(oldStrokeWidth);
+				mg_move_to(xOffset + xAdvance * scale, yOffset);
 				maxWidth = maximum(maxWidth, xOffset + xAdvance*scale - startX);
 				continue;
 			}
 		}
 
-		mg_glyph_info* glyph = mg_font_get_glyph_info(fontInfo, glyphIndex);
+		mg_glyph_data* glyph = mg_font_get_glyph_data(fontData, glyphIndex);
 
-		mg_path_push_elements(context, glyph->pathDescriptor.count, fontInfo->outlines + glyph->pathDescriptor.startIndex);
+		mg_path_push_elements(canvas, glyph->pathDescriptor.count, fontData->outlines + glyph->pathDescriptor.startIndex);
 
-		mg_path_elt* elements = context->pathElements + context->path.count + context->path.startIndex - glyph->pathDescriptor.count;
+		mg_path_elt* elements = canvas->pathElements + canvas->path.count + canvas->path.startIndex - glyph->pathDescriptor.count;
 		for(int eltIndex=0; eltIndex<glyph->pathDescriptor.count; eltIndex++)
 		{
 			for(int pIndex = 0; pIndex < 3; pIndex++)
@@ -4011,207 +3337,216 @@ mp_rect mg_glyph_outlines_from_font_info(mg_canvas_data* context, mg_font_info* 
 				elements[eltIndex].p[pIndex].y = elements[eltIndex].p[pIndex].y * scale * flip + yOffset;
 			}
 		}
-		mg_move_to(contextHandle, xOffset + scale*glyph->extents.xAdvance, yOffset);
+		mg_move_to(xOffset + scale*glyph->extents.xAdvance, yOffset);
 
 		maxWidth = maximum(maxWidth, xOffset + scale*glyph->extents.xAdvance - startX);
 	}
-	f32 lineHeight = (fontInfo->extents.ascent + fontInfo->extents.descent)*scale;
-	mp_rect box = {startX, startY, maxWidth, context->subPathLastPoint.y - startY + lineHeight };
+	f32 lineHeight = (fontData->extents.ascent + fontData->extents.descent)*scale;
+	mp_rect box = {startX, startY, maxWidth, canvas->subPathLastPoint.y - startY + lineHeight };
 	return(box);
 }
 
-mp_rect mg_glyph_outlines(mg_canvas handle, str32 glyphIndices)
+mp_rect mg_glyph_outlines(str32 glyphIndices)
 {
-	mg_canvas_data* context = mg_canvas_ptr_from_handle(handle);
-	if(!context)
+	mg_canvas_data* canvas = __mgCurrentCanvas;
+	if(!canvas)
 	{
 		return((mp_rect){0});
 	}
-	mg_font_info* fontInfo = mg_get_font_info(context->attributes.font);
-	if(!fontInfo)
+	mg_font_data* fontData = mg_font_data_from_handle(canvas->attributes.font);
+	if(!fontData)
 	{
 		return((mp_rect){0});
 	}
-	return(mg_glyph_outlines_from_font_info(context, fontInfo, glyphIndices));
+	return(mg_glyph_outlines_from_font_data(fontData, glyphIndices));
 }
 
-void mg_codepoints_outlines(mg_canvas handle, str32 codePoints)
+void mg_codepoints_outlines(str32 codePoints)
 {
-	mg_canvas_data* context = mg_canvas_ptr_from_handle(handle);
-	if(!context)
+	mg_canvas_data* canvas = __mgCurrentCanvas;
+	if(!canvas)
 	{
 		return;
 	}
-	mg_font_info* fontInfo = mg_get_font_info(context->attributes.font);
-	if(!fontInfo)
+	mg_font_data* fontData = mg_font_data_from_handle(canvas->attributes.font);
+	if(!fontData)
 	{
 		return;
 	}
 
-	str32 glyphIndices = mg_font_push_glyph_indices(context->attributes.font, mem_scratch(), codePoints);
-	mg_glyph_outlines_from_font_info(context, fontInfo, glyphIndices);
+	str32 glyphIndices = mg_font_push_glyph_indices(canvas->attributes.font, mem_scratch(), codePoints);
+	mg_glyph_outlines_from_font_data(fontData, glyphIndices);
 }
 
-void mg_text_outlines(mg_canvas handle, str8 text)
+void mg_text_outlines(str8 text)
 {
-	mg_canvas_data* context = mg_canvas_ptr_from_handle(handle);
-	if(!context)
+	mg_canvas_data* canvas = __mgCurrentCanvas;
+	if(!canvas)
 	{
 		return;
 	}
-	mg_font_info* fontInfo = mg_get_font_info(context->attributes.font);
-	if(!fontInfo)
+	mg_font_data* fontData = mg_font_data_from_handle(canvas->attributes.font);
+	if(!fontData)
 	{
 		return;
 	}
 
 	mem_arena* scratch = mem_scratch();
 	str32 codePoints = utf8_push_to_codepoints(scratch, text);
-	str32 glyphIndices = mg_font_push_glyph_indices(context->attributes.font, scratch, codePoints);
+	str32 glyphIndices = mg_font_push_glyph_indices(canvas->attributes.font, scratch, codePoints);
 
-	mg_glyph_outlines_from_font_info(context, fontInfo, glyphIndices);
+	mg_glyph_outlines_from_font_data(fontData, glyphIndices);
 }
 
-//-----------------------------------------------------------------------------------------------------------
-// Path primitives commands
-//-----------------------------------------------------------------------------------------------------------
+//------------------------------------------------------------------------------------------
+//NOTE(martin): clear/fill/stroke
+//------------------------------------------------------------------------------------------
 
-void mg_fill(mg_canvas handle)
+void mg_clear()
 {
-	mg_canvas_data* context = mg_canvas_ptr_from_handle(handle);
-	if(!context)
+	mg_canvas_data* canvas = __mgCurrentCanvas;
+	if(!canvas)
 	{
 		return;
 	}
-	if(context->path.count)
-	{
-		mg_push_command(context, ((mg_primitive){.cmd = MG_CMD_FILL, .path = context->path, .attributes = context->attributes}));
-		mg_new_path(context);
-	}
+	mg_push_command(canvas, (mg_primitive){.cmd = MG_CMD_CLEAR, .attributes = canvas->attributes});
 }
 
-void mg_stroke(mg_canvas handle)
+void mg_fill()
 {
-	mg_canvas_data* context = mg_canvas_ptr_from_handle(handle);
-	if(!context)
+	mg_canvas_data* canvas = __mgCurrentCanvas;
+	if(!canvas)
 	{
 		return;
 	}
-	if(context->path.count)
+	if(canvas->path.count)
 	{
-		mg_push_command(context, ((mg_primitive){.cmd = MG_CMD_STROKE, .path = context->path, .attributes = context->attributes}));
-		mg_new_path(context);
+		mg_push_command(canvas, ((mg_primitive){.cmd = MG_CMD_FILL, .path = canvas->path, .attributes = canvas->attributes}));
+		mg_new_path(canvas);
 	}
 }
 
-//-----------------------------------------------------------------------------------------------------------
-// Fast shapes primitives commands
-//-----------------------------------------------------------------------------------------------------------
-
-void mg_rectangle_fill(mg_canvas handle, f32 x, f32 y, f32 w, f32 h)
+void mg_stroke()
 {
-//	DEBUG_ASSERT(w>=0 && h>=0);
-
-	mg_canvas_data* context = mg_canvas_ptr_from_handle(handle);
-	if(!context)
+	mg_canvas_data* canvas = __mgCurrentCanvas;
+	if(!canvas)
 	{
 		return;
 	}
-	mg_push_command(context,
-	             ((mg_primitive){.cmd = MG_CMD_RECT_FILL, .rect = (mp_rect){x, y, w, h}, .attributes = context->attributes}));
+	if(canvas->path.count)
+	{
+		mg_push_command(canvas, ((mg_primitive){.cmd = MG_CMD_STROKE, .path = canvas->path, .attributes = canvas->attributes}));
+		mg_new_path(canvas);
+	}
 }
-void mg_rectangle_stroke(mg_canvas handle, f32 x, f32 y, f32 w, f32 h)
+
+//------------------------------------------------------------------------------------------
+//NOTE(martin): 'fast' shapes primitives
+//------------------------------------------------------------------------------------------
+void mg_rectangle_fill(f32 x, f32 y, f32 w, f32 h)
 {
 //	DEBUG_ASSERT(w>=0 && h>=0);
 
-	mg_canvas_data* context = mg_canvas_ptr_from_handle(handle);
-	if(!context)
+	mg_canvas_data* canvas = __mgCurrentCanvas;
+	if(!canvas)
 	{
 		return;
 	}
-	mg_push_command(context,
-	             ((mg_primitive){.cmd = MG_CMD_RECT_STROKE, .rect = (mp_rect){x, y, w, h}, .attributes = context->attributes}));
+	mg_push_command(canvas,
+	             ((mg_primitive){.cmd = MG_CMD_RECT_FILL, .rect = (mp_rect){x, y, w, h}, .attributes = canvas->attributes}));
+}
+void mg_rectangle_stroke(f32 x, f32 y, f32 w, f32 h)
+{
+//	DEBUG_ASSERT(w>=0 && h>=0);
+
+	mg_canvas_data* canvas = __mgCurrentCanvas;
+	if(!canvas)
+	{
+		return;
+	}
+	mg_push_command(canvas,
+	             ((mg_primitive){.cmd = MG_CMD_RECT_STROKE, .rect = (mp_rect){x, y, w, h}, .attributes = canvas->attributes}));
 }
 
-void mg_rounded_rectangle_fill(mg_canvas handle, f32 x, f32 y, f32 w, f32 h, f32 r)
+void mg_rounded_rectangle_fill(f32 x, f32 y, f32 w, f32 h, f32 r)
 {
-	mg_canvas_data* context = mg_canvas_ptr_from_handle(handle);
-	if(!context)
+	mg_canvas_data* canvas = __mgCurrentCanvas;
+	if(!canvas)
 	{
 		return;
 	}
-	mg_push_command(context,
+	mg_push_command(canvas,
 	             ((mg_primitive){.cmd = MG_CMD_ROUND_RECT_FILL,
 		                              .roundedRect = (mg_rounded_rect){x, y, w, h, r},
-					      .attributes = context->attributes}));
+					      .attributes = canvas->attributes}));
 }
 
-void mg_rounded_rectangle_stroke(mg_canvas handle, f32 x, f32 y, f32 w, f32 h, f32 r)
+void mg_rounded_rectangle_stroke(f32 x, f32 y, f32 w, f32 h, f32 r)
 {
-	mg_canvas_data* context = mg_canvas_ptr_from_handle(handle);
-	if(!context)
+	mg_canvas_data* canvas = __mgCurrentCanvas;
+	if(!canvas)
 	{
 		return;
 	}
-	mg_push_command(context,
+	mg_push_command(canvas,
 	             ((mg_primitive){.cmd = MG_CMD_ROUND_RECT_STROKE,
 		                              .roundedRect = (mg_rounded_rect){x, y, w, h, r},
-					      .attributes = context->attributes}));
+					      .attributes = canvas->attributes}));
 }
 
-void mg_circle_fill(mg_canvas handle, f32 x, f32 y, f32 r)
+void mg_circle_fill(f32 x, f32 y, f32 r)
 {
-	mg_canvas_data* context = mg_canvas_ptr_from_handle(handle);
-	if(!context)
+	mg_canvas_data* canvas = __mgCurrentCanvas;
+	if(!canvas)
 	{
 		return;
 	}
-	mg_push_command(context,
+	mg_push_command(canvas,
 	             ((mg_primitive){.cmd = MG_CMD_ELLIPSE_FILL,
 		                              .rect = (mp_rect){x-r, y-r, 2*r, 2*r},
-					      .attributes = context->attributes}));
+					      .attributes = canvas->attributes}));
 }
 
-void mg_circle_stroke(mg_canvas handle, f32 x, f32 y, f32 r)
+void mg_circle_stroke(f32 x, f32 y, f32 r)
 {
-	mg_canvas_data* context = mg_canvas_ptr_from_handle(handle);
-	if(!context)
+	mg_canvas_data* canvas = __mgCurrentCanvas;
+	if(!canvas)
 	{
 		return;
 	}
-	mg_push_command(context,
+	mg_push_command(canvas,
 	             ((mg_primitive){.cmd = MG_CMD_ELLIPSE_STROKE,
 		                              .rect = (mp_rect){x-r, y-r, 2*r, 2*r},
-					      .attributes = context->attributes}));
+					      .attributes = canvas->attributes}));
 }
 
-void mg_ellipse_fill(mg_canvas handle, f32 x, f32 y, f32 rx, f32 ry)
+void mg_ellipse_fill(f32 x, f32 y, f32 rx, f32 ry)
 {
-	mg_canvas_data* context = mg_canvas_ptr_from_handle(handle);
-	if(!context)
+	mg_canvas_data* canvas = __mgCurrentCanvas;
+	if(!canvas)
 	{
 		return;
 	}
-	mg_push_command(context,
+	mg_push_command(canvas,
 	             ((mg_primitive){.cmd = MG_CMD_ELLIPSE_FILL,
 		                              .rect = (mp_rect){x-rx, y-ry, 2*rx, 2*ry},
-					      .attributes = context->attributes}));
+					      .attributes = canvas->attributes}));
 }
 
-void mg_ellipse_stroke(mg_canvas handle, f32 x, f32 y, f32 rx, f32 ry)
+void mg_ellipse_stroke(f32 x, f32 y, f32 rx, f32 ry)
 {
-	mg_canvas_data* context = mg_canvas_ptr_from_handle(handle);
-	if(!context)
+	mg_canvas_data* canvas = __mgCurrentCanvas;
+	if(!canvas)
 	{
 		return;
 	}
-	mg_push_command(context,
+	mg_push_command(canvas,
 	             ((mg_primitive){.cmd = MG_CMD_ELLIPSE_STROKE,
 		                              .rect = (mp_rect){x-rx, y-ry, 2*rx, 2*ry},
-					      .attributes = context->attributes}));
+					      .attributes = canvas->attributes}));
 }
 
-void mg_arc(mg_canvas handle, f32 x, f32 y, f32 r, f32 arcAngle, f32 startAngle)
+void mg_arc(f32 x, f32 y, f32 r, f32 arcAngle, f32 startAngle)
 {
 	f32 endAngle = startAngle + arcAngle;
 
@@ -4240,8 +3575,8 @@ void mg_arc(mg_canvas handle, f32 x, f32 y, f32 r, f32 arcAngle, f32 startAngle)
 		v2 = mg_mat2x3_mul(t, v2);
 		v3 = mg_mat2x3_mul(t, v3);
 
-		mg_move_to(handle, v0.x, v0.y);
-		mg_cubic_to(handle, v1.x, v1.y, v2.x, v2.y, v3.x, v3.y);
+		mg_move_to(v0.x, v0.y);
+		mg_cubic_to(v1.x, v1.y, v2.x, v2.y, v3.x, v3.y);
 
 		startAngle += smallAngle;
 	}
@@ -4251,47 +3586,20 @@ void mg_arc(mg_canvas handle, f32 x, f32 y, f32 r, f32 arcAngle, f32 startAngle)
 //NOTE(martin): images
 //------------------------------------------------------------------------------------------
 
-#define STB_IMAGE_IMPLEMENTATION
-#include"stb_image.h"
-
-mg_image mg_image_nil() { return((mg_image){0}); }
-
-bool mg_image_equal(mg_image a, mg_image b)
-{
-	return(a.h == b.h);
-}
-
-mg_image mg_image_handle_from_ptr(mg_canvas_data* canvas, mg_image_data* imageData)
-{
-	DEBUG_ASSERT(  (imageData - canvas->images) >= 0
-	            && (imageData - canvas->images) < MG_MAX_CONTEXTS);
-
-	u64 h = ((u64)(imageData - canvas->images))<<32
-	       |((u64)(imageData->generation));
-	return((mg_image){.h = h});
-}
-
-void mg_image_data_recycle(mg_canvas_data* canvas, mg_image_data* image)
-{
-	image->generation++;
-	ListPush(&canvas->imageFreeList, &image->listElt);
-}
-
-mg_image mg_image_create_from_rgba8(mg_canvas handle, u32 width, u32 height, u8* bytes)
+mg_image mg_image_create_from_rgba8(u32 width, u32 height, u8* bytes)
 {
 	mg_image image = mg_image_nil();
-
-	mg_canvas_data* context = mg_canvas_ptr_from_handle(handle);
-	if(context)
+	mg_canvas_data* canvas = __mgCurrentCanvas;
+	if(canvas)
 	{
-		mg_image_data* imageData = ListPopEntry(&context->imageFreeList, mg_image_data, listElt);
+		mg_image_data* imageData = ListPopEntry(&canvas->imageFreeList, mg_image_data, listElt);
 		if(!imageData)
 		{
-			if(context->imageNextIndex < MG_IMAGE_MAX_COUNT)
+			if(canvas->imageNextIndex < MG_IMAGE_MAX_COUNT)
 			{
-				imageData = &context->images[context->imageNextIndex];
+				imageData = &canvas->images[canvas->imageNextIndex];
 				imageData->generation = 1;
-				context->imageNextIndex++;
+				canvas->imageNextIndex++;
 			}
 			else
 			{
@@ -4301,35 +3609,35 @@ mg_image mg_image_create_from_rgba8(mg_canvas handle, u32 width, u32 height, u8*
 
 		if(imageData)
 		{
-			if(context->atlasPos.x + width >= MG_ATLAS_SIZE)
+			if(canvas->atlasPos.x + width >= MG_ATLAS_SIZE)
 			{
-				context->atlasPos.x = 0;
-				context->atlasPos.y += context->atlasLineHeight;
+				canvas->atlasPos.x = 0;
+				canvas->atlasPos.y += canvas->atlasLineHeight;
 			}
-			if(context->atlasPos.x + width < MG_ATLAS_SIZE
-			  && context->atlasPos.y + height < MG_ATLAS_SIZE)
+			if(canvas->atlasPos.x + width < MG_ATLAS_SIZE
+			  && canvas->atlasPos.y + height < MG_ATLAS_SIZE)
 			{
-				imageData->rect = (mp_rect){context->atlasPos.x,
-				                            context->atlasPos.y,
+				imageData->rect = (mp_rect){canvas->atlasPos.x,
+				                            canvas->atlasPos.y,
 				                            width,
 				                            height};
 
-				context->atlasPos.x += width;
-				context->atlasLineHeight = maximum(context->atlasLineHeight, height);
+				canvas->atlasPos.x += width;
+				canvas->atlasLineHeight = maximum(canvas->atlasLineHeight, height);
 
-				context->painter->atlasUpload(context->painter, imageData->rect, bytes);
-				image = mg_image_handle_from_ptr(context, imageData);
+				canvas->backend->atlasUpload(canvas->backend, imageData->rect, bytes);
+				image = mg_image_handle_from_ptr(canvas, imageData);
 			}
 			else
 			{
-				mg_image_data_recycle(context, imageData);
+				mg_image_data_recycle(canvas, imageData);
 			}
 		}
 	}
 	return(image);
 }
 
-mg_image mg_image_create_from_data(mg_canvas canvas, str8 data, bool flip)
+mg_image mg_image_create_from_data(str8 data, bool flip)
 {
 	mg_image image = mg_image_nil();
 	int width, height, channels;
@@ -4338,13 +3646,13 @@ mg_image mg_image_create_from_data(mg_canvas canvas, str8 data, bool flip)
 	u8* pixels = stbi_load_from_memory((u8*)data.ptr, data.len, &width, &height, &channels, 4);
 	if(pixels)
 	{
-		image = mg_image_create_from_rgba8(canvas, width, height, pixels);
+		image = mg_image_create_from_rgba8(width, height, pixels);
 		free(pixels);
 	}
 	return(image);
 }
 
-mg_image mg_image_create_from_file(mg_canvas canvas, str8 path, bool flip)
+mg_image mg_image_create_from_file(str8 path, bool flip)
 {
 	mg_image image = mg_image_nil();
 	int width, height, channels;
@@ -4355,29 +3663,37 @@ mg_image mg_image_create_from_file(mg_canvas canvas, str8 path, bool flip)
 	u8* pixels = stbi_load(cpath, &width, &height, &channels, 4);
 	if(pixels)
 	{
-		image = mg_image_create_from_rgba8(canvas, width, height, pixels);
+		image = mg_image_create_from_rgba8(width, height, pixels);
 		free(pixels);
 	}
 	return(image);
 }
 
-void mg_image_destroy(mg_canvas handle, mg_image image)
+void mg_image_destroy(mg_image image)
 {
-	mg_canvas_data* context = mg_canvas_ptr_from_handle(handle);
-	if(!context)
+	mg_canvas_data* canvas = __mgCurrentCanvas;
+	if(canvas)
 	{
-		return;
+		mg_image_data* imageData = mg_image_ptr_from_handle(canvas, image);
+		if(imageData)
+		{
+			//TODO free atlas area
+			mg_image_data_recycle(canvas, imageData);
+		}
 	}
-	//TODO invalidate image handle, maybe free atlas area
 }
 
-vec2 mg_image_size(mg_canvas handle, mg_image image)
+vec2 mg_image_size(mg_image image)
 {
+	///////////////////////////////////////////////////////////////////////////
+	//WARN: this supposes the current canvas is that for which the image was created
+	///////////////////////////////////////////////////////////////////////////
+
 	vec2 size = {0};
-	mg_canvas_data* context = mg_canvas_ptr_from_handle(handle);
-	if(context)
+	mg_canvas_data* canvas = __mgCurrentCanvas;
+	if(canvas)
 	{
-		mg_image_data* imageData = mg_image_ptr_from_handle(context, image);
+		mg_image_data* imageData = mg_image_ptr_from_handle(canvas, image);
 		if(imageData)
 		{
 			size = (vec2){imageData->rect.w, imageData->rect.h};
@@ -4386,35 +3702,35 @@ vec2 mg_image_size(mg_canvas handle, mg_image image)
 	return(size);
 }
 
-void mg_image_draw(mg_canvas handle, mg_image image, mp_rect rect)
+void mg_image_draw(mg_image image, mp_rect rect)
 {
-	mg_canvas_data* context = mg_canvas_ptr_from_handle(handle);
-	if(!context)
+	mg_canvas_data* canvas = __mgCurrentCanvas;
+	if(!canvas)
 	{
 		return;
 	}
 	mg_primitive primitive = {.cmd = MG_CMD_IMAGE_DRAW,
 	                          .rect = (mp_rect){rect.x, rect.y, rect.w, rect.h},
-	                          .attributes = context->attributes};
+	                          .attributes = canvas->attributes};
 	primitive.attributes.image = image;
-
-	mg_push_command(context, primitive);
+	mg_push_command(canvas, primitive);
 }
 
-void mg_rounded_image_draw(mg_canvas handle, mg_image image, mp_rect rect, f32 roundness)
+void mg_rounded_image_draw(mg_image image, mp_rect rect, f32 roundness)
 {
-	mg_canvas_data* context = mg_canvas_ptr_from_handle(handle);
-	if(!context)
+	mg_canvas_data* canvas = __mgCurrentCanvas;
+	if(!canvas)
 	{
 		return;
 	}
 	mg_primitive primitive = {.cmd = MG_CMD_ROUNDED_IMAGE_DRAW,
 	                          .roundedRect = {rect.x, rect.y, rect.w, rect.h, roundness},
-	                          .attributes = context->attributes};
+	                          .attributes = canvas->attributes};
 	primitive.attributes.image = image;
 
-	mg_push_command(context, primitive);
+	mg_push_command(canvas, primitive);
 }
+
 
 
 #undef LOG_SUBSYSTEM

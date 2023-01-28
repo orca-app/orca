@@ -21,7 +21,7 @@ static const u32 MP_METAL_MAX_DRAWABLES_IN_FLIGHT = 3;
 
 typedef struct mg_metal_surface
 {
-	mg_surface_info interface;
+	mg_surface_data interface;
 
 	// permanent metal resources
 	NSView* view;
@@ -36,6 +36,18 @@ typedef struct mg_metal_surface
 	dispatch_semaphore_t drawableSemaphore;
 
 } mg_metal_surface;
+
+void mg_metal_surface_destroy(mg_surface_data* interface)
+{
+	mg_metal_surface* surface = (mg_metal_surface*)interface;
+
+	@autoreleasepool
+	{
+		[surface->commandQueue release];
+		[surface->metalLayer release];
+		[surface->device release];
+	}
+}
 
 void mg_metal_surface_acquire_drawable_and_command_buffer(mg_metal_surface* surface)
 {@autoreleasepool{
@@ -80,7 +92,7 @@ void mg_metal_surface_acquire_drawable_and_command_buffer(mg_metal_surface* surf
 	[surface->drawable retain];
 }}
 
-void mg_metal_surface_prepare(mg_surface_info* interface)
+void mg_metal_surface_prepare(mg_surface_data* interface)
 {
 	mg_metal_surface* surface = (mg_metal_surface*)interface;
 	mg_metal_surface_acquire_drawable_and_command_buffer(surface);
@@ -97,7 +109,7 @@ void mg_metal_surface_prepare(mg_surface_info* interface)
 	}
 }
 
-void mg_metal_surface_present(mg_surface_info* interface)
+void mg_metal_surface_present(mg_surface_data* interface)
 {
 	mg_metal_surface* surface = (mg_metal_surface*)interface;
 	@autoreleasepool
@@ -115,34 +127,32 @@ void mg_metal_surface_present(mg_surface_info* interface)
 	}
 }
 
-void mg_metal_surface_destroy(mg_surface_info* interface)
+void mg_metal_surface_set_frame(mg_surface_data* interface, mp_rect frame)
 {
 	mg_metal_surface* surface = (mg_metal_surface*)interface;
 
 	@autoreleasepool
 	{
-		[surface->commandQueue release];
-		[surface->metalLayer release];
-		[surface->device release];
-	}
-}
-
-void mg_metal_surface_resize(mg_surface_info* interface, u32 width, u32 height)
-{
-	mg_metal_surface* surface = (mg_metal_surface*)interface;
-
-	@autoreleasepool
-	{
-		//TODO(martin): actually detect scaling
-		CGRect frame = {{0, 0}, {width, height}};
-		[surface->view setFrame: frame];
+		CGRect cgFrame = {{frame.x, frame.y}, {frame.w, frame.h}};
+		[surface->view setFrame: cgFrame];
 		f32 scale = surface->metalLayer.contentsScale;
-		CGSize drawableSize = (CGSize){.width = width * scale, .height = height * scale};
+		CGSize drawableSize = (CGSize){.width = frame.w * scale, .height = frame.h * scale};
 		surface->metalLayer.drawableSize = drawableSize;
 	}
 }
 
-void mg_metal_surface_set_hidden(mg_surface_info* interface, bool hidden)
+mp_rect mg_metal_surface_get_frame(mg_surface_data* interface)
+{
+	mg_metal_surface* surface = (mg_metal_surface*)interface;
+
+	@autoreleasepool
+	{
+		CGRect frame = surface->view.frame;
+		return((mp_rect){frame.origin.x, frame.origin.y, frame.size.width, frame.size.height});
+	}
+}
+
+void mg_metal_surface_set_hidden(mg_surface_data* interface, bool hidden)
 {
 	mg_metal_surface* surface = (mg_metal_surface*)interface;
 	@autoreleasepool
@@ -154,24 +164,16 @@ void mg_metal_surface_set_hidden(mg_surface_info* interface, bool hidden)
 	}
 }
 
-vec2 mg_metal_surface_get_size(mg_surface_info* interface)
+bool mg_metal_surface_get_hidden(mg_surface_data* interface)
 {
 	mg_metal_surface* surface = (mg_metal_surface*)interface;
-
 	@autoreleasepool
 	{
-		//TODO(martin): actually detect scaling
-		CGRect frame = surface->view.frame;
-		return((vec2){frame.size.width, frame.size.height});
+		return([surface->metalLayer isHidden]);
 	}
 }
 
-void* mg_metal_surface_get_os_resource(mg_surface_info* interface)
-{
-	mg_metal_surface* surface = (mg_metal_surface*)interface;
-	return((void*)surface->metalLayer);
-}
-
+//TODO fix that according to real scaling, depending on the monitor settings
 static const f32 MG_METAL_SURFACE_CONTENTS_SCALING = 2;
 
 mg_surface mg_metal_surface_create_for_window(mp_window window)
@@ -190,10 +192,10 @@ mg_surface mg_metal_surface_create_for_window(mp_window window)
 		surface->interface.destroy = mg_metal_surface_destroy;
 		surface->interface.prepare = mg_metal_surface_prepare;
 		surface->interface.present = mg_metal_surface_present;
-		surface->interface.resize = mg_metal_surface_resize;
+		surface->interface.getFrame = mg_metal_surface_get_frame;
+		surface->interface.setFrame = mg_metal_surface_set_frame;
+		surface->interface.getHidden = mg_metal_surface_get_hidden;
 		surface->interface.setHidden = mg_metal_surface_set_hidden;
-		surface->interface.getSize = mg_metal_surface_get_size;
-		surface->interface.getOSResource = mg_metal_surface_get_os_resource;
 
 		@autoreleasepool
 		{
@@ -246,14 +248,14 @@ mg_surface mg_metal_surface_create_for_window(mp_window window)
 			surface->commandBuffer = nil;
 		}
 
-		mg_surface handle = mg_surface_alloc_handle((mg_surface_info*)surface);
+		mg_surface handle = mg_surface_alloc_handle((mg_surface_data*)surface);
 		return(handle);
 	}
 }
 
 void* mg_metal_surface_layer(mg_surface surface)
 {
-	mg_surface_info* surfaceData = mg_surface_ptr_from_handle(surface);
+	mg_surface_data* surfaceData = mg_surface_data_from_handle(surface);
 	if(surfaceData && surfaceData->backend == MG_BACKEND_METAL)
 	{
 		mg_metal_surface* metalSurface = (mg_metal_surface*)surfaceData;
@@ -267,7 +269,7 @@ void* mg_metal_surface_layer(mg_surface surface)
 
 void* mg_metal_surface_drawable(mg_surface surface)
 {
-	mg_surface_info* surfaceData = mg_surface_ptr_from_handle(surface);
+	mg_surface_data* surfaceData = mg_surface_data_from_handle(surface);
 	if(surfaceData && surfaceData->backend == MG_BACKEND_METAL)
 	{
 		mg_metal_surface* metalSurface = (mg_metal_surface*)surfaceData;
@@ -281,7 +283,7 @@ void* mg_metal_surface_drawable(mg_surface surface)
 
 void* mg_metal_surface_command_buffer(mg_surface surface)
 {
-	mg_surface_info* surfaceData = mg_surface_ptr_from_handle(surface);
+	mg_surface_data* surfaceData = mg_surface_data_from_handle(surface);
 	if(surfaceData && surfaceData->backend == MG_BACKEND_METAL)
 	{
 		mg_metal_surface* metalSurface = (mg_metal_surface*)surfaceData;

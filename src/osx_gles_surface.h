@@ -19,8 +19,9 @@
 
 typedef struct mg_gles_surface
 {
-	mg_surface_info interface;
+	mg_surface_data interface;
 
+	NSView* view;
 	CALayer* layer;
 	EGLDisplay eglDisplay;
 	EGLConfig eglConfig;

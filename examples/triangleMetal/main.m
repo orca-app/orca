@@ -36,8 +36,7 @@ int main()
 	mp_window window = mp_window_create(rect, "test", 0);
 
 	//NOTE: create surface
-	mg_init();
-	mg_surface surface = mg_surface_create_for_window(window, MG_BACKEND_METAL);
+	mg_surface surface = mg_metal_surface_create_for_window(window);
 
 	//NOTE(martin): load the library
 	id<MTLDevice> device = MTLCreateSystemDefaultDevice();

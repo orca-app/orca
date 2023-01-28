@@ -2,7 +2,7 @@
 *
 *	@file: graphics_internal.h
 *	@author: Martin Fouilleul
-*	@date: 01/08/2022
+*	@date: 23/01/2023
 *	@revision:
 *
 *****************************************************************/
@@ -15,73 +15,183 @@
 extern "C" {
 #endif
 
-//---------------------------------------------------------------------------------------------
-// Surfaces
-//---------------------------------------------------------------------------------------------
-typedef struct mg_surface_info mg_surface_info;
+typedef enum { MG_BACKEND_DUMMY,
+               MG_BACKEND_METAL,
+               MG_BACKEND_GL,
+               MG_BACKEND_GLES,
+               //...
+             } mg_backend_id;
 
-typedef void (*mg_surface_prepare_proc)(mg_surface_info* surface);
-typedef void (*mg_surface_present_proc)(mg_surface_info* surface);
-typedef void (*mg_surface_resize_proc)(mg_surface_info* surface, u32 width, u32 height);
-typedef void (*mg_surface_set_hidden_proc)(mg_surface_info* surface, bool hidden);
-typedef vec2 (*mg_surface_get_size_proc)(mg_surface_info* surface);
-typedef void (*mg_surface_destroy_proc)(mg_surface_info* surface);
-typedef void* (*mg_surface_get_os_resource_proc)(mg_surface_info* surface);
+typedef struct mg_surface_data mg_surface_data;
 
-typedef struct mg_surface_info
+typedef void (*mg_surface_destroy_proc)(mg_surface_data* surface);
+typedef void (*mg_surface_prepare_proc)(mg_surface_data* surface);
+typedef void (*mg_surface_present_proc)(mg_surface_data* surface);
+typedef mp_rect (*mg_surface_get_frame_proc)(mg_surface_data* surface);
+typedef void (*mg_surface_set_frame_proc)(mg_surface_data* surface, mp_rect frame);
+typedef bool (*mg_surface_get_hidden_proc)(mg_surface_data* surface);
+typedef void (*mg_surface_set_hidden_proc)(mg_surface_data* surface, bool hidden);
+
+typedef struct mg_surface_data
 {
 	mg_backend_id backend;
+
 	mg_surface_destroy_proc destroy;
 	mg_surface_prepare_proc prepare;
 	mg_surface_present_proc present;
-	mg_surface_resize_proc resize;
+	mg_surface_get_frame_proc getFrame;
+	mg_surface_set_frame_proc setFrame;
+	mg_surface_get_hidden_proc getHidden;
 	mg_surface_set_hidden_proc setHidden;
-	mg_surface_get_size_proc getSize;
-	mg_surface_get_os_resource_proc getOSResource;
 
-} mg_surface_info;
+} mg_surface_data;
 
-mg_surface mg_surface_alloc_handle(mg_surface_info* surface);
-mg_surface_info* mg_surface_ptr_from_handle(mg_surface handle);
-//---------------------------------------------------------------------------------------------
-// Surface servers
-//---------------------------------------------------------------------------------------------
-typedef struct mg_surface_server_info mg_surface_server_info;
+mg_surface mg_surface_alloc_handle(mg_surface_data* surface);
+mg_surface_data* mg_surface_data_from_handle(mg_surface handle);
 
-typedef void (*mg_surface_server_destroy_proc)(mg_surface_server_info* server);
-typedef mg_surface_server_id (*mg_surface_server_get_id_proc)(mg_surface_server_info* server);
+//---------------------------------------------------------------
+// graphics structs
+//---------------------------------------------------------------
+typedef enum { MG_PATH_MOVE,
+               MG_PATH_LINE,
+	           MG_PATH_QUADRATIC,
+	           MG_PATH_CUBIC } mg_path_elt_type;
 
-typedef struct mg_surface_server_info
+typedef struct mg_path_elt
 {
-	mg_surface_server_destroy_proc destroy;
-	mg_surface_server_get_id_proc getID;
+	mg_path_elt_type type;
+	vec2 p[3];
 
-} mg_surface_server_info;
+} mg_path_elt;
 
-mg_surface_server mg_surface_server_alloc_handle(mg_surface_server_info* server);
-
-//---------------------------------------------------------------------------------------------
-// Surface clients
-//---------------------------------------------------------------------------------------------
-typedef struct mg_surface_client_info mg_surface_client_info;
-
-typedef void (*mg_surface_client_destroy_proc)(mg_surface_client_info* client);
-typedef void (*mg_surface_client_attach_proc)(mg_surface_client_info* client);
-typedef void (*mg_surface_client_detach_proc)(mg_surface_client_info* client);
-
-typedef struct mg_surface_client_info
+typedef struct mg_path_descriptor
 {
-	mg_surface_client_destroy_proc destroy;
-	mg_surface_client_attach_proc attach;
-	mg_surface_client_detach_proc detach;
+	u32 startIndex;
+	u32 count;
+	vec2 startPoint;
 
-} mg_surface_client_info;
+} mg_path_descriptor;
 
-mg_surface_client mg_surface_client_alloc_handle(mg_surface_client_info* client);
-//---------------------------------------------------------------------------------------------
-// vertex layout
-//---------------------------------------------------------------------------------------------
-typedef struct mgc_vertex_layout
+typedef struct mg_attributes
+{
+	f32 width;
+	f32 tolerance;
+	mg_color color;
+	mg_joint_type joint;
+	f32 maxJointExcursion;
+	mg_cap_type cap;
+
+	mg_font font;
+	f32 fontSize;
+
+	mg_image image;
+
+	mp_rect clip;
+
+} mg_attributes;
+
+typedef struct mg_rounded_rect
+{
+	f32 x;
+	f32 y;
+	f32 w;
+	f32 h;
+	f32 r;
+} mg_rounded_rect;
+
+typedef enum { MG_CMD_CLEAR = 0,
+	       MG_CMD_FILL,
+	       MG_CMD_STROKE,
+	       MG_CMD_RECT_FILL,
+	       MG_CMD_RECT_STROKE,
+	       MG_CMD_ROUND_RECT_FILL,
+	       MG_CMD_ROUND_RECT_STROKE,
+	       MG_CMD_ELLIPSE_FILL,
+	       MG_CMD_ELLIPSE_STROKE,
+	       MG_CMD_JUMP,
+	       MG_CMD_MATRIX_PUSH,
+	       MG_CMD_MATRIX_POP,
+	       MG_CMD_CLIP_PUSH,
+	       MG_CMD_CLIP_POP,
+	       MG_CMD_IMAGE_DRAW,
+	       MG_CMD_ROUNDED_IMAGE_DRAW,
+	     } mg_primitive_cmd;
+
+typedef struct mg_primitive
+{
+	mg_primitive_cmd cmd;
+	mg_attributes attributes;
+
+	union
+	{
+		mg_path_descriptor path;
+		mp_rect rect;
+		mg_rounded_rect roundedRect;
+		utf32 codePoint;
+		u32 jump;
+		mg_mat2x3 matrix;
+	};
+
+} mg_primitive;
+
+typedef struct mg_glyph_map_entry
+{
+	unicode_range range;
+	u32 firstGlyphIndex;
+
+} mg_glyph_map_entry;
+
+typedef struct mg_glyph_data
+{
+	bool exists;
+	utf32 codePoint;
+	mg_path_descriptor pathDescriptor;
+	mg_text_extents extents;
+	//...
+
+} mg_glyph_data;
+
+enum
+{
+	MG_STREAM_MAX_COUNT = 128,
+	MG_IMAGE_MAX_COUNT = 128
+};
+
+typedef struct mg_image_data
+{
+	list_elt listElt;
+	u32 generation;
+
+	mp_rect rect;
+
+} mg_image_data;
+
+enum
+{
+	MG_MATRIX_STACK_MAX_DEPTH = 64,
+	MG_CLIP_STACK_MAX_DEPTH = 64,
+	MG_MAX_PATH_ELEMENT_COUNT = 2<<20,
+	MG_MAX_PRIMITIVE_COUNT = 8<<10
+};
+
+typedef struct mg_font_data
+{
+	list_elt freeListElt;
+	u32 generation;
+
+	u32 rangeCount;
+	u32 glyphCount;
+	u32 outlineCount;
+	mg_glyph_map_entry* glyphMap;
+	mg_glyph_data*      glyphs;
+	mg_path_elt* outlines;
+
+	f32 unitsPerEm;
+	mg_font_extents extents;
+
+} mg_font_data;
+
+typedef struct mg_vertex_layout
 {
 	u32 maxVertexCount;
 	u32 maxIndexCount;
@@ -107,26 +217,71 @@ typedef struct mgc_vertex_layout
 	void* indexBuffer;
 	u32 indexStride;
 
-} mgc_vertex_layout;
+} mg_vertex_layout;
 
-typedef struct mg_canvas_painter mg_canvas_painter;
-typedef void (*mgc_painter_destroy_proc)(mg_canvas_painter* painter);
-typedef void (*mgc_painter_draw_buffers_proc)(mg_canvas_painter* painter, u32 vertexCount, u32 indexCount, mg_color clearColor);
-typedef void (*mgc_painter_set_viewport_proc)(mg_canvas_painter* painter, mp_rect viewPort);
-typedef void (*mgc_painter_atlas_upload_proc)(mg_canvas_painter* painter, mp_rect rect, u8* bytes);
+typedef struct mg_canvas_backend mg_canvas_backend;
 
-typedef struct mg_canvas_painter
+typedef void (*mg_canvas_backend_destroy_proc)(mg_canvas_backend* backend);
+typedef void (*mg_canvas_backend_draw_buffers_proc)(mg_canvas_backend* backend, u32 vertexCount, u32 indexCount, mg_color clearColor);
+typedef void (*mg_canvas_backend_atlas_upload_proc)(mg_canvas_backend* backend, mp_rect rect, u8* bytes);
+
+typedef struct mg_canvas_backend
 {
-	mg_surface_info* surface;
-	mgc_vertex_layout vertexLayout;
-	mgc_painter_destroy_proc destroy;
-	mgc_painter_draw_buffers_proc drawBuffers;
-	mgc_painter_set_viewport_proc setViewPort;
-	mgc_painter_atlas_upload_proc atlasUpload;
+	mg_vertex_layout vertexLayout;
 
-} mg_canvas_painter;
+	mg_canvas_backend_destroy_proc destroy;
+	mg_canvas_backend_draw_buffers_proc drawBuffers;
+	mg_canvas_backend_atlas_upload_proc atlasUpload;
 
-#define MG_ATLAS_SIZE 8192
+} mg_canvas_backend;
+
+typedef struct mg_canvas_data
+{
+	list_elt freeListElt;
+	u32 generation;
+
+	u64 frameCounter;
+
+	mg_mat2x3 transform;
+	mp_rect clip;
+	mg_attributes attributes;
+	bool textFlip;
+
+	mg_path_elt pathElements[MG_MAX_PATH_ELEMENT_COUNT];
+	mg_path_descriptor path;
+	vec2 subPathStartPoint;
+	vec2 subPathLastPoint;
+
+	mg_mat2x3 matrixStack[MG_MATRIX_STACK_MAX_DEPTH];
+	u32 matrixStackSize;
+
+	mp_rect clipStack[MG_CLIP_STACK_MAX_DEPTH];
+	u32 clipStackSize;
+
+	u32 nextZIndex;
+	u32 primitiveCount;
+	mg_primitive primitives[MG_MAX_PRIMITIVE_COUNT];
+
+	u32 vertexCount;
+	u32 indexCount;
+
+	mg_image_data images[MG_IMAGE_MAX_COUNT];
+	u32 imageNextIndex;
+	list_info imageFreeList;
+
+	vec2 atlasPos;
+	u32 atlasLineHeight;
+	mg_image blankImage;
+
+	mg_canvas_backend* backend;
+
+} mg_canvas_data;
+
+enum
+{
+	MG_ATLAS_SIZE = 8192,
+};
+
 
 #ifdef __cplusplus
 } // extern "C"

@@ -46,6 +46,6 @@
 // graphics/ui layer
 //----------------------------------------------------------------
 #include"graphics.h"
-#include"ui.h"
+//#include"ui.h"
 
 #endif //__MILEPOST_H_

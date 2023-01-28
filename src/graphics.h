@@ -2,72 +2,33 @@
 *
 *	@file: graphics.h
 *	@author: Martin Fouilleul
-*	@date: 01/08/2022
+*	@date: 23/01/2023
 *	@revision:
 *
 *****************************************************************/
 #ifndef __GRAPHICS_H_
 #define __GRAPHICS_H_
 
-#include"mp_app.h"
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 //------------------------------------------------------------------------------------------
 //NOTE(martin): graphics surface
 //------------------------------------------------------------------------------------------
-
 typedef struct mg_surface { u64 h; } mg_surface;
-
-typedef enum { MG_BACKEND_DUMMY,
-               MG_BACKEND_METAL,
-               MG_BACKEND_GL,
-               MG_BACKEND_GLES,
-               //...
-             } mg_backend_id;
-
-void mg_init();
 
 mg_surface mg_surface_nil();
 bool mg_surface_is_nil(mg_surface surface);
-mg_surface mg_surface_create_for_window(mp_window window, mg_backend_id backend);
-mg_surface mg_surface_create_offscreen(mg_backend_id backend, u32 width, u32 height);
 
 void mg_surface_destroy(mg_surface surface);
-void* mg_surface_get_os_resource(mg_surface surface);
-
 void mg_surface_prepare(mg_surface surface);
 void mg_surface_present(mg_surface surface);
-
-void mg_surface_resize(mg_surface surface, int width, int height);
+mp_rect mg_surface_get_frame(mg_surface surface);
 void mg_surface_set_frame(mg_surface surface, mp_rect frame);
+bool mg_surface_get_hidden(mg_surface surface);
 void mg_surface_set_hidden(mg_surface surface, bool hidden);
 
-vec2 mg_surface_size(mg_surface surface);
-mp_rect mg_surface_frame(mg_surface surface);
 
 //------------------------------------------------------------------------------------------
-//NOTE(martin): graphics surface sharing
+//NOTE(martin): graphics canvas structs
 //------------------------------------------------------------------------------------------
-typedef void* mg_surface_server_id;
-
-typedef struct mg_surface_server { u64 h; } mg_surface_server;
-typedef struct mg_surface_client { u64 h; } mg_surface_client;
-
-mg_surface_server mg_surface_server_create(mg_surface surface);
-mg_surface_server mg_surface_server_create_native(void* p);
-void mg_surface_server_destroy(mg_surface_server server);
-mg_surface_server_id mg_surface_server_get_id(mg_surface_server server);
-
-mg_surface_client mg_surface_client_create(mg_surface_server_id id);
-void mg_surface_client_destroy(mg_surface_client client);
-
-//------------------------------------------------------------------------------------------
-//NOTE(martin): canvas drawing structs
-//------------------------------------------------------------------------------------------
-
 typedef struct mg_canvas { u64 h; } mg_canvas;
 typedef struct mg_stream { u64 h; } mg_stream;
 typedef struct mg_font { u64 h; } mg_font;
@@ -76,10 +37,6 @@ typedef struct mg_mat2x3
 {
 	f32 m[6];
 } mg_mat2x3;
-
-typedef enum { MG_COORDS_2D_DISPLAY_CENTER,
-               MG_COORDS_2D_DISPLAY_TOP_LEFT,
-               MG_COORDS_2D_DISPLAY_BOTTOM_LEFT } mg_coordinate_system;
 
 typedef struct mg_color
 {
@@ -126,19 +83,86 @@ typedef struct mg_text_extents
 } mg_text_extents;
 
 //------------------------------------------------------------------------------------------
-//NOTE(martin): canvas lifetime and command streams
+//NOTE(martin): graphics canvas
 //------------------------------------------------------------------------------------------
-mg_canvas mg_canvas_create(mg_surface surface, mp_rect viewPort);
-void mg_canvas_destroy(mg_canvas context);
-void mg_canvas_viewport(mg_canvas, mp_rect viewPort);
-void mg_canvas_flush(mg_canvas context);
 
-mg_stream mg_stream_create(mg_canvas context);
-mg_stream mg_stream_swap(mg_canvas context, mg_stream stream);
-void mg_stream_append(mg_canvas context, mg_stream stream);
+mg_canvas mg_canvas_create(mg_surface surface);
+void mg_canvas_destroy(mg_canvas canvas);
+mg_canvas mg_canvas_set_current(mg_canvas canvas);
+
+void mg_flush();
 
 //------------------------------------------------------------------------------------------
-//NOTE(martin): fonts management
+//NOTE(martin): transform, viewport and clipping
+//------------------------------------------------------------------------------------------
+void mg_viewport(mp_rect viewPort);
+
+void mg_matrix_push(mg_mat2x3 matrix);
+void mg_matrix_pop();
+
+void mg_clip_push(f32 x, f32 y, f32 w, f32 h);
+void mg_clip_pop();
+
+//------------------------------------------------------------------------------------------
+//NOTE(martin): graphics attributes setting/getting
+//------------------------------------------------------------------------------------------
+void mg_set_color(mg_color color);
+void mg_set_color_rgba(f32 r, f32 g, f32 b, f32 a);
+void mg_set_width(f32 width);
+void mg_set_tolerance(f32 tolerance);
+void mg_set_joint(mg_joint_type joint);
+void mg_set_max_joint_excursion(f32 maxJointExcursion);
+void mg_set_cap(mg_cap_type cap);
+void mg_set_font(mg_font font);
+void mg_set_font_size(f32 size);
+void mg_set_text_flip(bool flip);
+
+mg_color mg_get_color();
+f32 mg_get_width();
+f32 mg_get_tolerance();
+mg_joint_type mg_get_joint();
+f32 mg_get_max_joint_excursion();
+mg_cap_type mg_get_cap();
+mg_font mg_get_font();
+f32 mg_get_font_size();
+bool mg_get_text_flip();
+
+//------------------------------------------------------------------------------------------
+//NOTE(martin): path construction
+//------------------------------------------------------------------------------------------
+vec2 mg_get_position();
+void mg_move_to(f32 x, f32 y);
+void mg_line_to(f32 x, f32 y);
+void mg_quadratic_to(f32 x1, f32 y1, f32 x2, f32 y2);
+void mg_cubic_to(f32 x1, f32 y1, f32 x2, f32 y2, f32 x3, f32 y3);
+void mg_close_path();
+
+mp_rect mg_glyph_outlines(str32 glyphIndices);
+void mg_codepoints_outlines(str32 string);
+void mg_text_outlines(str8 string);
+
+//------------------------------------------------------------------------------------------
+//NOTE(martin): clear/fill/stroke
+//------------------------------------------------------------------------------------------
+void mg_clear();
+void mg_fill();
+void mg_stroke();
+
+//------------------------------------------------------------------------------------------
+//NOTE(martin): 'fast' shapes primitives
+//------------------------------------------------------------------------------------------
+void mg_rectangle_fill(f32 x, f32 y, f32 w, f32 h);
+void mg_rectangle_stroke(f32 x, f32 y, f32 w, f32 h);
+void mg_rounded_rectangle_fill(f32 x, f32 y, f32 w, f32 h, f32 r);
+void mg_rounded_rectangle_stroke(f32 x, f32 y, f32 w, f32 h, f32 r);
+void mg_ellipse_fill(f32 x, f32 y, f32 rx, f32 ry);
+void mg_ellipse_stroke(f32 x, f32 y, f32 rx, f32 ry);
+void mg_circle_fill(f32 x, f32 y, f32 r);
+void mg_circle_stroke(f32 x, f32 y, f32 r);
+void mg_arc(f32 x, f32 y, f32 r, f32 arcAngle, f32 startAngle);
+
+//------------------------------------------------------------------------------------------
+//NOTE(martin): fonts
 //------------------------------------------------------------------------------------------
 mg_font mg_font_nil();
 mg_font mg_font_create_from_memory(u32 size, byte* buffer, u32 rangeCount, unicode_range* ranges);
@@ -166,78 +190,6 @@ mp_rect mg_text_bounding_box_utf32(mg_font font, f32 fontSize, str32 text);
 mp_rect mg_text_bounding_box(mg_font font, f32 fontSize, str8 text);
 
 //------------------------------------------------------------------------------------------
-//NOTE(martin): matrix settings
-//------------------------------------------------------------------------------------------
-void mg_matrix_push(mg_canvas context, mg_mat2x3 matrix);
-void mg_matrix_pop(mg_canvas context);
-
-//------------------------------------------------------------------------------------------
-//NOTE(martin): clipping
-//------------------------------------------------------------------------------------------
-void mg_clip_push(mg_canvas context, f32 x, f32 y, f32 w, f32 h);
-void mg_clip_pop(mg_canvas context);
-
-//------------------------------------------------------------------------------------------
-//NOTE(martin): graphics attributes setting/getting
-//------------------------------------------------------------------------------------------
-void mg_set_clear_color(mg_canvas context, mg_color color);
-void mg_set_clear_color_rgba(mg_canvas context, f32 r, f32 g, f32 b, f32 a);
-void mg_set_color(mg_canvas context, mg_color color);
-void mg_set_color_rgba(mg_canvas context, f32 r, f32 g, f32 b, f32 a);
-void mg_set_width(mg_canvas context, f32 width);
-void mg_set_tolerance(mg_canvas context, f32 tolerance);
-void mg_set_joint(mg_canvas context, mg_joint_type joint);
-void mg_set_max_joint_excursion(mg_canvas context, f32 maxJointExcursion);
-void mg_set_cap(mg_canvas context, mg_cap_type cap);
-void mg_set_font(mg_canvas context, mg_font font);
-void mg_set_font_size(mg_canvas context, f32 size);
-void mg_set_text_flip(mg_canvas context, bool flip);
-
-mg_color mg_get_clear_color(mg_canvas context);
-mg_color mg_get_color(mg_canvas context);
-f32 mg_get_width(mg_canvas context);
-f32 mg_get_tolerance(mg_canvas context);
-mg_joint_type mg_get_joint(mg_canvas context);
-f32 mg_get_max_joint_excursion(mg_canvas context);
-mg_cap_type mg_get_cap(mg_canvas context);
-mg_font mg_get_font(mg_canvas context);
-f32 mg_get_font_size(mg_canvas context);
-bool mg_get_text_flip(mg_canvas context);
-//------------------------------------------------------------------------------------------
-//NOTE(martin): path construction
-//------------------------------------------------------------------------------------------
-vec2 mg_get_position(mg_canvas context);
-void mg_move_to(mg_canvas context, f32 x, f32 y);
-void mg_line_to(mg_canvas context, f32 x, f32 y);
-void mg_quadratic_to(mg_canvas context, f32 x1, f32 y1, f32 x2, f32 y2);
-void mg_cubic_to(mg_canvas context, f32 x1, f32 y1, f32 x2, f32 y2, f32 x3, f32 y3);
-void mg_close_path(mg_canvas context);
-
-mp_rect mg_glyph_outlines(mg_canvas context, str32 glyphIndices);
-void mg_codepoints_outlines(mg_canvas context, str32 string);
-void mg_text_outlines(mg_canvas context, str8 string);
-
-//------------------------------------------------------------------------------------------
-//NOTE(martin): clear/fill/stroke
-//------------------------------------------------------------------------------------------
-void mg_clear(mg_canvas context);
-void mg_fill(mg_canvas context);
-void mg_stroke(mg_canvas context);
-
-//------------------------------------------------------------------------------------------
-//NOTE(martin): 'fast' shapes primitives
-//------------------------------------------------------------------------------------------
-void mg_rectangle_fill(mg_canvas context, f32 x, f32 y, f32 w, f32 h);
-void mg_rectangle_stroke(mg_canvas context, f32 x, f32 y, f32 w, f32 h);
-void mg_rounded_rectangle_fill(mg_canvas context, f32 x, f32 y, f32 w, f32 h, f32 r);
-void mg_rounded_rectangle_stroke(mg_canvas context, f32 x, f32 y, f32 w, f32 h, f32 r);
-void mg_ellipse_fill(mg_canvas context, f32 x, f32 y, f32 rx, f32 ry);
-void mg_ellipse_stroke(mg_canvas context, f32 x, f32 y, f32 rx, f32 ry);
-void mg_circle_fill(mg_canvas context, f32 x, f32 y, f32 r);
-void mg_circle_stroke(mg_canvas context, f32 x, f32 y, f32 r);
-void mg_arc(mg_canvas handle, f32 x, f32 y, f32 r, f32 arcAngle, f32 startAngle);
-
-//------------------------------------------------------------------------------------------
 //NOTE(martin): images
 //------------------------------------------------------------------------------------------
 typedef struct mg_image { u64 h; } mg_image;
@@ -245,17 +197,14 @@ typedef struct mg_image { u64 h; } mg_image;
 mg_image mg_image_nil();
 bool mg_image_equal(mg_image a, mg_image b);
 
-mg_image mg_image_create_from_rgba8(mg_canvas canvas, u32 width, u32 height, u8* pixels);
-mg_image mg_image_create_from_data(mg_canvas canvas, str8 data, bool flip);
-mg_image mg_image_create_from_file(mg_canvas canvas, str8 path, bool flip);
+mg_image mg_image_create_from_rgba8(u32 width, u32 height, u8* pixels);
+mg_image mg_image_create_from_data(str8 data, bool flip);
+mg_image mg_image_create_from_file(str8 path, bool flip);
 
-void mg_image_drestroy(mg_canvas canvas, mg_image image);
+void mg_image_drestroy(mg_image image);
 
-vec2 mg_image_size(mg_canvas canvas, mg_image image);
-void mg_image_draw(mg_canvas canvas, mg_image image, mp_rect rect);
-void mg_rounded_image_draw(mg_canvas handle, mg_image image, mp_rect rect, f32 roundness);
+vec2 mg_image_size(mg_image image);
+void mg_image_draw(mg_image image, mp_rect rect);
+void mg_rounded_image_draw(mg_image image, mp_rect rect, f32 roundness);
 
-#ifdef __cplusplus
-} // extern "C"
-#endif
 #endif //__GRAPHICS_H_
