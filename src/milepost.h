@@ -39,7 +39,7 @@
 
 #if defined(OS_WIN64) || defined(OS_WIN32)
 	#define WIN32_GL_LOADER_API
-	#include"win32_gl_loader.h"
+//	#include"win32_gl_loader.h"
 #endif
 
 //----------------------------------------------------------------

@@ -17,27 +17,27 @@
 
 typedef struct mg_gl_surface
 {
-	mg_surface_info interface;
+	mg_surface_data interface;
 
 	HDC hDC;
 	HGLRC glContext;
 
 } mg_gl_surface;
 
-void mg_gl_surface_destroy(mg_surface_info* interface)
+void mg_gl_surface_destroy(mg_surface_data* interface)
 {
 	mg_gl_surface* surface = (mg_gl_surface*)interface;
 	//TODO
 }
 
-void mg_gl_surface_prepare(mg_surface_info* interface)
+void mg_gl_surface_prepare(mg_surface_data* interface)
 {
 	mg_gl_surface* surface = (mg_gl_surface*)interface;
 
 	wglMakeCurrent(surface->hDC, surface->glContext);
 }
 
-void mg_gl_surface_present(mg_surface_info* interface)
+void mg_gl_surface_present(mg_surface_data* interface)
 {
 	mg_gl_surface* surface = (mg_gl_surface*)interface;
 
@@ -212,7 +212,7 @@ mg_surface mg_gl_surface_create_for_window(mp_window window)
 		surface->hDC = hDC;
 		surface->glContext = glContext;
 
-		surfaceHandle = mg_surface_alloc_handle((mg_surface_info*)surface);
+		surfaceHandle = mg_surface_alloc_handle((mg_surface_data*)surface);
 	}
 
 	quit:;

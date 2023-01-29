@@ -13,6 +13,7 @@
 #include<math.h>
 
 #include"milepost.h"
+#include"win32_gl_surface.h"
 
 #define LOG_SUBSYSTEM "Main"
 
@@ -67,7 +68,7 @@ int main()
 	mp_window window = mp_window_create(rect, "test", 0);
 
 	//NOTE: create surface
-	mg_surface surface = mg_surface_create_for_window(window, MG_BACKEND_GL);
+	mg_surface surface = mg_gl_surface_create_for_window(window);
 
 	//NOTE: init shader and gl state
 	GLuint vao;
