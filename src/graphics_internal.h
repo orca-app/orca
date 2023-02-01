@@ -196,25 +196,25 @@ typedef struct mg_vertex_layout
 	u32 maxVertexCount;
 	u32 maxIndexCount;
 
-	void* posBuffer;
+	char* posBuffer;
 	u32 posStride;
 
-	void* cubicBuffer;
+	char* cubicBuffer;
 	u32 cubicStride;
 
-	void* uvBuffer;
+	char* uvBuffer;
 	u32 uvStride;
 
-	void* colorBuffer;
+	char* colorBuffer;
 	u32 colorStride;
 
-	void* zIndexBuffer;
+	char* zIndexBuffer;
 	u32 zIndexStride;
 
-	void* clipsBuffer;
-	u32 clipsStride;
+	char* clipBuffer;
+	u32 clipStride;
 
-	void* indexBuffer;
+	char* indexBuffer;
 	u32 indexStride;
 
 } mg_vertex_layout;

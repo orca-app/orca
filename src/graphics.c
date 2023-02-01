@@ -451,7 +451,7 @@ void mg_push_textured_vertex(mg_canvas_data* canvas, vec2 pos, vec4 cubic, vec2 
 	*(vec2*)(((char*)layout->uvBuffer) + offset*layout->uvStride) = uv;
 	*(mg_color*)(((char*)layout->colorBuffer) + offset*layout->colorStride) = color;
 	*(u32*)(((char*)layout->zIndexBuffer) + offset*layout->zIndexStride) = zIndex;
-	*(mp_rect*)(((char*)layout->clipsBuffer) + offset*layout->clipsStride) = canvas->clip;
+	*(mp_rect*)(((char*)layout->clipBuffer) + offset*layout->clipStride) = canvas->clip;
 
 	canvas->vertexCount++;
 }
@@ -468,7 +468,9 @@ int* mg_reserve_indices(mg_canvas_data* canvas, u32 indexCount)
 {
 	mg_vertex_layout* layout = &canvas->backend->vertexLayout;
 
+	//TODO: do something here...
 	ASSERT(canvas->indexCount + indexCount < layout->maxIndexCount);
+
 	int* base = ((int*)layout->indexBuffer) + canvas->indexCount;
 	canvas->indexCount += indexCount;
 	return(base);
@@ -2010,12 +2012,11 @@ void mg_render_ellipse_fill_with_z_index(mg_canvas_data* canvas,
 {
 	//NOTE(martin): draw a filled ellipse by drawing a diamond and 4 corners,
 	//              approximating an arc by a precomputed bezier curve
+	f32 rx = rect.w/2;
+	f32 ry = rect.h/2;
 
 	u32 baseIndex = mg_vertices_base_index(canvas);
 	i32* indices = mg_reserve_indices(canvas, 6);
-
-	f32 rx = rect.w/2;
-	f32 ry = rect.h/2;
 
 	//NOTE(martin): inner diamond
 	vec2 points[4] = {{rect.x, rect.y + ry},
@@ -2605,6 +2606,10 @@ mp_rect mg_text_bounding_box(mg_font font, f32 fontSize, str8 text)
 	mg_canvas_backend* mg_metal_canvas_create(mg_surface surface);
 #endif
 
+#ifdef MG_IMPLEMENTS_BACKEND_GLES
+	mg_canvas_backend* mg_gles_canvas_create(mg_surface surface);
+#endif
+
 mg_canvas mg_canvas_create(mg_surface surface)
 {
 	mg_canvas canvas = mg_canvas_nil();
@@ -2617,6 +2622,12 @@ mg_canvas mg_canvas_create(mg_surface surface)
 		#ifdef MG_IMPLEMENTS_BACKEND_METAL
 			case MG_BACKEND_METAL:
 				backend = mg_metal_canvas_create(surface);
+				break;
+		#endif
+
+		#ifdef MG_IMPLEMENTS_BACKEND_GLES
+			case MG_BACKEND_GLES:
+				backend = mg_gles_canvas_create(surface);
 				break;
 		#endif
 

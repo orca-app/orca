@@ -141,8 +141,8 @@ typedef struct mp_app
 
 	mp_input_state inputState;
 
-	mp_key_utf8 keyLabels[256];
-	int keyCodes[256];
+	mp_key_utf8 keyLabels[512];
+	int keyCodes[512];
 	int nativeKeys[MP_KEY_COUNT];
 
 	MP_PLATFORM_APP_DATA

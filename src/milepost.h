@@ -40,7 +40,16 @@
 #if defined(OS_WIN64) || defined(OS_WIN32)
 	#define WIN32_GL_LOADER_API
 //	#include"win32_gl_loader.h"
+
+	#if MG_IMPLEMENTS_BACKEND_GLES
+		#include"win32_gles_surface.h"
+	#endif
 #endif
+
+#if MG_IMPLEMENTS_BACKEND_METAL
+#include"metal_surface.h"
+#endif
+
 
 //----------------------------------------------------------------
 // graphics/ui layer

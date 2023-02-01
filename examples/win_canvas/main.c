@@ -41,6 +41,8 @@ int main()
 	mp_window_bring_to_front(window);
 	mp_window_focus(window);
 
+	f32 dx = 17.000029, dy = 0;
+
 	while(!mp_should_quit())
 	{
 		mp_pump_events(0);
@@ -63,58 +65,34 @@ int main()
 					       event.frame.rect.h);
 				} break;
 
-				case MP_EVENT_WINDOW_MOVE:
-				{
-					printf("moved, rect = {%f, %f, %f, %f}\n",
-					       event.frame.rect.x,
-					       event.frame.rect.y,
-					       event.frame.rect.w,
-					       event.frame.rect.h);
-				} break;
-
-				case MP_EVENT_MOUSE_MOVE:
-				{
-					printf("mouse moved, pos = {%f, %f}, delta = {%f, %f}\n",
-					       event.move.x,
-					       event.move.y,
-					       event.move.deltaX,
-					       event.move.deltaY);
-				} break;
-
-				case MP_EVENT_MOUSE_WHEEL:
-				{
-					printf("mouse wheel, delta = {%f, %f}\n",
-					       event.move.deltaX,
-					       event.move.deltaY);
-				} break;
-
-				case MP_EVENT_MOUSE_ENTER:
-				{
-					printf("mouse enter\n");
-				} break;
-
-				case MP_EVENT_MOUSE_LEAVE:
-				{
-					printf("mouse leave\n");
-				} break;
-
-				case MP_EVENT_MOUSE_BUTTON:
-				{
-					printf("mouse button %i: %i\n",
-					       event.key.code,
-					       event.key.action == MP_KEY_PRESS ? 1 : 0);
-				} break;
-
 				case MP_EVENT_KEYBOARD_KEY:
 				{
 					printf("key %i: %s\n",
 					        event.key.code,
 					        event.key.action == MP_KEY_PRESS ? "press" : (event.key.action == MP_KEY_RELEASE ? "release" : "repeat"));
-				} break;
-
-				case MP_EVENT_KEYBOARD_CHAR:
-				{
-					printf("entered char %s\n", event.character.sequence);
+					if(event.key.action == MP_KEY_PRESS || event.key.action == MP_KEY_REPEAT)
+					{
+						if(event.key.code == MP_KEY_LEFT)
+						{
+							printf("left\n");
+							dx-=0.1;
+						}
+						else if(event.key.code == MP_KEY_RIGHT)
+						{
+							printf("right\n");
+							dx+=0.1;
+						}
+						else if(event.key.code == MP_KEY_UP)
+						{
+							printf("up\n");
+							dy+=0.1;
+						}
+						else if(event.key.code == MP_KEY_DOWN)
+						{
+							printf("down\n");
+							dy-=0.1;
+						}
+					}
 				} break;
 
 				default:
@@ -123,25 +101,30 @@ int main()
 		}
 
 		mg_surface_prepare(surface);
+
+			printf("dx = %f, dy = %f\n", dx, dy);
+
 			// background
 			mg_set_color_rgba(1, 0, 1, 1);
 			mg_clear();
-
+/*
 			// head
 			mg_set_color_rgba(1, 1, 0, 1);
-			mg_circle_fill(400, 300, 200);
+			mg_circle_fill(dx+400, dy+300, 200);
 
 			// smile
-			mg_set_color_rgba(1, 0, 0, 1);
+			mg_set_color_rgba(0, 0, 0, 1);
 
 			mg_set_width(20);
-			mg_move_to(300, 200);
-			mg_cubic_to(350, 150, 450, 150, 500, 200);
+			mg_move_to(dx+300, dy+200);
+			mg_cubic_to(dx+350, dy+150, dx+450, dy+150, dx+500, dy+200);
 			mg_stroke();
 
 			// eyes
-			mg_ellipse_fill(330, 350, 30, 50);
-			mg_ellipse_fill(470, 350, 30, 50);
+			mg_ellipse_fill(dx+330, dy+350, 30, 50);
+			mg_ellipse_fill(dx+470, dy+350, 30, 50);
+*/
+			mg_rectangle_fill((int)(dx + 200), 200, (int)(dy+300), (int)(dy+300));
 
 			mg_flush();
 		mg_surface_present(surface);

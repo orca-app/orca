@@ -6,7 +6,7 @@
 *	@revision:
 *
 *****************************************************************/
-#include<GLES3/gl32.h>
+#include<GLES3/gl31.h>
 #define EGL_EGLEXT_PROTOTYPES
 #include<EGL/egl.h>
 #include<EGL/eglext.h>
@@ -108,7 +108,7 @@ mg_surface mg_gles_surface_create_for_window(mp_window window)
 		eglBindAPI(EGL_OPENGL_ES_API);
 		EGLint contextAttributes[] = {
 			EGL_CONTEXT_MAJOR_VERSION_KHR, 3,
-			EGL_CONTEXT_MINOR_VERSION_KHR, 0, //NOTE: Angle can't create a GLES 3.1 context on macOS
+			EGL_CONTEXT_MINOR_VERSION_KHR, 1, //NOTE: Angle can't create a GLES 3.1 context on macOS
 			EGL_CONTEXT_BIND_GENERATES_RESOURCE_CHROMIUM, EGL_TRUE,
 			EGL_CONTEXT_CLIENT_ARRAYS_ENABLED_ANGLE, EGL_TRUE,
 			EGL_CONTEXT_OPENGL_BACKWARDS_COMPATIBLE_ANGLE, EGL_FALSE,

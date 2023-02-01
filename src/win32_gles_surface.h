@@ -9,6 +9,9 @@
 #ifndef __WIN32_GLES_SURFACE_H_
 #define __WIN32_GLES_SURFACE_H_
 
-mg_surface mg_gles_surface_create_for_window(mg_window window);
+#include"graphics.h"
+#include"mp_app.h"
+
+mg_surface mg_gles_surface_create_for_window(mp_window window);
 
 #endif // __WIN32_GLES_SURFACE_H_

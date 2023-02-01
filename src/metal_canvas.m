@@ -235,8 +235,8 @@ void mg_metal_canvas_update_vertex_layout(mg_metal_canvas_backend* backend)
 	        .colorStride = sizeof(mg_vertex),
 	        .zIndexBuffer = vertexBase + offsetof(mg_vertex, zIndex),
 	        .zIndexStride = sizeof(mg_vertex),
-	        .clipsBuffer = vertexBase + offsetof(mg_vertex, clip),
-	        .clipsStride = sizeof(mg_vertex),
+	        .clipBuffer = vertexBase + offsetof(mg_vertex, clip),
+	        .clipStride = sizeof(mg_vertex),
 	        .indexBuffer = [backend->indexBuffer contents],
 	        .indexStride = sizeof(int)};
 }

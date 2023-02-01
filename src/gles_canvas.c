@@ -38,41 +38,19 @@ mg_gles_surface* mg_gles_canvas_get_surface(mg_gles_canvas_backend* canvas)
 	return(res);
 }
 
-void mg_gles_canvas_draw_buffers(mg_canvas_backend* interface, u32 vertexCount, u32 indexCount, mg_color clearColor)
+//NOTE: debugger
+typedef struct debug_vertex
 {
-	mg_gles_canvas_backend* backend = (mg_gles_canvas_backend*)interface;
-	mg_gles_surface* surface = mg_gles_canvas_get_surface(backend);
-	if(!surface)
-	{
-		return;
-	}
-
-	//WARN: dummy test code
-
-	indexCount = 3;
-	*(vec2*)(interface->vertexLayout.posBuffer) = (vec2){400, 300};
-	*(vec2*)(interface->vertexLayout.posBuffer + interface->vertexLayout.posStride) = (vec2){450, 300};
-	*(vec2*)(interface->vertexLayout.posBuffer + 2*interface->vertexLayout.posStride) = (vec2){400, 350};
-
-	for(int i=0; i<3; i++)
-	{
-		*(vec4*)(interface->vertexLayout.cubicBuffer + i*interface->vertexLayout.cubicStride) = (vec4){1, 1, 1, 1};
-		*(vec2*)(interface->vertexLayout.uvBuffer + i*interface->vertexLayout.uvStride) = (vec2){0, 0};
-		*(vec4*)(interface->vertexLayout.colorBuffer + i*interface->vertexLayout.colorStride) = (vec4){1, 0, 0, 1};
-		*(vec4*)(interface->vertexLayout.clipBuffer + i*interface->vertexLayout.clipStride) = (vec4){-FLT_MAX/2, -FLT_MAX/2, FLT_MAX, FLT_MAX};
-		*(u32*)(interface->vertexLayout.zIndexBuffer + i*interface->vertexLayout.zIndexStride) = 1;
-		*(u32*)(interface->vertexLayout.indexBuffer + i*interface->vertexLayout.indexStride) = i;
-	}
-
-	// end dummy test code
-
-	glUseProgram(backend->program);
-	glBindBuffer(GL_ARRAY_BUFFER, backend->dummyVertexBuffer);
-	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, backend->vertexBuffer);
-	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, backend->indexBuffer);
-	glUniform1i(0, indexCount);
-	glDrawArrays(GL_TRIANGLES, 0, 6);
-}
+	vec2 pos;
+	u8 align0[8];
+	vec4 cubic;
+	vec2 uv;
+	u8 align1[8];
+	vec4 color;
+	vec4 clip;
+	int zIndex;
+	u8 align2[12];
+} debug_vertex;
 
 #define LayoutNext(prevName, prevType, nextType) \
 	AlignUpOnPow2(_cat3_(LAYOUT_, prevName, _OFFSET)+_cat3_(LAYOUT_, prevType, _SIZE), _cat3_(LAYOUT_, nextType, _ALIGN))
@@ -104,17 +82,9 @@ enum {
 
 void mg_gles_canvas_update_vertex_layout(mg_gles_canvas_backend* backend)
 {
-	if(backend->vertexMapping)
-	{
-		glUnmapBuffer(backend->vertexBuffer);
-	}
 	glBindBuffer(GL_SHADER_STORAGE_BUFFER, backend->vertexBuffer);
 	backend->vertexMapping = glMapBufferRange(GL_SHADER_STORAGE_BUFFER, 0, MG_GLES_CANVAS_VERTEX_BUFFER_SIZE, GL_MAP_WRITE_BIT);
 
-	if(backend->indexMapping)
-	{
-		free(backend->indexMapping);
-	}
 	glBindBuffer(GL_SHADER_STORAGE_BUFFER, backend->indexBuffer);
 	backend->indexMapping = glMapBufferRange(GL_SHADER_STORAGE_BUFFER, 0, MG_GLES_CANVAS_INDEX_BUFFER_SIZE, GL_MAP_WRITE_BIT);
 
@@ -135,6 +105,35 @@ void mg_gles_canvas_update_vertex_layout(mg_gles_canvas_backend* backend)
 	        .zIndexStride = LAYOUT_VERTEX_SIZE,
 	        .indexBuffer = backend->indexMapping,
 	        .indexStride = LAYOUT_INT_SIZE};
+}
+
+void mg_gles_canvas_draw_buffers(mg_canvas_backend* interface, u32 vertexCount, u32 indexCount, mg_color clearColor)
+{
+	mg_gles_canvas_backend* backend = (mg_gles_canvas_backend*)interface;
+	mg_gles_surface* surface = mg_gles_canvas_get_surface(backend);
+	if(!surface)
+	{
+		return;
+	}
+
+/*NOTE: if we want debug_vertex while debugging, the following ensures the struct def doesn't get stripped away
+	debug_vertex vertex;
+	printf("foo %p\n", &vertex);
+//*/
+	glBindBuffer(GL_SHADER_STORAGE_BUFFER, backend->vertexBuffer);
+	glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
+	glBindBuffer(GL_SHADER_STORAGE_BUFFER, backend->indexBuffer);
+	glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
+
+
+	glUseProgram(backend->program);
+	glBindBuffer(GL_ARRAY_BUFFER, backend->dummyVertexBuffer);
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, backend->vertexBuffer);
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, backend->indexBuffer);
+	glUniform1i(0, indexCount);
+	glDrawArrays(GL_TRIANGLES, 0, 6);
+
+	mg_gles_canvas_update_vertex_layout(backend);
 }
 
 void mg_gles_canvas_destroy(mg_canvas_backend* interface)
