@@ -16,6 +16,41 @@
 
 #define LOG_SUBSYSTEM "Main"
 
+
+mg_font create_font()
+{
+	//NOTE(martin): create font
+/*	str8 fontPath = mp_app_get_resource_path(mem_scratch(), "../resources/OpenSansLatinSubset.ttf");
+	char* fontPathCString = str8_to_cstring(mem_scratch(), fontPath);
+*/
+	char* fontPathCString = "resources/OpenSansLatinSubset.ttf";
+
+	FILE* fontFile = fopen(fontPathCString, "r");
+	if(!fontFile)
+	{
+		LOG_ERROR("Could not load font file '%s'\n", fontPathCString);
+		return(mg_font_nil());
+	}
+	unsigned char* fontData = 0;
+	fseek(fontFile, 0, SEEK_END);
+	u32 fontDataSize = ftell(fontFile);
+	rewind(fontFile);
+	fontData = (unsigned char*)malloc(fontDataSize);
+	fread(fontData, 1, fontDataSize, fontFile);
+	fclose(fontFile);
+
+	unicode_range ranges[5] = {UNICODE_RANGE_BASIC_LATIN,
+	                           UNICODE_RANGE_C1_CONTROLS_AND_LATIN_1_SUPPLEMENT,
+	                           UNICODE_RANGE_LATIN_EXTENDED_A,
+	                           UNICODE_RANGE_LATIN_EXTENDED_B,
+	                           UNICODE_RANGE_SPECIALS};
+
+	mg_font font = mg_font_create_from_memory(fontDataSize, fontData, 5, ranges);
+	free(fontData);
+
+	return(font);
+}
+
 int main()
 {
 	LogLevel(LOG_LEVEL_DEBUG);
@@ -36,11 +71,14 @@ int main()
 
 	//TODO: create canvas
 	mg_canvas canvas = mg_canvas_create(surface);
+	mg_font font = create_font();
 
 	// start app
 	mp_window_bring_to_front(window);
 	mp_window_focus(window);
 
+	f32 x = 400, y = 300;
+//	f32 dx = 5, dy = 5;
 	f32 dx = 0, dy = 0;
 
 	while(!mp_should_quit())
@@ -69,6 +107,7 @@ int main()
 				{
 					if(event.key.action == MP_KEY_PRESS || event.key.action == MP_KEY_REPEAT)
 					{
+						/*
 						if(event.key.code == MP_KEY_LEFT)
 						{
 							dx-=5.1;
@@ -85,6 +124,7 @@ int main()
 						{
 							dy-=5.1;
 						}
+						*/
 					}
 				} break;
 
@@ -92,6 +132,25 @@ int main()
 					break;
 			}
 		}
+
+		if(x-200 < 0)
+		{
+			dx = 5;
+		}
+		if(x+200 > 800)
+		{
+			dx = -5;
+		}
+		if(y-200 < 0)
+		{
+			dy = 5;
+		}
+		if(y+200 > 550)
+		{
+			dy = -5;
+		}
+		x += dx;
+		y += dy;
 
 		mg_surface_prepare(surface);
 
@@ -101,19 +160,27 @@ int main()
 
 			// head
 			mg_set_color_rgba(1, 1, 0, 1);
-			mg_circle_fill(dx+400, dy+300, 200);
+			mg_circle_fill(x, y, 200);
 
 			// smile
 			mg_set_color_rgba(0, 0, 0, 1);
 
 			mg_set_width(20);
-			mg_move_to(dx+300, dy+200);
-			mg_cubic_to(dx+350, dy+150, dx+450, dy+150, dx+500, dy+200);
+			mg_move_to(x-100, y-100);
+			mg_cubic_to(x-50, y-50, x+50, y-50, x+100, y-100);
 			mg_stroke();
 
 			// eyes
-			mg_ellipse_fill(dx+330, dy+350, 30, 50);
-			mg_ellipse_fill(dx+470, dy+350, 30, 50);
+			mg_ellipse_fill(x-70, y+50, 30, 50);
+			mg_ellipse_fill(x+70, y+50, 30, 50);
+
+			// text
+			mg_set_color_rgba(0, 0, 1, 1);
+			mg_set_font(font);
+			mg_set_font_size(12);
+			mg_move_to(50, 50);
+			mg_text_outlines(str8_lit("Milepost vector graphics test program..."));
+			mg_fill();
 
 			mg_flush();
 		mg_surface_present(surface);
