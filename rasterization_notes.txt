@@ -1,9 +1,0 @@
-https://fgiesen.wordpress.com/2013/02/08/triangle-rasterization-in-practice/
-
-https://github.com/rygorous/trirast/blob/master/main.cpp
-
-https://joshbeam.com/articles/triangle_rasterization/
-
-https://nlguillemot.wordpress.com/2016/07/10/rasterizer-notes/
-
-https://web.archive.org/web/20120625103536/http://devmaster.net/forums/topic/1145-advanced-rasterization/

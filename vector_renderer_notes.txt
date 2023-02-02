@@ -1,0 +1,32 @@
+Various notes/thoughts about the 2D vector graphics renderer 
+
+Triangle Rasterization
+----------------------
+https://fgiesen.wordpress.com/2013/02/08/triangle-rasterization-in-practice/
+
+https://github.com/rygorous/trirast/blob/master/main.cpp
+
+https://joshbeam.com/articles/triangle_rasterization/
+
+https://nlguillemot.wordpress.com/2016/07/10/rasterizer-notes/
+
+https://web.archive.org/web/20120625103536/http://devmaster.net/forums/topic/1145-advanced-rasterization/
+
+Bindless textures
+-----------------
+It's tempting to use bindless textures to be able to draw individual images using only one draw call. This would avoid much of the complexity of either managing a texture atlas under the hood or breaking the draw list into batches...
+But, it's only an extension and seem to not be supported everywhere. Moreover, there might be a problem where the texture handle used by the shader can not differ between batches (must be "dynamic uniforms"), which defeats the purpose in our case -> it requires OES_gpu_shader5 or GLES 3.2
+
+ideally, the atlas should be built on top of lower level image features of the renderer, eg mg_image_upload_sub_region(), mg_image_render_sub_region() etc...
+
+This would mean individual textures can be set and used in a frame. So without bindless textures, we would need to break down the draw list in batches, each time the texture attribute changes. This also mean we need to blend each batch result to the previous one.
+
+ - It seems possible to implement bindless texture in metal using argument buffers
+ - We could investigate if angle/our targets likely support OES_gpu_shader5
+ - But, this means the canvas renderer relies on the backend to provide this kind of feature
+ - It also assume the upper bound for indexable bindless textures is enough on every backend
+ - We'll likely need a batching fallback anyway?
+
+
+ 
+
