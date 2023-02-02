@@ -41,7 +41,7 @@ int main()
 	mp_window_bring_to_front(window);
 	mp_window_focus(window);
 
-	f32 dx = 17.000029, dy = 0;
+	f32 dx = 0, dy = 0;
 
 	while(!mp_should_quit())
 	{
@@ -67,30 +67,27 @@ int main()
 
 				case MP_EVENT_KEYBOARD_KEY:
 				{
-					printf("key %i: %s\n",
-					        event.key.code,
-					        event.key.action == MP_KEY_PRESS ? "press" : (event.key.action == MP_KEY_RELEASE ? "release" : "repeat"));
 					if(event.key.action == MP_KEY_PRESS || event.key.action == MP_KEY_REPEAT)
 					{
 						if(event.key.code == MP_KEY_LEFT)
 						{
 							printf("left\n");
-							dx-=0.1;
+							dx-=1.1;
 						}
 						else if(event.key.code == MP_KEY_RIGHT)
 						{
 							printf("right\n");
-							dx+=0.1;
+							dx+=1.1;
 						}
 						else if(event.key.code == MP_KEY_UP)
 						{
 							printf("up\n");
-							dy+=0.1;
+							dy+=1.1;
 						}
 						else if(event.key.code == MP_KEY_DOWN)
 						{
 							printf("down\n");
-							dy-=0.1;
+							dy-=1.1;
 						}
 					}
 				} break;
@@ -102,12 +99,10 @@ int main()
 
 		mg_surface_prepare(surface);
 
-			printf("dx = %f, dy = %f\n", dx, dy);
-
 			// background
 			mg_set_color_rgba(1, 0, 1, 1);
 			mg_clear();
-/*
+
 			// head
 			mg_set_color_rgba(1, 1, 0, 1);
 			mg_circle_fill(dx+400, dy+300, 200);
@@ -123,8 +118,6 @@ int main()
 			// eyes
 			mg_ellipse_fill(dx+330, dy+350, 30, 50);
 			mg_ellipse_fill(dx+470, dy+350, 30, 50);
-*/
-			mg_rectangle_fill((int)(dx + 200), 200, (int)(dy+300), (int)(dy+300));
 
 			mg_flush();
 		mg_surface_present(surface);

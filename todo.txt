@@ -14,9 +14,21 @@
 	[ ] Cleanup graphics backend compile-time/runtime selection
 	[ ] Cleanup graphics resource handles
 
-[>>] OpenGL surface on OSX
-[>>] Port vector graphics to OpenGL on OSX
-[>] Check OpenGL vector graphics on win32
+[.] GLES 3.0 surface on OSX
+[x] GLES 3.1 surface on Win32
+[.] GLES vector graphics on win32
+	[x] Fix triangle rasterization precision issues
+		-> we do not want to snap vertex coordinates to integers though, but use fixed point with 4 or 8 bits of subpixel precision
+		-> convert verts pos to fixed point
+		-> do orient2d in fixed point
+	[!] Check precision/possible overflow when using barycentric coords
+
+	[>>] Investigate cubics flipping when curves are disabled
+	[>>] Investigate bad curve splitting on the right?
+	[ ] Multi-sampling
+
+	[>] Avoid first useless (degenerate) triangle on every path
+
 [ ] Implement surfaces with child windows on win32
 	[/] Maybe implement compositing directly in d3d and opengl compat extension...
 

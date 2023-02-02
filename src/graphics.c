@@ -1154,7 +1154,7 @@ void mg_offset_hull(int count, vec2* p, vec2* result, f32 offset)
 {
 //////////////////////////////////////////////////////////////////////////////////////
 //WARN: quick fix for coincident middle control points
-	if(count == 4 && (p[1].x - p[2].x < 0.01) && (p[1].y - p[2].y < 0.01))
+	if(count == 4 && (fabs(p[1].x - p[2].x) < 0.01) && (fabs(p[1].y - p[2].y) < 0.01))
 	{
 		vec2 hull3[3] = {p[0], p[1], p[3]};
 		vec2 result3[3];
@@ -1284,6 +1284,7 @@ void mg_render_stroke_quadratic(mg_canvas_data* canvas, vec2 p[4], u32 zIndex, m
 	//
 	//		we compute the maximum overshoot outside these bounds and split the curve at the corresponding parameter
 
+	//TODO: maybe refactor by using tolerance in the _check_, not in the computation of the overshoot
 	f32 tolerance = minimum(attributes->tolerance, 0.5 * attributes->width);
 	f32 d2LowBound = Square(0.5 * attributes->width - attributes->tolerance);
 	f32 d2HighBound = Square(0.5 * attributes->width + attributes->tolerance);
@@ -1316,7 +1317,6 @@ void mg_render_stroke_quadratic(mg_canvas_data* canvas, vec2 p[4], u32 zIndex, m
 
 	if(maxOvershoot > 0)
 	{
-		//TODO(martin): split at maxErrorParameter and recurse
 		vec2 splitLeft[3];
 		vec2 splitRight[3];
 		mg_quadratic_split(p, maxOvershootParameter, splitLeft, splitRight);
@@ -1442,6 +1442,7 @@ void mg_render_stroke_cubic(mg_canvas_data* canvas, vec2 p[4], u32 zIndex, mg_at
 	//
 	//		we compute the maximum overshoot outside these bounds and split the curve at the corresponding parameter
 
+	//TODO: maybe refactor by using tolerance in the _check_, not in the computation of the overshoot
 	f32 tolerance = minimum(attributes->tolerance, 0.5 * attributes->width);
 	f32 d2LowBound = Square(0.5 * attributes->width - attributes->tolerance);
 	f32 d2HighBound = Square(0.5 * attributes->width + attributes->tolerance);
@@ -1474,17 +1475,17 @@ void mg_render_stroke_cubic(mg_canvas_data* canvas, vec2 p[4], u32 zIndex, mg_at
 
 	if(maxOvershoot > 0)
 	{
-		//TODO(martin): split at maxErrorParameter and recurse
 		vec2 splitLeft[4];
 		vec2 splitRight[4];
 		mg_cubic_split(p, maxOvershootParameter, splitLeft, splitRight);
 		mg_render_stroke_cubic(canvas, splitLeft, zIndex, attributes);
 		mg_render_stroke_cubic(canvas, splitRight, zIndex, attributes);
+
+		//TODO: render joint between the split curves
 	}
 	else
 	{
 		//NOTE(martin): push the actual fill commands for the offset contour
-
 		u32 zIndex = mg_get_next_z_index(canvas);
 
 		mg_render_fill_cubic(canvas, positiveOffsetHull, zIndex, attributes->color);
