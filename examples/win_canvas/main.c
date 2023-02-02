@@ -71,19 +71,19 @@ int main()
 					{
 						if(event.key.code == MP_KEY_LEFT)
 						{
-							dx-=1.1;
+							dx-=5.1;
 						}
 						else if(event.key.code == MP_KEY_RIGHT)
 						{
-							dx+=1.1;
+							dx+=5.1;
 						}
 						else if(event.key.code == MP_KEY_UP)
 						{
-							dy+=1.1;
+							dy+=5.1;
 						}
 						else if(event.key.code == MP_KEY_DOWN)
 						{
-							dy-=1.1;
+							dy-=5.1;
 						}
 					}
 				} break;

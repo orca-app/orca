@@ -38,22 +38,37 @@ int orient2d(ivec2 a, ivec2 b, ivec2 p)
 
 void main()
 {
-	float subPixelFactor = 16.;
+	const float subPixelFactor = 16.;
+	const int sampleCount = 8;
 
-    vec4 pixelColor = clearColor;
-    vec4 currentColor = clearColor;
+	ivec2 centerPoint = ivec2(round(gl_FragCoord.xy * subPixelFactor));
+	ivec2 samplePoints[sampleCount] = ivec2[sampleCount](centerPoint + ivec2(1, 3),
+	                                                     centerPoint + ivec2(-1, -3),
+	                                                     centerPoint + ivec2(5, -1),
+	                                                     centerPoint + ivec2(-3, 5),
+	                                                     centerPoint + ivec2(-5, -5),
+	                                                     centerPoint + ivec2(-7, 1),
+	                                                     centerPoint + ivec2(3, -7),
+	                                                     centerPoint + ivec2(7, 7));
 
-	ivec2 samplePoint = ivec2(gl_FragCoord.xy * subPixelFactor + vec2(0.5, 0.5));
+	vec4 sampleColor[sampleCount];
+	vec4 currentColor[sampleCount];
+    int currentZIndex[sampleCount];
+    int flipCount[sampleCount];
 
-    int currentZIndex = -1;
-    int flipCount = 0;
-
-
-    for(int i=0; i<indexCount; i+=3)
+    for(int i=0; i<sampleCount; i++)
     {
-		uint i0 = indexBuffer.elements[i];
-		uint i1 = indexBuffer.elements[i+1];
-		uint i2 = indexBuffer.elements[i+2];
+		currentZIndex[i] = -1;
+		flipCount[i] = 0;
+		sampleColor[i] = clearColor;
+		currentColor[i] = clearColor;
+    }
+
+    for(int triangleIndex=0; triangleIndex<indexCount; triangleIndex+=3)
+    {
+		uint i0 = indexBuffer.elements[triangleIndex];
+		uint i1 = indexBuffer.elements[triangleIndex+1];
+		uint i2 = indexBuffer.elements[triangleIndex+2];
 
 		ivec2 p0 = ivec2(vertexBuffer.elements[i0].pos * subPixelFactor + vec2(0.5, 0.5));
 		ivec2 p1 = ivec2(vertexBuffer.elements[i1].pos * subPixelFactor + vec2(0.5, 0.5));
@@ -83,38 +98,47 @@ void main()
 		int bias1 = is_top_left(p2, p0) ? 0 : -1;
 		int bias2 = is_top_left(p0, p1) ? 0 : -1;
 
-		int w0 = orient2d(p1, p2, samplePoint);
-		int w1 = orient2d(p2, p0, samplePoint);
-		int w2 = orient2d(p0, p1, samplePoint);
-
-		if((w0+bias0) >= 0 && (w1+bias1) >= 0 && (w2+bias2) >= 0)
+		for(int sampleIndex = 0; sampleIndex < sampleCount; sampleIndex++)
 		{
-			vec4 cubic = (cubic0*float(w0) + cubic1*float(w1) + cubic2*float(w2))/(float(w0)+float(w1)+float(w2));
+			ivec2 samplePoint = samplePoints[sampleIndex];
 
-			float eps = 0.0001;
-			if(cubic.w*(cubic.x*cubic.x*cubic.x - cubic.y*cubic.z) <= eps)
+			int w0 = orient2d(p1, p2, samplePoint);
+			int w1 = orient2d(p2, p0, samplePoint);
+			int w2 = orient2d(p0, p1, samplePoint);
+
+			if((w0+bias0) >= 0 && (w1+bias1) >= 0 && (w2+bias2) >= 0)
 			{
-				if(zIndex == currentZIndex)
+				vec4 cubic = (cubic0*float(w0) + cubic1*float(w1) + cubic2*float(w2))/(float(w0)+float(w1)+float(w2));
+
+				float eps = 0.0001;
+				if(cubic.w*(cubic.x*cubic.x*cubic.x - cubic.y*cubic.z) <= eps)
 				{
-					flipCount++;
-				}
-				else
-				{
-					if((flipCount & 0x01) != 0)
+					if(zIndex == currentZIndex[sampleIndex])
 					{
-						pixelColor = currentColor;
+						flipCount[sampleIndex]++;
 					}
-					currentColor = pixelColor*(1.-color.a) + color.a*color;
-					currentZIndex = zIndex;
-					flipCount = 1;
+					else
+					{
+						if((flipCount[sampleIndex] & 0x01) != 0)
+						{
+							sampleColor[sampleIndex] = currentColor[sampleIndex];
+						}
+						currentColor[sampleIndex] = sampleColor[sampleIndex]*(1.-color.a) + color.a*color;
+						currentZIndex[sampleIndex] = zIndex;
+						flipCount[sampleIndex] = 1;
+					}
 				}
 			}
 		}
     }
-    if((flipCount & 0x01) != 0)
+    vec4 pixelColor = vec4(0);
+    for(int sampleIndex = 0; sampleIndex < sampleCount; sampleIndex++)
     {
-		pixelColor = currentColor;
-    }
-
-    fragColor = pixelColor;
+    	if((flipCount[sampleIndex] & 0x01) != 0)
+    	{
+			sampleColor[sampleIndex] = currentColor[sampleIndex];
+    	}
+    	pixelColor += sampleColor[sampleIndex];
+	}
+    fragColor = pixelColor/float(sampleCount);
 }

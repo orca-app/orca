@@ -22,17 +22,27 @@
 		-> convert verts pos to fixed point
 		-> do orient2d in fixed point
 	[!] Check precision/possible overflow when using barycentric coords
-	[!] Avoid first useless (degenerate) triangle on every path
+
 	[x] Set backround clear color
-	[ ] Multi-sampling
-	[ ] Assess perf
+	[x] Multi-sampling
+	[!] Avoid first useless (degenerate) triangle on every path
+
+	[ ] image rendering
+		[ ] Re-think image API first??
+		[ ] gles image atlas logic
+		[ ] textured rendering in shader
+
+	[ ] Image rendering test app
+	[ ] Text rendering test app
+	[?] Little test drawing app?
+
+	[>] Assess perf
 		[ ] Tiling
 		[ ] Precomputing triangle edges/biases?
 
-	[ ] Little test drawing app
-
 [ ] Implement surfaces with child windows on win32
 	[/] Maybe implement compositing directly in d3d and opengl compat extension...
+[ ] Cleanup routines
 
 Windows port
 ------------
