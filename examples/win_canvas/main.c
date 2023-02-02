@@ -71,22 +71,18 @@ int main()
 					{
 						if(event.key.code == MP_KEY_LEFT)
 						{
-							printf("left\n");
 							dx-=1.1;
 						}
 						else if(event.key.code == MP_KEY_RIGHT)
 						{
-							printf("right\n");
 							dx+=1.1;
 						}
 						else if(event.key.code == MP_KEY_UP)
 						{
-							printf("up\n");
 							dy+=1.1;
 						}
 						else if(event.key.code == MP_KEY_DOWN)
 						{
-							printf("down\n");
 							dy-=1.1;
 						}
 					}
@@ -100,7 +96,7 @@ int main()
 		mg_surface_prepare(surface);
 
 			// background
-			mg_set_color_rgba(1, 0, 1, 1);
+			mg_set_color_rgba(0, 1, 1, 1);
 			mg_clear();
 
 			// head

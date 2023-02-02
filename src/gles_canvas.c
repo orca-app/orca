@@ -125,12 +125,15 @@ void mg_gles_canvas_draw_buffers(mg_canvas_backend* interface, u32 vertexCount, 
 	glBindBuffer(GL_SHADER_STORAGE_BUFFER, backend->indexBuffer);
 	glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
 
-
 	glUseProgram(backend->program);
+
 	glBindBuffer(GL_ARRAY_BUFFER, backend->dummyVertexBuffer);
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, backend->vertexBuffer);
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, backend->indexBuffer);
+
 	glUniform1i(0, indexCount);
+	glUniform4f(1, clearColor.r, clearColor.g, clearColor.b, clearColor.a);
+
 	glDrawArrays(GL_TRIANGLES, 0, 6);
 
 	mg_gles_canvas_update_vertex_layout(backend);

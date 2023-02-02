@@ -21,6 +21,8 @@ layout(binding = 1) buffer indexBufferSSBO {
 } indexBuffer ;
 
 layout(location = 0) uniform int indexCount;
+layout(location = 1) uniform vec4 clearColor;
+
 layout(location = 0) out vec4 fragColor;
 
 bool is_top_left(ivec2 a, ivec2 b)
@@ -38,8 +40,8 @@ void main()
 {
 	float subPixelFactor = 16.;
 
-    vec4 pixelColor = vec4(0.0, 1.0, 0.0, 1.0);
-    vec4 currentColor = vec4(0., 0., 0., 1.0);
+    vec4 pixelColor = clearColor;
+    vec4 currentColor = clearColor;
 
 	ivec2 samplePoint = ivec2(gl_FragCoord.xy * subPixelFactor + vec2(0.5, 0.5));
 

@@ -22,12 +22,14 @@
 		-> convert verts pos to fixed point
 		-> do orient2d in fixed point
 	[!] Check precision/possible overflow when using barycentric coords
-
-	[>>] Investigate cubics flipping when curves are disabled
-	[>>] Investigate bad curve splitting on the right?
+	[!] Avoid first useless (degenerate) triangle on every path
+	[x] Set backround clear color
 	[ ] Multi-sampling
+	[ ] Assess perf
+		[ ] Tiling
+		[ ] Precomputing triangle edges/biases?
 
-	[>] Avoid first useless (degenerate) triangle on every path
+	[ ] Little test drawing app
 
 [ ] Implement surfaces with child windows on win32
 	[/] Maybe implement compositing directly in d3d and opengl compat extension...
