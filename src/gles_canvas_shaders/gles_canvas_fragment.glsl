@@ -21,7 +21,6 @@ layout(binding = 1) buffer indexBufferSSBO {
 } indexBuffer ;
 
 layout(location = 0) uniform int indexCount;
-layout(location = 1) uniform vec4 clearColor;
 
 layout(location = 0) out vec4 fragColor;
 
@@ -60,8 +59,8 @@ void main()
     {
 		currentZIndex[i] = -1;
 		flipCount[i] = 0;
-		sampleColor[i] = clearColor;
-		currentColor[i] = clearColor;
+		sampleColor[i] = vec4(0, 0, 0, 0);
+		currentColor[i] = vec4(0, 0, 0, 0);
     }
 
     for(int triangleIndex=0; triangleIndex<indexCount; triangleIndex+=3)

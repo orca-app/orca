@@ -107,7 +107,38 @@ void mg_gles_canvas_update_vertex_layout(mg_gles_canvas_backend* backend)
 	        .indexStride = LAYOUT_INT_SIZE};
 }
 
-void mg_gles_canvas_draw_buffers(mg_canvas_backend* interface, u32 vertexCount, u32 indexCount, mg_color clearColor)
+void mg_gles_canvas_begin(mg_canvas_backend* interface)
+{
+	mg_gles_canvas_backend* backend = (mg_gles_canvas_backend*)interface;
+	mg_gles_surface* surface = mg_gles_canvas_get_surface(backend);
+	if(!surface)
+	{
+		return;
+	}
+	glUseProgram(backend->program);
+	glEnable(GL_BLEND);
+	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+}
+
+void mg_gles_canvas_end(mg_canvas_backend* interface)
+{
+	//NOTE: nothing to do here...
+}
+
+void mg_gles_canvas_clear(mg_canvas_backend* interface, mg_color clearColor)
+{
+	mg_gles_canvas_backend* backend = (mg_gles_canvas_backend*)interface;
+	mg_gles_surface* surface = mg_gles_canvas_get_surface(backend);
+	if(!surface)
+	{
+		return;
+	}
+
+	glClearColor(clearColor.r, clearColor.g, clearColor.b, clearColor.a);
+	glClear(GL_COLOR_BUFFER_BIT);
+}
+
+void mg_gles_canvas_draw_batch(mg_canvas_backend* interface, u32 vertexCount, u32 indexCount)
 {
 	mg_gles_canvas_backend* backend = (mg_gles_canvas_backend*)interface;
 	mg_gles_surface* surface = mg_gles_canvas_get_surface(backend);
@@ -125,14 +156,11 @@ void mg_gles_canvas_draw_buffers(mg_canvas_backend* interface, u32 vertexCount, 
 	glBindBuffer(GL_SHADER_STORAGE_BUFFER, backend->indexBuffer);
 	glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
 
-	glUseProgram(backend->program);
-
 	glBindBuffer(GL_ARRAY_BUFFER, backend->dummyVertexBuffer);
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, backend->vertexBuffer);
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, backend->indexBuffer);
 
 	glUniform1i(0, indexCount);
-	glUniform4f(1, clearColor.r, clearColor.g, clearColor.b, clearColor.a);
 
 	glDrawArrays(GL_TRIANGLES, 0, 6);
 
@@ -187,7 +215,10 @@ mg_canvas_backend* mg_gles_canvas_create(mg_surface surface)
 
 		//NOTE(martin): setup interface functions
 		backend->interface.destroy = mg_gles_canvas_destroy;
-		backend->interface.drawBuffers = mg_gles_canvas_draw_buffers;
+		backend->interface.begin = mg_gles_canvas_begin;
+		backend->interface.end = mg_gles_canvas_end;
+		backend->interface.clear = mg_gles_canvas_clear;
+		backend->interface.drawBatch = mg_gles_canvas_draw_batch;
 		backend->interface.atlasUpload = mg_gles_canvas_atlas_upload;
 
 		mg_surface_prepare(surface);

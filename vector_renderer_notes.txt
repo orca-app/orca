@@ -1,4 +1,4 @@
-Various notes/thoughts about the 2D vector graphics renderer 
+Various notes/thoughts about the 2D vector graphics renderer
 
 Triangle Rasterization
 ----------------------
@@ -28,5 +28,16 @@ This would mean individual textures can be set and used in a frame. So without b
  - We'll likely need a batching fallback anyway?
 
 
- 
+-> Angle doesn't seem to support GL_IMG_bindless_textures for now.
 
+Workaround: we could use a desktop GL 4.3+ context for the canvas renderer on windows, _BUT_ the functions would conflict with the GLES canvas. Except if we use function pointers that are loaded differently for each context (which we probably should but I'd better keep it for later).
+
+-> We'll probably want to do that, or make 1 draw call per changing texture.
+
+Anyway for now, is it possible have an _under the hood_ atlas, and reserve a way to change the API so that we make the atlas explicit / allow using single textures for big images etc?
+
+* We could decide that we can set an atlas, and all mg_images get allocated from that atlas. If no atlas is set a default one is used.
+
+* or, we can expose mg_texture and related APIs for now, as if they were individual, but back them by a hidden atlas. And a bit later expose mg_image/atlas -> maybe better.
+
+* Or just implement breaking the triangle stream into batches now...

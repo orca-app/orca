@@ -433,9 +433,23 @@ u32 mg_get_next_z_index(mg_canvas_data* canvas)
 }
 
 ///////////////////////////////////////  WIP  /////////////////////////////////////////////////////////////////////////
+
+//TODO(martin): rename with something more explicit
 u32 mg_vertices_base_index(mg_canvas_data* canvas)
 {
-	return(canvas->vertexCount);
+	return(canvas->batchBaseIndex + canvas->vertexCount);
+}
+
+int* mg_reserve_indices(mg_canvas_data* canvas, u32 indexCount)
+{
+	mg_vertex_layout* layout = &canvas->backend->vertexLayout;
+
+	//TODO: do something here...
+	ASSERT(canvas->indexCount + indexCount < layout->maxIndexCount);
+
+	int* base = ((int*)layout->indexBuffer) + canvas->indexCount;
+	canvas->indexCount += indexCount;
+	return(base);
 }
 
 void mg_push_textured_vertex(mg_canvas_data* canvas, vec2 pos, vec4 cubic, vec2 uv, mg_color color, u64 zIndex)
@@ -459,21 +473,6 @@ void mg_push_textured_vertex(mg_canvas_data* canvas, vec2 pos, vec4 cubic, vec2 
 void mg_push_vertex(mg_canvas_data* canvas, vec2 pos, vec4 cubic, mg_color color, u64 zIndex)
 {
 	mg_push_textured_vertex(canvas, pos, cubic, (vec2){0, 0}, color, zIndex);
-}
-
-
-///////////////////////////////////////  WIP  /////////////////////////////////////////////////////////////////////////
-
-int* mg_reserve_indices(mg_canvas_data* canvas, u32 indexCount)
-{
-	mg_vertex_layout* layout = &canvas->backend->vertexLayout;
-
-	//TODO: do something here...
-	ASSERT(canvas->indexCount + indexCount < layout->maxIndexCount);
-
-	int* base = ((int*)layout->indexBuffer) + canvas->indexCount;
-	canvas->indexCount += indexCount;
-	return(base);
 }
 
 //-----------------------------------------------------------------------------------------------------------
@@ -2811,6 +2810,18 @@ void mg_do_clip_push(mg_canvas_data* canvas, mp_rect clip)
 	mg_clip_stack_push(canvas, r);
 }
 
+void mg_flush_batch(mg_canvas_data* canvas)
+{
+	if(canvas->backend && canvas->backend->drawBatch)
+	{
+		canvas->backend->drawBatch(canvas->backend, canvas->vertexCount, canvas->indexCount);
+	}
+
+	canvas->batchBaseIndex += canvas->vertexCount;
+	canvas->vertexCount = 0;
+	canvas->indexCount = 0;
+}
+
 void mg_flush()
 {
 	mg_canvas_data* canvas = __mgCurrentCanvas;
@@ -2830,6 +2841,10 @@ void mg_flush()
 	                                 0, 1, 0};
 	canvas->clip = (mp_rect){-FLT_MAX/2, -FLT_MAX/2, FLT_MAX, FLT_MAX};
 
+	mg_image currentImage = mg_image_nil();
+
+	canvas->backend->begin(canvas->backend);
+
 	for(int i=0; i<count; i++)
 	{
 		if(nextIndex >= count)
@@ -2840,6 +2855,12 @@ void mg_flush()
 		mg_primitive* primitive = &(canvas->primitives[nextIndex]);
 		nextIndex++;
 
+		if(i && primitive->attributes.image.h != currentImage.h)
+		{
+			mg_flush_batch(canvas);
+			currentImage = primitive->attributes.image;
+		}
+
 		switch(primitive->cmd)
 		{
 			case MG_CMD_CLEAR:
@@ -2847,8 +2868,9 @@ void mg_flush()
 				//NOTE(martin): clear buffers
 				canvas->vertexCount = 0;
 				canvas->indexCount = 0;
+				canvas->batchBaseIndex = 0;
 
-				clearColor = primitive->attributes.color;
+				canvas->backend->clear(canvas->backend, primitive->attributes.color);
 			} break;
 
 			case MG_CMD_FILL:
@@ -2949,10 +2971,9 @@ void mg_flush()
 	}
 	exit_command_loop: ;
 
-	if(canvas->backend && canvas->backend->drawBuffers)
-	{
-		canvas->backend->drawBuffers(canvas->backend, canvas->vertexCount, canvas->indexCount, clearColor);
-	}
+	mg_flush_batch(canvas);
+
+	canvas->backend->end(canvas->backend);
 
 	//NOTE(martin): clear buffers
 	canvas->primitiveCount = 0;
@@ -2962,7 +2983,6 @@ void mg_flush()
 	canvas->path.startIndex = 0;
 	canvas->path.count = 0;
 
-	canvas->primitiveCount = 0;
 	canvas->frameCounter++;
 }
 ////////////////////////////////////////////////////////////
