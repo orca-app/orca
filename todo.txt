@@ -27,10 +27,15 @@
 	[x] Multi-sampling
 	[!] Avoid first useless (degenerate) triangle on every path
 
-	[ ] image rendering
-		[ ] Re-think image API first??
+	[>] rethink image rendering API to avoid forcing atlas into the renderer (which limits image size and usage patterns)
+		[x] Break triangle stream into batches to allow using different textures
+		[>] Design and implement basic image API
+		[ ] Design image atlas api on top of it
 		[ ] gles image atlas logic
 		[ ] textured rendering in shader
+
+	[ ] port back the image stuff to mac
+		[ ] use bindless textures on mac?
 
 	[ ] Image rendering test app
 	[ ] Text rendering test app
