@@ -20,9 +20,21 @@ layout(binding = 1) buffer indexBufferSSBO {
 	uint elements[];
 } indexBuffer ;
 
-layout(location = 0) uniform int indexCount;
+layout(binding = 2) coherent buffer tileCounterBufferSSBO {
+	uint elements[];
+} tileCounterBuffer ;
+
+layout(binding = 3) coherent buffer tileArrayBufferSSBO {
+	uint elements[];
+} tileArrayBuffer ;
+
+layout(location = 0) uniform uint indexCount;
+layout(location = 1) uniform uvec2 tileCount;
+layout(location = 2) uniform uint tileSize;
+layout(location = 3) uniform uint tileArraySize;
 
 layout(location = 0) out vec4 fragColor;
+
 
 bool is_top_left(ivec2 a, ivec2 b)
 {
@@ -37,6 +49,10 @@ int orient2d(ivec2 a, ivec2 b, ivec2 p)
 
 void main()
 {
+	uvec2 tileCoord = uvec2(gl_FragCoord.xy)/tileSize;
+	uint tileIndex =  tileCoord.y * tileCount.x + tileCoord.x;
+	uint tileCounter = tileCounterBuffer.elements[tileIndex];
+
 	const float subPixelFactor = 16.;
 	const int sampleCount = 8;
 
@@ -49,6 +65,30 @@ void main()
 	                                                     centerPoint + ivec2(-7, 1),
 	                                                     centerPoint + ivec2(3, -7),
 	                                                     centerPoint + ivec2(7, 7));
+
+
+	//DEBUG
+/*
+	if( int(gl_FragCoord.x - 0.5) % 16 == 0
+	  ||int(gl_FragCoord.y - 0.5) % 16 == 0)
+	{
+		fragColor = vec4(0, 0, 0, 1);
+	}
+	else if(tileCounterBuffer.elements[tileIndex] == 2u)
+	{
+		fragColor = vec4(1, 1, 0, 1);
+	}
+	else if(tileCounter != 0u)
+	{
+		fragColor = vec4(0, 1, 0, 1);
+	}
+	else
+	{
+		fragColor = vec4(1, 0, 0, 1);
+	}
+	return;
+//*/
+	//----
 
 	vec4 sampleColor[sampleCount];
 	vec4 currentColor[sampleCount];
@@ -63,11 +103,13 @@ void main()
 		currentColor[i] = vec4(0, 0, 0, 0);
     }
 
-    for(int triangleIndex=0; triangleIndex<indexCount; triangleIndex+=3)
+    for(uint tileArrayIndex=0u; tileArrayIndex < tileCounter; tileArrayIndex++)
     {
+    	uint triangleIndex = tileArrayBuffer.elements[tileArraySize * tileIndex + tileArrayIndex];
+
 		uint i0 = indexBuffer.elements[triangleIndex];
-		uint i1 = indexBuffer.elements[triangleIndex+1];
-		uint i2 = indexBuffer.elements[triangleIndex+2];
+		uint i1 = indexBuffer.elements[triangleIndex+1u];
+		uint i2 = indexBuffer.elements[triangleIndex+2u];
 
 		ivec2 p0 = ivec2(vertexBuffer.elements[i0].pos * subPixelFactor + vec2(0.5, 0.5));
 		ivec2 p1 = ivec2(vertexBuffer.elements[i1].pos * subPixelFactor + vec2(0.5, 0.5));
@@ -139,5 +181,5 @@ void main()
     	}
     	pixelColor += sampleColor[sampleIndex];
 	}
-    fragColor = pixelColor/float(sampleCount);
+	fragColor = pixelColor/float(sampleCount);
 }

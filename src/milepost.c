@@ -24,6 +24,7 @@
 
 #if defined(OS_WIN64)
 	#include"platform/win32_base_allocator.c"
+	#include"platform/win32_clock.c"
 	//TODO
 #elif defined(OS_MACOS)
 	#include"platform/unix_base_allocator.c"

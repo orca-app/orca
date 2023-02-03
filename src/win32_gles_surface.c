@@ -41,20 +41,26 @@ void mg_gles_surface_prepare(mg_surface_data* interface)
 
 void mg_gles_surface_present(mg_surface_data* interface)
 {
-
-	//TODO: eglSwapBuffers seem to never block in macOS (ie eglSwapInterval doesn't seem to have any effect)
-	//      We need to use a CVDisplayLink to time this if we want surface present to block
-
 	mg_gles_surface* surface = (mg_gles_surface*)interface;
 	eglSwapBuffers(surface->eglDisplay, surface->eglSurface);
 }
 
 /*
 void mg_gles_surface_set_frame(mg_surface_data* interface, mp_rect frame);
-mp_rect mg_gles_surface_get_frame(mg_surface_data* interface);
+
 void mg_gles_surface_set_hidden(mg_surface_data* interface, bool hidden);
 bool mg_gles_surface_get_hidden(mg_surface_data* interface);
 */
+
+mp_rect mg_gles_surface_get_frame(mg_surface_data* interface)
+{
+	mg_gles_surface* surface = (mg_gles_surface*)interface;
+	RECT rect = {0};
+	GetClientRect(surface->hWnd, &rect);
+
+	mp_rect res = {rect.left, rect.bottom, rect.right - rect.left, rect.bottom - rect.top};
+	return(res);
+}
 
 mg_surface mg_gles_surface_create_for_window(mp_window window)
 {
@@ -69,8 +75,8 @@ mg_surface mg_gles_surface_create_for_window(mp_window window)
 		surface->interface.destroy = mg_gles_surface_destroy;
 		surface->interface.prepare = mg_gles_surface_prepare;
 		surface->interface.present = mg_gles_surface_present;
-		/*TODO
 		surface->interface.getFrame = mg_gles_surface_get_frame;
+		/*TODO
 		surface->interface.setFrame = mg_gles_surface_set_frame;
 		surface->interface.getHidden = mg_gles_surface_get_hidden;
 		surface->interface.setHidden = mg_gles_surface_set_hidden;
@@ -117,7 +123,8 @@ mg_surface mg_gles_surface_create_for_window(mp_window window)
 		surface->eglContext = eglCreateContext(surface->eglDisplay, surface->eglConfig, EGL_NO_CONTEXT, contextAttributes);
 		eglMakeCurrent(surface->eglDisplay, surface->eglSurface, surface->eglSurface, surface->eglContext);
 
-		eglSwapInterval(surface->eglDisplay, 1);
+//TODO: reactivate this when finished testing!
+//		eglSwapInterval(surface->eglDisplay, 1);
 
 		res = mg_surface_alloc_handle((mg_surface_data*)surface);
 	}

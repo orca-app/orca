@@ -56,8 +56,9 @@ int main()
 	LogLevel(LOG_LEVEL_DEBUG);
 
 	mp_init();
+	mp_clock_init(); //TODO put that in mp_init()?
 
-	mp_rect rect = {.x = 100, .y = 100, .w = 800, .h = 600};
+	mp_rect rect = {.x = 100, .y = 100, .w = 810, .h = 610};
 	mp_window window = mp_window_create(rect, "test", 0);
 
 	//NOTE: create surface
@@ -78,11 +79,15 @@ int main()
 	mp_window_focus(window);
 
 	f32 x = 400, y = 300;
-//	f32 dx = 5, dy = 5;
-	f32 dx = 0, dy = 0;
+	f32 dx = 5, dy = 5;
+//	f32 dx = 0, dy = 0;
+
+	f64 frameTime = 0;
 
 	while(!mp_should_quit())
 	{
+		f64 startTime = mp_get_time(MP_CLOCK_MONOTONIC);
+
 		mp_pump_events(0);
 		mp_event event = {0};
 		while(mp_next_event(&event))
@@ -163,11 +168,14 @@ int main()
 			mg_circle_fill(x, y, 200);
 
 			// smile
+
+			f32 frown = frameTime > 0.033 ? 100 : 0;
+
 			mg_set_color_rgba(0, 0, 0, 1);
 
 			mg_set_width(20);
 			mg_move_to(x-100, y-100);
-			mg_cubic_to(x-50, y-50, x+50, y-50, x+100, y-100);
+			mg_cubic_to(x-50, y-150+frown, x+50, y-150+frown, x+100, y-100);
 			mg_stroke();
 
 			// eyes
@@ -179,11 +187,23 @@ int main()
 			mg_set_font(font);
 			mg_set_font_size(12);
 			mg_move_to(50, 50);
-			mg_text_outlines(str8_lit("Milepost vector graphics test program..."));
+
+			str8 text = str8_pushf(mem_scratch(),
+			                      "Milepost vector graphics test program (frame time = %fs, fps = %f)...",
+			                      frameTime,
+			                      1./frameTime);
+			mg_text_outlines(text);
 			mg_fill();
 
+/*
+			mg_set_color_rgba(1, 1, 0, 1);
+			mg_rectangle_fill(8, 8, 100, 50);
+*/
 			mg_flush();
 		mg_surface_present(surface);
+
+		mem_arena_clear(mem_scratch());
+		frameTime = mp_get_time(MP_CLOCK_MONOTONIC) - startTime;
 	}
 
 	mp_terminate();

@@ -518,7 +518,7 @@ mp_window mp_window_create(mp_rect rect, const char* title, mp_window_style styl
 
 	HWND windowHandle = CreateWindow("ApplicationWindowClass", "Test Window",
 	                                 WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT,
-	                                 800, 600,
+	                                 rect.w, rect.h,
 	                                 0, 0, windowClass.hInstance, 0);
 
 	if(!windowHandle)
