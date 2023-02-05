@@ -8,3 +8,5 @@ bin/*
 *.ilk
 *.vs
 *.obj
+
+src/gles_canvas_shaders.h

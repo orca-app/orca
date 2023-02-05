@@ -22,8 +22,13 @@ typedef struct mg_gles_canvas_backend
 	GLint indexBuffer;
 	GLint tileCounterBuffer;
 	GLint tileArrayBuffer;
+	GLint clearCounterProgram;
 	GLint tileProgram;
+	GLint sortProgram;
 	GLint drawProgram;
+	GLint blitProgram;
+
+	GLint outTexture;
 
 	char* indexMapping;
 	char* vertexMapping;
@@ -170,8 +175,16 @@ void mg_gles_canvas_draw_batch(mg_canvas_backend* interface, u32 vertexCount, u3
 
 	//TODO: ensure there's enough space in tile buffer
 
+	//NOTE: first clear counters
+/*
+	glUseProgram(backend->clearCounterProgram);
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, backend->tileCounterBuffer);
+	glDispatchCompute(tileCountX*tileCountY, 1, 1);
+*/
 	//NOTE: we first distribute triangles into tiles:
+/*
 	glUseProgram(backend->tileProgram);
+
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, backend->vertexBuffer);
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, backend->indexBuffer);
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, backend->tileCounterBuffer);
@@ -182,26 +195,55 @@ void mg_gles_canvas_draw_batch(mg_canvas_backend* interface, u32 vertexCount, u3
 	glUniform1ui(2, tileSize);
 	glUniform1ui(3, tileArraySize);
 
-	glDispatchCompute(tileCountX, tileCountY, 1);
+	glDispatchCompute(indexCount/3, 1, 1);
+*/
+	//NOTE: next we sort triangles in each tile
+/*
+	glUseProgram(backend->sortProgram);
+
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, backend->vertexBuffer);
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, backend->indexBuffer);
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, backend->tileCounterBuffer);
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, backend->tileArrayBuffer);
+
+	glUniform1ui(0, indexCount);
+	glUniform2ui(1, tileCountX, tileCountY);
+	glUniform1ui(2, tileSize);
+	glUniform1ui(3, tileArraySize);
+
+	glDispatchCompute(tileCountX * tileCountY, 1, 1);
+*/
 
 	//TODO: then we fire the fragment shader that will select only triangles in its tile
 //	glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
 
 	glUseProgram(backend->drawProgram);
 
-	glBindBuffer(GL_ARRAY_BUFFER, backend->dummyVertexBuffer);
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, backend->vertexBuffer);
-	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, backend->indexBuffer);
+/*	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, backend->indexBuffer);
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, backend->tileCounterBuffer);
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, backend->tileArrayBuffer);
+*/
+/*
+	glBindImageTexture(0, backend->outTexture, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA8);
 
 	glUniform1ui(0, indexCount);
 	glUniform2ui(1, tileCountX, tileCountY);
 	glUniform1ui(2, tileSize);
 	glUniform1ui(3, tileArraySize);
+*/
+	glDispatchCompute(tileCountX, tileCountY, 1);
+
+	//NOTE: now blit out texture to surface
+/*
+	glUseProgram(backend->blitProgram);
+	glBindBuffer(GL_ARRAY_BUFFER, backend->dummyVertexBuffer);
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, backend->outTexture);
+	glUniform1i(0, 0);
 
 	glDrawArrays(GL_TRIANGLES, 0, 6);
-
+*/
 	mg_gles_canvas_update_vertex_layout(backend);
 }
 
@@ -217,7 +259,7 @@ void mg_gles_canvas_atlas_upload(mg_canvas_backend* interface, mp_rect rect, u8*
 	//TODO
 }
 
-void compile_shader(GLuint shader, const char* source)
+static void mg_gles_compile_shader(GLuint shader, const char* source)
 {
 	glShaderSource(shader, 1, &source, 0);
 	glCompileShader(shader);
@@ -284,12 +326,40 @@ mg_canvas_backend* mg_gles_canvas_create(mg_surface surface)
 		glGenBuffers(1, &backend->dummyVertexBuffer);
 		glBindBuffer(GL_ARRAY_BUFFER, backend->dummyVertexBuffer);
 
+		mp_rect frame = mg_surface_get_frame(backend->surface);
+		glGenTextures(1, &backend->outTexture);
+		glBindTexture(GL_TEXTURE_2D, backend->outTexture);
+		glTexStorage2D(GL_TEXTURE_2D, 1, GL_RGBA8, frame.w, frame.h);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+		//NOTE: create clear program
+		{
+			GLuint clearShader = glCreateShader(GL_COMPUTE_SHADER);
+			backend->clearCounterProgram = glCreateProgram();
+
+			mg_gles_compile_shader(clearShader, gles_canvas_clear_counters);
+
+			glAttachShader(backend->clearCounterProgram, clearShader);
+			glLinkProgram(backend->clearCounterProgram);
+
+			int status = 0;
+			glGetProgramiv(backend->clearCounterProgram, GL_LINK_STATUS, &status);
+			if(!status)
+			{
+				char buffer[256];
+				int size = 0;
+				glGetProgramInfoLog(backend->clearCounterProgram, 256, &size, buffer);
+				printf("link error in gl_canvas_clear_counters: %.*s\n", size, buffer);
+				exit(-1);
+ 			}
+		}
 		//NOTE: create tile program
 		{
 			GLuint tileShader = glCreateShader(GL_COMPUTE_SHADER);
 			backend->tileProgram = glCreateProgram();
 
-			compile_shader(tileShader, gles_canvas_tile);
+			mg_gles_compile_shader(tileShader, gles_canvas_tile);
 
 			glAttachShader(backend->tileProgram, tileShader);
 			glLinkProgram(backend->tileProgram);
@@ -301,20 +371,40 @@ mg_canvas_backend* mg_gles_canvas_create(mg_surface surface)
 				char buffer[256];
 				int size = 0;
 				glGetProgramInfoLog(backend->tileProgram, 256, &size, buffer);
-				printf("link error: %.*s\n", size, buffer);
+				printf("link error in gl_canvas_tile: %.*s\n", size, buffer);
+				exit(-1);
  			}
 		}
+		//NOTE: create sort program
+		{
+			GLuint sortShader = glCreateShader(GL_COMPUTE_SHADER);
+			backend->sortProgram = glCreateProgram();
+
+			mg_gles_compile_shader(sortShader, gles_canvas_sort);
+
+			glAttachShader(backend->sortProgram, sortShader);
+			glLinkProgram(backend->sortProgram);
+
+			int status = 0;
+			glGetProgramiv(backend->sortProgram, GL_LINK_STATUS, &status);
+			if(!status)
+			{
+				char buffer[256];
+				int size = 0;
+				glGetProgramInfoLog(backend->sortProgram, 256, &size, buffer);
+				printf("link error gl_canvas_sort: %.*s\n", size, buffer);
+				exit(-1);
+ 			}
+		}
+
 		//NOTE: create draw program
 		{
-			GLuint vertexShader = glCreateShader(GL_VERTEX_SHADER);
-			GLuint fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
+			GLuint shader = glCreateShader(GL_COMPUTE_SHADER);
 			backend->drawProgram = glCreateProgram();
 
-			compile_shader(vertexShader, gles_canvas_vertex);
-			compile_shader(fragmentShader, gles_canvas_fragment);
+			mg_gles_compile_shader(shader, gles_canvas_draw);
 
-			glAttachShader(backend->drawProgram, vertexShader);
-			glAttachShader(backend->drawProgram, fragmentShader);
+			glAttachShader(backend->drawProgram, shader);
 			glLinkProgram(backend->drawProgram);
 
 			int status = 0;
@@ -324,7 +414,33 @@ mg_canvas_backend* mg_gles_canvas_create(mg_surface surface)
 				char buffer[256];
 				int size = 0;
 				glGetProgramInfoLog(backend->drawProgram, 256, &size, buffer);
-				printf("link error: %.*s\n", size, buffer);
+				printf("link error gl_canvas_draw: %.*s\n", size, buffer);
+				exit(-1);
+ 			}
+		}
+
+		//NOTE: create blit program
+		{
+			GLuint vertexShader = glCreateShader(GL_VERTEX_SHADER);
+			GLuint fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
+			backend->blitProgram = glCreateProgram();
+
+			mg_gles_compile_shader(vertexShader, gles_canvas_blit_vertex);
+			mg_gles_compile_shader(fragmentShader, gles_canvas_blit_fragment);
+
+			glAttachShader(backend->blitProgram, vertexShader);
+			glAttachShader(backend->blitProgram, fragmentShader);
+			glLinkProgram(backend->blitProgram);
+
+			int status = 0;
+			glGetProgramiv(backend->blitProgram, GL_LINK_STATUS, &status);
+			if(!status)
+			{
+				char buffer[256];
+				int size = 0;
+				glGetProgramInfoLog(backend->blitProgram, 256, &size, buffer);
+				printf("link error gl_canvas_blit: %.*s\n", size, buffer);
+				exit(-1);
  			}
 		}
 

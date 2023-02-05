@@ -125,6 +125,7 @@ mg_surface mg_gles_surface_create_for_window(mp_window window)
 
 //TODO: reactivate this when finished testing!
 //		eglSwapInterval(surface->eglDisplay, 1);
+		eglSwapInterval(surface->eglDisplay, 0);
 
 		res = mg_surface_alloc_handle((mg_surface_data*)surface);
 	}

@@ -183,6 +183,7 @@ int main()
 			mg_ellipse_fill(x+70, y+50, 30, 50);
 
 			// text
+//*
 			mg_set_color_rgba(0, 0, 1, 1);
 			mg_set_font(font);
 			mg_set_font_size(12);
@@ -193,12 +194,21 @@ int main()
 			                      frameTime,
 			                      1./frameTime);
 			mg_text_outlines(text);
+//*/
 			mg_fill();
+
+//*
+			printf("Milepost vector graphics test program (frame time = %fs, fps = %f)...\n",
+			                      frameTime,
+			                      1./frameTime);
+//*/
 
 /*
 			mg_set_color_rgba(1, 1, 0, 1);
 			mg_rectangle_fill(8, 8, 100, 50);
 */
+
+
 			mg_flush();
 		mg_surface_present(surface);
 

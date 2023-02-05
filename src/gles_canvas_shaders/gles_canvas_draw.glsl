@@ -1,6 +1,9 @@
 #version 310 es
+layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
 
 precision mediump float;
+precision mediump image2D;
+
 layout(std430) buffer;
 
 struct vertex {
@@ -12,19 +15,19 @@ struct vertex {
 	int zIndex;
 };
 
-layout(binding = 0) buffer vertexBufferSSBO {
+layout(binding = 0) restrict readonly buffer vertexBufferSSBO {
 	vertex elements[];
 } vertexBuffer ;
 
-layout(binding = 1) buffer indexBufferSSBO {
+layout(binding = 1) restrict readonly buffer indexBufferSSBO {
 	uint elements[];
 } indexBuffer ;
 
-layout(binding = 2) coherent buffer tileCounterBufferSSBO {
+layout(binding = 2) restrict readonly buffer tileCounterBufferSSBO {
 	uint elements[];
 } tileCounterBuffer ;
 
-layout(binding = 3) coherent buffer tileArrayBufferSSBO {
+layout(binding = 3) restrict readonly buffer tileArrayBufferSSBO {
 	uint elements[];
 } tileArrayBuffer ;
 
@@ -32,9 +35,14 @@ layout(location = 0) uniform uint indexCount;
 layout(location = 1) uniform uvec2 tileCount;
 layout(location = 2) uniform uint tileSize;
 layout(location = 3) uniform uint tileArraySize;
+layout(rgba8, binding = 0) uniform restrict writeonly image2D outTexture;
 
-layout(location = 0) out vec4 fragColor;
 
+void main()
+{}
+
+
+#if 0
 
 bool is_top_left(ivec2 a, ivec2 b)
 {
@@ -49,14 +57,21 @@ int orient2d(ivec2 a, ivec2 b, ivec2 p)
 
 void main()
 {
-	uvec2 tileCoord = uvec2(gl_FragCoord.xy)/tileSize;
+	ivec2 pixelCoord = ivec2(gl_WorkGroupID.xy*uvec2(16, 16) + gl_LocalInvocationID.xy);
+
+	imageStore(outTexture, pixelCoord, vec4(1, 0, 1, 1));
+	return;
+
+	uvec2 tileCoord = uvec2(pixelCoord) / tileSize;
+
 	uint tileIndex =  tileCoord.y * tileCount.x + tileCoord.x;
 	uint tileCounter = tileCounterBuffer.elements[tileIndex];
 
 	const float subPixelFactor = 16.;
-	const int sampleCount = 8;
+	ivec2 centerPoint = ivec2(round((vec2(pixelCoord) + vec2(0.5, 0.5)) * subPixelFactor));
 
-	ivec2 centerPoint = ivec2(round(gl_FragCoord.xy * subPixelFactor));
+/*
+	const int sampleCount = 8;
 	ivec2 samplePoints[sampleCount] = ivec2[sampleCount](centerPoint + ivec2(1, 3),
 	                                                     centerPoint + ivec2(-1, -3),
 	                                                     centerPoint + ivec2(5, -1),
@@ -65,28 +80,38 @@ void main()
 	                                                     centerPoint + ivec2(-7, 1),
 	                                                     centerPoint + ivec2(3, -7),
 	                                                     centerPoint + ivec2(7, 7));
-
-
+*/
+	const int sampleCount = 4;
+	ivec2 samplePoints[sampleCount] = ivec2[sampleCount](centerPoint + ivec2(-2, 6),
+	                                                     centerPoint + ivec2(6, 2),
+	                                                     centerPoint + ivec2(-6, -2),
+	                                                     centerPoint + ivec2(2, -6));
 	//DEBUG
+//*
+	{
+		vec4 fragColor = vec4(0);
 /*
-	if( int(gl_FragCoord.x - 0.5) % 16 == 0
-	  ||int(gl_FragCoord.y - 0.5) % 16 == 0)
-	{
-		fragColor = vec4(0, 0, 0, 1);
+		if( pixelCoord.x % 16 == 0
+	  	||pixelCoord.y % 16 == 0)
+		{
+			fragColor = vec4(0, 0, 0, 1);
+		}
+		else if(tileCounterBuffer.elements[tileIndex] == 0xffffu)
+		{
+			fragColor = vec4(1, 0, 1, 1);
+		}
+		else if(tileCounter != 0u)
+		{
+			fragColor = vec4(0, 1, 0, 1);
+		}
+		else
+		{
+			fragColor = vec4(1, 0, 0, 1);
+		}
+*/
+		imageStore(outTexture, pixelCoord, fragColor);
+		return;
 	}
-	else if(tileCounterBuffer.elements[tileIndex] == 2u)
-	{
-		fragColor = vec4(1, 1, 0, 1);
-	}
-	else if(tileCounter != 0u)
-	{
-		fragColor = vec4(0, 1, 0, 1);
-	}
-	else
-	{
-		fragColor = vec4(1, 0, 0, 1);
-	}
-	return;
 //*/
 	//----
 
@@ -181,5 +206,8 @@ void main()
     	}
     	pixelColor += sampleColor[sampleIndex];
 	}
-	fragColor = pixelColor/float(sampleCount);
+
+	imageStore(outTexture, pixelCoord, pixelColor/float(sampleCount));
 }
+
+#endif
