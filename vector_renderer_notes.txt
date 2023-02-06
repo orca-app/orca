@@ -41,3 +41,30 @@ Anyway for now, is it possible have an _under the hood_ atlas, and reserve a way
 * or, we can expose mg_texture and related APIs for now, as if they were individual, but back them by a hidden atlas. And a bit later expose mg_image/atlas -> maybe better.
 
 * Or just implement breaking the triangle stream into batches now...
+
+Perf issue of binding large vertex buffer
+-----------------------------------------
+
+Binding big buffers has a high cost. We should send updates in smaller batches, either
+	- use a temporary storage to build vertex buffer, then send with glBufferData just before rendering
+	- stream data to large buffer using glMapBufferRange (instead of mapping the whole buffer)
+	- stream data to large buffer using glBufferSubData
+
+We have to account for these edge cases:
+	- how we handle overflowing the sub range (ie space allocated or mapped to build vertices)
+	- how we handle overflowing buffer capacity (if using a pre-allocated buffer and glMapBufferRange/glBufferSubData)
+
+* Using a temporary store and glBufferData forces a draw call when exceeding the temporary buffer limits. But the two cases of overflow are handled at once.
+* Using a temporary store and glBufferSubData distributed data transfer asynchronously, and doesn't force a draw call when exceeding temporary buffer. We'd still need to force a draw when exceeding the gl buffer size.
+* Using glMapRange also distributes data transfer asynchronously. We need to force a draw when exceeding the gl buffer size.
+
+The first solution (temporary building buffer + glBufferData) is simpler and probably ok for low number of vertices. We can even build the vertices in an arena and virtually never care about exceeding building buffer capacity. But if we have many vertices, maybe we care about distributing transfer across asynchronous calls.
+
+what happens if we exceed the gl buffer size? -> we need to make a draw call to use vertices, and maybe then grow the buffer to bigger size. But this implies breaking the batch, probably in the middle of a shape? this isn't really possible because we'd need the previous candidate color and flipcount transfered between batches. We could use a texture for that, but it complicates things quite a bit...
+
+Notes:
+	* Mapping/Unmapping smaller ranges of a big buffer doesn't seem to lower the cost of binding that buffer. Does the driver sends the full buffer regardless of the range that was changed?
+	* Orphaning the buffer before mapping doesn't seem to do any good
+	* Doing glBufferData from a small build buffer is surprisingly slow...
+		* Angle seems to take into account only the first call to glBufferData to allocate size, and then send the full buffer???
+		* Not pre-allocating in creation procedure "solves" the problem with glBufferData...

@@ -158,7 +158,6 @@ int main()
 		y += dy;
 
 		mg_surface_prepare(surface);
-
 			// background
 			mg_set_color_rgba(0, 1, 1, 1);
 			mg_clear();
@@ -194,8 +193,8 @@ int main()
 			                      frameTime,
 			                      1./frameTime);
 			mg_text_outlines(text);
-//*/
 			mg_fill();
+//*/
 
 //*
 			printf("Milepost vector graphics test program (frame time = %fs, fps = %f)...\n",

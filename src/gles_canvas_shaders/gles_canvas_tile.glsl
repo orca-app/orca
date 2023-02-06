@@ -1,5 +1,5 @@
 #version 310 es
-layout(local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
+layout(local_size_x = 512, local_size_y = 1, local_size_z = 1) in;
 
 precision mediump float;
 layout(std430) buffer;
@@ -36,7 +36,11 @@ layout(location = 3) uniform uint tileArraySize;
 
 void main()
 {
-	uint triangleIndex = gl_WorkGroupID.x * 3u;
+	uint triangleIndex = (gl_WorkGroupID.x*gl_WorkGroupSize.x + gl_LocalInvocationIndex) * 3u;
+	if(triangleIndex >= indexCount)
+	{
+		return;
+	}
 
 	uint i0 = indexBuffer.elements[triangleIndex];
 	uint i1 = indexBuffer.elements[triangleIndex+1u];

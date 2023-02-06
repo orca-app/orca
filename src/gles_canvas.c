@@ -60,6 +60,7 @@ typedef struct debug_vertex
 	u8 align2[12];
 } debug_vertex;
 
+
 #define LayoutNext(prevName, prevType, nextType) \
 	AlignUpOnPow2(_cat3_(LAYOUT_, prevName, _OFFSET)+_cat3_(LAYOUT_, prevType, _SIZE), _cat3_(LAYOUT_, nextType, _ALIGN))
 
@@ -83,7 +84,7 @@ enum {
 };
 
 enum {
-	MG_GLES_CANVAS_DEFAULT_BUFFER_LENGTH = 8<<10,
+	MG_GLES_CANVAS_DEFAULT_BUFFER_LENGTH = 1<<20,
 	MG_GLES_CANVAS_VERTEX_BUFFER_SIZE = MG_GLES_CANVAS_DEFAULT_BUFFER_LENGTH * LAYOUT_VERTEX_SIZE,
 	MG_GLES_CANVAS_INDEX_BUFFER_SIZE = MG_GLES_CANVAS_DEFAULT_BUFFER_LENGTH * LAYOUT_INT_SIZE,
 	MG_GLES_CANVAS_TILE_COUNTER_BUFFER_SIZE = 65536,
@@ -93,12 +94,6 @@ enum {
 
 void mg_gles_canvas_update_vertex_layout(mg_gles_canvas_backend* backend)
 {
-	glBindBuffer(GL_SHADER_STORAGE_BUFFER, backend->vertexBuffer);
-	backend->vertexMapping = glMapBufferRange(GL_SHADER_STORAGE_BUFFER, 0, MG_GLES_CANVAS_VERTEX_BUFFER_SIZE, GL_MAP_WRITE_BIT);
-
-	glBindBuffer(GL_SHADER_STORAGE_BUFFER, backend->indexBuffer);
-	backend->indexMapping = glMapBufferRange(GL_SHADER_STORAGE_BUFFER, 0, MG_GLES_CANVAS_INDEX_BUFFER_SIZE, GL_MAP_WRITE_BIT);
-
 	backend->interface.vertexLayout = (mg_vertex_layout){
 		    .maxVertexCount = MG_GLES_CANVAS_DEFAULT_BUFFER_LENGTH,
 	        .maxIndexCount = MG_GLES_CANVAS_DEFAULT_BUFFER_LENGTH,
@@ -118,6 +113,14 @@ void mg_gles_canvas_update_vertex_layout(mg_gles_canvas_backend* backend)
 	        .indexStride = LAYOUT_INT_SIZE};
 }
 
+void mg_gles_send_buffers(mg_gles_canvas_backend* backend, int vertexCount, int indexCount)
+{
+	glBindBuffer(GL_SHADER_STORAGE_BUFFER, backend->vertexBuffer);
+	glBufferData(GL_SHADER_STORAGE_BUFFER, LAYOUT_VERTEX_SIZE*vertexCount, backend->vertexMapping, GL_DYNAMIC_DRAW);
+
+	glBindBuffer(GL_SHADER_STORAGE_BUFFER, backend->indexBuffer);
+	glBufferData(GL_SHADER_STORAGE_BUFFER, LAYOUT_INT_SIZE*indexCount, backend->indexMapping, GL_DYNAMIC_DRAW);
+}
 void mg_gles_canvas_begin(mg_canvas_backend* interface)
 {
 	mg_gles_canvas_backend* backend = (mg_gles_canvas_backend*)interface;
@@ -161,10 +164,7 @@ void mg_gles_canvas_draw_batch(mg_canvas_backend* interface, u32 vertexCount, u3
 	debug_vertex vertex;
 	printf("foo %p\n", &vertex);
 //*/
-	glBindBuffer(GL_SHADER_STORAGE_BUFFER, backend->vertexBuffer);
-	glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
-	glBindBuffer(GL_SHADER_STORAGE_BUFFER, backend->indexBuffer);
-	glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
+	mg_gles_send_buffers(backend, vertexCount, indexCount);
 
 	mp_rect frame = mg_surface_get_frame(backend->surface);
 
@@ -194,16 +194,17 @@ void mg_gles_canvas_draw_batch(mg_canvas_backend* interface, u32 vertexCount, u3
 	glUniform1ui(2, tileSize);
 	glUniform1ui(3, tileArraySize);
 
-	glDispatchCompute(indexCount/3, 1, 1);
+	u32 threadCount = indexCount/3;
+	glDispatchCompute((threadCount + 255)/256, 1, 1);
 
 	//NOTE: next we sort triangles in each tile
 	glUseProgram(backend->sortProgram);
-
+/*
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, backend->vertexBuffer);
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, backend->indexBuffer);
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, backend->tileCounterBuffer);
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, backend->tileArrayBuffer);
-
+*/
 	glUniform1ui(0, indexCount);
 	glUniform2ui(1, tileCountX, tileCountY);
 	glUniform1ui(2, tileSize);
@@ -215,12 +216,12 @@ void mg_gles_canvas_draw_batch(mg_canvas_backend* interface, u32 vertexCount, u3
 //	glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
 
 	glUseProgram(backend->drawProgram);
-
+/*
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, backend->vertexBuffer);
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, backend->indexBuffer);
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, backend->tileCounterBuffer);
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, backend->tileArrayBuffer);
-
+*/
 	glBindImageTexture(0, backend->outTexture, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA8);
 
 	glUniform1ui(0, indexCount);
@@ -304,11 +305,11 @@ mg_canvas_backend* mg_gles_canvas_create(mg_surface surface)
 
 		glGenBuffers(1, &backend->vertexBuffer);
 		glBindBuffer(GL_SHADER_STORAGE_BUFFER, backend->vertexBuffer);
-		glBufferData(GL_SHADER_STORAGE_BUFFER, MG_GLES_CANVAS_VERTEX_BUFFER_SIZE, 0, GL_DYNAMIC_DRAW);
+//		glBufferData(GL_SHADER_STORAGE_BUFFER, MG_GLES_CANVAS_VERTEX_BUFFER_SIZE, 0, GL_DYNAMIC_DRAW);
 
 		glGenBuffers(1, &backend->indexBuffer);
 		glBindBuffer(GL_SHADER_STORAGE_BUFFER, backend->indexBuffer);
-		glBufferData(GL_SHADER_STORAGE_BUFFER, MG_GLES_CANVAS_INDEX_BUFFER_SIZE, 0, GL_DYNAMIC_DRAW);
+//		glBufferData(GL_SHADER_STORAGE_BUFFER, MG_GLES_CANVAS_INDEX_BUFFER_SIZE, 0, GL_DYNAMIC_DRAW);
 
 		glGenBuffers(1, &backend->tileCounterBuffer);
 		glBindBuffer(GL_SHADER_STORAGE_BUFFER, backend->tileCounterBuffer);
@@ -438,6 +439,9 @@ mg_canvas_backend* mg_gles_canvas_create(mg_surface surface)
 				exit(-1);
  			}
 		}
+
+		backend->vertexMapping = malloc_array(char, 1<<30);
+		backend->indexMapping = malloc_array(char, 1<<30);
 
 		mg_gles_canvas_update_vertex_layout(backend);
 	}
