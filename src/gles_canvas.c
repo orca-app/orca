@@ -83,11 +83,11 @@ enum {
 };
 
 enum {
-	MG_GLES_CANVAS_DEFAULT_BUFFER_LENGTH = 1<<20,
+	MG_GLES_CANVAS_DEFAULT_BUFFER_LENGTH = 8<<10,
 	MG_GLES_CANVAS_VERTEX_BUFFER_SIZE = MG_GLES_CANVAS_DEFAULT_BUFFER_LENGTH * LAYOUT_VERTEX_SIZE,
 	MG_GLES_CANVAS_INDEX_BUFFER_SIZE = MG_GLES_CANVAS_DEFAULT_BUFFER_LENGTH * LAYOUT_INT_SIZE,
 	MG_GLES_CANVAS_TILE_COUNTER_BUFFER_SIZE = 65536,
-	MG_GLES_CANVAS_TILE_ARRAY_SIZE = 4096,
+	MG_GLES_CANVAS_TILE_ARRAY_SIZE = sizeof(int)*4096,
 	MG_GLES_CANVAS_TILE_ARRAY_BUFFER_SIZE = MG_GLES_CANVAS_TILE_COUNTER_BUFFER_SIZE * MG_GLES_CANVAS_TILE_ARRAY_SIZE,
 };
 
@@ -171,18 +171,17 @@ void mg_gles_canvas_draw_batch(mg_canvas_backend* interface, u32 vertexCount, u3
 	const int tileSize = 16;
 	const int tileCountX = (frame.w + tileSize - 1)/tileSize;
 	const int tileCountY = (frame.h + tileSize - 1)/tileSize;
-	const int tileArraySize = 4096;
+	const int tileArraySize = MG_GLES_CANVAS_TILE_ARRAY_SIZE;
 
 	//TODO: ensure there's enough space in tile buffer
 
 	//NOTE: first clear counters
-/*
 	glUseProgram(backend->clearCounterProgram);
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, backend->tileCounterBuffer);
 	glDispatchCompute(tileCountX*tileCountY, 1, 1);
-*/
+
 	//NOTE: we first distribute triangles into tiles:
-/*
+
 	glUseProgram(backend->tileProgram);
 
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, backend->vertexBuffer);
@@ -196,9 +195,8 @@ void mg_gles_canvas_draw_batch(mg_canvas_backend* interface, u32 vertexCount, u3
 	glUniform1ui(3, tileArraySize);
 
 	glDispatchCompute(indexCount/3, 1, 1);
-*/
+
 	//NOTE: next we sort triangles in each tile
-/*
 	glUseProgram(backend->sortProgram);
 
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, backend->vertexBuffer);
@@ -212,7 +210,6 @@ void mg_gles_canvas_draw_batch(mg_canvas_backend* interface, u32 vertexCount, u3
 	glUniform1ui(3, tileArraySize);
 
 	glDispatchCompute(tileCountX * tileCountY, 1, 1);
-*/
 
 	//TODO: then we fire the fragment shader that will select only triangles in its tile
 //	glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
@@ -220,22 +217,20 @@ void mg_gles_canvas_draw_batch(mg_canvas_backend* interface, u32 vertexCount, u3
 	glUseProgram(backend->drawProgram);
 
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, backend->vertexBuffer);
-/*	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, backend->indexBuffer);
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, backend->indexBuffer);
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, backend->tileCounterBuffer);
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, backend->tileArrayBuffer);
-*/
-/*
+
 	glBindImageTexture(0, backend->outTexture, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA8);
 
 	glUniform1ui(0, indexCount);
 	glUniform2ui(1, tileCountX, tileCountY);
 	glUniform1ui(2, tileSize);
 	glUniform1ui(3, tileArraySize);
-*/
+
 	glDispatchCompute(tileCountX, tileCountY, 1);
 
 	//NOTE: now blit out texture to surface
-/*
 	glUseProgram(backend->blitProgram);
 	glBindBuffer(GL_ARRAY_BUFFER, backend->dummyVertexBuffer);
 	glActiveTexture(GL_TEXTURE0);
@@ -243,7 +238,7 @@ void mg_gles_canvas_draw_batch(mg_canvas_backend* interface, u32 vertexCount, u3
 	glUniform1i(0, 0);
 
 	glDrawArrays(GL_TRIANGLES, 0, 6);
-*/
+
 	mg_gles_canvas_update_vertex_layout(backend);
 }
 

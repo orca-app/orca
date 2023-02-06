@@ -38,12 +38,6 @@ layout(location = 3) uniform uint tileArraySize;
 layout(rgba8, binding = 0) uniform restrict writeonly image2D outTexture;
 
 
-void main()
-{}
-
-
-#if 0
-
 bool is_top_left(ivec2 a, ivec2 b)
 {
 	return( (a.y == b.y && b.x < a.x)
@@ -58,12 +52,7 @@ int orient2d(ivec2 a, ivec2 b, ivec2 p)
 void main()
 {
 	ivec2 pixelCoord = ivec2(gl_WorkGroupID.xy*uvec2(16, 16) + gl_LocalInvocationID.xy);
-
-	imageStore(outTexture, pixelCoord, vec4(1, 0, 1, 1));
-	return;
-
 	uvec2 tileCoord = uvec2(pixelCoord) / tileSize;
-
 	uint tileIndex =  tileCoord.y * tileCount.x + tileCoord.x;
 	uint tileCounter = tileCounterBuffer.elements[tileIndex];
 
@@ -87,12 +76,12 @@ void main()
 	                                                     centerPoint + ivec2(-6, -2),
 	                                                     centerPoint + ivec2(2, -6));
 	//DEBUG
-//*
+/*
 	{
 		vec4 fragColor = vec4(0);
-/*
+
 		if( pixelCoord.x % 16 == 0
-	  	||pixelCoord.y % 16 == 0)
+	  	  ||pixelCoord.y % 16 == 0)
 		{
 			fragColor = vec4(0, 0, 0, 1);
 		}
@@ -108,7 +97,6 @@ void main()
 		{
 			fragColor = vec4(1, 0, 0, 1);
 		}
-*/
 		imageStore(outTexture, pixelCoord, fragColor);
 		return;
 	}
@@ -209,5 +197,3 @@ void main()
 
 	imageStore(outTexture, pixelCoord, pixelColor/float(sampleCount));
 }
-
-#endif
