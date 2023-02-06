@@ -50,10 +50,8 @@ mg_gles_surface* mg_gles_canvas_get_surface(mg_gles_canvas_backend* canvas)
 typedef struct debug_vertex
 {
 	vec2 pos;
-	u8 align0[8];
-	vec4 cubic;
 	vec2 uv;
-	u8 align1[8];
+	vec4 cubic;
 	vec4 color;
 	vec4 clip;
 	int zIndex;
@@ -73,9 +71,9 @@ enum {
 	LAYOUT_INT_ALIGN = 4,
 
 	LAYOUT_POS_OFFSET = 0,
-	LAYOUT_CUBIC_OFFSET = LayoutNext(POS, VEC2, VEC4),
-	LAYOUT_UV_OFFSET = LayoutNext(CUBIC, VEC4, VEC2),
-	LAYOUT_COLOR_OFFSET = LayoutNext(UV, VEC2, VEC4),
+	LAYOUT_UV_OFFSET = LayoutNext(POS, VEC2, VEC2),
+	LAYOUT_CUBIC_OFFSET = LayoutNext(UV, VEC2, VEC4),
+	LAYOUT_COLOR_OFFSET = LayoutNext(CUBIC, VEC4, VEC4),
 	LAYOUT_CLIP_OFFSET = LayoutNext(COLOR, VEC4, VEC4),
 	LAYOUT_ZINDEX_OFFSET = LayoutNext(CLIP, VEC4, INT),
 

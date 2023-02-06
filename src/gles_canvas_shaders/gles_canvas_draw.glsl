@@ -8,8 +8,8 @@ layout(std430) buffer;
 
 struct vertex {
 	vec2 pos;
-	vec4 cubic;
 	vec2 uv;
+	vec4 cubic;
 	vec4 color;
 	vec4 clip;
 	int zIndex;
