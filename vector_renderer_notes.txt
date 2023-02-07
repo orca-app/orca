@@ -80,3 +80,15 @@ Ideally, we would do the vertex computation on the GPU (opportunity to paralleli
 
 -> Problem profiling canvas renderer with angle (not really well supported in renderdoc)
 	-> Maybe use an OpenGL backend instead?
+
+Quick measurement on perf_text.exe
+----------------------------------
+* Re-allocate and copy each time with glBufferData		--> ~23ms
+* Allocate big buffer and update with glBufferSubData	--> ~23ms
+* Map whole buffer										--> ~44ms
+* Map whole buffer with GL_MAP_INVALIDATE_BUFFER_BIT	--> ~19ms (but with some startup hiccups...)
+* Map whole buffer with GL_MAP_INVALIDATE_RANGE_BIT		--> ~44ms
+
+
+-> Stutter is with GL_MAP_INVALIDATE_BUFFER_BIT isn't reassuring. Stick to glBufferData for now.
+-> May be worth it to try persistently mapped buffers later.

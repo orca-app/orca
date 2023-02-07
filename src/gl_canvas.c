@@ -114,11 +114,12 @@ void mg_gl_canvas_update_vertex_layout(mg_gl_canvas_backend* backend)
 void mg_gl_send_buffers(mg_gl_canvas_backend* backend, int vertexCount, int indexCount)
 {
 	glBindBuffer(GL_SHADER_STORAGE_BUFFER, backend->vertexBuffer);
-	glBufferData(GL_SHADER_STORAGE_BUFFER, LAYOUT_VERTEX_SIZE*vertexCount, backend->vertexMapping, GL_DYNAMIC_DRAW);
+	glBufferData(GL_SHADER_STORAGE_BUFFER, LAYOUT_VERTEX_SIZE*vertexCount, backend->vertexMapping, GL_STREAM_DRAW);
 
 	glBindBuffer(GL_SHADER_STORAGE_BUFFER, backend->indexBuffer);
-	glBufferData(GL_SHADER_STORAGE_BUFFER, LAYOUT_INT_SIZE*indexCount, backend->indexMapping, GL_DYNAMIC_DRAW);
+	glBufferData(GL_SHADER_STORAGE_BUFFER, LAYOUT_INT_SIZE*indexCount, backend->indexMapping, GL_STREAM_DRAW);
 }
+
 void mg_gl_canvas_begin(mg_canvas_backend* interface)
 {
 	mg_gl_canvas_backend* backend = (mg_gl_canvas_backend*)interface;
@@ -306,11 +307,11 @@ mg_canvas_backend* mg_gl_canvas_create(mg_surface surface)
 
 		glGenBuffers(1, &backend->vertexBuffer);
 		glBindBuffer(GL_SHADER_STORAGE_BUFFER, backend->vertexBuffer);
-//		glBufferData(GL_SHADER_STORAGE_BUFFER, MG_GL_CANVAS_VERTEX_BUFFER_SIZE, 0, GL_DYNAMIC_DRAW);
+		glBufferData(GL_SHADER_STORAGE_BUFFER, MG_GL_CANVAS_VERTEX_BUFFER_SIZE, 0, GL_STREAM_DRAW);
 
 		glGenBuffers(1, &backend->indexBuffer);
 		glBindBuffer(GL_SHADER_STORAGE_BUFFER, backend->indexBuffer);
-//		glBufferData(GL_SHADER_STORAGE_BUFFER, MG_GL_CANVAS_INDEX_BUFFER_SIZE, 0, GL_DYNAMIC_DRAW);
+		glBufferData(GL_SHADER_STORAGE_BUFFER, MG_GL_CANVAS_INDEX_BUFFER_SIZE, 0, GL_STREAM_DRAW);
 
 		glGenBuffers(1, &backend->tileCounterBuffer);
 		glBindBuffer(GL_SHADER_STORAGE_BUFFER, backend->tileCounterBuffer);

@@ -1,4 +1,10 @@
 
+WIP
+---
+[ ] Split vertex data into per-vertex and per-shape data. Keep only pos, cubics, and shapeID in vertex data
+[?] use half-floats or short fixed-point for pos and uv, packing them in two ints
+
+-----------
 [.] Check changes in macos version
 	[x] Restructure macos version to use mp_app_internal.h/mp_app.c
 	[x] test new run loop structure on macos
@@ -41,9 +47,11 @@
 	[ ] Text rendering test app
 	[?] Little test drawing app?
 
-	[>] Assess perf
-		[ ] Tiling
-		[ ] Precomputing triangle edges/biases?
+	[.] Assess perf
+		[x] Tiling
+		[>] Reduce size of data sent to GPU
+		[ ] experiment with persistently mapped buffer?
+		[?] Precomputing triangle edges/biases?
 
 [ ] Implement surfaces with child windows on win32
 	[/] Maybe implement compositing directly in d3d and opengl compat extension...

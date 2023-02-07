@@ -36,6 +36,7 @@
 	GL_PROC(GLGENBUFFERS, glGenBuffers) \
 	GL_PROC(GLBINDBUFFER, glBindBuffer) \
 	GL_PROC(GLBUFFERDATA, glBufferData) \
+	GL_PROC(GLBUFFERSUBDATA, glBufferSubData) \
 	GL_PROC(GLUNIFORMMATRIX4FV, glUniformMatrix4fv) \
 	GL_PROC(GLVERTEXATTRIBPOINTER, glVertexAttribPointer) \
 	GL_PROC(GLENABLEVERTEXATTRIBARRAY, glEnableVertexAttribArray) \
@@ -47,6 +48,9 @@
 	GL_PROC(GLACTIVETEXTURE, glActiveTexture) \
 	GL_PROC(GLUNIFORM1I, glUniform1i) \
 	GL_PROC(GLTEXSTORAGE2D, glTexStorage2D) \
+	GL_PROC(GLMAPBUFFERRANGE, glMapBufferRange) \
+	GL_PROC(GLUNMAPBUFFER, glUnmapBuffer)
+
 
 #ifdef WIN32_GL_LOADER_API
 	//NOTE: pointer declarations
