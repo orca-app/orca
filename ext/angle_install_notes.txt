@@ -2,8 +2,8 @@ angle install on windows
 
 * need Python3 (can install through win app store)
 * need Windows SDK
-* clone depot_tools git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git 
-or download and unzip bundle at https://storage.googleapis.com/chrome-infra/depot_tools.zip 
+* clone depot_tools git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git
+or download and unzip bundle at https://storage.googleapis.com/chrome-infra/depot_tools.zip
 * set depot_tools in path env variable through control panel>System and security>system>advanced system settings
 * run gclient in a cmd shell
 
@@ -24,8 +24,21 @@ or download and unzip bundle at https://storage.googleapis.com/chrome-infra/depo
 	angle_build_tests = false
 	is_component_build = false
 
+	#to get debugging kinda working with renderdoc:
+	angle_enable_trace = true
+	angle_enable_annotator_run_time_checks = true
+
+
 * autoninja -C out/Debug
 * wait a while
 
 * link with libEGL.dll.lib and libGLESv2.dll.lib
 * put libEGL.dll and libGLESv2.dll in same directory as executable
+
+Debugging
+---------
+in renderdoc, set env variables
+RENDERDOC_HOOK_EGL 0 (if you want to trace underlying native API)
+RENDERDOC_HOOK_EGL 1 (if you want to trace EGL calls. You also need to put libEGL in the renderdoc folder so it's found when capturing stuff. Unfortunately though, that seems to provoke crashes...)
+
+ANGLE_ENABLE_DEBUG_MARKERS 1 (to turn on debug markers)

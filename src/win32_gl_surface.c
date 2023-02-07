@@ -13,12 +13,11 @@
 #include"graphics_internal.h"
 #include"win32_app.h"
 
-#define MG_IMPLEMENTS_BACKEND_GL
-
 typedef struct mg_gl_surface
 {
 	mg_surface_data interface;
 
+	HWND hWnd;
 	HDC hDC;
 	HGLRC glContext;
 
@@ -44,30 +43,15 @@ void mg_gl_surface_present(mg_surface_data* interface)
 	SwapBuffers(surface->hDC);
 }
 
-PFNWGLCHOOSEPIXELFORMATARBPROC wglChoosePixelFormatARB;
-PFNWGLCREATECONTEXTATTRIBSARBPROC wglCreateContextAttribsARB;
-PFNWGLMAKECONTEXTCURRENTARBPROC wglMakeContextCurrentARB;
-PFNWGLSWAPINTERVALEXTPROC wglSwapIntervalEXT;
+mp_rect mg_gl_surface_get_frame(mg_surface_data* interface)
+{
+	mg_gl_surface* surface = (mg_gl_surface*)interface;
+	RECT rect = {0};
+	GetClientRect(surface->hWnd, &rect);
 
-PFNGLCREATESHADERPROC glCreateShader;
-PFNGLCREATEPROGRAMPROC glCreateProgram;
-PFNGLATTACHSHADERPROC glAttachShader;
-PFNGLCOMPILESHADERPROC glCompileShader;
-PFNGLGETSHADERIVPROC glGetShaderiv;
-PFNGLGETSHADERINFOLOGPROC glGetShaderInfoLog;
-PFNGLSHADERSOURCEPROC glShaderSource;
-PFNGLLINKPROGRAMPROC glLinkProgram;
-PFNGLGETPROGRAMIVPROC glGetProgramiv;
-PFNGLGETPROGRAMINFOLOGPROC glGetProgramInfoLog;
-PFNGLUSEPROGRAMPROC glUseProgram;
-PFNGLGENVERTEXARRAYSPROC glGenVertexArrays;
-PFNGLBINDVERTEXARRAYPROC glBindVertexArray;
-PFNGLGENBUFFERSPROC glGenBuffers;
-PFNGLBINDBUFFERPROC glBindBuffer;
-PFNGLBUFFERDATAPROC glBufferData;
-PFNGLUNIFORMMATRIX4FVPROC glUniformMatrix4fv;
-PFNGLVERTEXATTRIBPOINTERPROC glVertexAttribPointer;
-PFNGLENABLEVERTEXATTRIBARRAYPROC glEnableVertexAttribArray;
+	mp_rect res = {rect.left, rect.bottom, rect.right - rect.left, rect.bottom - rect.top};
+	return(res);
+}
 
 mg_surface mg_gl_surface_create_for_window(mp_window window)
 {
@@ -130,6 +114,7 @@ mg_surface mg_gl_surface_create_for_window(mp_window window)
 		wglMakeCurrent(dummyDC, dummyGLContext);
 
 		//NOTE(martin): now load extension functions
+		/*
 		wglChoosePixelFormatARB = (PFNWGLCHOOSEPIXELFORMATARBPROC)wglGetProcAddress("wglChoosePixelFormatARB");
 		wglCreateContextAttribsARB = (PFNWGLCREATECONTEXTATTRIBSARBPROC)wglGetProcAddress("wglCreateContextAttribsARB");
 		wglMakeContextCurrentARB = (PFNWGLMAKECONTEXTCURRENTARBPROC)wglGetProcAddress("wglMakeContextCurrentARB");
@@ -154,6 +139,8 @@ mg_surface mg_gl_surface_create_for_window(mp_window window)
 		glUniformMatrix4fv = (PFNGLUNIFORMMATRIX4FVPROC)wglGetProcAddress("glUniformMatrix4fv");
 		glVertexAttribPointer = (PFNGLVERTEXATTRIBPOINTERPROC)wglGetProcAddress("glVertexAttribPointer");
 		glEnableVertexAttribArray = (PFNGLENABLEVERTEXATTRIBARRAYPROC)wglGetProcAddress("glEnableVertexAttribArray");
+		*/
+		mp_gl_load_procs();
 
 		//NOTE(martin): now create the true pixel format and gl context
 		int pixelFormatAttrs[] = {
@@ -180,6 +167,7 @@ mg_surface mg_gl_surface_create_for_window(mp_window window)
 		int contextAttrs[] = {
 			WGL_CONTEXT_MAJOR_VERSION_ARB, 4,
 			WGL_CONTEXT_MINOR_VERSION_ARB, 3,
+			WGL_CONTEXT_PROFILE_MASK_ARB, WGL_CONTEXT_CORE_PROFILE_BIT_ARB,
 			0};
 
 		HGLRC glContext = wglCreateContextAttribsARB(hDC, dummyGLContext, contextAttrs);
@@ -198,7 +186,9 @@ mg_surface mg_gl_surface_create_for_window(mp_window window)
 
 		//NOTE: make gl context current
 		wglMakeCurrent(hDC, glContext);
-		wglSwapIntervalEXT(1);
+
+		//TODO: set this back to 1 after testing
+		wglSwapIntervalEXT(0);
 
 		//TODO save important info in surface_data and return a handle
 		mg_gl_surface* surface = malloc_type(mg_gl_surface);
@@ -206,9 +196,10 @@ mg_surface mg_gl_surface_create_for_window(mp_window window)
 		surface->interface.destroy = mg_gl_surface_destroy;
 		surface->interface.prepare = mg_gl_surface_prepare;
 		surface->interface.present = mg_gl_surface_present;
+		surface->interface.getFrame = mg_gl_surface_get_frame;
 
 		//TODO: get/set frame/hidden
-
+		surface->hWnd = windowData->win32.hWnd;
 		surface->hDC = hDC;
 		surface->glContext = glContext;
 

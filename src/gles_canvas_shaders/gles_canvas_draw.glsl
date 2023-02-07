@@ -1,8 +1,8 @@
-#version 310 es
+#version 430
 layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
 
 precision mediump float;
-precision mediump image2D;
+//precision mediump image2D;
 
 layout(std430) buffer;
 
@@ -59,7 +59,7 @@ void main()
 	const float subPixelFactor = 16.;
 	ivec2 centerPoint = ivec2(round((vec2(pixelCoord) + vec2(0.5, 0.5)) * subPixelFactor));
 
-/*
+//*
 	const int sampleCount = 8;
 	ivec2 samplePoints[sampleCount] = ivec2[sampleCount](centerPoint + ivec2(1, 3),
 	                                                     centerPoint + ivec2(-1, -3),
@@ -69,12 +69,13 @@ void main()
 	                                                     centerPoint + ivec2(-7, 1),
 	                                                     centerPoint + ivec2(3, -7),
 	                                                     centerPoint + ivec2(7, 7));
-*/
+/*/
 	const int sampleCount = 4;
 	ivec2 samplePoints[sampleCount] = ivec2[sampleCount](centerPoint + ivec2(-2, 6),
 	                                                     centerPoint + ivec2(6, 2),
 	                                                     centerPoint + ivec2(-6, -2),
 	                                                     centerPoint + ivec2(2, -6));
+//*/
 	//DEBUG
 /*
 	{

@@ -2610,6 +2610,11 @@ mp_rect mg_text_bounding_box(mg_font font, f32 fontSize, str8 text)
 	mg_canvas_backend* mg_gles_canvas_create(mg_surface surface);
 #endif
 
+#ifdef MG_IMPLEMENTS_BACKEND_GL
+	mg_canvas_backend* mg_gl_canvas_create(mg_surface surface);
+#endif
+
+
 mg_canvas mg_canvas_create(mg_surface surface)
 {
 	mg_canvas canvas = mg_canvas_nil();
@@ -2631,11 +2636,9 @@ mg_canvas mg_canvas_create(mg_surface surface)
 				break;
 		#endif
 
-		/*
-			case MG_BACKEND_OPENGL:
-				canvasData = mg_opengl_canvas_create(surface);
+			case MG_BACKEND_GL:
+				backend = mg_gl_canvas_create(surface);
 				break;
-		*/
 			default:
 				break;
 		}

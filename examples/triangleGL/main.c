@@ -13,7 +13,6 @@
 #include<math.h>
 
 #include"milepost.h"
-#include"win32_gl_surface.h"
 
 #define LOG_SUBSYSTEM "Main"
 

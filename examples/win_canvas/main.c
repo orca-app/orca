@@ -65,7 +65,7 @@ int main()
 #if defined(OS_MACOS)
 	mg_surface surface = mg_metal_surface_create_for_window(window);
 #elif defined(OS_WIN64)
-	mg_surface surface = mg_gles_surface_create_for_window(window);
+	mg_surface surface = mg_gl_surface_create_for_window(window);
 #else
 	#error "unsupported OS"
 #endif
@@ -158,6 +158,7 @@ int main()
 		y += dy;
 
 		mg_surface_prepare(surface);
+
 			// background
 			mg_set_color_rgba(0, 1, 1, 1);
 			mg_clear();
@@ -196,17 +197,9 @@ int main()
 			mg_fill();
 //*/
 
-//*
 			printf("Milepost vector graphics test program (frame time = %fs, fps = %f)...\n",
 			                      frameTime,
 			                      1./frameTime);
-//*/
-
-/*
-			mg_set_color_rgba(1, 1, 0, 1);
-			mg_rectangle_fill(8, 8, 100, 50);
-*/
-
 
 			mg_flush();
 		mg_surface_present(surface);

@@ -86,7 +86,7 @@ int main()
 #if defined(OS_MACOS)
 	mg_surface surface = mg_metal_surface_create_for_window(window);
 #elif defined(OS_WIN64)
-	mg_surface surface = mg_gles_surface_create_for_window(window);
+	mg_surface surface = mg_gl_surface_create_for_window(window);
 #else
 	#error "unsupported OS"
 #endif

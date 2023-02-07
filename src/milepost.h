@@ -38,11 +38,17 @@
 #include"mp_app.h"
 
 #if defined(OS_WIN64) || defined(OS_WIN32)
-	#define WIN32_GL_LOADER_API
-//	#include"win32_gl_loader.h"
 
 	#if MG_IMPLEMENTS_BACKEND_GLES
 		#include"win32_gles_surface.h"
+	#endif
+
+	#if MG_IMPLEMENTS_BACKEND_GL
+		#define WIN32_GL_LOADER_API
+		#include"win32_gl_loader.h"
+		#undef WIN32_GL_LOADER_API
+
+		#include"win32_gl_surface.h"
 	#endif
 #endif
 

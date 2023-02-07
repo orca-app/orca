@@ -53,9 +53,10 @@
 
 #if defined(OS_WIN64)
 	#include"win32_app.c"
-//	#include"win32_gl_surface.c"
-	#include"win32_gles_surface.c"
-	#include"gles_canvas.c"
+	#include"win32_gl_surface.c"
+	#include"gl_canvas.c"
+//	#include"win32_gles_surface.c"
+//	#include"gles_canvas.c"
 #elif defined(OS_MACOS)
 	//NOTE: macos application layer is defined in milepost.m
 #else

@@ -68,3 +68,15 @@ Notes:
 	* Doing glBufferData from a small build buffer is surprisingly slow...
 		* Angle seems to take into account only the first call to glBufferData to allocate size, and then send the full buffer???
 		* Not pre-allocating in creation procedure "solves" the problem with glBufferData...
+
+Only way seems to be to reduce buffer size:
+	* pack vec2 together to avoid padding
+	* store color, clip and uv out of band?
+		* eg have a shape buffer containing uv for bounding box, clip, and color?
+		* could also still store color as an int "for free" next to shape index
+		* could send pos and uv as half-floats?
+
+Ideally, we would do the vertex computation on the GPU (opportunity to parallelize AND avoid sending vertex buffer...)
+
+-> Problem profiling canvas renderer with angle (not really well supported in renderdoc)
+	-> Maybe use an OpenGL backend instead?

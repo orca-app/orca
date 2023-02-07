@@ -10,8 +10,8 @@
 #define WIN32_LEAN_AND_MEAN
 #include<windows.h>
 #include<GL/gl.h>
-#include"GL/glext.h"
-#include"GL/wglext.h"
+#include<GL/glext.h>
+#include<GL/wglext.h>
 
 #include"macro_helpers.h"
 
@@ -38,7 +38,15 @@
 	GL_PROC(GLBUFFERDATA, glBufferData) \
 	GL_PROC(GLUNIFORMMATRIX4FV, glUniformMatrix4fv) \
 	GL_PROC(GLVERTEXATTRIBPOINTER, glVertexAttribPointer) \
-	GL_PROC(GLENABLEVERTEXATTRIBARRAY, glEnableVertexAttribArray)
+	GL_PROC(GLENABLEVERTEXATTRIBARRAY, glEnableVertexAttribArray) \
+	GL_PROC(GLBINDBUFFERBASE, glBindBufferBase) \
+	GL_PROC(GLDISPATCHCOMPUTE, glDispatchCompute) \
+	GL_PROC(GLUNIFORM1UI, glUniform1ui) \
+	GL_PROC(GLUNIFORM2UI, glUniform2ui) \
+	GL_PROC(GLBINDIMAGETEXTURE, glBindImageTexture) \
+	GL_PROC(GLACTIVETEXTURE, glActiveTexture) \
+	GL_PROC(GLUNIFORM1I, glUniform1i) \
+	GL_PROC(GLTEXSTORAGE2D, glTexStorage2D) \
 
 #ifdef WIN32_GL_LOADER_API
 	//NOTE: pointer declarations
