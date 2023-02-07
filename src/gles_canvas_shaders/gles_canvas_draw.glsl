@@ -7,27 +7,34 @@ precision mediump float;
 layout(std430) buffer;
 
 struct vertex {
-	vec2 pos;
-	vec2 uv;
 	vec4 cubic;
+	vec2 pos;
+	int zIndex;
+};
+
+struct shape {
 	vec4 color;
 	vec4 clip;
-	int zIndex;
+	vec2 uv;
 };
 
 layout(binding = 0) restrict readonly buffer vertexBufferSSBO {
 	vertex elements[];
 } vertexBuffer ;
 
-layout(binding = 1) restrict readonly buffer indexBufferSSBO {
+layout(binding = 1) restrict readonly buffer shapeBufferSSBO {
+	shape elements[];
+} shapeBuffer ;
+
+layout(binding = 2) restrict readonly buffer indexBufferSSBO {
 	uint elements[];
 } indexBuffer ;
 
-layout(binding = 2) restrict readonly buffer tileCounterBufferSSBO {
+layout(binding = 3) restrict readonly buffer tileCounterBufferSSBO {
 	uint elements[];
 } tileCounterBuffer ;
 
-layout(binding = 3) restrict readonly buffer tileArrayBufferSSBO {
+layout(binding = 4) restrict readonly buffer tileArrayBufferSSBO {
 	uint elements[];
 } tileArrayBuffer ;
 
@@ -130,7 +137,7 @@ void main()
 		ivec2 p2 = ivec2(vertexBuffer.elements[i2].pos * subPixelFactor + vec2(0.5, 0.5));
 
 		int zIndex = vertexBuffer.elements[i0].zIndex;
-		vec4 color = vertexBuffer.elements[i0].color;
+		vec4 color = shapeBuffer.elements[zIndex].color;
 
 		//NOTE(martin): reorder triangle counter-clockwise and compute bias for each edge
 		int cw = (p1 - p0).x*(p2 - p0).y - (p1 - p0).y*(p2 - p0).x;

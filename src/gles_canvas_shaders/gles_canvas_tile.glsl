@@ -5,27 +5,34 @@ precision mediump float;
 layout(std430) buffer;
 
 struct vertex {
-	vec2 pos;
-	vec2 uv;
 	vec4 cubic;
+	vec2 pos;
+	int zIndex;
+};
+
+struct shape {
 	vec4 color;
 	vec4 clip;
-	int zIndex;
+	vec2 uv;
 };
 
 layout(binding = 0) restrict readonly buffer vertexBufferSSBO {
 	vertex elements[];
 } vertexBuffer ;
 
-layout(binding = 1) restrict readonly buffer indexBufferSSBO {
+layout(binding = 1) restrict readonly buffer shapeBufferSSBO {
+	shape elements[];
+} shapeBuffer ;
+
+layout(binding = 2) restrict readonly buffer indexBufferSSBO {
 	uint elements[];
 } indexBuffer ;
 
-layout(binding = 2) coherent restrict buffer tileCounterBufferSSBO {
+layout(binding = 3) coherent restrict buffer tileCounterBufferSSBO {
 	uint elements[];
 } tileCounterBuffer ;
 
-layout(binding = 3) coherent restrict writeonly buffer tileArrayBufferSSBO {
+layout(binding = 4) coherent restrict writeonly buffer tileArrayBufferSSBO {
 	uint elements[];
 } tileArrayBuffer ;
 

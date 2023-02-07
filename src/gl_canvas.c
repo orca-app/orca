@@ -19,6 +19,7 @@ typedef struct mg_gl_canvas_backend
 
 	GLint dummyVertexBuffer;
 	GLint vertexBuffer;
+	GLint shapeBuffer;
 	GLint indexBuffer;
 	GLint tileCounterBuffer;
 	GLint tileArrayBuffer;
@@ -32,6 +33,7 @@ typedef struct mg_gl_canvas_backend
 
 	char* indexMapping;
 	char* vertexMapping;
+	char* shapeMapping;
 
 } mg_gl_canvas_backend;
 
@@ -49,15 +51,19 @@ mg_gl_surface* mg_gl_canvas_get_surface(mg_gl_canvas_backend* canvas)
 //NOTE: debugger
 typedef struct debug_vertex
 {
-	vec2 pos;
-	vec2 uv;
 	vec4 cubic;
-	vec4 color;
-	vec4 clip;
+	vec2 pos;
 	int zIndex;
-	u8 align2[12];
+	u8 pad[4];
 } debug_vertex;
 
+typedef struct debug_shape
+{
+	vec4 color;
+	vec4 clip;
+	vec2 uv;
+	u8 pad[8];
+} debug_shape;
 
 #define LayoutNext(prevName, prevType, nextType) \
 	AlignUpOnPow2(_cat3_(LAYOUT_, prevName, _OFFSET)+_cat3_(LAYOUT_, prevType, _SIZE), _cat3_(LAYOUT_, nextType, _ALIGN))
@@ -70,20 +76,23 @@ enum {
 	LAYOUT_INT_SIZE = 4,
 	LAYOUT_INT_ALIGN = 4,
 
-	LAYOUT_POS_OFFSET = 0,
-	LAYOUT_UV_OFFSET = LayoutNext(POS, VEC2, VEC2),
-	LAYOUT_CUBIC_OFFSET = LayoutNext(UV, VEC2, VEC4),
-	LAYOUT_COLOR_OFFSET = LayoutNext(CUBIC, VEC4, VEC4),
-	LAYOUT_CLIP_OFFSET = LayoutNext(COLOR, VEC4, VEC4),
-	LAYOUT_ZINDEX_OFFSET = LayoutNext(CLIP, VEC4, INT),
-
+	LAYOUT_CUBIC_OFFSET = 0,
+	LAYOUT_POS_OFFSET = LayoutNext(CUBIC, VEC4, VEC2),
+	LAYOUT_ZINDEX_OFFSET = LayoutNext(POS, VEC2, INT),
 	LAYOUT_VERTEX_ALIGN = 16,
 	LAYOUT_VERTEX_SIZE = LayoutNext(ZINDEX, INT, VERTEX),
+
+	LAYOUT_COLOR_OFFSET = 0,
+	LAYOUT_CLIP_OFFSET = LayoutNext(COLOR, VEC4, VEC4),
+	LAYOUT_UV_OFFSET = LayoutNext(CLIP, VEC4, VEC2),
+	LAYOUT_SHAPE_ALIGN = 16,
+	LAYOUT_SHAPE_SIZE = LayoutNext(UV, VEC2, SHAPE)
 };
 
 enum {
 	MG_GL_CANVAS_DEFAULT_BUFFER_LENGTH = 1<<20,
 	MG_GL_CANVAS_VERTEX_BUFFER_SIZE = MG_GL_CANVAS_DEFAULT_BUFFER_LENGTH * LAYOUT_VERTEX_SIZE,
+	MG_GL_CANVAS_SHAPE_BUFFER_SIZE = MG_GL_CANVAS_DEFAULT_BUFFER_LENGTH * LAYOUT_SHAPE_SIZE,
 	MG_GL_CANVAS_INDEX_BUFFER_SIZE = MG_GL_CANVAS_DEFAULT_BUFFER_LENGTH * LAYOUT_INT_SIZE,
 	MG_GL_CANVAS_TILE_COUNTER_BUFFER_SIZE = 65536,
 	MG_GL_CANVAS_TILE_ARRAY_SIZE = sizeof(int)*4096,
@@ -99,22 +108,27 @@ void mg_gl_canvas_update_vertex_layout(mg_gl_canvas_backend* backend)
 	        .posStride = LAYOUT_VERTEX_SIZE,
 	        .cubicBuffer = backend->vertexMapping + LAYOUT_CUBIC_OFFSET,
 	        .cubicStride = LAYOUT_VERTEX_SIZE,
-	        .uvBuffer = backend->vertexMapping + LAYOUT_UV_OFFSET,
-	        .uvStride = LAYOUT_VERTEX_SIZE,
-	        .colorBuffer = backend->vertexMapping + LAYOUT_COLOR_OFFSET,
-	        .colorStride = LAYOUT_VERTEX_SIZE,
-	        .clipBuffer = backend->vertexMapping + LAYOUT_CLIP_OFFSET,
-	        .clipStride = LAYOUT_VERTEX_SIZE,
 	        .zIndexBuffer = backend->vertexMapping + LAYOUT_ZINDEX_OFFSET,
 	        .zIndexStride = LAYOUT_VERTEX_SIZE,
+
+	        .colorBuffer = backend->shapeMapping + LAYOUT_COLOR_OFFSET,
+	        .colorStride = LAYOUT_SHAPE_SIZE,
+	        .clipBuffer = backend->shapeMapping + LAYOUT_CLIP_OFFSET,
+	        .clipStride = LAYOUT_SHAPE_SIZE,
+	        .uvBuffer = backend->shapeMapping + LAYOUT_UV_OFFSET,
+	        .uvStride = LAYOUT_SHAPE_SIZE,
+
 	        .indexBuffer = backend->indexMapping,
 	        .indexStride = LAYOUT_INT_SIZE};
 }
 
-void mg_gl_send_buffers(mg_gl_canvas_backend* backend, int vertexCount, int indexCount)
+void mg_gl_send_buffers(mg_gl_canvas_backend* backend, int shapeCount, int vertexCount, int indexCount)
 {
 	glBindBuffer(GL_SHADER_STORAGE_BUFFER, backend->vertexBuffer);
 	glBufferData(GL_SHADER_STORAGE_BUFFER, LAYOUT_VERTEX_SIZE*vertexCount, backend->vertexMapping, GL_STREAM_DRAW);
+
+	glBindBuffer(GL_SHADER_STORAGE_BUFFER, backend->shapeBuffer);
+	glBufferData(GL_SHADER_STORAGE_BUFFER, LAYOUT_SHAPE_SIZE*shapeCount, backend->shapeMapping, GL_STREAM_DRAW);
 
 	glBindBuffer(GL_SHADER_STORAGE_BUFFER, backend->indexBuffer);
 	glBufferData(GL_SHADER_STORAGE_BUFFER, LAYOUT_INT_SIZE*indexCount, backend->indexMapping, GL_STREAM_DRAW);
@@ -150,7 +164,7 @@ void mg_gl_canvas_clear(mg_canvas_backend* interface, mg_color clearColor)
 	glClear(GL_COLOR_BUFFER_BIT);
 }
 
-void mg_gl_canvas_draw_batch(mg_canvas_backend* interface, u32 vertexCount, u32 indexCount)
+void mg_gl_canvas_draw_batch(mg_canvas_backend* interface, u32 shapeCount, u32 vertexCount, u32 indexCount)
 {
 	mg_gl_canvas_backend* backend = (mg_gl_canvas_backend*)interface;
 	mg_gl_surface* surface = mg_gl_canvas_get_surface(backend);
@@ -161,9 +175,10 @@ void mg_gl_canvas_draw_batch(mg_canvas_backend* interface, u32 vertexCount, u32 
 
 /*NOTE: if we want debug_vertex while debugging, the following ensures the struct def doesn't get stripped away
 	debug_vertex vertex;
-	printf("foo %p\n", &vertex);
+	debug_shape shape;
+	printf("foo %p, bar %p\n", &vertex, &shape);
 //*/
-	mg_gl_send_buffers(backend, vertexCount, indexCount);
+	mg_gl_send_buffers(backend, shapeCount, vertexCount, indexCount);
 
 	mp_rect frame = mg_surface_get_frame(backend->surface);
 
@@ -184,9 +199,10 @@ void mg_gl_canvas_draw_batch(mg_canvas_backend* interface, u32 vertexCount, u32 
 	glUseProgram(backend->tileProgram);
 
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, backend->vertexBuffer);
-	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, backend->indexBuffer);
-	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, backend->tileCounterBuffer);
-	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, backend->tileArrayBuffer);
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, backend->shapeBuffer);
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, backend->indexBuffer);
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, backend->tileCounterBuffer);
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 4, backend->tileArrayBuffer);
 
 	glUniform1ui(0, indexCount);
 	glUniform2ui(1, tileCountX, tileCountY);
@@ -198,12 +214,7 @@ void mg_gl_canvas_draw_batch(mg_canvas_backend* interface, u32 vertexCount, u32 
 
 	//NOTE: next we sort triangles in each tile
 	glUseProgram(backend->sortProgram);
-/*
-	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, backend->vertexBuffer);
-	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, backend->indexBuffer);
-	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, backend->tileCounterBuffer);
-	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, backend->tileArrayBuffer);
-*/
+
 	glUniform1ui(0, indexCount);
 	glUniform2ui(1, tileCountX, tileCountY);
 	glUniform1ui(2, tileSize);
@@ -211,16 +222,9 @@ void mg_gl_canvas_draw_batch(mg_canvas_backend* interface, u32 vertexCount, u32 
 
 	glDispatchCompute(tileCountX * tileCountY, 1, 1);
 
-	//TODO: then we fire the fragment shader that will select only triangles in its tile
-//	glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
-
+	//NOTE: then we fire the fragment shader that will select only triangles in its tile
 	glUseProgram(backend->drawProgram);
-/*
-	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, backend->vertexBuffer);
-	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, backend->indexBuffer);
-	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, backend->tileCounterBuffer);
-	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, backend->tileArrayBuffer);
-*/
+
 	glBindImageTexture(0, backend->outTexture, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA8);
 
 	glUniform1ui(0, indexCount);
@@ -308,6 +312,10 @@ mg_canvas_backend* mg_gl_canvas_create(mg_surface surface)
 		glGenBuffers(1, &backend->vertexBuffer);
 		glBindBuffer(GL_SHADER_STORAGE_BUFFER, backend->vertexBuffer);
 		glBufferData(GL_SHADER_STORAGE_BUFFER, MG_GL_CANVAS_VERTEX_BUFFER_SIZE, 0, GL_STREAM_DRAW);
+
+		glGenBuffers(1, &backend->shapeBuffer);
+		glBindBuffer(GL_SHADER_STORAGE_BUFFER, backend->shapeBuffer);
+		glBufferData(GL_SHADER_STORAGE_BUFFER, MG_GL_CANVAS_SHAPE_BUFFER_SIZE, 0, GL_STREAM_DRAW);
 
 		glGenBuffers(1, &backend->indexBuffer);
 		glBindBuffer(GL_SHADER_STORAGE_BUFFER, backend->indexBuffer);
@@ -440,6 +448,7 @@ mg_canvas_backend* mg_gl_canvas_create(mg_surface surface)
 		}
 
 		backend->vertexMapping = malloc_array(char, 1<<30);
+		backend->shapeMapping = malloc_array(char, 1<<30);
 		backend->indexMapping = malloc_array(char, 1<<30);
 
 		mg_gl_canvas_update_vertex_layout(backend);

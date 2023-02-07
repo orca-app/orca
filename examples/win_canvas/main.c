@@ -80,7 +80,6 @@ int main()
 
 	f32 x = 400, y = 300;
 	f32 dx = 5, dy = 5;
-//	f32 dx = 0, dy = 0;
 
 	f64 frameTime = 0;
 
@@ -168,7 +167,6 @@ int main()
 			mg_circle_fill(x, y, 200);
 
 			// smile
-
 			f32 frown = frameTime > 0.033 ? 100 : 0;
 
 			mg_set_color_rgba(0, 0, 0, 1);
@@ -183,7 +181,6 @@ int main()
 			mg_ellipse_fill(x+70, y+50, 30, 50);
 
 			// text
-//*
 			mg_set_color_rgba(0, 0, 1, 1);
 			mg_set_font(font);
 			mg_set_font_size(12);
@@ -195,7 +192,6 @@ int main()
 			                      1./frameTime);
 			mg_text_outlines(text);
 			mg_fill();
-//*/
 
 			printf("Milepost vector graphics test program (frame time = %fs, fps = %f)...\n",
 			                      frameTime,

@@ -422,22 +422,38 @@ void mg_path_push_element(mg_canvas_data* canvas, mg_path_elt elt)
 	mg_path_push_elements(canvas, 1, &elt);
 }
 
+///////////////////////////////////////  WIP  /////////////////////////////////////////////////////////////////////////
+
 void mg_reset_z_index(mg_canvas_data* canvas)
 {
 	canvas->nextZIndex = 1;
 }
 
-u32 mg_get_next_z_index(mg_canvas_data* canvas)
+u32 mg_next_shape_textured(mg_canvas_data* canvas, vec2 uv, mg_color color)
 {
-	return(canvas->nextZIndex++);
+	//TODO: push color, uv, clip
+
+	int index = canvas->nextZIndex;
+	canvas->nextZIndex++;
+
+	mg_vertex_layout* layout = &canvas->backend->vertexLayout;
+
+	*(vec2*)(((char*)layout->uvBuffer) + index*layout->uvStride) = uv;
+	*(mg_color*)(((char*)layout->colorBuffer) + index*layout->colorStride) = color;
+	*(mp_rect*)(((char*)layout->clipBuffer) + index*layout->clipStride) = canvas->clip;
+
+	return(index);
 }
 
-///////////////////////////////////////  WIP  /////////////////////////////////////////////////////////////////////////
+u32 mg_next_shape(mg_canvas_data* canvas, mg_color color)
+{
+	return(mg_next_shape_textured(canvas, (vec2){0, 0}, color));
+}
 
 //TODO(martin): rename with something more explicit
 u32 mg_vertices_base_index(mg_canvas_data* canvas)
 {
-	return(canvas->batchBaseIndex + canvas->vertexCount);
+	return(canvas->vertexCount);
 }
 
 int* mg_reserve_indices(mg_canvas_data* canvas, u32 indexCount)
@@ -452,29 +468,19 @@ int* mg_reserve_indices(mg_canvas_data* canvas, u32 indexCount)
 	return(base);
 }
 
-void mg_push_textured_vertex(mg_canvas_data* canvas, vec2 pos, vec4 cubic, vec2 uv, mg_color color, u64 zIndex)
+void mg_push_vertex(mg_canvas_data* canvas, vec2 pos, vec4 cubic, u64 zIndex)
 {
 	mg_vertex_layout* layout = &canvas->backend->vertexLayout;
-
 	DEBUG_ASSERT(canvas->vertexCount < layout->maxVertexCount);
 
 	u32 offset = canvas->vertexCount;
 
 	*(vec2*)(((char*)layout->posBuffer) + offset*layout->posStride) = pos;
 	*(vec4*)(((char*)layout->cubicBuffer) + offset*layout->cubicStride) = cubic;
-	*(vec2*)(((char*)layout->uvBuffer) + offset*layout->uvStride) = uv;
-	*(mg_color*)(((char*)layout->colorBuffer) + offset*layout->colorStride) = color;
 	*(u32*)(((char*)layout->zIndexBuffer) + offset*layout->zIndexStride) = zIndex;
-	*(mp_rect*)(((char*)layout->clipBuffer) + offset*layout->clipStride) = canvas->clip;
 
 	canvas->vertexCount++;
 }
-
-void mg_push_vertex(mg_canvas_data* canvas, vec2 pos, vec4 cubic, mg_color color, u64 zIndex)
-{
-	mg_push_textured_vertex(canvas, pos, cubic, (vec2){0, 0}, color, zIndex);
-}
-
 //-----------------------------------------------------------------------------------------------------------
 // Path Filling
 //-----------------------------------------------------------------------------------------------------------
@@ -492,19 +498,16 @@ void mg_render_fill_quadratic(mg_canvas_data* canvas, vec2 p[3], u32 zIndex, mg_
 	mg_push_vertex(canvas,
 	               mg_mat2x3_mul(canvas->transform, (vec2){p[0].x, p[0].y}),
 	               (vec4){0, 0, 0, 1},
-	               color,
 	               zIndex);
 
 	mg_push_vertex(canvas,
 	               mg_mat2x3_mul(canvas->transform, (vec2){p[1].x, p[1].y}),
 	               (vec4){0.5, 0, 0.5, 1},
-	               color,
 	               zIndex);
 
 	mg_push_vertex(canvas,
 	               mg_mat2x3_mul(canvas->transform, (vec2){p[2].x, p[2].y}),
 	               (vec4){1, 1, 1, 1},
-	               color,
 	               zIndex);
 
 	indices[0] = baseIndex + 0;
@@ -549,19 +552,16 @@ void mg_split_and_fill_cubic(mg_canvas_data* canvas, vec2 p[4], f32 tSplit, u32 
 	mg_push_vertex(canvas,
 	                mg_mat2x3_mul(canvas->transform, (vec2){p[0].x, p[0].y}),
 	                (vec4){1, 1, 1, 1},
-	                color,
 	                zIndex);
 
 	mg_push_vertex(canvas,
 	               mg_mat2x3_mul(canvas->transform, (vec2){split.x, split.y}),
 	               (vec4){1, 1, 1, 1},
-	               color,
 	               zIndex);
 
 	mg_push_vertex(canvas,
 	               mg_mat2x3_mul(canvas->transform, (vec2){p[3].x, p[3].y}),
 	               (vec4){1, 1, 1, 1},
-	               color,
 	               zIndex);
 
 	indices[0] = baseIndex + 0;
@@ -931,7 +931,7 @@ void mg_render_fill_cubic(mg_canvas_data* canvas, vec2 p[4], u32 zIndex, mg_colo
 			vec2 pos = mg_mat2x3_mul(canvas->transform, p[orderedHullIndices[i]]);
 			vec4 cubic = testCoords[orderedHullIndices[i]];
 			cubic.w = outsideTest;
-			mg_push_vertex(canvas, pos, cubic, color, zIndex);
+			mg_push_vertex(canvas, pos, cubic, zIndex);
 
 			indices[i] = baseIndex + i;
 		}
@@ -961,37 +961,31 @@ void mg_render_fill_cubic(mg_canvas_data* canvas, vec2 p[4], u32 zIndex, mg_colo
 		mg_push_vertex(canvas,
 		               mg_mat2x3_mul(canvas->transform, p[orderedHullIndices[0]]),
 		               (vec4){vec4_expand_xyz(testCoords[orderedHullIndices[0]]), outsideTest1},
-		               color,
 		               zIndex);
 
 		mg_push_vertex(canvas,
 		               mg_mat2x3_mul(canvas->transform, p[orderedHullIndices[1]]),
 		               (vec4){vec4_expand_xyz(testCoords[orderedHullIndices[1]]), outsideTest1},
-		               color,
 		               zIndex);
 
 		mg_push_vertex(canvas,
 		               mg_mat2x3_mul(canvas->transform, p[orderedHullIndices[2]]),
 		               (vec4){vec4_expand_xyz(testCoords[orderedHullIndices[2]]), outsideTest1},
-		               color,
 		               zIndex);
 
 		mg_push_vertex(canvas,
 		               mg_mat2x3_mul(canvas->transform, p[orderedHullIndices[0]]),
 		               (vec4){vec4_expand_xyz(testCoords[orderedHullIndices[0]]), outsideTest2},
-		               color,
 		               zIndex);
 
 		mg_push_vertex(canvas,
 		               mg_mat2x3_mul(canvas->transform, p[orderedHullIndices[2]]),
 		               (vec4){vec4_expand_xyz(testCoords[orderedHullIndices[2]]), outsideTest2},
-		               color,
 		               zIndex);
 
 		mg_push_vertex(canvas,
 		               mg_mat2x3_mul(canvas->transform, p[orderedHullIndices[3]]),
 		               (vec4){vec4_expand_xyz(testCoords[orderedHullIndices[3]]), outsideTest2},
-		               color,
 		               zIndex);
 
 		indices[0] = baseIndex + 0;
@@ -1018,7 +1012,6 @@ void mg_render_fill_cubic(mg_canvas_data* canvas, vec2 p[4], u32 zIndex, mg_colo
 			mg_push_vertex(canvas,
 		                   mg_mat2x3_mul(canvas->transform, p[orderedHullIndices[i]]),
 		                   (vec4){vec4_expand_xyz(testCoords[orderedHullIndices[i]]), outsideTest},
-		                   color,
 		                   zIndex);
 		}
 
@@ -1088,7 +1081,7 @@ void mg_render_fill(mg_canvas_data* canvas, mg_path_elt* elements, mg_path_descr
 
 		for(int i=0; i<3; i++)
 		{
-			mg_push_vertex(canvas, pos[i], cubic, color, zIndex);
+			mg_push_vertex(canvas, pos[i], cubic, zIndex);
 			indices[i] = baseIndex + i;
 		}
 
@@ -1120,25 +1113,21 @@ void mg_render_stroke_line(mg_canvas_data* canvas, vec2 p[2], u32 zIndex, mg_att
 	mg_push_vertex(canvas,
 	               mg_mat2x3_mul(canvas->transform, (vec2){p[0].x + n0.x, p[0].y + n0.y}),
 	               (vec4){1, 1, 1, 1},
-	               color,
 	               zIndex);
 
 	mg_push_vertex(canvas,
 	               mg_mat2x3_mul(canvas->transform, (vec2){p[1].x + n0.x, p[1].y + n0.y}),
 	               (vec4){1, 1, 1, 1},
-	               color,
 	               zIndex);
 
 	mg_push_vertex(canvas,
 	               mg_mat2x3_mul(canvas->transform, (vec2){p[1].x - n0.x, p[1].y - n0.y}),
 	               (vec4){1, 1, 1, 1},
-	               color,
 	               zIndex);
 
 	mg_push_vertex(canvas,
 	               mg_mat2x3_mul(canvas->transform, (vec2){p[0].x - n0.x, p[0].y - n0.y}),
 	               (vec4){1, 1, 1, 1},
-	               color,
 	               zIndex);
 
 	indices[0] = baseIndex;
@@ -1326,7 +1315,7 @@ void mg_render_stroke_quadratic(mg_canvas_data* canvas, vec2 p[4], u32 zIndex, m
 	{
 		//NOTE(martin): push the actual fill commands for the offset contour
 
-		u32 zIndex = mg_get_next_z_index(canvas);
+		u32 zIndex = mg_next_shape(canvas, attributes->color);
 
 		mg_render_fill_quadratic(canvas, positiveOffsetHull, zIndex, attributes->color);
 		mg_render_fill_quadratic(canvas, negativeOffsetHull, zIndex, attributes->color);
@@ -1338,25 +1327,21 @@ void mg_render_stroke_quadratic(mg_canvas_data* canvas, vec2 p[4], u32 zIndex, m
 		mg_push_vertex(canvas,
 		               mg_mat2x3_mul(canvas->transform, positiveOffsetHull[0]),
 		               (vec4){1, 1, 1, 1},
-		               attributes->color,
 		               zIndex);
 
 		mg_push_vertex(canvas,
 		               mg_mat2x3_mul(canvas->transform, positiveOffsetHull[2]),
 		               (vec4){1, 1, 1, 1},
-		               attributes->color,
 		               zIndex);
 
 		mg_push_vertex(canvas,
 		               mg_mat2x3_mul(canvas->transform, negativeOffsetHull[2]),
 		               (vec4){1, 1, 1, 1},
-		               attributes->color,
 		               zIndex);
 
 		mg_push_vertex(canvas,
 		               mg_mat2x3_mul(canvas->transform, negativeOffsetHull[0]),
 		               (vec4){1, 1, 1, 1},
-		               attributes->color,
 		               zIndex);
 
 		indices[0] = baseIndex + 0;
@@ -1485,7 +1470,7 @@ void mg_render_stroke_cubic(mg_canvas_data* canvas, vec2 p[4], u32 zIndex, mg_at
 	else
 	{
 		//NOTE(martin): push the actual fill commands for the offset contour
-		u32 zIndex = mg_get_next_z_index(canvas);
+		u32 zIndex = mg_next_shape(canvas, attributes->color);
 
 		mg_render_fill_cubic(canvas, positiveOffsetHull, zIndex, attributes->color);
 		mg_render_fill_cubic(canvas, negativeOffsetHull, zIndex, attributes->color);
@@ -1498,25 +1483,21 @@ void mg_render_stroke_cubic(mg_canvas_data* canvas, vec2 p[4], u32 zIndex, mg_at
 		mg_push_vertex(canvas,
 		                mg_mat2x3_mul(canvas->transform, positiveOffsetHull[0]),
 		                (vec4){1, 1, 1, 1},
-		                attributes->color,
 		                zIndex);
 
 		mg_push_vertex(canvas,
 		               mg_mat2x3_mul(canvas->transform, positiveOffsetHull[3]),
 		               (vec4){1, 1, 1, 1},
-		               attributes->color,
 		               zIndex);
 
 		mg_push_vertex(canvas,
 		               mg_mat2x3_mul(canvas->transform, negativeOffsetHull[3]),
 		               (vec4){1, 1, 1, 1},
-		               attributes->color,
 		               zIndex);
 
 		mg_push_vertex(canvas,
 		               mg_mat2x3_mul(canvas->transform, negativeOffsetHull[0]),
 		               (vec4){1, 1, 1, 1},
-		               attributes->color,
 		               zIndex);
 
 		indices[0] = baseIndex + 0;
@@ -1542,7 +1523,7 @@ void mg_stroke_cap(mg_canvas_data* canvas, vec2 p0, vec2 direction, mg_attribute
 	vec2 m0 = {alpha*direction.x,
 	           alpha*direction.y};
 
-	u32 zIndex = mg_get_next_z_index(canvas);
+	u32 zIndex = mg_next_shape(canvas, attributes->color);
 
 	u32 baseIndex = mg_vertices_base_index(canvas);
 	i32* indices = mg_reserve_indices(canvas, 6);
@@ -1550,25 +1531,21 @@ void mg_stroke_cap(mg_canvas_data* canvas, vec2 p0, vec2 direction, mg_attribute
 	mg_push_vertex(canvas,
 	               mg_mat2x3_mul(canvas->transform, (vec2){p0.x + n0.x, p0.y + n0.y}),
 	               (vec4){1, 1, 1, 1},
-	               attributes->color,
 	               zIndex);
 
 	mg_push_vertex(canvas,
 	               mg_mat2x3_mul(canvas->transform, (vec2){p0.x + n0.x + m0.x, p0.y + n0.y + m0.y}),
 	               (vec4){1, 1, 1, 1},
-	               attributes->color,
 	               zIndex);
 
 	mg_push_vertex(canvas,
 	               mg_mat2x3_mul(canvas->transform, (vec2){p0.x - n0.x + m0.x, p0.y - n0.y + m0.y}),
 	               (vec4){1, 1, 1, 1},
-	               attributes->color,
 	               zIndex);
 
 	mg_push_vertex(canvas,
 	               mg_mat2x3_mul(canvas->transform, (vec2){p0.x - n0.x, p0.y - n0.y}),
 	               (vec4){1, 1, 1, 1},
-	               attributes->color,
 	               zIndex);
 
 	indices[0] = baseIndex;
@@ -1608,7 +1585,7 @@ void mg_stroke_joint(mg_canvas_data* canvas,
 		n1.y *= -1;
 	}
 
-	u32 zIndex = mg_get_next_z_index(canvas);
+	u32 zIndex = mg_next_shape(canvas, attributes->color);
 
 	//NOTE(martin): use the same code as hull offset to find mitter point...
 	/*NOTE(martin): let vector u = (n0+n1) and vector v = pIntersect - p1
@@ -1634,25 +1611,21 @@ void mg_stroke_joint(mg_canvas_data* canvas,
 		mg_push_vertex(canvas,
 		               mg_mat2x3_mul(canvas->transform, p0),
 		               (vec4){1, 1, 1, 1},
-		               attributes->color,
 		               zIndex);
 
 		mg_push_vertex(canvas,
 		               mg_mat2x3_mul(canvas->transform, (vec2){p0.x + n0.x*halfW, p0.y + n0.y*halfW}),
 		               (vec4){1, 1, 1, 1},
-		               attributes->color,
 		               zIndex);
 
 		mg_push_vertex(canvas,
 		               mg_mat2x3_mul(canvas->transform, mitterPoint),
 		               (vec4){1, 1, 1, 1},
-		               attributes->color,
 		               zIndex);
 
 		mg_push_vertex(canvas,
 	                   mg_mat2x3_mul(canvas->transform, (vec2){p0.x + n1.x*halfW, p0.y + n1.y*halfW}),
 	                   (vec4){1, 1, 1, 1},
-	                   attributes->color,
 	                   zIndex);
 
 		indices[0] = baseIndex;
@@ -1669,21 +1642,18 @@ void mg_stroke_joint(mg_canvas_data* canvas,
 		i32* indices = mg_reserve_indices(canvas, 3);
 
 		mg_push_vertex(canvas,
-		                        mg_mat2x3_mul(canvas->transform, p0),
-		                        (vec4){1, 1, 1, 1},
-		                        attributes->color,
-		                        zIndex);
+		               mg_mat2x3_mul(canvas->transform, p0),
+		               (vec4){1, 1, 1, 1},
+		               zIndex);
 
 		mg_push_vertex(canvas,
 		                        mg_mat2x3_mul(canvas->transform, (vec2){p0.x + n0.x*halfW, p0.y + n0.y*halfW}),
 		                        (vec4){1, 1, 1, 1},
-		                        attributes->color,
 		                        zIndex);
 
 		mg_push_vertex(canvas,
 		                        mg_mat2x3_mul(canvas->transform, (vec2){p0.x + n1.x*halfW, p0.y + n1.y*halfW}),
 		                        (vec4){1, 1, 1, 1},
-		                        attributes->color,
 		                        zIndex);
 
 		DEBUG_ASSERT(!isnan(n0.x) && !isnan(n0.y) && !isnan(n1.x) && !isnan(n1.y));
@@ -1704,7 +1674,7 @@ void mg_render_stroke_element(mg_canvas_data* canvas,
 {
 	vec2 controlPoints[4] = {currentPoint, element->p[0], element->p[1], element->p[2]};
 	int endPointIndex = 0;
-	u32 zIndex = mg_get_next_z_index(canvas);
+	u32 zIndex = mg_next_shape(canvas, attributes->color);
 
 	switch(element->type)
 	{
@@ -1837,7 +1807,7 @@ void mg_render_rectangle_fill(mg_canvas_data* canvas, mp_rect rect, mg_attribute
 	u32 baseIndex = mg_vertices_base_index(canvas);
 	i32* indices = mg_reserve_indices(canvas, 6);
 
-	u32 zIndex = mg_get_next_z_index(canvas);
+	u32 zIndex = mg_next_shape(canvas, attributes->color);
 
 	vec2 points[4] = {{rect.x, rect.y},
 	                  {rect.x + rect.w, rect.y},
@@ -1848,7 +1818,7 @@ void mg_render_rectangle_fill(mg_canvas_data* canvas, mp_rect rect, mg_attribute
 	for(int i=0; i<4; i++)
 	{
 		vec2 pos = mg_mat2x3_mul(canvas->transform, points[i]);
-		mg_push_vertex(canvas, pos, cubic, attributes->color, zIndex);
+		mg_push_vertex(canvas, pos, cubic, zIndex);
 	}
 	indices[0] = baseIndex + 0;
 	indices[1] = baseIndex + 1;
@@ -1864,7 +1834,7 @@ void mg_render_rectangle_stroke(mg_canvas_data* canvas, mp_rect rect, mg_attribu
 	u32 baseIndex = mg_vertices_base_index(canvas);
 	i32* indices = mg_reserve_indices(canvas, 12);
 
-	u32 zIndex = mg_get_next_z_index(canvas);
+	u32 zIndex = mg_next_shape(canvas, attributes->color);
 
 	//NOTE(martin): limit stroke width to the minimum dimension of the rectangle
 	f32 width = minimum(attributes->width, minimum(rect.w, rect.h));
@@ -1884,13 +1854,13 @@ void mg_render_rectangle_stroke(mg_canvas_data* canvas, mp_rect rect, mg_attribu
 	for(int i=0; i<4; i++)
 	{
 		vec2 pos = mg_mat2x3_mul(canvas->transform, outerPoints[i]);
-		mg_push_vertex(canvas, pos, cubic, attributes->color, zIndex);
+		mg_push_vertex(canvas, pos, cubic, zIndex);
 	}
 
 	for(int i=0; i<4; i++)
 	{
 		vec2 pos = mg_mat2x3_mul(canvas->transform, innerPoints[i]);
-		mg_push_vertex(canvas, pos, cubic, attributes->color, zIndex);
+		mg_push_vertex(canvas, pos, cubic, zIndex);
 	}
 
 	indices[0] = baseIndex + 0;
@@ -1929,7 +1899,7 @@ void mg_render_fill_arc_corner(mg_canvas_data* canvas, f32 x, f32 y, f32 rx, f32
 	for(int i=0; i<4; i++)
 	{
 		vec2 pos = mg_mat2x3_mul(canvas->transform, points[i]);
-		mg_push_vertex(canvas, pos, cubics[i], color, zIndex);
+		mg_push_vertex(canvas, pos, cubics[i], zIndex);
 	}
 	indices[0] = baseIndex + 0;
 	indices[1] = baseIndex + 1;
@@ -1965,7 +1935,7 @@ void mg_render_rounded_rectangle_fill_with_z_index(mg_canvas_data* canvas,
 	for(int i=0; i<8; i++)
 	{
 		vec2 pos = mg_mat2x3_mul(canvas->transform, points[i]);
-		mg_push_vertex(canvas, pos, cubic, attributes->color, zIndex);
+		mg_push_vertex(canvas, pos, cubic, zIndex);
 	}
 
 	static const i32 fanIndices[18] = { 0, 1, 2, 0, 2, 3, 0, 3, 4, 0, 4, 5, 0, 5, 6, 0, 6, 7 }; // inner fan
@@ -1985,7 +1955,7 @@ void mg_render_rounded_rectangle_fill(mg_canvas_data* canvas,
                                               mg_rounded_rect rect,
 					      mg_attributes* attributes)
 {
-	u32 zIndex = mg_get_next_z_index(canvas);
+	u32 zIndex = mg_next_shape(canvas, attributes->color);
 	mg_render_rounded_rectangle_fill_with_z_index(canvas, rect, attributes, zIndex);
 }
 
@@ -2000,7 +1970,7 @@ void mg_render_rounded_rectangle_stroke(mg_canvas_data* canvas,
 	mg_rounded_rect inner = {rect.x + halfW, rect.y + halfW, rect.w - width, rect.h - width, rect.r - halfW};
 	mg_rounded_rect outer = {rect.x - halfW, rect.y - halfW, rect.w + width, rect.h + width, rect.r + halfW};
 
-	u32 zIndex = mg_get_next_z_index(canvas);
+	u32 zIndex = mg_next_shape(canvas, attributes->color);
 	mg_render_rounded_rectangle_fill_with_z_index(canvas, outer, attributes, zIndex);
 	mg_render_rounded_rectangle_fill_with_z_index(canvas, inner, attributes, zIndex);
 }
@@ -2029,7 +1999,7 @@ void mg_render_ellipse_fill_with_z_index(mg_canvas_data* canvas,
 	for(int i=0; i<4; i++)
 	{
 		vec2 pos = mg_mat2x3_mul(canvas->transform, points[i]);
-		mg_push_vertex(canvas, pos, cubic, attributes->color, zIndex);
+		mg_push_vertex(canvas, pos, cubic, zIndex);
 	}
 
 	indices[0] = baseIndex + 0;
@@ -2047,7 +2017,7 @@ void mg_render_ellipse_fill_with_z_index(mg_canvas_data* canvas,
 
 void mg_render_ellipse_fill(mg_canvas_data* canvas, mp_rect rect, mg_attributes* attributes)
 {
-	u32 zIndex = mg_get_next_z_index(canvas);
+	u32 zIndex = mg_next_shape(canvas, attributes->color);
 	mg_render_ellipse_fill_with_z_index(canvas, rect, attributes, zIndex);
 }
 
@@ -2060,13 +2030,15 @@ void mg_render_ellipse_stroke(mg_canvas_data* canvas, mp_rect rect, mg_attribute
 	mp_rect inner = {rect.x + halfW, rect.y + halfW, rect.w - width, rect.h - width};
 	mp_rect outer = {rect.x - halfW, rect.y - halfW, rect.w + width, rect.h + width};
 
-	u32 zIndex = mg_get_next_z_index(canvas);
+	u32 zIndex = mg_next_shape(canvas, attributes->color);
 	mg_render_ellipse_fill_with_z_index(canvas, outer, attributes, zIndex);
 	mg_render_ellipse_fill_with_z_index(canvas, inner, attributes, zIndex);
 }
 
 void mg_render_image(mg_canvas_data* canvas, mg_image image, mp_rect rect)
 {
+//TODO
+/*
 	mg_image_data* imageData = mg_image_ptr_from_handle(canvas, image);
 	if(!imageData)
 	{
@@ -2076,7 +2048,7 @@ void mg_render_image(mg_canvas_data* canvas, mg_image image, mp_rect rect)
 	u32 baseIndex = mg_vertices_base_index(canvas);
 	i32* indices = mg_reserve_indices(canvas, 6);
 
-	u32 zIndex = mg_get_next_z_index(canvas);
+	u32 zIndex = mg_next_shape(canvas, attributes->color);
 
 	vec2 points[4] = {{rect.x, rect.y},
 	                  {rect.x + rect.w, rect.y},
@@ -2104,10 +2076,13 @@ void mg_render_image(mg_canvas_data* canvas, mg_image image, mp_rect rect)
 	indices[3] = baseIndex + 0;
 	indices[4] = baseIndex + 2;
 	indices[5] = baseIndex + 3;
+*/
 }
 
 void mg_render_rounded_image(mg_canvas_data* canvas, mg_image image, mg_rounded_rect rect, mg_attributes* attributes)
 {
+	//TODO
+	/*
 	mg_image_data* imageData = mg_image_ptr_from_handle(canvas, image);
 	if(!imageData)
 	{
@@ -2148,7 +2123,7 @@ void mg_render_rounded_image(mg_canvas_data* canvas, mg_image image, mg_rounded_
 
 		*uv = mappedUV;
 	}
-
+	*/
 }
 
 //------------------------------------------------------------------------------------------
@@ -2817,10 +2792,9 @@ void mg_flush_batch(mg_canvas_data* canvas)
 {
 	if(canvas->backend && canvas->backend->drawBatch)
 	{
-		canvas->backend->drawBatch(canvas->backend, canvas->vertexCount, canvas->indexCount);
+		canvas->backend->drawBatch(canvas->backend, canvas->nextZIndex, canvas->vertexCount, canvas->indexCount);
 	}
-
-	canvas->batchBaseIndex += canvas->vertexCount;
+	mg_reset_z_index(canvas);
 	canvas->vertexCount = 0;
 	canvas->indexCount = 0;
 }
@@ -2871,14 +2845,13 @@ void mg_flush()
 				//NOTE(martin): clear buffers
 				canvas->vertexCount = 0;
 				canvas->indexCount = 0;
-				canvas->batchBaseIndex = 0;
 
 				canvas->backend->clear(canvas->backend, primitive->attributes.color);
 			} break;
 
 			case MG_CMD_FILL:
 			{
-				u32 zIndex = mg_get_next_z_index(canvas);
+				u32 zIndex = mg_next_shape(canvas, primitive->attributes.color);
 				mg_render_fill(canvas,
 						       canvas->pathElements + primitive->path.startIndex,
 						       &primitive->path,

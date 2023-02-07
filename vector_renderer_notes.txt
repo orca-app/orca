@@ -92,3 +92,5 @@ Quick measurement on perf_text.exe
 
 -> Stutter is with GL_MAP_INVALIDATE_BUFFER_BIT isn't reassuring. Stick to glBufferData for now.
 -> May be worth it to try persistently mapped buffers later.
+
+* Splitting vertex data and shape data (using glBufferData) --> ~10ms
