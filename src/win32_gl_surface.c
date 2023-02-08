@@ -39,8 +39,13 @@ void mg_gl_surface_prepare(mg_surface_data* interface)
 void mg_gl_surface_present(mg_surface_data* interface)
 {
 	mg_gl_surface* surface = (mg_gl_surface*)interface;
-
 	SwapBuffers(surface->hDC);
+}
+
+void mg_gl_surface_swap_interval(mg_surface_data* interface, int swap)
+{
+	mg_gl_surface* surface = (mg_gl_surface*)interface;
+	wglSwapIntervalEXT(swap);
 }
 
 mp_rect mg_gl_surface_get_frame(mg_surface_data* interface)
@@ -186,9 +191,7 @@ mg_surface mg_gl_surface_create_for_window(mp_window window)
 
 		//NOTE: make gl context current
 		wglMakeCurrent(hDC, glContext);
-
-		//TODO: set this back to 1 after testing
-		wglSwapIntervalEXT(0);
+		wglSwapIntervalEXT(1);
 
 		//TODO save important info in surface_data and return a handle
 		mg_gl_surface* surface = malloc_type(mg_gl_surface);
@@ -196,6 +199,7 @@ mg_surface mg_gl_surface_create_for_window(mp_window window)
 		surface->interface.destroy = mg_gl_surface_destroy;
 		surface->interface.prepare = mg_gl_surface_prepare;
 		surface->interface.present = mg_gl_surface_present;
+		surface->interface.swapInterval = mg_gl_surface_swap_interval;
 		surface->interface.getFrame = mg_gl_surface_get_frame;
 
 		//TODO: get/set frame/hidden

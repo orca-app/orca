@@ -516,6 +516,16 @@ mp_window mp_window_create(mp_rect rect, const char* title, mp_window_style styl
 		goto quit;
 	}
 
+	/*
+	//NOTE: get primary monitor dimensions
+	const POINT ptZero = { 0, 0 };
+	HMONITOR monitor = MonitorFromPoint(ptZero, MONITOR_DEFAULTTOPRIMARY);
+	MONITORINFO monitorInfo = {.cbSize = sizeof(MONITORINFO)};
+	GetMonitorInfo(monitor, &monitorInfo);
+	RECT adjustRect = {rect.x, monitorInfo.rcMonitor.bottom - rect.y - rect.h, rect.w, rect.h};
+	AdjustWindowRect(&adjustRect, WS_OVERLAPPEDWINDOW, false);
+	*/
+
 	HWND windowHandle = CreateWindow("ApplicationWindowClass", "Test Window",
 	                                 WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT,
 	                                 rect.w, rect.h,
@@ -719,6 +729,21 @@ void mp_window_bring_to_front(mp_window window)
 		}
 		SetWindowPos(windowData->win32.hWnd, HWND_TOP, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
 	}
+}
+
+mp_rect mp_window_get_content_rect(mp_window window)
+{
+	mp_rect rect = {0};
+	mp_window_data* windowData = mp_window_ptr_from_handle(window);
+	if(windowData)
+	{
+		RECT winRect;
+		if(GetClientRect(windowData->win32.hWnd, &winRect))
+		{
+			rect = (mp_rect){0, 0, winRect.right - winRect.left, winRect.bottom - winRect.top};
+		}
+	}
+	return(rect);
 }
 
 /////////////////////////////////////////// WIP ///////////////////////////////////////////////

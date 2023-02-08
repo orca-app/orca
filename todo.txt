@@ -3,17 +3,22 @@ Canvas renderer perf
 --------------------
 [.] Perf
 	[x] Split vertex data into per-vertex and per-shape data. Keep only pos, cubics, and shapeID in vertex data
-		[>] make zIndex implicit when calling push_vertex
-		[>] rename zIndex with "shapeIndex" everywhere
-		[>] remove color args in functions that don't need it anymore
 	[?] use half-floats or short fixed-point for pos and uv, packing them in two ints
 	[?] pre-compute triangle edges/bounding boxes?
 
-[ ] Use clip rects
+[>] Add surface scaling for high dpi surfaces
+
+[x] Allow setting swap interval
+	[!] Allow swap interval of 0 on macos
+
+[>] Use clip rects in tiling/drawing pass
+
+[ ] Clean canvas code
+	[ ] make zIndex implicit when calling push_vertex
+	[ ] rename zIndex with "shapeIndex" everywhere
+	[ ] remove color args in functions that don't need it anymore
+
 [ ] Clean shaders (folder/filenames, version string, debug flags, ...)
-[ ] Correctly handle surface size
-[ ] Add surface scaling for high dpi surfaces
-[ ] Allow setting swap interval
 
 [ ] Fix resource loading path in examples (to load font relative to executable)
 

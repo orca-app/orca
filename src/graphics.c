@@ -321,6 +321,16 @@ void mg_surface_present(mg_surface surface)
 	}
 }
 
+void mg_surface_swap_interval(mg_surface surface, int swap)
+{
+	DEBUG_ASSERT(__mgData.init);
+	mg_surface_data* surfaceData = mg_surface_data_from_handle(surface);
+	if(surfaceData)
+	{
+		surfaceData->swapInterval(surfaceData, swap);
+	}
+}
+
 void mg_surface_set_frame(mg_surface surface, mp_rect frame)
 {
 	DEBUG_ASSERT(__mgData.init);

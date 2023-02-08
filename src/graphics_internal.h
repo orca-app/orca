@@ -27,6 +27,7 @@ typedef struct mg_surface_data mg_surface_data;
 typedef void (*mg_surface_destroy_proc)(mg_surface_data* surface);
 typedef void (*mg_surface_prepare_proc)(mg_surface_data* surface);
 typedef void (*mg_surface_present_proc)(mg_surface_data* surface);
+typedef void (*mg_surface_swap_interval_proc)(mg_surface_data* surface, int swap);
 typedef mp_rect (*mg_surface_get_frame_proc)(mg_surface_data* surface);
 typedef void (*mg_surface_set_frame_proc)(mg_surface_data* surface, mp_rect frame);
 typedef bool (*mg_surface_get_hidden_proc)(mg_surface_data* surface);
@@ -39,6 +40,7 @@ typedef struct mg_surface_data
 	mg_surface_destroy_proc destroy;
 	mg_surface_prepare_proc prepare;
 	mg_surface_present_proc present;
+	mg_surface_swap_interval_proc swapInterval;
 	mg_surface_get_frame_proc getFrame;
 	mg_surface_set_frame_proc setFrame;
 	mg_surface_get_hidden_proc getHidden;

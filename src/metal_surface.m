@@ -127,6 +127,15 @@ void mg_metal_surface_present(mg_surface_data* interface)
 	}
 }
 
+void mg_metal_surface_swap_interval(mg_surface_data* interface, int swap)
+{
+	mg_metal_surface* surface = (mg_metal_surface*)interface;
+
+	////////////////////////////////////////////////////////////////
+	//TODO
+	////////////////////////////////////////////////////////////////
+}
+
 void mg_metal_surface_set_frame(mg_surface_data* interface, mp_rect frame)
 {
 	mg_metal_surface* surface = (mg_metal_surface*)interface;
@@ -192,6 +201,7 @@ mg_surface mg_metal_surface_create_for_window(mp_window window)
 		surface->interface.destroy = mg_metal_surface_destroy;
 		surface->interface.prepare = mg_metal_surface_prepare;
 		surface->interface.present = mg_metal_surface_present;
+		surface->interface.swapInterval = mg_metal_surface_swap_interval;
 		surface->interface.getFrame = mg_metal_surface_get_frame;
 		surface->interface.setFrame = mg_metal_surface_set_frame;
 		surface->interface.getHidden = mg_metal_surface_get_hidden;

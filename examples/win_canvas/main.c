@@ -58,8 +58,10 @@ int main()
 	mp_init();
 	mp_clock_init(); //TODO put that in mp_init()?
 
-	mp_rect rect = {.x = 100, .y = 100, .w = 810, .h = 610};
-	mp_window window = mp_window_create(rect, "test", 0);
+	mp_rect windowRect = {.x = 100, .y = 100, .w = 810, .h = 610};
+	mp_window window = mp_window_create(windowRect, "test", 0);
+
+	mp_rect contentRect = mp_window_get_content_rect(window);
 
 	//NOTE: create surface
 #if defined(OS_MACOS)
@@ -70,6 +72,8 @@ int main()
 	#error "unsupported OS"
 #endif
 
+	mg_surface_swap_interval(surface, 0);
+
 	//TODO: create canvas
 	mg_canvas canvas = mg_canvas_create(surface);
 	mg_font font = create_font();
@@ -79,7 +83,8 @@ int main()
 	mp_window_focus(window);
 
 	f32 x = 400, y = 300;
-	f32 dx = 5, dy = 5;
+	f32 speed = 0;
+	f32 dx = speed, dy = speed;
 	f64 frameTime = 0;
 
 	while(!mp_should_quit())
@@ -110,24 +115,36 @@ int main()
 				{
 					if(event.key.action == MP_KEY_PRESS || event.key.action == MP_KEY_REPEAT)
 					{
-						/*
+						//*
 						if(event.key.code == MP_KEY_LEFT)
 						{
-							dx-=5.1;
+							if(x - 200 > 0)
+							{
+								x-=1;
+							}
 						}
 						else if(event.key.code == MP_KEY_RIGHT)
 						{
-							dx+=5.1;
+							if(x + 200 < contentRect.w)
+							{
+								x+=1;
+							}
 						}
 						else if(event.key.code == MP_KEY_UP)
 						{
-							dy+=5.1;
+							if(y + 200 < contentRect.h)
+							{
+								y+=1;
+							}
 						}
 						else if(event.key.code == MP_KEY_DOWN)
 						{
-							dy-=5.1;
+							if(y - 200 > 0)
+							{
+								y-=1;
+							}
 						}
-						*/
+						//*/
 					}
 				} break;
 
@@ -138,19 +155,19 @@ int main()
 
 		if(x-200 < 0)
 		{
-			dx = 5;
+			dx = speed;
 		}
-		if(x+200 > 800)
+		if(x+200 > contentRect.w)
 		{
-			dx = -5;
+			dx = -speed;
 		}
 		if(y-200 < 0)
 		{
-			dy = 5;
+			dy = speed;
 		}
-		if(y+200 > 550)
+		if(y+200 > contentRect.h)
 		{
-			dy = -5;
+			dy = -speed;
 		}
 		x += dx;
 		y += dy;
