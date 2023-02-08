@@ -1,22 +1,21 @@
 
-Canvas renderer perf
---------------------
-[.] Perf
-	[x] Split vertex data into per-vertex and per-shape data. Keep only pos, cubics, and shapeID in vertex data
-	[?] use half-floats or short fixed-point for pos and uv, packing them in two ints
-	[?] pre-compute triangle edges/bounding boxes?
+Overview
+--------
+[ ] Clean+Fixes of canvas code and examples
+[ ] Make backend selection easier
+[ ] Investigate and fix artifact when seam is aligned to tile boundary?
 
-[!]	Investigate artifact when shifting positions of vertices by (0.5, 0.5) before multiplying
-    by subpixel precision and truncating... -> ie sampling at the middle of pixels vs at integer coordinates...
-	[ ] What alignment gives crisp-ier lines?
+[ ] Image API and backend
+	[ ] Build image atlas on top
+	[ ] Baked fonts?
 
-[>] Add surface scaling for high dpi surfaces and check that our fonts are renderer smoothly
+[ ] Allow different versions of GL to co-exist
+[ ] Backport canvas to GLES
 
-[x] Allow setting swap interval
-	[!] Allow swap interval of 0 on macos
+[ ] Delegated drawing API+Impl
 
-[x] Use clip rects in tiling/drawing pass
-
+Clean+Fixes
+-----------
 [ ] Clean canvas code
 	[ ] make zIndex implicit when calling push_vertex
 	[ ] rename zIndex with "shapeIndex" everywhere
@@ -29,7 +28,26 @@ Canvas renderer perf
 [ ] GL loader: allow using different GL versions (eg using a desktop GL surface and a GLES surface in the same app).
 [ ] Clean up surface backend and canvas backend compile-time and run-time selections
 
+[!]	Investigate artifact when shifting positions of vertices by (0.5, 0.5) before multiplying
+    by subpixel precision and truncating... -> ie sampling at the middle of pixels vs at integer coordinates...
+	[ ] What alignment gives crisp-ier lines?
+
+
+Canvas renderer
+---------------
+[.] Perf
+	[x] Split vertex data into per-vertex and per-shape data. Keep only pos, cubics, and shapeID in vertex data
+	[?] use half-floats or short fixed-point for pos and uv, packing them in two ints
+	[?] pre-compute triangle edges/bounding boxes?
+
+[x] Add surface scaling for high dpi surfaces and check that our fonts are rendered smoothly
+[x] Allow setting swap interval
+	[!] Allow swap interval of 0 on macos
+
+[x] Use clip rects in tiling/drawing pass
+
 [/] backport to GLES?
+[/] Handle changing monitors/dpi
 
 [ ] Ghostscript tiger stress test? -> need an svg loader, and a way to flush external command list
 

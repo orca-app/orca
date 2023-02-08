@@ -13,6 +13,7 @@
 #include"mp_app.h"
 
 #define WIN32_LEAN_AND_MEAN
+#define UNICODE
 #include<windows.h>
 
 typedef struct win32_window_data

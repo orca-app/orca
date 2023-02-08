@@ -781,7 +781,7 @@ mp_rect mp_window_get_content_rect(mp_window window)
 str8 mp_app_get_executable_path(mem_arena* arena)
 {
 	char* buffer = mem_arena_alloc_array(arena, char, MAX_PATH+1);
-	int size = GetModuleFileNameA(NULL, buffer, MAX_PATH+1);
+	int size = GetModuleFileName(NULL, buffer, MAX_PATH+1);
 	//TODO: check for errors...
 
 	return(str8_from_buffer(size, buffer));

@@ -8,6 +8,7 @@
 *****************************************************************/
 #include<stdlib.h>
 #include<string.h>
+#include<errno.h>
 
 #define _USE_MATH_DEFINES //NOTE: necessary for MSVC
 #include<math.h>
@@ -20,15 +21,15 @@
 mg_font create_font()
 {
 	//NOTE(martin): create font
-/*	str8 fontPath = mp_app_get_resource_path(mem_scratch(), "../resources/OpenSansLatinSubset.ttf");
-	char* fontPathCString = str8_to_cstring(mem_scratch(), fontPath);
-*/
+	str8 fontPath = mp_app_get_resource_path(mem_scratch(), "../resources/OpenSansLatinSubset.ttf");
+//	char* fontPathCString = str8_to_cstring(mem_scratch(), fontPath);
+
 	char* fontPathCString = "resources/OpenSansLatinSubset.ttf";
 
 	FILE* fontFile = fopen(fontPathCString, "r");
 	if(!fontFile)
 	{
-		LOG_ERROR("Could not load font file '%s'\n", fontPathCString);
+		LOG_ERROR("Could not load font file '%s': %s\n", fontPathCString, strerror(errno));
 		return(mg_font_nil());
 	}
 	unsigned char* fontData = 0;
