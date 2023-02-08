@@ -446,11 +446,16 @@ u32 mg_next_shape_textured(mg_canvas_data* canvas, vec2 uv, mg_color color)
 	int index = canvas->nextZIndex;
 	canvas->nextZIndex++;
 
+	mp_rect clip = {canvas->clip.x,
+	                canvas->clip.y,
+	                canvas->clip.x + canvas->clip.w - 1,
+	                canvas->clip.y + canvas->clip.h - 1};
+
 	mg_vertex_layout* layout = &canvas->backend->vertexLayout;
 
 	*(vec2*)(((char*)layout->uvBuffer) + index*layout->uvStride) = uv;
 	*(mg_color*)(((char*)layout->colorBuffer) + index*layout->colorStride) = color;
-	*(mp_rect*)(((char*)layout->clipBuffer) + index*layout->clipStride) = canvas->clip;
+	*(mp_rect*)(((char*)layout->clipBuffer) + index*layout->clipStride) = clip;
 
 	return(index);
 }

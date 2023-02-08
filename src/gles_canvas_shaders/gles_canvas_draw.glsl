@@ -64,7 +64,7 @@ void main()
 	uint tileCounter = tileCounterBuffer.elements[tileIndex];
 
 	const float subPixelFactor = 16.;
-	ivec2 centerPoint = ivec2(round((vec2(pixelCoord) + vec2(0.5, 0.5)) * subPixelFactor));
+	ivec2 centerPoint = ivec2((vec2(pixelCoord) + vec2(0.5, 0.5)) * subPixelFactor);
 
 //*
 	const int sampleCount = 8;
@@ -132,12 +132,13 @@ void main()
 		uint i1 = indexBuffer.elements[triangleIndex+1u];
 		uint i2 = indexBuffer.elements[triangleIndex+2u];
 
-		ivec2 p0 = ivec2(vertexBuffer.elements[i0].pos * subPixelFactor + vec2(0.5, 0.5));
-		ivec2 p1 = ivec2(vertexBuffer.elements[i1].pos * subPixelFactor + vec2(0.5, 0.5));
-		ivec2 p2 = ivec2(vertexBuffer.elements[i2].pos * subPixelFactor + vec2(0.5, 0.5));
+		ivec2 p0 = ivec2((vertexBuffer.elements[i0].pos) * subPixelFactor);
+		ivec2 p1 = ivec2((vertexBuffer.elements[i1].pos) * subPixelFactor);
+		ivec2 p2 = ivec2((vertexBuffer.elements[i2].pos) * subPixelFactor);
 
 		int zIndex = vertexBuffer.elements[i0].zIndex;
 		vec4 color = shapeBuffer.elements[zIndex].color;
+		ivec4 clip = ivec4(round((shapeBuffer.elements[zIndex].clip + vec4(0.5, 0.5, 0.5, 0.5)) * subPixelFactor));
 
 		//NOTE(martin): reorder triangle counter-clockwise and compute bias for each edge
 		int cw = (p1 - p0).x*(p2 - p0).y - (p1 - p0).y*(p2 - p0).x;
@@ -163,6 +164,14 @@ void main()
 		for(int sampleIndex = 0; sampleIndex < sampleCount; sampleIndex++)
 		{
 			ivec2 samplePoint = samplePoints[sampleIndex];
+
+			if(  samplePoint.x < clip.x
+			  || samplePoint.x > clip.z
+			  || samplePoint.y < clip.y
+			  || samplePoint.y > clip.w)
+			{
+				continue;
+			}
 
 			int w0 = orient2d(p1, p2, samplePoint);
 			int w1 = orient2d(p2, p0, samplePoint);

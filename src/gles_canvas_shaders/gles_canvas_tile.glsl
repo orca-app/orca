@@ -57,11 +57,18 @@ void main()
 	vec2 p1 = vertexBuffer.elements[i1].pos;
 	vec2 p2 = vertexBuffer.elements[i2].pos;
 
-	vec4 fbox = vec4(min(min(p0.x, p1.x), p2.x),
-		             min(min(p0.y, p1.y), p2.y),
-		             max(max(p0.x, p1.x), p2.x),
-		             max(max(p0.y, p1.y), p2.y));
+	int shapeIndex = vertexBuffer.elements[i0].zIndex;
+	vec4 clip = shapeBuffer.elements[shapeIndex].clip;
 
+	vec4 fbox = vec4(max(min(min(p0.x, p1.x), p2.x), clip.x),
+		             max(min(min(p0.y, p1.y), p2.y), clip.y),
+		             min(max(max(p0.x, p1.x), p2.x), clip.z),
+		             min(max(max(p0.y, p1.y), p2.y), clip.w));
+
+/*
+	fbox.xy = min(fbox.xy, clip.xy);
+	fbox.zw = max(fbox.zw, clip.zw);
+*/
 	uvec4 box = uvec4(floor(fbox))/tileSize;
 
 	uint xMin = max(0u, box.x);

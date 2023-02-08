@@ -6,12 +6,16 @@ Canvas renderer perf
 	[?] use half-floats or short fixed-point for pos and uv, packing them in two ints
 	[?] pre-compute triangle edges/bounding boxes?
 
+[!]	Investigate artifact when shifting positions of vertices by (0.5, 0.5) before multiplying
+    by subpixel precision and truncating... -> ie sampling at the middle of pixels vs at integer coordinates...
+	[ ] What alignment gives crisp-ier lines?
+
 [>] Add surface scaling for high dpi surfaces
 
 [x] Allow setting swap interval
 	[!] Allow swap interval of 0 on macos
 
-[>] Use clip rects in tiling/drawing pass
+[x] Use clip rects in tiling/drawing pass
 
 [ ] Clean canvas code
 	[ ] make zIndex implicit when calling push_vertex

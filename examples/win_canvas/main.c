@@ -178,10 +178,16 @@ int main()
 			mg_set_color_rgba(0, 1, 1, 1);
 			mg_clear();
 
+//			mg_clip_push(100, 100, contentRect.w - 200, contentRect.h - 200);
 			// head
 			mg_set_color_rgba(1, 1, 0, 1);
 			mg_circle_fill(x, y, 200);
-
+/*
+			mg_clip_pop();
+			mg_set_width(2);
+			mg_set_color_rgba(1, 0, 0, 1);
+			mg_rectangle_stroke(100, 100, contentRect.w - 200, contentRect.h - 200);
+*/
 			// smile
 			f32 frown = frameTime > 0.033 ? 100 : 0;
 

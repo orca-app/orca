@@ -64,8 +64,8 @@ kernel void BoundingBoxKernel(constant mg_vertex* vertexBuffer [[buffer(0)]],
 	float2 clipMax(clip.x + clip.z-1, clip.y + clip.w-1);
 
 	//NOTE(martin): intersect with current clip
-	boxMin = max(boxMin, clipMin);
-	boxMax = min(boxMax, clipMax);
+	boxMin = max(boxMin, clip.xy);
+	boxMax = min(boxMax, clip.zw);
 
 	//NOTE(martin): reorder triangle counter-clockwise and compute bias for each edge
 	float cw = (p1 - p0).x*(p2 - p0).y - (p1 - p0).y*(p2 - p0).x;
