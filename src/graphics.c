@@ -2605,15 +2605,19 @@ mg_canvas mg_canvas_create(mg_surface surface)
 				break;
 		#endif
 
+/*
 		#ifdef MG_IMPLEMENTS_BACKEND_GLES
 			case MG_BACKEND_GLES:
 				backend = mg_gles_canvas_create(surface);
 				break;
 		#endif
-
+*/
+		#ifdef MG_IMPLEMENTS_BACKEND_GL
 			case MG_BACKEND_GL:
 				backend = mg_gl_canvas_create(surface);
 				break;
+		#endif
+
 			default:
 				break;
 		}

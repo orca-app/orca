@@ -35,9 +35,10 @@ bool is_top_left(float2 a, float2 b)
 
 kernel void BoundingBoxKernel(constant mg_vertex* vertexBuffer [[buffer(0)]],
 		              constant uint* indexBuffer [[buffer(1)]],
-		              device mg_triangle_data* triangleArray [[buffer(2)]],
-		              device float4* boxArray [[buffer(3)]],
-		              constant float* contentsScaling [[buffer(4)]],
+		              constant mg_shape* shapeBuffer [[buffer(2)]],
+		              device mg_triangle_data* triangleArray [[buffer(3)]],
+		              device float4* boxArray [[buffer(4)]],
+		              constant float* contentsScaling [[buffer(5)]],
 		              uint gid [[thread_position_in_grid]])
 {
 	uint triangleIndex = gid;
@@ -56,7 +57,9 @@ kernel void BoundingBoxKernel(constant mg_vertex* vertexBuffer [[buffer(0)]],
 	float2 boxMax = max(max(p0, p1), p2);
 
 	//NOTE(martin): clip bounding box against clip rect
-	vector_float4 clip = contentsScaling[0]*vertexBuffer[indexBuffer[vertexIndex]].clip;
+	int shapeIndex = vertexBuffer[i0].zIndex;
+
+	vector_float4 clip = contentsScaling[0]*shapeBuffer[shapeIndex].clip;
 	float2 clipMin(clip.x, clip.y);
 	float2 clipMax(clip.x + clip.z-1, clip.y + clip.w-1);
 
@@ -83,7 +86,7 @@ kernel void BoundingBoxKernel(constant mg_vertex* vertexBuffer [[buffer(0)]],
 	//NOTE(martin): fill triangle data
 	boxArray[triangleIndex] = float4(boxMin.x, boxMin.y, boxMax.x, boxMax.y);
 
-	triangleArray[triangleIndex].zIndex = vertexBuffer[i0].zIndex;
+	triangleArray[triangleIndex].zIndex = shapeIndex;
 	triangleArray[triangleIndex].i0 = i0;
 	triangleArray[triangleIndex].i1 = i1;
 	triangleArray[triangleIndex].i2 = i2;
@@ -174,11 +177,12 @@ float orient2d(float2 a, float2 b, float2 c)
 kernel void RenderKernel(texture2d<float, access::write> outTexture [[texture(0)]],
                          texture2d<float> texAtlas [[texture(1)]],
                          const device mg_vertex* vertexBuffer [[buffer(0)]],
-                         device uint* tileCounters [[buffer(1)]],
-                         const device uint* tilesArray [[buffer(2)]],
-                         const device mg_triangle_data* triangleArray [[buffer(3)]],
-                         const device float4* boxArray [[buffer(4)]],
-                         constant vector_float4* clearColor [[buffer(5)]],
+                         const device mg_shape* shapeBuffer [[buffer(1)]],
+                         device uint* tileCounters [[buffer(2)]],
+                         const device uint* tilesArray [[buffer(3)]],
+                         const device mg_triangle_data* triangleArray [[buffer(4)]],
+                         const device float4* boxArray [[buffer(5)]],
+                         constant vector_float4* clearColor [[buffer(6)]],
                          uint2 gid [[thread_position_in_grid]],
                          uint2 tgid [[threadgroup_position_in_grid]],
                          uint2 threadsPerThreadgroup [[threads_per_threadgroup]],
@@ -274,12 +278,16 @@ kernel void RenderKernel(texture2d<float, access::write> outTexture [[texture(0)
 		float4 cubic1 = v1->cubic;
 		float4 cubic2 = v2->cubic;
 
-		float2 uv0 = v0->uv;
-		float2 uv1 = v1->uv;
-		float2 uv2 = v2->uv;
-
 		int zIndex = v0->zIndex;
-		float4 color = v0->color;
+		float4 color = shapeBuffer[zIndex].color;
+
+		/////////////////////////////////////////////////////////////////////////
+		//TODO: dummy uv while we figure out image handling.
+		float2 uv0 = shapeBuffer[zIndex].uv;
+		float2 uv1 = uv0;
+		float2 uv2 = uv0;
+		/////////////////////////////////////////////////////////////////////////
+
 
 		for(int i=0; i<6; i++)
 		{

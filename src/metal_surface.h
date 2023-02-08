@@ -9,6 +9,8 @@
 #ifndef __METAL_SURFACE_H_
 #define __METAL_SURFACE_H_
 
+#include"graphics.h"
+
 #ifdef __OBJC__
 	#import<Metal/Metal.h>
 #endif
