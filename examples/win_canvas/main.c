@@ -80,7 +80,6 @@ int main()
 
 	f32 x = 400, y = 300;
 	f32 dx = 5, dy = 5;
-
 	f64 frameTime = 0;
 
 	while(!mp_should_quit())

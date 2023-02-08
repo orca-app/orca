@@ -25,6 +25,8 @@ typedef struct mg_metal_canvas_backend
 	mg_canvas_backend interface;
 	mg_surface surface;
 
+	mg_color clearColor;
+
 	// permanent metal resources
 	id<MTLComputePipelineState> tilingPipeline;
 	id<MTLComputePipelineState> sortingPipeline;
@@ -37,6 +39,7 @@ typedef struct mg_metal_canvas_backend
 	// textures and buffers
 	id<MTLTexture> outTexture;
 	id<MTLTexture> atlasTexture;
+	id<MTLBuffer> shapeBuffer;
 	id<MTLBuffer> vertexBuffer;
 	id<MTLBuffer> indexBuffer;
 	id<MTLBuffer> tileCounters;
@@ -57,7 +60,20 @@ mg_metal_surface* mg_metal_canvas_get_surface(mg_metal_canvas_backend* canvas)
 	return(res);
 }
 
-void mg_metal_canvas_draw_buffers(mg_canvas_backend* interface, u32 vertexCount, u32 indexCount, mg_color clearColor)
+void mg_metal_canvas_begin(mg_canvas_backend* interface)
+{}
+
+void mg_metal_canvas_end(mg_canvas_backend* interface)
+{}
+
+void mg_metal_canvas_clear(mg_canvas_backend* interface, mg_color clearColor)
+{
+	//TODO
+	mg_metal_canvas_backend* backend = (mg_metal_canvas_backend*)interface;
+	backend->clearColor = clearColor;
+}
+
+void mg_metal_canvas_draw_batch(mg_canvas_backend* interface, u32 vertexCount, u32 indexCount, u32 shapeCount)
 {
 	mg_metal_canvas_backend* backend = (mg_metal_canvas_backend*)interface;
 	mg_metal_surface* surface = mg_metal_canvas_get_surface(backend);
@@ -92,9 +108,10 @@ void mg_metal_canvas_draw_buffers(mg_canvas_backend* interface, u32 vertexCount,
 		[boxEncoder setComputePipelineState: backend->boxingPipeline];
 		[boxEncoder setBuffer: backend->vertexBuffer offset:0 atIndex: 0];
 		[boxEncoder setBuffer: backend->indexBuffer offset:0 atIndex: 1];
-		[boxEncoder setBuffer: backend->triangleArray offset:0 atIndex: 2];
-		[boxEncoder setBuffer: backend->boxArray offset:0 atIndex: 3];
-		[boxEncoder setBytes: &scale length: sizeof(float) atIndex: 4];
+		[boxEncoder setBuffer: backend->shapeBuffer offset:0 atIndex: 2];
+		[boxEncoder setBuffer: backend->triangleArray offset:0 atIndex: 3];
+		[boxEncoder setBuffer: backend->boxArray offset:0 atIndex: 4];
+		[boxEncoder setBytes: &scale length: sizeof(float) atIndex: 5];
 
 		MTLSize boxGroupSize = MTLSizeMake(backend->boxingPipeline.maxTotalThreadsPerThreadgroup, 1, 1);
 		MTLSize boxGridSize = MTLSizeMake(indexCount/3, 1, 1);
@@ -137,20 +154,21 @@ void mg_metal_canvas_draw_buffers(mg_canvas_backend* interface, u32 vertexCount,
 		[sortEncoder endEncoding];
 
 		//-----------------------------------------------------------
-		//NOTE(martin): create compute encoder and encode commands
+		//NOTE(martin): encode drawing pass
 		//-----------------------------------------------------------
-		vector_float4 clearColorVec4 = {clearColor.r, clearColor.g, clearColor.b, clearColor.a};
+		vector_float4 clearColorVec4 = {backend->clearColor.r, backend->clearColor.g, backend->clearColor.b, backend->clearColor.a};
 
 		id<MTLComputeCommandEncoder> encoder = [surface->commandBuffer computeCommandEncoder];
 		[encoder setComputePipelineState:backend->computePipeline];
 		[encoder setTexture: backend->outTexture atIndex: 0];
 		[encoder setTexture: backend->atlasTexture atIndex: 1];
 		[encoder setBuffer: backend->vertexBuffer offset:0 atIndex: 0];
-		[encoder setBuffer: backend->tileCounters offset:0 atIndex: 1];
-		[encoder setBuffer: backend->tilesArray offset:0 atIndex: 2];
-		[encoder setBuffer: backend->triangleArray offset:0 atIndex: 3];
-		[encoder setBuffer: backend->boxArray offset:0 atIndex: 4];
-		[encoder setBytes: &clearColorVec4 length: sizeof(vector_float4) atIndex: 5];
+		[encoder setBuffer: backend->shapeBuffer offset:0 atIndex: 1];
+		[encoder setBuffer: backend->tileCounters offset:0 atIndex: 2];
+		[encoder setBuffer: backend->tilesArray offset:0 atIndex: 3];
+		[encoder setBuffer: backend->triangleArray offset:0 atIndex: 4];
+		[encoder setBuffer: backend->boxArray offset:0 atIndex: 5];
+		[encoder setBytes: &clearColorVec4 length: sizeof(vector_float4) atIndex: 6];
 
 		//TODO: check that we don't exceed maxTotalThreadsPerThreadgroup
 		DEBUG_ASSERT(RENDERER_TILE_SIZE*RENDERER_TILE_SIZE <= backend->computePipeline.maxTotalThreadsPerThreadgroup);
@@ -221,23 +239,27 @@ void mg_metal_canvas_viewport(mg_canvas_backend* interface, mp_rect viewPort)
 void mg_metal_canvas_update_vertex_layout(mg_metal_canvas_backend* backend)
 {
 	char* vertexBase = (char*)[backend->vertexBuffer contents];
+	char* shapeBase = (char*)[backend->shapeBuffer contents];
+	char* indexBase = (char*)[backend->indexBuffer contents];
 
 	backend->interface.vertexLayout = (mg_vertex_layout){
 		    .maxVertexCount = MG_METAL_CANVAS_DEFAULT_BUFFER_LENGTH,
 	        .maxIndexCount = MG_METAL_CANVAS_DEFAULT_BUFFER_LENGTH,
-	        .posBuffer = vertexBase + offsetof(mg_vertex, pos),
-	        .posStride = sizeof(mg_vertex),
 	        .cubicBuffer = vertexBase + offsetof(mg_vertex, cubic),
 	        .cubicStride = sizeof(mg_vertex),
-	        .uvBuffer = vertexBase + offsetof(mg_vertex, uv),
-	        .uvStride = sizeof(mg_vertex),
-	        .colorBuffer = vertexBase + offsetof(mg_vertex, color),
-	        .colorStride = sizeof(mg_vertex),
+	        .posBuffer = vertexBase + offsetof(mg_vertex, pos),
+	        .posStride = sizeof(mg_vertex),
 	        .zIndexBuffer = vertexBase + offsetof(mg_vertex, zIndex),
 	        .zIndexStride = sizeof(mg_vertex),
-	        .clipBuffer = vertexBase + offsetof(mg_vertex, clip),
-	        .clipStride = sizeof(mg_vertex),
-	        .indexBuffer = [backend->indexBuffer contents],
+
+	        .colorBuffer = shapeBase + offsetof(mg_shape, color),
+	        .colorStride = sizeof(mg_shape),
+	        .clipBuffer = shapeBase + offsetof(mg_shape, clip),
+	        .clipStride = sizeof(mg_shape),
+	        .uvBuffer = shapeBase + offsetof(mg_shape, uv),
+	        .uvStride = sizeof(mg_shape),
+
+	        .indexBuffer = indexBase,
 	        .indexStride = sizeof(int)};
 }
 
@@ -283,7 +305,10 @@ mg_canvas_backend* mg_metal_canvas_create(mg_surface surface)
 
 		//NOTE(martin): setup interface functions
 		backend->interface.destroy = mg_metal_canvas_destroy;
-		backend->interface.drawBuffers = mg_metal_canvas_draw_buffers;
+		backend->interface.begin = mg_metal_canvas_begin;
+		backend->interface.end = mg_metal_canvas_end;
+		backend->interface.clear = mg_metal_canvas_clear;
+		backend->interface.drawBatch = mg_metal_canvas_draw_batch;
 		backend->interface.atlasUpload = mg_metal_canvas_atlas_upload;
 
 		mp_rect frame = mg_surface_get_frame(surface);
@@ -331,6 +356,9 @@ mg_canvas_backend* mg_metal_canvas_create(mg_surface surface)
 		                                        	options: bufferOptions];
 
 			backend->vertexBuffer = [metalSurface->device newBufferWithLength: MG_METAL_CANVAS_DEFAULT_BUFFER_LENGTH*sizeof(mg_vertex)
+		                                        	options: bufferOptions];
+
+		    backend->shapeBuffer = [metalSurface->device newBufferWithLength: MG_METAL_CANVAS_DEFAULT_BUFFER_LENGTH*sizeof(mg_shape)
 		                                        	options: bufferOptions];
 
 			backend->tilesArray = [metalSurface->device newBufferWithLength: RENDERER_TILE_BUFFER_SIZE*sizeof(int)*RENDERER_MAX_TILES

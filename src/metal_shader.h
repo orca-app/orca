@@ -20,14 +20,18 @@
 
 typedef struct mg_vertex
 {
-	vector_float2 pos;   // position
 	vector_float4 cubic; // canonical implicit curve space coordinates
-	vector_float2 uv;    // texture coordinates
+	vector_float2 pos;   // position
+	int zIndex;
+} mg_vertex;
+
+typedef struct mg_shape
+{
 	vector_float4 color;
 	vector_float4 clip;
-	int zIndex;
+	vector_float2 uv;    // texture coordinates
 
-} mg_vertex;
+} mg_shape;
 
 typedef struct mg_triangle_data
 {

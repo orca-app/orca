@@ -16,11 +16,44 @@
 
 #define LOG_SUBSYSTEM "Main"
 
+mg_font create_font()
+{
+	//NOTE(martin): create font
+	str8 fontPath = mp_app_get_resource_path(mem_scratch(), "../resources/OpenSansLatinSubset.ttf");
+	char* fontPathCString = str8_to_cstring(mem_scratch(), fontPath);
+
+	FILE* fontFile = fopen(fontPathCString, "r");
+	if(!fontFile)
+	{
+		LOG_ERROR("Could not load font file '%s'\n", fontPathCString);
+		return(mg_font_nil());
+	}
+	unsigned char* fontData = 0;
+	fseek(fontFile, 0, SEEK_END);
+	u32 fontDataSize = ftell(fontFile);
+	rewind(fontFile);
+	fontData = (unsigned char*)malloc(fontDataSize);
+	fread(fontData, 1, fontDataSize, fontFile);
+	fclose(fontFile);
+
+	unicode_range ranges[5] = {UNICODE_RANGE_BASIC_LATIN,
+	                           UNICODE_RANGE_C1_CONTROLS_AND_LATIN_1_SUPPLEMENT,
+	                           UNICODE_RANGE_LATIN_EXTENDED_A,
+	                           UNICODE_RANGE_LATIN_EXTENDED_B,
+	                           UNICODE_RANGE_SPECIALS};
+
+	mg_font font = mg_font_create_from_memory(fontDataSize, fontData, 5, ranges);
+	free(fontData);
+
+	return(font);
+}
+
 int main()
 {
 	LogLevel(LOG_LEVEL_DEBUG);
 
 	mp_init();
+	mp_clock_init();
 
 	mp_rect rect = {.x = 100, .y = 100, .w = 800, .h = 600};
 	mp_window window = mp_window_create(rect, "test", 0);
@@ -29,20 +62,27 @@ int main()
 #if defined(OS_MACOS)
 	mg_surface surface = mg_metal_surface_create_for_window(window);
 #elif defined(OS_WIN64)
-	mg_surface surface = mg_gles_surface_create_for_window(window);
+	mg_surface surface = mg_gl_surface_create_for_window(window);
 #else
 	#error "unsupported OS"
 #endif
 
 	//TODO: create canvas
 	mg_canvas canvas = mg_canvas_create(surface);
+	mg_font font = create_font();
 
 	// start app
 	mp_window_bring_to_front(window);
 	mp_window_focus(window);
 
+	f32 x = 400, y = 300;
+	f32 dx = 5, dy = 5;
+	f64 frameTime = 0;
+
 	while(!mp_should_quit())
 	{
+		f64 startTime = mp_get_time(MP_CLOCK_MONOTONIC);
+
 		mp_pump_events(0);
 		mp_event event = {0};
 		while(mp_next_event(&event))
@@ -63,58 +103,29 @@ int main()
 					       event.frame.rect.h);
 				} break;
 
-				case MP_EVENT_WINDOW_MOVE:
-				{
-					printf("moved, rect = {%f, %f, %f, %f}\n",
-					       event.frame.rect.x,
-					       event.frame.rect.y,
-					       event.frame.rect.w,
-					       event.frame.rect.h);
-				} break;
-
-				case MP_EVENT_MOUSE_MOVE:
-				{
-					printf("mouse moved, pos = {%f, %f}, delta = {%f, %f}\n",
-					       event.move.x,
-					       event.move.y,
-					       event.move.deltaX,
-					       event.move.deltaY);
-				} break;
-
-				case MP_EVENT_MOUSE_WHEEL:
-				{
-					printf("mouse wheel, delta = {%f, %f}\n",
-					       event.move.deltaX,
-					       event.move.deltaY);
-				} break;
-
-				case MP_EVENT_MOUSE_ENTER:
-				{
-					printf("mouse enter\n");
-				} break;
-
-				case MP_EVENT_MOUSE_LEAVE:
-				{
-					printf("mouse leave\n");
-				} break;
-
-				case MP_EVENT_MOUSE_BUTTON:
-				{
-					printf("mouse button %i: %i\n",
-					       event.key.code,
-					       event.key.action == MP_KEY_PRESS ? 1 : 0);
-				} break;
-
 				case MP_EVENT_KEYBOARD_KEY:
 				{
-					printf("key %i: %s\n",
-					        event.key.code,
-					        event.key.action == MP_KEY_PRESS ? "press" : (event.key.action == MP_KEY_RELEASE ? "release" : "repeat"));
-				} break;
-
-				case MP_EVENT_KEYBOARD_CHAR:
-				{
-					printf("entered char %s\n", event.character.sequence);
+					if(event.key.action == MP_KEY_PRESS || event.key.action == MP_KEY_REPEAT)
+					{
+						/*
+						if(event.key.code == MP_KEY_LEFT)
+						{
+							dx-=5.1;
+						}
+						else if(event.key.code == MP_KEY_RIGHT)
+						{
+							dx+=5.1;
+						}
+						else if(event.key.code == MP_KEY_UP)
+						{
+							dy+=5.1;
+						}
+						else if(event.key.code == MP_KEY_DOWN)
+						{
+							dy-=5.1;
+						}
+						*/
+					}
 				} break;
 
 				default:
@@ -122,29 +133,72 @@ int main()
 			}
 		}
 
+		if(x-200 < 0)
+		{
+			dx = 5;
+		}
+		if(x+200 > 800)
+		{
+			dx = -5;
+		}
+		if(y-200 < 0)
+		{
+			dy = 5;
+		}
+		if(y+200 > 550)
+		{
+			dy = -5;
+		}
+		x += dx;
+		y += dy;
+
 		mg_surface_prepare(surface);
+
 			// background
-			mg_set_color_rgba(1, 0, 1, 1);
+			mg_set_color_rgba(0, 1, 1, 1);
 			mg_clear();
 
 			// head
 			mg_set_color_rgba(1, 1, 0, 1);
-			mg_circle_fill(400, 300, 200);
+			mg_circle_fill(x, y, 200);
 
 			// smile
-			mg_set_color_rgba(1, 0, 0, 1);
+			f32 frown = frameTime > 0.033 ? 100 : 0;
+
+			mg_set_color_rgba(0, 0, 0, 1);
 
 			mg_set_width(20);
-			mg_move_to(300, 200);
-			mg_cubic_to(350, 150, 450, 150, 500, 200);
+			mg_move_to(x-100, y-100);
+			mg_cubic_to(x-50, y-150+frown, x+50, y-150+frown, x+100, y-100);
 			mg_stroke();
 
 			// eyes
-			mg_ellipse_fill(330, 350, 30, 50);
-			mg_ellipse_fill(470, 350, 30, 50);
+			mg_ellipse_fill(x-70, y+50, 30, 50);
+			mg_ellipse_fill(x+70, y+50, 30, 50);
+
+			// text
+			mg_set_color_rgba(0, 0, 1, 1);
+			mg_set_font(font);
+			mg_set_font_size(12);
+			mg_move_to(50, 50);
+
+			str8 text = str8_pushf(mem_scratch(),
+			                      "Milepost vector graphics test program (frame time = %fs, fps = %f)...",
+			                      frameTime,
+			                      1./frameTime);
+			mg_text_outlines(text);
+			mg_fill();
+
+			printf("Milepost vector graphics test program (frame time = %fs, fps = %f)...\n",
+			                      frameTime,
+			                      1./frameTime);
 
 			mg_flush();
 		mg_surface_present(surface);
+
+		mem_arena_clear(mem_scratch());
+		frameTime = mp_get_time(MP_CLOCK_MONOTONIC) - startTime;
+
 	}
 
 	mp_terminate();
