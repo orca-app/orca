@@ -331,6 +331,19 @@ void mg_surface_swap_interval(mg_surface surface, int swap)
 	}
 }
 
+vec2 mg_surface_contents_scaling(mg_surface surface)
+{
+	DEBUG_ASSERT(__mgData.init);
+	vec2 scaling = {1, 1};
+	mg_surface_data* surfaceData = mg_surface_data_from_handle(surface);
+	if(surfaceData)
+	{
+		scaling = surfaceData->contentsScaling(surfaceData);
+	}
+	return(scaling);
+}
+
+
 void mg_surface_set_frame(mg_surface surface, mp_rect frame)
 {
 	DEBUG_ASSERT(__mgData.init);

@@ -44,6 +44,8 @@
 	GL_PROC(GLDISPATCHCOMPUTE, glDispatchCompute) \
 	GL_PROC(GLUNIFORM1UI, glUniform1ui) \
 	GL_PROC(GLUNIFORM2UI, glUniform2ui) \
+	GL_PROC(GLUNIFORM1F, glUniform1f) \
+	GL_PROC(GLUNIFORM2F, glUniform2f) \
 	GL_PROC(GLBINDIMAGETEXTURE, glBindImageTexture) \
 	GL_PROC(GLACTIVETEXTURE, glActiveTexture) \
 	GL_PROC(GLUNIFORM1I, glUniform1i) \

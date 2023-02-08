@@ -6,12 +6,11 @@
 *	@revision:
 *
 *****************************************************************/
-
 #define WIN32_GL_LOADER_IMPL
 #include"win32_gl_loader.h"
+#include"win32_app.h"
 
 #include"graphics_internal.h"
-#include"win32_app.h"
 
 typedef struct mg_gl_surface
 {
@@ -20,6 +19,7 @@ typedef struct mg_gl_surface
 	HWND hWnd;
 	HDC hDC;
 	HGLRC glContext;
+	vec2 contentsScaling;
 
 } mg_gl_surface;
 
@@ -48,13 +48,24 @@ void mg_gl_surface_swap_interval(mg_surface_data* interface, int swap)
 	wglSwapIntervalEXT(swap);
 }
 
+vec2 mg_gl_contents_scaling(mg_surface_data* interface)
+{
+	mg_gl_surface* surface = (mg_gl_surface*)interface;
+	return(surface->contentsScaling);
+}
+
 mp_rect mg_gl_surface_get_frame(mg_surface_data* interface)
 {
 	mg_gl_surface* surface = (mg_gl_surface*)interface;
 	RECT rect = {0};
 	GetClientRect(surface->hWnd, &rect);
 
-	mp_rect res = {rect.left, rect.bottom, rect.right - rect.left, rect.bottom - rect.top};
+	vec2 scale = surface->contentsScaling;
+
+	mp_rect res = {rect.left/scale.x,
+	               rect.bottom/scale.y,
+	               (rect.right - rect.left)/scale.x,
+	               (rect.bottom - rect.top)/scale.y};
 	return(res);
 }
 
@@ -200,12 +211,16 @@ mg_surface mg_gl_surface_create_for_window(mp_window window)
 		surface->interface.prepare = mg_gl_surface_prepare;
 		surface->interface.present = mg_gl_surface_present;
 		surface->interface.swapInterval = mg_gl_surface_swap_interval;
+		surface->interface.contentsScaling = mg_gl_contents_scaling;
 		surface->interface.getFrame = mg_gl_surface_get_frame;
 
 		//TODO: get/set frame/hidden
 		surface->hWnd = windowData->win32.hWnd;
 		surface->hDC = hDC;
 		surface->glContext = glContext;
+
+		u32 dpi = GetDpiForWindow(windowData->win32.hWnd);
+		surface->contentsScaling = (vec2){(float)dpi/96., (float)dpi/96.};
 
 		surfaceHandle = mg_surface_alloc_handle((mg_surface_data*)surface);
 	}

@@ -21,6 +21,7 @@ void mg_surface_destroy(mg_surface surface);
 void mg_surface_prepare(mg_surface surface);
 void mg_surface_present(mg_surface surface);
 void mg_surface_swap_interval(mg_surface surface, int swap);
+vec2 mg_surface_contents_scaling(mg_surface surface);
 mp_rect mg_surface_get_frame(mg_surface surface);
 void mg_surface_set_frame(mg_surface surface, mp_rect frame);
 bool mg_surface_get_hidden(mg_surface surface);

@@ -81,6 +81,8 @@ int main()
 	mp_rect rect = {.x = 100, .y = 100, .w = 980, .h = 600};
 	mp_window window = mp_window_create(rect, "test", 0);
 
+	mp_rect contentRect = mp_window_get_content_rect(window);
+
 	//NOTE: create surface, canvas and font
 
 #if defined(OS_MACOS)
@@ -90,12 +92,13 @@ int main()
 #else
 	#error "unsupported OS"
 #endif
+	mg_surface_swap_interval(surface, 0);
 
 	mg_canvas canvas = mg_canvas_create(surface);
 
 	mg_font font = create_font();
 	mg_font_extents extents = mg_font_get_extents(font);
-	f32 fontScale = mg_font_get_scale_for_em_pixels(font, 12);
+	f32 fontScale = mg_font_get_scale_for_em_pixels(font, 14);
 
 	f32 lineHeight = fontScale*(extents.ascent + extents.descent + extents.leading);
 
@@ -130,14 +133,14 @@ int main()
 		}
 
 		f32 textX = 10;
-		f32 textY = 600 - lineHeight;
+		f32 textY = contentRect.h - lineHeight - 10;
 
 		mg_surface_prepare(surface);
 			mg_set_color_rgba(1, 1, 1, 1);
 			mg_clear();
 
 			mg_set_font(font);
-			mg_set_font_size(12);
+			mg_set_font_size(14);
 			mg_set_color_rgba(0, 0, 0, 1);
 
 			mg_move_to(textX, textY);
@@ -155,7 +158,7 @@ int main()
 						break;
 					}
 				}
-				ASSERT(subIndex < 512 && (startIndex+subIndex)<=codePointCount);
+
 				u32 glyphs[512];
 				mg_font_get_glyph_indices(font, (str32){subIndex, codePoints+startIndex}, (str32){512, glyphs});
 
@@ -171,12 +174,10 @@ int main()
 				startIndex += subIndex;
 			}
 
-			f64 startFlushTime = mp_get_time(MP_CLOCK_MONOTONIC);
-
 			mg_set_color_rgba(0, 0, 1, 1);
 			mg_set_font(font);
-			mg_set_font_size(12);
-			mg_move_to(50, 50);
+			mg_set_font_size(14);
+			mg_move_to(10, 10 + lineHeight);
 
 			str8 text = str8_pushf(mem_scratch(),
 			                      "Milepost vector graphics test program (frame time = %fs, fps = %f)...",
@@ -185,6 +186,8 @@ int main()
 			mg_text_outlines(text);
 			mg_fill();
 
+
+			f64 startFlushTime = mp_get_time(MP_CLOCK_MONOTONIC);
 			mg_flush();
 
 		f64 startPresentTime = mp_get_time(MP_CLOCK_MONOTONIC);

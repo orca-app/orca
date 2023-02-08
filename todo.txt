@@ -10,7 +10,7 @@ Canvas renderer perf
     by subpixel precision and truncating... -> ie sampling at the middle of pixels vs at integer coordinates...
 	[ ] What alignment gives crisp-ier lines?
 
-[>] Add surface scaling for high dpi surfaces
+[>] Add surface scaling for high dpi surfaces and check that our fonts are renderer smoothly
 
 [x] Allow setting swap interval
 	[!] Allow swap interval of 0 on macos

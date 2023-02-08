@@ -156,6 +156,8 @@ void mp_init()
 
 		__mpApp.win32.savedConsoleCodePage = GetConsoleOutputCP();
         SetConsoleOutputCP(CP_UTF8);
+
+        SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE);
 	}
 }
 
@@ -256,6 +258,12 @@ LRESULT WinProc(HWND windowHandle, UINT message, WPARAM wParam, LPARAM lParam)
 			event.window = mp_window_handle_from_ptr(mpWindow);
 			event.type = MP_EVENT_WINDOW_CLOSE;
 			mp_queue_event(&event);
+		} break;
+
+		case WM_DPICHANGED:
+		{
+			printf("DPI changed!\n");
+
 		} break;
 
 		//TODO: enter/exit size & move
@@ -502,6 +510,12 @@ void mp_pump_events(f64 timeout)
 // window management
 //--------------------------------------------------------------------
 
+//WARN: the following header pulls in objbase.h (even with WIN32_LEAN_AND_MEAN), which
+//      #defines interface to struct... so make sure to #undef interface since it's a
+//      name we want to be able to use throughout the codebase
+#include<ShellScalingApi.h>
+#undef interface
+
 mp_window mp_window_create(mp_rect rect, const char* title, mp_window_style style)
 {
 	WNDCLASS windowClass = {.style = CS_HREDRAW | CS_VREDRAW | CS_OWNDC,
@@ -516,19 +530,16 @@ mp_window mp_window_create(mp_rect rect, const char* title, mp_window_style styl
 		goto quit;
 	}
 
-	/*
-	//NOTE: get primary monitor dimensions
-	const POINT ptZero = { 0, 0 };
-	HMONITOR monitor = MonitorFromPoint(ptZero, MONITOR_DEFAULTTOPRIMARY);
-	MONITORINFO monitorInfo = {.cbSize = sizeof(MONITORINFO)};
-	GetMonitorInfo(monitor, &monitorInfo);
-	RECT adjustRect = {rect.x, monitorInfo.rcMonitor.bottom - rect.y - rect.h, rect.w, rect.h};
-	AdjustWindowRect(&adjustRect, WS_OVERLAPPEDWINDOW, false);
-	*/
+	u32 dpiX, dpiY;
+	HMONITOR monitor = MonitorFromPoint((POINT){rect.x, rect.y}, MONITOR_DEFAULTTOPRIMARY);
+	GetDpiForMonitor(monitor, MDT_EFFECTIVE_DPI, &dpiX, &dpiY);
+
+	f32 dpiScalingX = (f32)dpiX/96.;
+	f32 dpiScalingY = (f32)dpiY/96.;
 
 	HWND windowHandle = CreateWindow("ApplicationWindowClass", "Test Window",
 	                                 WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT,
-	                                 rect.w, rect.h,
+	                                 rect.w * dpiScalingX, rect.h * dpiScalingY,
 	                                 0, 0, windowClass.hInstance, 0);
 
 	if(!windowHandle)
@@ -740,7 +751,9 @@ mp_rect mp_window_get_content_rect(mp_window window)
 		RECT winRect;
 		if(GetClientRect(windowData->win32.hWnd, &winRect))
 		{
-			rect = (mp_rect){0, 0, winRect.right - winRect.left, winRect.bottom - winRect.top};
+			u32 dpi = GetDpiForWindow(windowData->win32.hWnd);
+			f32 scale = (float)dpi/96.;
+			rect = (mp_rect){0, 0, (winRect.right - winRect.left)/scale, (winRect.bottom - winRect.top)/scale};
 		}
 	}
 	return(rect);

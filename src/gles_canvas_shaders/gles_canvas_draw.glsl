@@ -42,8 +42,9 @@ layout(location = 0) uniform uint indexCount;
 layout(location = 1) uniform uvec2 tileCount;
 layout(location = 2) uniform uint tileSize;
 layout(location = 3) uniform uint tileArraySize;
-layout(rgba8, binding = 0) uniform restrict writeonly image2D outTexture;
+layout(location = 4) uniform vec2 scaling;
 
+layout(rgba8, binding = 0) uniform restrict writeonly image2D outTexture;
 
 bool is_top_left(ivec2 a, ivec2 b)
 {
@@ -63,25 +64,25 @@ void main()
 	uint tileIndex =  tileCoord.y * tileCount.x + tileCoord.x;
 	uint tileCounter = tileCounterBuffer.elements[tileIndex];
 
-	const float subPixelFactor = 16.;
+	const float subPixelFactor = 256.;
 	ivec2 centerPoint = ivec2((vec2(pixelCoord) + vec2(0.5, 0.5)) * subPixelFactor);
 
 //*
 	const int sampleCount = 8;
-	ivec2 samplePoints[sampleCount] = ivec2[sampleCount](centerPoint + ivec2(1, 3),
-	                                                     centerPoint + ivec2(-1, -3),
-	                                                     centerPoint + ivec2(5, -1),
-	                                                     centerPoint + ivec2(-3, 5),
-	                                                     centerPoint + ivec2(-5, -5),
-	                                                     centerPoint + ivec2(-7, 1),
-	                                                     centerPoint + ivec2(3, -7),
-	                                                     centerPoint + ivec2(7, 7));
+	ivec2 samplePoints[sampleCount] = ivec2[sampleCount](centerPoint + ivec2(1, 3)*16,
+	                                                     centerPoint + ivec2(-1, -3)*16,
+	                                                     centerPoint + ivec2(5, -1)*16,
+	                                                     centerPoint + ivec2(-3, 5)*16,
+	                                                     centerPoint + ivec2(-5, -5)*16,
+	                                                     centerPoint + ivec2(-7, 1)*16,
+	                                                     centerPoint + ivec2(3, -7)*16,
+	                                                     centerPoint + ivec2(7, 7)*16);
 /*/
 	const int sampleCount = 4;
-	ivec2 samplePoints[sampleCount] = ivec2[sampleCount](centerPoint + ivec2(-2, 6),
-	                                                     centerPoint + ivec2(6, 2),
-	                                                     centerPoint + ivec2(-6, -2),
-	                                                     centerPoint + ivec2(2, -6));
+	ivec2 samplePoints[sampleCount] = ivec2[sampleCount](centerPoint + ivec2(-2, 6)*16,
+	                                                     centerPoint + ivec2(6, 2)*16,
+	                                                     centerPoint + ivec2(-6, -2)*16,
+	                                                     centerPoint + ivec2(2, -6)*16);
 //*/
 	//DEBUG
 /*
@@ -132,13 +133,13 @@ void main()
 		uint i1 = indexBuffer.elements[triangleIndex+1u];
 		uint i2 = indexBuffer.elements[triangleIndex+2u];
 
-		ivec2 p0 = ivec2((vertexBuffer.elements[i0].pos) * subPixelFactor);
-		ivec2 p1 = ivec2((vertexBuffer.elements[i1].pos) * subPixelFactor);
-		ivec2 p2 = ivec2((vertexBuffer.elements[i2].pos) * subPixelFactor);
+		ivec2 p0 = ivec2((vertexBuffer.elements[i0].pos * scaling) * subPixelFactor);
+		ivec2 p1 = ivec2((vertexBuffer.elements[i1].pos * scaling) * subPixelFactor);
+		ivec2 p2 = ivec2((vertexBuffer.elements[i2].pos * scaling) * subPixelFactor);
 
 		int zIndex = vertexBuffer.elements[i0].zIndex;
 		vec4 color = shapeBuffer.elements[zIndex].color;
-		ivec4 clip = ivec4(round((shapeBuffer.elements[zIndex].clip + vec4(0.5, 0.5, 0.5, 0.5)) * subPixelFactor));
+		ivec4 clip = ivec4(round((shapeBuffer.elements[zIndex].clip * vec4(scaling, scaling) + vec4(0.5, 0.5, 0.5, 0.5)) * subPixelFactor));
 
 		//NOTE(martin): reorder triangle counter-clockwise and compute bias for each edge
 		int cw = (p1 - p0).x*(p2 - p0).y - (p1 - p0).y*(p2 - p0).x;

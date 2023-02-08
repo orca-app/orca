@@ -40,6 +40,7 @@ layout(location = 0) uniform uint indexCount;
 layout(location = 1) uniform uvec2 tileCount;
 layout(location = 2) uniform uint tileSize;
 layout(location = 3) uniform uint tileArraySize;
+layout(location = 4) uniform vec2 scaling;
 
 void main()
 {
@@ -53,12 +54,12 @@ void main()
 	uint i1 = indexBuffer.elements[triangleIndex+1u];
 	uint i2 = indexBuffer.elements[triangleIndex+2u];
 
-	vec2 p0 = vertexBuffer.elements[i0].pos;
-	vec2 p1 = vertexBuffer.elements[i1].pos;
-	vec2 p2 = vertexBuffer.elements[i2].pos;
+	vec2 p0 = vertexBuffer.elements[i0].pos * scaling;
+	vec2 p1 = vertexBuffer.elements[i1].pos * scaling;
+	vec2 p2 = vertexBuffer.elements[i2].pos * scaling;
 
 	int shapeIndex = vertexBuffer.elements[i0].zIndex;
-	vec4 clip = shapeBuffer.elements[shapeIndex].clip;
+	vec4 clip = shapeBuffer.elements[shapeIndex].clip * vec4(scaling, scaling);
 
 	vec4 fbox = vec4(max(min(min(p0.x, p1.x), p2.x), clip.x),
 		             max(min(min(p0.y, p1.y), p2.y), clip.y),

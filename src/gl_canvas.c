@@ -181,10 +181,11 @@ void mg_gl_canvas_draw_batch(mg_canvas_backend* interface, u32 shapeCount, u32 v
 	mg_gl_send_buffers(backend, shapeCount, vertexCount, indexCount);
 
 	mp_rect frame = mg_surface_get_frame(backend->surface);
+	vec2 contentsScaling = mg_surface_contents_scaling(backend->surface);
 
 	const int tileSize = 16;
-	const int tileCountX = (frame.w + tileSize - 1)/tileSize;
-	const int tileCountY = (frame.h + tileSize - 1)/tileSize;
+	const int tileCountX = (frame.w*contentsScaling.x + tileSize - 1)/tileSize;
+	const int tileCountY = (frame.h*contentsScaling.y + tileSize - 1)/tileSize;
 	const int tileArraySize = MG_GL_CANVAS_TILE_ARRAY_SIZE;
 
 	//TODO: ensure there's enough space in tile buffer
@@ -208,6 +209,7 @@ void mg_gl_canvas_draw_batch(mg_canvas_backend* interface, u32 shapeCount, u32 v
 	glUniform2ui(1, tileCountX, tileCountY);
 	glUniform1ui(2, tileSize);
 	glUniform1ui(3, tileArraySize);
+	glUniform2f(4, contentsScaling.x, contentsScaling.y);
 
 	u32 threadCount = indexCount/3;
 	glDispatchCompute((threadCount + 255)/256, 1, 1);
@@ -222,7 +224,7 @@ void mg_gl_canvas_draw_batch(mg_canvas_backend* interface, u32 shapeCount, u32 v
 
 	glDispatchCompute(tileCountX * tileCountY, 1, 1);
 
-	//NOTE: then we fire the fragment shader that will select only triangles in its tile
+	//NOTE: then we fire the drawing shader that will select only triangles in its tile
 	glUseProgram(backend->drawProgram);
 
 	glBindImageTexture(0, backend->outTexture, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA8);
@@ -231,6 +233,7 @@ void mg_gl_canvas_draw_batch(mg_canvas_backend* interface, u32 shapeCount, u32 v
 	glUniform2ui(1, tileCountX, tileCountY);
 	glUniform1ui(2, tileSize);
 	glUniform1ui(3, tileArraySize);
+	glUniform2f(4, contentsScaling.x, contentsScaling.y);
 
 	glDispatchCompute(tileCountX, tileCountY, 1);
 
@@ -330,9 +333,11 @@ mg_canvas_backend* mg_gl_canvas_create(mg_surface surface)
 		glBufferData(GL_SHADER_STORAGE_BUFFER, MG_GL_CANVAS_TILE_ARRAY_BUFFER_SIZE, 0, GL_DYNAMIC_COPY);
 
 		mp_rect frame = mg_surface_get_frame(backend->surface);
+		vec2 contentsScaling = mg_surface_contents_scaling(backend->surface);
+
 		glGenTextures(1, &backend->outTexture);
 		glBindTexture(GL_TEXTURE_2D, backend->outTexture);
-		glTexStorage2D(GL_TEXTURE_2D, 1, GL_RGBA8, frame.w, frame.h);
+		glTexStorage2D(GL_TEXTURE_2D, 1, GL_RGBA8, frame.w*contentsScaling.x, frame.h*contentsScaling.y);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 

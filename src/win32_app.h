@@ -10,9 +10,10 @@
 #ifndef __WIN32_APP_H_
 #define __WIN32_APP_H_
 
+#include"mp_app.h"
+
 #define WIN32_LEAN_AND_MEAN
 #include<windows.h>
-#include"mp_app.h"
 
 typedef struct win32_window_data
 {
