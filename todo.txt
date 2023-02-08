@@ -15,7 +15,14 @@ Canvas renderer perf
 [ ] Add surface scaling for high dpi surfaces
 [ ] Allow setting swap interval
 
+[ ] Fix resource loading path in examples (to load font relative to executable)
 
+[ ] GL loader: allow using different GL versions (eg using a desktop GL surface and a GLES surface in the same app).
+[ ] Clean up surface backend and canvas backend compile-time and run-time selections
+
+[/] backport to GLES?
+
+[ ] Ghostscript tiger stress test? -> need an svg loader, and a way to flush external command list
 
 -----------
 [.] Check changes in macos version

@@ -2799,7 +2799,7 @@ void mg_flush_batch(mg_canvas_data* canvas)
 	canvas->indexCount = 0;
 }
 
-void mg_flush()
+void mg_flush_commands(int primitiveCount, mg_primitive* primitives, mg_path_elt* pathElements)
 {
 	mg_canvas_data* canvas = __mgCurrentCanvas;
 	if(!canvas)
@@ -2808,8 +2808,6 @@ void mg_flush()
 	}
 
 	mg_color clearColor = {0, 0, 0, 1};
-
-	u32 count = canvas->primitiveCount;
 
 	u32 nextIndex = 0;
 
@@ -2822,14 +2820,14 @@ void mg_flush()
 
 	canvas->backend->begin(canvas->backend);
 
-	for(int i=0; i<count; i++)
+	for(int i=0; i<primitiveCount; i++)
 	{
-		if(nextIndex >= count)
+		if(nextIndex >= primitiveCount)
 		{
 			LOG_ERROR("invalid location '%i' in graphics command buffer would cause an overrun\n", nextIndex);
 			break;
 		}
-		mg_primitive* primitive = &(canvas->primitives[nextIndex]);
+		mg_primitive* primitive = &(primitives[nextIndex]);
 		nextIndex++;
 
 		if(i && primitive->attributes.image.h != currentImage.h)
@@ -2853,7 +2851,7 @@ void mg_flush()
 			{
 				u32 zIndex = mg_next_shape(canvas, primitive->attributes.color);
 				mg_render_fill(canvas,
-						       canvas->pathElements + primitive->path.startIndex,
+						       pathElements + primitive->path.startIndex,
 						       &primitive->path,
 						       zIndex,
 						       primitive->attributes.color);
@@ -2862,7 +2860,7 @@ void mg_flush()
 			case MG_CMD_STROKE:
 			{
 				mg_render_stroke(canvas,
-							 canvas->pathElements + primitive->path.startIndex,
+							 pathElements + primitive->path.startIndex,
 							 &primitive->path,
 							 &primitive->attributes);
 			} break;
@@ -2899,7 +2897,7 @@ void mg_flush()
 					//NOTE(martin): normal end of stream marker
 					goto exit_command_loop;
 				}
-				else if(primitive->jump >= count)
+				else if(primitive->jump >= primitiveCount)
 				{
 					LOG_ERROR("invalid jump location '%i' in graphics command buffer\n", primitive->jump);
 					goto exit_command_loop;
@@ -2952,16 +2950,26 @@ void mg_flush()
 	canvas->backend->end(canvas->backend);
 
 	//NOTE(martin): clear buffers
-	canvas->primitiveCount = 0;
 	canvas->vertexCount = 0;
 	canvas->indexCount = 0;
+}
 
+void mg_flush()
+{
+	mg_canvas_data* canvas = __mgCurrentCanvas;
+	if(!canvas)
+	{
+		return;
+	}
+
+	mg_flush_commands(canvas->primitiveCount, canvas->primitives, canvas->pathElements);
+
+	canvas->primitiveCount = 0;
 	canvas->path.startIndex = 0;
 	canvas->path.count = 0;
 
 	canvas->frameCounter++;
 }
-////////////////////////////////////////////////////////////
 
 //------------------------------------------------------------------------------------------
 //NOTE(martin): transform, viewport and clipping
