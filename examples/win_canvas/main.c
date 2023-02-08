@@ -120,28 +120,28 @@ int main()
 						{
 							if(x - 200 > 0)
 							{
-								x-=1;
+								x-=5;
 							}
 						}
 						else if(event.key.code == MP_KEY_RIGHT)
 						{
 							if(x + 200 < contentRect.w)
 							{
-								x+=1;
+								x+=5;
 							}
 						}
 						else if(event.key.code == MP_KEY_UP)
 						{
 							if(y + 200 < contentRect.h)
 							{
-								y+=1;
+								y+=5;
 							}
 						}
 						else if(event.key.code == MP_KEY_DOWN)
 						{
 							if(y - 200 > 0)
 							{
-								y-=1;
+								y-=5;
 							}
 						}
 						//*/
@@ -155,18 +155,22 @@ int main()
 
 		if(x-200 < 0)
 		{
+			x = 200;
 			dx = speed;
 		}
 		if(x+200 > contentRect.w)
 		{
+			x = contentRect.w - 200;
 			dx = -speed;
 		}
 		if(y-200 < 0)
 		{
+			y = 200;
 			dy = speed;
 		}
 		if(y+200 > contentRect.h)
 		{
+			y = contentRect.h - 200;
 			dy = -speed;
 		}
 		x += dx;

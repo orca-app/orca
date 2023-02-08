@@ -66,10 +66,6 @@ void main()
 		             min(max(max(p0.x, p1.x), p2.x), clip.z),
 		             min(max(max(p0.y, p1.y), p2.y), clip.w));
 
-/*
-	fbox.xy = min(fbox.xy, clip.xy);
-	fbox.zw = max(fbox.zw, clip.zw);
-*/
 	uvec4 box = uvec4(floor(fbox))/tileSize;
 
 	uint xMin = max(0u, box.x);

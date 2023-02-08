@@ -1,4 +1,5 @@
 #version 430
+#extension GL_ARB_gpu_shader_int64 : require
 layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
 
 precision mediump float;
@@ -52,9 +53,14 @@ bool is_top_left(ivec2 a, ivec2 b)
 	      ||(b.y < a.y));
 }
 
-int orient2d(ivec2 a, ivec2 b, ivec2 p)
+int64_t orient2d(i64vec2 a, i64vec2 b, i64vec2 p)
 {
 	return((b.x-a.x)*(p.y-a.y) - (b.y-a.y)*(p.x-a.x));
+}
+
+int64_t is_clockwise(i64vec2 p0, i64vec2 p1, i64vec2 p2)
+{
+	return((p1 - p0).x*(p2 - p0).y - (p1 - p0).y*(p2 - p0).x);
 }
 
 void main()
@@ -79,10 +85,10 @@ void main()
 	                                                     centerPoint + ivec2(7, 7)*16);
 /*/
 	const int sampleCount = 4;
-	ivec2 samplePoints[sampleCount] = ivec2[sampleCount](centerPoint + ivec2(-2, 6)*16,
-	                                                     centerPoint + ivec2(6, 2)*16,
-	                                                     centerPoint + ivec2(-6, -2)*16,
-	                                                     centerPoint + ivec2(2, -6)*16);
+	ivec2 samplePoints[sampleCount] = ivec2[sampleCount](centerPoint + ivec2(-2, 6),
+	                                                     centerPoint + ivec2(6, 2),
+	                                                     centerPoint + ivec2(-6, -2),
+	                                                     centerPoint + ivec2(2, -6));
 //*/
 	//DEBUG
 /*
@@ -142,7 +148,7 @@ void main()
 		ivec4 clip = ivec4(round((shapeBuffer.elements[zIndex].clip * vec4(scaling, scaling) + vec4(0.5, 0.5, 0.5, 0.5)) * subPixelFactor));
 
 		//NOTE(martin): reorder triangle counter-clockwise and compute bias for each edge
-		int cw = (p1 - p0).x*(p2 - p0).y - (p1 - p0).y*(p2 - p0).x;
+		int64_t cw = is_clockwise(p0, p1, p2);
 		if(cw < 0)
 		{
 			uint tmpIndex = i1;
@@ -158,9 +164,9 @@ void main()
 		vec4 cubic1 = vertexBuffer.elements[i1].cubic;
 		vec4 cubic2 = vertexBuffer.elements[i2].cubic;
 
-		int bias0 = is_top_left(p1, p2) ? 0 : -1;
-		int bias1 = is_top_left(p2, p0) ? 0 : -1;
-		int bias2 = is_top_left(p0, p1) ? 0 : -1;
+		int64_t bias0 = is_top_left(p1, p2) ? 0 : -1;
+		int64_t bias1 = is_top_left(p2, p0) ? 0 : -1;
+		int64_t bias2 = is_top_left(p0, p1) ? 0 : -1;
 
 		for(int sampleIndex = 0; sampleIndex < sampleCount; sampleIndex++)
 		{
@@ -174,9 +180,9 @@ void main()
 				continue;
 			}
 
-			int w0 = orient2d(p1, p2, samplePoint);
-			int w1 = orient2d(p2, p0, samplePoint);
-			int w2 = orient2d(p0, p1, samplePoint);
+			int64_t w0 = orient2d(p1, p2, samplePoint);
+			int64_t w1 = orient2d(p2, p0, samplePoint);
+			int64_t w2 = orient2d(p0, p1, samplePoint);
 
 			if((w0+bias0) >= 0 && (w1+bias1) >= 0 && (w2+bias2) >= 0)
 			{
