@@ -262,7 +262,18 @@ LRESULT WinProc(HWND windowHandle, UINT message, WPARAM wParam, LPARAM lParam)
 
 		case WM_DPICHANGED:
 		{
-			printf("DPI changed!\n");
+			u32 dpi = HIWORD(wParam);
+			RECT rect = *(RECT*)lParam;
+
+			SetWindowPos(mpWindow->win32.hWnd,
+			             HWND_TOP,
+			             rect.left,
+			             rect.top,
+			             rect.right - rect.left,
+			             rect.bottom - rect.top,
+			             SWP_NOACTIVATE | SWP_NOZORDER);
+
+			//TODO: send a message
 
 		} break;
 
@@ -270,6 +281,8 @@ LRESULT WinProc(HWND windowHandle, UINT message, WPARAM wParam, LPARAM lParam)
 
 		case WM_SIZING:
 		{
+			//TODO: take dpi into account
+
 			RECT* rect = (RECT*)lParam;
 
 			mp_event event = {0};
@@ -281,6 +294,8 @@ LRESULT WinProc(HWND windowHandle, UINT message, WPARAM wParam, LPARAM lParam)
 
 		case WM_MOVING:
 		{
+			//TODO: take dpi into account
+
 			RECT* rect = (RECT*)lParam;
 
 			mp_event event = {0};
