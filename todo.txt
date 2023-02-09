@@ -16,27 +16,30 @@ Overview
 
 Clean+Fixes
 -----------
-[.] Clean canvas code
-	[x] rename zIndex with "shapeIndex" everywhere
-	[x] make shapeIndex implicit when calling push_vertex
-	[x] remove color args in functions that don't need it anymore
-	[x] remove or rename "_with_zindex" functions
 
-[ ] Rename MG_GL_CANVAS_TILE_ARRAY_SIZE/LENGTH unambiguously and make it consistent between C and glsl code
+[x] Rename MG_GL_CANVAS_TILE_ARRAY_SIZE/LENGTH unambiguously and make it consistent between C and glsl code
 
 [.] Clean shaders (folder/filenames, version string, debug flags, ...)
 	[x] Simplify shader names, prefix embedded strings by "glsl_"
 	[x] Extract shader compilation in a function
 	[x] Add version strings/common structs in canvas code (maybe revisit later when we have multiple versions, but ok for now)
-	[!] Check return of compilation and decide how to handle error more cleanly
+	[x] Check return of compilation. If failed, cleanup and return NULL backend
 
-[!] Clean-up context on error and set error flags in handle
+[x] Clean-up context on error and return nil handle
+	[/] Could return non-nil "invalid" handle and set error flags in handle
 
-[ ] Make surface backend and canvas backend compile-time and run-time selections easier
+[>] Make surface backend and canvas backend compile-time and run-time selections easier
+
 [ ] GL loader: allow using different GL versions (eg using a desktop GL surface and a GLES surface in the same app).
+[ ] Allow selection different versions of GL/GLES
+
+[!] Decide what to do when user exceeds the limit of triangles
+[?] Size tile arrays dynamically when canvas size changes?
 
 Bug hunt
 --------
+[!] Check if very slow shader can crash the driver and what we might to to prevent that (eg waiting for compute to finish before blit? because slow compute shader should certainly _not_ crash?) or break shader invocation into multiple passes when there's a lot of tiles/triangles
+
 [!]	Investigate artifact when shifting positions of vertices by (0.5, 0.5) before multiplying
     by subpixel precision and truncating... -> ie sampling at the middle of pixels vs at integer coordinates...
     > seems to happen on tile boundaries

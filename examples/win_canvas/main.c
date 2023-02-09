@@ -77,6 +77,13 @@ int main()
 
 	//TODO: create canvas
 	mg_canvas canvas = mg_canvas_create(surface);
+
+	if(mg_canvas_is_nil(canvas))
+	{
+		printf("Error: couldn't create canvas\n");
+		return(-1);
+	}
+
 	mg_font font = create_font();
 
 	// start app

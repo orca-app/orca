@@ -87,6 +87,8 @@ typedef struct mg_text_extents
 //------------------------------------------------------------------------------------------
 //NOTE(martin): graphics canvas
 //------------------------------------------------------------------------------------------
+mg_canvas mg_canvas_nil();
+bool mg_canvas_is_nil(mg_canvas canvas);
 
 mg_canvas mg_canvas_create(mg_surface surface);
 void mg_canvas_destroy(mg_canvas canvas);

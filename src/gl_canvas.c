@@ -86,26 +86,26 @@ enum {
 	LAYOUT_CLIP_OFFSET = LayoutNext(COLOR, VEC4, VEC4),
 	LAYOUT_UV_OFFSET = LayoutNext(CLIP, VEC4, VEC2),
 	LAYOUT_SHAPE_ALIGN = 16,
-	LAYOUT_SHAPE_SIZE = LayoutNext(UV, VEC2, SHAPE)
-};
+	LAYOUT_SHAPE_SIZE = LayoutNext(UV, VEC2, SHAPE),
 
-enum {
-	MG_GL_CANVAS_DEFAULT_BUFFER_LENGTH = 1<<20,
-	MG_GL_CANVAS_VERTEX_BUFFER_SIZE = MG_GL_CANVAS_DEFAULT_BUFFER_LENGTH * LAYOUT_VERTEX_SIZE,
-	MG_GL_CANVAS_SHAPE_BUFFER_SIZE = MG_GL_CANVAS_DEFAULT_BUFFER_LENGTH * LAYOUT_SHAPE_SIZE,
-	MG_GL_CANVAS_INDEX_BUFFER_SIZE = MG_GL_CANVAS_DEFAULT_BUFFER_LENGTH * LAYOUT_INT_SIZE,
-	MG_GL_CANVAS_TILE_COUNTER_BUFFER_LENGTH = 65536,
-	MG_GL_CANVAS_TILE_COUNTER_BUFFER_SIZE = sizeof(int)*MG_GL_CANVAS_TILE_COUNTER_BUFFER_LENGTH,
-	MG_GL_CANVAS_TILE_ARRAY_LENGTH = 1<<10,
-	MG_GL_CANVAS_TILE_ARRAY_SIZE = sizeof(int)*MG_GL_CANVAS_TILE_ARRAY_LENGTH,
-	MG_GL_CANVAS_TILE_ARRAY_BUFFER_SIZE = MG_GL_CANVAS_TILE_COUNTER_BUFFER_LENGTH * MG_GL_CANVAS_TILE_ARRAY_SIZE,
+	MG_GL_CANVAS_MAX_BUFFER_LENGTH = 1<<20,
+	MG_GL_CANVAS_MAX_SHAPE_BUFFER_SIZE = LAYOUT_SHAPE_SIZE * MG_GL_CANVAS_MAX_BUFFER_LENGTH,
+	MG_GL_CANVAS_MAX_VERTEX_BUFFER_SIZE = LAYOUT_VERTEX_SIZE * MG_GL_CANVAS_MAX_BUFFER_LENGTH,
+	MG_GL_CANVAS_MAX_INDEX_BUFFER_SIZE = LAYOUT_INT_SIZE * MG_GL_CANVAS_MAX_BUFFER_LENGTH,
+
+	//TODO: actually size this dynamically
+	MG_GL_CANVAS_MAX_TILE_COUNT = 65536, //NOTE: this allows for 256*256 tiles (e.g. 4096*4096 pixels)
+	MG_GL_CANVAS_TILE_COUNTER_BUFFER_SIZE = LAYOUT_INT_SIZE * MG_GL_CANVAS_MAX_TILE_COUNT,
+
+	MG_GL_CANVAS_TILE_ARRAY_LENGTH = 1<<10, // max overlapping triangles per tiles
+	MG_GL_CANVAS_TILE_ARRAY_BUFFER_SIZE = LAYOUT_INT_SIZE * MG_GL_CANVAS_MAX_TILE_COUNT * MG_GL_CANVAS_TILE_ARRAY_LENGTH,
 };
 
 void mg_gl_canvas_update_vertex_layout(mg_gl_canvas_backend* backend)
 {
 	backend->interface.vertexLayout = (mg_vertex_layout){
-		    .maxVertexCount = MG_GL_CANVAS_DEFAULT_BUFFER_LENGTH,
-	        .maxIndexCount = MG_GL_CANVAS_DEFAULT_BUFFER_LENGTH,
+		    .maxVertexCount = MG_GL_CANVAS_MAX_BUFFER_LENGTH,
+	        .maxIndexCount = MG_GL_CANVAS_MAX_BUFFER_LENGTH,
 	        .posBuffer = backend->vertexMapping + LAYOUT_POS_OFFSET,
 	        .posStride = LAYOUT_VERTEX_SIZE,
 	        .cubicBuffer = backend->vertexMapping + LAYOUT_CUBIC_OFFSET,
@@ -188,7 +188,7 @@ void mg_gl_canvas_draw_batch(mg_canvas_backend* interface, u32 shapeCount, u32 v
 	const int tileSize = 16;
 	const int tileCountX = (frame.w*contentsScaling.x + tileSize - 1)/tileSize;
 	const int tileCountY = (frame.h*contentsScaling.y + tileSize - 1)/tileSize;
-	const int tileArraySize = MG_GL_CANVAS_TILE_ARRAY_LENGTH;
+	const int tileArrayLength = MG_GL_CANVAS_TILE_ARRAY_LENGTH;
 
 	//TODO: ensure there's enough space in tile buffer
 
@@ -210,7 +210,7 @@ void mg_gl_canvas_draw_batch(mg_canvas_backend* interface, u32 shapeCount, u32 v
 	glUniform1ui(0, indexCount);
 	glUniform2ui(1, tileCountX, tileCountY);
 	glUniform1ui(2, tileSize);
-	glUniform1ui(3, tileArraySize);
+	glUniform1ui(3, tileArrayLength);
 	glUniform2f(4, contentsScaling.x, contentsScaling.y);
 
 	u32 threadCount = indexCount/3;
@@ -222,7 +222,7 @@ void mg_gl_canvas_draw_batch(mg_canvas_backend* interface, u32 shapeCount, u32 v
 	glUniform1ui(0, indexCount);
 	glUniform2ui(1, tileCountX, tileCountY);
 	glUniform1ui(2, tileSize);
-	glUniform1ui(3, tileArraySize);
+	glUniform1ui(3, tileArrayLength);
 
 	glDispatchCompute(tileCountX * tileCountY, 1, 1);
 
@@ -234,7 +234,7 @@ void mg_gl_canvas_draw_batch(mg_canvas_backend* interface, u32 shapeCount, u32 v
 	glUniform1ui(0, indexCount);
 	glUniform2ui(1, tileCountX, tileCountY);
 	glUniform1ui(2, tileSize);
-	glUniform1ui(3, tileArraySize);
+	glUniform1ui(3, tileArrayLength);
 	glUniform2f(4, contentsScaling.x, contentsScaling.y);
 
 	glDispatchCompute(tileCountX, tileCountY, 1);
@@ -370,6 +370,9 @@ mg_canvas_backend* mg_gl_canvas_create(mg_surface surface)
 {
 	mg_gl_canvas_backend* backend = 0;
 	mg_surface_data* surfaceData = mg_surface_data_from_handle(surface);
+
+	int err = 0;
+
 	if(surfaceData && surfaceData->backend == MG_BACKEND_GL)
 	{
 		mg_gl_surface* glSurface = (mg_gl_surface*)surfaceData;
@@ -396,16 +399,8 @@ mg_canvas_backend* mg_gl_canvas_create(mg_surface surface)
 		glBindBuffer(GL_ARRAY_BUFFER, backend->dummyVertexBuffer);
 
 		glGenBuffers(1, &backend->vertexBuffer);
-		glBindBuffer(GL_SHADER_STORAGE_BUFFER, backend->vertexBuffer);
-		glBufferData(GL_SHADER_STORAGE_BUFFER, MG_GL_CANVAS_VERTEX_BUFFER_SIZE, 0, GL_STREAM_DRAW);
-
 		glGenBuffers(1, &backend->shapeBuffer);
-		glBindBuffer(GL_SHADER_STORAGE_BUFFER, backend->shapeBuffer);
-		glBufferData(GL_SHADER_STORAGE_BUFFER, MG_GL_CANVAS_SHAPE_BUFFER_SIZE, 0, GL_STREAM_DRAW);
-
 		glGenBuffers(1, &backend->indexBuffer);
-		glBindBuffer(GL_SHADER_STORAGE_BUFFER, backend->indexBuffer);
-		glBufferData(GL_SHADER_STORAGE_BUFFER, MG_GL_CANVAS_INDEX_BUFFER_SIZE, 0, GL_STREAM_DRAW);
 
 		glGenBuffers(1, &backend->tileCounterBuffer);
 		glBindBuffer(GL_SHADER_STORAGE_BUFFER, backend->tileCounterBuffer);
@@ -425,17 +420,40 @@ mg_canvas_backend* mg_gl_canvas_create(mg_surface surface)
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
 		//NOTE: create programs
-		mg_gl_canvas_compile_compute_program(glsl_clear_counters, &backend->clearCounterProgram);
-		mg_gl_canvas_compile_compute_program(glsl_tile, &backend->tileProgram);
-		mg_gl_canvas_compile_compute_program(glsl_sort, &backend->sortProgram);
-		mg_gl_canvas_compile_compute_program(glsl_draw, &backend->drawProgram);
-		mg_gl_canvas_compile_render_program("blit", glsl_blit_vertex, glsl_blit_fragment, &backend->blitProgram);
+		err |= mg_gl_canvas_compile_compute_program(glsl_clear_counters, &backend->clearCounterProgram);
+		err |= mg_gl_canvas_compile_compute_program(glsl_tile, &backend->tileProgram);
+		err |= mg_gl_canvas_compile_compute_program(glsl_sort, &backend->sortProgram);
+		err |= mg_gl_canvas_compile_compute_program(glsl_draw, &backend->drawProgram);
+		err |= mg_gl_canvas_compile_render_program("blit", glsl_blit_vertex, glsl_blit_fragment, &backend->blitProgram);
 
-		backend->vertexMapping = malloc_array(char, 1<<30);
-		backend->shapeMapping = malloc_array(char, 1<<30);
-		backend->indexMapping = malloc_array(char, 1<<30);
+		if(glGetError() != GL_NO_ERROR)
+		{
+			err |= -1;
+		}
 
-		mg_gl_canvas_update_vertex_layout(backend);
+		backend->shapeMapping = malloc_array(char, MG_GL_CANVAS_MAX_SHAPE_BUFFER_SIZE);
+		backend->vertexMapping = malloc_array(char, MG_GL_CANVAS_MAX_VERTEX_BUFFER_SIZE);
+		backend->indexMapping = malloc_array(char, MG_GL_CANVAS_MAX_INDEX_BUFFER_SIZE);
+
+		if(  !backend->shapeMapping
+		  || !backend->shapeMapping
+		  || !backend->shapeMapping)
+		{
+			err |= -1;
+		}
+
+		if(err)
+		{
+			free(backend->shapeMapping);
+			free(backend->vertexMapping);
+			free(backend->indexMapping);
+			free(backend);
+			backend = 0;
+		}
+		else
+		{
+			mg_gl_canvas_update_vertex_layout(backend);
+		}
 	}
 
 	return((mg_canvas_backend*)backend);
