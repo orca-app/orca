@@ -66,20 +66,25 @@ void main()
 		             min(max(max(p0.x, p1.x), p2.x), clip.z),
 		             min(max(max(p0.y, p1.y), p2.y), clip.w));
 
-	uvec4 box = uvec4(floor(fbox))/tileSize;
+	ivec4 box = ivec4(floor(fbox))/int(tileSize);
 
-	uint xMin = max(0u, box.x);
-	uint yMin = max(0u, box.y);
-	uint xMax = min(box.z, tileCount.x - 1u);
-	uint yMax = min(box.w, tileCount.y - 1u);
+	//NOTE(martin): it's importat to do the computation with signed int, so that we can have negative xMax/yMax
+	//              otherwise all triangles on the left or below the x/y axis are attributed to tiles on row/column 0.
+	int xMin = max(0, box.x);
+	int yMin = max(0, box.y);
+	int xMax = min(box.z, int(tileCount.x) - 1);
+	int yMax = min(box.w, int(tileCount.y) - 1);
 
-	for(uint y = yMin; y <= yMax; y++)
+	for(int y = yMin; y <= yMax; y++)
 	{
-		for(uint x = xMin ; x <= xMax; x++)
+		for(int x = xMin ; x <= xMax; x++)
 		{
-			uint tileIndex = y*tileCount.x + x;
+			uint tileIndex = uint(y)*tileCount.x + uint(x);
 			uint tileCounter = atomicAdd(tileCounterBuffer.elements[tileIndex], 1u);
-			tileArrayBuffer.elements[tileArraySize*tileIndex + tileCounter] = triangleIndex;
+			if(tileCounter < tileArraySize)
+			{
+				tileArrayBuffer.elements[tileArraySize*tileIndex + tileCounter] = triangleIndex;
+			}
 		}
 	}
 }

@@ -1,10 +1,9 @@
 
 Overview
 --------
-[ ] Pan/Zoom on text example
+[x] Pan/Zoom on text example
 [ ] Clean+Fixes of canvas code and examples
 [ ] Make backend selection easier
-[ ] Investigate and fix artifact when seam is aligned to tile boundary?
 
 [ ] Image API and backend
 	[ ] Build image atlas on top
@@ -24,15 +23,29 @@ Clean+Fixes
 
 [ ] Clean shaders (folder/filenames, version string, debug flags, ...)
 
-[ ] Fix resource loading path in examples (to load font relative to executable)
+[x] Fix resource loading path in examples (to load font relative to executable)
 
 [ ] GL loader: allow using different GL versions (eg using a desktop GL surface and a GLES surface in the same app).
 [ ] Clean up surface backend and canvas backend compile-time and run-time selections
 
 [!]	Investigate artifact when shifting positions of vertices by (0.5, 0.5) before multiplying
     by subpixel precision and truncating... -> ie sampling at the middle of pixels vs at integer coordinates...
+    > seems to happen on tile boundaries
 	[ ] What alignment gives crisp-ier lines?
 
+[!] decide how to handle overflow in cross-product computation in triangle rasterizing code
+    - could reduce subpixel precision (but only to some extent, since we need subpixel precision for msaa)
+    - could try to center all coords around 0 to maximize usable range
+    - could use int64_t and i64vec (but it has a big perf cost)
+    - could precompute some int64_t computation...
+
+[!] handle pathological case where there are a lot of triangle on the same tile
+	> can we detect the first solid triangle covering the whole tile?
+
+[!] handle pathological case where there are a lot of very small triangles (eg when zooming out)
+	> do we need the same precision then?
+
+[!] Investigate why WM_MOUSEMOVE messages seem to lag behing mouse cursor
 
 Canvas renderer
 ---------------

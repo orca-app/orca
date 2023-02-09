@@ -53,7 +53,7 @@ void main()
 {
 	uint tileIndex = gl_WorkGroupID.x;
 	uint tileArrayOffset = tileArraySize * tileIndex;
-	uint tileArrayCount = tileCounterBuffer.elements[tileIndex];
+	uint tileArrayCount = min(tileCounterBuffer.elements[tileIndex], tileArraySize);
 
 	for(uint tileArrayIndex=1u; tileArrayIndex < tileArrayCount; tileArrayIndex++)
 	{

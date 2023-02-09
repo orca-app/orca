@@ -53,12 +53,19 @@ bool is_top_left(ivec2 a, ivec2 b)
 	      ||(b.y < a.y));
 }
 
-int64_t orient2d(i64vec2 a, i64vec2 b, i64vec2 p)
+//////////////////////////////////////////////////////////////////////////////
+//TODO: we should do these computations on 64bits, because otherwise
+//      we might overflow for values > 2048.
+//		Unfortunately this is costly.
+//	    Another way is to precompute triangle edges (b - a) in full precision
+//      once to avoid doing it all the time...
+//////////////////////////////////////////////////////////////////////////////
+int orient2d(ivec2 a, ivec2 b, ivec2 p)
 {
 	return((b.x-a.x)*(p.y-a.y) - (b.y-a.y)*(p.x-a.x));
 }
 
-int64_t is_clockwise(i64vec2 p0, i64vec2 p1, i64vec2 p2)
+int is_clockwise(ivec2 p0, ivec2 p1, ivec2 p2)
 {
 	return((p1 - p0).x*(p2 - p0).y - (p1 - p0).y*(p2 - p0).x);
 }
@@ -68,21 +75,21 @@ void main()
 	ivec2 pixelCoord = ivec2(gl_WorkGroupID.xy*uvec2(16, 16) + gl_LocalInvocationID.xy);
 	uvec2 tileCoord = uvec2(pixelCoord) / tileSize;
 	uint tileIndex =  tileCoord.y * tileCount.x + tileCoord.x;
-	uint tileCounter = tileCounterBuffer.elements[tileIndex];
+	uint tileCounter = min(tileCounterBuffer.elements[tileIndex], tileArraySize);
 
-	const float subPixelFactor = 256.;
+	const float subPixelFactor = 16.;
 	ivec2 centerPoint = ivec2((vec2(pixelCoord) + vec2(0.5, 0.5)) * subPixelFactor);
 
 //*
 	const int sampleCount = 8;
-	ivec2 samplePoints[sampleCount] = ivec2[sampleCount](centerPoint + ivec2(1, 3)*16,
-	                                                     centerPoint + ivec2(-1, -3)*16,
-	                                                     centerPoint + ivec2(5, -1)*16,
-	                                                     centerPoint + ivec2(-3, 5)*16,
-	                                                     centerPoint + ivec2(-5, -5)*16,
-	                                                     centerPoint + ivec2(-7, 1)*16,
-	                                                     centerPoint + ivec2(3, -7)*16,
-	                                                     centerPoint + ivec2(7, 7)*16);
+	ivec2 samplePoints[sampleCount] = ivec2[sampleCount](centerPoint + ivec2(1, 3),
+	                                                     centerPoint + ivec2(-1, -3),
+	                                                     centerPoint + ivec2(5, -1),
+	                                                     centerPoint + ivec2(-3, 5),
+	                                                     centerPoint + ivec2(-5, -5),
+	                                                     centerPoint + ivec2(-7, 1),
+	                                                     centerPoint + ivec2(3, -7),
+	                                                     centerPoint + ivec2(7, 7));
 /*/
 	const int sampleCount = 4;
 	ivec2 samplePoints[sampleCount] = ivec2[sampleCount](centerPoint + ivec2(-2, 6),
@@ -148,7 +155,7 @@ void main()
 		ivec4 clip = ivec4(round((shapeBuffer.elements[zIndex].clip * vec4(scaling, scaling) + vec4(0.5, 0.5, 0.5, 0.5)) * subPixelFactor));
 
 		//NOTE(martin): reorder triangle counter-clockwise and compute bias for each edge
-		int64_t cw = is_clockwise(p0, p1, p2);
+		int cw = is_clockwise(p0, p1, p2);
 		if(cw < 0)
 		{
 			uint tmpIndex = i1;
@@ -164,9 +171,9 @@ void main()
 		vec4 cubic1 = vertexBuffer.elements[i1].cubic;
 		vec4 cubic2 = vertexBuffer.elements[i2].cubic;
 
-		int64_t bias0 = is_top_left(p1, p2) ? 0 : -1;
-		int64_t bias1 = is_top_left(p2, p0) ? 0 : -1;
-		int64_t bias2 = is_top_left(p0, p1) ? 0 : -1;
+		int bias0 = is_top_left(p1, p2) ? 0 : -1;
+		int bias1 = is_top_left(p2, p0) ? 0 : -1;
+		int bias2 = is_top_left(p0, p1) ? 0 : -1;
 
 		for(int sampleIndex = 0; sampleIndex < sampleCount; sampleIndex++)
 		{
@@ -180,9 +187,9 @@ void main()
 				continue;
 			}
 
-			int64_t w0 = orient2d(p1, p2, samplePoint);
-			int64_t w1 = orient2d(p2, p0, samplePoint);
-			int64_t w2 = orient2d(p0, p1, samplePoint);
+			int w0 = orient2d(p1, p2, samplePoint);
+			int w1 = orient2d(p2, p0, samplePoint);
+			int w2 = orient2d(p0, p1, samplePoint);
 
 			if((w0+bias0) >= 0 && (w1+bias1) >= 0 && (w2+bias2) >= 0)
 			{

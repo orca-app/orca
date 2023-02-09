@@ -94,9 +94,11 @@ enum {
 	MG_GL_CANVAS_VERTEX_BUFFER_SIZE = MG_GL_CANVAS_DEFAULT_BUFFER_LENGTH * LAYOUT_VERTEX_SIZE,
 	MG_GL_CANVAS_SHAPE_BUFFER_SIZE = MG_GL_CANVAS_DEFAULT_BUFFER_LENGTH * LAYOUT_SHAPE_SIZE,
 	MG_GL_CANVAS_INDEX_BUFFER_SIZE = MG_GL_CANVAS_DEFAULT_BUFFER_LENGTH * LAYOUT_INT_SIZE,
-	MG_GL_CANVAS_TILE_COUNTER_BUFFER_SIZE = 65536,
-	MG_GL_CANVAS_TILE_ARRAY_SIZE = sizeof(int)*4096,
-	MG_GL_CANVAS_TILE_ARRAY_BUFFER_SIZE = MG_GL_CANVAS_TILE_COUNTER_BUFFER_SIZE * MG_GL_CANVAS_TILE_ARRAY_SIZE,
+	MG_GL_CANVAS_TILE_COUNTER_BUFFER_LENGTH = 65536,
+	MG_GL_CANVAS_TILE_COUNTER_BUFFER_SIZE = sizeof(int)*MG_GL_CANVAS_TILE_COUNTER_BUFFER_LENGTH,
+	MG_GL_CANVAS_TILE_ARRAY_LENGTH = 1<<10,
+	MG_GL_CANVAS_TILE_ARRAY_SIZE = sizeof(int)*MG_GL_CANVAS_TILE_ARRAY_LENGTH,
+	MG_GL_CANVAS_TILE_ARRAY_BUFFER_SIZE = MG_GL_CANVAS_TILE_COUNTER_BUFFER_LENGTH * MG_GL_CANVAS_TILE_ARRAY_SIZE,
 };
 
 void mg_gl_canvas_update_vertex_layout(mg_gl_canvas_backend* backend)
@@ -186,7 +188,7 @@ void mg_gl_canvas_draw_batch(mg_canvas_backend* interface, u32 shapeCount, u32 v
 	const int tileSize = 16;
 	const int tileCountX = (frame.w*contentsScaling.x + tileSize - 1)/tileSize;
 	const int tileCountY = (frame.h*contentsScaling.y + tileSize - 1)/tileSize;
-	const int tileArraySize = MG_GL_CANVAS_TILE_ARRAY_SIZE;
+	const int tileArraySize = MG_GL_CANVAS_TILE_ARRAY_LENGTH;
 
 	//TODO: ensure there's enough space in tile buffer
 
