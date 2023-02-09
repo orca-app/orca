@@ -1,6 +1,7 @@
 
 Overview
 --------
+[ ] Pan/Zoom on text example
 [ ] Clean+Fixes of canvas code and examples
 [ ] Make backend selection easier
 [ ] Investigate and fix artifact when seam is aligned to tile boundary?

@@ -112,6 +112,11 @@ int main()
 
 	f64 frameTime = 0;
 
+	bool tracked = false;
+	vec2 trackPoint = {0};
+	f32 startX = 10;
+	f32 startY = contentRect.h - lineHeight - 10;
+
 	while(!mp_should_quit())
 	{
 		f64 startFrameTime = mp_get_time(MP_CLOCK_MONOTONIC);
@@ -127,13 +132,39 @@ int main()
 					mp_request_quit();
 				} break;
 
+				case MP_EVENT_MOUSE_BUTTON:
+				{
+					if(event.key.code == MP_MOUSE_LEFT)
+					{
+						if(event.key.action == MP_KEY_PRESS)
+						{
+							tracked = true;
+							vec2 mousePos = mp_input_mouse_position();
+							trackPoint.x = mousePos.x - startX;
+							trackPoint.y = mousePos.y - startY;
+						}
+						else
+						{
+							tracked = false;
+						}
+
+					}
+				} break;
+
 				default:
 					break;
 			}
 		}
 
-		f32 textX = 10;
-		f32 textY = contentRect.h - lineHeight - 10;
+		if(tracked)
+		{
+			vec2 mousePos = mp_input_mouse_position();
+			startX = mousePos.x - trackPoint.x;
+			startY = mousePos.y - trackPoint.y;
+		}
+
+		f32 textX = startX;
+		f32 textY = startY;
 
 		mg_surface_prepare(surface);
 			mg_set_color_rgba(1, 1, 1, 1);

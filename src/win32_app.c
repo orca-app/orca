@@ -224,8 +224,8 @@ static void process_mouse_event(mp_window_data* window, mp_key_action action, mp
 	mp_event event = {0};
 	event.window = mp_window_handle_from_ptr(window);
 	event.type = MP_EVENT_MOUSE_BUTTON;
-	event.key.action = MP_KEY_PRESS;
-	event.key.code = MP_MOUSE_LEFT;
+	event.key.action = action;
+	event.key.code = button;
 	event.key.mods = mp_get_mod_keys();
 
 	mp_queue_event(&event);
@@ -378,11 +378,14 @@ LRESULT WinProc(HWND windowHandle, UINT message, WPARAM wParam, LPARAM lParam)
 			RECT rect;
 			GetClientRect(mpWindow->win32.hWnd, &rect);
 
+			u32 dpi = GetDpiForWindow(mpWindow->win32.hWnd);
+			f32 scaling = (f32)dpi/96.;
+
 			mp_event event = {0};
 			event.window = mp_window_handle_from_ptr(mpWindow);
 			event.type = MP_EVENT_MOUSE_MOVE;
-			event.move.x = LOWORD(lParam);
-			event.move.y = rect.bottom - HIWORD(lParam);
+			event.move.x = LOWORD(lParam) / scaling;
+			event.move.y = (rect.bottom - HIWORD(lParam)) / scaling;
 
 			if(__mpApp.inputState.mouse.posValid)
 			{
