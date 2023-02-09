@@ -212,8 +212,8 @@ typedef struct mg_vertex_layout
 	char* colorBuffer;
 	u32 colorStride;
 
-	char* zIndexBuffer;
-	u32 zIndexStride;
+	char* shapeIndexBuffer;
+	u32 shapeIndexStride;
 
 	char* clipBuffer;
 	u32 clipStride;
@@ -268,7 +268,7 @@ typedef struct mg_canvas_data
 	mp_rect clipStack[MG_CLIP_STACK_MAX_DEPTH];
 	u32 clipStackSize;
 
-	u32 nextZIndex;
+	u32 nextShapeIndex;
 	u32 primitiveCount;
 	mg_primitive primitives[MG_MAX_PRIMITIVE_COUNT];
 

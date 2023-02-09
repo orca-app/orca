@@ -1,23 +1,9 @@
-#version 430
+
 #extension GL_ARB_gpu_shader_int64 : require
 layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
 
 precision mediump float;
 //precision mediump image2D;
-
-layout(std430) buffer;
-
-struct vertex {
-	vec4 cubic;
-	vec2 pos;
-	int zIndex;
-};
-
-struct shape {
-	vec4 color;
-	vec4 clip;
-	vec2 uv;
-};
 
 layout(binding = 0) restrict readonly buffer vertexBufferSSBO {
 	vertex elements[];
@@ -127,12 +113,12 @@ void main()
 
 	vec4 sampleColor[sampleCount];
 	vec4 currentColor[sampleCount];
-    int currentZIndex[sampleCount];
+    int currentShapeIndex[sampleCount];
     int flipCount[sampleCount];
 
     for(int i=0; i<sampleCount; i++)
     {
-		currentZIndex[i] = -1;
+		currentShapeIndex[i] = -1;
 		flipCount[i] = 0;
 		sampleColor[i] = vec4(0, 0, 0, 0);
 		currentColor[i] = vec4(0, 0, 0, 0);
@@ -150,9 +136,9 @@ void main()
 		ivec2 p1 = ivec2((vertexBuffer.elements[i1].pos * scaling) * subPixelFactor);
 		ivec2 p2 = ivec2((vertexBuffer.elements[i2].pos * scaling) * subPixelFactor);
 
-		int zIndex = vertexBuffer.elements[i0].zIndex;
-		vec4 color = shapeBuffer.elements[zIndex].color;
-		ivec4 clip = ivec4(round((shapeBuffer.elements[zIndex].clip * vec4(scaling, scaling) + vec4(0.5, 0.5, 0.5, 0.5)) * subPixelFactor));
+		int shapeIndex = vertexBuffer.elements[i0].shapeIndex;
+		vec4 color = shapeBuffer.elements[shapeIndex].color;
+		ivec4 clip = ivec4(round((shapeBuffer.elements[shapeIndex].clip * vec4(scaling, scaling) + vec4(0.5, 0.5, 0.5, 0.5)) * subPixelFactor));
 
 		//NOTE(martin): reorder triangle counter-clockwise and compute bias for each edge
 		int cw = is_clockwise(p0, p1, p2);
@@ -198,7 +184,7 @@ void main()
 				float eps = 0.0001;
 				if(cubic.w*(cubic.x*cubic.x*cubic.x - cubic.y*cubic.z) <= eps)
 				{
-					if(zIndex == currentZIndex[sampleIndex])
+					if(shapeIndex == currentShapeIndex[sampleIndex])
 					{
 						flipCount[sampleIndex]++;
 					}
@@ -209,7 +195,7 @@ void main()
 							sampleColor[sampleIndex] = currentColor[sampleIndex];
 						}
 						currentColor[sampleIndex] = sampleColor[sampleIndex]*(1.-color.a) + color.a*color;
-						currentZIndex[sampleIndex] = zIndex;
+						currentShapeIndex[sampleIndex] = shapeIndex;
 						flipCount[sampleIndex] = 1;
 					}
 				}

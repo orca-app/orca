@@ -1,4 +1,3 @@
-#version 430
 
 precision mediump float;
 

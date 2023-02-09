@@ -5,6 +5,7 @@ from argparse import ArgumentParser
 parser = ArgumentParser()
 parser.add_argument("inputFiles", nargs="+")
 parser.add_argument("-o", "--output")
+parser.add_argument("-p", "--prefix")
 
 args = parser.parse_args()
 
@@ -30,7 +31,7 @@ for fileName in args.inputFiles:
 	output.write("//NOTE: string imported from %s\n" % fileName)
 
 	stringName = os.path.splitext(os.path.basename(fileName))[0]
-	output.write("const char* %s = " % stringName)
+	output.write(f"const char* {args.prefix}{stringName} = ")
 
 	for line in lines:
 		output.write("\n\"%s\\n\"" % line)

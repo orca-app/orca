@@ -2,7 +2,7 @@
 Overview
 --------
 [x] Pan/Zoom on text example
-[ ] Clean+Fixes of canvas code and examples
+[.] Clean+Fixes of canvas code and examples
 [ ] Make backend selection easier
 
 [ ] Image API and backend
@@ -10,7 +10,7 @@ Overview
 	[ ] Baked fonts?
 
 [ ] Allow different versions of GL to co-exist
-[ ] Backport canvas to GLES
+[?] Backport canvas to GLES
 
 [ ] Delegated drawing API+Impl
 
@@ -18,16 +18,24 @@ Clean+Fixes
 -----------
 [ ] Clean canvas code
 	[ ] make zIndex implicit when calling push_vertex
-	[ ] rename zIndex with "shapeIndex" everywhere
+	[x] rename zIndex with "shapeIndex" everywhere
 	[ ] remove color args in functions that don't need it anymore
 
-[ ] Clean shaders (folder/filenames, version string, debug flags, ...)
+[ ] Rename MG_GL_CANVAS_TILE_ARRAY_SIZE/LENGTH unambiguously and make it consistent between C and glsl code
 
-[x] Fix resource loading path in examples (to load font relative to executable)
+[.] Clean shaders (folder/filenames, version string, debug flags, ...)
+	[x] Simplify shader names, prefix embedded strings by "glsl_"
+	[x] Extract shader compilation in a function
+	[x] Add version strings/common structs in canvas code (maybe revisit later when we have multiple versions, but ok for now)
+	[!] Check return of compilation and decide how to handle error more cleanly
 
+[!] Clean-up context on error and set error flags in handle
+
+[ ] Make surface backend and canvas backend compile-time and run-time selections easier
 [ ] GL loader: allow using different GL versions (eg using a desktop GL surface and a GLES surface in the same app).
-[ ] Clean up surface backend and canvas backend compile-time and run-time selections
 
+Bug hunt
+--------
 [!]	Investigate artifact when shifting positions of vertices by (0.5, 0.5) before multiplying
     by subpixel precision and truncating... -> ie sampling at the middle of pixels vs at integer coordinates...
     > seems to happen on tile boundaries

@@ -1,20 +1,7 @@
-#version 430
+
 layout(local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
 
 precision mediump float;
-layout(std430) buffer;
-
-struct vertex {
-	vec4 cubic;
-	vec2 pos;
-	int zIndex;
-};
-
-struct shape {
-	vec4 color;
-	vec4 clip;
-	vec2 uv;
-};
 
 layout(binding = 0) restrict readonly buffer vertexBufferSSBO {
 	vertex elements[];
@@ -41,12 +28,12 @@ layout(location = 1) uniform uvec2 tileCount;
 layout(location = 2) uniform uint tileSize;
 layout(location = 3) uniform uint tileArraySize;
 
-int get_zindex(uint tileArrayOffset, uint tileArrayIndex)
+int get_shape_index(uint tileArrayOffset, uint tileArrayIndex)
 {
 	uint triangleIndex = tileArrayBuffer.elements[tileArrayOffset + tileArrayIndex];
 	uint i0 = indexBuffer.elements[triangleIndex];
-	int zIndex = vertexBuffer.elements[i0].zIndex;
-	return(zIndex);
+	int shapeIndex = vertexBuffer.elements[i0].shapeIndex;
+	return(shapeIndex);
 }
 
 void main()
@@ -59,10 +46,10 @@ void main()
 	{
 		for(uint sortIndex = tileArrayIndex; sortIndex > 0u; sortIndex--)
 		{
-			int zIndex = get_zindex(tileArrayOffset, sortIndex);
-			int prevZIndex = get_zindex(tileArrayOffset, sortIndex-1u);
+			int shapeIndex = get_shape_index(tileArrayOffset, sortIndex);
+			int prevShapeIndex = get_shape_index(tileArrayOffset, sortIndex-1u);
 
-			if(zIndex >= prevZIndex)
+			if(shapeIndex >= prevShapeIndex)
 			{
 				break;
 			}
@@ -71,20 +58,4 @@ void main()
 			tileArrayBuffer.elements[tileArrayOffset + sortIndex - 1u] = tmp;
 		}
 	}
-
-	//DEBUG
-	/*
-	int prevZIndex = -1;
-	for(uint tileArrayIndex=1u; tileArrayIndex < tileArrayCount; tileArrayIndex++)
-	{
-		int zIndex = get_zindex(tileArrayOffset, tileArrayIndex);
-
-		if(zIndex < prevZIndex)
-		{
-			tileCounterBuffer.elements[tileIndex] = 0xffffu;
-			break;
-		}
-		prevZIndex = zIndex;
-	}
-	//*/
 }

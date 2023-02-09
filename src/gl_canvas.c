@@ -8,7 +8,7 @@
 *****************************************************************/
 #include"graphics_internal.h"
 #include"macro_helpers.h"
-#include"gles_canvas_shaders.h"
+#include"glsl_shaders.h"
 
 #define LOG_SUBSYSTEM "Graphics"
 
@@ -53,7 +53,7 @@ typedef struct debug_vertex
 {
 	vec4 cubic;
 	vec2 pos;
-	int zIndex;
+	int shapeIndex;
 	u8 pad[4];
 } debug_vertex;
 
@@ -110,8 +110,8 @@ void mg_gl_canvas_update_vertex_layout(mg_gl_canvas_backend* backend)
 	        .posStride = LAYOUT_VERTEX_SIZE,
 	        .cubicBuffer = backend->vertexMapping + LAYOUT_CUBIC_OFFSET,
 	        .cubicStride = LAYOUT_VERTEX_SIZE,
-	        .zIndexBuffer = backend->vertexMapping + LAYOUT_ZINDEX_OFFSET,
-	        .zIndexStride = LAYOUT_VERTEX_SIZE,
+	        .shapeIndexBuffer = backend->vertexMapping + LAYOUT_ZINDEX_OFFSET,
+	        .shapeIndexStride = LAYOUT_VERTEX_SIZE,
 
 	        .colorBuffer = backend->shapeMapping + LAYOUT_COLOR_OFFSET,
 	        .colorStride = LAYOUT_SHAPE_SIZE,
@@ -263,16 +263,14 @@ void mg_gl_canvas_atlas_upload(mg_canvas_backend* interface, mp_rect rect, u8* b
 	//TODO
 }
 
-static void mg_gl_compile_shader(GLuint shader, const char* source)
+static int mg_gl_compile_shader(const char* name, GLuint shader, const char* source)
 {
-	glShaderSource(shader, 1, &source, 0);
-	glCompileShader(shader);
+	int res = 0;
 
-	int err = glGetError();
-	if(err)
-	{
-		printf("gl error: %i\n", err);
-	}
+	const char* sources[3] = {"#version 430", glsl_common, source};
+
+	glShaderSource(shader, 3, sources, 0);
+	glCompileShader(shader);
 
 	int status = 0;
 	glGetShaderiv(shader, GL_COMPILE_STATUS, &status);
@@ -281,9 +279,92 @@ static void mg_gl_compile_shader(GLuint shader, const char* source)
 		char buffer[256];
 		int size = 0;
 		glGetShaderInfoLog(shader, 256, &size, buffer);
-		printf("shader error: %.*s\n", size, buffer);
+		printf("Shader compile error (%s): %.*s\n", name, size, buffer);
+		res = -1;
 	}
+	return(res);
 }
+
+static int mg_gl_canvas_compile_compute_program_named(const char* name, const char* source, GLuint* outProgram)
+{
+	int res = 0;
+	*outProgram = 0;
+
+	GLuint shader = glCreateShader(GL_COMPUTE_SHADER);
+	GLuint program = glCreateProgram();
+
+	res |= mg_gl_compile_shader(name, shader, source);
+
+	if(!res)
+	{
+		glAttachShader(program, shader);
+		glLinkProgram(program);
+
+		int status = 0;
+		glGetProgramiv(program, GL_LINK_STATUS, &status);
+		if(!status)
+		{
+			char buffer[256];
+			int size = 0;
+			glGetProgramInfoLog(program, 256, &size, buffer);
+			LOG_ERROR("Shader link error (%s): %.*s\n", name, size, buffer);
+
+			res = -1;
+		}
+		else
+		{
+			*outProgram = program;
+		}
+	}
+	return(res);
+}
+
+int mg_gl_canvas_compile_render_program_named(const char* progName,
+                                              const char* vertexName,
+                                              const char* fragmentName,
+                                              const char* vertexSrc,
+                                              const char* fragmentSrc,
+                                              GLuint* outProgram)
+{
+	int res = 0;
+	*outProgram = 0;
+
+	GLuint vertexShader = glCreateShader(GL_VERTEX_SHADER);
+	GLuint fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
+	GLuint program = glCreateProgram();
+
+	res |= mg_gl_compile_shader(vertexName, vertexShader, vertexSrc);
+	res |= mg_gl_compile_shader(fragmentName, fragmentShader, fragmentSrc);
+
+	if(!res)
+	{
+		glAttachShader(program, vertexShader);
+		glAttachShader(program, fragmentShader);
+		glLinkProgram(program);
+
+		int status = 0;
+		glGetProgramiv(program, GL_LINK_STATUS, &status);
+		if(!status)
+		{
+			char buffer[256];
+			int size = 0;
+			glGetProgramInfoLog(program, 256, &size, buffer);
+			LOG_ERROR("Shader link error (%s): %.*s\n", progName, size, buffer);
+			res = -1;
+ 		}
+ 		else
+ 		{
+			*outProgram = program;
+ 		}
+ 	}
+ 	return(res);
+}
+
+#define mg_gl_canvas_compile_compute_program(src, out) \
+	mg_gl_canvas_compile_compute_program_named(#src, src, out)
+
+#define mg_gl_canvas_compile_render_program(progName, shaderSrc, vertexSrc, out) \
+	mg_gl_canvas_compile_render_program_named(progName, #shaderSrc, #vertexSrc, shaderSrc, vertexSrc, out)
 
 mg_canvas_backend* mg_gl_canvas_create(mg_surface surface)
 {
@@ -343,116 +424,12 @@ mg_canvas_backend* mg_gl_canvas_create(mg_surface surface)
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
-		//NOTE: create clear program
-		{
-			GLuint clearShader = glCreateShader(GL_COMPUTE_SHADER);
-			backend->clearCounterProgram = glCreateProgram();
-
-			mg_gl_compile_shader(clearShader, gles_canvas_clear_counters);
-
-			glAttachShader(backend->clearCounterProgram, clearShader);
-			glLinkProgram(backend->clearCounterProgram);
-
-			int status = 0;
-			glGetProgramiv(backend->clearCounterProgram, GL_LINK_STATUS, &status);
-			if(!status)
-			{
-				char buffer[256];
-				int size = 0;
-				glGetProgramInfoLog(backend->clearCounterProgram, 256, &size, buffer);
-				printf("link error in gl_canvas_clear_counters: %.*s\n", size, buffer);
-				exit(-1);
- 			}
-		}
-		//NOTE: create tile program
-		{
-			GLuint tileShader = glCreateShader(GL_COMPUTE_SHADER);
-			backend->tileProgram = glCreateProgram();
-
-			mg_gl_compile_shader(tileShader, gles_canvas_tile);
-
-			glAttachShader(backend->tileProgram, tileShader);
-			glLinkProgram(backend->tileProgram);
-
-			int status = 0;
-			glGetProgramiv(backend->tileProgram, GL_LINK_STATUS, &status);
-			if(!status)
-			{
-				char buffer[256];
-				int size = 0;
-				glGetProgramInfoLog(backend->tileProgram, 256, &size, buffer);
-				printf("link error in gl_canvas_tile: %.*s\n", size, buffer);
-				exit(-1);
- 			}
-		}
-		//NOTE: create sort program
-		{
-			GLuint sortShader = glCreateShader(GL_COMPUTE_SHADER);
-			backend->sortProgram = glCreateProgram();
-
-			mg_gl_compile_shader(sortShader, gles_canvas_sort);
-
-			glAttachShader(backend->sortProgram, sortShader);
-			glLinkProgram(backend->sortProgram);
-
-			int status = 0;
-			glGetProgramiv(backend->sortProgram, GL_LINK_STATUS, &status);
-			if(!status)
-			{
-				char buffer[256];
-				int size = 0;
-				glGetProgramInfoLog(backend->sortProgram, 256, &size, buffer);
-				printf("link error gl_canvas_sort: %.*s\n", size, buffer);
-				exit(-1);
- 			}
-		}
-
-		//NOTE: create draw program
-		{
-			GLuint shader = glCreateShader(GL_COMPUTE_SHADER);
-			backend->drawProgram = glCreateProgram();
-
-			mg_gl_compile_shader(shader, gles_canvas_draw);
-
-			glAttachShader(backend->drawProgram, shader);
-			glLinkProgram(backend->drawProgram);
-
-			int status = 0;
-			glGetProgramiv(backend->drawProgram, GL_LINK_STATUS, &status);
-			if(!status)
-			{
-				char buffer[256];
-				int size = 0;
-				glGetProgramInfoLog(backend->drawProgram, 256, &size, buffer);
-				printf("link error gl_canvas_draw: %.*s\n", size, buffer);
-				exit(-1);
- 			}
-		}
-
-		//NOTE: create blit program
-		{
-			GLuint vertexShader = glCreateShader(GL_VERTEX_SHADER);
-			GLuint fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
-			backend->blitProgram = glCreateProgram();
-
-			mg_gl_compile_shader(vertexShader, gles_canvas_blit_vertex);
-			mg_gl_compile_shader(fragmentShader, gles_canvas_blit_fragment);
-
-			glAttachShader(backend->blitProgram, vertexShader);
-			glAttachShader(backend->blitProgram, fragmentShader);
-			glLinkProgram(backend->blitProgram);
-
-			int status = 0;
-			glGetProgramiv(backend->blitProgram, GL_LINK_STATUS, &status);
-			if(!status)
-			{
-				char buffer[256];
-				int size = 0;
-				glGetProgramInfoLog(backend->blitProgram, 256, &size, buffer);
-				printf("link error gl_canvas_blit: %.*s\n", size, buffer);
-				exit(-1);
- 			}
-		}
+		//NOTE: create programs
+		mg_gl_canvas_compile_compute_program(glsl_clear_counters, &backend->clearCounterProgram);
+		mg_gl_canvas_compile_compute_program(glsl_tile, &backend->tileProgram);
+		mg_gl_canvas_compile_compute_program(glsl_sort, &backend->sortProgram);
+		mg_gl_canvas_compile_compute_program(glsl_draw, &backend->drawProgram);
+		mg_gl_canvas_compile_render_program("blit", glsl_blit_vertex, glsl_blit_fragment, &backend->blitProgram);
 
 		backend->vertexMapping = malloc_array(char, 1<<30);
 		backend->shapeMapping = malloc_array(char, 1<<30);

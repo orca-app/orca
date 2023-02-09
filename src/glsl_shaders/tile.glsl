@@ -1,20 +1,7 @@
-#version 430
+
 layout(local_size_x = 512, local_size_y = 1, local_size_z = 1) in;
 
 precision mediump float;
-layout(std430) buffer;
-
-struct vertex {
-	vec4 cubic;
-	vec2 pos;
-	int zIndex;
-};
-
-struct shape {
-	vec4 color;
-	vec4 clip;
-	vec2 uv;
-};
 
 layout(binding = 0) restrict readonly buffer vertexBufferSSBO {
 	vertex elements[];
@@ -58,7 +45,7 @@ void main()
 	vec2 p1 = vertexBuffer.elements[i1].pos * scaling;
 	vec2 p2 = vertexBuffer.elements[i2].pos * scaling;
 
-	int shapeIndex = vertexBuffer.elements[i0].zIndex;
+	int shapeIndex = vertexBuffer.elements[i0].shapeIndex;
 	vec4 clip = shapeBuffer.elements[shapeIndex].clip * vec4(scaling, scaling);
 
 	vec4 fbox = vec4(max(min(min(p0.x, p1.x), p2.x), clip.x),
