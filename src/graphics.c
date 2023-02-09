@@ -516,11 +516,11 @@ void mg_push_vertex(mg_canvas_data* canvas, vec2 pos, vec4 cubic)
 // Path Filling
 //-----------------------------------------------------------------------------------------------------------
 //NOTE(martin): forward declarations
-void mg_render_fill_cubic(mg_canvas_data* canvas, vec2 p[4], mg_color color);
+void mg_render_fill_cubic(mg_canvas_data* canvas, vec2 p[4]);
 
 //NOTE(martin): quadratics filling
 
-void mg_render_fill_quadratic(mg_canvas_data* canvas, vec2 p[3], mg_color color)
+void mg_render_fill_quadratic(mg_canvas_data* canvas, vec2 p[3])
 {
 	u32 baseIndex = mg_vertices_base_index(canvas);
 
@@ -545,7 +545,7 @@ void mg_render_fill_quadratic(mg_canvas_data* canvas, vec2 p[3], mg_color color)
 
 //NOTE(martin): cubic filling
 
-void mg_split_and_fill_cubic(mg_canvas_data* canvas, vec2 p[4], f32 tSplit, mg_color color)
+void mg_split_and_fill_cubic(mg_canvas_data* canvas, vec2 p[4], f32 tSplit)
 {
 	int subVertexCount = 0;
 	int subIndexCount = 0;
@@ -593,13 +593,13 @@ void mg_split_and_fill_cubic(mg_canvas_data* canvas, vec2 p[4], f32 tSplit, mg_c
 	indices[1] = baseIndex + 1;
 	indices[2] = baseIndex + 2;
 
-	mg_render_fill_cubic(canvas, subPointsLow, color);
-	mg_render_fill_cubic(canvas, subPointsHigh, color);
+	mg_render_fill_cubic(canvas, subPointsLow);
+	mg_render_fill_cubic(canvas, subPointsHigh);
 
 	return;
 }
 
-void mg_render_fill_cubic(mg_canvas_data* canvas, vec2 p[4], mg_color color)
+void mg_render_fill_cubic(mg_canvas_data* canvas, vec2 p[4])
 {
 	LOG_DEBUG("graphics render fill cubic\n");
 
@@ -671,7 +671,7 @@ void mg_render_fill_cubic(mg_canvas_data* canvas, vec2 p[4], mg_color color)
 		                             {1.5*p[1].x - 0.5*p[0].x, 1.5*p[1].y - 0.5*p[0].y},
 				  	     p[3]};
 
-		mg_render_fill_quadratic(canvas, quadControlPoints, color);
+		mg_render_fill_quadratic(canvas, quadControlPoints);
 		return;
 	}
 	else if( (discrFactor2 > 0 && d1 != 0)
@@ -740,13 +740,13 @@ void mg_render_fill_cubic(mg_canvas_data* canvas, vec2 p[4], mg_color color)
 		if(sd != 0 && td/sd < 0.99 && td/sd > 0.01)
 		{
 			LOG_DEBUG("split curve at first double point\n");
-			mg_split_and_fill_cubic(canvas, p, td/sd, color);
+			mg_split_and_fill_cubic(canvas, p, td/sd);
 			return;
 		}
 		if(se != 0 && te/se < 0.99 && te/se > 0.01)
 		{
 			LOG_DEBUG("split curve at second double point\n");
-			mg_split_and_fill_cubic(canvas, p, te/se, color);
+			mg_split_and_fill_cubic(canvas, p, te/se);
 			return;
 		}
 
@@ -1044,7 +1044,7 @@ void mg_render_fill_cubic(mg_canvas_data* canvas, vec2 p[4], mg_color color)
 
 //NOTE(martin): global path fill
 
-void mg_render_fill(mg_canvas_data* canvas, mg_path_elt* elements, mg_path_descriptor* path, mg_color color)
+void mg_render_fill(mg_canvas_data* canvas, mg_path_elt* elements, mg_path_descriptor* path)
 {
 	u32 eltCount = path->count;
 	vec2 startPoint = path->startPoint;
@@ -1074,14 +1074,14 @@ void mg_render_fill(mg_canvas_data* canvas, mg_path_elt* elements, mg_path_descr
 
 			case MG_PATH_QUADRATIC:
 			{
-				mg_render_fill_quadratic(canvas, controlPoints, color);
+				mg_render_fill_quadratic(canvas, controlPoints);
 				endPoint = controlPoints[2];
 
 			} break;
 
 			case MG_PATH_CUBIC:
 			{
-				mg_render_fill_cubic(canvas, controlPoints, color);
+				mg_render_fill_cubic(canvas, controlPoints);
 				endPoint = controlPoints[3];
 			} break;
 		}
@@ -1121,9 +1121,6 @@ void mg_render_stroke_line(mg_canvas_data* canvas, vec2 p[2], mg_attributes* att
 	f32 norm0 = sqrt(n0.x*n0.x + n0.y*n0.y);
 	n0.x *= halfW/norm0;
 	n0.y *= halfW/norm0;
-
-
-	mg_color color = attributes->color;
 
 	u32 baseIndex = mg_vertices_base_index(canvas);
 	i32* indices = mg_reserve_indices(canvas, 6);
@@ -1331,8 +1328,8 @@ void mg_render_stroke_quadratic(mg_canvas_data* canvas, vec2 p[4], mg_attributes
 
 		mg_next_shape(canvas, attributes->color);
 
-		mg_render_fill_quadratic(canvas, positiveOffsetHull, attributes->color);
-		mg_render_fill_quadratic(canvas, negativeOffsetHull, attributes->color);
+		mg_render_fill_quadratic(canvas, positiveOffsetHull);
+		mg_render_fill_quadratic(canvas, negativeOffsetHull);
 
 		//NOTE(martin):	add base triangles
 		u32 baseIndex = mg_vertices_base_index(canvas);
@@ -1482,8 +1479,8 @@ void mg_render_stroke_cubic(mg_canvas_data* canvas, vec2 p[4], mg_attributes* at
 		//NOTE(martin): push the actual fill commands for the offset contour
 		mg_next_shape(canvas, attributes->color);
 
-		mg_render_fill_cubic(canvas, positiveOffsetHull, attributes->color);
-		mg_render_fill_cubic(canvas, negativeOffsetHull, attributes->color);
+		mg_render_fill_cubic(canvas, positiveOffsetHull);
+		mg_render_fill_cubic(canvas, negativeOffsetHull);
 
 		//NOTE(martin):	add base triangles
 		u32 baseIndex = mg_vertices_base_index(canvas);
@@ -1872,7 +1869,7 @@ void mg_render_rectangle_stroke(mg_canvas_data* canvas, mp_rect rect, mg_attribu
 	indices[11] = baseIndex + 7;
 }
 
-void mg_render_fill_arc_corner(mg_canvas_data* canvas, f32 x, f32 y, f32 rx, f32 ry, mg_color color)
+void mg_render_fill_arc_corner(mg_canvas_data* canvas, f32 x, f32 y, f32 rx, f32 ry)
 {
 	//NOTE(martin): draw a precomputed arc corner, using a bezier approximation
 	u32 baseIndex = mg_vertices_base_index(canvas);
@@ -1904,9 +1901,8 @@ void mg_render_fill_arc_corner(mg_canvas_data* canvas, f32 x, f32 y, f32 rx, f32
 	indices[5] = baseIndex + 3;
 }
 
-void mg_render_rounded_rectangle_fill_with_z_index(mg_canvas_data* canvas,
-							                       mg_rounded_rect rect,
-							                       mg_attributes* attributes)
+void mg_render_rounded_rectangle_fill_path(mg_canvas_data* canvas,
+							               mg_rounded_rect rect)
 {
 	//NOTE(martin): draw a rounded rectangle by drawing a normal rectangle and 4 corners,
 	//              approximating an arc by a precomputed bezier curve
@@ -1938,10 +1934,10 @@ void mg_render_rounded_rectangle_fill_with_z_index(mg_canvas_data* canvas,
 		indices[i] = fanIndices[i] + baseIndex;
 	}
 
-	mg_render_fill_arc_corner(canvas, rect.x, rect.y, rect.r, rect.r, attributes->color);
-	mg_render_fill_arc_corner(canvas, rect.x + rect.w, rect.y, -rect.r, rect.r, attributes->color);
-	mg_render_fill_arc_corner(canvas, rect.x + rect.w, rect.y + rect.h, -rect.r, -rect.r, attributes->color);
-	mg_render_fill_arc_corner(canvas, rect.x, rect.y + rect.h, rect.r, -rect.r, attributes->color);
+	mg_render_fill_arc_corner(canvas, rect.x, rect.y, rect.r, rect.r);
+	mg_render_fill_arc_corner(canvas, rect.x + rect.w, rect.y, -rect.r, rect.r);
+	mg_render_fill_arc_corner(canvas, rect.x + rect.w, rect.y + rect.h, -rect.r, -rect.r);
+	mg_render_fill_arc_corner(canvas, rect.x, rect.y + rect.h, rect.r, -rect.r);
 }
 
 
@@ -1950,7 +1946,7 @@ void mg_render_rounded_rectangle_fill(mg_canvas_data* canvas,
 					                  mg_attributes* attributes)
 {
 	mg_next_shape(canvas, attributes->color);
-	mg_render_rounded_rectangle_fill_with_z_index(canvas, rect, attributes);
+	mg_render_rounded_rectangle_fill_path(canvas, rect);
 }
 
 void mg_render_rounded_rectangle_stroke(mg_canvas_data* canvas,
@@ -1965,11 +1961,11 @@ void mg_render_rounded_rectangle_stroke(mg_canvas_data* canvas,
 	mg_rounded_rect outer = {rect.x - halfW, rect.y - halfW, rect.w + width, rect.h + width, rect.r + halfW};
 
 	mg_next_shape(canvas, attributes->color);
-	mg_render_rounded_rectangle_fill_with_z_index(canvas, outer, attributes);
-	mg_render_rounded_rectangle_fill_with_z_index(canvas, inner, attributes);
+	mg_render_rounded_rectangle_fill_path(canvas, outer);
+	mg_render_rounded_rectangle_fill_path(canvas, inner);
 }
 
-void mg_render_ellipse_fill_with_z_index(mg_canvas_data* canvas, mp_rect rect, mg_attributes* attributes)
+void mg_render_ellipse_fill_path(mg_canvas_data* canvas, mp_rect rect)
 {
 	//NOTE(martin): draw a filled ellipse by drawing a diamond and 4 corners,
 	//              approximating an arc by a precomputed bezier curve
@@ -2000,16 +1996,16 @@ void mg_render_ellipse_fill_with_z_index(mg_canvas_data* canvas, mp_rect rect, m
 	indices[4] = baseIndex + 2;
 	indices[5] = baseIndex + 3;
 
-	mg_render_fill_arc_corner(canvas, rect.x, rect.y, rx, ry, attributes->color);
-	mg_render_fill_arc_corner(canvas, rect.x + rect.w, rect.y, -rx, ry, attributes->color);
-	mg_render_fill_arc_corner(canvas, rect.x + rect.w, rect.y + rect.h, -rx, -ry, attributes->color);
-	mg_render_fill_arc_corner(canvas, rect.x, rect.y + rect.h, rx, -ry, attributes->color);
+	mg_render_fill_arc_corner(canvas, rect.x, rect.y, rx, ry);
+	mg_render_fill_arc_corner(canvas, rect.x + rect.w, rect.y, -rx, ry);
+	mg_render_fill_arc_corner(canvas, rect.x + rect.w, rect.y + rect.h, -rx, -ry);
+	mg_render_fill_arc_corner(canvas, rect.x, rect.y + rect.h, rx, -ry);
 }
 
 void mg_render_ellipse_fill(mg_canvas_data* canvas, mp_rect rect, mg_attributes* attributes)
 {
 	mg_next_shape(canvas, attributes->color);
-	mg_render_ellipse_fill_with_z_index(canvas, rect, attributes);
+	mg_render_ellipse_fill_path(canvas, rect);
 }
 
 void mg_render_ellipse_stroke(mg_canvas_data* canvas, mp_rect rect, mg_attributes* attributes)
@@ -2022,8 +2018,8 @@ void mg_render_ellipse_stroke(mg_canvas_data* canvas, mp_rect rect, mg_attribute
 	mp_rect outer = {rect.x - halfW, rect.y - halfW, rect.w + width, rect.h + width};
 
 	mg_next_shape(canvas, attributes->color);
-	mg_render_ellipse_fill_with_z_index(canvas, outer, attributes);
-	mg_render_ellipse_fill_with_z_index(canvas, inner, attributes);
+	mg_render_ellipse_fill_path(canvas, outer);
+	mg_render_ellipse_fill_path(canvas, inner);
 }
 
 void mg_render_image(mg_canvas_data* canvas, mg_image image, mp_rect rect)
@@ -2847,8 +2843,7 @@ void mg_flush_commands(int primitiveCount, mg_primitive* primitives, mg_path_elt
 				mg_next_shape(canvas, primitive->attributes.color);
 				mg_render_fill(canvas,
 						       pathElements + primitive->path.startIndex,
-						       &primitive->path,
-						       primitive->attributes.color);
+						       &primitive->path);
 			} break;
 
 			case MG_CMD_STROKE:

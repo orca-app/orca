@@ -16,10 +16,11 @@ Overview
 
 Clean+Fixes
 -----------
-[ ] Clean canvas code
-	[x] make zIndex implicit when calling push_vertex
+[.] Clean canvas code
 	[x] rename zIndex with "shapeIndex" everywhere
-	[ ] remove color args in functions that don't need it anymore
+	[x] make shapeIndex implicit when calling push_vertex
+	[x] remove color args in functions that don't need it anymore
+	[x] remove or rename "_with_zindex" functions
 
 [ ] Rename MG_GL_CANVAS_TILE_ARRAY_SIZE/LENGTH unambiguously and make it consistent between C and glsl code
 
