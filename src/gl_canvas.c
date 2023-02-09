@@ -17,19 +17,20 @@ typedef struct mg_gl_canvas_backend
 	mg_canvas_backend interface;
 	mg_surface surface;
 
-	GLint dummyVertexBuffer;
-	GLint vertexBuffer;
-	GLint shapeBuffer;
-	GLint indexBuffer;
-	GLint tileCounterBuffer;
-	GLint tileArrayBuffer;
-	GLint clearCounterProgram;
-	GLint tileProgram;
-	GLint sortProgram;
-	GLint drawProgram;
-	GLint blitProgram;
+	GLuint vao;
+	GLuint dummyVertexBuffer;
+	GLuint vertexBuffer;
+	GLuint shapeBuffer;
+	GLuint indexBuffer;
+	GLuint tileCounterBuffer;
+	GLuint tileArrayBuffer;
+	GLuint clearCounterProgram;
+	GLuint tileProgram;
+	GLuint sortProgram;
+	GLuint drawProgram;
+	GLuint blitProgram;
 
-	GLint outTexture;
+	GLuint outTexture;
 
 	char* indexMapping;
 	char* vertexMapping;
@@ -255,7 +256,21 @@ void mg_gl_canvas_destroy(mg_canvas_backend* interface)
 {
 	mg_gl_canvas_backend* backend = (mg_gl_canvas_backend*)interface;
 
-	//TODO
+	glDeleteTextures(1, &backend->outTexture);
+
+	glDeleteBuffers(1, &backend->dummyVertexBuffer);
+	glDeleteBuffers(1, &backend->vertexBuffer);
+	glDeleteBuffers(1, &backend->shapeBuffer);
+	glDeleteBuffers(1, &backend->indexBuffer);
+	glDeleteBuffers(1, &backend->tileCounterBuffer);
+	glDeleteBuffers(1, &backend->tileArrayBuffer);
+
+	glDeleteVertexArrays(1, &backend->vao);
+
+	free(backend->shapeMapping);
+	free(backend->vertexMapping);
+	free(backend->indexMapping);
+	free(backend);
 }
 
 void mg_gl_canvas_atlas_upload(mg_canvas_backend* interface, mp_rect rect, u8* bytes)
@@ -391,9 +406,8 @@ mg_canvas_backend* mg_gl_canvas_create(mg_surface surface)
 
 		mg_surface_prepare(surface);
 
-		GLuint vao;
-		glGenVertexArrays(1, &vao);
-		glBindVertexArray(vao);
+		glGenVertexArrays(1, &backend->vao);
+		glBindVertexArray(backend->vao);
 
 		glGenBuffers(1, &backend->dummyVertexBuffer);
 		glBindBuffer(GL_ARRAY_BUFFER, backend->dummyVertexBuffer);
@@ -444,10 +458,7 @@ mg_canvas_backend* mg_gl_canvas_create(mg_surface surface)
 
 		if(err)
 		{
-			free(backend->shapeMapping);
-			free(backend->vertexMapping);
-			free(backend->indexMapping);
-			free(backend);
+			mg_gl_canvas_destroy((mg_canvas_backend*)backend);
 			backend = 0;
 		}
 		else

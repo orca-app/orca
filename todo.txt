@@ -3,7 +3,8 @@ Overview
 --------
 [x] Pan/Zoom on text example
 [.] Clean+Fixes of canvas code and examples
-[ ] Make backend selection easier
+
+[>] Make backend selection easier
 
 [ ] Image API and backend
 	[ ] Build image atlas on top
@@ -12,14 +13,15 @@ Overview
 [ ] Allow different versions of GL to co-exist
 [?] Backport canvas to GLES
 
+[ ] Back surface by child windows and implement moving frame/hiding/overlay
+
 [ ] Delegated drawing API+Impl
 
 Clean+Fixes
 -----------
 
 [x] Rename MG_GL_CANVAS_TILE_ARRAY_SIZE/LENGTH unambiguously and make it consistent between C and glsl code
-
-[.] Clean shaders (folder/filenames, version string, debug flags, ...)
+[x] Clean shaders (folder/filenames, version string, debug flags, ...)
 	[x] Simplify shader names, prefix embedded strings by "glsl_"
 	[x] Extract shader compilation in a function
 	[x] Add version strings/common structs in canvas code (maybe revisit later when we have multiple versions, but ok for now)
@@ -27,6 +29,10 @@ Clean+Fixes
 
 [x] Clean-up context on error and return nil handle
 	[/] Could return non-nil "invalid" handle and set error flags in handle
+
+[x] Destroy canvas backend properly
+[x] Destroy surface properly
+[ ] Destroy window properly
 
 [>] Make surface backend and canvas backend compile-time and run-time selections easier
 

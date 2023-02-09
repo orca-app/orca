@@ -238,6 +238,8 @@ int main()
 		frameTime = mp_get_time(MP_CLOCK_MONOTONIC) - startTime;
 	}
 
+	mg_canvas_destroy(canvas);
+	mg_surface_destroy(surface);
 	mp_terminate();
 
 	return(0);

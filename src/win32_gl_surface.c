@@ -26,7 +26,13 @@ typedef struct mg_gl_surface
 void mg_gl_surface_destroy(mg_surface_data* interface)
 {
 	mg_gl_surface* surface = (mg_gl_surface*)interface;
-	//TODO
+
+	if(surface->glContext == wglGetCurrentContext())
+	{
+		wglMakeCurrent(NULL, NULL);
+	}
+	wglDeleteContext(surface->glContext);
+	free(surface);
 }
 
 void mg_gl_surface_prepare(mg_surface_data* interface)
