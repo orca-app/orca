@@ -17,7 +17,7 @@ Overview
 Clean+Fixes
 -----------
 [ ] Clean canvas code
-	[ ] make zIndex implicit when calling push_vertex
+	[x] make zIndex implicit when calling push_vertex
 	[x] rename zIndex with "shapeIndex" everywhere
 	[ ] remove color args in functions that don't need it anymore
 
