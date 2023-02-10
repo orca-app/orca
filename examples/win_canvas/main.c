@@ -22,9 +22,7 @@ mg_font create_font()
 {
 	//NOTE(martin): create font
 	str8 fontPath = mp_app_get_resource_path(mem_scratch(), "../resources/OpenSansLatinSubset.ttf");
-//	char* fontPathCString = str8_to_cstring(mem_scratch(), fontPath);
-
-	char* fontPathCString = "resources/OpenSansLatinSubset.ttf";
+	char* fontPathCString = str8_to_cstring(mem_scratch(), fontPath);
 
 	FILE* fontFile = fopen(fontPathCString, "r");
 	if(!fontFile)
@@ -238,8 +236,11 @@ int main()
 		frameTime = mp_get_time(MP_CLOCK_MONOTONIC) - startTime;
 	}
 
+	mg_font_destroy(font);
 	mg_canvas_destroy(canvas);
 	mg_surface_destroy(surface);
+	mp_window_destroy(window);
+
 	mp_terminate();
 
 	return(0);

@@ -2306,7 +2306,6 @@ void mg_font_destroy(mg_font fontHandle)
 	free(fontData->glyphMap);
 	free(fontData->glyphs);
 	free(fontData->outlines);
-
 	free(fontData);
 	mg_resource_handle_recycle(&__mgData.fonts, fontHandle.h);
 }

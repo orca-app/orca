@@ -32,7 +32,7 @@ Clean+Fixes
 
 [x] Destroy canvas backend properly
 [x] Destroy surface properly
-[ ] Destroy window properly
+[x] Destroy window properly
 
 [>] Make surface backend and canvas backend compile-time and run-time selections easier
 
