@@ -38,17 +38,6 @@ typedef struct mg_gl_canvas_backend
 
 } mg_gl_canvas_backend;
 
-mg_gl_surface* mg_gl_canvas_get_surface(mg_gl_canvas_backend* canvas)
-{
-	mg_gl_surface* res = 0;
-	mg_surface_data* data = mg_surface_data_from_handle(canvas->surface);
-	if(data && data->backend == MG_BACKEND_GL)
-	{
-		res = (mg_gl_surface*)data;
-	}
-	return(res);
-}
-
 //NOTE: debugger
 typedef struct debug_vertex
 {
@@ -140,11 +129,6 @@ void mg_gl_send_buffers(mg_gl_canvas_backend* backend, int shapeCount, int verte
 void mg_gl_canvas_begin(mg_canvas_backend* interface)
 {
 	mg_gl_canvas_backend* backend = (mg_gl_canvas_backend*)interface;
-	mg_gl_surface* surface = mg_gl_canvas_get_surface(backend);
-	if(!surface)
-	{
-		return;
-	}
 	glEnable(GL_BLEND);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 }
@@ -157,11 +141,6 @@ void mg_gl_canvas_end(mg_canvas_backend* interface)
 void mg_gl_canvas_clear(mg_canvas_backend* interface, mg_color clearColor)
 {
 	mg_gl_canvas_backend* backend = (mg_gl_canvas_backend*)interface;
-	mg_gl_surface* surface = mg_gl_canvas_get_surface(backend);
-	if(!surface)
-	{
-		return;
-	}
 
 	glClearColor(clearColor.r, clearColor.g, clearColor.b, clearColor.a);
 	glClear(GL_COLOR_BUFFER_BIT);
@@ -170,11 +149,6 @@ void mg_gl_canvas_clear(mg_canvas_backend* interface, mg_color clearColor)
 void mg_gl_canvas_draw_batch(mg_canvas_backend* interface, u32 shapeCount, u32 vertexCount, u32 indexCount)
 {
 	mg_gl_canvas_backend* backend = (mg_gl_canvas_backend*)interface;
-	mg_gl_surface* surface = mg_gl_canvas_get_surface(backend);
-	if(!surface)
-	{
-		return;
-	}
 
 /*NOTE: if we want debug_vertex while debugging, the following ensures the struct def doesn't get stripped away
 	debug_vertex vertex;
@@ -390,8 +364,6 @@ mg_canvas_backend* mg_gl_canvas_create(mg_surface surface)
 
 	if(surfaceData && surfaceData->backend == MG_BACKEND_GL)
 	{
-		mg_gl_surface* glSurface = (mg_gl_surface*)surfaceData;
-
 		backend = malloc_type(mg_gl_canvas_backend);
 		memset(backend, 0, sizeof(mg_gl_canvas_backend));
 		backend->surface = surface;

@@ -9,6 +9,72 @@
 #ifndef __GRAPHICS_H_
 #define __GRAPHICS_H_
 
+#include"typedefs.h"
+#include"platform.h"
+
+//------------------------------------------------------------------------------------------
+//NOTE(martin): backends selection
+//------------------------------------------------------------------------------------------
+
+typedef enum {
+	MG_BACKEND_NONE,
+	MG_BACKEND_METAL,
+	MG_BACKEND_GL,
+	MG_BACKEND_GLES } mg_backend_id;
+
+//NOTE: these macros are used to select which backend to include when building milepost
+//      they can be overridden by passing them to the compiler command line
+#if defined(OS_MACOS)
+	#ifndef MG_COMPILE_BACKEND_METAL
+		#define MG_COMPILE_BACKEND_METAL 1
+	#endif
+
+	#ifndef MG_COMPILE_BACKEND_GL
+		#define MG_COMPILE_BACKEND_GL 1
+	#endif
+
+	#if MG_COMPILE_BACKEND_METAL
+		#define MG_BACKEND_DEFAULT MG_BACKEND_METAL
+	#elif MG_COMPILE_BACKEND_GL
+		#define MG_BACKEND_DEFAULT MG_BACKEND_GL
+	#else
+		#define MG_BACKEND_DEFAULT MG_BACKEND_NONE
+	#endif
+
+#elif defined(OS_WIN64)
+	#ifndef MG_COMPILE_BACKEND_GL
+		#define MG_COMPILE_BACKEND_GL 1
+	#endif
+
+	#if MG_COMPILE_BACKEND_GL
+		#define MG_BACKEND_DEFAULT MG_BACKEND_GL
+	#else
+		#define MG_BACKEND_DEFAULT MG_BACKEND_NONE
+	#endif
+
+#elif defined(OS_LINUX)
+	#ifndef MG_COMPILE_BACKEND_GL
+		#define MG_COMPILE_BACKEND_GL 1
+	#endif
+
+#endif
+
+//NOTE: these macros are used to select backend-specific APIs to include when using milepost
+#ifdef MG_EXPOSE_SURFACE_METAL
+	#include"mtl_surface.h"
+#endif
+
+#ifdef MG_EXPOSE_SURFACE_WGL
+	#include"wgl_surface.h"
+#endif
+
+//TODO: expose nsgl surface when supported, expose egl surface, etc...
+
+//TODO: add MG_INCLUDE_OPENGL/GLES/etc, once we know how we make different gl versions co-exist
+
+bool mg_is_surface_backend_available(mg_backend_id id);
+bool mg_is_canvas_backend_available(mg_backend_id id);
+
 //------------------------------------------------------------------------------------------
 //NOTE(martin): graphics surface
 //------------------------------------------------------------------------------------------
@@ -17,6 +83,7 @@ typedef struct mg_surface { u64 h; } mg_surface;
 mg_surface mg_surface_nil();
 bool mg_surface_is_nil(mg_surface surface);
 
+mg_surface mg_surface_create_for_window(mp_window window, mg_backend_id backend);
 void mg_surface_destroy(mg_surface surface);
 void mg_surface_prepare(mg_surface surface);
 void mg_surface_present(mg_surface surface);

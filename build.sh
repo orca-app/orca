@@ -24,7 +24,7 @@ if [ $OS = "Darwin" ] ; then
 	CXX=clang++
 	DYLIB_SUFFIX='dylib'
 	SYS_LIBS=''
-	FLAGS="-mmacos-version-min=10.15.4 -DMG_IMPLEMENTS_BACKEND_METAL -DMG_IMPLEMENTS_BACKEND_GLES -maes"
+	FLAGS="-mmacos-version-min=10.15.4 -maes"
 	CFLAGS="-std=c11"
 
 elif [ $OS = "Linux" ] ; then

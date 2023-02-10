@@ -5,6 +5,13 @@ Overview
 [.] Clean+Fixes of canvas code and examples
 
 [>] Make backend selection easier
+	[x] rename backend-specific files with api prefix (e.g. egl_, nsgl_, wgl_, mtl_, ...)
+	[x] option macros to select surface/canvas backends to compile into milepost lib
+	[/] option macros to select backend-specific APIs to include when building an app
+	[x] surface/canvas functions that take a backend id
+	[x] feature-detection functions to know what surface/canvas backends are available at run-time
+	[>] drop the "mg_" prefix for internal functions (and declare them static)
+	[>] write doc about these options
 
 [ ] Image API and backend
 	[ ] Build image atlas on top
@@ -16,6 +23,11 @@ Overview
 [ ] Back surface by child windows and implement moving frame/hiding/overlay
 
 [ ] Delegated drawing API+Impl
+
+[ ] Make building apps simpler
+	[ ] single include path
+	[ ] script for embedding dependencies / create app bundle
+
 
 Clean+Fixes
 -----------

@@ -48,23 +48,21 @@
 #endif
 
 //---------------------------------------------------------------
-// application layer
+// app/graphics layer
 //---------------------------------------------------------------
 
 #if defined(OS_WIN64)
 	#include"win32_app.c"
-	#include"win32_gl_surface.c"
-	#include"gl_canvas.c"
-//	#include"win32_gles_surface.c"
-//	#include"gles_canvas.c"
+	#include"graphics.c"
+
+	#if MG_COMPILE_BACKEND_GL
+		#include"wgl_surface.c"
+		#include"gl_canvas.c"
+	#endif
+
 #elif defined(OS_MACOS)
-	//NOTE: macos application layer is defined in milepost.m
+	//NOTE: macos application layer and graphics backends are defined in milepost.m
+	#include"graphics.c"
 #else
 	#error "Unsupported platform"
 #endif
-
-//---------------------------------------------------------------
-// graphics/ui layer
-//---------------------------------------------------------------
-#include"graphics.c"
-//#include"ui.c"

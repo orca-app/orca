@@ -1,6 +1,6 @@
 /************************************************************//**
 *
-*	@file: win32_gl_loader.h
+*	@file: wgl_loader.h
 *	@author: Martin Fouilleul
 *	@date: 01/08/2022
 *	@revision:
@@ -56,7 +56,7 @@
 	GL_PROC(GLUNMAPBUFFER, glUnmapBuffer)
 
 
-#ifdef WIN32_GL_LOADER_API
+#ifdef WGL_LOADER_API
 	//NOTE: pointer declarations
 	#define GL_PROC(type, name) extern _cat3_(PFN, type, PROC) name;
 	GL_PROC_LIST
@@ -64,7 +64,7 @@
 #endif
 
 
-#ifdef WIN32_GL_LOADER_IMPL
+#ifdef WGL_LOADER_IMPL
 #define GL_PROC(type, name) _cat3_(PFN, type, PROC) name = 0;
 	GL_PROC_LIST
 #undef GL_PROC

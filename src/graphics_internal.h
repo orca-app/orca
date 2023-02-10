@@ -15,13 +15,6 @@
 extern "C" {
 #endif
 
-typedef enum { MG_BACKEND_DUMMY,
-               MG_BACKEND_METAL,
-               MG_BACKEND_GL,
-               MG_BACKEND_GLES,
-               //...
-             } mg_backend_id;
-
 typedef struct mg_surface_data mg_surface_data;
 
 typedef void (*mg_surface_destroy_proc)(mg_surface_data* surface);

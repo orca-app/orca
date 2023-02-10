@@ -94,3 +94,20 @@ Quick measurement on perf_text.exe
 -> May be worth it to try persistently mapped buffers later.
 
 * Splitting vertex data and shape data (using glBufferData) --> ~10ms
+
+
+Backend Selection
+-----------------
+
+* We need define macros to select which backends are compiled into milepost.lib
+	-> define default backends and allow override with user compile defines
+
+* We also need define macros to select which backend-specific functions and/or graphics APIs to include when building an app with milepost (e.g.\ include opengl headers or not, etc.).
+
+* For now, we intend to statically link milepost.lib (or dynamically load to an embedded dll), so at application compile time the supported backends are known and calling a backend-specific function for a backend that has not been compiled in milepost results in a link error. (No need to defines for that)
+
+* However, if we want to provide a nice abstraction for creation function, this means it is possible for user to pass a backend that does not exists in the lib (resulting in a runtime error). It would be nice to have some way to runtime check which backends are available. That can be a function compiled in the lib.
+
+* We also might want to access backend-specific functions in the app, so we need to include those conditionally.
+
+* We also might want to include graphics API, eg OpenGL, in a uniform way. -> See later how we manage GLES/GL co-existence

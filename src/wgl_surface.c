@@ -1,18 +1,18 @@
 /************************************************************//**
 *
-*	@file: win32_gl_surface.c
+*	@file: wgl_surface.c
 *	@author: Martin Fouilleul
 *	@date: 01/08/2022
 *	@revision:
 *
 *****************************************************************/
-#define WIN32_GL_LOADER_IMPL
-#include"win32_gl_loader.h"
+#define WGL_LOADER_IMPL
+#include"wgl_loader.h"
 #include"win32_app.h"
 
 #include"graphics_internal.h"
 
-typedef struct mg_gl_surface
+typedef struct mg_wgl_surface
 {
 	mg_surface_data interface;
 
@@ -21,11 +21,11 @@ typedef struct mg_gl_surface
 	HGLRC glContext;
 	vec2 contentsScaling;
 
-} mg_gl_surface;
+} mg_wgl_surface;
 
-void mg_gl_surface_destroy(mg_surface_data* interface)
+void mg_wgl_surface_destroy(mg_surface_data* interface)
 {
-	mg_gl_surface* surface = (mg_gl_surface*)interface;
+	mg_wgl_surface* surface = (mg_wgl_surface*)interface;
 
 	if(surface->glContext == wglGetCurrentContext())
 	{
@@ -35,34 +35,34 @@ void mg_gl_surface_destroy(mg_surface_data* interface)
 	free(surface);
 }
 
-void mg_gl_surface_prepare(mg_surface_data* interface)
+void mg_wgl_surface_prepare(mg_surface_data* interface)
 {
-	mg_gl_surface* surface = (mg_gl_surface*)interface;
+	mg_wgl_surface* surface = (mg_wgl_surface*)interface;
 
 	wglMakeCurrent(surface->hDC, surface->glContext);
 }
 
-void mg_gl_surface_present(mg_surface_data* interface)
+void mg_wgl_surface_present(mg_surface_data* interface)
 {
-	mg_gl_surface* surface = (mg_gl_surface*)interface;
+	mg_wgl_surface* surface = (mg_wgl_surface*)interface;
 	SwapBuffers(surface->hDC);
 }
 
-void mg_gl_surface_swap_interval(mg_surface_data* interface, int swap)
+void mg_wgl_surface_swap_interval(mg_surface_data* interface, int swap)
 {
-	mg_gl_surface* surface = (mg_gl_surface*)interface;
+	mg_wgl_surface* surface = (mg_wgl_surface*)interface;
 	wglSwapIntervalEXT(swap);
 }
 
-vec2 mg_gl_contents_scaling(mg_surface_data* interface)
+vec2 mg_wgl_contents_scaling(mg_surface_data* interface)
 {
-	mg_gl_surface* surface = (mg_gl_surface*)interface;
+	mg_wgl_surface* surface = (mg_wgl_surface*)interface;
 	return(surface->contentsScaling);
 }
 
-mp_rect mg_gl_surface_get_frame(mg_surface_data* interface)
+mp_rect mg_wgl_surface_get_frame(mg_surface_data* interface)
 {
-	mg_gl_surface* surface = (mg_gl_surface*)interface;
+	mg_wgl_surface* surface = (mg_wgl_surface*)interface;
 	RECT rect = {0};
 	GetClientRect(surface->hWnd, &rect);
 
@@ -75,7 +75,7 @@ mp_rect mg_gl_surface_get_frame(mg_surface_data* interface)
 	return(res);
 }
 
-mg_surface mg_gl_surface_create_for_window(mp_window window)
+mg_surface mg_wgl_surface_create_for_window(mp_window window)
 {
 	mg_surface surfaceHandle = mg_surface_nil();
 
@@ -211,14 +211,14 @@ mg_surface mg_gl_surface_create_for_window(mp_window window)
 		wglSwapIntervalEXT(1);
 
 		//TODO save important info in surface_data and return a handle
-		mg_gl_surface* surface = malloc_type(mg_gl_surface);
+		mg_wgl_surface* surface = malloc_type(mg_wgl_surface);
 		surface->interface.backend = MG_BACKEND_GL;
-		surface->interface.destroy = mg_gl_surface_destroy;
-		surface->interface.prepare = mg_gl_surface_prepare;
-		surface->interface.present = mg_gl_surface_present;
-		surface->interface.swapInterval = mg_gl_surface_swap_interval;
-		surface->interface.contentsScaling = mg_gl_contents_scaling;
-		surface->interface.getFrame = mg_gl_surface_get_frame;
+		surface->interface.destroy = mg_wgl_surface_destroy;
+		surface->interface.prepare = mg_wgl_surface_prepare;
+		surface->interface.present = mg_wgl_surface_present;
+		surface->interface.swapInterval = mg_wgl_surface_swap_interval;
+		surface->interface.contentsScaling = mg_wgl_contents_scaling;
+		surface->interface.getFrame = mg_wgl_surface_get_frame;
 
 		//TODO: get/set frame/hidden
 		surface->hWnd = windowData->win32.hWnd;

@@ -290,6 +290,89 @@ mg_font_data* mg_font_data_from_handle(mg_font font)
 // surface API
 //---------------------------------------------------------------
 
+#if MG_COMPILE_BACKEND_GL
+	#if defined(OS_WIN64)
+		#include"wgl_surface.h"
+		#define gl_surface_create_for_window mg_wgl_surface_create_for_window
+	#elif defined(OS_MACOS)
+/*
+		#include"nsgl_surface.h"
+		#define gl_surface_create_for_window nsgl_surface_create_for_window
+*/
+	#endif
+#endif
+
+#if MG_COMPILE_BACKEND_METAL
+	#include"mtl_surface.h"
+#endif
+
+bool mg_is_surface_backend_available(mg_backend_id backend)
+{
+	bool result = false;
+	switch(backend)
+	{
+		#if MG_COMPILE_BACKEND_METAL
+			case MG_BACKEND_METAL:
+		#endif
+		#if MG_COMPILE_BACKEND_GL
+			case MG_BACKEND_GL:
+		#endif
+		#if MG_COMPILE_BACKEND_GLES
+			case MG_BACKEND_GLES:
+		#endif
+			result = true;
+			break;
+
+		default:
+			break;
+	}
+	return(result);
+}
+
+bool mg_is_canvas_backend_available(mg_backend_id backend)
+{
+	bool result = false;
+	switch(backend)
+	{
+		#if MG_COMPILE_BACKEND_METAL
+			case MG_BACKEND_METAL:
+		#endif
+		#if MG_COMPILE_BACKEND_GL && defined(OS_WIN64)
+			case MG_BACKEND_GL:
+		#endif
+			result = true;
+			break;
+
+		default:
+			break;
+	}
+	return(result);
+}
+
+mg_surface mg_surface_create_for_window(mp_window window, mg_backend_id backend)
+{
+	mg_surface surface = mg_surface_nil();
+
+	switch(backend)
+	{
+	#if MG_COMPILE_BACKEND_GL
+		case MG_BACKEND_GL:
+			surface = gl_surface_create_for_window(window);
+			break;
+	#endif
+
+	#if MG_COMPILE_BACKEND_METAL
+		case MG_METAL_BACKEND:
+			surface = mg_mtl_surface_create_for_window(window);
+			break;
+	#endif
+
+		default:
+			break;
+	}
+	return(surface);
+}
+
 void mg_surface_destroy(mg_surface handle)
 {
 	DEBUG_ASSERT(__mgData.init);
@@ -2563,18 +2646,13 @@ mp_rect mg_text_bounding_box(mg_font font, f32 fontSize, str8 text)
 //NOTE(martin): graphics canvas API
 //------------------------------------------------------------------------------------------
 
-#ifdef MG_IMPLEMENTS_BACKEND_METAL
-	mg_canvas_backend* mg_metal_canvas_create(mg_surface surface);
+#ifdef MG_COMPILE_BACKEND_METAL
+	mg_canvas_backend* mg_mtl_canvas_create(mg_surface surface);
 #endif
 
-#ifdef MG_IMPLEMENTS_BACKEND_GLES
-	mg_canvas_backend* mg_gles_canvas_create(mg_surface surface);
-#endif
-
-#ifdef MG_IMPLEMENTS_BACKEND_GL
+#ifdef MG_COMPILE_BACKEND_GL
 	mg_canvas_backend* mg_gl_canvas_create(mg_surface surface);
 #endif
-
 
 mg_canvas mg_canvas_create(mg_surface surface)
 {
@@ -2585,20 +2663,13 @@ mg_canvas mg_canvas_create(mg_surface surface)
 		mg_canvas_backend* backend = 0;
 		switch(surfaceData->backend)
 		{
-		#ifdef MG_IMPLEMENTS_BACKEND_METAL
+		#ifdef MG_COMPILE_BACKEND_METAL
 			case MG_BACKEND_METAL:
-				backend = mg_metal_canvas_create(surface);
+				backend = mg_mtl_canvas_create(surface);
 				break;
 		#endif
 
-/*
-		#ifdef MG_IMPLEMENTS_BACKEND_GLES
-			case MG_BACKEND_GLES:
-				backend = mg_gles_canvas_create(surface);
-				break;
-		#endif
-*/
-		#ifdef MG_IMPLEMENTS_BACKEND_GL
+		#ifdef MG_COMPILE_BACKEND_GL
 			case MG_BACKEND_GL:
 				backend = mg_gl_canvas_create(surface);
 				break;

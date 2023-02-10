@@ -8,6 +8,7 @@
 *****************************************************************/
 #include<stdlib.h>
 #include<string.h>
+#include<errno.h>
 
 #define _USE_MATH_DEFINES //NOTE: necessary for MSVC
 #include<math.h>
@@ -15,6 +16,7 @@
 #include"milepost.h"
 
 #define LOG_SUBSYSTEM "Main"
+
 
 mg_font create_font()
 {
@@ -25,7 +27,7 @@ mg_font create_font()
 	FILE* fontFile = fopen(fontPathCString, "r");
 	if(!fontFile)
 	{
-		LOG_ERROR("Could not load font file '%s'\n", fontPathCString);
+		LOG_ERROR("Could not load font file '%s': %s\n", fontPathCString, strerror(errno));
 		return(mg_font_nil());
 	}
 	unsigned char* fontData = 0;
@@ -53,22 +55,26 @@ int main()
 	LogLevel(LOG_LEVEL_DEBUG);
 
 	mp_init();
-	mp_clock_init();
+	mp_clock_init(); //TODO put that in mp_init()?
 
-	mp_rect rect = {.x = 100, .y = 100, .w = 800, .h = 600};
-	mp_window window = mp_window_create(rect, "test", 0);
+	mp_rect windowRect = {.x = 100, .y = 100, .w = 810, .h = 610};
+	mp_window window = mp_window_create(windowRect, "test", 0);
+
+	mp_rect contentRect = mp_window_get_content_rect(window);
 
 	//NOTE: create surface
-#if defined(OS_MACOS)
-	mg_surface surface = mg_metal_surface_create_for_window(window);
-#elif defined(OS_WIN64)
-	mg_surface surface = mg_gl_surface_create_for_window(window);
-#else
-	#error "unsupported OS"
-#endif
+	mg_surface surface = mg_surface_create_for_window(window, MG_BACKEND_DEFAULT);
+	mg_surface_swap_interval(surface, 0);
 
 	//TODO: create canvas
 	mg_canvas canvas = mg_canvas_create(surface);
+
+	if(mg_canvas_is_nil(canvas))
+	{
+		printf("Error: couldn't create canvas\n");
+		return(-1);
+	}
+
 	mg_font font = create_font();
 
 	// start app
@@ -76,7 +82,8 @@ int main()
 	mp_window_focus(window);
 
 	f32 x = 400, y = 300;
-	f32 dx = 5, dy = 5;
+	f32 speed = 0;
+	f32 dx = speed, dy = speed;
 	f64 frameTime = 0;
 
 	while(!mp_should_quit())
@@ -94,37 +101,39 @@ int main()
 					mp_request_quit();
 				} break;
 
-				case MP_EVENT_WINDOW_RESIZE:
-				{
-					printf("resized, rect = {%f, %f, %f, %f}\n",
-					       event.frame.rect.x,
-					       event.frame.rect.y,
-					       event.frame.rect.w,
-					       event.frame.rect.h);
-				} break;
-
 				case MP_EVENT_KEYBOARD_KEY:
 				{
 					if(event.key.action == MP_KEY_PRESS || event.key.action == MP_KEY_REPEAT)
 					{
-						/*
 						if(event.key.code == MP_KEY_LEFT)
 						{
-							dx-=5.1;
+							if(x - 200 > 0)
+							{
+								x-=5;
+							}
 						}
 						else if(event.key.code == MP_KEY_RIGHT)
 						{
-							dx+=5.1;
+							if(x + 200 < contentRect.w)
+							{
+								x+=5;
+							}
 						}
 						else if(event.key.code == MP_KEY_UP)
 						{
-							dy+=5.1;
+							if(y + 200 < contentRect.h)
+							{
+								y+=5;
+							}
 						}
 						else if(event.key.code == MP_KEY_DOWN)
 						{
-							dy-=5.1;
+							if(y - 200 > 0)
+							{
+								y-=5;
+							}
 						}
-						*/
+						//*/
 					}
 				} break;
 
@@ -135,19 +144,23 @@ int main()
 
 		if(x-200 < 0)
 		{
-			dx = 5;
+			x = 200;
+			dx = speed;
 		}
-		if(x+200 > 800)
+		if(x+200 > contentRect.w)
 		{
-			dx = -5;
+			x = contentRect.w - 200;
+			dx = -speed;
 		}
 		if(y-200 < 0)
 		{
-			dy = 5;
+			y = 200;
+			dy = speed;
 		}
-		if(y+200 > 550)
+		if(y+200 > contentRect.h)
 		{
-			dy = -5;
+			y = contentRect.h - 200;
+			dy = -speed;
 		}
 		x += dx;
 		y += dy;
@@ -166,7 +179,6 @@ int main()
 			f32 frown = frameTime > 0.033 ? 100 : 0;
 
 			mg_set_color_rgba(0, 0, 0, 1);
-
 			mg_set_width(20);
 			mg_move_to(x-100, y-100);
 			mg_cubic_to(x-50, y-150+frown, x+50, y-150+frown, x+100, y-100);
@@ -198,8 +210,12 @@ int main()
 
 		mem_arena_clear(mem_scratch());
 		frameTime = mp_get_time(MP_CLOCK_MONOTONIC) - startTime;
-
 	}
+
+	mg_font_destroy(font);
+	mg_canvas_destroy(canvas);
+	mg_surface_destroy(surface);
+	mp_window_destroy(window);
 
 	mp_terminate();
 

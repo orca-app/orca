@@ -1,6 +1,6 @@
 /************************************************************//**
 *
-*	@file: metal_canvas.m
+*	@file: mtl_canvas.m
 *	@author: Martin Fouilleul
 *	@date: 12/07/2020
 *	@revision: 24/01/2023
@@ -14,13 +14,13 @@
 #include"macro_helpers.h"
 #include"osx_app.h"
 
-#include"metal_shader.h"
+#include"mtl_shader.h"
 
 #define LOG_SUBSYSTEM "Graphics"
 
-static const int MG_METAL_CANVAS_DEFAULT_BUFFER_LENGTH = 4<<20;
+static const int MG_MTL_CANVAS_DEFAULT_BUFFER_LENGTH = 4<<20;
 
-typedef struct mg_metal_canvas_backend
+typedef struct mg_mtl_canvas_backend
 {
 	mg_canvas_backend interface;
 	mg_surface surface;
@@ -47,36 +47,36 @@ typedef struct mg_metal_canvas_backend
 	id<MTLBuffer> triangleArray;
 	id<MTLBuffer> boxArray;
 
-} mg_metal_canvas_backend;
+} mg_mtl_canvas_backend;
 
-mg_metal_surface* mg_metal_canvas_get_surface(mg_metal_canvas_backend* canvas)
+mg_mtl_surface* mg_mtl_canvas_get_surface(mg_mtl_canvas_backend* canvas)
 {
-	mg_metal_surface* res = 0;
+	mg_mtl_surface* res = 0;
 	mg_surface_data* data = mg_surface_data_from_handle(canvas->surface);
 	if(data && data->backend == MG_BACKEND_METAL)
 	{
-		res = (mg_metal_surface*)data;
+		res = (mg_mtl_surface*)data;
 	}
 	return(res);
 }
 
-void mg_metal_canvas_begin(mg_canvas_backend* interface)
+void mg_mtl_canvas_begin(mg_canvas_backend* interface)
 {}
 
-void mg_metal_canvas_end(mg_canvas_backend* interface)
+void mg_mtl_canvas_end(mg_canvas_backend* interface)
 {}
 
-void mg_metal_canvas_clear(mg_canvas_backend* interface, mg_color clearColor)
+void mg_mtl_canvas_clear(mg_canvas_backend* interface, mg_color clearColor)
 {
 	//TODO
-	mg_metal_canvas_backend* backend = (mg_metal_canvas_backend*)interface;
+	mg_mtl_canvas_backend* backend = (mg_mtl_canvas_backend*)interface;
 	backend->clearColor = clearColor;
 }
 
-void mg_metal_canvas_draw_batch(mg_canvas_backend* interface, u32 vertexCount, u32 indexCount, u32 shapeCount)
+void mg_mtl_canvas_draw_batch(mg_canvas_backend* interface, u32 vertexCount, u32 indexCount, u32 shapeCount)
 {
-	mg_metal_canvas_backend* backend = (mg_metal_canvas_backend*)interface;
-	mg_metal_surface* surface = mg_metal_canvas_get_surface(backend);
+	mg_mtl_canvas_backend* backend = (mg_mtl_canvas_backend*)interface;
+	mg_mtl_surface* surface = mg_mtl_canvas_get_surface(backend);
 	if(!surface)
 	{
 		return;
@@ -86,7 +86,7 @@ void mg_metal_canvas_draw_batch(mg_canvas_backend* interface, u32 vertexCount, u
 	{
 		if(surface->commandBuffer == nil || surface->commandBuffer == nil)
 		{
-			mg_metal_surface_acquire_drawable_and_command_buffer(surface);
+			mg_mtl_surface_acquire_drawable_and_command_buffer(surface);
 		}
 
 		ASSERT(indexCount * sizeof(i32) < [backend->indexBuffer length]);
@@ -205,10 +205,10 @@ void mg_metal_canvas_draw_batch(mg_canvas_backend* interface, u32 vertexCount, u
 }
 
 /*
-void mg_metal_canvas_viewport(mg_canvas_backend* interface, mp_rect viewPort)
+void mg_mtl_canvas_viewport(mg_canvas_backend* interface, mp_rect viewPort)
 {
-	mg_metal_canvas_backend* backend = (mg_metal_canvas_backend*)interface;
-	mg_metal_surface* surface = mg_metal_canvas_get_surface(backend);
+	mg_mtl_canvas_backend* backend = (mg_mtl_canvas_backend*)interface;
+	mg_mtl_surface* surface = mg_mtl_canvas_get_surface(backend);
 	if(!surface)
 	{
 		return;
@@ -236,15 +236,15 @@ void mg_metal_canvas_viewport(mg_canvas_backend* interface, mp_rect viewPort)
 }
 */
 
-void mg_metal_canvas_update_vertex_layout(mg_metal_canvas_backend* backend)
+void mg_mtl_canvas_update_vertex_layout(mg_mtl_canvas_backend* backend)
 {
 	char* vertexBase = (char*)[backend->vertexBuffer contents];
 	char* shapeBase = (char*)[backend->shapeBuffer contents];
 	char* indexBase = (char*)[backend->indexBuffer contents];
 
 	backend->interface.vertexLayout = (mg_vertex_layout){
-		    .maxVertexCount = MG_METAL_CANVAS_DEFAULT_BUFFER_LENGTH,
-	        .maxIndexCount = MG_METAL_CANVAS_DEFAULT_BUFFER_LENGTH,
+		    .maxVertexCount = MG_MTL_CANVAS_DEFAULT_BUFFER_LENGTH,
+	        .maxIndexCount = MG_MTL_CANVAS_DEFAULT_BUFFER_LENGTH,
 	        .cubicBuffer = vertexBase + offsetof(mg_vertex, cubic),
 	        .cubicStride = sizeof(mg_vertex),
 	        .posBuffer = vertexBase + offsetof(mg_vertex, pos),
@@ -263,9 +263,9 @@ void mg_metal_canvas_update_vertex_layout(mg_metal_canvas_backend* backend)
 	        .indexStride = sizeof(int)};
 }
 
-void mg_metal_canvas_destroy(mg_canvas_backend* interface)
+void mg_mtl_canvas_destroy(mg_canvas_backend* interface)
 {
-	mg_metal_canvas_backend* backend = (mg_metal_canvas_backend*)interface;
+	mg_mtl_canvas_backend* backend = (mg_mtl_canvas_backend*)interface;
 
 	@autoreleasepool
 	{
@@ -280,9 +280,9 @@ void mg_metal_canvas_destroy(mg_canvas_backend* interface)
 	}
 }
 
-void mg_metal_canvas_atlas_upload(mg_canvas_backend* interface, mp_rect rect, u8* bytes)
+void mg_mtl_canvas_atlas_upload(mg_canvas_backend* interface, mp_rect rect, u8* bytes)
 {@autoreleasepool{
-	mg_metal_canvas_backend* backend = (mg_metal_canvas_backend*)interface;
+	mg_mtl_canvas_backend* backend = (mg_mtl_canvas_backend*)interface;
 
 	MTLRegion region = MTLRegionMake2D(rect.x, rect.y, rect.w, rect.h);
 	[backend->atlasTexture replaceRegion:region
@@ -291,25 +291,25 @@ void mg_metal_canvas_atlas_upload(mg_canvas_backend* interface, mp_rect rect, u8
 	                       bytesPerRow: 4 * rect.w];
 }}
 
-mg_canvas_backend* mg_metal_canvas_create(mg_surface surface)
+mg_canvas_backend* mg_mtl_canvas_create(mg_surface surface)
 {
-	mg_metal_canvas_backend* backend = 0;
+	mg_mtl_canvas_backend* backend = 0;
 
 	mg_surface_data* surfaceData = mg_surface_data_from_handle(surface);
 	if(surfaceData && surfaceData->backend == MG_BACKEND_METAL)
 	{
-		mg_metal_surface* metalSurface = (mg_metal_surface*)surfaceData;
+		mg_mtl_surface* metalSurface = (mg_mtl_surface*)surfaceData;
 
-		backend = malloc_type(mg_metal_canvas_backend);
+		backend = malloc_type(mg_mtl_canvas_backend);
 		backend->surface = surface;
 
 		//NOTE(martin): setup interface functions
-		backend->interface.destroy = mg_metal_canvas_destroy;
-		backend->interface.begin = mg_metal_canvas_begin;
-		backend->interface.end = mg_metal_canvas_end;
-		backend->interface.clear = mg_metal_canvas_clear;
-		backend->interface.drawBatch = mg_metal_canvas_draw_batch;
-		backend->interface.atlasUpload = mg_metal_canvas_atlas_upload;
+		backend->interface.destroy = mg_mtl_canvas_destroy;
+		backend->interface.begin = mg_mtl_canvas_begin;
+		backend->interface.end = mg_mtl_canvas_end;
+		backend->interface.clear = mg_mtl_canvas_clear;
+		backend->interface.drawBatch = mg_mtl_canvas_draw_batch;
+		backend->interface.atlasUpload = mg_mtl_canvas_atlas_upload;
 
 		mp_rect frame = mg_surface_get_frame(surface);
 		backend->viewPort = (mp_rect){0, 0, frame.w, frame.h};
@@ -352,22 +352,22 @@ mg_canvas_backend* mg_metal_canvas_create(mg_surface surface)
 			MTLResourceOptions bufferOptions = MTLResourceCPUCacheModeWriteCombined
 		                                 	| MTLResourceStorageModeShared;
 
-			backend->indexBuffer = [metalSurface->device newBufferWithLength: MG_METAL_CANVAS_DEFAULT_BUFFER_LENGTH*sizeof(int)
+			backend->indexBuffer = [metalSurface->device newBufferWithLength: MG_MTL_CANVAS_DEFAULT_BUFFER_LENGTH*sizeof(int)
 		                                        	options: bufferOptions];
 
-			backend->vertexBuffer = [metalSurface->device newBufferWithLength: MG_METAL_CANVAS_DEFAULT_BUFFER_LENGTH*sizeof(mg_vertex)
+			backend->vertexBuffer = [metalSurface->device newBufferWithLength: MG_MTL_CANVAS_DEFAULT_BUFFER_LENGTH*sizeof(mg_vertex)
 		                                        	options: bufferOptions];
 
-		    backend->shapeBuffer = [metalSurface->device newBufferWithLength: MG_METAL_CANVAS_DEFAULT_BUFFER_LENGTH*sizeof(mg_shape)
+		    backend->shapeBuffer = [metalSurface->device newBufferWithLength: MG_MTL_CANVAS_DEFAULT_BUFFER_LENGTH*sizeof(mg_shape)
 		                                        	options: bufferOptions];
 
 			backend->tilesArray = [metalSurface->device newBufferWithLength: RENDERER_TILE_BUFFER_SIZE*sizeof(int)*RENDERER_MAX_TILES
 								options: MTLResourceStorageModePrivate];
 
-			backend->triangleArray = [metalSurface->device newBufferWithLength: MG_METAL_CANVAS_DEFAULT_BUFFER_LENGTH*sizeof(mg_triangle_data)
+			backend->triangleArray = [metalSurface->device newBufferWithLength: MG_MTL_CANVAS_DEFAULT_BUFFER_LENGTH*sizeof(mg_triangle_data)
 								options: MTLResourceStorageModePrivate];
 
-			backend->boxArray = [metalSurface->device newBufferWithLength: MG_METAL_CANVAS_DEFAULT_BUFFER_LENGTH*sizeof(vector_float4)
+			backend->boxArray = [metalSurface->device newBufferWithLength: MG_MTL_CANVAS_DEFAULT_BUFFER_LENGTH*sizeof(vector_float4)
 								options: MTLResourceStorageModePrivate];
 
 			//TODO(martin): retain ?
@@ -387,7 +387,7 @@ mg_canvas_backend* mg_metal_canvas_create(mg_surface surface)
 			//-----------------------------------------------------------
 
 			//TODO(martin): filepath magic to find metallib path when not in the working directory
-			str8 shaderPath = mp_app_get_resource_path(mem_scratch(), "../resources/metal_shader.metallib");
+			str8 shaderPath = mp_app_get_resource_path(mem_scratch(), "../resources/mtl_shader.metallib");
 			NSString* metalFileName = [[NSString alloc] initWithBytes: shaderPath.ptr length:shaderPath.len encoding: NSUTF8StringEncoding];
 			NSError* err = 0;
 			id<MTLLibrary> library = [metalSurface->device newLibraryWithFile: metalFileName error:&err];
@@ -460,7 +460,7 @@ mg_canvas_backend* mg_metal_canvas_create(mg_surface surface)
 			}
 		}
 
-		mg_metal_canvas_update_vertex_layout(backend);
+		mg_mtl_canvas_update_vertex_layout(backend);
 	}
 
 	return((mg_canvas_backend*)backend);

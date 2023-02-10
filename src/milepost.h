@@ -33,34 +33,17 @@
 */
 
 //----------------------------------------------------------------
-// application layer
+// application/graphics layer
 //----------------------------------------------------------------
 #include"mp_app.h"
-
-#if defined(OS_WIN64) || defined(OS_WIN32)
-
-	#if MG_IMPLEMENTS_BACKEND_GLES
-		#include"win32_gles_surface.h"
-	#endif
-
-	#if MG_IMPLEMENTS_BACKEND_GL
-		#define WIN32_GL_LOADER_API
-		#include"win32_gl_loader.h"
-		#undef WIN32_GL_LOADER_API
-
-		#include"win32_gl_surface.h"
-	#endif
-#endif
-
-#if MG_IMPLEMENTS_BACKEND_METAL
-#include"metal_surface.h"
-#endif
-
-
-//----------------------------------------------------------------
-// graphics/ui layer
-//----------------------------------------------------------------
 #include"graphics.h"
+
+#if defined(OS_WIN64)
+	#define WIN32_GL_LOADER_API
+	#include"wgl_loader.h"
+	#undef WIN32_GL_LOADER_API
+#endif
+
 //#include"ui.h"
 
 #endif //__MILEPOST_H_

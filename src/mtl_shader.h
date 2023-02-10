@@ -1,13 +1,13 @@
 /************************************************************//**
 *
-*	@file: metal_shader.h
+*	@file: mtl_shader.h
 *	@author: Martin Fouilleul
 *	@date: 01/08/2022
 *	@revision:
 *
 *****************************************************************/
-#ifndef __METAL_RENDERER_H_
-#define __METAL_RENDERER_H_
+#ifndef __MTL_RENDERER_H_
+#define __MTL_RENDERER_H_
 
 #include<simd/simd.h>
 
@@ -50,4 +50,4 @@ typedef struct mg_triangle_data
 
 } mg_triangle_data;
 
-#endif //__METAL_RENDERER_H_
+#endif //__MTL_RENDERER_H_

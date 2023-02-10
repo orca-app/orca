@@ -63,10 +63,8 @@ static const char* TEST_STRING =
 mg_font create_font()
 {
 	//NOTE(martin): create font
-/*	str8 fontPath = mp_app_get_resource_path(mem_scratch(), "../resources/OpenSansLatinSubset.ttf");
+	str8 fontPath = mp_app_get_resource_path(mem_scratch(), "../resources/OpenSansLatinSubset.ttf");
 	char* fontPathCString = str8_to_cstring(mem_scratch(), fontPath);
-*/
-	char* fontPathCString = "resources/OpenSansLatinSubset.ttf";
 
 	FILE* fontFile = fopen(fontPathCString, "r");
 	if(!fontFile)
@@ -107,13 +105,7 @@ int main()
 
 	//NOTE: create surface, canvas and font
 
-#if defined(OS_MACOS)
-	mg_surface surface = mg_metal_surface_create_for_window(window);
-#elif defined(OS_WIN64)
-	mg_surface surface = mg_gl_surface_create_for_window(window);
-#else
-	#error "unsupported OS"
-#endif
+	mg_surface surface = mg_surface_create_for_window(window, MG_BACKEND_DEFAULT);
 	mg_surface_swap_interval(surface, 0);
 
 	mg_canvas canvas = mg_canvas_create(surface);
@@ -300,6 +292,11 @@ int main()
 		mem_arena_clear(mem_scratch());
 	}
 
+
+	mg_font_destroy(font);
+	mg_canvas_destroy(canvas);
+	mg_surface_destroy(surface);
+	mp_window_destroy(window);
 	mp_terminate();
 
 	return(0);
