@@ -9,6 +9,7 @@
 #include"graphics_internal.h"
 #include"macro_helpers.h"
 #include"glsl_shaders.h"
+#include"gl_api.h"
 
 #define LOG_SUBSYSTEM "Graphics"
 

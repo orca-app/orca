@@ -39,9 +39,7 @@
 #include"graphics.h"
 
 #if defined(OS_WIN64)
-	#define WIN32_GL_LOADER_API
-	#include"wgl_loader.h"
-	#undef WIN32_GL_LOADER_API
+	#include"gl_api.h"
 #endif
 
 //#include"ui.h"

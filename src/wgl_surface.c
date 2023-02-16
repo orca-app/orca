@@ -6,11 +6,33 @@
 *	@revision:
 *
 *****************************************************************/
-#define WGL_LOADER_IMPL
-#include"wgl_loader.h"
 #include"win32_app.h"
-
 #include"graphics_internal.h"
+#include"gl_loader.h"
+
+#include<GL/wglext.h>
+#include"macro_helpers.h"
+
+#define WGL_PROC_LIST \
+	WGL_PROC(WGLCHOOSEPIXELFORMATARB, wglChoosePixelFormatARB) \
+	WGL_PROC(WGLCREATECONTEXTATTRIBSARB, wglCreateContextAttribsARB) \
+	WGL_PROC(WGLMAKECONTEXTCURRENTARB, wglMakeContextCurrentARB) \
+	WGL_PROC(WGLSWAPINTERVALEXT, wglSwapIntervalEXT) \
+
+//NOTE: wgl function pointers declarations
+#define WGL_PROC(type, name) _cat3_(PFN, type, PROC) name = 0;
+	WGL_PROC_LIST
+#undef WGL_PROC
+
+//NOTE: wgl loader
+static void wgl_load_procs()
+{
+	#define WGL_PROC(type, name) name = (_cat3_(PFN, type, PROC))wglGetProcAddress( #name );
+		WGL_PROC_LIST
+	#undef WGL_PROC
+}
+#undef WGL_PROC_LIST
+
 
 typedef struct mg_wgl_surface
 {
@@ -21,6 +43,9 @@ typedef struct mg_wgl_surface
 	HGLRC glContext;
 	vec2 contentsScaling;
 
+	//NOTE: this may be a bit wasteful to have one api struct per surface, but win32 docs says that loading procs
+	//      from different contexts might select different implementations (eg. depending on context version/pixel format)
+	mg_gl_api api;
 } mg_wgl_surface;
 
 void mg_wgl_surface_destroy(mg_surface_data* interface)
@@ -40,6 +65,7 @@ void mg_wgl_surface_prepare(mg_surface_data* interface)
 	mg_wgl_surface* surface = (mg_wgl_surface*)interface;
 
 	wglMakeCurrent(surface->hDC, surface->glContext);
+	mg_gl_select_api(&surface->api);
 }
 
 void mg_wgl_surface_present(mg_surface_data* interface)
@@ -73,6 +99,22 @@ mp_rect mg_wgl_surface_get_frame(mg_surface_data* interface)
 	               (rect.right - rect.left)/scale.x,
 	               (rect.bottom - rect.top)/scale.y};
 	return(res);
+}
+
+void* mg_wgl_get_proc(const char* name)
+{
+	void* p = wglGetProcAddress(name);
+	if(  p == 0
+	  || p == (void*)0x01
+	  || p == (void*)0x02
+	  || p == (void*)0x03
+	  || p == (void*)(-1))
+	{
+		//TODO: should we avoid re-loading every time?
+		HMODULE module = LoadLibrary("opengl32.dll");
+		p = (void*)GetProcAddress(module, name);
+	}
+	return(p);
 }
 
 mg_surface mg_wgl_surface_create_for_window(mp_window window)
@@ -135,34 +177,8 @@ mg_surface mg_wgl_surface_create_for_window(mp_window window)
 		HGLRC dummyGLContext = wglCreateContext(dummyDC);
 		wglMakeCurrent(dummyDC, dummyGLContext);
 
-		//NOTE(martin): now load extension functions
-		/*
-		wglChoosePixelFormatARB = (PFNWGLCHOOSEPIXELFORMATARBPROC)wglGetProcAddress("wglChoosePixelFormatARB");
-		wglCreateContextAttribsARB = (PFNWGLCREATECONTEXTATTRIBSARBPROC)wglGetProcAddress("wglCreateContextAttribsARB");
-		wglMakeContextCurrentARB = (PFNWGLMAKECONTEXTCURRENTARBPROC)wglGetProcAddress("wglMakeContextCurrentARB");
-		wglSwapIntervalEXT = (PFNWGLSWAPINTERVALEXTPROC)wglGetProcAddress("wglSwapIntervalEXT");
-
-		glCreateShader = (PFNGLCREATESHADERPROC)wglGetProcAddress("glCreateShader");
-		glCreateProgram = (PFNGLCREATEPROGRAMPROC)wglGetProcAddress("glCreateProgram");
-		glAttachShader = (PFNGLATTACHSHADERPROC)wglGetProcAddress("glAttachShader");
-		glShaderSource = (PFNGLSHADERSOURCEPROC)wglGetProcAddress("glShaderSource");
-		glCompileShader = (PFNGLCOMPILESHADERPROC)wglGetProcAddress("glCompileShader");
-		glGetShaderiv = (PFNGLGETSHADERIVPROC)wglGetProcAddress("glGetShaderiv");
-		glGetShaderInfoLog = (PFNGLGETSHADERINFOLOGPROC)wglGetProcAddress("glGetShaderInfoLog");
-		glLinkProgram = (PFNGLLINKPROGRAMPROC)wglGetProcAddress("glLinkProgram");
-		glGetProgramiv = (PFNGLGETPROGRAMIVPROC)wglGetProcAddress("glGetProgramiv");
-		glGetProgramInfoLog = (PFNGLGETPROGRAMINFOLOGPROC)wglGetProcAddress("glGetProgramInfoLog");
-		glUseProgram = (PFNGLUSEPROGRAMPROC)wglGetProcAddress("glUseProgram");
-		glGenVertexArrays = (PFNGLGENVERTEXARRAYSPROC)wglGetProcAddress("glGenVertexArrays");
-		glBindVertexArray = (PFNGLBINDVERTEXARRAYPROC)wglGetProcAddress("glBindVertexArray");
-		glGenBuffers = (PFNGLGENBUFFERSPROC)wglGetProcAddress("glGenBuffers");
-		glBindBuffer = (PFNGLBINDBUFFERPROC)wglGetProcAddress("glBindBuffer");
-		glBufferData = (PFNGLBUFFERDATAPROC)wglGetProcAddress("glBufferData");
-		glUniformMatrix4fv = (PFNGLUNIFORMMATRIX4FVPROC)wglGetProcAddress("glUniformMatrix4fv");
-		glVertexAttribPointer = (PFNGLVERTEXATTRIBPOINTERPROC)wglGetProcAddress("glVertexAttribPointer");
-		glEnableVertexAttribArray = (PFNGLENABLEVERTEXATTRIBARRAYPROC)wglGetProcAddress("glEnableVertexAttribArray");
-		*/
-		mp_gl_load_procs();
+		//NOTE(martin): now load WGL extension functions
+		wgl_load_procs();
 
 		//NOTE(martin): now create the true pixel format and gl context
 		int pixelFormatAttrs[] = {
@@ -210,8 +226,9 @@ mg_surface mg_wgl_surface_create_for_window(mp_window window)
 		wglMakeCurrent(hDC, glContext);
 		wglSwapIntervalEXT(1);
 
-		//TODO save important info in surface_data and return a handle
+		//NOTE: fill surface data and load api
 		mg_wgl_surface* surface = malloc_type(mg_wgl_surface);
+
 		surface->interface.backend = MG_BACKEND_GL;
 		surface->interface.destroy = mg_wgl_surface_destroy;
 		surface->interface.prepare = mg_wgl_surface_prepare;
@@ -219,14 +236,16 @@ mg_surface mg_wgl_surface_create_for_window(mp_window window)
 		surface->interface.swapInterval = mg_wgl_surface_swap_interval;
 		surface->interface.contentsScaling = mg_wgl_contents_scaling;
 		surface->interface.getFrame = mg_wgl_surface_get_frame;
-
 		//TODO: get/set frame/hidden
+
 		surface->hWnd = windowData->win32.hWnd;
 		surface->hDC = hDC;
 		surface->glContext = glContext;
 
 		u32 dpi = GetDpiForWindow(windowData->win32.hWnd);
 		surface->contentsScaling = (vec2){(float)dpi/96., (float)dpi/96.};
+
+		 mg_gl_load_gl43(&surface->api, mg_wgl_get_proc);
 
 		surfaceHandle = mg_surface_alloc_handle((mg_surface_data*)surface);
 	}

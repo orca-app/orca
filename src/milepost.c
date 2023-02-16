@@ -58,6 +58,7 @@
 	#if MG_COMPILE_BACKEND_GL
 		#include"wgl_surface.c"
 		#include"gl_canvas.c"
+		#include"gl_loader.c"
 	#endif
 
 #elif defined(OS_MACOS)
