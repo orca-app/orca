@@ -18,6 +18,12 @@ Overview
 	[ ] Baked fonts?
 
 [ ] Allow different versions of GL to co-exist
+	- we can load GL (4.1 or 4.3) or GLES (3.1 or 3.2) functions
+	- surface creation function chooses a loader function
+	- loader function fills api struct or return pointer to already filled api struct
+	- surface prepare function sets the proper api struct
+
+
 [?] Backport canvas to GLES
 
 [ ] Back surface by child windows and implement moving frame/hiding/overlay
