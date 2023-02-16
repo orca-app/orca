@@ -83,7 +83,8 @@ f = open(apiPath, 'w')
 emit_doc(f, apiName, '.h')
 emit_begin_guard(f, apiName)
 
-f.write('#include"GL/glcorearb.h"\n\n')
+f.write('#include"GL/glcorearb.h"\n')
+f.write('#include"GLES3/gl32.h"\n\n')
 
 # generate interface struct
 f.write('typedef struct mg_gl\n{\n')
@@ -95,7 +96,7 @@ f.write('} mg_gl;\n\n')
 f.write('extern mp_thread_local mg_gl* __mgGLAPI;\n\n');
 
 # generate interface macros
-
+# TODO guard for different api/versions and only #define functions present in desired version
 for func in glall:
 	f.write('#define ' + func + ' __mgGLAPI->' + remove_prefix(func, 'gl') + '\n')
 
