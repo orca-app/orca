@@ -18,9 +18,6 @@
 
 #define LOG_SUBSYSTEM "Main"
 
-
-mg_surface mg_gles_surface_create_for_window(mp_window window);
-
 unsigned int program;
 
 const char* vshaderSource =
@@ -72,7 +69,7 @@ int main()
 	mp_window window = mp_window_create(rect, "test", 0);
 
 	//NOTE: create surface
-	mg_surface surface = mg_gles_surface_create_for_window(window);
+	mg_surface surface = mg_surface_create_for_window(window, MG_BACKEND_GLES);
 
 	//NOTE: init shader and gl state
 	GLuint vao;
@@ -204,8 +201,6 @@ int main()
  		static float alpha = 0;
 		//f32 aspect = frameSize.x/frameSize.y;
 		f32 aspect = 800/(f32)600;
-
-		glViewport(0, 0, 800, 600);
 
    		GLfloat matrix[] = {cosf(alpha)/aspect, sinf(alpha), 0, 0,
     	                  		-sinf(alpha)/aspect, cosf(alpha), 0, 0,

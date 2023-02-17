@@ -12,6 +12,7 @@
 #define _USE_MATH_DEFINES //NOTE: necessary for MSVC
 #include<math.h>
 
+#define MG_INCLUDE_GL_API
 #include"milepost.h"
 
 #define LOG_SUBSYSTEM "Main"
@@ -67,9 +68,11 @@ int main()
 	mp_window window = mp_window_create(rect, "test", 0);
 
 	//NOTE: create surface
-	mg_surface surface = mg_gl_surface_create_for_window(window);
+	mg_surface surface = mg_surface_create_for_window(window, MG_BACKEND_GL);
 
 	//NOTE: init shader and gl state
+	mg_surface_prepare(surface);
+
 	GLuint vao;
 	glGenVertexArrays(1, &vao);
 	glBindVertexArray(vao);
@@ -123,69 +126,6 @@ int main()
 					mp_request_quit();
 				} break;
 
-				case MP_EVENT_WINDOW_RESIZE:
-				{
-					printf("resized, rect = {%f, %f, %f, %f}\n",
-					       event.frame.rect.x,
-					       event.frame.rect.y,
-					       event.frame.rect.w,
-					       event.frame.rect.h);
-				} break;
-
-				case MP_EVENT_WINDOW_MOVE:
-				{
-					printf("moved, rect = {%f, %f, %f, %f}\n",
-					       event.frame.rect.x,
-					       event.frame.rect.y,
-					       event.frame.rect.w,
-					       event.frame.rect.h);
-				} break;
-
-				case MP_EVENT_MOUSE_MOVE:
-				{
-					printf("mouse moved, pos = {%f, %f}, delta = {%f, %f}\n",
-					       event.move.x,
-					       event.move.y,
-					       event.move.deltaX,
-					       event.move.deltaY);
-				} break;
-
-				case MP_EVENT_MOUSE_WHEEL:
-				{
-					printf("mouse wheel, delta = {%f, %f}\n",
-					       event.move.deltaX,
-					       event.move.deltaY);
-				} break;
-
-				case MP_EVENT_MOUSE_ENTER:
-				{
-					printf("mouse enter\n");
-				} break;
-
-				case MP_EVENT_MOUSE_LEAVE:
-				{
-					printf("mouse leave\n");
-				} break;
-
-				case MP_EVENT_MOUSE_BUTTON:
-				{
-					printf("mouse button %i: %i\n",
-					       event.key.code,
-					       event.key.action == MP_KEY_PRESS ? 1 : 0);
-				} break;
-
-				case MP_EVENT_KEYBOARD_KEY:
-				{
-					printf("key %i: %s\n",
-					        event.key.code,
-					        event.key.action == MP_KEY_PRESS ? "press" : (event.key.action == MP_KEY_RELEASE ? "release" : "repeat"));
-				} break;
-
-				case MP_EVENT_KEYBOARD_CHAR:
-				{
-					printf("entered char %s\n", event.character.sequence);
-				} break;
-
 				default:
 					break;
 			}
@@ -199,8 +139,6 @@ int main()
  		static float alpha = 0;
 		//f32 aspect = frameSize.x/frameSize.y;
 		f32 aspect = 800/(f32)600;
-
-		glViewport(0, 0, 800, 600);
 
    		GLfloat matrix[] = {cosf(alpha)/aspect, sinf(alpha), 0, 0,
     	                  		-sinf(alpha)/aspect, cosf(alpha), 0, 0,

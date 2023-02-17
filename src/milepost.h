@@ -39,7 +39,9 @@
 #include"graphics.h"
 
 #if defined(OS_WIN64)
-	#include"gl_api.h"
+	#ifdef MG_INCLUDE_GL_API
+		#include"gl_api.h"
+	#endif
 #endif
 
 //#include"ui.h"

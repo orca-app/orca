@@ -55,10 +55,17 @@
 	#include"win32_app.c"
 	#include"graphics.c"
 
+	#if MG_COMPILE_BACKEND_GL || MG_COMPILE_BACKEND_GLES
+		#include"gl_loader.c"
+	#endif
+
 	#if MG_COMPILE_BACKEND_GL
 		#include"wgl_surface.c"
 		#include"gl_canvas.c"
-		#include"gl_loader.c"
+	#endif
+
+	#if MG_COMPILE_BACKEND_GLES
+		#include"egl_surface.c"
 	#endif
 
 #elif defined(OS_MACOS)

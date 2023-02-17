@@ -46,6 +46,10 @@ typedef enum {
 		#define MG_COMPILE_BACKEND_GL 1
 	#endif
 
+	#ifndef MG_COMPILE_BACKEND_GLES
+		#define MG_COMPILE_BACKEND_GLES 1
+	#endif
+
 	#if MG_COMPILE_BACKEND_GL
 		#define MG_BACKEND_DEFAULT MG_BACKEND_GL
 	#else

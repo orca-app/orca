@@ -5,7 +5,7 @@
 *	@date: 16/022023
 *
 /********************************************************/
-#include"gl_api.h"
+#include"gl_loader.h"
 #include"platform.h"
 
 mp_thread_local mg_gl_api* __mgGLAPI = 0;
@@ -1719,4 +1719,3 @@ void mg_gl_load_gles32(mg_gl_api* api, mg_gl_load_proc loadProc)
 }
 
 void mg_gl_select_api(mg_gl_api* api){ __mgGLAPI = api; }
-

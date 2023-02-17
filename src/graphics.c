@@ -302,6 +302,10 @@ mg_font_data* mg_font_data_from_handle(mg_font font)
 	#endif
 #endif
 
+#if MG_COMPILE_BACKEND_GLES
+	#include"egl_surface.h"
+#endif
+
 #if MG_COMPILE_BACKEND_METAL
 	#include"mtl_surface.h"
 #endif
@@ -358,6 +362,12 @@ mg_surface mg_surface_create_for_window(mp_window window, mg_backend_id backend)
 	#if MG_COMPILE_BACKEND_GL
 		case MG_BACKEND_GL:
 			surface = gl_surface_create_for_window(window);
+			break;
+	#endif
+
+	#if MG_COMPILE_BACKEND_GLES
+		case MG_BACKEND_GLES:
+			surface = mg_egl_surface_create_for_window(window);
 			break;
 	#endif
 
