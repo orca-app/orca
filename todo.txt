@@ -23,13 +23,18 @@ Overview
 
 [/] Keep dummy window/dummy context around for gl context creation, and don't reload wgl functions every time
 
-[>] Reintroduce GLES surface
+[.] Reintroduce GLES surface
+	[ ] See how we can isolate platform-specific stuff and just deal with egl there..
+
 [>] Back surface by child windows and implement moving frame/hiding/overlay
+
 [>] Check that we can make GLES and GL surfaces co-exist in the app
 
 [?] Backport canvas to GLES
 
-
+[!] Fix canvas shader precision issue on OSX
+[!] Fix canvas perf issue on OSX
+[!] osx: Remove need to include objc defs from osx_app.h in egl impl. Also properly guard angle backend attribute (must be metal on osx and default on win32)
 
 [ ] Delegated drawing API+Impl
 

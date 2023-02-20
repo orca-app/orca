@@ -38,10 +38,8 @@
 #include"mp_app.h"
 #include"graphics.h"
 
-#if defined(OS_WIN64)
-	#ifdef MG_INCLUDE_GL_API
-		#include"gl_api.h"
-	#endif
+#ifdef MG_INCLUDE_GL_API
+	#include"gl_api.h"
 #endif
 
 //#include"ui.h"

@@ -12,7 +12,7 @@
 #include"graphics.h"
 
 #ifdef __OBJC__
-	#import<Mtl/Metal.h>
+	#import<Metal/Metal.h>
 #endif
 
 mg_surface mg_mtl_surface_create_for_window(mp_window window);

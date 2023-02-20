@@ -148,5 +148,6 @@ typedef struct mp_app
 	MP_PLATFORM_APP_DATA
 } mp_app;
 
+mp_window_data* mp_window_ptr_from_handle(mp_window handle);
 
 #endif // __MP_APP_INTERNAL_H_

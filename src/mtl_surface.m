@@ -197,7 +197,7 @@ mg_surface mg_mtl_surface_create_for_window(mp_window window)
 		mg_mtl_surface* surface = (mg_mtl_surface*)malloc(sizeof(mg_mtl_surface));
 
 		//NOTE(martin): setup interface functions
-		surface->interface.backend = MG_BACKEND_MTL;
+		surface->interface.backend = MG_BACKEND_METAL;
 		surface->interface.destroy = mg_mtl_surface_destroy;
 		surface->interface.prepare = mg_mtl_surface_prepare;
 		surface->interface.present = mg_mtl_surface_present;
@@ -222,7 +222,7 @@ mg_surface mg_mtl_surface_create_for_window(mp_window window)
 			//-----------------------------------------------------------
 			surface->device = MTLCreateSystemDefaultDevice();
 			[surface->device retain];
-			surface->mtlLayer = [CAMtlLayer layer];
+			surface->mtlLayer = [CAMetalLayer layer];
 			[surface->mtlLayer retain];
 			[surface->mtlLayer setOpaque:NO];
 
@@ -266,7 +266,7 @@ mg_surface mg_mtl_surface_create_for_window(mp_window window)
 void* mg_mtl_surface_layer(mg_surface surface)
 {
 	mg_surface_data* surfaceData = mg_surface_data_from_handle(surface);
-	if(surfaceData && surfaceData->backend == MG_BACKEND_MTL)
+	if(surfaceData && surfaceData->backend == MG_BACKEND_METAL)
 	{
 		mg_mtl_surface* mtlSurface = (mg_mtl_surface*)surfaceData;
 		return(mtlSurface->mtlLayer);
@@ -280,7 +280,7 @@ void* mg_mtl_surface_layer(mg_surface surface)
 void* mg_mtl_surface_drawable(mg_surface surface)
 {
 	mg_surface_data* surfaceData = mg_surface_data_from_handle(surface);
-	if(surfaceData && surfaceData->backend == MG_BACKEND_MTL)
+	if(surfaceData && surfaceData->backend == MG_BACKEND_METAL)
 	{
 		mg_mtl_surface* mtlSurface = (mg_mtl_surface*)surfaceData;
 		return(mtlSurface->drawable);
@@ -294,7 +294,7 @@ void* mg_mtl_surface_drawable(mg_surface surface)
 void* mg_mtl_surface_command_buffer(mg_surface surface)
 {
 	mg_surface_data* surfaceData = mg_surface_data_from_handle(surface);
-	if(surfaceData && surfaceData->backend == MG_BACKEND_MTL)
+	if(surfaceData && surfaceData->backend == MG_BACKEND_METAL)
 	{
 		mg_mtl_surface* mtlSurface = (mg_mtl_surface*)surfaceData;
 		return(mtlSurface->commandBuffer);

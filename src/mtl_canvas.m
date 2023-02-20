@@ -91,7 +91,7 @@ void mg_mtl_canvas_draw_batch(mg_canvas_backend* interface, u32 vertexCount, u32
 
 		ASSERT(indexCount * sizeof(i32) < [backend->indexBuffer length]);
 
-		f32 scale = surface->metalLayer.contentsScale;
+		f32 scale = surface->mtlLayer.contentsScale;
 		vector_uint2  viewportSize = {backend->viewPort.w * scale, backend->viewPort.h * scale};
 
 		//-----------------------------------------------------------
@@ -218,7 +218,7 @@ void mg_mtl_canvas_viewport(mg_canvas_backend* interface, mp_rect viewPort)
 
 	@autoreleasepool
 	{
-		f32 scale = surface->metalLayer.contentsScale;
+		f32 scale = surface->mtlLayer.contentsScale;
 		CGSize drawableSize = (CGSize){.width = viewPort.w * scale, .height = viewPort.h * scale};
 
 		[backend->outTexture release];
@@ -249,8 +249,8 @@ void mg_mtl_canvas_update_vertex_layout(mg_mtl_canvas_backend* backend)
 	        .cubicStride = sizeof(mg_vertex),
 	        .posBuffer = vertexBase + offsetof(mg_vertex, pos),
 	        .posStride = sizeof(mg_vertex),
-	        .zIndexBuffer = vertexBase + offsetof(mg_vertex, zIndex),
-	        .zIndexStride = sizeof(mg_vertex),
+	        .shapeIndexBuffer = vertexBase + offsetof(mg_vertex, shapeIndex),
+	        .shapeIndexStride = sizeof(mg_vertex),
 
 	        .colorBuffer = shapeBase + offsetof(mg_shape, color),
 	        .colorStride = sizeof(mg_shape),
@@ -316,7 +316,7 @@ mg_canvas_backend* mg_mtl_canvas_create(mg_surface surface)
 
 		@autoreleasepool
 		{
-			f32 scale = metalSurface->metalLayer.contentsScale;
+			f32 scale = metalSurface->mtlLayer.contentsScale;
 			CGSize drawableSize = (CGSize){.width = backend->viewPort.w * scale, .height = backend->viewPort.h * scale};
 
 			//-----------------------------------------------------------
@@ -446,7 +446,7 @@ mg_canvas_backend* mg_mtl_canvas_create(mg_surface surface)
 			pipelineStateDescriptor.label = @"My simple pipeline";
 			pipelineStateDescriptor.vertexFunction = vertexFunction;
 			pipelineStateDescriptor.fragmentFunction = fragmentFunction;
-			pipelineStateDescriptor.colorAttachments[0].pixelFormat = metalSurface->metalLayer.pixelFormat;
+			pipelineStateDescriptor.colorAttachments[0].pixelFormat = metalSurface->mtlLayer.pixelFormat;
 
 			// create render pipeline
 			backend->renderPipeline = [metalSurface->device newRenderPipelineStateWithDescriptor: pipelineStateDescriptor error:&err];

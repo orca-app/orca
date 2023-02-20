@@ -11,6 +11,7 @@
 
 #include"typedefs.h"
 #include"platform.h"
+#include"mp_app.h"
 
 //------------------------------------------------------------------------------------------
 //NOTE(martin): backends selection
@@ -29,9 +30,11 @@ typedef enum {
 		#define MG_COMPILE_BACKEND_METAL 1
 	#endif
 
-	#ifndef MG_COMPILE_BACKEND_GL
-		#define MG_COMPILE_BACKEND_GL 1
+	#ifndef MG_COMPILE_BACKEND_GLES
+		#define MG_COMPILE_BACKEND_GLES 1
 	#endif
+
+	#define MG_COMPILE_BACKEND_GL 0
 
 	#if MG_COMPILE_BACKEND_METAL
 		#define MG_BACKEND_DEFAULT MG_BACKEND_METAL

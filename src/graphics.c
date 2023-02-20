@@ -372,7 +372,7 @@ mg_surface mg_surface_create_for_window(mp_window window, mg_backend_id backend)
 	#endif
 
 	#if MG_COMPILE_BACKEND_METAL
-		case MG_METAL_BACKEND:
+		case MG_BACKEND_METAL:
 			surface = mg_mtl_surface_create_for_window(window);
 			break;
 	#endif
@@ -2656,11 +2656,11 @@ mp_rect mg_text_bounding_box(mg_font font, f32 fontSize, str8 text)
 //NOTE(martin): graphics canvas API
 //------------------------------------------------------------------------------------------
 
-#ifdef MG_COMPILE_BACKEND_METAL
+#if MG_COMPILE_BACKEND_METAL
 	mg_canvas_backend* mg_mtl_canvas_create(mg_surface surface);
 #endif
 
-#ifdef MG_COMPILE_BACKEND_GL
+#if MG_COMPILE_BACKEND_GL
 	mg_canvas_backend* mg_gl_canvas_create(mg_surface surface);
 #endif
 
@@ -2673,13 +2673,13 @@ mg_canvas mg_canvas_create(mg_surface surface)
 		mg_canvas_backend* backend = 0;
 		switch(surfaceData->backend)
 		{
-		#ifdef MG_COMPILE_BACKEND_METAL
+		#if MG_COMPILE_BACKEND_METAL
 			case MG_BACKEND_METAL:
 				backend = mg_mtl_canvas_create(surface);
 				break;
 		#endif
 
-		#ifdef MG_COMPILE_BACKEND_GL
+		#if MG_COMPILE_BACKEND_GL
 			case MG_BACKEND_GL:
 				backend = mg_gl_canvas_create(surface);
 				break;

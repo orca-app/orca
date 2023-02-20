@@ -8,11 +8,16 @@
 *****************************************************************/
 
 #include"osx_app.m"
-#include"graphics.h"
+#include"graphics.c"
 
 #if MG_COMPILE_BACKEND_METAL
 	#include"mtl_surface.m"
 	#include"mtl_canvas.m"
+#endif
+
+#if MG_COMPILE_BACKEND_GLES
+	#include"gl_loader.c"
+	#include"egl_surface.c"
 #endif
 
 /*

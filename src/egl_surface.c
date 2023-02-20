@@ -11,6 +11,7 @@
 #include<EGL/egl.h>
 #include<EGL/eglext.h>
 
+#include"mp_app_internal.h"
 #include"graphics_internal.h"
 #include"gl_loader.h"
 
@@ -34,7 +35,7 @@ typedef struct mg_egl_surface
 
 void* mg_egl_get_native_surface(mp_window_data* window)
 {
-	return((void*)window->osx.nsView);
+	return((void*)window->osx.nsView.layer);
 }
 #elif OS_WIN64
 #include"win32_app.h"
@@ -94,10 +95,20 @@ mg_surface mg_egl_surface_create_for_window(mp_window window)
 
 		surface->nativeSurface = mg_egl_get_native_surface(windowData);
 
-		EGLAttrib displayAttribs[] = {
-			EGL_PLATFORM_ANGLE_TYPE_ANGLE, EGL_PLATFORM_ANGLE_TYPE_DEFAULT_ANGLE,
-	    	EGL_PLATFORM_ANGLE_DEVICE_TYPE_ANGLE, EGL_PLATFORM_ANGLE_DEVICE_TYPE_HARDWARE_ANGLE,
-	    	EGL_NONE};
+
+		#if OS_MACOS
+			//NOTE: we need to explicitly set EGL_PLATFORM_ANGLE_TYPE_ANGLE to EGL_PLATFORM_ANGLE_TYPE_METAL_ANGLE, because
+			// EGL_PLATFORM_ANGLE_TYPE_DEFAULT_ANGLE defaults to using CGL, and eglSetSwapInterval is broken for this backend
+			EGLAttrib displayAttribs[] = {
+				EGL_PLATFORM_ANGLE_TYPE_ANGLE, EGL_PLATFORM_ANGLE_TYPE_METAL_ANGLE,
+	    		EGL_PLATFORM_ANGLE_DEVICE_TYPE_ANGLE, EGL_PLATFORM_ANGLE_DEVICE_TYPE_HARDWARE_ANGLE,
+	    		EGL_NONE};
+		#else
+			EGLAttrib displayAttribs[] = {
+				EGL_PLATFORM_ANGLE_TYPE_ANGLE, EGL_PLATFORM_ANGLE_TYPE_DEFAULT_ANGLE,
+	    		EGL_PLATFORM_ANGLE_DEVICE_TYPE_ANGLE, EGL_PLATFORM_ANGLE_DEVICE_TYPE_HARDWARE_ANGLE,
+	    		EGL_NONE};
+	    #endif
 
 		surface->eglDisplay = eglGetPlatformDisplay(EGL_PLATFORM_ANGLE_ANGLE, (void*)EGL_DEFAULT_DISPLAY, displayAttribs);
 		eglInitialize(surface->eglDisplay, NULL, NULL);
@@ -124,7 +135,7 @@ mg_surface mg_egl_surface_create_for_window(mp_window window)
 		eglBindAPI(EGL_OPENGL_ES_API);
 		EGLint contextAttributes[] = {
 			EGL_CONTEXT_MAJOR_VERSION_KHR, 3,
-			EGL_CONTEXT_MINOR_VERSION_KHR, 1,
+			EGL_CONTEXT_MINOR_VERSION_KHR, 0,
 			EGL_CONTEXT_BIND_GENERATES_RESOURCE_CHROMIUM, EGL_TRUE,
 			EGL_CONTEXT_CLIENT_ARRAYS_ENABLED_ANGLE, EGL_TRUE,
 			EGL_CONTEXT_OPENGL_BACKWARDS_COMPATIBLE_ANGLE, EGL_FALSE,

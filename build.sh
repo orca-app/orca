@@ -42,7 +42,7 @@ BINDIR="./bin"
 SRCDIR="./src"
 EXTDIR="./ext"
 RESDIR="./resources"
-INCLUDES="-I$SRCDIR -I$SRCDIR/util -I$SRCDIR/platform -I$EXTDIR/angle_headers"
+INCLUDES="-I$SRCDIR -I$SRCDIR/util -I$SRCDIR/platform -I$EXTDIR -I$EXTDIR/angle_headers"
 
 #--------------------------------------------------------------
 # Build
@@ -55,8 +55,8 @@ fi
 if [ $target = 'lib' ] ; then
 
 	# compile metal shader
-	xcrun -sdk macosx metal $shaderFlagParam -c -o $BINDIR/metal_shader.air $SRCDIR/metal_shader.metal
-	xcrun -sdk macosx metallib -o $RESDIR/metal_shader.metallib $BINDIR/metal_shader.air
+	xcrun -sdk macosx metal $shaderFlagParam -c -o $BINDIR/mtl_shader.air $SRCDIR/mtl_shader.metal
+	xcrun -sdk macosx metallib -o $RESDIR/mtl_shader.metallib $BINDIR/mtl_shader.air
 
 	# compile milepost. We use one compilation unit for all C code, and one compilation
 	# unit for all ObjectiveC code

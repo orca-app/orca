@@ -52,7 +52,7 @@ mg_font create_font()
 
 int main()
 {
-	LogLevel(LOG_LEVEL_DEBUG);
+	LogLevel(LOG_LEVEL_WARNING);
 
 	mp_init();
 	mp_clock_init(); //TODO put that in mp_init()?

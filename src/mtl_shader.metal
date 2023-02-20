@@ -57,11 +57,9 @@ kernel void BoundingBoxKernel(constant mg_vertex* vertexBuffer [[buffer(0)]],
 	float2 boxMax = max(max(p0, p1), p2);
 
 	//NOTE(martin): clip bounding box against clip rect
-	int shapeIndex = vertexBuffer[i0].zIndex;
+	int shapeIndex = vertexBuffer[i0].shapeIndex;
 
 	vector_float4 clip = contentsScaling[0]*shapeBuffer[shapeIndex].clip;
-	float2 clipMin(clip.x, clip.y);
-	float2 clipMax(clip.x + clip.z-1, clip.y + clip.w-1);
 
 	//NOTE(martin): intersect with current clip
 	boxMin = max(boxMin, clip.xy);
@@ -86,7 +84,7 @@ kernel void BoundingBoxKernel(constant mg_vertex* vertexBuffer [[buffer(0)]],
 	//NOTE(martin): fill triangle data
 	boxArray[triangleIndex] = float4(boxMin.x, boxMin.y, boxMax.x, boxMax.y);
 
-	triangleArray[triangleIndex].zIndex = shapeIndex;
+	triangleArray[triangleIndex].shapeIndex = shapeIndex;
 	triangleArray[triangleIndex].i0 = i0;
 	triangleArray[triangleIndex].i1 = i1;
 	triangleArray[triangleIndex].i2 = i2;
@@ -140,13 +138,13 @@ kernel void SortKernel(const device uint* tileCounters [[buffer(0)]],
 	for(int eltIndex=0; eltIndex < (int)tileBufferSize; eltIndex++)
 	{
 		uint elt = tileBuffer[eltIndex];
-		uint eltZIndex = triangleArray[elt].zIndex;
+		uint eltZIndex = triangleArray[elt].shapeIndex;
 
 		int backIndex = eltIndex-1;
 		for(; backIndex >= 0; backIndex--)
 		{
 			uint backElt = tileBuffer[backIndex];
-			uint backEltZIndex = triangleArray[backElt].zIndex;
+			uint backEltZIndex = triangleArray[backElt].shapeIndex;
 			if(eltZIndex >= backEltZIndex)
 			{
 				break;
@@ -278,12 +276,12 @@ kernel void RenderKernel(texture2d<float, access::write> outTexture [[texture(0)
 		float4 cubic1 = v1->cubic;
 		float4 cubic2 = v2->cubic;
 
-		int zIndex = v0->zIndex;
-		float4 color = shapeBuffer[zIndex].color;
+		int shapeIndex = v0->shapeIndex;
+		float4 color = shapeBuffer[shapeIndex].color;
 
 		/////////////////////////////////////////////////////////////////////////
 		//TODO: dummy uv while we figure out image handling.
-		float2 uv0 = shapeBuffer[zIndex].uv;
+		float2 uv0 = shapeBuffer[shapeIndex].uv;
 		float2 uv1 = uv0;
 		float2 uv2 = uv0;
 		/////////////////////////////////////////////////////////////////////////
@@ -322,7 +320,7 @@ kernel void RenderKernel(texture2d<float, access::write> outTexture [[texture(0)
 				float eps = 0.0001;
 				if(cubic.w*(cubic.x*cubic.x*cubic.x - cubic.y*cubic.z) <= eps)
 				{
-					if(zIndex == zIndices[i])
+					if(shapeIndex == zIndices[i])
 					{
 						flipCounts[i]++;
 					}
@@ -336,7 +334,7 @@ kernel void RenderKernel(texture2d<float, access::write> outTexture [[texture(0)
 						float4 nextCol = color*texColor;
 						nextColors[i] = pixelColors[i]*(1-nextCol.a) +nextCol.a*nextCol;
 
-						zIndices[i] = zIndex;
+						zIndices[i] = shapeIndex;
 						flipCounts[i] = 1;
 					}
 				}

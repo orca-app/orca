@@ -70,7 +70,6 @@
 
 #elif defined(OS_MACOS)
 	//NOTE: macos application layer and graphics backends are defined in milepost.m
-	#include"graphics.c"
 #else
 	#error "Unsupported platform"
 #endif

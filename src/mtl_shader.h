@@ -22,7 +22,7 @@ typedef struct mg_vertex
 {
 	vector_float4 cubic; // canonical implicit curve space coordinates
 	vector_float2 pos;   // position
-	int zIndex;
+	int shapeIndex;
 } mg_vertex;
 
 typedef struct mg_shape
@@ -38,7 +38,7 @@ typedef struct mg_triangle_data
 	uint i0;
 	uint i1;
 	uint i2;
-	uint zIndex;
+	uint shapeIndex;
 
 	vector_float2 p0;
 	vector_float2 p1;
