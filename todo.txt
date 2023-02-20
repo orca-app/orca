@@ -12,7 +12,7 @@ Overview
 	[ ] Baked fonts?
 
 [x] Allow different versions of GL/GLES to co-exist
-[>] Allow selecting version of GL/GLES context when creating surface
+[/] Allow selecting version of GL/GLES context when creating surface
 	- pass/set attributes when creating surface?
 
 [ ] Check that we can make GLES and GL surfaces co-exist in the app
@@ -24,10 +24,11 @@ Overview
 [/] Automatic surface resizing
 [/] Keep dummy window/dummy context around for gl context creation, and don't reload wgl functions every time
 
-[!] Sort out gles contents scaling for high dpi on osx
-[!] win32 surfaces: only register surface child window once?
 [!] Make linking with libEGL optional, even if EGL backend is compiled in milepost?
 [!] Bundle examples with their own resources?? (e.g. avoiding clashes in metal libs files in bin directory)
+
+[!] Sort out gles contents scaling for high dpi on osx
+[!] win32 surfaces: only register surface child window once?
 [!] Fix canvas shader precision issue on OSX
 [!] Fix canvas perf issue on OSX
 

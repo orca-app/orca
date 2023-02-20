@@ -20,17 +20,94 @@
 	WGL_PROC(WGLSWAPINTERVALEXT, wglSwapIntervalEXT) \
 
 //NOTE: wgl function pointers declarations
+
 #define WGL_PROC(type, name) _cat3_(PFN, type, PROC) name = 0;
 	WGL_PROC_LIST
 #undef WGL_PROC
 
 //NOTE: wgl loader
-static void wgl_load_procs()
+
+typedef struct wgl_dummy_context
 {
-	#define WGL_PROC(type, name) name = (_cat3_(PFN, type, PROC))wglGetProcAddress( #name );
-		WGL_PROC_LIST
-	#undef WGL_PROC
+	bool init;
+	HWND hWnd;
+	HDC hDC;
+	HGLRC glContext;
+
+} wgl_dummy_context;
+
+static wgl_dummy_context __mgWGLDummyContext = {0};
+
+static void wgl_init()
+{
+	if(!__mgWGLDummyContext.init)
+	{
+		//NOTE: create a dummy window
+		WNDCLASS windowClass = {.style = CS_OWNDC,
+		                        .lpfnWndProc = DefWindowProc,
+		                        .hInstance = GetModuleHandleW(NULL),
+		                        .lpszClassName = "wgl_helper_window_class",
+		                        .hCursor = LoadCursor(0, IDC_ARROW)};
+
+		if(!RegisterClass(&windowClass))
+		{
+			//TODO: error
+			goto quit;
+		}
+
+		__mgWGLDummyContext.hWnd = CreateWindow("wgl_helper_window_class",
+		                                        "dummy",
+		                                        WS_OVERLAPPEDWINDOW,
+	                                            0, 0, 100, 100,
+	                                            0, 0, windowClass.hInstance, 0);
+
+		if(!__mgWGLDummyContext.hWnd)
+		{
+			//TODO: error
+			goto quit;
+		}
+		__mgWGLDummyContext.hDC = GetDC(__mgWGLDummyContext.hWnd);
+
+		PIXELFORMATDESCRIPTOR pixelFormatDesc =
+		{
+			sizeof(PIXELFORMATDESCRIPTOR),
+			1,
+			PFD_DRAW_TO_WINDOW | PFD_SUPPORT_OPENGL | PFD_DOUBLEBUFFER,    // Flags
+			PFD_TYPE_RGBA,        // The kind of framebuffer. RGBA or palette.
+			32,                   // Colordepth of the framebuffer.
+			0, 0, 0, 0, 0, 0,
+			0,
+			0,
+			0,
+			0, 0, 0, 0,
+			24,                   // Number of bits for the depthbuffer
+			8,                    // Number of bits for the stencilbuffer
+			0,                    // Number of Aux buffers in the framebuffer.
+			PFD_MAIN_PLANE,
+			0,
+			0, 0, 0
+		};
+
+		int pixelFormat = ChoosePixelFormat(__mgWGLDummyContext.hDC, &pixelFormatDesc);
+		SetPixelFormat(__mgWGLDummyContext.hDC, pixelFormat, &pixelFormatDesc);
+
+		__mgWGLDummyContext.glContext = wglCreateContext(__mgWGLDummyContext.hDC);
+		wglMakeCurrent(__mgWGLDummyContext.hDC, __mgWGLDummyContext.glContext);
+
+		//NOTE(martin): now load WGL extension functions
+		#define WGL_PROC(type, name) name = (_cat3_(PFN, type, PROC))wglGetProcAddress( #name );
+			WGL_PROC_LIST
+		#undef WGL_PROC
+
+		__mgWGLDummyContext.init = true;
+	}
+	else
+	{
+		wglMakeCurrent(__mgWGLDummyContext.hDC, __mgWGLDummyContext.glContext);
+	}
+	quit:;
 }
+
 #undef WGL_PROC_LIST
 
 
@@ -177,61 +254,7 @@ mg_surface mg_wgl_surface_create_for_window(mp_window window)
 	mp_window_data* windowData = mp_window_ptr_from_handle(window);
 	if(windowData)
 	{
-		//NOTE: create a dummy window
-		WNDCLASS windowClass = {.style = CS_HREDRAW | CS_VREDRAW | CS_OWNDC,
-		                        .lpfnWndProc = WinProc,
-		                        .hInstance = GetModuleHandleW(NULL),
-		                        .lpszClassName = "HelperWindowClass",
-		                        .hCursor = LoadCursor(0, IDC_ARROW)};
-
-		if(!RegisterClass(&windowClass))
-		{
-			//TODO: error
-			goto quit;
-		}
-
-		HWND helperWindowHandle = CreateWindow("HelperWindowClass", "Test Window",
-	                                 	WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT,
-	                                 	800, 600,
-	                                 	0, 0, windowClass.hInstance, 0);
-
-		if(!helperWindowHandle)
-		{
-			//TODO: error
-			goto quit;
-		}
-
-		//NOTE(martin): create a dummy OpenGL context, to be able to load extensions
-		HDC dummyDC = GetDC(helperWindowHandle);
-
-		PIXELFORMATDESCRIPTOR pixelFormatDesc =
-		{
-			sizeof(PIXELFORMATDESCRIPTOR),
-			1,
-			PFD_DRAW_TO_WINDOW | PFD_SUPPORT_OPENGL | PFD_DOUBLEBUFFER,    // Flags
-			PFD_TYPE_RGBA,        // The kind of framebuffer. RGBA or palette.
-			32,                   // Colordepth of the framebuffer.
-			0, 0, 0, 0, 0, 0,
-			0,
-			0,
-			0,
-			0, 0, 0, 0,
-			24,                   // Number of bits for the depthbuffer
-			8,                    // Number of bits for the stencilbuffer
-			0,                    // Number of Aux buffers in the framebuffer.
-			PFD_MAIN_PLANE,
-			0,
-			0, 0, 0
-		};
-
-		int pixelFormat = ChoosePixelFormat(dummyDC, &pixelFormatDesc);
-		SetPixelFormat(dummyDC, pixelFormat, &pixelFormatDesc);
-
-		HGLRC dummyGLContext = wglCreateContext(dummyDC);
-		wglMakeCurrent(dummyDC, dummyGLContext);
-
-		//NOTE(martin): now load WGL extension functions
-		wgl_load_procs();
+		wgl_init();
 
 		//NOTE(martin): create a child window for the surface
 		WNDCLASS childWindowClass = {.style = CS_HREDRAW | CS_VREDRAW | CS_OWNDC,
@@ -258,7 +281,27 @@ mg_surface mg_wgl_surface_create_for_window(mp_window window)
 	                                 	       childWindowClass.hInstance,
 	                                 	       0);
 
-		//NOTE(martin): now create the true pixel format and gl context
+		//NOTE(martin): create the pixel format and gl context
+		PIXELFORMATDESCRIPTOR pixelFormatDesc =
+		{
+			sizeof(PIXELFORMATDESCRIPTOR),
+			1,
+			PFD_DRAW_TO_WINDOW | PFD_SUPPORT_OPENGL | PFD_DOUBLEBUFFER,    // Flags
+			PFD_TYPE_RGBA,        // The kind of framebuffer. RGBA or palette.
+			32,                   // Colordepth of the framebuffer.
+			0, 0, 0, 0, 0, 0,
+			0,
+			0,
+			0,
+			0, 0, 0, 0,
+			24,                   // Number of bits for the depthbuffer
+			8,                    // Number of bits for the stencilbuffer
+			0,                    // Number of Aux buffers in the framebuffer.
+			PFD_MAIN_PLANE,
+			0,
+			0, 0, 0
+		};
+
 		int pixelFormatAttrs[] = {
 			WGL_DRAW_TO_WINDOW_ARB, GL_TRUE,
 			WGL_SUPPORT_OPENGL_ARB, GL_TRUE,
@@ -271,6 +314,7 @@ mg_surface mg_wgl_surface_create_for_window(mp_window window)
 
 		HDC hDC = GetDC(childWindow);
 		u32 numFormats = 0;
+		int pixelFormat = 0;
 
 		wglChoosePixelFormatARB(hDC, pixelFormatAttrs, 0, 1, &pixelFormat, &numFormats);
 
@@ -286,7 +330,7 @@ mg_surface mg_wgl_surface_create_for_window(mp_window window)
 			WGL_CONTEXT_PROFILE_MASK_ARB, WGL_CONTEXT_CORE_PROFILE_BIT_ARB,
 			0};
 
-		HGLRC glContext = wglCreateContextAttribsARB(hDC, dummyGLContext, contextAttrs);
+		HGLRC glContext = wglCreateContextAttribsARB(hDC, __mgWGLDummyContext.glContext, contextAttrs);
 
 		if(!glContext)
 		{
@@ -294,11 +338,6 @@ mg_surface mg_wgl_surface_create_for_window(mp_window window)
 			int error = GetLastError();
 			printf("error: %i\n", error);
 		}
-
-		//NOTE: destroy dummy context and dummy window
-		wglMakeCurrent(hDC, 0);
-		wglDeleteContext(dummyGLContext);
-		DestroyWindow(helperWindowHandle);
 
 		//NOTE: make gl context current
 		wglMakeCurrent(hDC, glContext);
@@ -317,12 +356,10 @@ mg_surface mg_wgl_surface_create_for_window(mp_window window)
 		surface->interface.setFrame = mg_wgl_surface_set_frame;
 		surface->interface.getHidden = mg_wgl_surface_get_hidden;
 		surface->interface.setHidden = mg_wgl_surface_set_hidden;
-		//TODO: get/set frame/hidden
 
 		surface->hWnd = childWindow;
 		surface->hDC = hDC;
 		surface->glContext = glContext;
-
 		surface->contentsScaling = contentsScaling;
 
 		 mg_gl_load_gl43(&surface->api, mg_wgl_get_proc);
