@@ -35,9 +35,17 @@ void mg_egl_surface_destroy(mg_surface_data* interface)
 {
 	mg_egl_surface* surface = (mg_egl_surface*)interface;
 
-	//////////////////////////////////////////////////
-	//TODO
-	//////////////////////////////////////////////////
+	if(&surface->api == mg_gl_get_api())
+	{
+		mg_gl_select_api(0);
+	}
+	if(eglGetCurrentContext() == surface->eglContext)
+	{
+		eglMakeCurrent(surface->eglDisplay, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+	}
+	eglDestroyContext(surface->eglDisplay, surface->eglContext);
+	eglDestroySurface(surface->eglDisplay, surface->eglSurface);
+
 	DestroyWindow(surface->hWnd);
 	free(surface);
 }

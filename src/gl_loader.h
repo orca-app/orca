@@ -18,5 +18,6 @@ void mg_gl_load_gles31(mg_gl_api* api, mg_gl_load_proc loadProc);
 void mg_gl_load_gles32(mg_gl_api* api, mg_gl_load_proc loadProc);
 
 void mg_gl_select_api(mg_gl_api* api);
+mg_gl_api* mg_gl_get_api(void);
 
 #endif // __GL_LOADER_H__

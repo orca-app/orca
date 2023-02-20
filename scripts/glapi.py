@@ -124,7 +124,8 @@ f.write("void mg_gl_load_gl43(mg_gl_api* api, mg_gl_load_proc loadProc);\n")
 f.write("void mg_gl_load_gles31(mg_gl_api* api, mg_gl_load_proc loadProc);\n")
 f.write("void mg_gl_load_gles32(mg_gl_api* api, mg_gl_load_proc loadProc);\n\n")
 
-f.write("void mg_gl_select_api(mg_gl_api* api);\n\n")
+f.write("void mg_gl_select_api(mg_gl_api* api);\n")
+f.write("mg_gl_api* mg_gl_get_api(void);\n\n")
 
 emit_end_guard(f, loaderName)
 f.close()
@@ -153,6 +154,7 @@ emit_loader(f, 'gl43', gl43)
 emit_loader(f, 'gles31', gles31)
 emit_loader(f, 'gles32', gles32)
 
-f.write("void mg_gl_select_api(mg_gl_api* api){ __mgGLAPI = api; }\n\n")
+f.write("void mg_gl_select_api(mg_gl_api* api){ __mgGLAPI = api; }\n")
+f.write("mg_gl_api* mg_gl_get_api(void) { return(__mgGLAPI); }\n\n")
 
 f.close()

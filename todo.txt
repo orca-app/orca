@@ -25,7 +25,6 @@ Overview
 [/] Keep dummy window/dummy context around for gl context creation, and don't reload wgl functions every time
 
 [!] Sort out gles contents scaling for high dpi on osx
-[!] Properly destroy egl surfaces
 [!] win32 surfaces: only register surface child window once?
 [!] Make linking with libEGL optional, even if EGL backend is compiled in milepost?
 [!] Bundle examples with their own resources?? (e.g. avoiding clashes in metal libs files in bin directory)
