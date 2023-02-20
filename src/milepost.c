@@ -60,12 +60,12 @@
 	#endif
 
 	#if MG_COMPILE_BACKEND_GL
-=		#include"wgl_surface.c"
+		#include"wgl_surface.c"
 		#include"gl_canvas.c"
 	#endif
 
 	#if MG_COMPILE_BACKEND_GLES
-		#include"egl_surface.c"
+		#include"win32_egl_surface.c"
 	#endif
 
 #elif defined(OS_MACOS)

@@ -822,15 +822,4 @@ str8 mp_app_get_resource_path(mem_arena* arena, const char* name)
 }
 //////////////////////////////////////////////////////////////////////////////////////////////////
 
-void* mg_egl_get_native_surface(mp_window_data* window)
-{
-	void* res = 0;
-	mp_window_data* windowData = mp_window_ptr_from_handle(window);
-	if(windowData)
-	{
-		res = (void*)windowData->win32.hWnd;
-	}
-	return(res);
-}
-
 #undef LOG_SUBSYSTEM

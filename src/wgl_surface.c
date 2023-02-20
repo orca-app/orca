@@ -57,6 +57,9 @@ void mg_wgl_surface_destroy(mg_surface_data* interface)
 		wglMakeCurrent(NULL, NULL);
 	}
 	wglDeleteContext(surface->glContext);
+
+	DestroyWindow(surface->hWnd);
+
 	free(surface);
 }
 
@@ -80,7 +83,7 @@ void mg_wgl_surface_swap_interval(mg_surface_data* interface, int swap)
 	wglSwapIntervalEXT(swap);
 }
 
-vec2 mg_wgl_contents_scaling(mg_surface_data* interface)
+vec2 mg_wgl_surface_contents_scaling(mg_surface_data* interface)
 {
 	mg_wgl_surface* surface = (mg_wgl_surface*)interface;
 	return(surface->contentsScaling);
@@ -88,18 +91,63 @@ vec2 mg_wgl_contents_scaling(mg_surface_data* interface)
 
 mp_rect mg_wgl_surface_get_frame(mg_surface_data* interface)
 {
+	mp_rect res = {0};
 	mg_wgl_surface* surface = (mg_wgl_surface*)interface;
-	RECT rect = {0};
-	GetClientRect(surface->hWnd, &rect);
+	if(surface)
+	{
+		RECT rect = {0};
+		GetClientRect(surface->hWnd, &rect);
 
-	vec2 scale = surface->contentsScaling;
+		vec2 scale = surface->contentsScaling;
 
-	mp_rect res = {rect.left/scale.x,
-	               rect.bottom/scale.y,
-	               (rect.right - rect.left)/scale.x,
-	               (rect.bottom - rect.top)/scale.y};
+		res = (mp_rect){rect.left/scale.x,
+	               	    rect.bottom/scale.y,
+	               	    (rect.right - rect.left)/scale.x,
+	               	    (rect.bottom - rect.top)/scale.y};
+	}
 	return(res);
 }
+
+void mg_wgl_surface_set_frame(mg_surface_data* interface, mp_rect frame)
+{
+	mg_wgl_surface* surface = (mg_wgl_surface*)interface;
+	if(surface)
+	{
+		HWND parent = GetParent(surface->hWnd);
+		RECT parentContentRect;
+		GetClientRect(parent, &parentContentRect);
+		int parentHeight = 	parentContentRect.bottom - parentContentRect.top;
+
+		SetWindowPos(surface->hWnd,
+			         HWND_TOP,
+			         frame.x * surface->contentsScaling.x,
+			         parentHeight - (frame.y + frame.h) * surface->contentsScaling.y,
+			         frame.w * surface->contentsScaling.x,
+			         frame.h * surface->contentsScaling.y,
+			         SWP_NOACTIVATE | SWP_NOZORDER);
+	}
+}
+
+void mg_wgl_surface_set_hidden(mg_surface_data* interface, bool hidden)
+{
+	mg_wgl_surface* surface = (mg_wgl_surface*)interface;
+	if(surface)
+	{
+		ShowWindow(surface->hWnd, hidden ? SW_HIDE : SW_NORMAL);
+	}
+}
+
+bool mg_wgl_surface_get_hidden(mg_surface_data* interface)
+{
+	bool hidden = false;
+	mg_wgl_surface* surface = (mg_wgl_surface*)interface;
+	if(surface)
+	{
+		hidden = !IsWindowVisible(surface->hWnd);
+	}
+	return(hidden);
+}
+
 
 void* mg_wgl_get_proc(const char* name)
 {
@@ -115,6 +163,11 @@ void* mg_wgl_get_proc(const char* name)
 		p = (void*)GetProcAddress(module, name);
 	}
 	return(p);
+}
+
+LRESULT mg_wgl_surface_window_proc(HWND windowHandle, UINT message, WPARAM wParam, LPARAM lParam)
+{
+	return(DefWindowProc(windowHandle, message, wParam, lParam));
 }
 
 mg_surface mg_wgl_surface_create_for_window(mp_window window)
@@ -180,6 +233,31 @@ mg_surface mg_wgl_surface_create_for_window(mp_window window)
 		//NOTE(martin): now load WGL extension functions
 		wgl_load_procs();
 
+		//NOTE(martin): create a child window for the surface
+		WNDCLASS childWindowClass = {.style = CS_HREDRAW | CS_VREDRAW | CS_OWNDC,
+		                        .lpfnWndProc = mg_wgl_surface_window_proc,
+		                        .hInstance = GetModuleHandleW(NULL),
+		                        .lpszClassName = "wgl_surface_window_class",
+		                        .hCursor = LoadCursor(0, IDC_ARROW)};
+
+		if(!RegisterClass(&childWindowClass))
+		{
+			//TODO: error
+		}
+
+		mp_rect frame = mp_window_get_content_rect(window);
+
+		u32 dpi = GetDpiForWindow(windowData->win32.hWnd);
+		vec2 contentsScaling = (vec2){(float)dpi/96., (float)dpi/96.};
+
+		HWND childWindow = CreateWindow("wgl_surface_window_class", "Test",
+	                                 	       WS_CHILD|WS_VISIBLE,
+	                                 	       0, 0, frame.w*contentsScaling.x, frame.h*contentsScaling.y,
+	                                 	       windowData->win32.hWnd,
+	                                 	       0,
+	                                 	       childWindowClass.hInstance,
+	                                 	       0);
+
 		//NOTE(martin): now create the true pixel format and gl context
 		int pixelFormatAttrs[] = {
 			WGL_DRAW_TO_WINDOW_ARB, GL_TRUE,
@@ -191,7 +269,7 @@ mg_surface mg_wgl_surface_create_for_window(mp_window window)
 			WGL_STENCIL_BITS_ARB, 8,
 			0};
 
-		HDC hDC = GetDC(windowData->win32.hWnd);
+		HDC hDC = GetDC(childWindow);
 		u32 numFormats = 0;
 
 		wglChoosePixelFormatARB(hDC, pixelFormatAttrs, 0, 1, &pixelFormat, &numFormats);
@@ -234,16 +312,18 @@ mg_surface mg_wgl_surface_create_for_window(mp_window window)
 		surface->interface.prepare = mg_wgl_surface_prepare;
 		surface->interface.present = mg_wgl_surface_present;
 		surface->interface.swapInterval = mg_wgl_surface_swap_interval;
-		surface->interface.contentsScaling = mg_wgl_contents_scaling;
+		surface->interface.contentsScaling = mg_wgl_surface_contents_scaling;
 		surface->interface.getFrame = mg_wgl_surface_get_frame;
+		surface->interface.setFrame = mg_wgl_surface_set_frame;
+		surface->interface.getHidden = mg_wgl_surface_get_hidden;
+		surface->interface.setHidden = mg_wgl_surface_set_hidden;
 		//TODO: get/set frame/hidden
 
-		surface->hWnd = windowData->win32.hWnd;
+		surface->hWnd = childWindow;
 		surface->hDC = hDC;
 		surface->glContext = glContext;
 
-		u32 dpi = GetDpiForWindow(windowData->win32.hWnd);
-		surface->contentsScaling = (vec2){(float)dpi/96., (float)dpi/96.};
+		surface->contentsScaling = contentsScaling;
 
 		 mg_gl_load_gl43(&surface->api, mg_wgl_get_proc);
 

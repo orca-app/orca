@@ -15,27 +15,23 @@ Overview
 [>] Allow selecting version of GL/GLES context when creating surface
 	- pass/set attributes when creating surface?
 
+[ ] Check that we can make GLES and GL surfaces co-exist in the app
+[ ] Allow controlling surface overlaying
+
+[/] could have an internal, per-platform mp_layer struct that handles resizing/hiding etc...
+	-> avoid duplication of frame/hiding and duplication of egl code.
+[/] EGL surfaces: See how we can isolate platform-specific stuff and just deal with one egl impl...
+[/] Automatic surface resizing
 [/] Keep dummy window/dummy context around for gl context creation, and don't reload wgl functions every time
 
-[.] Reintroduce GLES surface
-	[?] See how we can isolate platform-specific stuff and just deal with egl there...
-
-[.] Back surface by child windows and implement moving frame/hiding/overlay
-	[x] osx gles surface
-		[ ] Sort out gles contents scaling for high dpi
-	[ ] win32 opengl surfaces
-	[ ] win32 gles surface
-
-	[/] could have an internal, per-platform mp_layer struct that handles resizing/hiding etc...
-		-> avoid duplication of frame/hiding and duplication of egl code.
-
-	[ ] then check that we can make GLES and GL surfaces co-exist in the app
-
+[!] Sort out gles contents scaling for high dpi on osx
+[!] Properly destroy egl surfaces
+[!] win32 surfaces: only register surface child window once?
 [!] Make linking with libEGL optional, even if EGL backend is compiled in milepost?
 [!] Bundle examples with their own resources?? (e.g. avoiding clashes in metal libs files in bin directory)
 [!] Fix canvas shader precision issue on OSX
 [!] Fix canvas perf issue on OSX
-[!] osx: Remove need to include objc defs from osx_app.h in egl impl. Also properly guard angle backend attribute (must be metal on osx and default on win32)
+
 
 [ ] Delegated drawing API+Impl
 
