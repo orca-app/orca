@@ -13,7 +13,7 @@
 #include<math.h>
 
 #include"milepost.h"
-#include"metal_surface.h"
+#include"mtl_surface.h"
 
 #define LOG_SUBSYSTEM "Main"
 
@@ -36,13 +36,14 @@ int main()
 	mp_window window = mp_window_create(rect, "test", 0);
 
 	//NOTE: create surface
-	mg_surface surface = mg_metal_surface_create_for_window(window);
+	mg_surface surface = mg_surface_create_for_window(window, MG_BACKEND_METAL);
 
 	//NOTE(martin): load the library
 	id<MTLDevice> device = MTLCreateSystemDefaultDevice();
 
-	const char* shaderPath = "shader.metallib";
-	NSString* metalFileName = [[NSString alloc] initWithCString: shaderPath encoding: NSUTF8StringEncoding];
+	str8 shaderPath = mp_app_get_resource_path(mem_scratch(), "triangle_shader.metallib");
+	const char* shaderPathCString = str8_to_cstring(mem_scratch(), shaderPath);
+	NSString* metalFileName = [[NSString alloc] initWithCString: shaderPathCString encoding: NSUTF8StringEncoding];
 	NSError* err = 0;
 	id<MTLLibrary> library = [device newLibraryWithFile: metalFileName error:&err];
 	if(err != nil)
@@ -60,7 +61,7 @@ int main()
 	pipelineStateDescriptor.vertexFunction = vertexFunction;
 	pipelineStateDescriptor.fragmentFunction = fragmentFunction;
 
-	CAMetalLayer* layer = mg_metal_surface_layer(surface);
+	CAMetalLayer* layer = mg_mtl_surface_layer(surface);
 	pipelineStateDescriptor.colorAttachments[0].pixelFormat = layer.pixelFormat;
 
 	id<MTLRenderPipelineState> pipelineState = [device newRenderPipelineStateWithDescriptor: pipelineStateDescriptor error:&err];
@@ -89,69 +90,6 @@ int main()
 					mp_request_quit();
 				} break;
 
-				case MP_EVENT_WINDOW_RESIZE:
-				{
-					printf("resized, rect = {%f, %f, %f, %f}\n",
-					       event.frame.rect.x,
-					       event.frame.rect.y,
-					       event.frame.rect.w,
-					       event.frame.rect.h);
-				} break;
-
-				case MP_EVENT_WINDOW_MOVE:
-				{
-					printf("moved, rect = {%f, %f, %f, %f}\n",
-					       event.frame.rect.x,
-					       event.frame.rect.y,
-					       event.frame.rect.w,
-					       event.frame.rect.h);
-				} break;
-
-				case MP_EVENT_MOUSE_MOVE:
-				{
-					printf("mouse moved, pos = {%f, %f}, delta = {%f, %f}\n",
-					       event.move.x,
-					       event.move.y,
-					       event.move.deltaX,
-					       event.move.deltaY);
-				} break;
-
-				case MP_EVENT_MOUSE_WHEEL:
-				{
-					printf("mouse wheel, delta = {%f, %f}\n",
-					       event.move.deltaX,
-					       event.move.deltaY);
-				} break;
-
-				case MP_EVENT_MOUSE_ENTER:
-				{
-					printf("mouse enter\n");
-				} break;
-
-				case MP_EVENT_MOUSE_LEAVE:
-				{
-					printf("mouse leave\n");
-				} break;
-
-				case MP_EVENT_MOUSE_BUTTON:
-				{
-					printf("mouse button %i: %i\n",
-					       event.key.code,
-					       event.key.action == MP_KEY_PRESS ? 1 : 0);
-				} break;
-
-				case MP_EVENT_KEYBOARD_KEY:
-				{
-					printf("key %i: %s\n",
-					        event.key.code,
-					        event.key.action == MP_KEY_PRESS ? "press" : (event.key.action == MP_KEY_RELEASE ? "release" : "repeat"));
-				} break;
-
-				case MP_EVENT_KEYBOARD_CHAR:
-				{
-					printf("entered char %s\n", event.character.sequence);
-				} break;
-
 				default:
 					break;
 			}
@@ -162,8 +100,8 @@ int main()
 		viewportSize.y = 600;
 
 		mg_surface_prepare(surface);
-			id<CAMetalDrawable> drawable = mg_metal_surface_drawable(surface);
-			id<MTLCommandBuffer> commandBuffer = mg_metal_surface_command_buffer(surface);
+			id<CAMetalDrawable> drawable = mg_mtl_surface_drawable(surface);
+			id<MTLCommandBuffer> commandBuffer = mg_mtl_surface_command_buffer(surface);
 
 			MTLRenderPassDescriptor* renderPassDescriptor = [MTLRenderPassDescriptor renderPassDescriptor];
 			renderPassDescriptor.colorAttachments[0].texture = drawable.texture;

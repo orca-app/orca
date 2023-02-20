@@ -24,7 +24,6 @@ typedef struct mg_mtl_surface
 	mg_surface_data interface;
 
 	// permanent mtl resources
-	NSView* view;
 	id<MTLDevice> device;
 	CAMetalLayer* mtlLayer;
 	id<MTLCommandQueue> commandQueue;
@@ -44,6 +43,7 @@ void mg_mtl_surface_destroy(mg_surface_data* interface)
 	@autoreleasepool
 	{
 		[surface->commandQueue release];
+		[surface->mtlLayer removeFromSuperlayer];
 		[surface->mtlLayer release];
 		[surface->device release];
 	}
@@ -143,7 +143,8 @@ void mg_mtl_surface_set_frame(mg_surface_data* interface, mp_rect frame)
 	@autoreleasepool
 	{
 		CGRect cgFrame = {{frame.x, frame.y}, {frame.w, frame.h}};
-		[surface->view setFrame: cgFrame];
+		[surface->mtlLayer setFrame: cgFrame];
+
 		f32 scale = surface->mtlLayer.contentsScale;
 		CGSize drawableSize = (CGSize){.width = frame.w * scale, .height = frame.h * scale};
 		surface->mtlLayer.drawableSize = drawableSize;
@@ -156,7 +157,7 @@ mp_rect mg_mtl_surface_get_frame(mg_surface_data* interface)
 
 	@autoreleasepool
 	{
-		CGRect frame = surface->view.frame;
+		CGRect frame = surface->mtlLayer.frame;
 		return((mp_rect){frame.origin.x, frame.origin.y, frame.size.width, frame.size.height});
 	}
 }
@@ -209,17 +210,12 @@ mg_surface mg_mtl_surface_create_for_window(mp_window window)
 
 		@autoreleasepool
 		{
-			NSRect frame = [[windowData->osx.nsWindow contentView] frame];
-			surface->view = [[NSView alloc] initWithFrame: frame];
-			[surface->view setWantsLayer:YES];
-
-			[[windowData->osx.nsWindow contentView] addSubview: surface->view];
-
 			surface->drawableSemaphore = dispatch_semaphore_create(MP_MTL_MAX_DRAWABLES_IN_FLIGHT);
 
 			//-----------------------------------------------------------
 			//NOTE(martin): create a mtl device and a mtl layer and
 			//-----------------------------------------------------------
+
 			surface->device = MTLCreateSystemDefaultDevice();
 			[surface->device retain];
 			surface->mtlLayer = [CAMetalLayer layer];
@@ -231,7 +227,9 @@ mg_surface mg_mtl_surface_create_for_window(mp_window window)
 			//-----------------------------------------------------------
 			//NOTE(martin): set the size and scaling
 			//-----------------------------------------------------------
-			CGSize size = surface->view.bounds.size;
+			NSRect frame = [[windowData->osx.nsWindow contentView] frame];
+			CGSize size = frame.size;
+			surface->mtlLayer.frame = (CGRect){{0, 0}, size};
 			size.width *= MG_MTL_SURFACE_CONTENTS_SCALING;
 			size.height *= MG_MTL_SURFACE_CONTENTS_SCALING;
 			surface->mtlLayer.drawableSize = size;
@@ -239,11 +237,9 @@ mg_surface mg_mtl_surface_create_for_window(mp_window window)
 
 			surface->mtlLayer.pixelFormat = MTLPixelFormatBGRA8Unorm;
 
-			surface->view.wantsLayer = YES;
-			surface->view.layer = surface->mtlLayer;
+			[windowData->osx.nsView.layer addSublayer: surface->mtlLayer];
 
 			//NOTE(martin): handling resizing
-			surface->view.layerContentsRedrawPolicy = NSViewLayerContentsRedrawDuringViewResize;
 			surface->mtlLayer.autoresizingMask = kCALayerHeightSizable | kCALayerWidthSizable;
 			surface->mtlLayer.needsDisplayOnBoundsChange = YES;
 

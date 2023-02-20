@@ -30,22 +30,6 @@ typedef struct mg_egl_surface
 
 } mg_egl_surface;
 
-#if OS_MACOS
-#include"osx_app.h"
-
-void* mg_egl_get_native_surface(mp_window_data* window)
-{
-	return((void*)window->osx.nsView.layer);
-}
-#elif OS_WIN64
-#include"win32_app.h"
-
-void* mg_egl_get_native_surface(mp_window_data* window)
-{
-	return((void*)window->win32.hWnd);
-}
-#endif
-
 void mg_egl_surface_destroy(mg_surface_data* interface)
 {
 	//////////////////////////////////////////////////
@@ -73,11 +57,23 @@ void mg_egl_surface_set_hidden(mg_surface_data* interface, bool hidden);
 bool mg_egl_surface_get_hidden(mg_surface_data* interface);
 */
 
+#if OS_MACOS
+	//NOTE: on macOS we need to explicitly set EGL_PLATFORM_ANGLE_TYPE_ANGLE to EGL_PLATFORM_ANGLE_TYPE_METAL_ANGLE, because
+	// EGL_PLATFORM_ANGLE_TYPE_DEFAULT_ANGLE defaults to using CGL, and eglSetSwapInterval is broken for this backend
+	#define MG_EGL_PLATFORM_ANGLE_TYPE EGL_PLATFORM_ANGLE_TYPE_METAL_ANGLE
+#elif OS_WIN64
+	#define MG_EGL_PLATFORM_ANGLE_TYPE EGL_PLATFORM_ANGLE_TYPE_DEFAULT_ANGLE
+#endif
+
 mg_surface mg_egl_surface_create_for_window(mp_window window)
 {
 	mg_surface res = mg_surface_nil();
-	mp_window_data* windowData = mp_window_ptr_from_handle(window);
-	if(windowData)
+
+	//TODO: just need to check that the handle is valid
+	//      then get native pointer from window handle
+	void* nativeSurface = mg_egl_get_native_surface(window);
+
+	if(nativeSurface)
 	{
 		mg_egl_surface* surface = malloc_type(mg_egl_surface);
 		memset(surface, 0, sizeof(mg_egl_surface));
@@ -93,22 +89,12 @@ mg_surface mg_egl_surface_create_for_window(mp_window window)
 		surface->interface.setHidden = mg_egl_surface_set_hidden;
 		*/
 
-		surface->nativeSurface = mg_egl_get_native_surface(windowData);
+		surface->nativeSurface = nativeSurface;
 
-
-		#if OS_MACOS
-			//NOTE: we need to explicitly set EGL_PLATFORM_ANGLE_TYPE_ANGLE to EGL_PLATFORM_ANGLE_TYPE_METAL_ANGLE, because
-			// EGL_PLATFORM_ANGLE_TYPE_DEFAULT_ANGLE defaults to using CGL, and eglSetSwapInterval is broken for this backend
-			EGLAttrib displayAttribs[] = {
-				EGL_PLATFORM_ANGLE_TYPE_ANGLE, EGL_PLATFORM_ANGLE_TYPE_METAL_ANGLE,
-	    		EGL_PLATFORM_ANGLE_DEVICE_TYPE_ANGLE, EGL_PLATFORM_ANGLE_DEVICE_TYPE_HARDWARE_ANGLE,
-	    		EGL_NONE};
-		#else
-			EGLAttrib displayAttribs[] = {
-				EGL_PLATFORM_ANGLE_TYPE_ANGLE, EGL_PLATFORM_ANGLE_TYPE_DEFAULT_ANGLE,
-	    		EGL_PLATFORM_ANGLE_DEVICE_TYPE_ANGLE, EGL_PLATFORM_ANGLE_DEVICE_TYPE_HARDWARE_ANGLE,
-	    		EGL_NONE};
-	    #endif
+		EGLAttrib displayAttribs[] = {
+			EGL_PLATFORM_ANGLE_TYPE_ANGLE, MG_EGL_PLATFORM_ANGLE_TYPE,
+	    	EGL_PLATFORM_ANGLE_DEVICE_TYPE_ANGLE, EGL_PLATFORM_ANGLE_DEVICE_TYPE_HARDWARE_ANGLE,
+	    	EGL_NONE};
 
 		surface->eglDisplay = eglGetPlatformDisplay(EGL_PLATFORM_ANGLE_ANGLE, (void*)EGL_DEFAULT_DISPLAY, displayAttribs);
 		eglInitialize(surface->eglDisplay, NULL, NULL);

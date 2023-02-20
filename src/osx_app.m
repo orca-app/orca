@@ -729,6 +729,7 @@ static void mp_update_key_mods(mp_key_mods mods)
 		window = mpWindow;
 		mpWindow->osx.nsView = self;
 		[mpWindow->osx.nsView setWantsLayer:YES];
+		mpWindow->osx.nsView.layerContentsRedrawPolicy = NSViewLayerContentsRedrawDuringViewResize;
 
 		NSTrackingAreaOptions trackingOptions =	  NSTrackingMouseEnteredAndExited
 							| NSTrackingMouseMoved

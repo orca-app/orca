@@ -17,7 +17,7 @@
 
 #if MG_COMPILE_BACKEND_GLES
 	#include"gl_loader.c"
-	#include"egl_surface.c"
+	#include"osx_egl_surface.m"
 #endif
 
 /*

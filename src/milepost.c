@@ -60,7 +60,7 @@
 	#endif
 
 	#if MG_COMPILE_BACKEND_GL
-		#include"wgl_surface.c"
+=		#include"wgl_surface.c"
 		#include"gl_canvas.c"
 	#endif
 

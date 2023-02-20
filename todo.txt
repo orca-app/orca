@@ -1,17 +1,11 @@
 
 Overview
 --------
-[x] Pan/Zoom on text example
-[.] Clean+Fixes of canvas code and examples
-
 [.] Make backend selection easier
-	[x] rename backend-specific files with api prefix (e.g. egl_, nsgl_, wgl_, mtl_, ...)
-	[x] option macros to select surface/canvas backends to compile into milepost lib
 	[.] option macros to select backend-specific APIs to include when building an app
 		(ie, include gl_api.h when using gl backend)
-	[x] surface/canvas functions that take a backend id
-	[x] feature-detection functions to know what surface/canvas backends are available at run-time
-	[>] write doc about these options
+	[ ] error on bad option macro combinations
+	[ ] write doc about backend option macros
 
 [>] Image API and backend
 	[ ] Build image atlas on top
@@ -24,24 +18,35 @@ Overview
 [/] Keep dummy window/dummy context around for gl context creation, and don't reload wgl functions every time
 
 [.] Reintroduce GLES surface
-	[ ] See how we can isolate platform-specific stuff and just deal with egl there..
+	[?] See how we can isolate platform-specific stuff and just deal with egl there...
 
-[>] Back surface by child windows and implement moving frame/hiding/overlay
+[.] Back surface by child windows and implement moving frame/hiding/overlay
+	[x] osx gles surface
+		[ ] Sort out gles contents scaling for high dpi
+	[ ] win32 opengl surfaces
+	[ ] win32 gles surface
 
-[>] Check that we can make GLES and GL surfaces co-exist in the app
+	[/] could have an internal, per-platform mp_layer struct that handles resizing/hiding etc...
+		-> avoid duplication of frame/hiding and duplication of egl code.
 
-[?] Backport canvas to GLES
+	[ ] then check that we can make GLES and GL surfaces co-exist in the app
 
+[!] Make linking with libEGL optional, even if EGL backend is compiled in milepost?
+[!] Bundle examples with their own resources?? (e.g. avoiding clashes in metal libs files in bin directory)
 [!] Fix canvas shader precision issue on OSX
 [!] Fix canvas perf issue on OSX
 [!] osx: Remove need to include objc defs from osx_app.h in egl impl. Also properly guard angle backend attribute (must be metal on osx and default on win32)
 
 [ ] Delegated drawing API+Impl
 
+
+
 [ ] Make building apps simpler
 	[ ] single include path
 	[ ] script for embedding dependencies / create app bundle
 
+
+[?] Backport canvas to GLES
 
 Clean+Fixes
 -----------

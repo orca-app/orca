@@ -15,6 +15,9 @@
 extern "C" {
 #endif
 
+//---------------------------------------------------------------
+// surface data
+//---------------------------------------------------------------
 typedef struct mg_surface_data mg_surface_data;
 
 typedef void (*mg_surface_destroy_proc)(mg_surface_data* surface);
