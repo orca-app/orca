@@ -63,8 +63,15 @@ if [ $target = 'lib' ] ; then
 	$CC $DEBUG_FLAGS -c -o $BINDIR/milepost_c.o $CFLAGS $FLAGS $INCLUDES $SRCDIR/milepost.c
 	$CC $DEBUG_FLAGS -c -o $BINDIR/milepost_objc.o $FLAGS $INCLUDES $SRCDIR/milepost.m
 
-	# build the static library
-	libtool -static -o $BINDIR/libmilepost.a $BINDIR/milepost_c.o $BINDIR/milepost_objc.o
+	# build dynamic library
+	ld -dylib -o $BINDIR/libmilepost.dylib $BINDIR/milepost_c.o $BINDIR/milepost_objc.o -lc -framework Carbon -framework Cocoa -framework Metal -framework QuartzCore -L$BINDIR -weak-lEGL -weak-lGLESv2
+
+	# change dependent libs path to @rpath.
+	install_name_tool -change "./libEGL.dylib" '@rpath/libEGL.dylib' $BINDIR/libmilepost.dylib
+	install_name_tool -change "./libGLESv2.dylib" '@rpath/libGLESv2.dylib' $BINDIR/libmilepost.dylib
+
+	# add executable path to rpath. Client executable can still add its own rpaths if needed, e.g. @executable_path/libs/ etc.
+	install_name_tool -add_rpath "@executable_path" $BINDIR/libmilepost.dylib
 
 else
 	# additional targets

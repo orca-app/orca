@@ -12,8 +12,7 @@
 #define _USE_MATH_DEFINES //NOTE: necessary for MSVC
 #include<math.h>
 
-#include<GLES3/gl32.h>
-
+#define MG_INCLUDE_GL_API 1
 #include"milepost.h"
 
 #define LOG_SUBSYSTEM "Main"
@@ -70,6 +69,7 @@ int main()
 
 	//NOTE: create surface
 	mg_surface surface = mg_surface_create_for_window(window, MG_BACKEND_GLES);
+	mg_surface_prepare(surface);
 
 	//NOTE: init shader and gl state
 	GLuint vao;

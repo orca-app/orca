@@ -7,24 +7,20 @@ Overview
 	[/] error on bad option macro combinations
 	[/] write doc about backend option macros
 
-[?] could have an internal, per-platform mp_layer struct that handles resizing/hiding etc...
-	-> avoid duplication of frame/hiding and duplication of egl code.
-	[/] EGL surfaces: See how we can isolate platform-specific stuff and just deal with one egl impl...
-
 [ ] Check that we can make GLES and GL surfaces co-exist in the app
-[ ] Allow controlling surface overlaying
 
 [/] Allow selecting version of GL/GLES context when creating surface
 	- pass/set attributes when creating surface?
 [/] Automatic surface resizing
 
-[!] Make linking with libEGL optional, even if EGL backend is compiled in milepost?
-	- use dead_strip_dylib on osx?
+[.] Make linking with libEGL optional, even if EGL backend is compiled in milepost?
 	- use /DELAYLOAD:lib on windows?
+[.] Remove the need for client apps to link with all dependent libs explicitly
 
 [!] Bundle examples with their own resources?? (e.g. avoiding clashes in metal libs files in bin directory)
 
-[!] Sort out gles contents scaling for high dpi on osx
+[!] Allow controlling surface overlaying
+[!] Sort out contents scaling for high dpi on osx
 [!] win32 surfaces: only register surface child window once?
 [!] Fix canvas shader precision issue on OSX
 [!] Fix canvas perf issue on OSX
