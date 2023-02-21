@@ -19,8 +19,7 @@ typedef struct mg_egl_surface
 {
 	mg_surface_data interface;
 
-	HWND hWnd;
-	vec2 contentsScaling;
+	mp_layer layer;
 
 	EGLDisplay eglDisplay;
 	EGLConfig eglConfig;
@@ -46,7 +45,7 @@ void mg_egl_surface_destroy(mg_surface_data* interface)
 	eglDestroyContext(surface->eglDisplay, surface->eglContext);
 	eglDestroySurface(surface->eglDisplay, surface->eglSurface);
 
-	DestroyWindow(surface->hWnd);
+	mp_layer_cleanup(&surface->layer);
 	free(surface);
 }
 
@@ -72,74 +71,32 @@ void mg_egl_surface_swap_interval(mg_surface_data* interface, int swap)
 vec2 mg_egl_surface_contents_scaling(mg_surface_data* interface)
 {
 	mg_egl_surface* surface = (mg_egl_surface*)interface;
-	return(surface->contentsScaling);
+	return(mp_layer_contents_scaling(&surface->layer));
 }
 
 mp_rect mg_egl_surface_get_frame(mg_surface_data* interface)
 {
-	mp_rect res = {0};
 	mg_egl_surface* surface = (mg_egl_surface*)interface;
-	if(surface)
-	{
-		RECT rect = {0};
-		GetClientRect(surface->hWnd, &rect);
-
-		vec2 scale = surface->contentsScaling;
-
-		res = (mp_rect){rect.left/scale.x,
-	               	    rect.bottom/scale.y,
-	               	    (rect.right - rect.left)/scale.x,
-	               	    (rect.bottom - rect.top)/scale.y};
-	}
-	return(res);
+	return(mp_layer_get_frame(&surface->layer));
 }
 
 void mg_egl_surface_set_frame(mg_surface_data* interface, mp_rect frame)
 {
 	mg_egl_surface* surface = (mg_egl_surface*)interface;
-	if(surface)
-	{
-		HWND parent = GetParent(surface->hWnd);
-		RECT parentContentRect;
-		GetClientRect(parent, &parentContentRect);
-		int parentHeight = 	parentContentRect.bottom - parentContentRect.top;
-
-		SetWindowPos(surface->hWnd,
-			         HWND_TOP,
-			         frame.x * surface->contentsScaling.x,
-			         parentHeight - (frame.y + frame.h) * surface->contentsScaling.y,
-			         frame.w * surface->contentsScaling.x,
-			         frame.h * surface->contentsScaling.y,
-			         SWP_NOACTIVATE | SWP_NOZORDER);
-	}
+	mp_layer_set_frame(&surface->layer, frame);
 }
 
 void mg_egl_surface_set_hidden(mg_surface_data* interface, bool hidden)
 {
 	mg_egl_surface* surface = (mg_egl_surface*)interface;
-	if(surface)
-	{
-		ShowWindow(surface->hWnd, hidden ? SW_HIDE : SW_NORMAL);
-	}
+	mp_layer_set_hidden(&surface->layer, hidden);
 }
 
 bool mg_egl_surface_get_hidden(mg_surface_data* interface)
 {
-	bool hidden = false;
 	mg_egl_surface* surface = (mg_egl_surface*)interface;
-	if(surface)
-	{
-		hidden = !IsWindowVisible(surface->hWnd);
-	}
-	return(hidden);
+	return(mp_layer_get_hidden(&surface->layer));
 }
-
-
-LRESULT mg_egl_surface_window_proc(HWND windowHandle, UINT message, WPARAM wParam, LPARAM lParam)
-{
-	return(DefWindowProc(windowHandle, message, wParam, lParam));
-}
-
 
 mg_surface mg_egl_surface_create_for_window(mp_window window)
 {
@@ -148,31 +105,6 @@ mg_surface mg_egl_surface_create_for_window(mp_window window)
 	mp_window_data* windowData = mp_window_ptr_from_handle(window);
 	if(windowData)
 	{
-		//NOTE(martin): create a child window for the surface
-		WNDCLASS childWindowClass = {.style = CS_HREDRAW | CS_VREDRAW | CS_OWNDC,
-		                        .lpfnWndProc = mg_egl_surface_window_proc,
-		                        .hInstance = GetModuleHandleW(NULL),
-		                        .lpszClassName = "egl_surface_window_class",
-		                        .hCursor = LoadCursor(0, IDC_ARROW)};
-
-		if(!RegisterClass(&childWindowClass))
-		{
-			//TODO: error
-		}
-
-		mp_rect frame = mp_window_get_content_rect(window);
-
-		u32 dpi = GetDpiForWindow(windowData->win32.hWnd);
-		vec2 contentsScaling = (vec2){(float)dpi/96., (float)dpi/96.};
-
-		HWND childWindow = CreateWindow("egl_surface_window_class", "Test",
-	                                 	       WS_CHILD|WS_VISIBLE,
-	                                 	       0, 0, frame.w*contentsScaling.x, frame.h*contentsScaling.y,
-	                                 	       windowData->win32.hWnd,
-	                                 	       0,
-	                                 	       childWindowClass.hInstance,
-	                                 	       0);
-
 		mg_egl_surface* surface = malloc_type(mg_egl_surface);
 		memset(surface, 0, sizeof(mg_egl_surface));
 
@@ -187,8 +119,7 @@ mg_surface mg_egl_surface_create_for_window(mp_window window)
 		surface->interface.getHidden = mg_egl_surface_get_hidden;
 		surface->interface.setHidden = mg_egl_surface_set_hidden;
 
-		surface->hWnd = childWindow;
-		surface->contentsScaling = contentsScaling;
+		mp_layer_init_for_window(&surface->layer, windowData);
 
 		EGLAttrib displayAttribs[] = {
 			EGL_PLATFORM_ANGLE_TYPE_ANGLE, EGL_PLATFORM_ANGLE_TYPE_DEFAULT_ANGLE,
@@ -217,7 +148,7 @@ mg_surface mg_egl_surface_create_for_window(mp_window window)
 		EGLint const surfaceAttributes[] = {EGL_NONE};
 		surface->eglSurface = eglCreateWindowSurface(surface->eglDisplay,
 		                                             surface->eglConfig,
-		                                             surface->hWnd,
+		                                             mp_layer_native_surface(&surface->layer),
 		                                             surfaceAttributes);
 
 		eglBindAPI(EGL_OPENGL_ES_API);

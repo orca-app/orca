@@ -65,7 +65,7 @@
 	#endif
 
 	#if MG_COMPILE_BACKEND_GLES
-		#include"win32_egl_surface.c"
+		#include"egl_surface.c"
 	#endif
 
 #elif defined(OS_MACOS)

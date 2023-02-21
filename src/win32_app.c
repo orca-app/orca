@@ -777,6 +777,94 @@ mp_rect mp_window_get_content_rect(mp_window window)
 	return(rect);
 }
 
+///////////////////////////////////////////
+
+void mp_layer_init_for_window(mp_layer* layer, mp_window_data* window)
+{
+	//NOTE(martin): create a child window for the surface
+	WNDCLASS layerWindowClass = {.style = CS_HREDRAW | CS_VREDRAW | CS_OWNDC,
+		                         .lpfnWndProc = DefWindowProc,
+		                         .hInstance = GetModuleHandleW(NULL),
+		                         .lpszClassName = "layer_window_class",
+		                         .hCursor = LoadCursor(0, IDC_ARROW)};
+
+	RegisterClass(&layerWindowClass);
+
+	RECT parentRect;
+	GetClientRect(window->win32.hWnd, &parentRect);
+	int width = parentRect.right - parentRect.left;
+	int height = parentRect.bottom - parentRect.top;
+
+	layer->hWnd = CreateWindow("layer_window_class", "layer",
+	                            WS_CHILD | WS_VISIBLE,
+	                            0, 0, width, height,
+	                            window->win32.hWnd,
+	                            0,
+	                            layerWindowClass.hInstance,
+	                            0);
+}
+
+void mp_layer_cleanup(mp_layer* layer)
+{
+	DestroyWindow(layer->hWnd);
+}
+
+void* mp_layer_native_surface(mp_layer* layer)
+{
+	return((void*)layer->hWnd);
+}
+
+vec2 mp_layer_contents_scaling(mp_layer* layer)
+{
+	u32 dpi = GetDpiForWindow(layer->hWnd);
+	vec2 contentsScaling = (vec2){(float)dpi/96., (float)dpi/96.};
+	return(contentsScaling);
+}
+
+mp_rect mp_layer_get_frame(mp_layer* layer)
+{
+	RECT rect = {0};
+	GetClientRect(layer->hWnd, &rect);
+
+	vec2 scale = mp_layer_contents_scaling(layer);
+
+	mp_rect res = {rect.left/scale.x,
+	               rect.bottom/scale.y,
+	               (rect.right - rect.left)/scale.x,
+	               (rect.bottom - rect.top)/scale.y};
+	return(res);
+}
+
+void mp_layer_set_frame(mp_layer* layer, mp_rect frame)
+{
+	HWND parent = GetParent(layer->hWnd);
+	RECT parentContentRect;
+
+	GetClientRect(parent, &parentContentRect);
+	int parentHeight = 	parentContentRect.bottom - parentContentRect.top;
+
+	vec2 scale = mp_layer_contents_scaling(layer);
+
+	SetWindowPos(layer->hWnd,
+			     HWND_TOP,
+			     frame.x * scale.x,
+			     parentHeight - (frame.y + frame.h) * scale.y,
+			     frame.w * scale.x,
+			     frame.h * scale.y,
+			     SWP_NOACTIVATE | SWP_NOZORDER);
+}
+
+void mp_layer_set_hidden(mp_layer* layer, bool hidden)
+{
+	ShowWindow(layer->hWnd, hidden ? SW_HIDE : SW_NORMAL);
+}
+
+bool mp_layer_get_hidden(mp_layer* layer)
+{
+	bool hidden = !IsWindowVisible(layer->hWnd);
+	return(hidden);
+}
+
 /////////////////////////////////////////// WIP ///////////////////////////////////////////////
 //TODO: this is thrown here for a quick test. We should:
 //			- check for errors

@@ -16,11 +16,16 @@
 #define UNICODE
 #include<windows.h>
 
+
 typedef struct win32_window_data
 {
 	HWND hWnd;
-
 } win32_window_data;
+
+typedef struct mp_layer
+{
+	HWND hWnd;
+} mp_layer;
 
 #define MP_PLATFORM_WINDOW_DATA win32_window_data win32;
 

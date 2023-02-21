@@ -4,27 +4,24 @@ Overview
 [.] Make backend selection easier
 	[.] option macros to select backend-specific APIs to include when building an app
 		(ie, include gl_api.h when using gl backend)
-	[ ] error on bad option macro combinations
-	[ ] write doc about backend option macros
+	[/] error on bad option macro combinations
+	[/] write doc about backend option macros
 
-[>] Image API and backend
-	[ ] Build image atlas on top
-	[ ] Baked fonts?
-
-[x] Allow different versions of GL/GLES to co-exist
-[/] Allow selecting version of GL/GLES context when creating surface
-	- pass/set attributes when creating surface?
+[?] could have an internal, per-platform mp_layer struct that handles resizing/hiding etc...
+	-> avoid duplication of frame/hiding and duplication of egl code.
+	[/] EGL surfaces: See how we can isolate platform-specific stuff and just deal with one egl impl...
 
 [ ] Check that we can make GLES and GL surfaces co-exist in the app
 [ ] Allow controlling surface overlaying
 
-[/] could have an internal, per-platform mp_layer struct that handles resizing/hiding etc...
-	-> avoid duplication of frame/hiding and duplication of egl code.
-[/] EGL surfaces: See how we can isolate platform-specific stuff and just deal with one egl impl...
+[/] Allow selecting version of GL/GLES context when creating surface
+	- pass/set attributes when creating surface?
 [/] Automatic surface resizing
-[/] Keep dummy window/dummy context around for gl context creation, and don't reload wgl functions every time
 
 [!] Make linking with libEGL optional, even if EGL backend is compiled in milepost?
+	- use dead_strip_dylib on osx?
+	- use /DELAYLOAD:lib on windows?
+
 [!] Bundle examples with their own resources?? (e.g. avoiding clashes in metal libs files in bin directory)
 
 [!] Sort out gles contents scaling for high dpi on osx
@@ -33,9 +30,12 @@ Overview
 [!] Fix canvas perf issue on OSX
 
 
+[>] Image API and backend
+	[ ] Build image atlas on top
+	[ ] Baked fonts?
+
+
 [ ] Delegated drawing API+Impl
-
-
 
 [ ] Make building apps simpler
 	[ ] single include path
