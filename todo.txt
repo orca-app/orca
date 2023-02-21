@@ -13,9 +13,9 @@ Overview
 	- pass/set attributes when creating surface?
 [/] Automatic surface resizing
 
-[.] Make linking with libEGL optional, even if EGL backend is compiled in milepost?
+[x] Make linking with libEGL optional, even if EGL backend is compiled in milepost?
 	[x] using weak linking on macos
-	[ ] use /DELAYLOAD:lib on windows?
+	[x] use /DELAYLOAD:lib on windows
 [x] Remove the need for client apps to link with all dependent libs explicitly
 
 [!] Allow controlling surface overlaying
