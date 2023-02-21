@@ -8,6 +8,8 @@
 //
 //*****************************************************************
 
+#import <QuartzCore/QuartzCore.h> //CATransaction
+
 #include<stdlib.h> // malloc/free
 
 #include"lists.h"
@@ -1712,6 +1714,68 @@ void mp_window_set_content_size(mp_window window, int width, int height)
 		mp_window_set_frame_rect(window, frame);
 	}
 }
+
+//--------------------------------------------------------------------
+// layers
+//--------------------------------------------------------------------
+
+void mp_layer_init_for_window(mp_layer* layer, mp_window_data* window)
+{@autoreleasepool{
+	layer->caLayer = [[CALayer alloc] init];
+	[layer->caLayer retain];
+
+	NSRect frame = [[window->osx.nsWindow contentView] frame];
+	CGSize size = frame.size;
+	layer->caLayer.frame = (CGRect){{0, 0}, size};
+
+	[window->osx.nsView.layer addSublayer: layer->caLayer];
+}}
+
+void mp_layer_cleanup(mp_layer* layer)
+{@autoreleasepool{
+	[layer->caLayer release];
+}}
+
+void* mp_layer_native_surface(mp_layer* layer)
+{
+	return((void*)layer->caLayer);
+}
+
+vec2 mp_layer_contents_scaling(mp_layer* layer)
+{@autoreleasepool{
+	f32 contentsScale = [layer->caLayer contentsScale];
+	vec2 res = {contentsScale, contentsScale};
+	return(res);
+}}
+
+mp_rect mp_layer_get_frame(mp_layer* layer)
+{@autoreleasepool{
+	CGRect frame = layer->caLayer.frame;
+	mp_rect res = {frame.origin.x,
+	               frame.origin.y,
+	               frame.size.width,
+	               frame.size.height};
+	return(res);
+}}
+
+void mp_layer_set_frame(mp_layer* layer, mp_rect frame)
+{@autoreleasepool{
+	CGRect cgFrame = {{frame.x, frame.y}, {frame.w, frame.h}};
+	[layer->caLayer setFrame: cgFrame];
+}}
+
+void mp_layer_set_hidden(mp_layer* layer, bool hidden)
+{@autoreleasepool{
+	[CATransaction begin];
+	[CATransaction setDisableActions:YES];
+	[layer->caLayer setHidden:hidden];
+	[CATransaction commit];
+}}
+
+bool mp_layer_get_hidden(mp_layer* layer)
+{@autoreleasepool{
+	return([layer->caLayer isHidden]);
+}}
 
 //--------------------------------------------------------------------
 // view management

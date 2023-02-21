@@ -20,6 +20,7 @@
 	#define NSObject void
 	#define NSTimer void
 	#define NSCursor void
+	#define CALayer void
 #endif
 
 #include<Carbon/Carbon.h>
@@ -31,6 +32,11 @@ typedef struct osx_window_data
 	NSObject* nsWindowDelegate;
 
 } osx_window_data;
+
+typedef struct mp_layer
+{
+	CALayer* caLayer;
+} mp_layer;
 
 #define MP_PLATFORM_WINDOW_DATA osx_window_data osx;
 

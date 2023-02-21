@@ -1,6 +1,6 @@
 /************************************************************//**
 *
-*	@file: win32_egl_surface.cpp
+*	@file: egl_surface.cpp
 *	@author: Martin Fouilleul
 *	@date: 17/02/2023
 *	@revision:
@@ -121,8 +121,15 @@ mg_surface mg_egl_surface_create_for_window(mp_window window)
 
 		mp_layer_init_for_window(&surface->layer, windowData);
 
+		#if OS_MACOS
+			//NOTE: using EGL_PLATFORM_ANGLE_TYPE_DEFAULT_ANGLE on osx defaults to CGL backend, which doesn't handle SwapInterval correctly
+			#define MG_EGL_PLATFORM_ANGLE_TYPE EGL_PLATFORM_ANGLE_TYPE_METAL_ANGLE
+		#else
+			#define MG_EGL_PLATFORM_ANGLE_TYPE EGL_PLATFORM_ANGLE_TYPE_DEFAULT_ANGLE
+		#endif
+
 		EGLAttrib displayAttribs[] = {
-			EGL_PLATFORM_ANGLE_TYPE_ANGLE, EGL_PLATFORM_ANGLE_TYPE_DEFAULT_ANGLE,
+			EGL_PLATFORM_ANGLE_TYPE_ANGLE, MG_EGL_PLATFORM_ANGLE_TYPE,
 	    	EGL_PLATFORM_ANGLE_DEVICE_TYPE_ANGLE, EGL_PLATFORM_ANGLE_DEVICE_TYPE_HARDWARE_ANGLE,
 	    	EGL_NONE};
 
@@ -154,7 +161,7 @@ mg_surface mg_egl_surface_create_for_window(mp_window window)
 		eglBindAPI(EGL_OPENGL_ES_API);
 		EGLint contextAttributes[] = {
 			EGL_CONTEXT_MAJOR_VERSION_KHR, 3,
-			EGL_CONTEXT_MINOR_VERSION_KHR, 1,
+			EGL_CONTEXT_MINOR_VERSION_KHR, 0,
 			EGL_CONTEXT_BIND_GENERATES_RESOURCE_CHROMIUM, EGL_TRUE,
 			EGL_CONTEXT_CLIENT_ARRAYS_ENABLED_ANGLE, EGL_TRUE,
 			EGL_CONTEXT_OPENGL_BACKWARDS_COMPATIBLE_ANGLE, EGL_FALSE,

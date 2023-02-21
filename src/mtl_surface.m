@@ -23,6 +23,8 @@ typedef struct mg_mtl_surface
 {
 	mg_surface_data interface;
 
+	mp_layer layer;
+
 	// permanent mtl resources
 	id<MTLDevice> device;
 	CAMetalLayer* mtlLayer;
@@ -47,6 +49,7 @@ void mg_mtl_surface_destroy(mg_surface_data* interface)
 		[surface->mtlLayer release];
 		[surface->device release];
 	}
+	//NOTE: we don't use mp_layer_cleanup here, because the CAMetalLayer is taken care off by the surface itself
 }
 
 void mg_mtl_surface_acquire_drawable_and_command_buffer(mg_mtl_surface* surface)
@@ -136,51 +139,38 @@ void mg_mtl_surface_swap_interval(mg_surface_data* interface, int swap)
 	////////////////////////////////////////////////////////////////
 }
 
+vec2 mg_mtl_surface_contents_scaling(mg_surface_data* interface)
+{
+	mg_mtl_surface* surface = (mg_mtl_surface*)interface;
+	return(mp_layer_contents_scaling(&surface->layer));
+}
+
 void mg_mtl_surface_set_frame(mg_surface_data* interface, mp_rect frame)
 {
 	mg_mtl_surface* surface = (mg_mtl_surface*)interface;
+	mp_layer_set_frame(&surface->layer, frame);
+	vec2 scale = mp_layer_contents_scaling(&surface->layer);
 
-	@autoreleasepool
-	{
-		CGRect cgFrame = {{frame.x, frame.y}, {frame.w, frame.h}};
-		[surface->mtlLayer setFrame: cgFrame];
-
-		f32 scale = surface->mtlLayer.contentsScale;
-		CGSize drawableSize = (CGSize){.width = frame.w * scale, .height = frame.h * scale};
-		surface->mtlLayer.drawableSize = drawableSize;
-	}
+	CGSize drawableSize = (CGSize){.width = frame.w * scale.x, .height = frame.h * scale.y};
+	surface->mtlLayer.drawableSize = drawableSize;
 }
 
 mp_rect mg_mtl_surface_get_frame(mg_surface_data* interface)
 {
 	mg_mtl_surface* surface = (mg_mtl_surface*)interface;
-
-	@autoreleasepool
-	{
-		CGRect frame = surface->mtlLayer.frame;
-		return((mp_rect){frame.origin.x, frame.origin.y, frame.size.width, frame.size.height});
-	}
+	return(mp_layer_get_frame(&surface->layer));
 }
 
 void mg_mtl_surface_set_hidden(mg_surface_data* interface, bool hidden)
 {
 	mg_mtl_surface* surface = (mg_mtl_surface*)interface;
-	@autoreleasepool
-	{
-		[CATransaction begin];
-		[CATransaction setDisableActions:YES];
-		[surface->mtlLayer setHidden:hidden];
-		[CATransaction commit];
-	}
+	mp_layer_set_hidden(&surface->layer, hidden);
 }
 
 bool mg_mtl_surface_get_hidden(mg_surface_data* interface)
 {
 	mg_mtl_surface* surface = (mg_mtl_surface*)interface;
-	@autoreleasepool
-	{
-		return([surface->mtlLayer isHidden]);
-	}
+	return(mp_layer_get_hidden(&surface->layer));
 }
 
 //TODO fix that according to real scaling, depending on the monitor settings
@@ -203,6 +193,7 @@ mg_surface mg_mtl_surface_create_for_window(mp_window window)
 		surface->interface.prepare = mg_mtl_surface_prepare;
 		surface->interface.present = mg_mtl_surface_present;
 		surface->interface.swapInterval = mg_mtl_surface_swap_interval;
+		surface->interface.contentsScaling = mg_mtl_surface_contents_scaling;
 		surface->interface.getFrame = mg_mtl_surface_get_frame;
 		surface->interface.setFrame = mg_mtl_surface_set_frame;
 		surface->interface.getHidden = mg_mtl_surface_get_hidden;
@@ -220,9 +211,11 @@ mg_surface mg_mtl_surface_create_for_window(mp_window window)
 			[surface->device retain];
 			surface->mtlLayer = [CAMetalLayer layer];
 			[surface->mtlLayer retain];
-			[surface->mtlLayer setOpaque:NO];
 
 			surface->mtlLayer.device = surface->device;
+			[surface->mtlLayer setOpaque:NO];
+
+			surface->layer.caLayer = (CALayer*)surface->mtlLayer;
 
 			//-----------------------------------------------------------
 			//NOTE(martin): set the size and scaling
