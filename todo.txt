@@ -14,10 +14,9 @@ Overview
 [/] Automatic surface resizing
 
 [.] Make linking with libEGL optional, even if EGL backend is compiled in milepost?
-	- use /DELAYLOAD:lib on windows?
+	[x] using weak linking on macos
+	[ ] use /DELAYLOAD:lib on windows?
 [.] Remove the need for client apps to link with all dependent libs explicitly
-
-[!] Bundle examples with their own resources?? (e.g. avoiding clashes in metal libs files in bin directory)
 
 [!] Allow controlling surface overlaying
 [!] Sort out contents scaling for high dpi on osx
@@ -33,9 +32,12 @@ Overview
 
 [ ] Delegated drawing API+Impl
 
-[ ] Make building apps simpler
+[ ] Make building examples and apps simpler
 	[ ] single include path
 	[ ] script for embedding dependencies / create app bundle
+
+	[/] Bundle examples with their own resources?? (e.g. avoiding clashes in metal libs files in bin directory)
+		[ ] Or allow to embed compiled shader into executable
 
 
 [?] Backport canvas to GLES
