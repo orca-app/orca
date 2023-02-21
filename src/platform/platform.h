@@ -77,8 +77,16 @@
 // platform helper macros
 //-----------------------------------------------------------------
 #if defined(COMPILER_CL)
+	#if defined(MP_BUILD_DLL)
+		#define MP_API __declspec(dllexport)
+	#else
+		#define MP_API __declspec(dllimport)
+	#endif
+
 	#define mp_thread_local __declspec(thread)
+
 #elif defined(COMPILER_GCC) || defined(COMPILER_CLANG)
+	#define MP_API
 	#define mp_thread_local __thread
 #endif
 

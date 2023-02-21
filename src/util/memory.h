@@ -32,7 +32,7 @@ typedef struct mem_base_allocator
 
 } mem_base_allocator;
 
-mem_base_allocator* mem_base_allocator_default();
+MP_API mem_base_allocator* mem_base_allocator_default();
 
 #define mem_base_reserve(base, size) base->reserve(base->context, size)
 #define mem_base_commit(base, ptr, size) base->commit(base->context, ptr, size)
@@ -57,12 +57,12 @@ typedef struct mem_arena_options
 	u64 reserve;
 } mem_arena_options;
 
-void mem_arena_init(mem_arena* arena);
-void mem_arena_init_with_options(mem_arena* arena, mem_arena_options* options);
-void mem_arena_release(mem_arena* arena);
+MP_API void mem_arena_init(mem_arena* arena);
+MP_API void mem_arena_init_with_options(mem_arena* arena, mem_arena_options* options);
+MP_API void mem_arena_release(mem_arena* arena);
 
-void* mem_arena_alloc(mem_arena* arena, u64 size);
-void mem_arena_clear(mem_arena* arena);
+MP_API void* mem_arena_alloc(mem_arena* arena, u64 size);
+MP_API void mem_arena_clear(mem_arena* arena);
 
 #define mem_arena_alloc_type(arena, type) ((type*)mem_arena_alloc(arena, sizeof(type)))
 #define mem_arena_alloc_array(arena, type, count) ((type*)mem_arena_alloc(arena, sizeof(type)*(count)))
@@ -83,21 +83,21 @@ typedef struct mem_pool_options
 	u64 reserve;
 } mem_pool_options;
 
-void mem_pool_init(mem_pool* pool, u64 blockSize);
-void mem_pool_init_with_options(mem_pool* pool, u64 blockSize, mem_pool_options* options);
-void mem_pool_release(mem_pool* pool);
+MP_API void mem_pool_init(mem_pool* pool, u64 blockSize);
+MP_API void mem_pool_init_with_options(mem_pool* pool, u64 blockSize, mem_pool_options* options);
+MP_API void mem_pool_release(mem_pool* pool);
 
-void* mem_pool_alloc(mem_pool* pool);
-void mem_pool_recycle(mem_pool* pool, void* ptr);
-void mem_pool_clear(mem_pool* pool);
+MP_API void* mem_pool_alloc(mem_pool* pool);
+MP_API void mem_pool_recycle(mem_pool* pool, void* ptr);
+MP_API void mem_pool_clear(mem_pool* pool);
 
 #define mem_pool_alloc_type(arena, type) ((type*)mem_pool_alloc(arena))
 
 //--------------------------------------------------------------------------------
 //NOTE(martin): per-thread implicit scratch arena
 //--------------------------------------------------------------------------------
-void mem_scratch_clear();
-mem_arena* mem_scratch();
+MP_API void mem_scratch_clear();
+MP_API mem_arena* mem_scratch();
 
 #ifdef __cplusplus
 } // extern "C"

@@ -10,6 +10,7 @@
 #define __DEBUG_LOG_H_
 
 #include<stdio.h>
+#include"platform.h"
 #include"typedefs.h"
 #include"macro_helpers.h"
 
@@ -36,17 +37,17 @@ typedef enum { LOG_LEVEL_ERROR,
 	       LOG_LEVEL_DEBUG,
 	       LOG_LEVEL_COUNT } log_level;
 
-void LogGeneric(log_level level,
-		const char* subsystem,
-		const char* functionName,
-                const char* fileName,
-		u32 line,
-		const char* msg,
-		...);
+MP_API void LogGeneric(log_level level,
+                       const char* subsystem,
+                       const char* functionName,
+                       const char* fileName,
+                       u32 line,
+                       const char* msg,
+                       ...);
 
-void LogOutput(FILE* output);
-void LogLevel(log_level level);
-void LogFilter(const char* subsystem, log_level level);
+MP_API void LogOutput(FILE* output);
+MP_API void LogLevel(log_level level);
+MP_API void LogFilter(const char* subsystem, log_level level);
 
 #define LOG_GENERIC(level, func, file, line, msg, ...) LogGeneric(level, LOG_SUBSYSTEM, func, file, line, msg, ##__VA_ARGS__ )
 

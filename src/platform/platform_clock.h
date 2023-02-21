@@ -21,10 +21,10 @@ typedef enum {
 	MP_CLOCK_DATE       // clock that is driven by the platform time
 } mp_clock_kind;
 
-void mp_clock_init(); // initialize the clock subsystem
-u64  mp_get_timestamp(mp_clock_kind clock);
-f64  mp_get_time(mp_clock_kind clock);
-void mp_sleep_nanoseconds(u64 nanoseconds); // sleep for a given number of nanoseconds
+MP_API void mp_clock_init(); // initialize the clock subsystem
+MP_API u64  mp_get_timestamp(mp_clock_kind clock);
+MP_API f64  mp_get_time(mp_clock_kind clock);
+MP_API void mp_sleep_nanoseconds(u64 nanoseconds); // sleep for a given number of nanoseconds
 
 #ifdef __cplusplus
 } // extern "C"

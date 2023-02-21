@@ -23,14 +23,14 @@ typedef u32 utf32;
 //-----------------------------------------------------------------
 //NOTE: getting sizes / offsets / indices
 //-----------------------------------------------------------------
-u32 utf8_size_from_leading_char(char leadingChar);
-u32 utf8_codepoint_size(utf32 codePoint);
+MP_API u32 utf8_size_from_leading_char(char leadingChar);
+MP_API u32 utf8_codepoint_size(utf32 codePoint);
 
-u64 utf8_codepoint_count_for_string(str8 string);
-u64 utf8_byte_count_for_codepoints(str32 codePoints);
+MP_API u64 utf8_codepoint_count_for_string(str8 string);
+MP_API u64 utf8_byte_count_for_codepoints(str32 codePoints);
 
-u64 utf8_next_offset(str8 string, u64 byteOffset);
-u64 utf8_prev_offset(str8 string, u64 byteOffset);
+MP_API u64 utf8_next_offset(str8 string, u64 byteOffset);
+MP_API u64 utf8_prev_offset(str8 string, u64 byteOffset);
 
 //-----------------------------------------------------------------
 //NOTE: encoding / decoding
@@ -41,15 +41,15 @@ typedef struct utf8_dec
 	u32 size;        //NOTE: size of corresponding utf8 sequence
 } utf8_dec;
 
-utf8_dec utf8_decode(str8 string);				   //NOTE: decode a single utf8 sequence at start of string
-utf8_dec utf8_decode_at(str8 string, u64 offset); //NOTE: decode a single utf8 sequence starting at byte offset
-str8 utf8_encode(char* dst, utf32 codePoint);     //NOTE: encode codepoint into backing buffer dst
+MP_API utf8_dec utf8_decode(str8 string);				   //NOTE: decode a single utf8 sequence at start of string
+MP_API utf8_dec utf8_decode_at(str8 string, u64 offset); //NOTE: decode a single utf8 sequence starting at byte offset
+MP_API str8 utf8_encode(char* dst, utf32 codePoint);     //NOTE: encode codepoint into backing buffer dst
 
-str32 utf8_to_codepoints(u64 maxCount, utf32* backing, str8 string);
-str8 utf8_from_codepoints(u64 maxBytes, char* backing, str32 codePoints);
+MP_API str32 utf8_to_codepoints(u64 maxCount, utf32* backing, str8 string);
+MP_API str8 utf8_from_codepoints(u64 maxBytes, char* backing, str32 codePoints);
 
-str32 utf8_push_to_codepoints(mem_arena* arena, str8 string);
-str8 utf8_push_from_codepoints(mem_arena* arena, str32 codePoints);
+MP_API str32 utf8_push_to_codepoints(mem_arena* arena, str8 string);
+MP_API str8 utf8_push_from_codepoints(mem_arena* arena, str32 codePoints);
 
 //-----------------------------------------------------------------
 // utf8 range struct and X-macros for defining utf8 ranges
@@ -189,9 +189,8 @@ UNICODE_RANGE(0xe0100, 239, VARIATION_SELECTORS_SUPPLEMENT) \
 UNICODE_RANGE(0xf0000, 65533, SUPPLEMENTARY_PRIVATE_USE_AREA_A) \
 UNICODE_RANGE(0x100000, 65533, SUPPLEMENTARY_PRIVATE_USE_AREA_B)
 
-
 #define UNICODE_RANGE(start, count, name) \
-	extern const unicode_range _cat2_(UNICODE_RANGE_, name);
+	MP_API extern const unicode_range _cat2_(UNICODE_RANGE_, name);
 UNICODE_RANGES
 #undef UNICODE_RANGE
 

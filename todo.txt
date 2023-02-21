@@ -16,7 +16,7 @@ Overview
 [.] Make linking with libEGL optional, even if EGL backend is compiled in milepost?
 	[x] using weak linking on macos
 	[ ] use /DELAYLOAD:lib on windows?
-[.] Remove the need for client apps to link with all dependent libs explicitly
+[x] Remove the need for client apps to link with all dependent libs explicitly
 
 [!] Allow controlling surface overlaying
 [!] Sort out contents scaling for high dpi on osx

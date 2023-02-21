@@ -96,12 +96,13 @@ for func in glall:
 	f.write('\t' + 'PFN' + func.upper() + 'PROC ' + remove_prefix(func, 'gl') + ';\n')
 
 f.write('} mg_gl_api;\n\n')
-f.write('extern mp_thread_local mg_gl_api* __mgGLAPI;\n\n');
 
 # generate interface macros
 # TODO guard for different api/versions and only #define functions present in desired version
+f.write("MP_API mg_gl_api* mg_gl_get_api(void);\n\n")
+
 for func in glall:
-	f.write('#define ' + func + ' __mgGLAPI->' + remove_prefix(func, 'gl') + '\n')
+	f.write('#define ' + func + ' mg_gl_get_api()->' + remove_prefix(func, 'gl') + '\n')
 
 emit_end_guard(f, apiName)
 f.close()
@@ -124,8 +125,8 @@ f.write("void mg_gl_load_gl43(mg_gl_api* api, mg_gl_load_proc loadProc);\n")
 f.write("void mg_gl_load_gles31(mg_gl_api* api, mg_gl_load_proc loadProc);\n")
 f.write("void mg_gl_load_gles32(mg_gl_api* api, mg_gl_load_proc loadProc);\n\n")
 
-f.write("void mg_gl_select_api(mg_gl_api* api);\n")
-f.write("mg_gl_api* mg_gl_get_api(void);\n\n")
+f.write("void mg_gl_select_api(mg_gl_api* api);\n\n")
+
 
 emit_end_guard(f, loaderName)
 f.close()

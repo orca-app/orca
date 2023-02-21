@@ -6,5 +6,6 @@ set glsl_shaders=src\glsl_shaders\common.glsl src\glsl_shaders\blit_vertex.glsl 
 call python3 scripts\embed_text.py %glsl_shaders% --prefix=glsl_ --output src\glsl_shaders.h
 
 set INCLUDES=/I src /I src/util /I src/platform /I ext /I ext/angle_headers
-cl /we4013 /Zi /Zc:preprocessor /std:c11 %INCLUDES% /c /Fo:bin/milepost.obj src/milepost.c
-lib bin/milepost.obj /OUT:bin/milepost.lib
+set LIBS=user32.lib opengl32.lib gdi32.lib shcore.lib /LIBPATH:./bin libEGL.dll.lib libGLESv2.dll.lib
+
+cl /we4013 /Zi /Zc:preprocessor /DMP_BUILD_DLL /std:c11 %INCLUDES% src/milepost.c /Fo:bin/milepost.o /LD /link %LIBS% /OUT:bin/milepost.dll /IMPLIB:bin/milepost.dll.lib

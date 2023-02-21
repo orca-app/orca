@@ -258,122 +258,122 @@ typedef struct mp_event
 // app management
 //--------------------------------------------------------------------
 
-void mp_init();
-void mp_terminate();
+MP_API void mp_init(void);
+MP_API void mp_terminate(void);
 
-bool mp_should_quit();
-void mp_cancel_quit();
-void mp_request_quit();
+MP_API bool mp_should_quit(void);
+MP_API void mp_cancel_quit(void);
+MP_API void mp_request_quit(void);
 
-void mp_set_cursor(mp_mouse_cursor cursor);
+MP_API void mp_set_cursor(mp_mouse_cursor cursor);
 
 //--------------------------------------------------------------------
 // Main loop and events handling
 //--------------------------------------------------------------------
 
-void mp_pump_events(f64 timeout);
-bool mp_next_event(mp_event* event);
+MP_API void mp_pump_events(f64 timeout);
+MP_API bool mp_next_event(mp_event* event);
 
 typedef void(*mp_live_resize_callback)(mp_event event, void* data);
-void mp_set_live_resize_callback(mp_live_resize_callback callback, void* data);
+MP_API void mp_set_live_resize_callback(mp_live_resize_callback callback, void* data);
 
 //--------------------------------------------------------------------
 // window management
 //--------------------------------------------------------------------
 
-bool mp_window_handle_is_null(mp_window window);
-mp_window mp_window_null_handle();
+MP_API bool mp_window_handle_is_null(mp_window window);
+MP_API mp_window mp_window_null_handle(void);
 
-mp_window mp_window_create(mp_rect contentRect, const char* title, mp_window_style style);
-void mp_window_destroy(mp_window window);
-void* mp_window_native_pointer(mp_window window);
+MP_API mp_window mp_window_create(mp_rect contentRect, const char* title, mp_window_style style);
+MP_API void mp_window_destroy(mp_window window);
+MP_API void* mp_window_native_pointer(mp_window window);
 
-bool mp_window_should_close(mp_window window);
-void mp_window_request_close(mp_window window);
-void mp_window_cancel_close(mp_window window);
+MP_API bool mp_window_should_close(mp_window window);
+MP_API void mp_window_request_close(mp_window window);
+MP_API void mp_window_cancel_close(mp_window window);
 
-bool mp_window_is_hidden(mp_window window);
-void mp_window_hide(mp_window window);
-void mp_window_show(mp_window window);
+MP_API bool mp_window_is_hidden(mp_window window);
+MP_API void mp_window_hide(mp_window window);
+MP_API void mp_window_show(mp_window window);
 
-bool mp_window_is_minimized(mp_window window);
-bool mp_window_is_maximized(mp_window window);
-void mp_window_minimize(mp_window window);
-void mp_window_maximize(mp_window window);
-void mp_window_restore(mp_window window);
+MP_API bool mp_window_is_minimized(mp_window window);
+MP_API bool mp_window_is_maximized(mp_window window);
+MP_API void mp_window_minimize(mp_window window);
+MP_API void mp_window_maximize(mp_window window);
+MP_API void mp_window_restore(mp_window window);
 
-bool mp_window_has_focus(mp_window window);
-void mp_window_focus(mp_window window);
-void mp_window_unfocus(mp_window window);
+MP_API bool mp_window_has_focus(mp_window window);
+MP_API void mp_window_focus(mp_window window);
+MP_API void mp_window_unfocus(mp_window window);
 
-void mp_window_send_to_back(mp_window window);
-void mp_window_bring_to_front(mp_window window);
+MP_API void mp_window_send_to_back(mp_window window);
+MP_API void mp_window_bring_to_front(mp_window window);
 
-mp_rect mp_window_get_content_rect(mp_window window);
-mp_rect mp_window_get_frame_rect(mp_window window);
-void mp_window_set_content_rect(mp_window window, mp_rect contentRect);
-void mp_window_set_frame_rect(mp_window window, mp_rect frameRect);
+MP_API mp_rect mp_window_get_content_rect(mp_window window);
+MP_API mp_rect mp_window_get_frame_rect(mp_window window);
+MP_API void mp_window_set_content_rect(mp_window window, mp_rect contentRect);
+MP_API void mp_window_set_frame_rect(mp_window window, mp_rect frameRect);
 
-void mp_window_center(mp_window window);
+MP_API void mp_window_center(mp_window window);
 
-mp_rect mp_window_content_rect_for_frame_rect(mp_rect frameRect, mp_window_style style);
-mp_rect mp_window_frame_rect_for_content_rect(mp_rect contentRect, mp_window_style style);
+MP_API mp_rect mp_window_content_rect_for_frame_rect(mp_rect frameRect, mp_window_style style);
+MP_API mp_rect mp_window_frame_rect_for_content_rect(mp_rect contentRect, mp_window_style style);
 
 //--------------------------------------------------------------------
 // Input state polling
 //--------------------------------------------------------------------
-bool mp_input_key_down(mp_key_code key);
-bool mp_input_key_pressed(mp_key_code key);
-bool mp_input_key_released(mp_key_code key);
-mp_key_mods mp_input_key_mods();
+MP_API bool mp_input_key_down(mp_key_code key);
+MP_API bool mp_input_key_pressed(mp_key_code key);
+MP_API bool mp_input_key_released(mp_key_code key);
+MP_API mp_key_mods mp_input_key_mods(void);
 
-str8 mp_key_to_label(mp_key_code key);
-mp_key_code mp_label_to_key(str8 label);
+MP_API str8 mp_key_to_label(mp_key_code key);
+MP_API mp_key_code mp_label_to_key(str8 label);
 
-bool mp_input_mouse_down(mp_mouse_button button);
-bool mp_input_mouse_pressed(mp_mouse_button button);
-bool mp_input_mouse_released(mp_mouse_button button);
-bool mp_input_mouse_clicked(mp_mouse_button button);
-bool mp_input_mouse_double_clicked(mp_mouse_button button);
+MP_API bool mp_input_mouse_down(mp_mouse_button button);
+MP_API bool mp_input_mouse_pressed(mp_mouse_button button);
+MP_API bool mp_input_mouse_released(mp_mouse_button button);
+MP_API bool mp_input_mouse_clicked(mp_mouse_button button);
+MP_API bool mp_input_mouse_double_clicked(mp_mouse_button button);
 
-vec2 mp_input_mouse_position();
-vec2 mp_input_mouse_delta();
-vec2 mp_input_mouse_wheel();
+MP_API vec2 mp_input_mouse_position(void);
+MP_API vec2 mp_input_mouse_delta(void);
+MP_API vec2 mp_input_mouse_wheel(void);
 
-str32 mp_input_text_utf32(mem_arena* arena);
-str8 mp_input_text_utf8(mem_arena* arena);
+MP_API str32 mp_input_text_utf32(mem_arena* arena);
+MP_API str8 mp_input_text_utf8(mem_arena* arena);
 
 //--------------------------------------------------------------------
 // Clipboard
 //--------------------------------------------------------------------
-void mp_clipboard_clear();
+MP_API void mp_clipboard_clear(void);
 
-void mp_clipboard_set_string(str8 string);
-str8 mp_clipboard_get_string(mem_arena* arena);
-str8 mp_clipboard_copy_string(str8 backing);
+MP_API void mp_clipboard_set_string(str8 string);
+MP_API str8 mp_clipboard_get_string(mem_arena* arena);
+MP_API str8 mp_clipboard_copy_string(str8 backing);
 
-bool mp_clipboard_has_tag(const char* tag);
-void mp_clipboard_set_data_for_tag(const char* tag, str8 data);
-str8 mp_clipboard_get_data_for_tag(mem_arena* arena, const char* tag);
+MP_API bool mp_clipboard_has_tag(const char* tag);
+MP_API void mp_clipboard_set_data_for_tag(const char* tag, str8 data);
+MP_API str8 mp_clipboard_get_data_for_tag(mem_arena* arena, const char* tag);
 
 //--------------------------------------------------------------------
 // native open/save/alert windows
 //--------------------------------------------------------------------
 
-str8 mp_open_dialog(mem_arena* arena,
+MP_API str8 mp_open_dialog(mem_arena* arena,
                            const char* title,
                            const char* defaultPath,
                            int filterCount,
                            const char** filters,
                            bool directory);
 
-str8 mp_save_dialog(mem_arena* arena,
+MP_API str8 mp_save_dialog(mem_arena* arena,
                            const char* title,
                            const char* defaultPath,
                            int filterCount,
                            const char** filters);
 
-int mp_alert_popup(const char* title,
+MP_API int mp_alert_popup(const char* title,
                    const char* message,
                    u32 count,
                    const char** options);
@@ -382,13 +382,13 @@ int mp_alert_popup(const char* title,
 //--------------------------------------------------------------------
 // file system stuff... //TODO: move elsewhere
 //--------------------------------------------------------------------
-int mp_file_move(str8 from, str8 to);
-int mp_file_remove(str8 path);
+MP_API int mp_file_move(str8 from, str8 to);
+MP_API int mp_file_remove(str8 path);
 
-int mp_directory_create(str8 path);
+MP_API int mp_directory_create(str8 path);
 
-str8 mp_app_get_resource_path(mem_arena* arena, const char* name);
-str8 mp_app_get_executable_path(mem_arena* arena);
+MP_API str8 mp_app_get_resource_path(mem_arena* arena, const char* name);
+MP_API str8 mp_app_get_executable_path(mem_arena* arena);
 
 
 #ifdef __cplusplus

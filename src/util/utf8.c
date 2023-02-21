@@ -8,6 +8,7 @@
 //
 //*****************************************************************
 #include"utf8.h"
+#include"platform.h"
 #include<string.h>
 
 //-----------------------------------------------------------------
@@ -278,6 +279,6 @@ str8 utf8_push_from_codepoints(mem_arena* arena, str32 codePoints)
 	return(res);
 }
 
-#define UNICODE_RANGE(start, cnt, name) const unicode_range _cat2_(UNICODE_RANGE_, name) = { .firstCodePoint = start, .count = cnt };
+#define UNICODE_RANGE(start, cnt, name) MP_API extern const unicode_range _cat2_(UNICODE_RANGE_, name) = { .firstCodePoint = start, .count = cnt };
 UNICODE_RANGES
 #undef UNICODE_RANGE
