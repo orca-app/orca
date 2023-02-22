@@ -10,10 +10,26 @@
 #define EGL_EGLEXT_PROTOTYPES
 #include<EGL/egl.h>
 #include<EGL/eglext.h>
-
 #include"mp_app_internal.h"
 #include"graphics_internal.h"
 #include"gl_loader.h"
+
+#if OS_MACOS
+	//NOTE: EGL_PLATFORM_ANGLE_TYPE_DEFAULT_ANGLE on osx defaults to CGL backend, which doesn't handle SwapInterval correctly
+	#define MG_EGL_PLATFORM_ANGLE_TYPE EGL_PLATFORM_ANGLE_TYPE_METAL_ANGLE
+
+	//NOTE: hardcode GLES versions for now
+	//TODO: use version hints, once we have all api versions correctly categorized by glapi.py
+	#define MG_GLES_VERSION_MAJOR 3
+	#define MG_GLES_VERSION_MINOR 0
+	#define mg_gl_load_gles mg_gl_load_gles30
+#else
+	#define MG_EGL_PLATFORM_ANGLE_TYPE EGL_PLATFORM_ANGLE_TYPE_DEFAULT_ANGLE
+	#define MG_GLES_VERSION_MAJOR 3
+	#define MG_GLES_VERSION_MINOR 1
+	#define mg_gl_load_gles mg_gl_load_gles31
+#endif
+
 
 typedef struct mg_egl_surface
 {
@@ -121,13 +137,6 @@ mg_surface mg_egl_surface_create_for_window(mp_window window)
 
 		mp_layer_init_for_window(&surface->layer, windowData);
 
-		#if OS_MACOS
-			//NOTE: using EGL_PLATFORM_ANGLE_TYPE_DEFAULT_ANGLE on osx defaults to CGL backend, which doesn't handle SwapInterval correctly
-			#define MG_EGL_PLATFORM_ANGLE_TYPE EGL_PLATFORM_ANGLE_TYPE_METAL_ANGLE
-		#else
-			#define MG_EGL_PLATFORM_ANGLE_TYPE EGL_PLATFORM_ANGLE_TYPE_DEFAULT_ANGLE
-		#endif
-
 		EGLAttrib displayAttribs[] = {
 			EGL_PLATFORM_ANGLE_TYPE_ANGLE, MG_EGL_PLATFORM_ANGLE_TYPE,
 	    	EGL_PLATFORM_ANGLE_DEVICE_TYPE_ANGLE, EGL_PLATFORM_ANGLE_DEVICE_TYPE_HARDWARE_ANGLE,
@@ -160,8 +169,8 @@ mg_surface mg_egl_surface_create_for_window(mp_window window)
 
 		eglBindAPI(EGL_OPENGL_ES_API);
 		EGLint contextAttributes[] = {
-			EGL_CONTEXT_MAJOR_VERSION_KHR, 3,
-			EGL_CONTEXT_MINOR_VERSION_KHR, 0,
+			EGL_CONTEXT_MAJOR_VERSION_KHR, MG_GLES_VERSION_MAJOR,
+			EGL_CONTEXT_MINOR_VERSION_KHR, MG_GLES_VERSION_MINOR,
 			EGL_CONTEXT_BIND_GENERATES_RESOURCE_CHROMIUM, EGL_TRUE,
 			EGL_CONTEXT_CLIENT_ARRAYS_ENABLED_ANGLE, EGL_TRUE,
 			EGL_CONTEXT_OPENGL_BACKWARDS_COMPATIBLE_ANGLE, EGL_FALSE,
@@ -170,7 +179,7 @@ mg_surface mg_egl_surface_create_for_window(mp_window window)
 		surface->eglContext = eglCreateContext(surface->eglDisplay, surface->eglConfig, EGL_NO_CONTEXT, contextAttributes);
 		eglMakeCurrent(surface->eglDisplay, surface->eglSurface, surface->eglSurface, surface->eglContext);
 
-		mg_gl_load_gles32(&surface->api, (mg_gl_load_proc)eglGetProcAddress);
+		mg_gl_load_gles(&surface->api, (mg_gl_load_proc)eglGetProcAddress);
 
 		eglSwapInterval(surface->eglDisplay, 1);
 

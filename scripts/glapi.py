@@ -20,7 +20,7 @@ loaderHeaderPath = args.directory + '/' + loaderName + '.h'
 loaderCPath = args.directory + '/' + loaderName + '.c'
 
 #---------------------------------------------------------------
-#NOTE: gather all GL functions in OpenGL 4.3
+#NOTE: gather all GL functions in GL 4.1, 4.3, and GLES 3.0 and 3.1
 #---------------------------------------------------------------
 
 def gather_api(tree, api, version):
@@ -44,10 +44,10 @@ tree = et.parse(args.spec)
 
 gl41 = gather_api(tree, 'gl', 4.1)
 gl43 = gather_api(tree, 'gl', 4.3)
-gles31 = gather_api(tree, 'gles2', 3.1)
-gles32 = gather_api(tree, 'gles2', 3.2)
+gles30 = gather_api(tree, 'gles2', 3.1)
+gles31 = gather_api(tree, 'gles2', 3.2)
 
-glall = list(set().union(gl41, gl43, gles31, gles32))
+glall = list(set().union(gl41, gl43, gles30, gles31))
 
 
 #---------------------------------------------------------------
@@ -122,8 +122,8 @@ f.write("typedef void*(*mg_gl_load_proc)(const char* name);\n\n")
 
 f.write("void mg_gl_load_gl41(mg_gl_api* api, mg_gl_load_proc loadProc);\n")
 f.write("void mg_gl_load_gl43(mg_gl_api* api, mg_gl_load_proc loadProc);\n")
-f.write("void mg_gl_load_gles31(mg_gl_api* api, mg_gl_load_proc loadProc);\n")
-f.write("void mg_gl_load_gles32(mg_gl_api* api, mg_gl_load_proc loadProc);\n\n")
+f.write("void mg_gl_load_gles30(mg_gl_api* api, mg_gl_load_proc loadProc);\n")
+f.write("void mg_gl_load_gles31(mg_gl_api* api, mg_gl_load_proc loadProc);\n\n")
 
 f.write("void mg_gl_select_api(mg_gl_api* api);\n\n")
 
@@ -152,8 +152,8 @@ f.write("mp_thread_local mg_gl_api* __mgGLAPI = 0;\n\n")
 
 emit_loader(f, 'gl41', gl41)
 emit_loader(f, 'gl43', gl43)
+emit_loader(f, 'gles30', gles30)
 emit_loader(f, 'gles31', gles31)
-emit_loader(f, 'gles32', gles32)
 
 f.write("void mg_gl_select_api(mg_gl_api* api){ __mgGLAPI = api; }\n")
 f.write("mg_gl_api* mg_gl_get_api(void) { return(__mgGLAPI); }\n\n")

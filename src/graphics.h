@@ -101,7 +101,6 @@ MP_API void mg_surface_set_frame(mg_surface surface, mp_rect frame);
 MP_API bool mg_surface_get_hidden(mg_surface surface);
 MP_API void mg_surface_set_hidden(mg_surface surface, bool hidden);
 
-
 //------------------------------------------------------------------------------------------
 //NOTE(martin): graphics canvas structs
 //------------------------------------------------------------------------------------------
