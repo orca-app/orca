@@ -1928,14 +1928,10 @@ void mg_render_stroke(mg_canvas_data* canvas,
 
 void mg_render_rectangle_fill(mg_canvas_data* canvas, mp_rect rect, mg_attributes* attributes)
 {
-	mg_next_shape(canvas, attributes->color);
-/*
 	u32 baseIndex = mg_vertices_base_index(canvas);
 	i32* indices = mg_reserve_indices(canvas, 6);
 
-//	mg_next_shape(canvas, attributes->color);
-
-	mg_next_shape(canvas, (mg_color){1, 0, 1, 1});
+	mg_next_shape(canvas, attributes->color);
 
 	vec2 points[4] = {{rect.x, rect.y},
 	                  {rect.x + rect.w, rect.y},
@@ -1954,35 +1950,6 @@ void mg_render_rectangle_fill(mg_canvas_data* canvas, mp_rect rect, mg_attribute
 	indices[3] = baseIndex + 0;
 	indices[4] = baseIndex + 2;
 	indices[5] = baseIndex + 3;
-*/
-
-	f32 rx = rect.w/2;
-	f32 ry = rect.h/2;
-
-	u32 baseIndex = mg_vertices_base_index(canvas);
-	i32* indices = mg_reserve_indices(canvas, 6);
-
-	//NOTE(martin): inner diamond
-	vec2 points[4] = {{rect.x, rect.y + ry},
-	                  {rect.x + rx, rect.y},
-	                  {rect.x + rect.w, rect.y + ry},
-	                  {rect.x + rx, rect.y + rect.h}};
-
-	vec4 cubic = {1, 1, 1, 1};
-
-	for(int i=0; i<4; i++)
-	{
-		vec2 pos = mg_mat2x3_mul(canvas->transform, points[i]);
-		mg_push_vertex(canvas, pos, cubic);
-	}
-
-	indices[0] = baseIndex + 0;
-	indices[1] = baseIndex + 1;
-	indices[2] = baseIndex + 2;
-	indices[3] = baseIndex + 0;
-	indices[4] = baseIndex + 2;
-	indices[5] = baseIndex + 3;
-
 }
 
 void mg_render_rectangle_stroke(mg_canvas_data* canvas, mp_rect rect, mg_attributes* attributes)

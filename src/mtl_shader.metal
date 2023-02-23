@@ -195,24 +195,10 @@ kernel void RenderKernel(texture2d<float, access::write> outTexture [[texture(0)
 
 	const uint tileBufferSize = tileCounters[tileIndex];
 
-
-//#define RENDERER_DEBUG_TILES
 #ifdef RENDERER_DEBUG_TILES
 	//NOTE(martin): color code debug values and show the tile grid
 	uint nTileX = tilesMatrixDim.x;
 	uint nTileY = tilesMatrixDim.y;
-
-	if(tilePos.x == 2 && tilePos.y == 12)
-	{
-		outTexture.write(float4(1, 0.5, 1, 1), gid);
-		return;
-	}
-
-	if(nTileY != 13 || nTileX != 13)
-	{
-		outTexture.write(float4(1, 1, 0, 1), gid);
-		return;
-	}
 
 	if(tilePos.x > nTileX || tilePos.y > nTileY)
 	{
@@ -331,7 +317,7 @@ kernel void RenderKernel(texture2d<float, access::write> outTexture [[texture(0)
 							pixelColors[i] = nextColors[i];
 						}
 
-						float4 nextCol = color*texColor;
+						float4 nextCol = color;//*texColor;
 						nextColors[i] = pixelColors[i]*(1-nextCol.a) +nextCol.a*nextCol;
 
 						zIndices[i] = shapeIndex;

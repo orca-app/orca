@@ -73,7 +73,7 @@ void mg_mtl_canvas_clear(mg_canvas_backend* interface, mg_color clearColor)
 	backend->clearColor = clearColor;
 }
 
-void mg_mtl_canvas_draw_batch(mg_canvas_backend* interface, u32 vertexCount, u32 indexCount, u32 shapeCount)
+void mg_mtl_canvas_draw_batch(mg_canvas_backend* interface, u32 shapeCount, u32 vertexCount, u32 indexCount)
 {
 	mg_mtl_canvas_backend* backend = (mg_mtl_canvas_backend*)interface;
 	mg_mtl_surface* surface = mg_mtl_canvas_get_surface(backend);
