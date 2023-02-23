@@ -24,6 +24,9 @@
 //------------------------------------------------------------------------
 // graphics handles structs
 //------------------------------------------------------------------------
+
+typedef struct mg_canvas_data mg_canvas_data;
+
 typedef struct mg_resource_slot
 {
 	list_elt freeListElt;
@@ -64,7 +67,54 @@ typedef struct mg_data
 
 } mg_data;
 
+typedef struct mg_canvas_data
+{
+	list_elt freeListElt;
+	u32 generation;
+
+	u64 frameCounter;
+
+	mg_mat2x3 transform;
+	mp_rect clip;
+	mg_attributes attributes;
+	bool textFlip;
+
+	mg_path_elt pathElements[MG_MAX_PATH_ELEMENT_COUNT];
+	mg_path_descriptor path;
+	vec2 subPathStartPoint;
+	vec2 subPathLastPoint;
+
+	mg_mat2x3 matrixStack[MG_MATRIX_STACK_MAX_DEPTH];
+	u32 matrixStackSize;
+
+	mp_rect clipStack[MG_CLIP_STACK_MAX_DEPTH];
+	u32 clipStackSize;
+
+	u32 nextShapeIndex;
+	u32 primitiveCount;
+	mg_primitive primitives[MG_MAX_PRIMITIVE_COUNT];
+
+	u32 vertexCount;
+	u32 indexCount;
+
+	mg_resource_pool imagePool;
+
+	vec2 atlasPos;
+	u32 atlasLineHeight;
+	mg_image blankImage;
+
+	mg_canvas_backend* backend;
+
+} mg_canvas_data;
+
+enum
+{
+	MG_ATLAS_SIZE = 8192,
+};
+
+
 static mg_data __mgData = {0};
+
 
 void mg_init()
 {
@@ -218,40 +268,29 @@ mg_canvas_data* mg_canvas_data_from_handle(mg_canvas canvas)
 mg_image mg_image_nil() { return((mg_image){.h = 0}); }
 bool mg_image_is_nil(mg_image image) { return(image.h == 0); }
 
-mg_image mg_image_handle_from_ptr(mg_canvas_data* canvas, mg_image_data* imageData)
+mg_image mg_image_alloc_handle(mg_canvas_data* canvas, mg_image_data* image)
 {
-	DEBUG_ASSERT(  (imageData - canvas->images) >= 0
-	            && (imageData - canvas->images) < MG_IMAGE_MAX_COUNT);
-
-	u64 h = ((u64)(imageData - canvas->images))<<32
-	       |((u64)(imageData->generation));
-	return((mg_image){.h = h});
+	mg_resource_slot* slot = mg_resource_slot_alloc(&canvas->imagePool);
+	if(!slot)
+	{
+		LOG_ERROR("no more canvas slots\n");
+		return(mg_image_nil());
+	}
+	slot->image = image;
+	u64 h = mg_resource_handle_from_slot(&canvas->imagePool, slot);
+	mg_image handle = {h};
+	return(handle);
 }
 
-void mg_image_data_recycle(mg_canvas_data* canvas, mg_image_data* image)
+mg_image_data* mg_image_data_from_handle(mg_canvas_data* canvas, mg_image handle)
 {
-	image->generation++;
-	ListPush(&canvas->imageFreeList, &image->listElt);
-}
-
-mg_image_data* mg_image_ptr_from_handle(mg_canvas_data* context, mg_image handle)
-{
-	u32 index = handle.h>>32;
-	u32 generation = handle.h & 0xffffffff;
-
-	if(index >= MG_IMAGE_MAX_COUNT)
+	mg_image_data* data = 0;
+	mg_resource_slot* slot = mg_resource_slot_from_handle(&canvas->imagePool, handle.h);
+	if(slot)
 	{
-		return(0);
+		data = slot->image;
 	}
-	mg_image_data* image = &context->images[index];
-	if(image->generation != generation)
-	{
-		return(0);
-	}
-	else
-	{
-		return(image);
-	}
+	return(data);
 }
 
 //------------------------------------------------------------------------
@@ -1889,10 +1928,14 @@ void mg_render_stroke(mg_canvas_data* canvas,
 
 void mg_render_rectangle_fill(mg_canvas_data* canvas, mp_rect rect, mg_attributes* attributes)
 {
+	mg_next_shape(canvas, attributes->color);
+/*
 	u32 baseIndex = mg_vertices_base_index(canvas);
 	i32* indices = mg_reserve_indices(canvas, 6);
 
-	mg_next_shape(canvas, attributes->color);
+//	mg_next_shape(canvas, attributes->color);
+
+	mg_next_shape(canvas, (mg_color){1, 0, 1, 1});
 
 	vec2 points[4] = {{rect.x, rect.y},
 	                  {rect.x + rect.w, rect.y},
@@ -1911,6 +1954,35 @@ void mg_render_rectangle_fill(mg_canvas_data* canvas, mp_rect rect, mg_attribute
 	indices[3] = baseIndex + 0;
 	indices[4] = baseIndex + 2;
 	indices[5] = baseIndex + 3;
+*/
+
+	f32 rx = rect.w/2;
+	f32 ry = rect.h/2;
+
+	u32 baseIndex = mg_vertices_base_index(canvas);
+	i32* indices = mg_reserve_indices(canvas, 6);
+
+	//NOTE(martin): inner diamond
+	vec2 points[4] = {{rect.x, rect.y + ry},
+	                  {rect.x + rx, rect.y},
+	                  {rect.x + rect.w, rect.y + ry},
+	                  {rect.x + rx, rect.y + rect.h}};
+
+	vec4 cubic = {1, 1, 1, 1};
+
+	for(int i=0; i<4; i++)
+	{
+		vec2 pos = mg_mat2x3_mul(canvas->transform, points[i]);
+		mg_push_vertex(canvas, pos, cubic);
+	}
+
+	indices[0] = baseIndex + 0;
+	indices[1] = baseIndex + 1;
+	indices[2] = baseIndex + 2;
+	indices[3] = baseIndex + 0;
+	indices[4] = baseIndex + 2;
+	indices[5] = baseIndex + 3;
+
 }
 
 void mg_render_rectangle_stroke(mg_canvas_data* canvas, mp_rect rect, mg_attributes* attributes)
@@ -2115,51 +2187,38 @@ void mg_render_ellipse_stroke(mg_canvas_data* canvas, mp_rect rect, mg_attribute
 	mg_render_ellipse_fill_path(canvas, inner);
 }
 
-void mg_render_image(mg_canvas_data* canvas, mg_image image, mp_rect rect)
+void mg_render_image(mg_canvas_data* canvas, mg_image image, mp_rect srcRegion, mp_rect dstRegion, mg_attributes* attributes)
 {
-//TODO
-/*
-	mg_image_data* imageData = mg_image_ptr_from_handle(canvas, image);
-	if(!imageData)
+	mg_image_data* imageData = mg_image_data_from_handle(canvas, image);
+	if(imageData)
 	{
-		return;
+		u32 baseIndex = mg_vertices_base_index(canvas);
+		i32* indices = mg_reserve_indices(canvas, 6);
+
+		mg_next_shape(canvas, attributes->color);
+
+		vec2 points[4] = {{dstRegion.x, dstRegion.y},
+	                  	{dstRegion.x + dstRegion.w, dstRegion.y},
+	                  	{dstRegion.x + dstRegion.w, dstRegion.y + dstRegion.h},
+	                  	{dstRegion.x, dstRegion.y + dstRegion.h}};
+
+		vec4 cubic = {1, 1, 1, 1};
+
+		for(int i=0; i<4; i++)
+		{
+			vec2 pos = mg_mat2x3_mul(canvas->transform, points[i]);
+			mg_push_vertex(canvas, pos, cubic);
+		}
+		indices[0] = baseIndex + 0;
+		indices[1] = baseIndex + 1;
+		indices[2] = baseIndex + 2;
+		indices[3] = baseIndex + 0;
+		indices[4] = baseIndex + 2;
+		indices[5] = baseIndex + 3;
 	}
-
-	u32 baseIndex = mg_vertices_base_index(canvas);
-	i32* indices = mg_reserve_indices(canvas, 6);
-
-	mg_next_shape(canvas, attributes->color);
-
-	vec2 points[4] = {{rect.x, rect.y},
-	                  {rect.x + rect.w, rect.y},
-	                  {rect.x + rect.w, rect.y + rect.h},
-	                  {rect.x, rect.y + rect.h}};
-
-	vec2 uv[4] = {{imageData->rect.x + 0.5, imageData->rect.y + 0.5},
-	              {imageData->rect.x + imageData->rect.w - 0.5, imageData->rect.y + 0.5},
-	              {imageData->rect.x + imageData->rect.w - 0.5, imageData->rect.y + imageData->rect.h - 0.5},
-	              {imageData->rect.x + 0.5, imageData->rect.y + imageData->rect.h - 0.5}};
-
-	vec4 cubic = {1, 1, 1, 1};
-	mg_color color = {1, 1, 1, 1};
-
-	for(int i=0; i<4; i++)
-	{
-		vec2 transformedUV = {uv[i].x / MG_ATLAS_SIZE, uv[i].y / MG_ATLAS_SIZE};
-
-		vec2 pos = mg_mat2x3_mul(canvas->transform, points[i]);
-		mg_push_textured_vertex(canvas, pos, cubic, transformedUV, color);
-	}
-	indices[0] = baseIndex + 0;
-	indices[1] = baseIndex + 1;
-	indices[2] = baseIndex + 2;
-	indices[3] = baseIndex + 0;
-	indices[4] = baseIndex + 2;
-	indices[5] = baseIndex + 3;
-*/
 }
 
-void mg_render_rounded_image(mg_canvas_data* canvas, mg_image image, mg_rounded_rect rect, mg_attributes* attributes)
+void mg_render_rounded_image(mg_canvas_data* canvas, mg_image image, mp_rect srcRegion, mg_rounded_rect dstRegion, mg_attributes* attributes)
 {
 	//TODO
 	/*
@@ -2901,11 +2960,13 @@ void mg_flush_commands(int primitiveCount, mg_primitive* primitives, mg_path_elt
 		mg_primitive* primitive = &(primitives[nextIndex]);
 		nextIndex++;
 
+		/*
 		if(i && primitive->attributes.image.h != currentImage.h)
 		{
 			mg_flush_batch(canvas);
 			currentImage = primitive->attributes.image;
 		}
+		*/
 
 		switch(primitive->cmd)
 		{
@@ -3002,12 +3063,12 @@ void mg_flush_commands(int primitiveCount, mg_primitive* primitives, mg_path_elt
 
 			case MG_CMD_IMAGE_DRAW:
 			{
-				mg_render_image(canvas, primitive->attributes.image, primitive->rect);
+				mg_render_image(canvas, primitive->attributes.image, primitive->srcRegion, primitive->rect, &primitive->attributes);
 			} break;
 
 			case MG_CMD_ROUNDED_IMAGE_DRAW:
 			{
-				mg_render_rounded_image(canvas, primitive->attributes.image, primitive->roundedRect, &primitive->attributes);
+				mg_render_rounded_image(canvas, primitive->attributes.image, primitive->srcRegion, primitive->roundedRect, &primitive->attributes);
 			} break;
 
 		}
@@ -3671,64 +3732,39 @@ void mg_arc(f32 x, f32 y, f32 r, f32 arcAngle, f32 startAngle)
 //NOTE(martin): images
 //------------------------------------------------------------------------------------------
 
-mg_image mg_image_create_from_rgba8(u32 width, u32 height, u8* bytes)
+MP_API mg_image mg_image_create(u32 width, u32 height)
 {
 	mg_image image = mg_image_nil();
 	mg_canvas_data* canvas = __mgCurrentCanvas;
 	if(canvas)
 	{
-		mg_image_data* imageData = ListPopEntry(&canvas->imageFreeList, mg_image_data, listElt);
-		if(!imageData)
-		{
-			if(canvas->imageNextIndex < MG_IMAGE_MAX_COUNT)
-			{
-				imageData = &canvas->images[canvas->imageNextIndex];
-				imageData->generation = 1;
-				canvas->imageNextIndex++;
-			}
-			else
-			{
-				LOG_ERROR("image pool full\n");
-			}
-		}
-
+		mg_image_data* imageData = canvas->backend->imageCreate(canvas->backend, (vec2){width, height});
 		if(imageData)
 		{
-			if(canvas->atlasPos.x + width >= MG_ATLAS_SIZE)
-			{
-				canvas->atlasPos.x = 0;
-				canvas->atlasPos.y += canvas->atlasLineHeight;
-			}
-			if(canvas->atlasPos.x + width < MG_ATLAS_SIZE
-			  && canvas->atlasPos.y + height < MG_ATLAS_SIZE)
-			{
-				imageData->rect = (mp_rect){canvas->atlasPos.x,
-				                            canvas->atlasPos.y,
-				                            width,
-				                            height};
-
-				canvas->atlasPos.x += width;
-				canvas->atlasLineHeight = maximum(canvas->atlasLineHeight, height);
-
-				canvas->backend->atlasUpload(canvas->backend, imageData->rect, bytes);
-				image = mg_image_handle_from_ptr(canvas, imageData);
-			}
-			else
-			{
-				mg_image_data_recycle(canvas, imageData);
-			}
+			image = mg_image_alloc_handle(canvas, imageData);
 		}
 	}
 	return(image);
 }
 
-mg_image mg_image_create_from_data(str8 data, bool flip)
+MP_API mg_image mg_image_create_from_rgba8(u32 width, u32 height, u8* pixels)
+{
+	mg_image image = mg_image_create(width, height);
+	if(!mg_image_is_nil(image))
+	{
+		mg_image_upload_region_rgba8(image, (mp_rect){0, 0, width, height}, pixels);
+	}
+	return(image);
+}
+
+MP_API mg_image mg_image_create_from_data(str8 data, bool flip)
 {
 	mg_image image = mg_image_nil();
 	int width, height, channels;
 
 	stbi_set_flip_vertically_on_load(flip ? 1 : 0);
 	u8* pixels = stbi_load_from_memory((u8*)data.ptr, data.len, &width, &height, &channels, 4);
+
 	if(pixels)
 	{
 		image = mg_image_create_from_rgba8(width, height, pixels);
@@ -3737,7 +3773,7 @@ mg_image mg_image_create_from_data(str8 data, bool flip)
 	return(image);
 }
 
-mg_image mg_image_create_from_file(str8 path, bool flip)
+MP_API mg_image mg_image_create_from_file(str8 path, bool flip)
 {
 	mg_image image = mg_image_nil();
 	int width, height, channels;
@@ -3754,39 +3790,90 @@ mg_image mg_image_create_from_file(str8 path, bool flip)
 	return(image);
 }
 
-void mg_image_destroy(mg_image image)
+MP_API void mg_image_destroy(mg_image image)
 {
 	mg_canvas_data* canvas = __mgCurrentCanvas;
 	if(canvas)
 	{
-		mg_image_data* imageData = mg_image_ptr_from_handle(canvas, image);
+		mg_image_data* imageData = mg_image_data_from_handle(canvas, image);
 		if(imageData)
 		{
-			//TODO free atlas area
-			mg_image_data_recycle(canvas, imageData);
+			canvas->backend->imageDestroy(canvas->backend, imageData);
+			mg_resource_handle_recycle(&canvas->imagePool, image.h);
 		}
 	}
 }
 
-vec2 mg_image_size(mg_image image)
+MP_API void mg_image_upload_region_rgba8(mg_image image, mp_rect region, u8* pixels)
 {
-	///////////////////////////////////////////////////////////////////////////
-	//WARN: this supposes the current canvas is that for which the image was created
-	///////////////////////////////////////////////////////////////////////////
-
-	vec2 size = {0};
 	mg_canvas_data* canvas = __mgCurrentCanvas;
 	if(canvas)
 	{
-		mg_image_data* imageData = mg_image_ptr_from_handle(canvas, image);
+		mg_image_data* imageData = mg_image_data_from_handle(canvas, image);
 		if(imageData)
 		{
-			size = (vec2){imageData->rect.w, imageData->rect.h};
+			canvas->backend->imageUploadRegion(canvas->backend, imageData, region, pixels);
 		}
 	}
-	return(size);
 }
 
+MP_API vec2 mg_image_size(mg_image image)
+{
+	vec2 res = {0};
+	mg_canvas_data* canvas = __mgCurrentCanvas;
+	if(canvas)
+	{
+		mg_image_data* imageData = mg_image_data_from_handle(canvas, image);
+		if(imageData)
+		{
+			res = imageData->size;
+		}
+	}
+	return(res);
+}
+
+MP_API void mg_image_draw_region(mg_image image, mp_rect srcRegion, mp_rect dstRegion)
+{
+	mg_canvas_data* canvas = __mgCurrentCanvas;
+	if(canvas)
+	{
+		mg_primitive primitive = {.cmd = MG_CMD_IMAGE_DRAW,
+		                          .srcRegion = srcRegion,
+		                          .rect = dstRegion,
+		                          .attributes = canvas->attributes};
+		primitive.attributes.image = image;
+		primitive.attributes.color = (mg_color){1, 0, 1, 1};
+		mg_push_command(canvas, primitive);
+	}
+}
+
+MP_API void mg_image_draw_region_rounded(mg_image image, mp_rect srcRegion, mp_rect dstRegion, f32 roundness)
+{
+	mg_canvas_data* canvas = __mgCurrentCanvas;
+	if(canvas)
+	{
+		mg_primitive primitive = {.cmd = MG_CMD_ROUNDED_IMAGE_DRAW,
+		                          .srcRegion = srcRegion,
+		                          .roundedRect = {dstRegion.x, dstRegion.y, dstRegion.w, dstRegion.h, roundness},
+		                          .attributes = canvas->attributes};
+		primitive.attributes.image = image;
+		mg_push_command(canvas, primitive);
+	}
+}
+
+MP_API void mg_image_draw(mg_image image, mp_rect rect)
+{
+	vec2 size = mg_image_size(image);
+	mg_image_draw_region(image, (mp_rect){0, 0, size.x, size.y}, rect);
+}
+
+MP_API void mg_image_draw_rounded(mg_image image, mp_rect rect, f32 roundness)
+{
+	vec2 size = mg_image_size(image);
+	mg_image_draw_region_rounded(image, (mp_rect){0, 0, size.x, size.y}, rect, roundness);
+}
+
+/*
 void mg_image_draw(mg_image image, mp_rect rect)
 {
 	mg_canvas_data* canvas = __mgCurrentCanvas;
@@ -3815,7 +3902,7 @@ void mg_rounded_image_draw(mg_image image, mp_rect rect, f32 roundness)
 
 	mg_push_command(canvas, primitive);
 }
-
+*/
 
 
 #undef LOG_SUBSYSTEM

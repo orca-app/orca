@@ -280,15 +280,68 @@ void mg_mtl_canvas_destroy(mg_canvas_backend* interface)
 	}
 }
 
-void mg_mtl_canvas_atlas_upload(mg_canvas_backend* interface, mp_rect rect, u8* bytes)
-{@autoreleasepool{
-	mg_mtl_canvas_backend* backend = (mg_mtl_canvas_backend*)interface;
+typedef struct mg_mtl_image_data
+{
+	mg_image_data interface;
+	id<MTLTexture> texture;
+} mg_mtl_image_data;
 
-	MTLRegion region = MTLRegionMake2D(rect.x, rect.y, rect.w, rect.h);
-	[backend->atlasTexture replaceRegion:region
-	                       mipmapLevel:0
-	                       withBytes:(void*)bytes
-	                       bytesPerRow: 4 * rect.w];
+mg_image_data* mg_mtl_canvas_image_create(mg_canvas_backend* interface, vec2 size)
+{
+	mg_mtl_image_data* image = 0;
+	mg_mtl_canvas_backend* backend = (mg_mtl_canvas_backend*)interface;
+	mg_mtl_surface* surface = mg_mtl_canvas_get_surface(backend);
+
+	if(surface)
+	{
+		@autoreleasepool{
+
+			image = malloc_type(mg_mtl_image_data);
+			if(image)
+			{
+				MTLTextureDescriptor* texDesc = [[MTLTextureDescriptor alloc] init];
+				texDesc.textureType = MTLTextureType2D;
+				texDesc.storageMode = MTLStorageModeManaged;
+				texDesc.usage = MTLTextureUsageShaderRead;
+				texDesc.pixelFormat = MTLPixelFormatBGRA8Unorm;
+				texDesc.width = size.x;
+				texDesc.height = size.y;
+
+				image->texture = [surface->device newTextureWithDescriptor:texDesc];
+				if(image->texture != nil)
+				{
+					[image->texture retain];
+					image->interface.size = size;
+				}
+				else
+				{
+					free(image);
+					image = 0;
+				}
+			}
+		}
+	}
+	return((mg_image_data*)image);
+}
+
+void mg_mtl_canvas_image_destroy(mg_canvas_backend* backendInterface, mg_image_data* imageInterface)
+{
+	mg_mtl_image_data* image = (mg_mtl_image_data*)imageInterface;
+	@autoreleasepool
+	{
+		[image->texture release];
+		free(image);
+	}
+}
+
+void mg_mtl_canvas_image_upload_region(mg_canvas_backend* backendInterface, mg_image_data* imageInterface, mp_rect region, u8* pixels)
+{@autoreleasepool{
+	mg_mtl_image_data* image = (mg_mtl_image_data*)imageInterface;
+	MTLRegion mtlRegion = MTLRegionMake2D(region.x, region.y, region.w, region.h);
+	[image->texture replaceRegion:mtlRegion
+	                mipmapLevel:0
+	                withBytes:(void*)pixels
+	                bytesPerRow: 4 * region.w];
 }}
 
 mg_canvas_backend* mg_mtl_canvas_create(mg_surface surface)
@@ -309,7 +362,10 @@ mg_canvas_backend* mg_mtl_canvas_create(mg_surface surface)
 		backend->interface.end = mg_mtl_canvas_end;
 		backend->interface.clear = mg_mtl_canvas_clear;
 		backend->interface.drawBatch = mg_mtl_canvas_draw_batch;
-		backend->interface.atlasUpload = mg_mtl_canvas_atlas_upload;
+
+		backend->interface.imageCreate = mg_mtl_canvas_image_create;
+		backend->interface.imageDestroy = mg_mtl_canvas_image_destroy;
+		backend->interface.imageUploadRegion = mg_mtl_canvas_image_upload_region;
 
 		mp_rect frame = mg_surface_get_frame(surface);
 		backend->viewPort = (mp_rect){0, 0, frame.w, frame.h};

@@ -272,16 +272,21 @@ MP_API mp_rect mg_text_bounding_box(mg_font font, f32 fontSize, str8 text);
 typedef struct mg_image { u64 h; } mg_image;
 
 MP_API mg_image mg_image_nil();
-MP_API bool mg_image_equal(mg_image a, mg_image b);
+MP_API bool mg_image_is_nil(mg_image a);
 
+MP_API mg_image mg_image_create(u32 width, u32 height);
 MP_API mg_image mg_image_create_from_rgba8(u32 width, u32 height, u8* pixels);
 MP_API mg_image mg_image_create_from_data(str8 data, bool flip);
 MP_API mg_image mg_image_create_from_file(str8 path, bool flip);
 
-MP_API void mg_image_drestroy(mg_image image);
+MP_API void mg_image_destroy(mg_image image);
 
+MP_API void mg_image_upload_region_rgba8(mg_image image, mp_rect region, u8* pixels);
 MP_API vec2 mg_image_size(mg_image image);
+
+MP_API void mg_image_draw_region(mg_image image, mp_rect srcRegion, mp_rect dstRegion);
+MP_API void mg_image_draw_region_rounded(mg_image image, mp_rect srcRect, mp_rect dstRegion, f32 roundness);
 MP_API void mg_image_draw(mg_image image, mp_rect rect);
-MP_API void mg_rounded_image_draw(mg_image image, mp_rect rect, f32 roundness);
+MP_API void mg_image_draw_rounded(mg_image image, mp_rect rect, f32 roundness);
 
 #endif //__GRAPHICS_H_

@@ -122,6 +122,8 @@ typedef struct mg_primitive
 	mg_primitive_cmd cmd;
 	mg_attributes attributes;
 
+	mp_rect srcRegion;
+
 	union
 	{
 		mg_path_descriptor path;
@@ -161,8 +163,7 @@ typedef struct mg_image_data
 {
 	list_elt listElt;
 	u32 generation;
-
-	mp_rect rect;
+	vec2 size;
 
 } mg_image_data;
 
@@ -226,7 +227,12 @@ typedef void (*mg_canvas_backend_begin_proc)(mg_canvas_backend* backend);
 typedef void (*mg_canvas_backend_end_proc)(mg_canvas_backend* backend);
 typedef void (*mg_canvas_backend_clear_proc)(mg_canvas_backend* backend, mg_color clearColor);
 typedef void (*mg_canvas_backend_draw_batch_proc)(mg_canvas_backend* backend, u32 vertexCount, u32 shapeCount, u32 indexCount);
+
+
 typedef void (*mg_canvas_backend_atlas_upload_proc)(mg_canvas_backend* backend, mp_rect rect, u8* bytes);
+typedef mg_image_data* (*mg_canvas_backend_image_create_proc)(mg_canvas_backend* backend, vec2 size);
+typedef void (*mg_canvas_backend_image_destroy_proc)(mg_canvas_backend* backend, mg_image_data* image);
+typedef void (*mg_canvas_backend_image_upload_region_proc)(mg_canvas_backend* backend, mg_image_data* image, mp_rect region, u8* pixels);
 
 typedef struct mg_canvas_backend
 {
@@ -237,57 +243,14 @@ typedef struct mg_canvas_backend
 	mg_canvas_backend_end_proc end;
 	mg_canvas_backend_clear_proc clear;
 	mg_canvas_backend_draw_batch_proc drawBatch;
+
+	mg_canvas_backend_image_create_proc imageCreate;
+	mg_canvas_backend_image_destroy_proc imageDestroy;
+	mg_canvas_backend_image_upload_region_proc imageUploadRegion;
+
 	mg_canvas_backend_atlas_upload_proc atlasUpload;
 
 } mg_canvas_backend;
-
-typedef struct mg_canvas_data
-{
-	list_elt freeListElt;
-	u32 generation;
-
-	u64 frameCounter;
-
-	mg_mat2x3 transform;
-	mp_rect clip;
-	mg_attributes attributes;
-	bool textFlip;
-
-	mg_path_elt pathElements[MG_MAX_PATH_ELEMENT_COUNT];
-	mg_path_descriptor path;
-	vec2 subPathStartPoint;
-	vec2 subPathLastPoint;
-
-	mg_mat2x3 matrixStack[MG_MATRIX_STACK_MAX_DEPTH];
-	u32 matrixStackSize;
-
-	mp_rect clipStack[MG_CLIP_STACK_MAX_DEPTH];
-	u32 clipStackSize;
-
-	u32 nextShapeIndex;
-	u32 primitiveCount;
-	mg_primitive primitives[MG_MAX_PRIMITIVE_COUNT];
-
-	u32 vertexCount;
-	u32 indexCount;
-
-	mg_image_data images[MG_IMAGE_MAX_COUNT];
-	u32 imageNextIndex;
-	list_info imageFreeList;
-
-	vec2 atlasPos;
-	u32 atlasLineHeight;
-	mg_image blankImage;
-
-	mg_canvas_backend* backend;
-
-} mg_canvas_data;
-
-enum
-{
-	MG_ATLAS_SIZE = 8192,
-};
-
 
 #ifdef __cplusplus
 } // extern "C"
