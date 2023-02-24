@@ -545,6 +545,18 @@ mg_mat2x3 mg_mat2x3_mul_m(mg_mat2x3 lhs, mg_mat2x3 rhs)
 	return(res);
 }
 
+mg_mat2x3 mg_mat2x3_inv(mg_mat2x3 x)
+{
+	mg_mat2x3 res;
+	res.m[0] = x.m[4]/(x.m[0]*x.m[4] - x.m[1]*x.m[3]);
+	res.m[1] = x.m[1]/(x.m[1]*x.m[3] - x.m[0]*x.m[4]);
+	res.m[3] = x.m[3]/(x.m[1]*x.m[3] - x.m[0]*x.m[4]);
+	res.m[4] = x.m[0]/(x.m[0]*x.m[4] - x.m[1]*x.m[3]);
+	res.m[2] = -(x.m[2]*res.m[0] + x.m[5]*res.m[1]);
+	res.m[5] = -(x.m[2]*res.m[3] + x.m[5]*res.m[4]);
+	return(res);
+}
+
 vec2 mg_mat2x3_mul(mg_mat2x3 m, vec2 p)
 {
 	f32 x = p.x*m.m[0] + p.y*m.m[1] + m.m[2];
@@ -613,8 +625,7 @@ u32 mg_next_shape_textured(mg_canvas_data* canvas, vec2 uv, mg_color color)
 		                                   0,                        srcRegion.h/destRegion.h, 0};
 		mg_mat2x3 userToDestRegion = {1, 0, -destRegion.x,
 		                              0, 1, -destRegion.y};
-		mg_mat2x3 screenToUser = {1, 0, 0,
-		                          0, 1, 0};
+		mg_mat2x3 screenToUser = mg_mat2x3_inv(canvas->transform);
 
 		mg_mat2x3 uvTransform = srcRegionToTexture;
 		uvTransform = mg_mat2x3_mul_m(uvTransform, destRegionToSrcRegion);
@@ -2188,6 +2199,7 @@ void mg_render_ellipse_stroke(mg_canvas_data* canvas, mp_rect rect, mg_attribute
 
 void mg_render_image(mg_canvas_data* canvas, mg_image image, mp_rect srcRegion, mp_rect dstRegion, mg_attributes* attributes)
 {
+
 	mg_image_data* imageData = mg_image_data_from_handle(canvas, image);
 	if(imageData)
 	{
@@ -2214,9 +2226,11 @@ void mg_render_image(mg_canvas_data* canvas, mg_image image, mp_rect srcRegion, 
 		indices[4] = baseIndex + 2;
 		indices[5] = baseIndex + 3;
 	}
+
+	//mg_render_rectangle_fill(canvas, dstRegion, attributes);
 }
 
-void mg_render_rounded_image(mg_canvas_data* canvas, mg_image image, mp_rect srcRegion, mg_rounded_rect dstRegion, mg_attributes* attributes)
+void mg_render_image_rounded(mg_canvas_data* canvas, mg_image image, mp_rect srcRegion, mg_rounded_rect dstRegion, mg_attributes* attributes)
 {
 	//TODO
 	/*
@@ -3069,7 +3083,7 @@ void mg_flush_commands(int primitiveCount, mg_primitive* primitives, mg_path_elt
 
 			case MG_CMD_ROUNDED_IMAGE_DRAW:
 			{
-				mg_render_rounded_image(canvas, primitive->attributes.image, primitive->srcRegion, primitive->roundedRect, &primitive->attributes);
+				mg_render_image_rounded(canvas, primitive->attributes.image, primitive->srcRegion, primitive->roundedRect, &primitive->attributes);
 			} break;
 
 		}

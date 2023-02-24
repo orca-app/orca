@@ -75,7 +75,13 @@ int main()
 			mg_clear();
 
 			mg_set_color_rgba(1, 0, 1, 1);
-			mg_image_draw(image, (mp_rect){100, 100, imageSize.x/8, imageSize.y/8});
+
+			mg_matrix_push((mg_mat2x3){0.707, -0.707, 200,
+			                           0.707, 0.707, 100});
+
+			mg_image_draw(image, (mp_rect){0, 0, imageSize.x/8, imageSize.y/8});
+
+			mg_matrix_pop();
 
 			mg_flush();
 		mg_surface_present(surface);
