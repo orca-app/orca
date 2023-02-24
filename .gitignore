@@ -12,4 +12,5 @@ bin/*
 *.dll
 *.sln
 
-src/gles_canvas_shaders.h
+Debug/*
+src/glsl_shaders.h

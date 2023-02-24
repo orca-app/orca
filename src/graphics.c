@@ -94,6 +94,7 @@ typedef struct mg_canvas_data
 	u32 primitiveCount;
 	mg_primitive primitives[MG_MAX_PRIMITIVE_COUNT];
 
+	u32 shapeFirstVertexIndex;
 	u32 vertexCount;
 	u32 indexCount;
 
@@ -586,21 +587,40 @@ void mg_reset_shape_index(mg_canvas_data* canvas)
 
 u32 mg_next_shape_textured(mg_canvas_data* canvas, vec2 uv, mg_color color)
 {
-	//TODO: push color, uv, clip
+	mg_vertex_layout* layout = &canvas->backend->vertexLayout;
+
+	if(canvas->nextShapeIndex)
+	{
+		//NOTE: compute shape's bounding box for the _previous_ shape
+		vec2 boxMin = {FLT_MAX, FLT_MAX};
+		vec2 boxMax = {-FLT_MAX, -FLT_MAX};
+		for(int posIndex = canvas->shapeFirstVertexIndex;
+	    	posIndex < canvas->vertexCount;
+	    	posIndex++)
+		{
+			vec2 pos = *(vec2*)(layout->posBuffer + posIndex*layout->posStride);
+			boxMin.x = minimum(boxMin.x, pos.x);
+			boxMin.y = minimum(boxMin.y, pos.y);
+			boxMax.x = maximum(boxMax.x, pos.x);
+			boxMax.y = maximum(boxMax.y, pos.y);
+		}
+		int prevIndex = canvas->nextShapeIndex-1;
+		*(mp_rect*)(((char*)layout->boxBuffer) + prevIndex*layout->boxStride) = (mp_rect){boxMin.x, boxMin.y, boxMax.x, boxMax.y};
+	}
 
 	int index = canvas->nextShapeIndex;
 	canvas->nextShapeIndex++;
+	canvas->shapeFirstVertexIndex = canvas->vertexCount;
 
 	mp_rect clip = {canvas->clip.x,
 	                canvas->clip.y,
 	                canvas->clip.x + canvas->clip.w - 1,
 	                canvas->clip.y + canvas->clip.h - 1};
 
-	mg_vertex_layout* layout = &canvas->backend->vertexLayout;
-
 	*(vec2*)(((char*)layout->uvBuffer) + index*layout->uvStride) = uv;
 	*(mg_color*)(((char*)layout->colorBuffer) + index*layout->colorStride) = color;
 	*(mp_rect*)(((char*)layout->clipBuffer) + index*layout->clipStride) = clip;
+
 
 	return(index);
 }
@@ -2162,7 +2182,7 @@ void mg_render_image(mg_canvas_data* canvas, mg_image image, mp_rect srcRegion, 
 		u32 baseIndex = mg_vertices_base_index(canvas);
 		i32* indices = mg_reserve_indices(canvas, 6);
 
-		mg_next_shape(canvas, attributes->color);
+		mg_next_shape(canvas, (mg_color){1, 1, 1, 1});
 
 		vec2 points[4] = {{dstRegion.x, dstRegion.y},
 	                  	{dstRegion.x + dstRegion.w, dstRegion.y},
@@ -2885,15 +2905,19 @@ void mg_do_clip_push(mg_canvas_data* canvas, mp_rect clip)
 	mg_clip_stack_push(canvas, r);
 }
 
-void mg_flush_batch(mg_canvas_data* canvas)
+void mg_flush_batch(mg_canvas_data* canvas, mg_image_data* image)
 {
-	if(canvas->backend && canvas->backend->drawBatch)
+	//NOTE: finalize last shape
+	int shapeCount = mg_next_shape(canvas, (mg_color){1, 1, 1, 1});
+
+	if(canvas->backend && canvas->backend->drawBatch && canvas->indexCount)
 	{
-		canvas->backend->drawBatch(canvas->backend, canvas->nextShapeIndex, canvas->vertexCount, canvas->indexCount);
+		canvas->backend->drawBatch(canvas->backend, image, shapeCount, canvas->vertexCount, canvas->indexCount);
 	}
 	mg_reset_shape_index(canvas);
 	canvas->vertexCount = 0;
 	canvas->indexCount = 0;
+	canvas->shapeFirstVertexIndex = 0;
 }
 
 void mg_flush_commands(int primitiveCount, mg_primitive* primitives, mg_path_elt* pathElements)
@@ -2927,13 +2951,12 @@ void mg_flush_commands(int primitiveCount, mg_primitive* primitives, mg_path_elt
 		mg_primitive* primitive = &(primitives[nextIndex]);
 		nextIndex++;
 
-		/*
 		if(i && primitive->attributes.image.h != currentImage.h)
 		{
-			mg_flush_batch(canvas);
+			mg_image_data* imageData = mg_image_data_from_handle(canvas, currentImage);
+			mg_flush_batch(canvas, imageData);
 			currentImage = primitive->attributes.image;
 		}
-		*/
 
 		switch(primitive->cmd)
 		{
@@ -3042,7 +3065,8 @@ void mg_flush_commands(int primitiveCount, mg_primitive* primitives, mg_path_elt
 	}
 	exit_command_loop: ;
 
-	mg_flush_batch(canvas);
+	mg_image_data* imageData = mg_image_data_from_handle(canvas, currentImage);
+	mg_flush_batch(canvas, imageData);
 
 	canvas->backend->end(canvas->backend);
 

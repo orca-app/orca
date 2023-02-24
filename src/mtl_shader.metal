@@ -181,6 +181,8 @@ kernel void RenderKernel(texture2d<float, access::write> outTexture [[texture(0)
                          const device mg_triangle_data* triangleArray [[buffer(4)]],
                          const device float4* boxArray [[buffer(5)]],
                          constant vector_float4* clearColor [[buffer(6)]],
+                         constant int* useTexture [[buffer(7)]],
+                         constant float* contentsScaling [[buffer(8)]],
                          uint2 gid [[thread_position_in_grid]],
                          uint2 tgid [[threadgroup_position_in_grid]],
                          uint2 threadsPerThreadgroup [[threads_per_threadgroup]],
@@ -266,11 +268,13 @@ kernel void RenderKernel(texture2d<float, access::write> outTexture [[texture(0)
 		float4 color = shapeBuffer[shapeIndex].color;
 
 		/////////////////////////////////////////////////////////////////////////
-		//TODO: dummy uv while we figure out image handling.
-		float2 uv0 = shapeBuffer[shapeIndex].uv;
-		float2 uv1 = uv0;
-		float2 uv2 = uv0;
+		float4 shapeBox = shapeBuffer[shapeIndex].box * contentsScaling[0];
+
+		float2 uv0 = (p0 - shapeBox.xy)/(shapeBox.zw - shapeBox.xy);
+		float2 uv1 = (p1 - shapeBox.xy)/(shapeBox.zw - shapeBox.xy);
+		float2 uv2 = (p2 - shapeBox.xy)/(shapeBox.zw - shapeBox.xy);
 		/////////////////////////////////////////////////////////////////////////
+
 
 
 		for(int i=0; i<6; i++)
@@ -292,9 +296,12 @@ kernel void RenderKernel(texture2d<float, access::write> outTexture [[texture(0)
 				float4 cubic = (cubic0*w0 + cubic1*w1 + cubic2*w2)/(w0+w1+w2);
 				float2 uv = (uv0*w0 + uv1*w1 + uv2*w2)/(w0+w1+w2);
 
-				constexpr sampler smp(mip_filter::nearest, mag_filter::linear, min_filter::linear);
-				float4 texColor = texAtlas.sample(smp, uv);
-
+				float4 texColor = float4(1, 1, 1, 1);
+				if(*useTexture)
+				{
+					constexpr sampler smp(mip_filter::nearest, mag_filter::linear, min_filter::linear);
+					texColor = texAtlas.sample(smp, uv);
+				}
 				//TODO(martin): this is a quick and dirty fix for solid polygons where we use
 				//              cubic = (1, 1, 1, 1) on all vertices, which can cause small errors to
 				//              flip the sign.
@@ -317,7 +324,7 @@ kernel void RenderKernel(texture2d<float, access::write> outTexture [[texture(0)
 							pixelColors[i] = nextColors[i];
 						}
 
-						float4 nextCol = color;//*texColor;
+						float4 nextCol = color*texColor;
 						nextColors[i] = pixelColors[i]*(1-nextCol.a) +nextCol.a*nextCol;
 
 						zIndices[i] = shapeIndex;

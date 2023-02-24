@@ -38,7 +38,6 @@ typedef struct mg_mtl_canvas_backend
 
 	// textures and buffers
 	id<MTLTexture> outTexture;
-	id<MTLTexture> atlasTexture;
 	id<MTLBuffer> shapeBuffer;
 	id<MTLBuffer> vertexBuffer;
 	id<MTLBuffer> indexBuffer;
@@ -48,6 +47,13 @@ typedef struct mg_mtl_canvas_backend
 	id<MTLBuffer> boxArray;
 
 } mg_mtl_canvas_backend;
+
+typedef struct mg_mtl_image_data
+{
+	mg_image_data interface;
+	id<MTLTexture> texture;
+} mg_mtl_image_data;
+
 
 mg_mtl_surface* mg_mtl_canvas_get_surface(mg_mtl_canvas_backend* canvas)
 {
@@ -73,7 +79,7 @@ void mg_mtl_canvas_clear(mg_canvas_backend* interface, mg_color clearColor)
 	backend->clearColor = clearColor;
 }
 
-void mg_mtl_canvas_draw_batch(mg_canvas_backend* interface, u32 shapeCount, u32 vertexCount, u32 indexCount)
+void mg_mtl_canvas_draw_batch(mg_canvas_backend* interface, mg_image_data* image, u32 shapeCount, u32 vertexCount, u32 indexCount)
 {
 	mg_mtl_canvas_backend* backend = (mg_mtl_canvas_backend*)interface;
 	mg_mtl_surface* surface = mg_mtl_canvas_get_surface(backend);
@@ -161,7 +167,14 @@ void mg_mtl_canvas_draw_batch(mg_canvas_backend* interface, u32 shapeCount, u32 
 		id<MTLComputeCommandEncoder> encoder = [surface->commandBuffer computeCommandEncoder];
 		[encoder setComputePipelineState:backend->computePipeline];
 		[encoder setTexture: backend->outTexture atIndex: 0];
-		[encoder setTexture: backend->atlasTexture atIndex: 1];
+		int useTexture = 0;
+		if(image)
+		{
+			mg_mtl_image_data* mtlImage = (mg_mtl_image_data*)image;
+			[encoder setTexture: mtlImage->texture atIndex: 1];
+			useTexture = 1;
+		}
+
 		[encoder setBuffer: backend->vertexBuffer offset:0 atIndex: 0];
 		[encoder setBuffer: backend->shapeBuffer offset:0 atIndex: 1];
 		[encoder setBuffer: backend->tileCounters offset:0 atIndex: 2];
@@ -169,6 +182,8 @@ void mg_mtl_canvas_draw_batch(mg_canvas_backend* interface, u32 shapeCount, u32 
 		[encoder setBuffer: backend->triangleArray offset:0 atIndex: 4];
 		[encoder setBuffer: backend->boxArray offset:0 atIndex: 5];
 		[encoder setBytes: &clearColorVec4 length: sizeof(vector_float4) atIndex: 6];
+		[encoder setBytes: &useTexture length:sizeof(int) atIndex:7];
+		[encoder setBytes: &scale length: sizeof(float) atIndex: 8];
 
 		//TODO: check that we don't exceed maxTotalThreadsPerThreadgroup
 		DEBUG_ASSERT(RENDERER_TILE_SIZE*RENDERER_TILE_SIZE <= backend->computePipeline.maxTotalThreadsPerThreadgroup);
@@ -259,6 +274,9 @@ void mg_mtl_canvas_update_vertex_layout(mg_mtl_canvas_backend* backend)
 	        .uvBuffer = shapeBase + offsetof(mg_shape, uv),
 	        .uvStride = sizeof(mg_shape),
 
+	        .boxBuffer = shapeBase + offsetof(mg_shape, box),
+	        .boxStride = sizeof(mg_shape),
+
 	        .indexBuffer = indexBase,
 	        .indexStride = sizeof(int)};
 }
@@ -270,7 +288,6 @@ void mg_mtl_canvas_destroy(mg_canvas_backend* interface)
 	@autoreleasepool
 	{
 		[backend->outTexture release];
-		[backend->atlasTexture release];
 		[backend->vertexBuffer release];
 		[backend->indexBuffer release];
 		[backend->tilesArray release];
@@ -279,12 +296,6 @@ void mg_mtl_canvas_destroy(mg_canvas_backend* interface)
 		[backend->computePipeline release];
 	}
 }
-
-typedef struct mg_mtl_image_data
-{
-	mg_image_data interface;
-	id<MTLTexture> texture;
-} mg_mtl_image_data;
 
 mg_image_data* mg_mtl_canvas_image_create(mg_canvas_backend* interface, vec2 size)
 {
@@ -303,7 +314,7 @@ mg_image_data* mg_mtl_canvas_image_create(mg_canvas_backend* interface, vec2 siz
 				texDesc.textureType = MTLTextureType2D;
 				texDesc.storageMode = MTLStorageModeManaged;
 				texDesc.usage = MTLTextureUsageShaderRead;
-				texDesc.pixelFormat = MTLPixelFormatBGRA8Unorm;
+				texDesc.pixelFormat = MTLPixelFormatRGBA8Unorm;
 				texDesc.width = size.x;
 				texDesc.height = size.y;
 
@@ -382,24 +393,12 @@ mg_canvas_backend* mg_mtl_canvas_create(mg_surface surface)
 			texDesc.textureType = MTLTextureType2D;
 			texDesc.storageMode = MTLStorageModePrivate;
 			texDesc.usage = MTLTextureUsageShaderRead | MTLTextureUsageShaderWrite;
-			texDesc.pixelFormat = MTLPixelFormatBGRA8Unorm;// MTLPixelFormatBGRA8Unorm_sRGB;
+			texDesc.pixelFormat = MTLPixelFormatRGBA8Unorm;
 			texDesc.width = drawableSize.width;
 			texDesc.height = drawableSize.height;
 
 			backend->outTexture = [metalSurface->device newTextureWithDescriptor:texDesc];
 			//TODO(martin): retain ?
-
-			//-----------------------------------------------------------
-			//NOTE(martin): create our atlas texture
-			//-----------------------------------------------------------
-			texDesc.textureType = MTLTextureType2D;
-			texDesc.storageMode = MTLStorageModeManaged;
-			texDesc.usage = MTLTextureUsageShaderRead;
-			texDesc.pixelFormat = MTLPixelFormatRGBA8Unorm; //MTLPixelFormatBGRA8Unorm;
-			texDesc.width = MG_ATLAS_SIZE;
-			texDesc.height = MG_ATLAS_SIZE;
-
-			backend->atlasTexture = [metalSurface->device newTextureWithDescriptor:texDesc];
 
 			//-----------------------------------------------------------
 			//NOTE(martin): create buffers for vertex and index
