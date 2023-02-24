@@ -670,6 +670,8 @@ int* mg_reserve_indices(mg_canvas_data* canvas, u32 indexCount)
 
 void mg_push_vertex(mg_canvas_data* canvas, vec2 pos, vec4 cubic)
 {
+	pos = mg_mat2x3_mul(canvas->transform, pos);
+
 	mg_vertex_layout* layout = &canvas->backend->vertexLayout;
 	DEBUG_ASSERT(canvas->vertexCount < layout->maxVertexCount);
 	DEBUG_ASSERT(canvas->nextShapeIndex > 0);
@@ -699,15 +701,15 @@ void mg_render_fill_quadratic(mg_canvas_data* canvas, vec2 p[3])
 	i32* indices = mg_reserve_indices(canvas, 3);
 
 	mg_push_vertex(canvas,
-	               mg_mat2x3_mul(canvas->transform, (vec2){p[0].x, p[0].y}),
+	               (vec2){p[0].x, p[0].y},
 	               (vec4){0, 0, 0, 1});
 
 	mg_push_vertex(canvas,
-	               mg_mat2x3_mul(canvas->transform, (vec2){p[1].x, p[1].y}),
+	               (vec2){p[1].x, p[1].y},
 	               (vec4){0.5, 0, 0.5, 1});
 
 	mg_push_vertex(canvas,
-	               mg_mat2x3_mul(canvas->transform, (vec2){p[2].x, p[2].y}),
+	               (vec2){p[2].x, p[2].y},
 	               (vec4){1, 1, 1, 1});
 
 	indices[0] = baseIndex + 0;
@@ -750,15 +752,15 @@ void mg_split_and_fill_cubic(mg_canvas_data* canvas, vec2 p[4], f32 tSplit)
 	i32* indices = mg_reserve_indices(canvas, 3);
 
 	mg_push_vertex(canvas,
-	                mg_mat2x3_mul(canvas->transform, (vec2){p[0].x, p[0].y}),
+	               (vec2){p[0].x, p[0].y},
 	                (vec4){1, 1, 1, 1});
 
 	mg_push_vertex(canvas,
-	               mg_mat2x3_mul(canvas->transform, (vec2){split.x, split.y}),
+	               (vec2){split.x, split.y},
 	               (vec4){1, 1, 1, 1});
 
 	mg_push_vertex(canvas,
-	               mg_mat2x3_mul(canvas->transform, (vec2){p[3].x, p[3].y}),
+	               (vec2){p[3].x, p[3].y},
 	               (vec4){1, 1, 1, 1});
 
 	indices[0] = baseIndex + 0;
@@ -1125,10 +1127,9 @@ void mg_render_fill_cubic(mg_canvas_data* canvas, vec2 p[4])
 
 		for(int i=0; i<3; i++)
 		{
-			vec2 pos = mg_mat2x3_mul(canvas->transform, p[orderedHullIndices[i]]);
 			vec4 cubic = testCoords[orderedHullIndices[i]];
 			cubic.w = outsideTest;
-			mg_push_vertex(canvas, pos, cubic);
+			mg_push_vertex(canvas, p[orderedHullIndices[i]], cubic);
 
 			indices[i] = baseIndex + i;
 		}
@@ -1156,27 +1157,27 @@ void mg_render_fill_cubic(mg_canvas_data* canvas, vec2 p[4])
 		i32* indices = mg_reserve_indices(canvas, 6);
 
 		mg_push_vertex(canvas,
-		               mg_mat2x3_mul(canvas->transform, p[orderedHullIndices[0]]),
+		               p[orderedHullIndices[0]],
 		               (vec4){vec4_expand_xyz(testCoords[orderedHullIndices[0]]), outsideTest1});
 
 		mg_push_vertex(canvas,
-		               mg_mat2x3_mul(canvas->transform, p[orderedHullIndices[1]]),
+		               p[orderedHullIndices[1]],
 		               (vec4){vec4_expand_xyz(testCoords[orderedHullIndices[1]]), outsideTest1});
 
 		mg_push_vertex(canvas,
-		               mg_mat2x3_mul(canvas->transform, p[orderedHullIndices[2]]),
+		               p[orderedHullIndices[2]],
 		               (vec4){vec4_expand_xyz(testCoords[orderedHullIndices[2]]), outsideTest1});
 
 		mg_push_vertex(canvas,
-		               mg_mat2x3_mul(canvas->transform, p[orderedHullIndices[0]]),
+		               p[orderedHullIndices[0]],
 		               (vec4){vec4_expand_xyz(testCoords[orderedHullIndices[0]]), outsideTest2});
 
 		mg_push_vertex(canvas,
-		               mg_mat2x3_mul(canvas->transform, p[orderedHullIndices[2]]),
+		               p[orderedHullIndices[2]],
 		               (vec4){vec4_expand_xyz(testCoords[orderedHullIndices[2]]), outsideTest2});
 
 		mg_push_vertex(canvas,
-		               mg_mat2x3_mul(canvas->transform, p[orderedHullIndices[3]]),
+		               p[orderedHullIndices[3]],
 		               (vec4){vec4_expand_xyz(testCoords[orderedHullIndices[3]]), outsideTest2});
 
 		indices[0] = baseIndex + 0;
@@ -1201,7 +1202,7 @@ void mg_render_fill_cubic(mg_canvas_data* canvas, vec2 p[4])
 		for(int i=0; i<4; i++)
 		{
 			mg_push_vertex(canvas,
-		                   mg_mat2x3_mul(canvas->transform, p[orderedHullIndices[i]]),
+		                   p[orderedHullIndices[i]],
 		                   (vec4){vec4_expand_xyz(testCoords[orderedHullIndices[i]]), outsideTest});
 		}
 
@@ -1262,18 +1263,15 @@ void mg_render_fill(mg_canvas_data* canvas, mg_path_elt* elements, mg_path_descr
 		u32 baseIndex = mg_vertices_base_index(canvas);
 		int* indices = mg_reserve_indices(canvas, 3);
 
-		vec2 pos[3];
-		pos[0] = mg_mat2x3_mul(canvas->transform, startPoint);
-		pos[1] = mg_mat2x3_mul(canvas->transform, currentPoint);
-		pos[2] = mg_mat2x3_mul(canvas->transform, endPoint);
-
 		vec4 cubic = {1, 1, 1, 1};
 
-		for(int i=0; i<3; i++)
-		{
-			mg_push_vertex(canvas, pos[i], cubic);
-			indices[i] = baseIndex + i;
-		}
+		mg_push_vertex(canvas, startPoint, cubic);
+		mg_push_vertex(canvas, currentPoint, cubic);
+		mg_push_vertex(canvas, endPoint, cubic);
+
+		indices[0] = baseIndex;
+		indices[1] = baseIndex + 1;
+		indices[2] = baseIndex + 2;
 
 		currentPoint = endPoint;
 	}
@@ -1298,19 +1296,19 @@ void mg_render_stroke_line(mg_canvas_data* canvas, vec2 p[2], mg_attributes* att
 	i32* indices = mg_reserve_indices(canvas, 6);
 
 	mg_push_vertex(canvas,
-	               mg_mat2x3_mul(canvas->transform, (vec2){p[0].x + n0.x, p[0].y + n0.y}),
+	               (vec2){p[0].x + n0.x, p[0].y + n0.y},
 	               (vec4){1, 1, 1, 1});
 
 	mg_push_vertex(canvas,
-	               mg_mat2x3_mul(canvas->transform, (vec2){p[1].x + n0.x, p[1].y + n0.y}),
+	               (vec2){p[1].x + n0.x, p[1].y + n0.y},
 	               (vec4){1, 1, 1, 1});
 
 	mg_push_vertex(canvas,
-	               mg_mat2x3_mul(canvas->transform, (vec2){p[1].x - n0.x, p[1].y - n0.y}),
+	               (vec2){p[1].x - n0.x, p[1].y - n0.y},
 	               (vec4){1, 1, 1, 1});
 
 	mg_push_vertex(canvas,
-	               mg_mat2x3_mul(canvas->transform, (vec2){p[0].x - n0.x, p[0].y - n0.y}),
+	               (vec2){p[0].x - n0.x, p[0].y - n0.y},
 	               (vec4){1, 1, 1, 1});
 
 	indices[0] = baseIndex;
@@ -1508,19 +1506,19 @@ void mg_render_stroke_quadratic(mg_canvas_data* canvas, vec2 p[4], mg_attributes
 		i32* indices = mg_reserve_indices(canvas, 6);
 
 		mg_push_vertex(canvas,
-		               mg_mat2x3_mul(canvas->transform, positiveOffsetHull[0]),
+		               positiveOffsetHull[0],
 		               (vec4){1, 1, 1, 1});
 
 		mg_push_vertex(canvas,
-		               mg_mat2x3_mul(canvas->transform, positiveOffsetHull[2]),
+		               positiveOffsetHull[2],
 		               (vec4){1, 1, 1, 1});
 
 		mg_push_vertex(canvas,
-		               mg_mat2x3_mul(canvas->transform, negativeOffsetHull[2]),
+		               negativeOffsetHull[2],
 		               (vec4){1, 1, 1, 1});
 
 		mg_push_vertex(canvas,
-		               mg_mat2x3_mul(canvas->transform, negativeOffsetHull[0]),
+		               negativeOffsetHull[0],
 		               (vec4){1, 1, 1, 1});
 
 		indices[0] = baseIndex + 0;
@@ -1660,19 +1658,19 @@ void mg_render_stroke_cubic(mg_canvas_data* canvas, vec2 p[4], mg_attributes* at
 
 
 		mg_push_vertex(canvas,
-		                mg_mat2x3_mul(canvas->transform, positiveOffsetHull[0]),
+		               positiveOffsetHull[0],
 		                (vec4){1, 1, 1, 1});
 
 		mg_push_vertex(canvas,
-		               mg_mat2x3_mul(canvas->transform, positiveOffsetHull[3]),
+		               positiveOffsetHull[3],
 		               (vec4){1, 1, 1, 1});
 
 		mg_push_vertex(canvas,
-		               mg_mat2x3_mul(canvas->transform, negativeOffsetHull[3]),
+		               negativeOffsetHull[3],
 		               (vec4){1, 1, 1, 1});
 
 		mg_push_vertex(canvas,
-		               mg_mat2x3_mul(canvas->transform, negativeOffsetHull[0]),
+		               negativeOffsetHull[0],
 		               (vec4){1, 1, 1, 1});
 
 		indices[0] = baseIndex + 0;
@@ -1704,19 +1702,19 @@ void mg_stroke_cap(mg_canvas_data* canvas, vec2 p0, vec2 direction, mg_attribute
 	i32* indices = mg_reserve_indices(canvas, 6);
 
 	mg_push_vertex(canvas,
-	               mg_mat2x3_mul(canvas->transform, (vec2){p0.x + n0.x, p0.y + n0.y}),
+	               (vec2){p0.x + n0.x, p0.y + n0.y},
 	               (vec4){1, 1, 1, 1});
 
 	mg_push_vertex(canvas,
-	               mg_mat2x3_mul(canvas->transform, (vec2){p0.x + n0.x + m0.x, p0.y + n0.y + m0.y}),
+	               (vec2){p0.x + n0.x + m0.x, p0.y + n0.y + m0.y},
 	               (vec4){1, 1, 1, 1});
 
 	mg_push_vertex(canvas,
-	               mg_mat2x3_mul(canvas->transform, (vec2){p0.x - n0.x + m0.x, p0.y - n0.y + m0.y}),
+	               (vec2){p0.x - n0.x + m0.x, p0.y - n0.y + m0.y},
 	               (vec4){1, 1, 1, 1});
 
 	mg_push_vertex(canvas,
-	               mg_mat2x3_mul(canvas->transform, (vec2){p0.x - n0.x, p0.y - n0.y}),
+	               (vec2){p0.x - n0.x, p0.y - n0.y},
 	               (vec4){1, 1, 1, 1});
 
 	indices[0] = baseIndex;
@@ -1780,19 +1778,19 @@ void mg_stroke_joint(mg_canvas_data* canvas,
 		i32* indices = mg_reserve_indices(canvas, 6);
 
 		mg_push_vertex(canvas,
-		               mg_mat2x3_mul(canvas->transform, p0),
+		               p0,
 		               (vec4){1, 1, 1, 1});
 
 		mg_push_vertex(canvas,
-		               mg_mat2x3_mul(canvas->transform, (vec2){p0.x + n0.x*halfW, p0.y + n0.y*halfW}),
+		               (vec2){p0.x + n0.x*halfW, p0.y + n0.y*halfW},
 		               (vec4){1, 1, 1, 1});
 
 		mg_push_vertex(canvas,
-		               mg_mat2x3_mul(canvas->transform, mitterPoint),
+		               mitterPoint,
 		               (vec4){1, 1, 1, 1});
 
 		mg_push_vertex(canvas,
-	                   mg_mat2x3_mul(canvas->transform, (vec2){p0.x + n1.x*halfW, p0.y + n1.y*halfW}),
+	                   (vec2){p0.x + n1.x*halfW, p0.y + n1.y*halfW},
 	                   (vec4){1, 1, 1, 1});
 
 		indices[0] = baseIndex;
@@ -1809,15 +1807,15 @@ void mg_stroke_joint(mg_canvas_data* canvas,
 		i32* indices = mg_reserve_indices(canvas, 3);
 
 		mg_push_vertex(canvas,
-		               mg_mat2x3_mul(canvas->transform, p0),
+		               p0,
 		               (vec4){1, 1, 1, 1});
 
 		mg_push_vertex(canvas,
-		                        mg_mat2x3_mul(canvas->transform, (vec2){p0.x + n0.x*halfW, p0.y + n0.y*halfW}),
+		               (vec2){p0.x + n0.x*halfW, p0.y + n0.y*halfW},
 		                        (vec4){1, 1, 1, 1});
 
 		mg_push_vertex(canvas,
-		                        mg_mat2x3_mul(canvas->transform, (vec2){p0.x + n1.x*halfW, p0.y + n1.y*halfW}),
+		               (vec2){p0.x + n1.x*halfW, p0.y + n1.y*halfW},
 		                        (vec4){1, 1, 1, 1});
 
 		DEBUG_ASSERT(!isnan(n0.x) && !isnan(n0.y) && !isnan(n1.x) && !isnan(n1.y));
@@ -1981,8 +1979,7 @@ void mg_render_rectangle_fill(mg_canvas_data* canvas, mp_rect rect, mg_attribute
 	vec4 cubic = {1, 1, 1, 1};
 	for(int i=0; i<4; i++)
 	{
-		vec2 pos = mg_mat2x3_mul(canvas->transform, points[i]);
-		mg_push_vertex(canvas, pos, cubic);
+		mg_push_vertex(canvas, points[i], cubic);
 	}
 	indices[0] = baseIndex + 0;
 	indices[1] = baseIndex + 1;
@@ -2017,14 +2014,12 @@ void mg_render_rectangle_stroke(mg_canvas_data* canvas, mp_rect rect, mg_attribu
 	vec4 cubic = {1, 1, 1, 1};
 	for(int i=0; i<4; i++)
 	{
-		vec2 pos = mg_mat2x3_mul(canvas->transform, outerPoints[i]);
-		mg_push_vertex(canvas, pos, cubic);
+		mg_push_vertex(canvas, outerPoints[i], cubic);
 	}
 
 	for(int i=0; i<4; i++)
 	{
-		vec2 pos = mg_mat2x3_mul(canvas->transform, innerPoints[i]);
-		mg_push_vertex(canvas, pos, cubic);
+		mg_push_vertex(canvas, innerPoints[i], cubic);
 	}
 
 	indices[0] = baseIndex + 0;
@@ -2062,8 +2057,7 @@ void mg_render_fill_arc_corner(mg_canvas_data* canvas, f32 x, f32 y, f32 rx, f32
 
 	for(int i=0; i<4; i++)
 	{
-		vec2 pos = mg_mat2x3_mul(canvas->transform, points[i]);
-		mg_push_vertex(canvas, pos, cubics[i]);
+		mg_push_vertex(canvas, points[i], cubics[i]);
 	}
 	indices[0] = baseIndex + 0;
 	indices[1] = baseIndex + 1;
@@ -2096,8 +2090,7 @@ void mg_render_rounded_rectangle_fill_path(mg_canvas_data* canvas,
 
 	for(int i=0; i<8; i++)
 	{
-		vec2 pos = mg_mat2x3_mul(canvas->transform, points[i]);
-		mg_push_vertex(canvas, pos, cubic);
+		mg_push_vertex(canvas, points[i], cubic);
 	}
 
 	static const i32 fanIndices[18] = { 0, 1, 2, 0, 2, 3, 0, 3, 4, 0, 4, 5, 0, 5, 6, 0, 6, 7 }; // inner fan
@@ -2157,8 +2150,7 @@ void mg_render_ellipse_fill_path(mg_canvas_data* canvas, mp_rect rect)
 
 	for(int i=0; i<4; i++)
 	{
-		vec2 pos = mg_mat2x3_mul(canvas->transform, points[i]);
-		mg_push_vertex(canvas, pos, cubic);
+		mg_push_vertex(canvas, points[i], cubic);
 	}
 
 	indices[0] = baseIndex + 0;
@@ -2213,8 +2205,7 @@ void mg_render_image(mg_canvas_data* canvas, mg_image image, mp_rect srcRegion, 
 
 		for(int i=0; i<4; i++)
 		{
-			vec2 pos = mg_mat2x3_mul(canvas->transform, points[i]);
-			mg_push_vertex(canvas, pos, cubic);
+			mg_push_vertex(canvas, points[i], cubic);
 		}
 		indices[0] = baseIndex + 0;
 		indices[1] = baseIndex + 1;
