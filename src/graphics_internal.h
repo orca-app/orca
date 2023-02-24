@@ -113,8 +113,6 @@ typedef enum { MG_CMD_CLEAR = 0,
 	       MG_CMD_MATRIX_POP,
 	       MG_CMD_CLIP_PUSH,
 	       MG_CMD_CLIP_POP,
-	       MG_CMD_IMAGE_DRAW,
-	       MG_CMD_ROUNDED_IMAGE_DRAW,
 	     } mg_primitive_cmd;
 
 typedef struct mg_primitive

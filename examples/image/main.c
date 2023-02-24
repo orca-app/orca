@@ -79,7 +79,7 @@ int main()
 			mg_matrix_push((mg_mat2x3){0.707, -0.707, 200,
 			                           0.707, 0.707, 100});
 
-			mg_image_draw(image, (mp_rect){0, 0, imageSize.x/8, imageSize.y/8});
+			mg_image_draw_rounded(image, (mp_rect){0, 0, imageSize.x/8, imageSize.y/8}, 40.);
 
 			mg_matrix_pop();
 

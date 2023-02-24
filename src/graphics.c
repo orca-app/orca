@@ -2197,86 +2197,6 @@ void mg_render_ellipse_stroke(mg_canvas_data* canvas, mp_rect rect, mg_attribute
 	mg_render_ellipse_fill_path(canvas, inner);
 }
 
-void mg_render_image(mg_canvas_data* canvas, mg_image image, mp_rect srcRegion, mp_rect dstRegion, mg_attributes* attributes)
-{
-
-	mg_image_data* imageData = mg_image_data_from_handle(canvas, image);
-	if(imageData)
-	{
-		u32 baseIndex = mg_vertices_base_index(canvas);
-		i32* indices = mg_reserve_indices(canvas, 6);
-
-		mg_next_shape(canvas, (mg_color){1, 1, 1, 1});
-
-		vec2 points[4] = {{dstRegion.x, dstRegion.y},
-	                  	{dstRegion.x + dstRegion.w, dstRegion.y},
-	                  	{dstRegion.x + dstRegion.w, dstRegion.y + dstRegion.h},
-	                  	{dstRegion.x, dstRegion.y + dstRegion.h}};
-
-		vec4 cubic = {1, 1, 1, 1};
-
-		for(int i=0; i<4; i++)
-		{
-			mg_push_vertex(canvas, points[i], cubic);
-		}
-		indices[0] = baseIndex + 0;
-		indices[1] = baseIndex + 1;
-		indices[2] = baseIndex + 2;
-		indices[3] = baseIndex + 0;
-		indices[4] = baseIndex + 2;
-		indices[5] = baseIndex + 3;
-	}
-
-	//mg_render_rectangle_fill(canvas, dstRegion, attributes);
-}
-
-void mg_render_image_rounded(mg_canvas_data* canvas, mg_image image, mp_rect srcRegion, mg_rounded_rect dstRegion, mg_attributes* attributes)
-{
-	//TODO
-	/*
-	mg_image_data* imageData = mg_image_ptr_from_handle(canvas, image);
-	if(!imageData)
-	{
-		return;
-	}
-
-	////////////////////////////////////////////////////////////////////////////////
-	//TODO: this does not work for rotated rectangles
-	////////////////////////////////////////////////////////////////////////////////
-	vec2 uvMin = {(imageData->rect.x + 0.5) / MG_ATLAS_SIZE, (imageData->rect.y + 0.5) / MG_ATLAS_SIZE};
-	vec2 uvMax = {(imageData->rect.x + imageData->rect.w - 0.5) / MG_ATLAS_SIZE, (imageData->rect.y + imageData->rect.h - 0.5) / MG_ATLAS_SIZE};
-	mp_rect uvRect = {uvMin.x, uvMin.y, uvMax.x - uvMin.x, uvMax.y - uvMin.y};
-
-	vec2 pMin = mg_mat2x3_mul(canvas->transform, (vec2){rect.x, rect.y});
-	vec2 pMax = mg_mat2x3_mul(canvas->transform, (vec2){rect.x + rect.w, rect.y + rect.h});
-	mp_rect pRect = {pMin.x, pMin.y, pMax.x - pMin.x, pMax.y - pMin.y};
-
-	u32 startIndex = mg_vertices_base_index(canvas);
-
-	mg_vertex_layout* layout = &canvas->backend->vertexLayout;
-
-	attributes->color = (mg_color){1, 1, 1, 1};
-	mg_render_rounded_rectangle_fill(canvas, rect, attributes);
-
-	u32 indexCount = mg_vertices_base_index(canvas) - startIndex;
-
-	for(int i=0; i<indexCount; i++)
-	{
-		u32 index = startIndex + i;
-		vec2* pos = (vec2*)(((char*)layout->posBuffer) + index*layout->posStride);
-		vec2* uv = (vec2*)(((char*)layout->uvBuffer) + index*layout->uvStride);
-
-		vec2 coordInBoundingSpace = {(pos->x - pRect.x)/pRect.w,
-		                             (pos->y - pRect.y)/pRect.h};
-
-		vec2 mappedUV = {uvRect.x + coordInBoundingSpace.x * uvRect.w,
-		                 uvRect.y + coordInBoundingSpace.y * uvRect.h};
-
-		*uv = mappedUV;
-	}
-	*/
-}
-
 //------------------------------------------------------------------------------------------
 //NOTE(martin): fonts
 //------------------------------------------------------------------------------------------
@@ -3076,16 +2996,6 @@ void mg_flush_commands(int primitiveCount, mg_primitive* primitives, mg_path_elt
 				mg_clip_stack_pop(canvas);
 			} break;
 
-			case MG_CMD_IMAGE_DRAW:
-			{
-				mg_render_image(canvas, primitive->attributes.image, primitive->srcRegion, primitive->rect, &primitive->attributes);
-			} break;
-
-			case MG_CMD_ROUNDED_IMAGE_DRAW:
-			{
-				mg_render_image_rounded(canvas, primitive->attributes.image, primitive->srcRegion, primitive->roundedRect, &primitive->attributes);
-			} break;
-
 		}
 	}
 	exit_command_loop: ;
@@ -3853,7 +3763,7 @@ MP_API void mg_image_draw_region(mg_image image, mp_rect srcRegion, mp_rect dstR
 	mg_canvas_data* canvas = __mgCurrentCanvas;
 	if(canvas)
 	{
-		mg_primitive primitive = {.cmd = MG_CMD_IMAGE_DRAW,
+		mg_primitive primitive = {.cmd = MG_CMD_RECT_FILL,
 		                          .srcRegion = srcRegion,
 		                          .rect = dstRegion,
 		                          .attributes = canvas->attributes};
@@ -3868,7 +3778,7 @@ MP_API void mg_image_draw_region_rounded(mg_image image, mp_rect srcRegion, mp_r
 	mg_canvas_data* canvas = __mgCurrentCanvas;
 	if(canvas)
 	{
-		mg_primitive primitive = {.cmd = MG_CMD_ROUNDED_IMAGE_DRAW,
+		mg_primitive primitive = {.cmd = MG_CMD_ROUND_RECT_FILL,
 		                          .srcRegion = srcRegion,
 		                          .roundedRect = {dstRegion.x, dstRegion.y, dstRegion.w, dstRegion.h, roundness},
 		                          .attributes = canvas->attributes};
