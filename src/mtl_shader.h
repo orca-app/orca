@@ -29,8 +29,7 @@ typedef struct mg_shape
 {
 	vector_float4 color;
 	vector_float4 clip;
-	vector_float4 box;
-	vector_float2 uv;    // texture coordinates?
+	float uvTransform[6];
 
 } mg_shape;
 

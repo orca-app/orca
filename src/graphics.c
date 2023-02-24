@@ -98,6 +98,8 @@ typedef struct mg_canvas_data
 	u32 vertexCount;
 	u32 indexCount;
 
+	mg_image currentImage;
+
 	mg_resource_pool imagePool;
 
 	vec2 atlasPos;
@@ -605,7 +607,26 @@ u32 mg_next_shape_textured(mg_canvas_data* canvas, vec2 uv, mg_color color)
 			boxMax.y = maximum(boxMax.y, pos.y);
 		}
 		int prevIndex = canvas->nextShapeIndex-1;
-		*(mp_rect*)(((char*)layout->boxBuffer) + prevIndex*layout->boxStride) = (mp_rect){boxMin.x, boxMin.y, boxMax.x, boxMax.y};
+
+		vec2 texSize = mg_image_size(canvas->currentImage);
+		mp_rect srcRegion = {0, 0, texSize.x, texSize.y};
+		mp_rect destRegion = {boxMin.x, boxMin.y, boxMax.x - boxMin.x, boxMax.y - boxMin.y};
+
+		mg_mat2x3 srcRegionToTexture = {1/texSize.x, 0,           srcRegion.x/texSize.x,
+		                                0,           1/texSize.y, srcRegion.y/texSize.y};
+		mg_mat2x3 destRegionToSrcRegion = {srcRegion.w/destRegion.w, 0,                        0,
+		                                   0,                        srcRegion.h/destRegion.h, 0};
+		mg_mat2x3 userToDestRegion = {1, 0, -destRegion.x,
+		                              0, 1, -destRegion.y};
+		mg_mat2x3 screenToUser = {1, 0, 0,
+		                          0, 1, 0};
+
+		mg_mat2x3 uvTransform = srcRegionToTexture;
+		uvTransform = mg_mat2x3_mul_m(uvTransform, destRegionToSrcRegion);
+		uvTransform = mg_mat2x3_mul_m(uvTransform, userToDestRegion);
+		uvTransform = mg_mat2x3_mul_m(uvTransform, screenToUser);
+
+		*(mg_mat2x3*)(layout->uvTransformBuffer + prevIndex*layout->uvTransformStride) = uvTransform;
 	}
 
 	int index = canvas->nextShapeIndex;
@@ -617,9 +638,8 @@ u32 mg_next_shape_textured(mg_canvas_data* canvas, vec2 uv, mg_color color)
 	                canvas->clip.x + canvas->clip.w - 1,
 	                canvas->clip.y + canvas->clip.h - 1};
 
-	*(vec2*)(((char*)layout->uvBuffer) + index*layout->uvStride) = uv;
-	*(mg_color*)(((char*)layout->colorBuffer) + index*layout->colorStride) = color;
 	*(mp_rect*)(((char*)layout->clipBuffer) + index*layout->clipStride) = clip;
+	*(mg_color*)(((char*)layout->colorBuffer) + index*layout->colorStride) = color;
 
 
 	return(index);
@@ -2937,7 +2957,7 @@ void mg_flush_commands(int primitiveCount, mg_primitive* primitives, mg_path_elt
 	                                 0, 1, 0};
 	canvas->clip = (mp_rect){-FLT_MAX/2, -FLT_MAX/2, FLT_MAX, FLT_MAX};
 
-	mg_image currentImage = mg_image_nil();
+	canvas->currentImage = mg_image_nil();
 
 	canvas->backend->begin(canvas->backend);
 
@@ -2951,11 +2971,11 @@ void mg_flush_commands(int primitiveCount, mg_primitive* primitives, mg_path_elt
 		mg_primitive* primitive = &(primitives[nextIndex]);
 		nextIndex++;
 
-		if(i && primitive->attributes.image.h != currentImage.h)
+		if(i && primitive->attributes.image.h != canvas->currentImage.h)
 		{
-			mg_image_data* imageData = mg_image_data_from_handle(canvas, currentImage);
+			mg_image_data* imageData = mg_image_data_from_handle(canvas, canvas->currentImage);
 			mg_flush_batch(canvas, imageData);
-			currentImage = primitive->attributes.image;
+			canvas->currentImage = primitive->attributes.image;
 		}
 
 		switch(primitive->cmd)
@@ -3065,7 +3085,7 @@ void mg_flush_commands(int primitiveCount, mg_primitive* primitives, mg_path_elt
 	}
 	exit_command_loop: ;
 
-	mg_image_data* imageData = mg_image_data_from_handle(canvas, currentImage);
+	mg_image_data* imageData = mg_image_data_from_handle(canvas, canvas->currentImage);
 	mg_flush_batch(canvas, imageData);
 
 	canvas->backend->end(canvas->backend);

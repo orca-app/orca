@@ -203,17 +203,14 @@ typedef struct mg_vertex_layout
 	char* cubicBuffer;
 	u32 cubicStride;
 
-	char* uvBuffer;
-	u32 uvStride;
+	char* uvTransformBuffer;
+	u32 uvTransformStride;
 
 	char* colorBuffer;
 	u32 colorStride;
 
 	char* shapeIndexBuffer;
 	u32 shapeIndexStride;
-
-	char* boxBuffer;
-	u32 boxStride;
 
 	char* clipBuffer;
 	u32 clipStride;

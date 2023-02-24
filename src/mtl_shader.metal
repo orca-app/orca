@@ -267,15 +267,10 @@ kernel void RenderKernel(texture2d<float, access::write> outTexture [[texture(0)
 		int shapeIndex = v0->shapeIndex;
 		float4 color = shapeBuffer[shapeIndex].color;
 
-		/////////////////////////////////////////////////////////////////////////
-		float4 shapeBox = shapeBuffer[shapeIndex].box * contentsScaling[0];
-
-		float2 uv0 = (p0 - shapeBox.xy)/(shapeBox.zw - shapeBox.xy);
-		float2 uv1 = (p1 - shapeBox.xy)/(shapeBox.zw - shapeBox.xy);
-		float2 uv2 = (p2 - shapeBox.xy)/(shapeBox.zw - shapeBox.xy);
-		/////////////////////////////////////////////////////////////////////////
-
-
+		const device float* uvTransform2x3 = shapeBuffer[shapeIndex].uvTransform;
+		matrix_float3x3 uvTransform = {{uvTransform2x3[0], uvTransform2x3[3], 0},
+		                               {uvTransform2x3[1], uvTransform2x3[4], 0},
+		                               {uvTransform2x3[2], uvTransform2x3[5], 1}};
 
 		for(int i=0; i<6; i++)
 		{
@@ -294,7 +289,9 @@ kernel void RenderKernel(texture2d<float, access::write> outTexture [[texture(0)
 			if(((int)w0+bias0) >= 0 && ((int)w1+bias1) >= 0 && ((int)w2+bias2) >= 0)
 			{
 				float4 cubic = (cubic0*w0 + cubic1*w1 + cubic2*w2)/(w0+w1+w2);
-				float2 uv = (uv0*w0 + uv1*w1 + uv2*w2)/(w0+w1+w2);
+
+				//float2 uv = (uv0*w0 + uv1*w1 + uv2*w2)/(w0+w1+w2);
+				float2 uv = (uvTransform*(float3(samplePoint.xy/contentsScaling[0], 1))).xy;
 
 				float4 texColor = float4(1, 1, 1, 1);
 				if(*useTexture)
