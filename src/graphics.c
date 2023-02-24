@@ -3078,11 +3078,10 @@ void mg_clip_pop()
 void mg_set_color(mg_color color)
 {
 	mg_canvas_data* canvas = __mgCurrentCanvas;
-	if(!canvas)
+	if(canvas)
 	{
-		return;
+		canvas->attributes.color = color;
 	}
-	canvas->attributes.color = color;
 }
 
 void mg_set_color_rgba(f32 r, f32 g, f32 b, f32 a)
@@ -3093,81 +3092,82 @@ void mg_set_color_rgba(f32 r, f32 g, f32 b, f32 a)
 void mg_set_width(f32 width)
 {
 	mg_canvas_data* canvas = __mgCurrentCanvas;
-	if(!canvas)
+	if(canvas)
 	{
-		return;
+		canvas->attributes.width = width;
 	}
-	canvas->attributes.width = width;
 }
 
 void mg_set_tolerance(f32 tolerance)
 {
 	mg_canvas_data* canvas = __mgCurrentCanvas;
-	if(!canvas)
+	if(canvas)
 	{
-		return;
+		canvas->attributes.tolerance = tolerance;
 	}
-	canvas->attributes.tolerance = tolerance;
 }
 
 void mg_set_joint(mg_joint_type joint)
 {
 	mg_canvas_data* canvas = __mgCurrentCanvas;
-	if(!canvas)
+	if(canvas)
 	{
-		return;
+		canvas->attributes.joint = joint;
 	}
-	canvas->attributes.joint = joint;
 }
 
 void mg_set_max_joint_excursion(f32 maxJointExcursion)
 {
 	mg_canvas_data* canvas = __mgCurrentCanvas;
-	if(!canvas)
+	if(canvas)
 	{
-		return;
+		canvas->attributes.maxJointExcursion = maxJointExcursion;
 	}
-	canvas->attributes.maxJointExcursion = maxJointExcursion;
 }
 
 void mg_set_cap(mg_cap_type cap)
 {
 	mg_canvas_data* canvas = __mgCurrentCanvas;
-	if(!canvas)
+	if(canvas)
 	{
-		return;
+		canvas->attributes.cap = cap;
 	}
-	canvas->attributes.cap = cap;
 }
 
 void mg_set_font(mg_font font)
 {
 	mg_canvas_data* canvas = __mgCurrentCanvas;
-	if(!canvas)
+	if(canvas)
 	{
-		return;
+		canvas->attributes.font = font;
 	}
-	canvas->attributes.font = font;
 }
 
 void mg_set_font_size(f32 fontSize)
 {
 	mg_canvas_data* canvas = __mgCurrentCanvas;
-	if(!canvas)
+	if(canvas)
 	{
-		return;
+		canvas->attributes.fontSize = fontSize;
 	}
-	canvas->attributes.fontSize = fontSize;
 }
 
 void mg_set_text_flip(bool flip)
 {
 	mg_canvas_data* canvas = __mgCurrentCanvas;
-	if(!canvas)
+	if(canvas)
 	{
-		return;
+		canvas->textFlip = flip;
 	}
-	canvas->textFlip = flip;
+}
+
+void mg_set_image(mg_image image)
+{
+	mg_canvas_data* canvas = __mgCurrentCanvas;
+	if(canvas)
+	{
+		canvas->attributes.image = image;
+	}
 }
 
 mg_color mg_get_color()

@@ -105,8 +105,8 @@ MP_API void mg_surface_set_hidden(mg_surface surface, bool hidden);
 //NOTE(martin): graphics canvas structs
 //------------------------------------------------------------------------------------------
 typedef struct mg_canvas { u64 h; } mg_canvas;
-typedef struct mg_stream { u64 h; } mg_stream;
 typedef struct mg_font { u64 h; } mg_font;
+typedef struct mg_image { u64 h; } mg_image;
 
 typedef struct mg_mat2x3
 {
@@ -193,6 +193,7 @@ MP_API void mg_set_cap(mg_cap_type cap);
 MP_API void mg_set_font(mg_font font);
 MP_API void mg_set_font_size(f32 size);
 MP_API void mg_set_text_flip(bool flip);
+MP_API void mg_set_image(mg_image image);
 
 MP_API mg_color mg_get_color();
 MP_API f32 mg_get_width();
@@ -269,8 +270,6 @@ MP_API mp_rect mg_text_bounding_box(mg_font font, f32 fontSize, str8 text);
 //------------------------------------------------------------------------------------------
 //NOTE(martin): images
 //------------------------------------------------------------------------------------------
-typedef struct mg_image { u64 h; } mg_image;
-
 MP_API mg_image mg_image_nil();
 MP_API bool mg_image_is_nil(mg_image a);
 
