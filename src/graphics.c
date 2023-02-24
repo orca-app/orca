@@ -90,6 +90,7 @@ typedef struct mg_canvas_data
 	mp_rect clipStack[MG_CLIP_STACK_MAX_DEPTH];
 	u32 clipStackSize;
 
+	vec4 shapeExtents;
 	u32 nextShapeIndex;
 	u32 primitiveCount;
 	mg_primitive primitives[MG_MAX_PRIMITIVE_COUNT];
@@ -585,6 +586,7 @@ void mg_path_push_element(mg_canvas_data* canvas, mg_path_elt elt)
 void mg_reset_shape_index(mg_canvas_data* canvas)
 {
 	canvas->nextShapeIndex = 0;
+	canvas->shapeExtents = (vec4){FLT_MAX, FLT_MAX, -FLT_MAX, -FLT_MAX};
 }
 
 u32 mg_next_shape_textured(mg_canvas_data* canvas, vec2 uv, mg_color color)
@@ -593,24 +595,17 @@ u32 mg_next_shape_textured(mg_canvas_data* canvas, vec2 uv, mg_color color)
 
 	if(canvas->nextShapeIndex)
 	{
-		//NOTE: compute shape's bounding box for the _previous_ shape
-		vec2 boxMin = {FLT_MAX, FLT_MAX};
-		vec2 boxMax = {-FLT_MAX, -FLT_MAX};
-		for(int posIndex = canvas->shapeFirstVertexIndex;
-	    	posIndex < canvas->vertexCount;
-	    	posIndex++)
-		{
-			vec2 pos = *(vec2*)(layout->posBuffer + posIndex*layout->posStride);
-			boxMin.x = minimum(boxMin.x, pos.x);
-			boxMin.y = minimum(boxMin.y, pos.y);
-			boxMax.x = maximum(boxMax.x, pos.x);
-			boxMax.y = maximum(boxMax.y, pos.y);
-		}
+		//NOTE: set shape's bounding box for the _previous_ shape
 		int prevIndex = canvas->nextShapeIndex-1;
 
 		vec2 texSize = mg_image_size(canvas->currentImage);
+
 		mp_rect srcRegion = {0, 0, texSize.x, texSize.y};
-		mp_rect destRegion = {boxMin.x, boxMin.y, boxMax.x - boxMin.x, boxMax.y - boxMin.y};
+
+		mp_rect destRegion = {canvas->shapeExtents.x,
+		                      canvas->shapeExtents.y,
+		                      canvas->shapeExtents.z - canvas->shapeExtents.x,
+		                      canvas->shapeExtents.w - canvas->shapeExtents.y};
 
 		mg_mat2x3 srcRegionToTexture = {1/texSize.x, 0,           srcRegion.x/texSize.x,
 		                                0,           1/texSize.y, srcRegion.y/texSize.y};
@@ -670,7 +665,12 @@ int* mg_reserve_indices(mg_canvas_data* canvas, u32 indexCount)
 
 void mg_push_vertex(mg_canvas_data* canvas, vec2 pos, vec4 cubic)
 {
-	pos = mg_mat2x3_mul(canvas->transform, pos);
+	canvas->shapeExtents.x = minimum(canvas->shapeExtents.x, pos.x);
+	canvas->shapeExtents.y = minimum(canvas->shapeExtents.y, pos.y);
+	canvas->shapeExtents.z = maximum(canvas->shapeExtents.z, pos.x);
+	canvas->shapeExtents.w = maximum(canvas->shapeExtents.w, pos.y);
+
+	vec2 screenPos = mg_mat2x3_mul(canvas->transform, pos);
 
 	mg_vertex_layout* layout = &canvas->backend->vertexLayout;
 	DEBUG_ASSERT(canvas->vertexCount < layout->maxVertexCount);
@@ -680,7 +680,7 @@ void mg_push_vertex(mg_canvas_data* canvas, vec2 pos, vec4 cubic)
 
 	u32 index = canvas->vertexCount;
 
-	*(vec2*)(((char*)layout->posBuffer) + index*layout->posStride) = pos;
+	*(vec2*)(((char*)layout->posBuffer) + index*layout->posStride) = screenPos;
 	*(vec4*)(((char*)layout->cubicBuffer) + index*layout->cubicStride) = cubic;
 	*(u32*)(((char*)layout->shapeIndexBuffer) + index*layout->shapeIndexStride) = shapeIndex;
 
