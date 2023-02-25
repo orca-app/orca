@@ -194,6 +194,7 @@ MP_API void mg_set_font(mg_font font);
 MP_API void mg_set_font_size(f32 size);
 MP_API void mg_set_text_flip(bool flip);
 MP_API void mg_set_image(mg_image image);
+MP_API void mg_set_image_source_region(mp_rect region);
 
 MP_API mg_color mg_get_color();
 MP_API f32 mg_get_width();

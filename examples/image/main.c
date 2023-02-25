@@ -74,19 +74,24 @@ int main()
 			mg_set_color_rgba(0, 1, 1, 1);
 			mg_clear();
 
-			mg_set_color_rgba(1, 0, 1, 1);
+			mg_set_color_rgba(1, 1, 1, 1);
 
 			mg_matrix_push((mg_mat2x3){0.707, -0.707, 200,
 			                           0.707, 0.707, 100});
 
 			mg_set_image(image);
+			mg_set_image_source_region((mp_rect){500, 500, 2000, 1400});
+
+//			mg_rectangle_fill(100, 100, imageSize.x/8, imageSize.y/8);
+
 			mg_move_to(0, 0);
-			mg_line_to(100, 0);
-			mg_line_to(150, 50);
+			mg_line_to(200, 0);
+			mg_line_to(300, 100);
+			mg_line_to(200, 200);
+			mg_line_to(0, 200);
 			mg_line_to(100, 100);
-			mg_line_to(0, 100);
-			mg_line_to(50, 50);
 			mg_fill();
+
 			//mg_image_draw_rounded(image, (mp_rect){0, 0, imageSize.x/8, imageSize.y/8}, 40.);
 
 			mg_matrix_pop();

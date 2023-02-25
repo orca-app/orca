@@ -85,6 +85,7 @@ typedef struct mg_attributes
 	f32 fontSize;
 
 	mg_image image;
+	mp_rect srcRegion;
 
 	mp_rect clip;
 
@@ -119,8 +120,6 @@ typedef struct mg_primitive
 {
 	mg_primitive_cmd cmd;
 	mg_attributes attributes;
-
-	mp_rect srcRegion;
 
 	union
 	{

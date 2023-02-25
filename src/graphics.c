@@ -100,6 +100,7 @@ typedef struct mg_canvas_data
 	u32 indexCount;
 
 	mg_image currentImage;
+	mp_rect currentSrcRegion;
 
 	mg_resource_pool imagePool;
 
@@ -601,18 +602,14 @@ void mg_reset_shape_index(mg_canvas_data* canvas)
 	canvas->shapeExtents = (vec4){FLT_MAX, FLT_MAX, -FLT_MAX, -FLT_MAX};
 }
 
-u32 mg_next_shape_textured(mg_canvas_data* canvas, vec2 uv, mg_color color)
+void mg_finalize_shape(mg_canvas_data* canvas)
 {
-	mg_vertex_layout* layout = &canvas->backend->vertexLayout;
-
 	if(canvas->nextShapeIndex)
 	{
-		//NOTE: set shape's bounding box for the _previous_ shape
-		int prevIndex = canvas->nextShapeIndex-1;
-
+		//NOTE: set shape's uv transform for the _current_ shape
 		vec2 texSize = mg_image_size(canvas->currentImage);
 
-		mp_rect srcRegion = {0, 0, texSize.x, texSize.y};
+		mp_rect srcRegion = canvas->currentSrcRegion;
 
 		mp_rect destRegion = {canvas->shapeExtents.x,
 		                      canvas->shapeExtents.y,
@@ -632,9 +629,19 @@ u32 mg_next_shape_textured(mg_canvas_data* canvas, vec2 uv, mg_color color)
 		uvTransform = mg_mat2x3_mul_m(uvTransform, userToDestRegion);
 		uvTransform = mg_mat2x3_mul_m(uvTransform, screenToUser);
 
-		*(mg_mat2x3*)(layout->uvTransformBuffer + prevIndex*layout->uvTransformStride) = uvTransform;
+		int index = canvas->nextShapeIndex-1;
+		mg_vertex_layout* layout = &canvas->backend->vertexLayout;
+		*(mg_mat2x3*)(layout->uvTransformBuffer + index*layout->uvTransformStride) = uvTransform;
 	}
+}
 
+u32 mg_next_shape(mg_canvas_data* canvas, mg_attributes* attributes)
+{
+	mg_finalize_shape(canvas);
+
+	canvas->currentSrcRegion = attributes->srcRegion;
+
+	mg_vertex_layout* layout = &canvas->backend->vertexLayout;
 	int index = canvas->nextShapeIndex;
 	canvas->nextShapeIndex++;
 	canvas->shapeFirstVertexIndex = canvas->vertexCount;
@@ -645,15 +652,9 @@ u32 mg_next_shape_textured(mg_canvas_data* canvas, vec2 uv, mg_color color)
 	                canvas->clip.y + canvas->clip.h - 1};
 
 	*(mp_rect*)(((char*)layout->clipBuffer) + index*layout->clipStride) = clip;
-	*(mg_color*)(((char*)layout->colorBuffer) + index*layout->colorStride) = color;
-
+	*(mg_color*)(((char*)layout->colorBuffer) + index*layout->colorStride) = attributes->color;
 
 	return(index);
-}
-
-u32 mg_next_shape(mg_canvas_data* canvas, mg_color color)
-{
-	return(mg_next_shape_textured(canvas, (vec2){0, 0}, color));
 }
 
 //TODO(martin): rename with something more explicit
@@ -1507,7 +1508,7 @@ void mg_render_stroke_quadratic(mg_canvas_data* canvas, vec2 p[4], mg_attributes
 	{
 		//NOTE(martin): push the actual fill commands for the offset contour
 
-		mg_next_shape(canvas, attributes->color);
+		mg_next_shape(canvas, attributes);
 
 		mg_render_fill_quadratic(canvas, positiveOffsetHull);
 		mg_render_fill_quadratic(canvas, negativeOffsetHull);
@@ -1658,7 +1659,7 @@ void mg_render_stroke_cubic(mg_canvas_data* canvas, vec2 p[4], mg_attributes* at
 	else
 	{
 		//NOTE(martin): push the actual fill commands for the offset contour
-		mg_next_shape(canvas, attributes->color);
+		mg_next_shape(canvas, attributes);
 
 		mg_render_fill_cubic(canvas, positiveOffsetHull);
 		mg_render_fill_cubic(canvas, negativeOffsetHull);
@@ -1707,7 +1708,7 @@ void mg_stroke_cap(mg_canvas_data* canvas, vec2 p0, vec2 direction, mg_attribute
 	vec2 m0 = {alpha*direction.x,
 	           alpha*direction.y};
 
-	mg_next_shape(canvas, attributes->color);
+	mg_next_shape(canvas, attributes);
 
 	u32 baseIndex = mg_vertices_base_index(canvas);
 	i32* indices = mg_reserve_indices(canvas, 6);
@@ -1765,7 +1766,7 @@ void mg_stroke_joint(mg_canvas_data* canvas,
 		n1.y *= -1;
 	}
 
-	mg_next_shape(canvas, attributes->color);
+	mg_next_shape(canvas, attributes);
 
 	//NOTE(martin): use the same code as hull offset to find mitter point...
 	/*NOTE(martin): let vector u = (n0+n1) and vector v = pIntersect - p1
@@ -1847,7 +1848,7 @@ void mg_render_stroke_element(mg_canvas_data* canvas,
 {
 	vec2 controlPoints[4] = {currentPoint, element->p[0], element->p[1], element->p[2]};
 	int endPointIndex = 0;
-	mg_next_shape(canvas, attributes->color);
+	mg_next_shape(canvas, attributes);
 
 	switch(element->type)
 	{
@@ -1980,7 +1981,7 @@ void mg_render_rectangle_fill(mg_canvas_data* canvas, mp_rect rect, mg_attribute
 	u32 baseIndex = mg_vertices_base_index(canvas);
 	i32* indices = mg_reserve_indices(canvas, 6);
 
-	mg_next_shape(canvas, attributes->color);
+	mg_next_shape(canvas, attributes);
 
 	vec2 points[4] = {{rect.x, rect.y},
 	                  {rect.x + rect.w, rect.y},
@@ -2006,7 +2007,7 @@ void mg_render_rectangle_stroke(mg_canvas_data* canvas, mp_rect rect, mg_attribu
 	u32 baseIndex = mg_vertices_base_index(canvas);
 	i32* indices = mg_reserve_indices(canvas, 12);
 
-	mg_next_shape(canvas, attributes->color);
+	mg_next_shape(canvas, attributes);
 
 	//NOTE(martin): limit stroke width to the minimum dimension of the rectangle
 	f32 width = minimum(attributes->width, minimum(rect.w, rect.h));
@@ -2121,7 +2122,7 @@ void mg_render_rounded_rectangle_fill(mg_canvas_data* canvas,
                                       mg_rounded_rect rect,
 					                  mg_attributes* attributes)
 {
-	mg_next_shape(canvas, attributes->color);
+	mg_next_shape(canvas, attributes);
 	mg_render_rounded_rectangle_fill_path(canvas, rect);
 }
 
@@ -2136,7 +2137,7 @@ void mg_render_rounded_rectangle_stroke(mg_canvas_data* canvas,
 	mg_rounded_rect inner = {rect.x + halfW, rect.y + halfW, rect.w - width, rect.h - width, rect.r - halfW};
 	mg_rounded_rect outer = {rect.x - halfW, rect.y - halfW, rect.w + width, rect.h + width, rect.r + halfW};
 
-	mg_next_shape(canvas, attributes->color);
+	mg_next_shape(canvas, attributes);
 	mg_render_rounded_rectangle_fill_path(canvas, outer);
 	mg_render_rounded_rectangle_fill_path(canvas, inner);
 }
@@ -2179,7 +2180,7 @@ void mg_render_ellipse_fill_path(mg_canvas_data* canvas, mp_rect rect)
 
 void mg_render_ellipse_fill(mg_canvas_data* canvas, mp_rect rect, mg_attributes* attributes)
 {
-	mg_next_shape(canvas, attributes->color);
+	mg_next_shape(canvas, attributes);
 	mg_render_ellipse_fill_path(canvas, rect);
 }
 
@@ -2192,7 +2193,7 @@ void mg_render_ellipse_stroke(mg_canvas_data* canvas, mp_rect rect, mg_attribute
 	mp_rect inner = {rect.x + halfW, rect.y + halfW, rect.w - width, rect.h - width};
 	mp_rect outer = {rect.x - halfW, rect.y - halfW, rect.w + width, rect.h + width};
 
-	mg_next_shape(canvas, attributes->color);
+	mg_next_shape(canvas, attributes);
 	mg_render_ellipse_fill_path(canvas, outer);
 	mg_render_ellipse_fill_path(canvas, inner);
 }
@@ -2852,12 +2853,11 @@ void mg_do_clip_push(mg_canvas_data* canvas, mp_rect clip)
 
 void mg_flush_batch(mg_canvas_data* canvas, mg_image_data* image)
 {
-	//NOTE: finalize last shape
-	int shapeCount = mg_next_shape(canvas, (mg_color){1, 1, 1, 1});
+	mg_finalize_shape(canvas);
 
 	if(canvas->backend && canvas->backend->drawBatch && canvas->indexCount)
 	{
-		canvas->backend->drawBatch(canvas->backend, image, shapeCount, canvas->vertexCount, canvas->indexCount);
+		canvas->backend->drawBatch(canvas->backend, image, canvas->nextShapeIndex, canvas->vertexCount, canvas->indexCount);
 	}
 	mg_reset_shape_index(canvas);
 	canvas->vertexCount = 0;
@@ -2916,7 +2916,7 @@ void mg_flush_commands(int primitiveCount, mg_primitive* primitives, mg_path_elt
 
 			case MG_CMD_FILL:
 			{
-				mg_next_shape(canvas, primitive->attributes.color);
+				mg_next_shape(canvas, &primitive->attributes);
 				mg_render_fill(canvas,
 						       pathElements + primitive->path.startIndex,
 						       &primitive->path);
@@ -3167,6 +3167,17 @@ void mg_set_image(mg_image image)
 	if(canvas)
 	{
 		canvas->attributes.image = image;
+		vec2 size = mg_image_size(image);
+		canvas->attributes.srcRegion = (mp_rect){0, 0, size.x, size.y};
+	}
+}
+
+void mg_set_image_source_region(mp_rect region)
+{
+	mg_canvas_data* canvas = __mgCurrentCanvas;
+	if(canvas)
+	{
+		canvas->attributes.srcRegion = region;
 	}
 }
 
@@ -3764,11 +3775,11 @@ MP_API void mg_image_draw_region(mg_image image, mp_rect srcRegion, mp_rect dstR
 	if(canvas)
 	{
 		mg_primitive primitive = {.cmd = MG_CMD_RECT_FILL,
-		                          .srcRegion = srcRegion,
 		                          .rect = dstRegion,
 		                          .attributes = canvas->attributes};
 		primitive.attributes.image = image;
-		primitive.attributes.color = (mg_color){1, 0, 1, 1};
+		primitive.attributes.color = (mg_color){1, 1, 1, 1};
+		primitive.attributes.srcRegion = srcRegion;
 		mg_push_command(canvas, primitive);
 	}
 }
@@ -3779,10 +3790,11 @@ MP_API void mg_image_draw_region_rounded(mg_image image, mp_rect srcRegion, mp_r
 	if(canvas)
 	{
 		mg_primitive primitive = {.cmd = MG_CMD_ROUND_RECT_FILL,
-		                          .srcRegion = srcRegion,
 		                          .roundedRect = {dstRegion.x, dstRegion.y, dstRegion.w, dstRegion.h, roundness},
 		                          .attributes = canvas->attributes};
 		primitive.attributes.image = image;
+		primitive.attributes.color = (mg_color){1, 1, 1, 1};
+		primitive.attributes.srcRegion = srcRegion;
 		mg_push_command(canvas, primitive);
 	}
 }
