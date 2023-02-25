@@ -732,6 +732,7 @@ void mg_push_command(mg_canvas_data* canvas, mg_primitive primitive)
 	ASSERT(canvas->primitiveCount < MG_MAX_PRIMITIVE_COUNT);
 	canvas->primitives[canvas->primitiveCount] = primitive;
 	canvas->primitives[canvas->primitiveCount].transform = mg_matrix_stack_top(canvas);
+	canvas->primitives[canvas->primitiveCount].attributes = canvas->attributes;
 	canvas->primitiveCount++;
 }
 
@@ -3479,7 +3480,7 @@ void mg_clear()
 	mg_canvas_data* canvas = __mgCurrentCanvas;
 	if(canvas)
 	{
-		mg_push_command(canvas, (mg_primitive){.cmd = MG_CMD_CLEAR, .attributes = canvas->attributes});
+		mg_push_command(canvas, (mg_primitive){.cmd = MG_CMD_CLEAR});
 	}
 }
 
@@ -3488,7 +3489,7 @@ void mg_fill()
 	mg_canvas_data* canvas = __mgCurrentCanvas;
 	if(canvas && canvas->path.count)
 	{
-		mg_push_command(canvas, (mg_primitive){.cmd = MG_CMD_FILL, .path = canvas->path, .attributes = canvas->attributes});
+		mg_push_command(canvas, (mg_primitive){.cmd = MG_CMD_FILL, .path = canvas->path});
 		mg_new_path(canvas);
 	}
 }
@@ -3498,7 +3499,7 @@ void mg_stroke()
 	mg_canvas_data* canvas = __mgCurrentCanvas;
 	if(canvas && canvas->path.count)
 	{
-		mg_push_command(canvas, (mg_primitive){.cmd = MG_CMD_STROKE, .path = canvas->path, .attributes = canvas->attributes});
+		mg_push_command(canvas, (mg_primitive){.cmd = MG_CMD_STROKE, .path = canvas->path});
 		mg_new_path(canvas);
 	}
 }
@@ -3511,7 +3512,7 @@ void mg_rectangle_fill(f32 x, f32 y, f32 w, f32 h)
 	mg_canvas_data* canvas = __mgCurrentCanvas;
 	if(canvas)
 	{
-		mg_primitive primitive = {.cmd = MG_CMD_RECT_FILL, .rect = (mp_rect){x, y, w, h}, .attributes = canvas->attributes};
+		mg_primitive primitive = {.cmd = MG_CMD_RECT_FILL, .rect = (mp_rect){x, y, w, h}};
 		mg_push_command(canvas, primitive);
 	}
 }
@@ -3521,7 +3522,7 @@ void mg_rectangle_stroke(f32 x, f32 y, f32 w, f32 h)
 	mg_canvas_data* canvas = __mgCurrentCanvas;
 	if(canvas)
 	{
-		mg_primitive primitive = {.cmd = MG_CMD_RECT_STROKE, .rect = (mp_rect){x, y, w, h}, .attributes = canvas->attributes};
+		mg_primitive primitive = {.cmd = MG_CMD_RECT_STROKE, .rect = (mp_rect){x, y, w, h}};
 		mg_push_command(canvas, primitive);
 	}
 }
@@ -3532,8 +3533,7 @@ void mg_rounded_rectangle_fill(f32 x, f32 y, f32 w, f32 h, f32 r)
 	if(canvas)
 	{
 		mg_primitive primitive = {.cmd = MG_CMD_ROUND_RECT_FILL,
-		                          .roundedRect = (mg_rounded_rect){x, y, w, h, r},
-		                          .attributes = canvas->attributes};
+		                          .roundedRect = (mg_rounded_rect){x, y, w, h, r}};
 		mg_push_command(canvas, primitive);
 	}
 }
@@ -3544,8 +3544,7 @@ void mg_rounded_rectangle_stroke(f32 x, f32 y, f32 w, f32 h, f32 r)
 	if(canvas)
 	{
 		mg_primitive primitive = {.cmd = MG_CMD_ROUND_RECT_STROKE,
-		                          .roundedRect = (mg_rounded_rect){x, y, w, h, r},
-		                          .attributes = canvas->attributes};
+		                          .roundedRect = (mg_rounded_rect){x, y, w, h, r}};
 		mg_push_command(canvas, primitive);
 	}
 }
@@ -3556,8 +3555,7 @@ void mg_circle_fill(f32 x, f32 y, f32 r)
 	if(canvas)
 	{
 		mg_primitive primitive = {.cmd = MG_CMD_ELLIPSE_FILL,
-		                          .rect = (mp_rect){x-r, y-r, 2*r, 2*r},
-		                          .attributes = canvas->attributes};
+		                          .rect = (mp_rect){x-r, y-r, 2*r, 2*r}};
 		mg_push_command(canvas, primitive);
 	}
 }
@@ -3568,8 +3566,7 @@ void mg_circle_stroke(f32 x, f32 y, f32 r)
 	if(canvas)
 	{
 		mg_primitive primitive = {.cmd = MG_CMD_ELLIPSE_STROKE,
-		                          .rect = (mp_rect){x-r, y-r, 2*r, 2*r},
-		                          .attributes = canvas->attributes};
+		                          .rect = (mp_rect){x-r, y-r, 2*r, 2*r}};
 		mg_push_command(canvas, primitive);
 	}
 }
@@ -3580,8 +3577,7 @@ void mg_ellipse_fill(f32 x, f32 y, f32 rx, f32 ry)
 	if(canvas)
 	{
 		mg_primitive primitive = {.cmd = MG_CMD_ELLIPSE_FILL,
-		                          .rect = (mp_rect){x-rx, y-ry, 2*rx, 2*ry},
-		                          .attributes = canvas->attributes};
+		                          .rect = (mp_rect){x-rx, y-ry, 2*rx, 2*ry}};
 		mg_push_command(canvas, primitive);
 	}
 }
@@ -3592,8 +3588,7 @@ void mg_ellipse_stroke(f32 x, f32 y, f32 rx, f32 ry)
 	if(canvas)
 	{
 		mg_primitive primitive = {.cmd = MG_CMD_ELLIPSE_STROKE,
-		                          .rect = (mp_rect){x-rx, y-ry, 2*rx, 2*ry},
-		                          .attributes = canvas->attributes};
+		                          .rect = (mp_rect){x-rx, y-ry, 2*rx, 2*ry}};
 		mg_push_command(canvas, primitive);
 	}
 }
@@ -3744,13 +3739,19 @@ MP_API void mg_image_draw_region(mg_image image, mp_rect srcRegion, mp_rect dstR
 	mg_canvas_data* canvas = __mgCurrentCanvas;
 	if(canvas)
 	{
-		mg_primitive primitive = {.cmd = MG_CMD_RECT_FILL,
-		                          .rect = dstRegion,
-		                          .attributes = canvas->attributes};
-		primitive.attributes.image = image;
-		primitive.attributes.color = (mg_color){1, 1, 1, 1};
-		primitive.attributes.srcRegion = srcRegion;
-		mg_push_command(canvas, primitive);
+		mg_image oldImage = canvas->attributes.image;
+		mp_rect oldSrcRegion = canvas->attributes.srcRegion;
+		mg_color oldColor = canvas->attributes.color;
+
+		canvas->attributes.image = image;
+		canvas->attributes.srcRegion = srcRegion;
+		canvas->attributes.color = (mg_color){1, 1, 1, 1};
+
+		mg_push_command(canvas, (mg_primitive){.cmd = MG_CMD_RECT_FILL, .rect = dstRegion});
+
+		canvas->attributes.image = oldImage;
+		canvas->attributes.srcRegion = oldSrcRegion;
+		canvas->attributes.color = oldColor;
 	}
 }
 
@@ -3759,12 +3760,17 @@ MP_API void mg_image_draw_region_rounded(mg_image image, mp_rect srcRegion, mp_r
 	mg_canvas_data* canvas = __mgCurrentCanvas;
 	if(canvas)
 	{
+		mg_image oldImage = canvas->attributes.image;
+		mp_rect oldSrcRegion = canvas->attributes.srcRegion;
+		mg_color oldColor = canvas->attributes.color;
+
+		canvas->attributes.image = image;
+		canvas->attributes.srcRegion = srcRegion;
+		canvas->attributes.color = (mg_color){1, 1, 1, 1};
+
 		mg_primitive primitive = {.cmd = MG_CMD_ROUND_RECT_FILL,
-		                          .roundedRect = {dstRegion.x, dstRegion.y, dstRegion.w, dstRegion.h, roundness},
-		                          .attributes = canvas->attributes};
-		primitive.attributes.image = image;
-		primitive.attributes.color = (mg_color){1, 1, 1, 1};
-		primitive.attributes.srcRegion = srcRegion;
+		                          .roundedRect = {dstRegion.x, dstRegion.y, dstRegion.w, dstRegion.h, roundness}};
+
 		mg_push_command(canvas, primitive);
 	}
 }
