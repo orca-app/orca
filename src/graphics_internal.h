@@ -110,8 +110,6 @@ typedef enum { MG_CMD_CLEAR = 0,
 	       MG_CMD_ELLIPSE_FILL,
 	       MG_CMD_ELLIPSE_STROKE,
 	       MG_CMD_JUMP,
-	       MG_CMD_MATRIX_PUSH,
-	       MG_CMD_MATRIX_POP,
 	       MG_CMD_CLIP_PUSH,
 	       MG_CMD_CLIP_POP,
 	     } mg_primitive_cmd;
@@ -120,6 +118,7 @@ typedef struct mg_primitive
 {
 	mg_primitive_cmd cmd;
 	mg_attributes attributes;
+	mg_mat2x3 transform;
 
 	union
 	{
@@ -128,7 +127,7 @@ typedef struct mg_primitive
 		mg_rounded_rect roundedRect;
 		utf32 codePoint;
 		u32 jump;
-		mg_mat2x3 matrix;
+		mg_mat2x3 matrix; //TODO remove when we use transform everywhere
 	};
 
 } mg_primitive;
