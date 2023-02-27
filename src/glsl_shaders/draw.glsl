@@ -142,6 +142,8 @@ void main()
 
 		int shapeIndex = vertexBuffer.elements[i0].shapeIndex;
 		vec4 color = shapeBuffer.elements[shapeIndex].color;
+		color.rgb *= color.a;
+
 		ivec4 clip = ivec4(round((shapeBuffer.elements[shapeIndex].clip * vec4(scaling, scaling) + vec4(0.5, 0.5, 0.5, 0.5)) * subPixelFactor));
 
 		mat3 uvTransform = mat3(shapeBuffer.elements[shapeIndex].uvTransform[0],
@@ -214,9 +216,11 @@ void main()
 						{
 							vec3 sampleFP = vec3(vec2(samplePoint).xy/(subPixelFactor*2.), 1);
 							vec2 uv = (uvTransform * sampleFP).xy;
-							nextColor *= texture(srcTexture, uv);
+							vec4 texColor = texture(srcTexture, uv);
+							texColor.rgb *= texColor.a;
+							nextColor *= texColor;
 						}
-						currentColor[sampleIndex] = sampleColor[sampleIndex]*(1.-nextColor.a) + nextColor.a*nextColor;
+						currentColor[sampleIndex] = sampleColor[sampleIndex]*(1.-nextColor.a) + nextColor;
 						currentShapeIndex[sampleIndex] = shapeIndex;
 						flipCount[sampleIndex] = 1;
 					}
