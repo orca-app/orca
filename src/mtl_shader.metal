@@ -266,6 +266,7 @@ kernel void RenderKernel(texture2d<float, access::write> outTexture [[texture(0)
 
 		int shapeIndex = v0->shapeIndex;
 		float4 color = shapeBuffer[shapeIndex].color;
+		color.rgb *= color.a;
 
 		const device float* uvTransform2x3 = shapeBuffer[shapeIndex].uvTransform;
 		matrix_float3x3 uvTransform = {{uvTransform2x3[0], uvTransform2x3[3], 0},
@@ -298,6 +299,7 @@ kernel void RenderKernel(texture2d<float, access::write> outTexture [[texture(0)
 				{
 					constexpr sampler smp(mip_filter::nearest, mag_filter::linear, min_filter::linear);
 					texColor = texAtlas.sample(smp, uv);
+					texColor.rgb *= texColor.a;
 				}
 				//TODO(martin): this is a quick and dirty fix for solid polygons where we use
 				//              cubic = (1, 1, 1, 1) on all vertices, which can cause small errors to

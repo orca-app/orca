@@ -99,17 +99,6 @@ void mg_mtl_surface_prepare(mg_surface_data* interface)
 {
 	mg_mtl_surface* surface = (mg_mtl_surface*)interface;
 	mg_mtl_surface_acquire_drawable_and_command_buffer(surface);
-
-	@autoreleasepool
-	{
-		MTLRenderPassDescriptor* renderPassDescriptor = [MTLRenderPassDescriptor renderPassDescriptor];
-		renderPassDescriptor.colorAttachments[0].texture = surface->drawable.texture;
-		renderPassDescriptor.colorAttachments[0].loadAction = MTLLoadActionClear;
-		renderPassDescriptor.colorAttachments[0].clearColor = MTLClearColorMake(0.0,0.0,0.0,0.0);
-
-		id<MTLRenderCommandEncoder> renderEncoder = [surface->commandBuffer renderCommandEncoderWithDescriptor:renderPassDescriptor];
-		[renderEncoder endEncoding];
-	}
 }
 
 void mg_mtl_surface_present(mg_surface_data* interface)

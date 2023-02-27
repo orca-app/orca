@@ -467,11 +467,6 @@ mg_canvas_backend* mg_mtl_canvas_create(mg_surface surface)
 			//-----------------------------------------------------------
 			backend->tileCounters = [metalSurface->device newBufferWithLength: RENDERER_MAX_TILES*sizeof(uint)
 		                                         	options: MTLResourceStorageModePrivate];
-			id<MTLCommandBuffer> commandBuffer = [metalSurface->commandQueue commandBuffer];
-			id<MTLBlitCommandEncoder> blitEncoder = [commandBuffer blitCommandEncoder];
-			[blitEncoder fillBuffer: backend->tileCounters range: NSMakeRange(0, RENDERER_MAX_TILES*sizeof(uint)) value: 0];
-			[blitEncoder endEncoding];
-
 			//-----------------------------------------------------------
 			//NOTE(martin): load the library
 			//-----------------------------------------------------------
@@ -539,12 +534,11 @@ mg_canvas_backend* mg_mtl_canvas_create(mg_surface surface)
 			pipelineStateDescriptor.colorAttachments[0].pixelFormat = metalSurface->mtlLayer.pixelFormat;
 			pipelineStateDescriptor.colorAttachments[0].blendingEnabled = YES;
 			pipelineStateDescriptor.colorAttachments[0].rgbBlendOperation = MTLBlendOperationAdd;
-			pipelineStateDescriptor.colorAttachments[0].sourceRGBBlendFactor = MTLBlendFactorSourceAlpha;
+			pipelineStateDescriptor.colorAttachments[0].sourceRGBBlendFactor = MTLBlendFactorOne;
 			pipelineStateDescriptor.colorAttachments[0].destinationRGBBlendFactor = MTLBlendFactorOneMinusSourceAlpha;
-
 			pipelineStateDescriptor.colorAttachments[0].alphaBlendOperation = MTLBlendOperationAdd;
-			pipelineStateDescriptor.colorAttachments[0].sourceAlphaBlendFactor = MTLBlendFactorZero;
-			pipelineStateDescriptor.colorAttachments[0].destinationAlphaBlendFactor = MTLBlendFactorOne;
+			pipelineStateDescriptor.colorAttachments[0].sourceAlphaBlendFactor = MTLBlendFactorOne;
+			pipelineStateDescriptor.colorAttachments[0].destinationAlphaBlendFactor = MTLBlendFactorOneMinusSourceAlpha;
 
 			// create render pipeline
 			backend->renderPipeline = [metalSurface->device newRenderPipelineStateWithDescriptor: pipelineStateDescriptor error:&err];
