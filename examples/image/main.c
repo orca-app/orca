@@ -95,7 +95,7 @@ int main()
 
 			mg_matrix_pop();
 
-			mg_image_draw(image, (mp_rect){300, 200, 300, 300});
+			mg_image_draw(image2, (mp_rect){300, 200, 300, 300});
 
 			mg_flush();
 		mg_surface_present(surface);
