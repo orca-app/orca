@@ -23,7 +23,7 @@ vertex vs_out VertexShader(ushort vid [[vertex_id]])
 fragment float4 FragmentShader(vs_out i [[stage_in]], texture2d<float> tex [[texture(0)]])
 {
 	constexpr sampler smp(mip_filter::nearest, mag_filter::linear, min_filter::linear);
-	return(float4(tex.sample(smp, i.uv).rgb, 1));
+	return(tex.sample(smp, i.uv));
 }
 
 
@@ -239,8 +239,8 @@ kernel void RenderKernel(texture2d<float, access::write> outTexture [[texture(0)
 	{
 		zIndices[i] = -1;
 		flipCounts[i] = 0;
-		pixelColors[i] = *clearColor;
-		nextColors[i] = *clearColor;
+		pixelColors[i] = float4(0, 0, 0, 0);
+		nextColors[i] = float4(0, 0, 0, 0);
 	}
 
 	for(uint tileBufferIndex=0; tileBufferIndex < tileBufferSize; tileBufferIndex++)
@@ -340,6 +340,6 @@ kernel void RenderKernel(texture2d<float, access::write> outTexture [[texture(0)
 		}
 		out += pixelColors[i];
 	}
-	out = float4(out.xyz/6, 1);
+	out = out/6.;
 	outTexture.write(out, gid);
 }

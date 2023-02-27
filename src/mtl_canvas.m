@@ -26,6 +26,9 @@ typedef struct mg_mtl_canvas_backend
 	mg_surface surface;
 
 	mg_color clearColor;
+	u32 vertexBufferOffset;
+	u32 indexBufferOffset;
+	u32 shapeBufferOffset;
 
 	// permanent metal resources
 	id<MTLComputePipelineState> tilingPipeline;
@@ -66,8 +69,65 @@ mg_mtl_surface* mg_mtl_canvas_get_surface(mg_mtl_canvas_backend* canvas)
 	return(res);
 }
 
+void mg_mtl_canvas_update_vertex_layout(mg_mtl_canvas_backend* backend)
+{
+	char* vertexBase = (char*)[backend->vertexBuffer contents] + backend->vertexBufferOffset;
+	char* shapeBase = (char*)[backend->shapeBuffer contents] + backend->shapeBufferOffset;
+	char* indexBase = (char*)[backend->indexBuffer contents] + backend->indexBufferOffset;
+
+	backend->interface.vertexLayout = (mg_vertex_layout){
+		    .maxVertexCount = MG_MTL_CANVAS_DEFAULT_BUFFER_LENGTH,
+	        .maxIndexCount = MG_MTL_CANVAS_DEFAULT_BUFFER_LENGTH,
+	        .cubicBuffer = vertexBase + offsetof(mg_vertex, cubic),
+	        .cubicStride = sizeof(mg_vertex),
+	        .posBuffer = vertexBase + offsetof(mg_vertex, pos),
+	        .posStride = sizeof(mg_vertex),
+	        .shapeIndexBuffer = vertexBase + offsetof(mg_vertex, shapeIndex),
+	        .shapeIndexStride = sizeof(mg_vertex),
+
+	        .colorBuffer = shapeBase + offsetof(mg_shape, color),
+	        .colorStride = sizeof(mg_shape),
+	        .clipBuffer = shapeBase + offsetof(mg_shape, clip),
+	        .clipStride = sizeof(mg_shape),
+	        .uvTransformBuffer = shapeBase + offsetof(mg_shape, uvTransform),
+	        .uvTransformStride = sizeof(mg_shape),
+
+	        .indexBuffer = indexBase,
+	        .indexStride = sizeof(int)};
+}
+
 void mg_mtl_canvas_begin(mg_canvas_backend* interface)
-{}
+{
+	mg_mtl_canvas_backend* backend = (mg_mtl_canvas_backend*)interface;
+	mg_mtl_surface* surface = mg_mtl_canvas_get_surface(backend);
+	if(!surface)
+	{
+		return;
+	}
+	@autoreleasepool
+	{
+		if(surface->commandBuffer == nil || surface->commandBuffer == nil)
+		{
+			mg_mtl_surface_acquire_drawable_and_command_buffer(surface);
+		}
+
+		backend->vertexBufferOffset = 0;
+		backend->indexBufferOffset = 0;
+		backend->shapeBufferOffset = 0;
+		mg_mtl_canvas_update_vertex_layout(backend);
+
+		MTLClearColor clearColor = MTLClearColorMake(backend->clearColor.r, backend->clearColor.g, backend->clearColor.b, backend->clearColor.a);
+
+		MTLRenderPassDescriptor* renderPassDescriptor = [MTLRenderPassDescriptor renderPassDescriptor];
+		renderPassDescriptor.colorAttachments[0].texture = surface->drawable.texture;
+		renderPassDescriptor.colorAttachments[0].loadAction = MTLLoadActionClear;
+		renderPassDescriptor.colorAttachments[0].clearColor = clearColor;
+		renderPassDescriptor.colorAttachments[0].storeAction = MTLStoreActionStore;
+
+		id<MTLRenderCommandEncoder> renderEncoder = [surface->commandBuffer renderCommandEncoderWithDescriptor:renderPassDescriptor];
+		[renderEncoder endEncoding];
+	}
+}
 
 void mg_mtl_canvas_end(mg_canvas_backend* interface)
 {}
@@ -90,11 +150,6 @@ void mg_mtl_canvas_draw_batch(mg_canvas_backend* interface, mg_image_data* image
 
 	@autoreleasepool
 	{
-		if(surface->commandBuffer == nil || surface->commandBuffer == nil)
-		{
-			mg_mtl_surface_acquire_drawable_and_command_buffer(surface);
-		}
-
 		ASSERT(indexCount * sizeof(i32) < [backend->indexBuffer length]);
 
 		f32 scale = surface->mtlLayer.contentsScale;
@@ -112,9 +167,11 @@ void mg_mtl_canvas_draw_batch(mg_canvas_backend* interface, mg_image_data* image
 		//-----------------------------------------------------------
 		id<MTLComputeCommandEncoder> boxEncoder = [surface->commandBuffer computeCommandEncoder];
 		[boxEncoder setComputePipelineState: backend->boxingPipeline];
-		[boxEncoder setBuffer: backend->vertexBuffer offset:0 atIndex: 0];
-		[boxEncoder setBuffer: backend->indexBuffer offset:0 atIndex: 1];
-		[boxEncoder setBuffer: backend->shapeBuffer offset:0 atIndex: 2];
+
+		[boxEncoder setBuffer: backend->vertexBuffer offset:backend->vertexBufferOffset atIndex: 0];
+		[boxEncoder setBuffer: backend->indexBuffer offset:backend->indexBufferOffset atIndex: 1];
+		[boxEncoder setBuffer: backend->shapeBuffer offset:backend->shapeBufferOffset atIndex: 2];
+
 		[boxEncoder setBuffer: backend->triangleArray offset:0 atIndex: 3];
 		[boxEncoder setBuffer: backend->boxArray offset:0 atIndex: 4];
 		[boxEncoder setBytes: &scale length: sizeof(float) atIndex: 5];
@@ -162,6 +219,7 @@ void mg_mtl_canvas_draw_batch(mg_canvas_backend* interface, mg_image_data* image
 		//-----------------------------------------------------------
 		//NOTE(martin): encode drawing pass
 		//-----------------------------------------------------------
+		//TODO: remove that
 		vector_float4 clearColorVec4 = {backend->clearColor.r, backend->clearColor.g, backend->clearColor.b, backend->clearColor.a};
 
 		id<MTLComputeCommandEncoder> encoder = [surface->commandBuffer computeCommandEncoder];
@@ -175,8 +233,9 @@ void mg_mtl_canvas_draw_batch(mg_canvas_backend* interface, mg_image_data* image
 			useTexture = 1;
 		}
 
-		[encoder setBuffer: backend->vertexBuffer offset:0 atIndex: 0];
-		[encoder setBuffer: backend->shapeBuffer offset:0 atIndex: 1];
+		[boxEncoder setBuffer: backend->vertexBuffer offset:backend->vertexBufferOffset atIndex: 0];
+		[boxEncoder setBuffer: backend->shapeBuffer offset:backend->shapeBufferOffset atIndex: 1];
+
 		[encoder setBuffer: backend->tileCounters offset:0 atIndex: 2];
 		[encoder setBuffer: backend->tilesArray offset:0 atIndex: 3];
 		[encoder setBuffer: backend->triangleArray offset:0 atIndex: 4];
@@ -194,7 +253,7 @@ void mg_mtl_canvas_draw_batch(mg_canvas_backend* interface, mg_image_data* image
 		[encoder endEncoding];
 
 		//-----------------------------------------------------------
-		//NOTE(martin): acquire drawable, create render encoder to blit texture to framebuffer
+		//NOTE(martin): blit texture to framebuffer
 		//-----------------------------------------------------------
 
 		MTLViewport viewport = {backend->viewPort.x * scale,
@@ -206,6 +265,7 @@ void mg_mtl_canvas_draw_batch(mg_canvas_backend* interface, mg_image_data* image
 
 		MTLRenderPassDescriptor* renderPassDescriptor = [MTLRenderPassDescriptor renderPassDescriptor];
 		renderPassDescriptor.colorAttachments[0].texture = surface->drawable.texture;
+		renderPassDescriptor.colorAttachments[0].loadAction = MTLLoadActionLoad;
 		renderPassDescriptor.colorAttachments[0].storeAction = MTLStoreActionStore;
 
 		id<MTLRenderCommandEncoder> renderEncoder = [surface->commandBuffer renderCommandEncoderWithDescriptor:renderPassDescriptor];
@@ -217,6 +277,12 @@ void mg_mtl_canvas_draw_batch(mg_canvas_backend* interface, mg_image_data* image
 			 vertexCount: 3 ];
 		[renderEncoder endEncoding];
 	}
+
+	backend->vertexBufferOffset += vertexCount * sizeof(mg_vertex);
+	backend->indexBufferOffset += indexCount * sizeof(int);
+	backend->shapeBufferOffset += shapeCount * sizeof(mg_shape);
+
+	mg_mtl_canvas_update_vertex_layout(backend);
 }
 
 /*
@@ -250,33 +316,6 @@ void mg_mtl_canvas_viewport(mg_canvas_backend* interface, mp_rect viewPort)
 	}
 }
 */
-
-void mg_mtl_canvas_update_vertex_layout(mg_mtl_canvas_backend* backend)
-{
-	char* vertexBase = (char*)[backend->vertexBuffer contents];
-	char* shapeBase = (char*)[backend->shapeBuffer contents];
-	char* indexBase = (char*)[backend->indexBuffer contents];
-
-	backend->interface.vertexLayout = (mg_vertex_layout){
-		    .maxVertexCount = MG_MTL_CANVAS_DEFAULT_BUFFER_LENGTH,
-	        .maxIndexCount = MG_MTL_CANVAS_DEFAULT_BUFFER_LENGTH,
-	        .cubicBuffer = vertexBase + offsetof(mg_vertex, cubic),
-	        .cubicStride = sizeof(mg_vertex),
-	        .posBuffer = vertexBase + offsetof(mg_vertex, pos),
-	        .posStride = sizeof(mg_vertex),
-	        .shapeIndexBuffer = vertexBase + offsetof(mg_vertex, shapeIndex),
-	        .shapeIndexStride = sizeof(mg_vertex),
-
-	        .colorBuffer = shapeBase + offsetof(mg_shape, color),
-	        .colorStride = sizeof(mg_shape),
-	        .clipBuffer = shapeBase + offsetof(mg_shape, clip),
-	        .clipStride = sizeof(mg_shape),
-	        .uvTransformBuffer = shapeBase + offsetof(mg_shape, uvTransform),
-	        .uvTransformStride = sizeof(mg_shape),
-
-	        .indexBuffer = indexBase,
-	        .indexStride = sizeof(int)};
-}
 
 void mg_mtl_canvas_destroy(mg_canvas_backend* interface)
 {
@@ -432,7 +471,6 @@ mg_canvas_backend* mg_mtl_canvas_create(mg_surface surface)
 			id<MTLBlitCommandEncoder> blitEncoder = [commandBuffer blitCommandEncoder];
 			[blitEncoder fillBuffer: backend->tileCounters range: NSMakeRange(0, RENDERER_MAX_TILES*sizeof(uint)) value: 0];
 			[blitEncoder endEncoding];
-			[commandBuffer commit];
 
 			//-----------------------------------------------------------
 			//NOTE(martin): load the library
@@ -499,6 +537,14 @@ mg_canvas_backend* mg_mtl_canvas_create(mg_surface surface)
 			pipelineStateDescriptor.vertexFunction = vertexFunction;
 			pipelineStateDescriptor.fragmentFunction = fragmentFunction;
 			pipelineStateDescriptor.colorAttachments[0].pixelFormat = metalSurface->mtlLayer.pixelFormat;
+			pipelineStateDescriptor.colorAttachments[0].blendingEnabled = YES;
+			pipelineStateDescriptor.colorAttachments[0].rgbBlendOperation = MTLBlendOperationAdd;
+			pipelineStateDescriptor.colorAttachments[0].sourceRGBBlendFactor = MTLBlendFactorSourceAlpha;
+			pipelineStateDescriptor.colorAttachments[0].destinationRGBBlendFactor = MTLBlendFactorOneMinusSourceAlpha;
+
+			pipelineStateDescriptor.colorAttachments[0].alphaBlendOperation = MTLBlendOperationAdd;
+			pipelineStateDescriptor.colorAttachments[0].sourceAlphaBlendFactor = MTLBlendFactorZero;
+			pipelineStateDescriptor.colorAttachments[0].destinationAlphaBlendFactor = MTLBlendFactorOne;
 
 			// create render pipeline
 			backend->renderPipeline = [metalSurface->device newRenderPipelineStateWithDescriptor: pipelineStateDescriptor error:&err];

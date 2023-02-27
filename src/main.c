@@ -46,6 +46,10 @@ int main()
 	mg_image image = mg_image_create_from_file(imagePath, true);
 	vec2 imageSize = mg_image_size(image);
 
+	str8 imagePath2 = mp_app_get_resource_path(mem_scratch(), "../resources/Top512.png");
+	mg_image image2 = mg_image_create_from_file(imagePath2, true);
+	vec2 imageSize2 = mg_image_size(image2);
+
 	// start app
 	mp_window_bring_to_front(window);
 	mp_window_focus(window);
@@ -82,7 +86,7 @@ int main()
 			mg_set_image(image);
 			mg_set_image_source_region((mp_rect){500, 500, 2000, 1400});
 
-//			mg_rectangle_fill(100, 100, imageSize.x/8, imageSize.y/8);
+			//mg_rectangle_fill(100, 100, imageSize.x/8, imageSize.y/8);
 
 			mg_move_to(0, 0);
 			mg_line_to(200, 0);
@@ -95,6 +99,8 @@ int main()
 			//mg_image_draw_rounded(image, (mp_rect){0, 0, imageSize.x/8, imageSize.y/8}, 40.);
 
 			mg_matrix_pop();
+
+			mg_image_draw(image2, (mp_rect){200, 200, 300, 300});
 
 			mg_flush();
 		mg_surface_present(surface);
