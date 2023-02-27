@@ -59,6 +59,7 @@ typedef struct mg_attributes
 	mg_image image;
 	mp_rect srcRegion;
 
+	mg_mat2x3 transform;
 	mp_rect clip;
 
 } mg_attributes;
@@ -90,7 +91,6 @@ typedef struct mg_primitive
 {
 	mg_primitive_cmd cmd;
 	mg_attributes attributes;
-	mg_mat2x3 transform;
 
 	union
 	{
@@ -99,7 +99,6 @@ typedef struct mg_primitive
 		mg_rounded_rect roundedRect;
 		utf32 codePoint;
 		u32 jump;
-		mg_mat2x3 matrix; //TODO remove when we use transform everywhere
 	};
 
 } mg_primitive;
@@ -220,17 +219,17 @@ typedef struct mg_canvas_data
 
 	mg_resource_pool imagePool;
 
+	/*
 	vec2 atlasPos;
 	u32 atlasLineHeight;
 	mg_image blankImage;
+	*/
 
 	//NOTE: these are used at render time
 	mp_rect clip;
 	mg_mat2x3 transform;
-	mg_mat2x3 prevTransform; //TODO: [cleanup] use only one transform
-
-	mg_image currentImage;
-	mp_rect currentSrcRegion;
+	mg_image image;
+	mp_rect srcRegion;
 
 	vec4 shapeExtents;
 	u32 nextShapeIndex;
@@ -732,8 +731,8 @@ void mg_push_command(mg_canvas_data* canvas, mg_primitive primitive)
 	//NOTE(martin): push primitive and updates current stream, eventually patching a pending jump.
 	ASSERT(canvas->primitiveCount < MG_MAX_PRIMITIVE_COUNT);
 	canvas->primitives[canvas->primitiveCount] = primitive;
-	canvas->primitives[canvas->primitiveCount].transform = mg_matrix_stack_top(canvas);
 	canvas->primitives[canvas->primitiveCount].attributes = canvas->attributes;
+	canvas->primitives[canvas->primitiveCount].attributes.transform = mg_matrix_stack_top(canvas);
 	canvas->primitiveCount++;
 }
 
@@ -770,9 +769,9 @@ void mg_finalize_shape(mg_canvas_data* canvas)
 	if(canvas->nextShapeIndex)
 	{
 		//NOTE: set shape's uv transform for the _current_ shape
-		vec2 texSize = mg_image_size(canvas->currentImage);
+		vec2 texSize = mg_image_size(canvas->image);
 
-		mp_rect srcRegion = canvas->currentSrcRegion;
+		mp_rect srcRegion = canvas->srcRegion;
 
 		mp_rect destRegion = {canvas->shapeExtents.x,
 		                      canvas->shapeExtents.y,
@@ -786,7 +785,7 @@ void mg_finalize_shape(mg_canvas_data* canvas)
 		mg_mat2x3 userToDestRegion = {1, 0, -destRegion.x,
 		                              0, 1, -destRegion.y};
 
-		mg_mat2x3 screenToUser = mg_mat2x3_inv(canvas->prevTransform);
+		mg_mat2x3 screenToUser = mg_mat2x3_inv(canvas->transform);
 
 		mg_mat2x3 uvTransform = srcRegionToTexture;
 		uvTransform = mg_mat2x3_mul_m(uvTransform, destRegionToSrcRegion);
@@ -798,14 +797,14 @@ void mg_finalize_shape(mg_canvas_data* canvas)
 		*(mg_mat2x3*)(layout->uvTransformBuffer + index*layout->uvTransformStride) = uvTransform;
 
 	}
-	canvas->prevTransform = canvas->transform;
 }
 
 u32 mg_next_shape(mg_canvas_data* canvas, mg_attributes* attributes)
 {
 	mg_finalize_shape(canvas);
 
-	canvas->currentSrcRegion = attributes->srcRegion;
+	canvas->transform = attributes->transform;
+	canvas->srcRegion = attributes->srcRegion;
 	canvas->shapeExtents = (vec4){FLT_MAX, FLT_MAX, -FLT_MAX, -FLT_MAX};
 
 	mg_vertex_layout* layout = &canvas->backend->vertexLayout;
@@ -2748,15 +2747,8 @@ mg_canvas mg_canvas_create(mg_surface surface)
 	                                  		0, 1, 0}};
 
 
-	        //TODO: review this ////////////////////////////////////////////////////////////////////////
 	        canvas = mg_canvas_alloc_handle(canvasData);
 	        mg_canvas_set_current(canvas);
-
-			//NOTE: create a blank image
-			//WARN: this requires setting the current context before
-			u8 bytes[4] = {255, 255, 255, 255};
-			canvasData->blankImage = mg_image_create_from_rgba8(1, 1, bytes);
-			////////////////////////////////////////////////////////////////////////////////////////////////////
 		}
 	}
 	return(canvas);
@@ -2888,7 +2880,7 @@ void mg_flush_commands(int primitiveCount, mg_primitive* primitives, mg_path_elt
 
 	canvas->clip = (mp_rect){-FLT_MAX/2, -FLT_MAX/2, FLT_MAX, FLT_MAX};
 
-	canvas->currentImage = mg_image_nil();
+	canvas->image = mg_image_nil();
 
 	canvas->backend->begin(canvas->backend);
 
@@ -2902,13 +2894,12 @@ void mg_flush_commands(int primitiveCount, mg_primitive* primitives, mg_path_elt
 		mg_primitive* primitive = &(primitives[nextIndex]);
 		nextIndex++;
 
-		if(i && primitive->attributes.image.h != canvas->currentImage.h)
+		if(i && primitive->attributes.image.h != canvas->image.h)
 		{
-			mg_image_data* imageData = mg_image_data_from_handle(canvas, canvas->currentImage);
+			mg_image_data* imageData = mg_image_data_from_handle(canvas, canvas->image);
 			mg_draw_batch(canvas, imageData);
-			canvas->currentImage = primitive->attributes.image;
+			canvas->image = primitive->attributes.image;
 		}
-		canvas->transform = primitive->transform;
 
 		switch(primitive->cmd)
 		{
@@ -2996,7 +2987,7 @@ void mg_flush_commands(int primitiveCount, mg_primitive* primitives, mg_path_elt
 	}
 	exit_command_loop: ;
 
-	mg_image_data* imageData = mg_image_data_from_handle(canvas, canvas->currentImage);
+	mg_image_data* imageData = mg_image_data_from_handle(canvas, canvas->image);
 	mg_draw_batch(canvas, imageData);
 
 	canvas->backend->end(canvas->backend);
