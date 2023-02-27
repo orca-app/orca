@@ -2749,6 +2749,9 @@ mg_canvas mg_canvas_create(mg_surface surface)
 
 	        canvas = mg_canvas_alloc_handle(canvasData);
 	        mg_canvas_set_current(canvas);
+
+	        //TODO: move that in mg_canvas_set_current() if needed?
+	        mg_surface_prepare(surface);
 		}
 	}
 	return(canvas);

@@ -10,5 +10,5 @@ struct vertex {
 struct shape {
 	vec4 color;
 	vec4 clip;
-	vec2 uv;
+	float uvTransform[6];
 };

@@ -39,6 +39,13 @@ typedef struct mg_gl_canvas_backend
 
 } mg_gl_canvas_backend;
 
+typedef struct mg_gl_image
+{
+	mg_image_data interface;
+
+	GLuint textureID;
+} mg_gl_image;
+
 //NOTE: debugger
 typedef struct debug_vertex
 {
@@ -66,6 +73,8 @@ enum {
 	LAYOUT_VEC4_ALIGN = 16,
 	LAYOUT_INT_SIZE = 4,
 	LAYOUT_INT_ALIGN = 4,
+	LAYOUT_MAT2x3_SIZE = sizeof(float)*6,
+	LAYOUT_MAT2x3_ALIGN = 4,
 
 	LAYOUT_CUBIC_OFFSET = 0,
 	LAYOUT_POS_OFFSET = LayoutNext(CUBIC, VEC4, VEC2),
@@ -75,9 +84,9 @@ enum {
 
 	LAYOUT_COLOR_OFFSET = 0,
 	LAYOUT_CLIP_OFFSET = LayoutNext(COLOR, VEC4, VEC4),
-	LAYOUT_UV_OFFSET = LayoutNext(CLIP, VEC4, VEC2),
+	LAYOUT_UV_TRANSFORM_OFFSET = LayoutNext(CLIP, VEC4, MAT2x3),
 	LAYOUT_SHAPE_ALIGN = 16,
-	LAYOUT_SHAPE_SIZE = LayoutNext(UV, VEC2, SHAPE),
+	LAYOUT_SHAPE_SIZE = LayoutNext(UV_TRANSFORM, MAT2x3, SHAPE),
 
 	MG_GL_CANVAS_MAX_BUFFER_LENGTH = 1<<20,
 	MG_GL_CANVAS_MAX_SHAPE_BUFFER_SIZE = LAYOUT_SHAPE_SIZE * MG_GL_CANVAS_MAX_BUFFER_LENGTH,
@@ -108,8 +117,8 @@ void mg_gl_canvas_update_vertex_layout(mg_gl_canvas_backend* backend)
 	        .colorStride = LAYOUT_SHAPE_SIZE,
 	        .clipBuffer = backend->shapeMapping + LAYOUT_CLIP_OFFSET,
 	        .clipStride = LAYOUT_SHAPE_SIZE,
-	        .uvBuffer = backend->shapeMapping + LAYOUT_UV_OFFSET,
-	        .uvStride = LAYOUT_SHAPE_SIZE,
+	        .uvTransformBuffer = backend->shapeMapping + LAYOUT_UV_TRANSFORM_OFFSET,
+	        .uvTransformStride = LAYOUT_SHAPE_SIZE,
 
 	        .indexBuffer = backend->indexMapping,
 	        .indexStride = LAYOUT_INT_SIZE};
@@ -147,7 +156,7 @@ void mg_gl_canvas_clear(mg_canvas_backend* interface, mg_color clearColor)
 	glClear(GL_COLOR_BUFFER_BIT);
 }
 
-void mg_gl_canvas_draw_batch(mg_canvas_backend* interface, u32 shapeCount, u32 vertexCount, u32 indexCount)
+void mg_gl_canvas_draw_batch(mg_canvas_backend* interface, mg_image_data* imageInterface, u32 shapeCount, u32 vertexCount, u32 indexCount)
 {
 	mg_gl_canvas_backend* backend = (mg_gl_canvas_backend*)interface;
 
@@ -213,6 +222,19 @@ void mg_gl_canvas_draw_batch(mg_canvas_backend* interface, u32 shapeCount, u32 v
 	glUniform1ui(3, tileArrayLength);
 	glUniform2f(4, contentsScaling.x, contentsScaling.y);
 
+	if(imageInterface)
+	{
+		//TODO: make sure this image belongs to that context
+		mg_gl_image* image = (mg_gl_image*)imageInterface;
+		glActiveTexture(GL_TEXTURE1);
+		glBindTexture(GL_TEXTURE_2D, image->textureID);
+		glUniform1ui(5, 1);
+	}
+	else
+	{
+		glUniform1ui(5, 0);
+	}
+
 	glDispatchCompute(tileCountX, tileCountY, 1);
 
 	//NOTE: now blit out texture to surface
@@ -248,9 +270,41 @@ void mg_gl_canvas_destroy(mg_canvas_backend* interface)
 	free(backend);
 }
 
-void mg_gl_canvas_atlas_upload(mg_canvas_backend* interface, mp_rect rect, u8* bytes)
+mg_image_data* mg_gl_canvas_image_create(mg_canvas_backend* interface, vec2 size)
 {
-	//TODO
+	mg_gl_image* image = 0;
+
+	image = malloc_type(mg_gl_image);
+	if(image)
+	{
+		glGenTextures(1, &image->textureID);
+		glBindTexture(GL_TEXTURE_2D, image->textureID);
+//		glTexStorage2D(GL_TEXTURE_2D, 1, GL_RGBA8, size.x, size.y);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+		image->interface.size = size;
+	}
+	return((mg_image_data*)image);
+}
+
+void mg_gl_canvas_image_destroy(mg_canvas_backend* interface, mg_image_data* imageInterface)
+{
+	//TODO: check that this image belongs to this context
+	mg_gl_image* image = (mg_gl_image*)imageInterface;
+	glDeleteTextures(1, &image->textureID);
+	free(image);
+}
+
+void mg_gl_canvas_image_upload_region(mg_canvas_backend* interface,
+                                      mg_image_data* imageInterface,
+                                      mp_rect region,
+                                      u8* pixels)
+{
+	//TODO: check that this image belongs to this context
+	mg_gl_image* image = (mg_gl_image*)imageInterface;
+	glBindTexture(GL_TEXTURE_2D, image->textureID);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, region.w, region.h, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
 }
 
 static int mg_gl_compile_shader(const char* name, GLuint shader, const char* source)
@@ -375,7 +429,9 @@ mg_canvas_backend* mg_gl_canvas_create(mg_surface surface)
 		backend->interface.end = mg_gl_canvas_end;
 		backend->interface.clear = mg_gl_canvas_clear;
 		backend->interface.drawBatch = mg_gl_canvas_draw_batch;
-		backend->interface.atlasUpload = mg_gl_canvas_atlas_upload;
+		backend->interface.imageCreate = mg_gl_canvas_image_create;
+		backend->interface.imageDestroy = mg_gl_canvas_image_destroy;
+		backend->interface.imageUploadRegion = mg_gl_canvas_image_upload_region;
 
 		mg_surface_prepare(surface);
 

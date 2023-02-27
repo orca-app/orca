@@ -30,8 +30,12 @@ layout(location = 1) uniform uvec2 tileCount;
 layout(location = 2) uniform uint tileSize;
 layout(location = 3) uniform uint tileArraySize;
 layout(location = 4) uniform vec2 scaling;
+layout(location = 5) uniform uint useTexture;
 
 layout(rgba8, binding = 0) uniform restrict writeonly image2D outTexture;
+
+layout(binding = 1) uniform sampler2D srcTexture;
+
 
 bool is_top_left(ivec2 a, ivec2 b)
 {
@@ -140,6 +144,16 @@ void main()
 		vec4 color = shapeBuffer.elements[shapeIndex].color;
 		ivec4 clip = ivec4(round((shapeBuffer.elements[shapeIndex].clip * vec4(scaling, scaling) + vec4(0.5, 0.5, 0.5, 0.5)) * subPixelFactor));
 
+		mat3 uvTransform = mat3(shapeBuffer.elements[shapeIndex].uvTransform[0],
+		                        shapeBuffer.elements[shapeIndex].uvTransform[3],
+		                        0.,
+		                        shapeBuffer.elements[shapeIndex].uvTransform[1],
+		                        shapeBuffer.elements[shapeIndex].uvTransform[4],
+		                        0.,
+		                        shapeBuffer.elements[shapeIndex].uvTransform[2],
+		                        shapeBuffer.elements[shapeIndex].uvTransform[5],
+		                        1.);
+
 		//NOTE(martin): reorder triangle counter-clockwise and compute bias for each edge
 		int cw = is_clockwise(p0, p1, p2);
 		if(cw < 0)
@@ -194,7 +208,15 @@ void main()
 						{
 							sampleColor[sampleIndex] = currentColor[sampleIndex];
 						}
-						currentColor[sampleIndex] = sampleColor[sampleIndex]*(1.-color.a) + color.a*color;
+
+						vec4 nextColor = color;
+						if(useTexture)
+						{
+							vec3 sampleFP = vec3(vec2(samplePoint).xy/(subPixelFactor*2.), 1);
+							vec2 uv = (uvTransform * sampleFP).xy;
+							nextColor *= texture(srcTexture, uv);
+						}
+						currentColor[sampleIndex] = sampleColor[sampleIndex]*(1.-nextColor.a) + nextColor.a*nextColor;
 						currentShapeIndex[sampleIndex] = shapeIndex;
 						flipCount[sampleIndex] = 1;
 					}
