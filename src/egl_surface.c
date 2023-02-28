@@ -183,7 +183,7 @@ mg_surface mg_egl_surface_create_for_window(mp_window window)
 
 		eglSwapInterval(surface->eglDisplay, 1);
 
-		res = mg_surface_alloc_handle((mg_surface_data*)surface);
+		res = mg_surface_handle_alloc((mg_surface_data*)surface);
 	}
 	return(res);
 }

@@ -154,43 +154,31 @@ typedef struct mg_font_data
 typedef struct mg_canvas_data mg_canvas_data;
 typedef struct mg_image_data mg_image_data;
 
-typedef struct mg_resource_slot
+typedef enum mg_handle_kind
+{
+	MG_HANDLE_NONE = 0,
+	MG_HANDLE_SURFACE,
+	MG_HANDLE_CANVAS,
+	MG_HANDLE_FONT,
+	MG_HANDLE_IMAGE,
+} mg_handle_kind;
+
+typedef struct mg_handle_slot
 {
 	list_elt freeListElt;
 	u32 generation;
-	union
-	{
-		mg_surface_data* surface;
-		mg_image_data* image;
-		mg_canvas_data* canvas;
-		mg_font_data* font;
-		//...
-	};
+	mg_handle_kind kind;
 
-} mg_resource_slot;
+	void* data;
 
-enum
-{
-	MG_MAX_RESOURCE_SLOTS = 128,
-	//...
-};
-
-typedef struct mg_resource_pool
-{
-	mg_resource_slot slots[MG_MAX_RESOURCE_SLOTS];
-	list_info freeList;
-	u32 nextIndex;
-
-} mg_resource_pool;
+} mg_handle_slot;
 
 typedef struct mg_data
 {
 	bool init;
 
-	mg_resource_pool surfaces;
-	mg_resource_pool canvases;
-	mg_resource_pool fonts;
-	//...
+	mem_arena handleArena;
+	list_info handleFreeList;
 
 } mg_data;
 
@@ -217,8 +205,6 @@ typedef struct mg_canvas_data
 
 	u32 primitiveCount;
 	mg_primitive primitives[MG_MAX_PRIMITIVE_COUNT];
-
-	mg_resource_pool imagePool;
 
 	/*
 	vec2 atlasPos;
@@ -248,7 +234,9 @@ void mg_init()
 {
 	if(!__mgData.init)
 	{
+		mem_arena_init(&__mgData.handleArena);
 		__mgData.init = true;
+
 		//...
 	}
 }
@@ -257,199 +245,120 @@ void mg_init()
 // handle pools procedures
 //------------------------------------------------------------------------
 
-mg_resource_slot* mg_resource_slot_alloc(mg_resource_pool* pool)
+u64 mg_handle_alloc(mg_handle_kind kind, void* data)
 {
 	if(!__mgData.init)
 	{
-		//TODO: see if we require an init at all, and if we want to make it explicit to the user
 		mg_init();
 	}
+	mem_arena* arena = &__mgData.handleArena;
 
-	mg_resource_slot* slot = ListPopEntry(&pool->freeList, mg_resource_slot, freeListElt);
-	if(!slot && pool->nextIndex < MG_MAX_RESOURCE_SLOTS)
+	mg_handle_slot* slot = ListPopEntry(&__mgData.handleFreeList, mg_handle_slot, freeListElt);
+	if(!slot)
 	{
-		slot = &pool->slots[pool->nextIndex];
+		slot = mem_arena_alloc_type(arena, mg_handle_slot);
+		DEBUG_ASSERT(slot);
 		slot->generation = 1;
-		pool->nextIndex++;
 	}
-	return(slot);
-}
+	slot->kind = kind;
+	slot->data = data;
 
-void mg_resource_slot_recycle(mg_resource_pool* pool, mg_resource_slot* slot)
-{
-	DEBUG_ASSERT(slot >= pool->slots && slot < pool->slots + MG_MAX_RESOURCE_SLOTS);
-	#ifdef DEBUG
-		if(slot->generation == UINT32_MAX)
-		{
-			LOG_ERROR("surface slot generation wrap around\n");
-		}
-	#endif
-	slot->generation++;
-	ListPush(&pool->freeList, &slot->freeListElt);
-}
-
-mg_resource_slot* mg_resource_slot_from_handle(mg_resource_pool* pool, u64 h)
-{
-	u32 index = h>>32;
-	u32 generation = h & 0xffffffff;
-	if(index >= MG_MAX_RESOURCE_SLOTS)
-	{
-		return(0);
-	}
-	mg_resource_slot* slot = &pool->slots[index];
-	if(slot->generation != generation)
-	{
-		return(0);
-	}
-	else
-	{
-		return(slot);
-	}
-}
-
-u64 mg_resource_handle_from_slot(mg_resource_pool* pool, mg_resource_slot* slot)
-{
-	DEBUG_ASSERT(  (slot - pool->slots) >= 0
-	            && (slot - pool->slots) < MG_MAX_RESOURCE_SLOTS);
-
-	u64 h = ((u64)(slot - pool->slots))<<32
+	u64 h = ((u64)(slot - (mg_handle_slot*)arena->ptr))<<32
 	       |((u64)(slot->generation));
+
 	return(h);
 }
 
-void mg_resource_handle_recycle(mg_resource_pool* pool, u64 h)
+void mg_handle_recycle(u64 h)
 {
-	mg_resource_slot* slot = mg_resource_slot_from_handle(pool, h);
-	if(slot)
+	DEBUG_ASSERT(__mgData.init);
+
+	u32 index = h>>32;
+	u32 generation = h & 0xffffffff;
+	mem_arena* arena = &__mgData.handleArena;
+
+	if(index*sizeof(mg_handle_slot) < arena->offset)
 	{
-		mg_resource_slot_recycle(pool, slot);
+		mg_handle_slot* slot = (mg_handle_slot*)arena->ptr + index;
+		if(slot->generation == generation)
+		{
+			DEBUG_ASSERT(slot->generation != UINT32_MAX, "surface slot generation wrap around\n");
+			slot->generation++;
+			ListPush(&__mgData.handleFreeList, &slot->freeListElt);
+		}
 	}
 }
 
-//------------------------------------------------------------------------
-// surface handles
-//------------------------------------------------------------------------
-
-mg_surface mg_surface_nil() { return((mg_surface){.h = 0}); }
-bool mg_surface_is_nil(mg_surface surface) { return(surface.h == 0); }
-
-mg_surface mg_surface_alloc_handle(mg_surface_data* surface)
+void* mg_data_from_handle(mg_handle_kind kind, u64 h)
 {
-	mg_resource_slot* slot = mg_resource_slot_alloc(&__mgData.surfaces);
-	if(!slot)
-	{
-		LOG_ERROR("no more surface slots\n");
-		return(mg_surface_nil());
-	}
-	slot->surface = surface;
-	u64 h = mg_resource_handle_from_slot(&__mgData.surfaces, slot);
-	mg_surface handle = {h};
-	return(handle);
-}
+	DEBUG_ASSERT(__mgData.init);
 
-mg_surface_data* mg_surface_data_from_handle(mg_surface surface)
-{
-	mg_resource_slot* slot = mg_resource_slot_from_handle(&__mgData.surfaces, surface.h);
-	mg_surface_data* data = 0;
-	if(slot)
+	void* data = 0;
+
+	u32 index = h>>32;
+	u32 generation = h & 0xffffffff;
+	mem_arena* arena = &__mgData.handleArena;
+
+	if(index*sizeof(mg_handle_slot) < arena->offset)
 	{
-		data = slot->surface;
+		mg_handle_slot* slot = (mg_handle_slot*)arena->ptr + index;
+		if(  slot->generation == generation
+		  && slot->kind == kind)
+		{
+			data = slot->data;
+		}
 	}
 	return(data);
 }
 
-//------------------------------------------------------------------------
-// canvas handles
-//------------------------------------------------------------------------
-mg_canvas mg_canvas_nil() { return((mg_canvas){.h = 0}); }
-bool mg_canvas_is_nil(mg_canvas canvas) { return(canvas.h == 0); }
-
-mg_canvas mg_canvas_alloc_handle(mg_canvas_data* canvas)
+//---------------------------------------------------------------
+// typed handles functions
+//---------------------------------------------------------------
+mg_surface mg_surface_handle_alloc(mg_surface_data* surface)
 {
-	mg_resource_slot* slot = mg_resource_slot_alloc(&__mgData.canvases);
-	if(!slot)
-	{
-		LOG_ERROR("no more canvas slots\n");
-		return(mg_canvas_nil());
-	}
-	slot->canvas = canvas;
-	u64 h = mg_resource_handle_from_slot(&__mgData.canvases, slot);
-	mg_canvas handle = {h};
+	mg_surface handle = {.h = mg_handle_alloc(MG_HANDLE_SURFACE, (void*)surface) };
 	return(handle);
 }
 
-mg_canvas_data* mg_canvas_data_from_handle(mg_canvas canvas)
+mg_surface_data* mg_surface_data_from_handle(mg_surface handle)
 {
-	mg_canvas_data* data = 0;
-	mg_resource_slot* slot = mg_resource_slot_from_handle(&__mgData.canvases, canvas.h);
-	if(slot)
-	{
-		data = slot->canvas;
-	}
+	mg_surface_data* data = mg_data_from_handle(MG_HANDLE_SURFACE, handle.h);
 	return(data);
 }
 
-//------------------------------------------------------------------------
-// image handles
-//------------------------------------------------------------------------
-
-mg_image mg_image_nil() { return((mg_image){.h = 0}); }
-bool mg_image_is_nil(mg_image image) { return(image.h == 0); }
-
-mg_image mg_image_alloc_handle(mg_canvas_data* canvas, mg_image_data* image)
+mg_canvas mg_canvas_handle_alloc(mg_canvas_data* canvas)
 {
-	mg_resource_slot* slot = mg_resource_slot_alloc(&canvas->imagePool);
-	if(!slot)
-	{
-		LOG_ERROR("no more canvas slots\n");
-		return(mg_image_nil());
-	}
-	slot->image = image;
-	u64 h = mg_resource_handle_from_slot(&canvas->imagePool, slot);
-	mg_image handle = {h};
+	mg_canvas handle = {.h = mg_handle_alloc(MG_HANDLE_CANVAS, (void*)canvas) };
 	return(handle);
 }
 
-mg_image_data* mg_image_data_from_handle(mg_canvas_data* canvas, mg_image handle)
+mg_canvas_data* mg_canvas_data_from_handle(mg_canvas handle)
 {
-	mg_image_data* data = 0;
-	mg_resource_slot* slot = mg_resource_slot_from_handle(&canvas->imagePool, handle.h);
-	if(slot)
-	{
-		data = slot->image;
-	}
+	mg_canvas_data* data = mg_data_from_handle(MG_HANDLE_CANVAS, handle.h);
 	return(data);
 }
 
-//------------------------------------------------------------------------
-// font handles
-//------------------------------------------------------------------------
-
-mg_font mg_font_nil() { return((mg_font){.h = 0}); }
-bool mg_font_is_nil(mg_font font) { return(font.h == 0); }
-
-mg_font mg_font_alloc_handle(mg_font_data* font)
+mg_font mg_font_handle_alloc(mg_font_data* font)
 {
-	mg_resource_slot* slot = mg_resource_slot_alloc(&__mgData.fonts);
-	if(!slot)
-	{
-		LOG_ERROR("no more font slots\n");
-		return(mg_font_nil());
-	}
-	slot->font = font;
-	u64 h = mg_resource_handle_from_slot(&__mgData.fonts, slot);
-	mg_font handle = {h};
+	mg_font handle = {.h = mg_handle_alloc(MG_HANDLE_FONT, (void*)font) };
 	return(handle);
 }
 
-mg_font_data* mg_font_data_from_handle(mg_font font)
+mg_font_data* mg_font_data_from_handle(mg_font handle)
 {
-	mg_font_data* data = 0;
-	mg_resource_slot* slot = mg_resource_slot_from_handle(&__mgData.fonts, font.h);
-	if(slot)
-	{
-		data = slot->font;
-	}
+	mg_font_data* data = mg_data_from_handle(MG_HANDLE_FONT, handle.h);
+	return(data);
+}
+
+mg_image mg_image_handle_alloc(mg_image_data* image)
+{
+	mg_image handle = {.h = mg_handle_alloc(MG_HANDLE_IMAGE, (void*)image) };
+	return(handle);
+}
+
+mg_image_data* mg_image_data_from_handle(mg_image handle)
+{
+	mg_image_data* data = mg_data_from_handle(MG_HANDLE_IMAGE, handle.h);
 	return(data);
 }
 
@@ -520,6 +429,9 @@ bool mg_is_canvas_backend_available(mg_backend_id backend)
 	return(result);
 }
 
+mg_surface mg_surface_nil() { return((mg_surface){.h = 0}); }
+bool mg_surface_is_nil(mg_surface surface) { return(surface.h == 0); }
+
 mg_surface mg_surface_create_for_window(mp_window window, mg_backend_id backend)
 {
 	mg_surface surface = mg_surface_nil();
@@ -553,11 +465,11 @@ mg_surface mg_surface_create_for_window(mp_window window, mg_backend_id backend)
 void mg_surface_destroy(mg_surface handle)
 {
 	DEBUG_ASSERT(__mgData.init);
-	mg_resource_slot* slot = mg_resource_slot_from_handle(&__mgData.surfaces, handle.h);
-	if(slot)
+	mg_surface_data* surface = mg_surface_data_from_handle(handle);
+	if(surface)
 	{
-		slot->surface->destroy(slot->surface);
-		mg_resource_slot_recycle(&__mgData.surfaces, slot);
+		surface->destroy(surface);
+		mg_handle_recycle(handle.h);
 	}
 }
 
@@ -2249,16 +2161,13 @@ void mg_render_ellipse_stroke(mg_canvas_data* canvas, mp_rect rect, mg_attribute
 //NOTE(martin): fonts
 //------------------------------------------------------------------------------------------
 
+mg_font mg_font_nil() { return((mg_font){.h = 0}); }
+bool mg_font_is_nil(mg_font font) { return(font.h == 0); }
+
 mg_font mg_font_create_from_memory(u32 size, byte* buffer, u32 rangeCount, unicode_range* ranges)
 {
 	mg_font_data* fontData = malloc_type(mg_font_data);
-	mg_font font = mg_font_alloc_handle(fontData);
-
-	if(mg_font_is_nil(font))
-	{
-		free(fontData);
-		return(font);
-	}
+	mg_font font = mg_font_handle_alloc(fontData);
 
 	stbtt_fontinfo stbttFontInfo;
 	stbtt_InitFont(&stbttFontInfo, buffer, 0);
@@ -2423,23 +2332,14 @@ mg_font mg_font_create_from_memory(u32 size, byte* buffer, u32 rangeCount, unico
 void mg_font_destroy(mg_font fontHandle)
 {
 	mg_font_data* fontData = mg_font_data_from_handle(fontHandle);
-	if(!fontData)
+	if(fontData)
 	{
-		return;
+		free(fontData->glyphMap);
+		free(fontData->glyphs);
+		free(fontData->outlines);
+		free(fontData);
+		mg_handle_recycle(fontHandle.h);
 	}
-	#ifdef DEBUG
-		if(fontData->generation == UINT32_MAX)
-		{
-			LOG_ERROR("font info generation wrap around\n");
-		}
-	#endif
-	fontData->generation++;
-
-	free(fontData->glyphMap);
-	free(fontData->glyphs);
-	free(fontData->outlines);
-	free(fontData);
-	mg_resource_handle_recycle(&__mgData.fonts, fontHandle.h);
 }
 
 str32 mg_font_get_glyph_indices_from_font_data(mg_font_data* fontData, str32 codePoints, str32 backing)
@@ -2695,6 +2595,10 @@ mp_rect mg_text_bounding_box(mg_font font, f32 fontSize, str8 text)
 //NOTE(martin): graphics canvas API
 //------------------------------------------------------------------------------------------
 
+mg_canvas mg_canvas_nil() { return((mg_canvas){.h = 0}); }
+bool mg_canvas_is_nil(mg_canvas canvas) { return(canvas.h == 0); }
+
+
 #if MG_COMPILE_BACKEND_METAL
 	mg_canvas_backend* mg_mtl_canvas_create(mg_surface surface);
 #endif
@@ -2748,7 +2652,7 @@ mg_canvas mg_canvas_create(mg_surface surface)
 	                                  		0, 1, 0}};
 
 
-	        canvas = mg_canvas_alloc_handle(canvasData);
+	        canvas = mg_canvas_handle_alloc(canvasData);
 	        mg_canvas_set_current(canvas);
 
 	        //TODO: move that in mg_canvas_set_current() if needed?
@@ -2774,7 +2678,7 @@ void mg_canvas_destroy(mg_canvas handle)
 			canvas->backend->destroy(canvas->backend);
 		}
 		free(canvas);
-		mg_resource_handle_recycle(&__mgData.canvases, handle.h);
+		mg_handle_recycle(handle.h);
 	}
 }
 
@@ -2900,7 +2804,7 @@ void mg_flush_commands(int primitiveCount, mg_primitive* primitives, mg_path_elt
 
 		if(i && primitive->attributes.image.h != canvas->image.h)
 		{
-			mg_image_data* imageData = mg_image_data_from_handle(canvas, canvas->image);
+			mg_image_data* imageData = mg_image_data_from_handle(canvas->image);
 			mg_draw_batch(canvas, imageData);
 			canvas->image = primitive->attributes.image;
 		}
@@ -2991,7 +2895,7 @@ void mg_flush_commands(int primitiveCount, mg_primitive* primitives, mg_path_elt
 	}
 	exit_command_loop: ;
 
-	mg_image_data* imageData = mg_image_data_from_handle(canvas, canvas->image);
+	mg_image_data* imageData = mg_image_data_from_handle(canvas->image);
 	mg_draw_batch(canvas, imageData);
 
 	canvas->backend->end(canvas->backend);
@@ -3632,6 +3536,10 @@ void mg_arc(f32 x, f32 y, f32 r, f32 arcAngle, f32 startAngle)
 //NOTE(martin): images
 //------------------------------------------------------------------------------------------
 
+
+mg_image mg_image_nil() { return((mg_image){.h = 0}); }
+bool mg_image_is_nil(mg_image image) { return(image.h == 0); }
+
 mg_image mg_image_create(u32 width, u32 height)
 {
 	mg_image image = mg_image_nil();
@@ -3641,7 +3549,7 @@ mg_image mg_image_create(u32 width, u32 height)
 		mg_image_data* imageData = canvas->backend->imageCreate(canvas->backend, (vec2){width, height});
 		if(imageData)
 		{
-			image = mg_image_alloc_handle(canvas, imageData);
+			image = mg_image_handle_alloc(imageData);
 		}
 	}
 	return(image);
@@ -3695,11 +3603,11 @@ void mg_image_destroy(mg_image image)
 	mg_canvas_data* canvas = __mgCurrentCanvas;
 	if(canvas)
 	{
-		mg_image_data* imageData = mg_image_data_from_handle(canvas, image);
+		mg_image_data* imageData = mg_image_data_from_handle(image);
 		if(imageData)
 		{
 			canvas->backend->imageDestroy(canvas->backend, imageData);
-			mg_resource_handle_recycle(&canvas->imagePool, image.h);
+			mg_handle_recycle(image.h);
 		}
 	}
 }
@@ -3709,7 +3617,7 @@ void mg_image_upload_region_rgba8(mg_image image, mp_rect region, u8* pixels)
 	mg_canvas_data* canvas = __mgCurrentCanvas;
 	if(canvas)
 	{
-		mg_image_data* imageData = mg_image_data_from_handle(canvas, image);
+		mg_image_data* imageData = mg_image_data_from_handle(image);
 		if(imageData)
 		{
 			canvas->backend->imageUploadRegion(canvas->backend, imageData, region, pixels);
@@ -3723,7 +3631,7 @@ vec2 mg_image_size(mg_image image)
 	mg_canvas_data* canvas = __mgCurrentCanvas;
 	if(canvas)
 	{
-		mg_image_data* imageData = mg_image_data_from_handle(canvas, image);
+		mg_image_data* imageData = mg_image_data_from_handle(image);
 		if(imageData)
 		{
 			res = imageData->size;

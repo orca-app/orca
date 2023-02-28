@@ -236,7 +236,7 @@ mg_surface mg_mtl_surface_create_for_window(mp_window window)
 			surface->commandBuffer = nil;
 		}
 
-		mg_surface handle = mg_surface_alloc_handle((mg_surface_data*)surface);
+		mg_surface handle = mg_surface_handle_alloc((mg_surface_data*)surface);
 		return(handle);
 	}
 }
