@@ -213,11 +213,6 @@ MP_API void mg_image_destroy(mg_image image);
 MP_API void mg_image_upload_region_rgba8(mg_image image, mp_rect region, u8* pixels);
 MP_API vec2 mg_image_size(mg_image image);
 
-MP_API void mg_image_draw_region(mg_image image, mp_rect srcRegion, mp_rect dstRegion);
-MP_API void mg_image_draw_region_rounded(mg_image image, mp_rect srcRect, mp_rect dstRegion, f32 roundness);
-MP_API void mg_image_draw(mg_image image, mp_rect rect);
-MP_API void mg_image_draw_rounded(mg_image image, mp_rect rect, f32 roundness);
-
 //------------------------------------------------------------------------------------------
 //NOTE(martin): atlasing
 //------------------------------------------------------------------------------------------
@@ -241,24 +236,6 @@ mg_image_region mg_image_atlas_alloc_from_data(mg_rect_atlas* atlas, mg_image ba
 mg_image_region mg_image_atlas_alloc_from_file(mg_rect_atlas* atlas, mg_image backingImage, str8 path, bool flip);
 void mg_image_atlas_recycle(mg_rect_atlas* atlas, mg_image_region imageRgn);
 
-//------------------------------------------------------------------------------------------
-//NOTE(martin): image
-//------------------------------------------------------------------------------------------
-/*
-typedef struct mg_image_atlas { u64 h; } mg_image_atlas;
-typedef struct mg_image { u64 h; } mg_image;
-
-MP_API mg_image_atlas mg_image_atlas_create(u32 width, u32 height);
-MP_API void mg_image_atlas_destroy(mg_image_atlas atlas);
-
-MP_API mg_image mg_image_upload_from_rgba8(mg_image_atlas atlas, u32 width, u32 height, u8* pixels);
-MP_API void mg_image_recycle(mg_image image);
-MP_API void mg_image_draw(mg_image image, mp_rect rect);
-
-// helpers
-MP_API mg_image mg_image_upload_from_data(mg_image_atlas atlas, str8 data, bool flip);
-MP_API mg_image mg_image_upload_from_file(mg_image_atlas atlas, str8 file, bool flip);
-*/
 //------------------------------------------------------------------------------------------
 //NOTE(martin): transform, viewport and clipping
 //------------------------------------------------------------------------------------------
@@ -329,5 +306,9 @@ MP_API void mg_ellipse_stroke(f32 x, f32 y, f32 rx, f32 ry);
 MP_API void mg_circle_fill(f32 x, f32 y, f32 r);
 MP_API void mg_circle_stroke(f32 x, f32 y, f32 r);
 MP_API void mg_arc(f32 x, f32 y, f32 r, f32 arcAngle, f32 startAngle);
+
+//NOTE: image helpers
+MP_API void mg_image_draw(mg_image image, mp_rect rect);
+MP_API void mg_image_draw_region(mg_image image, mp_rect srcRegion, mp_rect dstRegion);
 
 #endif //__GRAPHICS_H_
