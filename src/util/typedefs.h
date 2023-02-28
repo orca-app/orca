@@ -45,6 +45,16 @@ typedef union
 {
 	struct
 	{
+		i32 x;
+		i32 y;
+	};
+	i32 c[2];
+} ivec2;
+
+typedef union
+{
+	struct
+	{
 		f32 x;
 		f32 y;
 		f32 z;

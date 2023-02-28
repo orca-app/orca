@@ -106,7 +106,7 @@ MP_API void mg_surface_set_hidden(mg_surface surface, bool hidden);
 //------------------------------------------------------------------------------------------
 typedef struct mg_canvas { u64 h; } mg_canvas;
 typedef struct mg_font { u64 h; } mg_font;
-typedef struct mg_texture { u64 h; } mg_texture;
+typedef struct mg_image { u64 h; } mg_image;
 
 typedef struct mg_mat2x3
 {
@@ -198,30 +198,53 @@ MP_API mp_rect mg_text_bounding_box_utf32(mg_font font, f32 fontSize, str32 text
 MP_API mp_rect mg_text_bounding_box(mg_font font, f32 fontSize, str8 text);
 
 //------------------------------------------------------------------------------------------
-//NOTE(martin): textures
+//NOTE(martin): images
 //------------------------------------------------------------------------------------------
-MP_API mg_texture mg_texture_nil();
-MP_API bool mg_texture_is_nil(mg_texture a);
+MP_API mg_image mg_image_nil();
+MP_API bool mg_image_is_nil(mg_image a);
 
-MP_API mg_texture mg_texture_create(u32 width, u32 height);
-MP_API mg_texture mg_texture_create_from_rgba8(u32 width, u32 height, u8* pixels);
-MP_API mg_texture mg_texture_create_from_data(str8 data, bool flip);
-MP_API mg_texture mg_texture_create_from_file(str8 path, bool flip);
+MP_API mg_image mg_image_create(u32 width, u32 height);
+MP_API mg_image mg_image_create_from_rgba8(u32 width, u32 height, u8* pixels);
+MP_API mg_image mg_image_create_from_data(str8 data, bool flip);
+MP_API mg_image mg_image_create_from_file(str8 path, bool flip);
 
-MP_API void mg_texture_destroy(mg_texture texture);
+MP_API void mg_image_destroy(mg_image image);
 
-MP_API void mg_texture_upload_region_rgba8(mg_texture texture, mp_rect region, u8* pixels);
-MP_API vec2 mg_texture_size(mg_texture texture);
+MP_API void mg_image_upload_region_rgba8(mg_image image, mp_rect region, u8* pixels);
+MP_API vec2 mg_image_size(mg_image image);
 
-MP_API void mg_texture_draw_region(mg_texture texture, mp_rect srcRegion, mp_rect dstRegion);
-MP_API void mg_texture_draw_region_rounded(mg_texture texture, mp_rect srcRect, mp_rect dstRegion, f32 roundness);
-MP_API void mg_texture_draw(mg_texture texture, mp_rect rect);
-MP_API void mg_texture_draw_rounded(mg_texture texture, mp_rect rect, f32 roundness);
+MP_API void mg_image_draw_region(mg_image image, mp_rect srcRegion, mp_rect dstRegion);
+MP_API void mg_image_draw_region_rounded(mg_image image, mp_rect srcRect, mp_rect dstRegion, f32 roundness);
+MP_API void mg_image_draw(mg_image image, mp_rect rect);
+MP_API void mg_image_draw_rounded(mg_image image, mp_rect rect, f32 roundness);
+
+//------------------------------------------------------------------------------------------
+//NOTE(martin): atlasing
+//------------------------------------------------------------------------------------------
+
+//NOTE: rectangle allocator
+typedef struct mg_rect_atlas mg_rect_atlas;
+
+mg_rect_atlas* mg_rect_atlas_create(mem_arena* arena, i32 width, i32 height);
+mp_rect mg_rect_atlas_alloc(mg_rect_atlas* atlas, i32 width, i32 height);
+void mg_rect_atlas_recycle(mg_rect_atlas* atlas, mp_rect rect);
+
+//NOTE: image atlas helpers
+typedef struct mg_image_region
+{
+	mg_image image;
+	mp_rect rect;
+} mg_image_region;
+
+mg_image_region mg_image_atlas_alloc_from_rgba8(mg_rect_atlas* atlas, mg_image backingImage, u32 width, u32 height, u8* pixels);
+mg_image_region mg_image_atlas_alloc_from_data(mg_rect_atlas* atlas, mg_image backingImage, str8 data, bool flip);
+mg_image_region mg_image_atlas_alloc_from_file(mg_rect_atlas* atlas, mg_image backingImage, str8 path, bool flip);
+void mg_image_atlas_recycle(mg_rect_atlas* atlas, mg_image_region imageRgn);
 
 //------------------------------------------------------------------------------------------
 //NOTE(martin): image
 //------------------------------------------------------------------------------------------
-
+/*
 typedef struct mg_image_atlas { u64 h; } mg_image_atlas;
 typedef struct mg_image { u64 h; } mg_image;
 
@@ -235,7 +258,7 @@ MP_API void mg_image_draw(mg_image image, mp_rect rect);
 // helpers
 MP_API mg_image mg_image_upload_from_data(mg_image_atlas atlas, str8 data, bool flip);
 MP_API mg_image mg_image_upload_from_file(mg_image_atlas atlas, str8 file, bool flip);
-
+*/
 //------------------------------------------------------------------------------------------
 //NOTE(martin): transform, viewport and clipping
 //------------------------------------------------------------------------------------------
@@ -260,8 +283,8 @@ MP_API void mg_set_cap(mg_cap_type cap);
 MP_API void mg_set_font(mg_font font);
 MP_API void mg_set_font_size(f32 size);
 MP_API void mg_set_text_flip(bool flip);
-MP_API void mg_set_texture(mg_texture texture);
-MP_API void mg_set_texture_source_region(mp_rect region);
+MP_API void mg_set_image(mg_image image);
+MP_API void mg_set_image_source_region(mp_rect region);
 
 MP_API mg_color mg_get_color();
 MP_API f32 mg_get_width();

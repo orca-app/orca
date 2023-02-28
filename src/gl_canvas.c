@@ -39,12 +39,12 @@ typedef struct mg_gl_canvas_backend
 
 } mg_gl_canvas_backend;
 
-typedef struct mg_gl_texture
+typedef struct mg_gl_image
 {
-	mg_texture_data interface;
+	mg_image_data interface;
 
 	GLuint textureID;
-} mg_gl_texture;
+} mg_gl_image;
 
 //NOTE: debugger
 typedef struct debug_vertex
@@ -156,7 +156,7 @@ void mg_gl_canvas_clear(mg_canvas_backend* interface, mg_color clearColor)
 	glClear(GL_COLOR_BUFFER_BIT);
 }
 
-void mg_gl_canvas_draw_batch(mg_canvas_backend* interface, mg_texture_data* textureInterface, u32 shapeCount, u32 vertexCount, u32 indexCount)
+void mg_gl_canvas_draw_batch(mg_canvas_backend* interface, mg_image_data* imageInterface, u32 shapeCount, u32 vertexCount, u32 indexCount)
 {
 	mg_gl_canvas_backend* backend = (mg_gl_canvas_backend*)interface;
 
@@ -214,7 +214,7 @@ void mg_gl_canvas_draw_batch(mg_canvas_backend* interface, mg_texture_data* text
 	//NOTE: then we fire the drawing shader that will select only triangles in its tile
 	glUseProgram(backend->drawProgram);
 
-	glBindTextureTexture(0, backend->outTexture, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA8);
+	glBindImageTexture(0, backend->outTexture, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA8);
 
 	glUniform1ui(0, indexCount);
 	glUniform2ui(1, tileCountX, tileCountY);
@@ -222,12 +222,12 @@ void mg_gl_canvas_draw_batch(mg_canvas_backend* interface, mg_texture_data* text
 	glUniform1ui(3, tileArrayLength);
 	glUniform2f(4, contentsScaling.x, contentsScaling.y);
 
-	if(textureInterface)
+	if(imageInterface)
 	{
-		//TODO: make sure this texture belongs to that context
-		mg_gl_texture* texture = (mg_gl_texture*)textureInterface;
+		//TODO: make sure this image belongs to that context
+		mg_gl_image* image = (mg_gl_image*)imageInterface;
 		glActiveTexture(GL_TEXTURE1);
-		glBindTexture(GL_TEXTURE_2D, texture->textureID);
+		glBindTexture(GL_TEXTURE_2D, image->textureID);
 		glUniform1ui(5, 1);
 	}
 	else
@@ -270,41 +270,41 @@ void mg_gl_canvas_destroy(mg_canvas_backend* interface)
 	free(backend);
 }
 
-mg_texture_data* mg_gl_canvas_texture_create(mg_canvas_backend* interface, vec2 size)
+mg_image_data* mg_gl_canvas_image_create(mg_canvas_backend* interface, vec2 size)
 {
-	mg_gl_texture* texture = 0;
+	mg_gl_image* image = 0;
 
-	texture = malloc_type(mg_gl_texture);
-	if(texture)
+	image = malloc_type(mg_gl_image);
+	if(image)
 	{
-		glGenTextures(1, &texture->textureID);
-		glBindTexture(GL_TEXTURE_2D, texture->textureID);
+		glGenTextures(1, &image->textureID);
+		glBindTexture(GL_TEXTURE_2D, image->textureID);
 //		glTexStorage2D(GL_TEXTURE_2D, 1, GL_RGBA8, size.x, size.y);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
-		texture->interface.size = size;
+		image->interface.size = size;
 	}
-	return((mg_texture_data*)texture);
+	return((mg_image_data*)image);
 }
 
-void mg_gl_canvas_texture_destroy(mg_canvas_backend* interface, mg_texture_data* textureInterface)
+void mg_gl_canvas_image_destroy(mg_canvas_backend* interface, mg_image_data* imageInterface)
 {
-	//TODO: check that this texture belongs to this context
-	mg_gl_texture* texture = (mg_gl_texture*)textureInterface;
-	glDeleteTextures(1, &texture->textureID);
-	free(texture);
+	//TODO: check that this image belongs to this context
+	mg_gl_image* image = (mg_gl_image*)imageInterface;
+	glDeleteTextures(1, &image->textureID);
+	free(image);
 }
 
-void mg_gl_canvas_texture_upload_region(mg_canvas_backend* interface,
-                                      mg_texture_data* textureInterface,
+void mg_gl_canvas_image_upload_region(mg_canvas_backend* interface,
+                                      mg_image_data* imageInterface,
                                       mp_rect region,
                                       u8* pixels)
 {
-	//TODO: check that this texture belongs to this context
-	mg_gl_texture* texture = (mg_gl_texture*)textureInterface;
-	glBindTexture(GL_TEXTURE_2D, texture->textureID);
-	glTexTexture2D(GL_TEXTURE_2D, 0, GL_RGBA8, region.w, region.h, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
+	//TODO: check that this image belongs to this context
+	mg_gl_image* image = (mg_gl_image*)imageInterface;
+	glBindTexture(GL_TEXTURE_2D, image->textureID);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, region.w, region.h, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
 }
 
 static int mg_gl_compile_shader(const char* name, GLuint shader, const char* source)
@@ -429,9 +429,9 @@ mg_canvas_backend* mg_gl_canvas_create(mg_surface surface)
 		backend->interface.end = mg_gl_canvas_end;
 		backend->interface.clear = mg_gl_canvas_clear;
 		backend->interface.drawBatch = mg_gl_canvas_draw_batch;
-		backend->interface.textureCreate = mg_gl_canvas_texture_create;
-		backend->interface.textureDestroy = mg_gl_canvas_texture_destroy;
-		backend->interface.textureUploadRegion = mg_gl_canvas_texture_upload_region;
+		backend->interface.imageCreate = mg_gl_canvas_image_create;
+		backend->interface.imageDestroy = mg_gl_canvas_image_destroy;
+		backend->interface.imageUploadRegion = mg_gl_canvas_image_upload_region;
 
 		mg_surface_prepare(surface);
 

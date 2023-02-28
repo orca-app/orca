@@ -42,12 +42,17 @@ int main()
 	}
 
 	//NOTE: create atlas
+	mem_arena permanentArena = {0};
+	mem_arena_init(&permanentArena);
+
+	mg_rect_atlas* atlas = mg_rect_atlas_create(&permanentArena, 16000, 16000);
+	mg_image atlasImage = mg_image_create(16000, 16000);
+
 	str8 path1 = mp_app_get_resource_path(mem_scratch(), "../resources/triceratops.png");
 	str8 path2 = mp_app_get_resource_path(mem_scratch(), "../resources/Top512.png");
 
-	mg_image_atlas atlas = mg_image_atlas_create(16000, 16000);
-	mg_image image1 = mg_image_upload_from_file(atlas, path1, true);
-	mg_image image2 = mg_image_upload_from_file(atlas, path2, true);
+	mg_image_region image1 = mg_image_atlas_alloc_from_file(atlas, atlasImage, path1, true);
+	mg_image_region image2 = mg_image_atlas_alloc_from_file(atlas, atlasImage, path2, true);
 
 	// start app
 	mp_window_bring_to_front(window);
@@ -78,8 +83,8 @@ int main()
 
 			mg_set_color_rgba(1, 1, 1, 1);
 
-			mg_image_draw(image1, (mp_rect){100, 100, 300, 300});
-			mg_image_draw(image2, (mp_rect){300, 200, 300, 300});
+			mg_image_draw_region(image1.image, image1.rect, (mp_rect){100, 100, 300, 300});
+			mg_image_draw_region(image2.image, image2.rect, (mp_rect){300, 200, 300, 300});
 
 			mg_flush();
 		mg_surface_present(surface);
@@ -87,9 +92,9 @@ int main()
 		mem_arena_clear(mem_scratch());
 	}
 
-	mg_image_recycle(image1);
-	mg_image_recycle(image2);
-	mg_image_atlas_destroy(atlas);
+	mg_image_atlas_recycle(atlas, image1);
+	mg_image_atlas_recycle(atlas, image2);
+
 	mg_canvas_destroy(canvas);
 	mg_surface_destroy(surface);
 	mp_window_destroy(window);

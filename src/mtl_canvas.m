@@ -51,11 +51,11 @@ typedef struct mg_mtl_canvas_backend
 
 } mg_mtl_canvas_backend;
 
-typedef struct mg_mtl_texture_data
+typedef struct mg_mtl_image_data
 {
-	mg_texture_data interface;
+	mg_image_data interface;
 	id<MTLTexture> texture;
-} mg_mtl_texture_data;
+} mg_mtl_image_data;
 
 
 mg_mtl_surface* mg_mtl_canvas_get_surface(mg_mtl_canvas_backend* canvas)
@@ -139,7 +139,7 @@ void mg_mtl_canvas_clear(mg_canvas_backend* interface, mg_color clearColor)
 	backend->clearColor = clearColor;
 }
 
-void mg_mtl_canvas_draw_batch(mg_canvas_backend* interface, mg_texture_data* texture, u32 shapeCount, u32 vertexCount, u32 indexCount)
+void mg_mtl_canvas_draw_batch(mg_canvas_backend* interface, mg_image_data* image, u32 shapeCount, u32 vertexCount, u32 indexCount)
 {
 	mg_mtl_canvas_backend* backend = (mg_mtl_canvas_backend*)interface;
 	mg_mtl_surface* surface = mg_mtl_canvas_get_surface(backend);
@@ -226,10 +226,10 @@ void mg_mtl_canvas_draw_batch(mg_canvas_backend* interface, mg_texture_data* tex
 		[encoder setComputePipelineState:backend->computePipeline];
 		[encoder setTexture: backend->outTexture atIndex: 0];
 		int useTexture = 0;
-		if(texture)
+		if(image)
 		{
-			mg_mtl_texture_data* mtlTexture = (mg_mtl_texture_data*)texture;
-			[encoder setTexture: mtlTexture->texture atIndex: 1];
+			mg_mtl_image_data* mtlImage = (mg_mtl_image_data*)image;
+			[encoder setTexture: mtlImage->texture atIndex: 1];
 			useTexture = 1;
 		}
 
@@ -333,9 +333,9 @@ void mg_mtl_canvas_destroy(mg_canvas_backend* interface)
 	}
 }
 
-mg_texture_data* mg_mtl_canvas_texture_create(mg_canvas_backend* interface, vec2 size)
+mg_image_data* mg_mtl_canvas_image_create(mg_canvas_backend* interface, vec2 size)
 {
-	mg_mtl_texture_data* texture = 0;
+	mg_mtl_image_data* image = 0;
 	mg_mtl_canvas_backend* backend = (mg_mtl_canvas_backend*)interface;
 	mg_mtl_surface* surface = mg_mtl_canvas_get_surface(backend);
 
@@ -343,8 +343,8 @@ mg_texture_data* mg_mtl_canvas_texture_create(mg_canvas_backend* interface, vec2
 	{
 		@autoreleasepool{
 
-			texture = malloc_type(mg_mtl_texture_data);
-			if(texture)
+			image = malloc_type(mg_mtl_image_data);
+			if(image)
 			{
 				MTLTextureDescriptor* texDesc = [[MTLTextureDescriptor alloc] init];
 				texDesc.textureType = MTLTextureType2D;
@@ -354,38 +354,38 @@ mg_texture_data* mg_mtl_canvas_texture_create(mg_canvas_backend* interface, vec2
 				texDesc.width = size.x;
 				texDesc.height = size.y;
 
-				texture->texture = [surface->device newTextureWithDescriptor:texDesc];
-				if(texture->texture != nil)
+				image->texture = [surface->device newTextureWithDescriptor:texDesc];
+				if(image->texture != nil)
 				{
-					[texture->texture retain];
-					texture->interface.size = size;
+					[image->texture retain];
+					image->interface.size = size;
 				}
 				else
 				{
-					free(texture);
-					texture = 0;
+					free(image);
+					image = 0;
 				}
 			}
 		}
 	}
-	return((mg_texture_data*)texture);
+	return((mg_image_data*)image);
 }
 
-void mg_mtl_canvas_texture_destroy(mg_canvas_backend* backendInterface, mg_texture_data* textureInterface)
+void mg_mtl_canvas_image_destroy(mg_canvas_backend* backendInterface, mg_image_data* imageInterface)
 {
-	mg_mtl_texture_data* texture = (mg_mtl_texture_data*)textureInterface;
+	mg_mtl_image_data* image = (mg_mtl_image_data*)imageInterface;
 	@autoreleasepool
 	{
-		[texture->texture release];
-		free(texture);
+		[image->texture release];
+		free(image);
 	}
 }
 
-void mg_mtl_canvas_texture_upload_region(mg_canvas_backend* backendInterface, mg_texture_data* textureInterface, mp_rect region, u8* pixels)
+void mg_mtl_canvas_image_upload_region(mg_canvas_backend* backendInterface, mg_image_data* imageInterface, mp_rect region, u8* pixels)
 {@autoreleasepool{
-	mg_mtl_texture_data* texture = (mg_mtl_texture_data*)textureInterface;
+	mg_mtl_image_data* image = (mg_mtl_image_data*)imageInterface;
 	MTLRegion mtlRegion = MTLRegionMake2D(region.x, region.y, region.w, region.h);
-	[texture->texture replaceRegion:mtlRegion
+	[image->texture replaceRegion:mtlRegion
 	                mipmapLevel:0
 	                withBytes:(void*)pixels
 	                bytesPerRow: 4 * region.w];
@@ -410,9 +410,9 @@ mg_canvas_backend* mg_mtl_canvas_create(mg_surface surface)
 		backend->interface.clear = mg_mtl_canvas_clear;
 		backend->interface.drawBatch = mg_mtl_canvas_draw_batch;
 
-		backend->interface.textureCreate = mg_mtl_canvas_texture_create;
-		backend->interface.textureDestroy = mg_mtl_canvas_texture_destroy;
-		backend->interface.textureUploadRegion = mg_mtl_canvas_texture_upload_region;
+		backend->interface.imageCreate = mg_mtl_canvas_image_create;
+		backend->interface.imageDestroy = mg_mtl_canvas_image_destroy;
+		backend->interface.imageUploadRegion = mg_mtl_canvas_image_upload_region;
 
 		mp_rect frame = mg_surface_get_frame(surface);
 		backend->viewPort = (mp_rect){0, 0, frame.w, frame.h};

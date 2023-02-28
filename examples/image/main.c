@@ -41,14 +41,14 @@ int main()
 		return(-1);
 	}
 
-	//NOTE: create texture
-	str8 texturePath = mp_app_get_resource_path(mem_scratch(), "../resources/triceratops.png");
-	mg_texture texture = mg_texture_create_from_file(texturePath, true);
-	vec2 textureSize = mg_texture_size(texture);
+	//NOTE: create image
+	str8 imagePath = mp_app_get_resource_path(mem_scratch(), "../resources/triceratops.png");
+	mg_image image = mg_image_create_from_file(imagePath, true);
+	vec2 imageSize = mg_image_size(image);
 
-	str8 texturePath2 = mp_app_get_resource_path(mem_scratch(), "../resources/Top512.png");
-	mg_texture texture2 = mg_texture_create_from_file(texturePath2, true);
-	vec2 textureSize2 = mg_texture_size(texture2);
+	str8 imagePath2 = mp_app_get_resource_path(mem_scratch(), "../resources/Top512.png");
+	mg_image image2 = mg_image_create_from_file(imagePath2, true);
+	vec2 imageSize2 = mg_image_size(image2);
 
 	// start app
 	mp_window_bring_to_front(window);
@@ -82,8 +82,8 @@ int main()
 			mg_matrix_push((mg_mat2x3){0.707, -0.707, 200,
 			                           0.707, 0.707, 100});
 
-			mg_set_texture(texture);
-			mg_set_texture_source_region((mp_rect){500, 500, 2000, 1400});
+			mg_set_image(image);
+			mg_set_image_source_region((mp_rect){500, 500, 2000, 1400});
 
 			mg_move_to(0, 0);
 			mg_line_to(200, 0);
@@ -95,7 +95,7 @@ int main()
 
 			mg_matrix_pop();
 
-			mg_texture_draw(texture2, (mp_rect){300, 200, 300, 300});
+			mg_image_draw(image2, (mp_rect){300, 200, 300, 300});
 
 			mg_flush();
 		mg_surface_present(surface);
@@ -103,7 +103,7 @@ int main()
 		mem_arena_clear(mem_scratch());
 	}
 
-	mg_texture_destroy(texture);
+	mg_image_destroy(image);
 	mg_canvas_destroy(canvas);
 	mg_surface_destroy(surface);
 	mp_window_destroy(window);
