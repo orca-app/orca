@@ -56,7 +56,7 @@ typedef struct mg_attributes
 	mg_font font;
 	f32 fontSize;
 
-	mg_image image;
+	mg_texture texture;
 	mp_rect srcRegion;
 
 	mg_mat2x3 transform;
@@ -123,7 +123,7 @@ typedef struct mg_glyph_data
 enum
 {
 	MG_STREAM_MAX_COUNT = 128,
-	MG_IMAGE_MAX_COUNT = 128
+	MG_TEXTURE_MAX_COUNT = 128
 };
 
 enum
@@ -152,6 +152,8 @@ typedef struct mg_font_data
 } mg_font_data;
 
 typedef struct mg_canvas_data mg_canvas_data;
+typedef struct mg_image_data mg_image_data;
+typedef struct mg_image_atlas_data mg_image_atlas_data;
 
 typedef struct mg_resource_slot
 {
@@ -160,7 +162,9 @@ typedef struct mg_resource_slot
 	union
 	{
 		mg_surface_data* surface;
+		mg_texture_data* texture;
 		mg_image_data* image;
+		mg_image_atlas_data* atlas;
 		mg_canvas_data* canvas;
 		mg_font_data* font;
 		//...
@@ -217,6 +221,8 @@ typedef struct mg_canvas_data
 	u32 primitiveCount;
 	mg_primitive primitives[MG_MAX_PRIMITIVE_COUNT];
 
+	mg_resource_pool texturePool;
+	mg_resource_pool imageAtlasPool;
 	mg_resource_pool imagePool;
 
 	/*
@@ -228,7 +234,7 @@ typedef struct mg_canvas_data
 	//NOTE: these are used at render time
 	mp_rect clip;
 	mg_mat2x3 transform;
-	mg_image image;
+	mg_texture texture;
 	mp_rect srcRegion;
 
 	vec4 shapeExtents;
@@ -389,33 +395,33 @@ mg_canvas_data* mg_canvas_data_from_handle(mg_canvas canvas)
 }
 
 //------------------------------------------------------------------------
-// image handles
+// texture handles
 //------------------------------------------------------------------------
 
-mg_image mg_image_nil() { return((mg_image){.h = 0}); }
-bool mg_image_is_nil(mg_image image) { return(image.h == 0); }
+mg_texture mg_texture_nil() { return((mg_texture){.h = 0}); }
+bool mg_texture_is_nil(mg_texture texture) { return(texture.h == 0); }
 
-mg_image mg_image_alloc_handle(mg_canvas_data* canvas, mg_image_data* image)
+mg_texture mg_texture_alloc_handle(mg_canvas_data* canvas, mg_texture_data* texture)
 {
-	mg_resource_slot* slot = mg_resource_slot_alloc(&canvas->imagePool);
+	mg_resource_slot* slot = mg_resource_slot_alloc(&canvas->texturePool);
 	if(!slot)
 	{
 		LOG_ERROR("no more canvas slots\n");
-		return(mg_image_nil());
+		return(mg_texture_nil());
 	}
-	slot->image = image;
-	u64 h = mg_resource_handle_from_slot(&canvas->imagePool, slot);
-	mg_image handle = {h};
+	slot->texture = texture;
+	u64 h = mg_resource_handle_from_slot(&canvas->texturePool, slot);
+	mg_texture handle = {h};
 	return(handle);
 }
 
-mg_image_data* mg_image_data_from_handle(mg_canvas_data* canvas, mg_image handle)
+mg_texture_data* mg_texture_data_from_handle(mg_canvas_data* canvas, mg_texture handle)
 {
-	mg_image_data* data = 0;
-	mg_resource_slot* slot = mg_resource_slot_from_handle(&canvas->imagePool, handle.h);
+	mg_texture_data* data = 0;
+	mg_resource_slot* slot = mg_resource_slot_from_handle(&canvas->texturePool, handle.h);
 	if(slot)
 	{
-		data = slot->image;
+		data = slot->texture;
 	}
 	return(data);
 }
@@ -769,7 +775,7 @@ void mg_finalize_shape(mg_canvas_data* canvas)
 	if(canvas->nextShapeIndex)
 	{
 		//NOTE: set shape's uv transform for the _current_ shape
-		vec2 texSize = mg_image_size(canvas->image);
+		vec2 texSize = mg_texture_size(canvas->texture);
 
 		mp_rect srcRegion = canvas->srcRegion;
 
@@ -2853,13 +2859,13 @@ void mg_do_clip_push(mg_canvas_data* canvas, mp_rect clip)
 	mg_clip_stack_push(canvas, r);
 }
 
-void mg_draw_batch(mg_canvas_data* canvas, mg_image_data* image)
+void mg_draw_batch(mg_canvas_data* canvas, mg_texture_data* texture)
 {
 	mg_finalize_shape(canvas);
 
 	if(canvas->backend && canvas->backend->drawBatch && canvas->indexCount)
 	{
-		canvas->backend->drawBatch(canvas->backend, image, canvas->nextShapeIndex, canvas->vertexCount, canvas->indexCount);
+		canvas->backend->drawBatch(canvas->backend, texture, canvas->nextShapeIndex, canvas->vertexCount, canvas->indexCount);
 	}
 	mg_reset_shape_index(canvas);
 
@@ -2883,7 +2889,7 @@ void mg_flush_commands(int primitiveCount, mg_primitive* primitives, mg_path_elt
 
 	canvas->clip = (mp_rect){-FLT_MAX/2, -FLT_MAX/2, FLT_MAX, FLT_MAX};
 
-	canvas->image = mg_image_nil();
+	canvas->texture = mg_texture_nil();
 
 	canvas->backend->begin(canvas->backend);
 
@@ -2897,11 +2903,11 @@ void mg_flush_commands(int primitiveCount, mg_primitive* primitives, mg_path_elt
 		mg_primitive* primitive = &(primitives[nextIndex]);
 		nextIndex++;
 
-		if(i && primitive->attributes.image.h != canvas->image.h)
+		if(i && primitive->attributes.texture.h != canvas->texture.h)
 		{
-			mg_image_data* imageData = mg_image_data_from_handle(canvas, canvas->image);
-			mg_draw_batch(canvas, imageData);
-			canvas->image = primitive->attributes.image;
+			mg_texture_data* textureData = mg_texture_data_from_handle(canvas, canvas->texture);
+			mg_draw_batch(canvas, textureData);
+			canvas->texture = primitive->attributes.texture;
 		}
 
 		switch(primitive->cmd)
@@ -2990,8 +2996,8 @@ void mg_flush_commands(int primitiveCount, mg_primitive* primitives, mg_path_elt
 	}
 	exit_command_loop: ;
 
-	mg_image_data* imageData = mg_image_data_from_handle(canvas, canvas->image);
-	mg_draw_batch(canvas, imageData);
+	mg_texture_data* textureData = mg_texture_data_from_handle(canvas, canvas->texture);
+	mg_draw_batch(canvas, textureData);
 
 	canvas->backend->end(canvas->backend);
 
@@ -3148,18 +3154,18 @@ void mg_set_text_flip(bool flip)
 	}
 }
 
-void mg_set_image(mg_image image)
+void mg_set_texture(mg_texture texture)
 {
 	mg_canvas_data* canvas = __mgCurrentCanvas;
 	if(canvas)
 	{
-		canvas->attributes.image = image;
-		vec2 size = mg_image_size(image);
+		canvas->attributes.texture = texture;
+		vec2 size = mg_texture_size(texture);
 		canvas->attributes.srcRegion = (mp_rect){0, 0, size.x, size.y};
 	}
 }
 
-void mg_set_image_source_region(mp_rect region)
+void mg_set_texture_source_region(mp_rect region)
 {
 	mg_canvas_data* canvas = __mgCurrentCanvas;
 	if(canvas)
@@ -3628,37 +3634,37 @@ void mg_arc(f32 x, f32 y, f32 r, f32 arcAngle, f32 startAngle)
 }
 
 //------------------------------------------------------------------------------------------
-//NOTE(martin): images
+//NOTE(martin): textures
 //------------------------------------------------------------------------------------------
 
-MP_API mg_image mg_image_create(u32 width, u32 height)
+mg_texture mg_texture_create(u32 width, u32 height)
 {
-	mg_image image = mg_image_nil();
+	mg_texture texture = mg_texture_nil();
 	mg_canvas_data* canvas = __mgCurrentCanvas;
 	if(canvas)
 	{
-		mg_image_data* imageData = canvas->backend->imageCreate(canvas->backend, (vec2){width, height});
-		if(imageData)
+		mg_texture_data* textureData = canvas->backend->textureCreate(canvas->backend, (vec2){width, height});
+		if(textureData)
 		{
-			image = mg_image_alloc_handle(canvas, imageData);
+			texture = mg_texture_alloc_handle(canvas, textureData);
 		}
 	}
-	return(image);
+	return(texture);
 }
 
-MP_API mg_image mg_image_create_from_rgba8(u32 width, u32 height, u8* pixels)
+mg_texture mg_texture_create_from_rgba8(u32 width, u32 height, u8* pixels)
 {
-	mg_image image = mg_image_create(width, height);
-	if(!mg_image_is_nil(image))
+	mg_texture texture = mg_texture_create(width, height);
+	if(!mg_texture_is_nil(texture))
 	{
-		mg_image_upload_region_rgba8(image, (mp_rect){0, 0, width, height}, pixels);
+		mg_texture_upload_region_rgba8(texture, (mp_rect){0, 0, width, height}, pixels);
 	}
-	return(image);
+	return(texture);
 }
 
-MP_API mg_image mg_image_create_from_data(str8 data, bool flip)
+mg_texture mg_texture_create_from_data(str8 data, bool flip)
 {
-	mg_image image = mg_image_nil();
+	mg_texture texture = mg_texture_nil();
 	int width, height, channels;
 
 	stbi_set_flip_vertically_on_load(flip ? 1 : 0);
@@ -3666,15 +3672,15 @@ MP_API mg_image mg_image_create_from_data(str8 data, bool flip)
 
 	if(pixels)
 	{
-		image = mg_image_create_from_rgba8(width, height, pixels);
+		texture = mg_texture_create_from_rgba8(width, height, pixels);
 		free(pixels);
 	}
-	return(image);
+	return(texture);
 }
 
-MP_API mg_image mg_image_create_from_file(str8 path, bool flip)
+mg_texture mg_texture_create_from_file(str8 path, bool flip)
 {
-	mg_image image = mg_image_nil();
+	mg_texture texture = mg_texture_nil();
 	int width, height, channels;
 
 	const char* cpath = str8_to_cstring(mem_scratch(), path);
@@ -3683,85 +3689,85 @@ MP_API mg_image mg_image_create_from_file(str8 path, bool flip)
 	u8* pixels = stbi_load(cpath, &width, &height, &channels, 4);
 	if(pixels)
 	{
-		image = mg_image_create_from_rgba8(width, height, pixels);
+		texture = mg_texture_create_from_rgba8(width, height, pixels);
 		free(pixels);
 	}
-	return(image);
+	return(texture);
 }
 
-MP_API void mg_image_destroy(mg_image image)
+void mg_texture_destroy(mg_texture texture)
 {
 	mg_canvas_data* canvas = __mgCurrentCanvas;
 	if(canvas)
 	{
-		mg_image_data* imageData = mg_image_data_from_handle(canvas, image);
-		if(imageData)
+		mg_texture_data* textureData = mg_texture_data_from_handle(canvas, texture);
+		if(textureData)
 		{
-			canvas->backend->imageDestroy(canvas->backend, imageData);
-			mg_resource_handle_recycle(&canvas->imagePool, image.h);
+			canvas->backend->textureDestroy(canvas->backend, textureData);
+			mg_resource_handle_recycle(&canvas->texturePool, texture.h);
 		}
 	}
 }
 
-MP_API void mg_image_upload_region_rgba8(mg_image image, mp_rect region, u8* pixels)
+void mg_texture_upload_region_rgba8(mg_texture texture, mp_rect region, u8* pixels)
 {
 	mg_canvas_data* canvas = __mgCurrentCanvas;
 	if(canvas)
 	{
-		mg_image_data* imageData = mg_image_data_from_handle(canvas, image);
-		if(imageData)
+		mg_texture_data* textureData = mg_texture_data_from_handle(canvas, texture);
+		if(textureData)
 		{
-			canvas->backend->imageUploadRegion(canvas->backend, imageData, region, pixels);
+			canvas->backend->textureUploadRegion(canvas->backend, textureData, region, pixels);
 		}
 	}
 }
 
-MP_API vec2 mg_image_size(mg_image image)
+vec2 mg_texture_size(mg_texture texture)
 {
 	vec2 res = {0};
 	mg_canvas_data* canvas = __mgCurrentCanvas;
 	if(canvas)
 	{
-		mg_image_data* imageData = mg_image_data_from_handle(canvas, image);
-		if(imageData)
+		mg_texture_data* textureData = mg_texture_data_from_handle(canvas, texture);
+		if(textureData)
 		{
-			res = imageData->size;
+			res = textureData->size;
 		}
 	}
 	return(res);
 }
 
-MP_API void mg_image_draw_region(mg_image image, mp_rect srcRegion, mp_rect dstRegion)
+void mg_texture_draw_region(mg_texture texture, mp_rect srcRegion, mp_rect dstRegion)
 {
 	mg_canvas_data* canvas = __mgCurrentCanvas;
 	if(canvas)
 	{
-		mg_image oldImage = canvas->attributes.image;
+		mg_texture oldTexture = canvas->attributes.texture;
 		mp_rect oldSrcRegion = canvas->attributes.srcRegion;
 		mg_color oldColor = canvas->attributes.color;
 
-		canvas->attributes.image = image;
+		canvas->attributes.texture = texture;
 		canvas->attributes.srcRegion = srcRegion;
 		canvas->attributes.color = (mg_color){1, 1, 1, 1};
 
 		mg_push_command(canvas, (mg_primitive){.cmd = MG_CMD_RECT_FILL, .rect = dstRegion});
 
-		canvas->attributes.image = oldImage;
+		canvas->attributes.texture = oldTexture;
 		canvas->attributes.srcRegion = oldSrcRegion;
 		canvas->attributes.color = oldColor;
 	}
 }
 
-MP_API void mg_image_draw_region_rounded(mg_image image, mp_rect srcRegion, mp_rect dstRegion, f32 roundness)
+void mg_texture_draw_region_rounded(mg_texture texture, mp_rect srcRegion, mp_rect dstRegion, f32 roundness)
 {
 	mg_canvas_data* canvas = __mgCurrentCanvas;
 	if(canvas)
 	{
-		mg_image oldImage = canvas->attributes.image;
+		mg_texture oldTexture = canvas->attributes.texture;
 		mp_rect oldSrcRegion = canvas->attributes.srcRegion;
 		mg_color oldColor = canvas->attributes.color;
 
-		canvas->attributes.image = image;
+		canvas->attributes.texture = texture;
 		canvas->attributes.srcRegion = srcRegion;
 		canvas->attributes.color = (mg_color){1, 1, 1, 1};
 
@@ -3772,16 +3778,242 @@ MP_API void mg_image_draw_region_rounded(mg_image image, mp_rect srcRegion, mp_r
 	}
 }
 
-MP_API void mg_image_draw(mg_image image, mp_rect rect)
+void mg_texture_draw(mg_texture texture, mp_rect rect)
 {
-	vec2 size = mg_image_size(image);
-	mg_image_draw_region(image, (mp_rect){0, 0, size.x, size.y}, rect);
+	vec2 size = mg_texture_size(texture);
+	mg_texture_draw_region(texture, (mp_rect){0, 0, size.x, size.y}, rect);
 }
 
-MP_API void mg_image_draw_rounded(mg_image image, mp_rect rect, f32 roundness)
+void mg_texture_draw_rounded(mg_texture texture, mp_rect rect, f32 roundness)
 {
-	vec2 size = mg_image_size(image);
-	mg_image_draw_region_rounded(image, (mp_rect){0, 0, size.x, size.y}, rect, roundness);
+	vec2 size = mg_texture_size(texture);
+	mg_texture_draw_region_rounded(texture, (mp_rect){0, 0, size.x, size.y}, rect, roundness);
 }
+
+
+//------------------------------------------------------------------------------------------
+//NOTE(martin): image atlas
+//------------------------------------------------------------------------------------------
+
+mg_image_atlas mg_image_atlas_nil(){ return((mg_image_atlas){.h = 0}); }
+bool mg_image_atlas_is_nil(mg_image_atlas atlas) { return(atlas.h == 0); }
+
+mg_image mg_image_nil(){ return((mg_image){.h = 0}); }
+bool mg_image_is_nil(mg_image atlas) { return(atlas.h == 0); }
+
+
+typedef struct mg_image_atlas_data
+{
+	mg_texture texture;
+	vec2 pos;
+	u32 lineHeight;
+
+} mg_image_atlas_data;
+
+typedef struct mg_image_data
+{
+	mg_image_atlas atlas;
+	mg_texture texture;
+	mp_rect rect;
+
+} mg_image_data;
+
+
+mg_image_atlas_data* mg_image_atlas_data_from_handle(mg_canvas_data* canvas, mg_image_atlas handle)
+{
+	mg_image_atlas_data* data = 0;
+	mg_resource_slot* slot = mg_resource_slot_from_handle(&canvas->imageAtlasPool, handle.h);
+	if(slot)
+	{
+		data = slot->atlas;
+	}
+	return(data);
+}
+
+
+mg_image_data* mg_image_data_from_handle(mg_canvas_data* canvas, mg_image handle)
+{
+	mg_image_data* data = 0;
+	mg_resource_slot* slot = mg_resource_slot_from_handle(&canvas->imagePool, handle.h);
+	if(slot)
+	{
+		data = slot->image;
+	}
+	return(data);
+}
+
+
+mg_image_atlas mg_image_atlas_create(u32 width, u32 height)
+{
+	mg_image_atlas handle = mg_image_atlas_nil();
+
+	mg_canvas_data* canvas = __mgCurrentCanvas;
+	if(canvas)
+	{
+		mg_resource_slot* slot = mg_resource_slot_alloc(&canvas->imageAtlasPool);
+		if(slot)
+		{
+			mg_image_atlas_data* atlas = malloc_type(mg_image_atlas_data);
+			if(atlas)
+			{
+				memset(atlas, 0, sizeof(mg_image_atlas_data));
+				atlas->texture = mg_texture_create(width, height);
+
+				slot->atlas = atlas;
+				handle.h = mg_resource_handle_from_slot(&canvas->imageAtlasPool, slot);
+			}
+			else
+			{
+				mg_resource_slot_recycle(&canvas->imageAtlasPool, slot);
+			}
+		}
+	}
+	return(handle);
+}
+
+void mg_image_atlas_destroy(mg_image_atlas handle)
+{
+	mg_canvas_data* canvas = __mgCurrentCanvas;
+	if(canvas)
+	{
+		mg_image_atlas_data* atlas = mg_image_atlas_data_from_handle(canvas, handle);
+		if(atlas)
+		{
+			mg_texture_destroy(atlas->texture);
+			free(atlas);
+			mg_resource_handle_recycle(&canvas->imageAtlasPool, handle.h);
+		}
+	}
+}
+
+mp_rect mg_image_atlas_allocate(mg_image_atlas_data* atlas, u32 width, u32 height)
+{
+	mp_rect rect = {0, 0, 0, 0};
+	vec2 atlasSize = mg_texture_size(atlas->texture);
+
+	if(atlas->pos.x + width >= atlasSize.x)
+	{
+		atlas->pos.x = 0;
+		atlas->pos.y += (atlas->lineHeight + 1);
+		atlas->lineHeight = 0;
+	}
+	if(  atlas->pos.x + width < atlasSize.x
+	  && atlas->pos.y + height < atlasSize.y)
+	{
+		rect = (mp_rect){atlas->pos.x, atlas->pos.y, width, height};
+
+		atlas->pos.x += (width + 1);
+		atlas->lineHeight = maximum(atlas->lineHeight, height);
+	}
+	return(rect);
+}
+
+mg_image mg_image_upload_from_rgba8(mg_image_atlas atlasHandle, u32 width, u32 height, u8* pixels)
+{
+	mg_image res = mg_image_nil();
+
+	mg_canvas_data* canvas = __mgCurrentCanvas;
+	if(canvas)
+	{
+		mg_image_atlas_data* atlas = mg_image_atlas_data_from_handle(canvas, atlasHandle);
+		if(atlas)
+		{
+			mg_resource_slot* slot = mg_resource_slot_alloc(&canvas->imagePool);
+			if(slot)
+			{
+				mg_image_data* image = malloc_type(mg_image_data);
+				if(image)
+				{
+					memset(image, 0, sizeof(mg_image_data));
+					mp_rect rect = mg_image_atlas_allocate(atlas, width, height);
+					if(rect.w == width && rect.h == height)
+					{
+						image->rect = rect;
+						image->texture = atlas->texture;
+						image->atlas = atlasHandle;
+
+						mg_texture_upload_region_rgba8(atlas->texture, rect, pixels);
+
+						slot->image = image;
+						res.h = mg_resource_handle_from_slot(&canvas->imagePool, slot);
+					}
+					else
+					{
+						free(image);
+						mg_resource_slot_recycle(&canvas->imagePool, slot);
+					}
+				}
+				else
+				{
+					mg_resource_slot_recycle(&canvas->imagePool, slot);
+				}
+			}
+		}
+	}
+	return(res);
+}
+
+void mg_image_recycle(mg_image handle)
+{
+	mg_canvas_data* canvas = __mgCurrentCanvas;
+	if(canvas)
+	{
+		mg_image_data* image = mg_image_data_from_handle(canvas, handle);
+		if(image)
+		{
+			//TODO recycle rect
+			free(image);
+			mg_resource_handle_recycle(&canvas->imagePool, handle.h);
+		}
+	}
+}
+
+void mg_image_draw(mg_image handle, mp_rect rect)
+{
+	mg_canvas_data* canvas = __mgCurrentCanvas;
+	if(canvas)
+	{
+		mg_image_data* image = mg_image_data_from_handle(canvas, handle);
+		if(image)
+		{
+			mg_texture_draw_region(image->texture, image->rect, rect);
+		}
+	}
+}
+
+// helpers
+mg_image mg_image_upload_from_data(mg_image_atlas atlas, str8 data, bool flip)
+{
+	mg_image image = mg_image_nil();
+
+	int width, height, channels;
+	stbi_set_flip_vertically_on_load(flip ? 1 : 0);
+	u8* pixels = stbi_load_from_memory((u8*)data.ptr, data.len, &width, &height, &channels, 4);
+	if(pixels)
+	{
+		image = mg_image_upload_from_rgba8(atlas, width, height, pixels);
+		free(pixels);
+	}
+	return(image);
+}
+
+mg_image mg_image_upload_from_file(mg_image_atlas atlas, str8 path, bool flip)
+{
+	mg_image image = mg_image_nil();
+	int width, height, channels;
+
+	const char* cpath = str8_to_cstring(mem_scratch(), path);
+
+	stbi_set_flip_vertically_on_load(flip ? 1 : 0);
+	u8* pixels = stbi_load(cpath, &width, &height, &channels, 4);
+	if(pixels)
+	{
+		image = mg_image_upload_from_rgba8(atlas, width, height, pixels);
+		free(pixels);
+	}
+	return(image);
+}
+
+
 
 #undef LOG_SUBSYSTEM

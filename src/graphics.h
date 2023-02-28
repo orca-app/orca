@@ -106,7 +106,7 @@ MP_API void mg_surface_set_hidden(mg_surface surface, bool hidden);
 //------------------------------------------------------------------------------------------
 typedef struct mg_canvas { u64 h; } mg_canvas;
 typedef struct mg_font { u64 h; } mg_font;
-typedef struct mg_image { u64 h; } mg_image;
+typedef struct mg_texture { u64 h; } mg_texture;
 
 typedef struct mg_mat2x3
 {
@@ -170,6 +170,73 @@ MP_API mg_canvas mg_canvas_set_current(mg_canvas canvas);
 MP_API void mg_flush();
 
 //------------------------------------------------------------------------------------------
+//NOTE(martin): fonts
+//------------------------------------------------------------------------------------------
+MP_API mg_font mg_font_nil();
+MP_API mg_font mg_font_create_from_memory(u32 size, byte* buffer, u32 rangeCount, unicode_range* ranges);
+MP_API void mg_font_destroy(mg_font font);
+
+//NOTE(martin): the following int valued functions return -1 if font is invalid or codepoint is not present in font//
+//TODO(martin): add enum error codes
+
+MP_API mg_font_extents mg_font_get_extents(mg_font font);
+MP_API mg_font_extents mg_font_get_scaled_extents(mg_font font, f32 emSize);
+MP_API f32 mg_font_get_scale_for_em_pixels(mg_font font, f32 emSize);
+
+//NOTE(martin): if you need to process more than one codepoint, first convert your codepoints to glyph indices, then use the
+//              glyph index versions of the functions, which can take an array of glyph indices.
+
+MP_API str32 mg_font_get_glyph_indices(mg_font font, str32 codePoints, str32 backing);
+MP_API str32 mg_font_push_glyph_indices(mg_font font, mem_arena* arena, str32 codePoints);
+MP_API u32 mg_font_get_glyph_index(mg_font font, utf32 codePoint);
+
+MP_API int mg_font_get_codepoint_extents(mg_font font, utf32 codePoint, mg_text_extents* outExtents);
+
+MP_API int mg_font_get_glyph_extents(mg_font font, str32 glyphIndices, mg_text_extents* outExtents);
+
+MP_API mp_rect mg_text_bounding_box_utf32(mg_font font, f32 fontSize, str32 text);
+MP_API mp_rect mg_text_bounding_box(mg_font font, f32 fontSize, str8 text);
+
+//------------------------------------------------------------------------------------------
+//NOTE(martin): textures
+//------------------------------------------------------------------------------------------
+MP_API mg_texture mg_texture_nil();
+MP_API bool mg_texture_is_nil(mg_texture a);
+
+MP_API mg_texture mg_texture_create(u32 width, u32 height);
+MP_API mg_texture mg_texture_create_from_rgba8(u32 width, u32 height, u8* pixels);
+MP_API mg_texture mg_texture_create_from_data(str8 data, bool flip);
+MP_API mg_texture mg_texture_create_from_file(str8 path, bool flip);
+
+MP_API void mg_texture_destroy(mg_texture texture);
+
+MP_API void mg_texture_upload_region_rgba8(mg_texture texture, mp_rect region, u8* pixels);
+MP_API vec2 mg_texture_size(mg_texture texture);
+
+MP_API void mg_texture_draw_region(mg_texture texture, mp_rect srcRegion, mp_rect dstRegion);
+MP_API void mg_texture_draw_region_rounded(mg_texture texture, mp_rect srcRect, mp_rect dstRegion, f32 roundness);
+MP_API void mg_texture_draw(mg_texture texture, mp_rect rect);
+MP_API void mg_texture_draw_rounded(mg_texture texture, mp_rect rect, f32 roundness);
+
+//------------------------------------------------------------------------------------------
+//NOTE(martin): image
+//------------------------------------------------------------------------------------------
+
+typedef struct mg_image_atlas { u64 h; } mg_image_atlas;
+typedef struct mg_image { u64 h; } mg_image;
+
+MP_API mg_image_atlas mg_image_atlas_create(u32 width, u32 height);
+MP_API void mg_image_atlas_destroy(mg_image_atlas atlas);
+
+MP_API mg_image mg_image_upload_from_rgba8(mg_image_atlas atlas, u32 width, u32 height, u8* pixels);
+MP_API void mg_image_recycle(mg_image image);
+MP_API void mg_image_draw(mg_image image, mp_rect rect);
+
+// helpers
+MP_API mg_image mg_image_upload_from_data(mg_image_atlas atlas, str8 data, bool flip);
+MP_API mg_image mg_image_upload_from_file(mg_image_atlas atlas, str8 file, bool flip);
+
+//------------------------------------------------------------------------------------------
 //NOTE(martin): transform, viewport and clipping
 //------------------------------------------------------------------------------------------
 MP_API void mg_viewport(mp_rect viewPort);
@@ -193,8 +260,8 @@ MP_API void mg_set_cap(mg_cap_type cap);
 MP_API void mg_set_font(mg_font font);
 MP_API void mg_set_font_size(f32 size);
 MP_API void mg_set_text_flip(bool flip);
-MP_API void mg_set_image(mg_image image);
-MP_API void mg_set_image_source_region(mp_rect region);
+MP_API void mg_set_texture(mg_texture texture);
+MP_API void mg_set_texture_source_region(mp_rect region);
 
 MP_API mg_color mg_get_color();
 MP_API f32 mg_get_width();
@@ -239,54 +306,5 @@ MP_API void mg_ellipse_stroke(f32 x, f32 y, f32 rx, f32 ry);
 MP_API void mg_circle_fill(f32 x, f32 y, f32 r);
 MP_API void mg_circle_stroke(f32 x, f32 y, f32 r);
 MP_API void mg_arc(f32 x, f32 y, f32 r, f32 arcAngle, f32 startAngle);
-
-//------------------------------------------------------------------------------------------
-//NOTE(martin): fonts
-//------------------------------------------------------------------------------------------
-MP_API mg_font mg_font_nil();
-MP_API mg_font mg_font_create_from_memory(u32 size, byte* buffer, u32 rangeCount, unicode_range* ranges);
-MP_API void mg_font_destroy(mg_font font);
-
-//NOTE(martin): the following int valued functions return -1 if font is invalid or codepoint is not present in font//
-//TODO(martin): add enum error codes
-
-MP_API mg_font_extents mg_font_get_extents(mg_font font);
-MP_API mg_font_extents mg_font_get_scaled_extents(mg_font font, f32 emSize);
-MP_API f32 mg_font_get_scale_for_em_pixels(mg_font font, f32 emSize);
-
-//NOTE(martin): if you need to process more than one codepoint, first convert your codepoints to glyph indices, then use the
-//              glyph index versions of the functions, which can take an array of glyph indices.
-
-MP_API str32 mg_font_get_glyph_indices(mg_font font, str32 codePoints, str32 backing);
-MP_API str32 mg_font_push_glyph_indices(mg_font font, mem_arena* arena, str32 codePoints);
-MP_API u32 mg_font_get_glyph_index(mg_font font, utf32 codePoint);
-
-MP_API int mg_font_get_codepoint_extents(mg_font font, utf32 codePoint, mg_text_extents* outExtents);
-
-MP_API int mg_font_get_glyph_extents(mg_font font, str32 glyphIndices, mg_text_extents* outExtents);
-
-MP_API mp_rect mg_text_bounding_box_utf32(mg_font font, f32 fontSize, str32 text);
-MP_API mp_rect mg_text_bounding_box(mg_font font, f32 fontSize, str8 text);
-
-//------------------------------------------------------------------------------------------
-//NOTE(martin): images
-//------------------------------------------------------------------------------------------
-MP_API mg_image mg_image_nil();
-MP_API bool mg_image_is_nil(mg_image a);
-
-MP_API mg_image mg_image_create(u32 width, u32 height);
-MP_API mg_image mg_image_create_from_rgba8(u32 width, u32 height, u8* pixels);
-MP_API mg_image mg_image_create_from_data(str8 data, bool flip);
-MP_API mg_image mg_image_create_from_file(str8 path, bool flip);
-
-MP_API void mg_image_destroy(mg_image image);
-
-MP_API void mg_image_upload_region_rgba8(mg_image image, mp_rect region, u8* pixels);
-MP_API vec2 mg_image_size(mg_image image);
-
-MP_API void mg_image_draw_region(mg_image image, mp_rect srcRegion, mp_rect dstRegion);
-MP_API void mg_image_draw_region_rounded(mg_image image, mp_rect srcRect, mp_rect dstRegion, f32 roundness);
-MP_API void mg_image_draw(mg_image image, mp_rect rect);
-MP_API void mg_image_draw_rounded(mg_image image, mp_rect rect, f32 roundness);
 
 #endif //__GRAPHICS_H_

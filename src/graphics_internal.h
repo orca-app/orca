@@ -52,13 +52,13 @@ mg_surface_data* mg_surface_data_from_handle(mg_surface handle);
 //---------------------------------------------------------------
 // canvas backend interface
 //---------------------------------------------------------------
-typedef struct mg_image_data
+typedef struct mg_texture_data
 {
 	list_elt listElt;
 	u32 generation;
 	vec2 size;
 
-} mg_image_data;
+} mg_texture_data;
 
 typedef struct mg_vertex_layout
 {
@@ -95,16 +95,16 @@ typedef void (*mg_canvas_backend_begin_proc)(mg_canvas_backend* backend);
 typedef void (*mg_canvas_backend_end_proc)(mg_canvas_backend* backend);
 typedef void (*mg_canvas_backend_clear_proc)(mg_canvas_backend* backend, mg_color clearColor);
 typedef void (*mg_canvas_backend_draw_batch_proc)(mg_canvas_backend* backend,
-                                                  mg_image_data* imageData,
+                                                  mg_texture_data* textureData,
                                                   u32 vertexCount,
                                                   u32 shapeCount,
                                                   u32 indexCount);
 
 
-typedef mg_image_data* (*mg_canvas_backend_image_create_proc)(mg_canvas_backend* backend, vec2 size);
-typedef void (*mg_canvas_backend_image_destroy_proc)(mg_canvas_backend* backend, mg_image_data* image);
-typedef void (*mg_canvas_backend_image_upload_region_proc)(mg_canvas_backend* backend,
-                                                           mg_image_data* image,
+typedef mg_texture_data* (*mg_canvas_backend_texture_create_proc)(mg_canvas_backend* backend, vec2 size);
+typedef void (*mg_canvas_backend_texture_destroy_proc)(mg_canvas_backend* backend, mg_texture_data* texture);
+typedef void (*mg_canvas_backend_texture_upload_region_proc)(mg_canvas_backend* backend,
+                                                           mg_texture_data* texture,
                                                            mp_rect region,
                                                            u8* pixels);
 
@@ -118,9 +118,9 @@ typedef struct mg_canvas_backend
 	mg_canvas_backend_clear_proc clear;
 	mg_canvas_backend_draw_batch_proc drawBatch;
 
-	mg_canvas_backend_image_create_proc imageCreate;
-	mg_canvas_backend_image_destroy_proc imageDestroy;
-	mg_canvas_backend_image_upload_region_proc imageUploadRegion;
+	mg_canvas_backend_texture_create_proc textureCreate;
+	mg_canvas_backend_texture_destroy_proc textureDestroy;
+	mg_canvas_backend_texture_upload_region_proc textureUploadRegion;
 } mg_canvas_backend;
 
 #ifdef __cplusplus
