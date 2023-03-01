@@ -154,6 +154,7 @@ typedef enum mg_handle_kind
 	MG_HANDLE_CANVAS,
 	MG_HANDLE_FONT,
 	MG_HANDLE_IMAGE,
+	MG_HANDLE_SURFACE_SERVER,
 } mg_handle_kind;
 
 typedef struct mg_handle_slot
@@ -552,6 +553,17 @@ bool mg_surface_get_hidden(mg_surface surface)
 	if(surfaceData)
 	{
 		res = surfaceData->getHidden(surfaceData);
+	}
+	return(res);
+}
+
+void* mg_surface_native_layer(mg_surface surface)
+{
+	void* res = 0;
+	mg_surface_data* surfaceData = mg_surface_data_from_handle(surface);
+	if(surfaceData)
+	{
+		res = surfaceData->nativeLayer(surfaceData);
 	}
 	return(res);
 }

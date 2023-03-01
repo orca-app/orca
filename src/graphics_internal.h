@@ -29,6 +29,7 @@ typedef mp_rect (*mg_surface_get_frame_proc)(mg_surface_data* surface);
 typedef void (*mg_surface_set_frame_proc)(mg_surface_data* surface, mp_rect frame);
 typedef bool (*mg_surface_get_hidden_proc)(mg_surface_data* surface);
 typedef void (*mg_surface_set_hidden_proc)(mg_surface_data* surface, bool hidden);
+typedef void* (*mg_surface_native_layer_proc)(mg_surface_data* surface);
 
 typedef struct mg_surface_data
 {
@@ -43,11 +44,12 @@ typedef struct mg_surface_data
 	mg_surface_set_frame_proc setFrame;
 	mg_surface_get_hidden_proc getHidden;
 	mg_surface_set_hidden_proc setHidden;
-
+	mg_surface_native_layer_proc nativeLayer;
 } mg_surface_data;
 
 mg_surface mg_surface_alloc_handle(mg_surface_data* surface);
 mg_surface_data* mg_surface_data_from_handle(mg_surface handle);
+void* mg_surface_native_layer(mg_surface surface);
 
 //---------------------------------------------------------------
 // canvas backend interface

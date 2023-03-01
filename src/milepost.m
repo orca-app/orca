@@ -20,6 +20,8 @@
 	#include"egl_surface.c"
 #endif
 
+#include"osx_surface_sharing.m"
+
 /*
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"

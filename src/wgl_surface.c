@@ -189,6 +189,12 @@ bool mg_wgl_surface_get_hidden(mg_surface_data* interface)
 	return(mp_layer_get_hidden(&surface->layer));
 }
 
+void* mg_wgl_surface_native_layer(mg_surface_data* interface)
+{
+	mg_wgl_surface* surface = (mg_wgl_surface*)interface;
+	return(mg_layer_native_surface(&surface->layer));
+}
+
 void* mg_wgl_get_proc(const char* name)
 {
 	void* p = wglGetProcAddress(name);

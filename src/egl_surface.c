@@ -114,6 +114,12 @@ bool mg_egl_surface_get_hidden(mg_surface_data* interface)
 	return(mp_layer_get_hidden(&surface->layer));
 }
 
+void* mg_egl_surface_native_layer(mg_surface_data* interface)
+{
+	mg_egl_surface* surface = (mg_egl_surface*)interface;
+	return(mp_layer_native_surface(&surface->layer));
+}
+
 mg_surface_data* mg_egl_surface_create_for_window(mp_window window)
 {
 	mg_egl_surface* surface = 0;
@@ -133,6 +139,7 @@ mg_surface_data* mg_egl_surface_create_for_window(mp_window window)
 		surface->interface.setFrame = mg_egl_surface_set_frame;
 		surface->interface.getHidden = mg_egl_surface_get_hidden;
 		surface->interface.setHidden = mg_egl_surface_set_hidden;
+		surface->interface.nativeLayer = mg_egl_surface_native_layer;
 
 		mp_layer_init_for_window(&surface->layer, windowData);
 

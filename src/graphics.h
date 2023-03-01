@@ -21,7 +21,8 @@ typedef enum {
 	MG_BACKEND_NONE,
 	MG_BACKEND_METAL,
 	MG_BACKEND_GL,
-	MG_BACKEND_GLES } mg_backend_id;
+	MG_BACKEND_GLES,
+	MG_BACKEND_REMOTE } mg_backend_id;
 
 //NOTE: these macros are used to select which backend to include when building milepost
 //      they can be overridden by passing them to the compiler command line
@@ -100,6 +101,22 @@ MP_API mp_rect mg_surface_get_frame(mg_surface surface);
 MP_API void mg_surface_set_frame(mg_surface surface, mp_rect frame);
 MP_API bool mg_surface_get_hidden(mg_surface surface);
 MP_API void mg_surface_set_hidden(mg_surface surface, bool hidden);
+
+//------------------------------------------------------------------------------------------
+//NOTE(martin): surface server/client
+//------------------------------------------------------------------------------------------
+
+typedef struct mg_surface_server { u64 h; } mg_surface_server;
+typedef u64 mg_surface_connection_id;
+
+MP_API mg_surface_server mg_surface_server_create(void);
+MP_API void mg_surface_server_destroy(mg_surface_server server);
+MP_API mg_surface_connection_id mg_surface_server_start(mg_surface_server server, mg_surface surface);
+MP_API void mg_surface_server_stop(mg_surface_server server);
+
+MP_API mg_surface mg_surface_client_create_for_window(mp_window window);
+MP_API void mg_surface_client_connect(mg_surface surface, mg_surface_connection_id id);
+MP_API void mg_surface_client_disconnect(mg_surface surface);
 
 //------------------------------------------------------------------------------------------
 //NOTE(martin): graphics canvas structs

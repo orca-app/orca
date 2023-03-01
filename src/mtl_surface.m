@@ -1,8 +1,8 @@
 /************************************************************//**
 *
-*	@file: graphics.m
+*	@file: mtl_surface.m
 *	@author: Martin Fouilleul
-*	@date: 12/07/2020
+*	@date: 12/07/2023
 *	@revision:
 *
 *****************************************************************/
@@ -162,6 +162,12 @@ bool mg_mtl_surface_get_hidden(mg_surface_data* interface)
 	return(mp_layer_get_hidden(&surface->layer));
 }
 
+void* mg_mtl_surface_native_layer(mg_surface_data* interface)
+{
+	mg_mtl_surface* surface = (mg_mtl_surface*)interface;
+	return((void*)surface->mtlLayer);
+}
+
 //TODO fix that according to real scaling, depending on the monitor settings
 static const f32 MG_MTL_SURFACE_CONTENTS_SCALING = 2;
 
@@ -184,6 +190,7 @@ mg_surface_data* mg_mtl_surface_create_for_window(mp_window window)
 		surface->interface.setFrame = mg_mtl_surface_set_frame;
 		surface->interface.getHidden = mg_mtl_surface_get_hidden;
 		surface->interface.setHidden = mg_mtl_surface_set_hidden;
+		surface->interface.nativeLayer = mg_mtl_surface_native_layer;
 
 		@autoreleasepool
 		{
