@@ -192,7 +192,7 @@ bool mg_wgl_surface_get_hidden(mg_surface_data* interface)
 void* mg_wgl_surface_native_layer(mg_surface_data* interface)
 {
 	mg_wgl_surface* surface = (mg_wgl_surface*)interface;
-	return(mg_layer_native_surface(&surface->layer));
+	return(mp_layer_native_surface(&surface->layer));
 }
 
 void* mg_wgl_get_proc(const char* name)
@@ -211,9 +211,9 @@ void* mg_wgl_get_proc(const char* name)
 	return(p);
 }
 
-mg_surface mg_wgl_surface_create_for_window(mp_window window)
+mg_surface_data* mg_wgl_surface_create_for_window(mp_window window)
 {
-	mg_surface surfaceHandle = mg_surface_nil();
+	mg_surface* surface = 0;
 
 	mp_window_data* windowData = mp_window_ptr_from_handle(window);
 	if(windowData)
@@ -222,86 +222,84 @@ mg_surface mg_wgl_surface_create_for_window(mp_window window)
 
 		//NOTE: fill surface data and load api
 		mg_wgl_surface* surface = malloc_type(mg_wgl_surface);
-
-		surface->interface.backend = MG_BACKEND_GL;
-		surface->interface.destroy = mg_wgl_surface_destroy;
-		surface->interface.prepare = mg_wgl_surface_prepare;
-		surface->interface.present = mg_wgl_surface_present;
-		surface->interface.swapInterval = mg_wgl_surface_swap_interval;
-		surface->interface.contentsScaling = mg_wgl_surface_contents_scaling;
-		surface->interface.getFrame = mg_wgl_surface_get_frame;
-		surface->interface.setFrame = mg_wgl_surface_set_frame;
-		surface->interface.getHidden = mg_wgl_surface_get_hidden;
-		surface->interface.setHidden = mg_wgl_surface_set_hidden;
-
-		mp_layer_init_for_window(&surface->layer, windowData);
-		surface->hDC = GetDC(surface->layer.hWnd);
-
-		//NOTE(martin): create the pixel format and gl context
-		PIXELFORMATDESCRIPTOR pixelFormatDesc =
+		if(surface)
 		{
-			sizeof(PIXELFORMATDESCRIPTOR),
-			1,
-			PFD_DRAW_TO_WINDOW | PFD_SUPPORT_OPENGL | PFD_DOUBLEBUFFER,    // Flags
-			PFD_TYPE_RGBA,        // The kind of framebuffer. RGBA or palette.
-			32,                   // Colordepth of the framebuffer.
-			0, 0, 0, 0, 0, 0,
-			0,
-			0,
-			0,
-			0, 0, 0, 0,
-			24,                   // Number of bits for the depthbuffer
-			8,                    // Number of bits for the stencilbuffer
-			0,                    // Number of Aux buffers in the framebuffer.
-			PFD_MAIN_PLANE,
-			0,
-			0, 0, 0
-		};
+			surface->interface.backend = MG_BACKEND_GL;
+			surface->interface.destroy = mg_wgl_surface_destroy;
+			surface->interface.prepare = mg_wgl_surface_prepare;
+			surface->interface.present = mg_wgl_surface_present;
+			surface->interface.swapInterval = mg_wgl_surface_swap_interval;
+			surface->interface.contentsScaling = mg_wgl_surface_contents_scaling;
+			surface->interface.getFrame = mg_wgl_surface_get_frame;
+			surface->interface.setFrame = mg_wgl_surface_set_frame;
+			surface->interface.getHidden = mg_wgl_surface_get_hidden;
+			surface->interface.setHidden = mg_wgl_surface_set_hidden;
 
-		int pixelFormatAttrs[] = {
-			WGL_DRAW_TO_WINDOW_ARB, GL_TRUE,
-			WGL_SUPPORT_OPENGL_ARB, GL_TRUE,
-			WGL_DOUBLE_BUFFER_ARB, GL_TRUE,
-			WGL_PIXEL_TYPE_ARB, WGL_TYPE_RGBA_ARB,
-			WGL_COLOR_BITS_ARB, 32,
-			WGL_DEPTH_BITS_ARB, 24,
-			WGL_STENCIL_BITS_ARB, 8,
-			0};
+			mp_layer_init_for_window(&surface->layer, windowData);
+			surface->hDC = GetDC(surface->layer.hWnd);
 
-		u32 numFormats = 0;
-		int pixelFormat = 0;
+			//NOTE(martin): create the pixel format and gl context
+			PIXELFORMATDESCRIPTOR pixelFormatDesc =
+			{
+				sizeof(PIXELFORMATDESCRIPTOR),
+				1,
+				PFD_DRAW_TO_WINDOW | PFD_SUPPORT_OPENGL | PFD_DOUBLEBUFFER,    // Flags
+				PFD_TYPE_RGBA,        // The kind of framebuffer. RGBA or palette.
+				32,                   // Colordepth of the framebuffer.
+				0, 0, 0, 0, 0, 0,
+				0,
+				0,
+				0,
+				0, 0, 0, 0,
+				24,                   // Number of bits for the depthbuffer
+				8,                    // Number of bits for the stencilbuffer
+				0,                    // Number of Aux buffers in the framebuffer.
+				PFD_MAIN_PLANE,
+				0,
+				0, 0, 0
+			};
 
-		wglChoosePixelFormatARB(surface->hDC, pixelFormatAttrs, 0, 1, &pixelFormat, &numFormats);
+			int pixelFormatAttrs[] = {
+				WGL_DRAW_TO_WINDOW_ARB, GL_TRUE,
+				WGL_SUPPORT_OPENGL_ARB, GL_TRUE,
+				WGL_DOUBLE_BUFFER_ARB, GL_TRUE,
+				WGL_PIXEL_TYPE_ARB, WGL_TYPE_RGBA_ARB,
+				WGL_COLOR_BITS_ARB, 32,
+				WGL_DEPTH_BITS_ARB, 24,
+				WGL_STENCIL_BITS_ARB, 8,
+				0};
 
-		if(!pixelFormat)
-		{
-			//TODO: error
+			u32 numFormats = 0;
+			int pixelFormat = 0;
+
+			wglChoosePixelFormatARB(surface->hDC, pixelFormatAttrs, 0, 1, &pixelFormat, &numFormats);
+
+			if(!pixelFormat)
+			{
+				//TODO: error
+			}
+			SetPixelFormat(surface->hDC, pixelFormat, &pixelFormatDesc);
+
+			int contextAttrs[] = {
+				WGL_CONTEXT_MAJOR_VERSION_ARB, 4,
+				WGL_CONTEXT_MINOR_VERSION_ARB, 3,
+				WGL_CONTEXT_PROFILE_MASK_ARB, WGL_CONTEXT_CORE_PROFILE_BIT_ARB,
+				0};
+
+			surface->glContext = wglCreateContextAttribsARB(surface->hDC, __mgWGLDummyContext.glContext, contextAttrs);
+
+			if(!surface->glContext)
+			{
+				//TODO error
+				int error = GetLastError();
+				printf("error: %i\n", error);
+			}
+
+			//NOTE: make gl context current and load api
+			wglMakeCurrent(surface->hDC, surface->glContext);
+			wglSwapIntervalEXT(1);
+			mg_gl_load_gl43(&surface->api, mg_wgl_get_proc);
 		}
-		SetPixelFormat(surface->hDC, pixelFormat, &pixelFormatDesc);
-
-		int contextAttrs[] = {
-			WGL_CONTEXT_MAJOR_VERSION_ARB, 4,
-			WGL_CONTEXT_MINOR_VERSION_ARB, 3,
-			WGL_CONTEXT_PROFILE_MASK_ARB, WGL_CONTEXT_CORE_PROFILE_BIT_ARB,
-			0};
-
-		surface->glContext = wglCreateContextAttribsARB(surface->hDC, __mgWGLDummyContext.glContext, contextAttrs);
-
-		if(!surface->glContext)
-		{
-			//TODO error
-			int error = GetLastError();
-			printf("error: %i\n", error);
-		}
-
-		//NOTE: make gl context current and load api
-		wglMakeCurrent(surface->hDC, surface->glContext);
-		wglSwapIntervalEXT(1);
-		mg_gl_load_gl43(&surface->api, mg_wgl_get_proc);
-
-		surfaceHandle = mg_surface_alloc_handle((mg_surface_data*)surface);
 	}
-
-	quit:;
-	return(surfaceHandle);
+	return((mg_surface_data*)surface);
 }
