@@ -7,12 +7,43 @@
 
 #include<stdlib.h>
 #include<stdio.h>
-#include<unistd.h>
 
 #define MG_INCLUDE_GL_API 1
 #include"milepost.h"
 
 #define LOG_SUBSYSTEM "Main"
+
+#ifdef OS_WIN64
+	#include<process.h>
+	#include<io.h>
+	#include<fcntl.h>
+
+	#define dup2 _dup2
+	#define pipe(fds) _pipe(fds, 256, O_BINARY)
+	#define read _read
+	#define write _write
+	#define itoa _itoa
+
+	void spawn_child(char* program, char** argv)
+	{
+		_spawnv(P_NOWAIT, program, argv);
+	}
+
+#elif OS_MACOS
+	#include<unistd.h>
+
+	void spwan_child(char* program, char** argv)
+	{
+		pid_t pid = fork();
+		if(!pid)
+		{
+			char* envp[] = {0};
+			execve(program, argv, envp);
+			assert(0);
+		}
+	}
+#endif
+
 
 unsigned int program;
 
@@ -55,7 +86,7 @@ void compile_shader(GLuint shader, const char* source)
 	}
 }
 
-int child_main()
+int child_main(int writeFd)
 {
 	mp_init();
 
@@ -107,11 +138,13 @@ int child_main()
 	glUseProgram(program);
 
 	//NOTE: create surface server and start sharing surface
-	mg_surface_server server = mg_surface_server_create();
-	mg_surface_connection_id connectionID = mg_surface_server_start(server, surface);
+//	mg_surface_server server = mg_surface_server_create();
+//	mg_surface_connection_id connectionID = mg_surface_server_start(server, surface);
+
+	mg_surface_connection_id connectionID = 123456789;
 
 	//NOTE: send context id to parent
-	write(3, &connectionID, sizeof(connectionID));
+	write(writeFd, &connectionID, sizeof(connectionID));
 
 	//NOTE: render loop
 	while(!mp_should_quit())
@@ -173,13 +206,16 @@ int main(int argc, char** argv)
 	{
 		if(!strcmp(argv[1], "--child"))
 		{
-			return(child_main());
+			int writeFd = atoi(argv[2]);
+			printf("child process created with file desc %i\n", writeFd);
+			return(child_main(writeFd));
 		}
 		else
 		{
 			return(-1);
 		}
 	}
+	setvbuf( stdout, NULL, _IONBF, 0 );
 	mp_init();
 
 	//NOTE: create main window
@@ -187,22 +223,20 @@ int main(int argc, char** argv)
 	mp_window window = mp_window_create(rect, "test", 0);
 
 	//NOTE: create surface client
-	mg_surface surface = mg_surface_client_create_for_window(window);
+//	mg_surface surface = mg_surface_client_create_for_window(window);
 
 
-	//TODO setup descriptors
+	//NOTE setup descriptors
 	int fileDesc[2];
 	pipe(fileDesc);
 
-	pid_t pid = fork();
-	if(!pid)
-	{
-		dup2(fileDesc[1], 3);
-		char* argv[] = {"bin/example_surface_sharing", "--child", 0};
-		char* envp[] = {0};
-		execve("./bin/example_surface_sharing", argv, envp);
-		assert(0);
-	}
+	printf("parent process created readFd %i and writeFd %i\n", fileDesc[0], fileDesc[1]);
+
+	char writeDescStr[64];
+	itoa(fileDesc[1], writeDescStr, 10);
+	char* args[] = {"bin/example_surface_sharing", "--child", writeDescStr, 0};
+
+	spawn_child(args[0], args);
 
 	//NOTE: read the connection id
 	mg_surface_connection_id connectionID = 0;
@@ -210,7 +244,7 @@ int main(int argc, char** argv)
 	printf("received child connection id %llu\n", connectionID);
 
 	//NOTE: connect the client
-	mg_surface_client_connect(surface, connectionID);
+//	mg_surface_client_connect(surface, connectionID);
 
 	//NOTE: show the window
 	mp_window_bring_to_front(window);
