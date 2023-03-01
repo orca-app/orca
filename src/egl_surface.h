@@ -9,9 +9,9 @@
 #ifndef __EGL_SURFACE_H_
 #define __EGL_SURFACE_H_
 
-#include"graphics.h"
+#include"graphics_internal.h"
 #include"mp_app.h"
 
-mg_surface mg_egl_surface_create_for_window(mp_window window);
+mg_surface_data* mg_egl_surface_create_for_window(mp_window window);
 
 #endif // __EGL_SURFACE_H_

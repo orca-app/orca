@@ -114,14 +114,13 @@ bool mg_egl_surface_get_hidden(mg_surface_data* interface)
 	return(mp_layer_get_hidden(&surface->layer));
 }
 
-mg_surface mg_egl_surface_create_for_window(mp_window window)
+mg_surface_data* mg_egl_surface_create_for_window(mp_window window)
 {
-	mg_surface res = mg_surface_nil();
-
+	mg_egl_surface* surface = 0;
 	mp_window_data* windowData = mp_window_ptr_from_handle(window);
 	if(windowData)
 	{
-		mg_egl_surface* surface = malloc_type(mg_egl_surface);
+		surface = malloc_type(mg_egl_surface);
 		memset(surface, 0, sizeof(mg_egl_surface));
 
 		surface->interface.backend = MG_BACKEND_GLES;
@@ -182,8 +181,6 @@ mg_surface mg_egl_surface_create_for_window(mp_window window)
 		mg_gl_load_gles(&surface->api, (mg_gl_load_proc)eglGetProcAddress);
 
 		eglSwapInterval(surface->eglDisplay, 1);
-
-		res = mg_surface_handle_alloc((mg_surface_data*)surface);
 	}
-	return(res);
+	return((mg_surface_data*)surface);
 }

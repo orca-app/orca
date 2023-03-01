@@ -9,13 +9,13 @@
 #ifndef __MTL_SURFACE_H_
 #define __MTL_SURFACE_H_
 
-#include"graphics.h"
+#include"graphics_internal.h"
 
 #ifdef __OBJC__
 	#import<Metal/Metal.h>
 #endif
 
-mg_surface mg_mtl_surface_create_for_window(mp_window window);
+mg_surface_data* mg_mtl_surface_create_for_window(mp_window window);
 
 void* mg_mtl_surface_render_encoder(mg_surface surface);
 void* mg_mtl_surface_compute_encoder(mg_surface surface);

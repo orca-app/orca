@@ -122,12 +122,6 @@ typedef struct mg_glyph_data
 
 enum
 {
-	MG_STREAM_MAX_COUNT = 128,
-	MG_IMAGE_MAX_COUNT = 128
-};
-
-enum
-{
 	MG_MATRIX_STACK_MAX_DEPTH = 64,
 	MG_CLIP_STACK_MAX_DEPTH = 64,
 	MG_MAX_PATH_ELEMENT_COUNT = 2<<20,
@@ -137,7 +131,6 @@ enum
 typedef struct mg_font_data
 {
 	list_elt freeListElt;
-	u32 generation;
 
 	u32 rangeCount;
 	u32 glyphCount;
@@ -180,14 +173,15 @@ typedef struct mg_data
 	mem_arena handleArena;
 	list_info handleFreeList;
 
+	mem_arena resourceArena;
+	list_info canvasFreeList;
+	list_info fontFreeList;
+
 } mg_data;
 
 typedef struct mg_canvas_data
 {
 	list_elt freeListElt;
-	u32 generation;
-
-	u64 frameCounter;
 
 	mg_attributes attributes;
 	bool textFlip;
@@ -205,12 +199,6 @@ typedef struct mg_canvas_data
 
 	u32 primitiveCount;
 	mg_primitive primitives[MG_MAX_PRIMITIVE_COUNT];
-
-	/*
-	vec2 atlasPos;
-	u32 atlasLineHeight;
-	mg_image blankImage;
-	*/
 
 	//NOTE: these are used at render time
 	mp_rect clip;
@@ -235,9 +223,8 @@ void mg_init()
 	if(!__mgData.init)
 	{
 		mem_arena_init(&__mgData.handleArena);
+		mem_arena_init(&__mgData.resourceArena);
 		__mgData.init = true;
-
-		//...
 	}
 }
 
@@ -434,7 +421,12 @@ bool mg_surface_is_nil(mg_surface surface) { return(surface.h == 0); }
 
 mg_surface mg_surface_create_for_window(mp_window window, mg_backend_id backend)
 {
-	mg_surface surface = mg_surface_nil();
+	if(__mgData.init)
+	{
+		mg_init();
+	}
+	mg_surface surfaceHandle = mg_surface_nil();
+	mg_surface_data* surface = 0;
 
 	switch(backend)
 	{
@@ -459,7 +451,11 @@ mg_surface mg_surface_create_for_window(mp_window window, mg_backend_id backend)
 		default:
 			break;
 	}
-	return(surface);
+	if(surface)
+	{
+		surfaceHandle = mg_surface_handle_alloc(surface);
+	}
+	return(surfaceHandle);
 }
 
 void mg_surface_destroy(mg_surface handle)
@@ -2166,167 +2162,181 @@ bool mg_font_is_nil(mg_font font) { return(font.h == 0); }
 
 mg_font mg_font_create_from_memory(u32 size, byte* buffer, u32 rangeCount, unicode_range* ranges)
 {
-	mg_font_data* fontData = malloc_type(mg_font_data);
-	mg_font font = mg_font_handle_alloc(fontData);
-
-	stbtt_fontinfo stbttFontInfo;
-	stbtt_InitFont(&stbttFontInfo, buffer, 0);
-
-	//NOTE(martin): load font metrics data
-	fontData->unitsPerEm = 1./stbtt_ScaleForMappingEmToPixels(&stbttFontInfo, 1);
-
-	int ascent, descent, lineGap, x0, x1, y0, y1;
-	stbtt_GetFontVMetrics(&stbttFontInfo, &ascent, &descent, &lineGap);
-	stbtt_GetFontBoundingBox(&stbttFontInfo, &x0, &y0, &x1, &y1);
-
-	fontData->extents.ascent = ascent;
-	fontData->extents.descent = -descent;
-	fontData->extents.leading = lineGap;
-	fontData->extents.width = x1 - x0;
-
-	stbtt_GetCodepointBox(&stbttFontInfo, 'x', &x0, &y0, &x1, &y1);
-	fontData->extents.xHeight = y1 - y0;
-
-	stbtt_GetCodepointBox(&stbttFontInfo, 'M', &x0, &y0, &x1, &y1);
-	fontData->extents.capHeight = y1 - y0;
-
-	//NOTE(martin): load codepoint ranges
-	fontData->rangeCount = rangeCount;
-	fontData->glyphMap = malloc_array(mg_glyph_map_entry, rangeCount);
-	fontData->glyphCount = 0;
-
-	for(int i=0; i<rangeCount; i++)
+	if(!__mgData.init)
 	{
-		//NOTE(martin): initialize the map entry.
-		//              The glyph indices are offseted by 1, to reserve 0 as an invalid glyph index.
-		fontData->glyphMap[i].range = ranges[i];
-		fontData->glyphMap[i].firstGlyphIndex = fontData->glyphCount + 1;
-		fontData->glyphCount += ranges[i].count;
+		mg_init();
 	}
+	mg_font fontHandle = mg_font_nil();
 
-	fontData->glyphs = malloc_array(mg_glyph_data, fontData->glyphCount);
-
-	//NOTE(martin): first do a count of outlines
-	int outlineCount = 0;
-	for(int rangeIndex=0; rangeIndex<rangeCount; rangeIndex++)
+	mg_font_data* font = ListPopEntry(&__mgData.fontFreeList, mg_font_data, freeListElt);
+	if(!font)
 	{
-		utf32 codePoint = fontData->glyphMap[rangeIndex].range.firstCodePoint;
-		u32 firstGlyphIndex = fontData->glyphMap[rangeIndex].firstGlyphIndex;
-		u32 endGlyphIndex = firstGlyphIndex + fontData->glyphMap[rangeIndex].range.count;
+		font = mem_arena_alloc_type(&__mgData.resourceArena, mg_font_data);
+	}
+	if(font)
+	{
+		memset(font, 0, sizeof(mg_font_data));
+		fontHandle = mg_font_handle_alloc(font);
 
-		for(int glyphIndex = firstGlyphIndex;
-		    glyphIndex < endGlyphIndex; glyphIndex++)
+		stbtt_fontinfo stbttFontInfo;
+		stbtt_InitFont(&stbttFontInfo, buffer, 0);
+
+		//NOTE(martin): load font metrics data
+		font->unitsPerEm = 1./stbtt_ScaleForMappingEmToPixels(&stbttFontInfo, 1);
+
+		int ascent, descent, lineGap, x0, x1, y0, y1;
+		stbtt_GetFontVMetrics(&stbttFontInfo, &ascent, &descent, &lineGap);
+		stbtt_GetFontBoundingBox(&stbttFontInfo, &x0, &y0, &x1, &y1);
+
+		font->extents.ascent = ascent;
+		font->extents.descent = -descent;
+		font->extents.leading = lineGap;
+		font->extents.width = x1 - x0;
+
+		stbtt_GetCodepointBox(&stbttFontInfo, 'x', &x0, &y0, &x1, &y1);
+		font->extents.xHeight = y1 - y0;
+
+		stbtt_GetCodepointBox(&stbttFontInfo, 'M', &x0, &y0, &x1, &y1);
+		font->extents.capHeight = y1 - y0;
+
+		//NOTE(martin): load codepoint ranges
+		font->rangeCount = rangeCount;
+		font->glyphMap = malloc_array(mg_glyph_map_entry, rangeCount);
+		font->glyphCount = 0;
+
+		for(int i=0; i<rangeCount; i++)
 		{
-			int stbttGlyphIndex = stbtt_FindGlyphIndex(&stbttFontInfo, codePoint);
-			if(stbttGlyphIndex == 0)
-			{
-				//NOTE(martin): the codepoint is not found in the font
-				codePoint++;
-				continue;
-			}
-			//NOTE(martin): load glyph outlines
-			stbtt_vertex* vertices = 0;
-			outlineCount += stbtt_GetGlyphShape(&stbttFontInfo, stbttGlyphIndex, &vertices);
-			stbtt_FreeShape(&stbttFontInfo, vertices);
-			codePoint++;
+			//NOTE(martin): initialize the map entry.
+			//              The glyph indices are offseted by 1, to reserve 0 as an invalid glyph index.
+			font->glyphMap[i].range = ranges[i];
+			font->glyphMap[i].firstGlyphIndex = font->glyphCount + 1;
+			font->glyphCount += ranges[i].count;
 		}
-	}
-	//NOTE(martin): allocate outlines
-	fontData->outlines = malloc_array(mg_path_elt, outlineCount);
-	fontData->outlineCount = 0;
 
-	//NOTE(martin): load metrics and outlines
-	for(int rangeIndex=0; rangeIndex<rangeCount; rangeIndex++)
-	{
-		utf32 codePoint = fontData->glyphMap[rangeIndex].range.firstCodePoint;
-		u32 firstGlyphIndex = fontData->glyphMap[rangeIndex].firstGlyphIndex;
-		u32 endGlyphIndex = firstGlyphIndex + fontData->glyphMap[rangeIndex].range.count;
+		font->glyphs = malloc_array(mg_glyph_data, font->glyphCount);
 
-		for(int glyphIndex = firstGlyphIndex;
-		    glyphIndex < endGlyphIndex; glyphIndex++)
+		//NOTE(martin): first do a count of outlines
+		int outlineCount = 0;
+		for(int rangeIndex=0; rangeIndex<rangeCount; rangeIndex++)
 		{
-			mg_glyph_data* glyph = &(fontData->glyphs[glyphIndex-1]);
+			utf32 codePoint = font->glyphMap[rangeIndex].range.firstCodePoint;
+			u32 firstGlyphIndex = font->glyphMap[rangeIndex].firstGlyphIndex;
+			u32 endGlyphIndex = firstGlyphIndex + font->glyphMap[rangeIndex].range.count;
 
-			int stbttGlyphIndex = stbtt_FindGlyphIndex(&stbttFontInfo, codePoint);
-			if(stbttGlyphIndex == 0)
+			for(int glyphIndex = firstGlyphIndex;
+		    	glyphIndex < endGlyphIndex; glyphIndex++)
 			{
-				//NOTE(martin): the codepoint is not found in the font, we zero the glyph info
-				memset(glyph, 0, sizeof(*glyph));
-				codePoint++;
-				continue;
-			}
-
-			glyph->exists = true;
-			glyph->codePoint = codePoint;
-
-			//NOTE(martin): load glyph metric
-			int xAdvance, xBearing, x0, y0, x1, y1;
-			stbtt_GetGlyphHMetrics(&stbttFontInfo, stbttGlyphIndex, &xAdvance, &xBearing);
-			stbtt_GetGlyphBox(&stbttFontInfo, stbttGlyphIndex, &x0, &y0, &x1, &y1);
-
-			glyph->extents.xAdvance	= (f32)xAdvance;
-			glyph->extents.yAdvance = 0;
-			glyph->extents.xBearing = (f32)xBearing;
-			glyph->extents.yBearing = y0;
-
-			glyph->extents.width = x1 - x0;
-			glyph->extents.height = y1 - y0;
-
-			//NOTE(martin): load glyph outlines
-
-			stbtt_vertex* vertices = 0;
-			int vertexCount = stbtt_GetGlyphShape(&stbttFontInfo, stbttGlyphIndex, &vertices);
-
-			glyph->pathDescriptor = (mg_path_descriptor){.startIndex = fontData->outlineCount,
-			                                                      .count = vertexCount,
-									      .startPoint = {0, 0}};
-
-			mg_path_elt* elements = fontData->outlines + fontData->outlineCount;
-			fontData->outlineCount += vertexCount;
-			vec2 currentPos = {0, 0};
-
-			for(int vertIndex = 0; vertIndex < vertexCount; vertIndex++)
-			{
-				f32 x = vertices[vertIndex].x;
-				f32 y = vertices[vertIndex].y;
-				f32 cx = vertices[vertIndex].cx;
-				f32 cy = vertices[vertIndex].cy;
-				f32 cx1 = vertices[vertIndex].cx1;
-				f32 cy1 = vertices[vertIndex].cy1;
-
-				switch(vertices[vertIndex].type)
+				int stbttGlyphIndex = stbtt_FindGlyphIndex(&stbttFontInfo, codePoint);
+				if(stbttGlyphIndex == 0)
 				{
-					case STBTT_vmove:
-						elements[vertIndex].type = MG_PATH_MOVE;
-						elements[vertIndex].p[0] = (vec2){x, y};
-						break;
-
-					case STBTT_vline:
-						elements[vertIndex].type = MG_PATH_LINE;
-						elements[vertIndex].p[0] = (vec2){x, y};
-						break;
-
-					case STBTT_vcurve:
-					{
-						elements[vertIndex].type = MG_PATH_QUADRATIC;
-						elements[vertIndex].p[0] = (vec2){cx, cy};
-						elements[vertIndex].p[1] = (vec2){x, y};
-					} break;
-
-					case STBTT_vcubic:
-						elements[vertIndex].type = MG_PATH_CUBIC;
-						elements[vertIndex].p[0] = (vec2){cx, cy};
-						elements[vertIndex].p[1] = (vec2){cx1, cy1};
-						elements[vertIndex].p[2] = (vec2){x, y};
-						break;
+					//NOTE(martin): the codepoint is not found in the font
+					codePoint++;
+					continue;
 				}
-				currentPos = (vec2){x, y};
+				//NOTE(martin): load glyph outlines
+				stbtt_vertex* vertices = 0;
+				outlineCount += stbtt_GetGlyphShape(&stbttFontInfo, stbttGlyphIndex, &vertices);
+				stbtt_FreeShape(&stbttFontInfo, vertices);
+				codePoint++;
 			}
-			stbtt_FreeShape(&stbttFontInfo, vertices);
-			codePoint++;
+		}
+		//NOTE(martin): allocate outlines
+		font->outlines = malloc_array(mg_path_elt, outlineCount);
+		font->outlineCount = 0;
+
+		//NOTE(martin): load metrics and outlines
+		for(int rangeIndex=0; rangeIndex<rangeCount; rangeIndex++)
+		{
+			utf32 codePoint = font->glyphMap[rangeIndex].range.firstCodePoint;
+			u32 firstGlyphIndex = font->glyphMap[rangeIndex].firstGlyphIndex;
+			u32 endGlyphIndex = firstGlyphIndex + font->glyphMap[rangeIndex].range.count;
+
+			for(int glyphIndex = firstGlyphIndex;
+		    	glyphIndex < endGlyphIndex; glyphIndex++)
+			{
+				mg_glyph_data* glyph = &(font->glyphs[glyphIndex-1]);
+
+				int stbttGlyphIndex = stbtt_FindGlyphIndex(&stbttFontInfo, codePoint);
+				if(stbttGlyphIndex == 0)
+				{
+					//NOTE(martin): the codepoint is not found in the font, we zero the glyph info
+					memset(glyph, 0, sizeof(*glyph));
+					codePoint++;
+					continue;
+				}
+
+				glyph->exists = true;
+				glyph->codePoint = codePoint;
+
+				//NOTE(martin): load glyph metric
+				int xAdvance, xBearing, x0, y0, x1, y1;
+				stbtt_GetGlyphHMetrics(&stbttFontInfo, stbttGlyphIndex, &xAdvance, &xBearing);
+				stbtt_GetGlyphBox(&stbttFontInfo, stbttGlyphIndex, &x0, &y0, &x1, &y1);
+
+				glyph->extents.xAdvance	= (f32)xAdvance;
+				glyph->extents.yAdvance = 0;
+				glyph->extents.xBearing = (f32)xBearing;
+				glyph->extents.yBearing = y0;
+
+				glyph->extents.width = x1 - x0;
+				glyph->extents.height = y1 - y0;
+
+				//NOTE(martin): load glyph outlines
+
+				stbtt_vertex* vertices = 0;
+				int vertexCount = stbtt_GetGlyphShape(&stbttFontInfo, stbttGlyphIndex, &vertices);
+
+				glyph->pathDescriptor = (mg_path_descriptor){.startIndex = font->outlineCount,
+			                                                      	.count = vertexCount,
+									      	.startPoint = {0, 0}};
+
+				mg_path_elt* elements = font->outlines + font->outlineCount;
+				font->outlineCount += vertexCount;
+				vec2 currentPos = {0, 0};
+
+				for(int vertIndex = 0; vertIndex < vertexCount; vertIndex++)
+				{
+					f32 x = vertices[vertIndex].x;
+					f32 y = vertices[vertIndex].y;
+					f32 cx = vertices[vertIndex].cx;
+					f32 cy = vertices[vertIndex].cy;
+					f32 cx1 = vertices[vertIndex].cx1;
+					f32 cy1 = vertices[vertIndex].cy1;
+
+					switch(vertices[vertIndex].type)
+					{
+						case STBTT_vmove:
+							elements[vertIndex].type = MG_PATH_MOVE;
+							elements[vertIndex].p[0] = (vec2){x, y};
+							break;
+
+						case STBTT_vline:
+							elements[vertIndex].type = MG_PATH_LINE;
+							elements[vertIndex].p[0] = (vec2){x, y};
+							break;
+
+						case STBTT_vcurve:
+						{
+							elements[vertIndex].type = MG_PATH_QUADRATIC;
+							elements[vertIndex].p[0] = (vec2){cx, cy};
+							elements[vertIndex].p[1] = (vec2){x, y};
+						} break;
+
+						case STBTT_vcubic:
+							elements[vertIndex].type = MG_PATH_CUBIC;
+							elements[vertIndex].p[0] = (vec2){cx, cy};
+							elements[vertIndex].p[1] = (vec2){cx1, cy1};
+							elements[vertIndex].p[2] = (vec2){x, y};
+							break;
+					}
+					currentPos = (vec2){x, y};
+				}
+				stbtt_FreeShape(&stbttFontInfo, vertices);
+				codePoint++;
+			}
 		}
 	}
-	return(font);
+	return(fontHandle);
 }
 
 void mg_font_destroy(mg_font fontHandle)
@@ -2337,7 +2347,8 @@ void mg_font_destroy(mg_font fontHandle)
 		free(fontData->glyphMap);
 		free(fontData->glyphs);
 		free(fontData->outlines);
-		free(fontData);
+
+		ListPush(&__mgData.fontFreeList, &fontData->freeListElt);
 		mg_handle_recycle(fontHandle.h);
 	}
 }
@@ -2598,7 +2609,6 @@ mp_rect mg_text_bounding_box(mg_font font, f32 fontSize, str8 text)
 mg_canvas mg_canvas_nil() { return((mg_canvas){.h = 0}); }
 bool mg_canvas_is_nil(mg_canvas canvas) { return(canvas.h == 0); }
 
-
 #if MG_COMPILE_BACKEND_METAL
 	mg_canvas_backend* mg_mtl_canvas_create(mg_surface surface);
 #endif
@@ -2609,7 +2619,7 @@ bool mg_canvas_is_nil(mg_canvas canvas) { return(canvas.h == 0); }
 
 mg_canvas mg_canvas_create(mg_surface surface)
 {
-	mg_canvas canvas = mg_canvas_nil();
+	mg_canvas canvasHandle = mg_canvas_nil();
 	mg_surface_data* surfaceData = mg_surface_data_from_handle(surface);
 	if(surfaceData)
 	{
@@ -2634,32 +2644,31 @@ mg_canvas mg_canvas_create(mg_surface surface)
 
 		if(backend)
 		{
-			mg_canvas_data* canvasData = malloc_type(mg_canvas_data);
-			memset(canvasData, 0, sizeof(mg_canvas_data));
+			mg_canvas_data* canvas = ListPopEntry(&__mgData.canvasFreeList, mg_canvas_data, freeListElt);
+			if(!canvas)
+			{
+				canvas = mem_arena_alloc_type(&__mgData.resourceArena, mg_canvas_data);
+			}
+			if(canvas)
+			{
+				memset(canvas, 0, sizeof(mg_canvas_data));
+			}
 
-			canvasData->backend = backend;
+			canvas->backend = backend;
 
-			canvasData->primitiveCount = 0;
-			canvasData->path.startIndex = 0;
-			canvasData->path.count = 0;
-			canvasData->nextShapeIndex = 0;
-			canvasData->attributes.color = (mg_color){0, 0, 0, 1};
-			canvasData->attributes.tolerance = 1;
-			canvasData->attributes.width = 10;
-			canvasData->attributes.clip = (mp_rect){-FLT_MAX/2, -FLT_MAX/2, FLT_MAX, FLT_MAX};
+			canvas->attributes.color = (mg_color){0, 0, 0, 1};
+			canvas->attributes.tolerance = 1;
+			canvas->attributes.width = 10;
+			canvas->attributes.clip = (mp_rect){-FLT_MAX/2, -FLT_MAX/2, FLT_MAX, FLT_MAX};
 
-			canvasData->transform = (mg_mat2x3){{1, 0, 0,
-	                                  		0, 1, 0}};
-
-
-	        canvas = mg_canvas_handle_alloc(canvasData);
-	        mg_canvas_set_current(canvas);
+	        canvasHandle = mg_canvas_handle_alloc(canvas);
+	        mg_canvas_set_current(canvasHandle);
 
 	        //TODO: move that in mg_canvas_set_current() if needed?
 	        mg_surface_prepare(surface);
 		}
 	}
-	return(canvas);
+	return(canvasHandle);
 }
 
 void mg_canvas_destroy(mg_canvas handle)
@@ -2677,7 +2686,7 @@ void mg_canvas_destroy(mg_canvas handle)
 		{
 			canvas->backend->destroy(canvas->backend);
 		}
-		free(canvas);
+		ListPush(&__mgData.canvasFreeList, &canvas->freeListElt);
 		mg_handle_recycle(handle.h);
 	}
 }
@@ -2918,8 +2927,6 @@ void mg_flush()
 	canvas->primitiveCount = 0;
 	canvas->path.startIndex = 0;
 	canvas->path.count = 0;
-
-	canvas->frameCounter++;
 }
 
 //------------------------------------------------------------------------------------------

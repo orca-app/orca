@@ -165,16 +165,13 @@ bool mg_mtl_surface_get_hidden(mg_surface_data* interface)
 //TODO fix that according to real scaling, depending on the monitor settings
 static const f32 MG_MTL_SURFACE_CONTENTS_SCALING = 2;
 
-mg_surface mg_mtl_surface_create_for_window(mp_window window)
+mg_surface_data* mg_mtl_surface_create_for_window(mp_window window)
 {
+	mg_mtl_surface* surface = 0;
 	mp_window_data* windowData = mp_window_ptr_from_handle(window);
-	if(!windowData)
+	if(windowData)
 	{
-		return(mg_surface_nil());
-	}
-	else
-	{
-		mg_mtl_surface* surface = (mg_mtl_surface*)malloc(sizeof(mg_mtl_surface));
+		surface = (mg_mtl_surface*)malloc(sizeof(mg_mtl_surface));
 
 		//NOTE(martin): setup interface functions
 		surface->interface.backend = MG_BACKEND_METAL;
@@ -235,10 +232,8 @@ mg_surface mg_mtl_surface_create_for_window(mp_window window)
 			surface->drawable = nil;
 			surface->commandBuffer = nil;
 		}
-
-		mg_surface handle = mg_surface_handle_alloc((mg_surface_data*)surface);
-		return(handle);
 	}
+	return((mg_surface_data*)surface);
 }
 
 void* mg_mtl_surface_layer(mg_surface surface)
