@@ -6,7 +6,6 @@
 *	@revision:
 *
 *****************************************************************/
-
 #include"graphics_internal.h"
 
 //------------------------------------------------------------------------------------------------
@@ -77,13 +76,34 @@ typedef struct mg_win32_surface_client
 	mg_surface_data interface;
 	mp_layer layer;
 
+	HWND remoteWnd;
+
 } mg_win32_surface_client;
 
 void mg_win32_surface_client_prepare(mg_surface_data* interface)
 {}
 
 void mg_win32_surface_client_present(mg_surface_data* interface)
-{}
+{
+	mg_win32_surface_client* surface = (mg_win32_surface_client*)interface;
+
+	HWND dstWindow = (HWND)mp_layer_native_surface(&surface->layer);
+	RECT dstRect;
+	GetClientRect(dstWindow, &dstRect);
+
+	HDC dstDC = GetDC(dstWindow);
+	HDC srcDC = GetDC(surface->remoteWnd);
+
+	int res = BitBlt(dstDC,
+	                 dstRect.left,
+	                 dstRect.top,
+	                 dstRect.right - dstRect.left,
+	                 dstRect.bottom - dstRect.top,
+	                 srcDC,
+	                 0,
+	                 0,
+	                 SRCCOPY);
+}
 
 void mg_win32_surface_client_swap_interval(mg_surface_data* interface, int swap)
 {
@@ -189,11 +209,7 @@ MP_API void mg_surface_client_connect(mg_surface handle, mg_surface_connection_i
 		mg_win32_surface_client* surface = (mg_win32_surface_client*)interface;
 
 		//NOTE:Quick test
-
-		HWND parent = mp_layer_native_surface(&surface->layer);
-		HWND child = (HWND)ID;
-
-		SetParent(child, parent);
+		surface->remoteWnd = (HWND)ID;
 	}
 }
 

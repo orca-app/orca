@@ -24,9 +24,16 @@
 	#define write _write
 	#define itoa _itoa
 
-	void spawn_child(char* program, char** argv)
+	#define process_id HANDLE
+
+	process_id spawn_child(char* program, char** argv)
 	{
-		_spawnv(P_NOWAIT, program, argv);
+		return((process_id)_spawnv(P_NOWAIT, program, argv));
+	}
+
+	void terminate_child(process_id child)
+	{
+		TerminateProcess(child, 0);
 	}
 
 #elif OS_MACOS
@@ -213,7 +220,7 @@ int main(int argc, char** argv)
 			return(-1);
 		}
 	}
-	setvbuf( stdout, NULL, _IONBF, 0 );
+//	setvbuf( stdout, NULL, _IONBF, 0 );
 	mp_init();
 
 	//NOTE: create main window
@@ -234,7 +241,7 @@ int main(int argc, char** argv)
 	itoa(fileDesc[1], writeDescStr, 10);
 	char* args[] = {"bin/example_surface_sharing", "--child", writeDescStr, 0};
 
-	spawn_child(args[0], args);
+	process_id child = spawn_child(args[0], args);
 
 	//NOTE: read the connection id
 	mg_surface_connection_id connectionID = 0;
@@ -264,7 +271,12 @@ int main(int argc, char** argv)
 					break;
 			}
 		}
+		mg_surface_prepare(surface);
+		mg_surface_present(surface);
 	}
+
+	terminate_child(child);
+
 	mp_terminate();
 	return(0);
 }
