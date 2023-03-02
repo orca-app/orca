@@ -459,6 +459,34 @@ mg_surface mg_surface_create_for_window(mp_window window, mg_backend_id backend)
 	return(surfaceHandle);
 }
 
+mg_surface mg_surface_create_for_sharing(mg_surface_server server, mg_backend_id backend)
+{
+	if(__mgData.init)
+	{
+		mg_init();
+	}
+	mg_surface surfaceHandle = mg_surface_nil();
+	mg_surface_data* surface = 0;
+
+	switch(backend)
+	{
+	#if MG_COMPILE_BACKEND_GLES
+		case MG_BACKEND_GLES:
+			surface = mg_egl_surface_create_for_sharing(server);
+			break;
+	#endif
+
+		default:
+			break;
+	}
+	if(surface)
+	{
+		surfaceHandle = mg_surface_handle_alloc(surface);
+	}
+	return(surfaceHandle);
+
+}
+
 void mg_surface_destroy(mg_surface handle)
 {
 	DEBUG_ASSERT(__mgData.init);

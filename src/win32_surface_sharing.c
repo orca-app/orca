@@ -12,11 +12,6 @@
 // Surface server
 //------------------------------------------------------------------------------------------------
 
-typedef struct mg_surface_server_data
-{
-	int dummy;
-} mg_surface_server_data;
-
 mg_surface_server_data* mg_surface_server_data_from_handle(mg_surface_server handle)
 {
 	mg_surface_server_data* server = (mg_surface_server_data*)mg_data_from_handle(MG_HANDLE_SURFACE_SERVER, handle.h);
@@ -27,8 +22,50 @@ MP_API mg_surface_server mg_surface_server_create(void)
 {
 	mg_surface_server_data* server = malloc_type(mg_surface_server_data);
 
-	//TODO
+	//NOTE(martin): create a child window for the surface
+	WNDCLASS layerWindowClass = {.style = CS_HREDRAW | CS_VREDRAW | CS_OWNDC,
+		                         .lpfnWndProc = DefWindowProc,
+		                         .hInstance = GetModuleHandleW(NULL),
+		                         .lpszClassName = "server_layer_window_class",
+		                         .hCursor = LoadCursor(0, IDC_ARROW)};
 
+	RegisterClass(&layerWindowClass);
+
+//	RECT parentRect;
+//	GetClientRect(window->win32.hWnd, &parentRect);
+
+//	int width = parentRect.right - parentRect.left;
+//	int height = parentRect.bottom - parentRect.top;
+
+	int width = 200;
+	int height = 200;
+
+	//NOTE(martin): create dummy window
+	HWND dummyParent = CreateWindow("server_layer_window_class", "layerParent",
+	                                 WS_OVERLAPPED,
+	                                 0, 0, width, height,
+	                                 0,
+	                                 0,
+	                                 layerWindowClass.hInstance,
+	                                 0);
+
+	server->layer.hWnd = CreateWindowEx(WS_EX_NOACTIVATE,
+	                                    "server_layer_window_class", "layer",
+	                                    WS_CHILD,
+	                                    0, 0, width, height,
+	                                    dummyParent,
+	                                    0,
+	                                    layerWindowClass.hInstance,
+	                                    0);
+
+
+	SetParent(server->layer.hWnd, 0);
+
+	DestroyWindow(dummyParent);
+/*
+	mp_window window = mp_window_create((mp_rect){0, 0, 100, 100}, "server", 0);
+	mp_layer_init_for_window(&server->layer, mp_window_ptr_from_handle(window));
+*/
 	mg_surface_server handle = (mg_surface_server){mg_handle_alloc(MG_HANDLE_SURFACE_SERVER, (void*)server)};
 	return(handle);
 }
@@ -45,7 +82,7 @@ MP_API void mg_surface_server_destroy(mg_surface_server handle)
 	}
 }
 
-MP_API mg_surface_connection_id mg_surface_server_start(mg_surface_server handle, mg_surface surface)
+MP_API mg_surface_connection_id mg_surface_server_id(mg_surface_server handle)
 {
 	mg_surface_connection_id res = 0;
 
@@ -53,18 +90,11 @@ MP_API mg_surface_connection_id mg_surface_server_start(mg_surface_server handle
 	if(server)
 	{
 		//NOTE: just a quick test
-		res = (u64)mg_surface_native_layer(surface);
+		HWND layerWindow = (HWND)mp_layer_native_surface(&server->layer);
+		res = (mg_surface_connection_id)layerWindow;
+		//res = (mg_surface_connection_id)GetParent(layerWindow);
 	}
 	return(res);
-}
-
-MP_API void mg_surface_server_stop(mg_surface_server handle)
-{
-	mg_surface_server_data* server = mg_surface_server_data_from_handle(handle);
-	if(server)
-	{
-		//TODO
-	}
 }
 
 //------------------------------------------------------------------------------------------------
@@ -76,34 +106,13 @@ typedef struct mg_win32_surface_client
 	mg_surface_data interface;
 	mp_layer layer;
 
-	HWND remoteWnd;
-
 } mg_win32_surface_client;
 
 void mg_win32_surface_client_prepare(mg_surface_data* interface)
 {}
 
 void mg_win32_surface_client_present(mg_surface_data* interface)
-{
-	mg_win32_surface_client* surface = (mg_win32_surface_client*)interface;
-
-	HWND dstWindow = (HWND)mp_layer_native_surface(&surface->layer);
-	RECT dstRect;
-	GetClientRect(dstWindow, &dstRect);
-
-	HDC dstDC = GetDC(dstWindow);
-	HDC srcDC = GetDC(surface->remoteWnd);
-
-	int res = BitBlt(dstDC,
-	                 dstRect.left,
-	                 dstRect.top,
-	                 dstRect.right - dstRect.left,
-	                 dstRect.bottom - dstRect.top,
-	                 srcDC,
-	                 0,
-	                 0,
-	                 SRCCOPY);
-}
+{}
 
 void mg_win32_surface_client_swap_interval(mg_surface_data* interface, int swap)
 {
@@ -209,15 +218,23 @@ MP_API void mg_surface_client_connect(mg_surface handle, mg_surface_connection_i
 		mg_win32_surface_client* surface = (mg_win32_surface_client*)interface;
 
 		//NOTE:Quick test
-		surface->remoteWnd = (HWND)ID;
-	}
-}
+		HWND dstWnd = mp_layer_native_surface(&surface->layer);
+		HWND srcWnd = (HWND)ID;
 
-MP_API void mg_surface_client_disconnect(mg_surface handle)
-{
-	mg_surface_data* interface = mg_surface_data_from_handle(handle);
-	if(interface && interface->backend == MG_BACKEND_REMOTE)
-	{
-		//TODO
+		RECT dstRect;
+		GetClientRect(dstWnd, &dstRect);
+
+		SetParent(srcWnd, dstWnd);
+		ShowWindow(srcWnd, SW_NORMAL);
+//		SetWindowLongPtr(srcWnd, GWL_STYLE, WS_CHILD|WS_VISIBLE);
+
+		SetWindowPos(srcWnd,
+			         HWND_TOP,
+			         0,
+			         0,
+			         dstRect.right - dstRect.left,
+			         dstRect.bottom - dstRect.top,
+			         SWP_NOACTIVATE | SWP_NOZORDER);
+
 	}
 }

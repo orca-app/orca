@@ -120,6 +120,89 @@ void* mg_egl_surface_native_layer(mg_surface_data* interface)
 	return(mp_layer_native_surface(&surface->layer));
 }
 
+//////////////////////////
+// PIGMODE
+//////////////////////////
+
+void mg_egl_surface_init_for_native(mg_egl_surface* surface, void* nativeSurface)
+{
+	surface->interface.backend = MG_BACKEND_GLES;
+	surface->interface.destroy = mg_egl_surface_destroy;
+	surface->interface.prepare = mg_egl_surface_prepare;
+	surface->interface.present = mg_egl_surface_present;
+	surface->interface.swapInterval = mg_egl_surface_swap_interval;
+	surface->interface.contentsScaling = mg_egl_surface_contents_scaling;
+	surface->interface.getFrame = mg_egl_surface_get_frame;
+	surface->interface.setFrame = mg_egl_surface_set_frame;
+	surface->interface.getHidden = mg_egl_surface_get_hidden;
+	surface->interface.setHidden = mg_egl_surface_set_hidden;
+	surface->interface.nativeLayer = mg_egl_surface_native_layer;
+
+	EGLAttrib displayAttribs[] = {
+		EGL_PLATFORM_ANGLE_TYPE_ANGLE, MG_EGL_PLATFORM_ANGLE_TYPE,
+	    EGL_PLATFORM_ANGLE_DEVICE_TYPE_ANGLE, EGL_PLATFORM_ANGLE_DEVICE_TYPE_HARDWARE_ANGLE,
+	    EGL_NONE};
+
+	surface->eglDisplay = eglGetPlatformDisplay(EGL_PLATFORM_ANGLE_ANGLE, (void*)EGL_DEFAULT_DISPLAY, displayAttribs);
+	eglInitialize(surface->eglDisplay, NULL, NULL);
+
+	EGLint const configAttributes[] = {
+		EGL_SURFACE_TYPE, EGL_WINDOW_BIT,
+		EGL_RED_SIZE, 8,
+		EGL_GREEN_SIZE, 8,
+		EGL_BLUE_SIZE, 8,
+		EGL_ALPHA_SIZE, 8,
+		EGL_DEPTH_SIZE, 24,
+		EGL_STENCIL_SIZE, 8,
+		EGL_SAMPLE_BUFFERS, 0,
+		EGL_SAMPLES, EGL_DONT_CARE,
+		EGL_COLOR_COMPONENT_TYPE_EXT, EGL_COLOR_COMPONENT_TYPE_FIXED_EXT,
+		EGL_NONE };
+
+	int numConfigs = 0;
+	eglChooseConfig(surface->eglDisplay, configAttributes, &surface->eglConfig, 1, &numConfigs);
+
+	EGLint const surfaceAttributes[] = {EGL_NONE};
+	surface->eglSurface = eglCreateWindowSurface(surface->eglDisplay,
+		                                            surface->eglConfig,
+		                                            mp_layer_native_surface(&surface->layer),
+		                                            surfaceAttributes);
+
+	eglBindAPI(EGL_OPENGL_ES_API);
+	EGLint contextAttributes[] = {
+		EGL_CONTEXT_MAJOR_VERSION_KHR, MG_GLES_VERSION_MAJOR,
+		EGL_CONTEXT_MINOR_VERSION_KHR, MG_GLES_VERSION_MINOR,
+		EGL_CONTEXT_BIND_GENERATES_RESOURCE_CHROMIUM, EGL_TRUE,
+		EGL_CONTEXT_CLIENT_ARRAYS_ENABLED_ANGLE, EGL_TRUE,
+		EGL_CONTEXT_OPENGL_BACKWARDS_COMPATIBLE_ANGLE, EGL_FALSE,
+		EGL_NONE};
+
+	surface->eglContext = eglCreateContext(surface->eglDisplay, surface->eglConfig, EGL_NO_CONTEXT, contextAttributes);
+	eglMakeCurrent(surface->eglDisplay, surface->eglSurface, surface->eglSurface, surface->eglContext);
+
+	mg_gl_load_gles(&surface->api, (mg_gl_load_proc)eglGetProcAddress);
+
+	eglSwapInterval(surface->eglDisplay, 1);
+}
+
+mg_surface_data* mg_egl_surface_create_for_sharing(mg_surface_server handle)
+{
+	mg_egl_surface* surface = 0;
+	mg_surface_server_data* server = mg_surface_server_data_from_handle(handle);
+	if(server)
+	{
+		surface = malloc_type(mg_egl_surface);
+		if(surface)
+		{
+			memset(surface, 0, sizeof(mg_egl_surface));
+
+			surface->layer = server->layer;
+			mg_egl_surface_init_for_native(surface, mp_layer_native_surface(&surface->layer));
+		}
+	}
+	return((mg_surface_data*)surface);
+}
+
 mg_surface_data* mg_egl_surface_create_for_window(mp_window window)
 {
 	mg_egl_surface* surface = 0;
@@ -127,67 +210,13 @@ mg_surface_data* mg_egl_surface_create_for_window(mp_window window)
 	if(windowData)
 	{
 		surface = malloc_type(mg_egl_surface);
-		memset(surface, 0, sizeof(mg_egl_surface));
+		if(surface)
+		{
+			memset(surface, 0, sizeof(mg_egl_surface));
 
-		surface->interface.backend = MG_BACKEND_GLES;
-		surface->interface.destroy = mg_egl_surface_destroy;
-		surface->interface.prepare = mg_egl_surface_prepare;
-		surface->interface.present = mg_egl_surface_present;
-		surface->interface.swapInterval = mg_egl_surface_swap_interval;
-		surface->interface.contentsScaling = mg_egl_surface_contents_scaling;
-		surface->interface.getFrame = mg_egl_surface_get_frame;
-		surface->interface.setFrame = mg_egl_surface_set_frame;
-		surface->interface.getHidden = mg_egl_surface_get_hidden;
-		surface->interface.setHidden = mg_egl_surface_set_hidden;
-		surface->interface.nativeLayer = mg_egl_surface_native_layer;
-
-		mp_layer_init_for_window(&surface->layer, windowData);
-
-		EGLAttrib displayAttribs[] = {
-			EGL_PLATFORM_ANGLE_TYPE_ANGLE, MG_EGL_PLATFORM_ANGLE_TYPE,
-	    	EGL_PLATFORM_ANGLE_DEVICE_TYPE_ANGLE, EGL_PLATFORM_ANGLE_DEVICE_TYPE_HARDWARE_ANGLE,
-	    	EGL_NONE};
-
-		surface->eglDisplay = eglGetPlatformDisplay(EGL_PLATFORM_ANGLE_ANGLE, (void*)EGL_DEFAULT_DISPLAY, displayAttribs);
-		eglInitialize(surface->eglDisplay, NULL, NULL);
-
-		EGLint const configAttributes[] = {
-			EGL_SURFACE_TYPE, EGL_WINDOW_BIT,
-			EGL_RED_SIZE, 8,
-			EGL_GREEN_SIZE, 8,
-			EGL_BLUE_SIZE, 8,
-			EGL_ALPHA_SIZE, 8,
-			EGL_DEPTH_SIZE, 24,
-			EGL_STENCIL_SIZE, 8,
-			EGL_SAMPLE_BUFFERS, 0,
-			EGL_SAMPLES, EGL_DONT_CARE,
-			EGL_COLOR_COMPONENT_TYPE_EXT, EGL_COLOR_COMPONENT_TYPE_FIXED_EXT,
-			EGL_NONE };
-
-		int numConfigs = 0;
-		eglChooseConfig(surface->eglDisplay, configAttributes, &surface->eglConfig, 1, &numConfigs);
-
-		EGLint const surfaceAttributes[] = {EGL_NONE};
-		surface->eglSurface = eglCreateWindowSurface(surface->eglDisplay,
-		                                             surface->eglConfig,
-		                                             mp_layer_native_surface(&surface->layer),
-		                                             surfaceAttributes);
-
-		eglBindAPI(EGL_OPENGL_ES_API);
-		EGLint contextAttributes[] = {
-			EGL_CONTEXT_MAJOR_VERSION_KHR, MG_GLES_VERSION_MAJOR,
-			EGL_CONTEXT_MINOR_VERSION_KHR, MG_GLES_VERSION_MINOR,
-			EGL_CONTEXT_BIND_GENERATES_RESOURCE_CHROMIUM, EGL_TRUE,
-			EGL_CONTEXT_CLIENT_ARRAYS_ENABLED_ANGLE, EGL_TRUE,
-			EGL_CONTEXT_OPENGL_BACKWARDS_COMPATIBLE_ANGLE, EGL_FALSE,
-			EGL_NONE};
-
-		surface->eglContext = eglCreateContext(surface->eglDisplay, surface->eglConfig, EGL_NO_CONTEXT, contextAttributes);
-		eglMakeCurrent(surface->eglDisplay, surface->eglSurface, surface->eglSurface, surface->eglContext);
-
-		mg_gl_load_gles(&surface->api, (mg_gl_load_proc)eglGetProcAddress);
-
-		eglSwapInterval(surface->eglDisplay, 1);
+			mp_layer_init_for_window(&surface->layer, windowData);
+			mg_egl_surface_init_for_native(surface, mp_layer_native_surface(&surface->layer));
+		}
 	}
 	return((mg_surface_data*)surface);
 }

@@ -15,6 +15,14 @@
 extern "C" {
 #endif
 
+
+typedef struct mg_surface_server_data
+{
+	mp_layer layer;
+
+} mg_surface_server_data;
+
+mg_surface_server_data* mg_surface_server_data_from_handle(mg_surface_server handle);
 //---------------------------------------------------------------
 // surface interface
 //---------------------------------------------------------------

@@ -100,8 +100,12 @@ int child_main(int writeFd)
 	mp_rect rect = {.x = 100, .y = 100, .w = 800, .h = 600};
 	mp_window window = mp_window_create(rect, "test", 0);
 
+	//NOTE: create surface server
+	mg_surface_server server = mg_surface_server_create();
+	mg_surface_connection_id connectionID = mg_surface_server_id(server);
+
 	//NOTE: create surface
-	mg_surface surface = mg_surface_create_for_window(window, MG_BACKEND_GLES);
+	mg_surface surface = mg_surface_create_for_sharing(server, MG_BACKEND_GLES);
 	mg_surface_prepare(surface);
 
 	//NOTE: init shader and gl state
@@ -144,10 +148,6 @@ int child_main(int writeFd)
 
 	glUseProgram(program);
 
-	//NOTE: create surface server and start sharing surface
-	mg_surface_server server = mg_surface_server_create();
-	mg_surface_connection_id connectionID = mg_surface_server_start(server, surface);
-
 	//NOTE: send context id to parent
 	write(writeFd, &connectionID, sizeof(connectionID));
 
@@ -172,6 +172,10 @@ int child_main(int writeFd)
 
 		mg_surface_prepare(surface);
 
+		mp_rect rect = mg_surface_get_frame(surface);
+		vec2 scaling = mg_surface_contents_scaling(surface);
+
+		glViewport(0, 0, rect.w*scaling.x, rect.h*scaling.y);
 		glClearColor(0.3, 0.3, 1, 1);
 		glClear(GL_COLOR_BUFFER_BIT);
 
