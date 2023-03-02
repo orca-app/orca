@@ -102,21 +102,13 @@ MP_API void mg_surface_set_frame(mg_surface surface, mp_rect frame);
 MP_API bool mg_surface_get_hidden(mg_surface surface);
 MP_API void mg_surface_set_hidden(mg_surface surface, bool hidden);
 
-//------------------------------------------------------------------------------------------
 //NOTE(martin): surface sharing
-//------------------------------------------------------------------------------------------
+typedef u64 mg_surface_id;
 
-typedef struct mg_surface_server { u64 h; } mg_surface_server;
-typedef u64 mg_surface_connection_id;
-
-MP_API mg_surface_server mg_surface_server_create(void);
-MP_API void mg_surface_server_destroy(mg_surface_server server);
-MP_API mg_surface_connection_id mg_surface_server_id(mg_surface_server server);
-
-MP_API mg_surface mg_surface_create_for_sharing(mg_surface_server server, mg_backend_id backend);
-
-MP_API mg_surface mg_surface_client_create_for_window(mp_window window);
-MP_API void mg_surface_client_connect(mg_surface surface, mg_surface_connection_id id);
+MP_API mg_surface mg_surface_create_remote(u32 width, u32 height, mg_backend_id backend);
+MP_API mg_surface mg_surface_create_host(mp_window window);
+MP_API mg_surface_id mg_surface_remote_id(mg_surface surface);
+MP_API void mg_surface_host_connect(mg_surface surface, mg_surface_id remoteId);
 
 //------------------------------------------------------------------------------------------
 //NOTE(martin): graphics canvas structs

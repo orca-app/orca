@@ -804,6 +804,42 @@ void mp_layer_init_for_window(mp_layer* layer, mp_window_data* window)
 	                            0);
 }
 
+void mp_layer_init_for_sharing(mp_layer* layer, u32 width, u32 height)
+{
+	WNDCLASS layerWindowClass = {.style = CS_HREDRAW | CS_VREDRAW | CS_OWNDC,
+		                         .lpfnWndProc = DefWindowProc,
+		                         .hInstance = GetModuleHandleW(NULL),
+		                         .lpszClassName = "server_layer_window_class",
+		                         .hCursor = LoadCursor(0, IDC_ARROW)};
+
+	RegisterClass(&layerWindowClass);
+
+	//NOTE(martin): create a temporary parent window. This seems like a necessary hack, because if layer window is created as
+	//              a normal window first, and then parented to the client window, it breaks resizing the parent
+	//              window for some reason...
+	HWND tmpParent = CreateWindow("server_layer_window_class", "layerParent",
+	                              WS_OVERLAPPED,
+	                              0, 0, width, height,
+	                              0,
+	                              0,
+	                              layerWindowClass.hInstance,
+	                              0);
+
+	//NOTE: create the layer window
+	layer->hWnd = CreateWindowEx(WS_EX_NOACTIVATE,
+	                             "server_layer_window_class", "layer",
+	                             WS_CHILD,
+	                             0, 0, width, height,
+	                             tmpParent,
+	                             0,
+	                             layerWindowClass.hInstance,
+	                             0);
+
+	//NOTE: unparent it and destroy tmp parent
+	SetParent(layer->hWnd, 0);
+	DestroyWindow(tmpParent);
+}
+
 void mp_layer_cleanup(mp_layer* layer)
 {
 	DestroyWindow(layer->hWnd);

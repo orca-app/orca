@@ -150,4 +150,21 @@ typedef struct mp_app
 	MP_PLATFORM_APP_DATA
 } mp_app;
 
+//--------------------------------------------------------------------
+// layer management
+//--------------------------------------------------------------------
+
+typedef struct mp_layer mp_layer;
+void mp_layer_init_for_window(mp_layer* layer, mp_window_data* window);
+void mp_layer_init_for_sharing(mp_layer* layer, u32 width, u32 height);
+void mp_layer_cleanup(mp_layer* layer);
+
+vec2 mp_layer_contents_scaling(mp_layer* layer);
+mp_rect mp_layer_get_frame(mp_layer* layer);
+void mp_layer_set_frame(mp_layer* layer, mp_rect frame);
+void mp_layer_set_hidden(mp_layer* layer, bool hidden);
+bool mp_layer_get_hidden(mp_layer* layer);
+
+void* mp_layer_native_surface(mp_layer* layer);
+
 #endif // __MP_APP_INTERNAL_H_

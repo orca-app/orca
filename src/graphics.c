@@ -459,7 +459,7 @@ mg_surface mg_surface_create_for_window(mp_window window, mg_backend_id backend)
 	return(surfaceHandle);
 }
 
-mg_surface mg_surface_create_for_sharing(mg_surface_server server, mg_backend_id backend)
+mg_surface mg_surface_create_remote(u32 width, u32 height, mg_backend_id backend)
 {
 	if(__mgData.init)
 	{
@@ -472,7 +472,7 @@ mg_surface mg_surface_create_for_sharing(mg_surface_server server, mg_backend_id
 	{
 	#if MG_COMPILE_BACKEND_GLES
 		case MG_BACKEND_GLES:
-			surface = mg_egl_surface_create_for_sharing(server);
+			surface = mg_egl_surface_create_for_sharing(width, height);
 			break;
 	#endif
 
@@ -484,7 +484,26 @@ mg_surface mg_surface_create_for_sharing(mg_surface_server server, mg_backend_id
 		surfaceHandle = mg_surface_handle_alloc(surface);
 	}
 	return(surfaceHandle);
+}
 
+mg_surface_id mg_surface_remote_id(mg_surface handle)
+{
+	mg_surface_id remoteId = 0;
+	mg_surface_data* surface = mg_surface_data_from_handle(handle);
+	if(surface && surface->remoteId)
+	{
+		remoteId = surface->remoteId(surface);
+	}
+	return(remoteId);
+}
+
+void mg_surface_host_connect(mg_surface handle, mg_surface_id remoteID)
+{
+	mg_surface_data* surface = mg_surface_data_from_handle(handle);
+	if(surface && surface->connect)
+	{
+		surface->connect(surface, remoteID);
+	}
 }
 
 void mg_surface_destroy(mg_surface handle)

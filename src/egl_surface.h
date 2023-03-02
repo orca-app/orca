@@ -13,6 +13,6 @@
 #include"mp_app.h"
 
 mg_surface_data* mg_egl_surface_create_for_window(mp_window window);
-mg_surface_data* mg_egl_surface_create_for_sharing(mg_surface_server handle);
+mg_surface_data* mg_egl_surface_create_for_sharing(u32 width, u32 height);
 
 #endif // __EGL_SURFACE_H_

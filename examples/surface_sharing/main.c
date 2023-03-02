@@ -100,12 +100,10 @@ int child_main(int writeFd)
 	mp_rect rect = {.x = 100, .y = 100, .w = 800, .h = 600};
 	mp_window window = mp_window_create(rect, "test", 0);
 
-	//NOTE: create surface server
-	mg_surface_server server = mg_surface_server_create();
-	mg_surface_connection_id connectionID = mg_surface_server_id(server);
-
 	//NOTE: create surface
-	mg_surface surface = mg_surface_create_for_sharing(server, MG_BACKEND_GLES);
+	mg_surface surface = mg_surface_create_remote(800, 600, MG_BACKEND_GLES);
+	mg_surface_id connectionID = mg_surface_remote_id(surface);
+
 	mg_surface_prepare(surface);
 
 	//NOTE: init shader and gl state
@@ -232,8 +230,7 @@ int main(int argc, char** argv)
 	mp_window window = mp_window_create(rect, "test", 0);
 
 	//NOTE: create surface client
-	mg_surface surface = mg_surface_client_create_for_window(window);
-
+	mg_surface surface = mg_surface_create_host(window);
 
 	//NOTE setup descriptors
 	int fileDesc[2];
@@ -248,12 +245,12 @@ int main(int argc, char** argv)
 	process_id child = spawn_child(args[0], args);
 
 	//NOTE: read the connection id
-	mg_surface_connection_id connectionID = 0;
+	mg_surface_id connectionID = 0;
 	read(fileDesc[0], &connectionID, sizeof(connectionID));
 	printf("received child connection id %llu\n", connectionID);
 
 	//NOTE: connect the client
-	mg_surface_client_connect(surface, connectionID);
+	mg_surface_host_connect(surface, connectionID);
 
 	//NOTE: show the window
 	mp_window_bring_to_front(window);

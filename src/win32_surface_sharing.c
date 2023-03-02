@@ -9,155 +9,66 @@
 #include"graphics_internal.h"
 
 //------------------------------------------------------------------------------------------------
-// Surface server
-//------------------------------------------------------------------------------------------------
-
-mg_surface_server_data* mg_surface_server_data_from_handle(mg_surface_server handle)
-{
-	mg_surface_server_data* server = (mg_surface_server_data*)mg_data_from_handle(MG_HANDLE_SURFACE_SERVER, handle.h);
-	return(server);
-}
-
-MP_API mg_surface_server mg_surface_server_create(void)
-{
-	mg_surface_server_data* server = malloc_type(mg_surface_server_data);
-
-	//NOTE(martin): create a child window for the surface
-	WNDCLASS layerWindowClass = {.style = CS_HREDRAW | CS_VREDRAW | CS_OWNDC,
-		                         .lpfnWndProc = DefWindowProc,
-		                         .hInstance = GetModuleHandleW(NULL),
-		                         .lpszClassName = "server_layer_window_class",
-		                         .hCursor = LoadCursor(0, IDC_ARROW)};
-
-	RegisterClass(&layerWindowClass);
-
-//	RECT parentRect;
-//	GetClientRect(window->win32.hWnd, &parentRect);
-
-//	int width = parentRect.right - parentRect.left;
-//	int height = parentRect.bottom - parentRect.top;
-
-	int width = 200;
-	int height = 200;
-
-	//NOTE(martin): create dummy window
-	HWND dummyParent = CreateWindow("server_layer_window_class", "layerParent",
-	                                 WS_OVERLAPPED,
-	                                 0, 0, width, height,
-	                                 0,
-	                                 0,
-	                                 layerWindowClass.hInstance,
-	                                 0);
-
-	server->layer.hWnd = CreateWindowEx(WS_EX_NOACTIVATE,
-	                                    "server_layer_window_class", "layer",
-	                                    WS_CHILD,
-	                                    0, 0, width, height,
-	                                    dummyParent,
-	                                    0,
-	                                    layerWindowClass.hInstance,
-	                                    0);
-
-
-	SetParent(server->layer.hWnd, 0);
-
-	DestroyWindow(dummyParent);
-/*
-	mp_window window = mp_window_create((mp_rect){0, 0, 100, 100}, "server", 0);
-	mp_layer_init_for_window(&server->layer, mp_window_ptr_from_handle(window));
-*/
-	mg_surface_server handle = (mg_surface_server){mg_handle_alloc(MG_HANDLE_SURFACE_SERVER, (void*)server)};
-	return(handle);
-}
-
-MP_API void mg_surface_server_destroy(mg_surface_server handle)
-{
-	mg_surface_server_data* server = mg_surface_server_data_from_handle(handle);
-	if(server)
-	{
-		//TODO
-
-		free(server);
-		mg_handle_recycle(handle.h);
-	}
-}
-
-MP_API mg_surface_connection_id mg_surface_server_id(mg_surface_server handle)
-{
-	mg_surface_connection_id res = 0;
-
-	mg_surface_server_data* server = mg_surface_server_data_from_handle(handle);
-	if(server)
-	{
-		//NOTE: just a quick test
-		HWND layerWindow = (HWND)mp_layer_native_surface(&server->layer);
-		res = (mg_surface_connection_id)layerWindow;
-		//res = (mg_surface_connection_id)GetParent(layerWindow);
-	}
-	return(res);
-}
-
-//------------------------------------------------------------------------------------------------
 // Surface client
 //------------------------------------------------------------------------------------------------
 
-typedef struct mg_win32_surface_client
+typedef struct mg_win32_surface_host
 {
 	mg_surface_data interface;
 	mp_layer layer;
 
-} mg_win32_surface_client;
+} mg_win32_surface_host;
 
-void mg_win32_surface_client_prepare(mg_surface_data* interface)
+void mg_win32_surface_host_prepare(mg_surface_data* interface)
 {}
 
-void mg_win32_surface_client_present(mg_surface_data* interface)
+void mg_win32_surface_host_present(mg_surface_data* interface)
 {}
 
-void mg_win32_surface_client_swap_interval(mg_surface_data* interface, int swap)
+void mg_win32_surface_host_swap_interval(mg_surface_data* interface, int swap)
 {
 	//TODO
 }
 
-vec2 mg_win32_surface_client_contents_scaling(mg_surface_data* interface)
+vec2 mg_win32_surface_host_contents_scaling(mg_surface_data* interface)
 {
-	mg_win32_surface_client* surface = (mg_win32_surface_client*)interface;
+	mg_win32_surface_host* surface = (mg_win32_surface_host*)interface;
 	return(mp_layer_contents_scaling(&surface->layer));
 }
 
-mp_rect mg_win32_surface_client_get_frame(mg_surface_data* interface)
+mp_rect mg_win32_surface_host_get_frame(mg_surface_data* interface)
 {
-	mg_win32_surface_client* surface = (mg_win32_surface_client*)interface;
+	mg_win32_surface_host* surface = (mg_win32_surface_host*)interface;
 	return(mp_layer_get_frame(&surface->layer));
 }
 
-void mg_win32_surface_client_set_frame(mg_surface_data* interface, mp_rect frame)
+void mg_win32_surface_host_set_frame(mg_surface_data* interface, mp_rect frame)
 {
-	mg_win32_surface_client* surface = (mg_win32_surface_client*)interface;
+	mg_win32_surface_host* surface = (mg_win32_surface_host*)interface;
 	mp_layer_set_frame(&surface->layer, frame);
 }
 
-void mg_win32_surface_client_set_hidden(mg_surface_data* interface, bool hidden)
+void mg_win32_surface_host_set_hidden(mg_surface_data* interface, bool hidden)
 {
-	mg_win32_surface_client* surface = (mg_win32_surface_client*)interface;
+	mg_win32_surface_host* surface = (mg_win32_surface_host*)interface;
 	mp_layer_set_hidden(&surface->layer, hidden);
 }
 
-bool mg_win32_surface_client_get_hidden(mg_surface_data* interface)
+bool mg_win32_surface_host_get_hidden(mg_surface_data* interface)
 {
-	mg_win32_surface_client* surface = (mg_win32_surface_client*)interface;
+	mg_win32_surface_host* surface = (mg_win32_surface_host*)interface;
 	return(mp_layer_get_hidden(&surface->layer));
 }
 
-void* mg_win32_surface_client_native_layer(mg_surface_data* interface)
+void* mg_win32_surface_host_native_layer(mg_surface_data* interface)
 {
-	mg_win32_surface_client* surface = (mg_win32_surface_client*)interface;
+	mg_win32_surface_host* surface = (mg_win32_surface_host*)interface;
 	return(mp_layer_native_surface(&surface->layer));
 }
 
-void mg_win32_surface_client_destroy(mg_surface_data* interface)
+void mg_win32_surface_host_destroy(mg_surface_data* interface)
 {
-	mg_win32_surface_client* surface = (mg_win32_surface_client*)interface;
+	mg_win32_surface_host* surface = (mg_win32_surface_host*)interface;
 
 	mp_layer_cleanup(&surface->layer);
 	//TODO...
@@ -165,76 +76,70 @@ void mg_win32_surface_client_destroy(mg_surface_data* interface)
 	free(surface);
 }
 
-mg_surface_data* mg_win32_surface_client_create_for_window(mp_window window)
+MP_API void mg_win32_surface_host_connect(mg_surface_data* interface, mg_surface_id ID)
 {
-	mg_win32_surface_client* surface = 0;
+	mg_win32_surface_host* surface = (mg_win32_surface_host*)interface;
+
+	//NOTE:Quick test
+	HWND dstWnd = mp_layer_native_surface(&surface->layer);
+	HWND srcWnd = (HWND)ID;
+
+	RECT dstRect;
+	GetClientRect(dstWnd, &dstRect);
+
+	SetParent(srcWnd, dstWnd);
+	ShowWindow(srcWnd, SW_NORMAL);
+
+	SetWindowPos(srcWnd,
+			        HWND_TOP,
+			        0,
+			        0,
+			        dstRect.right - dstRect.left,
+			        dstRect.bottom - dstRect.top,
+			        SWP_NOACTIVATE | SWP_NOZORDER);
+}
+
+mg_surface_data* mg_win32_surface_create_host(mp_window window)
+{
+	mg_win32_surface_host* surface = 0;
 
 	mp_window_data* windowData = mp_window_ptr_from_handle(window);
 	if(windowData)
 	{
-		surface = malloc_type(mg_win32_surface_client);
+		surface = malloc_type(mg_win32_surface_host);
 		if(surface)
 		{
 			mp_layer_init_for_window(&surface->layer, windowData);
 
 			surface->interface.backend = MG_BACKEND_REMOTE;
-			surface->interface.destroy = mg_win32_surface_client_destroy;
-			surface->interface.prepare = mg_win32_surface_client_prepare;
-			surface->interface.present = mg_win32_surface_client_present;
-			surface->interface.swapInterval = mg_win32_surface_client_swap_interval;
-			surface->interface.contentsScaling = mg_win32_surface_client_contents_scaling;
-			surface->interface.getFrame = mg_win32_surface_client_get_frame;
-			surface->interface.setFrame = mg_win32_surface_client_set_frame;
-			surface->interface.getHidden = mg_win32_surface_client_get_hidden;
-			surface->interface.setHidden = mg_win32_surface_client_set_hidden;
-			surface->interface.nativeLayer = mg_win32_surface_client_native_layer;
-
+			surface->interface.destroy = mg_win32_surface_host_destroy;
+			surface->interface.prepare = mg_win32_surface_host_prepare;
+			surface->interface.present = mg_win32_surface_host_present;
+			surface->interface.swapInterval = mg_win32_surface_host_swap_interval;
+			surface->interface.contentsScaling = mg_win32_surface_host_contents_scaling;
+			surface->interface.getFrame = mg_win32_surface_host_get_frame;
+			surface->interface.setFrame = mg_win32_surface_host_set_frame;
+			surface->interface.getHidden = mg_win32_surface_host_get_hidden;
+			surface->interface.setHidden = mg_win32_surface_host_set_hidden;
+			surface->interface.nativeLayer = mg_win32_surface_host_native_layer;
+			surface->interface.connect = mg_win32_surface_host_connect;
 			//TODO
 		}
 	}
 	return((mg_surface_data*)surface);
 }
 
-mg_surface mg_surface_client_create_for_window(mp_window window)
+mg_surface mg_surface_create_host(mp_window window)
 {
 	if(!__mgData.init)
 	{
 		mg_init();
 	}
 	mg_surface surfaceHandle = {0};
-	mg_surface_data* surface = mg_win32_surface_client_create_for_window(window);
+	mg_surface_data* surface = mg_win32_surface_create_host(window);
 	if(surface)
 	{
 		surfaceHandle = mg_surface_handle_alloc(surface);
 	}
 	return(surfaceHandle);
-}
-
-MP_API void mg_surface_client_connect(mg_surface handle, mg_surface_connection_id ID)
-{
-	mg_surface_data* interface = mg_surface_data_from_handle(handle);
-	if(interface && interface->backend == MG_BACKEND_REMOTE)
-	{
-		mg_win32_surface_client* surface = (mg_win32_surface_client*)interface;
-
-		//NOTE:Quick test
-		HWND dstWnd = mp_layer_native_surface(&surface->layer);
-		HWND srcWnd = (HWND)ID;
-
-		RECT dstRect;
-		GetClientRect(dstWnd, &dstRect);
-
-		SetParent(srcWnd, dstWnd);
-		ShowWindow(srcWnd, SW_NORMAL);
-//		SetWindowLongPtr(srcWnd, GWL_STYLE, WS_CHILD|WS_VISIBLE);
-
-		SetWindowPos(srcWnd,
-			         HWND_TOP,
-			         0,
-			         0,
-			         dstRect.right - dstRect.left,
-			         dstRect.bottom - dstRect.top,
-			         SWP_NOACTIVATE | SWP_NOZORDER);
-
-	}
 }

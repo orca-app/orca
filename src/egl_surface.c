@@ -120,6 +120,13 @@ void* mg_egl_surface_native_layer(mg_surface_data* interface)
 	return(mp_layer_native_surface(&surface->layer));
 }
 
+mg_surface_id mg_egl_surface_remote_id(mg_surface_data* interface)
+{
+	mg_egl_surface* surface = (mg_egl_surface*)interface;
+	//////////WARN: not portable, just for testing
+	return((mg_surface_id)surface->layer.hWnd);
+}
+
 //////////////////////////
 // PIGMODE
 //////////////////////////
@@ -127,6 +134,7 @@ void* mg_egl_surface_native_layer(mg_surface_data* interface)
 void mg_egl_surface_init_for_native(mg_egl_surface* surface, void* nativeSurface)
 {
 	surface->interface.backend = MG_BACKEND_GLES;
+
 	surface->interface.destroy = mg_egl_surface_destroy;
 	surface->interface.prepare = mg_egl_surface_prepare;
 	surface->interface.present = mg_egl_surface_present;
@@ -137,6 +145,7 @@ void mg_egl_surface_init_for_native(mg_egl_surface* surface, void* nativeSurface
 	surface->interface.getHidden = mg_egl_surface_get_hidden;
 	surface->interface.setHidden = mg_egl_surface_set_hidden;
 	surface->interface.nativeLayer = mg_egl_surface_native_layer;
+	surface->interface.remoteId = mg_egl_surface_remote_id;
 
 	EGLAttrib displayAttribs[] = {
 		EGL_PLATFORM_ANGLE_TYPE_ANGLE, MG_EGL_PLATFORM_ANGLE_TYPE,
@@ -185,21 +194,19 @@ void mg_egl_surface_init_for_native(mg_egl_surface* surface, void* nativeSurface
 	eglSwapInterval(surface->eglDisplay, 1);
 }
 
-mg_surface_data* mg_egl_surface_create_for_sharing(mg_surface_server handle)
+mg_surface_data* mg_egl_surface_create_for_sharing(u32 width, u32 height)
 {
 	mg_egl_surface* surface = 0;
-	mg_surface_server_data* server = mg_surface_server_data_from_handle(handle);
-	if(server)
-	{
-		surface = malloc_type(mg_egl_surface);
-		if(surface)
-		{
-			memset(surface, 0, sizeof(mg_egl_surface));
 
-			surface->layer = server->layer;
-			mg_egl_surface_init_for_native(surface, mp_layer_native_surface(&surface->layer));
-		}
+	surface = malloc_type(mg_egl_surface);
+	if(surface)
+	{
+		memset(surface, 0, sizeof(mg_egl_surface));
+
+		mp_layer_init_for_sharing(&surface->layer, width, height);
+		mg_egl_surface_init_for_native(surface, mp_layer_native_surface(&surface->layer));
 	}
+
 	return((mg_surface_data*)surface);
 }
 
