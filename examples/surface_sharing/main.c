@@ -138,10 +138,8 @@ int child_main(int writeFd)
 	glUseProgram(program);
 
 	//NOTE: create surface server and start sharing surface
-//	mg_surface_server server = mg_surface_server_create();
-//	mg_surface_connection_id connectionID = mg_surface_server_start(server, surface);
-
-	mg_surface_connection_id connectionID = 123456789;
+	mg_surface_server server = mg_surface_server_create();
+	mg_surface_connection_id connectionID = mg_surface_server_start(server, surface);
 
 	//NOTE: send context id to parent
 	write(writeFd, &connectionID, sizeof(connectionID));
@@ -223,7 +221,7 @@ int main(int argc, char** argv)
 	mp_window window = mp_window_create(rect, "test", 0);
 
 	//NOTE: create surface client
-//	mg_surface surface = mg_surface_client_create_for_window(window);
+	mg_surface surface = mg_surface_client_create_for_window(window);
 
 
 	//NOTE setup descriptors
@@ -244,7 +242,7 @@ int main(int argc, char** argv)
 	printf("received child connection id %llu\n", connectionID);
 
 	//NOTE: connect the client
-//	mg_surface_client_connect(surface, connectionID);
+	mg_surface_client_connect(surface, connectionID);
 
 	//NOTE: show the window
 	mp_window_bring_to_front(window);
