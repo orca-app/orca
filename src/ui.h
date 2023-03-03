@@ -82,7 +82,7 @@ typedef enum { UI_STYLE_SEL_NORMAL = 1<<0,
              } ui_style_selector;
 
 typedef u32 ui_style_tag;
-#define UI_STYLE_TAG_ANY (ui_style_tag)0
+#define UI_STYLE_TAG_ANY ((ui_style_tag)0)
 
 typedef enum { UI_STYLE_ANIMATE_SIZE_X       = 1<<1,
                UI_STYLE_ANIMATE_SIZE_Y       = 1<<2,
@@ -132,7 +132,7 @@ typedef struct ui_sig
 
 } ui_sig;
 
-typedef void(*ui_box_render_proc)(mg_canvas canvas, ui_box* box, void* data);
+typedef void(*ui_box_render_proc)(ui_box* box, void* data);
 
 struct ui_box
 {
@@ -190,7 +190,7 @@ void ui_set_context(ui_context* context);
 
 void ui_begin_frame(u32 width, u32 height, ui_style defaultStyle);
 void ui_end_frame(void);
-void ui_draw(mg_canvas canvas);
+void ui_draw(void);
 
 ui_box* ui_box_lookup(const char* string);
 ui_box* ui_box_lookup_str8(str8 string);
@@ -259,8 +259,10 @@ void ui_pop_border_color(void);
 void ui_pop_roundness(void);
 void ui_pop_animation_time(void);
 void ui_pop_animation_flags(void);
-// Basic helpers
 
+//-------------------------------------------------------------------------
+// Basic widget helpers
+//-------------------------------------------------------------------------
 enum {
 	UI_STYLE_TAG_USER_MAX = 1<<16,
 	UI_STYLE_TAG_LABEL,

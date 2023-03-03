@@ -73,3 +73,5 @@
 #else
 	#error "Unsupported platform"
 #endif
+
+#include"ui.c"

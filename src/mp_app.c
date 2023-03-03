@@ -275,7 +275,8 @@ bool mp_input_mouse_released(mp_mouse_button button)
 bool mp_input_mouse_clicked(mp_mouse_button button)
 {
 	mp_key_state state = mp_input_get_mouse_button_state(button);
-	return(state.clicked);
+	bool clicked = state.clicked && (state.lastUpdate == __mpApp.inputState.frameCounter);
+	return(clicked);
 }
 
 bool mp_input_mouse_double_clicked(mp_mouse_button button)

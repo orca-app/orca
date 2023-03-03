@@ -195,12 +195,14 @@ void ui_box_pop(void)
 {
 	ui_context* ui = ui_get_context();
 	ui_box* box = ui_box_top();
-	if(box->flags & UI_FLAG_CLIP)
+	if(box)
 	{
-		ui_clip_pop();
+		if(box->flags & UI_FLAG_CLIP)
+		{
+			ui_clip_pop();
+		}
+		ui_stack_pop(&ui->boxStack);
 	}
-
-	ui_stack_pop(&ui->boxStack);
 }
 
 ui_style_attr* ui_push_style_attr(ui_context* ui, ui_stack_elt** stack)
@@ -1064,31 +1066,31 @@ void ui_solve_layout(ui_context* ui)
 // Drawing
 //-----------------------------------------------------------------------------
 
-void ui_rectangle_fill(mg_canvas canvas, mp_rect rect, f32 roundness)
+void ui_rectangle_fill(mp_rect rect, f32 roundness)
 {
 	if(roundness)
 	{
-		mg_rounded_rectangle_fill(canvas, rect.x, rect.y, rect.w, rect.h, roundness);
+		mg_rounded_rectangle_fill(rect.x, rect.y, rect.w, rect.h, roundness);
 	}
 	else
 	{
-		mg_rectangle_fill(canvas, rect.x, rect.y, rect.w, rect.h);
+		mg_rectangle_fill(rect.x, rect.y, rect.w, rect.h);
 	}
 }
 
-void ui_rectangle_stroke(mg_canvas canvas, mp_rect rect, f32 roundness)
+void ui_rectangle_stroke(mp_rect rect, f32 roundness)
 {
 	if(roundness)
 	{
-		mg_rounded_rectangle_stroke(canvas, rect.x, rect.y, rect.w, rect.h, roundness);
+		mg_rounded_rectangle_stroke(rect.x, rect.y, rect.w, rect.h, roundness);
 	}
 	else
 	{
-		mg_rectangle_stroke(canvas, rect.x, rect.y, rect.w, rect.h);
+		mg_rectangle_stroke(rect.x, rect.y, rect.w, rect.h);
 	}
 }
 
-void ui_draw_box(mg_canvas canvas, ui_box* box)
+void ui_draw_box(ui_box* box)
 {
 	if(ui_box_hidden(box))
 	{
@@ -1099,29 +1101,29 @@ void ui_draw_box(mg_canvas canvas, ui_box* box)
 
 	if(box->flags & UI_FLAG_CLIP)
 	{
-		mg_clip_push(canvas, box->rect.x, box->rect.y, box->rect.w, box->rect.h);
+		mg_clip_push(box->rect.x, box->rect.y, box->rect.w, box->rect.h);
 	}
 
 	if(box->flags & UI_FLAG_DRAW_BACKGROUND)
 	{
-		mg_set_color(canvas, style->bgColor);
-		ui_rectangle_fill(canvas, box->rect, style->roundness);
+		mg_set_color(style->bgColor);
+		ui_rectangle_fill(box->rect, style->roundness);
 	}
 
 	if((box->flags & UI_FLAG_DRAW_RENDER_PROC) && box->renderProc)
 	{
-		box->renderProc(canvas, box, box->renderData);
+		box->renderProc(box, box->renderData);
 	}
 
 	for_each_in_list(&box->children, child, ui_box, listElt)
 	{
-		ui_draw_box(canvas, child);
+		ui_draw_box(child);
 	}
 
 	if(box->flags & UI_FLAG_DRAW_FOREGROUND)
 	{
-		mg_set_color(canvas, style->fgColor);
-		ui_rectangle_fill(canvas, box->rect, style->roundness);
+		mg_set_color(style->fgColor);
+		ui_rectangle_fill(box->rect, style->roundness);
 	}
 
 	if(box->flags & UI_FLAG_DRAW_TEXT)
@@ -1131,29 +1133,29 @@ void ui_draw_box(mg_canvas canvas, ui_box* box)
 		f32 x = box->rect.x + 0.5*(box->rect.w - textBox.w);
 		f32 y = box->rect.y + 0.5*(box->rect.h - textBox.h) - textBox.y;
 
-		mg_set_font(canvas, style->font);
-		mg_set_font_size(canvas, style->fontSize);
-		mg_set_color(canvas, style->fontColor);
+		mg_set_font(style->font);
+		mg_set_font_size(style->fontSize);
+		mg_set_color(style->fontColor);
 
-		mg_move_to(canvas, x, y);
-		mg_text_outlines(canvas, box->string);
-		mg_fill(canvas);
+		mg_move_to(x, y);
+		mg_text_outlines(box->string);
+		mg_fill();
 	}
 
 	if(box->flags & UI_FLAG_CLIP)
 	{
-		mg_clip_pop(canvas);
+		mg_clip_pop();
 	}
 
 	if(box->flags & UI_FLAG_DRAW_BORDER)
 	{
-		mg_set_width(canvas, style->borderSize);
-		mg_set_color(canvas, style->borderColor);
-		ui_rectangle_stroke(canvas, box->rect, style->roundness);
+		mg_set_width(style->borderSize);
+		mg_set_color(style->borderColor);
+		ui_rectangle_stroke(box->rect, style->roundness);
 	}
 }
 
-void ui_draw(mg_canvas canvas)
+void ui_draw()
 {
 	ui_context* ui = ui_get_context();
 
@@ -1161,14 +1163,14 @@ void ui_draw(mg_canvas canvas)
 	mg_mat2x3 transform = {1, 0, 0,
 	                       0, -1, ui->height};
 
-	bool oldTextFlip = mg_get_text_flip(canvas);
-	mg_set_text_flip(canvas, true);
+	bool oldTextFlip = mg_get_text_flip();
+	mg_set_text_flip(true);
 
-	mg_matrix_push(canvas, transform);
-	ui_draw_box(canvas, ui->root);
-	mg_matrix_pop(canvas);
+	mg_matrix_push(transform);
+	ui_draw_box(ui->root);
+	mg_matrix_pop();
 
-	mg_set_text_flip(canvas, oldTextFlip);
+	mg_set_text_flip(oldTextFlip);
 
 	//TODO: restore flip??
 }
@@ -2006,7 +2008,7 @@ str32 ui_edit_perform_operation(ui_context* ui, ui_edit_op operation, ui_edit_mo
 	return(codepoints);
 }
 
-void ui_text_box_render(mg_canvas canvas, ui_box* box, void* data)
+void ui_text_box_render(ui_box* box, void* data)
 {
 	str32 codepoints = *(str32*)data;
 	ui_context* ui = ui_get_context();
@@ -2038,17 +2040,17 @@ void ui_text_box_render(mg_canvas canvas, ui_box* box, void* data)
 		f32 caretX = box->rect.x + textMargin - beforeBox.w + beforeCaretBox.w;
 		f32 caretY = textTop;
 
-		mg_set_color_rgba(canvas, 0, 0, 0, 1);
-		mg_rectangle_fill(canvas, caretX, caretY, 2, lineHeight);
+		mg_set_color_rgba(0, 0, 0, 1);
+		mg_rectangle_fill(caretX, caretY, 2, lineHeight);
 	}
 
-	mg_set_font(canvas, style->font);
-	mg_set_font_size(canvas, style->fontSize);
-	mg_set_color(canvas, style->fontColor);
+	mg_set_font(style->font);
+	mg_set_font_size(style->fontSize);
+	mg_set_color(style->fontColor);
 
-	mg_move_to(canvas, textX, textY);
-	mg_codepoints_outlines(canvas, codepoints);
-	mg_fill(canvas);
+	mg_move_to(textX, textY);
+	mg_codepoints_outlines(codepoints);
+	mg_fill();
 }
 
 ui_text_box_result ui_text_box(const char* name, mem_arena* arena, str8 text)
