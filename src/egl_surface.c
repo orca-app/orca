@@ -35,8 +35,6 @@ typedef struct mg_egl_surface
 {
 	mg_surface_data interface;
 
-	mp_layer layer;
-
 	EGLDisplay eglDisplay;
 	EGLConfig eglConfig;
 	EGLContext eglContext;
@@ -61,7 +59,7 @@ void mg_egl_surface_destroy(mg_surface_data* interface)
 	eglDestroyContext(surface->eglDisplay, surface->eglContext);
 	eglDestroySurface(surface->eglDisplay, surface->eglSurface);
 
-	mp_layer_cleanup(&surface->layer);
+	mg_surface_cleanup((mg_surface_data*)surface);
 	free(surface);
 }
 
@@ -84,68 +82,16 @@ void mg_egl_surface_swap_interval(mg_surface_data* interface, int swap)
 	eglSwapInterval(surface->eglDisplay, swap);
 }
 
-vec2 mg_egl_surface_contents_scaling(mg_surface_data* interface)
+void mg_egl_surface_init(mg_egl_surface* surface)
 {
-	mg_egl_surface* surface = (mg_egl_surface*)interface;
-	return(mp_layer_contents_scaling(&surface->layer));
-}
+	void* nativeLayer = surface->interface.nativeLayer((mg_surface_data*)surface);
 
-mp_rect mg_egl_surface_get_frame(mg_surface_data* interface)
-{
-	mg_egl_surface* surface = (mg_egl_surface*)interface;
-	return(mp_layer_get_frame(&surface->layer));
-}
-
-void mg_egl_surface_set_frame(mg_surface_data* interface, mp_rect frame)
-{
-	mg_egl_surface* surface = (mg_egl_surface*)interface;
-	mp_layer_set_frame(&surface->layer, frame);
-}
-
-void mg_egl_surface_set_hidden(mg_surface_data* interface, bool hidden)
-{
-	mg_egl_surface* surface = (mg_egl_surface*)interface;
-	mp_layer_set_hidden(&surface->layer, hidden);
-}
-
-bool mg_egl_surface_get_hidden(mg_surface_data* interface)
-{
-	mg_egl_surface* surface = (mg_egl_surface*)interface;
-	return(mp_layer_get_hidden(&surface->layer));
-}
-
-void* mg_egl_surface_native_layer(mg_surface_data* interface)
-{
-	mg_egl_surface* surface = (mg_egl_surface*)interface;
-	return(mp_layer_native_surface(&surface->layer));
-}
-
-mg_surface_id mg_egl_surface_remote_id(mg_surface_data* interface)
-{
-	mg_egl_surface* surface = (mg_egl_surface*)interface;
-	//////////WARN: not portable, just for testing
-	return((mg_surface_id)surface->layer.hWnd);
-}
-
-//////////////////////////
-// PIGMODE
-//////////////////////////
-
-void mg_egl_surface_init_for_native(mg_egl_surface* surface, void* nativeSurface)
-{
 	surface->interface.backend = MG_BACKEND_GLES;
 
 	surface->interface.destroy = mg_egl_surface_destroy;
 	surface->interface.prepare = mg_egl_surface_prepare;
 	surface->interface.present = mg_egl_surface_present;
 	surface->interface.swapInterval = mg_egl_surface_swap_interval;
-	surface->interface.contentsScaling = mg_egl_surface_contents_scaling;
-	surface->interface.getFrame = mg_egl_surface_get_frame;
-	surface->interface.setFrame = mg_egl_surface_set_frame;
-	surface->interface.getHidden = mg_egl_surface_get_hidden;
-	surface->interface.setHidden = mg_egl_surface_set_hidden;
-	surface->interface.nativeLayer = mg_egl_surface_native_layer;
-	surface->interface.remoteId = mg_egl_surface_remote_id;
 
 	EGLAttrib displayAttribs[] = {
 		EGL_PLATFORM_ANGLE_TYPE_ANGLE, MG_EGL_PLATFORM_ANGLE_TYPE,
@@ -174,7 +120,7 @@ void mg_egl_surface_init_for_native(mg_egl_surface* surface, void* nativeSurface
 	EGLint const surfaceAttributes[] = {EGL_NONE};
 	surface->eglSurface = eglCreateWindowSurface(surface->eglDisplay,
 		                                            surface->eglConfig,
-		                                            mp_layer_native_surface(&surface->layer),
+		                                            nativeLayer,
 		                                            surfaceAttributes);
 
 	eglBindAPI(EGL_OPENGL_ES_API);
@@ -194,7 +140,7 @@ void mg_egl_surface_init_for_native(mg_egl_surface* surface, void* nativeSurface
 	eglSwapInterval(surface->eglDisplay, 1);
 }
 
-mg_surface_data* mg_egl_surface_create_for_sharing(u32 width, u32 height)
+mg_surface_data* mg_egl_surface_create_remote(u32 width, u32 height)
 {
 	mg_egl_surface* surface = 0;
 
@@ -203,8 +149,8 @@ mg_surface_data* mg_egl_surface_create_for_sharing(u32 width, u32 height)
 	{
 		memset(surface, 0, sizeof(mg_egl_surface));
 
-		mp_layer_init_for_sharing(&surface->layer, width, height);
-		mg_egl_surface_init_for_native(surface, mp_layer_native_surface(&surface->layer));
+		mg_surface_init_remote((mg_surface_data*)surface, width, height);
+		mg_egl_surface_init(surface);
 	}
 
 	return((mg_surface_data*)surface);
@@ -221,8 +167,8 @@ mg_surface_data* mg_egl_surface_create_for_window(mp_window window)
 		{
 			memset(surface, 0, sizeof(mg_egl_surface));
 
-			mp_layer_init_for_window(&surface->layer, windowData);
-			mg_egl_surface_init_for_native(surface, mp_layer_native_surface(&surface->layer));
+			mg_surface_init_for_window((mg_surface_data*)surface, windowData);
+			mg_egl_surface_init(surface);
 		}
 	}
 	return((mg_surface_data*)surface);

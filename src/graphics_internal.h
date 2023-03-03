@@ -10,6 +10,7 @@
 #define __GRAPHICS_INTERNAL_H_
 
 #include"graphics.h"
+#include"mp_app_internal.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -31,11 +32,12 @@ typedef bool (*mg_surface_get_hidden_proc)(mg_surface_data* surface);
 typedef void (*mg_surface_set_hidden_proc)(mg_surface_data* surface, bool hidden);
 typedef void* (*mg_surface_native_layer_proc)(mg_surface_data* surface);
 typedef mg_surface_id (*mg_surface_remote_id_proc)(mg_surface_data* surface);
-typedef void (*mg_surface_connect_proc)(mg_surface_data* surface, mg_surface_id remoteId);
+typedef void (*mg_surface_host_connect_proc)(mg_surface_data* surface, mg_surface_id remoteId);
 
 typedef struct mg_surface_data
 {
 	mg_backend_id backend;
+	mp_layer layer;
 
 	mg_surface_destroy_proc destroy;
 	mg_surface_prepare_proc prepare;
@@ -47,12 +49,17 @@ typedef struct mg_surface_data
 	mg_surface_get_hidden_proc getHidden;
 	mg_surface_set_hidden_proc setHidden;
 	mg_surface_native_layer_proc nativeLayer;
-	mg_surface_remote_id_proc remoteId;
-	mg_surface_connect_proc connect;
+	mg_surface_remote_id_proc remoteID;
+	mg_surface_host_connect_proc hostConnect;
 } mg_surface_data;
 
 mg_surface mg_surface_alloc_handle(mg_surface_data* surface);
 mg_surface_data* mg_surface_data_from_handle(mg_surface handle);
+
+void mg_surface_init_for_window(mg_surface_data* surface, mp_window_data* window);
+void mg_surface_init_remote(mg_surface_data* surface, u32 width, u32 height);
+void mg_surface_init_host(mg_surface_data* surface, mp_window_data* window);
+void mg_surface_cleanup(mg_surface_data* surface);
 void* mg_surface_native_layer(mg_surface surface);
 
 //---------------------------------------------------------------

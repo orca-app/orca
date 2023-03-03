@@ -23,8 +23,6 @@ typedef struct mg_mtl_surface
 {
 	mg_surface_data interface;
 
-	mp_layer layer;
-
 	// permanent mtl resources
 	id<MTLDevice> device;
 	CAMetalLayer* mtlLayer;
@@ -128,45 +126,16 @@ void mg_mtl_surface_swap_interval(mg_surface_data* interface, int swap)
 	////////////////////////////////////////////////////////////////
 }
 
-vec2 mg_mtl_surface_contents_scaling(mg_surface_data* interface)
-{
-	mg_mtl_surface* surface = (mg_mtl_surface*)interface;
-	return(mp_layer_contents_scaling(&surface->layer));
-}
-
 void mg_mtl_surface_set_frame(mg_surface_data* interface, mp_rect frame)
 {
 	mg_mtl_surface* surface = (mg_mtl_surface*)interface;
-	mp_layer_set_frame(&surface->layer, frame);
-	vec2 scale = mp_layer_contents_scaling(&surface->layer);
+	mg_osx_surface_set_frame(interface, frame);
+	vec2 scale = mg_osx_surface_contents_scaling(interface);
 
 	CGSize drawableSize = (CGSize){.width = frame.w * scale.x, .height = frame.h * scale.y};
 	surface->mtlLayer.drawableSize = drawableSize;
 }
 
-mp_rect mg_mtl_surface_get_frame(mg_surface_data* interface)
-{
-	mg_mtl_surface* surface = (mg_mtl_surface*)interface;
-	return(mp_layer_get_frame(&surface->layer));
-}
-
-void mg_mtl_surface_set_hidden(mg_surface_data* interface, bool hidden)
-{
-	mg_mtl_surface* surface = (mg_mtl_surface*)interface;
-	mp_layer_set_hidden(&surface->layer, hidden);
-}
-
-bool mg_mtl_surface_get_hidden(mg_surface_data* interface)
-{
-	mg_mtl_surface* surface = (mg_mtl_surface*)interface;
-	return(mp_layer_get_hidden(&surface->layer));
-}
-
-void* mg_mtl_surface_native_layer(mg_surface_data* interface)
-{
-	mg_mtl_surface* surface = (mg_mtl_surface*)interface;
-	return((void*)surface->mtlLayer);
-}
 
 //TODO fix that according to real scaling, depending on the monitor settings
 static const f32 MG_MTL_SURFACE_CONTENTS_SCALING = 2;
@@ -179,18 +148,16 @@ mg_surface_data* mg_mtl_surface_create_for_window(mp_window window)
 	{
 		surface = (mg_mtl_surface*)malloc(sizeof(mg_mtl_surface));
 
+		mg_surface_init_for_window((mg_surface_data*)surface, windowData);
+
 		//NOTE(martin): setup interface functions
 		surface->interface.backend = MG_BACKEND_METAL;
 		surface->interface.destroy = mg_mtl_surface_destroy;
 		surface->interface.prepare = mg_mtl_surface_prepare;
 		surface->interface.present = mg_mtl_surface_present;
 		surface->interface.swapInterval = mg_mtl_surface_swap_interval;
-		surface->interface.contentsScaling = mg_mtl_surface_contents_scaling;
-		surface->interface.getFrame = mg_mtl_surface_get_frame;
+
 		surface->interface.setFrame = mg_mtl_surface_set_frame;
-		surface->interface.getHidden = mg_mtl_surface_get_hidden;
-		surface->interface.setHidden = mg_mtl_surface_set_hidden;
-		surface->interface.nativeLayer = mg_mtl_surface_native_layer;
 
 		@autoreleasepool
 		{
@@ -208,7 +175,7 @@ mg_surface_data* mg_mtl_surface_create_for_window(mp_window window)
 			surface->mtlLayer.device = surface->device;
 			[surface->mtlLayer setOpaque:NO];
 
-			surface->layer.caLayer = (CALayer*)surface->mtlLayer;
+			[surface->interface.layer.caLayer addSublayer: (CALayer*)surface->mtlLayer];
 
 			//-----------------------------------------------------------
 			//NOTE(martin): set the size and scaling
@@ -222,8 +189,6 @@ mg_surface_data* mg_mtl_surface_create_for_window(mp_window window)
 			surface->mtlLayer.contentsScale = MG_MTL_SURFACE_CONTENTS_SCALING;
 
 			surface->mtlLayer.pixelFormat = MTLPixelFormatBGRA8Unorm;
-
-			[windowData->osx.nsView.layer addSublayer: surface->mtlLayer];
 
 			//NOTE(martin): handling resizing
 			surface->mtlLayer.autoresizingMask = kCALayerHeightSizable | kCALayerWidthSizable;

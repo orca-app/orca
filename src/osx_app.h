@@ -21,6 +21,7 @@
 	#define NSTimer void
 	#define NSCursor void
 	#define CALayer void
+	#define CAContext void
 #endif
 
 #include<Carbon/Carbon.h>
@@ -32,11 +33,6 @@ typedef struct osx_window_data
 	NSObject* nsWindowDelegate;
 
 } osx_window_data;
-
-typedef struct mp_layer
-{
-	CALayer* caLayer;
-} mp_layer;
 
 #define MP_PLATFORM_WINDOW_DATA osx_window_data osx;
 
@@ -54,6 +50,37 @@ typedef struct osx_app_data
 } osx_app_data;
 
 #define MP_PLATFORM_APP_DATA osx_app_data osx;
+
+//-----------------------------------------------
+// Surface layer
+//-----------------------------------------------
+#ifdef __OBJC__
+	//NOTE: these private interfaces for surface sharing need to be declared explicitly here
+	typedef uint32_t CGSConnectionID;
+	CGSConnectionID CGSMainConnectionID(void);
+
+	typedef uint32_t CAContextID;
+
+	@interface CAContext : NSObject
+	{
+	}
+	+ (id)contextWithCGSConnection:(CAContextID)contextId options:(NSDictionary*)optionsDict;
+	@property(readonly) CAContextID contextId;
+	@property(retain) CALayer *layer;
+	@end
+
+	@interface CALayerHost : CALayer
+	{
+	}
+	@property CAContextID contextId;
+	@end
+#endif
+
+typedef struct mp_layer
+{
+	CALayer* caLayer;
+	CAContext* caContext;
+} mp_layer;
 
 
 

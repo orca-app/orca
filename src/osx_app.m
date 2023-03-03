@@ -17,6 +17,7 @@
 #include"memory.h"
 #include"macro_helpers.h"
 #include"platform_clock.h"
+#include"graphics_internal.h"
 
 #include"mp_app.c"
 
@@ -1716,41 +1717,24 @@ void mp_window_set_content_size(mp_window window, int width, int height)
 }
 
 //--------------------------------------------------------------------
-// layers
+// platform surface
 //--------------------------------------------------------------------
 
-void mp_layer_init_for_window(mp_layer* layer, mp_window_data* window)
-{@autoreleasepool{
-	layer->caLayer = [[CALayer alloc] init];
-	[layer->caLayer retain];
-
-	NSRect frame = [[window->osx.nsWindow contentView] frame];
-	CGSize size = frame.size;
-	layer->caLayer.frame = (CGRect){{0, 0}, size};
-
-	[window->osx.nsView.layer addSublayer: layer->caLayer];
-}}
-
-void mp_layer_cleanup(mp_layer* layer)
-{@autoreleasepool{
-	[layer->caLayer release];
-}}
-
-void* mp_layer_native_surface(mp_layer* layer)
+void* mg_osx_surface_native_layer(mg_surface_data* surface)
 {
-	return((void*)layer->caLayer);
+	return((void*)surface->layer.caLayer);
 }
 
-vec2 mp_layer_contents_scaling(mp_layer* layer)
+vec2 mg_osx_surface_contents_scaling(mg_surface_data* surface)
 {@autoreleasepool{
-	f32 contentsScale = [layer->caLayer contentsScale];
+	f32 contentsScale = [surface->layer.caLayer contentsScale];
 	vec2 res = {contentsScale, contentsScale};
 	return(res);
 }}
 
-mp_rect mp_layer_get_frame(mp_layer* layer)
+mp_rect mg_osx_surface_get_frame(mg_surface_data* surface)
 {@autoreleasepool{
-	CGRect frame = layer->caLayer.frame;
+	CGRect frame = surface->layer.caLayer.frame;
 	mp_rect res = {frame.origin.x,
 	               frame.origin.y,
 	               frame.size.width,
@@ -1758,24 +1742,128 @@ mp_rect mp_layer_get_frame(mp_layer* layer)
 	return(res);
 }}
 
-void mp_layer_set_frame(mp_layer* layer, mp_rect frame)
+void mg_osx_surface_set_frame(mg_surface_data* surface, mp_rect frame)
 {@autoreleasepool{
 	CGRect cgFrame = {{frame.x, frame.y}, {frame.w, frame.h}};
-	[layer->caLayer setFrame: cgFrame];
+	[surface->layer.caLayer setFrame: cgFrame];
 }}
 
-void mp_layer_set_hidden(mp_layer* layer, bool hidden)
+bool mg_osx_surface_get_hidden(mg_surface_data* surface)
+{@autoreleasepool{
+	return([surface->layer.caLayer isHidden]);
+}}
+
+void mg_osx_surface_set_hidden(mg_surface_data* surface, bool hidden)
 {@autoreleasepool{
 	[CATransaction begin];
 	[CATransaction setDisableActions:YES];
-	[layer->caLayer setHidden:hidden];
+	[surface->layer.caLayer setHidden:hidden];
 	[CATransaction commit];
 }}
 
-bool mp_layer_get_hidden(mp_layer* layer)
+void mg_surface_cleanup(mg_surface_data* surface)
 {@autoreleasepool{
-	return([layer->caLayer isHidden]);
+	[surface->layer.caLayer release];
 }}
+
+void mg_surface_init_for_window(mg_surface_data* surface, mp_window_data* window)
+{@autoreleasepool{
+
+	surface->nativeLayer = mg_osx_surface_native_layer;
+	surface->contentsScaling = mg_osx_surface_contents_scaling;
+	surface->getFrame = mg_osx_surface_get_frame;
+	surface->setFrame = mg_osx_surface_set_frame;
+	surface->getHidden = mg_osx_surface_get_hidden;
+	surface->setHidden = mg_osx_surface_set_hidden;
+
+	surface->layer.caLayer = [[CALayer alloc] init];
+	[surface->layer.caLayer retain];
+
+	NSRect frame = [[window->osx.nsWindow contentView] frame];
+	CGSize size = frame.size;
+	surface->layer.caLayer.frame = (CGRect){{0, 0}, size};
+
+	[window->osx.nsView.layer addSublayer: surface->layer.caLayer];
+}}
+
+//------------------------------------------------------------------------------------------------
+// Remote surfaces
+//------------------------------------------------------------------------------------------------
+mg_surface_id mg_osx_surface_remote_id(mg_surface_data* surface)
+{
+	mg_surface_id remoteID = 0;
+	if(surface->layer.caContext)
+	{
+		@autoreleasepool
+		{
+			remoteID = (mg_surface_id)[surface->layer.caContext contextId];
+		}
+	}
+	return(remoteID);
+}
+
+void mg_surface_init_remote(mg_surface_data* surface, u32 width, u32 height)
+{@autoreleasepool{
+
+	surface->nativeLayer = mg_osx_surface_native_layer;
+	surface->contentsScaling = mg_osx_surface_contents_scaling;
+	surface->getFrame = mg_osx_surface_get_frame;
+	surface->setFrame = mg_osx_surface_set_frame;
+	surface->getHidden = mg_osx_surface_get_hidden;
+	surface->setHidden = mg_osx_surface_set_hidden;
+	surface->remoteID = mg_osx_surface_remote_id;
+
+	surface->layer.caLayer = [[CALayer alloc] init];
+	[surface->layer.caLayer retain];
+	[surface->layer.caLayer setFrame: (CGRect){{0, 0}, {width, height}}];
+
+	NSDictionary* dict = [[NSDictionary alloc] init];
+	CGSConnectionID connectionID = CGSMainConnectionID();
+	surface->layer.caContext = [CAContext contextWithCGSConnection: connectionID options: dict];
+	[surface->layer.caContext retain];
+	[surface->layer.caContext setLayer:surface->layer.caLayer];
+}}
+
+void mg_osx_surface_host_connect(mg_surface_data* surface, mg_surface_id remoteID)
+{@autoreleasepool{
+	[(CALayerHost*)surface->layer.caLayer setContextId: (CAContextID)remoteID];
+}}
+
+void mg_surface_init_host(mg_surface_data* surface, mp_window_data* window)
+{@autoreleasepool{
+
+	surface->nativeLayer = mg_osx_surface_native_layer;
+	surface->contentsScaling = mg_osx_surface_contents_scaling;
+	surface->getFrame = mg_osx_surface_get_frame;
+	surface->setFrame = mg_osx_surface_set_frame;
+	surface->getHidden = mg_osx_surface_get_hidden;
+	surface->setHidden = mg_osx_surface_set_hidden;
+	surface->hostConnect = mg_osx_surface_host_connect;
+
+	surface->layer.caLayer = [[CALayerHost alloc] init];
+	[surface->layer.caLayer retain];
+
+	NSRect frame = [[window->osx.nsWindow contentView] frame];
+	CGSize size = frame.size;
+	[surface->layer.caLayer setFrame: (CGRect){{0, 0}, size}];
+
+	[window->osx.nsView.layer addSublayer: surface->layer.caLayer];
+}}
+
+mg_surface_data* mg_osx_surface_create_host(mp_window windowHandle)
+{
+	mg_surface_data* surface = 0;
+	mp_window_data* window = mp_window_ptr_from_handle(windowHandle);
+	if(window)
+	{
+		surface = malloc_type(mg_surface_data);
+		if(surface)
+		{
+			mg_surface_init_host(surface, window);
+		}
+	}
+	return(surface);
+}
 
 //--------------------------------------------------------------------
 // view management

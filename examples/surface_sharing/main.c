@@ -22,7 +22,6 @@
 	#define pipe(fds) _pipe(fds, 256, O_BINARY)
 	#define read _read
 	#define write _write
-	#define itoa _itoa
 
 	#define process_id HANDLE
 
@@ -38,8 +37,11 @@
 
 #elif OS_MACOS
 	#include<unistd.h>
+	#include<signal.h>
 
-	void spwan_child(char* program, char** argv)
+	#define process_id pid_t
+
+	process_id spawn_child(char* program, char** argv)
 	{
 		pid_t pid = fork();
 		if(!pid)
@@ -48,6 +50,12 @@
 			execve(program, argv, envp);
 			assert(0);
 		}
+		return(pid);
+	}
+
+	void terminate_child(process_id child)
+	{
+		kill(child, SIGTERM);
 	}
 #endif
 
@@ -239,7 +247,7 @@ int main(int argc, char** argv)
 	printf("parent process created readFd %i and writeFd %i\n", fileDesc[0], fileDesc[1]);
 
 	char writeDescStr[64];
-	itoa(fileDesc[1], writeDescStr, 10);
+	snprintf(writeDescStr, 64, "%i", fileDesc[1]);
 	char* args[] = {"bin/example_surface_sharing", "--child", writeDescStr, 0};
 
 	process_id child = spawn_child(args[0], args);

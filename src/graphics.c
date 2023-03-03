@@ -472,7 +472,7 @@ mg_surface mg_surface_create_remote(u32 width, u32 height, mg_backend_id backend
 	{
 	#if MG_COMPILE_BACKEND_GLES
 		case MG_BACKEND_GLES:
-			surface = mg_egl_surface_create_for_sharing(width, height);
+			surface = mg_egl_surface_create_remote(width, height);
 			break;
 	#endif
 
@@ -486,24 +486,23 @@ mg_surface mg_surface_create_remote(u32 width, u32 height, mg_backend_id backend
 	return(surfaceHandle);
 }
 
-mg_surface_id mg_surface_remote_id(mg_surface handle)
+mg_surface mg_surface_create_host(mp_window window)
 {
-	mg_surface_id remoteId = 0;
-	mg_surface_data* surface = mg_surface_data_from_handle(handle);
-	if(surface && surface->remoteId)
+	if(__mgData.init)
 	{
-		remoteId = surface->remoteId(surface);
+		mg_init();
 	}
-	return(remoteId);
-}
+	mg_surface handle = mg_surface_nil();
+	mg_surface_data* surface = 0;
+	#if OS_MACOS
+		surface = mg_osx_surface_create_host(window);
+	#endif
 
-void mg_surface_host_connect(mg_surface handle, mg_surface_id remoteID)
-{
-	mg_surface_data* surface = mg_surface_data_from_handle(handle);
-	if(surface && surface->connect)
+	if(surface)
 	{
-		surface->connect(surface, remoteID);
+		handle = mg_surface_handle_alloc(surface);
 	}
+	return(handle);
 }
 
 void mg_surface_destroy(mg_surface handle)
@@ -521,7 +520,7 @@ void mg_surface_prepare(mg_surface surface)
 {
 	DEBUG_ASSERT(__mgData.init);
 	mg_surface_data* surfaceData = mg_surface_data_from_handle(surface);
-	if(surfaceData)
+	if(surfaceData && surfaceData->prepare)
 	{
 		surfaceData->prepare(surfaceData);
 	}
@@ -531,7 +530,7 @@ void mg_surface_present(mg_surface surface)
 {
 	DEBUG_ASSERT(__mgData.init);
 	mg_surface_data* surfaceData = mg_surface_data_from_handle(surface);
-	if(surfaceData)
+	if(surfaceData && surfaceData->present)
 	{
 		surfaceData->present(surfaceData);
 	}
@@ -541,7 +540,7 @@ void mg_surface_swap_interval(mg_surface surface, int swap)
 {
 	DEBUG_ASSERT(__mgData.init);
 	mg_surface_data* surfaceData = mg_surface_data_from_handle(surface);
-	if(surfaceData)
+	if(surfaceData && surfaceData->swapInterval)
 	{
 		surfaceData->swapInterval(surfaceData, swap);
 	}
@@ -552,7 +551,7 @@ vec2 mg_surface_contents_scaling(mg_surface surface)
 	DEBUG_ASSERT(__mgData.init);
 	vec2 scaling = {1, 1};
 	mg_surface_data* surfaceData = mg_surface_data_from_handle(surface);
-	if(surfaceData)
+	if(surfaceData && surfaceData->contentsScaling)
 	{
 		scaling = surfaceData->contentsScaling(surfaceData);
 	}
@@ -564,7 +563,7 @@ void mg_surface_set_frame(mg_surface surface, mp_rect frame)
 {
 	DEBUG_ASSERT(__mgData.init);
 	mg_surface_data* surfaceData = mg_surface_data_from_handle(surface);
-	if(surfaceData)
+	if(surfaceData && surfaceData->setFrame)
 	{
 		surfaceData->setFrame(surfaceData, frame);
 	}
@@ -575,7 +574,7 @@ mp_rect mg_surface_get_frame(mg_surface surface)
 	DEBUG_ASSERT(__mgData.init);
 	mp_rect res = {0};
 	mg_surface_data* surfaceData = mg_surface_data_from_handle(surface);
-	if(surfaceData)
+	if(surfaceData && surfaceData->getFrame)
 	{
 		res = surfaceData->getFrame(surfaceData);
 	}
@@ -586,7 +585,7 @@ void mg_surface_set_hidden(mg_surface surface, bool hidden)
 {
 	DEBUG_ASSERT(__mgData.init);
 	mg_surface_data* surfaceData = mg_surface_data_from_handle(surface);
-	if(surfaceData)
+	if(surfaceData && surfaceData->setHidden)
 	{
 		surfaceData->setHidden(surfaceData, hidden);
 	}
@@ -597,7 +596,7 @@ bool mg_surface_get_hidden(mg_surface surface)
 	DEBUG_ASSERT(__mgData.init);
 	bool res = false;
 	mg_surface_data* surfaceData = mg_surface_data_from_handle(surface);
-	if(surfaceData)
+	if(surfaceData && surfaceData->getHidden)
 	{
 		res = surfaceData->getHidden(surfaceData);
 	}
@@ -608,11 +607,31 @@ void* mg_surface_native_layer(mg_surface surface)
 {
 	void* res = 0;
 	mg_surface_data* surfaceData = mg_surface_data_from_handle(surface);
-	if(surfaceData)
+	if(surfaceData && surfaceData->nativeLayer)
 	{
 		res = surfaceData->nativeLayer(surfaceData);
 	}
 	return(res);
+}
+
+mg_surface_id mg_surface_remote_id(mg_surface handle)
+{
+	mg_surface_id remoteId = 0;
+	mg_surface_data* surface = mg_surface_data_from_handle(handle);
+	if(surface && surface->remoteID)
+	{
+		remoteId = surface->remoteID(surface);
+	}
+	return(remoteId);
+}
+
+void mg_surface_host_connect(mg_surface handle, mg_surface_id remoteID)
+{
+	mg_surface_data* surface = mg_surface_data_from_handle(handle);
+	if(surface && surface->hostConnect)
+	{
+		surface->hostConnect(surface, remoteID);
+	}
 }
 
 //------------------------------------------------------------------------------------------
