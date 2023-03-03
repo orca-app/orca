@@ -401,6 +401,8 @@ mg_canvas_backend* mg_mtl_canvas_create(mg_surface surface)
 		mg_mtl_surface* metalSurface = (mg_mtl_surface*)surfaceData;
 
 		backend = malloc_type(mg_mtl_canvas_backend);
+		memset(backend, 0, sizeof(mg_mtl_canvas_backend));
+
 		backend->surface = surface;
 
 		//NOTE(martin): setup interface functions

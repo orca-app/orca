@@ -139,11 +139,13 @@ static void mp_update_key_state(mp_key_state* key, bool down)
 		key->doubleClicked = false;
 		key->lastUpdate = frameCounter;
 	}
-	if(key->down == down)
+	if(key->down != down)
 	{
 		key->transitionCounter++;
 	}
+
 	key->down = down;
+
 }
 
 static void mp_update_mouse_move(f32 x, f32 y, f32 deltaX, f32 deltaY)

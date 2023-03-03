@@ -642,6 +642,10 @@ ui_sig ui_box_sig(ui_box* box)
 		{
 			if(sig.hovering)
 			{
+				if(mp_input_mouse_clicked(MP_MOUSE_LEFT))
+				{
+					printf("clicked while hovering!\n");
+				}
 				sig.pressed = mp_input_mouse_pressed(MP_MOUSE_LEFT);
 				if(sig.pressed)
 				{
@@ -1724,6 +1728,8 @@ void ui_edit_copy_selection_to_clipboard(ui_context* ui, str32 codepoints)
 
 	str8 string = utf8_push_from_codepoints(&ui->frameArena, selection);
 
+	printf("copying '%.*s' to clipboard\n", (int)string.len, string.ptr);
+
 	mp_clipboard_clear();
 	mp_clipboard_set_string(string);
 }
@@ -1731,6 +1737,9 @@ void ui_edit_copy_selection_to_clipboard(ui_context* ui, str32 codepoints)
 str32 ui_edit_replace_selection_with_clipboard(ui_context* ui, str32 codepoints)
 {
 	str8 string = mp_clipboard_get_string(&ui->frameArena);
+
+	printf("pasting '%.*s' from clipboard\n", (int)string.len, string.ptr);
+
 	str32 input = utf8_push_to_codepoints(&ui->frameArena, string);
 	str32 result = ui_edit_replace_selection_with_codepoints(ui, codepoints, input);
 	return(result);
@@ -1898,7 +1907,7 @@ const ui_edit_command UI_EDIT_COMMANDS[] = {
 
 const u32 UI_EDIT_COMMAND_COUNT = sizeof(UI_EDIT_COMMANDS)/sizeof(ui_edit_command);
 
-void ui_edit_perform_move(ui_context* ui, ui_edit_move move, int direction, u32 textLen, u32 cursor)
+void ui_edit_perform_move(ui_context* ui, ui_edit_move move, int direction, u32 textLen)
 {
 	switch(move)
 	{
@@ -1907,13 +1916,13 @@ void ui_edit_perform_move(ui_context* ui, ui_edit_move move, int direction, u32 
 
 		case UI_EDIT_MOVE_ONE:
 		{
-			if(direction < 0 && cursor > 0)
+			if(direction < 0 && ui->editCursor > 0)
 			{
-				cursor--;
+				ui->editCursor--;
 			}
-			else if(direction > 0 && cursor < textLen)
+			else if(direction > 0 && ui->editCursor < textLen)
 			{
-				cursor++;
+				ui->editCursor++;
 			}
 		} break;
 
@@ -1921,11 +1930,11 @@ void ui_edit_perform_move(ui_context* ui, ui_edit_move move, int direction, u32 
 		{
 			if(direction < 0)
 			{
-				cursor = 0;
+				ui->editCursor = 0;
 			}
 			else if(direction > 0)
 			{
-				cursor = textLen;
+				ui->editCursor = textLen;
 			}
 		} break;
 
@@ -1933,7 +1942,6 @@ void ui_edit_perform_move(ui_context* ui, ui_edit_move move, int direction, u32 
 			DEBUG_ASSERT(0, "not implemented yet");
 			break;
 	}
-	ui->editCursor = cursor;
 }
 
 str32 ui_edit_perform_operation(ui_context* ui, ui_edit_op operation, ui_edit_move move, int direction, str32 codepoints)
@@ -1945,37 +1953,40 @@ str32 ui_edit_perform_operation(ui_context* ui, ui_edit_op operation, ui_edit_mo
 			//NOTE(martin): we place the cursor on the direction-most side of the selection
 			//              before performing the move
 			u32 cursor = direction < 0 ?
-				     minimum(ui->editCursor, ui->editMark) :
-				     maximum(ui->editCursor, ui->editMark);
+				         minimum(ui->editCursor, ui->editMark) :
+				         maximum(ui->editCursor, ui->editMark);
+			ui->editCursor = cursor;
 
 			if(ui->editCursor == ui->editMark || move != UI_EDIT_MOVE_ONE)
 			{
 				//NOTE: we special case move-one when there is a selection
 				//      (just place the cursor at begining/end of selection)
-				ui_edit_perform_move(ui, move, direction, codepoints.len, cursor);
+				ui_edit_perform_move(ui, move, direction, codepoints.len);
 			}
 			ui->editMark = ui->editCursor;
 		} break;
 
 		case UI_EDIT_SELECT:
 		{
-			ui_edit_perform_move(ui, move, direction, codepoints.len, ui->editCursor);
+			ui_edit_perform_move(ui, move, direction, codepoints.len);
 		} break;
 
 		case UI_EDIT_SELECT_EXTEND:
 		{
-			u32 cursor = direction > 0 ?
-			            (ui->editCursor > ui->editMark ? ui->editCursor : ui->editMark) :
-				        (ui->editCursor < ui->editMark ? ui->editCursor : ui->editMark);
-
-			ui_edit_perform_move(ui, move, direction, codepoints.len, cursor);
+			if((direction > 0) != (ui->editCursor > ui->editMark))
+			{
+				u32 tmp = ui->editCursor;
+				ui->editCursor = ui->editMark;
+				ui->editMark = tmp;
+			}
+			ui_edit_perform_move(ui, move, direction, codepoints.len);
 		} break;
 
 		case UI_EDIT_DELETE:
 		{
 			if(ui->editCursor == ui->editMark)
 			{
-				ui_edit_perform_move(ui, move, direction, codepoints.len, ui->editCursor);
+				ui_edit_perform_move(ui, move, direction, codepoints.len);
 			}
 			codepoints = ui_edit_delete_selection(ui, codepoints);
 			ui->editMark = ui->editCursor;
@@ -2032,25 +2043,73 @@ void ui_text_box_render(ui_box* box, void* data)
 	f32 textTop = box->rect.y + 0.5*(box->rect.h - lineHeight);
 	f32 textY = textTop + extents.ascent ;
 
-	if(box->active && !((u64)(2*(ui->frameTime - ui->editCursorBlinkStart)) & 1))
+	if(box->active)
 	{
-		str32 beforeCaret = str32_slice(codepoints, 0, ui->editCursor);
-		mp_rect beforeCaretBox = mg_text_bounding_box_utf32(style->font, style->fontSize, beforeCaret);
+		u32 selectStart = minimum(ui->editCursor, ui->editMark);
+		u32 selectEnd = maximum(ui->editCursor, ui->editMark);
 
-		f32 caretX = box->rect.x + textMargin - beforeBox.w + beforeCaretBox.w;
-		f32 caretY = textTop;
+		str32 beforeSelect = str32_slice(codepoints, 0, selectStart);
+		mp_rect beforeSelectBox = mg_text_bounding_box_utf32(style->font, style->fontSize, beforeSelect);
+		beforeSelectBox.x += textX + beforeBox.x + beforeBox.w;
+		beforeSelectBox.y += textY;
 
-		mg_set_color_rgba(0, 0, 0, 1);
-		mg_rectangle_fill(caretX, caretY, 2, lineHeight);
+		if(selectStart != selectEnd)
+		{
+			str32 select = str32_slice(codepoints, selectStart, selectEnd);
+			str32 afterSelect = str32_slice(codepoints, selectEnd, codepoints.len);
+			mp_rect selectBox = mg_text_bounding_box_utf32(style->font, style->fontSize, select);
+			mp_rect afterSelectBox = mg_text_bounding_box_utf32(style->font, style->fontSize, afterSelect);
+
+			selectBox.x += beforeSelectBox.x + beforeSelectBox.w;
+			selectBox.y += textY;
+
+			mg_set_color_rgba(0, 0, 1, 1);
+			mg_rectangle_fill(selectBox.x, selectBox.y, selectBox.w, lineHeight);
+
+			mg_set_font(style->font);
+			mg_set_font_size(style->fontSize);
+			mg_set_color(style->fontColor);
+
+			mg_move_to(textX, textY);
+			mg_codepoints_outlines(beforeSelect);
+			mg_fill();
+
+			mg_set_color_rgba(1, 1, 1, 1);
+			mg_codepoints_outlines(select);
+			mg_fill();
+
+			mg_set_color(style->fontColor);
+			mg_codepoints_outlines(afterSelect);
+			mg_fill();
+		}
+		else
+		{
+			if(!((u64)(2*(ui->frameTime - ui->editCursorBlinkStart)) & 1))
+			{
+				f32 caretX = box->rect.x + textMargin - beforeBox.w + beforeSelectBox.w;
+				f32 caretY = textTop;
+				mg_set_color_rgba(0, 0, 0, 1);
+				mg_rectangle_fill(caretX, caretY, 2, lineHeight);
+			}
+			mg_set_font(style->font);
+			mg_set_font_size(style->fontSize);
+			mg_set_color(style->fontColor);
+
+			mg_move_to(textX, textY);
+			mg_codepoints_outlines(codepoints);
+			mg_fill();
+		}
 	}
+	else
+	{
+		mg_set_font(style->font);
+		mg_set_font_size(style->fontSize);
+		mg_set_color(style->fontColor);
 
-	mg_set_font(style->font);
-	mg_set_font_size(style->fontSize);
-	mg_set_color(style->fontColor);
-
-	mg_move_to(textX, textY);
-	mg_codepoints_outlines(codepoints);
-	mg_fill();
+		mg_move_to(textX, textY);
+		mg_codepoints_outlines(codepoints);
+		mg_fill();
+	}
 }
 
 ui_text_box_result ui_text_box(const char* name, mem_arena* arena, str8 text)
@@ -2113,7 +2172,8 @@ ui_text_box_result ui_text_box(const char* name, mem_arena* arena, str8 text)
 
 	if(ui_box_active(frame))
 	{
-		str32 codepoints = utf8_push_to_codepoints(&ui->frameArena, text);
+		str32 oldCodepoints = utf8_push_to_codepoints(&ui->frameArena, text);
+		str32 codepoints = oldCodepoints;
 		ui->editCursor = Clamp(ui->editCursor, 0, codepoints.len);
 		ui->editMark = Clamp(ui->editMark, 0, codepoints.len);
 
@@ -2131,6 +2191,12 @@ ui_text_box_result ui_text_box(const char* name, mem_arena* arena, str8 text)
 		for(int i=0; i<UI_EDIT_COMMAND_COUNT; i++)
 		{
 			const ui_edit_command* command = &(UI_EDIT_COMMANDS[i]);
+
+			if(mp_input_key_pressed(MP_KEY_C))
+			{
+				printf("press C!\n");
+			}
+
 			if(mp_input_key_pressed(command->key) && mods == command->mods)
 			{
 				codepoints = ui_edit_perform_operation(ui, command->operation, command->move, command->direction, codepoints);
@@ -2146,7 +2212,11 @@ ui_text_box_result ui_text_box(const char* name, mem_arena* arena, str8 text)
 			ui->focus = 0;
 		}
 
-		result.text = utf8_push_from_codepoints(arena, codepoints);
+		if(oldCodepoints.ptr != codepoints.ptr)
+		{
+			result.changed = true;
+			result.text = utf8_push_from_codepoints(arena, codepoints);
+		}
 
 		//TODO slide contents
 
