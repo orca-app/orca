@@ -1832,6 +1832,7 @@ void mg_osx_surface_host_connect(mg_surface_data* surface, mg_surface_id remoteI
 void mg_surface_init_host(mg_surface_data* surface, mp_window_data* window)
 {@autoreleasepool{
 
+	surface->backend = MG_BACKEND_HOST;
 	surface->nativeLayer = mg_osx_surface_native_layer;
 	surface->contentsScaling = mg_osx_surface_contents_scaling;
 	surface->getFrame = mg_osx_surface_get_frame;

@@ -22,7 +22,7 @@ typedef enum {
 	MG_BACKEND_METAL,
 	MG_BACKEND_GL,
 	MG_BACKEND_GLES,
-	MG_BACKEND_REMOTE } mg_backend_id;
+	MG_BACKEND_HOST } mg_backend_id;
 
 //NOTE: these macros are used to select which backend to include when building milepost
 //      they can be overridden by passing them to the compiler command line

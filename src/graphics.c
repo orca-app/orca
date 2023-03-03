@@ -496,6 +496,8 @@ mg_surface mg_surface_create_host(mp_window window)
 	mg_surface_data* surface = 0;
 	#if OS_MACOS
 		surface = mg_osx_surface_create_host(window);
+	#elif OS_WIN64
+		surface = mg_win32_surface_create_host(window);
 	#endif
 
 	if(surface)

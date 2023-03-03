@@ -777,10 +777,107 @@ mp_rect mp_window_get_content_rect(mp_window window)
 	return(rect);
 }
 
-///////////////////////////////////////////
+//--------------------------------------------------------------------------------
+// win32 surfaces
+//--------------------------------------------------------------------------------
 
-void mp_layer_init_for_window(mp_layer* layer, mp_window_data* window)
+#include"graphics_internal.h"
+
+vec2 mg_win32_surface_contents_scaling(mg_surface_data* surface)
 {
+	u32 dpi = GetDpiForWindow(surface->layer.hWnd);
+	vec2 contentsScaling = (vec2){(float)dpi/96., (float)dpi/96.};
+	return(contentsScaling);
+}
+
+mp_rect mg_win32_surface_get_frame(mg_surface_data* surface)
+{
+	RECT rect = {0};
+	GetClientRect(surface->layer.hWnd, &rect);
+
+	vec2 scale = mg_win32_surface_contents_scaling(surface);
+
+	mp_rect res = {rect.left/scale.x,
+	               rect.bottom/scale.y,
+	               (rect.right - rect.left)/scale.x,
+	               (rect.bottom - rect.top)/scale.y};
+	return(res);
+}
+
+void mg_win32_surface_set_frame(mg_surface_data* surface, mp_rect frame)
+{
+	HWND parent = GetParent(surface->layer.hWnd);
+	RECT parentContentRect;
+
+	GetClientRect(parent, &parentContentRect);
+	int parentHeight = 	parentContentRect.bottom - parentContentRect.top;
+
+	vec2 scale = mg_win32_surface_contents_scaling(surface);
+
+	SetWindowPos(surface->layer.hWnd,
+			     HWND_TOP,
+			     frame.x * scale.x,
+			     parentHeight - (frame.y + frame.h) * scale.y,
+			     frame.w * scale.x,
+			     frame.h * scale.y,
+			     SWP_NOACTIVATE | SWP_NOZORDER);
+}
+
+bool mg_win32_surface_get_hidden(mg_surface_data* surface)
+{
+	bool hidden = !IsWindowVisible(surface->layer.hWnd);
+	return(hidden);
+}
+
+void mg_win32_surface_set_hidden(mg_surface_data* surface, bool hidden)
+{
+	ShowWindow(surface->layer.hWnd, hidden ? SW_HIDE : SW_NORMAL);
+}
+
+void* mg_win32_surface_native_layer(mg_surface_data* surface)
+{
+	return((void*)surface->layer.hWnd);
+}
+
+mg_surface_id mg_win32_surface_remote_id(mg_surface_data* surface)
+{
+	return((mg_surface_id)surface->layer.hWnd);
+}
+
+void mg_win32_surface_host_connect(mg_surface_data* surface, mg_surface_id remoteID)
+{
+	HWND dstWnd = surface->layer.hWnd;
+	HWND srcWnd = (HWND)remoteID;
+
+	RECT dstRect;
+	GetClientRect(dstWnd, &dstRect);
+
+	SetParent(srcWnd, dstWnd);
+	ShowWindow(srcWnd, SW_NORMAL);
+
+	SetWindowPos(srcWnd,
+			     HWND_TOP,
+			     0,
+			     0,
+			     dstRect.right - dstRect.left,
+			     dstRect.bottom - dstRect.top,
+			     SWP_NOACTIVATE | SWP_NOZORDER);
+}
+
+void mg_surface_cleanup(mg_surface_data* surface)
+{
+	DestroyWindow(surface->layer.hWnd);
+}
+
+void mg_surface_init_for_window(mg_surface_data* surface, mp_window_data* window)
+{
+	surface->contentsScaling = mg_win32_surface_contents_scaling;
+	surface->getFrame = mg_win32_surface_get_frame;
+	surface->setFrame = mg_win32_surface_set_frame;
+	surface->getHidden = mg_win32_surface_get_hidden;
+	surface->setHidden = mg_win32_surface_set_hidden;
+	surface->nativeLayer = mg_win32_surface_native_layer;
+
 	//NOTE(martin): create a child window for the surface
 	WNDCLASS layerWindowClass = {.style = CS_HREDRAW | CS_VREDRAW | CS_OWNDC,
 		                         .lpfnWndProc = DefWindowProc,
@@ -795,7 +892,7 @@ void mp_layer_init_for_window(mp_layer* layer, mp_window_data* window)
 	int width = parentRect.right - parentRect.left;
 	int height = parentRect.bottom - parentRect.top;
 
-	layer->hWnd = CreateWindow("layer_window_class", "layer",
+	surface->layer.hWnd = CreateWindow("layer_window_class", "layer",
 	                            WS_CHILD | WS_VISIBLE,
 	                            0, 0, width, height,
 	                            window->win32.hWnd,
@@ -804,8 +901,16 @@ void mp_layer_init_for_window(mp_layer* layer, mp_window_data* window)
 	                            0);
 }
 
-void mp_layer_init_for_sharing(mp_layer* layer, u32 width, u32 height)
+void mg_surface_init_remote(mg_surface_data* surface, u32 width, u32 height)
 {
+	surface->contentsScaling = mg_win32_surface_contents_scaling;
+	surface->getFrame = mg_win32_surface_get_frame;
+	surface->setFrame = mg_win32_surface_set_frame;
+	surface->getHidden = mg_win32_surface_get_hidden;
+	surface->setHidden = mg_win32_surface_set_hidden;
+	surface->nativeLayer = mg_win32_surface_native_layer;
+	surface->remoteID = mg_win32_surface_remote_id;
+
 	WNDCLASS layerWindowClass = {.style = CS_HREDRAW | CS_VREDRAW | CS_OWNDC,
 		                         .lpfnWndProc = DefWindowProc,
 		                         .hInstance = GetModuleHandleW(NULL),
@@ -826,7 +931,7 @@ void mp_layer_init_for_sharing(mp_layer* layer, u32 width, u32 height)
 	                              0);
 
 	//NOTE: create the layer window
-	layer->hWnd = CreateWindowEx(WS_EX_NOACTIVATE,
+	surface->layer.hWnd = CreateWindowEx(WS_EX_NOACTIVATE,
 	                             "server_layer_window_class", "layer",
 	                             WS_CHILD,
 	                             0, 0, width, height,
@@ -836,69 +941,27 @@ void mp_layer_init_for_sharing(mp_layer* layer, u32 width, u32 height)
 	                             0);
 
 	//NOTE: unparent it and destroy tmp parent
-	SetParent(layer->hWnd, 0);
+	SetParent(surface->layer.hWnd, 0);
 	DestroyWindow(tmpParent);
 }
 
-void mp_layer_cleanup(mp_layer* layer)
+mg_surface_data* mg_win32_surface_create_host(mp_window window)
 {
-	DestroyWindow(layer->hWnd);
-}
+	mg_surface_data* surface = 0;
+	mp_window_data* windowData = mp_window_ptr_from_handle(window);
+	if(windowData)
+	{
+		surface = malloc_type(mg_surface_data);
+		if(surface)
+		{
+			memset(surface, 0, sizeof(mg_surface_data));
+			mg_surface_init_for_window(surface, windowData);
 
-void* mp_layer_native_surface(mp_layer* layer)
-{
-	return((void*)layer->hWnd);
-}
-
-vec2 mp_layer_contents_scaling(mp_layer* layer)
-{
-	u32 dpi = GetDpiForWindow(layer->hWnd);
-	vec2 contentsScaling = (vec2){(float)dpi/96., (float)dpi/96.};
-	return(contentsScaling);
-}
-
-mp_rect mp_layer_get_frame(mp_layer* layer)
-{
-	RECT rect = {0};
-	GetClientRect(layer->hWnd, &rect);
-
-	vec2 scale = mp_layer_contents_scaling(layer);
-
-	mp_rect res = {rect.left/scale.x,
-	               rect.bottom/scale.y,
-	               (rect.right - rect.left)/scale.x,
-	               (rect.bottom - rect.top)/scale.y};
-	return(res);
-}
-
-void mp_layer_set_frame(mp_layer* layer, mp_rect frame)
-{
-	HWND parent = GetParent(layer->hWnd);
-	RECT parentContentRect;
-
-	GetClientRect(parent, &parentContentRect);
-	int parentHeight = 	parentContentRect.bottom - parentContentRect.top;
-
-	vec2 scale = mp_layer_contents_scaling(layer);
-
-	SetWindowPos(layer->hWnd,
-			     HWND_TOP,
-			     frame.x * scale.x,
-			     parentHeight - (frame.y + frame.h) * scale.y,
-			     frame.w * scale.x,
-			     frame.h * scale.y,
-			     SWP_NOACTIVATE | SWP_NOZORDER);
-}
-
-void mp_layer_set_hidden(mp_layer* layer, bool hidden)
-{
-	ShowWindow(layer->hWnd, hidden ? SW_HIDE : SW_NORMAL);
-}
-
-bool mp_layer_get_hidden(mp_layer* layer)
-{
-	bool hidden = !IsWindowVisible(layer->hWnd);
-	return(hidden);
+			surface->backend = MG_BACKEND_HOST;
+			surface->hostConnect = mg_win32_surface_host_connect;
+		}
+	}
+	return(surface);
 }
 
 /////////////////////////////////////////// WIP ///////////////////////////////////////////////

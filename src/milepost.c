@@ -68,8 +68,6 @@
 		#include"egl_surface.c"
 	#endif
 
-	#include"win32_surface_sharing.c"
-
 #elif defined(OS_MACOS)
 	//NOTE: macos application layer and graphics backends are defined in milepost.m
 #else

@@ -115,7 +115,6 @@ typedef struct mg_wgl_surface
 {
 	mg_surface_data interface;
 
-	mp_layer layer;
 	HDC hDC;
 	HGLRC glContext;
 
@@ -134,7 +133,7 @@ void mg_wgl_surface_destroy(mg_surface_data* interface)
 	}
 	wglDeleteContext(surface->glContext);
 
-	mp_layer_cleanup(&surface->layer);
+	mg_surface_cleanup(interface);
 
 	free(surface);
 }
@@ -157,42 +156,6 @@ void mg_wgl_surface_swap_interval(mg_surface_data* interface, int swap)
 {
 	mg_wgl_surface* surface = (mg_wgl_surface*)interface;
 	wglSwapIntervalEXT(swap);
-}
-
-vec2 mg_wgl_surface_contents_scaling(mg_surface_data* interface)
-{
-	mg_wgl_surface* surface = (mg_wgl_surface*)interface;
-	return(mp_layer_contents_scaling(&surface->layer));
-}
-
-mp_rect mg_wgl_surface_get_frame(mg_surface_data* interface)
-{
-	mg_wgl_surface* surface = (mg_wgl_surface*)interface;
-	return(mp_layer_get_frame(&surface->layer));
-}
-
-void mg_wgl_surface_set_frame(mg_surface_data* interface, mp_rect frame)
-{
-	mg_wgl_surface* surface = (mg_wgl_surface*)interface;
-	mp_layer_set_frame(&surface->layer, frame);
-}
-
-void mg_wgl_surface_set_hidden(mg_surface_data* interface, bool hidden)
-{
-	mg_wgl_surface* surface = (mg_wgl_surface*)interface;
-	mp_layer_set_hidden(&surface->layer, hidden);
-}
-
-bool mg_wgl_surface_get_hidden(mg_surface_data* interface)
-{
-	mg_wgl_surface* surface = (mg_wgl_surface*)interface;
-	return(mp_layer_get_hidden(&surface->layer));
-}
-
-void* mg_wgl_surface_native_layer(mg_surface_data* interface)
-{
-	mg_wgl_surface* surface = (mg_wgl_surface*)interface;
-	return(mp_layer_native_surface(&surface->layer));
 }
 
 void* mg_wgl_get_proc(const char* name)
@@ -224,19 +187,15 @@ mg_surface_data* mg_wgl_surface_create_for_window(mp_window window)
 		mg_wgl_surface* surface = malloc_type(mg_wgl_surface);
 		if(surface)
 		{
+			mg_surface_init_for_window((mg_surface_data*)surface, windowData);
+
 			surface->interface.backend = MG_BACKEND_GL;
 			surface->interface.destroy = mg_wgl_surface_destroy;
 			surface->interface.prepare = mg_wgl_surface_prepare;
 			surface->interface.present = mg_wgl_surface_present;
 			surface->interface.swapInterval = mg_wgl_surface_swap_interval;
-			surface->interface.contentsScaling = mg_wgl_surface_contents_scaling;
-			surface->interface.getFrame = mg_wgl_surface_get_frame;
-			surface->interface.setFrame = mg_wgl_surface_set_frame;
-			surface->interface.getHidden = mg_wgl_surface_get_hidden;
-			surface->interface.setHidden = mg_wgl_surface_set_hidden;
 
-			mp_layer_init_for_window(&surface->layer, windowData);
-			surface->hDC = GetDC(surface->layer.hWnd);
+			surface->hDC = GetDC(surface->interface.layer.hWnd);
 
 			//NOTE(martin): create the pixel format and gl context
 			PIXELFORMATDESCRIPTOR pixelFormatDesc =
