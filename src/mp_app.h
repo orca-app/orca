@@ -193,7 +193,7 @@ typedef enum {
 	MP_KEYMOD_ALT   = 0x01,
 	MP_KEYMOD_SHIFT = 0x02,
 	MP_KEYMOD_CTRL  = 0x04,
-	MP_KEYMOD_CMD   = 0x08 } mp_key_mods;
+	MP_KEYMOD_CMD   = 0x08 } mp_keymod_flags;
 
 typedef enum {
 	MP_MOUSE_LEFT	= 0x00,
@@ -207,7 +207,7 @@ typedef struct mp_key_event		// keyboard and mouse buttons input
 {
 	mp_key_action action;
 	i32	code;
-	mp_key_mods	mods;
+	mp_keymod_flags	mods;
 	char label[8];
 	u8 labelLen;
 	int clickCount;
@@ -226,7 +226,7 @@ typedef struct mp_move_event		// mouse move/scroll
 	f32 y;
 	f32 deltaX;
 	f32 deltaY;
-	mp_key_mods mods;
+	mp_keymod_flags mods;
 } mp_move_event;
 
 typedef struct mp_frame_event		// window resize / move
@@ -322,26 +322,26 @@ MP_API mp_rect mp_window_frame_rect_for_content_rect(mp_rect contentRect, mp_win
 //--------------------------------------------------------------------
 // Input state polling
 //--------------------------------------------------------------------
-MP_API bool mp_input_key_down(mp_key_code key);
-MP_API bool mp_input_key_pressed(mp_key_code key);
-MP_API bool mp_input_key_released(mp_key_code key);
-MP_API mp_key_mods mp_input_key_mods(void);
 
-MP_API str8 mp_key_to_label(mp_key_code key);
-MP_API mp_key_code mp_label_to_key(str8 label);
+MP_API bool mp_key_down(mp_key_code key);
+MP_API int mp_key_pressed(mp_key_code key);
+MP_API int mp_key_released(mp_key_code key);
+MP_API int mp_key_repeated(mp_key_code key);
 
-MP_API bool mp_input_mouse_down(mp_mouse_button button);
-MP_API bool mp_input_mouse_pressed(mp_mouse_button button);
-MP_API bool mp_input_mouse_released(mp_mouse_button button);
-MP_API bool mp_input_mouse_clicked(mp_mouse_button button);
-MP_API bool mp_input_mouse_double_clicked(mp_mouse_button button);
+MP_API bool mp_mouse_down(mp_mouse_button button);
+MP_API int mp_mouse_pressed(mp_mouse_button button);
+MP_API int mp_mouse_released(mp_mouse_button button);
+MP_API bool mp_mouse_clicked(mp_mouse_button button);
+MP_API bool mp_mouse_double_clicked(mp_mouse_button button);
 
-MP_API vec2 mp_input_mouse_position(void);
-MP_API vec2 mp_input_mouse_delta(void);
-MP_API vec2 mp_input_mouse_wheel(void);
+MP_API vec2 mp_mouse_position(void);
+MP_API vec2 mp_mouse_delta(void);
+MP_API vec2 mp_mouse_wheel(void);
 
 MP_API str32 mp_input_text_utf32(mem_arena* arena);
 MP_API str8 mp_input_text_utf8(mem_arena* arena);
+
+MP_API mp_keymod_flags mp_key_mods();
 
 //--------------------------------------------------------------------
 // Clipboard

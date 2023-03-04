@@ -123,10 +123,10 @@ typedef struct ui_sig
 
 	bool pressed;
 	bool released;
-	bool triggered;
 	bool clicked;
 	bool doubleClicked;
-	bool rightClicked;
+	bool rightPressed;
+
 	bool dragging;
 	bool hovering;
 

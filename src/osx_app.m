@@ -236,9 +236,9 @@ static int mp_convert_osx_key(unsigned short nsCode)
 	}
 }
 
-static mp_key_mods mp_convert_osx_mods(NSUInteger nsFlags)
+static mp_keymod_flags mp_convert_osx_mods(NSUInteger nsFlags)
 {
-	mp_key_mods mods = MP_KEYMOD_NONE;
+	mp_keymod_flags mods = MP_KEYMOD_NONE;
 	if(nsFlags & NSEventModifierFlagShift)
 	{
 		mods |= MP_KEYMOD_SHIFT;
@@ -369,7 +369,7 @@ void mp_install_keyboard_layout_listener()
 		object:nil];
 }
 
-static void mp_update_key_mods(mp_key_mods mods)
+static void mp_update_key_mods(mp_keymod_flags mods)
 {
 	__mpApp.inputState.keyboard.mods = mods;
 }
@@ -384,6 +384,15 @@ static void mp_update_key_mods(mp_key_mods mods)
 @implementation MPApplication
 -(void)noOpThread:(id)object
 {}
+
+//This is necessary in order to receive keyUp events when we have a key combination with Cmd.
+- (void)sendEvent:(NSEvent *)event {
+    if ([event type] == NSEventTypeKeyUp && ([event modifierFlags] & NSEventModifierFlagCommand))
+        [[self keyWindow] sendEvent:event];
+    else
+        [super sendEvent:event];
+}
+
 @end
 
 @interface MPAppDelegate : NSObject <NSApplicationDelegate>
@@ -791,101 +800,61 @@ static void mp_update_key_mods(mp_key_mods mods)
 	}
 }
 
-- (void)mouseDown:(NSEvent *)nsEvent
+static void mp_process_mouse_button(NSEvent* nsEvent, mp_window_data* window, mp_mouse_button button, mp_key_action action)
 {
 	mp_event event = {};
 	event.window = mp_window_handle_from_ptr(window);
 	event.type = MP_EVENT_MOUSE_BUTTON;
-	event.key.action = MP_KEY_PRESS;
-	event.key.code = MP_MOUSE_LEFT;
+	event.key.action = action;
+	event.key.code = button;
 	event.key.mods = mp_convert_osx_mods([nsEvent modifierFlags]);
 	event.key.clickCount = [nsEvent clickCount];
 
-	mp_update_key_state(&__mpApp.inputState.mouse.buttons[event.key.code], true);
-	if(event.key.clickCount >= 1)
+	mp_key_state* keyState = &__mpApp.inputState.mouse.buttons[event.key.code];
+	mp_update_key_state(keyState, action);
+	if(action == MP_KEY_PRESS)
 	{
-		__mpApp.inputState.mouse.buttons[event.key.code].clicked = true;
+		if(event.key.clickCount >= 1)
+		{
+			keyState->sysClicked = true;
+		}
+		if(event.key.clickCount >= 2)
+		{
+			keyState->sysDoubleClicked = true;
+		}
 	}
-	if(event.key.clickCount >= 2)
-	{
-
-		__mpApp.inputState.mouse.buttons[event.key.code].doubleClicked = true;
-	}
-
 	mp_queue_event(&event);
+}
 
+- (void)mouseDown:(NSEvent *)nsEvent
+{
+	mp_process_mouse_button(nsEvent, window, MP_MOUSE_LEFT, MP_KEY_PRESS);
 	[window->osx.nsWindow makeFirstResponder:self];
 }
 
 - (void)mouseUp:(NSEvent*)nsEvent
 {
-	mp_event event = {};
-	event.window = mp_window_handle_from_ptr(window);
-	event.type = MP_EVENT_MOUSE_BUTTON;
-	event.key.action = MP_KEY_RELEASE;
-	event.key.code = MP_MOUSE_LEFT;
-	event.key.mods = mp_convert_osx_mods([nsEvent modifierFlags]);
-	event.key.clickCount = [nsEvent clickCount];
-
-	mp_update_key_state(&__mpApp.inputState.mouse.buttons[event.key.code], false);
-
-	mp_queue_event(&event);
+	mp_process_mouse_button(nsEvent, window, MP_MOUSE_LEFT, MP_KEY_RELEASE);
 }
 
 - (void)rightMouseDown:(NSEvent*)nsEvent
 {
-	mp_event event = {};
-	event.window = mp_window_handle_from_ptr(window);
-	event.type = MP_EVENT_MOUSE_BUTTON;
-	event.key.action = MP_KEY_PRESS;
-	event.key.code = MP_MOUSE_RIGHT;
-	event.key.mods = mp_convert_osx_mods([nsEvent modifierFlags]);
-
-	mp_update_key_state(&__mpApp.inputState.mouse.buttons[event.key.code], true);
-
-	mp_queue_event(&event);
+	mp_process_mouse_button(nsEvent, window, MP_MOUSE_RIGHT, MP_KEY_PRESS);
 }
 
 - (void)rightMouseUp:(NSEvent*)nsEvent
 {
-	mp_event event = {};
-	event.window = mp_window_handle_from_ptr(window);
-	event.type = MP_EVENT_MOUSE_BUTTON;
-	event.key.action = MP_KEY_RELEASE;
-	event.key.code = MP_MOUSE_RIGHT;
-	event.key.mods = mp_convert_osx_mods([nsEvent modifierFlags]);
-
-		mp_update_key_state(&__mpApp.inputState.mouse.buttons[event.key.code], false);
-
-	mp_queue_event(&event);
+	mp_process_mouse_button(nsEvent, window, MP_MOUSE_RIGHT, MP_KEY_RELEASE);
 }
 
 - (void)otherMouseDown:(NSEvent*)nsEvent
 {
-	mp_event event = {};
-	event.window = mp_window_handle_from_ptr(window);
-	event.type = MP_EVENT_MOUSE_BUTTON;
-	event.key.action = MP_KEY_PRESS;
-	event.key.code = [nsEvent buttonNumber];
-	event.key.mods = mp_convert_osx_mods([nsEvent modifierFlags]);
-
-	mp_update_key_state(&__mpApp.inputState.mouse.buttons[event.key.code], true);
-
-	mp_queue_event(&event);
+	mp_process_mouse_button(nsEvent, window, [nsEvent buttonNumber], MP_KEY_PRESS);
 }
 
 - (void)otherMouseUp:(NSEvent*)nsEvent
 {
-	mp_event event = {};
-	event.window = mp_window_handle_from_ptr(window);
-	event.type = MP_EVENT_MOUSE_BUTTON;
-	event.key.action = MP_KEY_RELEASE;
-	event.key.code = [nsEvent buttonNumber];
-	event.key.mods = mp_convert_osx_mods([nsEvent modifierFlags]);
-
-	mp_update_key_state(&__mpApp.inputState.mouse.buttons[event.key.code], false);
-
-	mp_queue_event(&event);
+	mp_process_mouse_button(nsEvent, window, [nsEvent buttonNumber], MP_KEY_RELEASE);
 }
 
 - (void)mouseDragged:(NSEvent*)nsEvent
@@ -946,10 +915,10 @@ static void mp_update_key_mods(mp_key_mods mods)
 	mp_queue_event(&event);
 }
 
-
-
 - (void)keyDown:(NSEvent*)nsEvent
 {
+	mp_key_action action = [nsEvent isARepeat] ? MP_KEY_REPEAT : MP_KEY_PRESS;
+
 	mp_event event = {};
 	event.window = mp_window_handle_from_ptr(window);
 	event.type = MP_EVENT_KEYBOARD_KEY;
@@ -961,7 +930,7 @@ static void mp_update_key_mods(mp_key_mods mods)
 	event.key.labelLen = label.len;
 	memcpy(event.key.label, label.ptr, label.len);
 
-	mp_update_key_state(&__mpApp.inputState.keyboard.keys[event.key.code], true);
+	mp_update_key_state(&__mpApp.inputState.keyboard.keys[event.key.code], MP_KEY_PRESS);
 
 	mp_queue_event(&event);
 
@@ -977,7 +946,7 @@ static void mp_update_key_mods(mp_key_mods mods)
 	event.key.code = mp_convert_osx_key([nsEvent keyCode]);
 	event.key.mods = mp_convert_osx_mods([nsEvent modifierFlags]);
 
-	mp_update_key_state(&__mpApp.inputState.keyboard.keys[event.key.code], false);
+	mp_update_key_state(&__mpApp.inputState.keyboard.keys[event.key.code], MP_KEY_RELEASE);
 
 	mp_queue_event(&event);
 }
@@ -1092,7 +1061,7 @@ static const NSRange kEmptyRange = { NSNotFound, 0 };
 {
 	NSString* characters;
 	NSEvent* nsEvent = [NSApp currentEvent];
-	mp_key_mods mods = mp_convert_osx_mods([nsEvent modifierFlags]);
+	mp_keymod_flags mods = mp_convert_osx_mods([nsEvent modifierFlags]);
 
 	if([string isKindOfClass:[NSAttributedString class]])
 	{
@@ -2265,7 +2234,6 @@ int mp_alert_popup(const char* title,
 
 		[alert setAlertStyle:NSAlertStyleWarning];
 		int result = count - ([alert runModal]-NSAlertFirstButtonReturn) - 1;
-		printf("result = %i, NSAlertFirstButtonReturn = %li\n", result, (long)NSAlertFirstButtonReturn);
 		[keyWindow makeKeyWindow];
 		return(result);
 	}

@@ -129,23 +129,47 @@ bool mp_next_event(mp_event* event)
 // Input state updating
 //---------------------------------------------------------------
 
-static void mp_update_key_state(mp_key_state* key, bool down)
+static void mp_update_key_state(mp_key_state* key, mp_key_action action)
 {
 	u64 frameCounter = __mpApp.inputState.frameCounter;
 	if(key->lastUpdate != frameCounter)
 	{
-		key->transitionCounter = 0;
-		key->clicked = false;
-		key->doubleClicked = false;
+		key->transitionCount = 0;
+		key->repeatCount = 0;
+		key->sysClicked = false;
+		key->sysDoubleClicked = false;
 		key->lastUpdate = frameCounter;
 	}
-	if(key->down != down)
+
+	switch(action)
 	{
-		key->transitionCounter++;
+		case MP_KEY_PRESS:
+		{
+			if(!key->down)
+			{
+				key->transitionCount++;
+			}
+			key->down = true;
+		} break;
+
+		case MP_KEY_REPEAT:
+		{
+			key->repeatCount++;
+			key->down = true;
+		} break;
+
+		case MP_KEY_RELEASE:
+		{
+			if(key->down)
+			{
+				key->transitionCount++;
+			}
+			key->down = false;
+		} break;
+
+		default:
+			break;
 	}
-
-	key->down = down;
-
 }
 
 static void mp_update_mouse_move(f32 x, f32 y, f32 deltaX, f32 deltaY)
@@ -204,107 +228,138 @@ static void mp_update_text(utf32 codepoint)
 // Input state polling
 //--------------------------------------------------------------------
 
-mp_key_state mp_input_get_key_state(mp_key_code key)
+mp_key_state mp_key_get_state(mp_key_code key)
 {
+	mp_key_state state = {0};
 	if(key <= MP_KEY_COUNT)
 	{
-		return(__mpApp.inputState.keyboard.keys[key]);
+		state = __mpApp.inputState.keyboard.keys[key];
 	}
-	else
-	{
-		return((mp_key_state){0});
-	}
+	return(state);
 }
-mp_key_state mp_input_get_mouse_button_state(mp_mouse_button button)
+
+mp_key_state mp_mouse_button_get_state(mp_mouse_button button)
 {
+	mp_key_state state = {0};
 	if(button <= MP_MOUSE_BUTTON_COUNT)
 	{
-		return(__mpApp.inputState.mouse.buttons[button]);
+		state = __mpApp.inputState.mouse.buttons[button];
 	}
-	else
+	return(state);
+}
+
+int mp_key_state_press_count(mp_key_state* key)
+{
+	int count = 0;
+	if(key->lastUpdate == __mpApp.inputState.frameCounter)
 	{
-		return((mp_key_state){0});
+		count = key->transitionCount / 2;
+		if(key->down)
+		{
+			//NOTE: add one if state is down transition count is odd
+			count += (key->transitionCount & 0x01);
+		}
 	}
+	return(count);
 }
 
-bool mp_input_check_key_transition(mp_key_state* key, bool pressed)
+int mp_key_state_release_count(mp_key_state* key)
 {
-	bool res = ( (key->lastUpdate == __mpApp.inputState.frameCounter)
-	           && key->transitionCounter
-	           &&(key->down == pressed || key->transitionCounter > 1));
-	return(res);
+	int count = 0;
+	if(key->lastUpdate == __mpApp.inputState.frameCounter)
+	{
+		count = key->transitionCount / 2;
+		if(!key->down)
+		{
+			//NOTE: add one if state is up and transition count is odd
+			count += (key->transitionCount & 0x01);
+		}
+	}
+	return(count);
 }
 
-bool mp_input_key_down(mp_key_code key)
+int mp_key_state_repeat_count(mp_key_state* key)
 {
-	mp_key_state state = mp_input_get_key_state(key);
+	int count = 0;
+	if(key->lastUpdate == __mpApp.inputState.frameCounter)
+	{
+		count = key->repeatCount;
+	}
+	return(count);
+}
+
+bool mp_key_down(mp_key_code key)
+{
+	mp_key_state state = mp_key_get_state(key);
 	return(state.down);
 }
-bool mp_input_key_pressed(mp_key_code key)
+
+int mp_key_pressed(mp_key_code key)
 {
-	mp_key_state state = mp_input_get_key_state(key);
-	bool res = mp_input_check_key_transition(&state, true);
+	mp_key_state state = mp_key_get_state(key);
+	int res = mp_key_state_press_count(&state);
 	return(res);
 }
 
-bool mp_input_key_released(mp_key_code key)
+int mp_key_released(mp_key_code key)
 {
-	mp_key_state state = mp_input_get_key_state(key);
-	bool res = mp_input_check_key_transition(&state, false);
+	mp_key_state state = mp_key_get_state(key);
+	int res = mp_key_state_release_count(&state);
 	return(res);
 }
 
-bool mp_input_mouse_down(mp_mouse_button button)
+int mp_key_repeated(mp_key_code key)
 {
-	mp_key_state state = mp_input_get_mouse_button_state(button);
+	mp_key_state state = mp_key_get_state(key);
+	int res = mp_key_state_repeat_count(&state);
+	return(res);
+}
+
+bool mp_mouse_down(mp_mouse_button button)
+{
+	mp_key_state state = mp_mouse_button_get_state(button);
 	return(state.down);
 }
 
-bool mp_input_mouse_pressed(mp_mouse_button button)
+int mp_mouse_pressed(mp_mouse_button button)
 {
-	mp_key_state state = mp_input_get_mouse_button_state(button);
-	bool res = mp_input_check_key_transition(&state, true);
+	mp_key_state state = mp_mouse_button_get_state(button);
+	int res = mp_key_state_press_count(&state);
 	return(res);
 }
 
-bool mp_input_mouse_released(mp_mouse_button button)
+int mp_mouse_released(mp_mouse_button button)
 {
-	mp_key_state state = mp_input_get_mouse_button_state(button);
-	bool res = mp_input_check_key_transition(&state, false);
+	mp_key_state state = mp_mouse_button_get_state(button);
+	int res = mp_key_state_release_count(&state);
 	return(res);
 }
 
-bool mp_input_mouse_clicked(mp_mouse_button button)
+bool mp_mouse_clicked(mp_mouse_button button)
 {
-	mp_key_state state = mp_input_get_mouse_button_state(button);
-	bool clicked = state.clicked && (state.lastUpdate == __mpApp.inputState.frameCounter);
+	mp_key_state state = mp_mouse_button_get_state(button);
+	bool clicked = state.sysClicked && (state.lastUpdate == __mpApp.inputState.frameCounter);
 	return(clicked);
 }
 
-bool mp_input_mouse_double_clicked(mp_mouse_button button)
+bool mp_mouse_double_clicked(mp_mouse_button button)
 {
-	mp_key_state state = mp_input_get_mouse_button_state(button);
-	if(state.lastUpdate == __mpApp.inputState.frameCounter)
-	{
-		return(state.doubleClicked);
-	}
-	else
-	{
-		return(false);
-	}
+	mp_key_state state = mp_mouse_button_get_state(button);
+	bool doubleClicked = state.sysClicked && (state.lastUpdate == __mpApp.inputState.frameCounter);
+	return(doubleClicked);
 }
 
-mp_key_mods mp_input_key_mods()
+mp_keymod_flags mp_key_mods()
 {
 	return(__mpApp.inputState.keyboard.mods);
 }
 
-vec2 mp_input_mouse_position()
+vec2 mp_mouse_position()
 {
 	return(__mpApp.inputState.mouse.pos);
 }
 
-vec2 mp_input_mouse_delta()
+vec2 mp_mouse_delta()
 {
 	if(__mpApp.inputState.mouse.lastUpdate == __mpApp.inputState.frameCounter)
 	{
@@ -316,7 +371,7 @@ vec2 mp_input_mouse_delta()
 	}
 }
 
-vec2 mp_input_mouse_wheel()
+vec2 mp_mouse_wheel()
 {
 	if(__mpApp.inputState.mouse.lastUpdate == __mpApp.inputState.frameCounter)
 	{

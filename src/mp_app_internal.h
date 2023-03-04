@@ -35,17 +35,18 @@ typedef struct mp_key_utf8
 typedef struct mp_key_state
 {
 	u64 lastUpdate;
-	u32 transitionCounter;
+	u32 transitionCount;
+	u32 repeatCount;
 	bool down;
-	bool clicked;
-	bool doubleClicked;
+	bool sysClicked;
+	bool sysDoubleClicked;
 
 } mp_key_state;
 
 typedef struct mp_keyboard_state
 {
 	mp_key_state keys[MP_KEY_COUNT];
-	mp_key_mods  mods;
+	mp_keymod_flags  mods;
 } mp_keyboard_state;
 
 typedef struct mp_mouse_state

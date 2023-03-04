@@ -450,7 +450,7 @@ vec2 ui_mouse_position(void)
 {
 	ui_context* ui = ui_get_context();
 
-	vec2 mousePos = mp_input_mouse_position();
+	vec2 mousePos = mp_mouse_position();
 	mousePos.y = ui->height - mousePos.y;
 	return(mousePos);
 }
@@ -458,7 +458,7 @@ vec2 ui_mouse_position(void)
 vec2 ui_mouse_delta(void)
 {
 	ui_context* ui = ui_get_context();
-	vec2 delta = mp_input_mouse_delta();
+	vec2 delta = mp_mouse_delta();
 	delta.y *= -1.;
 	return(delta);
 }
@@ -466,7 +466,7 @@ vec2 ui_mouse_delta(void)
 vec2 ui_mouse_wheel(void)
 {
 	ui_context* ui = ui_get_context();
-	vec2 delta = mp_input_mouse_wheel();
+	vec2 delta = mp_mouse_wheel();
 	delta.y *= -1.;
 	return(delta);
 }
@@ -642,30 +642,25 @@ ui_sig ui_box_sig(ui_box* box)
 		{
 			if(sig.hovering)
 			{
-				if(mp_input_mouse_clicked(MP_MOUSE_LEFT))
-				{
-					printf("clicked while hovering!\n");
-				}
-				sig.pressed = mp_input_mouse_pressed(MP_MOUSE_LEFT);
+				sig.pressed = mp_mouse_pressed(MP_MOUSE_LEFT);
 				if(sig.pressed)
 				{
 					box->dragging = true;
 				}
-
-				sig.clicked = mp_input_mouse_clicked(MP_MOUSE_LEFT);
-				sig.doubleClicked = mp_input_mouse_double_clicked(MP_MOUSE_LEFT);
+				sig.doubleClicked = mp_mouse_double_clicked(MP_MOUSE_LEFT);
+				sig.rightPressed = mp_mouse_pressed(MP_MOUSE_RIGHT);
 			}
 
-			sig.released = mp_input_mouse_released(MP_MOUSE_LEFT);
+			sig.released = mp_mouse_released(MP_MOUSE_LEFT);
 			if(sig.released)
 			{
 				if(box->dragging && sig.hovering)
 				{
-					sig.triggered = true;
+					sig.clicked = true;
 				}
 			}
 
-			if(!mp_input_mouse_down(MP_MOUSE_LEFT))
+			if(!mp_mouse_down(MP_MOUSE_LEFT))
 			{
 				box->dragging = false;
 			}
@@ -1589,7 +1584,7 @@ void ui_menu_bar_begin(const char* name)
 	ui_push_size(UI_AXIS_Y, UI_SIZE_TEXT, 0, 0);
 
 	ui_sig sig = ui_box_sig(bar);
-	if(!sig.hovering && mp_input_mouse_released(MP_MOUSE_LEFT))
+	if(!sig.hovering && mp_mouse_released(MP_MOUSE_LEFT))
 	{
 		ui_box_deactivate(bar);
 	}
@@ -1725,10 +1720,7 @@ void ui_edit_copy_selection_to_clipboard(ui_context* ui, str32 codepoints)
 	u32 start = minimum(ui->editCursor, ui->editMark);
 	u32 end = maximum(ui->editCursor, ui->editMark);
 	str32 selection = str32_slice(codepoints, start, end);
-
 	str8 string = utf8_push_from_codepoints(&ui->frameArena, selection);
-
-	printf("copying '%.*s' to clipboard\n", (int)string.len, string.ptr);
 
 	mp_clipboard_clear();
 	mp_clipboard_set_string(string);
@@ -1737,9 +1729,6 @@ void ui_edit_copy_selection_to_clipboard(ui_context* ui, str32 codepoints)
 str32 ui_edit_replace_selection_with_clipboard(ui_context* ui, str32 codepoints)
 {
 	str8 string = mp_clipboard_get_string(&ui->frameArena);
-
-	printf("pasting '%.*s' from clipboard\n", (int)string.len, string.ptr);
-
 	str32 input = utf8_push_to_codepoints(&ui->frameArena, string);
 	str32 result = ui_edit_replace_selection_with_codepoints(ui, codepoints, input);
 	return(result);
@@ -1764,7 +1753,7 @@ typedef enum {
 typedef struct ui_edit_command
 {
 	mp_key_code key;
-	mp_key_mods mods;
+	mp_keymod_flags mods;
 
 	ui_edit_op operation;
 	ui_edit_move move;
@@ -2186,18 +2175,13 @@ ui_text_box_result ui_text_box(const char* name, mem_arena* arena, str8 text)
 		}
 
 		//NOTE handle shortcuts
-		mp_key_mods mods = mp_input_key_mods();
+		mp_keymod_flags mods = mp_key_mods();
 
 		for(int i=0; i<UI_EDIT_COMMAND_COUNT; i++)
 		{
 			const ui_edit_command* command = &(UI_EDIT_COMMANDS[i]);
 
-			if(mp_input_key_pressed(MP_KEY_C))
-			{
-				printf("press C!\n");
-			}
-
-			if(mp_input_key_pressed(command->key) && mods == command->mods)
+			if(mp_key_pressed(command->key) && mods == command->mods)
 			{
 				codepoints = ui_edit_perform_operation(ui, command->operation, command->move, command->direction, codepoints);
 				break;
@@ -2205,7 +2189,7 @@ ui_text_box_result ui_text_box(const char* name, mem_arena* arena, str8 text)
 		}
 
 		//NOTE(martin): text box focus shortcuts
-		if(mp_input_key_pressed(MP_KEY_ENTER))
+		if(mp_key_pressed(MP_KEY_ENTER))
 		{
 			//TODO(martin): extract in gui_edit_complete() (and use below)
 			ui_box_deactivate(frame);
