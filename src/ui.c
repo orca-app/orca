@@ -2026,7 +2026,7 @@ void ui_text_box_render(ui_box* box, void* data)
 	str32 before = str32_slice(codepoints, 0, firstDisplayedChar);
 	mp_rect beforeBox = mg_text_bounding_box_utf32(style->font, style->fontSize, before);
 
-	f32 textMargin = 5;
+	f32 textMargin = 5; //TODO: make that configurable
 
 	f32 textX = textMargin + box->rect.x - beforeBox.w;
 	f32 textTop = box->rect.y + 0.5*(box->rect.h - lineHeight);
@@ -2039,7 +2039,7 @@ void ui_text_box_render(ui_box* box, void* data)
 
 		str32 beforeSelect = str32_slice(codepoints, 0, selectStart);
 		mp_rect beforeSelectBox = mg_text_bounding_box_utf32(style->font, style->fontSize, beforeSelect);
-		beforeSelectBox.x += textX + beforeBox.x + beforeBox.w;
+		beforeSelectBox.x += textX;
 		beforeSelectBox.y += textY;
 
 		if(selectStart != selectEnd)
@@ -2116,6 +2116,8 @@ ui_text_box_result ui_text_box(const char* name, mem_arena* arena, str8 text)
 
 	ui_box* frame = ui_box_make(name, frameFlags);
 	ui_style* style = &frame->computedStyle;
+	f32 textMargin = 5; //TODO parameterize this margin! must be the same as in ui_text_box_render
+
 	mg_font_extents extents = mg_font_get_scaled_extents(style->font, style->fontSize);
 	ui_box_set_size(frame, UI_AXIS_Y, UI_SIZE_PIXELS, extents.ascent+extents.descent+10, 1);
 
@@ -2144,7 +2146,6 @@ ui_text_box_result ui_text_box(const char* name, mem_arena* arena, str8 text)
 		{
 			//NOTE: set cursor/extend selection on mouse press or drag
 			vec2 pos = ui_mouse_position();
-			f32 textMargin = 5; //TODO parameterize this margin! must be the same as in ui_text_box_render
 			f32 cursorX = pos.x - frame->rect.x - textMargin;
 
 			str32 codepoints = utf8_push_to_codepoints(&ui->frameArena, text);
@@ -2222,18 +2223,19 @@ ui_text_box_result ui_text_box(const char* name, mem_arena* arena, str8 text)
 			}
 		}
 
-		//NOTE(martin): text box focus shortcuts
-		if(mp_key_pressed(MP_KEY_ENTER))
-		{
-			//TODO(martin): extract in gui_edit_complete() (and use below)
-			ui_box_deactivate(frame);
-			ui->focus = 0;
-		}
-
+		//NOTE(martin): check changed/accepted
 		if(oldCodepoints.ptr != codepoints.ptr)
 		{
 			result.changed = true;
 			result.text = utf8_push_from_codepoints(arena, codepoints);
+		}
+
+		if(mp_key_pressed(MP_KEY_ENTER))
+		{
+			//TODO(martin): extract in gui_edit_complete() (and use below)
+			result.accepted = true;
+			ui_box_deactivate(frame);
+			ui->focus = 0;
 		}
 
 		//NOTE slide contents
@@ -2244,7 +2246,6 @@ ui_text_box_result ui_text_box(const char* name, mem_arena* arena, str8 text)
 			}
 			else
 			{
-				f32 textMargin = 5.; //TODO: pull this out and make it configurable
 				i32 firstDisplayedChar = ui->editFirstDisplayedChar;
 				str32 firstToCursor = str32_slice(codepoints, firstDisplayedChar, ui->editCursor);
 				mp_rect firstToCursorBox = mg_text_bounding_box_utf32(style->font, style->fontSize, firstToCursor);

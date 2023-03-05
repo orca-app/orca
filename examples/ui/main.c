@@ -111,11 +111,6 @@ int main()
 			}
 		}
 
-		if(mp_key_pressed(MP_KEY_C))
-		{
-			printf("pressed C!\n");
-		}
-
 		mg_surface_prepare(surface);
 
 		mp_rect frame = mp_window_get_content_rect(window);
