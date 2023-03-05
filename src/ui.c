@@ -91,9 +91,9 @@ typedef struct ui_context
 	ui_box* hovered;
 
 	ui_box* focus;
-	u32 editCursor;
-	u32 editMark;
-	u32 editFirstDisplayedChar;
+	i32 editCursor;
+	i32 editMark;
+	i32 editFirstDisplayedChar;
 	f64 editCursorBlinkStart;
 
 } ui_context;
@@ -2136,12 +2136,45 @@ ui_text_box_result ui_text_box(const char* name, mem_arena* arena, str8 text)
 				ui->editFirstDisplayedChar = 0;
 				ui->editCursor = 0;
 				ui->editMark = 0;
-				ui->editCursorBlinkStart = ui->frameTime;
 			}
-			//TODO: set cursor on mouse pos
-
+			ui->editCursorBlinkStart = ui->frameTime;
 		}
 
+		if(sig.pressed || sig.dragging)
+		{
+			//NOTE: set cursor/extend selection on mouse press or drag
+			vec2 pos = ui_mouse_position();
+			f32 textMargin = 5; //TODO parameterize this margin! must be the same as in ui_text_box_render
+			f32 cursorX = pos.x - frame->rect.x - textMargin;
+
+			str32 codepoints = utf8_push_to_codepoints(&ui->frameArena, text);
+			i32 newCursor = codepoints.len;
+			f32 x = 0;
+			for(int i = ui->editFirstDisplayedChar; i<codepoints.len; i++)
+			{
+				mp_rect bbox = mg_text_bounding_box_utf32(style->font, style->fontSize, str32_slice(codepoints, i, i+1));
+				if(x + 0.5*bbox.w > cursorX)
+				{
+					newCursor = i;
+					break;
+				}
+				x += bbox.w;
+			}
+			//NOTE: put cursor the closest to new cursor (this maximizes the resulting selection,
+			//      and seems to be the standard behaviour across a number of text editor)
+			if(abs(newCursor - ui->editCursor) > abs(newCursor - ui->editMark))
+			{
+				i32 tmp = ui->editCursor;
+				ui->editCursor = ui->editMark;
+				ui->editMark = tmp;
+			}
+			//NOTE: set the new cursor, and set or leave the mark depending on mode
+			ui->editCursor = newCursor;
+			if(sig.pressed && !(mp_key_mods() & MP_KEYMOD_SHIFT))
+			{
+				ui->editMark = ui->editCursor;
+			}
+		}
 	}
 	else
 	{
