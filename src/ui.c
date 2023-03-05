@@ -2214,7 +2214,8 @@ ui_text_box_result ui_text_box(const char* name, mem_arena* arena, str8 text)
 		{
 			const ui_edit_command* command = &(UI_EDIT_COMMANDS[i]);
 
-			if(mp_key_pressed(command->key) && mods == command->mods)
+			if( (mp_key_pressed(command->key) || mp_key_repeated(command->key))
+			  && mods == command->mods)
 			{
 				codepoints = ui_edit_perform_operation(ui, command->operation, command->move, command->direction, codepoints);
 				break;
@@ -2235,7 +2236,29 @@ ui_text_box_result ui_text_box(const char* name, mem_arena* arena, str8 text)
 			result.text = utf8_push_from_codepoints(arena, codepoints);
 		}
 
-		//TODO slide contents
+		//NOTE slide contents
+		{
+			if(ui->editCursor < ui->editFirstDisplayedChar)
+			{
+				ui->editFirstDisplayedChar = ui->editCursor;
+			}
+			else
+			{
+				f32 textMargin = 5.; //TODO: pull this out and make it configurable
+				i32 firstDisplayedChar = ui->editFirstDisplayedChar;
+				str32 firstToCursor = str32_slice(codepoints, firstDisplayedChar, ui->editCursor);
+				mp_rect firstToCursorBox = mg_text_bounding_box_utf32(style->font, style->fontSize, firstToCursor);
+
+				while(firstToCursorBox.w > (frame->rect.w - 2*textMargin))
+				{
+					firstDisplayedChar++;
+					firstToCursor = str32_slice(codepoints, firstDisplayedChar, ui->editCursor);
+					firstToCursorBox = mg_text_bounding_box_utf32(style->font, style->fontSize, firstToCursor);
+				}
+
+				ui->editFirstDisplayedChar = firstDisplayedChar;
+			}
+		}
 
 		//NOTE: set renderer
 		str32* renderCodepoints = mem_arena_alloc_type(&ui->frameArena, str32);

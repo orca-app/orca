@@ -922,7 +922,7 @@ static void mp_process_mouse_button(NSEvent* nsEvent, mp_window_data* window, mp
 	mp_event event = {};
 	event.window = mp_window_handle_from_ptr(window);
 	event.type = MP_EVENT_KEYBOARD_KEY;
-	event.key.action = MP_KEY_PRESS;
+	event.key.action = action;
 	event.key.code = mp_convert_osx_key([nsEvent keyCode]);
 	event.key.mods = mp_convert_osx_mods([nsEvent modifierFlags]);
 
@@ -930,7 +930,7 @@ static void mp_process_mouse_button(NSEvent* nsEvent, mp_window_data* window, mp
 	event.key.labelLen = label.len;
 	memcpy(event.key.label, label.ptr, label.len);
 
-	mp_update_key_state(&__mpApp.inputState.keyboard.keys[event.key.code], MP_KEY_PRESS);
+	mp_update_key_state(&__mpApp.inputState.keyboard.keys[event.key.code], action);
 
 	mp_queue_event(&event);
 
