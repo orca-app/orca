@@ -26,20 +26,6 @@ typedef struct ui_input_text
 
 } ui_input_text;
 
-typedef struct ui_style_attr
-{
-	ui_style_tag tag;
-	ui_style_selector selector;
-	union
-	{
-		ui_size size;
-		mg_color color;
-		mg_font font;
-		f32 value;
-		u32 flags;
-	};
-} ui_style_attr;
-
 typedef struct ui_stack_elt ui_stack_elt;
 struct ui_stack_elt
 {
@@ -49,9 +35,14 @@ struct ui_stack_elt
 		ui_box* box;
 		ui_size size;
 		mp_rect clip;
-		ui_style_attr attr;
 	};
 };
+
+typedef struct ui_tag_elt
+{
+	list_elt listElt;
+	ui_tag tag;
+} ui_tag_elt;
 
 const u64 UI_BOX_MAP_BUCKET_COUNT = 1024;
 
@@ -75,17 +66,10 @@ typedef struct ui_context
 	ui_stack_elt* boxStack;
 	ui_stack_elt* clipStack;
 
-	ui_stack_elt* sizeStack[UI_AXIS_COUNT];
-	ui_stack_elt* bgColorStack;
-	ui_stack_elt* fgColorStack;
-	ui_stack_elt* borderColorStack;
-	ui_stack_elt* fontColorStack;
-	ui_stack_elt* fontStack;
-	ui_stack_elt* fontSizeStack;
-	ui_stack_elt* borderSizeStack;
-	ui_stack_elt* roundnessStack;
-	ui_stack_elt* animationTimeStack;
-	ui_stack_elt* animationFlagsStack;
+	list_info nextBoxRules;
+	ui_box* lastBox;
+
+	list_info nextBoxTags;
 
 	u32 z;
 	ui_box* hovered;
@@ -205,167 +189,30 @@ void ui_box_pop(void)
 	}
 }
 
-ui_style_attr* ui_push_style_attr(ui_context* ui, ui_stack_elt** stack)
+//-----------------------------------------------------------------------------
+// tagging
+//-----------------------------------------------------------------------------
+
+ui_tag ui_tag_make(str8 string)
 {
-	ui_stack_elt* elt = ui_stack_push(ui, stack);
-	return(&elt->attr);
+	ui_tag tag = {.hash = mp_hash_aes_string(string)};
+	return(tag);
 }
 
-void ui_push_size(ui_axis axis, ui_size_kind kind, f32 value, f32 strictness)
-{
-	ui_push_size_ext(UI_STYLE_TAG_ANY, UI_STYLE_SEL_ANY, axis, kind, value, strictness);
-
-}
-
-void ui_push_size_ext(ui_style_tag tag, ui_style_selector selector, ui_axis axis, ui_size_kind kind, f32 value, f32 strictness)
+void ui_tag_box(ui_box* box, str8 string)
 {
 	ui_context* ui = ui_get_context();
-	ui_style_attr* attr = ui_push_style_attr(ui, &ui->sizeStack[axis]);
-	attr->tag = tag;
-	attr->selector = selector;
-	attr->size = (ui_size){kind, value, strictness};
+	ui_tag_elt* elt = mem_arena_alloc_type(&ui->frameArena, ui_tag_elt);
+	elt->tag = ui_tag_make(string);
+	ListAppend(&box->tags, &elt->listElt);
 }
 
-void ui_pop_size(ui_axis axis)
+void ui_tag_next(str8 string)
 {
 	ui_context* ui = ui_get_context();
-	ui_stack_pop(&ui->sizeStack[axis]);
-}
-
-#define UI_STYLE_STACK_OP_DEF(name, stack, type, arg) \
-void _cat3_(ui_push_, name, _ext)(ui_style_tag tag, ui_style_selector selector, type arg) \
-{ \
-	ui_context* ui = ui_get_context(); \
-	ui_style_attr* attr = ui_push_style_attr(ui, &ui->stack); \
-	attr->tag = tag; \
-	attr->selector = selector; \
-	attr->arg = arg; \
-} \
-void _cat2_(ui_push_, name)(type arg) \
-{ \
-	_cat3_(ui_push_, name, _ext)(UI_STYLE_TAG_ANY, UI_STYLE_SEL_ANY, arg); \
-} \
-void _cat2_(ui_pop_, name)(void) \
-{ \
-	ui_context* ui = ui_get_context(); \
-	ui_stack_pop(&ui->stack); \
-}
-
-UI_STYLE_STACK_OP_DEF(bg_color, bgColorStack, mg_color, color)
-UI_STYLE_STACK_OP_DEF(fg_color, fgColorStack, mg_color, color)
-UI_STYLE_STACK_OP_DEF(border_color, borderColorStack, mg_color, color)
-UI_STYLE_STACK_OP_DEF(font_color, fontColorStack, mg_color, color)
-UI_STYLE_STACK_OP_DEF(font, fontStack, mg_font, font)
-UI_STYLE_STACK_OP_DEF(font_size, fontSizeStack, f32, value)
-UI_STYLE_STACK_OP_DEF(border_size, borderSizeStack, f32, value)
-UI_STYLE_STACK_OP_DEF(roundness, roundnessStack, f32, value)
-UI_STYLE_STACK_OP_DEF(animation_time, animationTimeStack, f32, value)
-UI_STYLE_STACK_OP_DEF(animation_flags, animationFlagsStack, u32, flags)
-
-ui_style_attr* ui_style_attr_query(ui_stack_elt* stack, ui_style_tag tag, ui_style_selector selector)
-{
-	ui_style_attr* result = 0;
-	while(stack)
-	{
-		ui_style_attr* attr = &stack->attr;
-		bool matchTag = (attr->tag == UI_STYLE_TAG_ANY)
-		              ||(attr->tag == tag);
-
-		bool matchSel = attr->selector & selector;
-
-		if(matchTag && matchSel)
-		{
-			result = attr;
-			break;
-		}
-		stack = stack->parent;
-	}
-	return(result);
-}
-
-mg_color ui_style_color_query(ui_stack_elt* stack, ui_style_tag tag, ui_style_selector selector)
-{
-	ui_style_attr* attr = ui_style_attr_query(stack, tag, selector);
-	if(attr)
-	{
-		return(attr->color);
-	}
-	else
-	{
-		return((mg_color){});
-	}
-}
-
-mg_font ui_style_font_query(ui_stack_elt* stack, ui_style_tag tag, ui_style_selector selector)
-{
-	ui_style_attr* attr = ui_style_attr_query(stack, tag, selector);
-	if(attr)
-	{
-		return(attr->font);
-	}
-	else
-	{
-		return(mg_font_nil());
-	}
-}
-
-f32 ui_style_float_query(ui_stack_elt* stack, ui_style_tag tag, ui_style_selector selector)
-{
-	ui_style_attr* attr = ui_style_attr_query(stack, tag, selector);
-	if(attr)
-	{
-		return(attr->value);
-	}
-	else
-	{
-		return(0);
-	}
-}
-
-u32 ui_style_flags_query(ui_stack_elt* stack, ui_style_tag tag, ui_style_selector selector)
-{
-	ui_style_attr* attr = ui_style_attr_query(stack, tag, selector);
-	if(attr)
-	{
-		return(attr->flags);
-	}
-	else
-	{
-		return(0);
-	}
-}
-
-
-ui_size ui_style_size_query(ui_stack_elt* stack, ui_style_tag tag, ui_style_selector selector)
-{
-	ui_style_attr* attr = ui_style_attr_query(stack, tag, selector);
-	if(attr)
-	{
-		return(attr->size);
-	}
-	else
-	{
-		return((ui_size){});
-	}
-}
-
-ui_style* ui_collate_style(ui_context* context, ui_style_tag tag, ui_style_selector selector)
-{
-	ui_style* style = mem_arena_alloc_type(&context->frameArena, ui_style);
-
-	style->size[UI_AXIS_X] = ui_style_size_query(context->sizeStack[UI_AXIS_X], tag, selector);
-	style->size[UI_AXIS_Y] = ui_style_size_query(context->sizeStack[UI_AXIS_Y], tag, selector);
-	style->bgColor = ui_style_color_query(context->bgColorStack, tag, selector);
-	style->fgColor = ui_style_color_query(context->fgColorStack, tag, selector);
-	style->borderColor = ui_style_color_query(context->borderColorStack, tag, selector);
-	style->fontColor = ui_style_color_query(context->fontColorStack, tag, selector);
-	style->font = ui_style_font_query(context->fontStack, tag, selector);
-	style->fontSize = ui_style_float_query(context->fontSizeStack, tag, selector);
-	style->borderSize = ui_style_float_query(context->borderSizeStack, tag, selector);
-	style->roundness = ui_style_float_query(context->roundnessStack, tag, selector);
-	style->animationTime = ui_style_float_query(context->animationTimeStack, tag, selector);
-	style->animationFlags = ui_style_flags_query(context->animationFlagsStack, tag, selector);
-	return(style);
+	ui_tag_elt* elt = mem_arena_alloc_type(&ui->frameArena, ui_tag_elt);
+	elt->tag = ui_tag_make(string);
+	ListAppend(&ui->nextBoxTags, &elt->listElt);
 }
 
 //-----------------------------------------------------------------------------
@@ -421,6 +268,47 @@ ui_box* ui_box_lookup_str8(str8 string)
 ui_box* ui_box_lookup(const char* string)
 {
 	return(ui_box_lookup_str8(str8_from_cstring((char*)string)));
+}
+
+//-----------------------------------------------------------------------------
+// styling
+//-----------------------------------------------------------------------------
+
+void ui_pattern_push(mem_arena* arena, ui_pattern* pattern, ui_selector selector)
+{
+	ui_selector* copy = mem_arena_alloc_type(arena, ui_selector);
+	*copy = selector;
+	ListAppend(&pattern->l, &copy->listElt);
+}
+
+void ui_style_next(ui_pattern pattern, ui_style* style, ui_style_mask mask)
+{
+	ui_context* ui = ui_get_context();
+	if(ui)
+	{
+		ui_style_rule* rule = mem_arena_alloc_type(&ui->frameArena, ui_style_rule);
+		rule->pattern = pattern;
+		rule->mask = mask;
+		rule->style = mem_arena_alloc_type(&ui->frameArena, ui_style);
+		*rule->style = *style;
+
+		ListAppend(&ui->nextBoxRules, &rule->boxElt);
+	}
+}
+
+void ui_style_prev(ui_pattern pattern, ui_style* style, ui_style_mask mask)
+{
+	ui_context* ui = ui_get_context();
+	if(ui && ui->lastBox)
+	{
+		ui_style_rule* rule = mem_arena_alloc_type(&ui->frameArena, ui_style_rule);
+		rule->pattern = pattern;
+		rule->mask = mask;
+		rule->style = mem_arena_alloc_type(&ui->frameArena, ui_style);
+		*rule->style = *style;
+
+		ListAppend(&ui->lastBox->afterRules, &rule->boxElt);
+	}
 }
 
 //-----------------------------------------------------------------------------
@@ -518,17 +406,21 @@ ui_box* ui_box_make_str8(str8 string, ui_flags flags)
 	box->floating[UI_AXIS_Y] = false;
 	box->layout = box->parent ? box->parent->layout : (ui_layout){0};
 
-	//NOTE: compute style
-	ui_style_selector selector = UI_STYLE_SEL_NORMAL;
-	if(box->hot)
+	//TODO: inherit style with mask
+	box->targetStyle = mem_arena_alloc_type(&ui->frameArena, ui_style);
+	if(box->parent)
 	{
-		selector = UI_STYLE_SEL_HOT;
+		*box->targetStyle = *(box->parent->targetStyle);
 	}
-	if(box->active)
-	{
-		selector = UI_STYLE_SEL_ACTIVE;
-	}
-	box->targetStyle = ui_collate_style(ui, box->tag, selector);
+
+	//NOTE: set tags, before rules and last box
+	box->tags = ui->nextBoxTags;
+	ui->nextBoxTags = (list_info){0};
+
+	box->beforeRules = ui->nextBoxRules;
+	ui->nextBoxRules = (list_info){0};
+
+	ui->lastBox = box;
 
 	return(box);
 }
@@ -560,6 +452,10 @@ ui_box* ui_box_end(void)
 	DEBUG_ASSERT(box, "box stack underflow");
 
 	ui_box_pop();
+
+	//NOTE: set last box so that subsequent ui_style_prev() targets this box
+	ui->lastBox = box;
+
 	return(box);
 }
 
@@ -569,14 +465,14 @@ void ui_box_set_render_proc(ui_box* box, ui_box_render_proc proc, void* data)
 	box->renderData = data;
 }
 
-void ui_box_set_layout(ui_box* box, ui_axis axis, ui_align alignX, ui_align alignY)
-{
-	box->layout = (ui_layout){axis, {alignX, alignY}};
-}
-
 void ui_box_set_size(ui_box* box, ui_axis axis, ui_size_kind kind, f32 value, f32 strictness)
 {
 	box->targetStyle->size[axis] = (ui_size){kind, value, strictness};
+}
+
+void ui_box_set_layout(ui_box* box, ui_axis axis, ui_align alignX, ui_align alignY)
+{
+	box->layout = (ui_layout){axis, {alignX, alignY}};
 }
 
 void ui_box_set_floating(ui_box* box, ui_axis axis, f32 pos)
@@ -618,11 +514,6 @@ void ui_box_set_hot(ui_box* box, bool hot)
 bool ui_box_hot(ui_box* box)
 {
 	return(box->hot);
-}
-
-void ui_box_set_tag(ui_box* box, ui_style_tag tag)
-{
-	box->tag = tag;
 }
 
 ui_sig ui_box_sig(ui_box* box)
@@ -757,6 +648,16 @@ void ui_box_compute_styling(ui_context* ui, ui_box* box)
 			box->computedStyle.size[UI_AXIS_Y] = targetStyle->size[UI_AXIS_Y];
 		}
 
+		if(flags & UI_STYLE_ANIMATE_COLOR)
+		{
+			ui_animate_color(ui, &box->computedStyle.color, targetStyle->color, animationTime);
+		}
+		else
+		{
+			box->computedStyle.color = targetStyle->color;
+		}
+
+
 		if(flags & UI_STYLE_ANIMATE_BG_COLOR)
 		{
 			ui_animate_color(ui, &box->computedStyle.bgColor, targetStyle->bgColor, animationTime);
@@ -766,15 +667,6 @@ void ui_box_compute_styling(ui_context* ui, ui_box* box)
 			box->computedStyle.bgColor = targetStyle->bgColor;
 		}
 
-		if(flags & UI_STYLE_ANIMATE_FG_COLOR)
-		{
-			ui_animate_color(ui, &box->computedStyle.fgColor, targetStyle->fgColor, animationTime);
-		}
-		else
-		{
-			box->computedStyle.fgColor = targetStyle->fgColor;
-		}
-
 		if(flags & UI_STYLE_ANIMATE_BORDER_COLOR)
 		{
 			ui_animate_color(ui, &box->computedStyle.borderColor, targetStyle->borderColor, animationTime);
@@ -782,15 +674,6 @@ void ui_box_compute_styling(ui_context* ui, ui_box* box)
 		else
 		{
 			box->computedStyle.borderColor = targetStyle->borderColor;
-		}
-
-		if(flags & UI_STYLE_ANIMATE_FONT_COLOR)
-		{
-			ui_animate_color(ui, &box->computedStyle.fontColor, targetStyle->fontColor, animationTime);
-		}
-		else
-		{
-			box->computedStyle.fontColor = targetStyle->fontColor;
 		}
 
 		if(flags & UI_STYLE_ANIMATE_FONT_SIZE)
@@ -823,15 +706,157 @@ void ui_box_compute_styling(ui_context* ui, ui_box* box)
 	}
 }
 
-void ui_layout_prepass(ui_context* ui, ui_box* box)
+void ui_apply_style_with_mask(ui_style* dst, ui_style* src, ui_style_mask mask)
 {
+	if(mask & UI_STYLE_SIZE_X)
+	{
+		dst->size[UI_AXIS_X] = src->size[UI_AXIS_X];
+	}
+	if(mask & UI_STYLE_SIZE_Y)
+	{
+		dst->size[UI_AXIS_Y] = src->size[UI_AXIS_Y];
+	}
+	if(mask & UI_STYLE_COLOR)
+	{
+		dst->color = src->color;
+	}
+	if(mask & UI_STYLE_BG_COLOR)
+	{
+		dst->bgColor = src->bgColor;
+	}
+	if(mask & UI_STYLE_BORDER_COLOR)
+	{
+		dst->borderColor = src->borderColor;
+	}
+	if(mask & UI_STYLE_BORDER_SIZE)
+	{
+		dst->borderSize = src->borderSize;
+	}
+	if(mask & UI_STYLE_ROUNDNESS)
+	{
+		dst->roundness = src->roundness;
+	}
+	if(mask & UI_STYLE_FONT)
+	{
+		dst->font = src->font;
+	}
+	if(mask & UI_STYLE_FONT_SIZE)
+	{
+		dst->fontSize = src->fontSize;
+	}
+	if(mask & UI_STYLE_ANIMATION_TIME)
+	{
+		dst->animationTime = src->animationTime;
+	}
+	if(mask & UI_STYLE_ANIMAION_FLAGS)
+	{
+		dst->animationFlags = src->animationFlags;
+	}
+}
+
+
+bool ui_style_selector_match(ui_box* box, ui_selector* selector)
+{
+	bool res = false;
+	switch(selector->kind)
+	{
+		case UI_SEL_TEXT:
+			res = !str8_cmp(box->string, selector->text);
+			break;
+
+		case UI_SEL_TAG:
+		{
+			for_each_in_list(&box->tags, elt, ui_tag_elt, listElt)
+			{
+				if(elt->tag.hash == selector->tag.hash)
+				{
+					res = true;
+					break;
+				}
+			}
+		} break;
+
+		case UI_SEL_HOVER:
+			res = box->hot;
+			break;
+
+		case UI_SEL_ACTIVE:
+			res = box->active;
+			break;
+
+		case UI_SEL_DRAGGING:
+			res = box->dragging;
+			break;
+
+		case UI_SEL_KEY:
+			res = ui_key_equal(box->key, selector->key);
+		default:
+			break;
+	}
+	return(res);
+}
+
+void ui_style_rule_match(ui_context* ui, ui_box* box, ui_style_rule* rule, list_info* buildList, list_info* tmpList)
+{
+	ui_selector* selector = ListFirstEntry(&rule->pattern.l, ui_selector, listElt);
+	if(ui_style_selector_match(box, selector))
+	{
+		if(!selector->listElt.next)
+		{
+			ui_apply_style_with_mask(box->targetStyle, rule->style, rule->mask);
+		}
+		else
+		{
+			//NOTE create derived rule if there's more than one selector
+			ui_style_rule* derived = mem_arena_alloc_type(&ui->frameArena, ui_style_rule);
+			derived->mask = rule->mask;
+			derived->style = rule->style;
+			derived->pattern.l = (list_info){selector->listElt.next, rule->pattern.l.last};
+
+			ListPush(buildList, &derived->buildElt);
+			ListPush(tmpList, &derived->tmpElt);
+		}
+	}
+}
+
+void ui_styling_prepass(ui_context* ui, ui_box* box, list_info* before, list_info* after)
+{
+	//NOTE: inherit style from parent
+	if(box->parent)
+	{
+		*box->targetStyle = *box->parent->targetStyle;
+	}
+
+	//NOTE: match rules
+	list_info tmpBefore = {0};
+	for_each_in_list(before, rule, ui_style_rule, buildElt)
+	{
+		ui_style_rule_match(ui, box, rule, before, &tmpBefore);
+	}
+	for_each_in_list(&box->beforeRules, rule, ui_style_rule, boxElt)
+	{
+		ListAppend(before, &rule->buildElt);
+		ui_style_rule_match(ui, box, rule, before, &tmpBefore);
+	}
+
+	list_info tmpAfter = {0};
+	for_each_in_list(after, rule, ui_style_rule, buildElt)
+	{
+		ui_style_rule_match(ui, box, rule, after, &tmpAfter);
+	}
+	for_each_in_list(&box->afterRules, rule, ui_style_rule, boxElt)
+	{
+		ListAppend(after, &rule->buildElt);
+		ui_style_rule_match(ui, box, rule, after, &tmpAfter);
+	}
+
+	//NOTE: compute static sizes
+	ui_box_compute_styling(ui, box);
+
 	if(ui_box_hidden(box))
 	{
 		return;
 	}
-
-	//NOTE: compute styling and static sizes
-	ui_box_compute_styling(ui, box);
 
 	ui_style* style = &box->computedStyle;
 
@@ -859,9 +884,20 @@ void ui_layout_prepass(ui_context* ui, ui_box* box)
 		}
 	}
 
+	//NOTE: descend in children
 	for_each_in_list(&box->children, child, ui_box, listElt)
 	{
-		ui_layout_prepass(ui, child);
+		ui_styling_prepass(ui, child, before, after);
+	}
+
+	//NOTE: remove temporary rules
+	for_each_in_list(&tmpBefore, rule, ui_style_rule, tmpElt)
+	{
+		ListRemove(before, &rule->buildElt);
+	}
+	for_each_in_list(&tmpAfter, rule, ui_style_rule, tmpElt)
+	{
+		ListRemove(after, &rule->buildElt);
 	}
 }
 
@@ -1047,7 +1083,10 @@ void ui_layout_find_next_hovered(ui_context* ui, vec2 p)
 
 void ui_solve_layout(ui_context* ui)
 {
-	ui_layout_prepass(ui, ui->root);
+	list_info beforeRules = {0};
+	list_info afterRules = {0};
+
+	ui_styling_prepass(ui, ui->root, &beforeRules, &afterRules);
 
 	for(int axis=0; axis<UI_AXIS_COUNT; axis++)
 	{
@@ -1119,12 +1158,6 @@ void ui_draw_box(ui_box* box)
 		ui_draw_box(child);
 	}
 
-	if(box->flags & UI_FLAG_DRAW_FOREGROUND)
-	{
-		mg_set_color(style->fgColor);
-		ui_rectangle_fill(box->rect, style->roundness);
-	}
-
 	if(box->flags & UI_FLAG_DRAW_TEXT)
 	{
 		mp_rect textBox = mg_text_bounding_box(style->font, style->fontSize, box->string);
@@ -1134,7 +1167,7 @@ void ui_draw_box(ui_box* box)
 
 		mg_set_font(style->font);
 		mg_set_font_size(style->fontSize);
-		mg_set_color(style->fontColor);
+		mg_set_color(style->color);
 
 		mg_move_to(x, y);
 		mg_text_outlines(box->string);
@@ -1191,43 +1224,14 @@ void ui_begin_frame(u32 width, u32 height, ui_style defaultStyle)
 	ui->lastFrameDuration = time - ui->frameTime;
 	ui->frameTime = time;
 
-	ui->boxStack = 0;
-	ui->sizeStack[UI_AXIS_X] = 0;
-	ui->sizeStack[UI_AXIS_Y] = 0;
-	ui->bgColorStack = 0;
-	ui->fgColorStack = 0;
-	ui->borderColorStack = 0;
-	ui->fontColorStack = 0;
-	ui->fontStack = 0;
-	ui->fontSizeStack = 0;
-	ui->borderSizeStack = 0;
-	ui->roundnessStack = 0;
-
-
 	ui->clipStack = 0;
 	ui->z = 0;
 
-	for(int i=0; i<UI_AXIS_COUNT; i++)
-	{
-		ui_push_size(i,
-		             defaultStyle.size[i].kind,
-		             defaultStyle.size[i].value,
-		             defaultStyle.size[i].strictness);
-	}
-	ui_push_bg_color(defaultStyle.bgColor);
-	ui_push_fg_color(defaultStyle.fgColor);
-	ui_push_border_color(defaultStyle.borderColor);
-	ui_push_font_color(defaultStyle.fontColor);
-	ui_push_font(defaultStyle.font);
-	ui_push_font_size(defaultStyle.fontSize);
-	ui_push_border_size(defaultStyle.borderSize);
-	ui_push_roundness(defaultStyle.roundness);
-
-
-	ui_push_size(UI_AXIS_X, UI_SIZE_PIXELS, width, 0);
-	ui_push_size(UI_AXIS_Y, UI_SIZE_PIXELS, height, 0);
+//	ui_push_size(UI_AXIS_X, UI_SIZE_PIXELS, width, 0);
+//	ui_push_size(UI_AXIS_Y, UI_SIZE_PIXELS, height, 0);
 
 	ui->root = ui_box_begin("_root_", 0);
+	*ui->root->targetStyle = defaultStyle;
 
 	ui_box* contents = ui_box_make("_contents_", 0);
 	ui_box_set_floating(contents, UI_AXIS_X, 0);
@@ -1238,8 +1242,11 @@ void ui_begin_frame(u32 width, u32 height, ui_style defaultStyle)
 	ui_box_set_floating(ui->overlay, UI_AXIS_X, 0);
 	ui_box_set_floating(ui->overlay, UI_AXIS_Y, 0);
 
-	ui_pop_size(UI_AXIS_X);
-	ui_pop_size(UI_AXIS_Y);
+//	ui_pop_size(UI_AXIS_X);
+//	ui_pop_size(UI_AXIS_Y);
+
+	ui->nextBoxRules = (list_info){0};
+	ui->nextBoxTags = (list_info){0};
 
 	ui_box_push(contents);
 }
@@ -1329,7 +1336,9 @@ ui_sig ui_button_str8(str8 label)
 	               | UI_FLAG_ACTIVE_ANIMATION;
 
 	ui_box* box = ui_box_make_str8(label, flags);
-	ui_box_set_tag(box, UI_STYLE_TAG_BUTTON);
+
+	//TODO
+//	ui_box_set_tag(box, UI_STYLE_TAG_BUTTON);
 	ui_sig sig = ui_box_sig(box);
 
 	if(sig.hovering)
@@ -1367,7 +1376,7 @@ ui_box* ui_scrollbar(const char* label, f32 thumbRatio, f32* scrollValue)
 		f32 roundness = 0.5*frame->rect.c[2+secondAxis];
 		f32 animationTime = 0.5;
 
-		ui_push_bg_color((mg_color){0, 0, 0, 0});
+/*		ui_push_bg_color((mg_color){0, 0, 0, 0});
 		ui_push_fg_color((mg_color){0, 0, 0, 0});
 		ui_push_roundness(roundness);
 
@@ -1376,7 +1385,7 @@ ui_box* ui_scrollbar(const char* label, f32 thumbRatio, f32* scrollValue)
 		ui_push_roundness_ext(UI_STYLE_TAG_ANY, UI_STYLE_SEL_HOT|UI_STYLE_SEL_ACTIVE, roundness);
 		ui_push_animation_time_ext(UI_STYLE_TAG_ANY, UI_STYLE_SEL_ANY, 1.);
 		ui_push_animation_flags_ext(UI_STYLE_TAG_ANY, UI_STYLE_SEL_ANY, UI_STYLE_ANIMATE_BG_COLOR|UI_STYLE_ANIMATE_FG_COLOR);
-
+*/
 		ui_flags trackFlags = UI_FLAG_CLIP
 	                    	| UI_FLAG_DRAW_BACKGROUND
 	                    	| UI_FLAG_HOT_ANIMATION
@@ -1409,7 +1418,7 @@ ui_box* ui_scrollbar(const char* label, f32 thumbRatio, f32* scrollValue)
 			ui_box_set_size(afterSpacer, secondAxis, UI_SIZE_PARENT_RATIO, 1., 0);
 
 		ui_box_end();
-
+/*
 		ui_pop_bg_color();
 		ui_pop_fg_color();
 		ui_pop_roundness();
@@ -1418,7 +1427,7 @@ ui_box* ui_scrollbar(const char* label, f32 thumbRatio, f32* scrollValue)
 		ui_pop_roundness();
 		ui_pop_animation_time();
 		ui_pop_animation_flags();
-
+*/
 		//NOTE: interaction
 		ui_sig thumbSig = ui_box_sig(thumb);
 		if(thumbSig.dragging)
@@ -1579,10 +1588,10 @@ void ui_menu_bar_begin(const char* name)
 	ui_box_set_size(bar, UI_AXIS_X, UI_SIZE_PARENT_RATIO, 1., 0);
 	ui_box_set_size(bar, UI_AXIS_Y, UI_SIZE_CHILDREN, 0, 0);
 	ui_box_set_layout(bar, UI_AXIS_X, UI_ALIGN_START, UI_ALIGN_START);
-
+/*
 	ui_push_size(UI_AXIS_X, UI_SIZE_TEXT, 0, 0);
 	ui_push_size(UI_AXIS_Y, UI_SIZE_TEXT, 0, 0);
-
+*/
 	ui_sig sig = ui_box_sig(bar);
 	if(!sig.hovering && mp_mouse_released(MP_MOUSE_LEFT))
 	{
@@ -1592,8 +1601,10 @@ void ui_menu_bar_begin(const char* name)
 
 void ui_menu_bar_end(void)
 {
+/*
 	ui_pop_size(UI_AXIS_X);
 	ui_pop_size(UI_AXIS_Y);
+*/
 	ui_box_end(); // menu bar
 }
 
@@ -2057,7 +2068,7 @@ void ui_text_box_render(ui_box* box, void* data)
 
 			mg_set_font(style->font);
 			mg_set_font_size(style->fontSize);
-			mg_set_color(style->fontColor);
+			mg_set_color(style->color);
 
 			mg_move_to(textX, textY);
 			mg_codepoints_outlines(beforeSelect);
@@ -2067,7 +2078,7 @@ void ui_text_box_render(ui_box* box, void* data)
 			mg_codepoints_outlines(select);
 			mg_fill();
 
-			mg_set_color(style->fontColor);
+			mg_set_color(style->color);
 			mg_codepoints_outlines(afterSelect);
 			mg_fill();
 		}
@@ -2082,7 +2093,7 @@ void ui_text_box_render(ui_box* box, void* data)
 			}
 			mg_set_font(style->font);
 			mg_set_font_size(style->fontSize);
-			mg_set_color(style->fontColor);
+			mg_set_color(style->color);
 
 			mg_move_to(textX, textY);
 			mg_codepoints_outlines(codepoints);
@@ -2093,7 +2104,7 @@ void ui_text_box_render(ui_box* box, void* data)
 	{
 		mg_set_font(style->font);
 		mg_set_font_size(style->fontSize);
-		mg_set_color(style->fontColor);
+		mg_set_color(style->color);
 
 		mg_move_to(textX, textY);
 		mg_codepoints_outlines(codepoints);

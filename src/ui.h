@@ -75,34 +75,23 @@ typedef struct ui_size
 	f32 strictness;
 } ui_size;
 
-typedef enum { UI_STYLE_SEL_NORMAL = 1<<0,
-               UI_STYLE_SEL_HOT    = 1<<1,
-               UI_STYLE_SEL_ACTIVE = 1<<2,
-               UI_STYLE_SEL_ANY    = UI_STYLE_SEL_NORMAL|UI_STYLE_SEL_HOT|UI_STYLE_SEL_ACTIVE,
-             } ui_style_selector;
-
-typedef u32 ui_style_tag;
-#define UI_STYLE_TAG_ANY ((ui_style_tag)0)
-
 typedef enum { UI_STYLE_ANIMATE_SIZE_X       = 1<<1,
                UI_STYLE_ANIMATE_SIZE_Y       = 1<<2,
-               UI_STYLE_ANIMATE_BG_COLOR     = 1<<3,
-               UI_STYLE_ANIMATE_FG_COLOR     = 1<<4,
+               UI_STYLE_ANIMATE_COLOR        = 1<<3,
+               UI_STYLE_ANIMATE_BG_COLOR     = 1<<4,
                UI_STYLE_ANIMATE_BORDER_COLOR = 1<<5,
-               UI_STYLE_ANIMATE_FONT_COLOR   = 1<<6,
+               UI_STYLE_ANIMATE_BORDER_SIZE  = 1<<6,
                UI_STYLE_ANIMATE_FONT_SIZE    = 1<<7,
-               UI_STYLE_ANIMATE_BORDER_SIZE  = 1<<8,
-               UI_STYLE_ANIMATE_ROUNDNESS    = 1<<9,
-               UI_STYLE_ANIMATE_POS          = 1<<10,
+               UI_STYLE_ANIMATE_ROUNDNESS    = 1<<8,
+               UI_STYLE_ANIMATE_POS          = 1<<9,
              } ui_style_animation_flags;
 
 typedef struct ui_style
 {
 	ui_size size[UI_AXIS_COUNT];
+	mg_color color;
 	mg_color bgColor;
-	mg_color fgColor;
 	mg_color borderColor;
-	mg_color fontColor;
 	mg_font font;
 	f32 fontSize;
 	f32 borderSize;
@@ -110,6 +99,64 @@ typedef struct ui_style
 	f32 animationTime;
 	ui_style_animation_flags animationFlags;
 } ui_style;
+
+typedef u64 ui_style_mask;
+enum
+{
+	UI_STYLE_NONE           = 0,
+	UI_STYLE_SIZE_X         = 1<<1,
+	UI_STYLE_SIZE_Y         = 1<<2,
+	UI_STYLE_COLOR          = 1<<3,
+	UI_STYLE_BG_COLOR       = 1<<4,
+	UI_STYLE_BORDER_COLOR   = 1<<6,
+	UI_STYLE_BORDER_SIZE    = 1<<7,
+	UI_STYLE_ROUNDNESS      = 1<<8,
+	UI_STYLE_FONT           = 1<<9,
+	UI_STYLE_FONT_SIZE      = 1<<10,
+	UI_STYLE_ANIMATION_TIME = 1<<11,
+	UI_STYLE_ANIMAION_FLAGS = 1<<12,
+	//...
+};
+
+
+typedef struct ui_tag { u64 hash; } ui_tag;
+
+typedef enum
+{
+	UI_SEL_TEXT,
+	UI_SEL_TAG,
+	UI_SEL_HOVER,
+	UI_SEL_ACTIVE,
+	UI_SEL_DRAGGING,
+	UI_SEL_KEY,
+	//...
+} ui_selector_kind;
+
+typedef struct ui_selector
+{
+	list_elt listElt;
+	ui_selector_kind kind;
+	union
+	{
+		str8 text;
+		ui_key key;
+		ui_tag tag;
+		//...
+	};
+} ui_selector;
+
+typedef struct ui_pattern { list_info l; } ui_pattern;
+
+typedef struct ui_style_rule
+{
+	list_elt boxElt;
+	list_elt buildElt;
+	list_elt tmpElt;
+
+	ui_pattern pattern;
+	ui_style_mask mask;
+	ui_style* style;
+} ui_style_rule;
 
 typedef struct ui_box ui_box;
 
@@ -149,12 +196,16 @@ struct ui_box
 	// builder-provided info
 	ui_flags flags;
 	str8 string;
+	list_info tags;
 
-	// styling and layout
 	ui_box_render_proc renderProc;
 	void* renderData;
 
-	ui_style_tag tag;
+	// styling and layout
+	list_info beforeRules;
+	list_info afterRules;
+
+	//ui_style_tag tag;
 	ui_style* targetStyle;
 	ui_style computedStyle;
 	u32 z;
@@ -190,6 +241,8 @@ void ui_set_context(ui_context* context);
 
 void ui_begin_frame(u32 width, u32 height, ui_style defaultStyle);
 void ui_end_frame(void);
+#define ui_frame(width, height, defaultStyle) defer_loop(ui_begin_frame(width, height, defaultStyle), ui_end_frame())
+
 void ui_draw(void);
 
 ui_box* ui_box_lookup(const char* string);
@@ -205,6 +258,10 @@ void ui_box_push(ui_box* box);
 void ui_box_pop(void);
 ui_box* ui_box_top(void);
 
+ui_tag ui_tag_make(str8 string);
+void ui_tag_box(ui_box* box, str8 string);
+void ui_tag_next(str8 string);
+
 bool ui_box_closed(ui_box* box);
 void ui_box_set_closed(ui_box* box, bool closed);
 
@@ -219,46 +276,16 @@ void ui_box_set_render_proc(ui_box* box, ui_box_render_proc proc, void* data);
 void ui_box_set_layout(ui_box* box, ui_axis axis, ui_align alignX, ui_align alignY);
 void ui_box_set_size(ui_box* box, ui_axis axis, ui_size_kind kind, f32 value, f32 strictness);
 void ui_box_set_floating(ui_box* box, ui_axis axis, f32 pos);
-void ui_box_set_style_selector(ui_box* box, ui_style_selector selector);
+//void ui_box_set_style_selector(ui_box* box, ui_style_selector selector);
 
 ui_sig ui_box_sig(ui_box* box);
 
-void ui_push_size(ui_axis axis, ui_size_kind kind, f32 value, f32 strictness);
-void ui_push_size_ext(ui_style_tag tag, ui_style_selector selector, ui_axis axis, ui_size_kind kind, f32 value, f32 strictness);
-void ui_pop_size(ui_axis axis);
-
-void ui_push_bg_color(mg_color color);
-void ui_push_fg_color(mg_color color);
-void ui_push_font(mg_font font);
-void ui_push_font_size(f32 size);
-void ui_push_font_color(mg_color color);
-void ui_push_border_size(f32 size);
-void ui_push_border_color(mg_color color);
-void ui_push_roundness(f32 roundness);
-void ui_push_animation_time(f32 time);
-void ui_push_animation_flags(u32 flags);
-
-void ui_push_bg_color_ext(ui_style_tag tag, ui_style_selector selector, mg_color color);
-void ui_push_fg_color_ext(ui_style_tag tag, ui_style_selector selector, mg_color color);
-void ui_push_font_ext(ui_style_tag tag, ui_style_selector selector, mg_font font);
-void ui_push_font_size_ext(ui_style_tag tag, ui_style_selector selector, f32 size);
-void ui_push_font_color_ext(ui_style_tag tag, ui_style_selector selector, mg_color color);
-void ui_push_border_size_ext(ui_style_tag tag, ui_style_selector selector, f32 size);
-void ui_push_border_color_ext(ui_style_tag tag, ui_style_selector selector, mg_color color);
-void ui_push_roundness_ext(ui_style_tag tag, ui_style_selector selector, f32 roundness);
-void ui_push_animation_time_ext(ui_style_tag tag, ui_style_selector selector, f32 time);
-void ui_push_animation_flags_ext(ui_style_tag tag, ui_style_selector selector, u32 flags);
-
-void ui_pop_bg_color(void);
-void ui_pop_fg_color(void);
-void ui_pop_font(void);
-void ui_pop_font_size(void);
-void ui_pop_font_color(void);
-void ui_pop_border_size(void);
-void ui_pop_border_color(void);
-void ui_pop_roundness(void);
-void ui_pop_animation_time(void);
-void ui_pop_animation_flags(void);
+//NOTE: styling API
+//WARN: You can use a pattern in multiple rules, but be aware that a pattern is references an underlying list of selectors,
+//      hence pushing to a pattern also modifies rules in which the pattern was previously used!
+void ui_pattern_push(mem_arena* arena, ui_pattern* pattern, ui_selector selector);
+void ui_style_next(ui_pattern pattern, ui_style* style, ui_style_mask mask);
+void ui_style_prev(ui_pattern pattern, ui_style* style, ui_style_mask mask);
 
 //-------------------------------------------------------------------------
 // Basic widget helpers
@@ -305,6 +332,12 @@ typedef struct ui_text_box_result
 }ui_text_box_result;
 
 ui_text_box_result ui_text_box(const char* name, mem_arena* arena, str8 text);
+
+////////////////////////////////////////// WIP styling //////////////////////////////////////////
+
+
+
+
 
 #ifdef __cplusplus
 } // extern "C"

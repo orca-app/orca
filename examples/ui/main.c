@@ -122,7 +122,7 @@ int main()
 		                         .font = font,
 		                         .fontSize = 32};
 
-		ui_begin_frame(frame.w, frame.h, defaultStyle);
+		ui_frame(frame.w, frame.h, defaultStyle)
 		{
 			ui_push_size(UI_AXIS_X, UI_SIZE_CHILDREN, 10, 0);
 			ui_push_size(UI_AXIS_Y, UI_SIZE_CHILDREN, 10, 0);
@@ -173,7 +173,7 @@ int main()
 			ui_pop_size(UI_AXIS_X);
 			ui_pop_size(UI_AXIS_Y);
 		}
-		ui_end_frame();
+
 		ui_draw();
 
 		mg_flush();
