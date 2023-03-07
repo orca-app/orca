@@ -52,19 +52,39 @@ typedef enum
 	UI_ALIGN_CENTER,
 } ui_align;
 
+typedef union ui_layout_align
+{
+	struct
+	{
+		ui_align x;
+		ui_align y;
+	};
+	ui_align a[UI_AXIS_COUNT];
+} ui_layout_align;
+
 typedef struct ui_layout
 {
 	ui_axis axis;
-	ui_align align[UI_AXIS_COUNT];
+	f32 spacing;
+	union
+	{
+		struct
+		{
+			f32 x;
+			f32 y;
+		};
+		f32 m[UI_AXIS_COUNT];
+	} margin;
+	ui_layout_align align;
 
 } ui_layout;
 
-typedef enum
+typedef enum ui_size_kind
 {
 	UI_SIZE_TEXT,
 	UI_SIZE_PIXELS,
 	UI_SIZE_CHILDREN,
-	UI_SIZE_PARENT_RATIO,
+	UI_SIZE_PARENT,
 
 } ui_size_kind;
 
@@ -74,6 +94,16 @@ typedef struct ui_size
 	f32 value;
 	f32 strictness;
 } ui_size;
+
+typedef union ui_box_size
+{
+	struct
+	{
+		ui_size width;
+		ui_size height;
+	};
+	ui_size s[UI_AXIS_COUNT];
+} ui_box_size;
 
 typedef enum { UI_STYLE_ANIMATE_SIZE_X       = 1<<1,
                UI_STYLE_ANIMATE_SIZE_Y       = 1<<2,
@@ -88,7 +118,7 @@ typedef enum { UI_STYLE_ANIMATE_SIZE_X       = 1<<1,
 
 typedef struct ui_style
 {
-	ui_size size[UI_AXIS_COUNT];
+	ui_box_size size;
 	ui_layout layout;
 	bool floating[UI_AXIS_COUNT];
 	vec2 floatTarget;
@@ -106,19 +136,34 @@ typedef struct ui_style
 typedef u64 ui_style_mask;
 enum
 {
-	UI_STYLE_NONE           = 0,
-	UI_STYLE_SIZE_X         = 1<<1,
-	UI_STYLE_SIZE_Y         = 1<<2,
-	UI_STYLE_COLOR          = 1<<3,
-	UI_STYLE_BG_COLOR       = 1<<4,
-	UI_STYLE_BORDER_COLOR   = 1<<6,
-	UI_STYLE_BORDER_SIZE    = 1<<7,
-	UI_STYLE_ROUNDNESS      = 1<<8,
-	UI_STYLE_FONT           = 1<<9,
-	UI_STYLE_FONT_SIZE      = 1<<10,
-	UI_STYLE_ANIMATION_TIME = 1<<11,
-	UI_STYLE_ANIMATION_FLAGS = 1<<12,
-	//...
+	UI_STYLE_NONE            = 0,
+	UI_STYLE_SIZE_X          = 1<<1,
+	UI_STYLE_SIZE_Y          = 1<<2,
+	UI_STYLE_LAYOUT_AXIS     = 1<<3,
+	UI_STYLE_LAYOUT_ALIGN_X  = 1<<4,
+	UI_STYLE_LAYOUT_ALIGN_Y  = 1<<5,
+	UI_STYLE_LAYOUT_SPACING  = 1<<6,
+	UI_STYLE_LAYOUT_MARGIN_X = 1<<7,
+	UI_STYLE_LAYOUT_MARGIN_Y = 1<<8,
+	UI_STYLE_FLOAT_X         = 1<<9,
+	UI_STYLE_FLOAT_Y         = 1<<10,
+	UI_STYLE_COLOR           = 1<<11,
+	UI_STYLE_BG_COLOR        = 1<<12,
+	UI_STYLE_BORDER_COLOR    = 1<<13,
+	UI_STYLE_BORDER_SIZE     = 1<<14,
+	UI_STYLE_ROUNDNESS       = 1<<15,
+	UI_STYLE_FONT            = 1<<16,
+	UI_STYLE_FONT_SIZE       = 1<<17,
+	UI_STYLE_ANIMATION_TIME  = 1<<18,
+	UI_STYLE_ANIMATION_FLAGS = 1<<19,
+
+	//masks
+	UI_STYLE_LAYOUT = UI_STYLE_LAYOUT_AXIS
+	                | UI_STYLE_LAYOUT_ALIGN_X
+	                | UI_STYLE_LAYOUT_ALIGN_Y
+	                | UI_STYLE_LAYOUT_SPACING
+	                | UI_STYLE_LAYOUT_MARGIN_X
+	                | UI_STYLE_LAYOUT_MARGIN_Y,
 
 	UI_STYLE_MASK_INHERITED = UI_STYLE_COLOR
 	                        | UI_STYLE_FONT
@@ -132,29 +177,49 @@ typedef struct ui_tag { u64 hash; } ui_tag;
 
 typedef enum
 {
+	UI_SEL_ANY,
+	UI_SEL_OWNER,
 	UI_SEL_TEXT,
 	UI_SEL_TAG,
-	UI_SEL_HOVER,
-	UI_SEL_ACTIVE,
-	UI_SEL_DRAGGING,
+	UI_SEL_STATUS,
 	UI_SEL_KEY,
 	//...
 } ui_selector_kind;
+
+typedef u8 ui_status;
+enum
+{
+	UI_NONE     = 0,
+	UI_HOVER    = 1<<1,
+	UI_ACTIVE   = 1<<2,
+	UI_DRAGGING = 1<<3,
+};
+
+typedef enum
+{
+	UI_SEL_DESCENDANT = 0,
+	UI_SEL_AND = 1,
+	//...
+} ui_selector_op;
 
 typedef struct ui_selector
 {
 	list_elt listElt;
 	ui_selector_kind kind;
+	ui_selector_op op;
 	union
 	{
 		str8 text;
 		ui_key key;
 		ui_tag tag;
+		ui_status status;
 		//...
 	};
 } ui_selector;
 
 typedef struct ui_pattern { list_info l; } ui_pattern;
+
+typedef struct ui_box ui_box;
 
 typedef struct ui_style_rule
 {
@@ -162,12 +227,11 @@ typedef struct ui_style_rule
 	list_elt buildElt;
 	list_elt tmpElt;
 
+	ui_box* owner;
 	ui_pattern pattern;
 	ui_style_mask mask;
 	ui_style* style;
 } ui_style_rule;
-
-typedef struct ui_box ui_box;
 
 typedef struct ui_sig
 {
@@ -242,22 +306,38 @@ struct ui_box
 
 typedef struct ui_context ui_context;
 
+//-------------------------------------------------------------------------------------
+// UI context initialization and frame cycle
+//-------------------------------------------------------------------------------------
 void ui_init(void);
 ui_context* ui_get_context(void);
 void ui_set_context(ui_context* context);
 
 void ui_begin_frame(u32 width, u32 height, ui_style defaultStyle);
 void ui_end_frame(void);
-#define ui_frame(width, height, defaultStyle) defer_loop(ui_begin_frame(width, height, defaultStyle), ui_end_frame())
-
 void ui_draw(void);
 
-ui_box* ui_box_lookup(const char* string);
+#define ui_frame(width, height, defaultStyle) defer_loop(ui_begin_frame(width, height, defaultStyle), ui_end_frame())
+
+//-------------------------------------------------------------------------------------
+// Box keys
+//-------------------------------------------------------------------------------------
+ui_key ui_key_make_str8(str8 string);
+ui_key ui_key_make_path(str8_list path);
+
+ui_box* ui_box_lookup_key(ui_key key);
 ui_box* ui_box_lookup_str8(str8 string);
-ui_box* ui_box_make(const char* string, ui_flags flags);
-ui_box* ui_box_begin(const char* string, ui_flags flags);
+
+// C-string helper
+#define ui_key_make(s) ui_key_make_str8(str8_lit(s))
+#define ui_box_lookup(s) ui_box_lookup_str8(str8_lit(s))
+
+//-------------------------------------------------------------------------------------
+// Box hierarchy building
+//-------------------------------------------------------------------------------------
 ui_box* ui_box_make_str8(str8 string, ui_flags flags);
 ui_box* ui_box_begin_str8(str8 string, ui_flags flags);
+
 ui_box* ui_box_end(void);
 #define ui_container(name, flags) defer_loop(ui_box_begin(name, flags), ui_box_end())
 
@@ -265,10 +345,16 @@ void ui_box_push(ui_box* box);
 void ui_box_pop(void);
 ui_box* ui_box_top(void);
 
-ui_tag ui_tag_make(str8 string);
-void ui_tag_box(ui_box* box, str8 string);
-void ui_tag_next(str8 string);
+void ui_box_set_render_proc(ui_box* box, ui_box_render_proc proc, void* data);
 
+// C-string helpers
+#define ui_box_lookup(s) ui_box_lookup_str8(str8_lit(s))
+#define ui_box_make(s, flags) ui_box_make_str8(str8_lit(s), flags)
+#define ui_box_begin(s, flags) ui_box_begin_str8(str8_lit(s), flags)
+
+//-------------------------------------------------------------------------------------
+// Box status and signals
+//-------------------------------------------------------------------------------------
 bool ui_box_closed(ui_box* box);
 void ui_box_set_closed(ui_box* box, bool closed);
 
@@ -279,21 +365,38 @@ void ui_box_deactivate(ui_box* box);
 bool ui_box_hot(ui_box* box);
 void ui_box_set_hot(ui_box* box, bool hot);
 
-void ui_box_set_render_proc(ui_box* box, ui_box_render_proc proc, void* data);
-/*
-void ui_box_set_layout(ui_box* box, ui_axis axis, ui_align alignX, ui_align alignY);
-void ui_box_set_size(ui_box* box, ui_axis axis, ui_size_kind kind, f32 value, f32 strictness);
-void ui_box_set_floating(ui_box* box, ui_axis axis, f32 pos);
-void ui_box_set_style_selector(ui_box* box, ui_style_selector selector);
-*/
 ui_sig ui_box_sig(ui_box* box);
 
+//-------------------------------------------------------------------------------------
+// Tagging
+//-------------------------------------------------------------------------------------
+ui_tag ui_tag_make_str8(str8 string);
+void ui_tag_box_str8(ui_box* box, str8 string);
+void ui_tag_next_str8(str8 string);
+
+// C-string helpers
+#define ui_tag_make(s) ui_tag_make_str8(str8_lit(s))
+#define ui_tag_box(b, s) ui_tag_box_str8(b, str8_lit(s))
+#define ui_tag_next(s) ui_tag_next_str8(str8_lit(s))
+
+//-------------------------------------------------------------------------------------
+// Styling
+//-------------------------------------------------------------------------------------
 //NOTE: styling API
 //WARN: You can use a pattern in multiple rules, but be aware that a pattern is references an underlying list of selectors,
 //      hence pushing to a pattern also modifies rules in which the pattern was previously used!
 void ui_pattern_push(mem_arena* arena, ui_pattern* pattern, ui_selector selector);
 void ui_style_next(ui_pattern pattern, ui_style* style, ui_style_mask mask);
 void ui_style_prev(ui_pattern pattern, ui_style* style, ui_style_mask mask);
+
+// common patterns helpers
+ui_pattern ui_pattern_all(void);
+ui_pattern ui_pattern_owner(void);
+
+// single box styling helpers
+void ui_box_set_size(ui_box* box, ui_axis axis, ui_size_kind kind, f32 value, f32 stricness);
+void ui_box_set_layout(ui_box* box, ui_axis axis, ui_align alignX, ui_align alignY);
+//...
 
 //-------------------------------------------------------------------------
 // Basic widget helpers
@@ -309,10 +412,10 @@ enum {
 };
 
 ui_sig ui_label(const char* label);
-ui_sig ui_label_str8(str8 label);
 
 ui_sig ui_button(const char* label);
-ui_sig ui_button_str8(str8 label);
+
+ui_box* ui_slider(const char* label, f32 thumbRatio, f32* scrollValue);
 ui_box* ui_scrollbar(const char* label, f32 thumbRatio, f32* scrollValue);
 
 ui_box* ui_panel_begin(const char* name);

@@ -31,6 +31,14 @@ void debug_print_rule(ui_style_rule* rule)
 	{
 		switch(selector->kind)
 		{
+			case UI_SEL_ANY:
+				printf("any: ");
+				break;
+
+			case UI_SEL_OWNER:
+				printf("owner: ");
+				break;
+
 			case UI_SEL_TEXT:
 				printf("text='%.*s': ", (int)selector->text.len, selector->text.ptr);
 				break;
@@ -39,12 +47,56 @@ void debug_print_rule(ui_style_rule* rule)
 				printf("tag=0x%llx: ", selector->tag.hash);
 				break;
 
+			case UI_SEL_STATUS:
+			{
+				if(selector->status & UI_HOVER)
+				{
+					printf("hover: ");
+				}
+				if(selector->status & UI_ACTIVE)
+				{
+					printf("active: ");
+				}
+				if(selector->status & UI_DRAGGING)
+				{
+					printf("dragging: ");
+				}
+			} break;
+
+			case UI_SEL_KEY:
+				printf("key=0x%llx: ", selector->key.hash);
+				break;
+
 			default:
 				printf("unknown: ");
 				break;
 		}
 	}
 	printf("=> font size = %f\n", rule->style->fontSize);
+}
+void debug_print_size(ui_box* box, ui_axis axis, int indent)
+{
+	debug_print_indent(indent);
+	printf("size %s: ", axis == UI_AXIS_X ? "x" : "y");
+	switch(box->targetStyle->size.s[axis].kind)
+	{
+		case UI_SIZE_TEXT:
+			printf("text\n");
+			break;
+
+		case UI_SIZE_CHILDREN:
+			printf("children\n");
+			break;
+
+		case UI_SIZE_PARENT:
+			printf("parent\n");
+			break;
+
+		case UI_SIZE_PIXELS:
+			printf("pixels\n");
+			break;
+	}
+
 }
 
 void debug_print_styles(ui_box* box, int indent)
@@ -55,6 +107,9 @@ void debug_print_styles(ui_box* box, int indent)
 
 	debug_print_indent(indent);
 	printf("font size: %f\n", box->targetStyle->fontSize);
+
+	debug_print_size(box, UI_AXIS_X, indent);
+	debug_print_size(box, UI_AXIS_Y, indent);
 
 	if(!ListEmpty(&box->beforeRules))
 	{
@@ -90,6 +145,38 @@ void debug_print_styles(ui_box* box, int indent)
 	}
 }
 
+mg_font create_font()
+{
+	//NOTE(martin): create font
+	str8 fontPath = mp_app_get_resource_path(mem_scratch(), "../resources/OpenSansLatinSubset.ttf");
+	char* fontPathCString = str8_to_cstring(mem_scratch(), fontPath);
+
+	FILE* fontFile = fopen(fontPathCString, "r");
+	if(!fontFile)
+	{
+		LOG_ERROR("Could not load font file '%s': %s\n", fontPathCString, strerror(errno));
+		return(mg_font_nil());
+	}
+	unsigned char* fontData = 0;
+	fseek(fontFile, 0, SEEK_END);
+	u32 fontDataSize = ftell(fontFile);
+	rewind(fontFile);
+	fontData = (unsigned char*)malloc(fontDataSize);
+	fread(fontData, 1, fontDataSize, fontFile);
+	fclose(fontFile);
+
+	unicode_range ranges[5] = {UNICODE_RANGE_BASIC_LATIN,
+	                           UNICODE_RANGE_C1_CONTROLS_AND_LATIN_1_SUPPLEMENT,
+	                           UNICODE_RANGE_LATIN_EXTENDED_A,
+	                           UNICODE_RANGE_LATIN_EXTENDED_B,
+	                           UNICODE_RANGE_SPECIALS};
+
+	mg_font font = mg_font_create_from_memory(fontDataSize, fontData, 5, ranges);
+	free(fontData);
+
+	return(font);
+}
+
 int main()
 {
 	LogLevel(LOG_LEVEL_WARNING);
@@ -117,59 +204,184 @@ int main()
 		return(-1);
 	}
 
+	mg_font font = create_font();
 
-	//TEST UI
-	ui_style defaultStyle = {.bgColor = {0.9, 0.9, 0.9, 1},
-		                        .borderSize = 2,
-		                        .borderColor = {0, 0, 1, 1},
-		                        .color = {0, 0, 0, 1},
-		                        .fontSize = 32};
+	// start app
+	mp_window_bring_to_front(window);
+	mp_window_focus(window);
 
-	ui_box* root = 0;
-	ui_frame(800, 800, defaultStyle)
+	while(!mp_should_quit())
 	{
-		root = ui_box_top();
+		bool printDebugStyle = false;
 
-		ui_pattern pattern = {0};
-		ui_pattern_push(mem_scratch(), &pattern, (ui_selector){.kind = UI_SEL_TEXT, .text = str8_lit("b")});
-		ui_pattern_push(mem_scratch(), &pattern, (ui_selector){.kind = UI_SEL_TAG, .tag = ui_tag_make(str8_lit("foo"))});
-		ui_style_next(pattern,
-		              &(ui_style){.fontSize = 12},
-		              UI_STYLE_FONT_SIZE);
+		f64 startTime = mp_get_time(MP_CLOCK_MONOTONIC);
 
-		ui_container("a", 0)
+		mp_pump_events(0);
+		mp_event event = {0};
+		while(mp_next_event(&event))
 		{
-			ui_pattern pattern = {0};
-			ui_pattern_push(mem_scratch(), &pattern, (ui_selector){.kind = UI_SEL_TEXT, .text = str8_lit("b")});
-			ui_style_next(pattern,
-			          	  &(ui_style){.fontSize = 20},
-			          	  UI_STYLE_FONT_SIZE);
-
-			ui_container("b", 0)
+			switch(event.type)
 			{
-				ui_container("c", 0)
+				case MP_EVENT_WINDOW_CLOSE:
 				{
-					ui_box_make("d", 0);
-				}
+					mp_request_quit();
+				} break;
 
-				ui_container("e", 0)
+
+				case MP_EVENT_KEYBOARD_KEY:
 				{
-					ui_tag_next(str8_lit("foo"));
-					ui_box_make("f", 0);
-				}
+					if(event.key.action == MP_KEY_PRESS && event.key.code == MP_KEY_P)
+					{
+						printDebugStyle = true;
+					}
+				} break;
+
+				default:
+					break;
 			}
-			ui_tag_next(str8_lit("foo"));
-			ui_box_make("d", 0);
 		}
 
-		pattern = (ui_pattern){0};
-		ui_pattern_push(mem_scratch(), &pattern, (ui_selector){.kind = UI_SEL_TEXT, .text = str8_lit("c")});
-		ui_pattern_push(mem_scratch(), &pattern, (ui_selector){.kind = UI_SEL_TEXT, .text = str8_lit("d")});
-		ui_style_prev(pattern,
-		              &(ui_style){.fontSize = 30},
-		              UI_STYLE_FONT_SIZE);
+		//TEST UI
+		ui_style defaultStyle = {.size.width = {UI_SIZE_CHILDREN},
+		                         .size.height = {UI_SIZE_CHILDREN},
+		                         .layout.axis = UI_AXIS_Y,
+		                         .layout.spacing = 10,
+		                         .layout.margin.x = 10,
+		                         .layout.margin.y = 10,
+		                         .bgColor = {0.9, 0.9, 0.9, 1},
+		                         .borderSize = 2,
+		                         .borderColor = {0, 0, 1, 1},
+		                         .color = {0, 0, 0, 1},
+		                         .font = font,
+		                         .fontSize = 32};
+
+		ui_flags defaultFlags = UI_FLAG_DRAW_BORDER;
+
+		ui_box* root = 0;
+		ui_frame(800, 610, defaultStyle)
+		{
+			root = ui_box_top();
+
+//			ui_label("Hello, world!");
+
+
+			ui_pattern pattern = {0};
+			ui_pattern_push(mem_scratch(), &pattern, (ui_selector){.kind = UI_SEL_TEXT, .text = str8_lit("b")});
+			ui_pattern_push(mem_scratch(), &pattern, (ui_selector){.kind = UI_SEL_TAG, .tag = ui_tag_make("foo")});
+			ui_style_next(pattern,
+		              	&(ui_style){.fontSize = 36},
+		              	UI_STYLE_FONT_SIZE);
+
+			ui_style_next(ui_pattern_all(), &defaultStyle, UI_STYLE_BORDER_SIZE|UI_STYLE_BORDER_COLOR|UI_STYLE_SIZE_X|UI_STYLE_SIZE_Y|UI_STYLE_LAYOUT);
+
+			ui_container("a", defaultFlags)
+			{
+				ui_pattern pattern = {0};
+				ui_pattern_push(mem_scratch(), &pattern, (ui_selector){.kind = UI_SEL_TEXT, .text = str8_lit("b")});
+				ui_style_next(pattern,
+			          	  	&(ui_style){.fontSize = 22},
+			          	  	UI_STYLE_FONT_SIZE);
+
+				ui_container("b", defaultFlags)
+				{
+					ui_container("c", defaultFlags)
+					{
+						if(ui_button("button d").clicked)
+						{
+							printf("clicked button d\n");
+						}
+					}
+
+					ui_container("e", defaultFlags)
+					{
+						ui_tag_next("foo");
+						if(ui_button("button f").clicked)
+						{
+							printf("clicked button f\n");
+						}
+
+						ui_style_next(ui_pattern_owner(),
+						              &(ui_style){.size.width = {UI_SIZE_PIXELS, 200, 0},
+						                          .size.height = {UI_SIZE_PIXELS, 20, 0}},
+						              UI_STYLE_SIZE_X|UI_STYLE_SIZE_Y);
+						static f32 slider1 = 0;
+						ui_slider("slider1", 0.3, &slider1);
+
+
+						ui_style_next(ui_pattern_owner(),
+						              &(ui_style){.size.width = {UI_SIZE_PIXELS, 200, 0},
+						                          .size.height = {UI_SIZE_PIXELS, 20, 0}},
+						              UI_STYLE_SIZE_X|UI_STYLE_SIZE_Y);
+						static f32 slider2 = 0;
+						ui_slider("slider2", 0.3, &slider2);
+
+						ui_style_next(ui_pattern_owner(),
+						              &(ui_style){.size.width = {UI_SIZE_PIXELS, 200, 0},
+						                          .size.height = {UI_SIZE_PIXELS, 20, 0}},
+						              UI_STYLE_SIZE_X|UI_STYLE_SIZE_Y);
+						static f32 slider3 = 0;
+						ui_slider("slider3", 0.3, &slider3);
+
+					}
+				}
+				ui_tag_next("foo");
+				ui_label("label d");
+			}
+
+			pattern = (ui_pattern){0};
+			ui_pattern_push(mem_scratch(), &pattern, (ui_selector){.kind = UI_SEL_TEXT, .text = str8_lit("c")});
+			ui_pattern_push(mem_scratch(), &pattern, (ui_selector){.kind = UI_SEL_TAG, .tag = ui_tag_make("button")});
+			ui_style_prev(pattern,
+		              	&(ui_style){.bgColor = {1, 0.5, 0.5, 1}},
+		              	UI_STYLE_BG_COLOR);
+
+			pattern = (ui_pattern){0};
+			ui_pattern_push(mem_scratch(), &pattern, (ui_selector){.kind = UI_SEL_TEXT, .text = str8_lit("c")});
+			ui_pattern_push(mem_scratch(), &pattern, (ui_selector){.kind = UI_SEL_TAG, .tag = ui_tag_make("button")});
+			ui_pattern_push(mem_scratch(), &pattern, (ui_selector){.kind = UI_SEL_STATUS, .op = UI_SEL_AND, .status = UI_ACTIVE|UI_HOVER});
+			ui_style_prev(pattern,
+		              	&(ui_style){.bgColor = {0.5, 1, 0.5, 1}},
+		              	UI_STYLE_BG_COLOR);
+
+		}
+		if(printDebugStyle)
+		{
+			debug_print_styles(root, 0);
+		}
+
+		mg_surface_prepare(surface);
+
+//		mg_set_color_rgba(1, 0, 0, 1);
+//		mg_rectangle_fill(100, 100, 400, 200);
+
+		ui_draw();
+
+/*
+		mg_mat2x3 transform = {1, 0, 0,
+	                       	0, -1, 800};
+
+		bool oldTextFlip = mg_get_text_flip();
+		mg_set_text_flip(true);
+
+		mg_matrix_push(transform);
+
+		mg_set_font(font);
+		mg_set_font_size(20);
+		mg_set_color_rgba(0, 0, 0, 1);
+
+		mg_move_to(0, 38);
+		mg_text_outlines(str8_lit("hello, world"));
+		mg_fill();
+
+		mg_matrix_pop();
+
+		mg_set_text_flip(oldTextFlip);
+*/
+		mg_flush();
+		mg_surface_present(surface);
+
+		mem_arena_clear(mem_scratch());
 	}
-	debug_print_styles(root, 0);
 
 	mp_terminate();
 

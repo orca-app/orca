@@ -13,6 +13,22 @@
 
 #define LOG_SUBSYSTEM "UI"
 
+
+static ui_style UI_STYLE_DEFAULTS =
+{
+	.size.width = {.kind = UI_SIZE_CHILDREN,
+	               .value = 0,
+	               .strictness = 0},
+	.size.height = {.kind = UI_SIZE_CHILDREN,
+	                .value = 0,
+	                .strictness = 0},
+
+	.layout = {.axis = UI_AXIS_Y,
+	           .align = {UI_ALIGN_START,
+	                     UI_ALIGN_START}},
+	.color = {0, 0, 0, 1},
+	.fontSize = 16,
+};
 //-----------------------------------------------------------------------------
 // context
 //-----------------------------------------------------------------------------
@@ -193,32 +209,32 @@ void ui_box_pop(void)
 // tagging
 //-----------------------------------------------------------------------------
 
-ui_tag ui_tag_make(str8 string)
+ui_tag ui_tag_make_str8(str8 string)
 {
 	ui_tag tag = {.hash = mp_hash_aes_string(string)};
 	return(tag);
 }
 
-void ui_tag_box(ui_box* box, str8 string)
+void ui_tag_box_str8(ui_box* box, str8 string)
 {
 	ui_context* ui = ui_get_context();
 	ui_tag_elt* elt = mem_arena_alloc_type(&ui->frameArena, ui_tag_elt);
-	elt->tag = ui_tag_make(string);
+	elt->tag = ui_tag_make_str8(string);
 	ListAppend(&box->tags, &elt->listElt);
 }
 
-void ui_tag_next(str8 string)
+void ui_tag_next_str8(str8 string)
 {
 	ui_context* ui = ui_get_context();
 	ui_tag_elt* elt = mem_arena_alloc_type(&ui->frameArena, ui_tag_elt);
-	elt->tag = ui_tag_make(string);
+	elt->tag = ui_tag_make_str8(string);
 	ListAppend(&ui->nextBoxTags, &elt->listElt);
 }
 
 //-----------------------------------------------------------------------------
 // key hashing and caching
 //-----------------------------------------------------------------------------
-ui_key ui_key_from_string(str8 string)
+ui_key ui_key_make_str8(str8 string)
 {
 	ui_context* ui = ui_get_context();
 	u64 seed = 0;
@@ -233,6 +249,23 @@ ui_key ui_key_from_string(str8 string)
 	return(key);
 }
 
+ui_key ui_key_make_path(str8_list path)
+{
+	ui_context* ui = ui_get_context();
+	u64 seed = 0;
+	ui_box* parent = ui_box_top();
+	if(parent)
+	{
+		seed = parent->key.hash;
+	}
+	for_each_in_list(&path.list, elt, str8_elt, listElt)
+	{
+		seed = mp_hash_aes_string_seed(elt->string, seed);
+	}
+	ui_key key = {seed};
+	return(key);
+}
+
 bool ui_key_equal(ui_key a, ui_key b)
 {
 	return(a.hash == b.hash);
@@ -244,8 +277,9 @@ void ui_box_cache(ui_context* ui, ui_box* box)
 	ListAppend(&(ui->boxMap[index]), &box->bucketElt);
 }
 
-ui_box* ui_box_lookup_with_key(ui_context* ui, ui_key key)
+ui_box* ui_box_lookup_key(ui_key key)
 {
+	ui_context* ui = ui_get_context();
 	u64 index = key.hash & (UI_BOX_MAP_BUCKET_COUNT-1);
 
 	for_each_in_list(&ui->boxMap[index], box, ui_box, bucketElt)
@@ -260,14 +294,8 @@ ui_box* ui_box_lookup_with_key(ui_context* ui, ui_key key)
 
 ui_box* ui_box_lookup_str8(str8 string)
 {
-	ui_context* ui = ui_get_context();
-	ui_key key = ui_key_from_string(string);
-	return(ui_box_lookup_with_key(ui, key));
-}
-
-ui_box* ui_box_lookup(const char* string)
-{
-	return(ui_box_lookup_str8(str8_from_cstring((char*)string)));
+	ui_key key = ui_key_make_str8(string);
+	return(ui_box_lookup_key(key));
 }
 
 //-----------------------------------------------------------------------------
@@ -308,8 +336,57 @@ void ui_style_prev(ui_pattern pattern, ui_style* style, ui_style_mask mask)
 		*rule->style = *style;
 
 		ListAppend(&ui->lastBox->afterRules, &rule->boxElt);
+		rule->owner = ui->lastBox;
 	}
 }
+
+void ui_style_box_before(ui_box* box, ui_pattern pattern, ui_style* style, ui_style_mask mask)
+{
+	ui_context* ui = ui_get_context();
+	if(ui)
+	{
+		ui_style_rule* rule = mem_arena_alloc_type(&ui->frameArena, ui_style_rule);
+		rule->pattern = pattern;
+		rule->mask = mask;
+		rule->style = mem_arena_alloc_type(&ui->frameArena, ui_style);
+		*rule->style = *style;
+
+		ListAppend(&box->beforeRules, &rule->boxElt);
+		rule->owner = box;
+	}
+}
+
+ui_pattern ui_pattern_all(void)
+{
+	ui_context* ui = ui_get_context();
+	ui_pattern pattern = {0};
+	ui_pattern_push(&ui->frameArena, &pattern, (ui_selector){.kind = UI_SEL_ANY});
+	return(pattern);
+}
+
+ui_pattern ui_pattern_owner(void)
+{
+	ui_context* ui = ui_get_context();
+	ui_pattern pattern = {0};
+	ui_pattern_push(&ui->frameArena, &pattern, (ui_selector){.kind = UI_SEL_OWNER});
+	return(pattern);
+}
+
+void ui_box_set_size(ui_box* box, ui_axis axis, ui_size_kind kind, f32 value, f32 strictness)
+{
+	ui_style style = {0};
+	style.size.s[axis] = (ui_size){kind, value, strictness};
+	ui_style_mask mask = (axis == UI_AXIS_X) ? UI_STYLE_SIZE_X : UI_STYLE_SIZE_Y;
+	ui_style_box_before(box, ui_pattern_owner(), &style, mask);
+}
+
+void ui_box_set_layout(ui_box* box, ui_axis axis, ui_align alignX, ui_align alignY)
+{
+	ui_style style = {.layout = {axis, .align.x = alignX, .align.y = alignY}};
+	ui_style_box_before(box, ui_pattern_owner(), &style, UI_STYLE_LAYOUT);
+}
+
+void ui_apply_style_with_mask(ui_style* dst, ui_style* src, ui_style_mask mask);
 
 //-----------------------------------------------------------------------------
 // ui boxes
@@ -363,8 +440,8 @@ ui_box* ui_box_make_str8(str8 string, ui_flags flags)
 {
 	ui_context* ui = ui_get_context();
 
-	ui_key key = ui_key_from_string(string);
-	ui_box* box = ui_box_lookup_with_key(ui, key);
+	ui_key key = ui_key_make_str8(string);
+	ui_box* box = ui_box_lookup_key(key);
 
 	if(!box)
 	{
@@ -402,25 +479,26 @@ ui_box* ui_box_make_str8(str8 string, ui_flags flags)
 	box->string = str8_push_copy(&ui->frameArena, string);
 	box->flags = flags;
 
+	//NOTE: create style and setup non-inherited attributes to default values
 	box->targetStyle = mem_arena_alloc_type(&ui->frameArena, ui_style);
-	memset(box->targetStyle, 0, sizeof(ui_style));
+	ui_apply_style_with_mask(box->targetStyle, &UI_STYLE_DEFAULTS, ~0ULL);
 
 	//NOTE: set tags, before rules and last box
 	box->tags = ui->nextBoxTags;
 	ui->nextBoxTags = (list_info){0};
 
 	box->beforeRules = ui->nextBoxRules;
+	for_each_in_list(&box->beforeRules, rule, ui_style_rule, boxElt)
+	{
+		rule->owner = box;
+	}
 	ui->nextBoxRules = (list_info){0};
+
+	box->afterRules = (list_info){0};
 
 	ui->lastBox = box;
 
 	return(box);
-}
-
-ui_box* ui_box_make(const char* cstring, ui_flags flags)
-{
-	str8 string = str8_from_cstring((char*)cstring);
-	return(ui_box_make_str8(string, flags));
 }
 
 ui_box* ui_box_begin_str8(str8 string, ui_flags flags)
@@ -429,12 +507,6 @@ ui_box* ui_box_begin_str8(str8 string, ui_flags flags)
 	ui_box* box = ui_box_make_str8(string, flags);
 	ui_box_push(box);
 	return(box);
-}
-
-ui_box* ui_box_begin(const char* cstring, ui_flags flags)
-{
-	str8 string = str8_from_cstring((char*)cstring);
-	return(ui_box_begin_str8(string, flags));
 }
 
 ui_box* ui_box_end(void)
@@ -456,18 +528,7 @@ void ui_box_set_render_proc(ui_box* box, ui_box_render_proc proc, void* data)
 	box->renderProc = proc;
 	box->renderData = data;
 }
-/*
-void ui_box_set_size(ui_box* box, ui_axis axis, ui_size_kind kind, f32 value, f32 strictness)
-{
-	box->targetStyle->size[axis] = (ui_size){kind, value, strictness};
-}
 
-void ui_box_set_floating(ui_box* box, ui_axis axis, f32 pos)
-{
-	box->floating[axis] = true;
-	box->floatTarget.c[axis] = pos;
-}
-*/
 void ui_box_set_closed(ui_box* box, bool closed)
 {
 	box->closed = closed;
@@ -619,20 +680,20 @@ void ui_box_compute_styling(ui_context* ui, ui_box* box)
 	{
 		if(flags & UI_STYLE_ANIMATE_SIZE_X)
 		{
-			ui_animate_ui_size(ui, &box->style.size[UI_AXIS_X], targetStyle->size[UI_AXIS_X], animationTime);
+			ui_animate_ui_size(ui, &box->style.size.s[UI_AXIS_X], targetStyle->size.s[UI_AXIS_X], animationTime);
 		}
 		else
 		{
-			box->style.size[UI_AXIS_X] = targetStyle->size[UI_AXIS_X];
+			box->style.size.s[UI_AXIS_X] = targetStyle->size.s[UI_AXIS_X];
 		}
 
 		if(flags & UI_STYLE_ANIMATE_SIZE_Y)
 		{
-			ui_animate_ui_size(ui, &box->style.size[UI_AXIS_Y], targetStyle->size[UI_AXIS_Y], animationTime);
+			ui_animate_ui_size(ui, &box->style.size.s[UI_AXIS_Y], targetStyle->size.s[UI_AXIS_Y], animationTime);
 		}
 		else
 		{
-			box->style.size[UI_AXIS_Y] = targetStyle->size[UI_AXIS_Y];
+			box->style.size.s[UI_AXIS_Y] = targetStyle->size.s[UI_AXIS_Y];
 		}
 
 		if(flags & UI_STYLE_ANIMATE_COLOR)
@@ -689,6 +750,9 @@ void ui_box_compute_styling(ui_context* ui, ui_box* box)
 		{
 			box->style.roundness = targetStyle->roundness;
 		}
+
+		//TODO: non animatable attributes use mask
+		box->style.layout = targetStyle->layout;
 		box->style.font = targetStyle->font;
 	}
 }
@@ -697,11 +761,45 @@ void ui_apply_style_with_mask(ui_style* dst, ui_style* src, ui_style_mask mask)
 {
 	if(mask & UI_STYLE_SIZE_X)
 	{
-		dst->size[UI_AXIS_X] = src->size[UI_AXIS_X];
+		dst->size.s[UI_AXIS_X] = src->size.s[UI_AXIS_X];
 	}
 	if(mask & UI_STYLE_SIZE_Y)
 	{
-		dst->size[UI_AXIS_Y] = src->size[UI_AXIS_Y];
+		dst->size.s[UI_AXIS_Y] = src->size.s[UI_AXIS_Y];
+	}
+	if(mask & UI_STYLE_LAYOUT_AXIS)
+	{
+		dst->layout.axis = src->layout.axis;
+	}
+	if(mask & UI_STYLE_LAYOUT_ALIGN_X)
+	{
+		dst->layout.align.x = src->layout.align.x;
+	}
+	if(mask & UI_STYLE_LAYOUT_ALIGN_Y)
+	{
+		dst->layout.align.y = src->layout.align.y;
+	}
+	if(mask & UI_STYLE_LAYOUT_SPACING)
+	{
+		dst->layout.spacing = src->layout.spacing;
+	}
+	if(mask & UI_STYLE_LAYOUT_MARGIN_X)
+	{
+		dst->layout.margin.x = src->layout.margin.y;
+	}
+	if(mask & UI_STYLE_LAYOUT_MARGIN_Y)
+	{
+		dst->layout.margin.y = src->layout.margin.y;
+	}
+	if(mask & UI_STYLE_FLOAT_X)
+	{
+		dst->floating[UI_AXIS_X] = src->floating[UI_AXIS_X];
+		dst->floatTarget.x = src->floatTarget.x;
+	}
+	if(mask & UI_STYLE_FLOAT_Y)
+	{
+		dst->floating[UI_AXIS_Y] = src->floating[UI_AXIS_Y];
+		dst->floatTarget.y = src->floatTarget.y;
 	}
 	if(mask & UI_STYLE_COLOR)
 	{
@@ -742,11 +840,19 @@ void ui_apply_style_with_mask(ui_style* dst, ui_style* src, ui_style_mask mask)
 }
 
 
-bool ui_style_selector_match(ui_box* box, ui_selector* selector)
+bool ui_style_selector_match(ui_box* box, ui_style_rule* rule, ui_selector* selector)
 {
 	bool res = false;
 	switch(selector->kind)
 	{
+		case UI_SEL_ANY:
+			res = true;
+			break;
+
+		case UI_SEL_OWNER:
+			res = (box == rule->owner);
+			break;
+
 		case UI_SEL_TEXT:
 			res = !str8_cmp(box->string, selector->text);
 			break;
@@ -763,17 +869,22 @@ bool ui_style_selector_match(ui_box* box, ui_selector* selector)
 			}
 		} break;
 
-		case UI_SEL_HOVER:
-			res = box->hot;
-			break;
-
-		case UI_SEL_ACTIVE:
-			res = box->active;
-			break;
-
-		case UI_SEL_DRAGGING:
-			res = box->dragging;
-			break;
+		case UI_SEL_STATUS:
+		{
+			res = true;
+			if(selector->status & UI_HOVER)
+			{
+				res = res && box->hot;
+			}
+			if(selector->status & UI_ACTIVE)
+			{
+				res = res && box->active;
+			}
+			if(selector->status & UI_DRAGGING)
+			{
+				res = res && box->dragging;
+			}
+		} break;
 
 		case UI_SEL_KEY:
 			res = ui_key_equal(box->key, selector->key);
@@ -786,9 +897,18 @@ bool ui_style_selector_match(ui_box* box, ui_selector* selector)
 void ui_style_rule_match(ui_context* ui, ui_box* box, ui_style_rule* rule, list_info* buildList, list_info* tmpList)
 {
 	ui_selector* selector = ListFirstEntry(&rule->pattern.l, ui_selector, listElt);
-	if(ui_style_selector_match(box, selector))
+	bool match = ui_style_selector_match(box, rule, selector);
+
+	selector = ListNextEntry(&rule->pattern.l, selector, ui_selector, listElt);
+	while(match && selector && selector->op == UI_SEL_AND)
 	{
-		if(!selector->listElt.next)
+		match = match && ui_style_selector_match(box, rule, selector);
+		selector = ListNextEntry(&rule->pattern.l, selector, ui_selector, listElt);
+	}
+
+	if(match)
+	{
+		if(!selector)
 		{
 			ui_apply_style_with_mask(box->targetStyle, rule->style, rule->mask);
 		}
@@ -798,10 +918,10 @@ void ui_style_rule_match(ui_context* ui, ui_box* box, ui_style_rule* rule, list_
 			ui_style_rule* derived = mem_arena_alloc_type(&ui->frameArena, ui_style_rule);
 			derived->mask = rule->mask;
 			derived->style = rule->style;
-			derived->pattern.l = (list_info){selector->listElt.next, rule->pattern.l.last};
+			derived->pattern.l = (list_info){&selector->listElt, rule->pattern.l.last};
 
-			ListPush(buildList, &derived->buildElt);
-			ListPush(tmpList, &derived->tmpElt);
+			ListAppend(buildList, &derived->buildElt);
+			ListAppend(tmpList, &derived->tmpElt);
 		}
 	}
 }
@@ -825,6 +945,7 @@ void ui_styling_prepass(ui_context* ui, ui_box* box, list_info* before, list_inf
 	for_each_in_list(&box->beforeRules, rule, ui_style_rule, boxElt)
 	{
 		ListAppend(before, &rule->buildElt);
+		ListAppend(&tmpBefore, &rule->tmpElt);
 		ui_style_rule_match(ui, box, rule, before, &tmpBefore);
 	}
 
@@ -836,6 +957,7 @@ void ui_styling_prepass(ui_context* ui, ui_box* box, list_info* before, list_inf
 	for_each_in_list(&box->afterRules, rule, ui_style_rule, boxElt)
 	{
 		ListAppend(after, &rule->buildElt);
+		ListAppend(&tmpAfter, &rule->tmpElt);
 		ui_style_rule_match(ui, box, rule, after, &tmpAfter);
 	}
 
@@ -850,8 +972,8 @@ void ui_styling_prepass(ui_context* ui, ui_box* box, list_info* before, list_inf
 	ui_style* style = &box->style;
 
 	mp_rect textBox = {};
-	ui_size desiredSize[2] = {box->style.size[UI_AXIS_X],
-	                          box->style.size[UI_AXIS_Y]};
+	ui_size desiredSize[2] = {box->style.size.s[UI_AXIS_X],
+	                          box->style.size.s[UI_AXIS_Y]};
 
 	if( desiredSize[UI_AXIS_X].kind == UI_SIZE_TEXT
 	  ||desiredSize[UI_AXIS_Y].kind == UI_SIZE_TEXT)
@@ -897,15 +1019,16 @@ void ui_layout_upward_dependent_size(ui_context* ui, ui_box* box, int axis)
 		return;
 	}
 
-	ui_size* size = &box->style.size[axis];
+	ui_size* size = &box->style.size.s[axis];
 
-	if(size->kind == UI_SIZE_PARENT_RATIO)
+	if(size->kind == UI_SIZE_PARENT)
 	{
 		ui_box* parent = box->parent;
 		if(  parent
-		  && parent->style.size[axis].kind != UI_SIZE_CHILDREN)
+		  && parent->style.size.s[axis].kind != UI_SIZE_CHILDREN)
 		{
-			box->rect.c[2+axis] = parent->rect.c[2+axis] * size->value;
+			f32 margin = parent->style.layout.margin.m[axis];
+			box->rect.c[2+axis] = maximum(0, parent->rect.c[2+axis] - 2*margin) * size->value;
 		}
 		//TODO else?
 	}
@@ -919,8 +1042,10 @@ void ui_layout_upward_dependent_size(ui_context* ui, ui_box* box, int axis)
 void ui_layout_downward_dependent_size(ui_context* ui, ui_box* box, int axis)
 {
 	f32 sum = 0;
+
 	if(box->style.layout.axis == axis)
 	{
+		int count = 0;
 		for_each_in_list(&box->children, child, ui_box, listElt)
 		{
 			if(!ui_box_hidden(child))
@@ -929,9 +1054,11 @@ void ui_layout_downward_dependent_size(ui_context* ui, ui_box* box, int axis)
 				if(!child->style.floating[axis])
 				{
 					sum += child->rect.c[2+axis];
+					count++;
 				}
 			}
 		}
+		sum += maximum(0, count-1)*box->style.layout.spacing;
 	}
 	else
 	{
@@ -950,10 +1077,11 @@ void ui_layout_downward_dependent_size(ui_context* ui, ui_box* box, int axis)
 
 	box->childrenSum[axis] = sum;
 
-	ui_size* size = &box->style.size[axis];
+	ui_size* size = &box->style.size.s[axis];
 	if(size->kind == UI_SIZE_CHILDREN)
 	{
-		box->rect.c[2+axis] = sum  + size->value*2;
+		f32 margin = box->style.layout.margin.m[axis];
+		box->rect.c[2+axis] = sum  + margin*2;
 	}
 }
 
@@ -976,20 +1104,17 @@ void ui_layout_compute_rect(ui_context* ui, ui_box* box, vec2 pos)
 
 	ui_axis layoutAxis = box->style.layout.axis;
 	ui_axis secondAxis = (layoutAxis == UI_AXIS_X) ? UI_AXIS_Y : UI_AXIS_X;
-	ui_align* align = box->style.layout.align;
+	f32 spacing = box->style.layout.spacing;
+
+	ui_align* align = box->style.layout.align.a;
 
 	vec2 origin = {box->rect.x - box->scroll.x,
 	               box->rect.y - box->scroll.y};
 	vec2 currentPos = origin;
 
-	vec2 margin = {0, 0};
-	for(int i=0; i<UI_AXIS_COUNT; i++)
-	{
-		if(box->style.size[i].kind == UI_SIZE_CHILDREN)
-		{
-			margin.c[i] = box->style.size[i].value;
-		}
-	}
+	vec2 margin = {box->style.layout.margin.x,
+	               box->style.layout.margin.y};
+
 	currentPos.x += margin.x;
 	currentPos.y += margin.y;
 
@@ -1038,7 +1163,7 @@ void ui_layout_compute_rect(ui_context* ui, ui_box* box, vec2 pos)
 
 		if(!child->style.floating[layoutAxis])
 		{
-			currentPos.c[layoutAxis] += child->rect.c[2+layoutAxis];
+			currentPos.c[layoutAxis] += child->rect.c[2+layoutAxis] + spacing;
 		}
 	}
 }
@@ -1128,7 +1253,7 @@ void ui_draw_box(ui_box* box)
 
 	if(box->flags & UI_FLAG_CLIP)
 	{
-		mg_clip_push(box->rect.x, box->rect.y, box->rect.w, box->rect.h);
+//		mg_clip_push(box->rect.x, box->rect.y, box->rect.w, box->rect.h);
 	}
 
 	if(box->flags & UI_FLAG_DRAW_BACKGROUND)
@@ -1165,7 +1290,7 @@ void ui_draw_box(ui_box* box)
 
 	if(box->flags & UI_FLAG_CLIP)
 	{
-		mg_clip_pop();
+//		mg_clip_pop();
 	}
 
 	if(box->flags & UI_FLAG_DRAW_BORDER)
@@ -1216,24 +1341,27 @@ void ui_begin_frame(u32 width, u32 height, ui_style defaultStyle)
 	ui->clipStack = 0;
 	ui->z = 0;
 
-//	ui_push_size(UI_AXIS_X, UI_SIZE_PIXELS, width, 0);
-//	ui_push_size(UI_AXIS_Y, UI_SIZE_PIXELS, height, 0);
+	defaultStyle.size.s[UI_AXIS_X] = (ui_size){UI_SIZE_PIXELS, width, 0};
+	defaultStyle.size.s[UI_AXIS_Y] = (ui_size){UI_SIZE_PIXELS, height, 0};
 
 	ui->root = ui_box_begin("_root_", 0);
 	*ui->root->targetStyle = defaultStyle;
 
-	ui_box* contents = ui_box_make("_contents_", 0);
-//	ui_box_set_floating(contents, UI_AXIS_X, 0);
-//	ui_box_set_floating(contents, UI_AXIS_Y, 0);
+	ui_style_next(ui_pattern_owner(),
+	              &(ui_style){.layout = {UI_AXIS_Y, UI_ALIGN_START, UI_ALIGN_START},
+	                          .floating = {true, true},
+	                          .floatTarget = {0, 0}},
+	              UI_STYLE_LAYOUT | UI_STYLE_FLOAT_X | UI_STYLE_FLOAT_Y);
 
-//	ui_box_set_layout(contents, UI_AXIS_Y, UI_ALIGN_START, UI_ALIGN_START);
+	ui_box* contents = ui_box_make("_contents_", 0);
+
+	ui_style_next(ui_pattern_owner(),
+	              &(ui_style){.layout = {UI_AXIS_Y, UI_ALIGN_START, UI_ALIGN_START},
+	                          .floating = {true, true},
+	                          .floatTarget = {0, 0}},
+	              UI_STYLE_LAYOUT | UI_STYLE_FLOAT_X | UI_STYLE_FLOAT_Y);
 
 	ui->overlay = ui_box_make("_overlay_", 0);
-//	ui_box_set_floating(ui->overlay, UI_AXIS_X, 0);
-//	ui_box_set_floating(ui->overlay, UI_AXIS_Y, 0);
-
-//	ui_pop_size(UI_AXIS_X);
-//	ui_pop_size(UI_AXIS_Y);
 
 	ui->nextBoxRules = (list_info){0};
 	ui->nextBoxTags = (list_info){0};
@@ -1300,11 +1428,14 @@ void ui_cleanup(void)
 
 ui_sig ui_label_str8(str8 label)
 {
+	ui_style_next(ui_pattern_all(),
+	              &(ui_style){.size.width = {UI_SIZE_TEXT, 0, 0},
+	                          .size.height = {UI_SIZE_TEXT, 0, 0}},
+	              UI_STYLE_SIZE_X | UI_STYLE_SIZE_Y);
+
 	ui_flags flags = UI_FLAG_CLIP
 	               | UI_FLAG_DRAW_TEXT;
 	ui_box* box = ui_box_make_str8(label, flags);
-//	ui_box_set_size(box, UI_AXIS_X, UI_SIZE_TEXT, 0, 0);
-//	ui_box_set_size(box, UI_AXIS_Y, UI_SIZE_TEXT, 0, 0);
 
 	ui_sig sig = ui_box_sig(box);
 	return(sig);
@@ -1317,18 +1448,48 @@ ui_sig ui_label(const char* label)
 
 ui_sig ui_button_str8(str8 label)
 {
+	ui_context* ui = ui_get_context();
+
+	ui_style defaultStyle = {.size.width = {UI_SIZE_TEXT, 5, 0},
+	                         .size.height = {UI_SIZE_TEXT, 5, 0},
+	                         .bgColor = {0.5, 0.5, 0.5, 1},
+	                         .borderColor = {0.2, 0.2, 0.2, 1},
+	                         .borderSize = 2,
+	                         .roundness = 10};
+
+	ui_style_mask defaultMask = UI_STYLE_SIZE_X
+	                          | UI_STYLE_SIZE_Y
+	                          | UI_STYLE_BG_COLOR
+	                          | UI_STYLE_BORDER_COLOR
+	                          | UI_STYLE_BORDER_SIZE
+	                          | UI_STYLE_ROUNDNESS;
+
+	ui_style_next(ui_pattern_all(), &defaultStyle, defaultMask);
+
+	ui_style activeStyle = {.bgColor = {0.3, 0.3, 0.3, 1},
+	                        .borderColor = {0.2, 0.2, 0.2, 1},
+	                        .borderSize = 4};
+	ui_style_mask activeMask = UI_STYLE_BG_COLOR
+	                         | UI_STYLE_BORDER_COLOR
+	                         | UI_STYLE_BORDER_SIZE;
+	ui_pattern activePattern = {0};
+	ui_pattern_push(&ui->frameArena,
+	                &activePattern,
+	                (ui_selector){.kind = UI_SEL_STATUS,
+	                              .status = UI_ACTIVE|UI_HOVER});
+	ui_style_next(activePattern, &activeStyle, activeMask);
+
 	ui_flags flags = UI_FLAG_CLICKABLE
 	               | UI_FLAG_CLIP
-	               | UI_FLAG_DRAW_FOREGROUND
+	               | UI_FLAG_DRAW_BACKGROUND
 	               | UI_FLAG_DRAW_BORDER
 	               | UI_FLAG_DRAW_TEXT
 	               | UI_FLAG_HOT_ANIMATION
 	               | UI_FLAG_ACTIVE_ANIMATION;
 
 	ui_box* box = ui_box_make_str8(label, flags);
+	ui_tag_box(box, "button");
 
-	//TODO
-//	ui_box_set_tag(box, UI_STYLE_TAG_BUTTON);
 	ui_sig sig = ui_box_sig(box);
 
 	if(sig.hovering)
@@ -1356,6 +1517,112 @@ ui_sig ui_button(const char* label)
 	return(ui_button_str8(str8_from_cstring((char*)label)));
 }
 
+
+ui_box* ui_slider(const char* label, f32 thumbRatio, f32* scrollValue)
+{
+	ui_box* frame = ui_box_begin(label, 0);
+	{
+		ui_style_box_before(frame, ui_pattern_all(), &(ui_style){0}, UI_STYLE_LAYOUT);
+
+		ui_axis trackAxis = (frame->rect.w > frame->rect.h) ? UI_AXIS_X : UI_AXIS_Y;
+		ui_axis secondAxis = (trackAxis == UI_AXIS_Y) ? UI_AXIS_X : UI_AXIS_Y;
+
+		f32 roundness = 0.5*frame->rect.c[2+secondAxis];
+		f32 animationTime = 0.5;
+
+		ui_style trackStyle = {.bgColor = {0.5, 0.5, 0.5, 1},
+		                       .roundness = roundness};
+		ui_style thumbStyle = {.bgColor = {0.3, 0.3, 0.3, 1},
+		                       .roundness = roundness};
+
+		ui_style_mask styleMask = UI_STYLE_BG_COLOR | UI_STYLE_ROUNDNESS;
+
+		ui_flags trackFlags = UI_FLAG_CLIP
+	                    	| UI_FLAG_DRAW_BACKGROUND
+	                    	| UI_FLAG_HOT_ANIMATION
+	                    	| UI_FLAG_ACTIVE_ANIMATION;
+
+		ui_box* track = ui_box_begin("track", trackFlags);
+			ui_style_box_before(track, ui_pattern_owner(), &trackStyle, styleMask);
+
+			ui_box_set_size(track, trackAxis, UI_SIZE_PARENT, 1., 0);
+			ui_box_set_size(track, secondAxis, UI_SIZE_PARENT, 1., 0);
+			ui_box_set_layout(track, trackAxis, UI_ALIGN_START, UI_ALIGN_START);
+
+			f32 beforeRatio = (*scrollValue) * (1. - thumbRatio);
+			f32 afterRatio = (1. - *scrollValue) * (1. - thumbRatio);
+
+			ui_box* beforeSpacer = ui_box_make("before", 0);
+			ui_box_set_size(beforeSpacer, trackAxis, UI_SIZE_PARENT, beforeRatio, 0);
+			ui_box_set_size(beforeSpacer, secondAxis, UI_SIZE_PARENT, 1., 0);
+
+			ui_flags thumbFlags = UI_FLAG_CLICKABLE
+		                    	| UI_FLAG_DRAW_BACKGROUND
+		                    	| UI_FLAG_HOT_ANIMATION
+		                    	| UI_FLAG_ACTIVE_ANIMATION;
+
+			ui_box* thumb = ui_box_make("thumb", thumbFlags);
+			ui_style_box_before(thumb, ui_pattern_owner(), &thumbStyle, styleMask);
+			ui_box_set_size(thumb, trackAxis, UI_SIZE_PARENT, thumbRatio, 0);
+			ui_box_set_size(thumb, secondAxis, UI_SIZE_PARENT, 1., 0);
+
+			ui_box* afterSpacer = ui_box_make("after", 0);
+			ui_box_set_size(afterSpacer, trackAxis, UI_SIZE_PARENT, afterRatio, 0);
+			ui_box_set_size(afterSpacer, secondAxis, UI_SIZE_PARENT, 1., 0);
+		ui_box_end();
+
+		//NOTE: interaction
+		ui_sig thumbSig = ui_box_sig(thumb);
+		if(thumbSig.dragging)
+		{
+			f32 trackExtents = track->rect.c[2+trackAxis] - thumb->rect.c[2+trackAxis];
+			f32 delta = thumbSig.delta.c[trackAxis]/trackExtents;
+			f32 oldValue = *scrollValue;
+
+			*scrollValue += delta;
+			*scrollValue = Clamp(*scrollValue, 0, 1);
+		}
+
+		ui_sig trackSig = ui_box_sig(track);
+
+		if(ui_box_active(frame))
+		{
+			//NOTE: activated from outside
+			ui_box_set_hot(track, true);
+			ui_box_set_hot(thumb, true);
+			ui_box_activate(track);
+			ui_box_activate(thumb);
+		}
+
+		if(trackSig.hovering)
+		{
+			ui_box_set_hot(track, true);
+			ui_box_set_hot(thumb, true);
+		}
+		else if(thumbSig.wheel.c[trackAxis] == 0)
+		{
+			ui_box_set_hot(track, false);
+			ui_box_set_hot(thumb, false);
+		}
+
+		if(thumbSig.dragging)
+		{
+			ui_box_activate(track);
+			ui_box_activate(thumb);
+		}
+		else if(thumbSig.wheel.c[trackAxis] == 0)
+		{
+			ui_box_deactivate(track);
+			ui_box_deactivate(thumb);
+			ui_box_deactivate(frame);
+		}
+
+	} ui_box_end();
+
+	return(frame);
+}
+
+
 ui_box* ui_scrollbar(const char* label, f32 thumbRatio, f32* scrollValue)
 {
 	ui_box* frame = ui_box_begin(label, 0);
@@ -1365,6 +1632,7 @@ ui_box* ui_scrollbar(const char* label, f32 thumbRatio, f32* scrollValue)
 
 		f32 roundness = 0.5*frame->rect.c[2+secondAxis];
 		f32 animationTime = 0.5;
+
 
 /*		ui_push_bg_color((mg_color){0, 0, 0, 0});
 		ui_push_fg_color((mg_color){0, 0, 0, 0});
@@ -1383,16 +1651,16 @@ ui_box* ui_scrollbar(const char* label, f32 thumbRatio, f32* scrollValue)
 
 		ui_box* track = ui_box_begin("track", trackFlags);
 
-//			ui_box_set_size(track, trackAxis, UI_SIZE_PARENT_RATIO, 1., 0);
-//			ui_box_set_size(track, secondAxis, UI_SIZE_PARENT_RATIO, 1., 0);
+//			ui_box_set_size(track, trackAxis, UI_SIZE_PARENT, 1., 0);
+//			ui_box_set_size(track, secondAxis, UI_SIZE_PARENT, 1., 0);
 			//ui_box_set_layout(track, trackAxis, UI_ALIGN_START, UI_ALIGN_START);
 
 			f32 beforeRatio = (*scrollValue) * (1. - thumbRatio);
 			f32 afterRatio = (1. - *scrollValue) * (1. - thumbRatio);
 
 			ui_box* beforeSpacer = ui_box_make("before", 0);
-//			ui_box_set_size(beforeSpacer, trackAxis, UI_SIZE_PARENT_RATIO, beforeRatio, 0);
-//			ui_box_set_size(beforeSpacer, secondAxis, UI_SIZE_PARENT_RATIO, 1., 0);
+//			ui_box_set_size(beforeSpacer, trackAxis, UI_SIZE_PARENT, beforeRatio, 0);
+//			ui_box_set_size(beforeSpacer, secondAxis, UI_SIZE_PARENT, 1., 0);
 
 			ui_flags thumbFlags = UI_FLAG_CLICKABLE
 		                    	| UI_FLAG_DRAW_FOREGROUND
@@ -1400,12 +1668,12 @@ ui_box* ui_scrollbar(const char* label, f32 thumbRatio, f32* scrollValue)
 		                    	| UI_FLAG_ACTIVE_ANIMATION;
 
 			ui_box* thumb = ui_box_make("thumb", thumbFlags);
-//			ui_box_set_size(thumb, trackAxis, UI_SIZE_PARENT_RATIO, thumbRatio, 0);
-//			ui_box_set_size(thumb, secondAxis, UI_SIZE_PARENT_RATIO, 1., 0);
+//			ui_box_set_size(thumb, trackAxis, UI_SIZE_PARENT, thumbRatio, 0);
+//			ui_box_set_size(thumb, secondAxis, UI_SIZE_PARENT, 1., 0);
 
 			ui_box* afterSpacer = ui_box_make("after", 0);
-//			ui_box_set_size(afterSpacer, trackAxis, UI_SIZE_PARENT_RATIO, afterRatio, 0);
-//			ui_box_set_size(afterSpacer, secondAxis, UI_SIZE_PARENT_RATIO, 1., 0);
+//			ui_box_set_size(afterSpacer, trackAxis, UI_SIZE_PARENT, afterRatio, 0);
+//			ui_box_set_size(afterSpacer, secondAxis, UI_SIZE_PARENT, 1., 0);
 
 		ui_box_end();
 /*
@@ -1500,7 +1768,7 @@ void ui_panel_end()
 		f32 sliderX = panel->scroll.x /(contentsW - panel->rect.w);
 
 		scrollBarX = ui_scrollbar("scrollerX", thumbRatioX, &sliderX);
-//		ui_box_set_size(scrollBarX, UI_AXIS_X, UI_SIZE_PARENT_RATIO, 1., 0);
+//		ui_box_set_size(scrollBarX, UI_AXIS_X, UI_SIZE_PARENT, 1., 0);
 //		ui_box_set_size(scrollBarX, UI_AXIS_Y, UI_SIZE_PIXELS, 10, 0);
 
 		panel->scroll.x = sliderX * (contentsW - panel->rect.w);
@@ -1518,7 +1786,7 @@ void ui_panel_end()
 
 		scrollBarY = ui_scrollbar("scrollerY", thumbRatioY, &sliderY);
 //		ui_box_set_size(scrollBarY, UI_AXIS_X, UI_SIZE_PIXELS, 10, 0);
-//		ui_box_set_size(scrollBarY, UI_AXIS_Y, UI_SIZE_PARENT_RATIO, 1., 0);
+//		ui_box_set_size(scrollBarY, UI_AXIS_Y, UI_SIZE_PARENT, 1., 0);
 
 		panel->scroll.y = sliderY * (contentsH - panel->rect.h);
 		if(sig.hovering)
@@ -1575,7 +1843,7 @@ void ui_tooltip_end(void)
 void ui_menu_bar_begin(const char* name)
 {
 	ui_box* bar = ui_box_begin(name, UI_FLAG_DRAW_BACKGROUND);
-//	ui_box_set_size(bar, UI_AXIS_X, UI_SIZE_PARENT_RATIO, 1., 0);
+//	ui_box_set_size(bar, UI_AXIS_X, UI_SIZE_PARENT, 1., 0);
 //	ui_box_set_size(bar, UI_AXIS_Y, UI_SIZE_CHILDREN, 0, 0);
 	//ui_box_set_layout(bar, UI_AXIS_X, UI_ALIGN_START, UI_ALIGN_START);
 /*
