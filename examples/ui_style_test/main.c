@@ -249,16 +249,16 @@ int main()
 		                         .layout.margin.x = 10,
 		                         .layout.margin.y = 10,
 		                         .bgColor = {0.9, 0.9, 0.9, 1},
+		                         .color = {0, 0, 0, 1},
 		                         .borderSize = 2,
 		                         .borderColor = {0, 0, 1, 1},
-		                         .color = {0, 0, 0, 1},
 		                         .font = font,
 		                         .fontSize = 32};
 
 		ui_flags defaultFlags = UI_FLAG_DRAW_BORDER;
 
 		ui_box* root = 0;
-		ui_frame(800, 610, defaultStyle)
+		ui_frame(800, 610)
 		{
 			root = ui_box_top();
 
@@ -272,7 +272,16 @@ int main()
 		              	&(ui_style){.fontSize = 36},
 		              	UI_STYLE_FONT_SIZE);
 
-			ui_style_next(ui_pattern_all(), &defaultStyle, UI_STYLE_BORDER_SIZE|UI_STYLE_BORDER_COLOR|UI_STYLE_SIZE_X|UI_STYLE_SIZE_Y|UI_STYLE_LAYOUT);
+			ui_style_next(ui_pattern_all(),
+			              &defaultStyle,
+			              UI_STYLE_FONT
+			              |UI_STYLE_FONT_SIZE
+			              |UI_STYLE_COLOR
+			              |UI_STYLE_BORDER_SIZE
+			              |UI_STYLE_BORDER_COLOR
+			              |UI_STYLE_SIZE_X
+			              |UI_STYLE_SIZE_Y
+			              |UI_STYLE_LAYOUT);
 
 			ui_container("a", defaultFlags)
 			{

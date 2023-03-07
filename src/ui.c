@@ -1326,7 +1326,7 @@ void ui_draw()
 // frame begin/end
 //-----------------------------------------------------------------------------
 
-void ui_begin_frame(u32 width, u32 height, ui_style defaultStyle)
+void ui_begin_frame(u32 width, u32 height)
 {
 	ui_context* ui = ui_get_context();
 
@@ -1342,6 +1342,7 @@ void ui_begin_frame(u32 width, u32 height, ui_style defaultStyle)
 	ui->clipStack = 0;
 	ui->z = 0;
 
+	ui_style defaultStyle = {0};
 	defaultStyle.size.s[UI_AXIS_X] = (ui_size){UI_SIZE_PIXELS, width, 0};
 	defaultStyle.size.s[UI_AXIS_Y] = (ui_size){UI_SIZE_PIXELS, height, 0};
 

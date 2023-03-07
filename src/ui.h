@@ -313,11 +313,11 @@ void ui_init(void);
 ui_context* ui_get_context(void);
 void ui_set_context(ui_context* context);
 
-void ui_begin_frame(u32 width, u32 height, ui_style defaultStyle);
+void ui_begin_frame(u32 width, u32 height);
 void ui_end_frame(void);
 void ui_draw(void);
 
-#define ui_frame(width, height, defaultStyle) defer_loop(ui_begin_frame(width, height, defaultStyle), ui_end_frame())
+#define ui_frame(width, height) defer_loop(ui_begin_frame(width, height), ui_end_frame())
 
 //-------------------------------------------------------------------------------------
 // Box keys
