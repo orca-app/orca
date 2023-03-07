@@ -987,7 +987,8 @@ void ui_styling_prepass(ui_context* ui, ui_box* box, list_info* before, list_inf
 
 		if(size.kind == UI_SIZE_TEXT)
 		{
-			box->rect.c[2+i] = textBox.c[2+i] + desiredSize[i].value*2;
+			f32 margin = style->layout.margin.m[i];
+			box->rect.c[2+i] = textBox.c[2+i] + margin*2;
 		}
 		else if(size.kind == UI_SIZE_PIXELS)
 		{
@@ -1024,8 +1025,7 @@ void ui_layout_upward_dependent_size(ui_context* ui, ui_box* box, int axis)
 	if(size->kind == UI_SIZE_PARENT)
 	{
 		ui_box* parent = box->parent;
-		if(  parent
-		  && parent->style.size.s[axis].kind != UI_SIZE_CHILDREN)
+		if(parent)
 		{
 			f32 margin = parent->style.layout.margin.m[axis];
 			box->rect.c[2+axis] = maximum(0, parent->rect.c[2+axis] - 2*margin) * size->value;
@@ -1051,8 +1051,9 @@ void ui_layout_downward_dependent_size(ui_context* ui, ui_box* box, int axis)
 			if(!ui_box_hidden(child))
 			{
 				ui_layout_downward_dependent_size(ui, child, axis);
-				if(!child->style.floating[axis])
+				if(!child->style.floating[axis] && child->style.size.s[axis].kind != UI_SIZE_PARENT)
 				{
+					//TODO: maybe log an error if child is dependant on parent
 					sum += child->rect.c[2+axis];
 					count++;
 				}
@@ -1204,8 +1205,8 @@ void ui_solve_layout(ui_context* ui)
 
 	for(int axis=0; axis<UI_AXIS_COUNT; axis++)
 	{
-		ui_layout_upward_dependent_size(ui, ui->root, axis);
 		ui_layout_downward_dependent_size(ui, ui->root, axis);
+		ui_layout_upward_dependent_size(ui, ui->root, axis);
 		ui_layout_solve_conflicts(ui, ui->root, axis);
 	}
 	ui_layout_compute_rect(ui, ui->root, (vec2){0, 0});

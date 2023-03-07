@@ -301,7 +301,7 @@ int main()
 						}
 
 						ui_style_next(ui_pattern_owner(),
-						              &(ui_style){.size.width = {UI_SIZE_PIXELS, 200, 0},
+						              &(ui_style){.size.width = {UI_SIZE_PARENT, 1},
 						                          .size.height = {UI_SIZE_PIXELS, 20, 0}},
 						              UI_STYLE_SIZE_X|UI_STYLE_SIZE_Y);
 						static f32 slider1 = 0;
@@ -309,15 +309,15 @@ int main()
 
 
 						ui_style_next(ui_pattern_owner(),
-						              &(ui_style){.size.width = {UI_SIZE_PIXELS, 200, 0},
+						              &(ui_style){.size.width = {UI_SIZE_PARENT, 1},
 						                          .size.height = {UI_SIZE_PIXELS, 20, 0}},
 						              UI_STYLE_SIZE_X|UI_STYLE_SIZE_Y);
 						static f32 slider2 = 0;
 						ui_slider("slider2", 0.3, &slider2);
 
 						ui_style_next(ui_pattern_owner(),
-						              &(ui_style){.size.width = {UI_SIZE_PIXELS, 200, 0},
-						                          .size.height = {UI_SIZE_PIXELS, 20, 0}},
+						              &(ui_style){.size.width = {UI_SIZE_PARENT, 1},
+						                          .size.height = {UI_SIZE_PIXELS, 20}},
 						              UI_STYLE_SIZE_X|UI_STYLE_SIZE_Y);
 						static f32 slider3 = 0;
 						ui_slider("slider3", 0.3, &slider3);
