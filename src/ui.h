@@ -89,6 +89,9 @@ typedef enum { UI_STYLE_ANIMATE_SIZE_X       = 1<<1,
 typedef struct ui_style
 {
 	ui_size size[UI_AXIS_COUNT];
+	ui_layout layout;
+	bool floating[UI_AXIS_COUNT];
+	vec2 floatTarget;
 	mg_color color;
 	mg_color bgColor;
 	mg_color borderColor;
@@ -114,8 +117,14 @@ enum
 	UI_STYLE_FONT           = 1<<9,
 	UI_STYLE_FONT_SIZE      = 1<<10,
 	UI_STYLE_ANIMATION_TIME = 1<<11,
-	UI_STYLE_ANIMAION_FLAGS = 1<<12,
+	UI_STYLE_ANIMATION_FLAGS = 1<<12,
 	//...
+
+	UI_STYLE_MASK_INHERITED = UI_STYLE_COLOR
+	                        | UI_STYLE_FONT
+	                        | UI_STYLE_FONT_SIZE
+	                        | UI_STYLE_ANIMATION_TIME
+	                        | UI_STYLE_ANIMATION_FLAGS,
 };
 
 
@@ -201,18 +210,16 @@ struct ui_box
 	ui_box_render_proc renderProc;
 	void* renderData;
 
-	// styling and layout
+	// styling
 	list_info beforeRules;
 	list_info afterRules;
 
 	//ui_style_tag tag;
 	ui_style* targetStyle;
-	ui_style computedStyle;
+	ui_style style;
 	u32 z;
-	bool floating[UI_AXIS_COUNT];
+
 	vec2 floatPos;
-	vec2 floatTarget;
-	ui_layout layout;
 	f32 childrenSum[2];
 	mp_rect rect;
 
@@ -273,11 +280,12 @@ bool ui_box_hot(ui_box* box);
 void ui_box_set_hot(ui_box* box, bool hot);
 
 void ui_box_set_render_proc(ui_box* box, ui_box_render_proc proc, void* data);
+/*
 void ui_box_set_layout(ui_box* box, ui_axis axis, ui_align alignX, ui_align alignY);
 void ui_box_set_size(ui_box* box, ui_axis axis, ui_size_kind kind, f32 value, f32 strictness);
 void ui_box_set_floating(ui_box* box, ui_axis axis, f32 pos);
-//void ui_box_set_style_selector(ui_box* box, ui_style_selector selector);
-
+void ui_box_set_style_selector(ui_box* box, ui_style_selector selector);
+*/
 ui_sig ui_box_sig(ui_box* box);
 
 //NOTE: styling API
@@ -332,12 +340,6 @@ typedef struct ui_text_box_result
 }ui_text_box_result;
 
 ui_text_box_result ui_text_box(const char* name, mem_arena* arena, str8 text);
-
-////////////////////////////////////////// WIP styling //////////////////////////////////////////
-
-
-
-
 
 #ifdef __cplusplus
 } // extern "C"
