@@ -1414,7 +1414,7 @@ ui_sig ui_label_str8(str8 label)
 
 ui_sig ui_label(const char* label)
 {
-	return(ui_label_str8(str8_from_cstring((char*)label)));
+	return(ui_label_str8(STR8((char*)label)));
 }
 
 ui_sig ui_button_str8(str8 label)
@@ -1485,7 +1485,7 @@ ui_sig ui_button_str8(str8 label)
 
 ui_sig ui_button(const char* label)
 {
-	return(ui_button_str8(str8_from_cstring((char*)label)));
+	return(ui_button_str8(STR8((char*)label)));
 }
 
 

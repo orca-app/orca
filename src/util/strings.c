@@ -22,18 +22,6 @@ str8 str8_from_buffer(u64 len, char* buffer)
 	return((str8){.len = len, .ptr = buffer});
 }
 
-str8 str8_from_cstring(char* str)
-{
-	if(!str)
-	{
-		return((str8){0});
-	}
-	else
-	{
-		return(str8_from_buffer(strlen(str), (char*)str));
-	}
-}
-
 str8 str8_slice(str8 s, u64 start, u64 end)
 {
 	ASSERT(start <= end && start <= s.len && end <= s.len);
@@ -63,7 +51,7 @@ str8 str8_push_cstring(mem_arena* arena, const char* str)
 
 str8 str8_push_copy(mem_arena* arena, str8 s)
 {
-	return(str8_push_buffer(arena, str8_unbox(s)));
+	return(str8_push_buffer(arena, str8_lp(s)));
 }
 
 str8 str8_push_slice(mem_arena* arena, str8 s, u64 start, u64 end)

@@ -332,8 +332,8 @@ ui_box* ui_box_lookup_key(ui_key key);
 ui_box* ui_box_lookup_str8(str8 string);
 
 // C-string helper
-#define ui_key_make(s) ui_key_make_str8(str8_lit(s))
-#define ui_box_lookup(s) ui_box_lookup_str8(str8_lit(s))
+#define ui_key_make(s) ui_key_make_str8(STR8(s))
+#define ui_box_lookup(s) ui_box_lookup_str8(STR8(s))
 
 //-------------------------------------------------------------------------------------
 // Box hierarchy building
@@ -351,9 +351,9 @@ ui_box* ui_box_top(void);
 void ui_box_set_render_proc(ui_box* box, ui_box_render_proc proc, void* data);
 
 // C-string helpers
-#define ui_box_lookup(s) ui_box_lookup_str8(str8_lit(s))
-#define ui_box_make(s, flags) ui_box_make_str8(str8_lit(s), flags)
-#define ui_box_begin(s, flags) ui_box_begin_str8(str8_lit(s), flags)
+#define ui_box_lookup(s) ui_box_lookup_str8(STR8(s))
+#define ui_box_make(s, flags) ui_box_make_str8(STR8(s), flags)
+#define ui_box_begin(s, flags) ui_box_begin_str8(STR8(s), flags)
 
 //-------------------------------------------------------------------------------------
 // Box status and signals
@@ -378,9 +378,9 @@ void ui_tag_box_str8(ui_box* box, str8 string);
 void ui_tag_next_str8(str8 string);
 
 // C-string helpers
-#define ui_tag_make(s) ui_tag_make_str8(str8_lit(s))
-#define ui_tag_box(b, s) ui_tag_box_str8(b, str8_lit(s))
-#define ui_tag_next(s) ui_tag_next_str8(str8_lit(s))
+#define ui_tag_make(s) ui_tag_make_str8(STR8(s))
+#define ui_tag_box(b, s) ui_tag_box_str8(b, STR8(s))
+#define ui_tag_next(s) ui_tag_next_str8(STR8(s))
 
 //-------------------------------------------------------------------------------------
 // Styling

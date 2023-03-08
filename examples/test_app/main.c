@@ -31,7 +31,7 @@ int main()
 	mg_surface surface = mg_surface_create_for_window(window, MG_BACKEND_METAL);
 //*/
 	mg_canvas canvas = mg_canvas_create(surface, (mp_rect){0, 0, 800, 600});
-	mg_image image = mg_image_create_from_file(canvas, str8_lit("Top512.png"), true);
+	mg_image image = mg_image_create_from_file(canvas, STR8("Top512.png"), true);
 
 	u8 colors[64];
 	for(int i=0; i<64; i+=4)
@@ -43,7 +43,7 @@ int main()
 	}
 	mg_image image3 = mg_image_create_from_rgba8(canvas, 4, 4, colors);
 
-	mg_image image2 = mg_image_create_from_file(canvas, str8_lit("triceratops.png"), true);
+	mg_image image2 = mg_image_create_from_file(canvas, STR8("triceratops.png"), true);
 
 	//NOTE(martin): create font
 	char* fontPath = 0;
@@ -132,7 +132,7 @@ int main()
 		mg_set_font(canvas, font);
 		mg_set_font_size(canvas, 32);
 		mg_move_to(canvas, 500, 500);
-		mg_text_outlines(canvas, str8_lit("Hello, world!"));
+		mg_text_outlines(canvas, STR8("Hello, world!"));
 		mg_set_color_rgba(canvas, 0, 0, 0, 1);
 		mg_fill(canvas);
 

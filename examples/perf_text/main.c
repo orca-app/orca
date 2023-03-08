@@ -116,9 +116,9 @@ int main()
 
 	f32 lineHeight = fontScale*(extents.ascent + extents.descent + extents.leading);
 
-	int codePointCount = utf8_codepoint_count_for_string(str8_from_cstring((char*)TEST_STRING));
+	int codePointCount = utf8_codepoint_count_for_string(STR8((char*)TEST_STRING));
 	u32* codePoints = malloc_array(utf32, codePointCount);
-	utf8_to_codepoints(codePointCount, codePoints, str8_from_cstring((char*)TEST_STRING));
+	utf8_to_codepoints(codePointCount, codePoints, STR8((char*)TEST_STRING));
 
 	u32 glyphCount = 0;
 	for(int i=0; i<codePointCount; i++)

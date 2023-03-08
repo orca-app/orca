@@ -990,12 +990,12 @@ str8 mp_app_get_resource_path(mem_arena* arena, const char* name)
 
 	_splitpath_s(executablePathCString, driveBuffer, MAX_PATH, dirBuffer, MAX_PATH, 0, 0, 0, 0);
 
-	str8 drive = str8_from_cstring(driveBuffer);
-	str8 dirPath = str8_from_cstring(dirBuffer);
+	str8 drive = STR8(driveBuffer);
+	str8 dirPath = STR8(dirBuffer);
 
 	str8_list_push(scratch, &list, drive);
 	str8_list_push(scratch, &list, dirPath);
-	str8_list_push(scratch, &list, str8_lit("\\"));
+	str8_list_push(scratch, &list, STR8("\\"));
 	str8_list_push(scratch, &list, str8_push_cstring(scratch, name));
 	str8 path = str8_list_join(scratch, list);
 	char* pathCString = str8_to_cstring(scratch, path);

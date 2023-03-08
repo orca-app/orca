@@ -26,11 +26,12 @@ typedef struct str8
 	char* ptr;
 } str8;
 
-#define str8_lit(s) ((str8){.len = sizeof(s)-1, .ptr = (char*)(s)})
-#define str8_unbox(s) (int)((s).len), ((s).ptr)
+#define STR8(s) ((str8){.len = (s) ? strlen(s) : 0, .ptr = (char*)s})
+
+#define str8_lp(s) ((s).len), ((s).ptr)
+#define str8_ip(s) (int)str8_lp(s)
 
 MP_API str8 str8_from_buffer(u64 len, char* buffer);
-MP_API str8 str8_from_cstring(char* str);
 MP_API str8 str8_slice(str8 s, u64 start, u64 end);
 
 MP_API str8 str8_push_buffer(mem_arena* arena, u64 len, char* buffer);
