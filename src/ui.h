@@ -59,7 +59,7 @@ typedef union ui_layout_align
 		ui_align x;
 		ui_align y;
 	};
-	ui_align a[UI_AXIS_COUNT];
+	ui_align c[UI_AXIS_COUNT];
 } ui_layout_align;
 
 typedef struct ui_layout
@@ -73,7 +73,7 @@ typedef struct ui_layout
 			f32 x;
 			f32 y;
 		};
-		f32 m[UI_AXIS_COUNT];
+		f32 c[UI_AXIS_COUNT];
 	} margin;
 	ui_layout_align align;
 
@@ -102,8 +102,18 @@ typedef union ui_box_size
 		ui_size width;
 		ui_size height;
 	};
-	ui_size s[UI_AXIS_COUNT];
+	ui_size c[UI_AXIS_COUNT];
 } ui_box_size;
+
+typedef union ui_box_floating
+{
+	struct
+	{
+		bool x;
+		bool y;
+	};
+	bool c[UI_AXIS_COUNT];
+} ui_box_floating;
 
 typedef enum { UI_STYLE_ANIMATE_SIZE_WIDTH   = 1<<1,
                UI_STYLE_ANIMATE_SIZE_HEIGHT  = 1<<2,
@@ -120,7 +130,7 @@ typedef struct ui_style
 {
 	ui_box_size size;
 	ui_layout layout;
-	bool floating[UI_AXIS_COUNT];
+	ui_box_floating floating;
 	vec2 floatTarget;
 	mg_color color;
 	mg_color bgColor;
@@ -291,6 +301,7 @@ struct ui_box
 
 	vec2 floatPos;
 	f32 childrenSum[2];
+	f32 spacing[2];
 	mp_rect rect;
 
 	// signals

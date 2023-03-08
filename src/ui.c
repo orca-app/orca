@@ -643,20 +643,20 @@ void ui_box_compute_styling(ui_context* ui, ui_box* box)
 	{
 		if(flags & UI_STYLE_ANIMATE_SIZE_WIDTH)
 		{
-			ui_animate_ui_size(ui, &box->style.size.s[UI_AXIS_X], targetStyle->size.s[UI_AXIS_X], animationTime);
+			ui_animate_ui_size(ui, &box->style.size.c[UI_AXIS_X], targetStyle->size.c[UI_AXIS_X], animationTime);
 		}
 		else
 		{
-			box->style.size.s[UI_AXIS_X] = targetStyle->size.s[UI_AXIS_X];
+			box->style.size.c[UI_AXIS_X] = targetStyle->size.c[UI_AXIS_X];
 		}
 
 		if(flags & UI_STYLE_ANIMATE_SIZE_HEIGHT)
 		{
-			ui_animate_ui_size(ui, &box->style.size.s[UI_AXIS_Y], targetStyle->size.s[UI_AXIS_Y], animationTime);
+			ui_animate_ui_size(ui, &box->style.size.c[UI_AXIS_Y], targetStyle->size.c[UI_AXIS_Y], animationTime);
 		}
 		else
 		{
-			box->style.size.s[UI_AXIS_Y] = targetStyle->size.s[UI_AXIS_Y];
+			box->style.size.c[UI_AXIS_Y] = targetStyle->size.c[UI_AXIS_Y];
 		}
 
 		if(flags & UI_STYLE_ANIMATE_COLOR)
@@ -714,7 +714,10 @@ void ui_box_compute_styling(ui_context* ui, ui_box* box)
 			box->style.roundness = targetStyle->roundness;
 		}
 
-		//TODO: non animatable attributes use mask
+		//NOTE: float target is animated in compute rect
+		box->style.floatTarget = targetStyle->floatTarget;
+
+		//TODO: non animatable attributes. use mask
 		box->style.layout = targetStyle->layout;
 		box->style.font = targetStyle->font;
 	}
@@ -724,11 +727,11 @@ void ui_apply_style_with_mask(ui_style* dst, ui_style* src, ui_style_mask mask)
 {
 	if(mask & UI_STYLE_SIZE_WIDTH)
 	{
-		dst->size.s[UI_AXIS_X] = src->size.s[UI_AXIS_X];
+		dst->size.c[UI_AXIS_X] = src->size.c[UI_AXIS_X];
 	}
 	if(mask & UI_STYLE_SIZE_HEIGHT)
 	{
-		dst->size.s[UI_AXIS_Y] = src->size.s[UI_AXIS_Y];
+		dst->size.c[UI_AXIS_Y] = src->size.c[UI_AXIS_Y];
 	}
 	if(mask & UI_STYLE_LAYOUT_AXIS)
 	{
@@ -756,12 +759,12 @@ void ui_apply_style_with_mask(ui_style* dst, ui_style* src, ui_style_mask mask)
 	}
 	if(mask & UI_STYLE_FLOAT_X)
 	{
-		dst->floating[UI_AXIS_X] = src->floating[UI_AXIS_X];
+		dst->floating.c[UI_AXIS_X] = src->floating.c[UI_AXIS_X];
 		dst->floatTarget.x = src->floatTarget.x;
 	}
 	if(mask & UI_STYLE_FLOAT_Y)
 	{
-		dst->floating[UI_AXIS_Y] = src->floating[UI_AXIS_Y];
+		dst->floating.c[UI_AXIS_Y] = src->floating.c[UI_AXIS_Y];
 		dst->floatTarget.y = src->floatTarget.y;
 	}
 	if(mask & UI_STYLE_COLOR)
@@ -935,8 +938,8 @@ void ui_styling_prepass(ui_context* ui, ui_box* box, list_info* before, list_inf
 	ui_style* style = &box->style;
 
 	mp_rect textBox = {};
-	ui_size desiredSize[2] = {box->style.size.s[UI_AXIS_X],
-	                          box->style.size.s[UI_AXIS_Y]};
+	ui_size desiredSize[2] = {box->style.size.c[UI_AXIS_X],
+	                          box->style.size.c[UI_AXIS_Y]};
 
 	if( desiredSize[UI_AXIS_X].kind == UI_SIZE_TEXT
 	  ||desiredSize[UI_AXIS_Y].kind == UI_SIZE_TEXT)
@@ -950,7 +953,7 @@ void ui_styling_prepass(ui_context* ui, ui_box* box, list_info* before, list_inf
 
 		if(size.kind == UI_SIZE_TEXT)
 		{
-			f32 margin = style->layout.margin.m[i];
+			f32 margin = style->layout.margin.c[i];
 			box->rect.c[2+i] = textBox.c[2+i] + margin*2;
 		}
 		else if(size.kind == UI_SIZE_PIXELS)
@@ -976,35 +979,10 @@ void ui_styling_prepass(ui_context* ui, ui_box* box, list_info* before, list_inf
 	}
 }
 
-void ui_layout_upward_dependent_size(ui_context* ui, ui_box* box, int axis)
-{
-	if(ui_box_hidden(box))
-	{
-		return;
-	}
-
-	ui_size* size = &box->style.size.s[axis];
-
-	if(size->kind == UI_SIZE_PARENT)
-	{
-		ui_box* parent = box->parent;
-		if(parent)
-		{
-			f32 margin = parent->style.layout.margin.m[axis];
-			box->rect.c[2+axis] = maximum(0, parent->rect.c[2+axis] - 2*margin) * size->value;
-		}
-		//TODO else?
-	}
-
-	for_list(&box->children, child, ui_box, listElt)
-	{
-		ui_layout_upward_dependent_size(ui, child, axis);
-	}
-}
-
 void ui_layout_downward_dependent_size(ui_context* ui, ui_box* box, int axis)
 {
 	f32 sum = 0;
+	f32 count = 0;
 
 	if(box->style.layout.axis == axis)
 	{
@@ -1014,7 +992,7 @@ void ui_layout_downward_dependent_size(ui_context* ui, ui_box* box, int axis)
 			if(!ui_box_hidden(child))
 			{
 				ui_layout_downward_dependent_size(ui, child, axis);
-				if(!child->style.floating[axis] && child->style.size.s[axis].kind != UI_SIZE_PARENT)
+				if(!child->style.floating.c[axis])
 				{
 					//TODO: maybe log an error if child is dependant on parent
 					sum += child->rect.c[2+axis];
@@ -1022,7 +1000,7 @@ void ui_layout_downward_dependent_size(ui_context* ui, ui_box* box, int axis)
 				}
 			}
 		}
-		sum += maximum(0, count-1)*box->style.layout.spacing;
+		box->spacing[axis] = maximum(0, count-1)*box->style.layout.spacing;
 	}
 	else
 	{
@@ -1031,21 +1009,48 @@ void ui_layout_downward_dependent_size(ui_context* ui, ui_box* box, int axis)
 			if(!ui_box_hidden(child))
 			{
 				ui_layout_downward_dependent_size(ui, child, axis);
-				if(!child->style.floating[axis])
+				if(!child->style.floating.c[axis])
 				{
 					sum = maximum(sum, child->rect.c[2+axis]);
 				}
 			}
 		}
+		box->spacing[axis] = 0;
 	}
 
 	box->childrenSum[axis] = sum;
 
-	ui_size* size = &box->style.size.s[axis];
+	ui_size* size = &box->style.size.c[axis];
 	if(size->kind == UI_SIZE_CHILDREN)
 	{
-		f32 margin = box->style.layout.margin.m[axis];
-		box->rect.c[2+axis] = sum  + margin*2;
+		f32 margin = box->style.layout.margin.c[axis];
+		box->rect.c[2+axis] = sum + box->spacing[axis] + 2*margin;
+	}
+}
+
+void ui_layout_upward_dependent_size(ui_context* ui, ui_box* box, int axis)
+{
+	if(ui_box_hidden(box))
+	{
+		return;
+	}
+
+	ui_size* size = &box->style.size.c[axis];
+
+	if(size->kind == UI_SIZE_PARENT)
+	{
+		ui_box* parent = box->parent;
+		if(parent)
+		{
+			f32 margin = parent->style.layout.margin.c[axis];
+			box->rect.c[2+axis] = maximum(0, parent->rect.c[2+axis] - parent->spacing[axis] - 2*margin) * size->value;
+		}
+		//TODO else?
+	}
+
+	for_list(&box->children, child, ui_box, listElt)
+	{
+		ui_layout_upward_dependent_size(ui, child, axis);
 	}
 }
 
@@ -1070,10 +1075,10 @@ void ui_layout_compute_rect(ui_context* ui, ui_box* box, vec2 pos)
 	ui_axis secondAxis = (layoutAxis == UI_AXIS_X) ? UI_AXIS_Y : UI_AXIS_X;
 	f32 spacing = box->style.layout.spacing;
 
-	ui_align* align = box->style.layout.align.a;
+	ui_align* align = box->style.layout.align.c;
 
-	vec2 origin = {box->rect.x - box->scroll.x,
-	               box->rect.y - box->scroll.y};
+	vec2 origin = {box->rect.x,
+	               box->rect.y};
 	vec2 currentPos = origin;
 
 	vec2 margin = {box->style.layout.margin.x,
@@ -1082,32 +1087,31 @@ void ui_layout_compute_rect(ui_context* ui, ui_box* box, vec2 pos)
 	currentPos.x += margin.x;
 	currentPos.y += margin.y;
 
-	vec2 contentsSize = {maximum(box->rect.w, box->childrenSum[UI_AXIS_X]),
-	                     maximum(box->rect.h, box->childrenSum[UI_AXIS_Y])};
-
 	for(int i=0; i<UI_AXIS_COUNT; i++)
 	{
 		if(align[i] == UI_ALIGN_END)
 		{
-			currentPos.c[i] += contentsSize.c[i] - box->childrenSum[i] - margin.c[i];
+			currentPos.c[i] = origin.c[i] + box->rect.c[2+i] - (box->childrenSum[i] + box->spacing[i] + margin.c[i]);
 		}
 	}
 	if(align[layoutAxis] == UI_ALIGN_CENTER)
 	{
-		currentPos.c[layoutAxis] += 0.5*(contentsSize.c[layoutAxis] - box->childrenSum[layoutAxis]);
+		currentPos.c[layoutAxis] = origin.c[layoutAxis]
+		                         + 0.5*(box->rect.c[2+layoutAxis]
+		                         - (box->childrenSum[layoutAxis] + box->spacing[layoutAxis]));
 	}
 
 	for_list(&box->children, child, ui_box, listElt)
 	{
 		if(align[secondAxis] == UI_ALIGN_CENTER)
 		{
-			currentPos.c[secondAxis] = origin.c[secondAxis] + 0.5*(contentsSize.c[secondAxis] - child->rect.c[2+secondAxis]);
+			currentPos.c[secondAxis] = origin.c[secondAxis] + 0.5*(box->rect.c[2+secondAxis] - child->rect.c[2+secondAxis]);
 		}
 
 		vec2 childPos = currentPos;
 		for(int i=0; i<UI_AXIS_COUNT; i++)
 		{
-			if(child->style.floating[i])
+			if(child->style.floating.c[i])
 			{
 				ui_style* style = child->targetStyle;
 				if((child->targetStyle->animationFlags & UI_STYLE_ANIMATE_POS)
@@ -1125,7 +1129,7 @@ void ui_layout_compute_rect(ui_context* ui, ui_box* box, vec2 pos)
 
 		ui_layout_compute_rect(ui, child, childPos);
 
-		if(!child->style.floating[layoutAxis])
+		if(!child->style.floating.c[layoutAxis])
 		{
 			currentPos.c[layoutAxis] += child->rect.c[2+layoutAxis] + spacing;
 		}
@@ -1217,7 +1221,7 @@ void ui_draw_box(ui_box* box)
 
 	if(box->flags & UI_FLAG_CLIP)
 	{
-//		mg_clip_push(box->rect.x, box->rect.y, box->rect.w, box->rect.h);
+		mg_clip_push(box->rect.x, box->rect.y, box->rect.w, box->rect.h);
 	}
 
 	if(box->flags & UI_FLAG_DRAW_BACKGROUND)
@@ -1254,7 +1258,7 @@ void ui_draw_box(ui_box* box)
 
 	if(box->flags & UI_FLAG_CLIP)
 	{
-//		mg_clip_pop();
+		mg_clip_pop();
 	}
 
 	if(box->flags & UI_FLAG_DRAW_BORDER)
@@ -1299,8 +1303,8 @@ void ui_begin_frame()
 	vec2 size = mg_canvas_size();
 
 	ui_style defaultStyle = {0};
-	defaultStyle.size.s[UI_AXIS_X] = (ui_size){UI_SIZE_PIXELS, size.x};
-	defaultStyle.size.s[UI_AXIS_Y] = (ui_size){UI_SIZE_PIXELS, size.y};
+	defaultStyle.size.c[UI_AXIS_X] = (ui_size){UI_SIZE_PIXELS, size.x};
+	defaultStyle.size.c[UI_AXIS_Y] = (ui_size){UI_SIZE_PIXELS, size.y};
 
 	ui->root = ui_box_begin("_root_", 0);
 	*ui->root->targetStyle = defaultStyle;
@@ -1412,15 +1416,19 @@ ui_sig ui_button_str8(str8 label)
 {
 	ui_context* ui = ui_get_context();
 
-	ui_style defaultStyle = {.size.width = {UI_SIZE_TEXT, 5, 0},
-	                         .size.height = {UI_SIZE_TEXT, 5, 0},
+	ui_style defaultStyle = {.size.width = {UI_SIZE_TEXT},
+	                         .size.height = {UI_SIZE_TEXT},
+	                         .layout.margin.x = 5,
+	                         .layout.margin.y = 5,
 	                         .bgColor = {0.5, 0.5, 0.5, 1},
 	                         .borderColor = {0.2, 0.2, 0.2, 1},
-	                         .borderSize = 2,
+	                         .borderSize = 1,
 	                         .roundness = 10};
 
 	ui_style_mask defaultMask = UI_STYLE_SIZE_WIDTH
 	                          | UI_STYLE_SIZE_HEIGHT
+	                          | UI_STYLE_LAYOUT_MARGIN_X
+	                          | UI_STYLE_LAYOUT_MARGIN_Y
 	                          | UI_STYLE_BG_COLOR
 	                          | UI_STYLE_BORDER_COLOR
 	                          | UI_STYLE_BORDER_SIZE
@@ -1430,7 +1438,7 @@ ui_sig ui_button_str8(str8 label)
 
 	ui_style activeStyle = {.bgColor = {0.3, 0.3, 0.3, 1},
 	                        .borderColor = {0.2, 0.2, 0.2, 1},
-	                        .borderSize = 4};
+	                        .borderSize = 2};
 	ui_style_mask activeMask = UI_STYLE_BG_COLOR
 	                         | UI_STYLE_BORDER_COLOR
 	                         | UI_STYLE_BORDER_SIZE;
@@ -1502,13 +1510,13 @@ ui_box* ui_slider(const char* label, f32 thumbRatio, f32* scrollValue)
 		                       .roundness = roundness};
 
 		ui_style beforeStyle = trackStyle;
-		beforeStyle.size.s[trackAxis] = (ui_size){UI_SIZE_PARENT, beforeRatio};
+		beforeStyle.size.c[trackAxis] = (ui_size){UI_SIZE_PARENT, beforeRatio};
 
 		ui_style afterStyle = trackStyle;
-		afterStyle.size.s[trackAxis] = (ui_size){UI_SIZE_PARENT, afterRatio};
+		afterStyle.size.c[trackAxis] = (ui_size){UI_SIZE_PARENT, afterRatio};
 
 		ui_style thumbStyle = trackStyle;
-		thumbStyle.size.s[trackAxis] = (ui_size){UI_SIZE_PARENT, thumbRatio};
+		thumbStyle.size.c[trackAxis] = (ui_size){UI_SIZE_PARENT, thumbRatio};
 		thumbStyle.bgColor = (mg_color){0.3, 0.3, 0.3, 1};
 
 		ui_style_mask styleMask = UI_STYLE_SIZE_WIDTH
@@ -1594,121 +1602,7 @@ ui_box* ui_slider(const char* label, f32 thumbRatio, f32* scrollValue)
 	return(frame);
 }
 
-
-ui_box* ui_scrollbar(const char* label, f32 thumbRatio, f32* scrollValue)
-{
-	ui_box* frame = ui_box_begin(label, 0);
-	{
-		ui_axis trackAxis = (frame->rect.w > frame->rect.h) ? UI_AXIS_X : UI_AXIS_Y;
-		ui_axis secondAxis = (trackAxis == UI_AXIS_Y) ? UI_AXIS_X : UI_AXIS_Y;
-
-		f32 roundness = 0.5*frame->rect.c[2+secondAxis];
-		f32 animationTime = 0.5;
-
-
-/*		ui_push_bg_color((mg_color){0, 0, 0, 0});
-		ui_push_fg_color((mg_color){0, 0, 0, 0});
-		ui_push_roundness(roundness);
-
-		ui_push_bg_color_ext(UI_STYLE_TAG_ANY, UI_STYLE_SEL_HOT|UI_STYLE_SEL_ACTIVE, (mg_color){0, 0, 0, 0.5});
-		ui_push_fg_color_ext(UI_STYLE_TAG_ANY, UI_STYLE_SEL_HOT|UI_STYLE_SEL_ACTIVE, (mg_color){0, 0, 0, 0.7});
-		ui_push_roundness_ext(UI_STYLE_TAG_ANY, UI_STYLE_SEL_HOT|UI_STYLE_SEL_ACTIVE, roundness);
-		ui_push_animation_time_ext(UI_STYLE_TAG_ANY, UI_STYLE_SEL_ANY, 1.);
-		ui_push_animation_flags_ext(UI_STYLE_TAG_ANY, UI_STYLE_SEL_ANY, UI_STYLE_ANIMATE_BG_COLOR|UI_STYLE_ANIMATE_FG_COLOR);
-*/
-		ui_flags trackFlags = UI_FLAG_CLIP
-	                    	| UI_FLAG_DRAW_BACKGROUND
-	                    	| UI_FLAG_HOT_ANIMATION
-	                    	| UI_FLAG_ACTIVE_ANIMATION;
-
-		ui_box* track = ui_box_begin("track", trackFlags);
-
-//			ui_box_set_size(track, trackAxis, UI_SIZE_PARENT, 1., 0);
-//			ui_box_set_size(track, secondAxis, UI_SIZE_PARENT, 1., 0);
-			//ui_box_set_layout(track, trackAxis, UI_ALIGN_START, UI_ALIGN_START);
-
-			f32 beforeRatio = (*scrollValue) * (1. - thumbRatio);
-			f32 afterRatio = (1. - *scrollValue) * (1. - thumbRatio);
-
-			ui_box* beforeSpacer = ui_box_make("before", 0);
-//			ui_box_set_size(beforeSpacer, trackAxis, UI_SIZE_PARENT, beforeRatio, 0);
-//			ui_box_set_size(beforeSpacer, secondAxis, UI_SIZE_PARENT, 1., 0);
-
-			ui_flags thumbFlags = UI_FLAG_CLICKABLE
-		                    	| UI_FLAG_DRAW_FOREGROUND
-		                    	| UI_FLAG_HOT_ANIMATION
-		                    	| UI_FLAG_ACTIVE_ANIMATION;
-
-			ui_box* thumb = ui_box_make("thumb", thumbFlags);
-//			ui_box_set_size(thumb, trackAxis, UI_SIZE_PARENT, thumbRatio, 0);
-//			ui_box_set_size(thumb, secondAxis, UI_SIZE_PARENT, 1., 0);
-
-			ui_box* afterSpacer = ui_box_make("after", 0);
-//			ui_box_set_size(afterSpacer, trackAxis, UI_SIZE_PARENT, afterRatio, 0);
-//			ui_box_set_size(afterSpacer, secondAxis, UI_SIZE_PARENT, 1., 0);
-
-		ui_box_end();
 /*
-		ui_pop_bg_color();
-		ui_pop_fg_color();
-		ui_pop_roundness();
-		ui_pop_bg_color();
-		ui_pop_fg_color();
-		ui_pop_roundness();
-		ui_pop_animation_time();
-		ui_pop_animation_flags();
-*/
-		//NOTE: interaction
-		ui_sig thumbSig = ui_box_sig(thumb);
-		if(thumbSig.dragging)
-		{
-			f32 trackExtents = track->rect.c[2+trackAxis] - thumb->rect.c[2+trackAxis];
-			f32 delta = thumbSig.delta.c[trackAxis]/trackExtents;
-			f32 oldValue = *scrollValue;
-
-			*scrollValue += delta;
-			*scrollValue = Clamp(*scrollValue, 0, 1);
-		}
-
-		ui_sig trackSig = ui_box_sig(track);
-
-		if(ui_box_active(frame))
-		{
-			//NOTE: activated from outside
-			ui_box_set_hot(track, true);
-			ui_box_set_hot(thumb, true);
-			ui_box_activate(track);
-			ui_box_activate(thumb);
-		}
-
-		if(trackSig.hovering)
-		{
-			ui_box_set_hot(track, true);
-			ui_box_set_hot(thumb, true);
-		}
-		else if(thumbSig.wheel.c[trackAxis] == 0)
-		{
-			ui_box_set_hot(track, false);
-			ui_box_set_hot(thumb, false);
-		}
-
-		if(thumbSig.dragging)
-		{
-			ui_box_activate(track);
-			ui_box_activate(thumb);
-		}
-		else if(thumbSig.wheel.c[trackAxis] == 0)
-		{
-			ui_box_deactivate(track);
-			ui_box_deactivate(thumb);
-			ui_box_deactivate(frame);
-		}
-
-	} ui_box_end();
-
-	return(frame);
-}
-
 ui_box* ui_panel_begin(const char* name)
 {
 	ui_flags panelFlags = UI_FLAG_DRAW_BACKGROUND
@@ -1785,6 +1679,7 @@ void ui_panel_end()
 
 	ui_box_end();
 }
+*/
 
 ui_sig ui_tooltip_begin(const char* name)
 {

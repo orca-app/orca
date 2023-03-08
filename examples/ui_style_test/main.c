@@ -78,7 +78,7 @@ void debug_print_size(ui_box* box, ui_axis axis, int indent)
 {
 	debug_print_indent(indent);
 	printf("size %s: ", axis == UI_AXIS_X ? "x" : "y");
-	switch(box->targetStyle->size.s[axis].kind)
+	switch(box->targetStyle->size.c[axis].kind)
 	{
 		case UI_SIZE_TEXT:
 			printf("text\n");
@@ -177,6 +177,127 @@ mg_font create_font()
 	return(font);
 }
 
+void widget_begin_view(char* str)
+{
+	ui_style_next(&(ui_style){.layout.axis = UI_AXIS_Y,
+	                          .layout.spacing = 10,
+	                          .layout.margin.x = 10,
+	                          .layout.margin.y = 10,
+	                          .layout.align.x = UI_ALIGN_CENTER,
+	                          .layout.align.y = UI_ALIGN_START},
+	               UI_STYLE_LAYOUT);
+
+	ui_box_begin(str, UI_FLAG_DRAW_BORDER);
+	ui_label(str);
+
+}
+
+void widget_end_view(void)
+{
+	ui_box_end();
+}
+
+#define widget_view(s) defer_loop(widget_begin_view(s), widget_end_view())
+
+
+void panel_begin(char* str, ui_flags flags)
+{
+	ui_box* box = ui_box_begin(str, flags | UI_FLAG_CLIP | UI_FLAG_BLOCK_MOUSE);
+
+	ui_style contentsStyle = {
+	    .size.width = {UI_SIZE_CHILDREN},
+	    .size.height = {UI_SIZE_CHILDREN},
+		.floating.x = true,
+		.floating.y = true,
+		.floatTarget = {-box->scroll.x, -box->scroll.y}};
+
+	ui_style_next(&contentsStyle, UI_STYLE_FLOAT);
+	ui_box_begin("contents", 0);
+
+}
+
+void panel_end(void)
+{
+	ui_box* contents = ui_box_top();
+	ui_box_end();
+
+	ui_box* panel = ui_box_top();
+	ui_sig sig = ui_box_sig(panel);
+
+	f32 contentsW = ClampLowBound(contents->rect.w, panel->rect.w);
+	f32 contentsH = ClampLowBound(contents->rect.h, panel->rect.h);
+
+	contentsW = ClampLowBound(contentsW, 1);
+	contentsH = ClampLowBound(contentsH, 1);
+
+	ui_box* scrollBarX = 0;
+	ui_box* scrollBarY = 0;
+
+	if(contentsW > panel->rect.w)
+	{
+		f32 thumbRatioX = panel->rect.w / contentsW;
+		f32 sliderX = panel->scroll.x /(contentsW - panel->rect.w);
+
+		ui_style_next(&(ui_style){.size.width = {UI_SIZE_PARENT, 1., 0},
+		                          .size.height = {UI_SIZE_PIXELS, 10, 0},
+		                          .floating.x = true,
+		                          .floating.y = true,
+		                          .floatTarget = {0, panel->rect.h - 12}},
+		              UI_STYLE_SIZE);
+
+		scrollBarX = ui_slider("scrollerX", thumbRatioX, &sliderX);
+
+		panel->scroll.x = sliderX * (contentsW - panel->rect.w);
+		if(sig.hovering)
+		{
+			panel->scroll.x += sig.wheel.x;
+			ui_box_activate(scrollBarX);
+		}
+	}
+
+	if(contentsH > panel->rect.h)
+	{
+		f32 thumbRatioY = panel->rect.h / contentsH;
+		f32 sliderY = panel->scroll.y /(contentsH - panel->rect.h);
+
+		ui_style_next(&(ui_style){.size.width = {UI_SIZE_PIXELS, 10, 0},
+		                          .size.height = {UI_SIZE_PARENT, 1., 0},
+		                          .floating.x = true,
+		                          .floating.y = true,
+		                          .floatTarget = {panel->rect.w - 12, 0}},
+		               UI_STYLE_SIZE
+		              |UI_STYLE_FLOAT);
+
+		scrollBarY = ui_slider("scrollerY", thumbRatioY, &sliderY);
+
+		panel->scroll.y = sliderY * (contentsH - panel->rect.h);
+		if(sig.hovering)
+		{
+			panel->scroll.y += sig.wheel.y;
+			ui_box_activate(scrollBarY);
+		}
+	}
+
+	panel->scroll.x = Clamp(panel->scroll.x, 0, contentsW - panel->rect.w);
+	panel->scroll.y = Clamp(panel->scroll.y, 0, contentsH - panel->rect.h);
+
+	if(scrollBarX)
+	{
+//		ui_box_set_floating(scrollBarX, UI_AXIS_X, panel->scroll.x);
+//		ui_box_set_floating(scrollBarX, UI_AXIS_Y, panel->scroll.y + panel->rect.h - 12);
+	}
+
+	if(scrollBarY)
+	{
+//		ui_box_set_floating(scrollBarY, UI_AXIS_X, panel->scroll.x + panel->rect.w - 12);
+//		ui_box_set_floating(scrollBarY, UI_AXIS_Y, panel->scroll.y);
+	}
+
+	ui_box_end();
+}
+
+#define panel(s, f) defer_loop(panel_begin(s, f), panel_end())
+
 int main()
 {
 	LogLevel(LOG_LEVEL_WARNING);
@@ -205,6 +326,9 @@ int main()
 	}
 
 	mg_font font = create_font();
+
+	mem_arena textArena = {0};
+	mem_arena_init(&textArena);
 
 	// start app
 	mp_window_bring_to_front(window);
@@ -242,26 +366,218 @@ int main()
 		}
 
 		//TEST UI
-		ui_style defaultStyle = {.size.width = {UI_SIZE_CHILDREN},
-		                         .size.height = {UI_SIZE_CHILDREN},
-		                         .layout.axis = UI_AXIS_Y,
-		                         .layout.spacing = 10,
-		                         .layout.margin.x = 10,
-		                         .layout.margin.y = 10,
-		                         .bgColor = {0.9, 0.9, 0.9, 1},
-		                         .color = {0, 0, 0, 1},
-		                         .borderSize = 2,
-		                         .borderColor = {0, 0, 1, 1},
+		ui_style defaultStyle = {.bgColor = {0},
+		                         .color = {1, 1, 1, 1},
 		                         .font = font,
-		                         .fontSize = 32};
+		                         .fontSize = 16,
+		                         .borderColor = {1, 0, 0, 1},
+			                     .borderSize = 2};
 
-		ui_flags defaultFlags = UI_FLAG_DRAW_BORDER | UI_FLAG_DRAW_BACKGROUND;
+		ui_style_mask defaultMask = UI_STYLE_BG_COLOR
+		                          | UI_STYLE_COLOR
+		                          | UI_STYLE_BORDER_COLOR
+		                          | UI_STYLE_BORDER_SIZE
+		                          | UI_STYLE_FONT
+		                          | UI_STYLE_FONT_SIZE;
+
+		ui_flags debugFlags = UI_FLAG_DRAW_BORDER;
 
 		ui_box* root = 0;
 		ui_frame()
 		{
 			root = ui_box_top();
 
+			ui_style_match_before(ui_pattern_all(), &defaultStyle, defaultMask);
+
+			ui_style_next(&(ui_style){.size.width = {UI_SIZE_PARENT, 1},
+			                          .size.height = {UI_SIZE_PARENT, 1},
+			                          .layout.axis = UI_AXIS_Y,
+			                          .layout.align.x = UI_ALIGN_CENTER,
+			                          .layout.align.y = UI_ALIGN_START,
+			                          .layout.spacing = 10,
+			                          .layout.margin.x = 10,
+			                          .layout.margin.y = 10,
+			                          .bgColor = {0.11, 0.11, 0.11, 1}},
+			                UI_STYLE_SIZE
+			              | UI_STYLE_LAYOUT
+			              | UI_STYLE_BG_COLOR);
+
+			ui_container("background", UI_FLAG_DRAW_BACKGROUND)
+			{
+				ui_style_next(&(ui_style){.size.width = {UI_SIZE_PARENT, 1},
+				                          .size.height = {UI_SIZE_CHILDREN},
+				                          .layout.align.x = UI_ALIGN_CENTER},
+				               UI_STYLE_SIZE
+				              |UI_STYLE_LAYOUT_ALIGN_X);
+				ui_container("title", debugFlags)
+				{
+					ui_style_next(&(ui_style){.fontSize = 26}, UI_STYLE_FONT_SIZE);
+					ui_label("Milepost UI Demo");
+				}
+
+				ui_style_next(&(ui_style){.size.width = {UI_SIZE_PARENT, 1},
+				                          .size.height = {UI_SIZE_PIXELS, 500}},
+				                          UI_STYLE_SIZE);
+
+				ui_style_next(&(ui_style){.layout.axis = UI_AXIS_X}, UI_STYLE_LAYOUT_AXIS);
+				ui_container("contents", debugFlags)
+				{
+					ui_style_next(&(ui_style){.size.width = {UI_SIZE_PARENT, 0.5},
+					                          .size.height = {UI_SIZE_PARENT, 1}},
+					              UI_STYLE_SIZE);
+
+					ui_container("left", debugFlags)
+					{
+						ui_style_next(&(ui_style){.layout.axis = UI_AXIS_X,
+						                          .layout.spacing = 10,
+						                          .layout.margin.x = 10,
+						                          .layout.margin.y = 10,
+						                          .size.width = {UI_SIZE_PARENT, 1},
+						                          .size.height = {UI_SIZE_PARENT, 0.5}},
+						               UI_STYLE_LAYOUT_AXIS
+						              |UI_STYLE_LAYOUT_SPACING
+						              |UI_STYLE_LAYOUT_MARGIN_X
+						              |UI_STYLE_LAYOUT_MARGIN_Y
+						              |UI_STYLE_SIZE);
+
+						ui_container("up", debugFlags)
+						{
+							ui_style_next(&(ui_style){.size.width = {UI_SIZE_PARENT, 0.5},
+							                          .size.height = {UI_SIZE_PARENT, 1}},
+							             UI_STYLE_SIZE);
+							widget_view("Buttons")
+							{
+								ui_button("Button 1");
+								ui_button("Button 2");
+								ui_button("Button 3");
+							}
+
+							ui_style_next(&(ui_style){.size.width = {UI_SIZE_PARENT, 0.5},
+							                          .size.height = {UI_SIZE_PARENT, 1}},
+							             UI_STYLE_SIZE);
+							widget_view("checkboxes")
+							{
+
+							}
+						}
+
+						ui_style_next(&(ui_style){.layout.axis = UI_AXIS_X,
+						                          .size.width = {UI_SIZE_PARENT, 1},
+						                          .size.height = {UI_SIZE_PARENT, 0.5}},
+						               UI_STYLE_LAYOUT_AXIS
+						              |UI_STYLE_SIZE);
+
+						ui_container("down", debugFlags)
+						{
+							widget_view("Vertical Sliders")
+							{
+								ui_style_next(&(ui_style){.layout.axis = UI_AXIS_X,
+								                          .layout.spacing = 10},
+								               UI_STYLE_LAYOUT_AXIS
+								              |UI_STYLE_LAYOUT_SPACING);
+								ui_container("contents", 0)
+								{
+									ui_style_next(&(ui_style){.size.width = {UI_SIZE_PIXELS, 20},
+								                          	.size.height = {UI_SIZE_PIXELS, 200}},
+								              	UI_STYLE_SIZE);
+									static f32 slider1 = 0;
+									ui_slider("slider1", 0.2, &slider1);
+
+									ui_style_next(&(ui_style){.size.width = {UI_SIZE_PIXELS, 20},
+								                          	.size.height = {UI_SIZE_PIXELS, 200}},
+								              	UI_STYLE_SIZE);
+									static f32 slider2 = 0;
+									ui_slider("slider2", 0.2, &slider2);
+
+									ui_style_next(&(ui_style){.size.width = {UI_SIZE_PIXELS, 20},
+								                          	.size.height = {UI_SIZE_PIXELS, 200}},
+								              	UI_STYLE_SIZE);
+									static f32 slider3 = 0;
+									ui_slider("slider3", 0.2, &slider3);
+								}
+							}
+
+							widget_view("Horizontal Sliders")
+							{
+								ui_style_next(&(ui_style){.size.width = {UI_SIZE_PIXELS, 200},
+								                          .size.height = {UI_SIZE_PIXELS, 20}},
+								              UI_STYLE_SIZE);
+								static f32 slider1 = 0;
+								ui_slider("slider1", 0.2, &slider1);
+
+								ui_style_next(&(ui_style){.size.width = {UI_SIZE_PIXELS, 200},
+								                          .size.height = {UI_SIZE_PIXELS, 20}},
+								              UI_STYLE_SIZE);
+								static f32 slider2 = 0;
+								ui_slider("slider2", 0.2, &slider2);
+
+								ui_style_next(&(ui_style){.size.width = {UI_SIZE_PIXELS, 200},
+								                          .size.height = {UI_SIZE_PIXELS, 20}},
+								              UI_STYLE_SIZE);
+								static f32 slider3 = 0;
+								ui_slider("slider3", 0.2, &slider3);
+							}
+						}
+					}
+
+					ui_style_next(&(ui_style){.size.width = {UI_SIZE_PARENT, 0.5},
+					                          .size.height = {UI_SIZE_PARENT, 1}},
+					              UI_STYLE_SIZE);
+
+					ui_container("right", debugFlags)
+					{
+						ui_style_next(&(ui_style){.size.width = {UI_SIZE_PARENT, 1},
+						                          .size.height = {UI_SIZE_PARENT, 0.33}},
+						             UI_STYLE_SIZE);
+						widget_view("Text box")
+						{
+							ui_style_next(&(ui_style){.size.width = {UI_SIZE_PIXELS, 300},
+					                          		.size.height = {UI_SIZE_TEXT}},
+					              		UI_STYLE_SIZE);
+							static str8 text = {};
+							ui_text_box_result res = ui_text_box("textbox", mem_scratch(), text);
+							if(res.changed)
+							{
+								mem_arena_clear(&textArena);
+								text = str8_push_copy(&textArena, res.text);
+							}
+						}
+
+						ui_style_next(&(ui_style){.size.width = {UI_SIZE_PARENT, 1},
+						                          .size.height = {UI_SIZE_PARENT, 0.33}},
+						             UI_STYLE_SIZE);
+						widget_view("Menus")
+						{}
+
+						ui_style_next(&(ui_style){.size.width = {UI_SIZE_PARENT, 1},
+						                          .size.height = {UI_SIZE_PARENT, 0.33}},
+						             UI_STYLE_SIZE);
+						widget_view("Color")
+						{
+							ui_style_next(&(ui_style){.size.width = {UI_SIZE_PARENT, 1},
+							                          .size.height = {UI_SIZE_PARENT, 0.7}},
+							              UI_STYLE_SIZE);
+
+							panel("Panel", UI_FLAG_DRAW_BORDER)
+							{
+
+								ui_style_next(&(ui_style){.layout.spacing = 20},
+							                  UI_STYLE_LAYOUT_SPACING);
+							    ui_container("buttons", 0)
+							    {
+									ui_button("Button A");
+									ui_button("Button B");
+									ui_button("Button C");
+									ui_button("Button D");
+								}
+							}
+						}
+					}
+				}
+
+			}
+
+			/*
 			ui_pattern pattern = {0};
 			ui_pattern_push(mem_scratch(), &pattern, (ui_selector){.kind = UI_SEL_TEXT, .text = STR8("b")});
 			ui_pattern_push(mem_scratch(), &pattern, (ui_selector){.kind = UI_SEL_TAG, .tag = ui_tag_make("foo")});
@@ -350,9 +666,25 @@ int main()
 
 					}
 				}
-				ui_tag_next("foo");
-				ui_label("label d");
+				ui_style_next(&(ui_style){.layout.axis = UI_AXIS_X}, UI_STYLE_LAYOUT_AXIS);
+				ui_container("f", defaultFlags)
+				{
+					ui_tag_next("foo");
+					ui_label("label d");
+
+					ui_style_next(&(ui_style){.size.width = {UI_SIZE_PIXELS, 300},
+					                          .size.height = {UI_SIZE_TEXT}},
+					              UI_STYLE_SIZE);
+					static str8 text = {};
+					ui_text_box_result res = ui_text_box("textbox", mem_scratch(), text);
+					if(res.changed)
+					{
+						mem_arena_clear(&textArena);
+						text = str8_push_copy(&textArena, res.text);
+					}
+				}
 			}
+			*/
 		}
 		if(printDebugStyle)
 		{
