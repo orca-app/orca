@@ -265,9 +265,9 @@ int main()
 			ui_pattern pattern = {0};
 			ui_pattern_push(mem_scratch(), &pattern, (ui_selector){.kind = UI_SEL_TEXT, .text = str8_lit("b")});
 			ui_pattern_push(mem_scratch(), &pattern, (ui_selector){.kind = UI_SEL_TAG, .tag = ui_tag_make("foo")});
-			ui_style_match_next_before(pattern, &(ui_style){.fontSize = 36}, UI_STYLE_FONT_SIZE);
+			ui_style_match_before(pattern, &(ui_style){.fontSize = 36}, UI_STYLE_FONT_SIZE);
 
-			ui_style_match_next_before(ui_pattern_all(),
+			ui_style_match_before(ui_pattern_all(),
 			                           &defaultStyle,
 			                           UI_STYLE_FONT
 			                           |UI_STYLE_FONT_SIZE
@@ -282,7 +282,7 @@ int main()
 			pattern = (ui_pattern){0};
 			ui_pattern_push(mem_scratch(), &pattern, (ui_selector){.kind = UI_SEL_TEXT, .text = str8_lit("c")});
 			ui_pattern_push(mem_scratch(), &pattern, (ui_selector){.kind = UI_SEL_TAG, .tag = ui_tag_make("button")});
-			ui_style_match_next_after(pattern,
+			ui_style_match_after(pattern,
 			                          &(ui_style){.bgColor = {1, 0.5, 0.5, 1}},
 			                          UI_STYLE_BG_COLOR);
 
@@ -290,7 +290,7 @@ int main()
 			ui_pattern_push(mem_scratch(), &pattern, (ui_selector){.kind = UI_SEL_TEXT, .text = str8_lit("c")});
 			ui_pattern_push(mem_scratch(), &pattern, (ui_selector){.kind = UI_SEL_TAG, .tag = ui_tag_make("button")});
 			ui_pattern_push(mem_scratch(), &pattern, (ui_selector){.kind = UI_SEL_STATUS, .op = UI_SEL_AND, .status = UI_ACTIVE|UI_HOVER});
-			ui_style_match_next_after(pattern,
+			ui_style_match_after(pattern,
 			                          &(ui_style){.bgColor = {0.5, 1, 0.5, 1}},
 			                          UI_STYLE_BG_COLOR);
 
@@ -298,7 +298,7 @@ int main()
 			{
 				ui_pattern pattern = {0};
 				ui_pattern_push(mem_scratch(), &pattern, (ui_selector){.kind = UI_SEL_TEXT, .text = str8_lit("b")});
-				ui_style_match_next_before(pattern, &(ui_style){.fontSize = 22}, UI_STYLE_FONT_SIZE);
+				ui_style_match_before(pattern, &(ui_style){.fontSize = 22}, UI_STYLE_FONT_SIZE);
 
 				ui_container("b", defaultFlags)
 				{

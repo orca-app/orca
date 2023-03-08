@@ -395,8 +395,8 @@ ui_pattern ui_pattern_all(void);
 ui_pattern ui_pattern_owner(void);
 
 void ui_style_next(ui_style* style, ui_style_mask mask);
-void ui_style_match_next_before(ui_pattern pattern, ui_style* style, ui_style_mask mask);
-void ui_style_match_next_after(ui_pattern pattern, ui_style* style, ui_style_mask mask);
+void ui_style_match_before(ui_pattern pattern, ui_style* style, ui_style_mask mask);
+void ui_style_match_after(ui_pattern pattern, ui_style* style, ui_style_mask mask);
 
 //-------------------------------------------------------------------------
 // Basic widget helpers

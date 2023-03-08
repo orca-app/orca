@@ -324,7 +324,7 @@ ui_pattern ui_pattern_owner(void)
 	return(pattern);
 }
 
-void ui_style_match_next_before(ui_pattern pattern, ui_style* style, ui_style_mask mask)
+void ui_style_match_before(ui_pattern pattern, ui_style* style, ui_style_mask mask)
 {
 	ui_context* ui = ui_get_context();
 	if(ui)
@@ -339,7 +339,7 @@ void ui_style_match_next_before(ui_pattern pattern, ui_style* style, ui_style_ma
 	}
 }
 
-void ui_style_match_next_after(ui_pattern pattern, ui_style* style, ui_style_mask mask)
+void ui_style_match_after(ui_pattern pattern, ui_style* style, ui_style_mask mask)
 {
 	ui_context* ui = ui_get_context();
 	if(ui)
@@ -356,7 +356,7 @@ void ui_style_match_next_after(ui_pattern pattern, ui_style* style, ui_style_mas
 
 void ui_style_next(ui_style* style, ui_style_mask mask)
 {
-	ui_style_match_next_before(ui_pattern_owner(), style, mask);
+	ui_style_match_before(ui_pattern_owner(), style, mask);
 }
 
 //-----------------------------------------------------------------------------
@@ -1448,7 +1448,7 @@ ui_sig ui_button_str8(str8 label)
 	                &activePattern,
 	                (ui_selector){.kind = UI_SEL_STATUS,
 	                              .status = UI_ACTIVE|UI_HOVER});
-	ui_style_match_next_before(activePattern, &activeStyle, activeMask);
+	ui_style_match_before(activePattern, &activeStyle, activeMask);
 
 	ui_flags flags = UI_FLAG_CLICKABLE
 	               | UI_FLAG_CLIP
@@ -1491,7 +1491,7 @@ ui_sig ui_button(const char* label)
 
 ui_box* ui_slider(const char* label, f32 thumbRatio, f32* scrollValue)
 {
-	ui_style_match_next_before(ui_pattern_all(), &(ui_style){0}, UI_STYLE_LAYOUT);
+	ui_style_match_before(ui_pattern_all(), &(ui_style){0}, UI_STYLE_LAYOUT);
 	ui_box* frame = ui_box_begin(label, 0);
 	{
 		f32 beforeRatio = (*scrollValue) * (1. - thumbRatio);
