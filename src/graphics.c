@@ -241,7 +241,7 @@ u64 mg_handle_alloc(mg_handle_kind kind, void* data)
 	}
 	mem_arena* arena = &__mgData.handleArena;
 
-	mg_handle_slot* slot = ListPopEntry(&__mgData.handleFreeList, mg_handle_slot, freeListElt);
+	mg_handle_slot* slot = list_pop_entry(&__mgData.handleFreeList, mg_handle_slot, freeListElt);
 	if(!slot)
 	{
 		slot = mem_arena_alloc_type(arena, mg_handle_slot);
@@ -272,7 +272,7 @@ void mg_handle_recycle(u64 h)
 		{
 			DEBUG_ASSERT(slot->generation != UINT32_MAX, "surface slot generation wrap around\n");
 			slot->generation++;
-			ListPush(&__mgData.handleFreeList, &slot->freeListElt);
+			list_push(&__mgData.handleFreeList, &slot->freeListElt);
 		}
 	}
 }
@@ -2248,7 +2248,7 @@ mg_font mg_font_create_from_memory(u32 size, byte* buffer, u32 rangeCount, unico
 	}
 	mg_font fontHandle = mg_font_nil();
 
-	mg_font_data* font = ListPopEntry(&__mgData.fontFreeList, mg_font_data, freeListElt);
+	mg_font_data* font = list_pop_entry(&__mgData.fontFreeList, mg_font_data, freeListElt);
 	if(!font)
 	{
 		font = mem_arena_alloc_type(&__mgData.resourceArena, mg_font_data);
@@ -2428,7 +2428,7 @@ void mg_font_destroy(mg_font fontHandle)
 		free(fontData->glyphs);
 		free(fontData->outlines);
 
-		ListPush(&__mgData.fontFreeList, &fontData->freeListElt);
+		list_push(&__mgData.fontFreeList, &fontData->freeListElt);
 		mg_handle_recycle(fontHandle.h);
 	}
 }
@@ -2724,7 +2724,7 @@ mg_canvas mg_canvas_create(mg_surface surface)
 
 		if(backend)
 		{
-			mg_canvas_data* canvas = ListPopEntry(&__mgData.canvasFreeList, mg_canvas_data, freeListElt);
+			mg_canvas_data* canvas = list_pop_entry(&__mgData.canvasFreeList, mg_canvas_data, freeListElt);
 			if(!canvas)
 			{
 				canvas = mem_arena_alloc_type(&__mgData.resourceArena, mg_canvas_data);
@@ -2766,7 +2766,7 @@ void mg_canvas_destroy(mg_canvas handle)
 		{
 			canvas->backend->destroy(canvas->backend);
 		}
-		ListPush(&__mgData.canvasFreeList, &canvas->freeListElt);
+		list_push(&__mgData.canvasFreeList, &canvas->freeListElt);
 		mg_handle_recycle(handle.h);
 	}
 }

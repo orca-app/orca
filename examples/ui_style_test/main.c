@@ -111,7 +111,7 @@ void debug_print_styles(ui_box* box, int indent)
 	debug_print_size(box, UI_AXIS_X, indent);
 	debug_print_size(box, UI_AXIS_Y, indent);
 
-	if(!ListEmpty(&box->beforeRules))
+	if(!list_empty(&box->beforeRules))
 	{
 		debug_print_indent(indent);
 		printf("before rules:\n");
@@ -122,7 +122,7 @@ void debug_print_styles(ui_box* box, int indent)
 		}
 	}
 
-	if(!ListEmpty(&box->afterRules))
+	if(!list_empty(&box->afterRules))
 	{
 		debug_print_indent(indent);
 		printf("after rules:\n");
@@ -133,7 +133,7 @@ void debug_print_styles(ui_box* box, int indent)
 		}
 	}
 
-	if(!ListEmpty(&box->children))
+	if(!list_empty(&box->children))
 	{
 		debug_print_indent(indent);
 		printf("children:\n");

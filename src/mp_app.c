@@ -19,11 +19,11 @@ mp_app __mpApp = {0};
 
 void mp_init_window_handles()
 {
-	ListInit(&__mpApp.windowFreeList);
+	list_init(&__mpApp.windowFreeList);
 	for(int i=0; i<MP_APP_MAX_WINDOWS; i++)
 	{
 		__mpApp.windowPool[i].generation = 1;
-		ListAppend(&__mpApp.windowFreeList, &__mpApp.windowPool[i].freeListElt);
+		list_append(&__mpApp.windowFreeList, &__mpApp.windowPool[i].freeListElt);
 	}
 }
 
@@ -39,7 +39,7 @@ mp_window mp_window_null_handle()
 
 mp_window_data* mp_window_alloc()
 {
-	return(ListPopEntry(&__mpApp.windowFreeList, mp_window_data, freeListElt));
+	return(list_pop_entry(&__mpApp.windowFreeList, mp_window_data, freeListElt));
 }
 
 mp_window_data* mp_window_ptr_from_handle(mp_window handle)
@@ -75,7 +75,7 @@ mp_window mp_window_handle_from_ptr(mp_window_data* window)
 void mp_window_recycle_ptr(mp_window_data* window)
 {
 	window->generation++;
-	ListPush(&__mpApp.windowFreeList, &window->freeListElt);
+	list_push(&__mpApp.windowFreeList, &window->freeListElt);
 }
 
 //---------------------------------------------------------------

@@ -219,7 +219,7 @@ void ui_tag_box_str8(ui_box* box, str8 string)
 	ui_context* ui = ui_get_context();
 	ui_tag_elt* elt = mem_arena_alloc_type(&ui->frameArena, ui_tag_elt);
 	elt->tag = ui_tag_make_str8(string);
-	ListAppend(&box->tags, &elt->listElt);
+	list_append(&box->tags, &elt->listElt);
 }
 
 void ui_tag_next_str8(str8 string)
@@ -227,7 +227,7 @@ void ui_tag_next_str8(str8 string)
 	ui_context* ui = ui_get_context();
 	ui_tag_elt* elt = mem_arena_alloc_type(&ui->frameArena, ui_tag_elt);
 	elt->tag = ui_tag_make_str8(string);
-	ListAppend(&ui->nextBoxTags, &elt->listElt);
+	list_append(&ui->nextBoxTags, &elt->listElt);
 }
 
 //-----------------------------------------------------------------------------
@@ -273,7 +273,7 @@ bool ui_key_equal(ui_key a, ui_key b)
 void ui_box_cache(ui_context* ui, ui_box* box)
 {
 	u64 index = box->key.hash & (UI_BOX_MAP_BUCKET_COUNT-1);
-	ListAppend(&(ui->boxMap[index]), &box->bucketElt);
+	list_append(&(ui->boxMap[index]), &box->bucketElt);
 }
 
 ui_box* ui_box_lookup_key(ui_key key)
@@ -305,7 +305,7 @@ void ui_pattern_push(mem_arena* arena, ui_pattern* pattern, ui_selector selector
 {
 	ui_selector* copy = mem_arena_alloc_type(arena, ui_selector);
 	*copy = selector;
-	ListAppend(&pattern->l, &copy->listElt);
+	list_append(&pattern->l, &copy->listElt);
 }
 
 ui_pattern ui_pattern_all(void)
@@ -335,7 +335,7 @@ void ui_style_match_before(ui_pattern pattern, ui_style* style, ui_style_mask ma
 		rule->style = mem_arena_alloc_type(&ui->frameArena, ui_style);
 		*rule->style = *style;
 
-		ListAppend(&ui->nextBoxBeforeRules, &rule->boxElt);
+		list_append(&ui->nextBoxBeforeRules, &rule->boxElt);
 	}
 }
 
@@ -350,7 +350,7 @@ void ui_style_match_after(ui_pattern pattern, ui_style* style, ui_style_mask mas
 		rule->style = mem_arena_alloc_type(&ui->frameArena, ui_style);
 		*rule->style = *style;
 
-		ListAppend(&ui->nextBoxAfterRules, &rule->boxElt);
+		list_append(&ui->nextBoxAfterRules, &rule->boxElt);
 	}
 }
 
@@ -431,11 +431,11 @@ ui_box* ui_box_make_str8(str8 string, ui_flags flags)
 	//NOTE: setup hierarchy
 	if(box->frameCounter != ui->frameCounter)
 	{
-		ListInit(&box->children);
+		list_init(&box->children);
 		box->parent = ui_box_top();
 		if(box->parent)
 		{
-			ListAppend(&box->parent->children, &box->listElt);
+			list_append(&box->parent->children, &box->listElt);
 			box->parentClosed = box->parent->closed || box->parent->parentClosed;
 		}
 	}
@@ -867,14 +867,14 @@ bool ui_style_selector_match(ui_box* box, ui_style_rule* rule, ui_selector* sele
 
 void ui_style_rule_match(ui_context* ui, ui_box* box, ui_style_rule* rule, list_info* buildList, list_info* tmpList)
 {
-	ui_selector* selector = ListFirstEntry(&rule->pattern.l, ui_selector, listElt);
+	ui_selector* selector = list_first_entry(&rule->pattern.l, ui_selector, listElt);
 	bool match = ui_style_selector_match(box, rule, selector);
 
-	selector = ListNextEntry(&rule->pattern.l, selector, ui_selector, listElt);
+	selector = list_next_entry(&rule->pattern.l, selector, ui_selector, listElt);
 	while(match && selector && selector->op == UI_SEL_AND)
 	{
 		match = match && ui_style_selector_match(box, rule, selector);
-		selector = ListNextEntry(&rule->pattern.l, selector, ui_selector, listElt);
+		selector = list_next_entry(&rule->pattern.l, selector, ui_selector, listElt);
 	}
 
 	if(match)
@@ -891,8 +891,8 @@ void ui_style_rule_match(ui_context* ui, ui_box* box, ui_style_rule* rule, list_
 			derived->style = rule->style;
 			derived->pattern.l = (list_info){&selector->listElt, rule->pattern.l.last};
 
-			ListAppend(buildList, &derived->buildElt);
-			ListAppend(tmpList, &derived->tmpElt);
+			list_append(buildList, &derived->buildElt);
+			list_append(tmpList, &derived->tmpElt);
 		}
 	}
 }
@@ -915,8 +915,8 @@ void ui_styling_prepass(ui_context* ui, ui_box* box, list_info* before, list_inf
 	}
 	for_each_in_list(&box->beforeRules, rule, ui_style_rule, boxElt)
 	{
-		ListAppend(before, &rule->buildElt);
-		ListAppend(&tmpBefore, &rule->tmpElt);
+		list_append(before, &rule->buildElt);
+		list_append(&tmpBefore, &rule->tmpElt);
 		ui_style_rule_match(ui, box, rule, before, &tmpBefore);
 	}
 
@@ -927,8 +927,8 @@ void ui_styling_prepass(ui_context* ui, ui_box* box, list_info* before, list_inf
 	}
 	for_each_in_list(&box->afterRules, rule, ui_style_rule, boxElt)
 	{
-		ListAppend(after, &rule->buildElt);
-		ListAppend(&tmpAfter, &rule->tmpElt);
+		list_append(after, &rule->buildElt);
+		list_append(&tmpAfter, &rule->tmpElt);
 		ui_style_rule_match(ui, box, rule, after, &tmpAfter);
 	}
 
@@ -976,11 +976,11 @@ void ui_styling_prepass(ui_context* ui, ui_box* box, list_info* before, list_inf
 	//NOTE: remove temporary rules
 	for_each_in_list(&tmpBefore, rule, ui_style_rule, tmpElt)
 	{
-		ListRemove(before, &rule->buildElt);
+		list_remove(before, &rule->buildElt);
 	}
 	for_each_in_list(&tmpAfter, rule, ui_style_rule, tmpElt)
 	{
-		ListRemove(after, &rule->buildElt);
+		list_remove(after, &rule->buildElt);
 	}
 }
 
@@ -1362,7 +1362,7 @@ void ui_end_frame(void)
 		{
 			if(box->frameCounter < ui->frameCounter)
 			{
-				ListRemove(&ui->boxMap[i], &box->bucketElt);
+				list_remove(&ui->boxMap[i], &box->bucketElt);
 			}
 		}
 	}

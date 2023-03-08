@@ -75,7 +75,7 @@ void mem_pool_init_with_options(mem_pool* pool, u64 blockSize, mem_pool_options*
 {
 	mem_arena_init_with_options(&pool->arena, &(mem_arena_options){.base = options->base, .reserve = options->reserve});
 	pool->blockSize = ClampLowBound(blockSize, sizeof(list_info));
-	ListInit(&pool->freeList);
+	list_init(&pool->freeList);
 }
 
 void mem_pool_release(mem_pool* pool)
@@ -86,26 +86,26 @@ void mem_pool_release(mem_pool* pool)
 
 void* mem_pool_alloc(mem_pool* pool)
 {
-	if(ListEmpty(&pool->freeList))
+	if(list_empty(&pool->freeList))
 	{
 		return(mem_arena_alloc(&pool->arena, pool->blockSize));
 	}
 	else
 	{
-		return(ListPop(&pool->freeList));
+		return(list_pop(&pool->freeList));
 	}
 }
 
 void mem_pool_recycle(mem_pool* pool, void* ptr)
 {
 	ASSERT((((char*)ptr) >= pool->arena.ptr) && (((char*)ptr) < (pool->arena.ptr + pool->arena.offset)));
-	ListPush(&pool->freeList, (list_elt*)ptr);
+	list_push(&pool->freeList, (list_elt*)ptr);
 }
 
 void mem_pool_clear(mem_pool* pool)
 {
 	mem_arena_clear(&pool->arena);
-	ListInit(&pool->freeList);
+	list_init(&pool->freeList);
 }
 
 

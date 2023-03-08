@@ -114,7 +114,7 @@ char* str8_to_cstring(mem_arena* arena, str8 string)
 
 void str8_list_init(str8_list* list)
 {
-	ListInit(&list->list);
+	list_init(&list->list);
 	list->eltCount = 0;
 	list->len = 0;
 }
@@ -123,7 +123,7 @@ void str8_list_push(mem_arena* arena, str8_list* list, str8 str)
 {
 	str8_elt* elt = mem_arena_alloc_type(arena, str8_elt);
 	elt->string = str;
-	ListAppend(&list->list, &elt->listElt);
+	list_append(&list->list, &elt->listElt);
 	list->eltCount++;
 	list->len += str.len;
 }
@@ -146,15 +146,15 @@ str8 str8_list_collate(mem_arena* arena, str8_list list, str8 prefix, str8 separ
 	memcpy(dst, prefix.ptr, prefix.len);
 	dst += prefix.len;
 
-	str8_elt* elt = ListFirstEntry(&list.list, str8_elt, listElt);
+	str8_elt* elt = list_first_entry(&list.list, str8_elt, listElt);
 	if(elt)
 	{
 		memcpy(dst, elt->string.ptr, elt->string.len);
 		dst += elt->string.len;
-		elt = ListNextEntry(&list.list, elt, str8_elt, listElt);
+		elt = list_next_entry(&list.list, elt, str8_elt, listElt);
 	}
 
-	for( ; elt != 0; elt = ListNextEntry(&list.list, elt, str8_elt, listElt))
+	for( ; elt != 0; elt = list_next_entry(&list.list, elt, str8_elt, listElt))
 	{
 		memcpy(dst, separator.ptr, separator.len);
 		dst += separator.len;
@@ -174,7 +174,7 @@ str8 str8_list_join(mem_arena* arena, str8_list list)
 str8_list str8_split(mem_arena* arena, str8 str, str8_list separators)
 {
 	str8_list list = {0};
-	ListInit(&list.list);
+	list_init(&list.list);
 
 	char* ptr = str.ptr;
 	char* end = str.ptr + str.len;
@@ -261,7 +261,7 @@ str32 str32_push_slice(mem_arena* arena, str32 s, u64 start, u64 end)
 
 void str32_list_init(str32_list* list)
 {
-	ListInit(&list->list);
+	list_init(&list->list);
 	list->eltCount = 0;
 	list->len = 0;
 }
@@ -270,7 +270,7 @@ void str32_list_push(mem_arena* arena, str32_list* list, str32 str)
 {
 	str32_elt* elt = mem_arena_alloc_type(arena, str32_elt);
 	elt->string = str;
-	ListAppend(&list->list, &elt->listElt);
+	list_append(&list->list, &elt->listElt);
 	list->eltCount++;
 	list->len += str.len;
 }
@@ -284,15 +284,15 @@ str32 str32_list_collate(mem_arena* arena, str32_list list, str32 prefix, str32 
 	memcpy(dst, prefix.ptr, prefix.len*sizeof(u32));
 	dst += prefix.len*sizeof(u32);
 
-	str32_elt* elt = ListFirstEntry(&list.list, str32_elt, listElt);
+	str32_elt* elt = list_first_entry(&list.list, str32_elt, listElt);
 	if(elt)
 	{
 		memcpy(dst, elt->string.ptr, elt->string.len*sizeof(u32));
 		dst += elt->string.len*sizeof(u32);
-		elt = ListNextEntry(&list.list, elt, str32_elt, listElt);
+		elt = list_next_entry(&list.list, elt, str32_elt, listElt);
 	}
 
-	for( ; elt != 0; elt = ListNextEntry(&list.list, elt, str32_elt, listElt))
+	for( ; elt != 0; elt = list_next_entry(&list.list, elt, str32_elt, listElt))
 	{
 		memcpy(dst, separator.ptr, separator.len*sizeof(u32));
 		dst += separator.len*sizeof(u32);
