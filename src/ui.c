@@ -66,9 +66,6 @@ typedef struct ui_context
 {
 	bool init;
 
-	f32 width;
-	f32 height;
-
 	u64 frameCounter;
 	f64 frameTime;
 	f64 lastFrameDuration;
@@ -384,10 +381,7 @@ bool ui_box_hovering(ui_box* box, vec2 p)
 
 vec2 ui_mouse_position(void)
 {
-	ui_context* ui = ui_get_context();
-
 	vec2 mousePos = mp_mouse_position();
-	mousePos.y = ui->height - mousePos.y;
 	return(mousePos);
 }
 
@@ -395,7 +389,6 @@ vec2 ui_mouse_delta(void)
 {
 	ui_context* ui = ui_get_context();
 	vec2 delta = mp_mouse_delta();
-	delta.y *= -1.;
 	return(delta);
 }
 
@@ -403,7 +396,6 @@ vec2 ui_mouse_wheel(void)
 {
 	ui_context* ui = ui_get_context();
 	vec2 delta = mp_mouse_wheel();
-	delta.y *= -1.;
 	return(delta);
 }
 
@@ -1278,33 +1270,24 @@ void ui_draw()
 	ui_context* ui = ui_get_context();
 
 	//NOTE: draw
-	mg_mat2x3 transform = {1, 0, 0,
-	                       0, -1, ui->height};
-
 	bool oldTextFlip = mg_get_text_flip();
-	mg_set_text_flip(true);
+	mg_set_text_flip(false);
 
-	mg_matrix_push(transform);
 	ui_draw_box(ui->root);
-	mg_matrix_pop();
 
 	mg_set_text_flip(oldTextFlip);
-
-	//TODO: restore flip??
 }
 
 //-----------------------------------------------------------------------------
 // frame begin/end
 //-----------------------------------------------------------------------------
 
-void ui_begin_frame(u32 width, u32 height)
+void ui_begin_frame()
 {
 	ui_context* ui = ui_get_context();
 
 	mem_arena_clear(&ui->frameArena);
 
-	ui->width = width;
-	ui->height = height;
 	ui->frameCounter++;
 	f64 time = mp_get_time(MP_CLOCK_MONOTONIC);
 	ui->lastFrameDuration = time - ui->frameTime;
@@ -1314,8 +1297,8 @@ void ui_begin_frame(u32 width, u32 height)
 	ui->z = 0;
 
 	ui_style defaultStyle = {0};
-	defaultStyle.size.s[UI_AXIS_X] = (ui_size){UI_SIZE_PIXELS, width, 0};
-	defaultStyle.size.s[UI_AXIS_Y] = (ui_size){UI_SIZE_PIXELS, height, 0};
+	defaultStyle.size.s[UI_AXIS_X] = (ui_size){UI_SIZE_CHILDREN};
+	defaultStyle.size.s[UI_AXIS_Y] = (ui_size){UI_SIZE_CHILDREN};
 
 	ui->root = ui_box_begin("_root_", 0);
 	*ui->root->targetStyle = defaultStyle;

@@ -258,7 +258,7 @@ int main()
 		ui_flags defaultFlags = UI_FLAG_DRAW_BORDER;
 
 		ui_box* root = 0;
-		ui_frame(800, 610)
+		ui_frame()
 		{
 			root = ui_box_top();
 

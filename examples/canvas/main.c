@@ -123,14 +123,14 @@ int main()
 						{
 							if(y + 200 < contentRect.h)
 							{
-								y+=5;
+								y-=5;
 							}
 						}
 						else if(event.key.code == MP_KEY_DOWN)
 						{
 							if(y - 200 > 0)
 							{
-								y-=5;
+								y+=5;
 							}
 						}
 						//*/
@@ -180,19 +180,19 @@ int main()
 
 			mg_set_color_rgba(0, 0, 0, 1);
 			mg_set_width(20);
-			mg_move_to(x-100, y-100);
-			mg_cubic_to(x-50, y-150+frown, x+50, y-150+frown, x+100, y-100);
+			mg_move_to(x-100, y+100);
+			mg_cubic_to(x-50, y+150+frown, x+50, y+150+frown, x+100, y+100);
 			mg_stroke();
 
 			// eyes
-			mg_ellipse_fill(x-70, y+50, 30, 50);
-			mg_ellipse_fill(x+70, y+50, 30, 50);
+			mg_ellipse_fill(x-70, y-50, 30, 50);
+			mg_ellipse_fill(x+70, y-50, 30, 50);
 
 			// text
 			mg_set_color_rgba(0, 0, 1, 1);
 			mg_set_font(font);
 			mg_set_font_size(12);
-			mg_move_to(50, 50);
+			mg_move_to(50, 600-50);
 
 			str8 text = str8_pushf(mem_scratch(),
 			                      "Milepost vector graphics test program (frame time = %fs, fps = %f)...",

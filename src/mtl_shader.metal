@@ -16,7 +16,7 @@ vertex vs_out VertexShader(ushort vid [[vertex_id]])
 {
 	vs_out out;
 	out.uv = float2((vid << 1) & 2, vid & 2);
-	out.pos = float4(out.uv * float2(2, 2) + float2(-1, -1), 0, 1);
+	out.pos = float4(out.uv * float2(2, -2) + float2(-1, 1), 0, 1);
 	return(out);
 }
 

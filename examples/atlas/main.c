@@ -51,8 +51,8 @@ int main()
 	str8 path1 = mp_app_get_resource_path(mem_scratch(), "../resources/triceratops.png");
 	str8 path2 = mp_app_get_resource_path(mem_scratch(), "../resources/Top512.png");
 
-	mg_image_region image1 = mg_image_atlas_alloc_from_file(atlas, atlasImage, path1, true);
-	mg_image_region image2 = mg_image_atlas_alloc_from_file(atlas, atlasImage, path2, true);
+	mg_image_region image1 = mg_image_atlas_alloc_from_file(atlas, atlasImage, path1, false);
+	mg_image_region image2 = mg_image_atlas_alloc_from_file(atlas, atlasImage, path2, false);
 
 	// start app
 	mp_window_bring_to_front(window);

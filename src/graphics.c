@@ -3348,7 +3348,7 @@ mp_rect mg_glyph_outlines_from_font_data(mg_font_data* fontData, str32 glyphIndi
 
 		f32 xOffset = canvas->subPathLastPoint.x;
 		f32 yOffset = canvas->subPathLastPoint.y;
-		f32 flip = canvas->textFlip ? -1 : 1;
+		f32 flip = canvas->textFlip ? 1 : -1;
 
 		if(!glyphIndex || glyphIndex >= fontData->glyphCount)
 		{

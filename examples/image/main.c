@@ -43,11 +43,11 @@ int main()
 
 	//NOTE: create image
 	str8 imagePath = mp_app_get_resource_path(mem_scratch(), "../resources/triceratops.png");
-	mg_image image = mg_image_create_from_file(imagePath, true);
+	mg_image image = mg_image_create_from_file(imagePath, false);
 	vec2 imageSize = mg_image_size(image);
 
 	str8 imagePath2 = mp_app_get_resource_path(mem_scratch(), "../resources/Top512.png");
-	mg_image image2 = mg_image_create_from_file(imagePath2, true);
+	mg_image image2 = mg_image_create_from_file(imagePath2, false);
 	vec2 imageSize2 = mg_image_size(image2);
 
 	// start app

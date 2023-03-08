@@ -140,11 +140,8 @@ int main()
 	f32 zoom = 1;
 
 	f32 startX = 10;
-	f32 startY = (contentRect.h - lineHeight - 10);
-/*
-	f32 startX = -100;
-	f32 startY = -100;
-*/
+	f32 startY = 10 + lineHeight;
+
 	while(!mp_should_quit())
 	{
 		f64 startFrameTime = mp_get_time(MP_CLOCK_MONOTONIC);
@@ -167,7 +164,7 @@ int main()
 						if(event.key.action == MP_KEY_PRESS)
 						{
 							tracked = true;
-							vec2 mousePos = mp_input_mouse_position();
+							vec2 mousePos = mp_mouse_position();
 							trackPoint.x = mousePos.x/zoom - startX;
 							trackPoint.y = mousePos.y/zoom - startY;
 						}
@@ -180,7 +177,7 @@ int main()
 
 				case MP_EVENT_MOUSE_WHEEL:
 				{
-					vec2 mousePos = mp_input_mouse_position();
+					vec2 mousePos = mp_mouse_position();
 					f32 trackX = mousePos.x/zoom - startX;
 					f32 trackY = mousePos.y/zoom - startY;
 
@@ -198,7 +195,7 @@ int main()
 
 		if(tracked)
 		{
-			vec2 mousePos = mp_input_mouse_position();
+			vec2 mousePos = mp_mouse_position();
 			startX = mousePos.x/zoom - trackPoint.x;
 			startY = mousePos.y/zoom - trackPoint.y;
 		}
@@ -249,7 +246,7 @@ int main()
 				mg_glyph_outlines((str32){subIndex, glyphs});
 				mg_fill();
 
-				textY -= lineHeight;
+				textY += lineHeight;
 				mg_move_to(textX, textY);
 				startIndex++;
 
@@ -261,7 +258,7 @@ int main()
 			mg_set_color_rgba(0, 0, 1, 1);
 			mg_set_font(font);
 			mg_set_font_size(14);
-			mg_move_to(10, 10 + lineHeight);
+			mg_move_to(10, contentRect.h - 10 - lineHeight);
 
 			str8 text = str8_pushf(mem_scratch(),
 			                      "Test program: %i glyphs, frame time = %fs, fps = %f",

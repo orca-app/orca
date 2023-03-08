@@ -871,12 +871,12 @@ static void mp_process_mouse_button(NSEvent* nsEvent, mp_window_data* window, mp
 	event.type = MP_EVENT_MOUSE_MOVE;
 	event.window = mp_window_handle_from_ptr(window);
 	event.move.x = p.x;
-	event.move.y = p.y;
+	event.move.y = frame.size.height - p.y;
 	event.move.deltaX = [nsEvent deltaX];
-	event.move.deltaY = -[nsEvent deltaY];
+	event.move.deltaY = [nsEvent deltaY];
 	event.move.mods = mp_convert_osx_mods([nsEvent modifierFlags]);
 
-	mp_update_mouse_move(p.x, p.y, event.move.deltaX, event.move.deltaY);
+	mp_update_mouse_move(event.move.x, event.move.y, event.move.deltaX, event.move.deltaY);
 
 	mp_queue_event(&event);
 }
@@ -891,7 +891,7 @@ static void mp_process_mouse_button(NSEvent* nsEvent, mp_window_data* window, mp
 	event.move.x = 0;
 	event.move.y = 0;
 	event.move.deltaX = [nsEvent scrollingDeltaX]*factor;
-	event.move.deltaY = [nsEvent scrollingDeltaY]*factor;
+	event.move.deltaY = -[nsEvent scrollingDeltaY]*factor;
 	event.move.mods = mp_convert_osx_mods([nsEvent modifierFlags]);
 
 	mp_update_mouse_wheel(event.move.deltaX, event.move.deltaY);
