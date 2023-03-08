@@ -262,34 +262,43 @@ int main()
 		{
 			root = ui_box_top();
 
-//			ui_label("Hello, world!");
-
-
 			ui_pattern pattern = {0};
 			ui_pattern_push(mem_scratch(), &pattern, (ui_selector){.kind = UI_SEL_TEXT, .text = str8_lit("b")});
 			ui_pattern_push(mem_scratch(), &pattern, (ui_selector){.kind = UI_SEL_TAG, .tag = ui_tag_make("foo")});
-			ui_style_next(pattern,
-		              	&(ui_style){.fontSize = 36},
-		              	UI_STYLE_FONT_SIZE);
+			ui_style_match_next_before(pattern, &(ui_style){.fontSize = 36}, UI_STYLE_FONT_SIZE);
 
-			ui_style_next(ui_pattern_all(),
-			              &defaultStyle,
-			              UI_STYLE_FONT
-			              |UI_STYLE_FONT_SIZE
-			              |UI_STYLE_COLOR
-			              |UI_STYLE_BORDER_SIZE
-			              |UI_STYLE_BORDER_COLOR
-			              |UI_STYLE_SIZE_X
-			              |UI_STYLE_SIZE_Y
-			              |UI_STYLE_LAYOUT);
+			ui_style_match_next_before(ui_pattern_all(),
+			                           &defaultStyle,
+			                           UI_STYLE_FONT
+			                           |UI_STYLE_FONT_SIZE
+			                           |UI_STYLE_COLOR
+			                           |UI_STYLE_BORDER_SIZE
+			                           |UI_STYLE_BORDER_COLOR
+			                           |UI_STYLE_SIZE_WIDTH
+			                           |UI_STYLE_SIZE_HEIGHT
+			                           |UI_STYLE_LAYOUT);
+
+
+			pattern = (ui_pattern){0};
+			ui_pattern_push(mem_scratch(), &pattern, (ui_selector){.kind = UI_SEL_TEXT, .text = str8_lit("c")});
+			ui_pattern_push(mem_scratch(), &pattern, (ui_selector){.kind = UI_SEL_TAG, .tag = ui_tag_make("button")});
+			ui_style_match_next_after(pattern,
+			                          &(ui_style){.bgColor = {1, 0.5, 0.5, 1}},
+			                          UI_STYLE_BG_COLOR);
+
+			pattern = (ui_pattern){0};
+			ui_pattern_push(mem_scratch(), &pattern, (ui_selector){.kind = UI_SEL_TEXT, .text = str8_lit("c")});
+			ui_pattern_push(mem_scratch(), &pattern, (ui_selector){.kind = UI_SEL_TAG, .tag = ui_tag_make("button")});
+			ui_pattern_push(mem_scratch(), &pattern, (ui_selector){.kind = UI_SEL_STATUS, .op = UI_SEL_AND, .status = UI_ACTIVE|UI_HOVER});
+			ui_style_match_next_after(pattern,
+			                          &(ui_style){.bgColor = {0.5, 1, 0.5, 1}},
+			                          UI_STYLE_BG_COLOR);
 
 			ui_container("a", defaultFlags)
 			{
 				ui_pattern pattern = {0};
 				ui_pattern_push(mem_scratch(), &pattern, (ui_selector){.kind = UI_SEL_TEXT, .text = str8_lit("b")});
-				ui_style_next(pattern,
-			          	  	&(ui_style){.fontSize = 22},
-			          	  	UI_STYLE_FONT_SIZE);
+				ui_style_match_next_before(pattern, &(ui_style){.fontSize = 22}, UI_STYLE_FONT_SIZE);
 
 				ui_container("b", defaultFlags)
 				{
@@ -309,25 +318,22 @@ int main()
 							printf("clicked button f\n");
 						}
 
-						ui_style_next(ui_pattern_owner(),
-						              &(ui_style){.size.width = {UI_SIZE_PARENT, 1},
+						ui_style_next(&(ui_style){.size.width = {UI_SIZE_PARENT, 1},
 						                          .size.height = {UI_SIZE_PIXELS, 20, 0}},
-						              UI_STYLE_SIZE_X|UI_STYLE_SIZE_Y);
+						              UI_STYLE_SIZE);
 						static f32 slider1 = 0;
 						ui_slider("slider1", 0.3, &slider1);
 
 
-						ui_style_next(ui_pattern_owner(),
-						              &(ui_style){.size.width = {UI_SIZE_PARENT, 1},
+						ui_style_next(&(ui_style){.size.width = {UI_SIZE_PARENT, 1},
 						                          .size.height = {UI_SIZE_PIXELS, 20, 0}},
-						              UI_STYLE_SIZE_X|UI_STYLE_SIZE_Y);
+						              UI_STYLE_SIZE);
 						static f32 slider2 = 0;
 						ui_slider("slider2", 0.3, &slider2);
 
-						ui_style_next(ui_pattern_owner(),
-						              &(ui_style){.size.width = {UI_SIZE_PARENT, 1},
+						ui_style_next(&(ui_style){.size.width = {UI_SIZE_PARENT, 1},
 						                          .size.height = {UI_SIZE_PIXELS, 20}},
-						              UI_STYLE_SIZE_X|UI_STYLE_SIZE_Y);
+						              UI_STYLE_SIZE);
 						static f32 slider3 = 0;
 						ui_slider("slider3", 0.3, &slider3);
 
@@ -336,22 +342,6 @@ int main()
 				ui_tag_next("foo");
 				ui_label("label d");
 			}
-
-			pattern = (ui_pattern){0};
-			ui_pattern_push(mem_scratch(), &pattern, (ui_selector){.kind = UI_SEL_TEXT, .text = str8_lit("c")});
-			ui_pattern_push(mem_scratch(), &pattern, (ui_selector){.kind = UI_SEL_TAG, .tag = ui_tag_make("button")});
-			ui_style_prev(pattern,
-		              	&(ui_style){.bgColor = {1, 0.5, 0.5, 1}},
-		              	UI_STYLE_BG_COLOR);
-
-			pattern = (ui_pattern){0};
-			ui_pattern_push(mem_scratch(), &pattern, (ui_selector){.kind = UI_SEL_TEXT, .text = str8_lit("c")});
-			ui_pattern_push(mem_scratch(), &pattern, (ui_selector){.kind = UI_SEL_TAG, .tag = ui_tag_make("button")});
-			ui_pattern_push(mem_scratch(), &pattern, (ui_selector){.kind = UI_SEL_STATUS, .op = UI_SEL_AND, .status = UI_ACTIVE|UI_HOVER});
-			ui_style_prev(pattern,
-		              	&(ui_style){.bgColor = {0.5, 1, 0.5, 1}},
-		              	UI_STYLE_BG_COLOR);
-
 		}
 		if(printDebugStyle)
 		{

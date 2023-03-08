@@ -105,8 +105,8 @@ typedef union ui_box_size
 	ui_size s[UI_AXIS_COUNT];
 } ui_box_size;
 
-typedef enum { UI_STYLE_ANIMATE_SIZE_X       = 1<<1,
-               UI_STYLE_ANIMATE_SIZE_Y       = 1<<2,
+typedef enum { UI_STYLE_ANIMATE_SIZE_WIDTH   = 1<<1,
+               UI_STYLE_ANIMATE_SIZE_HEIGHT  = 1<<2,
                UI_STYLE_ANIMATE_COLOR        = 1<<3,
                UI_STYLE_ANIMATE_BG_COLOR     = 1<<4,
                UI_STYLE_ANIMATE_BORDER_COLOR = 1<<5,
@@ -137,8 +137,8 @@ typedef u64 ui_style_mask;
 enum
 {
 	UI_STYLE_NONE            = 0,
-	UI_STYLE_SIZE_X          = 1<<1,
-	UI_STYLE_SIZE_Y          = 1<<2,
+	UI_STYLE_SIZE_WIDTH      = 1<<1,
+	UI_STYLE_SIZE_HEIGHT     = 1<<2,
 	UI_STYLE_LAYOUT_AXIS     = 1<<3,
 	UI_STYLE_LAYOUT_ALIGN_X  = 1<<4,
 	UI_STYLE_LAYOUT_ALIGN_Y  = 1<<5,
@@ -158,6 +158,9 @@ enum
 	UI_STYLE_ANIMATION_FLAGS = 1<<19,
 
 	//masks
+	UI_STYLE_SIZE = UI_STYLE_SIZE_WIDTH
+	              | UI_STYLE_SIZE_HEIGHT,
+
 	UI_STYLE_LAYOUT = UI_STYLE_LAYOUT_AXIS
 	                | UI_STYLE_LAYOUT_ALIGN_X
 	                | UI_STYLE_LAYOUT_ALIGN_Y
@@ -385,18 +388,15 @@ void ui_tag_next_str8(str8 string);
 //NOTE: styling API
 //WARN: You can use a pattern in multiple rules, but be aware that a pattern is references an underlying list of selectors,
 //      hence pushing to a pattern also modifies rules in which the pattern was previously used!
-void ui_pattern_push(mem_arena* arena, ui_pattern* pattern, ui_selector selector);
-void ui_style_next(ui_pattern pattern, ui_style* style, ui_style_mask mask);
-void ui_style_prev(ui_pattern pattern, ui_style* style, ui_style_mask mask);
+void ui_apply_style_with_mask(ui_style* dst, ui_style* src, ui_style_mask mask);
 
-// common patterns helpers
+void ui_pattern_push(mem_arena* arena, ui_pattern* pattern, ui_selector selector);
 ui_pattern ui_pattern_all(void);
 ui_pattern ui_pattern_owner(void);
 
-// single box styling helpers
-void ui_box_set_size(ui_box* box, ui_axis axis, ui_size_kind kind, f32 value, f32 stricness);
-void ui_box_set_layout(ui_box* box, ui_axis axis, ui_align alignX, ui_align alignY);
-//...
+void ui_style_next(ui_style* style, ui_style_mask mask);
+void ui_style_match_next_before(ui_pattern pattern, ui_style* style, ui_style_mask mask);
+void ui_style_match_next_after(ui_pattern pattern, ui_style* style, ui_style_mask mask);
 
 //-------------------------------------------------------------------------
 // Basic widget helpers

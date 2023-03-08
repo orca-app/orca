@@ -82,9 +82,8 @@ typedef struct ui_context
 	ui_stack_elt* boxStack;
 	ui_stack_elt* clipStack;
 
-	list_info nextBoxRules;
-	ui_box* lastBox;
-
+	list_info nextBoxBeforeRules;
+	list_info nextBoxAfterRules;
 	list_info nextBoxTags;
 
 	u32 z;
@@ -309,53 +308,6 @@ void ui_pattern_push(mem_arena* arena, ui_pattern* pattern, ui_selector selector
 	ListAppend(&pattern->l, &copy->listElt);
 }
 
-void ui_style_next(ui_pattern pattern, ui_style* style, ui_style_mask mask)
-{
-	ui_context* ui = ui_get_context();
-	if(ui)
-	{
-		ui_style_rule* rule = mem_arena_alloc_type(&ui->frameArena, ui_style_rule);
-		rule->pattern = pattern;
-		rule->mask = mask;
-		rule->style = mem_arena_alloc_type(&ui->frameArena, ui_style);
-		*rule->style = *style;
-
-		ListAppend(&ui->nextBoxRules, &rule->boxElt);
-	}
-}
-
-void ui_style_prev(ui_pattern pattern, ui_style* style, ui_style_mask mask)
-{
-	ui_context* ui = ui_get_context();
-	if(ui && ui->lastBox)
-	{
-		ui_style_rule* rule = mem_arena_alloc_type(&ui->frameArena, ui_style_rule);
-		rule->pattern = pattern;
-		rule->mask = mask;
-		rule->style = mem_arena_alloc_type(&ui->frameArena, ui_style);
-		*rule->style = *style;
-
-		ListAppend(&ui->lastBox->afterRules, &rule->boxElt);
-		rule->owner = ui->lastBox;
-	}
-}
-
-void ui_style_box_before(ui_box* box, ui_pattern pattern, ui_style* style, ui_style_mask mask)
-{
-	ui_context* ui = ui_get_context();
-	if(ui)
-	{
-		ui_style_rule* rule = mem_arena_alloc_type(&ui->frameArena, ui_style_rule);
-		rule->pattern = pattern;
-		rule->mask = mask;
-		rule->style = mem_arena_alloc_type(&ui->frameArena, ui_style);
-		*rule->style = *style;
-
-		ListAppend(&box->beforeRules, &rule->boxElt);
-		rule->owner = box;
-	}
-}
-
 ui_pattern ui_pattern_all(void)
 {
 	ui_context* ui = ui_get_context();
@@ -372,21 +324,40 @@ ui_pattern ui_pattern_owner(void)
 	return(pattern);
 }
 
-void ui_box_set_size(ui_box* box, ui_axis axis, ui_size_kind kind, f32 value, f32 strictness)
+void ui_style_match_next_before(ui_pattern pattern, ui_style* style, ui_style_mask mask)
 {
-	ui_style style = {0};
-	style.size.s[axis] = (ui_size){kind, value, strictness};
-	ui_style_mask mask = (axis == UI_AXIS_X) ? UI_STYLE_SIZE_X : UI_STYLE_SIZE_Y;
-	ui_style_box_before(box, ui_pattern_owner(), &style, mask);
+	ui_context* ui = ui_get_context();
+	if(ui)
+	{
+		ui_style_rule* rule = mem_arena_alloc_type(&ui->frameArena, ui_style_rule);
+		rule->pattern = pattern;
+		rule->mask = mask;
+		rule->style = mem_arena_alloc_type(&ui->frameArena, ui_style);
+		*rule->style = *style;
+
+		ListAppend(&ui->nextBoxBeforeRules, &rule->boxElt);
+	}
 }
 
-void ui_box_set_layout(ui_box* box, ui_axis axis, ui_align alignX, ui_align alignY)
+void ui_style_match_next_after(ui_pattern pattern, ui_style* style, ui_style_mask mask)
 {
-	ui_style style = {.layout = {axis, .align.x = alignX, .align.y = alignY}};
-	ui_style_box_before(box, ui_pattern_owner(), &style, UI_STYLE_LAYOUT);
+	ui_context* ui = ui_get_context();
+	if(ui)
+	{
+		ui_style_rule* rule = mem_arena_alloc_type(&ui->frameArena, ui_style_rule);
+		rule->pattern = pattern;
+		rule->mask = mask;
+		rule->style = mem_arena_alloc_type(&ui->frameArena, ui_style);
+		*rule->style = *style;
+
+		ListAppend(&ui->nextBoxAfterRules, &rule->boxElt);
+	}
 }
 
-void ui_apply_style_with_mask(ui_style* dst, ui_style* src, ui_style_mask mask);
+void ui_style_next(ui_style* style, ui_style_mask mask)
+{
+	ui_style_match_next_before(ui_pattern_owner(), style, mask);
+}
 
 //-----------------------------------------------------------------------------
 // ui boxes
@@ -487,16 +458,19 @@ ui_box* ui_box_make_str8(str8 string, ui_flags flags)
 	box->tags = ui->nextBoxTags;
 	ui->nextBoxTags = (list_info){0};
 
-	box->beforeRules = ui->nextBoxRules;
+	box->beforeRules = ui->nextBoxBeforeRules;
 	for_each_in_list(&box->beforeRules, rule, ui_style_rule, boxElt)
 	{
 		rule->owner = box;
 	}
-	ui->nextBoxRules = (list_info){0};
+	ui->nextBoxBeforeRules = (list_info){0};
 
-	box->afterRules = (list_info){0};
-
-	ui->lastBox = box;
+	box->afterRules = ui->nextBoxAfterRules;
+	for_each_in_list(&box->afterRules, rule, ui_style_rule, boxElt)
+	{
+		rule->owner = box;
+	}
+	ui->nextBoxAfterRules = (list_info){0};
 
 	return(box);
 }
@@ -516,9 +490,6 @@ ui_box* ui_box_end(void)
 	DEBUG_ASSERT(box, "box stack underflow");
 
 	ui_box_pop();
-
-	//NOTE: set last box so that subsequent ui_style_prev() targets this box
-	ui->lastBox = box;
 
 	return(box);
 }
@@ -678,7 +649,7 @@ void ui_box_compute_styling(ui_context* ui, ui_box* box)
 	}
 	else
 	{
-		if(flags & UI_STYLE_ANIMATE_SIZE_X)
+		if(flags & UI_STYLE_ANIMATE_SIZE_WIDTH)
 		{
 			ui_animate_ui_size(ui, &box->style.size.s[UI_AXIS_X], targetStyle->size.s[UI_AXIS_X], animationTime);
 		}
@@ -687,7 +658,7 @@ void ui_box_compute_styling(ui_context* ui, ui_box* box)
 			box->style.size.s[UI_AXIS_X] = targetStyle->size.s[UI_AXIS_X];
 		}
 
-		if(flags & UI_STYLE_ANIMATE_SIZE_Y)
+		if(flags & UI_STYLE_ANIMATE_SIZE_HEIGHT)
 		{
 			ui_animate_ui_size(ui, &box->style.size.s[UI_AXIS_Y], targetStyle->size.s[UI_AXIS_Y], animationTime);
 		}
@@ -759,11 +730,11 @@ void ui_box_compute_styling(ui_context* ui, ui_box* box)
 
 void ui_apply_style_with_mask(ui_style* dst, ui_style* src, ui_style_mask mask)
 {
-	if(mask & UI_STYLE_SIZE_X)
+	if(mask & UI_STYLE_SIZE_WIDTH)
 	{
 		dst->size.s[UI_AXIS_X] = src->size.s[UI_AXIS_X];
 	}
-	if(mask & UI_STYLE_SIZE_Y)
+	if(mask & UI_STYLE_SIZE_HEIGHT)
 	{
 		dst->size.s[UI_AXIS_Y] = src->size.s[UI_AXIS_Y];
 	}
@@ -1349,23 +1320,22 @@ void ui_begin_frame(u32 width, u32 height)
 	ui->root = ui_box_begin("_root_", 0);
 	*ui->root->targetStyle = defaultStyle;
 
-	ui_style_next(ui_pattern_owner(),
-	              &(ui_style){.layout = {UI_AXIS_Y, UI_ALIGN_START, UI_ALIGN_START},
+	ui_style_next(&(ui_style){.layout = {UI_AXIS_Y, UI_ALIGN_START, UI_ALIGN_START},
 	                          .floating = {true, true},
 	                          .floatTarget = {0, 0}},
 	              UI_STYLE_LAYOUT | UI_STYLE_FLOAT_X | UI_STYLE_FLOAT_Y);
 
 	ui_box* contents = ui_box_make("_contents_", 0);
 
-	ui_style_next(ui_pattern_owner(),
-	              &(ui_style){.layout = {UI_AXIS_Y, UI_ALIGN_START, UI_ALIGN_START},
+	ui_style_next(&(ui_style){.layout = {UI_AXIS_Y, UI_ALIGN_START, UI_ALIGN_START},
 	                          .floating = {true, true},
 	                          .floatTarget = {0, 0}},
 	              UI_STYLE_LAYOUT | UI_STYLE_FLOAT_X | UI_STYLE_FLOAT_Y);
 
 	ui->overlay = ui_box_make("_overlay_", 0);
 
-	ui->nextBoxRules = (list_info){0};
+	ui->nextBoxBeforeRules = (list_info){0};
+	ui->nextBoxAfterRules = (list_info){0};
 	ui->nextBoxTags = (list_info){0};
 
 	ui_box_push(contents);
@@ -1430,10 +1400,9 @@ void ui_cleanup(void)
 
 ui_sig ui_label_str8(str8 label)
 {
-	ui_style_next(ui_pattern_all(),
-	              &(ui_style){.size.width = {UI_SIZE_TEXT, 0, 0},
+	ui_style_next(&(ui_style){.size.width = {UI_SIZE_TEXT, 0, 0},
 	                          .size.height = {UI_SIZE_TEXT, 0, 0}},
-	              UI_STYLE_SIZE_X | UI_STYLE_SIZE_Y);
+	              UI_STYLE_SIZE_WIDTH | UI_STYLE_SIZE_HEIGHT);
 
 	ui_flags flags = UI_FLAG_CLIP
 	               | UI_FLAG_DRAW_TEXT;
@@ -1459,14 +1428,14 @@ ui_sig ui_button_str8(str8 label)
 	                         .borderSize = 2,
 	                         .roundness = 10};
 
-	ui_style_mask defaultMask = UI_STYLE_SIZE_X
-	                          | UI_STYLE_SIZE_Y
+	ui_style_mask defaultMask = UI_STYLE_SIZE_WIDTH
+	                          | UI_STYLE_SIZE_HEIGHT
 	                          | UI_STYLE_BG_COLOR
 	                          | UI_STYLE_BORDER_COLOR
 	                          | UI_STYLE_BORDER_SIZE
 	                          | UI_STYLE_ROUNDNESS;
 
-	ui_style_next(ui_pattern_all(), &defaultStyle, defaultMask);
+	ui_style_next(&defaultStyle, defaultMask);
 
 	ui_style activeStyle = {.bgColor = {0.3, 0.3, 0.3, 1},
 	                        .borderColor = {0.2, 0.2, 0.2, 1},
@@ -1479,7 +1448,7 @@ ui_sig ui_button_str8(str8 label)
 	                &activePattern,
 	                (ui_selector){.kind = UI_SEL_STATUS,
 	                              .status = UI_ACTIVE|UI_HOVER});
-	ui_style_next(activePattern, &activeStyle, activeMask);
+	ui_style_match_next_before(activePattern, &activeStyle, activeMask);
 
 	ui_flags flags = UI_FLAG_CLICKABLE
 	               | UI_FLAG_CLIP
@@ -1522,55 +1491,65 @@ ui_sig ui_button(const char* label)
 
 ui_box* ui_slider(const char* label, f32 thumbRatio, f32* scrollValue)
 {
+	ui_style_match_next_before(ui_pattern_all(), &(ui_style){0}, UI_STYLE_LAYOUT);
 	ui_box* frame = ui_box_begin(label, 0);
 	{
-		ui_style_box_before(frame, ui_pattern_all(), &(ui_style){0}, UI_STYLE_LAYOUT);
+		f32 beforeRatio = (*scrollValue) * (1. - thumbRatio);
+		f32 afterRatio = (1. - *scrollValue) * (1. - thumbRatio);
 
 		ui_axis trackAxis = (frame->rect.w > frame->rect.h) ? UI_AXIS_X : UI_AXIS_Y;
 		ui_axis secondAxis = (trackAxis == UI_AXIS_Y) ? UI_AXIS_X : UI_AXIS_Y;
-
 		f32 roundness = 0.5*frame->rect.c[2+secondAxis];
 		f32 animationTime = 0.5;
 
-		ui_style trackStyle = {.bgColor = {0.5, 0.5, 0.5, 1},
-		                       .roundness = roundness};
-		ui_style thumbStyle = {.bgColor = {0.3, 0.3, 0.3, 1},
+		ui_style trackStyle = {.size.width = {UI_SIZE_PARENT, 1},
+		                       .size.height = {UI_SIZE_PARENT, 1},
+		                       .layout.axis = trackAxis,
+		                       .layout.align.x = UI_ALIGN_START,
+		                       .layout.align.y = UI_ALIGN_START,
+		                       .bgColor = {0.5, 0.5, 0.5, 1},
 		                       .roundness = roundness};
 
-		ui_style_mask styleMask = UI_STYLE_BG_COLOR | UI_STYLE_ROUNDNESS;
+		ui_style beforeStyle = trackStyle;
+		beforeStyle.size.s[trackAxis] = (ui_size){UI_SIZE_PARENT, beforeRatio};
+
+		ui_style afterStyle = trackStyle;
+		afterStyle.size.s[trackAxis] = (ui_size){UI_SIZE_PARENT, afterRatio};
+
+		ui_style thumbStyle = trackStyle;
+		thumbStyle.size.s[trackAxis] = (ui_size){UI_SIZE_PARENT, thumbRatio};
+		thumbStyle.bgColor = (mg_color){0.3, 0.3, 0.3, 1};
+
+		ui_style_mask styleMask = UI_STYLE_SIZE_WIDTH
+		                        | UI_STYLE_SIZE_HEIGHT
+		                        | UI_STYLE_LAYOUT
+		                        | UI_STYLE_BG_COLOR
+		                        | UI_STYLE_ROUNDNESS;
 
 		ui_flags trackFlags = UI_FLAG_CLIP
 	                    	| UI_FLAG_DRAW_BACKGROUND
 	                    	| UI_FLAG_HOT_ANIMATION
 	                    	| UI_FLAG_ACTIVE_ANIMATION;
 
+		ui_style_next(&trackStyle, styleMask);
 		ui_box* track = ui_box_begin("track", trackFlags);
-			ui_style_box_before(track, ui_pattern_owner(), &trackStyle, styleMask);
 
-			ui_box_set_size(track, trackAxis, UI_SIZE_PARENT, 1., 0);
-			ui_box_set_size(track, secondAxis, UI_SIZE_PARENT, 1., 0);
-			ui_box_set_layout(track, trackAxis, UI_ALIGN_START, UI_ALIGN_START);
-
-			f32 beforeRatio = (*scrollValue) * (1. - thumbRatio);
-			f32 afterRatio = (1. - *scrollValue) * (1. - thumbRatio);
-
+			ui_style_next(&beforeStyle, UI_STYLE_SIZE_WIDTH|UI_STYLE_SIZE_HEIGHT);
 			ui_box* beforeSpacer = ui_box_make("before", 0);
-			ui_box_set_size(beforeSpacer, trackAxis, UI_SIZE_PARENT, beforeRatio, 0);
-			ui_box_set_size(beforeSpacer, secondAxis, UI_SIZE_PARENT, 1., 0);
+
 
 			ui_flags thumbFlags = UI_FLAG_CLICKABLE
 		                    	| UI_FLAG_DRAW_BACKGROUND
 		                    	| UI_FLAG_HOT_ANIMATION
 		                    	| UI_FLAG_ACTIVE_ANIMATION;
 
+			ui_style_next(&thumbStyle, styleMask);
 			ui_box* thumb = ui_box_make("thumb", thumbFlags);
-			ui_style_box_before(thumb, ui_pattern_owner(), &thumbStyle, styleMask);
-			ui_box_set_size(thumb, trackAxis, UI_SIZE_PARENT, thumbRatio, 0);
-			ui_box_set_size(thumb, secondAxis, UI_SIZE_PARENT, 1., 0);
 
+
+			ui_style_next(&afterStyle, UI_STYLE_SIZE_WIDTH|UI_STYLE_SIZE_HEIGHT);
 			ui_box* afterSpacer = ui_box_make("after", 0);
-			ui_box_set_size(afterSpacer, trackAxis, UI_SIZE_PARENT, afterRatio, 0);
-			ui_box_set_size(afterSpacer, secondAxis, UI_SIZE_PARENT, 1., 0);
+
 		ui_box_end();
 
 		//NOTE: interaction
