@@ -27,7 +27,7 @@ void debug_print_indent(int indent)
 
 void debug_print_rule(ui_style_rule* rule)
 {
-	for_each_in_list(&rule->pattern.l, selector, ui_selector, listElt)
+	for_list(&rule->pattern.l, selector, ui_selector, listElt)
 	{
 		switch(selector->kind)
 		{
@@ -115,7 +115,7 @@ void debug_print_styles(ui_box* box, int indent)
 	{
 		debug_print_indent(indent);
 		printf("before rules:\n");
-		for_each_in_list(&box->beforeRules, rule, ui_style_rule, boxElt)
+		for_list(&box->beforeRules, rule, ui_style_rule, boxElt)
 		{
 			debug_print_indent(indent+1);
 			debug_print_rule(rule);
@@ -126,7 +126,7 @@ void debug_print_styles(ui_box* box, int indent)
 	{
 		debug_print_indent(indent);
 		printf("after rules:\n");
-		for_each_in_list(&box->afterRules, rule, ui_style_rule, boxElt)
+		for_list(&box->afterRules, rule, ui_style_rule, boxElt)
 		{
 			debug_print_indent(indent+1);
 			debug_print_rule(rule);
@@ -138,7 +138,7 @@ void debug_print_styles(ui_box* box, int indent)
 		debug_print_indent(indent);
 		printf("children:\n");
 		indent++;
-		for_each_in_list(&box->children, child, ui_box, listElt)
+		for_list(&box->children, child, ui_box, listElt)
 		{
 			debug_print_styles(child, indent);
 		}

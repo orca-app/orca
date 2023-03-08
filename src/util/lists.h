@@ -57,17 +57,17 @@ extern "C" {
 #define list_last_entry(list, type, member) \
 	(list_checked_entry(list_last(list), type, member))
 
-#define for_each_in_list(list, elt, type, member) \
+#define for_list(list, elt, type, member) \
 	for(type* elt = list_checked_entry(list_begin(list), type, member); \
 	    elt != 0; \
 	    elt = list_checked_entry(elt->member.next, type, member)) \
 
-#define for_each_in_list_reverse(list, elt, type, member) \
+#define for_list_reverse(list, elt, type, member) \
 	for(type* elt = list_checked_entry(list_last(list), type, member); \
 	    elt != 0; \
 	    elt = list_checked_entry(elt->member.prev, type, member)) \
 
-#define for_each_in_list_safe(list, elt, type, member) \
+#define for_list_safe(list, elt, type, member) \
 	for(type* elt = list_checked_entry(list_begin(list), type, member), \
 	    *__tmp = elt ? list_checked_entry(elt->member.next, type, member) : 0 ; \
 	    elt != 0; \
@@ -255,19 +255,19 @@ static inline bool list_empty(list_info* list)
 #define clist_last_entry(head, type, member) \
 	(clist_checked_entry(head, clist_last(head), type, member))
 
-#define for_each_in_clist(list, elt, type, member)			\
+#define for_clist(list, elt, type, member)			\
 	for(type* elt = clist_entry(clist_begin(list), type, member);	\
 	    &elt->member != clist_end(list);				\
 	    elt = clist_entry(elt->member.next, type, member))		\
 
 
-#define for_each_in_clist_reverse(list, elt, type, member)		\
+#define for_clist_reverse(list, elt, type, member)		\
 	for(type* elt = clist_entry(clist_last(list), type, member);	\
 	    &elt->member != clist_end(list);				\
 	    elt = clist_entry(elt->member.prev, type, member))		\
 
 
-#define for_each_in_clist_safe(list, elt, type, member)			\
+#define for_clist_safe(list, elt, type, member)			\
 	for(type* elt = clist_entry(clist_begin(list), type, member),	\
 	    *__tmp = clist_entry(elt->member.next, type, member);	\
 	    &elt->member != clist_end(list);				\

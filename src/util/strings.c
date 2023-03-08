@@ -183,7 +183,7 @@ str8_list str8_split(mem_arena* arena, str8 str, str8_list separators)
 	{
 		//NOTE(martin): search all separators and try to match them to the current ptr
 		str8* foundSep = 0;
-		for_each_in_list(&separators.list, elt, str8_elt, listElt)
+		for_list(&separators.list, elt, str8_elt, listElt)
 		{
 			str8* separator = &elt->string;
 			bool equal = true;

@@ -257,7 +257,7 @@ ui_key ui_key_make_path(str8_list path)
 	{
 		seed = parent->key.hash;
 	}
-	for_each_in_list(&path.list, elt, str8_elt, listElt)
+	for_list(&path.list, elt, str8_elt, listElt)
 	{
 		seed = mp_hash_aes_string_seed(elt->string, seed);
 	}
@@ -281,7 +281,7 @@ ui_box* ui_box_lookup_key(ui_key key)
 	ui_context* ui = ui_get_context();
 	u64 index = key.hash & (UI_BOX_MAP_BUCKET_COUNT-1);
 
-	for_each_in_list(&ui->boxMap[index], box, ui_box, bucketElt)
+	for_list(&ui->boxMap[index], box, ui_box, bucketElt)
 	{
 		if(ui_key_equal(key, box->key))
 		{
@@ -459,14 +459,14 @@ ui_box* ui_box_make_str8(str8 string, ui_flags flags)
 	ui->nextBoxTags = (list_info){0};
 
 	box->beforeRules = ui->nextBoxBeforeRules;
-	for_each_in_list(&box->beforeRules, rule, ui_style_rule, boxElt)
+	for_list(&box->beforeRules, rule, ui_style_rule, boxElt)
 	{
 		rule->owner = box;
 	}
 	ui->nextBoxBeforeRules = (list_info){0};
 
 	box->afterRules = ui->nextBoxAfterRules;
-	for_each_in_list(&box->afterRules, rule, ui_style_rule, boxElt)
+	for_list(&box->afterRules, rule, ui_style_rule, boxElt)
 	{
 		rule->owner = box;
 	}
@@ -830,7 +830,7 @@ bool ui_style_selector_match(ui_box* box, ui_style_rule* rule, ui_selector* sele
 
 		case UI_SEL_TAG:
 		{
-			for_each_in_list(&box->tags, elt, ui_tag_elt, listElt)
+			for_list(&box->tags, elt, ui_tag_elt, listElt)
 			{
 				if(elt->tag.hash == selector->tag.hash)
 				{
@@ -909,11 +909,11 @@ void ui_styling_prepass(ui_context* ui, ui_box* box, list_info* before, list_inf
 
 	//NOTE: match rules
 	list_info tmpBefore = {0};
-	for_each_in_list(before, rule, ui_style_rule, buildElt)
+	for_list(before, rule, ui_style_rule, buildElt)
 	{
 		ui_style_rule_match(ui, box, rule, before, &tmpBefore);
 	}
-	for_each_in_list(&box->beforeRules, rule, ui_style_rule, boxElt)
+	for_list(&box->beforeRules, rule, ui_style_rule, boxElt)
 	{
 		list_append(before, &rule->buildElt);
 		list_append(&tmpBefore, &rule->tmpElt);
@@ -921,11 +921,11 @@ void ui_styling_prepass(ui_context* ui, ui_box* box, list_info* before, list_inf
 	}
 
 	list_info tmpAfter = {0};
-	for_each_in_list(after, rule, ui_style_rule, buildElt)
+	for_list(after, rule, ui_style_rule, buildElt)
 	{
 		ui_style_rule_match(ui, box, rule, after, &tmpAfter);
 	}
-	for_each_in_list(&box->afterRules, rule, ui_style_rule, boxElt)
+	for_list(&box->afterRules, rule, ui_style_rule, boxElt)
 	{
 		list_append(after, &rule->buildElt);
 		list_append(&tmpAfter, &rule->tmpElt);
@@ -968,17 +968,17 @@ void ui_styling_prepass(ui_context* ui, ui_box* box, list_info* before, list_inf
 	}
 
 	//NOTE: descend in children
-	for_each_in_list(&box->children, child, ui_box, listElt)
+	for_list(&box->children, child, ui_box, listElt)
 	{
 		ui_styling_prepass(ui, child, before, after);
 	}
 
 	//NOTE: remove temporary rules
-	for_each_in_list(&tmpBefore, rule, ui_style_rule, tmpElt)
+	for_list(&tmpBefore, rule, ui_style_rule, tmpElt)
 	{
 		list_remove(before, &rule->buildElt);
 	}
-	for_each_in_list(&tmpAfter, rule, ui_style_rule, tmpElt)
+	for_list(&tmpAfter, rule, ui_style_rule, tmpElt)
 	{
 		list_remove(after, &rule->buildElt);
 	}
@@ -1004,7 +1004,7 @@ void ui_layout_upward_dependent_size(ui_context* ui, ui_box* box, int axis)
 		//TODO else?
 	}
 
-	for_each_in_list(&box->children, child, ui_box, listElt)
+	for_list(&box->children, child, ui_box, listElt)
 	{
 		ui_layout_upward_dependent_size(ui, child, axis);
 	}
@@ -1017,7 +1017,7 @@ void ui_layout_downward_dependent_size(ui_context* ui, ui_box* box, int axis)
 	if(box->style.layout.axis == axis)
 	{
 		int count = 0;
-		for_each_in_list(&box->children, child, ui_box, listElt)
+		for_list(&box->children, child, ui_box, listElt)
 		{
 			if(!ui_box_hidden(child))
 			{
@@ -1034,7 +1034,7 @@ void ui_layout_downward_dependent_size(ui_context* ui, ui_box* box, int axis)
 	}
 	else
 	{
-		for_each_in_list(&box->children, child, ui_box, listElt)
+		for_list(&box->children, child, ui_box, listElt)
 		{
 			if(!ui_box_hidden(child))
 			{
@@ -1105,7 +1105,7 @@ void ui_layout_compute_rect(ui_context* ui, ui_box* box, vec2 pos)
 		currentPos.c[layoutAxis] += 0.5*(contentsSize.c[layoutAxis] - box->childrenSum[layoutAxis]);
 	}
 
-	for_each_in_list(&box->children, child, ui_box, listElt)
+	for_list(&box->children, child, ui_box, listElt)
 	{
 		if(align[secondAxis] == UI_ALIGN_CENTER)
 		{
@@ -1154,7 +1154,7 @@ void ui_layout_find_next_hovered_recursive(ui_context* ui, ui_box* box, vec2 p)
 	}
 	if(hit || !(box->flags & UI_FLAG_CLIP))
 	{
-		for_each_in_list(&box->children, child, ui_box, listElt)
+		for_list(&box->children, child, ui_box, listElt)
 		{
 			ui_layout_find_next_hovered_recursive(ui, child, p);
 		}
@@ -1239,7 +1239,7 @@ void ui_draw_box(ui_box* box)
 		box->renderProc(box, box->renderData);
 	}
 
-	for_each_in_list(&box->children, child, ui_box, listElt)
+	for_list(&box->children, child, ui_box, listElt)
 	{
 		ui_draw_box(child);
 	}
@@ -1358,7 +1358,7 @@ void ui_end_frame(void)
 	//NOTE: prune unused boxes
 	for(int i=0; i<UI_BOX_MAP_BUCKET_COUNT; i++)
 	{
-		for_each_in_list_safe(&ui->boxMap[i], box, ui_box, bucketElt)
+		for_list_safe(&ui->boxMap[i], box, ui_box, bucketElt)
 		{
 			if(box->frameCounter < ui->frameCounter)
 			{
