@@ -255,7 +255,7 @@ int main()
 		                         .font = font,
 		                         .fontSize = 32};
 
-		ui_flags defaultFlags = UI_FLAG_DRAW_BORDER;
+		ui_flags defaultFlags = UI_FLAG_DRAW_BORDER | UI_FLAG_DRAW_BACKGROUND;
 
 		ui_box* root = 0;
 		ui_frame()
@@ -293,6 +293,9 @@ int main()
 			ui_style_match_after(pattern,
 			                          &(ui_style){.bgColor = {0.5, 1, 0.5, 1}},
 			                          UI_STYLE_BG_COLOR);
+
+			ui_style_next(&(ui_style){.bgColor = {0.7, 0.7, 0.7, 1}}, UI_STYLE_BG_COLOR);
+			ui_style_next(&(ui_style){.size.width = {UI_SIZE_PARENT, 1}, .size.height = {UI_SIZE_PARENT, 1}}, UI_STYLE_SIZE);
 
 			ui_container("a", defaultFlags)
 			{
@@ -336,6 +339,14 @@ int main()
 						              UI_STYLE_SIZE);
 						static f32 slider3 = 0;
 						ui_slider("slider3", 0.3, &slider3);
+
+
+						ui_style_next(&(ui_style){.size.width = {UI_SIZE_PIXELS, 20},
+						                          .size.height = {UI_SIZE_PIXELS, 200}},
+						              UI_STYLE_SIZE);
+						static f32 slider4 = 0;
+						ui_slider("slider4", 0.3, &slider4);
+
 
 					}
 				}

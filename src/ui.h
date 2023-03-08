@@ -168,6 +168,9 @@ enum
 	                | UI_STYLE_LAYOUT_MARGIN_X
 	                | UI_STYLE_LAYOUT_MARGIN_Y,
 
+	UI_STYLE_FLOAT = UI_STYLE_FLOAT_X
+	               | UI_STYLE_FLOAT_Y,
+
 	UI_STYLE_MASK_INHERITED = UI_STYLE_COLOR
 	                        | UI_STYLE_FONT
 	                        | UI_STYLE_FONT_SIZE

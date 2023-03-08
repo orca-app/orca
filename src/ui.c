@@ -1296,17 +1296,25 @@ void ui_begin_frame()
 	ui->clipStack = 0;
 	ui->z = 0;
 
+	vec2 size = mg_canvas_size();
+
 	ui_style defaultStyle = {0};
-	defaultStyle.size.s[UI_AXIS_X] = (ui_size){UI_SIZE_CHILDREN};
-	defaultStyle.size.s[UI_AXIS_Y] = (ui_size){UI_SIZE_CHILDREN};
+	defaultStyle.size.s[UI_AXIS_X] = (ui_size){UI_SIZE_PIXELS, size.x};
+	defaultStyle.size.s[UI_AXIS_Y] = (ui_size){UI_SIZE_PIXELS, size.y};
 
 	ui->root = ui_box_begin("_root_", 0);
 	*ui->root->targetStyle = defaultStyle;
 
-	ui_style_next(&(ui_style){.layout = {UI_AXIS_Y, UI_ALIGN_START, UI_ALIGN_START},
+	ui_style_mask contentStyleMask = UI_STYLE_SIZE
+	                               | UI_STYLE_LAYOUT
+	                               | UI_STYLE_FLOAT;
+
+	ui_style_next(&(ui_style){.size.width = {UI_SIZE_PARENT, 1},
+	                          .size.height = {UI_SIZE_PARENT, 1},
+	                          .layout = {UI_AXIS_Y, UI_ALIGN_START, UI_ALIGN_START},
 	                          .floating = {true, true},
 	                          .floatTarget = {0, 0}},
-	              UI_STYLE_LAYOUT | UI_STYLE_FLOAT_X | UI_STYLE_FLOAT_Y);
+	              contentStyleMask);
 
 	ui_box* contents = ui_box_make("_contents_", 0);
 

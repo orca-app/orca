@@ -212,6 +212,7 @@ typedef struct mg_canvas_data
 	u32 vertexCount;
 	u32 indexCount;
 
+	mg_surface surface;
 	mg_canvas_backend* backend;
 
 } mg_canvas_data;
@@ -2734,6 +2735,7 @@ mg_canvas mg_canvas_create(mg_surface surface)
 				memset(canvas, 0, sizeof(mg_canvas_data));
 			}
 
+			canvas->surface = surface;
 			canvas->backend = backend;
 
 			canvas->attributes.color = (mg_color){0, 0, 0, 1};
@@ -2779,6 +2781,17 @@ mg_canvas mg_canvas_set_current(mg_canvas canvas)
 	__mgCurrentCanvas = mg_canvas_data_from_handle(canvas);
 
 	return(old);
+}
+
+vec2 mg_canvas_size(void)
+{
+	vec2 res = {0};
+	if(__mgCurrentCanvas)
+	{
+		mp_rect frame = mg_surface_get_frame(__mgCurrentCanvas->surface);
+		res = (vec2){frame.w, frame.h};
+	}
+	return(res);
 }
 ////////////////////////////////////////////////////////////
 

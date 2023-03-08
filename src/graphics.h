@@ -169,15 +169,16 @@ typedef struct mg_text_extents
 //------------------------------------------------------------------------------------------
 //NOTE(martin): graphics canvas
 //------------------------------------------------------------------------------------------
-MP_API mg_canvas mg_canvas_nil();
+MP_API mg_canvas mg_canvas_nil(void);
 MP_API bool mg_canvas_is_nil(mg_canvas canvas);
 
 MP_API mg_canvas mg_canvas_create(mg_surface surface);
 MP_API void mg_canvas_destroy(mg_canvas canvas);
 MP_API mg_canvas mg_canvas_set_current(mg_canvas canvas);
 
-MP_API void mg_flush();
+MP_API void mg_flush(void);
 
+MP_API vec2 mg_canvas_size(void);
 //------------------------------------------------------------------------------------------
 //NOTE(martin): fonts
 //------------------------------------------------------------------------------------------
