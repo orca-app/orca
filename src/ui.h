@@ -85,6 +85,7 @@ typedef enum ui_size_kind
 	UI_SIZE_PIXELS,
 	UI_SIZE_CHILDREN,
 	UI_SIZE_PARENT,
+	UI_SIZE_PARENT_MINUS_PIXELS,
 
 } ui_size_kind;
 
@@ -92,7 +93,7 @@ typedef struct ui_size
 {
 	ui_size_kind kind;
 	f32 value;
-	f32 strictness;
+	f32 relax;
 } ui_size;
 
 typedef union ui_box_size

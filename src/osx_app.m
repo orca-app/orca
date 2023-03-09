@@ -890,7 +890,7 @@ static void mp_process_mouse_button(NSEvent* nsEvent, mp_window_data* window, mp
 	double factor = [nsEvent hasPreciseScrollingDeltas] ? 0.1 : 1.0;
 	event.move.x = 0;
 	event.move.y = 0;
-	event.move.deltaX = [nsEvent scrollingDeltaX]*factor;
+	event.move.deltaX = -[nsEvent scrollingDeltaX]*factor;
 	event.move.deltaY = -[nsEvent scrollingDeltaY]*factor;
 	event.move.mods = mp_convert_osx_mods([nsEvent modifierFlags]);
 

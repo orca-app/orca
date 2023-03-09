@@ -78,6 +78,7 @@ void debug_print_size(ui_box* box, ui_axis axis, int indent)
 {
 	debug_print_indent(indent);
 	printf("size %s: ", axis == UI_AXIS_X ? "x" : "y");
+	f32 value = box->targetStyle->size.c[axis].value;
 	switch(box->targetStyle->size.c[axis].kind)
 	{
 		case UI_SIZE_TEXT:
@@ -89,11 +90,15 @@ void debug_print_size(ui_box* box, ui_axis axis, int indent)
 			break;
 
 		case UI_SIZE_PARENT:
-			printf("parent\n");
+			printf("parent: %f\n", value);
+			break;
+
+		case UI_SIZE_PARENT_MINUS_PIXELS:
+			printf("parent minus pixels: %f\n", value);
 			break;
 
 		case UI_SIZE_PIXELS:
-			printf("pixels\n");
+			printf("pixels: %f\n", value);
 			break;
 	}
 
@@ -233,7 +238,10 @@ void panel_end(void)
 	ui_box* scrollBarX = 0;
 	ui_box* scrollBarY = 0;
 
-	if(contentsW > panel->rect.w)
+	bool needsScrollX = contentsW > panel->rect.w;
+	bool needsScrollY = contentsH > panel->rect.h;
+
+	if(needsScrollX)
 	{
 		f32 thumbRatioX = panel->rect.w / contentsW;
 		f32 sliderX = panel->scroll.x /(contentsW - panel->rect.w);
@@ -242,8 +250,9 @@ void panel_end(void)
 		                          .size.height = {UI_SIZE_PIXELS, 10, 0},
 		                          .floating.x = true,
 		                          .floating.y = true,
-		                          .floatTarget = {0, panel->rect.h - 12}},
-		              UI_STYLE_SIZE);
+		                          .floatTarget = {0, panel->rect.h - 10}},
+		              UI_STYLE_SIZE
+		              |UI_STYLE_FLOAT);
 
 		scrollBarX = ui_slider("scrollerX", thumbRatioX, &sliderX);
 
@@ -255,16 +264,18 @@ void panel_end(void)
 		}
 	}
 
-	if(contentsH > panel->rect.h)
+	if(needsScrollY)
 	{
 		f32 thumbRatioY = panel->rect.h / contentsH;
 		f32 sliderY = panel->scroll.y /(contentsH - panel->rect.h);
 
+		f32 spacerSize = needsScrollX ? 10 : 0;
+
 		ui_style_next(&(ui_style){.size.width = {UI_SIZE_PIXELS, 10, 0},
-		                          .size.height = {UI_SIZE_PARENT, 1., 0},
+		                          .size.height = {UI_SIZE_PARENT_MINUS_PIXELS, spacerSize, 0},
 		                          .floating.x = true,
 		                          .floating.y = true,
-		                          .floatTarget = {panel->rect.w - 12, 0}},
+		                          .floatTarget = {panel->rect.w - 10, 0}},
 		               UI_STYLE_SIZE
 		              |UI_STYLE_FLOAT);
 
@@ -277,21 +288,8 @@ void panel_end(void)
 			ui_box_activate(scrollBarY);
 		}
 	}
-
 	panel->scroll.x = Clamp(panel->scroll.x, 0, contentsW - panel->rect.w);
 	panel->scroll.y = Clamp(panel->scroll.y, 0, contentsH - panel->rect.h);
-
-	if(scrollBarX)
-	{
-//		ui_box_set_floating(scrollBarX, UI_AXIS_X, panel->scroll.x);
-//		ui_box_set_floating(scrollBarX, UI_AXIS_Y, panel->scroll.y + panel->rect.h - 12);
-	}
-
-	if(scrollBarY)
-	{
-//		ui_box_set_floating(scrollBarY, UI_AXIS_X, panel->scroll.x + panel->rect.w - 12);
-//		ui_box_set_floating(scrollBarY, UI_AXIS_Y, panel->scroll.y);
-	}
 
 	ui_box_end();
 }
@@ -416,15 +414,17 @@ int main()
 				}
 
 				ui_style_next(&(ui_style){.size.width = {UI_SIZE_PARENT, 1},
-				                          .size.height = {UI_SIZE_PIXELS, 500}},
+				                          .size.height = {UI_SIZE_PARENT, 1, 1}},
 				                          UI_STYLE_SIZE);
 
 				ui_style_next(&(ui_style){.layout.axis = UI_AXIS_X}, UI_STYLE_LAYOUT_AXIS);
 				ui_container("contents", debugFlags)
 				{
 					ui_style_next(&(ui_style){.size.width = {UI_SIZE_PARENT, 0.5},
-					                          .size.height = {UI_SIZE_PARENT, 1}},
-					              UI_STYLE_SIZE);
+					                          .size.height = {UI_SIZE_PARENT, 1},
+					                          .borderColor = {0, 0, 1, 1}},
+					              UI_STYLE_SIZE
+					              |UI_STYLE_BORDER_COLOR);
 
 					ui_container("left", debugFlags)
 					{
@@ -519,13 +519,14 @@ int main()
 							}
 						}
 					}
-
+/*
 					ui_style_next(&(ui_style){.size.width = {UI_SIZE_PARENT, 0.5},
 					                          .size.height = {UI_SIZE_PARENT, 1}},
 					              UI_STYLE_SIZE);
 
 					ui_container("right", debugFlags)
 					{
+
 						ui_style_next(&(ui_style){.size.width = {UI_SIZE_PARENT, 1},
 						                          .size.height = {UI_SIZE_PARENT, 0.33}},
 						             UI_STYLE_SIZE);
@@ -555,136 +556,46 @@ int main()
 						widget_view("Color")
 						{
 							ui_style_next(&(ui_style){.size.width = {UI_SIZE_PARENT, 1},
-							                          .size.height = {UI_SIZE_PARENT, 0.7}},
-							              UI_STYLE_SIZE);
+							                          .size.height = {UI_SIZE_PARENT, 0.7},
+							                          .layout.axis = UI_AXIS_X},
+							               UI_STYLE_SIZE
+							              |UI_STYLE_LAYOUT_AXIS);
 
 							panel("Panel", UI_FLAG_DRAW_BORDER)
 							{
+								ui_style_next(&(ui_style){.layout.axis = UI_AXIS_X},
+							                  UI_STYLE_LAYOUT_AXIS);
+								ui_container("contents", 0)
+								{
+									ui_style_next(&(ui_style){.layout.spacing = 20},
+							                  	UI_STYLE_LAYOUT_SPACING);
+							    	ui_container("buttons", 0)
+							    	{
+										ui_button("Button A");
+										ui_button("Button B");
+										ui_button("Button C");
+										ui_button("Button D");
+									}
 
-								ui_style_next(&(ui_style){.layout.spacing = 20},
-							                  UI_STYLE_LAYOUT_SPACING);
-							    ui_container("buttons", 0)
-							    {
-									ui_button("Button A");
-									ui_button("Button B");
-									ui_button("Button C");
-									ui_button("Button D");
+									ui_style_next(&(ui_style){.layout.axis = UI_AXIS_X,
+								                          	.layout.spacing = 20},
+							                  	UI_STYLE_LAYOUT_SPACING
+							                  	|UI_STYLE_LAYOUT_AXIS);
+
+									ui_container("buttons2", 0)
+									{
+										ui_button("Button A");
+										ui_button("Button B");
+										ui_button("Button C");
+										ui_button("Button D");
+									}
 								}
 							}
 						}
-					}
-				}
 
-			}
-
-			/*
-			ui_pattern pattern = {0};
-			ui_pattern_push(mem_scratch(), &pattern, (ui_selector){.kind = UI_SEL_TEXT, .text = STR8("b")});
-			ui_pattern_push(mem_scratch(), &pattern, (ui_selector){.kind = UI_SEL_TAG, .tag = ui_tag_make("foo")});
-			ui_style_match_before(pattern, &(ui_style){.fontSize = 36}, UI_STYLE_FONT_SIZE);
-
-			ui_style_match_before(ui_pattern_all(),
-			                           &defaultStyle,
-			                           UI_STYLE_FONT
-			                           |UI_STYLE_FONT_SIZE
-			                           |UI_STYLE_COLOR
-			                           |UI_STYLE_BORDER_SIZE
-			                           |UI_STYLE_BORDER_COLOR
-			                           |UI_STYLE_SIZE_WIDTH
-			                           |UI_STYLE_SIZE_HEIGHT
-			                           |UI_STYLE_LAYOUT);
-
-
-			pattern = (ui_pattern){0};
-			ui_pattern_push(mem_scratch(), &pattern, (ui_selector){.kind = UI_SEL_TEXT, .text = STR8("c")});
-			ui_pattern_push(mem_scratch(), &pattern, (ui_selector){.kind = UI_SEL_TAG, .tag = ui_tag_make("button")});
-			ui_style_match_after(pattern,
-			                          &(ui_style){.bgColor = {1, 0.5, 0.5, 1}},
-			                          UI_STYLE_BG_COLOR);
-
-			pattern = (ui_pattern){0};
-			ui_pattern_push(mem_scratch(), &pattern, (ui_selector){.kind = UI_SEL_TEXT, .text = STR8("c")});
-			ui_pattern_push(mem_scratch(), &pattern, (ui_selector){.kind = UI_SEL_TAG, .tag = ui_tag_make("button")});
-			ui_pattern_push(mem_scratch(), &pattern, (ui_selector){.kind = UI_SEL_STATUS, .op = UI_SEL_AND, .status = UI_ACTIVE|UI_HOVER});
-			ui_style_match_after(pattern,
-			                          &(ui_style){.bgColor = {0.5, 1, 0.5, 1}},
-			                          UI_STYLE_BG_COLOR);
-
-			ui_style_next(&(ui_style){.bgColor = {0.7, 0.7, 0.7, 1}}, UI_STYLE_BG_COLOR);
-			ui_style_next(&(ui_style){.size.width = {UI_SIZE_PARENT, 1}, .size.height = {UI_SIZE_PARENT, 1}}, UI_STYLE_SIZE);
-
-			ui_container("a", defaultFlags)
-			{
-				ui_pattern pattern = {0};
-				ui_pattern_push(mem_scratch(), &pattern, (ui_selector){.kind = UI_SEL_TEXT, .text = STR8("b")});
-				ui_style_match_before(pattern, &(ui_style){.fontSize = 22}, UI_STYLE_FONT_SIZE);
-
-				ui_container("b", defaultFlags)
-				{
-					ui_container("c", defaultFlags)
-					{
-						if(ui_button("button d").clicked)
-						{
-							printf("clicked button d\n");
-						}
-					}
-
-					ui_container("e", defaultFlags)
-					{
-						ui_tag_next("foo");
-						if(ui_button("button f").clicked)
-						{
-							printf("clicked button f\n");
-						}
-
-						ui_style_next(&(ui_style){.size.width = {UI_SIZE_PARENT, 1},
-						                          .size.height = {UI_SIZE_PIXELS, 20, 0}},
-						              UI_STYLE_SIZE);
-						static f32 slider1 = 0;
-						ui_slider("slider1", 0.3, &slider1);
-
-
-						ui_style_next(&(ui_style){.size.width = {UI_SIZE_PARENT, 1},
-						                          .size.height = {UI_SIZE_PIXELS, 20, 0}},
-						              UI_STYLE_SIZE);
-						static f32 slider2 = 0;
-						ui_slider("slider2", 0.3, &slider2);
-
-						ui_style_next(&(ui_style){.size.width = {UI_SIZE_PARENT, 1},
-						                          .size.height = {UI_SIZE_PIXELS, 20}},
-						              UI_STYLE_SIZE);
-						static f32 slider3 = 0;
-						ui_slider("slider3", 0.3, &slider3);
-
-
-						ui_style_next(&(ui_style){.size.width = {UI_SIZE_PIXELS, 20},
-						                          .size.height = {UI_SIZE_PIXELS, 200}},
-						              UI_STYLE_SIZE);
-						static f32 slider4 = 0;
-						ui_slider("slider4", 0.3, &slider4);
-
-
-					}
-				}
-				ui_style_next(&(ui_style){.layout.axis = UI_AXIS_X}, UI_STYLE_LAYOUT_AXIS);
-				ui_container("f", defaultFlags)
-				{
-					ui_tag_next("foo");
-					ui_label("label d");
-
-					ui_style_next(&(ui_style){.size.width = {UI_SIZE_PIXELS, 300},
-					                          .size.height = {UI_SIZE_TEXT}},
-					              UI_STYLE_SIZE);
-					static str8 text = {};
-					ui_text_box_result res = ui_text_box("textbox", mem_scratch(), text);
-					if(res.changed)
-					{
-						mem_arena_clear(&textArena);
-						text = str8_push_copy(&textArena, res.text);
-					}
+					}*/
 				}
 			}
-			*/
 		}
 		if(printDebugStyle)
 		{
@@ -693,32 +604,8 @@ int main()
 
 		mg_surface_prepare(surface);
 
-//		mg_set_color_rgba(1, 0, 0, 1);
-//		mg_rectangle_fill(100, 100, 400, 200);
-
 		ui_draw();
 
-/*
-		mg_mat2x3 transform = {1, 0, 0,
-	                       	0, -1, 800};
-
-		bool oldTextFlip = mg_get_text_flip();
-		mg_set_text_flip(true);
-
-		mg_matrix_push(transform);
-
-		mg_set_font(font);
-		mg_set_font_size(20);
-		mg_set_color_rgba(0, 0, 0, 1);
-
-		mg_move_to(0, 38);
-		mg_text_outlines(STR8("hello, world"));
-		mg_fill();
-
-		mg_matrix_pop();
-
-		mg_set_text_flip(oldTextFlip);
-*/
 		mg_flush();
 		mg_surface_present(surface);
 

@@ -18,10 +18,10 @@ static ui_style UI_STYLE_DEFAULTS =
 {
 	.size.width = {.kind = UI_SIZE_CHILDREN,
 	               .value = 0,
-	               .strictness = 0},
+	               .relax = 0},
 	.size.height = {.kind = UI_SIZE_CHILDREN,
 	                .value = 0,
-	                .strictness = 0},
+	                .relax = 0},
 
 	.layout = {.axis = UI_AXIS_Y,
 	           .align = {UI_ALIGN_START,
@@ -622,7 +622,7 @@ void ui_animate_ui_size(ui_context* ui, ui_size* size, ui_size target, f32 anima
 {
 	size->kind = target.kind;
 	ui_animate_f32(ui, &size->value, target.value, animationTime);
-	ui_animate_f32(ui, &size->strictness, target.strictness, animationTime);
+	ui_animate_f32(ui, &size->relax, target.relax, animationTime);
 }
 
 void ui_box_compute_styling(ui_context* ui, ui_box* box)
@@ -1037,6 +1037,7 @@ void ui_layout_upward_dependent_size(ui_context* ui, ui_box* box, int axis)
 
 	ui_size* size = &box->style.size.c[axis];
 
+
 	if(size->kind == UI_SIZE_PARENT)
 	{
 		ui_box* parent = box->parent;
@@ -1045,7 +1046,15 @@ void ui_layout_upward_dependent_size(ui_context* ui, ui_box* box, int axis)
 			f32 margin = parent->style.layout.margin.c[axis];
 			box->rect.c[2+axis] = maximum(0, parent->rect.c[2+axis] - parent->spacing[axis] - 2*margin) * size->value;
 		}
-		//TODO else?
+	}
+	else if(size->kind == UI_SIZE_PARENT_MINUS_PIXELS)
+	{
+		ui_box* parent = box->parent;
+		if(parent)
+		{
+			f32 margin = parent->style.layout.margin.c[axis];
+			box->rect.c[2+axis] = maximum(0, parent->rect.c[2+axis] - parent->spacing[axis] - 2*margin - size->value);
+		}
 	}
 
 	for_list(&box->children, child, ui_box, listElt)
@@ -1055,8 +1064,95 @@ void ui_layout_upward_dependent_size(ui_context* ui, ui_box* box, int axis)
 }
 
 void ui_layout_solve_conflicts(ui_context* ui, ui_box* box, int axis)
-{
-	//TODO
+{/*
+	f32 totalContents = box->childrenSum[axis]
+	                  + box->spacing[axis]
+	                  + 2*box->style.layout.margin.c[axis];
+*/
+	f32 sum = 0;
+
+	if(box->style.layout.axis == axis)
+	{
+		//NOTE: if we're solving in the layout axis, first recompute the total size
+		//      and total slack of children.
+
+		//NOTE: we also recompute children that depend on the parent. Maybe we could combine with upward dependent stuff...
+		f32 margin = box->style.layout.margin.c[axis];
+		f32 parentAvailableSize = maximum(0, box->rect.c[2+axis] - box->spacing[axis] - 2*margin);
+		f32 slack = 0;
+
+		for_list(&box->children, child, ui_box, listElt)
+		{
+			ui_size* size = &child->style.size.c[axis];
+			if(size->kind == UI_SIZE_PARENT)
+			{
+				child->rect.c[2+axis] = parentAvailableSize * size->value;
+			}
+			else if(size->kind == UI_SIZE_PARENT_MINUS_PIXELS)
+			{
+				child->rect.c[2+axis] = maximum(0, parentAvailableSize - size->value);
+			}
+
+			if(!ui_box_hidden(child) && !child->style.floating.c[axis])
+			{
+				sum += child->rect.c[2+axis];
+				slack += child->rect.c[2+axis] * child->style.size.c[axis].relax;
+			}
+		}
+
+		f32 totalContents = sum + box->spacing[axis] + 2*box->style.layout.margin.c[axis];
+		f32 excess = ClampLowBound(totalContents - box->rect.c[2+axis], 0);
+		f32 alpha = Clamp(excess / slack, 0, 1);
+
+		//NOTE: then remove excess proportionally to each box slack, and recompute children sum.
+		sum = 0;
+		for_list(&box->children, child, ui_box, listElt)
+		{
+			f32 relax = child->style.size.c[axis].relax;
+			child->rect.c[2+axis] -= alpha * child->rect.c[2+axis] * relax;
+			sum += child->rect.c[2+axis];
+		}
+	}
+	else
+	{
+		//NOTE: if we're solving on the secondary axis, we remove excess to each box individually
+		//      according to its own slack. Children sum is the maximum child size.
+
+		f32 margin = box->style.layout.margin.c[axis];
+		f32 parentAvailableSize = maximum(0, box->rect.c[2+axis] - box->spacing[axis] - 2*margin);
+
+		for_list(&box->children, child, ui_box, listElt)
+		{
+			ui_size* size = &child->style.size.c[axis];
+			if(size->kind == UI_SIZE_PARENT)
+			{
+				child->rect.c[2+axis] = parentAvailableSize * size->value;
+			}
+			else if(size->kind == UI_SIZE_PARENT_MINUS_PIXELS)
+			{
+				child->rect.c[2+axis] = maximum(0, parentAvailableSize - size->value);
+			}
+
+			if(!ui_box_hidden(child) && !child->style.floating.c[axis])
+			{
+				f32 totalContents = child->rect.c[2+axis] + 2*box->style.layout.margin.c[axis];
+				f32 excess = ClampLowBound(totalContents - box->rect.c[2+axis], 0);
+
+				f32 relax = child->style.size.c[axis].relax;
+				child->rect.c[2+axis] -= minimum(excess, child->rect.c[2+axis]*relax);
+
+				sum = maximum(sum, child->rect.c[2+axis]);
+			}
+		}
+	}
+
+	box->childrenSum[axis] = sum;
+
+	//NOTE: recurse in children
+	for_list(&box->children, child, ui_box, listElt)
+	{
+		ui_layout_solve_conflicts(ui, child, axis);
+	}
 }
 
 void ui_layout_compute_rect(ui_context* ui, ui_box* box, vec2 pos)
