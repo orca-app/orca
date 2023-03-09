@@ -289,10 +289,9 @@ int main()
 		ui_flags debugFlags = UI_FLAG_DRAW_BORDER;
 
 		ui_box* root = 0;
-		ui_frame()
+		ui_frame(&defaultStyle, defaultMask)
 		{
 			root = ui_box_top();
-
 			ui_style_match_before(ui_pattern_all(), &defaultStyle, defaultMask);
 
 			ui_style_next(&(ui_style){.size.width = {UI_SIZE_PARENT, 1},
@@ -456,7 +455,29 @@ int main()
 						                          .size.height = {UI_SIZE_PARENT, 0.33}},
 						             UI_STYLE_SIZE);
 						widget_view("Menus")
-						{}
+						{
+							ui_menu_bar("Menu bar")
+							{
+								ui_menu("Menu 1")
+								{
+									if(ui_menu_button("Option 1.1").pressed)
+									{
+										printf("Pressed option 1.1\n");
+									}
+									ui_menu_button("Option 1.2");
+									ui_menu_button("Option 1.3");
+									ui_menu_button("Option 1.4");
+								}
+
+								ui_menu("Menu 2")
+								{
+									ui_menu_button("Option 2.1");
+									ui_menu_button("Option 2.2");
+									ui_menu_button("Option 2.3");
+									ui_menu_button("Option 2.4");
+								}
+							}
+						}
 
 						ui_style_next(&(ui_style){.size.width = {UI_SIZE_PARENT, 1},
 						                          .size.height = {UI_SIZE_PARENT, 0.33}},

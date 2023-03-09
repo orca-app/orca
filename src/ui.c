@@ -625,7 +625,7 @@ void ui_animate_ui_size(ui_context* ui, ui_size* size, ui_size target, f32 anima
 	ui_animate_f32(ui, &size->relax, target.relax, animationTime);
 }
 
-void ui_box_compute_styling(ui_context* ui, ui_box* box)
+void ui_box_animate_style(ui_context* ui, ui_box* box)
 {
 	ui_style* targetStyle = box->targetStyle;
 	DEBUG_ASSERT(targetStyle);
@@ -751,7 +751,7 @@ void ui_apply_style_with_mask(ui_style* dst, ui_style* src, ui_style_mask mask)
 	}
 	if(mask & UI_STYLE_LAYOUT_MARGIN_X)
 	{
-		dst->layout.margin.x = src->layout.margin.y;
+		dst->layout.margin.x = src->layout.margin.x;
 	}
 	if(mask & UI_STYLE_LAYOUT_MARGIN_Y)
 	{
@@ -840,7 +840,7 @@ bool ui_style_selector_match(ui_box* box, ui_style_rule* rule, ui_selector* sele
 			res = true;
 			if(selector->status & UI_HOVER)
 			{
-				res = res && box->hot;
+				res = res && ui_box_hovering(box, ui_mouse_position());
 			}
 			if(selector->status & UI_ACTIVE)
 			{
@@ -928,7 +928,7 @@ void ui_styling_prepass(ui_context* ui, ui_box* box, list_info* before, list_inf
 	}
 
 	//NOTE: compute static sizes
-	ui_box_compute_styling(ui, box);
+	ui_box_animate_style(ui, box);
 
 	if(ui_box_hidden(box))
 	{
@@ -937,7 +937,7 @@ void ui_styling_prepass(ui_context* ui, ui_box* box, list_info* before, list_inf
 
 	ui_style* style = &box->style;
 
-	mp_rect textBox = {};
+	mp_rect textBox = {0};
 	ui_size desiredSize[2] = {box->style.size.c[UI_AXIS_X],
 	                          box->style.size.c[UI_AXIS_Y]};
 
@@ -1345,7 +1345,7 @@ void ui_draw()
 // frame begin/end
 //-----------------------------------------------------------------------------
 
-void ui_begin_frame()
+void ui_begin_frame(ui_style* defaultStyle, ui_style_mask defaultMask)
 {
 	ui_context* ui = ui_get_context();
 
@@ -1361,12 +1361,18 @@ void ui_begin_frame()
 
 	vec2 size = mg_canvas_size();
 
-	ui_style defaultStyle = {0};
-	defaultStyle.size.c[UI_AXIS_X] = (ui_size){UI_SIZE_PIXELS, size.x};
-	defaultStyle.size.c[UI_AXIS_Y] = (ui_size){UI_SIZE_PIXELS, size.y};
+	defaultMask &= UI_STYLE_COLOR
+	             | UI_STYLE_BG_COLOR
+	             | UI_STYLE_BORDER_COLOR
+	             | UI_STYLE_FONT
+	             | UI_STYLE_FONT_SIZE;
+
+	ui_style_match_before(ui_pattern_all(), defaultStyle, defaultMask);
+	ui_style_next(&(ui_style){.size.width = {UI_SIZE_PIXELS, size.x},
+	                          .size.height = {UI_SIZE_PIXELS, size.y}},
+	              UI_STYLE_SIZE);
 
 	ui->root = ui_box_begin("_root_", 0);
-	*ui->root->targetStyle = defaultStyle;
 
 	ui_style_mask contentStyleMask = UI_STYLE_SIZE
 	                               | UI_STYLE_LAYOUT
@@ -1449,7 +1455,7 @@ void ui_cleanup(void)
 
 
 //-----------------------------------------------------------------------------
-// Basic helpers
+// label
 //-----------------------------------------------------------------------------
 
 ui_sig ui_label_str8(str8 label)
@@ -1471,6 +1477,9 @@ ui_sig ui_label(const char* label)
 	return(ui_label_str8(STR8((char*)label)));
 }
 
+//------------------------------------------------------------------------------
+// button
+//------------------------------------------------------------------------------
 ui_sig ui_button_str8(str8 label)
 {
 	ui_context* ui = ui_get_context();
@@ -1546,7 +1555,9 @@ ui_sig ui_button(const char* label)
 	return(ui_button_str8(STR8((char*)label)));
 }
 
-
+//------------------------------------------------------------------------------
+// slider / scrollbar
+//------------------------------------------------------------------------------
 ui_box* ui_slider(const char* label, f32 thumbRatio, f32* scrollValue)
 {
 	ui_style_match_before(ui_pattern_all(), &(ui_style){0}, UI_STYLE_LAYOUT);
@@ -1661,6 +1672,9 @@ ui_box* ui_slider(const char* label, f32 thumbRatio, f32* scrollValue)
 	return(frame);
 }
 
+//------------------------------------------------------------------------------
+// panels
+//------------------------------------------------------------------------------
 void ui_panel_begin(const char* str, ui_flags flags)
 {
 	ui_box* box = ui_box_begin(str, flags | UI_FLAG_CLIP | UI_FLAG_BLOCK_MOUSE);
@@ -1749,8 +1763,10 @@ void ui_panel_end(void)
 	ui_box_end();
 }
 
+//------------------------------------------------------------------------------
+// tooltips
+//------------------------------------------------------------------------------
 /*
-
 ui_sig ui_tooltip_begin(const char* name)
 {
 	ui_context* ui = ui_get_context();
@@ -1758,14 +1774,19 @@ ui_sig ui_tooltip_begin(const char* name)
 
 	vec2 p = ui_mouse_position();
 
+	ui_style style = {.size.width = {UI_SIZE_CHILDREN},
+	                  .size.height = {UI_SIZE_CHILDREN},
+	                  .floating.x = true,
+	                  .floating.y = true,
+	                  .floatTarget = {p.x, p.y}};
+	ui_style_mask mask = UI_STYLE_SIZE | UI_STYLE_FLOAT;
+
+	ui_style_next(&style, mask);
+
 	ui_flags flags = UI_FLAG_DRAW_BACKGROUND
 	               | UI_FLAG_DRAW_BORDER;
 
 	ui_box* tooltip = ui_box_make(name, flags);
-//	ui_box_set_size(tooltip, UI_AXIS_X, UI_SIZE_CHILDREN, 0, 0);
-//	ui_box_set_size(tooltip, UI_AXIS_Y, UI_SIZE_CHILDREN, 0, 0);
-//	ui_box_set_floating(tooltip, UI_AXIS_X, p.x);
-//	ui_box_set_floating(tooltip, UI_AXIS_Y, p.y);
 	ui_box_push(tooltip);
 
 	return(ui_box_sig(tooltip));
@@ -1776,16 +1797,24 @@ void ui_tooltip_end(void)
 	ui_box_pop(); // tooltip
 	ui_box_pop(); // ui->overlay
 }
+*/
+
+//------------------------------------------------------------------------------
+// Menus
+//------------------------------------------------------------------------------
 
 void ui_menu_bar_begin(const char* name)
 {
-	ui_box* bar = ui_box_begin(name, UI_FLAG_DRAW_BACKGROUND);
-//	ui_box_set_size(bar, UI_AXIS_X, UI_SIZE_PARENT, 1., 0);
-//	ui_box_set_size(bar, UI_AXIS_Y, UI_SIZE_CHILDREN, 0, 0);
-	//ui_box_set_layout(bar, UI_AXIS_X, UI_ALIGN_START, UI_ALIGN_START);
+	ui_style style = {.size.width = {UI_SIZE_PARENT, 1, 0},
+	                  .size.height = {UI_SIZE_CHILDREN},
+	                  .layout.axis = UI_AXIS_X,
+	                  .layout.spacing = 20,};
+	ui_style_mask mask = UI_STYLE_SIZE
+	                   | UI_STYLE_LAYOUT_AXIS
+	                   | UI_STYLE_LAYOUT_SPACING;
 
-//	ui_push_size(UI_AXIS_X, UI_SIZE_TEXT, 0, 0);
-//	ui_push_size(UI_AXIS_Y, UI_SIZE_TEXT, 0, 0);
+	ui_style_next(&style, mask);
+	ui_box* bar = ui_box_begin(name, UI_FLAG_DRAW_BACKGROUND);
 
 	ui_sig sig = ui_box_sig(bar);
 	if(!sig.hovering && mp_mouse_released(MP_MOUSE_LEFT))
@@ -1793,18 +1822,19 @@ void ui_menu_bar_begin(const char* name)
 		ui_box_deactivate(bar);
 	}
 }
-*/
+
 void ui_menu_bar_end(void)
 {
-/*
-	ui_pop_size(UI_AXIS_X);
-	ui_pop_size(UI_AXIS_Y);
-*/
 	ui_box_end(); // menu bar
 }
 
+
 void ui_menu_begin(const char* label)
 {
+	ui_style_next(&(ui_style){.size.width = {UI_SIZE_TEXT},
+	                          .size.height = {UI_SIZE_TEXT}},
+	             UI_STYLE_SIZE);
+
 	ui_box* button = ui_box_make(label, UI_FLAG_CLICKABLE | UI_FLAG_DRAW_TEXT);
 	ui_box* bar = button->parent;
 
@@ -1814,15 +1844,28 @@ void ui_menu_begin(const char* label)
 	ui_context* ui = ui_get_context();
 	ui_box_push(ui->overlay);
 
+	ui_style style = {.size.width = {UI_SIZE_CHILDREN},
+	                  .size.height = {UI_SIZE_CHILDREN},
+	                  .floating.x = true,
+	                  .floating.y = true,
+	                  .floatTarget = {button->rect.x,
+	                                  button->rect.y + button->rect.h},
+	                  .layout.axis = UI_AXIS_Y,
+	                  .layout.spacing = 5,
+	                  .layout.margin.x = 0,
+	                  .layout.margin.y = 5,
+	                  .bgColor = {0.2, 0.2, 0.2, 1}};
+
+	ui_style_mask mask = UI_STYLE_SIZE
+	                   | UI_STYLE_FLOAT
+	                   | UI_STYLE_LAYOUT
+	                   | UI_STYLE_BG_COLOR;
+
 	ui_flags flags = UI_FLAG_DRAW_BACKGROUND
 	               | UI_FLAG_DRAW_BORDER;
 
+	ui_style_next(&style, mask);
 	ui_box* menu = ui_box_make(label, flags);
-//	ui_box_set_size(menu, UI_AXIS_X, UI_SIZE_CHILDREN, 0, 0);
-//	ui_box_set_size(menu, UI_AXIS_Y, UI_SIZE_CHILDREN, 0, 0);
-//	ui_box_set_floating(menu, UI_AXIS_X, button->rect.x);
-//	ui_box_set_floating(menu, UI_AXIS_Y, button->rect.y + button->rect.h);
-	//ui_box_set_layout(menu, UI_AXIS_Y, UI_ALIGN_START, UI_ALIGN_START);
 
 	if(ui_box_active(bar))
 	{
@@ -1855,43 +1898,38 @@ void ui_menu_end(void)
 	ui_box_pop(); // overlay;
 }
 
-////////////////////////////////////////////////////////////////////////////////////////////////
-
-/*
-void ui_edit_set_cursor_from_mouse(ui_context* gui, ui_style* style, f32 textStartX)
+ui_sig ui_menu_button(const char* name)
 {
-	mp_graphics_font_extents fontExtents;
-	mp_graphics_font_get_extents(gui->graphics, style->font, &fontExtents);
-	f32 fontScale = mp_graphics_font_get_scale_for_em_pixels(gui->graphics, style->font, style->fontSize);
+	ui_context* ui = ui_get_context();
 
-	//NOTE(martin): find cursor position from mouse position
-	gui->editCursor = gui->editBufferSize;
+	ui_style_next(&(ui_style){.size.width = {UI_SIZE_TEXT},
+	                          .size.height = {UI_SIZE_TEXT},
+	                          .layout.margin.x = 5,
+	                          .bgColor = {0, 0, 0, 0}},
+	               UI_STYLE_SIZE
+	              |UI_STYLE_LAYOUT_MARGIN_X
+	              |UI_STYLE_BG_COLOR);
 
-	mp_graphics_text_extents glyphExtents[UI_EDIT_BUFFER_MAX_SIZE];
-	mp_string32 codePoints = {gui->editBufferSize, gui->editBuffer};
-	mp_string32 glyphs = mp_graphics_font_push_glyph_indices(gui->graphics, style->font, mem_scratch(), codePoints);
-	mp_graphics_font_get_glyph_extents(gui->graphics, style->font, glyphs, glyphExtents);
+	ui_pattern pattern = {};
+	ui_pattern_push(&ui->frameArena, &pattern, (ui_selector){.kind = UI_SEL_STATUS, .status = UI_HOVER});
 
-	mp_graphics_set_font(gui->graphics, style->font);
-	vec2 dimToFirst = mp_graphics_get_glyphs_dimensions(gui->graphics, mp_string32_slice(glyphs, 0, gui->firstDisplayedChar));
+	ui_style style = {.bgColor = {0, 0, 1, 1}};
+	ui_style_mask mask = UI_STYLE_BG_COLOR;
+	ui_style_match_before(pattern, &style, mask);
 
-	ui_transform tr = ui_transform_top(gui);
-	f32 x = gui->input.mouse.x + tr.x - textStartX;
-	f32 glyphX = -dimToFirst.x;
+	ui_flags flags = UI_FLAG_CLICKABLE
+	               | UI_FLAG_CLIP
+	               | UI_FLAG_DRAW_TEXT
+	               | UI_FLAG_DRAW_BACKGROUND;
 
-	for(int i=0; i<gui->editBufferSize; i++)
-	{
-		if(x < glyphX + glyphExtents[i].xAdvance*fontScale/2)
-		{
-			gui->editCursor = i;
-			return;
-		}
-		glyphX += glyphExtents[i].xAdvance*fontScale;
-	}
-	return;
+	ui_box* box = ui_box_make(name, flags);
+	ui_sig sig = ui_box_sig(box);
+	return(sig);
 }
-*/
 
+//------------------------------------------------------------------------------
+// text box
+//------------------------------------------------------------------------------
 str32 ui_edit_replace_selection_with_codepoints(ui_context* ui, str32 codepoints, str32 input)
 {
 	u32 start = minimum(ui->editCursor, ui->editMark);
@@ -2325,7 +2363,6 @@ ui_text_box_result ui_text_box(const char* name, mem_arena* arena, str8 text)
 	f32 textMargin = 5; //TODO parameterize this margin! must be the same as in ui_text_box_render
 
 	mg_font_extents extents = mg_font_get_scaled_extents(style->font, style->fontSize);
-//	ui_box_set_size(frame, UI_AXIS_Y, UI_SIZE_PIXELS, extents.ascent+extents.descent+10, 1);
 
 	ui_sig sig = ui_box_sig(frame);
 

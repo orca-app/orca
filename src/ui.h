@@ -331,11 +331,11 @@ void ui_init(void);
 ui_context* ui_get_context(void);
 void ui_set_context(ui_context* context);
 
-void ui_begin_frame(void);
+void ui_begin_frame(ui_style* defaultStyle, ui_style_mask mask);
 void ui_end_frame(void);
 void ui_draw(void);
 
-#define ui_frame() defer_loop(ui_begin_frame(), ui_end_frame())
+#define ui_frame(s, m) defer_loop(ui_begin_frame((s), (m)), ui_end_frame())
 
 //-------------------------------------------------------------------------------------
 // Box keys
@@ -448,6 +448,8 @@ void ui_menu_bar_end(void);
 void ui_menu_begin(const char* label);
 void ui_menu_end(void);
 #define ui_menu(name) defer_loop(ui_menu_begin(name), ui_menu_end())
+
+ui_sig ui_menu_button(const char* name);
 
 typedef struct ui_text_box_result
 {
