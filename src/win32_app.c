@@ -455,6 +455,9 @@ LRESULT WinProc(HWND windowHandle, UINT message, WPARAM wParam, LPARAM lParam)
 			event.key.code = mp_convert_win32_key(HIWORD(lParam) & 0x1ff);
 			event.key.mods = mp_get_mod_keys();
 			mp_queue_event(&event);
+
+			mp_update_key_mods(event.key.mods);
+			mp_update_key_state(&__mpApp.inputState.keyboard.keys[event.key.code], event.key.action);
 		} break;
 
 		case WM_KEYUP:
@@ -467,6 +470,10 @@ LRESULT WinProc(HWND windowHandle, UINT message, WPARAM wParam, LPARAM lParam)
 			event.key.code = mp_convert_win32_key(HIWORD(lParam) & 0x1ff);
 			event.key.mods = mp_get_mod_keys();
 			mp_queue_event(&event);
+
+			mp_update_key_mods(event.key.mods);
+			mp_update_key_state(&__mpApp.inputState.keyboard.keys[event.key.code], event.key.action);
+
 		} break;
 
 		case WM_CHAR:
@@ -478,6 +485,9 @@ LRESULT WinProc(HWND windowHandle, UINT message, WPARAM wParam, LPARAM lParam)
 			str8 seq = utf8_encode(event.character.sequence, event.character.codepoint);
 			event.character.seqLen = seq.len;
 			mp_queue_event(&event);
+
+			mp_update_text(event.character.codepoint);
+
 		} break;
 
 		case WM_DROPFILES:

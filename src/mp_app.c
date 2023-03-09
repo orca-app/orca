@@ -172,6 +172,11 @@ static void mp_update_key_state(mp_key_state* key, mp_key_action action)
 	}
 }
 
+static void mp_update_key_mods(mp_keymod_flags mods)
+{
+	__mpApp.inputState.keyboard.mods = mods;
+}
+
 static void mp_update_mouse_move(f32 x, f32 y, f32 deltaX, f32 deltaY)
 {
 	u64 frameCounter = __mpApp.inputState.frameCounter;
