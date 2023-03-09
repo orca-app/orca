@@ -450,7 +450,7 @@ int main()
 							ui_style_next(&(ui_style){.size.width = {UI_SIZE_PIXELS, 300},
 					                          		.size.height = {UI_SIZE_TEXT}},
 					              		UI_STYLE_SIZE);
-							static str8 text = {};
+							static str8 text = {0};
 							ui_text_box_result res = ui_text_box("textbox", mem_scratch(), text);
 							if(res.changed)
 							{

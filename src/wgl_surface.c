@@ -176,7 +176,7 @@ void* mg_wgl_get_proc(const char* name)
 
 mg_surface_data* mg_wgl_surface_create_for_window(mp_window window)
 {
-	mg_surface* surface = 0;
+	mg_wgl_surface* surface = 0;
 
 	mp_window_data* windowData = mp_window_ptr_from_handle(window);
 	if(windowData)
@@ -184,7 +184,7 @@ mg_surface_data* mg_wgl_surface_create_for_window(mp_window window)
 		wgl_init();
 
 		//NOTE: fill surface data and load api
-		mg_wgl_surface* surface = malloc_type(mg_wgl_surface);
+		surface = malloc_type(mg_wgl_surface);
 		if(surface)
 		{
 			mg_surface_init_for_window((mg_surface_data*)surface, windowData);
