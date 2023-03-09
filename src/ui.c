@@ -1040,8 +1040,7 @@ void ui_layout_downward_dependent_size(ui_context* ui, ui_box* box, int axis)
 
 void ui_layout_upward_dependent_size(ui_context* ui, ui_box* box, int axis)
 {
-	//NOTE: compute size of children that depend on box's size, and also compute
-	//      total children sum and total slack available in layout axis
+	//NOTE: re-compute/set size of children that depend on box's size
 
 	f32 margin = box->style.layout.margin.c[axis];
 	f32 availableSize = maximum(0, box->rect.c[2+axis] - box->spacing[axis] - 2*margin);
@@ -1662,25 +1661,31 @@ ui_box* ui_slider(const char* label, f32 thumbRatio, f32* scrollValue)
 	return(frame);
 }
 
-/*
-ui_box* ui_panel_begin(const char* name)
+void ui_panel_begin(const char* str, ui_flags flags)
 {
-	ui_flags panelFlags = UI_FLAG_DRAW_BACKGROUND
-	                    | UI_FLAG_DRAW_BORDER
-	                    | UI_FLAG_CLIP
-	                    | UI_FLAG_BLOCK_MOUSE;
-	ui_box* panel = ui_box_begin(name, panelFlags);
+	ui_box* box = ui_box_begin(str, flags | UI_FLAG_CLIP | UI_FLAG_BLOCK_MOUSE);
 
-	return(panel);
+	ui_style contentsStyle = {
+	    .size.width = {UI_SIZE_CHILDREN},
+	    .size.height = {UI_SIZE_CHILDREN},
+		.floating.x = true,
+		.floating.y = true,
+		.floatTarget = {-box->scroll.x, -box->scroll.y}};
+
+	ui_style_next(&contentsStyle, UI_STYLE_FLOAT);
+	ui_box_begin("contents", 0);
 }
 
-void ui_panel_end()
+void ui_panel_end(void)
 {
+	ui_box* contents = ui_box_top();
+	ui_box_end();
+
 	ui_box* panel = ui_box_top();
 	ui_sig sig = ui_box_sig(panel);
 
-	f32 contentsW = ClampLowBound(panel->childrenSum[0], panel->rect.w);
-	f32 contentsH = ClampLowBound(panel->childrenSum[1], panel->rect.h);
+	f32 contentsW = ClampLowBound(contents->rect.w, panel->rect.w);
+	f32 contentsH = ClampLowBound(contents->rect.h, panel->rect.h);
 
 	contentsW = ClampLowBound(contentsW, 1);
 	contentsH = ClampLowBound(contentsH, 1);
@@ -1688,14 +1693,23 @@ void ui_panel_end()
 	ui_box* scrollBarX = 0;
 	ui_box* scrollBarY = 0;
 
-	if(contentsW > panel->rect.w)
+	bool needsScrollX = contentsW > panel->rect.w;
+	bool needsScrollY = contentsH > panel->rect.h;
+
+	if(needsScrollX)
 	{
 		f32 thumbRatioX = panel->rect.w / contentsW;
 		f32 sliderX = panel->scroll.x /(contentsW - panel->rect.w);
 
-		scrollBarX = ui_scrollbar("scrollerX", thumbRatioX, &sliderX);
-//		ui_box_set_size(scrollBarX, UI_AXIS_X, UI_SIZE_PARENT, 1., 0);
-//		ui_box_set_size(scrollBarX, UI_AXIS_Y, UI_SIZE_PIXELS, 10, 0);
+		ui_style_next(&(ui_style){.size.width = {UI_SIZE_PARENT, 1., 0},
+		                          .size.height = {UI_SIZE_PIXELS, 10, 0},
+		                          .floating.x = true,
+		                          .floating.y = true,
+		                          .floatTarget = {0, panel->rect.h - 10}},
+		              UI_STYLE_SIZE
+		              |UI_STYLE_FLOAT);
+
+		scrollBarX = ui_slider("scrollerX", thumbRatioX, &sliderX);
 
 		panel->scroll.x = sliderX * (contentsW - panel->rect.w);
 		if(sig.hovering)
@@ -1705,14 +1719,22 @@ void ui_panel_end()
 		}
 	}
 
-	if(contentsH > panel->rect.h)
+	if(needsScrollY)
 	{
 		f32 thumbRatioY = panel->rect.h / contentsH;
 		f32 sliderY = panel->scroll.y /(contentsH - panel->rect.h);
 
-		scrollBarY = ui_scrollbar("scrollerY", thumbRatioY, &sliderY);
-//		ui_box_set_size(scrollBarY, UI_AXIS_X, UI_SIZE_PIXELS, 10, 0);
-//		ui_box_set_size(scrollBarY, UI_AXIS_Y, UI_SIZE_PARENT, 1., 0);
+		f32 spacerSize = needsScrollX ? 10 : 0;
+
+		ui_style_next(&(ui_style){.size.width = {UI_SIZE_PIXELS, 10, 0},
+		                          .size.height = {UI_SIZE_PARENT_MINUS_PIXELS, spacerSize, 0},
+		                          .floating.x = true,
+		                          .floating.y = true,
+		                          .floatTarget = {panel->rect.w - 10, 0}},
+		               UI_STYLE_SIZE
+		              |UI_STYLE_FLOAT);
+
+		scrollBarY = ui_slider("scrollerY", thumbRatioY, &sliderY);
 
 		panel->scroll.y = sliderY * (contentsH - panel->rect.h);
 		if(sig.hovering)
@@ -1721,25 +1743,13 @@ void ui_panel_end()
 			ui_box_activate(scrollBarY);
 		}
 	}
-
 	panel->scroll.x = Clamp(panel->scroll.x, 0, contentsW - panel->rect.w);
 	panel->scroll.y = Clamp(panel->scroll.y, 0, contentsH - panel->rect.h);
 
-	if(scrollBarX)
-	{
-//		ui_box_set_floating(scrollBarX, UI_AXIS_X, panel->scroll.x);
-//		ui_box_set_floating(scrollBarX, UI_AXIS_Y, panel->scroll.y + panel->rect.h - 12);
-	}
-
-	if(scrollBarY)
-	{
-//		ui_box_set_floating(scrollBarY, UI_AXIS_X, panel->scroll.x + panel->rect.w - 12);
-//		ui_box_set_floating(scrollBarY, UI_AXIS_Y, panel->scroll.y);
-	}
-
 	ui_box_end();
 }
-*/
+
+/*
 
 ui_sig ui_tooltip_begin(const char* name)
 {
@@ -1773,17 +1783,17 @@ void ui_menu_bar_begin(const char* name)
 //	ui_box_set_size(bar, UI_AXIS_X, UI_SIZE_PARENT, 1., 0);
 //	ui_box_set_size(bar, UI_AXIS_Y, UI_SIZE_CHILDREN, 0, 0);
 	//ui_box_set_layout(bar, UI_AXIS_X, UI_ALIGN_START, UI_ALIGN_START);
-/*
-	ui_push_size(UI_AXIS_X, UI_SIZE_TEXT, 0, 0);
-	ui_push_size(UI_AXIS_Y, UI_SIZE_TEXT, 0, 0);
-*/
+
+//	ui_push_size(UI_AXIS_X, UI_SIZE_TEXT, 0, 0);
+//	ui_push_size(UI_AXIS_Y, UI_SIZE_TEXT, 0, 0);
+
 	ui_sig sig = ui_box_sig(bar);
 	if(!sig.hovering && mp_mouse_released(MP_MOUSE_LEFT))
 	{
 		ui_box_deactivate(bar);
 	}
 }
-
+*/
 void ui_menu_bar_end(void)
 {
 /*

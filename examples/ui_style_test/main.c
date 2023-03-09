@@ -204,98 +204,6 @@ void widget_end_view(void)
 
 #define widget_view(s) defer_loop(widget_begin_view(s), widget_end_view())
 
-
-void panel_begin(char* str, ui_flags flags)
-{
-	ui_box* box = ui_box_begin(str, flags | UI_FLAG_CLIP | UI_FLAG_BLOCK_MOUSE);
-
-	ui_style contentsStyle = {
-	    .size.width = {UI_SIZE_CHILDREN},
-	    .size.height = {UI_SIZE_CHILDREN},
-		.floating.x = true,
-		.floating.y = true,
-		.floatTarget = {-box->scroll.x, -box->scroll.y}};
-
-	ui_style_next(&contentsStyle, UI_STYLE_FLOAT);
-	ui_box_begin("contents", 0);
-
-}
-
-void panel_end(void)
-{
-	ui_box* contents = ui_box_top();
-	ui_box_end();
-
-	ui_box* panel = ui_box_top();
-	ui_sig sig = ui_box_sig(panel);
-
-	f32 contentsW = ClampLowBound(contents->rect.w, panel->rect.w);
-	f32 contentsH = ClampLowBound(contents->rect.h, panel->rect.h);
-
-	contentsW = ClampLowBound(contentsW, 1);
-	contentsH = ClampLowBound(contentsH, 1);
-
-	ui_box* scrollBarX = 0;
-	ui_box* scrollBarY = 0;
-
-	bool needsScrollX = contentsW > panel->rect.w;
-	bool needsScrollY = contentsH > panel->rect.h;
-
-	if(needsScrollX)
-	{
-		f32 thumbRatioX = panel->rect.w / contentsW;
-		f32 sliderX = panel->scroll.x /(contentsW - panel->rect.w);
-
-		ui_style_next(&(ui_style){.size.width = {UI_SIZE_PARENT, 1., 0},
-		                          .size.height = {UI_SIZE_PIXELS, 10, 0},
-		                          .floating.x = true,
-		                          .floating.y = true,
-		                          .floatTarget = {0, panel->rect.h - 10}},
-		              UI_STYLE_SIZE
-		              |UI_STYLE_FLOAT);
-
-		scrollBarX = ui_slider("scrollerX", thumbRatioX, &sliderX);
-
-		panel->scroll.x = sliderX * (contentsW - panel->rect.w);
-		if(sig.hovering)
-		{
-			panel->scroll.x += sig.wheel.x;
-			ui_box_activate(scrollBarX);
-		}
-	}
-
-	if(needsScrollY)
-	{
-		f32 thumbRatioY = panel->rect.h / contentsH;
-		f32 sliderY = panel->scroll.y /(contentsH - panel->rect.h);
-
-		f32 spacerSize = needsScrollX ? 10 : 0;
-
-		ui_style_next(&(ui_style){.size.width = {UI_SIZE_PIXELS, 10, 0},
-		                          .size.height = {UI_SIZE_PARENT_MINUS_PIXELS, spacerSize, 0},
-		                          .floating.x = true,
-		                          .floating.y = true,
-		                          .floatTarget = {panel->rect.w - 10, 0}},
-		               UI_STYLE_SIZE
-		              |UI_STYLE_FLOAT);
-
-		scrollBarY = ui_slider("scrollerY", thumbRatioY, &sliderY);
-
-		panel->scroll.y = sliderY * (contentsH - panel->rect.h);
-		if(sig.hovering)
-		{
-			panel->scroll.y += sig.wheel.y;
-			ui_box_activate(scrollBarY);
-		}
-	}
-	panel->scroll.x = Clamp(panel->scroll.x, 0, contentsW - panel->rect.w);
-	panel->scroll.y = Clamp(panel->scroll.y, 0, contentsH - panel->rect.h);
-
-	ui_box_end();
-}
-
-#define panel(s, f) defer_loop(panel_begin(s, f), panel_end())
-
 int main()
 {
 	LogLevel(LOG_LEVEL_WARNING);
@@ -519,7 +427,7 @@ int main()
 							}
 						}
 					}
-/*
+
 					ui_style_next(&(ui_style){.size.width = {UI_SIZE_PARENT, 0.5},
 					                          .size.height = {UI_SIZE_PARENT, 1}},
 					              UI_STYLE_SIZE);
@@ -561,7 +469,7 @@ int main()
 							               UI_STYLE_SIZE
 							              |UI_STYLE_LAYOUT_AXIS);
 
-							panel("Panel", UI_FLAG_DRAW_BORDER)
+							ui_panel("Panel", UI_FLAG_DRAW_BORDER)
 							{
 								ui_style_next(&(ui_style){.layout.axis = UI_AXIS_X},
 							                  UI_STYLE_LAYOUT_AXIS);
@@ -593,7 +501,7 @@ int main()
 							}
 						}
 
-					}*/
+					}
 				}
 			}
 		}

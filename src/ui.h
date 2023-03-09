@@ -433,9 +433,9 @@ ui_sig ui_button(const char* label);
 ui_box* ui_slider(const char* label, f32 thumbRatio, f32* scrollValue);
 ui_box* ui_scrollbar(const char* label, f32 thumbRatio, f32* scrollValue);
 
-ui_box* ui_panel_begin(const char* name);
+void ui_panel_begin(const char* name, ui_flags flags);
 void ui_panel_end(void);
-#define ui_panel(name) defer_loop(ui_panel_begin(name), ui_panel_end())
+#define ui_panel(s, f) defer_loop(ui_panel_begin(s, f), ui_panel_end())
 
 ui_sig ui_tooltip_begin(const char* name);
 void ui_tooltip_end(void);
