@@ -2321,8 +2321,8 @@ void ui_text_box_render(ui_box* box, void* data)
 			{
 				f32 caretX = box->rect.x + textMargin - beforeBox.w + beforeSelectBox.w;
 				f32 caretY = textTop;
-				mg_set_color_rgba(0, 0, 0, 1);
-				mg_rectangle_fill(caretX, caretY, 2, lineHeight);
+				mg_set_color(style->color);
+				mg_rectangle_fill(caretX, caretY, 1, lineHeight);
 			}
 			mg_set_font(style->font);
 			mg_set_font_size(style->fontSize);
