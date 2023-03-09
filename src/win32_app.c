@@ -478,16 +478,18 @@ LRESULT WinProc(HWND windowHandle, UINT message, WPARAM wParam, LPARAM lParam)
 
 		case WM_CHAR:
 		{
-			mp_event event = {0};
-			event.window = mp_window_handle_from_ptr(mpWindow);
-			event.type = MP_EVENT_KEYBOARD_CHAR;
-			event.character.codepoint = (utf32)wParam;
-			str8 seq = utf8_encode(event.character.sequence, event.character.codepoint);
-			event.character.seqLen = seq.len;
-			mp_queue_event(&event);
+			if((u32)wParam >= 32)
+			{
+				mp_event event = {0};
+				event.window = mp_window_handle_from_ptr(mpWindow);
+				event.type = MP_EVENT_KEYBOARD_CHAR;
+				event.character.codepoint = (utf32)wParam;
+				str8 seq = utf8_encode(event.character.sequence, event.character.codepoint);
+				event.character.seqLen = seq.len;
+				mp_queue_event(&event);
 
-			mp_update_text(event.character.codepoint);
-
+				mp_update_text(event.character.codepoint);
+			}
 		} break;
 
 		case WM_DROPFILES:
@@ -794,18 +796,62 @@ mp_rect mp_window_get_content_rect(mp_window window)
 
 MP_API void mp_clipboard_clear(void)
 {
-	//TODO
+	if(OpenClipboard(NULL))
+	{
+		EmptyClipboard();
+		CloseClipboard();
+	}
 }
 
 MP_API void mp_clipboard_set_string(str8 string)
 {
-	//TODO
+	if(OpenClipboard(NULL))
+	{
+		EmptyClipboard();
+
+		int wideCount = MultiByteToWideChar(CP_UTF8, 0, string.ptr, string.len, 0, 0);
+		HANDLE handle = GlobalAlloc(GMEM_MOVEABLE, (wideCount+1)*sizeof(wchar_t));
+		if(handle)
+		{
+			char* memory = GlobalLock(handle);
+			if(memory)
+			{
+				MultiByteToWideChar(CP_UTF8, 0, string.ptr, string.len, (wchar_t*)memory, wideCount);
+				((wchar_t*)memory)[wideCount] = '\0';
+
+				GlobalUnlock(handle);
+				SetClipboardData(CF_UNICODETEXT, handle);
+			}
+		}
+		CloseClipboard();
+	}
 }
 
 MP_API str8 mp_clipboard_get_string(mem_arena* arena)
 {
-	//TODO
-	return((str8){0});
+	str8 string = {0};
+
+	if(OpenClipboard(NULL))
+	{
+		HANDLE handle = GetClipboardData(CF_UNICODETEXT);
+		if(handle)
+		{
+			char* memory = GlobalLock(handle);
+			if(memory)
+			{
+				u64 size = WideCharToMultiByte(CP_UTF8, 0, (wchar_t*)memory, -1, 0, 0, 0, 0);
+				if(size)
+				{
+					string.ptr = mem_arena_alloc(arena, size);
+					string.len = size - 1;
+					WideCharToMultiByte(CP_UTF8, 0, (wchar_t*)memory, -1, string.ptr, size, 0, 0);
+					GlobalUnlock(handle);
+				}
+			}
+		}
+		CloseClipboard();
+	}
+	return(string);
 }
 
 MP_API str8 mp_clipboard_copy_string(str8 backing)
