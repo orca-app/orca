@@ -318,6 +318,14 @@ int main()
 				{
 					ui_style_next(&(ui_style){.fontSize = 26}, UI_STYLE_FONT_SIZE);
 					ui_label("Milepost UI Demo");
+
+					if(ui_box_sig(ui_box_top()).hovering)
+					{
+						ui_tooltip("tooltip")
+						{
+							ui_label("That is a tooltip!");
+						}
+					}
 				}
 
 				ui_style_next(&(ui_style){.size.width = {UI_SIZE_PARENT, 1},
