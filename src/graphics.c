@@ -803,8 +803,8 @@ u32 mg_next_shape(mg_canvas_data* canvas, mg_attributes* attributes)
 
 	mp_rect clip = {canvas->clip.x,
 	                canvas->clip.y,
-	                canvas->clip.x + canvas->clip.w - 1,
-	                canvas->clip.y + canvas->clip.h - 1};
+	                canvas->clip.x + canvas->clip.w,
+	                canvas->clip.y + canvas->clip.h};
 
 	*(mp_rect*)(((char*)layout->clipBuffer) + index*layout->clipStride) = clip;
 	*(mg_color*)(((char*)layout->colorBuffer) + index*layout->colorStride) = attributes->color;
