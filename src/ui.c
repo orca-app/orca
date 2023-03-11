@@ -915,6 +915,9 @@ void ui_styling_prepass(ui_context* ui, ui_box* box, list_info* before, list_inf
 		ui_style_rule_match(ui, box, rule, before, &tmpBefore);
 	}
 
+	//////////////////////////////////////////////////////////////////
+	//TODO: shouldn't this be reversed???
+	//////////////////////////////////////////////////////////////////
 	list_info tmpAfter = {0};
 	for_list(after, rule, ui_style_rule, buildElt)
 	{
@@ -1059,6 +1062,7 @@ void ui_layout_upward_dependent_size(ui_context* ui, ui_box* box, int axis)
 	}
 
 	//NOTE: solve downard conflicts
+	int overflowFlag = (UI_FLAG_ALLOW_OVERFLOW_X << axis);
 	f32 sum = 0;
 
 	if(box->style.layout.axis == axis)
@@ -1077,17 +1081,20 @@ void ui_layout_upward_dependent_size(ui_context* ui, ui_box* box, int axis)
 			}
 		}
 
-		//NOTE: then remove excess proportionally to each box slack, and recompute children sum.
-		f32 totalContents = sum + box->spacing[axis] + 2*box->style.layout.margin.c[axis];
-		f32 excess = ClampLowBound(totalContents - box->rect.c[2+axis], 0);
-		f32 alpha = Clamp(excess / slack, 0, 1);
-
-		sum = 0;
-		for_list(&box->children, child, ui_box, listElt)
+		if(!(box->flags & overflowFlag))
 		{
-			f32 relax = child->style.size.c[axis].relax;
-			child->rect.c[2+axis] -= alpha * child->rect.c[2+axis] * relax;
-			sum += child->rect.c[2+axis];
+			//NOTE: then remove excess proportionally to each box slack, and recompute children sum.
+			f32 totalContents = sum + box->spacing[axis] + 2*box->style.layout.margin.c[axis];
+			f32 excess = ClampLowBound(totalContents - box->rect.c[2+axis], 0);
+			f32 alpha = Clamp(excess / slack, 0, 1);
+
+			sum = 0;
+			for_list(&box->children, child, ui_box, listElt)
+			{
+				f32 relax = child->style.size.c[axis].relax;
+				child->rect.c[2+axis] -= alpha * child->rect.c[2+axis] * relax;
+				sum += child->rect.c[2+axis];
+			}
 		}
 	}
 	else
@@ -1099,12 +1106,13 @@ void ui_layout_upward_dependent_size(ui_context* ui, ui_box* box, int axis)
 		{
 			if(!ui_box_hidden(child) && !child->style.floating.c[axis])
 			{
-				f32 totalContents = child->rect.c[2+axis] + 2*box->style.layout.margin.c[axis];
-				f32 excess = ClampLowBound(totalContents - box->rect.c[2+axis], 0);
-
-				f32 relax = child->style.size.c[axis].relax;
-				child->rect.c[2+axis] -= minimum(excess, child->rect.c[2+axis]*relax);
-
+				if(!(box->flags & overflowFlag))
+				{
+					f32 totalContents = child->rect.c[2+axis] + 2*box->style.layout.margin.c[axis];
+					f32 excess = ClampLowBound(totalContents - box->rect.c[2+axis], 0);
+					f32 relax = child->style.size.c[axis].relax;
+					child->rect.c[2+axis] -= minimum(excess, child->rect.c[2+axis]*relax);
+				}
 				sum = maximum(sum, child->rect.c[2+axis]);
 			}
 		}

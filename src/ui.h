@@ -17,22 +17,6 @@
 extern "C" {
 #endif
 
-typedef enum
-{
-	UI_FLAG_CLICKABLE        = (1<<0),
-	UI_FLAG_SCROLLABLE       = (1<<1),
-	UI_FLAG_BLOCK_MOUSE      = (1<<2),
-	UI_FLAG_HOT_ANIMATION    = (1<<3),
-	UI_FLAG_ACTIVE_ANIMATION = (1<<4),
-	UI_FLAG_CLIP             = (1<<5),
-	UI_FLAG_DRAW_BACKGROUND  = (1<<6),
-	UI_FLAG_DRAW_FOREGROUND  = (1<<7),
-	UI_FLAG_DRAW_BORDER      = (1<<8),
-	UI_FLAG_DRAW_TEXT        = (1<<9),
-	UI_FLAG_DRAW_RENDER_PROC = (1<<10),
-
-} ui_flags;
-
 typedef struct ui_key
 {
 	u64 hash;
@@ -270,6 +254,26 @@ typedef struct ui_sig
 } ui_sig;
 
 typedef void(*ui_box_render_proc)(ui_box* box, void* data);
+
+typedef enum
+{
+	UI_FLAG_CLICKABLE        = (1<<0),
+	UI_FLAG_SCROLLABLE       = (1<<1),
+	UI_FLAG_BLOCK_MOUSE      = (1<<2),
+	UI_FLAG_HOT_ANIMATION    = (1<<3),
+	UI_FLAG_ACTIVE_ANIMATION = (1<<4),
+	//WARN: these two following flags need to be kept as consecutive bits to
+	//      play well with axis-agnostic functions
+	UI_FLAG_ALLOW_OVERFLOW_X = (1<<5),
+	UI_FLAG_ALLOW_OVERFLOW_Y = (1<<6),
+	UI_FLAG_CLIP             = (1<<7),
+	UI_FLAG_DRAW_BACKGROUND  = (1<<8),
+	UI_FLAG_DRAW_FOREGROUND  = (1<<9),
+	UI_FLAG_DRAW_BORDER      = (1<<10),
+	UI_FLAG_DRAW_TEXT        = (1<<11),
+	UI_FLAG_DRAW_RENDER_PROC = (1<<12),
+
+} ui_flags;
 
 struct ui_box
 {
