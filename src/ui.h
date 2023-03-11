@@ -331,24 +331,24 @@ typedef struct ui_context ui_context;
 //-------------------------------------------------------------------------------------
 // UI context initialization and frame cycle
 //-------------------------------------------------------------------------------------
-void ui_init(void);
-ui_context* ui_get_context(void);
-void ui_set_context(ui_context* context);
+MP_API void ui_init(void);
+MP_API ui_context* ui_get_context(void);
+MP_API void ui_set_context(ui_context* context);
 
-void ui_begin_frame(ui_style* defaultStyle, ui_style_mask mask);
-void ui_end_frame(void);
-void ui_draw(void);
+MP_API void ui_begin_frame(ui_style* defaultStyle, ui_style_mask mask);
+MP_API void ui_end_frame(void);
+MP_API void ui_draw(void);
 
 #define ui_frame(s, m) defer_loop(ui_begin_frame((s), (m)), ui_end_frame())
 
 //-------------------------------------------------------------------------------------
 // Box keys
 //-------------------------------------------------------------------------------------
-ui_key ui_key_make_str8(str8 string);
-ui_key ui_key_make_path(str8_list path);
+MP_API ui_key ui_key_make_str8(str8 string);
+MP_API ui_key ui_key_make_path(str8_list path);
 
-ui_box* ui_box_lookup_key(ui_key key);
-ui_box* ui_box_lookup_str8(str8 string);
+MP_API ui_box* ui_box_lookup_key(ui_key key);
+MP_API ui_box* ui_box_lookup_str8(str8 string);
 
 // C-string helper
 #define ui_key_make(s) ui_key_make_str8(STR8(s))
@@ -357,17 +357,17 @@ ui_box* ui_box_lookup_str8(str8 string);
 //-------------------------------------------------------------------------------------
 // Box hierarchy building
 //-------------------------------------------------------------------------------------
-ui_box* ui_box_make_str8(str8 string, ui_flags flags);
-ui_box* ui_box_begin_str8(str8 string, ui_flags flags);
+MP_API ui_box* ui_box_make_str8(str8 string, ui_flags flags);
+MP_API ui_box* ui_box_begin_str8(str8 string, ui_flags flags);
 
-ui_box* ui_box_end(void);
+MP_API ui_box* ui_box_end(void);
 #define ui_container(name, flags) defer_loop(ui_box_begin(name, flags), ui_box_end())
 
-void ui_box_push(ui_box* box);
-void ui_box_pop(void);
-ui_box* ui_box_top(void);
+MP_API void ui_box_push(ui_box* box);
+MP_API void ui_box_pop(void);
+MP_API ui_box* ui_box_top(void);
 
-void ui_box_set_render_proc(ui_box* box, ui_box_render_proc proc, void* data);
+MP_API void ui_box_set_render_proc(ui_box* box, ui_box_render_proc proc, void* data);
 
 // C-string helpers
 #define ui_box_lookup(s) ui_box_lookup_str8(STR8(s))
@@ -377,24 +377,24 @@ void ui_box_set_render_proc(ui_box* box, ui_box_render_proc proc, void* data);
 //-------------------------------------------------------------------------------------
 // Box status and signals
 //-------------------------------------------------------------------------------------
-bool ui_box_closed(ui_box* box);
-void ui_box_set_closed(ui_box* box, bool closed);
+MP_API bool ui_box_closed(ui_box* box);
+MP_API void ui_box_set_closed(ui_box* box, bool closed);
 
-bool ui_box_active(ui_box* box);
-void ui_box_activate(ui_box* box);
-void ui_box_deactivate(ui_box* box);
+MP_API bool ui_box_active(ui_box* box);
+MP_API void ui_box_activate(ui_box* box);
+MP_API void ui_box_deactivate(ui_box* box);
 
-bool ui_box_hot(ui_box* box);
-void ui_box_set_hot(ui_box* box, bool hot);
+MP_API bool ui_box_hot(ui_box* box);
+MP_API void ui_box_set_hot(ui_box* box, bool hot);
 
-ui_sig ui_box_sig(ui_box* box);
+MP_API ui_sig ui_box_sig(ui_box* box);
 
 //-------------------------------------------------------------------------------------
 // Tagging
 //-------------------------------------------------------------------------------------
-ui_tag ui_tag_make_str8(str8 string);
-void ui_tag_box_str8(ui_box* box, str8 string);
-void ui_tag_next_str8(str8 string);
+MP_API ui_tag ui_tag_make_str8(str8 string);
+MP_API void ui_tag_box_str8(ui_box* box, str8 string);
+MP_API void ui_tag_next_str8(str8 string);
 
 // C-string helpers
 #define ui_tag_make(s) ui_tag_make_str8(STR8(s))
@@ -407,15 +407,15 @@ void ui_tag_next_str8(str8 string);
 //NOTE: styling API
 //WARN: You can use a pattern in multiple rules, but be aware that a pattern is references an underlying list of selectors,
 //      hence pushing to a pattern also modifies rules in which the pattern was previously used!
-void ui_apply_style_with_mask(ui_style* dst, ui_style* src, ui_style_mask mask);
+MP_API void ui_apply_style_with_mask(ui_style* dst, ui_style* src, ui_style_mask mask);
 
-void ui_pattern_push(mem_arena* arena, ui_pattern* pattern, ui_selector selector);
-ui_pattern ui_pattern_all(void);
-ui_pattern ui_pattern_owner(void);
+MP_API void ui_pattern_push(mem_arena* arena, ui_pattern* pattern, ui_selector selector);
+MP_API ui_pattern ui_pattern_all(void);
+MP_API ui_pattern ui_pattern_owner(void);
 
-void ui_style_next(ui_style* style, ui_style_mask mask);
-void ui_style_match_before(ui_pattern pattern, ui_style* style, ui_style_mask mask);
-void ui_style_match_after(ui_pattern pattern, ui_style* style, ui_style_mask mask);
+MP_API void ui_style_next(ui_style* style, ui_style_mask mask);
+MP_API void ui_style_match_before(ui_pattern pattern, ui_style* style, ui_style_mask mask);
+MP_API void ui_style_match_after(ui_pattern pattern, ui_style* style, ui_style_mask mask);
 
 //-------------------------------------------------------------------------
 // Basic widget helpers
@@ -430,30 +430,27 @@ enum {
 	UI_STYLE_TAG_MENU
 };
 
-ui_sig ui_label(const char* label);
+MP_API ui_sig ui_label(const char* label);
+MP_API ui_sig ui_button(const char* label);
+MP_API ui_box* ui_slider(const char* label, f32 thumbRatio, f32* scrollValue);
 
-ui_sig ui_button(const char* label);
-
-ui_box* ui_slider(const char* label, f32 thumbRatio, f32* scrollValue);
-ui_box* ui_scrollbar(const char* label, f32 thumbRatio, f32* scrollValue);
-
-void ui_panel_begin(const char* name, ui_flags flags);
-void ui_panel_end(void);
+MP_API void ui_panel_begin(const char* name, ui_flags flags);
+MP_API void ui_panel_end(void);
 #define ui_panel(s, f) defer_loop(ui_panel_begin(s, f), ui_panel_end())
 
-ui_sig ui_tooltip_begin(const char* name);
-void ui_tooltip_end(void);
+MP_API ui_sig ui_tooltip_begin(const char* name);
+MP_API void ui_tooltip_end(void);
 #define ui_tooltip(name) defer_loop(ui_tooltip_begin(name), ui_tooltip_end())
 
-void ui_menu_bar_begin(const char* label);
-void ui_menu_bar_end(void);
+MP_API void ui_menu_bar_begin(const char* label);
+MP_API void ui_menu_bar_end(void);
 #define ui_menu_bar(name) defer_loop(ui_menu_bar_begin(name), ui_menu_bar_end())
 
-void ui_menu_begin(const char* label);
-void ui_menu_end(void);
+MP_API void ui_menu_begin(const char* label);
+MP_API void ui_menu_end(void);
 #define ui_menu(name) defer_loop(ui_menu_begin(name), ui_menu_end())
 
-ui_sig ui_menu_button(const char* name);
+MP_API ui_sig ui_menu_button(const char* name);
 
 typedef struct ui_text_box_result
 {
@@ -463,7 +460,7 @@ typedef struct ui_text_box_result
 
 }ui_text_box_result;
 
-ui_text_box_result ui_text_box(const char* name, mem_arena* arena, str8 text);
+MP_API ui_text_box_result ui_text_box(const char* name, mem_arena* arena, str8 text);
 
 #ifdef __cplusplus
 } // extern "C"

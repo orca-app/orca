@@ -6,6 +6,7 @@
 *	@revision:
 *
 *****************************************************************/
+#include"platform.h"
 #include"memory.h"
 #include"hash.h"
 #include"platform_clock.h"
@@ -33,7 +34,7 @@ static ui_style UI_STYLE_DEFAULTS =
 // context
 //-----------------------------------------------------------------------------
 
-const u32 UI_MAX_INPUT_CHAR_PER_FRAME = 64;
+enum { UI_MAX_INPUT_CHAR_PER_FRAME = 64 };
 
 typedef struct ui_input_text
 {
@@ -60,7 +61,7 @@ typedef struct ui_tag_elt
 	ui_tag tag;
 } ui_tag_elt;
 
-const u64 UI_BOX_MAP_BUCKET_COUNT = 1024;
+enum { UI_BOX_MAP_BUCKET_COUNT = 1024 };
 
 typedef struct ui_context
 {
@@ -94,8 +95,8 @@ typedef struct ui_context
 
 } ui_context;
 
-__thread ui_context __uiThreadContext = {0};
-__thread ui_context* __uiCurrentContext = 0;
+mp_thread_local ui_context __uiThreadContext = {0};
+mp_thread_local ui_context* __uiCurrentContext = 0;
 
 ui_context* ui_get_context(void)
 {
@@ -240,7 +241,7 @@ ui_key ui_key_make_str8(str8 string)
 		seed = parent->key.hash;
 	}
 
-	ui_key key = {};
+	ui_key key = {0};
 	key.hash = mp_hash_aes_string_seed(string, seed);
 	return(key);
 }
@@ -1917,7 +1918,7 @@ ui_sig ui_menu_button(const char* name)
 	              |UI_STYLE_LAYOUT_MARGIN_X
 	              |UI_STYLE_BG_COLOR);
 
-	ui_pattern pattern = {};
+	ui_pattern pattern = {0};
 	ui_pattern_push(&ui->frameArena, &pattern, (ui_selector){.kind = UI_SEL_STATUS, .status = UI_HOVER});
 
 	ui_style style = {.bgColor = {0, 0, 1, 1}};
@@ -1945,7 +1946,7 @@ str32 ui_edit_replace_selection_with_codepoints(ui_context* ui, str32 codepoints
 	str32 before = str32_slice(codepoints, 0, start);
 	str32 after = str32_slice(codepoints, end, codepoints.len);
 
-	str32_list list = {};
+	str32_list list = {0};
 	str32_list_push(&ui->frameArena, &list, before);
 	str32_list_push(&ui->frameArena, &list, input);
 	str32_list_push(&ui->frameArena, &list, after);
@@ -2011,6 +2012,12 @@ typedef struct ui_edit_command
 	int direction;
 
 } ui_edit_command;
+
+#if OS_WIN64
+	#define OS_COPY_PASTE_MOD MP_KEYMOD_CTRL
+#elif OS_MACOS
+	#define OS_COPY_PAST_MOD MP_KEYMOD_CMD
+#endif
 
 const ui_edit_command UI_EDIT_COMMANDS[] = {
 	//NOTE(martin): move one left
@@ -2104,7 +2111,7 @@ const ui_edit_command UI_EDIT_COMMANDS[] = {
 	//NOTE(martin): select all
 	{
 		.key = MP_KEY_Q,
-		.mods = MP_KEYMOD_CMD,
+		.mods = OS_COPY_PASTE_MOD,
 		.operation = UI_EDIT_SELECT_ALL,
 		.move = UI_EDIT_MOVE_NONE
 	},
@@ -2125,21 +2132,21 @@ const ui_edit_command UI_EDIT_COMMANDS[] = {
 	//NOTE(martin): cut
 	{
 		.key = MP_KEY_X,
-		.mods = MP_KEYMOD_CMD,
+		.mods = OS_COPY_PASTE_MOD,
 		.operation = UI_EDIT_CUT,
 		.move = UI_EDIT_MOVE_NONE
 	},
 	//NOTE(martin): copy
 	{
 		.key = MP_KEY_C,
-		.mods = MP_KEYMOD_CMD,
+		.mods = OS_COPY_PASTE_MOD,
 		.operation = UI_EDIT_COPY,
 		.move = UI_EDIT_MOVE_NONE
 	},
 	//NOTE(martin): paste
 	{
 		.key = MP_KEY_V,
-		.mods = MP_KEYMOD_CMD,
+		.mods = OS_COPY_PASTE_MOD,
 		.operation = UI_EDIT_PASTE,
 		.move = UI_EDIT_MOVE_NONE
 	}
@@ -2328,8 +2335,8 @@ void ui_text_box_render(ui_box* box, void* data)
 			{
 				f32 caretX = box->rect.x + textMargin - beforeBox.w + beforeSelectBox.w;
 				f32 caretY = textTop;
-				mg_set_color_rgba(0, 0, 0, 1);
-				mg_rectangle_fill(caretX, caretY, 2, lineHeight);
+				mg_set_color(style->color);
+				mg_rectangle_fill(caretX, caretY, 1, lineHeight);
 			}
 			mg_set_font(style->font);
 			mg_set_font_size(style->fontSize);

@@ -369,11 +369,6 @@ void mp_install_keyboard_layout_listener()
 		object:nil];
 }
 
-static void mp_update_key_mods(mp_keymod_flags mods)
-{
-	__mpApp.inputState.keyboard.mods = mods;
-}
-
 //---------------------------------------------------------------
 // Application and app delegate
 //---------------------------------------------------------------

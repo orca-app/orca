@@ -177,9 +177,9 @@ static mp_key_code mp_convert_win32_key(int code)
 	return(__mpApp.keyCodes[code]);
 }
 
-static mp_key_mods mp_get_mod_keys()
+static mp_keymod_flags mp_get_mod_keys()
 {
-	mp_key_mods mods = 0;
+	mp_keymod_flags mods = 0;
 	if(GetKeyState(VK_SHIFT) & 0x8000)
 	{
 		mods |= MP_KEYMOD_SHIFT;
@@ -218,7 +218,7 @@ static void process_mouse_event(mp_window_data* window, mp_key_action action, mp
 		}
 	}
 
-	mp_update_key_state(&__mpApp.inputState.mouse.buttons[button], action == MP_KEY_PRESS);
+	mp_update_key_state(&__mpApp.inputState.mouse.buttons[button], action);
 	//TODO click/double click
 
 	mp_event event = {0};
@@ -236,7 +236,7 @@ static void process_wheel_event(mp_window_data* window, f32 x, f32 y)
 	mp_event event = {0};
 	event.window = mp_window_handle_from_ptr(window);
 	event.type = MP_EVENT_MOUSE_WHEEL;
-	event.move.deltaX = -x/30.0f;
+	event.move.deltaX = x/30.0f;
 	event.move.deltaY = y/30.0f;
 	event.move.mods = mp_get_mod_keys();
 
@@ -385,7 +385,7 @@ LRESULT WinProc(HWND windowHandle, UINT message, WPARAM wParam, LPARAM lParam)
 			event.window = mp_window_handle_from_ptr(mpWindow);
 			event.type = MP_EVENT_MOUSE_MOVE;
 			event.move.x = LOWORD(lParam) / scaling;
-			event.move.y = (rect.bottom - HIWORD(lParam)) / scaling;
+			event.move.y = HIWORD(lParam) / scaling;
 
 			if(__mpApp.inputState.mouse.posValid)
 			{
@@ -414,8 +414,8 @@ LRESULT WinProc(HWND windowHandle, UINT message, WPARAM wParam, LPARAM lParam)
 				                  .move.y = event.move.y};
 				mp_queue_event(&enter);
 			}
-			__mpApp.inputState.mouse.pos.x = event.move.x;
-			__mpApp.inputState.mouse.pos.y = event.move.y;
+
+			mp_update_mouse_move(event.move.x, event.move.y, event.move.deltaX, event.move.deltaY);
 
 			mp_queue_event(&event);
 		} break;
@@ -455,6 +455,9 @@ LRESULT WinProc(HWND windowHandle, UINT message, WPARAM wParam, LPARAM lParam)
 			event.key.code = mp_convert_win32_key(HIWORD(lParam) & 0x1ff);
 			event.key.mods = mp_get_mod_keys();
 			mp_queue_event(&event);
+
+			mp_update_key_mods(event.key.mods);
+			mp_update_key_state(&__mpApp.inputState.keyboard.keys[event.key.code], event.key.action);
 		} break;
 
 		case WM_KEYUP:
@@ -467,17 +470,26 @@ LRESULT WinProc(HWND windowHandle, UINT message, WPARAM wParam, LPARAM lParam)
 			event.key.code = mp_convert_win32_key(HIWORD(lParam) & 0x1ff);
 			event.key.mods = mp_get_mod_keys();
 			mp_queue_event(&event);
+
+			mp_update_key_mods(event.key.mods);
+			mp_update_key_state(&__mpApp.inputState.keyboard.keys[event.key.code], event.key.action);
+
 		} break;
 
 		case WM_CHAR:
 		{
-			mp_event event = {0};
-			event.window = mp_window_handle_from_ptr(mpWindow);
-			event.type = MP_EVENT_KEYBOARD_CHAR;
-			event.character.codepoint = (utf32)wParam;
-			str8 seq = utf8_encode(event.character.sequence, event.character.codepoint);
-			event.character.seqLen = seq.len;
-			mp_queue_event(&event);
+			if((u32)wParam >= 32)
+			{
+				mp_event event = {0};
+				event.window = mp_window_handle_from_ptr(mpWindow);
+				event.type = MP_EVENT_KEYBOARD_CHAR;
+				event.character.codepoint = (utf32)wParam;
+				str8 seq = utf8_encode(event.character.sequence, event.character.codepoint);
+				event.character.seqLen = seq.len;
+				mp_queue_event(&event);
+
+				mp_update_text(event.character.codepoint);
+			}
 		} break;
 
 		case WM_DROPFILES:
@@ -515,13 +527,14 @@ void mp_request_quit()
 
 void mp_pump_events(f64 timeout)
 {
+	__mpApp.inputState.frameCounter++;
+
 	MSG message;
 	while(PeekMessage(&message, 0, 0, 0, PM_REMOVE))
 	{
 		TranslateMessage(&message);
 		DispatchMessage(&message);
 	}
-	__mpApp.inputState.frameCounter++;
 }
 
 //--------------------------------------------------------------------
@@ -778,6 +791,77 @@ mp_rect mp_window_get_content_rect(mp_window window)
 }
 
 //--------------------------------------------------------------------------------
+// clipboard functions
+//--------------------------------------------------------------------------------
+
+MP_API void mp_clipboard_clear(void)
+{
+	if(OpenClipboard(NULL))
+	{
+		EmptyClipboard();
+		CloseClipboard();
+	}
+}
+
+MP_API void mp_clipboard_set_string(str8 string)
+{
+	if(OpenClipboard(NULL))
+	{
+		EmptyClipboard();
+
+		int wideCount = MultiByteToWideChar(CP_UTF8, 0, string.ptr, string.len, 0, 0);
+		HANDLE handle = GlobalAlloc(GMEM_MOVEABLE, (wideCount+1)*sizeof(wchar_t));
+		if(handle)
+		{
+			char* memory = GlobalLock(handle);
+			if(memory)
+			{
+				MultiByteToWideChar(CP_UTF8, 0, string.ptr, string.len, (wchar_t*)memory, wideCount);
+				((wchar_t*)memory)[wideCount] = '\0';
+
+				GlobalUnlock(handle);
+				SetClipboardData(CF_UNICODETEXT, handle);
+			}
+		}
+		CloseClipboard();
+	}
+}
+
+MP_API str8 mp_clipboard_get_string(mem_arena* arena)
+{
+	str8 string = {0};
+
+	if(OpenClipboard(NULL))
+	{
+		HANDLE handle = GetClipboardData(CF_UNICODETEXT);
+		if(handle)
+		{
+			char* memory = GlobalLock(handle);
+			if(memory)
+			{
+				u64 size = WideCharToMultiByte(CP_UTF8, 0, (wchar_t*)memory, -1, 0, 0, 0, 0);
+				if(size)
+				{
+					string.ptr = mem_arena_alloc(arena, size);
+					string.len = size - 1;
+					WideCharToMultiByte(CP_UTF8, 0, (wchar_t*)memory, -1, string.ptr, size, 0, 0);
+					GlobalUnlock(handle);
+				}
+			}
+		}
+		CloseClipboard();
+	}
+	return(string);
+}
+
+MP_API str8 mp_clipboard_copy_string(str8 backing)
+{
+	//TODO
+	return((str8){0});
+}
+
+
+//--------------------------------------------------------------------------------
 // win32 surfaces
 //--------------------------------------------------------------------------------
 
@@ -869,6 +953,18 @@ void mg_surface_cleanup(mg_surface_data* surface)
 	DestroyWindow(surface->layer.hWnd);
 }
 
+LRESULT LayerWinProc(HWND windowHandle, UINT message, WPARAM wParam, LPARAM lParam)
+{
+	if(message == WM_NCHITTEST)
+	{
+		return(HTTRANSPARENT);
+	}
+	else
+	{
+		return(DefWindowProc(windowHandle, message, wParam, lParam));
+	}
+}
+
 void mg_surface_init_for_window(mg_surface_data* surface, mp_window_data* window)
 {
 	surface->contentsScaling = mg_win32_surface_contents_scaling;
@@ -880,7 +976,7 @@ void mg_surface_init_for_window(mg_surface_data* surface, mp_window_data* window
 
 	//NOTE(martin): create a child window for the surface
 	WNDCLASS layerWindowClass = {.style = CS_HREDRAW | CS_VREDRAW | CS_OWNDC,
-		                         .lpfnWndProc = DefWindowProc,
+		                         .lpfnWndProc = LayerWinProc,
 		                         .hInstance = GetModuleHandleW(NULL),
 		                         .lpszClassName = "layer_window_class",
 		                         .hCursor = LoadCursor(0, IDC_ARROW)};
