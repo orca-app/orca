@@ -903,31 +903,31 @@ void ui_styling_prepass(ui_context* ui, ui_box* box, list_info* before, list_inf
 		                         UI_STYLE_MASK_INHERITED);
 	}
 
-	//NOTE: match rules
+
+	//NOTE: append box before rules to before and tmp
 	list_info tmpBefore = {0};
-	for_list(before, rule, ui_style_rule, buildElt)
-	{
-		ui_style_rule_match(ui, box, rule, before, &tmpBefore);
-	}
 	for_list(&box->beforeRules, rule, ui_style_rule, boxElt)
 	{
 		list_append(before, &rule->buildElt);
 		list_append(&tmpBefore, &rule->tmpElt);
+	}
+	//NOTE: match before rules
+	for_list(before, rule, ui_style_rule, buildElt)
+	{
 		ui_style_rule_match(ui, box, rule, before, &tmpBefore);
 	}
 
-	//////////////////////////////////////////////////////////////////
-	//TODO: shouldn't this be reversed???
-	//////////////////////////////////////////////////////////////////
+	//NOTE: prepend box after rules to after and append them to tmp
 	list_info tmpAfter = {0};
+	for_list_reverse(&box->afterRules, rule, ui_style_rule, boxElt)
+	{
+		list_push(after, &rule->buildElt);
+		list_append(&tmpAfter, &rule->tmpElt);
+	}
+
+	//NOTE: match after rules
 	for_list(after, rule, ui_style_rule, buildElt)
 	{
-		ui_style_rule_match(ui, box, rule, after, &tmpAfter);
-	}
-	for_list(&box->afterRules, rule, ui_style_rule, boxElt)
-	{
-		list_append(after, &rule->buildElt);
-		list_append(&tmpAfter, &rule->tmpElt);
 		ui_style_rule_match(ui, box, rule, after, &tmpAfter);
 	}
 
@@ -2016,7 +2016,7 @@ typedef struct ui_edit_command
 #if OS_WIN64
 	#define OS_COPY_PASTE_MOD MP_KEYMOD_CTRL
 #elif OS_MACOS
-	#define OS_COPY_PAST_MOD MP_KEYMOD_CMD
+	#define OS_COPY_PASTE_MOD MP_KEYMOD_CMD
 #endif
 
 const ui_edit_command UI_EDIT_COMMANDS[] = {
