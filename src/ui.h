@@ -100,34 +100,8 @@ typedef union ui_box_floating
 	bool c[UI_AXIS_COUNT];
 } ui_box_floating;
 
-typedef enum { UI_STYLE_ANIMATE_SIZE_WIDTH   = 1<<1,
-               UI_STYLE_ANIMATE_SIZE_HEIGHT  = 1<<2,
-               UI_STYLE_ANIMATE_COLOR        = 1<<3,
-               UI_STYLE_ANIMATE_BG_COLOR     = 1<<4,
-               UI_STYLE_ANIMATE_BORDER_COLOR = 1<<5,
-               UI_STYLE_ANIMATE_BORDER_SIZE  = 1<<6,
-               UI_STYLE_ANIMATE_FONT_SIZE    = 1<<7,
-               UI_STYLE_ANIMATE_ROUNDNESS    = 1<<8,
-               UI_STYLE_ANIMATE_POS          = 1<<9,
-             } ui_style_animation_flags;
-
-typedef struct ui_style
-{
-	ui_box_size size;
-	ui_layout layout;
-	ui_box_floating floating;
-	vec2 floatTarget;
-	mg_color color;
-	mg_color bgColor;
-	mg_color borderColor;
-	mg_font font;
-	f32 fontSize;
-	f32 borderSize;
-	f32 roundness;
-	f32 animationTime;
-	ui_style_animation_flags animationFlags;
-} ui_style;
-
+//NOTE: flags for axis-dependent properties (e.g. UI_STYLE_FLOAT_X/Y) need to be consecutive bits
+//      in order to play well with axis agnostic functions
 typedef u64 ui_style_mask;
 enum
 {
@@ -150,7 +124,7 @@ enum
 	UI_STYLE_FONT            = 1<<16,
 	UI_STYLE_FONT_SIZE       = 1<<17,
 	UI_STYLE_ANIMATION_TIME  = 1<<18,
-	UI_STYLE_ANIMATION_FLAGS = 1<<19,
+	UI_STYLE_ANIMATION_MASK  = 1<<19,
 
 	//masks
 	UI_STYLE_SIZE = UI_STYLE_SIZE_WIDTH
@@ -170,9 +144,25 @@ enum
 	                        | UI_STYLE_FONT
 	                        | UI_STYLE_FONT_SIZE
 	                        | UI_STYLE_ANIMATION_TIME
-	                        | UI_STYLE_ANIMATION_FLAGS,
+	                        | UI_STYLE_ANIMATION_MASK,
 };
 
+typedef struct ui_style
+{
+	ui_box_size size;
+	ui_layout layout;
+	ui_box_floating floating;
+	vec2 floatTarget;
+	mg_color color;
+	mg_color bgColor;
+	mg_color borderColor;
+	mg_font font;
+	f32 fontSize;
+	f32 borderSize;
+	f32 roundness;
+	f32 animationTime;
+	ui_style_mask animationMask;
+} ui_style;
 
 typedef struct ui_tag { u64 hash; } ui_tag;
 
@@ -253,7 +243,7 @@ typedef struct ui_sig
 
 } ui_sig;
 
-typedef void(*ui_box_render_proc)(ui_box* box, void* data);
+typedef void(*ui_box_draw_proc)(ui_box* box, void* data);
 
 typedef enum
 {
@@ -271,7 +261,7 @@ typedef enum
 	UI_FLAG_DRAW_FOREGROUND  = (1<<9),
 	UI_FLAG_DRAW_BORDER      = (1<<10),
 	UI_FLAG_DRAW_TEXT        = (1<<11),
-	UI_FLAG_DRAW_RENDER_PROC = (1<<12),
+	UI_FLAG_DRAW_PROC        = (1<<12),
 
 } ui_flags;
 
@@ -292,8 +282,8 @@ struct ui_box
 	str8 string;
 	list_info tags;
 
-	ui_box_render_proc renderProc;
-	void* renderData;
+	ui_box_draw_proc drawProc;
+	void* drawData;
 
 	// styling
 	list_info beforeRules;
@@ -367,7 +357,7 @@ MP_API void ui_box_push(ui_box* box);
 MP_API void ui_box_pop(void);
 MP_API ui_box* ui_box_top(void);
 
-MP_API void ui_box_set_render_proc(ui_box* box, ui_box_render_proc proc, void* data);
+MP_API void ui_box_set_draw_proc(ui_box* box, ui_box_draw_proc proc, void* data);
 
 // C-string helpers
 #define ui_box_lookup(s) ui_box_lookup_str8(STR8(s))
@@ -432,6 +422,7 @@ enum {
 
 MP_API ui_sig ui_label(const char* label);
 MP_API ui_sig ui_button(const char* label);
+MP_API ui_sig ui_checkbox(const char* name, bool* checked);
 MP_API ui_box* ui_slider(const char* label, f32 thumbRatio, f32* scrollValue);
 
 MP_API void ui_panel_begin(const char* name, ui_flags flags);

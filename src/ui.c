@@ -487,10 +487,10 @@ ui_box* ui_box_end(void)
 	return(box);
 }
 
-void ui_box_set_render_proc(ui_box* box, ui_box_render_proc proc, void* data)
+void ui_box_set_draw_proc(ui_box* box, ui_box_draw_proc proc, void* data)
 {
-	box->renderProc = proc;
-	box->renderData = data;
+	box->drawProc = proc;
+	box->drawData = data;
 }
 
 void ui_box_set_closed(ui_box* box, bool closed)
@@ -634,7 +634,7 @@ void ui_box_animate_style(ui_context* ui, ui_box* box)
 	f32 animationTime = targetStyle->animationTime;
 
 	//NOTE: interpolate based on transition values
-	u32 flags = box->targetStyle->animationFlags;
+	ui_style_mask mask = box->targetStyle->animationMask;
 
 	if(box->fresh)
 	{
@@ -642,7 +642,7 @@ void ui_box_animate_style(ui_context* ui, ui_box* box)
 	}
 	else
 	{
-		if(flags & UI_STYLE_ANIMATE_SIZE_WIDTH)
+		if(mask & UI_STYLE_SIZE_WIDTH)
 		{
 			ui_animate_ui_size(ui, &box->style.size.c[UI_AXIS_X], targetStyle->size.c[UI_AXIS_X], animationTime);
 		}
@@ -651,7 +651,7 @@ void ui_box_animate_style(ui_context* ui, ui_box* box)
 			box->style.size.c[UI_AXIS_X] = targetStyle->size.c[UI_AXIS_X];
 		}
 
-		if(flags & UI_STYLE_ANIMATE_SIZE_HEIGHT)
+		if(mask & UI_STYLE_SIZE_HEIGHT)
 		{
 			ui_animate_ui_size(ui, &box->style.size.c[UI_AXIS_Y], targetStyle->size.c[UI_AXIS_Y], animationTime);
 		}
@@ -660,7 +660,7 @@ void ui_box_animate_style(ui_context* ui, ui_box* box)
 			box->style.size.c[UI_AXIS_Y] = targetStyle->size.c[UI_AXIS_Y];
 		}
 
-		if(flags & UI_STYLE_ANIMATE_COLOR)
+		if(mask & UI_STYLE_COLOR)
 		{
 			ui_animate_color(ui, &box->style.color, targetStyle->color, animationTime);
 		}
@@ -670,7 +670,7 @@ void ui_box_animate_style(ui_context* ui, ui_box* box)
 		}
 
 
-		if(flags & UI_STYLE_ANIMATE_BG_COLOR)
+		if(mask & UI_STYLE_BG_COLOR)
 		{
 			ui_animate_color(ui, &box->style.bgColor, targetStyle->bgColor, animationTime);
 		}
@@ -679,7 +679,7 @@ void ui_box_animate_style(ui_context* ui, ui_box* box)
 			box->style.bgColor = targetStyle->bgColor;
 		}
 
-		if(flags & UI_STYLE_ANIMATE_BORDER_COLOR)
+		if(mask & UI_STYLE_BORDER_COLOR)
 		{
 			ui_animate_color(ui, &box->style.borderColor, targetStyle->borderColor, animationTime);
 		}
@@ -688,7 +688,7 @@ void ui_box_animate_style(ui_context* ui, ui_box* box)
 			box->style.borderColor = targetStyle->borderColor;
 		}
 
-		if(flags & UI_STYLE_ANIMATE_FONT_SIZE)
+		if(mask & UI_STYLE_FONT_SIZE)
 		{
 			ui_animate_f32(ui, &box->style.fontSize, targetStyle->fontSize, animationTime);
 		}
@@ -697,7 +697,7 @@ void ui_box_animate_style(ui_context* ui, ui_box* box)
 			box->style.fontSize = targetStyle->fontSize;
 		}
 
-		if(flags & UI_STYLE_ANIMATE_BORDER_SIZE)
+		if(mask & UI_STYLE_BORDER_SIZE)
 		{
 			ui_animate_f32(ui, &box->style.borderSize, targetStyle->borderSize, animationTime);
 		}
@@ -706,7 +706,7 @@ void ui_box_animate_style(ui_context* ui, ui_box* box)
 			box->style.borderSize = targetStyle->borderSize;
 		}
 
-		if(flags & UI_STYLE_ANIMATE_ROUNDNESS)
+		if(mask & UI_STYLE_ROUNDNESS)
 		{
 			ui_animate_f32(ui, &box->style.roundness, targetStyle->roundness, animationTime);
 		}
@@ -800,9 +800,9 @@ void ui_apply_style_with_mask(ui_style* dst, ui_style* src, ui_style_mask mask)
 	{
 		dst->animationTime = src->animationTime;
 	}
-	if(mask & UI_STYLE_ANIMATION_FLAGS)
+	if(mask & UI_STYLE_ANIMATION_MASK)
 	{
-		dst->animationFlags = src->animationFlags;
+		dst->animationMask = src->animationMask;
 	}
 }
 
@@ -1183,7 +1183,7 @@ void ui_layout_compute_rect(ui_context* ui, ui_box* box, vec2 pos)
 			if(child->style.floating.c[i])
 			{
 				ui_style* style = child->targetStyle;
-				if((child->targetStyle->animationFlags & UI_STYLE_ANIMATE_POS)
+				if((child->targetStyle->animationMask & (UI_STYLE_FLOAT_X << i))
 				  && !child->fresh)
 				{
 					ui_animate_f32(ui, &child->floatPos.c[i], child->style.floatTarget.c[i], style->animationTime);
@@ -1298,9 +1298,9 @@ void ui_draw_box(ui_box* box)
 		ui_rectangle_fill(box->rect, style->roundness);
 	}
 
-	if((box->flags & UI_FLAG_DRAW_RENDER_PROC) && box->renderProc)
+	if((box->flags & UI_FLAG_DRAW_PROC) && box->drawProc)
 	{
-		box->renderProc(box, box->renderData);
+		box->drawProc(box, box->drawData);
 	}
 
 	for_list(&box->children, child, ui_box, listElt)
@@ -1489,6 +1489,30 @@ ui_sig ui_label(const char* label)
 //------------------------------------------------------------------------------
 // button
 //------------------------------------------------------------------------------
+
+ui_sig ui_button_behavior(ui_box* box)
+{
+	ui_sig sig = ui_box_sig(box);
+
+	if(sig.hovering)
+	{
+		ui_box_set_hot(box, true);
+		if(sig.dragging)
+		{
+			ui_box_activate(box);
+		}
+	}
+	else
+	{
+		ui_box_set_hot(box, false);
+	}
+	if(!sig.dragging)
+	{
+		ui_box_deactivate(box);
+	}
+	return(sig);
+}
+
 ui_sig ui_button_str8(str8 label)
 {
 	ui_context* ui = ui_get_context();
@@ -1537,31 +1561,86 @@ ui_sig ui_button_str8(str8 label)
 	ui_box* box = ui_box_make_str8(label, flags);
 	ui_tag_box(box, "button");
 
-	ui_sig sig = ui_box_sig(box);
-
-	if(sig.hovering)
-	{
-		ui_box_set_hot(box, true);
-		if(sig.dragging)
-		{
-			ui_box_activate(box);
-		}
-	}
-	else
-	{
-		ui_box_set_hot(box, false);
-	}
-	if(!sig.dragging)
-	{
-		ui_box_deactivate(box);
-	}
-
+	ui_sig sig = ui_button_behavior(box);
 	return(sig);
 }
 
 ui_sig ui_button(const char* label)
 {
 	return(ui_button_str8(STR8((char*)label)));
+}
+
+void ui_checkbox_draw(ui_box* box, void* data)
+{
+	bool checked = *(bool*)data;
+	if(checked)
+	{
+		mg_move_to(box->rect.x + 0.2*box->rect.w, box->rect.y + 0.5*box->rect.h);
+		mg_line_to(box->rect.x + 0.4*box->rect.w, box->rect.y + 0.75*box->rect.h);
+		mg_line_to(box->rect.x + 0.8*box->rect.w, box->rect.y + 0.2*box->rect.h);
+
+		mg_set_color(box->style.color);
+		mg_set_width(0.2*box->rect.w);
+		mg_set_joint(MG_JOINT_MITER);
+		mg_set_max_joint_excursion(0.2 * box->rect.h);
+		mg_stroke();
+	}
+}
+
+ui_sig ui_checkbox(const char* name, bool* checked)
+{
+	ui_context* ui = ui_get_context();
+
+	ui_style defaultStyle = {.size.width = {UI_SIZE_PIXELS, 20},
+	                         .size.height = {UI_SIZE_PIXELS, 20},
+	                         .bgColor = {1, 1, 1, 1},
+	                         .color = {0, 0, 0, 1},
+	                         .borderColor = {0.2, 0.2, 0.2, 1},
+	                         .borderSize = 1,
+	                         .roundness = 5};
+
+	ui_style_mask defaultMask = UI_STYLE_SIZE_WIDTH
+	                          | UI_STYLE_SIZE_HEIGHT
+	                          | UI_STYLE_BG_COLOR
+	                          | UI_STYLE_COLOR
+	                          | UI_STYLE_BORDER_COLOR
+	                          | UI_STYLE_BORDER_SIZE
+	                          | UI_STYLE_ROUNDNESS;
+
+	ui_style_next(&defaultStyle, defaultMask);
+
+	ui_style activeStyle = {.bgColor = {0.5, 0.5, 0.5, 1},
+	                        .borderColor = {0.2, 0.2, 0.2, 1},
+	                        .borderSize = 2};
+	ui_style_mask activeMask = UI_STYLE_BG_COLOR
+	                         | UI_STYLE_BORDER_COLOR
+	                         | UI_STYLE_BORDER_SIZE;
+	ui_pattern activePattern = {0};
+	ui_pattern_push(&ui->frameArena,
+	                &activePattern,
+	                (ui_selector){.kind = UI_SEL_STATUS,
+	                              .status = UI_ACTIVE|UI_HOVER});
+	ui_style_match_before(activePattern, &activeStyle, activeMask);
+
+	ui_flags flags = UI_FLAG_CLICKABLE
+	               | UI_FLAG_CLIP
+	               | UI_FLAG_DRAW_BACKGROUND
+	               | UI_FLAG_DRAW_PROC
+	               | UI_FLAG_DRAW_BORDER
+	               | UI_FLAG_HOT_ANIMATION
+	               | UI_FLAG_ACTIVE_ANIMATION;
+
+	ui_box* box = ui_box_make(name, flags);
+	ui_tag_box(box, "checkbox");
+
+	ui_sig sig = ui_button_behavior(box);
+	if(sig.clicked)
+	{
+		*checked = !*checked;
+	}
+	ui_box_set_draw_proc(box, ui_checkbox_draw, checked);
+
+	return(sig);
 }
 
 //------------------------------------------------------------------------------
@@ -2369,7 +2448,7 @@ ui_text_box_result ui_text_box(const char* name, mem_arena* arena, str8 text)
 	                    | UI_FLAG_DRAW_BACKGROUND
 	                    | UI_FLAG_DRAW_BORDER
 	                    | UI_FLAG_CLIP
-	                    | UI_FLAG_DRAW_RENDER_PROC
+	                    | UI_FLAG_DRAW_PROC
 	                    | UI_FLAG_SCROLLABLE;
 
 	ui_box* frame = ui_box_make(name, frameFlags);
@@ -2521,14 +2600,14 @@ ui_text_box_result ui_text_box(const char* name, mem_arena* arena, str8 text)
 		//NOTE: set renderer
 		str32* renderCodepoints = mem_arena_alloc_type(&ui->frameArena, str32);
 		*renderCodepoints = str32_push_copy(&ui->frameArena, codepoints);
-		ui_box_set_render_proc(frame, ui_text_box_render, renderCodepoints);
+		ui_box_set_draw_proc(frame, ui_text_box_render, renderCodepoints);
 	}
 	else
 	{
 		//NOTE: set renderer
 		str32* renderCodepoints = mem_arena_alloc_type(&ui->frameArena, str32);
 		*renderCodepoints = utf8_push_to_codepoints(&ui->frameArena, text);
-		ui_box_set_render_proc(frame, ui_text_box_render, renderCodepoints);
+		ui_box_set_draw_proc(frame, ui_text_box_render, renderCodepoints);
 	}
 
 	return(result);

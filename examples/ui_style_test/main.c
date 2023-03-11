@@ -372,7 +372,13 @@ int main()
 							             UI_STYLE_SIZE);
 							widget_view("checkboxes")
 							{
+								static bool check1 = true;
+								static bool check2 = false;
+								static bool check3 = false;
 
+								ui_checkbox("check1", &check1);
+								ui_checkbox("check2", &check2);
+								ui_checkbox("check3", &check3);
 							}
 						}
 
