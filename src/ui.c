@@ -357,6 +357,38 @@ void ui_style_next(ui_style* style, ui_style_mask mask)
 	ui_style_match_before(ui_pattern_owner(), style, mask);
 }
 
+void ui_style_box_before(ui_box* box, ui_pattern pattern, ui_style* style, ui_style_mask mask)
+{
+	ui_context* ui = ui_get_context();
+	if(ui)
+	{
+		ui_style_rule* rule = mem_arena_alloc_type(&ui->frameArena, ui_style_rule);
+		rule->pattern = pattern;
+		rule->mask = mask;
+		rule->style = mem_arena_alloc_type(&ui->frameArena, ui_style);
+		*rule->style = *style;
+
+		list_append(&box->beforeRules, &rule->boxElt);
+		rule->owner = box;
+	}
+}
+
+void ui_style_box_after(ui_box* box, ui_pattern pattern, ui_style* style, ui_style_mask mask)
+{
+	ui_context* ui = ui_get_context();
+	if(ui)
+	{
+		ui_style_rule* rule = mem_arena_alloc_type(&ui->frameArena, ui_style_rule);
+		rule->pattern = pattern;
+		rule->mask = mask;
+		rule->style = mem_arena_alloc_type(&ui->frameArena, ui_style);
+		*rule->style = *style;
+
+		list_append(&box->afterRules, &rule->boxElt);
+		rule->owner = box;
+	}
+}
+
 //-----------------------------------------------------------------------------
 // ui boxes
 //-----------------------------------------------------------------------------
@@ -1312,8 +1344,37 @@ void ui_draw_box(ui_box* box)
 	{
 		mp_rect textBox = mg_text_bounding_box(style->font, style->fontSize, box->string);
 
-		f32 x = box->rect.x + 0.5*(box->rect.w - textBox.w);
-		f32 y = box->rect.y + 0.5*(box->rect.h - textBox.h) - textBox.y;
+		f32 x = 0;
+		f32 y = 0;
+		switch(style->layout.align.x)
+		{
+			case UI_ALIGN_START:
+				x = box->rect.x + style->layout.margin.x;
+				break;
+
+			case UI_ALIGN_END:
+				x = box->rect.x + box->rect.w - style->layout.margin.x - textBox.w;
+				break;
+
+			case UI_ALIGN_CENTER:
+				x = box->rect.x + 0.5*(box->rect.w - textBox.w);
+				break;
+		}
+
+		switch(style->layout.align.y)
+		{
+			case UI_ALIGN_START:
+				y = box->rect.y + style->layout.margin.y - textBox.y;
+				break;
+
+			case UI_ALIGN_END:
+				y = box->rect.y + box->rect.h - style->layout.margin.y - textBox.h + textBox.y;
+				break;
+
+			case UI_ALIGN_CENTER:
+				y = box->rect.y + 0.5*(box->rect.h - textBox.h) - textBox.y;
+				break;
+		}
 
 		mg_set_font(style->font);
 		mg_set_font_size(style->fontSize);
@@ -1519,6 +1580,8 @@ ui_sig ui_button_str8(str8 label)
 
 	ui_style defaultStyle = {.size.width = {UI_SIZE_TEXT},
 	                         .size.height = {UI_SIZE_TEXT},
+	                         .layout.align.x = UI_ALIGN_CENTER,
+	                         .layout.align.y = UI_ALIGN_CENTER,
 	                         .layout.margin.x = 5,
 	                         .layout.margin.y = 5,
 	                         .bgColor = {0.5, 0.5, 0.5, 1},
@@ -1530,6 +1593,8 @@ ui_sig ui_button_str8(str8 label)
 	                          | UI_STYLE_SIZE_HEIGHT
 	                          | UI_STYLE_LAYOUT_MARGIN_X
 	                          | UI_STYLE_LAYOUT_MARGIN_Y
+	                          | UI_STYLE_LAYOUT_ALIGN_X
+	                          | UI_STYLE_LAYOUT_ALIGN_Y
 	                          | UI_STYLE_BG_COLOR
 	                          | UI_STYLE_BORDER_COLOR
 	                          | UI_STYLE_BORDER_SIZE
@@ -2012,6 +2077,148 @@ ui_sig ui_menu_button(const char* name)
 	ui_box* box = ui_box_make(name, flags);
 	ui_sig sig = ui_box_sig(box);
 	return(sig);
+}
+
+void ui_select_popup_draw_arrow(ui_box* box, void* data)
+{
+	mg_move_to(box->rect.x + 0.2*box->rect.w, box->rect.y + 0.4*box->rect.h);
+	mg_line_to(box->rect.x + 0.5*box->rect.w, box->rect.y + 0.8*box->rect.h);
+	mg_line_to(box->rect.x + 0.8*box->rect.w, box->rect.y + 0.4*box->rect.h);
+
+	mg_set_color(box->style.color);
+	mg_fill();
+}
+
+ui_select_popup_info ui_select_popup(const char* name, ui_select_popup_info* info)
+{
+	ui_select_popup_info result = *info;
+
+	ui_context* ui = ui_get_context();
+
+	ui_box* button = ui_box_make(name,
+	                             UI_FLAG_CLICKABLE
+	                             |UI_FLAG_DRAW_BACKGROUND
+	                             |UI_FLAG_DRAW_BORDER
+	                             |UI_FLAG_ALLOW_OVERFLOW_X
+	                             |UI_FLAG_CLIP);
+
+	f32 maxOptionWidth = 0;
+	f32 lineHeight = 0;
+	mp_rect bbox = {0};
+	for(int i=0; i<info->optionCount; i++)
+	{
+		bbox = mg_text_bounding_box(button->style.font, button->style.fontSize, info->options[i]);
+		maxOptionWidth = maximum(maxOptionWidth, bbox.w);
+	}
+	f32 buttonWidth = maxOptionWidth + 2*button->style.layout.margin.x + button->rect.h;
+
+	ui_style_box_before(button,
+	                    ui_pattern_owner(),
+	                    &(ui_style){.size.width = {UI_SIZE_PIXELS, buttonWidth},
+	                                .size.height = {UI_SIZE_CHILDREN},
+	                                .layout.margin.x = 5,
+	                                .layout.margin.y = 2,
+	                                .borderSize = 1,
+	                                .borderColor = {0.3, 0.3, 0.3, 1}},
+	                    UI_STYLE_SIZE
+	                    |UI_STYLE_LAYOUT_MARGIN_X
+	                    |UI_STYLE_LAYOUT_MARGIN_Y
+	                    |UI_STYLE_BORDER_SIZE
+	                    |UI_STYLE_BORDER_COLOR);
+	ui_box_push(button);
+	{
+		ui_label_str8(info->options[info->selectedIndex]);
+
+		ui_style_next(&(ui_style){.size.width = {UI_SIZE_PIXELS, button->rect.h},
+		                          .size.height = {UI_SIZE_PIXELS, button->rect.h},
+		                          .floating.x = true,
+		                          .floating.y = true,
+		                          .floatTarget = {button->rect.w - button->rect.h, 0},
+		                          .color = {0, 0, 0, 1},
+		                          .bgColor = {0.7, 0.7, 0.7, 1}},
+		               UI_STYLE_SIZE
+		              |UI_STYLE_FLOAT
+		              |UI_STYLE_COLOR
+		              |UI_STYLE_BG_COLOR);
+
+		ui_box* arrow = ui_box_make("arrow", UI_FLAG_DRAW_BACKGROUND|UI_FLAG_DRAW_PROC);
+		ui_box_set_draw_proc(arrow, ui_select_popup_draw_arrow, 0);
+	} ui_box_pop();
+
+	ui_box_push(ui->overlay);
+	ui_box* panel = ui_box_make(name,
+	                             UI_FLAG_DRAW_BACKGROUND
+	                            |UI_FLAG_BLOCK_MOUSE);
+
+	//TODO: set width to max(button.w, max child...)
+	f32 containerWidth = maximum(maxOptionWidth + 2*panel->style.layout.margin.x,
+	                             button->rect.w);
+
+	ui_style_box_before(panel,
+	                    ui_pattern_owner(),
+	                    &(ui_style){.size.width = {UI_SIZE_PIXELS, containerWidth},
+	                          .size.height = {UI_SIZE_CHILDREN},
+	                          .floating.x = true,
+	                          .floating.y = true,
+	                          .floatTarget = {button->rect.x,
+	                                          button->rect.y + button->rect.h},
+	                          .layout.axis = UI_AXIS_Y,
+	                          .layout.margin.x = 0,
+	                          .layout.margin.y = 5,
+	                          .bgColor = {0.2, 0.2, 0.2, 1}},
+	              UI_STYLE_SIZE
+	             |UI_STYLE_FLOAT
+	             |UI_STYLE_LAYOUT
+	             |UI_STYLE_BG_COLOR);
+
+	ui_box_push(panel);
+	{
+		for(int i=0; i<info->optionCount; i++)
+		{
+			ui_style_next(&(ui_style){.size.width = {UI_SIZE_PARENT, 1},
+			                          .size.height = {UI_SIZE_TEXT},
+			                          .layout.axis = UI_AXIS_Y,
+			                          .layout.align.x = UI_ALIGN_START,
+			                          .layout.margin.x = 5,
+			                          .layout.margin.y = 2.5},
+			               UI_STYLE_SIZE
+			              |UI_STYLE_LAYOUT_AXIS
+			              |UI_STYLE_LAYOUT_ALIGN_X
+			              |UI_STYLE_LAYOUT_MARGIN_X
+			              |UI_STYLE_LAYOUT_MARGIN_Y);
+
+
+			ui_pattern pattern = {0};
+			ui_pattern_push(&ui->frameArena, &pattern, (ui_selector){.kind = UI_SEL_STATUS, .status = UI_HOVER});
+			ui_style_match_before(pattern, &(ui_style){.bgColor = {0, 0, 1, 1}}, UI_STYLE_BG_COLOR);
+
+			ui_box* box = ui_box_make_str8(info->options[i],
+			                                UI_FLAG_DRAW_TEXT
+			                               |UI_FLAG_CLICKABLE
+			                               |UI_FLAG_DRAW_BACKGROUND);
+			ui_sig sig = ui_box_sig(box);
+			if(sig.pressed)
+			{
+				result.selectedIndex = i;
+			}
+		}
+	}
+	ui_box_pop();
+	ui_box_pop();
+
+	if(ui_box_active(panel) && mp_mouse_pressed(MP_MOUSE_LEFT))
+	{
+		ui_box_deactivate(panel);
+	}
+	else if(ui_box_sig(button).pressed)
+	{
+		ui_box_activate(panel);
+	}
+
+	ui_box_set_closed(panel, !ui_box_active(panel));
+
+
+	return(result);
 }
 
 //------------------------------------------------------------------------------

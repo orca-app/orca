@@ -453,6 +453,17 @@ typedef struct ui_text_box_result
 
 MP_API ui_text_box_result ui_text_box(const char* name, mem_arena* arena, str8 text);
 
+
+typedef struct ui_select_popup_info
+{
+	bool changed;
+	int selectedIndex;
+	int optionCount;
+	str8* options;
+} ui_select_popup_info;
+
+MP_API ui_select_popup_info ui_select_popup(const char* name, ui_select_popup_info* info);
+
 #ifdef __cplusplus
 } // extern "C"
 #endif
