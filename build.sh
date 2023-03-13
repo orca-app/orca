@@ -1,6 +1,6 @@
 #!/bin/bash
 
-DEBUG_FLAGS="-g -DDEBUG -DLOG_COMPILE_DEBUG"
+DEBUG_FLAGS="-g -O1 -DDEBUG -DLOG_COMPILE_DEBUG"
 #DEBUG_FLAGS="-O3"
 
 #--------------------------------------------------------------

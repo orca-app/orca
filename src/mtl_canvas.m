@@ -159,6 +159,7 @@ void mg_mtl_canvas_draw_batch(mg_canvas_backend* interface, mg_image_data* image
 		//NOTE(martin): encode the clear counter
 		//-----------------------------------------------------------
 		id<MTLBlitCommandEncoder> blitEncoder = [surface->commandBuffer blitCommandEncoder];
+		blitEncoder.label = @"clear counters";
 		[blitEncoder fillBuffer: backend->tileCounters range: NSMakeRange(0, RENDERER_MAX_TILES*sizeof(uint)) value: 0];
 		[blitEncoder endEncoding];
 
@@ -166,6 +167,7 @@ void mg_mtl_canvas_draw_batch(mg_canvas_backend* interface, mg_image_data* image
 		//NOTE(martin): encode the boxing pass
 		//-----------------------------------------------------------
 		id<MTLComputeCommandEncoder> boxEncoder = [surface->commandBuffer computeCommandEncoder];
+		boxEncoder.label = @"boxing pass";
 		[boxEncoder setComputePipelineState: backend->boxingPipeline];
 
 		[boxEncoder setBuffer: backend->vertexBuffer offset:backend->vertexBufferOffset atIndex: 0];
@@ -187,6 +189,7 @@ void mg_mtl_canvas_draw_batch(mg_canvas_backend* interface, mg_image_data* image
 		//-----------------------------------------------------------
 
 		id<MTLComputeCommandEncoder> tileEncoder = [surface->commandBuffer computeCommandEncoder];
+		tileEncoder.label = @"tiling pass";
 		[tileEncoder setComputePipelineState: backend->tilingPipeline];
 		[tileEncoder setBuffer: backend->boxArray offset:0 atIndex: 0];
 		[tileEncoder setBuffer: backend->tileCounters offset:0 atIndex: 1];
@@ -201,6 +204,7 @@ void mg_mtl_canvas_draw_batch(mg_canvas_backend* interface, mg_image_data* image
 		//-----------------------------------------------------------
 
 		id<MTLComputeCommandEncoder> sortEncoder = [surface->commandBuffer computeCommandEncoder];
+		sortEncoder.label = @"sorting pass";
 		[sortEncoder setComputePipelineState: backend->sortingPipeline];
 		[sortEncoder setBuffer: backend->tileCounters offset:0 atIndex: 0];
 		[sortEncoder setBuffer: backend->triangleArray offset:0 atIndex: 1];
@@ -223,6 +227,7 @@ void mg_mtl_canvas_draw_batch(mg_canvas_backend* interface, mg_image_data* image
 		vector_float4 clearColorVec4 = {backend->clearColor.r, backend->clearColor.g, backend->clearColor.b, backend->clearColor.a};
 
 		id<MTLComputeCommandEncoder> encoder = [surface->commandBuffer computeCommandEncoder];
+		encoder.label = @"drawing pass";
 		[encoder setComputePipelineState:backend->computePipeline];
 		[encoder setTexture: backend->outTexture atIndex: 0];
 		int useTexture = 0;
@@ -269,6 +274,7 @@ void mg_mtl_canvas_draw_batch(mg_canvas_backend* interface, mg_image_data* image
 		renderPassDescriptor.colorAttachments[0].storeAction = MTLStoreActionStore;
 
 		id<MTLRenderCommandEncoder> renderEncoder = [surface->commandBuffer renderCommandEncoderWithDescriptor:renderPassDescriptor];
+		renderEncoder.label = @"blit pass";
 		[renderEncoder setViewport: viewport];
 		[renderEncoder setRenderPipelineState: backend->renderPipeline];
 		[renderEncoder setFragmentTexture: backend->outTexture atIndex: 0];

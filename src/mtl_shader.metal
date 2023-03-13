@@ -102,24 +102,26 @@ kernel void TileKernel(const device float4* boxArray [[buffer(0)]],
                        uint gid [[thread_position_in_grid]])
 {
 	uint2 tilesMatrixDim = (*viewport - 1) / RENDERER_TILE_SIZE + 1;
-	uint nTilesX = tilesMatrixDim.x;
-	uint nTilesY = tilesMatrixDim.y;
+	int nTilesX = tilesMatrixDim.x;
+	int nTilesY = tilesMatrixDim.y;
 
 	uint triangleIndex = gid;
-	uint4 box = uint4(floor(boxArray[triangleIndex]))/RENDERER_TILE_SIZE;
-	uint xMin = max((uint)0, box.x);
-	uint yMin = max((uint)0, box.y);
-	uint xMax = min(box.z, nTilesX-1);
-	uint yMax = min(box.w, nTilesY-1);
+	int4 box = int4(floor(boxArray[triangleIndex]))/RENDERER_TILE_SIZE;
+	int xMin = max(0, box.x);
+	int yMin = max(0, box.y);
+	int xMax = min(box.z, nTilesX-1);
+	int yMax = min(box.w, nTilesY-1);
 
-	for(uint y = yMin; y <= yMax; y++)
+	for(int y = yMin; y <= yMax; y++)
 	{
-		for(uint x = xMin ; x <= xMax; x++)
+		for(int x = xMin ; x <= xMax; x++)
 		{
-			uint tileIndex = y*nTilesX + x;
-			device uint* tileBuffer = tilesArray + tileIndex*RENDERER_TILE_BUFFER_SIZE;
+			int tileIndex = y*nTilesX + x;
 			uint counter = atomic_fetch_add_explicit(&(tileCounters[tileIndex]), 1, memory_order_relaxed);
-			tileBuffer[counter] = triangleIndex;
+			if(counter < RENDERER_TILE_BUFFER_SIZE)
+			{
+				tilesArray[tileIndex*RENDERER_TILE_BUFFER_SIZE + counter] = triangleIndex;
+			}
 		}
 	}
 }
@@ -241,7 +243,6 @@ kernel void RenderKernel(texture2d<float, access::write> outTexture [[texture(0)
 
 	for(uint tileBufferIndex=0; tileBufferIndex < tileBufferSize; tileBufferIndex++)
 	{
-//		float4 box = boxArray[tileBuffer[tileBufferIndex]];
 		const device mg_triangle_data* triangle = &triangleArray[tileBuffer[tileBufferIndex]];
 
 		int2 p0 = int2(triangle->p0 * subPixelFactor);
@@ -269,9 +270,9 @@ kernel void RenderKernel(texture2d<float, access::write> outTexture [[texture(0)
 		                               {uvTransform2x3[1], uvTransform2x3[4], 0},
 		                               {uvTransform2x3[2], uvTransform2x3[5], 1}};
 
-		for(int i=0; i<sampleCount; i++)
+		for(int sampleIndex=0; sampleIndex<sampleCount; sampleIndex++)
 		{
-			int2 samplePoint = samplePoints[i];
+			int2 samplePoint = samplePoints[sampleIndex];
 
 			//NOTE(martin): cull if pixel is outside box
 			/*
@@ -290,17 +291,6 @@ kernel void RenderKernel(texture2d<float, access::write> outTexture [[texture(0)
 			{
 				float4 cubic = (cubic0*w0 + cubic1*w1 + cubic2*w2)/(w0+w1+w2);
 
-				//float2 uv = (uv0*w0 + uv1*w1 + uv2*w2)/(w0+w1+w2);
-				float2 sampleFP = float2(samplePoint)/subPixelFactor;
-				float2 uv = (uvTransform*(float3(sampleFP/contentsScaling[0], 1))).xy;
-
-				float4 texColor = float4(1, 1, 1, 1);
-				if(*useTexture)
-				{
-					constexpr sampler smp(mip_filter::nearest, mag_filter::linear, min_filter::linear);
-					texColor = texAtlas.sample(smp, uv);
-					texColor.rgb *= texColor.a;
-				}
 				//TODO(martin): this is a quick and dirty fix for solid polygons where we use
 				//              cubic = (1, 1, 1, 1) on all vertices, which can cause small errors to
 				//              flip the sign.
@@ -312,22 +302,32 @@ kernel void RenderKernel(texture2d<float, access::write> outTexture [[texture(0)
 				float eps = 0.0001;
 				if(cubic.w*(cubic.x*cubic.x*cubic.x - cubic.y*cubic.z) <= eps)
 				{
-					if(shapeIndex == zIndices[i])
+					if(shapeIndex == zIndices[sampleIndex])
 					{
-						flipCounts[i]++;
+						flipCounts[sampleIndex]++;
 					}
 					else
 					{
-						if(flipCounts[i] & 0x01)
+						if(flipCounts[sampleIndex] & 0x01)
 						{
-							pixelColors[i] = nextColors[i];
+							pixelColors[sampleIndex] = nextColors[sampleIndex];
 						}
 
-						float4 nextCol = color*texColor;
-						nextColors[i] = pixelColors[i]*(1-nextCol.a) +nextCol.a*nextCol;
+						float4 nextColor = color;
+						if(*useTexture)
+						{
+							float2 sampleFP = float2(samplePoint)/subPixelFactor;
+							float2 uv = (uvTransform*(float3(sampleFP/contentsScaling[0], 1))).xy;
 
-						zIndices[i] = shapeIndex;
-						flipCounts[i] = 1;
+							constexpr sampler smp(mip_filter::nearest, mag_filter::linear, min_filter::linear);
+							float4 texColor = texAtlas.sample(smp, uv);
+							texColor.rgb *= texColor.a;
+							nextColor *= texColor;
+						}
+
+						nextColors[sampleIndex] = pixelColors[sampleIndex]*(1-nextColor.a) + nextColor;
+						zIndices[sampleIndex] = shapeIndex;
+						flipCounts[sampleIndex] = 1;
 					}
 				}
 			}
