@@ -193,14 +193,14 @@ int main()
 			mg_set_font(font);
 			mg_set_font_size(12);
 			mg_move_to(50, 600-50);
-
+/*
 			str8 text = str8_pushf(mem_scratch(),
 			                      "Milepost vector graphics test program (frame time = %fs, fps = %f)...",
 			                      frameTime,
 			                      1./frameTime);
 			mg_text_outlines(text);
 			mg_fill();
-
+*/
 			printf("Milepost vector graphics test program (frame time = %fs, fps = %f)...\n",
 			                      frameTime,
 			                      1./frameTime);

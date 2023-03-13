@@ -120,10 +120,10 @@ void mg_mtl_surface_present(mg_surface_data* interface)
 void mg_mtl_surface_swap_interval(mg_surface_data* interface, int swap)
 {
 	mg_mtl_surface* surface = (mg_mtl_surface*)interface;
-
-	////////////////////////////////////////////////////////////////
-	//TODO
-	////////////////////////////////////////////////////////////////
+	@autoreleasepool
+	{
+		[surface->mtlLayer setDisplaySyncEnabled: (swap ? YES : NO)];
+	}
 }
 
 void mg_mtl_surface_set_frame(mg_surface_data* interface, mp_rect frame)
