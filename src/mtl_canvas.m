@@ -45,7 +45,7 @@ typedef struct mg_mtl_canvas_backend
 	id<MTLBuffer> vertexBuffer;
 	id<MTLBuffer> indexBuffer;
 	id<MTLBuffer> tileCounters;
-	id<MTLBuffer> tilesArray;
+	id<MTLBuffer> tileArrayBuffer;
 	id<MTLBuffer> triangleArray;
 	id<MTLBuffer> boxArray;
 
@@ -163,6 +163,7 @@ void mg_mtl_canvas_draw_batch(mg_canvas_backend* interface, mg_image_data* image
 		[blitEncoder fillBuffer: backend->tileCounters range: NSMakeRange(0, RENDERER_MAX_TILES*sizeof(uint)) value: 0];
 		[blitEncoder endEncoding];
 
+		/*
 		//-----------------------------------------------------------
 		//NOTE(martin): encode the boxing pass
 		//-----------------------------------------------------------
@@ -183,6 +184,7 @@ void mg_mtl_canvas_draw_batch(mg_canvas_backend* interface, mg_image_data* image
 
 		[boxEncoder dispatchThreads: boxGridSize threadsPerThreadgroup: boxGroupSize];
 		[boxEncoder endEncoding];
+		*/
 
 		//-----------------------------------------------------------
 		//NOTE(martin): encode the tiling pass
@@ -191,12 +193,19 @@ void mg_mtl_canvas_draw_batch(mg_canvas_backend* interface, mg_image_data* image
 		id<MTLComputeCommandEncoder> tileEncoder = [surface->commandBuffer computeCommandEncoder];
 		tileEncoder.label = @"tiling pass";
 		[tileEncoder setComputePipelineState: backend->tilingPipeline];
-		[tileEncoder setBuffer: backend->boxArray offset:0 atIndex: 0];
-		[tileEncoder setBuffer: backend->tileCounters offset:0 atIndex: 1];
-		[tileEncoder setBuffer: backend->tilesArray offset:0 atIndex: 2];
-		[tileEncoder setBytes: &viewportSize length: sizeof(vector_uint2) atIndex: 3];
+		[tileEncoder setBuffer: backend->vertexBuffer offset:backend->vertexBufferOffset atIndex: 0];
+		[tileEncoder setBuffer: backend->indexBuffer offset:backend->indexBufferOffset atIndex: 1];
+		[tileEncoder setBuffer: backend->shapeBuffer offset:backend->shapeBufferOffset atIndex: 2];
+		[tileEncoder setBuffer: backend->tileCounters offset:0 atIndex: 3];
+		[tileEncoder setBuffer: backend->tileArrayBuffer offset:0 atIndex: 4];
 
-		[tileEncoder dispatchThreads: boxGridSize threadsPerThreadgroup: boxGroupSize];
+		[tileEncoder setBytes: &viewportSize length: sizeof(vector_uint2) atIndex: 5];
+		[tileEncoder setBytes: &scale length: sizeof(float) atIndex: 6];
+
+		MTLSize tileGroupSize = MTLSizeMake(backend->tilingPipeline.maxTotalThreadsPerThreadgroup, 1, 1);
+		MTLSize tileGridSize = MTLSizeMake(indexCount/3, 1, 1);
+
+		[tileEncoder dispatchThreads: tileGridSize threadsPerThreadgroup: tileGroupSize];
 		[tileEncoder endEncoding];
 
 		//-----------------------------------------------------------
@@ -206,15 +215,16 @@ void mg_mtl_canvas_draw_batch(mg_canvas_backend* interface, mg_image_data* image
 		id<MTLComputeCommandEncoder> sortEncoder = [surface->commandBuffer computeCommandEncoder];
 		sortEncoder.label = @"sorting pass";
 		[sortEncoder setComputePipelineState: backend->sortingPipeline];
-		[sortEncoder setBuffer: backend->tileCounters offset:0 atIndex: 0];
-		[sortEncoder setBuffer: backend->triangleArray offset:0 atIndex: 1];
-		[sortEncoder setBuffer: backend->tilesArray offset:0 atIndex: 2];
-		[sortEncoder setBytes: &viewportSize length: sizeof(vector_uint2) atIndex: 3];
+		[sortEncoder setBuffer: backend->vertexBuffer offset:backend->vertexBufferOffset atIndex: 0];
+		[sortEncoder setBuffer: backend->indexBuffer offset:backend->indexBufferOffset atIndex: 1];
+		[sortEncoder setBuffer: backend->shapeBuffer offset:backend->shapeBufferOffset atIndex: 2];
+		[sortEncoder setBuffer: backend->tileCounters offset:0 atIndex: 3];
+		[sortEncoder setBuffer: backend->tileArrayBuffer offset:0 atIndex: 4];
 
 		u32     nTilesX = (viewportSize.x + RENDERER_TILE_SIZE - 1)/RENDERER_TILE_SIZE;
 		u32     nTilesY = (viewportSize.y + RENDERER_TILE_SIZE - 1)/RENDERER_TILE_SIZE;
 
-		MTLSize sortGroupSize = MTLSizeMake(backend->boxingPipeline.maxTotalThreadsPerThreadgroup, 1, 1);
+		MTLSize sortGroupSize = MTLSizeMake(backend->sortingPipeline.maxTotalThreadsPerThreadgroup, 1, 1);
 		MTLSize sortGridSize = MTLSizeMake(nTilesX*nTilesY, 1, 1);
 
 		[sortEncoder dispatchThreads: sortGridSize threadsPerThreadgroup: sortGroupSize];
@@ -226,35 +236,35 @@ void mg_mtl_canvas_draw_batch(mg_canvas_backend* interface, mg_image_data* image
 		//TODO: remove that
 		vector_float4 clearColorVec4 = {backend->clearColor.r, backend->clearColor.g, backend->clearColor.b, backend->clearColor.a};
 
-		id<MTLComputeCommandEncoder> encoder = [surface->commandBuffer computeCommandEncoder];
-		encoder.label = @"drawing pass";
-		[encoder setComputePipelineState:backend->computePipeline];
-		[encoder setTexture: backend->outTexture atIndex: 0];
+		id<MTLComputeCommandEncoder> drawEncoder = [surface->commandBuffer computeCommandEncoder];
+		drawEncoder.label = @"drawing pass";
+		[drawEncoder setComputePipelineState:backend->computePipeline];
+		[drawEncoder setBuffer: backend->vertexBuffer offset:backend->vertexBufferOffset atIndex: 0];
+		[drawEncoder setBuffer: backend->indexBuffer offset:backend->indexBufferOffset atIndex: 1];
+		[drawEncoder setBuffer: backend->shapeBuffer offset:backend->shapeBufferOffset atIndex: 2];
+		[drawEncoder setBuffer: backend->tileCounters offset:0 atIndex: 3];
+		[drawEncoder setBuffer: backend->tileArrayBuffer offset:0 atIndex: 4];
+
+		[drawEncoder setTexture: backend->outTexture atIndex: 0];
 		int useTexture = 0;
 		if(image)
 		{
 			mg_mtl_image_data* mtlImage = (mg_mtl_image_data*)image;
-			[encoder setTexture: mtlImage->texture atIndex: 1];
+			[drawEncoder setTexture: mtlImage->texture atIndex: 1];
 			useTexture = 1;
 		}
 
-		[encoder setBuffer: backend->vertexBuffer offset:backend->vertexBufferOffset atIndex: 0];
-		[encoder setBuffer: backend->shapeBuffer offset:backend->shapeBufferOffset atIndex: 1];
-		[encoder setBuffer: backend->tileCounters offset:0 atIndex: 2];
-		[encoder setBuffer: backend->tilesArray offset:0 atIndex: 3];
-		[encoder setBuffer: backend->triangleArray offset:0 atIndex: 4];
-		[encoder setBuffer: backend->boxArray offset:0 atIndex: 5];
-		[encoder setBytes: &clearColorVec4 length: sizeof(vector_float4) atIndex: 6];
-		[encoder setBytes: &useTexture length:sizeof(int) atIndex:7];
-		[encoder setBytes: &scale length: sizeof(float) atIndex: 8];
+		[drawEncoder setBytes: &clearColorVec4 length: sizeof(vector_float4) atIndex: 5];
+		[drawEncoder setBytes: &useTexture length:sizeof(int) atIndex:6];
+		[drawEncoder setBytes: &scale length: sizeof(float) atIndex: 7];
 
 		//TODO: check that we don't exceed maxTotalThreadsPerThreadgroup
 		DEBUG_ASSERT(RENDERER_TILE_SIZE*RENDERER_TILE_SIZE <= backend->computePipeline.maxTotalThreadsPerThreadgroup);
 		MTLSize threadGridSize = MTLSizeMake(viewportSize.x, viewportSize.y, 1);
 		MTLSize threadGroupSize = MTLSizeMake(RENDERER_TILE_SIZE, RENDERER_TILE_SIZE, 1);
 
-		[encoder dispatchThreads: threadGridSize threadsPerThreadgroup:threadGroupSize];
-		[encoder endEncoding];
+		[drawEncoder dispatchThreads: threadGridSize threadsPerThreadgroup:threadGroupSize];
+		[drawEncoder endEncoding];
 
 		//-----------------------------------------------------------
 		//NOTE(martin): blit texture to framebuffer
@@ -331,7 +341,7 @@ void mg_mtl_canvas_destroy(mg_canvas_backend* interface)
 		[backend->outTexture release];
 		[backend->vertexBuffer release];
 		[backend->indexBuffer release];
-		[backend->tilesArray release];
+		[backend->tileArrayBuffer release];
 		[backend->triangleArray release];
 		[backend->boxArray release];
 		[backend->computePipeline release];
@@ -459,7 +469,7 @@ mg_canvas_backend* mg_mtl_canvas_create(mg_surface surface)
 		    backend->shapeBuffer = [metalSurface->device newBufferWithLength: MG_MTL_CANVAS_DEFAULT_BUFFER_LENGTH*sizeof(mg_shape)
 		                                        	options: bufferOptions];
 
-			backend->tilesArray = [metalSurface->device newBufferWithLength: RENDERER_TILE_BUFFER_SIZE*sizeof(int)*RENDERER_MAX_TILES
+			backend->tileArrayBuffer = [metalSurface->device newBufferWithLength: RENDERER_TILE_BUFFER_SIZE*sizeof(int)*RENDERER_MAX_TILES
 								options: MTLResourceStorageModePrivate];
 
 			backend->triangleArray = [metalSurface->device newBufferWithLength: MG_MTL_CANVAS_DEFAULT_BUFFER_LENGTH*sizeof(mg_triangle_data)
@@ -522,6 +532,7 @@ mg_canvas_backend* mg_mtl_canvas_create(mg_surface surface)
 		                                           	reflection: nil
 		                                           	error: &error];
 
+/*
 			MTLComputePipelineDescriptor* boxingPipelineDesc = [[MTLComputePipelineDescriptor alloc] init];
 			boxingPipelineDesc.computeFunction = boxingFunction;
 	//		boxingPipelineDesc.threadGroupSizeIsMultipleOfThreadExecutionWidth = true;
@@ -530,6 +541,7 @@ mg_canvas_backend* mg_mtl_canvas_create(mg_surface surface)
 		                                           	options: MTLPipelineOptionNone
 		                                           	reflection: nil
 		                                           	error: &error];
+*/
 			//-----------------------------------------------------------
 			//NOTE(martin): setup our render pipeline state
 			//-----------------------------------------------------------
