@@ -31,70 +31,6 @@ bool is_top_left(float2 a, float2 b)
 	return( (a.y == b.y && b.x < a.x)
 	      ||(b.y < a.y));
 }
-/*
-kernel void BoundingBoxKernel(constant mg_vertex* vertexBuffer [[buffer(0)]],
-		              constant uint* indexBuffer [[buffer(1)]],
-		              constant mg_shape* shapeBuffer [[buffer(2)]],
-		              device mg_triangle_data* triangleArray [[buffer(3)]],
-		              device float4* boxArray [[buffer(4)]],
-		              constant float* contentsScaling [[buffer(5)]],
-		              uint gid [[thread_position_in_grid]])
-{
-	uint triangleIndex = gid;
-	uint vertexIndex = triangleIndex*3;
-
-	uint i0 = indexBuffer[vertexIndex];
-	uint i1 = indexBuffer[vertexIndex+1];
-	uint i2 = indexBuffer[vertexIndex+2];
-
-	float2 p0 = vertexBuffer[i0].pos * contentsScaling[0];
-	float2 p1 = vertexBuffer[i1].pos * contentsScaling[0];
-	float2 p2 = vertexBuffer[i2].pos * contentsScaling[0];
-
-	//NOTE(martin): compute triangle bounding box
-	float2 boxMin = min(min(p0, p1), p2);
-	float2 boxMax = max(max(p0, p1), p2);
-
-	//NOTE(martin): clip bounding box against clip rect
-	int shapeIndex = vertexBuffer[i0].shapeIndex;
-
-	vector_float4 clip = contentsScaling[0]*shapeBuffer[shapeIndex].clip;
-
-	//NOTE(martin): intersect with current clip
-	boxMin = max(boxMin, clip.xy);
-	boxMax = min(boxMax, clip.zw);
-
-	//NOTE(martin): reorder triangle counter-clockwise and compute bias for each edge
-	float cw = (p1 - p0).x*(p2 - p0).y - (p1 - p0).y*(p2 - p0).x;
-	if(cw < 0)
-	{
-		uint tmpIndex = i1;
-		i1 = i2;
-		i2 = tmpIndex;
-
-		float2 tmpPoint = p1;
-		p1 = p2;
-		p2 = tmpPoint;
-	}
-	int bias0 = is_top_left(p1, p2) ? 0 : -1;
-	int bias1 = is_top_left(p2, p0) ? 0 : -1;
-	int bias2 = is_top_left(p0, p1) ? 0 : -1;
-
-	//NOTE(martin): fill triangle data
-	boxArray[triangleIndex] = float4(boxMin.x, boxMin.y, boxMax.x, boxMax.y);
-
-	triangleArray[triangleIndex].shapeIndex = shapeIndex;
-	triangleArray[triangleIndex].i0 = i0;
-	triangleArray[triangleIndex].i1 = i1;
-	triangleArray[triangleIndex].i2 = i2;
-	triangleArray[triangleIndex].p0 = p0;
-	triangleArray[triangleIndex].p1 = p1;
-	triangleArray[triangleIndex].p2 = p2;
-	triangleArray[triangleIndex].bias0 = bias0;
-	triangleArray[triangleIndex].bias1 = bias1;
-	triangleArray[triangleIndex].bias2 = bias2;
-}
-*/
 
 kernel void TileKernel(constant mg_vertex* vertexBuffer [[buffer(0)]],
 		               constant uint* indexBuffer [[buffer(1)]],
@@ -102,9 +38,8 @@ kernel void TileKernel(constant mg_vertex* vertexBuffer [[buffer(0)]],
 		               device volatile atomic_uint* tileCounters [[buffer(3)]],
                        device uint* tileArrayBuffer [[buffer(4)]],
                        device mg_triangle_data* triangleArray [[buffer(5)]],
-		              device float4* boxArray [[buffer(6)]],
-                       constant uint2* viewport [[buffer(7)]],
-                       constant float* scaling [[buffer(8)]],
+                       constant uint2* viewport [[buffer(6)]],
+                       constant float* scaling [[buffer(7)]],
                        uint gid [[thread_position_in_grid]])
 {
 	uint2 tilesMatrixDim = (*viewport - 1) / RENDERER_TILE_SIZE + 1;
@@ -151,20 +86,26 @@ kernel void TileKernel(constant mg_vertex* vertexBuffer [[buffer(0)]],
 	int bias2 = is_top_left(p0, p1) ? 0 : -1;
 
 	//NOTE(martin): fill triangle data
-	boxArray[gid] = float4(boxMin.x, boxMin.y, boxMax.x, boxMax.y);
+	const float subPixelFactor = 16;
 
+	float4 fbox = float4(boxMin.x, boxMin.y, boxMax.x, boxMax.y);
+
+	triangleArray[gid].box = int4(fbox * subPixelFactor);
 	triangleArray[gid].shapeIndex = shapeIndex;
+
 	triangleArray[gid].cubic0 = vertexBuffer[i0].cubic;
 	triangleArray[gid].cubic1 = vertexBuffer[i1].cubic;
 	triangleArray[gid].cubic2 = vertexBuffer[i2].cubic;
-	triangleArray[gid].p0 = p0;
-	triangleArray[gid].p1 = p1;
-	triangleArray[gid].p2 = p2;
+
+	triangleArray[gid].p0 = int2(p0 * subPixelFactor);
+	triangleArray[gid].p1 = int2(p1 * subPixelFactor);
+	triangleArray[gid].p2 = int2(p2 * subPixelFactor);
+
 	triangleArray[gid].bias0 = bias0;
 	triangleArray[gid].bias1 = bias1;
 	triangleArray[gid].bias2 = bias2;
 
-	int4 box = int4(floor(boxArray[gid]))/RENDERER_TILE_SIZE;
+	int4 box = int4(floor(fbox))/RENDERER_TILE_SIZE;
 
 	//NOTE(martin): it's importat to do the computation with signed int, so that we can have negative xMax/yMax
 	//              otherwise all triangles on the left or below the x/y axis are attributed to tiles on row/column 0.
@@ -187,7 +128,7 @@ kernel void TileKernel(constant mg_vertex* vertexBuffer [[buffer(0)]],
 	}
 }
 
-kernel void SortKernel(const device mg_triangle_data* triangleArray [[buffer(0)]],
+kernel void SortKernel(constant mg_triangle_data* triangleArray [[buffer(0)]],
                        const device uint* tileCounters [[buffer(1)]],
                        device uint* tileArrayBuffer [[buffer(2)]],
                        uint gid [[thread_position_in_grid]])
@@ -245,11 +186,10 @@ kernel void RenderKernel(const device mg_shape* shapeBuffer [[buffer(0)]],
                          device uint* tileCounters [[buffer(1)]],
                          const device uint* tileArrayBuffer [[buffer(2)]],
                          const device mg_triangle_data* triangleArray [[buffer(3)]],
-                         const device float4* boxArray [[buffer(4)]],
 
-                         constant float4* clearColor [[buffer(5)]],
-                         constant int* useTexture [[buffer(6)]],
-                         constant float* scaling [[buffer(7)]],
+                         constant float4* clearColor [[buffer(4)]],
+                         constant int* useTexture [[buffer(5)]],
+                         constant float* scaling [[buffer(6)]],
 
                          texture2d<float, access::write> outTexture [[texture(0)]],
                          texture2d<float> texAtlas [[texture(1)]],
@@ -324,9 +264,9 @@ kernel void RenderKernel(const device mg_shape* shapeBuffer [[buffer(0)]],
     	int triangleIndex = tileArrayBuffer[RENDERER_TILE_BUFFER_SIZE * tileIndex + tileArrayIndex];
 		const device mg_triangle_data* triangle = &triangleArray[triangleIndex];
 
-		int2 p0 = int2(triangle->p0 * subPixelFactor);
-		int2 p1 = int2(triangle->p1 * subPixelFactor);
-		int2 p2 = int2(triangle->p2 * subPixelFactor);
+		int2 p0 = triangle->p0;
+		int2 p1 = triangle->p1;
+		int2 p2 = triangle->p2;
 
 		int bias0 = triangle->bias0;
 		int bias1 = triangle->bias1;
@@ -340,7 +280,7 @@ kernel void RenderKernel(const device mg_shape* shapeBuffer [[buffer(0)]],
 		float4 color = shapeBuffer[shapeIndex].color;
 		color.rgb *= color.a;
 
-		int4 clip = int4(boxArray[triangleIndex] * subPixelFactor);
+		int4 clip = triangle->box;
 
 		const device float* uvTransform2x3 = shapeBuffer[shapeIndex].uvTransform;
 		matrix_float3x3 uvTransform = {{uvTransform2x3[0], uvTransform2x3[3], 0},

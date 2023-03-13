@@ -35,19 +35,21 @@ typedef struct mg_shape
 
 typedef struct mg_triangle_data
 {
+	vector_int2 p0;
+	vector_int2 p1;
+	vector_int2 p2;
+
 	vector_float4 cubic0;
 	vector_float4 cubic1;
 	vector_float4 cubic2;
 
-	uint shapeIndex;
-
-	vector_float2 p0;
-	vector_float2 p1;
-	vector_float2 p2;
+	vector_int4 box;
 
 	int bias0;
 	int bias1;
 	int bias2;
+
+	int shapeIndex;
 
 } mg_triangle_data;
 

@@ -199,10 +199,9 @@ void mg_mtl_canvas_draw_batch(mg_canvas_backend* interface, mg_image_data* image
 		[tileEncoder setBuffer: backend->tileCounters offset:0 atIndex: 3];
 		[tileEncoder setBuffer: backend->tileArrayBuffer offset:0 atIndex: 4];
 		[tileEncoder setBuffer: backend->triangleArray offset:0 atIndex: 5];
-		[tileEncoder setBuffer: backend->boxArray offset:0 atIndex: 6];
 
-		[tileEncoder setBytes: &viewportSize length: sizeof(vector_uint2) atIndex: 7];
-		[tileEncoder setBytes: &scale length: sizeof(float) atIndex: 8];
+		[tileEncoder setBytes: &viewportSize length: sizeof(vector_uint2) atIndex: 6];
+		[tileEncoder setBytes: &scale length: sizeof(float) atIndex: 7];
 
 		MTLSize tileGroupSize = MTLSizeMake(backend->tilingPipeline.maxTotalThreadsPerThreadgroup, 1, 1);
 		MTLSize tileGridSize = MTLSizeMake(indexCount/3, 1, 1);
@@ -243,7 +242,6 @@ void mg_mtl_canvas_draw_batch(mg_canvas_backend* interface, mg_image_data* image
 		[drawEncoder setBuffer: backend->tileCounters offset:0 atIndex: 1];
 		[drawEncoder setBuffer: backend->tileArrayBuffer offset:0 atIndex: 2];
 		[drawEncoder setBuffer: backend->triangleArray offset:0 atIndex: 3];
-		[drawEncoder setBuffer: backend->boxArray offset:0 atIndex: 4];
 
 		[drawEncoder setTexture: backend->outTexture atIndex: 0];
 		int useTexture = 0;
@@ -254,9 +252,9 @@ void mg_mtl_canvas_draw_batch(mg_canvas_backend* interface, mg_image_data* image
 			useTexture = 1;
 		}
 
-		[drawEncoder setBytes: &clearColorVec4 length: sizeof(vector_float4) atIndex: 5];
-		[drawEncoder setBytes: &useTexture length:sizeof(int) atIndex: 6];
-		[drawEncoder setBytes: &scale length: sizeof(float) atIndex: 7];
+		[drawEncoder setBytes: &clearColorVec4 length: sizeof(vector_float4) atIndex: 4];
+		[drawEncoder setBytes: &useTexture length:sizeof(int) atIndex: 5];
+		[drawEncoder setBytes: &scale length: sizeof(float) atIndex: 6];
 
 		//TODO: check that we don't exceed maxTotalThreadsPerThreadgroup
 		DEBUG_ASSERT(RENDERER_TILE_SIZE*RENDERER_TILE_SIZE <= backend->computePipeline.maxTotalThreadsPerThreadgroup);
