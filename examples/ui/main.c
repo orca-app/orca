@@ -518,6 +518,10 @@ int main()
 						             UI_STYLE_SIZE);
 						widget_view("Test")
 						{
+							ui_pattern pattern = {};
+							ui_pattern_push(mem_scratch(), &pattern, (ui_selector){.kind = UI_SEL_TEXT, .text = STR8("panel")});
+							ui_style_match_after(pattern, &(ui_style){.bgColor = {0.3, 0.3, 1, 1}}, UI_STYLE_BG_COLOR);
+
 							static int selected = 0;
 							str8 options[] = {STR8("option 1"),
 							                  STR8("option 2"),

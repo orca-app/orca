@@ -77,6 +77,7 @@ typedef struct ui_context
 
 	ui_box* root;
 	ui_box* overlay;
+	list_info overlayList;
 	ui_stack_elt* boxStack;
 	ui_stack_elt* clipStack;
 
@@ -462,6 +463,11 @@ ui_box* ui_box_make_str8(str8 string, ui_flags flags)
 		{
 			list_append(&box->parent->children, &box->listElt);
 			box->parentClosed = box->parent->closed || box->parent->parentClosed;
+		}
+
+		if(box->flags & UI_FLAG_OVERLAY)
+		{
+			list_append(&ui->overlayList, &box->overlayElt);
 		}
 	}
 	else
@@ -1269,8 +1275,20 @@ void ui_solve_layout(ui_context* ui)
 	list_info beforeRules = {0};
 	list_info afterRules = {0};
 
+	//NOTE: style and compute static sizes
 	ui_styling_prepass(ui, ui->root, &beforeRules, &afterRules);
 
+	//NOTE: reparent overlay boxes
+	for_list(&ui->overlayList, box, ui_box, overlayElt)
+	{
+		if(box->parent)
+		{
+			list_remove(&box->parent->children, &box->listElt);
+			list_append(&ui->overlay->children, &box->listElt);
+		}
+	}
+
+	//NOTE: compute layout
 	for(int axis=0; axis<UI_AXIS_COUNT; axis++)
 	{
 		ui_layout_downward_dependent_size(ui, ui->root, axis);
@@ -1463,6 +1481,7 @@ void ui_begin_frame(ui_style* defaultStyle, ui_style_mask defaultMask)
 	              UI_STYLE_LAYOUT | UI_STYLE_FLOAT_X | UI_STYLE_FLOAT_Y);
 
 	ui->overlay = ui_box_make("_overlay_", 0);
+	ui->overlayList = (list_info){0};
 
 	ui->nextBoxBeforeRules = (list_info){0};
 	ui->nextBoxAfterRules = (list_info){0};
@@ -1980,21 +1999,22 @@ void ui_menu_bar_end(void)
 	ui_box_end(); // menu bar
 }
 
-
 void ui_menu_begin(const char* label)
 {
+	ui_box* container = ui_box_make(label, 0);
+	ui_box_push(container);
+
 	ui_style_next(&(ui_style){.size.width = {UI_SIZE_TEXT},
 	                          .size.height = {UI_SIZE_TEXT}},
 	             UI_STYLE_SIZE);
 
 	ui_box* button = ui_box_make(label, UI_FLAG_CLICKABLE | UI_FLAG_DRAW_TEXT);
-	ui_box* bar = button->parent;
+	ui_box* bar = container->parent;
 
 	ui_sig sig = ui_box_sig(button);
 	ui_sig barSig = ui_box_sig(bar);
 
 	ui_context* ui = ui_get_context();
-	ui_box_push(ui->overlay);
 
 	ui_style style = {.size.width = {UI_SIZE_CHILDREN},
 	                  .size.height = {UI_SIZE_CHILDREN},
@@ -2013,11 +2033,12 @@ void ui_menu_begin(const char* label)
 	                   | UI_STYLE_LAYOUT
 	                   | UI_STYLE_BG_COLOR;
 
-	ui_flags flags = UI_FLAG_DRAW_BACKGROUND
+	ui_flags flags = UI_FLAG_OVERLAY
+	               | UI_FLAG_DRAW_BACKGROUND
 	               | UI_FLAG_DRAW_BORDER;
 
 	ui_style_next(&style, mask);
-	ui_box* menu = ui_box_make(label, flags);
+	ui_box* menu = ui_box_make("panel", flags);
 
 	if(ui_box_active(bar))
 	{
@@ -2047,7 +2068,7 @@ void ui_menu_begin(const char* label)
 void ui_menu_end(void)
 {
 	ui_box_pop(); // menu
-	ui_box_pop(); // overlay;
+	ui_box_pop(); // container
 }
 
 ui_sig ui_menu_button(const char* name)
@@ -2095,129 +2116,130 @@ ui_select_popup_info ui_select_popup(const char* name, ui_select_popup_info* inf
 
 	ui_context* ui = ui_get_context();
 
-	ui_box* button = ui_box_make(name,
-	                             UI_FLAG_CLICKABLE
-	                             |UI_FLAG_DRAW_BACKGROUND
-	                             |UI_FLAG_DRAW_BORDER
-	                             |UI_FLAG_ALLOW_OVERFLOW_X
-	                             |UI_FLAG_CLIP);
-
-	f32 maxOptionWidth = 0;
-	f32 lineHeight = 0;
-	mp_rect bbox = {0};
-	for(int i=0; i<info->optionCount; i++)
+	ui_container(name, 0)
 	{
-		bbox = mg_text_bounding_box(button->style.font, button->style.fontSize, info->options[i]);
-		maxOptionWidth = maximum(maxOptionWidth, bbox.w);
-	}
-	f32 buttonWidth = maxOptionWidth + 2*button->style.layout.margin.x + button->rect.h;
+		ui_box* button = ui_box_make("button",
+	                             	UI_FLAG_CLICKABLE
+	                             	|UI_FLAG_DRAW_BACKGROUND
+	                             	|UI_FLAG_DRAW_BORDER
+	                             	|UI_FLAG_ALLOW_OVERFLOW_X
+	                             	|UI_FLAG_CLIP);
 
-	ui_style_box_before(button,
-	                    ui_pattern_owner(),
-	                    &(ui_style){.size.width = {UI_SIZE_PIXELS, buttonWidth},
-	                                .size.height = {UI_SIZE_CHILDREN},
-	                                .layout.margin.x = 5,
-	                                .layout.margin.y = 2,
-	                                .borderSize = 1,
-	                                .borderColor = {0.3, 0.3, 0.3, 1}},
-	                    UI_STYLE_SIZE
-	                    |UI_STYLE_LAYOUT_MARGIN_X
-	                    |UI_STYLE_LAYOUT_MARGIN_Y
-	                    |UI_STYLE_BORDER_SIZE
-	                    |UI_STYLE_BORDER_COLOR);
-	ui_box_push(button);
-	{
-		ui_label_str8(info->options[info->selectedIndex]);
-
-		ui_style_next(&(ui_style){.size.width = {UI_SIZE_PIXELS, button->rect.h},
-		                          .size.height = {UI_SIZE_PIXELS, button->rect.h},
-		                          .floating.x = true,
-		                          .floating.y = true,
-		                          .floatTarget = {button->rect.w - button->rect.h, 0},
-		                          .color = {0, 0, 0, 1},
-		                          .bgColor = {0.7, 0.7, 0.7, 1}},
-		               UI_STYLE_SIZE
-		              |UI_STYLE_FLOAT
-		              |UI_STYLE_COLOR
-		              |UI_STYLE_BG_COLOR);
-
-		ui_box* arrow = ui_box_make("arrow", UI_FLAG_DRAW_BACKGROUND|UI_FLAG_DRAW_PROC);
-		ui_box_set_draw_proc(arrow, ui_select_popup_draw_arrow, 0);
-	} ui_box_pop();
-
-	ui_box_push(ui->overlay);
-	ui_box* panel = ui_box_make(name,
-	                             UI_FLAG_DRAW_BACKGROUND
-	                            |UI_FLAG_BLOCK_MOUSE);
-
-	//TODO: set width to max(button.w, max child...)
-	f32 containerWidth = maximum(maxOptionWidth + 2*panel->style.layout.margin.x,
-	                             button->rect.w);
-
-	ui_style_box_before(panel,
-	                    ui_pattern_owner(),
-	                    &(ui_style){.size.width = {UI_SIZE_PIXELS, containerWidth},
-	                          .size.height = {UI_SIZE_CHILDREN},
-	                          .floating.x = true,
-	                          .floating.y = true,
-	                          .floatTarget = {button->rect.x,
-	                                          button->rect.y + button->rect.h},
-	                          .layout.axis = UI_AXIS_Y,
-	                          .layout.margin.x = 0,
-	                          .layout.margin.y = 5,
-	                          .bgColor = {0.2, 0.2, 0.2, 1}},
-	              UI_STYLE_SIZE
-	             |UI_STYLE_FLOAT
-	             |UI_STYLE_LAYOUT
-	             |UI_STYLE_BG_COLOR);
-
-	ui_box_push(panel);
-	{
+		f32 maxOptionWidth = 0;
+		f32 lineHeight = 0;
+		mp_rect bbox = {0};
 		for(int i=0; i<info->optionCount; i++)
 		{
-			ui_style_next(&(ui_style){.size.width = {UI_SIZE_PARENT, 1},
-			                          .size.height = {UI_SIZE_TEXT},
-			                          .layout.axis = UI_AXIS_Y,
-			                          .layout.align.x = UI_ALIGN_START,
-			                          .layout.margin.x = 5,
-			                          .layout.margin.y = 2.5},
-			               UI_STYLE_SIZE
-			              |UI_STYLE_LAYOUT_AXIS
-			              |UI_STYLE_LAYOUT_ALIGN_X
-			              |UI_STYLE_LAYOUT_MARGIN_X
-			              |UI_STYLE_LAYOUT_MARGIN_Y);
+			bbox = mg_text_bounding_box(button->style.font, button->style.fontSize, info->options[i]);
+			maxOptionWidth = maximum(maxOptionWidth, bbox.w);
+		}
+		f32 buttonWidth = maxOptionWidth + 2*button->style.layout.margin.x + button->rect.h;
 
+		ui_style_box_before(button,
+	                    	ui_pattern_owner(),
+	                    	&(ui_style){.size.width = {UI_SIZE_PIXELS, buttonWidth},
+	                                	.size.height = {UI_SIZE_CHILDREN},
+	                                	.layout.margin.x = 5,
+	                                	.layout.margin.y = 2,
+	                                	.borderSize = 1,
+	                                	.borderColor = {0.3, 0.3, 0.3, 1}},
+	                    	UI_STYLE_SIZE
+	                    	|UI_STYLE_LAYOUT_MARGIN_X
+	                    	|UI_STYLE_LAYOUT_MARGIN_Y
+	                    	|UI_STYLE_BORDER_SIZE
+	                    	|UI_STYLE_BORDER_COLOR);
+		ui_box_push(button);
+		{
+			ui_label_str8(info->options[info->selectedIndex]);
 
-			ui_pattern pattern = {0};
-			ui_pattern_push(&ui->frameArena, &pattern, (ui_selector){.kind = UI_SEL_STATUS, .status = UI_HOVER});
-			ui_style_match_before(pattern, &(ui_style){.bgColor = {0, 0, 1, 1}}, UI_STYLE_BG_COLOR);
+			ui_style_next(&(ui_style){.size.width = {UI_SIZE_PIXELS, button->rect.h},
+		                          	.size.height = {UI_SIZE_PIXELS, button->rect.h},
+		                          	.floating.x = true,
+		                          	.floating.y = true,
+		                          	.floatTarget = {button->rect.w - button->rect.h, 0},
+		                          	.color = {0, 0, 0, 1},
+		                          	.bgColor = {0.7, 0.7, 0.7, 1}},
+		               	UI_STYLE_SIZE
+		              	|UI_STYLE_FLOAT
+		              	|UI_STYLE_COLOR
+		              	|UI_STYLE_BG_COLOR);
 
-			ui_box* box = ui_box_make_str8(info->options[i],
-			                                UI_FLAG_DRAW_TEXT
-			                               |UI_FLAG_CLICKABLE
-			                               |UI_FLAG_DRAW_BACKGROUND);
-			ui_sig sig = ui_box_sig(box);
-			if(sig.pressed)
+			ui_box* arrow = ui_box_make("arrow", UI_FLAG_DRAW_BACKGROUND|UI_FLAG_DRAW_PROC);
+			ui_box_set_draw_proc(arrow, ui_select_popup_draw_arrow, 0);
+
+		} ui_box_pop();
+
+		//panel
+		ui_box* panel = ui_box_make("panel",
+	                             	UI_FLAG_DRAW_BACKGROUND
+	                            	|UI_FLAG_BLOCK_MOUSE
+	                            	|UI_FLAG_OVERLAY);
+
+		//TODO: set width to max(button.w, max child...)
+		f32 containerWidth = maximum(maxOptionWidth + 2*panel->style.layout.margin.x,
+	                             	button->rect.w);
+
+		ui_style_box_before(panel,
+	                    	ui_pattern_owner(),
+	                    	&(ui_style){.size.width = {UI_SIZE_PIXELS, containerWidth},
+	                          	.size.height = {UI_SIZE_CHILDREN},
+	                          	.floating.x = true,
+	                          	.floating.y = true,
+	                          	.floatTarget = {button->rect.x,
+	                                          	button->rect.y + button->rect.h},
+	                          	.layout.axis = UI_AXIS_Y,
+	                          	.layout.margin.x = 0,
+	                          	.layout.margin.y = 5,
+	                          	.bgColor = {0.2, 0.2, 0.2, 1}},
+	              	UI_STYLE_SIZE
+	             	|UI_STYLE_FLOAT
+	             	|UI_STYLE_LAYOUT
+	             	|UI_STYLE_BG_COLOR);
+
+		ui_box_push(panel);
+		{
+			for(int i=0; i<info->optionCount; i++)
 			{
-				result.selectedIndex = i;
+				ui_style_next(&(ui_style){.size.width = {UI_SIZE_PARENT, 1},
+			                          	.size.height = {UI_SIZE_TEXT},
+			                          	.layout.axis = UI_AXIS_Y,
+			                          	.layout.align.x = UI_ALIGN_START,
+			                          	.layout.margin.x = 5,
+			                          	.layout.margin.y = 2.5},
+			               	UI_STYLE_SIZE
+			              	|UI_STYLE_LAYOUT_AXIS
+			              	|UI_STYLE_LAYOUT_ALIGN_X
+			              	|UI_STYLE_LAYOUT_MARGIN_X
+			              	|UI_STYLE_LAYOUT_MARGIN_Y);
+
+
+				ui_pattern pattern = {0};
+				ui_pattern_push(&ui->frameArena, &pattern, (ui_selector){.kind = UI_SEL_STATUS, .status = UI_HOVER});
+				ui_style_match_before(pattern, &(ui_style){.bgColor = {0, 0, 1, 1}}, UI_STYLE_BG_COLOR);
+
+				ui_box* box = ui_box_make_str8(info->options[i],
+			                                	UI_FLAG_DRAW_TEXT
+			                               	|UI_FLAG_CLICKABLE
+			                               	|UI_FLAG_DRAW_BACKGROUND);
+				ui_sig sig = ui_box_sig(box);
+				if(sig.pressed)
+				{
+					result.selectedIndex = i;
+				}
 			}
 		}
+		ui_box_pop();
+
+		if(ui_box_active(panel) && mp_mouse_pressed(MP_MOUSE_LEFT))
+		{
+			ui_box_deactivate(panel);
+		}
+		else if(ui_box_sig(button).pressed)
+		{
+			ui_box_activate(panel);
+		}
+		ui_box_set_closed(panel, !ui_box_active(panel));
 	}
-	ui_box_pop();
-	ui_box_pop();
-
-	if(ui_box_active(panel) && mp_mouse_pressed(MP_MOUSE_LEFT))
-	{
-		ui_box_deactivate(panel);
-	}
-	else if(ui_box_sig(button).pressed)
-	{
-		ui_box_activate(panel);
-	}
-
-	ui_box_set_closed(panel, !ui_box_active(panel));
-
-
 	return(result);
 }
 

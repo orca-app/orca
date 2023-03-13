@@ -263,6 +263,7 @@ typedef enum
 	UI_FLAG_DRAW_TEXT        = (1<<11),
 	UI_FLAG_DRAW_PROC        = (1<<12),
 
+	UI_FLAG_OVERLAY          = (1<<13),
 } ui_flags;
 
 struct ui_box
@@ -271,6 +272,8 @@ struct ui_box
 	list_elt listElt;
 	list_info children;
 	ui_box* parent;
+
+	list_elt overlayElt;
 
 	// keying and caching
 	list_elt bucketElt;
