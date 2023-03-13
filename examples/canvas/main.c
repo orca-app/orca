@@ -105,35 +105,24 @@ int main()
 				{
 					if(event.key.action == MP_KEY_PRESS || event.key.action == MP_KEY_REPEAT)
 					{
+						f32 factor = (event.key.mods & MP_KEYMOD_SHIFT) ? 10 : 1;
+
 						if(event.key.code == MP_KEY_LEFT)
 						{
-							if(x - 200 > 0)
-							{
-								x-=0.3;
-							}
+								x-=0.3*factor;
 						}
 						else if(event.key.code == MP_KEY_RIGHT)
 						{
-							if(x + 200 < contentRect.w)
-							{
-								x+=0.3;
-							}
+								x+=0.3*factor;
 						}
 						else if(event.key.code == MP_KEY_UP)
 						{
-							if(y + 200 < contentRect.h)
-							{
-								y-=0.3;
-							}
+								y-=0.3*factor;
 						}
 						else if(event.key.code == MP_KEY_DOWN)
 						{
-							if(y - 200 > 0)
-							{
-								y+=0.3;
-							}
+								y+=0.3*factor;
 						}
-						//*/
 					}
 				} break;
 
