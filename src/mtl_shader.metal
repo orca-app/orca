@@ -26,7 +26,6 @@ fragment float4 FragmentShader(vs_out i [[stage_in]], texture2d<float> tex [[tex
 	return(tex.sample(smp, i.uv));
 }
 
-
 bool is_top_left(float2 a, float2 b)
 {
 	return( (a.y == b.y && b.x < a.x)
@@ -158,17 +157,8 @@ kernel void SortKernel(const device uint* tileCounters [[buffer(0)]],
 	}
 }
 
-float orient2d(float2 a, float2 b, float2 c)
+int orient2d(int2 a, int2 b, int2 c)
 {
-	//////////////////////////////////////////////////////////////////////////////////////////
-	//TODO(martin): FIX this. This is a **horrible** quick hack to fix the precision issues
-	//              arising when a, b, and c are close. But it degrades when a, c, and c
-	//              are big. The proper solution is to change the expression to avoid
-	//              precision loss but I'm too busy/lazy to do it now.
-	//////////////////////////////////////////////////////////////////////////////////////////
-	a *= 10;
-	b *= 10;
-	c *= 10;
 	return((b.x-a.x)*(c.y-a.y) - (b.y-a.y)*(c.x-a.x));
 }
 
@@ -190,7 +180,6 @@ kernel void RenderKernel(texture2d<float, access::write> outTexture [[texture(0)
 {
 	//TODO: guard against thread group size not equal to tile size?
 	const uint2 tilesMatrixDim = (gridSize - 1) / RENDERER_TILE_SIZE + 1;
-//	const uint2 tilePos = tgid * threadsPerThreadgroup / RENDERER_TILE_SIZE;
 	const uint2 tilePos = gid/RENDERER_TILE_SIZE;
 	const uint tileIndex = tilePos.y * tilesMatrixDim.x + tilePos.x;
 	const device uint* tileBuffer = tilesArray + tileIndex * RENDERER_TILE_BUFFER_SIZE;
@@ -224,18 +213,25 @@ kernel void RenderKernel(texture2d<float, access::write> outTexture [[texture(0)
 		return;
 	}
 #endif
-	const float2 sampleOffsets[6] = { float2(5./12, 5./12),
-	                                  float2(-3./12, 3./12),
-	                                  float2(1./12, 1./12),
-	                                  float2(3./12, -1./12),
-	                                  float2(-5./12, -3./12),
-	                                  float2(-1./12, -5./12)};
 
-	int zIndices[6];
-	uint flipCounts[6];
-	float4 pixelColors[6];
-	float4 nextColors[6];
-	for(int i=0; i<6; i++)
+	int subPixelFactor = 16;
+	int2 pixelCoord = int2(gid);
+	int2 centerPoint = int2((float2(pixelCoord) + float2(0.5, 0.5)) * subPixelFactor);
+
+	const int sampleCount = 8;
+	int2 samplePoints[sampleCount] = {centerPoint + int2(1, 3),
+	                                  centerPoint + int2(-1, -3),
+	                                  centerPoint + int2(5, -1),
+	                                  centerPoint + int2(-3, 5),
+	                                  centerPoint + int2(-5, -5),
+	                                  centerPoint + int2(-7, 1),
+	                                  centerPoint + int2(3, -7),
+	                                  centerPoint + int2(7, 7)};
+	int zIndices[sampleCount];
+	uint flipCounts[sampleCount];
+	float4 pixelColors[sampleCount];
+	float4 nextColors[sampleCount];
+	for(int i=0; i<sampleCount; i++)
 	{
 		zIndices[i] = -1;
 		flipCounts[i] = 0;
@@ -245,12 +241,12 @@ kernel void RenderKernel(texture2d<float, access::write> outTexture [[texture(0)
 
 	for(uint tileBufferIndex=0; tileBufferIndex < tileBufferSize; tileBufferIndex++)
 	{
-		float4 box = boxArray[tileBuffer[tileBufferIndex]];
+//		float4 box = boxArray[tileBuffer[tileBufferIndex]];
 		const device mg_triangle_data* triangle = &triangleArray[tileBuffer[tileBufferIndex]];
 
-		float2 p0 = triangle->p0;
-		float2 p1 = triangle->p1;
-		float2 p2 = triangle->p2;
+		int2 p0 = int2(triangle->p0 * subPixelFactor);
+		int2 p1 = int2(triangle->p1 * subPixelFactor);
+		int2 p2 = int2(triangle->p2 * subPixelFactor);
 
 		int bias0 = triangle->bias0;
 		int bias1 = triangle->bias1;
@@ -273,26 +269,30 @@ kernel void RenderKernel(texture2d<float, access::write> outTexture [[texture(0)
 		                               {uvTransform2x3[1], uvTransform2x3[4], 0},
 		                               {uvTransform2x3[2], uvTransform2x3[5], 1}};
 
-		for(int i=0; i<6; i++)
+		for(int i=0; i<sampleCount; i++)
 		{
-			float2 samplePoint = (float2)gid + sampleOffsets[i];
+			int2 samplePoint = samplePoints[i];
 
 			//NOTE(martin): cull if pixel is outside box
+			/*
+			// if we use this, make sure box is in fixed points coords
 			if(samplePoint.x < box.x || samplePoint.x > box.z || samplePoint.y < box.y || samplePoint.y > box.w)
 			{
 				continue;
 			}
+			*/
 
-			float w0 = orient2d(p1, p2, samplePoint);
-			float w1 = orient2d(p2, p0, samplePoint);
-			float w2 = orient2d(p0, p1, samplePoint);
+			int w0 = orient2d(p1, p2, samplePoint);
+			int w1 = orient2d(p2, p0, samplePoint);
+			int w2 = orient2d(p0, p1, samplePoint);
 
-			if(((int)w0+bias0) >= 0 && ((int)w1+bias1) >= 0 && ((int)w2+bias2) >= 0)
+			if((w0+bias0) >= 0 && (w1+bias1) >= 0 && (w2+bias2) >= 0)
 			{
 				float4 cubic = (cubic0*w0 + cubic1*w1 + cubic2*w2)/(w0+w1+w2);
 
 				//float2 uv = (uv0*w0 + uv1*w1 + uv2*w2)/(w0+w1+w2);
-				float2 uv = (uvTransform*(float3(samplePoint.xy/contentsScaling[0], 1))).xy;
+				float2 sampleFP = float2(samplePoint)/subPixelFactor;
+				float2 uv = (uvTransform*(float3(sampleFP/contentsScaling[0], 1))).xy;
 
 				float4 texColor = float4(1, 1, 1, 1);
 				if(*useTexture)
@@ -334,7 +334,7 @@ kernel void RenderKernel(texture2d<float, access::write> outTexture [[texture(0)
 		}
 	}
 	float4 out = float4(0, 0, 0, 0);
-	for(int i=0; i<6; i++)
+	for(int i=0; i<sampleCount; i++)
 	{
 		if(flipCounts[i] & 0x01)
 		{
@@ -342,6 +342,6 @@ kernel void RenderKernel(texture2d<float, access::write> outTexture [[texture(0)
 		}
 		out += pixelColors[i];
 	}
-	out = out/6.;
+	out = out/sampleCount;
 	outTexture.write(out, gid);
 }
