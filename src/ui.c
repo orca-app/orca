@@ -1942,7 +1942,6 @@ void ui_panel_end(void)
 ui_sig ui_tooltip_begin(const char* name)
 {
 	ui_context* ui = ui_get_context();
-	ui_box_push(ui->overlay);
 
 	vec2 p = ui_mouse_position();
 
@@ -1955,7 +1954,8 @@ ui_sig ui_tooltip_begin(const char* name)
 
 	ui_style_next(&style, mask);
 
-	ui_flags flags = UI_FLAG_DRAW_BACKGROUND
+	ui_flags flags = UI_FLAG_OVERLAY
+	               | UI_FLAG_DRAW_BACKGROUND
 	               | UI_FLAG_DRAW_BORDER;
 
 	ui_box* tooltip = ui_box_make(name, flags);
@@ -1967,7 +1967,6 @@ ui_sig ui_tooltip_begin(const char* name)
 void ui_tooltip_end(void)
 {
 	ui_box_pop(); // tooltip
-	ui_box_pop(); // ui->overlay
 }
 
 //------------------------------------------------------------------------------
@@ -2102,9 +2101,26 @@ ui_sig ui_menu_button(const char* name)
 
 void ui_select_popup_draw_arrow(ui_box* box, void* data)
 {
-	mg_move_to(box->rect.x + 0.2*box->rect.w, box->rect.y + 0.4*box->rect.h);
-	mg_line_to(box->rect.x + 0.5*box->rect.w, box->rect.y + 0.8*box->rect.h);
-	mg_line_to(box->rect.x + 0.8*box->rect.w, box->rect.y + 0.4*box->rect.h);
+	f32 r = minimum(box->parent->style.roundness, box->rect.w);
+	f32 cr = r*4*(sqrt(2)-1)/3;
+
+	mg_move_to(box->rect.x, box->rect.y);
+	mg_line_to(box->rect.x + box->rect.w - r, box->rect.y);
+	mg_cubic_to(box->rect.x + box->rect.w - cr, box->rect.y,
+	            box->rect.x + box->rect.w, box->rect.y + cr,
+	            box->rect.x + box->rect.w, box->rect.y + r);
+	mg_line_to(box->rect.x + box->rect.w, box->rect.y + box->rect.h - r);
+	mg_cubic_to(box->rect.x + box->rect.w, box->rect.y + box->rect.h - cr,
+	            box->rect.x + box->rect.w - cr, box->rect.y + box->rect.h,
+	            box->rect.x + box->rect.w - r, box->rect.y + box->rect.h);
+	mg_line_to(box->rect.x, box->rect.y + box->rect.h);
+
+	mg_set_color(box->style.bgColor);
+	mg_fill();
+
+	mg_move_to(box->rect.x + 0.25*box->rect.w, box->rect.y + 0.45*box->rect.h);
+	mg_line_to(box->rect.x + 0.5*box->rect.w, box->rect.y + 0.75*box->rect.h);
+	mg_line_to(box->rect.x + 0.75*box->rect.w, box->rect.y + 0.45*box->rect.h);
 
 	mg_set_color(box->style.color);
 	mg_fill();
@@ -2140,12 +2156,14 @@ ui_select_popup_info ui_select_popup(const char* name, ui_select_popup_info* inf
 	                    	&(ui_style){.size.width = {UI_SIZE_PIXELS, buttonWidth},
 	                                	.size.height = {UI_SIZE_CHILDREN},
 	                                	.layout.margin.x = 5,
-	                                	.layout.margin.y = 2,
+	                                	.layout.margin.y = 1,
+	                                	.roundness = 5,
 	                                	.borderSize = 1,
 	                                	.borderColor = {0.3, 0.3, 0.3, 1}},
 	                    	UI_STYLE_SIZE
 	                    	|UI_STYLE_LAYOUT_MARGIN_X
 	                    	|UI_STYLE_LAYOUT_MARGIN_Y
+	                    	|UI_STYLE_ROUNDNESS
 	                    	|UI_STYLE_BORDER_SIZE
 	                    	|UI_STYLE_BORDER_COLOR);
 		ui_box_push(button);
@@ -2164,7 +2182,7 @@ ui_select_popup_info ui_select_popup(const char* name, ui_select_popup_info* inf
 		              	|UI_STYLE_COLOR
 		              	|UI_STYLE_BG_COLOR);
 
-			ui_box* arrow = ui_box_make("arrow", UI_FLAG_DRAW_BACKGROUND|UI_FLAG_DRAW_PROC);
+			ui_box* arrow = ui_box_make("arrow", UI_FLAG_DRAW_PROC);
 			ui_box_set_draw_proc(arrow, ui_select_popup_draw_arrow, 0);
 
 		} ui_box_pop();
