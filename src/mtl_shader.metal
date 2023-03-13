@@ -101,8 +101,10 @@ kernel void TileKernel(constant mg_vertex* vertexBuffer [[buffer(0)]],
 		               constant mg_shape* shapeBuffer [[buffer(2)]],
 		               device volatile atomic_uint* tileCounters [[buffer(3)]],
                        device uint* tileArrayBuffer [[buffer(4)]],
-                       constant uint2* viewport [[buffer(5)]],
-                       constant float* scaling [[buffer(6)]],
+                       device mg_triangle_data* triangleArray [[buffer(5)]],
+		              device float4* boxArray [[buffer(6)]],
+                       constant uint2* viewport [[buffer(7)]],
+                       constant float* scaling [[buffer(8)]],
                        uint gid [[thread_position_in_grid]])
 {
 	uint2 tilesMatrixDim = (*viewport - 1) / RENDERER_TILE_SIZE + 1;
@@ -112,22 +114,57 @@ kernel void TileKernel(constant mg_vertex* vertexBuffer [[buffer(0)]],
 	uint triangleIndex = gid * 3;
 
 	uint i0 = indexBuffer[triangleIndex];
-	uint i1 = indexBuffer[triangleIndex+1u];
-	uint i2 = indexBuffer[triangleIndex+2u];
+	uint i1 = indexBuffer[triangleIndex+1];
+	uint i2 = indexBuffer[triangleIndex+2];
 
 	float2 p0 = vertexBuffer[i0].pos * scaling[0];
 	float2 p1 = vertexBuffer[i1].pos * scaling[0];
 	float2 p2 = vertexBuffer[i2].pos * scaling[0];
 
+	//NOTE(martin): compute triangle bounding box
+	float2 boxMin = min(min(p0, p1), p2);
+	float2 boxMax = max(max(p0, p1), p2);
+
+	//NOTE(martin): clip bounding box against clip rect
 	int shapeIndex = vertexBuffer[i0].shapeIndex;
-	float4 clip = shapeBuffer[shapeIndex].clip * scaling[0];
 
-	float4 fbox = float4(max(min(min(p0.x, p1.x), p2.x), clip.x),
-		             max(min(min(p0.y, p1.y), p2.y), clip.y),
-		             min(max(max(p0.x, p1.x), p2.x), clip.z),
-		             min(max(max(p0.y, p1.y), p2.y), clip.w));
+	vector_float4 clip = scaling[0]*shapeBuffer[shapeIndex].clip;
 
-	int4 box = int4(floor(fbox))/int(RENDERER_TILE_SIZE);
+	//NOTE(martin): intersect with current clip
+	boxMin = max(boxMin, clip.xy);
+	boxMax = min(boxMax, clip.zw);
+
+	//NOTE(martin): reorder triangle counter-clockwise and compute bias for each edge
+	float cw = (p1 - p0).x*(p2 - p0).y - (p1 - p0).y*(p2 - p0).x;
+	if(cw < 0)
+	{
+		uint tmpIndex = i1;
+		i1 = i2;
+		i2 = tmpIndex;
+
+		float2 tmpPoint = p1;
+		p1 = p2;
+		p2 = tmpPoint;
+	}
+	int bias0 = is_top_left(p1, p2) ? 0 : -1;
+	int bias1 = is_top_left(p2, p0) ? 0 : -1;
+	int bias2 = is_top_left(p0, p1) ? 0 : -1;
+
+	//NOTE(martin): fill triangle data
+	boxArray[gid] = float4(boxMin.x, boxMin.y, boxMax.x, boxMax.y);
+
+	triangleArray[gid].shapeIndex = shapeIndex;
+	triangleArray[gid].cubic0 = vertexBuffer[i0].cubic;
+	triangleArray[gid].cubic1 = vertexBuffer[i1].cubic;
+	triangleArray[gid].cubic2 = vertexBuffer[i2].cubic;
+	triangleArray[gid].p0 = p0;
+	triangleArray[gid].p1 = p1;
+	triangleArray[gid].p2 = p2;
+	triangleArray[gid].bias0 = bias0;
+	triangleArray[gid].bias1 = bias1;
+	triangleArray[gid].bias2 = bias2;
+
+	int4 box = int4(floor(boxArray[gid]))/RENDERER_TILE_SIZE;
 
 	//NOTE(martin): it's importat to do the computation with signed int, so that we can have negative xMax/yMax
 	//              otherwise all triangles on the left or below the x/y axis are attributed to tiles on row/column 0.
@@ -144,17 +181,15 @@ kernel void TileKernel(constant mg_vertex* vertexBuffer [[buffer(0)]],
 			uint counter = atomic_fetch_add_explicit(&(tileCounters[tileIndex]), 1, memory_order_relaxed);
 			if(counter < RENDERER_TILE_BUFFER_SIZE)
 			{
-				tileArrayBuffer[tileIndex*RENDERER_TILE_BUFFER_SIZE + counter] = triangleIndex;
+				tileArrayBuffer[tileIndex*RENDERER_TILE_BUFFER_SIZE + counter] = gid;
 			}
 		}
 	}
 }
 
-kernel void SortKernel(constant mg_vertex* vertexBuffer [[buffer(0)]],
-                       constant uint* indexBuffer [[buffer(1)]],
-                       constant mg_shape* shapeBuffer [[buffer(2)]],
-                       const device uint* tileCounters [[buffer(3)]],
-                       device uint* tileArrayBuffer [[buffer(4)]],
+kernel void SortKernel(const device mg_triangle_data* triangleArray [[buffer(0)]],
+                       const device uint* tileCounters [[buffer(1)]],
+                       device uint* tileArrayBuffer [[buffer(2)]],
                        uint gid [[thread_position_in_grid]])
 {
 	uint tileIndex = gid;
@@ -163,13 +198,10 @@ kernel void SortKernel(constant mg_vertex* vertexBuffer [[buffer(0)]],
 
 	for(uint tileArrayIndex=1; tileArrayIndex < tileArrayCount; tileArrayIndex++)
 	{
-		for(uint sortIndex = tileArrayIndex; sortIndex > 0u; sortIndex--)
+		for(uint sortIndex = tileArrayIndex; sortIndex > 0; sortIndex--)
 		{
-			uint triangleIndex = indexBuffer[tileArrayBuffer[tileArrayOffset + sortIndex]];
-			uint prevTriangleIndex = indexBuffer[tileArrayBuffer[tileArrayOffset + sortIndex - 1]];
-
-			int shapeIndex = vertexBuffer[triangleIndex].shapeIndex;
-			int prevShapeIndex = vertexBuffer[prevTriangleIndex].shapeIndex;
+			int shapeIndex = triangleArray[tileArrayBuffer[tileArrayOffset + sortIndex]].shapeIndex;
+			int prevShapeIndex = triangleArray[tileArrayBuffer[tileArrayOffset + sortIndex - 1]].shapeIndex;
 
 			if(shapeIndex >= prevShapeIndex)
 			{
@@ -209,11 +241,11 @@ int is_clockwise(int2 p0, int2 p1, int2 p2)
 }
 
 
-kernel void RenderKernel(const device mg_vertex* vertexBuffer [[buffer(0)]],
-                         const device uint* indexBuffer [[buffer(1)]],
-                         const device mg_shape* shapeBuffer [[buffer(2)]],
-                         const device uint* tileCounters [[buffer(3)]],
-                         const device uint* tileArrayBuffer [[buffer(4)]],
+kernel void RenderKernel(const device mg_shape* shapeBuffer [[buffer(0)]],
+                         device uint* tileCounters [[buffer(1)]],
+                         const device uint* tileArrayBuffer [[buffer(2)]],
+                         const device mg_triangle_data* triangleArray [[buffer(3)]],
+                         const device float4* boxArray [[buffer(4)]],
 
                          constant float4* clearColor [[buffer(5)]],
                          constant int* useTexture [[buffer(6)]],
@@ -290,46 +322,30 @@ kernel void RenderKernel(const device mg_vertex* vertexBuffer [[buffer(0)]],
     for(uint tileArrayIndex=0; tileArrayIndex < tileCounter; tileArrayIndex++)
     {
     	int triangleIndex = tileArrayBuffer[RENDERER_TILE_BUFFER_SIZE * tileIndex + tileArrayIndex];
+		const device mg_triangle_data* triangle = &triangleArray[triangleIndex];
 
-		uint i0 = indexBuffer[triangleIndex];
-		uint i1 = indexBuffer[triangleIndex+1];
-		uint i2 = indexBuffer[triangleIndex+2];
+		int2 p0 = int2(triangle->p0 * subPixelFactor);
+		int2 p1 = int2(triangle->p1 * subPixelFactor);
+		int2 p2 = int2(triangle->p2 * subPixelFactor);
 
-		int2 p0 = int2((vertexBuffer[i0].pos * scaling[0]) * subPixelFactor);
-		int2 p1 = int2((vertexBuffer[i1].pos * scaling[0]) * subPixelFactor);
-		int2 p2 = int2((vertexBuffer[i2].pos * scaling[0]) * subPixelFactor);
+		int bias0 = triangle->bias0;
+		int bias1 = triangle->bias1;
+		int bias2 = triangle->bias2;
 
-		int shapeIndex = vertexBuffer[i0].shapeIndex;
+		float4 cubic0 = triangle->cubic0;
+		float4 cubic1 = triangle->cubic1;
+		float4 cubic2 = triangle->cubic2;
+
+		int shapeIndex = triangle->shapeIndex;
 		float4 color = shapeBuffer[shapeIndex].color;
 		color.rgb *= color.a;
 
-		int4 clip = int4(round((shapeBuffer[shapeIndex].clip * scaling[0] + float4(0.5, 0.5, 0.5, 0.5)) * subPixelFactor));
+		int4 clip = int4(boxArray[triangleIndex] * subPixelFactor);
 
 		const device float* uvTransform2x3 = shapeBuffer[shapeIndex].uvTransform;
 		matrix_float3x3 uvTransform = {{uvTransform2x3[0], uvTransform2x3[3], 0},
 		                               {uvTransform2x3[1], uvTransform2x3[4], 0},
 		                               {uvTransform2x3[2], uvTransform2x3[5], 1}};
-
-		//NOTE(martin): reorder triangle counter-clockwise and compute bias for each edge
-		int cw = is_clockwise(p0, p1, p2);
-		if(cw < 0)
-		{
-			uint tmpIndex = i1;
-			i1 = i2;
-			i2 = tmpIndex;
-
-			int2 tmpPoint = p1;
-			p1 = p2;
-			p2 = tmpPoint;
-		}
-
-		float4 cubic0 = vertexBuffer[i0].cubic;
-		float4 cubic1 = vertexBuffer[i1].cubic;
-		float4 cubic2 = vertexBuffer[i2].cubic;
-
-		int bias0 = is_top_left(p1, p2) ? 0 : -1;
-		int bias1 = is_top_left(p2, p0) ? 0 : -1;
-		int bias2 = is_top_left(p0, p1) ? 0 : -1;
 
 		for(int sampleIndex = 0; sampleIndex < sampleCount; sampleIndex++)
 		{
