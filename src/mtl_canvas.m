@@ -242,8 +242,8 @@ void mg_mtl_canvas_draw_batch(mg_canvas_backend* interface, mg_image_data* image
 		[drawEncoder setBuffer: backend->shapeBuffer offset:backend->shapeBufferOffset atIndex: 0];
 		[drawEncoder setBuffer: backend->tileCounters offset:0 atIndex: 1];
 		[drawEncoder setBuffer: backend->tileArrayBuffer offset:0 atIndex: 2];
-		[sortEncoder setBuffer: backend->triangleArray offset:0 atIndex: 3];
-		[tileEncoder setBuffer: backend->boxArray offset:0 atIndex: 4];
+		[drawEncoder setBuffer: backend->triangleArray offset:0 atIndex: 3];
+		[drawEncoder setBuffer: backend->boxArray offset:0 atIndex: 4];
 
 		[drawEncoder setTexture: backend->outTexture atIndex: 0];
 		int useTexture = 0;
