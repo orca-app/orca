@@ -33,7 +33,6 @@ typedef struct mg_mtl_canvas_backend
 	// permanent metal resources
 	id<MTLComputePipelineState> tilingPipeline;
 	id<MTLComputePipelineState> sortingPipeline;
-	id<MTLComputePipelineState> boxingPipeline;
 	id<MTLComputePipelineState> computePipeline;
 	id<MTLRenderPipelineState> renderPipeline;
 
@@ -47,7 +46,6 @@ typedef struct mg_mtl_canvas_backend
 	id<MTLBuffer> tileCounters;
 	id<MTLBuffer> tileArrayBuffer;
 	id<MTLBuffer> triangleArray;
-	id<MTLBuffer> boxArray;
 
 } mg_mtl_canvas_backend;
 
@@ -163,29 +161,6 @@ void mg_mtl_canvas_draw_batch(mg_canvas_backend* interface, mg_image_data* image
 		[blitEncoder fillBuffer: backend->tileCounters range: NSMakeRange(0, RENDERER_MAX_TILES*sizeof(uint)) value: 0];
 		[blitEncoder endEncoding];
 
-		/*
-		//-----------------------------------------------------------
-		//NOTE(martin): encode the boxing pass
-		//-----------------------------------------------------------
-		id<MTLComputeCommandEncoder> boxEncoder = [surface->commandBuffer computeCommandEncoder];
-		boxEncoder.label = @"boxing pass";
-		[boxEncoder setComputePipelineState: backend->boxingPipeline];
-
-		[boxEncoder setBuffer: backend->vertexBuffer offset:backend->vertexBufferOffset atIndex: 0];
-		[boxEncoder setBuffer: backend->indexBuffer offset:backend->indexBufferOffset atIndex: 1];
-		[boxEncoder setBuffer: backend->shapeBuffer offset:backend->shapeBufferOffset atIndex: 2];
-
-		[boxEncoder setBuffer: backend->triangleArray offset:0 atIndex: 3];
-		[boxEncoder setBuffer: backend->boxArray offset:0 atIndex: 4];
-		[boxEncoder setBytes: &scale length: sizeof(float) atIndex: 5];
-
-		MTLSize boxGroupSize = MTLSizeMake(backend->boxingPipeline.maxTotalThreadsPerThreadgroup, 1, 1);
-		MTLSize boxGridSize = MTLSizeMake(indexCount/3, 1, 1);
-
-		[boxEncoder dispatchThreads: boxGridSize threadsPerThreadgroup: boxGroupSize];
-		[boxEncoder endEncoding];
-		*/
-
 		//-----------------------------------------------------------
 		//NOTE(martin): encode the tiling pass
 		//-----------------------------------------------------------
@@ -238,10 +213,9 @@ void mg_mtl_canvas_draw_batch(mg_canvas_backend* interface, mg_image_data* image
 		id<MTLComputeCommandEncoder> drawEncoder = [surface->commandBuffer computeCommandEncoder];
 		drawEncoder.label = @"drawing pass";
 		[drawEncoder setComputePipelineState:backend->computePipeline];
-		[drawEncoder setBuffer: backend->shapeBuffer offset:backend->shapeBufferOffset atIndex: 0];
-		[drawEncoder setBuffer: backend->tileCounters offset:0 atIndex: 1];
-		[drawEncoder setBuffer: backend->tileArrayBuffer offset:0 atIndex: 2];
-		[drawEncoder setBuffer: backend->triangleArray offset:0 atIndex: 3];
+		[drawEncoder setBuffer: backend->tileCounters offset:0 atIndex: 0];
+		[drawEncoder setBuffer: backend->tileArrayBuffer offset:0 atIndex: 1];
+		[drawEncoder setBuffer: backend->triangleArray offset:0 atIndex: 2];
 
 		[drawEncoder setTexture: backend->outTexture atIndex: 0];
 		int useTexture = 0;
@@ -252,9 +226,9 @@ void mg_mtl_canvas_draw_batch(mg_canvas_backend* interface, mg_image_data* image
 			useTexture = 1;
 		}
 
-		[drawEncoder setBytes: &clearColorVec4 length: sizeof(vector_float4) atIndex: 4];
-		[drawEncoder setBytes: &useTexture length:sizeof(int) atIndex: 5];
-		[drawEncoder setBytes: &scale length: sizeof(float) atIndex: 6];
+		[drawEncoder setBytes: &clearColorVec4 length: sizeof(vector_float4) atIndex: 3];
+		[drawEncoder setBytes: &useTexture length:sizeof(int) atIndex: 4];
+		[drawEncoder setBytes: &scale length: sizeof(float) atIndex: 5];
 
 		//TODO: check that we don't exceed maxTotalThreadsPerThreadgroup
 		DEBUG_ASSERT(RENDERER_TILE_SIZE*RENDERER_TILE_SIZE <= backend->computePipeline.maxTotalThreadsPerThreadgroup);
@@ -341,7 +315,6 @@ void mg_mtl_canvas_destroy(mg_canvas_backend* interface)
 		[backend->indexBuffer release];
 		[backend->tileArrayBuffer release];
 		[backend->triangleArray release];
-		[backend->boxArray release];
 		[backend->computePipeline release];
 	}
 }
@@ -473,9 +446,6 @@ mg_canvas_backend* mg_mtl_canvas_create(mg_surface surface)
 			backend->triangleArray = [metalSurface->device newBufferWithLength: MG_MTL_CANVAS_DEFAULT_BUFFER_LENGTH*sizeof(mg_triangle_data)
 								options: MTLResourceStorageModePrivate];
 
-			backend->boxArray = [metalSurface->device newBufferWithLength: MG_MTL_CANVAS_DEFAULT_BUFFER_LENGTH*sizeof(vector_float4)
-								options: MTLResourceStorageModePrivate];
-
 			//TODO(martin): retain ?
 			//-----------------------------------------------------------
 			//NOTE(martin): create and initialize tile counters
@@ -499,7 +469,6 @@ mg_canvas_backend* mg_mtl_canvas_create(mg_surface surface)
 			}
 			id<MTLFunction> tilingFunction = [library newFunctionWithName:@"TileKernel"];
 			id<MTLFunction> sortingFunction = [library newFunctionWithName:@"SortKernel"];
-			id<MTLFunction> boxingFunction = [library newFunctionWithName:@"BoundingBoxKernel"];
 			id<MTLFunction> computeFunction = [library newFunctionWithName:@"RenderKernel"];
 			id<MTLFunction> vertexFunction = [library newFunctionWithName:@"VertexShader"];
 			id<MTLFunction> fragmentFunction = [library newFunctionWithName:@"FragmentShader"];
@@ -530,16 +499,6 @@ mg_canvas_backend* mg_mtl_canvas_create(mg_surface surface)
 		                                           	reflection: nil
 		                                           	error: &error];
 
-/*
-			MTLComputePipelineDescriptor* boxingPipelineDesc = [[MTLComputePipelineDescriptor alloc] init];
-			boxingPipelineDesc.computeFunction = boxingFunction;
-	//		boxingPipelineDesc.threadGroupSizeIsMultipleOfThreadExecutionWidth = true;
-
-			backend->boxingPipeline = [metalSurface->device newComputePipelineStateWithDescriptor: boxingPipelineDesc
-		                                           	options: MTLPipelineOptionNone
-		                                           	reflection: nil
-		                                           	error: &error];
-*/
 			//-----------------------------------------------------------
 			//NOTE(martin): setup our render pipeline state
 			//-----------------------------------------------------------

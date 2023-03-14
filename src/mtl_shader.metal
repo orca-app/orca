@@ -93,6 +93,13 @@ kernel void TileKernel(constant mg_vertex* vertexBuffer [[buffer(0)]],
 	triangleArray[gid].box = int4(fbox * subPixelFactor);
 	triangleArray[gid].shapeIndex = shapeIndex;
 
+	triangleArray[gid].color = shapeBuffer[shapeIndex].color;
+
+	constant float* uvTransform2x3 = shapeBuffer[shapeIndex].uvTransform;
+	triangleArray[gid].uvTransform = (matrix_float3x3){{uvTransform2x3[0], uvTransform2x3[3], 0},
+		                                               {uvTransform2x3[1], uvTransform2x3[4], 0},
+		                                               {uvTransform2x3[2], uvTransform2x3[5], 1}};
+
 	triangleArray[gid].cubic0 = vertexBuffer[i0].cubic;
 	triangleArray[gid].cubic1 = vertexBuffer[i1].cubic;
 	triangleArray[gid].cubic2 = vertexBuffer[i2].cubic;
@@ -182,14 +189,13 @@ int is_clockwise(int2 p0, int2 p1, int2 p2)
 }
 
 
-kernel void RenderKernel(const device mg_shape* shapeBuffer [[buffer(0)]],
-                         device uint* tileCounters [[buffer(1)]],
-                         const device uint* tileArrayBuffer [[buffer(2)]],
-                         const device mg_triangle_data* triangleArray [[buffer(3)]],
+kernel void RenderKernel(const device uint* tileCounters [[buffer(0)]],
+                         const device uint* tileArrayBuffer [[buffer(1)]],
+                         const device mg_triangle_data* triangleArray [[buffer(2)]],
 
-                         constant float4* clearColor [[buffer(4)]],
-                         constant int* useTexture [[buffer(5)]],
-                         constant float* scaling [[buffer(6)]],
+                         constant float4* clearColor [[buffer(3)]],
+                         constant int* useTexture [[buffer(4)]],
+                         constant float* scaling [[buffer(5)]],
 
                          texture2d<float, access::write> outTexture [[texture(0)]],
                          texture2d<float> texAtlas [[texture(1)]],
@@ -277,15 +283,12 @@ kernel void RenderKernel(const device mg_shape* shapeBuffer [[buffer(0)]],
 		float4 cubic2 = triangle->cubic2;
 
 		int shapeIndex = triangle->shapeIndex;
-		float4 color = shapeBuffer[shapeIndex].color;
+		float4 color = triangle->color;
 		color.rgb *= color.a;
 
 		int4 clip = triangle->box;
 
-		const device float* uvTransform2x3 = shapeBuffer[shapeIndex].uvTransform;
-		matrix_float3x3 uvTransform = {{uvTransform2x3[0], uvTransform2x3[3], 0},
-		                               {uvTransform2x3[1], uvTransform2x3[4], 0},
-		                               {uvTransform2x3[2], uvTransform2x3[5], 1}};
+		matrix_float3x3 uvTransform = triangle->uvTransform;
 
 		for(int sampleIndex = 0; sampleIndex < sampleCount; sampleIndex++)
 		{

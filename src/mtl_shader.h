@@ -35,9 +35,13 @@ typedef struct mg_shape
 
 typedef struct mg_triangle_data
 {
+	matrix_float3x3 uvTransform;
+	vector_float4 color;
+
 	vector_float4 cubic0;
 	vector_float4 cubic1;
 	vector_float4 cubic2;
+
 	vector_int4 box;
 
 	vector_int2 p0;
