@@ -52,6 +52,8 @@ typedef struct mg_triangle_data
 	int bias1;
 	int bias2;
 
+	int cw;
+
 	int shapeIndex;
 
 } mg_triangle_data;

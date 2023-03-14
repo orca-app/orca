@@ -56,31 +56,20 @@ kernel void TileKernel(constant mg_vertex* vertexBuffer [[buffer(0)]],
 	float2 p1 = vertexBuffer[i1].pos * scaling[0];
 	float2 p2 = vertexBuffer[i2].pos * scaling[0];
 
-	//NOTE(martin): compute triangle bounding box
+	int shapeIndex = vertexBuffer[i0].shapeIndex;
+
+	//NOTE(martin): compute triangle bounding box and clip it
 	float2 boxMin = min(min(p0, p1), p2);
 	float2 boxMax = max(max(p0, p1), p2);
 
-	//NOTE(martin): clip bounding box against clip rect
-	int shapeIndex = vertexBuffer[i0].shapeIndex;
-
 	vector_float4 clip = scaling[0]*shapeBuffer[shapeIndex].clip;
 
-	//NOTE(martin): intersect with current clip
 	boxMin = max(boxMin, clip.xy);
 	boxMax = min(boxMax, clip.zw);
 
-	//NOTE(martin): reorder triangle counter-clockwise and compute bias for each edge
-	float cw = (p1 - p0).x*(p2 - p0).y - (p1 - p0).y*(p2 - p0).x;
-	if(cw < 0)
-	{
-		uint tmpIndex = i1;
-		i1 = i2;
-		i2 = tmpIndex;
+	//NOTE(martin): compute triangle orientation and bias for each edge
+	int cw = ((p1 - p0).x*(p2 - p0).y - (p1 - p0).y*(p2 - p0).x) > 0 ? 1 : -1;
 
-		float2 tmpPoint = p1;
-		p1 = p2;
-		p2 = tmpPoint;
-	}
 	int bias0 = is_top_left(p1, p2) ? 0 : -1;
 	int bias1 = is_top_left(p2, p0) ? 0 : -1;
 	int bias2 = is_top_left(p0, p1) ? 0 : -1;
@@ -112,9 +101,11 @@ kernel void TileKernel(constant mg_vertex* vertexBuffer [[buffer(0)]],
 	triangleArray[gid].bias1 = bias1;
 	triangleArray[gid].bias2 = bias2;
 
+	triangleArray[gid].cw = cw;
+
 	int4 box = int4(floor(fbox))/RENDERER_TILE_SIZE;
 
-	//NOTE(martin): it's importat to do the computation with signed int, so that we can have negative xMax/yMax
+	//NOTE(martin): it's important to do the computation with signed int, so that we can have negative xMax/yMax
 	//              otherwise all triangles on the left or below the x/y axis are attributed to tiles on row/column 0.
 	int xMin = max(0, box.x);
 	int yMin = max(0, box.y);
@@ -274,6 +265,8 @@ kernel void RenderKernel(const device uint* tileCounters [[buffer(0)]],
 		int2 p1 = triangle->p1;
 		int2 p2 = triangle->p2;
 
+		int cw = triangle->cw;
+
 		int bias0 = triangle->bias0;
 		int bias1 = triangle->bias1;
 		int bias2 = triangle->bias2;
@@ -302,9 +295,9 @@ kernel void RenderKernel(const device uint* tileCounters [[buffer(0)]],
 				continue;
 			}
 
-			int w0 = orient2d(p1, p2, samplePoint);
-			int w1 = orient2d(p2, p0, samplePoint);
-			int w2 = orient2d(p0, p1, samplePoint);
+			int w0 = cw*orient2d(p1, p2, samplePoint);
+			int w1 = cw*orient2d(p2, p0, samplePoint);
+			int w2 = cw*orient2d(p0, p1, samplePoint);
 
 			if((w0+bias0) >= 0 && (w1+bias1) >= 0 && (w2+bias2) >= 0)
 			{
