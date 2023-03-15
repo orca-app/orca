@@ -31,6 +31,27 @@ bool is_top_left(float2 a, float2 b)
 	return( (a.y == b.y && b.x < a.x)
 	      ||(b.y < a.y));
 }
+/*
+bool is_top_left(int2 a, int2 b)
+{
+	return( (a.y == b.y && b.x < a.x)
+	      ||(b.y < a.y));
+}
+*/
+
+//////////////////////////////////////////////////////////////////////////////
+//TODO: we should do these computations on 64bits, because otherwise
+//      we might overflow for values > 2048.
+//		Unfortunately this is costly.
+//	    Another way is to precompute triangle edges (b - a) in full precision
+//      once to avoid doing it all the time...
+//////////////////////////////////////////////////////////////////////////////
+
+int orient2d(int2 a, int2 b, int2 c)
+{
+	return((b.x-a.x)*(c.y-a.y) - (b.y-a.y)*(c.x-a.x));
+}
+
 
 kernel void TileKernel(constant mg_vertex* vertexBuffer [[buffer(0)]],
 		               constant uint* indexBuffer [[buffer(1)]],
@@ -67,13 +88,6 @@ kernel void TileKernel(constant mg_vertex* vertexBuffer [[buffer(0)]],
 	boxMin = max(boxMin, clip.xy);
 	boxMax = min(boxMax, clip.zw);
 
-	//NOTE(martin): compute triangle orientation and bias for each edge
-	int cw = ((p1 - p0).x*(p2 - p0).y - (p1 - p0).y*(p2 - p0).x) > 0 ? 1 : -1;
-
-	int bias0 = is_top_left(p1, p2) ? 0 : -1;
-	int bias1 = is_top_left(p2, p0) ? 0 : -1;
-	int bias2 = is_top_left(p0, p1) ? 0 : -1;
-
 	//NOTE(martin): fill triangle data
 	const float subPixelFactor = 16;
 
@@ -93,20 +107,26 @@ kernel void TileKernel(constant mg_vertex* vertexBuffer [[buffer(0)]],
 	triangleArray[gid].cubic1 = vertexBuffer[i1].cubic;
 	triangleArray[gid].cubic2 = vertexBuffer[i2].cubic;
 
-	triangleArray[gid].p0 = int2(p0 * subPixelFactor);
-	triangleArray[gid].p1 = int2(p1 * subPixelFactor);
-	triangleArray[gid].p2 = int2(p2 * subPixelFactor);
+	int2 ip0 = int2(p0 * subPixelFactor);
+	int2 ip1 = int2(p1 * subPixelFactor);
+	int2 ip2 = int2(p2 * subPixelFactor);
 
-	triangleArray[gid].bias0 = bias0;
-	triangleArray[gid].bias1 = bias1;
-	triangleArray[gid].bias2 = bias2;
+	triangleArray[gid].p0 = ip0;
+	triangleArray[gid].p1 = ip1;
+	triangleArray[gid].p2 = ip2;
+
+	//NOTE(martin): compute triangle orientation and bias for each edge
+	int cw = orient2d(ip0, ip1, ip2) > 0 ? 1 : -1;
 
 	triangleArray[gid].cw = cw;
-
-	int4 box = int4(floor(fbox))/RENDERER_TILE_SIZE;
+	triangleArray[gid].bias0 = is_top_left(p1, p2) ? -(1-cw)/2 : -(1+cw)/2;
+	triangleArray[gid].bias1 = is_top_left(p2, p0) ? -(1-cw)/2 : -(1+cw)/2;
+	triangleArray[gid].bias2 = is_top_left(p0, p1) ? -(1-cw)/2 : -(1+cw)/2;
 
 	//NOTE(martin): it's important to do the computation with signed int, so that we can have negative xMax/yMax
 	//              otherwise all triangles on the left or below the x/y axis are attributed to tiles on row/column 0.
+	int4 box = int4(floor(fbox))/RENDERER_TILE_SIZE;
+
 	int xMin = max(0, box.x);
 	int yMin = max(0, box.y);
 	int xMax = min(box.z, nTilesX-1);
@@ -152,33 +172,6 @@ kernel void SortKernel(constant mg_triangle_data* triangleArray [[buffer(0)]],
 		}
 	}
 }
-
-
-bool is_top_left(int2 a, int2 b)
-{
-	return( (a.y == b.y && b.x < a.x)
-	      ||(b.y < a.y));
-}
-
-//////////////////////////////////////////////////////////////////////////////
-//TODO: we should do these computations on 64bits, because otherwise
-//      we might overflow for values > 2048.
-//		Unfortunately this is costly.
-//	    Another way is to precompute triangle edges (b - a) in full precision
-//      once to avoid doing it all the time...
-//////////////////////////////////////////////////////////////////////////////
-
-//TODO: coalesce
-int orient2d(int2 a, int2 b, int2 c)
-{
-	return((b.x-a.x)*(c.y-a.y) - (b.y-a.y)*(c.x-a.x));
-}
-
-int is_clockwise(int2 p0, int2 p1, int2 p2)
-{
-	return((p1 - p0).x*(p2 - p0).y - (p1 - p0).y*(p2 - p0).x);
-}
-
 
 kernel void RenderKernel(const device uint* tileCounters [[buffer(0)]],
                          const device uint* tileArrayBuffer [[buffer(1)]],
