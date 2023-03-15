@@ -31,13 +31,6 @@ bool is_top_left(float2 a, float2 b)
 	return( (a.y == b.y && b.x < a.x)
 	      ||(b.y < a.y));
 }
-/*
-bool is_top_left(int2 a, int2 b)
-{
-	return( (a.y == b.y && b.x < a.x)
-	      ||(b.y < a.y));
-}
-*/
 
 //////////////////////////////////////////////////////////////////////////////
 //TODO: we should do these computations on 64bits, because otherwise
@@ -80,18 +73,12 @@ kernel void TileKernel(constant mg_vertex* vertexBuffer [[buffer(0)]],
 	int shapeIndex = vertexBuffer[i0].shapeIndex;
 
 	//NOTE(martin): compute triangle bounding box and clip it
-	float2 boxMin = min(min(p0, p1), p2);
-	float2 boxMax = max(max(p0, p1), p2);
-
-	vector_float4 clip = scaling[0]*shapeBuffer[shapeIndex].clip;
-
-	boxMin = max(boxMin, clip.xy);
-	boxMax = min(boxMax, clip.zw);
+	float4 clip = shapeBuffer[shapeIndex].clip * scaling[0];
+	float4 fbox = float4(min(min(p0, p1), p2), max(max(p0, p1), p2));
+	fbox = float4(max(fbox.xy, clip.xy), min(fbox.zw, clip.zw));
 
 	//NOTE(martin): fill triangle data
 	const float subPixelFactor = 16;
-
-	float4 fbox = float4(boxMin.x, boxMin.y, boxMax.x, boxMax.y);
 
 	triangleArray[gid].box = int4(fbox * subPixelFactor);
 	triangleArray[gid].shapeIndex = shapeIndex;
@@ -125,12 +112,12 @@ kernel void TileKernel(constant mg_vertex* vertexBuffer [[buffer(0)]],
 
 	//NOTE(martin): it's important to do the computation with signed int, so that we can have negative xMax/yMax
 	//              otherwise all triangles on the left or below the x/y axis are attributed to tiles on row/column 0.
-	int4 box = int4(floor(fbox))/RENDERER_TILE_SIZE;
+	int4 tileBox = int4(fbox)/RENDERER_TILE_SIZE;
 
-	int xMin = max(0, box.x);
-	int yMin = max(0, box.y);
-	int xMax = min(box.z, nTilesX-1);
-	int yMax = min(box.w, nTilesY-1);
+	int xMin = max(0, tileBox.x);
+	int yMin = max(0, tileBox.y);
+	int xMax = min(tileBox.z, nTilesX-1);
+	int yMax = min(tileBox.w, nTilesY-1);
 
 	for(int y = yMin; y <= yMax; y++)
 	{
