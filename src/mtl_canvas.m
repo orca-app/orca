@@ -103,7 +103,7 @@ void mg_mtl_canvas_begin(mg_canvas_backend* interface, mg_color clearColor)
 	}
 	@autoreleasepool
 	{
-		if(surface->commandBuffer == nil || surface->commandBuffer == nil)
+		if(surface->commandBuffer == nil)
 		{
 			mg_mtl_surface_acquire_drawable_and_command_buffer(surface);
 		}

@@ -42,6 +42,13 @@ void mg_mtl_surface_destroy(mg_surface_data* interface)
 
 	@autoreleasepool
 	{
+		//NOTE: when GPU frame capture is enabled, if we release resources before all work is completed,
+		//      libMetalCapture crashes... the following hack avoids this crash by enqueuing a last (empty)
+		//      command buffer and waiting for it to complete, ensuring all previous buffers have completed
+		id<MTLCommandBuffer> endBuffer = [surface->commandQueue commandBuffer];
+		[endBuffer commit];
+		[endBuffer waitUntilCompleted];
+
 		[surface->commandQueue release];
 		[surface->mtlLayer removeFromSuperlayer];
 		[surface->mtlLayer release];
@@ -107,13 +114,14 @@ void mg_mtl_surface_present(mg_surface_data* interface)
 		//NOTE(martin): present drawable and commit command buffer
 		[surface->commandBuffer presentDrawable: surface->drawable];
 		[surface->commandBuffer commit];
-		[surface->commandBuffer waitUntilCompleted];
+//		[surface->commandBuffer waitUntilCompleted];
 
-		//NOTE(martin): acquire next frame resources
-		[surface->commandBuffer release];
-		surface->commandBuffer = nil;
+		//TODO: do we really need this?
 		[surface->drawable release];
 		surface->drawable = nil;
+
+		[surface->commandBuffer release];
+		surface->commandBuffer = nil;
 	}
 }
 
