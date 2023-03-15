@@ -25,7 +25,6 @@ typedef struct mg_mtl_canvas_backend
 	mg_canvas_backend interface;
 	mg_surface surface;
 
-	mg_color clearColor;
 	u32 vertexBufferOffset;
 	u32 indexBufferOffset;
 	u32 shapeBufferOffset;
@@ -94,7 +93,7 @@ void mg_mtl_canvas_update_vertex_layout(mg_mtl_canvas_backend* backend)
 	        .indexStride = sizeof(int)};
 }
 
-void mg_mtl_canvas_begin(mg_canvas_backend* interface)
+void mg_mtl_canvas_begin(mg_canvas_backend* interface, mg_color clearColor)
 {
 	mg_mtl_canvas_backend* backend = (mg_mtl_canvas_backend*)interface;
 	mg_mtl_surface* surface = mg_mtl_canvas_get_surface(backend);
@@ -114,12 +113,12 @@ void mg_mtl_canvas_begin(mg_canvas_backend* interface)
 		backend->shapeBufferOffset = 0;
 		mg_mtl_canvas_update_vertex_layout(backend);
 
-		MTLClearColor clearColor = MTLClearColorMake(backend->clearColor.r, backend->clearColor.g, backend->clearColor.b, backend->clearColor.a);
+		MTLClearColor mtlClearColor = MTLClearColorMake(clearColor.r, clearColor.g, clearColor.b, clearColor.a);
 
 		MTLRenderPassDescriptor* renderPassDescriptor = [MTLRenderPassDescriptor renderPassDescriptor];
 		renderPassDescriptor.colorAttachments[0].texture = surface->drawable.texture;
 		renderPassDescriptor.colorAttachments[0].loadAction = MTLLoadActionClear;
-		renderPassDescriptor.colorAttachments[0].clearColor = clearColor;
+		renderPassDescriptor.colorAttachments[0].clearColor = mtlClearColor;
 		renderPassDescriptor.colorAttachments[0].storeAction = MTLStoreActionStore;
 
 		id<MTLRenderCommandEncoder> renderEncoder = [surface->commandBuffer renderCommandEncoderWithDescriptor:renderPassDescriptor];
@@ -129,13 +128,6 @@ void mg_mtl_canvas_begin(mg_canvas_backend* interface)
 
 void mg_mtl_canvas_end(mg_canvas_backend* interface)
 {}
-
-void mg_mtl_canvas_clear(mg_canvas_backend* interface, mg_color clearColor)
-{
-	//TODO
-	mg_mtl_canvas_backend* backend = (mg_mtl_canvas_backend*)interface;
-	backend->clearColor = clearColor;
-}
 
 void mg_mtl_canvas_draw_batch(mg_canvas_backend* interface, mg_image_data* image, u32 shapeCount, u32 vertexCount, u32 indexCount)
 {
@@ -207,9 +199,6 @@ void mg_mtl_canvas_draw_batch(mg_canvas_backend* interface, mg_image_data* image
 		//-----------------------------------------------------------
 		//NOTE(martin): encode drawing pass
 		//-----------------------------------------------------------
-		//TODO: remove that
-		vector_float4 clearColorVec4 = {backend->clearColor.r, backend->clearColor.g, backend->clearColor.b, backend->clearColor.a};
-
 		id<MTLComputeCommandEncoder> drawEncoder = [surface->commandBuffer computeCommandEncoder];
 		drawEncoder.label = @"drawing pass";
 		[drawEncoder setComputePipelineState:backend->computePipeline];
@@ -226,9 +215,8 @@ void mg_mtl_canvas_draw_batch(mg_canvas_backend* interface, mg_image_data* image
 			useTexture = 1;
 		}
 
-		[drawEncoder setBytes: &clearColorVec4 length: sizeof(vector_float4) atIndex: 3];
-		[drawEncoder setBytes: &useTexture length:sizeof(int) atIndex: 4];
-		[drawEncoder setBytes: &scale length: sizeof(float) atIndex: 5];
+		[drawEncoder setBytes: &useTexture length:sizeof(int) atIndex: 3];
+		[drawEncoder setBytes: &scale length: sizeof(float) atIndex: 4];
 
 		//TODO: check that we don't exceed maxTotalThreadsPerThreadgroup
 		DEBUG_ASSERT(RENDERER_TILE_SIZE*RENDERER_TILE_SIZE <= backend->computePipeline.maxTotalThreadsPerThreadgroup);
@@ -395,7 +383,6 @@ mg_canvas_backend* mg_mtl_canvas_create(mg_surface surface)
 		backend->interface.destroy = mg_mtl_canvas_destroy;
 		backend->interface.begin = mg_mtl_canvas_begin;
 		backend->interface.end = mg_mtl_canvas_end;
-		backend->interface.clear = mg_mtl_canvas_clear;
 		backend->interface.drawBatch = mg_mtl_canvas_draw_batch;
 
 		backend->interface.imageCreate = mg_mtl_canvas_image_create;

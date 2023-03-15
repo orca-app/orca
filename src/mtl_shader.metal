@@ -164,9 +164,8 @@ kernel void RenderKernel(const device uint* tileCounters [[buffer(0)]],
                          const device uint* tileArrayBuffer [[buffer(1)]],
                          const device mg_triangle_data* triangleArray [[buffer(2)]],
 
-                         constant float4* clearColor [[buffer(3)]],
-                         constant int* useTexture [[buffer(4)]],
-                         constant float* scaling [[buffer(5)]],
+                         constant int* useTexture [[buffer(3)]],
+                         constant float* scaling [[buffer(4)]],
 
                          texture2d<float, access::write> outTexture [[texture(0)]],
                          texture2d<float> texAtlas [[texture(1)]],

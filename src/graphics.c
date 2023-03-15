@@ -73,18 +73,17 @@ typedef struct mg_rounded_rect
 	f32 r;
 } mg_rounded_rect;
 
-typedef enum { MG_CMD_CLEAR = 0,
-	       MG_CMD_FILL,
-	       MG_CMD_STROKE,
-	       MG_CMD_RECT_FILL,
-	       MG_CMD_RECT_STROKE,
-	       MG_CMD_ROUND_RECT_FILL,
-	       MG_CMD_ROUND_RECT_STROKE,
-	       MG_CMD_ELLIPSE_FILL,
-	       MG_CMD_ELLIPSE_STROKE,
-	       MG_CMD_JUMP,
-	       MG_CMD_CLIP_PUSH,
-	       MG_CMD_CLIP_POP,
+typedef enum { MG_CMD_FILL,
+	           MG_CMD_STROKE,
+	           MG_CMD_RECT_FILL,
+	           MG_CMD_RECT_STROKE,
+	           MG_CMD_ROUND_RECT_FILL,
+	           MG_CMD_ROUND_RECT_STROKE,
+	           MG_CMD_ELLIPSE_FILL,
+	           MG_CMD_ELLIPSE_STROKE,
+	           MG_CMD_JUMP,
+	           MG_CMD_CLIP_PUSH,
+	           MG_CMD_CLIP_POP,
 	     } mg_primitive_cmd;
 
 typedef struct mg_primitive
@@ -202,6 +201,7 @@ typedef struct mg_canvas_data
 	mg_primitive primitives[MG_MAX_PRIMITIVE_COUNT];
 
 	//NOTE: these are used at render time
+	mg_color clearColor;
 	mp_rect clip;
 	mg_mat2x3 transform;
 	mg_image image;
@@ -2882,17 +2882,14 @@ void mg_flush_commands(int primitiveCount, mg_primitive* primitives, mg_path_elt
 		return;
 	}
 
-	mg_color clearColor = {0, 0, 0, 1};
-
 	u32 nextIndex = 0;
 
 	mg_reset_shape_index(canvas);
 
 	canvas->clip = (mp_rect){-FLT_MAX/2, -FLT_MAX/2, FLT_MAX, FLT_MAX};
-
 	canvas->image = mg_image_nil();
 
-	canvas->backend->begin(canvas->backend);
+	canvas->backend->begin(canvas->backend, canvas->clearColor);
 
 	for(int i=0; i<primitiveCount; i++)
 	{
@@ -2913,17 +2910,8 @@ void mg_flush_commands(int primitiveCount, mg_primitive* primitives, mg_path_elt
 
 		switch(primitive->cmd)
 		{
-			case MG_CMD_CLEAR:
-			{
-				//NOTE(martin): clear buffers
-				canvas->vertexCount = 0;
-				canvas->indexCount = 0;
-
-				canvas->backend->clear(canvas->backend, primitive->attributes.color);
-			} break;
-
 			case MG_CMD_FILL:
-			{
+				{
 				mg_next_shape(canvas, &primitive->attributes);
 				mg_render_fill(canvas,
 						       pathElements + primitive->path.startIndex,
@@ -3482,7 +3470,8 @@ void mg_clear()
 	mg_canvas_data* canvas = __mgCurrentCanvas;
 	if(canvas)
 	{
-		mg_push_command(canvas, (mg_primitive){.cmd = MG_CMD_CLEAR});
+		canvas->primitiveCount = 0;
+		canvas->clearColor = canvas->attributes.color;
 	}
 }
 

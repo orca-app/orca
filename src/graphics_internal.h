@@ -104,9 +104,8 @@ typedef struct mg_vertex_layout
 typedef struct mg_canvas_backend mg_canvas_backend;
 
 typedef void (*mg_canvas_backend_destroy_proc)(mg_canvas_backend* backend);
-typedef void (*mg_canvas_backend_begin_proc)(mg_canvas_backend* backend);
+typedef void (*mg_canvas_backend_begin_proc)(mg_canvas_backend* backend, mg_color clearColor);
 typedef void (*mg_canvas_backend_end_proc)(mg_canvas_backend* backend);
-typedef void (*mg_canvas_backend_clear_proc)(mg_canvas_backend* backend, mg_color clearColor);
 typedef void (*mg_canvas_backend_draw_batch_proc)(mg_canvas_backend* backend,
                                                   mg_image_data* imageData,
                                                   u32 vertexCount,
@@ -128,7 +127,6 @@ typedef struct mg_canvas_backend
 	mg_canvas_backend_destroy_proc destroy;
 	mg_canvas_backend_begin_proc begin;
 	mg_canvas_backend_end_proc end;
-	mg_canvas_backend_clear_proc clear;
 	mg_canvas_backend_draw_batch_proc drawBatch;
 
 	mg_canvas_backend_image_create_proc imageCreate;
