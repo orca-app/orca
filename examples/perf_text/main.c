@@ -203,8 +203,6 @@ int main()
 		f32 textX = startX;
 		f32 textY = startY;
 
-		mg_surface_prepare(surface);
-
 /*
 		mg_set_color_rgba(1, 1, 1, 1);
 		mg_clear();
@@ -270,6 +268,8 @@ int main()
 
 
 			f64 startFlushTime = mp_get_time(MP_CLOCK_MONOTONIC);
+
+		mg_surface_prepare(surface);
 			mg_flush();
 
 		f64 startPresentTime = mp_get_time(MP_CLOCK_MONOTONIC);

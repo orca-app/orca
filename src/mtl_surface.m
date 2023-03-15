@@ -17,8 +17,6 @@
 
 #define LOG_SUBSYSTEM "Graphics"
 
-static const u32 MP_MTL_MAX_DRAWABLES_IN_FLIGHT = 3;
-
 typedef struct mg_mtl_surface
 {
 	mg_surface_data interface;
@@ -31,8 +29,6 @@ typedef struct mg_mtl_surface
 	// transient metal resources
 	id<CAMetalDrawable>  drawable;
 	id<MTLCommandBuffer> commandBuffer;
-
-	dispatch_semaphore_t drawableSemaphore;
 
 } mg_mtl_surface;
 
@@ -59,45 +55,23 @@ void mg_mtl_surface_destroy(mg_surface_data* interface)
 
 void mg_mtl_surface_acquire_drawable_and_command_buffer(mg_mtl_surface* surface)
 {@autoreleasepool{
-	/*WARN(martin): this is super important
-		When the app is put in the background, it seems that if there are buffers in flight, the drawables to
-		can be leaked. This causes the gpu to allocate more and more drawables, until the app crashes.
-		(note: the drawable objects themselves are released once the app comes back to the forefront, but the
-		memory allocated in the GPU is never freed...)
-
-		In background the gpu seems to create drawable if none is available instead of actually
-		blocking on nextDrawable. These drawable never get freed.
-		This is not a problem if our shader is fast enough, since a previous drawable becomes
-		available before we finish the frame. But we want to protect against it anyway
-
-		The normal blocking mechanism of nextDrawable seems useless, so we implement our own scheme by
-		counting the number of drawables available with a semaphore that gets decremented here and
-		incremented in the presentedHandler of the drawable.
-		Thus we ensure that we don't consume more drawables than we are able to draw.
-
-		//TODO: we _also_ should stop trying to render if we detect that the app is in the background
-		or occluded, but we can't count only on this because there is a potential race between the
-		notification of background mode and the rendering.
+	/*WARN(martin):
+		//TODO: we should stop trying to render if we detect that the app is in the background
+		or occluded
 
 		//TODO: We should set a reasonable timeout and skip the frame and log an error in case we are stalled
 		for too long.
 	*/
-	dispatch_semaphore_wait(surface->drawableSemaphore, DISPATCH_TIME_FOREVER);
 
+	//NOTE: returned drawable could be nil if we stall for more than 1s, although that never seem to happen in practice?
 	surface->drawable = [surface->mtlLayer nextDrawable];
-	ASSERT(surface->drawable != nil);
+	if(surface->drawable)
+	{
+		[surface->drawable retain];
+	}
 
-	//TODO: make this a weak reference if we use ARC
-	dispatch_semaphore_t semaphore = surface->drawableSemaphore;
-	[surface->drawable addPresentedHandler:^(id<MTLDrawable> drawable){
-		dispatch_semaphore_signal(semaphore);
-		}];
-
-	//NOTE(martin): create a command buffer
 	surface->commandBuffer = [surface->commandQueue commandBuffer];
-
 	[surface->commandBuffer retain];
-	[surface->drawable retain];
 }}
 
 void mg_mtl_surface_prepare(mg_surface_data* interface)
@@ -111,14 +85,15 @@ void mg_mtl_surface_present(mg_surface_data* interface)
 	mg_mtl_surface* surface = (mg_mtl_surface*)interface;
 	@autoreleasepool
 	{
-		//NOTE(martin): present drawable and commit command buffer
-		[surface->commandBuffer presentDrawable: surface->drawable];
+		if(surface->drawable != nil)
+		{
+			[surface->commandBuffer presentDrawable: surface->drawable];
+			[surface->drawable release];
+			surface->drawable = nil;
+		}
 		[surface->commandBuffer commit];
 //		[surface->commandBuffer waitUntilCompleted];
-
 		//TODO: do we really need this?
-		[surface->drawable release];
-		surface->drawable = nil;
 
 		[surface->commandBuffer release];
 		surface->commandBuffer = nil;
@@ -169,8 +144,6 @@ mg_surface_data* mg_mtl_surface_create_for_window(mp_window window)
 
 		@autoreleasepool
 		{
-			surface->drawableSemaphore = dispatch_semaphore_create(MP_MTL_MAX_DRAWABLES_IN_FLIGHT);
-
 			//-----------------------------------------------------------
 			//NOTE(martin): create a mtl device and a mtl layer and
 			//-----------------------------------------------------------
