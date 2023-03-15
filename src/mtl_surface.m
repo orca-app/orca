@@ -64,14 +64,19 @@ void mg_mtl_surface_acquire_drawable_and_command_buffer(mg_mtl_surface* surface)
 	*/
 
 	//NOTE: returned drawable could be nil if we stall for more than 1s, although that never seem to happen in practice?
-	surface->drawable = [surface->mtlLayer nextDrawable];
-	if(surface->drawable)
+	if(surface->drawable == nil)
 	{
-		[surface->drawable retain];
+		surface->drawable = [surface->mtlLayer nextDrawable];
+		if(surface->drawable)
+		{
+			[surface->drawable retain];
+		}
 	}
-
-	surface->commandBuffer = [surface->commandQueue commandBuffer];
-	[surface->commandBuffer retain];
+	if(surface->commandBuffer == nil)
+	{
+		surface->commandBuffer = [surface->commandQueue commandBuffer];
+		[surface->commandBuffer retain];
+	}
 }}
 
 void mg_mtl_surface_prepare(mg_surface_data* interface)
