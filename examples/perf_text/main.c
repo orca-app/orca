@@ -60,10 +60,10 @@ static const char* TEST_STRING =
 "sit amet, malesuada enim. Mauris ultricies nibh orci.";
 
 
-mg_font create_font()
+mg_font create_font(const char* path)
 {
 	//NOTE(martin): create font
-	str8 fontPath = mp_app_get_resource_path(mem_scratch(), "../resources/OpenSansLatinSubset.ttf");
+	str8 fontPath = mp_app_get_resource_path(mem_scratch(), path);
 	char* fontPathCString = str8_to_cstring(mem_scratch(), fontPath);
 
 	FILE* fontFile = fopen(fontPathCString, "r");
@@ -106,15 +106,26 @@ int main()
 	//NOTE: create surface, canvas and font
 
 	mg_surface surface = mg_surface_create_for_window(window, MG_BACKEND_DEFAULT);
-	mg_surface_swap_interval(surface, 0);
+	mg_surface_swap_interval(surface, 1);
 
 	mg_canvas canvas = mg_canvas_create(surface);
 
-	mg_font font = create_font();
-	mg_font_extents extents = mg_font_get_extents(font);
-	f32 fontScale = mg_font_get_scale_for_em_pixels(font, 14);
+	const int fontCount = 3;
+	int fontIndex = 0;
+	mg_font fonts[fontCount] = {create_font("../resources/OpenSansLatinSubset.ttf"),
+	                            create_font("../resources/CMUSerif-Roman.ttf"),
+	                            create_font("../resources/courier.ttf")};
 
-	f32 lineHeight = fontScale*(extents.ascent + extents.descent + extents.leading);
+	mg_font_extents extents[fontCount];
+	f32 fontScales[fontCount];
+	f32 lineHeights[fontCount];
+
+	for(int i=0; i<fontCount; i++)
+	{
+		extents[i] = mg_font_get_extents(fonts[i]);
+		fontScales[i] = mg_font_get_scale_for_em_pixels(fonts[i], 14);
+		lineHeights[i] = fontScales[i]*(extents[i].ascent + extents[i].descent + extents[i].leading);
+	}
 
 	int codePointCount = utf8_codepoint_count_for_string(STR8((char*)TEST_STRING));
 	u32* codePoints = malloc_array(utf32, codePointCount);
@@ -140,7 +151,7 @@ int main()
 	f32 zoom = 1;
 
 	f32 startX = 10;
-	f32 startY = 10 + lineHeight;
+	f32 startY = 10 + lineHeights[fontIndex];
 
 	while(!mp_should_quit())
 	{
@@ -188,6 +199,14 @@ int main()
 					startY = mousePos.y/zoom - trackY;
 				} break;
 
+				case MP_EVENT_KEYBOARD_KEY:
+				{
+					if(event.key.code == MP_KEY_SPACE && event.key.action == MP_KEY_PRESS)
+					{
+						fontIndex = (fontIndex+1)%fontCount;
+					}
+				} break;
+
 				default:
 					break;
 			}
@@ -219,7 +238,7 @@ int main()
 			mg_set_color_rgba(1, 1, 1, 1);
 			mg_clear();
 
-			mg_set_font(font);
+			mg_set_font(fonts[fontIndex]);
 			mg_set_font_size(14);
 			mg_set_color_rgba(0, 0, 0, 1);
 
@@ -239,12 +258,12 @@ int main()
 				}
 
 				u32 glyphs[512];
-				mg_font_get_glyph_indices(font, (str32){subIndex, codePoints+startIndex}, (str32){512, glyphs});
+				mg_font_get_glyph_indices(fonts[fontIndex], (str32){subIndex, codePoints+startIndex}, (str32){512, glyphs});
 
 				mg_glyph_outlines((str32){subIndex, glyphs});
 				mg_fill();
 
-				textY += lineHeight;
+				textY += lineHeights[fontIndex];
 				mg_move_to(textX, textY);
 				startIndex++;
 
@@ -254,9 +273,9 @@ int main()
 			mg_matrix_pop();
 
 			mg_set_color_rgba(0, 0, 1, 1);
-			mg_set_font(font);
+			mg_set_font(fonts[fontIndex]);
 			mg_set_font_size(14);
-			mg_move_to(10, contentRect.h - 10 - lineHeight);
+			mg_move_to(10, contentRect.h - 10 - lineHeights[fontIndex]);
 
 			str8 text = str8_pushf(mem_scratch(),
 			                      "Test program: %i glyphs, frame time = %fs, fps = %f",
@@ -290,7 +309,10 @@ int main()
 	}
 
 
-	mg_font_destroy(font);
+	for(int i=0; i<fontCount; i++)
+	{
+		mg_font_destroy(fonts[i]);
+	}
 	mg_canvas_destroy(canvas);
 	mg_surface_destroy(surface);
 	mp_window_destroy(window);

@@ -31,6 +31,8 @@ typedef struct mg_mtl_canvas_backend
 	u32 indexBufferOffset;
 	u32 shapeBufferOffset;
 
+	mg_color clearColor;
+
 	// permanent metal resources
 	id<MTLComputePipelineState> tilingPipeline;
 	id<MTLComputePipelineState> sortingPipeline;
@@ -44,7 +46,7 @@ typedef struct mg_mtl_canvas_backend
 	dispatch_semaphore_t bufferSemaphore;
 
 	// textures and buffers
-	id<MTLTexture> framebuffer;
+	id<MTLTexture> backbuffer;
 	id<MTLTexture> outTexture;
 
 	id<MTLBuffer> shapeBuffer[MG_MTL_MAX_BUFFERS_IN_FLIGHT];
@@ -109,6 +111,7 @@ void mg_mtl_canvas_begin(mg_canvas_backend* interface, mg_color clearColor)
 	{
 		return;
 	}
+	backend->clearColor = clearColor;
 
 	backend->vertexBufferOffset = 0;
 	backend->indexBufferOffset = 0;
@@ -121,29 +124,20 @@ void mg_mtl_canvas_begin(mg_canvas_backend* interface, mg_color clearColor)
 
 	@autoreleasepool
 	{
-		if(surface->commandBuffer == nil || surface->drawable == nil)
-		{
-			mg_mtl_surface_acquire_drawable_and_command_buffer(surface);
-		}
-		if(surface->drawable != nil)
-		{
-			backend->framebuffer = surface->drawable.texture;
+		MTLClearColor mtlClearColor = MTLClearColorMake(clearColor.r,
+				                                        clearColor.g,
+				                                        clearColor.b,
+				                                        clearColor.a);
 
-			MTLClearColor mtlClearColor = MTLClearColorMake(clearColor.r, clearColor.g, clearColor.b, clearColor.a);
+		MTLRenderPassDescriptor* renderPassDescriptor = [MTLRenderPassDescriptor renderPassDescriptor];
+		renderPassDescriptor.colorAttachments[0].texture = backend->backbuffer;
+		renderPassDescriptor.colorAttachments[0].loadAction = MTLLoadActionClear;
+		renderPassDescriptor.colorAttachments[0].clearColor = mtlClearColor;
+		renderPassDescriptor.colorAttachments[0].storeAction = MTLStoreActionStore;
 
-			MTLRenderPassDescriptor* renderPassDescriptor = [MTLRenderPassDescriptor renderPassDescriptor];
-			renderPassDescriptor.colorAttachments[0].texture = surface->drawable.texture;
-			renderPassDescriptor.colorAttachments[0].loadAction = MTLLoadActionClear;
-			renderPassDescriptor.colorAttachments[0].clearColor = mtlClearColor;
-			renderPassDescriptor.colorAttachments[0].storeAction = MTLStoreActionStore;
-
-			id<MTLRenderCommandEncoder> renderEncoder = [surface->commandBuffer renderCommandEncoderWithDescriptor:renderPassDescriptor];
-			[renderEncoder endEncoding];
-		}
-		else
-		{
-			backend->framebuffer = nil;
-		}
+		id<MTLRenderCommandEncoder> renderEncoder = [surface->commandBuffer renderCommandEncoderWithDescriptor:renderPassDescriptor];
+		renderEncoder.label = @"clear pass";
+		[renderEncoder endEncoding];
 	}
 }
 
@@ -156,12 +150,39 @@ void mg_mtl_canvas_end(mg_canvas_backend* interface)
 	{
 		@autoreleasepool
 		{
-			[surface->commandBuffer addCompletedHandler:^(id<MTLCommandBuffer> commandBuffer)
-				{
-					dispatch_semaphore_signal(backend->bufferSemaphore);
-				}
-    		];
-    	}
+			mg_mtl_surface_acquire_drawable_and_command_buffer(surface);
+			if(surface->drawable != nil)
+			{
+				f32 scale = surface->mtlLayer.contentsScale;
+				MTLViewport viewport = {backend->viewPort.x * scale,
+		                        		backend->viewPort.y * scale,
+		                        		backend->viewPort.w * scale,
+		                        		backend->viewPort.h * scale,
+		                        		0,
+		                        		1};
+
+				MTLRenderPassDescriptor* renderPassDescriptor = [MTLRenderPassDescriptor renderPassDescriptor];
+				renderPassDescriptor.colorAttachments[0].texture = surface->drawable.texture;
+				renderPassDescriptor.colorAttachments[0].loadAction = MTLLoadActionLoad;
+				renderPassDescriptor.colorAttachments[0].storeAction = MTLStoreActionStore;
+
+				id<MTLRenderCommandEncoder> renderEncoder = [surface->commandBuffer renderCommandEncoderWithDescriptor:renderPassDescriptor];
+				renderEncoder.label = @"blit pass";
+				[renderEncoder setViewport: viewport];
+				[renderEncoder setRenderPipelineState: backend->renderPipeline];
+				[renderEncoder setFragmentTexture: backend->backbuffer atIndex: 0];
+				[renderEncoder drawPrimitives: MTLPrimitiveTypeTriangle
+			 		vertexStart: 0
+			 		vertexCount: 3 ];
+				[renderEncoder endEncoding];
+
+				[surface->commandBuffer addCompletedHandler:^(id<MTLCommandBuffer> commandBuffer)
+					{
+						dispatch_semaphore_signal(backend->bufferSemaphore);
+					}
+				];
+			}
+		}
     }
 }
 
@@ -170,7 +191,7 @@ void mg_mtl_canvas_draw_batch(mg_canvas_backend* interface, mg_image_data* image
 	mg_mtl_canvas_backend* backend = (mg_mtl_canvas_backend*)interface;
 	mg_mtl_surface* surface = mg_mtl_canvas_get_surface(backend);
 
-	if(!surface || (backend->framebuffer == nil))
+	if(!surface || (backend->backbuffer == nil))
 	{
 		return;
 	}
@@ -264,7 +285,7 @@ void mg_mtl_canvas_draw_batch(mg_canvas_backend* interface, mg_image_data* image
 		[drawEncoder endEncoding];
 
 		//-----------------------------------------------------------
-		//NOTE(martin): blit texture to framebuffer
+		//NOTE(martin): blit texture to backbuffer
 		//-----------------------------------------------------------
 
 		MTLViewport viewport = {backend->viewPort.x * scale,
@@ -275,7 +296,7 @@ void mg_mtl_canvas_draw_batch(mg_canvas_backend* interface, mg_image_data* image
 		                        1};
 
 		MTLRenderPassDescriptor* renderPassDescriptor = [MTLRenderPassDescriptor renderPassDescriptor];
-		renderPassDescriptor.colorAttachments[0].texture = backend->framebuffer;
+		renderPassDescriptor.colorAttachments[0].texture = backend->backbuffer;
 		renderPassDescriptor.colorAttachments[0].loadAction = MTLLoadActionLoad;
 		renderPassDescriptor.colorAttachments[0].storeAction = MTLStoreActionStore;
 
@@ -453,6 +474,7 @@ mg_canvas_backend* mg_mtl_canvas_create(mg_surface surface)
 			texDesc.height = drawableSize.height;
 
 			backend->outTexture = [metalSurface->device newTextureWithDescriptor:texDesc];
+			backend->backbuffer = [metalSurface->device newTextureWithDescriptor:texDesc];
 			//TODO(martin): retain ?
 
 			//-----------------------------------------------------------
