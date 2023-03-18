@@ -20,7 +20,7 @@
 
 static const int MG_MTL_CANVAS_DEFAULT_BUFFER_LENGTH = 4<<20;
 
-static const int MG_MTL_MAX_BUFFERS_IN_FLIGHT = 3;
+static const int MG_MTL_MAX_BUFFER_AVAILABLE = 3;
 
 typedef struct mg_mtl_canvas_backend
 {
@@ -49,9 +49,9 @@ typedef struct mg_mtl_canvas_backend
 	id<MTLTexture> backbuffer;
 	id<MTLTexture> outTexture;
 
-	id<MTLBuffer> shapeBuffer[MG_MTL_MAX_BUFFERS_IN_FLIGHT];
-	id<MTLBuffer> vertexBuffer[MG_MTL_MAX_BUFFERS_IN_FLIGHT];
-	id<MTLBuffer> indexBuffer[MG_MTL_MAX_BUFFERS_IN_FLIGHT];
+	id<MTLBuffer> shapeBuffer[MG_MTL_MAX_BUFFER_AVAILABLE];
+	id<MTLBuffer> vertexBuffer[MG_MTL_MAX_BUFFER_AVAILABLE];
+	id<MTLBuffer> indexBuffer[MG_MTL_MAX_BUFFER_AVAILABLE];
 	id<MTLBuffer> tileCounters;
 	id<MTLBuffer> tileArrayBuffer;
 	id<MTLBuffer> triangleArray;
@@ -82,9 +82,12 @@ void mg_mtl_canvas_update_vertex_layout(mg_mtl_canvas_backend* backend)
 	char* shapeBase = (char*)[backend->shapeBuffer[backend->bufferIndex] contents] + backend->shapeBufferOffset;
 	char* indexBase = (char*)[backend->indexBuffer[backend->bufferIndex] contents] + backend->indexBufferOffset;
 
+	//TODO: add maxShapeCount
+
 	backend->interface.vertexLayout = (mg_vertex_layout){
-		    .maxVertexCount = MG_MTL_CANVAS_DEFAULT_BUFFER_LENGTH,
-	        .maxIndexCount = MG_MTL_CANVAS_DEFAULT_BUFFER_LENGTH,
+		    .maxVertexCount = MG_MTL_CANVAS_DEFAULT_BUFFER_LENGTH - backend->vertexBufferOffset/sizeof(mg_vertex),
+	        .maxIndexCount = MG_MTL_CANVAS_DEFAULT_BUFFER_LENGTH - backend->indexBufferOffset/sizeof(int),
+
 	        .cubicBuffer = vertexBase + offsetof(mg_vertex, cubic),
 	        .cubicStride = sizeof(mg_vertex),
 	        .posBuffer = vertexBase + offsetof(mg_vertex, pos),
@@ -117,10 +120,9 @@ void mg_mtl_canvas_begin(mg_canvas_backend* interface, mg_color clearColor)
 	backend->indexBufferOffset = 0;
 	backend->shapeBufferOffset = 0;
 
-	dispatch_semaphore_wait(backend->bufferSemaphore, DISPATCH_TIME_FOREVER);
-	backend->bufferIndex = (backend->bufferIndex + 1) % MG_MTL_MAX_BUFFERS_IN_FLIGHT;
-
 	mg_mtl_canvas_update_vertex_layout(backend);
+
+	mg_mtl_surface_acquire_command_buffer(surface);
 
 	@autoreleasepool
 	{
@@ -150,7 +152,7 @@ void mg_mtl_canvas_end(mg_canvas_backend* interface)
 	{
 		@autoreleasepool
 		{
-			mg_mtl_surface_acquire_drawable_and_command_buffer(surface);
+			mg_mtl_surface_acquire_drawable(surface);
 			if(surface->drawable != nil)
 			{
 				f32 scale = surface->mtlLayer.contentsScale;
@@ -175,13 +177,15 @@ void mg_mtl_canvas_end(mg_canvas_backend* interface)
 			 		vertexStart: 0
 			 		vertexCount: 3 ];
 				[renderEncoder endEncoding];
-
-				[surface->commandBuffer addCompletedHandler:^(id<MTLCommandBuffer> commandBuffer)
-					{
-						dispatch_semaphore_signal(backend->bufferSemaphore);
-					}
-				];
 			}
+			[surface->commandBuffer addCompletedHandler:^(id<MTLCommandBuffer> commandBuffer)
+				{
+					dispatch_semaphore_signal(backend->bufferSemaphore);
+				}
+			];
+
+			dispatch_semaphore_wait(backend->bufferSemaphore, DISPATCH_TIME_FOREVER);
+			backend->bufferIndex = (backend->bufferIndex + 1) % MG_MTL_MAX_BUFFER_AVAILABLE;
 		}
     }
 }
@@ -358,7 +362,7 @@ void mg_mtl_canvas_destroy(mg_canvas_backend* interface)
 	{
 		[backend->outTexture release];
 
-		for(int i=0; i < MG_MTL_MAX_BUFFERS_IN_FLIGHT; i++)
+		for(int i=0; i < MG_MTL_MAX_BUFFER_AVAILABLE; i++)
 		{
 			[backend->vertexBuffer[i] release];
 			[backend->indexBuffer[i] release];
@@ -481,13 +485,13 @@ mg_canvas_backend* mg_mtl_canvas_create(mg_surface surface)
 			//NOTE(martin): create buffers
 			//-----------------------------------------------------------
 
-			backend->bufferSemaphore = dispatch_semaphore_create(MG_MTL_MAX_BUFFERS_IN_FLIGHT);
+			backend->bufferSemaphore = dispatch_semaphore_create(MG_MTL_MAX_BUFFER_AVAILABLE);
 			backend->bufferIndex = 0;
 
 			MTLResourceOptions bufferOptions = MTLResourceCPUCacheModeWriteCombined
 		                                 	| MTLResourceStorageModeShared;
 
-			for(int i=0; i<MG_MTL_MAX_BUFFERS_IN_FLIGHT; i++)
+			for(int i=0; i<MG_MTL_MAX_BUFFER_AVAILABLE; i++)
 			{
 				backend->indexBuffer[i] = [metalSurface->device newBufferWithLength: MG_MTL_CANVAS_DEFAULT_BUFFER_LENGTH*sizeof(int)
 		                                        		options: bufferOptions];

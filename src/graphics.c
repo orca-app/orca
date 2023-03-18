@@ -720,6 +720,7 @@ void mg_push_command(mg_canvas_data* canvas, mg_primitive primitive)
 {
 	//NOTE(martin): push primitive and updates current stream, eventually patching a pending jump.
 	ASSERT(canvas->primitiveCount < MG_MAX_PRIMITIVE_COUNT);
+
 	canvas->primitives[canvas->primitiveCount] = primitive;
 	canvas->primitives[canvas->primitiveCount].attributes = canvas->attributes;
 	canvas->primitives[canvas->primitiveCount].attributes.transform = mg_matrix_stack_top(canvas);
@@ -736,9 +737,11 @@ void mg_new_path(mg_canvas_data* canvas)
 
 void mg_path_push_elements(mg_canvas_data* canvas, u32 count, mg_path_elt* elements)
 {
-	ASSERT(canvas->path.count + canvas->path.startIndex + count <= MG_MAX_PATH_ELEMENT_COUNT);
+	ASSERT(canvas->path.count + canvas->path.startIndex + count < MG_MAX_PATH_ELEMENT_COUNT);
 	memcpy(canvas->pathElements + canvas->path.startIndex + canvas->path.count, elements, count*sizeof(mg_path_elt));
 	canvas->path.count += count;
+
+	ASSERT(canvas->path.count < MG_MAX_PATH_ELEMENT_COUNT);
 }
 
 void mg_path_push_element(mg_canvas_data* canvas, mg_path_elt elt)
@@ -840,8 +843,8 @@ void mg_push_vertex_cubic(mg_canvas_data* canvas, vec2 pos, vec4 cubic)
 	vec2 screenPos = mg_mat2x3_mul(canvas->transform, pos);
 
 	mg_vertex_layout* layout = &canvas->backend->vertexLayout;
-	DEBUG_ASSERT(canvas->vertexCount < layout->maxVertexCount);
-	DEBUG_ASSERT(canvas->nextShapeIndex > 0);
+	ASSERT(canvas->vertexCount < layout->maxVertexCount);
+	ASSERT(canvas->nextShapeIndex > 0);
 
 	int shapeIndex = maximum(0, canvas->nextShapeIndex-1);
 	u32 index = canvas->vertexCount;
@@ -925,6 +928,12 @@ void mg_split_and_fill_cubic(mg_canvas_data* canvas, vec2 p[4], f32 tSplit)
 	mg_render_fill_cubic(canvas, subPointsHigh);
 }
 
+int mg_cubic_outside_test(vec4 c)
+{
+	int res = (c.x*c.x*c.x - c.y*c.z < 0) ? -1 : 1;
+	return(res);
+}
+
 void mg_render_fill_cubic(mg_canvas_data* canvas, vec2 p[4])
 {
 	LOG_DEBUG("graphics render fill cubic\n");
@@ -953,7 +962,7 @@ void mg_render_fill_cubic(mg_canvas_data* canvas, vec2 p[4])
 	f32 c3y = 3.0*p[1].y - 3.0*p[2].y + p[3].y - p[0].y;
 
 	////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-	//TODO(martin): we should do the tex coords computations in f64 and scale them to avoid f32 precision/range glitches in shader
+	//TODO(martin): we shouldn't need scaling here since now we're doing our shader math in fixed point?
 	////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	c1x /= 10;
 	c1y /= 10;
@@ -1226,143 +1235,174 @@ void mg_render_fill_cubic(mg_canvas_data* canvas, vec2 p[4])
 
 	} while(currentPointIndex != leftMostPointIndex && i<4);
 
+	//NOTE(martin): triangulation and inside/outside tests. In the shader, the outside is defined by s*(k^3 - lm) > 0
+	//              ie the 4th coordinate s flips the inside/outside test.
+	//              We affect s such that the covered are is between the curve and the line joining p0 and p3.
+
 	//TODO: quick fix, maybe later cull degenerate hulls beforehand
 	if(convexHullCount <= 2)
 	{
 		//NOTE(martin): if convex hull has only two point, we have a degenerate cubic that displays nothing.
 		return;
 	}
-
-	//NOTE(martin): rearrange convex hull to put p0 first
-	int startIndex = -1;
-	int orderedHullIndices[4];
-	for(int i=0; i<convexHullCount; i++)
+	else if(convexHullCount == 3)
 	{
-		if(convexHullIndices[i] == 0)
+		/*NOTE(martin):
+			We have 3 case here:
+				1) Endpoints are coincidents. We push on triangle, and test an intermediate point for orientation.
+				2) The point not on the hull is an endpoint. We push two triangle (p0, p3, p1) and (p0, p3, p2). We test the intermediate
+				points to know if we must flip the orientation of the curve.
+				3) The point not on the hull is an intermediate point: we emit one triangle. We test the intermediate point on the hull
+				to know if we must flip the orientation of the curve.
+		*/
+		if(  p[0].x == p[3].x
+		  && p[0].y == p[3].y)
 		{
-			startIndex = i;
+			//NOTE: case 1: endpoints are coincidents
+			int outsideTest = mg_cubic_outside_test(testCoords[1]);
+
+			//NOTE: push triangle
+			u32 baseIndex = mg_vertices_base_index(canvas);
+			i32* indices = mg_reserve_indices(canvas, 3);
+
+			mg_push_vertex_cubic(canvas, p[0], (vec4){vec4_expand_xyz(testCoords[0]), outsideTest});
+			mg_push_vertex_cubic(canvas, p[1], (vec4){vec4_expand_xyz(testCoords[1]), outsideTest});
+			mg_push_vertex_cubic(canvas, p[2], (vec4){vec4_expand_xyz(testCoords[2]), outsideTest});
+
+			for(int i=0; i<3; i++)
+			{
+				indices[i] = baseIndex + i;
+			}
 		}
-		if(startIndex >= 0)
+		else
 		{
-			orderedHullIndices[i-startIndex] = convexHullIndices[i];
+			//NOTE: find point not on the hull
+			int insidePointIndex = -1;
+			{
+				bool present[4] = {0};
+				for(int i=0; i<3; i++)
+				{
+					present[convexHullIndices[i]] = true;
+				}
+				for(int i=0; i<4; i++)
+				{
+					if(!present[i])
+					{
+						insidePointIndex = i;
+						break;
+					}
+				}
+			}
+			DEBUG_ASSERT(insidePointIndex >= 0 && insidePointIndex < 4);
+
+			if(insidePointIndex == 0 || insidePointIndex == 3)
+			{
+				//NOTE: case 2: the point inside the hull is an endpoint
+
+				int outsideTest0 = mg_cubic_outside_test(testCoords[1]);
+				int outsideTest1 = mg_cubic_outside_test(testCoords[2]);
+
+				//NOTE: push triangles
+				u32 baseIndex = mg_vertices_base_index(canvas);
+				i32* indices = mg_reserve_indices(canvas, 6);
+
+				mg_push_vertex_cubic(canvas, p[0], (vec4){vec4_expand_xyz(testCoords[0]), outsideTest0});
+				mg_push_vertex_cubic(canvas, p[3], (vec4){vec4_expand_xyz(testCoords[3]), outsideTest0});
+				mg_push_vertex_cubic(canvas, p[1], (vec4){vec4_expand_xyz(testCoords[1]), outsideTest0});
+				mg_push_vertex_cubic(canvas, p[0], (vec4){vec4_expand_xyz(testCoords[0]), outsideTest1});
+				mg_push_vertex_cubic(canvas, p[3], (vec4){vec4_expand_xyz(testCoords[3]), outsideTest1});
+				mg_push_vertex_cubic(canvas, p[2], (vec4){vec4_expand_xyz(testCoords[2]), outsideTest1});
+
+				for(int i=0; i<6; i++)
+				{
+					indices[i] = baseIndex + i;
+				}
+			}
+			else
+			{
+				int testIndex = (insidePointIndex == 1) ? 2 : 1;
+				int outsideTest = mg_cubic_outside_test(testCoords[testIndex]);
+
+				//NOTE: push triangle
+				u32 baseIndex = mg_vertices_base_index(canvas);
+				i32* indices = mg_reserve_indices(canvas, 3);
+
+				for(int i=0; i<3; i++)
+				{
+					mg_push_vertex_cubic(canvas,
+					                     p[convexHullIndices[i]],
+					                     (vec4){vec4_expand_xyz(testCoords[convexHullIndices[i]]),
+					                     outsideTest});
+				}
+
+				for(int i=0; i<3; i++)
+				{
+					indices[i] = baseIndex + i;
+				}
+			}
 		}
-	}
-	for(int i=0; i<startIndex; i++)
-	{
-		orderedHullIndices[convexHullCount-startIndex+i] = convexHullIndices[i];
-	}
-
-	//NOTE(martin): inside/outside tests for the two triangles. In the shader, the outside is defined by s*(k^3 - lm) > 0
-	//              ie the 4th coordinate s flips the inside/outside test.
-	//              We affect s such that control points p1 and p2 are always outside the covered area.
-
-	if(convexHullCount <= 3)
-	{
-		//NOTE(martin): the convex hull is a triangle
-
-		//NOTE(martin): when we degenerate from 4 control points to a 3 points convex hull, this means one of the
-		//              control points p1 or p2 could be inside the covered area. We want to compute the test for the
-		//              control point which belongs to the convex hull, as we know it should be outside the covered area.
-		//
-		//              Since there are 3 points in the hull and p0 is the first, and p3 belongs to the hull, this means we
-		//              must select the point of the convex hull which is neither the first, nor p3.
-
-		int testPointIndex = orderedHullIndices[1] == 3 ? orderedHullIndices[2] : orderedHullIndices[1];
-		int outsideTest = 1;
-		if(Cube(testCoords[testPointIndex].x)-testCoords[testPointIndex].y*testCoords[testPointIndex].z < 0)
-		{
-			outsideTest = -1;
-		}
-
-		u32 baseIndex = mg_vertices_base_index(canvas);
-		i32* indices = mg_reserve_indices(canvas, 3);
-
-		for(int i=0; i<3; i++)
-		{
-			vec4 cubic = testCoords[orderedHullIndices[i]];
-			cubic.w = outsideTest;
-			mg_push_vertex_cubic(canvas, p[orderedHullIndices[i]], cubic);
-			indices[i] = baseIndex + i;
-		}
-	}
-	else if(orderedHullIndices[2] == 3)
-	{
-		//NOTE(martin): p1 and p2 are not on the same side of (p0,p3). The outside test can be different for
-		//              the two triangles
-		int outsideTest1 = 1;
-		int outsideTest2 = 1;
-
-		int testIndex = orderedHullIndices[1];
-		if(Cube(testCoords[testIndex].x)-testCoords[testIndex].y*testCoords[testIndex].z < 0)
-		{
-			outsideTest1 = -1;
-		}
-
-		testIndex = orderedHullIndices[3];
-		if(Cube(testCoords[testIndex].x)-testCoords[testIndex].y*testCoords[testIndex].z < 0)
-		{
-			outsideTest2 = -1;
-		}
-
-		u32 baseIndex = mg_vertices_base_index(canvas);
-		i32* indices = mg_reserve_indices(canvas, 6);
-
-		mg_push_vertex_cubic(canvas,
-		               p[orderedHullIndices[0]],
-		               (vec4){vec4_expand_xyz(testCoords[orderedHullIndices[0]]), outsideTest1});
-
-		mg_push_vertex_cubic(canvas,
-		               p[orderedHullIndices[1]],
-		               (vec4){vec4_expand_xyz(testCoords[orderedHullIndices[1]]), outsideTest1});
-
-		mg_push_vertex_cubic(canvas,
-		               p[orderedHullIndices[2]],
-		               (vec4){vec4_expand_xyz(testCoords[orderedHullIndices[2]]), outsideTest1});
-
-		mg_push_vertex_cubic(canvas,
-		               p[orderedHullIndices[0]],
-		               (vec4){vec4_expand_xyz(testCoords[orderedHullIndices[0]]), outsideTest2});
-
-		mg_push_vertex_cubic(canvas,
-		               p[orderedHullIndices[2]],
-		               (vec4){vec4_expand_xyz(testCoords[orderedHullIndices[2]]), outsideTest2});
-
-		mg_push_vertex_cubic(canvas,
-		               p[orderedHullIndices[3]],
-		               (vec4){vec4_expand_xyz(testCoords[orderedHullIndices[3]]), outsideTest2});
-
-		indices[0] = baseIndex + 0;
-		indices[1] = baseIndex + 1;
-		indices[2] = baseIndex + 2;
-		indices[3] = baseIndex + 3;
-		indices[4] = baseIndex + 4;
-		indices[5] = baseIndex + 5;
 	}
 	else
 	{
-		//NOTE(martin): if p1 and p2 are on the same side of (p0,p3), the outside test is the same for both triangles
-		int outsideTest = 1;
-		if(Cube(testCoords[1].x)-testCoords[1].y*testCoords[1].z < 0)
+		DEBUG_ASSERT(convexHullCount == 4);
+		/*NOTE(martin):
+			We build a fan from the hull, starting from an endpoint. For each triangle, we test the vertex that is an intermediate
+			control point for orientation
+		*/
+		int endPointIndex = -1;
+		for(int i=0; i<4; i++)
 		{
-			outsideTest = -1;
+			if(convexHullIndices[i] == 0 || convexHullIndices[i] == 3)
+			{
+				endPointIndex = i;
+				break;
+			}
+		}
+		ASSERT(endPointIndex >= 0);
+
+		int fanIndices[6] = {convexHullIndices[endPointIndex],
+		                     convexHullIndices[(endPointIndex + 1)%4],
+		                     convexHullIndices[(endPointIndex + 2)%4],
+		                     convexHullIndices[endPointIndex],
+		                     convexHullIndices[(endPointIndex + 2)%4],
+		                     convexHullIndices[(endPointIndex + 3)%4]};
+
+		//NOTE: fan indices on the hull are (0,1,2)(0,2,3). So if the 3rd vertex of the hull is an intermediate point it works
+		//      as a test vertex for both triangles. Otherwise, the test vertices on the fan are 1 and 5.
+		int outsideTest0 = 1;
+		int outsideTest1 = 1;
+
+		if( fanIndices[2] == 1
+		  ||fanIndices[2] == 2)
+		{
+			outsideTest0 = outsideTest1 = mg_cubic_outside_test(testCoords[fanIndices[2]]);
+		}
+		else
+		{
+			DEBUG_ASSERT(fanIndices[1] == 1 || fanIndices[1] == 2);
+			DEBUG_ASSERT(fanIndices[5] == 1 || fanIndices[5] == 2);
+
+			outsideTest0 = mg_cubic_outside_test(testCoords[fanIndices[1]]);
+			outsideTest1 = mg_cubic_outside_test(testCoords[fanIndices[5]]);
 		}
 
+		//NOTE: push triangles
 		u32 baseIndex = mg_vertices_base_index(canvas);
 		i32* indices = mg_reserve_indices(canvas, 6);
 
-		for(int i=0; i<4; i++)
+		for(int i=0; i<3; i++)
 		{
-			mg_push_vertex_cubic(canvas,
-		                   p[orderedHullIndices[i]],
-		                   (vec4){vec4_expand_xyz(testCoords[orderedHullIndices[i]]), outsideTest});
+			mg_push_vertex_cubic(canvas, p[fanIndices[i]], (vec4){vec4_expand_xyz(testCoords[fanIndices[i]]), outsideTest0});
+		}
+		for(int i=0; i<3; i++)
+		{
+			mg_push_vertex_cubic(canvas, p[fanIndices[i+3]], (vec4){vec4_expand_xyz(testCoords[fanIndices[i+3]]), outsideTest1});
 		}
 
-		indices[0] = baseIndex + 0;
-		indices[1] = baseIndex + 1;
-		indices[2] = baseIndex + 2;
-		indices[3] = baseIndex + 0;
-		indices[4] = baseIndex + 2;
-		indices[5] = baseIndex + 3;
+		for(int i=0; i<6; i++)
+		{
+			indices[i] = baseIndex + i;
+		}
 	}
 }
 
@@ -1457,79 +1497,122 @@ void mg_render_stroke_line(mg_canvas_data* canvas, vec2 p[2], mg_attributes* att
 	indices[5] = baseIndex + 3;
 }
 
-void mg_offset_hull(int count, vec2* p, vec2* result, f32 offset)
+//TODO put these elsewhere
+bool vec2_equal(vec2 v0, vec2 v1)
 {
-//////////////////////////////////////////////////////////////////////////////////////
-//WARN: quick fix for coincident middle control points
-	if(count == 4 && (fabs(p[1].x - p[2].x) < 0.01) && (fabs(p[1].y - p[2].y) < 0.01))
+	return(v0.x == v1.x && v0.y == v1.y);
+}
+
+bool vec2_close(vec2 p0, vec2 p1, f32 tolerance)
+{
+	f32 norm2 = (p1.x - p0.x)*(p1.x - p0.x) + (p1.y - p0.y)*(p1.y - p0.y);
+	return(fabs(norm2) < tolerance);
+}
+
+vec2 vec2_mul(f32 f, vec2 v)
+{
+	return((vec2){f*v.x, f*v.y});
+}
+
+vec2 vec2_add(vec2 v0, vec2 v1)
+{
+	return((vec2){v0.x + v1.x, v0.y + v1.y});
+}
+
+bool mg_intersect_hull_legs(vec2 p0, vec2 p1, vec2 p2, vec2 p3, vec2* intersection)
+{
+	/*NOTE: check intersection of lines (p0-p1) and (p2-p3)
+
+		P = p0 + u(p1-p0)
+		P = p2 + w(p3-p2)
+	*/
+	bool found = false;
+
+	f32 den = (p0.x - p1.x)*(p2.y - p3.y) - (p0.y - p1.y)*(p2.x - p3.x);
+	if(fabs(den) > 0.0001)
 	{
-		vec2 hull3[3] = {p[0], p[1], p[3]};
-		vec2 result3[3];
-		mg_offset_hull(3, hull3, result3, offset);
-		result[0] = result3[0];
-		result[1] = result3[1];
-		result[2] = result3[1];
-		result[3] = result3[2];
-		return;
+		f32 u = ((p0.x - p2.x)*(p2.y - p3.y) - (p0.y - p2.y)*(p2.x - p3.x))/den;
+		f32 w = ((p0.x - p2.x)*(p0.y - p1.y) - (p0.y - p2.y)*(p0.x - p1.x))/den;
+
+		intersection->x = p0.x + u*(p1.x - p0.x);
+		intersection->y = p0.y + u*(p1.y - p0.y);
+		found = true;
 	}
-/////////////////////////////////////////////////////////////////////////////////////:
+	return(found);
+}
 
-	//TODO(martin): review edge cases (coincident points ? colinear points ? control points pointing outward end point?)
-	//NOTE(martin): first offset control point is just the offset of first control point
-	vec2 n = {p[0].y - p[1].y,
-	          p[1].x - p[0].x};
-	f32 norm = sqrt(n.x*n.x + n.y*n.y);
-	n.x *= offset/norm;
-	n.y *= offset/norm;
+bool mg_offset_hull(int count, vec2* p, vec2* result, f32 offset)
+{
+	//NOTE: we should have no more than two coincident points here. This means the leg between
+	//      those two points can't be offset, but we can set a double point at the start of first leg,
+	//      end of first leg, or we can join the first and last leg to create a missing middle one
 
-	result[0].x = p[0].x + n.x;
-	result[0].y = p[0].y + n.y;
+	vec2 legs[3][2] = {0};
+	bool valid[3] = {0};
 
-	//NOTE(martin): subsequent offset control points are the intersection of offset control lines
+	for(int i=0; i<count-1; i++)
+	{
+		vec2 n = {p[i].y - p[i+1].y,
+	              p[i+1].x - p[i].x};
+
+		f32 norm = sqrt(n.x*n.x + n.y*n.y);
+		if(norm >= 1e-6)
+		{
+			n = vec2_mul(offset/norm, n);
+			legs[i][0] = vec2_add(p[i], n);
+			legs[i][1] = vec2_add(p[i+1], n);
+			valid[i] = true;
+		}
+	}
+
+	//NOTE: now we find intersections
+
+	// first point is either the start of the first or second leg
+	if(valid[0])
+	{
+		result[0] = legs[0][0];
+	}
+	else
+	{
+		ASSERT(valid[1]);
+		result[0] = legs[1][0];
+	}
+
 	for(int i=1; i<count-1; i++)
 	{
-		vec2 p0 = p[i-1];
-		vec2 p1 = p[i];
-		vec2 p2 = p[i+1];
+		//NOTE: we're computing the control point i, at the end of leg (i-1)
 
-		//NOTE(martin): get normals
-		vec2 n0 = {p0.y - p1.y,
-			   p1.x - p0.x};
-		f32 norm0 = sqrt(n0.x*n0.x + n0.y*n0.y);
-		n0.x /= norm0;
-		n0.y /= norm0;
-
-		vec2 n1 = {p1.y - p2.y,
-			   p2.x - p1.x};
-		f32 norm1 = sqrt(n1.x*n1.x + n1.y*n1.y);
-		n1.x /= norm1;
-		n1.y /= norm1;
-
-		/*NOTE(martin): let vector u = (n0+n1) and vector v = pIntersect - p1
-		                then v = u * (2*offset / norm(u)^2)
-			        (this can be derived from writing the pythagoras theorems in the triangles of the joint)
-		*/
-		vec2 u = {n0.x + n1.x, n0.y + n1.y};
-		f32 uNormSquare = u.x*u.x + u.y*u.y;
-		f32 alpha = 2*offset / uNormSquare;
-		vec2 v = {u.x * alpha, u.y * alpha};
-
-		result[i].x = p1.x + v.x;
-		result[i].y = p1.y + v.y;
-
-		ASSERT(!isnan(result[i].x));
-		ASSERT(!isnan(result[i].y));
+		if(!valid[i-1])
+		{
+			ASSERT(valid[i]);
+			result[i] = legs[i][0];
+		}
+		else if(!valid[i])
+		{
+			ASSERT(valid[i-1]);
+			result[i] = legs[i-1][0];
+		}
+		else
+		{
+			if(!mg_intersect_hull_legs(legs[i-1][0], legs[i-1][1], legs[i][0], legs[i][1], &result[i]))
+			{
+				// legs don't intersect.
+				return(false);
+			}
+		}
 	}
 
-	//NOTE(martin): last offset control point is just the offset of last control point
-	n = (vec2){p[count-2].y - p[count-1].y,
-	           p[count-1].x - p[count-2].x};
-	norm = sqrt(n.x*n.x + n.y*n.y);
-	n.x *= offset/norm;
-	n.y *= offset/norm;
+	if(valid[count-2])
+	{
+		result[count-1] = legs[count-2][1];
+	}
+	else
+	{
+		ASSERT(valid[count-3]);
+		result[count-1] = legs[count-3][1];
+	}
 
-	result[count-1].x = p[count-1].x + n.x;
-	result[count-1].y = p[count-1].y + n.y;
+	return(true);
 }
 
 vec2 mg_quadratic_get_point(vec2 p[3], f32 t)
@@ -1573,87 +1656,110 @@ void mg_quadratic_split(vec2 p[3], f32 t, vec2 outLeft[3], vec2 outRight[3])
 }
 
 
-void mg_render_stroke_quadratic(mg_canvas_data* canvas, vec2 p[4], mg_attributes* attributes)
+void mg_render_stroke_quadratic(mg_canvas_data* canvas, vec2 p[3], mg_attributes* attributes)
 {
+	//NOTE: check for degenerate line case
+	const f32 equalEps = 1e-3;
+	if(vec2_close(p[0], p[1], equalEps))
+	{
+		mg_render_stroke_line(canvas, p+1, attributes);
+		return;
+	}
+	else if(vec2_close(p[1], p[2], equalEps))
+	{
+		mg_render_stroke_line(canvas, p, attributes);
+		return;
+	}
+
 	#define CHECK_SAMPLE_COUNT 5
 	f32 checkSamples[CHECK_SAMPLE_COUNT] = {1./6, 2./6, 3./6, 4./6, 5./6};
 
 	vec2 positiveOffsetHull[3];
 	vec2 negativeOffsetHull[3];
 
-	mg_offset_hull(3, p, positiveOffsetHull, 0.5 * attributes->width);
-	mg_offset_hull(3, p, negativeOffsetHull, -0.5 * attributes->width);
-
-	//NOTE(martin): the distance d between the offset curve and the path must be between w/2-tolerance and w/2+tolerance
-	//              thus, by constraining tolerance to be at most, 0.5*width, we can rewrite this condition like this:
-	//
-	//              (w/2-tolerance)^2 < d^2 < (w/2+tolerance)^2
-	//
-	//		we compute the maximum overshoot outside these bounds and split the curve at the corresponding parameter
-
-	//TODO: maybe refactor by using tolerance in the _check_, not in the computation of the overshoot
-	f32 tolerance = minimum(attributes->tolerance, 0.5 * attributes->width);
-	f32 d2LowBound = Square(0.5 * attributes->width - attributes->tolerance);
-	f32 d2HighBound = Square(0.5 * attributes->width + attributes->tolerance);
-
-	f32 maxOvershoot = 0;
-	f32 maxOvershootParameter = 0;
-
-	for(int i=0; i<CHECK_SAMPLE_COUNT; i++)
+	if( !mg_offset_hull(3, p, positiveOffsetHull, 0.5 * attributes->width)
+	  ||!mg_offset_hull(3, p, negativeOffsetHull, -0.5 * attributes->width))
 	{
-		f32 t = checkSamples[i];
-
-		vec2 c = mg_quadratic_get_point(p, t);
-		vec2 cp =  mg_quadratic_get_point(positiveOffsetHull, t);
-		vec2 cn =  mg_quadratic_get_point(negativeOffsetHull, t);
-
-		f32 positiveDistSquare = Square(c.x - cp.x) + Square(c.y - cp.y);
-		f32 negativeDistSquare = Square(c.x - cn.x) + Square(c.y - cn.y);
-
-		f32 positiveOvershoot = maximum(positiveDistSquare - d2HighBound, d2LowBound - positiveDistSquare);
-		f32 negativeOvershoot = maximum(negativeDistSquare - d2HighBound, d2LowBound - negativeDistSquare);
-
-		f32 overshoot = maximum(positiveOvershoot, negativeOvershoot);
-
-		if(overshoot > maxOvershoot)
-		{
-			maxOvershoot = overshoot;
-			maxOvershootParameter = t;
-		}
-	}
-
-	if(maxOvershoot > 0)
-	{
+		//NOTE: offsetting the hull failed, split the curve
 		vec2 splitLeft[3];
 		vec2 splitRight[3];
-		mg_quadratic_split(p, maxOvershootParameter, splitLeft, splitRight);
+		mg_quadratic_split(p, 0.5, splitLeft, splitRight);
 		mg_render_stroke_quadratic(canvas, splitLeft, attributes);
 		mg_render_stroke_quadratic(canvas, splitRight, attributes);
 	}
 	else
 	{
-		//NOTE(martin): push the actual fill commands for the offset contour
+		//NOTE(martin): the distance d between the offset curve and the path must be between w/2-tolerance and w/2+tolerance
+		//              thus, by constraining tolerance to be at most, 0.5*width, we can rewrite this condition like this:
+		//
+		//              (w/2-tolerance)^2 < d^2 < (w/2+tolerance)^2
+		//
+		//		we compute the maximum overshoot outside these bounds and split the curve at the corresponding parameter
 
-		mg_next_shape(canvas, attributes);
+		//TODO: maybe refactor by using tolerance in the _check_, not in the computation of the overshoot
+		f32 tolerance = minimum(attributes->tolerance, 0.5 * attributes->width);
+		f32 d2LowBound = Square(0.5 * attributes->width - attributes->tolerance);
+		f32 d2HighBound = Square(0.5 * attributes->width + attributes->tolerance);
 
-		mg_render_fill_quadratic(canvas, positiveOffsetHull);
-		mg_render_fill_quadratic(canvas, negativeOffsetHull);
+		f32 maxOvershoot = 0;
+		f32 maxOvershootParameter = 0;
 
-		//NOTE(martin):	add base triangles
-		u32 baseIndex = mg_vertices_base_index(canvas);
-		i32* indices = mg_reserve_indices(canvas, 6);
+		for(int i=0; i<CHECK_SAMPLE_COUNT; i++)
+		{
+			f32 t = checkSamples[i];
 
-		mg_push_vertex(canvas, positiveOffsetHull[0]);
-		mg_push_vertex(canvas, positiveOffsetHull[2]);
-		mg_push_vertex(canvas, negativeOffsetHull[2]);
-		mg_push_vertex(canvas, negativeOffsetHull[0]);
+			vec2 c = mg_quadratic_get_point(p, t);
+			vec2 cp =  mg_quadratic_get_point(positiveOffsetHull, t);
+			vec2 cn =  mg_quadratic_get_point(negativeOffsetHull, t);
 
-		indices[0] = baseIndex + 0;
-		indices[1] = baseIndex + 1;
-		indices[2] = baseIndex + 2;
-		indices[3] = baseIndex + 0;
-		indices[4] = baseIndex + 2;
-		indices[5] = baseIndex + 3;
+			f32 positiveDistSquare = Square(c.x - cp.x) + Square(c.y - cp.y);
+			f32 negativeDistSquare = Square(c.x - cn.x) + Square(c.y - cn.y);
+
+			f32 positiveOvershoot = maximum(positiveDistSquare - d2HighBound, d2LowBound - positiveDistSquare);
+			f32 negativeOvershoot = maximum(negativeDistSquare - d2HighBound, d2LowBound - negativeDistSquare);
+
+			f32 overshoot = maximum(positiveOvershoot, negativeOvershoot);
+
+			if(overshoot > maxOvershoot)
+			{
+				maxOvershoot = overshoot;
+				maxOvershootParameter = t;
+			}
+		}
+
+		if(maxOvershoot > 0)
+		{
+			vec2 splitLeft[3];
+			vec2 splitRight[3];
+			mg_quadratic_split(p, maxOvershootParameter, splitLeft, splitRight);
+			mg_render_stroke_quadratic(canvas, splitLeft, attributes);
+			mg_render_stroke_quadratic(canvas, splitRight, attributes);
+		}
+		else
+		{
+			//NOTE(martin): push the actual fill commands for the offset contour
+
+			mg_next_shape(canvas, attributes);
+
+			mg_render_fill_quadratic(canvas, positiveOffsetHull);
+			mg_render_fill_quadratic(canvas, negativeOffsetHull);
+
+			//NOTE(martin):	add base triangles
+			u32 baseIndex = mg_vertices_base_index(canvas);
+			i32* indices = mg_reserve_indices(canvas, 6);
+
+			mg_push_vertex(canvas, positiveOffsetHull[0]);
+			mg_push_vertex(canvas, positiveOffsetHull[2]);
+			mg_push_vertex(canvas, negativeOffsetHull[2]);
+			mg_push_vertex(canvas, negativeOffsetHull[0]);
+
+			indices[0] = baseIndex + 0;
+			indices[1] = baseIndex + 1;
+			indices[2] = baseIndex + 2;
+			indices[3] = baseIndex + 0;
+			indices[4] = baseIndex + 2;
+			indices[5] = baseIndex + 3;
+		}
 	}
 	#undef CHECK_SAMPLE_COUNT
 }
@@ -1681,25 +1787,23 @@ void mg_cubic_split(vec2 p[4], f32 t, vec2 outLeft[4], vec2 outRight[4])
 	//              the r_n are the points along the (q_n, q_n+1) segments at parameter t
 	//              s is the split point.
 
-	f32 oneMt = 1-t;
+	vec2 q0 = {(1-t)*p[0].x + t*p[1].x,
+	           (1-t)*p[0].y + t*p[1].y};
 
-	vec2 q0 = {oneMt*p[0].x + t*p[1].x,
-	           oneMt*p[0].y + t*p[1].y};
+	vec2 q1 = {(1-t)*p[1].x + t*p[2].x,
+	           (1-t)*p[1].y + t*p[2].y};
 
-	vec2 q1 = {oneMt*p[1].x + t*p[2].x,
-	           oneMt*p[1].y + t*p[2].y};
+	vec2 q2 = {(1-t)*p[2].x + t*p[3].x,
+	           (1-t)*p[2].y + t*p[3].y};
 
-	vec2 q2 = {oneMt*p[2].x + t*p[3].x,
-	           oneMt*p[2].y + t*p[3].y};
+	vec2 r0 = {(1-t)*q0.x + t*q1.x,
+	           (1-t)*q0.y + t*q1.y};
 
-	vec2 r0 = {oneMt*q0.x + t*q1.x,
-	           oneMt*q0.y + t*q1.y};
+	vec2 r1 = {(1-t)*q1.x + t*q2.x,
+	           (1-t)*q1.y + t*q2.y};
 
-	vec2 r1 = {oneMt*q1.x + t*q2.x,
-	           oneMt*q1.y + t*q2.y};
-
-	vec2 s = {oneMt*r0.x + t*r1.x,
-	          oneMt*r0.y + t*r1.y};;
+	vec2 s = {(1-t)*r0.x + t*r1.x,
+	          (1-t)*r0.y + t*r1.y};;
 
 	outLeft[0] = p[0];
 	outLeft[1] = q0;
@@ -1714,14 +1818,46 @@ void mg_cubic_split(vec2 p[4], f32 t, vec2 outLeft[4], vec2 outRight[4])
 
 void mg_render_stroke_cubic(mg_canvas_data* canvas, vec2 p[4], mg_attributes* attributes)
 {
+	//NOTE: check degenerate line cases
+	f32 equalEps = 1e-3;
+
+	if( (vec2_close(p[0], p[1], equalEps) && vec2_close(p[2], p[3], equalEps))
+	  ||(vec2_close(p[0], p[1], equalEps) && vec2_close(p[1], p[2], equalEps))
+	  ||(vec2_close(p[1], p[2], equalEps) && vec2_close(p[2], p[3], equalEps)))
+	{
+		vec2 line[2] = {p[0], p[3]};
+		mg_render_stroke_line(canvas, line, attributes);
+		return;
+	}
+	else if(vec2_close(p[0], p[1], equalEps) && vec2_close(p[1], p[3], equalEps))
+	{
+		vec2 line[2] = {p[0], vec2_add(vec2_mul(5./9, p[0]), vec2_mul(4./9, p[2]))};
+		mg_render_stroke_line(canvas, line, attributes);
+		return;
+	}
+	else if(vec2_close(p[0], p[2], equalEps) && vec2_close(p[2], p[3], equalEps))
+	{
+		vec2 line[2] = {p[0], vec2_add(vec2_mul(5./9, p[0]), vec2_mul(4./9, p[1]))};
+		mg_render_stroke_line(canvas, line, attributes);
+		return;
+	}
+
 	#define CHECK_SAMPLE_COUNT 5
 	f32 checkSamples[CHECK_SAMPLE_COUNT] = {1./6, 2./6, 3./6, 4./6, 5./6};
 
 	vec2 positiveOffsetHull[4];
 	vec2 negativeOffsetHull[4];
 
-	mg_offset_hull(4, p, positiveOffsetHull, 0.5 * attributes->width);
-	mg_offset_hull(4, p, negativeOffsetHull, -0.5 * attributes->width);
+	if(  !mg_offset_hull(4, p, positiveOffsetHull, 0.5 * attributes->width)
+	  || !mg_offset_hull(4, p, negativeOffsetHull, -0.5 * attributes->width))
+	{
+		vec2 splitLeft[4];
+		vec2 splitRight[4];
+		mg_cubic_split(p, 0.5, splitLeft, splitRight);
+		mg_render_stroke_cubic(canvas, splitLeft, attributes);
+		mg_render_stroke_cubic(canvas, splitRight, attributes);
+		return;
+	}
 
 	//NOTE(martin): the distance d between the offset curve and the path must be between w/2-tolerance and w/2+tolerance
 	//              thus, by constraining tolerance to be at most, 0.5*width, we can rewrite this condition like this:
@@ -1945,14 +2081,33 @@ void mg_render_stroke_element(mg_canvas_data* canvas,
 			break;
 	}
 
-	*startTangent = (vec2){.x = controlPoints[1].x - controlPoints[0].x,
-			      .y = controlPoints[1].y - controlPoints[0].y};
+	//NOTE: ensure tangents are properly computed even in presence of coincident points
+	//TODO: see if we can do this in a less hacky way
 
-	*endTangent = (vec2){controlPoints[endPointIndex].x - controlPoints[endPointIndex-1].x,
-			     controlPoints[endPointIndex].y - controlPoints[endPointIndex-1].y};
-
+	for(int i=1; i<4; i++)
+	{
+		if(  controlPoints[i].x != controlPoints[0].x
+		  || controlPoints[i].y != controlPoints[0].y)
+		{
+			*startTangent = (vec2){.x = controlPoints[i].x - controlPoints[0].x,
+			                       .y = controlPoints[i].y - controlPoints[0].y};
+			break;
+		}
+	}
 	*endPoint = controlPoints[endPointIndex];
 
+	for(int i=endPointIndex-1; i>=0; i++)
+	{
+		if(  controlPoints[i].x != endPoint->x
+		  || controlPoints[i].y != endPoint->y)
+		{
+			*endTangent = (vec2){.x = endPoint->x - controlPoints[i].x,
+			                     .y = endPoint->y - controlPoints[i].y};
+			break;
+		}
+	}
+
+	DEBUG_ASSERT(startTangent->x != 0 || startTangent->y != 0);
 }
 
 u32 mg_render_stroke_subpath(mg_canvas_data* canvas,
@@ -2744,10 +2899,7 @@ mg_canvas mg_canvas_create(mg_surface surface)
 			canvas->attributes.clip = (mp_rect){-FLT_MAX/2, -FLT_MAX/2, FLT_MAX, FLT_MAX};
 
 	        canvasHandle = mg_canvas_handle_alloc(canvas);
-	        mg_canvas_set_current(canvasHandle);
-
-	        //TODO: move that in mg_canvas_set_current() if needed?
-	        mg_surface_prepare(surface);
+	        mg_canvas_prepare(canvasHandle);
 		}
 	}
 	return(canvasHandle);
@@ -2773,13 +2925,17 @@ void mg_canvas_destroy(mg_canvas handle)
 	}
 }
 
-mg_canvas mg_canvas_set_current(mg_canvas canvas)
+mg_canvas mg_canvas_prepare(mg_canvas canvas)
 {
 	mg_canvas old = __mgCurrentCanvasHandle;
 
 	__mgCurrentCanvasHandle = canvas;
 	__mgCurrentCanvas = mg_canvas_data_from_handle(canvas);
 
+	if(__mgCurrentCanvas)
+	{
+		mg_surface_prepare(__mgCurrentCanvas->surface);
+	}
 	return(old);
 }
 
@@ -2998,16 +3154,27 @@ void mg_flush_commands(int primitiveCount, mg_primitive* primitives, mg_path_elt
 void mg_flush()
 {
 	mg_canvas_data* canvas = __mgCurrentCanvas;
-	if(!canvas)
+	if(canvas)
 	{
-		return;
+		mg_flush_commands(canvas->primitiveCount, canvas->primitives, canvas->pathElements);
+		canvas->primitiveCount = 0;
+		canvas->path.startIndex = 0;
+		canvas->path.count = 0;
 	}
+}
 
-	mg_flush_commands(canvas->primitiveCount, canvas->primitives, canvas->pathElements);
+void mg_present()
+{
+	mg_canvas_data* canvas = __mgCurrentCanvas;
+	if(canvas)
+	{
+		mg_flush_commands(canvas->primitiveCount, canvas->primitives, canvas->pathElements);
+		canvas->primitiveCount = 0;
+		canvas->path.startIndex = 0;
+		canvas->path.count = 0;
 
-	canvas->primitiveCount = 0;
-	canvas->path.startIndex = 0;
-	canvas->path.count = 0;
+		mg_surface_present(canvas->surface);
+	}
 }
 
 //------------------------------------------------------------------------------------------

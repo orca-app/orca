@@ -53,7 +53,16 @@ void mg_mtl_surface_destroy(mg_surface_data* interface)
 	//NOTE: we don't use mp_layer_cleanup here, because the CAMetalLayer is taken care off by the surface itself
 }
 
-void mg_mtl_surface_acquire_drawable_and_command_buffer(mg_mtl_surface* surface)
+void mg_mtl_surface_acquire_command_buffer(mg_mtl_surface* surface)
+{
+	if(surface->commandBuffer == nil)
+	{
+		surface->commandBuffer = [surface->commandQueue commandBuffer];
+		[surface->commandBuffer retain];
+	}
+}
+
+void mg_mtl_surface_acquire_drawable(mg_mtl_surface* surface)
 {@autoreleasepool{
 	/*WARN(martin):
 		//TODO: we should stop trying to render if we detect that the app is in the background
@@ -72,17 +81,12 @@ void mg_mtl_surface_acquire_drawable_and_command_buffer(mg_mtl_surface* surface)
 			[surface->drawable retain];
 		}
 	}
-	if(surface->commandBuffer == nil)
-	{
-		surface->commandBuffer = [surface->commandQueue commandBuffer];
-		[surface->commandBuffer retain];
-	}
 }}
 
 void mg_mtl_surface_prepare(mg_surface_data* interface)
 {
 	mg_mtl_surface* surface = (mg_mtl_surface*)interface;
-	mg_mtl_surface_acquire_drawable_and_command_buffer(surface);
+	mg_mtl_surface_acquire_command_buffer(surface);
 }
 
 void mg_mtl_surface_present(mg_surface_data* interface)
@@ -90,18 +94,18 @@ void mg_mtl_surface_present(mg_surface_data* interface)
 	mg_mtl_surface* surface = (mg_mtl_surface*)interface;
 	@autoreleasepool
 	{
-		if(surface->drawable != nil)
+		if(surface->commandBuffer != nil)
 		{
-			[surface->commandBuffer presentDrawable: surface->drawable];
-			[surface->drawable release];
-			surface->drawable = nil;
+			if(surface->drawable != nil)
+			{
+				[surface->commandBuffer presentDrawable: surface->drawable];
+				[surface->drawable release];
+				surface->drawable = nil;
+			}
+			[surface->commandBuffer commit];
+			[surface->commandBuffer release];
+			surface->commandBuffer = nil;
 		}
-		[surface->commandBuffer commit];
-//		[surface->commandBuffer waitUntilCompleted];
-		//TODO: do we really need this?
-
-		[surface->commandBuffer release];
-		surface->commandBuffer = nil;
 	}
 }
 
@@ -127,6 +131,10 @@ void mg_mtl_surface_set_frame(mg_surface_data* interface, mp_rect frame)
 
 //TODO fix that according to real scaling, depending on the monitor settings
 static const f32 MG_MTL_SURFACE_CONTENTS_SCALING = 2;
+
+//NOTE: max frames in flight (n frames being queued on the GPU while we're working on the n+1 frame).
+//      for triple buffering, there's 2 frames being queued on the GPU while we're working on the 3rd frame
+static const int MG_MTL_MAX_FRAMES_IN_FLIGHT = 2;
 
 mg_surface_data* mg_mtl_surface_create_for_window(mp_window window)
 {
@@ -214,6 +222,7 @@ void* mg_mtl_surface_drawable(mg_surface surface)
 	if(surfaceData && surfaceData->backend == MG_BACKEND_METAL)
 	{
 		mg_mtl_surface* mtlSurface = (mg_mtl_surface*)surfaceData;
+		mg_mtl_surface_acquire_drawable(mtlSurface);
 		return(mtlSurface->drawable);
 	}
 	else
@@ -228,6 +237,7 @@ void* mg_mtl_surface_command_buffer(mg_surface surface)
 	if(surfaceData && surfaceData->backend == MG_BACKEND_METAL)
 	{
 		mg_mtl_surface* mtlSurface = (mg_mtl_surface*)surfaceData;
+		mg_mtl_surface_acquire_command_buffer(mtlSurface);
 		return(mtlSurface->commandBuffer);
 	}
 	else

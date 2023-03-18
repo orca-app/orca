@@ -106,7 +106,7 @@ int main()
 	//NOTE: create surface, canvas and font
 
 	mg_surface surface = mg_surface_create_for_window(window, MG_BACKEND_DEFAULT);
-	mg_surface_swap_interval(surface, 1);
+	mg_surface_swap_interval(surface, 0);
 
 	mg_canvas canvas = mg_canvas_create(surface);
 
@@ -286,9 +286,10 @@ int main()
 			mg_fill();
 
 
-			f64 startFlushTime = mp_get_time(MP_CLOCK_MONOTONIC);
+		f64 startFlushTime = mp_get_time(MP_CLOCK_MONOTONIC);
 
 		mg_surface_prepare(surface);
+
 			mg_flush();
 
 		f64 startPresentTime = mp_get_time(MP_CLOCK_MONOTONIC);
