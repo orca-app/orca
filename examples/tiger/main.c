@@ -82,6 +82,11 @@ int main()
 	mp_window_bring_to_front(window);
 	mp_window_focus(window);
 
+	bool tracked = false;
+	vec2 trackPoint = {0};
+	f32 zoom = 1;
+	f32 startX = 0, startY = 0;
+
 	f64 frameTime = 0;
 
 	while(!mp_should_quit())
@@ -99,8 +104,35 @@ int main()
 					mp_request_quit();
 				} break;
 
-				case MP_EVENT_KEYBOARD_KEY:
+				case MP_EVENT_MOUSE_BUTTON:
 				{
+					if(event.key.code == MP_MOUSE_LEFT)
+					{
+						if(event.key.action == MP_KEY_PRESS)
+						{
+							tracked = true;
+							vec2 mousePos = mp_mouse_position();
+							trackPoint.x = mousePos.x/zoom - startX;
+							trackPoint.y = mousePos.y/zoom - startY;
+						}
+						else
+						{
+							tracked = false;
+						}
+					}
+				} break;
+
+				case MP_EVENT_MOUSE_WHEEL:
+				{
+					vec2 mousePos = mp_mouse_position();
+					f32 trackX = mousePos.x/zoom - startX;
+					f32 trackY = mousePos.y/zoom - startY;
+
+					zoom *= 1 + event.move.deltaY * 0.01;
+					zoom = Clamp(zoom, 0.2, 10);
+
+					startX = mousePos.x/zoom - trackX;
+					startY = mousePos.y/zoom - trackY;
 				} break;
 
 				default:
@@ -108,13 +140,20 @@ int main()
 			}
 		}
 
+		if(tracked)
+		{
+			vec2 mousePos = mp_mouse_position();
+			startX = mousePos.x/zoom - trackPoint.x;
+			startY = mousePos.y/zoom - trackPoint.y;
+		}
+
 		mg_surface_prepare(surface);
 
 		mg_set_color_rgba(1, 0, 1, 1);
 		mg_clear();
 
-		mg_matrix_push((mg_mat2x3){1, 0, 300,
-		                           0, 1, 200});
+		mg_matrix_push((mg_mat2x3){zoom, 0, 300+startX*zoom,
+		                           0, zoom, 200+startY*zoom});
 
 		draw_tiger();
 

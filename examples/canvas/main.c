@@ -162,6 +162,7 @@ int main()
 
 			// head
 			mg_set_color_rgba(1, 1, 0, 1);
+
 			mg_circle_fill(x, y, 200);
 
 			// smile

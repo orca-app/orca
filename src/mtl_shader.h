@@ -59,4 +59,32 @@ typedef struct mg_triangle_data
 
 } mg_triangle_data;
 
+#ifndef __METAL_VERSION__
+#define device
+#else
+using namespace metal;
+#endif
+
+typedef struct mg_tile_elt
+{
+	int triangleIndex;
+	int next;
+} mg_queue_elt;
+
+typedef struct mg_tile_queue
+{
+	atomic_int first;
+} mg_tile_queue;
+
+typedef struct mg_shape_queue
+{
+	vector_int4 area;
+	device mg_tile_queue* tileQueues;
+} mg_shape_queue;
+
+#ifndef __METAL_VERSION__
+#undef device
+#endif
+
+
 #endif //__MTL_RENDERER_H_

@@ -34,9 +34,8 @@ typedef struct mg_mtl_canvas_backend
 	mg_color clearColor;
 
 	// permanent metal resources
+	id<MTLComputePipelineState> shapePipeline;
 	id<MTLComputePipelineState> trianglePipeline;
-	id<MTLComputePipelineState> tilingPipeline;
-	id<MTLComputePipelineState> sortingPipeline;
 	id<MTLComputePipelineState> computePipeline;
 	id<MTLRenderPipelineState> renderPipeline;
 
@@ -53,9 +52,10 @@ typedef struct mg_mtl_canvas_backend
 	id<MTLBuffer> shapeBuffer[MG_MTL_MAX_BUFFER_AVAILABLE];
 	id<MTLBuffer> vertexBuffer[MG_MTL_MAX_BUFFER_AVAILABLE];
 	id<MTLBuffer> indexBuffer[MG_MTL_MAX_BUFFER_AVAILABLE];
-	id<MTLBuffer> tileCounters;
-	id<MTLBuffer> tileArrayBuffer;
+	id<MTLBuffer> shapeQueueBuffer;
 	id<MTLBuffer> triangleArray;
+	id<MTLBuffer> arenaBuffer;
+	id<MTLBuffer> arenaOffset;
 
 } mg_mtl_canvas_backend;
 
@@ -212,15 +212,33 @@ void mg_mtl_canvas_draw_batch(mg_canvas_backend* interface, mg_image_data* image
 		int triangleCount = indexCount/3;
 
 		//-----------------------------------------------------------
-		//NOTE(martin): encode the clear counter
+		//NOTE(martin): encode the clear arena offset
 		//-----------------------------------------------------------
 		id<MTLBlitCommandEncoder> blitEncoder = [surface->commandBuffer blitCommandEncoder];
-		blitEncoder.label = @"clear counters";
-		[blitEncoder fillBuffer: backend->tileCounters range: NSMakeRange(0, RENDERER_MAX_TILES*sizeof(uint)) value: 0];
+		blitEncoder.label = @"clear arena";
+		[blitEncoder fillBuffer: backend->arenaOffset range: NSMakeRange(0, sizeof(int)) value: 0];
 		[blitEncoder endEncoding];
 
 		//-----------------------------------------------------------
-		//NOTE(martin): encode the triangle prepass
+		//NOTE(martin): encode the shape setup pass
+		//-----------------------------------------------------------
+		id<MTLComputeCommandEncoder> shapeEncoder = [surface->commandBuffer computeCommandEncoder];
+		shapeEncoder.label = @"shape pass";
+		[shapeEncoder setComputePipelineState: backend->shapePipeline];
+		[shapeEncoder setBuffer: backend->shapeBuffer[backend->bufferIndex] offset:backend->shapeBufferOffset atIndex: 0];
+		[shapeEncoder setBuffer: backend->shapeQueueBuffer offset:0 atIndex: 1];
+		[shapeEncoder setBuffer: backend->arenaBuffer offset:0 atIndex: 2];
+		[shapeEncoder setBuffer: backend->arenaOffset offset:0 atIndex: 3];
+		[shapeEncoder setBytes: &scale length: sizeof(float) atIndex: 4];
+
+		MTLSize shapeGroupSize = MTLSizeMake(backend->shapePipeline.maxTotalThreadsPerThreadgroup, 1, 1);
+		MTLSize shapeGridSize = MTLSizeMake(shapeCount, 1, 1);
+
+		[shapeEncoder dispatchThreads: shapeGridSize threadsPerThreadgroup: shapeGroupSize];
+		[shapeEncoder endEncoding];
+
+		//-----------------------------------------------------------
+		//NOTE(martin): encode the triangle setup and binning
 		//-----------------------------------------------------------
 		id<MTLComputeCommandEncoder> triangleEncoder = [surface->commandBuffer computeCommandEncoder];
 		triangleEncoder.label = @"triangle pass";
@@ -229,8 +247,11 @@ void mg_mtl_canvas_draw_batch(mg_canvas_backend* interface, mg_image_data* image
 		[triangleEncoder setBuffer: backend->indexBuffer[backend->bufferIndex] offset:backend->indexBufferOffset atIndex: 1];
 		[triangleEncoder setBuffer: backend->shapeBuffer[backend->bufferIndex] offset:backend->shapeBufferOffset atIndex: 2];
 		[triangleEncoder setBuffer: backend->triangleArray offset:0 atIndex: 3];
+		[triangleEncoder setBuffer: backend->shapeQueueBuffer offset:0 atIndex: 4];
+		[triangleEncoder setBuffer: backend->arenaBuffer offset:0 atIndex: 5];
+		[triangleEncoder setBuffer: backend->arenaOffset offset:0 atIndex: 6];
 
-		[triangleEncoder setBytes: &scale length: sizeof(float) atIndex: 4];
+		[triangleEncoder setBytes: &scale length: sizeof(float) atIndex: 7];
 
 		MTLSize triangleGroupSize = MTLSizeMake(backend->trianglePipeline.maxTotalThreadsPerThreadgroup, 1, 1);
 		MTLSize triangleGridSize = MTLSizeMake(triangleCount, 1, 1);
@@ -239,55 +260,14 @@ void mg_mtl_canvas_draw_batch(mg_canvas_backend* interface, mg_image_data* image
 		[triangleEncoder endEncoding];
 
 		//-----------------------------------------------------------
-		//NOTE(martin): encode the tiling pass
-		//-----------------------------------------------------------
-
-		id<MTLComputeCommandEncoder> tileEncoder = [surface->commandBuffer computeCommandEncoder];
-		tileEncoder.label = @"tiling pass";
-		[tileEncoder setComputePipelineState: backend->tilingPipeline];
-		[tileEncoder setBuffer: backend->triangleArray offset:0 atIndex: 0];
-		[tileEncoder setBuffer: backend->tileCounters offset:0 atIndex: 1];
-		[tileEncoder setBuffer: backend->tileArrayBuffer offset:0 atIndex: 2];
-
-		[tileEncoder setBytes: &triangleCount length:sizeof(int) atIndex: 3];
-		[tileEncoder setBytes: &viewportSize length: sizeof(vector_uint2) atIndex: 4];
-		[tileEncoder setBytes: &scale length: sizeof(float) atIndex: 5];
-
-		MTLSize tileGroupSize = MTLSizeMake(1, 1, 16);
-		MTLSize tileGridSize = MTLSizeMake(nTilesX, nTilesY, 16);
-
-		[tileEncoder dispatchThreads: tileGridSize threadsPerThreadgroup: tileGroupSize];
-		[tileEncoder endEncoding];
-
-		//-----------------------------------------------------------
-		//NOTE(martin): encode the sorting pass
-		//-----------------------------------------------------------
-/*
-		id<MTLComputeCommandEncoder> sortEncoder = [surface->commandBuffer computeCommandEncoder];
-		sortEncoder.label = @"sorting pass";
-		[sortEncoder setComputePipelineState: backend->sortingPipeline];
-		[sortEncoder setBuffer: backend->triangleArray offset:0 atIndex: 0];
-		[sortEncoder setBuffer: backend->tileCounters offset:0 atIndex: 1];
-		[sortEncoder setBuffer: backend->tileArrayBuffer offset:0 atIndex: 2];
-
-		u32     nTilesX = (viewportSize.x + RENDERER_TILE_SIZE - 1)/RENDERER_TILE_SIZE;
-		u32     nTilesY = (viewportSize.y + RENDERER_TILE_SIZE - 1)/RENDERER_TILE_SIZE;
-
-		MTLSize sortGroupSize = MTLSizeMake(backend->sortingPipeline.maxTotalThreadsPerThreadgroup, 1, 1);
-		MTLSize sortGridSize = MTLSizeMake(nTilesX*nTilesY, 1, 1);
-
-		[sortEncoder dispatchThreads: sortGridSize threadsPerThreadgroup: sortGroupSize];
-		[sortEncoder endEncoding];
-*/
-		//-----------------------------------------------------------
 		//NOTE(martin): encode drawing pass
 		//-----------------------------------------------------------
 		id<MTLComputeCommandEncoder> drawEncoder = [surface->commandBuffer computeCommandEncoder];
 		drawEncoder.label = @"drawing pass";
 		[drawEncoder setComputePipelineState:backend->computePipeline];
-		[drawEncoder setBuffer: backend->tileCounters offset:0 atIndex: 0];
-		[drawEncoder setBuffer: backend->tileArrayBuffer offset:0 atIndex: 1];
-		[drawEncoder setBuffer: backend->triangleArray offset:0 atIndex: 2];
+		[drawEncoder setBuffer: backend->shapeQueueBuffer offset:0 atIndex: 0];
+		[drawEncoder setBuffer: backend->triangleArray offset:0 atIndex: 1];
+		[drawEncoder setBuffer: backend->arenaBuffer offset:0 atIndex: 2];
 
 		[drawEncoder setTexture: backend->outTexture atIndex: 0];
 		int useTexture = 0;
@@ -298,8 +278,9 @@ void mg_mtl_canvas_draw_batch(mg_canvas_backend* interface, mg_image_data* image
 			useTexture = 1;
 		}
 
-		[drawEncoder setBytes: &useTexture length:sizeof(int) atIndex: 3];
-		[drawEncoder setBytes: &scale length: sizeof(float) atIndex: 4];
+		[drawEncoder setBytes: &shapeCount length:sizeof(int) atIndex: 3];
+		[drawEncoder setBytes: &useTexture length:sizeof(int) atIndex: 4];
+		[drawEncoder setBytes: &scale length: sizeof(float) atIndex: 5];
 
 		//TODO: check that we don't exceed maxTotalThreadsPerThreadgroup
 		DEBUG_ASSERT(RENDERER_TILE_SIZE*RENDERER_TILE_SIZE <= backend->computePipeline.maxTotalThreadsPerThreadgroup);
@@ -391,8 +372,13 @@ void mg_mtl_canvas_destroy(mg_canvas_backend* interface)
 		}
 		//NOTE: semaphore does not have a destructor?
 
-		[backend->tileArrayBuffer release];
+		[backend->shapeQueueBuffer release];
 		[backend->triangleArray release];
+		[backend->arenaBuffer release];
+		[backend->arenaOffset release];
+
+		//////////////////////////////////////////
+		//TODO release all pipelines
 		[backend->computePipeline release];
 	}
 }
@@ -524,18 +510,18 @@ mg_canvas_backend* mg_mtl_canvas_create(mg_surface surface)
 		                                        		options: bufferOptions];
 			}
 
-			backend->tileArrayBuffer = [metalSurface->device newBufferWithLength: RENDERER_TILE_BUFFER_SIZE*sizeof(int)*RENDERER_MAX_TILES
-								options: MTLResourceStorageModePrivate];
-
 			backend->triangleArray = [metalSurface->device newBufferWithLength: MG_MTL_CANVAS_DEFAULT_BUFFER_LENGTH*sizeof(mg_triangle_data)
 								options: MTLResourceStorageModePrivate];
 
-			//TODO(martin): retain ?
-			//-----------------------------------------------------------
-			//NOTE(martin): create and initialize tile counters
-			//-----------------------------------------------------------
-			backend->tileCounters = [metalSurface->device newBufferWithLength: RENDERER_MAX_TILES*sizeof(uint)
-		                                         	options: MTLResourceStorageModePrivate];
+			backend->shapeQueueBuffer = [metalSurface->device newBufferWithLength: MG_MTL_CANVAS_DEFAULT_BUFFER_LENGTH*sizeof(mg_shape_queue)
+								options: MTLResourceStorageModePrivate];
+
+			backend->arenaBuffer = [metalSurface->device newBufferWithLength: MG_MTL_CANVAS_DEFAULT_BUFFER_LENGTH*sizeof(mg_queue_elt)
+								options: MTLResourceStorageModePrivate];
+
+			backend->arenaOffset = [metalSurface->device newBufferWithLength: sizeof(int)
+								options: MTLResourceStorageModePrivate];
+
 			//-----------------------------------------------------------
 			//NOTE(martin): load the library
 			//-----------------------------------------------------------
@@ -551,9 +537,8 @@ mg_canvas_backend* mg_mtl_canvas_create(mg_surface surface)
 				LOG_ERROR("error : %s\n", errStr);
 				return(0);
 			}
+			id<MTLFunction> shapeFunction = [library newFunctionWithName:@"ShapeSetup"];
 			id<MTLFunction> triangleFunction = [library newFunctionWithName:@"TriangleKernel"];
-			id<MTLFunction> tilingFunction = [library newFunctionWithName:@"TileKernel"];
-			id<MTLFunction> sortingFunction = [library newFunctionWithName:@"SortKernel"];
 			id<MTLFunction> computeFunction = [library newFunctionWithName:@"RenderKernel"];
 			id<MTLFunction> vertexFunction = [library newFunctionWithName:@"VertexShader"];
 			id<MTLFunction> fragmentFunction = [library newFunctionWithName:@"FragmentShader"];
@@ -566,26 +551,18 @@ mg_canvas_backend* mg_mtl_canvas_create(mg_surface surface)
 		                                                                           	error:&error];
 			ASSERT(backend->computePipeline);
 
+			MTLComputePipelineDescriptor* shapePipelineDesc = [[MTLComputePipelineDescriptor alloc] init];
+			shapePipelineDesc.computeFunction = shapeFunction;
+
+			backend->shapePipeline = [metalSurface->device newComputePipelineStateWithDescriptor: shapePipelineDesc
+		                                           	options: MTLPipelineOptionNone
+		                                           	reflection: nil
+		                                           	error: &error];
+
 			MTLComputePipelineDescriptor* trianglePipelineDesc = [[MTLComputePipelineDescriptor alloc] init];
 			trianglePipelineDesc.computeFunction = triangleFunction;
 
 			backend->trianglePipeline = [metalSurface->device newComputePipelineStateWithDescriptor: trianglePipelineDesc
-		                                           	options: MTLPipelineOptionNone
-		                                           	reflection: nil
-		                                           	error: &error];
-
-			MTLComputePipelineDescriptor* tilingPipelineDesc = [[MTLComputePipelineDescriptor alloc] init];
-			tilingPipelineDesc.computeFunction = tilingFunction;
-
-			backend->tilingPipeline = [metalSurface->device newComputePipelineStateWithDescriptor: tilingPipelineDesc
-		                                           	options: MTLPipelineOptionNone
-		                                           	reflection: nil
-		                                           	error: &error];
-
-			MTLComputePipelineDescriptor* sortingPipelineDesc = [[MTLComputePipelineDescriptor alloc] init];
-			sortingPipelineDesc.computeFunction = sortingFunction;
-
-			backend->sortingPipeline = [metalSurface->device newComputePipelineStateWithDescriptor: sortingPipelineDesc
 		                                           	options: MTLPipelineOptionNone
 		                                           	reflection: nil
 		                                           	error: &error];

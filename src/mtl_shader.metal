@@ -46,13 +46,60 @@ int orient2d(int2 a, int2 b, int2 c)
 	return((b.x-a.x)*(c.y-a.y) - (b.y-a.y)*(c.x-a.x));
 }
 
+device uchar* arena_allocate(device uchar* arenaBuffer,
+                             device volatile atomic_uint* arenaOffset,
+                             uint size)
+{
+	uint index = atomic_fetch_add_explicit(arenaOffset, size, memory_order_relaxed);
+	return(&arenaBuffer[index]);
+}
+
+//NOTE: shape setup allocates tile queues for each shape
+
+kernel void ShapeSetup(constant mg_shape* shapeBuffer [[buffer(0)]],
+                       device mg_shape_queue* shapeQueueBuffer [[buffer(1)]],
+                       device uchar* arenaBuffer [[buffer(2)]],
+                       device volatile atomic_uint* arenaOffset [[buffer(3)]],
+                       constant float* scaling [[buffer(4)]],
+                       uint gid [[thread_position_in_grid]])
+{
+
+	float4 box = shapeBuffer[gid].clip * scaling[0];
+
+	int2 firstTile = int2(box.xy)/RENDERER_TILE_SIZE;
+
+	//WARN: the following can result in a 1x1 tile allocated even for empty boxes. But if we didn't allocate
+	//      any tile queue, the tileQueues pointer for that shape would alias the tileQueues pointer of another
+	//      shape, and we would have to detect that in the tiling and drawing kernels. Instead, just accept some
+	//      waste and keep the other kernels more uniforms for now...
+	int nTilesX = int(box.z)/RENDERER_TILE_SIZE - firstTile.x + 1;
+	int nTilesY = int(box.w)/RENDERER_TILE_SIZE - firstTile.y + 1;
+
+	int tileCount = nTilesX * nTilesY;
+	int tileArraySize =  tileCount * sizeof(mg_tile_queue);
+
+	shapeQueueBuffer[gid].area = int4(firstTile.x, firstTile.y, nTilesX, nTilesY);
+	shapeQueueBuffer[gid].tileQueues = (device mg_tile_queue*)arena_allocate(arenaBuffer, arenaOffset, tileArraySize);
+
+	for(int i=0; i<tileCount; i++)
+	{
+		atomic_store_explicit(&shapeQueueBuffer[gid].tileQueues[i].first, -1, memory_order_relaxed);
+	}
+}
+
+//NOTE: setup triangle data and bucket triangle into tile queues
+
 kernel void TriangleKernel(constant mg_vertex* vertexBuffer [[buffer(0)]],
 		                   constant uint* indexBuffer [[buffer(1)]],
 		                   constant mg_shape* shapeBuffer [[buffer(2)]],
                            device mg_triangle_data* triangleArray [[buffer(3)]],
-                           constant float* scaling [[buffer(4)]],
+                           device mg_shape_queue* shapeQueueBuffer [[buffer(4)]],
+                           device uchar* arenaBuffer [[buffer(5)]],
+                           device volatile atomic_uint* arenaOffset [[buffer(6)]],
+                           constant float* scaling [[buffer(7)]],
                            uint gid [[thread_position_in_grid]])
 {
+	//NOTE: triangle setup
 	uint triangleIndex = gid * 3;
 
 	uint i0 = indexBuffer[triangleIndex];
@@ -95,7 +142,6 @@ kernel void TriangleKernel(constant mg_vertex* vertexBuffer [[buffer(0)]],
 	triangleArray[gid].p1 = ip1;
 	triangleArray[gid].p2 = ip2;
 
-	//NOTE(martin): compute triangle orientation and bias for each edge
 	int cw = orient2d(ip0, ip1, ip2) > 0 ? 1 : -1;
 
 	triangleArray[gid].cw = cw;
@@ -103,92 +149,45 @@ kernel void TriangleKernel(constant mg_vertex* vertexBuffer [[buffer(0)]],
 	triangleArray[gid].bias1 = is_top_left(p2, p0) ? -(1-cw)/2 : -(1+cw)/2;
 	triangleArray[gid].bias2 = is_top_left(p0, p1) ? -(1-cw)/2 : -(1+cw)/2;
 
-	triangleArray[gid].tileBox = int4(fbox)/RENDERER_TILE_SIZE;
-}
+	int4 tileBox = int4(fbox)/RENDERER_TILE_SIZE;
+	triangleArray[gid].tileBox = tileBox;
 
-kernel void TileKernel(const device mg_triangle_data* triangleArray [[buffer(0)]],
-                       device uint* tileCounters [[buffer(1)]],
-                       device uint* tileArrayBuffer [[buffer(2)]],
-                       constant int* triangleCount [[buffer(3)]],
-                       constant uint2* viewport [[buffer(4)]],
-                       constant float* scaling [[buffer(5)]],
-                       uint3 gid [[thread_position_in_grid]])
-{
-	uint2 tilesMatrixDim = (*viewport - 1) / RENDERER_TILE_SIZE + 1;
-	int nTilesX = tilesMatrixDim.x;
 
-	int tileX = gid.x;
-	int tileY = gid.y;
-	int tileIndex = tileY * nTilesX + tileX;
-	int groupIndex = gid.z;
+	//NOTE: bucket triangle into tiles
+	device mg_shape_queue* shapeQueue = &shapeQueueBuffer[shapeIndex];
 
-	const int groupSize = 16;
-	int count = 0;
-	int mask = 0xffff>>(16-groupIndex);
+	int xMin = max(0, tileBox.x - shapeQueue->area.x);
+	int yMin = max(0, tileBox.y - shapeQueue->area.y);
+	int xMax = min(tileBox.z - shapeQueue->area.x, shapeQueue->area.z-1);
+	int yMax = min(tileBox.w - shapeQueue->area.y, shapeQueue->area.w-1);
 
-	for(int triangleBatchIndex=0; triangleBatchIndex<triangleCount[0]; triangleBatchIndex += groupSize)
+	//NOTE(martin): it's important to do the computation with signed int, so that we can have negative xMax/yMax
+	//              otherwise all triangles on the left or below the x/y axis are attributed to tiles on row/column 0.
+
+	for(int y = yMin; y <= yMax; y++)
 	{
-		int triangleIndex = triangleBatchIndex + groupIndex;
-		bool active = false;
-//		if(triangleIndex + groupIndex < triangleCount[0])
+		for(int x = xMin ; x <= xMax; x++)
 		{
-			int4 box = triangleArray[triangleIndex].tileBox;
-/*
-			if(  tileX >= box.x && tileX <= box.z
-		  	&& tileY >= box.y && tileY <= box.w)
-			{
-				active = true;
-			}
-			*/
-		}
+			int tileIndex = y*shapeQueue->area.z + x;
 
-		int vote = uint64_t(simd_ballot(active));
-		if(active)
-		{
-			int batchOffset = popcount(vote & mask);
-			tileArrayBuffer[tileIndex*RENDERER_TILE_BUFFER_SIZE + count + batchOffset] = triangleIndex;
-		}
-		count += popcount(vote);
-	}
-	if(groupIndex == 0)
-	{
-		tileCounters[tileIndex] = count;
-	}
-}
+			device mg_tile_queue* tileQueue = &shapeQueue->tileQueues[tileIndex];
+			device mg_queue_elt* elt = (device mg_queue_elt*)arena_allocate(arenaBuffer, arenaOffset, sizeof(mg_queue_elt));
+			int eltIndex = (device uchar*)elt - arenaBuffer;
 
-kernel void SortKernel(constant mg_triangle_data* triangleArray [[buffer(0)]],
-                       const device uint* tileCounters [[buffer(1)]],
-                       device uint* tileArrayBuffer [[buffer(2)]],
-                       uint gid [[thread_position_in_grid]])
-{
-	uint tileIndex = gid;
-	uint tileArrayOffset = tileIndex * RENDERER_TILE_BUFFER_SIZE;
-	uint tileArrayCount = min(tileCounters[tileIndex], (uint)RENDERER_TILE_BUFFER_SIZE);
+			elt->next = atomic_exchange_explicit(&tileQueue->first, eltIndex, memory_order_relaxed);
 
-	for(uint tileArrayIndex=1; tileArrayIndex < tileArrayCount; tileArrayIndex++)
-	{
-		for(uint sortIndex = tileArrayIndex; sortIndex > 0; sortIndex--)
-		{
-			int shapeIndex = triangleArray[tileArrayBuffer[tileArrayOffset + sortIndex]].shapeIndex;
-			int prevShapeIndex = triangleArray[tileArrayBuffer[tileArrayOffset + sortIndex - 1]].shapeIndex;
-
-			if(shapeIndex >= prevShapeIndex)
-			{
-				break;
-			}
-			uint tmp = tileArrayBuffer[tileArrayOffset + sortIndex];
-			tileArrayBuffer[tileArrayOffset + sortIndex] = tileArrayBuffer[tileArrayOffset + sortIndex - 1];
-			tileArrayBuffer[tileArrayOffset + sortIndex - 1] = tmp;
+			elt->triangleIndex = gid;
 		}
 	}
 }
 
-kernel void RenderKernel(const device uint* tileCounters [[buffer(0)]],
-                         const device uint* tileArrayBuffer [[buffer(1)]],
-                         const device mg_triangle_data* triangleArray [[buffer(2)]],
+kernel void RenderKernel(const device mg_shape_queue* shapeQueueBuffer [[buffer(0)]],
+                         const device mg_triangle_data* triangleArray [[buffer(1)]],
+                         const device uchar* arenaBuffer [[buffer(2)]],
 
-                         constant int* useTexture [[buffer(3)]],
-                         constant float* scaling [[buffer(4)]],
+                         constant int* shapeCount [[buffer(3)]],
+                         constant int* useTexture [[buffer(4)]],
+                         constant float* scaling [[buffer(5)]],
 
                          texture2d<float, access::write> outTexture [[texture(0)]],
                          texture2d<float> texAtlas [[texture(1)]],
@@ -200,37 +199,7 @@ kernel void RenderKernel(const device uint* tileCounters [[buffer(0)]],
 {
 	//TODO: guard against thread group size not equal to tile size?
 	const int2 pixelCoord = int2(gid);
-	const uint2 tileCoord = uint2(pixelCoord)/ RENDERER_TILE_SIZE;
-	const uint2 tilesMatrixDim = (gridSize - 1) / RENDERER_TILE_SIZE + 1;
-	const uint tileIndex = tileCoord.y * tilesMatrixDim.x + tileCoord.x;
-	const uint tileCounter = min(tileCounters[tileIndex], (uint)RENDERER_TILE_BUFFER_SIZE);
-
-#ifdef RENDERER_DEBUG_TILES
-	//NOTE(martin): color code debug values and show the tile grid
-	{
-		float4 fragColor = float4(0);
-
-		if( pixelCoord.x % 16 == 0
-	  	  ||pixelCoord.y % 16 == 0)
-		{
-			fragColor = float4(0, 0, 0, 1);
-		}
-		else if(tileCounters[tileIndex] == 0xffffu)
-		{
-			fragColor = float4(1, 0, 1, 1);
-		}
-		else if(tileCounter != 0u)
-		{
-			fragColor = float4(0, 1, 0, 1);
-		}
-		else
-		{
-			fragColor = float4(1, 0, 0, 1);
-		}
-		outTexture.write(fragColor, gid);
-		return;
-	}
-#endif
+	const int2 tileCoord = pixelCoord/ RENDERER_TILE_SIZE;
 
 	const int subPixelFactor = 16;
 	const int2 centerPoint = int2((float2(pixelCoord) + float2(0.5, 0.5)) * subPixelFactor);
@@ -258,89 +227,108 @@ kernel void RenderKernel(const device uint* tileCounters [[buffer(0)]],
 		currentColor[i] = float4(0, 0, 0, 0);
     }
 
-    for(uint tileArrayIndex=0; tileArrayIndex < tileCounter; tileArrayIndex++)
+    for(int shapeIndex = 0; shapeIndex < shapeCount[0]; shapeIndex++)
     {
-    	int triangleIndex = tileArrayBuffer[RENDERER_TILE_BUFFER_SIZE * tileIndex + tileArrayIndex];
-		const device mg_triangle_data* triangle = &triangleArray[triangleIndex];
+		const device mg_shape_queue* shapeQueue = &shapeQueueBuffer[shapeIndex];
 
-		int2 p0 = triangle->p0;
-		int2 p1 = triangle->p1;
-		int2 p2 = triangle->p2;
-
-		int cw = triangle->cw;
-
-		int bias0 = triangle->bias0;
-		int bias1 = triangle->bias1;
-		int bias2 = triangle->bias2;
-
-		float4 cubic0 = triangle->cubic0;
-		float4 cubic1 = triangle->cubic1;
-		float4 cubic2 = triangle->cubic2;
-
-		int shapeIndex = triangle->shapeIndex;
-		float4 color = triangle->color;
-		color.rgb *= color.a;
-
-		int4 clip = triangle->box;
-
-		matrix_float3x3 uvTransform = triangle->uvTransform;
-
-		for(int sampleIndex = 0; sampleIndex < sampleCount; sampleIndex++)
+		// get the tile queue that corresponds to our tile in the shape area
+		int2 tileQueueCoord = tileCoord - shapeQueue->area.xy;
+		if(  tileQueueCoord.x >= 0
+		  && tileQueueCoord.y >= 0
+		  && tileQueueCoord.x < shapeQueue->area.z
+		  && tileQueueCoord.y < shapeQueue->area.w)
 		{
-			int2 samplePoint = samplePoints[sampleIndex];
+			int tileQueueIndex = tileQueueCoord.y * shapeQueue->area.z + tileQueueCoord.x;
+			device mg_tile_queue* tileQueue = &shapeQueue->tileQueues[tileQueueIndex];
 
-			if(  samplePoint.x < clip.x
-			  || samplePoint.x > clip.z
-			  || samplePoint.y < clip.y
-			  || samplePoint.y > clip.w)
+			int firstEltIndex = atomic_load_explicit(&tileQueue->first, memory_order_relaxed);
+			device mg_queue_elt* elt = 0;
+
+			for(int eltIndex = firstEltIndex; eltIndex >= 0; eltIndex = elt->next)
 			{
-				continue;
-			}
+				elt = (device mg_queue_elt*)(arenaBuffer + eltIndex);
+				const device mg_triangle_data* triangle = &triangleArray[elt->triangleIndex];
 
-			int w0 = cw*orient2d(p1, p2, samplePoint);
-			int w1 = cw*orient2d(p2, p0, samplePoint);
-			int w2 = cw*orient2d(p0, p1, samplePoint);
+				int2 p0 = triangle->p0;
+				int2 p1 = triangle->p1;
+				int2 p2 = triangle->p2;
 
-			if((w0+bias0) >= 0 && (w1+bias1) >= 0 && (w2+bias2) >= 0)
-			{
-				float4 cubic = (cubic0*w0 + cubic1*w1 + cubic2*w2)/(w0+w1+w2);
+				int cw = triangle->cw;
 
-				float eps = 0.0001;
-				if(cubic.w*(cubic.x*cubic.x*cubic.x - cubic.y*cubic.z) <= eps)
+				int bias0 = triangle->bias0;
+				int bias1 = triangle->bias1;
+				int bias2 = triangle->bias2;
+
+				float4 cubic0 = triangle->cubic0;
+				float4 cubic1 = triangle->cubic1;
+				float4 cubic2 = triangle->cubic2;
+
+				int shapeIndex = triangle->shapeIndex;
+				float4 color = triangle->color;
+				color.rgb *= color.a;
+
+				int4 clip = triangle->box;
+
+				matrix_float3x3 uvTransform = triangle->uvTransform;
+
+				for(int sampleIndex = 0; sampleIndex < sampleCount; sampleIndex++)
 				{
-					if(shapeIndex == currentShapeIndex[sampleIndex])
+					int2 samplePoint = samplePoints[sampleIndex];
+
+					if(  samplePoint.x < clip.x
+			  		|| samplePoint.x > clip.z
+			  		|| samplePoint.y < clip.y
+			  		|| samplePoint.y > clip.w)
 					{
-						flipCount[sampleIndex]++;
+						continue;
 					}
-					else
+
+					int w0 = cw*orient2d(p1, p2, samplePoint);
+					int w1 = cw*orient2d(p2, p0, samplePoint);
+					int w2 = cw*orient2d(p0, p1, samplePoint);
+
+					if((w0+bias0) >= 0 && (w1+bias1) >= 0 && (w2+bias2) >= 0)
 					{
-						if(flipCount[sampleIndex] & 0x01)
+						float4 cubic = (cubic0*w0 + cubic1*w1 + cubic2*w2)/(w0+w1+w2);
+
+						float eps = 0.0001;
+						if(cubic.w*(cubic.x*cubic.x*cubic.x - cubic.y*cubic.z) <= eps)
 						{
-							sampleColor[sampleIndex] = currentColor[sampleIndex];
+							if(shapeIndex == currentShapeIndex[sampleIndex])
+							{
+								flipCount[sampleIndex]++;
+							}
+							else
+							{
+								if(flipCount[sampleIndex] & 0x01)
+								{
+									sampleColor[sampleIndex] = currentColor[sampleIndex];
+								}
+
+								float4 nextColor = color;
+
+								if(useTexture[0])
+								{
+									float3 sampleFP = float3(float2(samplePoint).xy/(subPixelFactor*2.), 1);
+									float2 uv = (uvTransform * sampleFP).xy;
+
+									constexpr sampler smp(mip_filter::nearest, mag_filter::linear, min_filter::linear);
+									float4 texColor = texAtlas.sample(smp, uv);
+
+									texColor.rgb *= texColor.a;
+									nextColor *= texColor;
+								}
+
+								currentColor[sampleIndex] = sampleColor[sampleIndex]*(1.-nextColor.a) + nextColor;
+								currentShapeIndex[sampleIndex] = shapeIndex;
+								flipCount[sampleIndex] = 1;
+							}
 						}
-
-						float4 nextColor = color;
-
-						if(useTexture[0])
-						{
-							float3 sampleFP = float3(float2(samplePoint).xy/(subPixelFactor*2.), 1);
-							float2 uv = (uvTransform * sampleFP).xy;
-
-							constexpr sampler smp(mip_filter::nearest, mag_filter::linear, min_filter::linear);
-							float4 texColor = texAtlas.sample(smp, uv);
-
-							texColor.rgb *= texColor.a;
-							nextColor *= texColor;
-						}
-
-						currentColor[sampleIndex] = sampleColor[sampleIndex]*(1.-nextColor.a) + nextColor;
-						currentShapeIndex[sampleIndex] = shapeIndex;
-						flipCount[sampleIndex] = 1;
 					}
 				}
 			}
 		}
-    }
+	}
 
     float4 pixelColor = float4(0);
     for(int sampleIndex = 0; sampleIndex < sampleCount; sampleIndex++)
@@ -353,4 +341,5 @@ kernel void RenderKernel(const device uint* tileCounters [[buffer(0)]],
 	}
 
 	outTexture.write(pixelColor/float(sampleCount), gid);
+
 }

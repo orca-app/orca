@@ -208,6 +208,7 @@ typedef struct mg_canvas_data
 	mp_rect srcRegion;
 
 	vec4 shapeExtents;
+	vec4 shapeScreenExtents;
 	u32 nextShapeIndex;
 	u32 vertexCount;
 	u32 indexCount;
@@ -789,6 +790,13 @@ void mg_finalize_shape(mg_canvas_data* canvas)
 		mg_vertex_layout* layout = &canvas->backend->vertexLayout;
 		*(mg_mat2x3*)(layout->uvTransformBuffer + index*layout->uvTransformStride) = uvTransform;
 
+		//TODO: transform extents before clipping
+		mp_rect clip = {maximum(canvas->clip.x, canvas->shapeScreenExtents.x),
+		                maximum(canvas->clip.y, canvas->shapeScreenExtents.y),
+		                minimum(canvas->clip.x + canvas->clip.w, canvas->shapeScreenExtents.z),
+		                minimum(canvas->clip.y + canvas->clip.h, canvas->shapeScreenExtents.w)};
+
+		*(mp_rect*)(((char*)layout->clipBuffer) + index*layout->clipStride) = clip;
 	}
 }
 
@@ -799,17 +807,12 @@ u32 mg_next_shape(mg_canvas_data* canvas, mg_attributes* attributes)
 	canvas->transform = attributes->transform;
 	canvas->srcRegion = attributes->srcRegion;
 	canvas->shapeExtents = (vec4){FLT_MAX, FLT_MAX, -FLT_MAX, -FLT_MAX};
+	canvas->shapeScreenExtents = (vec4){FLT_MAX, FLT_MAX, -FLT_MAX, -FLT_MAX};
 
 	mg_vertex_layout* layout = &canvas->backend->vertexLayout;
 	int index = canvas->nextShapeIndex;
 	canvas->nextShapeIndex++;
 
-	mp_rect clip = {canvas->clip.x,
-	                canvas->clip.y,
-	                canvas->clip.x + canvas->clip.w,
-	                canvas->clip.y + canvas->clip.h};
-
-	*(mp_rect*)(((char*)layout->clipBuffer) + index*layout->clipStride) = clip;
 	*(mg_color*)(((char*)layout->colorBuffer) + index*layout->colorStride) = attributes->color;
 
 	return(index);
@@ -841,6 +844,11 @@ void mg_push_vertex_cubic(mg_canvas_data* canvas, vec2 pos, vec4 cubic)
 	canvas->shapeExtents.w = maximum(canvas->shapeExtents.w, pos.y);
 
 	vec2 screenPos = mg_mat2x3_mul(canvas->transform, pos);
+
+	canvas->shapeScreenExtents.x = minimum(canvas->shapeScreenExtents.x, screenPos.x);
+	canvas->shapeScreenExtents.y = minimum(canvas->shapeScreenExtents.y, screenPos.y);
+	canvas->shapeScreenExtents.z = maximum(canvas->shapeScreenExtents.z, screenPos.x);
+	canvas->shapeScreenExtents.w = maximum(canvas->shapeScreenExtents.w, screenPos.y);
 
 	mg_vertex_layout* layout = &canvas->backend->vertexLayout;
 	ASSERT(canvas->vertexCount < layout->maxVertexCount);
