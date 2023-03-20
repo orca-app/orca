@@ -43,6 +43,7 @@ typedef struct mg_triangle_data
 	vector_float4 cubic2;
 
 	vector_int4 box;
+	vector_int4 tileBox;
 
 	vector_int2 p0;
 	vector_int2 p1;

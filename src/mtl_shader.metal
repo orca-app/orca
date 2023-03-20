@@ -1,6 +1,7 @@
 
 #include<metal_stdlib>
 #include<simd/simd.h>
+#include<metal_simdgroup>
 
 #include"mtl_shader.h"
 
@@ -45,21 +46,13 @@ int orient2d(int2 a, int2 b, int2 c)
 	return((b.x-a.x)*(c.y-a.y) - (b.y-a.y)*(c.x-a.x));
 }
 
-
-kernel void TileKernel(constant mg_vertex* vertexBuffer [[buffer(0)]],
-		               constant uint* indexBuffer [[buffer(1)]],
-		               constant mg_shape* shapeBuffer [[buffer(2)]],
-		               device volatile atomic_uint* tileCounters [[buffer(3)]],
-                       device uint* tileArrayBuffer [[buffer(4)]],
-                       device mg_triangle_data* triangleArray [[buffer(5)]],
-                       constant uint2* viewport [[buffer(6)]],
-                       constant float* scaling [[buffer(7)]],
-                       uint gid [[thread_position_in_grid]])
+kernel void TriangleKernel(constant mg_vertex* vertexBuffer [[buffer(0)]],
+		                   constant uint* indexBuffer [[buffer(1)]],
+		                   constant mg_shape* shapeBuffer [[buffer(2)]],
+                           device mg_triangle_data* triangleArray [[buffer(3)]],
+                           constant float* scaling [[buffer(4)]],
+                           uint gid [[thread_position_in_grid]])
 {
-	uint2 tilesMatrixDim = (*viewport - 1) / RENDERER_TILE_SIZE + 1;
-	int nTilesX = tilesMatrixDim.x;
-	int nTilesY = tilesMatrixDim.y;
-
 	uint triangleIndex = gid * 3;
 
 	uint i0 = indexBuffer[triangleIndex];
@@ -110,26 +103,56 @@ kernel void TileKernel(constant mg_vertex* vertexBuffer [[buffer(0)]],
 	triangleArray[gid].bias1 = is_top_left(p2, p0) ? -(1-cw)/2 : -(1+cw)/2;
 	triangleArray[gid].bias2 = is_top_left(p0, p1) ? -(1-cw)/2 : -(1+cw)/2;
 
-	//NOTE(martin): it's important to do the computation with signed int, so that we can have negative xMax/yMax
-	//              otherwise all triangles on the left or below the x/y axis are attributed to tiles on row/column 0.
-	int4 tileBox = int4(fbox)/RENDERER_TILE_SIZE;
+	triangleArray[gid].tileBox = int4(fbox)/RENDERER_TILE_SIZE;
+}
 
-	int xMin = max(0, tileBox.x);
-	int yMin = max(0, tileBox.y);
-	int xMax = min(tileBox.z, nTilesX-1);
-	int yMax = min(tileBox.w, nTilesY-1);
+kernel void TileKernel(const device mg_triangle_data* triangleArray [[buffer(0)]],
+                       device uint* tileCounters [[buffer(1)]],
+                       device uint* tileArrayBuffer [[buffer(2)]],
+                       constant int* triangleCount [[buffer(3)]],
+                       constant uint2* viewport [[buffer(4)]],
+                       constant float* scaling [[buffer(5)]],
+                       uint3 gid [[thread_position_in_grid]])
+{
+	uint2 tilesMatrixDim = (*viewport - 1) / RENDERER_TILE_SIZE + 1;
+	int nTilesX = tilesMatrixDim.x;
 
-	for(int y = yMin; y <= yMax; y++)
+	int tileX = gid.x;
+	int tileY = gid.y;
+	int tileIndex = tileY * nTilesX + tileX;
+	int groupIndex = gid.z;
+
+	const int groupSize = 16;
+	int count = 0;
+	int mask = 0xffff>>(16-groupIndex);
+
+	for(int triangleBatchIndex=0; triangleBatchIndex<triangleCount[0]; triangleBatchIndex += groupSize)
 	{
-		for(int x = xMin ; x <= xMax; x++)
+		int triangleIndex = triangleBatchIndex + groupIndex;
+		bool active = false;
+//		if(triangleIndex + groupIndex < triangleCount[0])
 		{
-			int tileIndex = y*nTilesX + x;
-			uint counter = atomic_fetch_add_explicit(&(tileCounters[tileIndex]), 1, memory_order_relaxed);
-			if(counter < RENDERER_TILE_BUFFER_SIZE)
+			int4 box = triangleArray[triangleIndex].tileBox;
+/*
+			if(  tileX >= box.x && tileX <= box.z
+		  	&& tileY >= box.y && tileY <= box.w)
 			{
-				tileArrayBuffer[tileIndex*RENDERER_TILE_BUFFER_SIZE + counter] = gid;
+				active = true;
 			}
+			*/
 		}
+
+		int vote = uint64_t(simd_ballot(active));
+		if(active)
+		{
+			int batchOffset = popcount(vote & mask);
+			tileArrayBuffer[tileIndex*RENDERER_TILE_BUFFER_SIZE + count + batchOffset] = triangleIndex;
+		}
+		count += popcount(vote);
+	}
+	if(groupIndex == 0)
+	{
+		tileCounters[tileIndex] = count;
 	}
 }
 
