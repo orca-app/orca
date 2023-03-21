@@ -216,6 +216,8 @@ typedef struct mg_canvas_data
 	mg_surface surface;
 	mg_canvas_backend* backend;
 
+
+	int splitCount;
 } mg_canvas_data;
 
 static mg_data __mgData = {0};
@@ -894,6 +896,9 @@ void mg_render_fill_quadratic(mg_canvas_data* canvas, vec2 p[3])
 
 void mg_split_and_fill_cubic(mg_canvas_data* canvas, vec2 p[4], f32 tSplit)
 {
+	//DEBUG
+	__mgCurrentCanvas->splitCount++;
+
 	int subVertexCount = 0;
 	int subIndexCount = 0;
 
@@ -1639,6 +1644,9 @@ vec2 mg_quadratic_get_point(vec2 p[3], f32 t)
 
 void mg_quadratic_split(vec2 p[3], f32 t, vec2 outLeft[3], vec2 outRight[3])
 {
+	//DEBUG
+	__mgCurrentCanvas->splitCount++;
+
 	//NOTE(martin): split bezier curve p at parameter t, using De Casteljau's algorithm
 	//              the q_n are the points along the hull's segments at parameter t
 	//              s is the split point.
@@ -3055,6 +3063,9 @@ void mg_flush_commands(int primitiveCount, mg_primitive* primitives, mg_path_elt
 
 	canvas->backend->begin(canvas->backend, canvas->clearColor);
 
+	//DEBUG
+	canvas->splitCount = 0;
+
 	for(int i=0; i<primitiveCount; i++)
 	{
 		if(nextIndex >= primitiveCount)
@@ -3148,6 +3159,9 @@ void mg_flush_commands(int primitiveCount, mg_primitive* primitives, mg_path_elt
 		}
 	}
 	exit_command_loop: ;
+
+	printf("path elements: %i, splitCount = %i\n", canvas->path.startIndex + canvas->path.count, canvas->splitCount);
+
 
 	mg_image_data* imageData = mg_image_data_from_handle(canvas->image);
 	mg_draw_batch(canvas, imageData);

@@ -58,8 +58,8 @@ device uchar* arena_allocate(device uchar* arenaBuffer,
 
 kernel void ShapeSetup(constant mg_shape* shapeBuffer [[buffer(0)]],
                        device mg_shape_queue* shapeQueueBuffer [[buffer(1)]],
-                       device uchar* arenaBuffer [[buffer(2)]],
-                       device volatile atomic_uint* arenaOffset [[buffer(3)]],
+                       device mg_tile* tilesBuffer [[buffer(2)]],
+                       device volatile atomic_uint* tilesOffset [[buffer(3)]],
                        constant float* scaling [[buffer(4)]],
                        uint gid [[thread_position_in_grid]])
 {
@@ -76,14 +76,18 @@ kernel void ShapeSetup(constant mg_shape* shapeBuffer [[buffer(0)]],
 	int nTilesY = int(box.w)/RENDERER_TILE_SIZE - firstTile.y + 1;
 
 	int tileCount = nTilesX * nTilesY;
-	int tileArraySize =  tileCount * sizeof(mg_tile_queue);
+
+	int tilesIndex = atomic_fetch_add_explicit(tilesOffset, tileCount, memory_order_relaxed);
 
 	shapeQueueBuffer[gid].area = int4(firstTile.x, firstTile.y, nTilesX, nTilesY);
-	shapeQueueBuffer[gid].tileQueues = (device mg_tile_queue*)arena_allocate(arenaBuffer, arenaOffset, tileArraySize);
+	shapeQueueBuffer[gid].tiles = tilesIndex;
+
+	device mg_tile* tiles = &tilesBuffer[tilesIndex];
 
 	for(int i=0; i<tileCount; i++)
 	{
-		atomic_store_explicit(&shapeQueueBuffer[gid].tileQueues[i].first, -1, memory_order_relaxed);
+		atomic_store_explicit(&tiles[i].eltCount, 0, memory_order_relaxed);
+		atomic_store_explicit(&tiles[i].firstElt, -1, memory_order_relaxed);
 	}
 }
 
@@ -94,9 +98,10 @@ kernel void TriangleKernel(constant mg_vertex* vertexBuffer [[buffer(0)]],
 		                   constant mg_shape* shapeBuffer [[buffer(2)]],
                            device mg_triangle_data* triangleArray [[buffer(3)]],
                            device mg_shape_queue* shapeQueueBuffer [[buffer(4)]],
-                           device uchar* arenaBuffer [[buffer(5)]],
-                           device volatile atomic_uint* arenaOffset [[buffer(6)]],
-                           constant float* scaling [[buffer(7)]],
+                           device mg_tile* tilesBuffer [[buffer(5)]],
+                           device mg_tile_elt* eltBuffer [[buffer(6)]],
+                           device volatile atomic_uint* eltOffset [[buffer(7)]],
+                           constant float* scaling [[buffer(8)]],
                            uint gid [[thread_position_in_grid]])
 {
 	//NOTE: triangle setup
@@ -150,11 +155,10 @@ kernel void TriangleKernel(constant mg_vertex* vertexBuffer [[buffer(0)]],
 	triangleArray[gid].bias2 = is_top_left(p0, p1) ? -(1-cw)/2 : -(1+cw)/2;
 
 	int4 tileBox = int4(fbox)/RENDERER_TILE_SIZE;
-	triangleArray[gid].tileBox = tileBox;
-
 
 	//NOTE: bucket triangle into tiles
 	device mg_shape_queue* shapeQueue = &shapeQueueBuffer[shapeIndex];
+	device mg_tile* tiles = &tilesBuffer[shapeQueue->tiles];
 
 	int xMin = max(0, tileBox.x - shapeQueue->area.x);
 	int yMin = max(0, tileBox.y - shapeQueue->area.y);
@@ -170,24 +174,72 @@ kernel void TriangleKernel(constant mg_vertex* vertexBuffer [[buffer(0)]],
 		{
 			int tileIndex = y*shapeQueue->area.z + x;
 
-			device mg_tile_queue* tileQueue = &shapeQueue->tileQueues[tileIndex];
-			device mg_queue_elt* elt = (device mg_queue_elt*)arena_allocate(arenaBuffer, arenaOffset, sizeof(mg_queue_elt));
-			int eltIndex = (device uchar*)elt - arenaBuffer;
+			int eltIndex = atomic_fetch_add_explicit(eltOffset, 1, memory_order_relaxed);
 
-			elt->next = atomic_exchange_explicit(&tileQueue->first, eltIndex, memory_order_relaxed);
-
+			device mg_tile_elt* elt = &eltBuffer[eltIndex];
 			elt->triangleIndex = gid;
+			elt->next = atomic_exchange_explicit(&tiles[tileIndex].firstElt, eltIndex, memory_order_relaxed);
+			atomic_fetch_add_explicit(&tiles[tileIndex].eltCount, 1, memory_order_relaxed);
 		}
 	}
 }
 
-kernel void RenderKernel(const device mg_shape_queue* shapeQueueBuffer [[buffer(0)]],
-                         const device mg_triangle_data* triangleArray [[buffer(1)]],
-                         const device uchar* arenaBuffer [[buffer(2)]],
+kernel void GatherKernel(const device mg_shape_queue* shapeQueueBuffer [[buffer(0)]],
+                        const device mg_tile* tilesBuffer [[buffer(1)]],
+                        const device mg_tile_elt* eltBuffer [[buffer(2)]],
+                        device int* tileCounters [[buffer(3)]],
+                        device int* tileArrayBuffer [[buffer(4)]],
+                        constant int* shapeCount [[buffer(5)]],
+                        constant uint2* viewport [[buffer(6)]],
+                        uint2 gid [[thread_position_in_grid]])
+{
+	uint2 tilesMatrixDim = (*viewport - 1) / RENDERER_TILE_SIZE + 1;
+	int nTilesX = tilesMatrixDim.x;
 
-                         constant int* shapeCount [[buffer(3)]],
-                         constant int* useTexture [[buffer(4)]],
-                         constant float* scaling [[buffer(5)]],
+	int2 tileCoord = int2(gid);
+	int tileIndex = tileCoord.y * nTilesX + tileCoord.x;
+
+	device int* tileArray = &tileArrayBuffer[tileIndex * RENDERER_TILE_BUFFER_SIZE];
+
+	int count = 0;
+    for(int shapeIndex = 0; shapeIndex < shapeCount[0]; shapeIndex++)
+    {
+		const device mg_shape_queue* shapeQueue = &shapeQueueBuffer[shapeIndex];
+		const device mg_tile* tiles = &tilesBuffer[shapeQueue->tiles];
+
+		// get the tile queue that corresponds to our tile in the shape area
+		int2 tileQueueCoord = tileCoord - shapeQueue->area.xy;
+
+		if(  tileQueueCoord.x >= 0
+		  && tileQueueCoord.y >= 0
+		  && tileQueueCoord.x < shapeQueue->area.z
+		  && tileQueueCoord.y < shapeQueue->area.w)
+		{
+			int localIndex = tileQueueCoord.y * shapeQueue->area.z + tileQueueCoord.x;
+			const device mg_tile* tile = &tiles[localIndex];
+
+			int firstEltIndex = *(device int*)&tile->firstElt;
+			const device mg_tile_elt* elt = 0;
+
+			for(int eltIndex = firstEltIndex; eltIndex >= 0; eltIndex = elt->next)
+			{
+				elt = &eltBuffer[eltIndex];
+				eltIndex = elt->next;
+
+				tileArray[count] = elt->triangleIndex;
+				count++;
+			}
+		}
+	}
+	tileCounters[tileIndex] = count;
+}
+
+kernel void RenderKernel(const device uint* tileCounters [[buffer(0)]],
+                         const device uint* tileArrayBuffer [[buffer(1)]],
+                         const device mg_triangle_data* triangleArray [[buffer(2)]],
+
+                         constant int* useTexture [[buffer(3)]],
+                         constant float* scaling [[buffer(4)]],
 
                          texture2d<float, access::write> outTexture [[texture(0)]],
                          texture2d<float> texAtlas [[texture(1)]],
@@ -199,7 +251,37 @@ kernel void RenderKernel(const device mg_shape_queue* shapeQueueBuffer [[buffer(
 {
 	//TODO: guard against thread group size not equal to tile size?
 	const int2 pixelCoord = int2(gid);
-	const int2 tileCoord = pixelCoord/ RENDERER_TILE_SIZE;
+	const uint2 tileCoord = uint2(pixelCoord)/ RENDERER_TILE_SIZE;
+	const uint2 tilesMatrixDim = (gridSize - 1) / RENDERER_TILE_SIZE + 1;
+	const uint tileIndex = tileCoord.y * tilesMatrixDim.x + tileCoord.x;
+	const uint tileCounter = min(tileCounters[tileIndex], (uint)RENDERER_TILE_BUFFER_SIZE);
+
+#ifdef RENDERER_DEBUG_TILES
+	//NOTE(martin): color code debug values and show the tile grid
+	{
+		float4 fragColor = float4(0);
+
+		if( pixelCoord.x % 16 == 0
+	  	  ||pixelCoord.y % 16 == 0)
+		{
+			fragColor = float4(0, 0, 0, 1);
+		}
+		else if(tileCounters[tileIndex] == 0xffffu)
+		{
+			fragColor = float4(1, 0, 1, 1);
+		}
+		else if(tileCounter != 0u)
+		{
+			fragColor = float4(0, 1, 0, 1);
+		}
+		else
+		{
+			fragColor = float4(1, 0, 0, 1);
+		}
+		outTexture.write(fragColor, gid);
+		return;
+	}
+#endif
 
 	const int subPixelFactor = 16;
 	const int2 centerPoint = int2((float2(pixelCoord) + float2(0.5, 0.5)) * subPixelFactor);
@@ -227,103 +309,230 @@ kernel void RenderKernel(const device mg_shape_queue* shapeQueueBuffer [[buffer(
 		currentColor[i] = float4(0, 0, 0, 0);
     }
 
-    for(int shapeIndex = 0; shapeIndex < shapeCount[0]; shapeIndex++)
+    for(uint tileArrayIndex=0; tileArrayIndex < tileCounter; tileArrayIndex++)
     {
-		const device mg_shape_queue* shapeQueue = &shapeQueueBuffer[shapeIndex];
+    	int triangleIndex = tileArrayBuffer[RENDERER_TILE_BUFFER_SIZE * tileIndex + tileArrayIndex];
+		const device mg_triangle_data* triangle = &triangleArray[triangleIndex];
 
-		// get the tile queue that corresponds to our tile in the shape area
-		int2 tileQueueCoord = tileCoord - shapeQueue->area.xy;
-		if(  tileQueueCoord.x >= 0
-		  && tileQueueCoord.y >= 0
-		  && tileQueueCoord.x < shapeQueue->area.z
-		  && tileQueueCoord.y < shapeQueue->area.w)
+		int2 p0 = triangle->p0;
+		int2 p1 = triangle->p1;
+		int2 p2 = triangle->p2;
+
+		int cw = triangle->cw;
+
+		int bias0 = triangle->bias0;
+		int bias1 = triangle->bias1;
+		int bias2 = triangle->bias2;
+
+		float4 cubic0 = triangle->cubic0;
+		float4 cubic1 = triangle->cubic1;
+		float4 cubic2 = triangle->cubic2;
+
+		int shapeIndex = triangle->shapeIndex;
+		float4 color = triangle->color;
+		color.rgb *= color.a;
+
+		int4 clip = triangle->box;
+
+		matrix_float3x3 uvTransform = triangle->uvTransform;
+
+		for(int sampleIndex = 0; sampleIndex < sampleCount; sampleIndex++)
 		{
-			int tileQueueIndex = tileQueueCoord.y * shapeQueue->area.z + tileQueueCoord.x;
-			device mg_tile_queue* tileQueue = &shapeQueue->tileQueues[tileQueueIndex];
+			int2 samplePoint = samplePoints[sampleIndex];
 
-			int firstEltIndex = atomic_load_explicit(&tileQueue->first, memory_order_relaxed);
-			device mg_queue_elt* elt = 0;
-
-			for(int eltIndex = firstEltIndex; eltIndex >= 0; eltIndex = elt->next)
+			if(  samplePoint.x < clip.x
+			  || samplePoint.x > clip.z
+			  || samplePoint.y < clip.y
+			  || samplePoint.y > clip.w)
 			{
-				elt = (device mg_queue_elt*)(arenaBuffer + eltIndex);
-				const device mg_triangle_data* triangle = &triangleArray[elt->triangleIndex];
+				continue;
+			}
 
-				int2 p0 = triangle->p0;
-				int2 p1 = triangle->p1;
-				int2 p2 = triangle->p2;
+			int w0 = cw*orient2d(p1, p2, samplePoint);
+			int w1 = cw*orient2d(p2, p0, samplePoint);
+			int w2 = cw*orient2d(p0, p1, samplePoint);
 
-				int cw = triangle->cw;
+			if((w0+bias0) >= 0 && (w1+bias1) >= 0 && (w2+bias2) >= 0)
+			{
+				float4 cubic = (cubic0*w0 + cubic1*w1 + cubic2*w2)/(w0+w1+w2);
 
-				int bias0 = triangle->bias0;
-				int bias1 = triangle->bias1;
-				int bias2 = triangle->bias2;
-
-				float4 cubic0 = triangle->cubic0;
-				float4 cubic1 = triangle->cubic1;
-				float4 cubic2 = triangle->cubic2;
-
-				int shapeIndex = triangle->shapeIndex;
-				float4 color = triangle->color;
-				color.rgb *= color.a;
-
-				int4 clip = triangle->box;
-
-				matrix_float3x3 uvTransform = triangle->uvTransform;
-
-				for(int sampleIndex = 0; sampleIndex < sampleCount; sampleIndex++)
+				float eps = 0.0001;
+				if(cubic.w*(cubic.x*cubic.x*cubic.x - cubic.y*cubic.z) <= eps)
 				{
-					int2 samplePoint = samplePoints[sampleIndex];
-
-					if(  samplePoint.x < clip.x
-			  		|| samplePoint.x > clip.z
-			  		|| samplePoint.y < clip.y
-			  		|| samplePoint.y > clip.w)
+					if(shapeIndex == currentShapeIndex[sampleIndex])
 					{
-						continue;
+						flipCount[sampleIndex]++;
 					}
-
-					int w0 = cw*orient2d(p1, p2, samplePoint);
-					int w1 = cw*orient2d(p2, p0, samplePoint);
-					int w2 = cw*orient2d(p0, p1, samplePoint);
-
-					if((w0+bias0) >= 0 && (w1+bias1) >= 0 && (w2+bias2) >= 0)
+					else
 					{
-						float4 cubic = (cubic0*w0 + cubic1*w1 + cubic2*w2)/(w0+w1+w2);
-
-						float eps = 0.0001;
-						if(cubic.w*(cubic.x*cubic.x*cubic.x - cubic.y*cubic.z) <= eps)
+						if(flipCount[sampleIndex] & 0x01)
 						{
-							if(shapeIndex == currentShapeIndex[sampleIndex])
-							{
-								flipCount[sampleIndex]++;
-							}
-							else
-							{
-								if(flipCount[sampleIndex] & 0x01)
-								{
-									sampleColor[sampleIndex] = currentColor[sampleIndex];
-								}
-
-								float4 nextColor = color;
-
-								if(useTexture[0])
-								{
-									float3 sampleFP = float3(float2(samplePoint).xy/(subPixelFactor*2.), 1);
-									float2 uv = (uvTransform * sampleFP).xy;
-
-									constexpr sampler smp(mip_filter::nearest, mag_filter::linear, min_filter::linear);
-									float4 texColor = texAtlas.sample(smp, uv);
-
-									texColor.rgb *= texColor.a;
-									nextColor *= texColor;
-								}
-
-								currentColor[sampleIndex] = sampleColor[sampleIndex]*(1.-nextColor.a) + nextColor;
-								currentShapeIndex[sampleIndex] = shapeIndex;
-								flipCount[sampleIndex] = 1;
-							}
+							sampleColor[sampleIndex] = currentColor[sampleIndex];
 						}
+
+						float4 nextColor = color;
+
+						if(useTexture[0])
+						{
+							float3 sampleFP = float3(float2(samplePoint).xy/(subPixelFactor*2.), 1);
+							float2 uv = (uvTransform * sampleFP).xy;
+
+							constexpr sampler smp(mip_filter::nearest, mag_filter::linear, min_filter::linear);
+							float4 texColor = texAtlas.sample(smp, uv);
+
+							texColor.rgb *= texColor.a;
+							nextColor *= texColor;
+						}
+
+						currentColor[sampleIndex] = sampleColor[sampleIndex]*(1.-nextColor.a) + nextColor;
+						currentShapeIndex[sampleIndex] = shapeIndex;
+						flipCount[sampleIndex] = 1;
+					}
+				}
+			}
+		}
+    }
+
+    float4 pixelColor = float4(0);
+    for(int sampleIndex = 0; sampleIndex < sampleCount; sampleIndex++)
+    {
+    	if(flipCount[sampleIndex] & 0x01)
+    	{
+			sampleColor[sampleIndex] = currentColor[sampleIndex];
+    	}
+    	pixelColor += sampleColor[sampleIndex];
+	}
+
+	outTexture.write(pixelColor/float(sampleCount), gid);
+}
+
+
+/*
+kernel void RenderKernel(const device uint* tileCounters [[buffer(0)]],
+                         const device uint* tileArrayBuffer [[buffer(1)]],
+                         const device mg_triangle_data* triangleArray [[buffer(2)]],
+
+                         constant int* useTexture [[buffer(3)]],
+                         constant float* scaling [[buffer(4)]],
+
+                         texture2d<float, access::write> outTexture [[texture(0)]],
+                         texture2d<float> texAtlas [[texture(1)]],
+
+                         uint2 gid [[thread_position_in_grid]],
+                         uint2 tgid [[threadgroup_position_in_grid]],
+                         uint2 threadsPerThreadgroup [[threads_per_threadgroup]],
+                         uint2 gridSize [[threads_per_grid]])
+{
+	const int2 pixelCoord = int2(gid);
+	const uint2 tileCoord = uint2(pixelCoord)/ RENDERER_TILE_SIZE;
+	const uint2 tilesMatrixDim = (gridSize - 1) / RENDERER_TILE_SIZE + 1;
+	const uint tileIndex = tileCoord.y * tilesMatrixDim.x + tileCoord.x;
+	const uint tileCounter = min(tileCounters[tileIndex], (uint)RENDERER_TILE_BUFFER_SIZE);
+
+	const int subPixelFactor = 16;
+	const int2 centerPoint = int2((float2(pixelCoord) + float2(0.5, 0.5)) * subPixelFactor);
+
+	const int sampleCount = 8;
+	int2 samplePoints[sampleCount] = {centerPoint + int2(1, 3),
+	                                  centerPoint + int2(-1, -3),
+	                                  centerPoint + int2(5, -1),
+	                                  centerPoint + int2(-3, 5),
+	                                  centerPoint + int2(-5, -5),
+	                                  centerPoint + int2(-7, 1),
+	                                  centerPoint + int2(3, -7),
+	                                  centerPoint + int2(7, 7)};
+
+	float4 sampleColor[sampleCount];
+	float4 currentColor[sampleCount];
+    int currentShapeIndex[sampleCount];
+    int flipCount[sampleCount];
+
+    for(int i=0; i<sampleCount; i++)
+    {
+		currentShapeIndex[i] = -1;
+		flipCount[i] = 0;
+		sampleColor[i] = float4(0, 0, 0, 0);
+		currentColor[i] = float4(0, 0, 0, 0);
+    }
+
+    for(uint tileArrayIndex = 0; tileArrayIndex < tileCounter; tileArrayIndex++)
+    {
+		int triangleIndex = tileArrayBuffer[tileIndex * RENDERER_TILE_BUFFER_SIZE + tileArrayIndex];
+		const device mg_triangle_data* triangle = &triangleArray[triangleIndex];
+
+		int2 p0 = triangle->p0;
+		int2 p1 = triangle->p1;
+		int2 p2 = triangle->p2;
+
+		int cw = triangle->cw;
+
+		int bias0 = triangle->bias0;
+		int bias1 = triangle->bias1;
+		int bias2 = triangle->bias2;
+
+		float4 cubic0 = triangle->cubic0;
+		float4 cubic1 = triangle->cubic1;
+		float4 cubic2 = triangle->cubic2;
+
+		int shapeIndex = triangle->shapeIndex;
+		float4 color = triangle->color;
+		color.rgb *= color.a;
+
+		int4 clip = triangle->box;
+
+		matrix_float3x3 uvTransform = triangle->uvTransform;
+
+		for(int sampleIndex = 0; sampleIndex < sampleCount; sampleIndex++)
+		{
+			int2 samplePoint = samplePoints[sampleIndex];
+
+			if(  samplePoint.x < clip.x
+			  || samplePoint.x > clip.z
+			  || samplePoint.y < clip.y
+			  || samplePoint.y > clip.w)
+			{
+				continue;
+			}
+
+			int w0 = cw*orient2d(p1, p2, samplePoint);
+			int w1 = cw*orient2d(p2, p0, samplePoint);
+			int w2 = cw*orient2d(p0, p1, samplePoint);
+
+			if((w0+bias0) >= 0 && (w1+bias1) >= 0 && (w2+bias2) >= 0)
+			{
+				float4 cubic = (cubic0*w0 + cubic1*w1 + cubic2*w2)/(w0+w1+w2);
+
+				float eps = 0.0001;
+				if(cubic.w*(cubic.x*cubic.x*cubic.x - cubic.y*cubic.z) <= eps)
+				{
+					if(shapeIndex == currentShapeIndex[sampleIndex])
+					{
+						flipCount[sampleIndex]++;
+					}
+					else
+					{
+						if(flipCount[sampleIndex] & 0x01)
+						{
+							sampleColor[sampleIndex] = currentColor[sampleIndex];
+						}
+
+						float4 nextColor = color;
+
+						if(useTexture[0])
+						{
+							float3 sampleFP = float3(float2(samplePoint).xy/(subPixelFactor*2.), 1);
+							float2 uv = (uvTransform * sampleFP).xy;
+
+							constexpr sampler smp(mip_filter::nearest, mag_filter::linear, min_filter::linear);
+							float4 texColor = texAtlas.sample(smp, uv);
+
+							texColor.rgb *= texColor.a;
+							nextColor *= texColor;
+						}
+
+						currentColor[sampleIndex] = sampleColor[sampleIndex]*(1.-nextColor.a) + nextColor;
+						currentShapeIndex[sampleIndex] = shapeIndex;
+						flipCount[sampleIndex] = 1;
 					}
 				}
 			}
@@ -343,3 +552,4 @@ kernel void RenderKernel(const device mg_shape_queue* shapeQueueBuffer [[buffer(
 	outTexture.write(pixelColor/float(sampleCount), gid);
 
 }
+*/

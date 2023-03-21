@@ -43,7 +43,6 @@ typedef struct mg_triangle_data
 	vector_float4 cubic2;
 
 	vector_int4 box;
-	vector_int4 tileBox;
 
 	vector_int2 p0;
 	vector_int2 p1;
@@ -69,17 +68,18 @@ typedef struct mg_tile_elt
 {
 	int triangleIndex;
 	int next;
-} mg_queue_elt;
+} mg_tile_elt;
 
-typedef struct mg_tile_queue
+typedef struct mg_tile
 {
-	atomic_int first;
-} mg_tile_queue;
+	atomic_int eltCount;
+	atomic_int firstElt;
+} mg_tile;
 
 typedef struct mg_shape_queue
 {
 	vector_int4 area;
-	device mg_tile_queue* tileQueues;
+	int tiles;
 } mg_shape_queue;
 
 #ifndef __METAL_VERSION__

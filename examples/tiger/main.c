@@ -158,6 +158,7 @@ int main()
 		draw_tiger();
 
 		mg_matrix_pop();
+/*
 			// text
 			mg_set_color_rgba(0, 0, 1, 1);
 			mg_set_font(font);
@@ -170,7 +171,7 @@ int main()
 			                      1./frameTime);
 			mg_text_outlines(text);
 			mg_fill();
-
+*/
 			printf("Milepost vector graphics test program (frame time = %fs, fps = %f)...\n",
 			                      frameTime,
 			                      1./frameTime);
