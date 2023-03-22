@@ -816,6 +816,7 @@ u32 mg_next_shape(mg_canvas_data* canvas, mg_attributes* attributes)
 	canvas->nextShapeIndex++;
 
 	*(mg_color*)(((char*)layout->colorBuffer) + index*layout->colorStride) = attributes->color;
+	*(bool*)(((char*)layout->texturedBuffer) + index*layout->texturedStride) = !mg_image_is_nil(attributes->image);
 
 	return(index);
 }

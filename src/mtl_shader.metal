@@ -87,6 +87,7 @@ kernel void ShapeSetup(constant mg_shape* shapeBuffer [[buffer(0)]],
 	for(int i=0; i<tileCount; i++)
 	{
 		tiles[i].color = shapeBuffer[gid].color;
+		tiles[i].textured = shapeBuffer[gid].textured;
 		atomic_store_explicit(&tiles[i].firstElt, -1, memory_order_relaxed);
 		atomic_store_explicit(&tiles[i].eltCount, 0, memory_order_relaxed);
 		atomic_store_explicit(&tiles[i].partial, 0, memory_order_relaxed);
@@ -300,15 +301,14 @@ kernel void GatherKernel(const device mg_shape_queue* shapeQueueBuffer [[buffer(
 			{
 				if(atomic_load_explicit(&tile->flipCount, memory_order_relaxed) & 0x01)
 				{
-					if(tile->color.a == 1)
+					if(tile->color.a == 1 && !tile->textured)
 					{
-						//NOTE: tile is full covered by a solid color, reset counter
+						//NOTE: tile is full covered by a solid color, reset counter and push a color command
 						int firstEltIndex = *(device int*)&tile->firstElt;
 						const device mg_tile_elt* elt = &eltBuffer[firstEltIndex];
 
 						count = 0;
-						tileArray[count].kind = mg_cmd_color;
-						tileArray[count].triangleIndex = elt->triangleIndex;
+						tileArray[count] = mg_cmd_color | elt->triangleIndex;
 						count++;
 						continue;
 					}
@@ -328,8 +328,7 @@ kernel void GatherKernel(const device mg_shape_queue* shapeQueueBuffer [[buffer(
 				elt = &eltBuffer[eltIndex];
 				eltIndex = elt->next;
 
-				tileArray[count].kind = mg_cmd_triangle;
-				tileArray[count].triangleIndex = elt->triangleIndex;
+				tileArray[count] = elt->triangleIndex;
 				count++;
 			}
 		}
@@ -420,10 +419,13 @@ kernel void RenderKernel(const device uint* tileCounters [[buffer(0)]],
 
     for(uint tileArrayIndex=0; tileArrayIndex < tileCounter; tileArrayIndex++)
     {
-		const device mg_tile_cmd* cmd = &tileArrayBuffer[RENDERER_TILE_BUFFER_COUNT * tileIndex + tileArrayIndex];
-		const device mg_triangle_data* triangle = &triangleArray[cmd->triangleIndex];
+		mg_tile_cmd cmd = tileArrayBuffer[RENDERER_TILE_BUFFER_COUNT * tileIndex + tileArrayIndex];
 
-		if(cmd->kind == mg_cmd_color)
+		int cmdKind = cmd & MG_TILE_CMD_MASK;
+		int triangleIndex = cmd & ~(MG_TILE_CMD_MASK);
+		const device mg_triangle_data* triangle = &triangleArray[triangleIndex];
+
+		if(cmdKind == mg_cmd_color)
 		{
 			for(int sampleIndex=0; sampleIndex<sampleCount; sampleIndex++)
 			{
@@ -432,7 +434,7 @@ kernel void RenderKernel(const device uint* tileCounters [[buffer(0)]],
 				currentShapeIndex[sampleIndex] = triangle->shapeIndex;
 			}
 		}
-		else if(cmd->kind == mg_cmd_triangle)
+		else
 		{
 			int2 p0 = triangle->p0;
 			int2 p1 = triangle->p1;

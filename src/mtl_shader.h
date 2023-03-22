@@ -30,7 +30,7 @@ typedef struct mg_shape
 	vector_float4 color;
 	vector_float4 clip;
 	float uvTransform[6];
-
+	bool textured;
 } mg_shape;
 
 typedef struct mg_triangle_data
@@ -64,17 +64,15 @@ typedef struct mg_triangle_data
 using namespace metal;
 #endif
 
+#define MG_TILE_CMD_MASK (1<<31)
+
 typedef enum mg_tile_cmd_kind
 {
-	mg_cmd_triangle,
-	mg_cmd_color
+	mg_cmd_triangle = 0,
+	mg_cmd_color = 1<<31,
 } mg_tile_cmd_kind;
 
-typedef struct mg_tile_cmd
-{
-	mg_tile_cmd_kind kind;
-	int triangleIndex;
-} mg_tile_cmd;
+typedef int mg_tile_cmd;
 
 typedef struct mg_tile_elt
 {
@@ -89,6 +87,7 @@ typedef struct mg_tile
 	atomic_int eltCount;
 	atomic_int partial;
 	atomic_int flipCount;
+	bool textured;
 
 } mg_tile;
 

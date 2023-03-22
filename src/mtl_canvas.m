@@ -104,6 +104,10 @@ void mg_mtl_canvas_update_vertex_layout(mg_mtl_canvas_backend* backend)
 
 	        .colorBuffer = shapeBase + offsetof(mg_shape, color),
 	        .colorStride = sizeof(mg_shape),
+
+	        .texturedBuffer = shapeBase + offsetof(mg_shape, textured),
+	        .texturedStride = sizeof(mg_shape),
+
 	        .clipBuffer = shapeBase + offsetof(mg_shape, clip),
 	        .clipStride = sizeof(mg_shape),
 	        .uvTransformBuffer = shapeBase + offsetof(mg_shape, uvTransform),

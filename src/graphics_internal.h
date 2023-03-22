@@ -90,6 +90,9 @@ typedef struct mg_vertex_layout
 	char* colorBuffer;
 	u32 colorStride;
 
+	char* texturedBuffer;
+	u32 texturedStride;
+
 	char* shapeIndexBuffer;
 	u32 shapeIndexStride;
 
