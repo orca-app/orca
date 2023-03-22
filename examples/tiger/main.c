@@ -65,7 +65,7 @@ int main()
 
 	//NOTE: create surface
 	mg_surface surface = mg_surface_create_for_window(window, MG_BACKEND_DEFAULT);
-	mg_surface_swap_interval(surface, 0);
+	mg_surface_swap_interval(surface, 1);
 
 	//TODO: create canvas
 	mg_canvas canvas = mg_canvas_create(surface);
@@ -85,7 +85,7 @@ int main()
 	bool tracked = false;
 	vec2 trackPoint = {0};
 	f32 zoom = 1;
-	f32 startX = 0, startY = 0;
+	f32 startX = 300, startY = 200;
 
 	f64 frameTime = 0;
 
@@ -112,8 +112,8 @@ int main()
 						{
 							tracked = true;
 							vec2 mousePos = mp_mouse_position();
-							trackPoint.x = mousePos.x/zoom - startX;
-							trackPoint.y = mousePos.y/zoom - startY;
+							trackPoint.x = (mousePos.x - startX)/zoom;
+							trackPoint.y = (mousePos.y - startY)/zoom;
 						}
 						else
 						{
@@ -125,14 +125,14 @@ int main()
 				case MP_EVENT_MOUSE_WHEEL:
 				{
 					vec2 mousePos = mp_mouse_position();
-					f32 trackX = mousePos.x/zoom - startX;
-					f32 trackY = mousePos.y/zoom - startY;
+					f32 pinX = (mousePos.x - startX)/zoom;
+					f32 pinY = (mousePos.y - startY)/zoom;
 
 					zoom *= 1 + event.move.deltaY * 0.01;
-					zoom = Clamp(zoom, 0.2, 10);
+					zoom = Clamp(zoom, 0.5, 5);
 
-					startX = mousePos.x/zoom - trackX;
-					startY = mousePos.y/zoom - trackY;
+					startX = mousePos.x - pinX*zoom;
+					startY = mousePos.y - pinY*zoom;
 				} break;
 
 				default:
@@ -143,8 +143,8 @@ int main()
 		if(tracked)
 		{
 			vec2 mousePos = mp_mouse_position();
-			startX = mousePos.x/zoom - trackPoint.x;
-			startY = mousePos.y/zoom - trackPoint.y;
+			startX = mousePos.x - trackPoint.x*zoom;
+			startY = mousePos.y - trackPoint.y*zoom;
 		}
 
 		mg_surface_prepare(surface);
@@ -152,8 +152,8 @@ int main()
 		mg_set_color_rgba(1, 0, 1, 1);
 		mg_clear();
 
-		mg_matrix_push((mg_mat2x3){zoom, 0, 300+startX*zoom,
-		                           0, zoom, 200+startY*zoom});
+		mg_matrix_push((mg_mat2x3){zoom, 0, startX,
+		                           0, zoom, startY});
 
 		draw_tiger();
 

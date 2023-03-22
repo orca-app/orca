@@ -158,6 +158,12 @@ kernel void TriangleKernel(constant mg_vertex* vertexBuffer [[buffer(0)]],
 	triangleArray[gid].bias1 = is_top_left(p2, p0) ? -(1-cw)/2 : -(1+cw)/2;
 	triangleArray[gid].bias2 = is_top_left(p0, p1) ? -(1-cw)/2 : -(1+cw)/2;
 
+	bool triangleFull = all(  triangleArray[gid].cubic0 == float4(1, 1, 1, 1)
+	                       && triangleArray[gid].cubic1 == float4(1, 1, 1, 1)
+	                       && triangleArray[gid].cubic2 == float4(1, 1, 1, 1));
+
+	triangleArray[gid].full = triangleFull;
+
 	int4 coarseBox = int4(fbox)/RENDERER_TILE_SIZE;
 
 	//NOTE: bucket triangle into tiles
@@ -171,10 +177,6 @@ kernel void TriangleKernel(constant mg_vertex* vertexBuffer [[buffer(0)]],
 
 	//NOTE(martin): it's important to do the computation with signed int, so that we can have negative xMax/yMax
 	//              otherwise all triangles on the left or below the x/y axis are attributed to tiles on row/column 0.
-
-	bool triangleFull = all(  triangleArray[gid].cubic0 == float4(1, 1, 1, 1)
-	                       && triangleArray[gid].cubic1 == float4(1, 1, 1, 1)
-	                       && triangleArray[gid].cubic2 == float4(1, 1, 1, 1));
 
 	int2 edges[3][2] = {{ip0, ip1}, {ip1, ip2}, {ip2, ip0}};
 
@@ -450,6 +452,8 @@ kernel void RenderKernel(const device uint* tileCounters [[buffer(0)]],
 			float4 cubic1 = triangle->cubic1;
 			float4 cubic2 = triangle->cubic2;
 
+			bool fullTriangle = triangle->full;
+
 			int shapeIndex = triangle->shapeIndex;
 			float4 color = triangle->color;
 			color.rgb *= color.a;
@@ -478,8 +482,8 @@ kernel void RenderKernel(const device uint* tileCounters [[buffer(0)]],
 				{
 					float4 cubic = (cubic0*w0 + cubic1*w1 + cubic2*w2)/(w0+w1+w2);
 
-					float eps = 0.0001;
-					if(cubic.w*(cubic.x*cubic.x*cubic.x - cubic.y*cubic.z) <= eps)
+					if( fullTriangle
+					  ||(cubic.w*(cubic.x*cubic.x*cubic.x - cubic.y*cubic.z) <= 0))
 					{
 						if(shapeIndex == currentShapeIndex[sampleIndex])
 						{

@@ -13,7 +13,7 @@
 
 #define RENDERER_TILE_SIZE 16
 #define RENDERER_MAX_TILES 65536
-#define RENDERER_TILE_BUFFER_COUNT 4*(1<<10)
+#define RENDERER_TILE_BUFFER_COUNT 8*(1<<10)
 
 #define RENDERER_DEBUG_TILE_VISITED 0xf00d
 #define RENDERER_DEBUG_TILE_BUFFER_OVERFLOW 0xdead
@@ -38,6 +38,7 @@ typedef struct mg_triangle_data
 	matrix_float3x3 uvTransform;
 	vector_float4 color;
 
+	bool full;
 	vector_float4 cubic0;
 	vector_float4 cubic1;
 	vector_float4 cubic2;

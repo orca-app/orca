@@ -208,10 +208,13 @@ for g in tree.iter('{http://www.w3.org/2000/svg}g'):
 			print("\tmg_set_color_rgba(" + f2s(r) + ", " + f2s(g) + ", " + f2s(b) + ", 1);")
 			print("\tmg_fill();")
 
-		if stroke_width != None:
-			print("\tmg_set_width(" + stroke_width + ");");
-
 		if stroke != None and stroke != "none":
+
+			if stroke_width != None:
+				print("\tmg_set_width(" + stroke_width + ");");
+			else:
+				print("\tmg_set_width(1);");
+
 			(r, g, b) = parse_color(stroke)
 			if fill != None:
 				ctx.reset()

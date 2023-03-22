@@ -284,6 +284,7 @@ void draw_tiger()
 	mg_close_path();
 	mg_set_color_rgba(1.000, 1.000, 1.000, 1);
 	mg_fill();
+	mg_set_width(1);
 	mg_move_to(-129.830, 103.060);
 	mg_cubic_to(-129.330, 109.110, -128.340, 115.680, -126.600, 118.800);
 	mg_cubic_to(-126.600, 118.800, -130.200, 131.200, -121.400, 144.400);
@@ -422,6 +423,7 @@ void draw_tiger()
 	mg_close_path();
 	mg_set_color_rgba(0.800, 0.447, 0.149, 1);
 	mg_fill();
+	mg_set_width(1);
 	mg_move_to(299.720, 80.245);
 	mg_cubic_to(300.340, 80.426, 302.550, 81.550, 303.800, 83.200);
 	mg_cubic_to(303.800, 83.200, 310.600, 94.000, 305.400, 75.600);
@@ -909,6 +911,7 @@ void draw_tiger()
 	mg_close_path();
 	mg_set_color_rgba(1.000, 0.447, 0.498, 1);
 	mg_fill();
+	mg_set_width(1);
 	mg_move_to(-9.800, 174.400);
 	mg_cubic_to(-9.800, 174.400, -12.600, 196.800, -9.400, 205.200);
 	mg_cubic_to(-6.200, 213.600, -7.000, 215.600, -7.800, 219.600);
@@ -3879,21 +3882,25 @@ void draw_tiger()
 
 	mg_move_to(-89.250, 169.000);
 	mg_move_to(-67.250, 173.750);
+	mg_set_width(1);
 	mg_set_color_rgba(0.000, 0.000, 0.000, 1);
 	mg_stroke();
 
 	mg_move_to(-39.000, 331.000);
 	mg_cubic_to(-39.000, 331.000, -39.500, 327.500, -48.500, 338.000);
+	mg_set_width(1);
 	mg_set_color_rgba(0.000, 0.000, 0.000, 1);
 	mg_stroke();
 
 	mg_move_to(-33.500, 336.000);
 	mg_cubic_to(-33.500, 336.000, -31.500, 329.500, -38.000, 334.000);
+	mg_set_width(1);
 	mg_set_color_rgba(0.000, 0.000, 0.000, 1);
 	mg_stroke();
 
 	mg_move_to(20.500, 344.500);
 	mg_cubic_to(20.500, 344.500, 22.000, 333.500, 10.500, 346.500);
+	mg_set_width(1);
 	mg_set_color_rgba(0.000, 0.000, 0.000, 1);
 	mg_stroke();
 
