@@ -61,9 +61,10 @@ kernel void ShapeSetup(constant mg_shape* shapeBuffer [[buffer(0)]],
                        device mg_tile* tilesBuffer [[buffer(2)]],
                        device volatile atomic_uint* tilesOffset [[buffer(3)]],
                        constant float* scaling [[buffer(4)]],
+                       constant int2* viewport [[buffer(5)]],
                        uint gid [[thread_position_in_grid]])
 {
-
+	int2 tilesMatrixDim = (*viewport - 1) / RENDERER_TILE_SIZE + 1;
 	float4 box = shapeBuffer[gid].clip * scaling[0];
 
 	int2 firstTile = int2(box.xy)/RENDERER_TILE_SIZE;
@@ -72,8 +73,11 @@ kernel void ShapeSetup(constant mg_shape* shapeBuffer [[buffer(0)]],
 	//      any tile queue, the tileQueues pointer for that shape would alias the tileQueues pointer of another
 	//      shape, and we would have to detect that in the tiling and drawing kernels. Instead, just accept some
 	//      waste and keep the other kernels more uniforms for now...
-	int nTilesX = int(box.z)/RENDERER_TILE_SIZE - firstTile.x + 1;
-	int nTilesY = int(box.w)/RENDERER_TILE_SIZE - firstTile.y + 1;
+	//TODO limit to screen
+	int2 lastTile = max(firstTile, min(int2(box.zw)/RENDERER_TILE_SIZE, tilesMatrixDim));
+
+	int nTilesX = lastTile.x - firstTile.x + 1;
+	int nTilesY = lastTile.y - firstTile.y + 1;
 
 	int tileCount = nTilesX * nTilesY;
 
@@ -172,8 +176,8 @@ kernel void TriangleKernel(constant mg_vertex* vertexBuffer [[buffer(0)]],
 
 	int xMin = max(0, coarseBox.x - shapeQueue->area.x);
 	int yMin = max(0, coarseBox.y - shapeQueue->area.y);
-	int xMax = min(coarseBox.z - shapeQueue->area.x, shapeQueue->area.z);
-	int yMax = min(coarseBox.w - shapeQueue->area.y, shapeQueue->area.w);
+	int xMax = min(coarseBox.z - shapeQueue->area.x, shapeQueue->area.z-1);
+	int yMax = min(coarseBox.w - shapeQueue->area.y, shapeQueue->area.w-1);
 
 	//NOTE(martin): it's important to do the computation with signed int, so that we can have negative xMax/yMax
 	//              otherwise all triangles on the left or below the x/y axis are attributed to tiles on row/column 0.
@@ -233,6 +237,7 @@ kernel void TriangleKernel(constant mg_vertex* vertexBuffer [[buffer(0)]],
 
 				device mg_tile_elt* elt = &eltBuffer[eltIndex];
 				elt->triangleIndex = gid;
+
 				elt->next = atomic_exchange_explicit(&tile->firstElt, eltIndex, memory_order_relaxed);
 
 				atomic_fetch_add_explicit(&tile->eltCount, 1, memory_order_relaxed);
@@ -254,6 +259,7 @@ kernel void TriangleKernel(constant mg_vertex* vertexBuffer [[buffer(0)]],
 
 				if(allLeftFromEdge0 && allLeftFromEdge1 && allLeftFromEdge2 && triangleFull)
 				{
+					elt->triangleIndex |= mg_cmd_flip;
 					atomic_fetch_add_explicit(&tile->flipCount, 1, memory_order_relaxed);
 				}
 				else
@@ -310,7 +316,7 @@ kernel void GatherKernel(const device mg_shape_queue* shapeQueueBuffer [[buffer(
 						const device mg_tile_elt* elt = &eltBuffer[firstEltIndex];
 
 						count = 0;
-						tileArray[count] = mg_cmd_color | elt->triangleIndex;
+						tileArray[count] = mg_cmd_color | (elt->triangleIndex & ~MG_TILE_CMD_MASK);
 						count++;
 						continue;
 					}
@@ -458,63 +464,75 @@ kernel void RenderKernel(const device uint* tileCounters [[buffer(0)]],
 			currentShapeIndex = triangle->shapeIndex;
 		}
 
-		if(cmdKind == mg_cmd_color)
+		switch(cmdKind)
 		{
-			for(int sampleIndex=0; sampleIndex<sampleCount; sampleIndex++)
+			case mg_cmd_color:
 			{
-				float4 nextColor = triangle->color;
-				nextColor.rgb *= nextColor.a;
-				sampleColor[sampleIndex] = nextColor;
-				flipCount[sampleIndex] = 0;
-			}
-		}
-		else
-		{
-			int2 p0 = triangle->p0;
-			int2 p1 = triangle->p1;
-			int2 p2 = triangle->p2;
-
-			int cw = triangle->cw;
-
-			int bias0 = triangle->bias0;
-			int bias1 = triangle->bias1;
-			int bias2 = triangle->bias2;
-
-			float4 cubic0 = triangle->cubic0;
-			float4 cubic1 = triangle->cubic1;
-			float4 cubic2 = triangle->cubic2;
-
-			bool fullTriangle = triangle->full;
-
-			int4 clip = triangle->box;
-
-			for(int sampleIndex = 0; sampleIndex < sampleCount; sampleIndex++)
-			{
-				int2 samplePoint = samplePoints[sampleIndex];
-
-				if(  samplePoint.x < clip.x
-			  	|| samplePoint.x > clip.z
-			  	|| samplePoint.y < clip.y
-			  	|| samplePoint.y > clip.w)
+				for(int sampleIndex=0; sampleIndex<sampleCount; sampleIndex++)
 				{
-					continue;
+					float4 nextColor = triangle->color;
+					nextColor.rgb *= nextColor.a;
+					sampleColor[sampleIndex] = nextColor;
+					flipCount[sampleIndex] = 0;
 				}
+			} break;
 
-				int w0 = cw*orient2d(p1, p2, samplePoint);
-				int w1 = cw*orient2d(p2, p0, samplePoint);
-				int w2 = cw*orient2d(p0, p1, samplePoint);
-
-				if((w0+bias0) >= 0 && (w1+bias1) >= 0 && (w2+bias2) >= 0)
+			case mg_cmd_flip:
+			{
+				for(int sampleIndex=0; sampleIndex<sampleCount; sampleIndex++)
 				{
-					float4 cubic = (cubic0*w0 + cubic1*w1 + cubic2*w2)/(w0+w1+w2);
+					flipCount[sampleIndex]++;
+				}
+			} break;
 
-					if( fullTriangle
-					  ||(cubic.w*(cubic.x*cubic.x*cubic.x - cubic.y*cubic.z) <= 0))
+			case mg_cmd_triangle:
+			{
+				int2 p0 = triangle->p0;
+				int2 p1 = triangle->p1;
+				int2 p2 = triangle->p2;
+
+				int cw = triangle->cw;
+
+				int bias0 = triangle->bias0;
+				int bias1 = triangle->bias1;
+				int bias2 = triangle->bias2;
+
+				float4 cubic0 = triangle->cubic0;
+				float4 cubic1 = triangle->cubic1;
+				float4 cubic2 = triangle->cubic2;
+
+				bool fullTriangle = triangle->full;
+
+				int4 clip = triangle->box;
+
+				for(int sampleIndex = 0; sampleIndex < sampleCount; sampleIndex++)
+				{
+					int2 samplePoint = samplePoints[sampleIndex];
+
+					if(  samplePoint.x < clip.x
+			  		|| samplePoint.x > clip.z
+			  		|| samplePoint.y < clip.y
+			  		|| samplePoint.y > clip.w)
 					{
-						flipCount[sampleIndex]++;
+						continue;
+					}
+
+					int w0 = cw*orient2d(p1, p2, samplePoint);
+					int w1 = cw*orient2d(p2, p0, samplePoint);
+					int w2 = cw*orient2d(p0, p1, samplePoint);
+
+					if((w0+bias0) >= 0 && (w1+bias1) >= 0 && (w2+bias2) >= 0)
+					{
+						float4 cubic = (cubic0*w0 + cubic1*w1 + cubic2*w2)/(w0+w1+w2);
+
+						if( fullTriangle
+					  	||(cubic.w*(cubic.x*cubic.x*cubic.x - cubic.y*cubic.z) <= 0))
+						{
+							flipCount[sampleIndex]++;
+						}
 					}
 				}
-			}
+			} break;
 		}
     }
 

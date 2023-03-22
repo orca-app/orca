@@ -244,6 +244,7 @@ void mg_mtl_canvas_draw_batch(mg_canvas_backend* interface, mg_image_data* image
 		[shapeEncoder setBuffer: backend->tilesBuffer offset:0 atIndex: 2];
 		[shapeEncoder setBuffer: backend->tilesOffset offset:0 atIndex: 3];
 		[shapeEncoder setBytes: &scale length: sizeof(float) atIndex: 4];
+		[shapeEncoder setBytes: &viewportSize length: sizeof(vector_uint2) atIndex: 5];
 
 		MTLSize shapeGroupSize = MTLSizeMake(backend->shapePipeline.maxTotalThreadsPerThreadgroup, 1, 1);
 		MTLSize shapeGridSize = MTLSizeMake(shapeCount, 1, 1);

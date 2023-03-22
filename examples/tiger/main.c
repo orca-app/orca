@@ -65,7 +65,7 @@ int main()
 
 	//NOTE: create surface
 	mg_surface surface = mg_surface_create_for_window(window, MG_BACKEND_DEFAULT);
-	mg_surface_swap_interval(surface, 1);
+	mg_surface_swap_interval(surface, 0);
 
 	//TODO: create canvas
 	mg_canvas canvas = mg_canvas_create(surface);

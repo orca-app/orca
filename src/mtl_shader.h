@@ -65,12 +65,13 @@ typedef struct mg_triangle_data
 using namespace metal;
 #endif
 
-#define MG_TILE_CMD_MASK (1<<31)
+#define MG_TILE_CMD_MASK (3<<30)
 
 typedef enum mg_tile_cmd_kind
 {
 	mg_cmd_triangle = 0,
-	mg_cmd_color = 1<<31,
+	mg_cmd_color    = 1<<30,
+	mg_cmd_flip     = 2<<30
 } mg_tile_cmd_kind;
 
 typedef int mg_tile_cmd;
