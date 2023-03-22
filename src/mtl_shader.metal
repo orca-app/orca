@@ -86,8 +86,11 @@ kernel void ShapeSetup(constant mg_shape* shapeBuffer [[buffer(0)]],
 
 	for(int i=0; i<tileCount; i++)
 	{
-		atomic_store_explicit(&tiles[i].eltCount, 0, memory_order_relaxed);
+		tiles[i].color = shapeBuffer[gid].color;
 		atomic_store_explicit(&tiles[i].firstElt, -1, memory_order_relaxed);
+		atomic_store_explicit(&tiles[i].eltCount, 0, memory_order_relaxed);
+		atomic_store_explicit(&tiles[i].partial, 0, memory_order_relaxed);
+		atomic_store_explicit(&tiles[i].flipCount, 0, memory_order_relaxed);
 	}
 }
 
@@ -154,32 +157,107 @@ kernel void TriangleKernel(constant mg_vertex* vertexBuffer [[buffer(0)]],
 	triangleArray[gid].bias1 = is_top_left(p2, p0) ? -(1-cw)/2 : -(1+cw)/2;
 	triangleArray[gid].bias2 = is_top_left(p0, p1) ? -(1-cw)/2 : -(1+cw)/2;
 
-	int4 tileBox = int4(fbox)/RENDERER_TILE_SIZE;
+	int4 coarseBox = int4(fbox)/RENDERER_TILE_SIZE;
 
 	//NOTE: bucket triangle into tiles
 	device mg_shape_queue* shapeQueue = &shapeQueueBuffer[shapeIndex];
 	device mg_tile* tiles = &tilesBuffer[shapeQueue->tiles];
 
-	int xMin = max(0, tileBox.x - shapeQueue->area.x);
-	int yMin = max(0, tileBox.y - shapeQueue->area.y);
-	int xMax = min(tileBox.z - shapeQueue->area.x, shapeQueue->area.z-1);
-	int yMax = min(tileBox.w - shapeQueue->area.y, shapeQueue->area.w-1);
+	int xMin = max(0, coarseBox.x - shapeQueue->area.x);
+	int yMin = max(0, coarseBox.y - shapeQueue->area.y);
+	int xMax = min(coarseBox.z - shapeQueue->area.x, shapeQueue->area.z);
+	int yMax = min(coarseBox.w - shapeQueue->area.y, shapeQueue->area.w);
 
 	//NOTE(martin): it's important to do the computation with signed int, so that we can have negative xMax/yMax
 	//              otherwise all triangles on the left or below the x/y axis are attributed to tiles on row/column 0.
+
+	bool triangleFull = all(  triangleArray[gid].cubic0 == float4(1, 1, 1, 1)
+	                       && triangleArray[gid].cubic1 == float4(1, 1, 1, 1)
+	                       && triangleArray[gid].cubic2 == float4(1, 1, 1, 1));
+
+	int2 edges[3][2] = {{ip0, ip1}, {ip1, ip2}, {ip2, ip0}};
 
 	for(int y = yMin; y <= yMax; y++)
 	{
 		for(int x = xMin ; x <= xMax; x++)
 		{
-			int tileIndex = y*shapeQueue->area.z + x;
+			int4 tileBox = int4(shapeQueue->area.x + x,
+			                    shapeQueue->area.y + y,
+			                    shapeQueue->area.x + x + 1,
+			                    shapeQueue->area.y + y + 1) * RENDERER_TILE_SIZE*int(subPixelFactor);
 
-			int eltIndex = atomic_fetch_add_explicit(eltOffset, 1, memory_order_relaxed);
+			int2 b[4] = {{tileBox.x, tileBox.y},
+			             {tileBox.z, tileBox.y},
+			             {tileBox.z, tileBox.w},
+			             {tileBox.x, tileBox.w}};
 
-			device mg_tile_elt* elt = &eltBuffer[eltIndex];
-			elt->triangleIndex = gid;
-			elt->next = atomic_exchange_explicit(&tiles[tileIndex].firstElt, eltIndex, memory_order_relaxed);
-			atomic_fetch_add_explicit(&tiles[tileIndex].eltCount, 1, memory_order_relaxed);
+			//TODO: should add the biases here?
+
+
+			int sideFromEdge[3][4];
+			for(int edgeIndex=0; edgeIndex<3; edgeIndex++)
+			{
+				for(int cornerIndex=0; cornerIndex<4; cornerIndex++)
+				{
+					sideFromEdge[edgeIndex][cornerIndex] = cw*orient2d(edges[edgeIndex][0],
+					                                                   edges[edgeIndex][1],
+					                                                   b[cornerIndex]);
+				}
+			}
+
+			bool allRightFromEdge0 =  sideFromEdge[0][0] < 0
+			                       && sideFromEdge[0][1] < 0
+			                       && sideFromEdge[0][2] < 0
+			                       && sideFromEdge[0][3] < 0;
+
+			bool allRightFromEdge1 =  sideFromEdge[1][0] < 0
+			                       && sideFromEdge[1][1] < 0
+			                       && sideFromEdge[1][2] < 0
+			                       && sideFromEdge[1][3] < 0;
+
+			bool allRightFromEdge2 =  sideFromEdge[2][0] < 0
+			                       && sideFromEdge[2][1] < 0
+			                       && sideFromEdge[2][2] < 0
+			                       && sideFromEdge[2][3] < 0;
+
+			bool allOutside = allRightFromEdge0 || allRightFromEdge1 || allRightFromEdge2;
+			if(!allOutside)
+			{
+				int tileIndex = y*shapeQueue->area.z + x;
+				device mg_tile* tile = &tiles[tileIndex];
+
+				int eltIndex = atomic_fetch_add_explicit(eltOffset, 1, memory_order_relaxed);
+
+				device mg_tile_elt* elt = &eltBuffer[eltIndex];
+				elt->triangleIndex = gid;
+				elt->next = atomic_exchange_explicit(&tile->firstElt, eltIndex, memory_order_relaxed);
+
+				atomic_fetch_add_explicit(&tile->eltCount, 1, memory_order_relaxed);
+
+				bool allLeftFromEdge0 =  sideFromEdge[0][0] > 0
+				                      && sideFromEdge[0][1] > 0
+				                      && sideFromEdge[0][2] > 0
+				                      && sideFromEdge[0][3] > 0;
+
+				bool allLeftFromEdge1 =  sideFromEdge[1][0] > 0
+				                      && sideFromEdge[1][1] > 0
+				                      && sideFromEdge[1][2] > 0
+				                      && sideFromEdge[1][3] > 0;
+
+				bool allLeftFromEdge2 =  sideFromEdge[2][0] > 0
+				                      && sideFromEdge[2][1] > 0
+				                      && sideFromEdge[2][2] > 0
+				                      && sideFromEdge[2][3] > 0;
+
+				if(allLeftFromEdge0 && allLeftFromEdge1 && allLeftFromEdge2 && triangleFull)
+				{
+					atomic_fetch_add_explicit(&tile->flipCount, 1, memory_order_relaxed);
+				}
+				else
+				{
+					atomic_store_explicit(&tile->partial, 1, memory_order_relaxed);
+				}
+			}
 		}
 	}
 }
@@ -217,6 +295,23 @@ kernel void GatherKernel(const device mg_shape_queue* shapeQueueBuffer [[buffer(
 		{
 			int localIndex = tileQueueCoord.y * shapeQueue->area.z + tileQueueCoord.x;
 			const device mg_tile* tile = &tiles[localIndex];
+
+			if(atomic_load_explicit(&tile->partial, memory_order_relaxed) == 0)
+			{
+				if(atomic_load_explicit(&tile->flipCount, memory_order_relaxed) & 0x01)
+				{
+					if(tile->color.a == 1)
+					{
+						//NOTE: tile is full covered by a solid color, reset counter
+						count = 0;
+					}
+				}
+				else
+				{
+					//NOTE: tile is fully uncovered, skip that shape
+					continue;
+				}
+			}
 
 			int firstEltIndex = *(device int*)&tile->firstElt;
 			const device mg_tile_elt* elt = 0;
@@ -307,6 +402,12 @@ kernel void RenderKernel(const device uint* tileCounters [[buffer(0)]],
 		flipCount[i] = 0;
 		sampleColor[i] = float4(0, 0, 0, 0);
 		currentColor[i] = float4(0, 0, 0, 0);
+    }
+
+    if(tileCounter >= RENDERER_TILE_BUFFER_SIZE)
+    {
+		outTexture.write(float4(1, 0, 0, 1), gid);
+		return;
     }
 
     for(uint tileArrayIndex=0; tileArrayIndex < tileCounter; tileArrayIndex++)

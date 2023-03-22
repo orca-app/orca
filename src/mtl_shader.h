@@ -11,7 +11,7 @@
 
 #include<simd/simd.h>
 
-#define RENDERER_TILE_BUFFER_SIZE 4096
+#define RENDERER_TILE_BUFFER_SIZE 8192
 #define RENDERER_TILE_SIZE 16
 #define RENDERER_MAX_TILES 65536
 
@@ -72,8 +72,12 @@ typedef struct mg_tile_elt
 
 typedef struct mg_tile
 {
-	atomic_int eltCount;
+	vector_float4 color;
 	atomic_int firstElt;
+	atomic_int eltCount;
+	atomic_int partial;
+	atomic_int flipCount;
+
 } mg_tile;
 
 typedef struct mg_shape_queue
