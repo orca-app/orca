@@ -11,9 +11,9 @@
 
 #include<simd/simd.h>
 
-#define RENDERER_TILE_BUFFER_SIZE 8192
 #define RENDERER_TILE_SIZE 16
 #define RENDERER_MAX_TILES 65536
+#define RENDERER_TILE_BUFFER_COUNT 4*(1<<10)
 
 #define RENDERER_DEBUG_TILE_VISITED 0xf00d
 #define RENDERER_DEBUG_TILE_BUFFER_OVERFLOW 0xdead
@@ -63,6 +63,18 @@ typedef struct mg_triangle_data
 #else
 using namespace metal;
 #endif
+
+typedef enum mg_tile_cmd_kind
+{
+	mg_cmd_triangle,
+	mg_cmd_color
+} mg_tile_cmd_kind;
+
+typedef struct mg_tile_cmd
+{
+	mg_tile_cmd_kind kind;
+	int triangleIndex;
+} mg_tile_cmd;
 
 typedef struct mg_tile_elt
 {

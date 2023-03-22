@@ -563,7 +563,7 @@ mg_canvas_backend* mg_mtl_canvas_create(mg_surface surface)
 			backend->eltOffset = [metalSurface->device newBufferWithLength: sizeof(int)
 								options: MTLResourceStorageModePrivate];
 
-			backend->tileArrayBuffer = [metalSurface->device newBufferWithLength: RENDERER_TILE_BUFFER_SIZE*sizeof(int)*RENDERER_MAX_TILES
+			backend->tileArrayBuffer = [metalSurface->device newBufferWithLength: RENDERER_TILE_BUFFER_COUNT*sizeof(mg_tile_cmd)*RENDERER_MAX_TILES
 								options: MTLResourceStorageModePrivate];
 
 			backend->tileCounters = [metalSurface->device newBufferWithLength: RENDERER_MAX_TILES*sizeof(uint)

@@ -266,7 +266,7 @@ kernel void GatherKernel(const device mg_shape_queue* shapeQueueBuffer [[buffer(
                         const device mg_tile* tilesBuffer [[buffer(1)]],
                         const device mg_tile_elt* eltBuffer [[buffer(2)]],
                         device int* tileCounters [[buffer(3)]],
-                        device int* tileArrayBuffer [[buffer(4)]],
+                        device mg_tile_cmd* tileArrayBuffer [[buffer(4)]],
                         constant int* shapeCount [[buffer(5)]],
                         constant uint2* viewport [[buffer(6)]],
                         uint2 gid [[thread_position_in_grid]])
@@ -277,7 +277,7 @@ kernel void GatherKernel(const device mg_shape_queue* shapeQueueBuffer [[buffer(
 	int2 tileCoord = int2(gid);
 	int tileIndex = tileCoord.y * nTilesX + tileCoord.x;
 
-	device int* tileArray = &tileArrayBuffer[tileIndex * RENDERER_TILE_BUFFER_SIZE];
+	device mg_tile_cmd* tileArray = &tileArrayBuffer[tileIndex * RENDERER_TILE_BUFFER_COUNT];
 
 	int count = 0;
     for(int shapeIndex = 0; shapeIndex < shapeCount[0]; shapeIndex++)
@@ -303,7 +303,14 @@ kernel void GatherKernel(const device mg_shape_queue* shapeQueueBuffer [[buffer(
 					if(tile->color.a == 1)
 					{
 						//NOTE: tile is full covered by a solid color, reset counter
+						int firstEltIndex = *(device int*)&tile->firstElt;
+						const device mg_tile_elt* elt = &eltBuffer[firstEltIndex];
+
 						count = 0;
+						tileArray[count].kind = mg_cmd_color;
+						tileArray[count].triangleIndex = elt->triangleIndex;
+						count++;
+						continue;
 					}
 				}
 				else
@@ -321,7 +328,8 @@ kernel void GatherKernel(const device mg_shape_queue* shapeQueueBuffer [[buffer(
 				elt = &eltBuffer[eltIndex];
 				eltIndex = elt->next;
 
-				tileArray[count] = elt->triangleIndex;
+				tileArray[count].kind = mg_cmd_triangle;
+				tileArray[count].triangleIndex = elt->triangleIndex;
 				count++;
 			}
 		}
@@ -330,7 +338,7 @@ kernel void GatherKernel(const device mg_shape_queue* shapeQueueBuffer [[buffer(
 }
 
 kernel void RenderKernel(const device uint* tileCounters [[buffer(0)]],
-                         const device uint* tileArrayBuffer [[buffer(1)]],
+                         const device mg_tile_cmd* tileArrayBuffer [[buffer(1)]],
                          const device mg_triangle_data* triangleArray [[buffer(2)]],
 
                          constant int* useTexture [[buffer(3)]],
@@ -349,7 +357,7 @@ kernel void RenderKernel(const device uint* tileCounters [[buffer(0)]],
 	const uint2 tileCoord = uint2(pixelCoord)/ RENDERER_TILE_SIZE;
 	const uint2 tilesMatrixDim = (gridSize - 1) / RENDERER_TILE_SIZE + 1;
 	const uint tileIndex = tileCoord.y * tilesMatrixDim.x + tileCoord.x;
-	const uint tileCounter = min(tileCounters[tileIndex], (uint)RENDERER_TILE_BUFFER_SIZE);
+	const uint tileCounter = min(tileCounters[tileIndex], (uint)RENDERER_TILE_BUFFER_COUNT);
 
 #ifdef RENDERER_DEBUG_TILES
 	//NOTE(martin): color code debug values and show the tile grid
@@ -404,7 +412,7 @@ kernel void RenderKernel(const device uint* tileCounters [[buffer(0)]],
 		currentColor[i] = float4(0, 0, 0, 0);
     }
 
-    if(tileCounter >= RENDERER_TILE_BUFFER_SIZE)
+    if(tileCounter >= RENDERER_TILE_BUFFER_COUNT)
     {
 		outTexture.write(float4(1, 0, 0, 1), gid);
 		return;
@@ -412,82 +420,94 @@ kernel void RenderKernel(const device uint* tileCounters [[buffer(0)]],
 
     for(uint tileArrayIndex=0; tileArrayIndex < tileCounter; tileArrayIndex++)
     {
-    	int triangleIndex = tileArrayBuffer[RENDERER_TILE_BUFFER_SIZE * tileIndex + tileArrayIndex];
-		const device mg_triangle_data* triangle = &triangleArray[triangleIndex];
+		const device mg_tile_cmd* cmd = &tileArrayBuffer[RENDERER_TILE_BUFFER_COUNT * tileIndex + tileArrayIndex];
+		const device mg_triangle_data* triangle = &triangleArray[cmd->triangleIndex];
 
-		int2 p0 = triangle->p0;
-		int2 p1 = triangle->p1;
-		int2 p2 = triangle->p2;
-
-		int cw = triangle->cw;
-
-		int bias0 = triangle->bias0;
-		int bias1 = triangle->bias1;
-		int bias2 = triangle->bias2;
-
-		float4 cubic0 = triangle->cubic0;
-		float4 cubic1 = triangle->cubic1;
-		float4 cubic2 = triangle->cubic2;
-
-		int shapeIndex = triangle->shapeIndex;
-		float4 color = triangle->color;
-		color.rgb *= color.a;
-
-		int4 clip = triangle->box;
-
-		matrix_float3x3 uvTransform = triangle->uvTransform;
-
-		for(int sampleIndex = 0; sampleIndex < sampleCount; sampleIndex++)
+		if(cmd->kind == mg_cmd_color)
 		{
-			int2 samplePoint = samplePoints[sampleIndex];
-
-			if(  samplePoint.x < clip.x
-			  || samplePoint.x > clip.z
-			  || samplePoint.y < clip.y
-			  || samplePoint.y > clip.w)
+			for(int sampleIndex=0; sampleIndex<sampleCount; sampleIndex++)
 			{
-				continue;
+				sampleColor[sampleIndex] = triangle->color;
+				flipCount[sampleIndex] = 0;
+				currentShapeIndex[sampleIndex] = triangle->shapeIndex;
 			}
+		}
+		else if(cmd->kind == mg_cmd_triangle)
+		{
+			int2 p0 = triangle->p0;
+			int2 p1 = triangle->p1;
+			int2 p2 = triangle->p2;
 
-			int w0 = cw*orient2d(p1, p2, samplePoint);
-			int w1 = cw*orient2d(p2, p0, samplePoint);
-			int w2 = cw*orient2d(p0, p1, samplePoint);
+			int cw = triangle->cw;
 
-			if((w0+bias0) >= 0 && (w1+bias1) >= 0 && (w2+bias2) >= 0)
+			int bias0 = triangle->bias0;
+			int bias1 = triangle->bias1;
+			int bias2 = triangle->bias2;
+
+			float4 cubic0 = triangle->cubic0;
+			float4 cubic1 = triangle->cubic1;
+			float4 cubic2 = triangle->cubic2;
+
+			int shapeIndex = triangle->shapeIndex;
+			float4 color = triangle->color;
+			color.rgb *= color.a;
+
+			int4 clip = triangle->box;
+
+			matrix_float3x3 uvTransform = triangle->uvTransform;
+
+			for(int sampleIndex = 0; sampleIndex < sampleCount; sampleIndex++)
 			{
-				float4 cubic = (cubic0*w0 + cubic1*w1 + cubic2*w2)/(w0+w1+w2);
+				int2 samplePoint = samplePoints[sampleIndex];
 
-				float eps = 0.0001;
-				if(cubic.w*(cubic.x*cubic.x*cubic.x - cubic.y*cubic.z) <= eps)
+				if(  samplePoint.x < clip.x
+			  	|| samplePoint.x > clip.z
+			  	|| samplePoint.y < clip.y
+			  	|| samplePoint.y > clip.w)
 				{
-					if(shapeIndex == currentShapeIndex[sampleIndex])
+					continue;
+				}
+
+				int w0 = cw*orient2d(p1, p2, samplePoint);
+				int w1 = cw*orient2d(p2, p0, samplePoint);
+				int w2 = cw*orient2d(p0, p1, samplePoint);
+
+				if((w0+bias0) >= 0 && (w1+bias1) >= 0 && (w2+bias2) >= 0)
+				{
+					float4 cubic = (cubic0*w0 + cubic1*w1 + cubic2*w2)/(w0+w1+w2);
+
+					float eps = 0.0001;
+					if(cubic.w*(cubic.x*cubic.x*cubic.x - cubic.y*cubic.z) <= eps)
 					{
-						flipCount[sampleIndex]++;
-					}
-					else
-					{
-						if(flipCount[sampleIndex] & 0x01)
+						if(shapeIndex == currentShapeIndex[sampleIndex])
 						{
-							sampleColor[sampleIndex] = currentColor[sampleIndex];
+							flipCount[sampleIndex]++;
 						}
-
-						float4 nextColor = color;
-
-						if(useTexture[0])
+						else
 						{
-							float3 sampleFP = float3(float2(samplePoint).xy/(subPixelFactor*2.), 1);
-							float2 uv = (uvTransform * sampleFP).xy;
+							if(flipCount[sampleIndex] & 0x01)
+							{
+								sampleColor[sampleIndex] = currentColor[sampleIndex];
+							}
 
-							constexpr sampler smp(mip_filter::nearest, mag_filter::linear, min_filter::linear);
-							float4 texColor = texAtlas.sample(smp, uv);
+							float4 nextColor = color;
 
-							texColor.rgb *= texColor.a;
-							nextColor *= texColor;
+							if(useTexture[0])
+							{
+								float3 sampleFP = float3(float2(samplePoint).xy/(subPixelFactor*2.), 1);
+								float2 uv = (uvTransform * sampleFP).xy;
+
+								constexpr sampler smp(mip_filter::nearest, mag_filter::linear, min_filter::linear);
+								float4 texColor = texAtlas.sample(smp, uv);
+
+								texColor.rgb *= texColor.a;
+								nextColor *= texColor;
+							}
+
+							currentColor[sampleIndex] = sampleColor[sampleIndex]*(1.-nextColor.a) + nextColor;
+							currentShapeIndex[sampleIndex] = shapeIndex;
+							flipCount[sampleIndex] = 1;
 						}
-
-						currentColor[sampleIndex] = sampleColor[sampleIndex]*(1.-nextColor.a) + nextColor;
-						currentShapeIndex[sampleIndex] = shapeIndex;
-						flipCount[sampleIndex] = 1;
 					}
 				}
 			}
@@ -506,151 +526,3 @@ kernel void RenderKernel(const device uint* tileCounters [[buffer(0)]],
 
 	outTexture.write(pixelColor/float(sampleCount), gid);
 }
-
-
-/*
-kernel void RenderKernel(const device uint* tileCounters [[buffer(0)]],
-                         const device uint* tileArrayBuffer [[buffer(1)]],
-                         const device mg_triangle_data* triangleArray [[buffer(2)]],
-
-                         constant int* useTexture [[buffer(3)]],
-                         constant float* scaling [[buffer(4)]],
-
-                         texture2d<float, access::write> outTexture [[texture(0)]],
-                         texture2d<float> texAtlas [[texture(1)]],
-
-                         uint2 gid [[thread_position_in_grid]],
-                         uint2 tgid [[threadgroup_position_in_grid]],
-                         uint2 threadsPerThreadgroup [[threads_per_threadgroup]],
-                         uint2 gridSize [[threads_per_grid]])
-{
-	const int2 pixelCoord = int2(gid);
-	const uint2 tileCoord = uint2(pixelCoord)/ RENDERER_TILE_SIZE;
-	const uint2 tilesMatrixDim = (gridSize - 1) / RENDERER_TILE_SIZE + 1;
-	const uint tileIndex = tileCoord.y * tilesMatrixDim.x + tileCoord.x;
-	const uint tileCounter = min(tileCounters[tileIndex], (uint)RENDERER_TILE_BUFFER_SIZE);
-
-	const int subPixelFactor = 16;
-	const int2 centerPoint = int2((float2(pixelCoord) + float2(0.5, 0.5)) * subPixelFactor);
-
-	const int sampleCount = 8;
-	int2 samplePoints[sampleCount] = {centerPoint + int2(1, 3),
-	                                  centerPoint + int2(-1, -3),
-	                                  centerPoint + int2(5, -1),
-	                                  centerPoint + int2(-3, 5),
-	                                  centerPoint + int2(-5, -5),
-	                                  centerPoint + int2(-7, 1),
-	                                  centerPoint + int2(3, -7),
-	                                  centerPoint + int2(7, 7)};
-
-	float4 sampleColor[sampleCount];
-	float4 currentColor[sampleCount];
-    int currentShapeIndex[sampleCount];
-    int flipCount[sampleCount];
-
-    for(int i=0; i<sampleCount; i++)
-    {
-		currentShapeIndex[i] = -1;
-		flipCount[i] = 0;
-		sampleColor[i] = float4(0, 0, 0, 0);
-		currentColor[i] = float4(0, 0, 0, 0);
-    }
-
-    for(uint tileArrayIndex = 0; tileArrayIndex < tileCounter; tileArrayIndex++)
-    {
-		int triangleIndex = tileArrayBuffer[tileIndex * RENDERER_TILE_BUFFER_SIZE + tileArrayIndex];
-		const device mg_triangle_data* triangle = &triangleArray[triangleIndex];
-
-		int2 p0 = triangle->p0;
-		int2 p1 = triangle->p1;
-		int2 p2 = triangle->p2;
-
-		int cw = triangle->cw;
-
-		int bias0 = triangle->bias0;
-		int bias1 = triangle->bias1;
-		int bias2 = triangle->bias2;
-
-		float4 cubic0 = triangle->cubic0;
-		float4 cubic1 = triangle->cubic1;
-		float4 cubic2 = triangle->cubic2;
-
-		int shapeIndex = triangle->shapeIndex;
-		float4 color = triangle->color;
-		color.rgb *= color.a;
-
-		int4 clip = triangle->box;
-
-		matrix_float3x3 uvTransform = triangle->uvTransform;
-
-		for(int sampleIndex = 0; sampleIndex < sampleCount; sampleIndex++)
-		{
-			int2 samplePoint = samplePoints[sampleIndex];
-
-			if(  samplePoint.x < clip.x
-			  || samplePoint.x > clip.z
-			  || samplePoint.y < clip.y
-			  || samplePoint.y > clip.w)
-			{
-				continue;
-			}
-
-			int w0 = cw*orient2d(p1, p2, samplePoint);
-			int w1 = cw*orient2d(p2, p0, samplePoint);
-			int w2 = cw*orient2d(p0, p1, samplePoint);
-
-			if((w0+bias0) >= 0 && (w1+bias1) >= 0 && (w2+bias2) >= 0)
-			{
-				float4 cubic = (cubic0*w0 + cubic1*w1 + cubic2*w2)/(w0+w1+w2);
-
-				float eps = 0.0001;
-				if(cubic.w*(cubic.x*cubic.x*cubic.x - cubic.y*cubic.z) <= eps)
-				{
-					if(shapeIndex == currentShapeIndex[sampleIndex])
-					{
-						flipCount[sampleIndex]++;
-					}
-					else
-					{
-						if(flipCount[sampleIndex] & 0x01)
-						{
-							sampleColor[sampleIndex] = currentColor[sampleIndex];
-						}
-
-						float4 nextColor = color;
-
-						if(useTexture[0])
-						{
-							float3 sampleFP = float3(float2(samplePoint).xy/(subPixelFactor*2.), 1);
-							float2 uv = (uvTransform * sampleFP).xy;
-
-							constexpr sampler smp(mip_filter::nearest, mag_filter::linear, min_filter::linear);
-							float4 texColor = texAtlas.sample(smp, uv);
-
-							texColor.rgb *= texColor.a;
-							nextColor *= texColor;
-						}
-
-						currentColor[sampleIndex] = sampleColor[sampleIndex]*(1.-nextColor.a) + nextColor;
-						currentShapeIndex[sampleIndex] = shapeIndex;
-						flipCount[sampleIndex] = 1;
-					}
-				}
-			}
-		}
-	}
-
-    float4 pixelColor = float4(0);
-    for(int sampleIndex = 0; sampleIndex < sampleCount; sampleIndex++)
-    {
-    	if(flipCount[sampleIndex] & 0x01)
-    	{
-			sampleColor[sampleIndex] = currentColor[sampleIndex];
-    	}
-    	pixelColor += sampleColor[sampleIndex];
-	}
-
-	outTexture.write(pixelColor/float(sampleCount), gid);
-
-}
-*/
