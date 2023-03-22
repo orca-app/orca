@@ -402,22 +402,22 @@ kernel void RenderKernel(const device uint* tileCounters [[buffer(0)]],
 
 	float4 sampleColor[sampleCount];
 	float4 currentColor[sampleCount];
-    int currentShapeIndex[sampleCount];
-    int flipCount[sampleCount];
+   	int flipCount[sampleCount];
 
-    for(int i=0; i<sampleCount; i++)
-    {
-		currentShapeIndex[i] = -1;
+   	for(int i=0; i<sampleCount; i++)
+   	{
 		flipCount[i] = 0;
 		sampleColor[i] = float4(0, 0, 0, 0);
 		currentColor[i] = float4(0, 0, 0, 0);
-    }
+   	}
 
-    if(tileCounter >= RENDERER_TILE_BUFFER_COUNT)
-    {
+	int currentShapeIndex = -1;
+
+   	if(tileCounter >= RENDERER_TILE_BUFFER_COUNT)
+   	{
 		outTexture.write(float4(1, 0, 0, 1), gid);
 		return;
-    }
+   	}
 
     for(uint tileArrayIndex=0; tileArrayIndex < tileCounter; tileArrayIndex++)
     {
@@ -427,13 +427,45 @@ kernel void RenderKernel(const device uint* tileCounters [[buffer(0)]],
 		int triangleIndex = cmd & ~(MG_TILE_CMD_MASK);
 		const device mg_triangle_data* triangle = &triangleArray[triangleIndex];
 
+		if(currentShapeIndex != triangle->shapeIndex)
+		{
+			for(int sampleIndex = 0; sampleIndex<sampleCount; sampleIndex++)
+			{
+				if(flipCount[sampleIndex] & 0x01)
+				{
+					sampleColor[sampleIndex] = currentColor[sampleIndex];
+				}
+
+				float4 nextColor = triangle->color;
+				nextColor.rgb *= nextColor.a;
+
+				if(useTexture[0])
+				{
+					int2 samplePoint = samplePoints[sampleIndex];
+					float3 sampleFP = float3(float2(samplePoint).xy/(subPixelFactor*2.), 1);
+					float2 uv = (triangle->uvTransform * sampleFP).xy;
+
+					constexpr sampler smp(mip_filter::nearest, mag_filter::linear, min_filter::linear);
+					float4 texColor = texAtlas.sample(smp, uv);
+
+					texColor.rgb *= texColor.a;
+					nextColor *= texColor;
+				}
+
+				currentColor[sampleIndex] = sampleColor[sampleIndex]*(1.-nextColor.a) + nextColor;
+				flipCount[sampleIndex] = 0;
+			}
+			currentShapeIndex = triangle->shapeIndex;
+		}
+
 		if(cmdKind == mg_cmd_color)
 		{
 			for(int sampleIndex=0; sampleIndex<sampleCount; sampleIndex++)
 			{
-				sampleColor[sampleIndex] = triangle->color;
+				float4 nextColor = triangle->color;
+				nextColor.rgb *= nextColor.a;
+				sampleColor[sampleIndex] = nextColor;
 				flipCount[sampleIndex] = 0;
-				currentShapeIndex[sampleIndex] = triangle->shapeIndex;
 			}
 		}
 		else
@@ -454,13 +486,7 @@ kernel void RenderKernel(const device uint* tileCounters [[buffer(0)]],
 
 			bool fullTriangle = triangle->full;
 
-			int shapeIndex = triangle->shapeIndex;
-			float4 color = triangle->color;
-			color.rgb *= color.a;
-
 			int4 clip = triangle->box;
-
-			matrix_float3x3 uvTransform = triangle->uvTransform;
 
 			for(int sampleIndex = 0; sampleIndex < sampleCount; sampleIndex++)
 			{
@@ -485,35 +511,7 @@ kernel void RenderKernel(const device uint* tileCounters [[buffer(0)]],
 					if( fullTriangle
 					  ||(cubic.w*(cubic.x*cubic.x*cubic.x - cubic.y*cubic.z) <= 0))
 					{
-						if(shapeIndex == currentShapeIndex[sampleIndex])
-						{
-							flipCount[sampleIndex]++;
-						}
-						else
-						{
-							if(flipCount[sampleIndex] & 0x01)
-							{
-								sampleColor[sampleIndex] = currentColor[sampleIndex];
-							}
-
-							float4 nextColor = color;
-
-							if(useTexture[0])
-							{
-								float3 sampleFP = float3(float2(samplePoint).xy/(subPixelFactor*2.), 1);
-								float2 uv = (uvTransform * sampleFP).xy;
-
-								constexpr sampler smp(mip_filter::nearest, mag_filter::linear, min_filter::linear);
-								float4 texColor = texAtlas.sample(smp, uv);
-
-								texColor.rgb *= texColor.a;
-								nextColor *= texColor;
-							}
-
-							currentColor[sampleIndex] = sampleColor[sampleIndex]*(1.-nextColor.a) + nextColor;
-							currentShapeIndex[sampleIndex] = shapeIndex;
-							flipCount[sampleIndex] = 1;
-						}
+						flipCount[sampleIndex]++;
 					}
 				}
 			}
