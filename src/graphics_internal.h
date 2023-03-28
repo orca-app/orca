@@ -123,6 +123,93 @@ typedef void (*mg_canvas_backend_image_upload_region_proc)(mg_canvas_backend* ba
                                                            mp_rect region,
                                                            u8* pixels);
 
+
+//------------------------------------------------------------------------
+// canvas structs
+//------------------------------------------------------------------------
+typedef enum { MG_PATH_MOVE,
+               MG_PATH_LINE,
+	           MG_PATH_QUADRATIC,
+	           MG_PATH_CUBIC } mg_path_elt_type;
+
+typedef struct mg_path_elt
+{
+	mg_path_elt_type type;
+	vec2 p[3];
+
+} mg_path_elt;
+
+typedef struct mg_path_descriptor
+{
+	u32 startIndex;
+	u32 count;
+	vec2 startPoint;
+
+} mg_path_descriptor;
+
+typedef struct mg_attributes
+{
+	f32 width;
+	f32 tolerance;
+	mg_color color;
+	mg_joint_type joint;
+	f32 maxJointExcursion;
+	mg_cap_type cap;
+
+	mg_font font;
+	f32 fontSize;
+
+	mg_image image;
+	mp_rect srcRegion;
+
+	mg_mat2x3 transform;
+	mp_rect clip;
+
+} mg_attributes;
+
+typedef struct mg_rounded_rect
+{
+	f32 x;
+	f32 y;
+	f32 w;
+	f32 h;
+	f32 r;
+} mg_rounded_rect;
+
+typedef enum { MG_CMD_FILL,
+	           MG_CMD_STROKE,
+	           MG_CMD_RECT_FILL,
+	           MG_CMD_RECT_STROKE,
+	           MG_CMD_ROUND_RECT_FILL,
+	           MG_CMD_ROUND_RECT_STROKE,
+	           MG_CMD_ELLIPSE_FILL,
+	           MG_CMD_ELLIPSE_STROKE,
+	           MG_CMD_JUMP,
+	           MG_CMD_CLIP_PUSH,
+	           MG_CMD_CLIP_POP,
+	     } mg_primitive_cmd;
+
+typedef struct mg_primitive
+{
+	mg_primitive_cmd cmd;
+	mg_attributes attributes;
+
+	union
+	{
+		mg_path_descriptor path;
+		mp_rect rect;
+		mg_rounded_rect roundedRect;
+		u32 jump;
+	};
+
+} mg_primitive;
+
+typedef void (*mg_canvas_backend_render_proc)(mg_canvas_backend* backend,
+                                              u32 primitiveCount,
+                                              mg_primitive* primitives,
+                                              u32 eltCount,
+                                              mg_path_elt* pathElements);
+
 typedef struct mg_canvas_backend
 {
 	mg_vertex_layout vertexLayout;
@@ -135,6 +222,10 @@ typedef struct mg_canvas_backend
 	mg_canvas_backend_image_create_proc imageCreate;
 	mg_canvas_backend_image_destroy_proc imageDestroy;
 	mg_canvas_backend_image_upload_region_proc imageUploadRegion;
+
+
+	mg_canvas_backend_render_proc render;
+
 } mg_canvas_backend;
 
 #ifdef __cplusplus

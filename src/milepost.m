@@ -12,7 +12,8 @@
 
 #if MG_COMPILE_BACKEND_METAL
 	#include"mtl_surface.m"
-	#include"mtl_canvas.m"
+//	#include"mtl_canvas.m"
+	#include"mtl_renderer.m"
 #endif
 
 #if MG_COMPILE_BACKEND_GLES

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-DEBUG_FLAGS="-g -O2 -DDEBUG -DLOG_COMPILE_DEBUG"
+DEBUG_FLAGS="-g -DDEBUG -DLOG_COMPILE_DEBUG"
 #DEBUG_FLAGS="-O3"
 
 #--------------------------------------------------------------
@@ -55,8 +55,8 @@ fi
 if [ $target = 'lib' ] ; then
 
 	# compile metal shader
-	xcrun -sdk macosx metal $shaderFlagParam -c -o $BINDIR/mtl_shader.air $SRCDIR/mtl_shader.metal
-	xcrun -sdk macosx metallib -o $RESDIR/mtl_shader.metallib $BINDIR/mtl_shader.air
+	xcrun -sdk macosx metal $shaderFlagParam -c -o $BINDIR/mtl_renderer.air $SRCDIR/mtl_renderer.metal
+	xcrun -sdk macosx metallib -o $RESDIR/mtl_renderer.metallib $BINDIR/mtl_renderer.air
 
 	# compile milepost. We use one compilation unit for all C code, and one compilation
 	# unit for all ObjectiveC code
