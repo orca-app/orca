@@ -18,17 +18,22 @@
 
 #define LOG_SUBSYSTEM "Graphics"
 
+const int MG_MTL_INPUT_BUFFERS_COUNT = 3;
+
 typedef struct mg_mtl_canvas_backend
 {
 	mg_canvas_backend interface;
 	mg_surface surface;
 
+	id<MTLComputePipelineState> segmentPipeline;
 	id<MTLComputePipelineState> rasterPipeline;
 	id<MTLRenderPipelineState> blitPipeline;
 
 	id<MTLTexture> outTexture;
 
 	id<MTLBuffer> pathBuffer;
+	id<MTLBuffer> elementBuffer;
+	id<MTLBuffer> segmentCountBuffer;
 	id<MTLBuffer> segmentBuffer;
 
 } mg_mtl_canvas_backend;
@@ -51,12 +56,13 @@ void mg_mtl_canvas_render(mg_canvas_backend* interface,
 	mg_mtl_canvas_backend* backend = (mg_mtl_canvas_backend*)interface;
 
 	//TODO: update rolling buffers
-	mg_mtl_segment* segmentBufferData = (mg_mtl_segment*)[backend->segmentBuffer contents];
+
+	mg_mtl_path_elt* elementBufferData = (mg_mtl_path_elt*)[backend->elementBuffer contents];
 	mg_mtl_path* pathBufferData = (mg_mtl_path*)[backend->pathBuffer contents];
 
 	//NOTE: fill renderer input buffers
-	int segCount = 0;
 	int pathCount = 0;
+	int mtlEltCount = 0;
 	vec2 currentPos = {0};
 
 	for(int primitiveIndex = 0; primitiveIndex < primitiveCount; primitiveIndex++)
@@ -82,30 +88,13 @@ void mg_mtl_canvas_render(mg_canvas_backend* interface,
 					vec2 p3 = mg_mat2x3_mul(primitive->attributes.transform, elt->p[0]);
 					currentPos = elt->p[0];
 
-					if(p0.y != p3.y)
-					{
-						mg_mtl_segment* seg = &segmentBufferData[segCount];
-						segCount++;
+					mg_mtl_path_elt* mtlElt = &elementBufferData[mtlEltCount];
+					mtlEltCount++;
 
-						seg->pathIndex = primitiveIndex;
-						seg->box = (vector_float4){minimum(p0.x, p3.x),
-					                           	   minimum(p0.y, p3.y),
-					                           	   maximum(p0.x, p3.x),
-					                           	   maximum(p0.y, p3.y)};
-
-						if( (p3.x > p0.x && p3.y < p0.y)
-					  	||(p3.x <= p0.x && p3.y > p0.y))
-						{
-							seg->config = MG_MTL_TR;
-						}
-						else if( (p3.x > p0.x && p3.y > p0.y)
-					       	||(p3.x <= p0.x && p3.y < p0.y))
-						{
-							seg->config = MG_MTL_BR;
-						}
-
-						seg->windingIncrement = (p3.y > p0.y)? 1 : -1;
-					}
+					mtlElt->pathIndex = primitiveIndex;
+					mtlElt->kind = (mg_mtl_seg_kind)elt->type;
+					mtlElt->p[0] = (vector_float2){p0.x, p0.y};
+					mtlElt->p[3] = (vector_float2){p3.x, p3.y};
 				}
 			}
 
@@ -140,6 +129,23 @@ void mg_mtl_canvas_render(mg_canvas_backend* interface,
 	{
 		mg_mtl_surface_acquire_command_buffer(surface);
 
+		//NOTE: segment setup pass
+		id<MTLComputeCommandEncoder> segmentEncoder = [surface->commandBuffer computeCommandEncoder];
+		segmentEncoder.label = @"segment pass";
+		[segmentEncoder setComputePipelineState: backend->segmentPipeline];
+
+		[segmentEncoder setBytes:&eltCount length:sizeof(int) atIndex:0];
+		[segmentEncoder setBuffer:backend->elementBuffer offset:0 atIndex:1];
+		[segmentEncoder setBuffer:backend->segmentCountBuffer offset:0 atIndex:2];
+		[segmentEncoder setBuffer:backend->segmentBuffer offset:0 atIndex:3];
+
+		MTLSize segmentGridSize = MTLSizeMake(mtlEltCount, 1, 1);
+		MTLSize segmentGroupSize = MTLSizeMake(64, 1, 1);
+
+		[segmentEncoder dispatchThreads: segmentGridSize threadsPerThreadgroup: segmentGroupSize];
+
+		[segmentEncoder endEncoding];
+
 		//NOTE: raster pass
 		id<MTLComputeCommandEncoder> rasterEncoder = [surface->commandBuffer computeCommandEncoder];
 		rasterEncoder.label = @"raster pass";
@@ -147,7 +153,7 @@ void mg_mtl_canvas_render(mg_canvas_backend* interface,
 
 		[rasterEncoder setBytes:&pathCount length:sizeof(int) atIndex:0];
 		[rasterEncoder setBuffer:backend->pathBuffer offset:0 atIndex:1];
-		[rasterEncoder setBytes:&segCount length:sizeof(int) atIndex:2];
+		[rasterEncoder setBuffer:backend->segmentCountBuffer offset:0 atIndex:2];
 		[rasterEncoder setBuffer:backend->segmentBuffer offset:0 atIndex:3];
 
 		[rasterEncoder setTexture:backend->outTexture atIndex:0];
@@ -190,6 +196,8 @@ void mg_mtl_canvas_destroy(mg_canvas_backend* interface)
 	@autoreleasepool
 	{
 		[backend->pathBuffer release];
+		[backend->elementBuffer release];
+		[backend->segmentCountBuffer release];
 		[backend->segmentBuffer release];
 	}
 
@@ -197,6 +205,7 @@ void mg_mtl_canvas_destroy(mg_canvas_backend* interface)
 }
 
 const u32 MG_MTL_PATH_BUFFER_SIZE    = (4<<20)*sizeof(mg_mtl_path),
+          MG_MTL_ELEMENT_BUFFER_SIZE = (4<<20)*sizeof(mg_mtl_path_elt),
           MG_MTL_SEGMENT_BUFFER_SIZE = (4<<20)*sizeof(mg_mtl_segment);
 
 mg_canvas_backend* mg_mtl_canvas_create(mg_surface surface)
@@ -229,6 +238,7 @@ mg_canvas_backend* mg_mtl_canvas_create(mg_surface surface)
 				LOG_ERROR("error : %s\n", errStr);
 				return(0);
 			}
+			id<MTLFunction> segmentFunction = [library newFunctionWithName:@"mtl_segment"];
 			id<MTLFunction> rasterFunction = [library newFunctionWithName:@"mtl_raster"];
 			id<MTLFunction> vertexFunction = [library newFunctionWithName:@"mtl_vertex_shader"];
 			id<MTLFunction> fragmentFunction = [library newFunctionWithName:@"mtl_fragment_shader"];
@@ -236,6 +246,9 @@ mg_canvas_backend* mg_mtl_canvas_create(mg_surface surface)
 			//NOTE: create pipelines
 			NSError* error = NULL;
 			backend->rasterPipeline = [metalSurface->device newComputePipelineStateWithFunction: rasterFunction
+		                                                                           	error:&error];
+
+			backend->segmentPipeline = [metalSurface->device newComputePipelineStateWithFunction: segmentFunction
 		                                                                           	error:&error];
 
 			MTLRenderPipelineDescriptor *pipelineStateDescriptor = [[MTLRenderPipelineDescriptor alloc] init];
@@ -274,7 +287,14 @@ mg_canvas_backend* mg_mtl_canvas_create(mg_surface surface)
 			backend->pathBuffer = [metalSurface->device newBufferWithLength: MG_MTL_PATH_BUFFER_SIZE
 			                                                 options: bufferOptions];
 
+			backend->elementBuffer = [metalSurface->device newBufferWithLength: MG_MTL_ELEMENT_BUFFER_SIZE
+			                                                   options: bufferOptions];
+
+			bufferOptions = MTLResourceStorageModePrivate;
 			backend->segmentBuffer = [metalSurface->device newBufferWithLength: MG_MTL_SEGMENT_BUFFER_SIZE
+			                                                   options: bufferOptions];
+
+			backend->segmentCountBuffer = [metalSurface->device newBufferWithLength: sizeof(int)
 			                                                   options: bufferOptions];
 		}
 

@@ -7,6 +7,42 @@
 
 using namespace metal;
 
+kernel void mtl_segment(constant int* elementCount [[buffer(0)]],
+                        const device mg_mtl_path_elt* elementBuffer [[buffer(1)]],
+                        device atomic_int* segmentCount [[buffer(2)]],
+                        device mg_mtl_segment* segmentBuffer [[buffer(3)]],
+                        uint eltIndex [[thread_position_in_grid]])
+{
+	const device mg_mtl_path_elt* elt = &elementBuffer[eltIndex];
+	float2 p0 = elt->p[0];
+	float2 p3 = elt->p[3];
+
+	if(elt->kind == MG_MTL_LINE && p0.y != p3.y)
+	{
+		int segIndex = atomic_fetch_add_explicit(segmentCount, 1, memory_order_relaxed);
+		device mg_mtl_segment* seg = &segmentBuffer[segIndex];
+
+		seg->pathIndex = elt->pathIndex;
+		seg->box = (vector_float4){min(p0.x, p3.x),
+		                           min(p0.y, p3.y),
+		                           max(p0.x, p3.x),
+		                           max(p0.y, p3.y)};
+
+		if( (p3.x > p0.x && p3.y < p0.y)
+				||(p3.x <= p0.x && p3.y > p0.y))
+		{
+			seg->config = MG_MTL_TR;
+		}
+		else if( (p3.x > p0.x && p3.y > p0.y)
+					   	||(p3.x <= p0.x && p3.y < p0.y))
+		{
+			seg->config = MG_MTL_BR;
+		}
+
+		seg->windingIncrement = (p3.y > p0.y)? 1 : -1;
+	}
+}
+
 kernel void mtl_raster(constant int* pathCount [[buffer(0)]],
                        const device mg_mtl_path* pathBuffer [[buffer(1)]],
                        constant int* segCount [[buffer(2)]],

@@ -12,7 +12,7 @@
 #include<simd/simd.h>
 
 typedef enum {
-	MG_MTL_LINE,
+	MG_MTL_LINE = 1,
 } mg_mtl_seg_kind;
 
 typedef enum {
