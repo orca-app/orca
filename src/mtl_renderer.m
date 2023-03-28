@@ -25,6 +25,7 @@ typedef struct mg_mtl_canvas_backend
 	mg_canvas_backend interface;
 	mg_surface surface;
 
+	id<MTLComputePipelineState> pathPipeline;
 	id<MTLComputePipelineState> segmentPipeline;
 	id<MTLComputePipelineState> rasterPipeline;
 	id<MTLRenderPipelineState> blitPipeline;
@@ -35,6 +36,11 @@ typedef struct mg_mtl_canvas_backend
 	id<MTLBuffer> elementBuffer;
 	id<MTLBuffer> segmentCountBuffer;
 	id<MTLBuffer> segmentBuffer;
+	id<MTLBuffer> pathQueueBuffer;
+	id<MTLBuffer> tileQueueBuffer;
+	id<MTLBuffer> tileQueueCountBuffer;
+	id<MTLBuffer> tileOpBuffer;
+	id<MTLBuffer> tileOpCountBuffer;
 
 } mg_mtl_canvas_backend;
 
@@ -88,6 +94,9 @@ void mg_mtl_canvas_render(mg_canvas_backend* interface,
 					vec2 p3 = mg_mat2x3_mul(primitive->attributes.transform, elt->p[0]);
 					currentPos = elt->p[0];
 
+					mg_update_path_extents(&pathExtents, p0);
+					mg_update_path_extents(&pathExtents, p3);
+
 					mg_mtl_path_elt* mtlElt = &elementBufferData[mtlEltCount];
 					mtlEltCount++;
 
@@ -123,11 +132,38 @@ void mg_mtl_canvas_render(mg_canvas_backend* interface,
 	mp_rect frame = mg_surface_get_frame(backend->surface);
 	f32 scale = surface->mtlLayer.contentsScale;
 	vec2 viewportSize = {frame.w * scale, frame.h * scale};
+	int tileSize = 16;
 
 	//NOTE: encode GPU commands
 	@autoreleasepool
 	{
 		mg_mtl_surface_acquire_command_buffer(surface);
+
+		//NOTE: clear counters
+		id<MTLBlitCommandEncoder> blitEncoder = [surface->commandBuffer blitCommandEncoder];
+		blitEncoder.label = @"clear counters";
+		[blitEncoder fillBuffer: backend->segmentCountBuffer range: NSMakeRange(0, sizeof(int)) value: 0];
+		[blitEncoder fillBuffer: backend->tileQueueCountBuffer range: NSMakeRange(0, sizeof(int)) value: 0];
+		[blitEncoder fillBuffer: backend->tileOpCountBuffer range: NSMakeRange(0, sizeof(int)) value: 0];
+		[blitEncoder endEncoding];
+
+		//NOTE: path setup pass
+		id<MTLComputeCommandEncoder> pathEncoder = [surface->commandBuffer computeCommandEncoder];
+		pathEncoder.label = @"path pass";
+		[pathEncoder setComputePipelineState: backend->pathPipeline];
+
+		[pathEncoder setBytes:&pathCount length:sizeof(int) atIndex:0];
+		[pathEncoder setBuffer:backend->pathBuffer offset:0 atIndex:1];
+		[pathEncoder setBuffer:backend->pathQueueBuffer offset:0 atIndex:2];
+		[pathEncoder setBuffer:backend->tileQueueBuffer offset:0 atIndex:3];
+		[pathEncoder setBuffer:backend->tileQueueCountBuffer offset:0 atIndex:4];
+		[pathEncoder setBytes:&tileSize length:sizeof(int) atIndex:5];
+
+		MTLSize pathGridSize = MTLSizeMake(pathCount, 1, 1);
+		MTLSize pathGroupSize = MTLSizeMake(64, 1, 1);
+
+		[pathEncoder dispatchThreads: pathGridSize threadsPerThreadgroup: pathGroupSize];
+		[pathEncoder endEncoding];
 
 		//NOTE: segment setup pass
 		id<MTLComputeCommandEncoder> segmentEncoder = [surface->commandBuffer computeCommandEncoder];
@@ -138,12 +174,16 @@ void mg_mtl_canvas_render(mg_canvas_backend* interface,
 		[segmentEncoder setBuffer:backend->elementBuffer offset:0 atIndex:1];
 		[segmentEncoder setBuffer:backend->segmentCountBuffer offset:0 atIndex:2];
 		[segmentEncoder setBuffer:backend->segmentBuffer offset:0 atIndex:3];
+		[segmentEncoder setBuffer:backend->pathQueueBuffer offset:0 atIndex:4];
+		[segmentEncoder setBuffer:backend->tileQueueBuffer offset:0 atIndex:5];
+		[segmentEncoder setBuffer:backend->tileOpBuffer offset:0 atIndex:6];
+		[segmentEncoder setBuffer:backend->tileOpCountBuffer offset:0 atIndex:7];
+		[segmentEncoder setBytes:&tileSize length:sizeof(int) atIndex:8];
 
 		MTLSize segmentGridSize = MTLSizeMake(mtlEltCount, 1, 1);
 		MTLSize segmentGroupSize = MTLSizeMake(64, 1, 1);
 
 		[segmentEncoder dispatchThreads: segmentGridSize threadsPerThreadgroup: segmentGroupSize];
-
 		[segmentEncoder endEncoding];
 
 		//NOTE: raster pass
@@ -155,6 +195,10 @@ void mg_mtl_canvas_render(mg_canvas_backend* interface,
 		[rasterEncoder setBuffer:backend->pathBuffer offset:0 atIndex:1];
 		[rasterEncoder setBuffer:backend->segmentCountBuffer offset:0 atIndex:2];
 		[rasterEncoder setBuffer:backend->segmentBuffer offset:0 atIndex:3];
+		[rasterEncoder setBuffer:backend->pathQueueBuffer offset:0 atIndex:4];
+		[rasterEncoder setBuffer:backend->tileQueueBuffer offset:0 atIndex:5];
+		[rasterEncoder setBuffer:backend->tileOpBuffer offset:0 atIndex:6];
+		[rasterEncoder setBytes:&tileSize length:sizeof(int) atIndex:7];
 
 		[rasterEncoder setTexture:backend->outTexture atIndex:0];
 
@@ -195,18 +239,30 @@ void mg_mtl_canvas_destroy(mg_canvas_backend* interface)
 
 	@autoreleasepool
 	{
+		[backend->pathPipeline release];
+		[backend->segmentPipeline release];
+		[backend->rasterPipeline release];
+		[backend->blitPipeline release];
+
 		[backend->pathBuffer release];
 		[backend->elementBuffer release];
 		[backend->segmentCountBuffer release];
 		[backend->segmentBuffer release];
+		[backend->tileQueueBuffer release];
+		[backend->tileQueueCountBuffer release];
+		[backend->tileOpBuffer release];
+		[backend->tileOpCountBuffer release];
 	}
 
 	free(backend);
 }
 
-const u32 MG_MTL_PATH_BUFFER_SIZE    = (4<<20)*sizeof(mg_mtl_path),
-          MG_MTL_ELEMENT_BUFFER_SIZE = (4<<20)*sizeof(mg_mtl_path_elt),
-          MG_MTL_SEGMENT_BUFFER_SIZE = (4<<20)*sizeof(mg_mtl_segment);
+const u32 MG_MTL_PATH_BUFFER_SIZE       = (4<<20)*sizeof(mg_mtl_path),
+          MG_MTL_ELEMENT_BUFFER_SIZE    = (4<<20)*sizeof(mg_mtl_path_elt),
+          MG_MTL_SEGMENT_BUFFER_SIZE    = (4<<20)*sizeof(mg_mtl_segment),
+          MG_MTL_PATH_QUEUE_BUFFER_SIZE = (4<<20)*sizeof(mg_mtl_path_queue),
+          MG_MTL_TILE_QUEUE_BUFFER_SIZE = (4<<20)*sizeof(mg_mtl_tile_queue),
+          MG_MTL_TILE_OP_BUFFER_SIZE    = (4<<20)*sizeof(mg_mtl_tile_op);
 
 mg_canvas_backend* mg_mtl_canvas_create(mg_surface surface)
 {
@@ -238,18 +294,24 @@ mg_canvas_backend* mg_mtl_canvas_create(mg_surface surface)
 				LOG_ERROR("error : %s\n", errStr);
 				return(0);
 			}
-			id<MTLFunction> segmentFunction = [library newFunctionWithName:@"mtl_segment"];
+			id<MTLFunction> pathFunction = [library newFunctionWithName:@"mtl_path_setup"];
+			id<MTLFunction> segmentFunction = [library newFunctionWithName:@"mtl_segment_setup"];
 			id<MTLFunction> rasterFunction = [library newFunctionWithName:@"mtl_raster"];
 			id<MTLFunction> vertexFunction = [library newFunctionWithName:@"mtl_vertex_shader"];
 			id<MTLFunction> fragmentFunction = [library newFunctionWithName:@"mtl_fragment_shader"];
 
 			//NOTE: create pipelines
 			NSError* error = NULL;
-			backend->rasterPipeline = [metalSurface->device newComputePipelineStateWithFunction: rasterFunction
+
+			backend->pathPipeline = [metalSurface->device newComputePipelineStateWithFunction: pathFunction
 		                                                                           	error:&error];
 
 			backend->segmentPipeline = [metalSurface->device newComputePipelineStateWithFunction: segmentFunction
 		                                                                           	error:&error];
+
+			backend->rasterPipeline = [metalSurface->device newComputePipelineStateWithFunction: rasterFunction
+		                                                                           	error:&error];
+
 
 			MTLRenderPipelineDescriptor *pipelineStateDescriptor = [[MTLRenderPipelineDescriptor alloc] init];
 			pipelineStateDescriptor.label = @"blit pipeline";
@@ -295,6 +357,22 @@ mg_canvas_backend* mg_mtl_canvas_create(mg_surface surface)
 			                                                   options: bufferOptions];
 
 			backend->segmentCountBuffer = [metalSurface->device newBufferWithLength: sizeof(int)
+			                                                   options: bufferOptions];
+
+
+			backend->pathQueueBuffer = [metalSurface->device newBufferWithLength: MG_MTL_PATH_QUEUE_BUFFER_SIZE
+			                                                   options: bufferOptions];
+
+			backend->tileQueueBuffer = [metalSurface->device newBufferWithLength: MG_MTL_TILE_QUEUE_BUFFER_SIZE
+			                                                   options: bufferOptions];
+
+			backend->tileQueueCountBuffer = [metalSurface->device newBufferWithLength: sizeof(int)
+			                                                   options: bufferOptions];
+
+			backend->tileOpBuffer = [metalSurface->device newBufferWithLength: MG_MTL_TILE_OP_BUFFER_SIZE
+			                                                   options: bufferOptions];
+
+			backend->tileOpCountBuffer = [metalSurface->device newBufferWithLength: sizeof(int)
 			                                                   options: bufferOptions];
 		}
 

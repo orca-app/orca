@@ -83,8 +83,8 @@ int main()
 			mg_fill();
 
 			mg_move_to(200, 100);
-			mg_line_to(400, 100);
-			mg_line_to(400, 200);
+			mg_line_to(410, 100);
+			mg_line_to(410, 200);
 			mg_line_to(200, 200);
 			mg_close_path();
 			mg_set_color_rgba(0, 1, 0, 1);
