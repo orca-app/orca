@@ -62,15 +62,15 @@ static void mg_update_path_extents(vec4* extents, vec2 p)
 }
 
 void mg_mtl_canvas_render(mg_canvas_backend* interface,
-                            u32 primitiveCount,
-                            mg_primitive* primitives,
-                            u32 eltCount,
-                            mg_path_elt* pathElements)
+                          mg_color clearColor,
+                          u32 primitiveCount,
+                          mg_primitive* primitives,
+                          u32 eltCount,
+                          mg_path_elt* pathElements)
 {
 	mg_mtl_canvas_backend* backend = (mg_mtl_canvas_backend*)interface;
 
-	//TODO: update rolling buffers
-
+	//NOTE: update rolling buffers
 	dispatch_semaphore_wait(backend->bufferSemaphore, DISPATCH_TIME_FOREVER);
 	backend->bufferIndex = (backend->bufferIndex + 1) % MG_MTL_INPUT_BUFFERS_COUNT;
 
@@ -264,7 +264,8 @@ void mg_mtl_canvas_render(mg_canvas_backend* interface,
 			//TODO: clear here?
 			MTLRenderPassDescriptor* renderPassDescriptor = [MTLRenderPassDescriptor renderPassDescriptor];
 			renderPassDescriptor.colorAttachments[0].texture = surface->drawable.texture;
-			renderPassDescriptor.colorAttachments[0].loadAction = MTLLoadActionLoad;
+			renderPassDescriptor.colorAttachments[0].loadAction = MTLLoadActionClear;
+			renderPassDescriptor.colorAttachments[0].clearColor = MTLClearColorMake(clearColor.r, clearColor.g, clearColor.b, clearColor.a);
 			renderPassDescriptor.colorAttachments[0].storeAction = MTLStoreActionStore;
 
 			id<MTLRenderCommandEncoder> renderEncoder = [surface->commandBuffer renderCommandEncoderWithDescriptor:renderPassDescriptor];

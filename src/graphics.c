@@ -2977,7 +2977,8 @@ void mg_flush_commands(int primitiveCount, mg_primitive* primitives, mg_path_elt
 
 	if(canvas->backend && canvas->backend->render)
 	{
-		canvas->backend->render(canvas->backend, primitiveCount, primitives, canvas->path.startIndex + canvas->path.count, pathElements);
+		int eltCount = canvas->path.startIndex + canvas->path.count;
+		canvas->backend->render(canvas->backend, canvas->clearColor, primitiveCount, primitives, eltCount, pathElements);
 		return;
 	}
 

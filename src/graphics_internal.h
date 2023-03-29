@@ -205,6 +205,7 @@ typedef struct mg_primitive
 } mg_primitive;
 
 typedef void (*mg_canvas_backend_render_proc)(mg_canvas_backend* backend,
+                                              mg_color clearColor,
                                               u32 primitiveCount,
                                               mg_primitive* primitives,
                                               u32 eltCount,
