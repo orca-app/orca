@@ -18,7 +18,8 @@
 
 #define LOG_SUBSYSTEM "Graphics"
 
-const int MG_MTL_INPUT_BUFFERS_COUNT = 3;
+const int MG_MTL_INPUT_BUFFERS_COUNT = 3,
+          MG_MTL_TILE_SIZE = 16;
 
 typedef struct mg_mtl_canvas_backend
 {
@@ -28,6 +29,7 @@ typedef struct mg_mtl_canvas_backend
 	id<MTLComputePipelineState> pathPipeline;
 	id<MTLComputePipelineState> segmentPipeline;
 	id<MTLComputePipelineState> backpropPipeline;
+	id<MTLComputePipelineState> mergePipeline;
 	id<MTLComputePipelineState> rasterPipeline;
 	id<MTLRenderPipelineState> blitPipeline;
 
@@ -46,6 +48,7 @@ typedef struct mg_mtl_canvas_backend
 	id<MTLBuffer> tileQueueCountBuffer;
 	id<MTLBuffer> tileOpBuffer;
 	id<MTLBuffer> tileOpCountBuffer;
+	id<MTLBuffer> screenTilesBuffer;
 
 } mg_mtl_canvas_backend;
 
@@ -140,7 +143,13 @@ void mg_mtl_canvas_render(mg_canvas_backend* interface,
 	mp_rect frame = mg_surface_get_frame(backend->surface);
 	f32 scale = surface->mtlLayer.contentsScale;
 	vec2 viewportSize = {frame.w * scale, frame.h * scale};
-	int tileSize = 16;
+	int tileSize = MG_MTL_TILE_SIZE;
+	int nTilesX = (int)(frame.w * scale + tileSize - 1)/tileSize;
+	int nTilesY = (int)(frame.h * scale + tileSize - 1)/tileSize;
+
+	/////////////////////////////////////////////////////////////////////////////////////
+	//TODO: ensure screen tiles buffer is correct size
+	/////////////////////////////////////////////////////////////////////////////////////
 
 	//NOTE: encode GPU commands
 	@autoreleasepool
@@ -208,19 +217,35 @@ void mg_mtl_canvas_render(mg_canvas_backend* interface,
 		[backpropEncoder dispatchThreads: backpropGridSize threadsPerThreadgroup: backpropGroupSize];
 		[backpropEncoder endEncoding];
 
+		//NOTE: merge pass
+		id<MTLComputeCommandEncoder> mergeEncoder = [surface->commandBuffer computeCommandEncoder];
+		mergeEncoder.label = @"merge pass";
+		[mergeEncoder setComputePipelineState: backend->mergePipeline];
+
+		[mergeEncoder setBytes:&pathCount length:sizeof(int) atIndex:0];
+		[mergeEncoder setBuffer:backend->pathBuffer[backend->bufferIndex] offset:0 atIndex:1];
+		[mergeEncoder setBuffer:backend->pathQueueBuffer offset:0 atIndex:2];
+		[mergeEncoder setBuffer:backend->tileQueueBuffer offset:0 atIndex:3];
+		[mergeEncoder setBuffer:backend->tileOpBuffer offset:0 atIndex:4];
+		[mergeEncoder setBuffer:backend->tileOpCountBuffer offset:0 atIndex:5];
+		[mergeEncoder setBuffer:backend->screenTilesBuffer offset:0 atIndex:6];
+
+		MTLSize mergeGridSize = MTLSizeMake(nTilesX, nTilesY, 1);
+		MTLSize mergeGroupSize = MTLSizeMake(16, 16, 1);
+
+		[mergeEncoder dispatchThreads: mergeGridSize threadsPerThreadgroup: mergeGroupSize];
+		[mergeEncoder endEncoding];
+
 		//NOTE: raster pass
 		id<MTLComputeCommandEncoder> rasterEncoder = [surface->commandBuffer computeCommandEncoder];
 		rasterEncoder.label = @"raster pass";
 		[rasterEncoder setComputePipelineState: backend->rasterPipeline];
 
-		[rasterEncoder setBytes:&pathCount length:sizeof(int) atIndex:0];
-		[rasterEncoder setBuffer:backend->pathBuffer[backend->bufferIndex] offset:0 atIndex:1];
-		[rasterEncoder setBuffer:backend->segmentCountBuffer offset:0 atIndex:2];
+		[rasterEncoder setBuffer:backend->screenTilesBuffer offset:0 atIndex:0];
+		[rasterEncoder setBuffer:backend->tileOpBuffer offset:0 atIndex:1];
+		[rasterEncoder setBuffer:backend->pathBuffer[backend->bufferIndex] offset:0 atIndex:2];
 		[rasterEncoder setBuffer:backend->segmentBuffer offset:0 atIndex:3];
-		[rasterEncoder setBuffer:backend->pathQueueBuffer offset:0 atIndex:4];
-		[rasterEncoder setBuffer:backend->tileQueueBuffer offset:0 atIndex:5];
-		[rasterEncoder setBuffer:backend->tileOpBuffer offset:0 atIndex:6];
-		[rasterEncoder setBytes:&tileSize length:sizeof(int) atIndex:7];
+		[rasterEncoder setBytes:&tileSize length:sizeof(int) atIndex:4];
 
 		[rasterEncoder setTexture:backend->outTexture atIndex:0];
 
@@ -270,6 +295,7 @@ void mg_mtl_canvas_destroy(mg_canvas_backend* interface)
 		[backend->pathPipeline release];
 		[backend->segmentPipeline release];
 		[backend->backpropPipeline release];
+		[backend->mergePipeline release];
 		[backend->rasterPipeline release];
 		[backend->blitPipeline release];
 
@@ -284,6 +310,7 @@ void mg_mtl_canvas_destroy(mg_canvas_backend* interface)
 		[backend->tileQueueCountBuffer release];
 		[backend->tileOpBuffer release];
 		[backend->tileOpCountBuffer release];
+		[backend->screenTilesBuffer release];
 	}
 
 	free(backend);
@@ -329,6 +356,7 @@ mg_canvas_backend* mg_mtl_canvas_create(mg_surface surface)
 			id<MTLFunction> pathFunction = [library newFunctionWithName:@"mtl_path_setup"];
 			id<MTLFunction> segmentFunction = [library newFunctionWithName:@"mtl_segment_setup"];
 			id<MTLFunction> backpropFunction = [library newFunctionWithName:@"mtl_backprop"];
+			id<MTLFunction> mergeFunction = [library newFunctionWithName:@"mtl_merge"];
 			id<MTLFunction> rasterFunction = [library newFunctionWithName:@"mtl_raster"];
 			id<MTLFunction> vertexFunction = [library newFunctionWithName:@"mtl_vertex_shader"];
 			id<MTLFunction> fragmentFunction = [library newFunctionWithName:@"mtl_fragment_shader"];
@@ -343,6 +371,9 @@ mg_canvas_backend* mg_mtl_canvas_create(mg_surface surface)
 		                                                                           	error:&error];
 
 			backend->backpropPipeline = [metalSurface->device newComputePipelineStateWithFunction: backpropFunction
+		                                                                           	error:&error];
+
+			backend->mergePipeline = [metalSurface->device newComputePipelineStateWithFunction: mergeFunction
 		                                                                           	error:&error];
 
 			backend->rasterPipeline = [metalSurface->device newComputePipelineStateWithFunction: rasterFunction
@@ -417,8 +448,13 @@ mg_canvas_backend* mg_mtl_canvas_create(mg_surface surface)
 
 			backend->tileOpCountBuffer = [metalSurface->device newBufferWithLength: sizeof(int)
 			                                                   options: bufferOptions];
-		}
 
+			int tileSize = MG_MTL_TILE_SIZE;
+			int nTilesX = (int)(frame.w * scale + tileSize - 1)/tileSize;
+			int nTilesY = (int)(frame.h * scale + tileSize - 1)/tileSize;
+			backend->screenTilesBuffer = [metalSurface->device newBufferWithLength: nTilesX*nTilesY*sizeof(int)
+			                                                   options: bufferOptions];
+		}
 	}
 	return((mg_canvas_backend*)backend);
 }

@@ -166,6 +166,7 @@ kernel void mtl_segment_setup(constant int* elementCount [[buffer(0)]],
 
 					op->kind = MG_MTL_OP_SEGMENT;
 					op->index = segIndex;
+					op->next = -1;
 
 					int tileIndex = y*pathQueue->area.z + x;
 					device mg_mtl_tile_queue* tile = &tileQueues[tileIndex];
@@ -252,7 +253,7 @@ kernel void mtl_backprop(const device mg_mtl_path_queue* pathQueueBuffer [[buffe
 		rowIndex = atomic_fetch_add_explicit(&nextRowIndex, 1, memory_order_relaxed);
 	}
 }
-/*
+
 kernel void mtl_merge(constant int* pathCount [[buffer(0)]],
                       const device mg_mtl_path* pathBuffer [[buffer(1)]],
                       const device mg_mtl_path_queue* pathQueueBuffer [[buffer(2)]],
@@ -266,6 +267,7 @@ kernel void mtl_merge(constant int* pathCount [[buffer(0)]],
 	int2 tileCoord = int2(threadCoord);
 	int tileIndex = tileCoord.y * gridSize.x + tileCoord.x;
 	device int* nextLink = &screenTilesBuffer[tileIndex];
+	*nextLink = -1;
 
 	for(int pathIndex = 0; pathIndex < pathCount[0]; pathIndex++)
 	{
@@ -281,63 +283,69 @@ kernel void mtl_merge(constant int* pathCount [[buffer(0)]],
 			const device mg_mtl_tile_queue* tileQueue = &tileQueueBuffer[pathQueue->tileQueues + pathTileIndex];
 
 			int windingOffset = atomic_load_explicit(&tileQueue->windingOffset, memory_order_relaxed);
-			int opIndex = atomic_load_explicit(&tileQueue->first, memory_order_relaxed);
+			int firstOpIndex = atomic_load_explicit(&tileQueue->first, memory_order_relaxed);
 
-			if((opIndex != -1) || (windingOffset & 1))
+			if(firstOpIndex == -1)
 			{
-				//NOTE: add path start op (with winding offset)
-				int startOpIndex = atomic_fetch_add_explicit(tileOpCount, 1, memory_order_relaxed);
-				device mg_mtl_tile_op* startOp = &tileOpBuffer[startOpIndex];
-				startOp->kind = MG_MTL_OP_START;
-				startOp->index = pathIndex;
-				startOp->windingOffset = windingOffset;
-
-				if(opIndex == -1)
+				if(windingOffset & 1)
 				{
-					//NOTE: the tile is fully covered by path fill. Insert start op,
-					//      and if the fill color is opaque, trim tile list.
+					//NOTE: tile is full covered. Add path start op (with winding offset).
+					//      Additionally if color is opaque, trim tile list.
+					int pathOpIndex = atomic_fetch_add_explicit(tileOpCount, 1, memory_order_relaxed);
+					device mg_mtl_tile_op* pathOp = &tileOpBuffer[pathOpIndex];
+					pathOp->kind = MG_MTL_OP_START;
+					pathOp->next = -1;
+					pathOp->index = pathIndex;
+					pathOp->windingOffset = windingOffset;
+
 					if(pathBuffer[pathIndex].color.a == 1)
 					{
-						screenTilesBuffer[tileIndex] = startOpIndex;
+						screenTilesBuffer[tileIndex] = pathOpIndex;
 					}
 					else
 					{
-						*nextLink = startOpIndex;
+						*nextLink = pathOpIndex;
 					}
-					nextLink = &startOp->next;
+					nextLink = &pathOp->next;
 				}
-				else
-				{
-					//NOTE: add start op
-					*nextLink = startOpIndex;
-					nextLink = &startOp->next;
+				// else, tile is fully uncovered, skip path
+			}
+			else
+			{
+				//NOTE: add path start op (with winding offset)
+				int pathOpIndex = atomic_fetch_add_explicit(tileOpCount, 1, memory_order_relaxed);
+				device mg_mtl_tile_op* pathOp = &tileOpBuffer[pathOpIndex];
+				pathOp->kind = MG_MTL_OP_START;
+				pathOp->next = -1;
+				pathOp->index = pathIndex;
+				pathOp->windingOffset = windingOffset;
 
-					//NOTE: chain path ops to end of tile list
-					device mg_mtl_tile_op* lastOp = &tileOpBuffer[opIndex];
-					*nextLink = opIndex;
-					nextLink = &lastOp->next;
-				}
+				*nextLink = pathOpIndex;
+				nextLink = &pathOp->next;
+
+				//NOTE: chain remaining path ops to end of tile list
+				int lastOpIndex = tileQueue->last;
+				device mg_mtl_tile_op* lastOp = &tileOpBuffer[lastOpIndex];
+				*nextLink = firstOpIndex;
+				nextLink = &lastOp->next;
 			}
 		}
 	}
 }
-*/
-kernel void mtl_raster(constant int* pathCount [[buffer(0)]],
-                       const device mg_mtl_path* pathBuffer [[buffer(1)]],
-                       constant int* segCount [[buffer(2)]],
+
+kernel void mtl_raster(const device int* screenTilesBuffer [[buffer(0)]],
+                       const device mg_mtl_tile_op* tileOpBuffer [[buffer(1)]],
+                       const device mg_mtl_path* pathBuffer [[buffer(2)]],
                        const device mg_mtl_segment* segmentBuffer [[buffer(3)]],
-                       const device mg_mtl_path_queue* pathQueueBuffer [[buffer(4)]],
-                       const device mg_mtl_tile_queue* tileQueueBuffer [[buffer(5)]],
-                       const device mg_mtl_tile_op* tileOpBuffer [[buffer(6)]],
-                       constant int* tileSize [[buffer(7)]],
+                       constant int* tileSize [[buffer(4)]],
                        texture2d<float, access::write> outTexture [[texture(0)]],
                        uint2 threadCoord [[thread_position_in_grid]],
                        uint2 gridSize [[threads_per_grid]])
 {
 	int2 pixelCoord = int2(threadCoord);
 	int2 tileCoord = pixelCoord / tileSize[0];
-
-	float4 color = float4(0, 0, 0, 0);
+	int nTilesX = (int(gridSize.x) + tileSize[0] - 1)/tileSize[0];
+	int tileIndex = tileCoord.y * nTilesX + tileCoord.x;
 
 	if( (pixelCoord.x % tileSize[0] == 0)
 	  ||(pixelCoord.y % tileSize[0] == 0))
@@ -346,83 +354,80 @@ kernel void mtl_raster(constant int* pathCount [[buffer(0)]],
 		return;
 	}
 
-	for(int pathIndex = 0; pathIndex < pathCount[0]; pathIndex++)
+	float4 color = float4(0, 0, 0, 0);
+	int pathIndex = 0;
+	int winding = 0;
+	int opIndex = screenTilesBuffer[tileIndex];
+
+	while(opIndex != -1)
 	{
-		const device mg_mtl_path_queue* pathQueue = &pathQueueBuffer[pathIndex];
-		int2 pathTileCoord = tileCoord - pathQueue->area.xy;
+		const device mg_mtl_tile_op* op = &tileOpBuffer[opIndex];
 
-		if(  pathTileCoord.x >= 0
-		  && pathTileCoord.x < pathQueue->area.z
-		  && pathTileCoord.y >= 0
-		  && pathTileCoord.y < pathQueue->area.w)
+		if(op->kind == MG_MTL_OP_START)
 		{
-			int pathTileIndex = pathTileCoord.y * pathQueue->area.z + pathTileCoord.x;
-			const device mg_mtl_tile_queue* tileQueue = &tileQueueBuffer[pathQueue->tileQueues + pathTileIndex];
-
-			int winding = atomic_load_explicit(&tileQueue->windingOffset, memory_order_relaxed);
-
-			int opIndex = atomic_load_explicit(&tileQueue->first, memory_order_relaxed);
-			while(opIndex != -1)
-			{
-				const device mg_mtl_tile_op* op = &tileOpBuffer[opIndex];
-
-				if(op->kind == MG_MTL_OP_SEGMENT)
-				{
-					const device mg_mtl_segment* seg = &segmentBuffer[op->index];
-
-					if(pixelCoord.y >= seg->box.y && pixelCoord.y < seg->box.w)
-					{
-						if(pixelCoord.x < seg->box.x)
-						{
-							winding += seg->windingIncrement;
-						}
-						else if(pixelCoord.x < seg->box.z)
-						{
-							/*TODO: if pixel is on opposite size of diagonal as curve on the right, increment
-					       			otherwise if not on same size of diagonal as curve, do implicit test
-							*/
-							float alpha = (seg->box.w - seg->box.y)/(seg->box.z - seg->box.x);
-							float ofs = seg->box.w - seg->box.y;
-							float dx = pixelCoord.x - seg->box.x;
-							float dy = pixelCoord.y - seg->box.y;
-
-							if( (seg->config == MG_MTL_BR && dy > alpha*dx)
-				  			||(seg->config == MG_MTL_TR && dy < ofs - alpha*dx))
-							{
-								winding += seg->windingIncrement;
-							}
-							else if(  !(seg->config == MG_MTL_TL && dy < alpha*dx)
-				       			&& !(seg->config == MG_MTL_BL && dy > ofs - alpha*dx))
-							{
-								//Need implicit test, but for lines, we only have config BR or TR, so the test is always negative for now
-							}
-						}
-					}
-
-					if(op->crossRight)
-					{
-						if( (seg->config == MG_MTL_BR || seg->config == MG_MTL_TL)
-						  &&(pixelCoord.y >= seg->box.w))
-						{
-							winding += seg->windingIncrement;
-						}
-						else if( (seg->config == MG_MTL_BL || seg->config == MG_MTL_TR)
-						       &&(pixelCoord.y >= seg->box.y))
-						{
-							winding -= seg->windingIncrement;
-						}
-					}
-				}
-				opIndex = op->next;
-			}
-
 			if(winding & 1)
 			{
 				float4 pathColor = pathBuffer[pathIndex].color;
 				pathColor.rgb *= pathColor.a;
 				color = color*(1-pathColor.a) + pathColor;
 			}
+			pathIndex = op->index;
+			winding = op->windingOffset;
 		}
+		else if(op->kind == MG_MTL_OP_SEGMENT)
+		{
+			const device mg_mtl_segment* seg = &segmentBuffer[op->index];
+
+			if(pixelCoord.y >= seg->box.y && pixelCoord.y < seg->box.w)
+			{
+				if(pixelCoord.x < seg->box.x)
+				{
+					winding += seg->windingIncrement;
+				}
+				else if(pixelCoord.x < seg->box.z)
+				{
+					/*TODO: if pixel is on opposite size of diagonal as curve on the right, increment
+					       	otherwise if not on same size of diagonal as curve, do implicit test
+					*/
+					float alpha = (seg->box.w - seg->box.y)/(seg->box.z - seg->box.x);
+					float ofs = seg->box.w - seg->box.y;
+					float dx = pixelCoord.x - seg->box.x;
+					float dy = pixelCoord.y - seg->box.y;
+
+					if( (seg->config == MG_MTL_BR && dy > alpha*dx)
+				  	||(seg->config == MG_MTL_TR && dy < ofs - alpha*dx))
+					{
+						winding += seg->windingIncrement;
+					}
+					else if(  !(seg->config == MG_MTL_TL && dy < alpha*dx)
+				       	&& !(seg->config == MG_MTL_BL && dy > ofs - alpha*dx))
+					{
+						//Need implicit test, but for lines, we only have config BR or TR, so the test is always negative for now
+					}
+				}
+			}
+
+			if(op->crossRight)
+			{
+				if( (seg->config == MG_MTL_BR || seg->config == MG_MTL_TL)
+						&&(pixelCoord.y >= seg->box.w))
+				{
+					winding += seg->windingIncrement;
+				}
+				else if( (seg->config == MG_MTL_BL || seg->config == MG_MTL_TR)
+						     &&(pixelCoord.y >= seg->box.y))
+				{
+					winding -= seg->windingIncrement;
+				}
+			}
+		}
+		opIndex = op->next;
+	}
+	if(winding & 1)
+	{
+		float4 pathColor = pathBuffer[pathIndex].color;
+		pathColor.rgb *= pathColor.a;
+		color = color*(1-pathColor.a) + pathColor;
 	}
 
 	outTexture.write(color, uint2(pixelCoord));
