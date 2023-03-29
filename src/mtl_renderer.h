@@ -59,18 +59,26 @@ typedef struct mg_mtl_path_queue
 	using namespace metal;
 #endif
 
-typedef enum { MG_MTL_OP_SEGMENT } mg_mtl_tile_op_kind;
+typedef enum { MG_MTL_OP_START,
+               MG_MTL_OP_SEGMENT } mg_mtl_tile_op_kind;
 
 typedef struct mg_mtl_tile_op
 {
 	mg_mtl_tile_op_kind kind;
 	int index;
 	int next;
+	union
+	{
+		bool crossRight;
+		int windingOffset;
+	};
 } mg_mtl_tile_op;
 
 typedef struct mg_mtl_tile_queue
 {
+	atomic_int windingOffset;
 	atomic_int first;
+	int last;
 
 } mg_mtl_tile_queue;
 
