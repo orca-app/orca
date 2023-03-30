@@ -100,6 +100,10 @@ void mg_mtl_canvas_render(mg_canvas_backend* interface,
 				}
 				else if(elt->type == MG_PATH_LINE)
 				{
+					/////////////////////////////////////////////////////////////////////////////////////
+					//TODO: order control points so that we can collapse all elements into same codepath
+					/////////////////////////////////////////////////////////////////////////////////////
+
 					//NOTE: transform and push path elt + update primitive bounding box
 					vec2 p0 = mg_mat2x3_mul(primitive->attributes.transform, currentPos);
 					vec2 p3 = mg_mat2x3_mul(primitive->attributes.transform, elt->p[0]);
@@ -114,6 +118,49 @@ void mg_mtl_canvas_render(mg_canvas_backend* interface,
 					mtlElt->pathIndex = primitiveIndex;
 					mtlElt->kind = (mg_mtl_seg_kind)elt->type;
 					mtlElt->p[0] = (vector_float2){p0.x, p0.y};
+					mtlElt->p[3] = (vector_float2){p3.x, p3.y};
+				}
+				else if(elt->type == MG_PATH_QUADRATIC)
+				{
+					vec2 p0 = mg_mat2x3_mul(primitive->attributes.transform, currentPos);
+					vec2 p1 = mg_mat2x3_mul(primitive->attributes.transform, elt->p[0]);
+					vec2 p3 = mg_mat2x3_mul(primitive->attributes.transform, elt->p[1]);
+					currentPos = elt->p[1];
+
+					mg_update_path_extents(&pathExtents, p0);
+					mg_update_path_extents(&pathExtents, p1);
+					mg_update_path_extents(&pathExtents, p3);
+
+					mg_mtl_path_elt* mtlElt = &elementBufferData[mtlEltCount];
+					mtlEltCount++;
+
+					mtlElt->pathIndex = primitiveIndex;
+					mtlElt->kind = (mg_mtl_seg_kind)elt->type;
+					mtlElt->p[0] = (vector_float2){p0.x, p0.y};
+					mtlElt->p[1] = (vector_float2){p1.x, p1.y};
+					mtlElt->p[3] = (vector_float2){p3.x, p3.y};
+				}
+				else if(elt->type == MG_PATH_CUBIC)
+				{
+					vec2 p0 = mg_mat2x3_mul(primitive->attributes.transform, currentPos);
+					vec2 p1 = mg_mat2x3_mul(primitive->attributes.transform, elt->p[0]);
+					vec2 p2 = mg_mat2x3_mul(primitive->attributes.transform, elt->p[1]);
+					vec2 p3 = mg_mat2x3_mul(primitive->attributes.transform, elt->p[2]);
+					currentPos = elt->p[2];
+
+					mg_update_path_extents(&pathExtents, p0);
+					mg_update_path_extents(&pathExtents, p1);
+					mg_update_path_extents(&pathExtents, p2);
+					mg_update_path_extents(&pathExtents, p3);
+
+					mg_mtl_path_elt* mtlElt = &elementBufferData[mtlEltCount];
+					mtlEltCount++;
+
+					mtlElt->pathIndex = primitiveIndex;
+					mtlElt->kind = (mg_mtl_seg_kind)elt->type;
+					mtlElt->p[0] = (vector_float2){p0.x, p0.y};
+					mtlElt->p[1] = (vector_float2){p1.x, p1.y};
+					mtlElt->p[1] = (vector_float2){p2.x, p2.y};
 					mtlElt->p[3] = (vector_float2){p3.x, p3.y};
 				}
 			}

@@ -76,10 +76,273 @@ bool mtl_is_left_of_segment(float2 p, const device mg_mtl_segment* seg)
 		else if(  !(seg->config == MG_MTL_TL && dy < alpha*dx)
 		       && !(seg->config == MG_MTL_BL && dy > ofs - alpha*dx))
 		{
-			//Need implicit test, but for lines, we only have config BR or TR, so the test is always negative for now
+			//NOTE: for lines, we only have config BR or TR, so the test is always negative
+
+			if(seg->kind == MG_MTL_QUADRATIC)
+			{
+				/*
+				//DEBUG: behave as a straight line segment
+				if((seg->config == MG_MTL_BL || seg->config == MG_MTL_TL))
+				{
+					isLeft = true;
+				}
+				/*/
+
+				float3 ph = {p.x, p.y, 1};
+				float3 klm = seg->implicitMatrix * ph;
+
+				if((klm.x*klm.x - klm.y)*klm.z < 0)
+				{
+					isLeft = true;
+				}
+				//*/
+			}
 		}
 	}
 	return(isLeft);
+}
+
+void mtl_bin_segment_to_tiles(int segIndex,
+                              device mg_mtl_segment* seg,
+                              const device mg_mtl_path_queue* pathQueueBuffer,
+                              device mg_mtl_tile_queue* tileQueueBuffer,
+                              device mg_mtl_tile_op* tileOpBuffer,
+                              device atomic_int* tileOpCount,
+                              int tileSize)
+{
+	//NOTE: add segment index to the queues of tiles it overlaps with
+	const device mg_mtl_path_queue* pathQueue = &pathQueueBuffer[seg->pathIndex];
+	device mg_mtl_tile_queue* tileQueues = &tileQueueBuffer[pathQueue->tileQueues];
+
+	int4 coveredTiles = int4(seg->box)/tileSize;
+	int xMin = max(0, coveredTiles.x - pathQueue->area.x);
+	int yMin = max(0, coveredTiles.y - pathQueue->area.y);
+	int xMax = min(coveredTiles.z - pathQueue->area.x, pathQueue->area.z-1);
+	int yMax = min(coveredTiles.w - pathQueue->area.y, pathQueue->area.w-1);
+
+	for(int y = yMin; y <= yMax; y++)
+	{
+		for(int x = xMin ; x <= xMax; x++)
+		{
+			float4 tileBox = (float4){float(x + pathQueue->area.x),
+			                          float(y + pathQueue->area.y),
+			                          float(x + pathQueue->area.x + 1),
+			                          float(y + pathQueue->area.y + 1)} * float(tileSize);
+
+			//NOTE: select two corners of tile box to test against the curve
+			float2 testPoint0;
+			float2 testPoint1;
+			if(seg->config == MG_MTL_BL || seg->config == MG_MTL_TR)
+			{
+				testPoint0 = (float2){tileBox.x, tileBox.y},
+				testPoint1 = (float2){tileBox.z, tileBox.w};
+			}
+			else
+			{
+				testPoint0 = (float2){tileBox.z, tileBox.y};
+				testPoint1 = (float2){tileBox.x, tileBox.w};
+			}
+			bool test0 = mtl_is_left_of_segment(testPoint0, seg);
+			bool test1 = mtl_is_left_of_segment(testPoint1, seg);
+
+			//NOTE: the curve overlaps the tile only if test points are on opposite sides of segment
+			if(test0 != test1)
+			{
+				int tileOpIndex = atomic_fetch_add_explicit(tileOpCount, 1, memory_order_relaxed);
+				device mg_mtl_tile_op* op = &tileOpBuffer[tileOpIndex];
+
+				op->kind = MG_MTL_OP_SEGMENT;
+				op->index = segIndex;
+				op->next = -1;
+
+				int tileIndex = y*pathQueue->area.z + x;
+				device mg_mtl_tile_queue* tile = &tileQueues[tileIndex];
+				op->next = atomic_exchange_explicit(&tile->first, tileOpIndex, memory_order_relaxed);
+				if(op->next == -1)
+				{
+					tile->last = tileOpIndex;
+				}
+
+				//NOTE: if the segment crosses the tile's bottom boundary, update the tile's winding offset
+				//      testPoint0 is always a bottom point. We select the other one and check if they are on
+				//      opposite sides of the curve.
+				//      We also need to check that the endpoints of the curve are on opposite sides of the bottom
+				//      boundary.
+				float2 testPoint3;
+				if(seg->config == MG_MTL_BL || seg->config == MG_MTL_TR)
+				{
+					testPoint3 = (float2){tileBox.z, tileBox.y};
+				}
+				else
+				{
+					testPoint3 = (float2){tileBox.x, tileBox.y};
+				}
+				bool test3 = mtl_is_left_of_segment(testPoint3, seg);
+
+				if(  test0 != test3
+					 && seg->box.y <= testPoint0.y
+					 && seg->box.w > testPoint0.y)
+				{
+					atomic_fetch_add_explicit(&tile->windingOffset, seg->windingIncrement, memory_order_relaxed);
+				}
+
+				//NOTE: if the segment crosses the right boundary, mark it. We reuse one of the previous tests
+				float2 top = {tileBox.z, tileBox.w};
+				bool testTop = mtl_is_left_of_segment(top, seg);
+				bool testBottom = (seg->config == MG_MTL_BL || seg->config == MG_MTL_TR)? test3 : test0;
+
+				if(testTop != testBottom
+					 && seg->box.x <= top.x
+					 && seg->box.z > top.x)
+				{
+					op->crossRight = true;
+				}
+				else
+				{
+					op->crossRight = false;
+				}
+			}
+		}
+	}
+}
+
+int mtl_quadratic_monotonize(float2 p[3], float2 sp[9])
+{
+	//NOTE: compute split points
+	int count = 0;
+	float splitPoints[4];
+	splitPoints[0] = 0;
+	count++;
+
+	float2 r = (p[0] - p[1])/(p[2] - 2*p[1] + p[0]);
+	if(r.x > r.y)
+	{
+		float tmp = r.x;
+		r.x = r.y;
+		r.y = tmp;
+	}
+	if(r.x > 0 && r.x < 1)
+	{
+		splitPoints[count] = r.x;
+		count++;
+	}
+	if(r.y > 0 && r.y < 1)
+	{
+		splitPoints[count] = r.y;
+		count++;
+	}
+	splitPoints[count] = 1;
+	count++;
+
+	for(int i=0; i<count-1; i++)
+	{
+		//NOTE cut curve between splitPoint[i] and splitPoint[i+1]
+		float z0 = splitPoints[i];
+		float z1 = splitPoints[i+1];
+		float zr = (z1-z0)/(1-z0);
+
+		float2 q0 = (z0-1)*(z0-1)*p[0]
+		          - 2*(z0-1)*z0*p[1]
+		          + z0*z0*p[2];
+
+		float2 q1 = (z0-1)*(z0-1)*(1-zr)*p[0]
+		          + ((1-z0)*zr - 2*(z0-1)*(1-zr)*z0)*p[1]
+		          + (z0*z0*(1-zr) + z0*zr)*p[2];
+
+		float2 q2 = (z0-1)*(z0-1)*(1-zr)*(1-zr)*p[0]
+		          - 2*((z0-1)*z0*(zr-1)*(zr-1)+ (1-z0)*(zr-1)*zr)*p[1]
+		          + (z0*z0*(zr-1)*(zr-1) - 2*z0*(zr-1)*zr + zr*zr)*p[2];
+
+		sp[3*i] = q0;
+		sp[3*i+1] = q1;
+		sp[3*i+2] = q2;
+	}
+	return(count-1);
+}
+
+void mtl_setup_monotonic_quadratic(thread float2* p,
+                                   int pathIndex,
+                                   device atomic_int* segmentCount,
+                                   device mg_mtl_segment* segmentBuffer,
+                                   const device mg_mtl_path_queue* pathQueueBuffer,
+                                   device mg_mtl_tile_queue* tileQueueBuffer,
+                                   device mg_mtl_tile_op* tileOpBuffer,
+                                   device atomic_int* tileOpCount,
+                                   int tileSize,
+                                   int debugID)
+{
+	//TODO: collapse with other segment kinds
+	int segIndex = atomic_fetch_add_explicit(segmentCount, 1, memory_order_relaxed);
+	device mg_mtl_segment* seg = &segmentBuffer[segIndex];
+
+
+	seg->debugID = debugID;
+
+	seg->kind = MG_MTL_QUADRATIC;
+	seg->pathIndex = pathIndex;
+	seg->box = (vector_float4){min(p[0].x, p[2].x),
+	                           min(p[0].y, p[2].y),
+	                           max(p[0].x, p[2].x),
+	                           max(p[0].y, p[2].y)};
+
+	float dx = p[1].x - seg->box.x;
+	float dy = p[1].y - seg->box.y;
+	float alpha = (seg->box.w - seg->box.y)/(seg->box.z - seg->box.x);
+	float ofs = seg->box.w - seg->box.y;
+
+	if( (p[2].x > p[0].x && p[2].y < p[0].y)
+		 ||(p[2].x <= p[0].x && p[2].y > p[0].y))
+	{
+		if(dy < ofs - alpha*dx)
+		{
+			seg->config = MG_MTL_BL;
+		}
+		else
+		{
+			seg->config = MG_MTL_TR;
+		}
+	}
+	else if( (p[2].x > p[0].x && p[2].y >= p[0].y)
+	          ||(p[2].x <= p[0].x && p[2].y <= p[0].y))
+	{
+		//NOTE: it is important to include horizontal segments here, so that the mtl_is_left_of_segment() test
+		//      becomes x > seg->box.x, in order to correctly detect right-crossing horizontal segments
+		if(dy > alpha*dx)
+		{
+			seg->config = MG_MTL_TL;
+		}
+		else
+		{
+			seg->config = MG_MTL_BR;
+		}
+	}
+	seg->windingIncrement = (p[2].y > p[0].y)? 1 : -1;
+
+	//NOTE: compute implicit equation matrix
+
+	float det = p[0].x*(p[1].y-p[2].y) + p[1].x*(p[2].y-p[0].y) + p[2].x*(p[0].y - p[1].y);
+
+	float a = p[0].y - p[1].y + 0.5*(p[2].y - p[0].y);
+	float b = p[1].x - p[0].x + 0.5*(p[0].x - p[2].x);
+	float c = p[0].x*p[1].y - p[1].x*p[0].y + 0.5*(p[2].x*p[0].y - p[0].x*p[2].y);
+	float d = p[0].y - p[1].y;
+	float e = p[1].x - p[0].x;
+	float f = p[0].x*p[1].y - p[1].x*p[0].y;
+
+	float flip = (seg->config == MG_MTL_TL || seg->config == MG_MTL_BL)? -1 : 1;
+/*
+	seg->implicitMatrix = (1/det)*matrix_float3x3({flip*a, flip*d, a},
+	                                              {flip*b, flip*e, b},
+	                                              {flip*c, flip*f, c});
+*/
+	float g = flip*(p[2].x*(p[0].y - p[1].y) + p[0].x*(p[1].y - p[2].y) + p[1].x*(p[2].y - p[0].y));
+
+	seg->implicitMatrix = (1/det)*matrix_float3x3({a, d, 0.},
+	                                              {b, e, 0.},
+	                                              {c, f, g});
+
+
+	mtl_bin_segment_to_tiles(segIndex, seg, pathQueueBuffer, tileQueueBuffer, tileOpBuffer, tileOpCount, tileSize);
 }
 
 kernel void mtl_segment_setup(constant int* elementCount [[buffer(0)]],
@@ -102,6 +365,8 @@ kernel void mtl_segment_setup(constant int* elementCount [[buffer(0)]],
 		int segIndex = atomic_fetch_add_explicit(segmentCount, 1, memory_order_relaxed);
 		device mg_mtl_segment* seg = &segmentBuffer[segIndex];
 
+		seg->debugID = 0;
+		seg->kind = elt->kind;
 		seg->pathIndex = elt->pathIndex;
 		seg->box = (vector_float4){min(p0.x, p3.x),
 		                           min(p0.y, p3.y),
@@ -123,99 +388,28 @@ kernel void mtl_segment_setup(constant int* elementCount [[buffer(0)]],
 
 		seg->windingIncrement = (p3.y > p0.y)? 1 : -1;
 
-		//NOTE: add segment index to the queues of tiles it overlaps with
-		const device mg_mtl_path_queue* pathQueue = &pathQueueBuffer[seg->pathIndex];
-		device mg_mtl_tile_queue* tileQueues = &tileQueueBuffer[pathQueue->tileQueues];
+		mtl_bin_segment_to_tiles(segIndex, seg, pathQueueBuffer, tileQueueBuffer, tileOpBuffer, tileOpCount, tileSize[0]);
+	}
+	else if(elt->kind == MG_MTL_QUADRATIC)
+	{
+		//NOTE: Quadratic has at most two split points (ie 3 monotonic sub curves)
+		float2 p[3] = {elt->p[0], elt->p[1], elt->p[3]};
+		float2 sp[9];
 
-		int4 coveredTiles = int4(seg->box)/tileSize[0];
-		int xMin = max(0, coveredTiles.x - pathQueue->area.x);
-		int yMin = max(0, coveredTiles.y - pathQueue->area.y);
-		int xMax = min(coveredTiles.z - pathQueue->area.x, pathQueue->area.z-1);
-		int yMax = min(coveredTiles.w - pathQueue->area.y, pathQueue->area.w-1);
+		int count = mtl_quadratic_monotonize(p, sp);
 
-		for(int y = yMin; y <= yMax; y++)
+		for(int i=0; i<count; i++)
 		{
-			for(int x = xMin ; x <= xMax; x++)
-			{
-				float4 tileBox = (float4){float(x + pathQueue->area.x),
-				                          float(y + pathQueue->area.y),
-				                          float(x + pathQueue->area.x + 1),
-				                          float(y + pathQueue->area.y + 1)} * float(tileSize[0]);
-
-				//NOTE: select two corners of tile box to test against the curve
-				float2 testPoint0;
-				float2 testPoint1;
-				if(seg->config == MG_MTL_BL || seg->config == MG_MTL_TR)
-				{
-					testPoint0 = (float2){tileBox.x, tileBox.y},
-					testPoint1 = (float2){tileBox.z, tileBox.w};
-				}
-				else
-				{
-					testPoint0 = (float2){tileBox.z, tileBox.y};
-					testPoint1 = (float2){tileBox.x, tileBox.w};
-				}
-				bool test0 = mtl_is_left_of_segment(testPoint0, seg);
-				bool test1 = mtl_is_left_of_segment(testPoint1, seg);
-
-				//NOTE: the curve overlaps the tile only if test points are on opposite sides of segment
-				if(test0 != test1)
-				{
-					int tileOpIndex = atomic_fetch_add_explicit(tileOpCount, 1, memory_order_relaxed);
-					device mg_mtl_tile_op* op = &tileOpBuffer[tileOpIndex];
-
-					op->kind = MG_MTL_OP_SEGMENT;
-					op->index = segIndex;
-					op->next = -1;
-
-					int tileIndex = y*pathQueue->area.z + x;
-					device mg_mtl_tile_queue* tile = &tileQueues[tileIndex];
-					op->next = atomic_exchange_explicit(&tile->first, tileOpIndex, memory_order_relaxed);
-					if(op->next == -1)
-					{
-						tile->last = tileOpIndex;
-					}
-
-					//NOTE: if the segment crosses the tile's bottom boundary, update the tile's winding offset
-					//      testPoint0 is always a bottom point. We select the other one and check if they are on
-					//      opposite sides of the curve.
-					//      We also need to check that the endpoints of the curve are on opposite sides of the bottom
-					//      boundary.
-					float2 testPoint3;
-					if(seg->config == MG_MTL_BL || seg->config == MG_MTL_TR)
-					{
-						testPoint3 = (float2){tileBox.z, tileBox.y};
-					}
-					else
-					{
-						testPoint3 = (float2){tileBox.x, tileBox.y};
-					}
-					bool test3 = mtl_is_left_of_segment(testPoint3, seg);
-
-					if(  test0 != test3
-					  && seg->box.y <= testPoint0.y
-					  && seg->box.w > testPoint0.y)
-					{
-						atomic_fetch_add_explicit(&tile->windingOffset, seg->windingIncrement, memory_order_relaxed);
-					}
-
-					//NOTE: if the segment crosses the right boundary, mark it. We reuse one of the previous tests
-					float2 top = {tileBox.z, tileBox.w};
-					bool testTop = mtl_is_left_of_segment(top, seg);
-					bool testBottom = (seg->config == MG_MTL_BL || seg->config == MG_MTL_TR)? test3 : test0;
-
-					if(testTop != testBottom
-					  && seg->box.x <= top.x
-					  && seg->box.z > top.x)
-					{
-						op->crossRight = true;
-					}
-					else
-					{
-						op->crossRight = false;
-					}
-				}
-			}
+			mtl_setup_monotonic_quadratic(&sp[3*i],
+			                              elt->pathIndex,
+			                              segmentCount,
+			                              segmentBuffer,
+			                              pathQueueBuffer,
+			                              tileQueueBuffer,
+			                              tileOpBuffer,
+			                              tileOpCount,
+			                              tileSize[0],
+			                              1000 + count*10 + i);
 		}
 	}
 }
@@ -378,32 +572,20 @@ kernel void mtl_raster(const device int* screenTilesBuffer [[buffer(0)]],
 		{
 			const device mg_mtl_segment* seg = &segmentBuffer[op->index];
 
+
+			/*
+			if(seg->kind == MG_MTL_LINE && op->crossRight)
+			{
+				outTexture.write(float4(1, 0, 0, 1), uint2(pixelCoord));
+				return;
+			}
+			*/
+
 			if(pixelCoord.y >= seg->box.y && pixelCoord.y < seg->box.w)
 			{
-				if(pixelCoord.x < seg->box.x)
+				if(mtl_is_left_of_segment(float2(pixelCoord), seg))
 				{
 					winding += seg->windingIncrement;
-				}
-				else if(pixelCoord.x < seg->box.z)
-				{
-					/*TODO: if pixel is on opposite size of diagonal as curve on the right, increment
-					       	otherwise if not on same size of diagonal as curve, do implicit test
-					*/
-					float alpha = (seg->box.w - seg->box.y)/(seg->box.z - seg->box.x);
-					float ofs = seg->box.w - seg->box.y;
-					float dx = pixelCoord.x - seg->box.x;
-					float dy = pixelCoord.y - seg->box.y;
-
-					if( (seg->config == MG_MTL_BR && dy > alpha*dx)
-				  	||(seg->config == MG_MTL_TR && dy < ofs - alpha*dx))
-					{
-						winding += seg->windingIncrement;
-					}
-					else if(  !(seg->config == MG_MTL_TL && dy < alpha*dx)
-				       	&& !(seg->config == MG_MTL_BL && dy > ofs - alpha*dx))
-					{
-						//Need implicit test, but for lines, we only have config BR or TR, so the test is always negative for now
-					}
 				}
 			}
 

@@ -73,7 +73,7 @@ int main()
 			// background
 			mg_set_color_rgba(0, 1, 1, 1);
 			mg_clear();
-
+/*
 			mg_move_to(100, 100);
 			mg_line_to(150, 150);
 			mg_line_to(100, 200);
@@ -89,7 +89,12 @@ int main()
 			mg_close_path();
 			mg_set_color_rgba(0, 1, 0, 1);
 			mg_fill();
-
+*/
+			mg_move_to(400, 400);
+			mg_quadratic_to(600, 600, 800, 400);
+			mg_close_path();
+			mg_set_color_rgba(0, 0, 1, 1);
+			mg_fill();
 
 			printf("Milepost vector graphics test program (frame time = %fs, fps = %f)...\n",
 			                      frameTime,

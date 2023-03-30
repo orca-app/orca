@@ -25,6 +25,8 @@ typedef struct mg_mtl_path
 
 typedef enum {
 	MG_MTL_LINE = 1,
+	MG_MTL_QUADRATIC,
+	MG_MTL_CUBIC,
 } mg_mtl_seg_kind;
 
 typedef struct mg_mtl_path_elt
@@ -43,10 +45,15 @@ typedef enum {
 
 typedef struct mg_mtl_segment
 {
+	mg_mtl_seg_kind kind;
 	int pathIndex;
 	mg_mtl_seg_config config; //TODO pack these
 	int windingIncrement;
 	vector_float4 box;
+	matrix_float3x3 implicitMatrix;
+
+	int debugID;
+
 } mg_mtl_segment;
 
 typedef struct mg_mtl_path_queue
