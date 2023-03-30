@@ -79,6 +79,7 @@ typedef struct mg_mtl_tile_op
 		bool crossRight;
 		int windingOffset;
 	};
+
 } mg_mtl_tile_op;
 
 typedef struct mg_mtl_tile_queue

@@ -91,7 +91,7 @@ int main()
 			mg_fill();
 */
 			mg_move_to(400, 400);
-			mg_quadratic_to(600, 600, 800, 400);
+			mg_quadratic_to(600, 601, 800, 400);
 			mg_close_path();
 			mg_set_color_rgba(0, 0, 1, 1);
 			mg_fill();

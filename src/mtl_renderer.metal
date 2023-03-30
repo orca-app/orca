@@ -180,7 +180,7 @@ void mtl_bin_segment_to_tiles(int segIndex,
 				bool test3 = mtl_is_left_of_segment(testPoint3, seg);
 
 				if(  test0 != test3
-					 && seg->box.y <= testPoint0.y
+					 && seg->box.y < testPoint0.y
 					 && seg->box.w > testPoint0.y)
 				{
 					atomic_fetch_add_explicit(&tile->windingOffset, seg->windingIncrement, memory_order_relaxed);
@@ -268,15 +268,11 @@ void mtl_setup_monotonic_quadratic(thread float2* p,
                                    device mg_mtl_tile_queue* tileQueueBuffer,
                                    device mg_mtl_tile_op* tileOpBuffer,
                                    device atomic_int* tileOpCount,
-                                   int tileSize,
-                                   int debugID)
+                                   int tileSize)
 {
 	//TODO: collapse with other segment kinds
 	int segIndex = atomic_fetch_add_explicit(segmentCount, 1, memory_order_relaxed);
 	device mg_mtl_segment* seg = &segmentBuffer[segIndex];
-
-
-	seg->debugID = debugID;
 
 	seg->kind = MG_MTL_QUADRATIC;
 	seg->pathIndex = pathIndex;
@@ -365,7 +361,6 @@ kernel void mtl_segment_setup(constant int* elementCount [[buffer(0)]],
 		int segIndex = atomic_fetch_add_explicit(segmentCount, 1, memory_order_relaxed);
 		device mg_mtl_segment* seg = &segmentBuffer[segIndex];
 
-		seg->debugID = 0;
 		seg->kind = elt->kind;
 		seg->pathIndex = elt->pathIndex;
 		seg->box = (vector_float4){min(p0.x, p3.x),
@@ -408,8 +403,7 @@ kernel void mtl_segment_setup(constant int* elementCount [[buffer(0)]],
 			                              tileQueueBuffer,
 			                              tileOpBuffer,
 			                              tileOpCount,
-			                              tileSize[0],
-			                              1000 + count*10 + i);
+			                              tileSize[0]);
 		}
 	}
 }
@@ -571,15 +565,6 @@ kernel void mtl_raster(const device int* screenTilesBuffer [[buffer(0)]],
 		else if(op->kind == MG_MTL_OP_SEGMENT)
 		{
 			const device mg_mtl_segment* seg = &segmentBuffer[op->index];
-
-
-			/*
-			if(seg->kind == MG_MTL_LINE && op->crossRight)
-			{
-				outTexture.write(float4(1, 0, 0, 1), uint2(pixelCoord));
-				return;
-			}
-			*/
 
 			if(pixelCoord.y >= seg->box.y && pixelCoord.y < seg->box.w)
 			{
