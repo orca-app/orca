@@ -19,7 +19,7 @@
 
 int main()
 {
-	LogLevel(LOG_LEVEL_WARNING);
+	LogLevel(LOG_LEVEL_MESSAGE);
 
 	mp_init();
 	mp_clock_init(); //TODO put that in mp_init()?
@@ -89,9 +89,15 @@ int main()
 			mg_close_path();
 			mg_set_color_rgba(0, 1, 0, 1);
 			mg_fill();
-*/
+
 			mg_move_to(400, 400);
 			mg_quadratic_to(600, 601, 800, 400);
+			mg_close_path();
+			mg_set_color_rgba(0, 0, 1, 1);
+			mg_fill();
+*/
+			mg_move_to(2*400, 2*400);
+			mg_cubic_to(2*400, 2*200, 2*600, 2*500, 2*600, 2*400);
 			mg_close_path();
 			mg_set_color_rgba(0, 0, 1, 1);
 			mg_fill();

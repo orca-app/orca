@@ -40,6 +40,8 @@ typedef struct mg_mtl_canvas_backend
 
 	id<MTLBuffer> pathBuffer[MG_MTL_INPUT_BUFFERS_COUNT];
 	id<MTLBuffer> elementBuffer[MG_MTL_INPUT_BUFFERS_COUNT];
+	id<MTLBuffer> logBuffer[MG_MTL_INPUT_BUFFERS_COUNT];
+	id<MTLBuffer> logOffsetBuffer[MG_MTL_INPUT_BUFFERS_COUNT];
 
 	id<MTLBuffer> segmentCountBuffer;
 	id<MTLBuffer> segmentBuffer;
@@ -60,6 +62,26 @@ static void mg_update_path_extents(vec4* extents, vec2 p)
 	extents->z = maximum(extents->z, p.x);
 	extents->w = maximum(extents->w, p.y);
 }
+
+void mg_mtl_print_log(int bufferIndex, id<MTLBuffer> logBuffer, id<MTLBuffer> logOffsetBuffer)
+{
+	char* log = [logBuffer contents];
+	int size = *(int*)[logOffsetBuffer contents];
+
+	if(size)
+	{
+		LOG_MESSAGE("Log from buffer %i:\n", bufferIndex);
+
+		int index = 0;
+		while(index < size)
+		{
+			int len = strlen(log+index);
+			printf("%s", log+index);
+			index += (len+1);
+		}
+	}
+}
+
 
 void mg_mtl_canvas_render(mg_canvas_backend* interface,
                           mg_color clearColor,
@@ -106,30 +128,11 @@ void mg_mtl_canvas_render(mg_canvas_backend* interface,
 
 					//NOTE: transform and push path elt + update primitive bounding box
 					vec2 p0 = mg_mat2x3_mul(primitive->attributes.transform, currentPos);
-					vec2 p3 = mg_mat2x3_mul(primitive->attributes.transform, elt->p[0]);
+					vec2 p1 = mg_mat2x3_mul(primitive->attributes.transform, elt->p[0]);
 					currentPos = elt->p[0];
 
 					mg_update_path_extents(&pathExtents, p0);
-					mg_update_path_extents(&pathExtents, p3);
-
-					mg_mtl_path_elt* mtlElt = &elementBufferData[mtlEltCount];
-					mtlEltCount++;
-
-					mtlElt->pathIndex = primitiveIndex;
-					mtlElt->kind = (mg_mtl_seg_kind)elt->type;
-					mtlElt->p[0] = (vector_float2){p0.x, p0.y};
-					mtlElt->p[3] = (vector_float2){p3.x, p3.y};
-				}
-				else if(elt->type == MG_PATH_QUADRATIC)
-				{
-					vec2 p0 = mg_mat2x3_mul(primitive->attributes.transform, currentPos);
-					vec2 p1 = mg_mat2x3_mul(primitive->attributes.transform, elt->p[0]);
-					vec2 p3 = mg_mat2x3_mul(primitive->attributes.transform, elt->p[1]);
-					currentPos = elt->p[1];
-
-					mg_update_path_extents(&pathExtents, p0);
 					mg_update_path_extents(&pathExtents, p1);
-					mg_update_path_extents(&pathExtents, p3);
 
 					mg_mtl_path_elt* mtlElt = &elementBufferData[mtlEltCount];
 					mtlEltCount++;
@@ -138,7 +141,26 @@ void mg_mtl_canvas_render(mg_canvas_backend* interface,
 					mtlElt->kind = (mg_mtl_seg_kind)elt->type;
 					mtlElt->p[0] = (vector_float2){p0.x, p0.y};
 					mtlElt->p[1] = (vector_float2){p1.x, p1.y};
-					mtlElt->p[3] = (vector_float2){p3.x, p3.y};
+				}
+				else if(elt->type == MG_PATH_QUADRATIC)
+				{
+					vec2 p0 = mg_mat2x3_mul(primitive->attributes.transform, currentPos);
+					vec2 p1 = mg_mat2x3_mul(primitive->attributes.transform, elt->p[0]);
+					vec2 p2 = mg_mat2x3_mul(primitive->attributes.transform, elt->p[1]);
+					currentPos = elt->p[1];
+
+					mg_update_path_extents(&pathExtents, p0);
+					mg_update_path_extents(&pathExtents, p1);
+					mg_update_path_extents(&pathExtents, p2);
+
+					mg_mtl_path_elt* mtlElt = &elementBufferData[mtlEltCount];
+					mtlEltCount++;
+
+					mtlElt->pathIndex = primitiveIndex;
+					mtlElt->kind = (mg_mtl_seg_kind)elt->type;
+					mtlElt->p[0] = (vector_float2){p0.x, p0.y};
+					mtlElt->p[1] = (vector_float2){p1.x, p1.y};
+					mtlElt->p[2] = (vector_float2){p2.x, p2.y};
 				}
 				else if(elt->type == MG_PATH_CUBIC)
 				{
@@ -160,7 +182,7 @@ void mg_mtl_canvas_render(mg_canvas_backend* interface,
 					mtlElt->kind = (mg_mtl_seg_kind)elt->type;
 					mtlElt->p[0] = (vector_float2){p0.x, p0.y};
 					mtlElt->p[1] = (vector_float2){p1.x, p1.y};
-					mtlElt->p[1] = (vector_float2){p2.x, p2.y};
+					mtlElt->p[2] = (vector_float2){p2.x, p2.y};
 					mtlElt->p[3] = (vector_float2){p3.x, p3.y};
 				}
 			}
@@ -209,6 +231,7 @@ void mg_mtl_canvas_render(mg_canvas_backend* interface,
 		[blitEncoder fillBuffer: backend->segmentCountBuffer range: NSMakeRange(0, sizeof(int)) value: 0];
 		[blitEncoder fillBuffer: backend->tileQueueCountBuffer range: NSMakeRange(0, sizeof(int)) value: 0];
 		[blitEncoder fillBuffer: backend->tileOpCountBuffer range: NSMakeRange(0, sizeof(int)) value: 0];
+		[blitEncoder fillBuffer: backend->logOffsetBuffer[backend->bufferIndex] range: NSMakeRange(0, sizeof(int)) value: 0];
 		[blitEncoder endEncoding];
 
 		//NOTE: path setup pass
@@ -243,6 +266,8 @@ void mg_mtl_canvas_render(mg_canvas_backend* interface,
 		[segmentEncoder setBuffer:backend->tileOpBuffer offset:0 atIndex:6];
 		[segmentEncoder setBuffer:backend->tileOpCountBuffer offset:0 atIndex:7];
 		[segmentEncoder setBytes:&tileSize length:sizeof(int) atIndex:8];
+		[segmentEncoder setBuffer:backend->logBuffer[backend->bufferIndex] offset:0 atIndex:9];
+		[segmentEncoder setBuffer:backend->logOffsetBuffer[backend->bufferIndex] offset:0 atIndex:10];
 
 		MTLSize segmentGridSize = MTLSizeMake(mtlEltCount, 1, 1);
 		MTLSize segmentGroupSize = MTLSizeMake([backend->segmentPipeline maxTotalThreadsPerThreadgroup], 1, 1);
@@ -329,6 +354,7 @@ void mg_mtl_canvas_render(mg_canvas_backend* interface,
 		//NOTE: finalize
 		[surface->commandBuffer addCompletedHandler:^(id<MTLCommandBuffer> commandBuffer)
 			{
+				mg_mtl_print_log(backend->bufferIndex, backend->logBuffer[backend->bufferIndex], backend->logOffsetBuffer[backend->bufferIndex]);
 				dispatch_semaphore_signal(backend->bufferSemaphore);
 			}];
 	}
@@ -351,6 +377,8 @@ void mg_mtl_canvas_destroy(mg_canvas_backend* interface)
 		{
 			[backend->pathBuffer[i] release];
 			[backend->elementBuffer[i] release];
+			[backend->logBuffer[i] release];
+			[backend->logOffsetBuffer[i] release];
 		}
 		[backend->segmentCountBuffer release];
 		[backend->segmentBuffer release];
@@ -502,6 +530,17 @@ mg_canvas_backend* mg_mtl_canvas_create(mg_surface surface)
 			int nTilesY = (int)(frame.h * scale + tileSize - 1)/tileSize;
 			backend->screenTilesBuffer = [metalSurface->device newBufferWithLength: nTilesX*nTilesY*sizeof(int)
 			                                                   options: bufferOptions];
+
+
+			bufferOptions = MTLResourceStorageModeShared;
+			for(int i=0; i<MG_MTL_INPUT_BUFFERS_COUNT; i++)
+			{
+				backend->logBuffer[i] = [metalSurface->device newBufferWithLength: 4<<20
+			                                                   options: bufferOptions];
+
+				backend->logOffsetBuffer[i] = [metalSurface->device newBufferWithLength: sizeof(int)
+			                                                   options: bufferOptions];
+			}
 		}
 	}
 	return((mg_canvas_backend*)backend);
