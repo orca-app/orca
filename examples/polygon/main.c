@@ -47,6 +47,7 @@ int main()
 	mp_window_focus(window);
 
 	f64 frameTime = 0;
+	f32 x = 0, y = 0;
 
 	while(!mp_should_quit())
 	{
@@ -61,6 +62,29 @@ int main()
 				case MP_EVENT_WINDOW_CLOSE:
 				{
 					mp_request_quit();
+				} break;
+
+				case MP_EVENT_KEYBOARD_KEY:
+				{
+					if(event.key.action == MP_KEY_PRESS)
+					{
+						if(event.key.code == MP_KEY_LEFT)
+						{
+							x-=1;
+						}
+						if(event.key.code == MP_KEY_RIGHT)
+						{
+							x+=1;
+						}
+						if(event.key.code == MP_KEY_UP)
+						{
+							y-=1;
+						}
+						if(event.key.code == MP_KEY_DOWN)
+						{
+							y+=1;
+						}
+					}
 				} break;
 
 				default:
@@ -95,13 +119,44 @@ int main()
 			mg_close_path();
 			mg_set_color_rgba(0, 0, 1, 1);
 			mg_fill();
-*/
+
 			mg_move_to(2*400, 2*400);
 			mg_cubic_to(2*400, 2*200, 2*600, 2*500, 2*600, 2*400);
 			mg_close_path();
 			mg_set_color_rgba(0, 0, 1, 1);
 			mg_fill();
+*/
 
+			mg_move_to(200, 200);
+			mg_line_to(300, 300);
+			mg_line_to(200, 400);
+			mg_line_to(100, 300);
+			mg_close_path();
+			mg_set_color_rgba(1, 0, 0, 1);
+		//	mg_set_width(2);
+			mg_stroke();
+
+			mg_move_to(400, 400);
+			mg_quadratic_to(600, 601, 800, 400);
+			mg_set_color_rgba(0, 0, 1, 1);
+			mg_stroke();
+
+			mg_move_to(x+2*400, y+2*400);
+			mg_cubic_to(x+2*400, y+2*200, x+2*600, y+2*500, x+2*600, y+2*400);
+			mg_close_path();
+			mg_set_color_rgba(0, 0, 1, 1);
+			mg_stroke();
+
+
+/*
+			mg_move_to(x+8, y+8);
+			mg_line_to(x+33, y+8);
+			mg_line_to(x+33, y+19);
+			mg_line_to(x+8, y+19);
+			mg_close_path();
+			mg_set_color_rgba(0, 0, 1, 1);
+			mg_fill();
+*/
 			printf("Milepost vector graphics test program (frame time = %fs, fps = %f)...\n",
 			                      frameTime,
 			                      1./frameTime);

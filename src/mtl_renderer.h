@@ -13,6 +13,7 @@
 
 typedef enum {
 	MG_MTL_FILL,
+	MG_MTL_STROKE,
 } mg_mtl_cmd;
 
 typedef struct mg_mtl_path

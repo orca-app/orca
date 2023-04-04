@@ -83,6 +83,233 @@ void mg_mtl_print_log(int bufferIndex, id<MTLBuffer> logBuffer, id<MTLBuffer> lo
 }
 
 
+typedef struct mg_mtl_encoding_context
+{
+	int mtlEltCount;
+	mg_mtl_path_elt* elementBufferData;
+	int pathIndex;
+	mg_primitive* primitive;
+	vec4 pathExtents;
+
+} mg_mtl_encoding_context;
+
+void mg_mtl_canvas_encode_element(mg_mtl_encoding_context* context, mg_path_elt_type kind, vec2* p)
+{
+	mg_mtl_path_elt* mtlElt = &context->elementBufferData[context->mtlEltCount];
+	context->mtlEltCount++;
+
+	mtlElt->pathIndex = context->pathIndex;
+	int count = 0;
+	switch(kind)
+	{
+		case MG_PATH_LINE:
+			mtlElt->kind = MG_MTL_LINE;
+			count = 2;
+			break;
+
+		case MG_PATH_QUADRATIC:
+			mtlElt->kind = MG_MTL_QUADRATIC;
+			count = 3;
+			break;
+
+		case MG_PATH_CUBIC:
+			mtlElt->kind = MG_MTL_CUBIC;
+			count = 4;
+			break;
+
+		default:
+			break;
+	}
+
+	for(int i=0; i<count; i++)
+	{
+		mg_update_path_extents(&context->pathExtents, p[i]);
+		vec2 screenP = mg_mat2x3_mul(context->primitive->attributes.transform, p[i]);
+		mtlElt->p[i] = (vector_float2){screenP.x, screenP.y};
+	}
+}
+
+void mg_mtl_canvas_stroke_line(mg_mtl_encoding_context* context, vec2* p)
+{
+	f32 width = context->primitive->attributes.width;
+
+	vec2 v = {p[1].x-p[0].x, p[1].y-p[0].y};
+	vec2 n = {v.y, -v.x};
+	f32 norm = sqrt(n.x*n.x + n.y*n.y);
+	vec2 offset = vec2_mul(0.5*width/norm, n);
+
+	vec2 left[2] = {vec2_add(p[0], offset), vec2_add(p[1], offset)};
+	vec2 right[2] = {vec2_add(p[1], vec2_mul(-1, offset)), vec2_add(p[0], vec2_mul(-1, offset))};
+	vec2 joint0[2] = {vec2_add(p[0], vec2_mul(-1, offset)), vec2_add(p[0], offset)};
+	vec2 joint1[2] = {vec2_add(p[1], offset), vec2_add(p[1], vec2_mul(-1, offset))};
+
+	mg_mtl_canvas_encode_element(context, MG_PATH_LINE, right);
+
+	mg_mtl_canvas_encode_element(context, MG_PATH_LINE, left);
+	mg_mtl_canvas_encode_element(context, MG_PATH_LINE, joint0);
+	mg_mtl_canvas_encode_element(context, MG_PATH_LINE, joint1);
+}
+
+void mg_mtl_canvas_stroke_quadratic(mg_mtl_encoding_context* context, vec2* p)
+{
+	f32 width = context->primitive->attributes.width;
+	f32 tolerance = minimum(context->primitive->attributes.tolerance, 0.5 * width);
+
+	vec2 leftHull[3];
+	vec2 rightHull[3];
+
+	if(  !mg_offset_hull(3, p, leftHull, width/2)
+	  || !mg_offset_hull(3, p, rightHull, -width/2))
+	{
+		//TODO split and recurse
+		//NOTE: offsetting the hull failed, split the curve
+		vec2 splitLeft[3];
+		vec2 splitRight[3];
+		mg_quadratic_split(p, 0.5, splitLeft, splitRight);
+		mg_mtl_canvas_stroke_quadratic(context, splitLeft);
+		mg_mtl_canvas_stroke_quadratic(context, splitRight);
+	}
+	else
+	{
+		const int CHECK_SAMPLE_COUNT = 5;
+		f32 checkSamples[CHECK_SAMPLE_COUNT] = {1./6, 2./6, 3./6, 4./6, 5./6};
+
+		f32 d2LowBound = Square(0.5 * width - tolerance);
+		f32 d2HighBound = Square(0.5 * width + tolerance);
+
+		f32 maxOvershoot = 0;
+		f32 maxOvershootParameter = 0;
+
+		for(int i=0; i<CHECK_SAMPLE_COUNT; i++)
+		{
+			f32 t = checkSamples[i];
+
+			vec2 c = mg_quadratic_get_point(p, t);
+			vec2 cp =  mg_quadratic_get_point(leftHull, t);
+			vec2 cn =  mg_quadratic_get_point(rightHull, t);
+
+			f32 positiveDistSquare = Square(c.x - cp.x) + Square(c.y - cp.y);
+			f32 negativeDistSquare = Square(c.x - cn.x) + Square(c.y - cn.y);
+
+			f32 positiveOvershoot = maximum(positiveDistSquare - d2HighBound, d2LowBound - positiveDistSquare);
+			f32 negativeOvershoot = maximum(negativeDistSquare - d2HighBound, d2LowBound - negativeDistSquare);
+
+			f32 overshoot = maximum(positiveOvershoot, negativeOvershoot);
+
+			if(overshoot > maxOvershoot)
+			{
+				maxOvershoot = overshoot;
+				maxOvershootParameter = t;
+			}
+		}
+
+		if(maxOvershoot > 0)
+		{
+			vec2 splitLeft[3];
+			vec2 splitRight[3];
+			mg_quadratic_split(p, maxOvershootParameter, splitLeft, splitRight);
+			mg_mtl_canvas_stroke_quadratic(context, splitLeft);
+			mg_mtl_canvas_stroke_quadratic(context, splitRight);
+		}
+		else
+		{
+			vec2 tmp = leftHull[0];
+			leftHull[0] = leftHull[2];
+			leftHull[2] = tmp;
+
+			mg_mtl_canvas_encode_element(context, MG_PATH_QUADRATIC, rightHull);
+			mg_mtl_canvas_encode_element(context, MG_PATH_QUADRATIC, leftHull);
+
+			vec2 joint0[2] = {rightHull[2], leftHull[0]};
+			vec2 joint1[2] = {leftHull[2], rightHull[0]};
+			mg_mtl_canvas_encode_element(context, MG_PATH_LINE, joint0);
+			mg_mtl_canvas_encode_element(context, MG_PATH_LINE, joint1);
+		}
+	}
+}
+
+void mg_mtl_canvas_stroke_cubic(mg_mtl_encoding_context* context, vec2* p)
+{
+	f32 width = context->primitive->attributes.width;
+	f32 tolerance = minimum(context->primitive->attributes.tolerance, 0.5 * width);
+
+	vec2 leftHull[4];
+	vec2 rightHull[4];
+
+	if(  !mg_offset_hull(4, p, leftHull, width/2)
+	  || !mg_offset_hull(4, p, rightHull, -width/2))
+	{
+		//TODO split and recurse
+		//NOTE: offsetting the hull failed, split the curve
+		vec2 splitLeft[4];
+		vec2 splitRight[4];
+		mg_cubic_split(p, 0.5, splitLeft, splitRight);
+		mg_mtl_canvas_stroke_cubic(context, splitLeft);
+		mg_mtl_canvas_stroke_cubic(context, splitRight);
+	}
+	else
+	{
+		const int CHECK_SAMPLE_COUNT = 5;
+		f32 checkSamples[CHECK_SAMPLE_COUNT] = {1./6, 2./6, 3./6, 4./6, 5./6};
+
+		f32 d2LowBound = Square(0.5 * width - tolerance);
+		f32 d2HighBound = Square(0.5 * width + tolerance);
+
+		f32 maxOvershoot = 0;
+		f32 maxOvershootParameter = 0;
+
+		for(int i=0; i<CHECK_SAMPLE_COUNT; i++)
+		{
+			f32 t = checkSamples[i];
+
+			vec2 c = mg_cubic_get_point(p, t);
+			vec2 cp =  mg_cubic_get_point(leftHull, t);
+			vec2 cn =  mg_cubic_get_point(rightHull, t);
+
+			f32 positiveDistSquare = Square(c.x - cp.x) + Square(c.y - cp.y);
+			f32 negativeDistSquare = Square(c.x - cn.x) + Square(c.y - cn.y);
+
+			f32 positiveOvershoot = maximum(positiveDistSquare - d2HighBound, d2LowBound - positiveDistSquare);
+			f32 negativeOvershoot = maximum(negativeDistSquare - d2HighBound, d2LowBound - negativeDistSquare);
+
+			f32 overshoot = maximum(positiveOvershoot, negativeOvershoot);
+
+			if(overshoot > maxOvershoot)
+			{
+				maxOvershoot = overshoot;
+				maxOvershootParameter = t;
+			}
+		}
+
+		if(maxOvershoot > 0)
+		{
+			vec2 splitLeft[4];
+			vec2 splitRight[4];
+			mg_cubic_split(p, maxOvershootParameter, splitLeft, splitRight);
+			mg_mtl_canvas_stroke_cubic(context, splitLeft);
+			mg_mtl_canvas_stroke_cubic(context, splitRight);
+		}
+		else
+		{
+			vec2 tmp = leftHull[0];
+			leftHull[0] = leftHull[3];
+			leftHull[3] = tmp;
+			tmp = leftHull[1];
+			leftHull[1] = leftHull[2];
+			leftHull[2] = tmp;
+
+			mg_mtl_canvas_encode_element(context, MG_PATH_CUBIC, rightHull);
+			mg_mtl_canvas_encode_element(context, MG_PATH_CUBIC, leftHull);
+
+			vec2 joint0[2] = {rightHull[3], leftHull[0]};
+			vec2 joint1[2] = {leftHull[3], rightHull[0]};
+			mg_mtl_canvas_encode_element(context, MG_PATH_LINE, joint0);
+			mg_mtl_canvas_encode_element(context, MG_PATH_LINE, joint1);
+		}
+	}
+}
+
+
 void mg_mtl_canvas_render(mg_canvas_backend* interface,
                           mg_color clearColor,
                           u32 primitiveCount,
@@ -101,90 +328,83 @@ void mg_mtl_canvas_render(mg_canvas_backend* interface,
 
 	//NOTE: fill renderer input buffers
 	int pathCount = 0;
-	int mtlEltCount = 0;
 	vec2 currentPos = {0};
+
+	mg_mtl_encoding_context context = {.mtlEltCount = 0,
+	                                   .elementBufferData = elementBufferData};
 
 	for(int primitiveIndex = 0; primitiveIndex < primitiveCount; primitiveIndex++)
 	{
 		mg_primitive* primitive = &primitives[primitiveIndex];
-		if(primitive->cmd == MG_CMD_FILL && primitive->path.count)
+
+		if(primitive->path.count)
 		{
-			vec4 pathExtents = (vec4){FLT_MAX, FLT_MAX, -FLT_MAX, -FLT_MAX};
+			context.primitive = primitive;
+			context.pathIndex = primitiveIndex;
+			context.pathExtents = (vec4){FLT_MAX, FLT_MAX, -FLT_MAX, -FLT_MAX};
 
 			for(int eltIndex = 0;
 			    (eltIndex < primitive->path.count) && (primitive->path.startIndex + eltIndex < eltCount);
 			    eltIndex++)
 			{
 				mg_path_elt* elt = &pathElements[primitive->path.startIndex + eltIndex];
-				if(elt->type == MG_PATH_MOVE)
+
+				if(elt->type != MG_PATH_MOVE)
 				{
-					currentPos = elt->p[0];
+					vec2 p[4] = {currentPos, elt->p[0], elt->p[1], elt->p[2]};
+
+					if(primitive->cmd == MG_CMD_FILL)
+					{
+						mg_mtl_canvas_encode_element(&context, elt->type, p);
+					}
+					else if(primitive->cmd == MG_CMD_STROKE)
+					{
+						switch(elt->type)
+						{
+							case MG_PATH_LINE:
+								mg_mtl_canvas_stroke_line(&context, p);
+								break;
+
+							case MG_PATH_QUADRATIC:
+								mg_mtl_canvas_stroke_quadratic(&context, p);
+								break;
+
+							case MG_PATH_CUBIC:
+								mg_mtl_canvas_stroke_cubic(&context, p);
+								break;
+
+							default:
+								break;
+						}
+					}
 				}
-				else if(elt->type == MG_PATH_LINE)
+				switch(elt->type)
 				{
-					/////////////////////////////////////////////////////////////////////////////////////
-					//TODO: order control points so that we can collapse all elements into same codepath
-					/////////////////////////////////////////////////////////////////////////////////////
+					case MG_PATH_MOVE:
+						currentPos = elt->p[0];
+						break;
 
-					//NOTE: transform and push path elt + update primitive bounding box
-					vec2 p0 = mg_mat2x3_mul(primitive->attributes.transform, currentPos);
-					vec2 p1 = mg_mat2x3_mul(primitive->attributes.transform, elt->p[0]);
-					currentPos = elt->p[0];
+					case MG_PATH_LINE:
+						currentPos = elt->p[0];
+						break;
 
-					mg_update_path_extents(&pathExtents, p0);
-					mg_update_path_extents(&pathExtents, p1);
+					case MG_PATH_QUADRATIC:
+						currentPos = elt->p[1];
+						break;
 
-					mg_mtl_path_elt* mtlElt = &elementBufferData[mtlEltCount];
-					mtlEltCount++;
-
-					mtlElt->pathIndex = primitiveIndex;
-					mtlElt->kind = (mg_mtl_seg_kind)elt->type;
-					mtlElt->p[0] = (vector_float2){p0.x, p0.y};
-					mtlElt->p[1] = (vector_float2){p1.x, p1.y};
+					case MG_PATH_CUBIC:
+						currentPos = elt->p[2];
+						break;
 				}
-				else if(elt->type == MG_PATH_QUADRATIC)
-				{
-					vec2 p0 = mg_mat2x3_mul(primitive->attributes.transform, currentPos);
-					vec2 p1 = mg_mat2x3_mul(primitive->attributes.transform, elt->p[0]);
-					vec2 p2 = mg_mat2x3_mul(primitive->attributes.transform, elt->p[1]);
-					currentPos = elt->p[1];
+			}
 
-					mg_update_path_extents(&pathExtents, p0);
-					mg_update_path_extents(&pathExtents, p1);
-					mg_update_path_extents(&pathExtents, p2);
-
-					mg_mtl_path_elt* mtlElt = &elementBufferData[mtlEltCount];
-					mtlEltCount++;
-
-					mtlElt->pathIndex = primitiveIndex;
-					mtlElt->kind = (mg_mtl_seg_kind)elt->type;
-					mtlElt->p[0] = (vector_float2){p0.x, p0.y};
-					mtlElt->p[1] = (vector_float2){p1.x, p1.y};
-					mtlElt->p[2] = (vector_float2){p2.x, p2.y};
-				}
-				else if(elt->type == MG_PATH_CUBIC)
-				{
-					vec2 p0 = mg_mat2x3_mul(primitive->attributes.transform, currentPos);
-					vec2 p1 = mg_mat2x3_mul(primitive->attributes.transform, elt->p[0]);
-					vec2 p2 = mg_mat2x3_mul(primitive->attributes.transform, elt->p[1]);
-					vec2 p3 = mg_mat2x3_mul(primitive->attributes.transform, elt->p[2]);
-					currentPos = elt->p[2];
-
-					mg_update_path_extents(&pathExtents, p0);
-					mg_update_path_extents(&pathExtents, p1);
-					mg_update_path_extents(&pathExtents, p2);
-					mg_update_path_extents(&pathExtents, p3);
-
-					mg_mtl_path_elt* mtlElt = &elementBufferData[mtlEltCount];
-					mtlEltCount++;
-
-					mtlElt->pathIndex = primitiveIndex;
-					mtlElt->kind = (mg_mtl_seg_kind)elt->type;
-					mtlElt->p[0] = (vector_float2){p0.x, p0.y};
-					mtlElt->p[1] = (vector_float2){p1.x, p1.y};
-					mtlElt->p[2] = (vector_float2){p2.x, p2.y};
-					mtlElt->p[3] = (vector_float2){p3.x, p3.y};
-				}
+			if(primitive->cmd == MG_CMD_STROKE)
+			{
+				f32 margin = maximum(primitive->attributes.width, primitive->attributes.maxJointExcursion);
+				context.pathExtents.x -= margin;
+				context.pathExtents.y -= margin;
+				context.pathExtents.z += margin;
+				context.pathExtents.w += margin;
 			}
 
 			//NOTE: push path
@@ -192,10 +412,10 @@ void mg_mtl_canvas_render(mg_canvas_backend* interface,
 			pathCount++;
 
 			path->cmd =	(mg_mtl_cmd)primitive->cmd;
-			path->box = (vector_float4){maximum(primitive->attributes.clip.x, pathExtents.x),
-		                                maximum(primitive->attributes.clip.y, pathExtents.y),
-		                                minimum(primitive->attributes.clip.x + primitive->attributes.clip.w, pathExtents.z),
-		                                minimum(primitive->attributes.clip.y + primitive->attributes.clip.h, pathExtents.w)};
+			path->box = (vector_float4){maximum(primitive->attributes.clip.x, context.pathExtents.x),
+		                                maximum(primitive->attributes.clip.y, context.pathExtents.y),
+		                                minimum(primitive->attributes.clip.x + primitive->attributes.clip.w, context.pathExtents.z),
+		                                minimum(primitive->attributes.clip.y + primitive->attributes.clip.h, context.pathExtents.w)};
 
 			path->color = (vector_float4){primitive->attributes.color.r,
 			                              primitive->attributes.color.g,
@@ -269,7 +489,7 @@ void mg_mtl_canvas_render(mg_canvas_backend* interface,
 		[segmentEncoder setBuffer:backend->logBuffer[backend->bufferIndex] offset:0 atIndex:9];
 		[segmentEncoder setBuffer:backend->logOffsetBuffer[backend->bufferIndex] offset:0 atIndex:10];
 
-		MTLSize segmentGridSize = MTLSizeMake(mtlEltCount, 1, 1);
+		MTLSize segmentGridSize = MTLSizeMake(context.mtlEltCount, 1, 1);
 		MTLSize segmentGroupSize = MTLSizeMake([backend->segmentPipeline maxTotalThreadsPerThreadgroup], 1, 1);
 
 		[segmentEncoder dispatchThreads: segmentGridSize threadsPerThreadgroup: segmentGroupSize];
@@ -282,6 +502,8 @@ void mg_mtl_canvas_render(mg_canvas_backend* interface,
 
 		[backpropEncoder setBuffer:backend->pathQueueBuffer offset:0 atIndex:0];
 		[backpropEncoder setBuffer:backend->tileQueueBuffer offset:0 atIndex:1];
+		[backpropEncoder setBuffer:backend->logBuffer[backend->bufferIndex] offset:0 atIndex:2];
+		[backpropEncoder setBuffer:backend->logOffsetBuffer[backend->bufferIndex] offset:0 atIndex:3];
 
 		MTLSize backpropGroupSize = MTLSizeMake([backend->backpropPipeline maxTotalThreadsPerThreadgroup], 1, 1);
 		MTLSize backpropGridSize = MTLSizeMake(pathCount*backpropGroupSize.width, 1, 1);
@@ -301,6 +523,8 @@ void mg_mtl_canvas_render(mg_canvas_backend* interface,
 		[mergeEncoder setBuffer:backend->tileOpBuffer offset:0 atIndex:4];
 		[mergeEncoder setBuffer:backend->tileOpCountBuffer offset:0 atIndex:5];
 		[mergeEncoder setBuffer:backend->screenTilesBuffer offset:0 atIndex:6];
+		[mergeEncoder setBuffer:backend->logBuffer[backend->bufferIndex] offset:0 atIndex:7];
+		[mergeEncoder setBuffer:backend->logOffsetBuffer[backend->bufferIndex] offset:0 atIndex:8];
 
 		MTLSize mergeGridSize = MTLSizeMake(nTilesX, nTilesY, 1);
 		MTLSize mergeGroupSize = MTLSizeMake(16, 16, 1);
@@ -535,7 +759,7 @@ mg_canvas_backend* mg_mtl_canvas_create(mg_surface surface)
 			bufferOptions = MTLResourceStorageModeShared;
 			for(int i=0; i<MG_MTL_INPUT_BUFFERS_COUNT; i++)
 			{
-				backend->logBuffer[i] = [metalSurface->device newBufferWithLength: 4<<20
+				backend->logBuffer[i] = [metalSurface->device newBufferWithLength: 1<<20
 			                                                   options: bufferOptions];
 
 				backend->logOffsetBuffer[i] = [metalSurface->device newBufferWithLength: sizeof(int)
