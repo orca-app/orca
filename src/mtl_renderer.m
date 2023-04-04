@@ -129,7 +129,7 @@ void mg_mtl_canvas_encode_element(mg_mtl_encoding_context* context, mg_path_elt_
 	}
 }
 
-void mg_mtl_canvas_stroke_line(mg_mtl_encoding_context* context, vec2* p)
+void mg_mtl_render_stroke_line(mg_mtl_encoding_context* context, vec2* p)
 {
 	f32 width = context->primitive->attributes.width;
 
@@ -150,7 +150,7 @@ void mg_mtl_canvas_stroke_line(mg_mtl_encoding_context* context, vec2* p)
 	mg_mtl_canvas_encode_element(context, MG_PATH_LINE, joint1);
 }
 
-void mg_mtl_canvas_stroke_quadratic(mg_mtl_encoding_context* context, vec2* p)
+void mg_mtl_render_stroke_quadratic(mg_mtl_encoding_context* context, vec2* p)
 {
 	f32 width = context->primitive->attributes.width;
 	f32 tolerance = minimum(context->primitive->attributes.tolerance, 0.5 * width);
@@ -166,8 +166,8 @@ void mg_mtl_canvas_stroke_quadratic(mg_mtl_encoding_context* context, vec2* p)
 		vec2 splitLeft[3];
 		vec2 splitRight[3];
 		mg_quadratic_split(p, 0.5, splitLeft, splitRight);
-		mg_mtl_canvas_stroke_quadratic(context, splitLeft);
-		mg_mtl_canvas_stroke_quadratic(context, splitRight);
+		mg_mtl_render_stroke_quadratic(context, splitLeft);
+		mg_mtl_render_stroke_quadratic(context, splitRight);
 	}
 	else
 	{
@@ -208,8 +208,8 @@ void mg_mtl_canvas_stroke_quadratic(mg_mtl_encoding_context* context, vec2* p)
 			vec2 splitLeft[3];
 			vec2 splitRight[3];
 			mg_quadratic_split(p, maxOvershootParameter, splitLeft, splitRight);
-			mg_mtl_canvas_stroke_quadratic(context, splitLeft);
-			mg_mtl_canvas_stroke_quadratic(context, splitRight);
+			mg_mtl_render_stroke_quadratic(context, splitLeft);
+			mg_mtl_render_stroke_quadratic(context, splitRight);
 		}
 		else
 		{
@@ -228,7 +228,7 @@ void mg_mtl_canvas_stroke_quadratic(mg_mtl_encoding_context* context, vec2* p)
 	}
 }
 
-void mg_mtl_canvas_stroke_cubic(mg_mtl_encoding_context* context, vec2* p)
+void mg_mtl_render_stroke_cubic(mg_mtl_encoding_context* context, vec2* p)
 {
 	f32 width = context->primitive->attributes.width;
 	f32 tolerance = minimum(context->primitive->attributes.tolerance, 0.5 * width);
@@ -244,8 +244,8 @@ void mg_mtl_canvas_stroke_cubic(mg_mtl_encoding_context* context, vec2* p)
 		vec2 splitLeft[4];
 		vec2 splitRight[4];
 		mg_cubic_split(p, 0.5, splitLeft, splitRight);
-		mg_mtl_canvas_stroke_cubic(context, splitLeft);
-		mg_mtl_canvas_stroke_cubic(context, splitRight);
+		mg_mtl_render_stroke_cubic(context, splitLeft);
+		mg_mtl_render_stroke_cubic(context, splitRight);
 	}
 	else
 	{
@@ -286,8 +286,8 @@ void mg_mtl_canvas_stroke_cubic(mg_mtl_encoding_context* context, vec2* p)
 			vec2 splitLeft[4];
 			vec2 splitRight[4];
 			mg_cubic_split(p, maxOvershootParameter, splitLeft, splitRight);
-			mg_mtl_canvas_stroke_cubic(context, splitLeft);
-			mg_mtl_canvas_stroke_cubic(context, splitRight);
+			mg_mtl_render_stroke_cubic(context, splitLeft);
+			mg_mtl_render_stroke_cubic(context, splitRight);
 		}
 		else
 		{
@@ -309,6 +309,257 @@ void mg_mtl_canvas_stroke_cubic(mg_mtl_encoding_context* context, vec2* p)
 	}
 }
 
+void mg_mtl_render_stroke_element(mg_mtl_encoding_context* context,
+                                  mg_path_elt* element,
+                                  vec2 currentPoint,
+                                  vec2* startTangent,
+                                  vec2* endTangent,
+                                  vec2* endPoint)
+{
+	vec2 controlPoints[4] = {currentPoint, element->p[0], element->p[1], element->p[2]};
+	int endPointIndex = 0;
+
+	switch(element->type)
+	{
+		case MG_PATH_LINE:
+			mg_mtl_render_stroke_line(context, controlPoints);
+			endPointIndex = 1;
+			break;
+
+		case MG_PATH_QUADRATIC:
+			mg_mtl_render_stroke_quadratic(context, controlPoints);
+			endPointIndex = 2;
+			break;
+
+		case MG_PATH_CUBIC:
+			mg_mtl_render_stroke_cubic(context, controlPoints);
+			endPointIndex = 3;
+			break;
+
+		case MG_PATH_MOVE:
+			ASSERT(0, "should be unreachable");
+			break;
+	}
+
+	//NOTE: ensure tangents are properly computed even in presence of coincident points
+	//TODO: see if we can do this in a less hacky way
+
+	for(int i=1; i<4; i++)
+	{
+		if(  controlPoints[i].x != controlPoints[0].x
+		  || controlPoints[i].y != controlPoints[0].y)
+		{
+			*startTangent = (vec2){.x = controlPoints[i].x - controlPoints[0].x,
+			                       .y = controlPoints[i].y - controlPoints[0].y};
+			break;
+		}
+	}
+	*endPoint = controlPoints[endPointIndex];
+
+	for(int i=endPointIndex-1; i>=0; i++)
+	{
+		if(  controlPoints[i].x != endPoint->x
+		  || controlPoints[i].y != endPoint->y)
+		{
+			*endTangent = (vec2){.x = endPoint->x - controlPoints[i].x,
+			                     .y = endPoint->y - controlPoints[i].y};
+			break;
+		}
+	}
+	DEBUG_ASSERT(startTangent->x != 0 || startTangent->y != 0);
+}
+
+void mg_mtl_stroke_cap(mg_mtl_encoding_context* context,
+                   vec2 p0,
+                   vec2 direction)
+{
+	//////////////////////////////////////////////////////////
+	//TODO: fix orientation here!
+	//////////////////////////////////////////////////////////
+
+	mg_attributes* attributes = &context->primitive->attributes;
+
+	//NOTE(martin): compute the tangent and normal vectors (multiplied by half width) at the cap point
+	f32 dn = sqrt(Square(direction.x) + Square(direction.y));
+	f32 alpha = 0.5 * attributes->width/dn;
+
+	vec2 n0 = {-alpha*direction.y,
+		    alpha*direction.x};
+
+	vec2 m0 = {alpha*direction.x,
+	           alpha*direction.y};
+
+	vec2 points[] = {{p0.x + n0.x, p0.y + n0.y},
+	                 {p0.x + n0.x + m0.x, p0.y + n0.y + m0.y},
+	                 {p0.x - n0.x + m0.x, p0.y - n0.y + m0.y},
+	                 {p0.x - n0.x, p0.y - n0.y},
+	                 {p0.x + n0.x, p0.y + n0.y}};
+
+	mg_mtl_canvas_encode_element(context, MG_PATH_LINE, points);
+	mg_mtl_canvas_encode_element(context, MG_PATH_LINE, points+1);
+	mg_mtl_canvas_encode_element(context, MG_PATH_LINE, points+2);
+	mg_mtl_canvas_encode_element(context, MG_PATH_LINE, points+3);
+}
+
+void mg_mtl_stroke_joint(mg_mtl_encoding_context* context,
+                         vec2 p0,
+                         vec2 t0,
+                         vec2 t1)
+{
+	mg_attributes* attributes = &context->primitive->attributes;
+
+	//NOTE(martin): compute the normals at the joint point
+	f32 norm_t0 = sqrt(Square(t0.x) + Square(t0.y));
+	f32 norm_t1 = sqrt(Square(t1.x) + Square(t1.y));
+
+	vec2 n0 = {-t0.y, t0.x};
+	n0.x /= norm_t0;
+	n0.y /= norm_t0;
+
+	vec2 n1 = {-t1.y, t1.x};
+	n1.x /= norm_t1;
+	n1.y /= norm_t1;
+
+	//NOTE(martin): the sign of the cross product determines if the normals are facing outwards or inwards the angle.
+	//              we flip them to face outwards if needed
+	f32 crossZ = n0.x*n1.y - n0.y*n1.x;
+	if(crossZ > 0)
+	{
+		n0.x *= -1;
+		n0.y *= -1;
+		n1.x *= -1;
+		n1.y *= -1;
+	}
+
+	//NOTE(martin): use the same code as hull offset to find mitter point...
+	/*NOTE(martin): let vector u = (n0+n1) and vector v = pIntersect - p1
+		then v = u * (2*offset / norm(u)^2)
+		(this can be derived from writing the pythagoras theorems in the triangles of the joint)
+	*/
+	f32 halfW = 0.5 * attributes->width;
+	vec2 u = {n0.x + n1.x, n0.y + n1.y};
+	f32 uNormSquare = u.x*u.x + u.y*u.y;
+	f32 alpha = attributes->width / uNormSquare;
+	vec2 v = {u.x * alpha, u.y * alpha};
+
+	f32 excursionSquare = uNormSquare * Square(alpha - attributes->width/4);
+
+	if(  attributes->joint == MG_JOINT_MITER
+	  && excursionSquare <= Square(attributes->maxJointExcursion))
+	{
+		//NOTE(martin): add a mitter joint
+		vec2 points[] = {p0,
+		                 {p0.x + n0.x*halfW, p0.y + n0.y*halfW},
+		                 {p0.x + v.x, p0.y + v.y},
+		                 {p0.x + n1.x*halfW, p0.y + n1.y*halfW},
+		                 p0};
+
+		mg_mtl_canvas_encode_element(context, MG_PATH_LINE, points);
+		mg_mtl_canvas_encode_element(context, MG_PATH_LINE, points+1);
+		mg_mtl_canvas_encode_element(context, MG_PATH_LINE, points+2);
+		mg_mtl_canvas_encode_element(context, MG_PATH_LINE, points+3);
+	}
+	else
+	{
+		//NOTE(martin): add a bevel joint
+		vec2 points[] = {p0,
+		                 {p0.x + n0.x*halfW, p0.y + n0.y*halfW},
+		                 {p0.x + n1.x*halfW, p0.y + n1.y*halfW},
+		                 p0};
+
+		mg_mtl_canvas_encode_element(context, MG_PATH_LINE, points);
+		mg_mtl_canvas_encode_element(context, MG_PATH_LINE, points+1);
+		mg_mtl_canvas_encode_element(context, MG_PATH_LINE, points+2);
+	}
+}
+
+u32 mg_mtl_render_stroke_subpath(mg_mtl_encoding_context* context,
+                                 mg_path_elt* elements,
+                                 mg_path_descriptor* path,
+                                 u32 startIndex,
+                                 vec2 startPoint)
+{
+	u32 eltCount = path->count;
+	DEBUG_ASSERT(startIndex < eltCount);
+
+	vec2 currentPoint = startPoint;
+	vec2 endPoint = {0, 0};
+	vec2 previousEndTangent = {0, 0};
+	vec2 firstTangent = {0, 0};
+	vec2 startTangent = {0, 0};
+	vec2 endTangent = {0, 0};
+
+	//NOTE(martin): render first element and compute first tangent
+	mg_mtl_render_stroke_element(context, elements + startIndex, currentPoint, &startTangent, &endTangent, &endPoint);
+
+	firstTangent = startTangent;
+	previousEndTangent = endTangent;
+	currentPoint = endPoint;
+
+	//NOTE(martin): render subsequent elements along with their joints
+
+	mg_attributes* attributes = &context->primitive->attributes;
+
+	u32 eltIndex = startIndex + 1;
+	for(;
+	    eltIndex<eltCount && elements[eltIndex].type != MG_PATH_MOVE;
+	    eltIndex++)
+	{
+		mg_mtl_render_stroke_element(context, elements + eltIndex, currentPoint, &startTangent, &endTangent, &endPoint);
+
+		if(attributes->joint != MG_JOINT_NONE)
+		{
+			mg_mtl_stroke_joint(context, currentPoint, previousEndTangent, startTangent);
+		}
+		previousEndTangent = endTangent;
+		currentPoint = endPoint;
+	}
+	u32 subPathEltCount = eltIndex - (startIndex+1);
+
+	//NOTE(martin): draw end cap / joint. We ensure there's at least two segments to draw a closing joint
+	if(  subPathEltCount > 1
+	  && startPoint.x == endPoint.x
+	  && startPoint.y == endPoint.y)
+	{
+		if(attributes->joint != MG_JOINT_NONE)
+		{
+			//NOTE(martin): add a closing joint if the path is closed
+			mg_mtl_stroke_joint(context, endPoint, endTangent, firstTangent);
+		}
+	}
+	else if(attributes->cap == MG_CAP_SQUARE)
+	{
+		//NOTE(martin): add start and end cap
+		mg_mtl_stroke_cap(context, startPoint, (vec2){-startTangent.x, -startTangent.y});
+		mg_mtl_stroke_cap(context, endPoint, startTangent);
+	}
+	return(eltIndex);
+}
+
+void mg_mtl_render_stroke(mg_mtl_encoding_context* context,
+                          mg_path_elt* elements,
+                          mg_path_descriptor* path)
+{
+	u32 eltCount = path->count;
+	DEBUG_ASSERT(eltCount);
+
+	vec2 startPoint = path->startPoint;
+	u32 startIndex = 0;
+
+	while(startIndex < eltCount)
+	{
+		//NOTE(martin): eliminate leading moves
+		while(startIndex < eltCount && elements[startIndex].type == MG_PATH_MOVE)
+		{
+			startPoint = elements[startIndex].p[0];
+			startIndex++;
+		}
+		if(startIndex < eltCount)
+		{
+			startIndex = mg_mtl_render_stroke_subpath(context, elements, path, startIndex, startPoint);
+		}
+	}
+}
 
 void mg_mtl_canvas_render(mg_canvas_backend* interface,
                           mg_color clearColor,
@@ -343,70 +594,43 @@ void mg_mtl_canvas_render(mg_canvas_backend* interface,
 			context.pathIndex = primitiveIndex;
 			context.pathExtents = (vec4){FLT_MAX, FLT_MAX, -FLT_MAX, -FLT_MAX};
 
-			for(int eltIndex = 0;
-			    (eltIndex < primitive->path.count) && (primitive->path.startIndex + eltIndex < eltCount);
-			    eltIndex++)
-			{
-				mg_path_elt* elt = &pathElements[primitive->path.startIndex + eltIndex];
-
-				if(elt->type != MG_PATH_MOVE)
-				{
-					vec2 p[4] = {currentPos, elt->p[0], elt->p[1], elt->p[2]};
-
-					if(primitive->cmd == MG_CMD_FILL)
-					{
-						mg_mtl_canvas_encode_element(&context, elt->type, p);
-					}
-					else if(primitive->cmd == MG_CMD_STROKE)
-					{
-						switch(elt->type)
-						{
-							case MG_PATH_LINE:
-								mg_mtl_canvas_stroke_line(&context, p);
-								break;
-
-							case MG_PATH_QUADRATIC:
-								mg_mtl_canvas_stroke_quadratic(&context, p);
-								break;
-
-							case MG_PATH_CUBIC:
-								mg_mtl_canvas_stroke_cubic(&context, p);
-								break;
-
-							default:
-								break;
-						}
-					}
-				}
-				switch(elt->type)
-				{
-					case MG_PATH_MOVE:
-						currentPos = elt->p[0];
-						break;
-
-					case MG_PATH_LINE:
-						currentPos = elt->p[0];
-						break;
-
-					case MG_PATH_QUADRATIC:
-						currentPos = elt->p[1];
-						break;
-
-					case MG_PATH_CUBIC:
-						currentPos = elt->p[2];
-						break;
-				}
-			}
-
 			if(primitive->cmd == MG_CMD_STROKE)
 			{
-				f32 margin = maximum(primitive->attributes.width, primitive->attributes.maxJointExcursion);
-				context.pathExtents.x -= margin;
-				context.pathExtents.y -= margin;
-				context.pathExtents.z += margin;
-				context.pathExtents.w += margin;
+				mg_mtl_render_stroke(&context, pathElements + primitive->path.startIndex, &primitive->path);
 			}
+			else
+			{
+				for(int eltIndex = 0;
+			    	(eltIndex < primitive->path.count) && (primitive->path.startIndex + eltIndex < eltCount);
+			    	eltIndex++)
+				{
+					mg_path_elt* elt = &pathElements[primitive->path.startIndex + eltIndex];
 
+					if(elt->type != MG_PATH_MOVE)
+					{
+						vec2 p[4] = {currentPos, elt->p[0], elt->p[1], elt->p[2]};
+						mg_mtl_canvas_encode_element(&context, elt->type, p);
+					}
+					switch(elt->type)
+					{
+						case MG_PATH_MOVE:
+							currentPos = elt->p[0];
+							break;
+
+						case MG_PATH_LINE:
+							currentPos = elt->p[0];
+							break;
+
+						case MG_PATH_QUADRATIC:
+							currentPos = elt->p[1];
+							break;
+
+						case MG_PATH_CUBIC:
+							currentPos = elt->p[2];
+							break;
+					}
+				}
+			}
 			//NOTE: push path
 			mg_mtl_path* path = &pathBufferData[pathCount];
 			pathCount++;
@@ -421,7 +645,6 @@ void mg_mtl_canvas_render(mg_canvas_backend* interface,
 			                              primitive->attributes.color.g,
 			                              primitive->attributes.color.b,
 			                              primitive->attributes.color.a};
-
 			//TODO: compute uv transform
 		}
 	}

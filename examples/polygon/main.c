@@ -127,6 +127,11 @@ int main()
 			mg_fill();
 */
 
+			mg_set_joint(MG_JOINT_MITER);
+			mg_set_max_joint_excursion(20);
+
+			mg_set_cap(MG_CAP_SQUARE);
+
 			mg_move_to(200, 200);
 			mg_line_to(300, 300);
 			mg_line_to(200, 400);
