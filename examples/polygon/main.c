@@ -126,11 +126,10 @@ int main()
 			mg_set_color_rgba(0, 0, 1, 1);
 			mg_fill();
 */
-
-			mg_set_joint(MG_JOINT_MITER);
+			mg_set_joint(MG_JOINT_NONE);
 			mg_set_max_joint_excursion(20);
 
-			mg_set_cap(MG_CAP_NONE);
+			mg_set_cap(MG_CAP_SQUARE);
 
 			mg_move_to(x+200, y+200);
 			mg_line_to(x+300, y+300);

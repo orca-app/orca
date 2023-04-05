@@ -532,7 +532,7 @@ u32 mg_mtl_render_stroke_subpath(mg_mtl_encoding_context* context,
 	{
 		//NOTE(martin): add start and end cap
 		mg_mtl_stroke_cap(context, startPoint, (vec2){-startTangent.x, -startTangent.y});
-		mg_mtl_stroke_cap(context, endPoint, startTangent);
+		mg_mtl_stroke_cap(context, endPoint, endTangent);
 	}
 	return(eltIndex);
 }
