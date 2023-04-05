@@ -229,8 +229,8 @@ int mtl_side_of_segment(float2 p, const device mg_mtl_segment* seg, mtl_log_cont
 		float dx = p.x - seg->box.x;
 		float dy = p.y - seg->box.y;
 
-		if( (seg->config == MG_MTL_BR && dy > alpha*dx)
-		  ||(seg->config == MG_MTL_TR && dy < ofs - alpha*dx))
+		if( (seg->config == MG_MTL_BR && dy >= alpha*dx)
+		  ||(seg->config == MG_MTL_TR && dy <= ofs - alpha*dx))
 		{
 			side = -1;
 		}

@@ -132,10 +132,10 @@ int main()
 
 			mg_set_cap(MG_CAP_NONE);
 
-			mg_move_to(200, 200);
-			mg_line_to(300, 300);
-			mg_line_to(200, 400);
-			mg_line_to(100, 300);
+			mg_move_to(x+200, y+200);
+			mg_line_to(x+300, y+300);
+			mg_line_to(x+200, y+400);
+			mg_line_to(x+100, y+300);
 			mg_close_path();
 			mg_set_color_rgba(1, 0, 0, 1);
 		//	mg_set_width(2);
