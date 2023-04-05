@@ -514,7 +514,7 @@ u32 mg_mtl_render_stroke_subpath(mg_mtl_encoding_context* context,
 		previousEndTangent = endTangent;
 		currentPoint = endPoint;
 	}
-	u32 subPathEltCount = eltIndex - (startIndex+1);
+	u32 subPathEltCount = eltIndex - startIndex;
 
 	//NOTE(martin): draw end cap / joint. We ensure there's at least two segments to draw a closing joint
 	if(  subPathEltCount > 1
@@ -525,6 +525,7 @@ u32 mg_mtl_render_stroke_subpath(mg_mtl_encoding_context* context,
 		{
 			//NOTE(martin): add a closing joint if the path is closed
 			mg_mtl_stroke_joint(context, endPoint, endTangent, firstTangent);
+			printf("closing joint for shape %i\n", context->pathIndex);
 		}
 	}
 	else if(attributes->cap == MG_CAP_SQUARE)

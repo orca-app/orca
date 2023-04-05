@@ -316,24 +316,6 @@ void mtl_segment_bin_to_tiles(thread mtl_segment_setup_context* context, device 
 			bool crossT = (stl*str < 0);
 			bool crossB = (sbl*sbr < 0);
 
-			mtl_log(context->log, "tile ");
-			mtl_log_i32(context->log, x);
-			mtl_log(context->log, ", ");
-			mtl_log_i32(context->log, y);
-			mtl_log(context->log, "\n");
-			mtl_log(context->log, "crossL ");
-			mtl_log_i32(context->log, crossL);
-			mtl_log(context->log, "\n");
-			mtl_log(context->log, "crossR ");
-			mtl_log_i32(context->log, crossR);
-			mtl_log(context->log, "\n");
-			mtl_log(context->log, "crossT ");
-			mtl_log_i32(context->log, crossT);
-			mtl_log(context->log, "\n");
-			mtl_log(context->log, "crossB ");
-			mtl_log_i32(context->log, crossB);
-			mtl_log(context->log, "\n");
-
 			float2 s0, s1;
 			if(seg->config == MG_MTL_TL||seg->config == MG_MTL_BR)
 			{
@@ -354,14 +336,6 @@ void mtl_segment_bin_to_tiles(thread mtl_segment_setup_context* context, device 
 			              && s1.x < tileBox.z
 			              && s1.y >= tileBox.y
 			              && s1.y < tileBox.w;
-
-			mtl_log(context->log, "s0Inside ");
-			mtl_log_i32(context->log, s0Inside ? 1 : 0);
-			mtl_log(context->log, "\n");
-			mtl_log(context->log, "s1Inside ");
-			mtl_log_i32(context->log, s1Inside ? 1 : 0);
-			mtl_log(context->log, "\n");
-
 
 			if(crossL || crossR || crossT || crossB || s0Inside || s1Inside)
 			{
