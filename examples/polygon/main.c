@@ -145,8 +145,8 @@ int main()
 			mg_set_color_rgba(0, 0, 1, 1);
 			mg_stroke();
 
-			mg_move_to(x+2*400, y+2*400);
-			mg_cubic_to(x+2*400, y+2*200, x+2*600, y+2*500, x+2*600, y+2*400);
+			mg_move_to(x+400, y+300);
+			mg_cubic_to(x+400, y+100, x+600, y+400, x+600, y+300);
 			mg_close_path();
 			mg_set_color_rgba(0, 0, 1, 1);
 			mg_stroke();

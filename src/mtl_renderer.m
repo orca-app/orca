@@ -689,6 +689,7 @@ void mg_mtl_canvas_render(mg_canvas_backend* interface,
 		[pathEncoder setBuffer:backend->tileQueueBuffer offset:0 atIndex:3];
 		[pathEncoder setBuffer:backend->tileQueueCountBuffer offset:0 atIndex:4];
 		[pathEncoder setBytes:&tileSize length:sizeof(int) atIndex:5];
+		[pathEncoder setBytes:&scale length:sizeof(int) atIndex:6];
 
 		MTLSize pathGridSize = MTLSizeMake(pathCount, 1, 1);
 		MTLSize pathGroupSize = MTLSizeMake([backend->pathPipeline maxTotalThreadsPerThreadgroup], 1, 1);
@@ -710,8 +711,9 @@ void mg_mtl_canvas_render(mg_canvas_backend* interface,
 		[segmentEncoder setBuffer:backend->tileOpBuffer offset:0 atIndex:6];
 		[segmentEncoder setBuffer:backend->tileOpCountBuffer offset:0 atIndex:7];
 		[segmentEncoder setBytes:&tileSize length:sizeof(int) atIndex:8];
-		[segmentEncoder setBuffer:backend->logBuffer[backend->bufferIndex] offset:0 atIndex:9];
-		[segmentEncoder setBuffer:backend->logOffsetBuffer[backend->bufferIndex] offset:0 atIndex:10];
+		[segmentEncoder setBytes:&scale length:sizeof(int) atIndex:9];
+		[segmentEncoder setBuffer:backend->logBuffer[backend->bufferIndex] offset:0 atIndex:10];
+		[segmentEncoder setBuffer:backend->logOffsetBuffer[backend->bufferIndex] offset:0 atIndex:11];
 
 		MTLSize segmentGridSize = MTLSizeMake(context.mtlEltCount, 1, 1);
 		MTLSize segmentGroupSize = MTLSizeMake([backend->segmentPipeline maxTotalThreadsPerThreadgroup], 1, 1);

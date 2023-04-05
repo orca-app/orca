@@ -171,12 +171,13 @@ kernel void mtl_path_setup(constant int* pathCount [[buffer(0)]],
                            device mg_mtl_tile_queue* tileQueueBuffer [[buffer(3)]],
                            device atomic_int* tileQueueCount [[buffer(4)]],
                            constant int* tileSize [[buffer(5)]],
+                           constant float* scale [[buffer(6)]],
                            uint pathIndex [[thread_position_in_grid]])
 {
 	const device mg_mtl_path* path = &pathBuffer[pathIndex];
 
-	int2 firstTile = int2(path->box.xy)/tileSize[0];
-	int2 lastTile = max(firstTile, int2(path->box.zw)/tileSize[0]);
+	int2 firstTile = int2(path->box.xy*scale[0])/tileSize[0];
+	int2 lastTile = max(firstTile, int2(path->box.zw*scale[0])/tileSize[0]);
 	int nTilesX = lastTile.x - firstTile.x + 1;
 	int nTilesY = lastTile.y - firstTile.y + 1;
 	int tileCount = nTilesX * nTilesY;
@@ -965,9 +966,10 @@ kernel void mtl_segment_setup(constant int* elementCount [[buffer(0)]],
                               device mg_mtl_tile_op* tileOpBuffer [[buffer(6)]],
                               device atomic_int* tileOpCount [[buffer(7)]],
                               constant int* tileSize [[buffer(8)]],
+                              constant float* scale [[buffer(9)]],
 
-                              device char* logBuffer [[buffer(9)]],
-                              device atomic_int* logOffsetBuffer [[buffer(10)]],
+                              device char* logBuffer [[buffer(10)]],
+                              device atomic_int* logOffsetBuffer [[buffer(11)]],
                               uint eltIndex [[thread_position_in_grid]])
 {
 	const device mg_mtl_path_elt* elt = &elementBuffer[eltIndex];
@@ -991,19 +993,19 @@ kernel void mtl_segment_setup(constant int* elementCount [[buffer(0)]],
 	{
 		case MG_MTL_LINE:
 		{
-			float2 p[2] = {elt->p[0], elt->p[1]};
+			float2 p[2] = {elt->p[0]*scale[0], elt->p[1]*scale[0]};
 			mtl_line_setup(&setupCtx, p);
 		} break;
 
 		case MG_MTL_QUADRATIC:
 		{
-			float2 p[3] = {elt->p[0], elt->p[1], elt->p[2]};
+			float2 p[3] = {elt->p[0]*scale[0], elt->p[1]*scale[0], elt->p[2]*scale[0]};
 			mtl_quadratic_setup(&setupCtx, p);
 		} break;
 
 		case MG_MTL_CUBIC:
 		{
-			float2 p[4] = {elt->p[0], elt->p[1], elt->p[2], elt->p[3]};
+			float2 p[4] = {elt->p[0]*scale[0], elt->p[1]*scale[0], elt->p[2]*scale[0], elt->p[3]*scale[0]};
 			mtl_cubic_setup(&setupCtx, p);
 
 		} break;
