@@ -54,7 +54,8 @@ typedef struct mg_mtl_segment
 	vector_float4 box;
 	matrix_float3x3 hullMatrix;
 	matrix_float3x3 implicitMatrix;
-
+	float sign;
+	vector_float2 hullVertex;
 	int debugID;
 
 } mg_mtl_segment;

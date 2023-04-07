@@ -632,8 +632,7 @@ void mg_mtl_canvas_render(mg_canvas_backend* interface,
 
 			if(primitive->cmd == MG_CMD_STROKE)
 			{
-				continue;
-	//			mg_mtl_render_stroke(&context, pathElements + primitive->path.startIndex, &primitive->path);
+				mg_mtl_render_stroke(&context, pathElements + primitive->path.startIndex, &primitive->path);
 			}
 			else
 			{
