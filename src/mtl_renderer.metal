@@ -1487,15 +1487,26 @@ kernel void mtl_raster(const device int* screenTilesBuffer [[buffer(0)]],
                        uint2 threadCoord [[thread_position_in_grid]],
                        uint2 gridSize [[threads_per_grid]])
 {
-	int2 pixelCoord = int2(threadCoord);
-	int2 tileCoord = pixelCoord / tileSize[0];
+	float2 pixelCoord = float2(threadCoord);
+	int2 tileCoord = int2(threadCoord) / tileSize[0];
 	int nTilesX = (int(gridSize.x) + tileSize[0] - 1)/tileSize[0];
 	int tileIndex = tileCoord.y * nTilesX + tileCoord.x;
 
-	float4 color = float4(0, 0, 0, 0);
 	int pathIndex = 0;
-	int winding = 0;
 	int opIndex = screenTilesBuffer[tileIndex];
+
+	const int MG_MTL_SAMPLE_COUNT = 8;
+	const float2 sampleCoords[MG_MTL_SAMPLE_COUNT] = {pixelCoord + float2(1, 3)/16,
+	                                                  pixelCoord + float2(-1, -3)/16,
+	                                                  pixelCoord + float2(5, -1)/16,
+	                                                  pixelCoord + float2(-3, 5)/16,
+	                                                  pixelCoord + float2(-5, -5)/16,
+	                                                  pixelCoord + float2(-7, 1)/16,
+	                                                  pixelCoord + float2(3, -7)/16,
+	                                                  pixelCoord + float2(7, 7)/16};
+
+	float4 color[MG_MTL_SAMPLE_COUNT] = {0};
+	int winding[MG_MTL_SAMPLE_COUNT] = {0};
 
 	while(opIndex != -1)
 	{
@@ -1503,78 +1514,69 @@ kernel void mtl_raster(const device int* screenTilesBuffer [[buffer(0)]],
 
 		if(op->kind == MG_MTL_OP_START)
 		{
-			bool filled = (pathBuffer[pathIndex].cmd == MG_MTL_FILL && (winding & 1))
-			             ||(pathBuffer[pathIndex].cmd == MG_MTL_STROKE && (winding != 0));
-			if(filled)
-			{
-				float4 pathColor = pathBuffer[pathIndex].color;
-				pathColor.rgb *= pathColor.a;
-				color = color*(1-pathColor.a) + pathColor;
-			}
+			float4 pathColor = pathBuffer[pathIndex].color;
+			pathColor.rgb *= pathColor.a;
 
+			for(int sampleIndex=0; sampleIndex<MG_MTL_SAMPLE_COUNT; sampleIndex++)
+			{
+				bool filled = (pathBuffer[pathIndex].cmd == MG_MTL_FILL && (winding[sampleIndex] & 1))
+			             	||(pathBuffer[pathIndex].cmd == MG_MTL_STROKE && (winding[sampleIndex] != 0));
+				if(filled)
+				{
+					color[sampleIndex] = color[sampleIndex]*(1-pathColor.a) + pathColor;
+				}
+				winding[sampleIndex] = op->windingOffset;
+			}
 			pathIndex = op->index;
-			winding = op->windingOffset;
-
-			/*
-			if(winding < 0)
-			{
-				color = float4(1, 0, 0, 1);
-			}
-			else if(winding > 0)
-			{
-				color = float4(0, 1, 0, 1);
-			}
-
-			if(winding && ((pixelCoord.x % 16) == 0))
-			{
-				outTexture.write(color, uint2(pixelCoord));
-				return;
-			}
-
-			if(op->next != -1)
-			{
-				color = float4(0, 0.5, 1, 1);
-			}
-			*/
 		}
 		else if(op->kind == MG_MTL_OP_SEGMENT)
 		{
 			const device mg_mtl_segment* seg = &segmentBuffer[op->index];
 
-			if( (pixelCoord.y > seg->box.y)
-			  &&(pixelCoord.y <= seg->box.w)
-			  &&(mtl_side_of_segment(float2(pixelCoord), seg) < 0))
+			for(int sampleIndex=0; sampleIndex<MG_MTL_SAMPLE_COUNT; sampleIndex++)
 			{
-				winding += seg->windingIncrement;
-			}
+				float2 sampleCoord = sampleCoords[sampleIndex];
 
-			if(op->crossRight)
-			{
-				//color = float4(0, 1, 1, 1);
-
-				if( (seg->config == MG_MTL_BR || seg->config == MG_MTL_TL)
-						&&(pixelCoord.y > seg->box.w))
+				if( (sampleCoord.y > seg->box.y)
+				  &&(sampleCoord.y <= seg->box.w)
+				  &&(mtl_side_of_segment(sampleCoord, seg) < 0))
 				{
-					winding += seg->windingIncrement;
+					winding[sampleIndex] += seg->windingIncrement;
 				}
-				else if( (seg->config == MG_MTL_BL || seg->config == MG_MTL_TR)
-						     &&(pixelCoord.y > seg->box.y))
+
+				if(op->crossRight)
 				{
-					winding -= seg->windingIncrement;
+					if( (seg->config == MG_MTL_BR || seg->config == MG_MTL_TL)
+					  &&(sampleCoord.y > seg->box.w))
+					{
+						winding[sampleIndex] += seg->windingIncrement;
+					}
+					else if( (seg->config == MG_MTL_BL || seg->config == MG_MTL_TR)
+					       &&(sampleCoord.y > seg->box.y))
+					{
+						winding[sampleIndex] -= seg->windingIncrement;
+					}
 				}
 			}
 		}
 		opIndex = op->next;
 	}
 
-	bool filled = (pathBuffer[pathIndex].cmd == MG_MTL_FILL && (winding & 1))
-	            ||(pathBuffer[pathIndex].cmd == MG_MTL_STROKE && (winding != 0));
-	if(filled)
+	float4 pixelColor = float4(0, 0, 0, 0);
+	float4 pathColor = pathBuffer[pathIndex].color;
+	pathColor.rgb *= pathColor.a;
+
+	for(int sampleIndex=0; sampleIndex<MG_MTL_SAMPLE_COUNT; sampleIndex++)
 	{
-		float4 pathColor = pathBuffer[pathIndex].color;
-		pathColor.rgb *= pathColor.a;
-		color = color*(1-pathColor.a) + pathColor;
+		bool filled = (pathBuffer[pathIndex].cmd == MG_MTL_FILL && (winding[sampleIndex] & 1))
+	            	||(pathBuffer[pathIndex].cmd == MG_MTL_STROKE && (winding[sampleIndex] != 0));
+		if(filled)
+		{
+			color[sampleIndex] = color[sampleIndex]*(1-pathColor.a) + pathColor;
+		}
+		pixelColor += color[sampleIndex];
 	}
+	pixelColor /= MG_MTL_SAMPLE_COUNT;
 
 	/*
 	if( (pixelCoord.x % tileSize[0] == 0)
@@ -1585,7 +1587,7 @@ kernel void mtl_raster(const device int* screenTilesBuffer [[buffer(0)]],
 	}
 	*/
 
-	outTexture.write(color, uint2(pixelCoord));
+	outTexture.write(pixelColor, uint2(pixelCoord));
 }
 
 //------------------------------------------------------------------------------------
