@@ -33,6 +33,7 @@ typedef enum {
 typedef struct mg_mtl_path_elt
 {
 	int pathIndex;
+	int localEltIndex;
 	mg_mtl_seg_kind kind;
 	vector_float2 p[4];
 } mg_mtl_path_elt;
@@ -51,6 +52,7 @@ typedef struct mg_mtl_segment
 	mg_mtl_seg_config config; //TODO pack these
 	int windingIncrement;
 	vector_float4 box;
+	matrix_float3x3 hullMatrix;
 	matrix_float3x3 implicitMatrix;
 
 	int debugID;

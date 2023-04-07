@@ -55,7 +55,7 @@ fi
 if [ $target = 'lib' ] ; then
 
 	# compile metal shader
-	xcrun -sdk macosx metal $shaderFlagParam -c -o $BINDIR/mtl_renderer.air $SRCDIR/mtl_renderer.metal
+	xcrun -sdk macosx metal $shaderFlagParam -fno-fast-math -c -o $BINDIR/mtl_renderer.air $SRCDIR/mtl_renderer.metal
 	xcrun -sdk macosx metallib -o $RESDIR/mtl_renderer.metallib $BINDIR/mtl_renderer.air
 
 	# compile milepost. We use one compilation unit for all C code, and one compilation

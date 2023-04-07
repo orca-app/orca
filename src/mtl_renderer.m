@@ -88,8 +88,9 @@ typedef struct mg_mtl_encoding_context
 	int mtlEltCount;
 	mg_mtl_path_elt* elementBufferData;
 	int pathIndex;
+	int localEltIndex;
 	mg_primitive* primitive;
-	vec4 pathExtents;
+	vec4 pathScreenExtents;
 
 } mg_mtl_encoding_context;
 
@@ -121,10 +122,12 @@ void mg_mtl_canvas_encode_element(mg_mtl_encoding_context* context, mg_path_elt_
 			break;
 	}
 
+	mtlElt->localEltIndex = context->localEltIndex;
+
 	for(int i=0; i<count; i++)
 	{
-		mg_update_path_extents(&context->pathExtents, p[i]);
 		vec2 screenP = mg_mat2x3_mul(context->primitive->attributes.transform, p[i]);
+		mg_update_path_extents(&context->pathScreenExtents, screenP);
 		mtlElt->p[i] = (vector_float2){screenP.x, screenP.y};
 	}
 }
@@ -154,6 +157,19 @@ void mg_mtl_render_stroke_quadratic(mg_mtl_encoding_context* context, vec2* p)
 {
 	f32 width = context->primitive->attributes.width;
 	f32 tolerance = minimum(context->primitive->attributes.tolerance, 0.5 * width);
+
+	//NOTE: check for degenerate line case
+	const f32 equalEps = 1e-3;
+	if(vec2_close(p[0], p[1], equalEps))
+	{
+		mg_mtl_render_stroke_line(context, p+1);
+		return;
+	}
+	else if(vec2_close(p[1], p[2], equalEps))
+	{
+		mg_mtl_render_stroke_line(context, p);
+		return;
+	}
 
 	vec2 leftHull[3];
 	vec2 rightHull[3];
@@ -232,6 +248,30 @@ void mg_mtl_render_stroke_cubic(mg_mtl_encoding_context* context, vec2* p)
 {
 	f32 width = context->primitive->attributes.width;
 	f32 tolerance = minimum(context->primitive->attributes.tolerance, 0.5 * width);
+
+	//NOTE: check degenerate line cases
+	f32 equalEps = 1e-3;
+
+	if( (vec2_close(p[0], p[1], equalEps) && vec2_close(p[2], p[3], equalEps))
+	  ||(vec2_close(p[0], p[1], equalEps) && vec2_close(p[1], p[2], equalEps))
+	  ||(vec2_close(p[1], p[2], equalEps) && vec2_close(p[2], p[3], equalEps)))
+	{
+		vec2 line[2] = {p[0], p[3]};
+		mg_mtl_render_stroke_line(context, line);
+		return;
+	}
+	else if(vec2_close(p[0], p[1], equalEps) && vec2_close(p[1], p[3], equalEps))
+	{
+		vec2 line[2] = {p[0], vec2_add(vec2_mul(5./9, p[0]), vec2_mul(4./9, p[2]))};
+		mg_mtl_render_stroke_line(context, line);
+		return;
+	}
+	else if(vec2_close(p[0], p[2], equalEps) && vec2_close(p[2], p[3], equalEps))
+	{
+		vec2 line[2] = {p[0], vec2_add(vec2_mul(5./9, p[0]), vec2_mul(4./9, p[1]))};
+		mg_mtl_render_stroke_line(context, line);
+		return;
+	}
 
 	vec2 leftHull[4];
 	vec2 rightHull[4];
@@ -373,10 +413,6 @@ void mg_mtl_stroke_cap(mg_mtl_encoding_context* context,
                    vec2 p0,
                    vec2 direction)
 {
-	//////////////////////////////////////////////////////////
-	//TODO: fix orientation here!
-	//////////////////////////////////////////////////////////
-
 	mg_attributes* attributes = &context->primitive->attributes;
 
 	//NOTE(martin): compute the tangent and normal vectors (multiplied by half width) at the cap point
@@ -525,7 +561,6 @@ u32 mg_mtl_render_stroke_subpath(mg_mtl_encoding_context* context,
 		{
 			//NOTE(martin): add a closing joint if the path is closed
 			mg_mtl_stroke_joint(context, endPoint, endTangent, firstTangent);
-			printf("closing joint for shape %i\n", context->pathIndex);
 		}
 	}
 	else if(attributes->cap == MG_CAP_SQUARE)
@@ -592,25 +627,30 @@ void mg_mtl_canvas_render(mg_canvas_backend* interface,
 		if(primitive->path.count)
 		{
 			context.primitive = primitive;
-			context.pathIndex = primitiveIndex;
-			context.pathExtents = (vec4){FLT_MAX, FLT_MAX, -FLT_MAX, -FLT_MAX};
+			context.pathIndex = pathCount;
+			context.pathScreenExtents = (vec4){FLT_MAX, FLT_MAX, -FLT_MAX, -FLT_MAX};
 
 			if(primitive->cmd == MG_CMD_STROKE)
 			{
-				mg_mtl_render_stroke(&context, pathElements + primitive->path.startIndex, &primitive->path);
+				continue;
+	//			mg_mtl_render_stroke(&context, pathElements + primitive->path.startIndex, &primitive->path);
 			}
 			else
 			{
+				int segCount = 0;
 				for(int eltIndex = 0;
 			    	(eltIndex < primitive->path.count) && (primitive->path.startIndex + eltIndex < eltCount);
 			    	eltIndex++)
 				{
+					context.localEltIndex = segCount;
+
 					mg_path_elt* elt = &pathElements[primitive->path.startIndex + eltIndex];
 
 					if(elt->type != MG_PATH_MOVE)
 					{
 						vec2 p[4] = {currentPos, elt->p[0], elt->p[1], elt->p[2]};
 						mg_mtl_canvas_encode_element(&context, elt->type, p);
+						segCount++;
 					}
 					switch(elt->type)
 					{
@@ -637,10 +677,10 @@ void mg_mtl_canvas_render(mg_canvas_backend* interface,
 			pathCount++;
 
 			path->cmd =	(mg_mtl_cmd)primitive->cmd;
-			path->box = (vector_float4){maximum(primitive->attributes.clip.x, context.pathExtents.x),
-		                                maximum(primitive->attributes.clip.y, context.pathExtents.y),
-		                                minimum(primitive->attributes.clip.x + primitive->attributes.clip.w, context.pathExtents.z),
-		                                minimum(primitive->attributes.clip.y + primitive->attributes.clip.h, context.pathExtents.w)};
+			path->box = (vector_float4){maximum(primitive->attributes.clip.x, context.pathScreenExtents.x),
+		                                maximum(primitive->attributes.clip.y, context.pathScreenExtents.y),
+		                                minimum(primitive->attributes.clip.x + primitive->attributes.clip.w, context.pathScreenExtents.z),
+		                                minimum(primitive->attributes.clip.y + primitive->attributes.clip.h, context.pathScreenExtents.w)};
 
 			path->color = (vector_float4){primitive->attributes.color.r,
 			                              primitive->attributes.color.g,

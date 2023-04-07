@@ -65,8 +65,10 @@ void mtl_log(mtl_log_context context, const thread char* msg)
 	}
 }
 
-int mtl_itoa(int bufSize, thread char* buffer, thread char** start, int64_t value)
+int mtl_itoa_right_aligned(int bufSize, thread char* buffer, int64_t value, bool zeroPad)
 {
+	// convert value to a null-terminated string at end of buffer and returns the size
+	// (excluding the final null).
 	bool minus = false;
 	if(value < 0)
 	{
@@ -75,12 +77,23 @@ int mtl_itoa(int bufSize, thread char* buffer, thread char** start, int64_t valu
 	}
 	buffer[bufSize-1] = '\0';
 	int index = bufSize-2;
+	int stop = minus ? 1 : 0;
+
 	do
 	{
 		buffer[index] = '0' + (value % 10);
 		index--;
 		value /= 10;
-	} while(value != 0 && index >= 1);
+	} while(value != 0 && index >= stop);
+
+	if(zeroPad)
+	{
+		while(index >= stop)
+		{
+			buffer[index] = '0';
+			index--;
+		}
+	}
 
 	if(minus)
 	{
@@ -88,61 +101,109 @@ int mtl_itoa(int bufSize, thread char* buffer, thread char** start, int64_t valu
 		index--;
 	}
 
-	*start = buffer+index+1;
-	return(bufSize - (index+1) - 1);
+	int count = bufSize - (index+1);
+	return(count - 1);
 }
 
+int mtl_itoa(int bufSize, thread char* buffer, int64_t value)
+{
+	int count = mtl_itoa_right_aligned(bufSize, buffer, value, false);
+	int start = bufSize - (count+1);
+
+	for(int i=0; i<count+1; i++)
+	{
+		buffer[i] = buffer[start+i];
+	}
+	return(count);
+}
 
 void mtl_log_i32(mtl_log_context context, int value)
 {
 	char buffer[12];
-	thread char* start = 0;
-	mtl_itoa(12, buffer, &start, value);
-	mtl_log(context, start);
+	mtl_itoa(12, buffer, value);
+	mtl_log(context, buffer);
 }
 
 void mtl_log_f32(mtl_log_context context, float value)
 {
-	int64_t integral = (int64_t)value;
-	int64_t decimal = (int64_t)((value - (float)integral)*1e9);
+	bool minus = false;
+	if(value < 0)
+	{
+		minus = true;
+		value *= -1;
+	}
 
-	while(decimal && (decimal % 10 == 0))
-	{
-		decimal /= 10;
-	}
-	while(decimal > 999999)
-	{
-		decimal /= 10;
-	}
-	if(decimal < 0)
-	{
-		decimal *= -1;
-	}
+	int64_t integral = (int64_t)value;
+	int64_t decimal = (int64_t)((value - (float)integral)*1e6);
 
 	const int bufSize = 64;
 	char buffer[bufSize];
-	thread char* start = 0;
-	int integralSize = mtl_itoa(bufSize, buffer, &start, integral);
-
-	for(int i=0; i<integralSize; i++)
+	int index = 0;
+	if(minus)
 	{
-		buffer[i] = start[i];
+		buffer[index] = '-';
+		index++;
 	}
+	index += mtl_itoa(bufSize-index, buffer+index, integral);
 
-	int decimalSize	= 0;
-	if(integralSize < bufSize && decimal)
+	if(index < bufSize && decimal)
 	{
-		buffer[integralSize] = '.';
-		integralSize++;
-		decimalSize = mtl_itoa(bufSize - integralSize - 1, buffer, &start, decimal);
-		for(int i=0; i<decimalSize; i++)
+		buffer[index] = '.';
+		index++;
+
+		int width = 6;
+		while(decimal % 10 == 0 && width > 0)
 		{
-			buffer[integralSize+i] = start[i];
+			decimal /= 10;
+			width--;
 		}
+
+		int decSize = min(bufSize-index, width+1);
+		mtl_itoa_right_aligned(decSize, buffer+index, decimal, true);
 	}
-	buffer[integralSize+decimalSize] = '\0';
+	buffer[bufSize-1] = '\0';
 	mtl_log(context, buffer);
 }
+
+void mtl_log_point(mtl_log_context context, float2 p)
+{
+	mtl_log(context, "(");
+	mtl_log_f32(context, p.x);
+	mtl_log(context, ", ");
+	mtl_log_f32(context, p.y);
+	mtl_log(context, ")");
+}
+
+void log_line(thread float2* p, mtl_log_context logCtx)
+{
+	mtl_log(logCtx, "(");
+	mtl_log_f32(logCtx, p[0].x);
+	mtl_log(logCtx, ", ");
+	mtl_log_f32(logCtx, p[0].y);
+	mtl_log(logCtx, ") (");
+	mtl_log_f32(logCtx, p[1].x);
+	mtl_log(logCtx, ", ");
+	mtl_log_f32(logCtx, p[1].y);
+	mtl_log(logCtx, ")\n");
+}
+
+void log_quadratic_bezier(thread float2* p, mtl_log_context logCtx)
+{
+	mtl_log(logCtx, "(");
+	mtl_log_f32(logCtx, p[0].x);
+	mtl_log(logCtx, ", ");
+	mtl_log_f32(logCtx, p[0].y);
+	mtl_log(logCtx, ") (");
+	mtl_log_f32(logCtx, p[1].x);
+	mtl_log(logCtx, ", ");
+	mtl_log_f32(logCtx, p[1].y);
+	mtl_log(logCtx, ") (");
+	mtl_log_f32(logCtx, p[2].x);
+	mtl_log(logCtx, ", ");
+	mtl_log_f32(logCtx, p[2].y);
+	mtl_log(logCtx, ")\n");
+}
+
 
 void log_cubic_bezier(thread float2* p, mtl_log_context logCtx)
 {
@@ -258,8 +319,16 @@ int mtl_side_of_segment(float2 p, const device mg_mtl_segment* seg, mtl_log_cont
 				case MG_MTL_CUBIC:
 				{
 					float3 ph = {p.x, p.y, 1};
-					float3 klm = seg->implicitMatrix * ph;
-					side = (klm.x*klm.x*klm.x - klm.y*klm.z < 0)? -1 : 1;
+					float3 hullCoords = seg->hullMatrix * ph;
+					if(all(hullCoords > 0))
+					{
+						float3 klm = seg->implicitMatrix * ph;
+						side = (klm.x*klm.x*klm.x - klm.y*klm.z < 0)? -1 : 1;
+					}
+					else
+					{
+						side = (seg->config == MG_MTL_BL || seg->config == MG_MTL_TL) ? -1 : 1;
+					}
 				} break;
 			}
 		}
@@ -391,17 +460,20 @@ device mg_mtl_segment* mtl_segment_push(thread mtl_segment_setup_context* contex
 			break;
 
 		case MG_MTL_CUBIC:
+		{
 			s = p[0];
-			if(any(p[1] != p[0]))
-			{
-				c = p[1];
-			}
-			else
+			float sqrNorm0 = length_squared(p[1]-p[0]);
+			float sqrNorm1 = length_squared(p[3]-p[2]);
+			if(sqrNorm0 < sqrNorm1)
 			{
 				c = p[2];
 			}
+			else
+			{
+				c = p[1];
+			}
 			e = p[3];
-			break;
+		} break;
 	}
 
 	int segIndex = atomic_fetch_add_explicit(context->segmentCount, 1, memory_order_relaxed);
@@ -513,6 +585,16 @@ int mtl_quadratic_monotonize(float2 p[3], float splits[4])
 	return(count);
 }
 
+matrix_float3x3 mtl_barycentric_matrix(float2 v0, float2 v1, float2 v2)
+{
+	float det = v0.x*(v1.y-v2.y) + v1.x*(v2.y-v0.y) + v2.x*(v0.y - v1.y);
+ 	matrix_float3x3 B = {{v1.y - v2.y, v2.y-v0.y, v0.y-v1.y},
+ 	                     {v2.x - v1.x, v0.x-v2.x, v1.x-v0.x},
+ 	                     {v1.x*v2.y-v2.x*v1.y, v2.x*v0.y-v0.x*v2.y, v0.x*v1.y-v1.x*v0.y}};
+ 	B *= (1/det);
+ 	return(B);
+}
+
 void mtl_quadratic_emit(thread mtl_segment_setup_context* context,
                         thread float2* p)
 {
@@ -552,23 +634,84 @@ void mtl_quadratic_setup(thread mtl_segment_setup_context* context, thread float
 	}
 }
 
-int mtl_quadratic_roots(float a, float b, float c, thread float* r)
+/*
+  diff_of_products() computes a*b-c*d with a maximum error <= 1.5 ulp
+
+  Claude-Pierre Jeannerod, Nicolas Louvet, and Jean-Michel Muller,
+  "Further Analysis of Kahan's Algorithm for the Accurate Computation
+  of 2x2 Determinants". Mathematics of Computation, Vol. 82, No. 284,
+  Oct. 2013, pp. 2245-2264
+*/
+float diff_of_products (float a, float b, float c, float d)
 {
-	//TODO: replace by something more numerically stable
+    float w = d * c;
+    float e = fma(-d, c, w);
+    float f = fma(a, b, -w);
+    return(f + e);
+}
+
+int mtl_quadratic_roots_with_det(float a, float b, float c, float det, thread float* r, mtl_log_context log = {.enabled = false})
+{
 	int count = 0;
-	float det = square(b) - 4*a*c;
-	if(det > 0)
+
+	if(a == 0)
 	{
-		count = 2;
-		r[0] = (-b - sqrt(det))/(2*a);
-		r[1] = (-b + sqrt(det))/(2*a);
+		if(b)
+		{
+			count = 1;
+			r[0] = -c/b;
+		}
 	}
-	else if(det == 0)
+	else
 	{
-		count = 1;
-		r[0] = -b/(2*a);
+		b /= 2.0;
+
+		if(det >= 0)
+		{
+			count = (det == 0) ? 1 : 2;
+
+			if(b > 0)
+			{
+				float q = b + sqrt(det);
+				r[0] = -c/q;
+				r[1] = -q/a;
+			}
+			else if(b < 0)
+			{
+				float q = -b + sqrt(det);
+				r[0] = q/a;
+				r[1] = c/q;
+			}
+			else
+			{
+				float q = sqrt(-a*c);
+				if(fabs(a) >= fabs(c))
+				{
+					r[0] = q/a;
+					r[1] = -q/a;
+				}
+				else
+				{
+					r[0] = -c/q;
+					r[1] = c/q;
+				}
+			}
+		}
+	}
+	if(count>1 && r[0] > r[1])
+	{
+		float tmp = r[0];
+		r[0] = r[1];
+		r[1] = tmp;
 	}
 	return(count);
+}
+
+int mtl_quadratic_roots(float a, float b, float c, thread float* r, mtl_log_context log = {.enabled = false})
+{
+	//float det = diff_of_products(b, b, a, c);
+	float det = square(b)/4. - a*c;
+	return(mtl_quadratic_roots_with_det(a, b, c, det, r, log));
 }
 
 void mtl_cubic_slice(float2 p[4], float s0, float s1, float2 sp[4])
@@ -597,7 +740,7 @@ void mtl_cubic_slice(float2 p[4], float s0, float s1, float2 sp[4])
 	sp[3] = float2(qx.w, qy.w);
 }
 
-int mtl_cubic_monotonize(float2 p[4], float splits[8])
+int mtl_cubic_monotonize(float2 p[4], float splits[8], mtl_log_context log)
 {
 	//NOTE(martin): first convert the control points to power basis
 	float2 c[4];
@@ -612,10 +755,31 @@ int mtl_cubic_monotonize(float2 p[4], float splits[8])
 	rootCount += mtl_quadratic_roots(3*c[3].y, 2*c[2].y, c[1].y, roots+rootCount);
 
 	//NOTE: compute inflection points
-	rootCount += mtl_quadratic_roots(6*(c[2].x*c[3].y-c[3].x*c[2].y),
-	                                 6*(c[1].x*c[3].y-c[1].y*c[3].x),
-	                                 2*(c[1].x*c[2].y-c[1].y*c[2].x),
-	                                 roots + rootCount);
+	rootCount += mtl_quadratic_roots(3*(c[2].x*c[3].y - c[3].x*c[2].y),
+	                                 3*(c[1].x*c[3].y - c[1].y*c[3].x),
+	                                 (c[1].x*c[2].y - c[1].y*c[2].x),
+	                                 roots + rootCount,
+	                                 log);
+/*
+	mtl_log(log, "bezier basis: ");
+	log_cubic_bezier(p, log);
+
+	mtl_log(log, "power basis: ");
+	log_cubic_bezier(c, log);
+
+	mtl_log(log, "inflection equation: ");
+	mtl_log_f32(log, 3*(c[2].x*c[3].y-c[3].x*c[2].y));
+	mtl_log(log, ", ");
+	mtl_log_f32(log, 3*(c[1].x*c[3].y-c[1].y*c[3].x));
+	mtl_log(log, ", ");
+	mtl_log_f32(log, (c[1].x*c[2].y-c[1].y*c[2].x));
+	mtl_log(log, "\n");
+
+
+	mtl_log(log, "inflection split count: ");
+	mtl_log_i32(log, rootCount-tmp);
+	mtl_log(log, "\n");
+*/
 
 	//NOTE: sort roots
 	for(int i=1; i<rootCount; i++)
@@ -636,6 +800,11 @@ int mtl_cubic_monotonize(float2 p[4], float splits[8])
 	splitCount++;
 	for(int i=0; i<rootCount; i++)
 	{
+/*
+		mtl_log(log, "root: ");
+		mtl_log_f32(log, roots[i]);
+		mtl_log(log, "\n");
+*/
 		if(roots[i] > 0 && roots[i] < 1)
 		{
 			splits[splitCount] = roots[i];
@@ -687,9 +856,9 @@ mtl_cubic_info mtl_cubic_classify(thread float2* p, mtl_log_context log = {.enab
 		    c2 = 3*p0 - 6*p1 + 3*p2
 		    c3 = -p0 + 3*p1 - 3*p2 + p3
 	*/
-	float2 c1 = 3.0*p[1] - 3.0*p[0];
-	float2 c2 = 3.0*p[0] + 3.0*p[2] - 6.0*p[1];
-	float2 c3 = 3.0*p[1] - 3.0*p[2] + p[3] - p[0];
+	float2 c1 = 3.0*(p[1] - p[0]);
+	float2 c2 = 3.0*(p[0] + p[2] - 2*p[1]);
+	float2 c3 = 3.0*(p[1] - p[2]) + p[3] - p[0];
 
 	/*NOTE(martin):
 		now, compute determinants d0, d1, d2, d3, which gives the coefficients of the
@@ -706,32 +875,65 @@ mtl_cubic_info mtl_cubic_classify(thread float2* p, mtl_log_context log = {.enab
 
 		In our case, the pi.w equal 1 (no point at infinity), so _in_the_power_basis_, w1 = w2 = w3 = 0 and w0 = 1
 		(which also means d0 = 0)
-	*/
-	float d1 = c3.y*c2.x - c3.x*c2.y;
-	float d2 = c3.x*c1.y - c3.y*c1.x;
-	float d3 = c2.y*c1.x - c2.x*c1.y;
 
+		//WARN: there seems to be a mismatch between the signs of the d_i and the orientation test in the Loop-Blinn paper?
+		//      flipping the sign of the d_i doesn't change the roots (and the implicit matrix), but it does change the orientation.
+		//      Keeping the signs of the paper puts the interior on the left of parametric travel, unlike what's stated in the paper.
+		//      this may very well be an error on my part that's cancelled by flipping the signs of the d_i though!
+	*/
+
+/*
+	mtl_log(log, "bezier basis: ");
+	log_cubic_bezier(p, log);
+
+	float2 c[4] = {p[0], c1, c2, c3};
+	mtl_log(log, "power basis: ");
+	log_cubic_bezier(c, log);
+*/
+	float d1 = -(c3.y*c2.x - c3.x*c2.y);
+	float d2 = -(c3.x*c1.y - c3.y*c1.x);
+	float d3 = -(c2.y*c1.x - c2.x*c1.y);
+
+//	mtl_log(log, "d1 = ");
+/*	mtl_log_f32(log, d1);
+	mtl_log(log, ", d2 = ");
+	mtl_log_f32(log, d2);
+	mtl_log(log, ", d3 = ");
+	mtl_log_f32(log, d3);
+	mtl_log(log, "\n");
+*/
 	//NOTE(martin): compute the second factor of the discriminant discr(I) = d1^2*(3*d2^2 - 4*d3*d1)
 	float discrFactor2 = 3.0*square(d2) - 4.0*d3*d1;
 
 	//NOTE(martin): each following case gives the number of roots, hence the category of the parametric curve
-	if(fabs(d1) < 0.1 && fabs(d2) < 0.1 && d3 != 0)
+	if(fabs(d1) < 1e-6 && fabs(d2) < 1e-6 && fabs(d3) > 1e-6)
 	{
 		//NOTE(martin): quadratic degenerate case
 		//NOTE(martin): compute quadratic curve control point, which is at p0 + 1.5*(p1-p0) = 1.5*p1 - 0.5*p0
 		result.kind = MTL_CUBIC_DEGENERATE_QUADRATIC;
 		result.quadPoint = float2(1.5*p[1].x - 0.5*p[0].x, 1.5*p[1].y - 0.5*p[0].y);
 	}
-	else if( (discrFactor2 > 0 && d1 != 0)
-	       ||(discrFactor2 == 0 && d1 != 0))
+	else if( (discrFactor2 > 0 && fabs(d1) > 1e-6)
+	       ||(discrFactor2 == 0 && fabs(d1) > 1e-6))
 	{
 		//NOTE(martin): serpentine curve or cusp with inflection at infinity
 		//              (these two cases are handled the same way).
 		//NOTE(martin): compute the solutions (tl, sl), (tm, sm), and (tn, sn) of the inflection point equation
-		float tl = d2 + sqrt(discrFactor2/3);
+		float tmtl[2];
+		mtl_quadratic_roots_with_det(1, -2*d2, (4./3.*d1*d3), (1./3.)*discrFactor2, tmtl);
+
+		float tm = tmtl[0];
+		float sm = 2*d1;
+		float tl = tmtl[1];
 		float sl = 2*d1;
-		float tm = d2 - sqrt(discrFactor2/3);
-		float sm = sl;
+
+		float invNorm = 1/sqrt(square(tm) + square(sm));
+		tm *= invNorm;
+		sm *= invNorm;
+
+		invNorm = 1/sqrt(square(tl) + square(sl));
+		tl *= invNorm;
+		sl *= invNorm;
 
 		/*NOTE(martin):
 			the power basis coefficients of points k,l,m,n are collected into the rows of the 4x4 matrix F:
@@ -749,31 +951,61 @@ mtl_cubic_info mtl_cubic_classify(thread float2* p, mtl_log_context log = {.enab
 		                      {1, 0, 0, 0}};
 
 		//NOTE:  if necessary, flip sign of k and l to ensure the interior is west from the curve
-		float flip = (d1 < 0)^(p[3].y < p[0].y) ? -1 : 1;
+		float flip = (d1 < 0)? -1 : 1;
+
+		if(p[3].y > p[0].y)
+		{
+			flip *= -1;
+		}
+
 		F[0] *= flip;
 		F[1] *= flip;
 	}
-	else if(discrFactor2 < 0 && d1 != 0)
+	else if(discrFactor2 < 0 && fabs(d1) > 1e-6)
 	{
 		//NOTE(martin): loop curve
-		float td = d2 + sqrt(-discrFactor2);
+		float tetd[2];
+		mtl_quadratic_roots_with_det(1, -2*d2, 4*(square(d2)-d1*d3), -discrFactor2, tetd, log);
+
+		float td = tetd[1];
 		float sd = 2*d1;
-		float te = d2 - sqrt(-discrFactor2);
-		float se = sd;
+		float te = tetd[0];
+		float se = 2*d1;
+
+		float invNorm = 1/sqrt(square(td) + square(sd));
+		td *= invNorm;
+		sd *= invNorm;
+
+		invNorm = 1/sqrt(square(te) + square(se));
+		te *= invNorm;
+		se *= invNorm;
 
 		//NOTE(martin): if one of the parameters (td/sd) or (te/se) is in the interval [0,1], the double point
 		//              is inside the control points convex hull and would cause a shading anomaly. If this is
 		//              the case, subdivide the curve at that point
-
-		//TODO: study edge case where td/sd ~ 1 or 0 (which causes an infinite recursion in split and fill).
-		//      quick fix for now is adding a little slop in the check...
-
+//*
+		mtl_log(log, "td = ");
+		mtl_log_f32(log, td);
+		mtl_log(log, ", sd = ");
+		mtl_log_f32(log, sd);
+		mtl_log(log, ", te = ");
+		mtl_log_f32(log, te);
+		mtl_log(log, ", se = ");
+		mtl_log_f32(log, td);
+		mtl_log(log, ", td/sd = ");
+		mtl_log_f32(log, td/sd);
+		mtl_log(log, ", te/se = ");
+		mtl_log_f32(log, te/se);
+		mtl_log(log, "\n");
+//*/
+		//TODO: investigate better margins here. The problem is that if we have a double point around 0 or 1,
+		//      splitting the curve might also produce a root in [0, 1] due to numerical errors.
 		if(sd != 0 && td/sd < 0.99 && td/sd > 0.01)
 		{
 			result.kind = MTL_CUBIC_LOOP_SPLIT;
 			result.split = td/sd;
 		}
-		if(se != 0 && te/se < 0.99 && te/se > 0.01)
+		else if(se != 0 && te/se < 0.99 && te/se > 0.01)
 		{
 			result.kind = MTL_CUBIC_LOOP_SPLIT;
 			result.split = te/se;
@@ -796,20 +1028,42 @@ mtl_cubic_info mtl_cubic_classify(thread float2* p, mtl_log_context log = {.enab
 			                      {1, 0, 0, 0}};
 
 			//NOTE:  if necessary, flip sign of k and l to ensure the interior is west from the curve
-			float H0 = 36*(d3*d1-square(d2));
-			float H1 = 36*(d3*d1-square(d2) + d1*d2 - square(d1));
+			float H0 = d3*d1-square(d2);
+			float H1 = d3*d1-square(d2) + d1*d2 - square(d1);
 			float H = (abs(H0) > abs(H1)) ? H0 : H1;
-			float flip = (H*d1 > 0)^(p[3].y < p[0].y) ? -1 : 1;
+			float flip = (H*d1 > 0) ? -1 : 1;
+/*
+			mtl_log(log, "H0 = ");
+			mtl_log_f32(log, H0);
+			mtl_log(log, ", H1 = ");
+			mtl_log_f32(log, H1);
+			mtl_log(log, ", flip = ");
+			mtl_log_f32(log, flip);
+			mtl_log(log, "\n");
+*/
+			if(p[3].y > p[0].y)
+			{
+/*				mtl_log(log, "fixed flip = ");
+				mtl_log_f32(log, flip);
+				mtl_log(log, "\n");
+*/
+				flip *= -1;
+			}
+
 			F[0] *= flip;
 			F[1] *= flip;
 		}
 	}
-	else if(d1 == 0 && d2 != 0)
+	else if(d2 != 0)
 	{
 		//NOTE(martin): cusp with cusp at infinity
 
 		float tl = d3;
 		float sl = 3*d2;
+
+		float invNorm = 1/sqrt(square(tl)+square(sl));
+		tl *= invNorm;
+		sl *= invNorm;
 
 		/*NOTE(martin):
 			the power basis coefficients of points k,l,m,n are collected into the rows of the 4x4 matrix F:
@@ -831,15 +1085,10 @@ mtl_cubic_info mtl_cubic_classify(thread float2* p, mtl_log_context log = {.enab
 		F[0] *= flip;
 		F[1] *= flip;
 	}
-	else if(d1 == 0 && d2 == 0 && d3 == 0)
+	else
 	{
 		//NOTE(martin): line or point degenerate case
 		result.kind = MTL_CUBIC_DEGENERATE_LINE;
-	}
-	else
-	{
-		//TODO(martin): handle error ? put some epsilon slack on the conditions ?
-		result.kind = MTL_CUBIC_ERROR;
 	}
 
 	/*
@@ -861,6 +1110,44 @@ mtl_cubic_info mtl_cubic_classify(thread float2* p, mtl_log_context log = {.enab
 	return(result);
 }
 
+matrix_float3x3 mtl_hull_matrix(float2 p0, float2 p1, float2 p2, float2 p3, mtl_log_context log)
+{
+	/*NOTE: check intersection of lines (p1-p0) and (p3-p2)
+		P = p0 + u(p1-p0)
+		P = p2 + w(p3-p2)
+
+		control points are inside a right triangle so we should always find an intersection
+	*/
+	float2 pm;
+
+	float det = (p1.x - p0.x)*(p3.y - p2.y) - (p1.y - p0.y)*(p3.x - p2.x);
+	float sqrNorm0 = length_squared(p1-p0);
+	float sqrNorm1 = length_squared(p2-p3);
+
+	if(fabs(det) < 1e-3 || sqrNorm0 < 0.1 || sqrNorm1 < 0.1)
+	{
+		float sqrNorm0 = length_squared(p1-p0);
+		float sqrNorm1 = length_squared(p2-p3);
+
+		if(sqrNorm0 < sqrNorm1)
+		{
+			pm = p2;
+		}
+		else
+		{
+			pm = p1;
+		}
+	}
+	else
+	{
+		float u = ((p0.x - p2.x)*(p2.y - p3.y) - (p0.y - p2.y)*(p2.x - p3.x))/det;
+		pm = p0 + u*(p1-p0);
+	}
+
+	matrix_float3x3 m = mtl_barycentric_matrix(p0, p3, pm);
+	return(m);
+}
+
 void mtl_cubic_emit(thread mtl_segment_setup_context* context, float2 p[4], mtl_cubic_info info)
 {
 	device mg_mtl_segment* seg = mtl_segment_push(context, p, MG_MTL_CUBIC);
@@ -870,7 +1157,10 @@ void mtl_cubic_emit(thread mtl_segment_setup_context* context, float2 p[4], mtl_
 	float2 v2;
 	matrix_float3x3 K;
 
- 	if(any(p[0] != p[1]))
+	float sqrNorm0 = length_squared(p[1]-p[0]);
+	float sqrNorm1 = length_squared(p[2]-p[3]);
+
+ 	if(sqrNorm0 >= sqrNorm1)
  	{
  		v2 = p[1];
 		K = {info.K[0].xyz, info.K[3].xyz, info.K[1].xyz};
@@ -880,16 +1170,11 @@ void mtl_cubic_emit(thread mtl_segment_setup_context* context, float2 p[4], mtl_
 		v2 = p[2];
 		K = {info.K[0].xyz, info.K[3].xyz, info.K[2].xyz};
  	}
-
- 	//NOTE: compute barycentric matrix
-	float det = v0.x*(v1.y-v2.y) + v1.x*(v2.y-v0.y) + v2.x*(v0.y - v1.y);
- 	matrix_float3x3 B = {{v1.y - v2.y, v2.y-v0.y, v0.y-v1.y},
- 	                     {v2.x - v1.x, v0.x-v2.x, v1.x-v0.x},
- 	                     {v1.x*v2.y-v2.x*v1.y, v2.x*v0.y-v0.x*v2.y, v0.x*v1.y-v1.x*v0.y}};
- 	B *= (1/det);
-
- 	//NOTE: set implicit matrix and bin segment
+ 	//NOTE: set matrices and bin segment
+	matrix_float3x3 B = mtl_barycentric_matrix(v0, v1, v2);
  	seg->implicitMatrix = K*B;
+
+	seg->hullMatrix = mtl_hull_matrix(p[0], p[1], p[2], p[3], context->log);
 
 	mtl_segment_bin_to_tiles(context, seg);
 }
@@ -897,13 +1182,29 @@ void mtl_cubic_emit(thread mtl_segment_setup_context* context, float2 p[4], mtl_
 void mtl_cubic_setup(thread mtl_segment_setup_context* context, float2 p[4])
 {
 	float splits[8];
-	int splitCount = mtl_cubic_monotonize(p, splits);
+	int splitCount = mtl_cubic_monotonize(p, splits, context->log);
+
+	mtl_log(context->log, "curve = ");
+	log_cubic_bezier(p, context->log);
+
+	mtl_log(context->log, "split count = ");
+	mtl_log_i32(context->log, splitCount-1);
+	mtl_log(context->log, "\n");
 
 	//NOTE: produce bézier curve for each consecutive pair of roots
 	for(int sliceIndex=0; sliceIndex<splitCount-1; sliceIndex++)
 	{
+		/////////////////////////////////////DEBUG
+/*		if(sliceIndex != 0)
+		{
+			continue;
+		}
+*/
 		float2 sp[4];
 		mtl_cubic_slice(p, splits[sliceIndex], splits[sliceIndex+1], sp);
+
+		mtl_log(context->log, "slice = ");
+		log_cubic_bezier(sp, context->log);
 
 		mtl_cubic_info curve = mtl_cubic_classify(sp, context->log);
 		switch(curve.kind)
@@ -926,6 +1227,10 @@ void mtl_cubic_setup(thread mtl_segment_setup_context* context, float2 p[4])
 
 			case MTL_CUBIC_LOOP_SPLIT:
 			{
+				mtl_log(context->log, "loop split: \n");
+				mtl_log_f32(context->log, curve.split);
+				mtl_log(context->log, "\n");
+
 				//NOTE: split and reclassify, check that we have a valid loop and emit
 				float2 ssp[8];
 				mtl_cubic_slice(sp, 0, curve.split, ssp);
@@ -933,18 +1238,35 @@ void mtl_cubic_setup(thread mtl_segment_setup_context* context, float2 p[4])
 
 				for(int i=0; i<2; i++)
 				{
-					curve = mtl_cubic_classify(ssp + 4*i);
+					mtl_cubic_info splitCurve = mtl_cubic_classify(ssp + 4*i, context->log);
 
-					if(curve.kind != MTL_CUBIC_LOOP_OK)
+					mtl_log(context->log, "loop slice \n");
+					mtl_log_i32(context->log, i);
+					mtl_log(context->log, ": ");
+					log_cubic_bezier(ssp+i*4, context->log);
+
+					mtl_log_i32(context->log, splitCurve.kind);
+					mtl_log(context->log, "\n");
+
+					////////////////////////////////////////////////////////////////////////////////////
+					//TODO: here the result of mtl_cubic_classify seems to be changed if we print something
+					//      inside it...
+					//      Anyway, we shouldn't reclassify split curves, just find the new hull matrix?
+					////////////////////////////////////////////////////////////////////////////////////
+					CONTINUE_HERE;
+
+					if(splitCurve.kind == MTL_CUBIC_LOOP_SPLIT)
 					{
-						mtl_log(context->log, "loop split left error\n");
+						mtl_log(context->log, "loop split error (");
+						mtl_log_f32(context->log, splitCurve.split);
+						mtl_log(context->log, ") ****************************************\n");
 					}
 					else
 					{
-						mtl_cubic_emit(context, ssp + 4*i, curve);
+						mtl_cubic_emit(context, ssp + 4*i, splitCurve);
 					}
-
 				}
+
 			} break;
 
 			case MTL_CUBIC_LOOP_OK:
@@ -974,6 +1296,21 @@ kernel void mtl_segment_setup(constant int* elementCount [[buffer(0)]],
 {
 	const device mg_mtl_path_elt* elt = &elementBuffer[eltIndex];
 
+
+	//28
+	// 125
+	// 112
+	if(elt->pathIndex != 124)
+	{
+		return;
+	}
+
+
+	if(elt->localEltIndex != 4)// && elt->localEltIndex != 3)
+	{
+		return;
+	}
+
 	const device mg_mtl_path_queue* pathQueue = &pathQueueBuffer[elt->pathIndex];
 	device mg_mtl_tile_queue* tileQueues = &tileQueueBuffer[pathQueue->tileQueues];
 
@@ -987,19 +1324,27 @@ kernel void mtl_segment_setup(constant int* elementCount [[buffer(0)]],
 	                                      .tileSize = tileSize[0],
 	                                      .log.buffer = logBuffer,
 	                                      .log.offset = logOffsetBuffer,
-	                                      .log.enabled = (eltIndex == 1)};
+	                                      .log.enabled = true};
 
 	switch(elt->kind)
 	{
 		case MG_MTL_LINE:
 		{
 			float2 p[2] = {elt->p[0]*scale[0], elt->p[1]*scale[0]};
+
+			mtl_log(setupCtx.log, "line: ");
+			log_line(p, setupCtx.log);
+
 			mtl_line_setup(&setupCtx, p);
 		} break;
 
 		case MG_MTL_QUADRATIC:
 		{
 			float2 p[3] = {elt->p[0]*scale[0], elt->p[1]*scale[0], elt->p[2]*scale[0]};
+
+			mtl_log(setupCtx.log, "quadratic: ");
+			log_quadratic_bezier(p, setupCtx.log);
+
 			mtl_quadratic_setup(&setupCtx, p);
 		} break;
 
@@ -1172,9 +1517,17 @@ kernel void mtl_raster(const device int* screenTilesBuffer [[buffer(0)]],
 
 			pathIndex = op->index;
 			winding = op->windingOffset;
+
+			if(op->next != -1)
+			{
+				color = float4(0, 1, 0, 1);
+			}
 		}
 		else if(op->kind == MG_MTL_OP_SEGMENT)
 		{
+		//	outTexture.write(float4(1, 0, 0, 1), uint2(pixelCoord));
+		//	return;
+
 			const device mg_mtl_segment* seg = &segmentBuffer[op->index];
 
 			if( (pixelCoord.y > seg->box.y)
@@ -1186,6 +1539,8 @@ kernel void mtl_raster(const device int* screenTilesBuffer [[buffer(0)]],
 
 			if(op->crossRight)
 			{
+				color = float4(0, 1, 1, 1);
+
 				if( (seg->config == MG_MTL_BR || seg->config == MG_MTL_TL)
 						&&(pixelCoord.y > seg->box.w))
 				{

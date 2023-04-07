@@ -151,7 +151,6 @@ int main()
 			mg_set_color_rgba(0, 0, 1, 1);
 			mg_stroke();
 
-
 /*
 			mg_move_to(x+8, y+8);
 			mg_line_to(x+33, y+8);
