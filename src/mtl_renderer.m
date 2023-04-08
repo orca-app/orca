@@ -19,7 +19,8 @@
 #define LOG_SUBSYSTEM "Graphics"
 
 const int MG_MTL_INPUT_BUFFERS_COUNT = 3,
-          MG_MTL_TILE_SIZE = 16;
+          MG_MTL_TILE_SIZE = 16,
+          MG_MTL_MSAA_COUNT = 1;
 
 typedef struct mg_mtl_canvas_backend
 {
@@ -51,6 +52,8 @@ typedef struct mg_mtl_canvas_backend
 	id<MTLBuffer> tileOpBuffer;
 	id<MTLBuffer> tileOpCountBuffer;
 	id<MTLBuffer> screenTilesBuffer;
+
+	int msaaCount;
 
 } mg_mtl_canvas_backend;
 
@@ -807,6 +810,9 @@ void mg_mtl_canvas_render(mg_canvas_backend* interface,
 		[rasterEncoder setBuffer:backend->pathBuffer[backend->bufferIndex] offset:0 atIndex:2];
 		[rasterEncoder setBuffer:backend->segmentBuffer offset:0 atIndex:3];
 		[rasterEncoder setBytes:&tileSize length:sizeof(int) atIndex:4];
+		[rasterEncoder setBytes:&backend->msaaCount length:sizeof(int) atIndex:5];
+		[rasterEncoder setBuffer:backend->logBuffer[backend->bufferIndex] offset:0 atIndex:6];
+		[rasterEncoder setBuffer:backend->logOffsetBuffer[backend->bufferIndex] offset:0 atIndex:7];
 
 		[rasterEncoder setTexture:backend->outTexture atIndex:0];
 
@@ -900,6 +906,7 @@ mg_canvas_backend* mg_mtl_canvas_create(mg_surface surface)
 		backend = malloc_type(mg_mtl_canvas_backend);
 		memset(backend, 0, sizeof(mg_mtl_canvas_backend));
 
+		backend->msaaCount = MG_MTL_MSAA_COUNT;
 		backend->surface = surface;
 
 		//NOTE(martin): setup interface functions

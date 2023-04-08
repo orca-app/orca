@@ -290,24 +290,44 @@ int mtl_side_of_segment(float2 p, const device mg_mtl_segment* seg, mtl_log_cont
 	}
 	else
 	{
-		// eval based on diagonal
-		float alpha = (seg->box.w - seg->box.y)/(seg->box.z - seg->box.x);
-		float ofs = seg->box.w - seg->box.y;
-		float dx = p.x - seg->box.x;
-		float dy = p.y - seg->box.y;
+		float2 a, b, c;
+		switch(seg->config)
+		{
+			case MG_MTL_TL:
+				a = seg->box.xy;
+				b = seg->box.zw;
+				break;
 
-		if( (seg->config == MG_MTL_BR && dy >= alpha*dx)
-		  ||(seg->config == MG_MTL_TR && dy <= ofs - alpha*dx))
-		{
-			side = -1;
+			case MG_MTL_BR:
+				a = seg->box.zw;
+				b = seg->box.xy;
+				break;
+
+			case MG_MTL_TR:
+				a = seg->box.xw;
+				b = seg->box.zy;
+				break;
+
+			case MG_MTL_BL:
+				a = seg->box.zy;
+				b = seg->box.xw;
+				break;
 		}
-		else if( (seg->config == MG_MTL_TL && dy < alpha*dx)
-		       ||(seg->config == MG_MTL_BL && dy > ofs - alpha*dx))
+		c = seg->hullVertex;
+
+		if(ccw(a, b, p) < 0)
 		{
-			side = 1;
+			// other side of the diagonal
+			side = (seg->config == MG_MTL_BR || seg->config == MG_MTL_TR) ? -1 : 1;
+		}
+		else if(ccw(b, c, p) < 0 || ccw(c, a, p) < 0)
+		{
+			// same side of the diagonal, but outside curve hull
+			side = (seg->config == MG_MTL_BL || seg->config == MG_MTL_TL) ? -1 : 1;
 		}
 		else
 		{
+			// inside curve hull
 			switch(seg->kind)
 			{
 				case MG_MTL_LINE:
@@ -323,55 +343,9 @@ int mtl_side_of_segment(float2 p, const device mg_mtl_segment* seg, mtl_log_cont
 
 				case MG_MTL_CUBIC:
 				{
-					/*
-					float2 a, b, c;
-					switch(seg->config)
-					{
-						case MG_MTL_TL:
-							a = seg->box.xy;
-							b = seg->box.zw;
-							break;
-
-						case MG_MTL_BR:
-							a = seg->box.zw;
-							b = seg->box.xy;
-							break;
-
-						case MG_MTL_TR:
-							a = seg->box.xw;
-							b = seg->box.zy;
-							break;
-
-						case MG_MTL_BL:
-							a = seg->box.zy;
-							b = seg->box.xw;
-							break;
-					}
-					c = seg->hullVertex;
-
-					if(ccw(b, c, p) > 0 && ccw(c, a, p) > 0)
-					{
-						float3 ph = {p.x, p.y, 1};
-						float3 klm = seg->implicitMatrix * ph;
-						side = (seg->sign*(klm.x*klm.x*klm.x - klm.y*klm.z) < 0)? -1 : 1;
-					}
-					else
-					{
-						side = (seg->config == MG_MTL_BL || seg->config == MG_MTL_TL) ? -1 : 1;
-					}
-					*/
 					float3 ph = {p.x, p.y, 1};
-					float3 hullCoords = seg->hullMatrix * ph;
-					if(all(hullCoords > 0))
-					{
-						float3 klm = seg->implicitMatrix * ph;
-						side = (seg->sign*(klm.x*klm.x*klm.x - klm.y*klm.z) < 0)? -1 : 1;
-					}
-					else
-					{
-						side = (seg->config == MG_MTL_BL || seg->config == MG_MTL_TL) ? -1 : 1;
-					}
-
+					float3 klm = seg->implicitMatrix * ph;
+					side = (seg->sign*(klm.x*klm.x*klm.x - klm.y*klm.z) < 0)? -1 : 1;
 				} break;
 			}
 		}
@@ -584,6 +558,7 @@ device mg_mtl_segment* mtl_segment_push(thread mtl_segment_setup_context* contex
 void mtl_line_setup(thread mtl_segment_setup_context* context, float2 p[2])
 {
 	device mg_mtl_segment* seg = mtl_segment_push(context, p, MG_MTL_LINE);
+	seg->hullVertex = p[0];
 	mtl_segment_bin_to_tiles(context, seg);
 }
 
@@ -668,6 +643,8 @@ void mtl_quadratic_emit(thread mtl_segment_setup_context* context,
 	seg->implicitMatrix = (1/det)*matrix_float3x3({a, d, 0.},
 	                                              {b, e, 0.},
 	                                              {c, f, g});
+
+	seg->hullVertex = p[1];
 
 	mtl_segment_bin_to_tiles(context, seg);
 }
@@ -1483,10 +1460,18 @@ kernel void mtl_raster(const device int* screenTilesBuffer [[buffer(0)]],
                        const device mg_mtl_path* pathBuffer [[buffer(2)]],
                        const device mg_mtl_segment* segmentBuffer [[buffer(3)]],
                        constant int* tileSize [[buffer(4)]],
+                       constant int* sampleCountBuffer [[buffer(5)]],
+                       device char* logBuffer [[buffer(6)]],
+                       device atomic_int* logOffsetBuffer [[buffer(7)]],
                        texture2d<float, access::write> outTexture [[texture(0)]],
                        uint2 threadCoord [[thread_position_in_grid]],
                        uint2 gridSize [[threads_per_grid]])
 {
+/*
+	mtl_log_context log = {.buffer = logBuffer,
+	                       .offset = logOffsetBuffer,
+	                       .enabled = true};
+*/
 	float2 pixelCoord = float2(threadCoord);
 	int2 tileCoord = int2(threadCoord) / tileSize[0];
 	int nTilesX = (int(gridSize.x) + tileSize[0] - 1)/tileSize[0];
@@ -1495,18 +1480,30 @@ kernel void mtl_raster(const device int* screenTilesBuffer [[buffer(0)]],
 	int pathIndex = 0;
 	int opIndex = screenTilesBuffer[tileIndex];
 
-	const int MG_MTL_SAMPLE_COUNT = 8;
-	const float2 sampleCoords[MG_MTL_SAMPLE_COUNT] = {pixelCoord + float2(1, 3)/16,
-	                                                  pixelCoord + float2(-1, -3)/16,
-	                                                  pixelCoord + float2(5, -1)/16,
-	                                                  pixelCoord + float2(-3, 5)/16,
-	                                                  pixelCoord + float2(-5, -5)/16,
-	                                                  pixelCoord + float2(-7, 1)/16,
-	                                                  pixelCoord + float2(3, -7)/16,
-	                                                  pixelCoord + float2(7, 7)/16};
+	const int MG_MTL_MAX_SAMPLE_COUNT = 8;
+	float2 sampleCoords[MG_MTL_MAX_SAMPLE_COUNT];
+	int sampleCount = sampleCountBuffer[0];
 
-	float4 color[MG_MTL_SAMPLE_COUNT] = {0};
-	int winding[MG_MTL_SAMPLE_COUNT] = {0};
+	if(sampleCount == 8)
+	{
+		sampleCount = 8;
+		sampleCoords[0] = pixelCoord + float2(1, 3)/16;
+		sampleCoords[1] = pixelCoord + float2(-1, -3)/16;
+		sampleCoords[2] = pixelCoord + float2(5, -1)/16;
+		sampleCoords[3] = pixelCoord + float2(-3, 5)/16;
+		sampleCoords[4] = pixelCoord + float2(-5, -5)/16;
+		sampleCoords[5] = pixelCoord + float2(-7, 1)/16;
+		sampleCoords[6] = pixelCoord + float2(3, -7)/16;
+		sampleCoords[7] = pixelCoord + float2(7, 7)/16;
+	}
+	else
+	{
+		sampleCount = 1;
+		sampleCoords[0] = pixelCoord;
+	}
+
+	float4 color[MG_MTL_MAX_SAMPLE_COUNT] = {0};
+	int winding[MG_MTL_MAX_SAMPLE_COUNT] = {0};
 
 	while(opIndex != -1)
 	{
@@ -1517,7 +1514,7 @@ kernel void mtl_raster(const device int* screenTilesBuffer [[buffer(0)]],
 			float4 pathColor = pathBuffer[pathIndex].color;
 			pathColor.rgb *= pathColor.a;
 
-			for(int sampleIndex=0; sampleIndex<MG_MTL_SAMPLE_COUNT; sampleIndex++)
+			for(int sampleIndex=0; sampleIndex<sampleCount; sampleIndex++)
 			{
 				bool filled = (pathBuffer[pathIndex].cmd == MG_MTL_FILL && (winding[sampleIndex] & 1))
 			             	||(pathBuffer[pathIndex].cmd == MG_MTL_STROKE && (winding[sampleIndex] != 0));
@@ -1533,7 +1530,7 @@ kernel void mtl_raster(const device int* screenTilesBuffer [[buffer(0)]],
 		{
 			const device mg_mtl_segment* seg = &segmentBuffer[op->index];
 
-			for(int sampleIndex=0; sampleIndex<MG_MTL_SAMPLE_COUNT; sampleIndex++)
+			for(int sampleIndex=0; sampleIndex<sampleCount; sampleIndex++)
 			{
 				float2 sampleCoord = sampleCoords[sampleIndex];
 
@@ -1566,7 +1563,7 @@ kernel void mtl_raster(const device int* screenTilesBuffer [[buffer(0)]],
 	float4 pathColor = pathBuffer[pathIndex].color;
 	pathColor.rgb *= pathColor.a;
 
-	for(int sampleIndex=0; sampleIndex<MG_MTL_SAMPLE_COUNT; sampleIndex++)
+	for(int sampleIndex=0; sampleIndex<sampleCount; sampleIndex++)
 	{
 		bool filled = (pathBuffer[pathIndex].cmd == MG_MTL_FILL && (winding[sampleIndex] & 1))
 	            	||(pathBuffer[pathIndex].cmd == MG_MTL_STROKE && (winding[sampleIndex] != 0));
@@ -1576,16 +1573,16 @@ kernel void mtl_raster(const device int* screenTilesBuffer [[buffer(0)]],
 		}
 		pixelColor += color[sampleIndex];
 	}
-	pixelColor /= MG_MTL_SAMPLE_COUNT;
+	pixelColor /= sampleCount;
 
 	/*
-	if( (pixelCoord.x % tileSize[0] == 0)
-	  ||(pixelCoord.y % tileSize[0] == 0))
+	if( (int(pixelCoord.x) % tileSize[0] == 0)
+	  ||(int(pixelCoord.y) % tileSize[0] == 0))
 	{
 		outTexture.write(float4(0, 0, 0, 1), uint2(pixelCoord));
 		return;
 	}
-	*/
+	//*/
 
 	outTexture.write(pixelColor, uint2(pixelCoord));
 }

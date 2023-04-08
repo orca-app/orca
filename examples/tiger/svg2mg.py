@@ -54,7 +54,7 @@ class svgContext:
 		if rel:
 			x += self.cp[0]
 			y += self.cp[1]
-		print("\tmg_move_to(" + f2s(x) + ", " + f2s(y) + ");")
+		print("\t\tmg_move_to(" + f2s(x) + ", " + f2s(y) + ");")
 		self.sp = (x, y)
 		self.cp = (x, y)
 		self.rp = self.cp
@@ -67,7 +67,7 @@ class svgContext:
 			y2 += self.cp[1]
 			x3 += self.cp[0]
 			y3 += self.cp[1]
-		print("\tmg_cubic_to(" + f2s(x1) + ", " + f2s(y1) + ", " + f2s(x2) + ", " + f2s(y2) + ", " + f2s(x3) + ", " + f2s(y3) + ");")
+		print("\t\tmg_cubic_to(" + f2s(x1) + ", " + f2s(y1) + ", " + f2s(x2) + ", " + f2s(y2) + ", " + f2s(x3) + ", " + f2s(y3) + ");")
 		self.rp = (x2, y2)
 		self.cp = (x3, y3)
 
@@ -79,7 +79,7 @@ class svgContext:
 			y3 += self.cp[1]
 		x1 = 2*self.cp[0] - self.rp[0]
 		y1 = 2*self.cp[1] - self.rp[1]
-		print("\tmg_cubic_to(" + f2s(x1) + ", " + f2s(y1) + ", " + f2s(x2) + ", " + f2s(y2) + ", " + f2s(x3) + ", " + f2s(y3) + ");")
+		print("\t\tmg_cubic_to(" + f2s(x1) + ", " + f2s(y1) + ", " + f2s(x2) + ", " + f2s(y2) + ", " + f2s(x3) + ", " + f2s(y3) + ");")
 		self.rp = (x2, y2)
 		self.cp = (x3, y3)
 
@@ -87,7 +87,7 @@ class svgContext:
 		if rel:
 			x1 += self.cp[0]
 			y1 += self.cp[1]
-		print("\tmg_line_to(" + f2s(x1) + ", " + f2s(y1) + ");")
+		print("\t\tmg_line_to(" + f2s(x1) + ", " + f2s(y1) + ");")
 		self.cp = (x1, y1)
 		self.rp = self.cp
 
@@ -95,12 +95,12 @@ class svgContext:
 		if rel:
 			y1 += self.cp[1]
 		x1 = self.cp[0]
-		print("\tmg_line_to(" + f2s(x1) + ", " + f2s(y1) + ");")
+		print("\t\tmg_line_to(" + f2s(x1) + ", " + f2s(y1) + ");")
 		self.cp = (x1, y1)
 		self.rp = self.cp
 
 	def close_path(self):
-		print("\tmg_close_path();");
+		print("\t\tmg_close_path();");
 		self.cp = self.rp = self.sp
 
 def print_path(path, ctx):
@@ -190,13 +190,17 @@ def parse_color(s):
 tree = et.parse('./Ghostscript_Tiger.svg')
 ctx = svgContext()
 
-print("void draw_tiger()")
+print("void draw_tiger(bool singlePath, int singlePathIndex)")
 print("{")
 
-for g in tree.iter('{http://www.w3.org/2000/svg}g'):
 
+pathIndex = 0;
+for g in tree.iter('{http://www.w3.org/2000/svg}g'):
 	for path in g.findall('{http://www.w3.org/2000/svg}path'):
 		ctx.reset()
+
+		print("\tif(!singlePath || singlePathIndex == "+ str(pathIndex) +")")
+		print("\t{")
 		print_path(path, ctx)
 
 		fill = g.get('fill')
@@ -205,22 +209,31 @@ for g in tree.iter('{http://www.w3.org/2000/svg}g'):
 
 		if fill != None and fill != "none":
 			(r, g, b) = parse_color(fill)
-			print("\tmg_set_color_rgba(" + f2s(r) + ", " + f2s(g) + ", " + f2s(b) + ", 1);")
-			print("\tmg_fill();")
+			print("\t\tmg_set_color_rgba(" + f2s(r) + ", " + f2s(g) + ", " + f2s(b) + ", 1);")
+			print("\t\tmg_fill();")
+
+		print("\t}")
+		pathIndex += 1
 
 		if stroke != None and stroke != "none":
+			print("\tif(!singlePath || singlePathIndex == "+ str(pathIndex) +")")
+			print("\t{")
 
 			if stroke_width != None:
-				print("\tmg_set_width(" + stroke_width + ");");
+				print("\t\tmg_set_width(" + stroke_width + ");");
 			else:
-				print("\tmg_set_width(1);");
+				print("\t\tmg_set_width(1);");
 
 			(r, g, b) = parse_color(stroke)
 			if fill != None:
 				ctx.reset()
 				print_path(path, ctx)
-			print("\tmg_set_color_rgba(" + f2s(r) + ", " + f2s(g) + ", " + f2s(b) + ", 1);")
-			print("\tmg_stroke();")
+			print("\t\tmg_set_color_rgba(" + f2s(r) + ", " + f2s(g) + ", " + f2s(b) + ", 1);")
+			print("\t\tmg_stroke();")
+
+			print("\t}")
+			pathIndex += 1
+
 
 		if (stroke == None or stroke == 'none') and (fill == None or fill == ''):
 			print("error, group " + g.get("id") + " has no command")

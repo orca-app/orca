@@ -84,8 +84,11 @@ int main()
 
 	bool tracked = false;
 	vec2 trackPoint = {0};
+
 	f32 zoom = 1;
 	f32 startX = 300, startY = 200;
+	bool singlePath = false;
+	int singlePathIndex = 0;
 
 	f64 frameTime = 0;
 
@@ -135,6 +138,43 @@ int main()
 					startY = mousePos.y - pinY*zoom;
 				} break;
 
+				case MP_EVENT_KEYBOARD_KEY:
+				{
+					if(event.key.action == MP_KEY_PRESS || event.key.action == MP_KEY_REPEAT)
+					{
+						switch(event.key.code)
+						{
+							case MP_KEY_SPACE:
+								singlePath = !singlePath;
+								break;
+
+							case MP_KEY_UP:
+							{
+								if(event.key.mods & MP_KEYMOD_SHIFT)
+								{
+									singlePathIndex++;
+								}
+								else
+								{
+									zoom += 0.001;
+								}
+							} break;
+
+							case MP_KEY_DOWN:
+							{
+								if(event.key.mods & MP_KEYMOD_SHIFT)
+								{
+									singlePathIndex--;
+								}
+								else
+								{
+									zoom -= 0.001;
+								}
+							} break;
+						}
+					}
+				} break;
+
 				default:
 					break;
 			}
@@ -155,10 +195,16 @@ int main()
 		mg_matrix_push((mg_mat2x3){zoom, 0, startX,
 		                           0, zoom, startY});
 
-		draw_tiger();
+		draw_tiger(singlePath, singlePathIndex);
+
+		if(singlePath)
+		{
+			printf("display single path %i\n", singlePathIndex);
+		}
+		printf("viewpos = (%f, %f), zoom = %f\n", startX, startY, zoom);
 
 		mg_matrix_pop();
-/*
+
 			// text
 			mg_set_color_rgba(0, 0, 1, 1);
 			mg_set_font(font);
@@ -171,7 +217,7 @@ int main()
 			                      1./frameTime);
 			mg_text_outlines(text);
 			mg_fill();
-*/
+
 			printf("Milepost vector graphics test program (frame time = %fs, fps = %f)...\n",
 			                      frameTime,
 			                      1./frameTime);
