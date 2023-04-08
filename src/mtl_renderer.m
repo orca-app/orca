@@ -20,7 +20,7 @@
 
 const int MG_MTL_INPUT_BUFFERS_COUNT = 3,
           MG_MTL_TILE_SIZE = 16,
-          MG_MTL_MSAA_COUNT = 1;
+          MG_MTL_MSAA_COUNT = 8;
 
 typedef struct mg_mtl_canvas_backend
 {

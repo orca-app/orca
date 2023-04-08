@@ -200,8 +200,8 @@ int main()
 		if(singlePath)
 		{
 			printf("display single path %i\n", singlePathIndex);
+			printf("viewpos = (%f, %f), zoom = %f\n", startX, startY, zoom);
 		}
-		printf("viewpos = (%f, %f), zoom = %f\n", startX, startY, zoom);
 
 		mg_matrix_pop();
 

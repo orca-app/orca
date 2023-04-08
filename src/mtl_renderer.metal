@@ -1271,22 +1271,6 @@ kernel void mtl_segment_setup(constant int* elementCount [[buffer(0)]],
                               uint eltIndex [[thread_position_in_grid]])
 {
 	const device mg_mtl_path_elt* elt = &elementBuffer[eltIndex];
-
-	//28
-	// 125
-	// 112
-//	if(elt->pathIndex != 96)
-	{
-//		return;
-	}
-
-	/*
-	if(elt->localEltIndex != 21)// && elt->localEltIndex != 22)
-	{
-		return;
-	}
-	*/
-
 	const device mg_mtl_path_queue* pathQueue = &pathQueueBuffer[elt->pathIndex];
 	device mg_mtl_tile_queue* tileQueues = &tileQueueBuffer[pathQueue->tileQueues];
 
@@ -1472,8 +1456,8 @@ kernel void mtl_raster(const device int* screenTilesBuffer [[buffer(0)]],
 	                       .offset = logOffsetBuffer,
 	                       .enabled = true};
 */
-	float2 pixelCoord = float2(threadCoord);
-	int2 tileCoord = int2(threadCoord) / tileSize[0];
+	uint2 pixelCoord = threadCoord;
+	int2 tileCoord = int2(pixelCoord) / tileSize[0];
 	int nTilesX = (int(gridSize.x) + tileSize[0] - 1)/tileSize[0];
 	int tileIndex = tileCoord.y * nTilesX + tileCoord.x;
 
@@ -1483,23 +1467,24 @@ kernel void mtl_raster(const device int* screenTilesBuffer [[buffer(0)]],
 	const int MG_MTL_MAX_SAMPLE_COUNT = 8;
 	float2 sampleCoords[MG_MTL_MAX_SAMPLE_COUNT];
 	int sampleCount = sampleCountBuffer[0];
+	float2 centerCoord = float2(pixelCoord) + float2(0.5, 0.5);
 
 	if(sampleCount == 8)
 	{
 		sampleCount = 8;
-		sampleCoords[0] = pixelCoord + float2(1, 3)/16;
-		sampleCoords[1] = pixelCoord + float2(-1, -3)/16;
-		sampleCoords[2] = pixelCoord + float2(5, -1)/16;
-		sampleCoords[3] = pixelCoord + float2(-3, 5)/16;
-		sampleCoords[4] = pixelCoord + float2(-5, -5)/16;
-		sampleCoords[5] = pixelCoord + float2(-7, 1)/16;
-		sampleCoords[6] = pixelCoord + float2(3, -7)/16;
-		sampleCoords[7] = pixelCoord + float2(7, 7)/16;
+		sampleCoords[0] = centerCoord + float2(1, 3)/16;
+		sampleCoords[1] = centerCoord + float2(-1, -3)/16;
+		sampleCoords[2] = centerCoord + float2(5, -1)/16;
+		sampleCoords[3] = centerCoord + float2(-3, 5)/16;
+		sampleCoords[4] = centerCoord + float2(-5, -5)/16;
+		sampleCoords[5] = centerCoord + float2(-7, 1)/16;
+		sampleCoords[6] = centerCoord + float2(3, -7)/16;
+		sampleCoords[7] = centerCoord + float2(7, 7)/16;
 	}
 	else
 	{
 		sampleCount = 1;
-		sampleCoords[0] = pixelCoord;
+		sampleCoords[0] = centerCoord;
 	}
 
 	float4 color[MG_MTL_MAX_SAMPLE_COUNT] = {0};
@@ -1584,7 +1569,7 @@ kernel void mtl_raster(const device int* screenTilesBuffer [[buffer(0)]],
 	}
 	//*/
 
-	outTexture.write(pixelColor, uint2(pixelCoord));
+	outTexture.write(pixelColor, pixelCoord);
 }
 
 //------------------------------------------------------------------------------------
