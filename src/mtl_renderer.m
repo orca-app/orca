@@ -36,6 +36,8 @@ typedef struct mg_mtl_canvas_backend
 
 	id<MTLTexture> outTexture;
 
+	int pathBufferOffset;
+	int elementBufferOffset;
 	int bufferIndex;
 	dispatch_semaphore_t bufferSemaphore;
 
@@ -56,6 +58,12 @@ typedef struct mg_mtl_canvas_backend
 	int msaaCount;
 
 } mg_mtl_canvas_backend;
+
+typedef struct mg_mtl_image_data
+{
+	mg_image_data interface;
+	id<MTLTexture> texture;
+} mg_mtl_image_data;
 
 
 static void mg_update_path_extents(vec4* extents, vec2 p)
@@ -89,11 +97,13 @@ void mg_mtl_print_log(int bufferIndex, id<MTLBuffer> logBuffer, id<MTLBuffer> lo
 typedef struct mg_mtl_encoding_context
 {
 	int mtlEltCount;
+	mg_mtl_path* pathBufferData;
 	mg_mtl_path_elt* elementBufferData;
 	int pathIndex;
 	int localEltIndex;
 	mg_primitive* primitive;
 	vec4 pathScreenExtents;
+	vec4 pathUserExtents;
 
 } mg_mtl_encoding_context;
 
@@ -129,9 +139,12 @@ void mg_mtl_canvas_encode_element(mg_mtl_encoding_context* context, mg_path_elt_
 
 	for(int i=0; i<count; i++)
 	{
+		mg_update_path_extents(&context->pathUserExtents, p[i]);
+
 		vec2 screenP = mg_mat2x3_mul(context->primitive->attributes.transform, p[i]);
-		mg_update_path_extents(&context->pathScreenExtents, screenP);
 		mtlElt->p[i] = (vector_float2){screenP.x, screenP.y};
+
+		mg_update_path_extents(&context->pathScreenExtents, screenP);
 	}
 }
 
@@ -413,8 +426,8 @@ void mg_mtl_render_stroke_element(mg_mtl_encoding_context* context,
 }
 
 void mg_mtl_stroke_cap(mg_mtl_encoding_context* context,
-                   vec2 p0,
-                   vec2 direction)
+                       vec2 p0,
+                       vec2 direction)
 {
 	mg_attributes* attributes = &context->primitive->attributes;
 
@@ -600,6 +613,161 @@ void mg_mtl_render_stroke(mg_mtl_encoding_context* context,
 	}
 }
 
+
+void mg_mtl_render_batch(mg_mtl_canvas_backend* backend,
+                         mg_mtl_surface* surface,
+                         int pathCount,
+                         int eltCount,
+                         mg_image_data* image,
+                         int tileSize,
+                         int nTilesX,
+                         int nTilesY,
+                         vec2 viewportSize,
+                         f32 scale)
+{
+	//NOTE: encode GPU commands
+	@autoreleasepool
+	{
+		//NOTE: clear counters
+		id<MTLBlitCommandEncoder> blitEncoder = [surface->commandBuffer blitCommandEncoder];
+		blitEncoder.label = @"clear counters";
+		[blitEncoder fillBuffer: backend->segmentCountBuffer range: NSMakeRange(0, sizeof(int)) value: 0];
+		[blitEncoder fillBuffer: backend->tileQueueCountBuffer range: NSMakeRange(0, sizeof(int)) value: 0];
+		[blitEncoder fillBuffer: backend->tileOpCountBuffer range: NSMakeRange(0, sizeof(int)) value: 0];
+		[blitEncoder endEncoding];
+
+		//NOTE: path setup pass
+		id<MTLComputeCommandEncoder> pathEncoder = [surface->commandBuffer computeCommandEncoder];
+		pathEncoder.label = @"path pass";
+		[pathEncoder setComputePipelineState: backend->pathPipeline];
+
+		[pathEncoder setBytes:&pathCount length:sizeof(int) atIndex:0];
+		[pathEncoder setBuffer:backend->pathBuffer[backend->bufferIndex] offset:backend->pathBufferOffset atIndex:1];
+		[pathEncoder setBuffer:backend->pathQueueBuffer offset:0 atIndex:2];
+		[pathEncoder setBuffer:backend->tileQueueBuffer offset:0 atIndex:3];
+		[pathEncoder setBuffer:backend->tileQueueCountBuffer offset:0 atIndex:4];
+		[pathEncoder setBytes:&tileSize length:sizeof(int) atIndex:5];
+		[pathEncoder setBytes:&scale length:sizeof(int) atIndex:6];
+
+		MTLSize pathGridSize = MTLSizeMake(pathCount, 1, 1);
+		MTLSize pathGroupSize = MTLSizeMake([backend->pathPipeline maxTotalThreadsPerThreadgroup], 1, 1);
+
+		[pathEncoder dispatchThreads: pathGridSize threadsPerThreadgroup: pathGroupSize];
+		[pathEncoder endEncoding];
+
+		//NOTE: segment setup pass
+		id<MTLComputeCommandEncoder> segmentEncoder = [surface->commandBuffer computeCommandEncoder];
+		segmentEncoder.label = @"segment pass";
+		[segmentEncoder setComputePipelineState: backend->segmentPipeline];
+
+		[segmentEncoder setBytes:&eltCount length:sizeof(int) atIndex:0];
+		[segmentEncoder setBuffer:backend->elementBuffer[backend->bufferIndex] offset:backend->elementBufferOffset atIndex:1];
+		[segmentEncoder setBuffer:backend->segmentCountBuffer offset:0 atIndex:2];
+		[segmentEncoder setBuffer:backend->segmentBuffer offset:0 atIndex:3];
+		[segmentEncoder setBuffer:backend->pathQueueBuffer offset:0 atIndex:4];
+		[segmentEncoder setBuffer:backend->tileQueueBuffer offset:0 atIndex:5];
+		[segmentEncoder setBuffer:backend->tileOpBuffer offset:0 atIndex:6];
+		[segmentEncoder setBuffer:backend->tileOpCountBuffer offset:0 atIndex:7];
+		[segmentEncoder setBytes:&tileSize length:sizeof(int) atIndex:8];
+		[segmentEncoder setBytes:&scale length:sizeof(int) atIndex:9];
+		[segmentEncoder setBuffer:backend->logBuffer[backend->bufferIndex] offset:0 atIndex:10];
+		[segmentEncoder setBuffer:backend->logOffsetBuffer[backend->bufferIndex] offset:0 atIndex:11];
+
+		MTLSize segmentGridSize = MTLSizeMake(eltCount, 1, 1);
+		MTLSize segmentGroupSize = MTLSizeMake([backend->segmentPipeline maxTotalThreadsPerThreadgroup], 1, 1);
+
+		[segmentEncoder dispatchThreads: segmentGridSize threadsPerThreadgroup: segmentGroupSize];
+		[segmentEncoder endEncoding];
+
+		//NOTE: backprop pass
+		id<MTLComputeCommandEncoder> backpropEncoder = [surface->commandBuffer computeCommandEncoder];
+		backpropEncoder.label = @"backprop pass";
+		[backpropEncoder setComputePipelineState: backend->backpropPipeline];
+
+		[backpropEncoder setBuffer:backend->pathQueueBuffer offset:0 atIndex:0];
+		[backpropEncoder setBuffer:backend->tileQueueBuffer offset:0 atIndex:1];
+		[backpropEncoder setBuffer:backend->logBuffer[backend->bufferIndex] offset:0 atIndex:2];
+		[backpropEncoder setBuffer:backend->logOffsetBuffer[backend->bufferIndex] offset:0 atIndex:3];
+
+		MTLSize backpropGroupSize = MTLSizeMake([backend->backpropPipeline maxTotalThreadsPerThreadgroup], 1, 1);
+		MTLSize backpropGridSize = MTLSizeMake(pathCount*backpropGroupSize.width, 1, 1);
+
+		[backpropEncoder dispatchThreads: backpropGridSize threadsPerThreadgroup: backpropGroupSize];
+		[backpropEncoder endEncoding];
+
+		//NOTE: merge pass
+		id<MTLComputeCommandEncoder> mergeEncoder = [surface->commandBuffer computeCommandEncoder];
+		mergeEncoder.label = @"merge pass";
+		[mergeEncoder setComputePipelineState: backend->mergePipeline];
+
+		[mergeEncoder setBytes:&pathCount length:sizeof(int) atIndex:0];
+		[mergeEncoder setBuffer:backend->pathBuffer[backend->bufferIndex] offset:backend->pathBufferOffset atIndex:1];
+		[mergeEncoder setBuffer:backend->pathQueueBuffer offset:0 atIndex:2];
+		[mergeEncoder setBuffer:backend->tileQueueBuffer offset:0 atIndex:3];
+		[mergeEncoder setBuffer:backend->tileOpBuffer offset:0 atIndex:4];
+		[mergeEncoder setBuffer:backend->tileOpCountBuffer offset:0 atIndex:5];
+		[mergeEncoder setBuffer:backend->screenTilesBuffer offset:0 atIndex:6];
+		[mergeEncoder setBuffer:backend->logBuffer[backend->bufferIndex] offset:0 atIndex:7];
+		[mergeEncoder setBuffer:backend->logOffsetBuffer[backend->bufferIndex] offset:0 atIndex:8];
+
+		MTLSize mergeGridSize = MTLSizeMake(nTilesX, nTilesY, 1);
+		MTLSize mergeGroupSize = MTLSizeMake(16, 16, 1);
+
+		[mergeEncoder dispatchThreads: mergeGridSize threadsPerThreadgroup: mergeGroupSize];
+		[mergeEncoder endEncoding];
+
+		//NOTE: raster pass
+		id<MTLComputeCommandEncoder> rasterEncoder = [surface->commandBuffer computeCommandEncoder];
+		rasterEncoder.label = @"raster pass";
+		[rasterEncoder setComputePipelineState: backend->rasterPipeline];
+
+		[rasterEncoder setBuffer:backend->screenTilesBuffer offset:0 atIndex:0];
+		[rasterEncoder setBuffer:backend->tileOpBuffer offset:0 atIndex:1];
+		[rasterEncoder setBuffer:backend->pathBuffer[backend->bufferIndex] offset:backend->pathBufferOffset atIndex:2];
+		[rasterEncoder setBuffer:backend->segmentBuffer offset:0 atIndex:3];
+		[rasterEncoder setBytes:&tileSize length:sizeof(int) atIndex:4];
+		[rasterEncoder setBytes:&backend->msaaCount length:sizeof(int) atIndex:5];
+		[rasterEncoder setBuffer:backend->logBuffer[backend->bufferIndex] offset:0 atIndex:6];
+		[rasterEncoder setBuffer:backend->logOffsetBuffer[backend->bufferIndex] offset:0 atIndex:7];
+
+		[rasterEncoder setTexture:backend->outTexture atIndex:0];
+
+		int useTexture = 0;
+		if(image)
+		{
+			mg_mtl_image_data* mtlImage = (mg_mtl_image_data*)image;
+			[rasterEncoder setTexture: mtlImage->texture atIndex: 1];
+			useTexture = 1;
+		}
+		[rasterEncoder setBytes: &useTexture length:sizeof(int) atIndex: 8];
+
+
+		MTLSize rasterGridSize = MTLSizeMake(viewportSize.x, viewportSize.y, 1);
+		MTLSize rasterGroupSize = MTLSizeMake(16, 16, 1);
+		[rasterEncoder dispatchThreads: rasterGridSize threadsPerThreadgroup: rasterGroupSize];
+
+		[rasterEncoder endEncoding];
+
+		//NOTE: blit pass
+		MTLViewport viewport = {0, 0, viewportSize.x, viewportSize.y, 0, 1};
+
+		MTLRenderPassDescriptor* renderPassDescriptor = [MTLRenderPassDescriptor renderPassDescriptor];
+		renderPassDescriptor.colorAttachments[0].texture = surface->drawable.texture;
+		renderPassDescriptor.colorAttachments[0].loadAction = MTLLoadActionLoad;
+		renderPassDescriptor.colorAttachments[0].storeAction = MTLStoreActionStore;
+
+		id<MTLRenderCommandEncoder> renderEncoder = [surface->commandBuffer renderCommandEncoderWithDescriptor:renderPassDescriptor];
+		renderEncoder.label = @"blit pass";
+		[renderEncoder setViewport: viewport];
+		[renderEncoder setRenderPipelineState: backend->blitPipeline];
+		[renderEncoder setFragmentTexture: backend->outTexture atIndex: 0];
+		[renderEncoder drawPrimitives: MTLPrimitiveTypeTriangle
+			 vertexStart: 0
+			 vertexCount: 3 ];
+		[renderEncoder endEncoding];
+	}
+}
+
 void mg_mtl_canvas_render(mg_canvas_backend* interface,
                           mg_color clearColor,
                           u32 primitiveCount,
@@ -616,22 +784,89 @@ void mg_mtl_canvas_render(mg_canvas_backend* interface,
 	mg_mtl_path_elt* elementBufferData = (mg_mtl_path_elt*)[backend->elementBuffer[backend->bufferIndex] contents];
 	mg_mtl_path* pathBufferData = (mg_mtl_path*)[backend->pathBuffer[backend->bufferIndex] contents];
 
-	//NOTE: fill renderer input buffers
+	/////////////////////////////////////////////////////////////////////////////////////
+	//TODO: ensure screen tiles buffer is correct size
+	/////////////////////////////////////////////////////////////////////////////////////
+
+	//NOTE: prepare rendering
+	mg_mtl_surface* surface = (mg_mtl_surface*)mg_surface_data_from_handle(backend->surface);
+	ASSERT(surface && surface->interface.backend == MG_BACKEND_METAL);
+
+	mg_mtl_surface_acquire_command_buffer(surface);
+	mg_mtl_surface_acquire_drawable(surface);
+
+	mp_rect frame = mg_surface_get_frame(backend->surface);
+	f32 scale = surface->mtlLayer.contentsScale;
+	vec2 viewportSize = {frame.w * scale, frame.h * scale};
+	int tileSize = MG_MTL_TILE_SIZE;
+	int nTilesX = (int)(frame.w * scale + tileSize - 1)/tileSize;
+	int nTilesY = (int)(frame.h * scale + tileSize - 1)/tileSize;
+
+	@autoreleasepool
+	{
+		//NOTE: clear log counter
+		id<MTLBlitCommandEncoder> blitEncoder = [surface->commandBuffer blitCommandEncoder];
+		blitEncoder.label = @"clear log counter";
+		[blitEncoder fillBuffer: backend->logOffsetBuffer[backend->bufferIndex] range: NSMakeRange(0, sizeof(int)) value: 0];
+		[blitEncoder endEncoding];
+
+		//NOTE: clear screen
+		MTLRenderPassDescriptor* renderPassDescriptor = [MTLRenderPassDescriptor renderPassDescriptor];
+		renderPassDescriptor.colorAttachments[0].texture = surface->drawable.texture;
+		renderPassDescriptor.colorAttachments[0].loadAction = MTLLoadActionClear;
+		renderPassDescriptor.colorAttachments[0].clearColor = MTLClearColorMake(clearColor.r, clearColor.g, clearColor.b, clearColor.a);
+		renderPassDescriptor.colorAttachments[0].storeAction = MTLStoreActionStore;
+
+		id<MTLRenderCommandEncoder> renderEncoder = [surface->commandBuffer renderCommandEncoderWithDescriptor:renderPassDescriptor];
+		renderEncoder.label = @"clear pass";
+		[renderEncoder endEncoding];
+	}
+	backend->pathBufferOffset = 0;
+	backend->elementBufferOffset = 0;
+
+	//NOTE: encode and render batches
 	int pathCount = 0;
 	vec2 currentPos = {0};
 
+	mg_image currentImage = mg_image_nil();
 	mg_mtl_encoding_context context = {.mtlEltCount = 0,
-	                                   .elementBufferData = elementBufferData};
+	                                   .elementBufferData = elementBufferData,
+	                                   .pathBufferData = pathBufferData};
 
 	for(int primitiveIndex = 0; primitiveIndex < primitiveCount; primitiveIndex++)
 	{
 		mg_primitive* primitive = &primitives[primitiveIndex];
+
+		if(primitiveIndex && (primitive->attributes.image.h != currentImage.h))
+		{
+			mg_image_data* imageData = mg_image_data_from_handle(currentImage);
+
+			mg_mtl_render_batch(backend,
+			                    surface,
+			                    pathCount,
+			                    context.mtlEltCount,
+			                    imageData,
+			                    tileSize,
+			                    nTilesX,
+			                    nTilesY,
+			                    viewportSize,
+			                    scale);
+
+			backend->pathBufferOffset += pathCount * sizeof(mg_mtl_path);
+			backend->elementBufferOffset += context.mtlEltCount * sizeof(mg_mtl_path_elt);
+			pathCount = 0;
+			context.mtlEltCount = 0;
+			context.elementBufferData = (mg_mtl_path_elt*)((char*)elementBufferData + backend->elementBufferOffset);
+			context.pathBufferData = (mg_mtl_path*)((char*)pathBufferData + backend->pathBufferOffset);
+		}
+		currentImage = primitive->attributes.image;
 
 		if(primitive->path.count)
 		{
 			context.primitive = primitive;
 			context.pathIndex = pathCount;
 			context.pathScreenExtents = (vec4){FLT_MAX, FLT_MAX, -FLT_MAX, -FLT_MAX};
+			context.pathUserExtents = (vec4){FLT_MAX, FLT_MAX, -FLT_MAX, -FLT_MAX};
 
 			if(primitive->cmd == MG_CMD_STROKE)
 			{
@@ -675,7 +910,7 @@ void mg_mtl_canvas_render(mg_canvas_backend* interface,
 				}
 			}
 			//NOTE: push path
-			mg_mtl_path* path = &pathBufferData[pathCount];
+			mg_mtl_path* path = &context.pathBufferData[pathCount];
 			pathCount++;
 
 			path->cmd =	(mg_mtl_cmd)primitive->cmd;
@@ -688,164 +923,55 @@ void mg_mtl_canvas_render(mg_canvas_backend* interface,
 			                              primitive->attributes.color.g,
 			                              primitive->attributes.color.b,
 			                              primitive->attributes.color.a};
-			//TODO: compute uv transform
+
+			mp_rect srcRegion = primitive->attributes.srcRegion;
+
+			mp_rect destRegion = {context.pathUserExtents.x,
+			                      context.pathUserExtents.y,
+			                      context.pathUserExtents.z - context.pathUserExtents.x,
+			                      context.pathUserExtents.w - context.pathUserExtents.y};
+
+			if(!mg_image_is_nil(primitive->attributes.image))
+			{
+				vec2 texSize = mg_image_size(primitive->attributes.image);
+
+				mg_mat2x3 srcRegionToImage = {1/texSize.x, 0, srcRegion.x/texSize.x,
+				                              0, 1/texSize.y, srcRegion.y/texSize.y};
+
+				mg_mat2x3 destRegionToSrcRegion = {srcRegion.w/destRegion.w, 0, 0,
+				                                   0, srcRegion.h/destRegion.h, 0};
+
+				mg_mat2x3 userToDestRegion = {1, 0, -destRegion.x,
+				                              0, 1, -destRegion.y};
+
+				mg_mat2x3 screenToUser = mg_mat2x3_inv(primitive->attributes.transform);
+
+				mg_mat2x3 uvTransform = srcRegionToImage;
+				uvTransform = mg_mat2x3_mul_m(uvTransform, destRegionToSrcRegion);
+				uvTransform = mg_mat2x3_mul_m(uvTransform, userToDestRegion);
+				uvTransform = mg_mat2x3_mul_m(uvTransform, screenToUser);
+
+				path->uvTransform = simd_matrix(simd_make_float3(uvTransform.m[0]/scale, uvTransform.m[3]/scale, 0),
+				                                simd_make_float3(uvTransform.m[1]/scale, uvTransform.m[4]/scale, 0),
+				                                simd_make_float3(uvTransform.m[2], uvTransform.m[5], 1));
+			}
 		}
 	}
 
-	mg_mtl_surface* surface = (mg_mtl_surface*)mg_surface_data_from_handle(backend->surface);
-	ASSERT(surface && surface->interface.backend == MG_BACKEND_METAL);
+	mg_image_data* imageData = mg_image_data_from_handle(currentImage);
+	mg_mtl_render_batch(backend,
+	                    surface,
+	                    pathCount,
+	                    context.mtlEltCount,
+	                    imageData,
+	                    tileSize,
+	                    nTilesX,
+	                    nTilesY,
+	                    viewportSize,
+	                    scale);
 
-	mp_rect frame = mg_surface_get_frame(backend->surface);
-	f32 scale = surface->mtlLayer.contentsScale;
-	vec2 viewportSize = {frame.w * scale, frame.h * scale};
-	int tileSize = MG_MTL_TILE_SIZE;
-	int nTilesX = (int)(frame.w * scale + tileSize - 1)/tileSize;
-	int nTilesY = (int)(frame.h * scale + tileSize - 1)/tileSize;
-
-	/////////////////////////////////////////////////////////////////////////////////////
-	//TODO: ensure screen tiles buffer is correct size
-	/////////////////////////////////////////////////////////////////////////////////////
-
-	//NOTE: encode GPU commands
 	@autoreleasepool
 	{
-		mg_mtl_surface_acquire_command_buffer(surface);
-
-		//NOTE: clear counters
-		id<MTLBlitCommandEncoder> blitEncoder = [surface->commandBuffer blitCommandEncoder];
-		blitEncoder.label = @"clear counters";
-		[blitEncoder fillBuffer: backend->segmentCountBuffer range: NSMakeRange(0, sizeof(int)) value: 0];
-		[blitEncoder fillBuffer: backend->tileQueueCountBuffer range: NSMakeRange(0, sizeof(int)) value: 0];
-		[blitEncoder fillBuffer: backend->tileOpCountBuffer range: NSMakeRange(0, sizeof(int)) value: 0];
-		[blitEncoder fillBuffer: backend->logOffsetBuffer[backend->bufferIndex] range: NSMakeRange(0, sizeof(int)) value: 0];
-		[blitEncoder endEncoding];
-
-		//NOTE: path setup pass
-		id<MTLComputeCommandEncoder> pathEncoder = [surface->commandBuffer computeCommandEncoder];
-		pathEncoder.label = @"path pass";
-		[pathEncoder setComputePipelineState: backend->pathPipeline];
-
-		[pathEncoder setBytes:&pathCount length:sizeof(int) atIndex:0];
-		[pathEncoder setBuffer:backend->pathBuffer[backend->bufferIndex] offset:0 atIndex:1];
-		[pathEncoder setBuffer:backend->pathQueueBuffer offset:0 atIndex:2];
-		[pathEncoder setBuffer:backend->tileQueueBuffer offset:0 atIndex:3];
-		[pathEncoder setBuffer:backend->tileQueueCountBuffer offset:0 atIndex:4];
-		[pathEncoder setBytes:&tileSize length:sizeof(int) atIndex:5];
-		[pathEncoder setBytes:&scale length:sizeof(int) atIndex:6];
-
-		MTLSize pathGridSize = MTLSizeMake(pathCount, 1, 1);
-		MTLSize pathGroupSize = MTLSizeMake([backend->pathPipeline maxTotalThreadsPerThreadgroup], 1, 1);
-
-		[pathEncoder dispatchThreads: pathGridSize threadsPerThreadgroup: pathGroupSize];
-		[pathEncoder endEncoding];
-
-		//NOTE: segment setup pass
-		id<MTLComputeCommandEncoder> segmentEncoder = [surface->commandBuffer computeCommandEncoder];
-		segmentEncoder.label = @"segment pass";
-		[segmentEncoder setComputePipelineState: backend->segmentPipeline];
-
-		[segmentEncoder setBytes:&eltCount length:sizeof(int) atIndex:0];
-		[segmentEncoder setBuffer:backend->elementBuffer[backend->bufferIndex] offset:0 atIndex:1];
-		[segmentEncoder setBuffer:backend->segmentCountBuffer offset:0 atIndex:2];
-		[segmentEncoder setBuffer:backend->segmentBuffer offset:0 atIndex:3];
-		[segmentEncoder setBuffer:backend->pathQueueBuffer offset:0 atIndex:4];
-		[segmentEncoder setBuffer:backend->tileQueueBuffer offset:0 atIndex:5];
-		[segmentEncoder setBuffer:backend->tileOpBuffer offset:0 atIndex:6];
-		[segmentEncoder setBuffer:backend->tileOpCountBuffer offset:0 atIndex:7];
-		[segmentEncoder setBytes:&tileSize length:sizeof(int) atIndex:8];
-		[segmentEncoder setBytes:&scale length:sizeof(int) atIndex:9];
-		[segmentEncoder setBuffer:backend->logBuffer[backend->bufferIndex] offset:0 atIndex:10];
-		[segmentEncoder setBuffer:backend->logOffsetBuffer[backend->bufferIndex] offset:0 atIndex:11];
-
-		MTLSize segmentGridSize = MTLSizeMake(context.mtlEltCount, 1, 1);
-		MTLSize segmentGroupSize = MTLSizeMake([backend->segmentPipeline maxTotalThreadsPerThreadgroup], 1, 1);
-
-		[segmentEncoder dispatchThreads: segmentGridSize threadsPerThreadgroup: segmentGroupSize];
-		[segmentEncoder endEncoding];
-
-		//NOTE: backprop pass
-		id<MTLComputeCommandEncoder> backpropEncoder = [surface->commandBuffer computeCommandEncoder];
-		backpropEncoder.label = @"backprop pass";
-		[backpropEncoder setComputePipelineState: backend->backpropPipeline];
-
-		[backpropEncoder setBuffer:backend->pathQueueBuffer offset:0 atIndex:0];
-		[backpropEncoder setBuffer:backend->tileQueueBuffer offset:0 atIndex:1];
-		[backpropEncoder setBuffer:backend->logBuffer[backend->bufferIndex] offset:0 atIndex:2];
-		[backpropEncoder setBuffer:backend->logOffsetBuffer[backend->bufferIndex] offset:0 atIndex:3];
-
-		MTLSize backpropGroupSize = MTLSizeMake([backend->backpropPipeline maxTotalThreadsPerThreadgroup], 1, 1);
-		MTLSize backpropGridSize = MTLSizeMake(pathCount*backpropGroupSize.width, 1, 1);
-
-		[backpropEncoder dispatchThreads: backpropGridSize threadsPerThreadgroup: backpropGroupSize];
-		[backpropEncoder endEncoding];
-
-		//NOTE: merge pass
-		id<MTLComputeCommandEncoder> mergeEncoder = [surface->commandBuffer computeCommandEncoder];
-		mergeEncoder.label = @"merge pass";
-		[mergeEncoder setComputePipelineState: backend->mergePipeline];
-
-		[mergeEncoder setBytes:&pathCount length:sizeof(int) atIndex:0];
-		[mergeEncoder setBuffer:backend->pathBuffer[backend->bufferIndex] offset:0 atIndex:1];
-		[mergeEncoder setBuffer:backend->pathQueueBuffer offset:0 atIndex:2];
-		[mergeEncoder setBuffer:backend->tileQueueBuffer offset:0 atIndex:3];
-		[mergeEncoder setBuffer:backend->tileOpBuffer offset:0 atIndex:4];
-		[mergeEncoder setBuffer:backend->tileOpCountBuffer offset:0 atIndex:5];
-		[mergeEncoder setBuffer:backend->screenTilesBuffer offset:0 atIndex:6];
-		[mergeEncoder setBuffer:backend->logBuffer[backend->bufferIndex] offset:0 atIndex:7];
-		[mergeEncoder setBuffer:backend->logOffsetBuffer[backend->bufferIndex] offset:0 atIndex:8];
-
-		MTLSize mergeGridSize = MTLSizeMake(nTilesX, nTilesY, 1);
-		MTLSize mergeGroupSize = MTLSizeMake(16, 16, 1);
-
-		[mergeEncoder dispatchThreads: mergeGridSize threadsPerThreadgroup: mergeGroupSize];
-		[mergeEncoder endEncoding];
-
-		//NOTE: raster pass
-		id<MTLComputeCommandEncoder> rasterEncoder = [surface->commandBuffer computeCommandEncoder];
-		rasterEncoder.label = @"raster pass";
-		[rasterEncoder setComputePipelineState: backend->rasterPipeline];
-
-		[rasterEncoder setBuffer:backend->screenTilesBuffer offset:0 atIndex:0];
-		[rasterEncoder setBuffer:backend->tileOpBuffer offset:0 atIndex:1];
-		[rasterEncoder setBuffer:backend->pathBuffer[backend->bufferIndex] offset:0 atIndex:2];
-		[rasterEncoder setBuffer:backend->segmentBuffer offset:0 atIndex:3];
-		[rasterEncoder setBytes:&tileSize length:sizeof(int) atIndex:4];
-		[rasterEncoder setBytes:&backend->msaaCount length:sizeof(int) atIndex:5];
-		[rasterEncoder setBuffer:backend->logBuffer[backend->bufferIndex] offset:0 atIndex:6];
-		[rasterEncoder setBuffer:backend->logOffsetBuffer[backend->bufferIndex] offset:0 atIndex:7];
-
-		[rasterEncoder setTexture:backend->outTexture atIndex:0];
-
-		MTLSize rasterGridSize = MTLSizeMake(viewportSize.x, viewportSize.y, 1);
-		MTLSize rasterGroupSize = MTLSizeMake(16, 16, 1);
-		[rasterEncoder dispatchThreads: rasterGridSize threadsPerThreadgroup: rasterGroupSize];
-
-		[rasterEncoder endEncoding];
-
-		//NOTE: blit pass
-		mg_mtl_surface_acquire_drawable(surface);
-		if(surface->drawable != nil)
-		{
-			MTLViewport viewport = {0, 0, viewportSize.x, viewportSize.y, 0, 1};
-
-			//TODO: clear here?
-			MTLRenderPassDescriptor* renderPassDescriptor = [MTLRenderPassDescriptor renderPassDescriptor];
-			renderPassDescriptor.colorAttachments[0].texture = surface->drawable.texture;
-			renderPassDescriptor.colorAttachments[0].loadAction = MTLLoadActionClear;
-			renderPassDescriptor.colorAttachments[0].clearColor = MTLClearColorMake(clearColor.r, clearColor.g, clearColor.b, clearColor.a);
-			renderPassDescriptor.colorAttachments[0].storeAction = MTLStoreActionStore;
-
-			id<MTLRenderCommandEncoder> renderEncoder = [surface->commandBuffer renderCommandEncoderWithDescriptor:renderPassDescriptor];
-			renderEncoder.label = @"blit pass";
-			[renderEncoder setViewport: viewport];
-			[renderEncoder setRenderPipelineState: backend->blitPipeline];
-			[renderEncoder setFragmentTexture: backend->outTexture atIndex: 0];
-			[renderEncoder drawPrimitives: MTLPrimitiveTypeTriangle
-			 	vertexStart: 0
-			 	vertexCount: 3 ];
-			[renderEncoder endEncoding];
-		}
-
 		//NOTE: finalize
 		[surface->commandBuffer addCompletedHandler:^(id<MTLCommandBuffer> commandBuffer)
 			{
@@ -887,6 +1013,64 @@ void mg_mtl_canvas_destroy(mg_canvas_backend* interface)
 	free(backend);
 }
 
+mg_image_data* mg_mtl_canvas_image_create(mg_canvas_backend* interface, vec2 size)
+{
+	mg_mtl_image_data* image = 0;
+	mg_mtl_canvas_backend* backend = (mg_mtl_canvas_backend*)interface;
+	mg_mtl_surface* surface = (mg_mtl_surface*)mg_surface_data_from_handle(backend->surface);
+
+	if(surface && surface->interface.backend == MG_BACKEND_METAL)
+	{
+		@autoreleasepool{
+
+			image = malloc_type(mg_mtl_image_data);
+			if(image)
+			{
+				MTLTextureDescriptor* texDesc = [[MTLTextureDescriptor alloc] init];
+				texDesc.textureType = MTLTextureType2D;
+				texDesc.storageMode = MTLStorageModeManaged;
+				texDesc.usage = MTLTextureUsageShaderRead;
+				texDesc.pixelFormat = MTLPixelFormatRGBA8Unorm;
+				texDesc.width = size.x;
+				texDesc.height = size.y;
+
+				image->texture = [surface->device newTextureWithDescriptor:texDesc];
+				if(image->texture != nil)
+				{
+					[image->texture retain];
+					image->interface.size = size;
+				}
+				else
+				{
+					free(image);
+					image = 0;
+				}
+			}
+		}
+	}
+	return((mg_image_data*)image);
+}
+
+void mg_mtl_canvas_image_destroy(mg_canvas_backend* backendInterface, mg_image_data* imageInterface)
+{
+	mg_mtl_image_data* image = (mg_mtl_image_data*)imageInterface;
+	@autoreleasepool
+	{
+		[image->texture release];
+		free(image);
+	}
+}
+
+void mg_mtl_canvas_image_upload_region(mg_canvas_backend* backendInterface, mg_image_data* imageInterface, mp_rect region, u8* pixels)
+{@autoreleasepool{
+	mg_mtl_image_data* image = (mg_mtl_image_data*)imageInterface;
+	MTLRegion mtlRegion = MTLRegionMake2D(region.x, region.y, region.w, region.h);
+	[image->texture replaceRegion:mtlRegion
+	                mipmapLevel:0
+	                withBytes:(void*)pixels
+	                bytesPerRow: 4 * region.w];
+}}
+
 const u32 MG_MTL_PATH_BUFFER_SIZE       = (4<<20)*sizeof(mg_mtl_path),
           MG_MTL_ELEMENT_BUFFER_SIZE    = (4<<20)*sizeof(mg_mtl_path_elt),
           MG_MTL_SEGMENT_BUFFER_SIZE    = (4<<20)*sizeof(mg_mtl_segment),
@@ -912,6 +1096,9 @@ mg_canvas_backend* mg_mtl_canvas_create(mg_surface surface)
 		//NOTE(martin): setup interface functions
 		backend->interface.destroy = mg_mtl_canvas_destroy;
 		backend->interface.render = mg_mtl_canvas_render;
+		backend->interface.imageCreate = mg_mtl_canvas_image_create;
+		backend->interface.imageDestroy = mg_mtl_canvas_image_destroy;
+		backend->interface.imageUploadRegion = mg_mtl_canvas_image_upload_region;
 
 		@autoreleasepool{
 			//NOTE: load metal library
@@ -950,7 +1137,6 @@ mg_canvas_backend* mg_mtl_canvas_create(mg_surface surface)
 
 			backend->rasterPipeline = [metalSurface->device newComputePipelineStateWithFunction: rasterFunction
 		                                                                           	error:&error];
-
 
 			MTLRenderPipelineDescriptor *pipelineStateDescriptor = [[MTLRenderPipelineDescriptor alloc] init];
 			pipelineStateDescriptor.label = @"blit pipeline";

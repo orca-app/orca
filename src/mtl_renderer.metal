@@ -1447,7 +1447,9 @@ kernel void mtl_raster(const device int* screenTilesBuffer [[buffer(0)]],
                        constant int* sampleCountBuffer [[buffer(5)]],
                        device char* logBuffer [[buffer(6)]],
                        device atomic_int* logOffsetBuffer [[buffer(7)]],
+                       constant int* useTexture [[buffer(8)]],
                        texture2d<float, access::write> outTexture [[texture(0)]],
+                       texture2d<float> srcTexture [[texture(1)]],
                        uint2 threadCoord [[thread_position_in_grid]],
                        uint2 gridSize [[threads_per_grid]])
 {
@@ -1505,7 +1507,19 @@ kernel void mtl_raster(const device int* screenTilesBuffer [[buffer(0)]],
 			             	||(pathBuffer[pathIndex].cmd == MG_MTL_STROKE && (winding[sampleIndex] != 0));
 				if(filled)
 				{
-					color[sampleIndex] = color[sampleIndex]*(1-pathColor.a) + pathColor;
+					float4 nextColor = pathColor;
+					if(useTexture[0])
+					{
+						float3 sampleCoord = float3(sampleCoords[sampleIndex].xy, 1);
+						float2 uv = (pathBuffer[pathIndex].uvTransform * sampleCoord).xy;
+
+						constexpr sampler smp(mip_filter::nearest, mag_filter::linear, min_filter::linear);
+						float4 texColor = srcTexture.sample(smp, uv);
+						texColor.rgb *= texColor.a;
+
+						nextColor *= texColor;
+					}
+					color[sampleIndex] = color[sampleIndex]*(1-nextColor.a) + nextColor;
 				}
 				winding[sampleIndex] = op->windingOffset;
 			}
@@ -1554,7 +1568,19 @@ kernel void mtl_raster(const device int* screenTilesBuffer [[buffer(0)]],
 	            	||(pathBuffer[pathIndex].cmd == MG_MTL_STROKE && (winding[sampleIndex] != 0));
 		if(filled)
 		{
-			color[sampleIndex] = color[sampleIndex]*(1-pathColor.a) + pathColor;
+			float4 nextColor = pathColor;
+			if(useTexture[0])
+			{
+				float3 sampleCoord = float3(sampleCoords[sampleIndex].xy, 1);
+				float2 uv = (pathBuffer[pathIndex].uvTransform * sampleCoord).xy;
+
+				constexpr sampler smp(mip_filter::nearest, mag_filter::linear, min_filter::linear);
+				float4 texColor = srcTexture.sample(smp, uv);
+				texColor.rgb *= texColor.a;
+
+				nextColor *= texColor;
+			}
+			color[sampleIndex] = color[sampleIndex]*(1-nextColor.a) + nextColor;
 		}
 		pixelColor += color[sampleIndex];
 	}

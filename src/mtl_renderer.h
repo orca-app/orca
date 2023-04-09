@@ -19,9 +19,9 @@ typedef enum {
 typedef struct mg_mtl_path
 {
 	mg_mtl_cmd cmd;
+	matrix_float3x3 uvTransform;
 	vector_float4 color;
 	vector_float4 box;
-
 } mg_mtl_path;
 
 typedef enum {

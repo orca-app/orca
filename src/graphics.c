@@ -3859,7 +3859,13 @@ void mg_image_draw_region(mg_image image, mp_rect srcRegion, mp_rect dstRegion)
 		canvas->attributes.srcRegion = srcRegion;
 		canvas->attributes.color = (mg_color){1, 1, 1, 1};
 
-		mg_push_command(canvas, (mg_primitive){.cmd = MG_CMD_RECT_FILL, .rect = dstRegion});
+		mg_move_to(dstRegion.x, dstRegion.y);
+		mg_line_to(dstRegion.x+dstRegion.w, dstRegion.y);
+		mg_line_to(dstRegion.x+dstRegion.w, dstRegion.y+dstRegion.h);
+		mg_line_to(dstRegion.x, dstRegion.y+dstRegion.h);
+		mg_close_path();
+
+		mg_fill();
 
 		canvas->attributes.image = oldImage;
 		canvas->attributes.srcRegion = oldSrcRegion;

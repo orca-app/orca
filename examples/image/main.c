@@ -77,6 +77,7 @@ int main()
 			mg_set_color_rgba(0, 1, 1, 1);
 			mg_clear();
 
+
 			mg_set_color_rgba(1, 1, 1, 1);
 
 			mg_matrix_push((mg_mat2x3){0.707, -0.707, 200,
@@ -91,6 +92,7 @@ int main()
 			mg_line_to(200, 200);
 			mg_line_to(0, 200);
 			mg_line_to(100, 100);
+			mg_close_path();
 			mg_fill();
 
 			mg_matrix_pop();
