@@ -3657,37 +3657,18 @@ void mg_rounded_rectangle_stroke(f32 x, f32 y, f32 w, f32 h, f32 r)
 	}
 }
 
-void mg_circle_fill(f32 x, f32 y, f32 r)
-{
-	mg_canvas_data* canvas = __mgCurrentCanvas;
-	if(canvas)
-	{
-		mg_primitive primitive = {.cmd = MG_CMD_ELLIPSE_FILL,
-		                          .rect = (mp_rect){x-r, y-r, 2*r, 2*r}};
-		mg_push_command(canvas, primitive);
-	}
-}
-
-void mg_circle_stroke(f32 x, f32 y, f32 r)
-{
-	mg_canvas_data* canvas = __mgCurrentCanvas;
-	if(canvas)
-	{
-		mg_primitive primitive = {.cmd = MG_CMD_ELLIPSE_STROKE,
-		                          .rect = (mp_rect){x-r, y-r, 2*r, 2*r}};
-		mg_push_command(canvas, primitive);
-	}
-}
-
 void mg_ellipse_fill(f32 x, f32 y, f32 rx, f32 ry)
 {
-	mg_canvas_data* canvas = __mgCurrentCanvas;
-	if(canvas)
-	{
-		mg_primitive primitive = {.cmd = MG_CMD_ELLIPSE_FILL,
-		                          .rect = (mp_rect){x-rx, y-ry, 2*rx, 2*ry}};
-		mg_push_command(canvas, primitive);
-	}
+	f32 cx = rx*4*(sqrt(2)-1)/3;
+	f32 cy = ry*4*(sqrt(2)-1)/3;
+
+	mg_move_to(x-rx, y);
+	mg_cubic_to(x-rx, y+cy, x-cx, y+ry, x, y+ry);
+	mg_cubic_to(x+cx, y+ry, x+rx, y+cy, x+rx, y);
+	mg_cubic_to(x+rx, y-cy, x+cx, y-ry, x, y-ry);
+	mg_cubic_to(x-cx, y-ry, x-rx, y-cy, x-rx, y);
+
+	mg_fill();
 }
 
 void mg_ellipse_stroke(f32 x, f32 y, f32 rx, f32 ry)
@@ -3699,6 +3680,16 @@ void mg_ellipse_stroke(f32 x, f32 y, f32 rx, f32 ry)
 		                          .rect = (mp_rect){x-rx, y-ry, 2*rx, 2*ry}};
 		mg_push_command(canvas, primitive);
 	}
+}
+
+void mg_circle_fill(f32 x, f32 y, f32 r)
+{
+	mg_ellipse_fill(x, y, r, r);
+}
+
+void mg_circle_stroke(f32 x, f32 y, f32 r)
+{
+	mg_ellipse_stroke(x, y, r, r);
 }
 
 //TODO: change to arc_to?

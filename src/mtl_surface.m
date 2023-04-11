@@ -124,6 +124,16 @@ void mg_mtl_surface_set_frame(mg_surface_data* interface, mp_rect frame)
 	mg_osx_surface_set_frame(interface, frame);
 	vec2 scale = mg_osx_surface_contents_scaling(interface);
 
+	CGRect cgFrame = {{frame.x, frame.y}, {frame.w, frame.h}};
+
+//	dispatch_async(dispatch_get_main_queue(),
+//		^{
+			[CATransaction begin];
+			[CATransaction setDisableActions:YES];
+			[surface->mtlLayer setFrame: cgFrame];
+			[CATransaction commit];
+//		 });
+
 	CGSize drawableSize = (CGSize){.width = frame.w * scale.x, .height = frame.h * scale.y};
 	surface->mtlLayer.drawableSize = drawableSize;
 }
@@ -185,8 +195,8 @@ mg_surface_data* mg_mtl_surface_create_for_window(mp_window window)
 			surface->mtlLayer.pixelFormat = MTLPixelFormatBGRA8Unorm;
 
 			//NOTE(martin): handling resizing
-			surface->mtlLayer.autoresizingMask = kCALayerHeightSizable | kCALayerWidthSizable;
-			surface->mtlLayer.needsDisplayOnBoundsChange = YES;
+//			surface->mtlLayer.autoresizingMask = kCALayerHeightSizable | kCALayerWidthSizable;
+//			surface->mtlLayer.needsDisplayOnBoundsChange = YES;
 
 			//-----------------------------------------------------------
 			//NOTE(martin): create a command queue

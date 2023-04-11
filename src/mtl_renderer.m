@@ -56,6 +56,7 @@ typedef struct mg_mtl_canvas_backend
 	id<MTLBuffer> screenTilesBuffer;
 
 	int msaaCount;
+	vec2 frameSize;
 
 } mg_mtl_canvas_backend;
 
@@ -768,6 +769,45 @@ void mg_mtl_render_batch(mg_mtl_canvas_backend* backend,
 	}
 }
 
+void mg_mtl_canvas_resize(mg_mtl_canvas_backend* backend, vec2 size)
+{
+	mg_mtl_surface* surface = (mg_mtl_surface*)mg_surface_data_from_handle(backend->surface);
+	if(surface)
+	{
+		@autoreleasepool
+		{
+			if(backend->screenTilesBuffer)
+			{
+				[backend->screenTilesBuffer release];
+				backend->screenTilesBuffer = nil;
+			}
+			int tileSize = MG_MTL_TILE_SIZE;
+			int nTilesX = (int)(size.x + tileSize - 1)/tileSize;
+			int nTilesY = (int)(size.y + tileSize - 1)/tileSize;
+			MTLResourceOptions bufferOptions = MTLResourceStorageModePrivate;
+			backend->screenTilesBuffer = [surface->device newBufferWithLength: nTilesX*nTilesY*sizeof(int)
+			                                              options: bufferOptions];
+
+			if(backend->outTexture)
+	    	{
+				[backend->outTexture release];
+				backend->outTexture = nil;
+	    	}
+			MTLTextureDescriptor* texDesc = [[MTLTextureDescriptor alloc] init];
+			texDesc.textureType = MTLTextureType2D;
+			texDesc.storageMode = MTLStorageModePrivate;
+			texDesc.usage = MTLTextureUsageShaderRead | MTLTextureUsageShaderWrite;
+			texDesc.pixelFormat = MTLPixelFormatRGBA8Unorm;
+			texDesc.width = size.x;
+			texDesc.height = size.y;
+
+			backend->outTexture = [surface->device newTextureWithDescriptor:texDesc];
+
+			backend->frameSize = size;
+		}
+	}
+}
+
 void mg_mtl_canvas_render(mg_canvas_backend* interface,
                           mg_color clearColor,
                           u32 primitiveCount,
@@ -792,15 +832,20 @@ void mg_mtl_canvas_render(mg_canvas_backend* interface,
 	mg_mtl_surface* surface = (mg_mtl_surface*)mg_surface_data_from_handle(backend->surface);
 	ASSERT(surface && surface->interface.backend == MG_BACKEND_METAL);
 
-	mg_mtl_surface_acquire_command_buffer(surface);
-	mg_mtl_surface_acquire_drawable(surface);
-
 	mp_rect frame = mg_surface_get_frame(backend->surface);
 	f32 scale = surface->mtlLayer.contentsScale;
 	vec2 viewportSize = {frame.w * scale, frame.h * scale};
 	int tileSize = MG_MTL_TILE_SIZE;
 	int nTilesX = (int)(frame.w * scale + tileSize - 1)/tileSize;
 	int nTilesY = (int)(frame.h * scale + tileSize - 1)/tileSize;
+
+	if(viewportSize.x != backend->frameSize.x || viewportSize.y != backend->frameSize.y)
+	{
+		mg_mtl_canvas_resize(backend, viewportSize);
+	}
+
+	mg_mtl_surface_acquire_command_buffer(surface);
+	mg_mtl_surface_acquire_drawable(surface);
 
 	@autoreleasepool
 	{
@@ -1157,13 +1202,15 @@ mg_canvas_backend* mg_mtl_canvas_create(mg_surface surface)
 			mp_rect frame = mg_surface_get_frame(surface);
 			f32 scale = metalSurface->mtlLayer.contentsScale;
 
+			backend->frameSize = (vec2){frame.w*scale, frame.h*scale};
+
 			MTLTextureDescriptor* texDesc = [[MTLTextureDescriptor alloc] init];
 			texDesc.textureType = MTLTextureType2D;
 			texDesc.storageMode = MTLStorageModePrivate;
 			texDesc.usage = MTLTextureUsageShaderRead | MTLTextureUsageShaderWrite;
 			texDesc.pixelFormat = MTLPixelFormatRGBA8Unorm;
-			texDesc.width = frame.w * scale;
-			texDesc.height = frame.h * scale;
+			texDesc.width = backend->frameSize.x;
+			texDesc.height = backend->frameSize.y;
 
 			backend->outTexture = [metalSurface->device newTextureWithDescriptor:texDesc];
 
@@ -1212,7 +1259,6 @@ mg_canvas_backend* mg_mtl_canvas_create(mg_surface surface)
 			int nTilesY = (int)(frame.h * scale + tileSize - 1)/tileSize;
 			backend->screenTilesBuffer = [metalSurface->device newBufferWithLength: nTilesX*nTilesY*sizeof(int)
 			                                                   options: bufferOptions];
-
 
 			bufferOptions = MTLResourceStorageModeShared;
 			for(int i=0; i<MG_MTL_INPUT_BUFFERS_COUNT; i++)

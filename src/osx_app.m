@@ -1405,6 +1405,7 @@ mp_window mp_window_create(mp_rect contentRect, const char* title, mp_window_sty
 	}
 
 	MPNativeView* view = [[MPNativeView alloc] initWithMPWindow:window];
+	[view setCanDrawConcurrently: YES];
 
 	[window->osx.nsWindow setContentView:view];
 	[window->osx.nsWindow makeFirstResponder:view];
@@ -1709,7 +1710,15 @@ mp_rect mg_osx_surface_get_frame(mg_surface_data* surface)
 void mg_osx_surface_set_frame(mg_surface_data* surface, mp_rect frame)
 {@autoreleasepool{
 	CGRect cgFrame = {{frame.x, frame.y}, {frame.w, frame.h}};
-	[surface->layer.caLayer setFrame: cgFrame];
+
+//	dispatch_async(dispatch_get_main_queue(),
+//		^{
+			[CATransaction begin];
+			[CATransaction setDisableActions:YES];
+			[surface->layer.caLayer setFrame: cgFrame];
+			[CATransaction commit];
+//		});
+
 }}
 
 bool mg_osx_surface_get_hidden(mg_surface_data* surface)
@@ -1746,6 +1755,7 @@ void mg_surface_init_for_window(mg_surface_data* surface, mp_window_data* window
 	NSRect frame = [[window->osx.nsWindow contentView] frame];
 	CGSize size = frame.size;
 	surface->layer.caLayer.frame = (CGRect){{0, 0}, size};
+	surface->layer.caLayer.contentsScale = window->osx.nsView.layer.contentsScale;
 
 	[window->osx.nsView.layer addSublayer: surface->layer.caLayer];
 }}
