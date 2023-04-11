@@ -638,6 +638,43 @@ void mg_matrix_stack_pop(mg_canvas_data* canvas)
 	}
 }
 
+mp_rect mg_clip_stack_top(mg_canvas_data* canvas)
+{
+	if(canvas->clipStackSize == 0)
+	{
+		return((mp_rect){-FLT_MAX/2, -FLT_MAX/2, FLT_MAX, FLT_MAX});
+	}
+	else
+	{
+		return(canvas->clipStack[canvas->clipStackSize-1]);
+	}
+}
+
+void mg_clip_stack_push(mg_canvas_data* canvas, mp_rect clip)
+{
+	if(canvas->clipStackSize >= MG_CLIP_STACK_MAX_DEPTH)
+	{
+		LOG_ERROR("clip stack overflow\n");
+	}
+	else
+	{
+		canvas->clipStack[canvas->clipStackSize] = clip;
+		canvas->clipStackSize++;
+	}
+}
+
+void mg_clip_stack_pop(mg_canvas_data* canvas)
+{
+	if(canvas->clipStackSize == 0)
+	{
+		LOG_ERROR("clip stack underflow\n");
+	}
+	else
+	{
+		canvas->clipStackSize--;
+	}
+}
+
 void mg_push_command(mg_canvas_data* canvas, mg_primitive primitive)
 {
 	//NOTE(martin): push primitive and updates current stream, eventually patching a pending jump.
@@ -646,6 +683,7 @@ void mg_push_command(mg_canvas_data* canvas, mg_primitive primitive)
 	canvas->primitives[canvas->primitiveCount] = primitive;
 	canvas->primitives[canvas->primitiveCount].attributes = canvas->attributes;
 	canvas->primitives[canvas->primitiveCount].attributes.transform = mg_matrix_stack_top(canvas);
+	canvas->primitives[canvas->primitiveCount].attributes.clip = mg_clip_stack_top(canvas);
 	canvas->primitiveCount++;
 }
 
@@ -725,6 +763,7 @@ u32 mg_next_shape(mg_canvas_data* canvas, mg_attributes* attributes)
 {
 	mg_finalize_shape(canvas);
 
+	canvas->clip = attributes->clip;
 	canvas->transform = attributes->transform;
 	canvas->srcRegion = attributes->srcRegion;
 	canvas->shapeExtents = (vec4){FLT_MAX, FLT_MAX, -FLT_MAX, -FLT_MAX};
@@ -2698,71 +2737,6 @@ vec2 mg_canvas_size(void)
 }
 ////////////////////////////////////////////////////////////
 
-
-mp_rect mg_clip_stack_top(mg_canvas_data* canvas)
-{
-	if(canvas->clipStackSize == 0)
-	{
-		return((mp_rect){-FLT_MAX/2, -FLT_MAX/2, FLT_MAX, FLT_MAX});
-	}
-	else
-	{
-		return(canvas->clipStack[canvas->clipStackSize-1]);
-	}
-}
-
-void mg_clip_stack_push(mg_canvas_data* canvas, mp_rect clip)
-{
-	if(canvas->clipStackSize >= MG_CLIP_STACK_MAX_DEPTH)
-	{
-		LOG_ERROR("clip stack overflow\n");
-	}
-	else
-	{
-		canvas->clipStack[canvas->clipStackSize] = clip;
-		canvas->clipStackSize++;
-		canvas->clip = clip;
-	}
-}
-
-void mg_clip_stack_pop(mg_canvas_data* canvas)
-{
-	if(canvas->clipStackSize == 0)
-	{
-		LOG_ERROR("clip stack underflow\n");
-	}
-	else
-	{
-		canvas->clipStackSize--;
-		canvas->clip = mg_clip_stack_top(canvas);
-	}
-}
-
-void mg_do_clip_push(mg_canvas_data* canvas, mp_rect clip)
-{
-	//NOTE(martin): transform clip
-	vec2 p0 = mg_mat2x3_mul(canvas->transform, (vec2){clip.x, clip.y});
-	vec2 p1 = mg_mat2x3_mul(canvas->transform, (vec2){clip.x + clip.w, clip.y});
-	vec2 p2 = mg_mat2x3_mul(canvas->transform, (vec2){clip.x + clip.w, clip.y + clip.h});
-	vec2 p3 = mg_mat2x3_mul(canvas->transform, (vec2){clip.x, clip.y + clip.h});
-
-	f32 x0 = minimum(p0.x, minimum(p1.x, minimum(p2.x, p3.x)));
-	f32 y0 = minimum(p0.y, minimum(p1.y, minimum(p2.y, p3.y)));
-	f32 x1 = maximum(p0.x, maximum(p1.x, maximum(p2.x, p3.x)));
-	f32 y1 = maximum(p0.y, maximum(p1.y, maximum(p2.y, p3.y)));
-
-	mp_rect current = mg_clip_stack_top(canvas);
-
-	//NOTE(martin): intersect with current clip
-	x0 = maximum(current.x, x0);
-	y0 = maximum(current.y, y0);
-	x1 = minimum(current.x + current.w, x1);
-	y1 = minimum(current.y + current.h, y1);
-
-	mp_rect r = {x0, y0, maximum(0, x1-x0), maximum(0, y1-y0)};
-	mg_clip_stack_push(canvas, r);
-}
-
 void mg_draw_batch(mg_canvas_data* canvas, mg_image_data* image)
 {
 	mg_finalize_shape(canvas);
@@ -2857,19 +2831,6 @@ void mg_flush_commands(int primitiveCount, mg_primitive* primitives, mg_path_elt
 					nextIndex = primitive->jump;
 				}
 			} break;
-
-			case MG_CMD_CLIP_PUSH:
-			{
-				//TODO(martin): use only aligned rect and avoid this
-				mp_rect r = {primitive->rect.x, primitive->rect.y, primitive->rect.w, primitive->rect.h};
-				mg_do_clip_push(canvas, r);
-			} break;
-
-			case MG_CMD_CLIP_POP:
-			{
-				mg_clip_stack_pop(canvas);
-			} break;
-
 		}
 	}
 	exit_command_loop: ;
@@ -2941,8 +2902,32 @@ void mg_clip_push(f32 x, f32 y, f32 w, f32 h)
 	mg_canvas_data* canvas = __mgCurrentCanvas;
 	if(canvas)
 	{
-		mg_push_command(canvas, (mg_primitive){.cmd = MG_CMD_CLIP_PUSH,
-	                                        .rect = (mp_rect){x, y, w, h}});
+		mp_rect clip = {x, y, w, h};
+
+		//NOTE(martin): transform clip
+		mg_mat2x3 transform = mg_matrix_stack_top(canvas);
+		vec2 p0 = mg_mat2x3_mul(transform, (vec2){clip.x, clip.y});
+		vec2 p1 = mg_mat2x3_mul(transform, (vec2){clip.x + clip.w, clip.y});
+		vec2 p2 = mg_mat2x3_mul(transform, (vec2){clip.x + clip.w, clip.y + clip.h});
+		vec2 p3 = mg_mat2x3_mul(transform, (vec2){clip.x, clip.y + clip.h});
+
+		f32 x0 = minimum(p0.x, minimum(p1.x, minimum(p2.x, p3.x)));
+		f32 y0 = minimum(p0.y, minimum(p1.y, minimum(p2.y, p3.y)));
+		f32 x1 = maximum(p0.x, maximum(p1.x, maximum(p2.x, p3.x)));
+		f32 y1 = maximum(p0.y, maximum(p1.y, maximum(p2.y, p3.y)));
+
+		mp_rect current = mg_clip_stack_top(canvas);
+
+		//NOTE(martin): intersect with current clip
+		x0 = maximum(current.x, x0);
+		y0 = maximum(current.y, y0);
+		x1 = minimum(current.x + current.w, x1);
+		y1 = minimum(current.y + current.h, y1);
+
+		mp_rect r = {x0, y0, maximum(0, x1-x0), maximum(0, y1-y0)};
+		mg_clip_stack_push(canvas, r);
+
+		canvas->attributes.clip = r;
 	}
 }
 
@@ -2951,7 +2936,8 @@ void mg_clip_pop()
 	mg_canvas_data* canvas = __mgCurrentCanvas;
 	if(canvas)
 	{
-		mg_push_command(canvas, (mg_primitive){.cmd = MG_CMD_CLIP_POP});
+		mg_clip_stack_pop(canvas);
+		canvas->attributes.clip = mg_clip_stack_top(canvas);
 	}
 }
 

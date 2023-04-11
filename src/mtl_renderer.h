@@ -22,6 +22,7 @@ typedef struct mg_mtl_path
 	matrix_float3x3 uvTransform;
 	vector_float4 color;
 	vector_float4 box;
+	vector_float4 clip;
 } mg_mtl_path;
 
 typedef enum {

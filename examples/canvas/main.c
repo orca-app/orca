@@ -160,6 +160,11 @@ int main()
 			mg_set_color_rgba(0, 1, 1, 1);
 			mg_clear();
 
+			mg_set_color_rgba(1, 0, 0, 1);
+			mg_set_width(2);
+			mg_rectangle_stroke(304, 100, 300, 250);
+
+			mg_clip_push(304, 100, 300, 250);
 			// head
 			mg_set_color_rgba(1, 1, 0, 1);
 
@@ -177,6 +182,8 @@ int main()
 			// eyes
 			mg_ellipse_fill(x-70, y-50, 30, 50);
 			mg_ellipse_fill(x+70, y-50, 30, 50);
+
+			mg_clip_pop();
 
 			// text
 			mg_set_color_rgba(0, 0, 1, 1);

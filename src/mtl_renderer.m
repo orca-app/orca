@@ -708,8 +708,10 @@ void mg_mtl_render_batch(mg_mtl_canvas_backend* backend,
 		[mergeEncoder setBuffer:backend->tileOpBuffer offset:0 atIndex:4];
 		[mergeEncoder setBuffer:backend->tileOpCountBuffer offset:0 atIndex:5];
 		[mergeEncoder setBuffer:backend->screenTilesBuffer offset:0 atIndex:6];
-		[mergeEncoder setBuffer:backend->logBuffer[backend->bufferIndex] offset:0 atIndex:7];
-		[mergeEncoder setBuffer:backend->logOffsetBuffer[backend->bufferIndex] offset:0 atIndex:8];
+		[mergeEncoder setBytes:&tileSize length:sizeof(int) atIndex:7];
+		[mergeEncoder setBytes:&scale length:sizeof(float) atIndex:8];
+		[mergeEncoder setBuffer:backend->logBuffer[backend->bufferIndex] offset:0 atIndex:9];
+		[mergeEncoder setBuffer:backend->logOffsetBuffer[backend->bufferIndex] offset:0 atIndex:10];
 
 		MTLSize mergeGridSize = MTLSizeMake(nTilesX, nTilesY, 1);
 		MTLSize mergeGroupSize = MTLSizeMake(16, 16, 1);
@@ -727,9 +729,10 @@ void mg_mtl_render_batch(mg_mtl_canvas_backend* backend,
 		[rasterEncoder setBuffer:backend->pathBuffer[backend->bufferIndex] offset:backend->pathBufferOffset atIndex:2];
 		[rasterEncoder setBuffer:backend->segmentBuffer offset:0 atIndex:3];
 		[rasterEncoder setBytes:&tileSize length:sizeof(int) atIndex:4];
-		[rasterEncoder setBytes:&backend->msaaCount length:sizeof(int) atIndex:5];
-		[rasterEncoder setBuffer:backend->logBuffer[backend->bufferIndex] offset:0 atIndex:6];
-		[rasterEncoder setBuffer:backend->logOffsetBuffer[backend->bufferIndex] offset:0 atIndex:7];
+		[rasterEncoder setBytes:&scale length:sizeof(float) atIndex:5];
+		[rasterEncoder setBytes:&backend->msaaCount length:sizeof(int) atIndex:6];
+		[rasterEncoder setBuffer:backend->logBuffer[backend->bufferIndex] offset:0 atIndex:7];
+		[rasterEncoder setBuffer:backend->logOffsetBuffer[backend->bufferIndex] offset:0 atIndex:8];
 
 		[rasterEncoder setTexture:backend->outTexture atIndex:0];
 
@@ -740,8 +743,7 @@ void mg_mtl_render_batch(mg_mtl_canvas_backend* backend,
 			[rasterEncoder setTexture: mtlImage->texture atIndex: 1];
 			useTexture = 1;
 		}
-		[rasterEncoder setBytes: &useTexture length:sizeof(int) atIndex: 8];
-
+		[rasterEncoder setBytes: &useTexture length:sizeof(int) atIndex: 9];
 
 		MTLSize rasterGridSize = MTLSizeMake(viewportSize.x, viewportSize.y, 1);
 		MTLSize rasterGroupSize = MTLSizeMake(16, 16, 1);
@@ -959,10 +961,16 @@ void mg_mtl_canvas_render(mg_canvas_backend* interface,
 			pathCount++;
 
 			path->cmd =	(mg_mtl_cmd)primitive->cmd;
-			path->box = (vector_float4){maximum(primitive->attributes.clip.x, context.pathScreenExtents.x),
-		                                maximum(primitive->attributes.clip.y, context.pathScreenExtents.y),
-		                                minimum(primitive->attributes.clip.x + primitive->attributes.clip.w, context.pathScreenExtents.z),
-		                                minimum(primitive->attributes.clip.y + primitive->attributes.clip.h, context.pathScreenExtents.w)};
+
+			path->box = (vector_float4){context.pathScreenExtents.x,
+		                                context.pathScreenExtents.y,
+		                                context.pathScreenExtents.z,
+		                                context.pathScreenExtents.w};
+
+			path->clip = (vector_float4){primitive->attributes.clip.x,
+			                             primitive->attributes.clip.y,
+			                             primitive->attributes.clip.x + primitive->attributes.clip.w,
+			                             primitive->attributes.clip.y + primitive->attributes.clip.h};
 
 			path->color = (vector_float4){primitive->attributes.color.r,
 			                              primitive->attributes.color.g,

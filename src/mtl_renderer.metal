@@ -237,10 +237,19 @@ kernel void mtl_path_setup(constant int* pathCount [[buffer(0)]],
 {
 	const device mg_mtl_path* path = &pathBuffer[pathIndex];
 
-	int2 firstTile = int2(path->box.xy*scale[0])/tileSize[0];
-	int2 lastTile = max(firstTile, int2(path->box.zw*scale[0])/tileSize[0]);
-	int nTilesX = lastTile.x - firstTile.x + 1;
-	int nTilesY = lastTile.y - firstTile.y + 1;
+
+	//NOTE: we don't clip on the right, since we need those tiles to accurately compute
+	//      the prefix sum of winding increments in the backprop pass.
+	float4 clippedBox = {max(path->box.x, path->clip.x),
+	                     max(path->box.y, path->clip.y),
+	                     path->box.z,
+	                     min(path->box.w, path->clip.w)};
+
+	int2 firstTile = int2(clippedBox.xy*scale[0])/tileSize[0];
+	int2 lastTile = int2(clippedBox.zw*scale[0])/tileSize[0];
+
+	int nTilesX = max(0, lastTile.x - firstTile.x + 1);
+	int nTilesY = max(0, lastTile.y - firstTile.y + 1);
 	int tileCount = nTilesX * nTilesY;
 
 	int tileQueuesIndex = atomic_fetch_add_explicit(tileQueueCount, tileCount, memory_order_relaxed);
@@ -1360,8 +1369,10 @@ kernel void mtl_merge(constant int* pathCount [[buffer(0)]],
                       device mg_mtl_tile_op* tileOpBuffer [[buffer(4)]],
                       device atomic_int* tileOpCount [[buffer(5)]],
                       device int* screenTilesBuffer [[buffer(6)]],
-                      device char* logBuffer [[buffer(7)]],
-                      device atomic_int* logOffsetBuffer [[buffer(8)]],
+                      constant int* tileSize [[buffer(7)]],
+                      constant float* scale [[buffer(8)]],
+                      device char* logBuffer [[buffer(9)]],
+                      device atomic_int* logOffsetBuffer [[buffer(10)]],
                       uint2 threadCoord [[thread_position_in_grid]],
                       uint2 gridSize [[threads_per_grid]])
 {
@@ -1380,8 +1391,13 @@ kernel void mtl_merge(constant int* pathCount [[buffer(0)]],
 		const device mg_mtl_path_queue* pathQueue = &pathQueueBuffer[pathIndex];
 		int2 pathTileCoord = tileCoord - pathQueue->area.xy;
 
+		const device mg_mtl_path* path = &pathBuffer[pathIndex];
+		float xMax = min(path->box.z, path->clip.z);
+		int tileMax = xMax * scale[0] / tileSize[0];
+		int pathTileMax = tileMax - pathQueue->area.x;
+
 		if(  pathTileCoord.x >= 0
-		  && pathTileCoord.x < pathQueue->area.z
+		  && pathTileCoord.x <= pathTileMax
 		  && pathTileCoord.y >= 0
 		  && pathTileCoord.y < pathQueue->area.w)
 		{
@@ -1396,7 +1412,7 @@ kernel void mtl_merge(constant int* pathCount [[buffer(0)]],
 				if(windingOffset & 1)
 				{
 					//NOTE: tile is full covered. Add path start op (with winding offset).
-					//      Additionally if color is opaque, trim tile list.
+					//      Additionally if color is opaque and tile is fully inside clip, trim tile list.
 					int pathOpIndex = atomic_fetch_add_explicit(tileOpCount, 1, memory_order_relaxed);
 					device mg_mtl_tile_op* pathOp = &tileOpBuffer[pathOpIndex];
 					pathOp->kind = MG_MTL_OP_START;
@@ -1404,7 +1420,15 @@ kernel void mtl_merge(constant int* pathCount [[buffer(0)]],
 					pathOp->index = pathIndex;
 					pathOp->windingOffset = windingOffset;
 
-					if(pathBuffer[pathIndex].color.a == 1)
+					float4 clip = pathBuffer[pathIndex].clip * scale[0];
+					float4 tileBox = float4(tileCoord.x, tileCoord.y, tileCoord.x+1, tileCoord.y+1);
+					tileBox *= tileSize[0];
+
+					if(pathBuffer[pathIndex].color.a == 1
+					  && tileBox.x >= clip.x
+					  && tileBox.z < clip.z
+					  && tileBox.y >= clip.y
+					  && tileBox.w < clip.w)
 					{
 						screenTilesBuffer[tileIndex] = pathOpIndex;
 					}
@@ -1444,10 +1468,11 @@ kernel void mtl_raster(const device int* screenTilesBuffer [[buffer(0)]],
                        const device mg_mtl_path* pathBuffer [[buffer(2)]],
                        const device mg_mtl_segment* segmentBuffer [[buffer(3)]],
                        constant int* tileSize [[buffer(4)]],
-                       constant int* sampleCountBuffer [[buffer(5)]],
-                       device char* logBuffer [[buffer(6)]],
-                       device atomic_int* logOffsetBuffer [[buffer(7)]],
-                       constant int* useTexture [[buffer(8)]],
+                       constant float* scale [[buffer(5)]],
+                       constant int* sampleCountBuffer [[buffer(6)]],
+                       device char* logBuffer [[buffer(7)]],
+                       device atomic_int* logOffsetBuffer [[buffer(8)]],
+                       constant int* useTexture [[buffer(9)]],
                        texture2d<float, access::write> outTexture [[texture(0)]],
                        texture2d<float> srcTexture [[texture(1)]],
                        uint2 threadCoord [[thread_position_in_grid]],
@@ -1503,23 +1528,32 @@ kernel void mtl_raster(const device int* screenTilesBuffer [[buffer(0)]],
 
 			for(int sampleIndex=0; sampleIndex<sampleCount; sampleIndex++)
 			{
-				bool filled = (pathBuffer[pathIndex].cmd == MG_MTL_FILL && (winding[sampleIndex] & 1))
-			             	||(pathBuffer[pathIndex].cmd == MG_MTL_STROKE && (winding[sampleIndex] != 0));
-				if(filled)
+				float2 sampleCoord = sampleCoords[sampleIndex];
+				float4 clip = pathBuffer[pathIndex].clip * scale[0];
+
+				if(  sampleCoord.x >= clip.x
+				  && sampleCoord.x < clip.z
+				  && sampleCoord.y >= clip.y
+				  && sampleCoord.y < clip.w)
 				{
-					float4 nextColor = pathColor;
-					if(useTexture[0])
+					bool filled = (pathBuffer[pathIndex].cmd == MG_MTL_FILL && (winding[sampleIndex] & 1))
+					            ||(pathBuffer[pathIndex].cmd == MG_MTL_STROKE && (winding[sampleIndex] != 0));
+					if(filled)
 					{
-						float3 sampleCoord = float3(sampleCoords[sampleIndex].xy, 1);
-						float2 uv = (pathBuffer[pathIndex].uvTransform * sampleCoord).xy;
+						float4 nextColor = pathColor;
+						if(useTexture[0])
+						{
+							float3 ph = float3(sampleCoords[sampleIndex].xy, 1);
+							float2 uv = (pathBuffer[pathIndex].uvTransform * ph).xy;
 
-						constexpr sampler smp(mip_filter::nearest, mag_filter::linear, min_filter::linear);
-						float4 texColor = srcTexture.sample(smp, uv);
-						texColor.rgb *= texColor.a;
+							constexpr sampler smp(mip_filter::nearest, mag_filter::linear, min_filter::linear);
+							float4 texColor = srcTexture.sample(smp, uv);
+							texColor.rgb *= texColor.a;
 
-						nextColor *= texColor;
+							nextColor *= texColor;
+						}
+						color[sampleIndex] = color[sampleIndex]*(1-nextColor.a) + nextColor;
 					}
-					color[sampleIndex] = color[sampleIndex]*(1-nextColor.a) + nextColor;
 				}
 				winding[sampleIndex] = op->windingOffset;
 			}
@@ -1533,6 +1567,7 @@ kernel void mtl_raster(const device int* screenTilesBuffer [[buffer(0)]],
 			{
 				float2 sampleCoord = sampleCoords[sampleIndex];
 
+				//TODO: shouldn't this be redundant with mtl_side_of_segment()?
 				if( (sampleCoord.y > seg->box.y)
 				  &&(sampleCoord.y <= seg->box.w)
 				  &&(mtl_side_of_segment(sampleCoord, seg) < 0))
@@ -1564,23 +1599,32 @@ kernel void mtl_raster(const device int* screenTilesBuffer [[buffer(0)]],
 
 	for(int sampleIndex=0; sampleIndex<sampleCount; sampleIndex++)
 	{
-		bool filled = (pathBuffer[pathIndex].cmd == MG_MTL_FILL && (winding[sampleIndex] & 1))
-	            	||(pathBuffer[pathIndex].cmd == MG_MTL_STROKE && (winding[sampleIndex] != 0));
-		if(filled)
+		float2 sampleCoord = sampleCoords[sampleIndex];
+		float4 clip = pathBuffer[pathIndex].clip * scale[0];
+
+		if(  sampleCoord.x >= clip.x
+		  && sampleCoord.x < clip.z
+		  && sampleCoord.y >= clip.y
+		  && sampleCoord.y < clip.w)
 		{
-			float4 nextColor = pathColor;
-			if(useTexture[0])
+			bool filled = (pathBuffer[pathIndex].cmd == MG_MTL_FILL && (winding[sampleIndex] & 1))
+			            ||(pathBuffer[pathIndex].cmd == MG_MTL_STROKE && (winding[sampleIndex] != 0));
+			if(filled)
 			{
-				float3 sampleCoord = float3(sampleCoords[sampleIndex].xy, 1);
-				float2 uv = (pathBuffer[pathIndex].uvTransform * sampleCoord).xy;
+				float4 nextColor = pathColor;
+				if(useTexture[0])
+				{
+					float3 sampleCoord = float3(sampleCoords[sampleIndex].xy, 1);
+					float2 uv = (pathBuffer[pathIndex].uvTransform * sampleCoord).xy;
 
-				constexpr sampler smp(mip_filter::nearest, mag_filter::linear, min_filter::linear);
-				float4 texColor = srcTexture.sample(smp, uv);
-				texColor.rgb *= texColor.a;
+					constexpr sampler smp(mip_filter::nearest, mag_filter::linear, min_filter::linear);
+					float4 texColor = srcTexture.sample(smp, uv);
+					texColor.rgb *= texColor.a;
 
-				nextColor *= texColor;
+					nextColor *= texColor;
+				}
+				color[sampleIndex] = color[sampleIndex]*(1-nextColor.a) + nextColor;
 			}
-			color[sampleIndex] = color[sampleIndex]*(1-nextColor.a) + nextColor;
 		}
 		pixelColor += color[sampleIndex];
 	}
