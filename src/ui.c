@@ -2121,6 +2121,7 @@ void ui_select_popup_draw_arrow(ui_box* box, void* data)
 	mg_move_to(box->rect.x + 0.25*box->rect.w, box->rect.y + 0.45*box->rect.h);
 	mg_line_to(box->rect.x + 0.5*box->rect.w, box->rect.y + 0.75*box->rect.h);
 	mg_line_to(box->rect.x + 0.75*box->rect.w, box->rect.y + 0.45*box->rect.h);
+	mg_close_path();
 
 	mg_set_color(box->style.color);
 	mg_fill();

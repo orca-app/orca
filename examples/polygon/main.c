@@ -126,6 +126,7 @@ int main()
 			mg_set_color_rgba(0, 0, 1, 1);
 			mg_fill();
 */
+/*
 			mg_set_joint(MG_JOINT_NONE);
 			mg_set_max_joint_excursion(20);
 
@@ -150,6 +151,9 @@ int main()
 			mg_close_path();
 			mg_set_color_rgba(0, 0, 1, 1);
 			mg_stroke();
+*/
+			mg_set_color_rgba(1, 0, 0, 1);
+			mg_rounded_rectangle_fill(100, 100, 200, 300, 20);
 
 /*
 			mg_move_to(x+8, y+8);

@@ -2136,195 +2136,6 @@ void mg_render_stroke(mg_canvas_data* canvas,
 	}
 }
 
-//-----------------------------------------------------------------------------------------------------------
-// Fast shapes primitives
-//-----------------------------------------------------------------------------------------------------------
-
-void mg_render_rectangle_fill(mg_canvas_data* canvas, mp_rect rect, mg_attributes* attributes)
-{
-	u32 baseIndex = mg_vertices_base_index(canvas);
-	i32* indices = mg_reserve_indices(canvas, 6);
-
-	mg_next_shape(canvas, attributes);
-
-	mg_push_vertex(canvas, (vec2){rect.x, rect.y});
-	mg_push_vertex(canvas, (vec2){rect.x + rect.w, rect.y});
-	mg_push_vertex(canvas, (vec2){rect.x + rect.w, rect.y + rect.h});
-	mg_push_vertex(canvas, (vec2){rect.x, rect.y + rect.h});
-
-	indices[0] = baseIndex + 0;
-	indices[1] = baseIndex + 1;
-	indices[2] = baseIndex + 2;
-	indices[3] = baseIndex + 0;
-	indices[4] = baseIndex + 2;
-	indices[5] = baseIndex + 3;
-}
-
-void mg_render_rectangle_stroke(mg_canvas_data* canvas, mp_rect rect, mg_attributes* attributes)
-{
-	//NOTE(martin): stroke a rectangle by fill two scaled rectangles with the same shapeIndex.
-	u32 baseIndex = mg_vertices_base_index(canvas);
-	i32* indices = mg_reserve_indices(canvas, 12);
-
-	mg_next_shape(canvas, attributes);
-
-	//NOTE(martin): limit stroke width to the minimum dimension of the rectangle
-	f32 width = minimum(attributes->width, minimum(rect.w, rect.h));
-	f32 halfW = width/2;
-
-	// outer points
-	mg_push_vertex(canvas, (vec2){rect.x - halfW, rect.y - halfW});
-	mg_push_vertex(canvas, (vec2){rect.x + rect.w + halfW, rect.y - halfW});
-	mg_push_vertex(canvas, (vec2){rect.x + rect.w + halfW, rect.y + rect.h + halfW});
-	mg_push_vertex(canvas, (vec2){rect.x - halfW, rect.y + rect.h + halfW});
-
-	// innter points
-	mg_push_vertex(canvas, (vec2){rect.x + halfW, rect.y + halfW});
-	mg_push_vertex(canvas, (vec2){rect.x + rect.w - halfW, rect.y + halfW});
-	mg_push_vertex(canvas, (vec2){rect.x + rect.w - halfW, rect.y + rect.h - halfW});
-	mg_push_vertex(canvas, (vec2){rect.x + halfW, rect.y + rect.h - halfW});
-
-	indices[0] = baseIndex + 0;
-	indices[1] = baseIndex + 1;
-	indices[2] = baseIndex + 2;
-	indices[3] = baseIndex + 0;
-	indices[4] = baseIndex + 2;
-	indices[5] = baseIndex + 3;
-	indices[6] = baseIndex + 4;
-	indices[7] = baseIndex + 5;
-	indices[8] = baseIndex + 6;
-	indices[9] = baseIndex + 4;
-	indices[10] = baseIndex + 6;
-	indices[11] = baseIndex + 7;
-}
-
-void mg_render_fill_arc_corner(mg_canvas_data* canvas, f32 x, f32 y, f32 rx, f32 ry)
-{
-	//NOTE(martin): draw a precomputed arc corner, using a bezier approximation
-	u32 baseIndex = mg_vertices_base_index(canvas);
-	i32* indices = mg_reserve_indices(canvas, 6);
-
-	f32 cx = rx*4*(sqrt(2)-1)/3;
-	f32 cy = ry*4*(sqrt(2)-1)/3;
-
-	mg_push_vertex_cubic(canvas, (vec2){x, y + ry}, (vec4){-3.76797, -9.76362, 5.47912, -1});
-	mg_push_vertex_cubic(canvas, (vec2){x, y + ry - cy}, (vec4){-4.19896, -9.45223, 7.534, -1});
-	mg_push_vertex_cubic(canvas, (vec2){x + rx - cx, y}, (vec4){-4.19896, -7.534, 9.45223, -1});
-	mg_push_vertex_cubic(canvas, (vec2){x + rx, y}, (vec4){-3.76797, -5.47912, 9.76362, -1});
-
-	indices[0] = baseIndex + 0;
-	indices[1] = baseIndex + 1;
-	indices[2] = baseIndex + 2;
-	indices[3] = baseIndex + 0;
-	indices[4] = baseIndex + 2;
-	indices[5] = baseIndex + 3;
-}
-
-void mg_render_rounded_rectangle_fill_path(mg_canvas_data* canvas,
-							               mg_rounded_rect rect)
-{
-	//NOTE(martin): draw a rounded rectangle by drawing a normal rectangle and 4 corners,
-	//              approximating an arc by a precomputed bezier curve
-
-	u32 baseIndex = mg_vertices_base_index(canvas);
-	i32* indices = mg_reserve_indices(canvas, 18);
-
-	//NOTE(martin): inner cutted corner rectangle
-	mg_push_vertex(canvas, (vec2){rect.x + rect.r, rect.y});
-	mg_push_vertex(canvas, (vec2){rect.x + rect.w - rect.r, rect.y});
-	mg_push_vertex(canvas, (vec2){rect.x + rect.w, rect.y + rect.r});
-	mg_push_vertex(canvas, (vec2){rect.x + rect.w, rect.y + rect.h - rect.r});
-	mg_push_vertex(canvas, (vec2){rect.x + rect.w - rect.r, rect.y + rect.h});
-	mg_push_vertex(canvas, (vec2){rect.x + rect.r, rect.y + rect.h});
-	mg_push_vertex(canvas, (vec2){rect.x, rect.y + rect.h - rect.r});
-	mg_push_vertex(canvas, (vec2){rect.x, rect.y + rect.r});
-
-	static const i32 fanIndices[18] = { 0, 1, 2, 0, 2, 3, 0, 3, 4, 0, 4, 5, 0, 5, 6, 0, 6, 7 }; // inner fan
-	for(int i=0; i<18; i++)
-	{
-		indices[i] = fanIndices[i] + baseIndex;
-	}
-
-	mg_render_fill_arc_corner(canvas, rect.x, rect.y, rect.r, rect.r);
-	mg_render_fill_arc_corner(canvas, rect.x + rect.w, rect.y, -rect.r, rect.r);
-	mg_render_fill_arc_corner(canvas, rect.x + rect.w, rect.y + rect.h, -rect.r, -rect.r);
-	mg_render_fill_arc_corner(canvas, rect.x, rect.y + rect.h, rect.r, -rect.r);
-}
-
-
-void mg_render_rounded_rectangle_fill(mg_canvas_data* canvas,
-                                      mg_rounded_rect rect,
-					                  mg_attributes* attributes)
-{
-	mg_next_shape(canvas, attributes);
-	mg_render_rounded_rectangle_fill_path(canvas, rect);
-}
-
-void mg_render_rounded_rectangle_stroke(mg_canvas_data* canvas,
-                                        mg_rounded_rect rect,
-                                        mg_attributes* attributes)
-{
-	//NOTE(martin): stroke rounded rectangle by filling two scaled rounded rectangles with the same shapeIndex
-	f32 width = minimum(attributes->width, minimum(rect.w, rect.h));
-	f32 halfW = width/2;
-
-	mg_rounded_rect inner = {rect.x + halfW, rect.y + halfW, rect.w - width, rect.h - width, rect.r - halfW};
-	mg_rounded_rect outer = {rect.x - halfW, rect.y - halfW, rect.w + width, rect.h + width, rect.r + halfW};
-
-	mg_next_shape(canvas, attributes);
-	mg_render_rounded_rectangle_fill_path(canvas, outer);
-	mg_render_rounded_rectangle_fill_path(canvas, inner);
-}
-
-void mg_render_ellipse_fill_path(mg_canvas_data* canvas, mp_rect rect)
-{
-	//NOTE(martin): draw a filled ellipse by drawing a diamond and 4 corners,
-	//              approximating an arc by a precomputed bezier curve
-	f32 rx = rect.w/2;
-	f32 ry = rect.h/2;
-
-	u32 baseIndex = mg_vertices_base_index(canvas);
-	i32* indices = mg_reserve_indices(canvas, 6);
-
-	//NOTE(martin): inner diamond
-	mg_push_vertex(canvas, (vec2){rect.x, rect.y + ry});
-	mg_push_vertex(canvas, (vec2){rect.x + rx, rect.y});
-	mg_push_vertex(canvas, (vec2){rect.x + rect.w, rect.y + ry});
-	mg_push_vertex(canvas, (vec2){rect.x + rx, rect.y + rect.h});
-
-	indices[0] = baseIndex + 0;
-	indices[1] = baseIndex + 1;
-	indices[2] = baseIndex + 2;
-	indices[3] = baseIndex + 0;
-	indices[4] = baseIndex + 2;
-	indices[5] = baseIndex + 3;
-
-	mg_render_fill_arc_corner(canvas, rect.x, rect.y, rx, ry);
-	mg_render_fill_arc_corner(canvas, rect.x + rect.w, rect.y, -rx, ry);
-	mg_render_fill_arc_corner(canvas, rect.x + rect.w, rect.y + rect.h, -rx, -ry);
-	mg_render_fill_arc_corner(canvas, rect.x, rect.y + rect.h, rx, -ry);
-}
-
-void mg_render_ellipse_fill(mg_canvas_data* canvas, mp_rect rect, mg_attributes* attributes)
-{
-	mg_next_shape(canvas, attributes);
-	mg_render_ellipse_fill_path(canvas, rect);
-}
-
-void mg_render_ellipse_stroke(mg_canvas_data* canvas, mp_rect rect, mg_attributes* attributes)
-{
-	//NOTE(martin): stroke by filling two scaled ellipsis with the same shapeIndex
-	f32 width = minimum(attributes->width, minimum(rect.w, rect.h));
-	f32 halfW = width/2;
-
-	mp_rect inner = {rect.x + halfW, rect.y + halfW, rect.w - width, rect.h - width};
-	mp_rect outer = {rect.x - halfW, rect.y - halfW, rect.w + width, rect.h + width};
-
-	mg_next_shape(canvas, attributes);
-	mg_render_ellipse_fill_path(canvas, outer);
-	mg_render_ellipse_fill_path(canvas, inner);
-}
-
 //------------------------------------------------------------------------------------------
 //NOTE(martin): fonts
 //------------------------------------------------------------------------------------------
@@ -3029,31 +2840,6 @@ void mg_flush_commands(int primitiveCount, mg_primitive* primitives, mg_path_elt
 							 &primitive->attributes);
 			} break;
 
-
-			case MG_CMD_RECT_FILL:
-				mg_render_rectangle_fill(canvas, primitive->rect, &primitive->attributes);
-				break;
-
-			case MG_CMD_RECT_STROKE:
-				mg_render_rectangle_stroke(canvas, primitive->rect, &primitive->attributes);
-				break;
-
-			case MG_CMD_ROUND_RECT_FILL:
-				mg_render_rounded_rectangle_fill(canvas, primitive->roundedRect, &primitive->attributes);
-				break;
-
-			case MG_CMD_ROUND_RECT_STROKE:
-				mg_render_rounded_rectangle_stroke(canvas, primitive->roundedRect, &primitive->attributes);
-				break;
-
-			case MG_CMD_ELLIPSE_FILL:
-				mg_render_ellipse_fill(canvas, primitive->rect, &primitive->attributes);
-				break;
-
-			case MG_CMD_ELLIPSE_STROKE:
-				mg_render_ellipse_stroke(canvas, primitive->rect, &primitive->attributes);
-				break;
-
 			case MG_CMD_JUMP:
 			{
 				if(primitive->jump == ~0)
@@ -3613,51 +3399,58 @@ void mg_stroke()
 }
 
 //------------------------------------------------------------------------------------------
-//NOTE(martin): 'fast' shapes primitives
+//NOTE(martin): simple shape helpers
 //------------------------------------------------------------------------------------------
+
+void mg_rectangle_path(f32 x, f32 y, f32 w, f32 h)
+{
+	mg_move_to(x, y);
+	mg_line_to(x+w, y);
+	mg_line_to(x+w, y+h);
+	mg_line_to(x, y+h);
+	mg_close_path();
+}
+
 void mg_rectangle_fill(f32 x, f32 y, f32 w, f32 h)
 {
-	mg_canvas_data* canvas = __mgCurrentCanvas;
-	if(canvas)
-	{
-		mg_primitive primitive = {.cmd = MG_CMD_RECT_FILL, .rect = (mp_rect){x, y, w, h}};
-		mg_push_command(canvas, primitive);
-	}
+	mg_rectangle_path(x, y, w, h);
+	mg_fill();
 }
 
 void mg_rectangle_stroke(f32 x, f32 y, f32 w, f32 h)
 {
-	mg_canvas_data* canvas = __mgCurrentCanvas;
-	if(canvas)
-	{
-		mg_primitive primitive = {.cmd = MG_CMD_RECT_STROKE, .rect = (mp_rect){x, y, w, h}};
-		mg_push_command(canvas, primitive);
-	}
+	mg_rectangle_path(x, y, w, h);
+	mg_stroke();
+}
+
+void mg_rounded_rectangle_path(f32 x, f32 y, f32 w, f32 h, f32 r)
+{
+	f32 c = r*4*(sqrt(2)-1)/3;
+
+	mg_move_to(x+r, y);
+	mg_line_to(x+w-r, y);
+	mg_cubic_to(x+w-r+c, y, x+w, y+r-c, x+w, y+r);
+	mg_line_to(x+w, y+h-r);
+	mg_cubic_to(x+w, y+h-r+c, x+w-r+c, y+h, x+w-r, y+h);
+	mg_line_to(x+r, y+h);
+	mg_cubic_to(x+r-c, y+h, x, y+h-r+c, x, y+h-r);
+	mg_line_to(x, y+r);
+	mg_cubic_to(x, y+r-c, x+r-c, y, x+r, y);
 }
 
 void mg_rounded_rectangle_fill(f32 x, f32 y, f32 w, f32 h, f32 r)
 {
-	mg_canvas_data* canvas = __mgCurrentCanvas;
-	if(canvas)
-	{
-		mg_primitive primitive = {.cmd = MG_CMD_ROUND_RECT_FILL,
-		                          .roundedRect = (mg_rounded_rect){x, y, w, h, r}};
-		mg_push_command(canvas, primitive);
-	}
+	mg_rounded_rectangle_path(x, y, w, h, r);
+	mg_fill();
 }
 
 void mg_rounded_rectangle_stroke(f32 x, f32 y, f32 w, f32 h, f32 r)
 {
-	mg_canvas_data* canvas = __mgCurrentCanvas;
-	if(canvas)
-	{
-		mg_primitive primitive = {.cmd = MG_CMD_ROUND_RECT_STROKE,
-		                          .roundedRect = (mg_rounded_rect){x, y, w, h, r}};
-		mg_push_command(canvas, primitive);
-	}
+	mg_rounded_rectangle_path(x, y, w, h, r);
+	mg_stroke();
 }
 
-void mg_ellipse_fill(f32 x, f32 y, f32 rx, f32 ry)
+void mg_ellipse_path(f32 x, f32 y, f32 rx, f32 ry)
 {
 	f32 cx = rx*4*(sqrt(2)-1)/3;
 	f32 cy = ry*4*(sqrt(2)-1)/3;
@@ -3667,19 +3460,18 @@ void mg_ellipse_fill(f32 x, f32 y, f32 rx, f32 ry)
 	mg_cubic_to(x+cx, y+ry, x+rx, y+cy, x+rx, y);
 	mg_cubic_to(x+rx, y-cy, x+cx, y-ry, x, y-ry);
 	mg_cubic_to(x-cx, y-ry, x-rx, y-cy, x-rx, y);
+}
 
+void mg_ellipse_fill(f32 x, f32 y, f32 rx, f32 ry)
+{
+	mg_ellipse_path(x, y, rx, ry);
 	mg_fill();
 }
 
 void mg_ellipse_stroke(f32 x, f32 y, f32 rx, f32 ry)
 {
-	mg_canvas_data* canvas = __mgCurrentCanvas;
-	if(canvas)
-	{
-		mg_primitive primitive = {.cmd = MG_CMD_ELLIPSE_STROKE,
-		                          .rect = (mp_rect){x-rx, y-ry, 2*rx, 2*ry}};
-		mg_push_command(canvas, primitive);
-	}
+	mg_ellipse_path(x, y, rx, ry);
+	mg_stroke();
 }
 
 void mg_circle_fill(f32 x, f32 y, f32 r)

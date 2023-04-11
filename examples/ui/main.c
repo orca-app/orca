@@ -598,6 +598,7 @@ int main()
 		mem_arena_clear(mem_scratch());
 	}
 
+	mg_surface_destroy(surface);
 	mp_terminate();
 
 	return(0);

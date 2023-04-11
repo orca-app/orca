@@ -178,12 +178,6 @@ typedef struct mg_rounded_rect
 
 typedef enum { MG_CMD_FILL,
 	           MG_CMD_STROKE,
-	           MG_CMD_RECT_FILL,
-	           MG_CMD_RECT_STROKE,
-	           MG_CMD_ROUND_RECT_FILL,
-	           MG_CMD_ROUND_RECT_STROKE,
-	           MG_CMD_ELLIPSE_FILL,
-	           MG_CMD_ELLIPSE_STROKE,
 	           MG_CMD_JUMP,
 	           MG_CMD_CLIP_PUSH,
 	           MG_CMD_CLIP_POP,
