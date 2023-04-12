@@ -1,0 +1,6 @@
+log_string_flat v(Ip)
+log_int v(i)
+cosf f(f)
+sinf f(f)
+floorf f(f)
+sqrtf f(f)

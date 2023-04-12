@@ -1,0 +1,44 @@
+glCreateProgram i(v)
+glCreateShader i(i)
+glCompileShader v(i)
+glAttachShader v(ii)
+glLinkProgram v(i)
+glUseProgram v(i)
+glGetError i(v)
+glClearColor v(ffff)
+glClear	v(i)
+glViewport v(iiii)
+
+glGetShaderiv v(iip)
+glGetShaderInfoLog v(iipp)
+
+glBindFramebuffer v(ii)
+glBindTexture v(ii)
+glActiveTexture v(i)
+
+glGenBuffers v(ip)
+glGenTextures v(ip)
+glGenFramebuffers v(ip)
+
+glFramebufferTexture2D v(iiiii)
+glCheckFramebufferStatus i(i)
+
+glTexImage2D v(iiiiiiiip)
+glTexParameteri v(iii)
+
+glBindBuffer v(ii)
+glBufferData v(iipi)
+
+glUniform1i v(ii)
+glUniform2i v(iii)
+glUniform1f v(if)
+glUniform2f v(iff)
+glUniform3f v(ifff)
+glUniformMatrix4fv v(iiip)
+
+glGetAttribLocation i(ip)
+glGetUniformLocation i(ip)
+
+glVertexAttribPointer v(iiiiip)
+glEnableVertexAttribArray v(i)
+glDrawArrays v(iii)
