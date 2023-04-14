@@ -37,7 +37,7 @@ elif [ $target = wasm3 ] ; then
 elif [ $target = orca ] ; then
 	echo "building orca"
 
-	# copies libraries
+	# copy libraries
 	cp milepost/bin/mtl_renderer.metallib bin/
 	cp milepost/bin/libmilepost.dylib bin/
 	cp milepost/bin/libGLESv2.dylib bin/
@@ -50,6 +50,12 @@ elif [ $target = orca ] ; then
 	# generate wasm3 api bindings
 	./scripts/bindgen.py core ./src
 	./scripts/bindgen.py gles ./src
+
+	./scripts/bindgen2.py canvas \
+		src/canvas_api.json \
+		--guest-stubs sdk/graphics.c \
+		--guest-include graphics.h \
+		--wasm3-bindings ./src/canvas_api_bind_gen.c
 
 	# compile orca
 	clang $FLAGS $INCLUDES $LIBS -o bin/orca src/main.c

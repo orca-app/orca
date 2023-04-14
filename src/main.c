@@ -6,6 +6,7 @@
 *
 *****************************************************************/
 #include<stdio.h>
+#include<errno.h>
 #include<pthread.h>
 #include<math.h>
 
@@ -29,7 +30,48 @@ void log_int(int i)
 	printf("%i ", i);
 }
 
+void mg_matrix_push_flat(float a11, float a12, float a13,
+                         float a21, float a22, float a23)
+{
+	mg_mat2x3 m = {a11, a12, a13, a21, a22, a23};
+	mg_matrix_push(m);
+}
+
+mg_font mg_font_create_default()
+{
+	//NOTE(martin): create default font
+	str8 fontPath = mp_app_get_resource_path(mem_scratch(), "../resources/OpenSansLatinSubset.ttf");
+	char* fontPathCString = str8_to_cstring(mem_scratch(), fontPath);
+
+	FILE* fontFile = fopen(fontPathCString, "r");
+	if(!fontFile)
+	{
+		LOG_ERROR("Could not load font file '%s': %s\n", fontPathCString, strerror(errno));
+		return(mg_font_nil());
+	}
+	unsigned char* fontData = 0;
+	fseek(fontFile, 0, SEEK_END);
+	u32 fontDataSize = ftell(fontFile);
+	rewind(fontFile);
+	fontData = (unsigned char*)malloc(fontDataSize);
+	fread(fontData, 1, fontDataSize, fontFile);
+	fclose(fontFile);
+
+	unicode_range ranges[5] = {UNICODE_RANGE_BASIC_LATIN,
+	                           UNICODE_RANGE_C1_CONTROLS_AND_LATIN_1_SUPPLEMENT,
+	                           UNICODE_RANGE_LATIN_EXTENDED_A,
+	                           UNICODE_RANGE_LATIN_EXTENDED_B,
+	                           UNICODE_RANGE_SPECIALS};
+
+	mg_font font = mg_font_create_from_memory(fontDataSize, fontData, 5, ranges);
+
+	free(fontData);
+
+	return(font);
+}
+
 #include"bindgen_core_api.c"
+#include"canvas_api_bind.c"
 #include"bindgen_gles_api.c"
 #include"manual_gles_api.c"
 
@@ -37,6 +79,7 @@ typedef struct orca_app
 {
 	mp_window window;
 	mg_surface surface;
+	mg_surface mtlSurface;
 	mg_canvas canvas;
 
 } orca_app;
@@ -188,6 +231,7 @@ void* orca_runloop(void* user)
 
 	//NOTE: bind orca APIs
 	bindgen_link_core_api(module);
+	bindgen_link_canvas_api(module);
 	bindgen_link_gles_api(module);
 	manual_link_gles_api(module);
 
@@ -319,7 +363,9 @@ void* orca_runloop(void* user)
 
 				case MP_EVENT_WINDOW_RESIZE:
 				{
-					//TODO: resize surface!
+					mp_rect frame = {0, 0, event.frame.rect.w, event.frame.rect.h};
+					mg_surface_set_frame(app->surface, frame);
+
 					if(eventHandlers[G_EVENT_FRAME_RESIZE])
 					{
 						u32 width = (u32)event.frame.rect.w;
@@ -385,7 +431,7 @@ void* orca_runloop(void* user)
 			}
 		}
 
-		mg_surface_prepare(app->surface);
+/*		mg_surface_prepare(app->surface);
 			glClearColor(1, 0, 1, 1);
 			glClear(GL_COLOR_BUFFER_BIT);
 
@@ -395,6 +441,17 @@ void* orca_runloop(void* user)
 			}
 
 		mg_surface_present(app->surface);
+*/
+
+		mg_canvas_prepare(app->canvas);
+
+			if(eventHandlers[G_EVENT_FRAME_REFRESH])
+			{
+				m3_Call(eventHandlers[G_EVENT_FRAME_REFRESH], 0, 0);
+			}
+
+		mg_present();
+
 		//TODO: update and render
 		mem_scratch_clear();
 	}
@@ -427,9 +484,14 @@ int main(int argc, char** argv)
 	mp_window_bring_to_front(window);
 	mp_window_focus(window);
 
+	mg_surface mtlSurface = mg_surface_create_for_window(window, MG_BACKEND_DEFAULT);
+	mg_surface_swap_interval(mtlSurface, 1);
+	mg_canvas canvas = mg_canvas_create(mtlSurface);
+
 	orca_app app = {.window = window,
-	                .surface = surface};
-//	                .canvas = canvas};
+	                .surface = surface,
+	                .mtlSurface = mtlSurface,
+	                .canvas = canvas};
 
 	pthread_t runloopThread;
 	pthread_create(&runloopThread, 0, orca_runloop, &app);
