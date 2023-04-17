@@ -1,0 +1,124 @@
+[
+{
+	"name": "g_clear",
+	"cname": "mg_clear",
+	"ret": {"name": "void", "tag": "v"},
+	"args": []
+},
+{
+	"name": "g_set_color_rgba",
+	"cname": "mg_set_color_rgba",
+	"ret": {"name": "void", "tag": "v"},
+	"args": [
+		{"name": "r",
+		 "type": {"name": "float", "tag": "f"}},
+		{"name": "g",
+		 "type": {"name": "float", "tag": "f"}},
+		{"name": "b",
+		 "type": {"name": "float", "tag": "f"}},
+		{"name": "a",
+		 "type": {"name": "float", "tag": "f"}}]
+},
+{
+	"name": "g_set_color",
+	"cname": "mg_set_color",
+	"ret": {"name": "void", "tag": "v"},
+	"args": [
+		{"name": "color",
+		 "type": {"name": "g_color", "cname": "mg_color", "tag": "S"}}]
+},
+{
+	"name": "g_matrix_push",
+	"cname": "mg_matrix_push",
+	"ret": {"name": "void", "tag": "v"},
+	"args": [
+		{"name": "m",
+		 "type": {"name": "g_mat2x3", "cname": "mg_mat2x3", "tag": "S"}}]
+},
+{
+	"name": "g_matrix_pop",
+	"cname": "mg_matrix_pop",
+	"ret": {"name": "void", "tag": "v"},
+	"args": []
+},
+{
+	"name": "g_circle_fill",
+	"cname": "mg_circle_fill",
+	"ret": {"name": "void", "tag": "v"},
+	"args": [
+		{"name": "x",
+		 "type": {"name": "float", "tag": "f"}},
+		{"name": "y",
+		 "type": {"name": "float", "tag": "f"}},
+		{"name": "r",
+		 "type": {"name": "float", "tag": "f"}}]
+},
+{
+	"name": "g_rectangle_fill",
+	"cname": "mg_rectangle_fill",
+	"ret": {"name": "void", "tag": "v"},
+	"args": [
+		{"name": "x",
+		 "type": {"name": "float", "tag": "f"}},
+		{"name": "y",
+		 "type": {"name": "float", "tag": "f"}},
+		{"name": "w",
+		 "type": {"name": "float", "tag": "f"}},
+		{"name": "h",
+		 "type": {"name": "float", "tag": "f"}}]
+},
+{
+	"name": "g_font_create_default",
+	"cname": "mg_font_create_default",
+	"ret": {"name": "g_font", "cname": "mg_font", "tag": "S"},
+	"args": []
+},
+{
+	"name": "g_set_font",
+	"cname": "mg_set_font",
+	"ret": {"name": "void", "tag": "v"},
+	"args": [
+		{"name": "font",
+		 "type": {"name": "g_font", "cname": "mg_font" , "tag": "S"}}]
+},
+{
+	"name": "g_set_font_size",
+	"cname": "mg_set_font_size",
+	"ret": {"name": "void", "tag": "v"},
+	"args": [
+		{"name": "size",
+		 "type": {"name": "float", "cname": "float" , "tag": "f"}}]
+},
+{
+	"gen_stub": false,
+	"name": "g_text_outlines",
+	"cname": "mg_text_outlines",
+	"ret": {"name": "void", "tag": "v"},
+	"args": [
+		{"name": "text",
+		 "type": {"name": "str8", "cname": "str8" , "tag": "S"}}]
+},
+{
+	"name": "g_fill",
+	"cname": "mg_fill",
+	"ret": {"name": "void", "tag": "v"},
+	"args": []
+},
+{
+	"name": "g_move_to",
+	"cname": "mg_move_to",
+	"ret": {"name": "void", "tag": "v"},
+	"args": [
+		{"name": "x",
+		 "type": {"name": "f32", "tag":"f"}},
+		{"name": "y",
+		 "type": {"name": "f32", "tag":"f"}}]
+},
+{
+	"name": "g_set_text_flip",
+	"cname": "mg_set_text_flip",
+	"ret": {"name": "void", "tag": "v"},
+	"args": [
+		{"name": "flip",
+		 "type": {"name": "bool", "tag":"i"}}]
+}]

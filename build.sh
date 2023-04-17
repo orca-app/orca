@@ -51,7 +51,7 @@ elif [ $target = orca ] ; then
 	./scripts/bindgen.py core ./src
 	./scripts/bindgen.py gles ./src
 
-	./scripts/bindgen2.py canvas \
+	python3 ./scripts/bindgen2.py canvas \
 		src/canvas_api.json \
 		--guest-stubs sdk/graphics.c \
 		--guest-include graphics.h \

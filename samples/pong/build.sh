@@ -8,8 +8,8 @@ wasmFlags="--target=wasm32 \
        -Wl,--allow-undefined \
        -g \
        -D__ORCA__ \
-       -I ../../sdk -I ../../milepost/src"
+       -I ../../sdk -I ../../milepost/src -I ../../milepost/src/util -I ../../milepost/src/platform"
 
-/usr/local/opt/llvm/bin/clang $wasmFlags -o ./module.wasm ../../sdk/graphics.c ../../sdk/orca.c main.c
+/usr/local/opt/llvm/bin/clang $wasmFlags -o ./module.wasm ../../sdk/graphics.c ../../sdk/orca.c src/main.c
 
-#python3 ../../scripts/mkapp.py --orca-dir ../.. --name Pong --icon icon.png module.wasm
+python3 ../../scripts/mkapp.py --orca-dir ../.. --name Pong --icon icon.png module.wasm
