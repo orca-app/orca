@@ -9,7 +9,7 @@
 #ifndef __STRINGS_H_
 #define __STRINGS_H_
 
-#include<string.h>
+#include<string.h> // strlen
 #include"typedefs.h"
 #include"lists.h"
 #include"memory.h"

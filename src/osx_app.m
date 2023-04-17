@@ -16,6 +16,7 @@
 #include"ringbuffer.h"
 #include"memory.h"
 #include"macro_helpers.h"
+#include"debug_log.h"
 #include"platform_clock.h"
 #include"graphics_internal.h"
 

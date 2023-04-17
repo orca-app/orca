@@ -33,9 +33,9 @@ extern "C" {
 
 typedef enum { LOG_LEVEL_ERROR,
                LOG_LEVEL_WARNING,
-	       LOG_LEVEL_MESSAGE,
-	       LOG_LEVEL_DEBUG,
-	       LOG_LEVEL_COUNT } log_level;
+               LOG_LEVEL_MESSAGE,
+               LOG_LEVEL_DEBUG,
+               LOG_LEVEL_COUNT } log_level;
 
 MP_API void LogGeneric(log_level level,
                        const char* subsystem,
@@ -74,21 +74,6 @@ MP_API void LogFilter(const char* subsystem, log_level level);
 	#define LOG_WARNING(msg, ...)
 	#define LOG_MESSAGE(msg, ...)
 	#define LOG_DEBUG(msg, ...)
-#endif
-
-#ifndef NO_ASSERT
-	#include<assert.h>
-	#define _ASSERT_(x, msg) assert(x && msg)
-	#define ASSERT(x, ...) _ASSERT_(x, #__VA_ARGS__)
-
-	#ifdef DEBUG
-		#define DEBUG_ASSERT(x, ...) ASSERT(x, ##__VA_ARGS__ )
-	#else
-		#define DEBUG_ASSERT(x, ...)
-	#endif
-#else
-	#define ASSERT(x, ...)
-	#define DEBUG_ASSERT(x, ...)
 #endif
 
 #ifdef __cplusplus

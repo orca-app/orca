@@ -3,14 +3,13 @@
 *	@file: lists.h
 *	@author: Martin Fouilleul
 *	@date: 22/11/2017
-*	@revision: 28/04/2019 : deleted containers which are not used by BLITz
 *	@brief: Implements generic intrusive linked list and dynamic array
 *
 ****************************************************************/
 #ifndef __CONTAINERS_H_
 #define __CONTAINERS_H_
 
-#include"debug_log.h"
+#include"macro_helpers.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -116,7 +115,7 @@ static inline void list_insert(list_info* list, list_elt* afterElt, list_elt* el
 	}
 	afterElt->next = elt;
 
-	ASSERT(elt->next != elt, "list_insert(): can't insert an element into itself");
+	DEBUG_ASSERT(elt->next != elt, "list_insert(): can't insert an element into itself");
 }
 
 static inline void list_insert_before(list_info* list, list_elt* beforeElt, list_elt* elt)
@@ -134,7 +133,7 @@ static inline void list_insert_before(list_info* list, list_elt* beforeElt, list
 	}
 	beforeElt->prev = elt;
 
-	ASSERT(elt->next != elt, "list_insert_before(): can't insert an element into itself");
+	DEBUG_ASSERT(elt->next != elt, "list_insert_before(): can't insert an element into itself");
 }
 
 static inline void list_remove(list_info* list, list_elt* elt)

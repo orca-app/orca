@@ -40,6 +40,8 @@
 	#define OS_MACOS 1
 #elif defined(__gnu_linux__)
 	#define OS_LINUX 1
+#elif defined(__ORCA__)
+	#define OS_ORCA 1
 #else
 	#error "Can't identify OS"
 #endif
@@ -68,6 +70,8 @@
 		#define ARCH_ARM32 1
 	#elif defined(__aarch64__)
 		#define ARCH_ARM64 1
+	#elif defined(__ORCA__)
+		#define ARCH_WASM 1
 	#else
 		#error "Can't identify architecture"
 	#endif

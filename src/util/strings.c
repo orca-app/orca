@@ -8,10 +8,8 @@
 *****************************************************************/
 #include<string.h>	// strlen(), strcpy(), etc.
 #include<stdarg.h>	// va_list() etc.
-#include"debug_log.h"
+#include"macro_helpers.h"
 #include"strings.h"
-
-#define LOG_SUBSYSTEM "Strings"
 
 //----------------------------------------------------------------------------------
 // string slices as values
@@ -345,7 +343,3 @@ str8 mp_path_base_name(str8 fullPath)
 	str8 basename = str8_slice(fullPath, lastSlashIndex+1, fullPath.len);
 	return(basename);
 }
-
-
-
-#undef LOG_SUBSYSTEM

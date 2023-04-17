@@ -9,7 +9,8 @@
 #ifndef __MACRO_HELPERS_H_
 #define __MACRO_HELPERS_H_
 
-#include"typedefs.h"
+#include"util/typedefs.h"
+#include"platform/platform.h"
 
 //NOTE(martin): macro concatenation
 #define _cat2_(a, b) a##b
@@ -123,5 +124,29 @@ static inline u64 next_pow2_u64(u64 x)
 }
 
 #define defer_loop(begin, end) begin; for(int __i__=0; __i__<1; __i__++, end)
+
+//NOTE: assert macros
+
+#ifndef NO_ASSERT
+	#ifdef OS_ORCA
+		//TODO add a runtime-provided assert
+		#define _ASSERT_(x, msg)
+	#else
+		#include<assert.h>
+		#define _ASSERT_(x, msg) assert(x && msg)
+	#endif
+
+	#define ASSERT(x, ...) _ASSERT_(x, #__VA_ARGS__)
+
+	#ifdef DEBUG
+		#define DEBUG_ASSERT(x, ...) ASSERT(x, ##__VA_ARGS__ )
+	#else
+		#define DEBUG_ASSERT(x, ...)
+	#endif
+#else
+	#define ASSERT(x, ...)
+	#define DEBUG_ASSERT(x, ...)
+#endif
+
 
 #endif //__MACRO_HELPERS_H_
