@@ -10,12 +10,12 @@
 #include<pthread.h>
 #include<math.h>
 
-#include"wasm3.h"
-#include"m3_env.h"
-#include"m3_compile.h"
-
 #define MG_INCLUDE_GL_API
 #include"milepost.h"
+
+#include"orca_runtime.h"
+
+#include"memory_impl.c"
 
 #define LOG_SUBSYSTEM "Orca"
 
@@ -35,6 +35,11 @@ void mg_matrix_push_flat(float a11, float a12, float a13,
 {
 	mg_mat2x3 m = {a11, a12, a13, a21, a22, a23};
 	mg_matrix_push(m);
+}
+
+void orca_assert(bool x)
+{
+	ASSERT(x);
 }
 
 mg_font mg_font_create_default()
@@ -82,39 +87,9 @@ typedef struct orca_app
 	mg_surface mtlSurface;
 	mg_canvas canvas;
 
+	orca_runtime runtime;
+
 } orca_app;
-
-#define G_EVENTS(X) \
-	X(G_EVENT_START, "OnInit", "", "") \
-	X(G_EVENT_MOUSE_DOWN, "OnMouseDown", "", "i") \
-	X(G_EVENT_MOUSE_UP, "OnMouseUp", "", "i") \
-	X(G_EVENT_MOUSE_ENTER, "OnMouseEnter", "", "") \
-	X(G_EVENT_MOUSE_LEAVE, "OnMouseLeave", "", "") \
-	X(G_EVENT_MOUSE_MOVE, "OnMouseMove", "", "ffff") \
-	X(G_EVENT_MOUSE_WHEEL, "OnMouseWheel", "", "ff") \
-	X(G_EVENT_KEY_DOWN, "OnKeyDown", "", "i") \
-	X(G_EVENT_KEY_UP, "OnKeyUp", "", "i") \
-	X(G_EVENT_FRAME_REFRESH, "OnFrameRefresh", "", "") \
-	X(G_EVENT_FRAME_RESIZE, "OnFrameResize", "", "ii")
-
-typedef enum {
-	#define G_EVENT_KIND(kind, ...) kind,
-	G_EVENTS(G_EVENT_KIND)
-	G_EVENT_COUNT
-} guest_event_kind;
-
-
-typedef struct g_event_handler_desc
-{
-	str8 name;
-	str8 retTags;
-	str8 argTags;
-} g_event_handler_desc;
-
-const g_event_handler_desc G_EVENT_HANDLER_DESC[] = {
-	#define G_EVENT_HANDLER_DESC_ENTRY(kind, name, rets, args) {STR8(name), STR8(rets), STR8(args)},
-	G_EVENTS(G_EVENT_HANDLER_DESC_ENTRY)
-};
 
 char m3_type_to_tag(M3ValueType type)
 {
@@ -136,59 +111,27 @@ char m3_type_to_tag(M3ValueType type)
 	}
 }
 
-typedef struct host_memory
+void orca_runtime_init(orca_runtime* runtime)
 {
-	char* ptr;
-	u32 reserved;
-	u32 committed;
-
-} host_memory;
-
-void host_memory_init(host_memory* memory)
-{
+	memset(runtime, 0, sizeof(orca_runtime));
 	mem_base_allocator* allocator = mem_base_allocator_default();
-	memory->committed = 0;
-	memory->reserved = 4<<20;
-	memory->ptr = mem_base_reserve(allocator, memory->reserved);
+	runtime->wasmMemory.committed = 0;
+	runtime->wasmMemory.reserved = 4ULL<<30;
+	runtime->wasmMemory.ptr = mem_base_reserve(allocator, runtime->wasmMemory.reserved);
 }
 
-void* host_memory_resize_callback(void* p, unsigned long size, void* userData)
+orca_app __orcaApp;
+
+orca_runtime* orca_runtime_get()
 {
-	host_memory* memory = (host_memory*)userData;
-
-	if(memory->committed >= size)
-	{
-		return(memory->ptr);
-	}
-	else if(memory->committed < memory->reserved)
-	{
-		u32 commitSize = size - memory->committed;
-
-		mem_base_allocator* allocator = mem_base_allocator_default();
-		mem_base_commit(allocator, memory->ptr + memory->committed, commitSize);
-		memory->committed += commitSize;
-		return(memory->ptr);
-	}
-	else
-	{
-		DEBUG_ASSERT(0, "Out of memory");
-		return(0);
-	}
-}
-
-void host_memory_free_callback(void* p, void* userData)
-{
-	host_memory* memory = (host_memory*)userData;
-
-	mem_base_allocator* allocator = mem_base_allocator_default();
-	mem_base_release(allocator, memory->ptr, memory->reserved);
-	memset(memory, 0, sizeof(host_memory));
+	return(&__orcaApp.runtime);
 }
 
 void* orca_runloop(void* user)
 {
-	orca_app* app = (orca_app*)user;
-	mem_arena_init(mem_scratch());
+	orca_app* app = &__orcaApp;
+
+	orca_runtime_init(&app->runtime);
 
 	//NOTE: loads wasm module
 	const char* bundleNameCString = "module";
@@ -206,49 +149,46 @@ void* orca_runloop(void* user)
 	u64 wasmSize = ftell(file);
 	rewind(file);
 
-	u8* wasmBytes = malloc_array(u8, wasmSize);
-	fread(wasmBytes, 1, wasmSize, file);
+	app->runtime.wasmBytecode.len = wasmSize;
+	app->runtime.wasmBytecode.ptr = malloc_array(char, wasmSize);
+	fread(app->runtime.wasmBytecode.ptr, 1, app->runtime.wasmBytecode.len, file);
 	fclose(file);
 
 	u32 stackSize = 65536;
-	IM3Environment env = m3_NewEnvironment();
+	app->runtime.m3Env = m3_NewEnvironment();
 
-	host_memory hostMemory = {};
-	host_memory_init(&hostMemory);
-
-	IM3Runtime runtime = m3_NewRuntime(env, stackSize, NULL);
-	m3_RuntimeSetMemoryCallbacks(runtime, host_memory_resize_callback, host_memory_free_callback, &hostMemory);
+	app->runtime.m3Runtime = m3_NewRuntime(app->runtime.m3Env, stackSize, NULL);
+	m3_RuntimeSetMemoryCallbacks(app->runtime.m3Runtime, wasm_memory_resize_callback, wasm_memory_free_callback, &app->runtime.wasmMemory);
 	//NOTE: host memory will be freed when runtime is freed.
 
-	IM3Module module = 0;
-
 	//TODO check errors
-	m3_ParseModule(env, &module, wasmBytes, wasmSize);
-	m3_LoadModule(runtime, module);
-	m3_SetModuleName(module, bundleNameCString);
+	m3_ParseModule(app->runtime.m3Env, &app->runtime.m3Module, (u8*)app->runtime.wasmBytecode.ptr, app->runtime.wasmBytecode.len);
+	m3_LoadModule(app->runtime.m3Runtime, app->runtime.m3Module);
+	m3_SetModuleName(app->runtime.m3Module, bundleNameCString);
 
 	mem_scratch_clear();
 
 	//NOTE: bind orca APIs
-	bindgen_link_core_api(module);
-	bindgen_link_canvas_api(module);
-	bindgen_link_gles_api(module);
-	manual_link_gles_api(module);
+	bindgen_link_core_api(app->runtime.m3Module);
+	bindgen_link_canvas_api(app->runtime.m3Module);
+	bindgen_link_gles_api(app->runtime.m3Module);
+	manual_link_gles_api(app->runtime.m3Module);
 
 	//NOTE: compile
-	M3Result res = m3_CompileModule(module);
+	M3Result res = m3_CompileModule(app->runtime.m3Module);
 	if(res)
 	{
 		M3ErrorInfo errInfo = {};
-		m3_GetErrorInfo(runtime, &errInfo);
+		m3_GetErrorInfo(app->runtime.m3Runtime, &errInfo);
 
 		LOG_ERROR("wasm error: %s\n", errInfo.message);
+		return((void*)-1);
 	}
 
 	//NOTE: Find heap base
 	u32 heapBase = 0;
 	{
-		IM3Global global = m3_FindGlobal(module, "__heap_base");
+		IM3Global global = m3_FindGlobal(app->runtime.m3Module, "__heap_base");
 		if(global)
 		{
 			M3TaggedValue val;
@@ -271,15 +211,15 @@ void* orca_runloop(void* user)
 	}
 	//NOTE: align heap base on 16Bytes
 	heapBase = AlignUpOnPow2(heapBase, 16);
-	LOG_MESSAGE("mem_size = %u,  __heap_base = %u\n", m3_GetMemorySize(runtime), heapBase);
+	LOG_MESSAGE("mem_size = %u,  __heap_base = %u\n", m3_GetMemorySize(app->runtime.m3Runtime), heapBase);
 
 	//NOTE: Find and type check event handlers.
-	IM3Function eventHandlers[G_EVENT_COUNT] = {0};
+
 	for(int i=0; i<G_EVENT_COUNT; i++)
 	{
 		const g_event_handler_desc* desc = &G_EVENT_HANDLER_DESC[i];
 		IM3Function handler = 0;
-		m3_FindFunction(&handler, runtime, desc->name.ptr);
+		m3_FindFunction(&handler, app->runtime.m3Runtime, desc->name.ptr);
 
 		if(handler)
 		{
@@ -320,7 +260,7 @@ void* orca_runloop(void* user)
 
 			if(checked)
 			{
-				eventHandlers[i] = handler;
+				app->runtime.eventHandlers[i] = handler;
 			}
 			else
 			{
@@ -333,6 +273,8 @@ void* orca_runloop(void* user)
 
 	//NOTE: prepare GL surface
 	mg_surface_prepare(app->surface);
+
+	IM3Function* eventHandlers = app->runtime.eventHandlers;
 
 	//NOTE: call init handler
 	if(eventHandlers[G_EVENT_START])
@@ -431,18 +373,6 @@ void* orca_runloop(void* user)
 			}
 		}
 
-/*		mg_surface_prepare(app->surface);
-			glClearColor(1, 0, 1, 1);
-			glClear(GL_COLOR_BUFFER_BIT);
-
-			if(eventHandlers[G_EVENT_FRAME_REFRESH])
-			{
-				m3_Call(eventHandlers[G_EVENT_FRAME_REFRESH], 0, 0);
-			}
-
-		mg_surface_present(app->surface);
-*/
-
 		mg_canvas_prepare(app->canvas);
 
 			if(eventHandlers[G_EVENT_FRAME_REFRESH])
@@ -488,13 +418,13 @@ int main(int argc, char** argv)
 	mg_surface_swap_interval(mtlSurface, 1);
 	mg_canvas canvas = mg_canvas_create(mtlSurface);
 
-	orca_app app = {.window = window,
-	                .surface = surface,
-	                .mtlSurface = mtlSurface,
-	                .canvas = canvas};
+	__orcaApp = (orca_app){.window = window,
+	                       .surface = surface,
+	                       .mtlSurface = mtlSurface,
+	                       .canvas = canvas};
 
 	pthread_t runloopThread;
-	pthread_create(&runloopThread, 0, orca_runloop, &app);
+	pthread_create(&runloopThread, 0, orca_runloop, 0);
 
 	while(!mp_should_quit())
 	{

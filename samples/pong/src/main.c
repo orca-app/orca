@@ -42,8 +42,11 @@ bool rightDown = false;
 
 g_font font;
 
+mem_arena arena;
+
 void OnInit(void)
 {
+	mem_arena_init(&arena);
 	font = g_font_create_default();
 	//log_string(str8_lit("init procedure\n"));
 }
@@ -95,6 +98,7 @@ void OnKeyUp(int key)
 
 void OnFrameRefresh(void)
 {
+	char* tmp = mem_arena_alloc(&arena, 512);
 	//log_string(str8_lit("frame procedure\n"));
 
 	f32 aspect = frameSize.x/frameSize.y;
@@ -168,4 +172,6 @@ void OnFrameRefresh(void)
 	g_fill();
 
     g_matrix_pop();
+
+    mem_arena_clear(&arena);
 }

@@ -6,4 +6,5 @@
 *
 *****************************************************************/
 
-//#include"util/memory.c"
+#include"platform/orca_memory.c"
+#include"util/memory.c"

@@ -10,5 +10,6 @@
 
 #include"util/typedefs.h"
 #include"util/lists.h"
+#include"util/memory.h"
 
 #endif //__ORCA_H_
