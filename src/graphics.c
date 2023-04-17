@@ -85,11 +85,14 @@ typedef struct mg_handle_slot
 
 } mg_handle_slot;
 
+static const u32 MG_HANDLES_MAX_COUNT = 512;
+
 typedef struct mg_data
 {
 	bool init;
 
-	mem_arena handleArena;
+	mg_handle_slot handleArray[MG_HANDLES_MAX_COUNT];
+	int handleNextIndex;
 	list_info handleFreeList;
 
 	mem_arena resourceArena;
@@ -146,7 +149,7 @@ void mg_init()
 {
 	if(!__mgData.init)
 	{
-		mem_arena_init(&__mgData.handleArena);
+		__mgData.handleNextIndex = 0;
 		mem_arena_init(&__mgData.resourceArena);
 		__mgData.init = true;
 	}
@@ -162,21 +165,24 @@ u64 mg_handle_alloc(mg_handle_kind kind, void* data)
 	{
 		mg_init();
 	}
-	mem_arena* arena = &__mgData.handleArena;
 
 	mg_handle_slot* slot = list_pop_entry(&__mgData.handleFreeList, mg_handle_slot, freeListElt);
-	if(!slot)
+	if(!slot && __mgData.handleNextIndex < MG_HANDLES_MAX_COUNT)
 	{
-		slot = mem_arena_alloc_type(arena, mg_handle_slot);
-		DEBUG_ASSERT(slot);
+		slot = &__mgData.handleArray[__mgData.handleNextIndex];
+		__mgData.handleNextIndex++;
+
 		slot->generation = 1;
 	}
-	slot->kind = kind;
-	slot->data = data;
+	u64 h = 0;
+	if(slot)
+	{
+		slot->kind = kind;
+		slot->data = data;
 
-	u64 h = ((u64)(slot - (mg_handle_slot*)arena->ptr))<<32
-	       |((u64)(slot->generation));
-
+		h = ((u64)(slot - __mgData.handleArray))<<32
+		  |((u64)(slot->generation));
+	}
 	return(h);
 }
 
@@ -186,11 +192,10 @@ void mg_handle_recycle(u64 h)
 
 	u32 index = h>>32;
 	u32 generation = h & 0xffffffff;
-	mem_arena* arena = &__mgData.handleArena;
 
-	if(index*sizeof(mg_handle_slot) < arena->offset)
+	if(index*sizeof(mg_handle_slot) < __mgData.handleNextIndex)
 	{
-		mg_handle_slot* slot = (mg_handle_slot*)arena->ptr + index;
+		mg_handle_slot* slot = &__mgData.handleArray[index];
 		if(slot->generation == generation)
 		{
 			DEBUG_ASSERT(slot->generation != UINT32_MAX, "surface slot generation wrap around\n");
@@ -208,11 +213,10 @@ void* mg_data_from_handle(mg_handle_kind kind, u64 h)
 
 	u32 index = h>>32;
 	u32 generation = h & 0xffffffff;
-	mem_arena* arena = &__mgData.handleArena;
 
-	if(index*sizeof(mg_handle_slot) < arena->offset)
+	if(index < __mgData.handleNextIndex)
 	{
-		mg_handle_slot* slot = (mg_handle_slot*)arena->ptr + index;
+		mg_handle_slot* slot = &__mgData.handleArray[index];
 		if(  slot->generation == generation
 		  && slot->kind == kind)
 		{
@@ -278,10 +282,10 @@ mg_image_data* mg_image_data_from_handle(mg_image handle)
 //---------------------------------------------------------------
 
 #if MG_COMPILE_BACKEND_GL
-	#if defined(OS_WIN64)
+	#if defined(PLATFORM_WIN64)
 		#include"wgl_surface.h"
 		#define gl_surface_create_for_window mg_wgl_surface_create_for_window
-	#elif defined(OS_MACOS)
+	#elif defined(PLATFORM_MACOS)
 /*
 		#include"nsgl_surface.h"
 		#define gl_surface_create_for_window nsgl_surface_create_for_window
@@ -328,7 +332,7 @@ bool mg_is_canvas_backend_available(mg_backend_id backend)
 		#if MG_COMPILE_BACKEND_METAL
 			case MG_BACKEND_METAL:
 		#endif
-		#if MG_COMPILE_BACKEND_GL && defined(OS_WIN64)
+		#if MG_COMPILE_BACKEND_GL && defined(PLATFORM_WIN64)
 			case MG_BACKEND_GL:
 		#endif
 			result = true;
@@ -417,9 +421,9 @@ mg_surface mg_surface_create_host(mp_window window)
 	}
 	mg_surface handle = mg_surface_nil();
 	mg_surface_data* surface = 0;
-	#if OS_MACOS
+	#if PLATFORM_MACOS
 		surface = mg_osx_surface_create_host(window);
-	#elif OS_WIN64
+	#elif PLATFORM_WIN64
 		surface = mg_win32_surface_create_host(window);
 	#endif
 

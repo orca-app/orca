@@ -22,12 +22,12 @@
 //---------------------------------------------------------------
 #include"platform.h"
 
-#if defined(OS_WIN64)
-	#include"platform/win32_base_allocator.c"
+#if defined(PLATFORM_WIN64)
+	#include"platform/win32_memory.c"
 	#include"platform/win32_clock.c"
 	//TODO
-#elif defined(OS_MACOS)
-	#include"platform/unix_base_allocator.c"
+#elif defined(PLATFORM_MACOS)
+	#include"platform/unix_memory.c"
 	#include"platform/osx_clock.c"
 	/*
 	#include"platform/unix_rng.c"
@@ -35,8 +35,8 @@
 	#include"platform/posix_socket.c"
 	*/
 
-#elif defined(OS_LINUX)
-	#include"platform/unix_base_allocator.c"
+#elif defined(PLATFORM_LINUX)
+	#include"platform/unix_base_memory.c"
 	#include"platform/linux_clock.c"
 	/*
 	#include"platform/unix_rng.c"
@@ -51,7 +51,7 @@
 // app/graphics layer
 //---------------------------------------------------------------
 
-#if defined(OS_WIN64)
+#if defined(PLATFORM_WIN64)
 	#include"win32_app.c"
 	#include"graphics.c"
 
@@ -68,7 +68,7 @@
 		#include"egl_surface.c"
 	#endif
 
-#elif defined(OS_MACOS)
+#elif defined(PLATFORM_MACOS)
 	//NOTE: macos application layer and graphics backends are defined in milepost.m
 #else
 	#error "Unsupported platform"

@@ -26,7 +26,7 @@ typedef enum {
 
 //NOTE: these macros are used to select which backend to include when building milepost
 //      they can be overridden by passing them to the compiler command line
-#if defined(OS_MACOS)
+#if defined(PLATFORM_MACOS)
 	#ifndef MG_COMPILE_BACKEND_METAL
 		#define MG_COMPILE_BACKEND_METAL 1
 	#endif
@@ -45,7 +45,7 @@ typedef enum {
 		#define MG_BACKEND_DEFAULT MG_BACKEND_NONE
 	#endif
 
-#elif defined(OS_WIN64)
+#elif defined(PLATFORM_WIN64)
 	#ifndef MG_COMPILE_BACKEND_GL
 		#define MG_COMPILE_BACKEND_GL 1
 	#endif
@@ -60,7 +60,7 @@ typedef enum {
 		#define MG_BACKEND_DEFAULT MG_BACKEND_NONE
 	#endif
 
-#elif defined(OS_LINUX)
+#elif defined(PLATFORM_LINUX)
 	#ifndef MG_COMPILE_BACKEND_GL
 		#define MG_COMPILE_BACKEND_GL 1
 	#endif

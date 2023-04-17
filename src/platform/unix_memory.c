@@ -1,25 +1,25 @@
 /************************************************************//**
 *
-*	@file: unix_base_allocator.c
+*	@file: unix_memory.c
 *	@author: Martin Fouilleul
 *	@date: 10/09/2021
 *	@revision:
 *
 *****************************************************************/
 #include<sys/mman.h>
-#include"platform_base_allocator.h"
+#include"platform_memory.h"
 
 /*NOTE(martin):
 	Linux and MacOS don't make a distinction between reserved and committed memory, contrary to Windows
 */
-void mem_base_nop(void* context, void* ptr, u64 size) {}
+void mem_base_nop(mem_base_allocator* context, void* ptr, u64 size) {}
 
-void* mem_base_reserve_mmap(void* context, u64 size)
+void* mem_base_reserve_mmap(mem_base_allocator* context, u64 size)
 {
 	return(mmap(0, size, PROT_READ|PROT_WRITE, MAP_ANON|MAP_PRIVATE, 0, 0));
 }
 
-void mem_base_release_mmap(void* context, void* ptr, u64 size)
+void mem_base_release_mmap(mem_base_allocator* context, void* ptr, u64 size)
 {
 	munmap(ptr, size);
 }

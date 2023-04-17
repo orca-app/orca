@@ -14,7 +14,7 @@
 #include"graphics_internal.h"
 #include"gl_loader.h"
 
-#if OS_MACOS
+#if PLATFORM_MACOS
 	//NOTE: EGL_PLATFORM_ANGLE_TYPE_DEFAULT_ANGLE on osx defaults to CGL backend, which doesn't handle SwapInterval correctly
 	#define MG_EGL_PLATFORM_ANGLE_TYPE EGL_PLATFORM_ANGLE_TYPE_METAL_ANGLE
 

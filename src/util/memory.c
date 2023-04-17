@@ -6,19 +6,43 @@
 *	@revision:
 *
 *****************************************************************/
-#include<string.h> // memset
-
 #include"platform.h"
 #include"memory.h"
-#include"platform_base_allocator.h"
+#include"platform_memory.h"
 #include"macro_helpers.h"
 
-static const u32 MEM_ARENA_DEFAULT_RESERVE_SIZE = 1<<30;
-static const u32 MEM_ARENA_COMMIT_ALIGNMENT = 1<<20;
+#if PLATFORM_ORCA
+	static const u32 MEM_ARENA_DEFAULT_RESERVE_SIZE = 1<<20;
+#else
+	static const u32 MEM_ARENA_DEFAULT_RESERVE_SIZE = 1<<30;
+#endif
+
+static const u32 MEM_ARENA_COMMIT_ALIGNMENT = 4<<10;
 
 //--------------------------------------------------------------------------------
 //NOTE(martin): memory arena
 //--------------------------------------------------------------------------------
+
+mem_arena_chunk* mem_arena_chunk_alloc(mem_arena* arena, u64 reserveSize)
+{
+	reserveSize = AlignUpOnPow2(reserveSize, MEM_ARENA_COMMIT_ALIGNMENT);
+	u64 commitSize = AlignUpOnPow2(sizeof(mem_arena_chunk), MEM_ARENA_COMMIT_ALIGNMENT);
+
+	char* mem = mem_base_reserve(arena->base, reserveSize);
+	mem_base_commit(arena->base, mem, commitSize);
+
+	mem_arena_chunk* chunk = (mem_arena_chunk*)mem;
+
+	chunk->ptr = mem;
+	chunk->cap = reserveSize;
+	chunk->offset = sizeof(mem_arena_chunk);
+	chunk->committed = commitSize;
+
+	list_push_back(&arena->chunks, &chunk->listElt);
+
+	return(chunk);
+}
+
 void mem_arena_init(mem_arena* arena)
 {
 	mem_arena_init_with_options(arena, &(mem_arena_options){0});
@@ -26,42 +50,69 @@ void mem_arena_init(mem_arena* arena)
 
 void mem_arena_init_with_options(mem_arena* arena, mem_arena_options* options)
 {
-	arena->base = options->base ? options->base : mem_base_allocator_default();
-	arena->cap = options->reserve ? options->reserve : MEM_ARENA_DEFAULT_RESERVE_SIZE;
+	memset(arena, 0, sizeof(mem_arena));
 
-	arena->ptr = mem_base_reserve(arena->base, arena->cap);
-	arena->committed = 0;
-	arena->offset = 0;
+	arena->base = options->base ? options->base : mem_base_allocator_default();
+
+	u64 reserveSize = options->reserve ? (options->reserve + sizeof(mem_arena_chunk)) : MEM_ARENA_DEFAULT_RESERVE_SIZE;
+
+	arena->currentChunk = mem_arena_chunk_alloc(arena, reserveSize);
 }
 
 void mem_arena_release(mem_arena* arena)
 {
-	mem_base_release(arena->base, arena->ptr, arena->cap);
+	for_list_safe(&arena->chunks, chunk, mem_arena_chunk, listElt)
+	{
+		mem_base_release(arena->base, chunk, chunk->cap);
+	}
 	memset(arena, 0, sizeof(mem_arena));
 }
 
 void* mem_arena_alloc(mem_arena* arena, u64 size)
 {
-	u64 nextOffset = arena->offset + size;
-	ASSERT(nextOffset <= arena->cap);
+	mem_arena_chunk* chunk = arena->currentChunk;
+	ASSERT(chunk);
 
-	if(nextOffset > arena->committed)
+	u64 nextOffset = chunk->offset + size;
+	u64 lastCap = chunk->cap;
+	while(chunk && nextOffset > chunk->cap)
+	{
+		chunk = list_next_entry(&arena->chunks, chunk, mem_arena_chunk, listElt);
+		nextOffset = chunk->offset + size;
+		lastCap = chunk->cap;
+	}
+	if(!chunk)
+	{
+		u64 reserveSize = maximum(lastCap * 1.5, size);
+
+		chunk = mem_arena_chunk_alloc(arena, reserveSize);
+		nextOffset = chunk->offset + size;
+	}
+	ASSERT(nextOffset <= chunk->cap);
+
+	arena->currentChunk = chunk;
+
+	if(nextOffset > chunk->committed)
 	{
 		u64 nextCommitted = AlignUpOnPow2(nextOffset, MEM_ARENA_COMMIT_ALIGNMENT);
-		nextCommitted = ClampHighBound(nextCommitted, arena->cap);
-		u64 commitSize = nextCommitted - arena->committed;
-		mem_base_commit(arena->base, arena->ptr + arena->committed, commitSize);
-		arena->committed = nextCommitted;
+		nextCommitted = ClampHighBound(nextCommitted, chunk->cap);
+		u64 commitSize = nextCommitted - chunk->committed;
+		mem_base_commit(arena->base, chunk->ptr + chunk->committed, commitSize);
+		chunk->committed = nextCommitted;
 	}
-	char* p = arena->ptr + arena->offset;
-	arena->offset += size;
+	char* p = chunk->ptr + chunk->offset;
+	chunk->offset += size;
 
 	return(p);
 }
 
 void mem_arena_clear(mem_arena* arena)
 {
-	arena->offset = 0;
+	for_list(&arena->chunks, chunk, mem_arena_chunk, listElt)
+	{
+		chunk->offset = sizeof(mem_arena_chunk);
+	}
+	arena->currentChunk = list_first_entry(&arena->chunks, mem_arena_chunk, listElt);
 }
 
 //--------------------------------------------------------------------------------
@@ -98,7 +149,6 @@ void* mem_pool_alloc(mem_pool* pool)
 
 void mem_pool_recycle(mem_pool* pool, void* ptr)
 {
-	ASSERT((((char*)ptr) >= pool->arena.ptr) && (((char*)ptr) < (pool->arena.ptr + pool->arena.offset)));
 	list_push(&pool->freeList, (list_elt*)ptr);
 }
 
@@ -117,7 +167,7 @@ mp_thread_local mem_arena __scratchArena = {0};
 
 mem_arena* mem_scratch()
 {
-	if(__scratchArena.ptr == 0)
+	if(__scratchArena.base == 0)
 	{
 		mem_arena_init(&__scratchArena);
 	}

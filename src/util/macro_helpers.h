@@ -21,11 +21,6 @@
 //TODO(martin): this is a compiler-specific attribute, recognized by clang and gcc. See if there's a more portable approach
 //#define INLINE_GEN __attribute__((used)) static inline
 
-
-//NOTE(martin): typed and array mallocs
-#define malloc_type(type) ((type*)malloc(sizeof(type)))
-#define malloc_array(type, count) ((type*)malloc(sizeof(type)*count))
-
 //NOTE(martin): 'hygienic' templates, to replace macros and avoid multiple evaluation problems.
 #ifdef __cplusplus
 	//NOTE(martin): in C++ we use templates and decltype/declval
@@ -128,9 +123,11 @@ static inline u64 next_pow2_u64(u64 x)
 //NOTE: assert macros
 
 #ifndef NO_ASSERT
-	#ifdef OS_ORCA
+	#ifdef PLATFORM_ORCA
 		//TODO add a runtime-provided assert
-		#define _ASSERT_(x, msg)
+		extern void orca_assert(bool x);
+
+		#define _ASSERT_(x, msg) orca_assert(x)
 	#else
 		#include<assert.h>
 		#define _ASSERT_(x, msg) assert(x && msg)

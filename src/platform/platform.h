@@ -33,17 +33,17 @@
 // OS identification
 //-----------------------------------------------------------------
 #if defined(_WIN64)
-	#define OS_WIN64 1
+	#define PLATFORM_WIN64 1
 #elif defined(_WIN32)
 	#error "Unsupported OS (32bit only version of Windows)"
 #elif defined(__APPLE__) && defined(__MACH__)
-	#define OS_MACOS 1
+	#define PLATFORM_MACOS 1
 #elif defined(__gnu_linux__)
-	#define OS_LINUX 1
+	#define PLATFORM_LINUX 1
 #elif defined(__ORCA__)
-	#define OS_ORCA 1
+	#define PLATFORM_ORCA 1
 #else
-	#error "Can't identify OS"
+	#error "Can't identify platform"
 #endif
 
 //-----------------------------------------------------------------

@@ -9,46 +9,33 @@
 #ifndef __MEMORY_H_
 #define __MEMORY_H_
 
-#include"typedefs.h"
-#include"lists.h"
+#include"util/typedefs.h"
+#include"util/lists.h"
+#include"platform/platform_memory.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 //--------------------------------------------------------------------------------
-//NOTE(martin): base allocator
-//--------------------------------------------------------------------------------
-typedef void*(*mem_reserve_function)(void* context, u64 size);
-typedef void(*mem_modify_function)(void* context, void* ptr, u64 size);
-
-typedef struct mem_base_allocator
-{
-	mem_reserve_function reserve;
-	mem_modify_function commit;
-	mem_modify_function decommit;
-	mem_modify_function release;
-	void* context;
-
-} mem_base_allocator;
-
-MP_API mem_base_allocator* mem_base_allocator_default();
-
-#define mem_base_reserve(base, size) base->reserve(base->context, size)
-#define mem_base_commit(base, ptr, size) base->commit(base->context, ptr, size)
-#define mem_base_decommit(base, ptr, size) base->decommit(base->context, ptr, size)
-#define mem_base_release(base, ptr, size) base->release(base->context, ptr, size)
-
-//--------------------------------------------------------------------------------
 //NOTE(martin): memory arena
 //--------------------------------------------------------------------------------
-typedef struct mem_arena
+
+typedef struct mem_arena_chunk
 {
-	mem_base_allocator* base;
+	list_elt listElt;
 	char* ptr;
 	u64 offset;
 	u64 committed;
 	u64 cap;
+} mem_arena_chunk;
+
+typedef struct mem_arena
+{
+	mem_base_allocator* base;
+	list_info chunks;
+	mem_arena_chunk* currentChunk;
+
 } mem_arena;
 
 typedef struct mem_arena_options

@@ -10,7 +10,8 @@
 #ifndef __TYPEDEFS_H_
 #define __TYPEDEFS_H_
 
-#include<inttypes.h>
+#include<stddef.h>
+#include<stdint.h>
 #include<float.h>	//FLT_MAX/MIN etc...
 
 #ifndef __cplusplus
