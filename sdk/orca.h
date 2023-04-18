@@ -13,6 +13,6 @@
 #include"util/memory.h"
 #include"util/strings.h"
 #include"platform/platform_log.h"
-
+#include"platform/platform_assert.h"
 
 #endif //__ORCA_H_
