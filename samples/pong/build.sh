@@ -8,7 +8,7 @@ wasmFlags="--target=wasm32 \
        -Wl,--allow-undefined \
        -g \
        -D__ORCA__ \
-       -I ../../sdk -I ../../milepost/src -I ../../milepost/src/util -I ../../milepost/src/platform"
+       -I ../../sdk -I ../../milepost/src -I ../../milepost/src/util -I ../../milepost/src/platform -I../.."
 
 /usr/local/opt/llvm/bin/clang $wasmFlags -o ./module.wasm ../../sdk/graphics.c ../../sdk/orca.c src/main.c
 

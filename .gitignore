@@ -18,3 +18,4 @@ Debug/*
 
 src/bindgen_core_api.c
 src/bindgen_gles_api.c
+*bind_gen.c

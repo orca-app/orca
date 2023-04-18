@@ -20,14 +20,9 @@
 #define LOG_SUBSYSTEM "Orca"
 
 
-void log_string_flat(u64 len, char* ptr)
+void orca_log(int len, const char* ptr)
 {
-	LOG_MESSAGE("%.*s", (int)len, ptr);
-}
-
-void log_int(int i)
-{
-	printf("%i ", i);
+	LOG_MESSAGE("%.*s", len, ptr);
 }
 
 void mg_matrix_push_flat(float a11, float a12, float a13,
@@ -37,9 +32,25 @@ void mg_matrix_push_flat(float a11, float a12, float a13,
 	mg_matrix_push(m);
 }
 
-void orca_assert(bool x)
+int orca_assert(const char* file, const char* function, int line, const char* src, const char* note)
 {
-	ASSERT(x);
+	mem_arena* scratch = mem_scratch();
+	str8 msg = str8_pushf(scratch,
+	                      "Assertion failed in function %s() in file \"%s\", line %i:\n%s\nNote: %s\n",
+	                      function,
+	                      file,
+	                      line,
+	                      src,
+	                      note);
+
+	const char* msgCStr = str8_to_cstring(scratch, msg);
+	LOG_ERROR(msgCStr);
+
+	const char* options[] = {"OK"};
+	mp_alert_popup("Assertion Failed", msgCStr, 1, options);
+
+	//TODO: should terminate more gracefully...
+	exit(-1);
 }
 
 mg_font mg_font_create_default()

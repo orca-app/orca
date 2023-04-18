@@ -16,15 +16,8 @@
 
 #define M_PI 3.14159265358979323846
 
-extern void log_string_flat(unsigned long long len, char* ptr);
-extern void log_int(int i);
 extern float cosf(float x);
 extern float sinf(float x);
-
-void log_string(str8 string)
-{
-	log_string_flat(string.len, string.ptr);
-}
 
 const g_color paddleColor = {1, 0, 0, 1};
 mp_rect paddle = {200, 40, 200, 40};
@@ -48,15 +41,12 @@ void OnInit(void)
 {
 	mem_arena_init(&arena);
 	font = g_font_create_default();
-	//log_string(str8_lit("init procedure\n"));
 }
 
 void OnFrameResize(u32 width, u32 height)
 {
-	log_string(str8_lit("frame resize "));
-	log_int(width);
-	log_int(height);
-	log_string(str8_lit("\n"));
+	ASSERT(width == 0, "assert if width different from 0");
+	log_print("frame resize %u, %u\n", width, height);
 
 	frameSize.x = width;
 	frameSize.y = height;
@@ -99,7 +89,6 @@ void OnKeyUp(int key)
 void OnFrameRefresh(void)
 {
 	char* tmp = mem_arena_alloc(&arena, 512);
-	//log_string(str8_lit("frame procedure\n"));
 
 	f32 aspect = frameSize.x/frameSize.y;
 
