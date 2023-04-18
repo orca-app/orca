@@ -78,7 +78,7 @@ void mp_clock_init()
 
 	if(sysctl(mib, 2, &tv, &size, 0, 0) == -1)
 	{
-		LOG_ERROR("can't read boot time\n");
+		log_error("can't read boot time\n");
 	}
 	//NOTE(martin): convert boot date to timestamp
 	__initialTimestamp__ =   (((u64)tv.tv_sec + CLK_JAN_1970) << 32)

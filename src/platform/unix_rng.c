@@ -10,7 +10,7 @@
 #include<stdio.h>
 #include<stdlib.h>
 
-#include"debug_log.h"
+#include"platform_log.h"
 #include"typedefs.h"
 
 int RandomSeedFromDevice()
@@ -18,7 +18,7 @@ int RandomSeedFromDevice()
 	FILE* urandom = fopen("/dev/urandom", "r");
 	if(!urandom)
 	{
-		LOG_ERROR("can't open /dev/urandom\n");
+		log_error("can't open /dev/urandom\n");
 		return(-1);
 	}
 
@@ -31,7 +31,7 @@ int RandomSeedFromDevice()
 	int size = fread(seed.buff, 1, 4, urandom);
 	if(size != 4)
 	{
-		LOG_ERROR("couldn't read from /dev/urandom\n");
+		log_error("couldn't read from /dev/urandom\n");
 		return(-1);
 	}
 

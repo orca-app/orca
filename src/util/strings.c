@@ -6,8 +6,6 @@
 *	@revision:
 *
 *****************************************************************/
-#include<string.h>	// strlen(), strcpy(), etc.
-#include<stdarg.h>	// va_list() etc.
 #include"macro_helpers.h"
 #include"strings.h"
 

@@ -69,7 +69,7 @@ mg_font create_font(const char* path)
 	FILE* fontFile = fopen(fontPathCString, "r");
 	if(!fontFile)
 	{
-		LOG_ERROR("Could not load font file '%s'\n", fontPathCString);
+		log_error("Could not load font file '%s'\n", fontPathCString);
 		return(mg_font_nil());
 	}
 	unsigned char* fontData = 0;

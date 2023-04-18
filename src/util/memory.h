@@ -38,6 +38,15 @@ typedef struct mem_arena
 
 } mem_arena;
 
+typedef struct mem_arena_marker
+{
+	#if DEBUG
+		mem_arena* arena;
+	#endif
+	mem_arena_chunk* chunk;
+	u64 offset;
+} mem_arena_marker;
+
 typedef struct mem_arena_options
 {
 	mem_base_allocator* base;
@@ -50,6 +59,8 @@ MP_API void mem_arena_release(mem_arena* arena);
 
 MP_API void* mem_arena_alloc(mem_arena* arena, u64 size);
 MP_API void mem_arena_clear(mem_arena* arena);
+MP_API mem_arena_marker mem_arena_mark(mem_arena* arena);
+MP_API void mem_arena_clear_to(mem_arena* arena, mem_arena_marker marker);
 
 #define mem_arena_alloc_type(arena, type) ((type*)mem_arena_alloc(arena, sizeof(type)))
 #define mem_arena_alloc_array(arena, type, count) ((type*)mem_arena_alloc(arena, sizeof(type)*(count)))

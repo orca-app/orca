@@ -15,7 +15,7 @@
 #include"platform.h"
 #include"typedefs.h"
 #include"macro_helpers.h"
-#include"debug_log.h"
+#include"platform_log.h"
 #include"lists.h"
 #include"memory.h"
 #include"strings.h"

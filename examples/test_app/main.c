@@ -52,7 +52,7 @@ int main()
 	free(fontPath);
 	if(!fontFile)
 	{
-		LOG_ERROR("Could not load font file '%s'\n", fontPath);
+		log_error("Could not load font file '%s'\n", fontPath);
 		return(-1);
 	}
 	unsigned char* fontData = 0;

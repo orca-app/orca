@@ -349,7 +349,7 @@ static int mg_gl_canvas_compile_compute_program_named(const char* name, const ch
 			char buffer[256];
 			int size = 0;
 			glGetProgramInfoLog(program, 256, &size, buffer);
-			LOG_ERROR("Shader link error (%s): %.*s\n", name, size, buffer);
+			log_error("Shader link error (%s): %.*s\n", name, size, buffer);
 
 			res = -1;
 		}
@@ -391,7 +391,7 @@ int mg_gl_canvas_compile_render_program_named(const char* progName,
 			char buffer[256];
 			int size = 0;
 			glGetProgramInfoLog(program, 256, &size, buffer);
-			LOG_ERROR("Shader link error (%s): %.*s\n", progName, size, buffer);
+			log_error("Shader link error (%s): %.*s\n", progName, size, buffer);
 			res = -1;
  		}
  		else

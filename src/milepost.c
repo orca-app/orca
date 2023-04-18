@@ -8,19 +8,11 @@
 *****************************************************************/
 
 //---------------------------------------------------------------
-// utilities implementations
-//---------------------------------------------------------------
-#include"util/debug_log.c"
-#include"util/memory.c"
-#include"util/strings.c"
-#include"util/utf8.c"
-#include"util/hash.c"
-#include"util/ringbuffer.c"
-
-//---------------------------------------------------------------
 // platform implementations
 //---------------------------------------------------------------
 #include"platform.h"
+
+#include"platform/std_log.c"
 
 #if defined(PLATFORM_WIN64)
 	#include"platform/win32_memory.c"
@@ -46,6 +38,15 @@
 #else
 	#error "Unsupported platform"
 #endif
+
+//---------------------------------------------------------------
+// utilities implementations
+//---------------------------------------------------------------
+#include"util/memory.c"
+#include"util/strings.c"
+#include"util/utf8.c"
+#include"util/hash.c"
+#include"util/ringbuffer.c"
 
 //---------------------------------------------------------------
 // app/graphics layer

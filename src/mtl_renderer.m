@@ -80,7 +80,7 @@ void mg_mtl_print_log(int bufferIndex, id<MTLBuffer> logBuffer, id<MTLBuffer> lo
 
 	if(size)
 	{
-		LOG_INFO("Log from buffer %i:\n", bufferIndex);
+		log_info("Log from buffer %i:\n", bufferIndex);
 
 		int index = 0;
 		while(index < size)
@@ -1160,7 +1160,7 @@ mg_canvas_backend* mg_mtl_canvas_create(mg_surface surface)
 			if(err != nil)
 			{
 				const char* errStr = [[err localizedDescription] UTF8String];
-				LOG_ERROR("error : %s\n", errStr);
+				log_error("error : %s\n", errStr);
 				return(0);
 			}
 			id<MTLFunction> pathFunction = [library newFunctionWithName:@"mtl_path_setup"];

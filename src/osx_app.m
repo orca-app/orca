@@ -16,7 +16,7 @@
 #include"ringbuffer.h"
 #include"memory.h"
 #include"macro_helpers.h"
-#include"debug_log.h"
+#include"platform_log.h"
 #include"platform_clock.h"
 #include"graphics_internal.h"
 
@@ -269,14 +269,14 @@ static void mp_update_keyboard_layout()
 	__mpApp.osx.kbLayoutInputSource = TISCopyCurrentKeyboardLayoutInputSource();
 	if(!__mpApp.osx.kbLayoutInputSource)
 	{
-		LOG_ERROR("Failed to load keyboard layout input source");
+		log_error("Failed to load keyboard layout input source");
 	}
 
 	__mpApp.osx.kbLayoutUnicodeData = TISGetInputSourceProperty(__mpApp.osx.kbLayoutInputSource,
 	                                                            kTISPropertyUnicodeKeyLayoutData);
 	if(!__mpApp.osx.kbLayoutUnicodeData)
 	{
-		LOG_ERROR("Failed to load keyboard layout unicode data");
+		log_error("Failed to load keyboard layout unicode data");
 	}
 
 	memset(__mpApp.keyLabels, 0, sizeof(mp_key_utf8)*MP_KEY_COUNT);
@@ -1352,7 +1352,7 @@ mp_window mp_window_create(mp_rect contentRect, const char* title, mp_window_sty
 	mp_window_data* window = mp_window_alloc();
 	if(!window)
 	{
-		LOG_ERROR("Could not allocate window data\n");
+		log_error("Could not allocate window data\n");
 		return((mp_window){0});
 	}
 
@@ -1833,14 +1833,14 @@ mp_view mp_view_create(mp_window windowHandle, mp_rect frame)
 	mp_window_data* window = mp_window_ptr_from_handle(windowHandle);
 	if(!window)
 	{
-		LOG_ERROR("Can't create view for nil window\n");
+		log_error("Can't create view for nil window\n");
 		return(mp_view_nil());
 	}
 
 	mp_view_data* view = mp_view_alloc();
 	if(!view)
 	{
-		LOG_ERROR("Could not allocate view data\n");
+		log_error("Could not allocate view data\n");
 		return(mp_view_nil());
 	}
 

@@ -17,7 +17,7 @@
 #include<stdlib.h>	// malloc()/free()
 
 #include"platform_socket.h"
-#include"debug_log.h"
+#include"platform_log.h"
 
 typedef struct in_addr in_addr;
 typedef struct sockaddr_in sockaddr_in;
@@ -457,19 +457,19 @@ net_ip SocketGetDefaultExternalIP()
 	platform_socket* sock = SocketOpen(SOCK_UDP);
 	if(!sock)
 	{
-		LOG_ERROR("can't create socket");
+		log_error("can't create socket");
 		return(0);
 	}
 
 	if(SocketConnect(sock, &addr) != 0)
 	{
-		LOG_ERROR("can't connect socket: %s\n", SocketGetLastErrorMessage());
-		LOG_WARNING("try loopback interface\n");
+		log_error("can't connect socket: %s\n", SocketGetLastErrorMessage());
+		log_warning("try loopback interface\n");
 
 		addr.ip = HostToNetIP(SOCK_IP_LOOPBACK);
 		if(SocketConnect(sock, &addr) != 0)
 		{
-			LOG_ERROR("can't connect socket: %s\n", SocketGetLastErrorMessage());
+			log_error("can't connect socket: %s\n", SocketGetLastErrorMessage());
 			SocketClose(sock);
 			return(0);
 		}

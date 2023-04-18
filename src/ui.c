@@ -126,7 +126,7 @@ void ui_stack_pop(ui_stack_elt** stack)
 	}
 	else
 	{
-		LOG_ERROR("ui stack underflow\n");
+		log_error("ui stack underflow\n");
 	}
 }
 
@@ -470,7 +470,7 @@ ui_box* ui_box_make_str8(str8 string, ui_flags flags)
 	else
 	{
 		//maybe this should be a warning that we're trying to make the box twice in the same frame?
-		LOG_WARNING("trying to make ui box '%.*s' multiple times in the same frame\n", (int)box->string.len, box->string.ptr);
+		log_warning("trying to make ui box '%.*s' multiple times in the same frame\n", (int)box->string.len, box->string.ptr);
 	}
 
 	//NOTE: setup per-frame state

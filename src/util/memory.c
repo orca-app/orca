@@ -115,6 +115,23 @@ void mem_arena_clear(mem_arena* arena)
 	arena->currentChunk = list_first_entry(&arena->chunks, mem_arena_chunk, listElt);
 }
 
+mem_arena_marker mem_arena_mark(mem_arena* arena)
+{
+	mem_arena_marker marker = {.chunk = arena->currentChunk,
+	                           .offset = arena->currentChunk->offset};
+	#if DEBUG
+		marker.arena = arena;
+	#endif
+	return(marker);
+}
+
+void mem_arena_clear_to(mem_arena* arena, mem_arena_marker marker)
+{
+	DEBUG_ASSERT(arena == marker.arena);
+	arena->currentChunk = marker.chunk;
+	arena->currentChunk->offset = marker.offset;
+}
+
 //--------------------------------------------------------------------------------
 //NOTE(martin): memory pool
 //--------------------------------------------------------------------------------

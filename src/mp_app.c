@@ -99,7 +99,7 @@ void mp_queue_event(mp_event* event)
 {
 	if(ringbuffer_write_available(&__mpApp.eventQueue) < sizeof(mp_event))
 	{
-		LOG_ERROR("event queue full\n");
+		log_error("event queue full\n");
 	}
 	else
 	{
@@ -223,7 +223,7 @@ static void mp_update_text(utf32 codepoint)
 	}
 	else
 	{
-		LOG_WARNING("too many input codepoints per frame, dropping input");
+		log_warning("too many input codepoints per frame, dropping input");
 	}
 }
 

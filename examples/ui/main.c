@@ -159,7 +159,7 @@ mg_font create_font()
 	FILE* fontFile = fopen(fontPathCString, "r");
 	if(!fontFile)
 	{
-		LOG_ERROR("Could not load font file '%s': %s\n", fontPathCString, strerror(errno));
+		log_error("Could not load font file '%s': %s\n", fontPathCString, strerror(errno));
 		return(mg_font_nil());
 	}
 	unsigned char* fontData = 0;

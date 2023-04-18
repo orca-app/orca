@@ -16,7 +16,7 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include"stb_image.h"
 
-#include"debug_log.h"
+#include"platform_log.h"
 #include"graphics_internal.h"
 
 typedef struct mg_glyph_map_entry
@@ -618,7 +618,7 @@ void mg_matrix_stack_push(mg_canvas_data* canvas, mg_mat2x3 transform)
 {
 	if(canvas->matrixStackSize >= MG_MATRIX_STACK_MAX_DEPTH)
 	{
-		LOG_ERROR("matrix stack overflow\n");
+		log_error("matrix stack overflow\n");
 	}
 	else
 	{
@@ -631,7 +631,7 @@ void mg_matrix_stack_pop(mg_canvas_data* canvas)
 {
 	if(canvas->matrixStackSize == 0)
 	{
-		LOG_ERROR("matrix stack underflow\n");
+		log_error("matrix stack underflow\n");
 	}
 	else
 	{
@@ -656,7 +656,7 @@ void mg_clip_stack_push(mg_canvas_data* canvas, mp_rect clip)
 {
 	if(canvas->clipStackSize >= MG_CLIP_STACK_MAX_DEPTH)
 	{
-		LOG_ERROR("clip stack overflow\n");
+		log_error("clip stack overflow\n");
 	}
 	else
 	{
@@ -669,7 +669,7 @@ void mg_clip_stack_pop(mg_canvas_data* canvas)
 {
 	if(canvas->clipStackSize == 0)
 	{
-		LOG_ERROR("clip stack underflow\n");
+		log_error("clip stack underflow\n");
 	}
 	else
 	{
@@ -2772,7 +2772,7 @@ void mg_flush_commands(int primitiveCount, mg_primitive* primitives, mg_path_elt
 	{
 		if(nextIndex >= primitiveCount)
 		{
-			LOG_ERROR("invalid location '%i' in graphics command buffer would cause an overrun\n", nextIndex);
+			log_error("invalid location '%i' in graphics command buffer would cause an overrun\n", nextIndex);
 			break;
 		}
 		mg_primitive* primitive = &(primitives[nextIndex]);
@@ -2812,7 +2812,7 @@ void mg_flush_commands(int primitiveCount, mg_primitive* primitives, mg_path_elt
 				}
 				else if(primitive->jump >= primitiveCount)
 				{
-					LOG_ERROR("invalid jump location '%i' in graphics command buffer\n", primitive->jump);
+					log_error("invalid jump location '%i' in graphics command buffer\n", primitive->jump);
 					goto exit_command_loop;
 				}
 				else
@@ -3231,7 +3231,7 @@ mp_rect mg_glyph_outlines_from_font_data(mg_font_data* fontData, str32 glyphIndi
 
 		if(!glyphIndex || glyphIndex >= fontData->glyphCount)
 		{
-			LOG_WARNING("code point is not present in font ranges\n");
+			log_warning("code point is not present in font ranges\n");
 			//NOTE(martin): try to find the replacement character
 			glyphIndex = mg_font_get_glyph_index_from_font_data(fontData, 0xfffd);
 			if(!glyphIndex)
