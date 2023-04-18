@@ -10,6 +10,7 @@
 #define __GRAPHICS_H_
 
 #include"typedefs.h"
+#include"strings.h"
 
 typedef struct g_mat2x3
 {
@@ -186,11 +187,6 @@ void g_close_path();
 mp_rect g_glyph_outlines(str32 glyphIndices);
 void g_codepoints_outlines(str32 string);
 */
-typedef struct str8
-{
-	u64 len;
-	char* ptr;
-} str8;
 
 void g_text_outlines(str8 string);
 

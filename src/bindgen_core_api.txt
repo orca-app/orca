@@ -1,5 +1,4 @@
-orca_log_entry v(iipipi)
-orca_log_append v(ip)
+orca_log_entry v(iipipiip)
 cosf f(f)
 sinf f(f)
 floorf f(f)

@@ -100,7 +100,7 @@ def gen_link(name, sig):
 			m3_Sig += c
 
 	src = '\tres = m3_LinkRawFunction(module, "*", "' + name + '", "' + m3_Sig + '", ' + name + '_stub);\n'
-	src += '\tif(res != m3Err_none && res != m3Err_functionLookupFailed) { LOG_ERROR("error: %s\\n", res); return(-1); }\n\n'
+	src += '\tif(res != m3Err_none && res != m3Err_functionLookupFailed) { log_error("error: %s\\n", res); return(-1); }\n\n'
 	links.append(src)
 
 for line in inFile:

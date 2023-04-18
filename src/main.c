@@ -22,7 +22,7 @@
 /*
 void orca_log(int len, const char* ptr)
 {
-	LOG_INFO("%.*s", len, ptr);
+	log_info("%.*s", len, ptr);
 }
 */
 
@@ -31,17 +31,18 @@ void orca_log_entry(log_level level,
                     char* file,
                     int functionLen,
                     char* function,
-                    int line)
+                    int line,
+                    int msgLen,
+                    char* msg)
 {
-	log_generic(level, file, function, line, "");
+	log_entry(level,
+	          str8_from_buffer(fileLen, file),
+	          str8_from_buffer(functionLen, function),
+	          line,
+	          "%.*s\n",
+	          msgLen,
+	          msg);
 }
-
-void orca_log_append(int msgLen, char* msg)
-{
-	printf("%s", msg);
-}
-
-
 
 void mg_matrix_push_flat(float a11, float a12, float a13,
                          float a21, float a22, float a23)
@@ -62,7 +63,7 @@ int orca_assert(const char* file, const char* function, int line, const char* sr
 	                      note);
 
 	const char* msgCStr = str8_to_cstring(scratch, msg);
-	LOG_ERROR(msgCStr);
+	log_error(msgCStr);
 
 	const char* options[] = {"OK"};
 	mp_alert_popup("Assertion Failed", msgCStr, 1, options);
@@ -80,7 +81,7 @@ mg_font mg_font_create_default()
 	FILE* fontFile = fopen(fontPathCString, "r");
 	if(!fontFile)
 	{
-		LOG_ERROR("Could not load font file '%s': %s\n", fontPathCString, strerror(errno));
+		log_error("Could not load font file '%s': %s\n", fontPathCString, strerror(errno));
 		return(mg_font_nil());
 	}
 	unsigned char* fontData = 0;
@@ -170,7 +171,7 @@ void* orca_runloop(void* user)
 	FILE* file = fopen(modulePathCString, "rb");
 	if(!file)
 	{
-		LOG_ERROR("Couldn't load wasm module at %s\n", modulePathCString);
+		log_error("Couldn't load wasm module at %s\n", modulePathCString);
 		return((void*)-1);
 	}
 
@@ -210,7 +211,7 @@ void* orca_runloop(void* user)
 		M3ErrorInfo errInfo = {};
 		m3_GetErrorInfo(app->runtime.m3Runtime, &errInfo);
 
-		LOG_ERROR("wasm error: %s\n", errInfo.message);
+		log_error("wasm error: %s\n", errInfo.message);
 		return((void*)-1);
 	}
 
@@ -228,19 +229,19 @@ void* orca_runloop(void* user)
 			}
 			else
 			{
-				LOG_ERROR("couldn't get value of __heap_base\n");
+				log_error("couldn't get value of __heap_base\n");
 				return((void*)-1);
 			}
 		}
 		else
 		{
-			LOG_ERROR("couldn't locate __heap_base\n");
+			log_error("couldn't locate __heap_base\n");
 			return((void*)-1);
 		}
 	}
 	//NOTE: align heap base on 16Bytes
 	heapBase = AlignUpOnPow2(heapBase, 16);
-	LOG_INFO("mem_size = %u,  __heap_base = %u\n", m3_GetMemorySize(app->runtime.m3Runtime), heapBase);
+	log_info("mem_size = %u,  __heap_base = %u\n", m3_GetMemorySize(app->runtime.m3Runtime), heapBase);
 
 	//NOTE: Find and type check event handlers.
 
@@ -293,7 +294,7 @@ void* orca_runloop(void* user)
 			}
 			else
 			{
-				LOG_ERROR("type mismatch for event handler %.*s\n", (int)desc->name.len, desc->name.ptr);
+				log_error("type mismatch for event handler %.*s\n", (int)desc->name.len, desc->name.ptr);
 			}
 		}
 	}
@@ -335,7 +336,7 @@ void* orca_runloop(void* user)
 				case MP_EVENT_WINDOW_RESIZE:
 				{
 					mp_rect frame = {0, 0, event.frame.rect.w, event.frame.rect.h};
-					mg_surface_set_frame(app->surface, frame);
+					mg_surface_set_frame(app->mtlSurface, frame);
 
 					if(eventHandlers[G_EVENT_FRAME_RESIZE])
 					{

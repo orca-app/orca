@@ -11,7 +11,8 @@
 #include"util/typedefs.h"
 #include"util/lists.h"
 #include"util/memory.h"
-#include"util/debug_log.h"
+#include"util/strings.h"
+#include"platform/platform_log.h"
 
 
 #endif //__ORCA_H_

@@ -23,7 +23,7 @@ int manual_link_gles_api(IM3Module module)
 {
 	M3Result res;
 	res = m3_LinkRawFunction(module, "*", "glShaderSource", "v(iiii)", glShaderSource_stub);
-	if(res) { LOG_ERROR("error: %s\n", res); return(-1); }
+	if(res) { log_error("error: %s\n", res); return(-1); }
 
 	return(0);
 }

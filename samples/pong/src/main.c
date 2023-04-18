@@ -12,8 +12,6 @@
 
 #include"orca.h"
 
-#define str8_lit(s) ((str8){.len = sizeof(s)-1, .ptr = (char*)(s)})
-
 #define M_PI 3.14159265358979323846
 
 extern float cosf(float x);
@@ -39,13 +37,13 @@ mem_arena arena;
 
 void OnInit(void)
 {
-//	mem_arena_init(&arena);
+	mem_arena_init(&arena);
 	font = g_font_create_default();
 }
 
 void OnFrameResize(u32 width, u32 height)
 {
-//	LOG_INFO("frame resize %u, %u\n", width, height);
+	log_info("frame resize %u, %u", width, height);
 
 	frameSize.x = width;
 	frameSize.y = height;
@@ -87,7 +85,7 @@ void OnKeyUp(int key)
 
 void OnFrameRefresh(void)
 {
-//	char* tmp = mem_arena_alloc(&arena, 512);
+	char* tmp = mem_arena_alloc(&arena, 512);
 
 	f32 aspect = frameSize.x/frameSize.y;
 
@@ -161,5 +159,5 @@ void OnFrameRefresh(void)
 
     g_matrix_pop();
 
-//    mem_arena_clear(&arena);
+    mem_arena_clear(&arena);
 }

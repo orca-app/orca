@@ -7,5 +7,8 @@
 *****************************************************************/
 
 #include"platform/orca_memory.c"
+#include"platform/orca_strings.c"
+#include"platform/orca_log.c"
+
 #include"util/memory.c"
-#include"util/debug_log.c"
+#include"util/strings.c"

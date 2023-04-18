@@ -193,7 +193,7 @@ for decl in data:
 
 
 	s += '\tres = m3_LinkRawFunction(module, "*", "' + name + '", "' + m3Sig + '", ' + cname + '_stub);\n'
-	s += '\tif(res != m3Err_none && res != m3Err_functionLookupFailed) { LOG_ERROR("error: %s\\n", res); return(-1); }\n\n'
+	s += '\tif(res != m3Err_none && res != m3Err_functionLookupFailed) { log_error("error: %s\\n", res); return(-1); }\n\n'
 
 
 s += '\treturn(0);\n}\n'
