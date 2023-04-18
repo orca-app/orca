@@ -19,8 +19,6 @@
 #include"debug_log.h"
 #include"graphics_internal.h"
 
-#define LOG_SUBSYSTEM "Graphics"
-
 typedef struct mg_glyph_map_entry
 {
 	unicode_range range;
@@ -912,8 +910,6 @@ int mg_cubic_outside_test(vec4 c)
 
 void mg_render_fill_cubic(mg_canvas_data* canvas, vec2 p[4])
 {
-	LOG_DEBUG("graphics render fill cubic\n");
-
 	vec4 testCoords[4];
 
 	/*NOTE(martin): first convert the control points to power basis, multiplying by M3
@@ -975,8 +971,6 @@ void mg_render_fill_cubic(mg_canvas_data* canvas, vec2 p[4])
 	if(fabs(d1) < 0.1 && fabs(d2) < 0.1 && d3 != 0)
 	{
 		//NOTE(martin): quadratic degenerate case
-		LOG_DEBUG("quadratic curve\n");
-
 		//NOTE(martin): compute quadratic curve control point, which is at p0 + 1.5*(p1-p0) = 1.5*p1 - 0.5*p0
 		vec2 quadControlPoints[3] = { p[0],
 		                             {1.5*p[1].x - 0.5*p[0].x, 1.5*p[1].y - 0.5*p[0].y},
@@ -990,8 +984,6 @@ void mg_render_fill_cubic(mg_canvas_data* canvas, vec2 p[4])
 	{
 		//NOTE(martin): serpentine curve or cusp with inflection at infinity
 		//              (these two cases are handled the same way).
-		LOG_DEBUG("%s\n", (discrFactor2 > 0 && d1 != 0) ? "serpentine curve" : "cusp with inflection at infinity");
-
 		//NOTE(martin): compute the solutions (tl, sl), (tm, sm), and (tn, sn) of the inflection point equation
 		f32 tl = d2 + sqrt(discrFactor2/3);
 		f32 sl = 2*d1;
@@ -1034,8 +1026,6 @@ void mg_render_fill_cubic(mg_canvas_data* canvas, vec2 p[4])
 	else if(discrFactor2 < 0 && d1 != 0)
 	{
 		//NOTE(martin): loop curve
-		LOG_DEBUG("loop curve\n");
-
 		f32 td = d2 + sqrt(-discrFactor2);
 		f32 sd = 2*d1;
 		f32 te = d2 - sqrt(-discrFactor2);
@@ -1050,13 +1040,11 @@ void mg_render_fill_cubic(mg_canvas_data* canvas, vec2 p[4])
 
 		if(sd != 0 && td/sd < 0.99 && td/sd > 0.01)
 		{
-			LOG_DEBUG("split curve at first double point\n");
 			mg_split_and_fill_cubic(canvas, p, td/sd);
 			return;
 		}
 		if(se != 0 && te/se < 0.99 && te/se > 0.01)
 		{
-			LOG_DEBUG("split curve at second double point\n");
 			mg_split_and_fill_cubic(canvas, p, te/se);
 			return;
 		}
@@ -1097,7 +1085,6 @@ void mg_render_fill_cubic(mg_canvas_data* canvas, vec2 p[4])
 	else if(d1 == 0 && d2 != 0)
 	{
 		//NOTE(martin): cusp with cusp at infinity
-		LOG_DEBUG("cusp at infinity curve\n");
 
 		f32 tl = d3;
 		f32 sl = 3*d2;
@@ -1139,13 +1126,11 @@ void mg_render_fill_cubic(mg_canvas_data* canvas, vec2 p[4])
 	else if(d1 == 0 && d2 == 0 && d3 == 0)
 	{
 		//NOTE(martin): line or point degenerate case, ignored
-		LOG_DEBUG("line or point curve (ignored)\n");
 		return;
 	}
 	else
 	{
 		//TODO(martin): handle error ? put some epsilon slack on the conditions ?
-		LOG_DEBUG("none of the above...\n");
 		ASSERT(0, "not implemented yet !");
 		return;
 	}
@@ -3754,5 +3739,3 @@ void mg_image_atlas_recycle(mg_rect_atlas* atlas, mg_image_region imageRgn)
 {
 	mg_rect_atlas_recycle(atlas, imageRgn.rect);
 }
-
-#undef LOG_SUBSYSTEM

@@ -13,8 +13,6 @@
 #include"debug_log.h"
 #include"typedefs.h"
 
-#define LOG_SUBSYSTEM "Platform"
-
 int RandomSeedFromDevice()
 {
 	FILE* urandom = fopen("/dev/urandom", "r");
@@ -56,5 +54,3 @@ u64 RandomU64()
 	u64 u3 = (u64)random();
 	return((u1<<33) | (u2<<2) | (u3 & 0x03));
 }
-
-#undef LOG_SUBSYSTEM

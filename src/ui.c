@@ -12,9 +12,6 @@
 #include"platform_clock.h"
 #include"ui.h"
 
-#define LOG_SUBSYSTEM "UI"
-
-
 static ui_style UI_STYLE_DEFAULTS =
 {
 	.size.width = {.kind = UI_SIZE_CHILDREN,
@@ -2860,6 +2857,3 @@ ui_text_box_result ui_text_box(const char* name, mem_arena* arena, str8 text)
 
 	return(result);
 }
-
-
-#undef LOG_SUBSYSTEM

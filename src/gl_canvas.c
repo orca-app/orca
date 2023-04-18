@@ -11,8 +11,6 @@
 #include"glsl_shaders.h"
 #include"gl_api.h"
 
-#define LOG_SUBSYSTEM "Graphics"
-
 typedef struct mg_gl_canvas_backend
 {
 	mg_canvas_backend interface;
@@ -498,6 +496,3 @@ mg_canvas_backend* mg_gl_canvas_create(mg_surface surface)
 
 	return((mg_canvas_backend*)backend);
 }
-
-
-#undef LOG_SUBSYSTEM

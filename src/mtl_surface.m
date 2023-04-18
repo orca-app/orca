@@ -15,8 +15,6 @@
 #include"macro_helpers.h"
 #include"osx_app.h"
 
-#define LOG_SUBSYSTEM "Graphics"
-
 typedef struct mg_mtl_surface
 {
 	mg_surface_data interface;
@@ -255,6 +253,3 @@ void* mg_mtl_surface_command_buffer(mg_surface surface)
 		return(nil);
 	}
 }
-
-
-#undef LOG_SUBSYSTEM

@@ -16,8 +16,6 @@
 
 #include"mtl_renderer.h"
 
-#define LOG_SUBSYSTEM "Graphics"
-
 const int MG_MTL_INPUT_BUFFERS_COUNT = 3,
           MG_MTL_TILE_SIZE = 16,
           MG_MTL_MSAA_COUNT = 8;
@@ -82,7 +80,7 @@ void mg_mtl_print_log(int bufferIndex, id<MTLBuffer> logBuffer, id<MTLBuffer> lo
 
 	if(size)
 	{
-		LOG_MESSAGE("Log from buffer %i:\n", bufferIndex);
+		LOG_INFO("Log from buffer %i:\n", bufferIndex);
 
 		int index = 0;
 		while(index < size)
@@ -1281,5 +1279,3 @@ mg_canvas_backend* mg_mtl_canvas_create(mg_surface surface)
 	}
 	return((mg_canvas_backend*)backend);
 }
-
-#undef LOG_SUBSYSTEM

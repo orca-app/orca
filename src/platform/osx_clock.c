@@ -26,8 +26,6 @@
 typedef struct timeval timeval;
 typedef struct timespec timespec;
 
-#define LOG_SUBSYSTEM "Platform"
-
 //TODO(martin): measure the actual values of these constants
 const f64 SYSTEM_FUZZ = 25e-9,		// minimum time to read the clock (s)
           SYSTEM_TICK = 25e-9;		// minimum step between two clock readings (s)
@@ -172,5 +170,3 @@ void mp_sleep_nanoseconds(u64 nanoseconds)
 	rqtp.tv_nsec = nanoseconds - rqtp.tv_sec * 1000000000;
 	nanosleep(&rqtp, 0);
 }
-
-#undef LOG_SUBSYSTEM

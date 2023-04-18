@@ -9,8 +9,6 @@
 
 #include"mp_app.c"
 
-#define LOG_SUBSYSTEM "Application"
-
 void mp_init_keys()
 {
 	memset(__mpApp.keyCodes, MP_KEY_UNKNOWN, 256*sizeof(int));
@@ -1104,5 +1102,3 @@ str8 mp_app_get_resource_path(mem_arena* arena, const char* name)
 	return(result);
 }
 //////////////////////////////////////////////////////////////////////////////////////////////////
-
-#undef LOG_SUBSYSTEM

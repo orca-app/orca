@@ -9,7 +9,6 @@
 #ifndef __DEBUG_LOG_H_
 #define __DEBUG_LOG_H_
 
-#include<stdio.h>
 #include"platform.h"
 #include"typedefs.h"
 #include"macro_helpers.h"
@@ -17,63 +16,61 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-//NOTE(martin): the default logging level can be adjusted by defining LOG_DEFAULT_LEVEL. As the name suggest, it is the default, but it
-//              can be adjusted at runtime with LogLevel()
+//NOTE(martin): the default logging level can be adjusted by defining LOG_DEFAULT_LEVEL.
+//              It can be adjusted at runtime with log_set_level()
 #ifndef LOG_DEFAULT_LEVEL
 	#define LOG_DEFAULT_LEVEL LOG_LEVEL_WARNING
 #endif
 
-//NOTE(martin): the default output can be adjusted by defining LOG_DEFAULT_OUTPUT. It can be adjusted at runtime with LogOutput()
-#ifndef LOG_DEFAULT_OUTPUT
-	#define LOG_DEFAULT_OUTPUT stdout
-#endif
-
-//NOTE(martin): LOG_SUBSYSTEM can be defined in each compilation unit to associate it with a subsystem, like this:
-//              #define LOG_SUBSYSTEM "name"
-
 typedef enum { LOG_LEVEL_ERROR,
                LOG_LEVEL_WARNING,
-               LOG_LEVEL_MESSAGE,
-               LOG_LEVEL_DEBUG,
+               LOG_LEVEL_INFO,
                LOG_LEVEL_COUNT } log_level;
 
-MP_API void LogGeneric(log_level level,
-                       const char* subsystem,
-                       const char* functionName,
-                       const char* fileName,
-                       u32 line,
-                       const char* msg,
-                       ...);
+#ifdef PLATFORM_ORCA
+	typedef enum
+	{
+		ORCA_LOG_OUTPUT_CONSOLE,
+		ORCA_LOG_OUTPUT_FILE
+	} orca_log_output_kind;
 
-MP_API void LogOutput(FILE* output);
-MP_API void LogLevel(log_level level);
-MP_API void LogFilter(const char* subsystem, log_level level);
+	typedef struct log_output
+	{
+		orca_log_output_kind kind;
+		//TODO: file
+	} log_output;
 
-#define LOG_GENERIC(level, func, file, line, msg, ...) LogGeneric(level, LOG_SUBSYSTEM, func, file, line, msg, ##__VA_ARGS__ )
+#else
+	#include<stdio.h>
+	typedef FILE* log_output;
+#endif
 
-#define LOG_ERROR(msg, ...) LOG_GENERIC(LOG_LEVEL_ERROR, __FUNCTION__, __FILE__, __LINE__, msg, ##__VA_ARGS__ )
+MP_API void log_set_level(log_level level);
+MP_API void log_set_output(log_output output);
+MP_API void log_enable_vt_color(bool enable);
+
+MP_API void log_generic(log_level level,
+                        const char* functionName,
+                        const char* fileName,
+                        u32 line,
+                        const char* msg,
+                        ...);
 
 //NOTE(martin): warnings, messages, and debug info can be enabled in debug mode by defining LOG_COMPILE_XXX, XXX being the max desired log level
 //              error logging is always compiled
-#if defined(LOG_COMPILE_WARNING) || defined(LOG_COMPILE_MESSAGE) || defined(LOG_COMPILE_DEBUG)
-	#define LOG_WARNING(msg, ...) LOG_GENERIC(LOG_LEVEL_WARNING, __FUNCTION__, __FILE__, __LINE__, msg, ##__VA_ARGS__ )
+#define LOG_ERROR(msg, ...) log_generic(LOG_LEVEL_ERROR, __FUNCTION__, __FILE__, __LINE__, msg, ##__VA_ARGS__ )
 
-	#if defined(LOG_COMPILE_MESSAGE) || defined(LOG_COMPILE_DEBUG)
-		#define LOG_MESSAGE(msg, ...) LOG_GENERIC(LOG_LEVEL_MESSAGE, __FUNCTION__, __FILE__, __LINE__, msg, ##__VA_ARGS__ )
+#if defined(LOG_COMPILE_WARNING) || defined(LOG_COMPILE_INFO)
+	#define LOG_WARNING(msg, ...) log_generic(LOG_LEVEL_WARNING, __FUNCTION__, __FILE__, __LINE__, msg, ##__VA_ARGS__ )
 
-		#if defined(LOG_COMPILE_DEBUG)
-			#define LOG_DEBUG(msg, ...) LOG_GENERIC(LOG_LEVEL_DEBUG, __FUNCTION__, __FILE__, __LINE__, msg, ##__VA_ARGS__ )
-		#else
-			#define LOG_DEBUG(msg, ...)
-		#endif
+	#if defined(LOG_COMPILE_INFO)
+		#define LOG_INFO(msg, ...) log_generic(LOG_LEVEL_INFO, __FUNCTION__, __FILE__, __LINE__, msg, ##__VA_ARGS__ )
 	#else
-		#define LOG_MESSAGE(msg, ...)
-		#define LOG_DEBUG(msg, ...)
+		#define LOG_INFO(msg, ...)
 	#endif
 #else
 	#define LOG_WARNING(msg, ...)
-	#define LOG_MESSAGE(msg, ...)
-	#define LOG_DEBUG(msg, ...)
+	#define LOG_INFO(msg, ...)
 #endif
 
 #ifdef __cplusplus

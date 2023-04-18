@@ -9,8 +9,6 @@
 
 #include"mp_app_internal.h"
 
-#define LOG_SUBSYSTEM "Application"
-
 mp_app __mpApp = {0};
 
 //---------------------------------------------------------------
@@ -407,6 +405,3 @@ str8 mp_input_text_utf8(mem_arena* arena)
 	}
 	return(res);
 }
-
-
-#undef LOG_SUBSYSTEM

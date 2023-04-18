@@ -6,120 +6,151 @@
 *	@revision:
 *
 *****************************************************************/
-#include<string.h>
 #include"debug_log.h"
-
 #include"platform_varg.h"
 
 static const char* LOG_HEADINGS[LOG_LEVEL_COUNT] = {
 	"Error",
 	"Warning",
-	"Message",
-	"Debug"};
+	"Info"};
 
 static const char* LOG_FORMATS[LOG_LEVEL_COUNT] = {
 	"\033[38;5;9m\033[1m",
 	"\033[38;5;13m\033[1m",
-	"\033[38;5;10m\033[1m",
-	"\033[38;5;14m\033[1m" };
+	"\033[38;5;10m\033[1m"};
 
 static const char* LOG_FORMAT_STOP = "\033[m";
 
-enum {
-	LOG_SUBSYSTEM_MAX_COUNT = 16 };
-
 typedef struct log_config
 {
-	FILE* out;
+	log_output output;
 	log_level level;
-	const char* subsystemNames[LOG_SUBSYSTEM_MAX_COUNT];
-	log_level subsystemLevels[LOG_SUBSYSTEM_MAX_COUNT];
+	bool enableVTColor;
 
 } log_config;
 
-static log_config __log_config = {.out = 0,
-                                  .level = LOG_DEFAULT_LEVEL,
-                                  .subsystemNames = {0},
-                                  .subsystemLevels = {0}};
+#if PLATFORM_ORCA
+	#define LOG_DEFAULT_OUTPUT (log_output){.kind = ORCA_LOG_OUTPUT_CONSOLE}
+	#define LOG_DEFAULT_ENABLE_VT_COLOR true
+#else
+	#define LOG_DEFAULT_OUTPUT 0
+	#define LOG_DEFAULT_ENABLE_VT_COLOR true
+#endif
 
-int LogFindSubsystem(const char* subsystem)
+static log_config __logConfig = {.output = LOG_DEFAULT_OUTPUT,
+                                  .level = LOG_DEFAULT_LEVEL,
+                                  .enableVTColor = LOG_DEFAULT_ENABLE_VT_COLOR};
+
+void log_set_output(log_output output)
 {
-	for(int i=0; i<LOG_SUBSYSTEM_MAX_COUNT; i++)
-	{
-		if(__log_config.subsystemNames[i])
-		{
-			if(!strcmp(__log_config.subsystemNames[i], subsystem))
-			{
-				return(i);
-			}
-		}
-	}
-	return(-1);
+	__logConfig.output = output;
 }
 
-void LogGeneric(log_level level,
-		const char* subsystem,
-		const char* functionName,
-                const char* fileName,
-		u32 line,
-		const char* msg,
-		...)
+void log_set_level(log_level level)
 {
-	int subsystemIndex = LogFindSubsystem(subsystem);
-	int filterLevel = (subsystemIndex >= 0)? __log_config.subsystemLevels[subsystemIndex] : __log_config.level;
+	__logConfig.level = level;
+}
 
-	if(level <= filterLevel)
+void log_enable_vt_color(bool enable)
+{
+	__logConfig.enableVTColor = enable;
+}
+
+#if PLATFORM_ORCA
+
+#define STB_SPRINTF_IMPLEMENTATION
+#include"ext/stb_sprintf.h"
+
+typedef int orca_log_mode;
+enum {ORCA_LOG_BEGIN, ORCA_LOG_APPEND};
+
+extern void orca_log_entry(log_level level,
+                           int fileLen,
+                           const char* file,
+                           int functionLen,
+                           const char* function,
+                           int line);
+
+extern void orca_log_append(int msgLen, const char* msg);
+
+char* log_stbsp_callback(char const* buf, void* user, int len)
+{
+	orca_log_append(len, buf);
+	return((char*)buf);
+}
+
+
+//TODO: later, move this to orca_strings in milepost
+size_t strlen(const char *s)
+{
+        size_t len = 0;
+        while(s[len] != '\0')
+        {
+                len++;
+        }
+        return(len);
+}
+
+void log_generic(log_level level,
+                 const char* functionName,
+                 const char* fileName,
+                 u32 line,
+                 const char* msg,
+                 ...)
+{
+	if(level <= __logConfig.level)
 	{
-		if(!__log_config.out)
-		{
-			__log_config.out = LOG_DEFAULT_OUTPUT;
-		}
-		fprintf(__log_config.out,
-			"%s%s:%s [%s] %s() in %s:%i: ",
-			LOG_FORMATS[level],
-			LOG_HEADINGS[level],
-			LOG_FORMAT_STOP,
-			subsystem,
-			functionName,
-			fileName,
-			line);
+		orca_log_entry(level, strlen(functionName), functionName, strlen(fileName), fileName, line);
+
+		char buf[STB_SPRINTF_MIN];
 
 		va_list ap;
 		va_start(ap, msg);
-		vfprintf(__log_config.out, msg, ap);
+		stbsp_vsprintfcb(log_stbsp_callback, 0, buf, msg, ap);
 		va_end(ap);
 	}
 }
 
-void LogOutput(FILE* output)
-{
-	__log_config.out = output;
-}
+#else
 
-void LogLevel(log_level level)
+void log_generic(log_level level,
+                 const char* functionName,
+                 const char* fileName,
+                 u32 line,
+                 const char* msg,
+                 ...)
 {
-	__log_config.level = level;
-}
-
-void LogFilter(const char* subsystem, log_level level)
-{
-	int firstNull = -1;
-	for(int i=0; i<LOG_SUBSYSTEM_MAX_COUNT; i++)
+	if(__logConfig.output == 0)
 	{
-		if(__log_config.subsystemNames[i])
-		{
-			if(!strcmp(__log_config.subsystemNames[i], subsystem))
-			{
-				__log_config.subsystemLevels[i] = level;
-				return;
-			}
-		}
-		else if(firstNull < 0)
-		{
-			firstNull = i;
-		}
+		__logConfig.output = stdout;
 	}
 
-	__log_config.subsystemNames[firstNull] = subsystem;
-	__log_config.subsystemLevels[firstNull] = level;
+	if(level <= __logConfig.level)
+	{
+		if(__logConfig.enableVTColor)
+		{
+			fprintf(__logConfig.output,
+			        "%s%s:%s %s() in %s:%i: ",
+			        LOG_FORMATS[level],
+			        LOG_HEADINGS[level],
+			        LOG_FORMAT_STOP,
+			        functionName,
+			        fileName,
+			        line);
+		}
+		else
+		{
+			fprintf(__logConfig.output,
+			        "%s: %s() in %s:%i: ",
+			        LOG_HEADINGS[level],
+			        functionName,
+			        fileName,
+			        line);
+		}
+		va_list ap;
+		va_start(ap, msg);
+		vfprintf(__logConfig.output, msg, ap);
+		va_end(ap);
+	}
 }
+#endif

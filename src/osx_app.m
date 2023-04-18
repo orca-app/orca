@@ -22,8 +22,6 @@
 
 #include"mp_app.c"
 
-#define LOG_SUBSYSTEM "Application"
-
 //--------------------------------------------------------------------
 // mp window struct and utility functions
 //--------------------------------------------------------------------
@@ -1170,15 +1168,12 @@ void mp_init()
 
 		mp_clock_init();
 
-		LOG_MESSAGE("init keys\n");
 		mp_init_osx_keys();
 		mp_update_keyboard_layout();
 		mp_install_keyboard_layout_listener();
 
-		LOG_MESSAGE("init handles\n");
 		mp_init_window_handles();
 
-		LOG_MESSAGE("init event queue\n");
 		ringbuffer_init(&__mpApp.eventQueue, 16);
 
 		[MPApplication sharedApplication];
@@ -1191,15 +1186,7 @@ void mp_init()
 
 		__mpApp.init = true;
 
-		LOG_MESSAGE("run application\n");
 		[NSApp run];
-
-		/*
-		CGDirectDisplayID displayID = CGMainDisplayID();
-		CVDisplayLinkCreateWithCGDisplay(displayID, &__mpApp.displayLink);
-		CVDisplayLinkSetOutputCallback(__mpApp.displayLink, DisplayLinkCallback, 0);
-		*/
-
 		[NSApp setActivationPolicy:NSApplicationActivationPolicyRegular];
 		[NSApp activateIgnoringOtherApps:YES];
 
@@ -2309,5 +2296,3 @@ int mp_directory_create(str8 path)
 		return(-1);
 	}
 }}
-
-#undef LOG_SUBSYSTEM

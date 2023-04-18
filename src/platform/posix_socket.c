@@ -27,8 +27,6 @@ typedef struct cmsghdr cmsghdr;
 typedef struct ip_mreq ip_mreq;
 typedef struct iovec iovec;
 
-#define LOG_SUBSYSTEM "Platform"
-
 net_ip StringToNetIP(const char* addr)
 {
 	return(inet_addr(addr));
@@ -511,5 +509,3 @@ int SocketReceiveMessage(platform_socket* socket, socket_msg* msg, socket_addres
 
 	return(size);
 }
-
-#undef LOG_SUBSYSTEM
