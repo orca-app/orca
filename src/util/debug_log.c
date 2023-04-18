@@ -6,9 +6,10 @@
 *	@revision:
 *
 *****************************************************************/
-#include<stdarg.h>
 #include<string.h>
 #include"debug_log.h"
+
+#include"platform_varg.h"
 
 static const char* LOG_HEADINGS[LOG_LEVEL_COUNT] = {
 	"Error",

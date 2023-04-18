@@ -124,10 +124,10 @@ static inline u64 next_pow2_u64(u64 x)
 
 #ifndef NO_ASSERT
 	#ifdef PLATFORM_ORCA
-		//TODO add a runtime-provided assert
-		extern void orca_assert(bool x);
+		extern int orca_assert(const char* file, const char* function, int line, const char* src, const char* msg);
 
-		#define _ASSERT_(x, msg) orca_assert(x)
+		#define ORCA_ASSERT(x, msg) ((x) || orca_assert(__FILE__, __FUNCTION__, __LINE__, #x, msg))
+		#define _ASSERT_(x, msg) ORCA_ASSERT(x, msg)
 	#else
 		#include<assert.h>
 		#define _ASSERT_(x, msg) assert(x && msg)

@@ -1712,14 +1712,10 @@ void mg_osx_surface_set_frame(mg_surface_data* surface, mp_rect frame)
 {@autoreleasepool{
 	CGRect cgFrame = {{frame.x, frame.y}, {frame.w, frame.h}};
 
-//	dispatch_async(dispatch_get_main_queue(),
-//		^{
-			[CATransaction begin];
-			[CATransaction setDisableActions:YES];
-			[surface->layer.caLayer setFrame: cgFrame];
-			[CATransaction commit];
-//		});
-
+	[CATransaction begin];
+	[CATransaction setDisableActions:YES];
+	[surface->layer.caLayer setFrame: cgFrame];
+	[CATransaction commit];
 }}
 
 bool mg_osx_surface_get_hidden(mg_surface_data* surface)
@@ -2222,27 +2218,44 @@ int mp_alert_popup(const char* title,
                    uint32 count,
                    const char** options)
 {
-	@autoreleasepool
-	{
-		NSWindow *keyWindow = [NSApp keyWindow];
+	__block int result = 0;
 
-		NSAlert* alert = [[NSAlert alloc] init];
-		NSString* string;
-		for(int i=count-1;i>=0;i--)
+	dispatch_block_t block = ^{
+		@autoreleasepool
 		{
-			string = [[NSString alloc] initWithUTF8String:options[i]];
-			[alert addButtonWithTitle:string];
-			[string release];
-		}
-		string = [[NSString alloc] initWithUTF8String:message];
-		[alert setMessageText:string];
-		[string release];
+			NSWindow *keyWindow = [NSApp keyWindow];
 
-		[alert setAlertStyle:NSAlertStyleWarning];
-		int result = count - ([alert runModal]-NSAlertFirstButtonReturn) - 1;
-		[keyWindow makeKeyWindow];
-		return(result);
+			NSAlert* alert = [[NSAlert alloc] init];
+			NSString* string;
+			for(int i=count-1;i>=0;i--)
+			{
+				string = [[NSString alloc] initWithUTF8String:options[i]];
+				[alert addButtonWithTitle:string];
+				[string release];
+			}
+			string = [[NSString alloc] initWithUTF8String:title];
+			[alert setMessageText:string];
+			[string release];
+
+			string = [[NSString alloc] initWithUTF8String:message];
+			[alert setInformativeText:string];
+			[string release];
+
+			[alert setAlertStyle:NSAlertStyleWarning];
+			result = count - ([alert runModal]-NSAlertFirstButtonReturn) - 1;
+			[keyWindow makeKeyWindow];
+		}
+	};
+
+	if([NSThread isMainThread])
+	{
+		block();
 	}
+	else
+	{
+		dispatch_sync(dispatch_get_main_queue(), block);
+	}
+	return(result);
 }
 
 
