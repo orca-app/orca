@@ -12,3 +12,4 @@
 
 #include"util/memory.c"
 #include"util/strings.c"
+#include"util/utf8.c"
