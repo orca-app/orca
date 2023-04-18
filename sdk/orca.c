@@ -8,5 +8,4 @@
 
 #include"platform/orca_memory.c"
 #include"util/memory.c"
-
-#include"orca_log.c"
+#include"util/debug_log.c"

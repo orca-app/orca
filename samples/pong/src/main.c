@@ -39,14 +39,13 @@ mem_arena arena;
 
 void OnInit(void)
 {
-	mem_arena_init(&arena);
+//	mem_arena_init(&arena);
 	font = g_font_create_default();
 }
 
 void OnFrameResize(u32 width, u32 height)
 {
-	ASSERT(width == 0, "assert if width different from 0");
-	log_print("frame resize %u, %u\n", width, height);
+//	LOG_INFO("frame resize %u, %u\n", width, height);
 
 	frameSize.x = width;
 	frameSize.y = height;
@@ -88,7 +87,7 @@ void OnKeyUp(int key)
 
 void OnFrameRefresh(void)
 {
-	char* tmp = mem_arena_alloc(&arena, 512);
+//	char* tmp = mem_arena_alloc(&arena, 512);
 
 	f32 aspect = frameSize.x/frameSize.y;
 
@@ -162,5 +161,5 @@ void OnFrameRefresh(void)
 
     g_matrix_pop();
 
-    mem_arena_clear(&arena);
+//    mem_arena_clear(&arena);
 }

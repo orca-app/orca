@@ -19,11 +19,29 @@
 
 #define LOG_SUBSYSTEM "Orca"
 
-
+/*
 void orca_log(int len, const char* ptr)
 {
-	LOG_MESSAGE("%.*s", len, ptr);
+	LOG_INFO("%.*s", len, ptr);
 }
+*/
+
+void orca_log_entry(log_level level,
+                    int fileLen,
+                    char* file,
+                    int functionLen,
+                    char* function,
+                    int line)
+{
+	log_generic(level, file, function, line, "");
+}
+
+void orca_log_append(int msgLen, char* msg)
+{
+	printf("%s", msg);
+}
+
+
 
 void mg_matrix_push_flat(float a11, float a12, float a13,
                          float a21, float a22, float a23)
@@ -222,7 +240,7 @@ void* orca_runloop(void* user)
 	}
 	//NOTE: align heap base on 16Bytes
 	heapBase = AlignUpOnPow2(heapBase, 16);
-	LOG_MESSAGE("mem_size = %u,  __heap_base = %u\n", m3_GetMemorySize(app->runtime.m3Runtime), heapBase);
+	LOG_INFO("mem_size = %u,  __heap_base = %u\n", m3_GetMemorySize(app->runtime.m3Runtime), heapBase);
 
 	//NOTE: Find and type check event handlers.
 
@@ -402,7 +420,7 @@ void* orca_runloop(void* user)
 
 int main(int argc, char** argv)
 {
-	LogLevel(LOG_LEVEL_DEBUG);
+	log_set_level(LOG_LEVEL_INFO);
 
 	mp_init();
 	mp_clock_init();
