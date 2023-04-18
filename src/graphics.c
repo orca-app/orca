@@ -17,6 +17,7 @@
 #include"stb_image.h"
 
 #include"platform_log.h"
+#include"platform_assert.h"
 #include"graphics_internal.h"
 
 typedef struct mg_glyph_map_entry

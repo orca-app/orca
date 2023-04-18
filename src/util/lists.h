@@ -10,6 +10,7 @@
 #define __CONTAINERS_H_
 
 #include"macro_helpers.h"
+#include"platform_assert.h"
 
 #ifdef __cplusplus
 extern "C" {

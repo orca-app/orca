@@ -7,6 +7,7 @@
 *
 *****************************************************************/
 #include"platform.h"
+#include"platform_assert.h"
 #include"memory.h"
 #include"hash.h"
 #include"platform_clock.h"

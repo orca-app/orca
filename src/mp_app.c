@@ -6,7 +6,7 @@
 *	@revision:
 *
 *****************************************************************/
-
+#include"platform_assert.h"
 #include"mp_app_internal.h"
 
 mp_app __mpApp = {0};
