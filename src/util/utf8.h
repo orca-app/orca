@@ -11,7 +11,6 @@
 #define __UTF8_H_
 
 #include"typedefs.h"
-#include"macro_helpers.h"
 #include"strings.h"
 
 #ifdef __cplusplus
