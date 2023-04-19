@@ -348,15 +348,15 @@ void* orca_runloop(void* user)
 
 	while(!mp_should_quit())
 	{
-		mp_event event = {0};
-		while(mp_next_event(&event))
+		mp_event* event = 0;
+		while((event = mp_next_event(mem_scratch())) != 0)
 		{
 			if(app->debugOverlay.show)
 			{
 				ui_process_event(event);
 			}
 
-			switch(event.type)
+			switch(event->type)
 			{
 				case MP_EVENT_WINDOW_CLOSE:
 				{
@@ -365,13 +365,13 @@ void* orca_runloop(void* user)
 
 				case MP_EVENT_WINDOW_RESIZE:
 				{
-					mp_rect frame = {0, 0, event.frame.rect.w, event.frame.rect.h};
+					mp_rect frame = {0, 0, event->frame.rect.w, event->frame.rect.h};
 					mg_surface_set_frame(app->surface, frame);
 
 					if(eventHandlers[G_EVENT_FRAME_RESIZE])
 					{
-						u32 width = (u32)event.frame.rect.w;
-						u32 height = (u32)event.frame.rect.h;
+						u32 width = (u32)event->frame.rect.w;
+						u32 height = (u32)event->frame.rect.h;
 						const void* args[2] = {&width, &height};
 						m3_Call(eventHandlers[G_EVENT_FRAME_RESIZE], 2, args);
 					}
@@ -379,11 +379,11 @@ void* orca_runloop(void* user)
 
 				case MP_EVENT_MOUSE_BUTTON:
 				{
-					if(event.key.action == MP_KEY_PRESS)
+					if(event->key.action == MP_KEY_PRESS)
 					{
 						if(eventHandlers[G_EVENT_MOUSE_DOWN])
 						{
-							int key = event.key.code;
+							int key = event->key.code;
 							const void* args[1] = {&key};
 							m3_Call(eventHandlers[G_EVENT_MOUSE_DOWN], 1, args);
 						}
@@ -392,7 +392,7 @@ void* orca_runloop(void* user)
 					{
 						if(eventHandlers[G_EVENT_MOUSE_UP])
 						{
-							int key = event.key.code;
+							int key = event->key.code;
 							const void* args[1] = {&key};
 							m3_Call(eventHandlers[G_EVENT_MOUSE_UP], 1, args);
 						}
@@ -403,31 +403,31 @@ void* orca_runloop(void* user)
 				{
 					if(eventHandlers[G_EVENT_MOUSE_MOVE])
 					{
-						const void* args[4] = {&event.move.x, &event.move.y, &event.move.deltaX, &event.move.deltaY};
+						const void* args[4] = {&event->move.x, &event->move.y, &event->move.deltaX, &event->move.deltaY};
 						m3_Call(eventHandlers[G_EVENT_MOUSE_MOVE], 4, args);
 					}
 				} break;
 
 				case MP_EVENT_KEYBOARD_KEY:
 				{
-					if(event.key.action == MP_KEY_PRESS)
+					if(event->key.action == MP_KEY_PRESS)
 					{
-						if(event.key.code == MP_KEY_D && (event.key.mods & (MP_KEYMOD_SHIFT | MP_KEYMOD_CMD)))
+						if(event->key.code == MP_KEY_D && (event->key.mods & (MP_KEYMOD_SHIFT | MP_KEYMOD_CMD)))
 						{
 							debug_overlay_toogle(&app->debugOverlay);
 						}
 
 						if(eventHandlers[G_EVENT_KEY_DOWN])
 						{
-							const void* args[1] = {&event.key.code};
+							const void* args[1] = {&event->key.code};
 							m3_Call(eventHandlers[G_EVENT_KEY_DOWN], 1, args);
 						}
 					}
-					else if(event.key.action == MP_KEY_RELEASE)
+					else if(event->key.action == MP_KEY_RELEASE)
 					{
 						if(eventHandlers[G_EVENT_KEY_UP])
 						{
-							const void* args[1] = {&event.key.code};
+							const void* args[1] = {&event->key.code};
 							m3_Call(eventHandlers[G_EVENT_KEY_UP], 1, args);
 						}
 					}
