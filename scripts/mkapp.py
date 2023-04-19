@@ -76,7 +76,9 @@ if args.res_dirs != None:
 	for res in args.res_dirs:
 		shutil.copytree(res, res_dir)
 
+# default fonts
 shutil.copy(args.orca_dir + '/resources/OpenSansLatinSubset.ttf', res_dir)
+shutil.copy(args.orca_dir + '/resources/Andale Mono.ttf', res_dir)
 #-----------------------------------------------------------
 #NOTE make icon
 #-----------------------------------------------------------

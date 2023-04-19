@@ -72,10 +72,10 @@ int orca_assert(const char* file, const char* function, int line, const char* sr
 	exit(-1);
 }
 
-mg_font mg_font_create_default()
+mg_font orca_font_create(const char* resourcePath)
 {
 	//NOTE(martin): create default font
-	str8 fontPath = mp_app_get_resource_path(mem_scratch(), "../resources/OpenSansLatinSubset.ttf");
+	str8 fontPath = mp_app_get_resource_path(mem_scratch(), resourcePath);
 	char* fontPathCString = str8_to_cstring(mem_scratch(), fontPath);
 
 	FILE* fontFile = fopen(fontPathCString, "r");
@@ -105,19 +105,42 @@ mg_font mg_font_create_default()
 	return(font);
 }
 
+mg_font mg_font_create_default()
+{
+	return(orca_font_create("../resources/OpenSansLatinSubset.ttf"));
+}
+
+
 #include"bindgen_core_api.c"
 #include"canvas_api_bind.c"
 #include"bindgen_gles_api.c"
 #include"manual_gles_api.c"
 
+typedef struct orca_debug_overlay
+{
+	bool show;
+	mg_surface surface;
+	mg_canvas canvas;
+	mg_font font;
+	ui_context ui;
+
+} orca_debug_overlay;
+
+void debug_overlay_toogle(orca_debug_overlay* overlay)
+{
+	overlay->show = !overlay->show;
+	mg_surface_set_hidden(overlay->surface, !overlay->show);
+}
+
 typedef struct orca_app
 {
 	mp_window window;
 	mg_surface surface;
-	mg_surface mtlSurface;
 	mg_canvas canvas;
 
 	orca_runtime runtime;
+
+	orca_debug_overlay debugOverlay;
 
 } orca_app;
 
@@ -299,7 +322,7 @@ void* orca_runloop(void* user)
 		}
 	}
 
-	//mg_canvas_prepare(app->canvas);
+	//NOTE: setup ui context
 
 	//NOTE: prepare GL surface
 	mg_surface_prepare(app->surface);
@@ -321,11 +344,18 @@ void* orca_runloop(void* user)
 		m3_Call(eventHandlers[G_EVENT_FRAME_RESIZE], 2, args);
 	}
 
+	ui_set_context(&app->debugOverlay.ui);
+
 	while(!mp_should_quit())
 	{
 		mp_event event = {0};
 		while(mp_next_event(&event))
 		{
+			if(app->debugOverlay.show)
+			{
+				ui_process_event(event);
+			}
+
 			switch(event.type)
 			{
 				case MP_EVENT_WINDOW_CLOSE:
@@ -336,7 +366,7 @@ void* orca_runloop(void* user)
 				case MP_EVENT_WINDOW_RESIZE:
 				{
 					mp_rect frame = {0, 0, event.frame.rect.w, event.frame.rect.h};
-					mg_surface_set_frame(app->mtlSurface, frame);
+					mg_surface_set_frame(app->surface, frame);
 
 					if(eventHandlers[G_EVENT_FRAME_RESIZE])
 					{
@@ -382,6 +412,11 @@ void* orca_runloop(void* user)
 				{
 					if(event.key.action == MP_KEY_PRESS)
 					{
+						if(event.key.code == MP_KEY_D && (event.key.mods & (MP_KEYMOD_SHIFT | MP_KEYMOD_CMD)))
+						{
+							debug_overlay_toogle(&app->debugOverlay);
+						}
+
 						if(eventHandlers[G_EVENT_KEY_DOWN])
 						{
 							const void* args[1] = {&event.key.code};
@@ -412,7 +447,72 @@ void* orca_runloop(void* user)
 
 		mg_present();
 
-		//TODO: update and render
+		if(app->debugOverlay.show)
+		{
+			ui_style debugUIDefaultStyle = {.bgColor = {0},
+			                                .color = {1, 1, 1, 1},
+			                                .font = app->debugOverlay.font,
+			                                .fontSize = 16,
+			                                .borderColor = {1, 0, 0, 1},
+			                                .borderSize = 2};
+
+			ui_style_mask debugUIDefaultMask = UI_STYLE_BG_COLOR
+			                                 | UI_STYLE_COLOR
+			                                 | UI_STYLE_BORDER_COLOR
+			                                 | UI_STYLE_BORDER_SIZE
+			                                 | UI_STYLE_FONT
+			                                 | UI_STYLE_FONT_SIZE;
+
+			ui_frame(&debugUIDefaultStyle, debugUIDefaultMask)
+			{
+				ui_style_next(&(ui_style){.size.width = {UI_SIZE_PARENT, 1},
+				                          .size.height = {UI_SIZE_PARENT, 1, 1}},
+				               UI_STYLE_SIZE);
+
+				ui_container("overlay area", 0)
+				{
+					//...
+				}
+
+				ui_style_next(&(ui_style){.size.width = {UI_SIZE_PARENT, 1},
+				                          .size.height = {UI_SIZE_PARENT, 0.4},
+				                          .bgColor = {0, 0, 0, 0.5}},
+				               UI_STYLE_SIZE
+				              |UI_STYLE_BG_COLOR);
+
+				ui_container("log console", UI_FLAG_DRAW_BACKGROUND)
+				{
+					ui_style_next(&(ui_style){.size.width = {UI_SIZE_PARENT, 1},
+					                          .size.height = {UI_SIZE_PARENT, 1}},
+					              UI_STYLE_SIZE);
+
+					ui_panel("log console", UI_FLAG_CLICKABLE)
+					{
+						ui_style_next(&(ui_style){.size.width = {UI_SIZE_PARENT, 1},
+						                          .size.height = {UI_SIZE_PIXELS, 800}},
+						              UI_STYLE_SIZE);
+
+						ui_container("contents", 0)
+						{
+						}
+					}
+				}
+			}
+
+			mg_canvas_prepare(app->debugOverlay.canvas);
+
+				ui_draw();
+			/*
+				mg_set_font(app->debugOverlay.font);
+				mg_set_font_size(32);
+				mg_set_color_rgba(0.2, 0.2, 0.2, 1);
+				mg_move_to(30, 30);
+				mg_text_outlines(STR8("Debug Overlay"));
+				mg_fill();
+			*/
+			mg_present();
+		}
+
 		mem_scratch_clear();
 	}
 
@@ -426,32 +526,37 @@ int main(int argc, char** argv)
 	mp_init();
 	mp_clock_init();
 
+	orca_app* orca = &__orcaApp;
+
 	mp_rect windowRect = {.x = 100, .y = 100, .w = 810, .h = 610};
-	mp_window window = mp_window_create(windowRect, "orca", 0);
+	orca->window = mp_window_create(windowRect, "orca", 0);
+	orca->surface = mg_surface_create_for_window(orca->window, MG_BACKEND_DEFAULT);
+	orca->canvas = mg_canvas_create(orca->surface);
 
-	//NOTE: create surface and canvas
-	mg_surface surface = mg_surface_create_for_window(window, MG_BACKEND_GLES);
-	mg_surface_swap_interval(surface, 1);
-/*	mg_canvas canvas = mg_canvas_create(surface);
+	mg_surface_swap_interval(orca->surface, 1);
 
-	if(mg_canvas_is_nil(canvas))
+	orca->debugOverlay.show = false;
+	orca->debugOverlay.surface = mg_surface_create_for_window(orca->window, MG_BACKEND_DEFAULT);
+	orca->debugOverlay.canvas = mg_canvas_create(orca->debugOverlay.surface);
+	orca->debugOverlay.font = orca_font_create("../resources/Andale Mono.ttf");
+
+	mg_surface_set_hidden(orca->debugOverlay.surface, true);
+
+	//WARN: this is a workaround to avoid stalling the first few times we acquire drawables from
+	//      the surfaces... This should probably be fixed in the implementation of mtl_surface!
+	for(int i=0; i<4; i++)
 	{
-		printf("Error: couldn't create canvas\n");
-		return(-1);
+		mg_canvas_prepare(orca->canvas);
+		mg_present();
+		mg_canvas_prepare(orca->debugOverlay.canvas);
+		mg_present();
 	}
-*/
+
+	ui_init(&orca->debugOverlay.ui);
+
 	//NOTE: show window and start runloop
-	mp_window_bring_to_front(window);
-	mp_window_focus(window);
-
-	mg_surface mtlSurface = mg_surface_create_for_window(window, MG_BACKEND_DEFAULT);
-	mg_surface_swap_interval(mtlSurface, 1);
-	mg_canvas canvas = mg_canvas_create(mtlSurface);
-
-	__orcaApp = (orca_app){.window = window,
-	                       .surface = surface,
-	                       .mtlSurface = mtlSurface,
-	                       .canvas = canvas};
+	mp_window_bring_to_front(orca->window);
+	mp_window_focus(orca->window);
 
 	pthread_t runloopThread;
 	pthread_create(&runloopThread, 0, orca_runloop, 0);
@@ -465,9 +570,9 @@ int main(int argc, char** argv)
 	void* res;
 	pthread_join(runloopThread, &res);
 
-//	mg_canvas_destroy(canvas);
-//	mg_surface_destroy(surface);
-	mp_window_destroy(window);
+	mg_canvas_destroy(orca->canvas);
+	mg_surface_destroy(orca->surface);
+	mp_window_destroy(orca->window);
 
 	mp_terminate();
 	return(0);
