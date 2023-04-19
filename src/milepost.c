@@ -75,4 +75,5 @@
 	#error "Unsupported platform"
 #endif
 
+#include"input_state.c"
 #include"ui.c"

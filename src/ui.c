@@ -28,71 +28,6 @@ static ui_style UI_STYLE_DEFAULTS =
 	.color = {0, 0, 0, 1},
 	.fontSize = 16,
 };
-//-----------------------------------------------------------------------------
-// context
-//-----------------------------------------------------------------------------
-
-enum { UI_MAX_INPUT_CHAR_PER_FRAME = 64 };
-
-typedef struct ui_input_text
-{
-	u8 count;
-	utf32 codePoints[UI_MAX_INPUT_CHAR_PER_FRAME];
-
-} ui_input_text;
-
-typedef struct ui_stack_elt ui_stack_elt;
-struct ui_stack_elt
-{
-	ui_stack_elt* parent;
-	union
-	{
-		ui_box* box;
-		ui_size size;
-		mp_rect clip;
-	};
-};
-
-typedef struct ui_tag_elt
-{
-	list_elt listElt;
-	ui_tag tag;
-} ui_tag_elt;
-
-enum { UI_BOX_MAP_BUCKET_COUNT = 1024 };
-
-typedef struct ui_context
-{
-	bool init;
-
-	u64 frameCounter;
-	f64 frameTime;
-	f64 lastFrameDuration;
-
-	mem_arena frameArena;
-	mem_pool boxPool;
-	list_info boxMap[UI_BOX_MAP_BUCKET_COUNT];
-
-	ui_box* root;
-	ui_box* overlay;
-	list_info overlayList;
-	ui_stack_elt* boxStack;
-	ui_stack_elt* clipStack;
-
-	list_info nextBoxBeforeRules;
-	list_info nextBoxAfterRules;
-	list_info nextBoxTags;
-
-	u32 z;
-	ui_box* hovered;
-
-	ui_box* focus;
-	i32 editCursor;
-	i32 editMark;
-	i32 editFirstDisplayedChar;
-	f64 editCursorBlinkStart;
-
-} ui_context;
 
 mp_thread_local ui_context __uiThreadContext = {0};
 mp_thread_local ui_context* __uiCurrentContext = 0;
@@ -389,6 +324,37 @@ void ui_style_box_after(ui_box* box, ui_pattern pattern, ui_style* style, ui_sty
 }
 
 //-----------------------------------------------------------------------------
+// input
+//-----------------------------------------------------------------------------
+
+void ui_process_event(mp_event event)
+{
+	ui_context* ui = ui_get_context();
+	mp_input_process_event(&ui->input, event);
+}
+
+vec2 ui_mouse_position(void)
+{
+	ui_context* ui = ui_get_context();
+	vec2 mousePos = mp_mouse_position(&ui->input);
+	return(mousePos);
+}
+
+vec2 ui_mouse_delta(void)
+{
+	ui_context* ui = ui_get_context();
+	vec2 delta = mp_mouse_delta(&ui->input);
+	return(delta);
+}
+
+vec2 ui_mouse_wheel(void)
+{
+	ui_context* ui = ui_get_context();
+	vec2 delta = mp_mouse_wheel(&ui->input);
+	return(delta);
+}
+
+//-----------------------------------------------------------------------------
 // ui boxes
 //-----------------------------------------------------------------------------
 
@@ -409,26 +375,6 @@ bool ui_box_hovering(ui_box* box, vec2 p)
 	bool hit = ui_rect_hit(rect, p);
 	bool result = hit && (!ui->hovered || box->z >= ui->hovered->z);
 	return(result);
-}
-
-vec2 ui_mouse_position(void)
-{
-	vec2 mousePos = mp_mouse_position();
-	return(mousePos);
-}
-
-vec2 ui_mouse_delta(void)
-{
-	ui_context* ui = ui_get_context();
-	vec2 delta = mp_mouse_delta();
-	return(delta);
-}
-
-vec2 ui_mouse_wheel(void)
-{
-	ui_context* ui = ui_get_context();
-	vec2 delta = mp_mouse_wheel();
-	return(delta);
 }
 
 ui_box* ui_box_make_str8(str8 string, ui_flags flags)
@@ -569,6 +515,9 @@ ui_sig ui_box_sig(ui_box* box)
 	//NOTE: compute input signals
 	ui_sig sig = {0};
 
+	ui_context* ui = ui_get_context();
+	mp_input_state* input = &ui->input;
+
 	sig.box = box;
 
 	if(!box->closed && !box->parentClosed)
@@ -581,16 +530,16 @@ ui_sig ui_box_sig(ui_box* box)
 		{
 			if(sig.hovering)
 			{
-				sig.pressed = mp_mouse_pressed(MP_MOUSE_LEFT);
+				sig.pressed = mp_mouse_pressed(input, MP_MOUSE_LEFT);
 				if(sig.pressed)
 				{
 					box->dragging = true;
 				}
-				sig.doubleClicked = mp_mouse_double_clicked(MP_MOUSE_LEFT);
-				sig.rightPressed = mp_mouse_pressed(MP_MOUSE_RIGHT);
+				sig.doubleClicked = mp_mouse_double_clicked(input, MP_MOUSE_LEFT);
+				sig.rightPressed = mp_mouse_pressed(input, MP_MOUSE_RIGHT);
 			}
 
-			sig.released = mp_mouse_released(MP_MOUSE_LEFT);
+			sig.released = mp_mouse_released(input, MP_MOUSE_LEFT);
 			if(sig.released)
 			{
 				if(box->dragging && sig.hovering)
@@ -599,7 +548,7 @@ ui_sig ui_box_sig(ui_box* box)
 				}
 			}
 
-			if(!mp_mouse_down(MP_MOUSE_LEFT))
+			if(!mp_mouse_down(input, MP_MOUSE_LEFT))
 			{
 				box->dragging = false;
 			}
@@ -1513,23 +1462,23 @@ void ui_end_frame(void)
 			}
 		}
 	}
+
+	mp_input_next_frame(&ui->input);
 }
 
 //-----------------------------------------------------------------------------
 // Init / cleanup
 //-----------------------------------------------------------------------------
-void ui_init(void)
+void ui_init(ui_context* ui)
 {
-	ui_context* ui = &__uiThreadContext;
-	if(!ui->init)
-	{
-		__uiCurrentContext = &__uiThreadContext;
+	__uiCurrentContext = &__uiThreadContext;
 
-		memset(ui, 0, sizeof(ui_context));
-		mem_arena_init(&ui->frameArena);
-		mem_pool_init(&ui->boxPool, sizeof(ui_box));
-		ui->init = true;
-	}
+	memset(ui, 0, sizeof(ui_context));
+	mem_arena_init(&ui->frameArena);
+	mem_pool_init(&ui->boxPool, sizeof(ui_box));
+	ui->init = true;
+
+	ui_set_context(ui);
 }
 
 void ui_cleanup(void)
@@ -1985,7 +1934,8 @@ void ui_menu_bar_begin(const char* name)
 	ui_box* bar = ui_box_begin(name, UI_FLAG_DRAW_BACKGROUND);
 
 	ui_sig sig = ui_box_sig(bar);
-	if(!sig.hovering && mp_mouse_released(MP_MOUSE_LEFT))
+	ui_context* ui = ui_get_context();
+	if(!sig.hovering && mp_mouse_released(&ui->input, MP_MOUSE_LEFT))
 	{
 		ui_box_deactivate(bar);
 	}
@@ -2247,7 +2197,8 @@ ui_select_popup_info ui_select_popup(const char* name, ui_select_popup_info* inf
 		}
 		ui_box_pop();
 
-		if(ui_box_active(panel) && mp_mouse_pressed(MP_MOUSE_LEFT))
+		ui_context* ui = ui_get_context();
+		if(ui_box_active(panel) && mp_mouse_pressed(&ui->input, MP_MOUSE_LEFT))
 		{
 			ui_box_deactivate(panel);
 		}
@@ -2753,7 +2704,7 @@ ui_text_box_result ui_text_box(const char* name, mem_arena* arena, str8 text)
 			}
 			//NOTE: set the new cursor, and set or leave the mark depending on mode
 			ui->editCursor = newCursor;
-			if(sig.pressed && !(mp_key_mods() & MP_KEYMOD_SHIFT))
+			if(sig.pressed && !(mp_key_mods(&ui->input) & MP_KEYMOD_SHIFT))
 			{
 				ui->editMark = ui->editCursor;
 			}
@@ -2783,7 +2734,7 @@ ui_text_box_result ui_text_box(const char* name, mem_arena* arena, str8 text)
 		ui->editMark = Clamp(ui->editMark, 0, codepoints.len);
 
 		//NOTE replace selection with input codepoints
-		str32 input = mp_input_text_utf32(&ui->frameArena);
+		str32 input = mp_input_text_utf32(&ui->input, &ui->frameArena);
 		if(input.len)
 		{
 			codepoints = ui_edit_replace_selection_with_codepoints(ui, codepoints, input);
@@ -2791,13 +2742,13 @@ ui_text_box_result ui_text_box(const char* name, mem_arena* arena, str8 text)
 		}
 
 		//NOTE handle shortcuts
-		mp_keymod_flags mods = mp_key_mods();
+		mp_keymod_flags mods = mp_key_mods(&ui->input);
 
 		for(int i=0; i<UI_EDIT_COMMAND_COUNT; i++)
 		{
 			const ui_edit_command* command = &(UI_EDIT_COMMANDS[i]);
 
-			if( (mp_key_pressed(command->key) || mp_key_repeated(command->key))
+			if( (mp_key_pressed(&ui->input, command->key) || mp_key_repeated(&ui->input, command->key))
 			  && mods == command->mods)
 			{
 				codepoints = ui_edit_perform_operation(ui, command->operation, command->move, command->direction, codepoints);
@@ -2812,7 +2763,7 @@ ui_text_box_result ui_text_box(const char* name, mem_arena* arena, str8 text)
 			result.text = utf8_push_from_codepoints(arena, codepoints);
 		}
 
-		if(mp_key_pressed(MP_KEY_ENTER))
+		if(mp_key_pressed(&ui->input, MP_KEY_ENTER))
 		{
 			//TODO(martin): extract in gui_edit_complete() (and use below)
 			result.accepted = true;

@@ -37,6 +37,7 @@
 //----------------------------------------------------------------
 #include"mp_app.h"
 #include"graphics.h"
+#include"input_state.h"
 #include"ui.h"
 
 #ifdef MG_INCLUDE_GL_API

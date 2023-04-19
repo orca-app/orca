@@ -23,72 +23,6 @@
 #endif
 
 //---------------------------------------------------------------
-// Input State
-//---------------------------------------------------------------
-
-typedef struct mp_key_utf8
-{
-	u8 labelLen;
-	char label[8];
-} mp_key_utf8;
-
-typedef struct mp_key_state
-{
-	u64 lastUpdate;
-	u32 transitionCount;
-	u32 repeatCount;
-	bool down;
-	bool sysClicked;
-	bool sysDoubleClicked;
-
-} mp_key_state;
-
-typedef struct mp_keyboard_state
-{
-	mp_key_state keys[MP_KEY_COUNT];
-	mp_keymod_flags  mods;
-} mp_keyboard_state;
-
-typedef struct mp_mouse_state
-{
-	u64 lastUpdate;
-	bool posValid;
-	vec2 pos;
-	vec2 delta;
-	vec2 wheel;
-
-	union
-	{
-		mp_key_state buttons[MP_MOUSE_BUTTON_COUNT];
-		struct
-		{
-			mp_key_state left;
-			mp_key_state right;
-			mp_key_state middle;
-			mp_key_state ext1;
-			mp_key_state ext2;
-		};
-	};
-} mp_mouse_state;
-
-enum { MP_INPUT_TEXT_BACKING_SIZE = 64 };
-
-typedef struct mp_text_state
-{
-	u64 lastUpdate;
-	utf32 backing[MP_INPUT_TEXT_BACKING_SIZE];
-	str32 codePoints;
-} mp_text_state;
-
-typedef struct mp_input_state
-{
-	u64 frameCounter;
-	mp_keyboard_state keyboard;
-	mp_mouse_state	mouse;
-	mp_text_state text;
-} mp_input_state;
-
-//---------------------------------------------------------------
 // Window structure
 //---------------------------------------------------------------
 
@@ -121,6 +55,13 @@ typedef struct mp_window_data
 // Global App State
 //---------------------------------------------------------------
 
+typedef struct mp_key_utf8
+{
+	u8 labelLen;
+	char label[8];
+} mp_key_utf8;
+
+
 enum { MP_APP_MAX_WINDOWS = 128 };
 
 typedef struct mp_app
@@ -141,8 +82,6 @@ typedef struct mp_app
 
 	mp_live_resize_callback liveResizeCallback;
 	void* liveResizeData;
-
-	mp_input_state inputState;
 
 	mp_key_utf8 keyLabels[512];
 	int keyCodes[512];

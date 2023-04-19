@@ -11,6 +11,7 @@
 
 #include"typedefs.h"
 #include"lists.h"
+#include"input_state.h"
 #include"graphics.h"
 
 #ifdef __cplusplus
@@ -319,15 +320,82 @@ struct ui_box
 	f32 activeTransition;
 };
 
-typedef struct ui_context ui_context;
+//-----------------------------------------------------------------------------
+// context
+//-----------------------------------------------------------------------------
+
+enum { UI_MAX_INPUT_CHAR_PER_FRAME = 64 };
+
+typedef struct ui_input_text
+{
+	u8 count;
+	utf32 codePoints[UI_MAX_INPUT_CHAR_PER_FRAME];
+
+} ui_input_text;
+
+typedef struct ui_stack_elt ui_stack_elt;
+struct ui_stack_elt
+{
+	ui_stack_elt* parent;
+	union
+	{
+		ui_box* box;
+		ui_size size;
+		mp_rect clip;
+	};
+};
+
+typedef struct ui_tag_elt
+{
+	list_elt listElt;
+	ui_tag tag;
+} ui_tag_elt;
+
+enum { UI_BOX_MAP_BUCKET_COUNT = 1024 };
+
+typedef struct ui_context
+{
+	bool init;
+
+	mp_input_state input;
+
+	u64 frameCounter;
+	f64 frameTime;
+	f64 lastFrameDuration;
+
+	mem_arena frameArena;
+	mem_pool boxPool;
+	list_info boxMap[UI_BOX_MAP_BUCKET_COUNT];
+
+	ui_box* root;
+	ui_box* overlay;
+	list_info overlayList;
+	ui_stack_elt* boxStack;
+	ui_stack_elt* clipStack;
+
+	list_info nextBoxBeforeRules;
+	list_info nextBoxAfterRules;
+	list_info nextBoxTags;
+
+	u32 z;
+	ui_box* hovered;
+
+	ui_box* focus;
+	i32 editCursor;
+	i32 editMark;
+	i32 editFirstDisplayedChar;
+	f64 editCursorBlinkStart;
+
+} ui_context;
 
 //-------------------------------------------------------------------------------------
 // UI context initialization and frame cycle
 //-------------------------------------------------------------------------------------
-MP_API void ui_init(void);
+MP_API void ui_init(ui_context* context);
 MP_API ui_context* ui_get_context(void);
 MP_API void ui_set_context(ui_context* context);
 
+MP_API void ui_process_event(mp_event event);
 MP_API void ui_begin_frame(ui_style* defaultStyle, ui_style_mask mask);
 MP_API void ui_end_frame(void);
 MP_API void ui_draw(void);

@@ -804,19 +804,6 @@ static void mp_process_mouse_button(NSEvent* nsEvent, mp_window_data* window, mp
 	event.key.mods = mp_convert_osx_mods([nsEvent modifierFlags]);
 	event.key.clickCount = [nsEvent clickCount];
 
-	mp_key_state* keyState = &__mpApp.inputState.mouse.buttons[event.key.code];
-	mp_update_key_state(keyState, action);
-	if(action == MP_KEY_PRESS)
-	{
-		if(event.key.clickCount >= 1)
-		{
-			keyState->sysClicked = true;
-		}
-		if(event.key.clickCount >= 2)
-		{
-			keyState->sysDoubleClicked = true;
-		}
-	}
 	mp_queue_event(&event);
 }
 
@@ -870,8 +857,6 @@ static void mp_process_mouse_button(NSEvent* nsEvent, mp_window_data* window, mp
 	event.move.deltaY = [nsEvent deltaY];
 	event.move.mods = mp_convert_osx_mods([nsEvent modifierFlags]);
 
-	mp_update_mouse_move(event.move.x, event.move.y, event.move.deltaX, event.move.deltaY);
-
 	mp_queue_event(&event);
 }
 
@@ -887,8 +872,6 @@ static void mp_process_mouse_button(NSEvent* nsEvent, mp_window_data* window, mp
 	event.move.deltaX = -[nsEvent scrollingDeltaX]*factor;
 	event.move.deltaY = -[nsEvent scrollingDeltaY]*factor;
 	event.move.mods = mp_convert_osx_mods([nsEvent modifierFlags]);
-
-	mp_update_mouse_wheel(event.move.deltaX, event.move.deltaY);
 
 	mp_queue_event(&event);
 }
@@ -924,8 +907,6 @@ static void mp_process_mouse_button(NSEvent* nsEvent, mp_window_data* window, mp
 	event.key.labelLen = label.len;
 	memcpy(event.key.label, label.ptr, label.len);
 
-	mp_update_key_state(&__mpApp.inputState.keyboard.keys[event.key.code], action);
-
 	mp_queue_event(&event);
 
 	[self interpretKeyEvents:@[nsEvent]];
@@ -940,8 +921,6 @@ static void mp_process_mouse_button(NSEvent* nsEvent, mp_window_data* window, mp
 	event.key.code = mp_convert_osx_key([nsEvent keyCode]);
 	event.key.mods = mp_convert_osx_mods([nsEvent modifierFlags]);
 
-	mp_update_key_state(&__mpApp.inputState.keyboard.keys[event.key.code], MP_KEY_RELEASE);
-
 	mp_queue_event(&event);
 }
 
@@ -951,8 +930,6 @@ static void mp_process_mouse_button(NSEvent* nsEvent, mp_window_data* window, mp
 	event.window = mp_window_handle_from_ptr(window);
 	event.type = MP_EVENT_KEYBOARD_MODS;
 	event.key.mods = mp_convert_osx_mods([nsEvent modifierFlags]);
-
-	mp_update_key_mods(event.key.mods);
 
 	mp_queue_event(&event);
 }
@@ -1091,8 +1068,6 @@ static const NSRange kEmptyRange = { NSNotFound, 0 };
 
 			str8 seq = utf8_encode(event.character.sequence, event.character.codepoint);
 			event.character.seqLen = seq.len;
-
-			mp_update_text(codepoint);
 
 			mp_queue_event(&event);
 		}
@@ -1956,8 +1931,6 @@ void mp_set_live_resize_callback(mp_live_resize_callback callback, void* data)
 
 void mp_pump_events(f64 timeout)
 {
-	__mpApp.inputState.frameCounter++;
-
 	@autoreleasepool
 	{
 		bool accumulate = false;
@@ -2037,7 +2010,7 @@ void mp_end_input_frame()
 	//////////////////////////////////////////////////////////////////////////////////////////////
 	//TODO: make sure we call arena clear once per event frame, even when using runloop etc...
 	//////////////////////////////////////////////////////////////////////////////////////////////
-	__mpApp.inputState.frameCounter++;
+
 	mem_arena_clear(&__mpApp.eventArena);
 }
 
