@@ -12,6 +12,7 @@
 #include"typedefs.h"
 #include"utf8.h"
 #include"lists.h"
+#include"memory.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -237,7 +238,6 @@ typedef struct mp_frame_event		// window resize / move
 typedef struct mp_event
 {
 	//TODO clipboard and path drop
-
 	mp_window window;
 	mp_event_type type;
 
@@ -247,11 +247,9 @@ typedef struct mp_event
 		mp_char_event  character;
 		mp_move_event  move;
 		mp_frame_event frame;
-		str8 path;
+		str8_list paths;
 	};
 
-	//TODO(martin): chain externally ?
-	list_elt list;
 } mp_event;
 
 //--------------------------------------------------------------------
@@ -272,7 +270,7 @@ MP_API void mp_set_cursor(mp_mouse_cursor cursor);
 //--------------------------------------------------------------------
 
 MP_API void mp_pump_events(f64 timeout);
-MP_API bool mp_next_event(mp_event* event);
+MP_API mp_event* mp_next_event(mem_arena* arena);
 
 typedef void(*mp_live_resize_callback)(mp_event event, void* data);
 MP_API void mp_set_live_resize_callback(mp_live_resize_callback callback, void* data);

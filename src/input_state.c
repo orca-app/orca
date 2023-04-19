@@ -116,51 +116,51 @@ void mp_input_next_frame(mp_input_state* state)
 	state->frameCounter++;
 }
 
-void mp_input_process_event(mp_input_state* state, mp_event event)
+void mp_input_process_event(mp_input_state* state, mp_event* event)
 {
-	switch(event.type)
+	switch(event->type)
 	{
 		case MP_EVENT_KEYBOARD_KEY:
 		{
-			mp_key_state* key = &state->keyboard.keys[event.key.code];
-			mp_update_key_state(state, key, event.key.action);
-			mp_update_key_mods(state, event.key.mods);
+			mp_key_state* key = &state->keyboard.keys[event->key.code];
+			mp_update_key_state(state, key, event->key.action);
+			mp_update_key_mods(state, event->key.mods);
 		} break;
 
 		case MP_EVENT_KEYBOARD_CHAR:
-			mp_update_text(state, event.character.codepoint);
+			mp_update_text(state, event->character.codepoint);
 			break;
 
 		case MP_EVENT_KEYBOARD_MODS:
-			mp_update_key_mods(state, event.key.mods);
+			mp_update_key_mods(state, event->key.mods);
 			break;
 
 		case MP_EVENT_MOUSE_MOVE:
-			mp_update_mouse_move(state, event.move.x, event.move.y, event.move.deltaX, event.move.deltaY);
+			mp_update_mouse_move(state, event->move.x, event->move.y, event->move.deltaX, event->move.deltaY);
 			break;
 
 		case MP_EVENT_MOUSE_WHEEL:
-			mp_update_mouse_wheel(state, event.move.deltaX, event.move.deltaY);
+			mp_update_mouse_wheel(state, event->move.deltaX, event->move.deltaY);
 			break;
 
 		case MP_EVENT_MOUSE_BUTTON:
 		{
-			mp_key_state* key = &state->mouse.buttons[event.key.code];
-			mp_update_key_state(state, key, event.key.action);
+			mp_key_state* key = &state->mouse.buttons[event->key.code];
+			mp_update_key_state(state, key, event->key.action);
 
-			if(event.key.action == MP_KEY_PRESS)
+			if(event->key.action == MP_KEY_PRESS)
 			{
-				if(event.key.clickCount >= 1)
+				if(event->key.clickCount >= 1)
 				{
 					key->sysClicked = true;
 				}
-				if(event.key.clickCount >= 2)
+				if(event->key.clickCount >= 2)
 				{
 					key->sysDoubleClicked = true;
 				}
 			}
 
-			mp_update_key_mods(state, event.key.mods);
+			mp_update_key_mods(state, event->key.mods);
 		} break;
 
 		default:

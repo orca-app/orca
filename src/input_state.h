@@ -70,7 +70,7 @@ typedef struct mp_input_state
 	mp_text_state text;
 } mp_input_state;
 
-MP_API void mp_input_process_event(mp_input_state* state, mp_event event);
+MP_API void mp_input_process_event(mp_input_state* state, mp_event* event);
 MP_API void mp_input_next_frame(mp_input_state* state);
 
 MP_API bool mp_key_down(mp_input_state* state, mp_key_code key);

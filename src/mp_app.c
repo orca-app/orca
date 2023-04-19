@@ -97,28 +97,85 @@ static void mp_terminate_common()
 
 void mp_queue_event(mp_event* event)
 {
-	if(ringbuffer_write_available(&__mpApp.eventQueue) < sizeof(mp_event))
+	ringbuffer* queue = &__mpApp.eventQueue;
+
+	if(ringbuffer_write_available(queue) < sizeof(mp_event))
 	{
 		log_error("event queue full\n");
 	}
 	else
 	{
-		u32 written = ringbuffer_write(&__mpApp.eventQueue, sizeof(mp_event), (u8*)event);
-		DEBUG_ASSERT(written == sizeof(mp_event));
+		bool error = false;
+		ringbuffer_reserve(queue, sizeof(mp_event), (u8*)event);
+
+		if(event->type == MP_EVENT_PATHDROP)
+		{
+			for_list(&event->paths.list, elt, str8_elt, listElt)
+			{
+				str8* path = &elt->string;
+				if(ringbuffer_write_available(queue) < (sizeof(u64) + path->len))
+				{
+					log_error("event queue full\n");
+					error = true;
+					break;
+				}
+				else
+				{
+					ringbuffer_reserve(queue, sizeof(u64), (u8*)&path->len);
+					ringbuffer_reserve(queue, path->len, (u8*)path->ptr);
+				}
+			}
+		}
+		if(error)
+		{
+			ringbuffer_rewind(queue);
+		}
+		else
+		{
+			ringbuffer_commit(queue);
+		}
 	}
 }
 
-bool mp_next_event(mp_event* event)
+mp_event* mp_next_event(mem_arena* arena)
 {
-	//NOTE pop and return event from queue
-	if(ringbuffer_read_available(&__mpApp.eventQueue) >= sizeof(mp_event))
+	//NOTE: pop and return event from queue
+	mp_event* event = 0;
+	ringbuffer* queue = &__mpApp.eventQueue;
+
+	if(ringbuffer_read_available(queue) >= sizeof(mp_event))
 	{
-		u64 read = ringbuffer_read(&__mpApp.eventQueue, sizeof(mp_event), (u8*)event);
+		event = mem_arena_alloc_type(arena, mp_event);
+		u64 read = ringbuffer_read(queue, sizeof(mp_event), (u8*)event);
 		DEBUG_ASSERT(read == sizeof(mp_event));
-		return(true);
+
+		if(event->type == MP_EVENT_PATHDROP)
+		{
+			u64 pathCount = event->paths.eltCount;
+			event->paths = (str8_list){0};
+
+			for(int i=0; i<pathCount; i++)
+			{
+				if(ringbuffer_read_available(queue) < sizeof(u64))
+				{
+					log_error("malformed path payload: no string size\n");
+					break;
+				}
+
+				u64 len = 0;
+				ringbuffer_read(queue, sizeof(u64), (u8*)&len);
+				if(ringbuffer_read_available(queue) < len)
+				{
+					log_error("malformed path payload: string shorter than expected\n");
+					break;
+				}
+
+				char* buffer = mem_arena_alloc_array(arena, char, len);
+				ringbuffer_read(queue, len, (u8*)buffer);
+
+				str8_list_push(arena, &event->paths, str8_from_buffer(len, buffer));
+			}
+		}
 	}
-	else
-	{
-		return(false);
-	}
+	return(event);
 }

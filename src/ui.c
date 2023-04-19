@@ -327,7 +327,7 @@ void ui_style_box_after(ui_box* box, ui_pattern pattern, ui_style* style, ui_sty
 // input
 //-----------------------------------------------------------------------------
 
-void ui_process_event(mp_event event)
+void ui_process_event(mp_event* event)
 {
 	ui_context* ui = ui_get_context();
 	mp_input_process_event(&ui->input, event);

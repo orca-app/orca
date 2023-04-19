@@ -475,12 +475,20 @@ void mp_install_keyboard_layout_listener()
 
 - (BOOL)application:(NSApplication *)application openFile:(NSString *)filename
 {
-	mp_event event = {};
+	mp_event event = {0};
 	event.window = (mp_window){0};
 	event.type = MP_EVENT_PATHDROP;
-	event.path = str8_push_cstring(&__mpApp.eventArena, [filename UTF8String]);
+
+	mem_arena* scratch = mem_scratch();
+	mem_arena_marker mark = mem_arena_mark(scratch);
+
+	str8 path = str8_push_cstring(scratch, [filename UTF8String]);
+	str8_list_push(scratch, &event.paths, path);
 
 	mp_queue_event(&event);
+
+	mem_arena_clear_to(scratch, mark);
+
 	return(YES);
 }
 
@@ -491,10 +499,19 @@ void mp_install_keyboard_layout_listener()
 	mp_event event = {};
 	event.window = (mp_window){0};
 	event.type = MP_EVENT_PATHDROP;
-	event.path = str8_push_cstring(&__mpApp.eventArena, [nsPath UTF8String]);
+
+	mem_arena* scratch = mem_scratch();
+	mem_arena_marker mark = mem_arena_mark(scratch);
+
+	str8 path = str8_push_cstring(scratch, [nsPath UTF8String]);
+	str8_list_push(scratch, &event.paths, path);
 
 	mp_queue_event(&event);
+
+	mem_arena_clear_to(scratch, mark);
 }
+
+//TODO: drag and drop paths
 
 @end // @implementation MPAppDelegate
 

@@ -395,7 +395,7 @@ MP_API void ui_init(ui_context* context);
 MP_API ui_context* ui_get_context(void);
 MP_API void ui_set_context(ui_context* context);
 
-MP_API void ui_process_event(mp_event event);
+MP_API void ui_process_event(mp_event* event);
 MP_API void ui_begin_frame(ui_style* defaultStyle, ui_style_mask mask);
 MP_API void ui_end_frame(void);
 MP_API void ui_draw(void);

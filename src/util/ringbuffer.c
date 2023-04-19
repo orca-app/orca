@@ -11,9 +11,10 @@
 
 void ringbuffer_init(ringbuffer* ring, u8 capExp)
 {
-	u32 cap = 1<<capExp;
+	u64 cap = 1<<capExp;
 	ring->mask = cap - 1;
 	ring->readIndex = 0;
+	ring->reserveIndex = 0;
 	ring->writeIndex = 0;
 	ring->buffer = (u8*)malloc(cap);
 }
@@ -23,54 +24,24 @@ void ringbuffer_cleanup(ringbuffer* ring)
 	free(ring->buffer);
 }
 
-u32 ringbuffer_read_available(ringbuffer* ring)
+u64 ringbuffer_read_available(ringbuffer* ring)
 {
 	return((ring->writeIndex - ring->readIndex) & ring->mask);
 }
 
-u32 ringbuffer_write_available(ringbuffer* ring)
+u64 ringbuffer_write_available(ringbuffer* ring)
 {
 	//NOTE(martin): we keep one sentinel byte between write index and read index,
 	//              when the buffer is full, to avoid overrunning read index.
-	//              Hence, available write space is size - 1 - available read space.
-	return(ring->mask - ringbuffer_read_available(ring));
+	return(((ring->readIndex - ring->reserveIndex) & ring->mask) - 1);
 }
 
-u32 ringbuffer_write(ringbuffer* ring, u32 size, u8* data)
+u64 ringbuffer_read(ringbuffer* ring, u64 size, u8* data)
 {
-	u32 read = ring->readIndex;
-	u32 write = ring->writeIndex;
+	u64 read = ring->readIndex;
+	u64 write = ring->writeIndex;
 
-	u32 writeAvailable = ringbuffer_write_available(ring);
-	if(size > writeAvailable)
-	{
-		DEBUG_ASSERT("not enough space available");
-		size = writeAvailable;
-	}
-
-	if(read <= write)
-	{
-		u32 copyCount = minimum(size, ring->mask + 1 - write);
-		memcpy(ring->buffer + write, data, copyCount);
-
-		data += copyCount;
-		copyCount = size - copyCount;
-		memcpy(ring->buffer, data, copyCount);
-	}
-	else
-	{
-		memcpy(ring->buffer + write, data, size);
-	}
-	ring->writeIndex = (write + size) & ring->mask;
-	return(size);
-}
-
-u32 ringbuffer_read(ringbuffer* ring, u32 size, u8* data)
-{
-	u32 read = ring->readIndex;
-	u32 write = ring->writeIndex;
-
-	u32 readAvailable = ringbuffer_read_available(ring);
+	u64 readAvailable = ringbuffer_read_available(ring);
 	if(size > readAvailable)
 	{
 		size = readAvailable;
@@ -82,7 +53,7 @@ u32 ringbuffer_read(ringbuffer* ring, u32 size, u8* data)
 	}
 	else
 	{
-		u32 copyCount = minimum(size, ring->mask + 1 - read);
+		u64 copyCount = minimum(size, ring->mask + 1 - read);
 		memcpy(data, ring->buffer + read, copyCount);
 
 		data += copyCount;
@@ -91,4 +62,51 @@ u32 ringbuffer_read(ringbuffer* ring, u32 size, u8* data)
 	}
 	ring->readIndex = (read + size) & ring->mask;
 	return(size);
+}
+
+u64 ringbuffer_reserve(ringbuffer* ring, u64 size, u8* data)
+{
+	u64 read = ring->readIndex;
+	u64 reserve = ring->reserveIndex;
+
+	u64 writeAvailable = ringbuffer_write_available(ring);
+	if(size > writeAvailable)
+	{
+		DEBUG_ASSERT("not enough space available");
+		size = writeAvailable;
+	}
+
+	if(read <= reserve)
+	{
+		u64 copyCount = minimum(size, ring->mask + 1 - reserve);
+		memcpy(ring->buffer + reserve, data, copyCount);
+
+		data += copyCount;
+		copyCount = size - copyCount;
+		memcpy(ring->buffer, data, copyCount);
+	}
+	else
+	{
+		memcpy(ring->buffer + reserve, data, size);
+	}
+	ring->reserveIndex = (reserve + size) & ring->mask;
+	return(size);
+}
+
+u64 ringbuffer_write(ringbuffer* ring, u64 size, u8* data)
+{
+	ringbuffer_commit(ring);
+	u64 res = ringbuffer_reserve(ring, size, data);
+	ringbuffer_commit(ring);
+	return(res);
+}
+
+void ringbuffer_commit(ringbuffer* ring)
+{
+	ring->writeIndex = ring->reserveIndex;
+}
+
+void ringbuffer_rewind(ringbuffer* ring)
+{
+	ring->reserveIndex = ring->writeIndex;
 }
