@@ -19,30 +19,6 @@
 
 #define LOG_SUBSYSTEM "Orca"
 
-/*
-void orca_log(int len, const char* ptr)
-{
-	log_info("%.*s", len, ptr);
-}
-*/
-
-void orca_log_entry(log_level level,
-                    int fileLen,
-                    char* file,
-                    int functionLen,
-                    char* function,
-                    int line,
-                    int msgLen,
-                    char* msg)
-{
-	log_entry(level,
-	          str8_from_buffer(fileLen, file),
-	          str8_from_buffer(functionLen, function),
-	          line,
-	          "%.*s\n",
-	          msgLen,
-	          msg);
-}
 
 void mg_matrix_push_flat(float a11, float a12, float a13,
                          float a21, float a22, float a23)
@@ -111,26 +87,40 @@ mg_font mg_font_create_default()
 }
 
 
-#include"bindgen_core_api.c"
-#include"canvas_api_bind.c"
-#include"bindgen_gles_api.c"
-#include"manual_gles_api.c"
+typedef struct log_entry
+{
+	list_elt listElt;
+	u64 cap;
+
+	log_level level;
+	str8 file;
+	str8 function;
+	int line;
+	str8 msg;
+
+	u64 recordIndex;
+
+} log_entry;
 
 typedef struct orca_debug_overlay
 {
 	bool show;
 	mg_surface surface;
 	mg_canvas canvas;
-	mg_font font;
+	mg_font fontReg;
+	mg_font fontBold;
 	ui_context ui;
 
-} orca_debug_overlay;
 
-void debug_overlay_toogle(orca_debug_overlay* overlay)
-{
-	overlay->show = !overlay->show;
-	mg_surface_set_hidden(overlay->surface, !overlay->show);
-}
+	mem_arena logArena;
+	list_info logEntries;
+	list_info logFreeList;
+	u32 entryCount;
+	u32 maxEntries;
+	u64 logEntryTotalCount;
+	bool logScrollToLast;
+
+} orca_debug_overlay;
 
 typedef struct orca_app
 {
@@ -143,6 +133,153 @@ typedef struct orca_app
 	orca_debug_overlay debugOverlay;
 
 } orca_app;
+
+orca_app __orcaApp = {0};
+
+void orca_log(log_level level,
+              int fileLen,
+              char* file,
+              int functionLen,
+              char* function,
+              int line,
+              int msgLen,
+              char* msg)
+{
+	orca_debug_overlay* debug = &__orcaApp.debugOverlay;
+
+	//NOTE: recycle first entry if we exceeded the max entry count
+	debug->entryCount++;
+	if(debug->entryCount > debug->maxEntries)
+	{
+		log_entry* e = list_pop_entry(&debug->logEntries, log_entry, listElt);
+		if(e)
+		{
+			list_push(&debug->logFreeList, &e->listElt);
+			debug->entryCount--;
+		}
+	}
+
+	u64 cap = sizeof(log_entry)+fileLen+functionLen+msgLen;
+
+	//NOTE: allocate a new entry
+	//TODO: should probably use a buddy allocator over the arena or something
+	log_entry* entry = 0;
+	for_list(&debug->logFreeList, elt, log_entry, listElt)
+	{
+		if(elt->cap >= cap)
+		{
+			list_remove(&debug->logFreeList, &elt->listElt);
+			entry = elt;
+			break;
+		}
+	}
+
+	if(!entry)
+	{
+		char* mem = mem_arena_alloc(&debug->logArena, cap);
+		entry = (log_entry*)mem;
+		entry->cap = cap;
+	}
+	char* payload = (char*)entry + sizeof(log_entry);
+
+	entry->file.len = fileLen;
+	entry->file.ptr = payload;
+	payload += entry->file.len;
+
+	entry->function.len = functionLen;
+	entry->function.ptr = payload;
+	payload += entry->function.len;
+
+	entry->msg.len = msgLen;
+	entry->msg.ptr = payload;
+	payload += entry->msg.len;
+
+	memcpy(entry->file.ptr, file, fileLen);
+	memcpy(entry->function.ptr, function, fileLen);
+	memcpy(entry->msg.ptr, msg, msgLen);
+
+	entry->level = level;
+	entry->line = line;
+	entry->recordIndex = debug->logEntryTotalCount;
+	debug->logEntryTotalCount++;
+
+	list_push_back(&debug->logEntries, &entry->listElt);
+
+	log_push(level,
+	         str8_from_buffer(fileLen, file),
+	         str8_from_buffer(functionLen, function),
+	         line,
+	         "%.*s\n",
+	         msgLen,
+	         msg);
+}
+
+void debug_overlay_toggle(orca_debug_overlay* overlay)
+{
+	overlay->show = !overlay->show;
+	mg_surface_set_hidden(overlay->surface, !overlay->show);
+
+	if(overlay->show)
+	{
+		overlay->logScrollToLast = true;
+	}
+}
+
+
+void log_entry_ui(orca_debug_overlay* overlay, log_entry* entry)
+{
+	static const char* levelNames[] = {"Error: ", "Warning: ", "Info: "};
+	static const mg_color levelColors[] = {{0.8, 0, 0, 1},
+	                                       {1, 0.5, 0, 1},
+	                                       {0, 0.8, 0, 1}};
+
+	static const mg_color bgColors[3][2] = {//errors
+	                                        {{0.6, 0, 0, 0.5}, {0.8, 0, 0, 0.5}},
+	                                        //warning
+	                                        {{0.4, 0.4, 0.4, 0.5}, {0.5, 0.5, 0.5, 0.5}},
+	                                        //info
+	                                        {{0.4, 0.4, 0.4, 0.5}, {0.5, 0.5, 0.5, 0.5}}};
+
+	ui_style_next(&(ui_style){.size.width = {UI_SIZE_PARENT, 1},
+	                          .size.height = {UI_SIZE_CHILDREN},
+	                          .layout.axis = UI_AXIS_Y,
+	                          .layout.margin.x = 10,
+	                          .layout.margin.y = 5,
+	                          .bgColor = bgColors[entry->level][entry->recordIndex & 1]},
+		             UI_STYLE_SIZE
+		             |UI_STYLE_LAYOUT_AXIS
+		             |UI_STYLE_LAYOUT_MARGINS
+		             |UI_STYLE_BG_COLOR);
+
+	str8 key = str8_pushf(mem_scratch(), "%ull", entry->recordIndex);
+
+	ui_container_str8(key, UI_FLAG_DRAW_BACKGROUND)
+	{
+		ui_style_next(&(ui_style){.size.width = {UI_SIZE_PARENT, 1},
+		                          .size.height = {UI_SIZE_CHILDREN},
+		                          .layout.axis = UI_AXIS_X},
+		              UI_STYLE_SIZE
+		              |UI_STYLE_LAYOUT_AXIS);
+
+		ui_container("header", 0)
+		{
+			ui_style_next(&(ui_style){.color = levelColors[entry->level],
+			                          .font = overlay->fontBold},
+			              UI_STYLE_COLOR
+			              |UI_STYLE_FONT);
+			ui_label(levelNames[entry->level]);
+
+			str8 loc = str8_pushf(mem_scratch(),
+			                      "%.*s() in %.*s:%i:",
+			                      str8_ip(entry->file),
+			                      str8_ip(entry->function),
+			                      entry->line);
+			ui_label_str8(loc);
+		}
+		ui_label_str8(entry->msg);
+	}
+}
+
 
 char m3_type_to_tag(M3ValueType type)
 {
@@ -173,12 +310,16 @@ void orca_runtime_init(orca_runtime* runtime)
 	runtime->wasmMemory.ptr = mem_base_reserve(allocator, runtime->wasmMemory.reserved);
 }
 
-orca_app __orcaApp;
-
 orca_runtime* orca_runtime_get()
 {
 	return(&__orcaApp.runtime);
 }
+
+#include"bindgen_core_api.c"
+#include"canvas_api_bind.c"
+#include"bindgen_gles_api.c"
+#include"manual_gles_api.c"
+
 
 void* orca_runloop(void* user)
 {
@@ -368,6 +509,8 @@ void* orca_runloop(void* user)
 					mp_rect frame = {0, 0, event->frame.rect.w, event->frame.rect.h};
 					mg_surface_set_frame(app->surface, frame);
 
+					mg_surface_set_frame(app->debugOverlay.surface, frame);
+
 					if(eventHandlers[G_EVENT_FRAME_RESIZE])
 					{
 						u32 width = (u32)event->frame.rect.w;
@@ -414,7 +557,7 @@ void* orca_runloop(void* user)
 					{
 						if(event->key.code == MP_KEY_D && (event->key.mods & (MP_KEYMOD_SHIFT | MP_KEYMOD_CMD)))
 						{
-							debug_overlay_toogle(&app->debugOverlay);
+							debug_overlay_toggle(&app->debugOverlay);
 						}
 
 						if(eventHandlers[G_EVENT_KEY_DOWN])
@@ -451,7 +594,7 @@ void* orca_runloop(void* user)
 		{
 			ui_style debugUIDefaultStyle = {.bgColor = {0},
 			                                .color = {1, 1, 1, 1},
-			                                .font = app->debugOverlay.font,
+			                                .font = app->debugOverlay.fontReg,
 			                                .fontSize = 16,
 			                                .borderColor = {1, 0, 0, 1},
 			                                .borderSize = 2};
@@ -476,25 +619,100 @@ void* orca_runloop(void* user)
 
 				ui_style_next(&(ui_style){.size.width = {UI_SIZE_PARENT, 1},
 				                          .size.height = {UI_SIZE_PARENT, 0.4},
+				                          .layout.axis = UI_AXIS_Y,
 				                          .bgColor = {0, 0, 0, 0.5}},
 				               UI_STYLE_SIZE
+				              |UI_STYLE_LAYOUT_AXIS
 				              |UI_STYLE_BG_COLOR);
 
 				ui_container("log console", UI_FLAG_DRAW_BACKGROUND)
 				{
 					ui_style_next(&(ui_style){.size.width = {UI_SIZE_PARENT, 1},
-					                          .size.height = {UI_SIZE_PARENT, 1}},
+					                          .size.height = {UI_SIZE_CHILDREN},
+					                          .layout.axis = UI_AXIS_X,
+					                          .layout.spacing = 10,
+					                          .layout.margin.x = 10,
+					                          .layout.margin.y = 10},
+					               UI_STYLE_SIZE
+					              |UI_STYLE_LAYOUT);
+
+					ui_container("log toolbar", 0)
+					{
+						ui_style buttonStyle = {.layout.margin.x = 4,
+						                        .layout.margin.y = 4,
+						                        .roundness = 2,
+						                        .bgColor = {0, 0, 0, 0.5},
+						                        .color = {1, 1, 1, 1}};
+
+						ui_style_mask buttonStyleMask = UI_STYLE_LAYOUT_MARGINS
+						                              | UI_STYLE_ROUNDNESS
+						                              | UI_STYLE_BG_COLOR
+						                              | UI_STYLE_COLOR;
+
+						ui_style_match_after(ui_pattern_all(), &buttonStyle, buttonStyleMask);
+						if(ui_button("Clear").clicked)
+						{
+							for_list_safe(&app->debugOverlay.logEntries, entry, log_entry, listElt)
+							{
+								list_remove(&app->debugOverlay.logEntries, &entry->listElt);
+								list_push(&app->debugOverlay.logFreeList, &entry->listElt);
+								app->debugOverlay.entryCount--;
+							}
+						}
+					}
+
+					ui_style_next(&(ui_style){.size.width = {UI_SIZE_PARENT, 1},
+					                          .size.height = {UI_SIZE_PARENT, 1, 1}},
 					              UI_STYLE_SIZE);
 
-					ui_panel("log console", UI_FLAG_CLICKABLE)
+					//TODO: this is annoying to have to do that. Basically there's another 'contents' box inside ui_panel,
+					//      and we need to change that to size according to its parent (whereas the default is sizing according
+					//      to its children)
+					ui_pattern pattern = {0};
+					ui_pattern_push(mem_scratch(), &pattern, (ui_selector){.kind = UI_SEL_OWNER});
+					ui_pattern_push(mem_scratch(), &pattern, (ui_selector){.kind = UI_SEL_TEXT, .text = STR8("contents")});
+					ui_style_match_after(pattern, &(ui_style){.size.width = {UI_SIZE_PARENT, 1}}, UI_STYLE_SIZE_WIDTH);
+
+					ui_box* panel = ui_box_lookup("log view");
+					f32 scrollY = 0;
+					if(panel)
 					{
+						scrollY = panel->scroll.y;
+					}
+
+					ui_panel("log view", UI_FLAG_SCROLL_WHEEL_Y)
+					{
+						panel = ui_box_top();
+
 						ui_style_next(&(ui_style){.size.width = {UI_SIZE_PARENT, 1},
-						                          .size.height = {UI_SIZE_PIXELS, 800}},
-						              UI_STYLE_SIZE);
+						                          .size.height = {UI_SIZE_CHILDREN},
+						                          .layout.axis = UI_AXIS_Y,
+						                          .layout.margin.y = 5},
+						              UI_STYLE_SIZE
+						             |UI_STYLE_LAYOUT_AXIS);
 
 						ui_container("contents", 0)
 						{
+							for_list(&app->debugOverlay.logEntries, entry, log_entry, listElt)
+							{
+								log_entry_ui(&app->debugOverlay, entry);
+							}
 						}
+					}
+					if(app->debugOverlay.logScrollToLast)
+					{
+						if(panel->scroll.y >= scrollY)
+						{
+							panel->scroll.y = ClampLowBound(panel->childrenSum[1] - panel->rect.h, 0);
+						}
+						else
+						{
+							app->debugOverlay.logScrollToLast = false;
+						}
+					}
+					else if(panel->scroll.y >= (panel->childrenSum[1] - panel->rect.h) - 1)
+					{
+						app->debugOverlay.logScrollToLast = true;
 					}
 				}
 			}
@@ -512,7 +730,6 @@ void* orca_runloop(void* user)
 			*/
 			mg_present();
 		}
-
 		mem_scratch_clear();
 	}
 
@@ -538,7 +755,10 @@ int main(int argc, char** argv)
 	orca->debugOverlay.show = false;
 	orca->debugOverlay.surface = mg_surface_create_for_window(orca->window, MG_BACKEND_DEFAULT);
 	orca->debugOverlay.canvas = mg_canvas_create(orca->debugOverlay.surface);
-	orca->debugOverlay.font = orca_font_create("../resources/Andale Mono.ttf");
+	orca->debugOverlay.fontReg = orca_font_create("../resources/Menlo.ttf");
+	orca->debugOverlay.fontBold = orca_font_create("../resources/Menlo Bold.ttf");
+	orca->debugOverlay.maxEntries = 30;
+	mem_arena_init(&orca->debugOverlay.logArena);
 
 	mg_surface_set_hidden(orca->debugOverlay.surface, true);
 

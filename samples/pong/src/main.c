@@ -56,11 +56,24 @@ void OnFrameResize(u32 width, u32 height)
 
 void OnMouseDown(int button)
 {
+	log_info("mouse down!");
 	rotationDir *= -1;
 }
 
 void OnKeyDown(int key)
 {
+	if(key == KEY_SPACE)
+	{
+		log_error("(this is just for testing errors)");
+		return;
+	}
+	if(key == KEY_ENTER)
+	{
+		log_warning("(this is just for testing warning)");
+		return;
+	}
+
+	log_info("key down: %i", key);
 	if(key == KEY_LEFT)
 	{
 		leftDown = true;
@@ -73,6 +86,12 @@ void OnKeyDown(int key)
 
 void OnKeyUp(int key)
 {
+	if(key == KEY_ENTER || key == KEY_SPACE)
+	{
+		return;
+	}
+
+	log_info("key up: %i", key);
 	if(key == KEY_LEFT)
 	{
 		leftDown = false;
@@ -124,6 +143,8 @@ void OnFrameRefresh(void)
     {
 		velocity.y *= -1;
 		ball.y = paddle.y + paddle.h;
+
+		log_info("PONG!");
     }
 
     if(ball.y <= 0)

@@ -78,7 +78,9 @@ if args.res_dirs != None:
 
 # default fonts
 shutil.copy(args.orca_dir + '/resources/OpenSansLatinSubset.ttf', res_dir)
-shutil.copy(args.orca_dir + '/resources/Andale Mono.ttf', res_dir)
+shutil.copy(args.orca_dir + '/resources/Menlo.ttf', res_dir)
+shutil.copy(args.orca_dir + '/resources/Menlo Bold.ttf', res_dir)
+shutil.copy(args.orca_dir + '/resources/Menlo Italics.ttf', res_dir)
 #-----------------------------------------------------------
 #NOTE make icon
 #-----------------------------------------------------------
