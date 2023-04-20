@@ -447,6 +447,18 @@ ui_box* ui_box_make_str8(str8 string, ui_flags flags)
 	}
 	ui->nextBoxAfterRules = (list_info){0};
 
+
+	//NOTE: set scroll
+	vec2 wheel = ui_mouse_wheel();
+	if(box->flags & UI_FLAG_SCROLL_WHEEL_X)
+	{
+		box->scroll.x += wheel.x;
+	}
+	if(box->flags & UI_FLAG_SCROLL_WHEEL_Y)
+	{
+		box->scroll.y += wheel.y;
+	}
+
 	return(box);
 }
 
@@ -1155,6 +1167,9 @@ void ui_layout_compute_rect(ui_context* ui, ui_box* box, vec2 pos)
 		                         - (box->childrenSum[layoutAxis] + box->spacing[layoutAxis]));
 	}
 
+	currentPos.x -= box->scroll.x;
+	currentPos.y -= box->scroll.y;
+
 	for_list(&box->children, child, ui_box, listElt)
 	{
 		if(align[secondAxis] == UI_ALIGN_CENTER)
@@ -1796,29 +1811,22 @@ ui_box* ui_slider(const char* label, f32 thumbRatio, f32* scrollValue)
 //------------------------------------------------------------------------------
 void ui_panel_begin(const char* str, ui_flags flags)
 {
-	ui_box* box = ui_box_begin(str, flags | UI_FLAG_CLIP | UI_FLAG_BLOCK_MOUSE);
+	flags = flags
+	      | UI_FLAG_CLIP
+	      | UI_FLAG_BLOCK_MOUSE
+	      | UI_FLAG_ALLOW_OVERFLOW_X
+	      | UI_FLAG_ALLOW_OVERFLOW_Y;
 
-	ui_style contentsStyle = {
-	    .size.width = {UI_SIZE_CHILDREN},
-	    .size.height = {UI_SIZE_CHILDREN},
-		.floating.x = true,
-		.floating.y = true,
-		.floatTarget = {-box->scroll.x, -box->scroll.y}};
-
-	ui_style_next(&contentsStyle, UI_STYLE_FLOAT);
-	ui_box_begin("contents", 0);
+	ui_box_begin(str, flags);
 }
 
 void ui_panel_end(void)
 {
-	ui_box* contents = ui_box_top();
-	ui_box_end();
-
 	ui_box* panel = ui_box_top();
 	ui_sig sig = ui_box_sig(panel);
 
-	f32 contentsW = ClampLowBound(contents->rect.w, panel->rect.w);
-	f32 contentsH = ClampLowBound(contents->rect.h, panel->rect.h);
+	f32 contentsW = ClampLowBound(panel->childrenSum[0], panel->rect.w);
+	f32 contentsH = ClampLowBound(panel->childrenSum[1], panel->rect.h);
 
 	contentsW = ClampLowBound(contentsW, 1);
 	contentsH = ClampLowBound(contentsH, 1);
@@ -1847,7 +1855,6 @@ void ui_panel_end(void)
 		panel->scroll.x = sliderX * (contentsW - panel->rect.w);
 		if(sig.hovering)
 		{
-			panel->scroll.x += sig.wheel.x;
 			ui_box_activate(scrollBarX);
 		}
 	}
@@ -1872,7 +1879,6 @@ void ui_panel_end(void)
 		panel->scroll.y = sliderY * (contentsH - panel->rect.h);
 		if(sig.hovering)
 		{
-			panel->scroll.y += sig.wheel.y;
 			ui_box_activate(scrollBarY);
 		}
 	}
@@ -2645,8 +2651,7 @@ ui_text_box_result ui_text_box(const char* name, mem_arena* arena, str8 text)
 	                    | UI_FLAG_DRAW_BACKGROUND
 	                    | UI_FLAG_DRAW_BORDER
 	                    | UI_FLAG_CLIP
-	                    | UI_FLAG_DRAW_PROC
-	                    | UI_FLAG_SCROLLABLE;
+	                    | UI_FLAG_DRAW_PROC;
 
 	ui_box* frame = ui_box_make(name, frameFlags);
 	ui_style* style = &frame->style;

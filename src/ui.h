@@ -131,6 +131,9 @@ enum
 	UI_STYLE_SIZE = UI_STYLE_SIZE_WIDTH
 	              | UI_STYLE_SIZE_HEIGHT,
 
+	UI_STYLE_LAYOUT_MARGINS = UI_STYLE_LAYOUT_MARGIN_X
+	                        | UI_STYLE_LAYOUT_MARGIN_Y,
+
 	UI_STYLE_LAYOUT = UI_STYLE_LAYOUT_AXIS
 	                | UI_STYLE_LAYOUT_ALIGN_X
 	                | UI_STYLE_LAYOUT_ALIGN_Y
@@ -249,22 +252,23 @@ typedef void(*ui_box_draw_proc)(ui_box* box, void* data);
 typedef enum
 {
 	UI_FLAG_CLICKABLE        = (1<<0),
-	UI_FLAG_SCROLLABLE       = (1<<1),
-	UI_FLAG_BLOCK_MOUSE      = (1<<2),
-	UI_FLAG_HOT_ANIMATION    = (1<<3),
-	UI_FLAG_ACTIVE_ANIMATION = (1<<4),
+	UI_FLAG_SCROLL_WHEEL_X   = (1<<1),
+	UI_FLAG_SCROLL_WHEEL_Y   = (1<<2),
+	UI_FLAG_BLOCK_MOUSE      = (1<<3),
+	UI_FLAG_HOT_ANIMATION    = (1<<4),
+	UI_FLAG_ACTIVE_ANIMATION = (1<<5),
 	//WARN: these two following flags need to be kept as consecutive bits to
 	//      play well with axis-agnostic functions
-	UI_FLAG_ALLOW_OVERFLOW_X = (1<<5),
-	UI_FLAG_ALLOW_OVERFLOW_Y = (1<<6),
-	UI_FLAG_CLIP             = (1<<7),
-	UI_FLAG_DRAW_BACKGROUND  = (1<<8),
-	UI_FLAG_DRAW_FOREGROUND  = (1<<9),
-	UI_FLAG_DRAW_BORDER      = (1<<10),
-	UI_FLAG_DRAW_TEXT        = (1<<11),
-	UI_FLAG_DRAW_PROC        = (1<<12),
+	UI_FLAG_ALLOW_OVERFLOW_X = (1<<6),
+	UI_FLAG_ALLOW_OVERFLOW_Y = (1<<7),
+	UI_FLAG_CLIP             = (1<<8),
+	UI_FLAG_DRAW_BACKGROUND  = (1<<9),
+	UI_FLAG_DRAW_FOREGROUND  = (1<<10),
+	UI_FLAG_DRAW_BORDER      = (1<<11),
+	UI_FLAG_DRAW_TEXT        = (1<<12),
+	UI_FLAG_DRAW_PROC        = (1<<13),
 
-	UI_FLAG_OVERLAY          = (1<<13),
+	UI_FLAG_OVERLAY          = (1<<14),
 } ui_flags;
 
 struct ui_box
@@ -423,6 +427,7 @@ MP_API ui_box* ui_box_begin_str8(str8 string, ui_flags flags);
 
 MP_API ui_box* ui_box_end(void);
 #define ui_container(name, flags) defer_loop(ui_box_begin(name, flags), ui_box_end())
+#define ui_container_str8(name, flags) defer_loop(ui_box_begin_str8(name, flags), ui_box_end())
 
 MP_API void ui_box_push(ui_box* box);
 MP_API void ui_box_pop(void);
@@ -492,6 +497,8 @@ enum {
 };
 
 MP_API ui_sig ui_label(const char* label);
+MP_API ui_sig ui_label_str8(str8 label);
+
 MP_API ui_sig ui_button(const char* label);
 MP_API ui_sig ui_checkbox(const char* name, bool* checked);
 MP_API ui_box* ui_slider(const char* label, f32 thumbRatio, f32* scrollValue);

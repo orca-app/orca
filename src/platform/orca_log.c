@@ -24,14 +24,14 @@ typedef struct log_output
 static log_output _logDefaultOutput = {.kind = ORCA_LOG_OUTPUT_CONSOLE};
 log_output* LOG_DEFAULT_OUTPUT = &_logDefaultOutput;
 
-extern void orca_log_entry(log_level level,
-                           int fileLen,
-                           const char* file,
-                           int functionLen,
-                           const char* function,
-                           int line,
-                           int msgLen,
-                           const char* msg);
+extern void orca_log(log_level level,
+                     int fileLen,
+                     const char* file,
+                     int functionLen,
+                     const char* function,
+                     int line,
+                     int msgLen,
+                     const char* msg);
 
 typedef struct orca_log_context
 {
@@ -49,13 +49,13 @@ char* log_stbsp_callback(char const* buf, void* user, int len)
 	return((char*)buf);
 }
 
-void platform_log_entry(log_output* output,
-                        log_level level,
-                        str8 function,
-                        str8 file,
-                        int line,
-                        const char* fmt,
-                        va_list ap)
+void platform_log_push(log_output* output,
+                       log_level level,
+                       str8 function,
+                       str8 file,
+                       int line,
+                       const char* fmt,
+                       va_list ap)
 {
 	mem_arena* scratch = mem_scratch();
 	mem_arena_marker marker = mem_arena_mark(scratch);
@@ -68,7 +68,7 @@ void platform_log_entry(log_output* output,
 
 	str8 string = str8_list_join(scratch, ctx.list);
 
-	orca_log_entry(level, str8_ip(function), str8_ip(file), line, str8_ip(string));
+	orca_log(level, str8_ip(function), str8_ip(file), line, str8_ip(string));
 
 	mem_arena_clear_to(scratch, marker);
 }

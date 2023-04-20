@@ -22,14 +22,14 @@ extern log_output* LOG_DEFAULT_OUTPUT;
 
 MP_API void log_set_level(log_level level);
 MP_API void log_set_output(log_output* output);
-MP_API void log_entry(log_level level,
-                      str8 function,
-                      str8 file,
-                      int line,
-                      const char* fmt,
-                      ...);
+MP_API void log_push(log_level level,
+                     str8 function,
+                     str8 file,
+                     int line,
+                     const char* fmt,
+                     ...);
 
-#define log_generic(level, msg, ...) log_entry(level, STR8(__FUNCTION__), STR8(__FILE__), __LINE__, msg, ##__VA_ARGS__)
+#define log_generic(level, msg, ...) log_push(level, STR8(__FUNCTION__), STR8(__FILE__), __LINE__, msg, ##__VA_ARGS__)
 
 #define log_error(msg, ...) log_generic(LOG_LEVEL_ERROR, msg, ##__VA_ARGS__)
 

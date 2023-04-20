@@ -36,13 +36,13 @@ typedef struct log_output
 static log_output _logDefaultOutput = {0};
 log_output* LOG_DEFAULT_OUTPUT = &_logDefaultOutput;
 
-void platform_log_entry(log_output* output,
-                        log_level level,
-                        str8 function,
-                        str8 file,
-                        int line,
-                        const char* fmt,
-                        va_list ap)
+void platform_log_push(log_output* output,
+                       log_level level,
+                       str8 function,
+                       str8 file,
+                       int line,
+                       const char* fmt,
+                       va_list ap)
 {
 	if(output == LOG_DEFAULT_OUTPUT && output->f == 0)
 	{

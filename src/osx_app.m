@@ -1990,47 +1990,6 @@ void mp_pump_events(f64 timeout)
 	}
 }
 
-/*
-void mp_run_loop()
-{@autoreleasepool {
-
-	//CVDisplayLinkStart(__mpApp.displayLink);
-
-	while(!__mpApp.shouldQuit)
-	{
-		mp_event event;
-		while(mp_next_event(&event))
-		{
-			//send pending event that might have accumulated before we started run loop
-			if(__mpApp.eventCallback)
-			{
-				__mpApp.eventCallback(event, __mpApp.eventData);
-			}
-		}
-
-		NSEvent* nsEvent = [NSApp nextEventMatchingMask: NSEventMaskAny
-					untilDate:[NSDate distantFuture]
-					inMode: NSDefaultRunLoopMode
-					dequeue: YES];
-
-		if(nsEvent != nil)
-		{
-			[NSApp sendEvent:nsEvent];
-		}
-	}
-
-	//CVDisplayLinkStop(__mpApp.displayLink);
-}}
-*/
-void mp_end_input_frame()
-{
-	//////////////////////////////////////////////////////////////////////////////////////////////
-	//TODO: make sure we call arena clear once per event frame, even when using runloop etc...
-	//////////////////////////////////////////////////////////////////////////////////////////////
-
-	mem_arena_clear(&__mpApp.eventArena);
-}
-
 //--------------------------------------------------------------------
 // app resources
 //--------------------------------------------------------------------
