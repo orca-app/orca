@@ -195,7 +195,7 @@ void orca_log(log_level level,
 	payload += entry->msg.len;
 
 	memcpy(entry->file.ptr, file, fileLen);
-	memcpy(entry->function.ptr, function, fileLen);
+	memcpy(entry->function.ptr, function, functionLen);
 	memcpy(entry->msg.ptr, msg, msgLen);
 
 	entry->level = level;
@@ -757,7 +757,7 @@ int main(int argc, char** argv)
 	orca->debugOverlay.canvas = mg_canvas_create(orca->debugOverlay.surface);
 	orca->debugOverlay.fontReg = orca_font_create("../resources/Menlo.ttf");
 	orca->debugOverlay.fontBold = orca_font_create("../resources/Menlo Bold.ttf");
-	orca->debugOverlay.maxEntries = 30;
+	orca->debugOverlay.maxEntries = 200;
 	mem_arena_init(&orca->debugOverlay.logArena);
 
 	mg_surface_set_hidden(orca->debugOverlay.surface, true);
@@ -777,6 +777,7 @@ int main(int argc, char** argv)
 	//NOTE: show window and start runloop
 	mp_window_bring_to_front(orca->window);
 	mp_window_focus(orca->window);
+	mp_window_center(orca->window);
 
 	pthread_t runloopThread;
 	pthread_create(&runloopThread, 0, orca_runloop, 0);
