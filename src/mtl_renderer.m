@@ -259,9 +259,6 @@ vec2 mg_quadratic_get_point(vec2 p[3], f32 t)
 
 void mg_quadratic_split(vec2 p[3], f32 t, vec2 outLeft[3], vec2 outRight[3])
 {
-	//DEBUG
-	__mgCurrentCanvas->splitCount++;
-
 	//NOTE(martin): split bezier curve p at parameter t, using De Casteljau's algorithm
 	//              the q_n are the points along the hull's segments at parameter t
 	//              s is the split point.

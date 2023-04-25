@@ -7,6 +7,18 @@
 *****************************************************************/
 
 
+/*
+	mp_rect clip;
+	mg_mat2x3 transform;
+	mg_image image;
+	mp_rect srcRegion;
+
+	u32 nextShapeIndex;
+	u32 vertexCount;
+	u32 indexCount;
+
+*/
+
 void mg_reset_shape_index(mg_canvas_data* canvas)
 {
 	canvas->nextShapeIndex = 0;

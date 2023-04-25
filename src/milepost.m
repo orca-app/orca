@@ -8,7 +8,8 @@
 *****************************************************************/
 
 #include"osx_app.m"
-#include"graphics.c"
+#include"graphics_common.c"
+#include"graphics_surface.c"
 
 #if MG_COMPILE_METAL
 	#include"mtl_surface.m"

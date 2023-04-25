@@ -54,7 +54,8 @@
 
 #if PLATFORM_WINDOWS
 	#include"win32_app.c"
-	#include"graphics.c"
+	#include"graphics_common.c"
+	#include"graphics_surface.c"
 
 	#if MG_COMPILE_GL || MG_COMPILE_GLES
 		#include"gl_loader.c"
