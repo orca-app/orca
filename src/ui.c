@@ -1395,7 +1395,7 @@ void ui_draw()
 // frame begin/end
 //-----------------------------------------------------------------------------
 
-void ui_begin_frame(ui_style* defaultStyle, ui_style_mask defaultMask)
+void ui_begin_frame(vec2 size, ui_style* defaultStyle, ui_style_mask defaultMask)
 {
 	ui_context* ui = ui_get_context();
 
@@ -1408,8 +1408,6 @@ void ui_begin_frame(ui_style* defaultStyle, ui_style_mask defaultMask)
 
 	ui->clipStack = 0;
 	ui->z = 0;
-
-	vec2 size = mg_canvas_size();
 
 	defaultMask &= UI_STYLE_COLOR
 	             | UI_STYLE_BG_COLOR
