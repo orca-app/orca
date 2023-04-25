@@ -36,7 +36,7 @@ typedef void (*mg_surface_host_connect_proc)(mg_surface_data* surface, mg_surfac
 
 typedef struct mg_surface_data
 {
-	mg_backend_id backend;
+	mg_surface_api api;
 	mp_layer layer;
 
 	mg_surface_destroy_proc destroy;

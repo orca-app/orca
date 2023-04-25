@@ -18,11 +18,12 @@
 //------------------------------------------------------------------------------------------
 
 typedef enum {
-	MG_BACKEND_NONE,
-	MG_BACKEND_METAL,
-	MG_BACKEND_GL,
-	MG_BACKEND_GLES,
-	MG_BACKEND_HOST } mg_backend_id;
+	MG_NONE,
+	MG_METAL,
+	MG_GL,
+	MG_GLES,
+	MG_CANVAS,
+	MG_HOST } mg_surface_api;
 
 //NOTE: these macros are used to select which backend to include when building milepost
 //      they can be overridden by passing them to the compiler command line
@@ -35,15 +36,11 @@ typedef enum {
 		#define MG_COMPILE_BACKEND_GLES 1
 	#endif
 
-	#define MG_COMPILE_BACKEND_GL 0
-
-	#if MG_COMPILE_BACKEND_METAL
-		#define MG_BACKEND_DEFAULT MG_BACKEND_METAL
-	#elif MG_COMPILE_BACKEND_GL
-		#define MG_BACKEND_DEFAULT MG_BACKEND_GL
-	#else
-		#define MG_BACKEND_DEFAULT MG_BACKEND_NONE
+	#ifndef MG_COMPILE_BACKEND_CANVAS
+		#define MG_COMPILE_BACKEND_CANVAS 1
 	#endif
+
+	#define MG_COMPILE_BACKEND_GL 0
 
 #elif defined(PLATFORM_WIN64)
 	#ifndef MG_COMPILE_BACKEND_GL
@@ -54,15 +51,17 @@ typedef enum {
 		#define MG_COMPILE_BACKEND_GLES 1
 	#endif
 
-	#if MG_COMPILE_BACKEND_GL
-		#define MG_BACKEND_DEFAULT MG_BACKEND_GL
-	#else
-		#define MG_BACKEND_DEFAULT MG_BACKEND_NONE
+	#ifndef MG_COMPILE_BACKEND_CANVAS
+		#define MG_COMPILE_BACKEND_CANVAS 1
 	#endif
 
 #elif defined(PLATFORM_LINUX)
 	#ifndef MG_COMPILE_BACKEND_GL
 		#define MG_COMPILE_BACKEND_GL 1
+	#endif
+
+	#ifndef MG_COMPILE_BACKEND_CANVAS
+		#define MG_COMPILE_BACKEND_CANVAS 1
 	#endif
 
 #endif
@@ -80,8 +79,7 @@ typedef enum {
 
 //TODO: add MG_INCLUDE_OPENGL/GLES/etc, once we know how we make different gl versions co-exist
 
-MP_API bool mg_is_surface_backend_available(mg_backend_id id);
-MP_API bool mg_is_canvas_backend_available(mg_backend_id id);
+MP_API bool mg_is_surface_api_available(mg_surface_api api);
 
 //------------------------------------------------------------------------------------------
 //NOTE(martin): graphics surface
@@ -91,7 +89,7 @@ typedef struct mg_surface { u64 h; } mg_surface;
 MP_API mg_surface mg_surface_nil();
 MP_API bool mg_surface_is_nil(mg_surface surface);
 
-MP_API mg_surface mg_surface_create_for_window(mp_window window, mg_backend_id backend);
+MP_API mg_surface mg_surface_create_for_window(mp_window window, mg_surface_api api);
 MP_API void mg_surface_destroy(mg_surface surface);
 MP_API void mg_surface_prepare(mg_surface surface);
 MP_API void mg_surface_present(mg_surface surface);
@@ -105,7 +103,7 @@ MP_API void mg_surface_set_hidden(mg_surface surface, bool hidden);
 //NOTE(martin): surface sharing
 typedef u64 mg_surface_id;
 
-MP_API mg_surface mg_surface_create_remote(u32 width, u32 height, mg_backend_id backend);
+MP_API mg_surface mg_surface_create_remote(u32 width, u32 height, mg_surface_api api);
 MP_API mg_surface mg_surface_create_host(mp_window window);
 MP_API mg_surface_id mg_surface_remote_id(mg_surface surface);
 MP_API void mg_surface_host_connect(mg_surface surface, mg_surface_id remoteId);

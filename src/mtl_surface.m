@@ -155,7 +155,7 @@ mg_surface_data* mg_mtl_surface_create_for_window(mp_window window)
 		mg_surface_init_for_window((mg_surface_data*)surface, windowData);
 
 		//NOTE(martin): setup interface functions
-		surface->interface.backend = MG_BACKEND_METAL;
+		surface->interface.api = MG_METAL;
 		surface->interface.destroy = mg_mtl_surface_destroy;
 		surface->interface.prepare = mg_mtl_surface_prepare;
 		surface->interface.present = mg_mtl_surface_present;
@@ -213,7 +213,7 @@ mg_surface_data* mg_mtl_surface_create_for_window(mp_window window)
 void* mg_mtl_surface_layer(mg_surface surface)
 {
 	mg_surface_data* surfaceData = mg_surface_data_from_handle(surface);
-	if(surfaceData && surfaceData->backend == MG_BACKEND_METAL)
+	if(surfaceData && surfaceData->api == MG_METAL)
 	{
 		mg_mtl_surface* mtlSurface = (mg_mtl_surface*)surfaceData;
 		return(mtlSurface->mtlLayer);
@@ -227,7 +227,7 @@ void* mg_mtl_surface_layer(mg_surface surface)
 void* mg_mtl_surface_drawable(mg_surface surface)
 {
 	mg_surface_data* surfaceData = mg_surface_data_from_handle(surface);
-	if(surfaceData && surfaceData->backend == MG_BACKEND_METAL)
+	if(surfaceData && surfaceData->api == MG_METAL)
 	{
 		mg_mtl_surface* mtlSurface = (mg_mtl_surface*)surfaceData;
 		mg_mtl_surface_acquire_drawable(mtlSurface);
@@ -242,7 +242,7 @@ void* mg_mtl_surface_drawable(mg_surface surface)
 void* mg_mtl_surface_command_buffer(mg_surface surface)
 {
 	mg_surface_data* surfaceData = mg_surface_data_from_handle(surface);
-	if(surfaceData && surfaceData->backend == MG_BACKEND_METAL)
+	if(surfaceData && surfaceData->api == MG_METAL)
 	{
 		mg_mtl_surface* mtlSurface = (mg_mtl_surface*)surfaceData;
 		mg_mtl_surface_acquire_command_buffer(mtlSurface);

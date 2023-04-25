@@ -300,19 +300,19 @@ mg_image_data* mg_image_data_from_handle(mg_image handle)
 	#include"mtl_surface.h"
 #endif
 
-bool mg_is_surface_backend_available(mg_backend_id backend)
+bool mg_is_surface_backend_available(mg_surface_api api)
 {
 	bool result = false;
-	switch(backend)
+	switch(api)
 	{
 		#if MG_COMPILE_BACKEND_METAL
-			case MG_BACKEND_METAL:
+			case MG_METAL:
 		#endif
 		#if MG_COMPILE_BACKEND_GL
-			case MG_BACKEND_GL:
+			case MG_GL:
 		#endif
 		#if MG_COMPILE_BACKEND_GLES
-			case MG_BACKEND_GLES:
+			case MG_GLES:
 		#endif
 			result = true;
 			break;
@@ -323,16 +323,16 @@ bool mg_is_surface_backend_available(mg_backend_id backend)
 	return(result);
 }
 
-bool mg_is_canvas_backend_available(mg_backend_id backend)
+bool mg_is_canvas_backend_available(mg_surface_api api)
 {
 	bool result = false;
-	switch(backend)
+	switch(api)
 	{
 		#if MG_COMPILE_BACKEND_METAL
-			case MG_BACKEND_METAL:
+			case MG_METAL:
 		#endif
 		#if MG_COMPILE_BACKEND_GL && defined(PLATFORM_WIN64)
-			case MG_BACKEND_GL:
+			case MG_GL:
 		#endif
 			result = true;
 			break;
@@ -346,7 +346,7 @@ bool mg_is_canvas_backend_available(mg_backend_id backend)
 mg_surface mg_surface_nil() { return((mg_surface){.h = 0}); }
 bool mg_surface_is_nil(mg_surface surface) { return(surface.h == 0); }
 
-mg_surface mg_surface_create_for_window(mp_window window, mg_backend_id backend)
+mg_surface mg_surface_create_for_window(mp_window window, mg_surface_api api)
 {
 	if(__mgData.init)
 	{
@@ -355,22 +355,22 @@ mg_surface mg_surface_create_for_window(mp_window window, mg_backend_id backend)
 	mg_surface surfaceHandle = mg_surface_nil();
 	mg_surface_data* surface = 0;
 
-	switch(backend)
+	switch(api)
 	{
 	#if MG_COMPILE_BACKEND_GL
-		case MG_BACKEND_GL:
+		case MG_GL:
 			surface = gl_surface_create_for_window(window);
 			break;
 	#endif
 
 	#if MG_COMPILE_BACKEND_GLES
-		case MG_BACKEND_GLES:
+		case MG_GLES:
 			surface = mg_egl_surface_create_for_window(window);
 			break;
 	#endif
 
 	#if MG_COMPILE_BACKEND_METAL
-		case MG_BACKEND_METAL:
+		case MG_METAL:
 			surface = mg_mtl_surface_create_for_window(window);
 			break;
 	#endif
@@ -385,7 +385,7 @@ mg_surface mg_surface_create_for_window(mp_window window, mg_backend_id backend)
 	return(surfaceHandle);
 }
 
-mg_surface mg_surface_create_remote(u32 width, u32 height, mg_backend_id backend)
+mg_surface mg_surface_create_remote(u32 width, u32 height, mg_surface_api api)
 {
 	if(__mgData.init)
 	{
@@ -394,10 +394,10 @@ mg_surface mg_surface_create_remote(u32 width, u32 height, mg_backend_id backend
 	mg_surface surfaceHandle = mg_surface_nil();
 	mg_surface_data* surface = 0;
 
-	switch(backend)
+	switch(api)
 	{
 	#if MG_COMPILE_BACKEND_GLES
-		case MG_BACKEND_GLES:
+		case MG_GLES:
 			surface = mg_egl_surface_create_remote(width, height);
 			break;
 	#endif
@@ -2636,16 +2636,16 @@ mg_canvas mg_canvas_create(mg_surface surface)
 	if(surfaceData)
 	{
 		mg_canvas_backend* backend = 0;
-		switch(surfaceData->backend)
+		switch(surfaceData->api)
 		{
 		#if MG_COMPILE_BACKEND_METAL
-			case MG_BACKEND_METAL:
+			case MG_METAL:
 				backend = mg_mtl_canvas_create(surface);
 				break;
 		#endif
 
 		#if MG_COMPILE_BACKEND_GL
-			case MG_BACKEND_GL:
+			case MG_GL:
 				backend = mg_gl_canvas_create(surface);
 				break;
 		#endif

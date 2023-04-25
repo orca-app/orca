@@ -189,7 +189,7 @@ mg_surface_data* mg_wgl_surface_create_for_window(mp_window window)
 		{
 			mg_surface_init_for_window((mg_surface_data*)surface, windowData);
 
-			surface->interface.backend = MG_BACKEND_GL;
+			surface->interface.api = MG_GL;
 			surface->interface.destroy = mg_wgl_surface_destroy;
 			surface->interface.prepare = mg_wgl_surface_prepare;
 			surface->interface.present = mg_wgl_surface_present;

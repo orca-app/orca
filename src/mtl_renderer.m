@@ -830,7 +830,7 @@ void mg_mtl_canvas_render(mg_canvas_backend* interface,
 
 	//NOTE: prepare rendering
 	mg_mtl_surface* surface = (mg_mtl_surface*)mg_surface_data_from_handle(backend->surface);
-	ASSERT(surface && surface->interface.backend == MG_BACKEND_METAL);
+	ASSERT(surface && surface->interface.api == MG_METAL);
 
 	mp_rect frame = mg_surface_get_frame(backend->surface);
 	f32 scale = surface->mtlLayer.contentsScale;
@@ -1070,7 +1070,7 @@ mg_image_data* mg_mtl_canvas_image_create(mg_canvas_backend* interface, vec2 siz
 	mg_mtl_canvas_backend* backend = (mg_mtl_canvas_backend*)interface;
 	mg_mtl_surface* surface = (mg_mtl_surface*)mg_surface_data_from_handle(backend->surface);
 
-	if(surface && surface->interface.backend == MG_BACKEND_METAL)
+	if(surface && surface->interface.api == MG_METAL)
 	{
 		@autoreleasepool{
 
@@ -1134,7 +1134,7 @@ mg_canvas_backend* mg_mtl_canvas_create(mg_surface surface)
 	mg_mtl_canvas_backend* backend = 0;
 
 	mg_surface_data* surfaceData = mg_surface_data_from_handle(surface);
-	if(surfaceData && surfaceData->backend == MG_BACKEND_METAL)
+	if(surfaceData && surfaceData->api == MG_METAL)
 	{
 		mg_mtl_surface* metalSurface = (mg_mtl_surface*)surfaceData;
 

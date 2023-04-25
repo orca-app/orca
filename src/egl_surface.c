@@ -86,7 +86,7 @@ void mg_egl_surface_init(mg_egl_surface* surface)
 {
 	void* nativeLayer = surface->interface.nativeLayer((mg_surface_data*)surface);
 
-	surface->interface.backend = MG_BACKEND_GLES;
+	surface->interface.api = MG_GLES;
 
 	surface->interface.destroy = mg_egl_surface_destroy;
 	surface->interface.prepare = mg_egl_surface_prepare;
