@@ -52,8 +52,6 @@ mg_font create_font()
 
 int main()
 {
-	LogLevel(LOG_LEVEL_WARNING);
-
 	mp_init();
 	mp_clock_init(); //TODO put that in mp_init()?
 
@@ -63,11 +61,10 @@ int main()
 	mp_rect contentRect = mp_window_get_content_rect(window);
 
 	//NOTE: create surface
-	mg_surface surface = mg_surface_create_for_window(window, MG_BACKEND_DEFAULT);
+	mg_surface surface = mg_surface_create_for_window(window, MG_CANVAS);
 	mg_surface_swap_interval(surface, 0);
 
-	//TODO: create canvas
-	mg_canvas canvas = mg_canvas_create(surface);
+	mg_canvas canvas = mg_canvas_create();
 
 	if(mg_canvas_is_nil(canvas))
 	{
@@ -91,10 +88,10 @@ int main()
 		f64 startTime = mp_get_time(MP_CLOCK_MONOTONIC);
 
 		mp_pump_events(0);
-		mp_event event = {0};
-		while(mp_next_event(&event))
+		mp_event* event = 0;
+		while((event = mp_next_event(mem_scratch())) != 0)
 		{
-			switch(event.type)
+			switch(event->type)
 			{
 				case MP_EVENT_WINDOW_CLOSE:
 				{
@@ -103,23 +100,23 @@ int main()
 
 				case MP_EVENT_KEYBOARD_KEY:
 				{
-					if(event.key.action == MP_KEY_PRESS || event.key.action == MP_KEY_REPEAT)
+					if(event->key.action == MP_KEY_PRESS || event->key.action == MP_KEY_REPEAT)
 					{
-						f32 factor = (event.key.mods & MP_KEYMOD_SHIFT) ? 10 : 1;
+						f32 factor = (event->key.mods & MP_KEYMOD_SHIFT) ? 10 : 1;
 
-						if(event.key.code == MP_KEY_LEFT)
+						if(event->key.code == MP_KEY_LEFT)
 						{
 								x-=0.3*factor;
 						}
-						else if(event.key.code == MP_KEY_RIGHT)
+						else if(event->key.code == MP_KEY_RIGHT)
 						{
 								x+=0.3*factor;
 						}
-						else if(event.key.code == MP_KEY_UP)
+						else if(event->key.code == MP_KEY_UP)
 						{
 								y-=0.3*factor;
 						}
-						else if(event.key.code == MP_KEY_DOWN)
+						else if(event->key.code == MP_KEY_DOWN)
 						{
 								y+=0.3*factor;
 						}
@@ -154,55 +151,47 @@ int main()
 		x += dx;
 		y += dy;
 
+		// background
+		mg_set_color_rgba(0, 1, 1, 1);
+		mg_clear();
+
+		// head
+		mg_set_color_rgba(1, 1, 0, 1);
+
+		mg_circle_fill(x, y, 200);
+
+		// smile
+		f32 frown = frameTime > 0.033 ? -100 : 0;
+
+		mg_set_color_rgba(0, 0, 0, 1);
+		mg_set_width(20);
+		mg_move_to(x-100, y+100);
+		mg_cubic_to(x-50, y+150+frown, x+50, y+150+frown, x+100, y+100);
+		mg_stroke();
+
+		// eyes
+		mg_ellipse_fill(x-70, y-50, 30, 50);
+		mg_ellipse_fill(x+70, y-50, 30, 50);
+
+		// text
+		mg_set_color_rgba(0, 0, 1, 1);
+		mg_set_font(font);
+		mg_set_font_size(12);
+		mg_move_to(50, 600-50);
+
+		str8 text = str8_pushf(mem_scratch(),
+			                     "Milepost vector graphics test program (frame time = %fs, fps = %f)...",
+			                     frameTime,
+			                     1./frameTime);
+		mg_text_outlines(text);
+		mg_fill();
+
+		printf("Milepost vector graphics test program (frame time = %fs, fps = %f)...\n",
+			                     frameTime,
+			                     1./frameTime);
+
 		mg_surface_prepare(surface);
-
-			// background
-			mg_set_color_rgba(0, 1, 1, 1);
-			mg_clear();
-
-			mg_set_color_rgba(1, 0, 0, 1);
-			mg_set_width(2);
-			mg_rectangle_stroke(304, 100, 300, 250);
-
-			mg_clip_push(304, 100, 300, 250);
-			// head
-			mg_set_color_rgba(1, 1, 0, 1);
-
-			mg_circle_fill(x, y, 200);
-
-			// smile
-			f32 frown = frameTime > 0.033 ? -100 : 0;
-
-			mg_set_color_rgba(0, 0, 0, 1);
-			mg_set_width(20);
-			mg_move_to(x-100, y+100);
-			mg_cubic_to(x-50, y+150+frown, x+50, y+150+frown, x+100, y+100);
-			mg_stroke();
-
-			// eyes
-			mg_ellipse_fill(x-70, y-50, 30, 50);
-			mg_ellipse_fill(x+70, y-50, 30, 50);
-
-			mg_clip_pop();
-
-			// text
-			mg_set_color_rgba(0, 0, 1, 1);
-			mg_set_font(font);
-			mg_set_font_size(12);
-			mg_move_to(50, 600-50);
-
-			str8 text = str8_pushf(mem_scratch(),
-			                      "Milepost vector graphics test program (frame time = %fs, fps = %f)...",
-			                      frameTime,
-			                      1./frameTime);
-			mg_text_outlines(text);
-			mg_fill();
-
-			printf("Milepost vector graphics test program (frame time = %fs, fps = %f)...\n",
-			                      frameTime,
-			                      1./frameTime);
-
-			mg_flush();
+		mg_flush(surface);
 		mg_surface_present(surface);
 
 		mem_arena_clear(mem_scratch());

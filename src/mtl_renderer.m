@@ -23,7 +23,7 @@ const int MG_MTL_INPUT_BUFFERS_COUNT = 3,
 typedef struct mg_mtl_canvas_backend
 {
 	mg_canvas_backend interface;
-	mg_surface surface;
+	mg_mtl_surface* surface;
 
 	id<MTLComputePipelineState> pathPipeline;
 	id<MTLComputePipelineState> segmentPipeline;
@@ -64,15 +64,6 @@ typedef struct mg_mtl_image_data
 	id<MTLTexture> texture;
 } mg_mtl_image_data;
 
-
-static void mg_update_path_extents(vec4* extents, vec2 p)
-{
-	extents->x = minimum(extents->x, p.x);
-	extents->y = minimum(extents->y, p.y);
-	extents->z = maximum(extents->z, p.x);
-	extents->w = maximum(extents->w, p.y);
-}
-
 void mg_mtl_print_log(int bufferIndex, id<MTLBuffer> logBuffer, id<MTLBuffer> logOffsetBuffer)
 {
 	char* log = [logBuffer contents];
@@ -105,6 +96,14 @@ typedef struct mg_mtl_encoding_context
 	vec4 pathUserExtents;
 
 } mg_mtl_encoding_context;
+
+static void mg_update_path_extents(vec4* extents, vec2 p)
+{
+	extents->x = minimum(extents->x, p.x);
+	extents->y = minimum(extents->y, p.y);
+	extents->z = maximum(extents->z, p.x);
+	extents->w = maximum(extents->w, p.y);
+}
 
 void mg_mtl_canvas_encode_element(mg_mtl_encoding_context* context, mg_path_elt_type kind, vec2* p)
 {
@@ -145,6 +144,198 @@ void mg_mtl_canvas_encode_element(mg_mtl_encoding_context* context, mg_path_elt_
 
 		mg_update_path_extents(&context->pathScreenExtents, screenP);
 	}
+}
+
+
+bool mg_intersect_hull_legs(vec2 p0, vec2 p1, vec2 p2, vec2 p3, vec2* intersection)
+{
+	/*NOTE: check intersection of lines (p0-p1) and (p2-p3)
+
+		P = p0 + u(p1-p0)
+		P = p2 + w(p3-p2)
+	*/
+	bool found = false;
+
+	f32 den = (p0.x - p1.x)*(p2.y - p3.y) - (p0.y - p1.y)*(p2.x - p3.x);
+	if(fabs(den) > 0.0001)
+	{
+		f32 u = ((p0.x - p2.x)*(p2.y - p3.y) - (p0.y - p2.y)*(p2.x - p3.x))/den;
+		f32 w = ((p0.x - p2.x)*(p0.y - p1.y) - (p0.y - p2.y)*(p0.x - p1.x))/den;
+
+		intersection->x = p0.x + u*(p1.x - p0.x);
+		intersection->y = p0.y + u*(p1.y - p0.y);
+		found = true;
+	}
+	return(found);
+}
+
+bool mg_offset_hull(int count, vec2* p, vec2* result, f32 offset)
+{
+	//NOTE: we should have no more than two coincident points here. This means the leg between
+	//      those two points can't be offset, but we can set a double point at the start of first leg,
+	//      end of first leg, or we can join the first and last leg to create a missing middle one
+
+	vec2 legs[3][2] = {0};
+	bool valid[3] = {0};
+
+	for(int i=0; i<count-1; i++)
+	{
+		vec2 n = {p[i].y - p[i+1].y,
+	              p[i+1].x - p[i].x};
+
+		f32 norm = sqrt(n.x*n.x + n.y*n.y);
+		if(norm >= 1e-6)
+		{
+			n = vec2_mul(offset/norm, n);
+			legs[i][0] = vec2_add(p[i], n);
+			legs[i][1] = vec2_add(p[i+1], n);
+			valid[i] = true;
+		}
+	}
+
+	//NOTE: now we find intersections
+
+	// first point is either the start of the first or second leg
+	if(valid[0])
+	{
+		result[0] = legs[0][0];
+	}
+	else
+	{
+		ASSERT(valid[1]);
+		result[0] = legs[1][0];
+	}
+
+	for(int i=1; i<count-1; i++)
+	{
+		//NOTE: we're computing the control point i, at the end of leg (i-1)
+
+		if(!valid[i-1])
+		{
+			ASSERT(valid[i]);
+			result[i] = legs[i][0];
+		}
+		else if(!valid[i])
+		{
+			ASSERT(valid[i-1]);
+			result[i] = legs[i-1][0];
+		}
+		else
+		{
+			if(!mg_intersect_hull_legs(legs[i-1][0], legs[i-1][1], legs[i][0], legs[i][1], &result[i]))
+			{
+				// legs don't intersect.
+				return(false);
+			}
+		}
+	}
+
+	if(valid[count-2])
+	{
+		result[count-1] = legs[count-2][1];
+	}
+	else
+	{
+		ASSERT(valid[count-3]);
+		result[count-1] = legs[count-3][1];
+	}
+
+	return(true);
+}
+
+vec2 mg_quadratic_get_point(vec2 p[3], f32 t)
+{
+	vec2 r;
+
+	f32 oneMt = 1-t;
+	f32 oneMt2 = Square(oneMt);
+	f32 t2 = Square(t);
+
+	r.x = oneMt2*p[0].x + 2*oneMt*t*p[1].x + t2*p[2].x;
+	r.y = oneMt2*p[0].y + 2*oneMt*t*p[1].y + t2*p[2].y;
+
+	return(r);
+}
+
+void mg_quadratic_split(vec2 p[3], f32 t, vec2 outLeft[3], vec2 outRight[3])
+{
+	//DEBUG
+	__mgCurrentCanvas->splitCount++;
+
+	//NOTE(martin): split bezier curve p at parameter t, using De Casteljau's algorithm
+	//              the q_n are the points along the hull's segments at parameter t
+	//              s is the split point.
+
+	f32 oneMt = 1-t;
+
+	vec2 q0 = {oneMt*p[0].x + t*p[1].x,
+		   oneMt*p[0].y + t*p[1].y};
+
+	vec2 q1 = {oneMt*p[1].x + t*p[2].x,
+		   oneMt*p[1].y + t*p[2].y};
+
+	vec2 s = {oneMt*q0.x + t*q1.x,
+		   oneMt*q0.y + t*q1.y};
+
+	outLeft[0] = p[0];
+	outLeft[1] = q0;
+	outLeft[2] = s;
+
+	outRight[0] = s;
+	outRight[1] = q1;
+	outRight[2] = p[2];
+}
+
+vec2 mg_cubic_get_point(vec2 p[4], f32 t)
+{
+	vec2 r;
+
+	f32 oneMt = 1-t;
+	f32 oneMt2 = Square(oneMt);
+	f32 oneMt3 = oneMt2*oneMt;
+	f32 t2 = Square(t);
+	f32 t3 = t2*t;
+
+	r.x = oneMt3*p[0].x + 3*oneMt2*t*p[1].x + 3*oneMt*t2*p[2].x + t3*p[3].x;
+	r.y = oneMt3*p[0].y + 3*oneMt2*t*p[1].y + 3*oneMt*t2*p[2].y + t3*p[3].y;
+
+	return(r);
+}
+
+void mg_cubic_split(vec2 p[4], f32 t, vec2 outLeft[4], vec2 outRight[4])
+{
+	//NOTE(martin): split bezier curve p at parameter t, using De Casteljau's algorithm
+	//              the q_n are the points along the hull's segments at parameter t
+	//              the r_n are the points along the (q_n, q_n+1) segments at parameter t
+	//              s is the split point.
+
+	vec2 q0 = {(1-t)*p[0].x + t*p[1].x,
+	           (1-t)*p[0].y + t*p[1].y};
+
+	vec2 q1 = {(1-t)*p[1].x + t*p[2].x,
+	           (1-t)*p[1].y + t*p[2].y};
+
+	vec2 q2 = {(1-t)*p[2].x + t*p[3].x,
+	           (1-t)*p[2].y + t*p[3].y};
+
+	vec2 r0 = {(1-t)*q0.x + t*q1.x,
+	           (1-t)*q0.y + t*q1.y};
+
+	vec2 r1 = {(1-t)*q1.x + t*q2.x,
+	           (1-t)*q1.y + t*q2.y};
+
+	vec2 s = {(1-t)*r0.x + t*r1.x,
+	          (1-t)*r0.y + t*r1.y};;
+
+	outLeft[0] = p[0];
+	outLeft[1] = q0;
+	outLeft[2] = r0;
+	outLeft[3] = s;
+
+	outRight[0] = s;
+	outRight[1] = r1;
+	outRight[2] = q2;
+	outRight[3] = p[3];
 }
 
 void mg_mtl_render_stroke_line(mg_mtl_encoding_context* context, vec2* p)
@@ -771,40 +962,36 @@ void mg_mtl_render_batch(mg_mtl_canvas_backend* backend,
 
 void mg_mtl_canvas_resize(mg_mtl_canvas_backend* backend, vec2 size)
 {
-	mg_mtl_surface* surface = (mg_mtl_surface*)mg_surface_data_from_handle(backend->surface);
-	if(surface)
+	@autoreleasepool
 	{
-		@autoreleasepool
+		if(backend->screenTilesBuffer)
 		{
-			if(backend->screenTilesBuffer)
-			{
-				[backend->screenTilesBuffer release];
-				backend->screenTilesBuffer = nil;
-			}
-			int tileSize = MG_MTL_TILE_SIZE;
-			int nTilesX = (int)(size.x + tileSize - 1)/tileSize;
-			int nTilesY = (int)(size.y + tileSize - 1)/tileSize;
-			MTLResourceOptions bufferOptions = MTLResourceStorageModePrivate;
-			backend->screenTilesBuffer = [surface->device newBufferWithLength: nTilesX*nTilesY*sizeof(int)
-			                                              options: bufferOptions];
-
-			if(backend->outTexture)
-	    	{
-				[backend->outTexture release];
-				backend->outTexture = nil;
-	    	}
-			MTLTextureDescriptor* texDesc = [[MTLTextureDescriptor alloc] init];
-			texDesc.textureType = MTLTextureType2D;
-			texDesc.storageMode = MTLStorageModePrivate;
-			texDesc.usage = MTLTextureUsageShaderRead | MTLTextureUsageShaderWrite;
-			texDesc.pixelFormat = MTLPixelFormatRGBA8Unorm;
-			texDesc.width = size.x;
-			texDesc.height = size.y;
-
-			backend->outTexture = [surface->device newTextureWithDescriptor:texDesc];
-
-			backend->frameSize = size;
+			[backend->screenTilesBuffer release];
+			backend->screenTilesBuffer = nil;
 		}
+		int tileSize = MG_MTL_TILE_SIZE;
+		int nTilesX = (int)(size.x + tileSize - 1)/tileSize;
+		int nTilesY = (int)(size.y + tileSize - 1)/tileSize;
+		MTLResourceOptions bufferOptions = MTLResourceStorageModePrivate;
+		backend->screenTilesBuffer = [backend->surface->device newBufferWithLength: nTilesX*nTilesY*sizeof(int)
+		                                              options: bufferOptions];
+
+		if(backend->outTexture)
+	    {
+			[backend->outTexture release];
+			backend->outTexture = nil;
+	    }
+		MTLTextureDescriptor* texDesc = [[MTLTextureDescriptor alloc] init];
+		texDesc.textureType = MTLTextureType2D;
+		texDesc.storageMode = MTLStorageModePrivate;
+		texDesc.usage = MTLTextureUsageShaderRead | MTLTextureUsageShaderWrite;
+		texDesc.pixelFormat = MTLPixelFormatRGBA8Unorm;
+		texDesc.width = size.x;
+		texDesc.height = size.y;
+
+		backend->outTexture = [backend->surface->device newTextureWithDescriptor:texDesc];
+
+		backend->frameSize = size;
 	}
 }
 
@@ -829,10 +1016,10 @@ void mg_mtl_canvas_render(mg_canvas_backend* interface,
 	/////////////////////////////////////////////////////////////////////////////////////
 
 	//NOTE: prepare rendering
-	mg_mtl_surface* surface = (mg_mtl_surface*)mg_surface_data_from_handle(backend->surface);
-	ASSERT(surface && surface->interface.api == MG_METAL);
+	mg_mtl_surface* surface = backend->surface;
 
-	mp_rect frame = mg_surface_get_frame(backend->surface);
+	mp_rect frame = surface->interface.getFrame((mg_surface_data*)surface);
+
 	f32 scale = surface->mtlLayer.contentsScale;
 	vec2 viewportSize = {frame.w * scale, frame.h * scale};
 	int tileSize = MG_MTL_TILE_SIZE;
@@ -1068,34 +1255,31 @@ mg_image_data* mg_mtl_canvas_image_create(mg_canvas_backend* interface, vec2 siz
 {
 	mg_mtl_image_data* image = 0;
 	mg_mtl_canvas_backend* backend = (mg_mtl_canvas_backend*)interface;
-	mg_mtl_surface* surface = (mg_mtl_surface*)mg_surface_data_from_handle(backend->surface);
+	mg_mtl_surface* surface = backend->surface;
 
-	if(surface && surface->interface.api == MG_METAL)
+	@autoreleasepool
 	{
-		@autoreleasepool{
+		image = malloc_type(mg_mtl_image_data);
+		if(image)
+		{
+			MTLTextureDescriptor* texDesc = [[MTLTextureDescriptor alloc] init];
+			texDesc.textureType = MTLTextureType2D;
+			texDesc.storageMode = MTLStorageModeManaged;
+			texDesc.usage = MTLTextureUsageShaderRead;
+			texDesc.pixelFormat = MTLPixelFormatRGBA8Unorm;
+			texDesc.width = size.x;
+			texDesc.height = size.y;
 
-			image = malloc_type(mg_mtl_image_data);
-			if(image)
+			image->texture = [surface->device newTextureWithDescriptor:texDesc];
+			if(image->texture != nil)
 			{
-				MTLTextureDescriptor* texDesc = [[MTLTextureDescriptor alloc] init];
-				texDesc.textureType = MTLTextureType2D;
-				texDesc.storageMode = MTLStorageModeManaged;
-				texDesc.usage = MTLTextureUsageShaderRead;
-				texDesc.pixelFormat = MTLPixelFormatRGBA8Unorm;
-				texDesc.width = size.x;
-				texDesc.height = size.y;
-
-				image->texture = [surface->device newTextureWithDescriptor:texDesc];
-				if(image->texture != nil)
-				{
-					[image->texture retain];
-					image->interface.size = size;
-				}
-				else
-				{
-					free(image);
-					image = 0;
-				}
+				[image->texture retain];
+				image->interface.size = size;
+			}
+			else
+			{
+				free(image);
+				image = 0;
 			}
 		}
 	}
@@ -1129,153 +1313,166 @@ const u32 MG_MTL_PATH_BUFFER_SIZE       = (4<<20)*sizeof(mg_mtl_path),
           MG_MTL_TILE_QUEUE_BUFFER_SIZE = (4<<20)*sizeof(mg_mtl_tile_queue),
           MG_MTL_TILE_OP_BUFFER_SIZE    = (4<<20)*sizeof(mg_mtl_tile_op);
 
-mg_canvas_backend* mg_mtl_canvas_create(mg_surface surface)
+mg_canvas_backend* mtl_canvas_backend_create(mg_mtl_surface* surface)
 {
 	mg_mtl_canvas_backend* backend = 0;
 
-	mg_surface_data* surfaceData = mg_surface_data_from_handle(surface);
-	if(surfaceData && surfaceData->api == MG_METAL)
-	{
-		mg_mtl_surface* metalSurface = (mg_mtl_surface*)surfaceData;
+	backend = malloc_type(mg_mtl_canvas_backend);
+	memset(backend, 0, sizeof(mg_mtl_canvas_backend));
 
-		backend = malloc_type(mg_mtl_canvas_backend);
-		memset(backend, 0, sizeof(mg_mtl_canvas_backend));
+	backend->msaaCount = MG_MTL_MSAA_COUNT;
+	backend->surface = surface;
 
-		backend->msaaCount = MG_MTL_MSAA_COUNT;
-		backend->surface = surface;
+	//NOTE(martin): setup interface functions
+	backend->interface.destroy = mg_mtl_canvas_destroy;
+	backend->interface.render = mg_mtl_canvas_render;
+	backend->interface.imageCreate = mg_mtl_canvas_image_create;
+	backend->interface.imageDestroy = mg_mtl_canvas_image_destroy;
+	backend->interface.imageUploadRegion = mg_mtl_canvas_image_upload_region;
 
-		//NOTE(martin): setup interface functions
-		backend->interface.destroy = mg_mtl_canvas_destroy;
-		backend->interface.render = mg_mtl_canvas_render;
-		backend->interface.imageCreate = mg_mtl_canvas_image_create;
-		backend->interface.imageDestroy = mg_mtl_canvas_image_destroy;
-		backend->interface.imageUploadRegion = mg_mtl_canvas_image_upload_region;
+	@autoreleasepool{
+		//NOTE: load metal library
+		str8 shaderPath = mp_app_get_resource_path(mem_scratch(), "mtl_renderer.metallib");
+		NSString* metalFileName = [[NSString alloc] initWithBytes: shaderPath.ptr length:shaderPath.len encoding: NSUTF8StringEncoding];
+		NSError* err = 0;
+		id<MTLLibrary> library = [surface->device newLibraryWithFile: metalFileName error:&err];
+		if(err != nil)
+		{
+			const char* errStr = [[err localizedDescription] UTF8String];
+			log_error("error : %s\n", errStr);
+			return(0);
+		}
+		id<MTLFunction> pathFunction = [library newFunctionWithName:@"mtl_path_setup"];
+		id<MTLFunction> segmentFunction = [library newFunctionWithName:@"mtl_segment_setup"];
+		id<MTLFunction> backpropFunction = [library newFunctionWithName:@"mtl_backprop"];
+		id<MTLFunction> mergeFunction = [library newFunctionWithName:@"mtl_merge"];
+		id<MTLFunction> rasterFunction = [library newFunctionWithName:@"mtl_raster"];
+		id<MTLFunction> vertexFunction = [library newFunctionWithName:@"mtl_vertex_shader"];
+		id<MTLFunction> fragmentFunction = [library newFunctionWithName:@"mtl_fragment_shader"];
 
-		@autoreleasepool{
-			//NOTE: load metal library
-			str8 shaderPath = mp_app_get_resource_path(mem_scratch(), "mtl_renderer.metallib");
-			NSString* metalFileName = [[NSString alloc] initWithBytes: shaderPath.ptr length:shaderPath.len encoding: NSUTF8StringEncoding];
-			NSError* err = 0;
-			id<MTLLibrary> library = [metalSurface->device newLibraryWithFile: metalFileName error:&err];
-			if(err != nil)
-			{
-				const char* errStr = [[err localizedDescription] UTF8String];
-				log_error("error : %s\n", errStr);
-				return(0);
-			}
-			id<MTLFunction> pathFunction = [library newFunctionWithName:@"mtl_path_setup"];
-			id<MTLFunction> segmentFunction = [library newFunctionWithName:@"mtl_segment_setup"];
-			id<MTLFunction> backpropFunction = [library newFunctionWithName:@"mtl_backprop"];
-			id<MTLFunction> mergeFunction = [library newFunctionWithName:@"mtl_merge"];
-			id<MTLFunction> rasterFunction = [library newFunctionWithName:@"mtl_raster"];
-			id<MTLFunction> vertexFunction = [library newFunctionWithName:@"mtl_vertex_shader"];
-			id<MTLFunction> fragmentFunction = [library newFunctionWithName:@"mtl_fragment_shader"];
+		//NOTE: create pipelines
+		NSError* error = NULL;
 
-			//NOTE: create pipelines
-			NSError* error = NULL;
+		backend->pathPipeline = [surface->device newComputePipelineStateWithFunction: pathFunction
+		                                              error:&error];
 
-			backend->pathPipeline = [metalSurface->device newComputePipelineStateWithFunction: pathFunction
-		                                                                           	error:&error];
+		backend->segmentPipeline = [surface->device newComputePipelineStateWithFunction: segmentFunction
+		                                                 error:&error];
 
-			backend->segmentPipeline = [metalSurface->device newComputePipelineStateWithFunction: segmentFunction
-		                                                                           	error:&error];
+		backend->backpropPipeline = [surface->device newComputePipelineStateWithFunction: backpropFunction
+		                                                 error:&error];
 
-			backend->backpropPipeline = [metalSurface->device newComputePipelineStateWithFunction: backpropFunction
-		                                                                           	error:&error];
+		backend->mergePipeline = [surface->device newComputePipelineStateWithFunction: mergeFunction
+		                                                 error:&error];
 
-			backend->mergePipeline = [metalSurface->device newComputePipelineStateWithFunction: mergeFunction
-		                                                                           	error:&error];
+		backend->rasterPipeline = [surface->device newComputePipelineStateWithFunction: rasterFunction
+		                                                 error:&error];
 
-			backend->rasterPipeline = [metalSurface->device newComputePipelineStateWithFunction: rasterFunction
-		                                                                           	error:&error];
+		MTLRenderPipelineDescriptor *pipelineStateDescriptor = [[MTLRenderPipelineDescriptor alloc] init];
+		pipelineStateDescriptor.label = @"blit pipeline";
+		pipelineStateDescriptor.vertexFunction = vertexFunction;
+		pipelineStateDescriptor.fragmentFunction = fragmentFunction;
+		pipelineStateDescriptor.colorAttachments[0].pixelFormat = surface->mtlLayer.pixelFormat;
+		pipelineStateDescriptor.colorAttachments[0].blendingEnabled = YES;
+		pipelineStateDescriptor.colorAttachments[0].rgbBlendOperation = MTLBlendOperationAdd;
+		pipelineStateDescriptor.colorAttachments[0].sourceRGBBlendFactor = MTLBlendFactorOne;
+		pipelineStateDescriptor.colorAttachments[0].destinationRGBBlendFactor = MTLBlendFactorOneMinusSourceAlpha;
+		pipelineStateDescriptor.colorAttachments[0].alphaBlendOperation = MTLBlendOperationAdd;
+		pipelineStateDescriptor.colorAttachments[0].sourceAlphaBlendFactor = MTLBlendFactorOne;
+		pipelineStateDescriptor.colorAttachments[0].destinationAlphaBlendFactor = MTLBlendFactorOneMinusSourceAlpha;
 
-			MTLRenderPipelineDescriptor *pipelineStateDescriptor = [[MTLRenderPipelineDescriptor alloc] init];
-			pipelineStateDescriptor.label = @"blit pipeline";
-			pipelineStateDescriptor.vertexFunction = vertexFunction;
-			pipelineStateDescriptor.fragmentFunction = fragmentFunction;
-			pipelineStateDescriptor.colorAttachments[0].pixelFormat = metalSurface->mtlLayer.pixelFormat;
-			pipelineStateDescriptor.colorAttachments[0].blendingEnabled = YES;
-			pipelineStateDescriptor.colorAttachments[0].rgbBlendOperation = MTLBlendOperationAdd;
-			pipelineStateDescriptor.colorAttachments[0].sourceRGBBlendFactor = MTLBlendFactorOne;
-			pipelineStateDescriptor.colorAttachments[0].destinationRGBBlendFactor = MTLBlendFactorOneMinusSourceAlpha;
-			pipelineStateDescriptor.colorAttachments[0].alphaBlendOperation = MTLBlendOperationAdd;
-			pipelineStateDescriptor.colorAttachments[0].sourceAlphaBlendFactor = MTLBlendFactorOne;
-			pipelineStateDescriptor.colorAttachments[0].destinationAlphaBlendFactor = MTLBlendFactorOneMinusSourceAlpha;
+		backend->blitPipeline = [surface->device newRenderPipelineStateWithDescriptor: pipelineStateDescriptor error:&err];
 
-			backend->blitPipeline = [metalSurface->device newRenderPipelineStateWithDescriptor: pipelineStateDescriptor error:&err];
+		//NOTE: create textures
+		mp_rect frame = surface->interface.getFrame((mg_surface_data*)surface);
+		f32 scale = surface->mtlLayer.contentsScale;
 
-			//NOTE: create textures
-			mp_rect frame = mg_surface_get_frame(surface);
-			f32 scale = metalSurface->mtlLayer.contentsScale;
+		backend->frameSize = (vec2){frame.w*scale, frame.h*scale};
 
-			backend->frameSize = (vec2){frame.w*scale, frame.h*scale};
+		MTLTextureDescriptor* texDesc = [[MTLTextureDescriptor alloc] init];
+		texDesc.textureType = MTLTextureType2D;
+		texDesc.storageMode = MTLStorageModePrivate;
+		texDesc.usage = MTLTextureUsageShaderRead | MTLTextureUsageShaderWrite;
+		texDesc.pixelFormat = MTLPixelFormatRGBA8Unorm;
+		texDesc.width = backend->frameSize.x;
+		texDesc.height = backend->frameSize.y;
 
-			MTLTextureDescriptor* texDesc = [[MTLTextureDescriptor alloc] init];
-			texDesc.textureType = MTLTextureType2D;
-			texDesc.storageMode = MTLStorageModePrivate;
-			texDesc.usage = MTLTextureUsageShaderRead | MTLTextureUsageShaderWrite;
-			texDesc.pixelFormat = MTLPixelFormatRGBA8Unorm;
-			texDesc.width = backend->frameSize.x;
-			texDesc.height = backend->frameSize.y;
+		backend->outTexture = [surface->device newTextureWithDescriptor:texDesc];
 
-			backend->outTexture = [metalSurface->device newTextureWithDescriptor:texDesc];
+		//NOTE: create buffers
 
-			//NOTE: create buffers
+		backend->bufferSemaphore = dispatch_semaphore_create(MG_MTL_INPUT_BUFFERS_COUNT);
+		backend->bufferIndex = 0;
 
-			backend->bufferSemaphore = dispatch_semaphore_create(MG_MTL_INPUT_BUFFERS_COUNT);
-			backend->bufferIndex = 0;
+		MTLResourceOptions bufferOptions = MTLResourceCPUCacheModeWriteCombined
+		                                 | MTLResourceStorageModeShared;
 
-			MTLResourceOptions bufferOptions = MTLResourceCPUCacheModeWriteCombined
-			                                 | MTLResourceStorageModeShared;
+		for(int i=0; i<MG_MTL_INPUT_BUFFERS_COUNT; i++)
+		{
+			backend->pathBuffer[i] = [surface->device newBufferWithLength: MG_MTL_PATH_BUFFER_SIZE
+			                                               options: bufferOptions];
 
-			for(int i=0; i<MG_MTL_INPUT_BUFFERS_COUNT; i++)
-			{
-				backend->pathBuffer[i] = [metalSurface->device newBufferWithLength: MG_MTL_PATH_BUFFER_SIZE
-			                                                 	options: bufferOptions];
+			backend->elementBuffer[i] = [surface->device newBufferWithLength: MG_MTL_ELEMENT_BUFFER_SIZE
+			                                                  options: bufferOptions];
+		}
 
-				backend->elementBuffer[i] = [metalSurface->device newBufferWithLength: MG_MTL_ELEMENT_BUFFER_SIZE
-			                                                   	options: bufferOptions];
-			}
+		bufferOptions = MTLResourceStorageModePrivate;
+		backend->segmentBuffer = [surface->device newBufferWithLength: MG_MTL_SEGMENT_BUFFER_SIZE
+		                                               options: bufferOptions];
 
-			bufferOptions = MTLResourceStorageModePrivate;
-			backend->segmentBuffer = [metalSurface->device newBufferWithLength: MG_MTL_SEGMENT_BUFFER_SIZE
-			                                                   options: bufferOptions];
+		backend->segmentCountBuffer = [surface->device newBufferWithLength: sizeof(int)
+		                                                    options: bufferOptions];
 
-			backend->segmentCountBuffer = [metalSurface->device newBufferWithLength: sizeof(int)
-			                                                   options: bufferOptions];
+		backend->pathQueueBuffer = [surface->device newBufferWithLength: MG_MTL_PATH_QUEUE_BUFFER_SIZE
+		                                                 options: bufferOptions];
 
+		backend->tileQueueBuffer = [surface->device newBufferWithLength: MG_MTL_TILE_QUEUE_BUFFER_SIZE
+		                                                 options: bufferOptions];
 
-			backend->pathQueueBuffer = [metalSurface->device newBufferWithLength: MG_MTL_PATH_QUEUE_BUFFER_SIZE
-			                                                   options: bufferOptions];
+		backend->tileQueueCountBuffer = [surface->device newBufferWithLength: sizeof(int)
+		                                                      options: bufferOptions];
 
-			backend->tileQueueBuffer = [metalSurface->device newBufferWithLength: MG_MTL_TILE_QUEUE_BUFFER_SIZE
-			                                                   options: bufferOptions];
+		backend->tileOpBuffer = [surface->device newBufferWithLength: MG_MTL_TILE_OP_BUFFER_SIZE
+		                                              options: bufferOptions];
 
-			backend->tileQueueCountBuffer = [metalSurface->device newBufferWithLength: sizeof(int)
-			                                                   options: bufferOptions];
+		backend->tileOpCountBuffer = [surface->device newBufferWithLength: sizeof(int)
+		                                                   options: bufferOptions];
 
-			backend->tileOpBuffer = [metalSurface->device newBufferWithLength: MG_MTL_TILE_OP_BUFFER_SIZE
-			                                                   options: bufferOptions];
+		int tileSize = MG_MTL_TILE_SIZE;
+		int nTilesX = (int)(frame.w * scale + tileSize - 1)/tileSize;
+		int nTilesY = (int)(frame.h * scale + tileSize - 1)/tileSize;
+		backend->screenTilesBuffer = [surface->device newBufferWithLength: nTilesX*nTilesY*sizeof(int)
+		                                                   options: bufferOptions];
 
-			backend->tileOpCountBuffer = [metalSurface->device newBufferWithLength: sizeof(int)
-			                                                   options: bufferOptions];
+		bufferOptions = MTLResourceStorageModeShared;
+		for(int i=0; i<MG_MTL_INPUT_BUFFERS_COUNT; i++)
+		{
+			backend->logBuffer[i] = [surface->device newBufferWithLength: 1<<20
+			                                              options: bufferOptions];
 
-			int tileSize = MG_MTL_TILE_SIZE;
-			int nTilesX = (int)(frame.w * scale + tileSize - 1)/tileSize;
-			int nTilesY = (int)(frame.h * scale + tileSize - 1)/tileSize;
-			backend->screenTilesBuffer = [metalSurface->device newBufferWithLength: nTilesX*nTilesY*sizeof(int)
-			                                                   options: bufferOptions];
-
-			bufferOptions = MTLResourceStorageModeShared;
-			for(int i=0; i<MG_MTL_INPUT_BUFFERS_COUNT; i++)
-			{
-				backend->logBuffer[i] = [metalSurface->device newBufferWithLength: 1<<20
-			                                                   options: bufferOptions];
-
-				backend->logOffsetBuffer[i] = [metalSurface->device newBufferWithLength: sizeof(int)
-			                                                   options: bufferOptions];
-			}
+			backend->logOffsetBuffer[i] = [surface->device newBufferWithLength: sizeof(int)
+			                                                    options: bufferOptions];
 		}
 	}
 	return((mg_canvas_backend*)backend);
+}
+
+mg_surface_data* mtl_canvas_surface_create_for_window(mp_window window)
+{
+	mg_mtl_surface* surface = (mg_mtl_surface*)mg_mtl_surface_create_for_window(window);
+
+	if(surface)
+	{
+		surface->interface.backend = mtl_canvas_backend_create(surface);
+		if(surface->interface.backend)
+		{
+			surface->interface.api = MG_CANVAS;
+		}
+		else
+		{
+			surface->interface.destroy((mg_surface_data*)surface);
+			surface = 0;
+		}
+	}
+	return((mg_surface_data*)surface);
 }

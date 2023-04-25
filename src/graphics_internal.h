@@ -20,6 +20,7 @@ extern "C" {
 // surface interface
 //---------------------------------------------------------------
 typedef struct mg_surface_data mg_surface_data;
+typedef struct mg_canvas_backend mg_canvas_backend;
 
 typedef void (*mg_surface_destroy_proc)(mg_surface_data* surface);
 typedef void (*mg_surface_prepare_proc)(mg_surface_data* surface);
@@ -51,6 +52,9 @@ typedef struct mg_surface_data
 	mg_surface_native_layer_proc nativeLayer;
 	mg_surface_remote_id_proc remoteID;
 	mg_surface_host_connect_proc hostConnect;
+
+	mg_canvas_backend* backend;
+
 } mg_surface_data;
 
 mg_surface mg_surface_alloc_handle(mg_surface_data* surface);
@@ -69,6 +73,7 @@ typedef struct mg_image_data
 {
 	list_elt listElt;
 	u32 generation;
+	mg_surface surface;
 	vec2 size;
 
 } mg_image_data;
@@ -104,7 +109,6 @@ typedef struct mg_vertex_layout
 
 } mg_vertex_layout;
 
-typedef struct mg_canvas_backend mg_canvas_backend;
 
 typedef void (*mg_canvas_backend_destroy_proc)(mg_canvas_backend* backend);
 typedef void (*mg_canvas_backend_begin_proc)(mg_canvas_backend* backend, mg_color clearColor);

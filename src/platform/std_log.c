@@ -8,7 +8,7 @@
 #include<stdio.h>
 #include"platform_log.c"
 
-#if PLATFORM_WIN32 || PLATFORM_WIN64
+#if PLATFORM_WINDOWS
 	#include<io.h>
 	#define isatty _isatty
 	#define fileno _fileno

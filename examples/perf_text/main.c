@@ -94,7 +94,6 @@ mg_font create_font(const char* path)
 
 int main()
 {
-	LogLevel(LOG_LEVEL_MESSAGE);
 	mp_init();
 	mp_clock_init();
 
@@ -105,10 +104,10 @@ int main()
 
 	//NOTE: create surface, canvas and font
 
-	mg_surface surface = mg_surface_create_for_window(window, MG_BACKEND_DEFAULT);
+	mg_surface surface = mg_surface_create_for_window(window, MG_CANVAS);
 	mg_surface_swap_interval(surface, 0);
 
-	mg_canvas canvas = mg_canvas_create(surface);
+	mg_canvas canvas = mg_canvas_create();
 
 	const int fontCount = 3;
 	int fontIndex = 0;
@@ -153,15 +152,19 @@ int main()
 	f32 startX = 10;
 	f32 startY = 10 + lineHeights[fontIndex];
 
+	mp_input_state inputState = {0};
+
 	while(!mp_should_quit())
 	{
 		f64 startFrameTime = mp_get_time(MP_CLOCK_MONOTONIC);
 
 		mp_pump_events(0);
-		mp_event event = {0};
-		while(mp_next_event(&event))
+		mp_event* event = 0;
+		while((event = mp_next_event(mem_scratch())) != 0)
 		{
-			switch(event.type)
+			mp_input_process_event(&inputState, event);
+
+			switch(event->type)
 			{
 				case MP_EVENT_WINDOW_CLOSE:
 				{
@@ -170,12 +173,12 @@ int main()
 
 				case MP_EVENT_MOUSE_BUTTON:
 				{
-					if(event.key.code == MP_MOUSE_LEFT)
+					if(event->key.code == MP_MOUSE_LEFT)
 					{
-						if(event.key.action == MP_KEY_PRESS)
+						if(event->key.action == MP_KEY_PRESS)
 						{
 							tracked = true;
-							vec2 mousePos = mp_mouse_position();
+							vec2 mousePos = mp_mouse_position(&inputState);
 							trackPoint.x = mousePos.x/zoom - startX;
 							trackPoint.y = mousePos.y/zoom - startY;
 						}
@@ -188,11 +191,11 @@ int main()
 
 				case MP_EVENT_MOUSE_WHEEL:
 				{
-					vec2 mousePos = mp_mouse_position();
+					vec2 mousePos = mp_mouse_position(&inputState);
 					f32 trackX = mousePos.x/zoom - startX;
 					f32 trackY = mousePos.y/zoom - startY;
 
-					zoom *= 1 + event.move.deltaY * 0.01;
+					zoom *= 1 + event->move.deltaY * 0.01;
 					zoom = Clamp(zoom, 0.2, 10);
 
 					startX = mousePos.x/zoom - trackX;
@@ -201,7 +204,7 @@ int main()
 
 				case MP_EVENT_KEYBOARD_KEY:
 				{
-					if(event.key.code == MP_KEY_SPACE && event.key.action == MP_KEY_PRESS)
+					if(event->key.code == MP_KEY_SPACE && event->key.action == MP_KEY_PRESS)
 					{
 						fontIndex = (fontIndex+1)%fontCount;
 					}
@@ -214,7 +217,7 @@ int main()
 
 		if(tracked)
 		{
-			vec2 mousePos = mp_mouse_position();
+			vec2 mousePos = mp_mouse_position(&inputState);
 			startX = mousePos.x/zoom - trackPoint.x;
 			startY = mousePos.y/zoom - trackPoint.y;
 		}
@@ -289,8 +292,7 @@ int main()
 		f64 startFlushTime = mp_get_time(MP_CLOCK_MONOTONIC);
 
 		mg_surface_prepare(surface);
-
-			mg_flush();
+		mg_flush(surface);
 
 		f64 startPresentTime = mp_get_time(MP_CLOCK_MONOTONIC);
 		mg_surface_present(surface);
@@ -306,6 +308,7 @@ int main()
 		      	(startPresentTime - startFlushTime)*1000,
 		      	(endFrameTime - startPresentTime)*1000);
 
+		mp_input_next_frame(&inputState);
 		mem_arena_clear(mem_scratch());
 	}
 

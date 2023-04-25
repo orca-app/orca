@@ -2293,7 +2293,7 @@ typedef struct ui_edit_command
 
 } ui_edit_command;
 
-#if PLATFORM_WIN64
+#if PLATFORM_WINDOWS
 	#define OS_COPY_PASTE_MOD MP_KEYMOD_CTRL
 #elif PLATFORM_MACOS
 	#define OS_COPY_PASTE_MOD MP_KEYMOD_CMD

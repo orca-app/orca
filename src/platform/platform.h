@@ -33,7 +33,7 @@
 // OS identification
 //-----------------------------------------------------------------
 #if defined(_WIN64)
-	#define PLATFORM_WIN64 1
+	#define PLATFORM_WINDOWS 1
 #elif defined(_WIN32)
 	#error "Unsupported OS (32bit only version of Windows)"
 #elif defined(__APPLE__) && defined(__MACH__)

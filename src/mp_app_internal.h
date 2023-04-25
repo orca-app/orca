@@ -14,9 +14,9 @@
 #include"platform.h"
 #include"ringbuffer.h"
 
-#if defined(PLATFORM_WIN64) || defined(PLATFORM_WIN32)
+#if PLATFORM_WINDOWS
 	#include"win32_app.h"
-#elif defined(PLATFORM_MACOS)
+#elif PLATFORM_MACOS
 	#include"osx_app.h"
 #else
 	#error "platform not supported yet"

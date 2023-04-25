@@ -15,8 +15,6 @@
 
 #include"milepost.h"
 
-#define LOG_SUBSYSTEM "Main"
-
 #include"tiger.c"
 
 mg_font create_font()
@@ -53,8 +51,6 @@ mg_font create_font()
 
 int main()
 {
-	LogLevel(LOG_LEVEL_WARNING);
-
 	mp_init();
 	mp_clock_init(); //TODO put that in mp_init()?
 
@@ -64,11 +60,11 @@ int main()
 	mp_rect contentRect = mp_window_get_content_rect(window);
 
 	//NOTE: create surface
-	mg_surface surface = mg_surface_create_for_window(window, MG_BACKEND_DEFAULT);
+	mg_surface surface = mg_surface_create_for_window(window, MG_CANVAS);
 	mg_surface_swap_interval(surface, 0);
 
 	//TODO: create canvas
-	mg_canvas canvas = mg_canvas_create(surface);
+	mg_canvas canvas = mg_canvas_create();
 
 	if(mg_canvas_is_nil(canvas))
 	{
@@ -92,15 +88,19 @@ int main()
 
 	f64 frameTime = 0;
 
+	mp_input_state inputState = {0};
+
 	while(!mp_should_quit())
 	{
 		f64 startTime = mp_get_time(MP_CLOCK_MONOTONIC);
 
 		mp_pump_events(0);
-		mp_event event = {0};
-		while(mp_next_event(&event))
+		mp_event* event = 0;
+		while((event = mp_next_event(mem_scratch())) != 0)
 		{
-			switch(event.type)
+			mp_input_process_event(&inputState, event);
+
+			switch(event->type)
 			{
 				case MP_EVENT_WINDOW_CLOSE:
 				{
@@ -109,18 +109,18 @@ int main()
 
 				case MP_EVENT_WINDOW_RESIZE:
 				{
-					mp_rect frame = {0, 0, event.frame.rect.w, event.frame.rect.h};
+					mp_rect frame = {0, 0, event->frame.rect.w, event->frame.rect.h};
 					mg_surface_set_frame(surface, frame);
 				} break;
 
 				case MP_EVENT_MOUSE_BUTTON:
 				{
-					if(event.key.code == MP_MOUSE_LEFT)
+					if(event->key.code == MP_MOUSE_LEFT)
 					{
-						if(event.key.action == MP_KEY_PRESS)
+						if(event->key.action == MP_KEY_PRESS)
 						{
 							tracked = true;
-							vec2 mousePos = mp_mouse_position();
+							vec2 mousePos = mp_mouse_position(&inputState);
 							trackPoint.x = (mousePos.x - startX)/zoom;
 							trackPoint.y = (mousePos.y - startY)/zoom;
 						}
@@ -133,11 +133,11 @@ int main()
 
 				case MP_EVENT_MOUSE_WHEEL:
 				{
-					vec2 mousePos = mp_mouse_position();
+					vec2 mousePos = mp_mouse_position(&inputState);
 					f32 pinX = (mousePos.x - startX)/zoom;
 					f32 pinY = (mousePos.y - startY)/zoom;
 
-					zoom *= 1 + event.move.deltaY * 0.01;
+					zoom *= 1 + event->move.deltaY * 0.01;
 					zoom = Clamp(zoom, 0.5, 5);
 
 					startX = mousePos.x - pinX*zoom;
@@ -146,9 +146,9 @@ int main()
 
 				case MP_EVENT_KEYBOARD_KEY:
 				{
-					if(event.key.action == MP_KEY_PRESS || event.key.action == MP_KEY_REPEAT)
+					if(event->key.action == MP_KEY_PRESS || event->key.action == MP_KEY_REPEAT)
 					{
-						switch(event.key.code)
+						switch(event->key.code)
 						{
 							case MP_KEY_SPACE:
 								singlePath = !singlePath;
@@ -156,7 +156,7 @@ int main()
 
 							case MP_KEY_UP:
 							{
-								if(event.key.mods & MP_KEYMOD_SHIFT)
+								if(event->key.mods & MP_KEYMOD_SHIFT)
 								{
 									singlePathIndex++;
 								}
@@ -168,7 +168,7 @@ int main()
 
 							case MP_KEY_DOWN:
 							{
-								if(event.key.mods & MP_KEYMOD_SHIFT)
+								if(event->key.mods & MP_KEYMOD_SHIFT)
 								{
 									singlePathIndex--;
 								}
@@ -188,7 +188,7 @@ int main()
 
 		if(tracked)
 		{
-			vec2 mousePos = mp_mouse_position();
+			vec2 mousePos = mp_mouse_position(&inputState);
 			startX = mousePos.x - trackPoint.x*zoom;
 			startY = mousePos.y - trackPoint.y*zoom;
 		}
@@ -228,9 +228,10 @@ int main()
 			                      frameTime,
 			                      1./frameTime);
 
-			mg_flush();
+		mg_flush(surface);
 		mg_surface_present(surface);
 
+		mp_input_next_frame(&inputState);
 		mem_arena_clear(mem_scratch());
 		frameTime = mp_get_time(MP_CLOCK_MONOTONIC) - startTime;
 	}

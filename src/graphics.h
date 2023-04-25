@@ -27,43 +27,51 @@ typedef enum {
 
 //NOTE: these macros are used to select which backend to include when building milepost
 //      they can be overridden by passing them to the compiler command line
-#if defined(PLATFORM_MACOS)
-	#ifndef MG_COMPILE_BACKEND_METAL
-		#define MG_COMPILE_BACKEND_METAL 1
+#if PLATFORM_MACOS
+	#ifndef MG_COMPILE_METAL
+		#define MG_COMPILE_METAL 1
 	#endif
 
-	#ifndef MG_COMPILE_BACKEND_GLES
-		#define MG_COMPILE_BACKEND_GLES 1
+	#ifndef MG_COMPILE_GLES
+		#define MG_COMPILE_GLES 1
 	#endif
 
-	#ifndef MG_COMPILE_BACKEND_CANVAS
-		#define MG_COMPILE_BACKEND_CANVAS 1
+	#ifndef MG_COMPILE_CANVAS
+		#if !MG_COMPILE_METAL
+			#error "Canvas surface requires a Metal backend on macOS. Make sure you define MG_COMPILE_METAL to 1."
+		#endif
+		#define MG_COMPILE_CANVAS 1
 	#endif
 
-	#define MG_COMPILE_BACKEND_GL 0
+	#define MG_COMPILE_GL 0
 
-#elif defined(PLATFORM_WIN64)
-	#ifndef MG_COMPILE_BACKEND_GL
-		#define MG_COMPILE_BACKEND_GL 1
+#elif PLATFORM_WINDOWS
+	#ifndef MG_COMPILE_GL
+		#define MG_COMPILE_GL 1
 	#endif
 
-	#ifndef MG_COMPILE_BACKEND_GLES
-		#define MG_COMPILE_BACKEND_GLES 1
+	#ifndef MG_COMPILE_GLES
+		#define MG_COMPILE_GLES 1
 	#endif
 
-	#ifndef MG_COMPILE_BACKEND_CANVAS
-		#define MG_COMPILE_BACKEND_CANVAS 1
+	#ifndef MG_COMPILE_CANVAS
+		#if !MG_COMPILE_GL
+			#error "Canvas surface requires an OpenGL backend on Windows. Make sure you define MG_COMPILE_GL to 1."
+		#endif
+		#define MG_COMPILE_CANVAS 1
 	#endif
 
-#elif defined(PLATFORM_LINUX)
-	#ifndef MG_COMPILE_BACKEND_GL
-		#define MG_COMPILE_BACKEND_GL 1
+#elif PLATFORM_LINUX
+	#ifndef MG_COMPILE_GL
+		#define MG_COMPILE_GL 1
 	#endif
 
-	#ifndef MG_COMPILE_BACKEND_CANVAS
-		#define MG_COMPILE_BACKEND_CANVAS 1
+	#ifndef MG_COMPILE_CANVAS
+		#if !MG_COMPILE_GL
+			#error "Canvas surface requires an OpenGL backend on Linux. Make sure you define MG_COMPILE_GL to 1."
+		#endif
+		#define MG_COMPILE_CANVAS 1
 	#endif
-
 #endif
 
 //NOTE: these macros are used to select backend-specific APIs to include when using milepost
@@ -170,14 +178,11 @@ typedef struct mg_text_extents
 MP_API mg_canvas mg_canvas_nil(void);
 MP_API bool mg_canvas_is_nil(mg_canvas canvas);
 
-MP_API mg_canvas mg_canvas_create(mg_surface surface);
+MP_API mg_canvas mg_canvas_create();
 MP_API void mg_canvas_destroy(mg_canvas canvas);
+mg_canvas mg_canvas_set_current(mg_canvas canvas);
+MP_API void mg_flush(mg_surface surface); //TODO change to mg_canvas_render(mg_surface surface, mg_canvas canvas);
 
-MP_API mg_canvas mg_canvas_prepare(mg_canvas canvas);
-MP_API void mg_flush(void);
-MP_API void mg_present(void);
-
-MP_API vec2 mg_canvas_size(void);
 //------------------------------------------------------------------------------------------
 //NOTE(martin): fonts
 //------------------------------------------------------------------------------------------
@@ -212,10 +217,10 @@ MP_API mp_rect mg_text_bounding_box(mg_font font, f32 fontSize, str8 text);
 MP_API mg_image mg_image_nil();
 MP_API bool mg_image_is_nil(mg_image a);
 
-MP_API mg_image mg_image_create(u32 width, u32 height);
-MP_API mg_image mg_image_create_from_rgba8(u32 width, u32 height, u8* pixels);
-MP_API mg_image mg_image_create_from_data(str8 data, bool flip);
-MP_API mg_image mg_image_create_from_file(str8 path, bool flip);
+MP_API mg_image mg_image_create(mg_surface surface, u32 width, u32 height);
+MP_API mg_image mg_image_create_from_rgba8(mg_surface surface, u32 width, u32 height, u8* pixels);
+MP_API mg_image mg_image_create_from_data(mg_surface surface, str8 data, bool flip);
+MP_API mg_image mg_image_create_from_file(mg_surface surface, str8 path, bool flip);
 
 MP_API void mg_image_destroy(mg_image image);
 
