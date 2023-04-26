@@ -228,7 +228,7 @@ int main()
 			                      frameTime,
 			                      1./frameTime);
 
-		mg_flush(surface);
+		mg_render(surface, canvas);
 		mg_surface_present(surface);
 
 		mp_input_next_frame(&inputState);

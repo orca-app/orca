@@ -11,7 +11,7 @@
 #include<EGL/egl.h>
 #include<EGL/eglext.h>
 #include"mp_app_internal.h"
-#include"graphics_internal.h"
+#include"graphics_surface.h"
 #include"gl_loader.h"
 
 #if PLATFORM_MACOS

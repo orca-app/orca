@@ -7,18 +7,20 @@
 *
 *****************************************************************/
 
-#define _USE_MATH_DEFINES //NOTE: necessary for MSVC
-#include<math.h>
+#include"platform.h"
+#include"platform_math.h"
 
-#define STB_TRUETYPE_IMPLEMENTATION
-#include"stb_truetype.h"
+#if !PLATFORM_ORCA
+	#define STB_IMAGE_IMPLEMENTATION
+	#include"stb_image.h"
 
-#define STB_IMAGE_IMPLEMENTATION
-#include"stb_image.h"
+	#define STB_TRUETYPE_IMPLEMENTATION
+	#include"stb_truetype.h"
+#endif
 
 #include"platform_log.h"
 #include"platform_assert.h"
-#include"graphics_internal.h"
+#include"graphics_common.h"
 
 typedef struct mg_glyph_map_entry
 {
@@ -83,7 +85,7 @@ typedef struct mg_handle_slot
 
 } mg_handle_slot;
 
-static const u32 MG_HANDLES_MAX_COUNT = 512;
+enum { MG_HANDLES_MAX_COUNT = 512 };
 
 typedef struct mg_data
 {
@@ -402,6 +404,8 @@ mg_font_data* mg_font_data_from_handle(mg_font handle)
 	return(data);
 }
 
+#if !PLATFORM_ORCA
+
 mg_font mg_font_create_from_memory(u32 size, byte* buffer, u32 rangeCount, unicode_range* ranges)
 {
 	if(!__mgData.init)
@@ -594,6 +598,8 @@ void mg_font_destroy(mg_font fontHandle)
 		mg_handle_recycle(fontHandle.h);
 	}
 }
+#endif // !PLATFORM_ORCA
+
 
 str32 mg_font_get_glyph_indices_from_font_data(mg_font_data* fontData, str32 codePoints, str32 backing)
 {
@@ -865,6 +871,11 @@ mg_canvas_data* mg_canvas_data_from_handle(mg_canvas handle)
 
 mg_canvas mg_canvas_create()
 {
+	if(!__mgData.init)
+	{
+		mg_init();
+	}
+
 	mg_canvas canvasHandle = mg_canvas_nil();
 	mg_canvas_data* canvas = list_pop_entry(&__mgData.canvasFreeList, mg_canvas_data, freeListElt);
 	if(!canvas)
@@ -873,8 +884,14 @@ mg_canvas mg_canvas_create()
 	}
 	if(canvas)
 	{
-		memset(canvas, 0, sizeof(mg_canvas_data));
+		canvas->textFlip = false;
+		canvas->path = (mg_path_descriptor){0};
+		canvas->matrixStackSize = 0;
+		canvas->clipStackSize = 0;
+		canvas->primitiveCount = 0;
+		canvas->clearColor = (mg_color){0, 0, 0, 0};
 
+		canvas->attributes = (mg_attributes){0};
 		canvas->attributes.color = (mg_color){0, 0, 0, 1};
 		canvas->attributes.tolerance = 1;
 		canvas->attributes.width = 10;
@@ -910,23 +927,22 @@ mg_canvas mg_canvas_set_current(mg_canvas canvas)
 	return(old);
 }
 
-void mg_flush(mg_surface surface)
+void mg_render(mg_surface surface, mg_canvas canvas)
 {
-	mg_canvas_data* canvas = __mgCurrentCanvas;
-	mg_surface_data* surfaceData = mg_surface_data_from_handle(surface);
-	if(canvas && surfaceData && surfaceData->backend)
+	mg_canvas_data* canvasData = mg_canvas_data_from_handle(canvas);
+	if(canvasData)
 	{
-		int eltCount = canvas->path.startIndex + canvas->path.count;
-		surfaceData->backend->render(surfaceData->backend,
-		                             canvas->clearColor,
-		                             canvas->primitiveCount,
-		                             canvas->primitives,
-		                             eltCount,
-		                             canvas->pathElements);
+		int eltCount = canvasData->path.startIndex + canvasData->path.count;
+		mg_surface_render_commands(surface,
+		                           canvasData->clearColor,
+		                           canvasData->primitiveCount,
+		                           canvasData->primitives,
+		                           eltCount,
+		                           canvasData->pathElements);
 
-		canvas->primitiveCount = 0;
-		canvas->path.startIndex = 0;
-		canvas->path.count = 0;
+		canvasData->primitiveCount = 0;
+		canvasData->path.startIndex = 0;
+		canvasData->path.count = 0;
 	}
 }
 
@@ -1580,6 +1596,8 @@ mg_image mg_image_create_from_rgba8(mg_surface surface, u32 width, u32 height, u
 	return(image);
 }
 
+#if !PLATFORM_ORCA
+
 mg_image mg_image_create_from_data(mg_surface surface, str8 data, bool flip)
 {
 	mg_image image = mg_image_nil();
@@ -1612,6 +1630,8 @@ mg_image mg_image_create_from_file(mg_surface surface, str8 path, bool flip)
 	}
 	return(image);
 }
+
+#endif // !PLATFORM_ORCA
 
 
 void mg_image_draw_region(mg_image image, mp_rect srcRegion, mp_rect dstRegion)
@@ -1712,6 +1732,8 @@ mg_image_region mg_image_atlas_alloc_from_rgba8(mg_rect_atlas* atlas, mg_image b
 	return(imageRgn);
 }
 
+#if !PLATFORM_ORCA
+
 mg_image_region mg_image_atlas_alloc_from_data(mg_rect_atlas* atlas, mg_image backingImage, str8 data, bool flip)
 {
 	mg_image_region imageRgn = {0};
@@ -1744,6 +1766,7 @@ mg_image_region mg_image_atlas_alloc_from_file(mg_rect_atlas* atlas, mg_image ba
 	}
 	return(imageRgn);
 }
+#endif // !PLATFORM_ORCA
 
 void mg_image_atlas_recycle(mg_rect_atlas* atlas, mg_image_region imageRgn)
 {

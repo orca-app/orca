@@ -9,7 +9,7 @@
 #ifndef __WGL_SURFACE_H_
 #define __WGL_SURFACE_H_
 
-#include"graphics_internal.h"
+#include"graphics_surface.h"
 
 mg_surface_data* mg_wgl_surface_create_for_window(mp_window window);
 

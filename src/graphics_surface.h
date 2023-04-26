@@ -1,15 +1,14 @@
 /************************************************************//**
 *
-*	@file: graphics_internal.h
+*	@file: graphics_surface.h
 *	@author: Martin Fouilleul
-*	@date: 23/01/2023
-*	@revision:
+*	@date: 26/04/2023
 *
 *****************************************************************/
-#ifndef __GRAPHICS_INTERNAL_H_
-#define __GRAPHICS_INTERNAL_H_
+#ifndef __GRAPHICS_SURFACE_H_
+#define __GRAPHICS_SURFACE_H_
 
-#include"graphics.h"
+#include"graphics_common.h"
 #include"mp_app_internal.h"
 
 #ifdef __cplusplus
@@ -127,79 +126,6 @@ typedef void (*mg_canvas_backend_image_upload_region_proc)(mg_canvas_backend* ba
                                                            mp_rect region,
                                                            u8* pixels);
 
-
-//------------------------------------------------------------------------
-// canvas structs
-//------------------------------------------------------------------------
-typedef enum { MG_PATH_MOVE,
-               MG_PATH_LINE,
-	           MG_PATH_QUADRATIC,
-	           MG_PATH_CUBIC } mg_path_elt_type;
-
-typedef struct mg_path_elt
-{
-	mg_path_elt_type type;
-	vec2 p[3];
-
-} mg_path_elt;
-
-typedef struct mg_path_descriptor
-{
-	u32 startIndex;
-	u32 count;
-	vec2 startPoint;
-
-} mg_path_descriptor;
-
-typedef struct mg_attributes
-{
-	f32 width;
-	f32 tolerance;
-	mg_color color;
-	mg_joint_type joint;
-	f32 maxJointExcursion;
-	mg_cap_type cap;
-
-	mg_font font;
-	f32 fontSize;
-
-	mg_image image;
-	mp_rect srcRegion;
-
-	mg_mat2x3 transform;
-	mp_rect clip;
-
-} mg_attributes;
-
-typedef struct mg_rounded_rect
-{
-	f32 x;
-	f32 y;
-	f32 w;
-	f32 h;
-	f32 r;
-} mg_rounded_rect;
-
-typedef enum { MG_CMD_FILL,
-	           MG_CMD_STROKE,
-	           MG_CMD_JUMP
-	     } mg_primitive_cmd;
-
-typedef struct mg_primitive
-{
-	mg_primitive_cmd cmd;
-	mg_attributes attributes;
-
-	union
-	{
-		mg_path_descriptor path;
-		mp_rect rect;
-		mg_rounded_rect roundedRect;
-		u32 jump;
-	};
-
-} mg_primitive;
-
 typedef void (*mg_canvas_backend_render_proc)(mg_canvas_backend* backend,
                                               mg_color clearColor,
                                               u32 primitiveCount,
@@ -229,4 +155,4 @@ typedef struct mg_canvas_backend
 } // extern "C"
 #endif
 
-#endif //__GRAPHICS_INTERNAL_H_
+#endif //__GRAPHICS_SURFACE_H_

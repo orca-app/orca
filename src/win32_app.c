@@ -863,7 +863,7 @@ MP_API str8 mp_clipboard_copy_string(str8 backing)
 // win32 surfaces
 //--------------------------------------------------------------------------------
 
-#include"graphics_internal.h"
+#include"graphics_surface.h"
 
 vec2 mg_win32_surface_contents_scaling(mg_surface_data* surface)
 {

@@ -94,7 +94,7 @@ MP_API bool mg_is_surface_api_available(mg_surface_api api);
 //------------------------------------------------------------------------------------------
 typedef struct mg_surface { u64 h; } mg_surface;
 
-MP_API mg_surface mg_surface_nil();
+MP_API mg_surface mg_surface_nil(void);
 MP_API bool mg_surface_is_nil(mg_surface surface);
 
 MP_API mg_surface mg_surface_create_for_window(mp_window window, mg_surface_api api);
@@ -178,15 +178,15 @@ typedef struct mg_text_extents
 MP_API mg_canvas mg_canvas_nil(void);
 MP_API bool mg_canvas_is_nil(mg_canvas canvas);
 
-MP_API mg_canvas mg_canvas_create();
+MP_API mg_canvas mg_canvas_create(void);
 MP_API void mg_canvas_destroy(mg_canvas canvas);
 mg_canvas mg_canvas_set_current(mg_canvas canvas);
-MP_API void mg_flush(mg_surface surface); //TODO change to mg_canvas_render(mg_surface surface, mg_canvas canvas);
+MP_API void mg_render(mg_surface surface, mg_canvas canvas);
 
 //------------------------------------------------------------------------------------------
 //NOTE(martin): fonts
 //------------------------------------------------------------------------------------------
-MP_API mg_font mg_font_nil();
+MP_API mg_font mg_font_nil(void);
 MP_API mg_font mg_font_create_from_memory(u32 size, byte* buffer, u32 rangeCount, unicode_range* ranges);
 MP_API void mg_font_destroy(mg_font font);
 
@@ -214,7 +214,7 @@ MP_API mp_rect mg_text_bounding_box(mg_font font, f32 fontSize, str8 text);
 //------------------------------------------------------------------------------------------
 //NOTE(martin): images
 //------------------------------------------------------------------------------------------
-MP_API mg_image mg_image_nil();
+MP_API mg_image mg_image_nil(void);
 MP_API bool mg_image_is_nil(mg_image a);
 
 MP_API mg_image mg_image_create(mg_surface surface, u32 width, u32 height);
@@ -256,10 +256,10 @@ void mg_image_atlas_recycle(mg_rect_atlas* atlas, mg_image_region imageRgn);
 MP_API void mg_viewport(mp_rect viewPort);
 
 MP_API void mg_matrix_push(mg_mat2x3 matrix);
-MP_API void mg_matrix_pop();
+MP_API void mg_matrix_pop(void);
 
 MP_API void mg_clip_push(f32 x, f32 y, f32 w, f32 h);
-MP_API void mg_clip_pop();
+MP_API void mg_clip_pop(void);
 
 //------------------------------------------------------------------------------------------
 //NOTE(martin): graphics attributes setting/getting
@@ -277,25 +277,25 @@ MP_API void mg_set_text_flip(bool flip);
 MP_API void mg_set_image(mg_image image);
 MP_API void mg_set_image_source_region(mp_rect region);
 
-MP_API mg_color mg_get_color();
-MP_API f32 mg_get_width();
-MP_API f32 mg_get_tolerance();
-MP_API mg_joint_type mg_get_joint();
-MP_API f32 mg_get_max_joint_excursion();
-MP_API mg_cap_type mg_get_cap();
-MP_API mg_font mg_get_font();
-MP_API f32 mg_get_font_size();
-MP_API bool mg_get_text_flip();
+MP_API mg_color mg_get_color(void);
+MP_API f32 mg_get_width(void);
+MP_API f32 mg_get_tolerance(void);
+MP_API mg_joint_type mg_get_joint(void);
+MP_API f32 mg_get_max_joint_excursion(void);
+MP_API mg_cap_type mg_get_cap(void);
+MP_API mg_font mg_get_font(void);
+MP_API f32 mg_get_font_size(void);
+MP_API bool mg_get_text_flip(void);
 
 //------------------------------------------------------------------------------------------
 //NOTE(martin): path construction
 //------------------------------------------------------------------------------------------
-MP_API vec2 mg_get_position();
+MP_API vec2 mg_get_position(void);
 MP_API void mg_move_to(f32 x, f32 y);
 MP_API void mg_line_to(f32 x, f32 y);
 MP_API void mg_quadratic_to(f32 x1, f32 y1, f32 x2, f32 y2);
 MP_API void mg_cubic_to(f32 x1, f32 y1, f32 x2, f32 y2, f32 x3, f32 y3);
-MP_API void mg_close_path();
+MP_API void mg_close_path(void);
 
 MP_API mp_rect mg_glyph_outlines(str32 glyphIndices);
 MP_API void mg_codepoints_outlines(str32 string);
@@ -304,9 +304,9 @@ MP_API void mg_text_outlines(str8 string);
 //------------------------------------------------------------------------------------------
 //NOTE(martin): clear/fill/stroke
 //------------------------------------------------------------------------------------------
-MP_API void mg_clear();
-MP_API void mg_fill();
-MP_API void mg_stroke();
+MP_API void mg_clear(void);
+MP_API void mg_fill(void);
+MP_API void mg_stroke(void);
 
 //------------------------------------------------------------------------------------------
 //NOTE(martin): 'fast' shapes primitives

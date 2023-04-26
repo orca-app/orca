@@ -292,7 +292,7 @@ int main()
 		f64 startFlushTime = mp_get_time(MP_CLOCK_MONOTONIC);
 
 		mg_surface_prepare(surface);
-		mg_flush(surface);
+		mg_render(surface, canvas);
 
 		f64 startPresentTime = mp_get_time(MP_CLOCK_MONOTONIC);
 		mg_surface_present(surface);

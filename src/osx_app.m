@@ -18,7 +18,7 @@
 #include"macro_helpers.h"
 #include"platform_log.h"
 #include"platform_clock.h"
-#include"graphics_internal.h"
+#include"graphics_surface.h"
 
 #include"mp_app.c"
 

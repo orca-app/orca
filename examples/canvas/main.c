@@ -191,7 +191,7 @@ int main()
 			                     1./frameTime);
 
 		mg_surface_prepare(surface);
-		mg_flush(surface);
+		mg_render(surface, canvas);
 		mg_surface_present(surface);
 
 		mem_arena_clear(mem_scratch());

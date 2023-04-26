@@ -11,7 +11,7 @@
 #import<QuartzCore/CAMetalLayer.h>
 #include<simd/simd.h>
 
-#include"graphics_internal.h"
+#include"graphics_surface.h"
 #include"macro_helpers.h"
 #include"osx_app.h"
 

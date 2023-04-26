@@ -6,8 +6,7 @@
 *
 *****************************************************************/
 
-#include"graphics_internal.h"
-
+#include"graphics_surface.h"
 
 //---------------------------------------------------------------
 // typed handles functions
@@ -324,6 +323,25 @@ void mg_surface_host_connect(mg_surface handle, mg_surface_id remoteID)
 	if(surface && surface->hostConnect)
 	{
 		surface->hostConnect(surface, remoteID);
+	}
+}
+
+void mg_surface_render_commands(mg_surface surface,
+                                mg_color clearColor,
+                                u32 primitiveCount,
+                                mg_primitive* primitives,
+                                u32 eltCount,
+                                mg_path_elt* elements)
+{
+	mg_surface_data* surfaceData = mg_surface_data_from_handle(surface);
+	if(surfaceData && surfaceData->backend)
+	{
+		surfaceData->backend->render(surfaceData->backend,
+		                             clearColor,
+		                             primitiveCount,
+		                             primitives,
+		                             eltCount,
+		                             elements);
 	}
 }
 

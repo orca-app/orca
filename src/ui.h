@@ -404,7 +404,7 @@ MP_API void ui_begin_frame(vec2 size, ui_style* defaultStyle, ui_style_mask mask
 MP_API void ui_end_frame(void);
 MP_API void ui_draw(void);
 
-#define ui_frame(s, m) defer_loop(ui_begin_frame((s), (m)), ui_end_frame())
+#define ui_frame(size, style, mask) defer_loop(ui_begin_frame((size), (style), (mask)), ui_end_frame())
 
 //-------------------------------------------------------------------------------------
 // Box keys

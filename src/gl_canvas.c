@@ -6,7 +6,7 @@
 *	@revision:
 *
 *****************************************************************/
-#include"graphics_internal.h"
+#include"graphics_surface.h"
 #include"macro_helpers.h"
 #include"glsl_shaders.h"
 #include"gl_api.h"

@@ -9,7 +9,7 @@
 #ifndef __MTL_SURFACE_H_
 #define __MTL_SURFACE_H_
 
-#include"graphics_internal.h"
+#include"graphics_surface.h"
 
 #ifdef __OBJC__
 	#import<Metal/Metal.h>

@@ -7,7 +7,7 @@
 *
 *****************************************************************/
 #include"win32_app.h"
-#include"graphics_internal.h"
+#include"graphics_surface.h"
 #include"gl_loader.h"
 
 #include<GL/wglext.h>
