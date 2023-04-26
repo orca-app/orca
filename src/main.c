@@ -12,6 +12,7 @@
 
 #define MG_INCLUDE_GL_API
 #include"milepost.h"
+#include"graphics_common.h"
 
 #include"orca_runtime.h"
 
@@ -212,6 +213,36 @@ void orca_log(log_level level,
 	         "%.*s\n",
 	         msgLen,
 	         msg);
+}
+
+mg_surface orca_surface_main(void)
+{
+	return(__orcaApp.surface);
+}
+
+void orca_surface_render_commands(mg_surface surface,
+                                  mg_color clearColor,
+                                  u32 primitiveCount,
+                                  mg_primitive* primitives,
+                                  u32 eltCount,
+                                  mg_path_elt* elements)
+{
+	orca_app* app = &__orcaApp;
+
+	char* memBase = app->runtime.wasmMemory.ptr;
+	u32 memSize = app->runtime.wasmMemory.committed;
+	if( ((char*)primitives > memBase)
+	  &&((char*)primitives + primitiveCount*sizeof(mg_primitive) - memBase <= memSize)
+	  &&((char*)elements > memBase)
+	  &&((char*)elements + eltCount*sizeof(mg_path_elt) - memBase <= memSize))
+	{
+		mg_surface_render_commands(surface,
+		                           clearColor,
+		                           primitiveCount,
+		                           primitives,
+		                           eltCount,
+		                           elements);
+	}
 }
 
 void debug_overlay_toggle(orca_debug_overlay* overlay)
@@ -581,14 +612,10 @@ void* orca_runloop(void* user)
 			}
 		}
 
-		mg_canvas_prepare(app->canvas);
-
-			if(eventHandlers[G_EVENT_FRAME_REFRESH])
-			{
-				m3_Call(eventHandlers[G_EVENT_FRAME_REFRESH], 0, 0);
-			}
-
-		mg_present();
+		if(eventHandlers[G_EVENT_FRAME_REFRESH])
+		{
+			m3_Call(eventHandlers[G_EVENT_FRAME_REFRESH], 0, 0);
+		}
 
 		if(app->debugOverlay.show)
 		{
@@ -606,7 +633,10 @@ void* orca_runloop(void* user)
 			                                 | UI_STYLE_FONT
 			                                 | UI_STYLE_FONT_SIZE;
 
-			ui_frame(&debugUIDefaultStyle, debugUIDefaultMask)
+			mp_rect frameRect = mg_surface_get_frame(app->debugOverlay.surface);
+			vec2 frameSize = {frameRect.w, frameRect.h};
+
+			ui_frame(frameSize, &debugUIDefaultStyle, debugUIDefaultMask)
 			{
 				ui_style_next(&(ui_style){.size.width = {UI_SIZE_PARENT, 1},
 				                          .size.height = {UI_SIZE_PARENT, 1, 1}},
@@ -717,8 +747,8 @@ void* orca_runloop(void* user)
 				}
 			}
 
-			mg_canvas_prepare(app->debugOverlay.canvas);
-
+			mg_surface_prepare(app->debugOverlay.surface);
+			mg_canvas_set_current(app->debugOverlay.canvas);
 				ui_draw();
 			/*
 				mg_set_font(app->debugOverlay.font);
@@ -728,7 +758,8 @@ void* orca_runloop(void* user)
 				mg_text_outlines(STR8("Debug Overlay"));
 				mg_fill();
 			*/
-			mg_present();
+			mg_render(app->debugOverlay.surface, app->debugOverlay.canvas);
+			mg_surface_present(app->debugOverlay.surface);
 		}
 		mem_scratch_clear();
 	}
@@ -747,14 +778,14 @@ int main(int argc, char** argv)
 
 	mp_rect windowRect = {.x = 100, .y = 100, .w = 810, .h = 610};
 	orca->window = mp_window_create(windowRect, "orca", 0);
-	orca->surface = mg_surface_create_for_window(orca->window, MG_BACKEND_DEFAULT);
-	orca->canvas = mg_canvas_create(orca->surface);
+	orca->surface = mg_surface_create_for_window(orca->window, MG_CANVAS);
+	orca->canvas = mg_canvas_create();
 
 	mg_surface_swap_interval(orca->surface, 1);
 
 	orca->debugOverlay.show = false;
-	orca->debugOverlay.surface = mg_surface_create_for_window(orca->window, MG_BACKEND_DEFAULT);
-	orca->debugOverlay.canvas = mg_canvas_create(orca->debugOverlay.surface);
+	orca->debugOverlay.surface = mg_surface_create_for_window(orca->window, MG_CANVAS);
+	orca->debugOverlay.canvas = mg_canvas_create();
 	orca->debugOverlay.fontReg = orca_font_create("../resources/Menlo.ttf");
 	orca->debugOverlay.fontBold = orca_font_create("../resources/Menlo Bold.ttf");
 	orca->debugOverlay.maxEntries = 200;
@@ -766,10 +797,15 @@ int main(int argc, char** argv)
 	//      the surfaces... This should probably be fixed in the implementation of mtl_surface!
 	for(int i=0; i<4; i++)
 	{
-		mg_canvas_prepare(orca->canvas);
-		mg_present();
-		mg_canvas_prepare(orca->debugOverlay.canvas);
-		mg_present();
+		mg_surface_prepare(orca->surface);
+		mg_canvas_set_current(orca->canvas);
+		mg_render(orca->surface, orca->canvas);
+		mg_surface_present(orca->surface);
+
+		mg_surface_prepare(orca->debugOverlay.surface);
+		mg_canvas_set_current(orca->debugOverlay.canvas);
+		mg_render(orca->debugOverlay.surface, orca->debugOverlay.canvas);
+		mg_surface_present(orca->debugOverlay.surface);
 	}
 
 	ui_init(&orca->debugOverlay.ui);

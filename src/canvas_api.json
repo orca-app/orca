@@ -1,124 +1,78 @@
 [
 {
-	"name": "g_clear",
-	"cname": "mg_clear",
+	"name": "mg_image_size",
+	"cname": "mg_image_size",
+	"ret": {"name": "vec2", "tag": "S"},
+	"args": [ {"name": "image",
+	           "type": {"name": "mg_image", "tag": "S"}}]
+},
+{
+	"name": "mg_image_create",
+	"cname": "mg_image_create",
+	"ret": {"name": "mg_image", "tag": "S"},
+	"args": [ {"name": "surface",
+	           "type": {"name": "mg_surface", "tag": "S"}},
+	          {"name": "width",
+	           "type": {"name": "u32", "tag": "i"}},
+	          {"name": "height",
+	           "type": {"name": "u32", "tag": "i"}}]
+},
+{
+	"name": "mg_image_destroy",
+	"cname": "mg_image_destroy",
 	"ret": {"name": "void", "tag": "v"},
+	"args": [ {"name": "image",
+	           "type": {"name": "mg_image", "tag": "S"}}]
+},
+{
+	"name": "mg_image_upload_region_rgba8",
+	"cname": "mg_image_upload_region_rgba8",
+	"ret": {"name": "void", "tag": "v"},
+	"args": [
+		{"name": "image",
+		 "type": {"name": "mg_image", "tag": "S"}},
+		{"name": "region",
+		 "type": {"name": "mp_rect", "tag": "S"}},
+		{"name": "pixels",
+		 "type": {"name": "u8*", "tag": "p"}}]
+},
+{
+	"name": "mg_surface_main",
+	"cname": "orca_surface_main",
+	"ret": {"name": "mg_surface", "tag": "S"},
 	"args": []
 },
 {
-	"name": "g_set_color_rgba",
-	"cname": "mg_set_color_rgba",
+	"name": "mg_surface_prepare",
+	"cname": "mg_surface_prepare",
 	"ret": {"name": "void", "tag": "v"},
 	"args": [
-		{"name": "r",
-		 "type": {"name": "float", "tag": "f"}},
-		{"name": "g",
-		 "type": {"name": "float", "tag": "f"}},
-		{"name": "b",
-		 "type": {"name": "float", "tag": "f"}},
-		{"name": "a",
-		 "type": {"name": "float", "tag": "f"}}]
+		{"name": "surface",
+		 "type": {"name": "mg_surface", "tag": "S"}}]
 },
 {
-	"name": "g_set_color",
-	"cname": "mg_set_color",
+	"name": "mg_surface_present",
+	"cname": "mg_surface_present",
 	"ret": {"name": "void", "tag": "v"},
 	"args": [
-		{"name": "color",
-		 "type": {"name": "g_color", "cname": "mg_color", "tag": "S"}}]
+		{"name": "surface",
+		 "type": {"name": "mg_surface", "tag": "S"}}]
 },
 {
-	"name": "g_matrix_push",
-	"cname": "mg_matrix_push",
+	"name": "mg_surface_render_commands",
+	"cname": "orca_surface_render_commands",
 	"ret": {"name": "void", "tag": "v"},
 	"args": [
-		{"name": "m",
-		 "type": {"name": "g_mat2x3", "cname": "mg_mat2x3", "tag": "S"}}]
-},
-{
-	"name": "g_matrix_pop",
-	"cname": "mg_matrix_pop",
-	"ret": {"name": "void", "tag": "v"},
-	"args": []
-},
-{
-	"name": "g_circle_fill",
-	"cname": "mg_circle_fill",
-	"ret": {"name": "void", "tag": "v"},
-	"args": [
-		{"name": "x",
-		 "type": {"name": "float", "tag": "f"}},
-		{"name": "y",
-		 "type": {"name": "float", "tag": "f"}},
-		{"name": "r",
-		 "type": {"name": "float", "tag": "f"}}]
-},
-{
-	"name": "g_rectangle_fill",
-	"cname": "mg_rectangle_fill",
-	"ret": {"name": "void", "tag": "v"},
-	"args": [
-		{"name": "x",
-		 "type": {"name": "float", "tag": "f"}},
-		{"name": "y",
-		 "type": {"name": "float", "tag": "f"}},
-		{"name": "w",
-		 "type": {"name": "float", "tag": "f"}},
-		{"name": "h",
-		 "type": {"name": "float", "tag": "f"}}]
-},
-{
-	"name": "g_font_create_default",
-	"cname": "mg_font_create_default",
-	"ret": {"name": "g_font", "cname": "mg_font", "tag": "S"},
-	"args": []
-},
-{
-	"name": "g_set_font",
-	"cname": "mg_set_font",
-	"ret": {"name": "void", "tag": "v"},
-	"args": [
-		{"name": "font",
-		 "type": {"name": "g_font", "cname": "mg_font" , "tag": "S"}}]
-},
-{
-	"name": "g_set_font_size",
-	"cname": "mg_set_font_size",
-	"ret": {"name": "void", "tag": "v"},
-	"args": [
-		{"name": "size",
-		 "type": {"name": "float", "cname": "float" , "tag": "f"}}]
-},
-{
-	"gen_stub": false,
-	"name": "g_text_outlines",
-	"cname": "mg_text_outlines",
-	"ret": {"name": "void", "tag": "v"},
-	"args": [
-		{"name": "text",
-		 "type": {"name": "str8", "cname": "str8" , "tag": "S"}}]
-},
-{
-	"name": "g_fill",
-	"cname": "mg_fill",
-	"ret": {"name": "void", "tag": "v"},
-	"args": []
-},
-{
-	"name": "g_move_to",
-	"cname": "mg_move_to",
-	"ret": {"name": "void", "tag": "v"},
-	"args": [
-		{"name": "x",
-		 "type": {"name": "f32", "tag":"f"}},
-		{"name": "y",
-		 "type": {"name": "f32", "tag":"f"}}]
-},
-{
-	"name": "g_set_text_flip",
-	"cname": "mg_set_text_flip",
-	"ret": {"name": "void", "tag": "v"},
-	"args": [
-		{"name": "flip",
-		 "type": {"name": "bool", "tag":"i"}}]
+		{"name": "surface",
+		 "type": {"name": "mg_surface", "tag": "S"}},
+		{"name": "clearColor",
+		 "type": {"name": "mg_color", "tag": "S"}},
+		{"name": "primitiveCount",
+		 "type": {"name": "u32", "tag": "i"}},
+		{"name": "primitives",
+		 "type": {"name": "mg_primitive*", "tag": "p"}},
+		{"name": "eltCount",
+		 "type": {"name": "u32", "tag": "i"}},
+		{"name": "elements",
+		 "type": {"name": "mg_path_elt*", "tag": "p"}}]
 }]

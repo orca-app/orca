@@ -53,7 +53,7 @@ def gen_stub(name, sig, native_name):
 				retString = '*((i64*)&_sp[0]) = '
 			elif c == 'f':
 				retString = '*((f32*)&_sp[0]) = '
-			elif c == 'd':
+			elif c == 'F':
 				retString = '*((f64*)&_sp[0]) = '
 			elif c == 'p':
 				print('returning pointers is not supported yet\n')
@@ -74,7 +74,7 @@ def gen_stub(name, sig, native_name):
 				argString += '*(i64*)&_sp[' + str(argIndex) + ']'
 			elif c == 'f':
 				argString += '*(f32*)&_sp[' + str(argIndex) + ']'
-			elif c == 'd':
+			elif c == 'F':
 				argString += '*(f64*)&_sp[' + str(argIndex) + ']'
 			elif c == 'p':
 				argString += '(void*)((char*)_mem + *(i32*)&_sp[' + str(argIndex) + '])'

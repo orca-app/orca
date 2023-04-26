@@ -53,7 +53,7 @@ elif [ $target = orca ] ; then
 
 	python3 ./scripts/bindgen2.py canvas \
 		src/canvas_api.json \
-		--guest-stubs sdk/graphics.c \
+		--guest-stubs sdk/orca_surface.c \
 		--guest-include graphics.h \
 		--wasm3-bindings ./src/canvas_api_bind_gen.c
 

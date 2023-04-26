@@ -13,3 +13,6 @@
 #include"util/memory.c"
 #include"util/strings.c"
 #include"util/utf8.c"
+
+#include"graphics_common.c"
+#include"orca_surface.c"

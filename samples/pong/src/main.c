@@ -17,47 +17,41 @@
 extern float cosf(float x);
 extern float sinf(float x);
 
-const g_color paddleColor = {1, 0, 0, 1};
+const mg_color paddleColor = {1, 0, 0, 1};
 mp_rect paddle = {200, 40, 200, 40};
 
-const g_color ballColor = {1, 1, 0, 1};
+const mg_color ballColor = {1, 1, 0, 1};
 mp_rect ball = {200, 200, 60, 60};
 
 vec2 velocity = {10, 10};
 
 vec2 frameSize = {100, 100};
-float rotationDir = 1;
 
 bool leftDown = false;
 bool rightDown = false;
 
-g_font font;
+mg_canvas canvas;
+mg_surface surface;
 
-mem_arena arena;
+mg_surface mg_surface_main(void);
 
 void OnInit(void)
 {
-	mem_arena_init(&arena);
-	font = g_font_create_default();
+	//TODO create surface for main window
+	surface = mg_surface_main();
+	canvas = mg_canvas_create();
 }
 
 void OnFrameResize(u32 width, u32 height)
 {
 	log_info("frame resize %u, %u", width, height);
-
 	frameSize.x = width;
 	frameSize.y = height;
-/*
-	paddle.x = width/2. - paddle.w/2.;
-	ball.x = width/2. - ball.w/2.;
-	ball.y = height/2. - ball.h/2.;
-*/
 }
 
 void OnMouseDown(int button)
 {
 	log_info("mouse down!");
-	rotationDir *= -1;
 }
 
 void OnKeyDown(int key)
@@ -104,8 +98,6 @@ void OnKeyUp(int key)
 
 void OnFrameRefresh(void)
 {
-	char* tmp = mem_arena_alloc(&arena, 512);
-
 	f32 aspect = frameSize.x/frameSize.y;
 
     if(leftDown)
@@ -153,32 +145,25 @@ void OnFrameRefresh(void)
 		ball.y = frameSize.y/2. - ball.h;
 	}
 
-	g_set_color_rgba(0, 1, 1, 1);
-	g_clear();
+	mg_canvas_set_current(canvas);
 
-	g_mat2x3 transform = {1, 0, 0,
+	mg_set_color_rgba(0, 1, 1, 1);
+	mg_clear();
+
+	mg_mat2x3 transform = {1, 0, 0,
 	                       0, -1, frameSize.y};
 
-	g_matrix_push(transform);
+	mg_matrix_push(transform);
 
-	g_set_color(paddleColor);
-	g_rectangle_fill(paddle.x, paddle.y, paddle.w, paddle.h);
+	mg_set_color(paddleColor);
+	mg_rectangle_fill(paddle.x, paddle.y, paddle.w, paddle.h);
 
-	g_set_color(ballColor);
-	g_circle_fill(ball.x+ball.w/2, ball.y + ball.w/2, ball.w/2.);
+	mg_set_color(ballColor);
+	mg_circle_fill(ball.x+ball.w/2, ball.y + ball.w/2, ball.w/2.);
 
+    mg_matrix_pop();
 
-	g_set_font(font);
-	g_set_font_size(16);
-	g_set_color_rgba(0, 0, 0, 1);
-	g_set_text_flip(true);
-
-	str8 str = {.len = 13, .ptr = (char*)"Hello, world!"};
-	g_move_to(10, 10);
-	g_text_outlines(str);
-	g_fill();
-
-    g_matrix_pop();
-
-    mem_arena_clear(&arena);
+    mg_surface_prepare(surface);
+    mg_render(surface, canvas);
+    mg_surface_present(surface);
 }
