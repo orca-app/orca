@@ -1,3 +1,3 @@
 [submodule "milepost"]
 	path = milepost
-	url = ssh://git@git.forkingpaths.dev/martinfouilleul/milepost.git
+	url = git@git.handmade.network:MartinFouilleul/milepost.git
