@@ -142,7 +142,7 @@ void ui_box_pop(void)
 
 ui_tag ui_tag_make_str8(str8 string)
 {
-	ui_tag tag = {.hash = mp_hash_aes_string(string)};
+	ui_tag tag = {.hash = mp_hash_xx64_string(string)};
 	return(tag);
 }
 
@@ -176,7 +176,7 @@ ui_key ui_key_make_str8(str8 string)
 	}
 
 	ui_key key = {0};
-	key.hash = mp_hash_aes_string_seed(string, seed);
+	key.hash = mp_hash_xx64_string_seed(string, seed);
 	return(key);
 }
 
@@ -191,7 +191,7 @@ ui_key ui_key_make_path(str8_list path)
 	}
 	for_list(&path.list, elt, str8_elt, listElt)
 	{
-		seed = mp_hash_aes_string_seed(elt->string, seed);
+		seed = mp_hash_xx64_string_seed(elt->string, seed);
 	}
 	ui_key key = {seed};
 	return(key);
