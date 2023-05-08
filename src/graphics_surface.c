@@ -375,6 +375,7 @@ mg_image mg_image_create(mg_surface surface, u32 width, u32 height)
 		mg_image_data* imageData = surfaceData->backend->imageCreate(surfaceData->backend, (vec2){width, height});
 		if(imageData)
 		{
+			imageData->surface = surface;
 			image = mg_image_handle_alloc(imageData);
 		}
 	}

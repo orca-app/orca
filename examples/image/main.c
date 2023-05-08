@@ -15,12 +15,8 @@
 
 #include"milepost.h"
 
-#define LOG_SUBSYSTEM "Main"
-
 int main()
 {
-	LogLevel(LOG_LEVEL_WARNING);
-
 	mp_init();
 	mp_clock_init(); //TODO put that in mp_init()?
 
@@ -30,11 +26,11 @@ int main()
 	mp_rect contentRect = mp_window_get_content_rect(window);
 
 	//NOTE: create surface
-	mg_surface surface = mg_surface_create_for_window(window, MG_BACKEND_DEFAULT);
+	mg_surface surface = mg_surface_create_for_window(window, MG_CANVAS);
 	mg_surface_swap_interval(surface, 0);
 
 	//NOTE: create canvas
-	mg_canvas canvas = mg_canvas_create(surface);
+	mg_canvas canvas = mg_canvas_create();
 	if(mg_canvas_is_nil(canvas))
 	{
 		printf("Error: couldn't create canvas\n");
@@ -43,11 +39,11 @@ int main()
 
 	//NOTE: create image
 	str8 imagePath = mp_app_get_resource_path(mem_scratch(), "../resources/triceratops.png");
-	mg_image image = mg_image_create_from_file(imagePath, false);
+	mg_image image = mg_image_create_from_file(surface, imagePath, false);
 	vec2 imageSize = mg_image_size(image);
 
 	str8 imagePath2 = mp_app_get_resource_path(mem_scratch(), "../resources/Top512.png");
-	mg_image image2 = mg_image_create_from_file(imagePath2, false);
+	mg_image image2 = mg_image_create_from_file(surface, imagePath2, false);
 	vec2 imageSize2 = mg_image_size(image2);
 
 	// start app
@@ -57,10 +53,10 @@ int main()
 	while(!mp_should_quit())
 	{
 		mp_pump_events(0);
-		mp_event event = {0};
-		while(mp_next_event(&event))
+		mp_event* event = 0;
+		while((event = mp_next_event(mem_scratch())) != 0)
 		{
-			switch(event.type)
+			switch(event->type)
 			{
 				case MP_EVENT_WINDOW_CLOSE:
 				{
@@ -99,7 +95,7 @@ int main()
 
 			mg_image_draw(image2, (mp_rect){300, 200, 300, 300});
 
-			mg_flush();
+			mg_render(surface, canvas);
 		mg_surface_present(surface);
 
 		mem_arena_clear(mem_scratch());
