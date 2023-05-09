@@ -40,6 +40,9 @@ void OnInit(void)
 	//TODO create surface for main window
 	surface = mg_surface_main();
 	canvas = mg_canvas_create();
+
+	file_handle file = file_open(STR8("test_file.txt")	, IO_OPEN_CREATE | IO_OPEN_WRITE);
+	file_close(file);
 }
 
 void OnFrameResize(u32 width, u32 height)

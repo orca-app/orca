@@ -39,6 +39,7 @@ contents_dir = bundle_path + '/Contents'
 exe_dir = contents_dir + '/MacOS'
 res_dir = contents_dir + '/resources'
 wasm_dir = contents_dir + '/wasm'
+data_dir = contents_dir + '/data'
 
 if os.path.exists(bundle_path):
 	shutil.rmtree(bundle_path)
@@ -47,6 +48,7 @@ os.mkdir(contents_dir)
 os.mkdir(exe_dir)
 os.mkdir(res_dir)
 os.mkdir(wasm_dir)
+os.mkdir(data_dir)
 
 #-----------------------------------------------------------
 #NOTE: copy orca runtime executable and libraries

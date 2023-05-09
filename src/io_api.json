@@ -1,0 +1,9 @@
+[
+{
+	"name": "io_wait_single_req",
+	"cname": "io_wait_single_req",
+	"ret": {"name": "io_cmp", "tag": "S"},
+	"args": [ {"name": "req",
+	           "type": {"name": "io_req*", "tag": "p"}}]
+}
+]

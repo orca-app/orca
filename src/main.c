@@ -137,6 +137,8 @@ typedef struct orca_app
 
 orca_app __orcaApp = {0};
 
+#include"io_impl.c"
+
 void orca_log(log_level level,
               int fileLen,
               char* file,
@@ -348,9 +350,10 @@ orca_runtime* orca_runtime_get()
 
 #include"bindgen_core_api.c"
 #include"canvas_api_bind.c"
+#include"io_api_bind_gen.c"
+
 #include"bindgen_gles_api.c"
 #include"manual_gles_api.c"
-
 
 void* orca_runloop(void* user)
 {
@@ -396,6 +399,7 @@ void* orca_runloop(void* user)
 	//NOTE: bind orca APIs
 	bindgen_link_core_api(app->runtime.m3Module);
 	bindgen_link_canvas_api(app->runtime.m3Module);
+	bindgen_link_io_api(app->runtime.m3Module);
 	bindgen_link_gles_api(app->runtime.m3Module);
 	manual_link_gles_api(app->runtime.m3Module);
 

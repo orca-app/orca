@@ -29,7 +29,7 @@ elif [ $target = wasm3 ] ; then
 	for file in ./ext/wasm3/source/*.c ; do
 		name=$(basename $file)
 		name=${name/.c/.o}
-		clang -c -g -Wno-extern-initializer -Dd_m3VerboseErrorMessages -o ./bin/obj/$name -I./ext/wasm3/source $file
+		clang -c -g -foptimize-sibling-calls -Wno-extern-initializer -Dd_m3VerboseErrorMessages -o ./bin/obj/$name -I./ext/wasm3/source $file
 	done
 	ar -rcs ./bin/libwasm3.a ./bin/obj/*.o
 	rm -rf ./bin/obj
@@ -43,7 +43,7 @@ elif [ $target = orca ] ; then
 	cp milepost/bin/libGLESv2.dylib bin/
 	cp milepost/bin/libEGL.dylib bin/
 
-	INCLUDES="-Imilepost/src -Imilepost/src/util -Imilepost/src/platform -Iext/wasm3/source -Imilepost/ext/"
+	INCLUDES="-Isrc -Isdk -Imilepost/src -Imilepost/src/util -Imilepost/src/platform -Iext/wasm3/source -Imilepost/ext/"
 	LIBS="-Lbin -lmilepost -lwasm3"
 	FLAGS="-g -DLOG_COMPILE_DEBUG -mmacos-version-min=10.15.4 -maes"
 
@@ -56,6 +56,11 @@ elif [ $target = orca ] ; then
 		--guest-stubs sdk/orca_surface.c \
 		--guest-include graphics.h \
 		--wasm3-bindings ./src/canvas_api_bind_gen.c
+
+	python3 ./scripts/bindgen2.py io \
+		src/io_api.json \
+		--guest-stubs sdk/io_stubs.c \
+		--wasm3-bindings ./src/io_api_bind_gen.c
 
 	# compile orca
 	clang $FLAGS $INCLUDES $LIBS -o bin/orca src/main.c
