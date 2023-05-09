@@ -117,11 +117,9 @@ void mem_arena_clear(mem_arena* arena)
 
 mem_arena_marker mem_arena_mark(mem_arena* arena)
 {
-	mem_arena_marker marker = {.chunk = arena->currentChunk,
+	mem_arena_marker marker = {.arena = arena,
+	                           .chunk = arena->currentChunk,
 	                           .offset = arena->currentChunk->offset};
-	#if DEBUG
-		marker.arena = arena;
-	#endif
 	return(marker);
 }
 

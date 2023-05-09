@@ -40,9 +40,7 @@ typedef struct mem_arena
 
 typedef struct mem_arena_marker
 {
-	#if DEBUG
-		mem_arena* arena;
-	#endif
+	mem_arena* arena;
 	mem_arena_chunk* chunk;
 	u64 offset;
 } mem_arena_marker;

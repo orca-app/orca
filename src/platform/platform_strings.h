@@ -22,7 +22,6 @@
 
 #else
 	#include<string.h>
-	#include<stdio.h>
 #endif
 
 #endif //__PLATFORM_STRINGS_H_
