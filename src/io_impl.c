@@ -7,6 +7,7 @@
 *****************************************************************/
 
 #include<fcntl.h>
+#include<sys/stat.h>
 #include<unistd.h>
 #include"io_common.h"
 
@@ -196,6 +197,116 @@ io_cmp io_close(io_req* req)
 	return(cmp);
 }
 
+io_cmp io_size(io_req* req)
+{
+	io_cmp cmp = {0};
+	file_slot* slot = file_slot_from_handle(&__globalFileTable, req->handle);
+	if(slot)
+	{
+		struct stat s;
+		fstat(slot->fd, &s);
+		cmp.result = s.st_size;
+	}
+	else
+	{
+		cmp.error = IO_ERR_HANDLE;
+	}
+	return(cmp);
+}
+
+io_cmp io_pos(io_req* req)
+{
+	io_cmp cmp = {0};
+	file_slot* slot = file_slot_from_handle(&__globalFileTable, req->handle);
+	if(slot)
+	{
+		cmp.result = lseek(slot->fd, 0, SEEK_CUR);
+		//TODO: check for errors
+	}
+	else
+	{
+		cmp.error = IO_ERR_HANDLE;
+	}
+	return(cmp);
+}
+
+io_cmp io_seek(io_req* req)
+{
+	io_cmp cmp = {0};
+	file_slot* slot = file_slot_from_handle(&__globalFileTable, req->handle);
+	if(slot)
+	{
+		int whence;
+		switch(req->whence)
+		{
+			case IO_SEEK_CURRENT:
+				whence = SEEK_CUR;
+				break;
+
+			case IO_SEEK_SET:
+				whence = SEEK_SET;
+				break;
+
+			case IO_SEEK_END:
+				whence = SEEK_END;
+		}
+		cmp.result = lseek(slot->fd, req->size, whence);
+		//TODO: check for errors
+	}
+	else
+	{
+		cmp.error = IO_ERR_HANDLE;
+	}
+	return(cmp);
+}
+
+io_cmp io_read(io_req* req)
+{
+	io_cmp cmp = {0};
+	file_slot* slot = file_slot_from_handle(&__globalFileTable, req->handle);
+	if(slot)
+	{
+		cmp.result = read(slot->fd, req->buffer, req->size);
+		//TODO: check for errors
+	}
+	else
+	{
+		cmp.error = IO_ERR_HANDLE;
+	}
+	return(cmp);
+}
+
+io_cmp io_write(io_req* req)
+{
+	io_cmp cmp = {0};
+	file_slot* slot = file_slot_from_handle(&__globalFileTable, req->handle);
+	if(slot)
+	{
+		cmp.result = write(slot->fd, req->buffer, req->size);
+		//TODO: check for errors
+	}
+	else
+	{
+		cmp.error = IO_ERR_HANDLE;
+	}
+	return(cmp);
+}
+
+io_cmp io_get_error(io_req* req)
+{
+	io_cmp cmp = {0};
+	file_slot* slot = file_slot_from_handle(&__globalFileTable, req->handle);
+	if(slot)
+	{
+		//TODO get error from slot
+	}
+	else
+	{
+		cmp.error = IO_ERR_HANDLE;
+	}
+	return(cmp);
+}
+
 
 io_cmp io_wait_single_req(io_req* req)
 {
@@ -217,7 +328,7 @@ io_cmp io_wait_single_req(io_req* req)
 	u32 memSize = 0;
 	char* memory = (char*)m3_GetMemory(__orcaApp.runtime.m3Runtime, &memSize, 0);
 
-	u64 bufferIndex = (u64)req->buffer & 0xffffff;
+	u64 bufferIndex = (u64)req->buffer & 0xffffffff;
 
 	if(bufferIndex + req->size > memSize)
 	{
@@ -225,6 +336,7 @@ io_cmp io_wait_single_req(io_req* req)
 	}
 	else
 	{
+		//TODO: avoid modifying req.
 		req->buffer = memory + bufferIndex;
 
 		switch(req->op)
@@ -235,6 +347,30 @@ io_cmp io_wait_single_req(io_req* req)
 
 			case IO_OP_CLOSE:
 				cmp = io_close(req);
+				break;
+
+			case IO_OP_SIZE:
+				cmp = io_size(req);
+				break;
+
+			case IO_OP_READ:
+				cmp = io_read(req);
+				break;
+
+			case IO_OP_WRITE:
+				cmp = io_write(req);
+				break;
+
+			case IO_OP_POS:
+				cmp = io_pos(req);
+				break;
+
+			case IO_OP_SEEK:
+				cmp = io_seek(req);
+				break;
+
+			case IO_OP_ERROR:
+				cmp = io_get_error(req);
 				break;
 
 			default:

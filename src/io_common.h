@@ -32,7 +32,7 @@ enum
 	//...
 };
 
-typedef enum { FILE_SET, FILE_END, FILE_CURR } file_whence;
+typedef enum { IO_SEEK_SET, IO_SEEK_END, IO_SEEK_CURRENT } file_whence;
 
 typedef u32 file_open_flags;
 enum {
