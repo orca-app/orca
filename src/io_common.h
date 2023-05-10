@@ -69,12 +69,22 @@ typedef struct io_req
 typedef i32 io_error;
 enum {
 	IO_OK = 0,
-	IO_ERR_INVALID, // invalid argument or argument combination
-	IO_ERR_PERM,    // access denied
-	IO_ERR_PATH,    // path does not exist
-	IO_ERR_EXISTS,  // file already exists
+	IO_ERR_UNKNOWN,
+	IO_ERR_OP,      // unsupported operation
 	IO_ERR_HANDLE,  // invalid handle
-	IO_ERR_MAX_FILES,
+	IO_ERR_PREV,    // previously had a fatal error (last error stored on handle)
+	IO_ERR_ARG,     // invalid argument or argument combination
+	IO_ERR_PERM,    // access denied
+	IO_ERR_SPACE,   // no space left
+	IO_ERR_NO_FILE, // file does not exist
+	IO_ERR_EXISTS,  // file already exists
+	IO_ERR_MAX_FILES, // max open files reached
+	IO_ERR_PATH_LENGTH, // path too long
+	IO_ERR_FILE_SIZE,   // file too big
+	IO_ERR_OVERFLOW,    // offset too big
+	IO_ERR_NOT_READY, // no data ready to be read/written
+	IO_ERR_MEM,       // failed to allocate memory
+
 	//...
 };
 
