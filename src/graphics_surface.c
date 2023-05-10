@@ -352,14 +352,10 @@ void mg_surface_render_commands(mg_surface surface,
 vec2 mg_image_size(mg_image image)
 {
 	vec2 res = {0};
-	mg_canvas_data* canvas = __mgCurrentCanvas;
-	if(canvas)
+	mg_image_data* imageData = mg_image_data_from_handle(image);
+	if(imageData)
 	{
-		mg_image_data* imageData = mg_image_data_from_handle(image);
-		if(imageData)
-		{
-			res = imageData->size;
-		}
+		res = imageData->size;
 	}
 	return(res);
 }
