@@ -9,6 +9,7 @@
 #include<fcntl.h>
 #include<sys/stat.h>
 #include<unistd.h>
+#include<limits.h>
 #include"io_common.h"
 
 //TODO: - file_handle to FILE* association
@@ -84,6 +85,278 @@ file_slot* file_slot_from_handle(file_table* table, file_handle handle)
 	return(slot);
 }
 
+io_error io_convert_errno(int e)
+{
+	io_error error;
+	switch(e)
+	{
+		case EPERM:
+		case EACCES:
+		case EROFS:
+			error = IO_ERR_PERM;
+			break;
+
+		case ENOENT:
+			error = IO_ERR_NO_ENTRY;
+			break;
+
+		case EINTR:
+			error = IO_ERR_INTERRUPT;
+			break;
+
+		case EIO:
+			error = IO_ERR_PHYSICAL;
+			break;
+
+		case ENXIO:
+			error = IO_ERR_NO_DEVICE;
+			break;
+
+		case EBADF:
+			// this should only happen when user tries to write/read to a file handle
+			// opened with readonly/writeonly access
+			error = IO_ERR_PERM;
+			break;
+
+		case ENOMEM:
+			error = IO_ERR_MEM;
+			break;
+
+		case EFAULT:
+		case EINVAL:
+		case EDOM:
+			error = IO_ERR_ARG;
+			break;
+
+		case EBUSY:
+		case EAGAIN:
+			error = IO_ERR_NOT_READY;
+			break;
+
+		case EEXIST:
+			error = IO_ERR_EXISTS;
+			break;
+
+		case ENOTDIR:
+			error = IO_ERR_NOT_DIR;
+			break;
+
+		case EISDIR:
+			error = IO_ERR_DIR;
+			break;
+
+		case ENFILE:
+		case EMFILE:
+			error = IO_ERR_MAX_FILES;
+			break;
+
+		case EFBIG:
+			error = IO_ERR_FILE_SIZE;
+			break;
+
+		case ENOSPC:
+		case EDQUOT:
+			error = IO_ERR_SPACE;
+			break;
+
+		case ELOOP:
+			error = IO_ERR_MAX_LINKS;
+			break;
+
+		case ENAMETOOLONG:
+			error = IO_ERR_PATH_LENGTH;
+			break;
+
+		case EOVERFLOW:
+			error = IO_ERR_OVERFLOW;
+			break;
+
+		default:
+			error = IO_ERR_UNKNOWN;
+			break;
+	}
+	return(error);
+}
+
+typedef struct io_path_walk_result
+{
+	io_error error;
+	int fd;
+
+} io_path_walk_result;
+
+io_path_walk_result io_path_walk(str8 path)
+{
+	io_path_walk_result result = {.fd = -1};
+
+	mem_arena* scratch = mem_scratch();
+	mem_arena_marker mark = mem_arena_mark(scratch);
+
+	str8_list sep = {0};
+	str8_list_push(scratch, &sep, STR8("/"));
+	str8_list pathElements = str8_split(scratch, path, sep);
+
+	str8 execPath = mp_path_directory(mp_app_get_executable_path(scratch));
+	str8_list list = {0};
+	str8_list_push(scratch, &list, execPath);
+	str8_list_push(scratch, &list, STR8("../app/data"));
+	str8 dataPath = str8_list_join(scratch, list);
+
+	result.fd = open(str8_to_cstring(scratch, dataPath), O_RDONLY);
+	if(result.fd < 0)
+	{
+		result.error = io_convert_errno(errno);
+		goto error;
+	}
+	struct stat dirStat;
+	if(fstat(result.fd, &dirStat))
+	{
+		result.error = io_convert_errno(errno);
+		goto error;
+	}
+	ino_t baseInode = dirStat.st_ino;
+	ino_t currentInode = baseInode;
+
+	for_list(&pathElements.list, elt, str8_elt, listElt)
+	{
+		str8 name = elt->string;
+
+		if(!str8_cmp(name, STR8(".")))
+		{
+			//NOTE: skip
+			continue;
+		}
+		else if(!str8_cmp(name, STR8("..")))
+		{
+			//NOTE: check that we don't escape 'root' dir
+			if(currentInode == baseInode)
+			{
+				result.error = IO_ERR_WALKOUT;
+				goto error;
+			}
+			else
+			{
+				// open that dir and continue
+				int nextFd = openat(result.fd, "..", O_RDONLY);
+				if(!nextFd)
+				{
+					result.error = io_convert_errno(errno);
+					goto error;
+				}
+				else
+				{
+					close(result.fd);
+					result.fd = nextFd;
+					if(fstat(result.fd, &dirStat))
+					{
+						result.error = io_convert_errno(errno);
+						goto error;
+					}
+					currentInode = dirStat.st_ino;
+				}
+			}
+		}
+		else
+		{
+			char* nameCStr = str8_to_cstring(scratch, name);
+			struct stat st;
+
+			if(fstatat(result.fd, nameCStr, &st, AT_SYMLINK_NOFOLLOW))
+			{
+				if(&elt->listElt != list_last(&pathElements.list))
+				{
+					result.error = io_convert_errno(errno);
+					goto error;
+				}
+				else
+				{
+					continue;
+				}
+			}
+
+			int type = st.st_mode & S_IFMT;
+
+			if(type == S_IFLNK)
+			{
+				// symlink, check that it's relative, and insert it in elements
+				char buff[PATH_MAX+1];
+				int r = readlinkat(result.fd, nameCStr, buff, PATH_MAX);
+				if(r<0)
+				{
+					result.error = io_convert_errno(errno);
+					goto error;
+				}
+				else if(r == 0)
+				{
+					//NOTE: skip
+				}
+				else if(buff[0] == '/')
+				{
+					result.error = IO_ERR_WALKOUT;
+					goto error;
+				}
+				else
+				{
+					buff[r] = '\0';
+
+					str8_list linkElements = str8_split(scratch, str8_from_buffer(r, buff), sep);
+					if(!list_empty(&linkElements.list))
+					{
+						//NOTE: insert linkElements into pathElements after elt
+						list_elt* tmp = elt->listElt.next;
+						elt->listElt.next = linkElements.list.first;
+						linkElements.list.last->next = tmp;
+						if(!tmp)
+						{
+							pathElements.list.last = linkElements.list.last;
+						}
+					}
+				}
+			}
+			else if(type == S_IFDIR)
+			{
+				// dir, open it and continue
+				int nextFd = openat(result.fd, nameCStr, O_RDONLY);
+				if(!nextFd)
+				{
+					result.error = io_convert_errno(errno);
+					goto error;
+				}
+				else
+				{
+					close(result.fd);
+					result.fd = nextFd;
+					currentInode = st.st_ino;
+				}
+			}
+			else if(type == S_IFREG)
+			{
+				// regular file, check that we're at the last element
+				if(&elt->listElt != list_last(&pathElements.list))
+				{
+					result.error = IO_ERR_NOT_DIR;
+					goto error;
+				}
+			}
+			else
+			{
+				result.error = IO_ERR_NOT_DIR;
+				goto error;
+			}
+		}
+	}
+	goto end;
+
+	error:
+	{
+		close(result.fd);
+		result.fd = -1;
+	}
+	end:
+	mem_arena_clear_to(scratch, mark);
+	return(result);
+}
+
 io_cmp io_open(io_req* req)
 {
 	io_cmp cmp = {0};
@@ -129,6 +402,8 @@ io_cmp io_open(io_req* req)
 			flags |= O_CREAT;
 		}
 
+		flags |= O_NOFOLLOW;
+
 		mode_t mode = S_IRUSR
 	            	| S_IWUSR
 	            	| S_IRGRP
@@ -136,88 +411,43 @@ io_cmp io_open(io_req* req)
 	            	| S_IROTH
 	            	| S_IWOTH;
 
-		//NOTE: build path
-		////////////////////////////////////////////////////////////////////////////////////
-		//TODO: canonicalize directory path & check that it's inside local app folder
-		////////////////////////////////////////////////////////////////////////////////////
-
-		mem_arena* scratch = mem_scratch();
-		mem_arena_marker mark = mem_arena_mark(scratch);
-
-		str8_list list = {0};
-
-		str8 execPath = mp_app_get_executable_path(scratch);
-		str8 execDir = mp_path_directory(execPath);
-
-		str8_list_push(scratch, &list, execDir);
-		str8_list_push(scratch, &list, STR8("/../data/"));
-		str8_list_push(scratch, &list, str8_from_buffer(req->size, req->buffer));
-
-		str8 absPath = str8_list_join(scratch, list);
-		char* absCString = str8_to_cstring(scratch, absPath);
-
-		//NOTE: open
-		int fd = open(absCString, flags, mode);
-
-		if(fd >= 0)
-		{
-			slot->fd = fd;
-			file_handle handle = file_handle_from_slot(&__globalFileTable, slot);
-			cmp.result = handle.h;
-		}
-		else
+		//NOTE: walk path (ensuring it's inside app's data directory subtree)
+		str8 path = str8_from_buffer(req->size, req->buffer);
+		io_path_walk_result walkRes = io_path_walk(path);
+		if(walkRes.error != IO_OK)
 		{
 			slot->fd = -1;
 			slot->fatal = true;
+			slot->error = walkRes.error;
+		}
+		else
+		{
+			//NOTE: open
+			mem_arena* scratch = mem_scratch();
+			mem_arena_marker mark = mem_arena_mark(scratch);
 
-			switch(errno)
+			str8 name = mp_path_base_name(path);
+			char* nameCStr = str8_to_cstring(scratch, name);
+			int fd = openat(walkRes.fd, nameCStr, flags, mode);
+			close(walkRes.fd);
+
+			mem_arena_clear_to(scratch, mark);
+
+			if(fd >= 0)
 			{
-				case EACCES:
-				case EROFS:
-					slot->error = IO_ERR_PERM;
-					break;
-
-				case EDQUOT:
-				case ENOSPC:
-					slot->error = IO_ERR_SPACE;
-					break;
-
-				case EEXIST:
-					slot->error = IO_ERR_EXISTS;
-					break;
-
-				case EFAULT:
-				case EINVAL:
-				case EISDIR:
-					slot->error = IO_ERR_ARG;
-					break;
-
-				case EMFILE:
-				case ENFILE:
-					slot->error = IO_ERR_MAX_FILES;
-					break;
-
-				case ENAMETOOLONG:
-					slot->error = IO_ERR_PATH_LENGTH;
-					break;
-
-				case ENOENT:
-				case ENOTDIR:
-					slot->error = IO_ERR_NO_FILE;
-					break;
-
-				case EOVERFLOW:
-					slot->error = IO_ERR_FILE_SIZE;
-					break;
-
-				default:
-					slot->error = IO_ERR_UNKNOWN;
-					break;
+				slot->fd = fd;
+				file_handle handle = file_handle_from_slot(&__globalFileTable, slot);
+				cmp.result = handle.h;
 			}
-			cmp.error = slot->error;
+			else
+			{
+				slot->fd = -1;
+				slot->fatal = true;
+				slot->error = io_convert_errno(errno);
+			}
 		}
 
-		mem_arena_clear_to(scratch, mark);
+		cmp.error = slot->error;
 	}
 
 	return(cmp);

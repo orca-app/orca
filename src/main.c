@@ -363,7 +363,7 @@ void* orca_runloop(void* user)
 
 	//NOTE: loads wasm module
 	const char* bundleNameCString = "module";
-	str8 modulePath = mp_app_get_resource_path(mem_scratch(), "../wasm/module.wasm");
+	str8 modulePath = mp_app_get_resource_path(mem_scratch(), "../app/wasm/module.wasm");
 	const char* modulePathCString = str8_to_cstring(mem_scratch(), modulePath);
 
 	FILE* file = fopen(modulePathCString, "rb");

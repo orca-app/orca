@@ -18,10 +18,10 @@ from argparse import ArgumentParser
 #----------------------------------------------------------------------------------------------
 
 parser = ArgumentParser(prog='mkapp')
-parser.add_argument("-r", "--res-file", nargs='+', action='append', dest='res_files')
-parser.add_argument("-R", "--res-dir", nargs='+', action='append', dest='res_dirs')
+parser.add_argument("-d", "--data-file", action='append', dest='data_files')
+parser.add_argument("-D", "--data-dir", action='append', dest='data_dirs')
 parser.add_argument("-i", "--icon")
-parser.add_argument("-D", "--out-dir", default=os.getcwd())
+parser.add_argument("-C", "--out-dir", default=os.getcwd())
 parser.add_argument("-n", "--name", default='out')
 parser.add_argument("-O", "--orca-dir", default='.')
 parser.add_argument("--version", default='0.0.0')
@@ -38,8 +38,9 @@ bundle_path = args.out_dir + '/' + bundle_name
 contents_dir = bundle_path + '/Contents'
 exe_dir = contents_dir + '/MacOS'
 res_dir = contents_dir + '/resources'
-wasm_dir = contents_dir + '/wasm'
-data_dir = contents_dir + '/data'
+guest_dir = contents_dir + '/app'
+wasm_dir = guest_dir + '/wasm'
+data_dir = guest_dir + '/data'
 
 if os.path.exists(bundle_path):
 	shutil.rmtree(bundle_path)
@@ -47,6 +48,7 @@ os.mkdir(bundle_path)
 os.mkdir(contents_dir)
 os.mkdir(exe_dir)
 os.mkdir(res_dir)
+os.mkdir(guest_dir)
 os.mkdir(wasm_dir)
 os.mkdir(data_dir)
 
@@ -66,23 +68,27 @@ shutil.copy(egl_lib, exe_dir)
 shutil.copy(renderer_lib, exe_dir)
 
 #-----------------------------------------------------------
-#NOTE: copy wasm module and resources
+#NOTE: copy wasm module and data
 #-----------------------------------------------------------
 shutil.copy(args.module, wasm_dir + '/module.wasm')
 
-if args.res_files != None:
-	for res in args.res_files:
-		shutil.copy(res, res_dir)
+if args.data_files != None:
+	for data in args.data_files:
+		shutil.copy(data, data_dir)
 
-if args.res_dirs != None:
-	for res in args.res_dirs:
-		shutil.copytree(res, res_dir)
+if args.data_dirs != None:
+	for data in args.data_dirs:
+		shutil.copytree(data, data_dir + '/' + os.path.basename(data), dirs_exist_ok=True)
 
+#-----------------------------------------------------------
+#NOTE: copy runtime resources
+#-----------------------------------------------------------
 # default fonts
 shutil.copy(args.orca_dir + '/resources/OpenSansLatinSubset.ttf', res_dir)
 shutil.copy(args.orca_dir + '/resources/Menlo.ttf', res_dir)
 shutil.copy(args.orca_dir + '/resources/Menlo Bold.ttf', res_dir)
 shutil.copy(args.orca_dir + '/resources/Menlo Italics.ttf', res_dir)
+
 #-----------------------------------------------------------
 #NOTE make icon
 #-----------------------------------------------------------

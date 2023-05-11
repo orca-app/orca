@@ -41,13 +41,13 @@ void OnInit(void)
 	surface = mg_surface_main();
 	canvas = mg_canvas_create();
 
-	file_handle file = file_open(STR8("test_file.txt")	, IO_OPEN_CREATE | IO_OPEN_WRITE);
+	file_handle file = file_open(STR8("/test_write.txt")	, IO_OPEN_CREATE | IO_OPEN_WRITE);
 
 	str8 string = STR8("Hello, file!\n");
 	file_write(file, string.len, string.ptr);
 	file_close(file);
 
-	file = file_open(STR8("test_file.txt")	, IO_OPEN_READ);
+	file = file_open(STR8("/dir1/test_read.txt")	, IO_OPEN_READ);
 	u64 size = file_size(file);
 	char* buffer = mem_arena_alloc(mem_scratch(), size);
 	file_read(file, size, buffer);
