@@ -1029,7 +1029,7 @@ mg_surface_data* mg_win32_surface_create_host(mp_window window)
 			memset(surface, 0, sizeof(mg_surface_data));
 			mg_surface_init_for_window(surface, windowData);
 
-			surface->backend = MG_BACKEND_HOST;
+			surface->api = MG_HOST;
 			surface->hostConnect = mg_win32_surface_host_connect;
 		}
 	}

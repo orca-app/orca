@@ -11,6 +11,7 @@
 #include"platform.h"
 
 #if !PLATFORM_ORCA
+	#define _USE_MATH_DEFINES //NOTE: necessary for MSVC
 	#include<math.h>
 #else
 

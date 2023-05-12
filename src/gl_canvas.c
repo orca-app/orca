@@ -408,14 +408,18 @@ int mg_gl_canvas_compile_render_program_named(const char* progName,
 #define mg_gl_canvas_compile_render_program(progName, shaderSrc, vertexSrc, out) \
 	mg_gl_canvas_compile_render_program_named(progName, #shaderSrc, #vertexSrc, shaderSrc, vertexSrc, out)
 
-mg_canvas_backend* mg_gl_canvas_create(mg_surface surface)
+mg_surface_data* gl_canvas_surface_create_for_window(mp_window window)
 {
+	mg_wgl_surface* surface = (mg_wgl_surface*)mg_wgl_surface_create_for_window(window);
+
+
+/*
 	mg_gl_canvas_backend* backend = 0;
 	mg_surface_data* surfaceData = mg_surface_data_from_handle(surface);
 
 	int err = 0;
 
-	if(surfaceData && surfaceData->backend == MG_BACKEND_GL)
+	if(surfaceData && surfaceData->api == MG_GL)
 	{
 		backend = malloc_type(mg_gl_canvas_backend);
 		memset(backend, 0, sizeof(mg_gl_canvas_backend));
@@ -495,4 +499,7 @@ mg_canvas_backend* mg_gl_canvas_create(mg_surface surface)
 	}
 
 	return((mg_canvas_backend*)backend);
+*/
+
+	return((mg_surface_data*)surface);
 }
