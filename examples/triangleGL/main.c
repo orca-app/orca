@@ -6,7 +6,7 @@
 *	@revision:
 *
 *****************************************************************/
-#include<stdlib.h>
+#include<stdio.h>
 #include<string.h>
 
 #define _USE_MATH_DEFINES //NOTE: necessary for MSVC
@@ -14,8 +14,6 @@
 
 #define MG_INCLUDE_GL_API
 #include"milepost.h"
-
-#define LOG_SUBSYSTEM "Main"
 
 unsigned int program;
 
@@ -60,15 +58,13 @@ void compile_shader(GLuint shader, const char* source)
 
 int main()
 {
-	LogLevel(LOG_LEVEL_DEBUG);
-
 	mp_init();
 
 	mp_rect rect = {.x = 100, .y = 100, .w = 800, .h = 600};
 	mp_window window = mp_window_create(rect, "test", 0);
 
 	//NOTE: create surface
-	mg_surface surface = mg_surface_create_for_window(window, MG_BACKEND_GL);
+	mg_surface surface = mg_surface_create_for_window(window, MG_GL);
 
 	//NOTE: init shader and gl state
 	mg_surface_prepare(surface);
@@ -116,10 +112,10 @@ int main()
 	while(!mp_should_quit())
 	{
 		mp_pump_events(0);
-		mp_event event = {0};
-		while(mp_next_event(&event))
+		mp_event* event = 0;
+		while((event = mp_next_event(mem_scratch())) != 0)
 		{
-			switch(event.type)
+			switch(event->type)
 			{
 				case MP_EVENT_WINDOW_CLOSE:
 				{
@@ -157,6 +153,8 @@ int main()
    		glDrawArrays(GL_TRIANGLES, 0, 3);
 
 		mg_surface_present(surface);
+
+		mem_arena_clear(mem_scratch());
 	}
 
 	mp_terminate();
