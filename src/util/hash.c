@@ -159,7 +159,7 @@ uint64_t xxh_64 (const void *key, int len, uint64_t h) {
   s64 += len;
 
   // up to 31 bytes remain, process 0-3 8 byte blocks
-  uint8_t *tail = (uint8_t *) (key + (len/32)*32);
+  uint8_t *tail = (uint8_t *) (((char*)key) + (len/32)*32);
   for (int i=0;i < (len & 31) / 8; i++,tail+=8) {
     uint64_t b = (*((uint64_t*) tail))*p2;
     b = (((b << 31)| (b >> 33))*p1) ^ s64;
