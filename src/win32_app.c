@@ -216,7 +216,6 @@ static void process_mouse_event(mp_window_data* window, mp_key_action action, mp
 		}
 	}
 
-	mp_update_key_state(&__mpApp.inputState.mouse.buttons[button], action);
 	//TODO click/double click
 
 	mp_event event = {0};
@@ -385,15 +384,12 @@ LRESULT WinProc(HWND windowHandle, UINT message, WPARAM wParam, LPARAM lParam)
 			event.move.x = LOWORD(lParam) / scaling;
 			event.move.y = HIWORD(lParam) / scaling;
 
-			if(__mpApp.inputState.mouse.posValid)
+			if(__mpApp.win32.mouseTracked || __mpApp.win32.mouseCaptureMask)
 			{
-				event.move.deltaX = event.move.x - __mpApp.inputState.mouse.pos.x;
-				event.move.deltaY = event.move.y - __mpApp.inputState.mouse.pos.y;
+				event.move.deltaX = event.move.x - __mpApp.win32.lastMousePos.x;
+				event.move.deltaY = event.move.y - __mpApp.win32.lastMousePos.y;
 			}
-			else
-			{
-				__mpApp.inputState.mouse.posValid = true;
-			}
+			__mpApp.win32.lastMousePos = (vec2){event.move.x, event.move.y};
 
 			if(!__mpApp.win32.mouseTracked)
 			{
@@ -413,19 +409,12 @@ LRESULT WinProc(HWND windowHandle, UINT message, WPARAM wParam, LPARAM lParam)
 				mp_queue_event(&enter);
 			}
 
-			mp_update_mouse_move(event.move.x, event.move.y, event.move.deltaX, event.move.deltaY);
-
 			mp_queue_event(&event);
 		} break;
 
 		case WM_MOUSELEAVE:
 		{
 			__mpApp.win32.mouseTracked = false;
-
-			if(!__mpApp.win32.mouseCaptureMask)
-			{
-				__mpApp.inputState.mouse.posValid = false;
-			}
 
 			mp_event event = {0};
 			event.window = mp_window_handle_from_ptr(mpWindow);
@@ -453,9 +442,6 @@ LRESULT WinProc(HWND windowHandle, UINT message, WPARAM wParam, LPARAM lParam)
 			event.key.code = mp_convert_win32_key(HIWORD(lParam) & 0x1ff);
 			event.key.mods = mp_get_mod_keys();
 			mp_queue_event(&event);
-
-			mp_update_key_mods(event.key.mods);
-			mp_update_key_state(&__mpApp.inputState.keyboard.keys[event.key.code], event.key.action);
 		} break;
 
 		case WM_KEYUP:
@@ -468,10 +454,6 @@ LRESULT WinProc(HWND windowHandle, UINT message, WPARAM wParam, LPARAM lParam)
 			event.key.code = mp_convert_win32_key(HIWORD(lParam) & 0x1ff);
 			event.key.mods = mp_get_mod_keys();
 			mp_queue_event(&event);
-
-			mp_update_key_mods(event.key.mods);
-			mp_update_key_state(&__mpApp.inputState.keyboard.keys[event.key.code], event.key.action);
-
 		} break;
 
 		case WM_CHAR:
@@ -485,8 +467,6 @@ LRESULT WinProc(HWND windowHandle, UINT message, WPARAM wParam, LPARAM lParam)
 				str8 seq = utf8_encode(event.character.sequence, event.character.codepoint);
 				event.character.seqLen = seq.len;
 				mp_queue_event(&event);
-
-				mp_update_text(event.character.codepoint);
 			}
 		} break;
 
@@ -525,8 +505,6 @@ void mp_request_quit()
 
 void mp_pump_events(f64 timeout)
 {
-	__mpApp.inputState.frameCounter++;
-
 	MSG message;
 	while(PeekMessage(&message, 0, 0, 0, PM_REMOVE))
 	{

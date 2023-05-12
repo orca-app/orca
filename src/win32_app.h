@@ -35,6 +35,7 @@ typedef struct win32_app_data
 
 	int mouseCaptureMask;
 	bool mouseTracked;
+	vec2 lastMousePos;
 
 } win32_app_data;
 
