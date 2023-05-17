@@ -449,16 +449,18 @@ ui_box* ui_box_make_str8(str8 string, ui_flags flags)
 
 
 	//NOTE: set scroll
-	vec2 wheel = ui_mouse_wheel();
-	if(box->flags & UI_FLAG_SCROLL_WHEEL_X)
+	if(ui_box_hovering(box, ui_mouse_position()))
 	{
-		box->scroll.x += wheel.x;
+		vec2 wheel = ui_mouse_wheel();
+		if(box->flags & UI_FLAG_SCROLL_WHEEL_X)
+		{
+			box->scroll.x += wheel.x;
+		}
+		if(box->flags & UI_FLAG_SCROLL_WHEEL_Y)
+		{
+			box->scroll.y += wheel.y;
+		}
 	}
-	if(box->flags & UI_FLAG_SCROLL_WHEEL_Y)
-	{
-		box->scroll.y += wheel.y;
-	}
-
 	return(box);
 }
 
@@ -1813,7 +1815,9 @@ void ui_panel_begin(const char* str, ui_flags flags)
 	      | UI_FLAG_CLIP
 	      | UI_FLAG_BLOCK_MOUSE
 	      | UI_FLAG_ALLOW_OVERFLOW_X
-	      | UI_FLAG_ALLOW_OVERFLOW_Y;
+	      | UI_FLAG_ALLOW_OVERFLOW_Y
+	      | UI_FLAG_SCROLL_WHEEL_X
+	      | UI_FLAG_SCROLL_WHEEL_Y;
 
 	ui_box_begin(str, flags);
 }

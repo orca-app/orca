@@ -234,7 +234,7 @@ static void process_wheel_event(mp_window_data* window, f32 x, f32 y)
 	event.window = mp_window_handle_from_ptr(window);
 	event.type = MP_EVENT_MOUSE_WHEEL;
 	event.move.deltaX = x/30.0f;
-	event.move.deltaY = y/30.0f;
+	event.move.deltaY = -y/30.0f;
 	event.move.mods = mp_get_mod_keys();
 
 	mp_queue_event(&event);
