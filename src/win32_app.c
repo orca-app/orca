@@ -1080,3 +1080,28 @@ str8 mp_app_get_resource_path(mem_arena* arena, const char* name)
 	return(result);
 }
 //////////////////////////////////////////////////////////////////////////////////////////////////
+
+//--------------------------------------------------------------------
+// native open/save/alert windows
+//--------------------------------------------------------------------
+
+//TODO: GetOpenFileName() doesn't seem to support selecting folders, and
+//      requires filters which pair a "descriptive" name with an extension
+MP_API str8 mp_open_dialog(mem_arena* arena,
+                           const char* title,
+                           const char* defaultPath,
+                           int filterCount,
+                           const char** filters,
+                           bool directory);
+
+MP_API str8 mp_save_dialog(mem_arena* arena,
+                           const char* title,
+                           const char* defaultPath,
+                           int filterCount,
+                           const char** filters);
+
+//TODO: MessageBox() doesn't offer custom buttons?
+MP_API int mp_alert_popup(const char* title,
+                   const char* message,
+                   u32 count,
+                   const char** options);
