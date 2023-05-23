@@ -406,8 +406,6 @@ int main()
 							             UI_STYLE_SIZE);
 							widget_view("Buttons")
 							{
-								ui_button("Button 1");
-
 								if(ui_button("Test Dialog").clicked)
 								{
 									char* options[] = {"Accept", "Reject"};
@@ -425,6 +423,12 @@ int main()
 								if(ui_button("Open").clicked)
 								{
 									str8 file = mp_open_dialog(mem_scratch(), "Open File", 0, 0, 0, true);
+									printf("selected file %.*s\n", (int)file.len, file.ptr);
+								}
+
+								if(ui_button("Save").clicked)
+								{
+									str8 file = mp_save_dialog(mem_scratch(), "Save File", 0, 0, 0, true);
 									printf("selected file %.*s\n", (int)file.len, file.ptr);
 								}
 							}
