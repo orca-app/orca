@@ -409,6 +409,13 @@ int main()
 								ui_button("Button 1");
 								ui_button("Button 2");
 								ui_button("Button 3");
+
+								if(ui_button("Test Dialog").clicked)
+								{
+									char* options[] = {"OK", "Cancel"};
+									int res = mp_alert_popup("test dialog", "dialog message", 2, options);
+									printf("selected options %i\n", res);
+								}
 							}
 
 							ui_style_next(&(ui_style){.size.width = {UI_SIZE_PARENT, 0.5},

@@ -155,7 +155,7 @@ void mp_init()
 		__mpApp.win32.savedConsoleCodePage = GetConsoleOutputCP();
         SetConsoleOutputCP(CP_UTF8);
 
-        SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE);
+        SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
 	}
 }
 
@@ -1101,7 +1101,256 @@ MP_API str8 mp_save_dialog(mem_arena* arena,
                            const char** filters);
 
 //TODO: MessageBox() doesn't offer custom buttons?
+
+#include<commctrl.h>
+
+BOOL CALLBACK mp_dialog_proc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
+{
+	switch(message)
+	{
+		case WM_INITDIALOG:
+		{
+			// Get the owner window and dialog box rectangles.
+			HWND hWndOwner = GetParent(hWnd);
+			if(hWndOwner == NULL)
+			{
+				hWndOwner = GetDesktopWindow();
+			}
+
+			//TODO Get all child items, get their ideal sizes, set size, and resize dialog accordingly
+
+			vec2 buttonsTotalSize = {0, 20};
+			vec2 messageSize = {400, 200};
+
+			for(HWND hWndChild = GetWindow(hWnd, GW_CHILD);
+			    hWndChild != NULL;
+			    hWndChild = GetWindow(hWndChild, GW_HWNDNEXT))
+			{
+				int id = GetDlgCtrlID(hWndChild);
+				if(id == 0xffff)
+				{
+					//message
+					//TODO compute size with an "ideal" aspect ratio
+					SetWindowPos(hWndChild,
+					             HWND_TOP,
+					             0,
+					             0,
+					             messageSize.x,
+					             messageSize.y,
+					             SWP_NOMOVE | SWP_NOZORDER);
+				}
+				else
+				{
+					//button
+					SIZE size = {0};
+					Button_GetIdealSize(hWndChild, &size);
+
+					size.cx = maximum((int)size.cx, 100);
+					size.cy = maximum((int)size.cy, 40);
+
+					SetWindowPos(hWndChild,
+					             HWND_TOP,
+					             0,
+					             0,
+					             size.cx,
+					             size.cy,
+					             SWP_NOMOVE | SWP_NOZORDER);
+
+					buttonsTotalSize.x += size.cx + 10;
+					buttonsTotalSize.y = maximum(buttonsTotalSize.y, size.cy);
+				}
+			}
+			buttonsTotalSize.x -= 10;
+
+			vec2 dialogSize = {maximum(messageSize.x, buttonsTotalSize.x) + 20,
+			                   10 + messageSize.y + 10 + buttonsTotalSize.y + 10};
+
+			RECT dialogRect = {0, 0, dialogSize.x, dialogSize.y};
+
+			AdjustWindowRect(&dialogRect, WS_POPUP | WS_BORDER | WS_SYSMENU | DS_MODALFRAME | WS_CAPTION, FALSE);
+
+			SetWindowPos(hWnd,
+			             HWND_TOP,
+			             0, 0,
+			             dialogRect.right - dialogRect.left,
+			             dialogRect.bottom - dialogRect.top,
+			             SWP_NOMOVE | SWP_NOZORDER);
+
+			vec2 buttonPos = {dialogSize.x - buttonsTotalSize.x - 10,
+			                  dialogSize.y - buttonsTotalSize.y - 10};
+
+			for(HWND hWndChild = GetWindow(hWnd, GW_CHILD);
+			    hWndChild != NULL;
+			    hWndChild = GetWindow(hWndChild, GW_HWNDNEXT))
+			{
+				int id = GetDlgCtrlID(hWndChild);
+				if(id == 0xffff)
+				{
+					//message
+					SetWindowPos(hWndChild,
+					             HWND_TOP,
+					             0.5*(dialogSize.x - messageSize.x),
+					             10,
+					             0, 0,
+					             SWP_NOSIZE | SWP_NOZORDER);
+				}
+				else
+				{
+					//button
+					SIZE size;
+					Button_GetIdealSize(hWndChild, &size);
+					size.cx = maximum((int)size.cx, 100);
+
+					SetWindowPos(hWndChild,
+					             HWND_TOP,
+					             buttonPos.x,
+					             buttonPos.y,
+					             0, 0,
+					             SWP_NOSIZE | SWP_NOZORDER);
+
+					buttonPos.x += size.cx + 10;
+				}
+			}
+
+			RECT rc, rcDlg, rcOwner;
+
+			GetWindowRect(hWndOwner, &rcOwner);
+			GetWindowRect(hWnd, &rcDlg);
+			CopyRect(&rc, &rcOwner);
+
+			// Offset the owner and dialog box rectangles so that right and bottom
+			// values represent the width and height, and then offset the owner again
+			// to discard space taken up by the dialog box.
+
+			OffsetRect(&rcDlg, -rcDlg.left, -rcDlg.top);
+			OffsetRect(&rc, -rc.left, -rc.top);
+			OffsetRect(&rc, -rcDlg.right, -rcDlg.bottom);
+
+			// The new position is the sum of half the remaining space and the owner's
+			// original position.
+
+			SetWindowPos(hWnd,
+			             HWND_TOP,
+			             rcOwner.left + (rc.right / 2),
+			             rcOwner.top + (rc.bottom / 2),
+			             0, 0,          // Ignores size arguments.
+			             SWP_NOSIZE);
+
+			return TRUE;
+		}
+
+		case WM_COMMAND:
+			EndDialog(hWnd, wParam);
+			return TRUE;
+	}
+	return(FALSE);
+}
+
 MP_API int mp_alert_popup(const char* title,
-                   const char* message,
-                   u32 count,
-                   const char** options);
+                          const char* message,
+                          u32 count,
+                          const char** options)
+{
+	//NOTE compute size needed
+	int size = sizeof(DLGTEMPLATE); // template struct
+	size += 2*sizeof(WORD);         // menu and box class
+
+	int titleWideSize = 1 + MultiByteToWideChar(CP_UTF8, 0, title, -1, NULL, 0);
+	size += titleWideSize;
+
+	size = AlignUpOnPow2(size, sizeof(DWORD));
+	size += sizeof(DLGITEMTEMPLATE);
+	size += 2*sizeof(WORD); // menu and box class
+	size += 1 + MultiByteToWideChar(CP_UTF8, 0, message, -1, NULL, 0); // dialog message
+	size++; // no creation data
+
+	for(int i=0; i<count; i++)
+	{
+		size = AlignUpOnPow2(size, sizeof(DWORD));
+		size += sizeof(DLGITEMTEMPLATE);
+		size += 2*sizeof(WORD); // menu and box class
+		size += 1 + MultiByteToWideChar(CP_UTF8, 0, options[i], -1, NULL, 0); // button text
+		size++; // no creation data
+	}
+	size += sizeof(DWORD);
+
+	mem_arena* scratch = mem_scratch();
+	mem_arena_marker marker = mem_arena_mark(scratch);
+
+	char* buffer = mem_arena_alloc(scratch, size);
+	memset(buffer, 0, size);
+
+	LPDLGTEMPLATE template = (LPDLGTEMPLATE)AlignUpOnPow2((uintptr_t)buffer, sizeof(DWORD));
+	template->style = WS_POPUP | WS_BORDER | WS_SYSMENU | DS_MODALFRAME | WS_CAPTION;
+	template->cdit = count + 1;
+	template->x = 10;
+	template->y = 10;
+	template->cx = 100;
+	template->cy = 100;
+
+	LPWORD lpw = (LPWORD)(template + 1);
+	*lpw = 0;
+	lpw++;
+	*lpw = 0;
+	lpw++;
+
+	MultiByteToWideChar(CP_UTF8, 0, title, -1, (LPWSTR)lpw, titleWideSize);
+	lpw += titleWideSize;
+
+	{
+		lpw = (LPWORD)AlignUpOnPow2((uintptr_t)lpw, sizeof(DWORD));
+
+		LPDLGITEMTEMPLATE item = (LPDLGITEMTEMPLATE)lpw;
+		item->x = 10;
+		item->y = 10;
+		item->cx = 80;
+		item->cy = 40;
+		item->id = 0xffff;
+		item->style = WS_CHILD | WS_VISIBLE;
+
+		lpw = (LPWORD)(item+1);
+		*lpw = 0xffff;
+		lpw++;
+		*lpw = 0x0082;
+		lpw++;
+
+		int wideSize = 1 + MultiByteToWideChar(CP_UTF8, 0, message, -1, NULL, 0);
+		MultiByteToWideChar(CP_UTF8, 0, message, -1, (LPWSTR)lpw, wideSize);
+		lpw += wideSize;
+
+		*lpw = 0;
+		lpw++;
+	}
+
+	for(int i=0; i<count; i++)
+	{
+		lpw = (LPWORD)AlignUpOnPow2((uintptr_t)lpw, sizeof(DWORD));
+
+		LPDLGITEMTEMPLATE item = (LPDLGITEMTEMPLATE)lpw;
+		item->x = 10;
+		item->y = 70;
+		item->cx = 80;
+		item->cy = 20;
+		item->id = i+1;
+		item->style = WS_CHILD | WS_VISIBLE | BS_DEFPUSHBUTTON;
+
+		lpw = (LPWORD)(item+1);
+		*lpw = 0xffff;
+		lpw++;
+		*lpw = 0x0080;
+		lpw++;
+
+		int wideSize = 1 + MultiByteToWideChar(CP_UTF8, 0, options[i], -1, NULL, 0);
+		MultiByteToWideChar(CP_UTF8, 0, options[i], -1, (LPWSTR)lpw, wideSize);
+		lpw += wideSize;
+
+		*lpw = 0;
+		lpw++;
+	}
+
+	LRESULT ret = DialogBoxIndirect(NULL, template, NULL, (DLGPROC)mp_dialog_proc);
+
+	mem_arena_clear_to(scratch, marker);
+
+	return((int)ret-1);
+}
