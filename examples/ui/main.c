@@ -407,8 +407,6 @@ int main()
 							widget_view("Buttons")
 							{
 								ui_button("Button 1");
-								ui_button("Button 2");
-								ui_button("Button 3");
 
 								if(ui_button("Test Dialog").clicked)
 								{
@@ -422,6 +420,12 @@ int main()
 									{
 										printf("no options selected\n");
 									}
+								}
+
+								if(ui_button("Open").clicked)
+								{
+									str8 file = mp_open_dialog(mem_scratch(), "Open File", 0, 0, 0, true);
+									printf("selected file %.*s\n", (int)file.len, file.ptr);
 								}
 							}
 

@@ -1087,12 +1087,62 @@ str8 mp_app_get_resource_path(mem_arena* arena, const char* name)
 
 //TODO: GetOpenFileName() doesn't seem to support selecting folders, and
 //      requires filters which pair a "descriptive" name with an extension
+
+#define interface struct
+#include<shobjidl.h>
+#undef interface
+
 MP_API str8 mp_open_dialog(mem_arena* arena,
                            const char* title,
                            const char* defaultPath,
                            int filterCount,
                            const char** filters,
-                           bool directory);
+                           bool directory)
+{
+	str8 res = {0};
+	HRESULT hr = CoInitializeEx(NULL, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
+	if(SUCCEEDED(hr))
+	{
+		IFileOpenDialog* dialog = 0;
+		hr = CoCreateInstance(&CLSID_FileOpenDialog, NULL, CLSCTX_ALL, &IID_IFileOpenDialog, (void**)&dialog);
+		if(SUCCEEDED(hr))
+		{
+			if(directory)
+			{
+				FILEOPENDIALOGOPTIONS opt;
+				dialog->lpVtbl->GetOptions(dialog, &opt);
+				dialog->lpVtbl->SetOptions(dialog, opt | FOS_PICKFOLDERS);
+			}
+
+			hr = dialog->lpVtbl->Show(dialog, NULL);
+			if(SUCCEEDED(hr))
+			{
+				IShellItem* item;
+				hr = dialog->lpVtbl->GetResult(dialog, &item);
+				if(SUCCEEDED(hr))
+				{
+					PWSTR filePath;
+					hr = item->lpVtbl->GetDisplayName(item, SIGDN_FILESYSPATH, &filePath);
+
+					if(SUCCEEDED(hr))
+					{
+						int utf8Size = WideCharToMultiByte(CP_UTF8, 0, filePath, -1, NULL, 0, NULL, NULL);
+						if(utf8Size > 0)
+						{
+							res.ptr = mem_arena_alloc(arena, utf8Size);
+							res.len = utf8Size-1;
+							WideCharToMultiByte(CP_UTF8, 0, filePath, -1, res.ptr, utf8Size, NULL, NULL);
+						}
+						CoTaskMemFree(filePath);
+					}
+					item->lpVtbl->Release(item);
+				}
+			}
+		}
+	}
+	CoUninitialize();
+	return(res);
+}
 
 MP_API str8 mp_save_dialog(mem_arena* arena,
                            const char* title,
