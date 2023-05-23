@@ -412,9 +412,16 @@ int main()
 
 								if(ui_button("Test Dialog").clicked)
 								{
-									char* options[] = {"OK", "Cancel"};
+									char* options[] = {"Accept", "Reject"};
 									int res = mp_alert_popup("test dialog", "dialog message", 2, options);
-									printf("selected options %i\n", res);
+									if(res >= 0)
+									{
+										printf("selected options %i: %s\n", res, options[res]);
+									}
+									else
+									{
+										printf("no options selected\n");
+									}
 								}
 							}
 
