@@ -1090,7 +1090,9 @@ str8 mp_app_get_resource_path(mem_arena* arena, const char* name)
 
 #define interface struct
 #include<shobjidl.h>
+#include<shtypes.h>
 #undef interface
+
 
 MP_API str8 mp_open_dialog(mem_arena* arena,
                            const char* title,
@@ -1112,6 +1114,30 @@ MP_API str8 mp_open_dialog(mem_arena* arena,
 				FILEOPENDIALOGOPTIONS opt;
 				dialog->lpVtbl->GetOptions(dialog, &opt);
 				dialog->lpVtbl->SetOptions(dialog, opt | FOS_PICKFOLDERS);
+			}
+
+			if(filterCount && filters)
+			{
+				mem_arena_marker mark = mem_arena_mark(arena);
+				COMDLG_FILTERSPEC* filterSpecs = mem_arena_alloc_array(arena, COMDLG_FILTERSPEC, filterCount);
+				for(int i=0; i<filterCount; i++)
+				{
+					str8_list list = {0};
+					str8_list_push(arena, &list, STR8("*."));
+					str8_list_push(arena, &list, STR8(filters[i]));
+					str8 filter = str8_list_join(arena, list);
+
+					int filterWideSize = 1 + MultiByteToWideChar(CP_UTF8, 0, filter.ptr, filter.len, NULL, 0);
+					filterSpecs[i].pszSpec = mem_arena_alloc(arena, filterWideSize);
+					MultiByteToWideChar(CP_UTF8, 0, filter.ptr, filter.len, (LPWSTR)filterSpecs[i].pszSpec, filterWideSize);
+					((LPWSTR)(filterSpecs[i].pszSpec))[filterWideSize-1] = 0;
+
+					filterSpecs[i].pszName = filterSpecs[i].pszSpec;
+				}
+
+				hr = dialog->lpVtbl->SetFileTypes(dialog, filterCount, filterSpecs);
+
+				mem_arena_clear_to(arena, mark);
 			}
 
 			hr = dialog->lpVtbl->Show(dialog, NULL);
@@ -1158,6 +1184,30 @@ MP_API str8 mp_save_dialog(mem_arena* arena,
 		hr = CoCreateInstance(&CLSID_FileSaveDialog, NULL, CLSCTX_ALL, &IID_IFileSaveDialog, (void**)&dialog);
 		if(SUCCEEDED(hr))
 		{
+			if(filterCount && filters)
+			{
+				mem_arena_marker mark = mem_arena_mark(arena);
+				COMDLG_FILTERSPEC* filterSpecs = mem_arena_alloc_array(arena, COMDLG_FILTERSPEC, filterCount);
+				for(int i=0; i<filterCount; i++)
+				{
+					str8_list list = {0};
+					str8_list_push(arena, &list, STR8("*."));
+					str8_list_push(arena, &list, STR8(filters[i]));
+					str8 filter = str8_list_join(arena, list);
+
+					int filterWideSize = 1 + MultiByteToWideChar(CP_UTF8, 0, filter.ptr, filter.len, NULL, 0);
+					filterSpecs[i].pszSpec = mem_arena_alloc(arena, filterWideSize);
+					MultiByteToWideChar(CP_UTF8, 0, filter.ptr, filter.len, (LPWSTR)filterSpecs[i].pszSpec, filterWideSize);
+					((LPWSTR)(filterSpecs[i].pszSpec))[filterWideSize-1] = 0;
+
+					filterSpecs[i].pszName = filterSpecs[i].pszSpec;
+				}
+
+				hr = dialog->lpVtbl->SetFileTypes(dialog, filterCount, filterSpecs);
+
+				mem_arena_clear_to(arena, mark);
+			}
+
 			hr = dialog->lpVtbl->Show(dialog, NULL);
 			if(SUCCEEDED(hr))
 			{

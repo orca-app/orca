@@ -422,13 +422,14 @@ int main()
 
 								if(ui_button("Open").clicked)
 								{
-									str8 file = mp_open_dialog(mem_scratch(), "Open File", 0, 0, 0, true);
+									char* filters[] = {"md"};
+									str8 file = mp_open_dialog(mem_scratch(), "Open File", 0, 1, filters, false);
 									printf("selected file %.*s\n", (int)file.len, file.ptr);
 								}
 
 								if(ui_button("Save").clicked)
 								{
-									str8 file = mp_save_dialog(mem_scratch(), "Save File", 0, 0, 0, true);
+									str8 file = mp_save_dialog(mem_scratch(), "Save File", 0, 0, 0);
 									printf("selected file %.*s\n", (int)file.len, file.ptr);
 								}
 							}
