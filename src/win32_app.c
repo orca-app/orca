@@ -1128,7 +1128,7 @@ MP_API str8 mp_open_dialog(mem_arena* arena,
 					str8 filter = str8_list_join(arena, list);
 
 					int filterWideSize = 1 + MultiByteToWideChar(CP_UTF8, 0, filter.ptr, filter.len, NULL, 0);
-					filterSpecs[i].pszSpec = mem_arena_alloc(arena, filterWideSize);
+					filterSpecs[i].pszSpec = mem_arena_alloc_array(arena, wchar_t, filterWideSize);
 					MultiByteToWideChar(CP_UTF8, 0, filter.ptr, filter.len, (LPWSTR)filterSpecs[i].pszSpec, filterWideSize);
 					((LPWSTR)(filterSpecs[i].pszSpec))[filterWideSize-1] = 0;
 
@@ -1137,6 +1137,23 @@ MP_API str8 mp_open_dialog(mem_arena* arena,
 
 				hr = dialog->lpVtbl->SetFileTypes(dialog, filterCount, filterSpecs);
 
+				mem_arena_clear_to(arena, mark);
+			}
+
+			if(defaultPath)
+			{
+				mem_arena_marker mark = mem_arena_mark(arena);
+				int pathWideSize = MultiByteToWideChar(CP_UTF8, 0, defaultPath, -1, NULL, 0);
+				LPWSTR pathWide = mem_arena_alloc_array(arena, wchar_t, pathWideSize);
+				MultiByteToWideChar(CP_UTF8, 0, defaultPath, -1, pathWide, pathWideSize);
+
+				IShellItem* item = 0;
+				hr = SHCreateItemFromParsingName(pathWide, NULL, &IID_IShellItem, (void**)&item);
+				if(SUCCEEDED(hr))
+				{
+					hr = dialog->lpVtbl->SetFolder(dialog, item);
+					item->lpVtbl->Release(item);
+				}
 				mem_arena_clear_to(arena, mark);
 			}
 
@@ -1196,7 +1213,7 @@ MP_API str8 mp_save_dialog(mem_arena* arena,
 					str8 filter = str8_list_join(arena, list);
 
 					int filterWideSize = 1 + MultiByteToWideChar(CP_UTF8, 0, filter.ptr, filter.len, NULL, 0);
-					filterSpecs[i].pszSpec = mem_arena_alloc(arena, filterWideSize);
+					filterSpecs[i].pszSpec = mem_arena_alloc_array(arena, wchar_t, filterWideSize);
 					MultiByteToWideChar(CP_UTF8, 0, filter.ptr, filter.len, (LPWSTR)filterSpecs[i].pszSpec, filterWideSize);
 					((LPWSTR)(filterSpecs[i].pszSpec))[filterWideSize-1] = 0;
 
@@ -1205,6 +1222,23 @@ MP_API str8 mp_save_dialog(mem_arena* arena,
 
 				hr = dialog->lpVtbl->SetFileTypes(dialog, filterCount, filterSpecs);
 
+				mem_arena_clear_to(arena, mark);
+			}
+
+			if(defaultPath)
+			{
+				mem_arena_marker mark = mem_arena_mark(arena);
+				int pathWideSize = MultiByteToWideChar(CP_UTF8, 0, defaultPath, -1, NULL, 0);
+				LPWSTR pathWide = mem_arena_alloc_array(arena, wchar_t, pathWideSize);
+				MultiByteToWideChar(CP_UTF8, 0, defaultPath, -1, pathWide, pathWideSize);
+
+				IShellItem* item = 0;
+				hr = SHCreateItemFromParsingName(pathWide, NULL, &IID_IShellItem, (void**)&item);
+				if(SUCCEEDED(hr))
+				{
+					hr = dialog->lpVtbl->SetFolder(dialog, item);
+					item->lpVtbl->Release(item);
+				}
 				mem_arena_clear_to(arena, mark);
 			}
 
