@@ -1118,7 +1118,7 @@ MP_API str8 mp_open_dialog(mem_arena* arena,
 
 			if(filterCount && filters)
 			{
-				mem_arena_marker mark = mem_arena_mark(arena);
+				mem_arena_scope tmp = mem_arena_scope_begin(arena);
 				COMDLG_FILTERSPEC* filterSpecs = mem_arena_alloc_array(arena, COMDLG_FILTERSPEC, filterCount);
 				for(int i=0; i<filterCount; i++)
 				{
@@ -1137,12 +1137,12 @@ MP_API str8 mp_open_dialog(mem_arena* arena,
 
 				hr = dialog->lpVtbl->SetFileTypes(dialog, filterCount, filterSpecs);
 
-				mem_arena_clear_to(arena, mark);
+				mem_arena_scope_end(tmp);
 			}
 
 			if(defaultPath)
 			{
-				mem_arena_marker mark = mem_arena_mark(arena);
+				mem_arena_scope tmp = mem_arena_scope_begin(arena);
 				int pathWideSize = MultiByteToWideChar(CP_UTF8, 0, defaultPath, -1, NULL, 0);
 				LPWSTR pathWide = mem_arena_alloc_array(arena, wchar_t, pathWideSize);
 				MultiByteToWideChar(CP_UTF8, 0, defaultPath, -1, pathWide, pathWideSize);
@@ -1154,7 +1154,7 @@ MP_API str8 mp_open_dialog(mem_arena* arena,
 					hr = dialog->lpVtbl->SetFolder(dialog, item);
 					item->lpVtbl->Release(item);
 				}
-				mem_arena_clear_to(arena, mark);
+				mem_arena_scope_end(tmp);
 			}
 
 			hr = dialog->lpVtbl->Show(dialog, NULL);
@@ -1203,7 +1203,7 @@ MP_API str8 mp_save_dialog(mem_arena* arena,
 		{
 			if(filterCount && filters)
 			{
-				mem_arena_marker mark = mem_arena_mark(arena);
+				mem_arena_scope tmp = mem_arena_scope_begin(arena);
 				COMDLG_FILTERSPEC* filterSpecs = mem_arena_alloc_array(arena, COMDLG_FILTERSPEC, filterCount);
 				for(int i=0; i<filterCount; i++)
 				{
@@ -1222,12 +1222,12 @@ MP_API str8 mp_save_dialog(mem_arena* arena,
 
 				hr = dialog->lpVtbl->SetFileTypes(dialog, filterCount, filterSpecs);
 
-				mem_arena_clear_to(arena, mark);
+				mem_arena_scope_end(tmp);
 			}
 
 			if(defaultPath)
 			{
-				mem_arena_marker mark = mem_arena_mark(arena);
+				mem_arena_scope tmp = mem_arena_scope_begin(arena);
 				int pathWideSize = MultiByteToWideChar(CP_UTF8, 0, defaultPath, -1, NULL, 0);
 				LPWSTR pathWide = mem_arena_alloc_array(arena, wchar_t, pathWideSize);
 				MultiByteToWideChar(CP_UTF8, 0, defaultPath, -1, pathWide, pathWideSize);
@@ -1239,7 +1239,7 @@ MP_API str8 mp_save_dialog(mem_arena* arena,
 					hr = dialog->lpVtbl->SetFolder(dialog, item);
 					item->lpVtbl->Release(item);
 				}
-				mem_arena_clear_to(arena, mark);
+				mem_arena_scope_end(tmp);
 			}
 
 			hr = dialog->lpVtbl->Show(dialog, NULL);
@@ -1280,7 +1280,7 @@ MP_API int mp_alert_popup(const char* title,
                           const char** options)
 {
 	mem_arena* scratch = mem_scratch();
-	mem_arena_marker marker = mem_arena_mark(scratch);
+	mem_arena_scope tmp = mem_arena_scope_begin(scratch);
 	TASKDIALOG_BUTTON* buttons = mem_arena_alloc_array(scratch, TASKDIALOG_BUTTON, count);
 
 	for(int i=0; i<count; i++)
@@ -1332,6 +1332,6 @@ MP_API int mp_alert_popup(const char* title,
 		}
 	}
 
-	mem_arena_clear_to(scratch, marker);
+	mem_arena_scope_end(tmp);
 	return(button);
 }

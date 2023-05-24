@@ -56,7 +56,7 @@ str8 path_join(mem_arena* arena, str8_list elements)
 	return(res);
 }
 
-str8 path_append_relative(mem_arena* arena, str8 parent, str8 relPath)
+str8 path_append(mem_arena* arena, str8 parent, str8 relPath)
 {
 	//TODO: use secondary scratch arena
 

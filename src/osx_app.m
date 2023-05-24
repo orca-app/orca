@@ -480,14 +480,14 @@ void mp_install_keyboard_layout_listener()
 	event.type = MP_EVENT_PATHDROP;
 
 	mem_arena* scratch = mem_scratch();
-	mem_arena_marker mark = mem_arena_mark(scratch);
+	mem_arena_scope scope = mem_arena_scope_begin(scratch);
 
 	str8 path = str8_push_cstring(scratch, [filename UTF8String]);
 	str8_list_push(scratch, &event.paths, path);
 
 	mp_queue_event(&event);
 
-	mem_arena_clear_to(scratch, mark);
+	mem_arena_scope_end(scope);
 
 	return(YES);
 }
@@ -501,14 +501,14 @@ void mp_install_keyboard_layout_listener()
 	event.type = MP_EVENT_PATHDROP;
 
 	mem_arena* scratch = mem_scratch();
-	mem_arena_marker mark = mem_arena_mark(scratch);
+	mem_arena_scope scope = mem_arena_scope_begin(scratch);
 
 	str8 path = str8_push_cstring(scratch, [nsPath UTF8String]);
 	str8_list_push(scratch, &event.paths, path);
 
 	mp_queue_event(&event);
 
-	mem_arena_clear_to(scratch, mark);
+	mem_arena_scope_end(scope);
 }
 
 //TODO: drag and drop paths

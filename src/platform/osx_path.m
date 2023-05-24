@@ -55,10 +55,3 @@ str8 path_find_canonical(mem_arena* arena, str8 path)
 
 	return(result);
 }
-
-/*TODO
-str8 path_find_restricted(mem_arena* arena, str8 root, str8 relPath)
-{
-
-}
-*/

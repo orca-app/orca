@@ -115,19 +115,18 @@ void mem_arena_clear(mem_arena* arena)
 	arena->currentChunk = list_first_entry(&arena->chunks, mem_arena_chunk, listElt);
 }
 
-mem_arena_marker mem_arena_mark(mem_arena* arena)
+mem_arena_scope mem_arena_scope_begin(mem_arena* arena)
 {
-	mem_arena_marker marker = {.arena = arena,
-	                           .chunk = arena->currentChunk,
-	                           .offset = arena->currentChunk->offset};
-	return(marker);
+	mem_arena_scope scope = {.arena = arena,
+	                         .chunk = arena->currentChunk,
+	                         .offset = arena->currentChunk->offset};
+	return(scope);
 }
 
-void mem_arena_clear_to(mem_arena* arena, mem_arena_marker marker)
+void mem_arena_scope_end(mem_arena_scope scope)
 {
-	DEBUG_ASSERT(arena == marker.arena);
-	arena->currentChunk = marker.chunk;
-	arena->currentChunk->offset = marker.offset;
+	scope.arena->currentChunk = scope.chunk;
+	scope.arena->currentChunk->offset = scope.offset;
 }
 
 //--------------------------------------------------------------------------------
@@ -178,18 +177,65 @@ void mem_pool_clear(mem_pool* pool)
 //NOTE(martin): per-thread scratch arena
 //--------------------------------------------------------------------------------
 
-mp_thread_local mem_arena __scratchArena = {0};
+enum
+{
+	MEM_SCRATCH_POOL_SIZE = 8,
+	MEM_SCRATCH_DEFAULT_SIZE = 4096,
+};
+
+mp_thread_local mem_arena __scratchPool[MEM_SCRATCH_POOL_SIZE] = {0};
+
+
+static mem_arena* mem_scratch_at_index(int index)
+{
+	mem_arena* scratch = 0;
+
+	if(index >= 0 && index < MEM_SCRATCH_POOL_SIZE)
+	{
+		if(__scratchPool[index].base == 0)
+		{
+			mem_arena_options options = {.reserve = MEM_SCRATCH_DEFAULT_SIZE};
+			mem_arena_init_with_options(&__scratchPool[index], &options);
+		}
+		scratch = &__scratchPool[index];
+	}
+	return(scratch);
+}
 
 mem_arena* mem_scratch()
 {
-	if(__scratchArena.base == 0)
-	{
-		mem_arena_init(&__scratchArena);
-	}
-	return(&__scratchArena);
+	return(mem_scratch_at_index(0));
 }
 
-void mem_scratch_clear()
+MP_API mem_arena* mem_scratch_next(mem_arena* used)
 {
-	mem_arena_clear(mem_scratch());
+	mem_arena* res = 0;
+	if( (used >= __scratchPool)
+	  &&(used - __scratchPool < MEM_SCRATCH_POOL_SIZE))
+	{
+		u64 index = used - __scratchPool;
+		if(index + 1 < MEM_SCRATCH_POOL_SIZE)
+		{
+			res = mem_scratch_at_index(index+1);
+		}
+	}
+	else
+	{
+		res = mem_scratch_at_index(0);
+	}
+	return(res);
+}
+
+MP_API mem_arena_scope mem_scratch_begin()
+{
+	mem_arena* scratch = mem_scratch();
+	mem_arena_scope scope = mem_arena_scope_begin(scratch);
+	return(scope);
+}
+
+MP_API mem_arena_scope mem_scratch_begin_next(mem_arena* used)
+{
+	mem_arena* scratch = mem_scratch_next(used);
+	mem_arena_scope scope = mem_arena_scope_begin(scratch);
+	return(scope);
 }

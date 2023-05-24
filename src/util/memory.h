@@ -38,12 +38,12 @@ typedef struct mem_arena
 
 } mem_arena;
 
-typedef struct mem_arena_marker
+typedef struct mem_arena_scope
 {
 	mem_arena* arena;
 	mem_arena_chunk* chunk;
 	u64 offset;
-} mem_arena_marker;
+} mem_arena_scope;
 
 typedef struct mem_arena_options
 {
@@ -57,8 +57,9 @@ MP_API void mem_arena_release(mem_arena* arena);
 
 MP_API void* mem_arena_alloc(mem_arena* arena, u64 size);
 MP_API void mem_arena_clear(mem_arena* arena);
-MP_API mem_arena_marker mem_arena_mark(mem_arena* arena);
-MP_API void mem_arena_clear_to(mem_arena* arena, mem_arena_marker marker);
+
+MP_API mem_arena_scope mem_arena_scope_begin(mem_arena* arena);
+MP_API void mem_arena_scope_end(mem_arena_scope scope);
 
 #define mem_arena_alloc_type(arena, type) ((type*)mem_arena_alloc(arena, sizeof(type)))
 #define mem_arena_alloc_array(arena, type, count) ((type*)mem_arena_alloc(arena, sizeof(type)*(count)))
@@ -66,6 +67,10 @@ MP_API void mem_arena_clear_to(mem_arena* arena, mem_arena_marker marker);
 //--------------------------------------------------------------------------------
 //NOTE(martin): memory pool
 //--------------------------------------------------------------------------------
+
+//TODO: we could probably remove pool. Most of the time we construct pool on top of
+//      arenas "manually" with different free lists per object types...
+
 typedef struct mem_pool
 {
 	mem_arena arena;
@@ -92,8 +97,15 @@ MP_API void mem_pool_clear(mem_pool* pool);
 //--------------------------------------------------------------------------------
 //NOTE(martin): per-thread implicit scratch arena
 //--------------------------------------------------------------------------------
-MP_API void mem_scratch_clear();
 MP_API mem_arena* mem_scratch();
+MP_API mem_arena* mem_scratch_next(mem_arena* used);
+MP_API mem_arena_scope mem_scratch_begin();
+MP_API mem_arena_scope mem_scratch_begin_next(mem_arena* used);
+
+#define mem_scratch_end(scope) mem_arena_scope_end(scope)
+
+
+
 
 #ifdef __cplusplus
 } // extern "C"

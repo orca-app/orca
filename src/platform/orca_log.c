@@ -58,7 +58,7 @@ void platform_log_push(log_output* output,
                        va_list ap)
 {
 	mem_arena* scratch = mem_scratch();
-	mem_arena_marker marker = mem_arena_mark(scratch);
+	mem_arena_scope tmp = mem_arena_scope_begin(scratch);
 
 	orca_log_context ctx = {.arena = scratch,
 		                       .list = {0}};
@@ -70,5 +70,5 @@ void platform_log_push(log_output* output,
 
 	orca_log(level, str8_ip(function), str8_ip(file), line, str8_ip(string));
 
-	mem_arena_clear_to(scratch, marker);
+	mem_arena_scope_end(tmp);
 }
