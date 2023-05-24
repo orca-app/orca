@@ -92,6 +92,8 @@ mg_font create_font(const char* path)
 	return(font);
 }
 
+enum { FONT_COUNT = 3 };
+
 int main()
 {
 	mp_init();
@@ -109,17 +111,16 @@ int main()
 
 	mg_canvas canvas = mg_canvas_create();
 
-	const int fontCount = 3;
 	int fontIndex = 0;
-	mg_font fonts[fontCount] = {create_font("../resources/OpenSansLatinSubset.ttf"),
+	mg_font fonts[FONT_COUNT] = {create_font("../resources/OpenSansLatinSubset.ttf"),
 	                            create_font("../resources/CMUSerif-Roman.ttf"),
 	                            create_font("../resources/courier.ttf")};
 
-	mg_font_extents extents[fontCount];
-	f32 fontScales[fontCount];
-	f32 lineHeights[fontCount];
+	mg_font_extents extents[FONT_COUNT];
+	f32 fontScales[FONT_COUNT];
+	f32 lineHeights[FONT_COUNT];
 
-	for(int i=0; i<fontCount; i++)
+	for(int i=0; i<FONT_COUNT; i++)
 	{
 		extents[i] = mg_font_get_extents(fonts[i]);
 		fontScales[i] = mg_font_get_scale_for_em_pixels(fonts[i], 14);
@@ -206,7 +207,7 @@ int main()
 				{
 					if(event->key.code == MP_KEY_SPACE && event->key.action == MP_KEY_PRESS)
 					{
-						fontIndex = (fontIndex+1)%fontCount;
+						fontIndex = (fontIndex+1)%FONT_COUNT;
 					}
 				} break;
 
@@ -313,7 +314,7 @@ int main()
 	}
 
 
-	for(int i=0; i<fontCount; i++)
+	for(int i=0; i<FONT_COUNT; i++)
 	{
 		mg_font_destroy(fonts[i]);
 	}

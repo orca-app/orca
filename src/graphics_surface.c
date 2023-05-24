@@ -59,7 +59,7 @@ mg_image_data* mg_image_data_from_handle(mg_image handle)
 	#if PLATFORM_MACOS
 		mg_surface_data* mtl_canvas_surface_create_for_window(mp_window window);
 	#elif PLATFORM_WINDOWS
-		//TODO
+		mg_surface_data* gl_canvas_surface_create_for_window(mp_window window);
 	#endif
 #endif
 

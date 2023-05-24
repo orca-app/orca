@@ -7,16 +7,13 @@
 *
 *****************************************************************/
 #include<stdlib.h>
+#include<stdio.h>
 #include<string.h>
 
 #include"milepost.h"
 
-#define LOG_SUBSYSTEM "Main"
-
 int main()
 {
-	LogLevel(LOG_LEVEL_DEBUG);
-
 	mp_init();
 
 	mp_rect rect = {.x = 100, .y = 100, .w = 800, .h = 600};
@@ -28,10 +25,10 @@ int main()
 	while(!mp_should_quit())
 	{
 		mp_pump_events(0);
-		mp_event event = {0};
-		while(mp_next_event(&event))
+		mp_event *event = 0;
+		while((event = mp_next_event(mem_scratch())) != 0)
 		{
-			switch(event.type)
+			switch(event->type)
 			{
 				case MP_EVENT_WINDOW_CLOSE:
 				{
@@ -41,35 +38,35 @@ int main()
 				case MP_EVENT_WINDOW_RESIZE:
 				{
 					printf("resized, rect = {%f, %f, %f, %f}\n",
-					       event.frame.rect.x,
-					       event.frame.rect.y,
-					       event.frame.rect.w,
-					       event.frame.rect.h);
+					       event->frame.rect.x,
+					       event->frame.rect.y,
+					       event->frame.rect.w,
+					       event->frame.rect.h);
 				} break;
 
 				case MP_EVENT_WINDOW_MOVE:
 				{
 					printf("moved, rect = {%f, %f, %f, %f}\n",
-					       event.frame.rect.x,
-					       event.frame.rect.y,
-					       event.frame.rect.w,
-					       event.frame.rect.h);
+					       event->frame.rect.x,
+					       event->frame.rect.y,
+					       event->frame.rect.w,
+					       event->frame.rect.h);
 				} break;
 
 				case MP_EVENT_MOUSE_MOVE:
 				{
 					printf("mouse moved, pos = {%f, %f}, delta = {%f, %f}\n",
-					       event.move.x,
-					       event.move.y,
-					       event.move.deltaX,
-					       event.move.deltaY);
+					       event->move.x,
+					       event->move.y,
+					       event->move.deltaX,
+					       event->move.deltaY);
 				} break;
 
 				case MP_EVENT_MOUSE_WHEEL:
 				{
 					printf("mouse wheel, delta = {%f, %f}\n",
-					       event.move.deltaX,
-					       event.move.deltaY);
+					       event->move.deltaX,
+					       event->move.deltaY);
 				} break;
 
 				case MP_EVENT_MOUSE_ENTER:
@@ -85,26 +82,27 @@ int main()
 				case MP_EVENT_MOUSE_BUTTON:
 				{
 					printf("mouse button %i: %i\n",
-					       event.key.code,
-					       event.key.action == MP_KEY_PRESS ? 1 : 0);
+					       event->key.code,
+					       event->key.action == MP_KEY_PRESS ? 1 : 0);
 				} break;
 
 				case MP_EVENT_KEYBOARD_KEY:
 				{
 					printf("key %i: %s\n",
-					        event.key.code,
-					        event.key.action == MP_KEY_PRESS ? "press" : (event.key.action == MP_KEY_RELEASE ? "release" : "repeat"));
+					        event->key.code,
+					        event->key.action == MP_KEY_PRESS ? "press" : (event->key.action == MP_KEY_RELEASE ? "release" : "repeat"));
 				} break;
 
 				case MP_EVENT_KEYBOARD_CHAR:
 				{
-					printf("entered char %s\n", event.character.sequence);
+					printf("entered char %s\n", event->character.sequence);
 				} break;
 
 				default:
 					break;
 			}
 		}
+		mem_arena_clear(mem_scratch());
 	}
 
 	mp_terminate();

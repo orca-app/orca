@@ -155,7 +155,7 @@ void mp_init()
 		__mpApp.win32.savedConsoleCodePage = GetConsoleOutputCP();
         SetConsoleOutputCP(CP_UTF8);
 
-        SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE);
+        SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
 	}
 }
 
@@ -216,7 +216,6 @@ static void process_mouse_event(mp_window_data* window, mp_key_action action, mp
 		}
 	}
 
-	mp_update_key_state(&__mpApp.inputState.mouse.buttons[button], action);
 	//TODO click/double click
 
 	mp_event event = {0};
@@ -235,7 +234,7 @@ static void process_wheel_event(mp_window_data* window, f32 x, f32 y)
 	event.window = mp_window_handle_from_ptr(window);
 	event.type = MP_EVENT_MOUSE_WHEEL;
 	event.move.deltaX = x/30.0f;
-	event.move.deltaY = y/30.0f;
+	event.move.deltaY = -y/30.0f;
 	event.move.mods = mp_get_mod_keys();
 
 	mp_queue_event(&event);
@@ -385,15 +384,12 @@ LRESULT WinProc(HWND windowHandle, UINT message, WPARAM wParam, LPARAM lParam)
 			event.move.x = LOWORD(lParam) / scaling;
 			event.move.y = HIWORD(lParam) / scaling;
 
-			if(__mpApp.inputState.mouse.posValid)
+			if(__mpApp.win32.mouseTracked || __mpApp.win32.mouseCaptureMask)
 			{
-				event.move.deltaX = event.move.x - __mpApp.inputState.mouse.pos.x;
-				event.move.deltaY = event.move.y - __mpApp.inputState.mouse.pos.y;
+				event.move.deltaX = event.move.x - __mpApp.win32.lastMousePos.x;
+				event.move.deltaY = event.move.y - __mpApp.win32.lastMousePos.y;
 			}
-			else
-			{
-				__mpApp.inputState.mouse.posValid = true;
-			}
+			__mpApp.win32.lastMousePos = (vec2){event.move.x, event.move.y};
 
 			if(!__mpApp.win32.mouseTracked)
 			{
@@ -413,19 +409,12 @@ LRESULT WinProc(HWND windowHandle, UINT message, WPARAM wParam, LPARAM lParam)
 				mp_queue_event(&enter);
 			}
 
-			mp_update_mouse_move(event.move.x, event.move.y, event.move.deltaX, event.move.deltaY);
-
 			mp_queue_event(&event);
 		} break;
 
 		case WM_MOUSELEAVE:
 		{
 			__mpApp.win32.mouseTracked = false;
-
-			if(!__mpApp.win32.mouseCaptureMask)
-			{
-				__mpApp.inputState.mouse.posValid = false;
-			}
 
 			mp_event event = {0};
 			event.window = mp_window_handle_from_ptr(mpWindow);
@@ -453,9 +442,6 @@ LRESULT WinProc(HWND windowHandle, UINT message, WPARAM wParam, LPARAM lParam)
 			event.key.code = mp_convert_win32_key(HIWORD(lParam) & 0x1ff);
 			event.key.mods = mp_get_mod_keys();
 			mp_queue_event(&event);
-
-			mp_update_key_mods(event.key.mods);
-			mp_update_key_state(&__mpApp.inputState.keyboard.keys[event.key.code], event.key.action);
 		} break;
 
 		case WM_KEYUP:
@@ -468,10 +454,6 @@ LRESULT WinProc(HWND windowHandle, UINT message, WPARAM wParam, LPARAM lParam)
 			event.key.code = mp_convert_win32_key(HIWORD(lParam) & 0x1ff);
 			event.key.mods = mp_get_mod_keys();
 			mp_queue_event(&event);
-
-			mp_update_key_mods(event.key.mods);
-			mp_update_key_state(&__mpApp.inputState.keyboard.keys[event.key.code], event.key.action);
-
 		} break;
 
 		case WM_CHAR:
@@ -485,8 +467,6 @@ LRESULT WinProc(HWND windowHandle, UINT message, WPARAM wParam, LPARAM lParam)
 				str8 seq = utf8_encode(event.character.sequence, event.character.codepoint);
 				event.character.seqLen = seq.len;
 				mp_queue_event(&event);
-
-				mp_update_text(event.character.codepoint);
 			}
 		} break;
 
@@ -525,8 +505,6 @@ void mp_request_quit()
 
 void mp_pump_events(f64 timeout)
 {
-	__mpApp.inputState.frameCounter++;
-
 	MSG message;
 	while(PeekMessage(&message, 0, 0, 0, PM_REMOVE))
 	{
@@ -1051,7 +1029,7 @@ mg_surface_data* mg_win32_surface_create_host(mp_window window)
 			memset(surface, 0, sizeof(mg_surface_data));
 			mg_surface_init_for_window(surface, windowData);
 
-			surface->backend = MG_BACKEND_HOST;
+			surface->api = MG_HOST;
 			surface->hostConnect = mg_win32_surface_host_connect;
 		}
 	}
@@ -1102,3 +1080,258 @@ str8 mp_app_get_resource_path(mem_arena* arena, const char* name)
 	return(result);
 }
 //////////////////////////////////////////////////////////////////////////////////////////////////
+
+//--------------------------------------------------------------------
+// native open/save/alert windows
+//--------------------------------------------------------------------
+
+//TODO: GetOpenFileName() doesn't seem to support selecting folders, and
+//      requires filters which pair a "descriptive" name with an extension
+
+#define interface struct
+#include<shobjidl.h>
+#include<shtypes.h>
+#undef interface
+
+
+MP_API str8 mp_open_dialog(mem_arena* arena,
+                           const char* title,
+                           const char* defaultPath,
+                           int filterCount,
+                           const char** filters,
+                           bool directory)
+{
+	str8 res = {0};
+	HRESULT hr = CoInitializeEx(NULL, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
+	if(SUCCEEDED(hr))
+	{
+		IFileOpenDialog* dialog = 0;
+		hr = CoCreateInstance(&CLSID_FileOpenDialog, NULL, CLSCTX_ALL, &IID_IFileOpenDialog, (void**)&dialog);
+		if(SUCCEEDED(hr))
+		{
+			if(directory)
+			{
+				FILEOPENDIALOGOPTIONS opt;
+				dialog->lpVtbl->GetOptions(dialog, &opt);
+				dialog->lpVtbl->SetOptions(dialog, opt | FOS_PICKFOLDERS);
+			}
+
+			if(filterCount && filters)
+			{
+				mem_arena_marker mark = mem_arena_mark(arena);
+				COMDLG_FILTERSPEC* filterSpecs = mem_arena_alloc_array(arena, COMDLG_FILTERSPEC, filterCount);
+				for(int i=0; i<filterCount; i++)
+				{
+					str8_list list = {0};
+					str8_list_push(arena, &list, STR8("*."));
+					str8_list_push(arena, &list, STR8(filters[i]));
+					str8 filter = str8_list_join(arena, list);
+
+					int filterWideSize = 1 + MultiByteToWideChar(CP_UTF8, 0, filter.ptr, filter.len, NULL, 0);
+					filterSpecs[i].pszSpec = mem_arena_alloc_array(arena, wchar_t, filterWideSize);
+					MultiByteToWideChar(CP_UTF8, 0, filter.ptr, filter.len, (LPWSTR)filterSpecs[i].pszSpec, filterWideSize);
+					((LPWSTR)(filterSpecs[i].pszSpec))[filterWideSize-1] = 0;
+
+					filterSpecs[i].pszName = filterSpecs[i].pszSpec;
+				}
+
+				hr = dialog->lpVtbl->SetFileTypes(dialog, filterCount, filterSpecs);
+
+				mem_arena_clear_to(arena, mark);
+			}
+
+			if(defaultPath)
+			{
+				mem_arena_marker mark = mem_arena_mark(arena);
+				int pathWideSize = MultiByteToWideChar(CP_UTF8, 0, defaultPath, -1, NULL, 0);
+				LPWSTR pathWide = mem_arena_alloc_array(arena, wchar_t, pathWideSize);
+				MultiByteToWideChar(CP_UTF8, 0, defaultPath, -1, pathWide, pathWideSize);
+
+				IShellItem* item = 0;
+				hr = SHCreateItemFromParsingName(pathWide, NULL, &IID_IShellItem, (void**)&item);
+				if(SUCCEEDED(hr))
+				{
+					hr = dialog->lpVtbl->SetFolder(dialog, item);
+					item->lpVtbl->Release(item);
+				}
+				mem_arena_clear_to(arena, mark);
+			}
+
+			hr = dialog->lpVtbl->Show(dialog, NULL);
+			if(SUCCEEDED(hr))
+			{
+				IShellItem* item;
+				hr = dialog->lpVtbl->GetResult(dialog, &item);
+				if(SUCCEEDED(hr))
+				{
+					PWSTR filePath;
+					hr = item->lpVtbl->GetDisplayName(item, SIGDN_FILESYSPATH, &filePath);
+
+					if(SUCCEEDED(hr))
+					{
+						int utf8Size = WideCharToMultiByte(CP_UTF8, 0, filePath, -1, NULL, 0, NULL, NULL);
+						if(utf8Size > 0)
+						{
+							res.ptr = mem_arena_alloc(arena, utf8Size);
+							res.len = utf8Size-1;
+							WideCharToMultiByte(CP_UTF8, 0, filePath, -1, res.ptr, utf8Size, NULL, NULL);
+						}
+						CoTaskMemFree(filePath);
+					}
+					item->lpVtbl->Release(item);
+				}
+			}
+		}
+	}
+	CoUninitialize();
+	return(res);
+}
+
+MP_API str8 mp_save_dialog(mem_arena* arena,
+                           const char* title,
+                           const char* defaultPath,
+                           int filterCount,
+                           const char** filters)
+{
+	str8 res = {0};
+	HRESULT hr = CoInitializeEx(NULL, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
+	if(SUCCEEDED(hr))
+	{
+		IFileOpenDialog* dialog = 0;
+		hr = CoCreateInstance(&CLSID_FileSaveDialog, NULL, CLSCTX_ALL, &IID_IFileSaveDialog, (void**)&dialog);
+		if(SUCCEEDED(hr))
+		{
+			if(filterCount && filters)
+			{
+				mem_arena_marker mark = mem_arena_mark(arena);
+				COMDLG_FILTERSPEC* filterSpecs = mem_arena_alloc_array(arena, COMDLG_FILTERSPEC, filterCount);
+				for(int i=0; i<filterCount; i++)
+				{
+					str8_list list = {0};
+					str8_list_push(arena, &list, STR8("*."));
+					str8_list_push(arena, &list, STR8(filters[i]));
+					str8 filter = str8_list_join(arena, list);
+
+					int filterWideSize = 1 + MultiByteToWideChar(CP_UTF8, 0, filter.ptr, filter.len, NULL, 0);
+					filterSpecs[i].pszSpec = mem_arena_alloc_array(arena, wchar_t, filterWideSize);
+					MultiByteToWideChar(CP_UTF8, 0, filter.ptr, filter.len, (LPWSTR)filterSpecs[i].pszSpec, filterWideSize);
+					((LPWSTR)(filterSpecs[i].pszSpec))[filterWideSize-1] = 0;
+
+					filterSpecs[i].pszName = filterSpecs[i].pszSpec;
+				}
+
+				hr = dialog->lpVtbl->SetFileTypes(dialog, filterCount, filterSpecs);
+
+				mem_arena_clear_to(arena, mark);
+			}
+
+			if(defaultPath)
+			{
+				mem_arena_marker mark = mem_arena_mark(arena);
+				int pathWideSize = MultiByteToWideChar(CP_UTF8, 0, defaultPath, -1, NULL, 0);
+				LPWSTR pathWide = mem_arena_alloc_array(arena, wchar_t, pathWideSize);
+				MultiByteToWideChar(CP_UTF8, 0, defaultPath, -1, pathWide, pathWideSize);
+
+				IShellItem* item = 0;
+				hr = SHCreateItemFromParsingName(pathWide, NULL, &IID_IShellItem, (void**)&item);
+				if(SUCCEEDED(hr))
+				{
+					hr = dialog->lpVtbl->SetFolder(dialog, item);
+					item->lpVtbl->Release(item);
+				}
+				mem_arena_clear_to(arena, mark);
+			}
+
+			hr = dialog->lpVtbl->Show(dialog, NULL);
+			if(SUCCEEDED(hr))
+			{
+				IShellItem* item;
+				hr = dialog->lpVtbl->GetResult(dialog, &item);
+				if(SUCCEEDED(hr))
+				{
+					PWSTR filePath;
+					hr = item->lpVtbl->GetDisplayName(item, SIGDN_FILESYSPATH, &filePath);
+
+					if(SUCCEEDED(hr))
+					{
+						int utf8Size = WideCharToMultiByte(CP_UTF8, 0, filePath, -1, NULL, 0, NULL, NULL);
+						if(utf8Size > 0)
+						{
+							res.ptr = mem_arena_alloc(arena, utf8Size);
+							res.len = utf8Size-1;
+							WideCharToMultiByte(CP_UTF8, 0, filePath, -1, res.ptr, utf8Size, NULL, NULL);
+						}
+						CoTaskMemFree(filePath);
+					}
+					item->lpVtbl->Release(item);
+				}
+			}
+		}
+	}
+	CoUninitialize();
+	return(res);
+}
+
+#include<commctrl.h>
+
+MP_API int mp_alert_popup(const char* title,
+                          const char* message,
+                          u32 count,
+                          const char** options)
+{
+	mem_arena* scratch = mem_scratch();
+	mem_arena_marker marker = mem_arena_mark(scratch);
+	TASKDIALOG_BUTTON* buttons = mem_arena_alloc_array(scratch, TASKDIALOG_BUTTON, count);
+
+	for(int i=0; i<count; i++)
+	{
+		int textWideSize = MultiByteToWideChar(CP_UTF8, 0, options[i], -1, NULL, 0);
+		wchar_t* textWide = mem_arena_alloc_array(scratch, wchar_t, textWideSize);
+		MultiByteToWideChar(CP_UTF8, 0, options[i], -1, textWide, textWideSize);
+
+		buttons[i].nButtonID = i+1;
+		buttons[i].pszButtonText = textWide;
+	}
+
+	int titleWideSize = MultiByteToWideChar(CP_UTF8, 0, title, -1, NULL, 0);
+	wchar_t* titleWide = mem_arena_alloc_array(scratch, wchar_t, titleWideSize);
+	MultiByteToWideChar(CP_UTF8, 0, title, -1, titleWide, titleWideSize);
+
+	int messageWideSize = MultiByteToWideChar(CP_UTF8, 0, message, -1, NULL, 0);
+	wchar_t* messageWide = mem_arena_alloc_array(scratch, wchar_t, messageWideSize);
+	MultiByteToWideChar(CP_UTF8, 0, message, -1, messageWide, messageWideSize);
+
+	TASKDIALOGCONFIG config =
+	{
+		.cbSize = sizeof(TASKDIALOGCONFIG),
+		.hwndParent = NULL,
+		.hInstance = NULL,
+		.dwFlags = 0,
+		.dwCommonButtons = 0,
+		.pszWindowTitle = titleWide,
+		.hMainIcon = 0,
+		.pszMainIcon = TD_WARNING_ICON,
+		.pszMainInstruction = messageWide,
+		.pszContent = NULL,
+		.cButtons = count,
+		.pButtons = buttons,
+		.nDefaultButton = 0,
+	};
+
+	int button = -1;
+	HRESULT hRes = TaskDialogIndirect(&config, &button, NULL, NULL);
+	if(hRes == S_OK)
+	{
+		if(button == IDCANCEL)
+		{
+			button = -1;
+		}
+		else
+		{
+			button--;
+		}
+	}
+
+	mem_arena_clear_to(scratch, marker);
+	return(button);
+}

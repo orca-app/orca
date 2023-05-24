@@ -8,14 +8,13 @@
 *****************************************************************/
 #include<stdlib.h>
 #include<string.h>
+#include<stdio.h>
 #include<errno.h>
 
 #define _USE_MATH_DEFINES //NOTE: necessary for MSVC
 #include<math.h>
 
 #include"milepost.h"
-
-#define LOG_SUBSYSTEM "Main"
 
 void debug_print_indent(int indent)
 {
@@ -206,12 +205,12 @@ void widget_end_view(void)
 
 int main()
 {
-	LogLevel(LOG_LEVEL_WARNING);
-
 	mp_init();
 	mp_clock_init(); //TODO put that in mp_init()?
 
-	ui_init();
+	ui_context context;
+	ui_init(&context);
+	ui_set_context(&context);
 
 	mp_rect windowRect = {.x = 100, .y = 100, .w = 810, .h = 610};
 	mp_window window = mp_window_create(windowRect, "test", 0);
@@ -219,11 +218,11 @@ int main()
 	mp_rect contentRect = mp_window_get_content_rect(window);
 
 	//NOTE: create surface
-	mg_surface surface = mg_surface_create_for_window(window, MG_BACKEND_DEFAULT);
+	mg_surface surface = mg_surface_create_for_window(window, MG_CANVAS);
 	mg_surface_swap_interval(surface, 0);
 
 	//TODO: create canvas
-	mg_canvas canvas = mg_canvas_create(surface);
+	mg_canvas canvas = mg_canvas_create();
 
 	if(mg_canvas_is_nil(canvas))
 	{
@@ -247,10 +246,12 @@ int main()
 		f64 startTime = mp_get_time(MP_CLOCK_MONOTONIC);
 
 		mp_pump_events(0);
-		mp_event event = {0};
-		while(mp_next_event(&event))
+		mp_event* event = 0;
+		while((event = mp_next_event(mem_scratch())) != 0)
 		{
-			switch(event.type)
+			ui_process_event(event);
+
+			switch(event->type)
 			{
 				case MP_EVENT_WINDOW_CLOSE:
 				{
@@ -260,7 +261,7 @@ int main()
 
 				case MP_EVENT_KEYBOARD_KEY:
 				{
-					if(event.key.action == MP_KEY_PRESS && event.key.code == MP_KEY_P)
+					if(event->key.action == MP_KEY_PRESS && event->key.code == MP_KEY_P)
 					{
 						printDebugStyle = true;
 					}
@@ -289,7 +290,11 @@ int main()
 		ui_flags debugFlags = UI_FLAG_DRAW_BORDER;
 
 		ui_box* root = 0;
-		ui_frame(&defaultStyle, defaultMask)
+
+		mp_rect frameRect = mg_surface_get_frame(surface);
+		vec2 frameSize = {frameRect.w, frameRect.h};
+
+		ui_frame(frameSize, &defaultStyle, defaultMask)
 		{
 			root = ui_box_top();
 			ui_style_match_before(ui_pattern_all(), &defaultStyle, defaultMask);
@@ -401,9 +406,32 @@ int main()
 							             UI_STYLE_SIZE);
 							widget_view("Buttons")
 							{
-								ui_button("Button 1");
-								ui_button("Button 2");
-								ui_button("Button 3");
+								if(ui_button("Test Dialog").clicked)
+								{
+									char* options[] = {"Accept", "Reject"};
+									int res = mp_alert_popup("test dialog", "dialog message", 2, options);
+									if(res >= 0)
+									{
+										printf("selected options %i: %s\n", res, options[res]);
+									}
+									else
+									{
+										printf("no options selected\n");
+									}
+								}
+
+								if(ui_button("Open").clicked)
+								{
+									char* filters[] = {"md"};
+									str8 file = mp_open_dialog(mem_scratch(), "Open File", "C:\\Users", 1, filters, false);
+									printf("selected file %.*s\n", (int)file.len, file.ptr);
+								}
+
+								if(ui_button("Save").clicked)
+								{
+									str8 file = mp_save_dialog(mem_scratch(), "Save File", "C:\\Users", 0, 0);
+									printf("selected file %.*s\n", (int)file.len, file.ptr);
+								}
 							}
 
 							ui_style_next(&(ui_style){.size.width = {UI_SIZE_PARENT, 0.5},
@@ -518,7 +546,7 @@ int main()
 						             UI_STYLE_SIZE);
 						widget_view("Test")
 						{
-							ui_pattern pattern = {};
+							ui_pattern pattern = {0};
 							ui_pattern_push(mem_scratch(), &pattern, (ui_selector){.kind = UI_SEL_TEXT, .text = STR8("panel")});
 							ui_style_match_after(pattern, &(ui_style){.bgColor = {0.3, 0.3, 1, 1}}, UI_STYLE_BG_COLOR);
 
@@ -592,7 +620,7 @@ int main()
 
 		ui_draw();
 
-		mg_flush();
+		mg_render(surface, canvas);
 		mg_surface_present(surface);
 
 		mem_arena_clear(mem_scratch());

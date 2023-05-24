@@ -8,6 +8,7 @@
 *****************************************************************/
 #include<stdlib.h>
 #include<string.h>
+#include<stdio.h>
 #include<errno.h>
 
 #define _USE_MATH_DEFINES //NOTE: necessary for MSVC

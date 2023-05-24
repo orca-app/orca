@@ -49,15 +49,22 @@ or download and unzip bundle at [https://storage.googleapis.com/chrome-infra/dep
 * wait a million years
 
 * if it fails when running `python3 third_party/depot_tools/download_from_google_storage.py ...`
-  -> open `DEPS` and change `third_party/depot_tools` to `../depot/tools`
+  -> open `DEPS` and change `third_party/depot_tools` to `../depot_tools`
 * run `gclient sync` to complete previous step
 
 * `gn gen out/Debug`
 * `gn args out/Debug` and edit arguments:
-	* `angle_enable_vulkan = false`
-	* `angle_build_tests = false`
-	* `is_component_build = false`
+```
+is_component_build = false
+angle_build_tests = false
+angle_enable_metal = false
+angle_enable_d3d9 = false
+angle_enable_gl = false
+angle_enable_vulkan = false
+```
 
+
+* `ninja -C out/Debug`
 * link with `libEGL.dll.lib` and `libGLESv2.dll.lib`
 * put `libEGL.dll` and `libGLESv2.dll` in same directory as executable
 

@@ -88,26 +88,22 @@ typedef struct mg_vertex_layout
 	char* cubicBuffer;
 	u32 cubicStride;
 
-	char* uvTransformBuffer;
-	u32 uvTransformStride;
+	char* shapeIndexBuffer;
+	u32 shapeIndexStride;
 
 	char* colorBuffer;
 	u32 colorStride;
 
-	char* texturedBuffer;
-	u32 texturedStride;
-
-	char* shapeIndexBuffer;
-	u32 shapeIndexStride;
-
 	char* clipBuffer;
 	u32 clipStride;
+
+	char* uvTransformBuffer;
+	u32 uvTransformStride;
 
 	char* indexBuffer;
 	u32 indexStride;
 
 } mg_vertex_layout;
-
 
 typedef void (*mg_canvas_backend_destroy_proc)(mg_canvas_backend* backend);
 typedef void (*mg_canvas_backend_begin_proc)(mg_canvas_backend* backend, mg_color clearColor);
@@ -135,7 +131,7 @@ typedef void (*mg_canvas_backend_render_proc)(mg_canvas_backend* backend,
 
 typedef struct mg_canvas_backend
 {
-	mg_vertex_layout vertexLayout;
+//	mg_vertex_layout vertexLayout;
 
 	mg_canvas_backend_destroy_proc destroy;
 	mg_canvas_backend_begin_proc begin;
