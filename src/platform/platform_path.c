@@ -43,10 +43,11 @@ str8 path_slice_filename(str8 fullPath)
 
 str8_list path_split(mem_arena* arena, str8 path)
 {
-	//TODO: use secondary scratch arena
+	mem_arena_scope tmp = mem_scratch_begin_next(arena);
 	str8_list split = {0};
-	str8_list_push(arena, &split, STR8("/"));
+	str8_list_push(tmp.arena, &split, STR8("/"));
 	str8_list res = str8_split(arena, path, split);
+	mem_scratch_end(tmp);
 	return(res);
 }
 
@@ -58,8 +59,6 @@ str8 path_join(mem_arena* arena, str8_list elements)
 
 str8 path_append(mem_arena* arena, str8 parent, str8 relPath)
 {
-	//TODO: use secondary scratch arena
-
 	str8 result = {0};
 
 	if(parent.len == 0)
@@ -72,16 +71,20 @@ str8 path_append(mem_arena* arena, str8 parent, str8 relPath)
 	}
 	else
 	{
+		mem_arena_scope tmp = mem_scratch_begin_next(arena);
+
 		str8_list list = {0};
-		str8_list_push(arena, &list, parent);
+		str8_list_push(tmp.arena, &list, parent);
 		if( (parent.ptr[parent.len-1] != '/')
 	  	  &&(relPath.ptr[relPath.len-1] != '/'))
 		{
-			str8_list_push(arena, &list, STR8("/"));
+			str8_list_push(tmp.arena, &list, STR8("/"));
 		}
-		str8_list_push(arena, &list, relPath);
+		str8_list_push(tmp.arena, &list, relPath);
 
 		result = str8_list_join(arena, list);
+
+		mem_scratch_end(tmp);
 	}
 	return(result);
 }

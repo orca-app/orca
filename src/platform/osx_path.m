@@ -26,32 +26,38 @@ str8 path_find_executable(mem_arena* arena)
 str8 path_find_resource(mem_arena* arena, str8 relPath)
 {
 	str8_list list = {};
-	mem_arena* scratch = mem_scratch();
+	mem_arena_scope scratch = mem_scratch_begin_next(arena);
 
-	str8 executablePath = path_find_executable(scratch);
+	str8 executablePath = path_find_executable(scratch.arena);
 	str8 dirPath = path_slice_directory(executablePath);
 
-	str8_list_push(scratch, &list, dirPath);
-	str8_list_push(scratch, &list, STR8("/"));
-	str8_list_push(scratch, &list, relPath);
-	str8 path = str8_list_join(scratch, list);
-	char* pathCString = str8_to_cstring(scratch, path);
-	char* buffer = mem_arena_alloc_array(scratch, char, path.len+1);
-	char* real = realpath(pathCString, buffer);
+	str8_list_push(scratch.arena, &list, dirPath);
+	str8_list_push(scratch.arena, &list, STR8("/"));
+	str8_list_push(scratch.arena, &list, relPath);
+	str8 path = str8_list_join(scratch.arena, list);
+	char* pathCString = str8_to_cstring(scratch.arena, path);
+
+	char* real = realpath(pathCString, 0);
 
 	str8 result = str8_push_cstring(arena, real);
+
+	free(real);
+
+	mem_scratch_end(scratch);
+
 	return(result);
 }
 
 str8 path_find_canonical(mem_arena* arena, str8 path)
 {
-	mem_arena* scratch = mem_scratch();
-	char* pathCString = str8_to_cstring(scratch, path);
+	mem_arena_scope scratch = mem_scratch_begin_next(arena);
+	char* pathCString = str8_to_cstring(scratch.arena, path);
 
 	char* real = realpath(pathCString, 0);
 	str8 result = str8_push_cstring(arena, real);
 
 	free(real);
+	mem_scratch_end(scratch);
 
 	return(result);
 }
