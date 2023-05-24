@@ -25,6 +25,7 @@
 //----------------------------------------------------------------
 // platform layer
 //----------------------------------------------------------------
+#include"platform_path.h"
 #include"platform_clock.h"
 /*
 #include"platform_rng.h"

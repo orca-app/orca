@@ -66,6 +66,7 @@ typedef struct str8_list
 MP_API void str8_list_push(mem_arena* arena, str8_list* list, str8 str);
 MP_API void str8_list_pushf(mem_arena* arena, str8_list* list, const char* format, ...);
 
+MP_API str8 str8_list_collate(mem_arena* arena, str8_list list, str8 prefix, str8 separator, str8 postfix);
 MP_API str8 str8_list_join(mem_arena* arena, str8_list list);
 MP_API str8_list str8_split(mem_arena* arena, str8 str, str8_list separators);
 
@@ -101,12 +102,6 @@ typedef struct str32_list
 MP_API void str32_list_push(mem_arena* arena, str32_list* list, str32 str);
 MP_API str32 str32_list_join(mem_arena* arena, str32_list list);
 MP_API str32_list str32_split(mem_arena* arena, str32 str, str32_list separators);
-
-//----------------------------------------------------------------------------------
-// Paths helpers
-//----------------------------------------------------------------------------------
-MP_API str8 mp_path_directory(str8 fullPath);
-MP_API str8 mp_path_base_name(str8 fullPath);
 
 #ifdef __cplusplus
 } // extern "C"

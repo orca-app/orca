@@ -361,10 +361,6 @@ MP_API int mp_file_remove(str8 path);
 
 MP_API int mp_directory_create(str8 path);
 
-MP_API str8 mp_app_get_resource_path(mem_arena* arena, const char* name);
-MP_API str8 mp_app_get_executable_path(mem_arena* arena);
-
-
 #ifdef __cplusplus
 } // extern "C"
 #endif

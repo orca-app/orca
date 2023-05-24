@@ -23,7 +23,7 @@
 mg_font create_font()
 {
 	//NOTE(martin): create font
-	str8 fontPath = mp_app_get_resource_path(mem_scratch(), "../resources/OpenSansLatinSubset.ttf");
+	str8 fontPath = path_find_resource(mem_scratch(), STR8("../resources/OpenSansLatinSubset.ttf"));
 	char* fontPathCString = str8_to_cstring(mem_scratch(), fontPath);
 
 	FILE* fontFile = fopen(fontPathCString, "r");

@@ -41,7 +41,7 @@ int main()
 	//NOTE(martin): load the library
 	id<MTLDevice> device = MTLCreateSystemDefaultDevice();
 
-	str8 shaderPath = mp_app_get_resource_path(mem_scratch(), "triangle_shader.metallib");
+	str8 shaderPath = path_find_resource(mem_scratch(), STR8("triangle_shader.metallib"));
 	const char* shaderPathCString = str8_to_cstring(mem_scratch(), shaderPath);
 	NSString* metalFileName = [[NSString alloc] initWithCString: shaderPathCString encoding: NSUTF8StringEncoding];
 	NSError* err = 0;

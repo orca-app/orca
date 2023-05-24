@@ -1991,46 +1991,6 @@ void mp_pump_events(f64 timeout)
 }
 
 //--------------------------------------------------------------------
-// app resources
-//--------------------------------------------------------------------
-
-#import<Foundation/Foundation.h>
-#include<libgen.h>
-
-str8 mp_app_get_resource_path(mem_arena* arena, const char* name)
-{
-	str8_list list = {};
-	mem_arena* scratch = mem_scratch();
-
-	str8 executablePath = mp_app_get_executable_path(scratch);
-	str8 dirPath = mp_path_directory(executablePath);
-
-	str8_list_push(scratch, &list, dirPath);
-	str8_list_push(scratch, &list, STR8("/"));
-	str8_list_push(scratch, &list, str8_push_cstring(scratch, name));
-	str8 path = str8_list_join(scratch, list);
-	char* pathCString = str8_to_cstring(scratch, path);
-	char* buffer = mem_arena_alloc_array(scratch, char, path.len+1);
-	char* real = realpath(pathCString, buffer);
-
-	str8 result = str8_push_cstring(arena, real);
-	return(result);
-}
-
-
-#include<mach-o/dyld.h>
-str8 mp_app_get_executable_path(mem_arena* arena)
-{@autoreleasepool{
-	str8 result = {};
-	u32 size = 0;
-	_NSGetExecutablePath(0, &size);
-	result.len = size;
-	result.ptr = mem_arena_alloc_array(arena, char, result.len);
-	_NSGetExecutablePath(result.ptr, &size);
-	return(result);
-}}
-
-//--------------------------------------------------------------------
 // system dialogs windows
 //--------------------------------------------------------------------
 

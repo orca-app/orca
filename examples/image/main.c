@@ -38,11 +38,11 @@ int main()
 	}
 
 	//NOTE: create image
-	str8 imagePath = mp_app_get_resource_path(mem_scratch(), "../resources/triceratops.png");
+	str8 imagePath = path_find_resource(mem_scratch(), STR8("../resources/triceratops.png"));
 	mg_image image = mg_image_create_from_file(surface, imagePath, false);
 	vec2 imageSize = mg_image_size(image);
 
-	str8 imagePath2 = mp_app_get_resource_path(mem_scratch(), "../resources/Top512.png");
+	str8 imagePath2 = path_find_resource(mem_scratch(), STR8("../resources/Top512.png"));
 	mg_image image2 = mg_image_create_from_file(surface, imagePath2, false);
 	vec2 imageSize2 = mg_image_size(image2);
 

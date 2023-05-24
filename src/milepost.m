@@ -7,6 +7,7 @@
 *
 *****************************************************************/
 
+#include"osx_path.m"
 #include"osx_app.m"
 #include"graphics_common.c"
 #include"graphics_surface.c"

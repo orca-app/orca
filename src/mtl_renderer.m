@@ -1329,7 +1329,7 @@ mg_canvas_backend* mtl_canvas_backend_create(mg_mtl_surface* surface)
 
 	@autoreleasepool{
 		//NOTE: load metal library
-		str8 shaderPath = mp_app_get_resource_path(mem_scratch(), "mtl_renderer.metallib");
+		str8 shaderPath = path_find_resource(mem_scratch(), STR8("mtl_renderer.metallib"));
 		NSString* metalFileName = [[NSString alloc] initWithBytes: shaderPath.ptr length:shaderPath.len encoding: NSUTF8StringEncoding];
 		NSError* err = 0;
 		id<MTLLibrary> library = [surface->device newLibraryWithFile: metalFileName error:&err];
