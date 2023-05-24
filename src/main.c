@@ -52,7 +52,7 @@ int orca_assert(const char* file, const char* function, int line, const char* sr
 mg_font orca_font_create(const char* resourcePath)
 {
 	//NOTE(martin): create default font
-	str8 fontPath = mp_app_get_resource_path(mem_scratch(), resourcePath);
+	str8 fontPath = path_find_resource(mem_scratch(), STR8(resourcePath));
 	char* fontPathCString = str8_to_cstring(mem_scratch(), fontPath);
 
 	FILE* fontFile = fopen(fontPathCString, "r");
@@ -363,7 +363,7 @@ void* orca_runloop(void* user)
 
 	//NOTE: loads wasm module
 	const char* bundleNameCString = "module";
-	str8 modulePath = mp_app_get_resource_path(mem_scratch(), "../app/wasm/module.wasm");
+	str8 modulePath = path_find_resource(mem_scratch(), STR8("../app/wasm/module.wasm"));
 	const char* modulePathCString = str8_to_cstring(mem_scratch(), modulePath);
 
 	FILE* file = fopen(modulePathCString, "rb");

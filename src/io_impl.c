@@ -196,7 +196,7 @@ io_path_walk_result io_path_walk(str8 path)
 	str8_list_push(scratch, &sep, STR8("/"));
 	str8_list pathElements = str8_split(scratch, path, sep);
 
-	str8 execPath = mp_path_directory(mp_app_get_executable_path(scratch));
+	str8 execPath = path_slice_directory(path_find_executable(scratch));
 	str8_list list = {0};
 	str8_list_push(scratch, &list, execPath);
 	str8_list_push(scratch, &list, STR8("../app/data"));
@@ -426,7 +426,7 @@ io_cmp io_open(io_req* req)
 			mem_arena* scratch = mem_scratch();
 			mem_arena_marker mark = mem_arena_mark(scratch);
 
-			str8 name = mp_path_base_name(path);
+			str8 name = path_slice_filename(path);
 			char* nameCStr = str8_to_cstring(scratch, name);
 			int fd = openat(walkRes.fd, nameCStr, flags, mode);
 			close(walkRes.fd);
