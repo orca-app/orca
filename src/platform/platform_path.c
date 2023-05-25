@@ -53,6 +53,7 @@ str8_list path_split(mem_arena* arena, str8 path)
 
 str8 path_join(mem_arena* arena, str8_list elements)
 {
+	//TODO: check if elements have ending/begining '/' ?
 	str8 res = str8_list_collate(arena, elements, STR8("/"), STR8("/"), (str8){0});
 	return(res);
 }
@@ -87,4 +88,18 @@ str8 path_append(mem_arena* arena, str8 parent, str8 relPath)
 		mem_scratch_end(tmp);
 	}
 	return(result);
+}
+
+str8 path_executable_relative(mem_arena* arena, str8 relPath)
+{
+	str8_list list = {};
+	mem_arena_scope scratch = mem_scratch_begin_next(arena);
+
+	str8 executablePath = path_executable(scratch.arena);
+	str8 dirPath = path_slice_directory(executablePath);
+
+	str8 path = path_append(arena, dirPath, relPath);
+
+	mem_scratch_end(scratch);
+	return(path);
 }

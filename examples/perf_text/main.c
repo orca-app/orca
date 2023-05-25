@@ -63,7 +63,7 @@ static const char* TEST_STRING =
 mg_font create_font(const char* path)
 {
 	//NOTE(martin): create font
-	str8 fontPath = path_find_resource(mem_scratch(), STR8(path));
+	str8 fontPath = path_executable_relative(mem_scratch(), STR8(path));
 	char* fontPathCString = str8_to_cstring(mem_scratch(), fontPath);
 
 	FILE* fontFile = fopen(fontPathCString, "r");

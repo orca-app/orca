@@ -48,8 +48,8 @@ int main()
 	mg_rect_atlas* atlas = mg_rect_atlas_create(&permanentArena, 16000, 16000);
 	mg_image atlasImage = mg_image_create(16000, 16000);
 
-	str8 path1 = path_find_resource(mem_scratch(), STR8("../resources/triceratops.png"));
-	str8 path2 = path_find_resource(mem_scratch(), STR8("../resources/Top512.png"));
+	str8 path1 = path_executable_relative(mem_scratch(), STR8("../resources/triceratops.png"));
+	str8 path2 = path_executable_relative(mem_scratch(), STR8("../resources/Top512.png"));
 
 	mg_image_region image1 = mg_image_atlas_alloc_from_file(atlas, atlasImage, path1, false);
 	mg_image_region image2 = mg_image_atlas_alloc_from_file(atlas, atlasImage, path2, false);

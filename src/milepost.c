@@ -21,6 +21,7 @@
 #elif PLATFORM_MACOS
 	#include"platform/unix_memory.c"
 	#include"platform/osx_clock.c"
+	#include"platform/posix_io.c"
 	/*
 	#include"platform/unix_rng.c"
 	#include"platform/posix_thread.c"
@@ -30,6 +31,7 @@
 #elif PLATFORM_LINUX
 	#include"platform/unix_base_memory.c"
 	#include"platform/linux_clock.c"
+	#include"platform/posix_io.c"
 	/*
 	#include"platform/unix_rng.c"
 	#include"platform/posix_thread.c"
