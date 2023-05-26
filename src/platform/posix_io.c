@@ -12,7 +12,7 @@
 #include<unistd.h>
 #include<limits.h>
 
-#include"platform_io.h"
+#include"platform_io_common.c"
 
 typedef struct file_slot
 {
@@ -45,6 +45,7 @@ file_slot* file_slot_alloc(file_table* table)
 	{
 		slot = &table->slots[table->nextSlot];
 		slot->generation = 1;
+		slot->fd = -1;
 		table->nextSlot++;
 	}
 	return(slot);
@@ -71,7 +72,7 @@ file_slot* file_slot_from_handle(file_table* table, file_handle handle)
 	u64 index = handle.h & 0xffffffff;
 	u64 generation = handle.h>>32;
 
-	if(index < ORCA_MAX_FILE_SLOTS)
+	if(index < table->nextSlot)
 	{
 		file_slot* candidate = &table->slots[index];
 		if(candidate->generation == generation)
@@ -211,6 +212,10 @@ int io_convert_open_flags(file_open_flags flags)
 	{
 		oflags |= O_NOFOLLOW;
 	}
+	if(flags & FILE_OPEN_SYMLINK)
+	{
+		oflags |= O_SYMLINK;
+	}
 	return(oflags);
 }
 
@@ -226,18 +231,17 @@ io_cmp io_open_at(file_slot* atSlot, io_req* req)
 	}
 	else
 	{
-		file_handle handle = file_handle_from_slot(&__globalFileTable, slot);
-		cmp.result = handle.h;
+		cmp.handle = file_handle_from_slot(&__globalFileTable, slot);
 
 		int flags = io_convert_open_flags(req->openFlags);
 
 		//TODO: allow specifying access
 		mode_t mode = S_IRUSR
-	            	| S_IWUSR
-	            	| S_IRGRP
-	            	| S_IWGRP
-	            	| S_IROTH
-	            	| S_IWOTH;
+		            | S_IWUSR
+		            | S_IRGRP
+		            | S_IWGRP
+		            | S_IROTH
+		            | S_IWOTH;
 
 		//NOTE: open
 		mem_arena_scope scratch = mem_scratch_begin();
@@ -336,7 +340,7 @@ io_cmp io_fstat(file_slot* slot, io_req* req)
 {
 	io_cmp cmp = {0};
 
-	if(req->size <= sizeof(file_status))
+	if(req->size < sizeof(file_status))
 	{
 		cmp.error = IO_ERR_ARG;
 	}
@@ -444,9 +448,12 @@ io_cmp io_wait_single_req(io_req* req)
 	io_cmp cmp = {0};
 
 	file_slot* slot = file_slot_from_handle(&__globalFileTable, req->handle);
-	if(!slot && (req->op != IO_OP_OPEN_AT))
+	if(!slot)
 	{
-		cmp.error = IO_ERR_HANDLE;
+		if(req->op != IO_OP_OPEN_AT)
+		{
+			cmp.error = IO_ERR_HANDLE;
+		}
 	}
 	else if(slot->fatal && req->op != IO_OP_CLOSE)
 	{

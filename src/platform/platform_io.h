@@ -25,8 +25,9 @@ enum {
 	FILE_OPEN_TRUNCATE = 1<<3,
 	FILE_OPEN_CREATE   = 1<<4,
 
-	FILE_OPEN_NO_FOLLOW = 1<<5,
-	FILE_OPEN_RESTRICT = 1<<6,
+	FILE_OPEN_SYMLINK   = 1<<5,
+	FILE_OPEN_NO_FOLLOW = 1<<6,
+	FILE_OPEN_RESTRICT  = 1<<7,
 	//...
 };
 
@@ -104,12 +105,12 @@ enum {
 
 typedef struct io_cmp
 {
-	io_req id;
+	io_req_id id;
 	io_error error;
 
 	union
 	{
-		u64 result;
+		i64 result;
 		u64 size;
 		i64 offset;
 		file_handle handle;
@@ -130,13 +131,13 @@ file_handle file_open(str8 path, file_open_flags flags);
 file_handle file_open_relative(file_handle base, str8 path, file_open_flags flags);
 void file_close(file_handle file);
 
-off_t file_pos(file_handle file);
-off_t file_seek(file_handle file, long offset, file_whence whence);
+i64 file_pos(file_handle file);
+i64 file_seek(file_handle file, long offset, file_whence whence);
 
-size_t file_write(file_handle file, size_t size, char* buffer);
-size_t file_read(file_handle file, size_t size, char* buffer);
+u64 file_write(file_handle file, u64 size, char* buffer);
+u64 file_read(file_handle file, u64 size, char* buffer);
 
-io_error io_last_error(file_handle handle);
+io_error file_last_error(file_handle handle);
 
 //----------------------------------------------------------------
 // File System wrapper API
@@ -185,7 +186,7 @@ typedef struct file_status
 } file_status;
 
 file_status file_get_status(file_handle file);
-size_t file_size(file_handle file);
+u64 file_size(file_handle file);
 
 //TODO: Complete as needed...
 

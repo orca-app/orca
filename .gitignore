@@ -1,6 +1,6 @@
 .DS_Store
 *.dSYM
-bin/*
+bin
 *.metallib
 
 *.pdb
