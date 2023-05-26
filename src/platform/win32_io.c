@@ -160,7 +160,7 @@ io_cmp io_open_at(file_slot* atSlot, io_req* req)
 
 		DWORD accessFlags = 0;
 		DWORD createFlags = 0;
-		DWORD attributesFlags = FILE_ATTRIBUTE_NORMAL;
+		DWORD attributesFlags = FILE_ATTRIBUTE_NORMAL | FILE_FLAG_BACKUP_SEMANTICS;
 
 		if(req->openFlags & FILE_OPEN_READ)
 		{
@@ -243,53 +243,6 @@ io_cmp io_close(file_slot* slot, io_req* req)
 	return(cmp);
 }
 
-/*
-file_perm io_convert_perm_from_stat(u16 mode)
-{
-	file_perm perm = mode & 07777;
-	return(perm);
-}
-
-file_type io_convert_type_from_stat(u16 mode)
-{
-	file_type type;
-	switch(mode & S_IFMT)
-	{
-		case S_IFIFO:
-			type = FILE_FIFO;
-			break;
-
-		case S_IFCHR:
-			type = FILE_CHARACTER;
-			break;
-
-		case S_IFDIR:
-			type = FILE_DIRECTORY;
-			break;
-
-		case S_IFBLK:
-			type = FILE_BLOCK;
-			break;
-
-		case S_IFREG:
-			type = FILE_REGULAR;
-			break;
-
-		case S_IFLNK:
-			type = FILE_SYMLINK;
-			break;
-
-		case S_IFSOCK:
-			type = FILE_SOCKET;
-			break;
-
-		default:
-			type = FILE_UNKNOWN;
-			break;
-	}
-	return(type);
-}
-
 io_cmp io_fstat(file_slot* slot, io_req* req)
 {
 	io_cmp cmp = {0};
@@ -300,24 +253,72 @@ io_cmp io_fstat(file_slot* slot, io_req* req)
 	}
 	else
 	{
-		struct stat s;
-		if(fstat(slot->fd, &s))
+		BY_HANDLE_FILE_INFORMATION info;
+		if(!GetFileInformationByHandle(slot->h, &info))
 		{
-			slot->error = io_convert_errno(errno);
+			slot->error = io_convert_win32_error(GetLastError());
 			cmp.error = slot->error;
 		}
 		else
 		{
 			file_status* status = (file_status*)req->buffer;
-			status->perm = io_convert_perm_from_stat(s.st_mode);
-			status->type = io_convert_type_from_stat(s.st_mode);
-			status->size = s.st_size;
+
+			status->size = (((u64)info.nFileSizeHigh)<<32) | ((u64)info.nFileSizeLow);
+
+			DWORD attrRegularSet = FILE_ATTRIBUTE_ARCHIVE
+			                     | FILE_ATTRIBUTE_COMPRESSED
+			                     | FILE_ATTRIBUTE_ENCRYPTED
+			                     | FILE_ATTRIBUTE_HIDDEN
+			                     | FILE_ATTRIBUTE_NORMAL
+			                     | FILE_ATTRIBUTE_NOT_CONTENT_INDEXED
+			                     | FILE_ATTRIBUTE_OFFLINE
+			                     | FILE_ATTRIBUTE_READONLY
+			                     | FILE_ATTRIBUTE_SPARSE_FILE
+			                     | FILE_ATTRIBUTE_SYSTEM
+			                     | FILE_ATTRIBUTE_TEMPORARY;
+
+			if(info.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+			{
+				status->type = MP_FILE_DIRECTORY;
+			}
+			else if((info.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT))
+			{
+				FILE_ATTRIBUTE_TAG_INFO tagInfo;
+				if(!GetFileInformationByHandleEx(slot->h, FileAttributeTagInfo, &tagInfo, sizeof(tagInfo)))
+				{
+					slot->error = io_convert_win32_error(GetLastError());
+					cmp.error = slot->error;
+				}
+				else if(tagInfo.ReparseTag == IO_REPARSE_TAG_SYMLINK)
+				{
+					status->type = MP_FILE_SYMLINK;
+				}
+				else
+				{
+					status->type = MP_FILE_UNKNOWN;
+				}
+			}
+			else if(info.dwFileAttributes & attrRegularSet)
+			{
+				status->type = MP_FILE_REGULAR;
+			}
+			else
+			{
+				//TODO: might want to check for socket/block/character devices? (otoh MS STL impl. doesn't seem to do it)
+				status->type = MP_FILE_UNKNOWN;
+			}
+
+			status->perm = MP_FILE_OWNER_READ | MP_FILE_GROUP_READ | MP_FILE_OTHER_READ;
+			if(!(info.dwFileAttributes & FILE_ATTRIBUTE_READONLY))
+			{
+				status->perm = MP_FILE_OWNER_WRITE | MP_FILE_GROUP_WRITE | MP_FILE_OTHER_WRITE;
+			}
+
 			//TODO: times
 		}
 	}
 	return(cmp);
 }
-*/
 
 io_cmp io_pos(file_slot* slot, io_req* req)
 {
@@ -430,7 +431,7 @@ io_cmp io_wait_single_req(io_req* req)
 			cmp.error = IO_ERR_HANDLE;
 		}
 	}
-	else if(slot->fatal && req->op != IO_OP_CLOSE)
+	else if(slot->fatal && req->op != IO_OP_CLOSE && req->op != IO_OP_ERROR)
 	{
 		cmp.error = IO_ERR_PREV;
 	}
@@ -442,11 +443,11 @@ io_cmp io_wait_single_req(io_req* req)
 			case IO_OP_OPEN_AT:
 				cmp = io_open_at(slot, req);
 				break;
-/*
+
 			case IO_OP_FSTAT:
 				cmp = io_fstat(slot, req);
 				break;
-*/
+
 			case IO_OP_CLOSE:
 				cmp = io_close(slot, req);
 				break;
@@ -458,7 +459,7 @@ io_cmp io_wait_single_req(io_req* req)
 			case IO_OP_WRITE:
 				cmp = io_write(slot, req);
 				break;
-/*
+
 			case IO_OP_POS:
 				cmp = io_pos(slot, req);
 				break;
@@ -466,7 +467,7 @@ io_cmp io_wait_single_req(io_req* req)
 			case IO_OP_SEEK:
 				cmp = io_seek(slot, req);
 				break;
-*/
+
 			case IO_OP_ERROR:
 				cmp = io_get_error(slot, req);
 				break;
