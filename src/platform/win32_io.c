@@ -1,15 +1,12 @@
 /************************************************************//**
 *
-*	@file: posix_io.c
+*	@file: win32_io.c
 *	@author: Martin Fouilleul
 *	@date: 25/05/2023
 *
 *****************************************************************/
 
 #include<errno.h>
-#include<fcntl.h>
-#include<sys/stat.h>
-#include<unistd.h>
 #include<limits.h>
 
 #include"platform_io_common.c"
@@ -17,7 +14,7 @@
 typedef struct file_slot
 {
 	u32 generation;
-	int fd;
+	HANDLE h;
 	io_error error;
 	bool fatal;
 	list_elt freeListElt;
@@ -45,7 +42,7 @@ file_slot* file_slot_alloc(file_table* table)
 	{
 		slot = &table->slots[table->nextSlot];
 		slot->generation = 1;
-		slot->fd = -1;
+		slot->h = NULL;
 		table->nextSlot++;
 	}
 	return(slot);
@@ -83,140 +80,60 @@ file_slot* file_slot_from_handle(file_table* table, file_handle handle)
 	return(slot);
 }
 
-io_error io_convert_errno(int e)
+io_error io_convert_win32_error(int winError)
 {
-	io_error error;
-	switch(e)
+	io_error error = 0;
+	switch(winError)
 	{
-		case EPERM:
-		case EACCES:
-		case EROFS:
+		case ERROR_SUCCESS:
+			error = IO_OK;
+			break;
+
+		case ERROR_ACCESS_DENIED:
 			error = IO_ERR_PERM;
 			break;
 
-		case ENOENT:
+		case ERROR_FILE_NOT_FOUND:
+		case ERROR_PATH_NOT_FOUND:
+		case ERROR_INVALID_DRIVE:
+		case ERROR_DIRECTORY:
 			error = IO_ERR_NO_ENTRY;
 			break;
 
-		case EINTR:
-			error = IO_ERR_INTERRUPT;
-			break;
-
-		case EIO:
-			error = IO_ERR_PHYSICAL;
-			break;
-
-		case ENXIO:
-			error = IO_ERR_NO_DEVICE;
-			break;
-
-		case EBADF:
-			// this should only happen when user tries to write/read to a file handle
-			// opened with readonly/writeonly access
-			error = IO_ERR_PERM;
-			break;
-
-		case ENOMEM:
-			error = IO_ERR_MEM;
-			break;
-
-		case EFAULT:
-		case EINVAL:
-		case EDOM:
-			error = IO_ERR_ARG;
-			break;
-
-		case EBUSY:
-		case EAGAIN:
-			error = IO_ERR_NOT_READY;
-			break;
-
-		case EEXIST:
-			error = IO_ERR_EXISTS;
-			break;
-
-		case ENOTDIR:
-			error = IO_ERR_NOT_DIR;
-			break;
-
-		case EISDIR:
-			error = IO_ERR_DIR;
-			break;
-
-		case ENFILE:
-		case EMFILE:
+		case ERROR_TOO_MANY_OPEN_FILES:
 			error = IO_ERR_MAX_FILES;
 			break;
 
-		case EFBIG:
-			error = IO_ERR_FILE_SIZE;
+		case ERROR_NOT_ENOUGH_MEMORY:
+		case ERROR_OUTOFMEMORY:
+			error = IO_ERR_MEM;
 			break;
 
-		case ENOSPC:
-		case EDQUOT:
-			error = IO_ERR_SPACE;
+		case ERROR_DEV_NOT_EXIST:
+			error = IO_ERR_NO_DEVICE;
 			break;
 
-		case ELOOP:
-			error = IO_ERR_MAX_LINKS;
+		case ERROR_FILE_EXISTS:
+		case ERROR_ALREADY_EXISTS:
+			error = IO_ERR_EXISTS;
 			break;
 
-		case ENAMETOOLONG:
+		case ERROR_BUFFER_OVERFLOW:
+		case ERROR_FILENAME_EXCED_RANGE:
 			error = IO_ERR_PATH_LENGTH;
 			break;
 
-		case EOVERFLOW:
-			error = IO_ERR_OVERFLOW;
+		case ERROR_FILE_TOO_LARGE:
+			error = IO_ERR_FILE_SIZE;
 			break;
+
+		//TODO: complete
 
 		default:
 			error = IO_ERR_UNKNOWN;
 			break;
 	}
 	return(error);
-}
-
-int io_convert_open_flags(file_open_flags flags)
-{
-	int oflags = 0;
-
-	if(flags & FILE_OPEN_READ)
-	{
-		if(flags & FILE_OPEN_WRITE)
-		{
-			oflags = O_RDWR;
-		}
-		else
-		{
-			oflags = O_RDONLY;
-		}
-	}
-	else if(flags & FILE_OPEN_WRITE)
-	{
-		oflags = O_WRONLY;
-	}
-
-	if(flags & FILE_OPEN_TRUNCATE)
-	{
-		oflags |= O_TRUNC;
-	}
-	if(flags & FILE_OPEN_APPEND)
-	{
-		oflags |= O_APPEND;
-	}
-	if(flags & FILE_OPEN_CREATE)
-	{
-		oflags |= O_CREAT;
-	}
-	if(flags & FILE_OPEN_NO_FOLLOW)
-	{
-		oflags |= O_NOFOLLOW;
-	}
-	if(flags & FILE_OPEN_SYMLINK)
-	{
-		oflags |= O_SYMLINK;
-	}
-	return(oflags);
 }
 
 io_cmp io_open_at(file_slot* atSlot, io_req* req)
@@ -233,45 +150,81 @@ io_cmp io_open_at(file_slot* atSlot, io_req* req)
 	{
 		cmp.handle = file_handle_from_slot(&__globalFileTable, slot);
 
-		int flags = io_convert_open_flags(req->openFlags);
-
-		//TODO: allow specifying access
-		mode_t mode = S_IRUSR
-		            | S_IWUSR
-		            | S_IRGRP
-		            | S_IWGRP
-		            | S_IROTH
-		            | S_IWOTH;
-
 		//NOTE: open
 		mem_arena_scope scratch = mem_scratch_begin();
 
-		str8 path = str8_from_buffer(req->size, req->buffer);
-		char* pathCStr = str8_to_cstring(scratch.arena, path);
+		int sizeWide = 1 + MultiByteToWideChar(CP_UTF8, 0, req->buffer, req->size, NULL, 0);
+		LPWSTR pathWide = mem_arena_alloc_array(scratch.arena, wchar_t, sizeWide);
+		MultiByteToWideChar(CP_UTF8, 0, req->buffer, req->size, pathWide, sizeWide);
+		pathWide[sizeWide-1] = '\0';
 
-		//TODO: if FILE_OPEN_RESTRICT, do the file traversal to check that path is in the
-		//      subtree rooted at atSlot->fd
-		int fd = -1;
-		if(atSlot)
+		DWORD accessFlags = 0;
+		DWORD createFlags = 0;
+		DWORD attributesFlags = FILE_ATTRIBUTE_NORMAL;
+
+		if(req->openFlags & FILE_OPEN_READ)
 		{
-			fd = openat(atSlot->fd, pathCStr, flags, mode);
+			accessFlags |= GENERIC_READ;
 		}
-		else
+		if(req->openFlags & FILE_OPEN_WRITE)
 		{
-			fd = open(pathCStr, flags, mode);
+			if(req->openFlags & FILE_OPEN_APPEND)
+			{
+				accessFlags |= FILE_APPEND_DATA;
+			}
+			else
+			{
+				accessFlags |= GENERIC_WRITE;
+			}
 		}
+
+		if(req->openFlags & FILE_OPEN_TRUNCATE)
+		{
+			if(req->openFlags & FILE_OPEN_CREATE)
+			{
+				createFlags |= CREATE_ALWAYS;
+			}
+			else
+			{
+				createFlags |= TRUNCATE_EXISTING;
+			}
+		}
+		if(req->openFlags & FILE_OPEN_CREATE)
+		{
+			if(!createFlags & CREATE_ALWAYS)
+			{
+				createFlags |= OPEN_ALWAYS;
+			}
+		}
+		if(  !(createFlags & OPEN_ALWAYS)
+		  && !(createFlags & CREATE_ALWAYS)
+		  && !(createFlags & TRUNCATE_EXISTING))
+		{
+			createFlags |= OPEN_EXISTING;
+		}
+
+		if(req->openFlags & FILE_OPEN_SYMLINK)
+		{
+			attributesFlags |= FILE_FLAG_OPEN_REPARSE_POINT;
+		}
+
+		if(req->openFlags & FILE_OPEN_RESTRICT)
+		{
+			//TODO: if FILE_OPEN_RESTRICT, do the file traversal to check that path is in the
+			//      subtree rooted at atSlot->fd
+		}
+
+		//TODO: open at
+
+		//TODO: take care of share mode and security attributes, make it consistent with posix impl
+		slot->h = CreateFileW(pathWide, accessFlags, 0, NULL, createFlags, attributesFlags, NULL);
 
 		mem_scratch_end(scratch);
 
-		if(fd >= 0)
+		if(slot->h == INVALID_HANDLE_VALUE)
 		{
-			slot->fd = fd;
-		}
-		else
-		{
-			slot->fd = -1;
 			slot->fatal = true;
-			slot->error = io_convert_errno(errno);
+			slot->error = io_convert_win32_error(GetLastError());
 		}
 		cmp.error = slot->error;
 	}
@@ -282,14 +235,15 @@ io_cmp io_open_at(file_slot* atSlot, io_req* req)
 io_cmp io_close(file_slot* slot, io_req* req)
 {
 	io_cmp cmp = {0};
-	if(slot->fd >= 0)
+	if(slot->h)
 	{
-		close(slot->fd);
+		CloseHandle(slot->h);
 	}
 	file_slot_recycle(&__globalFileTable, slot);
 	return(cmp);
 }
 
+/*
 file_perm io_convert_perm_from_stat(u16 mode)
 {
 	file_perm perm = mode & 07777;
@@ -302,35 +256,35 @@ file_type io_convert_type_from_stat(u16 mode)
 	switch(mode & S_IFMT)
 	{
 		case S_IFIFO:
-			type = MP_FILE_FIFO;
+			type = FILE_FIFO;
 			break;
 
 		case S_IFCHR:
-			type = MP_FILE_CHARACTER;
+			type = FILE_CHARACTER;
 			break;
 
 		case S_IFDIR:
-			type = MP_FILE_DIRECTORY;
+			type = FILE_DIRECTORY;
 			break;
 
 		case S_IFBLK:
-			type = MP_FILE_BLOCK;
+			type = FILE_BLOCK;
 			break;
 
 		case S_IFREG:
-			type = MP_FILE_REGULAR;
+			type = FILE_REGULAR;
 			break;
 
 		case S_IFLNK:
-			type = MP_FILE_SYMLINK;
+			type = FILE_SYMLINK;
 			break;
 
 		case S_IFSOCK:
-			type = MP_FILE_SOCKET;
+			type = FILE_SOCKET;
 			break;
 
 		default:
-			type = MP_FILE_UNKNOWN;
+			type = FILE_UNKNOWN;
 			break;
 	}
 	return(type);
@@ -363,17 +317,23 @@ io_cmp io_fstat(file_slot* slot, io_req* req)
 	}
 	return(cmp);
 }
+*/
 
 io_cmp io_pos(file_slot* slot, io_req* req)
 {
 	io_cmp cmp = {0};
-	cmp.result = lseek(slot->fd, 0, SEEK_CUR);
-	if(cmp.result < 0)
+	LARGE_INTEGER off = {.QuadPart = req->offset};
+	LARGE_INTEGER newPos = {0};
+
+	if(!SetFilePointerEx(slot->h, off, &newPos, FILE_CURRENT))
 	{
-		slot->error = io_convert_errno(errno);
+		slot->error = io_convert_win32_error(GetLastError());
 		cmp.error = slot->error;
 	}
-
+	else
+	{
+		cmp.result = newPos.QuadPart;
+	}
 	return(cmp);
 }
 
@@ -381,26 +341,32 @@ io_cmp io_seek(file_slot* slot, io_req* req)
 {
 	io_cmp cmp = {0};
 
-	int whence;
+	DWORD whence;
 	switch(req->whence)
 	{
 		case FILE_SEEK_CURRENT:
-			whence = SEEK_CUR;
+			whence = FILE_CURRENT;
 			break;
 
 		case FILE_SEEK_SET:
-			whence = SEEK_SET;
+			whence = FILE_BEGIN;
 			break;
 
 		case FILE_SEEK_END:
-			whence = SEEK_END;
+			whence = FILE_END;
 	}
-	cmp.result = lseek(slot->fd, req->offset, whence);
 
-	if(cmp.result < 0)
+	LARGE_INTEGER off = {.QuadPart = req->offset};
+	LARGE_INTEGER newPos = {0};
+
+	if(!SetFilePointerEx(slot->h, off, &newPos, whence))
 	{
-		slot->error = io_convert_errno(errno);
+		slot->error = io_convert_win32_error(GetLastError());
 		cmp.error = slot->error;
+	}
+	else
+	{
+		cmp.result = newPos.QuadPart;
 	}
 
 	return(cmp);
@@ -410,14 +376,18 @@ io_cmp io_read(file_slot* slot, io_req* req)
 {
 	io_cmp cmp = {0};
 
-	cmp.result = read(slot->fd, req->buffer, req->size);
+	DWORD bytesRead = 0;
 
-	if(cmp.result < 0)
+	if(!ReadFile(slot->h, req->buffer, req->size, &bytesRead, NULL))
 	{
-		slot->error = io_convert_errno(errno);
+		cmp.result = -1;
+		slot->error = io_convert_win32_error(GetLastError());
 		cmp.error = slot->error;
 	}
-
+	else
+	{
+		cmp.result = bytesRead;
+	}
 	return(cmp);
 }
 
@@ -425,12 +395,17 @@ io_cmp io_write(file_slot* slot, io_req* req)
 {
 	io_cmp cmp = {0};
 
-	cmp.result = write(slot->fd, req->buffer, req->size);
+	DWORD bytesWritten = 0;
 
-	if(cmp.result < 0)
+	if(!WriteFile(slot->h, req->buffer, req->size, &bytesWritten, NULL))
 	{
-		slot->error = io_convert_errno(errno);
+		cmp.result = -1;
+		slot->error = io_convert_win32_error(GetLastError());
 		cmp.error = slot->error;
+	}
+	else
+	{
+		cmp.result = bytesWritten;
 	}
 
 	return(cmp);
@@ -467,11 +442,11 @@ io_cmp io_wait_single_req(io_req* req)
 			case IO_OP_OPEN_AT:
 				cmp = io_open_at(slot, req);
 				break;
-
+/*
 			case IO_OP_FSTAT:
 				cmp = io_fstat(slot, req);
 				break;
-
+*/
 			case IO_OP_CLOSE:
 				cmp = io_close(slot, req);
 				break;
@@ -483,7 +458,7 @@ io_cmp io_wait_single_req(io_req* req)
 			case IO_OP_WRITE:
 				cmp = io_write(slot, req);
 				break;
-
+/*
 			case IO_OP_POS:
 				cmp = io_pos(slot, req);
 				break;
@@ -491,13 +466,17 @@ io_cmp io_wait_single_req(io_req* req)
 			case IO_OP_SEEK:
 				cmp = io_seek(slot, req);
 				break;
-
+*/
 			case IO_OP_ERROR:
 				cmp = io_get_error(slot, req);
 				break;
 
 			default:
 				cmp.error = IO_ERR_OP;
+				if(slot)
+				{
+					slot->error = cmp.error;
+				}
 				break;
 		}
 	}

@@ -92,7 +92,7 @@ str8 path_append(mem_arena* arena, str8 parent, str8 relPath)
 
 str8 path_executable_relative(mem_arena* arena, str8 relPath)
 {
-	str8_list list = {};
+	str8_list list = {0};
 	mem_arena_scope scratch = mem_scratch_begin_next(arena);
 
 	str8 executablePath = path_executable(scratch.arena);

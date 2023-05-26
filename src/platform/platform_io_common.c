@@ -42,11 +42,11 @@ i64 file_pos(file_handle file)
 	return(cmp.offset);
 }
 
-i64 file_seek(file_handle file, long offset, file_whence whence)
+i64 file_seek(file_handle file, i64 offset, file_whence whence)
 {
 	io_req req = {.op = IO_OP_SEEK,
 	              .handle = file,
-	              .size = offset,
+	              .offset = offset,
 	              .whence = whence};
 
 	io_cmp cmp = io_wait_single_req(&req);

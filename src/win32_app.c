@@ -1036,51 +1036,6 @@ mg_surface_data* mg_win32_surface_create_host(mp_window window)
 	return(surface);
 }
 
-/////////////////////////////////////////// WIP ///////////////////////////////////////////////
-//TODO: this is thrown here for a quick test. We should:
-//			- check for errors
-//          - use utf8 version of API
-str8 mp_app_get_executable_path(mem_arena* arena)
-{
-	char* buffer = mem_arena_alloc_array(arena, char, MAX_PATH+1);
-	int size = GetModuleFileName(NULL, buffer, MAX_PATH+1);
-	//TODO: check for errors...
-
-	return(str8_from_buffer(size, buffer));
-}
-
-str8 mp_app_get_resource_path(mem_arena* arena, const char* name)
-{
-	str8_list list = {0};
-	mem_arena* scratch = mem_scratch();
-
-	str8 executablePath = mp_app_get_executable_path(scratch);
-	char* executablePathCString = str8_to_cstring(scratch, executablePath);
-
-	char* driveBuffer = mem_arena_alloc_array(scratch, char, MAX_PATH);
-	char* dirBuffer = mem_arena_alloc_array(scratch, char, MAX_PATH);
-
-	_splitpath_s(executablePathCString, driveBuffer, MAX_PATH, dirBuffer, MAX_PATH, 0, 0, 0, 0);
-
-	str8 drive = STR8(driveBuffer);
-	str8 dirPath = STR8(dirBuffer);
-
-	str8_list_push(scratch, &list, drive);
-	str8_list_push(scratch, &list, dirPath);
-	str8_list_push(scratch, &list, STR8("\\"));
-	str8_list_push(scratch, &list, str8_push_cstring(scratch, name));
-	str8 path = str8_list_join(scratch, list);
-	char* pathCString = str8_to_cstring(scratch, path);
-
-	char* buffer = mem_arena_alloc_array(arena, char, path.len+1);
-	char* filePart = 0;
-	int size = GetFullPathName(pathCString, MAX_PATH, buffer, &filePart);
-
-	str8 result = str8_from_buffer(size, buffer);
-	return(result);
-}
-//////////////////////////////////////////////////////////////////////////////////////////////////
-
 //--------------------------------------------------------------------
 // native open/save/alert windows
 //--------------------------------------------------------------------

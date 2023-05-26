@@ -121,58 +121,59 @@ typedef struct io_cmp
 //----------------------------------------------------------------
 //TODO: complete io queue api
 //----------------------------------------------------------------
-io_cmp io_wait_single_req(io_req* req);
+MP_API io_cmp io_wait_single_req(io_req* req);
 
 //----------------------------------------------------------------
 // File IO wrapper API
 //----------------------------------------------------------------
 
-file_handle file_open(str8 path, file_open_flags flags);
-file_handle file_open_relative(file_handle base, str8 path, file_open_flags flags);
-void file_close(file_handle file);
+MP_API file_handle file_open(str8 path, file_open_flags flags);
+MP_API file_handle file_open_relative(file_handle base, str8 path, file_open_flags flags);
+MP_API void file_close(file_handle file);
 
-i64 file_pos(file_handle file);
-i64 file_seek(file_handle file, long offset, file_whence whence);
+MP_API i64 file_pos(file_handle file);
+MP_API i64 file_seek(file_handle file, i64 offset, file_whence whence);
 
-u64 file_write(file_handle file, u64 size, char* buffer);
-u64 file_read(file_handle file, u64 size, char* buffer);
+MP_API u64 file_write(file_handle file, u64 size, char* buffer);
+MP_API u64 file_read(file_handle file, u64 size, char* buffer);
 
-io_error file_last_error(file_handle handle);
+MP_API io_error file_last_error(file_handle handle);
 
 //----------------------------------------------------------------
 // File System wrapper API
 //----------------------------------------------------------------
 
-typedef enum
+typedef enum file_type
 {
-	FILE_UNKNOWN,
-	FILE_REGULAR,
-	FILE_DIRECTORY,
-	FILE_SYMLINK,
-	FILE_BLOCK,
-	FILE_CHARACTER,
-	FILE_FIFO,
-	FILE_SOCKET,
+	MP_FILE_UNKNOWN,
+	MP_FILE_REGULAR,
+	MP_FILE_DIRECTORY,
+	MP_FILE_SYMLINK,
+	MP_FILE_BLOCK,
+	MP_FILE_CHARACTER,
+	MP_FILE_FIFO,
+	MP_FILE_SOCKET,
+
 } file_type;
 
 typedef u16 file_perm;
 enum file_perm
 {
-	FILE_OTHER_EXEC  = 1<<0,
-	FILE_OTHER_WRITE = 1<<1,
-	FILE_OTHER_READ  = 1<<2,
+	MP_FILE_OTHER_EXEC  = 1<<0,
+	MP_FILE_OTHER_WRITE = 1<<1,
+	MP_FILE_OTHER_READ  = 1<<2,
 
-	FILE_GROUP_EXEC  = 1<<3,
-	FILE_GROUP_WRITE = 1<<4,
-	FILE_GROUP_READ  = 1<<5,
+	MP_FILE_GROUP_EXEC  = 1<<3,
+	MP_FILE_GROUP_WRITE = 1<<4,
+	MP_FILE_GROUP_READ  = 1<<5,
 
-	FILE_OWNER_EXEC  = 1<<6,
-	FILE_OWNER_WRITE = 1<<7,
-	FILE_OWNER_READ  = 1<<8,
+	MP_FILE_OWNER_EXEC  = 1<<6,
+	MP_FILE_OWNER_WRITE = 1<<7,
+	MP_FILE_OWNER_READ  = 1<<8,
 
-	FILE_STICKY_BIT  = 1<<9,
-	FILE_SET_GID     = 1<<10,
-	FILE_SET_UID     = 1<<11,
+	MP_FILE_STICKY_BIT  = 1<<9,
+	MP_FILE_SET_GID     = 1<<10,
+	MP_FILE_SET_UID     = 1<<11,
 };
 
 typedef struct file_status
@@ -185,8 +186,8 @@ typedef struct file_status
 
 } file_status;
 
-file_status file_get_status(file_handle file);
-u64 file_size(file_handle file);
+MP_API file_status file_get_status(file_handle file);
+MP_API u64 file_size(file_handle file);
 
 //TODO: Complete as needed...
 

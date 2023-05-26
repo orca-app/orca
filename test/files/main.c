@@ -115,7 +115,7 @@ int test_stat_type(mem_arena* arena, str8 dataDir)
 		log_error("Error while retrieving file status\n");
 		return(-1);
 	}
-	if(status.type != FILE_REGULAR)
+	if(status.type != MP_FILE_REGULAR)
 	{
 		log_error("file type doesn't match\n");
 		return(-1);
@@ -131,7 +131,7 @@ int test_stat_type(mem_arena* arena, str8 dataDir)
 		log_error("Error while retrieving file status\n");
 		return(-1);
 	}
-	if(status.type != FILE_DIRECTORY)
+	if(status.type != MP_FILE_DIRECTORY)
 	{
 		log_error("file type doesn't match\n");
 		return(-1);
@@ -147,7 +147,7 @@ int test_stat_type(mem_arena* arena, str8 dataDir)
 		log_error("Error while retrieving file status\n");
 		return(-1);
 	}
-	if(status.type != FILE_SYMLINK)
+	if(status.type != MP_FILE_SYMLINK)
 	{
 		log_error("file type doesn't match\n");
 		return(-1);
