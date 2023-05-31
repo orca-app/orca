@@ -364,19 +364,6 @@ io_cmp io_fstat(file_slot* slot, io_req* req)
 	return(cmp);
 }
 
-io_cmp io_pos(file_slot* slot, io_req* req)
-{
-	io_cmp cmp = {0};
-	cmp.result = lseek(slot->fd, 0, SEEK_CUR);
-	if(cmp.result < 0)
-	{
-		slot->error = io_convert_errno(errno);
-		cmp.error = slot->error;
-	}
-
-	return(cmp);
-}
-
 io_cmp io_seek(file_slot* slot, io_req* req)
 {
 	io_cmp cmp = {0};
@@ -482,10 +469,6 @@ io_cmp io_wait_single_req(io_req* req)
 
 			case IO_OP_WRITE:
 				cmp = io_write(slot, req);
-				break;
-
-			case IO_OP_POS:
-				cmp = io_pos(slot, req);
 				break;
 
 			case IO_OP_SEEK:

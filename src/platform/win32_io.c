@@ -320,24 +320,6 @@ io_cmp io_fstat(file_slot* slot, io_req* req)
 	return(cmp);
 }
 
-io_cmp io_pos(file_slot* slot, io_req* req)
-{
-	io_cmp cmp = {0};
-	LARGE_INTEGER off = {.QuadPart = req->offset};
-	LARGE_INTEGER newPos = {0};
-
-	if(!SetFilePointerEx(slot->h, off, &newPos, FILE_CURRENT))
-	{
-		slot->error = io_convert_win32_error(GetLastError());
-		cmp.error = slot->error;
-	}
-	else
-	{
-		cmp.result = newPos.QuadPart;
-	}
-	return(cmp);
-}
-
 io_cmp io_seek(file_slot* slot, io_req* req)
 {
 	io_cmp cmp = {0};
@@ -458,10 +440,6 @@ io_cmp io_wait_single_req(io_req* req)
 
 			case IO_OP_WRITE:
 				cmp = io_write(slot, req);
-				break;
-
-			case IO_OP_POS:
-				cmp = io_pos(slot, req);
 				break;
 
 			case IO_OP_SEEK:

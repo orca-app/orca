@@ -43,7 +43,6 @@ enum
 
 	IO_OP_FSTAT,
 
-	IO_OP_POS,
 	IO_OP_SEEK,
 	IO_OP_READ,
 	IO_OP_WRITE,

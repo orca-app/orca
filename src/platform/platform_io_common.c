@@ -33,15 +33,6 @@ void file_close(file_handle file)
 	io_wait_single_req(&req);
 }
 
-i64 file_pos(file_handle file)
-{
-	io_req req = {.op = IO_OP_POS,
-	              .handle = file};
-
-	io_cmp cmp = io_wait_single_req(&req);
-	return(cmp.offset);
-}
-
 i64 file_seek(file_handle file, i64 offset, file_whence whence)
 {
 	io_req req = {.op = IO_OP_SEEK,
@@ -51,6 +42,11 @@ i64 file_seek(file_handle file, i64 offset, file_whence whence)
 
 	io_cmp cmp = io_wait_single_req(&req);
 	return(cmp.offset);
+}
+
+i64 file_pos(file_handle file)
+{
+	return(file_seek(file, 0, FILE_SEEK_CURRENT));
 }
 
 u64 file_write(file_handle file, u64 size, char* buffer)
