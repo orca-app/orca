@@ -9,6 +9,7 @@
 #include"platform/orca_memory.c"
 #include"platform/orca_strings.c"
 #include"platform/orca_log.c"
+#include"platform/platform_io_common.c"
 
 #include"util/memory.c"
 #include"util/strings.c"
@@ -17,4 +18,4 @@
 #include"graphics_common.c"
 #include"orca_surface.c"
 
-#include"io.c"
+#include"io_stubs.c"

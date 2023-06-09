@@ -15,7 +15,6 @@
 #include"util/utf8.h"
 #include"platform/platform_log.h"
 #include"platform/platform_assert.h"
-
-#include"io.h"
+#include"platform/platform_io.h"
 
 #endif //__ORCA_H_

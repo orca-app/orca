@@ -52,7 +52,7 @@ int orca_assert(const char* file, const char* function, int line, const char* sr
 mg_font orca_font_create(const char* resourcePath)
 {
 	//NOTE(martin): create default font
-	str8 fontPath = path_find_resource(mem_scratch(), STR8(resourcePath));
+	str8 fontPath = path_executable_relative(mem_scratch(), STR8(resourcePath));
 	char* fontPathCString = str8_to_cstring(mem_scratch(), fontPath);
 
 	FILE* fontFile = fopen(fontPathCString, "r");
@@ -363,7 +363,7 @@ void* orca_runloop(void* user)
 
 	//NOTE: loads wasm module
 	const char* bundleNameCString = "module";
-	str8 modulePath = path_find_resource(mem_scratch(), STR8("../app/wasm/module.wasm"));
+	str8 modulePath = path_executable_relative(mem_scratch(), STR8("../app/wasm/module.wasm"));
 	const char* modulePathCString = str8_to_cstring(mem_scratch(), modulePath);
 
 	FILE* file = fopen(modulePathCString, "rb");
@@ -394,7 +394,7 @@ void* orca_runloop(void* user)
 	m3_LoadModule(app->runtime.m3Runtime, app->runtime.m3Module);
 	m3_SetModuleName(app->runtime.m3Module, bundleNameCString);
 
-	mem_scratch_clear();
+	mem_arena_clear(mem_scratch());
 
 	//NOTE: bind orca APIs
 	bindgen_link_core_api(app->runtime.m3Module);
@@ -765,7 +765,7 @@ void* orca_runloop(void* user)
 			mg_render(app->debugOverlay.surface, app->debugOverlay.canvas);
 			mg_surface_present(app->debugOverlay.surface);
 		}
-		mem_scratch_clear();
+		mem_arena_clear(mem_scratch());
 	}
 
 	return(0);
