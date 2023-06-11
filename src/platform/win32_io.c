@@ -9,76 +9,8 @@
 #include<errno.h>
 #include<limits.h>
 
+#include"platform_io_internal.c"
 #include"platform_io_common.c"
-
-typedef struct file_slot
-{
-	u32 generation;
-	HANDLE h;
-	io_error error;
-	bool fatal;
-	list_elt freeListElt;
-
-} file_slot;
-
-enum
-{
-	ORCA_MAX_FILE_SLOTS = 256,
-};
-
-typedef struct file_table
-{
-	file_slot slots[ORCA_MAX_FILE_SLOTS];
-	u32 nextSlot;
-	list_info freeList;
-} file_table;
-
-file_table __globalFileTable = {0};
-
-file_slot* file_slot_alloc(file_table* table)
-{
-	file_slot* slot = list_pop_entry(&table->freeList, file_slot, freeListElt);
-	if(!slot && table->nextSlot < ORCA_MAX_FILE_SLOTS)
-	{
-		slot = &table->slots[table->nextSlot];
-		slot->generation = 1;
-		slot->h = NULL;
-		table->nextSlot++;
-	}
-	return(slot);
-}
-
-void file_slot_recycle(file_table* table, file_slot* slot)
-{
-	slot->generation++;
-	list_push(&table->freeList, &slot->freeListElt);
-}
-
-file_handle file_handle_from_slot(file_table* table, file_slot* slot)
-{
-	u64 index = slot - table->slots;
-	u64 generation = slot->generation;
-	file_handle handle = {.h = (generation<<32) | index };
-	return(handle);
-}
-
-file_slot* file_slot_from_handle(file_table* table, file_handle handle)
-{
-	file_slot* slot = 0;
-
-	u64 index = handle.h & 0xffffffff;
-	u64 generation = handle.h>>32;
-
-	if(index < table->nextSlot)
-	{
-		file_slot* candidate = &table->slots[index];
-		if(candidate->generation == generation)
-		{
-			slot = candidate;
-		}
-	}
-	return(slot);
-}
 
 io_error io_convert_win32_error(int winError)
 {
@@ -136,11 +68,11 @@ io_error io_convert_win32_error(int winError)
 	return(error);
 }
 
-io_cmp io_open_at(file_slot* atSlot, io_req* req)
+io_cmp io_open_at(file_slot* atSlot, io_req* req, file_table* table)
 {
 	io_cmp cmp = {0};
 
-	file_slot* slot = file_slot_alloc(&__globalFileTable);
+	file_slot* slot = file_slot_alloc(table);
 	if(!slot)
 	{
 		cmp.error = IO_ERR_MAX_FILES;
@@ -148,7 +80,7 @@ io_cmp io_open_at(file_slot* atSlot, io_req* req)
 	}
 	else
 	{
-		cmp.handle = file_handle_from_slot(&__globalFileTable, slot);
+		cmp.handle = file_handle_from_slot(table, slot);
 
 		//NOTE: open
 		mem_arena_scope scratch = mem_scratch_begin();
@@ -232,14 +164,14 @@ io_cmp io_open_at(file_slot* atSlot, io_req* req)
 	return(cmp);
 }
 
-io_cmp io_close(file_slot* slot, io_req* req)
+io_cmp io_close(file_slot* slot, io_req* req, file_table* table)
 {
 	io_cmp cmp = {0};
 	if(slot->h)
 	{
 		CloseHandle(slot->h);
 	}
-	file_slot_recycle(&__globalFileTable, slot);
+	file_slot_recycle(table, slot);
 	return(cmp);
 }
 
@@ -401,11 +333,11 @@ io_cmp io_get_error(file_slot* slot, io_req* req)
 	return(cmp);
 }
 
-io_cmp io_wait_single_req(io_req* req)
+io_cmp io_wait_single_req_with_table(io_req* req, file_table* table)
 {
 	io_cmp cmp = {0};
 
-	file_slot* slot = file_slot_from_handle(&__globalFileTable, req->handle);
+	file_slot* slot = file_slot_from_handle(table, req->handle);
 	if(!slot)
 	{
 		if(req->op != IO_OP_OPEN_AT)
@@ -423,7 +355,7 @@ io_cmp io_wait_single_req(io_req* req)
 		switch(req->op)
 		{
 			case IO_OP_OPEN_AT:
-				cmp = io_open_at(slot, req);
+				cmp = io_open_at(slot, req, table);
 				break;
 
 			case IO_OP_FSTAT:
@@ -431,7 +363,7 @@ io_cmp io_wait_single_req(io_req* req)
 				break;
 
 			case IO_OP_CLOSE:
-				cmp = io_close(slot, req);
+				cmp = io_close(slot, req, table);
 				break;
 
 			case IO_OP_READ:
