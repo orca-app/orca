@@ -78,20 +78,26 @@ void OnInit(void)
 #endif // TEST_IMAGE
 
 	//NOTE: testing file io
-	file_handle file = file_open(STR8("./test_write.txt"), FILE_OPEN_CREATE | FILE_OPEN_WRITE);
+	file_handle file = file_open(STR8("/test_write.txt"), FILE_OPEN_CREATE | FILE_OPEN_WRITE);
+	if(file_last_error(file) == IO_OK)
+	{
+		str8 string = STR8("Hello, file!\n");
+		file_write(file, string.len, string.ptr);
+		file_close(file);
+	}
+	else
+	{
+		log_error("Couldn't open file test_write.txt\n");
+	}
 
-	str8 string = STR8("Hello, file!\n");
-	file_write(file, string.len, string.ptr);
-	file_close(file);
-/*
-	file = file_open(STR8("/dir1/test_read.txt"), IO_OPEN_READ);
+	file = file_open(STR8("/dir1/test_read.txt"), FILE_OPEN_READ);
 	u64 size = file_size(file);
 	char* buffer = mem_arena_alloc(mem_scratch(), size);
 	file_read(file, size, buffer);
 	file_close(file);
 
 	log_info("read file: %.*s", (int)size, buffer);
-*/
+
 }
 
 void OnFrameResize(u32 width, u32 height)

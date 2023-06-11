@@ -6,7 +6,7 @@
 *
 *****************************************************************/
 
-#include"orca_runtime.h"
+#include"orca_app.h"
 
 void* wasm_memory_resize_callback(void* p, unsigned long size, void* userData)
 {

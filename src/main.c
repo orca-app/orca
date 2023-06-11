@@ -14,19 +14,13 @@
 #include"milepost.h"
 #include"graphics_common.h"
 
-#include"orca_runtime.h"
+#include"orca_app.h"
 
 #include"memory_impl.c"
+#include"io_impl.c"
+
 
 #define LOG_SUBSYSTEM "Orca"
-
-
-void mg_matrix_push_flat(float a11, float a12, float a13,
-                         float a21, float a22, float a23)
-{
-	mg_mat2x3 m = {a11, a12, a13, a21, a22, a23};
-	mg_matrix_push(m);
-}
 
 int orca_assert(const char* file, const char* function, int line, const char* src, const char* note)
 {
@@ -88,56 +82,17 @@ mg_font mg_font_create_default()
 }
 
 
-typedef struct log_entry
-{
-	list_elt listElt;
-	u64 cap;
-
-	log_level level;
-	str8 file;
-	str8 function;
-	int line;
-	str8 msg;
-
-	u64 recordIndex;
-
-} log_entry;
-
-typedef struct orca_debug_overlay
-{
-	bool show;
-	mg_surface surface;
-	mg_canvas canvas;
-	mg_font fontReg;
-	mg_font fontBold;
-	ui_context ui;
-
-
-	mem_arena logArena;
-	list_info logEntries;
-	list_info logFreeList;
-	u32 entryCount;
-	u32 maxEntries;
-	u64 logEntryTotalCount;
-	bool logScrollToLast;
-
-} orca_debug_overlay;
-
-typedef struct orca_app
-{
-	mp_window window;
-	mg_surface surface;
-	mg_canvas canvas;
-
-	orca_runtime runtime;
-
-	orca_debug_overlay debugOverlay;
-
-} orca_app;
-
 orca_app __orcaApp = {0};
 
-#include"io_impl.c"
+orca_app* orca_app_get()
+{
+	return(&__orcaApp);
+}
+
+orca_runtime* orca_runtime_get()
+{
+	return(&__orcaApp.runtime);
+}
 
 void orca_log(log_level level,
               int fileLen,
@@ -343,11 +298,6 @@ void orca_runtime_init(orca_runtime* runtime)
 	runtime->wasmMemory.ptr = mem_base_reserve(allocator, runtime->wasmMemory.reserved);
 }
 
-orca_runtime* orca_runtime_get()
-{
-	return(&__orcaApp.runtime);
-}
-
 #include"bindgen_core_api.c"
 #include"canvas_api_bind.c"
 #include"io_api_bind_gen.c"
@@ -414,36 +364,7 @@ void* orca_runloop(void* user)
 		return((void*)-1);
 	}
 
-	//NOTE: Find heap base
-	u32 heapBase = 0;
-	{
-		IM3Global global = m3_FindGlobal(app->runtime.m3Module, "__heap_base");
-		if(global)
-		{
-			M3TaggedValue val;
-			M3Result res = m3_GetGlobal(global, &val);
-			if(!res && val.type == c_m3Type_i32)
-			{
-				heapBase = val.value.i32;
-			}
-			else
-			{
-				log_error("couldn't get value of __heap_base\n");
-				return((void*)-1);
-			}
-		}
-		else
-		{
-			log_error("couldn't locate __heap_base\n");
-			return((void*)-1);
-		}
-	}
-	//NOTE: align heap base on 16Bytes
-	heapBase = AlignUpOnPow2(heapBase, 16);
-	log_info("mem_size = %u,  __heap_base = %u\n", m3_GetMemorySize(app->runtime.m3Runtime), heapBase);
-
 	//NOTE: Find and type check event handlers.
-
 	for(int i=0; i<G_EVENT_COUNT; i++)
 	{
 		const g_event_handler_desc* desc = &G_EVENT_HANDLER_DESC[i];
@@ -498,7 +419,17 @@ void* orca_runloop(void* user)
 		}
 	}
 
-	//NOTE: setup ui context
+	//NOTE: preopen the app local root dir
+	{
+		str8 localRootPath = path_executable_relative(mem_scratch(), STR8("../app/data"));
+
+		io_req req = {.op = IO_OP_OPEN_AT,
+		              .openFlags = FILE_OPEN_READ,
+		              .size = localRootPath.len,
+		              .buffer = localRootPath.ptr};
+		io_cmp cmp = io_wait_single_req_with_table(&req, &app->fileTable);
+		app->rootDir = cmp.handle;
+	}
 
 	//NOTE: prepare GL surface
 	mg_surface_prepare(app->surface);
@@ -780,6 +711,7 @@ int main(int argc, char** argv)
 
 	orca_app* orca = &__orcaApp;
 
+	//NOTE: create window and surfaces
 	mp_rect windowRect = {.x = 100, .y = 100, .w = 810, .h = 610};
 	orca->window = mp_window_create(windowRect, "orca", 0);
 	orca->surface = mg_surface_create_for_window(orca->window, MG_CANVAS);
