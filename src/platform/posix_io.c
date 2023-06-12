@@ -168,7 +168,7 @@ io_open_restrict_result io_open_restrict(int dirFd, str8 path, int flags, mode_t
 	str8_list_push(scratch.arena, &sep, STR8("/"));
 	str8_list pathElements = str8_split(scratch.arena, path, sep);
 
-	result.fd = dirFd;
+	result.fd = dup(dirFd);
 	if(result.fd < 0)
 	{
 		result.error = io_convert_errno(errno);

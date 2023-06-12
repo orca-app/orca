@@ -186,6 +186,62 @@ int test_stat_type(mem_arena* arena, str8 dataDir)
 	return(0);
 }
 
+int test_jail()
+{
+	log_info("test jail\n");
+
+	file_handle jail = file_open(STR8("./data/jail"), FILE_OPEN_READ);
+	if(file_last_error(jail))
+	{
+		log_error("Can't open jail directory\n");
+		return(-1);
+	}
+
+	// Check legitimates open
+	file_handle f = file_open_at(jail, STR8("/test.txt"), FILE_OPEN_READ | FILE_OPEN_RESTRICT);
+	if(file_last_error(f) != IO_OK)
+	{
+		log_error("Can't open jail/test.txt\n");
+		return(-1);
+	}
+	file_close(f);
+
+	f = file_open_at(jail, STR8("/dir1/../test.txt"), FILE_OPEN_READ | FILE_OPEN_RESTRICT);
+	if(file_last_error(f) != IO_OK)
+	{
+		log_error("Can't open jail/dir1/../test.txt\n");
+		return(-1);
+	}
+	file_close(f);
+
+	// Check escapes
+	f = file_open_at(jail, STR8(".."), FILE_OPEN_READ | FILE_OPEN_RESTRICT);
+	if(file_last_error(f) != IO_ERR_WALKOUT)
+	{
+		log_error("Escaped jail with relative path ..\n");
+		return(-1);
+	}
+	file_close(f);
+
+	f = file_open_at(jail, STR8(".."), FILE_OPEN_READ | FILE_OPEN_RESTRICT);
+	if(file_last_error(f) != IO_ERR_WALKOUT)
+	{
+		log_error("Escaped jail with relative path dir1/../..\n");
+		return(-1);
+	}
+	file_close(f);
+
+	f = file_open_at(jail, STR8("/escape"), FILE_OPEN_READ | FILE_OPEN_RESTRICT);
+	if(file_last_error(f) != IO_ERR_WALKOUT)
+	{
+		log_error("Escaped jail with symlink\n");
+		return(-1);
+	}
+	file_close(f);
+
+	return(0);
+}
+
 int main(int argc, char** argv)
 {
 	mem_arena* arena = mem_scratch();
@@ -199,6 +255,9 @@ int main(int argc, char** argv)
 	if(test_read(arena, path, test_string)) { return(-1); }
 	if(test_stat_size(path, test_string.len)) { return(-1); }
 	if(test_stat_type(arena, dataDir)) { return(-1); }
+	if(test_jail()) { return(-1); }
+
+	remove("./test.txt");
 
 	log_info("OK\n");
 

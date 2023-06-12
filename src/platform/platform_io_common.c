@@ -25,6 +25,18 @@ file_handle file_open(str8 path, file_open_flags flags)
 	return(cmp.handle);
 }
 
+file_handle file_open_at(file_handle dir, str8 path, file_open_flags flags)
+{
+	io_req req = {.op = IO_OP_OPEN_AT,
+	              .handle = dir,
+	              .size = path.len,
+	              .buffer = path.ptr,
+	              .openFlags = flags};
+
+	io_cmp cmp = io_wait_single_req(&req);
+	return(cmp.handle);
+}
+
 void file_close(file_handle file)
 {
 	io_req req = {.op = IO_OP_CLOSE,

@@ -74,7 +74,7 @@ typedef struct io_req
 } io_req;
 
 typedef i32 io_error;
-enum {
+enum _io_error {
 	IO_OK = 0,
 	IO_ERR_UNKNOWN,
 	IO_ERR_OP,          // unsupported operation
@@ -127,6 +127,7 @@ MP_API io_cmp io_wait_single_req(io_req* req);
 //----------------------------------------------------------------
 
 MP_API file_handle file_open(str8 path, file_open_flags flags);
+MP_API file_handle file_open_at(file_handle dir, str8 path, file_open_flags flags);
 MP_API file_handle file_open_relative(file_handle base, str8 path, file_open_flags flags);
 MP_API void file_close(file_handle file);
 
