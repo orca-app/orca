@@ -20,6 +20,11 @@ file_slot* file_slot_alloc(file_table* table)
 		slot->fd = -1;
 		table->nextSlot++;
 	}
+
+	u32 tmpGeneration = slot->generation;
+	memset(slot, 0, sizeof(file_slot));
+	slot->generation = tmpGeneration;
+
 	return(slot);
 }
 

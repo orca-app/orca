@@ -26,6 +26,7 @@ typedef struct file_slot
 	bool fatal;
 	list_elt freeListElt;
 
+	file_access_rights rights;
 	PLATFORM_IO_NATIVE_MEMBER;
 
 } file_slot;

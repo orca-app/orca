@@ -13,7 +13,7 @@ int test_write(mem_arena* arena, str8 path, str8 test_string)
 {
 	log_info("writing\n");
 
-	file_handle f = file_open(path, FILE_OPEN_CREATE|FILE_OPEN_WRITE|FILE_OPEN_TRUNCATE);
+	file_handle f = file_open(path, FILE_ACCESS_WRITE, FILE_OPEN_CREATE|FILE_OPEN_TRUNCATE);
 	if(file_last_error(f))
 	{
 		log_error("Can't create/open file %.*s for writing\n", (int)path.len, path.ptr);
@@ -52,7 +52,7 @@ int test_read(mem_arena* arena, str8 path, str8 test_string)
 {
 	log_info("reading\n");
 
-	file_handle f = file_open(path, FILE_OPEN_READ);
+	file_handle f = file_open(path, FILE_ACCESS_READ, 0);
 	if(file_last_error(f))
 	{
 		log_error("Can't open file %.*s for reading\n", (int)path.len, path.ptr);
@@ -81,7 +81,7 @@ int test_stat_size(str8 path, u64 size)
 {
 	log_info("stat size\n");
 
-	file_handle f = file_open(path, 0);
+	file_handle f = file_open(path, 0, 0);
 	if(file_last_error(f))
 	{
 		log_error("Can't open file\n");
@@ -119,7 +119,7 @@ int test_stat_type(mem_arena* arena, str8 dataDir)
 
 	log_info("stat type, regular\n");
 
-	file_handle f = file_open(regular, 0);
+	file_handle f = file_open(regular, 0, 0);
 	if(file_last_error(f))
 	{
 		log_error("Can't open file\n");
@@ -141,7 +141,7 @@ int test_stat_type(mem_arena* arena, str8 dataDir)
 
 	log_info("stat type, directory\n");
 
-	f = file_open(dir, 0);
+	f = file_open(dir, 0, 0);
 	if(file_last_error(f))
 	{
 		log_error("Can't open file\n");
@@ -163,7 +163,7 @@ int test_stat_type(mem_arena* arena, str8 dataDir)
 
 	log_info("stat type, symlink\n");
 
-	f = file_open(link, FILE_OPEN_SYMLINK);
+	f = file_open(link, FILE_ACCESS_NONE, FILE_OPEN_SYMLINK);
 	if(file_last_error(f))
 	{
 		log_error("Can't open file\n");
@@ -190,7 +190,7 @@ int test_jail()
 {
 	log_info("test jail\n");
 
-	file_handle jail = file_open(STR8("./data/jail"), FILE_OPEN_READ);
+	file_handle jail = file_open(STR8("./data/jail"), FILE_ACCESS_READ, 0);
 	if(file_last_error(jail))
 	{
 		log_error("Can't open jail directory\n");
@@ -198,7 +198,7 @@ int test_jail()
 	}
 
 	// Check legitimates open
-	file_handle f = file_open_at(jail, STR8("/test.txt"), FILE_OPEN_READ | FILE_OPEN_RESTRICT);
+	file_handle f = file_open_at(jail, STR8("/test.txt"), FILE_ACCESS_READ, FILE_OPEN_RESTRICT);
 	if(file_last_error(f) != IO_OK)
 	{
 		log_error("Can't open jail/test.txt\n");
@@ -206,7 +206,7 @@ int test_jail()
 	}
 	file_close(f);
 
-	f = file_open_at(jail, STR8("/dir1/../test.txt"), FILE_OPEN_READ | FILE_OPEN_RESTRICT);
+	f = file_open_at(jail, STR8("/dir1/../test.txt"), FILE_ACCESS_READ, FILE_OPEN_RESTRICT);
 	if(file_last_error(f) != IO_OK)
 	{
 		log_error("Can't open jail/dir1/../test.txt\n");
@@ -215,7 +215,7 @@ int test_jail()
 	file_close(f);
 
 	// Check escapes
-	f = file_open_at(jail, STR8(".."), FILE_OPEN_READ | FILE_OPEN_RESTRICT);
+	f = file_open_at(jail, STR8(".."), FILE_ACCESS_READ, FILE_OPEN_RESTRICT);
 	if(file_last_error(f) != IO_ERR_WALKOUT)
 	{
 		log_error("Escaped jail with relative path ..\n");
@@ -223,7 +223,7 @@ int test_jail()
 	}
 	file_close(f);
 
-	f = file_open_at(jail, STR8(".."), FILE_OPEN_READ | FILE_OPEN_RESTRICT);
+	f = file_open_at(jail, STR8(".."), FILE_ACCESS_READ, FILE_OPEN_RESTRICT);
 	if(file_last_error(f) != IO_ERR_WALKOUT)
 	{
 		log_error("Escaped jail with relative path dir1/../..\n");
@@ -231,7 +231,7 @@ int test_jail()
 	}
 	file_close(f);
 
-	f = file_open_at(jail, STR8("/escape"), FILE_OPEN_READ | FILE_OPEN_RESTRICT);
+	f = file_open_at(jail, STR8("/escape"), FILE_ACCESS_READ, FILE_OPEN_RESTRICT);
 	if(file_last_error(f) != IO_ERR_WALKOUT)
 	{
 		log_error("Escaped jail with symlink\n");
@@ -239,6 +239,152 @@ int test_jail()
 	}
 	file_close(f);
 
+	return(0);
+}
+
+int test_rights(mem_arena* arena, str8 dirPath)
+{
+	log_info("test rights\n");
+
+	//--------------------------------------------------------------------------------------
+	// base dir with no access
+	//--------------------------------------------------------------------------------------
+	{
+		file_handle dir = file_open(dirPath, FILE_ACCESS_NONE, 0);
+		if(file_last_error(dir))
+		{
+			log_error("Couldn't open ./dir1 with no access rights\n");
+			return(-1);
+		}
+
+		file_handle f = file_open_at(dir, STR8("./regular.txt"), FILE_ACCESS_READ, 0);
+		if(file_last_error(f) != IO_ERR_PERM)
+		{
+			log_error("Incorrect check when opening file with read access in dir with no access\n");
+			return(-1);
+		}
+		file_close(f);
+		file_close(dir);
+	}
+	//--------------------------------------------------------------------------------------
+	// base dir with read access
+	//--------------------------------------------------------------------------------------
+	{
+		file_handle dir = file_open(dirPath, FILE_ACCESS_READ, 0);
+		if(file_last_error(dir))
+		{
+			log_error("Couldn't open ./dir1 with read rights\n");
+			return(-1);
+		}
+
+		// check that we _can't_ open a file with write access
+		file_handle f = file_open_at(dir, STR8("./regular.txt"), FILE_ACCESS_WRITE, 0);
+		if(file_last_error(f) != IO_ERR_PERM)
+		{
+			log_error("Incorrect check when opening file with write access in dir with read access\n");
+			return(-1);
+		}
+		file_close(f);
+
+		// check that we _can_ open a file with read access
+		f = file_open_at(dir, STR8("./regular.txt"), FILE_ACCESS_READ, 0);
+		if(file_last_error(f))
+		{
+			log_error("Couldn't open file with read access in dir with read access\n");
+			return(-1);
+		}
+
+		// check that we _can't_ write to that file
+		str8 testWrite = STR8("Hello, world!\n");
+		if(file_write(f, testWrite.len, testWrite.ptr) != 0)
+		{
+			log_error("Incorrectly wrote to read-only file\n");
+			return(-1);
+		}
+		if(file_last_error(f) != IO_ERR_PERM)
+		{
+			log_error("Incorrect error returned from writing to read-only file\n");
+			return(-1);
+		}
+
+		file_close(f);
+		file_close(dir);
+	}
+	//--------------------------------------------------------------------------------------
+	// base dir with write access
+	//--------------------------------------------------------------------------------------
+	{
+		file_handle dir = file_open(dirPath, FILE_ACCESS_WRITE, 0);
+		if(file_last_error(dir))
+		{
+			log_error("Couldn't open ./dir1 with write rights\n");
+			return(-1);
+		}
+
+		// check that we _can't_ open a file with read access
+		file_handle f = file_open_at(dir, STR8("./regular.txt"), FILE_ACCESS_READ, 0);
+		if(file_last_error(f) != IO_ERR_PERM)
+		{
+			log_error("Incorrect check when opening file with read access in dir with write access\n");
+			return(-1);
+		}
+		file_close(f);
+
+		// check that we _can_ open a file with write access
+		f = file_open_at(dir, STR8("./regular.txt"), FILE_ACCESS_WRITE, 0);
+		if(file_last_error(f))
+		{
+			log_error("Couldn't open file with write access in dir with write access\n");
+			return(-1);
+		}
+
+		// check that we _can't_ read that file
+		char testRead[512];
+		if(file_read(f, 512, testRead) != 0)
+		{
+			log_error("Incorrectly read write-only file\n");
+			return(-1);
+		}
+		if(file_last_error(f) != IO_ERR_PERM)
+		{
+			log_error("Incorrect error returned from reading write-only file\n");
+			return(-1);
+		}
+
+		file_close(f);
+		file_close(dir);
+	}
+	//--------------------------------------------------------------------------------------
+	// base dir with read/write access
+	//--------------------------------------------------------------------------------------
+	{
+		file_handle dir = file_open(dirPath, FILE_ACCESS_READ|FILE_ACCESS_WRITE, 0);
+		if(file_last_error(dir))
+		{
+			log_error("Couldn't open ./dir1 with read rights\n");
+			return(-1);
+		}
+
+		// check that we can open file with read access
+		file_handle f = file_open_at(dir, STR8("./regular.txt"), FILE_ACCESS_READ, 0);
+		if(file_last_error(f))
+		{
+			log_error("Incorrect check when opening file with read access in dir with read/write access\n");
+			return(-1);
+		}
+		file_close(f);
+
+		// check that we can open file with write access
+		f = file_open_at(dir, STR8("./regular.txt"), FILE_ACCESS_WRITE, 0);
+		if(file_last_error(f))
+		{
+			log_error("Couldn't open file with write access in dir with read/write access\n");
+			return(-1);
+		}
+
+		file_close(f);
+		file_close(dir);
+	}
 	return(0);
 }
 
@@ -255,6 +401,7 @@ int main(int argc, char** argv)
 	if(test_read(arena, path, test_string)) { return(-1); }
 	if(test_stat_size(path, test_string.len)) { return(-1); }
 	if(test_stat_type(arena, dataDir)) { return(-1); }
+	if(test_rights(arena, dataDir)) { return(-1); }
 	if(test_jail()) { return(-1); }
 
 	remove("./test.txt");

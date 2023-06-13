@@ -17,19 +17,28 @@
 
 typedef struct { u64 h; } file_handle;
 
-typedef u32 file_open_flags;
-enum {
-	FILE_OPEN_READ     = 1<<0,
-	FILE_OPEN_WRITE    = 1<<1,
-	FILE_OPEN_APPEND   = 1<<2,
-	FILE_OPEN_TRUNCATE = 1<<3,
-	FILE_OPEN_CREATE   = 1<<4,
+typedef u16 file_open_flags;
+enum _file_open_flags
+{
+	FILE_OPEN_NONE      = 0,
+	FILE_OPEN_APPEND    = 1<<1,
+	FILE_OPEN_TRUNCATE  = 1<<2,
+	FILE_OPEN_CREATE    = 1<<3,
 
-	FILE_OPEN_SYMLINK   = 1<<5,
-	FILE_OPEN_NO_FOLLOW = 1<<6,
-	FILE_OPEN_RESTRICT  = 1<<7,
+	FILE_OPEN_SYMLINK   = 1<<4,
+	FILE_OPEN_NO_FOLLOW = 1<<5,
+	FILE_OPEN_RESTRICT  = 1<<6,
 	//...
 };
+
+typedef u16 file_access_rights;
+enum _file_access_rights
+{
+	FILE_ACCESS_NONE  = 0,
+	FILE_ACCESS_READ  = 1<<1,
+	FILE_ACCESS_WRITE = 1<<2,
+};
+
 
 typedef enum { FILE_SEEK_SET, FILE_SEEK_END, FILE_SEEK_CURRENT } file_whence;
 
@@ -67,7 +76,12 @@ typedef struct io_req
 
 	union
 	{
-		file_open_flags openFlags;
+		struct
+		{
+			file_access_rights rights;
+			file_open_flags flags;
+		} open;
+
 		file_whence whence;
 	};
 
@@ -126,9 +140,8 @@ MP_API io_cmp io_wait_single_req(io_req* req);
 // File IO wrapper API
 //----------------------------------------------------------------
 
-MP_API file_handle file_open(str8 path, file_open_flags flags);
-MP_API file_handle file_open_at(file_handle dir, str8 path, file_open_flags flags);
-MP_API file_handle file_open_relative(file_handle base, str8 path, file_open_flags flags);
+MP_API file_handle file_open(str8 path, file_access_rights rights, file_open_flags flags);
+MP_API file_handle file_open_at(file_handle dir, str8 path, file_access_rights rights, file_open_flags flags);
 MP_API void file_close(file_handle file);
 
 MP_API i64 file_pos(file_handle file);

@@ -108,13 +108,13 @@ io_error io_convert_errno(int e)
 	return(error);
 }
 
-int io_convert_open_flags(file_open_flags flags)
+int io_convert_access_rights(file_access_rights rights)
 {
 	int oflags = 0;
 
-	if(flags & FILE_OPEN_READ)
+	if(rights & FILE_ACCESS_READ)
 	{
-		if(flags & FILE_OPEN_WRITE)
+		if(rights & FILE_ACCESS_WRITE)
 		{
 			oflags = O_RDWR;
 		}
@@ -123,10 +123,16 @@ int io_convert_open_flags(file_open_flags flags)
 			oflags = O_RDONLY;
 		}
 	}
-	else if(flags & FILE_OPEN_WRITE)
+	else if(rights & FILE_ACCESS_WRITE)
 	{
 		oflags = O_WRONLY;
 	}
+	return(oflags);
+}
+
+int io_convert_open_flags(file_open_flags flags)
+{
+	int oflags = 0;
 
 	if(flags & FILE_OPEN_TRUNCATE)
 	{
@@ -149,6 +155,27 @@ int io_convert_open_flags(file_open_flags flags)
 		oflags |= O_SYMLINK;
 	}
 	return(oflags);
+}
+
+int io_update_dir_flags_at(int dirFd, char* path, int flags)
+{
+	struct stat s;
+	if(!fstatat(dirFd, path, &s, AT_SYMLINK_NOFOLLOW))
+	{
+		if((s.st_mode & S_IFMT) == S_IFDIR)
+		{
+			if(flags & O_WRONLY)
+			{
+				flags &= ~O_WRONLY;
+			}
+			else if(flags & O_RDWR)
+			{
+				flags &= ~O_RDWR;
+				flags |= O_RDONLY;
+			}
+		}
+	}
+	return(flags);
 }
 
 typedef struct io_open_restrict_result
@@ -355,74 +382,89 @@ io_cmp io_open_at(file_slot* atSlot, io_req* req, file_table* table)
 	}
 	else
 	{
+		slot->fd = -1;
+
 		cmp.handle = file_handle_from_slot(table, slot);
 
-		int flags = io_convert_open_flags(req->openFlags);
-
-		//TODO: allow specifying access
-		mode_t mode = S_IRUSR
-		            | S_IWUSR
-		            | S_IRGRP
-		            | S_IWGRP
-		            | S_IROTH
-		            | S_IWOTH;
-
-		//NOTE: open
-		mem_arena_scope scratch = mem_scratch_begin();
-
-		str8 path = str8_from_buffer(req->size, req->buffer);
-
-
-		//TODO: if FILE_OPEN_RESTRICT, do the file traversal to check that path is in the
-		//      subtree rooted at atSlot->fd
-		slot->fd = -1;
+		slot->rights = req->open.rights;
 		if(atSlot)
 		{
-			if(path.len && path.ptr[0] == '/')
-			{
-				//NOTE: if path is absolute, change for a relative one, otherwise openat ignores fd.
-				str8_list list = {0};
-				str8_list_push(scratch.arena, &list, STR8("."));
-				str8_list_push(scratch.arena, &list, path);
-				path = str8_list_join(scratch.arena, list);
-			}
-			char* pathCStr = str8_to_cstring(scratch.arena, path);
+			slot->rights &= atSlot->rights;
+		}
 
-			if(req->openFlags & FILE_OPEN_RESTRICT)
+		if(slot->rights != req->open.rights)
+		{
+			slot->error = IO_ERR_PERM;
+			slot->fatal = true;
+		}
+		else
+		{
+			int flags = io_convert_access_rights(slot->rights);
+			flags |= io_convert_open_flags(req->open.flags);
+
+			mode_t mode = S_IRUSR
+		            	| S_IWUSR
+		            	| S_IRGRP
+		            	| S_IWGRP
+		            	| S_IROTH
+		            	| S_IWOTH;
+
+			mem_arena_scope scratch = mem_scratch_begin();
+			str8 path = str8_from_buffer(req->size, req->buffer);
+
+			slot->fd = -1;
+			if(atSlot)
 			{
-				io_open_restrict_result res = io_open_restrict(atSlot->fd, path, flags, mode);
-				if(res.error == IO_OK)
+				if(path.len && path.ptr[0] == '/')
 				{
-					slot->fd = res.fd;
+					//NOTE: if path is absolute, change for a relative one, otherwise openat ignores fd.
+					str8_list list = {0};
+					str8_list_push(scratch.arena, &list, STR8("."));
+					str8_list_push(scratch.arena, &list, path);
+					path = str8_list_join(scratch.arena, list);
+				}
+				char* pathCStr = str8_to_cstring(scratch.arena, path);
+
+				if(req->open.flags & FILE_OPEN_RESTRICT)
+				{
+					io_open_restrict_result res = io_open_restrict(atSlot->fd, path, flags, mode);
+					if(res.error == IO_OK)
+					{
+						slot->fd = res.fd;
+					}
+					else
+					{
+						slot->fatal = true;
+						slot->error = res.error;
+					}
 				}
 				else
 				{
-					slot->fatal = true;
-					slot->error = res.error;
+					flags = io_update_dir_flags_at(atSlot->fd, pathCStr, flags);
+
+					slot->fd = openat(atSlot->fd, pathCStr, flags, mode);
+					if(slot->fd < 0)
+					{
+						slot->fatal = true;
+						slot->error = io_convert_errno(errno);
+					}
 				}
 			}
 			else
 			{
-				slot->fd = openat(atSlot->fd, pathCStr, flags, mode);
+				char* pathCStr = str8_to_cstring(scratch.arena, path);
+
+				flags = io_update_dir_flags_at(AT_FDCWD, pathCStr, flags);
+
+				slot->fd = open(pathCStr, flags, mode);
 				if(slot->fd < 0)
 				{
 					slot->fatal = true;
 					slot->error = io_convert_errno(errno);
 				}
 			}
+			mem_scratch_end(scratch);
 		}
-		else
-		{
-			char* pathCStr = str8_to_cstring(scratch.arena, path);
-			slot->fd = open(pathCStr, flags, mode);
-			if(slot->fd < 0)
-			{
-				slot->fatal = true;
-				slot->error = io_convert_errno(errno);
-			}
-		}
-
-		mem_scratch_end(scratch);
 		cmp.error = slot->error;
 	}
 
@@ -552,6 +594,7 @@ io_cmp io_read(file_slot* slot, io_req* req)
 	if(cmp.result < 0)
 	{
 		slot->error = io_convert_errno(errno);
+		cmp.result = 0;
 		cmp.error = slot->error;
 	}
 
@@ -567,6 +610,7 @@ io_cmp io_write(file_slot* slot, io_req* req)
 	if(cmp.result < 0)
 	{
 		slot->error = io_convert_errno(errno);
+		cmp.result = 0;
 		cmp.error = slot->error;
 	}
 
