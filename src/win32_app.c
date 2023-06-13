@@ -155,6 +155,11 @@ void mp_init()
 		__mpApp.win32.savedConsoleCodePage = GetConsoleOutputCP();
         SetConsoleOutputCP(CP_UTF8);
 
+        DWORD mode;
+        GetConsoleMode(GetStdHandle(STD_OUTPUT_HANDLE), &mode);
+        mode |= ENABLE_VIRTUAL_TERMINAL_PROCESSING;
+        SetConsoleMode(GetStdHandle(STD_OUTPUT_HANDLE), mode);
+
         SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
 	}
 }

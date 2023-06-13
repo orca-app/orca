@@ -8,6 +8,7 @@
 
 #include<errno.h>
 #include<limits.h>
+#include<shlwapi.h>
 
 #include"platform_io_internal.c"
 #include"platform_io_common.c"
@@ -82,81 +83,119 @@ io_cmp io_open_at(file_slot* atSlot, io_req* req, file_table* table)
 	{
 		cmp.handle = file_handle_from_slot(table, slot);
 
-		//NOTE: open
-		mem_arena_scope scratch = mem_scratch_begin();
-
-		int sizeWide = 1 + MultiByteToWideChar(CP_UTF8, 0, req->buffer, req->size, NULL, 0);
-		LPWSTR pathWide = mem_arena_alloc_array(scratch.arena, wchar_t, sizeWide);
-		MultiByteToWideChar(CP_UTF8, 0, req->buffer, req->size, pathWide, sizeWide);
-		pathWide[sizeWide-1] = '\0';
-
-		DWORD accessFlags = 0;
-		DWORD createFlags = 0;
-		DWORD attributesFlags = FILE_ATTRIBUTE_NORMAL | FILE_FLAG_BACKUP_SEMANTICS;
-
-		if(req->openFlags & FILE_OPEN_READ)
+		slot->rights = req->open.rights;
+		if(atSlot)
 		{
-			accessFlags |= GENERIC_READ;
-		}
-		if(req->openFlags & FILE_OPEN_WRITE)
-		{
-			if(req->openFlags & FILE_OPEN_APPEND)
-			{
-				accessFlags |= FILE_APPEND_DATA;
-			}
-			else
-			{
-				accessFlags |= GENERIC_WRITE;
-			}
+			slot->rights &= atSlot->rights;
 		}
 
-		if(req->openFlags & FILE_OPEN_TRUNCATE)
+		if(slot->rights != req->open.rights)
 		{
-			if(req->openFlags & FILE_OPEN_CREATE)
-			{
-				createFlags |= CREATE_ALWAYS;
-			}
-			else
-			{
-				createFlags |= TRUNCATE_EXISTING;
-			}
-		}
-		if(req->openFlags & FILE_OPEN_CREATE)
-		{
-			if(!createFlags & CREATE_ALWAYS)
-			{
-				createFlags |= OPEN_ALWAYS;
-			}
-		}
-		if(  !(createFlags & OPEN_ALWAYS)
-		  && !(createFlags & CREATE_ALWAYS)
-		  && !(createFlags & TRUNCATE_EXISTING))
-		{
-			createFlags |= OPEN_EXISTING;
-		}
-
-		if(req->openFlags & FILE_OPEN_SYMLINK)
-		{
-			attributesFlags |= FILE_FLAG_OPEN_REPARSE_POINT;
-		}
-
-		if(req->openFlags & FILE_OPEN_RESTRICT)
-		{
-			//TODO: if FILE_OPEN_RESTRICT, do the file traversal to check that path is in the
-			//      subtree rooted at atSlot->fd
-		}
-
-		//TODO: open at
-
-		//TODO: take care of share mode and security attributes, make it consistent with posix impl
-		slot->h = CreateFileW(pathWide, accessFlags, 0, NULL, createFlags, attributesFlags, NULL);
-
-		mem_scratch_end(scratch);
-
-		if(slot->h == INVALID_HANDLE_VALUE)
-		{
+			slot->error = IO_ERR_PERM;
 			slot->fatal = true;
-			slot->error = io_convert_win32_error(GetLastError());
+		}
+		else
+		{
+			//NOTE: open
+			mem_arena_scope scratch = mem_scratch_begin();
+
+			int pathWideSize = 1 + MultiByteToWideChar(CP_UTF8, 0, req->buffer, req->size, NULL, 0);
+			LPWSTR pathWide = mem_arena_alloc_array(scratch.arena, wchar_t, pathWideSize);
+			MultiByteToWideChar(CP_UTF8, 0, req->buffer, req->size, pathWide, pathWideSize);
+			pathWide[pathWideSize-1] = '\0';
+
+			DWORD accessFlags = 0;
+			DWORD createFlags = 0;
+			DWORD attributesFlags = FILE_ATTRIBUTE_NORMAL | FILE_FLAG_BACKUP_SEMANTICS;
+
+			if(req->open.rights & FILE_ACCESS_READ)
+			{
+				accessFlags |= GENERIC_READ;
+			}
+			if(req->open.rights & FILE_ACCESS_WRITE)
+			{
+				if(req->open.rights & FILE_OPEN_APPEND)
+				{
+					accessFlags |= FILE_APPEND_DATA;
+				}
+				else
+				{
+					accessFlags |= GENERIC_WRITE;
+				}
+			}
+
+			if(req->open.flags & FILE_OPEN_TRUNCATE)
+			{
+				if(req->open.flags & FILE_OPEN_CREATE)
+				{
+					createFlags |= CREATE_ALWAYS;
+				}
+				else
+				{
+					createFlags |= TRUNCATE_EXISTING;
+				}
+			}
+			if(req->open.flags & FILE_OPEN_CREATE)
+			{
+				if(!createFlags & CREATE_ALWAYS)
+				{
+					createFlags |= OPEN_ALWAYS;
+				}
+			}
+			if(  !(createFlags & OPEN_ALWAYS)
+		  	&& !(createFlags & CREATE_ALWAYS)
+		  	&& !(createFlags & TRUNCATE_EXISTING))
+			{
+				createFlags |= OPEN_EXISTING;
+			}
+
+			if(req->open.flags & FILE_OPEN_SYMLINK)
+			{
+				attributesFlags |= FILE_FLAG_OPEN_REPARSE_POINT;
+			}
+
+			slot->h = INVALID_HANDLE_VALUE;
+			if(atSlot)
+			{
+				/*
+				if(req->open.flags & FILE_OPEN_RESTRICT)
+				{
+					//TODO: if FILE_OPEN_RESTRICT, do the full path traversal to check that path is in the
+					//      subtree rooted at atSlot->fd
+				}
+				else
+				*/
+				{
+					DWORD atPathWideSize = GetFinalPathNameByHandleW(atSlot->h, NULL, 0, FILE_NAME_NORMALIZED);
+					if(atPathWideSize)
+					{
+						LPWSTR fullPathWide = mem_arena_alloc_array(scratch.arena, wchar_t, atPathWideSize + pathWideSize + 1);
+						if(GetFinalPathNameByHandleW(atSlot->h, fullPathWide, atPathWideSize, FILE_NAME_NORMALIZED))
+						{
+							fullPathWide[atPathWideSize-1] = '\\';
+							memcpy(fullPathWide + atPathWideSize, pathWide, pathWideSize*sizeof(wchar_t));
+
+							LPWSTR canonical = mem_arena_alloc_array(scratch.arena, wchar_t, atPathWideSize + pathWideSize + 1);
+							PathCanonicalizeW(canonical, fullPathWide);
+
+							slot->h = CreateFileW(canonical, accessFlags, 0, NULL, createFlags, attributesFlags, NULL);
+						}
+					}
+				}
+			}
+			else
+			{
+				//TODO: take care of share mode and security attributes, make it consistent with posix impl
+				slot->h = CreateFileW(pathWide, accessFlags, 0, NULL, createFlags, attributesFlags, NULL);
+			}
+
+			mem_scratch_end(scratch);
+
+			if(slot->h == INVALID_HANDLE_VALUE)
+			{
+				slot->fatal = true;
+				slot->error = io_convert_win32_error(GetLastError());
+			}
 		}
 		cmp.error = slot->error;
 	}
@@ -295,8 +334,8 @@ io_cmp io_read(file_slot* slot, io_req* req)
 
 	if(!ReadFile(slot->h, req->buffer, req->size, &bytesRead, NULL))
 	{
-		cmp.result = -1;
 		slot->error = io_convert_win32_error(GetLastError());
+		cmp.result = 0;
 		cmp.error = slot->error;
 	}
 	else
@@ -314,8 +353,8 @@ io_cmp io_write(file_slot* slot, io_req* req)
 
 	if(!WriteFile(slot->h, req->buffer, req->size, &bytesWritten, NULL))
 	{
-		cmp.result = -1;
 		slot->error = io_convert_win32_error(GetLastError());
+		cmp.result = 0;
 		cmp.error = slot->error;
 	}
 	else

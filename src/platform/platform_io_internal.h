@@ -15,7 +15,7 @@
 	#define PLATFORM_IO_NATIVE_MEMBER int fd
 #elif PLATFORM_WINDOWS
 	#define WIN32_LEAN_AND_MEAN
-	#include<windows>
+	#include<windows.h>
 	#define PLATFORM_IO_NATIVE_MEMBER HANDLE h
 #endif
 

@@ -17,7 +17,6 @@ file_slot* file_slot_alloc(file_table* table)
 	{
 		slot = &table->slots[table->nextSlot];
 		slot->generation = 1;
-		slot->fd = -1;
 		table->nextSlot++;
 	}
 

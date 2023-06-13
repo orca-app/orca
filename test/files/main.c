@@ -197,25 +197,8 @@ int test_jail()
 		return(-1);
 	}
 
-	// Check legitimates open
-	file_handle f = file_open_at(jail, STR8("/test.txt"), FILE_ACCESS_READ, FILE_OPEN_RESTRICT);
-	if(file_last_error(f) != IO_OK)
-	{
-		log_error("Can't open jail/test.txt\n");
-		return(-1);
-	}
-	file_close(f);
-
-	f = file_open_at(jail, STR8("/dir1/../test.txt"), FILE_ACCESS_READ, FILE_OPEN_RESTRICT);
-	if(file_last_error(f) != IO_OK)
-	{
-		log_error("Can't open jail/dir1/../test.txt\n");
-		return(-1);
-	}
-	file_close(f);
-
 	// Check escapes
-	f = file_open_at(jail, STR8(".."), FILE_ACCESS_READ, FILE_OPEN_RESTRICT);
+	file_handle f = file_open_at(jail, STR8(".."), FILE_ACCESS_READ, FILE_OPEN_RESTRICT);
 	if(file_last_error(f) != IO_ERR_WALKOUT)
 	{
 		log_error("Escaped jail with relative path ..\n");
@@ -239,6 +222,24 @@ int test_jail()
 	}
 	file_close(f);
 
+	// Check legitimates open
+	f = file_open_at(jail, STR8("/test.txt"), FILE_ACCESS_READ, FILE_OPEN_RESTRICT);
+	if(file_last_error(f) != IO_OK)
+	{
+		log_error("Can't open jail/test.txt\n");
+		return(-1);
+	}
+	file_close(f);
+
+	f = file_open_at(jail, STR8("/dir1/../test.txt"), FILE_ACCESS_READ, FILE_OPEN_RESTRICT);
+	if(file_last_error(f) != IO_OK)
+	{
+		log_error("Can't open jail/dir1/../test.txt\n");
+		return(-1);
+	}
+	file_close(f);
+
+
 	return(0);
 }
 
@@ -253,7 +254,7 @@ int test_rights(mem_arena* arena, str8 dirPath)
 		file_handle dir = file_open(dirPath, FILE_ACCESS_NONE, 0);
 		if(file_last_error(dir))
 		{
-			log_error("Couldn't open ./dir1 with no access rights\n");
+			log_error("Couldn't open ./data with no access rights\n");
 			return(-1);
 		}
 
@@ -273,7 +274,7 @@ int test_rights(mem_arena* arena, str8 dirPath)
 		file_handle dir = file_open(dirPath, FILE_ACCESS_READ, 0);
 		if(file_last_error(dir))
 		{
-			log_error("Couldn't open ./dir1 with read rights\n");
+			log_error("Couldn't open ./data with read rights\n");
 			return(-1);
 		}
 
@@ -317,7 +318,7 @@ int test_rights(mem_arena* arena, str8 dirPath)
 		file_handle dir = file_open(dirPath, FILE_ACCESS_WRITE, 0);
 		if(file_last_error(dir))
 		{
-			log_error("Couldn't open ./dir1 with write rights\n");
+			log_error("Couldn't open ./data with write rights\n");
 			return(-1);
 		}
 
@@ -361,7 +362,7 @@ int test_rights(mem_arena* arena, str8 dirPath)
 		file_handle dir = file_open(dirPath, FILE_ACCESS_READ|FILE_ACCESS_WRITE, 0);
 		if(file_last_error(dir))
 		{
-			log_error("Couldn't open ./dir1 with read rights\n");
+			log_error("Couldn't open ./data with read rights\n");
 			return(-1);
 		}
 
@@ -390,6 +391,8 @@ int test_rights(mem_arena* arena, str8 dirPath)
 
 int main(int argc, char** argv)
 {
+	mp_init();
+
 	mem_arena* arena = mem_scratch();
 
 	str8 dataDir = STR8("./data");
