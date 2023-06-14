@@ -350,6 +350,9 @@ io_open_restrict_result io_open_restrict(int dirFd, str8 path, int flags, mode_t
 					result.error = IO_ERR_NOT_DIR;
 					goto error;
 				}
+				////////////////////////////////////////////////////////
+				//TODO: else open the file with correct flags
+				////////////////////////////////////////////////////////
 			}
 			else
 			{
