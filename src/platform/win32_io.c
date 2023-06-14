@@ -339,22 +339,53 @@ typedef struct io_open_restrict_result
 	HANDLE h;
 } io_open_restrict_result;
 
+typedef struct io_open_restrict_context
+{
+	io_error error;
+	u64 rootUID;
+	HANDLE rootHandle;
+	HANDLE handle;
+
+} io_open_restrict_context;
+
+io_error io_open_restrict_enter(io_open_restrict_context* context, str8 name, file_access_rights accessRights, file_open_flags openFlags)
+{
+	HANDLE nextHandle = io_open_relative(context->handle, name, accessRights, openFlags);
+	if(nextHandle == INVALID_HANDLE_VALUE)
+	{
+		context->error = io_convert_win32_error(GetLastError());
+	}
+	else
+	{
+		if(context->handle != context->rootHandle)
+		{
+			CloseHandle(context->handle);
+		}
+		context->handle = nextHandle;
+	}
+}
+
 io_open_restrict_result io_open_path_restrict(HANDLE dirHandle, str8 path, file_access_rights accessRights, file_open_flags openFlags)
 {
-	io_open_restrict_result result = {0};
-
 	mem_arena_scope scratch = mem_scratch_begin();
 
 	str8_list sep = {0};
 	str8_list_push(scratch.arena, &sep, STR8("/"));
 	str8_list pathElements = str8_split(scratch.arena, path, sep);
 
-	u64 rootUID = io_win32_file_uid(dirHandle);
-
-	HANDLE handle = dirHandle;
+	io_open_restrict_context context = {
+		.error = IO_OK,
+		.rootHandle = dirHandle,
+		.rootUID = io_win32_file_uid(dirHandle),
+		.handle = dirHandle,
+	};
 
 	for_list(&pathElements.list, elt, str8_elt, listElt)
 	{
+		if(context.error != IO_OK)
+		{
+			break;
+		}
 		str8 name = elt->string;
 
 		if(!str8_cmp(name, STR8(".")))
@@ -365,64 +396,48 @@ io_open_restrict_result io_open_path_restrict(HANDLE dirHandle, str8 path, file_
 		else if(!str8_cmp(name, STR8("..")))
 		{
 			//NOTE: check that we don't escape root dir
-			if(io_win32_file_uid(handle) == rootUID)
+			if(io_win32_file_uid(context.handle) == context.rootUID)
 			{
-				result.error = IO_ERR_WALKOUT;
-				goto error;
+				context.error = IO_ERR_WALKOUT;
+				break;
 			}
 			else
 			{
-				// Open parent and continue
-				HANDLE nextHandle = io_open_relative(handle, STR8(".."), FILE_ACCESS_READ, 0);
-				if(nextHandle == INVALID_HANDLE_VALUE)
-				{
-					result.error = io_convert_win32_error(GetLastError());
-					goto error;
-				}
-				else
-				{
-					if(handle != dirHandle)
-					{
-						CloseHandle(handle);
-					}
-					handle = nextHandle;
-				}
+				io_open_restrict_enter(&context, name, FILE_ACCESS_READ, 0);
 			}
 		}
 		else
 		{
-			//TODO: open that dir, check if dir/symlink/etc
-
-			HANDLE statHandle = io_open_relative(handle, name, FILE_ACCESS_READ, FILE_OPEN_SYMLINK);
+			HANDLE statHandle = io_open_relative(context.handle, name, FILE_ACCESS_READ, FILE_OPEN_SYMLINK);
 			if(statHandle == INVALID_HANDLE_VALUE)
 			{
-				result.error = io_convert_win32_error(GetLastError());
-				goto error;
+				context.error = io_convert_win32_error(GetLastError());
+				break;
 			}
 			file_status status = {0};
-			result.error = io_win32_stat_from_handle(statHandle, &status);
+			context.error = io_win32_stat_from_handle(statHandle, &status);
 			CloseHandle(statHandle);
-			if(result.error)
+			if(context.error)
 			{
-				goto error;
+				break;
 			}
 
 			if(status.type == MP_FILE_SYMLINK)
 			{
-				//TODO: read link target and add to file
-				HANDLE link = io_open_relative(handle, name, FILE_ACCESS_READ, FILE_OPEN_SYMLINK);
+				//NOTE: read link target and add to file
+				HANDLE link = io_open_relative(context.handle, name, FILE_ACCESS_READ, FILE_OPEN_SYMLINK);
 				if(link == INVALID_HANDLE_VALUE)
 				{
-					result.error = io_convert_win32_error(GetLastError());
-					goto error;
+					context.error = io_convert_win32_error(GetLastError());
+					break;
 				}
 				io_win32_read_link_result linkResult = io_win32_read_link(scratch.arena, link);
 				CloseHandle(link);
 
 				if(linkResult.error)
 				{
-					result.error = linkResult.error;
-					goto error;
+					context.error = linkResult.error;
+					break;
 				}
 				if(linkResult.targetPath.len == 0)
 				{
@@ -431,8 +446,8 @@ io_open_restrict_result io_open_path_restrict(HANDLE dirHandle, str8 path, file_
 				else if(linkResult.targetPath.ptr[0] == '/'
 				       ||linkResult.targetPath.ptr[0] == '\\')
 				{
-					result.error = IO_ERR_WALKOUT;
-					goto error;
+					context.error = IO_ERR_WALKOUT;
+					break;
 				}
 				else
 				{
@@ -453,68 +468,42 @@ io_open_restrict_result io_open_path_restrict(HANDLE dirHandle, str8 path, file_
 			else if(status.type == MP_FILE_DIRECTORY)
 			{
 				//NOTE: descend in directory
-				HANDLE nextHandle = io_open_relative(handle, name, FILE_ACCESS_READ, 0);
-
-				if(nextHandle == INVALID_HANDLE_VALUE)
-				{
-					result.error = io_convert_win32_error(GetLastError());
-					goto error;
-				}
-				else
-				{
-					if(handle != dirHandle)
-					{
-						CloseHandle(handle);
-					}
-					handle = nextHandle;
-				}
+				io_open_restrict_enter(&context, name, FILE_ACCESS_READ, 0);
 			}
 			else if(status.type == MP_FILE_REGULAR)
 			{
-				//TODO: check that we're at the end and open that file
+				//NOTE: check that we're at the end of path and open that file
 				if(&elt->listElt != list_last(&pathElements.list))
 				{
-					result.error = IO_ERR_NOT_DIR;
-					goto error;
+					context.error = IO_ERR_NOT_DIR;
+					break;
 				}
 				else
 				{
-					//NOTE: open the file
-					HANDLE nextHandle = io_open_relative(handle, name, accessRights, openFlags);
-					if(nextHandle == INVALID_HANDLE_VALUE)
-					{
-						result.error = io_convert_win32_error(GetLastError());
-						goto error;
-					}
-					else
-					{
-						if(handle != dirHandle)
-						{
-							CloseHandle(handle);
-						}
-						handle = nextHandle;
-					}
+					io_open_restrict_enter(&context, name, accessRights, openFlags);
 				}
 			}
 			else
 			{
-				result.error = IO_ERR_NOT_DIR;
-				goto error;
+				context.error = IO_ERR_NO_ENTRY;
 			}
 		}
 	}
-	goto end;
 
-	error:
+	if(context.error)
 	{
-		if(handle != dirHandle)
+		if(context.handle != context.rootHandle)
 		{
-			CloseHandle(handle);
-			handle = INVALID_HANDLE_VALUE;
+			CloseHandle(context.handle);
+			context.handle = INVALID_HANDLE_VALUE;
 		}
 	}
-	end:
-	result.h = handle;
+
+	io_open_restrict_result result = {
+		.error = context.error,
+		.h = context.handle
+	};
+
 	mem_scratch_end(scratch);
 	return(result);
 }
