@@ -222,6 +222,90 @@ str8_list str8_split(mem_arena* arena, str8 str, str8_list separators)
 }
 
 //----------------------------------------------------------------------------------
+// u16 strings
+//----------------------------------------------------------------------------------
+str16 str16_from_buffer(u64 len, u16* buffer)
+{
+	return((str16){.len = len, .ptr = buffer});
+}
+
+str16 str16_slice(str16 s, u64 start, u64 end)
+{
+	ASSERT(start <= end && start <= s.len && end <= s.len);
+	return((str16){.len = end - start, .ptr = s.ptr + start});
+}
+
+str16 str16_push_buffer(mem_arena* arena, u64 len, u16* buffer)
+{
+	str16 str = {0};
+	str.len = len;
+	str.ptr = mem_arena_alloc_array(arena, u16, len);
+	memcpy(str.ptr, buffer, len*sizeof(u16));
+	return(str);
+}
+
+str16 str16_push_copy(mem_arena* arena, str16 s)
+{
+	return(str16_push_buffer(arena, s.len, s.ptr));
+}
+
+str16 str16_push_slice(mem_arena* arena, str16 s, u64 start, u64 end)
+{
+	str16 slice = str16_slice(s, start, end);
+	return(str16_push_copy(arena, slice));
+}
+
+void str16_list_init(str16_list* list)
+{
+	list_init(&list->list);
+	list->eltCount = 0;
+	list->len = 0;
+}
+
+void str16_list_push(mem_arena* arena, str16_list* list, str16 str)
+{
+	str16_elt* elt = mem_arena_alloc_type(arena, str16_elt);
+	elt->string = str;
+	list_append(&list->list, &elt->listElt);
+	list->eltCount++;
+	list->len += str.len;
+}
+
+str16 str16_list_collate(mem_arena* arena, str16_list list, str16 prefix, str16 separator, str16 postfix)
+{
+	str16 str = {0};
+	str.len = prefix.len + list.len + list.eltCount*separator.len + postfix.len;
+	str.ptr = mem_arena_alloc_array(arena, u16, str.len);
+	char* dst = (char*)str.ptr;
+	memcpy(dst, prefix.ptr, prefix.len*sizeof(u16));
+	dst += prefix.len*sizeof(u16);
+
+	str16_elt* elt = list_first_entry(&list.list, str16_elt, listElt);
+	if(elt)
+	{
+		memcpy(dst, elt->string.ptr, elt->string.len*sizeof(u16));
+		dst += elt->string.len*sizeof(u16);
+		elt = list_next_entry(&list.list, elt, str16_elt, listElt);
+	}
+
+	for( ; elt != 0; elt = list_next_entry(&list.list, elt, str16_elt, listElt))
+	{
+		memcpy(dst, separator.ptr, separator.len*sizeof(u16));
+		dst += separator.len*sizeof(u16);
+		memcpy(dst, elt->string.ptr, elt->string.len*sizeof(u16));
+		dst += elt->string.len*sizeof(u16);
+	}
+	memcpy(dst, postfix.ptr, postfix.len*sizeof(u16));
+	return(str);
+}
+
+str16 str16_list_join(mem_arena* arena, str16_list list)
+{
+	str16 empty = {.len = 0, .ptr = 0};
+	return(str16_list_collate(arena, list, empty, empty, empty));
+}
+
+//----------------------------------------------------------------------------------
 // u32 strings
 //----------------------------------------------------------------------------------
 str32 str32_from_buffer(u64 len, u32* buffer)

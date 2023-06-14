@@ -71,6 +71,39 @@ MP_API str8 str8_list_join(mem_arena* arena, str8_list list);
 MP_API str8_list str8_split(mem_arena* arena, str8 str, str8_list separators);
 
 //----------------------------------------------------------------------------------
+// u16 strings
+//----------------------------------------------------------------------------------
+typedef struct str16
+{
+	u64 len;
+	u16* ptr;
+} str16;
+
+MP_API str16 str16_from_buffer(u64 len, u16* buffer);
+MP_API str16 str16_slice(str16 s, u64 start, u64 end);
+
+MP_API str16 str16_push_buffer(mem_arena* arena, u64 len, u16* buffer);
+MP_API str16 str16_push_copy(mem_arena* arena, str16 s);
+MP_API str16 str16_push_slice(mem_arena* arena, str16 s, u64 start, u64 end);
+
+typedef struct str16_elt
+{
+	list_elt listElt;
+	str16 string;
+} str16_elt;
+
+typedef struct str16_list
+{
+	list_info list;
+	u64 eltCount;
+	u64 len;
+} str16_list;
+
+MP_API void str16_list_push(mem_arena* arena, str16_list* list, str16 str);
+MP_API str16 str16_list_join(mem_arena* arena, str16_list list);
+MP_API str16_list str16_split(mem_arena* arena, str16 str, str16_list separators);
+
+//----------------------------------------------------------------------------------
 // u32 strings
 //----------------------------------------------------------------------------------
 typedef struct str32

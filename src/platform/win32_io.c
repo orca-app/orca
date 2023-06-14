@@ -69,6 +69,131 @@ io_error io_convert_win32_error(int winError)
 	return(error);
 }
 
+typedef struct io_open_restrict_result
+{
+	io_error error;
+	HANDLE h;
+} io_open_restrict_result;
+
+
+str16 win32_utf8_to_wide_null_terminated(mem_arena* arena, str8 s)
+{
+	str16 res = {0};
+	res.len = 1 + MultiByteToWideChar(CP_UTF8, 0, s.ptr, s.len, NULL, 0);
+	res.ptr = mem_arena_alloc_array(arena, u16, res.len);
+	MultiByteToWideChar(CP_UTF8, 0, s.ptr, s.len, res.ptr, res.len);
+	res.ptr[res.len-1] = '\0';
+	return(res);
+}
+
+str16 win32_path_from_handle_null_terminated(mem_arena* arena, HANDLE handle)
+{
+	str16 res = {0};
+
+	res.len = GetFinalPathNameByHandleW(handle, NULL, 0, FILE_NAME_NORMALIZED);
+	if(res.len)
+	{
+		res.ptr = mem_arena_alloc_array(arena, u16, res.len);
+		if(!GetFinalPathNameByHandleW(handle, res.ptr, res.len, FILE_NAME_NORMALIZED))
+		{
+			res.len = 0;
+			res.ptr = 0;
+		}
+	}
+	return(res);
+}
+
+HANDLE io_open_relative(HANDLE dirHandle, str8 path, DWORD accessFlags, DWORD createFlags, DWORD attributesFlags)
+{
+	HANDLE handle = INVALID_HANDLE_VALUE;
+
+	mem_arena_scope scratch = mem_scratch_begin();
+
+	str16 dirPathW = win32_path_from_handle_null_terminated(scratch.arena, dirHandle);
+	str16 pathW = win32_utf8_to_wide_null_terminated(scratch.arena, path);
+
+	if(dirPathW.len && pathW.len)
+	{
+		u64 fullPathWSize = dirPathW.len + pathW.len;
+		LPWSTR fullPathW = mem_arena_alloc_array(scratch.arena, u16, fullPathWSize);
+		memcpy(fullPathW, dirPathW.ptr, (dirPathW.len-1)*sizeof(u16));
+		fullPathW[dirPathW.len-1] = '\\';
+		memcpy(fullPathW + dirPathW.len, pathW.ptr, pathW.len*sizeof(u16));
+
+		LPWSTR canonical = mem_arena_alloc_array(scratch.arena, wchar_t, fullPathWSize);
+		PathCanonicalizeW(canonical, fullPathW);
+
+		handle = CreateFileW(canonical, accessFlags, 0, NULL, createFlags, attributesFlags, NULL);
+	}
+	return(handle);
+}
+
+/*
+io_open_restrict_result io_open_path_restrict(HANDLE dirHandle, str8 path, DWORD accessFlags, DWORD createFlags, DWORD attributesFalgs)
+{
+	io_open_restrict_result res = {0};
+
+	mem_arena_scope scratch = mem_scratch_begin();
+
+	str8_list sep = {0};
+	str8_list_push(scratch.arena, &sep, STR8("/"));
+	str8_list pathElements = str8_split(scratch.arena, path, sep);
+
+	HANDLE handle = NULL;
+	DuplicateHandle(GetCurrentProcess(), dirHandle, GetCurrentProcess(), &handle);
+
+	for_list(&pathElements.list, elt, str8_elt, listElt)
+	{
+		str8 name = elt->string;
+
+		if(!str8_cmp(name, STR8(".")))
+		{
+			//NOTE: skip;
+			continue
+		}
+		else if(!str8_cmp(name, STR8("..")))
+		{
+			//NOTE: check that we don't escape root dir
+			if(CompareObjectHandles(dirHandle, handle))
+			{
+				result.error = IO_ERR_WALKOUT;
+				goto error;
+			}
+			else
+			{
+				// Open parent and continue
+
+				HANDLE nextHandle = NULL;
+				OBJECT_ATTRIBUTES attributes;
+				//TODO initialize attributes
+
+				IO_STATUS_BLOCK status;
+
+				NtCreateFile(&nextHandle,
+				             FILE_LIST_DIRECTORY|FILE_TRAVERSE,
+				             &attributes,
+				             &status,
+				             0,
+				             FILE_ATTRIBUTE_NORMAL,
+				             FILE_SHARE_READ,
+				             FILE_OPEN,
+				             FILE_DIRECTORY_FILE,
+				             NULL,
+				             0);
+			}
+		}
+		else
+		{
+			//NOTE: open that dir, check if dir/symlink/etc
+
+		}
+	}
+
+	error:
+		return(res);
+}
+*/
+
 io_cmp io_open_at(file_slot* atSlot, io_req* req, file_table* table)
 {
 	io_cmp cmp = {0};
@@ -99,10 +224,8 @@ io_cmp io_open_at(file_slot* atSlot, io_req* req, file_table* table)
 			//NOTE: open
 			mem_arena_scope scratch = mem_scratch_begin();
 
-			int pathWideSize = 1 + MultiByteToWideChar(CP_UTF8, 0, req->buffer, req->size, NULL, 0);
-			LPWSTR pathWide = mem_arena_alloc_array(scratch.arena, wchar_t, pathWideSize);
-			MultiByteToWideChar(CP_UTF8, 0, req->buffer, req->size, pathWide, pathWideSize);
-			pathWide[pathWideSize-1] = '\0';
+			str8 path = str8_from_buffer(req->size, req->buffer);
+			str16 pathW = win32_utf8_to_wide_null_terminated(scratch.arena, path);
 
 			DWORD accessFlags = 0;
 			DWORD createFlags = 0;
@@ -157,45 +280,41 @@ io_cmp io_open_at(file_slot* atSlot, io_req* req, file_table* table)
 			slot->h = INVALID_HANDLE_VALUE;
 			if(atSlot)
 			{
-				/*
+			/*
 				if(req->open.flags & FILE_OPEN_RESTRICT)
 				{
 					//TODO: if FILE_OPEN_RESTRICT, do the full path traversal to check that path is in the
 					//      subtree rooted at atSlot->fd
+					io_open_restrict_result res = io_open_path_restrict(atSlot->h, path, accessFlags, createFlags, attributesFalgs);
+					if(res.error)
+					{
+						slot->fatal = true;
+						slot->error = res.error;
+					}
 				}
 				else
-				*/
+			*/
 				{
-					DWORD atPathWideSize = GetFinalPathNameByHandleW(atSlot->h, NULL, 0, FILE_NAME_NORMALIZED);
-					if(atPathWideSize)
+					slot->h = io_open_relative(atSlot->h, path, accessFlags, createFlags, attributesFlags);
+					if(slot->h == INVALID_HANDLE_VALUE)
 					{
-						LPWSTR fullPathWide = mem_arena_alloc_array(scratch.arena, wchar_t, atPathWideSize + pathWideSize + 1);
-						if(GetFinalPathNameByHandleW(atSlot->h, fullPathWide, atPathWideSize, FILE_NAME_NORMALIZED))
-						{
-							fullPathWide[atPathWideSize-1] = '\\';
-							memcpy(fullPathWide + atPathWideSize, pathWide, pathWideSize*sizeof(wchar_t));
-
-							LPWSTR canonical = mem_arena_alloc_array(scratch.arena, wchar_t, atPathWideSize + pathWideSize + 1);
-							PathCanonicalizeW(canonical, fullPathWide);
-
-							slot->h = CreateFileW(canonical, accessFlags, 0, NULL, createFlags, attributesFlags, NULL);
-						}
+						slot->fatal = true;
+						slot->error = io_convert_win32_error(GetLastError());
 					}
 				}
 			}
 			else
 			{
 				//TODO: take care of share mode and security attributes, make it consistent with posix impl
-				slot->h = CreateFileW(pathWide, accessFlags, 0, NULL, createFlags, attributesFlags, NULL);
+				slot->h = CreateFileW(pathW.ptr, accessFlags, 0, NULL, createFlags, attributesFlags, NULL);
+				if(slot->h == INVALID_HANDLE_VALUE)
+				{
+					slot->fatal = true;
+					slot->error = io_convert_win32_error(GetLastError());
+				}
 			}
 
 			mem_scratch_end(scratch);
-
-			if(slot->h == INVALID_HANDLE_VALUE)
-			{
-				slot->fatal = true;
-				slot->error = io_convert_win32_error(GetLastError());
-			}
 		}
 		cmp.error = slot->error;
 	}
