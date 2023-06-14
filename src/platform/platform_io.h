@@ -191,6 +191,7 @@ enum file_perm
 
 typedef struct file_status
 {
+	u64 uid;
 	file_type type;
 	file_perm perm;
 	u64 size;

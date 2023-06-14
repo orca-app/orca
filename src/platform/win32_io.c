@@ -14,9 +14,11 @@
 #include"platform_io_internal.c"
 #include"platform_io_common.c"
 
-io_error io_convert_win32_error(int winError)
+io_error io_raw_last_error()
 {
 	io_error error = 0;
+
+	int winError = GetLastError();
 	switch(winError)
 	{
 		case ERROR_SUCCESS:
@@ -106,7 +108,19 @@ str16 win32_path_from_handle_null_terminated(mem_arena* arena, HANDLE handle)
 	return(res);
 }
 
-HANDLE io_open_relative(HANDLE dirHandle, str8 path, file_access_rights accessRights, file_open_flags openFlags)
+typedef HANDLE io_file_desc;
+
+io_file_desc io_file_desc_nil()
+{
+	return(INVALID_HANDLE_VALUE);
+}
+
+bool io_file_desc_invalid(io_file_desc fd)
+{
+	return(fd == NULL || fd == INVALID_HANDLE_VALUE);
+}
+
+io_file_desc io_raw_open_at(io_file_desc dirFd, str8 path, file_access_rights accessRights, file_open_flags openFlags)
 {
 	HANDLE handle = INVALID_HANDLE_VALUE;
 
@@ -166,13 +180,13 @@ HANDLE io_open_relative(HANDLE dirHandle, str8 path, file_access_rights accessRi
 	mem_arena_scope scratch = mem_scratch_begin();
 	str16 pathW = win32_utf8_to_wide_null_terminated(scratch.arena, path);
 
-	if(dirHandle == NULL || dirHandle == INVALID_HANDLE_VALUE)
+	if(dirFd == NULL || dirFd == INVALID_HANDLE_VALUE)
 	{
 		handle = CreateFileW(pathW.ptr, win32AccessFlags, win32ShareMode, NULL, win32CreateFlags, win32AttributeFlags, NULL);
 	}
 	else
 	{
-		str16 dirPathW = win32_path_from_handle_null_terminated(scratch.arena, dirHandle);
+		str16 dirPathW = win32_path_from_handle_null_terminated(scratch.arena, dirFd);
 
 		if(dirPathW.len && pathW.len)
 		{
@@ -192,26 +206,24 @@ HANDLE io_open_relative(HANDLE dirHandle, str8 path, file_access_rights accessRi
 	return(handle);
 }
 
-u64 io_win32_file_uid(HANDLE h)
+void io_raw_close(io_file_desc fd)
 {
-	BY_HANDLE_FILE_INFORMATION fileInfo;
-	GetFileInformationByHandle(h, &fileInfo);
-	u64 id = ((u64)fileInfo.nFileIndexHigh<<32) | ((u64)fileInfo.nFileIndexLow);
-	return(id);
+	CloseHandle(fd);
 }
 
-io_error io_win32_stat_from_handle(HANDLE h, file_status* status)
+io_error io_raw_stat(io_file_desc fd, file_status* status)
 {
 	io_error error = IO_OK;
 
 	BY_HANDLE_FILE_INFORMATION info;
-	if(!GetFileInformationByHandle(h, &info))
+	if(!GetFileInformationByHandle(fd, &info))
 	{
-		error = io_convert_win32_error(GetLastError());
+		error = io_raw_last_error();
 	}
 	else
 	{
 		status->size = (((u64)info.nFileSizeHigh)<<32) | ((u64)info.nFileSizeLow);
+		status->uid = ((u64)info.nFileIndexHigh<<32) | ((u64)info.nFileIndexLow);
 
 		DWORD attrRegularSet = FILE_ATTRIBUTE_ARCHIVE
 		                     | FILE_ATTRIBUTE_COMPRESSED
@@ -228,9 +240,9 @@ io_error io_win32_stat_from_handle(HANDLE h, file_status* status)
 		if((info.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT))
 		{
 			FILE_ATTRIBUTE_TAG_INFO tagInfo;
-			if(!GetFileInformationByHandleEx(h, FileAttributeTagInfo, &tagInfo, sizeof(tagInfo)))
+			if(!GetFileInformationByHandleEx(fd, FileAttributeTagInfo, &tagInfo, sizeof(tagInfo)))
 			{
-				error = io_convert_win32_error(GetLastError());
+				error = io_raw_last_error();
 			}
 			else if(tagInfo.ReparseTag == IO_REPARSE_TAG_SYMLINK)
 			{
@@ -265,6 +277,35 @@ io_error io_win32_stat_from_handle(HANDLE h, file_status* status)
 	return(error);
 }
 
+u64 io_raw_uid(io_file_desc fd)
+{
+	file_status status;
+	io_raw_stat(fd, &status);
+	return(status.uid);
+}
+
+io_error io_raw_stat_at(io_file_desc dirFd, str8 name, file_open_flags openFlags, file_status* status)
+{
+	io_error error = IO_OK;
+	io_file_desc fd = io_raw_open_at(dirFd, name, FILE_ACCESS_READ, FILE_OPEN_SYMLINK);
+	if(io_file_desc_invalid(fd))
+	{
+		error = io_raw_last_error();
+	}
+	else
+	{
+		error = io_raw_stat(fd, status);
+		io_raw_close(fd);
+	}
+	return(error);
+}
+
+typedef struct io_raw_read_link_result
+{
+	io_error error;
+	str8 target;
+} io_raw_read_link_result;
+
 typedef struct
 {
 	ULONG ReparseTag;
@@ -298,22 +339,16 @@ typedef struct
 	};
 } REPARSE_DATA_BUFFER;
 
-typedef struct io_win32_read_link_result
+io_raw_read_link_result io_raw_read_link(mem_arena* arena, io_file_desc fd)
 {
-	io_error error;
-	str8 targetPath;
-} io_win32_read_link_result;
-
-io_win32_read_link_result io_win32_read_link(mem_arena* arena, HANDLE handle)
-{
-	io_win32_read_link_result result = {0};
+	io_raw_read_link_result result = {0};
 
 	char buffer[MAXIMUM_REPARSE_DATA_BUFFER_SIZE];
 	DWORD bytesReturned;
 
-	if(!DeviceIoControl(handle, FSCTL_GET_REPARSE_POINT, NULL, 0, buffer, MAXIMUM_REPARSE_DATA_BUFFER_SIZE, &bytesReturned, 0))
+	if(!DeviceIoControl(fd, FSCTL_GET_REPARSE_POINT, NULL, 0, buffer, MAXIMUM_REPARSE_DATA_BUFFER_SIZE, &bytesReturned, 0))
 	{
-		result.error = io_convert_win32_error(GetLastError());
+		result.error = io_raw_last_error();
 	}
 	else
 	{
@@ -323,7 +358,7 @@ io_win32_read_link_result io_win32_read_link(mem_arena* arena, HANDLE handle)
 			str16 nameW = {0};
 			nameW.len = reparse->SymbolicLinkReparseBuffer.SubstituteNameLength / sizeof(wchar_t);
 			nameW.ptr = (u16*)((char*)reparse->SymbolicLinkReparseBuffer.PathBuffer + reparse->SymbolicLinkReparseBuffer.SubstituteNameOffset);
-			result.targetPath = win32_wide_to_utf8(arena, nameW);
+			result.target = win32_wide_to_utf8(arena, nameW);
 		}
 		else
 		{
@@ -333,39 +368,49 @@ io_win32_read_link_result io_win32_read_link(mem_arena* arena, HANDLE handle)
 	return(result);
 }
 
+io_raw_read_link_result io_raw_read_link_at(mem_arena* arena, io_file_desc dirFd, str8 name)
+{
+	io_file_desc fd = io_raw_open_at(dirFd, name, FILE_ACCESS_READ, FILE_OPEN_SYMLINK);
+	io_raw_read_link_result result = io_raw_read_link(arena, fd);
+	io_raw_close(fd);
+	return(result);
+}
+
+typedef struct io_open_restrict_context
+{
+	io_error error;
+	u64 rootUID;
+	io_file_desc rootFd;
+	io_file_desc fd;
+
+} io_open_restrict_context;
+
+io_error io_open_restrict_enter(io_open_restrict_context* context, str8 name, file_access_rights accessRights, file_open_flags openFlags)
+{
+	io_file_desc nextFd = io_raw_open_at(context->fd, name, accessRights, openFlags);
+	if(io_file_desc_invalid(nextFd))
+	{
+		context->error = io_raw_last_error();
+	}
+	else
+	{
+		if(context->fd != context->rootFd)
+		{
+			io_raw_close(context->fd);
+		}
+		context->fd = nextFd;
+	}
+	return(context->error);
+}
+
 typedef struct io_open_restrict_result
 {
 	io_error error;
 	HANDLE h;
 } io_open_restrict_result;
 
-typedef struct io_open_restrict_context
-{
-	io_error error;
-	u64 rootUID;
-	HANDLE rootHandle;
-	HANDLE handle;
 
-} io_open_restrict_context;
-
-io_error io_open_restrict_enter(io_open_restrict_context* context, str8 name, file_access_rights accessRights, file_open_flags openFlags)
-{
-	HANDLE nextHandle = io_open_relative(context->handle, name, accessRights, openFlags);
-	if(nextHandle == INVALID_HANDLE_VALUE)
-	{
-		context->error = io_convert_win32_error(GetLastError());
-	}
-	else
-	{
-		if(context->handle != context->rootHandle)
-		{
-			CloseHandle(context->handle);
-		}
-		context->handle = nextHandle;
-	}
-}
-
-io_open_restrict_result io_open_path_restrict(HANDLE dirHandle, str8 path, file_access_rights accessRights, file_open_flags openFlags)
+io_open_restrict_result io_open_path_restrict(io_file_desc dirFd, str8 path, file_access_rights accessRights, file_open_flags openFlags)
 {
 	mem_arena_scope scratch = mem_scratch_begin();
 
@@ -375,17 +420,13 @@ io_open_restrict_result io_open_path_restrict(HANDLE dirHandle, str8 path, file_
 
 	io_open_restrict_context context = {
 		.error = IO_OK,
-		.rootHandle = dirHandle,
-		.rootUID = io_win32_file_uid(dirHandle),
-		.handle = dirHandle,
+		.rootFd = dirFd,
+		.rootUID = io_raw_uid(dirFd),
+		.fd = dirFd,
 	};
 
 	for_list(&pathElements.list, elt, str8_elt, listElt)
 	{
-		if(context.error != IO_OK)
-		{
-			break;
-		}
 		str8 name = elt->string;
 
 		if(!str8_cmp(name, STR8(".")))
@@ -396,7 +437,7 @@ io_open_restrict_result io_open_path_restrict(HANDLE dirHandle, str8 path, file_
 		else if(!str8_cmp(name, STR8("..")))
 		{
 			//NOTE: check that we don't escape root dir
-			if(io_win32_file_uid(context.handle) == context.rootUID)
+			if(io_raw_uid(context.fd) == context.rootUID)
 			{
 				context.error = IO_ERR_WALKOUT;
 				break;
@@ -408,15 +449,8 @@ io_open_restrict_result io_open_path_restrict(HANDLE dirHandle, str8 path, file_
 		}
 		else
 		{
-			HANDLE statHandle = io_open_relative(context.handle, name, FILE_ACCESS_READ, FILE_OPEN_SYMLINK);
-			if(statHandle == INVALID_HANDLE_VALUE)
-			{
-				context.error = io_convert_win32_error(GetLastError());
-				break;
-			}
 			file_status status = {0};
-			context.error = io_win32_stat_from_handle(statHandle, &status);
-			CloseHandle(statHandle);
+			context.error = io_raw_stat_at(context.fd, name, FILE_OPEN_SYMLINK, &status);
 			if(context.error)
 			{
 				break;
@@ -425,33 +459,27 @@ io_open_restrict_result io_open_path_restrict(HANDLE dirHandle, str8 path, file_
 			if(status.type == MP_FILE_SYMLINK)
 			{
 				//NOTE: read link target and add to file
-				HANDLE link = io_open_relative(context.handle, name, FILE_ACCESS_READ, FILE_OPEN_SYMLINK);
-				if(link == INVALID_HANDLE_VALUE)
-				{
-					context.error = io_convert_win32_error(GetLastError());
-					break;
-				}
-				io_win32_read_link_result linkResult = io_win32_read_link(scratch.arena, link);
-				CloseHandle(link);
+				io_raw_read_link_result link = io_raw_read_link_at(scratch.arena, context.fd, name);
 
-				if(linkResult.error)
+				if(link.error)
 				{
-					context.error = linkResult.error;
+					context.error = link.error;
 					break;
 				}
-				if(linkResult.targetPath.len == 0)
+
+				if(link.target.len == 0)
 				{
 					// skip
 				}
-				else if(linkResult.targetPath.ptr[0] == '/'
-				       ||linkResult.targetPath.ptr[0] == '\\')
+				else if(  link.target.ptr[0] == '/'
+				       || link.target.ptr[0] == '\\')
 				{
 					context.error = IO_ERR_WALKOUT;
 					break;
 				}
 				else
 				{
-					str8_list linkElements = str8_split(scratch.arena, linkResult.targetPath, sep);
+					str8_list linkElements = str8_split(scratch.arena, link.target, sep);
 					if(!list_empty(&linkElements.list))
 					{
 						//NOTE: insert linkElements into pathElements after elt
@@ -492,16 +520,16 @@ io_open_restrict_result io_open_path_restrict(HANDLE dirHandle, str8 path, file_
 
 	if(context.error)
 	{
-		if(context.handle != context.rootHandle)
+		if(context.fd != context.rootFd)
 		{
-			CloseHandle(context.handle);
-			context.handle = INVALID_HANDLE_VALUE;
+			io_raw_close(context.fd);
+			context.fd = io_file_desc_nil();
 		}
 	}
 
 	io_open_restrict_result result = {
 		.error = context.error,
-		.h = context.handle
+		.h = context.fd
 	};
 
 	mem_scratch_end(scratch);
@@ -555,22 +583,22 @@ io_cmp io_open_at(file_slot* atSlot, io_req* req, file_table* table)
 				}
 				else
 				{
-					slot->h = io_open_relative(atSlot->h, path, req->open.rights, req->open.flags);
+					slot->h = io_raw_open_at(atSlot->h, path, req->open.rights, req->open.flags);
 					if(slot->h == INVALID_HANDLE_VALUE)
 					{
 						slot->fatal = true;
-						slot->error = io_convert_win32_error(GetLastError());
+						slot->error = io_raw_last_error();
 					}
 				}
 			}
 			else
 			{
 				//TODO: take care of share mode and security attributes, make it consistent with posix impl
-				slot->h = io_open_relative(NULL, path, req->open.rights, req->open.flags);
+				slot->h = io_raw_open_at(NULL, path, req->open.rights, req->open.flags);
 				if(slot->h == INVALID_HANDLE_VALUE)
 				{
 					slot->fatal = true;
-					slot->error = io_convert_win32_error(GetLastError());
+					slot->error = io_raw_last_error();
 				}
 			}
 
@@ -603,7 +631,7 @@ io_cmp io_fstat(file_slot* slot, io_req* req)
 	}
 	else
 	{
-		slot->error = io_win32_stat_from_handle(slot->h, (file_status*)req->buffer);
+		slot->error = io_raw_stat(slot->h, (file_status*)req->buffer);
 		cmp.error = slot->error;
 	}
 	return(cmp);
@@ -633,7 +661,7 @@ io_cmp io_seek(file_slot* slot, io_req* req)
 
 	if(!SetFilePointerEx(slot->h, off, &newPos, whence))
 	{
-		slot->error = io_convert_win32_error(GetLastError());
+		slot->error = io_raw_last_error();
 		cmp.error = slot->error;
 	}
 	else
@@ -652,7 +680,7 @@ io_cmp io_read(file_slot* slot, io_req* req)
 
 	if(!ReadFile(slot->h, req->buffer, req->size, &bytesRead, NULL))
 	{
-		slot->error = io_convert_win32_error(GetLastError());
+		slot->error = io_raw_last_error();
 		cmp.result = 0;
 		cmp.error = slot->error;
 	}
@@ -671,7 +699,7 @@ io_cmp io_write(file_slot* slot, io_req* req)
 
 	if(!WriteFile(slot->h, req->buffer, req->size, &bytesWritten, NULL))
 	{
-		slot->error = io_convert_win32_error(GetLastError());
+		slot->error = io_raw_last_error();
 		cmp.result = 0;
 		cmp.error = slot->error;
 	}
