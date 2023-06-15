@@ -15,10 +15,20 @@
 #include"platform_io_common.c"
 #include"platform_io_internal.c"
 
-io_error io_convert_errno(int e)
+io_file_desc io_file_desc_nil()
 {
-	io_error error;
-	switch(e)
+	return(-1);
+}
+
+bool io_file_desc_is_nil(io_file_desc fd)
+{
+	return(fd < 0);
+}
+
+io_error io_raw_last_error()
+{
+	io_error error = IO_OK;
+	switch(errno)
 	{
 		case EPERM:
 		case EACCES:
@@ -178,311 +188,50 @@ int io_update_dir_flags_at(int dirFd, char* path, int flags)
 	return(flags);
 }
 
-typedef struct io_open_restrict_result
+io_file_desc io_raw_open_at(io_file_desc dirFd, str8 path, file_access_rights accessRights, file_open_flags openFlags)
 {
-	io_error error;
-	int fd;
+	int flags = io_convert_access_rights(accessRights);
+	flags |= io_convert_open_flags(openFlags);
 
-} io_open_restrict_result;
-
-io_open_restrict_result io_open_restrict(int dirFd, str8 path, int flags, mode_t mode)
-{
-	io_open_restrict_result result = {.fd = -1};
+	mode_t mode = S_IRUSR
+	            | S_IWUSR
+	            | S_IRGRP
+	            | S_IWGRP
+	            | S_IROTH
+	            | S_IWOTH;
 
 	mem_arena_scope scratch = mem_scratch_begin();
 
-	str8_list sep = {0};
-	str8_list_push(scratch.arena, &sep, STR8("/"));
-	str8_list pathElements = str8_split(scratch.arena, path, sep);
-
-	result.fd = dup(dirFd);
-	if(result.fd < 0)
+	io_file_desc fd = -1;
+	if(dirFd >= 0)
 	{
-		result.error = io_convert_errno(errno);
-		goto error;
-	}
-	struct stat dirStat;
-	if(fstat(result.fd, &dirStat))
-	{
-		result.error = io_convert_errno(errno);
-		goto error;
-	}
-	ino_t baseInode = dirStat.st_ino;
-	ino_t currentInode = baseInode;
-
-	for_list(&pathElements.list, elt, str8_elt, listElt)
-	{
-		str8 name = elt->string;
-
-		if(!str8_cmp(name, STR8(".")))
+		if(path.len && path.ptr[0] == '/')
 		{
-			//NOTE: skip
-			continue;
+			//NOTE: if path is absolute, change for a relative one, otherwise openat ignores fd.
+			str8_list list = {0};
+			str8_list_push(scratch.arena, &list, STR8("."));
+			str8_list_push(scratch.arena, &list, path);
+			path = str8_list_join(scratch.arena, list);
 		}
-		else if(!str8_cmp(name, STR8("..")))
-		{
-			//NOTE: check that we don't escape 'root' dir
-			if(currentInode == baseInode)
-			{
-				result.error = IO_ERR_WALKOUT;
-				goto error;
-			}
-			else
-			{
-				// open that dir and continue
-				int nextFd = openat(result.fd, "..", O_RDONLY);
-				if(!nextFd)
-				{
-					result.error = io_convert_errno(errno);
-					goto error;
-				}
-				else
-				{
-					close(result.fd);
-					result.fd = nextFd;
-					if(fstat(result.fd, &dirStat))
-					{
-						result.error = io_convert_errno(errno);
-						goto error;
-					}
-					currentInode = dirStat.st_ino;
-				}
-			}
-		}
-		else
-		{
-			char* nameCStr = str8_to_cstring(scratch.arena, name);
-
-			if(faccessat(result.fd, nameCStr, F_OK, AT_SYMLINK_NOFOLLOW))
-			{
-				//NOTE: file does not exist. if we're not at the end of path, or we don't have create flag,
-				//      return a IO_ERR_NO_ENTRY
-				if(&elt->listElt != list_last(&pathElements.list) && !(flags & O_CREAT))
-				{
-					result.error = IO_ERR_NO_ENTRY;
-					goto error;
-				}
-				else
-				{
-					//NOTE create the flag and return
-					int nextFd = openat(result.fd, nameCStr, flags);
-					if(!nextFd)
-					{
-						result.error = io_convert_errno(errno);
-						goto error;
-					}
-					else
-					{
-						close(result.fd);
-						result.fd = nextFd;
-					}
-					continue;
-				}
-			}
-
-			struct stat st;
-			if(fstatat(result.fd, nameCStr, &st, AT_SYMLINK_NOFOLLOW))
-			{
-				result.error = io_convert_errno(errno);
-				goto error;
-			}
-
-			int type = st.st_mode & S_IFMT;
-
-			if(type == S_IFLNK)
-			{
-				// symlink, check that it's relative, and insert it in elements
-				char buff[PATH_MAX+1];
-				int r = readlinkat(result.fd, nameCStr, buff, PATH_MAX);
-				if(r<0)
-				{
-					result.error = io_convert_errno(errno);
-					goto error;
-				}
-				else if(r == 0)
-				{
-					//NOTE: skip
-				}
-				else if(buff[0] == '/')
-				{
-					result.error = IO_ERR_WALKOUT;
-					goto error;
-				}
-				else
-				{
-					buff[r] = '\0';
-
-					str8_list linkElements = str8_split(scratch.arena, str8_from_buffer(r, buff), sep);
-					if(!list_empty(&linkElements.list))
-					{
-						//NOTE: insert linkElements into pathElements after elt
-						list_elt* tmp = elt->listElt.next;
-						elt->listElt.next = linkElements.list.first;
-						linkElements.list.last->next = tmp;
-						if(!tmp)
-						{
-							pathElements.list.last = linkElements.list.last;
-						}
-					}
-				}
-			}
-			else if(type == S_IFDIR)
-			{
-				// dir, open it and continue
-				int nextFd = openat(result.fd, nameCStr, O_RDONLY);
-				if(!nextFd)
-				{
-					result.error = io_convert_errno(errno);
-					goto error;
-				}
-				else
-				{
-					close(result.fd);
-					result.fd = nextFd;
-					currentInode = st.st_ino;
-				}
-			}
-			else if(type == S_IFREG)
-			{
-				// regular file, check that we're at the last element
-				if(&elt->listElt != list_last(&pathElements.list))
-				{
-					result.error = IO_ERR_NOT_DIR;
-					goto error;
-				}
-				////////////////////////////////////////////////////////
-				//TODO: else open the file with correct flags
-				////////////////////////////////////////////////////////
-			}
-			else
-			{
-				result.error = IO_ERR_NOT_DIR;
-				goto error;
-			}
-		}
-	}
-	goto end;
-
-	error:
-	{
-		close(result.fd);
-		result.fd = -1;
-	}
-	end:
-	mem_scratch_end(scratch);
-	return(result);
-}
-
-io_cmp io_open_at(file_slot* atSlot, io_req* req, file_table* table)
-{
-	io_cmp cmp = {0};
-
-	file_slot* slot = file_slot_alloc(table);
-	if(!slot)
-	{
-		cmp.error = IO_ERR_MAX_FILES;
-		cmp.result = 0;
 	}
 	else
 	{
-		slot->fd = -1;
-
-		cmp.handle = file_handle_from_slot(table, slot);
-
-		slot->rights = req->open.rights;
-		if(atSlot)
-		{
-			slot->rights &= atSlot->rights;
-		}
-
-		if(slot->rights != req->open.rights)
-		{
-			slot->error = IO_ERR_PERM;
-			slot->fatal = true;
-		}
-		else
-		{
-			int flags = io_convert_access_rights(slot->rights);
-			flags |= io_convert_open_flags(req->open.flags);
-
-			mode_t mode = S_IRUSR
-		            	| S_IWUSR
-		            	| S_IRGRP
-		            	| S_IWGRP
-		            	| S_IROTH
-		            	| S_IWOTH;
-
-			mem_arena_scope scratch = mem_scratch_begin();
-			str8 path = str8_from_buffer(req->size, req->buffer);
-
-			slot->fd = -1;
-			if(atSlot)
-			{
-				if(path.len && path.ptr[0] == '/')
-				{
-					//NOTE: if path is absolute, change for a relative one, otherwise openat ignores fd.
-					str8_list list = {0};
-					str8_list_push(scratch.arena, &list, STR8("."));
-					str8_list_push(scratch.arena, &list, path);
-					path = str8_list_join(scratch.arena, list);
-				}
-				char* pathCStr = str8_to_cstring(scratch.arena, path);
-
-				if(req->open.flags & FILE_OPEN_RESTRICT)
-				{
-					io_open_restrict_result res = io_open_restrict(atSlot->fd, path, flags, mode);
-					if(res.error == IO_OK)
-					{
-						slot->fd = res.fd;
-					}
-					else
-					{
-						slot->fatal = true;
-						slot->error = res.error;
-					}
-				}
-				else
-				{
-					flags = io_update_dir_flags_at(atSlot->fd, pathCStr, flags);
-
-					slot->fd = openat(atSlot->fd, pathCStr, flags, mode);
-					if(slot->fd < 0)
-					{
-						slot->fatal = true;
-						slot->error = io_convert_errno(errno);
-					}
-				}
-			}
-			else
-			{
-				char* pathCStr = str8_to_cstring(scratch.arena, path);
-
-				flags = io_update_dir_flags_at(AT_FDCWD, pathCStr, flags);
-
-				slot->fd = open(pathCStr, flags, mode);
-				if(slot->fd < 0)
-				{
-					slot->fatal = true;
-					slot->error = io_convert_errno(errno);
-				}
-			}
-			mem_scratch_end(scratch);
-		}
-		cmp.error = slot->error;
+		dirFd = AT_FDCWD;
 	}
 
-	return(cmp);
+	char* pathCStr = str8_to_cstring(scratch.arena, path);
+
+	flags = io_update_dir_flags_at(dirFd, pathCStr, flags);
+
+	fd = openat(dirFd, pathCStr, flags, mode);
+	mem_scratch_end(scratch);
+
+	return(fd);
 }
 
-io_cmp io_close(file_slot* slot, io_req* req, file_table* table)
+void io_raw_close(io_file_desc fd)
 {
-	io_cmp cmp = {0};
-	if(slot->fd >= 0)
-	{
-		close(slot->fd);
-	}
-	file_slot_recycle(table, slot);
-	return(cmp);
+	close(fd);
 }
 
 file_perm io_convert_perm_from_stat(u16 mode)
@@ -531,6 +280,148 @@ file_type io_convert_type_from_stat(u16 mode)
 	return(type);
 }
 
+io_error io_raw_fstat(io_file_desc fd, file_status* status)
+{
+	io_error error = IO_OK;
+	struct stat s;
+	if(fstat(fd, &s))
+	{
+		error = io_raw_last_error();
+	}
+	else
+	{
+		status->uid = s.st_ino;
+		status->perm = io_convert_perm_from_stat(s.st_mode);
+		status->type = io_convert_type_from_stat(s.st_mode);
+		status->size = s.st_size;
+		//TODO: times
+	}
+	return(error);
+}
+
+io_error io_raw_fstat_at(io_file_desc dirFd, str8 path, file_open_flags flags, file_status* status)
+{
+	mem_arena_scope scratch = mem_scratch_begin();
+
+	if(dirFd >= 0)
+	{
+		if(path.len && path.ptr[0] == '/')
+		{
+			str8_list list = {0};
+			str8_list_push(scratch.arena, &list, STR8("."));
+			str8_list_push(scratch.arena, &list, path);
+			path = str8_list_join(scratch.arena, list);
+		}
+	}
+	else
+	{
+		dirFd = AT_FDCWD;
+	}
+
+	char* pathCStr = str8_to_cstring(scratch.arena, path);
+
+	int statFlag = (flags & FILE_OPEN_SYMLINK)? AT_SYMLINK_NOFOLLOW : 0;
+	io_error error = IO_OK;
+	struct stat s;
+	if(fstatat(dirFd, pathCStr, &s, statFlag))
+	{
+		error = io_raw_last_error();
+	}
+	else
+	{
+		status->uid = s.st_ino;
+		status->perm = io_convert_perm_from_stat(s.st_mode);
+		status->type = io_convert_type_from_stat(s.st_mode);
+		status->size = s.st_size;
+		//TODO: times
+	}
+
+	mem_scratch_end(scratch);
+	return(error);
+}
+
+io_raw_read_link_result io_raw_read_link_at(mem_arena* arena, io_file_desc dirFd, str8 path)
+{
+	mem_arena_scope scratch = mem_scratch_begin_next(arena);
+
+	if(dirFd >= 0)
+	{
+		if(path.len && path.ptr[0] == '/')
+		{
+			str8_list list = {0};
+			str8_list_push(scratch.arena, &list, STR8("."));
+			str8_list_push(scratch.arena, &list, path);
+			path = str8_list_join(scratch.arena, list);
+		}
+	}
+	else
+	{
+		dirFd = AT_FDCWD;
+	}
+
+	char* pathCStr = str8_to_cstring(scratch.arena, path);
+
+	io_raw_read_link_result result = {0};
+
+	char buffer[PATH_MAX];
+	u64 bufferSize = PATH_MAX;
+	i64 r = readlinkat(dirFd, pathCStr, buffer, bufferSize);
+
+	if(r<0)
+	{
+		result.error = io_raw_last_error();
+	}
+	else
+	{
+		result.target.len = r;
+		result.target.ptr = mem_arena_alloc_array(arena, char, result.target.len);
+		memcpy(result.target.ptr, buffer, result.target.len);
+	}
+
+	mem_scratch_end(scratch);
+	return(result);
+}
+
+bool io_raw_file_exists_at(io_file_desc dirFd, str8 path, file_open_flags openFlags)
+{
+	mem_arena_scope scratch = mem_scratch_begin();
+
+	if(dirFd >= 0)
+	{
+		if(path.len && path.ptr[0] == '/')
+		{
+			str8_list list = {0};
+			str8_list_push(scratch.arena, &list, STR8("."));
+			str8_list_push(scratch.arena, &list, path);
+			path = str8_list_join(scratch.arena, list);
+		}
+	}
+	else
+	{
+		dirFd = AT_FDCWD;
+	}
+
+	char* pathCStr = str8_to_cstring(scratch.arena, path);
+
+	int flags = (openFlags & FILE_OPEN_SYMLINK)? AT_SYMLINK_NOFOLLOW : 0;
+	int r = faccessat(dirFd, pathCStr, F_OK, flags);
+	bool result = (r == 0);
+
+	mem_scratch_end(scratch);
+	return(result);
+}
+
+io_cmp io_close(file_slot* slot, io_req* req, file_table* table)
+{
+	io_cmp cmp = {0};
+	if(slot->fd >= 0)
+	{
+		close(slot->fd);
+	}
+	file_slot_recycle(table, slot);
+	return(cmp);
+}
+
 io_cmp io_fstat(file_slot* slot, io_req* req)
 {
 	io_cmp cmp = {0};
@@ -544,7 +435,7 @@ io_cmp io_fstat(file_slot* slot, io_req* req)
 		struct stat s;
 		if(fstat(slot->fd, &s))
 		{
-			slot->error = io_convert_errno(errno);
+			slot->error = io_raw_last_error();
 			cmp.error = slot->error;
 		}
 		else
@@ -581,7 +472,7 @@ io_cmp io_seek(file_slot* slot, io_req* req)
 
 	if(cmp.result < 0)
 	{
-		slot->error = io_convert_errno(errno);
+		slot->error = io_raw_last_error();
 		cmp.error = slot->error;
 	}
 
@@ -596,7 +487,7 @@ io_cmp io_read(file_slot* slot, io_req* req)
 
 	if(cmp.result < 0)
 	{
-		slot->error = io_convert_errno(errno);
+		slot->error = io_raw_last_error();
 		cmp.result = 0;
 		cmp.error = slot->error;
 	}
@@ -612,7 +503,7 @@ io_cmp io_write(file_slot* slot, io_req* req)
 
 	if(cmp.result < 0)
 	{
-		slot->error = io_convert_errno(errno);
+		slot->error = io_raw_last_error();
 		cmp.result = 0;
 		cmp.error = slot->error;
 	}

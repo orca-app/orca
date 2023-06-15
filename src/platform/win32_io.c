@@ -115,7 +115,7 @@ io_file_desc io_file_desc_nil()
 	return(INVALID_HANDLE_VALUE);
 }
 
-bool io_file_desc_invalid(io_file_desc fd)
+bool io_file_desc_is_nil(io_file_desc fd)
 {
 	return(fd == NULL || fd == INVALID_HANDLE_VALUE);
 }
@@ -288,7 +288,7 @@ io_error io_raw_stat_at(io_file_desc dirFd, str8 name, file_open_flags openFlags
 {
 	io_error error = IO_OK;
 	io_file_desc fd = io_raw_open_at(dirFd, name, FILE_ACCESS_READ, FILE_OPEN_SYMLINK);
-	if(io_file_desc_invalid(fd))
+	if(io_file_desc_is_nil(fd))
 	{
 		error = io_raw_last_error();
 	}
@@ -388,7 +388,7 @@ typedef struct io_open_restrict_context
 io_error io_open_restrict_enter(io_open_restrict_context* context, str8 name, file_access_rights accessRights, file_open_flags openFlags)
 {
 	io_file_desc nextFd = io_raw_open_at(context->fd, name, accessRights, openFlags);
-	if(io_file_desc_invalid(nextFd))
+	if(io_file_desc_is_nil(nextFd))
 	{
 		context->error = io_raw_last_error();
 	}
@@ -536,86 +536,12 @@ io_open_restrict_result io_open_path_restrict(io_file_desc dirFd, str8 path, fil
 	return(result);
 }
 
-io_cmp io_open_at(file_slot* atSlot, io_req* req, file_table* table)
-{
-	io_cmp cmp = {0};
-
-	file_slot* slot = file_slot_alloc(table);
-	if(!slot)
-	{
-		cmp.error = IO_ERR_MAX_FILES;
-		cmp.result = 0;
-	}
-	else
-	{
-		cmp.handle = file_handle_from_slot(table, slot);
-
-		slot->rights = req->open.rights;
-		if(atSlot)
-		{
-			slot->rights &= atSlot->rights;
-		}
-
-		if(slot->rights != req->open.rights)
-		{
-			slot->error = IO_ERR_PERM;
-			slot->fatal = true;
-		}
-		else
-		{
-			mem_arena_scope scratch = mem_scratch_begin();
-			str8 path = str8_from_buffer(req->size, req->buffer);
-			str16 pathW = win32_utf8_to_wide_null_terminated(scratch.arena, path);
-
-			slot->h = INVALID_HANDLE_VALUE;
-			if(atSlot)
-			{
-				if(req->open.flags & FILE_OPEN_RESTRICT)
-				{
-					//TODO: if FILE_OPEN_RESTRICT, do the full path traversal to check that path is in the
-					//      subtree rooted at atSlot->fd
-					io_open_restrict_result res = io_open_path_restrict(atSlot->h, path, req->open.rights, req->open.flags);
-					if(res.error)
-					{
-						slot->fatal = true;
-						slot->error = res.error;
-					}
-				}
-				else
-				{
-					slot->h = io_raw_open_at(atSlot->h, path, req->open.rights, req->open.flags);
-					if(slot->h == INVALID_HANDLE_VALUE)
-					{
-						slot->fatal = true;
-						slot->error = io_raw_last_error();
-					}
-				}
-			}
-			else
-			{
-				//TODO: take care of share mode and security attributes, make it consistent with posix impl
-				slot->h = io_raw_open_at(NULL, path, req->open.rights, req->open.flags);
-				if(slot->h == INVALID_HANDLE_VALUE)
-				{
-					slot->fatal = true;
-					slot->error = io_raw_last_error();
-				}
-			}
-
-			mem_scratch_end(scratch);
-		}
-		cmp.error = slot->error;
-	}
-
-	return(cmp);
-}
-
 io_cmp io_close(file_slot* slot, io_req* req, file_table* table)
 {
 	io_cmp cmp = {0};
-	if(slot->h)
+	if(slot->fd)
 	{
-		CloseHandle(slot->h);
+		CloseHandle(slot->fd);
 	}
 	file_slot_recycle(table, slot);
 	return(cmp);
@@ -631,7 +557,7 @@ io_cmp io_fstat(file_slot* slot, io_req* req)
 	}
 	else
 	{
-		slot->error = io_raw_stat(slot->h, (file_status*)req->buffer);
+		slot->error = io_raw_stat(slot->fd, (file_status*)req->buffer);
 		cmp.error = slot->error;
 	}
 	return(cmp);
@@ -659,7 +585,7 @@ io_cmp io_seek(file_slot* slot, io_req* req)
 	LARGE_INTEGER off = {.QuadPart = req->offset};
 	LARGE_INTEGER newPos = {0};
 
-	if(!SetFilePointerEx(slot->h, off, &newPos, whence))
+	if(!SetFilePointerEx(slot->fd, off, &newPos, whence))
 	{
 		slot->error = io_raw_last_error();
 		cmp.error = slot->error;
@@ -678,7 +604,7 @@ io_cmp io_read(file_slot* slot, io_req* req)
 
 	DWORD bytesRead = 0;
 
-	if(!ReadFile(slot->h, req->buffer, req->size, &bytesRead, NULL))
+	if(!ReadFile(slot->fd, req->buffer, req->size, &bytesRead, NULL))
 	{
 		slot->error = io_raw_last_error();
 		cmp.result = 0;
@@ -697,7 +623,7 @@ io_cmp io_write(file_slot* slot, io_req* req)
 
 	DWORD bytesWritten = 0;
 
-	if(!WriteFile(slot->h, req->buffer, req->size, &bytesWritten, NULL))
+	if(!WriteFile(slot->fd, req->buffer, req->size, &bytesWritten, NULL))
 	{
 		slot->error = io_raw_last_error();
 		cmp.result = 0;

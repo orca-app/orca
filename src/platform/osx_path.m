@@ -12,6 +12,11 @@
 
 #include"platform_path.c"
 
+bool path_is_absolute(str8 path)
+{
+	return(path.len && (path.ptr[0] == '/'));
+}
+
 str8 path_executable(mem_arena* arena)
 {@autoreleasepool{
 	str8 result = {};
