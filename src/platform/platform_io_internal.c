@@ -124,25 +124,21 @@ io_open_restrict_result io_open_restrict(io_file_desc dirFd, str8 path, file_acc
 	for_list(&pathElements.list, elt, str8_elt, listElt)
 	{
 		str8 name = elt->string;
+		file_access_rights eltAccessRights = FILE_ACCESS_READ;
+		file_open_flags eltOpenFlags = 0;
 
-		/*TODO:
-			The last element should be treated a bit differently:
-
-			- if it doesn't exists, and FILE_OPEN_CREATE is set, we can create it
-			- it must be opened with the correct flags
-		*/
-
-		if(!str8_cmp(name, STR8(".")))
+		bool atLastElement = (&elt->listElt == list_last(&pathElements.list));
+		if(atLastElement)
 		{
-			if(&elt->listElt == list_last(&pathElements.list))
-			{
-				//NOTE: if we're at the last element, re-enter current directory with correct flags
-				io_open_restrict_enter(&context, name, accessRights, openFlags);
-			}
-			else
-			{
-				//NOTE: else we can just skip the element
-			}
+			eltAccessRights = accessRights;
+			eltOpenFlags = openFlags;
+		}
+
+		if(  !str8_cmp(name, STR8("."))
+		  && !atLastElement)
+		{
+			//NOTE: if we're not at the last element we can just skip '.' elements
+			continue;
 		}
 		else if(!str8_cmp(name, STR8("..")))
 		{
@@ -158,130 +154,96 @@ io_open_restrict_result io_open_restrict(io_file_desc dirFd, str8 path, file_acc
 				context.error = IO_ERR_WALKOUT;
 				break;
 			}
-			else if(&elt->listElt == list_last(&pathElements.list))
+		}
+		else if(!io_raw_file_exists_at(context.fd, name, FILE_OPEN_SYMLINK))
+		{
+			//NOTE: if the file doesn't exists, but we're at the last element and FILE_OPEN_CREATE
+			//      is set, we create the file. Otherwise it is a IO_ERROR_NO_ENTRY error.
+			if(  !atLastElement
+			  || !(openFlags & FILE_OPEN_CREATE))
 			{
-				//NOTE: if we're at the last element, enter parent directory with correct flags
-				io_open_restrict_enter(&context, name, accessRights, openFlags);
-			}
-			else
-			{
-				io_open_restrict_enter(&context, name, FILE_ACCESS_READ, 0);
+				context.error = IO_ERR_NO_ENTRY;
+				break;
 			}
 		}
 		else
 		{
-			if(!io_raw_file_exists_at(context.fd, name, FILE_OPEN_SYMLINK))
+			//NOTE: if the file exists, we check the type of file
+			file_status status = {0};
+			context.error = io_raw_fstat_at(context.fd, name, FILE_OPEN_SYMLINK, &status);
+			if(context.error)
 			{
-				//NOTE: if the file doesn't exists, but we're at the last element and FILE_OPEN_CREATE
-				//      is set, we create the file. Otherwise it is a IO_ERROR_NO_ENTRY error.
-				if( (&elt->listElt == list_last(&pathElements.list))
-				  &&(openFlags & FILE_OPEN_CREATE))
+				break;
+			}
+
+			if(status.type == MP_FILE_REGULAR)
+			{
+				if(!atLastElement)
 				{
-					io_open_restrict_enter(&context, name, accessRights, openFlags);
-				}
-				else
-				{
-					context.error = IO_ERR_NO_ENTRY;
+					context.error = IO_ERR_NOT_DIR;
 					break;
 				}
 			}
-			else
+			else if(status.type == MP_FILE_SYMLINK)
 			{
-				//NOTE: if the file exists, we check the type of file
-				file_status status = {0};
-				context.error = io_raw_fstat_at(context.fd, name, FILE_OPEN_SYMLINK, &status);
-				if(context.error)
-				{
-					break;
-				}
+				//TODO  - do we need a FILE_OPEN_NO_FOLLOW that fails if last element is a symlink?
+				//      - do we need a FILE_OPEN_NO_SYMLINKS that fails if _any_ element is a symlink?
 
-				if(status.type == MP_FILE_SYMLINK)
+				if(  !atLastElement
+				  || !(openFlags & FILE_OPEN_SYMLINK))
 				{
-					//TODO  - do we need a FILE_OPEN_NO_FOLLOW that fails if last element is a symlink?
-					//      - do we need a FILE_OPEN_NO_SYMLINKS that fails if _any_ element is a symlink?
-
-					if( (&elt->listElt == list_last(&pathElements.list))
-					  &&(openFlags & FILE_OPEN_SYMLINK))
+					io_raw_read_link_result link = io_raw_read_link_at(scratch.arena, context.fd, name);
+					if(link.error)
 					{
-						io_open_restrict_enter(&context, name, accessRights, openFlags);
-					}
-					else
-					{
-						io_raw_read_link_result link = io_raw_read_link_at(scratch.arena, context.fd, name);
-						if(link.error)
-						{
-							context.error = link.error;
-							break;
-						}
-
-						if(path_is_absolute(link.target))
-						{
-							context.error = IO_ERR_WALKOUT;
-							break;
-						}
-						else
-						{
-							if(link.target.len == 0)
-							{
-								//NOTE: treat an empty target as a '.'
-								link.target = STR8(".");
-							}
-
-							str8_list linkElements = str8_split(scratch.arena, link.target, sep);
-							if(!list_empty(&linkElements.list))
-							{
-								//NOTE: insert linkElements into pathElements after elt
-								list_elt* tmp = elt->listElt.next;
-								elt->listElt.next = linkElements.list.first;
-								linkElements.list.last->next = tmp;
-								if(!tmp)
-								{
-									pathElements.list.last = linkElements.list.last;
-								}
-							}
-						}
-					}
-				}
-				else if(status.type == MP_FILE_DIRECTORY)
-				{
-					//NOTE: descend in directory
-					if(&elt->listElt == list_last(&pathElements.list))
-					{
-						io_open_restrict_enter(&context, name, accessRights, openFlags);
-					}
-					else
-					{
-						io_open_restrict_enter(&context, name, FILE_ACCESS_READ, 0);
-					}
-				}
-				else if(status.type == MP_FILE_REGULAR)
-				{
-					//NOTE: check that we're at the end of path and open that file
-					if(&elt->listElt != list_last(&pathElements.list))
-					{
-						context.error = IO_ERR_NOT_DIR;
+						context.error = link.error;
 						break;
 					}
-					else
+					if(link.target.len == 0)
 					{
-						io_open_restrict_enter(&context, name, accessRights, openFlags);
+						//NOTE: treat an empty target as a '.'
+						link.target = STR8(".");
 					}
-				}
-				else
-				{
-					context.error = IO_ERR_NO_ENTRY;
+					else if(path_is_absolute(link.target))
+					{
+						context.error = IO_ERR_WALKOUT;
+						break;
+					}
+
+					str8_list linkElements = str8_split(scratch.arena, link.target, sep);
+					if(!list_empty(&linkElements.list))
+					{
+						//NOTE: insert linkElements into pathElements after elt
+						list_elt* tmp = elt->listElt.next;
+						elt->listElt.next = linkElements.list.first;
+						linkElements.list.last->next = tmp;
+						if(!tmp)
+						{
+							pathElements.list.last = linkElements.list.last;
+						}
+					}
+					continue;
 				}
 			}
+			else if(status.type != MP_FILE_DIRECTORY)
+			{
+				context.error = IO_ERR_NOT_DIR;
+				break;
+			}
 		}
+
+		//NOTE: if we arrive here, we have no errors and the correct flags are set,
+		//      so we can enter the element
+		DEBUG_ASSERT(context.error == IO_OK);
+		io_open_restrict_enter(&context, name, eltAccessRights, eltOpenFlags);
 	}
 
-	if(context.error)
+	if(context.error && !io_file_desc_is_nil(context.fd))
 	{
 		if(context.fd != context.rootFd)
 		{
 			io_raw_close(context.fd);
-			context.fd = io_file_desc_nil();
 		}
+		context.fd = io_file_desc_nil();
 	}
 
 	io_open_restrict_result result = {
@@ -306,7 +268,6 @@ io_cmp io_open_at(file_slot* atSlot, io_req* req, file_table* table)
 	else
 	{
 		slot->fd = -1;
-
 		cmp.handle = file_handle_from_slot(table, slot);
 
 		slot->rights = req->open.rights;
@@ -325,32 +286,27 @@ io_cmp io_open_at(file_slot* atSlot, io_req* req, file_table* table)
 			str8 path = str8_from_buffer(req->size, req->buffer);
 
 			io_file_desc dirFd = atSlot ? atSlot->fd : io_file_desc_nil();
-			slot->fd = -1;
 
 			if(req->open.flags & FILE_OPEN_RESTRICT)
 			{
 				io_open_restrict_result res = io_open_restrict(dirFd, path, slot->rights, req->open.flags);
-				if(res.error == IO_OK)
-				{
-					slot->fd = res.fd;
-				}
-				else
-				{
-					slot->fatal = true;
-					slot->error = res.error;
-				}
+				slot->error = res.error;
+				slot->fd = res.fd;
 			}
 			else
 			{
 				slot->fd = io_raw_open_at(dirFd, path, slot->rights, req->open.flags);
-				if(slot->fd < 0)
+				if(io_file_desc_is_nil(slot->fd))
 				{
-					slot->fatal = true;
 					slot->error = io_raw_last_error();
 				}
 			}
 		}
-		cmp.error = slot->error;
+		if(slot->error)
+		{
+			slot->fatal = true;
+			cmp.error = slot->error;
+		}
 	}
 	return(cmp);
 }
