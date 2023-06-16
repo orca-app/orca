@@ -8,8 +8,6 @@
 #ifndef __ORCA_RUNTIME_H_
 #define __ORCA_RUNTIME_H_
 
-#include"platform/platform_io_internal.h"
-
 #include"wasm3.h"
 #include"m3_env.h"
 #include"m3_compile.h"
@@ -42,8 +40,14 @@ typedef struct g_event_handler_desc
 } g_event_handler_desc;
 
 const g_event_handler_desc G_EVENT_HANDLER_DESC[] = {
-	#define G_EVENT_HANDLER_DESC_ENTRY(kind, name, rets, args) {STR8(name), STR8(rets), STR8(args)},
+
+	#define STR8LIT(s) {sizeof(s), s} //NOTE: msvc doesn't accept STR8(s) as compile-time constant...
+	#define G_EVENT_HANDLER_DESC_ENTRY(kind, name, rets, args) {STR8LIT(name), STR8LIT(rets), STR8LIT(args)},
+
 	G_EVENTS(G_EVENT_HANDLER_DESC_ENTRY)
+
+	#undef G_EVENT_HANDLER_DESC_ENTRY
+	#undef STR8LIT
 };
 
 typedef struct wasm_memory
@@ -67,57 +71,7 @@ typedef struct orca_runtime
 
 } orca_runtime;
 
-typedef struct log_entry
-{
-	list_elt listElt;
-	u64 cap;
 
-	log_level level;
-	str8 file;
-	str8 function;
-	int line;
-	str8 msg;
-
-	u64 recordIndex;
-
-} log_entry;
-
-typedef struct orca_debug_overlay
-{
-	bool show;
-	mg_surface surface;
-	mg_canvas canvas;
-	mg_font fontReg;
-	mg_font fontBold;
-	ui_context ui;
-
-
-	mem_arena logArena;
-	list_info logEntries;
-	list_info logFreeList;
-	u32 entryCount;
-	u32 maxEntries;
-	u64 logEntryTotalCount;
-	bool logScrollToLast;
-
-} orca_debug_overlay;
-
-typedef struct orca_app
-{
-	mp_window window;
-	mg_surface surface;
-	mg_canvas canvas;
-
-	file_table fileTable;
-	file_handle rootDir;
-
-	orca_runtime runtime;
-
-	orca_debug_overlay debugOverlay;
-
-} orca_app;
-
-orca_app* orca_app_get();
 orca_runtime* orca_runtime_get();
 
 
