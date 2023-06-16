@@ -9,8 +9,8 @@
 #ifndef __GRAPHICS_H_
 #define __GRAPHICS_H_
 
-#include"typedefs.h"
-#include"platform.h"
+#include"util/typedefs.h"
+#include"platform/platform.h"
 #include"mp_app.h"
 
 //------------------------------------------------------------------------------------------

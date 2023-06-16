@@ -12,22 +12,22 @@
 //----------------------------------------------------------------
 // utility layer
 //----------------------------------------------------------------
-#include"platform.h"
-#include"typedefs.h"
-#include"macro_helpers.h"
-#include"platform_log.h"
-#include"lists.h"
-#include"memory.h"
-#include"strings.h"
-#include"utf8.h"
-#include"hash.h"
+#include"platform/platform.h"
+#include"util/typedefs.h"
+#include"util/macro_helpers.h"
+#include"platform/platform_log.h"
+#include"util/lists.h"
+#include"util/memory.h"
+#include"util/strings.h"
+#include"util/utf8.h"
+#include"util/hash.h"
 
 //----------------------------------------------------------------
 // platform layer
 //----------------------------------------------------------------
-#include"platform_clock.h"
-#include"platform_path.h"
-#include"platform_io.h"
+#include"platform/platform_clock.h"
+#include"platform/platform_path.h"
+#include"platform/platform_io.h"
 /*
 #include"platform_rng.h"
 #include"platform_socket.h"

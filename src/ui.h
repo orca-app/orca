@@ -9,8 +9,8 @@
 #ifndef __UI_H_
 #define __UI_H_
 
-#include"typedefs.h"
-#include"lists.h"
+#include"util/typedefs.h"
+#include"util/lists.h"
 #include"input_state.h"
 #include"graphics.h"
 

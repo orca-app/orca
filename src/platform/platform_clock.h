@@ -9,7 +9,7 @@
 #ifndef __PLATFORM_CLOCK_H_
 #define __PLATFORM_CLOCK_H_
 
-#include"typedefs.h"
+#include"util/typedefs.h"
 
 #ifdef __cplusplus
 extern "C" {

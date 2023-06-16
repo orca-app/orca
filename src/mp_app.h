@@ -9,10 +9,10 @@
 #ifndef __PLATFORM_APP_H_
 #define __PLATFORM_APP_H_
 
-#include"typedefs.h"
-#include"utf8.h"
-#include"lists.h"
-#include"memory.h"
+#include"util/typedefs.h"
+#include"util/utf8.h"
+#include"util/lists.h"
+#include"util/memory.h"
 
 #ifdef __cplusplus
 extern "C" {

@@ -9,7 +9,7 @@
 #define __PLATFORM_LOG_H_
 
 #include"platform.h"
-#include"strings.h"
+#include"util/strings.h"
 
 typedef enum { LOG_LEVEL_ERROR,
                LOG_LEVEL_WARNING,
