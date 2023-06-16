@@ -14,7 +14,9 @@
 #if PLATFORM_MACOS || PLATFORM_LINUX
 	typedef int io_file_desc;
 #elif PLATFORM_WINDOWS
+	#ifndef WIN32_LEAN_AND_MEAN
 	#define WIN32_LEAN_AND_MEAN
+	#endif
 	#include<windows.h>
 	typedef HANDLE io_file_desc;
 #endif
