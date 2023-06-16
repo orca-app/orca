@@ -35,7 +35,7 @@ io_cmp orca_io_wait_single_req(io_req* wasmReq)
 			{
 				//NOTE: change root to app local folder
 				req.handle = orca->rootDir;
-				req.openFlags |= FILE_OPEN_RESTRICT;
+				req.open.flags |= FILE_OPEN_RESTRICT;
 			}
 		}
 		cmp = io_wait_single_req_with_table(&req, &orca->fileTable);

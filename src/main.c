@@ -357,7 +357,7 @@ void* orca_runloop(void* user)
 	M3Result res = m3_CompileModule(app->runtime.m3Module);
 	if(res)
 	{
-		M3ErrorInfo errInfo = {};
+		M3ErrorInfo errInfo = {0};
 		m3_GetErrorInfo(app->runtime.m3Runtime, &errInfo);
 
 		log_error("wasm error: %s\n", errInfo.message);
@@ -424,7 +424,7 @@ void* orca_runloop(void* user)
 		str8 localRootPath = path_executable_relative(mem_scratch(), STR8("../app/data"));
 
 		io_req req = {.op = IO_OP_OPEN_AT,
-		              .openFlags = FILE_OPEN_READ,
+		              .open.rights = FILE_ACCESS_READ,
 		              .size = localRootPath.len,
 		              .buffer = localRootPath.ptr};
 		io_cmp cmp = io_wait_single_req_with_table(&req, &app->fileTable);
