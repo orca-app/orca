@@ -11,6 +11,16 @@
 // File stream read/write API
 //------------------------------------------------------------------------------
 
+file_handle file_handle_nil()
+{
+	return((file_handle){0});
+}
+
+bool file_handle_is_nil(file_handle handle)
+{
+	return(handle.h == 0);
+}
+
 file_handle file_open(str8 path, file_access_rights rights, file_open_flags flags)
 {
 	io_req req = {.op = IO_OP_OPEN_AT,

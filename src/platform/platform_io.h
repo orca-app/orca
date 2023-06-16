@@ -140,6 +140,9 @@ MP_API io_cmp io_wait_single_req(io_req* req);
 // File IO wrapper API
 //----------------------------------------------------------------
 
+MP_API file_handle file_handle_nil();
+MP_API bool file_handle_is_nil(file_handle handle);
+
 MP_API file_handle file_open(str8 path, file_access_rights rights, file_open_flags flags);
 MP_API file_handle file_open_at(file_handle dir, str8 path, file_access_rights rights, file_open_flags flags);
 MP_API void file_close(file_handle file);
