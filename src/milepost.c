@@ -17,8 +17,9 @@
 #if PLATFORM_WINDOWS
 	#include"platform/win32_memory.c"
 	#include"platform/win32_clock.c"
-	#include"platform/win32_io.c"
+	#include"platform/win32_string_helpers.c"
 	#include"platform/win32_path.c"
+	#include"platform/win32_io.c"
 	//TODO
 #elif PLATFORM_MACOS
 	#include"platform/unix_memory.c"

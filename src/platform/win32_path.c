@@ -5,8 +5,20 @@
 *	@date: 24/05/2023
 *
 *****************************************************************/
+#include<shlwapi.h> // PathIsRelative()
 
+#include"win32_string_helpers.h"
 #include"platform_path.c"
+
+bool path_is_absolute(str8 path)
+{
+	mem_arena_scope scratch = mem_scratch_begin();
+	str16 pathW = win32_utf8_to_wide_null_terminated(scratch.arena, path);
+	bool result = !PathIsRelativeW(pathW.ptr);
+
+	mem_scratch_end(scratch);
+	return(result);
+}
 
 str8 path_executable(mem_arena* arena)
 {

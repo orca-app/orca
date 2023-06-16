@@ -11,6 +11,7 @@
 #include<shlwapi.h>
 #include<winioctl.h>
 
+#include"win32_string_helpers.h"
 #include"platform_io_internal.c"
 #include"platform_io_common.c"
 
@@ -72,25 +73,6 @@ io_error io_raw_last_error()
 	return(error);
 }
 
-str16 win32_utf8_to_wide_null_terminated(mem_arena* arena, str8 s)
-{
-	str16 res = {0};
-	res.len = 1 + MultiByteToWideChar(CP_UTF8, 0, s.ptr, s.len, NULL, 0);
-	res.ptr = mem_arena_alloc_array(arena, u16, res.len);
-	MultiByteToWideChar(CP_UTF8, 0, s.ptr, s.len, res.ptr, res.len);
-	res.ptr[res.len-1] = '\0';
-	return(res);
-}
-
-str8 win32_wide_to_utf8(mem_arena* arena, str16 s)
-{
-	str8 res = {0};
-	res.len = WideCharToMultiByte(CP_UTF8, 0, s.ptr, s.len, NULL, 0, NULL, NULL);
-	res.ptr = mem_arena_alloc_array(arena, u8, res.len);
-	WideCharToMultiByte(CP_UTF8, 0, s.ptr, s.len, res.ptr, res.len, NULL, NULL);
-	return(res);
-}
-
 str16 win32_path_from_handle_null_terminated(mem_arena* arena, HANDLE handle)
 {
 	str16 res = {0};
@@ -118,6 +100,40 @@ io_file_desc io_file_desc_nil()
 bool io_file_desc_is_nil(io_file_desc fd)
 {
 	return(fd == NULL || fd == INVALID_HANDLE_VALUE);
+}
+
+str16 win32_get_path_at_null_terminated(mem_arena* arena, io_file_desc dirFd, str8 path)
+{
+	str16 result = {0};
+	mem_arena_scope scratch = mem_scratch_begin_next(arena);
+
+	str16 dirPathW = win32_path_from_handle_null_terminated(scratch.arena, dirFd);
+	str16 pathW = win32_utf8_to_wide_null_terminated(scratch.arena, path);
+
+	if(dirPathW.len && pathW.len)
+	{
+		u64 fullPathWSize = dirPathW.len + pathW.len;
+		LPWSTR fullPathW = mem_arena_alloc_array(scratch.arena, u16, fullPathWSize);
+		memcpy(fullPathW, dirPathW.ptr, (dirPathW.len-1)*sizeof(u16));
+		fullPathW[dirPathW.len-1] = '\\';
+		memcpy(fullPathW + dirPathW.len, pathW.ptr, pathW.len*sizeof(u16));
+
+		result.len = fullPathWSize;
+		result.ptr = mem_arena_alloc_array(arena, wchar_t, result.len);
+
+		if(PathCanonicalizeW(result.ptr, fullPathW))
+		{
+			result.len = lstrlenW(result.ptr);
+		}
+		else
+		{
+			result.ptr = 0;
+			result.len = 0;
+		}
+	}
+	mem_scratch_end(scratch);
+
+	return(result);
 }
 
 io_file_desc io_raw_open_at(io_file_desc dirFd, str8 path, file_access_rights accessRights, file_open_flags openFlags)
@@ -186,20 +202,10 @@ io_file_desc io_raw_open_at(io_file_desc dirFd, str8 path, file_access_rights ac
 	}
 	else
 	{
-		str16 dirPathW = win32_path_from_handle_null_terminated(scratch.arena, dirFd);
-
-		if(dirPathW.len && pathW.len)
+		str16 fullPathW = win32_get_path_at_null_terminated(scratch.arena, dirFd, path);
+		if(fullPathW.len)
 		{
-			u64 fullPathWSize = dirPathW.len + pathW.len;
-			LPWSTR fullPathW = mem_arena_alloc_array(scratch.arena, u16, fullPathWSize);
-			memcpy(fullPathW, dirPathW.ptr, (dirPathW.len-1)*sizeof(u16));
-			fullPathW[dirPathW.len-1] = '\\';
-			memcpy(fullPathW + dirPathW.len, pathW.ptr, pathW.len*sizeof(u16));
-
-			LPWSTR canonical = mem_arena_alloc_array(scratch.arena, wchar_t, fullPathWSize);
-			PathCanonicalizeW(canonical, fullPathW);
-
-			handle = CreateFileW(canonical, win32AccessFlags, win32ShareMode, NULL, win32CreateFlags, win32AttributeFlags, NULL);
+			handle = CreateFileW(fullPathW.ptr, win32AccessFlags, win32ShareMode, NULL, win32CreateFlags, win32AttributeFlags, NULL);
 		}
 	}
 	mem_scratch_end(scratch);
@@ -211,7 +217,19 @@ void io_raw_close(io_file_desc fd)
 	CloseHandle(fd);
 }
 
-io_error io_raw_stat(io_file_desc fd, file_status* status)
+bool io_raw_file_exists_at(io_file_desc dirFd, str8 path, file_open_flags openFlags)
+{
+	bool result = false;
+	io_file_desc fd = io_raw_open_at(dirFd, path, FILE_ACCESS_NONE, (openFlags & FILE_OPEN_SYMLINK));
+	if(!io_file_desc_is_nil(fd))
+	{
+		result = true;
+		io_raw_close(fd);
+	}
+	return(result);
+}
+
+io_error io_raw_fstat(io_file_desc fd, file_status* status)
 {
 	io_error error = IO_OK;
 
@@ -277,34 +295,21 @@ io_error io_raw_stat(io_file_desc fd, file_status* status)
 	return(error);
 }
 
-u64 io_raw_uid(io_file_desc fd)
-{
-	file_status status;
-	io_raw_stat(fd, &status);
-	return(status.uid);
-}
-
-io_error io_raw_stat_at(io_file_desc dirFd, str8 name, file_open_flags openFlags, file_status* status)
+io_error io_raw_fstat_at(io_file_desc dirFd, str8 name, file_open_flags openFlags, file_status* status)
 {
 	io_error error = IO_OK;
-	io_file_desc fd = io_raw_open_at(dirFd, name, FILE_ACCESS_READ, FILE_OPEN_SYMLINK);
+	io_file_desc fd = io_raw_open_at(dirFd, name, FILE_ACCESS_NONE, FILE_OPEN_SYMLINK);
 	if(io_file_desc_is_nil(fd))
 	{
 		error = io_raw_last_error();
 	}
 	else
 	{
-		error = io_raw_stat(fd, status);
+		error = io_raw_fstat(fd, status);
 		io_raw_close(fd);
 	}
 	return(error);
 }
-
-typedef struct io_raw_read_link_result
-{
-	io_error error;
-	str8 target;
-} io_raw_read_link_result;
 
 typedef struct
 {
@@ -376,166 +381,6 @@ io_raw_read_link_result io_raw_read_link_at(mem_arena* arena, io_file_desc dirFd
 	return(result);
 }
 
-typedef struct io_open_restrict_context
-{
-	io_error error;
-	u64 rootUID;
-	io_file_desc rootFd;
-	io_file_desc fd;
-
-} io_open_restrict_context;
-
-io_error io_open_restrict_enter(io_open_restrict_context* context, str8 name, file_access_rights accessRights, file_open_flags openFlags)
-{
-	io_file_desc nextFd = io_raw_open_at(context->fd, name, accessRights, openFlags);
-	if(io_file_desc_is_nil(nextFd))
-	{
-		context->error = io_raw_last_error();
-	}
-	else
-	{
-		if(context->fd != context->rootFd)
-		{
-			io_raw_close(context->fd);
-		}
-		context->fd = nextFd;
-	}
-	return(context->error);
-}
-
-typedef struct io_open_restrict_result
-{
-	io_error error;
-	HANDLE h;
-} io_open_restrict_result;
-
-
-io_open_restrict_result io_open_path_restrict(io_file_desc dirFd, str8 path, file_access_rights accessRights, file_open_flags openFlags)
-{
-	mem_arena_scope scratch = mem_scratch_begin();
-
-	str8_list sep = {0};
-	str8_list_push(scratch.arena, &sep, STR8("/"));
-	str8_list pathElements = str8_split(scratch.arena, path, sep);
-
-	io_open_restrict_context context = {
-		.error = IO_OK,
-		.rootFd = dirFd,
-		.rootUID = io_raw_uid(dirFd),
-		.fd = dirFd,
-	};
-
-	for_list(&pathElements.list, elt, str8_elt, listElt)
-	{
-		str8 name = elt->string;
-
-		if(!str8_cmp(name, STR8(".")))
-		{
-			//NOTE: skip;
-			continue;
-		}
-		else if(!str8_cmp(name, STR8("..")))
-		{
-			//NOTE: check that we don't escape root dir
-			if(io_raw_uid(context.fd) == context.rootUID)
-			{
-				context.error = IO_ERR_WALKOUT;
-				break;
-			}
-			else
-			{
-				io_open_restrict_enter(&context, name, FILE_ACCESS_READ, 0);
-			}
-		}
-		else
-		{
-			file_status status = {0};
-			context.error = io_raw_stat_at(context.fd, name, FILE_OPEN_SYMLINK, &status);
-			if(context.error)
-			{
-				break;
-			}
-
-			if(status.type == MP_FILE_SYMLINK)
-			{
-				//NOTE: read link target and add to file
-				io_raw_read_link_result link = io_raw_read_link_at(scratch.arena, context.fd, name);
-
-				if(link.error)
-				{
-					context.error = link.error;
-					break;
-				}
-
-				if(link.target.len == 0)
-				{
-					// skip
-				}
-				else if(  link.target.ptr[0] == '/'
-				       || link.target.ptr[0] == '\\')
-				{
-					context.error = IO_ERR_WALKOUT;
-					break;
-				}
-				else
-				{
-					str8_list linkElements = str8_split(scratch.arena, link.target, sep);
-					if(!list_empty(&linkElements.list))
-					{
-						//NOTE: insert linkElements into pathElements after elt
-						list_elt* tmp = elt->listElt.next;
-						elt->listElt.next = linkElements.list.first;
-						linkElements.list.last->next = tmp;
-						if(!tmp)
-						{
-							pathElements.list.last = linkElements.list.last;
-						}
-					}
-				}
-			}
-			else if(status.type == MP_FILE_DIRECTORY)
-			{
-				//NOTE: descend in directory
-				io_open_restrict_enter(&context, name, FILE_ACCESS_READ, 0);
-			}
-			else if(status.type == MP_FILE_REGULAR)
-			{
-				//NOTE: check that we're at the end of path and open that file
-				if(&elt->listElt != list_last(&pathElements.list))
-				{
-					context.error = IO_ERR_NOT_DIR;
-					break;
-				}
-				else
-				{
-					io_open_restrict_enter(&context, name, accessRights, openFlags);
-				}
-			}
-			else
-			{
-				context.error = IO_ERR_NO_ENTRY;
-			}
-		}
-	}
-
-	if(context.error)
-	{
-		if(context.fd != context.rootFd)
-		{
-			io_raw_close(context.fd);
-			context.fd = io_file_desc_nil();
-		}
-	}
-
-	io_open_restrict_result result = {
-		.error = context.error,
-		.h = context.fd
-	};
-
-	mem_scratch_end(scratch);
-	return(result);
-}
-
 io_cmp io_close(file_slot* slot, io_req* req, file_table* table)
 {
 	io_cmp cmp = {0};
@@ -557,7 +402,7 @@ io_cmp io_fstat(file_slot* slot, io_req* req)
 	}
 	else
 	{
-		slot->error = io_raw_stat(slot->fd, (file_status*)req->buffer);
+		slot->error = io_raw_fstat(slot->fd, (file_status*)req->buffer);
 		cmp.error = slot->error;
 	}
 	return(cmp);
@@ -602,17 +447,25 @@ io_cmp io_read(file_slot* slot, io_req* req)
 {
 	io_cmp cmp = {0};
 
-	DWORD bytesRead = 0;
-
-	if(!ReadFile(slot->fd, req->buffer, req->size, &bytesRead, NULL))
+	if(slot->type != MP_FILE_REGULAR)
 	{
-		slot->error = io_raw_last_error();
-		cmp.result = 0;
+		slot->error = IO_ERR_PERM;
 		cmp.error = slot->error;
 	}
 	else
 	{
-		cmp.result = bytesRead;
+		DWORD bytesRead = 0;
+
+		if(!ReadFile(slot->fd, req->buffer, req->size, &bytesRead, NULL))
+		{
+			slot->error = io_raw_last_error();
+			cmp.result = 0;
+			cmp.error = slot->error;
+		}
+		else
+		{
+			cmp.result = bytesRead;
+		}
 	}
 	return(cmp);
 }
@@ -621,19 +474,26 @@ io_cmp io_write(file_slot* slot, io_req* req)
 {
 	io_cmp cmp = {0};
 
-	DWORD bytesWritten = 0;
-
-	if(!WriteFile(slot->fd, req->buffer, req->size, &bytesWritten, NULL))
+	if(slot->type != MP_FILE_REGULAR)
 	{
-		slot->error = io_raw_last_error();
-		cmp.result = 0;
+		slot->error = IO_ERR_PERM;
 		cmp.error = slot->error;
 	}
 	else
 	{
-		cmp.result = bytesWritten;
-	}
+		DWORD bytesWritten = 0;
 
+		if(!WriteFile(slot->fd, req->buffer, req->size, &bytesWritten, NULL))
+		{
+			slot->error = io_raw_last_error();
+			cmp.result = 0;
+			cmp.error = slot->error;
+		}
+		else
+		{
+			cmp.result = bytesWritten;
+		}
+	}
 	return(cmp);
 }
 

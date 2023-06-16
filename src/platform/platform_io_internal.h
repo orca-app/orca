@@ -26,6 +26,7 @@ typedef struct file_slot
 	bool fatal;
 	list_elt freeListElt;
 
+	file_type type;
 	file_access_rights rights;
 	io_file_desc fd;
 

@@ -109,6 +109,7 @@ io_open_restrict_result io_open_restrict(io_file_desc dirFd, str8 path, file_acc
 
 	str8_list sep = {0};
 	str8_list_push(scratch.arena, &sep, STR8("/"));
+	str8_list_push(scratch.arena, &sep, STR8("\\"));
 	str8_list pathElements = str8_split(scratch.arena, path, sep);
 
 	io_open_restrict_context context = {
@@ -144,7 +145,7 @@ io_open_restrict_result io_open_restrict(io_file_desc dirFd, str8 path, file_acc
 			}
 
 			if(  !str8_cmp(name, STR8("."))
-		  	&& !atLastElement)
+			  && !atLastElement)
 			{
 				//NOTE: if we're not at the last element we can just skip '.' elements
 				continue;
@@ -277,7 +278,7 @@ io_cmp io_open_at(file_slot* atSlot, io_req* req, file_table* table)
 	}
 	else
 	{
-		slot->fd = -1;
+		slot->fd = io_file_desc_nil();
 		cmp.handle = file_handle_from_slot(table, slot);
 
 
@@ -321,6 +322,16 @@ io_cmp io_open_at(file_slot* atSlot, io_req* req, file_table* table)
 						slot->error = io_raw_last_error();
 					}
 				}
+			}
+		}
+
+		if(slot->error == IO_OK)
+		{
+			file_status status;
+			slot->error = io_raw_fstat(slot->fd, &status);
+			if(slot->error == IO_OK)
+			{
+				slot->type = status.type;
 			}
 		}
 
