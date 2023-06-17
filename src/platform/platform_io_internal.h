@@ -51,7 +51,7 @@ void file_slot_recycle(file_table* table, file_slot* slot);
 file_handle file_handle_from_slot(file_table* table, file_slot* slot);
 file_slot* file_slot_from_handle(file_table* table, file_handle handle);
 
-io_cmp io_wait_single_req_with_table(io_req* req, file_table* table);
+MP_API io_cmp io_wait_single_req_with_table(io_req* req, file_table* table);
 
 
 //-----------------------------------------------------------------------

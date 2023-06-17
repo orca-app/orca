@@ -180,7 +180,7 @@ MP_API bool mg_canvas_is_nil(mg_canvas canvas);
 
 MP_API mg_canvas mg_canvas_create(void);
 MP_API void mg_canvas_destroy(mg_canvas canvas);
-mg_canvas mg_canvas_set_current(mg_canvas canvas);
+MP_API mg_canvas mg_canvas_set_current(mg_canvas canvas);
 MP_API void mg_render(mg_surface surface, mg_canvas canvas);
 
 //------------------------------------------------------------------------------------------

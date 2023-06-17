@@ -72,11 +72,11 @@ typedef struct mg_primitive
 
 } mg_primitive;
 
-void mg_surface_render_commands(mg_surface surface,
-                                mg_color clearColor,
-                                u32 primitiveCount,
-                                mg_primitive* primitives,
-                                u32 eltCount,
-                                mg_path_elt* elements);
+MP_API void mg_surface_render_commands(mg_surface surface,
+                                       mg_color clearColor,
+                                       u32 primitiveCount,
+                                       mg_primitive* primitives,
+                                       u32 eltCount,
+                                       mg_path_elt* elements);
 
 #endif //__GRAPHICS_COMMON_H_

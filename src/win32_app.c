@@ -771,6 +771,32 @@ mp_rect mp_window_get_content_rect(mp_window window)
 	return(rect);
 }
 
+//TODO: set content rect, center
+void mp_window_center(mp_window window)
+{
+	mp_window_data* windowData = mp_window_ptr_from_handle(window);
+	if(windowData)
+	{
+		RECT winRect;
+		GetWindowRect(windowData->win32.hWnd, &winRect);
+
+		HMONITOR monitor = MonitorFromPoint((POINT){winRect.left, winRect.top}, MONITOR_DEFAULTTOPRIMARY);
+		MONITORINFO monitorInfo = {.cbSize = sizeof(MONITORINFO)};
+		GetMonitorInfoW(monitor, &monitorInfo);
+
+		int monW = monitorInfo.rcWork.right - monitorInfo.rcWork.left;
+		int monH = monitorInfo.rcWork.bottom - monitorInfo.rcWork.top;
+		int winW = winRect.right - winRect.left;
+		int winH = winRect.bottom - winRect.top;
+
+		int winX = 0.5*(monW-winW);
+		int winY = 0.5*(monW-winW);
+
+		SetWindowPos(windowData->win32.hWnd, NULL, winX, winY, winW, winH, SWP_NOZORDER|SWP_NOACTIVATE);
+	}
+}
+
+
 //--------------------------------------------------------------------------------
 // clipboard functions
 //--------------------------------------------------------------------------------
