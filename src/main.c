@@ -285,6 +285,7 @@ char m3_type_to_tag(M3ValueType type)
 			return('d');
 
 		case c_m3Type_unknown:
+		default:
 			return('!');
 	}
 }

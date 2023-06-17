@@ -28,9 +28,12 @@ if %target% == milepost (
 if %target% == orca (
 	echo building orca
 
+	set pthread_dir=..\vcpkg\packages\pthreads_x64-windows
+
 	::copy libraries
 	copy milepost\bin\milepost.dll bin
 	copy milepost\bin\milepost.dll.lib bin
+	copy %pthread_dir%\bin\pthreadVC3.dll bin
 
 	::generate wasm3 api bindings
 	python3 scripts\bindgen.py core src
@@ -48,8 +51,8 @@ if %target% == orca (
 	        --wasm3-bindings src\io_api_bind_gen.c
 
 	::compile orca
-	set INCLUDES=/I src /I sdk /I ext\wasm3\source /I milepost\src /I milepost\ext /I ..\vcpkg\packages\pthreads_x64-windows\include
-	set LIBS=/LIBPATH:bin /LIBPATH:..\vcpkg\packages\pthreads_x64-windows\lib milepost.dll.lib wasm3.lib pthreadVC3.lib
+	set INCLUDES=/I src /I sdk /I ext\wasm3\source /I milepost\src /I milepost\ext /I %pthread_dir%\include
+	set LIBS=/LIBPATH:bin /LIBPATH:%pthread_dir%\lib milepost.dll.lib wasm3.lib pthreadVC3.lib
 
 	cl /Zi /Zc:preprocessor /std:c11 %INCLUDES% src\main.c /link %LIBS% /out:bin\orca.exe
 )
