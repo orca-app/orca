@@ -75,11 +75,18 @@ void* mem_arena_alloc(mem_arena* arena, u64 size)
 
 	u64 nextOffset = chunk->offset + size;
 	u64 lastCap = chunk->cap;
-	while(chunk && nextOffset > chunk->cap)
+	while(nextOffset > chunk->cap)
 	{
 		chunk = list_next_entry(&arena->chunks, chunk, mem_arena_chunk, listElt);
-		nextOffset = chunk->offset + size;
-		lastCap = chunk->cap;
+		if(chunk)
+		{
+			nextOffset = chunk->offset + size;
+			lastCap = chunk->cap;
+		}
+		else
+		{
+			break;
+		}
 	}
 	if(!chunk)
 	{
