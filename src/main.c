@@ -540,7 +540,9 @@ void* orca_runloop(void* user)
 					{
 						if(event->key.code == MP_KEY_D && (event->key.mods & (MP_KEYMOD_SHIFT | MP_KEYMOD_CMD)))
 						{
+						#if 0 // EPILEPSY WARNING! on windows this has a bug which causes a pretty strong stroboscopic effect
 							debug_overlay_toggle(&app->debugOverlay);
+						#endif
 						}
 
 						if(eventHandlers[G_EVENT_KEY_DOWN])
