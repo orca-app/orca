@@ -321,6 +321,14 @@ void* orca_runloop(void* user)
 	if(!file)
 	{
 		log_error("Couldn't load wasm module at %s\n", modulePathCString);
+
+		char* options[] = {"OK"};
+		mp_alert_popup("Error",
+		               "The application couldn't load: web assembly module not found",
+		               1,
+		               options);
+
+		mp_request_quit();
 		return((void*)-1);
 	}
 
@@ -362,6 +370,14 @@ void* orca_runloop(void* user)
 		m3_GetErrorInfo(app->runtime.m3Runtime, &errInfo);
 
 		log_error("wasm error: %s\n", errInfo.message);
+
+		char* options[] = {"OK"};
+		mp_alert_popup("Error",
+		               "The application couldn't load: can't compile web assembly module",
+		               1,
+		               options);
+
+		mp_request_quit();
 		return((void*)-1);
 	}
 
