@@ -9,7 +9,7 @@
 #ifndef __PLATFORM_MEMORY_H_
 #define __PLATFORM_MEMORY_H_
 
-#include"typedefs.h"
+#include"util/typedefs.h"
 #include"platform.h"
 
 #ifdef __cplusplus

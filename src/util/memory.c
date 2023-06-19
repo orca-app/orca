@@ -6,9 +6,9 @@
 *	@revision:
 *
 *****************************************************************/
-#include"platform.h"
+#include"platform/platform.h"
 #include"memory.h"
-#include"platform_memory.h"
+#include"platform/platform_memory.h"
 #include"macro_helpers.h"
 
 #if PLATFORM_ORCA

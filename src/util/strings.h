@@ -12,8 +12,8 @@
 #include"typedefs.h"
 #include"lists.h"
 #include"memory.h"
-#include"platform_strings.h"
-#include"platform_varg.h"
+#include"platform/platform_strings.h"
+#include"platform/platform_varg.h"
 
 #ifdef __cplusplus
 extern "C" {

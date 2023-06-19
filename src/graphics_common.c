@@ -7,8 +7,8 @@
 *
 *****************************************************************/
 
-#include"platform.h"
-#include"platform_math.h"
+#include"platform/platform.h"
+#include"platform/platform_math.h"
 
 #if !PLATFORM_ORCA
 	#define STB_IMAGE_IMPLEMENTATION
@@ -18,8 +18,8 @@
 	#include"stb_truetype.h"
 #endif
 
-#include"platform_log.h"
-#include"platform_assert.h"
+#include"platform/platform_log.h"
+#include"platform/platform_assert.h"
 #include"graphics_common.h"
 
 typedef struct mg_glyph_map_entry
