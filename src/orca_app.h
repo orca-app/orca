@@ -42,7 +42,7 @@ typedef struct g_event_handler_desc
 } g_event_handler_desc;
 
 const g_event_handler_desc G_EVENT_HANDLER_DESC[] = {
-	#define STR8LIT(s) {sizeof(s), s} //NOTE: msvc doesn't accept STR8(s) as compile-time constant...
+	#define STR8LIT(s) {sizeof(s)-1, s} //NOTE: msvc doesn't accept STR8(s) as compile-time constant...
 	#define G_EVENT_HANDLER_DESC_ENTRY(kind, name, rets, args) {STR8LIT(name), STR8LIT(rets), STR8LIT(args)},
 
 	G_EVENTS(G_EVENT_HANDLER_DESC_ENTRY)

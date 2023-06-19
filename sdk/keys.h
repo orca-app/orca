@@ -9,7 +9,7 @@
 #ifndef __KEYS_H_
 #define __KEYS_H_
 
-#include"typedefs.h"
+#include"util/typedefs.h"
 
 typedef i32 key_code;
 static const key_code KEY_UNKNOWN    = -1,
