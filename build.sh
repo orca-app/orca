@@ -77,7 +77,6 @@ if [ $target = 'lib' ] ; then
 
 	# add executable path to rpath. Client executable can still add its own rpaths if needed, e.g. @executable_path/libs/ etc.
 	install_name_tool -id "@rpath/libmilepost.dylib" $BINDIR/libmilepost.dylib
-	install_name_tool -add_rpath "@executable_path" $BINDIR/libmilepost.dylib
 
 else
 	# additional targets

@@ -13,3 +13,5 @@ xcrun -sdk macosx metallib -o shader.metallib shader.air
 cp shader.metallib $BINDIR/triangle_shader.metallib
 
 clang -g $FLAGS $LIBS $INCLUDES -o $BINDIR/example_metal_triangle main.m
+
+install_name_tool -add_rpath "@executable_path" $BINDIR/example_metal_triangle
