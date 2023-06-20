@@ -322,7 +322,7 @@ void* orca_runloop(void* user)
 	{
 		log_error("Couldn't load wasm module at %s\n", modulePathCString);
 
-		char* options[] = {"OK"};
+		const char* options[] = {"OK"};
 		mp_alert_popup("Error",
 		               "The application couldn't load: web assembly module not found",
 		               1,
@@ -371,7 +371,7 @@ void* orca_runloop(void* user)
 
 		log_error("wasm error: %s\n", errInfo.message);
 
-		char* options[] = {"OK"};
+		const char* options[] = {"OK"};
 		mp_alert_popup("Error",
 		               "The application couldn't load: can't compile web assembly module",
 		               1,
