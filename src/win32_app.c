@@ -272,7 +272,7 @@ static void win32_update_child_layers(mp_window_data* window)
 		             point.y + clipped.y,
 		             clipped.w,
 		             clipped.h,
-		             SWP_NOACTIVATE|SWP_NOOWNERZORDER);
+		             SWP_NOACTIVATE|SWP_NOOWNERZORDER|SWP_NOZORDER);
 
 		insertAfter = layer->hWnd;
 	}
@@ -313,6 +313,11 @@ LRESULT WinProc(HWND windowHandle, UINT message, WPARAM wParam, LPARAM lParam)
 		} break;
 
 		//TODO: enter/exit size & move
+		case WM_WINDOWPOSCHANGED:
+		{
+			win32_update_child_layers(mpWindow);
+			result = DefWindowProc(windowHandle, message, wParam, lParam);
+		} break;
 
 		case WM_SIZING:
 		{
@@ -995,6 +1000,7 @@ void mg_win32_surface_host_connect(mg_surface_data* surface, mg_surface_id remot
 
 void mg_surface_cleanup(mg_surface_data* surface)
 {
+	list_remove(&surface->layer.parent->win32.layers, &surface->layer.listElt);
 	DestroyWindow(surface->layer.hWnd);
 }
 
@@ -1060,6 +1066,7 @@ void mg_surface_init_for_window(mg_surface_data* surface, mp_window_data* window
 	}
 
 	surface->layer.frame = (mp_rect){0, 0, width, height};
+	surface->layer.parent = window;
 	list_append(&window->win32.layers, &surface->layer.listElt);
 }
 

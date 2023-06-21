@@ -47,6 +47,7 @@ int main()
 	}
 //*/
 	// start app
+	mp_window_center(window);
 	mp_window_bring_to_front(window);
 	mp_window_focus(window);
 
