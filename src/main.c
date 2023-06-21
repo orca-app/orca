@@ -492,7 +492,7 @@ void* orca_runloop(void* user)
 					mp_rect frame = {0, 0, event->frame.rect.w, event->frame.rect.h};
 					mg_surface_set_frame(app->surface, frame);
 
-					mg_surface_set_frame(app->debugOverlay.surface, frame);
+//					mg_surface_set_frame(app->debugOverlay.surface, frame);
 
 					if(eventHandlers[G_EVENT_FRAME_RESIZE])
 					{
@@ -540,7 +540,7 @@ void* orca_runloop(void* user)
 					{
 						if(event->key.code == MP_KEY_D && (event->key.mods & (MP_KEYMOD_SHIFT | MP_KEYMOD_CMD)))
 						{
-						#if 0 // EPILEPSY WARNING! on windows this has a bug which causes a pretty strong stroboscopic effect
+						#if 1 // EPILEPSY WARNING! on windows this has a bug which causes a pretty strong stroboscopic effect
 							debug_overlay_toggle(&app->debugOverlay);
 						#endif
 						}
@@ -568,9 +568,30 @@ void* orca_runloop(void* user)
 
 		if(eventHandlers[G_EVENT_FRAME_REFRESH])
 		{
-			m3_Call(eventHandlers[G_EVENT_FRAME_REFRESH], 0, 0);
+//			m3_Call(eventHandlers[G_EVENT_FRAME_REFRESH], 0, 0);
 		}
 
+
+		mg_canvas_set_current(app->canvas);
+		mg_surface_prepare(app->surface);
+			mg_set_color_rgba(0, 0, 0, 0);
+			mg_clear();
+			mg_render(app->surface, app->canvas);
+		mg_surface_present(app->surface);
+
+		mg_canvas_set_current(app->debugOverlay.canvas);
+		mg_surface_prepare(app->debugOverlay.surface);
+
+			mg_set_color_rgba(1, 0, 0, 0);
+			mg_clear();
+//			mg_set_color_rgba(1, 0, 0, 1);
+//			mg_rectangle_fill(10, 10, 300, 200);
+
+			mg_render(app->debugOverlay.surface, app->debugOverlay.canvas);
+		mg_surface_present(app->debugOverlay.surface);
+
+
+		/*
 		if(app->debugOverlay.show)
 		{
 			ui_style debugUIDefaultStyle = {.bgColor = {0},
@@ -703,18 +724,17 @@ void* orca_runloop(void* user)
 
 			mg_surface_prepare(app->debugOverlay.surface);
 			mg_canvas_set_current(app->debugOverlay.canvas);
-				ui_draw();
-			/*
-				mg_set_font(app->debugOverlay.font);
-				mg_set_font_size(32);
-				mg_set_color_rgba(0.2, 0.2, 0.2, 1);
-				mg_move_to(30, 30);
-				mg_text_outlines(STR8("Debug Overlay"));
-				mg_fill();
-			*/
+	//			ui_draw();
+
+			mg_set_color_rgba(0, 0, 0, 0);
+			mg_clear();
+			mg_set_color_rgba(1, 0, 0, 1);
+			mg_rectangle_fill(10, 10, 300, 200);
+
 			mg_render(app->debugOverlay.surface, app->debugOverlay.canvas);
 			mg_surface_present(app->debugOverlay.surface);
 		}
+*/
 		mem_arena_clear(mem_scratch());
 	}
 
@@ -733,23 +753,28 @@ int main(int argc, char** argv)
 	//NOTE: create window and surfaces
 	mp_rect windowRect = {.x = 100, .y = 100, .w = 810, .h = 610};
 	orca->window = mp_window_create(windowRect, "orca", 0);
+
 	orca->surface = mg_surface_create_for_window(orca->window, MG_CANVAS);
 	orca->canvas = mg_canvas_create();
-
 	mg_surface_swap_interval(orca->surface, 1);
 
-	orca->debugOverlay.show = false;
+
+	orca->debugOverlay.show = true;
 	orca->debugOverlay.surface = mg_surface_create_for_window(orca->window, MG_CANVAS);
 	orca->debugOverlay.canvas = mg_canvas_create();
-	orca->debugOverlay.fontReg = orca_font_create("../resources/Menlo.ttf");
-	orca->debugOverlay.fontBold = orca_font_create("../resources/Menlo Bold.ttf");
+//	orca->debugOverlay.fontReg = orca_font_create("../resources/Menlo.ttf");
+//	orca->debugOverlay.fontBold = orca_font_create("../resources/Menlo Bold.ttf");
 	orca->debugOverlay.maxEntries = 200;
 	mem_arena_init(&orca->debugOverlay.logArena);
 
-	mg_surface_set_hidden(orca->debugOverlay.surface, true);
+	mg_surface_swap_interval(orca->debugOverlay.surface, 1);
+
+
+//	mg_surface_set_hidden(orca->debugOverlay.surface, true);
 
 	//WARN: this is a workaround to avoid stalling the first few times we acquire drawables from
 	//      the surfaces... This should probably be fixed in the implementation of mtl_surface!
+/*
 	for(int i=0; i<4; i++)
 	{
 		mg_surface_prepare(orca->surface);
@@ -762,28 +787,60 @@ int main(int argc, char** argv)
 		mg_render(orca->debugOverlay.surface, orca->debugOverlay.canvas);
 		mg_surface_present(orca->debugOverlay.surface);
 	}
-
-	ui_init(&orca->debugOverlay.ui);
+//*/
+//	ui_init(&orca->debugOverlay.ui);
 
 	//NOTE: show window and start runloop
 	mp_window_bring_to_front(orca->window);
 	mp_window_focus(orca->window);
 	mp_window_center(orca->window);
 
-	pthread_t runloopThread;
-	pthread_create(&runloopThread, 0, orca_runloop, 0);
+//	pthread_t runloopThread;
+//	pthread_create(&runloopThread, 0, orca_runloop, 0);
 
 	while(!mp_should_quit())
 	{
 		mp_pump_events(0);
 		//TODO: what to do with mem scratch here?
+
+		mp_event* event = 0;
+		while((event = mp_next_event(mem_scratch())) != 0)
+		{
+			switch(event->type)
+			{
+				case MP_EVENT_WINDOW_CLOSE:
+				{
+					mp_request_quit();
+				} break;
+
+				default:
+					break;
+			}
+		}
+
+		mg_surface_prepare(orca->surface);
+		mg_canvas_set_current(orca->canvas);
+			mg_set_color_rgba(0, 1, 0, 1);
+			mg_clear();
+		mg_render(orca->surface, orca->canvas);
+		mg_surface_present(orca->surface);
+
+		mg_surface_prepare(orca->debugOverlay.surface);
+		mg_canvas_set_current(orca->debugOverlay.canvas);
+			mg_set_color_rgba(0, 0, 0, 0);
+			mg_clear();
+			mg_set_color_rgba(1, 0, 0, 1);
+			mg_rectangle_fill(100, 100, 200, 100);
+		mg_render(orca->debugOverlay.surface, orca->debugOverlay.canvas);
+		mg_surface_present(orca->debugOverlay.surface);
+
 	}
 
 	void* res;
-	pthread_join(runloopThread, &res);
+//	pthread_join(runloopThread, &res);
 
-	mg_canvas_destroy(orca->canvas);
-	mg_surface_destroy(orca->surface);
+//	mg_canvas_destroy(orca->canvas);
+//	mg_surface_destroy(orca->surface);
 	mp_window_destroy(orca->window);
 
 	mp_terminate();
