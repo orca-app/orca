@@ -1957,9 +1957,6 @@ mg_canvas_backend* gl_canvas_backend_create(mg_wgl_surface* surface)
 	mg_gl_canvas_backend* backend = malloc_type(mg_gl_canvas_backend);
 	if(backend)
 	{
-		//////////////////////////////////////////////////////
-		//TODO
-		//////////////////////////////////////////////////////
 		memset(backend, 0, sizeof(mg_gl_canvas_backend));
 		backend->surface = surface;
 
@@ -1969,14 +1966,6 @@ mg_canvas_backend* gl_canvas_backend_create(mg_wgl_surface* surface)
 		backend->interface.imageCreate = mg_gl_canvas_image_create;
 		backend->interface.imageDestroy = mg_gl_canvas_image_destroy;
 		backend->interface.imageUploadRegion = mg_gl_canvas_image_upload_region;
-
-		/*
-		backend->interface.destroy = mg_gl_canvas_destroy;
-		backend->interface.begin = mg_gl_canvas_begin;
-		backend->interface.end = mg_gl_canvas_end;
-		backend->interface.clear = mg_gl_canvas_clear;
-		backend->interface.drawBatch = mg_gl_canvas_draw_batch;
-		*/
 
 		surface->interface.prepare((mg_surface_data*)surface);
 
