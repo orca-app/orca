@@ -23,7 +23,7 @@ int main()
 		return(-1);
 	}
 	mg_surface_swap_interval(surface1, 0);
-
+//*
 	mg_surface surface2 = mg_surface_create_for_window(window, MG_CANVAS);
 	if(mg_surface_is_nil(surface2))
 	{
@@ -31,21 +31,21 @@ int main()
 		return(-1);
 	}
 	mg_surface_swap_interval(surface2, 0);
-
+//*/
 	mg_canvas canvas1 = mg_canvas_create();
 	if(mg_canvas_is_nil(canvas1))
 	{
 		printf("Error: couldn't create canvas 1\n");
 		return(-1);
 	}
-
+//*
 	mg_canvas canvas2 = mg_canvas_create();
 	if(mg_canvas_is_nil(canvas2))
 	{
 		printf("Error: couldn't create canvas 2\n");
 		return(-1);
 	}
-
+//*/
 	// start app
 	mp_window_bring_to_front(window);
 	mp_window_focus(window);
@@ -73,19 +73,26 @@ int main()
 		mg_surface_prepare(surface1);
 		mg_canvas_set_current(canvas1);
 
+			mg_set_color_rgba(0, 0, 0.5, 0.5);
+			mg_clear();
+
 			mg_set_color_rgba(1, 0, 0, 1);
 			mg_rectangle_fill(100, 100, 300, 150);
 
 		mg_render(surface1, canvas1);
 
+//*
 		mg_surface_prepare(surface2);
 		mg_canvas_set_current(canvas2);
+
+			mg_set_color_rgba(0, 0, 0, 0);
+			mg_clear();
 
 			mg_set_color_rgba(0, 0, 1, 1);
 			mg_rectangle_fill(300, 300, 300, 200);
 
 		mg_render(surface2, canvas2);
-
+//*/
 
 		mg_surface_present(surface1);
 		mg_surface_present(surface2);

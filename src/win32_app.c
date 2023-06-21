@@ -7,6 +7,7 @@
 *
 *****************************************************************/
 
+#include<dwmapi.h>
 #include"mp_app.c"
 
 void mp_init_keys()
@@ -245,6 +246,38 @@ static void process_wheel_event(mp_window_data* window, f32 x, f32 y)
 	mp_queue_event(&event);
 }
 
+static void win32_update_child_layers(mp_window_data* window)
+{
+	RECT clientRect;
+	GetClientRect(window->win32.hWnd, &clientRect);
+	POINT point = {0};
+	ClientToScreen(window->win32.hWnd, &point);
+
+	int w = clientRect.right - clientRect.left;
+	int h = clientRect.bottom - clientRect.top;
+
+	HWND insertAfter = window->win32.hWnd;
+
+	for_list(&window->win32.layers, layer, mp_layer, listElt)
+	{
+		mp_rect clipped = {0};
+		clipped.x = Clamp(layer->frame.x, 0, w);
+		clipped.y = Clamp(layer->frame.y, 0, h);
+		clipped.w = Clamp(layer->frame.w, 0, w - layer->frame.x);
+		clipped.h = Clamp(layer->frame.h, 0, h - layer->frame.y);
+
+		SetWindowPos(layer->hWnd,
+		             insertAfter,
+		             point.x + clipped.x,
+		             point.y + clipped.y,
+		             clipped.w,
+		             clipped.h,
+		             SWP_NOACTIVATE|SWP_NOOWNERZORDER);
+
+		insertAfter = layer->hWnd;
+	}
+}
+
 LRESULT WinProc(HWND windowHandle, UINT message, WPARAM wParam, LPARAM lParam)
 {
 	LRESULT result = 0;
@@ -290,8 +323,10 @@ LRESULT WinProc(HWND windowHandle, UINT message, WPARAM wParam, LPARAM lParam)
 			mp_event event = {0};
 			event.window = mp_window_handle_from_ptr(mpWindow);
 			event.type = MP_EVENT_WINDOW_RESIZE;
-			event.frame.rect = (mp_rect){rect->bottom, rect->left, rect->top - rect->bottom, rect->right - rect->left};
+			event.frame.rect = (mp_rect){rect->left, rect->bottom, rect->bottom - rect->top, rect->right - rect->left};
 			mp_queue_event(&event);
+
+			win32_update_child_layers(mpWindow);
 		} break;
 
 		case WM_MOVING:
@@ -303,8 +338,10 @@ LRESULT WinProc(HWND windowHandle, UINT message, WPARAM wParam, LPARAM lParam)
 			mp_event event = {0};
 			event.window = mp_window_handle_from_ptr(mpWindow);
 			event.type = MP_EVENT_WINDOW_MOVE;
-			event.frame.rect = (mp_rect){rect->bottom, rect->left, rect->top - rect->bottom, rect->right - rect->left};
+			event.frame.rect = (mp_rect){rect->left, rect->bottom, rect->bottom - rect->top, rect->right - rect->left};
 			mp_queue_event(&event);
+
+			win32_update_child_layers(mpWindow);
 		} break;
 
 		case WM_SETFOCUS:
@@ -566,6 +603,7 @@ mp_window mp_window_create(mp_rect rect, const char* title, mp_window_style styl
 	quit:;
 	mp_window_data* window = mp_window_alloc();
 	window->win32.hWnd = windowHandle;
+	window->win32.layers = (list_info){0};
 
 	SetPropW(windowHandle, L"MilePost", window);
 
@@ -992,16 +1030,37 @@ void mg_surface_init_for_window(mg_surface_data* surface, mp_window_data* window
 
 	RECT parentRect;
 	GetClientRect(window->win32.hWnd, &parentRect);
+	POINT point = {0};
+	ClientToScreen(window->win32.hWnd, &point);
+
 	int width = parentRect.right - parentRect.left;
 	int height = parentRect.bottom - parentRect.top;
 
 	surface->layer.hWnd = CreateWindow("layer_window_class", "layer",
-	                            WS_CHILD | WS_VISIBLE,
-	                            0, 0, width, height,
-	                            window->win32.hWnd,
-	                            0,
-	                            layerWindowClass.hInstance,
-	                            0);
+	                                     WS_POPUP | WS_VISIBLE,
+	                                     point.x, point.y, width, height,
+	                                     window->win32.hWnd,
+	                                     0,
+	                                     layerWindowClass.hInstance,
+	                                     0);
+
+	HRGN region = CreateRectRgn(0, 0, -1, -1);
+
+	DWM_BLURBEHIND bb = {0};
+	bb.dwFlags = DWM_BB_ENABLE | DWM_BB_BLURREGION;
+	bb.hRgnBlur = region;
+	bb.fEnable = TRUE;
+
+	HRESULT res = DwmEnableBlurBehindWindow(surface->layer.hWnd, &bb);
+
+	DeleteObject(region);
+	if(res != S_OK)
+	{
+		log_error("couldn't enable blur behind\n");
+	}
+
+	surface->layer.frame = (mp_rect){0, 0, width, height};
+	list_append(&window->win32.layers, &surface->layer.listElt);
 }
 
 void mg_surface_init_remote(mg_surface_data* surface, u32 width, u32 height)

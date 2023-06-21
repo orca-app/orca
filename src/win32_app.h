@@ -20,10 +20,13 @@
 typedef struct win32_window_data
 {
 	HWND hWnd;
+	list_info layers;
 } win32_window_data;
 
 typedef struct mp_layer
 {
+	list_elt listElt;
+	mp_rect frame;
 	HWND hWnd;
 } mp_layer;
 

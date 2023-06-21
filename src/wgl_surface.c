@@ -149,6 +149,7 @@ void mg_wgl_surface_prepare(mg_surface_data* interface)
 void mg_wgl_surface_present(mg_surface_data* interface)
 {
 	mg_wgl_surface* surface = (mg_wgl_surface*)interface;
+
 	SwapBuffers(surface->hDC);
 }
 
@@ -223,7 +224,12 @@ mg_surface_data* mg_wgl_surface_create_for_window(mp_window window)
 				WGL_SUPPORT_OPENGL_ARB, GL_TRUE,
 				WGL_DOUBLE_BUFFER_ARB, GL_TRUE,
 				WGL_PIXEL_TYPE_ARB, WGL_TYPE_RGBA_ARB,
+				WGL_TRANSPARENT_ARB, TRUE,
 				WGL_COLOR_BITS_ARB, 32,
+				WGL_RED_BITS_ARB, 8,
+				WGL_GREEN_BITS_ARB, 8,
+				WGL_BLUE_BITS_ARB, 8,
+				WGL_ALPHA_BITS_ARB, 8,
 				WGL_DEPTH_BITS_ARB, 24,
 				WGL_STENCIL_BITS_ARB, 8,
 				0};
