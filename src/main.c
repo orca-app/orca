@@ -567,11 +567,6 @@ void* orca_runloop(void* user)
 			}
 		}
 
-		if(eventHandlers[G_EVENT_FRAME_REFRESH])
-		{
-			m3_Call(eventHandlers[G_EVENT_FRAME_REFRESH], 0, 0);
-		}
-
 		if(app->debugOverlay.show)
 		{
 			ui_style debugUIDefaultStyle = {.bgColor = {0},
@@ -707,6 +702,17 @@ void* orca_runloop(void* user)
 				ui_draw();
 
 			mg_render(app->debugOverlay.surface, app->debugOverlay.canvas);
+		}
+
+		if(eventHandlers[G_EVENT_FRAME_REFRESH])
+		{
+			mg_surface_prepare(app->surface);
+			m3_Call(eventHandlers[G_EVENT_FRAME_REFRESH], 0, 0);
+		}
+
+		if(app->debugOverlay.show)
+		{
+			mg_surface_prepare(app->debugOverlay.surface);
 			mg_surface_present(app->debugOverlay.surface);
 		}
 
@@ -746,6 +752,7 @@ int main(int argc, char** argv)
 	mg_surface_set_hidden(app->debugOverlay.surface, true);
 
 	mg_surface dummy = mg_surface_create_for_window(app->window, MG_CANVAS);
+	mg_surface_destroy(dummy);
 
 	//WARN: this is a workaround to avoid stalling the first few times we acquire drawables from
 	//      the surfaces... This should probably be fixed in the implementation of mtl_surface!
