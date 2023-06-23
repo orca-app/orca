@@ -45,9 +45,9 @@ typedef enum { FILE_SEEK_SET, FILE_SEEK_END, FILE_SEEK_CURRENT } file_whence;
 typedef u64 io_req_id;
 
 typedef u32 io_op;
-enum
+enum _io_op
 {
-	IO_OP_OPEN_AT,
+	IO_OP_OPEN_AT = 0,
 	IO_OP_CLOSE,
 
 	IO_OP_FSTAT,
