@@ -751,13 +751,12 @@ int main(int argc, char** argv)
 
 	mg_surface_set_hidden(app->debugOverlay.surface, true);
 
-	mg_surface dummy = mg_surface_create_for_window(app->window, MG_CANVAS);
-	mg_surface_destroy(dummy);
+	mg_surface_deselect();
 
 	//WARN: this is a workaround to avoid stalling the first few times we acquire drawables from
 	//      the surfaces... This should probably be fixed in the implementation of mtl_surface!
-/*
-	for(int i=0; i<4; i++)
+//*
+	for(int i=0; i<3; i++)
 	{
 		mg_surface_prepare(app->surface);
 		mg_canvas_set_current(app->canvas);
