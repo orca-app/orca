@@ -9,6 +9,12 @@
 #include"graphics_surface.h"
 
 //---------------------------------------------------------------
+// per-thread selected surface
+//---------------------------------------------------------------
+
+mp_thread_local mg_surface __mgSelectedSurface = {0};
+
+//---------------------------------------------------------------
 // typed handles functions
 //---------------------------------------------------------------
 
@@ -208,13 +214,32 @@ void mg_surface_destroy(mg_surface handle)
 	}
 }
 
+void mg_surface_deselect()
+{
+	DEBUG_ASSERT(__mgData.init);
+
+	mg_surface_data* prevSurface = mg_surface_data_from_handle(__mgSelectedSurface);
+	if(prevSurface && prevSurface->deselect)
+	{
+		prevSurface->deselect(prevSurface);
+	}
+	__mgSelectedSurface = mg_surface_nil();
+}
+
 void mg_surface_prepare(mg_surface surface)
 {
 	DEBUG_ASSERT(__mgData.init);
+
+	if(surface.h != __mgSelectedSurface.h)
+	{
+		mg_surface_deselect();
+	}
+
 	mg_surface_data* surfaceData = mg_surface_data_from_handle(surface);
 	if(surfaceData && surfaceData->prepare)
 	{
 		surfaceData->prepare(surfaceData);
+		__mgSelectedSurface = surface;
 	}
 }
 

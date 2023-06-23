@@ -153,6 +153,11 @@ void mg_wgl_surface_present(mg_surface_data* interface)
 	SwapBuffers(surface->hDC);
 }
 
+void mg_wgl_surface_deselect(mg_surface_data* interface)
+{
+	wglMakeCurrent(NULL, NULL);
+}
+
 void mg_wgl_surface_swap_interval(mg_surface_data* interface, int swap)
 {
 	mg_wgl_surface* surface = (mg_wgl_surface*)interface;

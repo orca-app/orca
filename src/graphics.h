@@ -99,8 +99,11 @@ MP_API bool mg_surface_is_nil(mg_surface surface);
 
 MP_API mg_surface mg_surface_create_for_window(mp_window window, mg_surface_api api);
 MP_API void mg_surface_destroy(mg_surface surface);
+
 MP_API void mg_surface_prepare(mg_surface surface);
 MP_API void mg_surface_present(mg_surface surface);
+MP_API void mg_surface_deselect(void);
+
 MP_API void mg_surface_swap_interval(mg_surface surface, int swap);
 MP_API vec2 mg_surface_contents_scaling(mg_surface surface);
 MP_API mp_rect mg_surface_get_frame(mg_surface surface);

@@ -158,6 +158,7 @@ mg_surface_data* mg_mtl_surface_create_for_window(mp_window window)
 		surface->interface.api = MG_METAL;
 		surface->interface.destroy = mg_mtl_surface_destroy;
 		surface->interface.prepare = mg_mtl_surface_prepare;
+		surface->interface.deselect = 0;
 		surface->interface.present = mg_mtl_surface_present;
 		surface->interface.swapInterval = mg_mtl_surface_swap_interval;
 
