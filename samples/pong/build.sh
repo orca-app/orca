@@ -12,4 +12,4 @@ wasmFlags="--target=wasm32 \
 
 /usr/local/opt/llvm/bin/clang $wasmFlags -o ./module.wasm ../../sdk/orca.c src/main.c
 
-python3 ../../scripts/mkapp.py --orca-dir ../.. --name Pong --icon icon.png --data-dir dir1 module.wasm
+python3 ../../scripts/mkapp.py --orca-dir ../.. --name Pong --icon icon.png --data-file data/ball.png module.wasm
