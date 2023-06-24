@@ -184,6 +184,8 @@ ORCA_EXPORT void OnFrameRefresh(void)
 	mg_rectangle_fill(paddle.x, paddle.y, paddle.w, paddle.h);
 
 	mg_image_draw(image, ball);
+	// mg_set_color(ballColor);
+	// mg_circle_fill(ball.x+ball.w/2, ball.y + ball.w/2, ball.w/2.);
 
     mg_matrix_pop();
 
