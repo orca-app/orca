@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -euo pipefail
+
 DEBUG_FLAGS="-g -DDEBUG -DLOG_COMPILE_DEBUG"
 #DEBUG_FLAGS="-O3"
 
@@ -26,6 +28,8 @@ if [ $OS = "Darwin" ] ; then
 	SYS_LIBS=''
 	FLAGS="-mmacos-version-min=10.15.4 -maes"
 	CFLAGS="-std=c11"
+	SDKDIR=/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk
+	LDFLAGS="-L$SDKDIR/usr/lib -F$SDKDIR/System/Library/Frameworks/"
 
 elif [ $OS = "Linux" ] ; then
 	echo "Error: Linux is not supported yet"
@@ -69,7 +73,7 @@ if [ $target = 'lib' ] ; then
 	$CC $DEBUG_FLAGS -c -o $BINDIR/milepost_objc.o $FLAGS $INCLUDES $SRCDIR/milepost.m
 
 	# build dynamic library
-	ld -dylib -o $BINDIR/libmilepost.dylib $BINDIR/milepost_c.o $BINDIR/milepost_objc.o -lc -framework Carbon -framework Cocoa -framework Metal -framework QuartzCore -L$BINDIR -weak-lEGL -weak-lGLESv2
+	ld $LDFLAGS -dylib -o $BINDIR/libmilepost.dylib $BINDIR/milepost_c.o $BINDIR/milepost_objc.o -L$BINDIR -lc -framework Carbon -framework Cocoa -framework Metal -framework QuartzCore -weak-lEGL -weak-lGLESv2
 
 	# change dependent libs path to @rpath.
 	install_name_tool -change "./libEGL.dylib" '@rpath/libEGL.dylib' $BINDIR/libmilepost.dylib

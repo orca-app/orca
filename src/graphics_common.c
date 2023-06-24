@@ -10,10 +10,14 @@
 #include"platform/platform.h"
 #include"platform/platform_math.h"
 
-#if !PLATFORM_ORCA
-	#define STB_IMAGE_IMPLEMENTATION
-	#include"stb_image.h"
+#define STB_IMAGE_IMPLEMENTATION
+#if PLATFORM_ORCA
+	#define STBI_NO_STDIO
+	#define STBI_NO_HDR
+#endif
+#include"stb_image.h"
 
+#if !PLATFORM_ORCA
 	#define STB_TRUETYPE_IMPLEMENTATION
 	#include"stb_truetype.h"
 #endif
@@ -1596,8 +1600,6 @@ mg_image mg_image_create_from_rgba8(mg_surface surface, u32 width, u32 height, u
 	return(image);
 }
 
-#if !PLATFORM_ORCA
-
 mg_image mg_image_create_from_data(mg_surface surface, str8 data, bool flip)
 {
 	mg_image image = mg_image_nil();
@@ -1613,6 +1615,8 @@ mg_image mg_image_create_from_data(mg_surface surface, str8 data, bool flip)
 	}
 	return(image);
 }
+
+#if !PLATFORM_ORCA
 
 mg_image mg_image_create_from_file(mg_surface surface, str8 path, bool flip)
 {
