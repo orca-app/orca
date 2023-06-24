@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -eo pipefail
+
 target="$1"
 
 if [ -z $target ] ; then

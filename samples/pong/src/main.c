@@ -42,17 +42,18 @@ ORCA_EXPORT void OnInit(void)
 	surface = mg_surface_main();
 	canvas = mg_canvas_create();
 
-
 	//NOTE: file test
 	file_handle file = file_open(STR8("/ball.png"), FILE_ACCESS_READ, 0);
 	if(file_last_error(file) != IO_OK)
 	{
 		log_error("Couldn't open file ball.png\n");
 	}
+
 	u64 size = file_size(file);
 	char* buffer = mem_arena_alloc(mem_scratch(), size);
 	file_read(file, size, buffer);
 	file_close(file);
+	image = mg_image_create_from_data(surface, str8_from_buffer(size, buffer), false);
 
 	file = file_open(STR8("/test.txt"), FILE_ACCESS_WRITE, FILE_OPEN_CREATE);
 	if(file_last_error(file) != IO_OK)
@@ -62,10 +63,6 @@ ORCA_EXPORT void OnInit(void)
 	str8 test_string = STR8("Hello, world\n");
 	file_write(file, test_string.len, test_string.ptr);
 	file_close(file);
-
-	/*NOTE: Do this when we can compile stb to wasm
-		image = mg_image_create_from_data(surface, str8_from_buffer(size, buffer), false);
-	*/
 
 	mem_arena_clear(mem_scratch());
 }
@@ -186,8 +183,7 @@ ORCA_EXPORT void OnFrameRefresh(void)
 	mg_set_color(paddleColor);
 	mg_rectangle_fill(paddle.x, paddle.y, paddle.w, paddle.h);
 
-	mg_set_color(ballColor);
-	mg_circle_fill(ball.x+ball.w/2, ball.y + ball.w/2, ball.w/2.);
+	mg_image_draw(image, ball);
 
     mg_matrix_pop();
 
