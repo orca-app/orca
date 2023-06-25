@@ -57,7 +57,7 @@ for decl in data:
 		else:
 			s += decl['ret']['name']
 
-		s += ' ' + argPtrStubName + '('
+		s += ' ORCA_IMPORT(' + argPtrStubName + ') ('
 
 		if decl['ret']['tag'] == 'S':
 			s += decl['ret']['name'] + '* __retArg'

@@ -5,7 +5,6 @@ wasmFlags="--target=wasm32 \
        -fno-builtin \
        -Wl,--no-entry \
        -Wl,--export-dynamic \
-       -Wl,--allow-undefined \
        -g \
        -D__ORCA__ \
        -I ../../src -I ../../sdk -I../../milepost/ext -I ../../milepost -I ../../milepost/src -I ../../milepost/src/util -I ../../milepost/src/platform -I../.."
