@@ -21,6 +21,6 @@ wasmFlags="--target=wasm32 \
        -D__ORCA__ \
 	   -isystem ../../cstdlib/include -I ../../sdk -I../../milepost/ext -I ../../milepost -I ../../milepost/src -I ../../milepost/src/util -I ../../milepost/src/platform -I../.."
 
-$CLANG $wasmFlags -o ./module.wasm ../../cstdlib/src/*.c ../../sdk/orca.c src/main.c
+$CLANG $wasmFlags -o ./module.wasm ../../sdk/orca.c ../../cstdlib/src/*.c src/main.c
 
-python3 ../../scripts/mkapp.py --orca-dir ../.. --name Pong --icon icon.png --data-file data/ball.png module.wasm
+python3 ../../scripts/mkapp.py --orca-dir ../.. --name Pong --icon icon.png --data-file data/ball.png --data-file data/wall.png module.wasm

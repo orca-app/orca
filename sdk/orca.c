@@ -6,8 +6,8 @@
 *
 *****************************************************************/
 
-#include"platform/orca_malloc.c"
 #include"platform/orca_memory.c"
+#include"platform/orca_malloc.c"
 #include"platform/orca_strings.c"
 #include"platform/orca_log.c"
 #include"platform/platform_io_common.c"

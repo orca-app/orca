@@ -456,7 +456,21 @@ void* orca_runloop(void* user)
 	//NOTE: call init handler
 	if(eventHandlers[G_EVENT_START])
 	{
-		m3_Call(eventHandlers[G_EVENT_START], 0, 0);
+		M3Result err = m3_Call(eventHandlers[G_EVENT_START], 0, 0);
+		if(err != NULL)
+		{
+			log_error("runtime error: %s\n", err);
+
+			str8 msg = str8_pushf(mem_scratch(), "Runtime error: %s\n", err);
+			const char* options[] = {"OK"};
+			mp_alert_popup("Error",
+		               	msg.ptr,
+		               	1,
+		               	options);
+
+			mp_request_quit();
+			return((void*)-1);
+		}
 	}
 
 	if(eventHandlers[G_EVENT_FRAME_RESIZE])
