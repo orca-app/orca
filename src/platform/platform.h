@@ -94,4 +94,9 @@
 	#define mp_thread_local __thread
 #endif
 
+
+#if PLATFORM_ORCA
+	#define ORCA_IMPORT(f) __attribute__((import_name(#f))) f
+#endif
+
 #endif // __PLATFORM_H_

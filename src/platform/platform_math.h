@@ -17,10 +17,10 @@
 
 #define M_PI 3.14159265358979323846
 
-double fabs(double x);
-double sqrt(double sqrt);
-double cos(double x);
-double sin(double x);
+double ORCA_IMPORT(fabs)(double x);
+double ORCA_IMPORT(sqrt)(double sqrt);
+double ORCA_IMPORT(cos)(double x);
+double ORCA_IMPORT(sin)(double x);
 
 #endif
 

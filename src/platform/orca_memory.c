@@ -8,7 +8,7 @@
 
 #include"platform_memory.h"
 
-extern void* orca_mem_grow(u64 size);
+void* ORCA_IMPORT(orca_mem_grow)(u64 size);
 
 void* orca_mem_base_reserve(mem_base_allocator* context, u64 size)
 {

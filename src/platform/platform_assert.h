@@ -13,7 +13,7 @@
 //NOTE: assert macros
 #ifndef NO_ASSERT
 	#ifdef PLATFORM_ORCA
-		extern int orca_assert(const char* file, const char* function, int line, const char* src, const char* msg);
+		int ORCA_IMPORT(orca_assert)(const char* file, const char* function, int line, const char* src, const char* msg);
 		#define _ASSERT_(x, msg) ((x) || orca_assert(__FILE__, __FUNCTION__, __LINE__, #x, msg))
 	#else
 		#include<assert.h>

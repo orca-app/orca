@@ -24,14 +24,14 @@ typedef struct log_output
 static log_output _logDefaultOutput = {.kind = ORCA_LOG_OUTPUT_CONSOLE};
 log_output* LOG_DEFAULT_OUTPUT = &_logDefaultOutput;
 
-extern void orca_log(log_level level,
-                     int fileLen,
-                     const char* file,
-                     int functionLen,
-                     const char* function,
-                     int line,
-                     int msgLen,
-                     const char* msg);
+void ORCA_IMPORT(orca_log)(log_level level,
+                           int fileLen,
+                           const char* file,
+                           int functionLen,
+                           const char* function,
+                           int line,
+                           int msgLen,
+                           const char* msg);
 
 typedef struct orca_log_context
 {
