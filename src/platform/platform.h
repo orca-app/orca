@@ -86,11 +86,15 @@
 	#else
 		#define MP_API __declspec(dllimport)
 	#endif
-
-	#define mp_thread_local __declspec(thread)
-
 #elif defined(COMPILER_GCC) || defined(COMPILER_CLANG)
 	#define MP_API
+#endif
+
+#if PLATFORM_ORCA
+	#define mp_thread_local // no tls (or threads) for now on wasm orca
+#elif defined(COMPILER_CL)
+	#define mp_thread_local __declspec(thread)
+#elif defined(COMPILER_GCC) || defined(COMPILER_CLANG)
 	#define mp_thread_local __thread
 #endif
 
