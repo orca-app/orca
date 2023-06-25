@@ -9,12 +9,12 @@ DEBUG_FLAGS="-g -DDEBUG -DLOG_COMPILE_DEBUG"
 # set target
 #--------------------------------------------------------------
 
-target="$1"
+target="${1:-}"
 if [ -z $target ] ; then
 	target='lib'
 fi
 
-shaderFlagParam="$2"
+shaderFlagParam="${2:-}"
 #--------------------------------------------------------------
 # Detect OS and set environment variables accordingly
 #--------------------------------------------------------------

@@ -7,7 +7,6 @@
 *****************************************************************/
 
 #include"platform_memory.h"
-#include <stdlib.h>
 
 void* ORCA_IMPORT(orca_mem_grow)(u64 size);
 
@@ -31,24 +30,58 @@ mem_base_allocator* mem_base_allocator_default()
 	return(&base);
 }
 
-// malloc, free, realloc, etc. are defined in orca_malloc.c
+
+//TODO: implement malloc/realloc/free/memset/etc here...
+
 
 void* memset(void* b, int c, size_t n)
 {
-	return __builtin_memset(b, c, n);
+	for(size_t i = 0; i<n; i++)
+	{
+		((char*)b)[i] = (u8)c;
+	}
+	return(b);
 }
 
 void* memcpy(void *restrict dst, const void *restrict src, size_t n)
 {
-	return __builtin_memcpy(dst, src, n);
+	for(size_t i = 0; i<n; i++)
+	{
+		((char*)dst)[i] = ((char*)src)[i];
+	}
+	return(dst);
 }
 
 void* memmove(void *dst, const void *src, size_t n)
 {
-	return __builtin_memmove(dst, src, n);
+	if(src < dst)
+	{
+		for(size_t i = n-1; i>=0; i--)
+		{
+			((char*)dst)[i] = ((char*)src)[i];
+		}
+	}
+	else if(src > dst)
+	{
+		for(size_t i = 0; i<n; i++)
+		{
+			((char*)dst)[i] = ((char*)src)[i];
+		}
+	}
+	return(dst);
 }
 
 int memcmp(const void *s1, const void *s2, size_t n)
 {
-	return __builtin_memcmp(s1, s2, n);
+	const unsigned char* c1 = (const unsigned char*)s1;
+	const unsigned char* c2 = (const unsigned char*)s2;
+
+	for(size_t i = 0; i<n; i++)
+	{
+		if(c1[i] != c2[i])
+		{
+			return(c1 - c2);
+		}
+	}
+	return(0);
 }
