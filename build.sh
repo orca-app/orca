@@ -31,7 +31,7 @@ elif [ $target = wasm3 ] ; then
 	for file in ./ext/wasm3/source/*.c ; do
 		name=$(basename $file)
 		name=${name/.c/.o}
-		clang -c -g -foptimize-sibling-calls -Wno-extern-initializer -Dd_m3VerboseErrorMessages -o ./bin/obj/$name -I./ext/wasm3/source $file
+		clang -c -g -O2 -foptimize-sibling-calls -Wno-extern-initializer -Dd_m3VerboseErrorMessages -o ./bin/obj/$name -I./ext/wasm3/source $file
 	done
 	ar -rcs ./bin/libwasm3.a ./bin/obj/*.o
 	rm -rf ./bin/obj
