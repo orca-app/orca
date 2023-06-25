@@ -36,7 +36,7 @@ mg_image image;
 
 mg_surface mg_surface_main(void);
 
-void OnInit(void)
+ORCA_EXPORT void OnInit(void)
 {
 	//TODO create surface for main window
 	surface = mg_surface_main();
@@ -70,19 +70,19 @@ void OnInit(void)
 	mem_arena_clear(mem_scratch());
 }
 
-void OnFrameResize(u32 width, u32 height)
+ORCA_EXPORT void OnFrameResize(u32 width, u32 height)
 {
 	log_info("frame resize %u, %u", width, height);
 	frameSize.x = width;
 	frameSize.y = height;
 }
 
-void OnMouseDown(int button)
+ORCA_EXPORT void OnMouseDown(int button)
 {
 	log_info("mouse down!");
 }
 
-void OnKeyDown(int key)
+ORCA_EXPORT void OnKeyDown(int key)
 {
 	if(key == KEY_SPACE)
 	{
@@ -106,7 +106,7 @@ void OnKeyDown(int key)
 	}
 }
 
-void OnKeyUp(int key)
+ORCA_EXPORT void OnKeyUp(int key)
 {
 	if(key == KEY_ENTER || key == KEY_SPACE)
 	{
@@ -124,7 +124,7 @@ void OnKeyUp(int key)
 	}
 }
 
-void OnFrameRefresh(void)
+ORCA_EXPORT void OnFrameRefresh(void)
 {
 	f32 aspect = frameSize.x/frameSize.y;
 

@@ -13,8 +13,15 @@
 #include"util/memory.h"
 #include"util/strings.h"
 #include"util/utf8.h"
+#include"platform/platform.h"
 #include"platform/platform_log.h"
 #include"platform/platform_assert.h"
 #include"platform/platform_io.h"
+
+#if COMPILER_CLANG
+	#define ORCA_EXPORT __attribute__((visibility("default")))
+#else
+	#error "Orca apps can only be compiled with clang for now"
+#endif
 
 #endif //__ORCA_H_

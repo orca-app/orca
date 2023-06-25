@@ -4,7 +4,7 @@ wasmFlags="--target=wasm32 \
        --no-standard-libraries \
        -fno-builtin \
        -Wl,--no-entry \
-       -Wl,--export-all \
+       -Wl,--export-dynamic \
        -Wl,--allow-undefined \
        -g \
        -D__ORCA__ \
