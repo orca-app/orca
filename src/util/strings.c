@@ -28,21 +28,20 @@ str8 str8_push_buffer(mem_arena* arena, u64 len, char* buffer)
 {
 	str8 str = {0};
 	str.len = len;
-	str.ptr = mem_arena_alloc_array(arena, char, len);
+	str.ptr = mem_arena_alloc_array(arena, char, len+1);
 	memcpy(str.ptr, buffer, len);
+	str.ptr[str.len] = '\0';
 	return(str);
 }
 
 str8 str8_push_cstring(mem_arena* arena, const char* str)
 {
-	if(!str)
+	int len = 0;
+	if(str)
 	{
-		return((str8){0});
+		len = strlen(str);
 	}
-	else
-	{
-		return(str8_push_buffer(arena, strlen(str), (char*)str));
-	}
+	return(str8_push_buffer(arena, strlen(str), (char*)str));
 }
 
 str8 str8_push_copy(mem_arena* arena, str8 s)
@@ -60,11 +59,8 @@ str8 str8_pushfv(mem_arena* arena, const char* format, va_list args)
 {
 	//NOTE(martin):
 	//	We first compute the number of characters to write passing a size of 0.
-	//      then we allocate len+1 (since vsnprint always terminates with a '\0').
-	//      We could call vsprintf since we know the size, but I'm not sure there's a hard
-	//      guarantee that vsprintf and vsnprintf write the same number of characters in all
-	//      and every case, and that would be a difficult bug to spot, so it seems better to
-	//      waste one byte and be safe.
+	//  then we allocate len+1 (since vsnprint always terminates with a '\0').
+
 	char dummy;
 	str8 str = {0};
 	va_list argCopy;
@@ -137,7 +133,7 @@ str8 str8_list_collate(mem_arena* arena, str8_list list, str8 prefix, str8 separ
 {
 	str8 str = {0};
 	str.len = prefix.len + list.len + list.eltCount*separator.len + postfix.len;
-	str.ptr = mem_arena_alloc_array(arena, char, str.len);
+	str.ptr = mem_arena_alloc_array(arena, char, str.len + 1);
 	char* dst = str.ptr;
 	memcpy(dst, prefix.ptr, prefix.len);
 	dst += prefix.len;
@@ -158,6 +154,7 @@ str8 str8_list_collate(mem_arena* arena, str8_list list, str8 prefix, str8 separ
 		dst += elt->string.len;
 	}
 	memcpy(dst, postfix.ptr, postfix.len);
+	str.ptr[str.len] = '\0';
 	return(str);
 }
 
@@ -239,8 +236,9 @@ str16 str16_push_buffer(mem_arena* arena, u64 len, u16* buffer)
 {
 	str16 str = {0};
 	str.len = len;
-	str.ptr = mem_arena_alloc_array(arena, u16, len);
+	str.ptr = mem_arena_alloc_array(arena, u16, len+1);
 	memcpy(str.ptr, buffer, len*sizeof(u16));
+	str.ptr[str.len] = (u16)0;
 	return(str);
 }
 
@@ -275,7 +273,7 @@ str16 str16_list_collate(mem_arena* arena, str16_list list, str16 prefix, str16 
 {
 	str16 str = {0};
 	str.len = prefix.len + list.len + list.eltCount*separator.len + postfix.len;
-	str.ptr = mem_arena_alloc_array(arena, u16, str.len);
+	str.ptr = mem_arena_alloc_array(arena, u16, str.len + 1);
 	char* dst = (char*)str.ptr;
 	memcpy(dst, prefix.ptr, prefix.len*sizeof(u16));
 	dst += prefix.len*sizeof(u16);
@@ -296,6 +294,7 @@ str16 str16_list_collate(mem_arena* arena, str16_list list, str16 prefix, str16 
 		dst += elt->string.len*sizeof(u16);
 	}
 	memcpy(dst, postfix.ptr, postfix.len*sizeof(u16));
+	str.ptr[str.len] = (u16)0;
 	return(str);
 }
 
@@ -323,8 +322,9 @@ str32 str32_push_buffer(mem_arena* arena, u64 len, u32* buffer)
 {
 	str32 str = {0};
 	str.len = len;
-	str.ptr = mem_arena_alloc_array(arena, u32, len);
+	str.ptr = mem_arena_alloc_array(arena, u32, len+1);
 	memcpy(str.ptr, buffer, len*sizeof(u32));
+	str.ptr[str.len] = 0;
 	return(str);
 }
 
@@ -359,7 +359,7 @@ str32 str32_list_collate(mem_arena* arena, str32_list list, str32 prefix, str32 
 {
 	str32 str = {0};
 	str.len = prefix.len + list.len + list.eltCount*separator.len + postfix.len;
-	str.ptr = mem_arena_alloc_array(arena, u32, str.len);
+	str.ptr = mem_arena_alloc_array(arena, u32, str.len+1);
 	char* dst = (char*)str.ptr;
 	memcpy(dst, prefix.ptr, prefix.len*sizeof(u32));
 	dst += prefix.len*sizeof(u32);
@@ -380,6 +380,7 @@ str32 str32_list_collate(mem_arena* arena, str32_list list, str32 prefix, str32 
 		dst += elt->string.len*sizeof(u32);
 	}
 	memcpy(dst, postfix.ptr, postfix.len*sizeof(u32));
+	str.ptr[str.len] = 0;
 	return(str);
 }
 

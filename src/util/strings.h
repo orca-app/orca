@@ -19,8 +19,18 @@
 extern "C" {
 #endif
 
+/*NOTE:
+	By convention, functions that take an arena and return a string slice allocated on
+	this arena, always allocate one more element and null-terminate the string. This is
+	done so we can pass those strings directly to C APIs that requires C strings without
+	having to do a copy with str8_to_cstring().
+
+	This does _not_ applies to the string returned by str8_split(). Those are slices
+	into the original string. Only the _list nodes_ are allocated on the arena.
+*/
+
 //----------------------------------------------------------------------------------
-// string slices as values
+// u8 strings
 //----------------------------------------------------------------------------------
 typedef struct str8
 {

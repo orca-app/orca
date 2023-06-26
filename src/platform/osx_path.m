@@ -23,8 +23,9 @@ str8 path_executable(mem_arena* arena)
 	u32 size = 0;
 	_NSGetExecutablePath(0, &size);
 	result.len = size;
-	result.ptr = mem_arena_alloc_array(arena, char, result.len);
+	result.ptr = mem_arena_alloc_array(arena, char, result.len+1);
 	_NSGetExecutablePath(result.ptr, &size);
+	result.ptr[result.len] = '\0';
 	return(result);
 }}
 
