@@ -47,12 +47,11 @@ mg_font orca_font_create(const char* resourcePath)
 {
 	//NOTE(martin): create default font
 	str8 fontPath = path_executable_relative(mem_scratch(), STR8(resourcePath));
-	char* fontPathCString = str8_to_cstring(mem_scratch(), fontPath);
 
-	FILE* fontFile = fopen(fontPathCString, "r");
+	FILE* fontFile = fopen(fontPath.ptr, "r");
 	if(!fontFile)
 	{
-		log_error("Could not load font file '%s': %s\n", fontPathCString, strerror(errno));
+		log_error("Could not load font file '%s': %s\n", fontPath.ptr, strerror(errno));
 		return(mg_font_nil());
 	}
 	unsigned char* fontData = 0;
@@ -315,12 +314,11 @@ void* orca_runloop(void* user)
 	//NOTE: loads wasm module
 	const char* bundleNameCString = "module";
 	str8 modulePath = path_executable_relative(mem_scratch(), STR8("../app/wasm/module.wasm"));
-	const char* modulePathCString = str8_to_cstring(mem_scratch(), modulePath);
 
-	FILE* file = fopen(modulePathCString, "rb");
+	FILE* file = fopen(modulePath.ptr, "rb");
 	if(!file)
 	{
-		log_error("Couldn't load wasm module at %s\n", modulePathCString);
+		log_error("Couldn't load wasm module at %s\n", modulePath.ptr);
 
 		const char* options[] = {"OK"};
 		mp_alert_popup("Error",
