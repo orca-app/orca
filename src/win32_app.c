@@ -553,6 +553,16 @@ void mp_request_quit()
 void mp_pump_events(f64 timeout)
 {
 	MSG message;
+
+	if(timeout < 0)
+	{
+		WaitMessage();
+	}
+	else if(timeout > 0)
+	{
+		MsgWaitForMultipleObjects(0, NULL, FALSE, (DWORD) (timeout * 1e3), QS_ALLEVENTS);
+	}
+
 	while(PeekMessage(&message, 0, 0, 0, PM_REMOVE))
 	{
 		TranslateMessage(&message);

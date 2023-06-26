@@ -268,7 +268,13 @@ MP_API void mp_set_cursor(mp_mouse_cursor cursor);
 //--------------------------------------------------------------------
 // Main loop and events handling
 //--------------------------------------------------------------------
+/*NOTE:
+	mp_pump_events() pumps system events into the event queue. A timeout of 0 polls for events,
+	while a timeout of -1 blocks for events. A timeout > 0 blocks until new events are available
+	or the timeout elapses.
 
+	mp_next_event() get the next event from the event queue, allocating from the passed arena
+*/
 MP_API void mp_pump_events(f64 timeout);
 MP_API mp_event* mp_next_event(mem_arena* arena);
 
