@@ -39,6 +39,14 @@ elif [ $target = wasm3 ] ; then
 elif [ $target = orca ] ; then
 	echo "building orca"
 
+	if [ ! \( -e milepost/bin/libmilepost.dylib \) -o ! \( -e milepost/bin/mtl_renderer.metallib \) ] ; then
+		./build.sh milepost
+	fi
+
+	if [ ! \( -e ./bin/libwasm3.a \) ] ; then
+		./build.sh wasm3
+	fi
+
 	# copy libraries
 	cp milepost/bin/mtl_renderer.metallib bin/
 	cp milepost/bin/libmilepost.dylib bin/
