@@ -49,6 +49,13 @@ str8 str8_push_copy(mem_arena* arena, str8 s)
 	return(str8_push_buffer(arena, str8_lp(s)));
 }
 
+char* str8_to_cstring(mem_arena* arena, str8 string)
+{
+	//NOTE: forward to push_copy, which null-terminates the copy
+	string = str8_push_copy(arena, string);
+	return(string.ptr);
+}
+
 str8 str8_push_slice(mem_arena* arena, str8 s, u64 start, u64 end)
 {
 	str8 slice = str8_slice(s, start, end);
@@ -90,14 +97,6 @@ int str8_cmp(str8 s1, str8 s2)
 		res = (s1.len < s2.len)? -1 : ((s1.len == s2.len)? 0 : 1);
 	}
 	return(res);
-}
-
-char* str8_to_cstring(mem_arena* arena, str8 string)
-{
-	char* cstr = mem_arena_alloc_array(arena, char, string.len+1);
-	memcpy(cstr, string.ptr, string.len);
-	cstr[string.len] = '\0';
-	return(cstr);
 }
 
 //----------------------------------------------------------------------------------
