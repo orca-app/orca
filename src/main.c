@@ -767,7 +767,7 @@ int main(int argc, char** argv)
 
 	//WARN: this is a workaround to avoid stalling the first few times we acquire drawables from
 	//      the surfaces... This should probably be fixed in the implementation of mtl_surface!
-//*
+
 	for(int i=0; i<3; i++)
 	{
 		mg_surface_prepare(app->surface);
@@ -780,7 +780,7 @@ int main(int argc, char** argv)
 		mg_render(app->debugOverlay.surface, app->debugOverlay.canvas);
 		mg_surface_present(app->debugOverlay.surface);
 	}
-//*/
+
 	ui_init(&app->debugOverlay.ui);
 
 	//NOTE: show window and start runloop
@@ -793,15 +793,19 @@ int main(int argc, char** argv)
 
 	while(!mp_should_quit())
 	{
-		mp_pump_events(0);
+		mp_pump_events(-1);
 		//TODO: what to do with mem scratch here?
 	}
 
 	void* res;
 	pthread_join(runloopThread, &res);
 
-//	mg_canvas_destroy(app->canvas);
-//	mg_surface_destroy(app->surface);
+	mg_canvas_destroy(app->canvas);
+	mg_surface_destroy(app->surface);
+
+	mg_canvas_destroy(app->debugOverlay.canvas);
+	mg_surface_destroy(app->debugOverlay.surface);
+
 	mp_window_destroy(app->window);
 
 	mp_terminate();
