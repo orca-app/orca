@@ -1,7 +1,10 @@
 
+@echo off
+setlocal EnableDelayedExpansion
+
 if not exist bin mkdir bin
 
-set glsl_shaders=src\glsl_shaders\common.glsl src\glsl_shaders\blit_vertex.glsl src\glsl_shaders\blit_fragment.glsl src\glsl_shaders\clear_counters.glsl src\glsl_shaders\tile.glsl src\glsl_shaders\sort.glsl src\glsl_shaders\draw.glsl
+set glsl_shaders=src\glsl_shaders\common.glsl src\glsl_shaders\blit_vertex.glsl src\glsl_shaders\blit_fragment.glsl src\glsl_shaders\path_setup.glsl src\glsl_shaders\segment_setup.glsl src\glsl_shaders\backprop.glsl src\glsl_shaders\merge.glsl src\glsl_shaders\raster.glsl
 
 call python3 scripts\embed_text.py %glsl_shaders% --prefix=glsl_ --output src\glsl_shaders.h
 
