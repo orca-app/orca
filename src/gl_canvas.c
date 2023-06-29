@@ -17,33 +17,42 @@ typedef struct mg_gl_image
 	GLuint texture;
 } mg_gl_image;
 
-typedef enum {
+enum _mg_gl_cmd {
 	MG_GL_FILL,
 	MG_GL_STROKE,
-} mg_gl_cmd;
+};
+typedef int mg_gl_cmd;
 
 typedef struct mg_gl_path
 {
-	mg_gl_cmd cmd;
-	float uvTransform[9];
+	float uvTransform[12];
 	vec4 color;
 	vec4 box;
 	vec4 clip;
+	mg_gl_cmd cmd;
+	u8 pad[12];
 } mg_gl_path;
 
-typedef enum {
+enum _mg_gl_seg_kind{
 	MG_GL_LINE = 1,
 	MG_GL_QUADRATIC,
 	MG_GL_CUBIC,
-} mg_gl_seg_kind;
+};
+typedef int mg_gl_seg_kind;
 
 typedef struct mg_gl_path_elt
 {
+	vec2 p[4];
 	int pathIndex;
 	int localEltIndex;
 	mg_gl_seg_kind kind;
-	vec2 p[4];
+	u8 pad[4];
 } mg_gl_path_elt;
+
+enum {
+	LAYOUT_PATH_SIZE = sizeof(mg_gl_path),
+	LAYOUT_PATH_ELT_SIZE = sizeof(mg_gl_path_elt),
+};
 
 ////////////////////////////////////////////////////////////
 //NOTE: these are just here for the sizes...
@@ -115,10 +124,12 @@ typedef struct mg_gl_canvas_backend
 
 	GLuint vao;
 
+	/*
 	GLuint pathSetup;
 	GLuint segmentSetup;
 	GLuint backprop;
 	GLuint merge;
+	*/
 	GLuint raster;
 	GLuint blit;
 
@@ -211,6 +222,13 @@ void mg_gl_render_batch(mg_gl_canvas_backend* backend,
                         vec2 viewportSize,
                         f32 scale)
 {
+	//NOTE: send the buffers
+	glBindBuffer(GL_SHADER_STORAGE_BUFFER, backend->pathBuffer);
+	glBufferData(GL_SHADER_STORAGE_BUFFER, LAYOUT_PATH_SIZE*pathCount, backend->pathBufferData, GL_STREAM_DRAW);
+
+	glBindBuffer(GL_SHADER_STORAGE_BUFFER, backend->elementBuffer);
+	glBufferData(GL_SHADER_STORAGE_BUFFER, LAYOUT_PATH_ELT_SIZE*eltCount, backend->elementBufferData, GL_STREAM_DRAW);
+
 	//NOTE: clear counters
 	int zero = 0;
 	glBindBuffer(GL_SHADER_STORAGE_BUFFER, backend->segmentCountBuffer);
@@ -222,6 +240,7 @@ void mg_gl_render_batch(mg_gl_canvas_backend* backend,
 	glBindBuffer(GL_SHADER_STORAGE_BUFFER, backend->tileOpCountBuffer);
 	glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(int), &zero, GL_DYNAMIC_COPY);
 
+	/*
 	//NOTE: path setup pass
 	glUseProgram(backend->pathSetup);
 
@@ -273,10 +292,11 @@ void mg_gl_render_batch(mg_gl_canvas_backend* backend,
 	glUniform1f(1, scale);
 
 	glDispatchCompute(nTilesX, nTilesY, 1);
+	*/
 
 	//NOTE: raster pass
 	glUseProgram(backend->raster);
-
+/*
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, backend->screenTilesBuffer);
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, backend->tileOpBuffer);
 	glBindBufferRange(GL_SHADER_STORAGE_BUFFER, 2, backend->pathBuffer, backend->pathBufferOffset, pathCount*sizeof(mg_gl_path));
@@ -285,9 +305,28 @@ void mg_gl_render_batch(mg_gl_canvas_backend* backend,
 	glUniform1i(0, tileSize);
 	glUniform1f(1, scale);
 	glUniform1i(2, backend->msaaCount);
+*/
+	glBindBufferRange(GL_SHADER_STORAGE_BUFFER, 0, backend->pathBuffer, backend->pathBufferOffset, pathCount*sizeof(mg_gl_path));
+	glBindBufferRange(GL_SHADER_STORAGE_BUFFER, 1, backend->elementBuffer, backend->elementBufferOffset, eltCount*sizeof(mg_gl_path_elt));
+
+//	glUniform1ui(0, tileSize);
+	glUniform1f(1, scale);
+	glUniform1ui(2, eltCount);
+
+	int err = glGetError();
+	if(err)
+	{
+		log_error("gl error %i\n", err);
+	}
+
+
+	log_info("eltCount = %i\n", eltCount);
+
+	ASSERT(eltCount != 0);
 
 	glBindImageTexture(0, backend->outTexture, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA8);
 
+	/*
 	if(image)
 	{
 		//TODO: make sure this image belongs to that context
@@ -300,6 +339,7 @@ void mg_gl_render_batch(mg_gl_canvas_backend* backend,
 	{
 		glUniform1ui(3, 0);
 	}
+	*/
 
 	glDispatchCompute(viewportSize.x, viewportSize.y, 1);
 
@@ -358,9 +398,6 @@ void mg_gl_canvas_render(mg_canvas_backend* interface,
 	vec2 currentPos = {0};
 	mg_image currentImage = mg_image_nil();
 
-	/////////////////////////////////////////////////////////////////////////////////
-	//TODO: we must map or allocate elementBufferData and pathBufferData...
-	/////////////////////////////////////////////////////////////////////////////////
 	mg_gl_encoding_context context = {.glEltCount = 0,
 	                                  .elementBufferData = backend->elementBufferData,
 	                                  .pathBufferData = backend->pathBufferData };
@@ -706,10 +743,12 @@ mg_canvas_backend* gl_canvas_backend_create(mg_wgl_surface* surface)
 
 		//NOTE: create programs
 		int err = 0;
+		/*
 		err |= mg_gl_canvas_compile_compute_program(glsl_path_setup, &backend->pathSetup);
 		err |= mg_gl_canvas_compile_compute_program(glsl_segment_setup, &backend->segmentSetup);
 		err |= mg_gl_canvas_compile_compute_program(glsl_backprop, &backend->backprop);
 		err |= mg_gl_canvas_compile_compute_program(glsl_merge, &backend->merge);
+		*/
 		err |= mg_gl_canvas_compile_compute_program(glsl_raster, &backend->raster);
 		err |= mg_gl_canvas_compile_render_program("blit", glsl_blit_vertex, glsl_blit_fragment, &backend->blit);
 

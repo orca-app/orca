@@ -22,19 +22,19 @@ layout(std430) buffer;
 
 struct mg_gl_path
 {
-	int cmd;
-	float uvTransform[9];
+	mat3 uvTransform;
 	vec4 color;
 	vec4 box;
 	vec4 clip;
+	int cmd;
 };
 
 struct mg_gl_path_elt
 {
+	vec2 p[4];
 	int pathIndex;
 	int localEltIndex;
 	int kind;
-	vec2 p[4];
 };
 
 struct mg_gl_segment
@@ -44,8 +44,8 @@ struct mg_gl_segment
 	int config; //TODO pack these
 	int windingIncrement;
 	vec4 box;
-	float hullMatrix[9];
-	float implicitMatrix[9];
+	mat3 hullMatrix;
+	mat3 implicitMatrix;
 	float sign;
 	vec2 hullVertex;
 	int debugID;
