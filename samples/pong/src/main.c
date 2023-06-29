@@ -34,6 +34,7 @@ mg_canvas canvas;
 mg_surface surface;
 mg_image ballImage;
 mg_image paddleImage;
+mg_font pongFont;
 
 mg_surface mg_surface_main(void);
 
@@ -78,6 +79,26 @@ ORCA_EXPORT void OnInit(void)
 		paddleImage = mg_image_create_from_data(surface, str8_from_buffer(size, buffer), false);
 	}
 
+	//NOTE: load paddle texture
+	{
+		file_handle file = file_open(STR8("/Literata-SemiBoldItalic.ttf"), FILE_ACCESS_READ, 0);
+		if(file_last_error(file) != IO_OK)
+		{
+			log_error("Couldn't open file Literata-SemiBoldItalic.ttf\n");
+		}
+		u64 size = file_size(file);
+		char* buffer = mem_arena_alloc(mem_scratch(), size);
+		file_read(file, size, buffer);
+		file_close(file);
+		unicode_range ranges[5] = {UNICODE_RANGE_BASIC_LATIN,
+	                           UNICODE_RANGE_C1_CONTROLS_AND_LATIN_1_SUPPLEMENT,
+	                           UNICODE_RANGE_LATIN_EXTENDED_A,
+	                           UNICODE_RANGE_LATIN_EXTENDED_B,
+	                           UNICODE_RANGE_SPECIALS};
+		// NOTE(ben): Weird that images are "create from data" but fonts are "create from memory"
+		// TODO: Decide whether we're using strings or explicit pointer + length
+		pongFont = mg_font_create_from_memory(size, (byte*)buffer, 5, ranges);
+	}
 
 	mem_arena_clear(mem_scratch());
 }
@@ -208,6 +229,18 @@ ORCA_EXPORT void OnFrameRefresh(void)
 	*/
 
     mg_matrix_pop();
+
+	mg_set_color_rgba(0, 0, 0, 1);
+	mg_set_font(pongFont);
+	mg_set_font_size(14);
+	mg_move_to(10, 20);
+
+	str8 text = str8_pushf(mem_scratch(),
+		"wahoo I'm did a text. ball is at x = %f, y = %f",
+		ball.x, ball.y
+	);
+	mg_text_outlines(text);
+	mg_fill();
 
     mg_surface_prepare(surface);
     mg_render(surface, canvas);
