@@ -126,7 +126,9 @@ typedef struct mg_gl_canvas_backend
 
 	/*
 	GLuint pathSetup;
+	*/
 	GLuint segmentSetup;
+	/*
 	GLuint backprop;
 	GLuint merge;
 	*/
@@ -253,23 +255,19 @@ void mg_gl_render_batch(mg_gl_canvas_backend* backend,
 	glUniform1f(1, scale);
 
 	glDispatchCompute(pathCount, 1, 1);
-
+	*/
 	//NOTE: segment setup pass
 	glUseProgram(backend->segmentSetup);
 
 	glBindBufferRange(GL_SHADER_STORAGE_BUFFER, 0, backend->elementBuffer, backend->elementBufferOffset, eltCount*sizeof(mg_gl_path_elt));
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, backend->segmentCountBuffer);
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, backend->segmentBuffer);
-	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, backend->pathQueueBuffer);
-	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 4, backend->tileQueueBuffer);
-	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 5, backend->tileOpBuffer);
-	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 6, backend->tileOpCountBuffer);
 
-	glUniform1i(0, tileSize);
-	glUniform1f(1, scale);
+	glUniform1f(0, scale);
 
 	glDispatchCompute(eltCount, 1, 1);
 
+	/*
 	//NOTE: backprop pass
 	glUseProgram(backend->backprop);
 
@@ -307,11 +305,11 @@ void mg_gl_render_batch(mg_gl_canvas_backend* backend,
 	glUniform1i(2, backend->msaaCount);
 */
 	glBindBufferRange(GL_SHADER_STORAGE_BUFFER, 0, backend->pathBuffer, backend->pathBufferOffset, pathCount*sizeof(mg_gl_path));
-	glBindBufferRange(GL_SHADER_STORAGE_BUFFER, 1, backend->elementBuffer, backend->elementBufferOffset, eltCount*sizeof(mg_gl_path_elt));
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, backend->segmentCountBuffer);
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, backend->segmentBuffer);
 
 //	glUniform1ui(0, tileSize);
-	glUniform1f(1, scale);
-	glUniform1ui(2, eltCount);
+//	glUniform1f(1, scale);
 
 	int err = glGetError();
 	if(err)
@@ -745,7 +743,9 @@ mg_canvas_backend* gl_canvas_backend_create(mg_wgl_surface* surface)
 		int err = 0;
 		/*
 		err |= mg_gl_canvas_compile_compute_program(glsl_path_setup, &backend->pathSetup);
+		*/
 		err |= mg_gl_canvas_compile_compute_program(glsl_segment_setup, &backend->segmentSetup);
+		/*
 		err |= mg_gl_canvas_compile_compute_program(glsl_backprop, &backend->backprop);
 		err |= mg_gl_canvas_compile_compute_program(glsl_merge, &backend->merge);
 		*/
