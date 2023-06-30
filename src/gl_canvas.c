@@ -269,11 +269,10 @@ void mg_gl_render_batch(mg_gl_canvas_backend* backend,
 	glUniform2i(2, nTilesX, nTilesY);
 
 	glDispatchCompute(eltCount, 1, 1);
-
 	glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
 
 	//NOTE: backprop pass
-	/*
+
 	glUseProgram(backend->backprop);
 
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, backend->tileQueueBuffer);
@@ -281,7 +280,8 @@ void mg_gl_render_batch(mg_gl_canvas_backend* backend,
 	glUniform2i(0, nTilesX, nTilesY);
 
 	glDispatchCompute(nTilesY, 1, 1);
-	*/
+	glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+
 	/*
 	//NOTE: merge pass
 	glUseProgram(backend->merge);

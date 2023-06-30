@@ -144,8 +144,7 @@ void main()
 
 	mg_gl_tile_queue tileQueue = tileQueuesBuffer.elements[tileIndex];
 	int opIndex = tileQueue.first;
-//	int winding = tileQueue.windingOffset;
-	int winding = 0;
+	int winding = tileQueue.windingOffset;
 
 	if((pixelCoord.x % 16) == 0 || (pixelCoord.y % 16) == 0)
 	{
@@ -174,7 +173,7 @@ void main()
 				winding += seg.windingIncrement;
 			}
 
-/*			if(op.crossRight)
+			if(op.crossRight)
 			{
 				if( (seg.config == MG_GL_BR || seg.config == MG_GL_TL)
 				  &&(sampleCoord.y > seg.box.w))
@@ -187,7 +186,6 @@ void main()
 					winding -= seg.windingIncrement;
 				}
 			}
-*/
 		}
 	}
 	int pathIndex = 0;
