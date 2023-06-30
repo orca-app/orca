@@ -18,4 +18,8 @@ Debug/*
 
 src/bindgen_core_api.c
 src/bindgen_gles_api.c
+sdk/io_stubs.c
+sdk/orca_surface.c
 *bind_gen.c
+
+.vscode/settings.json

@@ -11,16 +11,22 @@ else
   CLANG=clang
 fi
 
+STDLIB_DIR=../../cstdlib
+ORCA_SDK_DIR=../../sdk
+MILEPOST_DIR=../../milepost
+
 wasmFlags="--target=wasm32 \
-       --no-standard-libraries \
-       -fno-builtin \
-       -Wl,--no-entry \
-       -Wl,--export-dynamic \
-       -g \
-       -O2 \
-       -mbulk-memory \
-       -D__ORCA__ \
-	   -isystem ../../cstdlib/include -I ../../sdk -I../../milepost/ext -I ../../milepost -I ../../milepost/src -I ../../milepost/src/util -I ../../milepost/src/platform -I../.."
+  --no-standard-libraries \
+  -fno-builtin \
+  -Wl,--no-entry \
+  -Wl,--export-dynamic \
+  -g \
+  -O2 \
+  -mbulk-memory \
+  -D__ORCA__ \
+  -I $STDLIB_DIR/include \
+  -I $ORCA_SDK_DIR \
+  -I $MILEPOST_DIR/ext -I $MILEPOST_DIR -I $MILEPOST_DIR/src -I $MILEPOST_DIR/src/util -I $MILEPOST_DIR/src/platform"
 
 $CLANG $wasmFlags -o ./module.wasm ../../sdk/orca.c ../../cstdlib/src/*.c src/main.c
 

@@ -7,15 +7,12 @@
 *
 *****************************************************************/
 
-#include"keys.h"
-#include"graphics.h"
+#include<keys.h>
+#include<graphics.h>
 
-#include"orca.h"
+#include<orca.h>
 
 #define M_PI 3.14159265358979323846
-
-extern float cosf(float x);
-extern float sinf(float x);
 
 const mg_color paddleColor = {1, 0, 0, 1};
 mp_rect paddle = {200, 40, 200, 40};
