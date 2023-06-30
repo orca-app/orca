@@ -30,7 +30,7 @@ int main()
 
 	//NOTE: create surface
 	mg_surface surface = mg_surface_create_for_window(window, MG_CANVAS);
-	mg_surface_swap_interval(surface, 0);
+	mg_surface_swap_interval(surface, 1);
 
 	if(mg_surface_is_nil(surface))
 	{

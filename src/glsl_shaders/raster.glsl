@@ -19,6 +19,17 @@ layout(binding = 2) restrict readonly buffer segmentBufferSSBO
 	mg_gl_segment elements[];
 } segmentBuffer;
 
+layout(binding = 3) restrict readonly buffer tileQueuesBufferSSBO
+{
+	mg_gl_tile_queue elements[];
+} tileQueuesBuffer;
+
+layout(binding = 4) restrict readonly buffer tileOpBufferSSBO
+{
+	mg_gl_tile_op elements[];
+} tileOpBuffer;
+
+
 //layout(location = 0) uniform uint tileSize; // this has to be commented until it's effectively used!!
 //layout(location = 0) uniform float scale;
 
@@ -121,39 +132,64 @@ int side_of_segment(vec2 p, mg_gl_segment seg)
 
 void main()
 {
-	int segCount = segmentCountBuffer.elements[0];
-	vec2 sampleCoord = vec2(gl_WorkGroupID.xy*uvec2(16, 16) + gl_LocalInvocationID.xy);
+	uvec2 nTiles = gl_NumWorkGroups.xy;
+	uvec2 tileCoord = gl_WorkGroupID.xy;
+	uint tileIndex =  tileCoord.y * nTiles.x + tileCoord.x;
 
+	ivec2 pixelCoord = ivec2(gl_WorkGroupID.xy*uvec2(16, 16) + gl_LocalInvocationID.xy);
+	vec2 sampleCoord = vec2(pixelCoord);
+
+
+	imageStore(outTexture, ivec2(sampleCoord), vec4(1, 1, 1, 1));
+
+	mg_gl_tile_queue tileQueue = tileQueuesBuffer.elements[tileIndex];
+	int opIndex = tileQueue.first;
+//	int winding = tileQueue.windingOffset;
 	int winding = 0;
 
-	for(int segIndex=0; segIndex<segCount; segIndex++)
+	if((pixelCoord.x % 16) == 0 || (pixelCoord.y % 16) == 0)
 	{
-		mg_gl_segment seg = segmentBuffer.elements[segIndex];
+		imageStore(outTexture, ivec2(sampleCoord), vec4(0, 0, 0, 1));
+		return;
+	}
 
-		if( (sampleCoord.y > seg.box.y)
-		  &&(sampleCoord.y <= seg.box.w)
-		  &&(side_of_segment(sampleCoord, seg) < 0))
-		{
-			winding += seg.windingIncrement;
-		}
+	int opCount = 0;
+	while(opIndex >= 0)
+	{
+		//imageStore(outTexture, ivec2(sampleCoord), vec4(0, 1, 0, 1));
+		//return;
 
-		/*
-		if(op->crossRight)
+		mg_gl_tile_op op = tileOpBuffer.elements[opIndex];
+		opIndex = op.next;
+
+		if(op.kind == MG_GL_OP_SEGMENT)
 		{
-			if( (seg.config == MG_GL_BR || seg.config == MG_GL_TL)
-					&&(sampleCoord.y > seg.box.w))
+			int segIndex = op.index;
+			mg_gl_segment seg = segmentBuffer.elements[segIndex];
+
+			if( (sampleCoord.y > seg.box.y)
+			  &&(sampleCoord.y <= seg.box.w)
+			  &&(side_of_segment(sampleCoord, seg) < 0))
 			{
 				winding += seg.windingIncrement;
 			}
-			else if( (seg.config == MG_GL_BL || seg.config == MG_GL_TR)
-					     &&(sampleCoord.y > seg.box.y))
-			{
-				winding -= seg.windingIncrement;
-			}
-		}
-		*/
-	}
 
+/*			if(op.crossRight)
+			{
+				if( (seg.config == MG_GL_BR || seg.config == MG_GL_TL)
+				  &&(sampleCoord.y > seg.box.w))
+				{
+					winding += seg.windingIncrement;
+				}
+				else if( (seg.config == MG_GL_BL || seg.config == MG_GL_TR)
+				       &&(sampleCoord.y > seg.box.y))
+				{
+					winding -= seg.windingIncrement;
+				}
+			}
+*/
+		}
+	}
 	int pathIndex = 0;
 
 //	vec4 clip = pathBuffer.elements[pathIndex].clip * scale;
