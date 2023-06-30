@@ -53,7 +53,7 @@ struct mg_gl_segment
 
 struct mg_gl_path_queue
 {
-	vec4 area;
+	ivec4 area;
 	int tileQueues;
 };
 

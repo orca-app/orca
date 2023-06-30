@@ -19,24 +19,28 @@ layout(binding = 2) restrict buffer segmentBufferSSBO
 	mg_gl_segment elements[];
 } segmentBuffer;
 
-layout(binding = 3) coherent restrict buffer tileOpCountBufferSSBO
+layout(binding = 3) restrict buffer pathQueueBufferSSBO
+{
+	mg_gl_path_queue elements[];
+} pathQueueBuffer;
+
+layout(binding = 4) coherent restrict buffer tileQueueBufferSSBO
+{
+	mg_gl_tile_queue elements[];
+} tileQueueBuffer;
+
+layout(binding = 5) coherent restrict buffer tileOpCountBufferSSBO
 {
 	int elements[];
 } tileOpCountBuffer;
 
-layout(binding = 4) restrict buffer tileOpBufferSSBO
+layout(binding = 6) restrict buffer tileOpBufferSSBO
 {
 	mg_gl_tile_op elements[];
 } tileOpBuffer;
 
-layout(binding = 5) coherent restrict buffer tileQueuesBufferSSBO
-{
-	mg_gl_tile_queue elements[];
-} tileQueuesBuffer;
-
 layout(location = 0) uniform float scale;
 layout(location = 1) uniform uint tileSize;
-layout(location = 2) uniform ivec2 nTiles;
 
 int push_segment(in vec2 p[4], int kind)
 {
@@ -197,9 +201,9 @@ void bin_to_tiles(int segIndex)
 {
 	//NOTE: add segment index to the queues of tiles it overlaps with
 	const mg_gl_segment seg = segmentBuffer.elements[segIndex];
+	const mg_gl_path_queue pathQueue = pathQueueBuffer.elements[seg.pathIndex];
 
-	ivec4 pathArea = ivec4(0, 0, nTiles.x, nTiles.y);
-
+	ivec4 pathArea = pathQueue.area;
 	ivec4 coveredTiles = ivec4(seg.box)/int(tileSize);
 	int xMin = max(0, coveredTiles.x - pathArea.x);
 	int yMin = max(0, coveredTiles.y - pathArea.y);
@@ -260,18 +264,18 @@ void bin_to_tiles(int segIndex)
 				tileOpBuffer.elements[tileOpIndex].crossRight = false;
 				tileOpBuffer.elements[tileOpIndex].next = -1;
 
-				int tileIndex = y*pathArea.z + x;
+				int tileQueueIndex = pathQueue.tileQueues + y*pathArea.z + x;
 
-				tileOpBuffer.elements[tileOpIndex].next = atomicExchange(tileQueuesBuffer.elements[tileIndex].first, tileOpIndex);
+				tileOpBuffer.elements[tileOpIndex].next = atomicExchange(tileQueueBuffer.elements[tileQueueIndex].first, tileOpIndex);
 				if(tileOpBuffer.elements[tileOpIndex].next == -1)
 				{
-					tileQueuesBuffer.elements[tileIndex].last = tileOpIndex;
+					tileQueueBuffer.elements[tileQueueIndex].last = tileOpIndex;
 				}
 
 				//NOTE: if the segment crosses the tile's bottom boundary, update the tile's winding offset
 				if(crossB)
 				{
-					atomicAdd(tileQueuesBuffer.elements[tileIndex].windingOffset, seg.windingIncrement);
+					atomicAdd(tileQueueBuffer.elements[tileQueueIndex].windingOffset, seg.windingIncrement);
 				}
 
 				//NOTE: if the segment crosses the right boundary, mark it.

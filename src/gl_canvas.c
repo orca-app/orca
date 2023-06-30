@@ -127,9 +127,7 @@ typedef struct mg_gl_canvas_backend
 	GLuint pathSetup;
 	GLuint segmentSetup;
 	GLuint backprop;
-	/*
 	GLuint merge;
-	*/
 	GLuint raster;
 	GLuint blit;
 
@@ -245,12 +243,15 @@ void mg_gl_render_batch(mg_gl_canvas_backend* backend,
 	//NOTE: path setup pass
 	glUseProgram(backend->pathSetup);
 
-	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, backend->tileQueueBuffer);
+	glBindBufferRange(GL_SHADER_STORAGE_BUFFER, 0, backend->pathBuffer, backend->pathBufferOffset, pathCount*sizeof(mg_gl_path));
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, backend->pathQueueBuffer);
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, backend->tileQueueCountBuffer);
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, backend->tileQueueBuffer);
 
-//	glUniform1i(0, tileSize);
-//	glUniform1f(1, scale);
+	glUniform1i(0, tileSize);
+	glUniform1f(1, scale);
 
-	glDispatchCompute(nTilesX, nTilesY, 1);
+	glDispatchCompute(pathCount, 1, 1);
 
 	glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
 
@@ -260,19 +261,19 @@ void mg_gl_render_batch(mg_gl_canvas_backend* backend,
 	glBindBufferRange(GL_SHADER_STORAGE_BUFFER, 0, backend->elementBuffer, backend->elementBufferOffset, eltCount*sizeof(mg_gl_path_elt));
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, backend->segmentCountBuffer);
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, backend->segmentBuffer);
-	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, backend->tileOpCountBuffer);
-	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 4, backend->tileOpBuffer);
-	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 5, backend->tileQueueBuffer);
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, backend->pathQueueBuffer);
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 4, backend->tileQueueBuffer);
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 5, backend->tileOpCountBuffer);
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 6, backend->tileOpBuffer);
 
 	glUniform1f(0, scale);
 	glUniform1ui(1, tileSize);
-	glUniform2i(2, nTilesX, nTilesY);
 
 	glDispatchCompute(eltCount, 1, 1);
 	glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
 
 	//NOTE: backprop pass
-
+/*
 	glUseProgram(backend->backprop);
 
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, backend->tileQueueBuffer);
@@ -281,23 +282,24 @@ void mg_gl_render_batch(mg_gl_canvas_backend* backend,
 
 	glDispatchCompute(nTilesY, 1, 1);
 	glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+*/
 
-	/*
 	//NOTE: merge pass
 	glUseProgram(backend->merge);
 
 	glBindBufferRange(GL_SHADER_STORAGE_BUFFER, 0, backend->pathBuffer, backend->pathBufferOffset, pathCount*sizeof(mg_gl_path));
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, backend->pathQueueBuffer);
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, backend->tileQueueBuffer);
-	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, backend->tileOpBuffer);
-	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 4, backend->tileOpCountBuffer);
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, backend->tileOpCountBuffer);
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 4, backend->tileOpBuffer);
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 5, backend->screenTilesBuffer);
 
 	glUniform1i(0, tileSize);
 	glUniform1f(1, scale);
+	glUniform1i(2, pathCount);
 
 	glDispatchCompute(nTilesX, nTilesY, 1);
-	*/
+	glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
 
 	//NOTE: raster pass
 	glUseProgram(backend->raster);
@@ -314,11 +316,10 @@ void mg_gl_render_batch(mg_gl_canvas_backend* backend,
 	glBindBufferRange(GL_SHADER_STORAGE_BUFFER, 0, backend->pathBuffer, backend->pathBufferOffset, pathCount*sizeof(mg_gl_path));
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, backend->segmentCountBuffer);
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, backend->segmentBuffer);
-	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, backend->tileQueueBuffer);
-	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 4, backend->tileOpBuffer);
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, backend->tileOpBuffer);
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 4, backend->screenTilesBuffer);
 
-//	glUniform1ui(0, tileSize);
-//	glUniform1f(1, scale);
+	glUniform1f(0, scale);
 
 	int err = glGetError();
 	if(err)
@@ -751,9 +752,7 @@ mg_canvas_backend* gl_canvas_backend_create(mg_wgl_surface* surface)
 		err |= mg_gl_canvas_compile_compute_program(glsl_path_setup, &backend->pathSetup);
 		err |= mg_gl_canvas_compile_compute_program(glsl_segment_setup, &backend->segmentSetup);
 		err |= mg_gl_canvas_compile_compute_program(glsl_backprop, &backend->backprop);
-		/*
 		err |= mg_gl_canvas_compile_compute_program(glsl_merge, &backend->merge);
-		*/
 		err |= mg_gl_canvas_compile_compute_program(glsl_raster, &backend->raster);
 		err |= mg_gl_canvas_compile_render_program("blit", glsl_blit_vertex, glsl_blit_fragment, &backend->blit);
 

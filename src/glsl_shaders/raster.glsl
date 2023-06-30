@@ -9,7 +9,7 @@ layout(binding = 0) restrict readonly buffer pathBufferSSBO
 	mg_gl_path elements[];
 } pathBuffer;
 
-layout(binding = 1) restrict readonly buffer segmentBufferCountSSBO
+layout(binding = 1) restrict readonly buffer segmentCountBufferSSBO
 {
 	int elements[];
 } segmentCountBuffer;
@@ -19,19 +19,17 @@ layout(binding = 2) restrict readonly buffer segmentBufferSSBO
 	mg_gl_segment elements[];
 } segmentBuffer;
 
-layout(binding = 3) restrict readonly buffer tileQueuesBufferSSBO
-{
-	mg_gl_tile_queue elements[];
-} tileQueuesBuffer;
-
-layout(binding = 4) restrict readonly buffer tileOpBufferSSBO
+layout(binding = 3) restrict readonly buffer tileOpBufferSSBO
 {
 	mg_gl_tile_op elements[];
 } tileOpBuffer;
 
+layout(binding = 4) restrict readonly buffer screenTilesBufferSSBO
+{
+	int elements[];
+} screenTilesBuffer;
 
-//layout(location = 0) uniform uint tileSize; // this has to be commented until it's effectively used!!
-//layout(location = 0) uniform float scale;
+layout(location = 0) uniform float scale;
 
 layout(rgba8, binding = 0) uniform restrict writeonly image2D outTexture;
 
@@ -139,12 +137,10 @@ void main()
 	ivec2 pixelCoord = ivec2(gl_WorkGroupID.xy*uvec2(16, 16) + gl_LocalInvocationID.xy);
 	vec2 sampleCoord = vec2(pixelCoord);
 
-
-	imageStore(outTexture, ivec2(sampleCoord), vec4(1, 1, 1, 1));
-
-	mg_gl_tile_queue tileQueue = tileQueuesBuffer.elements[tileIndex];
-	int opIndex = tileQueue.first;
-	int winding = tileQueue.windingOffset;
+	int pathIndex = 0;
+	int opIndex = screenTilesBuffer.elements[tileIndex];
+	int winding = 0;
+	vec4 color = vec4(0);
 
 	if((pixelCoord.x % 16) == 0 || (pixelCoord.y % 16) == 0)
 	{
@@ -152,7 +148,6 @@ void main()
 		return;
 	}
 
-	int opCount = 0;
 	while(opIndex >= 0)
 	{
 		//imageStore(outTexture, ivec2(sampleCoord), vec4(0, 1, 0, 1));
@@ -161,7 +156,30 @@ void main()
 		mg_gl_tile_op op = tileOpBuffer.elements[opIndex];
 		opIndex = op.next;
 
-		if(op.kind == MG_GL_OP_SEGMENT)
+		if(op.kind == MG_GL_OP_START)
+		{
+			vec4 pathColor = pathBuffer.elements[pathIndex].color;
+			pathColor.rgb *= pathColor.a;
+
+			vec4 clip = pathBuffer.elements[pathIndex].clip * scale;
+
+			if(  sampleCoord.x >= clip.x
+			  && sampleCoord.x < clip.z
+			  && sampleCoord.y >= clip.y
+			  && sampleCoord.y < clip.w)
+			{
+				bool filled = (pathBuffer.elements[pathIndex].cmd == MG_GL_FILL && ((winding & 1) != 0))
+				            ||(pathBuffer.elements[pathIndex].cmd == MG_GL_STROKE && (winding != 0));
+				if(filled)
+				{
+					vec4 nextColor = pathColor;
+					color = color*(1-nextColor.a) + nextColor;
+				}
+				winding = op.windingOffset;
+			}
+			pathIndex = op.index;
+		}
+		else if(op.kind == MG_GL_OP_SEGMENT)
 		{
 			int segIndex = op.index;
 			mg_gl_segment seg = segmentBuffer.elements[segIndex];
@@ -188,24 +206,25 @@ void main()
 			}
 		}
 	}
-	int pathIndex = 0;
 
-//	vec4 clip = pathBuffer.elements[pathIndex].clip * scale;
+	vec4 pathColor = pathBuffer.elements[pathIndex].color;
+	pathColor.rgb *= pathColor.a;
 
-/*	if(  sampleCoord.x >= clip.x
+	vec4 clip = pathBuffer.elements[pathIndex].clip * scale;
+
+	if(  sampleCoord.x >= clip.x
 	  && sampleCoord.x < clip.z
 	  && sampleCoord.y >= clip.y
 	  && sampleCoord.y < clip.w)
-*/	{
-		/*
-		bool filled = (pathBuffer[pathIndex].cmd == MG_GL_FILL && (winding[sampleIndex] & 1))
-		            ||(pathBuffer[pathIndex].cmd == MG_GL_STROKE && (winding[sampleIndex] != 0));
-		*/
-		bool filled = (winding & 1) != 0;
+	{
+		bool filled = (pathBuffer.elements[pathIndex].cmd == MG_GL_FILL && ((winding & 1) != 0))
+		            ||(pathBuffer.elements[pathIndex].cmd == MG_GL_STROKE && (winding != 0));
 		if(filled)
 		{
-			// write to texture
-			imageStore(outTexture, ivec2(sampleCoord), vec4(1, 0, 0, 1));
+			vec4 nextColor = pathColor;
+			color = color*(1-nextColor.a) + nextColor;
 		}
 	}
+	// write to texture
+	imageStore(outTexture, ivec2(sampleCoord), color);
 }
