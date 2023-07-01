@@ -1,7 +1,11 @@
-#include<keys.h>
-#include<graphics.h>
+#include <keys.h>
+#include <graphics.h>
 
-#include<orca.h>
+#include <orca.h>
+
+extern float cosf(float);
+extern float sinf(float);
+extern float sqrtf(float);
 
 #define NUM_BLOCKS_PER_ROW 7
 #define NUM_BLOCKS 42 // 7 * 6
@@ -11,6 +15,8 @@
 #define BLOCKS_PADDING 15.0f
 #define BLOCKS_BOTTOM 300.0f
 const f32 BLOCK_WIDTH = (BLOCKS_WIDTH - ((NUM_BLOCKS_PER_ROW + 1) * BLOCKS_PADDING)) / NUM_BLOCKS_PER_ROW;
+
+#define PADDLE_MAX_LAUNCH_ANGLE 0.7f
 
 const mg_color paddleColor = {1, 0, 0, 1};
 mp_rect paddle = {BLOCKS_WIDTH/2 - 100, 40, 200, 40};
@@ -37,6 +43,7 @@ mg_font pongFont;
 // TODO(ben): Why is this here? Why isn't it forward-declared by some header?
 mg_surface mg_surface_main(void);
 
+f32 lerp(f32 a, f32 b, f32 t);
 mp_rect blockRect(int i);
 int checkCollision(mp_rect block);
 
@@ -152,32 +159,35 @@ ORCA_EXPORT void OnFrameRefresh(void)
     ball.x = Clamp(ball.x, 0, frameSize.x - ball.w);
     ball.y = Clamp(ball.y, 0, frameSize.y - ball.h);
 
-    if(ball.x + ball.w >= frameSize.x)
-    {
+    if (ball.x + ball.w >= frameSize.x) {
         velocity.x = -velocity.x;
     }
-    if(ball.x <= 0)
-    {
+    if (ball.x <= 0) {
         velocity.x = -velocity.x;
     }
-    if(ball.y + ball.h >= frameSize.y)
-    {
+    if (ball.y + ball.h >= frameSize.y) {
         velocity.y = -velocity.y;
     }
 
-    if(ball.y <= paddle.y + paddle.h
-       && ball.x+ball.w >= paddle.x
-       && ball.x <= paddle.x + paddle.w
-       && velocity.y < 0)
-    {
-        velocity.y *= -1;
+    if (
+        ball.y <= paddle.y + paddle.h
+        && ball.x+ball.w >= paddle.x
+        && ball.x <= paddle.x + paddle.w
+        && velocity.y < 0
+    ) {
+        f32 t = ((ball.x + ball.w/2) - paddle.x) / paddle.w;
+        f32 launchAngle = lerp(-PADDLE_MAX_LAUNCH_ANGLE, PADDLE_MAX_LAUNCH_ANGLE, t);
+        f32 speed = sqrtf(velocity.x*velocity.x + velocity.y*velocity.y);
+        velocity = (vec2){
+            sinf(launchAngle) * speed,
+            cosf(launchAngle) * speed,
+        };
         ball.y = paddle.y + paddle.h;
 
         log_info("PONG!");
     }
 
-    if(ball.y <= 0)
-    {
+    if (ball.y <= 0) {
         ball.x = frameSize.x/2. - ball.w;
         ball.y = frameSize.y/2. - ball.h;
     }
@@ -396,4 +406,8 @@ int checkCollision(mp_rect block) {
     }
 
     return 0;
+}
+
+f32 lerp(f32 a, f32 b, f32 t) {
+    return (1 - t) * a + t * b;
 }

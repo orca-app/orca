@@ -108,6 +108,27 @@ do {                                              \
 #define SET_LOW_WORD(d,lo)                        \
   INSERT_WORDS(d, asuint64(d)>>32, lo)
 
+#define GET_FLOAT_WORD(w,d)                       \
+do {                                              \
+  (w) = asuint(d);                                \
+} while (0)
+
+#define SET_FLOAT_WORD(d,w)                       \
+do {                                              \
+  (d) = asfloat(w);                               \
+} while (0)
+
+int    __rem_pio2_large(double*,double*,int,int,int);
+
+int    __rem_pio2(double,double*);
+double __sin(double,double,int);
+double __cos(double,double);
+
+int    __rem_pio2f(float,double*);
+float  __sindf(double);
+float  __cosdf(double);
+
+float __math_invalidf(float);
 double __math_xflow(uint32_t, double);
 double __math_uflow(uint32_t);
 double __math_oflow(uint32_t);
