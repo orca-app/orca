@@ -26,7 +26,15 @@ mp_rect ball = {200, 200, 20, 20};
 
 vec2 velocity = {5, 5};
 
-int blockHealth[NUM_BLOCKS];
+// This is upside down from how it will actually be drawn.
+int blockHealth[NUM_BLOCKS] = {
+    0, 1, 1, 1, 1, 1, 0,
+    1, 1, 1, 1, 1, 1, 1,
+    2, 2, 2, 2, 2, 2, 2,
+    2, 2, 2, 2, 2, 2, 2,
+    3, 3, 3, 3, 3, 3, 3,
+    3, 3, 3, 3, 3, 3, 3,
+};
 
 vec2 frameSize = {100, 100};
 
@@ -46,6 +54,7 @@ mg_surface mg_surface_main(void);
 f32 lerp(f32 a, f32 b, f32 t);
 mp_rect blockRect(int i);
 int checkCollision(mp_rect block);
+mg_mat2x3 flipYAt(vec2 pos);
 
 str8 loadFile(mem_arena* arena, str8 filename) {
     file_handle file = file_open(filename, FILE_ACCESS_READ, 0);
@@ -78,10 +87,6 @@ ORCA_EXPORT void OnInit(void)
     // NOTE(ben): Weird that images are "create from data" but fonts are "create from memory"
     // TODO: Decide whether we're using strings or explicit pointer + length
     pongFont = mg_font_create_from_memory(fontStr.len, (byte*)fontStr.ptr, 5, ranges);
-
-    for (int i = 0; i < NUM_BLOCKS; i++) {
-        blockHealth[i] = 2;
-    }
 
     mem_arena_clear(mem_scratch());
 }
@@ -235,37 +240,44 @@ ORCA_EXPORT void OnFrameRefresh(void)
     mg_set_color_rgba(10.0f/255.0f, 31.0f/255.0f, 72.0f/255.0f, 1);
     mg_clear();
 
-    mg_mat2x3 transform = {1, 0, 0,
-                           0, -1, frameSize.y};
+    mg_mat2x3 yUp = {
+        1, 0, 0,
+        0, -1, frameSize.y,
+    };
 
-    mg_matrix_push(transform);
+    mg_matrix_push(yUp);
     {
-        mg_set_color_rgba(0.9, 0.9, 0.9, 1);
         for (int i = 0; i < NUM_BLOCKS; i++) {
             if (blockHealth[i] <= 0) {
                 continue;
             }
 
             mp_rect r = blockRect(i);
-            mg_rectangle_fill(r.x, r.y, r.w, r.h);
+            mg_set_color_rgba(0.9, 0.9, 0.9, 1);
+            mg_rounded_rectangle_fill(r.x, r.y, r.w, r.h, 4);
+
+            // TODO: measure and center text
+            vec2 textPos = {r.x + r.w/2 - 5, r.y + 9};
+
+            mg_set_color_rgba(0, 0, 0, 1);
+            mg_set_font(pongFont);
+            mg_set_font_size(18);
+            mg_move_to(textPos.x, textPos.y);
+            mg_matrix_push(flipYAt(textPos));
+            {
+                str8 text = str8_pushf(mem_scratch(),
+                    "%d", blockHealth[i]
+                );
+                mg_text_outlines(text);
+                mg_fill();
+            }
+            mg_matrix_pop();
         }
 
         mg_image_draw(paddleImage, paddle);
         mg_image_draw(ballImage, ball);
     }
     mg_matrix_pop();
-
-    mg_set_color_rgba(0, 0, 0, 1);
-    mg_set_font(pongFont);
-    mg_set_font_size(14);
-    mg_move_to(10, 20);
-
-    str8 text = str8_pushf(mem_scratch(),
-        "wahoo I'm did a text. ball is at x = %f, y = %f",
-        ball.x, ball.y
-    );
-    mg_text_outlines(text);
-    mg_fill();
 
     mg_surface_prepare(surface);
     mg_render(surface, canvas);
@@ -410,4 +422,11 @@ int checkCollision(mp_rect block) {
 
 f32 lerp(f32 a, f32 b, f32 t) {
     return (1 - t) * a + t * b;
+}
+
+mg_mat2x3 flipYAt(vec2 pos) {
+    return (mg_mat2x3){
+        1, 0, 0,
+        0, -1, 2 * pos.y,
+    };
 }
