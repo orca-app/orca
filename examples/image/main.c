@@ -6,6 +6,7 @@
 *	@revision:
 *
 *****************************************************************/
+#include<stdio.h>
 #include<stdlib.h>
 #include<string.h>
 #include<errno.h>
@@ -73,7 +74,6 @@ int main()
 			mg_set_color_rgba(0, 1, 1, 1);
 			mg_clear();
 
-
 			mg_set_color_rgba(1, 1, 1, 1);
 
 			mg_matrix_push((mg_mat2x3){0.707, -0.707, 200,
@@ -94,6 +94,8 @@ int main()
 			mg_matrix_pop();
 
 			mg_image_draw(image2, (mp_rect){300, 200, 300, 300});
+
+
 
 			mg_render(surface, canvas);
 		mg_surface_present(surface);

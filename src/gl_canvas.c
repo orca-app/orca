@@ -1733,8 +1733,8 @@ void mg_gl_canvas_render(mg_canvas_backend* interface,
 		{
 			mg_image_data* imageData = mg_image_data_from_handle(backend->image);
 			mg_gl_canvas_draw_batch(backend, imageData, backend->nextShapeIndex, backend->vertexCount, backend->indexCount);
-			backend->image = primitive->attributes.image;
 		}
+		backend->image = primitive->attributes.image;
 
 		switch(primitive->cmd)
 		{
