@@ -1,11 +1,8 @@
 #include <keys.h>
 #include <graphics.h>
+#include <math.h>
 
 #include <orca.h>
-
-extern float cosf(float);
-extern float sinf(float);
-extern float sqrtf(float);
 
 #define NUM_BLOCKS_PER_ROW 7
 #define NUM_BLOCKS 42 // 7 * 6
