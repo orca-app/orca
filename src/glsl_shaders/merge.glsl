@@ -45,7 +45,6 @@ void main()
 	int tileIndex = tileCoord.y * nTiles.x + tileCoord.x;
 
 	screenTilesBuffer.elements[tileIndex] = -1;
-
 	int lastOpIndex = -1;
 
 	for(int pathIndex = 0; pathIndex < pathCount; pathIndex++)

@@ -16,8 +16,6 @@
 
 #include"milepost.h"
 
-#define LOG_SUBSYSTEM "Main"
-
 int main()
 {
 	mp_init();
@@ -111,7 +109,6 @@ int main()
 			mg_set_color_rgba(1, 0, 0, 1);
 			mg_fill();
 
-/*
 			mg_move_to(200, 100);
 			mg_line_to(410, 100);
 			mg_line_to(410, 200);
@@ -119,7 +116,7 @@ int main()
 			mg_close_path();
 			mg_set_color_rgba(0, 1, 0, 1);
 			mg_fill();
-
+/*
 			mg_move_to(400, 400);
 			mg_quadratic_to(600, 601, 800, 400);
 			mg_close_path();
