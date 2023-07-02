@@ -184,15 +184,21 @@ def windows_make_app(args):
 	#-----------------------------------------------------------
 	#NOTE: copy wasm module and data
 	#-----------------------------------------------------------
+
 	shutil.copy(args.module, wasm_dir + '/module.wasm')
 
-	if args.data_files != None:
-		for data in args.data_files:
-			shutil.copy(data, data_dir)
+	if args.resource_files != None:
+		for resource in args.resource_files:
+			shutil.copytree(resource, data_dir + '/' + os.path.basename(resource), dirs_exist_ok=True)
 
-	if args.data_dirs != None:
-		for data in args.data_dirs:
-			shutil.copytree(data, data_dir + '/' + os.path.basename(data), dirs_exist_ok=True)
+	if args.resource_dirs != None:
+		for resource_dir in args.resource_dirs:
+			for resource in os.listdir(resource_dir):
+				src = resource_dir + '/' + resource
+				if os.path.isdir(src):
+					shutil.copytree(src, data_dir + '/' + os.path.basename(resource), dirs_exist_ok=True)
+				else:
+					shutil.copy(src, data_dir)
 
 	#-----------------------------------------------------------
 	#NOTE: copy runtime resources
