@@ -240,6 +240,8 @@ ORCA_EXPORT void OnFrameRefresh(void)
     mg_set_color_rgba(10.0f/255.0f, 31.0f/255.0f, 72.0f/255.0f, 1);
     mg_clear();
 
+    mg_image_draw(waterImage, (mp_rect){0, 0, frameSize.x, frameSize.y});
+
     mg_mat2x3 yUp = {
         1, 0, 0,
         0, -1, frameSize.y,
