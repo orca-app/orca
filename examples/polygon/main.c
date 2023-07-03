@@ -116,6 +116,10 @@ int main()
 			mg_close_path();
 			mg_set_color_rgba(0, 1, 0, 1);
 			mg_fill();
+
+			mg_set_color_rgba(0, 1, 1, 1);
+			mg_rectangle_fill(120, 120, 200, 200);
+
 /*
 			mg_move_to(400, 400);
 			mg_quadratic_to(600, 601, 800, 400);

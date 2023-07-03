@@ -42,7 +42,7 @@ layout(binding = 6) restrict buffer tileOpBufferSSBO
 layout(location = 0) uniform float scale;
 layout(location = 1) uniform uint tileSize;
 
-int push_segment(in vec2 p[4], int kind)
+int push_segment(in vec2 p[4], int kind, int pathIndex)
 {
 	int segIndex = atomicAdd(segmentCountBuffer.elements[0], 1);
 
@@ -59,7 +59,7 @@ int push_segment(in vec2 p[4], int kind)
 	                max(s.y, e.y));
 
 	segmentBuffer.elements[segIndex].kind = kind;
-	segmentBuffer.elements[segIndex].pathIndex = 0; ///
+	segmentBuffer.elements[segIndex].pathIndex = pathIndex;
 	segmentBuffer.elements[segIndex].windingIncrement = goingUp ? 1 : -1;
 	segmentBuffer.elements[segIndex].box = box;
 
@@ -288,9 +288,9 @@ void bin_to_tiles(int segIndex)
 	}
 }
 
-void line_setup(vec2 p[4])
+void line_setup(vec2 p[4], int pathIndex)
 {
-	int segIndex = push_segment(p, MG_GL_LINE);
+	int segIndex = push_segment(p, MG_GL_LINE, pathIndex);
 	segmentBuffer.elements[segIndex].hullVertex = p[0];
 
 	bin_to_tiles(segIndex);
@@ -307,7 +307,7 @@ void main()
 		case MG_GL_LINE:
 		{
 			vec2 p[4] = {elt.p[0]*scale, elt.p[1]*scale, vec2(0), vec2(0)};
-			line_setup(p);
+			line_setup(p, elt.pathIndex);
 		} break;
 
 		default:

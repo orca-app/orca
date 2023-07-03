@@ -150,9 +150,6 @@ void main()
 
 	while(opIndex >= 0)
 	{
-//		imageStore(outTexture, ivec2(sampleCoord), vec4(0, 1, 1, 1));
-//		return;
-
 		mg_gl_tile_op op = tileOpBuffer.elements[opIndex];
 		opIndex = op.next;
 
