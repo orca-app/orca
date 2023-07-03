@@ -20,6 +20,9 @@ layout(std430) buffer;
 #define MG_GL_OP_START 0
 #define MG_GL_OP_SEGMENT 1
 
+// MSAA
+#define MG_GL_MAX_SAMPLE_COUNT 8
+
 struct mg_gl_path
 {
 	mat3 uvTransform;

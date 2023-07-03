@@ -300,16 +300,7 @@ void mg_gl_render_batch(mg_gl_canvas_backend* backend,
 
 	//NOTE: raster pass
 	glUseProgram(backend->raster);
-/*
-	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, backend->screenTilesBuffer);
-	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, backend->tileOpBuffer);
-	glBindBufferRange(GL_SHADER_STORAGE_BUFFER, 2, backend->pathBuffer, backend->pathBufferOffset, pathCount*sizeof(mg_gl_path));
-	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, backend->segmentBuffer);
 
-	glUniform1i(0, tileSize);
-	glUniform1f(1, scale);
-	glUniform1i(2, backend->msaaCount);
-*/
 	glBindBufferRange(GL_SHADER_STORAGE_BUFFER, 0, backend->pathBuffer, backend->pathBufferOffset, pathCount*sizeof(mg_gl_path));
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, backend->segmentCountBuffer);
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, backend->segmentBuffer);
@@ -317,6 +308,7 @@ void mg_gl_render_batch(mg_gl_canvas_backend* backend,
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 4, backend->screenTilesBuffer);
 
 	glUniform1f(0, scale);
+	glUniform1i(1, backend->msaaCount);
 
 	int err = glGetError();
 	if(err)

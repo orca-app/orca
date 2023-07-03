@@ -30,8 +30,10 @@ layout(binding = 4) restrict readonly buffer screenTilesBufferSSBO
 } screenTilesBuffer;
 
 layout(location = 0) uniform float scale;
+layout(location = 1) uniform int msaaSampleCount;
 
 layout(rgba8, binding = 0) uniform restrict writeonly image2D outTexture;
+
 
 void main()
 {
@@ -40,18 +42,45 @@ void main()
 	uint tileIndex =  tileCoord.y * nTiles.x + tileCoord.x;
 
 	ivec2 pixelCoord = ivec2(gl_WorkGroupID.xy*uvec2(16, 16) + gl_LocalInvocationID.xy);
-	vec2 sampleCoord = vec2(pixelCoord);
+	vec2 centerCoord = vec2(pixelCoord) + vec2(0.5, 0.5);
+
+	/*
+	if((pixelCoord.x % 16) == 0 || (pixelCoord.y % 16) == 0)
+	{
+		imageStore(outTexture, pixelCoord, vec4(0, 0, 0, 1));
+		return;
+	}
+	*/
+
+	vec2 sampleCoords[MG_GL_MAX_SAMPLE_COUNT] = {
+		centerCoord + vec2(1, 3)/16,
+		centerCoord + vec2(-1, -3)/16,
+		centerCoord + vec2(5, -1)/16,
+		centerCoord + vec2(-3, 5)/16,
+		centerCoord + vec2(-5, -5)/16,
+		centerCoord + vec2(-7, 1)/16,
+		centerCoord + vec2(3, -7)/16,
+		centerCoord + vec2(7, 7)/16
+	};
+
+	int sampleCount = msaaSampleCount;
+	if(sampleCount != 8)
+	{
+		sampleCount = 1;
+		sampleCoords[0] = centerCoord;
+	}
+
+	vec4 color[MG_GL_MAX_SAMPLE_COUNT];
+	int winding[MG_GL_MAX_SAMPLE_COUNT];
+
+	for(int i=0; i<sampleCount; i++)
+	{
+		winding[i] = 0;
+		color[i] = vec4(0);
+	}
 
 	int pathIndex = 0;
 	int opIndex = screenTilesBuffer.elements[tileIndex];
-	int winding = 0;
-	vec4 color = vec4(0);
-
-	if((pixelCoord.x % 16) == 0 || (pixelCoord.y % 16) == 0)
-	{
-		imageStore(outTexture, ivec2(sampleCoord), vec4(0, 0, 0, 1));
-		return;
-	}
 
 	while(opIndex >= 0)
 	{
@@ -60,24 +89,28 @@ void main()
 
 		if(op.kind == MG_GL_OP_START)
 		{
+			vec4 clip = pathBuffer.elements[pathIndex].clip * scale;
 			vec4 pathColor = pathBuffer.elements[pathIndex].color;
 			pathColor.rgb *= pathColor.a;
 
-			vec4 clip = pathBuffer.elements[pathIndex].clip * scale;
-
-			if(  sampleCoord.x >= clip.x
-			  && sampleCoord.x < clip.z
-			  && sampleCoord.y >= clip.y
-			  && sampleCoord.y < clip.w)
+			for(int sampleIndex = 0; sampleIndex<sampleCount; sampleIndex++)
 			{
-				bool filled = (pathBuffer.elements[pathIndex].cmd == MG_GL_FILL && ((winding & 1) != 0))
-				            ||(pathBuffer.elements[pathIndex].cmd == MG_GL_STROKE && (winding != 0));
-				if(filled)
+				vec2 sampleCoord = sampleCoords[sampleIndex];
+
+				if(  sampleCoord.x >= clip.x
+				  && sampleCoord.x < clip.z
+				  && sampleCoord.y >= clip.y
+				  && sampleCoord.y < clip.w)
 				{
-					vec4 nextColor = pathColor;
-					color = color*(1-nextColor.a) + nextColor;
+					bool filled = (pathBuffer.elements[pathIndex].cmd == MG_GL_FILL && ((winding[sampleIndex] & 1) != 0))
+					            ||(pathBuffer.elements[pathIndex].cmd == MG_GL_STROKE && (winding[sampleIndex] != 0));
+					if(filled)
+					{
+						vec4 nextColor = pathColor;
+						color[sampleIndex] = color[sampleIndex]*(1-nextColor.a) + nextColor;
+					}
 				}
-				winding = op.windingOffset;
+				winding[sampleIndex] = op.windingOffset;
 			}
 			pathIndex = op.index;
 		}
@@ -86,47 +119,60 @@ void main()
 			int segIndex = op.index;
 			mg_gl_segment seg = segmentBuffer.elements[segIndex];
 
-			if( (sampleCoord.y > seg.box.y)
-			  &&(sampleCoord.y <= seg.box.w)
-			  &&(side_of_segment(sampleCoord, seg) < 0))
+			for(int sampleIndex=0; sampleIndex<sampleCount; sampleIndex++)
 			{
-				winding += seg.windingIncrement;
-			}
+				vec2 sampleCoord = sampleCoords[sampleIndex];
 
-			if(op.crossRight)
-			{
-				if( (seg.config == MG_GL_BR || seg.config == MG_GL_TL)
-				  &&(sampleCoord.y > seg.box.w))
+				if( (sampleCoord.y > seg.box.y)
+				  &&(sampleCoord.y <= seg.box.w)
+				  &&(side_of_segment(sampleCoord, seg) < 0))
 				{
-					winding += seg.windingIncrement;
+					winding[sampleIndex] += seg.windingIncrement;
 				}
-				else if( (seg.config == MG_GL_BL || seg.config == MG_GL_TR)
-				       &&(sampleCoord.y > seg.box.y))
+
+				if(op.crossRight)
 				{
-					winding -= seg.windingIncrement;
+					if( (seg.config == MG_GL_BR || seg.config == MG_GL_TL)
+					  &&(sampleCoord.y > seg.box.w))
+					{
+						winding[sampleIndex] += seg.windingIncrement;
+					}
+					else if( (seg.config == MG_GL_BL || seg.config == MG_GL_TR)
+					       &&(sampleCoord.y > seg.box.y))
+					{
+						winding[sampleIndex] -= seg.windingIncrement;
+					}
 				}
 			}
 		}
 	}
-
-	vec4 pathColor = pathBuffer.elements[pathIndex].color;
-	pathColor.rgb *= pathColor.a;
 
 	vec4 clip = pathBuffer.elements[pathIndex].clip * scale;
 
-	if(  sampleCoord.x >= clip.x
-	  && sampleCoord.x < clip.z
-	  && sampleCoord.y >= clip.y
-	  && sampleCoord.y < clip.w)
+	vec4 pixelColor = vec4(0);
+	vec4 pathColor = pathBuffer.elements[pathIndex].color;
+	pathColor.rgb *= pathColor.a;
+
+	for(int sampleIndex=0; sampleIndex<sampleCount; sampleIndex++)
 	{
-		bool filled = (pathBuffer.elements[pathIndex].cmd == MG_GL_FILL && ((winding & 1) != 0))
-		            ||(pathBuffer.elements[pathIndex].cmd == MG_GL_STROKE && (winding != 0));
-		if(filled)
+		vec2 sampleCoord = sampleCoords[sampleIndex];
+
+		if(  sampleCoord.x >= clip.x
+		  && sampleCoord.x < clip.z
+		  && sampleCoord.y >= clip.y
+		  && sampleCoord.y < clip.w)
 		{
-			vec4 nextColor = pathColor;
-			color = color*(1-nextColor.a) + nextColor;
+			bool filled = (pathBuffer.elements[pathIndex].cmd == MG_GL_FILL && ((winding[sampleIndex] & 1) != 0))
+			            ||(pathBuffer.elements[pathIndex].cmd == MG_GL_STROKE && (winding[sampleIndex] != 0));
+			if(filled)
+			{
+				vec4 nextColor = pathColor;
+				color[sampleIndex] = color[sampleIndex]*(1-nextColor.a) + nextColor;
+			}
 		}
+		pixelColor += color[sampleIndex];
 	}
-	// write to texture
-	imageStore(outTexture, ivec2(sampleCoord), color);
+	pixelColor /= sampleCount;
+
+	imageStore(outTexture, pixelCoord, pixelColor);
 }
