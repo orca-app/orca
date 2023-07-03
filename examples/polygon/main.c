@@ -128,13 +128,13 @@ int main()
 			mg_close_path();
 			mg_set_color_rgba(0, 0, 1, 1);
 			mg_fill();
-/*
-			mg_move_to(2*400, 2*400);
-			mg_cubic_to(2*400, 2*200, 2*600, 2*500, 2*600, 2*400);
+
+			mg_move_to(200, 450);
+			mg_cubic_to(200, 250, 400, 550, 400, 450);
 			mg_close_path();
-			mg_set_color_rgba(0, 0, 1, 1);
+			mg_set_color_rgba(1, 0.5, 0, 1);
 			mg_fill();
-*/
+
 /*
 			mg_set_joint(MG_JOINT_NONE);
 			mg_set_max_joint_excursion(20);

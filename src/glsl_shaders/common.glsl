@@ -44,7 +44,6 @@ struct mg_gl_segment
 	int config; //TODO pack these
 	int windingIncrement;
 	vec4 box;
-	mat3 hullMatrix;
 	mat3 implicitMatrix;
 	float sign;
 	vec2 hullVertex;
