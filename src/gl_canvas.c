@@ -76,6 +76,7 @@ typedef struct mg_gl_path_queue
 {
 	vec4 area;
 	int tileQueues;
+	u8 pad[12];
 } mg_gl_path_queue;
 
 typedef struct mg_gl_tile_op
@@ -895,24 +896,36 @@ void mg_gl_render_batch(mg_gl_canvas_backend* backend,
 	glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
 
 	//NOTE: path setup pass
+	int maxWorkGroupCount = 0;
+	glGetIntegeri_v(GL_MAX_COMPUTE_WORK_GROUP_COUNT, 0, &maxWorkGroupCount);
+	//NOTE: glDispatchCompute errors if work group count is greater _or equal_ to GL_MAX_COMPUTE_WORK_GROUP_COUNT
+	//      so the maximum _allowed_ group count is one less.
+	maxWorkGroupCount--;
+
 	glUseProgram(backend->pathSetup);
 
-	glBindBufferRange(GL_SHADER_STORAGE_BUFFER, 0, backend->pathBuffer, backend->pathBufferOffset, pathCount*sizeof(mg_gl_path));
-	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, backend->pathQueueBuffer);
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, backend->tileQueueCountBuffer);
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, backend->tileQueueBuffer);
 
 	glUniform1i(0, tileSize);
 	glUniform1f(1, scale);
 
-	glDispatchCompute(pathCount, 1, 1);
+	for(int i=0; i<pathCount; i += maxWorkGroupCount)
+	{
+		int pathOffset = backend->pathBufferOffset + i*sizeof(mg_gl_path);
+		int pathQueueOffset = i*sizeof(mg_gl_path_queue);
+		int count = minimum(maxWorkGroupCount, pathCount-i);
 
-	glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+		glBindBufferRange(GL_SHADER_STORAGE_BUFFER, 0, backend->pathBuffer, pathOffset, count*sizeof(mg_gl_path));
+		glBindBufferRange(GL_SHADER_STORAGE_BUFFER, 1, backend->pathQueueBuffer, pathQueueOffset, count*sizeof(mg_gl_path_queue));
+
+		glDispatchCompute(count, 1, 1);
+		glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+	}
 
 	//NOTE: segment setup pass
 	glUseProgram(backend->segmentSetup);
 
-	glBindBufferRange(GL_SHADER_STORAGE_BUFFER, 0, backend->elementBuffer, backend->elementBufferOffset, eltCount*sizeof(mg_gl_path_elt));
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, backend->segmentCountBuffer);
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, backend->segmentBuffer);
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, backend->pathQueueBuffer);
@@ -923,17 +936,32 @@ void mg_gl_render_batch(mg_gl_canvas_backend* backend,
 	glUniform1f(0, scale);
 	glUniform1ui(1, tileSize);
 
-	glDispatchCompute(eltCount, 1, 1);
-	glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+	for(int i=0; i<eltCount; i += maxWorkGroupCount)
+	{
+		int offset = backend->elementBufferOffset + i*sizeof(mg_gl_path_elt);
+		int count = minimum(maxWorkGroupCount, eltCount-i);
+
+		glBindBufferRange(GL_SHADER_STORAGE_BUFFER, 0, backend->elementBuffer, offset, count*sizeof(mg_gl_path_elt));
+
+		glDispatchCompute(count, 1, 1);
+		glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+	}
 
 	//NOTE: backprop pass
 	glUseProgram(backend->backprop);
 
-	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, backend->pathQueueBuffer);
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, backend->tileQueueBuffer);
 
-	glDispatchCompute(pathCount, 1, 1);
-	glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+	for(int i=0; i<pathCount; i += maxWorkGroupCount)
+	{
+		int offset = i*sizeof(mg_gl_path_queue);
+		int count = minimum(maxWorkGroupCount, pathCount-i);
+
+		glBindBufferRange(GL_SHADER_STORAGE_BUFFER, 0, backend->pathQueueBuffer, offset, count*sizeof(mg_gl_path_queue));
+
+		glDispatchCompute(count, 1, 1);
+		glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+	}
 
 	//NOTE: merge pass
 	glUseProgram(backend->merge);
