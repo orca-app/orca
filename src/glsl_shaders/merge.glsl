@@ -37,6 +37,7 @@ layout(binding = 5) restrict writeonly buffer screenTilesBufferSSBO
 layout(location = 0) uniform int tileSize;
 layout(location = 1) uniform float scale;
 layout(location = 2) uniform int pathCount;
+layout(location = 3) uniform int cullSolidTiles;
 
 void main()
 {
@@ -89,6 +90,7 @@ void main()
 
 					if( lastOpIndex < 0
 					  ||(pathBuffer.elements[pathIndex].color.a == 1
+					    && cullSolidTiles != 0
 					    && tileBox.x >= clip.x
 					    && tileBox.z < clip.z
 					    && tileBox.y >= clip.y

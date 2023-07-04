@@ -81,7 +81,7 @@ int main()
 
 
 			mg_set_color_rgba(1, 1, 1, 1);
-
+/*
 			mg_matrix_push((mg_mat2x3){0.707, -0.707, 200,
 			                           0.707, 0.707, 100});
 			mg_set_image(image);
@@ -98,6 +98,9 @@ int main()
 
 			mg_matrix_pop();
 
+			mg_image_draw(image2, (mp_rect){300, 200, 300, 300});
+*/
+			mg_image_draw(image, (mp_rect){100, 100, 300, 300});
 			mg_image_draw(image2, (mp_rect){300, 200, 300, 300});
 
 			mg_render(surface, canvas);

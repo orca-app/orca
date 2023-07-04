@@ -237,9 +237,9 @@ MP_API vec2 mg_image_size(mg_image image);
 //NOTE: rectangle allocator
 typedef struct mg_rect_atlas mg_rect_atlas;
 
-mg_rect_atlas* mg_rect_atlas_create(mem_arena* arena, i32 width, i32 height);
-mp_rect mg_rect_atlas_alloc(mg_rect_atlas* atlas, i32 width, i32 height);
-void mg_rect_atlas_recycle(mg_rect_atlas* atlas, mp_rect rect);
+MP_API mg_rect_atlas* mg_rect_atlas_create(mem_arena* arena, i32 width, i32 height);
+MP_API mp_rect mg_rect_atlas_alloc(mg_rect_atlas* atlas, i32 width, i32 height);
+MP_API void mg_rect_atlas_recycle(mg_rect_atlas* atlas, mp_rect rect);
 
 //NOTE: image atlas helpers
 typedef struct mg_image_region
@@ -248,10 +248,10 @@ typedef struct mg_image_region
 	mp_rect rect;
 } mg_image_region;
 
-mg_image_region mg_image_atlas_alloc_from_rgba8(mg_rect_atlas* atlas, mg_image backingImage, u32 width, u32 height, u8* pixels);
-mg_image_region mg_image_atlas_alloc_from_data(mg_rect_atlas* atlas, mg_image backingImage, str8 data, bool flip);
-mg_image_region mg_image_atlas_alloc_from_file(mg_rect_atlas* atlas, mg_image backingImage, str8 path, bool flip);
-void mg_image_atlas_recycle(mg_rect_atlas* atlas, mg_image_region imageRgn);
+MP_API mg_image_region mg_image_atlas_alloc_from_rgba8(mg_rect_atlas* atlas, mg_image backingImage, u32 width, u32 height, u8* pixels);
+MP_API mg_image_region mg_image_atlas_alloc_from_data(mg_rect_atlas* atlas, mg_image backingImage, str8 data, bool flip);
+MP_API mg_image_region mg_image_atlas_alloc_from_file(mg_rect_atlas* atlas, mg_image backingImage, str8 path, bool flip);
+MP_API void mg_image_atlas_recycle(mg_rect_atlas* atlas, mg_image_region imageRgn);
 
 //------------------------------------------------------------------------------------------
 //NOTE(martin): transform, viewport and clipping

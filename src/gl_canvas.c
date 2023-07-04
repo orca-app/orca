@@ -981,6 +981,16 @@ void mg_gl_render_batch(mg_gl_canvas_backend* backend,
 	glUniform1f(1, scale);
 	glUniform1i(2, pathCount);
 
+	// if there's an image, don't cull solid tiles
+	if(image)
+	{
+		glUniform1i(3, 0);
+	}
+	else
+	{
+		glUniform1i(3, 1);
+	}
+
 	glDispatchCompute(nTilesX, nTilesY, 1);
 	glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
 
@@ -1238,7 +1248,7 @@ mg_image_data* mg_gl_canvas_image_create(mg_canvas_backend* interface, vec2 size
 	{
 		glGenTextures(1, &image->texture);
 		glBindTexture(GL_TEXTURE_2D, image->texture);
-//		glTexStorage2D(GL_TEXTURE_2D, 1, GL_RGBA8, size.x, size.y);
+		glTexStorage2D(GL_TEXTURE_2D, 1, GL_RGBA8, size.x, size.y);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
@@ -1263,7 +1273,7 @@ void mg_gl_canvas_image_upload_region(mg_canvas_backend* interface,
 	//TODO: check that this image belongs to this context
 	mg_gl_image* image = (mg_gl_image*)imageInterface;
 	glBindTexture(GL_TEXTURE_2D, image->texture);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, region.w, region.h, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
+	glTexSubImage2D(GL_TEXTURE_2D, 0, region.x, region.y, region.w, region.h, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
 }
 
 //--------------------------------------------------------------------
