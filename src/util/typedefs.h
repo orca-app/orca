@@ -75,6 +75,11 @@ typedef union
 		f32 w;
 		f32 h;
 	};
+	struct
+	{
+		vec2 xy;
+		vec2 wh;
+	};
 	f32 c[4];
 } mp_rect;
 
