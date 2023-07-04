@@ -97,6 +97,8 @@ typedef struct mg_gl_tile_queue
 
 } mg_gl_tile_queue;
 
+////////////////////////////////////////////////////////////
+
 typedef struct mg_gl_encoding_context
 {
 	int glEltCount;
@@ -109,8 +111,6 @@ typedef struct mg_gl_encoding_context
 	vec4 pathUserExtents;
 
 } mg_gl_encoding_context;
-////////////////////////////////////////////////////////////
-
 
 enum {
 //	MG_GL_INPUT_BUFFERS_COUNT = 3,
@@ -134,8 +134,6 @@ typedef struct mg_gl_canvas_backend
 
 	GLuint outTexture;
 
-	int pathBufferOffset;
-	int elementBufferOffset;
 	int bufferIndex;
 	//TODO buffer semaphore...
 
@@ -876,11 +874,17 @@ void mg_gl_render_batch(mg_gl_canvas_backend* backend,
                         f32 scale)
 {
 	//NOTE: send the buffers
+	//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+	// this is wrong, we should send the part we just wrote, which doesn't necessarily start at the begining of the buffer
+	// or, alternatively, we should always write at the beginning of our data buffer and send from there...
+	//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	glBindBuffer(GL_SHADER_STORAGE_BUFFER, backend->pathBuffer);
 	glBufferData(GL_SHADER_STORAGE_BUFFER, LAYOUT_PATH_SIZE*pathCount, backend->pathBufferData, GL_STREAM_DRAW);
 
 	glBindBuffer(GL_SHADER_STORAGE_BUFFER, backend->elementBuffer);
 	glBufferData(GL_SHADER_STORAGE_BUFFER, LAYOUT_PATH_ELT_SIZE*eltCount, backend->elementBufferData, GL_STREAM_DRAW);
+
+	// --> this always bind the begining of the buffer, with the wrong pathCount/eltCount...
 
 	//NOTE: clear counters
 	int zero = 0;
@@ -912,7 +916,7 @@ void mg_gl_render_batch(mg_gl_canvas_backend* backend,
 
 	for(int i=0; i<pathCount; i += maxWorkGroupCount)
 	{
-		int pathOffset = backend->pathBufferOffset + i*sizeof(mg_gl_path);
+		int pathOffset = i*sizeof(mg_gl_path);
 		int pathQueueOffset = i*sizeof(mg_gl_path_queue);
 		int count = minimum(maxWorkGroupCount, pathCount-i);
 
@@ -938,7 +942,7 @@ void mg_gl_render_batch(mg_gl_canvas_backend* backend,
 
 	for(int i=0; i<eltCount; i += maxWorkGroupCount)
 	{
-		int offset = backend->elementBufferOffset + i*sizeof(mg_gl_path_elt);
+		int offset = i*sizeof(mg_gl_path_elt);
 		int count = minimum(maxWorkGroupCount, eltCount-i);
 
 		glBindBufferRange(GL_SHADER_STORAGE_BUFFER, 0, backend->elementBuffer, offset, count*sizeof(mg_gl_path_elt));
@@ -966,7 +970,7 @@ void mg_gl_render_batch(mg_gl_canvas_backend* backend,
 	//NOTE: merge pass
 	glUseProgram(backend->merge);
 
-	glBindBufferRange(GL_SHADER_STORAGE_BUFFER, 0, backend->pathBuffer, backend->pathBufferOffset, pathCount*sizeof(mg_gl_path));
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, backend->pathBuffer);
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, backend->pathQueueBuffer);
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, backend->tileQueueBuffer);
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, backend->tileOpCountBuffer);
@@ -983,7 +987,7 @@ void mg_gl_render_batch(mg_gl_canvas_backend* backend,
 	//NOTE: raster pass
 	glUseProgram(backend->raster);
 
-	glBindBufferRange(GL_SHADER_STORAGE_BUFFER, 0, backend->pathBuffer, backend->pathBufferOffset, pathCount*sizeof(mg_gl_path));
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, backend->pathBuffer);
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, backend->segmentCountBuffer);
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, backend->segmentBuffer);
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, backend->tileOpBuffer);
@@ -992,32 +996,19 @@ void mg_gl_render_batch(mg_gl_canvas_backend* backend,
 	glUniform1f(0, scale);
 	glUniform1i(1, backend->msaaCount);
 
-	int err = glGetError();
-	if(err)
-	{
-		log_error("gl error %i\n", err);
-	}
-	log_info("eltCount = %i\n", eltCount);
-
-	ASSERT(eltCount != 0);
-
 	glBindImageTexture(0, backend->outTexture, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA8);
 
-	/*
 	if(image)
 	{
-		//TODO: make sure this image belongs to that context
 		mg_gl_image* glImage = (mg_gl_image*)image;
 		glActiveTexture(GL_TEXTURE1);
 		glBindTexture(GL_TEXTURE_2D, glImage->texture);
-		glUniform1ui(3, 1);
+		glUniform1ui(2, 1);
 	}
 	else
 	{
-		glUniform1ui(3, 0);
+		glUniform1ui(2, 0);
 	}
-	*/
-
 	glDispatchCompute(nTilesX, nTilesY, 1);
 
 	//NOTE: blit pass
@@ -1028,6 +1019,12 @@ void mg_gl_render_batch(mg_gl_canvas_backend* backend,
 	glUniform1i(0, 0);
 
 	glDrawArrays(GL_TRIANGLES, 0, 6);
+
+	int err = glGetError();
+	if(err)
+	{
+		log_error("gl error %i\n", err);
+	}
 }
 
 /////////////////////////////////////////////////////////////////////////
@@ -1043,8 +1040,6 @@ void mg_gl_canvas_render(mg_canvas_backend* interface,
                          mg_path_elt* pathElements)
 {
 	mg_gl_canvas_backend* backend = (mg_gl_canvas_backend*)interface;
-
-	//TODO rolling buffer
 
 	//TODO update screen tiles buffer size
 	mg_wgl_surface* surface = backend->surface;
@@ -1064,11 +1059,11 @@ void mg_gl_canvas_render(mg_canvas_backend* interface,
 	}
 
 	//NOTE: clear screen and reset input buffer offsets
+	glEnable(GL_BLEND);
+	glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+
 	glClearColor(clearColor.r, clearColor.g, clearColor.b, clearColor.a);
 	glClear(GL_COLOR_BUFFER_BIT);
-
-	backend->pathBufferOffset = 0;
-	backend->elementBufferOffset = 0;
 
 	//NOTE: encode and render batches
 	int pathCount = 0;
@@ -1098,12 +1093,8 @@ void mg_gl_canvas_render(mg_canvas_backend* interface,
 			                   viewportSize,
 			                   scale);
 
-			backend->pathBufferOffset += pathCount * sizeof(mg_gl_path);
-			backend->elementBufferOffset += context.glEltCount * sizeof(mg_gl_path_elt);
 			pathCount = 0;
 			context.glEltCount = 0;
-			context.elementBufferData = (mg_gl_path_elt*)((char*)backend->elementBufferData + backend->elementBufferOffset);
-			context.pathBufferData = (mg_gl_path*)((char*)backend->pathBufferData + backend->pathBufferOffset);
 		}
 		currentImage = primitive->attributes.image;
 
@@ -1203,15 +1194,19 @@ void mg_gl_canvas_render(mg_canvas_backend* interface,
 				uvTransform = mg_mat2x3_mul_m(uvTransform, userToDestRegion);
 				uvTransform = mg_mat2x3_mul_m(uvTransform, screenToUser);
 
+				//NOTE: mat3 std430 layout is an array of vec3, which are padded to _vec4_ alignment
 				path->uvTransform[0] = uvTransform.m[0]/scale;
 				path->uvTransform[1] = uvTransform.m[3]/scale;
 				path->uvTransform[2] = 0;
-				path->uvTransform[3] = uvTransform.m[1]/scale;
-				path->uvTransform[4] = uvTransform.m[4]/scale;
-				path->uvTransform[5] = 0;
-				path->uvTransform[6] = uvTransform.m[2];
-				path->uvTransform[7] = uvTransform.m[5];
-				path->uvTransform[8] = 1;
+				path->uvTransform[3] = 0;
+				path->uvTransform[4] = uvTransform.m[1]/scale;
+				path->uvTransform[5] = uvTransform.m[4]/scale;
+				path->uvTransform[6] = 0;
+				path->uvTransform[7] = 0;
+				path->uvTransform[8] = uvTransform.m[2];
+				path->uvTransform[9] = uvTransform.m[5];
+				path->uvTransform[10] = 1;
+				path->uvTransform[11] = 0;
 			}
 		}
 	}

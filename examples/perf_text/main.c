@@ -107,6 +107,11 @@ int main()
 	//NOTE: create surface, canvas and font
 
 	mg_surface surface = mg_surface_create_for_window(window, MG_CANVAS);
+	if(mg_surface_is_nil(surface))
+	{
+		log_error("couldn't create surface\n");
+		return(-1);
+	}
 	mg_surface_swap_interval(surface, 0);
 
 	mg_canvas canvas = mg_canvas_create();

@@ -6,6 +6,7 @@
 *	@revision:
 *
 *****************************************************************/
+#include<stdio.h>
 #include<stdlib.h>
 #include<string.h>
 #include<errno.h>
@@ -27,6 +28,11 @@ int main()
 
 	//NOTE: create surface
 	mg_surface surface = mg_surface_create_for_window(window, MG_CANVAS);
+	if(mg_surface_is_nil(surface))
+	{
+		log_error("couldn't create surface\n");
+		return(-1);
+	}
 	mg_surface_swap_interval(surface, 0);
 
 	//NOTE: create canvas
@@ -78,7 +84,6 @@ int main()
 
 			mg_matrix_push((mg_mat2x3){0.707, -0.707, 200,
 			                           0.707, 0.707, 100});
-
 			mg_set_image(image);
 			mg_set_image_source_region((mp_rect){500, 500, 2000, 1400});
 

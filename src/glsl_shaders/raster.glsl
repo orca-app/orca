@@ -31,9 +31,10 @@ layout(binding = 4) restrict readonly buffer screenTilesBufferSSBO
 
 layout(location = 0) uniform float scale;
 layout(location = 1) uniform int msaaSampleCount;
+layout(location = 2) uniform uint useTexture;
 
 layout(rgba8, binding = 0) uniform restrict writeonly image2D outTexture;
-
+layout(binding = 1) uniform sampler2D srcTexture;
 
 void main()
 {
@@ -44,13 +45,13 @@ void main()
 	ivec2 pixelCoord = ivec2(gl_WorkGroupID.xy*uvec2(16, 16) + gl_LocalInvocationID.xy);
 	vec2 centerCoord = vec2(pixelCoord) + vec2(0.5, 0.5);
 
-	/*
+/*
 	if((pixelCoord.x % 16) == 0 || (pixelCoord.y % 16) == 0)
 	{
 		imageStore(outTexture, pixelCoord, vec4(0, 0, 0, 1));
 		return;
 	}
-	*/
+*/
 
 	vec2 sampleCoords[MG_GL_MAX_SAMPLE_COUNT] = {
 		centerCoord + vec2(1, 3)/16,
@@ -107,6 +108,14 @@ void main()
 					if(filled)
 					{
 						vec4 nextColor = pathColor;
+						if(useTexture != 0)
+						{
+							vec3 ph = vec3(sampleCoord.xy, 1);
+							vec2 uv = (pathBuffer.elements[pathIndex].uvTransform * ph).xy;
+							vec4 texColor = texture(srcTexture, uv);
+							texColor.rgb *= texColor.a;
+							nextColor *= texColor;
+						}
 						color[sampleIndex] = color[sampleIndex]*(1-nextColor.a) + nextColor;
 					}
 				}
@@ -167,6 +176,14 @@ void main()
 			if(filled)
 			{
 				vec4 nextColor = pathColor;
+				if(useTexture != 0)
+				{
+					vec3 ph = vec3(sampleCoord.xy, 1);
+					vec2 uv = (pathBuffer.elements[pathIndex].uvTransform * ph).xy;
+					vec4 texColor = texture(srcTexture, uv);
+					texColor.rgb *= texColor.a;
+					nextColor *= texColor;
+				}
 				color[sampleIndex] = color[sampleIndex]*(1-nextColor.a) + nextColor;
 			}
 		}
