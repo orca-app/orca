@@ -17,10 +17,8 @@
 #endif
 #include"stb_image.h"
 
-#if !PLATFORM_ORCA
-	#define STB_TRUETYPE_IMPLEMENTATION
-	#include"stb_truetype.h"
-#endif
+#define STB_TRUETYPE_IMPLEMENTATION
+#include"stb_truetype.h"
 
 #include"platform/platform_log.h"
 #include"platform/platform_assert.h"
@@ -408,8 +406,6 @@ mg_font_data* mg_font_data_from_handle(mg_font handle)
 	return(data);
 }
 
-#if !PLATFORM_ORCA
-
 mg_font mg_font_create_from_memory(u32 size, byte* buffer, u32 rangeCount, unicode_range* ranges)
 {
 	if(!__mgData.init)
@@ -602,8 +598,6 @@ void mg_font_destroy(mg_font fontHandle)
 		mg_handle_recycle(fontHandle.h);
 	}
 }
-#endif // !PLATFORM_ORCA
-
 
 str32 mg_font_get_glyph_indices_from_font_data(mg_font_data* fontData, str32 codePoints, str32 backing)
 {
