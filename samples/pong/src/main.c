@@ -76,6 +76,19 @@ ORCA_EXPORT void OnInit(void)
     ballImage = mg_image_create_from_data(surface, loadFile(mem_scratch(), STR8("/ball.png")), false);
     paddleImage = mg_image_create_from_data(surface, loadFile(mem_scratch(), STR8("/wall.png")), false);
 
+    if(mg_image_is_nil(waterImage))
+    {
+		log_error("coulnd't load ball image\n");
+    }
+    if(mg_image_is_nil(ballImage))
+    {
+		log_error("coulnd't load ball image\n");
+    }
+    if(mg_image_is_nil(paddleImage))
+    {
+		log_error("coulnd't load paddle image\n");
+    }
+
     str8 fontStr = loadFile(mem_scratch(), STR8("/Literata-SemiBoldItalic.ttf"));
     unicode_range ranges[5] = {UNICODE_RANGE_BASIC_LATIN,
                                UNICODE_RANGE_C1_CONTROLS_AND_LATIN_1_SUPPLEMENT,
