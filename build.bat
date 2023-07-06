@@ -13,7 +13,7 @@ if %target% == wasm3 (
 	set wasm3_sources=/I .\ext\wasm3\source\*.c
 
 	for %%f in ( .\ext\wasm3\source\*.c ) do (
-		cl /nologo /Zi /Zc:preprocessor /c /Fo:bin\obj\%%~nf.obj %wasm3_includes% %%f
+		cl /nologo /Zi /Zc:preprocessor /O2 /c /Fo:bin\obj\%%~nf.obj %wasm3_includes% %%f
 	)
 	lib /nologo /out:bin\wasm3.lib bin\obj\*.obj
 )
