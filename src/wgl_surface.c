@@ -193,6 +193,7 @@ mg_surface_data* mg_wgl_surface_create_for_window(mp_window window)
 		surface = malloc_type(mg_wgl_surface);
 		if(surface)
 		{
+			memset(surface, 0, sizeof(mg_wgl_surface));
 			mg_surface_init_for_window((mg_surface_data*)surface, windowData);
 
 			surface->interface.api = MG_GL;
@@ -200,6 +201,7 @@ mg_surface_data* mg_wgl_surface_create_for_window(mp_window window)
 			surface->interface.prepare = mg_wgl_surface_prepare;
 			surface->interface.present = mg_wgl_surface_present;
 			surface->interface.swapInterval = mg_wgl_surface_swap_interval;
+			surface->interface.deselect = mg_wgl_surface_deselect;
 
 			surface->hDC = GetDC(surface->interface.layer.hWnd);
 
