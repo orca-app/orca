@@ -53,7 +53,6 @@ typedef struct mg_mtl_segment
 	mg_mtl_seg_config config; //TODO pack these
 	int windingIncrement;
 	vector_float4 box;
-	matrix_float3x3 hullMatrix;
 	matrix_float3x3 implicitMatrix;
 	float sign;
 	vector_float2 hullVertex;

@@ -1023,9 +1023,6 @@ float2 mtl_select_hull_vertex(float2 p0, float2 p1, float2 p2, float2 p3, mtl_lo
 
 	if(fabs(det) < 1e-3 || sqrNorm0 < 0.1 || sqrNorm1 < 0.1)
 	{
-		float sqrNorm0 = length_squared(p1-p0);
-		float sqrNorm1 = length_squared(p2-p3);
-
 		if(sqrNorm0 < sqrNorm1)
 		{
 			pm = p2;
@@ -1041,44 +1038,6 @@ float2 mtl_select_hull_vertex(float2 p0, float2 p1, float2 p2, float2 p3, mtl_lo
 		pm = p0 + u*(p1-p0);
 	}
 	return(pm);
-}
-
-matrix_float3x3 mtl_hull_matrix(float2 p0, float2 p1, float2 p2, float2 p3, mtl_log_context log)
-{
-	/*NOTE: check intersection of lines (p1-p0) and (p3-p2)
-		P = p0 + u(p1-p0)
-		P = p2 + w(p3-p2)
-
-		control points are inside a right triangle so we should always find an intersection
-	*/
-	float2 pm;
-
-	float det = (p1.x - p0.x)*(p3.y - p2.y) - (p1.y - p0.y)*(p3.x - p2.x);
-	float sqrNorm0 = length_squared(p1-p0);
-	float sqrNorm1 = length_squared(p2-p3);
-
-	if(fabs(det) < 1e-3 || sqrNorm0 < 0.1 || sqrNorm1 < 0.1)
-	{
-		float sqrNorm0 = length_squared(p1-p0);
-		float sqrNorm1 = length_squared(p2-p3);
-
-		if(sqrNorm0 < sqrNorm1)
-		{
-			pm = p2;
-		}
-		else
-		{
-			pm = p1;
-		}
-	}
-	else
-	{
-		float u = ((p0.x - p2.x)*(p2.y - p3.y) - (p0.y - p2.y)*(p2.x - p3.x))/det;
-		pm = p0 + u*(p1-p0);
-	}
-
-	matrix_float3x3 m = mtl_barycentric_matrix(p0, p3, pm);
-	return(m);
 }
 
 void mtl_cubic_emit(thread mtl_segment_setup_context* context, mtl_cubic_info curve, float2 p[4], float s0, float s1, float2 sp[4])
@@ -1120,8 +1079,6 @@ void mtl_cubic_emit(thread mtl_segment_setup_context* context, mtl_cubic_info cu
 
 	matrix_float3x3 B = mtl_barycentric_matrix(v0, v1, v2);
  	seg->implicitMatrix = K*B;
-
-	seg->hullMatrix = mtl_hull_matrix(sp[0], sp[1], sp[2], sp[3], context->log);
 	seg->hullVertex = mtl_select_hull_vertex(sp[0], sp[1], sp[2], sp[3], context->log);
 
   	//NOTE: compute sign flip
