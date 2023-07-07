@@ -153,7 +153,7 @@ mg_surface mg_surface_create_for_window(mp_window window, mg_surface_api api)
 
 mg_surface mg_surface_create_remote(u32 width, u32 height, mg_surface_api api)
 {
-	if(__mgData.init)
+	if(!__mgData.init)
 	{
 		mg_init();
 	}
@@ -180,7 +180,7 @@ mg_surface mg_surface_create_remote(u32 width, u32 height, mg_surface_api api)
 
 mg_surface mg_surface_create_host(mp_window window)
 {
-	if(__mgData.init)
+	if(!__mgData.init)
 	{
 		mg_init();
 	}

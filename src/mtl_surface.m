@@ -170,12 +170,18 @@ mg_surface_data* mg_mtl_surface_create_for_window(mp_window window)
 			//NOTE(martin): create a mtl device and a mtl layer and
 			//-----------------------------------------------------------
 
-			surface->device = MTLCreateSystemDefaultDevice();
-			[surface->device retain];
+			/*WARN(martin):
+				Calling MTLCreateDefaultSystemDevice(), as advised by the doc, hangs Discord's screen sharing...
+				The workaround I found, which doesn't make sense, is to set the mtlLayer.device to mtlLayer.preferredDevice,
+				even if mtlLayer.preferredDevice is the same value as returned by MTLCreateDefaultSystemDevice().
+				This works for now and allows screen sharing while using orca, but we'll have to revisit this when we want
+				more control over what GPU gets used.
+			*/
 			surface->mtlLayer = [CAMetalLayer layer];
 			[surface->mtlLayer retain];
+			surface->mtlLayer.device = surface->mtlLayer.preferredDevice;
+			surface->device = surface->mtlLayer.device;
 
-			surface->mtlLayer.device = surface->device;
 			[surface->mtlLayer setOpaque:NO];
 
 			[surface->interface.layer.caLayer addSublayer: (CALayer*)surface->mtlLayer];
