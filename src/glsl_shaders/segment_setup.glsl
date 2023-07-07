@@ -106,7 +106,7 @@ void bin_to_tiles(int segIndex)
 
 				tileOpBuffer.elements[tileOpIndex].kind = MG_GL_OP_SEGMENT;
 				tileOpBuffer.elements[tileOpIndex].index = segIndex;
-				tileOpBuffer.elements[tileOpIndex].crossRight = false;
+				tileOpBuffer.elements[tileOpIndex].windingOffsetOrCrossRight = 0;
 				tileOpBuffer.elements[tileOpIndex].next = -1;
 
 				int tileQueueIndex = pathQueue.tileQueues + y*pathArea.z + x;
@@ -126,7 +126,7 @@ void bin_to_tiles(int segIndex)
 				//NOTE: if the segment crosses the right boundary, mark it.
 				if(crossR)
 				{
-					tileOpBuffer.elements[tileOpIndex].crossRight = true;
+					tileOpBuffer.elements[tileOpIndex].windingOffsetOrCrossRight = 1;
 				}
 			}
 		}

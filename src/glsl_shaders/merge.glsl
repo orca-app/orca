@@ -82,7 +82,7 @@ void main()
 					tileOpBuffer.elements[pathOpIndex].kind = MG_GL_OP_START;
 					tileOpBuffer.elements[pathOpIndex].next = -1;
 					tileOpBuffer.elements[pathOpIndex].index = pathIndex;
-					tileOpBuffer.elements[pathOpIndex].windingOffset = windingOffset;
+					tileOpBuffer.elements[pathOpIndex].windingOffsetOrCrossRight = windingOffset;
 
 					vec4 clip = pathBuffer.elements[pathIndex].clip * scale;
 					vec4 tileBox = vec4(tileCoord.x, tileCoord.y, tileCoord.x+1, tileCoord.y+1);
@@ -114,7 +114,7 @@ void main()
 				tileOpBuffer.elements[pathOpIndex].kind = MG_GL_OP_START;
 				tileOpBuffer.elements[pathOpIndex].next = -1;
 				tileOpBuffer.elements[pathOpIndex].index = pathIndex;
-				tileOpBuffer.elements[pathOpIndex].windingOffset = windingOffset;
+				tileOpBuffer.elements[pathOpIndex].windingOffsetOrCrossRight = windingOffset;
 
 				if(lastOpIndex < 0)
 				{

@@ -44,9 +44,8 @@ typedef struct mg_gl_path_elt
 {
 	vec2 p[4];
 	int pathIndex;
-	int localEltIndex;
 	mg_gl_seg_kind kind;
-	u8 pad[4];
+
 } mg_gl_path_elt;
 
 enum {
@@ -105,7 +104,6 @@ typedef struct mg_gl_encoding_context
 	mg_gl_path* pathBufferData;
 	mg_gl_path_elt* elementBufferData;
 	int pathIndex;
-	int localEltIndex;
 	mg_primitive* primitive;
 	vec4 pathScreenExtents;
 	vec4 pathUserExtents;
@@ -194,8 +192,6 @@ void mg_gl_canvas_encode_element(mg_gl_encoding_context* context, mg_path_elt_ty
 		default:
 			break;
 	}
-
-	glElt->localEltIndex = context->localEltIndex;
 
 	for(int i=0; i<count; i++)
 	{
@@ -998,10 +994,9 @@ void mg_gl_render_batch(mg_gl_canvas_backend* backend,
 	glUseProgram(backend->raster);
 
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, backend->pathBuffer);
-	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, backend->segmentCountBuffer);
-	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, backend->segmentBuffer);
-	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, backend->tileOpBuffer);
-	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 4, backend->screenTilesBuffer);
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, backend->segmentBuffer);
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, backend->tileOpBuffer);
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, backend->screenTilesBuffer);
 
 	glUniform1f(0, scale);
 	glUniform1i(1, backend->msaaCount);
@@ -1126,8 +1121,6 @@ void mg_gl_canvas_render(mg_canvas_backend* interface,
 			    	(eltIndex < primitive->path.count) && (primitive->path.startIndex + eltIndex < eltCount);
 			    	eltIndex++)
 				{
-					context.localEltIndex = segCount;
-
 					mg_path_elt* elt = &pathElements[primitive->path.startIndex + eltIndex];
 
 					if(elt->type != MG_PATH_MOVE)
@@ -1453,12 +1446,12 @@ mg_canvas_backend* gl_canvas_backend_create(mg_wgl_surface* surface)
 
 		glGenBuffers(1, &backend->pathBuffer);
 		glBindBuffer(GL_SHADER_STORAGE_BUFFER, backend->pathBuffer);
-		glBufferData(GL_SHADER_STORAGE_BUFFER, MG_GL_PATH_BUFFER_SIZE, 0, GL_DYNAMIC_COPY);
+		glBufferData(GL_SHADER_STORAGE_BUFFER, MG_GL_PATH_BUFFER_SIZE, 0, GL_STREAM_DRAW);
 
 		//TODO change flags
 		glGenBuffers(1, &backend->elementBuffer);
 		glBindBuffer(GL_SHADER_STORAGE_BUFFER, backend->elementBuffer);
-		glBufferData(GL_SHADER_STORAGE_BUFFER, MG_GL_ELEMENT_BUFFER_SIZE, 0, GL_DYNAMIC_COPY);
+		glBufferData(GL_SHADER_STORAGE_BUFFER, MG_GL_ELEMENT_BUFFER_SIZE, 0, GL_STREAM_DRAW);
 
 		glGenBuffers(1, &backend->segmentBuffer);
 		glBindBuffer(GL_SHADER_STORAGE_BUFFER, backend->segmentBuffer);

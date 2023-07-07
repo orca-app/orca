@@ -36,7 +36,6 @@ struct mg_gl_path_elt
 {
 	vec2 p[4];
 	int pathIndex;
-	int localEltIndex;
 	int kind;
 };
 
@@ -44,13 +43,12 @@ struct mg_gl_segment
 {
 	int kind;
 	int pathIndex;
-	int config; //TODO pack these
+	int config;
 	int windingIncrement;
 	vec4 box;
 	mat3 implicitMatrix;
-	float sign;
 	vec2 hullVertex;
-	int debugID;
+	float sign;
 };
 
 struct mg_gl_path_queue
@@ -62,10 +60,9 @@ struct mg_gl_path_queue
 struct mg_gl_tile_op
 {
 	int kind;
-	int index;
 	int next;
-	bool crossRight;
-	int windingOffset;
+	int index;
+	int windingOffsetOrCrossRight;
 };
 
 struct mg_gl_tile_queue
@@ -74,7 +71,6 @@ struct mg_gl_tile_queue
 	int first;
 	int last;
 };
-
 
 float ccw(vec2 a, vec2 b, vec2 c)
 {
