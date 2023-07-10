@@ -177,10 +177,30 @@ mg_surface_data* mg_mtl_surface_create_for_window(mp_window window)
 				This works for now and allows screen sharing while using orca, but we'll have to revisit this when we want
 				more control over what GPU gets used.
 			*/
+			surface->device = nil;
+
+			//Select a discrete GPU, if possible
+			NSArray<id<MTLDevice>>* devices = MTLCopyAllDevices();
+			for(id<MTLDevice> device in devices)
+			{
+				if(!device.isRemovable && !device.isLowPower)
+				{
+					surface->device = device;
+					break;
+				}
+			}
+			if(surface->device == nil)
+			{
+				log_warning("Couldn't select a discrete GPU, using first available device\n");
+				surface->device = devices[0];
+			}
+
+			//surface->device = MTLCreateSystemDefaultDevice();
+
 			surface->mtlLayer = [CAMetalLayer layer];
 			[surface->mtlLayer retain];
-			surface->mtlLayer.device = surface->mtlLayer.preferredDevice;
-			surface->device = surface->mtlLayer.device;
+			surface->mtlLayer.device = surface->device;
+
 
 			[surface->mtlLayer setOpaque:NO];
 
