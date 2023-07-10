@@ -70,7 +70,10 @@ typedef struct mg_mtl_path_queue
 	using namespace metal;
 #endif
 
-typedef enum { MG_MTL_OP_START,
+typedef enum { MG_MTL_OP_FILL,
+               MG_MTL_OP_CLIP_FILL,
+               MG_MTL_OP_START,
+               MG_MTL_OP_END,
                MG_MTL_OP_SEGMENT } mg_mtl_tile_op_kind;
 
 typedef struct mg_mtl_tile_op
