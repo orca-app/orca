@@ -1325,24 +1325,27 @@ kernel void mtl_merge(constant int* pathCount [[buffer(0)]],
                       const device mg_mtl_tile_queue* tileQueueBuffer [[buffer(3)]],
                       device mg_mtl_tile_op* tileOpBuffer [[buffer(4)]],
                       device atomic_int* tileOpCount [[buffer(5)]],
-                      device int* screenTilesBuffer [[buffer(6)]],
-                      constant int* tileSize [[buffer(7)]],
-                      constant float* scale [[buffer(8)]],
-                      device char* logBuffer [[buffer(9)]],
-                      device atomic_int* logOffsetBuffer [[buffer(10)]],
+                      device MTLDispatchThreadgroupsIndirectArguments* dispatchBuffer [[buffer(6)]],
+                      device mg_mtl_screen_tile* screenTilesBuffer [[buffer(7)]],
+                      constant int* tileSize [[buffer(8)]],
+                      constant float* scale [[buffer(9)]],
+                      device char* logBuffer [[buffer(10)]],
+                      device atomic_int* logOffsetBuffer [[buffer(11)]],
                       uint2 threadCoord [[thread_position_in_grid]],
                       uint2 gridSize [[threads_per_grid]])
 {
 	int2 tileCoord = int2(threadCoord);
-	int tileIndex = tileCoord.y * gridSize.x + tileCoord.x;
-	device int* nextLink = &screenTilesBuffer[tileIndex];
-	*nextLink = -1;
+	int tileIndex = -1;
+	device int* nextLink = 0;
 
 /*
 	mtl_log_context log = {.buffer = logBuffer,
 	                       .offset = logOffsetBuffer,
 	                       .enabled = true};
 */
+	dispatchBuffer[0].threadgroupsPerGrid[1] = 1;
+	dispatchBuffer[0].threadgroupsPerGrid[2] = 1;
+
 	for(int pathIndex = 0; pathIndex < pathCount[0]; pathIndex++)
 	{
 		const device mg_mtl_path_queue* pathQueue = &pathQueueBuffer[pathIndex];
@@ -1350,14 +1353,22 @@ kernel void mtl_merge(constant int* pathCount [[buffer(0)]],
 
 		const device mg_mtl_path* path = &pathBuffer[pathIndex];
 		float xMax = min(path->box.z, path->clip.z);
-		int tileMax = xMax * scale[0] / tileSize[0];
-		int pathTileMax = tileMax - pathQueue->area.x;
+		int tileMaxX = xMax * scale[0] / tileSize[0];
+		int pathTileMaxX = tileMaxX - pathQueue->area.x;
 
 		if(  pathTileCoord.x >= 0
-		  && pathTileCoord.x <= pathTileMax
+		  && pathTileCoord.x <= pathTileMaxX
 		  && pathTileCoord.y >= 0
 		  && pathTileCoord.y < pathQueue->area.w)
 		{
+			if(tileIndex < 0)
+			{
+				tileIndex = atomic_fetch_add_explicit((device atomic_uint*)&dispatchBuffer[0].threadgroupsPerGrid[0], 1, memory_order_relaxed);
+				screenTilesBuffer[tileIndex].tileCoord = uint2(tileCoord);
+				nextLink = &screenTilesBuffer[tileIndex].first;
+				*nextLink = -1;
+			}
+
 			int pathTileIndex = pathTileCoord.y * pathQueue->area.z + pathTileCoord.x;
 			const device mg_mtl_tile_queue* tileQueue = &tileQueueBuffer[pathQueue->tileQueues + pathTileIndex];
 
@@ -1399,7 +1410,7 @@ kernel void mtl_merge(constant int* pathCount [[buffer(0)]],
 
 						if(pathBuffer[pathIndex].color.a == 1)
 						{
-							screenTilesBuffer[tileIndex] = pathOpIndex;
+							screenTilesBuffer[tileIndex].first = pathOpIndex;
 						}
 					}
 					nextLink = &pathOp->next;
@@ -1441,7 +1452,7 @@ kernel void mtl_merge(constant int* pathCount [[buffer(0)]],
 	}
 }
 
-kernel void mtl_raster(const device int* screenTilesBuffer [[buffer(0)]],
+kernel void mtl_raster(const device mg_mtl_screen_tile* screenTilesBuffer [[buffer(0)]],
                        const device mg_mtl_tile_op* tileOpBuffer [[buffer(1)]],
                        const device mg_mtl_path* pathBuffer [[buffer(2)]],
                        const device mg_mtl_segment* segmentBuffer [[buffer(3)]],
@@ -1453,18 +1464,19 @@ kernel void mtl_raster(const device int* screenTilesBuffer [[buffer(0)]],
                        constant int* useTexture [[buffer(9)]],
                        texture2d<float, access::write> outTexture [[texture(0)]],
                        texture2d<float> srcTexture [[texture(1)]],
-                       uint2 threadCoord [[thread_position_in_grid]],
-                       uint2 gridSize [[threads_per_grid]])
+                       uint2  threadGroupCoord [[threadgroup_position_in_grid]],
+                       uint2 localCoord [[thread_position_in_threadgroup]])
 {
 /*
 	mtl_log_context log = {.buffer = logBuffer,
 	                       .offset = logOffsetBuffer,
 	                       .enabled = true};
 */
-	uint2 pixelCoord = threadCoord;
-	int2 tileCoord = int2(pixelCoord) / tileSize[0];
-	int nTilesX = (int(gridSize.x) + tileSize[0] - 1)/tileSize[0];
-	int tileIndex = tileCoord.y * nTilesX + tileCoord.x;
+	int tileIndex = int(threadGroupCoord.x);
+	uint2 tileCoord = screenTilesBuffer[tileIndex].tileCoord;
+	uint2 pixelCoord = tileCoord*tileSize[0] + localCoord.xy;
+
+	int opIndex = screenTilesBuffer[tileIndex].first;
 
 	const int MG_MTL_MAX_SAMPLE_COUNT = 8;
 	float2 sampleCoords[MG_MTL_MAX_SAMPLE_COUNT];
@@ -1500,7 +1512,6 @@ kernel void mtl_raster(const device int* screenTilesBuffer [[buffer(0)]],
 
 	float4 color = {0};
 	int winding[MG_MTL_MAX_SAMPLE_COUNT] = {0};
-	int opIndex = screenTilesBuffer[tileIndex];
 
 	while(opIndex != -1)
 	{
@@ -1600,7 +1611,6 @@ kernel void mtl_raster(const device int* screenTilesBuffer [[buffer(0)]],
 		}
 		opIndex = op->next;
 	}
-
 	outTexture.write(color, pixelCoord);
 }
 

@@ -97,4 +97,11 @@ typedef struct mg_mtl_tile_queue
 
 } mg_mtl_tile_queue;
 
+typedef struct mg_mtl_screen_tile
+{
+	vector_uint2 tileCoord;
+	int first;
+
+} mg_mtl_screen_tile;
+
 #endif //__MTL_RENDERER_H_

@@ -52,6 +52,7 @@ typedef struct mg_mtl_canvas_backend
 	id<MTLBuffer> tileOpBuffer;
 	id<MTLBuffer> tileOpCountBuffer;
 	id<MTLBuffer> screenTilesBuffer;
+	id<MTLBuffer> rasterDispatchBuffer;
 
 	int msaaCount;
 	vec2 frameSize;
@@ -815,12 +816,24 @@ void mg_mtl_render_batch(mg_mtl_canvas_backend* backend,
 	//NOTE: encode GPU commands
 	@autoreleasepool
 	{
+		//NOTE: create output texture
+		MTLRenderPassDescriptor* clearDescriptor = [MTLRenderPassDescriptor renderPassDescriptor];
+		clearDescriptor.colorAttachments[0].texture = backend->outTexture;
+		clearDescriptor.colorAttachments[0].loadAction = MTLLoadActionClear;
+		clearDescriptor.colorAttachments[0].clearColor = MTLClearColorMake(0, 0, 0, 0);
+		clearDescriptor.colorAttachments[0].storeAction = MTLStoreActionStore;
+
+		id<MTLRenderCommandEncoder> clearEncoder = [surface->commandBuffer renderCommandEncoderWithDescriptor:clearDescriptor];
+		clearEncoder.label = @"clear out texture pass";
+		[clearEncoder endEncoding];
+
 		//NOTE: clear counters
 		id<MTLBlitCommandEncoder> blitEncoder = [surface->commandBuffer blitCommandEncoder];
 		blitEncoder.label = @"clear counters";
 		[blitEncoder fillBuffer: backend->segmentCountBuffer range: NSMakeRange(0, sizeof(int)) value: 0];
 		[blitEncoder fillBuffer: backend->tileQueueCountBuffer range: NSMakeRange(0, sizeof(int)) value: 0];
 		[blitEncoder fillBuffer: backend->tileOpCountBuffer range: NSMakeRange(0, sizeof(int)) value: 0];
+		[blitEncoder fillBuffer: backend->rasterDispatchBuffer range: NSMakeRange(0, sizeof(MTLDispatchThreadgroupsIndirectArguments)) value: 0];
 		[blitEncoder endEncoding];
 
 		//NOTE: path setup pass
@@ -893,11 +906,12 @@ void mg_mtl_render_batch(mg_mtl_canvas_backend* backend,
 		[mergeEncoder setBuffer:backend->tileQueueBuffer offset:0 atIndex:3];
 		[mergeEncoder setBuffer:backend->tileOpBuffer offset:0 atIndex:4];
 		[mergeEncoder setBuffer:backend->tileOpCountBuffer offset:0 atIndex:5];
-		[mergeEncoder setBuffer:backend->screenTilesBuffer offset:0 atIndex:6];
-		[mergeEncoder setBytes:&tileSize length:sizeof(int) atIndex:7];
-		[mergeEncoder setBytes:&scale length:sizeof(float) atIndex:8];
-		[mergeEncoder setBuffer:backend->logBuffer[backend->bufferIndex] offset:0 atIndex:9];
-		[mergeEncoder setBuffer:backend->logOffsetBuffer[backend->bufferIndex] offset:0 atIndex:10];
+		[mergeEncoder setBuffer:backend->rasterDispatchBuffer offset:0 atIndex:6];
+		[mergeEncoder setBuffer:backend->screenTilesBuffer offset:0 atIndex:7];
+		[mergeEncoder setBytes:&tileSize length:sizeof(int) atIndex:8];
+		[mergeEncoder setBytes:&scale length:sizeof(float) atIndex:9];
+		[mergeEncoder setBuffer:backend->logBuffer[backend->bufferIndex] offset:0 atIndex:10];
+		[mergeEncoder setBuffer:backend->logOffsetBuffer[backend->bufferIndex] offset:0 atIndex:11];
 
 		MTLSize mergeGridSize = MTLSizeMake(nTilesX, nTilesY, 1);
 		MTLSize mergeGroupSize = MTLSizeMake(16, 16, 1);
@@ -933,7 +947,11 @@ void mg_mtl_render_batch(mg_mtl_canvas_backend* backend,
 
 		MTLSize rasterGridSize = MTLSizeMake(viewportSize.x, viewportSize.y, 1);
 		MTLSize rasterGroupSize = MTLSizeMake(16, 16, 1);
-		[rasterEncoder dispatchThreads: rasterGridSize threadsPerThreadgroup: rasterGroupSize];
+//		[rasterEncoder dispatchThreads: rasterGridSize threadsPerThreadgroup: rasterGroupSize];
+
+		[rasterEncoder dispatchThreadgroupsWithIndirectBuffer: backend->rasterDispatchBuffer
+		                                 indirectBufferOffset: 0
+		                                 threadsPerThreadgroup: rasterGroupSize];
 
 		[rasterEncoder endEncoding];
 
@@ -970,7 +988,7 @@ void mg_mtl_canvas_resize(mg_mtl_canvas_backend* backend, vec2 size)
 		int nTilesX = (int)(size.x + tileSize - 1)/tileSize;
 		int nTilesY = (int)(size.y + tileSize - 1)/tileSize;
 		MTLResourceOptions bufferOptions = MTLResourceStorageModePrivate;
-		backend->screenTilesBuffer = [backend->surface->device newBufferWithLength: nTilesX*nTilesY*sizeof(int)
+		backend->screenTilesBuffer = [backend->surface->device newBufferWithLength: nTilesX*nTilesY*sizeof(mg_mtl_screen_tile)
 		                                              options: bufferOptions];
 
 		if(backend->outTexture)
@@ -1435,10 +1453,13 @@ mg_canvas_backend* mtl_canvas_backend_create(mg_mtl_surface* surface)
 		backend->tileOpCountBuffer = [surface->device newBufferWithLength: sizeof(int)
 		                                                   options: bufferOptions];
 
+		backend->rasterDispatchBuffer = [surface->device newBufferWithLength: sizeof(MTLDispatchThreadgroupsIndirectArguments)
+		                                                   options: bufferOptions];
+
 		int tileSize = MG_MTL_TILE_SIZE;
 		int nTilesX = (int)(frame.w * scale + tileSize - 1)/tileSize;
 		int nTilesY = (int)(frame.h * scale + tileSize - 1)/tileSize;
-		backend->screenTilesBuffer = [surface->device newBufferWithLength: nTilesX*nTilesY*sizeof(int)
+		backend->screenTilesBuffer = [surface->device newBufferWithLength: nTilesX*nTilesY*sizeof(mg_mtl_screen_tile)
 		                                                   options: bufferOptions];
 
 		bufferOptions = MTLResourceStorageModeShared;
