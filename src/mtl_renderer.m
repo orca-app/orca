@@ -34,8 +34,6 @@ typedef struct mg_mtl_canvas_backend
 
 	id<MTLTexture> outTexture;
 
-	int pathBufferOffset;
-	int elementBufferOffset;
 	int bufferIndex;
 	dispatch_semaphore_t bufferSemaphore;
 
@@ -56,6 +54,19 @@ typedef struct mg_mtl_canvas_backend
 
 	int msaaCount;
 	vec2 frameSize;
+
+	// encoding context
+	int eltCap;
+	int eltCount;
+	int eltBatchStart;
+
+	int pathCap;
+	int pathCount;
+	int pathBatchStart;
+
+	mg_primitive* primitive;
+	vec4 pathScreenExtents;
+	vec4 pathUserExtents;
 
 } mg_mtl_canvas_backend;
 
@@ -84,20 +95,6 @@ void mg_mtl_print_log(int bufferIndex, id<MTLBuffer> logBuffer, id<MTLBuffer> lo
 	}
 }
 
-
-typedef struct mg_mtl_encoding_context
-{
-	int mtlEltCount;
-	mg_mtl_path* pathBufferData;
-	mg_mtl_path_elt* elementBufferData;
-	int pathIndex;
-	int localEltIndex;
-	mg_primitive* primitive;
-	vec4 pathScreenExtents;
-	vec4 pathUserExtents;
-
-} mg_mtl_encoding_context;
-
 static void mg_update_path_extents(vec4* extents, vec2 p)
 {
 	extents->x = minimum(extents->x, p.x);
@@ -106,27 +103,59 @@ static void mg_update_path_extents(vec4* extents, vec2 p)
 	extents->w = maximum(extents->w, p.y);
 }
 
-void mg_mtl_canvas_encode_element(mg_mtl_encoding_context* context, mg_path_elt_type kind, vec2* p)
+id<MTLBuffer> mg_mtl_grow_input_buffer(id<MTLDevice> device, id<MTLBuffer> oldBuffer, int oldCopySize, int newSize)
 {
-	mg_mtl_path_elt* mtlElt = &context->elementBufferData[context->mtlEltCount];
-	context->mtlEltCount++;
+	@autoreleasepool
+	{
+		MTLResourceOptions bufferOptions = MTLResourceCPUCacheModeWriteCombined
+		                                 | MTLResourceStorageModeShared;
 
-	mtlElt->pathIndex = context->pathIndex;
+		id<MTLBuffer> newBuffer = [device newBufferWithLength: newSize options: bufferOptions];
+
+		memcpy([newBuffer contents], [oldBuffer contents], oldCopySize);
+
+		[oldBuffer release];
+		return(newBuffer);
+	}
+}
+
+void mg_mtl_canvas_encode_element(mg_mtl_canvas_backend* backend, mg_path_elt_type kind, vec2* p)
+{
+	int bufferIndex = backend->bufferIndex;
+	int bufferCap = [backend->elementBuffer[bufferIndex] length] / sizeof(mg_mtl_path_elt);
+	if(backend->eltCount >= bufferCap)
+	{
+		int newBufferCap = (int)(bufferCap * 1.5);
+		int newBufferSize = newBufferCap * sizeof(mg_mtl_path_elt);
+
+		log_info("growing element buffer to %i elements\n", newBufferCap);
+
+		backend->elementBuffer[bufferIndex] = mg_mtl_grow_input_buffer(backend->surface->device,
+		                                                               backend->elementBuffer[bufferIndex],
+		                                                               backend->eltCount * sizeof(mg_mtl_path_elt),
+		                                                               newBufferSize);
+	}
+
+	mg_mtl_path_elt* elements = (mg_mtl_path_elt*)[backend->elementBuffer[bufferIndex] contents];
+	mg_mtl_path_elt* elt = &elements[backend->eltCount];
+	backend->eltCount++;
+
+	elt->pathIndex = backend->pathCount - backend->pathBatchStart;
 	int count = 0;
 	switch(kind)
 	{
 		case MG_PATH_LINE:
-			mtlElt->kind = MG_MTL_LINE;
+			elt->kind = MG_MTL_LINE;
 			count = 2;
 			break;
 
 		case MG_PATH_QUADRATIC:
-			mtlElt->kind = MG_MTL_QUADRATIC;
+			elt->kind = MG_MTL_QUADRATIC;
 			count = 3;
 			break;
 
 		case MG_PATH_CUBIC:
-			mtlElt->kind = MG_MTL_CUBIC;
+			elt->kind = MG_MTL_CUBIC;
 			count = 4;
 			break;
 
@@ -134,19 +163,88 @@ void mg_mtl_canvas_encode_element(mg_mtl_encoding_context* context, mg_path_elt_
 			break;
 	}
 
-	mtlElt->localEltIndex = context->localEltIndex;
-
 	for(int i=0; i<count; i++)
 	{
-		mg_update_path_extents(&context->pathUserExtents, p[i]);
+		mg_update_path_extents(&backend->pathUserExtents, p[i]);
 
-		vec2 screenP = mg_mat2x3_mul(context->primitive->attributes.transform, p[i]);
-		mtlElt->p[i] = (vector_float2){screenP.x, screenP.y};
+		vec2 screenP = mg_mat2x3_mul(backend->primitive->attributes.transform, p[i]);
+		elt->p[i] = (vector_float2){screenP.x, screenP.y};
 
-		mg_update_path_extents(&context->pathScreenExtents, screenP);
+		mg_update_path_extents(&backend->pathScreenExtents, screenP);
 	}
 }
 
+
+void mg_mtl_encode_path(mg_mtl_canvas_backend* backend, mg_primitive* primitive, float scale)
+{
+	int bufferIndex = backend->bufferIndex;
+	int bufferCap = [backend->pathBuffer[bufferIndex] length] / sizeof(mg_mtl_path);
+	if(backend->pathCount >= bufferCap)
+	{
+		int newBufferCap = (int)(bufferCap * 1.5);
+		int newBufferSize = newBufferCap * sizeof(mg_mtl_path);
+
+		log_info("growing path buffer to %i elements\n", newBufferCap);
+
+		backend->pathBuffer[bufferIndex] = mg_mtl_grow_input_buffer(backend->surface->device,
+		                                                               backend->pathBuffer[bufferIndex],
+		                                                               backend->eltCount * sizeof(mg_mtl_path),
+		                                                               newBufferSize);
+	}
+
+	mg_mtl_path* pathBufferData = (mg_mtl_path*)[backend->pathBuffer[backend->bufferIndex] contents];
+	mg_mtl_path* path = &(pathBufferData[backend->pathCount]);
+	backend->pathCount++;
+
+	path->cmd =	(mg_mtl_cmd)primitive->cmd;
+
+	path->box = (vector_float4){backend->pathScreenExtents.x,
+	                            backend->pathScreenExtents.y,
+	                            backend->pathScreenExtents.z,
+	                            backend->pathScreenExtents.w};
+
+	path->clip = (vector_float4){primitive->attributes.clip.x,
+	                             primitive->attributes.clip.y,
+	                             primitive->attributes.clip.x + primitive->attributes.clip.w,
+	                             primitive->attributes.clip.y + primitive->attributes.clip.h};
+
+	path->color = (vector_float4){primitive->attributes.color.r,
+	                              primitive->attributes.color.g,
+	                              primitive->attributes.color.b,
+	                              primitive->attributes.color.a};
+
+	mp_rect srcRegion = primitive->attributes.srcRegion;
+
+	mp_rect destRegion = {backend->pathUserExtents.x,
+	                      backend->pathUserExtents.y,
+	                      backend->pathUserExtents.z - backend->pathUserExtents.x,
+	                      backend->pathUserExtents.w - backend->pathUserExtents.y};
+
+	if(!mg_image_is_nil(primitive->attributes.image))
+	{
+		vec2 texSize = mg_image_size(primitive->attributes.image);
+
+		mg_mat2x3 srcRegionToImage = {1/texSize.x, 0, srcRegion.x/texSize.x,
+		                              0, 1/texSize.y, srcRegion.y/texSize.y};
+
+		mg_mat2x3 destRegionToSrcRegion = {srcRegion.w/destRegion.w, 0, 0,
+		                                   0, srcRegion.h/destRegion.h, 0};
+
+		mg_mat2x3 userToDestRegion = {1, 0, -destRegion.x,
+		                              0, 1, -destRegion.y};
+
+		mg_mat2x3 screenToUser = mg_mat2x3_inv(primitive->attributes.transform);
+
+		mg_mat2x3 uvTransform = srcRegionToImage;
+		uvTransform = mg_mat2x3_mul_m(uvTransform, destRegionToSrcRegion);
+		uvTransform = mg_mat2x3_mul_m(uvTransform, userToDestRegion);
+		uvTransform = mg_mat2x3_mul_m(uvTransform, screenToUser);
+
+		path->uvTransform = simd_matrix(simd_make_float3(uvTransform.m[0]/scale, uvTransform.m[3]/scale, 0),
+		                                simd_make_float3(uvTransform.m[1]/scale, uvTransform.m[4]/scale, 0),
+		                                simd_make_float3(uvTransform.m[2], uvTransform.m[5], 1));
+	}
+}
 
 bool mg_intersect_hull_legs(vec2 p0, vec2 p1, vec2 p2, vec2 p3, vec2* intersection)
 {
@@ -336,9 +434,9 @@ void mg_cubic_split(vec2 p[4], f32 t, vec2 outLeft[4], vec2 outRight[4])
 	outRight[3] = p[3];
 }
 
-void mg_mtl_render_stroke_line(mg_mtl_encoding_context* context, vec2* p)
+void mg_mtl_render_stroke_line(mg_mtl_canvas_backend* backend, vec2* p)
 {
-	f32 width = context->primitive->attributes.width;
+	f32 width = backend->primitive->attributes.width;
 
 	vec2 v = {p[1].x-p[0].x, p[1].y-p[0].y};
 	vec2 n = {v.y, -v.x};
@@ -350,28 +448,27 @@ void mg_mtl_render_stroke_line(mg_mtl_encoding_context* context, vec2* p)
 	vec2 joint0[2] = {vec2_add(p[0], vec2_mul(-1, offset)), vec2_add(p[0], offset)};
 	vec2 joint1[2] = {vec2_add(p[1], offset), vec2_add(p[1], vec2_mul(-1, offset))};
 
-	mg_mtl_canvas_encode_element(context, MG_PATH_LINE, right);
-
-	mg_mtl_canvas_encode_element(context, MG_PATH_LINE, left);
-	mg_mtl_canvas_encode_element(context, MG_PATH_LINE, joint0);
-	mg_mtl_canvas_encode_element(context, MG_PATH_LINE, joint1);
+	mg_mtl_canvas_encode_element(backend, MG_PATH_LINE, right);
+	mg_mtl_canvas_encode_element(backend, MG_PATH_LINE, left);
+	mg_mtl_canvas_encode_element(backend, MG_PATH_LINE, joint0);
+	mg_mtl_canvas_encode_element(backend, MG_PATH_LINE, joint1);
 }
 
-void mg_mtl_render_stroke_quadratic(mg_mtl_encoding_context* context, vec2* p)
+void mg_mtl_render_stroke_quadratic(mg_mtl_canvas_backend* backend, vec2* p)
 {
-	f32 width = context->primitive->attributes.width;
-	f32 tolerance = minimum(context->primitive->attributes.tolerance, 0.5 * width);
+	f32 width = backend->primitive->attributes.width;
+	f32 tolerance = minimum(backend->primitive->attributes.tolerance, 0.5 * width);
 
 	//NOTE: check for degenerate line case
 	const f32 equalEps = 1e-3;
 	if(vec2_close(p[0], p[1], equalEps))
 	{
-		mg_mtl_render_stroke_line(context, p+1);
+		mg_mtl_render_stroke_line(backend, p+1);
 		return;
 	}
 	else if(vec2_close(p[1], p[2], equalEps))
 	{
-		mg_mtl_render_stroke_line(context, p);
+		mg_mtl_render_stroke_line(backend, p);
 		return;
 	}
 
@@ -386,8 +483,8 @@ void mg_mtl_render_stroke_quadratic(mg_mtl_encoding_context* context, vec2* p)
 		vec2 splitLeft[3];
 		vec2 splitRight[3];
 		mg_quadratic_split(p, 0.5, splitLeft, splitRight);
-		mg_mtl_render_stroke_quadratic(context, splitLeft);
-		mg_mtl_render_stroke_quadratic(context, splitRight);
+		mg_mtl_render_stroke_quadratic(backend, splitLeft);
+		mg_mtl_render_stroke_quadratic(backend, splitRight);
 	}
 	else
 	{
@@ -428,8 +525,8 @@ void mg_mtl_render_stroke_quadratic(mg_mtl_encoding_context* context, vec2* p)
 			vec2 splitLeft[3];
 			vec2 splitRight[3];
 			mg_quadratic_split(p, maxOvershootParameter, splitLeft, splitRight);
-			mg_mtl_render_stroke_quadratic(context, splitLeft);
-			mg_mtl_render_stroke_quadratic(context, splitRight);
+			mg_mtl_render_stroke_quadratic(backend, splitLeft);
+			mg_mtl_render_stroke_quadratic(backend, splitRight);
 		}
 		else
 		{
@@ -437,21 +534,21 @@ void mg_mtl_render_stroke_quadratic(mg_mtl_encoding_context* context, vec2* p)
 			leftHull[0] = leftHull[2];
 			leftHull[2] = tmp;
 
-			mg_mtl_canvas_encode_element(context, MG_PATH_QUADRATIC, rightHull);
-			mg_mtl_canvas_encode_element(context, MG_PATH_QUADRATIC, leftHull);
+			mg_mtl_canvas_encode_element(backend, MG_PATH_QUADRATIC, rightHull);
+			mg_mtl_canvas_encode_element(backend, MG_PATH_QUADRATIC, leftHull);
 
 			vec2 joint0[2] = {rightHull[2], leftHull[0]};
 			vec2 joint1[2] = {leftHull[2], rightHull[0]};
-			mg_mtl_canvas_encode_element(context, MG_PATH_LINE, joint0);
-			mg_mtl_canvas_encode_element(context, MG_PATH_LINE, joint1);
+			mg_mtl_canvas_encode_element(backend, MG_PATH_LINE, joint0);
+			mg_mtl_canvas_encode_element(backend, MG_PATH_LINE, joint1);
 		}
 	}
 }
 
-void mg_mtl_render_stroke_cubic(mg_mtl_encoding_context* context, vec2* p)
+void mg_mtl_render_stroke_cubic(mg_mtl_canvas_backend* backend, vec2* p)
 {
-	f32 width = context->primitive->attributes.width;
-	f32 tolerance = minimum(context->primitive->attributes.tolerance, 0.5 * width);
+	f32 width = backend->primitive->attributes.width;
+	f32 tolerance = minimum(backend->primitive->attributes.tolerance, 0.5 * width);
 
 	//NOTE: check degenerate line cases
 	f32 equalEps = 1e-3;
@@ -461,19 +558,19 @@ void mg_mtl_render_stroke_cubic(mg_mtl_encoding_context* context, vec2* p)
 	  ||(vec2_close(p[1], p[2], equalEps) && vec2_close(p[2], p[3], equalEps)))
 	{
 		vec2 line[2] = {p[0], p[3]};
-		mg_mtl_render_stroke_line(context, line);
+		mg_mtl_render_stroke_line(backend, line);
 		return;
 	}
 	else if(vec2_close(p[0], p[1], equalEps) && vec2_close(p[1], p[3], equalEps))
 	{
 		vec2 line[2] = {p[0], vec2_add(vec2_mul(5./9, p[0]), vec2_mul(4./9, p[2]))};
-		mg_mtl_render_stroke_line(context, line);
+		mg_mtl_render_stroke_line(backend, line);
 		return;
 	}
 	else if(vec2_close(p[0], p[2], equalEps) && vec2_close(p[2], p[3], equalEps))
 	{
 		vec2 line[2] = {p[0], vec2_add(vec2_mul(5./9, p[0]), vec2_mul(4./9, p[1]))};
-		mg_mtl_render_stroke_line(context, line);
+		mg_mtl_render_stroke_line(backend, line);
 		return;
 	}
 
@@ -488,8 +585,8 @@ void mg_mtl_render_stroke_cubic(mg_mtl_encoding_context* context, vec2* p)
 		vec2 splitLeft[4];
 		vec2 splitRight[4];
 		mg_cubic_split(p, 0.5, splitLeft, splitRight);
-		mg_mtl_render_stroke_cubic(context, splitLeft);
-		mg_mtl_render_stroke_cubic(context, splitRight);
+		mg_mtl_render_stroke_cubic(backend, splitLeft);
+		mg_mtl_render_stroke_cubic(backend, splitRight);
 	}
 	else
 	{
@@ -530,8 +627,8 @@ void mg_mtl_render_stroke_cubic(mg_mtl_encoding_context* context, vec2* p)
 			vec2 splitLeft[4];
 			vec2 splitRight[4];
 			mg_cubic_split(p, maxOvershootParameter, splitLeft, splitRight);
-			mg_mtl_render_stroke_cubic(context, splitLeft);
-			mg_mtl_render_stroke_cubic(context, splitRight);
+			mg_mtl_render_stroke_cubic(backend, splitLeft);
+			mg_mtl_render_stroke_cubic(backend, splitRight);
 		}
 		else
 		{
@@ -542,18 +639,18 @@ void mg_mtl_render_stroke_cubic(mg_mtl_encoding_context* context, vec2* p)
 			leftHull[1] = leftHull[2];
 			leftHull[2] = tmp;
 
-			mg_mtl_canvas_encode_element(context, MG_PATH_CUBIC, rightHull);
-			mg_mtl_canvas_encode_element(context, MG_PATH_CUBIC, leftHull);
+			mg_mtl_canvas_encode_element(backend, MG_PATH_CUBIC, rightHull);
+			mg_mtl_canvas_encode_element(backend, MG_PATH_CUBIC, leftHull);
 
 			vec2 joint0[2] = {rightHull[3], leftHull[0]};
 			vec2 joint1[2] = {leftHull[3], rightHull[0]};
-			mg_mtl_canvas_encode_element(context, MG_PATH_LINE, joint0);
-			mg_mtl_canvas_encode_element(context, MG_PATH_LINE, joint1);
+			mg_mtl_canvas_encode_element(backend, MG_PATH_LINE, joint0);
+			mg_mtl_canvas_encode_element(backend, MG_PATH_LINE, joint1);
 		}
 	}
 }
 
-void mg_mtl_render_stroke_element(mg_mtl_encoding_context* context,
+void mg_mtl_render_stroke_element(mg_mtl_canvas_backend* backend,
                                   mg_path_elt* element,
                                   vec2 currentPoint,
                                   vec2* startTangent,
@@ -566,17 +663,17 @@ void mg_mtl_render_stroke_element(mg_mtl_encoding_context* context,
 	switch(element->type)
 	{
 		case MG_PATH_LINE:
-			mg_mtl_render_stroke_line(context, controlPoints);
+			mg_mtl_render_stroke_line(backend, controlPoints);
 			endPointIndex = 1;
 			break;
 
 		case MG_PATH_QUADRATIC:
-			mg_mtl_render_stroke_quadratic(context, controlPoints);
+			mg_mtl_render_stroke_quadratic(backend, controlPoints);
 			endPointIndex = 2;
 			break;
 
 		case MG_PATH_CUBIC:
-			mg_mtl_render_stroke_cubic(context, controlPoints);
+			mg_mtl_render_stroke_cubic(backend, controlPoints);
 			endPointIndex = 3;
 			break;
 
@@ -613,11 +710,11 @@ void mg_mtl_render_stroke_element(mg_mtl_encoding_context* context,
 	DEBUG_ASSERT(startTangent->x != 0 || startTangent->y != 0);
 }
 
-void mg_mtl_stroke_cap(mg_mtl_encoding_context* context,
+void mg_mtl_stroke_cap(mg_mtl_canvas_backend* backend,
                        vec2 p0,
                        vec2 direction)
 {
-	mg_attributes* attributes = &context->primitive->attributes;
+	mg_attributes* attributes = &backend->primitive->attributes;
 
 	//NOTE(martin): compute the tangent and normal vectors (multiplied by half width) at the cap point
 	f32 dn = sqrt(Square(direction.x) + Square(direction.y));
@@ -635,18 +732,18 @@ void mg_mtl_stroke_cap(mg_mtl_encoding_context* context,
 	                 {p0.x - n0.x, p0.y - n0.y},
 	                 {p0.x + n0.x, p0.y + n0.y}};
 
-	mg_mtl_canvas_encode_element(context, MG_PATH_LINE, points);
-	mg_mtl_canvas_encode_element(context, MG_PATH_LINE, points+1);
-	mg_mtl_canvas_encode_element(context, MG_PATH_LINE, points+2);
-	mg_mtl_canvas_encode_element(context, MG_PATH_LINE, points+3);
+	mg_mtl_canvas_encode_element(backend, MG_PATH_LINE, points);
+	mg_mtl_canvas_encode_element(backend, MG_PATH_LINE, points+1);
+	mg_mtl_canvas_encode_element(backend, MG_PATH_LINE, points+2);
+	mg_mtl_canvas_encode_element(backend, MG_PATH_LINE, points+3);
 }
 
-void mg_mtl_stroke_joint(mg_mtl_encoding_context* context,
+void mg_mtl_stroke_joint(mg_mtl_canvas_backend* backend,
                          vec2 p0,
                          vec2 t0,
                          vec2 t1)
 {
-	mg_attributes* attributes = &context->primitive->attributes;
+	mg_attributes* attributes = &backend->primitive->attributes;
 
 	//NOTE(martin): compute the normals at the joint point
 	f32 norm_t0 = sqrt(Square(t0.x) + Square(t0.y));
@@ -694,10 +791,10 @@ void mg_mtl_stroke_joint(mg_mtl_encoding_context* context,
 		                 {p0.x + n1.x*halfW, p0.y + n1.y*halfW},
 		                 p0};
 
-		mg_mtl_canvas_encode_element(context, MG_PATH_LINE, points);
-		mg_mtl_canvas_encode_element(context, MG_PATH_LINE, points+1);
-		mg_mtl_canvas_encode_element(context, MG_PATH_LINE, points+2);
-		mg_mtl_canvas_encode_element(context, MG_PATH_LINE, points+3);
+		mg_mtl_canvas_encode_element(backend, MG_PATH_LINE, points);
+		mg_mtl_canvas_encode_element(backend, MG_PATH_LINE, points+1);
+		mg_mtl_canvas_encode_element(backend, MG_PATH_LINE, points+2);
+		mg_mtl_canvas_encode_element(backend, MG_PATH_LINE, points+3);
 	}
 	else
 	{
@@ -707,13 +804,13 @@ void mg_mtl_stroke_joint(mg_mtl_encoding_context* context,
 		                 {p0.x + n1.x*halfW, p0.y + n1.y*halfW},
 		                 p0};
 
-		mg_mtl_canvas_encode_element(context, MG_PATH_LINE, points);
-		mg_mtl_canvas_encode_element(context, MG_PATH_LINE, points+1);
-		mg_mtl_canvas_encode_element(context, MG_PATH_LINE, points+2);
+		mg_mtl_canvas_encode_element(backend, MG_PATH_LINE, points);
+		mg_mtl_canvas_encode_element(backend, MG_PATH_LINE, points+1);
+		mg_mtl_canvas_encode_element(backend, MG_PATH_LINE, points+2);
 	}
 }
 
-u32 mg_mtl_render_stroke_subpath(mg_mtl_encoding_context* context,
+u32 mg_mtl_render_stroke_subpath(mg_mtl_canvas_backend* backend,
                                  mg_path_elt* elements,
                                  mg_path_descriptor* path,
                                  u32 startIndex,
@@ -730,7 +827,7 @@ u32 mg_mtl_render_stroke_subpath(mg_mtl_encoding_context* context,
 	vec2 endTangent = {0, 0};
 
 	//NOTE(martin): render first element and compute first tangent
-	mg_mtl_render_stroke_element(context, elements + startIndex, currentPoint, &startTangent, &endTangent, &endPoint);
+	mg_mtl_render_stroke_element(backend, elements + startIndex, currentPoint, &startTangent, &endTangent, &endPoint);
 
 	firstTangent = startTangent;
 	previousEndTangent = endTangent;
@@ -738,18 +835,18 @@ u32 mg_mtl_render_stroke_subpath(mg_mtl_encoding_context* context,
 
 	//NOTE(martin): render subsequent elements along with their joints
 
-	mg_attributes* attributes = &context->primitive->attributes;
+	mg_attributes* attributes = &backend->primitive->attributes;
 
 	u32 eltIndex = startIndex + 1;
 	for(;
 	    eltIndex<eltCount && elements[eltIndex].type != MG_PATH_MOVE;
 	    eltIndex++)
 	{
-		mg_mtl_render_stroke_element(context, elements + eltIndex, currentPoint, &startTangent, &endTangent, &endPoint);
+		mg_mtl_render_stroke_element(backend, elements + eltIndex, currentPoint, &startTangent, &endTangent, &endPoint);
 
 		if(attributes->joint != MG_JOINT_NONE)
 		{
-			mg_mtl_stroke_joint(context, currentPoint, previousEndTangent, startTangent);
+			mg_mtl_stroke_joint(backend, currentPoint, previousEndTangent, startTangent);
 		}
 		previousEndTangent = endTangent;
 		currentPoint = endPoint;
@@ -764,19 +861,19 @@ u32 mg_mtl_render_stroke_subpath(mg_mtl_encoding_context* context,
 		if(attributes->joint != MG_JOINT_NONE)
 		{
 			//NOTE(martin): add a closing joint if the path is closed
-			mg_mtl_stroke_joint(context, endPoint, endTangent, firstTangent);
+			mg_mtl_stroke_joint(backend, endPoint, endTangent, firstTangent);
 		}
 	}
 	else if(attributes->cap == MG_CAP_SQUARE)
 	{
 		//NOTE(martin): add start and end cap
-		mg_mtl_stroke_cap(context, startPoint, (vec2){-startTangent.x, -startTangent.y});
-		mg_mtl_stroke_cap(context, endPoint, endTangent);
+		mg_mtl_stroke_cap(backend, startPoint, (vec2){-startTangent.x, -startTangent.y});
+		mg_mtl_stroke_cap(backend, endPoint, endTangent);
 	}
 	return(eltIndex);
 }
 
-void mg_mtl_render_stroke(mg_mtl_encoding_context* context,
+void mg_mtl_render_stroke(mg_mtl_canvas_backend* backend,
                           mg_path_elt* elements,
                           mg_path_descriptor* path)
 {
@@ -796,7 +893,7 @@ void mg_mtl_render_stroke(mg_mtl_encoding_context* context,
 		}
 		if(startIndex < eltCount)
 		{
-			startIndex = mg_mtl_render_stroke_subpath(context, elements, path, startIndex, startPoint);
+			startIndex = mg_mtl_render_stroke_subpath(backend, elements, path, startIndex, startPoint);
 		}
 	}
 }
@@ -804,8 +901,6 @@ void mg_mtl_render_stroke(mg_mtl_encoding_context* context,
 
 void mg_mtl_render_batch(mg_mtl_canvas_backend* backend,
                          mg_mtl_surface* surface,
-                         int pathCount,
-                         int eltCount,
                          mg_image_data* image,
                          int tileSize,
                          int nTilesX,
@@ -813,6 +908,11 @@ void mg_mtl_render_batch(mg_mtl_canvas_backend* backend,
                          vec2 viewportSize,
                          f32 scale)
 {
+	int pathBufferOffset = backend->pathBatchStart * sizeof(mg_mtl_path);
+	int elementBufferOffset = backend->eltBatchStart * sizeof(mg_mtl_path_elt);
+    int pathCount = backend->pathCount - backend->pathBatchStart;
+    int eltCount = backend->eltCount - backend->eltBatchStart;
+
 	//NOTE: encode GPU commands
 	@autoreleasepool
 	{
@@ -842,7 +942,7 @@ void mg_mtl_render_batch(mg_mtl_canvas_backend* backend,
 		[pathEncoder setComputePipelineState: backend->pathPipeline];
 
 		[pathEncoder setBytes:&pathCount length:sizeof(int) atIndex:0];
-		[pathEncoder setBuffer:backend->pathBuffer[backend->bufferIndex] offset:backend->pathBufferOffset atIndex:1];
+		[pathEncoder setBuffer:backend->pathBuffer[backend->bufferIndex] offset:pathBufferOffset atIndex:1];
 		[pathEncoder setBuffer:backend->pathQueueBuffer offset:0 atIndex:2];
 		[pathEncoder setBuffer:backend->tileQueueBuffer offset:0 atIndex:3];
 		[pathEncoder setBuffer:backend->tileQueueCountBuffer offset:0 atIndex:4];
@@ -861,7 +961,7 @@ void mg_mtl_render_batch(mg_mtl_canvas_backend* backend,
 		[segmentEncoder setComputePipelineState: backend->segmentPipeline];
 
 		[segmentEncoder setBytes:&eltCount length:sizeof(int) atIndex:0];
-		[segmentEncoder setBuffer:backend->elementBuffer[backend->bufferIndex] offset:backend->elementBufferOffset atIndex:1];
+		[segmentEncoder setBuffer:backend->elementBuffer[backend->bufferIndex] offset:elementBufferOffset atIndex:1];
 		[segmentEncoder setBuffer:backend->segmentCountBuffer offset:0 atIndex:2];
 		[segmentEncoder setBuffer:backend->segmentBuffer offset:0 atIndex:3];
 		[segmentEncoder setBuffer:backend->pathQueueBuffer offset:0 atIndex:4];
@@ -901,7 +1001,7 @@ void mg_mtl_render_batch(mg_mtl_canvas_backend* backend,
 		[mergeEncoder setComputePipelineState: backend->mergePipeline];
 
 		[mergeEncoder setBytes:&pathCount length:sizeof(int) atIndex:0];
-		[mergeEncoder setBuffer:backend->pathBuffer[backend->bufferIndex] offset:backend->pathBufferOffset atIndex:1];
+		[mergeEncoder setBuffer:backend->pathBuffer[backend->bufferIndex] offset:pathBufferOffset atIndex:1];
 		[mergeEncoder setBuffer:backend->pathQueueBuffer offset:0 atIndex:2];
 		[mergeEncoder setBuffer:backend->tileQueueBuffer offset:0 atIndex:3];
 		[mergeEncoder setBuffer:backend->tileOpBuffer offset:0 atIndex:4];
@@ -926,7 +1026,7 @@ void mg_mtl_render_batch(mg_mtl_canvas_backend* backend,
 
 		[rasterEncoder setBuffer:backend->screenTilesBuffer offset:0 atIndex:0];
 		[rasterEncoder setBuffer:backend->tileOpBuffer offset:0 atIndex:1];
-		[rasterEncoder setBuffer:backend->pathBuffer[backend->bufferIndex] offset:backend->pathBufferOffset atIndex:2];
+		[rasterEncoder setBuffer:backend->pathBuffer[backend->bufferIndex] offset:pathBufferOffset atIndex:2];
 		[rasterEncoder setBuffer:backend->segmentBuffer offset:0 atIndex:3];
 		[rasterEncoder setBytes:&tileSize length:sizeof(int) atIndex:4];
 		[rasterEncoder setBytes:&scale length:sizeof(float) atIndex:5];
@@ -947,7 +1047,6 @@ void mg_mtl_render_batch(mg_mtl_canvas_backend* backend,
 
 		MTLSize rasterGridSize = MTLSizeMake(viewportSize.x, viewportSize.y, 1);
 		MTLSize rasterGroupSize = MTLSizeMake(MG_MTL_TILE_SIZE, MG_MTL_TILE_SIZE, 1);
-//		[rasterEncoder dispatchThreads: rasterGridSize threadsPerThreadgroup: rasterGroupSize];
 
 		[rasterEncoder dispatchThreadgroupsWithIndirectBuffer: backend->rasterDispatchBuffer
 		                                 indirectBufferOffset: 0
@@ -973,6 +1072,9 @@ void mg_mtl_render_batch(mg_mtl_canvas_backend* backend,
 			 vertexCount: 3 ];
 		[renderEncoder endEncoding];
 	}
+
+	backend->pathBatchStart = backend->pathCount;
+	backend->eltBatchStart = backend->eltCount;
 }
 
 void mg_mtl_canvas_resize(mg_mtl_canvas_backend* backend, vec2 size)
@@ -1019,18 +1121,11 @@ void mg_mtl_canvas_render(mg_canvas_backend* interface,
 {
 	mg_mtl_canvas_backend* backend = (mg_mtl_canvas_backend*)interface;
 
-	//NOTE: update rolling buffers
+	//NOTE: update rolling input buffers
 	dispatch_semaphore_wait(backend->bufferSemaphore, DISPATCH_TIME_FOREVER);
 	backend->bufferIndex = (backend->bufferIndex + 1) % MG_MTL_INPUT_BUFFERS_COUNT;
 
-	mg_mtl_path_elt* elementBufferData = (mg_mtl_path_elt*)[backend->elementBuffer[backend->bufferIndex] contents];
-	mg_mtl_path* pathBufferData = (mg_mtl_path*)[backend->pathBuffer[backend->bufferIndex] contents];
-
-	/////////////////////////////////////////////////////////////////////////////////////
-	//TODO: ensure screen tiles buffer is correct size
-	/////////////////////////////////////////////////////////////////////////////////////
-
-	//NOTE: prepare rendering
+	//NOTE: ensure screen tiles buffer is correct size
 	mg_mtl_surface* surface = backend->surface;
 
 	mp_rect frame = surface->interface.getFrame((mg_surface_data*)surface);
@@ -1046,6 +1141,7 @@ void mg_mtl_canvas_render(mg_canvas_backend* interface,
 		mg_mtl_canvas_resize(backend, viewportSize);
 	}
 
+	//NOTE: acquire metal resources for rendering
 	mg_mtl_surface_acquire_command_buffer(surface);
 	mg_mtl_surface_acquire_drawable(surface);
 
@@ -1068,17 +1164,15 @@ void mg_mtl_canvas_render(mg_canvas_backend* interface,
 		renderEncoder.label = @"clear pass";
 		[renderEncoder endEncoding];
 	}
-	backend->pathBufferOffset = 0;
-	backend->elementBufferOffset = 0;
+	backend->pathCount = 0;
+	backend->pathBatchStart = 0;
+	backend->eltCount = 0;
+	backend->eltBatchStart = 0;
 
 	//NOTE: encode and render batches
-	int pathCount = 0;
 	vec2 currentPos = {0};
 
 	mg_image currentImage = mg_image_nil();
-	mg_mtl_encoding_context context = {.mtlEltCount = 0,
-	                                   .elementBufferData = elementBufferData,
-	                                   .pathBufferData = pathBufferData};
 
 	for(int primitiveIndex = 0; primitiveIndex < primitiveCount; primitiveIndex++)
 	{
@@ -1090,51 +1184,37 @@ void mg_mtl_canvas_render(mg_canvas_backend* interface,
 
 			mg_mtl_render_batch(backend,
 			                    surface,
-			                    pathCount,
-			                    context.mtlEltCount,
 			                    imageData,
 			                    tileSize,
 			                    nTilesX,
 			                    nTilesY,
 			                    viewportSize,
 			                    scale);
-
-			backend->pathBufferOffset += pathCount * sizeof(mg_mtl_path);
-			backend->elementBufferOffset += context.mtlEltCount * sizeof(mg_mtl_path_elt);
-			pathCount = 0;
-			context.mtlEltCount = 0;
-			context.elementBufferData = (mg_mtl_path_elt*)((char*)elementBufferData + backend->elementBufferOffset);
-			context.pathBufferData = (mg_mtl_path*)((char*)pathBufferData + backend->pathBufferOffset);
 		}
 		currentImage = primitive->attributes.image;
 
 		if(primitive->path.count)
 		{
-			context.primitive = primitive;
-			context.pathIndex = pathCount;
-			context.pathScreenExtents = (vec4){FLT_MAX, FLT_MAX, -FLT_MAX, -FLT_MAX};
-			context.pathUserExtents = (vec4){FLT_MAX, FLT_MAX, -FLT_MAX, -FLT_MAX};
+			backend->primitive = primitive;
+			backend->pathScreenExtents = (vec4){FLT_MAX, FLT_MAX, -FLT_MAX, -FLT_MAX};
+			backend->pathUserExtents = (vec4){FLT_MAX, FLT_MAX, -FLT_MAX, -FLT_MAX};
 
 			if(primitive->cmd == MG_CMD_STROKE)
 			{
-				mg_mtl_render_stroke(&context, pathElements + primitive->path.startIndex, &primitive->path);
+				mg_mtl_render_stroke(backend, pathElements + primitive->path.startIndex, &primitive->path);
 			}
 			else
 			{
-				int segCount = 0;
 				for(int eltIndex = 0;
 			    	(eltIndex < primitive->path.count) && (primitive->path.startIndex + eltIndex < eltCount);
 			    	eltIndex++)
 				{
-					context.localEltIndex = segCount;
-
 					mg_path_elt* elt = &pathElements[primitive->path.startIndex + eltIndex];
 
 					if(elt->type != MG_PATH_MOVE)
 					{
 						vec2 p[4] = {currentPos, elt->p[0], elt->p[1], elt->p[2]};
-						mg_mtl_canvas_encode_element(&context, elt->type, p);
-						segCount++;
+						mg_mtl_canvas_encode_element(backend, elt->type, p);
 					}
 					switch(elt->type)
 					{
@@ -1156,66 +1236,15 @@ void mg_mtl_canvas_render(mg_canvas_backend* interface,
 					}
 				}
 			}
-			//NOTE: push path
-			mg_mtl_path* path = &context.pathBufferData[pathCount];
-			pathCount++;
-
-			path->cmd =	(mg_mtl_cmd)primitive->cmd;
-
-			path->box = (vector_float4){context.pathScreenExtents.x,
-		                                context.pathScreenExtents.y,
-		                                context.pathScreenExtents.z,
-		                                context.pathScreenExtents.w};
-
-			path->clip = (vector_float4){primitive->attributes.clip.x,
-			                             primitive->attributes.clip.y,
-			                             primitive->attributes.clip.x + primitive->attributes.clip.w,
-			                             primitive->attributes.clip.y + primitive->attributes.clip.h};
-
-			path->color = (vector_float4){primitive->attributes.color.r,
-			                              primitive->attributes.color.g,
-			                              primitive->attributes.color.b,
-			                              primitive->attributes.color.a};
-
-			mp_rect srcRegion = primitive->attributes.srcRegion;
-
-			mp_rect destRegion = {context.pathUserExtents.x,
-			                      context.pathUserExtents.y,
-			                      context.pathUserExtents.z - context.pathUserExtents.x,
-			                      context.pathUserExtents.w - context.pathUserExtents.y};
-
-			if(!mg_image_is_nil(primitive->attributes.image))
-			{
-				vec2 texSize = mg_image_size(primitive->attributes.image);
-
-				mg_mat2x3 srcRegionToImage = {1/texSize.x, 0, srcRegion.x/texSize.x,
-				                              0, 1/texSize.y, srcRegion.y/texSize.y};
-
-				mg_mat2x3 destRegionToSrcRegion = {srcRegion.w/destRegion.w, 0, 0,
-				                                   0, srcRegion.h/destRegion.h, 0};
-
-				mg_mat2x3 userToDestRegion = {1, 0, -destRegion.x,
-				                              0, 1, -destRegion.y};
-
-				mg_mat2x3 screenToUser = mg_mat2x3_inv(primitive->attributes.transform);
-
-				mg_mat2x3 uvTransform = srcRegionToImage;
-				uvTransform = mg_mat2x3_mul_m(uvTransform, destRegionToSrcRegion);
-				uvTransform = mg_mat2x3_mul_m(uvTransform, userToDestRegion);
-				uvTransform = mg_mat2x3_mul_m(uvTransform, screenToUser);
-
-				path->uvTransform = simd_matrix(simd_make_float3(uvTransform.m[0]/scale, uvTransform.m[3]/scale, 0),
-				                                simd_make_float3(uvTransform.m[1]/scale, uvTransform.m[4]/scale, 0),
-				                                simd_make_float3(uvTransform.m[2], uvTransform.m[5], 1));
-			}
+			//NOTE: encode path
+			mg_mtl_encode_path(backend, primitive, scale);
 		}
 	}
 
 	mg_image_data* imageData = mg_image_data_from_handle(currentImage);
+
 	mg_mtl_render_batch(backend,
 	                    surface,
-	                    pathCount,
-	                    context.mtlEltCount,
 	                    imageData,
 	                    tileSize,
 	                    nTilesX,
@@ -1321,8 +1350,8 @@ void mg_mtl_canvas_image_upload_region(mg_canvas_backend* backendInterface, mg_i
 	                bytesPerRow: 4 * region.w];
 }}
 
-const u32 MG_MTL_PATH_BUFFER_SIZE       = (4<<20)*sizeof(mg_mtl_path),
-          MG_MTL_ELEMENT_BUFFER_SIZE    = (4<<20)*sizeof(mg_mtl_path_elt),
+const u32 MG_MTL_DEFAULT_PATH_BUFFER_LEN = (4<<10),
+          MG_MTL_DEFAULT_ELT_BUFFER_LEN = (4<<10),
           MG_MTL_SEGMENT_BUFFER_SIZE    = (4<<20)*sizeof(mg_mtl_segment),
           MG_MTL_PATH_QUEUE_BUFFER_SIZE = (4<<20)*sizeof(mg_mtl_path_queue),
           MG_MTL_TILE_QUEUE_BUFFER_SIZE = (4<<20)*sizeof(mg_mtl_tile_queue),
@@ -1424,10 +1453,10 @@ mg_canvas_backend* mtl_canvas_backend_create(mg_mtl_surface* surface)
 
 		for(int i=0; i<MG_MTL_INPUT_BUFFERS_COUNT; i++)
 		{
-			backend->pathBuffer[i] = [surface->device newBufferWithLength: MG_MTL_PATH_BUFFER_SIZE
+			backend->pathBuffer[i] = [surface->device newBufferWithLength: MG_MTL_DEFAULT_PATH_BUFFER_LEN * sizeof(mg_mtl_path)
 			                                               options: bufferOptions];
 
-			backend->elementBuffer[i] = [surface->device newBufferWithLength: MG_MTL_ELEMENT_BUFFER_SIZE
+			backend->elementBuffer[i] = [surface->device newBufferWithLength: MG_MTL_DEFAULT_ELT_BUFFER_LEN * sizeof(mg_mtl_path_elt)
 			                                                  options: bufferOptions];
 		}
 
