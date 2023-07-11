@@ -68,6 +68,9 @@ typedef struct mg_mtl_canvas_backend
 	vec4 pathScreenExtents;
 	vec4 pathUserExtents;
 
+	int maxTileQueueCount;
+	int maxSegmentCount;
+
 } mg_mtl_canvas_backend;
 
 typedef struct mg_mtl_image_data
@@ -145,16 +148,19 @@ void mg_mtl_canvas_encode_element(mg_mtl_canvas_backend* backend, mg_path_elt_ty
 	switch(kind)
 	{
 		case MG_PATH_LINE:
+			backend->maxSegmentCount += 1;
 			elt->kind = MG_MTL_LINE;
 			count = 2;
 			break;
 
 		case MG_PATH_QUADRATIC:
+			backend->maxSegmentCount += 3;
 			elt->kind = MG_MTL_QUADRATIC;
 			count = 3;
 			break;
 
 		case MG_PATH_CUBIC:
+			backend->maxSegmentCount += 7;
 			elt->kind = MG_MTL_CUBIC;
 			count = 4;
 			break;
@@ -244,6 +250,10 @@ void mg_mtl_encode_path(mg_mtl_canvas_backend* backend, mg_primitive* primitive,
 		                                simd_make_float3(uvTransform.m[1]/scale, uvTransform.m[4]/scale, 0),
 		                                simd_make_float3(uvTransform.m[2], uvTransform.m[5], 1));
 	}
+
+	int nTilesX = ((path->box.z - path->box.x)*scale - 1) / MG_MTL_TILE_SIZE + 1;
+	int nTilesY = ((path->box.w - path->box.y)*scale - 1) / MG_MTL_TILE_SIZE + 1;
+	backend->maxTileQueueCount += (nTilesX * nTilesY);
 }
 
 bool mg_intersect_hull_legs(vec2 p0, vec2 p1, vec2 p2, vec2 p3, vec2* intersection)
@@ -899,6 +909,27 @@ void mg_mtl_render_stroke(mg_mtl_canvas_backend* backend,
 }
 
 
+void mg_mtl_grow_buffer_if_needed(mg_mtl_canvas_backend* backend, id<MTLBuffer>* buffer, u64 wantedSize)
+{
+	u64 bufferSize = [(*buffer) length];
+	if(bufferSize < wantedSize)
+	{
+		int newSize = wantedSize * 1.2;
+
+		@autoreleasepool
+		{
+			 //NOTE: MTLBuffers are retained by the command buffer, so we don't risk deallocating while the buffer is in use
+			[*buffer release];
+			*buffer = nil;
+
+			id<MTLDevice> device = backend->surface->device;
+			MTLResourceOptions bufferOptions = MTLResourceStorageModePrivate;
+
+			*buffer = [device newBufferWithLength: newSize options: bufferOptions];
+		}
+	}
+}
+
 void mg_mtl_render_batch(mg_mtl_canvas_backend* backend,
                          mg_mtl_surface* surface,
                          mg_image_data* image,
@@ -910,13 +941,21 @@ void mg_mtl_render_batch(mg_mtl_canvas_backend* backend,
 {
 	int pathBufferOffset = backend->pathBatchStart * sizeof(mg_mtl_path);
 	int elementBufferOffset = backend->eltBatchStart * sizeof(mg_mtl_path_elt);
-    int pathCount = backend->pathCount - backend->pathBatchStart;
-    int eltCount = backend->eltCount - backend->eltBatchStart;
+	int pathCount = backend->pathCount - backend->pathBatchStart;
+	int eltCount = backend->eltCount - backend->eltBatchStart;
+
+	//NOTE: update intermediate buffers sizes if needed
+
+	mg_mtl_grow_buffer_if_needed(backend, &backend->pathQueueBuffer, pathCount * sizeof(mg_mtl_path_queue));
+	mg_mtl_grow_buffer_if_needed(backend, &backend->tileQueueBuffer, backend->maxTileQueueCount * sizeof(mg_mtl_tile_queue));
+	mg_mtl_grow_buffer_if_needed(backend, &backend->segmentBuffer, backend->maxSegmentCount * sizeof(mg_mtl_segment));
+	mg_mtl_grow_buffer_if_needed(backend, &backend->screenTilesBuffer, nTilesX * nTilesY * sizeof(mg_mtl_screen_tile));
+	mg_mtl_grow_buffer_if_needed(backend, &backend->tileOpBuffer, backend->maxSegmentCount * 30 * sizeof(mg_mtl_tile_op));
 
 	//NOTE: encode GPU commands
 	@autoreleasepool
 	{
-		//NOTE: create output texture
+		//NOTE: clear output texture
 		MTLRenderPassDescriptor* clearDescriptor = [MTLRenderPassDescriptor renderPassDescriptor];
 		clearDescriptor.colorAttachments[0].texture = backend->outTexture;
 		clearDescriptor.colorAttachments[0].loadAction = MTLLoadActionClear;
@@ -941,13 +980,16 @@ void mg_mtl_render_batch(mg_mtl_canvas_backend* backend,
 		pathEncoder.label = @"path pass";
 		[pathEncoder setComputePipelineState: backend->pathPipeline];
 
+		int tileQueueMax = [backend->tileQueueBuffer length] / sizeof(mg_mtl_tile_queue);
+
 		[pathEncoder setBytes:&pathCount length:sizeof(int) atIndex:0];
 		[pathEncoder setBuffer:backend->pathBuffer[backend->bufferIndex] offset:pathBufferOffset atIndex:1];
 		[pathEncoder setBuffer:backend->pathQueueBuffer offset:0 atIndex:2];
 		[pathEncoder setBuffer:backend->tileQueueBuffer offset:0 atIndex:3];
 		[pathEncoder setBuffer:backend->tileQueueCountBuffer offset:0 atIndex:4];
-		[pathEncoder setBytes:&tileSize length:sizeof(int) atIndex:5];
-		[pathEncoder setBytes:&scale length:sizeof(int) atIndex:6];
+		[pathEncoder setBytes:&tileQueueMax length:sizeof(int) atIndex:5];
+		[pathEncoder setBytes:&tileSize length:sizeof(int) atIndex:6];
+		[pathEncoder setBytes:&scale length:sizeof(int) atIndex:7];
 
 		MTLSize pathGridSize = MTLSizeMake(pathCount, 1, 1);
 		MTLSize pathGroupSize = MTLSizeMake([backend->pathPipeline maxTotalThreadsPerThreadgroup], 1, 1);
@@ -960,6 +1002,9 @@ void mg_mtl_render_batch(mg_mtl_canvas_backend* backend,
 		segmentEncoder.label = @"segment pass";
 		[segmentEncoder setComputePipelineState: backend->segmentPipeline];
 
+		int tileOpMax = [backend->tileOpBuffer length] / sizeof(mg_mtl_tile_op);
+		int segmentMax = [backend->segmentBuffer length] / sizeof(mg_mtl_segment);
+
 		[segmentEncoder setBytes:&eltCount length:sizeof(int) atIndex:0];
 		[segmentEncoder setBuffer:backend->elementBuffer[backend->bufferIndex] offset:elementBufferOffset atIndex:1];
 		[segmentEncoder setBuffer:backend->segmentCountBuffer offset:0 atIndex:2];
@@ -968,10 +1013,12 @@ void mg_mtl_render_batch(mg_mtl_canvas_backend* backend,
 		[segmentEncoder setBuffer:backend->tileQueueBuffer offset:0 atIndex:5];
 		[segmentEncoder setBuffer:backend->tileOpBuffer offset:0 atIndex:6];
 		[segmentEncoder setBuffer:backend->tileOpCountBuffer offset:0 atIndex:7];
-		[segmentEncoder setBytes:&tileSize length:sizeof(int) atIndex:8];
-		[segmentEncoder setBytes:&scale length:sizeof(int) atIndex:9];
-		[segmentEncoder setBuffer:backend->logBuffer[backend->bufferIndex] offset:0 atIndex:10];
-		[segmentEncoder setBuffer:backend->logOffsetBuffer[backend->bufferIndex] offset:0 atIndex:11];
+		[segmentEncoder setBytes:&tileOpMax length:sizeof(int) atIndex:8];
+		[segmentEncoder setBytes:&segmentMax length:sizeof(int) atIndex:9];
+		[segmentEncoder setBytes:&tileSize length:sizeof(int) atIndex:10];
+		[segmentEncoder setBytes:&scale length:sizeof(int) atIndex:11];
+		[segmentEncoder setBuffer:backend->logBuffer[backend->bufferIndex] offset:0 atIndex:12];
+		[segmentEncoder setBuffer:backend->logOffsetBuffer[backend->bufferIndex] offset:0 atIndex:13];
 
 		MTLSize segmentGridSize = MTLSizeMake(eltCount, 1, 1);
 		MTLSize segmentGroupSize = MTLSizeMake([backend->segmentPipeline maxTotalThreadsPerThreadgroup], 1, 1);
@@ -1008,10 +1055,11 @@ void mg_mtl_render_batch(mg_mtl_canvas_backend* backend,
 		[mergeEncoder setBuffer:backend->tileOpCountBuffer offset:0 atIndex:5];
 		[mergeEncoder setBuffer:backend->rasterDispatchBuffer offset:0 atIndex:6];
 		[mergeEncoder setBuffer:backend->screenTilesBuffer offset:0 atIndex:7];
-		[mergeEncoder setBytes:&tileSize length:sizeof(int) atIndex:8];
-		[mergeEncoder setBytes:&scale length:sizeof(float) atIndex:9];
-		[mergeEncoder setBuffer:backend->logBuffer[backend->bufferIndex] offset:0 atIndex:10];
-		[mergeEncoder setBuffer:backend->logOffsetBuffer[backend->bufferIndex] offset:0 atIndex:11];
+		[mergeEncoder setBytes:&tileOpMax length:sizeof(int) atIndex:8];
+		[mergeEncoder setBytes:&tileSize length:sizeof(int) atIndex:9];
+		[mergeEncoder setBytes:&scale length:sizeof(float) atIndex:10];
+		[mergeEncoder setBuffer:backend->logBuffer[backend->bufferIndex] offset:0 atIndex:11];
+		[mergeEncoder setBuffer:backend->logOffsetBuffer[backend->bufferIndex] offset:0 atIndex:12];
 
 		MTLSize mergeGridSize = MTLSizeMake(nTilesX, nTilesY, 1);
 		MTLSize mergeGroupSize = MTLSizeMake(MG_MTL_TILE_SIZE, MG_MTL_TILE_SIZE, 1);
@@ -1075,6 +1123,9 @@ void mg_mtl_render_batch(mg_mtl_canvas_backend* backend,
 
 	backend->pathBatchStart = backend->pathCount;
 	backend->eltBatchStart = backend->eltCount;
+
+	backend->maxSegmentCount = 0;
+	backend->maxTileQueueCount = 0;
 }
 
 void mg_mtl_canvas_resize(mg_mtl_canvas_backend* backend, vec2 size)
@@ -1168,6 +1219,8 @@ void mg_mtl_canvas_render(mg_canvas_backend* interface,
 	backend->pathBatchStart = 0;
 	backend->eltCount = 0;
 	backend->eltBatchStart = 0;
+	backend->maxSegmentCount = 0;
+	backend->maxTileQueueCount = 0;
 
 	//NOTE: encode and render batches
 	vec2 currentPos = {0};
@@ -1350,12 +1403,13 @@ void mg_mtl_canvas_image_upload_region(mg_canvas_backend* backendInterface, mg_i
 	                bytesPerRow: 4 * region.w];
 }}
 
-const u32 MG_MTL_DEFAULT_PATH_BUFFER_LEN = (4<<10),
-          MG_MTL_DEFAULT_ELT_BUFFER_LEN = (4<<10),
-          MG_MTL_SEGMENT_BUFFER_SIZE    = (4<<20)*sizeof(mg_mtl_segment),
-          MG_MTL_PATH_QUEUE_BUFFER_SIZE = (4<<20)*sizeof(mg_mtl_path_queue),
-          MG_MTL_TILE_QUEUE_BUFFER_SIZE = (4<<20)*sizeof(mg_mtl_tile_queue),
-          MG_MTL_TILE_OP_BUFFER_SIZE    = (4<<20)*sizeof(mg_mtl_tile_op);
+const u32 MG_MTL_DEFAULT_PATH_BUFFER_LEN       = (4<<10),
+          MG_MTL_DEFAULT_ELT_BUFFER_LEN        = (4<<10),
+
+          MG_MTL_DEFAULT_SEGMENT_BUFFER_LEN    = (4<<10),
+          MG_MTL_DEFAULT_PATH_QUEUE_BUFFER_LEN = (4<<10),
+          MG_MTL_DEFAULT_TILE_QUEUE_BUFFER_LEN = (4<<10),
+          MG_MTL_DEFAULT_TILE_OP_BUFFER_LEN    = (4<<14);
 
 mg_canvas_backend* mtl_canvas_backend_create(mg_mtl_surface* surface)
 {
@@ -1461,22 +1515,22 @@ mg_canvas_backend* mtl_canvas_backend_create(mg_mtl_surface* surface)
 		}
 
 		bufferOptions = MTLResourceStorageModePrivate;
-		backend->segmentBuffer = [surface->device newBufferWithLength: MG_MTL_SEGMENT_BUFFER_SIZE
+		backend->segmentBuffer = [surface->device newBufferWithLength: MG_MTL_DEFAULT_SEGMENT_BUFFER_LEN * sizeof(mg_mtl_segment)
 		                                               options: bufferOptions];
 
 		backend->segmentCountBuffer = [surface->device newBufferWithLength: sizeof(int)
 		                                                    options: bufferOptions];
 
-		backend->pathQueueBuffer = [surface->device newBufferWithLength: MG_MTL_PATH_QUEUE_BUFFER_SIZE
+		backend->pathQueueBuffer = [surface->device newBufferWithLength: MG_MTL_DEFAULT_PATH_QUEUE_BUFFER_LEN * sizeof(mg_mtl_path_queue)
 		                                                 options: bufferOptions];
 
-		backend->tileQueueBuffer = [surface->device newBufferWithLength: MG_MTL_TILE_QUEUE_BUFFER_SIZE
+		backend->tileQueueBuffer = [surface->device newBufferWithLength: MG_MTL_DEFAULT_TILE_QUEUE_BUFFER_LEN * sizeof(mg_mtl_tile_queue)
 		                                                 options: bufferOptions];
 
 		backend->tileQueueCountBuffer = [surface->device newBufferWithLength: sizeof(int)
 		                                                      options: bufferOptions];
 
-		backend->tileOpBuffer = [surface->device newBufferWithLength: MG_MTL_TILE_OP_BUFFER_SIZE
+		backend->tileOpBuffer = [surface->device newBufferWithLength: MG_MTL_DEFAULT_TILE_OP_BUFFER_LEN * sizeof(mg_mtl_tile_op)
 		                                              options: bufferOptions];
 
 		backend->tileOpCountBuffer = [surface->device newBufferWithLength: sizeof(int)
