@@ -1611,6 +1611,13 @@ kernel void mtl_raster(const device mg_mtl_screen_tile* screenTilesBuffer [[buff
 		}
 		opIndex = op->next;
 	}
+
+/*
+	if((pixelCoord.x % tileSize[0] == 0) || (pixelCoord.y % tileSize[0] == 0))
+	{
+		color = float4(0, 0, 0, 1);
+	}
+//*/
 	outTexture.write(color, pixelCoord);
 }
 
@@ -1631,7 +1638,7 @@ vertex vs_out mtl_vertex_shader(ushort vid [[vertex_id]])
 	return(out);
 }
 
-fragment float4 mtl_fragment_shader(vs_out i [[stage_in]], texture2d<float> tex [[texture(0)]])
+fragment float4 mtl_fragment_shader(vs_out i [[stage_in]], texture2d<float, access::sample> tex [[texture(0)]])
 {
 	constexpr sampler smp(mip_filter::nearest, mag_filter::linear, min_filter::linear);
 	return(tex.sample(smp, i.uv));

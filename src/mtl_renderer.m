@@ -17,7 +17,7 @@
 #include"mtl_renderer.h"
 
 const int MG_MTL_INPUT_BUFFERS_COUNT = 3,
-          MG_MTL_TILE_SIZE = 16,
+          MG_MTL_TILE_SIZE = 32,
           MG_MTL_MSAA_COUNT = 8;
 
 typedef struct mg_mtl_canvas_backend
@@ -914,7 +914,7 @@ void mg_mtl_render_batch(mg_mtl_canvas_backend* backend,
 		[mergeEncoder setBuffer:backend->logOffsetBuffer[backend->bufferIndex] offset:0 atIndex:11];
 
 		MTLSize mergeGridSize = MTLSizeMake(nTilesX, nTilesY, 1);
-		MTLSize mergeGroupSize = MTLSizeMake(16, 16, 1);
+		MTLSize mergeGroupSize = MTLSizeMake(MG_MTL_TILE_SIZE, MG_MTL_TILE_SIZE, 1);
 
 		[mergeEncoder dispatchThreads: mergeGridSize threadsPerThreadgroup: mergeGroupSize];
 		[mergeEncoder endEncoding];
@@ -946,7 +946,7 @@ void mg_mtl_render_batch(mg_mtl_canvas_backend* backend,
 		[rasterEncoder setBytes: &useTexture length:sizeof(int) atIndex: 9];
 
 		MTLSize rasterGridSize = MTLSizeMake(viewportSize.x, viewportSize.y, 1);
-		MTLSize rasterGroupSize = MTLSizeMake(16, 16, 1);
+		MTLSize rasterGroupSize = MTLSizeMake(MG_MTL_TILE_SIZE, MG_MTL_TILE_SIZE, 1);
 //		[rasterEncoder dispatchThreads: rasterGridSize threadsPerThreadgroup: rasterGroupSize];
 
 		[rasterEncoder dispatchThreadgroupsWithIndirectBuffer: backend->rasterDispatchBuffer
@@ -999,7 +999,7 @@ void mg_mtl_canvas_resize(mg_mtl_canvas_backend* backend, vec2 size)
 		MTLTextureDescriptor* texDesc = [[MTLTextureDescriptor alloc] init];
 		texDesc.textureType = MTLTextureType2D;
 		texDesc.storageMode = MTLStorageModePrivate;
-		texDesc.usage = MTLTextureUsageShaderRead | MTLTextureUsageShaderWrite;
+		texDesc.usage = MTLTextureUsageShaderRead | MTLTextureUsageShaderWrite | MTLTextureUsageRenderTarget;
 		texDesc.pixelFormat = MTLPixelFormatRGBA8Unorm;
 		texDesc.width = size.x;
 		texDesc.height = size.y;
@@ -1407,7 +1407,7 @@ mg_canvas_backend* mtl_canvas_backend_create(mg_mtl_surface* surface)
 		MTLTextureDescriptor* texDesc = [[MTLTextureDescriptor alloc] init];
 		texDesc.textureType = MTLTextureType2D;
 		texDesc.storageMode = MTLStorageModePrivate;
-		texDesc.usage = MTLTextureUsageShaderRead | MTLTextureUsageShaderWrite;
+		texDesc.usage = MTLTextureUsageShaderRead | MTLTextureUsageShaderWrite | MTLTextureUsageRenderTarget;
 		texDesc.pixelFormat = MTLPixelFormatRGBA8Unorm;
 		texDesc.width = backend->frameSize.x;
 		texDesc.height = backend->frameSize.y;
