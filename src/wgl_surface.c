@@ -254,7 +254,7 @@ mg_surface_data* mg_wgl_surface_create_for_window(mp_window window)
 
 			int contextAttrs[] = {
 				WGL_CONTEXT_MAJOR_VERSION_ARB, 4,
-				WGL_CONTEXT_MINOR_VERSION_ARB, 3,
+				WGL_CONTEXT_MINOR_VERSION_ARB, 4,
 				WGL_CONTEXT_PROFILE_MASK_ARB, WGL_CONTEXT_CORE_PROFILE_BIT_ARB,
 				0};
 
@@ -270,7 +270,7 @@ mg_surface_data* mg_wgl_surface_create_for_window(mp_window window)
 			//NOTE: make gl context current and load api
 			wglMakeCurrent(surface->hDC, surface->glContext);
 			wglSwapIntervalEXT(1);
-			mg_gl_load_gl43(&surface->api, mg_wgl_get_proc);
+			mg_gl_load_gl44(&surface->api, mg_wgl_get_proc);
 		}
 	}
 	return((mg_surface_data*)surface);

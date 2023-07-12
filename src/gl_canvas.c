@@ -98,23 +98,18 @@ typedef struct mg_gl_tile_queue
 
 ////////////////////////////////////////////////////////////
 
-typedef struct mg_gl_encoding_context
-{
-	int glEltCount;
-	mg_gl_path* pathBufferData;
-	mg_gl_path_elt* elementBufferData;
-	int pathIndex;
-	mg_primitive* primitive;
-	vec4 pathScreenExtents;
-	vec4 pathUserExtents;
-
-} mg_gl_encoding_context;
-
 enum {
 	MG_GL_INPUT_BUFFERS_COUNT = 3,
 	MG_GL_TILE_SIZE = 16,
 	MG_GL_MSAA_COUNT = 8,
 };
+
+typedef struct mg_gl_mapped_buffer
+{
+	GLuint buffer;
+	int size;
+	char* contents;
+} mg_gl_mapped_buffer;
 
 typedef struct mg_gl_canvas_backend
 {
@@ -134,8 +129,8 @@ typedef struct mg_gl_canvas_backend
 
 	int bufferIndex;
 	GLsync bufferSync[MG_GL_INPUT_BUFFERS_COUNT];
-	GLuint pathBuffer[MG_GL_INPUT_BUFFERS_COUNT];
-	GLuint elementBuffer[MG_GL_INPUT_BUFFERS_COUNT];
+	mg_gl_mapped_buffer pathBuffer[MG_GL_INPUT_BUFFERS_COUNT];
+	mg_gl_mapped_buffer elementBuffer[MG_GL_INPUT_BUFFERS_COUNT];
 
 	GLuint segmentBuffer;
 	GLuint segmentCountBuffer;
@@ -148,11 +143,20 @@ typedef struct mg_gl_canvas_backend
 
 	GLuint dummyVertexBuffer;
 
-	mg_gl_path* pathBufferData;
-	mg_gl_path_elt* elementBufferData;
-
 	int msaaCount;
 	vec2 frameSize;
+
+	//encoding context
+	int pathCount;
+	int eltCount;
+
+	/////////////////
+	int pathBatchStart;
+	int eltBatchStart;
+
+	mg_primitive* primitive;
+	vec4 pathScreenExtents;
+	vec4 pathUserExtents;
 
 } mg_gl_canvas_backend;
 
@@ -164,27 +168,28 @@ static void mg_update_path_extents(vec4* extents, vec2 p)
 	extents->w = maximum(extents->w, p.y);
 }
 
-void mg_gl_canvas_encode_element(mg_gl_encoding_context* context, mg_path_elt_type kind, vec2* p)
+void mg_gl_canvas_encode_element(mg_gl_canvas_backend* backend, mg_path_elt_type kind, vec2* p)
 {
-	mg_gl_path_elt* glElt = &context->elementBufferData[context->glEltCount];
-	context->glEltCount++;
+	mg_gl_path_elt* elementData = (mg_gl_path_elt*)backend->elementBuffer[backend->bufferIndex].contents;
+	mg_gl_path_elt* elt = &elementData[backend->eltCount];
+	backend->eltCount++;
 
-	glElt->pathIndex = context->pathIndex;
+	elt->pathIndex = backend->pathCount - backend->pathBatchStart;
 	int count = 0;
 	switch(kind)
 	{
 		case MG_PATH_LINE:
-			glElt->kind = MG_GL_LINE;
+			elt->kind = MG_GL_LINE;
 			count = 2;
 			break;
 
 		case MG_PATH_QUADRATIC:
-			glElt->kind = MG_GL_QUADRATIC;
+			elt->kind = MG_GL_QUADRATIC;
 			count = 3;
 			break;
 
 		case MG_PATH_CUBIC:
-			glElt->kind = MG_GL_CUBIC;
+			elt->kind = MG_GL_CUBIC;
 			count = 4;
 			break;
 
@@ -194,12 +199,85 @@ void mg_gl_canvas_encode_element(mg_gl_encoding_context* context, mg_path_elt_ty
 
 	for(int i=0; i<count; i++)
 	{
-		mg_update_path_extents(&context->pathUserExtents, p[i]);
+		mg_update_path_extents(&backend->pathUserExtents, p[i]);
 
-		vec2 screenP = mg_mat2x3_mul(context->primitive->attributes.transform, p[i]);
-		glElt->p[i] = (vec2){screenP.x, screenP.y};
+		vec2 screenP = mg_mat2x3_mul(backend->primitive->attributes.transform, p[i]);
+		elt->p[i] = (vec2){screenP.x, screenP.y};
 
-		mg_update_path_extents(&context->pathScreenExtents, screenP);
+		mg_update_path_extents(&backend->pathScreenExtents, screenP);
+	}
+}
+
+void mg_gl_canvas_encode_path(mg_gl_canvas_backend* backend, mg_primitive* primitive, f32 scale)
+{
+	mg_gl_path* pathData = (mg_gl_path*)backend->pathBuffer[backend->bufferIndex].contents;
+	mg_gl_path* path = &pathData[backend->pathCount];
+	backend->pathCount++;
+
+	path->cmd =	(mg_gl_cmd)primitive->cmd;
+
+	path->box = (vec4){
+		backend->pathScreenExtents.x,
+		backend->pathScreenExtents.y,
+		backend->pathScreenExtents.z,
+		backend->pathScreenExtents.w};
+
+	path->clip = (vec4){
+		primitive->attributes.clip.x,
+		primitive->attributes.clip.y,
+		primitive->attributes.clip.x + primitive->attributes.clip.w,
+		primitive->attributes.clip.y + primitive->attributes.clip.h};
+
+	path->color = (vec4){
+		primitive->attributes.color.r,
+		primitive->attributes.color.g,
+		primitive->attributes.color.b,
+		primitive->attributes.color.a};
+
+	mp_rect srcRegion = primitive->attributes.srcRegion;
+
+	mp_rect destRegion = {
+		backend->pathUserExtents.x,
+		backend->pathUserExtents.y,
+		backend->pathUserExtents.z - backend->pathUserExtents.x,
+		backend->pathUserExtents.w - backend->pathUserExtents.y};
+
+	if(!mg_image_is_nil(primitive->attributes.image))
+	{
+		vec2 texSize = mg_image_size(primitive->attributes.image);
+
+		mg_mat2x3 srcRegionToImage = {
+			1/texSize.x, 0, srcRegion.x/texSize.x,
+			0, 1/texSize.y, srcRegion.y/texSize.y};
+
+		mg_mat2x3 destRegionToSrcRegion = {
+			srcRegion.w/destRegion.w, 0, 0,
+			0, srcRegion.h/destRegion.h, 0};
+
+		mg_mat2x3 userToDestRegion = {
+			1, 0, -destRegion.x,
+			0, 1, -destRegion.y};
+
+		mg_mat2x3 screenToUser = mg_mat2x3_inv(primitive->attributes.transform);
+
+		mg_mat2x3 uvTransform = srcRegionToImage;
+		uvTransform = mg_mat2x3_mul_m(uvTransform, destRegionToSrcRegion);
+		uvTransform = mg_mat2x3_mul_m(uvTransform, userToDestRegion);
+		uvTransform = mg_mat2x3_mul_m(uvTransform, screenToUser);
+
+		//NOTE: mat3 std430 layout is an array of vec3, which are padded to _vec4_ alignment
+		path->uvTransform[0] = uvTransform.m[0]/scale;
+		path->uvTransform[1] = uvTransform.m[3]/scale;
+		path->uvTransform[2] = 0;
+		path->uvTransform[3] = 0;
+		path->uvTransform[4] = uvTransform.m[1]/scale;
+		path->uvTransform[5] = uvTransform.m[4]/scale;
+		path->uvTransform[6] = 0;
+		path->uvTransform[7] = 0;
+		path->uvTransform[8] = uvTransform.m[2];
+		path->uvTransform[9] = uvTransform.m[5];
+		path->uvTransform[10] = 1;
+		path->uvTransform[11] = 0;
 	}
 }
 
@@ -391,9 +469,9 @@ void mg_cubic_split(vec2 p[4], f32 t, vec2 outLeft[4], vec2 outRight[4])
 	outRight[3] = p[3];
 }
 
-void mg_gl_encode_stroke_line(mg_gl_encoding_context* context, vec2* p)
+void mg_gl_encode_stroke_line(mg_gl_canvas_backend* backend, vec2* p)
 {
-	f32 width = context->primitive->attributes.width;
+	f32 width = backend->primitive->attributes.width;
 
 	vec2 v = {p[1].x-p[0].x, p[1].y-p[0].y};
 	vec2 n = {v.y, -v.x};
@@ -405,30 +483,30 @@ void mg_gl_encode_stroke_line(mg_gl_encoding_context* context, vec2* p)
 	vec2 joint0[2] = {vec2_add(p[0], vec2_mul(-1, offset)), vec2_add(p[0], offset)};
 	vec2 joint1[2] = {vec2_add(p[1], offset), vec2_add(p[1], vec2_mul(-1, offset))};
 
-	mg_gl_canvas_encode_element(context, MG_PATH_LINE, right);
+	mg_gl_canvas_encode_element(backend, MG_PATH_LINE, right);
 
-	mg_gl_canvas_encode_element(context, MG_PATH_LINE, left);
-	mg_gl_canvas_encode_element(context, MG_PATH_LINE, joint0);
-	mg_gl_canvas_encode_element(context, MG_PATH_LINE, joint1);
+	mg_gl_canvas_encode_element(backend, MG_PATH_LINE, left);
+	mg_gl_canvas_encode_element(backend, MG_PATH_LINE, joint0);
+	mg_gl_canvas_encode_element(backend, MG_PATH_LINE, joint1);
 }
 
 enum { MG_HULL_CHECK_SAMPLE_COUNT = 5 };
 
-void mg_gl_encode_stroke_quadratic(mg_gl_encoding_context* context, vec2* p)
+void mg_gl_encode_stroke_quadratic(mg_gl_canvas_backend* backend, vec2* p)
 {
-	f32 width = context->primitive->attributes.width;
-	f32 tolerance = minimum(context->primitive->attributes.tolerance, 0.5 * width);
+	f32 width = backend->primitive->attributes.width;
+	f32 tolerance = minimum(backend->primitive->attributes.tolerance, 0.5 * width);
 
 	//NOTE: check for degenerate line case
 	const f32 equalEps = 1e-3;
 	if(vec2_close(p[0], p[1], equalEps))
 	{
-		mg_gl_encode_stroke_line(context, p+1);
+		mg_gl_encode_stroke_line(backend, p+1);
 		return;
 	}
 	else if(vec2_close(p[1], p[2], equalEps))
 	{
-		mg_gl_encode_stroke_line(context, p);
+		mg_gl_encode_stroke_line(backend, p);
 		return;
 	}
 
@@ -443,8 +521,8 @@ void mg_gl_encode_stroke_quadratic(mg_gl_encoding_context* context, vec2* p)
 		vec2 splitLeft[3];
 		vec2 splitRight[3];
 		mg_quadratic_split(p, 0.5, splitLeft, splitRight);
-		mg_gl_encode_stroke_quadratic(context, splitLeft);
-		mg_gl_encode_stroke_quadratic(context, splitRight);
+		mg_gl_encode_stroke_quadratic(backend, splitLeft);
+		mg_gl_encode_stroke_quadratic(backend, splitRight);
 	}
 	else
 	{
@@ -484,8 +562,8 @@ void mg_gl_encode_stroke_quadratic(mg_gl_encoding_context* context, vec2* p)
 			vec2 splitLeft[3];
 			vec2 splitRight[3];
 			mg_quadratic_split(p, maxOvershootParameter, splitLeft, splitRight);
-			mg_gl_encode_stroke_quadratic(context, splitLeft);
-			mg_gl_encode_stroke_quadratic(context, splitRight);
+			mg_gl_encode_stroke_quadratic(backend, splitLeft);
+			mg_gl_encode_stroke_quadratic(backend, splitRight);
 		}
 		else
 		{
@@ -493,21 +571,21 @@ void mg_gl_encode_stroke_quadratic(mg_gl_encoding_context* context, vec2* p)
 			leftHull[0] = leftHull[2];
 			leftHull[2] = tmp;
 
-			mg_gl_canvas_encode_element(context, MG_PATH_QUADRATIC, rightHull);
-			mg_gl_canvas_encode_element(context, MG_PATH_QUADRATIC, leftHull);
+			mg_gl_canvas_encode_element(backend, MG_PATH_QUADRATIC, rightHull);
+			mg_gl_canvas_encode_element(backend, MG_PATH_QUADRATIC, leftHull);
 
 			vec2 joint0[2] = {rightHull[2], leftHull[0]};
 			vec2 joint1[2] = {leftHull[2], rightHull[0]};
-			mg_gl_canvas_encode_element(context, MG_PATH_LINE, joint0);
-			mg_gl_canvas_encode_element(context, MG_PATH_LINE, joint1);
+			mg_gl_canvas_encode_element(backend, MG_PATH_LINE, joint0);
+			mg_gl_canvas_encode_element(backend, MG_PATH_LINE, joint1);
 		}
 	}
 }
 
-void mg_gl_encode_stroke_cubic(mg_gl_encoding_context* context, vec2* p)
+void mg_gl_encode_stroke_cubic(mg_gl_canvas_backend* backend, vec2* p)
 {
-	f32 width = context->primitive->attributes.width;
-	f32 tolerance = minimum(context->primitive->attributes.tolerance, 0.5 * width);
+	f32 width = backend->primitive->attributes.width;
+	f32 tolerance = minimum(backend->primitive->attributes.tolerance, 0.5 * width);
 
 	//NOTE: check degenerate line cases
 	f32 equalEps = 1e-3;
@@ -517,19 +595,19 @@ void mg_gl_encode_stroke_cubic(mg_gl_encoding_context* context, vec2* p)
 	  ||(vec2_close(p[1], p[2], equalEps) && vec2_close(p[2], p[3], equalEps)))
 	{
 		vec2 line[2] = {p[0], p[3]};
-		mg_gl_encode_stroke_line(context, line);
+		mg_gl_encode_stroke_line(backend, line);
 		return;
 	}
 	else if(vec2_close(p[0], p[1], equalEps) && vec2_close(p[1], p[3], equalEps))
 	{
 		vec2 line[2] = {p[0], vec2_add(vec2_mul(5./9, p[0]), vec2_mul(4./9, p[2]))};
-		mg_gl_encode_stroke_line(context, line);
+		mg_gl_encode_stroke_line(backend, line);
 		return;
 	}
 	else if(vec2_close(p[0], p[2], equalEps) && vec2_close(p[2], p[3], equalEps))
 	{
 		vec2 line[2] = {p[0], vec2_add(vec2_mul(5./9, p[0]), vec2_mul(4./9, p[1]))};
-		mg_gl_encode_stroke_line(context, line);
+		mg_gl_encode_stroke_line(backend, line);
 		return;
 	}
 
@@ -544,8 +622,8 @@ void mg_gl_encode_stroke_cubic(mg_gl_encoding_context* context, vec2* p)
 		vec2 splitLeft[4];
 		vec2 splitRight[4];
 		mg_cubic_split(p, 0.5, splitLeft, splitRight);
-		mg_gl_encode_stroke_cubic(context, splitLeft);
-		mg_gl_encode_stroke_cubic(context, splitRight);
+		mg_gl_encode_stroke_cubic(backend, splitLeft);
+		mg_gl_encode_stroke_cubic(backend, splitRight);
 	}
 	else
 	{
@@ -585,8 +663,8 @@ void mg_gl_encode_stroke_cubic(mg_gl_encoding_context* context, vec2* p)
 			vec2 splitLeft[4];
 			vec2 splitRight[4];
 			mg_cubic_split(p, maxOvershootParameter, splitLeft, splitRight);
-			mg_gl_encode_stroke_cubic(context, splitLeft);
-			mg_gl_encode_stroke_cubic(context, splitRight);
+			mg_gl_encode_stroke_cubic(backend, splitLeft);
+			mg_gl_encode_stroke_cubic(backend, splitRight);
 		}
 		else
 		{
@@ -597,18 +675,18 @@ void mg_gl_encode_stroke_cubic(mg_gl_encoding_context* context, vec2* p)
 			leftHull[1] = leftHull[2];
 			leftHull[2] = tmp;
 
-			mg_gl_canvas_encode_element(context, MG_PATH_CUBIC, rightHull);
-			mg_gl_canvas_encode_element(context, MG_PATH_CUBIC, leftHull);
+			mg_gl_canvas_encode_element(backend, MG_PATH_CUBIC, rightHull);
+			mg_gl_canvas_encode_element(backend, MG_PATH_CUBIC, leftHull);
 
 			vec2 joint0[2] = {rightHull[3], leftHull[0]};
 			vec2 joint1[2] = {leftHull[3], rightHull[0]};
-			mg_gl_canvas_encode_element(context, MG_PATH_LINE, joint0);
-			mg_gl_canvas_encode_element(context, MG_PATH_LINE, joint1);
+			mg_gl_canvas_encode_element(backend, MG_PATH_LINE, joint0);
+			mg_gl_canvas_encode_element(backend, MG_PATH_LINE, joint1);
 		}
 	}
 }
 
-void mg_gl_encode_stroke_element(mg_gl_encoding_context* context,
+void mg_gl_encode_stroke_element(mg_gl_canvas_backend* backend,
                                   mg_path_elt* element,
                                   vec2 currentPoint,
                                   vec2* startTangent,
@@ -621,17 +699,17 @@ void mg_gl_encode_stroke_element(mg_gl_encoding_context* context,
 	switch(element->type)
 	{
 		case MG_PATH_LINE:
-			mg_gl_encode_stroke_line(context, controlPoints);
+			mg_gl_encode_stroke_line(backend, controlPoints);
 			endPointIndex = 1;
 			break;
 
 		case MG_PATH_QUADRATIC:
-			mg_gl_encode_stroke_quadratic(context, controlPoints);
+			mg_gl_encode_stroke_quadratic(backend, controlPoints);
 			endPointIndex = 2;
 			break;
 
 		case MG_PATH_CUBIC:
-			mg_gl_encode_stroke_cubic(context, controlPoints);
+			mg_gl_encode_stroke_cubic(backend, controlPoints);
 			endPointIndex = 3;
 			break;
 
@@ -668,11 +746,11 @@ void mg_gl_encode_stroke_element(mg_gl_encoding_context* context,
 	DEBUG_ASSERT(startTangent->x != 0 || startTangent->y != 0);
 }
 
-void mg_gl_stroke_cap(mg_gl_encoding_context* context,
+void mg_gl_stroke_cap(mg_gl_canvas_backend* backend,
                        vec2 p0,
                        vec2 direction)
 {
-	mg_attributes* attributes = &context->primitive->attributes;
+	mg_attributes* attributes = &backend->primitive->attributes;
 
 	//NOTE(martin): compute the tangent and normal vectors (multiplied by half width) at the cap point
 	f32 dn = sqrt(Square(direction.x) + Square(direction.y));
@@ -690,18 +768,18 @@ void mg_gl_stroke_cap(mg_gl_encoding_context* context,
 	                 {p0.x - n0.x, p0.y - n0.y},
 	                 {p0.x + n0.x, p0.y + n0.y}};
 
-	mg_gl_canvas_encode_element(context, MG_PATH_LINE, points);
-	mg_gl_canvas_encode_element(context, MG_PATH_LINE, points+1);
-	mg_gl_canvas_encode_element(context, MG_PATH_LINE, points+2);
-	mg_gl_canvas_encode_element(context, MG_PATH_LINE, points+3);
+	mg_gl_canvas_encode_element(backend, MG_PATH_LINE, points);
+	mg_gl_canvas_encode_element(backend, MG_PATH_LINE, points+1);
+	mg_gl_canvas_encode_element(backend, MG_PATH_LINE, points+2);
+	mg_gl_canvas_encode_element(backend, MG_PATH_LINE, points+3);
 }
 
-void mg_gl_stroke_joint(mg_gl_encoding_context* context,
+void mg_gl_stroke_joint(mg_gl_canvas_backend* backend,
                          vec2 p0,
                          vec2 t0,
                          vec2 t1)
 {
-	mg_attributes* attributes = &context->primitive->attributes;
+	mg_attributes* attributes = &backend->primitive->attributes;
 
 	//NOTE(martin): compute the normals at the joint point
 	f32 norm_t0 = sqrt(Square(t0.x) + Square(t0.y));
@@ -749,10 +827,10 @@ void mg_gl_stroke_joint(mg_gl_encoding_context* context,
 		                 {p0.x + n1.x*halfW, p0.y + n1.y*halfW},
 		                 p0};
 
-		mg_gl_canvas_encode_element(context, MG_PATH_LINE, points);
-		mg_gl_canvas_encode_element(context, MG_PATH_LINE, points+1);
-		mg_gl_canvas_encode_element(context, MG_PATH_LINE, points+2);
-		mg_gl_canvas_encode_element(context, MG_PATH_LINE, points+3);
+		mg_gl_canvas_encode_element(backend, MG_PATH_LINE, points);
+		mg_gl_canvas_encode_element(backend, MG_PATH_LINE, points+1);
+		mg_gl_canvas_encode_element(backend, MG_PATH_LINE, points+2);
+		mg_gl_canvas_encode_element(backend, MG_PATH_LINE, points+3);
 	}
 	else
 	{
@@ -762,13 +840,13 @@ void mg_gl_stroke_joint(mg_gl_encoding_context* context,
 		                 {p0.x + n1.x*halfW, p0.y + n1.y*halfW},
 		                 p0};
 
-		mg_gl_canvas_encode_element(context, MG_PATH_LINE, points);
-		mg_gl_canvas_encode_element(context, MG_PATH_LINE, points+1);
-		mg_gl_canvas_encode_element(context, MG_PATH_LINE, points+2);
+		mg_gl_canvas_encode_element(backend, MG_PATH_LINE, points);
+		mg_gl_canvas_encode_element(backend, MG_PATH_LINE, points+1);
+		mg_gl_canvas_encode_element(backend, MG_PATH_LINE, points+2);
 	}
 }
 
-u32 mg_gl_encode_stroke_subpath(mg_gl_encoding_context* context,
+u32 mg_gl_encode_stroke_subpath(mg_gl_canvas_backend* backend,
                                  mg_path_elt* elements,
                                  mg_path_descriptor* path,
                                  u32 startIndex,
@@ -785,7 +863,7 @@ u32 mg_gl_encode_stroke_subpath(mg_gl_encoding_context* context,
 	vec2 endTangent = {0, 0};
 
 	//NOTE(martin): encode first element and compute first tangent
-	mg_gl_encode_stroke_element(context, elements + startIndex, currentPoint, &startTangent, &endTangent, &endPoint);
+	mg_gl_encode_stroke_element(backend, elements + startIndex, currentPoint, &startTangent, &endTangent, &endPoint);
 
 	firstTangent = startTangent;
 	previousEndTangent = endTangent;
@@ -793,18 +871,18 @@ u32 mg_gl_encode_stroke_subpath(mg_gl_encoding_context* context,
 
 	//NOTE(martin): encode subsequent elements along with their joints
 
-	mg_attributes* attributes = &context->primitive->attributes;
+	mg_attributes* attributes = &backend->primitive->attributes;
 
 	u32 eltIndex = startIndex + 1;
 	for(;
 	    eltIndex<eltCount && elements[eltIndex].type != MG_PATH_MOVE;
 	    eltIndex++)
 	{
-		mg_gl_encode_stroke_element(context, elements + eltIndex, currentPoint, &startTangent, &endTangent, &endPoint);
+		mg_gl_encode_stroke_element(backend, elements + eltIndex, currentPoint, &startTangent, &endTangent, &endPoint);
 
 		if(attributes->joint != MG_JOINT_NONE)
 		{
-			mg_gl_stroke_joint(context, currentPoint, previousEndTangent, startTangent);
+			mg_gl_stroke_joint(backend, currentPoint, previousEndTangent, startTangent);
 		}
 		previousEndTangent = endTangent;
 		currentPoint = endPoint;
@@ -819,19 +897,19 @@ u32 mg_gl_encode_stroke_subpath(mg_gl_encoding_context* context,
 		if(attributes->joint != MG_JOINT_NONE)
 		{
 			//NOTE(martin): add a closing joint if the path is closed
-			mg_gl_stroke_joint(context, endPoint, endTangent, firstTangent);
+			mg_gl_stroke_joint(backend, endPoint, endTangent, firstTangent);
 		}
 	}
 	else if(attributes->cap == MG_CAP_SQUARE)
 	{
 		//NOTE(martin): add start and end cap
-		mg_gl_stroke_cap(context, startPoint, (vec2){-startTangent.x, -startTangent.y});
-		mg_gl_stroke_cap(context, endPoint, endTangent);
+		mg_gl_stroke_cap(backend, startPoint, (vec2){-startTangent.x, -startTangent.y});
+		mg_gl_stroke_cap(backend, endPoint, endTangent);
 	}
 	return(eltIndex);
 }
 
-void mg_gl_encode_stroke(mg_gl_encoding_context* context,
+void mg_gl_encode_stroke(mg_gl_canvas_backend* backend,
                           mg_path_elt* elements,
                           mg_path_descriptor* path)
 {
@@ -851,15 +929,13 @@ void mg_gl_encode_stroke(mg_gl_encoding_context* context,
 		}
 		if(startIndex < eltCount)
 		{
-			startIndex = mg_gl_encode_stroke_subpath(context, elements, path, startIndex, startPoint);
+			startIndex = mg_gl_encode_stroke_subpath(backend, elements, path, startIndex, startPoint);
 		}
 	}
 }
 
 void mg_gl_render_batch(mg_gl_canvas_backend* backend,
                         mg_wgl_surface* surface,
-                        int pathCount,
-                        int eltCount,
                         mg_image_data* image,
                         int tileSize,
                         int nTilesX,
@@ -867,15 +943,20 @@ void mg_gl_render_batch(mg_gl_canvas_backend* backend,
                         vec2 viewportSize,
                         f32 scale)
 {
-	//NOTE: send the buffers
-	GLuint pathBuffer = backend->pathBuffer[backend->bufferIndex];
-	GLuint elementBuffer = backend->elementBuffer[backend->bufferIndex];
+	//NOTE: make the buffers visible to gl
+	GLuint pathBuffer = backend->pathBuffer[backend->bufferIndex].buffer;
+	GLuint elementBuffer = backend->elementBuffer[backend->bufferIndex].buffer;
+
+	int pathBufferOffset = backend->pathBatchStart * sizeof(mg_gl_path);
+	int elementBufferOffset = backend->eltBatchStart * sizeof(mg_gl_path_elt);
+	int pathCount = backend->pathCount - backend->pathBatchStart;
+	int eltCount = backend->eltCount - backend->eltBatchStart;
 
 	glBindBuffer(GL_SHADER_STORAGE_BUFFER, pathBuffer);
-	glBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, LAYOUT_PATH_SIZE*pathCount, backend->pathBufferData);
+	glFlushMappedBufferRange(GL_SHADER_STORAGE_BUFFER, pathBufferOffset, pathCount*sizeof(mg_gl_path));
 
 	glBindBuffer(GL_SHADER_STORAGE_BUFFER, elementBuffer);
-	glBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, LAYOUT_PATH_ELT_SIZE*eltCount, backend->elementBufferData);
+	glFlushMappedBufferRange(GL_SHADER_STORAGE_BUFFER, elementBufferOffset, eltCount*sizeof(mg_gl_path_elt));
 
 	//NOTE: clear counters
 	int zero = 0;
@@ -907,7 +988,7 @@ void mg_gl_render_batch(mg_gl_canvas_backend* backend,
 
 	for(int i=0; i<pathCount; i += maxWorkGroupCount)
 	{
-		int pathOffset = i*sizeof(mg_gl_path);
+		int pathOffset = pathBufferOffset + i*sizeof(mg_gl_path);
 		int pathQueueOffset = i*sizeof(mg_gl_path_queue);
 		int count = minimum(maxWorkGroupCount, pathCount-i);
 
@@ -933,7 +1014,7 @@ void mg_gl_render_batch(mg_gl_canvas_backend* backend,
 
 	for(int i=0; i<eltCount; i += maxWorkGroupCount)
 	{
-		int offset = i*sizeof(mg_gl_path_elt);
+		int offset = elementBufferOffset + i*sizeof(mg_gl_path_elt);
 		int count = minimum(maxWorkGroupCount, eltCount-i);
 
 		glBindBufferRange(GL_SHADER_STORAGE_BUFFER, 0, elementBuffer, offset, count*sizeof(mg_gl_path_elt));
@@ -961,7 +1042,7 @@ void mg_gl_render_batch(mg_gl_canvas_backend* backend,
 	//NOTE: merge pass
 	glUseProgram(backend->merge);
 
-	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, pathBuffer);
+	glBindBufferRange(GL_SHADER_STORAGE_BUFFER, 0, pathBuffer, pathBufferOffset, pathCount*sizeof(mg_gl_path));
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, backend->pathQueueBuffer);
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, backend->tileQueueBuffer);
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, backend->tileOpCountBuffer);
@@ -988,7 +1069,7 @@ void mg_gl_render_batch(mg_gl_canvas_backend* backend,
 	//NOTE: raster pass
 	glUseProgram(backend->raster);
 
-	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, pathBuffer);
+	glBindBufferRange(GL_SHADER_STORAGE_BUFFER, 0, pathBuffer, pathBufferOffset, pathCount*sizeof(mg_gl_path));
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, backend->segmentBuffer);
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, backend->tileOpBuffer);
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, backend->screenTilesBuffer);
@@ -1025,6 +1106,9 @@ void mg_gl_render_batch(mg_gl_canvas_backend* backend,
 	{
 		log_error("gl error %i\n", err);
 	}
+
+	backend->pathBatchStart = backend->pathCount;
+	backend->eltBatchStart = backend->eltCount;
 }
 
 /////////////////////////////////////////////////////////////////////////
@@ -1074,14 +1158,16 @@ void mg_gl_canvas_render(mg_canvas_backend* interface,
 	glClearColor(clearColor.r, clearColor.g, clearColor.b, clearColor.a);
 	glClear(GL_COLOR_BUFFER_BIT);
 
+	backend->pathCount = 0;
+	backend->pathBatchStart = 0;
+	backend->eltCount = 0;
+	backend->eltBatchStart = 0;
+
 	//NOTE: encode and render batches
-	int pathCount = 0;
 	vec2 currentPos = {0};
 	mg_image currentImage = mg_image_nil();
 
-	mg_gl_encoding_context context = {.glEltCount = 0,
-	                                  .elementBufferData = backend->elementBufferData,
-	                                  .pathBufferData = backend->pathBufferData };
+	backend->eltCount = 0;
 
 	for(int primitiveIndex = 0; primitiveIndex < primitiveCount; primitiveIndex++)
 	{
@@ -1093,30 +1179,24 @@ void mg_gl_canvas_render(mg_canvas_backend* interface,
 
 			mg_gl_render_batch(backend,
 			                   surface,
-			                   pathCount,
-			                   context.glEltCount,
 			                   imageData,
 			                   tileSize,
 			                   nTilesX,
 			                   nTilesY,
 			                   viewportSize,
 			                   scale);
-
-			pathCount = 0;
-			context.glEltCount = 0;
 		}
 		currentImage = primitive->attributes.image;
 
 		if(primitive->path.count)
 		{
-			context.primitive = primitive;
-			context.pathIndex = pathCount;
-			context.pathScreenExtents = (vec4){FLT_MAX, FLT_MAX, -FLT_MAX, -FLT_MAX};
-			context.pathUserExtents = (vec4){FLT_MAX, FLT_MAX, -FLT_MAX, -FLT_MAX};
+			backend->primitive = primitive;
+			backend->pathScreenExtents = (vec4){FLT_MAX, FLT_MAX, -FLT_MAX, -FLT_MAX};
+			backend->pathUserExtents = (vec4){FLT_MAX, FLT_MAX, -FLT_MAX, -FLT_MAX};
 
 			if(primitive->cmd == MG_CMD_STROKE)
 			{
-				mg_gl_encode_stroke(&context, pathElements + primitive->path.startIndex, &primitive->path);
+				mg_gl_encode_stroke(backend, pathElements + primitive->path.startIndex, &primitive->path);
 			}
 			else
 			{
@@ -1130,7 +1210,7 @@ void mg_gl_canvas_render(mg_canvas_backend* interface,
 					if(elt->type != MG_PATH_MOVE)
 					{
 						vec2 p[4] = {currentPos, elt->p[0], elt->p[1], elt->p[2]};
-						mg_gl_canvas_encode_element(&context, elt->type, p);
+						mg_gl_canvas_encode_element(backend, elt->type, p);
 						segCount++;
 					}
 					switch(elt->type)
@@ -1154,75 +1234,13 @@ void mg_gl_canvas_render(mg_canvas_backend* interface,
 				}
 			}
 			//NOTE: push path
-			mg_gl_path* path = &context.pathBufferData[pathCount];
-			pathCount++;
-
-			path->cmd =	(mg_gl_cmd)primitive->cmd;
-
-			path->box = (vec4){context.pathScreenExtents.x,
-			                   context.pathScreenExtents.y,
-			                   context.pathScreenExtents.z,
-			                   context.pathScreenExtents.w};
-
-			path->clip = (vec4){primitive->attributes.clip.x,
-			                    primitive->attributes.clip.y,
-			                    primitive->attributes.clip.x + primitive->attributes.clip.w,
-			                    primitive->attributes.clip.y + primitive->attributes.clip.h};
-
-			path->color = (vec4){primitive->attributes.color.r,
-			                     primitive->attributes.color.g,
-			                     primitive->attributes.color.b,
-			                     primitive->attributes.color.a};
-
-			mp_rect srcRegion = primitive->attributes.srcRegion;
-
-			mp_rect destRegion = {context.pathUserExtents.x,
-			                      context.pathUserExtents.y,
-			                      context.pathUserExtents.z - context.pathUserExtents.x,
-			                      context.pathUserExtents.w - context.pathUserExtents.y};
-
-			if(!mg_image_is_nil(primitive->attributes.image))
-			{
-				vec2 texSize = mg_image_size(primitive->attributes.image);
-
-				mg_mat2x3 srcRegionToImage = {1/texSize.x, 0, srcRegion.x/texSize.x,
-				                              0, 1/texSize.y, srcRegion.y/texSize.y};
-
-				mg_mat2x3 destRegionToSrcRegion = {srcRegion.w/destRegion.w, 0, 0,
-				                                   0, srcRegion.h/destRegion.h, 0};
-
-				mg_mat2x3 userToDestRegion = {1, 0, -destRegion.x,
-				                              0, 1, -destRegion.y};
-
-				mg_mat2x3 screenToUser = mg_mat2x3_inv(primitive->attributes.transform);
-
-				mg_mat2x3 uvTransform = srcRegionToImage;
-				uvTransform = mg_mat2x3_mul_m(uvTransform, destRegionToSrcRegion);
-				uvTransform = mg_mat2x3_mul_m(uvTransform, userToDestRegion);
-				uvTransform = mg_mat2x3_mul_m(uvTransform, screenToUser);
-
-				//NOTE: mat3 std430 layout is an array of vec3, which are padded to _vec4_ alignment
-				path->uvTransform[0] = uvTransform.m[0]/scale;
-				path->uvTransform[1] = uvTransform.m[3]/scale;
-				path->uvTransform[2] = 0;
-				path->uvTransform[3] = 0;
-				path->uvTransform[4] = uvTransform.m[1]/scale;
-				path->uvTransform[5] = uvTransform.m[4]/scale;
-				path->uvTransform[6] = 0;
-				path->uvTransform[7] = 0;
-				path->uvTransform[8] = uvTransform.m[2];
-				path->uvTransform[9] = uvTransform.m[5];
-				path->uvTransform[10] = 1;
-				path->uvTransform[11] = 0;
-			}
+			mg_gl_canvas_encode_path(backend, primitive, scale);
 		}
 	}
 
 	mg_image_data* imageData = mg_image_data_from_handle(currentImage);
 	mg_gl_render_batch(backend,
 	                    surface,
-	                    pathCount,
-	                    context.glEltCount,
 	                    imageData,
 	                    tileSize,
 	                    nTilesX,
@@ -1257,7 +1275,7 @@ mg_image_data* mg_gl_canvas_image_create(mg_canvas_backend* interface, vec2 size
 
 void mg_gl_canvas_image_destroy(mg_canvas_backend* interface, mg_image_data* imageInterface)
 {
-	//TODO: check that this image belongs to this context
+	//TODO: check that this image belongs to this backend
 	mg_gl_image* image = (mg_gl_image*)imageInterface;
 	glDeleteTextures(1, &image->texture);
 	free(image);
@@ -1268,7 +1286,7 @@ void mg_gl_canvas_image_upload_region(mg_canvas_backend* interface,
                                       mp_rect region,
                                       u8* pixels)
 {
-	//TODO: check that this image belongs to this context
+	//TODO: check that this image belongs to this backend
 	mg_gl_image* image = (mg_gl_image*)imageInterface;
 	glBindTexture(GL_TEXTURE_2D, image->texture);
 	glTexSubImage2D(GL_TEXTURE_2D, 0, region.x, region.y, region.w, region.h, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
@@ -1451,13 +1469,27 @@ mg_canvas_backend* gl_canvas_backend_create(mg_wgl_surface* surface)
 
 		for(int i=0; i<MG_GL_INPUT_BUFFERS_COUNT; i++)
 		{
-			glGenBuffers(1, &backend->pathBuffer[i]);
-			glBindBuffer(GL_SHADER_STORAGE_BUFFER, backend->pathBuffer[i]);
-			glBufferData(GL_SHADER_STORAGE_BUFFER, MG_GL_PATH_BUFFER_SIZE, 0, GL_STREAM_DRAW);
+			glGenBuffers(1, &backend->pathBuffer[i].buffer);
+			glBindBuffer(GL_SHADER_STORAGE_BUFFER, backend->pathBuffer[i].buffer);
+			glBufferStorage(GL_SHADER_STORAGE_BUFFER, MG_GL_PATH_BUFFER_SIZE, 0, GL_MAP_WRITE_BIT|GL_MAP_PERSISTENT_BIT);
+			backend->pathBuffer[i].size = MG_GL_PATH_BUFFER_SIZE;
+			backend->pathBuffer[i].contents = glMapBufferRange(GL_SHADER_STORAGE_BUFFER,
+			                                                   0,
+			                                                   MG_GL_PATH_BUFFER_SIZE,
+			                                                    GL_MAP_WRITE_BIT
+			                                                   |GL_MAP_PERSISTENT_BIT
+			                                                   |GL_MAP_FLUSH_EXPLICIT_BIT);
 
-			glGenBuffers(1, &backend->elementBuffer[i]);
-			glBindBuffer(GL_SHADER_STORAGE_BUFFER, backend->elementBuffer[i]);
-			glBufferData(GL_SHADER_STORAGE_BUFFER, MG_GL_ELEMENT_BUFFER_SIZE, 0, GL_STREAM_DRAW);
+			glGenBuffers(1, &backend->elementBuffer[i].buffer);
+			glBindBuffer(GL_SHADER_STORAGE_BUFFER, backend->elementBuffer[i].buffer);
+			glBufferStorage(GL_SHADER_STORAGE_BUFFER, MG_GL_ELEMENT_BUFFER_SIZE, 0, GL_MAP_WRITE_BIT|GL_MAP_PERSISTENT_BIT);
+			backend->elementBuffer[i].size = MG_GL_ELEMENT_BUFFER_SIZE;
+			backend->elementBuffer[i].contents = glMapBufferRange(GL_SHADER_STORAGE_BUFFER,
+			                                                   0,
+			                                                   MG_GL_ELEMENT_BUFFER_SIZE,
+			                                                    GL_MAP_WRITE_BIT
+			                                                   |GL_MAP_PERSISTENT_BIT
+			                                                   |GL_MAP_FLUSH_EXPLICIT_BIT);
 		}
 
 		glGenBuffers(1, &backend->segmentBuffer);
@@ -1495,9 +1527,6 @@ mg_canvas_backend* gl_canvas_backend_create(mg_wgl_surface* surface)
 		glGenBuffers(1, &backend->screenTilesBuffer);
 		glBindBuffer(GL_SHADER_STORAGE_BUFFER, backend->screenTilesBuffer);
 		glBufferData(GL_SHADER_STORAGE_BUFFER, nTilesX*nTilesY*sizeof(int), 0, GL_DYNAMIC_COPY);
-
-		backend->pathBufferData = malloc(MG_GL_PATH_BUFFER_SIZE);
-		backend->elementBufferData = malloc(MG_GL_ELEMENT_BUFFER_SIZE);
 
 		if(err)
 		{
