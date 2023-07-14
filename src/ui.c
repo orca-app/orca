@@ -2249,6 +2249,7 @@ str32 ui_edit_delete_selection(ui_context* ui, str32 codepoints)
 
 void ui_edit_copy_selection_to_clipboard(ui_context* ui, str32 codepoints)
 {
+	#if !PLATFORM_ORCA
 	if(ui->editCursor == ui->editMark)
 	{
 		return;
@@ -2260,13 +2261,18 @@ void ui_edit_copy_selection_to_clipboard(ui_context* ui, str32 codepoints)
 
 	mp_clipboard_clear();
 	mp_clipboard_set_string(string);
+	#endif
 }
 
 str32 ui_edit_replace_selection_with_clipboard(ui_context* ui, str32 codepoints)
 {
+	#if PLATFORM_ORCA
+	str32 result = {0};
+	#else
 	str8 string = mp_clipboard_get_string(&ui->frameArena);
 	str32 input = utf8_push_to_codepoints(&ui->frameArena, string);
 	str32 result = ui_edit_replace_selection_with_codepoints(ui, codepoints, input);
+	#endif
 	return(result);
 }
 
@@ -2297,7 +2303,7 @@ typedef struct ui_edit_command
 
 } ui_edit_command;
 
-#if PLATFORM_WINDOWS
+#if PLATFORM_WINDOWS || PLATFORM_ORCA
 	#define OS_COPY_PASTE_MOD MP_KEYMOD_CTRL
 #elif PLATFORM_MACOS
 	#define OS_COPY_PASTE_MOD MP_KEYMOD_CMD

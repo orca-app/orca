@@ -10,6 +10,7 @@
 #define __PLATFORM_CLOCK_H_
 
 #include"util/typedefs.h"
+#include"platform.h"
 
 #ifdef __cplusplus
 extern "C" {
