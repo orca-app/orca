@@ -340,7 +340,7 @@ int quadratic_roots_with_det(float a, float b, float c, float det, out float r[2
 
 	if(a == 0)
 	{
-		if(b)
+		if(b != 0)
 		{
 			count = 1;
 			r[0] = -c/b;
@@ -773,7 +773,7 @@ void cubic_setup(vec2 p[4], int pathIndex)
 	int rootCount = rootCountX + rootCountY;
 	for(int i=0; i<2; i++)
 	{
-		if(curve.ts[i].y)
+		if(curve.ts[i].y != 0)
 		{
 			roots[rootCount] = curve.ts[i].x / curve.ts[i].y;
 			rootCount++;
