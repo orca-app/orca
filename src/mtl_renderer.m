@@ -1409,7 +1409,7 @@ const u32 MG_MTL_DEFAULT_PATH_BUFFER_LEN       = (4<<10),
           MG_MTL_DEFAULT_SEGMENT_BUFFER_LEN    = (4<<10),
           MG_MTL_DEFAULT_PATH_QUEUE_BUFFER_LEN = (4<<10),
           MG_MTL_DEFAULT_TILE_QUEUE_BUFFER_LEN = (4<<10),
-          MG_MTL_DEFAULT_TILE_OP_BUFFER_LEN    = (4<<14);
+          MG_MTL_DEFAULT_TILE_OP_BUFFER_LEN    = (4<<20);
 
 mg_canvas_backend* mtl_canvas_backend_create(mg_mtl_surface* surface)
 {
