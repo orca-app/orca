@@ -22,6 +22,7 @@ layout(std430) buffer;
 
 // MSAA
 #define MG_GL_MAX_SAMPLE_COUNT 8
+#define MG_GL_MAX_SRC_SAMPLE_COUNT 4
 
 struct mg_gl_path
 {

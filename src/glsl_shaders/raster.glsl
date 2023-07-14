@@ -66,13 +66,20 @@ void main()
 		sampleCoords[0] = centerCoord;
 	}
 
-	vec4 color[MG_GL_MAX_SAMPLE_COUNT];
+	const int srcSampleCount = 2;
+
+	vec2 imgSampleCoords[MG_GL_MAX_SRC_SAMPLE_COUNT] = {
+		centerCoord + vec2(-0.25, 0.25),
+	    centerCoord + vec2(+0.25, +0.25),
+	    centerCoord + vec2(+0.25, -0.25),
+	    centerCoord + vec2(-0.25, +0.25)};
+
+	vec4 color = vec4(0);
 	int winding[MG_GL_MAX_SAMPLE_COUNT];
 
 	for(int i=0; i<sampleCount; i++)
 	{
 		winding[i] = 0;
-		color[i] = vec4(0);
 	}
 
 	int pathIndex = 0;
@@ -91,12 +98,20 @@ void main()
 
 			if(useTexture != 0)
 			{
-				vec3 ph = vec3(centerCoord.xy, 1);
-				vec2 uv = (pathBuffer.elements[pathIndex].uvTransform * ph).xy;
-				vec4 texColor = texture(srcTexture, uv);
+				vec4 texColor = vec4(0);
+				for(int sampleIndex = 0; sampleIndex<srcSampleCount; sampleIndex++)
+				{
+					vec2 sampleCoord = imgSampleCoords[sampleIndex];
+					vec3 ph = vec3(sampleCoord.xy, 1);
+					vec2 uv = (pathBuffer.elements[pathIndex].uvTransform * ph).xy;
+					texColor += texture(srcTexture, uv);
+				}
+				texColor /= srcSampleCount;
 				texColor.rgb *= texColor.a;
 				nextColor *= texColor;
 			}
+
+			float coverage = 0;
 
 			for(int sampleIndex = 0; sampleIndex<sampleCount; sampleIndex++)
 			{
@@ -111,11 +126,13 @@ void main()
 					            ||(pathBuffer.elements[pathIndex].cmd == MG_GL_STROKE && (winding[sampleIndex] != 0));
 					if(filled)
 					{
-						color[sampleIndex] = color[sampleIndex]*(1-nextColor.a) + nextColor;
+						coverage++;
 					}
 				}
 				winding[sampleIndex] = op.windingOffsetOrCrossRight;
 			}
+			coverage /= sampleCount;
+			color = coverage*(color*(1-nextColor.a) + nextColor) + (1.-coverage)*color;
 			pathIndex = op.index;
 		}
 		else if(op.kind == MG_GL_OP_SEGMENT)
@@ -153,19 +170,25 @@ void main()
 
 	vec4 clip = pathBuffer.elements[pathIndex].clip * scale;
 
-	vec4 pixelColor = vec4(0);
 	vec4 nextColor = pathBuffer.elements[pathIndex].color;
 	nextColor.rgb *= nextColor.a;
 
 	if(useTexture != 0)
 	{
-		vec3 ph = vec3(centerCoord.xy, 1);
-		vec2 uv = (pathBuffer.elements[pathIndex].uvTransform * ph).xy;
-		vec4 texColor = texture(srcTexture, uv);
+		vec4 texColor = vec4(0);
+		for(int sampleIndex = 0; sampleIndex<srcSampleCount; sampleIndex++)
+		{
+			vec2 sampleCoord = imgSampleCoords[sampleIndex];
+			vec3 ph = vec3(sampleCoord.xy, 1);
+			vec2 uv = (pathBuffer.elements[pathIndex].uvTransform * ph).xy;
+			texColor += texture(srcTexture, uv);
+		}
+		texColor /= srcSampleCount;
 		texColor.rgb *= texColor.a;
 		nextColor *= texColor;
 	}
 
+	float coverage = 0;
 	for(int sampleIndex=0; sampleIndex<sampleCount; sampleIndex++)
 	{
 		vec2 sampleCoord = sampleCoords[sampleIndex];
@@ -179,12 +202,12 @@ void main()
 			            ||(pathBuffer.elements[pathIndex].cmd == MG_GL_STROKE && (winding[sampleIndex] != 0));
 			if(filled)
 			{
-				color[sampleIndex] = color[sampleIndex]*(1-nextColor.a) + nextColor;
+				coverage++;
 			}
 		}
-		pixelColor += color[sampleIndex];
 	}
-	pixelColor /= sampleCount;
+	coverage /= sampleCount;
+	color = coverage*(color*(1-nextColor.a) + nextColor) + (1.-coverage)*color;
 
-	imageStore(outTexture, pixelCoord, pixelColor);
+	imageStore(outTexture, pixelCoord, color);
 }
