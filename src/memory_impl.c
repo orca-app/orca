@@ -57,3 +57,10 @@ extern u32 orca_mem_grow(u64 size)
 
 	return(addr);
 }
+
+void* wasm_memory_offset_to_ptr(wasm_memory* memory, u32 offset)
+{
+	M3MemoryHeader* header = (M3MemoryHeader*)(memory->ptr);
+	DEBUG_ASSERT(offset < header->length, "Wasm offset exceeds memory length")
+	return memory->ptr + sizeof(M3MemoryHeader) + offset;
+}
