@@ -31,8 +31,14 @@ layout(binding = 4) restrict buffer tileOpBufferSSBO
 
 layout(binding = 5) restrict writeonly buffer screenTilesBufferSSBO
 {
-	int elements[];
+	mg_gl_screen_tile elements[];
 } screenTilesBuffer;
+
+layout(binding = 6) coherent restrict buffer dispatchBufferSSBO
+{
+	mg_gl_dispatch_indirect_command elements[];
+} dispatchBuffer;
+
 
 layout(location = 0) uniform int tileSize;
 layout(location = 1) uniform float scale;
@@ -41,12 +47,13 @@ layout(location = 3) uniform int cullSolidTiles;
 
 void main()
 {
-	ivec2 nTiles = ivec2(gl_NumWorkGroups.xy);
 	ivec2 tileCoord = ivec2(gl_WorkGroupID.xy);
-	int tileIndex = tileCoord.y * nTiles.x + tileCoord.x;
+	int tileIndex = -1;
 
-	screenTilesBuffer.elements[tileIndex] = -1;
 	int lastOpIndex = -1;
+
+	dispatchBuffer.elements[0].num_groups_y = 1;
+	dispatchBuffer.elements[0].num_groups_z = 1;
 
 	for(int pathIndex = 0; pathIndex < pathCount; pathIndex++)
 	{
@@ -65,13 +72,32 @@ void main()
 		  && pathTileCoord.y >= 0
 		  && pathTileCoord.y < pathQueue.area.w)
 		{
+			if(tileIndex < 0)
+			{
+				tileIndex = int(atomicAdd(dispatchBuffer.elements[0].num_groups_x, 1));
+				screenTilesBuffer.elements[tileIndex].tileCoord = uvec2(tileCoord);
+				screenTilesBuffer.elements[tileIndex].first = -1;
+			}
+
 			int pathTileIndex = pathQueue.tileQueues + pathTileCoord.y * pathQueue.area.z + pathTileCoord.x;
 			mg_gl_tile_queue tileQueue = tileQueueBuffer.elements[pathTileIndex];
 
 			int windingOffset = tileQueue.windingOffset;
 			int firstOpIndex = tileQueue.first;
 
-			if(firstOpIndex == -1)
+			vec4 tileBox = vec4(tileCoord.x, tileCoord.y, tileCoord.x+1, tileCoord.y+1);
+			tileBox *= tileSize;
+			vec4 clip = pathBuffer.elements[pathIndex].clip * scale;
+
+			if(  tileBox.x >= clip.z
+			  || tileBox.z < clip.x
+			  || tileBox.y >= clip.w
+			  || tileBox.w < clip.y)
+			{
+				//NOTE: tile is fully outside clip, cull it
+				//TODO: move that test up
+			}
+			else if(firstOpIndex == -1)
 			{
 				if((windingOffset & 1) != 0)
 				{
@@ -79,28 +105,32 @@ void main()
 					//      Additionally if color is opaque and tile is fully inside clip, trim tile list.
 					int pathOpIndex = atomicAdd(tileOpCountBuffer.elements[0], 1);
 
-					tileOpBuffer.elements[pathOpIndex].kind = MG_GL_OP_START;
+					tileOpBuffer.elements[pathOpIndex].kind = MG_GL_OP_CLIP_FILL;
 					tileOpBuffer.elements[pathOpIndex].next = -1;
 					tileOpBuffer.elements[pathOpIndex].index = pathIndex;
 					tileOpBuffer.elements[pathOpIndex].windingOffsetOrCrossRight = windingOffset;
 
-					vec4 clip = pathBuffer.elements[pathIndex].clip * scale;
-					vec4 tileBox = vec4(tileCoord.x, tileCoord.y, tileCoord.x+1, tileCoord.y+1);
-					tileBox *= tileSize;
-
-					if( lastOpIndex < 0
-					  ||(pathBuffer.elements[pathIndex].color.a == 1
-					    && cullSolidTiles != 0
-					    && tileBox.x >= clip.x
-					    && tileBox.z < clip.z
-					    && tileBox.y >= clip.y
-					    && tileBox.w < clip.w))
+					if(lastOpIndex < 0)
 					{
-						screenTilesBuffer.elements[tileIndex] = pathOpIndex;
+						screenTilesBuffer.elements[tileIndex].first = pathOpIndex;
 					}
 					else
 					{
 						tileOpBuffer.elements[lastOpIndex].next = pathOpIndex;
+					}
+
+					if(  tileBox.x >= clip.x
+					  && tileBox.z < clip.z
+					  && tileBox.y >= clip.y
+					  && tileBox.w < clip.w)
+					{
+						tileOpBuffer.elements[pathOpIndex].kind = MG_GL_OP_FILL;
+
+						if(  pathBuffer.elements[pathIndex].color.a == 1
+						  && cullSolidTiles != 0)
+						{
+							screenTilesBuffer.elements[tileIndex].first = pathOpIndex;
+						}
 					}
 					lastOpIndex = pathOpIndex;
 				}
@@ -109,26 +139,44 @@ void main()
 			else
 			{
 				//NOTE: add path start op (with winding offset)
-				int pathOpIndex = atomicAdd(tileOpCountBuffer.elements[0], 1);
+				int startOpIndex = atomicAdd(tileOpCountBuffer.elements[0], 1);
 
-				tileOpBuffer.elements[pathOpIndex].kind = MG_GL_OP_START;
-				tileOpBuffer.elements[pathOpIndex].next = -1;
-				tileOpBuffer.elements[pathOpIndex].index = pathIndex;
-				tileOpBuffer.elements[pathOpIndex].windingOffsetOrCrossRight = windingOffset;
+				tileOpBuffer.elements[startOpIndex].kind = MG_GL_OP_START;
+				tileOpBuffer.elements[startOpIndex].next = -1;
+				tileOpBuffer.elements[startOpIndex].index = pathIndex;
+				tileOpBuffer.elements[startOpIndex].windingOffsetOrCrossRight = windingOffset;
 
 				if(lastOpIndex < 0)
 				{
-					screenTilesBuffer.elements[tileIndex] = pathOpIndex;
+					screenTilesBuffer.elements[tileIndex].first = startOpIndex;
 				}
 				else
 				{
-					tileOpBuffer.elements[lastOpIndex].next = pathOpIndex;
+					tileOpBuffer.elements[lastOpIndex].next = startOpIndex;
 				}
-				lastOpIndex = pathOpIndex;
+				lastOpIndex = startOpIndex;
 
 				//NOTE: chain remaining path ops to end of tile list
 				tileOpBuffer.elements[lastOpIndex].next = firstOpIndex;
 				lastOpIndex = tileQueue.last;
+
+				//NOTE: add path end op
+				int endOpIndex = atomicAdd(tileOpCountBuffer.elements[0], 1);
+
+				tileOpBuffer.elements[endOpIndex].kind = MG_GL_OP_END;
+				tileOpBuffer.elements[endOpIndex].next = -1;
+				tileOpBuffer.elements[endOpIndex].index = pathIndex;
+				tileOpBuffer.elements[endOpIndex].windingOffsetOrCrossRight = windingOffset;
+
+				if(lastOpIndex < 0)
+				{
+					screenTilesBuffer.elements[tileIndex].first = endOpIndex;
+				}
+				else
+				{
+					tileOpBuffer.elements[lastOpIndex].next = endOpIndex;
+				}
+				lastOpIndex = endOpIndex;
 			}
 		}
 	}

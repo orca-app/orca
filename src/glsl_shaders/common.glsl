@@ -17,11 +17,15 @@ layout(std430) buffer;
 #define	MG_GL_TR 4 /* curve on top right */
 
 // Operations
-#define MG_GL_OP_START 0
-#define MG_GL_OP_SEGMENT 1
+#define MG_GL_OP_FILL      0
+#define MG_GL_OP_CLIP_FILL 1
+#define MG_GL_OP_START     2
+#define MG_GL_OP_END       3
+#define MG_GL_OP_SEGMENT   4
 
 // MSAA
 #define MG_GL_MAX_SAMPLE_COUNT 8
+#define MG_GL_MAX_SRC_SAMPLE_COUNT 4
 
 struct mg_gl_path
 {
@@ -70,6 +74,19 @@ struct mg_gl_tile_queue
 	int windingOffset;
 	int first;
 	int last;
+};
+
+struct mg_gl_screen_tile
+{
+	uvec2 tileCoord;
+	int first;
+};
+
+struct mg_gl_dispatch_indirect_command
+{
+	uint  num_groups_x;
+	uint  num_groups_y;
+	uint  num_groups_z;
 };
 
 float ccw(vec2 a, vec2 b, vec2 c)

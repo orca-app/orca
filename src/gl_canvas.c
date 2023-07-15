@@ -53,6 +53,14 @@ enum {
 	LAYOUT_PATH_ELT_SIZE = sizeof(mg_gl_path_elt),
 };
 
+
+typedef struct mg_gl_dispatch_indirect_command
+{
+	u32  num_groups_x;
+	u32  num_groups_y;
+	u32  num_groups_z;
+
+} mg_gl_dispatch_indirect_command;
 ////////////////////////////////////////////////////////////
 //NOTE: these are just here for the sizes...
 
@@ -96,6 +104,11 @@ typedef struct mg_gl_tile_queue
 
 } mg_gl_tile_queue;
 
+typedef struct mg_gl_screen_tile
+{
+	u32 tileCoord[2];
+	i32 first;
+} mg_gl_screen_tile;
 ////////////////////////////////////////////////////////////
 
 enum {
@@ -140,6 +153,7 @@ typedef struct mg_gl_canvas_backend
 	GLuint tileOpBuffer;
 	GLuint tileOpCountBuffer;
 	GLuint screenTilesBuffer;
+	GLuint rasterDispatchBuffer;
 
 	GLuint dummyVertexBuffer;
 
@@ -958,6 +972,10 @@ void mg_gl_render_batch(mg_gl_canvas_backend* backend,
 	glBindBuffer(GL_SHADER_STORAGE_BUFFER, elementBuffer);
 	glFlushMappedBufferRange(GL_SHADER_STORAGE_BUFFER, elementBufferOffset, eltCount*sizeof(mg_gl_path_elt));
 
+	//NOTE: clear out texture
+	u8 clearColor[4] = {0};
+	glClearTexImage(backend->outTexture, 0, GL_RGBA, GL_BYTE, clearColor);
+
 	//NOTE: clear counters
 	int zero = 0;
 	glBindBuffer(GL_SHADER_STORAGE_BUFFER, backend->segmentCountBuffer);
@@ -968,6 +986,9 @@ void mg_gl_render_batch(mg_gl_canvas_backend* backend,
 
 	glBindBuffer(GL_SHADER_STORAGE_BUFFER, backend->tileOpCountBuffer);
 	glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(int), &zero, GL_DYNAMIC_COPY);
+
+	glBindBuffer(GL_SHADER_STORAGE_BUFFER, backend->rasterDispatchBuffer);
+	glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(mg_gl_dispatch_indirect_command), &zero, GL_DYNAMIC_COPY);
 
 	glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
 
@@ -1048,6 +1069,7 @@ void mg_gl_render_batch(mg_gl_canvas_backend* backend,
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, backend->tileOpCountBuffer);
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 4, backend->tileOpBuffer);
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 5, backend->screenTilesBuffer);
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 6, backend->rasterDispatchBuffer);
 
 	glUniform1i(0, tileSize);
 	glUniform1f(1, scale);
@@ -1090,7 +1112,9 @@ void mg_gl_render_batch(mg_gl_canvas_backend* backend,
 	{
 		glUniform1ui(2, 0);
 	}
-	glDispatchCompute(nTilesX, nTilesY, 1);
+
+	glBindBuffer(GL_DISPATCH_INDIRECT_BUFFER, backend->rasterDispatchBuffer);
+	glDispatchComputeIndirect(0);
 
 	//NOTE: blit pass
 	glUseProgram(backend->blit);
@@ -1526,7 +1550,12 @@ mg_canvas_backend* gl_canvas_backend_create(mg_wgl_surface* surface)
 
 		glGenBuffers(1, &backend->screenTilesBuffer);
 		glBindBuffer(GL_SHADER_STORAGE_BUFFER, backend->screenTilesBuffer);
-		glBufferData(GL_SHADER_STORAGE_BUFFER, nTilesX*nTilesY*sizeof(int), 0, GL_DYNAMIC_COPY);
+		glBufferData(GL_SHADER_STORAGE_BUFFER, nTilesX*nTilesY*sizeof(mg_gl_screen_tile), 0, GL_DYNAMIC_COPY);
+
+		glGenBuffers(1, &backend->rasterDispatchBuffer);
+		glBindBuffer(GL_SHADER_STORAGE_BUFFER, backend->rasterDispatchBuffer);
+		glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(mg_gl_dispatch_indirect_command), 0, GL_DYNAMIC_COPY);
+
 
 		if(err)
 		{
