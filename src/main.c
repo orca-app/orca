@@ -437,7 +437,7 @@ void* orca_runloop(void* user)
 	}
 
 	//NOTE: get location of the raw event slot
-	IM3Global rawEventGlobal = m3_FindGlobal(app->runtime.m3Module, "_OrcaRawEventPtr");
+	IM3Global rawEventGlobal = m3_FindGlobal(app->runtime.m3Module, "_OrcaRawEvent");
 	app->runtime.rawEventOffset = (u32)rawEventGlobal->intValue;
 
 	//NOTE: preopen the app local root dir
