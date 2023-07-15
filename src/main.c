@@ -501,11 +501,6 @@ void* orca_runloop(void* user)
 
 			if(eventHandlers[G_EVENT_RAW_EVENT])
 			{
-				if (app->runtime.rawEventOffset == 0)
-				{
-					log_error("expected raw event location to be set");
-				}
-
 				#ifndef M3_BIG_ENDIAN
 				mp_event* eventPtr = (mp_event*)wasm_memory_offset_to_ptr(&app->runtime.wasmMemory, app->runtime.rawEventOffset);
 				memcpy(eventPtr, event, sizeof(*event));
