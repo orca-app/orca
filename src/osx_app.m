@@ -253,6 +253,7 @@ static mp_keymod_flags mp_convert_osx_mods(NSUInteger nsFlags)
 	if(nsFlags & NSEventModifierFlagCommand)
 	{
 		mods |= MP_KEYMOD_CMD;
+		mods |= MP_KEYMOD_MAIN_MODIFIER;
 	}
 	return(mods);
 }

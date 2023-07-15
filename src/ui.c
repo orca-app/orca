@@ -6,11 +6,11 @@
 *	@revision:
 *
 *****************************************************************/
-#include"platform.h"
-#include"platform_assert.h"
-#include"memory.h"
-#include"hash.h"
-#include"platform_clock.h"
+#include"platform/platform.h"
+#include"platform/platform_assert.h"
+#include"platform/platform_clock.h"
+#include"util/memory.h"
+#include"util/hash.h"
 #include"ui.h"
 
 static ui_style UI_STYLE_DEFAULTS =
@@ -2249,6 +2249,7 @@ str32 ui_edit_delete_selection(ui_context* ui, str32 codepoints)
 
 void ui_edit_copy_selection_to_clipboard(ui_context* ui, str32 codepoints)
 {
+	#if !PLATFORM_ORCA
 	if(ui->editCursor == ui->editMark)
 	{
 		return;
@@ -2260,13 +2261,18 @@ void ui_edit_copy_selection_to_clipboard(ui_context* ui, str32 codepoints)
 
 	mp_clipboard_clear();
 	mp_clipboard_set_string(string);
+	#endif
 }
 
 str32 ui_edit_replace_selection_with_clipboard(ui_context* ui, str32 codepoints)
 {
+	#if PLATFORM_ORCA
+	str32 result = {0};
+	#else
 	str8 string = mp_clipboard_get_string(&ui->frameArena);
 	str32 input = utf8_push_to_codepoints(&ui->frameArena, string);
 	str32 result = ui_edit_replace_selection_with_codepoints(ui, codepoints, input);
+	#endif
 	return(result);
 }
 
@@ -2296,12 +2302,6 @@ typedef struct ui_edit_command
 	int direction;
 
 } ui_edit_command;
-
-#if PLATFORM_WINDOWS
-	#define OS_COPY_PASTE_MOD MP_KEYMOD_CTRL
-#elif PLATFORM_MACOS
-	#define OS_COPY_PASTE_MOD MP_KEYMOD_CMD
-#endif
 
 const ui_edit_command UI_EDIT_COMMANDS[] = {
 	//NOTE(martin): move one left
@@ -2395,7 +2395,7 @@ const ui_edit_command UI_EDIT_COMMANDS[] = {
 	//NOTE(martin): select all
 	{
 		.key = MP_KEY_Q,
-		.mods = OS_COPY_PASTE_MOD,
+		.mods = MP_KEYMOD_MAIN_MODIFIER,
 		.operation = UI_EDIT_SELECT_ALL,
 		.move = UI_EDIT_MOVE_NONE
 	},
@@ -2416,21 +2416,21 @@ const ui_edit_command UI_EDIT_COMMANDS[] = {
 	//NOTE(martin): cut
 	{
 		.key = MP_KEY_X,
-		.mods = OS_COPY_PASTE_MOD,
+		.mods = MP_KEYMOD_MAIN_MODIFIER,
 		.operation = UI_EDIT_CUT,
 		.move = UI_EDIT_MOVE_NONE
 	},
 	//NOTE(martin): copy
 	{
 		.key = MP_KEY_C,
-		.mods = OS_COPY_PASTE_MOD,
+		.mods = MP_KEYMOD_MAIN_MODIFIER,
 		.operation = UI_EDIT_COPY,
 		.move = UI_EDIT_MOVE_NONE
 	},
 	//NOTE(martin): paste
 	{
 		.key = MP_KEY_V,
-		.mods = OS_COPY_PASTE_MOD,
+		.mods = MP_KEYMOD_MAIN_MODIFIER,
 		.operation = UI_EDIT_PASTE,
 		.move = UI_EDIT_MOVE_NONE
 	}
