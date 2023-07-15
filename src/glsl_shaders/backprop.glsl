@@ -14,6 +14,8 @@ layout(binding = 1) restrict buffer tileQueueBufferSSBO
 	mg_gl_tile_queue elements[];
 } tileQueueBuffer;
 
+layout(location = 0) uniform int pathQueueBufferStart;
+
 shared int nextRowIndex;
 
 void main()
@@ -28,7 +30,7 @@ void main()
 	barrier();
 
 	int rowIndex = 0;
-	mg_gl_path_queue pathQueue = pathQueueBuffer.elements[pathIndex];
+	mg_gl_path_queue pathQueue = pathQueueBuffer.elements[pathQueueBufferStart + pathIndex];
 	int tileQueueBase = pathQueue.tileQueues;
 	int rowSize = pathQueue.area.z;
 	int rowCount = pathQueue.area.w;

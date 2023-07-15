@@ -41,6 +41,7 @@ layout(binding = 6) restrict buffer tileOpBufferSSBO
 
 layout(location = 0) uniform float scale;
 layout(location = 1) uniform uint tileSize;
+layout(location = 2) uniform int elementBufferStart;
 
 void bin_to_tiles(int segIndex)
 {
@@ -824,7 +825,7 @@ void main()
 {
 	int eltIndex = int(gl_WorkGroupID.x);
 
-	mg_gl_path_elt elt = elementBuffer.elements[eltIndex];
+	mg_gl_path_elt elt = elementBuffer.elements[elementBufferStart + eltIndex];
 
 	switch(elt.kind)
 	{

@@ -26,11 +26,13 @@ layout(binding = 3) restrict writeonly buffer tileQueueBufferSSBO
 
 layout(location = 0) uniform int tileSize;
 layout(location = 1) uniform float scale;
+layout(location = 2) uniform int pathBufferStart;
+layout(location = 3) uniform int pathQueueBufferStart;
 
 void main()
 {
 	uint pathIndex = gl_WorkGroupID.x;
-	const mg_gl_path path = pathBuffer.elements[pathIndex];
+	const mg_gl_path path = pathBuffer.elements[pathIndex + pathBufferStart];
 
 	//NOTE: we don't clip on the right, since we need those tiles to accurately compute
 	//      the prefix sum of winding increments in the backprop pass.
@@ -48,8 +50,8 @@ void main()
 
 	int tileQueuesIndex = atomicAdd(tileQueueCountBuffer.elements[0], tileCount);
 
-	pathQueueBuffer.elements[pathIndex].area = ivec4(firstTile.x, firstTile.y, nTilesX, nTilesY);
-	pathQueueBuffer.elements[pathIndex].tileQueues = tileQueuesIndex;
+	pathQueueBuffer.elements[pathQueueBufferStart + pathIndex].area = ivec4(firstTile.x, firstTile.y, nTilesX, nTilesY);
+	pathQueueBuffer.elements[pathQueueBufferStart + pathIndex].tileQueues = tileQueuesIndex;
 
 	for(int i=0; i<tileCount; i++)
 	{

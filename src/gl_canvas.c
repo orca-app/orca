@@ -966,6 +966,11 @@ void mg_gl_render_batch(mg_gl_canvas_backend* backend,
 	int pathCount = backend->pathCount - backend->pathBatchStart;
 	int eltCount = backend->eltCount - backend->eltBatchStart;
 
+	if(!pathCount || !eltCount)
+	{
+		return;
+	}
+
 	glBindBuffer(GL_SHADER_STORAGE_BUFFER, pathBuffer);
 	glFlushMappedBufferRange(GL_SHADER_STORAGE_BUFFER, pathBufferOffset, pathCount*sizeof(mg_gl_path));
 
@@ -992,6 +997,12 @@ void mg_gl_render_batch(mg_gl_canvas_backend* backend,
 
 	glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
 
+	int err = glGetError();
+	if(err)
+	{
+		log_error("gl error %i\n", err);
+	}
+
 	//NOTE: path setup pass
 	int maxWorkGroupCount = 0;
 	glGetIntegeri_v(GL_MAX_COMPUTE_WORK_GROUP_COUNT, 0, &maxWorkGroupCount);
@@ -1009,15 +1020,25 @@ void mg_gl_render_batch(mg_gl_canvas_backend* backend,
 
 	for(int i=0; i<pathCount; i += maxWorkGroupCount)
 	{
-		int pathOffset = pathBufferOffset + i*sizeof(mg_gl_path);
-		int pathQueueOffset = i*sizeof(mg_gl_path_queue);
 		int count = minimum(maxWorkGroupCount, pathCount-i);
 
-		glBindBufferRange(GL_SHADER_STORAGE_BUFFER, 0, pathBuffer, pathOffset, count*sizeof(mg_gl_path));
-		glBindBufferRange(GL_SHADER_STORAGE_BUFFER, 1, backend->pathQueueBuffer, pathQueueOffset, count*sizeof(mg_gl_path_queue));
+		glUniform1i(2, backend->pathBatchStart + i);
+		glUniform1i(3, i);
+
+		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, pathBuffer);
+		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, backend->pathQueueBuffer);
 
 		glDispatchCompute(count, 1, 1);
 		glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+	}
+
+	if(!err)
+	{
+		err = glGetError();
+		if(err)
+		{
+			log_error("gl error %i\n", err);
+		}
 	}
 
 	//NOTE: segment setup pass
@@ -1038,10 +1059,21 @@ void mg_gl_render_batch(mg_gl_canvas_backend* backend,
 		int offset = elementBufferOffset + i*sizeof(mg_gl_path_elt);
 		int count = minimum(maxWorkGroupCount, eltCount-i);
 
-		glBindBufferRange(GL_SHADER_STORAGE_BUFFER, 0, elementBuffer, offset, count*sizeof(mg_gl_path_elt));
+		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, elementBuffer);
+
+		glUniform1i(2, (backend->eltBatchStart + i));
 
 		glDispatchCompute(count, 1, 1);
 		glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+	}
+
+	if(!err)
+	{
+		err = glGetError();
+		if(err)
+		{
+			log_error("gl error %i\n", err);
+		}
 	}
 
 	//NOTE: backprop pass
@@ -1051,19 +1083,28 @@ void mg_gl_render_batch(mg_gl_canvas_backend* backend,
 
 	for(int i=0; i<pathCount; i += maxWorkGroupCount)
 	{
-		int offset = i*sizeof(mg_gl_path_queue);
 		int count = minimum(maxWorkGroupCount, pathCount-i);
 
-		glBindBufferRange(GL_SHADER_STORAGE_BUFFER, 0, backend->pathQueueBuffer, offset, count*sizeof(mg_gl_path_queue));
+		glUniform1i(0, i);
+		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, backend->pathQueueBuffer);
 
 		glDispatchCompute(count, 1, 1);
 		glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
 	}
 
+	if(!err)
+	{
+		err = glGetError();
+		if(err)
+		{
+			log_error("gl error %i\n", err);
+		}
+	}
+
 	//NOTE: merge pass
 	glUseProgram(backend->merge);
 
-	glBindBufferRange(GL_SHADER_STORAGE_BUFFER, 0, pathBuffer, pathBufferOffset, pathCount*sizeof(mg_gl_path));
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, pathBuffer);
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, backend->pathQueueBuffer);
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, backend->tileQueueBuffer);
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, backend->tileOpCountBuffer);
@@ -1085,13 +1126,23 @@ void mg_gl_render_batch(mg_gl_canvas_backend* backend,
 		glUniform1i(3, 1);
 	}
 
+	glUniform1i(4, backend->pathBatchStart);
+
 	glDispatchCompute(nTilesX, nTilesY, 1);
 	glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
 
+	if(!err)
+	{
+		err = glGetError();
+		if(err)
+		{
+			log_error("gl error %i\n", err);
+		}
+	}
 	//NOTE: raster pass
 	glUseProgram(backend->raster);
 
-	glBindBufferRange(GL_SHADER_STORAGE_BUFFER, 0, pathBuffer, pathBufferOffset, pathCount*sizeof(mg_gl_path));
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, pathBuffer);
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, backend->segmentBuffer);
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, backend->tileOpBuffer);
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, backend->screenTilesBuffer);
@@ -1113,8 +1164,19 @@ void mg_gl_render_batch(mg_gl_canvas_backend* backend,
 		glUniform1ui(2, 0);
 	}
 
+	glUniform1i(3, backend->pathBatchStart);
+
 	glBindBuffer(GL_DISPATCH_INDIRECT_BUFFER, backend->rasterDispatchBuffer);
 	glDispatchComputeIndirect(0);
+
+	if(!err)
+	{
+		err = glGetError();
+		if(err)
+		{
+			log_error("gl error %i\n", err);
+		}
+	}
 
 	//NOTE: blit pass
 	glUseProgram(backend->blit);
@@ -1125,10 +1187,13 @@ void mg_gl_render_batch(mg_gl_canvas_backend* backend,
 
 	glDrawArrays(GL_TRIANGLES, 0, 6);
 
-	int err = glGetError();
-	if(err)
+	if(!err)
 	{
-		log_error("gl error %i\n", err);
+		err = glGetError();
+		if(err)
+		{
+			log_error("gl error %i\n", err);
+		}
 	}
 
 	backend->pathBatchStart = backend->pathCount;

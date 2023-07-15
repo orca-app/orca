@@ -27,6 +27,7 @@ layout(binding = 3) restrict readonly buffer screenTilesBufferSSBO
 layout(location = 0) uniform float scale;
 layout(location = 1) uniform int msaaSampleCount;
 layout(location = 2) uniform uint useTexture;
+layout(location = 3) uniform int pathBufferStart;
 
 layout(rgba8, binding = 0) uniform restrict writeonly image2D outTexture;
 layout(binding = 1) uniform sampler2D srcTexture;
@@ -129,7 +130,7 @@ void main()
 		{
 			int pathIndex = op.index;
 
-			vec4 nextColor = pathBuffer.elements[pathIndex].color;
+			vec4 nextColor = pathBuffer.elements[pathBufferStart + pathIndex].color;
 			nextColor.rgb *= nextColor.a;
 
 			if(useTexture != 0)
@@ -139,7 +140,7 @@ void main()
 				{
 					vec2 sampleCoord = imgSampleCoords[sampleIndex];
 					vec3 ph = vec3(sampleCoord.xy, 1);
-					vec2 uv = (pathBuffer.elements[pathIndex].uvTransform * ph).xy;
+					vec2 uv = (pathBuffer.elements[pathBufferStart + pathIndex].uvTransform * ph).xy;
 					texColor += texture(srcTexture, uv);
 				}
 				texColor /= srcSampleCount;
@@ -153,7 +154,7 @@ void main()
 			}
 			else
 			{
-				vec4 clip = pathBuffer.elements[pathIndex].clip * scale;
+				vec4 clip = pathBuffer.elements[pathBufferStart + pathIndex].clip * scale;
 				float coverage = 0;
 
 				for(int sampleIndex = 0; sampleIndex<sampleCount; sampleIndex++)
@@ -166,8 +167,10 @@ void main()
 					  && sampleCoord.y < clip.w)
 					{
 						bool filled = op.kind == MG_GL_OP_CLIP_FILL
-						            ||(pathBuffer.elements[pathIndex].cmd == MG_GL_FILL && ((winding[sampleIndex] & 1) != 0))
-						            ||(pathBuffer.elements[pathIndex].cmd == MG_GL_STROKE && (winding[sampleIndex] != 0));
+						            ||(pathBuffer.elements[pathBufferStart + pathIndex].cmd == MG_GL_FILL
+						              && ((winding[sampleIndex] & 1) != 0))
+						            ||(pathBuffer.elements[pathBufferStart + pathIndex].cmd == MG_GL_STROKE
+						              && (winding[sampleIndex] != 0));
 						if(filled)
 						{
 							coverage++;

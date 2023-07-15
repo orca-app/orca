@@ -44,6 +44,7 @@ layout(location = 0) uniform int tileSize;
 layout(location = 1) uniform float scale;
 layout(location = 2) uniform int pathCount;
 layout(location = 3) uniform int cullSolidTiles;
+layout(location = 4) uniform int pathBufferStart;
 
 void main()
 {
@@ -60,8 +61,8 @@ void main()
 		mg_gl_path_queue pathQueue = pathQueueBuffer.elements[pathIndex];
 		ivec2 pathTileCoord = tileCoord - pathQueue.area.xy;
 
-		vec4 pathBox = pathBuffer.elements[pathIndex].box;
-		vec4 pathClip = pathBuffer.elements[pathIndex].clip;
+		vec4 pathBox = pathBuffer.elements[pathBufferStart + pathIndex].box;
+		vec4 pathClip = pathBuffer.elements[pathBufferStart + pathIndex].clip;
 
 		float xMax = min(pathBox.z, pathClip.z);
 		int tileMax = int(xMax * scale) / tileSize;
@@ -87,7 +88,7 @@ void main()
 
 			vec4 tileBox = vec4(tileCoord.x, tileCoord.y, tileCoord.x+1, tileCoord.y+1);
 			tileBox *= tileSize;
-			vec4 clip = pathBuffer.elements[pathIndex].clip * scale;
+			vec4 clip = pathBuffer.elements[pathBufferStart + pathIndex].clip * scale;
 
 			if(  tileBox.x >= clip.z
 			  || tileBox.z < clip.x
@@ -126,7 +127,7 @@ void main()
 					{
 						tileOpBuffer.elements[pathOpIndex].kind = MG_GL_OP_FILL;
 
-						if(  pathBuffer.elements[pathIndex].color.a == 1
+						if(  pathBuffer.elements[pathBufferStart + pathIndex].color.a == 1
 						  && cullSolidTiles != 0)
 						{
 							screenTilesBuffer.elements[tileIndex].first = pathOpIndex;
