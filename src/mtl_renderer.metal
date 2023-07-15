@@ -231,8 +231,9 @@ kernel void mtl_path_setup(constant int* pathCount [[buffer(0)]],
                            device mg_mtl_path_queue* pathQueueBuffer [[buffer(2)]],
                            device mg_mtl_tile_queue* tileQueueBuffer [[buffer(3)]],
                            device atomic_int* tileQueueCount [[buffer(4)]],
-                           constant int* tileSize [[buffer(5)]],
-                           constant float* scale [[buffer(6)]],
+                           constant int* tileQueueMax [[buffer(5)]],
+                           constant int* tileSize [[buffer(6)]],
+                           constant float* scale [[buffer(7)]],
                            uint pathIndex [[thread_position_in_grid]])
 {
 	const device mg_mtl_path* path = &pathBuffer[pathIndex];
@@ -254,16 +255,24 @@ kernel void mtl_path_setup(constant int* pathCount [[buffer(0)]],
 
 	int tileQueuesIndex = atomic_fetch_add_explicit(tileQueueCount, tileCount, memory_order_relaxed);
 
-	pathQueueBuffer[pathIndex].area = int4(firstTile.x, firstTile.y, nTilesX, nTilesY);
-	pathQueueBuffer[pathIndex].tileQueues = tileQueuesIndex;
-
-	device mg_mtl_tile_queue* tileQueues = &tileQueueBuffer[tileQueuesIndex];
-
-	for(int i=0; i<tileCount; i++)
+	if(tileQueuesIndex + tileCount >= tileQueueMax[0])
 	{
-		atomic_store_explicit(&tileQueues[i].first, -1, memory_order_relaxed);
-		tileQueues[i].last = -1;
-		atomic_store_explicit(&tileQueues[i].windingOffset, 0, memory_order_relaxed);
+		pathQueueBuffer[pathIndex].area = int4(0);
+		pathQueueBuffer[pathIndex].tileQueues = 0;
+	}
+	else
+	{
+		pathQueueBuffer[pathIndex].area = int4(firstTile.x, firstTile.y, nTilesX, nTilesY);
+		pathQueueBuffer[pathIndex].tileQueues = tileQueuesIndex;
+
+		device mg_mtl_tile_queue* tileQueues = &tileQueueBuffer[tileQueuesIndex];
+
+		for(int i=0; i<tileCount; i++)
+		{
+			atomic_store_explicit(&tileQueues[i].first, -1, memory_order_relaxed);
+			tileQueues[i].last = -1;
+			atomic_store_explicit(&tileQueues[i].windingOffset, 0, memory_order_relaxed);
+		}
 	}
 }
 
@@ -376,6 +385,9 @@ typedef struct mtl_segment_setup_context
 
 	int pathIndex;
 
+	int tileOpMax;
+	int segmentMax;
+
 } mtl_segment_setup_context;
 
 void mtl_segment_bin_to_tiles(thread mtl_segment_setup_context* context, device mg_mtl_segment* seg)
@@ -439,34 +451,38 @@ void mtl_segment_bin_to_tiles(thread mtl_segment_setup_context* context, device 
 			if(crossL || crossR || crossT || crossB || s0Inside || s1Inside)
 			{
 				int tileOpIndex = atomic_fetch_add_explicit(context->tileOpCount, 1, memory_order_relaxed);
-				device mg_mtl_tile_op* op = &context->tileOpBuffer[tileOpIndex];
 
-				op->kind = MG_MTL_OP_SEGMENT;
-				op->index = segIndex;
-				op->crossRight = false;
-				op->next = -1;
-
-				int tileIndex = y*pathArea.z + x;
-				device mg_mtl_tile_queue* tile = &context->tileQueues[tileIndex];
-				op->next = atomic_exchange_explicit(&tile->first, tileOpIndex, memory_order_relaxed);
-				if(op->next == -1)
+				if(tileOpIndex < context->tileOpMax)
 				{
-					tile->last = tileOpIndex;
-				}
+					device mg_mtl_tile_op* op = &context->tileOpBuffer[tileOpIndex];
 
-				//NOTE: if the segment crosses the tile's bottom boundary, update the tile's winding offset
-				if(crossB)
-				{
-					mtl_log(context->log, "cross bottom boundary, increment ");
-					mtl_log_f32(context->log, seg->windingIncrement);
-					mtl_log(context->log, "\n");
-					atomic_fetch_add_explicit(&tile->windingOffset, seg->windingIncrement, memory_order_relaxed);
-				}
+					op->kind = MG_MTL_OP_SEGMENT;
+					op->index = segIndex;
+					op->crossRight = false;
+					op->next = -1;
 
-				//NOTE: if the segment crosses the right boundary, mark it. We reuse one of the previous tests
-				if(crossR)
-				{
-					op->crossRight = true;
+					int tileIndex = y*pathArea.z + x;
+					device mg_mtl_tile_queue* tile = &context->tileQueues[tileIndex];
+					op->next = atomic_exchange_explicit(&tile->first, tileOpIndex, memory_order_relaxed);
+					if(op->next == -1)
+					{
+						tile->last = tileOpIndex;
+					}
+
+					//NOTE: if the segment crosses the tile's bottom boundary, update the tile's winding offset
+					if(crossB)
+					{
+						mtl_log(context->log, "cross bottom boundary, increment ");
+						mtl_log_f32(context->log, seg->windingIncrement);
+						mtl_log(context->log, "\n");
+						atomic_fetch_add_explicit(&tile->windingOffset, seg->windingIncrement, memory_order_relaxed);
+					}
+
+					//NOTE: if the segment crosses the right boundary, mark it. We reuse one of the previous tests
+					if(crossR)
+					{
+						op->crossRight = true;
+					}
 				}
 			}
 		}
@@ -508,54 +524,60 @@ device mg_mtl_segment* mtl_segment_push(thread mtl_segment_setup_context* contex
 		} break;
 	}
 
+	device mg_mtl_segment* seg = 0;
+
 	int segIndex = atomic_fetch_add_explicit(context->segmentCount, 1, memory_order_relaxed);
-	device mg_mtl_segment* seg = &context->segmentBuffer[segIndex];
 
-	bool goingUp = e.y >= s.y;
-	bool goingRight = e.x >= s.x;
-
-	seg->kind = kind;
-	seg->pathIndex = context->pathIndex;
-	seg->windingIncrement = goingUp? 1 : -1;
-
-	seg->box = (vector_float4){min(s.x, e.x),
-	                           min(s.y, e.y),
-	                           max(s.x, e.x),
-	                           max(s.y, e.y)};
-
-	float dx = c.x - seg->box.x;
-	float dy = c.y - seg->box.y;
-	float alpha = (seg->box.w - seg->box.y)/(seg->box.z - seg->box.x);
-	float ofs = seg->box.w - seg->box.y;
-
-	if(goingUp == goingRight)
+	if(segIndex < context->segmentMax)
 	{
-		if(seg->kind == MG_MTL_LINE)
+		seg = &context->segmentBuffer[segIndex];
+
+		bool goingUp = e.y >= s.y;
+		bool goingRight = e.x >= s.x;
+
+		seg->kind = kind;
+		seg->pathIndex = context->pathIndex;
+		seg->windingIncrement = goingUp? 1 : -1;
+
+		seg->box = (vector_float4){min(s.x, e.x),
+	                           	min(s.y, e.y),
+	                           	max(s.x, e.x),
+	                           	max(s.y, e.y)};
+
+		float dx = c.x - seg->box.x;
+		float dy = c.y - seg->box.y;
+		float alpha = (seg->box.w - seg->box.y)/(seg->box.z - seg->box.x);
+		float ofs = seg->box.w - seg->box.y;
+
+		if(goingUp == goingRight)
 		{
-			seg->config = MG_MTL_BR;
-		}
-		else if(dy > alpha*dx)
-		{
-			seg->config = MG_MTL_TL;
+			if(seg->kind == MG_MTL_LINE)
+			{
+				seg->config = MG_MTL_BR;
+			}
+			else if(dy > alpha*dx)
+			{
+				seg->config = MG_MTL_TL;
+			}
+			else
+			{
+				seg->config = MG_MTL_BR;
+			}
 		}
 		else
 		{
-			seg->config = MG_MTL_BR;
-		}
-	}
-	else
-	{
-		if(seg->kind == MG_MTL_LINE)
-		{
-			seg->config = MG_MTL_TR;
-		}
-		else if(dy < ofs - alpha*dx)
-		{
-			seg->config = MG_MTL_BL;
-		}
-		else
-		{
-			seg->config = MG_MTL_TR;
+			if(seg->kind == MG_MTL_LINE)
+			{
+				seg->config = MG_MTL_TR;
+			}
+			else if(dy < ofs - alpha*dx)
+			{
+				seg->config = MG_MTL_BL;
+			}
+			else
+			{
+				seg->config = MG_MTL_TR;
+			}
 		}
 	}
 	return(seg);
@@ -567,8 +589,11 @@ device mg_mtl_segment* mtl_segment_push(thread mtl_segment_setup_context* contex
 void mtl_line_setup(thread mtl_segment_setup_context* context, float2 p[2])
 {
 	device mg_mtl_segment* seg = mtl_segment_push(context, p, MG_MTL_LINE);
-	seg->hullVertex = p[0];
-	mtl_segment_bin_to_tiles(context, seg);
+	if(seg)
+	{
+		seg->hullVertex = p[0];
+		mtl_segment_bin_to_tiles(context, seg);
+	}
 }
 
 float2 mtl_quadratic_blossom(float2 p[3], float u, float v)
@@ -636,26 +661,29 @@ void mtl_quadratic_emit(thread mtl_segment_setup_context* context,
 {
 	device mg_mtl_segment* seg = mtl_segment_push(context, p, MG_MTL_QUADRATIC);
 
-	//NOTE: compute implicit equation matrix
-	float det = p[0].x*(p[1].y-p[2].y) + p[1].x*(p[2].y-p[0].y) + p[2].x*(p[0].y - p[1].y);
+	if(seg)
+	{
+		//NOTE: compute implicit equation matrix
+		float det = p[0].x*(p[1].y-p[2].y) + p[1].x*(p[2].y-p[0].y) + p[2].x*(p[0].y - p[1].y);
 
-	float a = p[0].y - p[1].y + 0.5*(p[2].y - p[0].y);
-	float b = p[1].x - p[0].x + 0.5*(p[0].x - p[2].x);
-	float c = p[0].x*p[1].y - p[1].x*p[0].y + 0.5*(p[2].x*p[0].y - p[0].x*p[2].y);
-	float d = p[0].y - p[1].y;
-	float e = p[1].x - p[0].x;
-	float f = p[0].x*p[1].y - p[1].x*p[0].y;
+		float a = p[0].y - p[1].y + 0.5*(p[2].y - p[0].y);
+		float b = p[1].x - p[0].x + 0.5*(p[0].x - p[2].x);
+		float c = p[0].x*p[1].y - p[1].x*p[0].y + 0.5*(p[2].x*p[0].y - p[0].x*p[2].y);
+		float d = p[0].y - p[1].y;
+		float e = p[1].x - p[0].x;
+		float f = p[0].x*p[1].y - p[1].x*p[0].y;
 
-	float flip = (seg->config == MG_MTL_TL || seg->config == MG_MTL_BL)? -1 : 1;
-	float g = flip*(p[2].x*(p[0].y - p[1].y) + p[0].x*(p[1].y - p[2].y) + p[1].x*(p[2].y - p[0].y));
+		float flip = (seg->config == MG_MTL_TL || seg->config == MG_MTL_BL)? -1 : 1;
+		float g = flip*(p[2].x*(p[0].y - p[1].y) + p[0].x*(p[1].y - p[2].y) + p[1].x*(p[2].y - p[0].y));
 
-	seg->implicitMatrix = (1/det)*matrix_float3x3({a, d, 0.},
+		seg->implicitMatrix = (1/det)*matrix_float3x3({a, d, 0.},
 	                                              {b, e, 0.},
 	                                              {c, f, g});
 
-	seg->hullVertex = p[1];
+		seg->hullVertex = p[1];
 
-	mtl_segment_bin_to_tiles(context, seg);
+		mtl_segment_bin_to_tiles(context, seg);
+	}
 }
 
 void mtl_quadratic_setup(thread mtl_segment_setup_context* context, thread float2* p)
@@ -1044,70 +1072,73 @@ void mtl_cubic_emit(thread mtl_segment_setup_context* context, mtl_cubic_info cu
 {
 	device mg_mtl_segment* seg = mtl_segment_push(context, sp, MG_MTL_CUBIC);
 
-	float2 v0 = p[0];
-	float2 v1 = p[3];
-	float2 v2;
-	matrix_float3x3 K;
-
-	float sqrNorm0 = length_squared(p[1]-p[0]);
-	float sqrNorm1 = length_squared(p[2]-p[3]);
-
-	//TODO: should not be the local sub-curve, but the global curve!!!
-	if(length_squared(p[0]-p[3]) > 1e-5)
+	if(seg)
 	{
-		if(sqrNorm0 >= sqrNorm1)
- 		{
- 			v2 = p[1];
-			K = {curve.K[0].xyz, curve.K[3].xyz, curve.K[1].xyz};
+		float2 v0 = p[0];
+		float2 v1 = p[3];
+		float2 v2;
+		matrix_float3x3 K;
+
+		float sqrNorm0 = length_squared(p[1]-p[0]);
+		float sqrNorm1 = length_squared(p[2]-p[3]);
+
+		//TODO: should not be the local sub-curve, but the global curve!!!
+		if(length_squared(p[0]-p[3]) > 1e-5)
+		{
+			if(sqrNorm0 >= sqrNorm1)
+ 			{
+ 				v2 = p[1];
+				K = {curve.K[0].xyz, curve.K[3].xyz, curve.K[1].xyz};
+ 			}
+ 			else
+ 			{
+				v2 = p[2];
+				K = {curve.K[0].xyz, curve.K[3].xyz, curve.K[2].xyz};
+ 			}
  		}
  		else
  		{
+			v1 = p[1];
 			v2 = p[2];
-			K = {curve.K[0].xyz, curve.K[3].xyz, curve.K[2].xyz};
+			K = {curve.K[0].xyz, curve.K[1].xyz, curve.K[2].xyz};
  		}
- 	}
- 	else
- 	{
-		v1 = p[1];
-		v2 = p[2];
-		K = {curve.K[0].xyz, curve.K[1].xyz, curve.K[2].xyz};
- 	}
- 	//NOTE: set matrices
+ 		//NOTE: set matrices
 
- 	//TODO: should we compute matrix relative to a base point to avoid loss of precision
- 	//      when computing barycentric matrix?
+ 		//TODO: should we compute matrix relative to a base point to avoid loss of precision
+ 		//      when computing barycentric matrix?
 
-	matrix_float3x3 B = mtl_barycentric_matrix(v0, v1, v2);
- 	seg->implicitMatrix = K*B;
-	seg->hullVertex = mtl_select_hull_vertex(sp[0], sp[1], sp[2], sp[3], context->log);
+		matrix_float3x3 B = mtl_barycentric_matrix(v0, v1, v2);
+ 		seg->implicitMatrix = K*B;
+		seg->hullVertex = mtl_select_hull_vertex(sp[0], sp[1], sp[2], sp[3], context->log);
 
-  	//NOTE: compute sign flip
-  	seg->sign = 1;
+  		//NOTE: compute sign flip
+  		seg->sign = 1;
 
-  	if(curve.kind == MTL_CUBIC_SERPENTINE
-  	|| curve.kind == MTL_CUBIC_CUSP)
-  	{
-		seg->sign = (curve.d1 < 0)? -1 : 1;
+  		if(curve.kind == MTL_CUBIC_SERPENTINE
+  		|| curve.kind == MTL_CUBIC_CUSP)
+  		{
+			seg->sign = (curve.d1 < 0)? -1 : 1;
+		}
+		else if(curve.kind == MTL_CUBIC_LOOP)
+		{
+			float d1 = curve.d1;
+			float d2 = curve.d2;
+			float d3 = curve.d3;
+
+			float H0 = d3*d1-square(d2) + d1*d2*s0 - square(d1)*square(s0);
+			float H1 = d3*d1-square(d2) + d1*d2*s1 - square(d1)*square(s1);
+			float H = (abs(H0) > abs(H1)) ? H0 : H1;
+			seg->sign = (H*d1 > 0) ? -1 : 1;
+		}
+
+		if(sp[3].y > sp[0].y)
+		{
+			seg->sign *= -1;
+		}
+
+		//NOTE: bin to tiles
+		mtl_segment_bin_to_tiles(context, seg);
 	}
-	else if(curve.kind == MTL_CUBIC_LOOP)
-	{
-		float d1 = curve.d1;
-		float d2 = curve.d2;
-		float d3 = curve.d3;
-
-		float H0 = d3*d1-square(d2) + d1*d2*s0 - square(d1)*square(s0);
-		float H1 = d3*d1-square(d2) + d1*d2*s1 - square(d1)*square(s1);
-		float H = (abs(H0) > abs(H1)) ? H0 : H1;
-		seg->sign = (H*d1 > 0) ? -1 : 1;
-	}
-
-	if(sp[3].y > sp[0].y)
-	{
-		seg->sign *= -1;
-	}
-
-	//NOTE: bin to tiles
-	mtl_segment_bin_to_tiles(context, seg);
 }
 
 void mtl_cubic_setup(thread mtl_segment_setup_context* context, float2 p[4])
@@ -1229,11 +1260,13 @@ kernel void mtl_segment_setup(constant int* elementCount [[buffer(0)]],
                               device mg_mtl_tile_queue* tileQueueBuffer [[buffer(5)]],
                               device mg_mtl_tile_op* tileOpBuffer [[buffer(6)]],
                               device atomic_int* tileOpCount [[buffer(7)]],
-                              constant int* tileSize [[buffer(8)]],
-                              constant float* scale [[buffer(9)]],
+                              constant int* segmentMax [[buffer(8)]],
+                              constant int* tileOpMax [[buffer(9)]],
+                              constant int* tileSize [[buffer(10)]],
+                              constant float* scale [[buffer(11)]],
 
-                              device char* logBuffer [[buffer(10)]],
-                              device atomic_int* logOffsetBuffer [[buffer(11)]],
+                              device char* logBuffer [[buffer(12)]],
+                              device atomic_int* logOffsetBuffer [[buffer(13)]],
                               uint eltIndex [[thread_position_in_grid]])
 {
 	const device mg_mtl_path_elt* elt = &elementBuffer[eltIndex];
@@ -1247,10 +1280,12 @@ kernel void mtl_segment_setup(constant int* elementCount [[buffer(0)]],
 	                                      .tileQueues = tileQueues,
 	                                      .tileOpBuffer = tileOpBuffer,
 	                                      .tileOpCount = tileOpCount,
+	                                      .tileOpMax = tileOpMax[0],
+	                                      .segmentMax = segmentMax[0],
 	                                      .tileSize = tileSize[0],
 	                                      .log.buffer = logBuffer,
 	                                      .log.offset = logOffsetBuffer,
-	                                      .log.enabled = false};
+	                                      .log.enabled = false,};
 
 	switch(elt->kind)
 	{
@@ -1327,10 +1362,11 @@ kernel void mtl_merge(constant int* pathCount [[buffer(0)]],
                       device atomic_int* tileOpCount [[buffer(5)]],
                       device MTLDispatchThreadgroupsIndirectArguments* dispatchBuffer [[buffer(6)]],
                       device mg_mtl_screen_tile* screenTilesBuffer [[buffer(7)]],
-                      constant int* tileSize [[buffer(8)]],
-                      constant float* scale [[buffer(9)]],
-                      device char* logBuffer [[buffer(10)]],
-                      device atomic_int* logOffsetBuffer [[buffer(11)]],
+                      constant int* tileOpMax [[buffer(8)]],
+                      constant int* tileSize [[buffer(9)]],
+                      constant float* scale [[buffer(10)]],
+                      device char* logBuffer [[buffer(11)]],
+                      device atomic_int* logOffsetBuffer [[buffer(12)]],
                       uint2 threadCoord [[thread_position_in_grid]],
                       uint2 gridSize [[threads_per_grid]])
 {
@@ -1393,6 +1429,12 @@ kernel void mtl_merge(constant int* pathCount [[buffer(0)]],
 					//NOTE: tile is full covered. Add path start op (with winding offset).
 					//      Additionally if color is opaque and tile is fully inside clip, trim tile list.
 					int pathOpIndex = atomic_fetch_add_explicit(tileOpCount, 1, memory_order_relaxed);
+
+					if(pathOpIndex >= tileOpMax[0])
+					{
+						return;
+					}
+
 					device mg_mtl_tile_op* pathOp = &tileOpBuffer[pathOpIndex];
 					pathOp->kind = MG_MTL_OP_CLIP_FILL;
 					pathOp->next = -1;
@@ -1421,6 +1463,11 @@ kernel void mtl_merge(constant int* pathCount [[buffer(0)]],
 			{
 				//NOTE: add path start op (with winding offset)
 				int startOpIndex = atomic_fetch_add_explicit(tileOpCount, 1, memory_order_relaxed);
+				if(startOpIndex >= tileOpMax[0])
+				{
+					return;
+				}
+
 				device mg_mtl_tile_op* startOp = &tileOpBuffer[startOpIndex];
 				startOp->kind = MG_MTL_OP_START;
 				startOp->next = -1;
@@ -1439,6 +1486,11 @@ kernel void mtl_merge(constant int* pathCount [[buffer(0)]],
 
 				//NOTE: add path end op
 				int endOpIndex = atomic_fetch_add_explicit(tileOpCount, 1, memory_order_relaxed);
+				if(endOpIndex >= tileOpMax[0])
+				{
+					return;
+				}
+
 				device mg_mtl_tile_op* endOp = &tileOpBuffer[endOpIndex];
 				endOp->kind = MG_MTL_OP_END;
 				endOp->next = -1;
@@ -1446,7 +1498,6 @@ kernel void mtl_merge(constant int* pathCount [[buffer(0)]],
 
 				*nextLink = endOpIndex;
 				nextLink = &endOp->next;
-
 			}
 		}
 	}
@@ -1611,6 +1662,13 @@ kernel void mtl_raster(const device mg_mtl_screen_tile* screenTilesBuffer [[buff
 		}
 		opIndex = op->next;
 	}
+
+/*
+	if((pixelCoord.x % tileSize[0] == 0) || (pixelCoord.y % tileSize[0] == 0))
+	{
+		color = float4(0, 0, 0, 1);
+	}
+//*/
 	outTexture.write(color, pixelCoord);
 }
 
@@ -1631,7 +1689,7 @@ vertex vs_out mtl_vertex_shader(ushort vid [[vertex_id]])
 	return(out);
 }
 
-fragment float4 mtl_fragment_shader(vs_out i [[stage_in]], texture2d<float> tex [[texture(0)]])
+fragment float4 mtl_fragment_shader(vs_out i [[stage_in]], texture2d<float, access::sample> tex [[texture(0)]])
 {
 	constexpr sampler smp(mip_filter::nearest, mag_filter::linear, min_filter::linear);
 	return(tex.sample(smp, i.uv));

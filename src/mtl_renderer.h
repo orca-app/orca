@@ -34,7 +34,6 @@ typedef enum {
 typedef struct mg_mtl_path_elt
 {
 	int pathIndex;
-	int localEltIndex;
 	mg_mtl_seg_kind kind;
 	vector_float2 p[4];
 } mg_mtl_path_elt;

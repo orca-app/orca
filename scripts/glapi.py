@@ -44,10 +44,11 @@ tree = et.parse(args.spec)
 
 gl41 = gather_api(tree, 'gl', 4.1)
 gl43 = gather_api(tree, 'gl', 4.3)
+gl44 = gather_api(tree, 'gl', 4.4)
 gles30 = gather_api(tree, 'gles2', 3.1)
 gles31 = gather_api(tree, 'gles2', 3.2)
 
-glall = list(set().union(gl41, gl43, gles30, gles31))
+glall = list(set().union(gl41, gl43, gl44, gles30, gles31))
 
 
 #---------------------------------------------------------------
@@ -122,6 +123,7 @@ f.write("typedef void*(*mg_gl_load_proc)(const char* name);\n\n")
 
 f.write("void mg_gl_load_gl41(mg_gl_api* api, mg_gl_load_proc loadProc);\n")
 f.write("void mg_gl_load_gl43(mg_gl_api* api, mg_gl_load_proc loadProc);\n")
+f.write("void mg_gl_load_gl44(mg_gl_api* api, mg_gl_load_proc loadProc);\n")
 f.write("void mg_gl_load_gles30(mg_gl_api* api, mg_gl_load_proc loadProc);\n")
 f.write("void mg_gl_load_gles31(mg_gl_api* api, mg_gl_load_proc loadProc);\n\n")
 
@@ -152,6 +154,7 @@ f.write("mp_thread_local mg_gl_api* __mgGLAPI = 0;\n\n")
 
 emit_loader(f, 'gl41', gl41)
 emit_loader(f, 'gl43', gl43)
+emit_loader(f, 'gl44', gl44)
 emit_loader(f, 'gles30', gles30)
 emit_loader(f, 'gles31', gles31)
 
