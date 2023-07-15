@@ -195,7 +195,7 @@ typedef enum {
 	MP_KEYMOD_SHIFT         = 0x02,
 	MP_KEYMOD_CTRL          = 0x04,
 	MP_KEYMOD_CMD           = 0x08,
-	MP_KEYMOD_MAIN_MODIFIER = 0x16 } mp_keymod_flags;
+	MP_KEYMOD_MAIN_MODIFIER = 0x16 /* CMD on Mac, CTRL on Win32 */ } mp_keymod_flags;
 
 typedef enum {
 	MP_MOUSE_LEFT	= 0x00,
