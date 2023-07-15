@@ -7,7 +7,7 @@
 *
 *****************************************************************/
 #include"hash.h"
-#include"platform.h"
+#include"platform/platform.h"
 
 #if ARCH_X64
 #include<immintrin.h>

@@ -190,11 +190,12 @@ typedef enum { MP_KEY_UNKNOWN    = 0,
                MP_KEY_COUNT } mp_key_code;
 
 typedef enum {
-	MP_KEYMOD_NONE  = 0x00,
-	MP_KEYMOD_ALT   = 0x01,
-	MP_KEYMOD_SHIFT = 0x02,
-	MP_KEYMOD_CTRL  = 0x04,
-	MP_KEYMOD_CMD   = 0x08 } mp_keymod_flags;
+	MP_KEYMOD_NONE          = 0x00,
+	MP_KEYMOD_ALT           = 0x01,
+	MP_KEYMOD_SHIFT         = 0x02,
+	MP_KEYMOD_CTRL          = 0x04,
+	MP_KEYMOD_CMD           = 0x08,
+	MP_KEYMOD_MAIN_MODIFIER = 0x16 } mp_keymod_flags;
 
 typedef enum {
 	MP_MOUSE_LEFT	= 0x00,

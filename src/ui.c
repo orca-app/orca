@@ -6,11 +6,11 @@
 *	@revision:
 *
 *****************************************************************/
-#include"platform.h"
-#include"platform_assert.h"
-#include"memory.h"
-#include"hash.h"
-#include"platform_clock.h"
+#include"platform/platform.h"
+#include"platform/platform_assert.h"
+#include"platform/platform_clock.h"
+#include"util/memory.h"
+#include"util/hash.h"
 #include"ui.h"
 
 static ui_style UI_STYLE_DEFAULTS =
@@ -2303,10 +2303,12 @@ typedef struct ui_edit_command
 
 } ui_edit_command;
 
-#if PLATFORM_WINDOWS || PLATFORM_ORCA
+#if PLATFORM_WINDOWS
 	#define OS_COPY_PASTE_MOD MP_KEYMOD_CTRL
 #elif PLATFORM_MACOS
 	#define OS_COPY_PASTE_MOD MP_KEYMOD_CMD
+#elif PLATFORM_ORCA
+	#define OS_COPY_PASTE_MOD MP_KEYMOD_MAIN_MODIFIER
 #endif
 
 const ui_edit_command UI_EDIT_COMMANDS[] = {
