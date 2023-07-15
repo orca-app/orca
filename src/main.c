@@ -381,26 +381,26 @@ void* orca_runloop(void* user)
 		return((void*)-1);
 	}
 
-	//NOTE: Find and type check exports.
-	for(int i=0; i<G_EXPORT_COUNT; i++)
+	//NOTE: Find and type check event handlers.
+	for(int i=0; i<G_EVENT_COUNT; i++)
 	{
-		const g_export_desc* desc = &G_EXPORT_DESC[i];
-		IM3Function export = 0;
-		m3_FindFunction(&export, app->runtime.m3Runtime, desc->name.ptr);
+		const g_event_handler_desc* desc = &G_EVENT_HANDLER_DESC[i];
+		IM3Function handler = 0;
+		m3_FindFunction(&handler, app->runtime.m3Runtime, desc->name.ptr);
 
-		if(export)
+		if(handler)
 		{
 			bool checked = false;
 
 			//NOTE: check function signature
-			int retCount = m3_GetRetCount(export);
-			int argCount = m3_GetArgCount(export);
+			int retCount = m3_GetRetCount(handler);
+			int argCount = m3_GetArgCount(handler);
 			if(retCount == desc->retTags.len && argCount == desc->argTags.len)
 			{
 				checked = true;
 				for(int retIndex = 0; retIndex < retCount; retIndex++)
 				{
-					M3ValueType m3Type = m3_GetRetType(export, retIndex);
+					M3ValueType m3Type = m3_GetRetType(handler, retIndex);
 					char tag = m3_type_to_tag(m3Type);
 
 					if(tag != desc->retTags.ptr[retIndex])
@@ -413,7 +413,7 @@ void* orca_runloop(void* user)
 				{
 					for(int argIndex = 0; argIndex < argCount; argIndex++)
 					{
-						M3ValueType m3Type = m3_GetArgType(export, argIndex);
+						M3ValueType m3Type = m3_GetArgType(handler, argIndex);
 						char tag = m3_type_to_tag(m3Type);
 
 						if(tag != desc->argTags.ptr[argIndex])
@@ -427,29 +427,18 @@ void* orca_runloop(void* user)
 
 			if(checked)
 			{
-				app->runtime.exports[i] = export;
+				app->runtime.eventHandlers[i] = handler;
 			}
 			else
 			{
-				log_error("type mismatch for export %.*s\n", (int)desc->name.len, desc->name.ptr);
+				log_error("type mismatch for event handler %.*s\n", (int)desc->name.len, desc->name.ptr);
 			}
 		}
 	}
-	IM3Function* exports = app->runtime.exports;
 
 	//NOTE: get location of the raw event slot
-	if (exports[G_EXPORT_GET_RAW_EVENT_PTR])
-	{
-		m3_CallV(exports[G_EXPORT_GET_RAW_EVENT_PTR]);
-		const void* getRawEventPtrResults[1] = {&app->runtime.rawEventOffset};
-		m3_GetResults(exports[G_EXPORT_GET_RAW_EVENT_PTR], 1, getRawEventPtrResults);
-	}
-
-	//NOTE: init clock
-	if (exports[G_EXPORT_CLOCK_INIT])
-	{
-		m3_CallV(exports[G_EXPORT_CLOCK_INIT]);
-	}
+	IM3Global rawEventGlobal = m3_FindGlobal(app->runtime.m3Module, "_OrcaRawEventPtr");
+	app->runtime.rawEventOffset = (u32)rawEventGlobal->intValue;
 
 	//NOTE: preopen the app local root dir
 	{
@@ -466,10 +455,12 @@ void* orca_runloop(void* user)
 	//NOTE: prepare GL surface
 	mg_surface_prepare(app->surface);
 
+	IM3Function* eventHandlers = app->runtime.eventHandlers;
+
 	//NOTE: call init handler
-	if(exports[G_EXPORT_ON_INIT])
+	if(eventHandlers[G_EVENT_START])
 	{
-		M3Result err = m3_Call(exports[G_EXPORT_ON_INIT], 0, 0);
+		M3Result err = m3_Call(eventHandlers[G_EVENT_START], 0, 0);
 		if(err != NULL)
 		{
 			log_error("runtime error: %s\n", err);
@@ -486,13 +477,13 @@ void* orca_runloop(void* user)
 		}
 	}
 
-	if(exports[G_EXPORT_ON_FRAME_RESIZE])
+	if(eventHandlers[G_EVENT_FRAME_RESIZE])
 	{
 		mp_rect frame = mg_surface_get_frame(app->surface);
 		u32 width = (u32)frame.w;
 		u32 height = (u32)frame.h;
 		const void* args[2] = {&width, &height};
-		m3_Call(exports[G_EXPORT_ON_FRAME_RESIZE], 2, args);
+		m3_Call(eventHandlers[G_EVENT_FRAME_RESIZE], 2, args);
 	}
 
 	ui_set_context(&app->debugOverlay.ui);
@@ -508,7 +499,7 @@ void* orca_runloop(void* user)
 				ui_process_event(event);
 			}
 
-			if(exports[G_EXPORT_ON_RAW_EVENT])
+			if(eventHandlers[G_EVENT_RAW_EVENT])
 			{
 				if (app->runtime.rawEventOffset == 0)
 				{
@@ -520,7 +511,7 @@ void* orca_runloop(void* user)
 				memcpy(eventPtr, event, sizeof(*event));
 
 				const void* args[1] = {&app->runtime.rawEventOffset};
-				m3_Call(exports[G_EXPORT_ON_RAW_EVENT], 1, args);
+				m3_Call(eventHandlers[G_EVENT_RAW_EVENT], 1, args);
 				#else
 				log_error("OnRawEvent() is not supported on big endian platforms");
 				#endif
@@ -540,12 +531,12 @@ void* orca_runloop(void* user)
 
 //					mg_surface_set_frame(app->debugOverlay.surface, frame);
 
-					if(exports[G_EXPORT_ON_FRAME_RESIZE])
+					if(eventHandlers[G_EVENT_FRAME_RESIZE])
 					{
 						u32 width = (u32)event->frame.rect.w;
 						u32 height = (u32)event->frame.rect.h;
 						const void* args[2] = {&width, &height};
-						m3_Call(exports[G_EXPORT_ON_FRAME_RESIZE], 2, args);
+						m3_Call(eventHandlers[G_EVENT_FRAME_RESIZE], 2, args);
 					}
 				} break;
 
@@ -553,30 +544,30 @@ void* orca_runloop(void* user)
 				{
 					if(event->key.action == MP_KEY_PRESS)
 					{
-						if(exports[G_EXPORT_ON_MOUSE_DOWN])
+						if(eventHandlers[G_EVENT_MOUSE_DOWN])
 						{
 							int key = event->key.code;
 							const void* args[1] = {&key};
-							m3_Call(exports[G_EXPORT_ON_MOUSE_DOWN], 1, args);
+							m3_Call(eventHandlers[G_EVENT_MOUSE_DOWN], 1, args);
 						}
 					}
 					else
 					{
-						if(exports[G_EXPORT_ON_MOUSE_UP])
+						if(eventHandlers[G_EVENT_MOUSE_UP])
 						{
 							int key = event->key.code;
 							const void* args[1] = {&key};
-							m3_Call(exports[G_EXPORT_ON_MOUSE_UP], 1, args);
+							m3_Call(eventHandlers[G_EVENT_MOUSE_UP], 1, args);
 						}
 					}
 				} break;
 
 				case MP_EVENT_MOUSE_MOVE:
 				{
-					if(exports[G_EXPORT_ON_MOUSE_MOVE])
+					if(eventHandlers[G_EVENT_MOUSE_MOVE])
 					{
 						const void* args[4] = {&event->move.x, &event->move.y, &event->move.deltaX, &event->move.deltaY};
-						m3_Call(exports[G_EXPORT_ON_MOUSE_MOVE], 4, args);
+						m3_Call(eventHandlers[G_EVENT_MOUSE_MOVE], 4, args);
 					}
 				} break;
 
@@ -591,18 +582,18 @@ void* orca_runloop(void* user)
 						#endif
 						}
 
-						if(exports[G_EXPORT_ON_KEY_DOWN])
+						if(eventHandlers[G_EVENT_KEY_DOWN])
 						{
 							const void* args[1] = {&event->key.code};
-							m3_Call(exports[G_EXPORT_ON_KEY_DOWN], 1, args);
+							m3_Call(eventHandlers[G_EVENT_KEY_DOWN], 1, args);
 						}
 					}
 					else if(event->key.action == MP_KEY_RELEASE)
 					{
-						if(exports[G_EXPORT_ON_KEY_UP])
+						if(eventHandlers[G_EVENT_KEY_UP])
 						{
 							const void* args[1] = {&event->key.code};
-							m3_Call(exports[G_EXPORT_ON_KEY_UP], 1, args);
+							m3_Call(eventHandlers[G_EVENT_KEY_UP], 1, args);
 						}
 					}
 				} break;
@@ -749,10 +740,10 @@ void* orca_runloop(void* user)
 			mg_render(app->debugOverlay.surface, app->debugOverlay.canvas);
 		}
 
-		if(exports[G_EXPORT_ON_FRAME_REFRESH])
+		if(eventHandlers[G_EVENT_FRAME_REFRESH])
 		{
 			mg_surface_prepare(app->surface);
-			m3_Call(exports[G_EXPORT_ON_FRAME_REFRESH], 0, 0);
+			m3_Call(eventHandlers[G_EVENT_FRAME_REFRESH], 0, 0);
 		}
 
 		if(app->debugOverlay.show)

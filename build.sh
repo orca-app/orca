@@ -67,6 +67,12 @@ elif [ $target = orca ] ; then
 		--guest-include graphics.h \
 		--wasm3-bindings ./src/canvas_api_bind_gen.c
 
+	python3 ./scripts/bindgen2.py clock \
+		src/clock_api.json \
+		--guest-stubs sdk/orca_clock.c \
+		--guest-include platform_clock.h \
+		--wasm3-bindings ./src/clock_api_bind_gen.c
+
 	python3 ./scripts/bindgen2.py io \
 		src/io_api.json \
 		--guest-stubs sdk/io_stubs.c \

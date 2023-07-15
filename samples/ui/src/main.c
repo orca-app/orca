@@ -6,8 +6,8 @@
 
 vec2 frameSize = {100, 100};
 
-mg_canvas canvas;
 mg_surface surface;
+mg_canvas canvas;
 mg_font font;
 ui_context ui;
 mem_arena textArena = {0};

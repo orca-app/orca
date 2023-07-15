@@ -26,7 +26,7 @@ wasmFlags="--target=wasm32 \
   -D__ORCA__ \
   -I $STDLIB_DIR/include \
   -I $ORCA_SDK_DIR \
-  -I $MILEPOST_DIR/ext -I $MILEPOST_DIR -I $MILEPOST_DIR/src -I $MILEPOST_DIR/src/util -I $MILEPOST_DIR/src/platform"
+  -I $MILEPOST_DIR/ext -I $MILEPOST_DIR -I $MILEPOST_DIR/src"
 
 $CLANG $wasmFlags -o ./module.wasm ../../sdk/orca.c ../../cstdlib/src/*.c src/main.c
 

@@ -1,12 +1,5 @@
 #include"orca.h"
 
-ORCA_EXPORT mp_event* _OrcaGetRawEventPtr()
-{
-	static mp_event event;
-	return &event;
-}
+mp_event _OrcaRawEvent;
 
-ORCA_EXPORT void _OrcaClockInit()
-{
-	mp_clock_init();
-}
+ORCA_EXPORT mp_event *_OrcaRawEventPtr;
