@@ -2303,14 +2303,6 @@ typedef struct ui_edit_command
 
 } ui_edit_command;
 
-#if PLATFORM_WINDOWS
-	#define OS_COPY_PASTE_MOD MP_KEYMOD_CTRL
-#elif PLATFORM_MACOS
-	#define OS_COPY_PASTE_MOD MP_KEYMOD_CMD
-#elif PLATFORM_ORCA
-	#define OS_COPY_PASTE_MOD MP_KEYMOD_MAIN_MODIFIER
-#endif
-
 const ui_edit_command UI_EDIT_COMMANDS[] = {
 	//NOTE(martin): move one left
 	{
@@ -2403,7 +2395,7 @@ const ui_edit_command UI_EDIT_COMMANDS[] = {
 	//NOTE(martin): select all
 	{
 		.key = MP_KEY_Q,
-		.mods = OS_COPY_PASTE_MOD,
+		.mods = MP_KEYMOD_MAIN_MODIFIER,
 		.operation = UI_EDIT_SELECT_ALL,
 		.move = UI_EDIT_MOVE_NONE
 	},
@@ -2424,21 +2416,21 @@ const ui_edit_command UI_EDIT_COMMANDS[] = {
 	//NOTE(martin): cut
 	{
 		.key = MP_KEY_X,
-		.mods = OS_COPY_PASTE_MOD,
+		.mods = MP_KEYMOD_MAIN_MODIFIER,
 		.operation = UI_EDIT_CUT,
 		.move = UI_EDIT_MOVE_NONE
 	},
 	//NOTE(martin): copy
 	{
 		.key = MP_KEY_C,
-		.mods = OS_COPY_PASTE_MOD,
+		.mods = MP_KEYMOD_MAIN_MODIFIER,
 		.operation = UI_EDIT_COPY,
 		.move = UI_EDIT_MOVE_NONE
 	},
 	//NOTE(martin): paste
 	{
 		.key = MP_KEY_V,
-		.mods = OS_COPY_PASTE_MOD,
+		.mods = MP_KEYMOD_MAIN_MODIFIER,
 		.operation = UI_EDIT_PASTE,
 		.move = UI_EDIT_MOVE_NONE
 	}
