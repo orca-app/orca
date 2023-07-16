@@ -108,6 +108,7 @@ typedef struct mg_gl_screen_tile
 {
 	u32 tileCoord[2];
 	i32 first;
+	u8 padding[4];
 } mg_gl_screen_tile;
 ////////////////////////////////////////////////////////////
 
