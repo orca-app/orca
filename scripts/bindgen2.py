@@ -124,7 +124,7 @@ for decl in data:
 			s += '*((i64*)&_sp[0]) = '
 		elif retTag == 'f':
 			s += '*((f32*)&_sp[0]) = '
-		elif retTag == 'd':
+		elif retTag == 'F':
 			s += '*((f64*)&_sp[0]) = '
 		elif retTag == 'S':
 			retTypeName = decl['ret']['name']
@@ -147,7 +147,7 @@ for decl in data:
 				s += '*(i64*)&_sp[' + str(firstArgIndex + i) + ']'
 			elif argTag == 'f':
 				s += '*(f32*)&_sp[' + str(firstArgIndex + i) + ']'
-			elif argTag == 'd':
+			elif argTag == 'F':
 				s += '*(f64*)&_sp[' + str(firstArgIndex + i) + ']'
 			elif argTag == 'p':
 				s += '(void*)((char*)_mem + *(i32*)&_sp[' + str(firstArgIndex + i) + '])'

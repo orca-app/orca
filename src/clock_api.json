@@ -1,0 +1,9 @@
+[
+{
+	"name": "mp_get_time",
+	"cname": "mp_get_time",
+	"ret": {"name": "time", "tag": "F"},
+	"args": [ {"name": "clock",
+	           "type": {"name": "mp_clock_kind", "tag": "i"}}]
+}
+]
