@@ -16,6 +16,7 @@
 #include"platform/platform.h"
 #include"platform/platform_log.h"
 #include"platform/platform_assert.h"
+#include"platform/platform_clock.h"
 #include"platform/platform_io.h"
 
 #if COMPILER_CLANG

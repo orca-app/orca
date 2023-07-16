@@ -11,10 +11,6 @@ else
   CLANG=clang
 fi
 
-STDLIB_DIR=../../cstdlib
-ORCA_SDK_DIR=../../sdk
-MILEPOST_DIR=../../milepost
-
 wasmFlags="--target=wasm32 \
   --no-standard-libraries \
   -fno-builtin \
@@ -24,10 +20,8 @@ wasmFlags="--target=wasm32 \
   -O2 \
   -mbulk-memory \
   -D__ORCA__ \
-  -I $STDLIB_DIR/include \
-  -I $ORCA_SDK_DIR \
-  -I $MILEPOST_DIR/ext -I $MILEPOST_DIR -I $MILEPOST_DIR/src"
+  -isystem ../../cstdlib/include -I ../../sdk -I../../milepost/ext -I ../../milepost -I ../../milepost/src"
 
 $CLANG $wasmFlags -o ./module.wasm ../../sdk/orca.c ../../cstdlib/src/*.c src/main.c
 
-python3 ../../scripts/mkapp.py --orca-dir ../.. --name Pong --icon icon.png --resource-dir data module.wasm
+python3 ../../scripts/mkapp.py --orca-dir ../.. --name UI --resource-dir data module.wasm

@@ -300,6 +300,7 @@ void orca_runtime_init(orca_runtime* runtime)
 
 #include"bindgen_core_api.c"
 #include"canvas_api_bind.c"
+#include"clock_api_bind_gen.c"
 #include"io_api_bind_gen.c"
 
 #include"bindgen_gles_api.c"
@@ -356,6 +357,7 @@ void* orca_runloop(void* user)
 	//NOTE: bind orca APIs
 	bindgen_link_core_api(app->runtime.m3Module);
 	bindgen_link_canvas_api(app->runtime.m3Module);
+	bindgen_link_clock_api(app->runtime.m3Module);
 	bindgen_link_io_api(app->runtime.m3Module);
 	bindgen_link_gles_api(app->runtime.m3Module);
 	manual_link_gles_api(app->runtime.m3Module);
@@ -380,9 +382,9 @@ void* orca_runloop(void* user)
 	}
 
 	//NOTE: Find and type check event handlers.
-	for(int i=0; i<G_EVENT_COUNT; i++)
+	for(int i=0; i<G_EXPORT_COUNT; i++)
 	{
-		const g_event_handler_desc* desc = &G_EVENT_HANDLER_DESC[i];
+		const g_export_desc* desc = &G_EXPORT_DESC[i];
 		IM3Function handler = 0;
 		m3_FindFunction(&handler, app->runtime.m3Runtime, desc->name.ptr);
 
@@ -425,7 +427,7 @@ void* orca_runloop(void* user)
 
 			if(checked)
 			{
-				app->runtime.eventHandlers[i] = handler;
+				app->runtime.exports[i] = handler;
 			}
 			else
 			{
@@ -433,6 +435,10 @@ void* orca_runloop(void* user)
 			}
 		}
 	}
+
+	//NOTE: get location of the raw event slot
+	IM3Global rawEventGlobal = m3_FindGlobal(app->runtime.m3Module, "_OrcaRawEvent");
+	app->runtime.rawEventOffset = (u32)rawEventGlobal->intValue;
 
 	//NOTE: preopen the app local root dir
 	{
@@ -449,12 +455,12 @@ void* orca_runloop(void* user)
 	//NOTE: prepare GL surface
 	mg_surface_prepare(app->surface);
 
-	IM3Function* eventHandlers = app->runtime.eventHandlers;
+	IM3Function* exports = app->runtime.exports;
 
 	//NOTE: call init handler
-	if(eventHandlers[G_EVENT_START])
+	if(exports[G_EXPORT_ON_INIT])
 	{
-		M3Result err = m3_Call(eventHandlers[G_EVENT_START], 0, 0);
+		M3Result err = m3_Call(exports[G_EXPORT_ON_INIT], 0, 0);
 		if(err != NULL)
 		{
 			log_error("runtime error: %s\n", err);
@@ -471,13 +477,13 @@ void* orca_runloop(void* user)
 		}
 	}
 
-	if(eventHandlers[G_EVENT_FRAME_RESIZE])
+	if(exports[G_EXPORT_FRAME_RESIZE])
 	{
 		mp_rect frame = mg_surface_get_frame(app->surface);
 		u32 width = (u32)frame.w;
 		u32 height = (u32)frame.h;
 		const void* args[2] = {&width, &height};
-		m3_Call(eventHandlers[G_EVENT_FRAME_RESIZE], 2, args);
+		m3_Call(exports[G_EXPORT_FRAME_RESIZE], 2, args);
 	}
 
 	ui_set_context(&app->debugOverlay.ui);
@@ -491,6 +497,19 @@ void* orca_runloop(void* user)
 			if(app->debugOverlay.show)
 			{
 				ui_process_event(event);
+			}
+
+			if(exports[G_EXPORT_RAW_EVENT])
+			{
+				#ifndef M3_BIG_ENDIAN
+				mp_event* eventPtr = (mp_event*)wasm_memory_offset_to_ptr(&app->runtime.wasmMemory, app->runtime.rawEventOffset);
+				memcpy(eventPtr, event, sizeof(*event));
+
+				const void* args[1] = {&app->runtime.rawEventOffset};
+				m3_Call(exports[G_EXPORT_RAW_EVENT], 1, args);
+				#else
+				log_error("OnRawEvent() is not supported on big endian platforms");
+				#endif
 			}
 
 			switch(event->type)
@@ -507,12 +526,12 @@ void* orca_runloop(void* user)
 
 //					mg_surface_set_frame(app->debugOverlay.surface, frame);
 
-					if(eventHandlers[G_EVENT_FRAME_RESIZE])
+					if(exports[G_EXPORT_FRAME_RESIZE])
 					{
 						u32 width = (u32)event->frame.rect.w;
 						u32 height = (u32)event->frame.rect.h;
 						const void* args[2] = {&width, &height};
-						m3_Call(eventHandlers[G_EVENT_FRAME_RESIZE], 2, args);
+						m3_Call(exports[G_EXPORT_FRAME_RESIZE], 2, args);
 					}
 				} break;
 
@@ -520,30 +539,30 @@ void* orca_runloop(void* user)
 				{
 					if(event->key.action == MP_KEY_PRESS)
 					{
-						if(eventHandlers[G_EVENT_MOUSE_DOWN])
+						if(exports[G_EXPORT_MOUSE_DOWN])
 						{
 							int key = event->key.code;
 							const void* args[1] = {&key};
-							m3_Call(eventHandlers[G_EVENT_MOUSE_DOWN], 1, args);
+							m3_Call(exports[G_EXPORT_MOUSE_DOWN], 1, args);
 						}
 					}
 					else
 					{
-						if(eventHandlers[G_EVENT_MOUSE_UP])
+						if(exports[G_EXPORT_MOUSE_UP])
 						{
 							int key = event->key.code;
 							const void* args[1] = {&key};
-							m3_Call(eventHandlers[G_EVENT_MOUSE_UP], 1, args);
+							m3_Call(exports[G_EXPORT_MOUSE_UP], 1, args);
 						}
 					}
 				} break;
 
 				case MP_EVENT_MOUSE_MOVE:
 				{
-					if(eventHandlers[G_EVENT_MOUSE_MOVE])
+					if(exports[G_EXPORT_MOUSE_MOVE])
 					{
 						const void* args[4] = {&event->move.x, &event->move.y, &event->move.deltaX, &event->move.deltaY};
-						m3_Call(eventHandlers[G_EVENT_MOUSE_MOVE], 4, args);
+						m3_Call(exports[G_EXPORT_MOUSE_MOVE], 4, args);
 					}
 				} break;
 
@@ -558,18 +577,18 @@ void* orca_runloop(void* user)
 						#endif
 						}
 
-						if(eventHandlers[G_EVENT_KEY_DOWN])
+						if(exports[G_EXPORT_KEY_DOWN])
 						{
 							const void* args[1] = {&event->key.code};
-							m3_Call(eventHandlers[G_EVENT_KEY_DOWN], 1, args);
+							m3_Call(exports[G_EXPORT_KEY_DOWN], 1, args);
 						}
 					}
 					else if(event->key.action == MP_KEY_RELEASE)
 					{
-						if(eventHandlers[G_EVENT_KEY_UP])
+						if(exports[G_EXPORT_KEY_UP])
 						{
 							const void* args[1] = {&event->key.code};
-							m3_Call(eventHandlers[G_EVENT_KEY_UP], 1, args);
+							m3_Call(exports[G_EXPORT_KEY_UP], 1, args);
 						}
 					}
 				} break;
@@ -716,10 +735,10 @@ void* orca_runloop(void* user)
 			mg_render(app->debugOverlay.surface, app->debugOverlay.canvas);
 		}
 
-		if(eventHandlers[G_EVENT_FRAME_REFRESH])
+		if(exports[G_EXPORT_FRAME_REFRESH])
 		{
 			mg_surface_prepare(app->surface);
-			m3_Call(eventHandlers[G_EVENT_FRAME_REFRESH], 0, 0);
+			m3_Call(exports[G_EXPORT_FRAME_REFRESH], 0, 0);
 		}
 
 		if(app->debugOverlay.show)
