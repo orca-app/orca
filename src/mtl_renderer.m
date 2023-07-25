@@ -1159,6 +1159,8 @@ void mg_mtl_canvas_resize(mg_mtl_canvas_backend* backend, vec2 size)
 
 		backend->outTexture = [backend->surface->device newTextureWithDescriptor:texDesc];
 
+		backend->surface->mtlLayer.drawableSize = (CGSize){size.x, size.y};
+
 		backend->frameSize = size;
 	}
 }
@@ -1179,13 +1181,13 @@ void mg_mtl_canvas_render(mg_canvas_backend* interface,
 	//NOTE: ensure screen tiles buffer is correct size
 	mg_mtl_surface* surface = backend->surface;
 
-	mp_rect frame = surface->interface.getFrame((mg_surface_data*)surface);
+	vec2 frameSize = surface->interface.getSize((mg_surface_data*)surface);
 
 	f32 scale = surface->mtlLayer.contentsScale;
-	vec2 viewportSize = {frame.w * scale, frame.h * scale};
+	vec2 viewportSize = {frameSize.x * scale, frameSize.y * scale};
 	int tileSize = MG_MTL_TILE_SIZE;
-	int nTilesX = (int)(frame.w * scale + tileSize - 1)/tileSize;
-	int nTilesY = (int)(frame.h * scale + tileSize - 1)/tileSize;
+	int nTilesX = (int)(viewportSize.x * scale + tileSize - 1)/tileSize;
+	int nTilesY = (int)(viewportSize.y * scale + tileSize - 1)/tileSize;
 
 	if(viewportSize.x != backend->frameSize.x || viewportSize.y != backend->frameSize.y)
 	{
@@ -1482,10 +1484,10 @@ mg_canvas_backend* mtl_canvas_backend_create(mg_mtl_surface* surface)
 		backend->blitPipeline = [surface->device newRenderPipelineStateWithDescriptor: pipelineStateDescriptor error:&err];
 
 		//NOTE: create textures
-		mp_rect frame = surface->interface.getFrame((mg_surface_data*)surface);
+		vec2 size = surface->interface.getSize((mg_surface_data*)surface);
 		f32 scale = surface->mtlLayer.contentsScale;
 
-		backend->frameSize = (vec2){frame.w*scale, frame.h*scale};
+		backend->frameSize = (vec2){size.x*scale, size.y*scale};
 
 		MTLTextureDescriptor* texDesc = [[MTLTextureDescriptor alloc] init];
 		texDesc.textureType = MTLTextureType2D;
@@ -1540,8 +1542,8 @@ mg_canvas_backend* mtl_canvas_backend_create(mg_mtl_surface* surface)
 		                                                   options: bufferOptions];
 
 		int tileSize = MG_MTL_TILE_SIZE;
-		int nTilesX = (int)(frame.w * scale + tileSize - 1)/tileSize;
-		int nTilesY = (int)(frame.h * scale + tileSize - 1)/tileSize;
+		int nTilesX = (int)(backend->frameSize.x + tileSize - 1)/tileSize;
+		int nTilesY = (int)(backend->frameSize.y + tileSize - 1)/tileSize;
 		backend->screenTilesBuffer = [surface->device newBufferWithLength: nTilesX*nTilesY*sizeof(mg_mtl_screen_tile)
 		                                                   options: bufferOptions];
 

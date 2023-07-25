@@ -116,6 +116,7 @@ void mg_mtl_surface_swap_interval(mg_surface_data* interface, int swap)
 	}
 }
 
+/*
 void mg_mtl_surface_set_frame(mg_surface_data* interface, mp_rect frame)
 {
 	mg_mtl_surface* surface = (mg_mtl_surface*)interface;
@@ -135,6 +136,7 @@ void mg_mtl_surface_set_frame(mg_surface_data* interface, mp_rect frame)
 	CGSize drawableSize = (CGSize){.width = frame.w * scale.x, .height = frame.h * scale.y};
 	surface->mtlLayer.drawableSize = drawableSize;
 }
+*/
 
 
 //TODO fix that according to real scaling, depending on the monitor settings
@@ -161,8 +163,6 @@ mg_surface_data* mg_mtl_surface_create_for_window(mp_window window)
 		surface->interface.deselect = 0;
 		surface->interface.present = mg_mtl_surface_present;
 		surface->interface.swapInterval = mg_mtl_surface_swap_interval;
-
-		surface->interface.setFrame = mg_mtl_surface_set_frame;
 
 		@autoreleasepool
 		{
@@ -203,7 +203,7 @@ mg_surface_data* mg_mtl_surface_create_for_window(mp_window window)
 
 
 			[surface->mtlLayer setOpaque:NO];
-
+			surface->mtlLayer.autoresizingMask = kCALayerWidthSizable | kCALayerHeightSizable;
 			[surface->interface.layer.caLayer addSublayer: (CALayer*)surface->mtlLayer];
 
 			//-----------------------------------------------------------

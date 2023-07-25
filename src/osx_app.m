@@ -663,11 +663,18 @@ void mp_install_keyboard_layout_listener()
 	mp_event event = {};
 	event.window = mp_window_handle_from_ptr(mpWindow);
 	event.type = MP_EVENT_WINDOW_MOVE;
-	event.frame.rect.x = contentRect.origin.x;
-	event.frame.rect.y = contentRect.origin.y;
-	event.frame.rect.w = contentRect.size.width;
-	event.frame.rect.h = contentRect.size.height;
 
+	///////////////////////////////////////////////////
+	//TODO make it relative to top-left corner!
+	///////////////////////////////////////////////////
+	event.move.contents.x = contentRect.origin.x;
+	event.move.contents.y = contentRect.origin.y;
+	event.move.contents.w = contentRect.size.width;
+	event.move.contents.h = contentRect.size.height;
+
+	///////////////////////////////////////////////////
+	//TODO: add window frame!
+	///////////////////////////////////////////////////
 	mp_queue_event(&event);
 }
 
@@ -680,10 +687,14 @@ void mp_install_keyboard_layout_listener()
 	mp_event event = {};
 	event.window = mp_window_handle_from_ptr(mpWindow);
 	event.type = MP_EVENT_WINDOW_RESIZE;
-	event.frame.rect.x = contentRect.origin.x;
-	event.frame.rect.y = contentRect.origin.y;
-	event.frame.rect.w = contentRect.size.width;
-	event.frame.rect.h = contentRect.size.height;
+
+	///////////////////////////////////////////////////
+	//TODO make it relative to top-left corner!
+	///////////////////////////////////////////////////
+	event.move.contents.x = contentRect.origin.x;
+	event.move.contents.y = contentRect.origin.y;
+	event.move.contents.w = contentRect.size.width;
+	event.move.contents.h = contentRect.size.height;
 
 	if(__mpApp.liveResizeCallback)
 	{
@@ -869,11 +880,11 @@ static void mp_process_mouse_button(NSEvent* nsEvent, mp_window_data* window, mp
 	mp_event event = {};
 	event.type = MP_EVENT_MOUSE_MOVE;
 	event.window = mp_window_handle_from_ptr(window);
-	event.move.x = p.x;
-	event.move.y = frame.size.height - p.y;
-	event.move.deltaX = [nsEvent deltaX];
-	event.move.deltaY = [nsEvent deltaY];
-	event.move.mods = mp_convert_osx_mods([nsEvent modifierFlags]);
+	event.mouse.x = p.x;
+	event.mouse.y = frame.size.height - p.y;
+	event.mouse.deltaX = [nsEvent deltaX];
+	event.mouse.deltaY = [nsEvent deltaY];
+	event.mouse.mods = mp_convert_osx_mods([nsEvent modifierFlags]);
 
 	mp_queue_event(&event);
 }
@@ -885,11 +896,11 @@ static void mp_process_mouse_button(NSEvent* nsEvent, mp_window_data* window, mp
 	event.type = MP_EVENT_MOUSE_WHEEL;
 
 	double factor = [nsEvent hasPreciseScrollingDeltas] ? 0.1 : 1.0;
-	event.move.x = 0;
-	event.move.y = 0;
-	event.move.deltaX = -[nsEvent scrollingDeltaX]*factor;
-	event.move.deltaY = -[nsEvent scrollingDeltaY]*factor;
-	event.move.mods = mp_convert_osx_mods([nsEvent modifierFlags]);
+	event.mouse.x = 0;
+	event.mouse.y = 0;
+	event.mouse.deltaX = -[nsEvent scrollingDeltaX]*factor;
+	event.mouse.deltaY = -[nsEvent scrollingDeltaY]*factor;
+	event.mouse.mods = mp_convert_osx_mods([nsEvent modifierFlags]);
 
 	mp_queue_event(&event);
 }
@@ -1678,24 +1689,11 @@ vec2 mg_osx_surface_contents_scaling(mg_surface_data* surface)
 	return(res);
 }}
 
-mp_rect mg_osx_surface_get_frame(mg_surface_data* surface)
+vec2 mg_osx_surface_get_size(mg_surface_data* surface)
 {@autoreleasepool{
-	CGRect frame = surface->layer.caLayer.frame;
-	mp_rect res = {frame.origin.x,
-	               frame.origin.y,
-	               frame.size.width,
-	               frame.size.height};
+	CGRect bounds = surface->layer.caLayer.bounds;
+	vec2 res = {bounds.size.width, bounds.size.height};
 	return(res);
-}}
-
-void mg_osx_surface_set_frame(mg_surface_data* surface, mp_rect frame)
-{@autoreleasepool{
-	CGRect cgFrame = {{frame.x, frame.y}, {frame.w, frame.h}};
-
-	[CATransaction begin];
-	[CATransaction setDisableActions:YES];
-	[surface->layer.caLayer setFrame: cgFrame];
-	[CATransaction commit];
 }}
 
 bool mg_osx_surface_get_hidden(mg_surface_data* surface)
@@ -1721,8 +1719,7 @@ void mg_surface_init_for_window(mg_surface_data* surface, mp_window_data* window
 
 	surface->nativeLayer = mg_osx_surface_native_layer;
 	surface->contentsScaling = mg_osx_surface_contents_scaling;
-	surface->getFrame = mg_osx_surface_get_frame;
-	surface->setFrame = mg_osx_surface_set_frame;
+	surface->getSize = mg_osx_surface_get_size;
 	surface->getHidden = mg_osx_surface_get_hidden;
 	surface->setHidden = mg_osx_surface_set_hidden;
 
@@ -1733,6 +1730,8 @@ void mg_surface_init_for_window(mg_surface_data* surface, mp_window_data* window
 	CGSize size = frame.size;
 	surface->layer.caLayer.frame = (CGRect){{0, 0}, size};
 	surface->layer.caLayer.contentsScale = window->osx.nsView.layer.contentsScale;
+
+	surface->layer.caLayer.autoresizingMask = kCALayerWidthSizable | kCALayerHeightSizable;
 
 	[window->osx.nsView.layer addSublayer: surface->layer.caLayer];
 }}
@@ -1758,8 +1757,7 @@ void mg_surface_init_remote(mg_surface_data* surface, u32 width, u32 height)
 
 	surface->nativeLayer = mg_osx_surface_native_layer;
 	surface->contentsScaling = mg_osx_surface_contents_scaling;
-	surface->getFrame = mg_osx_surface_get_frame;
-	surface->setFrame = mg_osx_surface_set_frame;
+	surface->getSize = mg_osx_surface_get_size;
 	surface->getHidden = mg_osx_surface_get_hidden;
 	surface->setHidden = mg_osx_surface_set_hidden;
 	surface->remoteID = mg_osx_surface_remote_id;
@@ -1786,8 +1784,7 @@ void mg_surface_init_host(mg_surface_data* surface, mp_window_data* window)
 	surface->api = MG_HOST;
 	surface->nativeLayer = mg_osx_surface_native_layer;
 	surface->contentsScaling = mg_osx_surface_contents_scaling;
-	surface->getFrame = mg_osx_surface_get_frame;
-	surface->setFrame = mg_osx_surface_set_frame;
+	surface->getSize = mg_osx_surface_get_size;
 	surface->getHidden = mg_osx_surface_get_hidden;
 	surface->setHidden = mg_osx_surface_set_hidden;
 	surface->hostConnect = mg_osx_surface_host_connect;
