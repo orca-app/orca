@@ -247,39 +247,6 @@ static void process_wheel_event(mp_window_data* window, f32 x, f32 y)
 	mp_queue_event(&event);
 }
 
-void mg_win32_layer_set_frame(mp_layer* layer, mp_rect frame)
-{
-	layer->userFrame = frame;
-
-	HWND parent = GetParent(layer->hWnd);
-
-	RECT clientRect;
-	GetClientRect(parent, &clientRect);
-	POINT point = {0};
-	ClientToScreen(layer->hWnd, &point);
-
-	u32 dpi = GetDpiForWindow(layer->hWnd);
-	vec2 scale = (vec2){(float)dpi/96., (float)dpi/96.};
-
-	int parentWidth = (clientRect.right - clientRect.left)/scale.x;
-	int parentHeight = (clientRect.bottom - clientRect.top)/scale.y;
-
-	int minX = Clamp(frame.x, 0, parentWidth);
-	int maxX = Clamp(frame.x + frame.w, 0, parentWidth);
-	int minY = Clamp(frame.y, 0, parentHeight);
-	int maxY = Clamp(frame.y + frame.h, 0, parentHeight);
-
-	SetWindowPos(layer->hWnd,
-			     HWND_TOP,
-			     point.x + minX * scale.x,
-			     point.y + minY * scale.y,
-			     (maxX - minX) * scale.x,
-			     (maxY - minY) * scale.y,
-			     SWP_NOACTIVATE | SWP_NOZORDER);
-
-	//TODO test if we should we guard against 0-width windows
-}
-
 static void win32_update_child_layers(mp_window_data* window)
 {
 	RECT clientRect;
@@ -287,29 +254,19 @@ static void win32_update_child_layers(mp_window_data* window)
 	POINT point = {0};
 	ClientToScreen(window->win32.hWnd, &point);
 
-	u32 dpi = GetDpiForWindow(window->win32.hWnd);
-	vec2 scale = (vec2){(float)dpi/96., (float)dpi/96.};
-
-	int parentWidth = (clientRect.right - clientRect.left)/scale.x;
-	int parentHeight = (clientRect.bottom - clientRect.top)/scale.y;
+	int clientWidth = (clientRect.right - clientRect.left);
+	int clientHeight = (clientRect.bottom - clientRect.top);
 
 	HWND insertAfter = window->win32.hWnd;
 
 	for_list(&window->win32.layers, layer, mp_layer, listElt)
 	{
-		mp_rect frame = layer->userFrame;
-
-		int minX = Clamp(frame.x, 0, parentWidth);
-		int maxX = Clamp(frame.x + frame.w, 0, parentWidth);
-		int minY = Clamp(frame.y, 0, parentHeight);
-		int maxY = Clamp(frame.y + frame.h, 0, parentHeight);
-
 		SetWindowPos(layer->hWnd,
 			     	insertAfter,
-			     	point.x + minX * scale.x,
-			     	point.y + minY * scale.y,
-			     	(maxX - minX) * scale.x,
-			     	(maxY - minY) * scale.y,
+			     	point.x,
+			     	point.y,
+			     	clientWidth,
+			     	clientHeight,
 		            SWP_NOACTIVATE|SWP_NOOWNERZORDER|SWP_NOZORDER);
 
 		insertAfter = layer->hWnd;
@@ -967,14 +924,17 @@ vec2 mg_win32_surface_contents_scaling(mg_surface_data* surface)
 	return(contentsScaling);
 }
 
-mp_rect mg_win32_surface_get_frame(mg_surface_data* surface)
+vec2 mg_win32_surface_get_size(mg_surface_data* surface)
 {
-	return(surface->layer.userFrame);
-}
-
-void mg_win32_surface_set_frame(mg_surface_data* surface, mp_rect frame)
-{
-	mg_win32_layer_set_frame(&surface->layer, frame);
+	vec2 size = {0};
+	RECT rect;
+	if(GetClientRect(surface->layer.hWnd, &rect))
+	{
+		u32 dpi = GetDpiForWindow(surface->layer.hWnd);
+		f32 scale = (float)dpi/96.;
+		size = (vec2){(rect.right - rect.left)/scale, (rect.bottom - rect.top)/scale};
+	}
+	return(size);
 }
 
 bool mg_win32_surface_get_hidden(mg_surface_data* surface)
@@ -1039,8 +999,7 @@ LRESULT LayerWinProc(HWND windowHandle, UINT message, WPARAM wParam, LPARAM lPar
 void mg_surface_init_for_window(mg_surface_data* surface, mp_window_data* window)
 {
 	surface->contentsScaling = mg_win32_surface_contents_scaling;
-	surface->getFrame = mg_win32_surface_get_frame;
-	surface->setFrame = mg_win32_surface_set_frame;
+	surface->getSize = mg_win32_surface_get_size;
 	surface->getHidden = mg_win32_surface_get_hidden;
 	surface->setHidden = mg_win32_surface_set_hidden;
 	surface->nativeLayer = mg_win32_surface_native_layer;
@@ -1059,17 +1018,12 @@ void mg_surface_init_for_window(mg_surface_data* surface, mp_window_data* window
 	POINT point = {0};
 	ClientToScreen(window->win32.hWnd, &point);
 
-	int width = parentRect.right - parentRect.left;
-	int height = parentRect.bottom - parentRect.top;
-
-	u32 dpi = GetDpiForWindow(window->win32.hWnd);
-	vec2 scale = (vec2){(float)dpi/96., (float)dpi/96.};
-
-	surface->layer.userFrame = (mp_rect){0, 0, width / scale.x, height / scale.y};
+	int clientWidth = parentRect.right - parentRect.left;
+	int clientHeight = parentRect.bottom - parentRect.top;
 
 	surface->layer.hWnd = CreateWindow("layer_window_class", "layer",
 	                                     WS_POPUP | WS_VISIBLE,
-	                                     point.x, point.y, width, height,
+	                                     point.x, point.y, clientWidth, clientHeight,
 	                                     window->win32.hWnd,
 	                                     0,
 	                                     layerWindowClass.hInstance,
@@ -1097,8 +1051,7 @@ void mg_surface_init_for_window(mg_surface_data* surface, mp_window_data* window
 void mg_surface_init_remote(mg_surface_data* surface, u32 width, u32 height)
 {
 	surface->contentsScaling = mg_win32_surface_contents_scaling;
-	surface->getFrame = mg_win32_surface_get_frame;
-	surface->setFrame = mg_win32_surface_set_frame;
+	surface->getSize = mg_win32_surface_get_size;
 	surface->getHidden = mg_win32_surface_get_hidden;
 	surface->setHidden = mg_win32_surface_set_hidden;
 	surface->nativeLayer = mg_win32_surface_native_layer;

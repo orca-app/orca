@@ -161,6 +161,9 @@ int main()
 		mg_set_color_rgba(0, 1, 1, 1);
 		mg_clear();
 
+		mg_set_color_rgba(1, 0, 1, 1);
+		mg_rectangle_fill(0, 0, 100, 100);
+
 		// head
 		mg_set_color_rgba(1, 1, 0, 1);
 

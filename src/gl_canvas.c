@@ -130,6 +130,10 @@ typedef struct mg_gl_canvas_backend
 	mg_canvas_backend interface;
 	mg_wgl_surface* surface;
 
+	int msaaCount;
+	vec2 frameSize;
+
+	// gl stuff
 	GLuint vao;
 
 	GLuint pathSetup;
@@ -155,17 +159,12 @@ typedef struct mg_gl_canvas_backend
 	GLuint tileOpCountBuffer;
 	GLuint screenTilesBuffer;
 	GLuint rasterDispatchBuffer;
-
 	GLuint dummyVertexBuffer;
-
-	int msaaCount;
-	vec2 frameSize;
 
 	//encoding context
 	int pathCount;
 	int eltCount;
 
-	/////////////////
 	int pathBatchStart;
 	int eltBatchStart;
 
@@ -1201,10 +1200,28 @@ void mg_gl_render_batch(mg_gl_canvas_backend* backend,
 	backend->eltBatchStart = backend->eltCount;
 }
 
-/////////////////////////////////////////////////////////////////////////
-//TODO
-void mg_gl_canvas_resize(mg_gl_canvas_backend* backend, vec2 size);
-/////////////////////////////////////////////////////////////////////////
+void mg_gl_canvas_resize(mg_gl_canvas_backend* backend, vec2 size)
+{
+	int tileSize = MG_GL_TILE_SIZE;
+	int nTilesX = (int)(size.x + tileSize - 1)/tileSize;
+	int nTilesY = (int)(size.y + tileSize - 1)/tileSize;
+
+	glBindBuffer(GL_SHADER_STORAGE_BUFFER, backend->screenTilesBuffer);
+	glBufferData(GL_SHADER_STORAGE_BUFFER, nTilesX*nTilesY*sizeof(mg_gl_screen_tile), 0, GL_DYNAMIC_COPY);
+
+	if(backend->outTexture)
+	{
+		//NOTE: do we need to explicitly glDeleteTextures()?
+		glDeleteTextures(1, &backend->outTexture);
+		glGenTextures(1, &backend->outTexture);
+		glBindTexture(GL_TEXTURE_2D, backend->outTexture);
+		glTexStorage2D(GL_TEXTURE_2D, 1, GL_RGBA8, size.x, size.y);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	}
+
+	backend->frameSize = size;
+}
 
 void mg_gl_canvas_render(mg_canvas_backend* interface,
                          mg_color clearColor,
@@ -1224,22 +1241,28 @@ void mg_gl_canvas_render(mg_canvas_backend* interface,
 		backend->bufferSync[backend->bufferIndex] = 0;
 	}
 
-	//TODO update screen tiles buffer size
+	//NOTE update screen tiles buffer size
 	mg_wgl_surface* surface = backend->surface;
-	mp_rect frame = surface->interface.getFrame((mg_surface_data*)surface);
+	vec2 surfaceSize = surface->interface.getSize((mg_surface_data*)surface);
 	vec2 contentsScaling = surface->interface.contentsScaling((mg_surface_data*)surface);
-	//TODO support scaling in both axes
+	//TODO support scaling in both axes?
 	f32 scale = contentsScaling.x;
 
-	vec2 viewportSize = {frame.w * scale, frame.h * scale};
+	vec2 viewportSize = {surfaceSize.x * scale, surfaceSize.y * scale};
 	int tileSize = MG_GL_TILE_SIZE;
-	int nTilesX = (int)(frame.w * scale + tileSize - 1)/tileSize;
-	int nTilesY = (int)(frame.h * scale + tileSize - 1)/tileSize;
+	int nTilesX = (int)(viewportSize.x + tileSize - 1)/tileSize;
+	int nTilesY = (int)(viewportSize.y + tileSize - 1)/tileSize;
 
 	if(viewportSize.x != backend->frameSize.x || viewportSize.y != backend->frameSize.y)
 	{
-		//TODO:	mg_gl_canvas_resize(backend, viewportSize);
+		mg_gl_canvas_resize(backend, viewportSize);
 	}
+
+	/////////////////////////////////////////////////////////////////////////////////////////////////////
+	//TODO: the surface's frame and the underlying window/view rect are not necessarily the same.
+	// we should set the viewport to cover the whole surface's frame, so it might not start at (0, 0)
+	/////////////////////////////////////////////////////////////////////////////////////////////////////
+	glViewport(0, 0, viewportSize.x, viewportSize.y);
 
 	//NOTE: clear screen and reset input buffer offsets
 	glEnable(GL_BLEND);
@@ -1544,12 +1567,14 @@ mg_canvas_backend* gl_canvas_backend_create(mg_wgl_surface* surface)
 		}
 
 		//NOTE: create out texture
-		mp_rect frame = surface->interface.getFrame((mg_surface_data*)surface);
+		vec2 size = surface->interface.getSize((mg_surface_data*)surface);
 		vec2 scale = surface->interface.contentsScaling((mg_surface_data*)surface);
+
+		backend->frameSize = (vec2){size.x * scale.x, size.y * scale.y};
 
 		glGenTextures(1, &backend->outTexture);
 		glBindTexture(GL_TEXTURE_2D, backend->outTexture);
-		glTexStorage2D(GL_TEXTURE_2D, 1, GL_RGBA8, frame.w*scale.x, frame.h*scale.y);
+		glTexStorage2D(GL_TEXTURE_2D, 1, GL_RGBA8, backend->frameSize.x, backend->frameSize.y);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
@@ -1611,8 +1636,8 @@ mg_canvas_backend* gl_canvas_backend_create(mg_wgl_surface* surface)
 		glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(int), 0, GL_DYNAMIC_COPY);
 
 		int tileSize = MG_GL_TILE_SIZE;
-		int nTilesX = (int)(frame.w * scale.x + tileSize - 1)/tileSize;
-		int nTilesY = (int)(frame.h * scale.y + tileSize - 1)/tileSize;
+		int nTilesX = (int)(backend->frameSize.x + tileSize - 1)/tileSize;
+		int nTilesY = (int)(backend->frameSize.y + tileSize - 1)/tileSize;
 
 		glGenBuffers(1, &backend->screenTilesBuffer);
 		glBindBuffer(GL_SHADER_STORAGE_BUFFER, backend->screenTilesBuffer);

@@ -26,9 +26,8 @@ typedef void (*mg_surface_prepare_proc)(mg_surface_data* surface);
 typedef void (*mg_surface_deselect_proc)(mg_surface_data* surface);
 typedef void (*mg_surface_present_proc)(mg_surface_data* surface);
 typedef void (*mg_surface_swap_interval_proc)(mg_surface_data* surface, int swap);
+typedef vec2 (*mg_surface_get_size_proc)(mg_surface_data* surface);
 typedef vec2 (*mg_surface_contents_scaling_proc)(mg_surface_data* surface);
-typedef mp_rect (*mg_surface_get_frame_proc)(mg_surface_data* surface);
-typedef void (*mg_surface_set_frame_proc)(mg_surface_data* surface, mp_rect frame);
 typedef bool (*mg_surface_get_hidden_proc)(mg_surface_data* surface);
 typedef void (*mg_surface_set_hidden_proc)(mg_surface_data* surface, bool hidden);
 typedef void* (*mg_surface_native_layer_proc)(mg_surface_data* surface);
@@ -45,9 +44,8 @@ typedef struct mg_surface_data
 	mg_surface_present_proc present;
 	mg_surface_deselect_proc deselect;
 	mg_surface_swap_interval_proc swapInterval;
+	mg_surface_get_size_proc getSize;
 	mg_surface_contents_scaling_proc contentsScaling;
-	mg_surface_get_frame_proc getFrame;
-	mg_surface_set_frame_proc setFrame;
 	mg_surface_get_hidden_proc getHidden;
 	mg_surface_set_hidden_proc setHidden;
 	mg_surface_native_layer_proc nativeLayer;
@@ -79,34 +77,6 @@ typedef struct mg_image_data
 
 } mg_image_data;
 
-typedef struct mg_vertex_layout
-{
-	u32 maxVertexCount;
-	u32 maxIndexCount;
-
-	char* posBuffer;
-	u32 posStride;
-
-	char* cubicBuffer;
-	u32 cubicStride;
-
-	char* shapeIndexBuffer;
-	u32 shapeIndexStride;
-
-	char* colorBuffer;
-	u32 colorStride;
-
-	char* clipBuffer;
-	u32 clipStride;
-
-	char* uvTransformBuffer;
-	u32 uvTransformStride;
-
-	char* indexBuffer;
-	u32 indexStride;
-
-} mg_vertex_layout;
-
 typedef void (*mg_canvas_backend_destroy_proc)(mg_canvas_backend* backend);
 typedef void (*mg_canvas_backend_begin_proc)(mg_canvas_backend* backend, mg_color clearColor);
 typedef void (*mg_canvas_backend_end_proc)(mg_canvas_backend* backend);
@@ -133,8 +103,6 @@ typedef void (*mg_canvas_backend_render_proc)(mg_canvas_backend* backend,
 
 typedef struct mg_canvas_backend
 {
-//	mg_vertex_layout vertexLayout;
-
 	mg_canvas_backend_destroy_proc destroy;
 	mg_canvas_backend_begin_proc begin;
 	mg_canvas_backend_end_proc end;
@@ -143,7 +111,6 @@ typedef struct mg_canvas_backend
 	mg_canvas_backend_image_create_proc imageCreate;
 	mg_canvas_backend_image_destroy_proc imageDestroy;
 	mg_canvas_backend_image_upload_region_proc imageUploadRegion;
-
 
 	mg_canvas_backend_render_proc render;
 
