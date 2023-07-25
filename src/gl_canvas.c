@@ -1258,10 +1258,6 @@ void mg_gl_canvas_render(mg_canvas_backend* interface,
 		mg_gl_canvas_resize(backend, viewportSize);
 	}
 
-	/////////////////////////////////////////////////////////////////////////////////////////////////////
-	//TODO: the surface's frame and the underlying window/view rect are not necessarily the same.
-	// we should set the viewport to cover the whole surface's frame, so it might not start at (0, 0)
-	/////////////////////////////////////////////////////////////////////////////////////////////////////
 	glViewport(0, 0, viewportSize.x, viewportSize.y);
 
 	//NOTE: clear screen and reset input buffer offsets

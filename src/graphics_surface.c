@@ -147,6 +147,7 @@ mg_surface mg_surface_create_for_window(mp_window window, mg_surface_api api)
 	if(surface)
 	{
 		surfaceHandle = mg_surface_handle_alloc(surface);
+		mg_surface_prepare(surfaceHandle);
 	}
 	return(surfaceHandle);
 }
@@ -174,6 +175,7 @@ mg_surface mg_surface_create_remote(u32 width, u32 height, mg_surface_api api)
 	if(surface)
 	{
 		surfaceHandle = mg_surface_handle_alloc(surface);
+		mg_surface_prepare(surfaceHandle);
 	}
 	return(surfaceHandle);
 }
