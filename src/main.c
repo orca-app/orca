@@ -558,13 +558,8 @@ void* orca_runloop(void* user)
 				{
 					if(exports[G_EXPORT_MOUSE_MOVE])
 					{
-<<<<<<< Updated upstream
-						const void* args[4] = {&event->move.x, &event->move.y, &event->move.deltaX, &event->move.deltaY};
-						m3_Call(exports[G_EXPORT_MOUSE_MOVE], 4, args);
-=======
 						const void* args[4] = {&event->mouse.x, &event->mouse.y, &event->mouse.deltaX, &event->mouse.deltaY};
-						m3_Call(eventHandlers[G_EVENT_MOUSE_MOVE], 4, args);
->>>>>>> Stashed changes
+						m3_Call(exports[G_EXPORT_MOUSE_MOVE], 4, args);
 					}
 				} break;
 
