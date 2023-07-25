@@ -240,11 +240,44 @@ static void process_wheel_event(mp_window_data* window, f32 x, f32 y)
 	mp_event event = {0};
 	event.window = mp_window_handle_from_ptr(window);
 	event.type = MP_EVENT_MOUSE_WHEEL;
-	event.move.deltaX = x/30.0f;
-	event.move.deltaY = -y/30.0f;
-	event.move.mods = mp_get_mod_keys();
+	event.mouse.deltaX = x/30.0f;
+	event.mouse.deltaY = -y/30.0f;
+	event.mouse.mods = mp_get_mod_keys();
 
 	mp_queue_event(&event);
+}
+
+void mg_win32_layer_set_frame(mp_layer* layer, mp_rect frame)
+{
+	layer->userFrame = frame;
+
+	HWND parent = GetParent(layer->hWnd);
+
+	RECT clientRect;
+	GetClientRect(parent, &clientRect);
+	POINT point = {0};
+	ClientToScreen(layer->hWnd, &point);
+
+	u32 dpi = GetDpiForWindow(layer->hWnd);
+	vec2 scale = (vec2){(float)dpi/96., (float)dpi/96.};
+
+	int parentWidth = (clientRect.right - clientRect.left)/scale.x;
+	int parentHeight = (clientRect.bottom - clientRect.top)/scale.y;
+
+	int minX = Clamp(frame.x, 0, parentWidth);
+	int maxX = Clamp(frame.x + frame.w, 0, parentWidth);
+	int minY = Clamp(frame.y, 0, parentHeight);
+	int maxY = Clamp(frame.y + frame.h, 0, parentHeight);
+
+	SetWindowPos(layer->hWnd,
+			     HWND_TOP,
+			     point.x + minX * scale.x,
+			     point.y + minY * scale.y,
+			     (maxX - minX) * scale.x,
+			     (maxY - minY) * scale.y,
+			     SWP_NOACTIVATE | SWP_NOZORDER);
+
+	//TODO test if we should we guard against 0-width windows
 }
 
 static void win32_update_child_layers(mp_window_data* window)
@@ -254,26 +287,30 @@ static void win32_update_child_layers(mp_window_data* window)
 	POINT point = {0};
 	ClientToScreen(window->win32.hWnd, &point);
 
-	int w = clientRect.right - clientRect.left;
-	int h = clientRect.bottom - clientRect.top;
+	u32 dpi = GetDpiForWindow(window->win32.hWnd);
+	vec2 scale = (vec2){(float)dpi/96., (float)dpi/96.};
+
+	int parentWidth = (clientRect.right - clientRect.left)/scale.x;
+	int parentHeight = (clientRect.bottom - clientRect.top)/scale.y;
 
 	HWND insertAfter = window->win32.hWnd;
 
 	for_list(&window->win32.layers, layer, mp_layer, listElt)
 	{
-		mp_rect clipped = {0};
-		clipped.x = Clamp(layer->frame.x, 0, w);
-		clipped.y = Clamp(layer->frame.y, 0, h);
-		clipped.w = Clamp(layer->frame.w, 0, w - layer->frame.x);
-		clipped.h = Clamp(layer->frame.h, 0, h - layer->frame.y);
+		mp_rect frame = layer->userFrame;
+
+		int minX = Clamp(frame.x, 0, parentWidth);
+		int maxX = Clamp(frame.x + frame.w, 0, parentWidth);
+		int minY = Clamp(frame.y, 0, parentHeight);
+		int maxY = Clamp(frame.y + frame.h, 0, parentHeight);
 
 		SetWindowPos(layer->hWnd,
-		             insertAfter,
-		             point.x + clipped.x,
-		             point.y + clipped.y,
-		             clipped.w,
-		             clipped.h,
-		             SWP_NOACTIVATE|SWP_NOOWNERZORDER|SWP_NOZORDER);
+			     	insertAfter,
+			     	point.x + minX * scale.x,
+			     	point.y + minY * scale.y,
+			     	(maxX - minX) * scale.x,
+			     	(maxY - minY) * scale.y,
+		            SWP_NOACTIVATE|SWP_NOOWNERZORDER|SWP_NOZORDER);
 
 		insertAfter = layer->hWnd;
 	}
@@ -321,30 +358,25 @@ LRESULT WinProc(HWND windowHandle, UINT message, WPARAM wParam, LPARAM lParam)
 		} break;
 
 		case WM_SIZING:
-		{
-			//TODO: take dpi into account
-
-			RECT* rect = (RECT*)lParam;
-
-			mp_event event = {0};
-			event.window = mp_window_handle_from_ptr(mpWindow);
-			event.type = MP_EVENT_WINDOW_RESIZE;
-			event.frame.rect = (mp_rect){rect->left, rect->bottom, rect->bottom - rect->top, rect->right - rect->left};
-			mp_queue_event(&event);
-
-			win32_update_child_layers(mpWindow);
-		} break;
-
 		case WM_MOVING:
 		{
-			//TODO: take dpi into account
-
 			RECT* rect = (RECT*)lParam;
 
+			u32 dpi = GetDpiForWindow(mpWindow->win32.hWnd);
+			f32 scaling = (f32)dpi/96.;
+
 			mp_event event = {0};
+			event.type = message == WM_SIZING ? MP_EVENT_WINDOW_RESIZE : MP_EVENT_WINDOW_MOVE;
 			event.window = mp_window_handle_from_ptr(mpWindow);
-			event.type = MP_EVENT_WINDOW_MOVE;
-			event.frame.rect = (mp_rect){rect->left, rect->bottom, rect->bottom - rect->top, rect->right - rect->left};
+
+			event.move.frame = (mp_rect){
+				rect->left / scaling,
+			    rect->bottom / scaling,
+			    (rect->bottom - rect->top)/scaling,
+			    (rect->right - rect->left)/scaling };
+
+			event.move.contents = mp_window_get_content_rect(event.window);
+
 			mp_queue_event(&event);
 
 			win32_update_child_layers(mpWindow);
@@ -429,15 +461,15 @@ LRESULT WinProc(HWND windowHandle, UINT message, WPARAM wParam, LPARAM lParam)
 			mp_event event = {0};
 			event.window = mp_window_handle_from_ptr(mpWindow);
 			event.type = MP_EVENT_MOUSE_MOVE;
-			event.move.x = LOWORD(lParam) / scaling;
-			event.move.y = HIWORD(lParam) / scaling;
+			event.mouse.x = LOWORD(lParam) / scaling;
+			event.mouse.y = HIWORD(lParam) / scaling;
 
 			if(__mpApp.win32.mouseTracked || __mpApp.win32.mouseCaptureMask)
 			{
-				event.move.deltaX = event.move.x - __mpApp.win32.lastMousePos.x;
-				event.move.deltaY = event.move.y - __mpApp.win32.lastMousePos.y;
+				event.mouse.deltaX = event.mouse.x - __mpApp.win32.lastMousePos.x;
+				event.mouse.deltaY = event.mouse.y - __mpApp.win32.lastMousePos.y;
 			}
-			__mpApp.win32.lastMousePos = (vec2){event.move.x, event.move.y};
+			__mpApp.win32.lastMousePos = (vec2){event.mouse.x, event.mouse.y};
 
 			if(!__mpApp.win32.mouseTracked)
 			{
@@ -452,8 +484,8 @@ LRESULT WinProc(HWND windowHandle, UINT message, WPARAM wParam, LPARAM lParam)
 
 				mp_event enter = {.window = event.window,
 				                  .type = MP_EVENT_MOUSE_ENTER,
-				                  .move.x = event.move.x,
-				                  .move.y = event.move.y};
+				                  .mouse.x = event.mouse.x,
+				                  .mouse.y = event.mouse.y};
 				mp_queue_event(&enter);
 			}
 
@@ -937,35 +969,12 @@ vec2 mg_win32_surface_contents_scaling(mg_surface_data* surface)
 
 mp_rect mg_win32_surface_get_frame(mg_surface_data* surface)
 {
-	RECT rect = {0};
-	GetClientRect(surface->layer.hWnd, &rect);
-
-	vec2 scale = mg_win32_surface_contents_scaling(surface);
-
-	mp_rect res = {rect.left/scale.x,
-	               rect.bottom/scale.y,
-	               (rect.right - rect.left)/scale.x,
-	               (rect.bottom - rect.top)/scale.y};
-	return(res);
+	return(surface->layer.userFrame);
 }
 
 void mg_win32_surface_set_frame(mg_surface_data* surface, mp_rect frame)
 {
-	HWND parent = GetParent(surface->layer.hWnd);
-	RECT parentContentRect;
-
-	GetClientRect(parent, &parentContentRect);
-	int parentHeight = 	parentContentRect.bottom - parentContentRect.top;
-
-	vec2 scale = mg_win32_surface_contents_scaling(surface);
-
-	SetWindowPos(surface->layer.hWnd,
-			     HWND_TOP,
-			     frame.x * scale.x,
-			     parentHeight - (frame.y + frame.h) * scale.y,
-			     frame.w * scale.x,
-			     frame.h * scale.y,
-			     SWP_NOACTIVATE | SWP_NOZORDER);
+	mg_win32_layer_set_frame(&surface->layer, frame);
 }
 
 bool mg_win32_surface_get_hidden(mg_surface_data* surface)
@@ -1053,6 +1062,11 @@ void mg_surface_init_for_window(mg_surface_data* surface, mp_window_data* window
 	int width = parentRect.right - parentRect.left;
 	int height = parentRect.bottom - parentRect.top;
 
+	u32 dpi = GetDpiForWindow(window->win32.hWnd);
+	vec2 scale = (vec2){(float)dpi/96., (float)dpi/96.};
+
+	surface->layer.userFrame = (mp_rect){0, 0, width / scale.x, height / scale.y};
+
 	surface->layer.hWnd = CreateWindow("layer_window_class", "layer",
 	                                     WS_POPUP | WS_VISIBLE,
 	                                     point.x, point.y, width, height,
@@ -1076,7 +1090,6 @@ void mg_surface_init_for_window(mg_surface_data* surface, mp_window_data* window
 		log_error("couldn't enable blur behind\n");
 	}
 
-	surface->layer.frame = (mp_rect){0, 0, width, height};
 	surface->layer.parent = window;
 	list_append(&window->win32.layers, &surface->layer.listElt);
 }

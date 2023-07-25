@@ -28,7 +28,7 @@ typedef struct mp_layer
 {
 	mp_window_data* parent;
 	list_elt listElt;
-	mp_rect frame;
+	mp_rect userFrame;
 	HWND hWnd;
 } mp_layer;
 

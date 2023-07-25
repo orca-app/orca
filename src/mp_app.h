@@ -222,19 +222,20 @@ typedef struct mp_char_event		// character input
 	u8	  seqLen;
 } mp_char_event;
 
-typedef struct mp_move_event		// mouse move/scroll
+typedef struct mp_mouse_event		// mouse move/scroll
 {
 	f32 x;
 	f32 y;
 	f32 deltaX;
 	f32 deltaY;
 	mp_keymod_flags mods;
-} mp_move_event;
+} mp_mouse_event;
 
-typedef struct mp_frame_event		// window resize / move
+typedef struct mp_move_event		// window resize / move
 {
-	mp_rect rect;
-} mp_frame_event;
+	mp_rect frame;
+	mp_rect contents;
+} mp_move_event;
 
 typedef struct mp_event
 {
@@ -246,8 +247,8 @@ typedef struct mp_event
 	{
 		mp_key_event   key;
 		mp_char_event  character;
-		mp_move_event  move;
-		mp_frame_event frame;
+		mp_mouse_event  mouse;
+		mp_move_event move;
 		str8_list paths;
 	};
 
