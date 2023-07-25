@@ -479,9 +479,9 @@ void* orca_runloop(void* user)
 
 	if(exports[G_EXPORT_FRAME_RESIZE])
 	{
-		mp_rect frame = mg_surface_get_frame(app->surface);
-		u32 width = (u32)frame.w;
-		u32 height = (u32)frame.h;
+		vec2 size = mg_surface_get_size(app->surface);
+		u32 width = (u32)size.x;
+		u32 height = (u32)size.y;
 		const void* args[2] = {&width, &height};
 		m3_Call(exports[G_EXPORT_FRAME_RESIZE], 2, args);
 	}
@@ -521,15 +521,12 @@ void* orca_runloop(void* user)
 
 				case MP_EVENT_WINDOW_RESIZE:
 				{
-					mp_rect frame = {0, 0, event->frame.rect.w, event->frame.rect.h};
-					mg_surface_set_frame(app->surface, frame);
-
-//					mg_surface_set_frame(app->debugOverlay.surface, frame);
+					mp_rect frame = {0, 0, event->move.frame.w, event->move.frame.h};
 
 					if(exports[G_EXPORT_FRAME_RESIZE])
 					{
-						u32 width = (u32)event->frame.rect.w;
-						u32 height = (u32)event->frame.rect.h;
+						u32 width = (u32)event->move.contents.w;
+						u32 height = (u32)event->move.contents.h;
 						const void* args[2] = {&width, &height};
 						m3_Call(exports[G_EXPORT_FRAME_RESIZE], 2, args);
 					}
@@ -561,8 +558,13 @@ void* orca_runloop(void* user)
 				{
 					if(exports[G_EXPORT_MOUSE_MOVE])
 					{
+<<<<<<< Updated upstream
 						const void* args[4] = {&event->move.x, &event->move.y, &event->move.deltaX, &event->move.deltaY};
 						m3_Call(exports[G_EXPORT_MOUSE_MOVE], 4, args);
+=======
+						const void* args[4] = {&event->mouse.x, &event->mouse.y, &event->mouse.deltaX, &event->mouse.deltaY};
+						m3_Call(eventHandlers[G_EVENT_MOUSE_MOVE], 4, args);
+>>>>>>> Stashed changes
 					}
 				} break;
 
@@ -614,8 +616,7 @@ void* orca_runloop(void* user)
 			                                 | UI_STYLE_FONT
 			                                 | UI_STYLE_FONT_SIZE;
 
-			mp_rect frameRect = mg_surface_get_frame(app->debugOverlay.surface);
-			vec2 frameSize = {frameRect.w, frameRect.h};
+			vec2 frameSize = mg_surface_get_size(app->debugOverlay.surface);
 
 			ui_frame(frameSize, &debugUIDefaultStyle, debugUIDefaultMask)
 			{
