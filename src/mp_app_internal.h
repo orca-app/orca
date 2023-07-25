@@ -39,8 +39,6 @@ typedef struct mp_window_data
 	list_elt freeListElt;
 	u32 generation;
 
-	mp_rect contentRect;
-	mp_rect frameRect;
 	mp_window_style	style;
 
 	bool shouldClose; //TODO could be in status flags

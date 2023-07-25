@@ -26,42 +26,22 @@
 // mp window struct and utility functions
 //--------------------------------------------------------------------
 
-static mp_rect mp_osx_to_user_screen_rect(mp_rect rect)
+static mp_rect mp_osx_to_user_screen_rect(NSScreen* screen, mp_rect rect)
 {
 	@autoreleasepool
 	{
-		NSRect screenRect = [[NSScreen mainScreen] frame];
-		rect.y = screenRect.size.height - rect.y - rect.h;
+		rect.y = screen.frame.size.height - rect.y - rect.h;
 	}
 	return(rect);
 }
 
-static mp_rect mp_user_to_osx_screen_rect(mp_rect rect)
+static mp_rect mp_user_to_osx_screen_rect(NSScreen* screen, mp_rect rect)
 {
 	@autoreleasepool
 	{
-		NSRect screenRect = [[NSScreen mainScreen] frame];
-		rect.y = screenRect.size.height - rect.y - rect.h;
+		rect.y = screen.frame.size.height - rect.y - rect.h;
 	}
 	return(rect);
-}
-
-static void mp_window_update_rect_cache(mp_window_data* window)
-{
-	@autoreleasepool
-	{
-		NSRect frame = [window->osx.nsWindow frame];
-		window->frameRect = mp_osx_to_user_screen_rect((mp_rect){frame.origin.x, frame.origin.y, frame.size.width, frame.size.height});
-
-		const NSRect contentRect = [[window->osx.nsWindow contentView] frame];
-
-		window->contentRect = (mp_rect){ contentRect.origin.x,
-							 contentRect.origin.y,
-							 contentRect.size.width,
-							 contentRect.size.height };
-
-		window->contentRect.y = window->frameRect.h - window->contentRect.y - window->contentRect.h;
-	}
 }
 
 static u32 mp_osx_get_window_style_mask(mp_window_style style)
@@ -657,42 +637,43 @@ void mp_install_keyboard_layout_listener()
 - (void)windowDidMove:(NSNotification *)notification
 {
 	const NSRect contentRect = [[mpWindow->osx.nsWindow contentView] frame];
-
-	mp_window_update_rect_cache(mpWindow);
+	const NSRect frameRect = [mpWindow->osx.nsWindow frame];
+	NSScreen* screen = mpWindow->osx.nsWindow.screen;
 
 	mp_event event = {};
 	event.window = mp_window_handle_from_ptr(mpWindow);
 	event.type = MP_EVENT_WINDOW_MOVE;
 
-	///////////////////////////////////////////////////
-	//TODO make it relative to top-left corner!
-	///////////////////////////////////////////////////
+	event.move.frame.x = contentRect.origin.x;
+	event.move.frame.y = screen.frame.size.height - frameRect.origin.y - frameRect.size.height;
+	event.move.frame.w = contentRect.size.width;
+	event.move.frame.h = contentRect.size.height;
+
 	event.move.contents.x = contentRect.origin.x;
-	event.move.contents.y = contentRect.origin.y;
+	event.move.contents.y = frameRect.size.height - contentRect.origin.y - contentRect.size.height;
 	event.move.contents.w = contentRect.size.width;
 	event.move.contents.h = contentRect.size.height;
 
-	///////////////////////////////////////////////////
-	//TODO: add window frame!
-	///////////////////////////////////////////////////
 	mp_queue_event(&event);
 }
 
 - (void)windowDidResize:(NSNotification *)notification
 {
 	const NSRect contentRect = [[mpWindow->osx.nsWindow contentView] frame];
-
-	mp_window_update_rect_cache(mpWindow);
+	const NSRect frameRect = [mpWindow->osx.nsWindow frame];
+	NSScreen* screen = mpWindow->osx.nsWindow.screen;
 
 	mp_event event = {};
 	event.window = mp_window_handle_from_ptr(mpWindow);
 	event.type = MP_EVENT_WINDOW_RESIZE;
 
-	///////////////////////////////////////////////////
-	//TODO make it relative to top-left corner!
-	///////////////////////////////////////////////////
+	event.move.frame.x = contentRect.origin.x;
+	event.move.frame.y = screen.frame.size.height - frameRect.origin.y - frameRect.size.height;
+	event.move.frame.w = contentRect.size.width;
+	event.move.frame.h = contentRect.size.height;
+
 	event.move.contents.x = contentRect.origin.x;
-	event.move.contents.y = contentRect.origin.y;
+	event.move.contents.y = frameRect.size.height - contentRect.origin.y - contentRect.size.height;
 	event.move.contents.w = contentRect.size.width;
 	event.move.contents.h = contentRect.size.height;
 
@@ -1403,7 +1384,6 @@ mp_window mp_window_create(mp_rect contentRect, const char* title, mp_window_sty
 	[window->osx.nsWindow makeFirstResponder:view];
 	[window->osx.nsWindow setAcceptsMouseMovedEvents:YES];
 
-	mp_window_update_rect_cache(window);
 
 	mp_window windowHandle = mp_window_handle_from_ptr(window);
 
@@ -1560,22 +1540,22 @@ void mp_window_bring_to_front_and_focus(mp_window window)
 mp_rect mp_window_content_rect_for_frame_rect(mp_rect frameRect, mp_window_style style)
 {@autoreleasepool{
 	u32 mask = mp_osx_get_window_style_mask(style);
-	mp_rect nativeFrame = mp_user_to_osx_screen_rect(frameRect);
+	mp_rect nativeFrame = mp_user_to_osx_screen_rect([NSScreen mainScreen], frameRect);
 	NSRect frame = NSMakeRect(nativeFrame.x, nativeFrame.y, nativeFrame.w, nativeFrame.h);
 	NSRect content = [NSWindow contentRectForFrameRect:frame styleMask:mask];
 	mp_rect result = {content.origin.x, content.origin.y, content.size.width, content.size.height};
-	result = mp_osx_to_user_screen_rect(result);
+	result = mp_osx_to_user_screen_rect([NSScreen mainScreen], result);
 	return(result);
 }}
 
 mp_rect mp_window_frame_rect_for_content_rect(mp_rect contentRect, mp_window_style style)
 {@autoreleasepool{
 	uint32 mask = mp_osx_get_window_style_mask(style);
-	mp_rect nativeContent = mp_user_to_osx_screen_rect(contentRect);
+	mp_rect nativeContent = mp_user_to_osx_screen_rect([NSScreen mainScreen], contentRect);
 	NSRect content = NSMakeRect(nativeContent.x, nativeContent.y, nativeContent.w, nativeContent.h);
 	NSRect frame = [NSWindow frameRectForContentRect:content styleMask:mask];
 	mp_rect result = {frame.origin.x, frame.origin.y, frame.size.width, frame.size.height};
-	result = mp_osx_to_user_screen_rect(result);
+	result = mp_osx_to_user_screen_rect([NSScreen mainScreen], result);
 	return(result);
 }}
 
@@ -1584,22 +1564,15 @@ mp_rect mp_window_get_content_rect(mp_window window)
 	mp_window_data* windowData = mp_window_ptr_from_handle(window);
 	if(windowData)
 	{
-		return(windowData->contentRect);
-	}
-	else
-	{
-		return((mp_rect){});
-	}
-}
+		NSRect frameRect = windowData->osx.nsWindow.frame;
+		NSRect contentsRect = [windowData->osx.nsWindow contentView].frame;
 
-mp_rect mp_window_get_absolute_content_rect(mp_window window)
-{
-	mp_window_data* windowData = mp_window_ptr_from_handle(window);
-	if(windowData)
-	{
-		mp_rect rect = windowData->contentRect;
-		rect.x += windowData->frameRect.x;
-		rect.y += windowData->frameRect.y;
+		mp_rect rect = {
+			contentsRect.origin.x,
+			frameRect.size.height - contentsRect.origin.y - contentsRect.size.height,
+			contentsRect.size.width,
+			contentsRect.size.height};
+
 		return(rect);
 	}
 	else
@@ -1613,7 +1586,12 @@ mp_rect mp_window_get_frame_rect(mp_window window)
 	mp_window_data* windowData = mp_window_ptr_from_handle(window);
 	if(windowData)
 	{
-		return(windowData->frameRect);
+		NSRect frameRect = windowData->osx.nsWindow.frame;
+		NSScreen* screen = windowData->osx.nsWindow.screen;
+
+		mp_rect osxRect = (mp_rect){frameRect.origin.x, frameRect.origin.y, frameRect.size.width, frameRect.size.height};
+		mp_rect rect = mp_osx_to_user_screen_rect(screen, osxRect);
+		return(rect);
 	}
 	else
 	{
@@ -1621,33 +1599,34 @@ mp_rect mp_window_get_frame_rect(mp_window window)
 	}
 }
 
-void mp_window_set_content_rect(mp_window window, mp_rect contentRect)
-{@autoreleasepool{
-	mp_window_data* windowData = mp_window_ptr_from_handle(window);
-	if(windowData)
-	{
-		u32 mask = mp_osx_get_window_style_mask(windowData->style);
-
-		mp_rect nativeRect = mp_user_to_osx_screen_rect(contentRect);
-		NSRect content = NSMakeRect(nativeRect.x, nativeRect.y, nativeRect.w, nativeRect.h);
-		NSRect frame = [NSWindow frameRectForContentRect:content styleMask:mask];
-
-		[windowData->osx.nsWindow setFrame:frame display:YES];
-
-		mp_window_update_rect_cache(windowData);
-	}
-}}
 void mp_window_set_frame_rect(mp_window window, mp_rect frameRect)
 {@autoreleasepool{
 	mp_window_data* windowData = mp_window_ptr_from_handle(window);
 	if(windowData)
 	{
-		mp_rect nativeRect = mp_user_to_osx_screen_rect(frameRect);
+		NSScreen* screen = windowData->osx.nsWindow.screen;
+		mp_rect nativeRect = mp_user_to_osx_screen_rect(screen, frameRect);
 		NSRect frame = NSMakeRect(nativeRect.x, nativeRect.y, nativeRect.w, nativeRect.h);
 		[windowData->osx.nsWindow setFrame:frame display:YES];
+	}
+}}
 
-		mp_window_update_rect_cache(windowData);
-		NSRect contentRect = [[windowData->osx.nsWindow contentView] frame];
+void mp_window_set_content_rect(mp_window window, mp_rect contentRect)
+{@autoreleasepool{
+
+//TODO: this is a bit inconsistent that this takes a screen-relative rect, while mp_window_get_content_rect
+//      returns a rect relative to the window's frame.
+
+	mp_window_data* windowData = mp_window_ptr_from_handle(window);
+	if(windowData)
+	{
+		u32 mask = mp_osx_get_window_style_mask(windowData->style);
+
+		mp_rect nativeRect = mp_user_to_osx_screen_rect(windowData->osx.nsWindow.screen, contentRect);
+		NSRect content = NSMakeRect(nativeRect.x, nativeRect.y, nativeRect.w, nativeRect.h);
+		NSRect frame = [NSWindow frameRectForContentRect:content styleMask:mask];
+
+		[windowData->osx.nsWindow setFrame:frame display:YES];
 	}
 }}
 
@@ -1664,12 +1643,15 @@ void mp_window_set_content_size(mp_window window, int width, int height)
 	mp_window_data* windowData = mp_window_ptr_from_handle(window);
 	if(windowData)
 	{
-		mp_rect frame = windowData->frameRect;
-		mp_rect content = mp_window_content_rect_for_frame_rect(frame, windowData->style);
+		mp_rect content = mp_window_get_content_rect(window);
+		mp_rect frame = mp_window_get_frame_rect(window);
+
+		content.x += frame.x;
+		content.y += frame.y;
 		content.w = width;
 		content.h = height;
-		frame = mp_window_frame_rect_for_content_rect(content, windowData->style);
-		mp_window_set_frame_rect(window, frame);
+
+		mp_window_set_content_rect(window, frame);
 	}
 }
 
