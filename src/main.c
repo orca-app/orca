@@ -479,9 +479,9 @@ void* orca_runloop(void* user)
 
 	if(exports[G_EXPORT_FRAME_RESIZE])
 	{
-		mp_rect frame = mg_surface_get_frame(app->surface);
-		u32 width = (u32)frame.w;
-		u32 height = (u32)frame.h;
+		mp_rect content = mp_window_get_content_rect(app->window);
+		u32 width = (u32)content.w;
+		u32 height = (u32)content.h;
 		const void* args[2] = {&width, &height};
 		m3_Call(exports[G_EXPORT_FRAME_RESIZE], 2, args);
 	}
@@ -521,15 +521,12 @@ void* orca_runloop(void* user)
 
 				case MP_EVENT_WINDOW_RESIZE:
 				{
-					mp_rect frame = {0, 0, event->frame.rect.w, event->frame.rect.h};
-					mg_surface_set_frame(app->surface, frame);
-
-//					mg_surface_set_frame(app->debugOverlay.surface, frame);
+					mp_rect frame = {0, 0, event->move.frame.w, event->move.frame.h};
 
 					if(exports[G_EXPORT_FRAME_RESIZE])
 					{
-						u32 width = (u32)event->frame.rect.w;
-						u32 height = (u32)event->frame.rect.h;
+						u32 width = (u32)event->move.content.w;
+						u32 height = (u32)event->move.content.h;
 						const void* args[2] = {&width, &height};
 						m3_Call(exports[G_EXPORT_FRAME_RESIZE], 2, args);
 					}
@@ -561,7 +558,7 @@ void* orca_runloop(void* user)
 				{
 					if(exports[G_EXPORT_MOUSE_MOVE])
 					{
-						const void* args[4] = {&event->move.x, &event->move.y, &event->move.deltaX, &event->move.deltaY};
+						const void* args[4] = {&event->mouse.x, &event->mouse.y, &event->mouse.deltaX, &event->mouse.deltaY};
 						m3_Call(exports[G_EXPORT_MOUSE_MOVE], 4, args);
 					}
 				} break;
@@ -614,8 +611,7 @@ void* orca_runloop(void* user)
 			                                 | UI_STYLE_FONT
 			                                 | UI_STYLE_FONT_SIZE;
 
-			mp_rect frameRect = mg_surface_get_frame(app->debugOverlay.surface);
-			vec2 frameSize = {frameRect.w, frameRect.h};
+			vec2 frameSize = mg_surface_get_size(app->debugOverlay.surface);
 
 			ui_frame(frameSize, &debugUIDefaultStyle, debugUIDefaultMask)
 			{
