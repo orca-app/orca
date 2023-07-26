@@ -22,6 +22,8 @@ int main()
 	mp_window_bring_to_front(window);
 	mp_window_focus(window);
 
+	mp_window_center(window);
+
 	while(!mp_should_quit())
 	{
 		mp_pump_events(0);

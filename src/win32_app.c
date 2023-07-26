@@ -831,6 +831,27 @@ mp_rect mp_window_get_frame_rect(mp_window window)
 	return(rect);
 }
 
+mp_rect win32_get_drop_shadow_offsets(HWND hWnd)
+{
+	RECT frameIncludingShadow;
+	RECT frameExcludingShadow;
+
+	GetWindowRect(hWnd, &frameIncludingShadow);
+	DwmGetWindowAttribute(hWnd,
+	                      DWMWA_EXTENDED_FRAME_BOUNDS,
+	                      &frameExcludingShadow,
+	                      sizeof(RECT));
+
+	mp_rect extents = {
+		.x = frameIncludingShadow.left - frameExcludingShadow.left,
+		.y = frameIncludingShadow.top - frameExcludingShadow.top,
+		.w = frameIncludingShadow.right - frameExcludingShadow.right,
+		.h = frameIncludingShadow.bottom- frameExcludingShadow.bottom
+	};
+
+	return(extents);
+}
+
 void mp_window_set_frame_rect(mp_window window, mp_rect rect)
 {
 	mp_window_data* windowData = mp_window_ptr_from_handle(window);
@@ -839,11 +860,14 @@ void mp_window_set_frame_rect(mp_window window, mp_rect rect)
 		u32 dpi = GetDpiForWindow(windowData->win32.hWnd);
 		f32 scale = (float)dpi/96.;
 
+		//NOTE compute the size of the drop shadow to add it in setwindowpos
+		mp_rect shadowOffsets = win32_get_drop_shadow_offsets(windowData->win32.hWnd);
+
 		RECT frame = {
-			rect.x * scale,
-			rect.y * scale,
-			(rect.x + rect.w)*scale,
-			(rect.y + rect.h)*scale
+			rect.x * scale + shadowOffsets.x,
+			rect.y * scale + shadowOffsets.y,
+			(rect.x + rect.w)*scale + shadowOffsets.w,
+			(rect.y + rect.h)*scale + shadowOffsets.h
 		};
 
 		SetWindowPos(windowData->win32.hWnd,
@@ -909,28 +933,35 @@ void mp_window_set_content_rect(mp_window window, mp_rect rect)
 	}
 }
 
-//TODO: set content rect, center
 void mp_window_center(mp_window window)
 {
 	mp_window_data* windowData = mp_window_ptr_from_handle(window);
 	if(windowData)
 	{
-		RECT winRect;
-		GetWindowRect(windowData->win32.hWnd, &winRect);
 
-		HMONITOR monitor = MonitorFromPoint((POINT){winRect.left, winRect.top}, MONITOR_DEFAULTTOPRIMARY);
-		MONITORINFO monitorInfo = {.cbSize = sizeof(MONITORINFO)};
-		GetMonitorInfoW(monitor, &monitorInfo);
+		mp_rect frame = mp_window_get_frame_rect(window);
 
-		int monW = monitorInfo.rcWork.right - monitorInfo.rcWork.left;
-		int monH = monitorInfo.rcWork.bottom - monitorInfo.rcWork.top;
-		int winW = winRect.right - winRect.left;
-		int winH = winRect.bottom - winRect.top;
+		HMONITOR monitor = MonitorFromWindow(windowData->win32.hWnd, MONITOR_DEFAULTTOPRIMARY);
+		if(monitor)
+		{
+			MONITORINFO monitorInfo = {.cbSize = sizeof(MONITORINFO)};
+			GetMonitorInfoW(monitor, &monitorInfo);
 
-		int winX = 0.5*(monW-winW);
-		int winY = 0.5*(monW-winW);
+			int dpiX, dpiY;
+			GetDpiForMonitor(monitor, MDT_EFFECTIVE_DPI, &dpiX, &dpiY);
+			f32 scaleX = dpiX/96.;
+			f32 scaleY = dpiY/96.;
 
-		SetWindowPos(windowData->win32.hWnd, NULL, winX, winY, winW, winH, SWP_NOZORDER|SWP_NOACTIVATE);
+			f32 monX = monitorInfo.rcWork.left/scaleX;
+			f32 monY = monitorInfo.rcWork.top/scaleY;
+			f32 monW = (monitorInfo.rcWork.right - monitorInfo.rcWork.left)/scaleX;
+			f32 monH = (monitorInfo.rcWork.bottom - monitorInfo.rcWork.top)/scaleY;
+
+			frame.x = monX + 0.5*(monW - frame.w);
+			frame.y = monY + 0.5*(monH - frame.h);
+
+			mp_window_set_frame_rect(window, frame);
+		}
 	}
 }
 
