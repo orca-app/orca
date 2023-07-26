@@ -136,11 +136,11 @@ void mp_input_process_event(mp_input_state* state, mp_event* event)
 			break;
 
 		case MP_EVENT_MOUSE_MOVE:
-			mp_update_mouse_move(state, event->move.x, event->move.y, event->move.deltaX, event->move.deltaY);
+			mp_update_mouse_move(state, event->mouse.x, event->mouse.y, event->mouse.deltaX, event->mouse.deltaY);
 			break;
 
 		case MP_EVENT_MOUSE_WHEEL:
-			mp_update_mouse_wheel(state, event->move.deltaX, event->move.deltaY);
+			mp_update_mouse_wheel(state, event->mouse.deltaX, event->mouse.deltaY);
 			break;
 
 		case MP_EVENT_MOUSE_BUTTON:

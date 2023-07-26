@@ -222,19 +222,20 @@ typedef struct mp_char_event		// character input
 	u8	  seqLen;
 } mp_char_event;
 
-typedef struct mp_move_event		// mouse move/scroll
+typedef struct mp_mouse_event		// mouse move/scroll
 {
 	f32 x;
 	f32 y;
 	f32 deltaX;
 	f32 deltaY;
 	mp_keymod_flags mods;
-} mp_move_event;
+} mp_mouse_event;
 
-typedef struct mp_frame_event		// window resize / move
+typedef struct mp_move_event		// window resize / move
 {
-	mp_rect rect;
-} mp_frame_event;
+	mp_rect frame;
+	mp_rect content;
+} mp_move_event;
 
 typedef struct mp_event
 {
@@ -246,8 +247,8 @@ typedef struct mp_event
 	{
 		mp_key_event   key;
 		mp_char_event  character;
-		mp_move_event  move;
-		mp_frame_event frame;
+		mp_mouse_event  mouse;
+		mp_move_event move;
 		str8_list paths;
 	};
 
@@ -314,10 +315,15 @@ MP_API void mp_window_unfocus(mp_window window);
 MP_API void mp_window_send_to_back(mp_window window);
 MP_API void mp_window_bring_to_front(mp_window window);
 
-MP_API mp_rect mp_window_get_content_rect(mp_window window);
 MP_API mp_rect mp_window_get_frame_rect(mp_window window);
-MP_API void mp_window_set_content_rect(mp_window window, mp_rect contentRect);
-MP_API void mp_window_set_frame_rect(mp_window window, mp_rect frameRect);
+MP_API void mp_window_set_frame_rect(mp_window window, mp_rect rect);
+MP_API void mp_window_set_frame_position(mp_window window, vec2 position);
+MP_API void mp_window_set_frame_size(mp_window window, vec2 size);
+
+MP_API mp_rect mp_window_get_content_rect(mp_window window);
+MP_API void mp_window_set_content_rect(mp_window window, mp_rect rect);
+MP_API void mp_window_set_content_position(mp_window window, vec2 position);
+MP_API void mp_window_set_content_size(mp_window window, vec2 size);
 
 MP_API void mp_window_center(mp_window window);
 

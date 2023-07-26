@@ -147,6 +147,7 @@ mg_surface mg_surface_create_for_window(mp_window window, mg_surface_api api)
 	if(surface)
 	{
 		surfaceHandle = mg_surface_handle_alloc(surface);
+		mg_surface_prepare(surfaceHandle);
 	}
 	return(surfaceHandle);
 }
@@ -174,6 +175,7 @@ mg_surface mg_surface_create_remote(u32 width, u32 height, mg_surface_api api)
 	if(surface)
 	{
 		surfaceHandle = mg_surface_handle_alloc(surface);
+		mg_surface_prepare(surfaceHandle);
 	}
 	return(surfaceHandle);
 }
@@ -263,6 +265,18 @@ void mg_surface_swap_interval(mg_surface surface, int swap)
 	}
 }
 
+vec2 mg_surface_get_size(mg_surface surface)
+{
+	DEBUG_ASSERT(__mgData.init);
+	vec2 size = {0};
+	mg_surface_data* surfaceData = mg_surface_data_from_handle(surface);
+	if(surfaceData && surfaceData->getSize)
+	{
+		size = surfaceData->getSize(surfaceData);
+	}
+	return(size);
+}
+
 vec2 mg_surface_contents_scaling(mg_surface surface)
 {
 	DEBUG_ASSERT(__mgData.init);
@@ -273,29 +287,6 @@ vec2 mg_surface_contents_scaling(mg_surface surface)
 		scaling = surfaceData->contentsScaling(surfaceData);
 	}
 	return(scaling);
-}
-
-
-void mg_surface_set_frame(mg_surface surface, mp_rect frame)
-{
-	DEBUG_ASSERT(__mgData.init);
-	mg_surface_data* surfaceData = mg_surface_data_from_handle(surface);
-	if(surfaceData && surfaceData->setFrame)
-	{
-		surfaceData->setFrame(surfaceData, frame);
-	}
-}
-
-mp_rect mg_surface_get_frame(mg_surface surface)
-{
-	DEBUG_ASSERT(__mgData.init);
-	mp_rect res = {0};
-	mg_surface_data* surfaceData = mg_surface_data_from_handle(surface);
-	if(surfaceData && surfaceData->getFrame)
-	{
-		res = surfaceData->getFrame(surfaceData);
-	}
-	return(res);
 }
 
 void mg_surface_set_hidden(mg_surface surface, bool hidden)

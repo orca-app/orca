@@ -26,44 +26,6 @@
 // mp window struct and utility functions
 //--------------------------------------------------------------------
 
-static mp_rect mp_osx_to_user_screen_rect(mp_rect rect)
-{
-	@autoreleasepool
-	{
-		NSRect screenRect = [[NSScreen mainScreen] frame];
-		rect.y = screenRect.size.height - rect.y - rect.h;
-	}
-	return(rect);
-}
-
-static mp_rect mp_user_to_osx_screen_rect(mp_rect rect)
-{
-	@autoreleasepool
-	{
-		NSRect screenRect = [[NSScreen mainScreen] frame];
-		rect.y = screenRect.size.height - rect.y - rect.h;
-	}
-	return(rect);
-}
-
-static void mp_window_update_rect_cache(mp_window_data* window)
-{
-	@autoreleasepool
-	{
-		NSRect frame = [window->osx.nsWindow frame];
-		window->frameRect = mp_osx_to_user_screen_rect((mp_rect){frame.origin.x, frame.origin.y, frame.size.width, frame.size.height});
-
-		const NSRect contentRect = [[window->osx.nsWindow contentView] frame];
-
-		window->contentRect = (mp_rect){ contentRect.origin.x,
-							 contentRect.origin.y,
-							 contentRect.size.width,
-							 contentRect.size.height };
-
-		window->contentRect.y = window->frameRect.h - window->contentRect.y - window->contentRect.h;
-	}
-}
-
 static u32 mp_osx_get_window_style_mask(mp_window_style style)
 {
 	u32 mask = 0;
@@ -657,16 +619,22 @@ void mp_install_keyboard_layout_listener()
 - (void)windowDidMove:(NSNotification *)notification
 {
 	const NSRect contentRect = [[mpWindow->osx.nsWindow contentView] frame];
-
-	mp_window_update_rect_cache(mpWindow);
+	const NSRect frameRect = [mpWindow->osx.nsWindow frame];
+	NSScreen* screen = mpWindow->osx.nsWindow.screen;
 
 	mp_event event = {};
 	event.window = mp_window_handle_from_ptr(mpWindow);
 	event.type = MP_EVENT_WINDOW_MOVE;
-	event.frame.rect.x = contentRect.origin.x;
-	event.frame.rect.y = contentRect.origin.y;
-	event.frame.rect.w = contentRect.size.width;
-	event.frame.rect.h = contentRect.size.height;
+
+	event.move.frame.x = frameRect.origin.x;
+	event.move.frame.y = screen.frame.size.height - frameRect.origin.y - frameRect.size.height;
+	event.move.frame.w = frameRect.size.width;
+	event.move.frame.h = frameRect.size.height;
+
+	event.move.content.x = frameRect.origin.x + contentRect.origin.x;
+	event.move.content.y = screen.frame.size.height - frameRect.origin.y - contentRect.origin.y - contentRect.size.height;
+	event.move.content.w = contentRect.size.width;
+	event.move.content.h = contentRect.size.height;
 
 	mp_queue_event(&event);
 }
@@ -674,16 +642,22 @@ void mp_install_keyboard_layout_listener()
 - (void)windowDidResize:(NSNotification *)notification
 {
 	const NSRect contentRect = [[mpWindow->osx.nsWindow contentView] frame];
-
-	mp_window_update_rect_cache(mpWindow);
+	const NSRect frameRect = [mpWindow->osx.nsWindow frame];
+	NSScreen* screen = mpWindow->osx.nsWindow.screen;
 
 	mp_event event = {};
 	event.window = mp_window_handle_from_ptr(mpWindow);
 	event.type = MP_EVENT_WINDOW_RESIZE;
-	event.frame.rect.x = contentRect.origin.x;
-	event.frame.rect.y = contentRect.origin.y;
-	event.frame.rect.w = contentRect.size.width;
-	event.frame.rect.h = contentRect.size.height;
+
+	event.move.frame.x = frameRect.origin.x;
+	event.move.frame.y = screen.frame.size.height - frameRect.origin.y - frameRect.size.height;
+	event.move.frame.w = frameRect.size.width;
+	event.move.frame.h = frameRect.size.height;
+
+	event.move.content.x = frameRect.origin.x + contentRect.origin.x;
+	event.move.content.y = screen.frame.size.height - frameRect.origin.y - contentRect.origin.y - contentRect.size.height;
+	event.move.content.w = contentRect.size.width;
+	event.move.content.h = contentRect.size.height;
 
 	if(__mpApp.liveResizeCallback)
 	{
@@ -869,11 +843,11 @@ static void mp_process_mouse_button(NSEvent* nsEvent, mp_window_data* window, mp
 	mp_event event = {};
 	event.type = MP_EVENT_MOUSE_MOVE;
 	event.window = mp_window_handle_from_ptr(window);
-	event.move.x = p.x;
-	event.move.y = frame.size.height - p.y;
-	event.move.deltaX = [nsEvent deltaX];
-	event.move.deltaY = [nsEvent deltaY];
-	event.move.mods = mp_convert_osx_mods([nsEvent modifierFlags]);
+	event.mouse.x = p.x;
+	event.mouse.y = frame.size.height - p.y;
+	event.mouse.deltaX = [nsEvent deltaX];
+	event.mouse.deltaY = [nsEvent deltaY];
+	event.mouse.mods = mp_convert_osx_mods([nsEvent modifierFlags]);
 
 	mp_queue_event(&event);
 }
@@ -885,11 +859,11 @@ static void mp_process_mouse_button(NSEvent* nsEvent, mp_window_data* window, mp
 	event.type = MP_EVENT_MOUSE_WHEEL;
 
 	double factor = [nsEvent hasPreciseScrollingDeltas] ? 0.1 : 1.0;
-	event.move.x = 0;
-	event.move.y = 0;
-	event.move.deltaX = -[nsEvent scrollingDeltaX]*factor;
-	event.move.deltaY = -[nsEvent scrollingDeltaY]*factor;
-	event.move.mods = mp_convert_osx_mods([nsEvent modifierFlags]);
+	event.mouse.x = 0;
+	event.mouse.y = 0;
+	event.mouse.deltaX = -[nsEvent scrollingDeltaX]*factor;
+	event.mouse.deltaY = -[nsEvent scrollingDeltaY]*factor;
+	event.mouse.mods = mp_convert_osx_mods([nsEvent modifierFlags]);
 
 	mp_queue_event(&event);
 }
@@ -1331,15 +1305,6 @@ str8 mp_clipboard_get_data_for_tag(mem_arena* arena, const char* tag)
 // Window public API
 //---------------------------------------------------------------
 
-/*
-//TODO(martin): review include scheme
-extern "C" {
-	mp_graphics_surface mp_metal_surface_create_for_window_ptr(mp_window_data* window);
-	mp_graphics_surface mp_graphics_surface_null_handle();
-	mp_graphics_surface mp_graphics_surface_handle_from_ptr(mp_graphics_surface_data* surface);
-}
-*/
-
 mp_window mp_window_create(mp_rect contentRect, const char* title, mp_window_style style)
 {@autoreleasepool{
 	mp_window_data* window = mp_window_alloc();
@@ -1392,7 +1357,6 @@ mp_window mp_window_create(mp_rect contentRect, const char* title, mp_window_sty
 	[window->osx.nsWindow makeFirstResponder:view];
 	[window->osx.nsWindow setAcceptsMouseMovedEvents:YES];
 
-	mp_window_update_rect_cache(window);
 
 	mp_window windowHandle = mp_window_handle_from_ptr(window);
 
@@ -1545,122 +1509,82 @@ void mp_window_bring_to_front_and_focus(mp_window window)
 	mp_window_focus(window);
 }
 
+mp_rect mp_window_get_frame_rect(mp_window window)
+{
+	mp_rect rect = {0};
+	mp_window_data* windowData = mp_window_ptr_from_handle(window);
+	if(windowData)
+	{
+		NSRect frameRect = windowData->osx.nsWindow.frame;
+		NSScreen* screen = windowData->osx.nsWindow.screen;
 
-mp_rect mp_window_content_rect_for_frame_rect(mp_rect frameRect, mp_window_style style)
-{@autoreleasepool{
-	u32 mask = mp_osx_get_window_style_mask(style);
-	mp_rect nativeFrame = mp_user_to_osx_screen_rect(frameRect);
-	NSRect frame = NSMakeRect(nativeFrame.x, nativeFrame.y, nativeFrame.w, nativeFrame.h);
-	NSRect content = [NSWindow contentRectForFrameRect:frame styleMask:mask];
-	mp_rect result = {content.origin.x, content.origin.y, content.size.width, content.size.height};
-	result = mp_osx_to_user_screen_rect(result);
-	return(result);
-}}
+		rect = (mp_rect){
+			frameRect.origin.x,
+			screen.frame.size.height - frameRect.origin.y - frameRect.size.height,
+			frameRect.size.width,
+			frameRect.size.height
+		};
+	}
+	return(rect);
+}
 
-mp_rect mp_window_frame_rect_for_content_rect(mp_rect contentRect, mp_window_style style)
+void mp_window_set_frame_rect(mp_window window, mp_rect rect)
 {@autoreleasepool{
-	uint32 mask = mp_osx_get_window_style_mask(style);
-	mp_rect nativeContent = mp_user_to_osx_screen_rect(contentRect);
-	NSRect content = NSMakeRect(nativeContent.x, nativeContent.y, nativeContent.w, nativeContent.h);
-	NSRect frame = [NSWindow frameRectForContentRect:content styleMask:mask];
-	mp_rect result = {frame.origin.x, frame.origin.y, frame.size.width, frame.size.height};
-	result = mp_osx_to_user_screen_rect(result);
-	return(result);
+	mp_window_data* windowData = mp_window_ptr_from_handle(window);
+	if(windowData)
+	{
+		NSScreen* screen = windowData->osx.nsWindow.screen;
+		NSRect frameRect = {
+			rect.x,
+			screen.frame.size.height - rect.y - rect.h,
+			rect.w,
+			rect.h
+		};
+		[windowData->osx.nsWindow setFrame:frameRect display:YES];
+	}
 }}
 
 mp_rect mp_window_get_content_rect(mp_window window)
-{
+{@autoreleasepool{
 	mp_window_data* windowData = mp_window_ptr_from_handle(window);
 	if(windowData)
 	{
-		return(windowData->contentRect);
-	}
-	else
-	{
-		return((mp_rect){});
-	}
-}
+		NSScreen* screen = [windowData->osx.nsWindow screen];
+		NSView* view = [windowData->osx.nsWindow contentView];
+		NSRect contentRect = [windowData->osx.nsWindow convertRectToScreen: view.frame];
 
-mp_rect mp_window_get_absolute_content_rect(mp_window window)
-{
-	mp_window_data* windowData = mp_window_ptr_from_handle(window);
-	if(windowData)
-	{
-		mp_rect rect = windowData->contentRect;
-		rect.x += windowData->frameRect.x;
-		rect.y += windowData->frameRect.y;
+		mp_rect rect = {
+			contentRect.origin.x,
+			screen.frame.size.height - contentRect.origin.y - contentRect.size.height,
+			contentRect.size.width,
+			contentRect.size.height};
+
 		return(rect);
 	}
 	else
 	{
 		return((mp_rect){});
 	}
-}
-
-mp_rect mp_window_get_frame_rect(mp_window window)
-{
-	mp_window_data* windowData = mp_window_ptr_from_handle(window);
-	if(windowData)
-	{
-		return(windowData->frameRect);
-	}
-	else
-	{
-		return((mp_rect){});
-	}
-}
-
-void mp_window_set_content_rect(mp_window window, mp_rect contentRect)
-{@autoreleasepool{
-	mp_window_data* windowData = mp_window_ptr_from_handle(window);
-	if(windowData)
-	{
-		u32 mask = mp_osx_get_window_style_mask(windowData->style);
-
-		mp_rect nativeRect = mp_user_to_osx_screen_rect(contentRect);
-		NSRect content = NSMakeRect(nativeRect.x, nativeRect.y, nativeRect.w, nativeRect.h);
-		NSRect frame = [NSWindow frameRectForContentRect:content styleMask:mask];
-
-		[windowData->osx.nsWindow setFrame:frame display:YES];
-
-		mp_window_update_rect_cache(windowData);
-	}
-}}
-void mp_window_set_frame_rect(mp_window window, mp_rect frameRect)
-{@autoreleasepool{
-	mp_window_data* windowData = mp_window_ptr_from_handle(window);
-	if(windowData)
-	{
-		mp_rect nativeRect = mp_user_to_osx_screen_rect(frameRect);
-		NSRect frame = NSMakeRect(nativeRect.x, nativeRect.y, nativeRect.w, nativeRect.h);
-		[windowData->osx.nsWindow setFrame:frame display:YES];
-
-		mp_window_update_rect_cache(windowData);
-		NSRect contentRect = [[windowData->osx.nsWindow contentView] frame];
-	}
 }}
 
-void mp_window_set_frame_size(mp_window window, int width, int height)
-{
-	mp_rect frame = mp_window_get_frame_rect(window);
-	frame.w = width;
-	frame.h = height;
-	mp_window_set_frame_rect(window, frame);
-}
+void mp_window_set_content_rect(mp_window window, mp_rect rect)
+{@autoreleasepool{
 
-void mp_window_set_content_size(mp_window window, int width, int height)
-{
 	mp_window_data* windowData = mp_window_ptr_from_handle(window);
 	if(windowData)
 	{
-		mp_rect frame = windowData->frameRect;
-		mp_rect content = mp_window_content_rect_for_frame_rect(frame, windowData->style);
-		content.w = width;
-		content.h = height;
-		frame = mp_window_frame_rect_for_content_rect(content, windowData->style);
-		mp_window_set_frame_rect(window, frame);
+		NSScreen* screen = [windowData->osx.nsWindow screen];
+		NSRect contentRect = {
+			rect.x,
+			screen.frame.size.height - rect.y - rect.h,
+			rect.w,
+			rect.h
+		};
+
+		NSRect frameRect = [windowData->osx.nsWindow frameRectForContentRect: contentRect];
+		[windowData->osx.nsWindow setFrame:frameRect display:YES];
 	}
-}
+}}
 
 //--------------------------------------------------------------------
 // platform surface
@@ -1678,24 +1602,11 @@ vec2 mg_osx_surface_contents_scaling(mg_surface_data* surface)
 	return(res);
 }}
 
-mp_rect mg_osx_surface_get_frame(mg_surface_data* surface)
+vec2 mg_osx_surface_get_size(mg_surface_data* surface)
 {@autoreleasepool{
-	CGRect frame = surface->layer.caLayer.frame;
-	mp_rect res = {frame.origin.x,
-	               frame.origin.y,
-	               frame.size.width,
-	               frame.size.height};
+	CGRect bounds = surface->layer.caLayer.bounds;
+	vec2 res = {bounds.size.width, bounds.size.height};
 	return(res);
-}}
-
-void mg_osx_surface_set_frame(mg_surface_data* surface, mp_rect frame)
-{@autoreleasepool{
-	CGRect cgFrame = {{frame.x, frame.y}, {frame.w, frame.h}};
-
-	[CATransaction begin];
-	[CATransaction setDisableActions:YES];
-	[surface->layer.caLayer setFrame: cgFrame];
-	[CATransaction commit];
 }}
 
 bool mg_osx_surface_get_hidden(mg_surface_data* surface)
@@ -1721,8 +1632,7 @@ void mg_surface_init_for_window(mg_surface_data* surface, mp_window_data* window
 
 	surface->nativeLayer = mg_osx_surface_native_layer;
 	surface->contentsScaling = mg_osx_surface_contents_scaling;
-	surface->getFrame = mg_osx_surface_get_frame;
-	surface->setFrame = mg_osx_surface_set_frame;
+	surface->getSize = mg_osx_surface_get_size;
 	surface->getHidden = mg_osx_surface_get_hidden;
 	surface->setHidden = mg_osx_surface_set_hidden;
 
@@ -1733,6 +1643,8 @@ void mg_surface_init_for_window(mg_surface_data* surface, mp_window_data* window
 	CGSize size = frame.size;
 	surface->layer.caLayer.frame = (CGRect){{0, 0}, size};
 	surface->layer.caLayer.contentsScale = window->osx.nsView.layer.contentsScale;
+
+	surface->layer.caLayer.autoresizingMask = kCALayerWidthSizable | kCALayerHeightSizable;
 
 	[window->osx.nsView.layer addSublayer: surface->layer.caLayer];
 }}
@@ -1758,8 +1670,7 @@ void mg_surface_init_remote(mg_surface_data* surface, u32 width, u32 height)
 
 	surface->nativeLayer = mg_osx_surface_native_layer;
 	surface->contentsScaling = mg_osx_surface_contents_scaling;
-	surface->getFrame = mg_osx_surface_get_frame;
-	surface->setFrame = mg_osx_surface_set_frame;
+	surface->getSize = mg_osx_surface_get_size;
 	surface->getHidden = mg_osx_surface_get_hidden;
 	surface->setHidden = mg_osx_surface_set_hidden;
 	surface->remoteID = mg_osx_surface_remote_id;
@@ -1786,8 +1697,7 @@ void mg_surface_init_host(mg_surface_data* surface, mp_window_data* window)
 	surface->api = MG_HOST;
 	surface->nativeLayer = mg_osx_surface_native_layer;
 	surface->contentsScaling = mg_osx_surface_contents_scaling;
-	surface->getFrame = mg_osx_surface_get_frame;
-	surface->setFrame = mg_osx_surface_set_frame;
+	surface->getSize = mg_osx_surface_get_size;
 	surface->getHidden = mg_osx_surface_get_hidden;
 	surface->setHidden = mg_osx_surface_set_hidden;
 	surface->hostConnect = mg_osx_surface_host_connect;

@@ -179,3 +179,39 @@ mp_event* mp_next_event(mem_arena* arena)
 	}
 	return(event);
 }
+
+//---------------------------------------------------------------
+// window rects helpers
+//---------------------------------------------------------------
+
+void mp_window_set_content_position(mp_window window, vec2 position)
+{
+	mp_rect rect = mp_window_get_content_rect(window);
+	rect.x = position.x;
+	rect.y = position.y;
+	mp_window_set_content_rect(window, rect);
+}
+
+void mp_window_set_content_size(mp_window window, vec2 size)
+{
+	mp_rect rect = mp_window_get_content_rect(window);
+	rect.w = size.x;
+	rect.h = size.y;
+	mp_window_set_content_rect(window, rect);
+}
+
+void mp_window_set_frame_position(mp_window window, vec2 position)
+{
+	mp_rect frame = mp_window_get_frame_rect(window);
+	frame.x = position.x;
+	frame.y = position.y;
+	mp_window_set_frame_rect(window, frame);
+}
+
+void mp_window_set_frame_size(mp_window window, vec2 size)
+{
+	mp_rect frame = mp_window_get_frame_rect(window);
+	frame.w = size.x;
+	frame.h = size.y;
+	mp_window_set_frame_rect(window, frame);
+}

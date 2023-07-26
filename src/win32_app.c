@@ -240,9 +240,9 @@ static void process_wheel_event(mp_window_data* window, f32 x, f32 y)
 	mp_event event = {0};
 	event.window = mp_window_handle_from_ptr(window);
 	event.type = MP_EVENT_MOUSE_WHEEL;
-	event.move.deltaX = x/30.0f;
-	event.move.deltaY = -y/30.0f;
-	event.move.mods = mp_get_mod_keys();
+	event.mouse.deltaX = x/30.0f;
+	event.mouse.deltaY = -y/30.0f;
+	event.mouse.mods = mp_get_mod_keys();
 
 	mp_queue_event(&event);
 }
@@ -254,26 +254,20 @@ static void win32_update_child_layers(mp_window_data* window)
 	POINT point = {0};
 	ClientToScreen(window->win32.hWnd, &point);
 
-	int w = clientRect.right - clientRect.left;
-	int h = clientRect.bottom - clientRect.top;
+	int clientWidth = (clientRect.right - clientRect.left);
+	int clientHeight = (clientRect.bottom - clientRect.top);
 
 	HWND insertAfter = window->win32.hWnd;
 
 	for_list(&window->win32.layers, layer, mp_layer, listElt)
 	{
-		mp_rect clipped = {0};
-		clipped.x = Clamp(layer->frame.x, 0, w);
-		clipped.y = Clamp(layer->frame.y, 0, h);
-		clipped.w = Clamp(layer->frame.w, 0, w - layer->frame.x);
-		clipped.h = Clamp(layer->frame.h, 0, h - layer->frame.y);
-
 		SetWindowPos(layer->hWnd,
-		             insertAfter,
-		             point.x + clipped.x,
-		             point.y + clipped.y,
-		             clipped.w,
-		             clipped.h,
-		             SWP_NOACTIVATE|SWP_NOOWNERZORDER|SWP_NOZORDER);
+			     	insertAfter,
+			     	point.x,
+			     	point.y,
+			     	clientWidth,
+			     	clientHeight,
+		            SWP_NOACTIVATE|SWP_NOOWNERZORDER|SWP_NOZORDER);
 
 		insertAfter = layer->hWnd;
 	}
@@ -321,30 +315,17 @@ LRESULT WinProc(HWND windowHandle, UINT message, WPARAM wParam, LPARAM lParam)
 		} break;
 
 		case WM_SIZING:
-		{
-			//TODO: take dpi into account
-
-			RECT* rect = (RECT*)lParam;
-
-			mp_event event = {0};
-			event.window = mp_window_handle_from_ptr(mpWindow);
-			event.type = MP_EVENT_WINDOW_RESIZE;
-			event.frame.rect = (mp_rect){rect->left, rect->bottom, rect->bottom - rect->top, rect->right - rect->left};
-			mp_queue_event(&event);
-
-			win32_update_child_layers(mpWindow);
-		} break;
-
 		case WM_MOVING:
 		{
-			//TODO: take dpi into account
-
 			RECT* rect = (RECT*)lParam;
 
 			mp_event event = {0};
+			event.type = message == WM_SIZING ? MP_EVENT_WINDOW_RESIZE : MP_EVENT_WINDOW_MOVE;
 			event.window = mp_window_handle_from_ptr(mpWindow);
-			event.type = MP_EVENT_WINDOW_MOVE;
-			event.frame.rect = (mp_rect){rect->left, rect->bottom, rect->bottom - rect->top, rect->right - rect->left};
+
+			event.move.frame = mp_window_get_frame_rect(event.window);
+			event.move.content = mp_window_get_content_rect(event.window);
+
 			mp_queue_event(&event);
 
 			win32_update_child_layers(mpWindow);
@@ -429,15 +410,15 @@ LRESULT WinProc(HWND windowHandle, UINT message, WPARAM wParam, LPARAM lParam)
 			mp_event event = {0};
 			event.window = mp_window_handle_from_ptr(mpWindow);
 			event.type = MP_EVENT_MOUSE_MOVE;
-			event.move.x = LOWORD(lParam) / scaling;
-			event.move.y = HIWORD(lParam) / scaling;
+			event.mouse.x = LOWORD(lParam) / scaling;
+			event.mouse.y = HIWORD(lParam) / scaling;
 
 			if(__mpApp.win32.mouseTracked || __mpApp.win32.mouseCaptureMask)
 			{
-				event.move.deltaX = event.move.x - __mpApp.win32.lastMousePos.x;
-				event.move.deltaY = event.move.y - __mpApp.win32.lastMousePos.y;
+				event.mouse.deltaX = event.mouse.x - __mpApp.win32.lastMousePos.x;
+				event.mouse.deltaY = event.mouse.y - __mpApp.win32.lastMousePos.y;
 			}
-			__mpApp.win32.lastMousePos = (vec2){event.move.x, event.move.y};
+			__mpApp.win32.lastMousePos = (vec2){event.mouse.x, event.mouse.y};
 
 			if(!__mpApp.win32.mouseTracked)
 			{
@@ -452,8 +433,8 @@ LRESULT WinProc(HWND windowHandle, UINT message, WPARAM wParam, LPARAM lParam)
 
 				mp_event enter = {.window = event.window,
 				                  .type = MP_EVENT_MOUSE_ENTER,
-				                  .move.x = event.move.x,
-				                  .move.y = event.move.y};
+				                  .mouse.x = event.mouse.x,
+				                  .mouse.y = event.mouse.y};
 				mp_queue_event(&enter);
 			}
 
@@ -599,12 +580,24 @@ mp_window mp_window_create(mp_rect rect, const char* title, mp_window_style styl
 	HMONITOR monitor = MonitorFromPoint((POINT){rect.x, rect.y}, MONITOR_DEFAULTTOPRIMARY);
 	GetDpiForMonitor(monitor, MDT_EFFECTIVE_DPI, &dpiX, &dpiY);
 
-	f32 dpiScalingX = (f32)dpiX/96.;
-	f32 dpiScalingY = (f32)dpiY/96.;
+	f32 scaleX = (f32)dpiX/96.;
+	f32 scaleY = (f32)dpiY/96.;
+
+	RECT frame = {
+		rect.x * scaleX,
+		rect.y * scaleY,
+		(rect.x + rect.w)*scaleX,
+		(rect.y + rect.h)*scaleY
+	};
+
+	DWORD winStyle = WS_OVERLAPPEDWINDOW;
+	AdjustWindowRect(&frame, winStyle, FALSE);
 
 	HWND windowHandle = CreateWindow("ApplicationWindowClass", "Test Window",
-	                                 WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT,
-	                                 rect.w * dpiScalingX, rect.h * dpiScalingY,
+	                                 winStyle,
+	                                 frame.left, frame.top,
+	                                 frame.right-frame.left,
+	                                 frame.bottom-frame.top,
 	                                 0, 0, windowClass.hInstance, 0);
 
 	if(!windowHandle)
@@ -808,45 +801,167 @@ void mp_window_bring_to_front(mp_window window)
 	}
 }
 
+mp_rect mp_window_get_frame_rect(mp_window window)
+{
+	mp_rect rect = {0};
+	mp_window_data* windowData = mp_window_ptr_from_handle(window);
+	if(windowData)
+	{
+		//NOTE: GetWindowRect() includes the drop shadow, which we don't want, so we call
+		//      DwmGetWindowAttribute() instead.
+		//      Note that contrary to what the GetWindowRect() docs suggests when mentionning
+		//      this, DwmGetWindowAttributes() _does_ seem to adjust for DPI.
+		u32 dpi = GetDpiForWindow(windowData->win32.hWnd);
+		f32 scale = (float)dpi/96.;
+
+		RECT frame;
+		HRESULT res = DwmGetWindowAttribute(windowData->win32.hWnd,
+		                                    DWMWA_EXTENDED_FRAME_BOUNDS,
+		                                    &frame,
+		                                    sizeof(RECT));
+		if(res == S_OK)
+		{
+			rect = (mp_rect){
+				frame.left / scale,
+				frame.top / scale,
+				(frame.right - frame.left)/scale,
+				(frame.bottom - frame.top)/scale};
+		}
+	}
+	return(rect);
+}
+
+mp_rect win32_get_drop_shadow_offsets(HWND hWnd)
+{
+	RECT frameIncludingShadow;
+	RECT frameExcludingShadow;
+
+	GetWindowRect(hWnd, &frameIncludingShadow);
+	DwmGetWindowAttribute(hWnd,
+	                      DWMWA_EXTENDED_FRAME_BOUNDS,
+	                      &frameExcludingShadow,
+	                      sizeof(RECT));
+
+	mp_rect extents = {
+		.x = frameIncludingShadow.left - frameExcludingShadow.left,
+		.y = frameIncludingShadow.top - frameExcludingShadow.top,
+		.w = frameIncludingShadow.right - frameExcludingShadow.right,
+		.h = frameIncludingShadow.bottom- frameExcludingShadow.bottom
+	};
+
+	return(extents);
+}
+
+void mp_window_set_frame_rect(mp_window window, mp_rect rect)
+{
+	mp_window_data* windowData = mp_window_ptr_from_handle(window);
+	if(windowData)
+	{
+		u32 dpi = GetDpiForWindow(windowData->win32.hWnd);
+		f32 scale = (float)dpi/96.;
+
+		//NOTE compute the size of the drop shadow to add it in setwindowpos
+		mp_rect shadowOffsets = win32_get_drop_shadow_offsets(windowData->win32.hWnd);
+
+		RECT frame = {
+			rect.x * scale + shadowOffsets.x,
+			rect.y * scale + shadowOffsets.y,
+			(rect.x + rect.w)*scale + shadowOffsets.w,
+			(rect.y + rect.h)*scale + shadowOffsets.h
+		};
+
+		SetWindowPos(windowData->win32.hWnd,
+		             HWND_TOP,
+		             frame.left,
+		             frame.top,
+		             frame.right - frame.left,
+		             frame.bottom - frame.top,
+		             SWP_NOZORDER|SWP_NOACTIVATE);
+	}
+}
+
 mp_rect mp_window_get_content_rect(mp_window window)
 {
 	mp_rect rect = {0};
 	mp_window_data* windowData = mp_window_ptr_from_handle(window);
 	if(windowData)
 	{
-		RECT winRect;
-		if(GetClientRect(windowData->win32.hWnd, &winRect))
+		RECT client;
+		if(GetClientRect(windowData->win32.hWnd, &client))
 		{
 			u32 dpi = GetDpiForWindow(windowData->win32.hWnd);
 			f32 scale = (float)dpi/96.;
-			rect = (mp_rect){0, 0, (winRect.right - winRect.left)/scale, (winRect.bottom - winRect.top)/scale};
+
+			POINT origin = {0, 0};
+			ClientToScreen(windowData->win32.hWnd, &origin);
+
+			rect = (mp_rect){
+				origin.x/scale,
+				origin.y/scale,
+				(client.right - client.left)/scale,
+				(client.bottom - client.top)/scale};
 		}
 	}
 	return(rect);
 }
 
-//TODO: set content rect, center
+void mp_window_set_content_rect(mp_window window, mp_rect rect)
+{
+	mp_window_data* windowData = mp_window_ptr_from_handle(window);
+	if(windowData)
+	{
+		u32 dpi = GetDpiForWindow(windowData->win32.hWnd);
+		f32 scale = (float)dpi/96.;
+
+		RECT frame = {
+			rect.x * scale,
+			rect.y * scale,
+			(rect.x + rect.w)*scale,
+			(rect.y + rect.h)*scale};
+
+		DWORD style = GetWindowLong(windowData->win32.hWnd, GWL_STYLE);
+		BOOL menu = (GetMenu(windowData->win32.hWnd) != NULL);
+		AdjustWindowRect(&frame, style, menu);
+
+		SetWindowPos(windowData->win32.hWnd,
+		             HWND_TOP,
+		             frame.left,
+		             frame.top,
+		             frame.right - frame.left,
+		             frame.bottom - frame.top,
+		             SWP_NOZORDER|SWP_NOACTIVATE);
+	}
+}
+
 void mp_window_center(mp_window window)
 {
 	mp_window_data* windowData = mp_window_ptr_from_handle(window);
 	if(windowData)
 	{
-		RECT winRect;
-		GetWindowRect(windowData->win32.hWnd, &winRect);
 
-		HMONITOR monitor = MonitorFromPoint((POINT){winRect.left, winRect.top}, MONITOR_DEFAULTTOPRIMARY);
-		MONITORINFO monitorInfo = {.cbSize = sizeof(MONITORINFO)};
-		GetMonitorInfoW(monitor, &monitorInfo);
+		mp_rect frame = mp_window_get_frame_rect(window);
 
-		int monW = monitorInfo.rcWork.right - monitorInfo.rcWork.left;
-		int monH = monitorInfo.rcWork.bottom - monitorInfo.rcWork.top;
-		int winW = winRect.right - winRect.left;
-		int winH = winRect.bottom - winRect.top;
+		HMONITOR monitor = MonitorFromWindow(windowData->win32.hWnd, MONITOR_DEFAULTTOPRIMARY);
+		if(monitor)
+		{
+			MONITORINFO monitorInfo = {.cbSize = sizeof(MONITORINFO)};
+			GetMonitorInfoW(monitor, &monitorInfo);
 
-		int winX = 0.5*(monW-winW);
-		int winY = 0.5*(monW-winW);
+			int dpiX, dpiY;
+			GetDpiForMonitor(monitor, MDT_EFFECTIVE_DPI, &dpiX, &dpiY);
+			f32 scaleX = dpiX/96.;
+			f32 scaleY = dpiY/96.;
 
-		SetWindowPos(windowData->win32.hWnd, NULL, winX, winY, winW, winH, SWP_NOZORDER|SWP_NOACTIVATE);
+			f32 monX = monitorInfo.rcWork.left/scaleX;
+			f32 monY = monitorInfo.rcWork.top/scaleY;
+			f32 monW = (monitorInfo.rcWork.right - monitorInfo.rcWork.left)/scaleX;
+			f32 monH = (monitorInfo.rcWork.bottom - monitorInfo.rcWork.top)/scaleY;
+
+			frame.x = monX + 0.5*(monW - frame.w);
+			frame.y = monY + 0.5*(monH - frame.h);
+
+			mp_window_set_frame_rect(window, frame);
+		}
 	}
 }
 
@@ -935,37 +1050,17 @@ vec2 mg_win32_surface_contents_scaling(mg_surface_data* surface)
 	return(contentsScaling);
 }
 
-mp_rect mg_win32_surface_get_frame(mg_surface_data* surface)
+vec2 mg_win32_surface_get_size(mg_surface_data* surface)
 {
-	RECT rect = {0};
-	GetClientRect(surface->layer.hWnd, &rect);
-
-	vec2 scale = mg_win32_surface_contents_scaling(surface);
-
-	mp_rect res = {rect.left/scale.x,
-	               rect.bottom/scale.y,
-	               (rect.right - rect.left)/scale.x,
-	               (rect.bottom - rect.top)/scale.y};
-	return(res);
-}
-
-void mg_win32_surface_set_frame(mg_surface_data* surface, mp_rect frame)
-{
-	HWND parent = GetParent(surface->layer.hWnd);
-	RECT parentContentRect;
-
-	GetClientRect(parent, &parentContentRect);
-	int parentHeight = 	parentContentRect.bottom - parentContentRect.top;
-
-	vec2 scale = mg_win32_surface_contents_scaling(surface);
-
-	SetWindowPos(surface->layer.hWnd,
-			     HWND_TOP,
-			     frame.x * scale.x,
-			     parentHeight - (frame.y + frame.h) * scale.y,
-			     frame.w * scale.x,
-			     frame.h * scale.y,
-			     SWP_NOACTIVATE | SWP_NOZORDER);
+	vec2 size = {0};
+	RECT rect;
+	if(GetClientRect(surface->layer.hWnd, &rect))
+	{
+		u32 dpi = GetDpiForWindow(surface->layer.hWnd);
+		f32 scale = (float)dpi/96.;
+		size = (vec2){(rect.right - rect.left)/scale, (rect.bottom - rect.top)/scale};
+	}
+	return(size);
 }
 
 bool mg_win32_surface_get_hidden(mg_surface_data* surface)
@@ -1030,8 +1125,7 @@ LRESULT LayerWinProc(HWND windowHandle, UINT message, WPARAM wParam, LPARAM lPar
 void mg_surface_init_for_window(mg_surface_data* surface, mp_window_data* window)
 {
 	surface->contentsScaling = mg_win32_surface_contents_scaling;
-	surface->getFrame = mg_win32_surface_get_frame;
-	surface->setFrame = mg_win32_surface_set_frame;
+	surface->getSize = mg_win32_surface_get_size;
 	surface->getHidden = mg_win32_surface_get_hidden;
 	surface->setHidden = mg_win32_surface_set_hidden;
 	surface->nativeLayer = mg_win32_surface_native_layer;
@@ -1050,12 +1144,12 @@ void mg_surface_init_for_window(mg_surface_data* surface, mp_window_data* window
 	POINT point = {0};
 	ClientToScreen(window->win32.hWnd, &point);
 
-	int width = parentRect.right - parentRect.left;
-	int height = parentRect.bottom - parentRect.top;
+	int clientWidth = parentRect.right - parentRect.left;
+	int clientHeight = parentRect.bottom - parentRect.top;
 
 	surface->layer.hWnd = CreateWindow("layer_window_class", "layer",
 	                                     WS_POPUP | WS_VISIBLE,
-	                                     point.x, point.y, width, height,
+	                                     point.x, point.y, clientWidth, clientHeight,
 	                                     window->win32.hWnd,
 	                                     0,
 	                                     layerWindowClass.hInstance,
@@ -1076,7 +1170,6 @@ void mg_surface_init_for_window(mg_surface_data* surface, mp_window_data* window
 		log_error("couldn't enable blur behind\n");
 	}
 
-	surface->layer.frame = (mp_rect){0, 0, width, height};
 	surface->layer.parent = window;
 	list_append(&window->win32.layers, &surface->layer.listElt);
 }
@@ -1084,8 +1177,7 @@ void mg_surface_init_for_window(mg_surface_data* surface, mp_window_data* window
 void mg_surface_init_remote(mg_surface_data* surface, u32 width, u32 height)
 {
 	surface->contentsScaling = mg_win32_surface_contents_scaling;
-	surface->getFrame = mg_win32_surface_get_frame;
-	surface->setFrame = mg_win32_surface_set_frame;
+	surface->getSize = mg_win32_surface_get_size;
 	surface->getHidden = mg_win32_surface_get_hidden;
 	surface->setHidden = mg_win32_surface_set_hidden;
 	surface->nativeLayer = mg_win32_surface_native_layer;

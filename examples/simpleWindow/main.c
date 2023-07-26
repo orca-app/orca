@@ -22,6 +22,8 @@ int main()
 	mp_window_bring_to_front(window);
 	mp_window_focus(window);
 
+	mp_window_center(window);
+
 	while(!mp_should_quit())
 	{
 		mp_pump_events(0);
@@ -37,36 +39,44 @@ int main()
 
 				case MP_EVENT_WINDOW_RESIZE:
 				{
-					printf("resized, rect = {%f, %f, %f, %f}\n",
-					       event->frame.rect.x,
-					       event->frame.rect.y,
-					       event->frame.rect.w,
-					       event->frame.rect.h);
+					printf("resized, frame = {%f, %f, %f, %f}, content = {%f, %f, %f, %f}\n",
+					       event->move.frame.x,
+					       event->move.frame.y,
+					       event->move.frame.w,
+					       event->move.frame.h,
+					       event->move.content.x,
+					       event->move.content.y,
+					       event->move.content.w,
+					       event->move.content.h);
 				} break;
 
 				case MP_EVENT_WINDOW_MOVE:
 				{
-					printf("moved, rect = {%f, %f, %f, %f}\n",
-					       event->frame.rect.x,
-					       event->frame.rect.y,
-					       event->frame.rect.w,
-					       event->frame.rect.h);
+					printf("moved, frame = {%f, %f, %f, %f}, content = {%f, %f, %f, %f}\n",
+					       event->move.frame.x,
+					       event->move.frame.y,
+					       event->move.frame.w,
+					       event->move.frame.h,
+					       event->move.content.x,
+					       event->move.content.y,
+					       event->move.content.w,
+					       event->move.content.h);
 				} break;
 
 				case MP_EVENT_MOUSE_MOVE:
 				{
 					printf("mouse moved, pos = {%f, %f}, delta = {%f, %f}\n",
-					       event->move.x,
-					       event->move.y,
-					       event->move.deltaX,
-					       event->move.deltaY);
+					       event->mouse.x,
+					       event->mouse.y,
+					       event->mouse.deltaX,
+					       event->mouse.deltaY);
 				} break;
 
 				case MP_EVENT_MOUSE_WHEEL:
 				{
 					printf("mouse wheel, delta = {%f, %f}\n",
-					       event->move.deltaX,
-					       event->move.deltaY);
+					       event->mouse.deltaX,
+					       event->mouse.deltaY);
 				} break;
 
 				case MP_EVENT_MOUSE_ENTER:
