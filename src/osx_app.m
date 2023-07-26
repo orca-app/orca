@@ -1544,22 +1544,6 @@ void mp_window_set_frame_rect(mp_window window, mp_rect rect)
 	}
 }}
 
-void mp_window_set_frame_position(mp_window window, vec2 position)
-{
-	mp_rect frame = mp_window_get_frame_rect(window);
-	frame.x = position.x;
-	frame.y = position.y;
-	mp_window_set_frame_rect(window, frame);
-}
-
-void mp_window_set_frame_size(mp_window window, vec2 size)
-{
-	mp_rect frame = mp_window_get_frame_rect(window);
-	frame.w = size.x;
-	frame.h = size.y;
-	mp_window_set_frame_rect(window, frame);
-}
-
 mp_rect mp_window_get_content_rect(mp_window window)
 {@autoreleasepool{
 	mp_window_data* windowData = mp_window_ptr_from_handle(window);
@@ -1601,22 +1585,6 @@ void mp_window_set_content_rect(mp_window window, mp_rect rect)
 		[windowData->osx.nsWindow setFrame:frameRect display:YES];
 	}
 }}
-
-void mp_window_set_content_position(mp_window window, vec2 position)
-{
-	mp_rect rect = mp_window_get_content_rect(window);
-	rect.x = position.x;
-	rect.y = position.y;
-	mp_window_set_content_rect(window, rect);
-}
-
-void mp_window_set_content_size(mp_window window, vec2 size)
-{
-	mp_rect rect = mp_window_get_content_rect(window);
-	rect.w = size.x;
-	rect.h = size.y;
-	mp_window_set_content_rect(window, rect);
-}
 
 //--------------------------------------------------------------------
 // platform surface

@@ -319,20 +319,12 @@ LRESULT WinProc(HWND windowHandle, UINT message, WPARAM wParam, LPARAM lParam)
 		{
 			RECT* rect = (RECT*)lParam;
 
-			u32 dpi = GetDpiForWindow(mpWindow->win32.hWnd);
-			f32 scaling = (f32)dpi/96.;
-
 			mp_event event = {0};
 			event.type = message == WM_SIZING ? MP_EVENT_WINDOW_RESIZE : MP_EVENT_WINDOW_MOVE;
 			event.window = mp_window_handle_from_ptr(mpWindow);
 
-			event.move.frame = (mp_rect){
-				rect->left / scaling,
-			    rect->bottom / scaling,
-			    (rect->bottom - rect->top)/scaling,
-			    (rect->right - rect->left)/scaling };
-
-			event.move.contents = mp_window_get_content_rect(event.window);
+			event.move.frame = mp_window_get_frame_rect(event.window);
+			event.move.content = mp_window_get_content_rect(event.window);
 
 			mp_queue_event(&event);
 
@@ -588,12 +580,24 @@ mp_window mp_window_create(mp_rect rect, const char* title, mp_window_style styl
 	HMONITOR monitor = MonitorFromPoint((POINT){rect.x, rect.y}, MONITOR_DEFAULTTOPRIMARY);
 	GetDpiForMonitor(monitor, MDT_EFFECTIVE_DPI, &dpiX, &dpiY);
 
-	f32 dpiScalingX = (f32)dpiX/96.;
-	f32 dpiScalingY = (f32)dpiY/96.;
+	f32 scaleX = (f32)dpiX/96.;
+	f32 scaleY = (f32)dpiY/96.;
+
+	RECT frame = {
+		rect.x * scaleX,
+		rect.y * scaleY,
+		(rect.x + rect.w)*scaleX,
+		(rect.y + rect.h)*scaleY
+	};
+
+	DWORD winStyle = WS_OVERLAPPEDWINDOW;
+	AdjustWindowRect(&frame, winStyle, FALSE);
 
 	HWND windowHandle = CreateWindow("ApplicationWindowClass", "Test Window",
-	                                 WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT,
-	                                 rect.w * dpiScalingX, rect.h * dpiScalingY,
+	                                 winStyle,
+	                                 frame.left, frame.top,
+	                                 frame.right-frame.left,
+	                                 frame.bottom-frame.top,
 	                                 0, 0, windowClass.hInstance, 0);
 
 	if(!windowHandle)
@@ -797,21 +801,112 @@ void mp_window_bring_to_front(mp_window window)
 	}
 }
 
+mp_rect mp_window_get_frame_rect(mp_window window)
+{
+	mp_rect rect = {0};
+	mp_window_data* windowData = mp_window_ptr_from_handle(window);
+	if(windowData)
+	{
+		//NOTE: GetWindowRect() includes the drop shadow, which we don't want, so we call
+		//      DwmGetWindowAttribute() instead.
+		//      Note that contrary to what the GetWindowRect() docs suggests when mentionning
+		//      this, DwmGetWindowAttributes() _does_ seem to adjust for DPI.
+		u32 dpi = GetDpiForWindow(windowData->win32.hWnd);
+		f32 scale = (float)dpi/96.;
+
+		RECT frame;
+		HRESULT res = DwmGetWindowAttribute(windowData->win32.hWnd,
+		                                    DWMWA_EXTENDED_FRAME_BOUNDS,
+		                                    &frame,
+		                                    sizeof(RECT));
+		if(res == S_OK)
+		{
+			rect = (mp_rect){
+				frame.left / scale,
+				frame.top / scale,
+				(frame.right - frame.left)/scale,
+				(frame.bottom - frame.top)/scale};
+		}
+	}
+	return(rect);
+}
+
+void mp_window_set_frame_rect(mp_window window, mp_rect rect)
+{
+	mp_window_data* windowData = mp_window_ptr_from_handle(window);
+	if(windowData)
+	{
+		u32 dpi = GetDpiForWindow(windowData->win32.hWnd);
+		f32 scale = (float)dpi/96.;
+
+		RECT frame = {
+			rect.x * scale,
+			rect.y * scale,
+			(rect.x + rect.w)*scale,
+			(rect.y + rect.h)*scale
+		};
+
+		SetWindowPos(windowData->win32.hWnd,
+		             HWND_TOP,
+		             frame.left,
+		             frame.top,
+		             frame.right - frame.left,
+		             frame.bottom - frame.top,
+		             SWP_NOZORDER|SWP_NOACTIVATE);
+	}
+}
+
 mp_rect mp_window_get_content_rect(mp_window window)
 {
 	mp_rect rect = {0};
 	mp_window_data* windowData = mp_window_ptr_from_handle(window);
 	if(windowData)
 	{
-		RECT winRect;
-		if(GetClientRect(windowData->win32.hWnd, &winRect))
+		RECT client;
+		if(GetClientRect(windowData->win32.hWnd, &client))
 		{
 			u32 dpi = GetDpiForWindow(windowData->win32.hWnd);
 			f32 scale = (float)dpi/96.;
-			rect = (mp_rect){0, 0, (winRect.right - winRect.left)/scale, (winRect.bottom - winRect.top)/scale};
+
+			POINT origin = {0, 0};
+			ClientToScreen(windowData->win32.hWnd, &origin);
+
+			rect = (mp_rect){
+				origin.x/scale,
+				origin.y/scale,
+				(client.right - client.left)/scale,
+				(client.bottom - client.top)/scale};
 		}
 	}
 	return(rect);
+}
+
+void mp_window_set_content_rect(mp_window window, mp_rect rect)
+{
+	mp_window_data* windowData = mp_window_ptr_from_handle(window);
+	if(windowData)
+	{
+		u32 dpi = GetDpiForWindow(windowData->win32.hWnd);
+		f32 scale = (float)dpi/96.;
+
+		RECT frame = {
+			rect.x * scale,
+			rect.y * scale,
+			(rect.x + rect.w)*scale,
+			(rect.y + rect.h)*scale};
+
+		DWORD style = GetWindowLong(windowData->win32.hWnd, GWL_STYLE);
+		BOOL menu = (GetMenu(windowData->win32.hWnd) != NULL);
+		AdjustWindowRect(&frame, style, menu);
+
+		SetWindowPos(windowData->win32.hWnd,
+		             HWND_TOP,
+		             frame.left,
+		             frame.top,
+		             frame.right - frame.left,
+		             frame.bottom - frame.top,
+		             SWP_NOZORDER|SWP_NOACTIVATE);
+	}
 }
 
 //TODO: set content rect, center
