@@ -479,9 +479,9 @@ void* orca_runloop(void* user)
 
 	if(exports[G_EXPORT_FRAME_RESIZE])
 	{
-		vec2 size = mg_surface_get_size(app->surface);
-		u32 width = (u32)size.x;
-		u32 height = (u32)size.y;
+		mp_rect content = mp_window_get_content_rect(app->window);
+		u32 width = (u32)content.w;
+		u32 height = (u32)content.h;
 		const void* args[2] = {&width, &height};
 		m3_Call(exports[G_EXPORT_FRAME_RESIZE], 2, args);
 	}
@@ -525,8 +525,8 @@ void* orca_runloop(void* user)
 
 					if(exports[G_EXPORT_FRAME_RESIZE])
 					{
-						u32 width = (u32)event->move.contents.w;
-						u32 height = (u32)event->move.contents.h;
+						u32 width = (u32)event->move.content.w;
+						u32 height = (u32)event->move.content.h;
 						const void* args[2] = {&width, &height};
 						m3_Call(exports[G_EXPORT_FRAME_RESIZE], 2, args);
 					}
