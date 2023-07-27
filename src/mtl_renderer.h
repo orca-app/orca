@@ -104,4 +104,8 @@ typedef struct mg_mtl_screen_tile
 
 } mg_mtl_screen_tile;
 
+enum {
+	MG_MTL_MAX_IMAGES_PER_BATCH = 30
+};
+
 #endif //__MTL_RENDERER_H_
