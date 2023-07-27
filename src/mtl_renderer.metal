@@ -1512,7 +1512,6 @@ kernel void mtl_raster(const device mg_mtl_screen_tile* screenTilesBuffer [[buff
                        constant int* sampleCountBuffer [[buffer(6)]],
                        device char* logBuffer [[buffer(7)]],
                        device atomic_int* logOffsetBuffer [[buffer(8)]],
-                       constant int* useTexture [[buffer(9)]],
                        texture2d<float, access::write> outTexture [[texture(0)]],
                        texture2d<float> srcTexture [[texture(1)]],
                        uint2  threadGroupCoord [[threadgroup_position_in_grid]],
@@ -1611,7 +1610,7 @@ kernel void mtl_raster(const device mg_mtl_screen_tile* screenTilesBuffer [[buff
 			float4 nextColor = pathBuffer[pathIndex].color;
 			nextColor.rgb *= nextColor.a;
 
-			if(useTexture[0])
+			if(pathBuffer[pathIndex].texture)
 			{
 				constexpr sampler smp(mip_filter::nearest, mag_filter::linear, min_filter::linear);
 

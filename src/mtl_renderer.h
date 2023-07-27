@@ -23,6 +23,7 @@ typedef struct mg_mtl_path
 	vector_float4 color;
 	vector_float4 box;
 	vector_float4 clip;
+	int texture;
 } mg_mtl_path;
 
 typedef enum {

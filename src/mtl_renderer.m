@@ -249,6 +249,12 @@ void mg_mtl_encode_path(mg_mtl_canvas_backend* backend, mg_primitive* primitive,
 		path->uvTransform = simd_matrix(simd_make_float3(uvTransform.m[0]/scale, uvTransform.m[3]/scale, 0),
 		                                simd_make_float3(uvTransform.m[1]/scale, uvTransform.m[4]/scale, 0),
 		                                simd_make_float3(uvTransform.m[2], uvTransform.m[5], 1));
+
+		path->texture = 1;
+	}
+	else
+	{
+		path->texture = 0;
 	}
 
 	int nTilesX = ((path->box.z - path->box.x)*scale - 1) / MG_MTL_TILE_SIZE + 1;
@@ -1084,14 +1090,11 @@ void mg_mtl_render_batch(mg_mtl_canvas_backend* backend,
 
 		[rasterEncoder setTexture:backend->outTexture atIndex:0];
 
-		int useTexture = 0;
 		if(image)
 		{
 			mg_mtl_image_data* mtlImage = (mg_mtl_image_data*)image;
 			[rasterEncoder setTexture: mtlImage->texture atIndex: 1];
-			useTexture = 1;
 		}
-		[rasterEncoder setBytes: &useTexture length:sizeof(int) atIndex: 9];
 
 		MTLSize rasterGridSize = MTLSizeMake(viewportSize.x, viewportSize.y, 1);
 		MTLSize rasterGroupSize = MTLSizeMake(MG_MTL_TILE_SIZE, MG_MTL_TILE_SIZE, 1);
@@ -1233,20 +1236,23 @@ void mg_mtl_canvas_render(mg_canvas_backend* interface,
 	{
 		mg_primitive* primitive = &primitives[primitiveIndex];
 
-		if(primitiveIndex && (primitive->attributes.image.h != currentImage.h))
+		if(primitive->attributes.image.h != 0)
 		{
-			mg_image_data* imageData = mg_image_data_from_handle(currentImage);
+			if(primitiveIndex && (primitive->attributes.image.h != currentImage.h))
+			{
+				mg_image_data* imageData = mg_image_data_from_handle(currentImage);
 
-			mg_mtl_render_batch(backend,
-			                    surface,
-			                    imageData,
-			                    tileSize,
-			                    nTilesX,
-			                    nTilesY,
-			                    viewportSize,
-			                    scale);
+				mg_mtl_render_batch(backend,
+				                    surface,
+				                    imageData,
+				                    tileSize,
+				                    nTilesX,
+				                    nTilesY,
+				                    viewportSize,
+				                    scale);
+			}
+			currentImage = primitive->attributes.image;
 		}
-		currentImage = primitive->attributes.image;
 
 		if(primitive->path.count)
 		{
