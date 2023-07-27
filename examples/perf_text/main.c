@@ -201,7 +201,7 @@ int main()
 					f32 trackX = mousePos.x/zoom - startX;
 					f32 trackY = mousePos.y/zoom - startY;
 
-					zoom *= 1 + event->move.deltaY * 0.01;
+					zoom *= 1 + event->mouse.deltaY * 0.01;
 					zoom = Clamp(zoom, 0.2, 10);
 
 					startX = mousePos.x/zoom - trackX;

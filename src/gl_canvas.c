@@ -182,9 +182,47 @@ static void mg_update_path_extents(vec4* extents, vec2 p)
 	extents->w = maximum(extents->w, p.y);
 }
 
+void mg_gl_grow_input_buffer(mg_gl_mapped_buffer* buffer, int copyStart, int copySize, int newSize)
+{
+	mg_gl_mapped_buffer newBuffer = {0};
+	newBuffer.size = newSize;
+	glGenBuffers(1, &newBuffer.buffer);
+	glBindBuffer(GL_SHADER_STORAGE_BUFFER, newBuffer.buffer);
+	glBufferStorage(GL_SHADER_STORAGE_BUFFER, newBuffer.size, 0, GL_MAP_WRITE_BIT|GL_MAP_PERSISTENT_BIT);
+	newBuffer.contents = glMapBufferRange(GL_SHADER_STORAGE_BUFFER,
+	                                      0,
+	                                      newBuffer.size,
+	                                       GL_MAP_WRITE_BIT
+	                                      |GL_MAP_PERSISTENT_BIT
+	                                      |GL_MAP_FLUSH_EXPLICIT_BIT);
+
+	memcpy(newBuffer.contents + copyStart, buffer->contents + copyStart, copySize);
+
+	glBindBuffer(GL_SHADER_STORAGE_BUFFER, buffer->buffer);
+	glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
+	glDeleteBuffers(1, &buffer->buffer);
+
+	*buffer = newBuffer;
+}
+
 void mg_gl_canvas_encode_element(mg_gl_canvas_backend* backend, mg_path_elt_type kind, vec2* p)
 {
-	mg_gl_path_elt* elementData = (mg_gl_path_elt*)backend->elementBuffer[backend->bufferIndex].contents;
+	int bufferIndex = backend->bufferIndex;
+	int bufferCap = backend->elementBuffer[bufferIndex].size / sizeof(mg_gl_path_elt);
+	if(backend->eltCount >= bufferCap)
+	{
+		int newBufferCap = (int)(bufferCap * 1.5);
+		int newBufferSize = newBufferCap * sizeof(mg_gl_path_elt);
+
+		log_info("growing element buffer to %i elements\n", newBufferCap);
+
+		mg_gl_grow_input_buffer(&backend->elementBuffer[bufferIndex],
+		                        backend->eltBatchStart * sizeof(mg_gl_path_elt),
+		                        backend->eltCount * sizeof(mg_gl_path_elt),
+		                        newBufferSize);
+	}
+
+	mg_gl_path_elt* elementData = (mg_gl_path_elt*)backend->elementBuffer[bufferIndex].contents;
 	mg_gl_path_elt* elt = &elementData[backend->eltCount];
 	backend->eltCount++;
 
@@ -224,6 +262,21 @@ void mg_gl_canvas_encode_element(mg_gl_canvas_backend* backend, mg_path_elt_type
 
 void mg_gl_canvas_encode_path(mg_gl_canvas_backend* backend, mg_primitive* primitive, f32 scale)
 {
+	int bufferIndex = backend->bufferIndex;
+	int bufferCap = backend->pathBuffer[bufferIndex].size / sizeof(mg_gl_path);
+	if(backend->pathCount >= bufferCap)
+	{
+		int newBufferCap = (int)(bufferCap * 1.5);
+		int newBufferSize = newBufferCap * sizeof(mg_gl_path);
+
+		log_info("growing path buffer to %i elements\n", newBufferCap);
+
+		mg_gl_grow_input_buffer(&backend->pathBuffer[bufferIndex],
+		                        backend->pathBatchStart * sizeof(mg_gl_path),
+		                        backend->eltCount * sizeof(mg_gl_path),
+		                        newBufferSize);
+	}
+
 	mg_gl_path* pathData = (mg_gl_path*)backend->pathBuffer[backend->bufferIndex].contents;
 	mg_gl_path* path = &pathData[backend->pathCount];
 	backend->pathCount++;
@@ -1519,8 +1572,8 @@ int mg_gl_canvas_compile_render_program_named(const char* progName,
 #define mg_gl_canvas_compile_render_program(progName, shaderSrc, vertexSrc, out) \
 	mg_gl_canvas_compile_render_program_named(progName, #shaderSrc, #vertexSrc, shaderSrc, vertexSrc, out)
 
-const u32 MG_GL_PATH_BUFFER_SIZE       = (4<<20)*sizeof(mg_gl_path),
-          MG_GL_ELEMENT_BUFFER_SIZE    = (4<<20)*sizeof(mg_gl_path_elt),
+const u32 MG_GL_PATH_BUFFER_SIZE       = (4<<10)*sizeof(mg_gl_path),
+          MG_GL_ELEMENT_BUFFER_SIZE    = (4<<12)*sizeof(mg_gl_path_elt),
           MG_GL_SEGMENT_BUFFER_SIZE    = (4<<20)*sizeof(mg_gl_segment),
           MG_GL_PATH_QUEUE_BUFFER_SIZE = (4<<20)*sizeof(mg_gl_path_queue),
           MG_GL_TILE_QUEUE_BUFFER_SIZE = (4<<20)*sizeof(mg_gl_tile_queue),

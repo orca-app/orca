@@ -108,12 +108,6 @@ int main()
 					mp_request_quit();
 				} break;
 
-				case MP_EVENT_WINDOW_RESIZE:
-				{
-					mp_rect frame = {0, 0, event->frame.rect.w, event->frame.rect.h};
-					mg_surface_set_frame(surface, frame);
-				} break;
-
 				case MP_EVENT_MOUSE_BUTTON:
 				{
 					if(event->key.code == MP_MOUSE_LEFT)
@@ -138,7 +132,7 @@ int main()
 					f32 pinX = (mousePos.x - startX)/zoom;
 					f32 pinY = (mousePos.y - startY)/zoom;
 
-					zoom *= 1 + event->move.deltaY * 0.01;
+					zoom *= 1 + event->mouse.deltaY * 0.01;
 					zoom = Clamp(zoom, 0.5, 5);
 
 					startX = mousePos.x - pinX*zoom;
