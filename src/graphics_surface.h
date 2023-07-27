@@ -78,14 +78,6 @@ typedef struct mg_image_data
 } mg_image_data;
 
 typedef void (*mg_canvas_backend_destroy_proc)(mg_canvas_backend* backend);
-typedef void (*mg_canvas_backend_begin_proc)(mg_canvas_backend* backend, mg_color clearColor);
-typedef void (*mg_canvas_backend_end_proc)(mg_canvas_backend* backend);
-typedef void (*mg_canvas_backend_draw_batch_proc)(mg_canvas_backend* backend,
-                                                  mg_image_data* imageData,
-                                                  u32 vertexCount,
-                                                  u32 shapeCount,
-                                                  u32 indexCount);
-
 
 typedef mg_image_data* (*mg_canvas_backend_image_create_proc)(mg_canvas_backend* backend, vec2 size);
 typedef void (*mg_canvas_backend_image_destroy_proc)(mg_canvas_backend* backend, mg_image_data* image);
@@ -104,9 +96,6 @@ typedef void (*mg_canvas_backend_render_proc)(mg_canvas_backend* backend,
 typedef struct mg_canvas_backend
 {
 	mg_canvas_backend_destroy_proc destroy;
-	mg_canvas_backend_begin_proc begin;
-	mg_canvas_backend_end_proc end;
-	mg_canvas_backend_draw_batch_proc drawBatch;
 
 	mg_canvas_backend_image_create_proc imageCreate;
 	mg_canvas_backend_image_destroy_proc imageDestroy;

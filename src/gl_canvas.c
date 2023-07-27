@@ -1661,10 +1661,10 @@ mg_canvas_backend* gl_canvas_backend_create(mg_wgl_surface* surface)
 
 		//NOTE(martin): setup interface functions
 		backend->interface.destroy = mg_gl_canvas_destroy;
-		backend->interface.render = mg_gl_canvas_render;
 		backend->interface.imageCreate = mg_gl_canvas_image_create;
 		backend->interface.imageDestroy = mg_gl_canvas_image_destroy;
 		backend->interface.imageUploadRegion = mg_gl_canvas_image_upload_region;
+		backend->interface.render = mg_gl_canvas_render;
 
 		surface->interface.prepare((mg_surface_data*)surface);
 
