@@ -172,6 +172,9 @@ typedef struct mg_gl_canvas_backend
 	vec4 pathScreenExtents;
 	vec4 pathUserExtents;
 
+	int maxTileQueueCount;
+	int maxSegmentCount;
+
 } mg_gl_canvas_backend;
 
 static void mg_update_path_extents(vec4* extents, vec2 p)
@@ -231,16 +234,19 @@ void mg_gl_canvas_encode_element(mg_gl_canvas_backend* backend, mg_path_elt_type
 	switch(kind)
 	{
 		case MG_PATH_LINE:
+			backend->maxSegmentCount += 1;
 			elt->kind = MG_GL_LINE;
 			count = 2;
 			break;
 
 		case MG_PATH_QUADRATIC:
+			backend->maxSegmentCount += 3;
 			elt->kind = MG_GL_QUADRATIC;
 			count = 3;
 			break;
 
 		case MG_PATH_CUBIC:
+			backend->maxSegmentCount += 7;
 			elt->kind = MG_GL_CUBIC;
 			count = 4;
 			break;
@@ -346,6 +352,10 @@ void mg_gl_canvas_encode_path(mg_gl_canvas_backend* backend, mg_primitive* primi
 		path->uvTransform[10] = 1;
 		path->uvTransform[11] = 0;
 	}
+
+	int nTilesX = ((path->box.z - path->box.x)*scale - 1) / MG_GL_TILE_SIZE + 1;
+	int nTilesY = ((path->box.w - path->box.y)*scale - 1) / MG_GL_TILE_SIZE + 1;
+	backend->maxTileQueueCount += (nTilesX * nTilesY);
 }
 
 bool mg_intersect_hull_legs(vec2 p0, vec2 p1, vec2 p2, vec2 p3, vec2* intersection)
@@ -1001,6 +1011,25 @@ void mg_gl_encode_stroke(mg_gl_canvas_backend* backend,
 	}
 }
 
+void mg_gl_grow_buffer_if_needed(GLuint buffer, i32 wantedSize, const char* name)
+{
+	i32 oldSize = 0;
+	glBindBuffer(GL_SHADER_STORAGE_BUFFER, buffer);
+	glGetBufferParameteriv(GL_SHADER_STORAGE_BUFFER, GL_BUFFER_SIZE, &oldSize);
+
+	if(oldSize < wantedSize)
+	{
+		log_info("growing %s buffer\n", name);
+
+		int newSize = wantedSize * 1.2;
+
+		glBindBuffer(GL_SHADER_STORAGE_BUFFER, buffer);
+		glBufferData(GL_SHADER_STORAGE_BUFFER, newSize, 0, GL_DYNAMIC_COPY);
+	}
+}
+
+
+
 void mg_gl_render_batch(mg_gl_canvas_backend* backend,
                         mg_wgl_surface* surface,
                         mg_image_data* image,
@@ -1010,7 +1039,6 @@ void mg_gl_render_batch(mg_gl_canvas_backend* backend,
                         vec2 viewportSize,
                         f32 scale)
 {
-	//NOTE: make the buffers visible to gl
 	GLuint pathBuffer = backend->pathBuffer[backend->bufferIndex].buffer;
 	GLuint elementBuffer = backend->elementBuffer[backend->bufferIndex].buffer;
 
@@ -1024,6 +1052,16 @@ void mg_gl_render_batch(mg_gl_canvas_backend* backend,
 		return;
 	}
 
+	//NOTE: update intermediate buffers size if needed
+	//TODO: compute correct sizes
+
+	mg_gl_grow_buffer_if_needed(backend->pathQueueBuffer, pathCount * sizeof(mg_gl_path_queue), "path queues");
+	mg_gl_grow_buffer_if_needed(backend->tileQueueBuffer, backend->maxTileQueueCount * sizeof(mg_gl_tile_queue), "tile queues");
+	mg_gl_grow_buffer_if_needed(backend->segmentBuffer, backend->maxSegmentCount * sizeof(mg_gl_segment), "segments");
+	mg_gl_grow_buffer_if_needed(backend->screenTilesBuffer, nTilesX * nTilesY * sizeof(mg_gl_screen_tile), "screen tiles");
+	mg_gl_grow_buffer_if_needed(backend->tileOpBuffer, backend->maxSegmentCount * 30 * sizeof(mg_gl_tile_op), "tile ops");
+
+	//NOTE: make the buffers visible to gl
 	glBindBuffer(GL_SHADER_STORAGE_BUFFER, pathBuffer);
 	glFlushMappedBufferRange(GL_SHADER_STORAGE_BUFFER, pathBufferOffset, pathCount*sizeof(mg_gl_path));
 
@@ -1251,6 +1289,9 @@ void mg_gl_render_batch(mg_gl_canvas_backend* backend,
 
 	backend->pathBatchStart = backend->pathCount;
 	backend->eltBatchStart = backend->eltCount;
+
+	backend->maxSegmentCount = 0;
+	backend->maxTileQueueCount = 0;
 }
 
 void mg_gl_canvas_resize(mg_gl_canvas_backend* backend, vec2 size)
@@ -1324,6 +1365,8 @@ void mg_gl_canvas_render(mg_canvas_backend* interface,
 	backend->pathBatchStart = 0;
 	backend->eltCount = 0;
 	backend->eltBatchStart = 0;
+	backend->maxSegmentCount = 0;
+	backend->maxTileQueueCount = 0;
 
 	//NOTE: encode and render batches
 	vec2 currentPos = {0};
@@ -1574,9 +1617,9 @@ int mg_gl_canvas_compile_render_program_named(const char* progName,
 
 const u32 MG_GL_PATH_BUFFER_SIZE       = (4<<10)*sizeof(mg_gl_path),
           MG_GL_ELEMENT_BUFFER_SIZE    = (4<<12)*sizeof(mg_gl_path_elt),
-          MG_GL_SEGMENT_BUFFER_SIZE    = (4<<20)*sizeof(mg_gl_segment),
-          MG_GL_PATH_QUEUE_BUFFER_SIZE = (4<<20)*sizeof(mg_gl_path_queue),
-          MG_GL_TILE_QUEUE_BUFFER_SIZE = (4<<20)*sizeof(mg_gl_tile_queue),
+          MG_GL_SEGMENT_BUFFER_SIZE    = (4<<10)*sizeof(mg_gl_segment),
+          MG_GL_PATH_QUEUE_BUFFER_SIZE = (4<<10)*sizeof(mg_gl_path_queue),
+          MG_GL_TILE_QUEUE_BUFFER_SIZE = (4<<10)*sizeof(mg_gl_tile_queue),
           MG_GL_TILE_OP_BUFFER_SIZE    = (4<<20)*sizeof(mg_gl_tile_op);
 
 mg_canvas_backend* gl_canvas_backend_create(mg_wgl_surface* surface)
