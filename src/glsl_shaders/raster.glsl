@@ -32,12 +32,19 @@ layout(binding = 4) restrict readonly buffer screenTilesCountBufferSSBO
 
 layout(location = 0) uniform float scale;
 layout(location = 1) uniform int msaaSampleCount;
-layout(location = 2) uniform uint useTexture;
-layout(location = 3) uniform int pathBufferStart;
-layout(location = 4) uniform uint maxWorkGroupCount;
+layout(location = 2) uniform int pathBufferStart;
+layout(location = 3) uniform uint maxWorkGroupCount;
 
 layout(rgba8, binding = 0) uniform restrict writeonly image2D outTexture;
-layout(binding = 1) uniform sampler2D srcTexture;
+
+layout(binding = 1) uniform sampler2D srcTexture0;
+layout(binding = 2) uniform sampler2D srcTexture1;
+layout(binding = 3) uniform sampler2D srcTexture2;
+layout(binding = 4) uniform sampler2D srcTexture3;
+layout(binding = 5) uniform sampler2D srcTexture4;
+layout(binding = 6) uniform sampler2D srcTexture5;
+layout(binding = 7) uniform sampler2D srcTexture6;
+layout(binding = 8) uniform sampler2D srcTexture7;
 
 void main()
 {
@@ -146,15 +153,49 @@ void main()
 			vec4 nextColor = pathBuffer.elements[pathBufferStart + pathIndex].color;
 			nextColor.rgb *= nextColor.a;
 
-			if(useTexture != 0)
+			int textureID = pathBuffer.elements[pathBufferStart+pathIndex].textureID;
+			if(textureID >= 0)
 			{
 				vec4 texColor = vec4(0);
+
 				for(int sampleIndex = 0; sampleIndex<srcSampleCount; sampleIndex++)
 				{
 					vec2 sampleCoord = imgSampleCoords[sampleIndex];
 					vec3 ph = vec3(sampleCoord.xy, 1);
 					vec2 uv = (pathBuffer.elements[pathBufferStart + pathIndex].uvTransform * ph).xy;
-					texColor += texture(srcTexture, uv);
+
+					if(textureID == 0)
+					{
+						texColor += texture(srcTexture0, uv);
+					}
+					else if(textureID == 1)
+					{
+						texColor += texture(srcTexture1, uv);
+					}
+					else if(textureID == 2)
+					{
+						texColor += texture(srcTexture2, uv);
+					}
+					else if(textureID == 3)
+					{
+						texColor += texture(srcTexture3, uv);
+					}
+					else if(textureID == 4)
+					{
+						texColor += texture(srcTexture4, uv);
+					}
+					else if(textureID == 5)
+					{
+						texColor += texture(srcTexture5, uv);
+					}
+					else if(textureID == 6)
+					{
+						texColor += texture(srcTexture6, uv);
+					}
+					else if(textureID == 7)
+					{
+						texColor += texture(srcTexture7, uv);
+					}
 				}
 				texColor /= srcSampleCount;
 				texColor.rgb *= texColor.a;
