@@ -64,53 +64,62 @@ typedef struct mg_gl_dispatch_indirect_command
 ////////////////////////////////////////////////////////////
 //NOTE: these are just here for the sizes...
 
-typedef struct mg_gl_segment
+#define MG_GL_LAYOUT_FIRST(name, type) \
+	MG_GL_##name##_OFFSET = 0, \
+	MG_GL_##name##_SIZE = MG_GL_##type##_SIZE,
+
+#define MG_GL_LAYOUT_NEXT(name, type, prev) \
+	MG_GL_##name##_OFFSET = AlignUpOnPow2(MG_GL_##prev##_OFFSET + MG_GL_##prev##_SIZE, MG_GL_##type##_ALIGN), \
+	MG_GL_##name##_SIZE = MG_GL_##type##_SIZE,
+
+#define MG_GL_LAYOUT_SIZE(name, last, maxAlignType) \
+	MG_GL_##name##_ALIGN = AlignUpOnPow2(MG_GL_##maxAlignType##_ALIGN, MG_GL_VEC4_ALIGN), \
+	MG_GL_##name##_SIZE = AlignUpOnPow2(MG_GL_##last##_OFFSET + MG_GL_##last##_SIZE, MG_GL_##name##_ALIGN),
+
+enum
 {
-	int kind;
-	int pathIndex;
-	int config;
-	int windingIncrement;
-	vec4 box;
-	float hullMatrix[9];
-	float implicitMatrix[9];
-	float sign;
-	vec2 hullVertex;
-	int debugID;
+	MG_GL_I32_SIZE = sizeof(i32),
+	MG_GL_I32_ALIGN = sizeof(i32),
+	MG_GL_F32_SIZE = sizeof(f32),
+	MG_GL_F32_ALIGN = sizeof(f32),
+	MG_GL_VEC2_SIZE = 2*sizeof(f32),
+	MG_GL_VEC2_ALIGN = 2*sizeof(f32),
+	MG_GL_VEC3_SIZE = 4*sizeof(f32),
+	MG_GL_VEC3_ALIGN = 4*sizeof(f32),
+	MG_GL_VEC4_SIZE = 4*sizeof(f32),
+	MG_GL_VEC4_ALIGN = 4*sizeof(f32),
+	MG_GL_MAT3_SIZE = 3*3*MG_GL_VEC3_SIZE,
+	MG_GL_MAT3_ALIGN = MG_GL_VEC3_ALIGN,
 
-} mg_gl_segment;
+	MG_GL_LAYOUT_FIRST(SEGMENT_KIND, I32)
+	MG_GL_LAYOUT_NEXT(SEGMENT_PATH_INDEX, I32, SEGMENT_KIND)
+	MG_GL_LAYOUT_NEXT(SEGMENT_CONFIG, I32, SEGMENT_PATH_INDEX)
+	MG_GL_LAYOUT_NEXT(SEGMENT_WINDING, I32, SEGMENT_CONFIG)
+	MG_GL_LAYOUT_NEXT(SEGMENT_BOX, VEC4, SEGMENT_WINDING)
+	MG_GL_LAYOUT_NEXT(SEGMENT_IMPLICIT_MATRIX, MAT3, SEGMENT_BOX)
+	MG_GL_LAYOUT_NEXT(SEGMENT_HULL_VERTEX, VEC2, SEGMENT_IMPLICIT_MATRIX)
+	MG_GL_LAYOUT_NEXT(SEGMENT_SIGN, F32, SEGMENT_HULL_VERTEX)
+	MG_GL_LAYOUT_SIZE(SEGMENT, SEGMENT_SIGN, MAT3)
 
-typedef struct mg_gl_path_queue
-{
-	vec4 area;
-	int tileQueues;
-	u8 pad[12];
-} mg_gl_path_queue;
+	MG_GL_LAYOUT_FIRST(PATH_QUEUE_AREA, VEC4)
+	MG_GL_LAYOUT_NEXT(PATH_QUEUE_TILE_QUEUES, I32, PATH_QUEUE_AREA)
+	MG_GL_LAYOUT_SIZE(PATH_QUEUE, PATH_QUEUE_TILE_QUEUES, VEC4)
 
-typedef struct mg_gl_tile_op
-{
-	int kind;
-	int index;
-	int next;
-	bool crossRight;
-	int windingOffset;
+	MG_GL_LAYOUT_FIRST(TILE_OP_KIND, I32)
+	MG_GL_LAYOUT_NEXT(TILE_OP_NEXT, I32, TILE_OP_KIND)
+	MG_GL_LAYOUT_NEXT(TILE_OP_INDEX, I32, TILE_OP_NEXT)
+	MG_GL_LAYOUT_NEXT(TILE_OP_WINDING, I32, TILE_OP_INDEX)
+	MG_GL_LAYOUT_SIZE(TILE_OP, TILE_OP_WINDING, I32)
 
-} mg_gl_tile_op;
+	MG_GL_LAYOUT_FIRST(TILE_QUEUE_WINDING, I32)
+	MG_GL_LAYOUT_NEXT(TILE_QUEUE_FIRST, I32, TILE_QUEUE_WINDING)
+	MG_GL_LAYOUT_NEXT(TILE_QUEUE_LAST, I32, TILE_QUEUE_FIRST)
+	MG_GL_LAYOUT_SIZE(TILE_QUEUE, TILE_QUEUE_LAST, I32)
 
-typedef struct mg_gl_tile_queue
-{
-	int windingOffset;
-	int first;
-	int last;
-
-} mg_gl_tile_queue;
-
-typedef struct mg_gl_screen_tile
-{
-	u32 tileCoord[2];
-	i32 first;
-	u8 padding[4];
-} mg_gl_screen_tile;
-////////////////////////////////////////////////////////////
+	MG_GL_LAYOUT_FIRST(SCREEN_TILE_COORD, VEC2)
+	MG_GL_LAYOUT_NEXT(SCREEN_TILE_FIRST, I32, SCREEN_TILE_COORD)
+	MG_GL_LAYOUT_SIZE(SCREEN_TILE, SCREEN_TILE_FIRST, VEC2)
+};
 
 enum {
 	MG_GL_INPUT_BUFFERS_COUNT = 3,
@@ -1055,11 +1064,11 @@ void mg_gl_render_batch(mg_gl_canvas_backend* backend,
 	//NOTE: update intermediate buffers size if needed
 	//TODO: compute correct sizes
 
-	mg_gl_grow_buffer_if_needed(backend->pathQueueBuffer, pathCount * sizeof(mg_gl_path_queue), "path queues");
-	mg_gl_grow_buffer_if_needed(backend->tileQueueBuffer, backend->maxTileQueueCount * sizeof(mg_gl_tile_queue), "tile queues");
-	mg_gl_grow_buffer_if_needed(backend->segmentBuffer, backend->maxSegmentCount * sizeof(mg_gl_segment), "segments");
-	mg_gl_grow_buffer_if_needed(backend->screenTilesBuffer, nTilesX * nTilesY * sizeof(mg_gl_screen_tile), "screen tiles");
-	mg_gl_grow_buffer_if_needed(backend->tileOpBuffer, backend->maxSegmentCount * 30 * sizeof(mg_gl_tile_op), "tile ops");
+	mg_gl_grow_buffer_if_needed(backend->pathQueueBuffer, pathCount * MG_GL_PATH_QUEUE_SIZE, "path queues");
+	mg_gl_grow_buffer_if_needed(backend->tileQueueBuffer, backend->maxTileQueueCount * MG_GL_TILE_QUEUE_SIZE, "tile queues");
+	mg_gl_grow_buffer_if_needed(backend->segmentBuffer, backend->maxSegmentCount * MG_GL_SEGMENT_SIZE, "segments");
+	mg_gl_grow_buffer_if_needed(backend->screenTilesBuffer, nTilesX * nTilesY * MG_GL_SCREEN_TILE_SIZE, "screen tiles");
+	mg_gl_grow_buffer_if_needed(backend->tileOpBuffer, backend->maxSegmentCount * 30 * MG_GL_TILE_OP_SIZE, "tile ops");
 
 	//NOTE: make the buffers visible to gl
 	glBindBuffer(GL_SHADER_STORAGE_BUFFER, pathBuffer);
@@ -1301,7 +1310,7 @@ void mg_gl_canvas_resize(mg_gl_canvas_backend* backend, vec2 size)
 	int nTilesY = (int)(size.y + tileSize - 1)/tileSize;
 
 	glBindBuffer(GL_SHADER_STORAGE_BUFFER, backend->screenTilesBuffer);
-	glBufferData(GL_SHADER_STORAGE_BUFFER, nTilesX*nTilesY*sizeof(mg_gl_screen_tile), 0, GL_DYNAMIC_COPY);
+	glBufferData(GL_SHADER_STORAGE_BUFFER, nTilesX*nTilesY*MG_GL_SCREEN_TILE_SIZE, 0, GL_DYNAMIC_COPY);
 
 	if(backend->outTexture)
 	{
@@ -1617,10 +1626,10 @@ int mg_gl_canvas_compile_render_program_named(const char* progName,
 
 const u32 MG_GL_PATH_BUFFER_SIZE       = (4<<10)*sizeof(mg_gl_path),
           MG_GL_ELEMENT_BUFFER_SIZE    = (4<<12)*sizeof(mg_gl_path_elt),
-          MG_GL_SEGMENT_BUFFER_SIZE    = (4<<10)*sizeof(mg_gl_segment),
-          MG_GL_PATH_QUEUE_BUFFER_SIZE = (4<<10)*sizeof(mg_gl_path_queue),
-          MG_GL_TILE_QUEUE_BUFFER_SIZE = (4<<10)*sizeof(mg_gl_tile_queue),
-          MG_GL_TILE_OP_BUFFER_SIZE    = (4<<20)*sizeof(mg_gl_tile_op);
+          MG_GL_SEGMENT_BUFFER_SIZE    = (4<<10)*MG_GL_SEGMENT_SIZE,
+          MG_GL_PATH_QUEUE_BUFFER_SIZE = (4<<10)*MG_GL_PATH_QUEUE_SIZE,
+          MG_GL_TILE_QUEUE_BUFFER_SIZE = (4<<10)*MG_GL_TILE_QUEUE_SIZE,
+          MG_GL_TILE_OP_BUFFER_SIZE    = (4<<20)*MG_GL_TILE_OP_SIZE;
 
 mg_canvas_backend* gl_canvas_backend_create(mg_wgl_surface* surface)
 {
@@ -1733,7 +1742,7 @@ mg_canvas_backend* gl_canvas_backend_create(mg_wgl_surface* surface)
 
 		glGenBuffers(1, &backend->screenTilesBuffer);
 		glBindBuffer(GL_SHADER_STORAGE_BUFFER, backend->screenTilesBuffer);
-		glBufferData(GL_SHADER_STORAGE_BUFFER, nTilesX*nTilesY*sizeof(mg_gl_screen_tile), 0, GL_DYNAMIC_COPY);
+		glBufferData(GL_SHADER_STORAGE_BUFFER, nTilesX*nTilesY*MG_GL_SCREEN_TILE_SIZE, 0, GL_DYNAMIC_COPY);
 
 		glGenBuffers(1, &backend->rasterDispatchBuffer);
 		glBindBuffer(GL_SHADER_STORAGE_BUFFER, backend->rasterDispatchBuffer);
