@@ -62,6 +62,11 @@ int main()
 
 	//NOTE: create surface
 	mg_surface surface = mg_surface_create_for_window(window, MG_CANVAS);
+	if(mg_surface_is_nil(surface))
+	{
+		log_error("Couln't create surface\n");
+		return(-1);
+	}
 	mg_surface_swap_interval(surface, 0);
 
 	//TODO: create canvas

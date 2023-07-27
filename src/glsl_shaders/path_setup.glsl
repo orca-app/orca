@@ -50,13 +50,21 @@ void main()
 
 	int tileQueuesIndex = atomicAdd(tileQueueCountBuffer.elements[0], tileCount);
 
-	pathQueueBuffer.elements[pathQueueBufferStart + pathIndex].area = ivec4(firstTile.x, firstTile.y, nTilesX, nTilesY);
-	pathQueueBuffer.elements[pathQueueBufferStart + pathIndex].tileQueues = tileQueuesIndex;
-
-	for(int i=0; i<tileCount; i++)
+	if(tileQueuesIndex + tileCount >= tileQueueBuffer.elements.length())
 	{
-		tileQueueBuffer.elements[tileQueuesIndex + i].first = -1;
-		tileQueueBuffer.elements[tileQueuesIndex + i].last = -1;
-		tileQueueBuffer.elements[tileQueuesIndex + i].windingOffset = 0;
+		pathQueueBuffer.elements[pathIndex].area = ivec4(0);
+		pathQueueBuffer.elements[pathIndex].tileQueues = 0;
+	}
+	else
+	{
+		pathQueueBuffer.elements[pathQueueBufferStart + pathIndex].area = ivec4(firstTile.x, firstTile.y, nTilesX, nTilesY);
+		pathQueueBuffer.elements[pathQueueBufferStart + pathIndex].tileQueues = tileQueuesIndex;
+
+		for(int i=0; i<tileCount; i++)
+		{
+			tileQueueBuffer.elements[tileQueuesIndex + i].first = -1;
+			tileQueueBuffer.elements[tileQueuesIndex + i].last = -1;
+			tileQueueBuffer.elements[tileQueuesIndex + i].windingOffset = 0;
+		}
 	}
 }

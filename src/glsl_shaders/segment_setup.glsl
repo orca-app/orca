@@ -105,29 +105,33 @@ void bin_to_tiles(int segIndex)
 			{
 				int tileOpIndex = atomicAdd(tileOpCountBuffer.elements[0], 1);
 
-				tileOpBuffer.elements[tileOpIndex].kind = MG_GL_OP_SEGMENT;
-				tileOpBuffer.elements[tileOpIndex].index = segIndex;
-				tileOpBuffer.elements[tileOpIndex].windingOffsetOrCrossRight = 0;
-				tileOpBuffer.elements[tileOpIndex].next = -1;
-
-				int tileQueueIndex = pathQueue.tileQueues + y*pathArea.z + x;
-
-				tileOpBuffer.elements[tileOpIndex].next = atomicExchange(tileQueueBuffer.elements[tileQueueIndex].first, tileOpIndex);
-				if(tileOpBuffer.elements[tileOpIndex].next == -1)
+				if(tileOpIndex < tileOpBuffer.elements.length())
 				{
-					tileQueueBuffer.elements[tileQueueIndex].last = tileOpIndex;
-				}
+					tileOpBuffer.elements[tileOpIndex].kind = MG_GL_OP_SEGMENT;
+					tileOpBuffer.elements[tileOpIndex].index = segIndex;
+					tileOpBuffer.elements[tileOpIndex].windingOffsetOrCrossRight = 0;
+					tileOpBuffer.elements[tileOpIndex].next = -1;
 
-				//NOTE: if the segment crosses the tile's bottom boundary, update the tile's winding offset
-				if(crossB)
-				{
-					atomicAdd(tileQueueBuffer.elements[tileQueueIndex].windingOffset, seg.windingIncrement);
-				}
+					int tileQueueIndex = pathQueue.tileQueues + y*pathArea.z + x;
 
-				//NOTE: if the segment crosses the right boundary, mark it.
-				if(crossR)
-				{
-					tileOpBuffer.elements[tileOpIndex].windingOffsetOrCrossRight = 1;
+					tileOpBuffer.elements[tileOpIndex].next = atomicExchange(tileQueueBuffer.elements[tileQueueIndex].first,
+					                                                         tileOpIndex);
+					if(tileOpBuffer.elements[tileOpIndex].next == -1)
+					{
+						tileQueueBuffer.elements[tileQueueIndex].last = tileOpIndex;
+					}
+
+					//NOTE: if the segment crosses the tile's bottom boundary, update the tile's winding offset
+					if(crossB)
+					{
+						atomicAdd(tileQueueBuffer.elements[tileQueueIndex].windingOffset, seg.windingIncrement);
+					}
+
+					//NOTE: if the segment crosses the right boundary, mark it.
+					if(crossR)
+					{
+						tileOpBuffer.elements[tileOpIndex].windingOffsetOrCrossRight = 1;
+					}
 				}
 			}
 		}
@@ -138,88 +142,90 @@ int push_segment(in vec2 p[4], int kind, int pathIndex)
 {
 	int segIndex = atomicAdd(segmentCountBuffer.elements[0], 1);
 
-	vec2 s, c, e;
-
-	switch(kind)
+	if(segIndex < segmentBuffer.elements.length())
 	{
-		case MG_GL_LINE:
-			s = p[0];
-			c = p[0];
-			e = p[1];
-			break;
+		vec2 s, c, e;
 
-		case MG_GL_QUADRATIC:
-			s = p[0];
-			c = p[1];
-			e = p[2];
-			break;
-
-		case MG_GL_CUBIC:
+		switch(kind)
 		{
-			s = p[0];
-			float sqrNorm0 = dot(p[1]-p[0], p[1]-p[0]);
-			float sqrNorm1 = dot(p[3]-p[2], p[3]-p[2]);
-			if(sqrNorm0 < sqrNorm1)
+			case MG_GL_LINE:
+				s = p[0];
+				c = p[0];
+				e = p[1];
+				break;
+
+			case MG_GL_QUADRATIC:
+				s = p[0];
+				c = p[1];
+				e = p[2];
+				break;
+
+			case MG_GL_CUBIC:
 			{
-				c = p[2];
+				s = p[0];
+				float sqrNorm0 = dot(p[1]-p[0], p[1]-p[0]);
+				float sqrNorm1 = dot(p[3]-p[2], p[3]-p[2]);
+				if(sqrNorm0 < sqrNorm1)
+				{
+					c = p[2];
+				}
+				else
+				{
+					c = p[1];
+				}
+				e = p[3];
+			} break;
+		}
+
+		bool goingUp = e.y >= s.y;
+		bool goingRight = e.x >= s.x;
+
+		vec4 box = vec4(min(s.x, e.x),
+	                	min(s.y, e.y),
+	                	max(s.x, e.x),
+	                	max(s.y, e.y));
+
+		segmentBuffer.elements[segIndex].kind = kind;
+		segmentBuffer.elements[segIndex].pathIndex = pathIndex;
+		segmentBuffer.elements[segIndex].windingIncrement = goingUp ? 1 : -1;
+		segmentBuffer.elements[segIndex].box = box;
+
+		float dx = c.x - box.x;
+		float dy = c.y - box.y;
+		float alpha = (box.w - box.y)/(box.z - box.x);
+		float ofs = box.w - box.y;
+
+		if(goingUp == goingRight)
+		{
+			if(kind == MG_GL_LINE)
+			{
+				segmentBuffer.elements[segIndex].config = MG_GL_BR;
+			}
+			else if(dy > alpha*dx)
+			{
+				segmentBuffer.elements[segIndex].config = MG_GL_TL;
 			}
 			else
 			{
-				c = p[1];
+				segmentBuffer.elements[segIndex].config = MG_GL_BR;
 			}
-			e = p[3];
-		} break;
-	}
-
-	bool goingUp = e.y >= s.y;
-	bool goingRight = e.x >= s.x;
-
-	vec4 box = vec4(min(s.x, e.x),
-	                min(s.y, e.y),
-	                max(s.x, e.x),
-	                max(s.y, e.y));
-
-	segmentBuffer.elements[segIndex].kind = kind;
-	segmentBuffer.elements[segIndex].pathIndex = pathIndex;
-	segmentBuffer.elements[segIndex].windingIncrement = goingUp ? 1 : -1;
-	segmentBuffer.elements[segIndex].box = box;
-
-	float dx = c.x - box.x;
-	float dy = c.y - box.y;
-	float alpha = (box.w - box.y)/(box.z - box.x);
-	float ofs = box.w - box.y;
-
-	if(goingUp == goingRight)
-	{
-		if(kind == MG_GL_LINE)
-		{
-			segmentBuffer.elements[segIndex].config = MG_GL_BR;
-		}
-		else if(dy > alpha*dx)
-		{
-			segmentBuffer.elements[segIndex].config = MG_GL_TL;
 		}
 		else
 		{
-			segmentBuffer.elements[segIndex].config = MG_GL_BR;
+			if(kind == MG_GL_LINE)
+			{
+				segmentBuffer.elements[segIndex].config = MG_GL_TR;
+			}
+			else if(dy < ofs - alpha*dx)
+			{
+				segmentBuffer.elements[segIndex].config = MG_GL_BL;
+			}
+			else
+			{
+				segmentBuffer.elements[segIndex].config = MG_GL_TR;
+			}
 		}
 	}
-	else
-	{
-		if(kind == MG_GL_LINE)
-		{
-			segmentBuffer.elements[segIndex].config = MG_GL_TR;
-		}
-		else if(dy < ofs - alpha*dx)
-		{
-			segmentBuffer.elements[segIndex].config = MG_GL_BL;
-		}
-		else
-		{
-			segmentBuffer.elements[segIndex].config = MG_GL_TR;
-		}
-	}
-
 	return(segIndex);
 }
 
@@ -229,9 +235,11 @@ int push_segment(in vec2 p[4], int kind, int pathIndex)
 void line_setup(vec2 p[4], int pathIndex)
 {
 	int segIndex = push_segment(p, MG_GL_LINE, pathIndex);
-	segmentBuffer.elements[segIndex].hullVertex = p[0];
-
-	bin_to_tiles(segIndex);
+	if(segIndex < segmentBuffer.elements.length())
+	{
+		segmentBuffer.elements[segIndex].hullVertex = p[0];
+		bin_to_tiles(segIndex);
+	}
 }
 
 vec2 quadratic_blossom(vec2 p[4], float u, float v)
@@ -298,27 +306,30 @@ void quadratic_emit(vec2 p[4], int pathIndex)
 {
 	int segIndex = push_segment(p, MG_GL_QUADRATIC, pathIndex);
 
-	//NOTE: compute implicit equation matrix
-	float det = p[0].x*(p[1].y-p[2].y) + p[1].x*(p[2].y-p[0].y) + p[2].x*(p[0].y - p[1].y);
+	if(segIndex < segmentBuffer.elements.length())
+	{
+		//NOTE: compute implicit equation matrix
+		float det = p[0].x*(p[1].y-p[2].y) + p[1].x*(p[2].y-p[0].y) + p[2].x*(p[0].y - p[1].y);
 
-	float a = p[0].y - p[1].y + 0.5*(p[2].y - p[0].y);
-	float b = p[1].x - p[0].x + 0.5*(p[0].x - p[2].x);
-	float c = p[0].x*p[1].y - p[1].x*p[0].y + 0.5*(p[2].x*p[0].y - p[0].x*p[2].y);
-	float d = p[0].y - p[1].y;
-	float e = p[1].x - p[0].x;
-	float f = p[0].x*p[1].y - p[1].x*p[0].y;
+		float a = p[0].y - p[1].y + 0.5*(p[2].y - p[0].y);
+		float b = p[1].x - p[0].x + 0.5*(p[0].x - p[2].x);
+		float c = p[0].x*p[1].y - p[1].x*p[0].y + 0.5*(p[2].x*p[0].y - p[0].x*p[2].y);
+		float d = p[0].y - p[1].y;
+		float e = p[1].x - p[0].x;
+		float f = p[0].x*p[1].y - p[1].x*p[0].y;
 
-	float flip = (  segmentBuffer.elements[segIndex].config == MG_GL_TL
-	             || segmentBuffer.elements[segIndex].config == MG_GL_BL)? -1 : 1;
+		float flip = (  segmentBuffer.elements[segIndex].config == MG_GL_TL
+	             	|| segmentBuffer.elements[segIndex].config == MG_GL_BL)? -1 : 1;
 
-	float g = flip*(p[2].x*(p[0].y - p[1].y) + p[0].x*(p[1].y - p[2].y) + p[1].x*(p[2].y - p[0].y));
+		float g = flip*(p[2].x*(p[0].y - p[1].y) + p[0].x*(p[1].y - p[2].y) + p[1].x*(p[2].y - p[0].y));
 
-	segmentBuffer.elements[segIndex].implicitMatrix = (1/det)*mat3(a, d, 0.,
-	                                                               b, e, 0.,
-	                                                               c, f, g);
-	segmentBuffer.elements[segIndex].hullVertex = p[1];
+		segmentBuffer.elements[segIndex].implicitMatrix = (1/det)*mat3(a, d, 0.,
+	                                                               	b, e, 0.,
+	                                                               	c, f, g);
+		segmentBuffer.elements[segIndex].hullVertex = p[1];
 
-	bin_to_tiles(segIndex);
+		bin_to_tiles(segIndex);
+	}
 }
 
 void quadratic_setup(vec2 p[4], int pathIndex)
@@ -654,71 +665,74 @@ void cubic_emit(cubic_info curve, vec2 p[4], float s0, float s1, vec2 sp[4], int
 {
 	int segIndex = push_segment(sp, MG_GL_CUBIC, pathIndex);
 
-	vec2 v0 = p[0];
-	vec2 v1 = p[3];
-	vec2 v2;
-	mat3 K;
-
-	//TODO: haul that up in caller
-	float sqrNorm0 = dot(p[1]-p[0], p[1]-p[0]);
-	float sqrNorm1 = dot(p[2]-p[3], p[2]-p[3]);
-
-	if(dot(p[0]-p[3], p[0]-p[3]) > 1e-5)
+	if(segIndex < segmentBuffer.elements.length())
 	{
-		if(sqrNorm0 >= sqrNorm1)
- 		{
- 			v2 = p[1];
-			K = mat3(curve.K[0].xyz, curve.K[3].xyz, curve.K[1].xyz);
+		vec2 v0 = p[0];
+		vec2 v1 = p[3];
+		vec2 v2;
+		mat3 K;
+
+		//TODO: haul that up in caller
+		float sqrNorm0 = dot(p[1]-p[0], p[1]-p[0]);
+		float sqrNorm1 = dot(p[2]-p[3], p[2]-p[3]);
+
+		if(dot(p[0]-p[3], p[0]-p[3]) > 1e-5)
+		{
+			if(sqrNorm0 >= sqrNorm1)
+ 			{
+ 				v2 = p[1];
+				K = mat3(curve.K[0].xyz, curve.K[3].xyz, curve.K[1].xyz);
+ 			}
+ 			else
+ 			{
+				v2 = p[2];
+				K = mat3(curve.K[0].xyz, curve.K[3].xyz, curve.K[2].xyz);
+ 			}
  		}
  		else
  		{
+			v1 = p[1];
 			v2 = p[2];
-			K = mat3(curve.K[0].xyz, curve.K[3].xyz, curve.K[2].xyz);
+			K = mat3(curve.K[0].xyz, curve.K[1].xyz, curve.K[2].xyz);
  		}
- 	}
- 	else
- 	{
-		v1 = p[1];
-		v2 = p[2];
-		K = mat3(curve.K[0].xyz, curve.K[1].xyz, curve.K[2].xyz);
- 	}
- 	//NOTE: set matrices
+ 		//NOTE: set matrices
 
- 	//TODO: should we compute matrix relative to a base point to avoid loss of precision
- 	//      when computing barycentric matrix?
+ 		//TODO: should we compute matrix relative to a base point to avoid loss of precision
+ 		//      when computing barycentric matrix?
 
-	mat3 B = barycentric_matrix(v0, v1, v2);
+		mat3 B = barycentric_matrix(v0, v1, v2);
 
- 	segmentBuffer.elements[segIndex].implicitMatrix = K*B;
-	segmentBuffer.elements[segIndex].hullVertex = select_hull_vertex(sp[0], sp[1], sp[2], sp[3]);
+ 		segmentBuffer.elements[segIndex].implicitMatrix = K*B;
+		segmentBuffer.elements[segIndex].hullVertex = select_hull_vertex(sp[0], sp[1], sp[2], sp[3]);
 
-  	//NOTE: compute sign flip
-  	segmentBuffer.elements[segIndex].sign = 1;
+  		//NOTE: compute sign flip
+  		segmentBuffer.elements[segIndex].sign = 1;
 
-  	if(  curve.kind == CUBIC_SERPENTINE
-	  || curve.kind == CUBIC_CUSP)
-  	{
-		segmentBuffer.elements[segIndex].sign = (curve.d1 < 0)? -1 : 1;
+  		if(  curve.kind == CUBIC_SERPENTINE
+	  	|| curve.kind == CUBIC_CUSP)
+  		{
+			segmentBuffer.elements[segIndex].sign = (curve.d1 < 0)? -1 : 1;
+		}
+		else if(curve.kind == CUBIC_LOOP)
+		{
+			float d1 = curve.d1;
+			float d2 = curve.d2;
+			float d3 = curve.d3;
+
+			float H0 = d3*d1-square(d2) + d1*d2*s0 - square(d1)*square(s0);
+			float H1 = d3*d1-square(d2) + d1*d2*s1 - square(d1)*square(s1);
+			float H = (abs(H0) > abs(H1)) ? H0 : H1;
+			segmentBuffer.elements[segIndex].sign = (H*d1 > 0) ? -1 : 1;
+		}
+
+		if(sp[3].y > sp[0].y)
+		{
+			segmentBuffer.elements[segIndex].sign *= -1;
+		}
+
+		//NOTE: bin to tiles
+		bin_to_tiles(segIndex);
 	}
-	else if(curve.kind == CUBIC_LOOP)
-	{
-		float d1 = curve.d1;
-		float d2 = curve.d2;
-		float d3 = curve.d3;
-
-		float H0 = d3*d1-square(d2) + d1*d2*s0 - square(d1)*square(s0);
-		float H1 = d3*d1-square(d2) + d1*d2*s1 - square(d1)*square(s1);
-		float H = (abs(H0) > abs(H1)) ? H0 : H1;
-		segmentBuffer.elements[segIndex].sign = (H*d1 > 0) ? -1 : 1;
-	}
-
-	if(sp[3].y > sp[0].y)
-	{
-		segmentBuffer.elements[segIndex].sign *= -1;
-	}
-
-	//NOTE: bin to tiles
-	bin_to_tiles(segIndex);
 }
 
 void cubic_setup(vec2 p[4], int pathIndex)

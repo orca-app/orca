@@ -106,6 +106,11 @@ void main()
 					//      Additionally if color is opaque and tile is fully inside clip, trim tile list.
 					int pathOpIndex = atomicAdd(tileOpCountBuffer.elements[0], 1);
 
+					if(pathOpIndex >= tileOpBuffer.elements.length())
+					{
+						return;
+					}
+
 					tileOpBuffer.elements[pathOpIndex].kind = MG_GL_OP_CLIP_FILL;
 					tileOpBuffer.elements[pathOpIndex].next = -1;
 					tileOpBuffer.elements[pathOpIndex].index = pathIndex;
@@ -141,6 +146,10 @@ void main()
 			{
 				//NOTE: add path start op (with winding offset)
 				int startOpIndex = atomicAdd(tileOpCountBuffer.elements[0], 1);
+				if(startOpIndex >= tileOpBuffer.elements.length())
+				{
+					return;
+				}
 
 				tileOpBuffer.elements[startOpIndex].kind = MG_GL_OP_START;
 				tileOpBuffer.elements[startOpIndex].next = -1;
@@ -163,6 +172,10 @@ void main()
 
 				//NOTE: add path end op
 				int endOpIndex = atomicAdd(tileOpCountBuffer.elements[0], 1);
+				if(endOpIndex >= tileOpBuffer.elements.length())
+				{
+					return;
+				}
 
 				tileOpBuffer.elements[endOpIndex].kind = MG_GL_OP_END;
 				tileOpBuffer.elements[endOpIndex].next = -1;
