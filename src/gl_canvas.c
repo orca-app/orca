@@ -149,6 +149,7 @@ typedef struct mg_gl_canvas_backend
 	GLuint segmentSetup;
 	GLuint backprop;
 	GLuint merge;
+	GLuint balanceWorkgroups;
 	GLuint raster;
 	GLuint blit;
 
@@ -167,6 +168,7 @@ typedef struct mg_gl_canvas_backend
 	GLuint tileOpBuffer;
 	GLuint tileOpCountBuffer;
 	GLuint screenTilesBuffer;
+	GLuint screenTilesCountBuffer;
 	GLuint rasterDispatchBuffer;
 	GLuint dummyVertexBuffer;
 
@@ -1095,6 +1097,9 @@ void mg_gl_render_batch(mg_gl_canvas_backend* backend,
 	glBindBuffer(GL_SHADER_STORAGE_BUFFER, backend->rasterDispatchBuffer);
 	glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(mg_gl_dispatch_indirect_command), &zero, GL_DYNAMIC_COPY);
 
+	glBindBuffer(GL_SHADER_STORAGE_BUFFER, backend->screenTilesCountBuffer);
+	glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(int), &zero, GL_DYNAMIC_COPY);
+
 	glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
 
 	int err = glGetError();
@@ -1210,7 +1215,7 @@ void mg_gl_render_batch(mg_gl_canvas_backend* backend,
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, backend->tileOpCountBuffer);
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 4, backend->tileOpBuffer);
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 5, backend->screenTilesBuffer);
-	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 6, backend->rasterDispatchBuffer);
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 6, backend->screenTilesCountBuffer);
 
 	glUniform1i(0, tileSize);
 	glUniform1f(1, scale);
@@ -1239,6 +1244,17 @@ void mg_gl_render_batch(mg_gl_canvas_backend* backend,
 			log_error("gl error %i\n", err);
 		}
 	}
+
+	//NOTE: balance work groups
+	glUseProgram(backend->balanceWorkgroups);
+
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, backend->screenTilesCountBuffer);
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, backend->rasterDispatchBuffer);
+	glUniform1ui(0, maxWorkGroupCount);
+
+	glDispatchCompute(1, 1, 1);
+	glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+
 	//NOTE: raster pass
 	glUseProgram(backend->raster);
 
@@ -1246,6 +1262,7 @@ void mg_gl_render_batch(mg_gl_canvas_backend* backend,
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, backend->segmentBuffer);
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, backend->tileOpBuffer);
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, backend->screenTilesBuffer);
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 4, backend->screenTilesCountBuffer);
 
 	glUniform1f(0, scale);
 	glUniform1i(1, backend->msaaCount);
@@ -1265,6 +1282,7 @@ void mg_gl_render_batch(mg_gl_canvas_backend* backend,
 	}
 
 	glUniform1i(3, backend->pathBatchStart);
+	glUniform1ui(4, maxWorkGroupCount);
 
 	glBindBuffer(GL_DISPATCH_INDIRECT_BUFFER, backend->rasterDispatchBuffer);
 	glDispatchComputeIndirect(0);
@@ -1659,6 +1677,7 @@ mg_canvas_backend* gl_canvas_backend_create(mg_wgl_surface* surface)
 		err |= mg_gl_canvas_compile_compute_program(glsl_segment_setup, &backend->segmentSetup);
 		err |= mg_gl_canvas_compile_compute_program(glsl_backprop, &backend->backprop);
 		err |= mg_gl_canvas_compile_compute_program(glsl_merge, &backend->merge);
+		err |= mg_gl_canvas_compile_compute_program(glsl_balance_workgroups, &backend->balanceWorkgroups);
 		err |= mg_gl_canvas_compile_compute_program(glsl_raster, &backend->raster);
 		err |= mg_gl_canvas_compile_render_program("blit", glsl_blit_vertex, glsl_blit_fragment, &backend->blit);
 
@@ -1744,10 +1763,13 @@ mg_canvas_backend* gl_canvas_backend_create(mg_wgl_surface* surface)
 		glBindBuffer(GL_SHADER_STORAGE_BUFFER, backend->screenTilesBuffer);
 		glBufferData(GL_SHADER_STORAGE_BUFFER, nTilesX*nTilesY*MG_GL_SCREEN_TILE_SIZE, 0, GL_DYNAMIC_COPY);
 
+		glGenBuffers(1, &backend->screenTilesCountBuffer);
+		glBindBuffer(GL_SHADER_STORAGE_BUFFER, backend->screenTilesCountBuffer);
+		glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(int), 0, GL_DYNAMIC_COPY);
+
 		glGenBuffers(1, &backend->rasterDispatchBuffer);
 		glBindBuffer(GL_SHADER_STORAGE_BUFFER, backend->rasterDispatchBuffer);
 		glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(mg_gl_dispatch_indirect_command), 0, GL_DYNAMIC_COPY);
-
 
 		if(err)
 		{

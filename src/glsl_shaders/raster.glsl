@@ -24,17 +24,30 @@ layout(binding = 3) restrict readonly buffer screenTilesBufferSSBO
 	mg_gl_screen_tile elements[];
 } screenTilesBuffer;
 
+layout(binding = 4) restrict readonly buffer screenTilesCountBufferSSBO
+{
+	int elements[];
+} screenTilesCountBuffer;
+
+
 layout(location = 0) uniform float scale;
 layout(location = 1) uniform int msaaSampleCount;
 layout(location = 2) uniform uint useTexture;
 layout(location = 3) uniform int pathBufferStart;
+layout(location = 4) uniform uint maxWorkGroupCount;
 
 layout(rgba8, binding = 0) uniform restrict writeonly image2D outTexture;
 layout(binding = 1) uniform sampler2D srcTexture;
 
 void main()
 {
-	uint tileIndex = gl_WorkGroupID.x;
+	uint tileIndex = gl_WorkGroupID.y * maxWorkGroupCount + gl_WorkGroupID.x;
+
+	if(tileIndex >= screenTilesCountBuffer.elements[0])
+	{
+		return;
+	}
+
 	uvec2 tileCoord = screenTilesBuffer.elements[tileIndex].tileCoord;
 	ivec2 pixelCoord = ivec2(tileCoord * gl_WorkGroupSize.x + gl_LocalInvocationID.xy);
 

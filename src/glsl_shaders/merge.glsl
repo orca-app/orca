@@ -34,10 +34,10 @@ layout(binding = 5) restrict writeonly buffer screenTilesBufferSSBO
 	mg_gl_screen_tile elements[];
 } screenTilesBuffer;
 
-layout(binding = 6) coherent restrict buffer dispatchBufferSSBO
+layout(binding = 6) coherent restrict buffer screenTilesCountBufferSSBO
 {
-	mg_gl_dispatch_indirect_command elements[];
-} dispatchBuffer;
+	int elements[];
+} screenTilesCountBuffer;
 
 
 layout(location = 0) uniform int tileSize;
@@ -52,9 +52,6 @@ void main()
 	int tileIndex = -1;
 
 	int lastOpIndex = -1;
-
-	dispatchBuffer.elements[0].num_groups_y = 1;
-	dispatchBuffer.elements[0].num_groups_z = 1;
 
 	for(int pathIndex = 0; pathIndex < pathCount; pathIndex++)
 	{
@@ -75,7 +72,7 @@ void main()
 		{
 			if(tileIndex < 0)
 			{
-				tileIndex = int(atomicAdd(dispatchBuffer.elements[0].num_groups_x, 1));
+				tileIndex = int(atomicAdd(screenTilesCountBuffer.elements[0], 1));
 				screenTilesBuffer.elements[tileIndex].tileCoord = uvec2(tileCoord);
 				screenTilesBuffer.elements[tileIndex].first = -1;
 			}
