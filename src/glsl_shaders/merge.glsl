@@ -34,10 +34,10 @@ layout(binding = 5) restrict writeonly buffer screenTilesBufferSSBO
 	mg_gl_screen_tile elements[];
 } screenTilesBuffer;
 
-layout(binding = 6) coherent restrict buffer dispatchBufferSSBO
+layout(binding = 6) coherent restrict buffer screenTilesCountBufferSSBO
 {
-	mg_gl_dispatch_indirect_command elements[];
-} dispatchBuffer;
+	int elements[];
+} screenTilesCountBuffer;
 
 
 layout(location = 0) uniform int tileSize;
@@ -52,9 +52,6 @@ void main()
 	int tileIndex = -1;
 
 	int lastOpIndex = -1;
-
-	dispatchBuffer.elements[0].num_groups_y = 1;
-	dispatchBuffer.elements[0].num_groups_z = 1;
 
 	for(int pathIndex = 0; pathIndex < pathCount; pathIndex++)
 	{
@@ -75,7 +72,7 @@ void main()
 		{
 			if(tileIndex < 0)
 			{
-				tileIndex = int(atomicAdd(dispatchBuffer.elements[0].num_groups_x, 1));
+				tileIndex = int(atomicAdd(screenTilesCountBuffer.elements[0], 1));
 				screenTilesBuffer.elements[tileIndex].tileCoord = uvec2(tileCoord);
 				screenTilesBuffer.elements[tileIndex].first = -1;
 			}
@@ -105,6 +102,11 @@ void main()
 					//NOTE: tile is full covered. Add path start op (with winding offset).
 					//      Additionally if color is opaque and tile is fully inside clip, trim tile list.
 					int pathOpIndex = atomicAdd(tileOpCountBuffer.elements[0], 1);
+
+					if(pathOpIndex >= tileOpBuffer.elements.length())
+					{
+						return;
+					}
 
 					tileOpBuffer.elements[pathOpIndex].kind = MG_GL_OP_CLIP_FILL;
 					tileOpBuffer.elements[pathOpIndex].next = -1;
@@ -141,6 +143,10 @@ void main()
 			{
 				//NOTE: add path start op (with winding offset)
 				int startOpIndex = atomicAdd(tileOpCountBuffer.elements[0], 1);
+				if(startOpIndex >= tileOpBuffer.elements.length())
+				{
+					return;
+				}
 
 				tileOpBuffer.elements[startOpIndex].kind = MG_GL_OP_START;
 				tileOpBuffer.elements[startOpIndex].next = -1;
@@ -163,6 +169,10 @@ void main()
 
 				//NOTE: add path end op
 				int endOpIndex = atomicAdd(tileOpCountBuffer.elements[0], 1);
+				if(endOpIndex >= tileOpBuffer.elements.length())
+				{
+					return;
+				}
 
 				tileOpBuffer.elements[endOpIndex].kind = MG_GL_OP_END;
 				tileOpBuffer.elements[endOpIndex].next = -1;
