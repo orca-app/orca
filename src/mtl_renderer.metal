@@ -1450,7 +1450,7 @@ kernel void mtl_merge(constant int* pathCount [[buffer(0)]],
 					{
 						pathOp->kind = MG_MTL_OP_FILL;
 
-						if(pathBuffer[pathIndex].color.a == 1)
+						if(pathBuffer[pathIndex].color.a == 1 && pathBuffer[pathIndex].texture < 0)
 						{
 							screenTilesBuffer[tileIndex].first = pathOpIndex;
 						}
@@ -1512,9 +1512,8 @@ kernel void mtl_raster(const device mg_mtl_screen_tile* screenTilesBuffer [[buff
                        constant int* sampleCountBuffer [[buffer(6)]],
                        device char* logBuffer [[buffer(7)]],
                        device atomic_int* logOffsetBuffer [[buffer(8)]],
-                       constant int* useTexture [[buffer(9)]],
                        texture2d<float, access::write> outTexture [[texture(0)]],
-                       texture2d<float> srcTexture [[texture(1)]],
+                       array<texture2d<float>, MG_MTL_MAX_IMAGES_PER_BATCH> srcTextures [[texture(1)]],
                        uint2  threadGroupCoord [[threadgroup_position_in_grid]],
                        uint2 localCoord [[thread_position_in_threadgroup]])
 {
@@ -1611,7 +1610,8 @@ kernel void mtl_raster(const device mg_mtl_screen_tile* screenTilesBuffer [[buff
 			float4 nextColor = pathBuffer[pathIndex].color;
 			nextColor.rgb *= nextColor.a;
 
-			if(useTexture[0])
+			int textureIndex = pathBuffer[pathIndex].texture;
+			if(textureIndex >= 0 && textureIndex < MG_MTL_MAX_IMAGES_PER_BATCH)
 			{
 				constexpr sampler smp(mip_filter::nearest, mag_filter::linear, min_filter::linear);
 
@@ -1622,7 +1622,7 @@ kernel void mtl_raster(const device mg_mtl_screen_tile* screenTilesBuffer [[buff
 					float3 ph = float3(sampleCoord.xy, 1);
 					float2 uv = (pathBuffer[pathIndex].uvTransform * ph).xy;
 
-					texColor += srcTexture.sample(smp, uv);
+					texColor += srcTextures[textureIndex].sample(smp, uv);
 				}
 				texColor /= srcSampleCount;
 				texColor.rgb *= texColor.a;

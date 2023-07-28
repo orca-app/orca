@@ -30,7 +30,8 @@ typedef struct mg_gl_path
 	vec4 box;
 	vec4 clip;
 	mg_gl_cmd cmd;
-	u8 pad[12];
+	int textureID;
+	u8 pad[8];
 } mg_gl_path;
 
 enum _mg_gl_seg_kind{
@@ -125,6 +126,7 @@ enum {
 	MG_GL_INPUT_BUFFERS_COUNT = 3,
 	MG_GL_TILE_SIZE = 16,
 	MG_GL_MSAA_COUNT = 8,
+	MG_GL_MAX_IMAGES_PER_BATCH = 8,
 };
 
 typedef struct mg_gl_mapped_buffer
@@ -186,6 +188,7 @@ typedef struct mg_gl_canvas_backend
 	int maxTileQueueCount;
 	int maxSegmentCount;
 
+	int currentImageIndex;
 } mg_gl_canvas_backend;
 
 static void mg_update_path_extents(vec4* extents, vec2 p)
@@ -362,6 +365,12 @@ void mg_gl_canvas_encode_path(mg_gl_canvas_backend* backend, mg_primitive* primi
 		path->uvTransform[9] = uvTransform.m[5];
 		path->uvTransform[10] = 1;
 		path->uvTransform[11] = 0;
+
+		path->textureID = backend->currentImageIndex;
+	}
+	else
+	{
+		path->textureID = -1;
 	}
 
 	int nTilesX = ((path->box.z - path->box.x)*scale - 1) / MG_GL_TILE_SIZE + 1;
@@ -1043,7 +1052,7 @@ void mg_gl_grow_buffer_if_needed(GLuint buffer, i32 wantedSize, const char* name
 
 void mg_gl_render_batch(mg_gl_canvas_backend* backend,
                         mg_wgl_surface* surface,
-                        mg_image_data* image,
+                        mg_image* images,
                         int tileSize,
                         int nTilesX,
                         int nTilesY,
@@ -1220,18 +1229,7 @@ void mg_gl_render_batch(mg_gl_canvas_backend* backend,
 	glUniform1i(0, tileSize);
 	glUniform1f(1, scale);
 	glUniform1i(2, pathCount);
-
-	// if there's an image, don't cull solid tiles
-	if(image)
-	{
-		glUniform1i(3, 0);
-	}
-	else
-	{
-		glUniform1i(3, 1);
-	}
-
-	glUniform1i(4, backend->pathBatchStart);
+	glUniform1i(3, backend->pathBatchStart);
 
 	glDispatchCompute(nTilesX, nTilesY, 1);
 	glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
@@ -1269,20 +1267,21 @@ void mg_gl_render_batch(mg_gl_canvas_backend* backend,
 
 	glBindImageTexture(0, backend->outTexture, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA8);
 
-	if(image)
+	for(int i=0; i<MG_GL_MAX_IMAGES_PER_BATCH; i++)
 	{
-		mg_gl_image* glImage = (mg_gl_image*)image;
-		glActiveTexture(GL_TEXTURE1);
-		glBindTexture(GL_TEXTURE_2D, glImage->texture);
-		glUniform1ui(2, 1);
-	}
-	else
-	{
-		glUniform1ui(2, 0);
+		if(images[i].h)
+		{
+			mg_gl_image* image = (mg_gl_image*)mg_image_data_from_handle(images[i]);
+			if(image)
+			{
+				glActiveTexture(GL_TEXTURE1+i);
+				glBindTexture(GL_TEXTURE_2D, image->texture);
+			}
+		}
 	}
 
-	glUniform1i(3, backend->pathBatchStart);
-	glUniform1ui(4, maxWorkGroupCount);
+	glUniform1i(2, backend->pathBatchStart);
+	glUniform1ui(3, maxWorkGroupCount);
 
 	glBindBuffer(GL_DISPATCH_INDIRECT_BUFFER, backend->rasterDispatchBuffer);
 	glDispatchComputeIndirect(0);
@@ -1397,28 +1396,53 @@ void mg_gl_canvas_render(mg_canvas_backend* interface,
 
 	//NOTE: encode and render batches
 	vec2 currentPos = {0};
-	mg_image currentImage = mg_image_nil();
-
+	mg_image images[MG_GL_MAX_IMAGES_PER_BATCH] = {0};
+	int imageCount = 0;
 	backend->eltCount = 0;
 
 	for(int primitiveIndex = 0; primitiveIndex < primitiveCount; primitiveIndex++)
 	{
 		mg_primitive* primitive = &primitives[primitiveIndex];
 
-		if(primitiveIndex && (primitive->attributes.image.h != currentImage.h))
+		if(primitive->attributes.image.h != 0)
 		{
-			mg_image_data* imageData = mg_image_data_from_handle(currentImage);
+			backend->currentImageIndex = -1;
+			for(int i=0; i<imageCount; i++)
+			{
+				if(images[i].h == primitive->attributes.image.h)
+				{
+					backend->currentImageIndex = i;
+				}
+			}
+			if(backend->currentImageIndex <= 0)
+			{
+				if(imageCount<MG_GL_MAX_IMAGES_PER_BATCH)
+				{
+					images[imageCount] = primitive->attributes.image;
+					backend->currentImageIndex = imageCount;
+					imageCount++;
+				}
+				else
+				{
+					mg_gl_render_batch(backend,
+					                    surface,
+					                    images,
+					                    tileSize,
+					                    nTilesX,
+					                    nTilesY,
+					                    viewportSize,
+					                    scale);
 
-			mg_gl_render_batch(backend,
-			                   surface,
-			                   imageData,
-			                   tileSize,
-			                   nTilesX,
-			                   nTilesY,
-			                   viewportSize,
-			                   scale);
+					images[0] = primitive->attributes.image;
+					backend->currentImageIndex = 0;
+					imageCount = 1;
+				}
+			}
 		}
-		currentImage = primitive->attributes.image;
+		else
+		{
+			backend->currentImageIndex = -1;
+		}
 
 		if(primitive->path.count)
 		{
@@ -1470,10 +1494,9 @@ void mg_gl_canvas_render(mg_canvas_backend* interface,
 		}
 	}
 
-	mg_image_data* imageData = mg_image_data_from_handle(currentImage);
 	mg_gl_render_batch(backend,
 	                    surface,
-	                    imageData,
+	                    images,
 	                    tileSize,
 	                    nTilesX,
 	                    nTilesY,

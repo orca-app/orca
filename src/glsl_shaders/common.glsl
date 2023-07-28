@@ -34,6 +34,7 @@ struct mg_gl_path
 	vec4 box;
 	vec4 clip;
 	int cmd;
+	int textureID;
 };
 
 struct mg_gl_path_elt

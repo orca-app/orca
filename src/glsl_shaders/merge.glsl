@@ -43,8 +43,7 @@ layout(binding = 6) coherent restrict buffer screenTilesCountBufferSSBO
 layout(location = 0) uniform int tileSize;
 layout(location = 1) uniform float scale;
 layout(location = 2) uniform int pathCount;
-layout(location = 3) uniform int cullSolidTiles;
-layout(location = 4) uniform int pathBufferStart;
+layout(location = 3) uniform int pathBufferStart;
 
 void main()
 {
@@ -130,7 +129,7 @@ void main()
 						tileOpBuffer.elements[pathOpIndex].kind = MG_GL_OP_FILL;
 
 						if(  pathBuffer.elements[pathBufferStart + pathIndex].color.a == 1
-						  && cullSolidTiles != 0)
+						  && pathBuffer.elements[pathBufferStart + pathIndex].textureID < 0)
 						{
 							screenTilesBuffer.elements[tileIndex].first = pathOpIndex;
 						}

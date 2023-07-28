@@ -71,6 +71,8 @@ typedef struct mg_mtl_canvas_backend
 	int maxTileQueueCount;
 	int maxSegmentCount;
 
+	int currentImageIndex;
+
 } mg_mtl_canvas_backend;
 
 typedef struct mg_mtl_image_data
@@ -249,7 +251,9 @@ void mg_mtl_encode_path(mg_mtl_canvas_backend* backend, mg_primitive* primitive,
 		path->uvTransform = simd_matrix(simd_make_float3(uvTransform.m[0]/scale, uvTransform.m[3]/scale, 0),
 		                                simd_make_float3(uvTransform.m[1]/scale, uvTransform.m[4]/scale, 0),
 		                                simd_make_float3(uvTransform.m[2], uvTransform.m[5], 1));
+
 	}
+	path->texture = backend->currentImageIndex;
 
 	int nTilesX = ((path->box.z - path->box.x)*scale - 1) / MG_MTL_TILE_SIZE + 1;
 	int nTilesY = ((path->box.w - path->box.y)*scale - 1) / MG_MTL_TILE_SIZE + 1;
@@ -932,7 +936,7 @@ void mg_mtl_grow_buffer_if_needed(mg_mtl_canvas_backend* backend, id<MTLBuffer>*
 
 void mg_mtl_render_batch(mg_mtl_canvas_backend* backend,
                          mg_mtl_surface* surface,
-                         mg_image_data* image,
+                         mg_image* images,
                          int tileSize,
                          int nTilesX,
                          int nTilesY,
@@ -1084,14 +1088,17 @@ void mg_mtl_render_batch(mg_mtl_canvas_backend* backend,
 
 		[rasterEncoder setTexture:backend->outTexture atIndex:0];
 
-		int useTexture = 0;
-		if(image)
+		for(int i=0; i<MG_MTL_MAX_IMAGES_PER_BATCH; i++)
 		{
-			mg_mtl_image_data* mtlImage = (mg_mtl_image_data*)image;
-			[rasterEncoder setTexture: mtlImage->texture atIndex: 1];
-			useTexture = 1;
+			if(images[i].h)
+			{
+				mg_mtl_image_data* image = (mg_mtl_image_data*)mg_image_data_from_handle(images[i]);
+				if(image)
+				{
+					[rasterEncoder setTexture: image->texture atIndex: 1+i];
+				}
+			}
 		}
-		[rasterEncoder setBytes: &useTexture length:sizeof(int) atIndex: 9];
 
 		MTLSize rasterGridSize = MTLSizeMake(viewportSize.x, viewportSize.y, 1);
 		MTLSize rasterGroupSize = MTLSizeMake(MG_MTL_TILE_SIZE, MG_MTL_TILE_SIZE, 1);
@@ -1226,27 +1233,52 @@ void mg_mtl_canvas_render(mg_canvas_backend* interface,
 
 	//NOTE: encode and render batches
 	vec2 currentPos = {0};
-
-	mg_image currentImage = mg_image_nil();
+	mg_image images[MG_MTL_MAX_IMAGES_PER_BATCH] = {0};
+	int imageCount = 0;
 
 	for(int primitiveIndex = 0; primitiveIndex < primitiveCount; primitiveIndex++)
 	{
 		mg_primitive* primitive = &primitives[primitiveIndex];
 
-		if(primitiveIndex && (primitive->attributes.image.h != currentImage.h))
+		if(primitive->attributes.image.h != 0)
 		{
-			mg_image_data* imageData = mg_image_data_from_handle(currentImage);
+			backend->currentImageIndex = -1;
+			for(int i=0; i<imageCount; i++)
+			{
+				if(images[i].h == primitive->attributes.image.h)
+				{
+					backend->currentImageIndex = i;
+				}
+			}
+			if(backend->currentImageIndex <= 0)
+			{
+				if(imageCount<MG_MTL_MAX_IMAGES_PER_BATCH)
+				{
+					images[imageCount] = primitive->attributes.image;
+					backend->currentImageIndex = imageCount;
+					imageCount++;
+				}
+				else
+				{
+					mg_mtl_render_batch(backend,
+					                    surface,
+					                    images,
+					                    tileSize,
+					                    nTilesX,
+					                    nTilesY,
+					                    viewportSize,
+					                    scale);
 
-			mg_mtl_render_batch(backend,
-			                    surface,
-			                    imageData,
-			                    tileSize,
-			                    nTilesX,
-			                    nTilesY,
-			                    viewportSize,
-			                    scale);
+					images[0] = primitive->attributes.image;
+					backend->currentImageIndex = 0;
+					imageCount = 1;
+				}
+			}
 		}
-		currentImage = primitive->attributes.image;
+		else
+		{
+			backend->currentImageIndex = -1;
+		}
 
 		if(primitive->path.count)
 		{
@@ -1296,11 +1328,9 @@ void mg_mtl_canvas_render(mg_canvas_backend* interface,
 		}
 	}
 
-	mg_image_data* imageData = mg_image_data_from_handle(currentImage);
-
 	mg_mtl_render_batch(backend,
 	                    surface,
-	                    imageData,
+	                    images,
 	                    tileSize,
 	                    nTilesX,
 	                    nTilesY,

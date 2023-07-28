@@ -23,6 +23,7 @@ typedef struct mg_mtl_path
 	vector_float4 color;
 	vector_float4 box;
 	vector_float4 clip;
+	int texture;
 } mg_mtl_path;
 
 typedef enum {
@@ -102,5 +103,9 @@ typedef struct mg_mtl_screen_tile
 	int first;
 
 } mg_mtl_screen_tile;
+
+enum {
+	MG_MTL_MAX_IMAGES_PER_BATCH = 30
+};
 
 #endif //__MTL_RENDERER_H_
