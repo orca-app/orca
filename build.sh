@@ -58,22 +58,28 @@ elif [ $target = orca ] ; then
 	FLAGS="-g -DLOG_COMPILE_DEBUG -mmacos-version-min=10.15.4 -maes"
 
 	# generate wasm3 api bindings
-	./scripts/bindgen.py core ./src
-	./scripts/bindgen.py gles ./src
 
-	python3 ./scripts/bindgen2.py canvas \
+	python3 ./scripts/bindgen.py core \
+		src/core_api.json \
+		--wasm3-bindings ./src/core_api_bind_gen.c
+
+	python3 ./scripts/bindgen.py gles \
+		src/gles_api.json \
+		--wasm3-bindings ./src/gles_api_bind_gen.c
+
+	python3 ./scripts/bindgen.py canvas \
 		src/canvas_api.json \
 		--guest-stubs sdk/orca_surface.c \
 		--guest-include graphics.h \
 		--wasm3-bindings ./src/canvas_api_bind_gen.c
 
-	python3 ./scripts/bindgen2.py clock \
+	python3 ./scripts/bindgen.py clock \
 		src/clock_api.json \
 		--guest-stubs sdk/orca_clock.c \
 		--guest-include platform_clock.h \
 		--wasm3-bindings ./src/clock_api_bind_gen.c
 
-	python3 ./scripts/bindgen2.py io \
+	python3 ./scripts/bindgen.py io \
 		src/io_api.json \
 		--guest-stubs sdk/io_stubs.c \
 		--wasm3-bindings ./src/io_api_bind_gen.c

@@ -36,21 +36,23 @@ if %target% == orca (
 	copy %pthread_dir%\bin\pthreadVC3.dll bin
 
 	::generate wasm3 api bindings
-	python3 scripts\bindgen.py core src
+	python3 scripts\bindgen.py core src\core_api.json^
+			--wasm3-bindings src\core_api_bind_gen.c
 
-	python3 scripts\bindgen.py gles src
+	python3 scripts\bindgen.py gles src\gles_api.json^
+			--wasm3-bindings src\gles_api_bind_gen.c
 
-	python3 scripts\bindgen2.py canvas src\canvas_api.json^
+	python3 scripts\bindgen.py canvas src\canvas_api.json^
 	        --guest-stubs sdk\orca_surface.c^
 	        --guest-include graphics.h^
 	        --wasm3-bindings src\canvas_api_bind_gen.c
 
-	python3 scripts\bindgen2.py clock src\clock_api.json^
+	python3 scripts\bindgen.py clock src\clock_api.json^
 	        --guest-stubs sdk\orca_clock.c^
 	        --guest-include platform_clock.h^
 	        --wasm3-bindings src\clock_api_bind_gen.c
 
-	python3 scripts\bindgen2.py io^
+	python3 scripts\bindgen.py io^
 	        src\io_api.json^
 	        --guest-stubs sdk\io_stubs.c^
 	        --wasm3-bindings src\io_api_bind_gen.c

@@ -298,12 +298,12 @@ void orca_runtime_init(orca_runtime* runtime)
 	runtime->wasmMemory.ptr = mem_base_reserve(allocator, runtime->wasmMemory.reserved);
 }
 
-#include"bindgen_core_api.c"
+#include"core_api_bind_gen.c"
 #include"canvas_api_bind.c"
 #include"clock_api_bind_gen.c"
 #include"io_api_bind_gen.c"
 
-#include"bindgen_gles_api.c"
+#include"gles_api_bind_gen.c"
 #include"manual_gles_api.c"
 
 void* orca_runloop(void* user)
