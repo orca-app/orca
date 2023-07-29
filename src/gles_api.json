@@ -1,0 +1,383 @@
+[
+{
+	"name": "glCreateProgram",
+	"cname": "glCreateProgram",
+	"ret": {"name": "int", "tag": "i"},
+	"args": []
+},
+{
+	"name": "glCreateShader",
+	"cname": "glCreateShader",
+	"ret": {"name": "int", "tag": "i"},
+	"args": [ {"name": "shaderType",
+			   "type": {"name": "GLenum", "tag": "i"}}]
+},
+{
+	"name": "glCompileShader",
+	"cname": "glCompileShader",
+	"ret": {"name": "void", "tag": "v"},
+	"args": [ {"name": "shader",
+			   "type": {"name": "GLuint", "tag": "i"}}]
+},
+{
+	"name": "glAttachShader",
+	"cname": "glAttachShader",
+	"ret": {"name": "void", "tag": "v"},
+	"args": [ {"name": "program",
+			   "type": {"name": "GLuint", "tag": "i"}},
+			  {"name": "shader",
+			   "type": {"name": "GLuint", "tag": "i"}}
+			]
+},
+{
+	"name": "glLinkProgram",
+	"cname": "glLinkProgram",
+	"ret": {"name": "void", "tag": "v"},
+	"args": [ {"name": "program",
+			   "type": {"name": "GLuint", "tag": "i"}}]
+},
+{
+	"name": "glUseProgram",
+	"cname": "glUseProgram",
+	"ret": {"name": "void", "tag": "v"},
+	"args": [ {"name": "program",
+			   "type": {"name": "GLuint", "tag": "i"}}]
+},
+{
+	"name": "glGetError",
+	"cname": "glGetError",
+	"ret": {"name": "GLenum", "tag": "i"},
+	"args": []
+},
+{
+	"name": "glClearColor",
+	"cname": "glClearColor",
+	"ret": {"name": "void", "tag": "v"},
+	"args": [ {"name": "red",
+			   "type": {"name": "GLfloat", "tag": "f"}},
+			  {"name": "green",
+			   "type": {"name": "GLfloat", "tag": "f"}},
+			  {"name": "blue",
+			   "type": {"name": "GLfloat", "tag": "f"}},
+			  {"name": "alpha",
+			   "type": {"name": "GLfloat", "tag": "f"}}
+			]
+},
+{
+	"name": "glClear",
+	"cname": "glClear",
+	"ret": {"name": "void", "tag": "v"},
+	"args": [ {"name": "mask",
+			   "type": {"name": "GLbitfield", "tag": "i"}}]
+},
+{
+	"name": "glViewport",
+	"cname": "glViewport",
+	"ret": {"name": "void", "tag": "v"},
+	"args": [ {"name": "x",
+			   "type": {"name": "GLint", "tag": "i"}},
+			  {"name": "y",
+			   "type": {"name": "GLint", "tag": "i"}},
+			  {"name": "width",
+			   "type": {"name": "GLsizei", "tag": "i"}},
+			  {"name": "height",
+			   "type": {"name": "GLsizei", "tag": "i"}}
+			]
+},
+{
+	"name": "glGetShaderiv",
+	"cname": "glGetShaderiv",
+	"ret": {"name": "void", "tag": "v"},
+	"args": [ {"name": "shader",
+			   "type": {"name": "GLuint", "tag": "i"}},
+			  {"name": "pname",
+			   "type": {"name": "GLenum", "tag": "i"}},
+			  {"name": "params",
+			   "type": {"name": "GLint*", "tag": "p"}}
+			]
+},
+{
+	"name": "glGetShaderInfoLog",
+	"cname": "glGetShaderInfoLog",
+	"ret": {"name": "void", "tag": "v"},
+	"args": [ {"name": "shader",
+			   "type": {"name": "GLuint", "tag": "i"}},
+			  {"name": "maxLength",
+			   "type": {"name": "GLsizei", "tag": "i"}},
+			  {"name": "length",
+			   "type": {"name": "GLsizei", "tag": "p"}},
+			  {"name": "infoLog",
+			   "type": {"name": "GLchar", "tag": "p"}}
+			]
+},
+{
+	"name": "glBindFramebuffer",
+	"cname": "glBindFramebuffer",
+	"ret": {"name": "void", "tag": "v"},
+	"args": [ {"name": "target",
+			   "type": {"name": "GLenum", "tag": "i"}},
+			  {"name": "framebuffer",
+			   "type": {"name": "GLuint", "tag": "i"}}
+			]
+},
+{
+	"name": "glBindTexture",
+	"cname": "glBindTexture",
+	"ret": {"name": "void", "tag": "v"},
+	"args": [ {"name": "target",
+			   "type": {"name": "GLenum", "tag": "i"}},
+			  {"name": "texture",
+			   "type": {"name": "GLuint", "tag": "i"}}
+			]
+},
+{
+	"name": "glActiveTexture",
+	"cname": "glActiveTexture",
+	"ret": {"name": "void", "tag": "v"},
+	"args": [ {"name": "texture",
+			   "type": {"name": "GLuint", "tag": "i"}}]
+},
+{
+	"name": "glGenBuffers",
+	"cname": "glGenBuffers",
+	"ret": {"name": "void", "tag": "v"},
+	"args": [ {"name": "n",
+			   "type": {"name": "GLenum", "tag": "i"}},
+			  {"name": "buffers",
+			   "type": {"name": "GLuint*", "tag": "p"}}
+			]
+},
+{
+	"name": "glGenTextures",
+	"cname": "glGenTextures",
+	"ret": {"name": "void", "tag": "v"},
+	"args": [ {"name": "n",
+			   "type": {"name": "GLenum", "tag": "i"}},
+			  {"name": "textures",
+			   "type": {"name": "GLuint*", "tag": "p"}}
+			]
+},
+{
+	"name": "glGenFramebuffers",
+	"cname": "glGenFramebuffers",
+	"ret": {"name": "void", "tag": "v"},
+	"args": [ {"name": "n",
+			   "type": {"name": "GLenum", "tag": "i"}},
+			  {"name": "framebuffers",
+			   "type": {"name": "GLuint*", "tag": "p"}}
+			]
+},
+{
+	"name": "glFramebufferTexture2D",
+	"cname": "glFramebufferTexture2D",
+	"ret": {"name": "void", "tag": "v"},
+	"args": [ {"name": "target",
+			   "type": {"name": "GLenum", "tag": "i"}},
+			  {"name": "attachment",
+			   "type": {"name": "GLenum", "tag": "i"}},
+			  {"name": "textarget",
+			   "type": {"name": "GLenum", "tag": "i"}},
+			  {"name": "texture",
+			   "type": {"name": "GLuint", "tag": "i"}},
+			  {"name": "level",
+			   "type": {"name": "GLint", "tag": "i"}}
+			]
+},
+{
+	"name": "glCheckFramebufferStatus",
+	"cname": "glCheckFramebufferStatus",
+	"ret": {"name": "GLenum", "tag": "i"},
+	"args": [ {"name": "target",
+			   "type": {"name": "GLenum", "tag": "i"}}]
+},
+{
+	"name": "glTexImage2D",
+	"cname": "glTexImage2D",
+	"ret": {"name": "void", "tag": "v"},
+	"args": [ {"name": "target",
+			   "type": {"name": "GLenum", "tag": "i"}},
+			  {"name": "level",
+			   "type": {"name": "GLint", "tag": "i"}},
+			  {"name": "internalformat",
+			   "type": {"name": "GLint", "tag": "i"}},
+			  {"name": "width",
+			   "type": {"name": "GLsizei", "tag": "i"}},
+			  {"name": "height",
+			   "type": {"name": "GLsizei", "tag": "i"}},
+			  {"name": "border",
+			   "type": {"name": "GLint", "tag": "i"}},
+			  {"name": "format",
+			   "type": {"name": "GLenum", "tag": "i"}},
+			  {"name": "type",
+			   "type": {"name": "GLenum", "tag": "i"}},
+			  {"name": "data",
+			   "type": {"name": "void*", "tag": "p"}}
+			]
+},
+{
+	"name": "glTexParameteri",
+	"cname": "glTexParameteri",
+	"ret": {"name": "void", "tag": "v"},
+	"args": [ {"name": "target",
+			   "type": {"name": "GLenum", "tag": "i"}},
+			  {"name": "pname",
+			   "type": {"name": "GLenum", "tag": "i"}},
+			  {"name": "param",
+			   "type": {"name": "GLint", "tag": "i"}}
+			]
+},
+{
+	"name": "glBindBuffer",
+	"cname": "glBindBuffer",
+	"ret": {"name": "void", "tag": "v"},
+	"args": [ {"name": "target",
+			   "type": {"name": "GLenum", "tag": "i"}},
+			  {"name": "buffer",
+			   "type": {"name": "GLuint", "tag": "i"}}
+			]
+},
+{
+	"name": "glBufferData",
+	"cname": "glBufferData",
+	"ret": {"name": "void", "tag": "v"},
+	"args": [ {"name": "target",
+			   "type": {"name": "GLenum", "tag": "i"}},
+			  {"name": "size",
+			   "type": {"name": "GLsizeiptr", "tag": "i"}},
+			  {"name": "data",
+			   "type": {"name": "void*", "tag": "p"}},
+			  {"name": "usage",
+			   "type": {"name": "GLenum", "tag": "i"}}
+			]
+},
+{
+	"name": "glUniform1i",
+	"cname": "glUniform1i",
+	"ret": {"name": "void", "tag": "v"},
+	"args": [ {"name": "location",
+			   "type": {"name": "GLint", "tag": "i"}},
+			  {"name": "v0",
+			   "type": {"name": "GLint", "tag": "i"}}
+			]
+},
+{
+	"name": "glUniform2i",
+	"cname": "glUniform2i",
+	"ret": {"name": "void", "tag": "v"},
+	"args": [ {"name": "location",
+			   "type": {"name": "GLint", "tag": "i"}},
+			  {"name": "v0",
+			   "type": {"name": "GLint", "tag": "i"}},
+			  {"name": "v1",
+			   "type": {"name": "GLint", "tag": "i"}}
+			]
+},
+{
+	"name": "glUniform1f",
+	"cname": "glUniform1f",
+	"ret": {"name": "void", "tag": "v"},
+	"args": [ {"name": "location",
+			   "type": {"name": "GLint", "tag": "i"}},
+			  {"name": "v0",
+			   "type": {"name": "GLfloat", "tag": "f"}}
+			]
+},
+{
+	"name": "glUniform2f",
+	"cname": "glUniform2f",
+	"ret": {"name": "void", "tag": "v"},
+	"args": [ {"name": "location",
+			   "type": {"name": "GLint", "tag": "i"}},
+			  {"name": "v0",
+			   "type": {"name": "GLfloat", "tag": "f"}},
+			  {"name": "v1",
+			   "type": {"name": "GLfloat", "tag": "f"}}
+			]
+},
+{
+	"name": "glUniform3f",
+	"cname": "glUniform3f",
+	"ret": {"name": "void", "tag": "v"},
+	"args": [ {"name": "location",
+			   "type": {"name": "GLint", "tag": "i"}},
+			  {"name": "v0",
+			   "type": {"name": "GLfloat", "tag": "f"}},
+			  {"name": "v1",
+			   "type": {"name": "GLfloat", "tag": "f"}},
+			  {"name": "v2",
+			   "type": {"name": "GLfloat", "tag": "f"}}
+			]
+},
+{
+	"name": "glUniformMatrix4fv",
+	"cname": "glUniformMatrix4fv",
+	"ret": {"name": "void", "tag": "v"},
+	"args": [ {"name": "location",
+			   "type": {"name": "GLint", "tag": "i"}},
+			  {"name": "count",
+			   "type": {"name": "GLsizei", "tag": "i"}},
+			  {"name": "transpose",
+			   "type": {"name": "GLboolean", "tag": "i"}},
+			  {"name": "value",
+			   "type": {"name": "GLfloat*", "tag": "p"}}
+			]
+},
+{
+	"name": "glGetAttribLocation",
+	"cname": "glGetAttribLocation",
+	"ret": {"name": "GLint", "tag": "i"},
+	"args": [ {"name": "program",
+			   "type": {"name": "GLuint", "tag": "i"}},
+			  {"name": "name",
+			   "type": {"name": "GLchar*", "tag": "p"}}
+			]
+},
+{
+	"name": "glGetUniformLocation",
+	"cname": "glGetUniformLocation",
+	"ret": {"name": "GLint", "tag": "i"},
+	"args": [ {"name": "program",
+			   "type": {"name": "GLuint", "tag": "i"}},
+			  {"name": "name",
+			   "type": {"name": "GLchar*", "tag": "p"}}
+			]
+},
+
+{
+	"name": "glVertexAttribPointer",
+	"cname": "glVertexAttribPointer",
+	"ret": {"name": "void", "tag": "v"},
+	"args": [ {"name": "index",
+			   "type": {"name": "GLuint", "tag": "i"}},
+			  {"name": "size",
+			   "type": {"name": "GLint", "tag": "i"}},
+			  {"name": "type",
+			   "type": {"name": "GLenum", "tag": "i"}},
+			  {"name": "normalized",
+			   "type": {"name": "GLboolean", "tag": "i"}},
+			  {"name": "stride",
+			   "type": {"name": "GLsizei", "tag": "i"}},
+			  {"name": "pointer",
+			   "type": {"name": "void*", "tag": "p"}}
+			]
+},
+{
+	"name": "glEnableVertexAttribArray",
+	"cname": "glEnableVertexAttribArray",
+	"ret": {"name": "void", "tag": "v"},
+	"args": [ {"name": "index",
+			   "type": {"name": "GLuint", "tag": "i"}}]
+},
+{
+	"name": "glDrawArrays",
+	"cname": "glDrawArrays",
+	"ret": {"name": "void", "tag": "v"},
+	"args": [ {"name": "mode",
+			   "type": {"name": "GLenum", "tag": "i"}},
+			  {"name": "first",
+			   "type": {"name": "GLint", "tag": "i"}},
+			  {"name": "count",
+			   "type": {"name": "GLsizei", "tag": "i"}}
+			]
+}
+]
