@@ -1286,6 +1286,8 @@ void mg_gl_render_batch(mg_gl_canvas_backend* backend,
 	glBindBuffer(GL_DISPATCH_INDIRECT_BUFFER, backend->rasterDispatchBuffer);
 	glDispatchComputeIndirect(0);
 
+	glMemoryBarrier(GL_TEXTURE_FETCH_BARRIER_BIT);
+
 	if(!err)
 	{
 		err = glGetError();
