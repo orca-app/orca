@@ -1,7 +1,6 @@
 
 #include<stdlib.h>
 #include<stdio.h>
-#include<pthread.h>
 
 #define MG_INCLUDE_GL_API 1
 #include"milepost.h"
@@ -9,7 +8,7 @@
 mg_surface surface = {0};
 mg_canvas canvas = {0};
 
-void* render_thread(void* user)
+i32 render_thread(void* user)
 {
 	while(!mp_should_quit())
 	{
@@ -79,16 +78,14 @@ int main()
 	mp_window_bring_to_front(window);
 	mp_window_focus(window);
 
-	pthread_t renderThread;
-	pthread_create(&renderThread, 0, render_thread, 0);
+	mp_thread* renderThread = mp_thread_create(render_thread, NULL);
 
 	while(!mp_should_quit())
 	{
 		mp_pump_events(0);
 	}
 
-	void* res;
-	pthread_join(renderThread, &res);
+	mp_thread_join(renderThread, NULL);
 
 	mg_canvas_destroy(canvas);
 	mg_surface_destroy(surface);
