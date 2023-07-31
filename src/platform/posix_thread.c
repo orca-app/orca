@@ -31,7 +31,7 @@ static void* mp_thread_bootstrap(void* data)
 		pthread_setname_np(thread->name);
 	}
 	i32 exitCode = thread->start(thread->userPointer);
-	return((void*)exitCode);
+	return((void*)(ptrdiff_t)exitCode);
 }
 
 mp_thread* mp_thread_create_with_name(mp_thread_start_function start, void* userPointer, const char* name)
@@ -54,7 +54,7 @@ mp_thread* mp_thread_create_with_name(mp_thread_start_function start, void* user
 	thread->start = start;
 	thread->userPointer = userPointer;
 
-	if(pthread_create(&thread->pthread, 0, platform_thread_bootstrap, thread) != 0)
+	if(pthread_create(&thread->pthread, 0, mp_thread_bootstrap, thread) != 0)
 	{
 		free(thread);
 		return(0);
