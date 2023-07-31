@@ -20,14 +20,15 @@
 	#include"platform/win32_string_helpers.c"
 	#include"platform/win32_path.c"
 	#include"platform/win32_io.c"
+	#include"platform/win32_thread.c"
 	//TODO
 #elif PLATFORM_MACOS
 	#include"platform/unix_memory.c"
 	#include"platform/osx_clock.c"
 	#include"platform/posix_io.c"
+	#include"platform/posix_thread.c"
 	/*
 	#include"platform/unix_rng.c"
-	#include"platform/posix_thread.c"
 	#include"platform/posix_socket.c"
 	*/
 
@@ -35,9 +36,9 @@
 	#include"platform/unix_base_memory.c"
 	#include"platform/linux_clock.c"
 	#include"platform/posix_io.c"
+	#include"platform/posix_thread.c"
 	/*
 	#include"platform/unix_rng.c"
-	#include"platform/posix_thread.c"
 	#include"platform/posix_socket.c"
 	*/
 #else

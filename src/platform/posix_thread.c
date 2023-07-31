@@ -14,30 +14,29 @@
 
 #include"platform_thread.h"
 
-const u32 PLATFORM_THREAD_NAME_MAX_SIZE = 64; // including null terminator
-
-struct platform_thread
+struct mp_thread
 {
 	bool valid;
 	pthread_t pthread;
-	ThreadStartFunction start;
+	mp_thread_start_function start;
 	void* userPointer;
-	char name[PLATFORM_THREAD_NAME_MAX_SIZE];
+	char name[MP_THREAD_NAME_MAX_SIZE];
 };
 
-void* platform_thread_bootstrap(void* data)
+static void* mp_thread_bootstrap(void* data)
 {
-	platform_thread* thread = (platform_thread*)data;
+	mp_thread* thread = (mp_thread*)data;
 	if(strlen(thread->name))
 	{
 		pthread_setname_np(thread->name);
 	}
-	return(thread->start(thread->userPointer));
+	i32 exitCode = thread->start(thread->userPointer);
+	return((void*)(ptrdiff_t)exitCode);
 }
 
-platform_thread* ThreadCreateWithName(ThreadStartFunction start, void* userPointer, const char* name)
+mp_thread* mp_thread_create_with_name(mp_thread_start_function start, void* userPointer, const char* name)
 {
-	platform_thread* thread = (platform_thread*)malloc(sizeof(platform_thread));
+	mp_thread* thread = (mp_thread*)malloc(sizeof(mp_thread));
 	if(!thread)
 	{
 		return(0);
@@ -45,7 +44,7 @@ platform_thread* ThreadCreateWithName(ThreadStartFunction start, void* userPoint
 
 	if(name)
 	{
-		char* end = stpncpy(thread->name, name, PLATFORM_THREAD_NAME_MAX_SIZE-1);
+		char* end = stpncpy(thread->name, name, MP_THREAD_NAME_MAX_SIZE-1);
 		*end = '\0';
 	}
 	else
@@ -55,7 +54,7 @@ platform_thread* ThreadCreateWithName(ThreadStartFunction start, void* userPoint
 	thread->start = start;
 	thread->userPointer = userPointer;
 
-	if(pthread_create(&thread->pthread, 0, platform_thread_bootstrap, thread) != 0)
+	if(pthread_create(&thread->pthread, 0, mp_thread_bootstrap, thread) != 0)
 	{
 		free(thread);
 		return(0);
@@ -67,30 +66,24 @@ platform_thread* ThreadCreateWithName(ThreadStartFunction start, void* userPoint
 	}
 }
 
-platform_thread* ThreadCreate(ThreadStartFunction start, void* userPointer)
+mp_thread* mp_thread_create(mp_thread_start_function start, void* userPointer)
 {
-	return(ThreadCreateWithName(start, userPointer, 0));
+	return(mp_thread_create_with_name(start, userPointer, 0));
 }
 
-void ThreadCancel(platform_thread* thread)
-{
-	pthread_cancel(thread->pthread);
-}
-
-const char* ThreadGetName(platform_thread* thread)
+const char* mp_thread_get_name(mp_thread* thread)
 {
 	return(thread->name);
 }
 
-
-u64 ThreadUniqueID(platform_thread* thread)
+u64 mp_thread_unique_id(mp_thread* thread)
 {
 	u64 id;
 	pthread_threadid_np(thread->pthread, &id);
 	return(id);
 }
 
-u64 ThreadSelfID()
+u64 mp_thread_self_id()
 {
 	pthread_t thread = pthread_self();
 	u64 id;
@@ -98,22 +91,28 @@ u64 ThreadSelfID()
 	return(id);
 }
 
-int ThreadSignal(platform_thread* thread, int sig)
+int mp_thread_signal(mp_thread* thread, int sig)
 {
 	return(pthread_kill(thread->pthread, sig));
 }
 
-int ThreadJoin(platform_thread* thread, void** ret)
+int mp_thread_join(mp_thread* thread, i64* exitCode)
 {
-	if(pthread_join(thread->pthread, ret))
+	void* ret;
+	if(pthread_join(thread->pthread, &ret))
 	{
 		return(-1);
 	}
 	free(thread);
+
+	if (exitCode)
+	{
+		*exitCode = (off_t)ret;
+	}
 	return(0);
 }
 
-int ThreadDetach(platform_thread* thread)
+int mp_thread_detach(mp_thread* thread)
 {
 	if(pthread_detach(thread->pthread))
 	{
@@ -124,14 +123,14 @@ int ThreadDetach(platform_thread* thread)
 }
 
 
-struct platform_mutex
+struct mp_mutex
 {
 	pthread_mutex_t pmutex;
 };
 
-platform_mutex* MutexCreate()
+mp_mutex* mp_mutex_create()
 {
-	platform_mutex* mutex = (platform_mutex*)malloc(sizeof(platform_mutex));
+	mp_mutex* mutex = (mp_mutex*)malloc(sizeof(mp_mutex));
 	if(!mutex)
 	{
 		return(0);
@@ -143,7 +142,8 @@ platform_mutex* MutexCreate()
 	}
 	return(mutex);
 }
-int MutexDestroy(platform_mutex* mutex)
+
+int mp_mutex_destroy(mp_mutex* mutex)
 {
 	if(pthread_mutex_destroy(&mutex->pmutex) != 0)
 	{
@@ -153,41 +153,44 @@ int MutexDestroy(platform_mutex* mutex)
 	return(0);
 }
 
-int MutexLock(platform_mutex* mutex)
+int mp_mutex_lock(mp_mutex* mutex)
 {
 	return(pthread_mutex_lock(&mutex->pmutex));
 }
 
-int MutexUnlock(platform_mutex* mutex)
+int mp_mutex_unlock(mp_mutex* mutex)
 {
 	return(pthread_mutex_unlock(&mutex->pmutex));
 }
 
-void TicketSpinMutexInit(ticket_spin_mutex* mutex)
+// mp_ticket_spin_mutex has a mirrored implementation in win32_thread.c
+
+void mp_ticket_spin_mutex_init(mp_ticket_spin_mutex* mutex)
 {
 	mutex->nextTicket = 0;
 	mutex->serving = 0;
 }
 
-void TicketSpinMutexLock(ticket_spin_mutex* mutex)
+void mp_ticket_spin_mutex_lock(mp_ticket_spin_mutex* mutex)
 {
 	u64 ticket = atomic_fetch_add(&mutex->nextTicket, 1ULL);
 	while(ticket != mutex->serving); //spin
 }
 
-void TicketSpinMutexUnlock(ticket_spin_mutex* mutex)
+void mp_ticket_spin_mutex_unlock(mp_ticket_spin_mutex* mutex)
 {
 	atomic_fetch_add(&mutex->serving, 1ULL);
 }
 
-struct platform_condition
+
+struct mp_condition
 {
 	pthread_cond_t pcond;
 };
 
-platform_condition* ConditionCreate()
+mp_condition* mp_condition_create()
 {
-	platform_condition* cond = (platform_condition*)malloc(sizeof(platform_condition));
+	mp_condition* cond = (mp_condition*)malloc(sizeof(mp_condition));
 	if(!cond)
 	{
 		return(0);
@@ -199,7 +202,8 @@ platform_condition* ConditionCreate()
 	}
 	return(cond);
 }
-int ConditionDestroy(platform_condition* cond)
+
+int mp_condition_destroy(mp_condition* cond)
 {
 	if(pthread_cond_destroy(&cond->pcond) != 0)
 	{
@@ -208,12 +212,13 @@ int ConditionDestroy(platform_condition* cond)
 	free(cond);
 	return(0);
 }
-int ConditionWait(platform_condition* cond, platform_mutex* mutex)
+
+int mp_condition_wait(mp_condition* cond, mp_mutex* mutex)
 {
 	return(pthread_cond_wait(&cond->pcond, &mutex->pmutex));
 }
 
-int ConditionTimedWait(platform_condition* cond, platform_mutex* mutex, f64 seconds)
+int mp_condition_timedwait(mp_condition* cond, mp_mutex* mutex, f64 seconds)
 {
 	struct timeval tv;
 	gettimeofday(&tv, 0);
@@ -230,12 +235,12 @@ int ConditionTimedWait(platform_condition* cond, platform_mutex* mutex, f64 seco
 	return(pthread_cond_timedwait(&cond->pcond, &mutex->pmutex, &ts));
 }
 
-int ConditionSignal(platform_condition* cond)
+int mp_condition_signal(mp_condition* cond)
 {
 	return(pthread_cond_signal(&cond->pcond));
 }
 
-int ConditionBroadcast(platform_condition* cond)
+int mp_condition_broadcast(mp_condition* cond)
 {
 	return(pthread_cond_broadcast(&cond->pcond));
 }

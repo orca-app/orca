@@ -17,8 +17,6 @@
 #define MG_INCLUDE_GL_API
 #include"milepost.h"
 
-#include<pthread.h>
-
 unsigned int program;
 
 const char* vshaderSource =
@@ -124,7 +122,7 @@ void update_and_render(app_data* app)
 	mem_arena_clear(mem_scratch());
 }
 
-void* render(void* user)
+i32 render(void* user)
 {
 	app_data* app = (app_data*)user;
 
@@ -210,16 +208,14 @@ int main()
 	app_data app = {.window = window,
 	                .surface = surface};
 
-	pthread_t renderThread;
-	pthread_create(&renderThread, 0, render, &app);
+	mp_thread* renderThread = mp_thread_create(render, &app);
 
 	while(!mp_should_quit())
 	{
 		mp_pump_events(0);
 	}
 
-	void* res;
-	pthread_join(renderThread, &res);
+	mp_thread_join(renderThread, NULL);
 
 	mg_surface_destroy(surface);
 	mp_window_destroy(window);
