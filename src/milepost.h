@@ -28,6 +28,7 @@
 #include"platform/platform_clock.h"
 #include"platform/platform_path.h"
 #include"platform/platform_io.h"
+#include"platform/platform_thread.h"
 /*
 #include"platform_rng.h"
 #include"platform_socket.h"
