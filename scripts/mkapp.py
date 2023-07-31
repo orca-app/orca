@@ -173,13 +173,11 @@ def windows_make_app(args):
 	milepost_lib = args.orca_dir + '/bin/milepost.dll'
 	gles_lib = args.orca_dir + '/milepost/bin/libGLESv2.dll'
 	egl_lib = args.orca_dir + '/milepost/bin/libEGL.dll'
-	pthread_lib = args.orca_dir + '/bin/pthreadVC3.dll'
 
 	shutil.copy(orca_exe, exe_dir)
 	shutil.copy(milepost_lib, exe_dir)
 	shutil.copy(gles_lib, exe_dir)
 	shutil.copy(egl_lib, exe_dir)
-	shutil.copy(pthread_lib, exe_dir)
 
 	#-----------------------------------------------------------
 	#NOTE: copy wasm module and data
