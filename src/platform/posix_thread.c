@@ -23,14 +23,15 @@ struct mp_thread
 	char name[MP_THREAD_NAME_MAX_SIZE];
 };
 
-void* mp_thread_bootstrap(void* data)
+static void* mp_thread_bootstrap(void* data)
 {
 	mp_thread* thread = (mp_thread*)data;
 	if(strlen(thread->name))
 	{
 		pthread_setname_np(thread->name);
 	}
-	return(thread->start(thread->userPointer));
+	i32 exitCode = thread->start(thread->userPointer);
+	return((void*)exitCode);
 }
 
 mp_thread* mp_thread_create_with_name(mp_thread_start_function start, void* userPointer, const char* name)
@@ -95,13 +96,19 @@ int mp_thread_signal(mp_thread* thread, int sig)
 	return(pthread_kill(thread->pthread, sig));
 }
 
-int mp_thread_join(mp_thread* thread, void** ret)
+int mp_thread_join(mp_thread* thread, i64* exitCode)
 {
-	if(pthread_join(thread->pthread, ret))
+	void* ret;
+	if(pthread_join(thread->pthread, &ret))
 	{
 		return(-1);
 	}
 	free(thread);
+
+	if (exitCode)
+	{
+		*exitCode = (off_t)ret;
+	}
 	return(0);
 }
 
@@ -155,6 +162,8 @@ int mp_mutex_unlock(mp_mutex* mutex)
 {
 	return(pthread_mutex_unlock(&mutex->pmutex));
 }
+
+// mp_ticket_spin_mutex has a mirrored implementation in win32_thread.c
 
 void mp_ticket_spin_mutex_init(mp_ticket_spin_mutex* mutex)
 {

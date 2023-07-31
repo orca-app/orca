@@ -32,7 +32,7 @@ enum
 
 typedef struct mp_thread mp_thread;
 
-typedef void* (*mp_thread_start_function)(void* userPointer);
+typedef i32 (*mp_thread_start_function)(void* userPointer);
 
 mp_thread* mp_thread_create(mp_thread_start_function start, void* userPointer);
 mp_thread* mp_thread_create_with_name(mp_thread_start_function start, void* userPointer, const char* name);
@@ -43,7 +43,7 @@ u64 mp_thread_unique_id(mp_thread* thread);
 u64 mp_thread_self_id();
 
 int mp_thread_signal(mp_thread* thread, int sig);
-int mp_thread_join(mp_thread* thread, void** ret);
+int mp_thread_join(mp_thread* thread, i64* exitCode);
 int mp_thread_detach(mp_thread* thread);
 
 //---------------------------------------------------------------
@@ -56,7 +56,6 @@ mp_mutex* mp_mutex_create();
 int mp_mutex_destroy(mp_mutex* mutex);
 int mp_mutex_lock(mp_mutex* mutex);
 int mp_mutex_unlock(mp_mutex* mutex);
-
 
 //---------------------------------------------------------------
 // Lightweight ticket mutex API
