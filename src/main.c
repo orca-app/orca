@@ -7,7 +7,6 @@
 *****************************************************************/
 #include<stdio.h>
 #include<errno.h>
-#include<pthread.h>
 #include<math.h>
 
 #define MG_INCLUDE_GL_API
@@ -306,7 +305,7 @@ void orca_runtime_init(orca_runtime* runtime)
 #include"gles_api_bind_gen.c"
 #include"manual_gles_api.c"
 
-void* orca_runloop(void* user)
+i32 orca_runloop(void* user)
 {
 	orca_app* app = &__orcaApp;
 
@@ -328,7 +327,7 @@ void* orca_runloop(void* user)
 		               options);
 
 		mp_request_quit();
-		return((void*)-1);
+		return(-1);
 	}
 
 	fseek(file, 0, SEEK_END);
@@ -378,7 +377,7 @@ void* orca_runloop(void* user)
 		               options);
 
 		mp_request_quit();
-		return((void*)-1);
+		return(-1);
 	}
 
 	//NOTE: Find and type check event handlers.
@@ -473,7 +472,7 @@ void* orca_runloop(void* user)
 		               	options);
 
 			mp_request_quit();
-			return((void*)-1);
+			return(-1);
 		}
 	}
 
@@ -803,8 +802,7 @@ int main(int argc, char** argv)
 	mp_window_focus(app->window);
 	mp_window_center(app->window);
 
-	pthread_t runloopThread;
-	pthread_create(&runloopThread, 0, orca_runloop, 0);
+	mp_thread* runloopThread = mp_thread_create(orca_runloop, 0);
 
 	while(!mp_should_quit())
 	{
@@ -812,8 +810,7 @@ int main(int argc, char** argv)
 		//TODO: what to do with mem scratch here?
 	}
 
-	void* res;
-	pthread_join(runloopThread, &res);
+	mp_thread_join(runloopThread, NULL);
 
 	mg_canvas_destroy(app->canvas);
 	mg_surface_destroy(app->surface);
