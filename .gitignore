@@ -15,3 +15,4 @@ build
 
 Debug/*
 src/glsl_shaders.h
+scripts/__pycache__

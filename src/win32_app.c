@@ -9,6 +9,7 @@
 
 #include<dwmapi.h>
 #include"mp_app.c"
+#include"platform_thread.h"
 
 void mp_init_keys()
 {
@@ -504,6 +505,13 @@ LRESULT WinProc(HWND windowHandle, UINT message, WPARAM wParam, LPARAM lParam)
 			//TODO
 		} break;
 
+		case MP_WM_USER_DISPATCH_PROC:
+		{
+			mp_dispatch_proc proc = (mp_dispatch_proc)wParam;
+			void* user = (void*)lParam;
+			result = proc(user);
+		} break;
+
 		default:
 		{
 			result = DefWindowProc(windowHandle, message, wParam, lParam);
@@ -550,6 +558,15 @@ void mp_pump_events(f64 timeout)
 		TranslateMessage(&message);
 		DispatchMessage(&message);
 	}
+}
+
+i32 mp_dispatch_on_main_thread_sync(mp_window main_window, mp_dispatch_proc proc, void* user)
+{
+	mp_window_data* window_data = mp_window_ptr_from_handle(main_window);
+	DEBUG_ASSERT(window_data != NULL);
+
+	LRESULT result = SendMessage(window_data->win32.hWnd, MP_WM_USER_DISPATCH_PROC, (WPARAM)proc, (LPARAM)user);
+	return result;
 }
 
 //--------------------------------------------------------------------

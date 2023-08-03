@@ -156,6 +156,7 @@ void mg_wgl_surface_present(mg_surface_data* interface)
 void mg_wgl_surface_deselect(mg_surface_data* interface)
 {
 	wglMakeCurrent(NULL, NULL);
+	mg_gl_deselect_api();
 }
 
 void mg_wgl_surface_swap_interval(mg_surface_data* interface, int swap)

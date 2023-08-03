@@ -1629,7 +1629,6 @@ void mg_surface_cleanup(mg_surface_data* surface)
 
 void mg_surface_init_for_window(mg_surface_data* surface, mp_window_data* window)
 {@autoreleasepool{
-
 	surface->nativeLayer = mg_osx_surface_native_layer;
 	surface->contentsScaling = mg_osx_surface_contents_scaling;
 	surface->getSize = mg_osx_surface_get_size;
@@ -1899,6 +1898,25 @@ void mp_pump_events(f64 timeout)
 			}
 		}
 	}
+}
+
+i32 mp_dispatch_on_main_thread_sync(mp_window main_window, mp_dispatch_proc proc, void* user)
+{
+	__block i32 result = 0;
+	dispatch_block_t block = ^{
+		result = proc(user);
+	};
+
+	if([NSThread isMainThread])
+	{
+		block();
+	}
+	else
+	{
+		dispatch_sync(dispatch_get_main_queue(), block);
+	}
+
+	return(result);
 }
 
 //--------------------------------------------------------------------

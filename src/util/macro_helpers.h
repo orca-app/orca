@@ -120,4 +120,24 @@ static inline u64 next_pow2_u64(u64 x)
 
 #define defer_loop(begin, end) begin; for(int __i__=0; __i__<1; __i__++, end)
 
+
+#define ORCA_COMMA ,
+#define ORCA_PASS(A, ...) A(__VA_ARGS__)
+#define ORCA_EXPAND(...) __VA_ARGS__
+#define ORCA_EXPAND_NIL(...)
+#define ORCA_PASTE(a , b) a##b
+#define ORCA_ARG1_UTIL(a, ...) a
+#define ORCA_ARG1(...) ORCA_ARG1_UTIL(__VA_ARGS__)
+#define ORCA_VA_COMMA_TAIL(a, ...) , ##__VA_ARGS__
+
+//NOTE: this expands to opt if __VA_ARGS__ is empty, and to , va1, va2, ... opt otherwise
+#define ORCA_VA_NOPT_UTIL(opt, ...) ,##__VA_ARGS__ opt
+
+//NOTE: this expands to opt if __VA_ARGS__ is empty, and to nothing otherwise
+#define ORCA_VA_NOPT(opt, ...) ORCA_PASS(ORCA_ARG1, ORCA_VA_NOPT_UTIL(opt, ##__VA_ARGS__))
+
+//NOTE: this expands to opt if __VA_ARGS__ is non empty, and to nothing otherwise
+#define ORCA_VA_OPT(opt, ...) ORCA_PASS(ORCA_PASTE, ORCA_EXPAND , ORCA_VA_NOPT(_NIL, ##__VA_ARGS__))(opt)
+
+
 #endif //__MACRO_HELPERS_H_

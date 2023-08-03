@@ -6,6 +6,7 @@
 *	@revision:
 *
 *****************************************************************/
+#include<stdio.h>
 #include<stdlib.h>
 #include<string.h>
 
@@ -14,8 +15,6 @@
 
 #define MG_INCLUDE_GL_API 1
 #include"milepost.h"
-
-#define LOG_SUBSYSTEM "Main"
 
 unsigned int program;
 
@@ -60,15 +59,13 @@ void compile_shader(GLuint shader, const char* source)
 
 int main()
 {
-	LogLevel(LOG_LEVEL_DEBUG);
-
 	mp_init();
 
 	mp_rect rect = {.x = 100, .y = 100, .w = 800, .h = 600};
 	mp_window window = mp_window_create(rect, "test", 0);
 
 	//NOTE: create surface
-	mg_surface surface = mg_surface_create_for_window(window, MG_BACKEND_GLES);
+	mg_surface surface = mg_surface_create_for_window(window, MG_GLES);
 	mg_surface_prepare(surface);
 
 	//NOTE: init shader and gl state
@@ -115,10 +112,10 @@ int main()
 	while(!mp_should_quit())
 	{
 		mp_pump_events(0);
-		mp_event event = {0};
-		while(mp_next_event(&event))
+		mp_event* event = 0;
+		while((event = mp_next_event(mem_scratch())) != 0)
 		{
-			switch(event.type)
+			switch(event->type)
 			{
 				case MP_EVENT_WINDOW_CLOSE:
 				{
@@ -130,7 +127,7 @@ int main()
 			}
 		}
 
-		mg_surface_prepare(surface);
+//		mg_surface_prepare(surface);
 
 		glClearColor(0.3, 0.3, 1, 1);
 		glClear(GL_COLOR_BUFFER_BIT);
@@ -156,8 +153,12 @@ int main()
    		glDrawArrays(GL_TRIANGLES, 0, 3);
 
 		mg_surface_present(surface);
+
+		mem_arena_clear(mem_scratch());
 	}
 
+	mg_surface_destroy(surface);
+	mp_window_destroy(window);
 	mp_terminate();
 
 	return(0);

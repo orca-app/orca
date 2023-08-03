@@ -42,13 +42,21 @@ def gather_api(tree, api, version):
 
 tree = et.parse(args.spec)
 
+# put all GL commands in a dict
+commands = dict()
+commandsSpec = tree.find('./commands')
+for command in commandsSpec.iter('command'):
+	name = command.find('proto/name')
+	commands[name.text] = command
+
+#gather command names per API
 gl41 = gather_api(tree, 'gl', 4.1)
 gl43 = gather_api(tree, 'gl', 4.3)
 gl44 = gather_api(tree, 'gl', 4.4)
-gles30 = gather_api(tree, 'gles2', 3.1)
-gles31 = gather_api(tree, 'gles2', 3.2)
+gles31 = gather_api(tree, 'gles2', 3.1)
+gles32 = gather_api(tree, 'gles2', 3.2)
 
-glall = list(set().union(gl41, gl43, gl44, gles30, gles31))
+glall = list(set().union(gl41, gl43, gl44, gles31, gles32))
 
 
 #---------------------------------------------------------------
@@ -93,6 +101,8 @@ f.write('#include"GLES3/gl32.h"\n\n')
 # generate interface struct
 f.write('typedef struct mg_gl_api\n{\n')
 
+f.write('	const char* name;\n')
+
 for func in glall:
 	f.write('\t' + 'PFN' + func.upper() + 'PROC ' + remove_prefix(func, 'gl') + ';\n')
 
@@ -129,7 +139,6 @@ f.write("void mg_gl_load_gles31(mg_gl_api* api, mg_gl_load_proc loadProc);\n\n")
 
 f.write("void mg_gl_select_api(mg_gl_api* api);\n\n")
 
-
 emit_end_guard(f, loaderName)
 f.close()
 #---------------------------------------------------------------
@@ -139,9 +148,87 @@ f.close()
 def emit_loader(f, name, procs):
 	f.write('void mg_gl_load_'+ name +'(mg_gl_api* api, mg_gl_load_proc loadProc)\n')
 	f.write("{\n")
-	for proc in procs:
-		f.write('\tapi->' + remove_prefix(proc, 'gl') + ' = loadProc("' + proc + '");\n')
+	f.write('	api->name = "'+ name +'";\n')
+
+	for proc in glall:
+		if proc in procs:
+			f.write('	api->' + remove_prefix(proc, 'gl') + ' = loadProc("' + proc + '");\n')
+		else:
+			f.write('	api->' + remove_prefix(proc, 'gl') + ' = mg_' + proc + '_noimpl;\n')
+
 	f.write("}\n\n")
+
+
+def emit_null_api(f, procs):
+
+	f.write('mg_gl_api __mgGLNoAPI;\n\n')
+
+	for name in procs:
+
+		command = commands.get(name)
+		if command == None:
+			print("Couldn't find definition for required command '" + name + "'")
+			exit(-1)
+
+		proto = command.find("proto")
+		ptype = proto.find("ptype")
+
+		retType = ''
+		if proto.text != None:
+			retType += proto.text
+
+		if ptype != None:
+			if ptype.text != None:
+				retType += ptype.text
+			if ptype.tail != None:
+				retType += ptype.tail
+
+		retType = retType.strip()
+
+		f.write(retType + ' mg_' + name + '_noimpl(')
+
+		params = command.findall('param')
+		for i, param in enumerate(params):
+
+			argName = param.find('name').text
+
+			typeNode = param.find('ptype')
+			typeName = ''
+
+			if param.text != None:
+				typeName += param.text
+
+			if typeNode != None:
+				if typeNode.text != None:
+					typeName += typeNode.text
+				if typeNode.tail != None:
+					typeName += typeNode.tail
+
+			typeName = typeName.strip()
+
+			f.write(typeName + ' ' + argName)
+
+			if i < len(params)-1:
+				f.write(', ')
+
+		f.write(')\n')
+		f.write('{\n')
+		f.write('	if(__mgGLAPI == &__mgGLNoAPI)\n')
+		f.write('	{\n')
+		f.write('		log_error("No GL or GLES API is selected. Make sure you call mg_surface_prepare() before calling OpenGL API functions.\\n");\n')
+		f.write('	}\n')
+		f.write('	else\n')
+		f.write('	{\n')
+		f.write('		log_error("'+ name +' is not part of currently selected %s API\\n", __mgGLAPI->name);\n')
+		f.write('	}\n')
+		if retType != 'void':
+			f.write('	return(('+ retType +')0);\n')
+		f.write('}\n')
+
+	f.write('mg_gl_api __mgGLNoAPI = {\n')
+	for proc in procs:
+		f.write('	.' + remove_prefix(proc, 'gl') + ' = mg_' + proc + '_noimpl,\n')
+	f.write("};\n\n")
 
 f = open(loaderCPath, 'w')
 
@@ -150,15 +237,17 @@ emit_doc(f, loaderName, '.c')
 f.write('#include"' + loaderName + '.h"\n')
 f.write('#include"platform.h"\n\n')
 
-f.write("mp_thread_local mg_gl_api* __mgGLAPI = 0;\n\n")
+f.write("mp_thread_local mg_gl_api* __mgGLAPI = 0;\n")
 
+emit_null_api(f, glall)
 emit_loader(f, 'gl41', gl41)
 emit_loader(f, 'gl43', gl43)
 emit_loader(f, 'gl44', gl44)
-emit_loader(f, 'gles30', gles30)
 emit_loader(f, 'gles31', gles31)
+emit_loader(f, 'gles32', gles32)
 
 f.write("void mg_gl_select_api(mg_gl_api* api){ __mgGLAPI = api; }\n")
+f.write("void mg_gl_deselect_api(){ __mgGLAPI = &__mgGLNoAPI; }\n")
 f.write("mg_gl_api* mg_gl_get_api(void) { return(__mgGLAPI); }\n\n")
 
 f.close()

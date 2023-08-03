@@ -3,13 +3,12 @@
 *	@file: win32_thread.c
 *	@author: Reuben Dunnington
 *	@date: 7/30/2023
-*	@revision:
 *
 *****************************************************************/
-
 #include<processthreadsapi.h>
 #include<synchapi.h>
 #include<math.h> //INFINITY
+#include<winuser.h> // PostMessage
 
 #include"platform_thread.h"
 
@@ -45,7 +44,7 @@ mp_thread* mp_thread_create_with_name(mp_thread_start_function start, void* user
 		thread->name[0] = '\0';
 	}
 
-	SECURITY_ATTRIBUTES childProcessSecurity = { 
+	SECURITY_ATTRIBUTES childProcessSecurity = {
 		.nLength = sizeof(SECURITY_ATTRIBUTES),
 		.bInheritHandle = false,
 	};

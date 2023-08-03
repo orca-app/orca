@@ -207,6 +207,11 @@ void mg_surface_destroy(mg_surface handle)
 	mg_surface_data* surface = mg_surface_data_from_handle(handle);
 	if(surface)
 	{
+		if(__mgSelectedSurface.h == handle.h)
+		{
+			mg_surface_deselect();
+		}
+
 		if(surface->backend && surface->backend->destroy)
 		{
 			surface->backend->destroy(surface->backend);
@@ -350,7 +355,12 @@ void mg_surface_render_commands(mg_surface surface,
                                 mg_path_elt* elements)
 {
 	mg_surface_data* surfaceData = mg_surface_data_from_handle(surface);
-	if(surfaceData && surfaceData->backend)
+
+	if(surface.h != __mgSelectedSurface.h)
+	{
+		log_error("surface is not selected. Make sure to call mg_surface_prepare() before drawing onto a surface.\n");
+	}
+	else if(surfaceData && surfaceData->backend)
 	{
 		surfaceData->backend->render(surfaceData->backend,
 		                             clearColor,
@@ -380,7 +390,12 @@ mg_image mg_image_create(mg_surface surface, u32 width, u32 height)
 {
 	mg_image image = mg_image_nil();
 	mg_surface_data* surfaceData = mg_surface_data_from_handle(surface);
-	if(surfaceData && surfaceData->backend)
+
+	if(surface.h != __mgSelectedSurface.h)
+	{
+		log_error("surface is not selected. Make sure to call mg_surface_prepare() before modifying graphics resources.\n");
+	}
+	else if(surfaceData && surfaceData->backend)
 	{
 		DEBUG_ASSERT(surfaceData->api == MG_CANVAS);
 
@@ -397,13 +412,21 @@ mg_image mg_image_create(mg_surface surface, u32 width, u32 height)
 void mg_image_destroy(mg_image image)
 {
 	mg_image_data* imageData = mg_image_data_from_handle(image);
+
 	if(imageData)
 	{
-		mg_surface_data* surface = mg_surface_data_from_handle(imageData->surface);
-		if(surface && surface->backend)
+		if(imageData->surface.h != __mgSelectedSurface.h)
 		{
-			surface->backend->imageDestroy(surface->backend, imageData);
-			mg_handle_recycle(image.h);
+			log_error("surface is not selected. Make sure to call mg_surface_prepare() before modifying graphics resources.\n");
+		}
+		else
+		{
+			mg_surface_data* surface = mg_surface_data_from_handle(imageData->surface);
+			if(surface && surface->backend)
+			{
+				surface->backend->imageDestroy(surface->backend, imageData);
+				mg_handle_recycle(image.h);
+			}
 		}
 	}
 }
@@ -411,13 +434,21 @@ void mg_image_destroy(mg_image image)
 void mg_image_upload_region_rgba8(mg_image image, mp_rect region, u8* pixels)
 {
 	mg_image_data* imageData = mg_image_data_from_handle(image);
+
 	if(imageData)
 	{
-		mg_surface_data* surfaceData = mg_surface_data_from_handle(imageData->surface);
-		if(surfaceData)
+		if(imageData->surface.h != __mgSelectedSurface.h)
 		{
-			DEBUG_ASSERT(surfaceData->backend);
-			surfaceData->backend->imageUploadRegion(surfaceData->backend, imageData, region, pixels);
+			log_error("surface is not selected. Make sure to call mg_surface_prepare() before modifying graphics resources.\n");
+		}
+		else
+		{
+			mg_surface_data* surfaceData = mg_surface_data_from_handle(imageData->surface);
+			if(surfaceData)
+			{
+				DEBUG_ASSERT(surfaceData->backend);
+				surfaceData->backend->imageUploadRegion(surfaceData->backend, imageData, region, pixels);
+			}
 		}
 	}
 }

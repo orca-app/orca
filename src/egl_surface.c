@@ -22,12 +22,12 @@
 	//TODO: use version hints, once we have all api versions correctly categorized by glapi.py
 	#define MG_GLES_VERSION_MAJOR 3
 	#define MG_GLES_VERSION_MINOR 0
-	#define mg_gl_load_gles mg_gl_load_gles30
+	#define mg_gl_load_gles mg_gl_load_gles31
 #else
 	#define MG_EGL_PLATFORM_ANGLE_TYPE EGL_PLATFORM_ANGLE_TYPE_DEFAULT_ANGLE
 	#define MG_GLES_VERSION_MAJOR 3
 	#define MG_GLES_VERSION_MINOR 1
-	#define mg_gl_load_gles mg_gl_load_gles31
+	#define mg_gl_load_gles mg_gl_load_gles32
 #endif
 
 
@@ -50,7 +50,7 @@ void mg_egl_surface_destroy(mg_surface_data* interface)
 
 	if(&surface->api == mg_gl_get_api())
 	{
-		mg_gl_select_api(0);
+		mg_gl_deselect_api();
 	}
 	if(eglGetCurrentContext() == surface->eglContext)
 	{
@@ -76,6 +76,13 @@ void mg_egl_surface_present(mg_surface_data* interface)
 	eglSwapBuffers(surface->eglDisplay, surface->eglSurface);
 }
 
+void mg_egl_surface_deselect(mg_surface_data* interface)
+{
+	mg_egl_surface* surface = (mg_egl_surface*)interface;
+	eglMakeCurrent(surface->eglDisplay, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+	mg_gl_deselect_api();
+}
+
 void mg_egl_surface_swap_interval(mg_surface_data* interface, int swap)
 {
 	mg_egl_surface* surface = (mg_egl_surface*)interface;
@@ -91,6 +98,7 @@ void mg_egl_surface_init(mg_egl_surface* surface)
 	surface->interface.destroy = mg_egl_surface_destroy;
 	surface->interface.prepare = mg_egl_surface_prepare;
 	surface->interface.present = mg_egl_surface_present;
+	surface->interface.deselect = mg_egl_surface_deselect;
 	surface->interface.swapInterval = mg_egl_surface_swap_interval;
 
 	EGLAttrib displayAttribs[] = {

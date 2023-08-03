@@ -45,4 +45,9 @@ typedef struct win32_app_data
 
 #define MP_PLATFORM_APP_DATA win32_app_data win32;
 
+enum MP_WM_USER
+{
+	MP_WM_USER_DISPATCH_PROC = 0x0400, // WM_USER messages are defined from 0x400 to 0x7FFF
+};
+
 #endif __WIN32_APP_H_

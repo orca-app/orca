@@ -8,7 +8,7 @@
 
 extern void* orca_mem_grow(u64 size);
 #define MORECORE orca_mem_grow
-
+#define MORECORE_CONTIGUOUS 0
 /*
   This is a version (aka dlmalloc) of malloc/free/realloc written by
   Doug Lea and released to the public domain.  Use, modify, and

@@ -330,6 +330,14 @@ MP_API void mp_window_center(mp_window window);
 MP_API mp_rect mp_window_content_rect_for_frame_rect(mp_rect frameRect, mp_window_style style);
 MP_API mp_rect mp_window_frame_rect_for_content_rect(mp_rect contentRect, mp_window_style style);
 
+//---------------------------------------------------------------
+// Dispatching stuff to the main thread
+//---------------------------------------------------------------
+
+typedef i32 (*mp_dispatch_proc)(void* user);
+
+MP_API i32 mp_dispatch_on_main_thread_sync(mp_window main_window, mp_dispatch_proc proc, void* user);
+
 //--------------------------------------------------------------------
 // Clipboard
 //--------------------------------------------------------------------
