@@ -37,12 +37,6 @@
 		 "type": {"name": "u8*", "tag": "p"}}]
 },
 {
-	"name": "mg_surface_main",
-	"cname": "orca_surface_main",
-	"ret": {"name": "mg_surface", "tag": "S"},
-	"args": []
-},
-{
 	"name": "mg_surface_prepare",
 	"cname": "mg_surface_prepare",
 	"ret": {"name": "void", "tag": "v"},
@@ -75,4 +69,17 @@
 		 "type": {"name": "u32", "tag": "i"}},
 		{"name": "elements",
 		 "type": {"name": "mg_path_elt*", "tag": "p"}}]
-}]
+},
+{
+	"name": "mg_surface_canvas",
+	"cname": "orca_surface_canvas",
+	"ret": {"name": "mg_surface", "tag": "S"},
+	"args": []
+},
+{
+	"name": "mg_surface_gles",
+	"cname": "orca_surface_gles",
+	"ret": {"name": "mg_surface", "tag": "S"},
+	"args": []
+}
+]

@@ -171,6 +171,8 @@ def macos_make_app(args):
 			<string>icon.icns</string>
 			<key>NSHighResolutionCapable</key>
 			<string>True</string>
+			<key>MetalCaptureEnabled</key>
+			<true/>
 		</dict>
 	</plist>
 	"""

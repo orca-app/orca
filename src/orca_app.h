@@ -112,8 +112,6 @@ typedef struct orca_debug_overlay
 typedef struct orca_app
 {
 	mp_window window;
-	mg_surface surface;
-	mg_canvas canvas;
 
 	file_table fileTable;
 	file_handle rootDir;
@@ -127,5 +125,14 @@ typedef struct orca_app
 orca_app* orca_app_get();
 orca_runtime* orca_runtime_get();
 
+
+int orca_assert(const char* file, const char* function, int line, const char* src, const char* note);
+int orca_assert_fmt(const char* file, const char* function, int line, const char* src, const char* fmt, ...);
+void orca_abort_fmt(const char* file, const char* function, int line, const char* fmt, ...);
+
+#define _ORCA_ASSERT_(test, fmt, ...) ((test) || orca_assert_fmt(__FILE__, __FUNCTION__, __LINE__, #test, fmt, ##__VA_ARGS__))
+#define ORCA_ASSERT(test, ...) _ORCA_ASSERT_(test, ORCA_VA_NOPT("", ##__VA_ARGS__) ORCA_ARG1(__VA_ARGS__) ORCA_VA_COMMA_TAIL(__VA_ARGS__))
+
+#define ORCA_ABORT(fmt, ...) orca_abort_fmt(__FILE__, __FUNCTION__, __LINE__, fmt, ##__VA_ARGS__)
 
 #endif //__ORCA_RUNTIME_H_

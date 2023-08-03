@@ -18,9 +18,6 @@
 #include"memory_impl.c"
 #include"io_impl.c"
 
-
-#define LOG_SUBSYSTEM "Orca"
-
 int orca_assert(const char* file, const char* function, int line, const char* src, const char* note)
 {
 	mem_arena* scratch = mem_scratch();
@@ -38,7 +35,47 @@ int orca_assert(const char* file, const char* function, int line, const char* sr
 	const char* options[] = {"OK"};
 	mp_alert_popup("Assertion Failed", msgCStr, 1, options);
 
-	//TODO: should terminate more gracefully...
+	//TODO: could terminate more gracefully?
+	exit(-1);
+	return(-1);
+}
+
+int orca_assert_fmt(const char* file, const char* function, int line, const char* src, const char* fmt, ...)
+{
+	mem_arena* scratch = mem_scratch();
+
+	va_list ap;
+	va_start(ap, fmt);
+	str8 msg = str8_pushfv(scratch, fmt, ap);
+	va_end(ap);
+
+	return(orca_assert(file, function, line, src, msg.ptr));
+}
+
+void orca_abort_fmt(const char* file, const char* function, int line, const char* fmt, ...)
+{
+	mem_arena* scratch = mem_scratch();
+
+	va_list ap;
+	va_start(ap, fmt);
+	str8 note = str8_pushfv(scratch, fmt, ap);
+	va_end(ap);
+
+	str8 msg = str8_pushf(scratch,
+	                      "Fatal error in function %s() in file \"%s\", line %i:\n%.*s\n",
+	                      function,
+	                      file,
+	                      line,
+	                      (int)note.len,
+	                      note.ptr);
+
+	const char* msgCStr = str8_to_cstring(scratch, msg);
+	log_error(msgCStr);
+
+	const char* options[] = {"OK"};
+	mp_alert_popup("Fatal Error", msgCStr, 1, options);
+
+	//TODO: could terminate more gracefully?
 	exit(-1);
 }
 
@@ -170,9 +207,50 @@ void orca_log(log_level level,
 	         msg);
 }
 
-mg_surface orca_surface_main(void)
+typedef struct orca_surface_create_data
 {
-	return(__orcaApp.surface);
+	mp_window window;
+	mg_surface_api api;
+	mg_surface surface;
+
+} orca_surface_create_data;
+
+i32 orca_surface_callback(void* user)
+{
+	orca_surface_create_data* data = (orca_surface_create_data*)user;
+	data->surface = mg_surface_create_for_window(data->window, data->api);
+
+	//NOTE: this will be called on main thread, so we need to deselect the surface here,
+	//      and reselect it on the orca thread
+	mg_surface_deselect();
+
+	return(0);
+}
+
+mg_surface orca_surface_canvas(void)
+{
+	orca_surface_create_data data = {
+		.surface = mg_surface_nil(),
+		.window = __orcaApp.window,
+		.api = MG_CANVAS
+	};
+
+	mp_dispatch_on_main_thread_sync(__orcaApp.window, orca_surface_callback, (void*)&data);
+	mg_surface_prepare(data.surface);
+	return(data.surface);
+}
+
+mg_surface orca_surface_gles(void)
+{
+	orca_surface_create_data data = {
+		.surface = mg_surface_nil(),
+		.window = __orcaApp.window,
+		.api = MG_GLES
+	};
+
+	mp_dispatch_on_main_thread_sync(__orcaApp.window, orca_surface_callback, (void*)&data);
+	mg_surface_prepare(data.surface);
+	return(data.surface);
 }
 
 void orca_surface_render_commands(mg_surface surface,
@@ -302,8 +380,25 @@ void orca_runtime_init(orca_runtime* runtime)
 #include"clock_api_bind_gen.c"
 #include"io_api_bind_gen.c"
 
+#include"gles_api_bind_manual.c"
 #include"gles_api_bind_gen.c"
-#include"manual_gles_api.c"
+
+
+void orca_wasm3_abort(IM3Runtime runtime, M3Result res, const char* file, const char* function, int line, const char* msg)
+{
+	M3ErrorInfo errInfo = {0};
+	m3_GetErrorInfo(runtime, &errInfo);
+	if(errInfo.message && res == errInfo.result)
+	{
+		orca_abort_fmt(file, function, line, "%s: %s (%s)", msg, res, errInfo.message);
+	}
+	else
+	{
+		orca_abort_fmt(file, function, line, "%s: %s", msg, res);
+	}
+}
+
+#define ORCA_WASM3_ABORT(runtime, err, msg) orca_wasm3_abort(runtime, err, __FILE__, __FUNCTION__, __LINE__, msg)
 
 i32 orca_runloop(void* user)
 {
@@ -318,16 +413,7 @@ i32 orca_runloop(void* user)
 	FILE* file = fopen(modulePath.ptr, "rb");
 	if(!file)
 	{
-		log_error("Couldn't load wasm module at %s\n", modulePath.ptr);
-
-		const char* options[] = {"OK"};
-		mp_alert_popup("Error",
-		               "The application couldn't load: web assembly module not found",
-		               1,
-		               options);
-
-		mp_request_quit();
-		return(-1);
+		ORCA_ABORT("The application couldn't load: web assembly module not found");
 	}
 
 	fseek(file, 0, SEEK_END);
@@ -343,41 +429,44 @@ i32 orca_runloop(void* user)
 	app->runtime.m3Env = m3_NewEnvironment();
 
 	app->runtime.m3Runtime = m3_NewRuntime(app->runtime.m3Env, stackSize, NULL);
-	m3_RuntimeSetMemoryCallbacks(app->runtime.m3Runtime, wasm_memory_resize_callback, wasm_memory_free_callback, &app->runtime.wasmMemory);
 	//NOTE: host memory will be freed when runtime is freed.
+	m3_RuntimeSetMemoryCallbacks(app->runtime.m3Runtime, wasm_memory_resize_callback, wasm_memory_free_callback, &app->runtime.wasmMemory);
 
-	//TODO check errors
-	m3_ParseModule(app->runtime.m3Env, &app->runtime.m3Module, (u8*)app->runtime.wasmBytecode.ptr, app->runtime.wasmBytecode.len);
-	m3_LoadModule(app->runtime.m3Runtime, app->runtime.m3Module);
+	M3Result res = m3_ParseModule(app->runtime.m3Env, &app->runtime.m3Module, (u8*)app->runtime.wasmBytecode.ptr, app->runtime.wasmBytecode.len);
+	if(res)
+	{
+		ORCA_WASM3_ABORT(app->runtime.m3Runtime, res, "The application couldn't parse its web assembly module");
+	}
+
+	res = m3_LoadModule(app->runtime.m3Runtime, app->runtime.m3Module);
+	if(res)
+	{
+		ORCA_WASM3_ABORT(app->runtime.m3Runtime, res, "The application couldn't load its web assembly module into the runtime");
+	}
 	m3_SetModuleName(app->runtime.m3Module, bundleNameCString);
 
 	mem_arena_clear(mem_scratch());
 
 	//NOTE: bind orca APIs
-	bindgen_link_core_api(app->runtime.m3Module);
-	bindgen_link_canvas_api(app->runtime.m3Module);
-	bindgen_link_clock_api(app->runtime.m3Module);
-	bindgen_link_io_api(app->runtime.m3Module);
-	bindgen_link_gles_api(app->runtime.m3Module);
-	manual_link_gles_api(app->runtime.m3Module);
+	{
+		int err = 0;
+		err |= bindgen_link_core_api(app->runtime.m3Module);
+		err |= bindgen_link_canvas_api(app->runtime.m3Module);
+		err |= bindgen_link_clock_api(app->runtime.m3Module);
+		err |= bindgen_link_io_api(app->runtime.m3Module);
+		err |= bindgen_link_gles_api(app->runtime.m3Module);
+		err |= manual_link_gles_api(app->runtime.m3Module);
 
+		if(err)
+		{
+			ORCA_ABORT("The application couldn't link one or more functions to its web assembly module (see console log for more information)");
+		}
+	}
 	//NOTE: compile
-	M3Result res = m3_CompileModule(app->runtime.m3Module);
+	res = m3_CompileModule(app->runtime.m3Module);
 	if(res)
 	{
-		M3ErrorInfo errInfo = {0};
-		m3_GetErrorInfo(app->runtime.m3Runtime, &errInfo);
-
-		log_error("wasm error: %s\n", errInfo.message);
-
-		const char* options[] = {"OK"};
-		mp_alert_popup("Error",
-		               "The application couldn't load: can't compile web assembly module",
-		               1,
-		               options);
-
-		mp_request_quit();
-		return(-1);
+		ORCA_WASM3_ABORT(app->runtime.m3Runtime, res, "The application couldn't compile its web assembly module");
 	}
 
 	//NOTE: Find and type check event handlers.
@@ -451,28 +540,15 @@ i32 orca_runloop(void* user)
 		app->rootDir = cmp.handle;
 	}
 
-	//NOTE: prepare GL surface
-	mg_surface_prepare(app->surface);
-
 	IM3Function* exports = app->runtime.exports;
 
 	//NOTE: call init handler
 	if(exports[G_EXPORT_ON_INIT])
 	{
-		M3Result err = m3_Call(exports[G_EXPORT_ON_INIT], 0, 0);
-		if(err != NULL)
+		M3Result res = m3_Call(exports[G_EXPORT_ON_INIT], 0, 0);
+		if(res)
 		{
-			log_error("runtime error: %s\n", err);
-
-			str8 msg = str8_pushf(mem_scratch(), "Runtime error: %s\n", err);
-			const char* options[] = {"OK"};
-			mp_alert_popup("Error",
-		               	msg.ptr,
-		               	1,
-		               	options);
-
-			mp_request_quit();
-			return(-1);
+			ORCA_WASM3_ABORT(app->runtime.m3Runtime, res, "Runtime error");
 		}
 	}
 
@@ -482,7 +558,11 @@ i32 orca_runloop(void* user)
 		u32 width = (u32)content.w;
 		u32 height = (u32)content.h;
 		const void* args[2] = {&width, &height};
-		m3_Call(exports[G_EXPORT_FRAME_RESIZE], 2, args);
+		M3Result res = m3_Call(exports[G_EXPORT_FRAME_RESIZE], 2, args);
+		if(res)
+		{
+			ORCA_WASM3_ABORT(app->runtime.m3Runtime, res, "Runtime error");
+		}
 	}
 
 	ui_set_context(&app->debugOverlay.ui);
@@ -505,7 +585,11 @@ i32 orca_runloop(void* user)
 				memcpy(eventPtr, event, sizeof(*event));
 
 				const void* args[1] = {&app->runtime.rawEventOffset};
-				m3_Call(exports[G_EXPORT_RAW_EVENT], 1, args);
+				M3Result res = m3_Call(exports[G_EXPORT_RAW_EVENT], 1, args);
+				if(res)
+				{
+					ORCA_WASM3_ABORT(app->runtime.m3Runtime, res, "Runtime error");
+				}
 				#else
 				log_error("OnRawEvent() is not supported on big endian platforms");
 				#endif
@@ -527,7 +611,11 @@ i32 orca_runloop(void* user)
 						u32 width = (u32)event->move.content.w;
 						u32 height = (u32)event->move.content.h;
 						const void* args[2] = {&width, &height};
-						m3_Call(exports[G_EXPORT_FRAME_RESIZE], 2, args);
+						M3Result res = m3_Call(exports[G_EXPORT_FRAME_RESIZE], 2, args);
+						if(res)
+						{
+							ORCA_WASM3_ABORT(app->runtime.m3Runtime, res, "Runtime error");
+						}
 					}
 				} break;
 
@@ -539,7 +627,11 @@ i32 orca_runloop(void* user)
 						{
 							int key = event->key.code;
 							const void* args[1] = {&key};
-							m3_Call(exports[G_EXPORT_MOUSE_DOWN], 1, args);
+							M3Result res = m3_Call(exports[G_EXPORT_MOUSE_DOWN], 1, args);
+							if(res)
+							{
+								ORCA_WASM3_ABORT(app->runtime.m3Runtime, res, "Runtime error");
+							}
 						}
 					}
 					else
@@ -548,7 +640,11 @@ i32 orca_runloop(void* user)
 						{
 							int key = event->key.code;
 							const void* args[1] = {&key};
-							m3_Call(exports[G_EXPORT_MOUSE_UP], 1, args);
+							M3Result res = m3_Call(exports[G_EXPORT_MOUSE_UP], 1, args);
+							if(res)
+							{
+								ORCA_WASM3_ABORT(app->runtime.m3Runtime, res, "Runtime error");
+							}
 						}
 					}
 				} break;
@@ -558,7 +654,11 @@ i32 orca_runloop(void* user)
 					if(exports[G_EXPORT_MOUSE_MOVE])
 					{
 						const void* args[4] = {&event->mouse.x, &event->mouse.y, &event->mouse.deltaX, &event->mouse.deltaY};
-						m3_Call(exports[G_EXPORT_MOUSE_MOVE], 4, args);
+						M3Result res = m3_Call(exports[G_EXPORT_MOUSE_MOVE], 4, args);
+						if(res)
+						{
+							ORCA_WASM3_ABORT(app->runtime.m3Runtime, res, "Runtime error");
+						}
 					}
 				} break;
 
@@ -576,7 +676,11 @@ i32 orca_runloop(void* user)
 						if(exports[G_EXPORT_KEY_DOWN])
 						{
 							const void* args[1] = {&event->key.code};
-							m3_Call(exports[G_EXPORT_KEY_DOWN], 1, args);
+							M3Result res = m3_Call(exports[G_EXPORT_KEY_DOWN], 1, args);
+							if(res)
+							{
+								ORCA_WASM3_ABORT(app->runtime.m3Runtime, res, "Runtime error");
+							}
 						}
 					}
 					else if(event->key.action == MP_KEY_RELEASE)
@@ -584,7 +688,11 @@ i32 orca_runloop(void* user)
 						if(exports[G_EXPORT_KEY_UP])
 						{
 							const void* args[1] = {&event->key.code};
-							m3_Call(exports[G_EXPORT_KEY_UP], 1, args);
+							M3Result res = m3_Call(exports[G_EXPORT_KEY_UP], 1, args);
+							if(res)
+							{
+								ORCA_WASM3_ABORT(app->runtime.m3Runtime, res, "Runtime error");
+							}
 						}
 					}
 				} break;
@@ -732,8 +840,11 @@ i32 orca_runloop(void* user)
 
 		if(exports[G_EXPORT_FRAME_REFRESH])
 		{
-			mg_surface_prepare(app->surface);
-			m3_Call(exports[G_EXPORT_FRAME_REFRESH], 0, 0);
+			M3Result res = m3_Call(exports[G_EXPORT_FRAME_REFRESH], 0, 0);
+			if(res)
+			{
+				ORCA_WASM3_ABORT(app->runtime.m3Runtime, res, "Runtime error");
+			}
 		}
 
 		if(app->debugOverlay.show)
@@ -761,10 +872,6 @@ int main(int argc, char** argv)
 	mp_rect windowRect = {.x = 100, .y = 100, .w = 810, .h = 610};
 	app->window = mp_window_create(windowRect, "orca", 0);
 
-	app->surface = mg_surface_create_for_window(app->window, MG_CANVAS);
-	app->canvas = mg_canvas_create();
-	mg_surface_swap_interval(app->surface, 1);
-
 	app->debugOverlay.show = false;
 	app->debugOverlay.surface = mg_surface_create_for_window(app->window, MG_CANVAS);
 	app->debugOverlay.canvas = mg_canvas_create();
@@ -784,11 +891,6 @@ int main(int argc, char** argv)
 
 	for(int i=0; i<3; i++)
 	{
-		mg_surface_prepare(app->surface);
-		mg_canvas_set_current(app->canvas);
-		mg_render(app->surface, app->canvas);
-		mg_surface_present(app->surface);
-
 		mg_surface_prepare(app->debugOverlay.surface);
 		mg_canvas_set_current(app->debugOverlay.canvas);
 		mg_render(app->debugOverlay.surface, app->debugOverlay.canvas);
@@ -811,9 +913,6 @@ int main(int argc, char** argv)
 	}
 
 	mp_thread_join(runloopThread, NULL);
-
-	mg_canvas_destroy(app->canvas);
-	mg_surface_destroy(app->surface);
 
 	mg_canvas_destroy(app->debugOverlay.canvas);
 	mg_surface_destroy(app->debugOverlay.surface);

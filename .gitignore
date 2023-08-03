@@ -17,11 +17,15 @@ build
 
 Debug/*
 
+scripts/__pycache__
+src/gles_api.json
 src/bindgen_core_api.c
 src/bindgen_gles_api.c
 sdk/io_stubs.c
 sdk/orca_surface.c
+sdk/gl31.h
 *bind_gen.c
+gles_gen.log
 
 .vscode/launch.json
 .vscode/settings.json

@@ -108,47 +108,103 @@ def bindgen(apiName, spec, **kwargs):
 		if gen_stub == False:
 			s += ';\n\n'
 		else:
-			s += '\n{\n\t'
+			s += '\n{\n'
+
+
+			# NOTE: check and cast arguments
 			retTag = decl['ret']['tag']
-
-			if retTag == 'i':
-				s += '*((i32*)&_sp[0]) = '
-			elif retTag == 'I':
-				s += '*((i64*)&_sp[0]) = '
-			elif retTag == 'f':
-				s += '*((f32*)&_sp[0]) = '
-			elif retTag == 'F':
-				s += '*((f64*)&_sp[0]) = '
-			elif retTag == 'S':
-				retTypeName = decl['ret']['name']
-				retTypeCName = decl['ret'].get('cname', retTypeName)
-				s += '*(' + retTypeCName + '*)((char*)_mem + *(i32*)&_sp[0]) = '
-
-			s += cname + '('
 
 			firstArgIndex = 0
 			if retTag != 'v':
 				firstArgIndex = 1
 
-			for i, arg in enumerate(decl['args']):
+			for argIndex, arg in enumerate(decl['args']):
+
+				argName = arg['name']
 				typeName = arg['type']['name']
 				typeCName = arg['type'].get('cname', typeName)
 				argTag = arg['type']['tag']
+
+				s += '\t'
+
 				if argTag == 'i':
-					s += '*(i32*)&_sp[' + str(firstArgIndex + i) + ']'
+					s += typeCName + ' ' + argName + ' = ('+typeCName+')*(i32*)&_sp[' + str(firstArgIndex + argIndex) + '];\n'
 				elif argTag == 'I':
-					s += '*(i64*)&_sp[' + str(firstArgIndex + i) + ']'
+					s += typeCName + ' ' + argName + ' = ('+typeCName+')*(i64*)&_sp[' + str(firstArgIndex + argIndex) + '];\n'
 				elif argTag == 'f':
-					s += '*(f32*)&_sp[' + str(firstArgIndex + i) + ']'
+					s += typeCName + ' ' + argName + ' = ('+typeCName+')*(f32*)&_sp[' + str(firstArgIndex + argIndex) + '];\n'
 				elif argTag == 'F':
-					s += '*(f64*)&_sp[' + str(firstArgIndex + i) + ']'
+					s += typeCName + ' ' + argName + ' = ('+typeCName+')*(f64*)&_sp[' + str(firstArgIndex + argIndex) + '];\n'
 				elif argTag == 'p':
-					s += '(void*)((char*)_mem + *(i32*)&_sp[' + str(firstArgIndex + i) + '])'
+					s += typeCName + ' ' + argName + ' = ('+ typeCName +')((char*)_mem + *(u32*)&_sp[' + str(firstArgIndex + argIndex) + ']);\n'
 				elif argTag == 'S':
-					s += '*(' + typeCName + '*)((char*)_mem + *(i32*)&_sp[' + str(firstArgIndex + i) + '])'
+					s += typeCName + ' ' + argName + ' = *('+ typeCName +'*)((char*)_mem + *(u32*)&_sp[' + str(firstArgIndex + argIndex) + ']);\n'
 				else:
 					print('unrecognized type ' + c + ' in procedure signature\n')
 					break
+
+			# check pointer arg length
+			for arg in decl['args']:
+
+				argName = arg['name']
+				typeName = arg['type']['name']
+				typeCName = arg['type'].get('cname', typeName)
+				argTag = arg['type']['tag']
+				argLen = arg.get('len')
+
+				if argTag == 'p' and argLen != None:
+
+					s += '\t{\n'
+					s += '\t\tORCA_ASSERT(((char*)'+ argName + ' >= (char*)_mem) && (((char*)'+ argName +' - (char*)_mem) < m3_GetMemorySize(runtime)), "parameter \''+argName+'\' is out of bounds");\n'
+					s += '\t\tORCA_ASSERT((char*)' + argName + ' + '
+
+					proc = argLen.get('proc')
+					if proc != None:
+						s += proc + '(runtime, '
+						lenProcArgs = argLen['args']
+						for i, lenProcArg in enumerate(lenProcArgs):
+							s += lenProcArg
+							if i < len(lenProcArgs)-1:
+								s += ', '
+						s += ')'
+					else:
+						components =  argLen.get('components')
+						countArg = argLen.get('count')
+
+						if components != None:
+							s += str(components)
+							if countArg != None:
+								s += '*'
+						if countArg != None:
+							s += countArg
+
+					if typeCName.endswith('**') or (typeCName.startswith('void') == False and typeCName.startswith('const void') == False):
+						s += '*sizeof('+typeCName[:-1]+')'
+
+					s += ' <= ((char*)_mem + m3_GetMemorySize(runtime)), "parameter \''+argName+'\' overflows wasm memory");\n'
+					s += '\t}\n'
+
+			s += '\t'
+
+			if retTag == 'i':
+				s += '*((i32*)&_sp[0]) = (i32)'
+			elif retTag == 'I':
+				s += '*((i64*)&_sp[0]) = (i64)'
+			elif retTag == 'f':
+				s += '*((f32*)&_sp[0]) = (f32)'
+			elif retTag == 'F':
+				s += '*((f64*)&_sp[0]) = (f64)'
+			elif retTag == 'S':
+				retTypeName = decl['ret']['name']
+				retTypeCName = decl['ret'].get('cname', retTypeName)
+				s += '*(' + retTypeCName + '*)((char*)_mem + *(i32*)&_sp[0]) = '
+			elif retTag == 'p':
+				print("Warning: " + name + ": pointer return type not supported yet")
+
+			s += cname + '('
+
+			for i, arg in enumerate(decl['args']):
+				s += arg['name']
 
 				if i+1 < len(decl['args']):
 					s += ', '
@@ -158,8 +214,9 @@ def bindgen(apiName, spec, **kwargs):
 		print(s, file=host_bindings)
 
 	# link function
-	s = 'int bindgen_link_' + apiName + '_api(IM3Module module)\n{\n\t'
-	s += 'M3Result res;\n'
+	s = 'int bindgen_link_' + apiName + '_api(IM3Module module)\n{\n'
+	s += '	M3Result res;\n'
+	s += '	int ret = 0;\n'
 
 	for decl in data:
 		name = decl['name']
@@ -185,11 +242,14 @@ def bindgen(apiName, spec, **kwargs):
 		m3Sig += ')'
 
 
-		s += '\tres = m3_LinkRawFunction(module, "*", "' + name + '", "' + m3Sig + '", ' + cname + '_stub);\n'
-		s += '\tif(res != m3Err_none && res != m3Err_functionLookupFailed) { log_error("error: %s\\n", res); return(-1); }\n\n'
+		s += '	res = m3_LinkRawFunction(module, "*", "' + name + '", "' + m3Sig + '", ' + cname + '_stub);\n'
+		s += '	if(res != m3Err_none && res != m3Err_functionLookupFailed)\n'
+		s += '	{\n'
+		s += '		log_error("Couldn\'t link function ' + name + ' (%s)\\n", res);\n'
+		s += '		ret = -1;\n'
+		s += '	}\n\n'
 
-
-	s += '\treturn(0);\n}\n'
+	s += '\treturn(ret);\n}\n'
 
 	print(s, file=host_bindings)
 
@@ -213,7 +273,7 @@ if __name__ == "__main__":
 	wasm3_bindings_path = args.wasm3_bindings
 	if wasm3_bindings_path == None:
 		wasm3_bindings_path = 'bindgen_' + apiName + '_wasm3_bindings.c'
-	
+
 	bindgen(apiName, spec,
 		guest_stubs=guest_stubs_path,
 		guest_include=args.guest_include,

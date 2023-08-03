@@ -12,12 +12,10 @@ mg_font font;
 ui_context ui;
 mem_arena textArena = {0};
 
-mg_surface mg_surface_main(void);
-
 ORCA_EXPORT void OnInit(void)
 {
 	//TODO create surface for main window
-	surface = mg_surface_main();
+	surface = mg_surface_canvas();
 	canvas = mg_canvas_create();
 	ui_init(&ui);
 

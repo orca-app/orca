@@ -45,9 +45,6 @@ mg_image ballImage;
 mg_image paddleImage;
 mg_font pongFont;
 
-// TODO(ben): Why is this here? Why isn't it forward-declared by some header?
-mg_surface mg_surface_main(void);
-
 f32 lerp(f32 a, f32 b, f32 t);
 mp_rect blockRect(int i);
 int checkCollision(mp_rect block);
@@ -69,7 +66,7 @@ str8 loadFile(mem_arena* arena, str8 filename) {
 
 ORCA_EXPORT void OnInit(void)
 {
-    surface = mg_surface_main();
+    surface = mg_surface_canvas();
     canvas = mg_canvas_create();
 
     waterImage = mg_image_create_from_data(surface, loadFile(mem_scratch(), STR8("/underwater.jpg")), false);

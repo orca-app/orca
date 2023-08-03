@@ -10,6 +10,7 @@ from zipfile import ZipFile
 
 from . import checksum
 from .bindgen import bindgen
+from .gles_gen import gles_gen
 from .log import *
 from .utils import pushd, removeall
 
@@ -374,6 +375,12 @@ def gen_all_bindings():
     bindgen("core", "src/core_api.json",
         wasm3_bindings="src/core_api_bind_gen.c",
     )
+
+    gles_gen("milepost/ext/gl.xml",
+        "src/gles_api.json",
+        "sdk/gl31.h"
+    )
+
     bindgen("gles", "src/gles_api.json",
         wasm3_bindings="src/gles_api_bind_gen.c",
     )
