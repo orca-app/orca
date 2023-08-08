@@ -1,6 +1,7 @@
 .DS_Store
 *.dSYM
 bin
+build
 *.metallib
 
 *.pdb
