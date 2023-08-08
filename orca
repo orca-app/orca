@@ -1,0 +1,31 @@
+#!/usr/bin/env python3
+
+# This file is copied into the user's home directory on install,
+# but also can be run from the root of an Orca source checkout.
+
+import os
+import sys
+
+
+root = True
+try:
+    os.stat(".orcaroot")
+except FileNotFoundError:
+    root = False
+
+if root:
+    # Running from Orca source checkout; use local source's scripts.
+
+    scriptdir = os.path.dirname(os.path.abspath(__file__))
+    if scriptdir != os.getcwd():
+        # Only print this warning if running the system-installed Orca.
+        # It's annoying to see this if you run ./orca from the source.
+        print("The Orca tool is running from a local source checkout and will")
+        print("use that instead of the system Orca installation.")
+        print()
+
+    sys.path.append(os.getcwd())
+    import scripts.orca
+else:
+    # Running from outside Orca source checkout; use system Orca install.
+    import sys_scripts.orca

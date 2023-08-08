@@ -30,4 +30,4 @@ wasmFlags="--target=wasm32 \
 
 $CLANG $wasmFlags -o ./module.wasm ../../sdk/orca.c ../../cstdlib/src/*.c src/main.c
 
-python3 ../../scripts/mkapp.py --orca-dir ../.. --name Pong --icon icon.png --resource-dir data module.wasm
+orca bundle --orca-dir ../.. --name Pong --icon icon.png --resource-dir data module.wasm

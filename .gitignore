@@ -1,6 +1,7 @@
 .DS_Store
 *.dSYM
 bin/*
+build
 *.metallib
 *.pdb
 *.exe
@@ -22,4 +23,8 @@ sdk/io_stubs.c
 sdk/orca_surface.c
 *bind_gen.c
 
+.vscode/launch.json
 .vscode/settings.json
+
+__pycache__
+scripts/files
