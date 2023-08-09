@@ -1,5 +1,3 @@
-#include <keys.h>
-#include <graphics.h>
 #include <math.h>
 
 #include <orca.h>

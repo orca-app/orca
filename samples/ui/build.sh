@@ -11,6 +11,9 @@ else
   CLANG=clang
 fi
 
+ORCA_DIR=../..
+STDLIB_DIR=../../src/libc-shim
+
 wasmFlags="--target=wasm32 \
   --no-standard-libraries \
   -fno-builtin \
@@ -20,8 +23,11 @@ wasmFlags="--target=wasm32 \
   -O2 \
   -mbulk-memory \
   -D__ORCA__ \
-  -isystem ../../cstdlib/include -I ../../sdk -I../../milepost/ext -I ../../milepost -I ../../milepost/src"
+  -I $ORCA_DIR/ext \
+  -I $STDLIB_DIR/include \
+  -I $ORCA_DIR/ext \
+  -I $ORCA_DIR/src"
 
-$CLANG $wasmFlags -o ./module.wasm ../../sdk/orca.c ../../cstdlib/src/*.c src/main.c
+$CLANG $wasmFlags -o ./module.wasm ../../src/orca.c $STDLIB_DIR/src/*.c src/main.c
 
 orca bundle --orca-dir ../.. --name UI --resource-dir data module.wasm

@@ -1,7 +1,3 @@
-#include"keys.h"
-#include"graphics.h"
-#include"ui.h"
-
 #include"orca.h"
 
 vec2 frameSize = {100, 100};

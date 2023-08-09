@@ -13,7 +13,7 @@ from .bindgen import bindgen
 from .gles_gen import gles_gen
 from .log import *
 from .utils import pushd, removeall
-
+from .embed_text_files import *
 
 ANGLE_VERSION = "2023-07-05"
 
@@ -60,64 +60,61 @@ def build_runtime(args):
     ensure_programs()
     ensure_angle()
 
-    build_milepost("lib", args.release)
+    build_platform_layer("lib", args.release)
     build_wasm3(args.release)
     build_orca(args.release)
 
 
 def clean(args):
     yeet("build")
-    yeet("milepost/build")
+    yeet("ext/angle")
     yeet("scripts/files")
     yeet("scripts/__pycache__")
 
 
-def build_milepost(target, release):
-    print("Building milepost...")
-    with pushd("milepost"):
-        os.makedirs("build/bin", exist_ok=True)
-        os.makedirs("build/lib", exist_ok=True)
-        os.makedirs("resources", exist_ok=True)
+def build_platform_layer(target, release):
+    print("Building Orca platform layer...")
 
-        if target == "lib":
-            if platform.system() == "Windows":
-                build_milepost_lib_win(release)
-            elif platform.system() == "Darwin":
-                build_milepost_lib_mac(release)
-            else:
-                log_error(f"can't build milepost for unknown platform '{platform.system()}'")
-                exit(1)
-        elif target == "test":
-            with pushd("examples/test_app"):
-                # TODO?
-                subprocess.run(["./build.sh"])
-        elif target == "clean":
-            removeall("bin")
+    os.makedirs("build/bin", exist_ok=True)
+    os.makedirs("build/lib", exist_ok=True)
+
+    if target == "lib":
+        if platform.system() == "Windows":
+            build_platform_layer_lib_win(release)
+        elif platform.system() == "Darwin":
+            build_platform_layer_lib_mac(release)
         else:
-            log_error(f"unrecognized milepost target '{target}'")
+            log_error(f"can't build platform layer for unknown platform '{platform.system()}'")
             exit(1)
+    elif target == "test":
+        with pushd("examples/test_app"):
+            # TODO?
+            subprocess.run(["./build.sh"])
+    elif target == "clean":
+        removeall("bin")
+    else:
+        log_error(f"unrecognized platform layer target '{target}'")
+        exit(1)
 
 
-def build_milepost_lib_win(release):
-    # TODO(ben): delete embed_text.py
-    embed_text_glsl("src\\glsl_shaders.h", "glsl_", [
-        "src\\glsl_shaders\\common.glsl",
-        "src\\glsl_shaders\\blit_vertex.glsl",
-        "src\\glsl_shaders\\blit_fragment.glsl",
-        "src\\glsl_shaders\\path_setup.glsl",
-        "src\\glsl_shaders\\segment_setup.glsl",
-        "src\\glsl_shaders\\backprop.glsl",
-        "src\\glsl_shaders\\merge.glsl",
-        "src\\glsl_shaders\\raster.glsl",
-        "src\\glsl_shaders\\balance_workgroups.glsl",
+def build_platform_layer_lib_win(release):
+
+    embed_text_files("src\\graphics\\glsl_shaders.h", "glsl_", [
+        "src\\graphics\\glsl_shaders\\common.glsl",
+        "src\\graphics\\glsl_shaders\\blit_vertex.glsl",
+        "src\\graphics\\glsl_shaders\\blit_fragment.glsl",
+        "src\\graphics\\glsl_shaders\\path_setup.glsl",
+        "src\\graphics\\glsl_shaders\\segment_setup.glsl",
+        "src\\graphics\\glsl_shaders\\backprop.glsl",
+        "src\\graphics\\glsl_shaders\\merge.glsl",
+        "src\\graphics\\glsl_shaders\\raster.glsl",
+        "src\\graphics\\glsl_shaders\\balance_workgroups.glsl",
     ])
 
     includes = [
         "/I", "src",
-        "/I", "src/util",
-        "/I", "src/platform",
         "/I", "ext",
-        "/I", "ext/angle_headers",
+        "/I", "ext/angle/include",
     ]
     libs = [
         "user32.lib",
@@ -130,7 +127,7 @@ def build_milepost_lib_win(release):
         "ole32.lib",
         "shell32.lib",
         "shlwapi.lib",
-        "/LIBPATH:./build/bin",
+        "/LIBPATH:ext/angle/lib",
         "libEGL.dll.lib",
         "libGLESv2.dll.lib",
         "/DELAYLOAD:libEGL.dll",
@@ -143,23 +140,23 @@ def build_milepost_lib_win(release):
         "/DMP_BUILD_DLL",
         "/std:c11", "/experimental:c11atomics",
         *includes,
-        "src/milepost.c", "/Fo:build/bin/milepost.o",
+        "src/orca.c", "/Fo:build/bin/orca.o",
         "/LD", "/link",
-        "/MANIFEST:EMBED", "/MANIFESTINPUT:src/win32_manifest.xml",
+        "/MANIFEST:EMBED", "/MANIFESTINPUT:src/app/win32_manifest.xml",
         *libs,
-        "/OUT:build/bin/milepost.dll",
-        "/IMPLIB:build/bin/milepost.dll.lib",
+        "/OUT:build/bin/orca.dll",
+        "/IMPLIB:build/bin/orca.dll.lib",
     ], check=True)
 
 
-def build_milepost_lib_mac(release):
+def build_platform_layer_lib_mac(release):
     sdk_dir = "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk"
 
     flags = ["-mmacos-version-min=10.15.4", "-maes"]
     cflags = ["-std=c11"]
     debug_flags = ["-O3"] if release else ["-g", "-DDEBUG", "-DLOG_COMPILE_DEBUG"]
     ldflags = [f"-L{sdk_dir}/usr/lib", f"-F{sdk_dir}/System/Library/Frameworks/"]
-    includes = ["-Isrc", "-Isrc/util", "-Isrc/platform", "-Iext", "-Iext/angle_headers"]
+    includes = ["-Isrc", "-Isrc/util", "-Isrc/platform", "-Iext", "-Iext/angle/include"]
 
     # compile metal shader
     subprocess.run([
@@ -167,7 +164,7 @@ def build_milepost_lib_mac(release):
         # TODO: shaderFlagParam
         "-fno-fast-math", "-c",
         "-o", "build/mtl_renderer.air",
-        "src/mtl_renderer.metal",
+        "src/graphics/mtl_renderer.metal",
     ], check=True)
     subprocess.run([
         "xcrun", "-sdk", "macosx", "metallib",
@@ -175,30 +172,30 @@ def build_milepost_lib_mac(release):
         "build/mtl_renderer.air",
     ], check=True)
 
-    # compile milepost. We use one compilation unit for all C code, and one
+    # compile platform layer. We use one compilation unit for all C code, and one
     # compilation unit for all Objective-C code
     subprocess.run([
         "clang",
         *debug_flags, "-c",
-        "-o", "build/milepost_c.o",
+        "-o", "build/orca_c.o",
         *cflags, *flags, *includes,
-        "src/milepost.c"
+        "src/orca.c"
     ], check=True)
     subprocess.run([
         "clang",
         *debug_flags, "-c",
-        "-o", "build/milepost_objc.o",
+        "-o", "build/orca_objc.o",
         *flags, *includes,
-        "src/milepost.m"
+        "src/orca.m"
     ], check=True)
 
     # build dynamic library
     subprocess.run([
         "ld",
         *ldflags, "-dylib",
-        "-o", "build/bin/libmilepost.dylib",
-        "build/milepost_c.o", "build/milepost_objc.o",
-        "-Lbuild/bin", "-lc",
+        "-o", "build/bin/liborca.dylib",
+        "build/orca_c.o", "build/orca_objc.o",
+        "-Lext/angle/bin", "-lc",
         "-framework", "Carbon", "-framework", "Cocoa", "-framework", "Metal", "-framework", "QuartzCore",
         "-weak-lEGL", "-weak-lGLESv2",
     ], check=True)
@@ -207,20 +204,20 @@ def build_milepost_lib_mac(release):
     subprocess.run([
         "install_name_tool",
         "-change", "./libEGL.dylib", "@rpath/libEGL.dylib",
-        "build/bin/libmilepost.dylib",
+        "build/bin/liborca.dylib",
     ], check=True)
     subprocess.run([
         "install_name_tool",
         "-change", "./libGLESv2.dylib", "@rpath/libGLESv2.dylib",
-        "build/bin/libmilepost.dylib",
+        "build/bin/liborca.dylib",
     ], check=True)
 
     # add executable path to rpath. Client executable can still add its own
     # rpaths if needed, e.g. @executable_path/libs/ etc.
     subprocess.run([
         "install_name_tool",
-        "-id", "@rpath/libmilepost.dylib",
-        "build/bin/libmilepost.dylib",
+        "-id", "@rpath/liborca.dylib",
+        "build/bin/liborca.dylib",
     ], check=True)
 
 
@@ -279,7 +276,7 @@ def build_wasm3_lib_mac(release):
 
 
 def build_orca(release):
-    print("Building Orca...")
+    print("Building Orca runtime...")
 
     os.makedirs("build/bin", exist_ok=True)
     os.makedirs("build/lib", exist_ok=True)
@@ -294,23 +291,19 @@ def build_orca(release):
 
 
 def build_orca_win(release):
-    # copy libraries
-    shutil.copy("milepost/build/bin/milepost.dll", "build/bin")
-    shutil.copy("milepost/build/bin/milepost.dll.lib", "build/bin")
 
     gen_all_bindings()
 
     # compile orca
     includes = [
         "/I", "src",
-        "/I", "sdk",
+        "/I", "ext",
+        "/I", "ext/angle/include",
         "/I", "ext/wasm3/source",
-        "/I", "milepost/src",
-        "/I", "milepost/ext",
     ]
     libs = [
         "/LIBPATH:build/bin",
-        "milepost.dll.lib",
+        "orca.dll.lib",
         "wasm3.lib",
     ]
 
@@ -319,29 +312,21 @@ def build_orca_win(release):
         "/Zi", "/Zc:preprocessor",
         "/std:c11", "/experimental:c11atomics",
         *includes,
-        "src/main.c",
+        "src/runtime.c",
         "/link", *libs,
-        "/out:build/bin/orca.exe",
+        "/out:build/bin/orca_runtime.exe",
     ], check=True)
 
 
 def build_orca_mac(release):
-    # copy libraries
-    shutil.copy("milepost/build/bin/mtl_renderer.metallib", "build/bin/")
-    shutil.copy("milepost/build/bin/libmilepost.dylib", "build/bin/")
-    shutil.copy("milepost/build/bin/libGLESv2.dylib", "build/bin/")
-    shutil.copy("milepost/build/bin/libEGL.dylib", "build/bin/")
 
     includes = [
         "-Isrc",
-        "-Isdk",
-        "-Imilepost/src",
-        "-Imilepost/src/util",
-        "-Imilepost/src/platform",
-        "-Iext/wasm3/source",
-        "-Imilepost/ext/",
+        "-Iext",
+        "-Iext/angle/include",
+        "-Iext/wasm3/source"
     ]
-    libs = ["-Lbuild/bin", "-Lbuild/lib", "-lmilepost", "-lwasm3"]
+    libs = ["-Lbuild/bin", "-Lbuild/lib", "-lorca", "-lwasm3"]
     debug_flags = ["-O2"] if release else ["-g", "-DLOG_COMPILE_DEBUG"]
     flags = [
         *debug_flags,
@@ -354,50 +339,50 @@ def build_orca_mac(release):
     # compile orca
     subprocess.run([
         "clang", *flags, *includes, *libs,
-        "-o", "build/bin/orca",
-        "src/main.c",
+        "-o", "build/bin/orca_runtime",
+        "src/runtime.c",
     ], check=True)
 
     # fix libs imports
     subprocess.run([
         "install_name_tool",
-        "-change", "build/bin/libmilepost.dylib", "@rpath/libmilepost.dylib",
-        "build/bin/orca",
+        "-change", "build/bin/liborca.dylib", "@rpath/liborca.dylib",
+        "build/bin/orca_runtime",
     ], check=True)
     subprocess.run([
         "install_name_tool",
         "-add_rpath", "@executable_path/",
-        "build/bin/orca",
+        "build/bin/orca_runtime",
     ], check=True)
 
 
 def gen_all_bindings():
-    bindgen("core", "src/core_api.json",
-        wasm3_bindings="src/core_api_bind_gen.c",
+    gles_gen("ext/gl.xml",
+        "src/wasmbind/gles_api.json",
+        "src/graphics/orca_gl31.h"
     )
 
-    gles_gen("milepost/ext/gl.xml",
-        "src/gles_api.json",
-        "sdk/gl31.h"
+    bindgen("gles", "src/wasmbind/gles_api.json",
+        wasm3_bindings="src/wasmbind/gles_api_bind_gen.c",
     )
 
-    bindgen("gles", "src/gles_api.json",
-        wasm3_bindings="src/gles_api_bind_gen.c",
+    bindgen("core", "src/wasmbind/core_api.json",
+        wasm3_bindings="src/wasmbind/core_api_bind_gen.c",
     )
 
-    bindgen("canvas", "src/canvas_api.json",
-        guest_stubs="sdk/orca_surface.c",
-        guest_include="graphics.h",
-        wasm3_bindings="src/canvas_api_bind_gen.c",
+    bindgen("surface", "src/wasmbind/surface_api.json",
+        guest_stubs="src/graphics/orca_surface_stubs.c",
+        guest_include="graphics/graphics.h",
+        wasm3_bindings="src/wasmbind/surface_api_bind_gen.c",
     )
-    bindgen("clock", "src/clock_api.json",
-        guest_stubs="sdk/orca_clock.c",
-        guest_include="platform_clock.h",
-        wasm3_bindings="src/clock_api_bind_gen.c",
+
+    bindgen("clock", "src/wasmbind/clock_api.json",
+        guest_include="platform/platform_clock.h",
+        wasm3_bindings="src/wasmbind/clock_api_bind_gen.c",
     )
-    bindgen("io", "src/io_api.json",
-        guest_stubs="sdk/io_stubs.c",
-        wasm3_bindings="src/io_api_bind_gen.c",
+    bindgen("io", "src/wasmbind/io_api.json",
+        guest_stubs="src/platform/orca_io_stubs.c",
+        wasm3_bindings="src/wasmbind/io_api_bind_gen.c",
     )
 
 
@@ -440,15 +425,15 @@ def verify_angle():
     checkfiles = None
     if platform.system() == "Windows":
         checkfiles = [
-            "milepost/build/bin/libEGL.dll",
-            "milepost/build/bin/libEGL.dll.lib",
-            "milepost/build/bin/libGLESv2.dll",
-            "milepost/build/bin/libGLESv2.dll.lib",
+            "ext/angle/bin/libEGL.dll",
+            "ext/angle/lib/libEGL.dll.lib",
+            "ext/angle/bin/libGLESv2.dll",
+            "ext/angle/lib/libGLESv2.dll.lib",
         ]
     elif platform.system() == "Darwin":
         checkfiles = [
-            "milepost/build/bin/libEGL.dylib",
-            "milepost/build/bin/libGLESv2.dylib",
+            "ext/angle/bin/libEGL.dylib",
+            "ext/angle/bin/libGLESv2.dylib",
         ]
 
     if checkfiles is None:
@@ -471,15 +456,8 @@ def download_angle():
     print("Downloading ANGLE...")
     if platform.system() == "Windows":
         build = "windows-2019"
-        extensions = [
-            ("dll", "milepost/build/bin/"),
-            ("lib", "milepost/build/bin/"),
-        ]
     elif platform.system() == "Darwin":
         build = "macos-jank"
-        extensions = [
-            ("dylib", "milepost/build/bin/"),
-        ]
     else:
         log_error(f"could not automatically download ANGLE for unknown platform {platform.system()}")
         return
@@ -500,48 +478,7 @@ def download_angle():
     with ZipFile(filepath, "r") as anglezip:
         anglezip.extractall(path="scripts/files")
 
-    os.makedirs("milepost/build/bin", exist_ok=True)
-    for angleDir in ["bin", "lib"]:
-        for (ext, dest) in extensions:
-            for filepath in glob.glob(f"scripts/files/angle/{angleDir}/*.{ext}"):
-                shutil.copy(filepath, dest)
-
-
-def embed_text_glsl(outputpath, prefix, shaders):
-    output = open(outputpath, "w")
-    output.write("/*********************************************************************\n")
-    output.write("*\n")
-    output.write("*\tfile: %s\n" % os.path.basename(outputpath))
-    output.write("*\tnote: string literals auto-generated by build_runtime.py\n")
-    output.write("*\tdate: %s\n" % datetime.now().strftime("%d/%m%Y"))
-    output.write("*\n")
-    output.write("**********************************************************************/\n")
-
-    outSymbol = (os.path.splitext(os.path.basename(outputpath))[0]).upper()
-
-    output.write("#ifndef __%s_H__\n" % outSymbol)
-    output.write("#define __%s_H__\n" % outSymbol)
-    output.write("\n\n")
-
-    for fileName in shaders:
-        f = open(fileName, "r")
-        lines = f.read().splitlines()
-
-        output.write("//NOTE: string imported from %s\n" % fileName)
-
-        stringName = os.path.splitext(os.path.basename(fileName))[0]
-        output.write(f"const char* {prefix}{stringName} = ")
-
-        for line in lines:
-            output.write("\n\"%s\\n\"" % line)
-
-        output.write(";\n\n")
-        f.close()
-
-    output.write("#endif // __%s_H__\n" % outSymbol)
-
-    output.close()
-
+    shutil.copytree(f"scripts/files/angle/", "ext/angle", dirs_exist_ok=True)
 
 def yeet(path):
     os.makedirs(path, exist_ok=True)

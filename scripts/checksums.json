@@ -1,10 +1,10 @@
 {
     "scripts/files/angle-windows-2019-2023-07-05.zip": "a333b5ccc8462151ee8df65c43cfacd70d9db2413f2e495da65670737b5b2d96",
     "scripts/files/angle-macos-jank-2023-07-05.zip": "c234b8db179a24757ab9f46610a032123718dd9bed967d2bf8e27d0d17eb0aff",
-    "milepost/build/bin/libEGL.dll": "b7bf51f83e88129ddc20c0c2cb904ec04c89059a30a2cd29b9b1ea11c80388fb",
-    "milepost/build/bin/libEGL.dll.lib": "4cec54c534136da413dea86bd271ccb9c5ae88e40aa91d1de7a01e701be8e1d7",
-    "milepost/build/bin/libGLESv2.dll": "193b53b0a16b702eaa28a73e84527acf7aecfd665e3e3f54a8d9db9ae73111e1",
-    "milepost/build/bin/libGLESv2.dll.lib": "ee87aac129efe8fe871825d181b85da1b1ea6626cb48be52c2e689f2804b953f",
-    "milepost/build/bin/libEGL.dylib": "96baea4b1c8578d30738764784d07b509d1153df694c094faba2ee8ccbfde2a9",
-    "milepost/build/bin/libGLESv2.dylib": "98ce9f6248a6447ba9199e96b8f6d87df9548d43ce583a2615717aab168ecb71"
+    "ext/angle/bin/libEGL.dll": "b7bf51f83e88129ddc20c0c2cb904ec04c89059a30a2cd29b9b1ea11c80388fb",
+    "ext/angle/lib/libEGL.dll.lib": "4cec54c534136da413dea86bd271ccb9c5ae88e40aa91d1de7a01e701be8e1d7",
+    "ext/angle/bin/libGLESv2.dll": "193b53b0a16b702eaa28a73e84527acf7aecfd665e3e3f54a8d9db9ae73111e1",
+    "ext/angle/lib/libGLESv2.dll.lib": "ee87aac129efe8fe871825d181b85da1b1ea6626cb48be52c2e689f2804b953f",
+    "ext/angle/bin/libEGL.dylib": "96baea4b1c8578d30738764784d07b509d1153df694c094faba2ee8ccbfde2a9",
+    "ext/angle/bin/libGLESv2.dylib": "98ce9f6248a6447ba9199e96b8f6d87df9548d43ce583a2615717aab168ecb71"
 }

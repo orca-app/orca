@@ -67,14 +67,14 @@ def macos_make_app(args):
 	#-----------------------------------------------------------
 	#NOTE: copy orca runtime executable and libraries
 	#-----------------------------------------------------------
-	orca_exe = os.path.join(args.orca_dir, 'build/bin/orca')
-	milepost_lib = os.path.join(args.orca_dir, 'build/bin/libmilepost.dylib')
-	gles_lib = os.path.join(args.orca_dir, 'build/bin/libGLESv2.dylib')
-	egl_lib = os.path.join(args.orca_dir, 'build/bin/libEGL.dylib')
+	orca_exe = os.path.join(args.orca_dir, 'build/bin/orca_runtime')
+	orca_lib = os.path.join(args.orca_dir, 'build/bin/liborca.dylib')
+	gles_lib = os.path.join(args.orca_dir, 'ext/angle/bin/libGLESv2.dylib')
+	egl_lib = os.path.join(args.orca_dir, 'ext/angle/bin/libEGL.dylib')
 	renderer_lib = os.path.join(args.orca_dir, 'build/bin/mtl_renderer.metallib')
 
 	shutil.copy(orca_exe, exe_dir)
-	shutil.copy(milepost_lib, exe_dir)
+	shutil.copy(orca_lib, exe_dir)
 	shutil.copy(gles_lib, exe_dir)
 	shutil.copy(egl_lib, exe_dir)
 	shutil.copy(renderer_lib, exe_dir)
@@ -101,10 +101,8 @@ def macos_make_app(args):
 	#NOTE: copy runtime resources
 	#-----------------------------------------------------------
 	# default fonts
-	shutil.copy(os.path.join(args.orca_dir, 'resources/OpenSansLatinSubset.ttf'), res_dir)
 	shutil.copy(os.path.join(args.orca_dir, 'resources/Menlo.ttf'), res_dir)
 	shutil.copy(os.path.join(args.orca_dir, 'resources/Menlo Bold.ttf'), res_dir)
-	shutil.copy(os.path.join(args.orca_dir, 'resources/Menlo Italics.ttf'), res_dir)
 
 	#-----------------------------------------------------------
 	#NOTE make icon
@@ -166,7 +164,7 @@ def macos_make_app(args):
 			<key>CFBundleSignature</key>
 			<string>{bundle_sig}</string>
 			<key>CFBundleExecutable</key>
-			<string>orca</string>
+			<string>orca_runtime</string>
 			<key>CFBundleIconFile</key>
 			<string>icon.icns</string>
 			<key>NSHighResolutionCapable</key>
@@ -205,13 +203,13 @@ def windows_make_app(args):
 	#-----------------------------------------------------------
 	#NOTE: copy orca runtime executable and libraries
 	#-----------------------------------------------------------
-	orca_exe = os.path.join(args.orca_dir, 'build/bin/orca.exe')
-	milepost_lib = os.path.join(args.orca_dir, 'build/bin/milepost.dll')
-	gles_lib = os.path.join(args.orca_dir, 'milepost/build/bin/libGLESv2.dll')
-	egl_lib = os.path.join(args.orca_dir, 'milepost/build/bin/libEGL.dll')
+	orca_exe = os.path.join(args.orca_dir, 'build/bin/orca_runtime.exe')
+	orca_lib = os.path.join(args.orca_dir, 'build/bin/orca.dll')
+	gles_lib = os.path.join(args.orca_dir, 'ext/angle/bin/libGLESv2.dll')
+	egl_lib = os.path.join(args.orca_dir, 'ext/angle/bin/libEGL.dll')
 
-	shutil.copy(orca_exe, exe_dir)
-	shutil.copy(milepost_lib, exe_dir)
+	shutil.copy(orca_exe, os.path.join(exe_dir, app_name + '.exe'))
+	shutil.copy(orca_lib, exe_dir)
 	shutil.copy(gles_lib, exe_dir)
 	shutil.copy(egl_lib, exe_dir)
 
@@ -238,10 +236,8 @@ def windows_make_app(args):
 	#NOTE: copy runtime resources
 	#-----------------------------------------------------------
 	# default fonts
-	shutil.copy(os.path.join(args.orca_dir, 'resources/OpenSansLatinSubset.ttf'), res_dir)
 	shutil.copy(os.path.join(args.orca_dir, 'resources/Menlo.ttf'), res_dir)
 	shutil.copy(os.path.join(args.orca_dir, 'resources/Menlo Bold.ttf'), res_dir)
-	shutil.copy(os.path.join(args.orca_dir, 'resources/Menlo Italics.ttf'), res_dir)
 
 	#-----------------------------------------------------------
 	#NOTE make icon

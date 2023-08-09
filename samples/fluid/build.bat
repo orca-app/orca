@@ -10,7 +10,8 @@ set wasmFlags=--target=wasm32^
        -O2 ^
        -mbulk-memory ^
        -D__ORCA__ ^
-       -isystem ..\..\cstdlib\include -I ..\..\sdk -I..\..\milepost\ext -I ..\..\milepost -I ..\..\milepost\src
+       -isystem ..\..\src\libc-shim\include ^
+       -I..\..\ext -I ..\..\src
 
 set shaders=src/shaders/advect.glsl^
 	src/shaders/blit_div_fragment.glsl^
@@ -26,10 +27,11 @@ set shaders=src/shaders/advect.glsl^
 	src/shaders/splat.glsl^
 	src/shaders/subtract_pressure.glsl
 
-call python3 ../../milepost/scripts/embed_text.py --prefix=glsl_ --output src/glsl_shaders.h %shaders%
+
+call python3 ../../scripts/embed_text_files.py --prefix=glsl_ --output src/glsl_shaders.h %shaders%
 IF %ERRORLEVEL% NEQ 0 EXIT /B %ERRORLEVEL%
 
-clang %wasmFlags% -o .\module.wasm ..\..\sdk\orca.c ..\..\cstdlib\src\*.c src\main.c
+clang %wasmFlags% -o .\module.wasm ..\..\src\orca.c ..\..\src\libc-shim\src\*.c src\main.c
 IF %ERRORLEVEL% NEQ 0 EXIT /B %ERRORLEVEL%
 
 orca bundle --orca-dir ..\.. --icon icon.png --name Fluid module.wasm

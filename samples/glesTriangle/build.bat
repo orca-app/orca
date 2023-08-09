@@ -10,9 +10,10 @@ set wasmFlags=--target=wasm32^
        -O2 ^
        -mbulk-memory ^
        -D__ORCA__ ^
-       -isystem ..\..\cstdlib\include -I ..\..\sdk -I..\..\milepost\ext -I ..\..\milepost -I ..\..\milepost\src
+       -isystem ..\..\src\libc-shim\include ^
+       -I..\..\ext -I ..\..\src
 
-clang %wasmFlags% -o .\module.wasm ..\..\sdk\orca.c ..\..\cstdlib\src\*.c src\main.c
+clang %wasmFlags% -o .\module.wasm ..\..\src\orca.c ..\..\src\libc-shim\src\*.c src\main.c
 IF %ERRORLEVEL% NEQ 0 EXIT /B %ERRORLEVEL%
 
 orca bundle --orca-dir ..\.. --name Triangle module.wasm

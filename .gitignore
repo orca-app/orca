@@ -18,13 +18,16 @@ build
 Debug/*
 
 scripts/__pycache__
-src/gles_api.json
+
+src/wasmbind/gles_api.json
 src/bindgen_core_api.c
 src/bindgen_gles_api.c
-sdk/io_stubs.c
-sdk/orca_surface.c
-sdk/gl31.h
+src/graphics/glsl_shaders.h
+src/io_stubs.c
+src/orca_surface.c
+src/graphics/orca_gl31.h
 *bind_gen.c
+*_stubs.c
 gles_gen.log
 
 .vscode/launch.json
@@ -32,3 +35,5 @@ gles_gen.log
 
 __pycache__
 scripts/files
+
+ext/angle

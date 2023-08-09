@@ -1,5 +1,3 @@
-#include <keys.h>
-#include <graphics.h>
 #include <math.h>
 
 #include <orca.h>
@@ -75,15 +73,15 @@ ORCA_EXPORT void OnInit(void)
 
     if(mg_image_is_nil(waterImage))
     {
-		log_error("coulnd't load ball image\n");
+		log_error("couldn't load water image\n");
     }
     if(mg_image_is_nil(ballImage))
     {
-		log_error("coulnd't load ball image\n");
+		log_error("couldn't load ball image\n");
     }
     if(mg_image_is_nil(paddleImage))
     {
-		log_error("coulnd't load paddle image\n");
+		log_error("couldn't load paddle image\n");
     }
 
     str8 fontStr = loadFile(mem_scratch(), STR8("/Literata-SemiBoldItalic.ttf"));
@@ -113,23 +111,23 @@ ORCA_EXPORT void OnMouseDown(int button)
 
 ORCA_EXPORT void OnKeyDown(int key)
 {
-    if(key == KEY_SPACE)
+    if(key == MP_KEY_SPACE)
     {
         log_error("(this is just for testing errors)");
         return;
     }
-    if(key == KEY_ENTER)
+    if(key == MP_KEY_ENTER)
     {
         log_warning("(this is just for testing warning)");
         return;
     }
 
     log_info("key down: %i", key);
-    if(key == KEY_LEFT)
+    if(key == MP_KEY_LEFT)
     {
         leftDown = true;
     }
-    if(key == KEY_RIGHT)
+    if(key == MP_KEY_RIGHT)
     {
         rightDown = true;
     }
@@ -137,17 +135,17 @@ ORCA_EXPORT void OnKeyDown(int key)
 
 ORCA_EXPORT void OnKeyUp(int key)
 {
-    if(key == KEY_ENTER || key == KEY_SPACE)
+    if(key == MP_KEY_ENTER || key == MP_KEY_SPACE)
     {
         return;
     }
 
     log_info("key up: %i", key);
-    if(key == KEY_LEFT)
+    if(key == MP_KEY_LEFT)
     {
         leftDown = false;
     }
-    if(key == KEY_RIGHT)
+    if(key == MP_KEY_RIGHT)
     {
         rightDown = false;
     }
