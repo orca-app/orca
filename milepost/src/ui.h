@@ -318,6 +318,7 @@ struct ui_box
 	bool hot;
 	bool active;
 	vec2 scroll;
+	vec2 pressedMouse;
 
 	// animation data
 	f32 hotTransition;

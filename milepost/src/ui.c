@@ -538,6 +538,9 @@ ui_sig ui_box_sig(ui_box* box)
 	{
 		vec2 mousePos = ui_mouse_position();
 
+		sig.mouse = (vec2){mousePos.x - box->rect.x, mousePos.y - box->rect.y};
+		sig.delta = ui_mouse_delta();
+		sig.wheel = ui_mouse_wheel();
 		sig.hovering = ui_box_hovering(box, mousePos);
 
 		if(box->flags & UI_FLAG_CLICKABLE)
@@ -547,6 +550,10 @@ ui_sig ui_box_sig(ui_box* box)
 				sig.pressed = mp_mouse_pressed(input, MP_MOUSE_LEFT);
 				if(sig.pressed)
 				{
+					if(!box->dragging)
+					{
+						box->pressedMouse = sig.mouse;
+					}
 					box->dragging = true;
 				}
 				sig.doubleClicked = mp_mouse_double_clicked(input, MP_MOUSE_LEFT);
@@ -570,9 +577,6 @@ ui_sig ui_box_sig(ui_box* box)
 			sig.dragging = box->dragging;
 		}
 
-		sig.mouse = (vec2){mousePos.x - box->rect.x, mousePos.y - box->rect.y};
-		sig.delta = ui_mouse_delta();
-		sig.wheel = ui_mouse_wheel();
 	}
 	return(sig);
 }
@@ -1757,17 +1761,13 @@ ui_box* ui_slider(const char* label, f32 thumbRatio, f32* scrollValue)
 
 		//NOTE: interaction
 		ui_sig thumbSig = ui_box_sig(thumb);
+		ui_sig trackSig = ui_box_sig(track);
 		if(thumbSig.dragging)
 		{
 			f32 trackExtents = track->rect.c[2+trackAxis] - thumb->rect.c[2+trackAxis];
-			f32 delta = thumbSig.delta.c[trackAxis]/trackExtents;
-			f32 oldValue = *scrollValue;
-
-			*scrollValue += delta;
+			*scrollValue = (trackSig.mouse.c[trackAxis] - thumb->pressedMouse.c[trackAxis]) / trackExtents;
 			*scrollValue = Clamp(*scrollValue, 0, 1);
 		}
-
-		ui_sig trackSig = ui_box_sig(track);
 
 		if(ui_box_active(frame))
 		{
