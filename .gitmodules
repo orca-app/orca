@@ -1,4 +1,0 @@
-[submodule "milepost"]
-	path = milepost
-	url = git@git.handmade.network:MartinFouilleul/milepost.git
-	branch = main
