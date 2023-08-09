@@ -155,14 +155,18 @@ void mp_init()
 		mp_init_keys();
 
 		__mpApp.win32.savedConsoleCodePage = GetConsoleOutputCP();
-        SetConsoleOutputCP(CP_UTF8);
+		SetConsoleOutputCP(CP_UTF8);
 
-        DWORD mode;
-        GetConsoleMode(GetStdHandle(STD_OUTPUT_HANDLE), &mode);
-        mode |= ENABLE_VIRTUAL_TERMINAL_PROCESSING;
-        SetConsoleMode(GetStdHandle(STD_OUTPUT_HANDLE), mode);
+		DWORD mode;
+		GetConsoleMode(GetStdHandle(STD_OUTPUT_HANDLE), &mode);
+		mode |= ENABLE_VIRTUAL_TERMINAL_PROCESSING;
+		SetConsoleMode(GetStdHandle(STD_OUTPUT_HANDLE), mode);
 
-        SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
+		SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
+
+		u32 wheelScrollLines = 3;
+		SystemParametersInfo(SPI_GETWHEELSCROLLLINES, 0, &wheelScrollLines, 0);
+		__mpApp.win32.wheelScrollLines = wheelScrollLines;
 	}
 }
 
@@ -241,8 +245,10 @@ static void process_wheel_event(mp_window_data* window, f32 x, f32 y)
 	mp_event event = {0};
 	event.window = mp_window_handle_from_ptr(window);
 	event.type = MP_EVENT_MOUSE_WHEEL;
-	event.mouse.deltaX = x/30.0f;
-	event.mouse.deltaY = -y/30.0f;
+	// Borrowed from https://source.chromium.org/chromium/chromium/src/+/3e1a26c44c024d97dc9a4c09bbc6a2365398ca2c:ui/events/blink/web_input_event_builders_win.cc;l=318-330
+	f32 scrollMultiplier = __mpApp.win32.wheelScrollLines * 100.0 / 3.0;
+	event.mouse.deltaX = x / WHEEL_DELTA * scrollMultiplier;
+	event.mouse.deltaY = -y / WHEEL_DELTA * scrollMultiplier;
 	event.mouse.mods = mp_get_mod_keys();
 
 	mp_queue_event(&event);
@@ -497,6 +503,17 @@ LRESULT WinProc(HWND windowHandle, UINT message, WPARAM wParam, LPARAM lParam)
 				str8 seq = utf8_encode(event.character.sequence, event.character.codepoint);
 				event.character.seqLen = seq.len;
 				mp_queue_event(&event);
+			}
+		} break;
+
+		case WM_SETTINGCHANGE:
+		{
+			if((u32)wParam == SPI_SETWHEELSCROLLLINES)
+			{
+				u32 wheelScrollLines;
+				if(SystemParametersInfo(SPI_GETWHEELSCROLLLINES, 0, &wheelScrollLines, 0) != 0) {
+					__mpApp.win32.wheelScrollLines = wheelScrollLines;
+				}
 			}
 		} break;
 
