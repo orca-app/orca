@@ -1,29 +1,28 @@
-# Install
+# Installing
 
-Clone the repo with the `--recurse-submodules` option.
+Clone the repo: `git clone git@git.handmade.network:hmn/orca.git`.
 
-Get and build ANGLE (see `milepost/ext/angle_install_notes.md`), and put `libEGL.dylib` and `libGLESv2.dylib` in `milepost/bin`.
-
-Cd to orca and build milepost (the platform layer), wasm3 (the wasm runtime), then orca:
+Cd to orca and build the runtime:
 
 ```
-cd Orca
-./build.sh milepost
-./build.sh wasm3
-./build.sh orca
+cd orca
+./orca dev build-runtime
 ```
 
-Build the sample orca app:
-```
-pushd samples/pong ; ./build.sh ; popd
-```
-This creates a `Pong.app` bundle in `samples/pong` that you can double click to run.
-
-You can also build milepost example apps like so:
+Install the orca tools:
 
 ```
-cd milepost
-pushd examples/canvas ; ./build.sh ; popd
-pushd examples/perf_text ; ./build.sh ; popd
-pushd examples/tiger ; ./build.sh ; popd
-``` 
+./orca dev install
+```
+
+# Building the sample orca apps:
+
+Cd to the sample project directory and run its build script:
+
+```
+cd samples/pong
+./build.sh
+```
+
+On macOS this creates a `Pong.app` bundle in `samples/pong` that you can double click to run.
+On Windows this creates a `Pong` directory in `samples/pong`. You can launch the app by running `Pong/bin/orca.exe`.
