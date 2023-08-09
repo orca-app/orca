@@ -27,7 +27,9 @@ set shaders=src/shaders/advect.glsl^
 	src/shaders/subtract_pressure.glsl
 
 call python3 ../../milepost/scripts/embed_text.py --prefix=glsl_ --output src/glsl_shaders.h %shaders%
+IF %ERRORLEVEL% NEQ 0 EXIT /B %ERRORLEVEL%
 
 clang %wasmFlags% -o .\module.wasm ..\..\sdk\orca.c ..\..\cstdlib\src\*.c src\main.c
+IF %ERRORLEVEL% NEQ 0 EXIT /B %ERRORLEVEL%
 
-python3 ..\..\scripts\mkapp.py --orca-dir ..\.. --icon icon.png --name Fluid module.wasm
+orca bundle --orca-dir ..\.. --icon icon.png --name Fluid module.wasm

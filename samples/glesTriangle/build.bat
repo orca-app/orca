@@ -13,5 +13,6 @@ set wasmFlags=--target=wasm32^
        -isystem ..\..\cstdlib\include -I ..\..\sdk -I..\..\milepost\ext -I ..\..\milepost -I ..\..\milepost\src
 
 clang %wasmFlags% -o .\module.wasm ..\..\sdk\orca.c ..\..\cstdlib\src\*.c src\main.c
+IF %ERRORLEVEL% NEQ 0 EXIT /B %ERRORLEVEL%
 
-python3 ..\..\scripts\mkapp.py --orca-dir ..\.. --name Triangle module.wasm
+orca bundle --orca-dir ..\.. --name Triangle module.wasm
