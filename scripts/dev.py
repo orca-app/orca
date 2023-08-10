@@ -1,4 +1,3 @@
-import argparse
 from datetime import datetime
 import glob
 import os
@@ -506,12 +505,25 @@ def install(args):
 
     bin_dir = os.path.join(dest, "bin")
     yeet(bin_dir)
+
+    # The MS Store version of Python does some really stupid stuff with AppData:
+    # https://git.handmade.network/hmn/orca/issues/32
+    #
+    # Any new files and folders created in AppData actually get created in a special
+    # folder specific to the Python version. However, if the files or folders already
+    # exist, the redirect does not happen. So, if we first use the shell to create the
+    # paths we need, the following scripts work regardless of Python install.
+    #
+    # Also apparently you can't just do mkdir in a subprocess call here, hence the
+    # trivial batch script.
+    if platform.system() == "Windows":
+        subprocess.run(["scripts\\mkdir.bat", bin_dir], check=True)
+
     shutil.copytree("scripts", os.path.join(bin_dir, "sys_scripts"))
     shutil.copy("orca", bin_dir)
     if platform.system() == "Windows":
         shutil.copy("orca.bat", bin_dir)
 
-    # TODO: Customize these instructions for Windows
     print()
     if platform.system() == "Windows":
         print("The Orca tools have been installed. Make sure the Orca tools are on your PATH by")
