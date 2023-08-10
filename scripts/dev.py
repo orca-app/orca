@@ -484,6 +484,17 @@ def yeet(path):
     shutil.rmtree(path)
 
 
+def prompt(msg):
+    while True:
+        answer = input(f"{msg} (y/n)> ")
+        if answer.lower() in ["y", "yes"]:
+            return True
+        elif answer.lower() in ["n", "no"]:
+            return False
+        else:
+            print("Please enter \"yes\" or \"no\" and press return.")
+
+
 def install(args):
     if platform.system() == "Windows":
         dest = os.path.join(os.getenv("LOCALAPPDATA"), "orca")
@@ -494,14 +505,8 @@ def install(args):
         print("The Orca command-line tools will be installed to:")
         print(dest)
         print()
-        while True:
-            answer = input("Proceed with the installation? (y/n) >")
-            if answer.lower() in ["y", "yes"]:
-                break
-            elif answer.lower() in ["n", "no"]:
-                return
-            else:
-                print("Please enter \"yes\" or \"no\" and press return.")
+        if not prompt("Proceed with the installation?"):
+            return
 
     bin_dir = os.path.join(dest, "bin")
     yeet(bin_dir)
@@ -526,12 +531,16 @@ def install(args):
 
     print()
     if platform.system() == "Windows":
-        print("The Orca tools have been installed. Make sure the Orca tools are on your PATH by")
-        print("adding the following path to your system PATH variable:")
-        print()
+        print("The Orca tools have been installed to the following directory:")
         print(bin_dir)
         print()
-        print("You can do this in the Windows settings by searching for \"environment variables\".")
+        print("The tools will need to be on your PATH in order to actually use them.")
+        if prompt("Would you like to automatically add Orca to your PATH?"):
+            subprocess.run(["powershell", "scripts\\updatepath.ps1", bin_dir], check=True)
+            print("Orca has been added to your PATH. Restart any open terminals to use it.")
+        else:
+            print("No worries. You can manually add Orca to your PATH in the Windows settings")
+            print("this in the Windows settings by searching for \"environment variables\".")
     else:
         print("The Orca tools have been installed. Make sure the Orca tools are on your PATH by")
         print("adding the following to your shell config:")
