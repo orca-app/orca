@@ -373,8 +373,14 @@ void mg_gl_canvas_encode_path(mg_gl_canvas_backend* backend, mg_primitive* primi
 		path->textureID = -1;
 	}
 
-	int nTilesX = ((path->box.z - path->box.x)*scale - 1) / MG_GL_TILE_SIZE + 1;
-	int nTilesY = ((path->box.w - path->box.y)*scale - 1) / MG_GL_TILE_SIZE + 1;
+	int firstTileX = path->box.x*scale / MG_GL_TILE_SIZE;
+	int firstTileY = path->box.y*scale / MG_GL_TILE_SIZE;
+	int lastTileX = path->box.z*scale / MG_GL_TILE_SIZE;
+	int lastTileY = path->box.w*scale / MG_GL_TILE_SIZE;
+
+	int nTilesX = lastTileX - firstTileX + 1;
+	int nTilesY = lastTileY - firstTileY + 1;
+
 	backend->maxTileQueueCount += (nTilesX * nTilesY);
 }
 

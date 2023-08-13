@@ -255,8 +255,14 @@ void mg_mtl_encode_path(mg_mtl_canvas_backend* backend, mg_primitive* primitive,
 	}
 	path->texture = backend->currentImageIndex;
 
-	int nTilesX = ((path->box.z - path->box.x)*scale - 1) / MG_MTL_TILE_SIZE + 1;
-	int nTilesY = ((path->box.w - path->box.y)*scale - 1) / MG_MTL_TILE_SIZE + 1;
+	int firstTileX = path->box.x*scale / MG_MTL_TILE_SIZE;
+	int firstTileY = path->box.y*scale / MG_MTL_TILE_SIZE;
+	int lastTileX = path->box.z*scale / MG_MTL_TILE_SIZE;
+	int lastTileY = path->box.w*scale / MG_MTL_TILE_SIZE;
+
+	int nTilesX = lastTileX - firstTileX + 1;
+	int nTilesY = lastTileY - firstTileY + 1;
+
 	backend->maxTileQueueCount += (nTilesX * nTilesY);
 }
 
