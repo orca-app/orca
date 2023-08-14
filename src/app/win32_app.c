@@ -287,6 +287,8 @@ LRESULT oc_win32_win_proc(HWND windowHandle, UINT message, WPARAM wParam, LPARAM
 	oc_window_data* mpWindow = GetPropW(windowHandle, L"MilePost");
 	//TODO: put messages in queue
 
+	bool handled = true;
+
 	switch(message)
 	{
 		case WM_CLOSE:
@@ -471,6 +473,13 @@ LRESULT oc_win32_win_proc(HWND windowHandle, UINT message, WPARAM wParam, LPARAM
 		case WM_KEYDOWN:
 		case WM_SYSKEYDOWN:
 		{
+			// Need to pass these through to the normal event handler to handle system shortcuts like Alt+F4.
+			// Same for WM_SYSKEYUP
+			if (message == WM_SYSKEYDOWN)
+			{
+				handled = false;
+			}
+
 			oc_event event = {0};
 			event.window = oc_window_handle_from_ptr(mpWindow);
 			event.type = OC_EVENT_KEYBOARD_KEY;
@@ -483,6 +492,11 @@ LRESULT oc_win32_win_proc(HWND windowHandle, UINT message, WPARAM wParam, LPARAM
 		case WM_KEYUP:
 		case WM_SYSKEYUP:
 		{
+			if (message == WM_SYSKEYUP)
+			{
+				handled = false;
+			}
+
 			oc_event event = {0};
 			event.window = oc_window_handle_from_ptr(mpWindow);
 			event.type = OC_EVENT_KEYBOARD_KEY;
@@ -531,9 +545,15 @@ LRESULT oc_win32_win_proc(HWND windowHandle, UINT message, WPARAM wParam, LPARAM
 
 		default:
 		{
-			result = DefWindowProc(windowHandle, message, wParam, lParam);
+			handled = false;
 		} break;
 	}
+
+	if (handled == false)
+	{
+		result = DefWindowProc(windowHandle, message, wParam, lParam);
+	}
+
 
 	return(result);
 }
