@@ -334,17 +334,15 @@ int checkCollision(mp_rect block)
     f32 blockx2 = block.x + block.w;
     f32 blocky2 = block.y + block.h;
 
-    if(
-        ballx2 < block.x || blockx2 < ball.x || bally2 < block.y || blocky2 < ball.y)
+    if(ballx2 < block.x || blockx2 < ball.x || bally2 < block.y || blocky2 < ball.y)
     {
         // Ball is fully outside block
         return 0;
     }
 
-    // if (
-    //     (block.x <= ball.x && ballx2 <= blockx2)
-    //     && (block.y <= ball.y && bally2 <= blocky2)
-    // ) {
+    // if ((block.x <= ball.x && ballx2 <= blockx2)
+    //     && (block.y <= ball.y && bally2 <= blocky2))
+    // {
     //     // Ball is fully inside block; do not consider as a collision
     //     return 0;
     // }
@@ -367,22 +365,19 @@ int checkCollision(mp_rect block)
     if(velocity.x > 0)
     {
         // Ball's top right corner
-        if(
-            ballCenter.x <= block.x && block.x <= ballx2 && ballCenter.y <= block.y && block.y <= bally2)
+        if(ballCenter.x <= block.x && block.x <= ballx2 && ballCenter.y <= block.y && block.y <= bally2)
         {
             return 2;
         }
 
         // Ball's bottom right corner
-        if(
-            ballCenter.x <= block.x && block.x <= ballx2 && ball.y <= blocky2 && blocky2 <= ballCenter.y)
+        if(ballCenter.x <= block.x && block.x <= ballx2 && ball.y <= blocky2 && blocky2 <= ballCenter.y)
         {
             return 4;
         }
 
         // Ball's right edge
-        if(
-            ballCenter.x <= block.x && block.x <= ballx2)
+        if(ballCenter.x <= block.x && block.x <= ballx2)
         {
             return 3;
         }
@@ -392,22 +387,19 @@ int checkCollision(mp_rect block)
     if(velocity.y > 0)
     {
         // Ball's top left corner
-        if(
-            ball.x <= blockx2 && blockx2 <= ballCenter.x && ballCenter.y <= block.y && block.y <= bally2)
+        if(ball.x <= blockx2 && blockx2 <= ballCenter.x && ballCenter.y <= block.y && block.y <= bally2)
         {
             return 8;
         }
 
         // Ball's top right corner
-        if(
-            ballCenter.x <= block.x && block.x <= ballx2 && ballCenter.y <= block.y && block.y <= bally2)
+        if(ballCenter.x <= block.x && block.x <= ballx2 && ballCenter.y <= block.y && block.y <= bally2)
         {
             return 2;
         }
 
         // Ball's top edge
-        if(
-            ballCenter.y <= block.y && block.y <= bally2)
+        if(ballCenter.y <= block.y && block.y <= bally2)
         {
             return 1;
         }
@@ -417,22 +409,19 @@ int checkCollision(mp_rect block)
     if(velocity.x < 0)
     {
         // Ball's bottom left corner
-        if(
-            ball.x <= blockx2 && blockx2 <= ballCenter.x && ball.y <= blocky2 && blocky2 <= ballCenter.y)
+        if(ball.x <= blockx2 && blockx2 <= ballCenter.x && ball.y <= blocky2 && blocky2 <= ballCenter.y)
         {
             return 6;
         }
 
         // Ball's top left corner
-        if(
-            ball.x <= blockx2 && blockx2 <= ballCenter.x && ballCenter.y <= block.y && block.y <= bally2)
+        if(ball.x <= blockx2 && blockx2 <= ballCenter.x && ballCenter.y <= block.y && block.y <= bally2)
         {
             return 8;
         }
 
         // Ball's left edge
-        if(
-            ball.x <= blockx2 && blockx2 <= ballCenter.x)
+        if(ball.x <= blockx2 && blockx2 <= ballCenter.x)
         {
             return 7;
         }
@@ -442,22 +431,19 @@ int checkCollision(mp_rect block)
     if(velocity.y < 0)
     {
         // Ball's bottom right corner
-        if(
-            ballCenter.x <= block.x && block.x <= ballx2 && ball.y <= blocky2 && blocky2 <= ballCenter.y)
+        if(ballCenter.x <= block.x && block.x <= ballx2 && ball.y <= blocky2 && blocky2 <= ballCenter.y)
         {
             return 4;
         }
 
         // Ball's bottom left corner
-        if(
-            ball.x <= blockx2 && blockx2 <= ballCenter.x && ball.y <= blocky2 && blocky2 <= ballCenter.y)
+        if(ball.x <= blockx2 && blockx2 <= ballCenter.x && ball.y <= blocky2 && blocky2 <= ballCenter.y)
         {
             return 6;
         }
 
         // Ball's bottom edge
-        if(
-            ball.y <= blocky2 && blocky2 <= ballCenter.y)
+        if(ball.y <= blocky2 && blocky2 <= ballCenter.y)
         {
             return 5;
         }
