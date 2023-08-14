@@ -1,9 +1,9 @@
 [
 {
-	"name": "io_wait_single_req",
-	"cname": "orca_io_wait_single_req",
-	"ret": {"name": "io_cmp", "tag": "S"},
+	"name": "oc_io_wait_single_req",
+	"cname": "oc_runtime_io_wait_single_req",
+	"ret": {"name": "oc_io_cmp", "tag": "S"},
 	"args": [ {"name": "req",
-	           "type": {"name": "io_req*", "tag": "p"}}]
+	           "type": {"name": "oc_io_req*", "tag": "p"}}]
 }
 ]

@@ -1,230 +1,229 @@
 #include"orca.h"
 
-vec2 frameSize = {100, 100};
+oc_vec2 frameSize = {100, 100};
 
-mg_surface surface;
-mg_canvas canvas;
-mg_font font;
-ui_context ui;
-mem_arena textArena = {0};
+oc_surface surface;
+oc_canvas canvas;
+oc_font font;
+oc_ui_context ui;
+oc_arena textArena = {0};
 
-ORCA_EXPORT void OnInit(void)
+ORCA_EXPORT void oc_on_init(void)
 {
-	//TODO create surface for main window
-	surface = mg_surface_canvas();
-	canvas = mg_canvas_create();
-	ui_init(&ui);
+	surface = oc_surface_canvas();
+	canvas = oc_canvas_create();
+	oc_ui_init(&ui);
 
 	//NOTE: load font
 	{
-		file_handle file = file_open(STR8("/OpenSansLatinSubset.ttf"), FILE_ACCESS_READ, 0);
-		if(file_last_error(file) != IO_OK)
+		oc_file file = oc_file_open(OC_STR8("/OpenSansLatinSubset.ttf"), OC_FILE_ACCESS_READ, 0);
+		if(oc_file_last_error(file) != OC_IO_OK)
 		{
-			log_error("Couldn't open file OpenSansLatinSubset.ttf\n");
+			oc_log_error("Couldn't open file OpenSansLatinSubset.ttf\n");
 		}
-		u64 size = file_size(file);
-		char* buffer = mem_arena_alloc(mem_scratch(), size);
-		file_read(file, size, buffer);
-		file_close(file);
-		unicode_range ranges[5] = {UNICODE_RANGE_BASIC_LATIN,
-		                       UNICODE_RANGE_C1_CONTROLS_AND_LATIN_1_SUPPLEMENT,
-		                       UNICODE_RANGE_LATIN_EXTENDED_A,
-		                       UNICODE_RANGE_LATIN_EXTENDED_B,
-		                       UNICODE_RANGE_SPECIALS};
+		u64 size = oc_file_size(file);
+		char* buffer = oc_arena_push(oc_scratch(), size);
+		oc_file_read(file, size, buffer);
+		oc_file_close(file);
+		oc_unicode_range ranges[5] = {OC_UNICODE_BASIC_LATIN,
+		                       OC_UNICODE_C1_CONTROLS_AND_LATIN_1_SUPPLEMENT,
+		                       OC_UNICODE_LATIN_EXTENDED_A,
+		                       OC_UNICODE_LATIN_EXTENDED_B,
+		                       OC_UNICODE_SPECIALS};
 		// TODO: Decide whether we're using strings or explicit pointer + length
-		font = mg_font_create_from_memory(size, (byte*)buffer, 5, ranges);
+		font = oc_font_create_from_memory(oc_str8_from_buffer(size, buffer), 5, ranges);
 	}
 
-	mem_arena_clear(mem_scratch());
-	mem_arena_init(&textArena);
+	oc_arena_clear(oc_scratch());
+	oc_arena_init(&textArena);
 }
 
-ORCA_EXPORT void OnFrameResize(u32 width, u32 height)
+ORCA_EXPORT void oc_on_resize(u32 width, u32 height)
 {
-	log_info("frame resize %u, %u", width, height);
+	oc_log_info("frame resize %u, %u", width, height);
 	frameSize.x = width;
 	frameSize.y = height;
 }
 
-ORCA_EXPORT void OnRawEvent(mp_event *event)
+ORCA_EXPORT void oc_on_raw_event(oc_event *event)
 {
-	ui_process_event(event);
+	oc_ui_process_event(event);
 }
 
 void widget_begin_view(char* str)
 {
-	ui_style_next(&(ui_style){.layout.axis = UI_AXIS_Y,
+	oc_ui_style_next(&(oc_ui_style){.layout.axis = OC_UI_AXIS_Y,
 	                          .layout.spacing = 10,
 	                          .layout.margin.x = 10,
 	                          .layout.margin.y = 10,
-	                          .layout.align.x = UI_ALIGN_CENTER,
-	                          .layout.align.y = UI_ALIGN_START},
-	               UI_STYLE_LAYOUT);
+	                          .layout.align.x = OC_UI_ALIGN_CENTER,
+	                          .layout.align.y = OC_UI_ALIGN_START},
+	               OC_UI_STYLE_LAYOUT);
 
-	ui_box_begin(str, UI_FLAG_DRAW_BORDER);
-	ui_label(str);
+	oc_ui_box_begin(str, OC_UI_FLAG_DRAW_BORDER);
+	oc_ui_label(str);
 
 }
 
 void widget_end_view(void)
 {
-	ui_box_end();
+	oc_ui_box_end();
 }
 
-#define widget_view(s) defer_loop(widget_begin_view(s), widget_end_view())
+#define widget_view(s) oc_defer_loop(widget_begin_view(s), widget_end_view())
 
-ORCA_EXPORT void OnFrameRefresh(void)
+ORCA_EXPORT void oc_on_frame_refresh(void)
 {
-	ui_style defaultStyle = {.bgColor = {0},
+	oc_ui_style defaultStyle = {.bgColor = {0},
 	                         .color = {1, 1, 1, 1},
 	                         .font = font,
 	                         .fontSize = 16,
 	                         .borderColor = {0.278, 0.333, 0.412, 1},
 		                     .borderSize = 2};
 
-	ui_style_mask defaultMask = UI_STYLE_BG_COLOR
-	                          | UI_STYLE_COLOR
-	                          | UI_STYLE_BORDER_COLOR
-	                          | UI_STYLE_BORDER_SIZE
-	                          | UI_STYLE_FONT
-	                          | UI_STYLE_FONT_SIZE;
+	oc_ui_style_mask defaultMask = OC_UI_STYLE_BG_COLOR
+	                          | OC_UI_STYLE_COLOR
+	                          | OC_UI_STYLE_BORDER_COLOR
+	                          | OC_UI_STYLE_BORDER_SIZE
+	                          | OC_UI_STYLE_FONT
+	                          | OC_UI_STYLE_FONT_SIZE;
 
-	ui_frame(frameSize, &defaultStyle, defaultMask)
+	oc_ui_frame(frameSize, &defaultStyle, defaultMask)
 	{
-		ui_style_match_before(ui_pattern_all(), &defaultStyle, defaultMask);
+		oc_ui_style_match_before(oc_ui_pattern_all(), &defaultStyle, defaultMask);
 
-		ui_style_next(&(ui_style){.size.width = {UI_SIZE_PARENT, 1},
-		                          .size.height = {UI_SIZE_PARENT, 1},
-		                          .layout.axis = UI_AXIS_Y,
-		                          .layout.align.x = UI_ALIGN_CENTER,
-		                          .layout.align.y = UI_ALIGN_START,
+		oc_ui_style_next(&(oc_ui_style){.size.width = {OC_UI_SIZE_PARENT, 1},
+		                          .size.height = {OC_UI_SIZE_PARENT, 1},
+		                          .layout.axis = OC_UI_AXIS_Y,
+		                          .layout.align.x = OC_UI_ALIGN_CENTER,
+		                          .layout.align.y = OC_UI_ALIGN_START,
 		                          .layout.spacing = 10,
 		                          .layout.margin.x = 10,
 		                          .layout.margin.y = 10,
 		                          .bgColor = {0.11, 0.11, 0.11, 1}},
-		                UI_STYLE_SIZE
-		              | UI_STYLE_LAYOUT
-		              | UI_STYLE_BG_COLOR);
+		                OC_UI_STYLE_SIZE
+		              | OC_UI_STYLE_LAYOUT
+		              | OC_UI_STYLE_BG_COLOR);
 
-		ui_container("background", UI_FLAG_DRAW_BACKGROUND)
+		oc_ui_container("background", OC_UI_FLAG_DRAW_BACKGROUND)
 		{
-			ui_style_next(&(ui_style){.size.width = {UI_SIZE_PARENT, 1},
-			                          .size.height = {UI_SIZE_CHILDREN},
-			                          .layout.align.x = UI_ALIGN_CENTER},
-			               UI_STYLE_SIZE
-			              |UI_STYLE_LAYOUT_ALIGN_X);
-			ui_container("title", 0)
+			oc_ui_style_next(&(oc_ui_style){.size.width = {OC_UI_SIZE_PARENT, 1},
+			                          .size.height = {OC_UI_SIZE_CHILDREN},
+			                          .layout.align.x = OC_UI_ALIGN_CENTER},
+			               OC_UI_STYLE_SIZE
+			              |OC_UI_STYLE_LAYOUT_ALIGN_X);
+			oc_ui_container("title", 0)
 			{
-				ui_style_next(&(ui_style){.fontSize = 26}, UI_STYLE_FONT_SIZE);
-				ui_label("Orca UI Demo");
+				oc_ui_style_next(&(oc_ui_style){.fontSize = 26}, OC_UI_STYLE_FONT_SIZE);
+				oc_ui_label("Orca UI Demo");
 
-				if(ui_box_sig(ui_box_top()).hovering)
+				if(oc_ui_box_sig(oc_ui_box_top()).hovering)
 				{
-					ui_tooltip("tooltip")
+					oc_ui_tooltip("tooltip")
 					{
-						ui_style_next(&(ui_style){.bgColor = {1, 0.99, 0.82, 1}},
-						               UI_STYLE_BG_COLOR);
+						oc_ui_style_next(&(oc_ui_style){.bgColor = {1, 0.99, 0.82, 1}},
+						               OC_UI_STYLE_BG_COLOR);
 
-						ui_container("background", UI_FLAG_DRAW_BACKGROUND)
+						oc_ui_container("background", OC_UI_FLAG_DRAW_BACKGROUND)
 						{
-							ui_style_next(&(ui_style){.color = {0, 0, 0, 1}},
-							               UI_STYLE_COLOR);
+							oc_ui_style_next(&(oc_ui_style){.color = {0, 0, 0, 1}},
+							               OC_UI_STYLE_COLOR);
 
-							ui_label("That is a tooltip!");
+							oc_ui_label("That is a tooltip!");
 						}
 					}
 				}
 			}
 
-			ui_menu_bar("Menu bar")
+			oc_ui_menu_bar("Menu bar")
 			{
-				ui_menu("Menu 1")
+				oc_ui_menu("Menu 1")
 				{
-					if(ui_menu_button("Option 1.1").pressed)
+					if(oc_ui_menu_button("Option 1.1").pressed)
 					{
-						log_info("Pressed option 1.1\n");
+						oc_log_info("Pressed option 1.1\n");
 					}
-					ui_menu_button("Option 1.2");
-					ui_menu_button("Option 1.3");
-					ui_menu_button("Option 1.4");
+					oc_ui_menu_button("Option 1.2");
+					oc_ui_menu_button("Option 1.3");
+					oc_ui_menu_button("Option 1.4");
 				}
 
-				ui_menu("Menu 2")
+				oc_ui_menu("Menu 2")
 				{
-					ui_menu_button("Option 2.1");
-					ui_menu_button("Option 2.2");
-					ui_menu_button("Option 2.3");
-					ui_menu_button("Option 2.4");
+					oc_ui_menu_button("Option 2.1");
+					oc_ui_menu_button("Option 2.2");
+					oc_ui_menu_button("Option 2.3");
+					oc_ui_menu_button("Option 2.4");
 				}
 
-				ui_menu("Menu 3")
+				oc_ui_menu("Menu 3")
 				{
-					ui_menu_button("Option 3.1");
-					ui_menu_button("Option 3.2");
-					ui_menu_button("Option 3.3");
-					ui_menu_button("Option 3.4");
+					oc_ui_menu_button("Option 3.1");
+					oc_ui_menu_button("Option 3.2");
+					oc_ui_menu_button("Option 3.3");
+					oc_ui_menu_button("Option 3.4");
 				}
 			}
 
-			ui_style_next(&(ui_style){.size.width = {UI_SIZE_PARENT, 1},
-			                          .size.height = {UI_SIZE_PARENT, 1, 1}},
-			                          UI_STYLE_SIZE);
+			oc_ui_style_next(&(oc_ui_style){.size.width = {OC_UI_SIZE_PARENT, 1},
+			                          .size.height = {OC_UI_SIZE_PARENT, 1, 1}},
+			                          OC_UI_STYLE_SIZE);
 
-			ui_style_next(&(ui_style){.layout.axis = UI_AXIS_X}, UI_STYLE_LAYOUT_AXIS);
-			ui_container("contents", 0)
+			oc_ui_style_next(&(oc_ui_style){.layout.axis = OC_UI_AXIS_X}, OC_UI_STYLE_LAYOUT_AXIS);
+			oc_ui_container("contents", 0)
 			{
-				ui_style_next(&(ui_style){.size.width = {UI_SIZE_PARENT, 0.5},
-				                          .size.height = {UI_SIZE_PARENT, 1}},
-				              UI_STYLE_SIZE);
+				oc_ui_style_next(&(oc_ui_style){.size.width = {OC_UI_SIZE_PARENT, 0.5},
+				                          .size.height = {OC_UI_SIZE_PARENT, 1}},
+				              OC_UI_STYLE_SIZE);
 
-				ui_container("left", 0)
+				oc_ui_container("left", 0)
 				{
-					ui_style_next(&(ui_style){.layout.axis = UI_AXIS_X,
+					oc_ui_style_next(&(oc_ui_style){.layout.axis = OC_UI_AXIS_X,
 					                          .layout.spacing = 10,
 					                          .layout.margin.x = 10,
 					                          .layout.margin.y = 10,
-					                          .size.width = {UI_SIZE_PARENT, 1},
-					                          .size.height = {UI_SIZE_PARENT, 0.5}},
-					               UI_STYLE_LAYOUT_AXIS
-					              |UI_STYLE_LAYOUT_SPACING
-					              |UI_STYLE_LAYOUT_MARGIN_X
-					              |UI_STYLE_LAYOUT_MARGIN_Y
-					              |UI_STYLE_SIZE);
+					                          .size.width = {OC_UI_SIZE_PARENT, 1},
+					                          .size.height = {OC_UI_SIZE_PARENT, 0.5}},
+					               OC_UI_STYLE_LAYOUT_AXIS
+					              |OC_UI_STYLE_LAYOUT_SPACING
+					              |OC_UI_STYLE_LAYOUT_MARGIN_X
+					              |OC_UI_STYLE_LAYOUT_MARGIN_Y
+					              |OC_UI_STYLE_SIZE);
 
-					ui_container("up", 0)
+					oc_ui_container("up", 0)
 					{
-						ui_style_next(&(ui_style){.size.width = {UI_SIZE_PARENT, 0.5},
-						                          .size.height = {UI_SIZE_PARENT, 1}},
-						             UI_STYLE_SIZE);
+						oc_ui_style_next(&(oc_ui_style){.size.width = {OC_UI_SIZE_PARENT, 0.5},
+						                          .size.height = {OC_UI_SIZE_PARENT, 1}},
+						             OC_UI_STYLE_SIZE);
 						widget_view("Buttons")
 						{
-							if(ui_button("Button A").clicked)
+							if(oc_ui_button("Button A").clicked)
 							{
-								log_info("A clicked");
+								oc_log_info("A clicked");
 							}
 
-							if(ui_button("Button B").clicked)
+							if(oc_ui_button("Button B").clicked)
 							{
-								log_info("B clicked");
+								oc_log_info("B clicked");
 							}
 
-							if(ui_button("Button C").clicked)
+							if(oc_ui_button("Button C").clicked)
 							{
-								log_info("C clicked");
+								oc_log_info("C clicked");
 							}
 						}
 
-						ui_style_next(&(ui_style){.size.width = {UI_SIZE_PARENT, 0.5},
-						                          .size.height = {UI_SIZE_PARENT, 1}},
-						              UI_STYLE_SIZE);
+						oc_ui_style_next(&(oc_ui_style){.size.width = {OC_UI_SIZE_PARENT, 0.5},
+						                          .size.height = {OC_UI_SIZE_PARENT, 1}},
+						              OC_UI_STYLE_SIZE);
 
 
-						ui_pattern pattern = {0};
-						ui_pattern_push(mem_scratch(), &pattern, (ui_selector){.kind = UI_SEL_TAG, .tag = ui_tag_make("checkbox")});
-						ui_style_match_after(pattern,
-						                     &(ui_style){.bgColor = {0, 1, 0, 1},
+						oc_ui_pattern pattern = {0};
+						oc_ui_pattern_push(oc_scratch(), &pattern, (oc_ui_selector){.kind = OC_UI_SEL_TAG, .tag = oc_ui_tag_make("checkbox")});
+						oc_ui_style_match_after(pattern,
+						                     &(oc_ui_style){.bgColor = {0, 1, 0, 1},
 						                                 .color = {1, 1, 1, 1}},
-						                     UI_STYLE_COLOR | UI_STYLE_BG_COLOR);
+						                     OC_UI_STYLE_COLOR | OC_UI_STYLE_BG_COLOR);
 
 						widget_view("checkboxes")
 						{
@@ -232,156 +231,156 @@ ORCA_EXPORT void OnFrameRefresh(void)
 							static bool check2 = false;
 							static bool check3 = false;
 
-							ui_checkbox("check1", &check1);
-							ui_checkbox("check2", &check2);
-							ui_checkbox("check3", &check3);
+							oc_ui_checkbox("check1", &check1);
+							oc_ui_checkbox("check2", &check2);
+							oc_ui_checkbox("check3", &check3);
 						}
 					}
 
-					ui_style_next(&(ui_style){.layout.axis = UI_AXIS_X,
-					                          .size.width = {UI_SIZE_PARENT, 1},
-					                          .size.height = {UI_SIZE_PARENT, 0.5}},
-					               UI_STYLE_LAYOUT_AXIS
-					              |UI_STYLE_SIZE);
+					oc_ui_style_next(&(oc_ui_style){.layout.axis = OC_UI_AXIS_X,
+					                          .size.width = {OC_UI_SIZE_PARENT, 1},
+					                          .size.height = {OC_UI_SIZE_PARENT, 0.5}},
+					               OC_UI_STYLE_LAYOUT_AXIS
+					              |OC_UI_STYLE_SIZE);
 
-					ui_container("down", 0)
+					oc_ui_container("down", 0)
 					{
 						widget_view("Vertical Sliders")
 						{
-							ui_style_next(&(ui_style){.layout.axis = UI_AXIS_X,
+							oc_ui_style_next(&(oc_ui_style){.layout.axis = OC_UI_AXIS_X,
 							                          .layout.spacing = 10},
-							               UI_STYLE_LAYOUT_AXIS
-							              |UI_STYLE_LAYOUT_SPACING);
-							ui_container("contents", 0)
+							               OC_UI_STYLE_LAYOUT_AXIS
+							              |OC_UI_STYLE_LAYOUT_SPACING);
+							oc_ui_container("contents", 0)
 							{
-								ui_style_next(&(ui_style){.size.width = {UI_SIZE_PIXELS, 20},
-								                          .size.height = {UI_SIZE_PIXELS, 200}},
-								              UI_STYLE_SIZE);
+								oc_ui_style_next(&(oc_ui_style){.size.width = {OC_UI_SIZE_PIXELS, 20},
+								                          .size.height = {OC_UI_SIZE_PIXELS, 200}},
+								              OC_UI_STYLE_SIZE);
 								static f32 slider1 = 0;
-								ui_slider("slider1", 0.2, &slider1);
+								oc_ui_slider("slider1", 0.2, &slider1);
 
-								ui_style_next(&(ui_style){.size.width = {UI_SIZE_PIXELS, 20},
-								                          .size.height = {UI_SIZE_PIXELS, 200}},
-								              UI_STYLE_SIZE);
+								oc_ui_style_next(&(oc_ui_style){.size.width = {OC_UI_SIZE_PIXELS, 20},
+								                          .size.height = {OC_UI_SIZE_PIXELS, 200}},
+								              OC_UI_STYLE_SIZE);
 								static f32 slider2 = 0;
-								ui_slider("slider2", 0.2, &slider2);
+								oc_ui_slider("slider2", 0.2, &slider2);
 
-								ui_style_next(&(ui_style){.size.width = {UI_SIZE_PIXELS, 20},
-								                          .size.height = {UI_SIZE_PIXELS, 200}},
-								              UI_STYLE_SIZE);
+								oc_ui_style_next(&(oc_ui_style){.size.width = {OC_UI_SIZE_PIXELS, 20},
+								                          .size.height = {OC_UI_SIZE_PIXELS, 200}},
+								              OC_UI_STYLE_SIZE);
 								static f32 slider3 = 0;
-								ui_slider("slider3", 0.2, &slider3);
+								oc_ui_slider("slider3", 0.2, &slider3);
 							}
 						}
 
 						widget_view("Horizontal Sliders")
 						{
-							ui_style_next(&(ui_style){.size.width = {UI_SIZE_PIXELS, 200},
-							                          .size.height = {UI_SIZE_PIXELS, 20}},
-							              UI_STYLE_SIZE);
+							oc_ui_style_next(&(oc_ui_style){.size.width = {OC_UI_SIZE_PIXELS, 200},
+							                          .size.height = {OC_UI_SIZE_PIXELS, 20}},
+							              OC_UI_STYLE_SIZE);
 							static f32 slider1 = 0;
-							ui_slider("slider1", 0.2, &slider1);
+							oc_ui_slider("slider1", 0.2, &slider1);
 
-							ui_style_next(&(ui_style){.size.width = {UI_SIZE_PIXELS, 200},
-							                          .size.height = {UI_SIZE_PIXELS, 20}},
-							              UI_STYLE_SIZE);
+							oc_ui_style_next(&(oc_ui_style){.size.width = {OC_UI_SIZE_PIXELS, 200},
+							                          .size.height = {OC_UI_SIZE_PIXELS, 20}},
+							              OC_UI_STYLE_SIZE);
 							static f32 slider2 = 0;
-							ui_slider("slider2", 0.2, &slider2);
+							oc_ui_slider("slider2", 0.2, &slider2);
 
-							ui_style_next(&(ui_style){.size.width = {UI_SIZE_PIXELS, 200},
-							                          .size.height = {UI_SIZE_PIXELS, 20}},
-							              UI_STYLE_SIZE);
+							oc_ui_style_next(&(oc_ui_style){.size.width = {OC_UI_SIZE_PIXELS, 200},
+							                          .size.height = {OC_UI_SIZE_PIXELS, 20}},
+							              OC_UI_STYLE_SIZE);
 							static f32 slider3 = 0;
-							ui_slider("slider3", 0.2, &slider3);
+							oc_ui_slider("slider3", 0.2, &slider3);
 						}
 					}
 				}
 
-				ui_style_next(&(ui_style){.size.width = {UI_SIZE_PARENT, 0.5},
-				                          .size.height = {UI_SIZE_PARENT, 1}},
-				              UI_STYLE_SIZE);
+				oc_ui_style_next(&(oc_ui_style){.size.width = {OC_UI_SIZE_PARENT, 0.5},
+				                          .size.height = {OC_UI_SIZE_PARENT, 1}},
+				              OC_UI_STYLE_SIZE);
 
-				ui_container("right", 0)
+				oc_ui_container("right", 0)
 				{
 
-					ui_style_next(&(ui_style){.size.width = {UI_SIZE_PARENT, 1},
-					                          .size.height = {UI_SIZE_PARENT, 0.33}},
-					             UI_STYLE_SIZE);
+					oc_ui_style_next(&(oc_ui_style){.size.width = {OC_UI_SIZE_PARENT, 1},
+					                          .size.height = {OC_UI_SIZE_PARENT, 0.33}},
+					             OC_UI_STYLE_SIZE);
 					widget_view("Text box")
 					{
-						ui_style_next(&(ui_style){.size.width = {UI_SIZE_PIXELS, 300},
-						                          .size.height = {UI_SIZE_TEXT}},
-						              UI_STYLE_SIZE);
-						static str8 text = {0};
-						ui_text_box_result res = ui_text_box("textbox", mem_scratch(), text);
+						oc_ui_style_next(&(oc_ui_style){.size.width = {OC_UI_SIZE_PIXELS, 300},
+						                          .size.height = {OC_UI_SIZE_TEXT}},
+						              OC_UI_STYLE_SIZE);
+						static oc_str8 text = {0};
+						oc_ui_text_box_result res = oc_ui_text_box("textbox", oc_scratch(), text);
 						if(res.changed)
 						{
-							mem_arena_clear(&textArena);
-							text = str8_push_copy(&textArena, res.text);
+							oc_arena_clear(&textArena);
+							text = oc_str8_push_copy(&textArena, res.text);
 						}
 					}
 
-					ui_style_next(&(ui_style){.size.width = {UI_SIZE_PARENT, 1},
-					                          .size.height = {UI_SIZE_PARENT, 0.33}},
-					             UI_STYLE_SIZE);
+					oc_ui_style_next(&(oc_ui_style){.size.width = {OC_UI_SIZE_PARENT, 1},
+					                          .size.height = {OC_UI_SIZE_PARENT, 0.33}},
+					             OC_UI_STYLE_SIZE);
 					widget_view("Test")
 					{
-						ui_pattern pattern = {0};
-						ui_pattern_push(mem_scratch(), &pattern, (ui_selector){.kind = UI_SEL_TEXT, .text = STR8("panel")});
-						ui_style_match_after(pattern, &(ui_style){.bgColor = {0.3, 0.3, 1, 1}}, UI_STYLE_BG_COLOR);
+						oc_ui_pattern pattern = {0};
+						oc_ui_pattern_push(oc_scratch(), &pattern, (oc_ui_selector){.kind = OC_UI_SEL_TEXT, .text = OC_STR8("panel")});
+						oc_ui_style_match_after(pattern, &(oc_ui_style){.bgColor = {0.3, 0.3, 1, 1}}, OC_UI_STYLE_BG_COLOR);
 
 						static int selected = 0;
-						str8 options[] = {STR8("option 1"),
-						                  STR8("option 2"),
-						                  STR8("long option 3"),
-						                  STR8("option 4"),
-						                  STR8("option 5")};
-						ui_select_popup_info info = {.selectedIndex = selected,
+						oc_str8 options[] = {OC_STR8("option 1"),
+						                  OC_STR8("option 2"),
+						                  OC_STR8("long option 3"),
+						                  OC_STR8("option 4"),
+						                  OC_STR8("option 5")};
+						oc_ui_select_popup_info info = {.selectedIndex = selected,
 						                             .optionCount = 5,
 						                             .options = options};
 
-						ui_select_popup_info result = ui_select_popup("popup", &info);
+						oc_ui_select_popup_info result = oc_ui_select_popup("popup", &info);
 						selected = result.selectedIndex;
 					}
 
-					ui_style_next(&(ui_style){.size.width = {UI_SIZE_PARENT, 1},
-					                          .size.height = {UI_SIZE_PARENT, 0.33}},
-					             UI_STYLE_SIZE);
+					oc_ui_style_next(&(oc_ui_style){.size.width = {OC_UI_SIZE_PARENT, 1},
+					                          .size.height = {OC_UI_SIZE_PARENT, 0.33}},
+					             OC_UI_STYLE_SIZE);
 					widget_view("Color")
 					{
-						ui_style_next(&(ui_style){.size.width = {UI_SIZE_PARENT, 1},
-						                          .size.height = {UI_SIZE_PARENT, 0.7},
-						                          .layout.axis = UI_AXIS_X},
-						               UI_STYLE_SIZE
-						              |UI_STYLE_LAYOUT_AXIS);
+						oc_ui_style_next(&(oc_ui_style){.size.width = {OC_UI_SIZE_PARENT, 1},
+						                          .size.height = {OC_UI_SIZE_PARENT, 0.7},
+						                          .layout.axis = OC_UI_AXIS_X},
+						               OC_UI_STYLE_SIZE
+						              |OC_UI_STYLE_LAYOUT_AXIS);
 
-						ui_panel("Panel", UI_FLAG_DRAW_BORDER)
+						oc_ui_panel("Panel", OC_UI_FLAG_DRAW_BORDER)
 						{
-							ui_style_next(&(ui_style){.layout.axis = UI_AXIS_X},
-							              UI_STYLE_LAYOUT_AXIS);
-							ui_container("contents", 0)
+							oc_ui_style_next(&(oc_ui_style){.layout.axis = OC_UI_AXIS_X},
+							              OC_UI_STYLE_LAYOUT_AXIS);
+							oc_ui_container("contents", 0)
 							{
-								ui_style_next(&(ui_style){.layout.spacing = 20},
-								              UI_STYLE_LAYOUT_SPACING);
-								ui_container("buttons", 0)
+								oc_ui_style_next(&(oc_ui_style){.layout.spacing = 20},
+								              OC_UI_STYLE_LAYOUT_SPACING);
+								oc_ui_container("buttons", 0)
 								{
-									ui_button("Button A");
-									ui_button("Button B");
-									ui_button("Button C");
-									ui_button("Button D");
+									oc_ui_button("Button A");
+									oc_ui_button("Button B");
+									oc_ui_button("Button C");
+									oc_ui_button("Button D");
 								}
 
-								ui_style_next(&(ui_style){.layout.axis = UI_AXIS_X,
+								oc_ui_style_next(&(oc_ui_style){.layout.axis = OC_UI_AXIS_X,
 								                          .layout.spacing = 20},
-								              UI_STYLE_LAYOUT_SPACING
-								              |UI_STYLE_LAYOUT_AXIS);
+								              OC_UI_STYLE_LAYOUT_SPACING
+								              |OC_UI_STYLE_LAYOUT_AXIS);
 
-								ui_container("buttons2", 0)
+								oc_ui_container("buttons2", 0)
 								{
-									ui_button("Button A");
-									ui_button("Button B");
-									ui_button("Button C");
-									ui_button("Button D");
+									oc_ui_button("Button A");
+									oc_ui_button("Button B");
+									oc_ui_button("Button C");
+									oc_ui_button("Button D");
 								}
 							}
 						}
@@ -393,9 +392,9 @@ ORCA_EXPORT void OnFrameRefresh(void)
 	}
 
 
-	mg_canvas_set_current(canvas);
-    mg_surface_prepare(surface);
-	ui_draw();
-    mg_render(surface, canvas);
-    mg_surface_present(surface);
+	oc_canvas_set_current(canvas);
+    oc_surface_select(surface);
+	oc_ui_draw();
+    oc_render(surface, canvas);
+    oc_surface_present(surface);
 }

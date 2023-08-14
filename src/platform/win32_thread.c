@@ -12,36 +12,39 @@
 
 #include"platform_thread.h"
 
-struct mp_thread
+struct oc_thread
 {
-	mp_thread_start_function start;
+	oc_thread_start_function start;
 	HANDLE handle;
 	DWORD threadId;
 	void* userPointer;
-	char name[MP_THREAD_NAME_MAX_SIZE];
+	oc_str8 name;
+	char nameBuffer[OC_THREAD_NAME_MAX_SIZE];
 };
 
-static DWORD WINAPI mp_thread_bootstrap(LPVOID lpParameter)
+static DWORD WINAPI oc_thread_bootstrap(LPVOID lpParameter)
 {
-	mp_thread* thread = (mp_thread*)lpParameter;
+	oc_thread* thread = (oc_thread*)lpParameter;
 	i32 exitCode = thread->start(thread->userPointer);
 	return(exitCode);
 }
 
-mp_thread* mp_thread_create_with_name(mp_thread_start_function start, void* userPointer, const char* name)
+oc_thread* oc_thread_create_with_name(oc_thread_start_function start, void* userPointer, oc_str8 name)
 {
-	mp_thread* thread = (mp_thread*)malloc(sizeof(mp_thread));
+	oc_thread* thread = (oc_thread*)malloc(sizeof(oc_thread));
 	thread->start = start;
 	thread->handle = INVALID_HANDLE_VALUE;
 	thread->userPointer = userPointer;
-	if(name)
+	if(name.len && name.ptr)
 	{
-		char* end = strncpy(thread->name, name, MP_THREAD_NAME_MAX_SIZE-1);
-		*end = '\0';
+		strncpy(thread->nameBuffer, name.ptr, oc_min(name.len, OC_THREAD_NAME_MAX_SIZE-1));
+		thread->nameBuffer[OC_THREAD_NAME_MAX_SIZE-1] = '\0';
+		thread->name = OC_STR8(thread->nameBuffer);
 	}
 	else
 	{
-		thread->name[0] = '\0';
+		thread->nameBuffer[0] = '\0';
+		thread->name = oc_str8_from_buffer(0, thread->nameBuffer);
 	}
 
 	SECURITY_ATTRIBUTES childProcessSecurity = {
@@ -51,7 +54,7 @@ mp_thread* mp_thread_create_with_name(mp_thread_start_function start, void* user
 	SIZE_T stackSize = 0; // uses process default
 	DWORD flags = 0;
 	DWORD threadId = 0;
-	thread->handle = CreateThread(&childProcessSecurity, stackSize, mp_thread_bootstrap, thread, flags, &threadId);
+	thread->handle = CreateThread(&childProcessSecurity, stackSize, oc_thread_bootstrap, thread, flags, &threadId);
 	if (thread->handle == NULL) {
 		free(thread);
 		return(NULL);
@@ -59,9 +62,9 @@ mp_thread* mp_thread_create_with_name(mp_thread_start_function start, void* user
 
 	thread->threadId = threadId;
 
-	if (thread->name[0]) {
-		wchar_t widename[MP_THREAD_NAME_MAX_SIZE];
-		size_t length = mbstowcs(widename, thread->name, MP_THREAD_NAME_MAX_SIZE - 1);
+	if (thread->name.len) {
+		wchar_t widename[OC_THREAD_NAME_MAX_SIZE];
+		size_t length = mbstowcs(widename, thread->nameBuffer, OC_THREAD_NAME_MAX_SIZE - 1);
 		widename[length] = '\0';
 
 		SetThreadDescription(thread->handle, widename);
@@ -70,33 +73,33 @@ mp_thread* mp_thread_create_with_name(mp_thread_start_function start, void* user
 	return(thread);
 }
 
-mp_thread* mp_thread_create(mp_thread_start_function start, void* userPointer)
+oc_thread* oc_thread_create(oc_thread_start_function start, void* userPointer)
 {
-	return(mp_thread_create_with_name(start, userPointer, NULL));
+	return(oc_thread_create_with_name(start, userPointer, (oc_str8){0}));
 }
 
-const char* mp_thread_get_name(mp_thread* thread)
+oc_str8 oc_thread_get_name(oc_thread* thread)
 {
 	return(thread->name);
 }
 
-u64 mp_thread_unique_id(mp_thread* thread)
+u64 oc_thread_unique_id(oc_thread* thread)
 {
 	return(thread->threadId);
 }
 
-u64 mp_thread_self_id()
+u64 oc_thread_self_id()
 {
 	return(GetCurrentThreadId());
 }
 
-int mp_thread_signal(mp_thread* thread, int sig)
+int oc_thread_signal(oc_thread* thread, int sig)
 {
 	BOOL success = TerminateThread(thread->handle, (DWORD)sig);
 	return(success ? 0 : -1);
 }
 
-int mp_thread_join(mp_thread* thread, i64* exitCode)
+int oc_thread_join(oc_thread* thread, i64* exitCode)
 {
 	DWORD result = WaitForSingleObject(thread->handle, INFINITE);
 	if (result == WAIT_FAILED) {
@@ -116,7 +119,7 @@ int mp_thread_join(mp_thread* thread, i64* exitCode)
 	return(0);
 }
 
-int mp_thread_detach(mp_thread* thread)
+int oc_thread_detach(oc_thread* thread)
 {
 	if (CloseHandle(thread->handle))
 	{
@@ -127,86 +130,86 @@ int mp_thread_detach(mp_thread* thread)
 }
 
 
-struct mp_mutex
+struct oc_mutex
 {
 	u64 owningThreadId;
 	SRWLOCK lock;
 };
 
-mp_mutex* mp_mutex_create()
+oc_mutex* oc_mutex_create()
 {
-	mp_mutex* mutex = (mp_mutex*)malloc(sizeof(mp_mutex));
+	oc_mutex* mutex = (oc_mutex*)malloc(sizeof(oc_mutex));
 	mutex->owningThreadId = 0;
 	InitializeSRWLock(&mutex->lock);
 	return mutex;
 }
 
-int mp_mutex_destroy(mp_mutex* mutex)
+int oc_mutex_destroy(oc_mutex* mutex)
 {
-	DEBUG_ASSERT(mutex->owningThreadId == 0);
+	OC_DEBUG_ASSERT(mutex->owningThreadId == 0);
 	free(mutex);
 	return(0);
 }
 
-int mp_mutex_lock(mp_mutex* mutex)
+int oc_mutex_lock(oc_mutex* mutex)
 {
-	DEBUG_ASSERT(mutex->owningThreadId == 0);
+	OC_DEBUG_ASSERT(mutex->owningThreadId == 0);
 	AcquireSRWLockExclusive(&mutex->lock);
 	return(0);
 }
 
-int mp_mutex_unlock(mp_mutex* mutex)
+int oc_mutex_unlock(oc_mutex* mutex)
 {
-	DEBUG_ASSERT(mp_thread_self_id() == mutex->owningThreadId);
+	OC_DEBUG_ASSERT(oc_thread_self_id() == mutex->owningThreadId);
 	ReleaseSRWLockExclusive(&mutex->lock);
 	mutex->owningThreadId = 0;
 	return(0);
 }
 
-// mp_ticket_spin_mutex has a mirrored implementation in posix_thread.c
+// oc_ticket has a mirrored implementation in posix_thread.c
 
-void mp_ticket_spin_mutex_init(mp_ticket_spin_mutex* mutex)
+void oc_ticket_init(oc_ticket* mutex)
 {
 	mutex->nextTicket = 0;
 	mutex->serving = 0;
 }
 
-void mp_ticket_spin_mutex_lock(mp_ticket_spin_mutex* mutex)
+void oc_ticket_lock(oc_ticket* mutex)
 {
 	u64 ticket = atomic_fetch_add(&mutex->nextTicket, 1ULL);
 	while(ticket != mutex->serving); //spin
 }
 
-void mp_ticket_spin_mutex_unlock(mp_ticket_spin_mutex* mutex)
+void oc_ticket_unlock(oc_ticket* mutex)
 {
 	atomic_fetch_add(&mutex->serving, 1ULL);
 }
 
 
-struct mp_condition
+struct oc_condition
 {
 	CONDITION_VARIABLE cond;
 };
 
-mp_condition* mp_condition_create()
+oc_condition* oc_condition_create()
 {
-	mp_condition* cond = (mp_condition*)malloc(sizeof(mp_condition));
+	oc_condition* cond = (oc_condition*)malloc(sizeof(oc_condition));
 	InitializeConditionVariable(&cond->cond);
 	return cond;
 }
 
-int mp_condition_destroy(mp_condition* cond)
+int oc_condition_destroy(oc_condition* cond)
 {
 	free(cond);
 	return(0);
 }
 
-int mp_condition_wait(mp_condition* cond, mp_mutex* mutex)
+int oc_condition_wait(oc_condition* cond, oc_mutex* mutex)
 {
-	return mp_condition_timedwait(cond, mutex, INFINITY);
+	return oc_condition_timedwait(cond, mutex, INFINITY);
 }
 
-int mp_condition_timedwait(mp_condition* cond, mp_mutex* mutex, f64 seconds)
+int oc_condition_timedwait(oc_condition* cond, oc_mutex* mutex, f64 seconds)
 {
 	const f32 ms = (seconds == INFINITY) ? INFINITE : seconds * 1000;
 	if (!SleepConditionVariableSRW(&cond->cond, &mutex->lock, ms, 0))
@@ -216,13 +219,13 @@ int mp_condition_timedwait(mp_condition* cond, mp_mutex* mutex, f64 seconds)
 	return(0);
 }
 
-int mp_condition_signal(mp_condition* cond)
+int oc_condition_signal(oc_condition* cond)
 {
 	WakeConditionVariable(&cond->cond);
 	return(0);
 }
 
-int mp_condition_broadcast(mp_condition* cond)
+int oc_condition_broadcast(oc_condition* cond)
 {
 	WakeAllConditionVariable(&cond->cond);
 	return(0);

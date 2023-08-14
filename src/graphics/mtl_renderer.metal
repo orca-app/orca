@@ -227,16 +227,16 @@ void log_cubic_bezier(thread float2* p, mtl_log_context logCtx)
 }
 
 kernel void mtl_path_setup(constant int* pathCount [[buffer(0)]],
-                           const device mg_mtl_path* pathBuffer [[buffer(1)]],
-                           device mg_mtl_path_queue* pathQueueBuffer [[buffer(2)]],
-                           device mg_mtl_tile_queue* tileQueueBuffer [[buffer(3)]],
+                           const device oc_mtl_path* pathBuffer [[buffer(1)]],
+                           device oc_mtl_path_queue* pathQueueBuffer [[buffer(2)]],
+                           device oc_mtl_tile_queue* tileQueueBuffer [[buffer(3)]],
                            device atomic_int* tileQueueCount [[buffer(4)]],
                            constant int* tileQueueMax [[buffer(5)]],
                            constant int* tileSize [[buffer(6)]],
                            constant float* scale [[buffer(7)]],
                            uint pathIndex [[thread_position_in_grid]])
 {
-	const device mg_mtl_path* path = &pathBuffer[pathIndex];
+	const device oc_mtl_path* path = &pathBuffer[pathIndex];
 
 
 	//NOTE: we don't clip on the right, since we need those tiles to accurately compute
@@ -265,7 +265,7 @@ kernel void mtl_path_setup(constant int* pathCount [[buffer(0)]],
 		pathQueueBuffer[pathIndex].area = int4(firstTile.x, firstTile.y, nTilesX, nTilesY);
 		pathQueueBuffer[pathIndex].tileQueues = tileQueuesIndex;
 
-		device mg_mtl_tile_queue* tileQueues = &tileQueueBuffer[tileQueuesIndex];
+		device oc_mtl_tile_queue* tileQueues = &tileQueueBuffer[tileQueuesIndex];
 
 		for(int i=0; i<tileCount; i++)
 		{
@@ -281,7 +281,7 @@ float ccw(float2 a, float2 b, float2 c)
 	return((b.x-a.x)*(c.y-a.y) - (b.y-a.y)*(c.x-a.x));
 }
 
-int mtl_side_of_segment(float2 p, const device mg_mtl_segment* seg, mtl_log_context log = {.enabled = false})
+int mtl_side_of_segment(float2 p, const device oc_mtl_segment* seg, mtl_log_context log = {.enabled = false})
 {
 	int side = 0;
 	if(p.y > seg->box.w || p.y <= seg->box.y)
@@ -290,11 +290,11 @@ int mtl_side_of_segment(float2 p, const device mg_mtl_segment* seg, mtl_log_cont
 		{
 			if(p.y > seg->box.w)
 			{
-				side = (seg->config == MG_MTL_TL || seg->config == MG_MTL_BR)? -1 : 1;
+				side = (seg->config == OC_MTL_TL || seg->config == OC_MTL_BR)? -1 : 1;
 			}
 			else
 			{
-				side = (seg->config == MG_MTL_TL || seg->config == MG_MTL_BR)? 1 : -1;
+				side = (seg->config == OC_MTL_TL || seg->config == OC_MTL_BR)? 1 : -1;
 			}
 		}
 	}
@@ -311,22 +311,22 @@ int mtl_side_of_segment(float2 p, const device mg_mtl_segment* seg, mtl_log_cont
 		float2 a, b, c;
 		switch(seg->config)
 		{
-			case MG_MTL_TL:
+			case OC_MTL_TL:
 				a = seg->box.xy;
 				b = seg->box.zw;
 				break;
 
-			case MG_MTL_BR:
+			case OC_MTL_BR:
 				a = seg->box.zw;
 				b = seg->box.xy;
 				break;
 
-			case MG_MTL_TR:
+			case OC_MTL_TR:
 				a = seg->box.xw;
 				b = seg->box.zy;
 				break;
 
-			case MG_MTL_BL:
+			case OC_MTL_BL:
 				a = seg->box.zy;
 				b = seg->box.xw;
 				break;
@@ -336,30 +336,30 @@ int mtl_side_of_segment(float2 p, const device mg_mtl_segment* seg, mtl_log_cont
 		if(ccw(a, b, p) < 0)
 		{
 			// other side of the diagonal
-			side = (seg->config == MG_MTL_BR || seg->config == MG_MTL_TR) ? -1 : 1;
+			side = (seg->config == OC_MTL_BR || seg->config == OC_MTL_TR) ? -1 : 1;
 		}
 		else if(ccw(b, c, p) < 0 || ccw(c, a, p) < 0)
 		{
 			// same side of the diagonal, but outside curve hull
-			side = (seg->config == MG_MTL_BL || seg->config == MG_MTL_TL) ? -1 : 1;
+			side = (seg->config == OC_MTL_BL || seg->config == OC_MTL_TL) ? -1 : 1;
 		}
 		else
 		{
 			// inside curve hull
 			switch(seg->kind)
 			{
-				case MG_MTL_LINE:
+				case OC_MTL_LINE:
 					side = 1;
 					break;
 
-				case MG_MTL_QUADRATIC:
+				case OC_MTL_QUADRATIC:
 				{
 					float3 ph = {p.x, p.y, 1};
 					float3 klm = seg->implicitMatrix * ph;
 					side = ((klm.x*klm.x - klm.y)*klm.z < 0)? -1 : 1;
 				} break;
 
-				case MG_MTL_CUBIC:
+				case OC_MTL_CUBIC:
 				{
 					float3 ph = {p.x, p.y, 1};
 					float3 klm = seg->implicitMatrix * ph;
@@ -375,10 +375,10 @@ int mtl_side_of_segment(float2 p, const device mg_mtl_segment* seg, mtl_log_cont
 typedef struct mtl_segment_setup_context
 {
 	device atomic_int* segmentCount;
-	device mg_mtl_segment* segmentBuffer;
-	const device mg_mtl_path_queue* pathQueue;
-	device mg_mtl_tile_queue* tileQueues;
-	device mg_mtl_tile_op* tileOpBuffer;
+	device oc_mtl_segment* segmentBuffer;
+	const device oc_mtl_path_queue* pathQueue;
+	device oc_mtl_tile_queue* tileQueues;
+	device oc_mtl_tile_op* tileOpBuffer;
 	device atomic_int* tileOpCount;
 	int tileSize;
 	mtl_log_context log;
@@ -390,7 +390,7 @@ typedef struct mtl_segment_setup_context
 
 } mtl_segment_setup_context;
 
-void mtl_segment_bin_to_tiles(thread mtl_segment_setup_context* context, device mg_mtl_segment* seg)
+void mtl_segment_bin_to_tiles(thread mtl_segment_setup_context* context, device oc_mtl_segment* seg)
 {
 	//NOTE: add segment index to the queues of tiles it overlaps with
 	int segIndex = seg - context->segmentBuffer;
@@ -428,7 +428,7 @@ void mtl_segment_bin_to_tiles(thread mtl_segment_setup_context* context, device 
 			bool crossB = (sbl*sbr < 0);
 
 			float2 s0, s1;
-			if(seg->config == MG_MTL_TL||seg->config == MG_MTL_BR)
+			if(seg->config == OC_MTL_TL||seg->config == OC_MTL_BR)
 			{
 				s0 = seg->box.xy;
 				s1 = seg->box.zw;
@@ -454,15 +454,15 @@ void mtl_segment_bin_to_tiles(thread mtl_segment_setup_context* context, device 
 
 				if(tileOpIndex < context->tileOpMax)
 				{
-					device mg_mtl_tile_op* op = &context->tileOpBuffer[tileOpIndex];
+					device oc_mtl_tile_op* op = &context->tileOpBuffer[tileOpIndex];
 
-					op->kind = MG_MTL_OP_SEGMENT;
+					op->kind = OC_MTL_OP_SEGMENT;
 					op->index = segIndex;
 					op->crossRight = false;
 					op->next = -1;
 
 					int tileIndex = y*pathArea.z + x;
-					device mg_mtl_tile_queue* tile = &context->tileQueues[tileIndex];
+					device oc_mtl_tile_queue* tile = &context->tileQueues[tileIndex];
 					op->next = atomic_exchange_explicit(&tile->first, tileOpIndex, memory_order_relaxed);
 					if(op->next == -1)
 					{
@@ -489,25 +489,25 @@ void mtl_segment_bin_to_tiles(thread mtl_segment_setup_context* context, device 
 	}
 }
 
-device mg_mtl_segment* mtl_segment_push(thread mtl_segment_setup_context* context, float2 p[4], mg_mtl_seg_kind kind)
+device oc_mtl_segment* mtl_segment_push(thread mtl_segment_setup_context* context, float2 p[4], oc_mtl_seg_kind kind)
 {
 	float2 s, e, c;
 
 	switch(kind)
 	{
-		case MG_MTL_LINE:
+		case OC_MTL_LINE:
 			s = p[0];
 			c = p[0];
 			e = p[1];
 			break;
 
-		case MG_MTL_QUADRATIC:
+		case OC_MTL_QUADRATIC:
 			s = p[0];
 			c = p[1];
 			e = p[2];
 			break;
 
-		case MG_MTL_CUBIC:
+		case OC_MTL_CUBIC:
 		{
 			s = p[0];
 			float sqrNorm0 = length_squared(p[1]-p[0]);
@@ -524,7 +524,7 @@ device mg_mtl_segment* mtl_segment_push(thread mtl_segment_setup_context* contex
 		} break;
 	}
 
-	device mg_mtl_segment* seg = 0;
+	device oc_mtl_segment* seg = 0;
 
 	int segIndex = atomic_fetch_add_explicit(context->segmentCount, 1, memory_order_relaxed);
 
@@ -551,32 +551,32 @@ device mg_mtl_segment* mtl_segment_push(thread mtl_segment_setup_context* contex
 
 		if(goingUp == goingRight)
 		{
-			if(seg->kind == MG_MTL_LINE)
+			if(seg->kind == OC_MTL_LINE)
 			{
-				seg->config = MG_MTL_BR;
+				seg->config = OC_MTL_BR;
 			}
 			else if(dy > alpha*dx)
 			{
-				seg->config = MG_MTL_TL;
+				seg->config = OC_MTL_TL;
 			}
 			else
 			{
-				seg->config = MG_MTL_BR;
+				seg->config = OC_MTL_BR;
 			}
 		}
 		else
 		{
-			if(seg->kind == MG_MTL_LINE)
+			if(seg->kind == OC_MTL_LINE)
 			{
-				seg->config = MG_MTL_TR;
+				seg->config = OC_MTL_TR;
 			}
 			else if(dy < ofs - alpha*dx)
 			{
-				seg->config = MG_MTL_BL;
+				seg->config = OC_MTL_BL;
 			}
 			else
 			{
-				seg->config = MG_MTL_TR;
+				seg->config = OC_MTL_TR;
 			}
 		}
 	}
@@ -588,7 +588,7 @@ device mg_mtl_segment* mtl_segment_push(thread mtl_segment_setup_context* contex
 
 void mtl_line_setup(thread mtl_segment_setup_context* context, float2 p[2])
 {
-	device mg_mtl_segment* seg = mtl_segment_push(context, p, MG_MTL_LINE);
+	device oc_mtl_segment* seg = mtl_segment_push(context, p, OC_MTL_LINE);
 	if(seg)
 	{
 		seg->hullVertex = p[0];
@@ -659,7 +659,7 @@ matrix_float3x3 mtl_barycentric_matrix(float2 v0, float2 v1, float2 v2)
 void mtl_quadratic_emit(thread mtl_segment_setup_context* context,
                         thread float2* p)
 {
-	device mg_mtl_segment* seg = mtl_segment_push(context, p, MG_MTL_QUADRATIC);
+	device oc_mtl_segment* seg = mtl_segment_push(context, p, OC_MTL_QUADRATIC);
 
 	if(seg)
 	{
@@ -673,7 +673,7 @@ void mtl_quadratic_emit(thread mtl_segment_setup_context* context,
 		float e = p[1].x - p[0].x;
 		float f = p[0].x*p[1].y - p[1].x*p[0].y;
 
-		float flip = (seg->config == MG_MTL_TL || seg->config == MG_MTL_BL)? -1 : 1;
+		float flip = (seg->config == OC_MTL_TL || seg->config == OC_MTL_BL)? -1 : 1;
 		float g = flip*(p[2].x*(p[0].y - p[1].y) + p[0].x*(p[1].y - p[2].y) + p[1].x*(p[2].y - p[0].y));
 
 		seg->implicitMatrix = (1/det)*matrix_float3x3({a, d, 0.},
@@ -1070,7 +1070,7 @@ float2 mtl_select_hull_vertex(float2 p0, float2 p1, float2 p2, float2 p3, mtl_lo
 
 void mtl_cubic_emit(thread mtl_segment_setup_context* context, mtl_cubic_info curve, float2 p[4], float s0, float s1, float2 sp[4])
 {
-	device mg_mtl_segment* seg = mtl_segment_push(context, sp, MG_MTL_CUBIC);
+	device oc_mtl_segment* seg = mtl_segment_push(context, sp, OC_MTL_CUBIC);
 
 	if(seg)
 	{
@@ -1253,12 +1253,12 @@ void mtl_cubic_setup(thread mtl_segment_setup_context* context, float2 p[4])
 }
 
 kernel void mtl_segment_setup(constant int* elementCount [[buffer(0)]],
-                              const device mg_mtl_path_elt* elementBuffer [[buffer(1)]],
+                              const device oc_mtl_path_elt* elementBuffer [[buffer(1)]],
                               device atomic_int* segmentCount [[buffer(2)]],
-                              device mg_mtl_segment* segmentBuffer [[buffer(3)]],
-                              const device mg_mtl_path_queue* pathQueueBuffer [[buffer(4)]],
-                              device mg_mtl_tile_queue* tileQueueBuffer [[buffer(5)]],
-                              device mg_mtl_tile_op* tileOpBuffer [[buffer(6)]],
+                              device oc_mtl_segment* segmentBuffer [[buffer(3)]],
+                              const device oc_mtl_path_queue* pathQueueBuffer [[buffer(4)]],
+                              device oc_mtl_tile_queue* tileQueueBuffer [[buffer(5)]],
+                              device oc_mtl_tile_op* tileOpBuffer [[buffer(6)]],
                               device atomic_int* tileOpCount [[buffer(7)]],
                               constant int* segmentMax [[buffer(8)]],
                               constant int* tileOpMax [[buffer(9)]],
@@ -1269,9 +1269,9 @@ kernel void mtl_segment_setup(constant int* elementCount [[buffer(0)]],
                               device atomic_int* logOffsetBuffer [[buffer(13)]],
                               uint eltIndex [[thread_position_in_grid]])
 {
-	const device mg_mtl_path_elt* elt = &elementBuffer[eltIndex];
-	const device mg_mtl_path_queue* pathQueue = &pathQueueBuffer[elt->pathIndex];
-	device mg_mtl_tile_queue* tileQueues = &tileQueueBuffer[pathQueue->tileQueues];
+	const device oc_mtl_path_elt* elt = &elementBuffer[eltIndex];
+	const device oc_mtl_path_queue* pathQueue = &pathQueueBuffer[elt->pathIndex];
+	device oc_mtl_tile_queue* tileQueues = &tileQueueBuffer[pathQueue->tileQueues];
 
 	mtl_segment_setup_context setupCtx = {.pathIndex = elt->pathIndex,
 	                                      .segmentCount = segmentCount,
@@ -1289,7 +1289,7 @@ kernel void mtl_segment_setup(constant int* elementCount [[buffer(0)]],
 
 	switch(elt->kind)
 	{
-		case MG_MTL_LINE:
+		case OC_MTL_LINE:
 		{
 			float2 p[2] = {elt->p[0]*scale[0], elt->p[1]*scale[0]};
 			mtl_log(setupCtx.log, "line: ");
@@ -1297,7 +1297,7 @@ kernel void mtl_segment_setup(constant int* elementCount [[buffer(0)]],
 			mtl_line_setup(&setupCtx, p);
 		} break;
 
-		case MG_MTL_QUADRATIC:
+		case OC_MTL_QUADRATIC:
 		{
 			float2 p[3] = {elt->p[0]*scale[0], elt->p[1]*scale[0], elt->p[2]*scale[0]};
 			mtl_log(setupCtx.log, "quadratic: ");
@@ -1305,7 +1305,7 @@ kernel void mtl_segment_setup(constant int* elementCount [[buffer(0)]],
 			mtl_quadratic_setup(&setupCtx, p);
 		} break;
 
-		case MG_MTL_CUBIC:
+		case OC_MTL_CUBIC:
 		{
 			float2 p[4] = {elt->p[0]*scale[0], elt->p[1]*scale[0], elt->p[2]*scale[0], elt->p[3]*scale[0]};
 			mtl_log(setupCtx.log, "cubic: ");
@@ -1316,8 +1316,8 @@ kernel void mtl_segment_setup(constant int* elementCount [[buffer(0)]],
 	}
 }
 
-kernel void mtl_backprop(const device mg_mtl_path_queue* pathQueueBuffer [[buffer(0)]],
-                         device mg_mtl_tile_queue* tileQueueBuffer [[buffer(1)]],
+kernel void mtl_backprop(const device oc_mtl_path_queue* pathQueueBuffer [[buffer(0)]],
+                         device oc_mtl_tile_queue* tileQueueBuffer [[buffer(1)]],
                          device char* logBuffer [[buffer(2)]],
                          device atomic_int* logOffsetBuffer [[buffer(3)]],
                          uint pathIndex [[threadgroup_position_in_grid]],
@@ -1333,19 +1333,19 @@ kernel void mtl_backprop(const device mg_mtl_path_queue* pathQueueBuffer [[buffe
 	threadgroup_barrier(mem_flags::mem_threadgroup);
 
 	int rowIndex = 0;
-	const device mg_mtl_path_queue* pathQueue = &pathQueueBuffer[pathIndex];
-	device mg_mtl_tile_queue* tiles = &tileQueueBuffer[pathQueue->tileQueues];
+	const device oc_mtl_path_queue* pathQueue = &pathQueueBuffer[pathIndex];
+	device oc_mtl_tile_queue* tiles = &tileQueueBuffer[pathQueue->tileQueues];
 	int rowSize = pathQueue->area.z;
 	int rowCount = pathQueue->area.w;
 
 	rowIndex = atomic_fetch_add_explicit(&nextRowIndex, 1, memory_order_relaxed);
 	while(rowIndex < rowCount)
 	{
-		device mg_mtl_tile_queue* row = &tiles[rowIndex * rowSize];
+		device oc_mtl_tile_queue* row = &tiles[rowIndex * rowSize];
 		int sum = 0;
 		for(int x = rowSize-1; x >= 0; x--)
 		{
-			device mg_mtl_tile_queue* tile = &row[x];
+			device oc_mtl_tile_queue* tile = &row[x];
 			int offset = *(device int*)&tile->windingOffset;
 			*(device int*)(&tile->windingOffset) = sum;
 			sum += offset;
@@ -1355,13 +1355,13 @@ kernel void mtl_backprop(const device mg_mtl_path_queue* pathQueueBuffer [[buffe
 }
 
 kernel void mtl_merge(constant int* pathCount [[buffer(0)]],
-                      const device mg_mtl_path* pathBuffer [[buffer(1)]],
-                      const device mg_mtl_path_queue* pathQueueBuffer [[buffer(2)]],
-                      const device mg_mtl_tile_queue* tileQueueBuffer [[buffer(3)]],
-                      device mg_mtl_tile_op* tileOpBuffer [[buffer(4)]],
+                      const device oc_mtl_path* pathBuffer [[buffer(1)]],
+                      const device oc_mtl_path_queue* pathQueueBuffer [[buffer(2)]],
+                      const device oc_mtl_tile_queue* tileQueueBuffer [[buffer(3)]],
+                      device oc_mtl_tile_op* tileOpBuffer [[buffer(4)]],
                       device atomic_int* tileOpCount [[buffer(5)]],
                       device MTLDispatchThreadgroupsIndirectArguments* dispatchBuffer [[buffer(6)]],
-                      device mg_mtl_screen_tile* screenTilesBuffer [[buffer(7)]],
+                      device oc_mtl_screen_tile* screenTilesBuffer [[buffer(7)]],
                       constant int* tileOpMax [[buffer(8)]],
                       constant int* tileSize [[buffer(9)]],
                       constant float* scale [[buffer(10)]],
@@ -1384,10 +1384,10 @@ kernel void mtl_merge(constant int* pathCount [[buffer(0)]],
 
 	for(int pathIndex = 0; pathIndex < pathCount[0]; pathIndex++)
 	{
-		const device mg_mtl_path_queue* pathQueue = &pathQueueBuffer[pathIndex];
+		const device oc_mtl_path_queue* pathQueue = &pathQueueBuffer[pathIndex];
 		int2 pathTileCoord = tileCoord - pathQueue->area.xy;
 
-		const device mg_mtl_path* path = &pathBuffer[pathIndex];
+		const device oc_mtl_path* path = &pathBuffer[pathIndex];
 		float xMax = min(path->box.z, path->clip.z);
 		int tileMaxX = xMax * scale[0] / tileSize[0];
 		int pathTileMaxX = tileMaxX - pathQueue->area.x;
@@ -1406,7 +1406,7 @@ kernel void mtl_merge(constant int* pathCount [[buffer(0)]],
 			}
 
 			int pathTileIndex = pathTileCoord.y * pathQueue->area.z + pathTileCoord.x;
-			const device mg_mtl_tile_queue* tileQueue = &tileQueueBuffer[pathQueue->tileQueues + pathTileIndex];
+			const device oc_mtl_tile_queue* tileQueue = &tileQueueBuffer[pathQueue->tileQueues + pathTileIndex];
 
 			int windingOffset = atomic_load_explicit(&tileQueue->windingOffset, memory_order_relaxed);
 			int firstOpIndex = atomic_load_explicit(&tileQueue->first, memory_order_relaxed);
@@ -1435,8 +1435,8 @@ kernel void mtl_merge(constant int* pathCount [[buffer(0)]],
 						return;
 					}
 
-					device mg_mtl_tile_op* pathOp = &tileOpBuffer[pathOpIndex];
-					pathOp->kind = MG_MTL_OP_CLIP_FILL;
+					device oc_mtl_tile_op* pathOp = &tileOpBuffer[pathOpIndex];
+					pathOp->kind = OC_MTL_OP_CLIP_FILL;
 					pathOp->next = -1;
 					pathOp->index = pathIndex;
 					pathOp->windingOffset = windingOffset;
@@ -1448,7 +1448,7 @@ kernel void mtl_merge(constant int* pathCount [[buffer(0)]],
 					  && tileBox.y >= clip.y
 					  && tileBox.w < clip.w)
 					{
-						pathOp->kind = MG_MTL_OP_FILL;
+						pathOp->kind = OC_MTL_OP_FILL;
 
 						if(pathBuffer[pathIndex].color.a == 1 && pathBuffer[pathIndex].texture < 0)
 						{
@@ -1468,8 +1468,8 @@ kernel void mtl_merge(constant int* pathCount [[buffer(0)]],
 					return;
 				}
 
-				device mg_mtl_tile_op* startOp = &tileOpBuffer[startOpIndex];
-				startOp->kind = MG_MTL_OP_START;
+				device oc_mtl_tile_op* startOp = &tileOpBuffer[startOpIndex];
+				startOp->kind = OC_MTL_OP_START;
 				startOp->next = -1;
 				startOp->index = pathIndex;
 				startOp->windingOffset = windingOffset;
@@ -1479,7 +1479,7 @@ kernel void mtl_merge(constant int* pathCount [[buffer(0)]],
 
 				//NOTE: chain remaining path ops to end of tile list
 				int lastOpIndex = tileQueue->last;
-				device mg_mtl_tile_op* lastOp = &tileOpBuffer[lastOpIndex];
+				device oc_mtl_tile_op* lastOp = &tileOpBuffer[lastOpIndex];
 				*nextLink = firstOpIndex;
 				nextLink = &lastOp->next;
 
@@ -1491,8 +1491,8 @@ kernel void mtl_merge(constant int* pathCount [[buffer(0)]],
 					return;
 				}
 
-				device mg_mtl_tile_op* endOp = &tileOpBuffer[endOpIndex];
-				endOp->kind = MG_MTL_OP_END;
+				device oc_mtl_tile_op* endOp = &tileOpBuffer[endOpIndex];
+				endOp->kind = OC_MTL_OP_END;
 				endOp->next = -1;
 				endOp->index = pathIndex;
 
@@ -1503,17 +1503,17 @@ kernel void mtl_merge(constant int* pathCount [[buffer(0)]],
 	}
 }
 
-kernel void mtl_raster(const device mg_mtl_screen_tile* screenTilesBuffer [[buffer(0)]],
-                       const device mg_mtl_tile_op* tileOpBuffer [[buffer(1)]],
-                       const device mg_mtl_path* pathBuffer [[buffer(2)]],
-                       const device mg_mtl_segment* segmentBuffer [[buffer(3)]],
+kernel void mtl_raster(const device oc_mtl_screen_tile* screenTilesBuffer [[buffer(0)]],
+                       const device oc_mtl_tile_op* tileOpBuffer [[buffer(1)]],
+                       const device oc_mtl_path* pathBuffer [[buffer(2)]],
+                       const device oc_mtl_segment* segmentBuffer [[buffer(3)]],
                        constant int* tileSize [[buffer(4)]],
                        constant float* scale [[buffer(5)]],
                        constant int* sampleCountBuffer [[buffer(6)]],
                        device char* logBuffer [[buffer(7)]],
                        device atomic_int* logOffsetBuffer [[buffer(8)]],
                        texture2d<float, access::write> outTexture [[texture(0)]],
-                       array<texture2d<float>, MG_MTL_MAX_IMAGES_PER_BATCH> srcTextures [[texture(1)]],
+                       array<texture2d<float>, OC_MTL_MAX_IMAGES_PER_BATCH> srcTextures [[texture(1)]],
                        uint2  threadGroupCoord [[threadgroup_position_in_grid]],
                        uint2 localCoord [[thread_position_in_threadgroup]])
 {
@@ -1528,8 +1528,8 @@ kernel void mtl_raster(const device mg_mtl_screen_tile* screenTilesBuffer [[buff
 
 	int opIndex = screenTilesBuffer[tileIndex].first;
 
-	const int MG_MTL_MAX_SAMPLE_COUNT = 8;
-	float2 sampleCoords[MG_MTL_MAX_SAMPLE_COUNT];
+	const int OC_MTL_MAX_SAMPLE_COUNT = 8;
+	float2 sampleCoords[OC_MTL_MAX_SAMPLE_COUNT];
 	int sampleCount = sampleCountBuffer[0];
 	float2 centerCoord = float2(pixelCoord) + float2(0.5, 0.5);
 
@@ -1551,33 +1551,33 @@ kernel void mtl_raster(const device mg_mtl_screen_tile* screenTilesBuffer [[buff
 		sampleCoords[0] = centerCoord;
 	}
 
-	const int MG_MTL_MAX_SRC_SAMPLE_COUNT = 4;
+	const int OC_MTL_MAX_SRC_SAMPLE_COUNT = 4;
 	const int srcSampleCount = 2;
 
-	const float2 imgSampleCoords[MG_MTL_MAX_SRC_SAMPLE_COUNT] = {
+	const float2 imgSampleCoords[OC_MTL_MAX_SRC_SAMPLE_COUNT] = {
 		centerCoord + float2(-0.25, 0.25),
 	    centerCoord + float2(+0.25, +0.25),
 	    centerCoord + float2(+0.25, -0.25),
 	    centerCoord + float2(-0.25, +0.25)};
 
 	float4 color = {0};
-	int winding[MG_MTL_MAX_SAMPLE_COUNT] = {0};
+	int winding[OC_MTL_MAX_SAMPLE_COUNT] = {0};
 
 	while(opIndex != -1)
 	{
-		const device mg_mtl_tile_op* op = &tileOpBuffer[opIndex];
+		const device oc_mtl_tile_op* op = &tileOpBuffer[opIndex];
 		int pathIndex = op->index;
 
-		if(op->kind == MG_MTL_OP_START)
+		if(op->kind == OC_MTL_OP_START)
 		{
 			for(int sampleIndex=0; sampleIndex<sampleCount; sampleIndex++)
 			{
 				winding[sampleIndex] = op->windingOffset;
 			}
 		}
-		else if(op->kind == MG_MTL_OP_SEGMENT)
+		else if(op->kind == OC_MTL_OP_SEGMENT)
 		{
-			const device mg_mtl_segment* seg = &segmentBuffer[op->index];
+			const device oc_mtl_segment* seg = &segmentBuffer[op->index];
 
 			for(int sampleIndex=0; sampleIndex<sampleCount; sampleIndex++)
 			{
@@ -1592,12 +1592,12 @@ kernel void mtl_raster(const device mg_mtl_screen_tile* screenTilesBuffer [[buff
 
 				if(op->crossRight)
 				{
-					if( (seg->config == MG_MTL_BR || seg->config == MG_MTL_TL)
+					if( (seg->config == OC_MTL_BR || seg->config == OC_MTL_TL)
 					  &&(sampleCoord.y > seg->box.w))
 					{
 						winding[sampleIndex] += seg->windingIncrement;
 					}
-					else if( (seg->config == MG_MTL_BL || seg->config == MG_MTL_TR)
+					else if( (seg->config == OC_MTL_BL || seg->config == OC_MTL_TR)
 					       &&(sampleCoord.y > seg->box.y))
 					{
 						winding[sampleIndex] -= seg->windingIncrement;
@@ -1611,7 +1611,7 @@ kernel void mtl_raster(const device mg_mtl_screen_tile* screenTilesBuffer [[buff
 			nextColor.rgb *= nextColor.a;
 
 			int textureIndex = pathBuffer[pathIndex].texture;
-			if(textureIndex >= 0 && textureIndex < MG_MTL_MAX_IMAGES_PER_BATCH)
+			if(textureIndex >= 0 && textureIndex < OC_MTL_MAX_IMAGES_PER_BATCH)
 			{
 				constexpr sampler smp(mip_filter::nearest, mag_filter::linear, min_filter::linear);
 
@@ -1629,7 +1629,7 @@ kernel void mtl_raster(const device mg_mtl_screen_tile* screenTilesBuffer [[buff
 				nextColor *= texColor;
 			}
 
-			if(op->kind == MG_MTL_OP_FILL)
+			if(op->kind == OC_MTL_OP_FILL)
 			{
 				color = color*(1-nextColor.a) + nextColor;
 			}
@@ -1647,9 +1647,9 @@ kernel void mtl_raster(const device mg_mtl_screen_tile* screenTilesBuffer [[buff
 					  && sampleCoord.y >= clip.y
 					  && sampleCoord.y < clip.w)
 					{
-						bool filled = op->kind == MG_MTL_OP_CLIP_FILL
-						            ||(pathBuffer[pathIndex].cmd == MG_MTL_FILL && (winding[sampleIndex] & 1))
-						            ||(pathBuffer[pathIndex].cmd == MG_MTL_STROKE && (winding[sampleIndex] != 0));
+						bool filled = op->kind == OC_MTL_OP_CLIP_FILL
+						            ||(pathBuffer[pathIndex].cmd == OC_MTL_FILL && (winding[sampleIndex] & 1))
+						            ||(pathBuffer[pathIndex].cmd == OC_MTL_STROKE && (winding[sampleIndex] != 0));
 						if(filled)
 						{
 							coverage++;

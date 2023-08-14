@@ -1,4 +1,4 @@
 #include"util/typedefs.h"
 #include"platform_clock.h"
 
-f64 ORCA_IMPORT(mp_get_time)(mp_clock_kind clock);
+f64 ORCA_IMPORT(oc_clock_time)(oc_clock_kind clock);

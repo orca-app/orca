@@ -8,153 +8,153 @@
 *****************************************************************/
 
 #include<dwmapi.h>
-#include"mp_app.c"
+#include"app.c"
 #include"platform/platform_thread.h"
 
-void mp_init_keys()
+void oc_init_keys()
 {
-	memset(__mpApp.keyCodes, MP_KEY_UNKNOWN, 256*sizeof(int));
+	memset(oc_appData.keyCodes, OC_KEY_UNKNOWN, 256*sizeof(int));
 
-	__mpApp.keyCodes[0x00B] = MP_KEY_0;
-    __mpApp.keyCodes[0x002] = MP_KEY_1;
-    __mpApp.keyCodes[0x003] = MP_KEY_2;
-    __mpApp.keyCodes[0x004] = MP_KEY_3;
-    __mpApp.keyCodes[0x005] = MP_KEY_4;
-    __mpApp.keyCodes[0x006] = MP_KEY_5;
-    __mpApp.keyCodes[0x007] = MP_KEY_6;
-    __mpApp.keyCodes[0x008] = MP_KEY_7;
-    __mpApp.keyCodes[0x009] = MP_KEY_8;
-    __mpApp.keyCodes[0x00A] = MP_KEY_9;
-    __mpApp.keyCodes[0x01E] = MP_KEY_A;
-    __mpApp.keyCodes[0x030] = MP_KEY_B;
-    __mpApp.keyCodes[0x02E] = MP_KEY_C;
-    __mpApp.keyCodes[0x020] = MP_KEY_D;
-    __mpApp.keyCodes[0x012] = MP_KEY_E;
-    __mpApp.keyCodes[0x021] = MP_KEY_F;
-    __mpApp.keyCodes[0x022] = MP_KEY_G;
-    __mpApp.keyCodes[0x023] = MP_KEY_H;
-    __mpApp.keyCodes[0x017] = MP_KEY_I;
-    __mpApp.keyCodes[0x024] = MP_KEY_J;
-    __mpApp.keyCodes[0x025] = MP_KEY_K;
-    __mpApp.keyCodes[0x026] = MP_KEY_L;
-    __mpApp.keyCodes[0x032] = MP_KEY_M;
-    __mpApp.keyCodes[0x031] = MP_KEY_N;
-    __mpApp.keyCodes[0x018] = MP_KEY_O;
-    __mpApp.keyCodes[0x019] = MP_KEY_P;
-    __mpApp.keyCodes[0x010] = MP_KEY_Q;
-    __mpApp.keyCodes[0x013] = MP_KEY_R;
-    __mpApp.keyCodes[0x01F] = MP_KEY_S;
-    __mpApp.keyCodes[0x014] = MP_KEY_T;
-    __mpApp.keyCodes[0x016] = MP_KEY_U;
-    __mpApp.keyCodes[0x02F] = MP_KEY_V;
-    __mpApp.keyCodes[0x011] = MP_KEY_W;
-    __mpApp.keyCodes[0x02D] = MP_KEY_X;
-    __mpApp.keyCodes[0x015] = MP_KEY_Y;
-    __mpApp.keyCodes[0x02C] = MP_KEY_Z;
-    __mpApp.keyCodes[0x028] = MP_KEY_APOSTROPHE;
-    __mpApp.keyCodes[0x02B] = MP_KEY_BACKSLASH;
-    __mpApp.keyCodes[0x033] = MP_KEY_COMMA;
-    __mpApp.keyCodes[0x00D] = MP_KEY_EQUAL;
-    __mpApp.keyCodes[0x029] = MP_KEY_GRAVE_ACCENT;
-    __mpApp.keyCodes[0x01A] = MP_KEY_LEFT_BRACKET;
-    __mpApp.keyCodes[0x00C] = MP_KEY_MINUS;
-    __mpApp.keyCodes[0x034] = MP_KEY_PERIOD;
-    __mpApp.keyCodes[0x01B] = MP_KEY_RIGHT_BRACKET;
-    __mpApp.keyCodes[0x027] = MP_KEY_SEMICOLON;
-    __mpApp.keyCodes[0x035] = MP_KEY_SLASH;
-    __mpApp.keyCodes[0x056] = MP_KEY_WORLD_2;
-    __mpApp.keyCodes[0x00E] = MP_KEY_BACKSPACE;
-    __mpApp.keyCodes[0x153] = MP_KEY_DELETE;
-    __mpApp.keyCodes[0x14F] = MP_KEY_END;
-    __mpApp.keyCodes[0x01C] = MP_KEY_ENTER;
-    __mpApp.keyCodes[0x001] = MP_KEY_ESCAPE;
-    __mpApp.keyCodes[0x147] = MP_KEY_HOME;
-    __mpApp.keyCodes[0x152] = MP_KEY_INSERT;
-    __mpApp.keyCodes[0x15D] = MP_KEY_MENU;
-    __mpApp.keyCodes[0x151] = MP_KEY_PAGE_DOWN;
-    __mpApp.keyCodes[0x149] = MP_KEY_PAGE_UP;
-    __mpApp.keyCodes[0x045] = MP_KEY_PAUSE;
-    __mpApp.keyCodes[0x146] = MP_KEY_PAUSE;
-    __mpApp.keyCodes[0x039] = MP_KEY_SPACE;
-    __mpApp.keyCodes[0x00F] = MP_KEY_TAB;
-    __mpApp.keyCodes[0x03A] = MP_KEY_CAPS_LOCK;
-    __mpApp.keyCodes[0x145] = MP_KEY_NUM_LOCK;
-    __mpApp.keyCodes[0x046] = MP_KEY_SCROLL_LOCK;
-    __mpApp.keyCodes[0x03B] = MP_KEY_F1;
-    __mpApp.keyCodes[0x03C] = MP_KEY_F2;
-    __mpApp.keyCodes[0x03D] = MP_KEY_F3;
-    __mpApp.keyCodes[0x03E] = MP_KEY_F4;
-    __mpApp.keyCodes[0x03F] = MP_KEY_F5;
-    __mpApp.keyCodes[0x040] = MP_KEY_F6;
-    __mpApp.keyCodes[0x041] = MP_KEY_F7;
-    __mpApp.keyCodes[0x042] = MP_KEY_F8;
-    __mpApp.keyCodes[0x043] = MP_KEY_F9;
-    __mpApp.keyCodes[0x044] = MP_KEY_F10;
-    __mpApp.keyCodes[0x057] = MP_KEY_F11;
-    __mpApp.keyCodes[0x058] = MP_KEY_F12;
-    __mpApp.keyCodes[0x064] = MP_KEY_F13;
-    __mpApp.keyCodes[0x065] = MP_KEY_F14;
-    __mpApp.keyCodes[0x066] = MP_KEY_F15;
-    __mpApp.keyCodes[0x067] = MP_KEY_F16;
-    __mpApp.keyCodes[0x068] = MP_KEY_F17;
-    __mpApp.keyCodes[0x069] = MP_KEY_F18;
-    __mpApp.keyCodes[0x06A] = MP_KEY_F19;
-    __mpApp.keyCodes[0x06B] = MP_KEY_F20;
-    __mpApp.keyCodes[0x06C] = MP_KEY_F21;
-    __mpApp.keyCodes[0x06D] = MP_KEY_F22;
-    __mpApp.keyCodes[0x06E] = MP_KEY_F23;
-    __mpApp.keyCodes[0x076] = MP_KEY_F24;
-    __mpApp.keyCodes[0x038] = MP_KEY_LEFT_ALT;
-    __mpApp.keyCodes[0x01D] = MP_KEY_LEFT_CONTROL;
-    __mpApp.keyCodes[0x02A] = MP_KEY_LEFT_SHIFT;
-    __mpApp.keyCodes[0x15B] = MP_KEY_LEFT_SUPER;
-    __mpApp.keyCodes[0x137] = MP_KEY_PRINT_SCREEN;
-    __mpApp.keyCodes[0x138] = MP_KEY_RIGHT_ALT;
-    __mpApp.keyCodes[0x11D] = MP_KEY_RIGHT_CONTROL;
-    __mpApp.keyCodes[0x036] = MP_KEY_RIGHT_SHIFT;
-    __mpApp.keyCodes[0x15C] = MP_KEY_RIGHT_SUPER;
-    __mpApp.keyCodes[0x150] = MP_KEY_DOWN;
-    __mpApp.keyCodes[0x14B] = MP_KEY_LEFT;
-    __mpApp.keyCodes[0x14D] = MP_KEY_RIGHT;
-    __mpApp.keyCodes[0x148] = MP_KEY_UP;
-    __mpApp.keyCodes[0x052] = MP_KEY_KP_0;
-    __mpApp.keyCodes[0x04F] = MP_KEY_KP_1;
-    __mpApp.keyCodes[0x050] = MP_KEY_KP_2;
-    __mpApp.keyCodes[0x051] = MP_KEY_KP_3;
-    __mpApp.keyCodes[0x04B] = MP_KEY_KP_4;
-    __mpApp.keyCodes[0x04C] = MP_KEY_KP_5;
-    __mpApp.keyCodes[0x04D] = MP_KEY_KP_6;
-    __mpApp.keyCodes[0x047] = MP_KEY_KP_7;
-    __mpApp.keyCodes[0x048] = MP_KEY_KP_8;
-    __mpApp.keyCodes[0x049] = MP_KEY_KP_9;
-    __mpApp.keyCodes[0x04E] = MP_KEY_KP_ADD;
-    __mpApp.keyCodes[0x053] = MP_KEY_KP_DECIMAL;
-    __mpApp.keyCodes[0x135] = MP_KEY_KP_DIVIDE;
-    __mpApp.keyCodes[0x11C] = MP_KEY_KP_ENTER;
-    __mpApp.keyCodes[0x037] = MP_KEY_KP_MULTIPLY;
-    __mpApp.keyCodes[0x04A] = MP_KEY_KP_SUBTRACT;
+	oc_appData.keyCodes[0x00B] = OC_KEY_0;
+    oc_appData.keyCodes[0x002] = OC_KEY_1;
+    oc_appData.keyCodes[0x003] = OC_KEY_2;
+    oc_appData.keyCodes[0x004] = OC_KEY_3;
+    oc_appData.keyCodes[0x005] = OC_KEY_4;
+    oc_appData.keyCodes[0x006] = OC_KEY_5;
+    oc_appData.keyCodes[0x007] = OC_KEY_6;
+    oc_appData.keyCodes[0x008] = OC_KEY_7;
+    oc_appData.keyCodes[0x009] = OC_KEY_8;
+    oc_appData.keyCodes[0x00A] = OC_KEY_9;
+    oc_appData.keyCodes[0x01E] = OC_KEY_A;
+    oc_appData.keyCodes[0x030] = OC_KEY_B;
+    oc_appData.keyCodes[0x02E] = OC_KEY_C;
+    oc_appData.keyCodes[0x020] = OC_KEY_D;
+    oc_appData.keyCodes[0x012] = OC_KEY_E;
+    oc_appData.keyCodes[0x021] = OC_KEY_F;
+    oc_appData.keyCodes[0x022] = OC_KEY_G;
+    oc_appData.keyCodes[0x023] = OC_KEY_H;
+    oc_appData.keyCodes[0x017] = OC_KEY_I;
+    oc_appData.keyCodes[0x024] = OC_KEY_J;
+    oc_appData.keyCodes[0x025] = OC_KEY_K;
+    oc_appData.keyCodes[0x026] = OC_KEY_L;
+    oc_appData.keyCodes[0x032] = OC_KEY_M;
+    oc_appData.keyCodes[0x031] = OC_KEY_N;
+    oc_appData.keyCodes[0x018] = OC_KEY_O;
+    oc_appData.keyCodes[0x019] = OC_KEY_P;
+    oc_appData.keyCodes[0x010] = OC_KEY_Q;
+    oc_appData.keyCodes[0x013] = OC_KEY_R;
+    oc_appData.keyCodes[0x01F] = OC_KEY_S;
+    oc_appData.keyCodes[0x014] = OC_KEY_T;
+    oc_appData.keyCodes[0x016] = OC_KEY_U;
+    oc_appData.keyCodes[0x02F] = OC_KEY_V;
+    oc_appData.keyCodes[0x011] = OC_KEY_W;
+    oc_appData.keyCodes[0x02D] = OC_KEY_X;
+    oc_appData.keyCodes[0x015] = OC_KEY_Y;
+    oc_appData.keyCodes[0x02C] = OC_KEY_Z;
+    oc_appData.keyCodes[0x028] = OC_KEY_APOSTROPHE;
+    oc_appData.keyCodes[0x02B] = OC_KEY_BACKSLASH;
+    oc_appData.keyCodes[0x033] = OC_KEY_COMMA;
+    oc_appData.keyCodes[0x00D] = OC_KEY_EQUAL;
+    oc_appData.keyCodes[0x029] = OC_KEY_GRAVE_ACCENT;
+    oc_appData.keyCodes[0x01A] = OC_KEY_LEFT_BRACKET;
+    oc_appData.keyCodes[0x00C] = OC_KEY_MINUS;
+    oc_appData.keyCodes[0x034] = OC_KEY_PERIOD;
+    oc_appData.keyCodes[0x01B] = OC_KEY_RIGHT_BRACKET;
+    oc_appData.keyCodes[0x027] = OC_KEY_SEMICOLON;
+    oc_appData.keyCodes[0x035] = OC_KEY_SLASH;
+    oc_appData.keyCodes[0x056] = OC_KEY_WORLD_2;
+    oc_appData.keyCodes[0x00E] = OC_KEY_BACKSPACE;
+    oc_appData.keyCodes[0x153] = OC_KEY_DELETE;
+    oc_appData.keyCodes[0x14F] = OC_KEY_END;
+    oc_appData.keyCodes[0x01C] = OC_KEY_ENTER;
+    oc_appData.keyCodes[0x001] = OC_KEY_ESCAPE;
+    oc_appData.keyCodes[0x147] = OC_KEY_HOME;
+    oc_appData.keyCodes[0x152] = OC_KEY_INSERT;
+    oc_appData.keyCodes[0x15D] = OC_KEY_MENU;
+    oc_appData.keyCodes[0x151] = OC_KEY_PAGE_DOWN;
+    oc_appData.keyCodes[0x149] = OC_KEY_PAGE_UP;
+    oc_appData.keyCodes[0x045] = OC_KEY_PAUSE;
+    oc_appData.keyCodes[0x146] = OC_KEY_PAUSE;
+    oc_appData.keyCodes[0x039] = OC_KEY_SPACE;
+    oc_appData.keyCodes[0x00F] = OC_KEY_TAB;
+    oc_appData.keyCodes[0x03A] = OC_KEY_CAPS_LOCK;
+    oc_appData.keyCodes[0x145] = OC_KEY_NUM_LOCK;
+    oc_appData.keyCodes[0x046] = OC_KEY_SCROLL_LOCK;
+    oc_appData.keyCodes[0x03B] = OC_KEY_F1;
+    oc_appData.keyCodes[0x03C] = OC_KEY_F2;
+    oc_appData.keyCodes[0x03D] = OC_KEY_F3;
+    oc_appData.keyCodes[0x03E] = OC_KEY_F4;
+    oc_appData.keyCodes[0x03F] = OC_KEY_F5;
+    oc_appData.keyCodes[0x040] = OC_KEY_F6;
+    oc_appData.keyCodes[0x041] = OC_KEY_F7;
+    oc_appData.keyCodes[0x042] = OC_KEY_F8;
+    oc_appData.keyCodes[0x043] = OC_KEY_F9;
+    oc_appData.keyCodes[0x044] = OC_KEY_F10;
+    oc_appData.keyCodes[0x057] = OC_KEY_F11;
+    oc_appData.keyCodes[0x058] = OC_KEY_F12;
+    oc_appData.keyCodes[0x064] = OC_KEY_F13;
+    oc_appData.keyCodes[0x065] = OC_KEY_F14;
+    oc_appData.keyCodes[0x066] = OC_KEY_F15;
+    oc_appData.keyCodes[0x067] = OC_KEY_F16;
+    oc_appData.keyCodes[0x068] = OC_KEY_F17;
+    oc_appData.keyCodes[0x069] = OC_KEY_F18;
+    oc_appData.keyCodes[0x06A] = OC_KEY_F19;
+    oc_appData.keyCodes[0x06B] = OC_KEY_F20;
+    oc_appData.keyCodes[0x06C] = OC_KEY_F21;
+    oc_appData.keyCodes[0x06D] = OC_KEY_F22;
+    oc_appData.keyCodes[0x06E] = OC_KEY_F23;
+    oc_appData.keyCodes[0x076] = OC_KEY_F24;
+    oc_appData.keyCodes[0x038] = OC_KEY_LEFT_ALT;
+    oc_appData.keyCodes[0x01D] = OC_KEY_LEFT_CONTROL;
+    oc_appData.keyCodes[0x02A] = OC_KEY_LEFT_SHIFT;
+    oc_appData.keyCodes[0x15B] = OC_KEY_LEFT_SUPER;
+    oc_appData.keyCodes[0x137] = OC_KEY_PRINT_SCREEN;
+    oc_appData.keyCodes[0x138] = OC_KEY_RIGHT_ALT;
+    oc_appData.keyCodes[0x11D] = OC_KEY_RIGHT_CONTROL;
+    oc_appData.keyCodes[0x036] = OC_KEY_RIGHT_SHIFT;
+    oc_appData.keyCodes[0x15C] = OC_KEY_RIGHT_SUPER;
+    oc_appData.keyCodes[0x150] = OC_KEY_DOWN;
+    oc_appData.keyCodes[0x14B] = OC_KEY_LEFT;
+    oc_appData.keyCodes[0x14D] = OC_KEY_RIGHT;
+    oc_appData.keyCodes[0x148] = OC_KEY_UP;
+    oc_appData.keyCodes[0x052] = OC_KEY_KP_0;
+    oc_appData.keyCodes[0x04F] = OC_KEY_KP_1;
+    oc_appData.keyCodes[0x050] = OC_KEY_KP_2;
+    oc_appData.keyCodes[0x051] = OC_KEY_KP_3;
+    oc_appData.keyCodes[0x04B] = OC_KEY_KP_4;
+    oc_appData.keyCodes[0x04C] = OC_KEY_KP_5;
+    oc_appData.keyCodes[0x04D] = OC_KEY_KP_6;
+    oc_appData.keyCodes[0x047] = OC_KEY_KP_7;
+    oc_appData.keyCodes[0x048] = OC_KEY_KP_8;
+    oc_appData.keyCodes[0x049] = OC_KEY_KP_9;
+    oc_appData.keyCodes[0x04E] = OC_KEY_KP_ADD;
+    oc_appData.keyCodes[0x053] = OC_KEY_KP_DECIMAL;
+    oc_appData.keyCodes[0x135] = OC_KEY_KP_DIVIDE;
+    oc_appData.keyCodes[0x11C] = OC_KEY_KP_ENTER;
+    oc_appData.keyCodes[0x037] = OC_KEY_KP_MULTIPLY;
+    oc_appData.keyCodes[0x04A] = OC_KEY_KP_SUBTRACT;
 
-	memset(__mpApp.nativeKeys, 0, sizeof(int)*MP_KEY_COUNT);
+	memset(oc_appData.nativeKeys, 0, sizeof(int)*OC_KEY_COUNT);
 	for(int nativeKey=0; nativeKey<256; nativeKey++)
 	{
-		mp_key_code mpKey = __mpApp.keyCodes[nativeKey];
+		oc_key_code mpKey = oc_appData.keyCodes[nativeKey];
 		if(mpKey)
 		{
-			__mpApp.nativeKeys[mpKey] = nativeKey;
+			oc_appData.nativeKeys[mpKey] = nativeKey;
 		}
 	}
 }
 
-void mp_init()
+void oc_init()
 {
-	if(!__mpApp.init)
+	if(!oc_appData.init)
 	{
-		memset(&__mpApp, 0, sizeof(__mpApp));
+		memset(&oc_appData, 0, sizeof(oc_appData));
 
-		mp_init_common();
-		mp_init_keys();
+		oc_init_common();
+		oc_init_keys();
 
-		__mpApp.win32.savedConsoleCodePage = GetConsoleOutputCP();
+		oc_appData.win32.savedConsoleCodePage = GetConsoleOutputCP();
 		SetConsoleOutputCP(CP_UTF8);
 
 		DWORD mode;
@@ -166,63 +166,63 @@ void mp_init()
 
 		u32 wheelScrollLines = 3;
 		SystemParametersInfo(SPI_GETWHEELSCROLLLINES, 0, &wheelScrollLines, 0);
-		__mpApp.win32.wheelScrollLines = wheelScrollLines;
+		oc_appData.win32.wheelScrollLines = wheelScrollLines;
 	}
 }
 
-void mp_terminate()
+void oc_terminate()
 {
-	if(__mpApp.init)
+	if(oc_appData.init)
 	{
-		SetConsoleOutputCP(__mpApp.win32.savedConsoleCodePage);
+		SetConsoleOutputCP(oc_appData.win32.savedConsoleCodePage);
 
-		mp_terminate_common();
-		__mpApp = (mp_app){0};
+		oc_terminate_common();
+		oc_appData = (oc_app){0};
 	}
 }
 
-static mp_key_code mp_convert_win32_key(int code)
+static oc_key_code oc_convert_win32_key(int code)
 {
-	return(__mpApp.keyCodes[code]);
+	return(oc_appData.keyCodes[code]);
 }
 
-static mp_keymod_flags mp_get_mod_keys()
+static oc_keymod_flags oc_get_mod_keys()
 {
-	mp_keymod_flags mods = 0;
+	oc_keymod_flags mods = 0;
 	if(GetKeyState(VK_SHIFT) & 0x8000)
 	{
-		mods |= MP_KEYMOD_SHIFT;
+		mods |= OC_KEYMOD_SHIFT;
 	}
 	if(GetKeyState(VK_CONTROL) & 0x8000)
 	{
-		mods |= MP_KEYMOD_CTRL;
-		mods |= MP_KEYMOD_MAIN_MODIFIER;
+		mods |= OC_KEYMOD_CTRL;
+		mods |= OC_KEYMOD_MAIN_MODIFIER;
 	}
 	if(GetKeyState(VK_MENU) & 0x8000)
 	{
-		mods |= MP_KEYMOD_ALT;
+		mods |= OC_KEYMOD_ALT;
 	}
 	if((GetKeyState(VK_LWIN) | GetKeyState(VK_RWIN)) & 0x8000)
 	{
-		mods |= MP_KEYMOD_CMD;
+		mods |= OC_KEYMOD_CMD;
 	}
 	return(mods);
 }
 
-static void process_mouse_event(mp_window_data* window, mp_key_action action, mp_key_code button)
+static void oc_win32_process_mouse_event(oc_window_data* window, oc_key_action action, oc_key_code button)
 {
-	if(action == MP_KEY_PRESS)
+	if(action == OC_KEY_PRESS)
 	{
-		if(!__mpApp.win32.mouseCaptureMask)
+		if(!oc_appData.win32.mouseCaptureMask)
 		{
 			SetCapture(window->win32.hWnd);
 		}
-		__mpApp.win32.mouseCaptureMask |= (1<<button);
+		oc_appData.win32.mouseCaptureMask |= (1<<button);
 	}
-	else if(action == MP_KEY_RELEASE)
+	else if(action == OC_KEY_RELEASE)
 	{
-		__mpApp.win32.mouseCaptureMask &= ~(1<<button);
-		if(!__mpApp.win32.mouseCaptureMask)
+		oc_appData.win32.mouseCaptureMask &= ~(1<<button);
+		if(!oc_appData.win32.mouseCaptureMask)
 		{
 			ReleaseCapture();
 		}
@@ -230,31 +230,31 @@ static void process_mouse_event(mp_window_data* window, mp_key_action action, mp
 
 	//TODO click/double click
 
-	mp_event event = {0};
-	event.window = mp_window_handle_from_ptr(window);
-	event.type = MP_EVENT_MOUSE_BUTTON;
+	oc_event event = {0};
+	event.window = oc_window_handle_from_ptr(window);
+	event.type = OC_EVENT_MOUSE_BUTTON;
 	event.key.action = action;
 	event.key.code = button;
-	event.key.mods = mp_get_mod_keys();
+	event.key.mods = oc_get_mod_keys();
 
-	mp_queue_event(&event);
+	oc_queue_event(&event);
 }
 
-static void process_wheel_event(mp_window_data* window, f32 x, f32 y)
+static void oc_win32_process_wheel_event(oc_window_data* window, f32 x, f32 y)
 {
-	mp_event event = {0};
-	event.window = mp_window_handle_from_ptr(window);
-	event.type = MP_EVENT_MOUSE_WHEEL;
+	oc_event event = {0};
+	event.window = oc_window_handle_from_ptr(window);
+	event.type = OC_EVENT_MOUSE_WHEEL;
 	// Borrowed from https://source.chromium.org/chromium/chromium/src/+/3e1a26c44c024d97dc9a4c09bbc6a2365398ca2c:ui/events/blink/web_input_event_builders_win.cc;l=318-330
-	f32 scrollMultiplier = __mpApp.win32.wheelScrollLines * 100.0 / 3.0;
+	f32 scrollMultiplier = oc_appData.win32.wheelScrollLines * 100.0 / 3.0;
 	event.mouse.deltaX = x / WHEEL_DELTA * scrollMultiplier;
 	event.mouse.deltaY = -y / WHEEL_DELTA * scrollMultiplier;
-	event.mouse.mods = mp_get_mod_keys();
+	event.mouse.mods = oc_get_mod_keys();
 
-	mp_queue_event(&event);
+	oc_queue_event(&event);
 }
 
-static void win32_update_child_layers(mp_window_data* window)
+static void oc_win32_update_child_layers(oc_window_data* window)
 {
 	RECT clientRect;
 	GetClientRect(window->win32.hWnd, &clientRect);
@@ -266,7 +266,7 @@ static void win32_update_child_layers(mp_window_data* window)
 
 	HWND insertAfter = window->win32.hWnd;
 
-	for_list(&window->win32.layers, layer, mp_layer, listElt)
+	oc_list_for(&window->win32.layers, layer, oc_layer, listElt)
 	{
 		SetWindowPos(layer->hWnd,
 			     	insertAfter,
@@ -280,21 +280,21 @@ static void win32_update_child_layers(mp_window_data* window)
 	}
 }
 
-LRESULT WinProc(HWND windowHandle, UINT message, WPARAM wParam, LPARAM lParam)
+LRESULT oc_win32_win_proc(HWND windowHandle, UINT message, WPARAM wParam, LPARAM lParam)
 {
 	LRESULT result = 0;
 
-	mp_window_data* mpWindow = GetPropW(windowHandle, L"MilePost");
+	oc_window_data* mpWindow = GetPropW(windowHandle, L"MilePost");
 	//TODO: put messages in queue
 
 	switch(message)
 	{
 		case WM_CLOSE:
 		{
-			mp_event event = {0};
-			event.window = mp_window_handle_from_ptr(mpWindow);
-			event.type = MP_EVENT_WINDOW_CLOSE;
-			mp_queue_event(&event);
+			oc_event event = {0};
+			event.window = oc_window_handle_from_ptr(mpWindow);
+			event.type = OC_EVENT_WINDOW_CLOSE;
+			oc_queue_event(&event);
 		} break;
 
 		case WM_DPICHANGED:
@@ -317,7 +317,7 @@ LRESULT WinProc(HWND windowHandle, UINT message, WPARAM wParam, LPARAM lParam)
 		//TODO: enter/exit size & move
 		case WM_WINDOWPOSCHANGED:
 		{
-			win32_update_child_layers(mpWindow);
+			oc_win32_update_child_layers(mpWindow);
 			result = DefWindowProc(windowHandle, message, wParam, lParam);
 		} break;
 
@@ -326,32 +326,32 @@ LRESULT WinProc(HWND windowHandle, UINT message, WPARAM wParam, LPARAM lParam)
 		{
 			RECT* rect = (RECT*)lParam;
 
-			mp_event event = {0};
-			event.type = message == WM_SIZING ? MP_EVENT_WINDOW_RESIZE : MP_EVENT_WINDOW_MOVE;
-			event.window = mp_window_handle_from_ptr(mpWindow);
+			oc_event event = {0};
+			event.type = message == WM_SIZING ? OC_EVENT_WINDOW_RESIZE : OC_EVENT_WINDOW_MOVE;
+			event.window = oc_window_handle_from_ptr(mpWindow);
 
-			event.move.frame = mp_window_get_frame_rect(event.window);
-			event.move.content = mp_window_get_content_rect(event.window);
+			event.move.frame = oc_window_get_frame_rect(event.window);
+			event.move.content = oc_window_get_content_rect(event.window);
 
-			mp_queue_event(&event);
+			oc_queue_event(&event);
 
-			win32_update_child_layers(mpWindow);
+			oc_win32_update_child_layers(mpWindow);
 		} break;
 
 		case WM_SETFOCUS:
 		{
-			mp_event event = {0};
-			event.window = mp_window_handle_from_ptr(mpWindow);
-			event.type = MP_EVENT_WINDOW_FOCUS;
-			mp_queue_event(&event);
+			oc_event event = {0};
+			event.window = oc_window_handle_from_ptr(mpWindow);
+			event.type = OC_EVENT_WINDOW_FOCUS;
+			oc_queue_event(&event);
 		} break;
 
 		case WM_KILLFOCUS:
 		{
-			mp_event event = {0};
-			event.window = mp_window_handle_from_ptr(mpWindow);
-			event.type = MP_EVENT_WINDOW_UNFOCUS;
-			mp_queue_event(&event);
+			oc_event event = {0};
+			event.window = oc_window_handle_from_ptr(mpWindow);
+			event.type = OC_EVENT_WINDOW_UNFOCUS;
+			oc_queue_event(&event);
 		} break;
 
 		case WM_SIZE:
@@ -361,49 +361,49 @@ LRESULT WinProc(HWND windowHandle, UINT message, WPARAM wParam, LPARAM lParam)
 			{
 				mpWindow->minimized = minimized;
 
-				mp_event event = {0};
-				event.window = mp_window_handle_from_ptr(mpWindow);
+				oc_event event = {0};
+				event.window = oc_window_handle_from_ptr(mpWindow);
 
 				if(minimized)
 				{
-					event.type = MP_EVENT_WINDOW_HIDE;
+					event.type = OC_EVENT_WINDOW_HIDE;
 				}
 				else if(mpWindow->minimized)
 				{
-					event.type = MP_EVENT_WINDOW_SHOW;
+					event.type = OC_EVENT_WINDOW_SHOW;
 				}
-				mp_queue_event(&event);
+				oc_queue_event(&event);
 			}
 		} break;
 
 		case WM_LBUTTONDOWN:
 		{
-			process_mouse_event(mpWindow, MP_KEY_PRESS, MP_MOUSE_LEFT);
+			oc_win32_process_mouse_event(mpWindow, OC_KEY_PRESS, OC_MOUSE_LEFT);
 		} break;
 
 		case WM_RBUTTONDOWN:
 		{
-			process_mouse_event(mpWindow, MP_KEY_PRESS, MP_MOUSE_RIGHT);
+			oc_win32_process_mouse_event(mpWindow, OC_KEY_PRESS, OC_MOUSE_RIGHT);
 		} break;
 
 		case WM_MBUTTONDOWN:
 		{
-			process_mouse_event(mpWindow, MP_KEY_PRESS, MP_MOUSE_MIDDLE);
+			oc_win32_process_mouse_event(mpWindow, OC_KEY_PRESS, OC_MOUSE_MIDDLE);
 		} break;
 
 		case WM_LBUTTONUP:
 		{
-			process_mouse_event(mpWindow, MP_KEY_RELEASE, MP_MOUSE_LEFT);
+			oc_win32_process_mouse_event(mpWindow, OC_KEY_RELEASE, OC_MOUSE_LEFT);
 		} break;
 
 		case WM_RBUTTONUP:
 		{
-			process_mouse_event(mpWindow, MP_KEY_RELEASE, MP_MOUSE_RIGHT);
+			oc_win32_process_mouse_event(mpWindow, OC_KEY_RELEASE, OC_MOUSE_RIGHT);
 		} break;
 
 		case WM_MBUTTONUP:
 		{
-			process_mouse_event(mpWindow, MP_KEY_RELEASE, MP_MOUSE_MIDDLE);
+			oc_win32_process_mouse_event(mpWindow, OC_KEY_RELEASE, OC_MOUSE_MIDDLE);
 		} break;
 
 		case WM_MOUSEMOVE:
@@ -414,22 +414,22 @@ LRESULT WinProc(HWND windowHandle, UINT message, WPARAM wParam, LPARAM lParam)
 			u32 dpi = GetDpiForWindow(mpWindow->win32.hWnd);
 			f32 scaling = (f32)dpi/96.;
 
-			mp_event event = {0};
-			event.window = mp_window_handle_from_ptr(mpWindow);
-			event.type = MP_EVENT_MOUSE_MOVE;
+			oc_event event = {0};
+			event.window = oc_window_handle_from_ptr(mpWindow);
+			event.type = OC_EVENT_MOUSE_MOVE;
 			event.mouse.x = LOWORD(lParam) / scaling;
 			event.mouse.y = HIWORD(lParam) / scaling;
 
-			if(__mpApp.win32.mouseTracked || __mpApp.win32.mouseCaptureMask)
+			if(oc_appData.win32.mouseTracked || oc_appData.win32.mouseCaptureMask)
 			{
-				event.mouse.deltaX = event.mouse.x - __mpApp.win32.lastMousePos.x;
-				event.mouse.deltaY = event.mouse.y - __mpApp.win32.lastMousePos.y;
+				event.mouse.deltaX = event.mouse.x - oc_appData.win32.lastMousePos.x;
+				event.mouse.deltaY = event.mouse.y - oc_appData.win32.lastMousePos.y;
 			}
-			__mpApp.win32.lastMousePos = (vec2){event.mouse.x, event.mouse.y};
+			oc_appData.win32.lastMousePos = (oc_vec2){event.mouse.x, event.mouse.y};
 
-			if(!__mpApp.win32.mouseTracked)
+			if(!oc_appData.win32.mouseTracked)
 			{
-				__mpApp.win32.mouseTracked = true;
+				oc_appData.win32.mouseTracked = true;
 
 				TRACKMOUSEEVENT track;
 				memset(&track, 0, sizeof(track));
@@ -438,71 +438,71 @@ LRESULT WinProc(HWND windowHandle, UINT message, WPARAM wParam, LPARAM lParam)
 				track.hwndTrack = mpWindow->win32.hWnd;
 				TrackMouseEvent(&track);
 
-				mp_event enter = {.window = event.window,
-				                  .type = MP_EVENT_MOUSE_ENTER,
+				oc_event enter = {.window = event.window,
+				                  .type = OC_EVENT_MOUSE_ENTER,
 				                  .mouse.x = event.mouse.x,
 				                  .mouse.y = event.mouse.y};
-				mp_queue_event(&enter);
+				oc_queue_event(&enter);
 			}
 
-			mp_queue_event(&event);
+			oc_queue_event(&event);
 		} break;
 
 		case WM_MOUSELEAVE:
 		{
-			__mpApp.win32.mouseTracked = false;
+			oc_appData.win32.mouseTracked = false;
 
-			mp_event event = {0};
-			event.window = mp_window_handle_from_ptr(mpWindow);
-			event.type = MP_EVENT_MOUSE_LEAVE;
-			mp_queue_event(&event);
+			oc_event event = {0};
+			event.window = oc_window_handle_from_ptr(mpWindow);
+			event.type = OC_EVENT_MOUSE_LEAVE;
+			oc_queue_event(&event);
 		} break;
 
 		case WM_MOUSEWHEEL:
 		{
-			process_wheel_event(mpWindow, 0, (float)((i16)HIWORD(wParam)));
+			oc_win32_process_wheel_event(mpWindow, 0, (float)((i16)HIWORD(wParam)));
 		} break;
 
 		case WM_MOUSEHWHEEL:
 		{
-			process_wheel_event(mpWindow, (float)((i16)HIWORD(wParam)), 0);
+			oc_win32_process_wheel_event(mpWindow, (float)((i16)HIWORD(wParam)), 0);
 		} break;
 
 		case WM_KEYDOWN:
 		case WM_SYSKEYDOWN:
 		{
-			mp_event event = {0};
-			event.window = mp_window_handle_from_ptr(mpWindow);
-			event.type = MP_EVENT_KEYBOARD_KEY;
-			event.key.action = (lParam & 0x40000000) ? MP_KEY_REPEAT : MP_KEY_PRESS;
-			event.key.code = mp_convert_win32_key(HIWORD(lParam) & 0x1ff);
-			event.key.mods = mp_get_mod_keys();
-			mp_queue_event(&event);
+			oc_event event = {0};
+			event.window = oc_window_handle_from_ptr(mpWindow);
+			event.type = OC_EVENT_KEYBOARD_KEY;
+			event.key.action = (lParam & 0x40000000) ? OC_KEY_REPEAT : OC_KEY_PRESS;
+			event.key.code = oc_convert_win32_key(HIWORD(lParam) & 0x1ff);
+			event.key.mods = oc_get_mod_keys();
+			oc_queue_event(&event);
 		} break;
 
 		case WM_KEYUP:
 		case WM_SYSKEYUP:
 		{
-			mp_event event = {0};
-			event.window = mp_window_handle_from_ptr(mpWindow);
-			event.type = MP_EVENT_KEYBOARD_KEY;
-			event.key.action = MP_KEY_RELEASE;
-			event.key.code = mp_convert_win32_key(HIWORD(lParam) & 0x1ff);
-			event.key.mods = mp_get_mod_keys();
-			mp_queue_event(&event);
+			oc_event event = {0};
+			event.window = oc_window_handle_from_ptr(mpWindow);
+			event.type = OC_EVENT_KEYBOARD_KEY;
+			event.key.action = OC_KEY_RELEASE;
+			event.key.code = oc_convert_win32_key(HIWORD(lParam) & 0x1ff);
+			event.key.mods = oc_get_mod_keys();
+			oc_queue_event(&event);
 		} break;
 
 		case WM_CHAR:
 		{
 			if((u32)wParam >= 32)
 			{
-				mp_event event = {0};
-				event.window = mp_window_handle_from_ptr(mpWindow);
-				event.type = MP_EVENT_KEYBOARD_CHAR;
-				event.character.codepoint = (utf32)wParam;
-				str8 seq = utf8_encode(event.character.sequence, event.character.codepoint);
+				oc_event event = {0};
+				event.window = oc_window_handle_from_ptr(mpWindow);
+				event.type = OC_EVENT_KEYBOARD_CHAR;
+				event.character.codepoint = (oc_utf32)wParam;
+				oc_str8 seq = oc_utf8_encode(event.character.sequence, event.character.codepoint);
 				event.character.seqLen = seq.len;
-				mp_queue_event(&event);
+				oc_queue_event(&event);
 			}
 		} break;
 
@@ -512,7 +512,7 @@ LRESULT WinProc(HWND windowHandle, UINT message, WPARAM wParam, LPARAM lParam)
 			{
 				u32 wheelScrollLines;
 				if(SystemParametersInfo(SPI_GETWHEELSCROLLLINES, 0, &wheelScrollLines, 0) != 0) {
-					__mpApp.win32.wheelScrollLines = wheelScrollLines;
+					oc_appData.win32.wheelScrollLines = wheelScrollLines;
 				}
 			}
 		} break;
@@ -522,9 +522,9 @@ LRESULT WinProc(HWND windowHandle, UINT message, WPARAM wParam, LPARAM lParam)
 			//TODO
 		} break;
 
-		case MP_WM_USER_DISPATCH_PROC:
+		case OC_WM_USER_DISPATCH_PROC:
 		{
-			mp_dispatch_proc proc = (mp_dispatch_proc)wParam;
+			oc_dispatch_proc proc = (oc_dispatch_proc)wParam;
 			void* user = (void*)lParam;
 			result = proc(user);
 		} break;
@@ -542,22 +542,22 @@ LRESULT WinProc(HWND windowHandle, UINT message, WPARAM wParam, LPARAM lParam)
 // app management
 //--------------------------------------------------------------------
 
-bool mp_should_quit()
+bool oc_should_quit()
 {
-	return(__mpApp.shouldQuit);
+	return(oc_appData.shouldQuit);
 }
 
-void mp_cancel_quit()
+void oc_cancel_quit()
 {
-	__mpApp.shouldQuit = false;
+	oc_appData.shouldQuit = false;
 }
 
-void mp_request_quit()
+void oc_request_quit()
 {
-	__mpApp.shouldQuit = true;
+	oc_appData.shouldQuit = true;
 }
 
-void mp_pump_events(f64 timeout)
+void oc_pump_events(f64 timeout)
 {
 	MSG message;
 
@@ -577,12 +577,12 @@ void mp_pump_events(f64 timeout)
 	}
 }
 
-i32 mp_dispatch_on_main_thread_sync(mp_window main_window, mp_dispatch_proc proc, void* user)
+i32 oc_dispatch_on_main_thread_sync(oc_window main_window, oc_dispatch_proc proc, void* user)
 {
-	mp_window_data* window_data = mp_window_ptr_from_handle(main_window);
-	DEBUG_ASSERT(window_data != NULL);
+	oc_window_data* window_data = oc_window_ptr_from_handle(main_window);
+	OC_DEBUG_ASSERT(window_data != NULL);
 
-	LRESULT result = SendMessage(window_data->win32.hWnd, MP_WM_USER_DISPATCH_PROC, (WPARAM)proc, (LPARAM)user);
+	LRESULT result = SendMessage(window_data->win32.hWnd, OC_WM_USER_DISPATCH_PROC, (WPARAM)proc, (LPARAM)user);
 	return result;
 }
 
@@ -596,10 +596,10 @@ i32 mp_dispatch_on_main_thread_sync(mp_window main_window, mp_dispatch_proc proc
 #include<ShellScalingApi.h>
 #undef interface
 
-mp_window mp_window_create(mp_rect rect, const char* title, mp_window_style style)
+oc_window oc_window_create(oc_rect rect, oc_str8 title, oc_window_style style)
 {
 	WNDCLASS windowClass = {.style = CS_HREDRAW | CS_VREDRAW | CS_OWNDC,
-	                       .lpfnWndProc = WinProc,
+	                       .lpfnWndProc = oc_win32_win_proc,
 	                       .hInstance = GetModuleHandleW(NULL),
 	                       .lpszClassName = "ApplicationWindowClass",
 	                       .hCursor = LoadCursor(0, IDC_ARROW)};
@@ -627,12 +627,17 @@ mp_window mp_window_create(mp_rect rect, const char* title, mp_window_style styl
 	DWORD winStyle = WS_OVERLAPPEDWINDOW;
 	AdjustWindowRect(&frame, winStyle, FALSE);
 
-	HWND windowHandle = CreateWindow("ApplicationWindowClass", "Test Window",
+	oc_arena_scope scratch = oc_scratch_begin();
+	const char* titleCString = oc_str8_to_cstring(scratch.arena, title);
+
+	HWND windowHandle = CreateWindow("ApplicationWindowClass", titleCString,
 	                                 winStyle,
 	                                 frame.left, frame.top,
 	                                 frame.right-frame.left,
 	                                 frame.bottom-frame.top,
 	                                 0, 0, windowClass.hInstance, 0);
+
+	oc_scratch_end(scratch);
 
 	if(!windowHandle)
 	{
@@ -644,30 +649,30 @@ mp_window mp_window_create(mp_rect rect, const char* title, mp_window_style styl
 
 	//TODO: return wrapped window
 	quit:;
-	mp_window_data* window = mp_window_alloc();
+	oc_window_data* window = oc_window_alloc();
 	window->win32.hWnd = windowHandle;
-	window->win32.layers = (list_info){0};
+	window->win32.layers = (oc_list){0};
 
 	SetPropW(windowHandle, L"MilePost", window);
 
-	return(mp_window_handle_from_ptr(window));
+	return(oc_window_handle_from_ptr(window));
 }
 
-void mp_window_destroy(mp_window window)
+void oc_window_destroy(oc_window window)
 {
-	mp_window_data* windowData = mp_window_ptr_from_handle(window);
+	oc_window_data* windowData = oc_window_ptr_from_handle(window);
 	if(windowData)
 	{
 		DestroyWindow(windowData->win32.hWnd);
 		//TODO: check when to unregister class
 
-		mp_window_recycle_ptr(windowData);
+		oc_window_recycle_ptr(windowData);
 	}
 }
 
-void* mp_window_native_pointer(mp_window window)
+void* oc_window_native_pointer(oc_window window)
 {
-	mp_window_data* windowData = mp_window_ptr_from_handle(window);
+	oc_window_data* windowData = oc_window_ptr_from_handle(window);
 	if(windowData)
 	{
 		return(windowData->win32.hWnd);
@@ -678,9 +683,9 @@ void* mp_window_native_pointer(mp_window window)
 	}
 }
 
-bool mp_window_should_close(mp_window window)
+bool oc_window_should_close(oc_window window)
 {
-	mp_window_data* windowData = mp_window_ptr_from_handle(window);
+	oc_window_data* windowData = oc_window_ptr_from_handle(window);
 	if(windowData)
 	{
 		return(windowData->shouldClose);
@@ -691,9 +696,9 @@ bool mp_window_should_close(mp_window window)
 	}
 }
 
-void mp_window_request_close(mp_window window)
+void oc_window_request_close(oc_window window)
 {
-	mp_window_data* windowData = mp_window_ptr_from_handle(window);
+	oc_window_data* windowData = oc_window_ptr_from_handle(window);
 	if(windowData)
 	{
 		windowData->shouldClose = true;
@@ -701,9 +706,9 @@ void mp_window_request_close(mp_window window)
 	}
 }
 
-void mp_window_cancel_close(mp_window window)
+void oc_window_cancel_close(oc_window window)
 {
-	mp_window_data* windowData = mp_window_ptr_from_handle(window);
+	oc_window_data* windowData = oc_window_ptr_from_handle(window);
 	if(windowData)
 	{
 		windowData->shouldClose = false;
@@ -711,9 +716,9 @@ void mp_window_cancel_close(mp_window window)
 }
 
 
-bool mp_window_is_hidden(mp_window window)
+bool oc_window_is_hidden(oc_window window)
 {
-	mp_window_data* windowData = mp_window_ptr_from_handle(window);
+	oc_window_data* windowData = oc_window_ptr_from_handle(window);
 	if(windowData)
 	{
 		return(IsWindowVisible(windowData->win32.hWnd));
@@ -724,27 +729,27 @@ bool mp_window_is_hidden(mp_window window)
 	}
 }
 
-void mp_window_hide(mp_window window)
+void oc_window_hide(oc_window window)
 {
-	mp_window_data* windowData = mp_window_ptr_from_handle(window);
+	oc_window_data* windowData = oc_window_ptr_from_handle(window);
 	if(windowData)
 	{
 		ShowWindow(windowData->win32.hWnd, SW_HIDE);
 	}
 }
 
-void mp_window_show(mp_window window)
+void oc_window_show(oc_window window)
 {
-	mp_window_data* windowData = mp_window_ptr_from_handle(window);
+	oc_window_data* windowData = oc_window_ptr_from_handle(window);
 	if(windowData)
 	{
 		ShowWindow(windowData->win32.hWnd, SW_NORMAL);
 	}
 }
 
-bool mp_window_is_minimized(mp_window window)
+bool oc_window_is_minimized(oc_window window)
 {
-	mp_window_data* windowData = mp_window_ptr_from_handle(window);
+	oc_window_data* windowData = oc_window_ptr_from_handle(window);
 	if(windowData)
 	{
 		return(windowData->minimized);
@@ -755,36 +760,36 @@ bool mp_window_is_minimized(mp_window window)
 	}
 }
 
-void mp_window_minimize(mp_window window)
+void oc_window_minimize(oc_window window)
 {
-	mp_window_data* windowData = mp_window_ptr_from_handle(window);
+	oc_window_data* windowData = oc_window_ptr_from_handle(window);
 	if(windowData)
 	{
 		ShowWindow(windowData->win32.hWnd, SW_MINIMIZE);
 	}
 }
 
-void mp_window_maximize(mp_window window)
+void oc_window_maximize(oc_window window)
 {
-	mp_window_data* windowData = mp_window_ptr_from_handle(window);
+	oc_window_data* windowData = oc_window_ptr_from_handle(window);
 	if(windowData)
 	{
 		ShowWindow(windowData->win32.hWnd, SW_MAXIMIZE);
 	}
 }
 
-void mp_window_restore(mp_window window)
+void oc_window_restore(oc_window window)
 {
-	mp_window_data* windowData = mp_window_ptr_from_handle(window);
+	oc_window_data* windowData = oc_window_ptr_from_handle(window);
 	if(windowData)
 	{
 		ShowWindow(windowData->win32.hWnd, SW_RESTORE);
 	}
 }
 
-bool mp_window_has_focus(mp_window window)
+bool oc_window_has_focus(oc_window window)
 {
-	mp_window_data* windowData = mp_window_ptr_from_handle(window);
+	oc_window_data* windowData = oc_window_ptr_from_handle(window);
 	if(windowData)
 	{
 		return(GetActiveWindow() == windowData->win32.hWnd);
@@ -795,36 +800,36 @@ bool mp_window_has_focus(mp_window window)
 	}
 }
 
-void mp_window_focus(mp_window window)
+void oc_window_focus(oc_window window)
 {
-	mp_window_data* windowData = mp_window_ptr_from_handle(window);
+	oc_window_data* windowData = oc_window_ptr_from_handle(window);
 	if(windowData)
 	{
 		SetFocus(windowData->win32.hWnd);
 	}
 }
 
-void mp_window_unfocus(mp_window window)
+void oc_window_unfocus(oc_window window)
 {
-	mp_window_data* windowData = mp_window_ptr_from_handle(window);
+	oc_window_data* windowData = oc_window_ptr_from_handle(window);
 	if(windowData)
 	{
 		SetFocus(0);
 	}
 }
 
-void mp_window_send_to_back(mp_window window)
+void oc_window_send_to_back(oc_window window)
 {
-	mp_window_data* windowData = mp_window_ptr_from_handle(window);
+	oc_window_data* windowData = oc_window_ptr_from_handle(window);
 	if(windowData)
 	{
 		SetWindowPos(windowData->win32.hWnd, HWND_BOTTOM, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
 	}
 }
 
-void mp_window_bring_to_front(mp_window window)
+void oc_window_bring_to_front(oc_window window)
 {
-	mp_window_data* windowData = mp_window_ptr_from_handle(window);
+	oc_window_data* windowData = oc_window_ptr_from_handle(window);
 	if(windowData)
 	{
 		if(!IsWindowVisible(windowData->win32.hWnd))
@@ -835,10 +840,10 @@ void mp_window_bring_to_front(mp_window window)
 	}
 }
 
-mp_rect mp_window_get_frame_rect(mp_window window)
+oc_rect oc_window_get_frame_rect(oc_window window)
 {
-	mp_rect rect = {0};
-	mp_window_data* windowData = mp_window_ptr_from_handle(window);
+	oc_rect rect = {0};
+	oc_window_data* windowData = oc_window_ptr_from_handle(window);
 	if(windowData)
 	{
 		//NOTE: GetWindowRect() includes the drop shadow, which we don't want, so we call
@@ -855,7 +860,7 @@ mp_rect mp_window_get_frame_rect(mp_window window)
 		                                    sizeof(RECT));
 		if(res == S_OK)
 		{
-			rect = (mp_rect){
+			rect = (oc_rect){
 				frame.left / scale,
 				frame.top / scale,
 				(frame.right - frame.left)/scale,
@@ -865,7 +870,7 @@ mp_rect mp_window_get_frame_rect(mp_window window)
 	return(rect);
 }
 
-mp_rect win32_get_drop_shadow_offsets(HWND hWnd)
+static oc_rect oc_win32_get_drop_shadow_offsets(HWND hWnd)
 {
 	RECT frameIncludingShadow;
 	RECT frameExcludingShadow;
@@ -876,7 +881,7 @@ mp_rect win32_get_drop_shadow_offsets(HWND hWnd)
 	                      &frameExcludingShadow,
 	                      sizeof(RECT));
 
-	mp_rect extents = {
+	oc_rect extents = {
 		.x = frameIncludingShadow.left - frameExcludingShadow.left,
 		.y = frameIncludingShadow.top - frameExcludingShadow.top,
 		.w = frameIncludingShadow.right - frameExcludingShadow.right,
@@ -886,16 +891,16 @@ mp_rect win32_get_drop_shadow_offsets(HWND hWnd)
 	return(extents);
 }
 
-void mp_window_set_frame_rect(mp_window window, mp_rect rect)
+void oc_window_set_frame_rect(oc_window window, oc_rect rect)
 {
-	mp_window_data* windowData = mp_window_ptr_from_handle(window);
+	oc_window_data* windowData = oc_window_ptr_from_handle(window);
 	if(windowData)
 	{
 		u32 dpi = GetDpiForWindow(windowData->win32.hWnd);
 		f32 scale = (float)dpi/96.;
 
 		//NOTE compute the size of the drop shadow to add it in setwindowpos
-		mp_rect shadowOffsets = win32_get_drop_shadow_offsets(windowData->win32.hWnd);
+		oc_rect shadowOffsets = oc_win32_get_drop_shadow_offsets(windowData->win32.hWnd);
 
 		RECT frame = {
 			rect.x * scale + shadowOffsets.x,
@@ -914,10 +919,10 @@ void mp_window_set_frame_rect(mp_window window, mp_rect rect)
 	}
 }
 
-mp_rect mp_window_get_content_rect(mp_window window)
+oc_rect oc_window_get_content_rect(oc_window window)
 {
-	mp_rect rect = {0};
-	mp_window_data* windowData = mp_window_ptr_from_handle(window);
+	oc_rect rect = {0};
+	oc_window_data* windowData = oc_window_ptr_from_handle(window);
 	if(windowData)
 	{
 		RECT client;
@@ -929,7 +934,7 @@ mp_rect mp_window_get_content_rect(mp_window window)
 			POINT origin = {0, 0};
 			ClientToScreen(windowData->win32.hWnd, &origin);
 
-			rect = (mp_rect){
+			rect = (oc_rect){
 				origin.x/scale,
 				origin.y/scale,
 				(client.right - client.left)/scale,
@@ -939,9 +944,9 @@ mp_rect mp_window_get_content_rect(mp_window window)
 	return(rect);
 }
 
-void mp_window_set_content_rect(mp_window window, mp_rect rect)
+void oc_window_set_content_rect(oc_window window, oc_rect rect)
 {
-	mp_window_data* windowData = mp_window_ptr_from_handle(window);
+	oc_window_data* windowData = oc_window_ptr_from_handle(window);
 	if(windowData)
 	{
 		u32 dpi = GetDpiForWindow(windowData->win32.hWnd);
@@ -967,13 +972,13 @@ void mp_window_set_content_rect(mp_window window, mp_rect rect)
 	}
 }
 
-void mp_window_center(mp_window window)
+void oc_window_center(oc_window window)
 {
-	mp_window_data* windowData = mp_window_ptr_from_handle(window);
+	oc_window_data* windowData = oc_window_ptr_from_handle(window);
 	if(windowData)
 	{
 
-		mp_rect frame = mp_window_get_frame_rect(window);
+		oc_rect frame = oc_window_get_frame_rect(window);
 
 		HMONITOR monitor = MonitorFromWindow(windowData->win32.hWnd, MONITOR_DEFAULTTOPRIMARY);
 		if(monitor)
@@ -994,7 +999,7 @@ void mp_window_center(mp_window window)
 			frame.x = monX + 0.5*(monW - frame.w);
 			frame.y = monY + 0.5*(monH - frame.h);
 
-			mp_window_set_frame_rect(window, frame);
+			oc_window_set_frame_rect(window, frame);
 		}
 	}
 }
@@ -1004,7 +1009,7 @@ void mp_window_center(mp_window window)
 // clipboard functions
 //--------------------------------------------------------------------------------
 
-MP_API void mp_clipboard_clear(void)
+void oc_clipboard_clear(void)
 {
 	if(OpenClipboard(NULL))
 	{
@@ -1013,7 +1018,7 @@ MP_API void mp_clipboard_clear(void)
 	}
 }
 
-MP_API void mp_clipboard_set_string(str8 string)
+void oc_clipboard_set_string(oc_str8 string)
 {
 	if(OpenClipboard(NULL))
 	{
@@ -1037,9 +1042,9 @@ MP_API void mp_clipboard_set_string(str8 string)
 	}
 }
 
-MP_API str8 mp_clipboard_get_string(mem_arena* arena)
+oc_str8 oc_clipboard_get_string(oc_arena* arena)
 {
-	str8 string = {0};
+	oc_str8 string = {0};
 
 	if(OpenClipboard(NULL))
 	{
@@ -1052,7 +1057,7 @@ MP_API str8 mp_clipboard_get_string(mem_arena* arena)
 				u64 size = WideCharToMultiByte(CP_UTF8, 0, (wchar_t*)memory, -1, 0, 0, 0, 0);
 				if(size)
 				{
-					string.ptr = mem_arena_alloc(arena, size);
+					string.ptr = oc_arena_push(arena, size);
 					string.len = size - 1;
 					WideCharToMultiByte(CP_UTF8, 0, (wchar_t*)memory, -1, string.ptr, size, 0, 0);
 					GlobalUnlock(handle);
@@ -1064,10 +1069,10 @@ MP_API str8 mp_clipboard_get_string(mem_arena* arena)
 	return(string);
 }
 
-MP_API str8 mp_clipboard_copy_string(str8 backing)
+oc_str8 oc_clipboard_copy_string(oc_str8 backing)
 {
 	//TODO
-	return((str8){0});
+	return((oc_str8){0});
 }
 
 
@@ -1077,48 +1082,48 @@ MP_API str8 mp_clipboard_copy_string(str8 backing)
 
 #include"graphics/graphics_surface.h"
 
-vec2 mg_win32_surface_contents_scaling(mg_surface_data* surface)
+oc_vec2 oc_win32_surface_contents_scaling(oc_surface_data* surface)
 {
 	u32 dpi = GetDpiForWindow(surface->layer.hWnd);
-	vec2 contentsScaling = (vec2){(float)dpi/96., (float)dpi/96.};
+	oc_vec2 contentsScaling = (oc_vec2){(float)dpi/96., (float)dpi/96.};
 	return(contentsScaling);
 }
 
-vec2 mg_win32_surface_get_size(mg_surface_data* surface)
+oc_vec2 oc_win32_surface_get_size(oc_surface_data* surface)
 {
-	vec2 size = {0};
+	oc_vec2 size = {0};
 	RECT rect;
 	if(GetClientRect(surface->layer.hWnd, &rect))
 	{
 		u32 dpi = GetDpiForWindow(surface->layer.hWnd);
 		f32 scale = (float)dpi/96.;
-		size = (vec2){(rect.right - rect.left)/scale, (rect.bottom - rect.top)/scale};
+		size = (oc_vec2){(rect.right - rect.left)/scale, (rect.bottom - rect.top)/scale};
 	}
 	return(size);
 }
 
-bool mg_win32_surface_get_hidden(mg_surface_data* surface)
+bool oc_win32_surface_get_hidden(oc_surface_data* surface)
 {
 	bool hidden = !IsWindowVisible(surface->layer.hWnd);
 	return(hidden);
 }
 
-void mg_win32_surface_set_hidden(mg_surface_data* surface, bool hidden)
+void oc_win32_surface_set_hidden(oc_surface_data* surface, bool hidden)
 {
 	ShowWindow(surface->layer.hWnd, hidden ? SW_HIDE : SW_NORMAL);
 }
 
-void* mg_win32_surface_native_layer(mg_surface_data* surface)
+void* oc_win32_surface_native_layer(oc_surface_data* surface)
 {
 	return((void*)surface->layer.hWnd);
 }
 
-mg_surface_id mg_win32_surface_remote_id(mg_surface_data* surface)
+oc_surface_id oc_win32_surface_remote_id(oc_surface_data* surface)
 {
-	return((mg_surface_id)surface->layer.hWnd);
+	return((oc_surface_id)surface->layer.hWnd);
 }
 
-void mg_win32_surface_host_connect(mg_surface_data* surface, mg_surface_id remoteID)
+void oc_win32_surface_host_connect(oc_surface_data* surface, oc_surface_id remoteID)
 {
 	HWND dstWnd = surface->layer.hWnd;
 	HWND srcWnd = (HWND)remoteID;
@@ -1138,9 +1143,9 @@ void mg_win32_surface_host_connect(mg_surface_data* surface, mg_surface_id remot
 			     SWP_NOACTIVATE | SWP_NOZORDER);
 }
 
-void mg_surface_cleanup(mg_surface_data* surface)
+void oc_surface_cleanup(oc_surface_data* surface)
 {
-	list_remove(&surface->layer.parent->win32.layers, &surface->layer.listElt);
+	oc_list_remove(&surface->layer.parent->win32.layers, &surface->layer.listElt);
 	DestroyWindow(surface->layer.hWnd);
 }
 
@@ -1156,13 +1161,13 @@ LRESULT LayerWinProc(HWND windowHandle, UINT message, WPARAM wParam, LPARAM lPar
 	}
 }
 
-void mg_surface_init_for_window(mg_surface_data* surface, mp_window_data* window)
+void oc_surface_init_for_window(oc_surface_data* surface, oc_window_data* window)
 {
-	surface->contentsScaling = mg_win32_surface_contents_scaling;
-	surface->getSize = mg_win32_surface_get_size;
-	surface->getHidden = mg_win32_surface_get_hidden;
-	surface->setHidden = mg_win32_surface_set_hidden;
-	surface->nativeLayer = mg_win32_surface_native_layer;
+	surface->contentsScaling = oc_win32_surface_contents_scaling;
+	surface->getSize = oc_win32_surface_get_size;
+	surface->getHidden = oc_win32_surface_get_hidden;
+	surface->setHidden = oc_win32_surface_set_hidden;
+	surface->nativeLayer = oc_win32_surface_native_layer;
 
 	//NOTE(martin): create a child window for the surface
 	WNDCLASS layerWindowClass = {.style = CS_HREDRAW | CS_VREDRAW | CS_OWNDC,
@@ -1201,21 +1206,21 @@ void mg_surface_init_for_window(mg_surface_data* surface, mp_window_data* window
 	DeleteObject(region);
 	if(res != S_OK)
 	{
-		log_error("couldn't enable blur behind\n");
+		oc_log_error("couldn't enable blur behind\n");
 	}
 
 	surface->layer.parent = window;
-	list_append(&window->win32.layers, &surface->layer.listElt);
+	oc_list_append(&window->win32.layers, &surface->layer.listElt);
 }
 
-void mg_surface_init_remote(mg_surface_data* surface, u32 width, u32 height)
+void oc_surface_init_remote(oc_surface_data* surface, u32 width, u32 height)
 {
-	surface->contentsScaling = mg_win32_surface_contents_scaling;
-	surface->getSize = mg_win32_surface_get_size;
-	surface->getHidden = mg_win32_surface_get_hidden;
-	surface->setHidden = mg_win32_surface_set_hidden;
-	surface->nativeLayer = mg_win32_surface_native_layer;
-	surface->remoteID = mg_win32_surface_remote_id;
+	surface->contentsScaling = oc_win32_surface_contents_scaling;
+	surface->getSize = oc_win32_surface_get_size;
+	surface->getHidden = oc_win32_surface_get_hidden;
+	surface->setHidden = oc_win32_surface_set_hidden;
+	surface->nativeLayer = oc_win32_surface_native_layer;
+	surface->remoteID = oc_win32_surface_remote_id;
 
 	WNDCLASS layerWindowClass = {.style = CS_HREDRAW | CS_VREDRAW | CS_OWNDC,
 		                         .lpfnWndProc = DefWindowProc,
@@ -1251,20 +1256,20 @@ void mg_surface_init_remote(mg_surface_data* surface, u32 width, u32 height)
 	DestroyWindow(tmpParent);
 }
 
-mg_surface_data* mg_win32_surface_create_host(mp_window window)
+oc_surface_data* oc_win32_surface_create_host(oc_window window)
 {
-	mg_surface_data* surface = 0;
-	mp_window_data* windowData = mp_window_ptr_from_handle(window);
+	oc_surface_data* surface = 0;
+	oc_window_data* windowData = oc_window_ptr_from_handle(window);
 	if(windowData)
 	{
-		surface = malloc_type(mg_surface_data);
+		surface = oc_malloc_type(oc_surface_data);
 		if(surface)
 		{
-			memset(surface, 0, sizeof(mg_surface_data));
-			mg_surface_init_for_window(surface, windowData);
+			memset(surface, 0, sizeof(oc_surface_data));
+			oc_surface_init_for_window(surface, windowData);
 
-			surface->api = MG_HOST;
-			surface->hostConnect = mg_win32_surface_host_connect;
+			surface->api = OC_HOST;
+			surface->hostConnect = oc_win32_surface_host_connect;
 		}
 	}
 	return(surface);
@@ -1283,14 +1288,13 @@ mg_surface_data* mg_win32_surface_create_host(mp_window window)
 #undef interface
 
 
-MP_API str8 mp_open_dialog(mem_arena* arena,
-                           const char* title,
-                           const char* defaultPath,
-                           int filterCount,
-                           const char** filters,
-                           bool directory)
+oc_str8 oc_open_dialog(oc_arena* arena,
+                       oc_str8 title,
+                       oc_str8 defaultPath,
+                       oc_str8_list filters,
+                       bool directory)
 {
-	str8 res = {0};
+	oc_str8 res = {0};
 	HRESULT hr = CoInitializeEx(NULL, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
 	if(SUCCEEDED(hr))
 	{
@@ -1305,36 +1309,40 @@ MP_API str8 mp_open_dialog(mem_arena* arena,
 				dialog->lpVtbl->SetOptions(dialog, opt | FOS_PICKFOLDERS);
 			}
 
-			if(filterCount && filters)
+			if(filters.eltCount)
 			{
-				mem_arena_scope tmp = mem_arena_scope_begin(arena);
-				COMDLG_FILTERSPEC* filterSpecs = mem_arena_alloc_array(arena, COMDLG_FILTERSPEC, filterCount);
-				for(int i=0; i<filterCount; i++)
+				oc_arena_scope tmp = oc_arena_scope_begin(arena);
+				COMDLG_FILTERSPEC* filterSpecs = oc_arena_push_array(arena, COMDLG_FILTERSPEC, filters.eltCount);
+
+				int i = 0;
+				oc_list_for(&filters.list, elt, oc_str8_elt, listElt)
 				{
-					str8_list list = {0};
-					str8_list_push(arena, &list, STR8("*."));
-					str8_list_push(arena, &list, STR8(filters[i]));
-					str8 filter = str8_list_join(arena, list);
+					oc_str8_list list = {0};
+					oc_str8_list_push(arena, &list, OC_STR8("*."));
+					oc_str8_list_push(arena, &list, elt->string);
+					oc_str8 filter = oc_str8_list_join(arena, list);
 
 					int filterWideSize = 1 + MultiByteToWideChar(CP_UTF8, 0, filter.ptr, filter.len, NULL, 0);
-					filterSpecs[i].pszSpec = mem_arena_alloc_array(arena, wchar_t, filterWideSize);
+					filterSpecs[i].pszSpec = oc_arena_push_array(arena, wchar_t, filterWideSize);
 					MultiByteToWideChar(CP_UTF8, 0, filter.ptr, filter.len, (LPWSTR)filterSpecs[i].pszSpec, filterWideSize);
 					((LPWSTR)(filterSpecs[i].pszSpec))[filterWideSize-1] = 0;
 
 					filterSpecs[i].pszName = filterSpecs[i].pszSpec;
+					i++;
 				}
 
-				hr = dialog->lpVtbl->SetFileTypes(dialog, filterCount, filterSpecs);
+				hr = dialog->lpVtbl->SetFileTypes(dialog, i, filterSpecs);
 
-				mem_arena_scope_end(tmp);
+				oc_arena_scope_end(tmp);
 			}
 
-			if(defaultPath)
+			if(defaultPath.len)
 			{
-				mem_arena_scope tmp = mem_arena_scope_begin(arena);
-				int pathWideSize = MultiByteToWideChar(CP_UTF8, 0, defaultPath, -1, NULL, 0);
-				LPWSTR pathWide = mem_arena_alloc_array(arena, wchar_t, pathWideSize);
-				MultiByteToWideChar(CP_UTF8, 0, defaultPath, -1, pathWide, pathWideSize);
+				oc_arena_scope tmp = oc_arena_scope_begin(arena);
+				int pathWideSize = MultiByteToWideChar(CP_UTF8, 0, defaultPath.ptr, defaultPath.len, NULL, 0);
+				LPWSTR pathWide = oc_arena_push_array(arena, wchar_t, pathWideSize+1);
+				MultiByteToWideChar(CP_UTF8, 0, defaultPath.ptr, defaultPath.len, pathWide, pathWideSize);
+				pathWide[pathWideSize] = '\0';
 
 				IShellItem* item = 0;
 				hr = SHCreateItemFromParsingName(pathWide, NULL, &IID_IShellItem, (void**)&item);
@@ -1343,7 +1351,7 @@ MP_API str8 mp_open_dialog(mem_arena* arena,
 					hr = dialog->lpVtbl->SetFolder(dialog, item);
 					item->lpVtbl->Release(item);
 				}
-				mem_arena_scope_end(tmp);
+				oc_arena_scope_end(tmp);
 			}
 
 			hr = dialog->lpVtbl->Show(dialog, NULL);
@@ -1358,12 +1366,12 @@ MP_API str8 mp_open_dialog(mem_arena* arena,
 
 					if(SUCCEEDED(hr))
 					{
-						int utf8Size = WideCharToMultiByte(CP_UTF8, 0, filePath, -1, NULL, 0, NULL, NULL);
-						if(utf8Size > 0)
+						int oc_utf8Size = WideCharToMultiByte(CP_UTF8, 0, filePath, -1, NULL, 0, NULL, NULL);
+						if(oc_utf8Size > 0)
 						{
-							res.ptr = mem_arena_alloc(arena, utf8Size);
-							res.len = utf8Size-1;
-							WideCharToMultiByte(CP_UTF8, 0, filePath, -1, res.ptr, utf8Size, NULL, NULL);
+							res.ptr = oc_arena_push(arena, oc_utf8Size);
+							res.len = oc_utf8Size-1;
+							WideCharToMultiByte(CP_UTF8, 0, filePath, -1, res.ptr, oc_utf8Size, NULL, NULL);
 						}
 						CoTaskMemFree(filePath);
 					}
@@ -1376,13 +1384,12 @@ MP_API str8 mp_open_dialog(mem_arena* arena,
 	return(res);
 }
 
-MP_API str8 mp_save_dialog(mem_arena* arena,
-                           const char* title,
-                           const char* defaultPath,
-                           int filterCount,
-                           const char** filters)
+oc_str8 oc_save_dialog(oc_arena* arena,
+                           oc_str8 title,
+                           oc_str8 defaultPath,
+                           oc_str8_list filters)
 {
-	str8 res = {0};
+	oc_str8 res = {0};
 	HRESULT hr = CoInitializeEx(NULL, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
 	if(SUCCEEDED(hr))
 	{
@@ -1390,36 +1397,40 @@ MP_API str8 mp_save_dialog(mem_arena* arena,
 		hr = CoCreateInstance(&CLSID_FileSaveDialog, NULL, CLSCTX_ALL, &IID_IFileSaveDialog, (void**)&dialog);
 		if(SUCCEEDED(hr))
 		{
-			if(filterCount && filters)
+			if(filters.eltCount)
 			{
-				mem_arena_scope tmp = mem_arena_scope_begin(arena);
-				COMDLG_FILTERSPEC* filterSpecs = mem_arena_alloc_array(arena, COMDLG_FILTERSPEC, filterCount);
-				for(int i=0; i<filterCount; i++)
+				oc_arena_scope tmp = oc_arena_scope_begin(arena);
+				COMDLG_FILTERSPEC* filterSpecs = oc_arena_push_array(arena, COMDLG_FILTERSPEC, filters.eltCount);
+
+				int i = 0;
+				oc_list_for(&filters.list, elt, oc_str8_elt, listElt)
 				{
-					str8_list list = {0};
-					str8_list_push(arena, &list, STR8("*."));
-					str8_list_push(arena, &list, STR8(filters[i]));
-					str8 filter = str8_list_join(arena, list);
+					oc_str8_list list = {0};
+					oc_str8_list_push(arena, &list, OC_STR8("*."));
+					oc_str8_list_push(arena, &list, elt->string);
+					oc_str8 filter = oc_str8_list_join(arena, list);
 
 					int filterWideSize = 1 + MultiByteToWideChar(CP_UTF8, 0, filter.ptr, filter.len, NULL, 0);
-					filterSpecs[i].pszSpec = mem_arena_alloc_array(arena, wchar_t, filterWideSize);
+					filterSpecs[i].pszSpec = oc_arena_push_array(arena, wchar_t, filterWideSize);
 					MultiByteToWideChar(CP_UTF8, 0, filter.ptr, filter.len, (LPWSTR)filterSpecs[i].pszSpec, filterWideSize);
 					((LPWSTR)(filterSpecs[i].pszSpec))[filterWideSize-1] = 0;
 
 					filterSpecs[i].pszName = filterSpecs[i].pszSpec;
+					i++;
 				}
 
-				hr = dialog->lpVtbl->SetFileTypes(dialog, filterCount, filterSpecs);
+				hr = dialog->lpVtbl->SetFileTypes(dialog, i, filterSpecs);
 
-				mem_arena_scope_end(tmp);
+				oc_arena_scope_end(tmp);
 			}
 
-			if(defaultPath)
+			if(defaultPath.len)
 			{
-				mem_arena_scope tmp = mem_arena_scope_begin(arena);
-				int pathWideSize = MultiByteToWideChar(CP_UTF8, 0, defaultPath, -1, NULL, 0);
-				LPWSTR pathWide = mem_arena_alloc_array(arena, wchar_t, pathWideSize);
-				MultiByteToWideChar(CP_UTF8, 0, defaultPath, -1, pathWide, pathWideSize);
+				oc_arena_scope tmp = oc_arena_scope_begin(arena);
+				int pathWideSize = MultiByteToWideChar(CP_UTF8, 0, defaultPath.ptr, defaultPath.len, NULL, 0);
+				LPWSTR pathWide = oc_arena_push_array(arena, wchar_t, pathWideSize + 1);
+				MultiByteToWideChar(CP_UTF8, 0, defaultPath.ptr, defaultPath.len, pathWide, pathWideSize);
+				pathWide[pathWideSize] = '\0';
 
 				IShellItem* item = 0;
 				hr = SHCreateItemFromParsingName(pathWide, NULL, &IID_IShellItem, (void**)&item);
@@ -1428,7 +1439,7 @@ MP_API str8 mp_save_dialog(mem_arena* arena,
 					hr = dialog->lpVtbl->SetFolder(dialog, item);
 					item->lpVtbl->Release(item);
 				}
-				mem_arena_scope_end(tmp);
+				oc_arena_scope_end(tmp);
 			}
 
 			hr = dialog->lpVtbl->Show(dialog, NULL);
@@ -1443,12 +1454,12 @@ MP_API str8 mp_save_dialog(mem_arena* arena,
 
 					if(SUCCEEDED(hr))
 					{
-						int utf8Size = WideCharToMultiByte(CP_UTF8, 0, filePath, -1, NULL, 0, NULL, NULL);
-						if(utf8Size > 0)
+						int oc_utf8Size = WideCharToMultiByte(CP_UTF8, 0, filePath, -1, NULL, 0, NULL, NULL);
+						if(oc_utf8Size > 0)
 						{
-							res.ptr = mem_arena_alloc(arena, utf8Size);
-							res.len = utf8Size-1;
-							WideCharToMultiByte(CP_UTF8, 0, filePath, -1, res.ptr, utf8Size, NULL, NULL);
+							res.ptr = oc_arena_push(arena, oc_utf8Size);
+							res.len = oc_utf8Size-1;
+							WideCharToMultiByte(CP_UTF8, 0, filePath, -1, res.ptr, oc_utf8Size, NULL, NULL);
 						}
 						CoTaskMemFree(filePath);
 					}
@@ -1463,32 +1474,36 @@ MP_API str8 mp_save_dialog(mem_arena* arena,
 
 #include<commctrl.h>
 
-MP_API int mp_alert_popup(const char* title,
-                          const char* message,
-                          u32 count,
-                          const char** options)
+int oc_alert_popup(oc_str8 title,
+                   oc_str8 message,
+                   oc_str8_list options)
 {
-	mem_arena* scratch = mem_scratch();
-	mem_arena_scope tmp = mem_arena_scope_begin(scratch);
-	TASKDIALOG_BUTTON* buttons = mem_arena_alloc_array(scratch, TASKDIALOG_BUTTON, count);
+	oc_arena_scope scratch = oc_scratch_begin();
+	TASKDIALOG_BUTTON* buttons = oc_arena_push_array(scratch.arena, TASKDIALOG_BUTTON, options.eltCount);
 
-	for(int i=0; i<count; i++)
+	int i = 0;
+	oc_list_for(&options.list, elt, oc_str8_elt, listElt)
 	{
-		int textWideSize = MultiByteToWideChar(CP_UTF8, 0, options[i], -1, NULL, 0);
-		wchar_t* textWide = mem_arena_alloc_array(scratch, wchar_t, textWideSize);
-		MultiByteToWideChar(CP_UTF8, 0, options[i], -1, textWide, textWideSize);
+		int textWideSize = MultiByteToWideChar(CP_UTF8, 0, elt->string.ptr, elt->string.len, NULL, 0);
+		wchar_t* textWide = oc_arena_push_array(scratch.arena, wchar_t, textWideSize + 1);
+		MultiByteToWideChar(CP_UTF8, 0, elt->string.ptr, elt->string.len, textWide, textWideSize);
+		textWide[textWideSize] = '\0';
 
 		buttons[i].nButtonID = i+1;
 		buttons[i].pszButtonText = textWide;
+
+		i++;
 	}
 
-	int titleWideSize = MultiByteToWideChar(CP_UTF8, 0, title, -1, NULL, 0);
-	wchar_t* titleWide = mem_arena_alloc_array(scratch, wchar_t, titleWideSize);
-	MultiByteToWideChar(CP_UTF8, 0, title, -1, titleWide, titleWideSize);
+	int titleWideSize = MultiByteToWideChar(CP_UTF8, 0, title.ptr, title.len, NULL, 0);
+	wchar_t* titleWide = oc_arena_push_array(scratch.arena, wchar_t, titleWideSize + 1);
+	MultiByteToWideChar(CP_UTF8, 0, title.ptr, title.len, titleWide, titleWideSize);
+	titleWide[titleWideSize] = '\0';
 
-	int messageWideSize = MultiByteToWideChar(CP_UTF8, 0, message, -1, NULL, 0);
-	wchar_t* messageWide = mem_arena_alloc_array(scratch, wchar_t, messageWideSize);
-	MultiByteToWideChar(CP_UTF8, 0, message, -1, messageWide, messageWideSize);
+	int messageWideSize = MultiByteToWideChar(CP_UTF8, 0, message.ptr, message.len, NULL, 0);
+	wchar_t* messageWide = oc_arena_push_array(scratch.arena, wchar_t, messageWideSize + 1);
+	MultiByteToWideChar(CP_UTF8, 0, message.ptr, message.len, messageWide, messageWideSize);
+	messageWide[messageWideSize] = '\0';
 
 	TASKDIALOGCONFIG config =
 	{
@@ -1502,7 +1517,7 @@ MP_API int mp_alert_popup(const char* title,
 		.pszMainIcon = TD_WARNING_ICON,
 		.pszMainInstruction = messageWide,
 		.pszContent = NULL,
-		.cButtons = count,
+		.cButtons = options.eltCount,
 		.pButtons = buttons,
 		.nDefaultButton = 0,
 	};
@@ -1521,6 +1536,6 @@ MP_API int mp_alert_popup(const char* title,
 		}
 	}
 
-	mem_arena_scope_end(tmp);
+	oc_scratch_end(scratch);
 	return(button);
 }

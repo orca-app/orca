@@ -1,85 +1,85 @@
 [
 {
-	"name": "mg_image_size",
-	"cname": "mg_image_size",
-	"ret": {"name": "vec2", "tag": "S"},
+	"name": "oc_image_size",
+	"cname": "oc_image_size",
+	"ret": {"name": "oc_vec2", "tag": "S"},
 	"args": [ {"name": "image",
-	           "type": {"name": "mg_image", "tag": "S"}}]
+	           "type": {"name": "oc_image", "tag": "S"}}]
 },
 {
-	"name": "mg_image_create",
-	"cname": "mg_image_create",
-	"ret": {"name": "mg_image", "tag": "S"},
+	"name": "oc_image_create",
+	"cname": "oc_image_create",
+	"ret": {"name": "oc_image", "tag": "S"},
 	"args": [ {"name": "surface",
-	           "type": {"name": "mg_surface", "tag": "S"}},
+	           "type": {"name": "oc_surface", "tag": "S"}},
 	          {"name": "width",
 	           "type": {"name": "u32", "tag": "i"}},
 	          {"name": "height",
 	           "type": {"name": "u32", "tag": "i"}}]
 },
 {
-	"name": "mg_image_destroy",
-	"cname": "mg_image_destroy",
+	"name": "oc_image_destroy",
+	"cname": "oc_image_destroy",
 	"ret": {"name": "void", "tag": "v"},
 	"args": [ {"name": "image",
-	           "type": {"name": "mg_image", "tag": "S"}}]
+	           "type": {"name": "oc_image", "tag": "S"}}]
 },
 {
-	"name": "mg_image_upload_region_rgba8",
-	"cname": "mg_image_upload_region_rgba8",
+	"name": "oc_image_upload_region_rgba8",
+	"cname": "oc_image_upload_region_rgba8",
 	"ret": {"name": "void", "tag": "v"},
 	"args": [
 		{"name": "image",
-		 "type": {"name": "mg_image", "tag": "S"}},
+		 "type": {"name": "oc_image", "tag": "S"}},
 		{"name": "region",
-		 "type": {"name": "mp_rect", "tag": "S"}},
+		 "type": {"name": "oc_rect", "tag": "S"}},
 		{"name": "pixels",
 		 "type": {"name": "u8*", "tag": "p"}}]
 },
 {
-	"name": "mg_surface_prepare",
-	"cname": "mg_surface_prepare",
+	"name": "oc_surface_select",
+	"cname": "oc_surface_select",
 	"ret": {"name": "void", "tag": "v"},
 	"args": [
 		{"name": "surface",
-		 "type": {"name": "mg_surface", "tag": "S"}}]
+		 "type": {"name": "oc_surface", "tag": "S"}}]
 },
 {
-	"name": "mg_surface_present",
-	"cname": "mg_surface_present",
+	"name": "oc_surface_present",
+	"cname": "oc_surface_present",
 	"ret": {"name": "void", "tag": "v"},
 	"args": [
 		{"name": "surface",
-		 "type": {"name": "mg_surface", "tag": "S"}}]
+		 "type": {"name": "oc_surface", "tag": "S"}}]
 },
 {
-	"name": "mg_surface_render_commands",
+	"name": "oc_surface_render_commands",
 	"cname": "orca_surface_render_commands",
 	"ret": {"name": "void", "tag": "v"},
 	"args": [
 		{"name": "surface",
-		 "type": {"name": "mg_surface", "tag": "S"}},
+		 "type": {"name": "oc_surface", "tag": "S"}},
 		{"name": "clearColor",
-		 "type": {"name": "mg_color", "tag": "S"}},
+		 "type": {"name": "oc_color", "tag": "S"}},
 		{"name": "primitiveCount",
 		 "type": {"name": "u32", "tag": "i"}},
 		{"name": "primitives",
-		 "type": {"name": "mg_primitive*", "tag": "p"}},
+		 "type": {"name": "oc_primitive*", "tag": "p"}},
 		{"name": "eltCount",
 		 "type": {"name": "u32", "tag": "i"}},
 		{"name": "elements",
-		 "type": {"name": "mg_path_elt*", "tag": "p"}}]
+		 "type": {"name": "oc_path_elt*", "tag": "p"}}]
 },
 {
-	"name": "mg_surface_canvas",
+	"name": "oc_surface_canvas",
 	"cname": "orca_surface_canvas",
-	"ret": {"name": "mg_surface", "tag": "S"},
+	"ret": {"name": "oc_surface", "tag": "S"},
 	"args": []
 },
 {
-	"name": "mg_surface_gles",
+	"name": "oc_surface_gles",
 	"cname": "orca_surface_gles",
-	"ret": {"name": "mg_surface", "tag": "S"},
+	"ret": {"name": "oc_surface", "tag": "S"},
 	"args": []
 }
 ]

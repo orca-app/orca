@@ -12,45 +12,45 @@
 #include<simd/simd.h>
 
 typedef enum {
-	MG_MTL_FILL,
-	MG_MTL_STROKE,
-} mg_mtl_cmd;
+	OC_MTL_FILL,
+	OC_MTL_STROKE,
+} oc_mtl_cmd;
 
-typedef struct mg_mtl_path
+typedef struct oc_mtl_path
 {
-	mg_mtl_cmd cmd;
+	oc_mtl_cmd cmd;
 	matrix_float3x3 uvTransform;
 	vector_float4 color;
 	vector_float4 box;
 	vector_float4 clip;
 	int texture;
-} mg_mtl_path;
+} oc_mtl_path;
 
 typedef enum {
-	MG_MTL_LINE = 1,
-	MG_MTL_QUADRATIC,
-	MG_MTL_CUBIC,
-} mg_mtl_seg_kind;
+	OC_MTL_LINE = 1,
+	OC_MTL_QUADRATIC,
+	OC_MTL_CUBIC,
+} oc_mtl_seg_kind;
 
-typedef struct mg_mtl_path_elt
+typedef struct oc_mtl_path_elt
 {
 	int pathIndex;
-	mg_mtl_seg_kind kind;
+	oc_mtl_seg_kind kind;
 	vector_float2 p[4];
-} mg_mtl_path_elt;
+} oc_mtl_path_elt;
 
 typedef enum {
-	MG_MTL_BL, // curve on bottom left
-	MG_MTL_BR, // curve on bottom right
-	MG_MTL_TL, // curve on top left
-	MG_MTL_TR  // curve on top right
-} mg_mtl_seg_config;
+	OC_MTL_BL, // curve on bottom left
+	OC_MTL_BR, // curve on bottom right
+	OC_MTL_TL, // curve on top left
+	OC_MTL_TR  // curve on top right
+} oc_mtl_seg_config;
 
-typedef struct mg_mtl_segment
+typedef struct oc_mtl_segment
 {
-	mg_mtl_seg_kind kind;
+	oc_mtl_seg_kind kind;
 	int pathIndex;
-	mg_mtl_seg_config config; //TODO pack these
+	oc_mtl_seg_config config; //TODO pack these
 	int windingIncrement;
 	vector_float4 box;
 	matrix_float3x3 implicitMatrix;
@@ -58,27 +58,27 @@ typedef struct mg_mtl_segment
 	vector_float2 hullVertex;
 	int debugID;
 
-} mg_mtl_segment;
+} oc_mtl_segment;
 
-typedef struct mg_mtl_path_queue
+typedef struct oc_mtl_path_queue
 {
 	vector_int4 area;
 	int tileQueues;
-} mg_mtl_path_queue;
+} oc_mtl_path_queue;
 
 #ifdef __METAL_VERSION__
 	using namespace metal;
 #endif
 
-typedef enum { MG_MTL_OP_FILL,
-               MG_MTL_OP_CLIP_FILL,
-               MG_MTL_OP_START,
-               MG_MTL_OP_END,
-               MG_MTL_OP_SEGMENT } mg_mtl_tile_op_kind;
+typedef enum { OC_MTL_OP_FILL,
+               OC_MTL_OP_CLIP_FILL,
+               OC_MTL_OP_START,
+               OC_MTL_OP_END,
+               OC_MTL_OP_SEGMENT } oc_mtl_tile_op_kind;
 
-typedef struct mg_mtl_tile_op
+typedef struct oc_mtl_tile_op
 {
-	mg_mtl_tile_op_kind kind;
+	oc_mtl_tile_op_kind kind;
 	int index;
 	int next;
 	union
@@ -87,25 +87,25 @@ typedef struct mg_mtl_tile_op
 		int windingOffset;
 	};
 
-} mg_mtl_tile_op;
+} oc_mtl_tile_op;
 
-typedef struct mg_mtl_tile_queue
+typedef struct oc_mtl_tile_queue
 {
 	atomic_int windingOffset;
 	atomic_int first;
 	int last;
 
-} mg_mtl_tile_queue;
+} oc_mtl_tile_queue;
 
-typedef struct mg_mtl_screen_tile
+typedef struct oc_mtl_screen_tile
 {
 	vector_uint2 tileCoord;
 	int first;
 
-} mg_mtl_screen_tile;
+} oc_mtl_screen_tile;
 
 enum {
-	MG_MTL_MAX_IMAGES_PER_BATCH = 30
+	OC_MTL_MAX_IMAGES_PER_BATCH = 30
 };
 
 #endif //__MTL_RENDERER_H_

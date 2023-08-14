@@ -11,6 +11,6 @@
 
 #include"graphics_surface.h"
 
-mg_surface_data* mg_wgl_surface_create_for_window(mp_window window);
+oc_surface_data* oc_wgl_surface_create_for_window(oc_window window);
 
 #endif // __WIN32_GL_SURFACE_H_

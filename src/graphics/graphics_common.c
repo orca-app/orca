@@ -12,7 +12,7 @@
 #include"platform/platform.h"
 
 #define STB_IMAGE_IMPLEMENTATION
-#if PLATFORM_ORCA
+#if OC_PLATFORM_ORCA
 	#define STBI_NO_STDIO
 	#define STBI_NO_HDR
 #endif
@@ -23,126 +23,127 @@
 
 #include"platform/platform_debug.h"
 #include"platform/platform_debug.h"
+#include"util/algebra.h"
 #include"graphics_common.h"
 
-typedef struct mg_glyph_map_entry
+typedef struct oc_glyph_map_entry
 {
-	unicode_range range;
+	oc_unicode_range range;
 	u32 firstGlyphIndex;
 
-} mg_glyph_map_entry;
+} oc_glyph_map_entry;
 
-typedef struct mg_glyph_data
+typedef struct oc_glyph_data
 {
 	bool exists;
-	utf32 codePoint;
-	mg_path_descriptor pathDescriptor;
-	mg_text_extents extents;
+	oc_utf32 codePoint;
+	oc_path_descriptor pathDescriptor;
+	oc_text_extents extents;
 	//...
 
-} mg_glyph_data;
+} oc_glyph_data;
 
 enum
 {
-	MG_MATRIX_STACK_MAX_DEPTH = 64,
-	MG_CLIP_STACK_MAX_DEPTH = 64,
-	MG_MAX_PATH_ELEMENT_COUNT = 2<<20,
-	MG_MAX_PRIMITIVE_COUNT = 8<<10
+	OC_MATRIX_STACK_MAX_DEPTH = 64,
+	OC_CLIP_STACK_MAX_DEPTH = 64,
+	OC_MAX_PATH_ELEMENT_COUNT = 2<<20,
+	OC_MAX_PRIMITIVE_COUNT = 8<<10
 };
 
-typedef struct mg_font_data
+typedef struct oc_font_data
 {
-	list_elt freeListElt;
+	oc_list_elt freeListElt;
 
 	u32 rangeCount;
 	u32 glyphCount;
 	u32 outlineCount;
-	mg_glyph_map_entry* glyphMap;
-	mg_glyph_data*      glyphs;
-	mg_path_elt* outlines;
+	oc_glyph_map_entry* glyphMap;
+	oc_glyph_data*      glyphs;
+	oc_path_elt* outlines;
 
 	f32 unitsPerEm;
-	mg_font_extents extents;
+	oc_font_extents extents;
 
-} mg_font_data;
+} oc_font_data;
 
-typedef struct mg_canvas_data mg_canvas_data;
+typedef struct oc_canvas_data oc_canvas_data;
 
-typedef enum mg_handle_kind
+typedef enum oc_graphics_handle_kind
 {
-	MG_HANDLE_NONE = 0,
-	MG_HANDLE_SURFACE,
-	MG_HANDLE_CANVAS,
-	MG_HANDLE_FONT,
-	MG_HANDLE_IMAGE,
-	MG_HANDLE_SURFACE_SERVER,
-} mg_handle_kind;
+	OC_GRAPHICS_HANDLE_NONE = 0,
+	OC_GRAPHICS_HANDLE_SURFACE,
+	OC_GRAPHICS_HANDLE_CANVAS,
+	OC_GRAPHICS_HANDLE_FONT,
+	OC_GRAPHICS_HANDLE_IMAGE,
+	OC_GRAPHICS_HANDLE_SURFACE_SERVER,
+} oc_graphics_handle_kind;
 
-typedef struct mg_handle_slot
+typedef struct oc_graphics_handle_slot
 {
-	list_elt freeListElt;
+	oc_list_elt freeListElt;
 	u32 generation;
-	mg_handle_kind kind;
+	oc_graphics_handle_kind kind;
 
 	void* data;
 
-} mg_handle_slot;
+} oc_graphics_handle_slot;
 
-enum { MG_HANDLES_MAX_COUNT = 512 };
+enum { OC_GRAPHICS_HANDLES_MAX_COUNT = 512 };
 
-typedef struct mg_data
+typedef struct oc_graphics_data
 {
 	bool init;
 
-	mg_handle_slot handleArray[MG_HANDLES_MAX_COUNT];
+	oc_graphics_handle_slot handleArray[OC_GRAPHICS_HANDLES_MAX_COUNT];
 	int handleNextIndex;
-	list_info handleFreeList;
+	oc_list handleFreeList;
 
-	mem_arena resourceArena;
-	list_info canvasFreeList;
-	list_info fontFreeList;
+	oc_arena resourceArena;
+	oc_list canvasFreeList;
+	oc_list fontFreeList;
 
-} mg_data;
+} oc_graphics_data;
 
-typedef struct mg_canvas_data
+typedef struct oc_canvas_data
 {
-	list_elt freeListElt;
+	oc_list_elt freeListElt;
 
-	mg_attributes attributes;
+	oc_attributes attributes;
 	bool textFlip;
 
-	mg_path_elt pathElements[MG_MAX_PATH_ELEMENT_COUNT];
-	mg_path_descriptor path;
-	vec2 subPathStartPoint;
-	vec2 subPathLastPoint;
+	oc_path_elt pathElements[OC_MAX_PATH_ELEMENT_COUNT];
+	oc_path_descriptor path;
+	oc_vec2 subPathStartPoint;
+	oc_vec2 subPathLastPoint;
 
-	mg_mat2x3 matrixStack[MG_MATRIX_STACK_MAX_DEPTH];
+	oc_mat2x3 matrixStack[OC_MATRIX_STACK_MAX_DEPTH];
 	u32 matrixStackSize;
 
-	mp_rect clipStack[MG_CLIP_STACK_MAX_DEPTH];
+	oc_rect clipStack[OC_CLIP_STACK_MAX_DEPTH];
 	u32 clipStackSize;
 
 	u32 primitiveCount;
-	mg_primitive primitives[MG_MAX_PRIMITIVE_COUNT];
+	oc_primitive primitives[OC_MAX_PRIMITIVE_COUNT];
 
 	//NOTE: these are used at render time
-	mg_color clearColor;
+	oc_color clearColor;
 
-	vec4 shapeExtents;
-	vec4 shapeScreenExtents;
+	oc_vec4 shapeExtents;
+	oc_vec4 shapeScreenExtents;
 
-} mg_canvas_data;
+} oc_canvas_data;
 
-static mg_data __mgData = {0};
+static oc_graphics_data oc_graphicsData = {0};
 
 
-void mg_init()
+void oc_graphics_init()
 {
-	if(!__mgData.init)
+	if(!oc_graphicsData.init)
 	{
-		__mgData.handleNextIndex = 0;
-		mem_arena_init(&__mgData.resourceArena);
-		__mgData.init = true;
+		oc_graphicsData.handleNextIndex = 0;
+		oc_arena_init(&oc_graphicsData.resourceArena);
+		oc_graphicsData.init = true;
 	}
 }
 
@@ -150,18 +151,18 @@ void mg_init()
 // handle pools procedures
 //------------------------------------------------------------------------
 
-u64 mg_handle_alloc(mg_handle_kind kind, void* data)
+u64 oc_graphics_handle_alloc(oc_graphics_handle_kind kind, void* data)
 {
-	if(!__mgData.init)
+	if(!oc_graphicsData.init)
 	{
-		mg_init();
+		oc_graphics_init();
 	}
 
-	mg_handle_slot* slot = list_pop_entry(&__mgData.handleFreeList, mg_handle_slot, freeListElt);
-	if(!slot && __mgData.handleNextIndex < MG_HANDLES_MAX_COUNT)
+	oc_graphics_handle_slot* slot = oc_list_pop_entry(&oc_graphicsData.handleFreeList, oc_graphics_handle_slot, freeListElt);
+	if(!slot && oc_graphicsData.handleNextIndex < OC_GRAPHICS_HANDLES_MAX_COUNT)
 	{
-		slot = &__mgData.handleArray[__mgData.handleNextIndex];
-		__mgData.handleNextIndex++;
+		slot = &oc_graphicsData.handleArray[oc_graphicsData.handleNextIndex];
+		oc_graphicsData.handleNextIndex++;
 
 		slot->generation = 1;
 	}
@@ -171,43 +172,43 @@ u64 mg_handle_alloc(mg_handle_kind kind, void* data)
 		slot->kind = kind;
 		slot->data = data;
 
-		h = ((u64)(slot - __mgData.handleArray))<<32
+		h = ((u64)(slot - oc_graphicsData.handleArray))<<32
 		  |((u64)(slot->generation));
 	}
 	return(h);
 }
 
-void mg_handle_recycle(u64 h)
+void oc_graphics_handle_recycle(u64 h)
 {
-	DEBUG_ASSERT(__mgData.init);
+	OC_DEBUG_ASSERT(oc_graphicsData.init);
 
 	u32 index = h>>32;
 	u32 generation = h & 0xffffffff;
 
-	if(index*sizeof(mg_handle_slot) < __mgData.handleNextIndex)
+	if(index*sizeof(oc_graphics_handle_slot) < oc_graphicsData.handleNextIndex)
 	{
-		mg_handle_slot* slot = &__mgData.handleArray[index];
+		oc_graphics_handle_slot* slot = &oc_graphicsData.handleArray[index];
 		if(slot->generation == generation)
 		{
-			DEBUG_ASSERT(slot->generation != UINT32_MAX, "surface slot generation wrap around\n");
+			OC_DEBUG_ASSERT(slot->generation != UINT32_MAX, "surface slot generation wrap around\n");
 			slot->generation++;
-			list_push(&__mgData.handleFreeList, &slot->freeListElt);
+			oc_list_push(&oc_graphicsData.handleFreeList, &slot->freeListElt);
 		}
 	}
 }
 
-void* mg_data_from_handle(mg_handle_kind kind, u64 h)
+void* oc_graphics_data_from_handle(oc_graphics_handle_kind kind, u64 h)
 {
-	DEBUG_ASSERT(__mgData.init);
+	OC_DEBUG_ASSERT(oc_graphicsData.init);
 
 	void* data = 0;
 
 	u32 index = h>>32;
 	u32 generation = h & 0xffffffff;
 
-	if(index < __mgData.handleNextIndex)
+	if(index < oc_graphicsData.handleNextIndex)
 	{
-		mg_handle_slot* slot = &__mgData.handleArray[index];
+		oc_graphics_handle_slot* slot = &oc_graphicsData.handleArray[index];
 		if(  slot->generation == generation
 		  && slot->kind == kind)
 		{
@@ -221,68 +222,20 @@ void* mg_data_from_handle(mg_handle_kind kind, u64 h)
 //NOTE(martin): graphics canvas internal
 //------------------------------------------------------------------------------------------
 
-mp_thread_local mg_canvas_data* __mgCurrentCanvas = 0;
-mp_thread_local mg_canvas __mgCurrentCanvasHandle = {0};
+oc_thread_local oc_canvas_data* __mgCurrentCanvas = 0;
+oc_thread_local oc_canvas __mgCurrentCanvasHandle = {0};
 
-//TODO put these elsewhere
-bool vec2_equal(vec2 v0, vec2 v1)
-{
-	return(v0.x == v1.x && v0.y == v1.y);
-}
-
-bool vec2_close(vec2 p0, vec2 p1, f32 tolerance)
+bool oc_vec2_close(oc_vec2 p0, oc_vec2 p1, f32 tolerance)
 {
 	f32 norm2 = (p1.x - p0.x)*(p1.x - p0.x) + (p1.y - p0.y)*(p1.y - p0.y);
 	return(fabs(norm2) < tolerance);
 }
 
-vec2 vec2_mul(f32 f, vec2 v)
-{
-	return((vec2){f*v.x, f*v.y});
-}
-
-vec2 vec2_add(vec2 v0, vec2 v1)
-{
-	return((vec2){v0.x + v1.x, v0.y + v1.y});
-}
-
-mg_mat2x3 mg_mat2x3_mul_m(mg_mat2x3 lhs, mg_mat2x3 rhs)
-{
-	mg_mat2x3 res;
-	res.m[0] = lhs.m[0]*rhs.m[0] + lhs.m[1]*rhs.m[3];
-	res.m[1] = lhs.m[0]*rhs.m[1] + lhs.m[1]*rhs.m[4];
-	res.m[2] = lhs.m[0]*rhs.m[2] + lhs.m[1]*rhs.m[5] + lhs.m[2];
-	res.m[3] = lhs.m[3]*rhs.m[0] + lhs.m[4]*rhs.m[3];
-	res.m[4] = lhs.m[3]*rhs.m[1] + lhs.m[4]*rhs.m[4];
-	res.m[5] = lhs.m[3]*rhs.m[2] + lhs.m[4]*rhs.m[5] + lhs.m[5];
-
-	return(res);
-}
-
-mg_mat2x3 mg_mat2x3_inv(mg_mat2x3 x)
-{
-	mg_mat2x3 res;
-	res.m[0] = x.m[4]/(x.m[0]*x.m[4] - x.m[1]*x.m[3]);
-	res.m[1] = x.m[1]/(x.m[1]*x.m[3] - x.m[0]*x.m[4]);
-	res.m[3] = x.m[3]/(x.m[1]*x.m[3] - x.m[0]*x.m[4]);
-	res.m[4] = x.m[0]/(x.m[0]*x.m[4] - x.m[1]*x.m[3]);
-	res.m[2] = -(x.m[2]*res.m[0] + x.m[5]*res.m[1]);
-	res.m[5] = -(x.m[2]*res.m[3] + x.m[5]*res.m[4]);
-	return(res);
-}
-
-vec2 mg_mat2x3_mul(mg_mat2x3 m, vec2 p)
-{
-	f32 x = p.x*m.m[0] + p.y*m.m[1] + m.m[2];
-	f32 y = p.x*m.m[3] + p.y*m.m[4] + m.m[5];
-	return((vec2){x, y});
-}
-
-mg_mat2x3 mg_matrix_stack_top(mg_canvas_data* canvas)
+oc_mat2x3 oc_matrix_stack_top(oc_canvas_data* canvas)
 {
 	if(canvas->matrixStackSize == 0)
 	{
-		return((mg_mat2x3){1, 0, 0,
+		return((oc_mat2x3){1, 0, 0,
 				   0, 1, 0});
 	}
 	else
@@ -291,11 +244,11 @@ mg_mat2x3 mg_matrix_stack_top(mg_canvas_data* canvas)
 	}
 }
 
-void mg_matrix_stack_push(mg_canvas_data* canvas, mg_mat2x3 transform)
+void oc_matrix_stack_push(oc_canvas_data* canvas, oc_mat2x3 transform)
 {
-	if(canvas->matrixStackSize >= MG_MATRIX_STACK_MAX_DEPTH)
+	if(canvas->matrixStackSize >= OC_MATRIX_STACK_MAX_DEPTH)
 	{
-		log_error("matrix stack overflow\n");
+		oc_log_error("matrix stack overflow\n");
 	}
 	else
 	{
@@ -304,24 +257,24 @@ void mg_matrix_stack_push(mg_canvas_data* canvas, mg_mat2x3 transform)
 	}
 }
 
-void mg_matrix_stack_pop(mg_canvas_data* canvas)
+void oc_matrix_stack_pop(oc_canvas_data* canvas)
 {
 	if(canvas->matrixStackSize == 0)
 	{
-		log_error("matrix stack underflow\n");
+		oc_log_error("matrix stack underflow\n");
 	}
 	else
 	{
 		canvas->matrixStackSize--;
-		mg_matrix_stack_top(canvas);
+		oc_matrix_stack_top(canvas);
 	}
 }
 
-mp_rect mg_clip_stack_top(mg_canvas_data* canvas)
+oc_rect oc_clip_stack_top(oc_canvas_data* canvas)
 {
 	if(canvas->clipStackSize == 0)
 	{
-		return((mp_rect){-FLT_MAX/2, -FLT_MAX/2, FLT_MAX, FLT_MAX});
+		return((oc_rect){-FLT_MAX/2, -FLT_MAX/2, FLT_MAX, FLT_MAX});
 	}
 	else
 	{
@@ -329,11 +282,11 @@ mp_rect mg_clip_stack_top(mg_canvas_data* canvas)
 	}
 }
 
-void mg_clip_stack_push(mg_canvas_data* canvas, mp_rect clip)
+void oc_clip_stack_push(oc_canvas_data* canvas, oc_rect clip)
 {
-	if(canvas->clipStackSize >= MG_CLIP_STACK_MAX_DEPTH)
+	if(canvas->clipStackSize >= OC_CLIP_STACK_MAX_DEPTH)
 	{
-		log_error("clip stack overflow\n");
+		oc_log_error("clip stack overflow\n");
 	}
 	else
 	{
@@ -342,11 +295,11 @@ void mg_clip_stack_push(mg_canvas_data* canvas, mp_rect clip)
 	}
 }
 
-void mg_clip_stack_pop(mg_canvas_data* canvas)
+void oc_clip_stack_pop(oc_canvas_data* canvas)
 {
 	if(canvas->clipStackSize == 0)
 	{
-		log_error("clip stack underflow\n");
+		oc_log_error("clip stack underflow\n");
 	}
 	else
 	{
@@ -354,19 +307,19 @@ void mg_clip_stack_pop(mg_canvas_data* canvas)
 	}
 }
 
-void mg_push_command(mg_canvas_data* canvas, mg_primitive primitive)
+void oc_push_command(oc_canvas_data* canvas, oc_primitive primitive)
 {
 	//NOTE(martin): push primitive and updates current stream, eventually patching a pending jump.
-	ASSERT(canvas->primitiveCount < MG_MAX_PRIMITIVE_COUNT);
+	OC_ASSERT(canvas->primitiveCount < OC_MAX_PRIMITIVE_COUNT);
 
 	canvas->primitives[canvas->primitiveCount] = primitive;
 	canvas->primitives[canvas->primitiveCount].attributes = canvas->attributes;
-	canvas->primitives[canvas->primitiveCount].attributes.transform = mg_matrix_stack_top(canvas);
-	canvas->primitives[canvas->primitiveCount].attributes.clip = mg_clip_stack_top(canvas);
+	canvas->primitives[canvas->primitiveCount].attributes.transform = oc_matrix_stack_top(canvas);
+	canvas->primitives[canvas->primitiveCount].attributes.clip = oc_clip_stack_top(canvas);
 	canvas->primitiveCount++;
 }
 
-void mg_new_path(mg_canvas_data* canvas)
+void oc_new_path(oc_canvas_data* canvas)
 {
 	canvas->path.startIndex += canvas->path.count;
 	canvas->path.count = 0;
@@ -374,59 +327,59 @@ void mg_new_path(mg_canvas_data* canvas)
 	canvas->path.startPoint = canvas->subPathStartPoint;
 }
 
-void mg_path_push_elements(mg_canvas_data* canvas, u32 count, mg_path_elt* elements)
+void oc_path_push_elements(oc_canvas_data* canvas, u32 count, oc_path_elt* elements)
 {
-	ASSERT(canvas->path.count + canvas->path.startIndex + count < MG_MAX_PATH_ELEMENT_COUNT);
-	memcpy(canvas->pathElements + canvas->path.startIndex + canvas->path.count, elements, count*sizeof(mg_path_elt));
+	OC_ASSERT(canvas->path.count + canvas->path.startIndex + count < OC_MAX_PATH_ELEMENT_COUNT);
+	memcpy(canvas->pathElements + canvas->path.startIndex + canvas->path.count, elements, count*sizeof(oc_path_elt));
 	canvas->path.count += count;
 
-	ASSERT(canvas->path.count < MG_MAX_PATH_ELEMENT_COUNT);
+	OC_ASSERT(canvas->path.count < OC_MAX_PATH_ELEMENT_COUNT);
 }
 
-void mg_path_push_element(mg_canvas_data* canvas, mg_path_elt elt)
+void oc_path_push_element(oc_canvas_data* canvas, oc_path_elt elt)
 {
-	mg_path_push_elements(canvas, 1, &elt);
+	oc_path_push_elements(canvas, 1, &elt);
 }
 
 //------------------------------------------------------------------------------------------
 //NOTE(martin): fonts
 //------------------------------------------------------------------------------------------
 
-mg_font mg_font_nil() { return((mg_font){.h = 0}); }
-bool mg_font_is_nil(mg_font font) { return(font.h == 0); }
+oc_font oc_font_nil() { return((oc_font){.h = 0}); }
+bool oc_font_is_nil(oc_font font) { return(font.h == 0); }
 
-mg_font mg_font_handle_alloc(mg_font_data* font)
+oc_font oc_font_handle_alloc(oc_font_data* font)
 {
-	mg_font handle = {.h = mg_handle_alloc(MG_HANDLE_FONT, (void*)font) };
+	oc_font handle = {.h = oc_graphics_handle_alloc(OC_GRAPHICS_HANDLE_FONT, (void*)font) };
 	return(handle);
 }
 
-mg_font_data* mg_font_data_from_handle(mg_font handle)
+oc_font_data* oc_font_data_from_handle(oc_font handle)
 {
-	mg_font_data* data = mg_data_from_handle(MG_HANDLE_FONT, handle.h);
+	oc_font_data* data = oc_graphics_data_from_handle(OC_GRAPHICS_HANDLE_FONT, handle.h);
 	return(data);
 }
 
-mg_font mg_font_create_from_memory(u32 size, byte* buffer, u32 rangeCount, unicode_range* ranges)
+oc_font oc_font_create_from_memory(oc_str8 mem, u32 rangeCount, oc_unicode_range* ranges)
 {
-	if(!__mgData.init)
+	if(!oc_graphicsData.init)
 	{
-		mg_init();
+		oc_graphics_init();
 	}
-	mg_font fontHandle = mg_font_nil();
+	oc_font fontHandle = oc_font_nil();
 
-	mg_font_data* font = list_pop_entry(&__mgData.fontFreeList, mg_font_data, freeListElt);
+	oc_font_data* font = oc_list_pop_entry(&oc_graphicsData.fontFreeList, oc_font_data, freeListElt);
 	if(!font)
 	{
-		font = mem_arena_alloc_type(&__mgData.resourceArena, mg_font_data);
+		font = oc_arena_push_type(&oc_graphicsData.resourceArena, oc_font_data);
 	}
 	if(font)
 	{
-		memset(font, 0, sizeof(mg_font_data));
-		fontHandle = mg_font_handle_alloc(font);
+		memset(font, 0, sizeof(oc_font_data));
+		fontHandle = oc_font_handle_alloc(font);
 
 		stbtt_fontinfo stbttFontInfo;
-		stbtt_InitFont(&stbttFontInfo, buffer, 0);
+		stbtt_InitFont(&stbttFontInfo, (byte*)mem.ptr, 0);
 
 		//NOTE(martin): load font metrics data
 		font->unitsPerEm = 1./stbtt_ScaleForMappingEmToPixels(&stbttFontInfo, 1);
@@ -448,7 +401,7 @@ mg_font mg_font_create_from_memory(u32 size, byte* buffer, u32 rangeCount, unico
 
 		//NOTE(martin): load codepoint ranges
 		font->rangeCount = rangeCount;
-		font->glyphMap = malloc_array(mg_glyph_map_entry, rangeCount);
+		font->glyphMap = oc_malloc_array(oc_glyph_map_entry, rangeCount);
 		font->glyphCount = 0;
 
 		for(int i=0; i<rangeCount; i++)
@@ -460,13 +413,13 @@ mg_font mg_font_create_from_memory(u32 size, byte* buffer, u32 rangeCount, unico
 			font->glyphCount += ranges[i].count;
 		}
 
-		font->glyphs = malloc_array(mg_glyph_data, font->glyphCount);
+		font->glyphs = oc_malloc_array(oc_glyph_data, font->glyphCount);
 
 		//NOTE(martin): first do a count of outlines
 		int outlineCount = 0;
 		for(int rangeIndex=0; rangeIndex<rangeCount; rangeIndex++)
 		{
-			utf32 codePoint = font->glyphMap[rangeIndex].range.firstCodePoint;
+			oc_utf32 codePoint = font->glyphMap[rangeIndex].range.firstCodePoint;
 			u32 firstGlyphIndex = font->glyphMap[rangeIndex].firstGlyphIndex;
 			u32 endGlyphIndex = firstGlyphIndex + font->glyphMap[rangeIndex].range.count;
 
@@ -488,20 +441,20 @@ mg_font mg_font_create_from_memory(u32 size, byte* buffer, u32 rangeCount, unico
 			}
 		}
 		//NOTE(martin): allocate outlines
-		font->outlines = malloc_array(mg_path_elt, outlineCount);
+		font->outlines = oc_malloc_array(oc_path_elt, outlineCount);
 		font->outlineCount = 0;
 
 		//NOTE(martin): load metrics and outlines
 		for(int rangeIndex=0; rangeIndex<rangeCount; rangeIndex++)
 		{
-			utf32 codePoint = font->glyphMap[rangeIndex].range.firstCodePoint;
+			oc_utf32 codePoint = font->glyphMap[rangeIndex].range.firstCodePoint;
 			u32 firstGlyphIndex = font->glyphMap[rangeIndex].firstGlyphIndex;
 			u32 endGlyphIndex = firstGlyphIndex + font->glyphMap[rangeIndex].range.count;
 
 			for(int glyphIndex = firstGlyphIndex;
 		    	glyphIndex < endGlyphIndex; glyphIndex++)
 			{
-				mg_glyph_data* glyph = &(font->glyphs[glyphIndex-1]);
+				oc_glyph_data* glyph = &(font->glyphs[glyphIndex-1]);
 
 				int stbttGlyphIndex = stbtt_FindGlyphIndex(&stbttFontInfo, codePoint);
 				if(stbttGlyphIndex == 0)
@@ -533,13 +486,13 @@ mg_font mg_font_create_from_memory(u32 size, byte* buffer, u32 rangeCount, unico
 				stbtt_vertex* vertices = 0;
 				int vertexCount = stbtt_GetGlyphShape(&stbttFontInfo, stbttGlyphIndex, &vertices);
 
-				glyph->pathDescriptor = (mg_path_descriptor){.startIndex = font->outlineCount,
+				glyph->pathDescriptor = (oc_path_descriptor){.startIndex = font->outlineCount,
 			                                                      	.count = vertexCount,
 									      	.startPoint = {0, 0}};
 
-				mg_path_elt* elements = font->outlines + font->outlineCount;
+				oc_path_elt* elements = font->outlines + font->outlineCount;
 				font->outlineCount += vertexCount;
-				vec2 currentPos = {0, 0};
+				oc_vec2 currentPos = {0, 0};
 
 				for(int vertIndex = 0; vertIndex < vertexCount; vertIndex++)
 				{
@@ -553,30 +506,30 @@ mg_font mg_font_create_from_memory(u32 size, byte* buffer, u32 rangeCount, unico
 					switch(vertices[vertIndex].type)
 					{
 						case STBTT_vmove:
-							elements[vertIndex].type = MG_PATH_MOVE;
-							elements[vertIndex].p[0] = (vec2){x, y};
+							elements[vertIndex].type = OC_PATH_MOVE;
+							elements[vertIndex].p[0] = (oc_vec2){x, y};
 							break;
 
 						case STBTT_vline:
-							elements[vertIndex].type = MG_PATH_LINE;
-							elements[vertIndex].p[0] = (vec2){x, y};
+							elements[vertIndex].type = OC_PATH_LINE;
+							elements[vertIndex].p[0] = (oc_vec2){x, y};
 							break;
 
 						case STBTT_vcurve:
 						{
-							elements[vertIndex].type = MG_PATH_QUADRATIC;
-							elements[vertIndex].p[0] = (vec2){cx, cy};
-							elements[vertIndex].p[1] = (vec2){x, y};
+							elements[vertIndex].type = OC_PATH_QUADRATIC;
+							elements[vertIndex].p[0] = (oc_vec2){cx, cy};
+							elements[vertIndex].p[1] = (oc_vec2){x, y};
 						} break;
 
 						case STBTT_vcubic:
-							elements[vertIndex].type = MG_PATH_CUBIC;
-							elements[vertIndex].p[0] = (vec2){cx, cy};
-							elements[vertIndex].p[1] = (vec2){cx1, cy1};
-							elements[vertIndex].p[2] = (vec2){x, y};
+							elements[vertIndex].type = OC_PATH_CUBIC;
+							elements[vertIndex].p[0] = (oc_vec2){cx, cy};
+							elements[vertIndex].p[1] = (oc_vec2){cx1, cy1};
+							elements[vertIndex].p[2] = (oc_vec2){x, y};
 							break;
 					}
-					currentPos = (vec2){x, y};
+					currentPos = (oc_vec2){x, y};
 				}
 				stbtt_FreeShape(&stbttFontInfo, vertices);
 				codePoint++;
@@ -586,23 +539,23 @@ mg_font mg_font_create_from_memory(u32 size, byte* buffer, u32 rangeCount, unico
 	return(fontHandle);
 }
 
-void mg_font_destroy(mg_font fontHandle)
+void oc_font_destroy(oc_font fontHandle)
 {
-	mg_font_data* fontData = mg_font_data_from_handle(fontHandle);
+	oc_font_data* fontData = oc_font_data_from_handle(fontHandle);
 	if(fontData)
 	{
 		free(fontData->glyphMap);
 		free(fontData->glyphs);
 		free(fontData->outlines);
 
-		list_push(&__mgData.fontFreeList, &fontData->freeListElt);
-		mg_handle_recycle(fontHandle.h);
+		oc_list_push(&oc_graphicsData.fontFreeList, &fontData->freeListElt);
+		oc_graphics_handle_recycle(fontHandle.h);
 	}
 }
 
-str32 mg_font_get_glyph_indices_from_font_data(mg_font_data* fontData, str32 codePoints, str32 backing)
+oc_str32 oc_font_get_glyph_indices_from_font_data(oc_font_data* fontData, oc_str32 codePoints, oc_str32 backing)
 {
-	u64 count = minimum(codePoints.len, backing.len);
+	u64 count = oc_min(codePoints.len, backing.len);
 
 	for(int i = 0; i<count; i++)
 	{
@@ -623,71 +576,71 @@ str32 mg_font_get_glyph_indices_from_font_data(mg_font_data* fontData, str32 cod
 		}
 		backing.ptr[i] = glyphIndex;
 	}
-	str32 res = {.len = count, .ptr = backing.ptr};
+	oc_str32 res = {.len = count, .ptr = backing.ptr};
 	return(res);
 }
 
-u32 mg_font_get_glyph_index_from_font_data(mg_font_data* fontData, utf32 codePoint)
+u32 oc_font_get_glyph_index_from_font_data(oc_font_data* fontData, oc_utf32 codePoint)
 {
 	u32 glyphIndex = 0;
-	str32 codePoints = {1, &codePoint};
-	str32 backing = {1, &glyphIndex};
-	mg_font_get_glyph_indices_from_font_data(fontData, codePoints, backing);
+	oc_str32 codePoints = {1, &codePoint};
+	oc_str32 backing = {1, &glyphIndex};
+	oc_font_get_glyph_indices_from_font_data(fontData, codePoints, backing);
 	return(glyphIndex);
 }
 
-str32 mg_font_get_glyph_indices(mg_font font, str32 codePoints, str32 backing)
+oc_str32 oc_font_get_glyph_indices(oc_font font, oc_str32 codePoints, oc_str32 backing)
 {
-	mg_font_data* fontData = mg_font_data_from_handle(font);
+	oc_font_data* fontData = oc_font_data_from_handle(font);
 	if(!fontData)
 	{
-		return((str32){0});
+		return((oc_str32){0});
 	}
-	return(mg_font_get_glyph_indices_from_font_data(fontData, codePoints, backing));
+	return(oc_font_get_glyph_indices_from_font_data(fontData, codePoints, backing));
 }
 
-str32 mg_font_push_glyph_indices(mg_font font, mem_arena* arena, str32 codePoints)
+oc_str32 oc_font_push_glyph_indices(oc_font font, oc_arena* arena, oc_str32 codePoints)
 {
-	u32* buffer = mem_arena_alloc_array(arena, u32, codePoints.len);
-	str32 backing = {codePoints.len, buffer};
-	return(mg_font_get_glyph_indices(font, codePoints, backing));
+	u32* buffer = oc_arena_push_array(arena, u32, codePoints.len);
+	oc_str32 backing = {codePoints.len, buffer};
+	return(oc_font_get_glyph_indices(font, codePoints, backing));
 }
 
-u32 mg_font_get_glyph_index(mg_font font, utf32 codePoint)
+u32 oc_font_get_glyph_index(oc_font font, oc_utf32 codePoint)
 {
 	u32 glyphIndex = 0;
-	str32 codePoints = {1, &codePoint};
-	str32 backing = {1, &glyphIndex};
-	mg_font_get_glyph_indices(font, codePoints, backing);
+	oc_str32 codePoints = {1, &codePoint};
+	oc_str32 backing = {1, &glyphIndex};
+	oc_font_get_glyph_indices(font, codePoints, backing);
 	return(glyphIndex);
 }
 
-mg_glyph_data* mg_font_get_glyph_data(mg_font_data* fontData, u32 glyphIndex)
+oc_glyph_data* oc_font_get_glyph_data(oc_font_data* fontData, u32 glyphIndex)
 {
-	DEBUG_ASSERT(glyphIndex);
-	DEBUG_ASSERT(glyphIndex < fontData->glyphCount);
+	OC_DEBUG_ASSERT(glyphIndex);
+	OC_DEBUG_ASSERT(glyphIndex < fontData->glyphCount);
 	return(&(fontData->glyphs[glyphIndex-1]));
 }
 
-mg_font_extents mg_font_get_extents(mg_font font)
+oc_font_extents oc_font_get_extents(oc_font font)
 {
-	mg_font_data* fontData = mg_font_data_from_handle(font);
+	oc_font_data* fontData = oc_font_data_from_handle(font);
 	if(!fontData)
 	{
-		return((mg_font_extents){0});
+		return((oc_font_extents){0});
 	}
 	return(fontData->extents);
 }
 
-mg_font_extents mg_font_get_scaled_extents(mg_font font, f32 emSize)
+oc_font_extents oc_font_get_scaled_extents(oc_font font, f32 emSize)
 {
-	mg_font_data* fontData = mg_font_data_from_handle(font);
+	oc_font_data* fontData = oc_font_data_from_handle(font);
 	if(!fontData)
 	{
-		return((mg_font_extents){0});
+		return((oc_font_extents){0});
 	}
 	f32 scale = emSize/fontData->unitsPerEm;
-	mg_font_extents extents = fontData->extents;
+	oc_font_extents extents = fontData->extents;
 
 	extents.ascent *= scale;
 	extents.descent *= scale;
@@ -700,9 +653,9 @@ mg_font_extents mg_font_get_scaled_extents(mg_font font, f32 emSize)
 }
 
 
-f32 mg_font_get_scale_for_em_pixels(mg_font font, f32 emSize)
+f32 oc_font_get_scale_for_em_pixels(oc_font font, f32 emSize)
 {
-	mg_font_data* fontData = mg_font_data_from_handle(font);
+	oc_font_data* fontData = oc_font_data_from_handle(font);
 	if(!fontData)
 	{
 		return(0);
@@ -710,9 +663,9 @@ f32 mg_font_get_scale_for_em_pixels(mg_font font, f32 emSize)
 	return(emSize/fontData->unitsPerEm);
 }
 
-void mg_font_get_glyph_extents_from_font_data(mg_font_data* fontData,
-                                              str32 glyphIndices,
-                                              mg_text_extents* outExtents)
+void oc_font_get_glyph_extents_from_font_data(oc_font_data* fontData,
+                                              oc_str32 glyphIndices,
+                                              oc_text_extents* outExtents)
 {
 	for(int i=0; i<glyphIndices.len; i++)
 	{
@@ -720,61 +673,61 @@ void mg_font_get_glyph_extents_from_font_data(mg_font_data* fontData,
 		{
 			continue;
 		}
-		mg_glyph_data* glyph = mg_font_get_glyph_data(fontData, glyphIndices.ptr[i]);
+		oc_glyph_data* glyph = oc_font_get_glyph_data(fontData, glyphIndices.ptr[i]);
 		outExtents[i] = glyph->extents;
 	}
 }
 
-int mg_font_get_glyph_extents(mg_font font, str32 glyphIndices, mg_text_extents* outExtents)
+int oc_font_get_glyph_extents(oc_font font, oc_str32 glyphIndices, oc_text_extents* outExtents)
 {
-	mg_font_data* fontData = mg_font_data_from_handle(font);
+	oc_font_data* fontData = oc_font_data_from_handle(font);
 	if(!fontData)
 	{
 		return(-1);
 	}
-	mg_font_get_glyph_extents_from_font_data(fontData, glyphIndices, outExtents);
+	oc_font_get_glyph_extents_from_font_data(fontData, glyphIndices, outExtents);
 	return(0);
 }
 
-int mg_font_get_codepoint_extents(mg_font font, utf32 codePoint, mg_text_extents* outExtents)
+int oc_font_get_codepoint_extents(oc_font font, oc_utf32 codePoint, oc_text_extents* outExtents)
 {
-	mg_font_data* fontData = mg_font_data_from_handle(font);
+	oc_font_data* fontData = oc_font_data_from_handle(font);
 	if(!fontData)
 	{
 		return(-1);
 	}
 	u32 glyphIndex = 0;
-	str32 codePoints = {1, &codePoint};
-	str32 backing = {1, &glyphIndex};
-	str32 glyphs = mg_font_get_glyph_indices_from_font_data(fontData, codePoints, backing);
-	mg_font_get_glyph_extents_from_font_data(fontData, glyphs, outExtents);
+	oc_str32 codePoints = {1, &codePoint};
+	oc_str32 backing = {1, &glyphIndex};
+	oc_str32 glyphs = oc_font_get_glyph_indices_from_font_data(fontData, codePoints, backing);
+	oc_font_get_glyph_extents_from_font_data(fontData, glyphs, outExtents);
 	return(0);
 }
 
-mp_rect mg_text_bounding_box_utf32(mg_font font, f32 fontSize, str32 codePoints)
+oc_rect oc_text_bounding_box_utf32(oc_font font, f32 fontSize, oc_str32 codePoints)
 {
 	if(!codePoints.len || !codePoints.ptr)
 	{
-		return((mp_rect){0});
+		return((oc_rect){0});
 	}
 
-	mg_font_data* fontData = mg_font_data_from_handle(font);
+	oc_font_data* fontData = oc_font_data_from_handle(font);
 	if(!fontData)
 	{
-		return((mp_rect){0});
+		return((oc_rect){0});
 	}
 
-	mem_arena* scratch = mem_scratch();
-	str32 glyphIndices = mg_font_push_glyph_indices(font, scratch, codePoints);
+	oc_arena* scratch = oc_scratch();
+	oc_str32 glyphIndices = oc_font_push_glyph_indices(font, scratch, codePoints);
 
 	//NOTE(martin): find width of missing character
 	//TODO(martin): should cache that at font creation...
-	mg_text_extents missingGlyphExtents;
-	u32 missingGlyphIndex = mg_font_get_glyph_index_from_font_data(fontData, 0xfffd);
+	oc_text_extents missingGlyphExtents;
+	u32 missingGlyphIndex = oc_font_get_glyph_index_from_font_data(fontData, 0xfffd);
 
 	if(missingGlyphIndex)
 	{
-		mg_font_get_glyph_extents_from_font_data(fontData, (str32){1, &missingGlyphIndex}, &missingGlyphExtents);
+		oc_font_get_glyph_extents_from_font_data(fontData, (oc_str32){1, &missingGlyphIndex}, &missingGlyphExtents);
 	}
 	else
 	{
@@ -784,10 +737,10 @@ mp_rect mg_text_bounding_box_utf32(mg_font font, f32 fontSize, str32 codePoints)
 		f32 xBearing = fontData->extents.width * 0.1;
 		f32 xAdvance = fontData->extents.width;
 
-		missingGlyphIndex = mg_font_get_glyph_index_from_font_data(fontData, 'x');
+		missingGlyphIndex = oc_font_get_glyph_index_from_font_data(fontData, 'x');
 		if(missingGlyphIndex)
 		{
-			mg_font_get_glyph_extents_from_font_data(fontData, (str32){1, &missingGlyphIndex}, &missingGlyphExtents);
+			oc_font_get_glyph_extents_from_font_data(fontData, (oc_str32){1, &missingGlyphIndex}, &missingGlyphExtents);
 		}
 		else
 		{
@@ -809,15 +762,15 @@ mp_rect mg_text_bounding_box_utf32(mg_font font, f32 fontSize, str32 codePoints)
 	{
 		//TODO(martin): make it failsafe for fonts that don't have a glyph for the line-feed codepoint ?
 
-		mg_glyph_data* glyph = 0;
-		mg_text_extents extents;
+		oc_glyph_data* glyph = 0;
+		oc_text_extents extents;
 		if(!glyphIndices.ptr[i] || glyphIndices.ptr[i] >= fontData->glyphCount)
 		{
 			extents = missingGlyphExtents;
 		}
 		else
 		{
-			glyph = mg_font_get_glyph_data(fontData, glyphIndices.ptr[i]);
+			glyph = oc_font_get_glyph_data(fontData, glyphIndices.ptr[i]);
 			extents = glyph->extents;
 		}
 		x += extents.xAdvance;
@@ -825,114 +778,114 @@ mp_rect mg_text_bounding_box_utf32(mg_font font, f32 fontSize, str32 codePoints)
 
 		if(glyph && glyph->codePoint == '\n')
 		{
-			width = maximum(width, x);
+			width = oc_max(width, x);
 			x = 0;
 			y += lineHeight + fontData->extents.leading;
 		}
 	}
-	width = maximum(width, x);
+	width = oc_max(width, x);
 
-	f32 fontScale = mg_font_get_scale_for_em_pixels(font, fontSize);
-	mp_rect rect = {0, -fontData->extents.ascent * fontScale, width * fontScale, (y + lineHeight) * fontScale };
+	f32 fontScale = oc_font_get_scale_for_em_pixels(font, fontSize);
+	oc_rect rect = {0, -fontData->extents.ascent * fontScale, width * fontScale, (y + lineHeight) * fontScale };
 	return(rect);
 }
 
-mp_rect mg_text_bounding_box(mg_font font, f32 fontSize, str8 text)
+oc_rect oc_text_bounding_box(oc_font font, f32 fontSize, oc_str8 text)
 {
 	if(!text.len || !text.ptr)
 	{
-		return((mp_rect){0});
+		return((oc_rect){0});
 	}
 
-	mem_arena* scratch = mem_scratch();
-	str32 codePoints = utf8_push_to_codepoints(scratch, text);
-	return(mg_text_bounding_box_utf32(font, fontSize, codePoints));
+	oc_arena* scratch = oc_scratch();
+	oc_str32 codePoints = oc_utf8_push_to_codepoints(scratch, text);
+	return(oc_text_bounding_box_utf32(font, fontSize, codePoints));
 }
 
 //------------------------------------------------------------------------------------------
 //NOTE(martin): graphics canvas API
 //------------------------------------------------------------------------------------------
 
-mg_canvas mg_canvas_nil() { return((mg_canvas){.h = 0}); }
-bool mg_canvas_is_nil(mg_canvas canvas) { return(canvas.h == 0); }
+oc_canvas oc_canvas_nil() { return((oc_canvas){.h = 0}); }
+bool oc_canvas_is_nil(oc_canvas canvas) { return(canvas.h == 0); }
 
-mg_canvas mg_canvas_handle_alloc(mg_canvas_data* canvas)
+oc_canvas oc_canvas_handle_alloc(oc_canvas_data* canvas)
 {
-	mg_canvas handle = {.h = mg_handle_alloc(MG_HANDLE_CANVAS, (void*)canvas) };
+	oc_canvas handle = {.h = oc_graphics_handle_alloc(OC_GRAPHICS_HANDLE_CANVAS, (void*)canvas) };
 	return(handle);
 }
 
-mg_canvas_data* mg_canvas_data_from_handle(mg_canvas handle)
+oc_canvas_data* oc_canvas_data_from_handle(oc_canvas handle)
 {
-	mg_canvas_data* data = mg_data_from_handle(MG_HANDLE_CANVAS, handle.h);
+	oc_canvas_data* data = oc_graphics_data_from_handle(OC_GRAPHICS_HANDLE_CANVAS, handle.h);
 	return(data);
 }
 
-mg_canvas mg_canvas_create()
+oc_canvas oc_canvas_create()
 {
-	if(!__mgData.init)
+	if(!oc_graphicsData.init)
 	{
-		mg_init();
+		oc_graphics_init();
 	}
 
-	mg_canvas canvasHandle = mg_canvas_nil();
-	mg_canvas_data* canvas = list_pop_entry(&__mgData.canvasFreeList, mg_canvas_data, freeListElt);
+	oc_canvas canvasHandle = oc_canvas_nil();
+	oc_canvas_data* canvas = oc_list_pop_entry(&oc_graphicsData.canvasFreeList, oc_canvas_data, freeListElt);
 	if(!canvas)
 	{
-		canvas = mem_arena_alloc_type(&__mgData.resourceArena, mg_canvas_data);
+		canvas = oc_arena_push_type(&oc_graphicsData.resourceArena, oc_canvas_data);
 	}
 	if(canvas)
 	{
 		canvas->textFlip = false;
-		canvas->path = (mg_path_descriptor){0};
+		canvas->path = (oc_path_descriptor){0};
 		canvas->matrixStackSize = 0;
 		canvas->clipStackSize = 0;
 		canvas->primitiveCount = 0;
-		canvas->clearColor = (mg_color){0, 0, 0, 0};
+		canvas->clearColor = (oc_color){0, 0, 0, 0};
 
-		canvas->attributes = (mg_attributes){0};
-		canvas->attributes.color = (mg_color){0, 0, 0, 1};
+		canvas->attributes = (oc_attributes){0};
+		canvas->attributes.color = (oc_color){0, 0, 0, 1};
 		canvas->attributes.tolerance = 1;
 		canvas->attributes.width = 10;
-		canvas->attributes.clip = (mp_rect){-FLT_MAX/2, -FLT_MAX/2, FLT_MAX, FLT_MAX};
+		canvas->attributes.clip = (oc_rect){-FLT_MAX/2, -FLT_MAX/2, FLT_MAX, FLT_MAX};
 
-		canvasHandle = mg_canvas_handle_alloc(canvas);
+		canvasHandle = oc_canvas_handle_alloc(canvas);
 
-		mg_canvas_set_current(canvasHandle);
+		oc_canvas_set_current(canvasHandle);
 	}
 	return(canvasHandle);
 }
 
-void mg_canvas_destroy(mg_canvas handle)
+void oc_canvas_destroy(oc_canvas handle)
 {
-	mg_canvas_data* canvas = mg_canvas_data_from_handle(handle);
+	oc_canvas_data* canvas = oc_canvas_data_from_handle(handle);
 	if(canvas)
 	{
 		if(__mgCurrentCanvas == canvas)
 		{
 			__mgCurrentCanvas = 0;
-			__mgCurrentCanvasHandle = mg_canvas_nil();
+			__mgCurrentCanvasHandle = oc_canvas_nil();
 		}
-		list_push(&__mgData.canvasFreeList, &canvas->freeListElt);
-		mg_handle_recycle(handle.h);
+		oc_list_push(&oc_graphicsData.canvasFreeList, &canvas->freeListElt);
+		oc_graphics_handle_recycle(handle.h);
 	}
 }
 
-mg_canvas mg_canvas_set_current(mg_canvas canvas)
+oc_canvas oc_canvas_set_current(oc_canvas canvas)
 {
-	mg_canvas old = __mgCurrentCanvasHandle;
+	oc_canvas old = __mgCurrentCanvasHandle;
 	__mgCurrentCanvasHandle = canvas;
-	__mgCurrentCanvas = mg_canvas_data_from_handle(canvas);
+	__mgCurrentCanvas = oc_canvas_data_from_handle(canvas);
 	return(old);
 }
 
-void mg_render(mg_surface surface, mg_canvas canvas)
+void oc_render(oc_surface surface, oc_canvas canvas)
 {
-	mg_canvas_data* canvasData = mg_canvas_data_from_handle(canvas);
+	oc_canvas_data* canvasData = oc_canvas_data_from_handle(canvas);
 	if(canvasData)
 	{
 		int eltCount = canvasData->path.startIndex + canvasData->path.count;
-		mg_surface_render_commands(surface,
+		oc_surface_render_commands(surface,
 		                           canvasData->clearColor,
 		                           canvasData->primitiveCount,
 		                           canvasData->primitives,
@@ -949,182 +902,182 @@ void mg_render(mg_surface surface, mg_canvas canvas)
 //NOTE(martin): transform, viewport and clipping
 //------------------------------------------------------------------------------------------
 
-void mg_matrix_push(mg_mat2x3 matrix)
+void oc_matrix_push(oc_mat2x3 matrix)
 {
-	mg_canvas_data* canvas = __mgCurrentCanvas;
+	oc_canvas_data* canvas = __mgCurrentCanvas;
 	if(canvas)
 	{
-		mg_mat2x3 transform = mg_matrix_stack_top(canvas);
-		mg_matrix_stack_push(canvas, mg_mat2x3_mul_m(transform, matrix));
+		oc_mat2x3 transform = oc_matrix_stack_top(canvas);
+		oc_matrix_stack_push(canvas, oc_mat2x3_mul_m(transform, matrix));
 	}
 }
 
-void mg_matrix_pop()
+void oc_matrix_pop()
 {
-	mg_canvas_data* canvas = __mgCurrentCanvas;
+	oc_canvas_data* canvas = __mgCurrentCanvas;
 	if(canvas)
 	{
-		mg_matrix_stack_pop(canvas);
+		oc_matrix_stack_pop(canvas);
 	}
 }
 
-void mg_clip_push(f32 x, f32 y, f32 w, f32 h)
+void oc_clip_push(f32 x, f32 y, f32 w, f32 h)
 {
-	mg_canvas_data* canvas = __mgCurrentCanvas;
+	oc_canvas_data* canvas = __mgCurrentCanvas;
 	if(canvas)
 	{
-		mp_rect clip = {x, y, w, h};
+		oc_rect clip = {x, y, w, h};
 
 		//NOTE(martin): transform clip
-		mg_mat2x3 transform = mg_matrix_stack_top(canvas);
-		vec2 p0 = mg_mat2x3_mul(transform, (vec2){clip.x, clip.y});
-		vec2 p1 = mg_mat2x3_mul(transform, (vec2){clip.x + clip.w, clip.y});
-		vec2 p2 = mg_mat2x3_mul(transform, (vec2){clip.x + clip.w, clip.y + clip.h});
-		vec2 p3 = mg_mat2x3_mul(transform, (vec2){clip.x, clip.y + clip.h});
+		oc_mat2x3 transform = oc_matrix_stack_top(canvas);
+		oc_vec2 p0 = oc_mat2x3_mul(transform, (oc_vec2){clip.x, clip.y});
+		oc_vec2 p1 = oc_mat2x3_mul(transform, (oc_vec2){clip.x + clip.w, clip.y});
+		oc_vec2 p2 = oc_mat2x3_mul(transform, (oc_vec2){clip.x + clip.w, clip.y + clip.h});
+		oc_vec2 p3 = oc_mat2x3_mul(transform, (oc_vec2){clip.x, clip.y + clip.h});
 
-		f32 x0 = minimum(p0.x, minimum(p1.x, minimum(p2.x, p3.x)));
-		f32 y0 = minimum(p0.y, minimum(p1.y, minimum(p2.y, p3.y)));
-		f32 x1 = maximum(p0.x, maximum(p1.x, maximum(p2.x, p3.x)));
-		f32 y1 = maximum(p0.y, maximum(p1.y, maximum(p2.y, p3.y)));
+		f32 x0 = oc_min(p0.x, oc_min(p1.x, oc_min(p2.x, p3.x)));
+		f32 y0 = oc_min(p0.y, oc_min(p1.y, oc_min(p2.y, p3.y)));
+		f32 x1 = oc_max(p0.x, oc_max(p1.x, oc_max(p2.x, p3.x)));
+		f32 y1 = oc_max(p0.y, oc_max(p1.y, oc_max(p2.y, p3.y)));
 
-		mp_rect current = mg_clip_stack_top(canvas);
+		oc_rect current = oc_clip_stack_top(canvas);
 
 		//NOTE(martin): intersect with current clip
-		x0 = maximum(current.x, x0);
-		y0 = maximum(current.y, y0);
-		x1 = minimum(current.x + current.w, x1);
-		y1 = minimum(current.y + current.h, y1);
+		x0 = oc_max(current.x, x0);
+		y0 = oc_max(current.y, y0);
+		x1 = oc_min(current.x + current.w, x1);
+		y1 = oc_min(current.y + current.h, y1);
 
-		mp_rect r = {x0, y0, maximum(0, x1-x0), maximum(0, y1-y0)};
-		mg_clip_stack_push(canvas, r);
+		oc_rect r = {x0, y0, oc_max(0, x1-x0), oc_max(0, y1-y0)};
+		oc_clip_stack_push(canvas, r);
 
 		canvas->attributes.clip = r;
 	}
 }
 
-void mg_clip_pop()
+void oc_clip_pop()
 {
-	mg_canvas_data* canvas = __mgCurrentCanvas;
+	oc_canvas_data* canvas = __mgCurrentCanvas;
 	if(canvas)
 	{
-		mg_clip_stack_pop(canvas);
-		canvas->attributes.clip = mg_clip_stack_top(canvas);
+		oc_clip_stack_pop(canvas);
+		canvas->attributes.clip = oc_clip_stack_top(canvas);
 	}
 }
 
 //------------------------------------------------------------------------------------------
 //NOTE(martin): graphics attributes setting/getting
 //------------------------------------------------------------------------------------------
-void mg_set_color(mg_color color)
+void oc_set_color(oc_color color)
 {
-	mg_canvas_data* canvas = __mgCurrentCanvas;
+	oc_canvas_data* canvas = __mgCurrentCanvas;
 	if(canvas)
 	{
 		canvas->attributes.color = color;
 	}
 }
 
-void mg_set_color_rgba(f32 r, f32 g, f32 b, f32 a)
+void oc_set_color_rgba(f32 r, f32 g, f32 b, f32 a)
 {
-	mg_set_color((mg_color){r, g, b, a});
+	oc_set_color((oc_color){r, g, b, a});
 }
 
-void mg_set_width(f32 width)
+void oc_set_width(f32 width)
 {
-	mg_canvas_data* canvas = __mgCurrentCanvas;
+	oc_canvas_data* canvas = __mgCurrentCanvas;
 	if(canvas)
 	{
 		canvas->attributes.width = width;
 	}
 }
 
-void mg_set_tolerance(f32 tolerance)
+void oc_set_tolerance(f32 tolerance)
 {
-	mg_canvas_data* canvas = __mgCurrentCanvas;
+	oc_canvas_data* canvas = __mgCurrentCanvas;
 	if(canvas)
 	{
 		canvas->attributes.tolerance = tolerance;
 	}
 }
 
-void mg_set_joint(mg_joint_type joint)
+void oc_set_joint(oc_joint_type joint)
 {
-	mg_canvas_data* canvas = __mgCurrentCanvas;
+	oc_canvas_data* canvas = __mgCurrentCanvas;
 	if(canvas)
 	{
 		canvas->attributes.joint = joint;
 	}
 }
 
-void mg_set_max_joint_excursion(f32 maxJointExcursion)
+void oc_set_max_joint_excursion(f32 maxJointExcursion)
 {
-	mg_canvas_data* canvas = __mgCurrentCanvas;
+	oc_canvas_data* canvas = __mgCurrentCanvas;
 	if(canvas)
 	{
 		canvas->attributes.maxJointExcursion = maxJointExcursion;
 	}
 }
 
-void mg_set_cap(mg_cap_type cap)
+void oc_set_cap(oc_cap_type cap)
 {
-	mg_canvas_data* canvas = __mgCurrentCanvas;
+	oc_canvas_data* canvas = __mgCurrentCanvas;
 	if(canvas)
 	{
 		canvas->attributes.cap = cap;
 	}
 }
 
-void mg_set_font(mg_font font)
+void oc_set_font(oc_font font)
 {
-	mg_canvas_data* canvas = __mgCurrentCanvas;
+	oc_canvas_data* canvas = __mgCurrentCanvas;
 	if(canvas)
 	{
 		canvas->attributes.font = font;
 	}
 }
 
-void mg_set_font_size(f32 fontSize)
+void oc_set_font_size(f32 fontSize)
 {
-	mg_canvas_data* canvas = __mgCurrentCanvas;
+	oc_canvas_data* canvas = __mgCurrentCanvas;
 	if(canvas)
 	{
 		canvas->attributes.fontSize = fontSize;
 	}
 }
 
-void mg_set_text_flip(bool flip)
+void oc_set_text_flip(bool flip)
 {
-	mg_canvas_data* canvas = __mgCurrentCanvas;
+	oc_canvas_data* canvas = __mgCurrentCanvas;
 	if(canvas)
 	{
 		canvas->textFlip = flip;
 	}
 }
 
-void mg_set_image(mg_image image)
+void oc_set_image(oc_image image)
 {
-	mg_canvas_data* canvas = __mgCurrentCanvas;
+	oc_canvas_data* canvas = __mgCurrentCanvas;
 	if(canvas)
 	{
 		canvas->attributes.image = image;
-		vec2 size = mg_image_size(image);
-		canvas->attributes.srcRegion = (mp_rect){0, 0, size.x, size.y};
+		oc_vec2 size = oc_image_size(image);
+		canvas->attributes.srcRegion = (oc_rect){0, 0, size.x, size.y};
 	}
 }
 
-void mg_set_image_source_region(mp_rect region)
+void oc_set_image_source_region(oc_rect region)
 {
-	mg_canvas_data* canvas = __mgCurrentCanvas;
+	oc_canvas_data* canvas = __mgCurrentCanvas;
 	if(canvas)
 	{
 		canvas->attributes.srcRegion = region;
 	}
 }
 
-mg_color mg_get_color()
+oc_color oc_get_color()
 {
-	mg_color color = {0};
-	mg_canvas_data* canvas = __mgCurrentCanvas;
+	oc_color color = {0};
+	oc_canvas_data* canvas = __mgCurrentCanvas;
 	if(canvas)
 	{
 		color = canvas->attributes.color;
@@ -1132,10 +1085,10 @@ mg_color mg_get_color()
 	return(color);
 }
 
-f32 mg_get_width()
+f32 oc_get_width()
 {
 	f32 width = 0;
-	mg_canvas_data* canvas = __mgCurrentCanvas;
+	oc_canvas_data* canvas = __mgCurrentCanvas;
 	if(canvas)
 	{
 		width = canvas->attributes.width;
@@ -1143,10 +1096,10 @@ f32 mg_get_width()
 	return(width);
 }
 
-f32 mg_get_tolerance()
+f32 oc_get_tolerance()
 {
 	f32 tolerance = 0;
-	mg_canvas_data* canvas = __mgCurrentCanvas;
+	oc_canvas_data* canvas = __mgCurrentCanvas;
 	if(canvas)
 	{
 		tolerance = canvas->attributes.tolerance;
@@ -1154,10 +1107,10 @@ f32 mg_get_tolerance()
 	return(tolerance);
 }
 
-mg_joint_type mg_get_joint()
+oc_joint_type oc_get_joint()
 {
-	mg_joint_type joint = 0;
-	mg_canvas_data* canvas = __mgCurrentCanvas;
+	oc_joint_type joint = 0;
+	oc_canvas_data* canvas = __mgCurrentCanvas;
 	if(canvas)
 	{
 		joint = canvas->attributes.joint;
@@ -1165,10 +1118,10 @@ mg_joint_type mg_get_joint()
 	return(joint);
 }
 
-f32 mg_get_max_joint_excursion()
+f32 oc_get_max_joint_excursion()
 {
 	f32 maxJointExcursion = 0;
-	mg_canvas_data* canvas = __mgCurrentCanvas;
+	oc_canvas_data* canvas = __mgCurrentCanvas;
 	if(canvas)
 	{
 		maxJointExcursion = canvas->attributes.maxJointExcursion;
@@ -1176,10 +1129,10 @@ f32 mg_get_max_joint_excursion()
 	return(maxJointExcursion);
 }
 
-mg_cap_type mg_get_cap()
+oc_cap_type oc_get_cap()
 {
-	mg_cap_type cap = 0;
-	mg_canvas_data* canvas = __mgCurrentCanvas;
+	oc_cap_type cap = 0;
+	oc_canvas_data* canvas = __mgCurrentCanvas;
 	if(canvas)
 	{
 		cap = canvas->attributes.cap;
@@ -1187,10 +1140,10 @@ mg_cap_type mg_get_cap()
 	return(cap);
 }
 
-mg_font mg_get_font()
+oc_font oc_get_font()
 {
-	mg_font font = mg_font_nil();
-	mg_canvas_data* canvas = __mgCurrentCanvas;
+	oc_font font = oc_font_nil();
+	oc_canvas_data* canvas = __mgCurrentCanvas;
 	if(canvas)
 	{
 		font = canvas->attributes.font;
@@ -1198,10 +1151,10 @@ mg_font mg_get_font()
 	return(font);
 }
 
-f32 mg_get_font_size()
+f32 oc_get_font_size()
 {
 	f32 fontSize = 0;
-	mg_canvas_data* canvas = __mgCurrentCanvas;
+	oc_canvas_data* canvas = __mgCurrentCanvas;
 	if(canvas)
 	{
 		fontSize = canvas->attributes.fontSize;
@@ -1209,10 +1162,10 @@ f32 mg_get_font_size()
 	return(fontSize);
 }
 
-bool mg_get_text_flip()
+bool oc_get_text_flip()
 {
 	bool flip = false;
-	mg_canvas_data* canvas = __mgCurrentCanvas;
+	oc_canvas_data* canvas = __mgCurrentCanvas;
 	if(canvas)
 	{
 		flip = canvas->textFlip;
@@ -1223,64 +1176,64 @@ bool mg_get_text_flip()
 //------------------------------------------------------------------------------------------
 //NOTE(martin): path construction
 //------------------------------------------------------------------------------------------
-vec2 mg_get_position()
+oc_vec2 oc_get_position()
 {
-	mg_canvas_data* canvas = __mgCurrentCanvas;
+	oc_canvas_data* canvas = __mgCurrentCanvas;
 	if(!canvas)
 	{
-		return((vec2){0, 0});
+		return((oc_vec2){0, 0});
 	}
 	return(canvas->subPathLastPoint);
 }
 
-void mg_move_to(f32 x, f32 y)
+void oc_move_to(f32 x, f32 y)
 {
-	mg_canvas_data* canvas = __mgCurrentCanvas;
+	oc_canvas_data* canvas = __mgCurrentCanvas;
 	if(!canvas)
 	{
 		return;
 	}
-	mg_path_push_element(canvas, ((mg_path_elt){.type = MG_PATH_MOVE, .p[0] = {x, y}}));
-	canvas->subPathStartPoint = (vec2){x, y};
-	canvas->subPathLastPoint = (vec2){x, y};
+	oc_path_push_element(canvas, ((oc_path_elt){.type = OC_PATH_MOVE, .p[0] = {x, y}}));
+	canvas->subPathStartPoint = (oc_vec2){x, y};
+	canvas->subPathLastPoint = (oc_vec2){x, y};
 }
 
-void mg_line_to(f32 x, f32 y)
+void oc_line_to(f32 x, f32 y)
 {
-	mg_canvas_data* canvas = __mgCurrentCanvas;
+	oc_canvas_data* canvas = __mgCurrentCanvas;
 	if(!canvas)
 	{
 		return;
 	}
-	mg_path_push_element(canvas, ((mg_path_elt){.type = MG_PATH_LINE, .p[0] = {x, y}}));
-	canvas->subPathLastPoint = (vec2){x, y};
+	oc_path_push_element(canvas, ((oc_path_elt){.type = OC_PATH_LINE, .p[0] = {x, y}}));
+	canvas->subPathLastPoint = (oc_vec2){x, y};
 }
 
-void mg_quadratic_to(f32 x1, f32 y1, f32 x2, f32 y2)
+void oc_quadratic_to(f32 x1, f32 y1, f32 x2, f32 y2)
 {
-	mg_canvas_data* canvas = __mgCurrentCanvas;
+	oc_canvas_data* canvas = __mgCurrentCanvas;
 	if(!canvas)
 	{
 		return;
 	}
-	mg_path_push_element(canvas, ((mg_path_elt){.type = MG_PATH_QUADRATIC, .p = {{x1, y1}, {x2, y2}}}));
-	canvas->subPathLastPoint = (vec2){x2, y2};
+	oc_path_push_element(canvas, ((oc_path_elt){.type = OC_PATH_QUADRATIC, .p = {{x1, y1}, {x2, y2}}}));
+	canvas->subPathLastPoint = (oc_vec2){x2, y2};
 }
 
-void mg_cubic_to(f32 x1, f32 y1, f32 x2, f32 y2, f32 x3, f32 y3)
+void oc_cubic_to(f32 x1, f32 y1, f32 x2, f32 y2, f32 x3, f32 y3)
 {
-	mg_canvas_data* canvas = __mgCurrentCanvas;
+	oc_canvas_data* canvas = __mgCurrentCanvas;
 	if(!canvas)
 	{
 		return;
 	}
-	mg_path_push_element(canvas, ((mg_path_elt){.type = MG_PATH_CUBIC, .p = {{x1, y1}, {x2, y2}, {x3, y3}}}));
-	canvas->subPathLastPoint = (vec2){x3, y3};
+	oc_path_push_element(canvas, ((oc_path_elt){.type = OC_PATH_CUBIC, .p = {{x1, y1}, {x2, y2}, {x3, y3}}}));
+	canvas->subPathLastPoint = (oc_vec2){x3, y3};
 }
 
-void mg_close_path()
+void oc_close_path()
 {
-	mg_canvas_data* canvas = __mgCurrentCanvas;
+	oc_canvas_data* canvas = __mgCurrentCanvas;
 	if(!canvas)
 	{
 		return;
@@ -1288,14 +1241,14 @@ void mg_close_path()
 	if(  canvas->subPathStartPoint.x != canvas->subPathLastPoint.x
 	  || canvas->subPathStartPoint.y != canvas->subPathLastPoint.y)
 	{
-		mg_line_to(canvas->subPathStartPoint.x, canvas->subPathStartPoint.y);
+		oc_line_to(canvas->subPathStartPoint.x, canvas->subPathStartPoint.y);
 	}
 	canvas->subPathStartPoint = canvas->subPathLastPoint;
 }
 
-mp_rect mg_glyph_outlines_from_font_data(mg_font_data* fontData, str32 glyphIndices)
+oc_rect oc_glyph_outlines_from_font_data(oc_font_data* fontData, oc_str32 glyphIndices)
 {
-	mg_canvas_data* canvas = __mgCurrentCanvas;
+	oc_canvas_data* canvas = __mgCurrentCanvas;
 
 	f32 startX = canvas->subPathLastPoint.x;
 	f32 startY = canvas->subPathLastPoint.y;
@@ -1313,9 +1266,9 @@ mp_rect mg_glyph_outlines_from_font_data(mg_font_data* fontData, str32 glyphIndi
 
 		if(!glyphIndex || glyphIndex >= fontData->glyphCount)
 		{
-			log_warning("code point is not present in font ranges\n");
+			oc_log_warning("code point is not present in font ranges\n");
 			//NOTE(martin): try to find the replacement character
-			glyphIndex = mg_font_get_glyph_index_from_font_data(fontData, 0xfffd);
+			glyphIndex = oc_font_get_glyph_index_from_font_data(fontData, 0xfffd);
 			if(!glyphIndex)
 			{
 				//NOTE(martin): could not find replacement glyph, try to get an 'x' to get a somewhat correct width
@@ -1324,34 +1277,34 @@ mp_rect mg_glyph_outlines_from_font_data(mg_font_data* fontData, str32 glyphIndi
 				f32 xBearing = fontData->extents.width * 0.1;
 				f32 xAdvance = fontData->extents.width;
 
-				glyphIndex = mg_font_get_glyph_index_from_font_data(fontData, 'x');
+				glyphIndex = oc_font_get_glyph_index_from_font_data(fontData, 'x');
 				if(glyphIndex)
 				{
-					mg_glyph_data* glyph = &(fontData->glyphs[glyphIndex]);
+					oc_glyph_data* glyph = &(fontData->glyphs[glyphIndex]);
 					boxWidth = glyph->extents.width;
 					xBearing = glyph->extents.xBearing;
 					xAdvance = glyph->extents.xAdvance;
 				}
 				f32 oldStrokeWidth = canvas->attributes.width;
 
-				mg_set_width(boxWidth*0.005);
-				mg_rectangle_stroke(xOffset + xBearing * scale,
+				oc_set_width(boxWidth*0.005);
+				oc_rectangle_stroke(xOffset + xBearing * scale,
 				                    yOffset,
 				                    boxWidth * scale * flip,
 				                    fontData->extents.capHeight*scale);
 
-				mg_set_width(oldStrokeWidth);
-				mg_move_to(xOffset + xAdvance * scale, yOffset);
-				maxWidth = maximum(maxWidth, xOffset + xAdvance*scale - startX);
+				oc_set_width(oldStrokeWidth);
+				oc_move_to(xOffset + xAdvance * scale, yOffset);
+				maxWidth = oc_max(maxWidth, xOffset + xAdvance*scale - startX);
 				continue;
 			}
 		}
 
-		mg_glyph_data* glyph = mg_font_get_glyph_data(fontData, glyphIndex);
+		oc_glyph_data* glyph = oc_font_get_glyph_data(fontData, glyphIndex);
 
-		mg_path_push_elements(canvas, glyph->pathDescriptor.count, fontData->outlines + glyph->pathDescriptor.startIndex);
+		oc_path_push_elements(canvas, glyph->pathDescriptor.count, fontData->outlines + glyph->pathDescriptor.startIndex);
 
-		mg_path_elt* elements = canvas->pathElements + canvas->path.count + canvas->path.startIndex - glyph->pathDescriptor.count;
+		oc_path_elt* elements = canvas->pathElements + canvas->path.count + canvas->path.startIndex - glyph->pathDescriptor.count;
 		for(int eltIndex=0; eltIndex<glyph->pathDescriptor.count; eltIndex++)
 		{
 			for(int pIndex = 0; pIndex < 3; pIndex++)
@@ -1360,74 +1313,74 @@ mp_rect mg_glyph_outlines_from_font_data(mg_font_data* fontData, str32 glyphIndi
 				elements[eltIndex].p[pIndex].y = elements[eltIndex].p[pIndex].y * scale * flip + yOffset;
 			}
 		}
-		mg_move_to(xOffset + scale*glyph->extents.xAdvance, yOffset);
+		oc_move_to(xOffset + scale*glyph->extents.xAdvance, yOffset);
 
-		maxWidth = maximum(maxWidth, xOffset + scale*glyph->extents.xAdvance - startX);
+		maxWidth = oc_max(maxWidth, xOffset + scale*glyph->extents.xAdvance - startX);
 	}
 	f32 lineHeight = (fontData->extents.ascent + fontData->extents.descent)*scale;
-	mp_rect box = {startX, startY, maxWidth, canvas->subPathLastPoint.y - startY + lineHeight };
+	oc_rect box = {startX, startY, maxWidth, canvas->subPathLastPoint.y - startY + lineHeight };
 	return(box);
 }
 
-mp_rect mg_glyph_outlines(str32 glyphIndices)
+oc_rect oc_glyph_outlines(oc_str32 glyphIndices)
 {
-	mg_canvas_data* canvas = __mgCurrentCanvas;
+	oc_canvas_data* canvas = __mgCurrentCanvas;
 	if(!canvas)
 	{
-		return((mp_rect){0});
+		return((oc_rect){0});
 	}
-	mg_font_data* fontData = mg_font_data_from_handle(canvas->attributes.font);
+	oc_font_data* fontData = oc_font_data_from_handle(canvas->attributes.font);
 	if(!fontData)
 	{
-		return((mp_rect){0});
+		return((oc_rect){0});
 	}
-	return(mg_glyph_outlines_from_font_data(fontData, glyphIndices));
+	return(oc_glyph_outlines_from_font_data(fontData, glyphIndices));
 }
 
-void mg_codepoints_outlines(str32 codePoints)
+void oc_codepoints_outlines(oc_str32 codePoints)
 {
-	mg_canvas_data* canvas = __mgCurrentCanvas;
+	oc_canvas_data* canvas = __mgCurrentCanvas;
 	if(!canvas)
 	{
 		return;
 	}
-	mg_font_data* fontData = mg_font_data_from_handle(canvas->attributes.font);
+	oc_font_data* fontData = oc_font_data_from_handle(canvas->attributes.font);
 	if(!fontData)
 	{
 		return;
 	}
 
-	str32 glyphIndices = mg_font_push_glyph_indices(canvas->attributes.font, mem_scratch(), codePoints);
-	mg_glyph_outlines_from_font_data(fontData, glyphIndices);
+	oc_str32 glyphIndices = oc_font_push_glyph_indices(canvas->attributes.font, oc_scratch(), codePoints);
+	oc_glyph_outlines_from_font_data(fontData, glyphIndices);
 }
 
-void mg_text_outlines(str8 text)
+void oc_text_outlines(oc_str8 text)
 {
-	mg_canvas_data* canvas = __mgCurrentCanvas;
+	oc_canvas_data* canvas = __mgCurrentCanvas;
 	if(!canvas)
 	{
 		return;
 	}
-	mg_font_data* fontData = mg_font_data_from_handle(canvas->attributes.font);
+	oc_font_data* fontData = oc_font_data_from_handle(canvas->attributes.font);
 	if(!fontData)
 	{
 		return;
 	}
 
-	mem_arena* scratch = mem_scratch();
-	str32 codePoints = utf8_push_to_codepoints(scratch, text);
-	str32 glyphIndices = mg_font_push_glyph_indices(canvas->attributes.font, scratch, codePoints);
+	oc_arena* scratch = oc_scratch();
+	oc_str32 codePoints = oc_utf8_push_to_codepoints(scratch, text);
+	oc_str32 glyphIndices = oc_font_push_glyph_indices(canvas->attributes.font, scratch, codePoints);
 
-	mg_glyph_outlines_from_font_data(fontData, glyphIndices);
+	oc_glyph_outlines_from_font_data(fontData, glyphIndices);
 }
 
 //------------------------------------------------------------------------------------------
 //NOTE(martin): clear/fill/stroke
 //------------------------------------------------------------------------------------------
 
-void mg_clear()
+void oc_clear()
 {
-	mg_canvas_data* canvas = __mgCurrentCanvas;
+	oc_canvas_data* canvas = __mgCurrentCanvas;
 	if(canvas)
 	{
 		canvas->primitiveCount = 0;
@@ -1435,23 +1388,23 @@ void mg_clear()
 	}
 }
 
-void mg_fill()
+void oc_fill()
 {
-	mg_canvas_data* canvas = __mgCurrentCanvas;
+	oc_canvas_data* canvas = __mgCurrentCanvas;
 	if(canvas && canvas->path.count)
 	{
-		mg_push_command(canvas, (mg_primitive){.cmd = MG_CMD_FILL, .path = canvas->path});
-		mg_new_path(canvas);
+		oc_push_command(canvas, (oc_primitive){.cmd = OC_CMD_FILL, .path = canvas->path});
+		oc_new_path(canvas);
 	}
 }
 
-void mg_stroke()
+void oc_stroke()
 {
-	mg_canvas_data* canvas = __mgCurrentCanvas;
+	oc_canvas_data* canvas = __mgCurrentCanvas;
 	if(canvas && canvas->path.count)
 	{
-		mg_push_command(canvas, (mg_primitive){.cmd = MG_CMD_STROKE, .path = canvas->path});
-		mg_new_path(canvas);
+		oc_push_command(canvas, (oc_primitive){.cmd = OC_CMD_STROKE, .path = canvas->path});
+		oc_new_path(canvas);
 	}
 }
 
@@ -1459,120 +1412,120 @@ void mg_stroke()
 //NOTE(martin): simple shape helpers
 //------------------------------------------------------------------------------------------
 
-void mg_rectangle_path(f32 x, f32 y, f32 w, f32 h)
+void oc_rectangle_path(f32 x, f32 y, f32 w, f32 h)
 {
-	mg_move_to(x, y);
-	mg_line_to(x+w, y);
-	mg_line_to(x+w, y+h);
-	mg_line_to(x, y+h);
-	mg_close_path();
+	oc_move_to(x, y);
+	oc_line_to(x+w, y);
+	oc_line_to(x+w, y+h);
+	oc_line_to(x, y+h);
+	oc_close_path();
 }
 
-void mg_rectangle_fill(f32 x, f32 y, f32 w, f32 h)
+void oc_rectangle_fill(f32 x, f32 y, f32 w, f32 h)
 {
-	mg_rectangle_path(x, y, w, h);
-	mg_fill();
+	oc_rectangle_path(x, y, w, h);
+	oc_fill();
 }
 
-void mg_rectangle_stroke(f32 x, f32 y, f32 w, f32 h)
+void oc_rectangle_stroke(f32 x, f32 y, f32 w, f32 h)
 {
-	mg_rectangle_path(x, y, w, h);
-	mg_stroke();
+	oc_rectangle_path(x, y, w, h);
+	oc_stroke();
 }
 
-void mg_rounded_rectangle_path(f32 x, f32 y, f32 w, f32 h, f32 r)
+void oc_rounded_rectangle_path(f32 x, f32 y, f32 w, f32 h, f32 r)
 {
 	f32 c = r*4*(sqrt(2)-1)/3;
 
-	mg_move_to(x+r, y);
-	mg_line_to(x+w-r, y);
-	mg_cubic_to(x+w-r+c, y, x+w, y+r-c, x+w, y+r);
-	mg_line_to(x+w, y+h-r);
-	mg_cubic_to(x+w, y+h-r+c, x+w-r+c, y+h, x+w-r, y+h);
-	mg_line_to(x+r, y+h);
-	mg_cubic_to(x+r-c, y+h, x, y+h-r+c, x, y+h-r);
-	mg_line_to(x, y+r);
-	mg_cubic_to(x, y+r-c, x+r-c, y, x+r, y);
+	oc_move_to(x+r, y);
+	oc_line_to(x+w-r, y);
+	oc_cubic_to(x+w-r+c, y, x+w, y+r-c, x+w, y+r);
+	oc_line_to(x+w, y+h-r);
+	oc_cubic_to(x+w, y+h-r+c, x+w-r+c, y+h, x+w-r, y+h);
+	oc_line_to(x+r, y+h);
+	oc_cubic_to(x+r-c, y+h, x, y+h-r+c, x, y+h-r);
+	oc_line_to(x, y+r);
+	oc_cubic_to(x, y+r-c, x+r-c, y, x+r, y);
 }
 
-void mg_rounded_rectangle_fill(f32 x, f32 y, f32 w, f32 h, f32 r)
+void oc_rounded_rectangle_fill(f32 x, f32 y, f32 w, f32 h, f32 r)
 {
-	mg_rounded_rectangle_path(x, y, w, h, r);
-	mg_fill();
+	oc_rounded_rectangle_path(x, y, w, h, r);
+	oc_fill();
 }
 
-void mg_rounded_rectangle_stroke(f32 x, f32 y, f32 w, f32 h, f32 r)
+void oc_rounded_rectangle_stroke(f32 x, f32 y, f32 w, f32 h, f32 r)
 {
-	mg_rounded_rectangle_path(x, y, w, h, r);
-	mg_stroke();
+	oc_rounded_rectangle_path(x, y, w, h, r);
+	oc_stroke();
 }
 
-void mg_ellipse_path(f32 x, f32 y, f32 rx, f32 ry)
+void oc_ellipse_path(f32 x, f32 y, f32 rx, f32 ry)
 {
 	f32 cx = rx*4*(sqrt(2)-1)/3;
 	f32 cy = ry*4*(sqrt(2)-1)/3;
 
-	mg_move_to(x-rx, y);
-	mg_cubic_to(x-rx, y+cy, x-cx, y+ry, x, y+ry);
-	mg_cubic_to(x+cx, y+ry, x+rx, y+cy, x+rx, y);
-	mg_cubic_to(x+rx, y-cy, x+cx, y-ry, x, y-ry);
-	mg_cubic_to(x-cx, y-ry, x-rx, y-cy, x-rx, y);
+	oc_move_to(x-rx, y);
+	oc_cubic_to(x-rx, y+cy, x-cx, y+ry, x, y+ry);
+	oc_cubic_to(x+cx, y+ry, x+rx, y+cy, x+rx, y);
+	oc_cubic_to(x+rx, y-cy, x+cx, y-ry, x, y-ry);
+	oc_cubic_to(x-cx, y-ry, x-rx, y-cy, x-rx, y);
 }
 
-void mg_ellipse_fill(f32 x, f32 y, f32 rx, f32 ry)
+void oc_ellipse_fill(f32 x, f32 y, f32 rx, f32 ry)
 {
-	mg_ellipse_path(x, y, rx, ry);
-	mg_fill();
+	oc_ellipse_path(x, y, rx, ry);
+	oc_fill();
 }
 
-void mg_ellipse_stroke(f32 x, f32 y, f32 rx, f32 ry)
+void oc_ellipse_stroke(f32 x, f32 y, f32 rx, f32 ry)
 {
-	mg_ellipse_path(x, y, rx, ry);
-	mg_stroke();
+	oc_ellipse_path(x, y, rx, ry);
+	oc_stroke();
 }
 
-void mg_circle_fill(f32 x, f32 y, f32 r)
+void oc_circle_fill(f32 x, f32 y, f32 r)
 {
-	mg_ellipse_fill(x, y, r, r);
+	oc_ellipse_fill(x, y, r, r);
 }
 
-void mg_circle_stroke(f32 x, f32 y, f32 r)
+void oc_circle_stroke(f32 x, f32 y, f32 r)
 {
-	mg_ellipse_stroke(x, y, r, r);
+	oc_ellipse_stroke(x, y, r, r);
 }
 
 //TODO: change to arc_to?
-void mg_arc(f32 x, f32 y, f32 r, f32 arcAngle, f32 startAngle)
+void oc_arc(f32 x, f32 y, f32 r, f32 arcAngle, f32 startAngle)
 {
 	f32 endAngle = startAngle + arcAngle;
 
 	while(startAngle < endAngle)
 	{
-		f32 smallAngle = minimum(endAngle - startAngle, M_PI/4.);
+		f32 smallAngle = oc_min(endAngle - startAngle, M_PI/4.);
 		if(smallAngle < 0.001)
 		{
 			break;
 		}
 
-		vec2 v0 = {cos(smallAngle/2), sin(smallAngle/2)};
-		vec2 v1 = {(4-v0.x)/3, (1-v0.x)*(3-v0.x)/(3*v0.y)};
-		vec2 v2 = {v1.x, -v1.y};
-		vec2 v3 = {v0.x, -v0.y};
+		oc_vec2 v0 = {cos(smallAngle/2), sin(smallAngle/2)};
+		oc_vec2 v1 = {(4-v0.x)/3, (1-v0.x)*(3-v0.x)/(3*v0.y)};
+		oc_vec2 v2 = {v1.x, -v1.y};
+		oc_vec2 v3 = {v0.x, -v0.y};
 
 		f32 rotAngle = smallAngle/2 + startAngle;
 		f32 rotCos = cos(rotAngle);
 		f32 rotSin = sin(rotAngle);
 
-		mg_mat2x3 t = {r*rotCos, -r*rotSin, x,
+		oc_mat2x3 t = {r*rotCos, -r*rotSin, x,
 		               r*rotSin, r*rotCos, y};
 
-		v0 = mg_mat2x3_mul(t, v0);
-		v1 = mg_mat2x3_mul(t, v1);
-		v2 = mg_mat2x3_mul(t, v2);
-		v3 = mg_mat2x3_mul(t, v3);
+		v0 = oc_mat2x3_mul(t, v0);
+		v1 = oc_mat2x3_mul(t, v1);
+		v2 = oc_mat2x3_mul(t, v2);
+		v3 = oc_mat2x3_mul(t, v3);
 
-		mg_move_to(v0.x, v0.y);
-		mg_cubic_to(v1.x, v1.y, v2.x, v2.y, v3.x, v3.y);
+		oc_move_to(v0.x, v0.y);
+		oc_cubic_to(v1.x, v1.y, v2.x, v2.y, v3.x, v3.y);
 
 		startAngle += smallAngle;
 	}
@@ -1582,85 +1535,85 @@ void mg_arc(f32 x, f32 y, f32 r, f32 arcAngle, f32 startAngle)
 //NOTE(martin): images
 //------------------------------------------------------------------------------------------
 
-mg_image mg_image_nil() { return((mg_image){.h = 0}); }
-bool mg_image_is_nil(mg_image image) { return(image.h == 0); }
+oc_image oc_image_nil() { return((oc_image){.h = 0}); }
+bool oc_image_is_nil(oc_image image) { return(image.h == 0); }
 
-mg_image mg_image_create_from_rgba8(mg_surface surface, u32 width, u32 height, u8* pixels)
+oc_image oc_image_create_from_rgba8(oc_surface surface, u32 width, u32 height, u8* pixels)
 {
-	mg_image image = mg_image_create(surface, width, height);
-	if(!mg_image_is_nil(image))
+	oc_image image = oc_image_create(surface, width, height);
+	if(!oc_image_is_nil(image))
 	{
-		mg_image_upload_region_rgba8(image, (mp_rect){0, 0, width, height}, pixels);
+		oc_image_upload_region_rgba8(image, (oc_rect){0, 0, width, height}, pixels);
 	}
 	return(image);
 }
 
-mg_image mg_image_create_from_data(mg_surface surface, str8 data, bool flip)
+oc_image oc_image_create_from_memory(oc_surface surface, oc_str8 mem, bool flip)
 {
-	mg_image image = mg_image_nil();
+	oc_image image = oc_image_nil();
 	int width, height, channels;
 
 	stbi_set_flip_vertically_on_load(flip ? 1 : 0);
-	u8* pixels = stbi_load_from_memory((u8*)data.ptr, data.len, &width, &height, &channels, 4);
+	u8* pixels = stbi_load_from_memory((u8*)mem.ptr, mem.len, &width, &height, &channels, 4);
 
 	if(pixels)
 	{
-		image = mg_image_create_from_rgba8(surface, width, height, pixels);
+		image = oc_image_create_from_rgba8(surface, width, height, pixels);
 		free(pixels);
 	}
 	else
 	{
-		log_error("stbi_load_from_memory() failed: %s\n", stbi_failure_reason());
+		oc_log_error("stbi_load_from_memory() failed: %s\n", stbi_failure_reason());
 	}
 	return(image);
 }
 
-#if !PLATFORM_ORCA
+#if !OC_PLATFORM_ORCA
 
-mg_image mg_image_create_from_file(mg_surface surface, str8 path, bool flip)
+oc_image oc_image_create_from_file(oc_surface surface, oc_str8 path, bool flip)
 {
-	mg_image image = mg_image_nil();
+	oc_image image = oc_image_nil();
 	int width, height, channels;
 
-	const char* cpath = str8_to_cstring(mem_scratch(), path);
+	const char* cpath = oc_str8_to_cstring(oc_scratch(), path);
 
 	stbi_set_flip_vertically_on_load(flip ? 1 : 0);
 	u8* pixels = stbi_load(cpath, &width, &height, &channels, 4);
 	if(pixels)
 	{
-		image = mg_image_create_from_rgba8(surface, width, height, pixels);
+		image = oc_image_create_from_rgba8(surface, width, height, pixels);
 		free(pixels);
 	}
 	else
 	{
-		 log_error("stbi_load() failed: %s\n", stbi_failure_reason());
+		 oc_log_error("stbi_load() failed: %s\n", stbi_failure_reason());
 	}
 	return(image);
 }
 
-#endif // !PLATFORM_ORCA
+#endif // !OC_PLATFORM_ORCA
 
 
-void mg_image_draw_region(mg_image image, mp_rect srcRegion, mp_rect dstRegion)
+void oc_image_draw_region(oc_image image, oc_rect srcRegion, oc_rect dstRegion)
 {
-	mg_canvas_data* canvas = __mgCurrentCanvas;
+	oc_canvas_data* canvas = __mgCurrentCanvas;
 	if(canvas)
 	{
-		mg_image oldImage = canvas->attributes.image;
-		mp_rect oldSrcRegion = canvas->attributes.srcRegion;
-		mg_color oldColor = canvas->attributes.color;
+		oc_image oldImage = canvas->attributes.image;
+		oc_rect oldSrcRegion = canvas->attributes.srcRegion;
+		oc_color oldColor = canvas->attributes.color;
 
 		canvas->attributes.image = image;
 		canvas->attributes.srcRegion = srcRegion;
-		canvas->attributes.color = (mg_color){1, 1, 1, 1};
+		canvas->attributes.color = (oc_color){1, 1, 1, 1};
 
-		mg_move_to(dstRegion.x, dstRegion.y);
-		mg_line_to(dstRegion.x+dstRegion.w, dstRegion.y);
-		mg_line_to(dstRegion.x+dstRegion.w, dstRegion.y+dstRegion.h);
-		mg_line_to(dstRegion.x, dstRegion.y+dstRegion.h);
-		mg_close_path();
+		oc_move_to(dstRegion.x, dstRegion.y);
+		oc_line_to(dstRegion.x+dstRegion.w, dstRegion.y);
+		oc_line_to(dstRegion.x+dstRegion.w, dstRegion.y+dstRegion.h);
+		oc_line_to(dstRegion.x, dstRegion.y+dstRegion.h);
+		oc_close_path();
 
-		mg_fill();
+		oc_fill();
 
 		canvas->attributes.image = oldImage;
 		canvas->attributes.srcRegion = oldSrcRegion;
@@ -1668,10 +1621,10 @@ void mg_image_draw_region(mg_image image, mp_rect srcRegion, mp_rect dstRegion)
 	}
 }
 
-void mg_image_draw(mg_image image, mp_rect rect)
+void oc_image_draw(oc_image image, oc_rect rect)
 {
-	vec2 size = mg_image_size(image);
-	mg_image_draw_region(image, (mp_rect){0, 0, size.x, size.y}, rect);
+	oc_vec2 size = oc_image_size(image);
+	oc_image_draw_region(image, (oc_rect){0, 0, size.x, size.y}, rect);
 }
 
 //------------------------------------------------------------------------------------------
@@ -1679,27 +1632,27 @@ void mg_image_draw(mg_image image, mp_rect rect)
 //------------------------------------------------------------------------------------------
 
 //NOTE: rectangle allocator
-typedef struct mg_rect_atlas
+typedef struct oc_rect_atlas
 {
-	mem_arena* arena;
-	ivec2 size;
-	ivec2 pos;
+	oc_arena* arena;
+	oc_vec2i size;
+	oc_vec2i pos;
 	u32  lineHeight;
 
-} mg_rect_atlas;
+} oc_rect_atlas;
 
-mg_rect_atlas* mg_rect_atlas_create(mem_arena* arena, i32 width, i32 height)
+oc_rect_atlas* oc_rect_atlas_create(oc_arena* arena, i32 width, i32 height)
 {
-	mg_rect_atlas* atlas = mem_arena_alloc_type(arena, mg_rect_atlas);
-	memset(atlas, 0, sizeof(mg_rect_atlas));
+	oc_rect_atlas* atlas = oc_arena_push_type(arena, oc_rect_atlas);
+	memset(atlas, 0, sizeof(oc_rect_atlas));
 	atlas->arena = arena;
-	atlas->size = (ivec2){width, height};
+	atlas->size = (oc_vec2i){width, height};
 	return(atlas);
 }
 
-mp_rect mg_rect_atlas_alloc(mg_rect_atlas* atlas, i32 width, i32 height)
+oc_rect oc_rect_atlas_alloc(oc_rect_atlas* atlas, i32 width, i32 height)
 {
-	mp_rect rect = {0, 0, 0, 0};
+	oc_rect rect = {0, 0, 0, 0};
 	if(width > 0 && height > 0)
 	{
 		if(atlas->pos.x + width >= atlas->size.x)
@@ -1711,39 +1664,39 @@ mp_rect mg_rect_atlas_alloc(mg_rect_atlas* atlas, i32 width, i32 height)
 		if(  atlas->pos.x + width < atlas->size.x
 	  	&& atlas->pos.y + height < atlas->size.y)
 		{
-			rect = (mp_rect){atlas->pos.x, atlas->pos.y, width, height};
+			rect = (oc_rect){atlas->pos.x, atlas->pos.y, width, height};
 
 			atlas->pos.x += (width + 1);
-			atlas->lineHeight = maximum(atlas->lineHeight, height);
+			atlas->lineHeight = oc_max(atlas->lineHeight, height);
 		}
 	}
 	return(rect);
 }
 
-void mg_rect_atlas_recycle(mg_rect_atlas* atlas, mp_rect rect)
+void oc_rect_atlas_recycle(oc_rect_atlas* atlas, oc_rect rect)
 {
 	//TODO
 }
 
-mg_image_region mg_image_atlas_alloc_from_rgba8(mg_rect_atlas* atlas, mg_image backingImage, u32 width, u32 height, u8* pixels)
+oc_image_region oc_image_atlas_alloc_from_rgba8(oc_rect_atlas* atlas, oc_image backingImage, u32 width, u32 height, u8* pixels)
 {
-	mg_image_region imageRgn = {0};
+	oc_image_region imageRgn = {0};
 
-	mp_rect rect = mg_rect_atlas_alloc(atlas, width, height);
+	oc_rect rect = oc_rect_atlas_alloc(atlas, width, height);
 	if(rect.w == width && rect.h == height)
 	{
-		mg_image_upload_region_rgba8(backingImage, rect, pixels);
+		oc_image_upload_region_rgba8(backingImage, rect, pixels);
 		imageRgn.rect = rect;
 		imageRgn.image = backingImage;
 	}
 	return(imageRgn);
 }
 
-#if !PLATFORM_ORCA
+#if !OC_PLATFORM_ORCA
 
-mg_image_region mg_image_atlas_alloc_from_data(mg_rect_atlas* atlas, mg_image backingImage, str8 data, bool flip)
+oc_image_region oc_image_atlas_alloc_from_data(oc_rect_atlas* atlas, oc_image backingImage, oc_str8 data, bool flip)
 {
-	mg_image_region imageRgn = {0};
+	oc_image_region imageRgn = {0};
 
 	stbi_set_flip_vertically_on_load(flip ? 1 : 0);
 
@@ -1751,31 +1704,31 @@ mg_image_region mg_image_atlas_alloc_from_data(mg_rect_atlas* atlas, mg_image ba
 	u8* pixels = stbi_load_from_memory((u8*)data.ptr, data.len, &width, &height, &channels, 4);
 	if(pixels)
 	{
-		imageRgn = mg_image_atlas_alloc_from_rgba8(atlas, backingImage, width, height, pixels);
+		imageRgn = oc_image_atlas_alloc_from_rgba8(atlas, backingImage, width, height, pixels);
 		free(pixels);
 	}
 	return(imageRgn);
 }
 
-mg_image_region mg_image_atlas_alloc_from_file(mg_rect_atlas* atlas, mg_image backingImage, str8 path, bool flip)
+oc_image_region oc_image_atlas_alloc_from_file(oc_rect_atlas* atlas, oc_image backingImage, oc_str8 path, bool flip)
 {
-	mg_image_region imageRgn = {0};
+	oc_image_region imageRgn = {0};
 
 	stbi_set_flip_vertically_on_load(flip ? 1 : 0);
 
-	const char* cpath = str8_to_cstring(mem_scratch(), path);
+	const char* cpath = oc_str8_to_cstring(oc_scratch(), path);
 	int width, height, channels;
 	u8* pixels = stbi_load(cpath, &width, &height, &channels, 4);
 	if(pixels)
 	{
-		imageRgn = mg_image_atlas_alloc_from_rgba8(atlas, backingImage, width, height, pixels);
+		imageRgn = oc_image_atlas_alloc_from_rgba8(atlas, backingImage, width, height, pixels);
 		free(pixels);
 	}
 	return(imageRgn);
 }
-#endif // !PLATFORM_ORCA
+#endif // !OC_PLATFORM_ORCA
 
-void mg_image_atlas_recycle(mg_rect_atlas* atlas, mg_image_region imageRgn)
+void oc_image_atlas_recycle(oc_rect_atlas* atlas, oc_image_region imageRgn)
 {
-	mg_rect_atlas_recycle(atlas, imageRgn.rect);
+	oc_rect_atlas_recycle(atlas, imageRgn.rect);
 }

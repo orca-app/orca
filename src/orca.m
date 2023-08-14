@@ -12,15 +12,15 @@
 #include"graphics/graphics_common.c"
 #include"graphics/graphics_surface.c"
 
-#if MG_COMPILE_METAL
+#if OC_COMPILE_METAL
 	#include"graphics/mtl_surface.m"
 #endif
 
-#if MG_COMPILE_CANVAS
+#if OC_COMPILE_CANVAS
 	#include"graphics/mtl_renderer.m"
 #endif
 
-#if MG_COMPILE_GLES
+#if OC_COMPILE_GLES
 	#include"graphics/gl_loader.c"
 	#include"graphics/egl_surface.c"
 #endif

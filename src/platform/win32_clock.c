@@ -17,14 +17,14 @@ extern "C" {
 
 static u64 __performanceCounterFreq = 0;
 
-void mp_clock_init()
+void oc_clock_init()
 {
 	LARGE_INTEGER freq;
 	QueryPerformanceFrequency(&freq);
 	__performanceCounterFreq = freq.QuadPart;
 }
 
-f64 mp_get_time(mp_clock_kind clock)
+f64 oc_clock_time(oc_clock_kind clock)
 {
 	LARGE_INTEGER counter;
 	QueryPerformanceCounter(&counter);

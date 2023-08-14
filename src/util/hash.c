@@ -9,10 +9,10 @@
 #include"hash.h"
 #include"platform/platform.h"
 
-#if ARCH_X64
+#if OC_ARCH_X64
 #include<immintrin.h>
 
-u64 mp_hash_aes_u64(u64 x)
+u64 oc_hash_aes_u64(u64 x)
 {
 	u8 seed[16] = {
     	0xaa, 0x9b, 0xbd, 0xb8,
@@ -29,7 +29,7 @@ u64 mp_hash_aes_u64(u64 x)
 	return(result);
 }
 
-u64 mp_hash_aes_u64_x2(u64 x, u64 y)
+u64 oc_hash_aes_u64_x2(u64 x, u64 y)
 {
 	u8 seed[16] = {
     	0xaa, 0x9b, 0xbd, 0xb8,
@@ -46,7 +46,7 @@ u64 mp_hash_aes_u64_x2(u64 x, u64 y)
 	return(result);
 }
 
-u64 mp_hash_aes_string(str8 string)
+u64 oc_hash_aes_string(oc_str8 string)
 {
 	u8 seed[16] = {
     	0xaa, 0x9b, 0xbd, 0xb8,
@@ -87,7 +87,7 @@ u64 mp_hash_aes_string(str8 string)
 	return(result);
 }
 
-u64 mp_hash_aes_string_seed(str8 string, u64 seed)
+u64 oc_hash_aes_string_seed(oc_str8 string, u64 seed)
 {
 	u8 seed16[16];
 	memcpy(seed16, &seed, 8);
@@ -125,10 +125,10 @@ u64 mp_hash_aes_string_seed(str8 string, u64 seed)
 	u64 result = _mm_extract_epi64(hash, 0);
 	return(result);
 }
-#endif // ARCH_X64
+#endif // OC_ARCH_X64
 
 //xxhash64, copy-pasted from https://github.com/demetri/scribbles/blob/master/hashing/hash_functions.c
-// Thanks Demetri
+// Thanks to Demetri Spanos
 
 uint64_t xxh_64 (const void *key, int len, uint64_t h) {
   // primes used in mul-rot updates
@@ -184,12 +184,12 @@ uint64_t xxh_64 (const void *key, int len, uint64_t h) {
   return (s64 ^ (s64 >> 32));
 }
 
-u64 mp_hash_xx64_string_seed(str8 string, u64 seed)
+u64 oc_hash_xx64_string_seed(oc_str8 string, u64 seed)
 {
 	return(xxh_64(string.ptr, string.len, seed));
 }
 
-u64 mp_hash_xx64_string(str8 string)
+u64 oc_hash_xx64_string(oc_str8 string)
 {
 	return(xxh_64(string.ptr, string.len, 0));
 }

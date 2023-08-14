@@ -99,21 +99,21 @@ f.write('#include"GL/glcorearb.h"\n')
 f.write('#include"GLES3/gl32.h"\n\n')
 
 # generate interface struct
-f.write('typedef struct mg_gl_api\n{\n')
+f.write('typedef struct oc_gl_api\n{\n')
 
 f.write('	const char* name;\n')
 
 for func in glall:
 	f.write('\t' + 'PFN' + func.upper() + 'PROC ' + remove_prefix(func, 'gl') + ';\n')
 
-f.write('} mg_gl_api;\n\n')
+f.write('} oc_gl_api;\n\n')
 
 # generate interface macros
 # TODO guard for different api/versions and only #define functions present in desired version
-f.write("MP_API mg_gl_api* mg_gl_get_api(void);\n\n")
+f.write("ORCA_API oc_gl_api* oc_gl_get_api(void);\n\n")
 
 for func in glall:
-	f.write('#define ' + func + ' mg_gl_get_api()->' + remove_prefix(func, 'gl') + '\n')
+	f.write('#define ' + func + ' oc_gl_get_api()->' + remove_prefix(func, 'gl') + '\n')
 
 emit_end_guard(f, apiName)
 f.close()
@@ -129,15 +129,15 @@ emit_begin_guard(f, loaderName)
 
 f.write('#include"gl_api.h"\n\n')
 
-f.write("typedef void*(*mg_gl_load_proc)(const char* name);\n\n")
+f.write("typedef void*(*oc_gl_load_proc)(const char* name);\n\n")
 
-f.write("void mg_gl_load_gl41(mg_gl_api* api, mg_gl_load_proc loadProc);\n")
-f.write("void mg_gl_load_gl43(mg_gl_api* api, mg_gl_load_proc loadProc);\n")
-f.write("void mg_gl_load_gl44(mg_gl_api* api, mg_gl_load_proc loadProc);\n")
-f.write("void mg_gl_load_gles30(mg_gl_api* api, mg_gl_load_proc loadProc);\n")
-f.write("void mg_gl_load_gles31(mg_gl_api* api, mg_gl_load_proc loadProc);\n\n")
+f.write("void oc_gl_load_gl41(oc_gl_api* api, oc_gl_load_proc loadProc);\n")
+f.write("void oc_gl_load_gl43(oc_gl_api* api, oc_gl_load_proc loadProc);\n")
+f.write("void oc_gl_load_gl44(oc_gl_api* api, oc_gl_load_proc loadProc);\n")
+f.write("void oc_gl_load_gles30(oc_gl_api* api, oc_gl_load_proc loadProc);\n")
+f.write("void oc_gl_load_gles31(oc_gl_api* api, oc_gl_load_proc loadProc);\n\n")
 
-f.write("void mg_gl_select_api(mg_gl_api* api);\n\n")
+f.write("void oc_gl_select_api(oc_gl_api* api);\n\n")
 
 emit_end_guard(f, loaderName)
 f.close()
@@ -146,7 +146,7 @@ f.close()
 #---------------------------------------------------------------
 
 def emit_loader(f, name, procs):
-	f.write('void mg_gl_load_'+ name +'(mg_gl_api* api, mg_gl_load_proc loadProc)\n')
+	f.write('void oc_gl_load_'+ name +'(oc_gl_api* api, oc_gl_load_proc loadProc)\n')
 	f.write("{\n")
 	f.write('	api->name = "'+ name +'";\n')
 
@@ -154,14 +154,14 @@ def emit_loader(f, name, procs):
 		if proc in procs:
 			f.write('	api->' + remove_prefix(proc, 'gl') + ' = loadProc("' + proc + '");\n')
 		else:
-			f.write('	api->' + remove_prefix(proc, 'gl') + ' = mg_' + proc + '_noimpl;\n')
+			f.write('	api->' + remove_prefix(proc, 'gl') + ' = oc_' + proc + '_noimpl;\n')
 
 	f.write("}\n\n")
 
 
 def emit_null_api(f, procs):
 
-	f.write('mg_gl_api __mgGLNoAPI;\n\n')
+	f.write('oc_gl_api oc_glNoAPI;\n\n')
 
 	for name in procs:
 
@@ -185,7 +185,7 @@ def emit_null_api(f, procs):
 
 		retType = retType.strip()
 
-		f.write(retType + ' mg_' + name + '_noimpl(')
+		f.write(retType + ' oc_' + name + '_noimpl(')
 
 		params = command.findall('param')
 
@@ -217,21 +217,21 @@ def emit_null_api(f, procs):
 
 		f.write(')\n')
 		f.write('{\n')
-		f.write('	if(__mgGLAPI == &__mgGLNoAPI)\n')
+		f.write('	if(oc_glAPI == &oc_glNoAPI)\n')
 		f.write('	{\n')
-		f.write('		log_error("No GL or GLES API is selected. Make sure you call mg_surface_prepare() before calling OpenGL API functions.\\n");\n')
+		f.write('		oc_log_error("No GL or GLES API is selected. Make sure you call oc_surface_prepare() before calling OpenGL API functions.\\n");\n')
 		f.write('	}\n')
 		f.write('	else\n')
 		f.write('	{\n')
-		f.write('		log_error("'+ name +' is not part of currently selected %s API\\n", __mgGLAPI->name);\n')
+		f.write('		oc_log_error("'+ name +' is not part of currently selected %s API\\n", oc_glAPI->name);\n')
 		f.write('	}\n')
 		if retType != 'void':
 			f.write('	return(('+ retType +')0);\n')
 		f.write('}\n')
 
-	f.write('mg_gl_api __mgGLNoAPI = {\n')
+	f.write('oc_gl_api oc_glNoAPI = {\n')
 	for proc in procs:
-		f.write('	.' + remove_prefix(proc, 'gl') + ' = mg_' + proc + '_noimpl,\n')
+		f.write('	.' + remove_prefix(proc, 'gl') + ' = oc_' + proc + '_noimpl,\n')
 	f.write("};\n\n")
 
 f = open(loaderCPath, 'w')
@@ -241,7 +241,7 @@ emit_doc(f, loaderName, '.c')
 f.write('#include"' + loaderName + '.h"\n')
 f.write('#include"platform/platform.h"\n\n')
 
-f.write("mp_thread_local mg_gl_api* __mgGLAPI = 0;\n")
+f.write("oc_thread_local oc_gl_api* oc_glAPI = 0;\n")
 
 emit_null_api(f, glall)
 emit_loader(f, 'gl41', gl41)
@@ -250,8 +250,8 @@ emit_loader(f, 'gl44', gl44)
 emit_loader(f, 'gles31', gles31)
 emit_loader(f, 'gles32', gles32)
 
-f.write("void mg_gl_select_api(mg_gl_api* api){ __mgGLAPI = api; }\n")
-f.write("void mg_gl_deselect_api(){ __mgGLAPI = &__mgGLNoAPI; }\n")
-f.write("mg_gl_api* mg_gl_get_api(void) { return(__mgGLAPI); }\n\n")
+f.write("void oc_gl_select_api(oc_gl_api* api){ oc_glAPI = api; }\n")
+f.write("void oc_gl_deselect_api(){ oc_glAPI = &oc_glNoAPI; }\n")
+f.write("oc_gl_api* oc_gl_get_api(void) { return(oc_glAPI); }\n\n")
 
 f.close()

@@ -10,8 +10,8 @@
 
 #include"util/strings.h"
 
-str16 win32_utf8_to_wide_null_terminated(mem_arena* arena, str8 s);
-str8 win32_wide_to_utf8(mem_arena* arena, str16 s);
+oc_str16 oc_win32_utf8_to_wide_null_terminated(oc_arena* arena, oc_str8 s);
+oc_str8 oc_win32_wide_to_utf8(oc_arena* arena, oc_str16 s);
 
 
 #endif // __WIN32_STRING_HELPERS_H_

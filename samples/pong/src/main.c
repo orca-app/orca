@@ -13,13 +13,13 @@ const f32 BLOCK_WIDTH = (BLOCKS_WIDTH - ((NUM_BLOCKS_PER_ROW + 1) * BLOCKS_PADDI
 
 #define PADDLE_MAX_LAUNCH_ANGLE 0.7f
 
-const mg_color paddleColor = {1, 0, 0, 1};
-mp_rect paddle = {300, 50, 200, 24};
+const oc_color paddleColor = {1, 0, 0, 1};
+oc_rect paddle = {300, 50, 200, 24};
 
-const mg_color ballColor = {1, 1, 0, 1};
-mp_rect ball = {200, 200, 20, 20};
+const oc_color ballColor = {1, 1, 0, 1};
+oc_rect ball = {200, 200, 20, 20};
 
-vec2 velocity = {5, 5};
+oc_vec2 velocity = {5, 5};
 
 // This is upside down from how it will actually be drawn.
 int blockHealth[NUM_BLOCKS] = {
@@ -31,127 +31,127 @@ int blockHealth[NUM_BLOCKS] = {
     3, 3, 3, 3, 3, 3, 3,
 };
 
-vec2 frameSize = {100, 100};
+oc_vec2 frameSize = {100, 100};
 
 bool leftDown = false;
 bool rightDown = false;
 
-mg_surface surface;
-mg_canvas canvas;
-mg_image waterImage;
-mg_image ballImage;
-mg_image paddleImage;
-mg_font pongFont;
+oc_surface surface;
+oc_canvas canvas;
+oc_image waterImage;
+oc_image ballImage;
+oc_image paddleImage;
+oc_font pongFont;
 
 f32 lerp(f32 a, f32 b, f32 t);
-mp_rect blockRect(int i);
-int checkCollision(mp_rect block);
-mg_mat2x3 flipY(mp_rect r);
-mg_mat2x3 flipYAt(vec2 pos);
+oc_rect blockRect(int i);
+int checkCollision(oc_rect block);
+oc_mat2x3 flipY(oc_rect r);
+oc_mat2x3 flipYAt(oc_vec2 pos);
 
-str8 loadFile(mem_arena* arena, str8 filename) {
-    file_handle file = file_open(filename, FILE_ACCESS_READ, 0);
-    if(file_last_error(file) != IO_OK)
+oc_str8 loadFile(oc_arena* arena, oc_str8 filename) {
+    oc_file file = oc_file_open(filename, OC_FILE_ACCESS_READ, 0);
+    if(oc_file_last_error(file) != OC_IO_OK)
     {
-        log_error("Couldn't open file %s\n", str8_to_cstring(mem_scratch(), filename));
+        oc_log_error("Couldn't open file %s\n", oc_str8_to_cstring(oc_scratch(), filename));
     }
-    u64 size = file_size(file);
-    char* buffer = mem_arena_alloc(arena, size);
-    file_read(file, size, buffer);
-    file_close(file);
-    return str8_from_buffer(size, buffer);
+    u64 size = oc_file_size(file);
+    char* buffer = oc_arena_push(arena, size);
+    oc_file_read(file, size, buffer);
+    oc_file_close(file);
+    return oc_str8_from_buffer(size, buffer);
 }
 
-ORCA_EXPORT void OnInit(void)
+ORCA_EXPORT void oc_on_init(void)
 {
-    surface = mg_surface_canvas();
-    canvas = mg_canvas_create();
+    surface = oc_surface_canvas();
+    canvas = oc_canvas_create();
 
-    waterImage = mg_image_create_from_data(surface, loadFile(mem_scratch(), STR8("/underwater.jpg")), false);
-    ballImage = mg_image_create_from_data(surface, loadFile(mem_scratch(), STR8("/ball.png")), false);
-    paddleImage = mg_image_create_from_data(surface, loadFile(mem_scratch(), STR8("/wall.png")), false);
+    waterImage = oc_image_create_from_memory(surface, loadFile(oc_scratch(), OC_STR8("/underwater.jpg")), false);
+    ballImage = oc_image_create_from_memory(surface, loadFile(oc_scratch(), OC_STR8("/ball.png")), false);
+    paddleImage = oc_image_create_from_memory(surface, loadFile(oc_scratch(), OC_STR8("/wall.png")), false);
 
-    if(mg_image_is_nil(waterImage))
+    if(oc_image_is_nil(waterImage))
     {
-		log_error("couldn't load water image\n");
+		oc_log_error("couldn't load water image\n");
     }
-    if(mg_image_is_nil(ballImage))
+    if(oc_image_is_nil(ballImage))
     {
-		log_error("couldn't load ball image\n");
+		oc_log_error("couldn't load ball image\n");
     }
-    if(mg_image_is_nil(paddleImage))
+    if(oc_image_is_nil(paddleImage))
     {
-		log_error("couldn't load paddle image\n");
+		oc_log_error("couldn't load paddle image\n");
     }
 
-    str8 fontStr = loadFile(mem_scratch(), STR8("/Literata-SemiBoldItalic.ttf"));
-    unicode_range ranges[5] = {UNICODE_RANGE_BASIC_LATIN,
-                               UNICODE_RANGE_C1_CONTROLS_AND_LATIN_1_SUPPLEMENT,
-                               UNICODE_RANGE_LATIN_EXTENDED_A,
-                               UNICODE_RANGE_LATIN_EXTENDED_B,
-                               UNICODE_RANGE_SPECIALS};
+    oc_str8 fontStr = loadFile(oc_scratch(), OC_STR8("/Literata-SemiBoldItalic.ttf"));
+    oc_unicode_range ranges[5] = {OC_UNICODE_BASIC_LATIN,
+                               OC_UNICODE_C1_CONTROLS_AND_LATIN_1_SUPPLEMENT,
+                               OC_UNICODE_LATIN_EXTENDED_A,
+                               OC_UNICODE_LATIN_EXTENDED_B,
+                               OC_UNICODE_SPECIALS};
     // NOTE(ben): Weird that images are "create from data" but fonts are "create from memory"
     // TODO: Decide whether we're using strings or explicit pointer + length
-    pongFont = mg_font_create_from_memory(fontStr.len, (byte*)fontStr.ptr, 5, ranges);
+    pongFont = oc_font_create_from_memory(fontStr, 5, ranges);
 
-    mem_arena_clear(mem_scratch());
+    oc_arena_clear(oc_scratch());
 }
 
-ORCA_EXPORT void OnFrameResize(u32 width, u32 height)
+ORCA_EXPORT void oc_on_resize(u32 width, u32 height)
 {
-    log_info("frame resize %u, %u", width, height);
+    oc_log_info("frame resize %u, %u", width, height);
     frameSize.x = width;
     frameSize.y = height;
 }
 
-ORCA_EXPORT void OnMouseDown(int button)
+ORCA_EXPORT void oc_on_mouse_down(int button)
 {
-    log_info("mouse down!");
+    oc_log_info("mouse down!");
 }
 
-ORCA_EXPORT void OnKeyDown(int key)
+ORCA_EXPORT void oc_on_key_down(int key)
 {
-    if(key == MP_KEY_SPACE)
+    if(key == OC_KEY_SPACE)
     {
-        log_error("(this is just for testing errors)");
+        oc_log_error("(this is just for testing errors)");
         return;
     }
-    if(key == MP_KEY_ENTER)
+    if(key == OC_KEY_ENTER)
     {
-        log_warning("(this is just for testing warning)");
+        oc_log_warning("(this is just for testing warning)");
         return;
     }
 
-    log_info("key down: %i", key);
-    if(key == MP_KEY_LEFT)
+    oc_log_info("key down: %i", key);
+    if(key == OC_KEY_LEFT)
     {
         leftDown = true;
     }
-    if(key == MP_KEY_RIGHT)
+    if(key == OC_KEY_RIGHT)
     {
         rightDown = true;
     }
 }
 
-ORCA_EXPORT void OnKeyUp(int key)
+ORCA_EXPORT void oc_on_key_up(int key)
 {
-    if(key == MP_KEY_ENTER || key == MP_KEY_SPACE)
+    if(key == OC_KEY_ENTER || key == OC_KEY_SPACE)
     {
         return;
     }
 
-    log_info("key up: %i", key);
-    if(key == MP_KEY_LEFT)
+    oc_log_info("key up: %i", key);
+    if(key == OC_KEY_LEFT)
     {
         leftDown = false;
     }
-    if(key == MP_KEY_RIGHT)
+    if(key == OC_KEY_RIGHT)
     {
         rightDown = false;
     }
 }
 
-ORCA_EXPORT void OnFrameRefresh(void)
+ORCA_EXPORT void oc_on_frame_refresh(void)
 {
     f32 aspect = frameSize.x/frameSize.y;
 
@@ -163,12 +163,12 @@ ORCA_EXPORT void OnFrameRefresh(void)
     {
         paddle.x += 10;
     }
-    paddle.x = Clamp(paddle.x, 0, frameSize.x - paddle.w);
+    paddle.x = oc_clamp(paddle.x, 0, frameSize.x - paddle.w);
 
     ball.x += velocity.x;
     ball.y += velocity.y;
-    ball.x = Clamp(ball.x, 0, frameSize.x - ball.w);
-    ball.y = Clamp(ball.y, 0, frameSize.y - ball.h);
+    ball.x = oc_clamp(ball.x, 0, frameSize.x - ball.w);
+    ball.y = oc_clamp(ball.y, 0, frameSize.y - ball.h);
 
     if (ball.x + ball.w >= frameSize.x) {
         velocity.x = -velocity.x;
@@ -189,13 +189,13 @@ ORCA_EXPORT void OnFrameRefresh(void)
         f32 t = ((ball.x + ball.w/2) - paddle.x) / paddle.w;
         f32 launchAngle = lerp(-PADDLE_MAX_LAUNCH_ANGLE, PADDLE_MAX_LAUNCH_ANGLE, t);
         f32 speed = sqrtf(velocity.x*velocity.x + velocity.y*velocity.y);
-        velocity = (vec2){
+        velocity = (oc_vec2){
             sinf(launchAngle) * speed,
             cosf(launchAngle) * speed,
         };
         ball.y = paddle.y + paddle.h;
 
-        log_info("PONG!");
+        oc_log_info("PONG!");
     }
 
     if (ball.y <= 0) {
@@ -208,10 +208,10 @@ ORCA_EXPORT void OnFrameRefresh(void)
             continue;
         }
 
-        mp_rect r = blockRect(i);
+        oc_rect r = blockRect(i);
         int result = checkCollision(r);
         if (result) {
-            log_info("Collision! direction=%d", result);
+            oc_log_info("Collision! direction=%d", result);
             blockHealth[i] -= 1;
 
             f32 vx = velocity.x;
@@ -241,74 +241,74 @@ ORCA_EXPORT void OnFrameRefresh(void)
 
     }
 
-    mg_canvas_set_current(canvas);
+    oc_canvas_set_current(canvas);
 
-    mg_set_color_rgba(10.0f/255.0f, 31.0f/255.0f, 72.0f/255.0f, 1);
-    mg_clear();
+    oc_set_color_rgba(10.0f/255.0f, 31.0f/255.0f, 72.0f/255.0f, 1);
+    oc_clear();
 
-    mg_image_draw(waterImage, (mp_rect){0, 0, frameSize.x, frameSize.y});
+    oc_image_draw(waterImage, (oc_rect){0, 0, frameSize.x, frameSize.y});
 
-    mg_mat2x3 yUp = {
+    oc_mat2x3 yUp = {
         1, 0, 0,
         0, -1, frameSize.y,
     };
 
-    mg_matrix_push(yUp);
+    oc_matrix_push(yUp);
     {
         for (int i = 0; i < NUM_BLOCKS; i++) {
             if (blockHealth[i] <= 0) {
                 continue;
             }
 
-            mp_rect r = blockRect(i);
-            mg_set_color_rgba(0, 0, 0, 0.2);
-            mg_rounded_rectangle_fill(r.x, r.y-2, r.w, r.h, 4);
-            mg_set_color_rgba(0.9, 0.9, 0.9, 1);
-            mg_rounded_rectangle_fill(r.x, r.y, r.w, r.h, 4);
+            oc_rect r = blockRect(i);
+            oc_set_color_rgba(0, 0, 0, 0.2);
+            oc_rounded_rectangle_fill(r.x, r.y-2, r.w, r.h, 4);
+            oc_set_color_rgba(0.9, 0.9, 0.9, 1);
+            oc_rounded_rectangle_fill(r.x, r.y, r.w, r.h, 4);
 
             int fontSize = 18;
-            str8 text = str8_pushf(mem_scratch(),
+            oc_str8 text = oc_str8_pushf(oc_scratch(),
                 "%d", blockHealth[i]
             );
-            mp_rect textRect = mg_text_bounding_box(pongFont, fontSize, text);
+            oc_rect textRect = oc_text_bounding_box(pongFont, fontSize, text);
 
-            vec2 textPos = {
+            oc_vec2 textPos = {
                 r.x + r.w/2 - textRect.w/2,
-                r.y + 9, // TODO: mg_text_bounding_box is returning extremely wack results for height.
+                r.y + 9, // TODO: oc_text_bounding_box is returning extremely wack results for height.
             };
 
-            mg_set_color_rgba(0, 0, 0, 1);
-            mg_set_font(pongFont);
-            mg_set_font_size(18);
-            mg_move_to(textPos.x, textPos.y);
-            mg_matrix_push(flipYAt(textPos));
+            oc_set_color_rgba(0, 0, 0, 1);
+            oc_set_font(pongFont);
+            oc_set_font_size(18);
+            oc_move_to(textPos.x, textPos.y);
+            oc_matrix_push(flipYAt(textPos));
             {
-                mg_text_outlines(text);
-                mg_fill();
+                oc_text_outlines(text);
+                oc_fill();
             }
-            mg_matrix_pop();
+            oc_matrix_pop();
         }
 
-        mg_set_color_rgba(0.9, 0.9, 0.9, 1);
-        mg_rounded_rectangle_fill(paddle.x, paddle.y, paddle.w, paddle.h, 4);
+        oc_set_color_rgba(0.9, 0.9, 0.9, 1);
+        oc_rounded_rectangle_fill(paddle.x, paddle.y, paddle.w, paddle.h, 4);
 
-        mg_matrix_push(flipY(ball));
+        oc_matrix_push(flipY(ball));
         {
-            mg_image_draw(ballImage, ball);
+            oc_image_draw(ballImage, ball);
         }
-        mg_matrix_pop();
+        oc_matrix_pop();
     }
-    mg_matrix_pop();
+    oc_matrix_pop();
 
-    mg_surface_prepare(surface);
-    mg_render(surface, canvas);
-    mg_surface_present(surface);
+    oc_surface_select(surface);
+    oc_render(surface, canvas);
+    oc_surface_present(surface);
 }
 
-mp_rect blockRect(int i) {
+oc_rect blockRect(int i) {
     int row = i / NUM_BLOCKS_PER_ROW;
     int col = i % NUM_BLOCKS_PER_ROW;
-    return (mp_rect){
+    return (oc_rect){
         BLOCKS_PADDING + (BLOCKS_PADDING + BLOCK_WIDTH) * col,
         BLOCKS_BOTTOM + (BLOCKS_PADDING + BLOCK_HEIGHT) * row,
         BLOCK_WIDTH,
@@ -318,7 +318,7 @@ mp_rect blockRect(int i) {
 
 // Returns a cardinal direction 1-8 for the collision with the block, or zero
 // if no collision. 1 is straight up and directions proceed clockwise.
-int checkCollision(mp_rect block) {
+int checkCollision(oc_rect block) {
     // Note that all the logic for this game has the origin in the bottom left.
 
     f32 ballx2 = ball.x + ball.w;
@@ -355,8 +355,8 @@ int checkCollision(mp_rect block) {
     //
     // We assume significant tunneling can't happen.
 
-    vec2 ballCenter = (vec2){ball.x + ball.w/2, ball.y + ball.h/2};
-    vec2 blockCenter = (vec2){block.x + block.w/2, block.y + block.h/2};
+    oc_vec2 ballCenter = (oc_vec2){ball.x + ball.w/2, ball.y + ball.h/2};
+    oc_vec2 blockCenter = (oc_vec2){block.x + block.w/2, block.y + block.h/2};
 
     // Moving right
     if (velocity.x > 0) {
@@ -445,15 +445,15 @@ f32 lerp(f32 a, f32 b, f32 t) {
     return (1 - t) * a + t * b;
 }
 
-mg_mat2x3 flipY(mp_rect r) {
-    return (mg_mat2x3){
+oc_mat2x3 flipY(oc_rect r) {
+    return (oc_mat2x3){
         1, 0, 0,
         0, -1, 2 * r.y + r.h,
     };
 }
 
-mg_mat2x3 flipYAt(vec2 pos) {
-    return (mg_mat2x3){
+oc_mat2x3 flipYAt(oc_vec2 pos) {
+    return (oc_mat2x3){
         1, 0, 0,
         0, -1, 2 * pos.y,
     };

@@ -155,8 +155,8 @@ def bindgen(apiName, spec, **kwargs):
 				if argTag == 'p' and argLen != None:
 
 					s += '\t{\n'
-					s += '\t\tORCA_ASSERT(((char*)'+ argName + ' >= (char*)_mem) && (((char*)'+ argName +' - (char*)_mem) < m3_GetMemorySize(runtime)), "parameter \''+argName+'\' is out of bounds");\n'
-					s += '\t\tORCA_ASSERT((char*)' + argName + ' + '
+					s += '\t\tOC_ASSERT(((char*)'+ argName + ' >= (char*)_mem) && (((char*)'+ argName +' - (char*)_mem) < m3_GetMemorySize(runtime)), "parameter \''+argName+'\' is out of bounds");\n'
+					s += '\t\tOC_ASSERT((char*)' + argName + ' + '
 
 					proc = argLen.get('proc')
 					if proc != None:
@@ -245,7 +245,7 @@ def bindgen(apiName, spec, **kwargs):
 		s += '	res = m3_LinkRawFunction(module, "*", "' + name + '", "' + m3Sig + '", ' + cname + '_stub);\n'
 		s += '	if(res != m3Err_none && res != m3Err_functionLookupFailed)\n'
 		s += '	{\n'
-		s += '		log_error("Couldn\'t link function ' + name + ' (%s)\\n", res);\n'
+		s += '		oc_log_error("Couldn\'t link function ' + name + ' (%s)\\n", res);\n'
 		s += '		ret = -1;\n'
 		s += '	}\n\n'
 

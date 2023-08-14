@@ -9,75 +9,81 @@
 #include"platform/platform.h"
 #include"memory.h"
 #include"platform/platform_memory.h"
-#include"macro_helpers.h"
+#include"macros.h"
 
-#if PLATFORM_ORCA
-	static const u32 MEM_ARENA_DEFAULT_RESERVE_SIZE = 1<<20;
+#if OC_PLATFORM_ORCA
+	enum {
+		OC_ARENA_DEFAULT_RESERVE_SIZE = 1<<20
+	};
 #else
-	static const u32 MEM_ARENA_DEFAULT_RESERVE_SIZE = 1<<30;
+	enum {
+		OC_ARENA_DEFAULT_RESERVE_SIZE = 1<<30
+	};
 #endif
 
-static const u32 MEM_ARENA_COMMIT_ALIGNMENT = 4<<10;
+enum {
+	OC_ARENA_COMMIT_ALIGNMENT = 4<<10
+};
 
 //--------------------------------------------------------------------------------
 //NOTE(martin): memory arena
 //--------------------------------------------------------------------------------
 
-mem_arena_chunk* mem_arena_chunk_alloc(mem_arena* arena, u64 reserveSize)
+oc_arena_chunk* oc_arena_chunk_alloc(oc_arena* arena, u64 reserveSize)
 {
-	reserveSize = AlignUpOnPow2(reserveSize, MEM_ARENA_COMMIT_ALIGNMENT);
-	u64 commitSize = AlignUpOnPow2(sizeof(mem_arena_chunk), MEM_ARENA_COMMIT_ALIGNMENT);
+	reserveSize = oc_align_up_pow2(reserveSize, OC_ARENA_COMMIT_ALIGNMENT);
+	u64 commitSize = oc_align_up_pow2(sizeof(oc_arena_chunk), OC_ARENA_COMMIT_ALIGNMENT);
 
-	char* mem = mem_base_reserve(arena->base, reserveSize);
-	mem_base_commit(arena->base, mem, commitSize);
+	char* mem = oc_base_reserve(arena->base, reserveSize);
+	oc_base_commit(arena->base, mem, commitSize);
 
-	mem_arena_chunk* chunk = (mem_arena_chunk*)mem;
+	oc_arena_chunk* chunk = (oc_arena_chunk*)mem;
 
 	chunk->ptr = mem;
 	chunk->cap = reserveSize;
-	chunk->offset = sizeof(mem_arena_chunk);
+	chunk->offset = sizeof(oc_arena_chunk);
 	chunk->committed = commitSize;
 
-	list_push_back(&arena->chunks, &chunk->listElt);
+	oc_list_push_back(&arena->chunks, &chunk->listElt);
 
 	return(chunk);
 }
 
-void mem_arena_init(mem_arena* arena)
+void oc_arena_init(oc_arena* arena)
 {
-	mem_arena_init_with_options(arena, &(mem_arena_options){0});
+	oc_arena_init_with_options(arena, &(oc_arena_options){0});
 }
 
-void mem_arena_init_with_options(mem_arena* arena, mem_arena_options* options)
+void oc_arena_init_with_options(oc_arena* arena, oc_arena_options* options)
 {
-	memset(arena, 0, sizeof(mem_arena));
+	memset(arena, 0, sizeof(oc_arena));
 
-	arena->base = options->base ? options->base : mem_base_allocator_default();
+	arena->base = options->base ? options->base : oc_base_allocator_default();
 
-	u64 reserveSize = options->reserve ? (options->reserve + sizeof(mem_arena_chunk)) : MEM_ARENA_DEFAULT_RESERVE_SIZE;
+	u64 reserveSize = options->reserve ? (options->reserve + sizeof(oc_arena_chunk)) : OC_ARENA_DEFAULT_RESERVE_SIZE;
 
-	arena->currentChunk = mem_arena_chunk_alloc(arena, reserveSize);
+	arena->currentChunk = oc_arena_chunk_alloc(arena, reserveSize);
 }
 
-void mem_arena_release(mem_arena* arena)
+void oc_arena_cleanup(oc_arena* arena)
 {
-	for_list_safe(&arena->chunks, chunk, mem_arena_chunk, listElt)
+	oc_list_for_safe(&arena->chunks, chunk, oc_arena_chunk, listElt)
 	{
-		mem_base_release(arena->base, chunk, chunk->cap);
+		oc_base_release(arena->base, chunk, chunk->cap);
 	}
-	memset(arena, 0, sizeof(mem_arena));
+	memset(arena, 0, sizeof(oc_arena));
 }
 
-void* mem_arena_alloc(mem_arena* arena, u64 size)
+void* oc_arena_push(oc_arena* arena, u64 size)
 {
-	mem_arena_chunk* chunk = arena->currentChunk;
-	ASSERT(chunk);
+	oc_arena_chunk* chunk = arena->currentChunk;
+	OC_ASSERT(chunk);
 
 	u64 nextOffset = chunk->offset + size;
 	u64 lastCap = chunk->cap;
 	while(nextOffset > chunk->cap)
 	{
-		chunk = list_next_entry(&arena->chunks, chunk, mem_arena_chunk, listElt);
+		chunk = oc_list_next_entry(&arena->chunks, chunk, oc_arena_chunk, listElt);
 		if(chunk)
 		{
 			nextOffset = chunk->offset + size;
@@ -90,21 +96,21 @@ void* mem_arena_alloc(mem_arena* arena, u64 size)
 	}
 	if(!chunk)
 	{
-		u64 reserveSize = maximum(lastCap * 1.5, size);
+		u64 reserveSize = oc_max(lastCap * 1.5, size);
 
-		chunk = mem_arena_chunk_alloc(arena, reserveSize);
+		chunk = oc_arena_chunk_alloc(arena, reserveSize);
 		nextOffset = chunk->offset + size;
 	}
-	ASSERT(nextOffset <= chunk->cap);
+	OC_ASSERT(nextOffset <= chunk->cap);
 
 	arena->currentChunk = chunk;
 
 	if(nextOffset > chunk->committed)
 	{
-		u64 nextCommitted = AlignUpOnPow2(nextOffset, MEM_ARENA_COMMIT_ALIGNMENT);
-		nextCommitted = ClampHighBound(nextCommitted, chunk->cap);
+		u64 nextCommitted = oc_align_up_pow2(nextOffset, OC_ARENA_COMMIT_ALIGNMENT);
+		nextCommitted = oc_clamp_high(nextCommitted, chunk->cap);
 		u64 commitSize = nextCommitted - chunk->committed;
-		mem_base_commit(arena->base, chunk->ptr + chunk->committed, commitSize);
+		oc_base_commit(arena->base, chunk->ptr + chunk->committed, commitSize);
 		chunk->committed = nextCommitted;
 	}
 	char* p = chunk->ptr + chunk->offset;
@@ -113,24 +119,24 @@ void* mem_arena_alloc(mem_arena* arena, u64 size)
 	return(p);
 }
 
-void mem_arena_clear(mem_arena* arena)
+void oc_arena_clear(oc_arena* arena)
 {
-	for_list(&arena->chunks, chunk, mem_arena_chunk, listElt)
+	oc_list_for(&arena->chunks, chunk, oc_arena_chunk, listElt)
 	{
-		chunk->offset = sizeof(mem_arena_chunk);
+		chunk->offset = sizeof(oc_arena_chunk);
 	}
-	arena->currentChunk = list_first_entry(&arena->chunks, mem_arena_chunk, listElt);
+	arena->currentChunk = oc_list_first_entry(&arena->chunks, oc_arena_chunk, listElt);
 }
 
-mem_arena_scope mem_arena_scope_begin(mem_arena* arena)
+oc_arena_scope oc_arena_scope_begin(oc_arena* arena)
 {
-	mem_arena_scope scope = {.arena = arena,
+	oc_arena_scope scope = {.arena = arena,
 	                         .chunk = arena->currentChunk,
 	                         .offset = arena->currentChunk->offset};
 	return(scope);
 }
 
-void mem_arena_scope_end(mem_arena_scope scope)
+void oc_arena_scope_end(oc_arena_scope scope)
 {
 	scope.arena->currentChunk = scope.chunk;
 	scope.arena->currentChunk->offset = scope.offset;
@@ -139,44 +145,44 @@ void mem_arena_scope_end(mem_arena_scope scope)
 //--------------------------------------------------------------------------------
 //NOTE(martin): memory pool
 //--------------------------------------------------------------------------------
-void mem_pool_init(mem_pool* pool, u64 blockSize)
+void oc_pool_init(oc_pool* pool, u64 blockSize)
 {
-	mem_pool_init_with_options(pool, blockSize, &(mem_pool_options){0});
+	oc_pool_init_with_options(pool, blockSize, &(oc_pool_options){0});
 }
-void mem_pool_init_with_options(mem_pool* pool, u64 blockSize, mem_pool_options* options)
+void oc_pool_init_with_options(oc_pool* pool, u64 blockSize, oc_pool_options* options)
 {
-	mem_arena_init_with_options(&pool->arena, &(mem_arena_options){.base = options->base, .reserve = options->reserve});
-	pool->blockSize = ClampLowBound(blockSize, sizeof(list_info));
-	list_init(&pool->freeList);
-}
-
-void mem_pool_release(mem_pool* pool)
-{
-	mem_arena_release(&pool->arena);
-	memset(pool, 0, sizeof(mem_pool));
+	oc_arena_init_with_options(&pool->arena, &(oc_arena_options){.base = options->base, .reserve = options->reserve});
+	pool->blockSize = oc_clamp_low(blockSize, sizeof(oc_list));
+	oc_list_init(&pool->freeList);
 }
 
-void* mem_pool_alloc(mem_pool* pool)
+void oc_pool_cleanup(oc_pool* pool)
 {
-	if(list_empty(&pool->freeList))
+	oc_arena_cleanup(&pool->arena);
+	memset(pool, 0, sizeof(oc_pool));
+}
+
+void* oc_pool_alloc(oc_pool* pool)
+{
+	if(oc_list_empty(&pool->freeList))
 	{
-		return(mem_arena_alloc(&pool->arena, pool->blockSize));
+		return(oc_arena_push(&pool->arena, pool->blockSize));
 	}
 	else
 	{
-		return(list_pop(&pool->freeList));
+		return(oc_list_pop(&pool->freeList));
 	}
 }
 
-void mem_pool_recycle(mem_pool* pool, void* ptr)
+void oc_pool_recycle(oc_pool* pool, void* ptr)
 {
-	list_push(&pool->freeList, (list_elt*)ptr);
+	oc_list_push(&pool->freeList, (oc_list_elt*)ptr);
 }
 
-void mem_pool_clear(mem_pool* pool)
+void oc_pool_clear(oc_pool* pool)
 {
-	mem_arena_clear(&pool->arena);
-	list_init(&pool->freeList);
+	oc_arena_clear(&pool->arena);
+	oc_list_init(&pool->freeList);
 }
 
 
@@ -186,63 +192,63 @@ void mem_pool_clear(mem_pool* pool)
 
 enum
 {
-	MEM_SCRATCH_POOL_SIZE = 8,
-	MEM_SCRATCH_DEFAULT_SIZE = 4096,
+	OC_SCRATCH_POOL_SIZE = 8,
+	OC_SCRATCH_DEFAULT_SIZE = 4096,
 };
 
-mp_thread_local mem_arena __scratchPool[MEM_SCRATCH_POOL_SIZE] = {0};
+oc_thread_local oc_arena __scratchPool[OC_SCRATCH_POOL_SIZE] = {0};
 
 
-static mem_arena* mem_scratch_at_index(int index)
+static oc_arena* oc_scratch_at_index(int index)
 {
-	mem_arena* scratch = 0;
+	oc_arena* scratch = 0;
 
-	if(index >= 0 && index < MEM_SCRATCH_POOL_SIZE)
+	if(index >= 0 && index < OC_SCRATCH_POOL_SIZE)
 	{
 		if(__scratchPool[index].base == 0)
 		{
-			mem_arena_options options = {.reserve = MEM_SCRATCH_DEFAULT_SIZE};
-			mem_arena_init_with_options(&__scratchPool[index], &options);
+			oc_arena_options options = {.reserve = OC_SCRATCH_DEFAULT_SIZE};
+			oc_arena_init_with_options(&__scratchPool[index], &options);
 		}
 		scratch = &__scratchPool[index];
 	}
 	return(scratch);
 }
 
-mem_arena* mem_scratch()
+oc_arena* oc_scratch()
 {
-	return(mem_scratch_at_index(0));
+	return(oc_scratch_at_index(0));
 }
 
-MP_API mem_arena* mem_scratch_next(mem_arena* used)
+ORCA_API oc_arena* oc_scratch_next(oc_arena* used)
 {
-	mem_arena* res = 0;
+	oc_arena* res = 0;
 	if( (used >= __scratchPool)
-	  &&(used - __scratchPool < MEM_SCRATCH_POOL_SIZE))
+	  &&(used - __scratchPool < OC_SCRATCH_POOL_SIZE))
 	{
 		u64 index = used - __scratchPool;
-		if(index + 1 < MEM_SCRATCH_POOL_SIZE)
+		if(index + 1 < OC_SCRATCH_POOL_SIZE)
 		{
-			res = mem_scratch_at_index(index+1);
+			res = oc_scratch_at_index(index+1);
 		}
 	}
 	else
 	{
-		res = mem_scratch_at_index(0);
+		res = oc_scratch_at_index(0);
 	}
 	return(res);
 }
 
-MP_API mem_arena_scope mem_scratch_begin()
+ORCA_API oc_arena_scope oc_scratch_begin()
 {
-	mem_arena* scratch = mem_scratch();
-	mem_arena_scope scope = mem_arena_scope_begin(scratch);
+	oc_arena* scratch = oc_scratch();
+	oc_arena_scope scope = oc_arena_scope_begin(scratch);
 	return(scope);
 }
 
-MP_API mem_arena_scope mem_scratch_begin_next(mem_arena* used)
+ORCA_API oc_arena_scope oc_scratch_begin_next(oc_arena* used)
 {
-	mem_arena* scratch = mem_scratch_next(used);
-	mem_arena_scope scope = mem_arena_scope_begin(scratch);
+	oc_arena* scratch = oc_scratch_next(used);
+	oc_arena_scope scope = oc_arena_scope_begin(scratch);
 	return(scope);
 }

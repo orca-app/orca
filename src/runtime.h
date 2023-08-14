@@ -14,42 +14,41 @@
 #include"m3_env.h"
 #include"m3_compile.h"
 
-#define G_EXPORTS(X) \
-	X(G_EXPORT_ON_INIT, "OnInit", "", "") \
-	X(G_EXPORT_MOUSE_DOWN, "OnMouseDown", "", "i") \
-	X(G_EXPORT_MOUSE_UP, "OnMouseUp", "", "i") \
-	X(G_EXPORT_MOUSE_ENTER, "OnMouseEnter", "", "") \
-	X(G_EXPORT_MOUSE_LEAVE, "OnMouseLeave", "", "") \
-	X(G_EXPORT_MOUSE_MOVE, "OnMouseMove", "", "ffff") \
-	X(G_EXPORT_MOUSE_WHEEL, "OnMouseWheel", "", "ff") \
-	X(G_EXPORT_KEY_DOWN, "OnKeyDown", "", "i") \
-	X(G_EXPORT_KEY_UP, "OnKeyUp", "", "i") \
-	X(G_EXPORT_FRAME_REFRESH, "OnFrameRefresh", "", "") \
-	X(G_EXPORT_FRAME_RESIZE, "OnFrameResize", "", "ii") \
-	X(G_EXPORT_RAW_EVENT, "OnRawEvent", "", "i") \
+#define OC_EXPORTS(X) \
+	X(OC_EXPORT_ON_INIT, "oc_on_init", "", "") \
+	X(OC_EXPORT_MOUSE_DOWN, "oc_on_mouse_down", "", "i") \
+	X(OC_EXPORT_MOUSE_UP, "oc_on_mouse_up", "", "i") \
+	X(OC_EXPORT_MOUSE_ENTER, "oc_on_mouse_enter", "", "") \
+	X(OC_EXPORT_MOUSE_LEAVE, "oc_on_mouse_leave", "", "") \
+	X(OC_EXPORT_MOUSE_MOVE, "oc_on_mouse_move", "", "ffff") \
+	X(OC_EXPORT_MOUSE_WHEEL, "oc_on_mouse_wheel", "", "ff") \
+	X(OC_EXPORT_KEY_DOWN, "oc_on_key_down", "", "i") \
+	X(OC_EXPORT_KEY_UP, "oc_on_key_up", "", "i") \
+	X(OC_EXPORT_FRAME_REFRESH, "oc_on_frame_refresh", "", "") \
+	X(OC_EXPORT_FRAME_RESIZE, "oc_on_resize", "", "ii") \
+	X(OC_EXPORT_RAW_EVENT, "oc_on_raw_event", "", "i") \
 
 typedef enum {
-	#define G_EXPORT_KIND(kind, ...) kind,
-	G_EXPORTS(G_EXPORT_KIND)
-	G_EXPORT_COUNT
+	#define OC_EXPORT_KIND(kind, ...) kind,
+	OC_EXPORTS(OC_EXPORT_KIND)
+	OC_EXPORT_COUNT
 } guest_export_kind;
 
 
-typedef struct g_export_desc
+typedef struct oc_export_desc
 {
-	str8 name;
-	str8 retTags;
-	str8 argTags;
-} g_export_desc;
+	oc_str8 name;
+	oc_str8 retTags;
+	oc_str8 argTags;
+} oc_export_desc;
 
-const g_export_desc G_EXPORT_DESC[] = {
-	#define STR8LIT(s) {sizeof(s)-1, s} //NOTE: msvc doesn't accept STR8(s) as compile-time constant...
-	#define G_EXPORT_DESC_ENTRY(kind, name, rets, args) {STR8LIT(name), STR8LIT(rets), STR8LIT(args)},
+const oc_export_desc OC_EXPORT_DESC[] = {
+	#define OC_EXPORT_DESC_ENTRY(kind, name, rets, args) {OC_STR8_LIT(name), OC_STR8_LIT(rets), OC_STR8_LIT(args)},
 
-	G_EXPORTS(G_EXPORT_DESC_ENTRY)
+	OC_EXPORTS(OC_EXPORT_DESC_ENTRY)
 
-	#undef G_EXPORT_DESC_ENTRY
-	#undef STR8LIT
+	#undef OC_EXPORT_DESC_ENTRY
+	#undef OC_STR8_LIT
 };
 
 typedef struct wasm_memory
@@ -60,69 +59,69 @@ typedef struct wasm_memory
 
 } wasm_memory;
 
-typedef struct orca_runtime
+typedef struct oc_runtime_env
 {
-	str8 wasmBytecode;
+	oc_str8 wasmBytecode;
 	wasm_memory wasmMemory;
 
 	// wasm3 data
 	IM3Environment m3Env;
 	IM3Runtime m3Runtime;
 	IM3Module m3Module;
-	IM3Function exports[G_EXPORT_COUNT];
+	IM3Function exports[OC_EXPORT_COUNT];
 	u32 rawEventOffset;
 
-} orca_runtime;
+} oc_runtime_env;
 
 typedef struct log_entry
 {
-	list_elt listElt;
+	oc_list_elt listElt;
 	u64 cap;
 
-	log_level level;
-	str8 file;
-	str8 function;
+	oc_log_level level;
+	oc_str8 file;
+	oc_str8 function;
 	int line;
-	str8 msg;
+	oc_str8 msg;
 
 	u64 recordIndex;
 
 } log_entry;
 
-typedef struct orca_debug_overlay
+typedef struct oc_debug_overlay
 {
 	bool show;
-	mg_surface surface;
-	mg_canvas canvas;
-	mg_font fontReg;
-	mg_font fontBold;
-	ui_context ui;
+	oc_surface surface;
+	oc_canvas canvas;
+	oc_font fontReg;
+	oc_font fontBold;
+	oc_ui_context ui;
 
 
-	mem_arena logArena;
-	list_info logEntries;
-	list_info logFreeList;
+	oc_arena logArena;
+	oc_list logEntries;
+	oc_list logFreeList;
 	u32 entryCount;
 	u32 maxEntries;
 	u64 logEntryTotalCount;
 	bool logScrollToLast;
 
-} orca_debug_overlay;
+} oc_debug_overlay;
 
-typedef struct orca_app
+typedef struct oc_runtime
 {
-	mp_window window;
+	oc_window window;
 
-	file_table fileTable;
-	file_handle rootDir;
+	oc_file_table fileTable;
+	oc_file rootDir;
 
-	orca_runtime runtime;
+	oc_runtime_env runtime;
 
-	orca_debug_overlay debugOverlay;
+	oc_debug_overlay debugOverlay;
 
-} orca_app;
+} oc_runtime;
 
-orca_app* orca_app_get();
-orca_runtime* orca_runtime_get();
+oc_runtime* oc_runtime_get();
+oc_runtime_env* oc_runtime_env_get();
 
 #endif //__RUNTIME_H_

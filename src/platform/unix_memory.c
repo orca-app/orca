@@ -12,27 +12,27 @@
 /*NOTE(martin):
 	Linux and MacOS don't make a distinction between reserved and committed memory, contrary to Windows
 */
-void mem_base_nop(mem_base_allocator* context, void* ptr, u64 size) {}
+void oc_base_nop(oc_base_allocator* context, void* ptr, u64 size) {}
 
-void* mem_base_reserve_mmap(mem_base_allocator* context, u64 size)
+void* oc_base_reserve_mmap(oc_base_allocator* context, u64 size)
 {
 	return(mmap(0, size, PROT_READ|PROT_WRITE, MAP_ANON|MAP_PRIVATE, 0, 0));
 }
 
-void mem_base_release_mmap(mem_base_allocator* context, void* ptr, u64 size)
+void oc_base_release_mmap(oc_base_allocator* context, void* ptr, u64 size)
 {
 	munmap(ptr, size);
 }
 
-mem_base_allocator* mem_base_allocator_default()
+oc_base_allocator* oc_base_allocator_default()
 {
-	static mem_base_allocator base = {};
+	static oc_base_allocator base = {};
 	if(base.reserve == 0)
 	{
-		base.reserve = mem_base_reserve_mmap;
-		base.commit = mem_base_nop;
-		base.decommit = mem_base_nop;
-		base.release = mem_base_release_mmap;
+		base.reserve = oc_base_reserve_mmap;
+		base.commit = oc_base_nop;
+		base.decommit = oc_base_nop;
+		base.release = oc_base_release_mmap;
 	}
 	return(&base);
 }

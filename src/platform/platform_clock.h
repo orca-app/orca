@@ -17,15 +17,14 @@ extern "C" {
 #endif // __cplusplus
 
 typedef enum {
-	MP_CLOCK_MONOTONIC, // clock that increment monotonically
-    MP_CLOCK_UPTIME,    // clock that increment monotonically during uptime
-	MP_CLOCK_DATE       // clock that is driven by the platform time
-} mp_clock_kind;
+	OC_CLOCK_MONOTONIC, // clock that increment monotonically
+    OC_CLOCK_UPTIME,    // clock that increment monotonically during uptime
+	OC_CLOCK_DATE       // clock that is driven by the platform time
+} oc_clock_kind;
 
-MP_API void mp_clock_init(); // initialize the clock subsystem
-MP_API u64  mp_get_timestamp(mp_clock_kind clock);
-MP_API f64  mp_get_time(mp_clock_kind clock);
-MP_API void mp_sleep_nanoseconds(u64 nanoseconds); // sleep for a given number of nanoseconds
+ORCA_API void oc_clock_init(); // initialize the clock subsystem
+ORCA_API u64  oc_clock_timestamp(oc_clock_kind clock);
+ORCA_API f64  oc_clock_time(oc_clock_kind clock);
 
 #ifdef __cplusplus
 } // extern "C"

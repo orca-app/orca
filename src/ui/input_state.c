@@ -11,7 +11,7 @@
 // Input state updating
 //---------------------------------------------------------------
 
-static void mp_update_key_state(mp_input_state* state, mp_key_state* key, mp_key_action action)
+static void oc_update_key_state(oc_input_state* state, oc_key_state* key, oc_key_action action)
 {
 	u64 frameCounter = state->frameCounter;
 	if(key->lastUpdate != frameCounter)
@@ -25,7 +25,7 @@ static void mp_update_key_state(mp_input_state* state, mp_key_state* key, mp_key
 
 	switch(action)
 	{
-		case MP_KEY_PRESS:
+		case OC_KEY_PRESS:
 		{
 			if(!key->down)
 			{
@@ -34,13 +34,13 @@ static void mp_update_key_state(mp_input_state* state, mp_key_state* key, mp_key
 			key->down = true;
 		} break;
 
-		case MP_KEY_REPEAT:
+		case OC_KEY_REPEAT:
 		{
 			key->repeatCount++;
 			key->down = true;
 		} break;
 
-		case MP_KEY_RELEASE:
+		case OC_KEY_RELEASE:
 		{
 			if(key->down)
 			{
@@ -54,44 +54,44 @@ static void mp_update_key_state(mp_input_state* state, mp_key_state* key, mp_key
 	}
 }
 
-static void mp_update_key_mods(mp_input_state* state, mp_keymod_flags mods)
+static void oc_update_key_mods(oc_input_state* state, oc_keymod_flags mods)
 {
 	state->keyboard.mods = mods;
 }
 
-static void mp_update_mouse_move(mp_input_state* state, f32 x, f32 y, f32 deltaX, f32 deltaY)
+static void oc_update_mouse_move(oc_input_state* state, f32 x, f32 y, f32 deltaX, f32 deltaY)
 {
 	u64 frameCounter = state->frameCounter;
-	mp_mouse_state* mouse = &state->mouse;
+	oc_mouse_state* mouse = &state->mouse;
 	if(mouse->lastUpdate != frameCounter)
 	{
-		mouse->delta = (vec2){0, 0};
-		mouse->wheel = (vec2){0, 0};
+		mouse->delta = (oc_vec2){0, 0};
+		mouse->wheel = (oc_vec2){0, 0};
 		mouse->lastUpdate = frameCounter;
 	}
-	mouse->pos = (vec2){x, y};
+	mouse->pos = (oc_vec2){x, y};
 	mouse->delta.x += deltaX;
 	mouse->delta.y += deltaY;
 }
 
-static void mp_update_mouse_wheel(mp_input_state* state, f32 deltaX, f32 deltaY)
+static void oc_update_mouse_wheel(oc_input_state* state, f32 deltaX, f32 deltaY)
 {
 	u64 frameCounter = state->frameCounter;
-	mp_mouse_state* mouse = &state->mouse;
+	oc_mouse_state* mouse = &state->mouse;
 	if(mouse->lastUpdate != frameCounter)
 	{
-		mouse->delta = (vec2){0, 0};
-		mouse->wheel = (vec2){0, 0};
+		mouse->delta = (oc_vec2){0, 0};
+		mouse->wheel = (oc_vec2){0, 0};
 		mouse->lastUpdate = frameCounter;
 	}
 	mouse->wheel.x += deltaX;
 	mouse->wheel.y += deltaY;
 }
 
-static void mp_update_text(mp_input_state* state, utf32 codepoint)
+static void oc_update_text(oc_input_state* state, oc_utf32 codepoint)
 {
 	u64 frameCounter = state->frameCounter;
-	mp_text_state* text = &state->text;
+	oc_text_state* text = &state->text;
 
 	if(text->lastUpdate != frameCounter)
 	{
@@ -100,55 +100,55 @@ static void mp_update_text(mp_input_state* state, utf32 codepoint)
 	}
 
 	text->codePoints.ptr = text->backing;
-	if(text->codePoints.len < MP_INPUT_TEXT_BACKING_SIZE)
+	if(text->codePoints.len < OC_INPUT_TEXT_BACKING_SIZE)
 	{
 		text->codePoints.ptr[text->codePoints.len] = codepoint;
 		text->codePoints.len++;
 	}
 	else
 	{
-		log_warning("too many input codepoints per frame, dropping input");
+		oc_log_warning("too many input codepoints per frame, dropping input");
 	}
 }
 
-void mp_input_next_frame(mp_input_state* state)
+void oc_input_next_frame(oc_input_state* state)
 {
 	state->frameCounter++;
 }
 
-void mp_input_process_event(mp_input_state* state, mp_event* event)
+void oc_input_process_event(oc_input_state* state, oc_event* event)
 {
 	switch(event->type)
 	{
-		case MP_EVENT_KEYBOARD_KEY:
+		case OC_EVENT_KEYBOARD_KEY:
 		{
-			mp_key_state* key = &state->keyboard.keys[event->key.code];
-			mp_update_key_state(state, key, event->key.action);
-			mp_update_key_mods(state, event->key.mods);
+			oc_key_state* key = &state->keyboard.keys[event->key.code];
+			oc_update_key_state(state, key, event->key.action);
+			oc_update_key_mods(state, event->key.mods);
 		} break;
 
-		case MP_EVENT_KEYBOARD_CHAR:
-			mp_update_text(state, event->character.codepoint);
+		case OC_EVENT_KEYBOARD_CHAR:
+			oc_update_text(state, event->character.codepoint);
 			break;
 
-		case MP_EVENT_KEYBOARD_MODS:
-			mp_update_key_mods(state, event->key.mods);
+		case OC_EVENT_KEYBOARD_MODS:
+			oc_update_key_mods(state, event->key.mods);
 			break;
 
-		case MP_EVENT_MOUSE_MOVE:
-			mp_update_mouse_move(state, event->mouse.x, event->mouse.y, event->mouse.deltaX, event->mouse.deltaY);
+		case OC_EVENT_MOUSE_MOVE:
+			oc_update_mouse_move(state, event->mouse.x, event->mouse.y, event->mouse.deltaX, event->mouse.deltaY);
 			break;
 
-		case MP_EVENT_MOUSE_WHEEL:
-			mp_update_mouse_wheel(state, event->mouse.deltaX, event->mouse.deltaY);
+		case OC_EVENT_MOUSE_WHEEL:
+			oc_update_mouse_wheel(state, event->mouse.deltaX, event->mouse.deltaY);
 			break;
 
-		case MP_EVENT_MOUSE_BUTTON:
+		case OC_EVENT_MOUSE_BUTTON:
 		{
-			mp_key_state* key = &state->mouse.buttons[event->key.code];
-			mp_update_key_state(state, key, event->key.action);
+			oc_key_state* key = &state->mouse.buttons[event->key.code];
+			oc_update_key_state(state, key, event->key.action);
 
-			if(event->key.action == MP_KEY_PRESS)
+			if(event->key.action == OC_KEY_PRESS)
 			{
 				if(event->key.clickCount >= 1)
 				{
@@ -160,7 +160,7 @@ void mp_input_process_event(mp_input_state* state, mp_event* event)
 				}
 			}
 
-			mp_update_key_mods(state, event->key.mods);
+			oc_update_key_mods(state, event->key.mods);
 		} break;
 
 		default:
@@ -172,27 +172,27 @@ void mp_input_process_event(mp_input_state* state, mp_event* event)
 // Input state polling
 //--------------------------------------------------------------------
 
-mp_key_state mp_key_get_state(mp_input_state* input, mp_key_code key)
+oc_key_state oc_key_get_state(oc_input_state* input, oc_key_code key)
 {
-	mp_key_state state = {0};
-	if(key <= MP_KEY_COUNT)
+	oc_key_state state = {0};
+	if(key <= OC_KEY_COUNT)
 	{
 		state = input->keyboard.keys[key];
 	}
 	return(state);
 }
 
-mp_key_state mp_mouse_button_get_state(mp_input_state* input, mp_mouse_button button)
+oc_key_state oc_mouse_button_get_state(oc_input_state* input, oc_mouse_button button)
 {
-	mp_key_state state = {0};
-	if(button <= MP_MOUSE_BUTTON_COUNT)
+	oc_key_state state = {0};
+	if(button <= OC_MOUSE_BUTTON_COUNT)
 	{
 		state = input->mouse.buttons[button];
 	}
 	return(state);
 }
 
-int mp_key_state_press_count(mp_input_state* input, mp_key_state* key)
+int oc_key_state_press_count(oc_input_state* input, oc_key_state* key)
 {
 	int count = 0;
 	if(key->lastUpdate == input->frameCounter)
@@ -207,7 +207,7 @@ int mp_key_state_press_count(mp_input_state* input, mp_key_state* key)
 	return(count);
 }
 
-int mp_key_state_release_count(mp_input_state* input, mp_key_state* key)
+int oc_key_state_release_count(oc_input_state* input, oc_key_state* key)
 {
 	int count = 0;
 	if(key->lastUpdate == input->frameCounter)
@@ -222,7 +222,7 @@ int mp_key_state_release_count(mp_input_state* input, mp_key_state* key)
 	return(count);
 }
 
-int mp_key_state_repeat_count(mp_input_state* input, mp_key_state* key)
+int oc_key_state_repeat_count(oc_input_state* input, oc_key_state* key)
 {
 	int count = 0;
 	if(key->lastUpdate == input->frameCounter)
@@ -232,78 +232,78 @@ int mp_key_state_repeat_count(mp_input_state* input, mp_key_state* key)
 	return(count);
 }
 
-bool mp_key_down(mp_input_state* input, mp_key_code key)
+bool oc_key_down(oc_input_state* input, oc_key_code key)
 {
-	mp_key_state state = mp_key_get_state(input, key);
+	oc_key_state state = oc_key_get_state(input, key);
 	return(state.down);
 }
 
-int mp_key_pressed(mp_input_state* input, mp_key_code key)
+int oc_key_pressed(oc_input_state* input, oc_key_code key)
 {
-	mp_key_state state = mp_key_get_state(input, key);
-	int res = mp_key_state_press_count(input, &state);
+	oc_key_state state = oc_key_get_state(input, key);
+	int res = oc_key_state_press_count(input, &state);
 	return(res);
 }
 
-int mp_key_released(mp_input_state* input, mp_key_code key)
+int oc_key_released(oc_input_state* input, oc_key_code key)
 {
-	mp_key_state state = mp_key_get_state(input, key);
-	int res = mp_key_state_release_count(input, &state);
+	oc_key_state state = oc_key_get_state(input, key);
+	int res = oc_key_state_release_count(input, &state);
 	return(res);
 }
 
-int mp_key_repeated(mp_input_state* input, mp_key_code key)
+int oc_key_repeated(oc_input_state* input, oc_key_code key)
 {
-	mp_key_state state = mp_key_get_state(input, key);
-	int res = mp_key_state_repeat_count(input, &state);
+	oc_key_state state = oc_key_get_state(input, key);
+	int res = oc_key_state_repeat_count(input, &state);
 	return(res);
 }
 
-bool mp_mouse_down(mp_input_state* input, mp_mouse_button button)
+bool oc_mouse_down(oc_input_state* input, oc_mouse_button button)
 {
-	mp_key_state state = mp_mouse_button_get_state(input, button);
+	oc_key_state state = oc_mouse_button_get_state(input, button);
 	return(state.down);
 }
 
-int mp_mouse_pressed(mp_input_state* input, mp_mouse_button button)
+int oc_mouse_pressed(oc_input_state* input, oc_mouse_button button)
 {
-	mp_key_state state = mp_mouse_button_get_state(input, button);
-	int res = mp_key_state_press_count(input, &state);
+	oc_key_state state = oc_mouse_button_get_state(input, button);
+	int res = oc_key_state_press_count(input, &state);
 	return(res);
 }
 
-int mp_mouse_released(mp_input_state* input, mp_mouse_button button)
+int oc_mouse_released(oc_input_state* input, oc_mouse_button button)
 {
-	mp_key_state state = mp_mouse_button_get_state(input, button);
-	int res = mp_key_state_release_count(input, &state);
+	oc_key_state state = oc_mouse_button_get_state(input, button);
+	int res = oc_key_state_release_count(input, &state);
 	return(res);
 }
 
-bool mp_mouse_clicked(mp_input_state* input, mp_mouse_button button)
+bool oc_mouse_clicked(oc_input_state* input, oc_mouse_button button)
 {
-	mp_key_state state = mp_mouse_button_get_state(input, button);
+	oc_key_state state = oc_mouse_button_get_state(input, button);
 	bool clicked = state.sysClicked && (state.lastUpdate == input->frameCounter);
 	return(clicked);
 }
 
-bool mp_mouse_double_clicked(mp_input_state* input, mp_mouse_button button)
+bool oc_mouse_double_clicked(oc_input_state* input, oc_mouse_button button)
 {
-	mp_key_state state = mp_mouse_button_get_state(input, button);
+	oc_key_state state = oc_mouse_button_get_state(input, button);
 	bool doubleClicked = state.sysClicked && (state.lastUpdate == input->frameCounter);
 	return(doubleClicked);
 }
 
-mp_keymod_flags mp_key_mods(mp_input_state* input)
+oc_keymod_flags oc_key_mods(oc_input_state* input)
 {
 	return(input->keyboard.mods);
 }
 
-vec2 mp_mouse_position(mp_input_state* input)
+oc_vec2 oc_mouse_position(oc_input_state* input)
 {
 	return(input->mouse.pos);
 }
 
-vec2 mp_mouse_delta(mp_input_state* input)
+oc_vec2 oc_mouse_delta(oc_input_state* input)
 {
 	if(input->mouse.lastUpdate == input->frameCounter)
 	{
@@ -311,11 +311,11 @@ vec2 mp_mouse_delta(mp_input_state* input)
 	}
 	else
 	{
-		return((vec2){0, 0});
+		return((oc_vec2){0, 0});
 	}
 }
 
-vec2 mp_mouse_wheel(mp_input_state* input)
+oc_vec2 oc_mouse_wheel(oc_input_state* input)
 {
 	if(input->mouse.lastUpdate == input->frameCounter)
 	{
@@ -323,26 +323,26 @@ vec2 mp_mouse_wheel(mp_input_state* input)
 	}
 	else
 	{
-		return((vec2){0, 0});
+		return((oc_vec2){0, 0});
 	}
 }
 
-str32 mp_input_text_utf32(mp_input_state* input, mem_arena* arena)
+oc_str32 oc_input_text_utf32(oc_input_state* input, oc_arena* arena)
 {
-	str32 res = {0};
+	oc_str32 res = {0};
 	if(input->text.lastUpdate == input->frameCounter)
 	{
-		res = str32_push_copy(arena, input->text.codePoints);
+		res = oc_str32_push_copy(arena, input->text.codePoints);
 	}
 	return(res);
 }
 
-str8 mp_input_text_utf8(mp_input_state* input, mem_arena* arena)
+oc_str8 oc_input_text_utf8(oc_input_state* input, oc_arena* arena)
 {
-	str8 res = {0};
+	oc_str8 res = {0};
 	if(input->text.lastUpdate == input->frameCounter)
 	{
-		res = utf8_push_from_codepoints(arena, input->text.codePoints);
+		res = oc_utf8_push_from_codepoints(arena, input->text.codePoints);
 	}
 	return(res);
 }

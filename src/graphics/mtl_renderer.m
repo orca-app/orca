@@ -11,19 +11,19 @@
 #include<simd/simd.h>
 
 #include"graphics_surface.h"
-#include"util/macro_helpers.h"
+#include"util/macros.h"
 #include"app/osx_app.h"
 
 #include"mtl_renderer.h"
 
-const int MG_MTL_INPUT_BUFFERS_COUNT = 3,
-          MG_MTL_TILE_SIZE = 16,
-          MG_MTL_MSAA_COUNT = 8;
+const int OC_MTL_INPUT_BUFFERS_COUNT = 3,
+          OC_MTL_TILE_SIZE = 16,
+          OC_MTL_MSAA_COUNT = 8;
 
-typedef struct mg_mtl_canvas_backend
+typedef struct oc_mtl_canvas_backend
 {
-	mg_canvas_backend interface;
-	mg_mtl_surface* surface;
+	oc_canvas_backend interface;
+	oc_mtl_surface* surface;
 
 	id<MTLComputePipelineState> pathPipeline;
 	id<MTLComputePipelineState> segmentPipeline;
@@ -37,10 +37,10 @@ typedef struct mg_mtl_canvas_backend
 	int bufferIndex;
 	dispatch_semaphore_t bufferSemaphore;
 
-	id<MTLBuffer> pathBuffer[MG_MTL_INPUT_BUFFERS_COUNT];
-	id<MTLBuffer> elementBuffer[MG_MTL_INPUT_BUFFERS_COUNT];
-	id<MTLBuffer> logBuffer[MG_MTL_INPUT_BUFFERS_COUNT];
-	id<MTLBuffer> logOffsetBuffer[MG_MTL_INPUT_BUFFERS_COUNT];
+	id<MTLBuffer> pathBuffer[OC_MTL_INPUT_BUFFERS_COUNT];
+	id<MTLBuffer> elementBuffer[OC_MTL_INPUT_BUFFERS_COUNT];
+	id<MTLBuffer> logBuffer[OC_MTL_INPUT_BUFFERS_COUNT];
+	id<MTLBuffer> logOffsetBuffer[OC_MTL_INPUT_BUFFERS_COUNT];
 
 	id<MTLBuffer> segmentCountBuffer;
 	id<MTLBuffer> segmentBuffer;
@@ -53,7 +53,7 @@ typedef struct mg_mtl_canvas_backend
 	id<MTLBuffer> rasterDispatchBuffer;
 
 	int msaaCount;
-	vec2 frameSize;
+	oc_vec2 frameSize;
 
 	// encoding context
 	int eltCap;
@@ -64,31 +64,31 @@ typedef struct mg_mtl_canvas_backend
 	int pathCount;
 	int pathBatchStart;
 
-	mg_primitive* primitive;
-	vec4 pathScreenExtents;
-	vec4 pathUserExtents;
+	oc_primitive* primitive;
+	oc_vec4 pathScreenExtents;
+	oc_vec4 pathUserExtents;
 
 	int maxTileQueueCount;
 	int maxSegmentCount;
 
 	int currentImageIndex;
 
-} mg_mtl_canvas_backend;
+} oc_mtl_canvas_backend;
 
-typedef struct mg_mtl_image_data
+typedef struct oc_mtl_image_data
 {
-	mg_image_data interface;
+	oc_image_data interface;
 	id<MTLTexture> texture;
-} mg_mtl_image_data;
+} oc_mtl_image_data;
 
-void mg_mtl_print_log(int bufferIndex, id<MTLBuffer> logBuffer, id<MTLBuffer> logOffsetBuffer)
+void oc_mtl_print_log(int bufferIndex, id<MTLBuffer> logBuffer, id<MTLBuffer> logOffsetBuffer)
 {
 	char* log = [logBuffer contents];
 	int size = *(int*)[logOffsetBuffer contents];
 
 	if(size)
 	{
-		log_info("Log from buffer %i:\n", bufferIndex);
+		oc_log_info("Log from buffer %i:\n", bufferIndex);
 
 		int index = 0;
 		while(index < size)
@@ -100,15 +100,15 @@ void mg_mtl_print_log(int bufferIndex, id<MTLBuffer> logBuffer, id<MTLBuffer> lo
 	}
 }
 
-static void mg_update_path_extents(vec4* extents, vec2 p)
+static void oc_mtl_update_path_extents(oc_vec4* extents, oc_vec2 p)
 {
-	extents->x = minimum(extents->x, p.x);
-	extents->y = minimum(extents->y, p.y);
-	extents->z = maximum(extents->z, p.x);
-	extents->w = maximum(extents->w, p.y);
+	extents->x = oc_min(extents->x, p.x);
+	extents->y = oc_min(extents->y, p.y);
+	extents->z = oc_max(extents->z, p.x);
+	extents->w = oc_max(extents->w, p.y);
 }
 
-id<MTLBuffer> mg_mtl_grow_input_buffer(id<MTLDevice> device, id<MTLBuffer> oldBuffer, int oldCopySize, int newSize)
+id<MTLBuffer> oc_mtl_grow_input_buffer(id<MTLDevice> device, id<MTLBuffer> oldBuffer, int oldCopySize, int newSize)
 {
 	@autoreleasepool
 	{
@@ -124,46 +124,46 @@ id<MTLBuffer> mg_mtl_grow_input_buffer(id<MTLDevice> device, id<MTLBuffer> oldBu
 	}
 }
 
-void mg_mtl_canvas_encode_element(mg_mtl_canvas_backend* backend, mg_path_elt_type kind, vec2* p)
+void oc_mtl_canvas_encode_element(oc_mtl_canvas_backend* backend, oc_path_elt_type kind, oc_vec2* p)
 {
 	int bufferIndex = backend->bufferIndex;
-	int bufferCap = [backend->elementBuffer[bufferIndex] length] / sizeof(mg_mtl_path_elt);
+	int bufferCap = [backend->elementBuffer[bufferIndex] length] / sizeof(oc_mtl_path_elt);
 	if(backend->eltCount >= bufferCap)
 	{
 		int newBufferCap = (int)(bufferCap * 1.5);
-		int newBufferSize = newBufferCap * sizeof(mg_mtl_path_elt);
+		int newBufferSize = newBufferCap * sizeof(oc_mtl_path_elt);
 
-		log_info("growing element buffer to %i elements\n", newBufferCap);
+		oc_log_info("growing element buffer to %i elements\n", newBufferCap);
 
-		backend->elementBuffer[bufferIndex] = mg_mtl_grow_input_buffer(backend->surface->device,
+		backend->elementBuffer[bufferIndex] = oc_mtl_grow_input_buffer(backend->surface->device,
 		                                                               backend->elementBuffer[bufferIndex],
-		                                                               backend->eltCount * sizeof(mg_mtl_path_elt),
+		                                                               backend->eltCount * sizeof(oc_mtl_path_elt),
 		                                                               newBufferSize);
 	}
 
-	mg_mtl_path_elt* elements = (mg_mtl_path_elt*)[backend->elementBuffer[bufferIndex] contents];
-	mg_mtl_path_elt* elt = &elements[backend->eltCount];
+	oc_mtl_path_elt* elements = (oc_mtl_path_elt*)[backend->elementBuffer[bufferIndex] contents];
+	oc_mtl_path_elt* elt = &elements[backend->eltCount];
 	backend->eltCount++;
 
 	elt->pathIndex = backend->pathCount - backend->pathBatchStart;
 	int count = 0;
 	switch(kind)
 	{
-		case MG_PATH_LINE:
+		case OC_PATH_LINE:
 			backend->maxSegmentCount += 1;
-			elt->kind = MG_MTL_LINE;
+			elt->kind = OC_MTL_LINE;
 			count = 2;
 			break;
 
-		case MG_PATH_QUADRATIC:
+		case OC_PATH_QUADRATIC:
 			backend->maxSegmentCount += 3;
-			elt->kind = MG_MTL_QUADRATIC;
+			elt->kind = OC_MTL_QUADRATIC;
 			count = 3;
 			break;
 
-		case MG_PATH_CUBIC:
+		case OC_PATH_CUBIC:
 			backend->maxSegmentCount += 7;
-			elt->kind = MG_MTL_CUBIC;
+			elt->kind = OC_MTL_CUBIC;
 			count = 4;
 			break;
 
@@ -173,38 +173,38 @@ void mg_mtl_canvas_encode_element(mg_mtl_canvas_backend* backend, mg_path_elt_ty
 
 	for(int i=0; i<count; i++)
 	{
-		mg_update_path_extents(&backend->pathUserExtents, p[i]);
+		oc_mtl_update_path_extents(&backend->pathUserExtents, p[i]);
 
-		vec2 screenP = mg_mat2x3_mul(backend->primitive->attributes.transform, p[i]);
+		oc_vec2 screenP = oc_mat2x3_mul(backend->primitive->attributes.transform, p[i]);
 		elt->p[i] = (vector_float2){screenP.x, screenP.y};
 
-		mg_update_path_extents(&backend->pathScreenExtents, screenP);
+		oc_mtl_update_path_extents(&backend->pathScreenExtents, screenP);
 	}
 }
 
 
-void mg_mtl_encode_path(mg_mtl_canvas_backend* backend, mg_primitive* primitive, float scale)
+void oc_mtl_encode_path(oc_mtl_canvas_backend* backend, oc_primitive* primitive, float scale)
 {
 	int bufferIndex = backend->bufferIndex;
-	int bufferCap = [backend->pathBuffer[bufferIndex] length] / sizeof(mg_mtl_path);
+	int bufferCap = [backend->pathBuffer[bufferIndex] length] / sizeof(oc_mtl_path);
 	if(backend->pathCount >= bufferCap)
 	{
 		int newBufferCap = (int)(bufferCap * 1.5);
-		int newBufferSize = newBufferCap * sizeof(mg_mtl_path);
+		int newBufferSize = newBufferCap * sizeof(oc_mtl_path);
 
-		log_info("growing path buffer to %i elements\n", newBufferCap);
+		oc_log_info("growing path buffer to %i elements\n", newBufferCap);
 
-		backend->pathBuffer[bufferIndex] = mg_mtl_grow_input_buffer(backend->surface->device,
+		backend->pathBuffer[bufferIndex] = oc_mtl_grow_input_buffer(backend->surface->device,
 		                                                               backend->pathBuffer[bufferIndex],
-		                                                               backend->eltCount * sizeof(mg_mtl_path),
+		                                                               backend->eltCount * sizeof(oc_mtl_path),
 		                                                               newBufferSize);
 	}
 
-	mg_mtl_path* pathBufferData = (mg_mtl_path*)[backend->pathBuffer[backend->bufferIndex] contents];
-	mg_mtl_path* path = &(pathBufferData[backend->pathCount]);
+	oc_mtl_path* pathBufferData = (oc_mtl_path*)[backend->pathBuffer[backend->bufferIndex] contents];
+	oc_mtl_path* path = &(pathBufferData[backend->pathCount]);
 	backend->pathCount++;
 
-	path->cmd =	(mg_mtl_cmd)primitive->cmd;
+	path->cmd =	(oc_mtl_cmd)primitive->cmd;
 
 	path->box = (vector_float4){backend->pathScreenExtents.x,
 	                            backend->pathScreenExtents.y,
@@ -221,32 +221,32 @@ void mg_mtl_encode_path(mg_mtl_canvas_backend* backend, mg_primitive* primitive,
 	                              primitive->attributes.color.b,
 	                              primitive->attributes.color.a};
 
-	mp_rect srcRegion = primitive->attributes.srcRegion;
+	oc_rect srcRegion = primitive->attributes.srcRegion;
 
-	mp_rect destRegion = {backend->pathUserExtents.x,
+	oc_rect destRegion = {backend->pathUserExtents.x,
 	                      backend->pathUserExtents.y,
 	                      backend->pathUserExtents.z - backend->pathUserExtents.x,
 	                      backend->pathUserExtents.w - backend->pathUserExtents.y};
 
-	if(!mg_image_is_nil(primitive->attributes.image))
+	if(!oc_image_is_nil(primitive->attributes.image))
 	{
-		vec2 texSize = mg_image_size(primitive->attributes.image);
+		oc_vec2 texSize = oc_image_size(primitive->attributes.image);
 
-		mg_mat2x3 srcRegionToImage = {1/texSize.x, 0, srcRegion.x/texSize.x,
+		oc_mat2x3 srcRegionToImage = {1/texSize.x, 0, srcRegion.x/texSize.x,
 		                              0, 1/texSize.y, srcRegion.y/texSize.y};
 
-		mg_mat2x3 destRegionToSrcRegion = {srcRegion.w/destRegion.w, 0, 0,
+		oc_mat2x3 destRegionToSrcRegion = {srcRegion.w/destRegion.w, 0, 0,
 		                                   0, srcRegion.h/destRegion.h, 0};
 
-		mg_mat2x3 userToDestRegion = {1, 0, -destRegion.x,
+		oc_mat2x3 userToDestRegion = {1, 0, -destRegion.x,
 		                              0, 1, -destRegion.y};
 
-		mg_mat2x3 screenToUser = mg_mat2x3_inv(primitive->attributes.transform);
+		oc_mat2x3 screenToUser = oc_mat2x3_inv(primitive->attributes.transform);
 
-		mg_mat2x3 uvTransform = srcRegionToImage;
-		uvTransform = mg_mat2x3_mul_m(uvTransform, destRegionToSrcRegion);
-		uvTransform = mg_mat2x3_mul_m(uvTransform, userToDestRegion);
-		uvTransform = mg_mat2x3_mul_m(uvTransform, screenToUser);
+		oc_mat2x3 uvTransform = srcRegionToImage;
+		uvTransform = oc_mat2x3_mul_m(uvTransform, destRegionToSrcRegion);
+		uvTransform = oc_mat2x3_mul_m(uvTransform, userToDestRegion);
+		uvTransform = oc_mat2x3_mul_m(uvTransform, screenToUser);
 
 		path->uvTransform = simd_matrix(simd_make_float3(uvTransform.m[0]/scale, uvTransform.m[3]/scale, 0),
 		                                simd_make_float3(uvTransform.m[1]/scale, uvTransform.m[4]/scale, 0),
@@ -255,10 +255,10 @@ void mg_mtl_encode_path(mg_mtl_canvas_backend* backend, mg_primitive* primitive,
 	}
 	path->texture = backend->currentImageIndex;
 
-	int firstTileX = path->box.x*scale / MG_MTL_TILE_SIZE;
-	int firstTileY = path->box.y*scale / MG_MTL_TILE_SIZE;
-	int lastTileX = path->box.z*scale / MG_MTL_TILE_SIZE;
-	int lastTileY = path->box.w*scale / MG_MTL_TILE_SIZE;
+	int firstTileX = path->box.x*scale / OC_MTL_TILE_SIZE;
+	int firstTileY = path->box.y*scale / OC_MTL_TILE_SIZE;
+	int lastTileX = path->box.z*scale / OC_MTL_TILE_SIZE;
+	int lastTileY = path->box.w*scale / OC_MTL_TILE_SIZE;
 
 	int nTilesX = lastTileX - firstTileX + 1;
 	int nTilesY = lastTileY - firstTileY + 1;
@@ -266,7 +266,7 @@ void mg_mtl_encode_path(mg_mtl_canvas_backend* backend, mg_primitive* primitive,
 	backend->maxTileQueueCount += (nTilesX * nTilesY);
 }
 
-bool mg_intersect_hull_legs(vec2 p0, vec2 p1, vec2 p2, vec2 p3, vec2* intersection)
+static bool oc_intersect_hull_legs(oc_vec2 p0, oc_vec2 p1, oc_vec2 p2, oc_vec2 p3, oc_vec2* intersection)
 {
 	/*NOTE: check intersection of lines (p0-p1) and (p2-p3)
 
@@ -288,26 +288,26 @@ bool mg_intersect_hull_legs(vec2 p0, vec2 p1, vec2 p2, vec2 p3, vec2* intersecti
 	return(found);
 }
 
-bool mg_offset_hull(int count, vec2* p, vec2* result, f32 offset)
+static bool oc_offset_hull(int count, oc_vec2* p, oc_vec2* result, f32 offset)
 {
 	//NOTE: we should have no more than two coincident points here. This means the leg between
 	//      those two points can't be offset, but we can set a double point at the start of first leg,
 	//      end of first leg, or we can join the first and last leg to create a missing middle one
 
-	vec2 legs[3][2] = {0};
+	oc_vec2 legs[3][2] = {0};
 	bool valid[3] = {0};
 
 	for(int i=0; i<count-1; i++)
 	{
-		vec2 n = {p[i].y - p[i+1].y,
+		oc_vec2 n = {p[i].y - p[i+1].y,
 	              p[i+1].x - p[i].x};
 
 		f32 norm = sqrt(n.x*n.x + n.y*n.y);
 		if(norm >= 1e-6)
 		{
-			n = vec2_mul(offset/norm, n);
-			legs[i][0] = vec2_add(p[i], n);
-			legs[i][1] = vec2_add(p[i+1], n);
+			n = oc_vec2_mul(offset/norm, n);
+			legs[i][0] = oc_vec2_add(p[i], n);
+			legs[i][1] = oc_vec2_add(p[i+1], n);
 			valid[i] = true;
 		}
 	}
@@ -321,7 +321,7 @@ bool mg_offset_hull(int count, vec2* p, vec2* result, f32 offset)
 	}
 	else
 	{
-		ASSERT(valid[1]);
+		OC_ASSERT(valid[1]);
 		result[0] = legs[1][0];
 	}
 
@@ -331,17 +331,17 @@ bool mg_offset_hull(int count, vec2* p, vec2* result, f32 offset)
 
 		if(!valid[i-1])
 		{
-			ASSERT(valid[i]);
+			OC_ASSERT(valid[i]);
 			result[i] = legs[i][0];
 		}
 		else if(!valid[i])
 		{
-			ASSERT(valid[i-1]);
+			OC_ASSERT(valid[i-1]);
 			result[i] = legs[i-1][0];
 		}
 		else
 		{
-			if(!mg_intersect_hull_legs(legs[i-1][0], legs[i-1][1], legs[i][0], legs[i][1], &result[i]))
+			if(!oc_intersect_hull_legs(legs[i-1][0], legs[i-1][1], legs[i][0], legs[i][1], &result[i]))
 			{
 				// legs don't intersect.
 				return(false);
@@ -355,20 +355,20 @@ bool mg_offset_hull(int count, vec2* p, vec2* result, f32 offset)
 	}
 	else
 	{
-		ASSERT(valid[count-3]);
+		OC_ASSERT(valid[count-3]);
 		result[count-1] = legs[count-3][1];
 	}
 
 	return(true);
 }
 
-vec2 mg_quadratic_get_point(vec2 p[3], f32 t)
+static oc_vec2 oc_quadratic_get_point(oc_vec2 p[3], f32 t)
 {
-	vec2 r;
+	oc_vec2 r;
 
 	f32 oneMt = 1-t;
-	f32 oneMt2 = Square(oneMt);
-	f32 t2 = Square(t);
+	f32 oneMt2 = oc_square(oneMt);
+	f32 t2 = oc_square(t);
 
 	r.x = oneMt2*p[0].x + 2*oneMt*t*p[1].x + t2*p[2].x;
 	r.y = oneMt2*p[0].y + 2*oneMt*t*p[1].y + t2*p[2].y;
@@ -376,7 +376,7 @@ vec2 mg_quadratic_get_point(vec2 p[3], f32 t)
 	return(r);
 }
 
-void mg_quadratic_split(vec2 p[3], f32 t, vec2 outLeft[3], vec2 outRight[3])
+static void oc_quadratic_split(oc_vec2 p[3], f32 t, oc_vec2 outLeft[3], oc_vec2 outRight[3])
 {
 	//NOTE(martin): split bezier curve p at parameter t, using De Casteljau's algorithm
 	//              the q_n are the points along the hull's segments at parameter t
@@ -384,13 +384,13 @@ void mg_quadratic_split(vec2 p[3], f32 t, vec2 outLeft[3], vec2 outRight[3])
 
 	f32 oneMt = 1-t;
 
-	vec2 q0 = {oneMt*p[0].x + t*p[1].x,
+	oc_vec2 q0 = {oneMt*p[0].x + t*p[1].x,
 		   oneMt*p[0].y + t*p[1].y};
 
-	vec2 q1 = {oneMt*p[1].x + t*p[2].x,
+	oc_vec2 q1 = {oneMt*p[1].x + t*p[2].x,
 		   oneMt*p[1].y + t*p[2].y};
 
-	vec2 s = {oneMt*q0.x + t*q1.x,
+	oc_vec2 s = {oneMt*q0.x + t*q1.x,
 		   oneMt*q0.y + t*q1.y};
 
 	outLeft[0] = p[0];
@@ -402,14 +402,14 @@ void mg_quadratic_split(vec2 p[3], f32 t, vec2 outLeft[3], vec2 outRight[3])
 	outRight[2] = p[2];
 }
 
-vec2 mg_cubic_get_point(vec2 p[4], f32 t)
+static oc_vec2 oc_cubic_get_point(oc_vec2 p[4], f32 t)
 {
-	vec2 r;
+	oc_vec2 r;
 
 	f32 oneMt = 1-t;
-	f32 oneMt2 = Square(oneMt);
+	f32 oneMt2 = oc_square(oneMt);
 	f32 oneMt3 = oneMt2*oneMt;
-	f32 t2 = Square(t);
+	f32 t2 = oc_square(t);
 	f32 t3 = t2*t;
 
 	r.x = oneMt3*p[0].x + 3*oneMt2*t*p[1].x + 3*oneMt*t2*p[2].x + t3*p[3].x;
@@ -418,29 +418,29 @@ vec2 mg_cubic_get_point(vec2 p[4], f32 t)
 	return(r);
 }
 
-void mg_cubic_split(vec2 p[4], f32 t, vec2 outLeft[4], vec2 outRight[4])
+static void oc_cubic_split(oc_vec2 p[4], f32 t, oc_vec2 outLeft[4], oc_vec2 outRight[4])
 {
 	//NOTE(martin): split bezier curve p at parameter t, using De Casteljau's algorithm
 	//              the q_n are the points along the hull's segments at parameter t
 	//              the r_n are the points along the (q_n, q_n+1) segments at parameter t
 	//              s is the split point.
 
-	vec2 q0 = {(1-t)*p[0].x + t*p[1].x,
+	oc_vec2 q0 = {(1-t)*p[0].x + t*p[1].x,
 	           (1-t)*p[0].y + t*p[1].y};
 
-	vec2 q1 = {(1-t)*p[1].x + t*p[2].x,
+	oc_vec2 q1 = {(1-t)*p[1].x + t*p[2].x,
 	           (1-t)*p[1].y + t*p[2].y};
 
-	vec2 q2 = {(1-t)*p[2].x + t*p[3].x,
+	oc_vec2 q2 = {(1-t)*p[2].x + t*p[3].x,
 	           (1-t)*p[2].y + t*p[3].y};
 
-	vec2 r0 = {(1-t)*q0.x + t*q1.x,
+	oc_vec2 r0 = {(1-t)*q0.x + t*q1.x,
 	           (1-t)*q0.y + t*q1.y};
 
-	vec2 r1 = {(1-t)*q1.x + t*q2.x,
+	oc_vec2 r1 = {(1-t)*q1.x + t*q2.x,
 	           (1-t)*q1.y + t*q2.y};
 
-	vec2 s = {(1-t)*r0.x + t*r1.x,
+	oc_vec2 s = {(1-t)*r0.x + t*r1.x,
 	          (1-t)*r0.y + t*r1.y};;
 
 	outLeft[0] = p[0];
@@ -454,65 +454,65 @@ void mg_cubic_split(vec2 p[4], f32 t, vec2 outLeft[4], vec2 outRight[4])
 	outRight[3] = p[3];
 }
 
-void mg_mtl_render_stroke_line(mg_mtl_canvas_backend* backend, vec2* p)
+void oc_mtl_render_stroke_line(oc_mtl_canvas_backend* backend, oc_vec2* p)
 {
 	f32 width = backend->primitive->attributes.width;
 
-	vec2 v = {p[1].x-p[0].x, p[1].y-p[0].y};
-	vec2 n = {v.y, -v.x};
+	oc_vec2 v = {p[1].x-p[0].x, p[1].y-p[0].y};
+	oc_vec2 n = {v.y, -v.x};
 	f32 norm = sqrt(n.x*n.x + n.y*n.y);
-	vec2 offset = vec2_mul(0.5*width/norm, n);
+	oc_vec2 offset = oc_vec2_mul(0.5*width/norm, n);
 
-	vec2 left[2] = {vec2_add(p[0], offset), vec2_add(p[1], offset)};
-	vec2 right[2] = {vec2_add(p[1], vec2_mul(-1, offset)), vec2_add(p[0], vec2_mul(-1, offset))};
-	vec2 joint0[2] = {vec2_add(p[0], vec2_mul(-1, offset)), vec2_add(p[0], offset)};
-	vec2 joint1[2] = {vec2_add(p[1], offset), vec2_add(p[1], vec2_mul(-1, offset))};
+	oc_vec2 left[2] = {oc_vec2_add(p[0], offset), oc_vec2_add(p[1], offset)};
+	oc_vec2 right[2] = {oc_vec2_add(p[1], oc_vec2_mul(-1, offset)), oc_vec2_add(p[0], oc_vec2_mul(-1, offset))};
+	oc_vec2 joint0[2] = {oc_vec2_add(p[0], oc_vec2_mul(-1, offset)), oc_vec2_add(p[0], offset)};
+	oc_vec2 joint1[2] = {oc_vec2_add(p[1], offset), oc_vec2_add(p[1], oc_vec2_mul(-1, offset))};
 
-	mg_mtl_canvas_encode_element(backend, MG_PATH_LINE, right);
-	mg_mtl_canvas_encode_element(backend, MG_PATH_LINE, left);
-	mg_mtl_canvas_encode_element(backend, MG_PATH_LINE, joint0);
-	mg_mtl_canvas_encode_element(backend, MG_PATH_LINE, joint1);
+	oc_mtl_canvas_encode_element(backend, OC_PATH_LINE, right);
+	oc_mtl_canvas_encode_element(backend, OC_PATH_LINE, left);
+	oc_mtl_canvas_encode_element(backend, OC_PATH_LINE, joint0);
+	oc_mtl_canvas_encode_element(backend, OC_PATH_LINE, joint1);
 }
 
-void mg_mtl_render_stroke_quadratic(mg_mtl_canvas_backend* backend, vec2* p)
+void oc_mtl_render_stroke_quadratic(oc_mtl_canvas_backend* backend, oc_vec2* p)
 {
 	f32 width = backend->primitive->attributes.width;
-	f32 tolerance = minimum(backend->primitive->attributes.tolerance, 0.5 * width);
+	f32 tolerance = oc_min(backend->primitive->attributes.tolerance, 0.5 * width);
 
 	//NOTE: check for degenerate line case
 	const f32 equalEps = 1e-3;
-	if(vec2_close(p[0], p[1], equalEps))
+	if(oc_vec2_close(p[0], p[1], equalEps))
 	{
-		mg_mtl_render_stroke_line(backend, p+1);
+		oc_mtl_render_stroke_line(backend, p+1);
 		return;
 	}
-	else if(vec2_close(p[1], p[2], equalEps))
+	else if(oc_vec2_close(p[1], p[2], equalEps))
 	{
-		mg_mtl_render_stroke_line(backend, p);
+		oc_mtl_render_stroke_line(backend, p);
 		return;
 	}
 
-	vec2 leftHull[3];
-	vec2 rightHull[3];
+	oc_vec2 leftHull[3];
+	oc_vec2 rightHull[3];
 
-	if(  !mg_offset_hull(3, p, leftHull, width/2)
-	  || !mg_offset_hull(3, p, rightHull, -width/2))
+	if(  !oc_offset_hull(3, p, leftHull, width/2)
+	  || !oc_offset_hull(3, p, rightHull, -width/2))
 	{
 		//TODO split and recurse
 		//NOTE: offsetting the hull failed, split the curve
-		vec2 splitLeft[3];
-		vec2 splitRight[3];
-		mg_quadratic_split(p, 0.5, splitLeft, splitRight);
-		mg_mtl_render_stroke_quadratic(backend, splitLeft);
-		mg_mtl_render_stroke_quadratic(backend, splitRight);
+		oc_vec2 splitLeft[3];
+		oc_vec2 splitRight[3];
+		oc_quadratic_split(p, 0.5, splitLeft, splitRight);
+		oc_mtl_render_stroke_quadratic(backend, splitLeft);
+		oc_mtl_render_stroke_quadratic(backend, splitRight);
 	}
 	else
 	{
 		const int CHECK_SAMPLE_COUNT = 5;
 		f32 checkSamples[CHECK_SAMPLE_COUNT] = {1./6, 2./6, 3./6, 4./6, 5./6};
 
-		f32 d2LowBound = Square(0.5 * width - tolerance);
-		f32 d2HighBound = Square(0.5 * width + tolerance);
+		f32 d2LowBound = oc_square(0.5 * width - tolerance);
+		f32 d2HighBound = oc_square(0.5 * width + tolerance);
 
 		f32 maxOvershoot = 0;
 		f32 maxOvershootParameter = 0;
@@ -521,17 +521,17 @@ void mg_mtl_render_stroke_quadratic(mg_mtl_canvas_backend* backend, vec2* p)
 		{
 			f32 t = checkSamples[i];
 
-			vec2 c = mg_quadratic_get_point(p, t);
-			vec2 cp =  mg_quadratic_get_point(leftHull, t);
-			vec2 cn =  mg_quadratic_get_point(rightHull, t);
+			oc_vec2 c = oc_quadratic_get_point(p, t);
+			oc_vec2 cp =  oc_quadratic_get_point(leftHull, t);
+			oc_vec2 cn =  oc_quadratic_get_point(rightHull, t);
 
-			f32 positiveDistSquare = Square(c.x - cp.x) + Square(c.y - cp.y);
-			f32 negativeDistSquare = Square(c.x - cn.x) + Square(c.y - cn.y);
+			f32 positiveDistSquare = oc_square(c.x - cp.x) + oc_square(c.y - cp.y);
+			f32 negativeDistSquare = oc_square(c.x - cn.x) + oc_square(c.y - cn.y);
 
-			f32 positiveOvershoot = maximum(positiveDistSquare - d2HighBound, d2LowBound - positiveDistSquare);
-			f32 negativeOvershoot = maximum(negativeDistSquare - d2HighBound, d2LowBound - negativeDistSquare);
+			f32 positiveOvershoot = oc_max(positiveDistSquare - d2HighBound, d2LowBound - positiveDistSquare);
+			f32 negativeOvershoot = oc_max(negativeDistSquare - d2HighBound, d2LowBound - negativeDistSquare);
 
-			f32 overshoot = maximum(positiveOvershoot, negativeOvershoot);
+			f32 overshoot = oc_max(positiveOvershoot, negativeOvershoot);
 
 			if(overshoot > maxOvershoot)
 			{
@@ -542,79 +542,79 @@ void mg_mtl_render_stroke_quadratic(mg_mtl_canvas_backend* backend, vec2* p)
 
 		if(maxOvershoot > 0)
 		{
-			vec2 splitLeft[3];
-			vec2 splitRight[3];
-			mg_quadratic_split(p, maxOvershootParameter, splitLeft, splitRight);
-			mg_mtl_render_stroke_quadratic(backend, splitLeft);
-			mg_mtl_render_stroke_quadratic(backend, splitRight);
+			oc_vec2 splitLeft[3];
+			oc_vec2 splitRight[3];
+			oc_quadratic_split(p, maxOvershootParameter, splitLeft, splitRight);
+			oc_mtl_render_stroke_quadratic(backend, splitLeft);
+			oc_mtl_render_stroke_quadratic(backend, splitRight);
 		}
 		else
 		{
-			vec2 tmp = leftHull[0];
+			oc_vec2 tmp = leftHull[0];
 			leftHull[0] = leftHull[2];
 			leftHull[2] = tmp;
 
-			mg_mtl_canvas_encode_element(backend, MG_PATH_QUADRATIC, rightHull);
-			mg_mtl_canvas_encode_element(backend, MG_PATH_QUADRATIC, leftHull);
+			oc_mtl_canvas_encode_element(backend, OC_PATH_QUADRATIC, rightHull);
+			oc_mtl_canvas_encode_element(backend, OC_PATH_QUADRATIC, leftHull);
 
-			vec2 joint0[2] = {rightHull[2], leftHull[0]};
-			vec2 joint1[2] = {leftHull[2], rightHull[0]};
-			mg_mtl_canvas_encode_element(backend, MG_PATH_LINE, joint0);
-			mg_mtl_canvas_encode_element(backend, MG_PATH_LINE, joint1);
+			oc_vec2 joint0[2] = {rightHull[2], leftHull[0]};
+			oc_vec2 joint1[2] = {leftHull[2], rightHull[0]};
+			oc_mtl_canvas_encode_element(backend, OC_PATH_LINE, joint0);
+			oc_mtl_canvas_encode_element(backend, OC_PATH_LINE, joint1);
 		}
 	}
 }
 
-void mg_mtl_render_stroke_cubic(mg_mtl_canvas_backend* backend, vec2* p)
+void oc_mtl_render_stroke_cubic(oc_mtl_canvas_backend* backend, oc_vec2* p)
 {
 	f32 width = backend->primitive->attributes.width;
-	f32 tolerance = minimum(backend->primitive->attributes.tolerance, 0.5 * width);
+	f32 tolerance = oc_min(backend->primitive->attributes.tolerance, 0.5 * width);
 
 	//NOTE: check degenerate line cases
 	f32 equalEps = 1e-3;
 
-	if( (vec2_close(p[0], p[1], equalEps) && vec2_close(p[2], p[3], equalEps))
-	  ||(vec2_close(p[0], p[1], equalEps) && vec2_close(p[1], p[2], equalEps))
-	  ||(vec2_close(p[1], p[2], equalEps) && vec2_close(p[2], p[3], equalEps)))
+	if( (oc_vec2_close(p[0], p[1], equalEps) && oc_vec2_close(p[2], p[3], equalEps))
+	  ||(oc_vec2_close(p[0], p[1], equalEps) && oc_vec2_close(p[1], p[2], equalEps))
+	  ||(oc_vec2_close(p[1], p[2], equalEps) && oc_vec2_close(p[2], p[3], equalEps)))
 	{
-		vec2 line[2] = {p[0], p[3]};
-		mg_mtl_render_stroke_line(backend, line);
+		oc_vec2 line[2] = {p[0], p[3]};
+		oc_mtl_render_stroke_line(backend, line);
 		return;
 	}
-	else if(vec2_close(p[0], p[1], equalEps) && vec2_close(p[1], p[3], equalEps))
+	else if(oc_vec2_close(p[0], p[1], equalEps) && oc_vec2_close(p[1], p[3], equalEps))
 	{
-		vec2 line[2] = {p[0], vec2_add(vec2_mul(5./9, p[0]), vec2_mul(4./9, p[2]))};
-		mg_mtl_render_stroke_line(backend, line);
+		oc_vec2 line[2] = {p[0], oc_vec2_add(oc_vec2_mul(5./9, p[0]), oc_vec2_mul(4./9, p[2]))};
+		oc_mtl_render_stroke_line(backend, line);
 		return;
 	}
-	else if(vec2_close(p[0], p[2], equalEps) && vec2_close(p[2], p[3], equalEps))
+	else if(oc_vec2_close(p[0], p[2], equalEps) && oc_vec2_close(p[2], p[3], equalEps))
 	{
-		vec2 line[2] = {p[0], vec2_add(vec2_mul(5./9, p[0]), vec2_mul(4./9, p[1]))};
-		mg_mtl_render_stroke_line(backend, line);
+		oc_vec2 line[2] = {p[0], oc_vec2_add(oc_vec2_mul(5./9, p[0]), oc_vec2_mul(4./9, p[1]))};
+		oc_mtl_render_stroke_line(backend, line);
 		return;
 	}
 
-	vec2 leftHull[4];
-	vec2 rightHull[4];
+	oc_vec2 leftHull[4];
+	oc_vec2 rightHull[4];
 
-	if(  !mg_offset_hull(4, p, leftHull, width/2)
-	  || !mg_offset_hull(4, p, rightHull, -width/2))
+	if(  !oc_offset_hull(4, p, leftHull, width/2)
+	  || !oc_offset_hull(4, p, rightHull, -width/2))
 	{
 		//TODO split and recurse
 		//NOTE: offsetting the hull failed, split the curve
-		vec2 splitLeft[4];
-		vec2 splitRight[4];
-		mg_cubic_split(p, 0.5, splitLeft, splitRight);
-		mg_mtl_render_stroke_cubic(backend, splitLeft);
-		mg_mtl_render_stroke_cubic(backend, splitRight);
+		oc_vec2 splitLeft[4];
+		oc_vec2 splitRight[4];
+		oc_cubic_split(p, 0.5, splitLeft, splitRight);
+		oc_mtl_render_stroke_cubic(backend, splitLeft);
+		oc_mtl_render_stroke_cubic(backend, splitRight);
 	}
 	else
 	{
 		const int CHECK_SAMPLE_COUNT = 5;
 		f32 checkSamples[CHECK_SAMPLE_COUNT] = {1./6, 2./6, 3./6, 4./6, 5./6};
 
-		f32 d2LowBound = Square(0.5 * width - tolerance);
-		f32 d2HighBound = Square(0.5 * width + tolerance);
+		f32 d2LowBound = oc_square(0.5 * width - tolerance);
+		f32 d2HighBound = oc_square(0.5 * width + tolerance);
 
 		f32 maxOvershoot = 0;
 		f32 maxOvershootParameter = 0;
@@ -623,17 +623,17 @@ void mg_mtl_render_stroke_cubic(mg_mtl_canvas_backend* backend, vec2* p)
 		{
 			f32 t = checkSamples[i];
 
-			vec2 c = mg_cubic_get_point(p, t);
-			vec2 cp =  mg_cubic_get_point(leftHull, t);
-			vec2 cn =  mg_cubic_get_point(rightHull, t);
+			oc_vec2 c = oc_cubic_get_point(p, t);
+			oc_vec2 cp =  oc_cubic_get_point(leftHull, t);
+			oc_vec2 cn =  oc_cubic_get_point(rightHull, t);
 
-			f32 positiveDistSquare = Square(c.x - cp.x) + Square(c.y - cp.y);
-			f32 negativeDistSquare = Square(c.x - cn.x) + Square(c.y - cn.y);
+			f32 positiveDistSquare = oc_square(c.x - cp.x) + oc_square(c.y - cp.y);
+			f32 negativeDistSquare = oc_square(c.x - cn.x) + oc_square(c.y - cn.y);
 
-			f32 positiveOvershoot = maximum(positiveDistSquare - d2HighBound, d2LowBound - positiveDistSquare);
-			f32 negativeOvershoot = maximum(negativeDistSquare - d2HighBound, d2LowBound - negativeDistSquare);
+			f32 positiveOvershoot = oc_max(positiveDistSquare - d2HighBound, d2LowBound - positiveDistSquare);
+			f32 negativeOvershoot = oc_max(negativeDistSquare - d2HighBound, d2LowBound - negativeDistSquare);
 
-			f32 overshoot = maximum(positiveOvershoot, negativeOvershoot);
+			f32 overshoot = oc_max(positiveOvershoot, negativeOvershoot);
 
 			if(overshoot > maxOvershoot)
 			{
@@ -644,61 +644,61 @@ void mg_mtl_render_stroke_cubic(mg_mtl_canvas_backend* backend, vec2* p)
 
 		if(maxOvershoot > 0)
 		{
-			vec2 splitLeft[4];
-			vec2 splitRight[4];
-			mg_cubic_split(p, maxOvershootParameter, splitLeft, splitRight);
-			mg_mtl_render_stroke_cubic(backend, splitLeft);
-			mg_mtl_render_stroke_cubic(backend, splitRight);
+			oc_vec2 splitLeft[4];
+			oc_vec2 splitRight[4];
+			oc_cubic_split(p, maxOvershootParameter, splitLeft, splitRight);
+			oc_mtl_render_stroke_cubic(backend, splitLeft);
+			oc_mtl_render_stroke_cubic(backend, splitRight);
 		}
 		else
 		{
-			vec2 tmp = leftHull[0];
+			oc_vec2 tmp = leftHull[0];
 			leftHull[0] = leftHull[3];
 			leftHull[3] = tmp;
 			tmp = leftHull[1];
 			leftHull[1] = leftHull[2];
 			leftHull[2] = tmp;
 
-			mg_mtl_canvas_encode_element(backend, MG_PATH_CUBIC, rightHull);
-			mg_mtl_canvas_encode_element(backend, MG_PATH_CUBIC, leftHull);
+			oc_mtl_canvas_encode_element(backend, OC_PATH_CUBIC, rightHull);
+			oc_mtl_canvas_encode_element(backend, OC_PATH_CUBIC, leftHull);
 
-			vec2 joint0[2] = {rightHull[3], leftHull[0]};
-			vec2 joint1[2] = {leftHull[3], rightHull[0]};
-			mg_mtl_canvas_encode_element(backend, MG_PATH_LINE, joint0);
-			mg_mtl_canvas_encode_element(backend, MG_PATH_LINE, joint1);
+			oc_vec2 joint0[2] = {rightHull[3], leftHull[0]};
+			oc_vec2 joint1[2] = {leftHull[3], rightHull[0]};
+			oc_mtl_canvas_encode_element(backend, OC_PATH_LINE, joint0);
+			oc_mtl_canvas_encode_element(backend, OC_PATH_LINE, joint1);
 		}
 	}
 }
 
-void mg_mtl_render_stroke_element(mg_mtl_canvas_backend* backend,
-                                  mg_path_elt* element,
-                                  vec2 currentPoint,
-                                  vec2* startTangent,
-                                  vec2* endTangent,
-                                  vec2* endPoint)
+void oc_mtl_render_stroke_element(oc_mtl_canvas_backend* backend,
+                                  oc_path_elt* element,
+                                  oc_vec2 currentPoint,
+                                  oc_vec2* startTangent,
+                                  oc_vec2* endTangent,
+                                  oc_vec2* endPoint)
 {
-	vec2 controlPoints[4] = {currentPoint, element->p[0], element->p[1], element->p[2]};
+	oc_vec2 controlPoints[4] = {currentPoint, element->p[0], element->p[1], element->p[2]};
 	int endPointIndex = 0;
 
 	switch(element->type)
 	{
-		case MG_PATH_LINE:
-			mg_mtl_render_stroke_line(backend, controlPoints);
+		case OC_PATH_LINE:
+			oc_mtl_render_stroke_line(backend, controlPoints);
 			endPointIndex = 1;
 			break;
 
-		case MG_PATH_QUADRATIC:
-			mg_mtl_render_stroke_quadratic(backend, controlPoints);
+		case OC_PATH_QUADRATIC:
+			oc_mtl_render_stroke_quadratic(backend, controlPoints);
 			endPointIndex = 2;
 			break;
 
-		case MG_PATH_CUBIC:
-			mg_mtl_render_stroke_cubic(backend, controlPoints);
+		case OC_PATH_CUBIC:
+			oc_mtl_render_stroke_cubic(backend, controlPoints);
 			endPointIndex = 3;
 			break;
 
-		case MG_PATH_MOVE:
-			ASSERT(0, "should be unreachable");
+		case OC_PATH_MOVE:
+			OC_ASSERT(0, "should be unreachable");
 			break;
 	}
 
@@ -710,7 +710,7 @@ void mg_mtl_render_stroke_element(mg_mtl_canvas_backend* backend,
 		if(  controlPoints[i].x != controlPoints[0].x
 		  || controlPoints[i].y != controlPoints[0].y)
 		{
-			*startTangent = (vec2){.x = controlPoints[i].x - controlPoints[0].x,
+			*startTangent = (oc_vec2){.x = controlPoints[i].x - controlPoints[0].x,
 			                       .y = controlPoints[i].y - controlPoints[0].y};
 			break;
 		}
@@ -722,58 +722,58 @@ void mg_mtl_render_stroke_element(mg_mtl_canvas_backend* backend,
 		if(  controlPoints[i].x != endPoint->x
 		  || controlPoints[i].y != endPoint->y)
 		{
-			*endTangent = (vec2){.x = endPoint->x - controlPoints[i].x,
+			*endTangent = (oc_vec2){.x = endPoint->x - controlPoints[i].x,
 			                     .y = endPoint->y - controlPoints[i].y};
 			break;
 		}
 	}
-	DEBUG_ASSERT(startTangent->x != 0 || startTangent->y != 0);
+	OC_DEBUG_ASSERT(startTangent->x != 0 || startTangent->y != 0);
 }
 
-void mg_mtl_stroke_cap(mg_mtl_canvas_backend* backend,
-                       vec2 p0,
-                       vec2 direction)
+void oc_mtl_stroke_cap(oc_mtl_canvas_backend* backend,
+                       oc_vec2 p0,
+                       oc_vec2 direction)
 {
-	mg_attributes* attributes = &backend->primitive->attributes;
+	oc_attributes* attributes = &backend->primitive->attributes;
 
 	//NOTE(martin): compute the tangent and normal vectors (multiplied by half width) at the cap point
-	f32 dn = sqrt(Square(direction.x) + Square(direction.y));
+	f32 dn = sqrt(oc_square(direction.x) + oc_square(direction.y));
 	f32 alpha = 0.5 * attributes->width/dn;
 
-	vec2 n0 = {-alpha*direction.y,
+	oc_vec2 n0 = {-alpha*direction.y,
 		    alpha*direction.x};
 
-	vec2 m0 = {alpha*direction.x,
+	oc_vec2 m0 = {alpha*direction.x,
 	           alpha*direction.y};
 
-	vec2 points[] = {{p0.x + n0.x, p0.y + n0.y},
+	oc_vec2 points[] = {{p0.x + n0.x, p0.y + n0.y},
 	                 {p0.x + n0.x + m0.x, p0.y + n0.y + m0.y},
 	                 {p0.x - n0.x + m0.x, p0.y - n0.y + m0.y},
 	                 {p0.x - n0.x, p0.y - n0.y},
 	                 {p0.x + n0.x, p0.y + n0.y}};
 
-	mg_mtl_canvas_encode_element(backend, MG_PATH_LINE, points);
-	mg_mtl_canvas_encode_element(backend, MG_PATH_LINE, points+1);
-	mg_mtl_canvas_encode_element(backend, MG_PATH_LINE, points+2);
-	mg_mtl_canvas_encode_element(backend, MG_PATH_LINE, points+3);
+	oc_mtl_canvas_encode_element(backend, OC_PATH_LINE, points);
+	oc_mtl_canvas_encode_element(backend, OC_PATH_LINE, points+1);
+	oc_mtl_canvas_encode_element(backend, OC_PATH_LINE, points+2);
+	oc_mtl_canvas_encode_element(backend, OC_PATH_LINE, points+3);
 }
 
-void mg_mtl_stroke_joint(mg_mtl_canvas_backend* backend,
-                         vec2 p0,
-                         vec2 t0,
-                         vec2 t1)
+void oc_mtl_stroke_joint(oc_mtl_canvas_backend* backend,
+                         oc_vec2 p0,
+                         oc_vec2 t0,
+                         oc_vec2 t1)
 {
-	mg_attributes* attributes = &backend->primitive->attributes;
+	oc_attributes* attributes = &backend->primitive->attributes;
 
 	//NOTE(martin): compute the normals at the joint point
-	f32 norm_t0 = sqrt(Square(t0.x) + Square(t0.y));
-	f32 norm_t1 = sqrt(Square(t1.x) + Square(t1.y));
+	f32 norm_t0 = sqrt(oc_square(t0.x) + oc_square(t0.y));
+	f32 norm_t1 = sqrt(oc_square(t1.x) + oc_square(t1.y));
 
-	vec2 n0 = {-t0.y, t0.x};
+	oc_vec2 n0 = {-t0.y, t0.x};
 	n0.x /= norm_t0;
 	n0.y /= norm_t0;
 
-	vec2 n1 = {-t1.y, t1.x};
+	oc_vec2 n1 = {-t1.y, t1.x};
 	n1.x /= norm_t1;
 	n1.y /= norm_t1;
 
@@ -794,60 +794,60 @@ void mg_mtl_stroke_joint(mg_mtl_canvas_backend* backend,
 		(this can be derived from writing the pythagoras theorems in the triangles of the joint)
 	*/
 	f32 halfW = 0.5 * attributes->width;
-	vec2 u = {n0.x + n1.x, n0.y + n1.y};
+	oc_vec2 u = {n0.x + n1.x, n0.y + n1.y};
 	f32 uNormSquare = u.x*u.x + u.y*u.y;
 	f32 alpha = attributes->width / uNormSquare;
-	vec2 v = {u.x * alpha, u.y * alpha};
+	oc_vec2 v = {u.x * alpha, u.y * alpha};
 
-	f32 excursionSquare = uNormSquare * Square(alpha - attributes->width/4);
+	f32 excursionSquare = uNormSquare * oc_square(alpha - attributes->width/4);
 
-	if(  attributes->joint == MG_JOINT_MITER
-	  && excursionSquare <= Square(attributes->maxJointExcursion))
+	if(  attributes->joint == OC_JOINT_MITER
+	  && excursionSquare <= oc_square(attributes->maxJointExcursion))
 	{
 		//NOTE(martin): add a mitter joint
-		vec2 points[] = {p0,
+		oc_vec2 points[] = {p0,
 		                 {p0.x + n0.x*halfW, p0.y + n0.y*halfW},
 		                 {p0.x + v.x, p0.y + v.y},
 		                 {p0.x + n1.x*halfW, p0.y + n1.y*halfW},
 		                 p0};
 
-		mg_mtl_canvas_encode_element(backend, MG_PATH_LINE, points);
-		mg_mtl_canvas_encode_element(backend, MG_PATH_LINE, points+1);
-		mg_mtl_canvas_encode_element(backend, MG_PATH_LINE, points+2);
-		mg_mtl_canvas_encode_element(backend, MG_PATH_LINE, points+3);
+		oc_mtl_canvas_encode_element(backend, OC_PATH_LINE, points);
+		oc_mtl_canvas_encode_element(backend, OC_PATH_LINE, points+1);
+		oc_mtl_canvas_encode_element(backend, OC_PATH_LINE, points+2);
+		oc_mtl_canvas_encode_element(backend, OC_PATH_LINE, points+3);
 	}
 	else
 	{
 		//NOTE(martin): add a bevel joint
-		vec2 points[] = {p0,
+		oc_vec2 points[] = {p0,
 		                 {p0.x + n0.x*halfW, p0.y + n0.y*halfW},
 		                 {p0.x + n1.x*halfW, p0.y + n1.y*halfW},
 		                 p0};
 
-		mg_mtl_canvas_encode_element(backend, MG_PATH_LINE, points);
-		mg_mtl_canvas_encode_element(backend, MG_PATH_LINE, points+1);
-		mg_mtl_canvas_encode_element(backend, MG_PATH_LINE, points+2);
+		oc_mtl_canvas_encode_element(backend, OC_PATH_LINE, points);
+		oc_mtl_canvas_encode_element(backend, OC_PATH_LINE, points+1);
+		oc_mtl_canvas_encode_element(backend, OC_PATH_LINE, points+2);
 	}
 }
 
-u32 mg_mtl_render_stroke_subpath(mg_mtl_canvas_backend* backend,
-                                 mg_path_elt* elements,
-                                 mg_path_descriptor* path,
+u32 oc_mtl_render_stroke_subpath(oc_mtl_canvas_backend* backend,
+                                 oc_path_elt* elements,
+                                 oc_path_descriptor* path,
                                  u32 startIndex,
-                                 vec2 startPoint)
+                                 oc_vec2 startPoint)
 {
 	u32 eltCount = path->count;
-	DEBUG_ASSERT(startIndex < eltCount);
+	OC_DEBUG_ASSERT(startIndex < eltCount);
 
-	vec2 currentPoint = startPoint;
-	vec2 endPoint = {0, 0};
-	vec2 previousEndTangent = {0, 0};
-	vec2 firstTangent = {0, 0};
-	vec2 startTangent = {0, 0};
-	vec2 endTangent = {0, 0};
+	oc_vec2 currentPoint = startPoint;
+	oc_vec2 endPoint = {0, 0};
+	oc_vec2 previousEndTangent = {0, 0};
+	oc_vec2 firstTangent = {0, 0};
+	oc_vec2 startTangent = {0, 0};
+	oc_vec2 endTangent = {0, 0};
 
 	//NOTE(martin): render first element and compute first tangent
-	mg_mtl_render_stroke_element(backend, elements + startIndex, currentPoint, &startTangent, &endTangent, &endPoint);
+	oc_mtl_render_stroke_element(backend, elements + startIndex, currentPoint, &startTangent, &endTangent, &endPoint);
 
 	firstTangent = startTangent;
 	previousEndTangent = endTangent;
@@ -855,18 +855,18 @@ u32 mg_mtl_render_stroke_subpath(mg_mtl_canvas_backend* backend,
 
 	//NOTE(martin): render subsequent elements along with their joints
 
-	mg_attributes* attributes = &backend->primitive->attributes;
+	oc_attributes* attributes = &backend->primitive->attributes;
 
 	u32 eltIndex = startIndex + 1;
 	for(;
-	    eltIndex<eltCount && elements[eltIndex].type != MG_PATH_MOVE;
+	    eltIndex<eltCount && elements[eltIndex].type != OC_PATH_MOVE;
 	    eltIndex++)
 	{
-		mg_mtl_render_stroke_element(backend, elements + eltIndex, currentPoint, &startTangent, &endTangent, &endPoint);
+		oc_mtl_render_stroke_element(backend, elements + eltIndex, currentPoint, &startTangent, &endTangent, &endPoint);
 
-		if(attributes->joint != MG_JOINT_NONE)
+		if(attributes->joint != OC_JOINT_NONE)
 		{
-			mg_mtl_stroke_joint(backend, currentPoint, previousEndTangent, startTangent);
+			oc_mtl_stroke_joint(backend, currentPoint, previousEndTangent, startTangent);
 		}
 		previousEndTangent = endTangent;
 		currentPoint = endPoint;
@@ -878,48 +878,48 @@ u32 mg_mtl_render_stroke_subpath(mg_mtl_canvas_backend* backend,
 	  && startPoint.x == endPoint.x
 	  && startPoint.y == endPoint.y)
 	{
-		if(attributes->joint != MG_JOINT_NONE)
+		if(attributes->joint != OC_JOINT_NONE)
 		{
 			//NOTE(martin): add a closing joint if the path is closed
-			mg_mtl_stroke_joint(backend, endPoint, endTangent, firstTangent);
+			oc_mtl_stroke_joint(backend, endPoint, endTangent, firstTangent);
 		}
 	}
-	else if(attributes->cap == MG_CAP_SQUARE)
+	else if(attributes->cap == OC_CAP_SQUARE)
 	{
 		//NOTE(martin): add start and end cap
-		mg_mtl_stroke_cap(backend, startPoint, (vec2){-startTangent.x, -startTangent.y});
-		mg_mtl_stroke_cap(backend, endPoint, endTangent);
+		oc_mtl_stroke_cap(backend, startPoint, (oc_vec2){-startTangent.x, -startTangent.y});
+		oc_mtl_stroke_cap(backend, endPoint, endTangent);
 	}
 	return(eltIndex);
 }
 
-void mg_mtl_render_stroke(mg_mtl_canvas_backend* backend,
-                          mg_path_elt* elements,
-                          mg_path_descriptor* path)
+void oc_mtl_render_stroke(oc_mtl_canvas_backend* backend,
+                          oc_path_elt* elements,
+                          oc_path_descriptor* path)
 {
 	u32 eltCount = path->count;
-	DEBUG_ASSERT(eltCount);
+	OC_DEBUG_ASSERT(eltCount);
 
-	vec2 startPoint = path->startPoint;
+	oc_vec2 startPoint = path->startPoint;
 	u32 startIndex = 0;
 
 	while(startIndex < eltCount)
 	{
 		//NOTE(martin): eliminate leading moves
-		while(startIndex < eltCount && elements[startIndex].type == MG_PATH_MOVE)
+		while(startIndex < eltCount && elements[startIndex].type == OC_PATH_MOVE)
 		{
 			startPoint = elements[startIndex].p[0];
 			startIndex++;
 		}
 		if(startIndex < eltCount)
 		{
-			startIndex = mg_mtl_render_stroke_subpath(backend, elements, path, startIndex, startPoint);
+			startIndex = oc_mtl_render_stroke_subpath(backend, elements, path, startIndex, startPoint);
 		}
 	}
 }
 
 
-void mg_mtl_grow_buffer_if_needed(mg_mtl_canvas_backend* backend, id<MTLBuffer>* buffer, u64 wantedSize)
+void oc_mtl_grow_buffer_if_needed(oc_mtl_canvas_backend* backend, id<MTLBuffer>* buffer, u64 wantedSize)
 {
 	u64 bufferSize = [(*buffer) length];
 	if(bufferSize < wantedSize)
@@ -940,27 +940,27 @@ void mg_mtl_grow_buffer_if_needed(mg_mtl_canvas_backend* backend, id<MTLBuffer>*
 	}
 }
 
-void mg_mtl_render_batch(mg_mtl_canvas_backend* backend,
-                         mg_mtl_surface* surface,
-                         mg_image* images,
+void oc_mtl_render_batch(oc_mtl_canvas_backend* backend,
+                         oc_mtl_surface* surface,
+                         oc_image* images,
                          int tileSize,
                          int nTilesX,
                          int nTilesY,
-                         vec2 viewportSize,
+                         oc_vec2 viewportSize,
                          f32 scale)
 {
-	int pathBufferOffset = backend->pathBatchStart * sizeof(mg_mtl_path);
-	int elementBufferOffset = backend->eltBatchStart * sizeof(mg_mtl_path_elt);
+	int pathBufferOffset = backend->pathBatchStart * sizeof(oc_mtl_path);
+	int elementBufferOffset = backend->eltBatchStart * sizeof(oc_mtl_path_elt);
 	int pathCount = backend->pathCount - backend->pathBatchStart;
 	int eltCount = backend->eltCount - backend->eltBatchStart;
 
 	//NOTE: update intermediate buffers sizes if needed
 
-	mg_mtl_grow_buffer_if_needed(backend, &backend->pathQueueBuffer, pathCount * sizeof(mg_mtl_path_queue));
-	mg_mtl_grow_buffer_if_needed(backend, &backend->tileQueueBuffer, backend->maxTileQueueCount * sizeof(mg_mtl_tile_queue));
-	mg_mtl_grow_buffer_if_needed(backend, &backend->segmentBuffer, backend->maxSegmentCount * sizeof(mg_mtl_segment));
-	mg_mtl_grow_buffer_if_needed(backend, &backend->screenTilesBuffer, nTilesX * nTilesY * sizeof(mg_mtl_screen_tile));
-	mg_mtl_grow_buffer_if_needed(backend, &backend->tileOpBuffer, backend->maxSegmentCount * 30 * sizeof(mg_mtl_tile_op));
+	oc_mtl_grow_buffer_if_needed(backend, &backend->pathQueueBuffer, pathCount * sizeof(oc_mtl_path_queue));
+	oc_mtl_grow_buffer_if_needed(backend, &backend->tileQueueBuffer, backend->maxTileQueueCount * sizeof(oc_mtl_tile_queue));
+	oc_mtl_grow_buffer_if_needed(backend, &backend->segmentBuffer, backend->maxSegmentCount * sizeof(oc_mtl_segment));
+	oc_mtl_grow_buffer_if_needed(backend, &backend->screenTilesBuffer, nTilesX * nTilesY * sizeof(oc_mtl_screen_tile));
+	oc_mtl_grow_buffer_if_needed(backend, &backend->tileOpBuffer, backend->maxSegmentCount * 30 * sizeof(oc_mtl_tile_op));
 
 	//NOTE: encode GPU commands
 	@autoreleasepool
@@ -990,7 +990,7 @@ void mg_mtl_render_batch(mg_mtl_canvas_backend* backend,
 		pathEncoder.label = @"path pass";
 		[pathEncoder setComputePipelineState: backend->pathPipeline];
 
-		int tileQueueMax = [backend->tileQueueBuffer length] / sizeof(mg_mtl_tile_queue);
+		int tileQueueMax = [backend->tileQueueBuffer length] / sizeof(oc_mtl_tile_queue);
 
 		[pathEncoder setBytes:&pathCount length:sizeof(int) atIndex:0];
 		[pathEncoder setBuffer:backend->pathBuffer[backend->bufferIndex] offset:pathBufferOffset atIndex:1];
@@ -1012,8 +1012,8 @@ void mg_mtl_render_batch(mg_mtl_canvas_backend* backend,
 		segmentEncoder.label = @"segment pass";
 		[segmentEncoder setComputePipelineState: backend->segmentPipeline];
 
-		int tileOpMax = [backend->tileOpBuffer length] / sizeof(mg_mtl_tile_op);
-		int segmentMax = [backend->segmentBuffer length] / sizeof(mg_mtl_segment);
+		int tileOpMax = [backend->tileOpBuffer length] / sizeof(oc_mtl_tile_op);
+		int segmentMax = [backend->segmentBuffer length] / sizeof(oc_mtl_segment);
 
 		[segmentEncoder setBytes:&eltCount length:sizeof(int) atIndex:0];
 		[segmentEncoder setBuffer:backend->elementBuffer[backend->bufferIndex] offset:elementBufferOffset atIndex:1];
@@ -1072,7 +1072,7 @@ void mg_mtl_render_batch(mg_mtl_canvas_backend* backend,
 		[mergeEncoder setBuffer:backend->logOffsetBuffer[backend->bufferIndex] offset:0 atIndex:12];
 
 		MTLSize mergeGridSize = MTLSizeMake(nTilesX, nTilesY, 1);
-		MTLSize mergeGroupSize = MTLSizeMake(MG_MTL_TILE_SIZE, MG_MTL_TILE_SIZE, 1);
+		MTLSize mergeGroupSize = MTLSizeMake(OC_MTL_TILE_SIZE, OC_MTL_TILE_SIZE, 1);
 
 		[mergeEncoder dispatchThreads: mergeGridSize threadsPerThreadgroup: mergeGroupSize];
 		[mergeEncoder endEncoding];
@@ -1094,11 +1094,11 @@ void mg_mtl_render_batch(mg_mtl_canvas_backend* backend,
 
 		[rasterEncoder setTexture:backend->outTexture atIndex:0];
 
-		for(int i=0; i<MG_MTL_MAX_IMAGES_PER_BATCH; i++)
+		for(int i=0; i<OC_MTL_MAX_IMAGES_PER_BATCH; i++)
 		{
 			if(images[i].h)
 			{
-				mg_mtl_image_data* image = (mg_mtl_image_data*)mg_image_data_from_handle(images[i]);
+				oc_mtl_image_data* image = (oc_mtl_image_data*)oc_image_data_from_handle(images[i]);
 				if(image)
 				{
 					[rasterEncoder setTexture: image->texture atIndex: 1+i];
@@ -1107,7 +1107,7 @@ void mg_mtl_render_batch(mg_mtl_canvas_backend* backend,
 		}
 
 		MTLSize rasterGridSize = MTLSizeMake(viewportSize.x, viewportSize.y, 1);
-		MTLSize rasterGroupSize = MTLSizeMake(MG_MTL_TILE_SIZE, MG_MTL_TILE_SIZE, 1);
+		MTLSize rasterGroupSize = MTLSizeMake(OC_MTL_TILE_SIZE, OC_MTL_TILE_SIZE, 1);
 
 		[rasterEncoder dispatchThreadgroupsWithIndirectBuffer: backend->rasterDispatchBuffer
 		                                 indirectBufferOffset: 0
@@ -1141,7 +1141,7 @@ void mg_mtl_render_batch(mg_mtl_canvas_backend* backend,
 	backend->maxTileQueueCount = 0;
 }
 
-void mg_mtl_canvas_resize(mg_mtl_canvas_backend* backend, vec2 size)
+void oc_mtl_canvas_resize(oc_mtl_canvas_backend* backend, oc_vec2 size)
 {
 	@autoreleasepool
 	{
@@ -1150,11 +1150,11 @@ void mg_mtl_canvas_resize(mg_mtl_canvas_backend* backend, vec2 size)
 			[backend->screenTilesBuffer release];
 			backend->screenTilesBuffer = nil;
 		}
-		int tileSize = MG_MTL_TILE_SIZE;
+		int tileSize = OC_MTL_TILE_SIZE;
 		int nTilesX = (int)(size.x + tileSize - 1)/tileSize;
 		int nTilesY = (int)(size.y + tileSize - 1)/tileSize;
 		MTLResourceOptions bufferOptions = MTLResourceStorageModePrivate;
-		backend->screenTilesBuffer = [backend->surface->device newBufferWithLength: nTilesX*nTilesY*sizeof(mg_mtl_screen_tile)
+		backend->screenTilesBuffer = [backend->surface->device newBufferWithLength: nTilesX*nTilesY*sizeof(oc_mtl_screen_tile)
 		                                              options: bufferOptions];
 
 		if(backend->outTexture)
@@ -1178,38 +1178,38 @@ void mg_mtl_canvas_resize(mg_mtl_canvas_backend* backend, vec2 size)
 	}
 }
 
-void mg_mtl_canvas_render(mg_canvas_backend* interface,
-                          mg_color clearColor,
+void oc_mtl_canvas_render(oc_canvas_backend* interface,
+                          oc_color clearColor,
                           u32 primitiveCount,
-                          mg_primitive* primitives,
+                          oc_primitive* primitives,
                           u32 eltCount,
-                          mg_path_elt* pathElements)
+                          oc_path_elt* pathElements)
 {
-	mg_mtl_canvas_backend* backend = (mg_mtl_canvas_backend*)interface;
+	oc_mtl_canvas_backend* backend = (oc_mtl_canvas_backend*)interface;
 
 	//NOTE: update rolling input buffers
 	dispatch_semaphore_wait(backend->bufferSemaphore, DISPATCH_TIME_FOREVER);
-	backend->bufferIndex = (backend->bufferIndex + 1) % MG_MTL_INPUT_BUFFERS_COUNT;
+	backend->bufferIndex = (backend->bufferIndex + 1) % OC_MTL_INPUT_BUFFERS_COUNT;
 
 	//NOTE: ensure screen tiles buffer is correct size
-	mg_mtl_surface* surface = backend->surface;
+	oc_mtl_surface* surface = backend->surface;
 
-	vec2 frameSize = surface->interface.getSize((mg_surface_data*)surface);
+	oc_vec2 frameSize = surface->interface.getSize((oc_surface_data*)surface);
 
 	f32 scale = surface->mtlLayer.contentsScale;
-	vec2 viewportSize = {frameSize.x * scale, frameSize.y * scale};
-	int tileSize = MG_MTL_TILE_SIZE;
+	oc_vec2 viewportSize = {frameSize.x * scale, frameSize.y * scale};
+	int tileSize = OC_MTL_TILE_SIZE;
 	int nTilesX = (int)(viewportSize.x * scale + tileSize - 1)/tileSize;
 	int nTilesY = (int)(viewportSize.y * scale + tileSize - 1)/tileSize;
 
 	if(viewportSize.x != backend->frameSize.x || viewportSize.y != backend->frameSize.y)
 	{
-		mg_mtl_canvas_resize(backend, viewportSize);
+		oc_mtl_canvas_resize(backend, viewportSize);
 	}
 
 	//NOTE: acquire metal resources for rendering
-	mg_mtl_surface_acquire_command_buffer(surface);
-	mg_mtl_surface_acquire_drawable(surface);
+	oc_mtl_surface_acquire_command_buffer(surface);
+	oc_mtl_surface_acquire_drawable(surface);
 
 	@autoreleasepool
 	{
@@ -1238,13 +1238,13 @@ void mg_mtl_canvas_render(mg_canvas_backend* interface,
 	backend->maxTileQueueCount = 0;
 
 	//NOTE: encode and render batches
-	vec2 currentPos = {0};
-	mg_image images[MG_MTL_MAX_IMAGES_PER_BATCH] = {0};
+	oc_vec2 currentPos = {0};
+	oc_image images[OC_MTL_MAX_IMAGES_PER_BATCH] = {0};
 	int imageCount = 0;
 
 	for(int primitiveIndex = 0; primitiveIndex < primitiveCount; primitiveIndex++)
 	{
-		mg_primitive* primitive = &primitives[primitiveIndex];
+		oc_primitive* primitive = &primitives[primitiveIndex];
 
 		if(primitive->attributes.image.h != 0)
 		{
@@ -1258,7 +1258,7 @@ void mg_mtl_canvas_render(mg_canvas_backend* interface,
 			}
 			if(backend->currentImageIndex <= 0)
 			{
-				if(imageCount<MG_MTL_MAX_IMAGES_PER_BATCH)
+				if(imageCount<OC_MTL_MAX_IMAGES_PER_BATCH)
 				{
 					images[imageCount] = primitive->attributes.image;
 					backend->currentImageIndex = imageCount;
@@ -1266,7 +1266,7 @@ void mg_mtl_canvas_render(mg_canvas_backend* interface,
 				}
 				else
 				{
-					mg_mtl_render_batch(backend,
+					oc_mtl_render_batch(backend,
 					                    surface,
 					                    images,
 					                    tileSize,
@@ -1289,12 +1289,12 @@ void mg_mtl_canvas_render(mg_canvas_backend* interface,
 		if(primitive->path.count)
 		{
 			backend->primitive = primitive;
-			backend->pathScreenExtents = (vec4){FLT_MAX, FLT_MAX, -FLT_MAX, -FLT_MAX};
-			backend->pathUserExtents = (vec4){FLT_MAX, FLT_MAX, -FLT_MAX, -FLT_MAX};
+			backend->pathScreenExtents = (oc_vec4){FLT_MAX, FLT_MAX, -FLT_MAX, -FLT_MAX};
+			backend->pathUserExtents = (oc_vec4){FLT_MAX, FLT_MAX, -FLT_MAX, -FLT_MAX};
 
-			if(primitive->cmd == MG_CMD_STROKE)
+			if(primitive->cmd == OC_CMD_STROKE)
 			{
-				mg_mtl_render_stroke(backend, pathElements + primitive->path.startIndex, &primitive->path);
+				oc_mtl_render_stroke(backend, pathElements + primitive->path.startIndex, &primitive->path);
 			}
 			else
 			{
@@ -1302,39 +1302,39 @@ void mg_mtl_canvas_render(mg_canvas_backend* interface,
 			    	(eltIndex < primitive->path.count) && (primitive->path.startIndex + eltIndex < eltCount);
 			    	eltIndex++)
 				{
-					mg_path_elt* elt = &pathElements[primitive->path.startIndex + eltIndex];
+					oc_path_elt* elt = &pathElements[primitive->path.startIndex + eltIndex];
 
-					if(elt->type != MG_PATH_MOVE)
+					if(elt->type != OC_PATH_MOVE)
 					{
-						vec2 p[4] = {currentPos, elt->p[0], elt->p[1], elt->p[2]};
-						mg_mtl_canvas_encode_element(backend, elt->type, p);
+						oc_vec2 p[4] = {currentPos, elt->p[0], elt->p[1], elt->p[2]};
+						oc_mtl_canvas_encode_element(backend, elt->type, p);
 					}
 					switch(elt->type)
 					{
-						case MG_PATH_MOVE:
+						case OC_PATH_MOVE:
 							currentPos = elt->p[0];
 							break;
 
-						case MG_PATH_LINE:
+						case OC_PATH_LINE:
 							currentPos = elt->p[0];
 							break;
 
-						case MG_PATH_QUADRATIC:
+						case OC_PATH_QUADRATIC:
 							currentPos = elt->p[1];
 							break;
 
-						case MG_PATH_CUBIC:
+						case OC_PATH_CUBIC:
 							currentPos = elt->p[2];
 							break;
 					}
 				}
 			}
 			//NOTE: encode path
-			mg_mtl_encode_path(backend, primitive, scale);
+			oc_mtl_encode_path(backend, primitive, scale);
 		}
 	}
 
-	mg_mtl_render_batch(backend,
+	oc_mtl_render_batch(backend,
 	                    surface,
 	                    images,
 	                    tileSize,
@@ -1348,15 +1348,15 @@ void mg_mtl_canvas_render(mg_canvas_backend* interface,
 		//NOTE: finalize
 		[surface->commandBuffer addCompletedHandler:^(id<MTLCommandBuffer> commandBuffer)
 			{
-				mg_mtl_print_log(backend->bufferIndex, backend->logBuffer[backend->bufferIndex], backend->logOffsetBuffer[backend->bufferIndex]);
+				oc_mtl_print_log(backend->bufferIndex, backend->logBuffer[backend->bufferIndex], backend->logOffsetBuffer[backend->bufferIndex]);
 				dispatch_semaphore_signal(backend->bufferSemaphore);
 			}];
 	}
 }
 
-void mg_mtl_canvas_destroy(mg_canvas_backend* interface)
+void oc_mtl_canvas_destroy(oc_canvas_backend* interface)
 {
-	mg_mtl_canvas_backend* backend = (mg_mtl_canvas_backend*)interface;
+	oc_mtl_canvas_backend* backend = (oc_mtl_canvas_backend*)interface;
 
 	@autoreleasepool
 	{
@@ -1367,7 +1367,7 @@ void mg_mtl_canvas_destroy(mg_canvas_backend* interface)
 		[backend->rasterPipeline release];
 		[backend->blitPipeline release];
 
-		for(int i=0; i<MG_MTL_INPUT_BUFFERS_COUNT; i++)
+		for(int i=0; i<OC_MTL_INPUT_BUFFERS_COUNT; i++)
 		{
 			[backend->pathBuffer[i] release];
 			[backend->elementBuffer[i] release];
@@ -1386,15 +1386,15 @@ void mg_mtl_canvas_destroy(mg_canvas_backend* interface)
 	free(backend);
 }
 
-mg_image_data* mg_mtl_canvas_image_create(mg_canvas_backend* interface, vec2 size)
+oc_image_data* oc_mtl_canvas_image_create(oc_canvas_backend* interface, oc_vec2 size)
 {
-	mg_mtl_image_data* image = 0;
-	mg_mtl_canvas_backend* backend = (mg_mtl_canvas_backend*)interface;
-	mg_mtl_surface* surface = backend->surface;
+	oc_mtl_image_data* image = 0;
+	oc_mtl_canvas_backend* backend = (oc_mtl_canvas_backend*)interface;
+	oc_mtl_surface* surface = backend->surface;
 
 	@autoreleasepool
 	{
-		image = malloc_type(mg_mtl_image_data);
+		image = oc_malloc_type(oc_mtl_image_data);
 		if(image)
 		{
 			MTLTextureDescriptor* texDesc = [[MTLTextureDescriptor alloc] init];
@@ -1418,12 +1418,12 @@ mg_image_data* mg_mtl_canvas_image_create(mg_canvas_backend* interface, vec2 siz
 			}
 		}
 	}
-	return((mg_image_data*)image);
+	return((oc_image_data*)image);
 }
 
-void mg_mtl_canvas_image_destroy(mg_canvas_backend* backendInterface, mg_image_data* imageInterface)
+void oc_mtl_canvas_image_destroy(oc_canvas_backend* backendInterface, oc_image_data* imageInterface)
 {
-	mg_mtl_image_data* image = (mg_mtl_image_data*)imageInterface;
+	oc_mtl_image_data* image = (oc_mtl_image_data*)imageInterface;
 	@autoreleasepool
 	{
 		[image->texture release];
@@ -1431,9 +1431,9 @@ void mg_mtl_canvas_image_destroy(mg_canvas_backend* backendInterface, mg_image_d
 	}
 }
 
-void mg_mtl_canvas_image_upload_region(mg_canvas_backend* backendInterface, mg_image_data* imageInterface, mp_rect region, u8* pixels)
+void oc_mtl_canvas_image_upload_region(oc_canvas_backend* backendInterface, oc_image_data* imageInterface, oc_rect region, u8* pixels)
 {@autoreleasepool{
-	mg_mtl_image_data* image = (mg_mtl_image_data*)imageInterface;
+	oc_mtl_image_data* image = (oc_mtl_image_data*)imageInterface;
 	MTLRegion mtlRegion = MTLRegionMake2D(region.x, region.y, region.w, region.h);
 	[image->texture replaceRegion:mtlRegion
 	                mipmapLevel:0
@@ -1441,41 +1441,41 @@ void mg_mtl_canvas_image_upload_region(mg_canvas_backend* backendInterface, mg_i
 	                bytesPerRow: 4 * region.w];
 }}
 
-const u32 MG_MTL_DEFAULT_PATH_BUFFER_LEN       = (4<<10),
-          MG_MTL_DEFAULT_ELT_BUFFER_LEN        = (4<<10),
+const u32 OC_MTL_DEFAULT_PATH_BUFFER_LEN       = (4<<10),
+          OC_MTL_DEFAULT_ELT_BUFFER_LEN        = (4<<10),
 
-          MG_MTL_DEFAULT_SEGMENT_BUFFER_LEN    = (4<<10),
-          MG_MTL_DEFAULT_PATH_QUEUE_BUFFER_LEN = (4<<10),
-          MG_MTL_DEFAULT_TILE_QUEUE_BUFFER_LEN = (4<<10),
-          MG_MTL_DEFAULT_TILE_OP_BUFFER_LEN    = (4<<20);
+          OC_MTL_DEFAULT_SEGMENT_BUFFER_LEN    = (4<<10),
+          OC_MTL_DEFAULT_PATH_QUEUE_BUFFER_LEN = (4<<10),
+          OC_MTL_DEFAULT_TILE_QUEUE_BUFFER_LEN = (4<<10),
+          OC_MTL_DEFAULT_TILE_OP_BUFFER_LEN    = (4<<20);
 
-mg_canvas_backend* mtl_canvas_backend_create(mg_mtl_surface* surface)
+oc_canvas_backend* oc_mtl_canvas_backend_create(oc_mtl_surface* surface)
 {
-	mg_mtl_canvas_backend* backend = 0;
+	oc_mtl_canvas_backend* backend = 0;
 
-	backend = malloc_type(mg_mtl_canvas_backend);
-	memset(backend, 0, sizeof(mg_mtl_canvas_backend));
+	backend = oc_malloc_type(oc_mtl_canvas_backend);
+	memset(backend, 0, sizeof(oc_mtl_canvas_backend));
 
-	backend->msaaCount = MG_MTL_MSAA_COUNT;
+	backend->msaaCount = OC_MTL_MSAA_COUNT;
 	backend->surface = surface;
 
 	//NOTE(martin): setup interface functions
-	backend->interface.destroy = mg_mtl_canvas_destroy;
-	backend->interface.render = mg_mtl_canvas_render;
-	backend->interface.imageCreate = mg_mtl_canvas_image_create;
-	backend->interface.imageDestroy = mg_mtl_canvas_image_destroy;
-	backend->interface.imageUploadRegion = mg_mtl_canvas_image_upload_region;
+	backend->interface.destroy = oc_mtl_canvas_destroy;
+	backend->interface.render = oc_mtl_canvas_render;
+	backend->interface.imageCreate = oc_mtl_canvas_image_create;
+	backend->interface.imageDestroy = oc_mtl_canvas_image_destroy;
+	backend->interface.imageUploadRegion = oc_mtl_canvas_image_upload_region;
 
 	@autoreleasepool{
 		//NOTE: load metal library
-		str8 shaderPath = path_executable_relative(mem_scratch(), STR8("mtl_renderer.metallib"));
+		oc_str8 shaderPath = oc_path_executable_relative(oc_scratch(), OC_STR8("mtl_renderer.metallib"));
 		NSString* metalFileName = [[NSString alloc] initWithBytes: shaderPath.ptr length:shaderPath.len encoding: NSUTF8StringEncoding];
 		NSError* err = 0;
 		id<MTLLibrary> library = [surface->device newLibraryWithFile: metalFileName error:&err];
 		if(err != nil)
 		{
 			const char* errStr = [[err localizedDescription] UTF8String];
-			log_error("error : %s\n", errStr);
+			oc_log_error("error : %s\n", errStr);
 			return(0);
 		}
 		id<MTLFunction> pathFunction = [library newFunctionWithName:@"mtl_path_setup"];
@@ -1520,10 +1520,10 @@ mg_canvas_backend* mtl_canvas_backend_create(mg_mtl_surface* surface)
 		backend->blitPipeline = [surface->device newRenderPipelineStateWithDescriptor: pipelineStateDescriptor error:&err];
 
 		//NOTE: create textures
-		vec2 size = surface->interface.getSize((mg_surface_data*)surface);
+		oc_vec2 size = surface->interface.getSize((oc_surface_data*)surface);
 		f32 scale = surface->mtlLayer.contentsScale;
 
-		backend->frameSize = (vec2){size.x*scale, size.y*scale};
+		backend->frameSize = (oc_vec2){size.x*scale, size.y*scale};
 
 		MTLTextureDescriptor* texDesc = [[MTLTextureDescriptor alloc] init];
 		texDesc.textureType = MTLTextureType2D;
@@ -1537,38 +1537,38 @@ mg_canvas_backend* mtl_canvas_backend_create(mg_mtl_surface* surface)
 
 		//NOTE: create buffers
 
-		backend->bufferSemaphore = dispatch_semaphore_create(MG_MTL_INPUT_BUFFERS_COUNT);
+		backend->bufferSemaphore = dispatch_semaphore_create(OC_MTL_INPUT_BUFFERS_COUNT);
 		backend->bufferIndex = 0;
 
 		MTLResourceOptions bufferOptions = MTLResourceCPUCacheModeWriteCombined
 		                                 | MTLResourceStorageModeShared;
 
-		for(int i=0; i<MG_MTL_INPUT_BUFFERS_COUNT; i++)
+		for(int i=0; i<OC_MTL_INPUT_BUFFERS_COUNT; i++)
 		{
-			backend->pathBuffer[i] = [surface->device newBufferWithLength: MG_MTL_DEFAULT_PATH_BUFFER_LEN * sizeof(mg_mtl_path)
+			backend->pathBuffer[i] = [surface->device newBufferWithLength: OC_MTL_DEFAULT_PATH_BUFFER_LEN * sizeof(oc_mtl_path)
 			                                               options: bufferOptions];
 
-			backend->elementBuffer[i] = [surface->device newBufferWithLength: MG_MTL_DEFAULT_ELT_BUFFER_LEN * sizeof(mg_mtl_path_elt)
+			backend->elementBuffer[i] = [surface->device newBufferWithLength: OC_MTL_DEFAULT_ELT_BUFFER_LEN * sizeof(oc_mtl_path_elt)
 			                                                  options: bufferOptions];
 		}
 
 		bufferOptions = MTLResourceStorageModePrivate;
-		backend->segmentBuffer = [surface->device newBufferWithLength: MG_MTL_DEFAULT_SEGMENT_BUFFER_LEN * sizeof(mg_mtl_segment)
+		backend->segmentBuffer = [surface->device newBufferWithLength: OC_MTL_DEFAULT_SEGMENT_BUFFER_LEN * sizeof(oc_mtl_segment)
 		                                               options: bufferOptions];
 
 		backend->segmentCountBuffer = [surface->device newBufferWithLength: sizeof(int)
 		                                                    options: bufferOptions];
 
-		backend->pathQueueBuffer = [surface->device newBufferWithLength: MG_MTL_DEFAULT_PATH_QUEUE_BUFFER_LEN * sizeof(mg_mtl_path_queue)
+		backend->pathQueueBuffer = [surface->device newBufferWithLength: OC_MTL_DEFAULT_PATH_QUEUE_BUFFER_LEN * sizeof(oc_mtl_path_queue)
 		                                                 options: bufferOptions];
 
-		backend->tileQueueBuffer = [surface->device newBufferWithLength: MG_MTL_DEFAULT_TILE_QUEUE_BUFFER_LEN * sizeof(mg_mtl_tile_queue)
+		backend->tileQueueBuffer = [surface->device newBufferWithLength: OC_MTL_DEFAULT_TILE_QUEUE_BUFFER_LEN * sizeof(oc_mtl_tile_queue)
 		                                                 options: bufferOptions];
 
 		backend->tileQueueCountBuffer = [surface->device newBufferWithLength: sizeof(int)
 		                                                      options: bufferOptions];
 
-		backend->tileOpBuffer = [surface->device newBufferWithLength: MG_MTL_DEFAULT_TILE_OP_BUFFER_LEN * sizeof(mg_mtl_tile_op)
+		backend->tileOpBuffer = [surface->device newBufferWithLength: OC_MTL_DEFAULT_TILE_OP_BUFFER_LEN * sizeof(oc_mtl_tile_op)
 		                                              options: bufferOptions];
 
 		backend->tileOpCountBuffer = [surface->device newBufferWithLength: sizeof(int)
@@ -1577,14 +1577,14 @@ mg_canvas_backend* mtl_canvas_backend_create(mg_mtl_surface* surface)
 		backend->rasterDispatchBuffer = [surface->device newBufferWithLength: sizeof(MTLDispatchThreadgroupsIndirectArguments)
 		                                                   options: bufferOptions];
 
-		int tileSize = MG_MTL_TILE_SIZE;
+		int tileSize = OC_MTL_TILE_SIZE;
 		int nTilesX = (int)(backend->frameSize.x + tileSize - 1)/tileSize;
 		int nTilesY = (int)(backend->frameSize.y + tileSize - 1)/tileSize;
-		backend->screenTilesBuffer = [surface->device newBufferWithLength: nTilesX*nTilesY*sizeof(mg_mtl_screen_tile)
+		backend->screenTilesBuffer = [surface->device newBufferWithLength: nTilesX*nTilesY*sizeof(oc_mtl_screen_tile)
 		                                                   options: bufferOptions];
 
 		bufferOptions = MTLResourceStorageModeShared;
-		for(int i=0; i<MG_MTL_INPUT_BUFFERS_COUNT; i++)
+		for(int i=0; i<OC_MTL_INPUT_BUFFERS_COUNT; i++)
 		{
 			backend->logBuffer[i] = [surface->device newBufferWithLength: 1<<20
 			                                              options: bufferOptions];
@@ -1593,25 +1593,25 @@ mg_canvas_backend* mtl_canvas_backend_create(mg_mtl_surface* surface)
 			                                                    options: bufferOptions];
 		}
 	}
-	return((mg_canvas_backend*)backend);
+	return((oc_canvas_backend*)backend);
 }
 
-mg_surface_data* mtl_canvas_surface_create_for_window(mp_window window)
+oc_surface_data* oc_mtl_canvas_surface_create_for_window(oc_window window)
 {
-	mg_mtl_surface* surface = (mg_mtl_surface*)mg_mtl_surface_create_for_window(window);
+	oc_mtl_surface* surface = (oc_mtl_surface*)oc_mtl_surface_create_for_window(window);
 
 	if(surface)
 	{
-		surface->interface.backend = mtl_canvas_backend_create(surface);
+		surface->interface.backend = oc_mtl_canvas_backend_create(surface);
 		if(surface->interface.backend)
 		{
-			surface->interface.api = MG_CANVAS;
+			surface->interface.api = OC_CANVAS;
 		}
 		else
 		{
-			surface->interface.destroy((mg_surface_data*)surface);
+			surface->interface.destroy((oc_surface_data*)surface);
 			surface = 0;
 		}
 	}
-	return((mg_surface_data*)surface);
+	return((oc_surface_data*)surface);
 }

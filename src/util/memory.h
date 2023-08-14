@@ -21,48 +21,48 @@ extern "C" {
 //NOTE(martin): memory arena
 //--------------------------------------------------------------------------------
 
-typedef struct mem_arena_chunk
+typedef struct oc_arena_chunk
 {
-	list_elt listElt;
+	oc_list_elt listElt;
 	char* ptr;
 	u64 offset;
 	u64 committed;
 	u64 cap;
-} mem_arena_chunk;
+} oc_arena_chunk;
 
-typedef struct mem_arena
+typedef struct oc_arena
 {
-	mem_base_allocator* base;
-	list_info chunks;
-	mem_arena_chunk* currentChunk;
+	oc_base_allocator* base;
+	oc_list chunks;
+	oc_arena_chunk* currentChunk;
 
-} mem_arena;
+} oc_arena;
 
-typedef struct mem_arena_scope
+typedef struct oc_arena_scope
 {
-	mem_arena* arena;
-	mem_arena_chunk* chunk;
+	oc_arena* arena;
+	oc_arena_chunk* chunk;
 	u64 offset;
-} mem_arena_scope;
+} oc_arena_scope;
 
-typedef struct mem_arena_options
+typedef struct oc_arena_options
 {
-	mem_base_allocator* base;
+	oc_base_allocator* base;
 	u64 reserve;
-} mem_arena_options;
+} oc_arena_options;
 
-MP_API void mem_arena_init(mem_arena* arena);
-MP_API void mem_arena_init_with_options(mem_arena* arena, mem_arena_options* options);
-MP_API void mem_arena_release(mem_arena* arena);
+ORCA_API void oc_arena_init(oc_arena* arena);
+ORCA_API void oc_arena_init_with_options(oc_arena* arena, oc_arena_options* options);
+ORCA_API void oc_arena_cleanup(oc_arena* arena);
 
-MP_API void* mem_arena_alloc(mem_arena* arena, u64 size);
-MP_API void mem_arena_clear(mem_arena* arena);
+ORCA_API void* oc_arena_push(oc_arena* arena, u64 size);
+ORCA_API void oc_arena_clear(oc_arena* arena);
 
-MP_API mem_arena_scope mem_arena_scope_begin(mem_arena* arena);
-MP_API void mem_arena_scope_end(mem_arena_scope scope);
+ORCA_API oc_arena_scope oc_arena_scope_begin(oc_arena* arena);
+ORCA_API void oc_arena_scope_end(oc_arena_scope scope);
 
-#define mem_arena_alloc_type(arena, type) ((type*)mem_arena_alloc(arena, sizeof(type)))
-#define mem_arena_alloc_array(arena, type, count) ((type*)mem_arena_alloc(arena, sizeof(type)*(count)))
+#define oc_arena_push_type(arena, type) ((type*)oc_arena_push(arena, sizeof(type)))
+#define oc_arena_push_array(arena, type, count) ((type*)oc_arena_push(arena, sizeof(type)*(count)))
 
 //--------------------------------------------------------------------------------
 //NOTE(martin): memory pool
@@ -71,41 +71,38 @@ MP_API void mem_arena_scope_end(mem_arena_scope scope);
 //TODO: we could probably remove pool. Most of the time we construct pool on top of
 //      arenas "manually" with different free lists per object types...
 
-typedef struct mem_pool
+typedef struct oc_pool
 {
-	mem_arena arena;
-	list_info freeList;
+	oc_arena arena;
+	oc_list freeList;
 	u64 blockSize;
-} mem_pool;
+} oc_pool;
 
-typedef struct mem_pool_options
+typedef struct oc_pool_options
 {
-	mem_base_allocator* base;
+	oc_base_allocator* base;
 	u64 reserve;
-} mem_pool_options;
+} oc_pool_options;
 
-MP_API void mem_pool_init(mem_pool* pool, u64 blockSize);
-MP_API void mem_pool_init_with_options(mem_pool* pool, u64 blockSize, mem_pool_options* options);
-MP_API void mem_pool_release(mem_pool* pool);
+ORCA_API void oc_pool_init(oc_pool* pool, u64 blockSize);
+ORCA_API void oc_pool_init_with_options(oc_pool* pool, u64 blockSize, oc_pool_options* options);
+ORCA_API void oc_pool_cleanup(oc_pool* pool);
 
-MP_API void* mem_pool_alloc(mem_pool* pool);
-MP_API void mem_pool_recycle(mem_pool* pool, void* ptr);
-MP_API void mem_pool_clear(mem_pool* pool);
+ORCA_API void* oc_pool_alloc(oc_pool* pool);
+ORCA_API void oc_pool_recycle(oc_pool* pool, void* ptr);
+ORCA_API void oc_pool_clear(oc_pool* pool);
 
-#define mem_pool_alloc_type(arena, type) ((type*)mem_pool_alloc(arena))
+#define oc_pool_alloc_type(arena, type) ((type*)oc_pool_alloc(arena))
 
 //--------------------------------------------------------------------------------
 //NOTE(martin): per-thread implicit scratch arena
 //--------------------------------------------------------------------------------
-MP_API mem_arena* mem_scratch();
-MP_API mem_arena* mem_scratch_next(mem_arena* used);
-MP_API mem_arena_scope mem_scratch_begin();
-MP_API mem_arena_scope mem_scratch_begin_next(mem_arena* used);
+ORCA_API oc_arena* oc_scratch();
+ORCA_API oc_arena* oc_scratch_next(oc_arena* used);
+ORCA_API oc_arena_scope oc_scratch_begin();
+ORCA_API oc_arena_scope oc_scratch_begin_next(oc_arena* used);
 
-#define mem_scratch_end(scope) mem_arena_scope_end(scope)
-
-
-
+#define oc_scratch_end(scope) oc_arena_scope_end(scope)
 
 #ifdef __cplusplus
 } // extern "C"

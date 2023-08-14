@@ -11,50 +11,54 @@
 #include<signal.h> //needed for pthread_kill() on linux
 #include<string.h>
 #include<sys/time.h>
+#include<unistd.h>	// nanosleep()
 
 #include"platform_thread.h"
 
-struct mp_thread
+struct oc_thread
 {
 	bool valid;
 	pthread_t pthread;
-	mp_thread_start_function start;
+	oc_thread_start_function start;
 	void* userPointer;
-	char name[MP_THREAD_NAME_MAX_SIZE];
+	oc_str8 name;
+	char nameBuffer[OC_THREAD_NAME_MAX_SIZE];
 };
 
-static void* mp_thread_bootstrap(void* data)
+static void* oc_thread_bootstrap(void* data)
 {
-	mp_thread* thread = (mp_thread*)data;
-	if(strlen(thread->name))
+	oc_thread* thread = (oc_thread*)data;
+	if(thread->name.len)
 	{
-		pthread_setname_np(thread->name);
+		pthread_setname_np(thread->nameBuffer);
 	}
 	i32 exitCode = thread->start(thread->userPointer);
 	return((void*)(ptrdiff_t)exitCode);
 }
 
-mp_thread* mp_thread_create_with_name(mp_thread_start_function start, void* userPointer, const char* name)
+oc_thread* oc_thread_create_with_name(oc_thread_start_function start, void* userPointer, oc_str8 name)
 {
-	mp_thread* thread = (mp_thread*)malloc(sizeof(mp_thread));
+	oc_thread* thread = (oc_thread*)malloc(sizeof(oc_thread));
 	if(!thread)
 	{
 		return(0);
 	}
 
-	if(name)
+	if(name.len && name.ptr)
 	{
-		char* end = stpncpy(thread->name, name, MP_THREAD_NAME_MAX_SIZE-1);
+		char* end = stpncpy(thread->nameBuffer, name.ptr, oc_min(name.len, OC_THREAD_NAME_MAX_SIZE-1));
 		*end = '\0';
+		thread->name = oc_str8_from_buffer(end - thread->nameBuffer, thread->nameBuffer);
 	}
 	else
 	{
-		thread->name[0] = '\0';
+		thread->nameBuffer[0] = '\0';
+		thread->name = oc_str8_from_buffer(0, thread->nameBuffer);
 	}
 	thread->start = start;
 	thread->userPointer = userPointer;
 
-	if(pthread_create(&thread->pthread, 0, mp_thread_bootstrap, thread) != 0)
+	if(pthread_create(&thread->pthread, 0, oc_thread_bootstrap, thread) != 0)
 	{
 		free(thread);
 		return(0);
@@ -66,24 +70,24 @@ mp_thread* mp_thread_create_with_name(mp_thread_start_function start, void* user
 	}
 }
 
-mp_thread* mp_thread_create(mp_thread_start_function start, void* userPointer)
+oc_thread* oc_thread_create(oc_thread_start_function start, void* userPointer)
 {
-	return(mp_thread_create_with_name(start, userPointer, 0));
+	return(oc_thread_create_with_name(start, userPointer, (oc_str8){0}));
 }
 
-const char* mp_thread_get_name(mp_thread* thread)
+oc_str8 oc_thread_get_name(oc_thread* thread)
 {
 	return(thread->name);
 }
 
-u64 mp_thread_unique_id(mp_thread* thread)
+u64 oc_thread_unique_id(oc_thread* thread)
 {
 	u64 id;
 	pthread_threadid_np(thread->pthread, &id);
 	return(id);
 }
 
-u64 mp_thread_self_id()
+u64 oc_thread_self_id()
 {
 	pthread_t thread = pthread_self();
 	u64 id;
@@ -91,12 +95,12 @@ u64 mp_thread_self_id()
 	return(id);
 }
 
-int mp_thread_signal(mp_thread* thread, int sig)
+int oc_thread_signal(oc_thread* thread, int sig)
 {
 	return(pthread_kill(thread->pthread, sig));
 }
 
-int mp_thread_join(mp_thread* thread, i64* exitCode)
+int oc_thread_join(oc_thread* thread, i64* exitCode)
 {
 	void* ret;
 	if(pthread_join(thread->pthread, &ret))
@@ -112,7 +116,7 @@ int mp_thread_join(mp_thread* thread, i64* exitCode)
 	return(0);
 }
 
-int mp_thread_detach(mp_thread* thread)
+int oc_thread_detach(oc_thread* thread)
 {
 	if(pthread_detach(thread->pthread))
 	{
@@ -123,14 +127,14 @@ int mp_thread_detach(mp_thread* thread)
 }
 
 
-struct mp_mutex
+struct oc_mutex
 {
 	pthread_mutex_t pmutex;
 };
 
-mp_mutex* mp_mutex_create()
+oc_mutex* oc_mutex_create()
 {
-	mp_mutex* mutex = (mp_mutex*)malloc(sizeof(mp_mutex));
+	oc_mutex* mutex = (oc_mutex*)malloc(sizeof(oc_mutex));
 	if(!mutex)
 	{
 		return(0);
@@ -143,7 +147,7 @@ mp_mutex* mp_mutex_create()
 	return(mutex);
 }
 
-int mp_mutex_destroy(mp_mutex* mutex)
+int oc_mutex_destroy(oc_mutex* mutex)
 {
 	if(pthread_mutex_destroy(&mutex->pmutex) != 0)
 	{
@@ -153,44 +157,44 @@ int mp_mutex_destroy(mp_mutex* mutex)
 	return(0);
 }
 
-int mp_mutex_lock(mp_mutex* mutex)
+int oc_mutex_lock(oc_mutex* mutex)
 {
 	return(pthread_mutex_lock(&mutex->pmutex));
 }
 
-int mp_mutex_unlock(mp_mutex* mutex)
+int oc_mutex_unlock(oc_mutex* mutex)
 {
 	return(pthread_mutex_unlock(&mutex->pmutex));
 }
 
-// mp_ticket_spin_mutex has a mirrored implementation in win32_thread.c
+// oc_ticket has a mirrored implementation in win32_thread.c
 
-void mp_ticket_spin_mutex_init(mp_ticket_spin_mutex* mutex)
+void oc_ticket_init(oc_ticket* mutex)
 {
 	mutex->nextTicket = 0;
 	mutex->serving = 0;
 }
 
-void mp_ticket_spin_mutex_lock(mp_ticket_spin_mutex* mutex)
+void oc_ticket_lock(oc_ticket* mutex)
 {
 	u64 ticket = atomic_fetch_add(&mutex->nextTicket, 1ULL);
 	while(ticket != mutex->serving); //spin
 }
 
-void mp_ticket_spin_mutex_unlock(mp_ticket_spin_mutex* mutex)
+void oc_ticket_unlock(oc_ticket* mutex)
 {
 	atomic_fetch_add(&mutex->serving, 1ULL);
 }
 
 
-struct mp_condition
+struct oc_condition
 {
 	pthread_cond_t pcond;
 };
 
-mp_condition* mp_condition_create()
+oc_condition* oc_condition_create()
 {
-	mp_condition* cond = (mp_condition*)malloc(sizeof(mp_condition));
+	oc_condition* cond = (oc_condition*)malloc(sizeof(oc_condition));
 	if(!cond)
 	{
 		return(0);
@@ -203,7 +207,7 @@ mp_condition* mp_condition_create()
 	return(cond);
 }
 
-int mp_condition_destroy(mp_condition* cond)
+int oc_condition_destroy(oc_condition* cond)
 {
 	if(pthread_cond_destroy(&cond->pcond) != 0)
 	{
@@ -213,12 +217,12 @@ int mp_condition_destroy(mp_condition* cond)
 	return(0);
 }
 
-int mp_condition_wait(mp_condition* cond, mp_mutex* mutex)
+int oc_condition_wait(oc_condition* cond, oc_mutex* mutex)
 {
 	return(pthread_cond_wait(&cond->pcond, &mutex->pmutex));
 }
 
-int mp_condition_timedwait(mp_condition* cond, mp_mutex* mutex, f64 seconds)
+int oc_condition_timedwait(oc_condition* cond, oc_mutex* mutex, f64 seconds)
 {
 	struct timeval tv;
 	gettimeofday(&tv, 0);
@@ -235,12 +239,21 @@ int mp_condition_timedwait(mp_condition* cond, mp_mutex* mutex, f64 seconds)
 	return(pthread_cond_timedwait(&cond->pcond, &mutex->pmutex, &ts));
 }
 
-int mp_condition_signal(mp_condition* cond)
+int oc_condition_signal(oc_condition* cond)
 {
 	return(pthread_cond_signal(&cond->pcond));
 }
 
-int mp_condition_broadcast(mp_condition* cond)
+int oc_condition_broadcast(oc_condition* cond)
 {
 	return(pthread_cond_broadcast(&cond->pcond));
+}
+
+
+void oc_sleep_nano(u64 nanoseconds)
+{
+	timespec rqtp;
+	rqtp.tv_sec = nanoseconds / 1000000000;
+	rqtp.tv_nsec = nanoseconds - rqtp.tv_sec * 1000000000;
+	nanosleep(&rqtp, 0);
 }

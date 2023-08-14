@@ -55,7 +55,7 @@ u64 orca_gl_type_size(GLenum type)
 			break;
 
 		default:
-			ORCA_ASSERT(0, "unknown GLenum type %i", type);
+			OC_ASSERT(0, "unknown GLenum type %i", type);
 	}
 
 	return(size);
@@ -93,7 +93,7 @@ u64 orca_gl_format_count(GLenum format)
 			break;
 
 		default:
-			ORCA_ASSERT(0, "unknow GLenum format %i", format);
+			OC_ASSERT(0, "unknow GLenum format %i", format);
 	}
 
 	return(count);
@@ -412,7 +412,7 @@ u64 orca_glGet_data_length(GLenum pname)
 				break;
 
 			default:
-				ORCA_ASSERT(0, "unknown GLenum pname %i", pname);
+				OC_ASSERT(0, "unknown GLenum pname %i", pname);
 				break;
 		}
 	}
@@ -562,7 +562,7 @@ u64 orca_glClearBuffer_value_length_generic(GLenum buffer)
 			break;
 
 		default:
-			ORCA_ASSERT(0, "invalid buffer enum for glClearBuffer()");
+			OC_ASSERT(0, "invalid buffer enum for glClearBuffer()");
 	}
 	return(count);
 }
@@ -693,8 +693,8 @@ u64 orca_glGetUniform_params_length_generic(GLuint program, GLint location)
 	int uniformCount = 0;
 	glGetProgramiv(program, GL_ACTIVE_UNIFORMS, &uniformCount);
 
-	mem_arena_scope scratch = mem_scratch_begin();
-	char* name = mem_arena_alloc(scratch.arena, maxUniformName+1);
+	oc_arena_scope scratch = oc_scratch_begin();
+	char* name = oc_arena_push(scratch.arena, maxUniformName+1);
 
 	u64 count = 0;
 	bool found = false;
@@ -714,9 +714,9 @@ u64 orca_glGetUniform_params_length_generic(GLuint program, GLint location)
 			break;
 		}
 	}
-	ORCA_ASSERT(found, "uniform location %i not found for program %i", location, program);
+	OC_ASSERT(found, "uniform location %i not found for program %i", location, program);
 
-	mem_scratch_end(scratch);
+	oc_scratch_end(scratch);
 	return(count);
 }
 
@@ -817,7 +817,7 @@ const void* glShaderSource_stub(IM3Runtime runtime, IM3ImportContext _ctx, uint6
 	i32 lengthArrayOffset = *(i32*)&_sp[3];
 
 	int* stringOffsetArray = (int*)((char*)_mem + stringArrayOffset);
-	const char** stringArray = (const char**)mem_arena_alloc_array(mem_scratch(), char*, count);
+	const char** stringArray = (const char**)oc_arena_push_array(oc_scratch(), char*, count);
 	for(int i=0; i<count; i++)
 	{
 		stringArray[i] = (char*)_mem + stringOffsetArray[i];
@@ -835,9 +835,9 @@ const void* glGetVertexAttribPointerv_stub(IM3Runtime runtime, IM3ImportContext 
 	GLenum pname = *(i32*)&_sp[1];
 	i32* pointer = (i32*)((char*)_mem + *(u32*)&_sp[2]);
 	{
-		ORCA_ASSERT(((char*)pointer >= (char*)_mem) && (((char*)pointer - (char*)_mem) < m3_GetMemorySize(runtime)),
+		OC_ASSERT(((char*)pointer >= (char*)_mem) && (((char*)pointer - (char*)_mem) < m3_GetMemorySize(runtime)),
 		            "parameter 'pointer' is out of bounds");
-		ORCA_ASSERT((char*)pointer + sizeof(i32) <= ((char*)_mem + m3_GetMemorySize(runtime)),
+		OC_ASSERT((char*)pointer + sizeof(i32) <= ((char*)_mem + m3_GetMemorySize(runtime)),
 		            "parameter 'pointer' overflows wasm memory");
 	}
 	void* rawPointer = 0;
@@ -875,7 +875,7 @@ const void* glVertexAttribPointer_stub(IM3Runtime runtime, IM3ImportContext _ctx
 	else
 	{
 		//NOTE: we crash here before letting ANGLE crash because vertex attrib pointer is not set
-		ORCA_ASSERT("Calling glVertexAttribPointer with a GL_ARRAY_BUFFER binding of 0 is unsafe and disabled in Orca.");
+		OC_ASSERT("Calling glVertexAttribPointer with a GL_ARRAY_BUFFER binding of 0 is unsafe and disabled in Orca.");
 	}
 	return(0);
 }
@@ -903,7 +903,7 @@ const void* glVertexAttribIPointer_stub(IM3Runtime runtime, IM3ImportContext _ct
 	}
 	else
 	{
-		ORCA_ASSERT(0, "Calling glVertexAttribIPointer with a GL_ARRAY_BUFFER binding of 0 is unsafe and disabled in Orca.");
+		OC_ASSERT(0, "Calling glVertexAttribIPointer with a GL_ARRAY_BUFFER binding of 0 is unsafe and disabled in Orca.");
 	}
 	return(0);
 }
@@ -918,38 +918,38 @@ const void* glGetUniformIndices_stub(IM3Runtime runtime, IM3ImportContext _ctx, 
 	u64 memorySize = m3_GetMemorySize(runtime);
 	//NOTE: check size of uniformNames
 	{
-		ORCA_ASSERT(((char*)uniformNames >= (char*)_mem) && (((char*)uniformNames - (char*)_mem) < memorySize),
+		OC_ASSERT(((char*)uniformNames >= (char*)_mem) && (((char*)uniformNames - (char*)_mem) < memorySize),
 		            "parameter 'uniformNames' is out of bounds");
-		ORCA_ASSERT((char*)uniformNames + uniformCount * sizeof(u32) <= ((char*)_mem + memorySize),
+		OC_ASSERT((char*)uniformNames + uniformCount * sizeof(u32) <= ((char*)_mem + memorySize),
 		            "parameter 'uniformNames' overflows wasm memory");
 	}
 	//NOTE: check each individual uniformNames
-	mem_arena_scope scratch = mem_scratch_begin();
+	oc_arena_scope scratch = oc_scratch_begin();
 
-	char** uniformNamesRaw = mem_arena_alloc_array(scratch.arena, char*, uniformCount);
+	char** uniformNamesRaw = oc_arena_push_array(scratch.arena, char*, uniformCount);
 	for(int i=0; i<uniformCount; i++)
 	{
 		char* raw = ((char*)_mem + uniformNames[i]);
-		ORCA_ASSERT(raw >= (char*)_mem && (raw - (char*)_mem) < memorySize, "uniformName[%i] is out of bounds", i);
+		OC_ASSERT(raw >= (char*)_mem && (raw - (char*)_mem) < memorySize, "uniformName[%i] is out of bounds", i);
 
 		u64 len = orca_gles_check_cstring(runtime, raw);
 
-		ORCA_ASSERT(raw + len <= ((char*)_mem + memorySize), "uniformName[%i] overflows wasm memory", i);
+		OC_ASSERT(raw + len <= ((char*)_mem + memorySize), "uniformName[%i] overflows wasm memory", i);
 
 		uniformNamesRaw[i] = raw;
 	}
 
 	//NOTE: check size of uniformIndices
 	{
-		ORCA_ASSERT(((char*)uniformIndices >= (char*)_mem) && (((char*)uniformIndices - (char*)_mem) < memorySize),
+		OC_ASSERT(((char*)uniformIndices >= (char*)_mem) && (((char*)uniformIndices - (char*)_mem) < memorySize),
 		            "parameter 'uniformIndices' is out of bounds");
-		ORCA_ASSERT((char*)uniformIndices + uniformCount * sizeof(GLuint) <= ((char*)_mem + memorySize),
+		OC_ASSERT((char*)uniformIndices + uniformCount * sizeof(GLuint) <= ((char*)_mem + memorySize),
 		            "parameter 'uniformIndices' overflows wasm memory");
 	}
 
 	glGetUniformIndices(program, uniformCount, (const GLchar* const*)uniformNamesRaw, uniformIndices);
 
-	mem_scratch_end(scratch);
+	oc_scratch_end(scratch);
 	return(0);
 }
 
@@ -1000,11 +1000,11 @@ void orca_gl_getstring_init(orca_gl_getstring_info* info, char* memory)
 	}
 
 	glGetIntegerv(GL_NUM_EXTENSIONS, (GLint*)&info->indexedEntryCount);
-	mem_arena_scope scratch = mem_scratch_begin();
-	const char** extensions = mem_arena_alloc(scratch.arena, info->indexedEntryCount);
+	oc_arena_scope scratch = oc_scratch_begin();
+	const char** extensions = oc_arena_push(scratch.arena, info->indexedEntryCount);
 
 	//NOTE: we will hold this until program terminates
-	info->indexedEntries = malloc_array(orca_gl_getstring_entry, info->indexedEntryCount);
+	info->indexedEntries = oc_malloc_array(orca_gl_getstring_entry, info->indexedEntryCount);
 
 	for(int i=0; i<info->indexedEntryCount; i++)
 	{
@@ -1016,7 +1016,7 @@ void orca_gl_getstring_init(orca_gl_getstring_info* info, char* memory)
 		}
 	}
 
-	u32 wasmIndex = orca_mem_grow(totalSize);
+	u32 wasmIndex = oc_mem_grow(totalSize);
 
 	for(int i=0; i<ORCA_GL_GETSTRING_ENTRY_COUNT; i++)
 	{
@@ -1039,7 +1039,7 @@ void orca_gl_getstring_init(orca_gl_getstring_info* info, char* memory)
 		}
 	}
 
-	mem_scratch_end(scratch);
+	oc_scratch_end(scratch);
 
 	info->init = true;
 }
@@ -1098,7 +1098,7 @@ int manual_link_gles_api(IM3Module module)
 	#define M3_LINK_ERROR_HANDLING(name) \
 		if(res != m3Err_none && res != m3Err_functionLookupFailed) \
 		{ \
-			log_error("Couldn't link function " #name " (%s)\n", res); \
+			oc_log_error("Couldn't link function " #name " (%s)\n", res); \
 			ret = -1; \
 		}
 

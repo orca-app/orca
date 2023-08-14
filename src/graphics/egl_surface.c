@@ -10,47 +10,47 @@
 #define EGL_EGLEXT_PROTOTYPES
 #include<EGL/egl.h>
 #include<EGL/eglext.h>
-#include"app/mp_app_internal.h"
+#include"app/app_internal.h"
 #include"graphics_surface.h"
 #include"gl_loader.h"
 
-#if PLATFORM_MACOS
+#if OC_PLATFORM_MACOS
 	//NOTE: EGL_PLATFORM_ANGLE_TYPE_DEFAULT_ANGLE on osx defaults to CGL backend, which doesn't handle SwapInterval correctly
-	#define MG_EGL_PLATFORM_ANGLE_TYPE EGL_PLATFORM_ANGLE_TYPE_METAL_ANGLE
+	#define OC_EGL_PLATFORM_ANGLE_TYPE EGL_PLATFORM_ANGLE_TYPE_METAL_ANGLE
 
 	//NOTE: hardcode GLES versions for now
 	//TODO: use version hints, once we have all api versions correctly categorized by glapi.py
-	#define MG_GLES_VERSION_MAJOR 3
-	#define MG_GLES_VERSION_MINOR 0
-	#define mg_gl_load_gles mg_gl_load_gles31
+	#define OC_GLES_VERSION_MAJOR 3
+	#define OC_GLES_VERSION_MINOR 0
+	#define oc_gl_load_gles oc_gl_load_gles31
 #else
-	#define MG_EGL_PLATFORM_ANGLE_TYPE EGL_PLATFORM_ANGLE_TYPE_DEFAULT_ANGLE
-	#define MG_GLES_VERSION_MAJOR 3
-	#define MG_GLES_VERSION_MINOR 1
-	#define mg_gl_load_gles mg_gl_load_gles32
+	#define OC_EGL_PLATFORM_ANGLE_TYPE EGL_PLATFORM_ANGLE_TYPE_DEFAULT_ANGLE
+	#define OC_GLES_VERSION_MAJOR 3
+	#define OC_GLES_VERSION_MINOR 1
+	#define oc_gl_load_gles oc_gl_load_gles32
 #endif
 
 
-typedef struct mg_egl_surface
+typedef struct oc_egl_surface
 {
-	mg_surface_data interface;
+	oc_surface_data interface;
 
 	EGLDisplay eglDisplay;
 	EGLConfig eglConfig;
 	EGLContext eglContext;
 	EGLSurface eglSurface;
 
-	mg_gl_api api;
+	oc_gl_api api;
 
-} mg_egl_surface;
+} oc_egl_surface;
 
-void mg_egl_surface_destroy(mg_surface_data* interface)
+void oc_egl_surface_destroy(oc_surface_data* interface)
 {
-	mg_egl_surface* surface = (mg_egl_surface*)interface;
+	oc_egl_surface* surface = (oc_egl_surface*)interface;
 
-	if(&surface->api == mg_gl_get_api())
+	if(&surface->api == oc_gl_get_api())
 	{
-		mg_gl_deselect_api();
+		oc_gl_deselect_api();
 	}
 	if(eglGetCurrentContext() == surface->eglContext)
 	{
@@ -59,50 +59,50 @@ void mg_egl_surface_destroy(mg_surface_data* interface)
 	eglDestroyContext(surface->eglDisplay, surface->eglContext);
 	eglDestroySurface(surface->eglDisplay, surface->eglSurface);
 
-	mg_surface_cleanup((mg_surface_data*)surface);
+	oc_surface_cleanup((oc_surface_data*)surface);
 	free(surface);
 }
 
-void mg_egl_surface_prepare(mg_surface_data* interface)
+void oc_egl_surface_prepare(oc_surface_data* interface)
 {
-	mg_egl_surface* surface = (mg_egl_surface*)interface;
+	oc_egl_surface* surface = (oc_egl_surface*)interface;
 	eglMakeCurrent(surface->eglDisplay, surface->eglSurface, surface->eglSurface, surface->eglContext);
-	mg_gl_select_api(&surface->api);
+	oc_gl_select_api(&surface->api);
 }
 
-void mg_egl_surface_present(mg_surface_data* interface)
+void oc_egl_surface_present(oc_surface_data* interface)
 {
-	mg_egl_surface* surface = (mg_egl_surface*)interface;
+	oc_egl_surface* surface = (oc_egl_surface*)interface;
 	eglSwapBuffers(surface->eglDisplay, surface->eglSurface);
 }
 
-void mg_egl_surface_deselect(mg_surface_data* interface)
+void oc_egl_surface_deselect(oc_surface_data* interface)
 {
-	mg_egl_surface* surface = (mg_egl_surface*)interface;
+	oc_egl_surface* surface = (oc_egl_surface*)interface;
 	eglMakeCurrent(surface->eglDisplay, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
-	mg_gl_deselect_api();
+	oc_gl_deselect_api();
 }
 
-void mg_egl_surface_swap_interval(mg_surface_data* interface, int swap)
+void oc_egl_surface_swap_interval(oc_surface_data* interface, int swap)
 {
-	mg_egl_surface* surface = (mg_egl_surface*)interface;
+	oc_egl_surface* surface = (oc_egl_surface*)interface;
 	eglSwapInterval(surface->eglDisplay, swap);
 }
 
-void mg_egl_surface_init(mg_egl_surface* surface)
+void oc_egl_surface_init(oc_egl_surface* surface)
 {
-	void* nativeLayer = surface->interface.nativeLayer((mg_surface_data*)surface);
+	void* nativeLayer = surface->interface.nativeLayer((oc_surface_data*)surface);
 
-	surface->interface.api = MG_GLES;
+	surface->interface.api = OC_GLES;
 
-	surface->interface.destroy = mg_egl_surface_destroy;
-	surface->interface.prepare = mg_egl_surface_prepare;
-	surface->interface.present = mg_egl_surface_present;
-	surface->interface.deselect = mg_egl_surface_deselect;
-	surface->interface.swapInterval = mg_egl_surface_swap_interval;
+	surface->interface.destroy = oc_egl_surface_destroy;
+	surface->interface.prepare = oc_egl_surface_prepare;
+	surface->interface.present = oc_egl_surface_present;
+	surface->interface.deselect = oc_egl_surface_deselect;
+	surface->interface.swapInterval = oc_egl_surface_swap_interval;
 
 	EGLAttrib displayAttribs[] = {
-		EGL_PLATFORM_ANGLE_TYPE_ANGLE, MG_EGL_PLATFORM_ANGLE_TYPE,
+		EGL_PLATFORM_ANGLE_TYPE_ANGLE, OC_EGL_PLATFORM_ANGLE_TYPE,
 	    EGL_PLATFORM_ANGLE_DEVICE_TYPE_ANGLE, EGL_PLATFORM_ANGLE_DEVICE_TYPE_HARDWARE_ANGLE,
 	    EGL_NONE};
 
@@ -133,8 +133,8 @@ void mg_egl_surface_init(mg_egl_surface* surface)
 
 	eglBindAPI(EGL_OPENGL_ES_API);
 	EGLint contextAttributes[] = {
-		EGL_CONTEXT_MAJOR_VERSION_KHR, MG_GLES_VERSION_MAJOR,
-		EGL_CONTEXT_MINOR_VERSION_KHR, MG_GLES_VERSION_MINOR,
+		EGL_CONTEXT_MAJOR_VERSION_KHR, OC_GLES_VERSION_MAJOR,
+		EGL_CONTEXT_MINOR_VERSION_KHR, OC_GLES_VERSION_MINOR,
 		EGL_CONTEXT_BIND_GENERATES_RESOURCE_CHROMIUM, EGL_TRUE,
 		EGL_CONTEXT_CLIENT_ARRAYS_ENABLED_ANGLE, EGL_TRUE,
 		EGL_CONTEXT_OPENGL_BACKWARDS_COMPATIBLE_ANGLE, EGL_FALSE,
@@ -143,41 +143,41 @@ void mg_egl_surface_init(mg_egl_surface* surface)
 	surface->eglContext = eglCreateContext(surface->eglDisplay, surface->eglConfig, EGL_NO_CONTEXT, contextAttributes);
 	eglMakeCurrent(surface->eglDisplay, surface->eglSurface, surface->eglSurface, surface->eglContext);
 
-	mg_gl_load_gles(&surface->api, (mg_gl_load_proc)eglGetProcAddress);
+	oc_gl_load_gles(&surface->api, (oc_gl_load_proc)eglGetProcAddress);
 
 	eglSwapInterval(surface->eglDisplay, 1);
 }
 
-mg_surface_data* mg_egl_surface_create_remote(u32 width, u32 height)
+oc_surface_data* oc_egl_surface_create_remote(u32 width, u32 height)
 {
-	mg_egl_surface* surface = 0;
+	oc_egl_surface* surface = 0;
 
-	surface = malloc_type(mg_egl_surface);
+	surface = oc_malloc_type(oc_egl_surface);
 	if(surface)
 	{
-		memset(surface, 0, sizeof(mg_egl_surface));
+		memset(surface, 0, sizeof(oc_egl_surface));
 
-		mg_surface_init_remote((mg_surface_data*)surface, width, height);
-		mg_egl_surface_init(surface);
+		oc_surface_init_remote((oc_surface_data*)surface, width, height);
+		oc_egl_surface_init(surface);
 	}
 
-	return((mg_surface_data*)surface);
+	return((oc_surface_data*)surface);
 }
 
-mg_surface_data* mg_egl_surface_create_for_window(mp_window window)
+oc_surface_data* oc_egl_surface_create_for_window(oc_window window)
 {
-	mg_egl_surface* surface = 0;
-	mp_window_data* windowData = mp_window_ptr_from_handle(window);
+	oc_egl_surface* surface = 0;
+	oc_window_data* windowData = oc_window_ptr_from_handle(window);
 	if(windowData)
 	{
-		surface = malloc_type(mg_egl_surface);
+		surface = oc_malloc_type(oc_egl_surface);
 		if(surface)
 		{
-			memset(surface, 0, sizeof(mg_egl_surface));
+			memset(surface, 0, sizeof(oc_egl_surface));
 
-			mg_surface_init_for_window((mg_surface_data*)surface, windowData);
-			mg_egl_surface_init(surface);
+			oc_surface_init_for_window((oc_surface_data*)surface, windowData);
+			oc_egl_surface_init(surface);
 		}
 	}
-	return((mg_surface_data*)surface);
+	return((oc_surface_data*)surface);
 }

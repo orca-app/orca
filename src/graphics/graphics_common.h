@@ -13,70 +13,70 @@
 //------------------------------------------------------------------------
 // canvas structs
 //------------------------------------------------------------------------
-typedef enum { MG_PATH_MOVE,
-               MG_PATH_LINE,
-	           MG_PATH_QUADRATIC,
-	           MG_PATH_CUBIC } mg_path_elt_type;
+typedef enum { OC_PATH_MOVE,
+               OC_PATH_LINE,
+	           OC_PATH_QUADRATIC,
+	           OC_PATH_CUBIC } oc_path_elt_type;
 
-typedef struct mg_path_elt
+typedef struct oc_path_elt
 {
-	mg_path_elt_type type;
-	vec2 p[3];
+	oc_path_elt_type type;
+	oc_vec2 p[3];
 
-} mg_path_elt;
+} oc_path_elt;
 
-typedef struct mg_path_descriptor
+typedef struct oc_path_descriptor
 {
 	u32 startIndex;
 	u32 count;
-	vec2 startPoint;
+	oc_vec2 startPoint;
 
-} mg_path_descriptor;
+} oc_path_descriptor;
 
-typedef struct mg_attributes
+typedef struct oc_attributes
 {
 	f32 width;
 	f32 tolerance;
-	mg_color color;
-	mg_joint_type joint;
+	oc_color color;
+	oc_joint_type joint;
 	f32 maxJointExcursion;
-	mg_cap_type cap;
+	oc_cap_type cap;
 
-	mg_font font;
+	oc_font font;
 	f32 fontSize;
 
-	mg_image image;
-	mp_rect srcRegion;
+	oc_image image;
+	oc_rect srcRegion;
 
-	mg_mat2x3 transform;
-	mp_rect clip;
+	oc_mat2x3 transform;
+	oc_rect clip;
 
-} mg_attributes;
+} oc_attributes;
 
-typedef enum { MG_CMD_FILL,
-	           MG_CMD_STROKE,
-	           MG_CMD_JUMP
-	     } mg_primitive_cmd;
+typedef enum { OC_CMD_FILL,
+	           OC_CMD_STROKE,
+	           OC_CMD_JUMP
+	     } oc_primitive_cmd;
 
-typedef struct mg_primitive
+typedef struct oc_primitive
 {
-	mg_primitive_cmd cmd;
-	mg_attributes attributes;
+	oc_primitive_cmd cmd;
+	oc_attributes attributes;
 
 	union
 	{
-		mg_path_descriptor path;
-		mp_rect rect;
+		oc_path_descriptor path;
+		oc_rect rect;
 		u32 jump;
 	};
 
-} mg_primitive;
+} oc_primitive;
 
-MP_API void mg_surface_render_commands(mg_surface surface,
-                                       mg_color clearColor,
+ORCA_API void oc_surface_render_commands(oc_surface surface,
+                                       oc_color clearColor,
                                        u32 primitiveCount,
-                                       mg_primitive* primitives,
+                                       oc_primitive* primitives,
                                        u32 eltCount,
-                                       mg_path_elt* elements);
+                                       oc_path_elt* elements);
 
 #endif //__GRAPHICS_COMMON_H_

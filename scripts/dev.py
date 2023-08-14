@@ -137,7 +137,7 @@ def build_platform_layer_lib_win(release):
     subprocess.run([
         "cl", "/nologo",
         "/we4013", "/Zi", "/Zc:preprocessor",
-        "/DMP_BUILD_DLL",
+        "/DOC_BUILD_DLL",
         "/std:c11", "/experimental:c11atomics",
         *includes,
         "src/orca.c", "/Fo:build/bin/orca.o",
@@ -154,7 +154,7 @@ def build_platform_layer_lib_mac(release):
 
     flags = ["-mmacos-version-min=10.15.4", "-maes"]
     cflags = ["-std=c11"]
-    debug_flags = ["-O3"] if release else ["-g", "-DDEBUG", "-DLOG_COMPILE_DEBUG"]
+    debug_flags = ["-O3"] if release else ["-g", "-DOC_DEBUG", "-DOC_LOG_COMPILE_DEBUG"]
     ldflags = [f"-L{sdk_dir}/usr/lib", f"-F{sdk_dir}/System/Library/Frameworks/"]
     includes = ["-Isrc", "-Isrc/util", "-Isrc/platform", "-Iext", "-Iext/angle/include"]
 
@@ -327,7 +327,7 @@ def build_orca_mac(release):
         "-Iext/wasm3/source"
     ]
     libs = ["-Lbuild/bin", "-Lbuild/lib", "-lorca", "-lwasm3"]
-    debug_flags = ["-O2"] if release else ["-g", "-DLOG_COMPILE_DEBUG"]
+    debug_flags = ["-O2"] if release else ["-g", "-DOC_DEBUG -DOC_LOG_COMPILE_DEBUG"]
     flags = [
         *debug_flags,
         "-mmacos-version-min=10.15.4",

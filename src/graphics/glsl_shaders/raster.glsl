@@ -6,22 +6,22 @@ layout(std430) buffer;
 
 layout(binding = 0) restrict readonly buffer pathBufferSSBO
 {
-	mg_gl_path elements[];
+	oc_gl_path elements[];
 } pathBuffer;
 
 layout(binding = 1) restrict readonly buffer segmentBufferSSBO
 {
-	mg_gl_segment elements[];
+	oc_gl_segment elements[];
 } segmentBuffer;
 
 layout(binding = 2) restrict readonly buffer tileOpBufferSSBO
 {
-	mg_gl_tile_op elements[];
+	oc_gl_tile_op elements[];
 } tileOpBuffer;
 
 layout(binding = 3) restrict readonly buffer screenTilesBufferSSBO
 {
-	mg_gl_screen_tile elements[];
+	oc_gl_screen_tile elements[];
 } screenTilesBuffer;
 
 layout(binding = 4) restrict readonly buffer screenTilesCountBufferSSBO
@@ -67,7 +67,7 @@ void main()
 		return;
 	}
 */
-	vec2 sampleCoords[MG_GL_MAX_SAMPLE_COUNT] = {
+	vec2 sampleCoords[OC_GL_MAX_SAMPLE_COUNT] = {
 		centerCoord + vec2(1, 3)/16,
 		centerCoord + vec2(-1, -3)/16,
 		centerCoord + vec2(5, -1)/16,
@@ -87,14 +87,14 @@ void main()
 
 	const int srcSampleCount = 2;
 
-	vec2 imgSampleCoords[MG_GL_MAX_SRC_SAMPLE_COUNT] = {
+	vec2 imgSampleCoords[OC_GL_MAX_SRC_SAMPLE_COUNT] = {
 		centerCoord + vec2(-0.25, 0.25),
 	    centerCoord + vec2(+0.25, +0.25),
 	    centerCoord + vec2(+0.25, -0.25),
 	    centerCoord + vec2(-0.25, +0.25)};
 
 	vec4 color = vec4(0);
-	int winding[MG_GL_MAX_SAMPLE_COUNT];
+	int winding[OC_GL_MAX_SAMPLE_COUNT];
 
 	for(int i=0; i<sampleCount; i++)
 	{
@@ -106,19 +106,19 @@ void main()
 
 	while(opIndex >= 0)
 	{
-		mg_gl_tile_op op = tileOpBuffer.elements[opIndex];
+		oc_gl_tile_op op = tileOpBuffer.elements[opIndex];
 
-		if(op.kind == MG_GL_OP_START)
+		if(op.kind == OC_GL_OP_START)
 		{
 			for(int sampleIndex = 0; sampleIndex<sampleCount; sampleIndex++)
 			{
 				winding[sampleIndex] = op.windingOffsetOrCrossRight;
 			}
 		}
-		else if(op.kind == MG_GL_OP_SEGMENT)
+		else if(op.kind == OC_GL_OP_SEGMENT)
 		{
 			int segIndex = op.index;
-			mg_gl_segment seg = segmentBuffer.elements[segIndex];
+			oc_gl_segment seg = segmentBuffer.elements[segIndex];
 
 			for(int sampleIndex=0; sampleIndex<sampleCount; sampleIndex++)
 			{
@@ -133,12 +133,12 @@ void main()
 
 				if(op.windingOffsetOrCrossRight != 0)
 				{
-					if( (seg.config == MG_GL_BR || seg.config == MG_GL_TL)
+					if( (seg.config == OC_GL_BR || seg.config == OC_GL_TL)
 					  &&(sampleCoord.y > seg.box.w))
 					{
 						winding[sampleIndex] += seg.windingIncrement;
 					}
-					else if( (seg.config == MG_GL_BL || seg.config == MG_GL_TR)
+					else if( (seg.config == OC_GL_BL || seg.config == OC_GL_TR)
 					       &&(sampleCoord.y > seg.box.y))
 					{
 						winding[sampleIndex] -= seg.windingIncrement;
@@ -202,7 +202,7 @@ void main()
 				nextColor *= texColor;
 			}
 
-			if(op.kind == MG_GL_OP_FILL)
+			if(op.kind == OC_GL_OP_FILL)
 			{
 				color = color*(1-nextColor.a) + nextColor;
 			}
@@ -220,10 +220,10 @@ void main()
 					  && sampleCoord.y >= clip.y
 					  && sampleCoord.y < clip.w)
 					{
-						bool filled = op.kind == MG_GL_OP_CLIP_FILL
-						            ||(pathBuffer.elements[pathBufferStart + pathIndex].cmd == MG_GL_FILL
+						bool filled = op.kind == OC_GL_OP_CLIP_FILL
+						            ||(pathBuffer.elements[pathBufferStart + pathIndex].cmd == OC_GL_FILL
 						              && ((winding[sampleIndex] & 1) != 0))
-						            ||(pathBuffer.elements[pathBufferStart + pathIndex].cmd == MG_GL_STROKE
+						            ||(pathBuffer.elements[pathBufferStart + pathIndex].cmd == OC_GL_STROKE
 						              && (winding[sampleIndex] != 0));
 						if(filled)
 						{
