@@ -1,0 +1,16 @@
+ColumnLimit: 0
+IndentPPDirectives: BeforeHash
+IndentWidth: 4
+MaxEmptyLinesToKeep: 1
+PointerAlignment: Left
+SeparateDefinitionBlocks: Always
+SortIncludes: true
+SpaceBeforeParens: Never
+SpacesInLineCommentPrefix:
+  Minimum: 1
+  Maximum: -1
+TabWidth: 4
+UseTab: Never
+BreakBeforeBraces: Allman
+AllowAllArgumentsOnNextLine: false
+Cpp11BracedListStyle: false
