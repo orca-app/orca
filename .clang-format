@@ -1,16 +1,14 @@
+AllowAllArgumentsOnNextLine: false
+BreakBeforeBraces: Allman
 ColumnLimit: 0
+Cpp11BracedListStyle: false
 IndentPPDirectives: BeforeHash
 IndentWidth: 4
+LineEnding: LF
 MaxEmptyLinesToKeep: 1
 PointerAlignment: Left
 SeparateDefinitionBlocks: Always
-SortIncludes: true
 SpaceBeforeParens: Never
-SpacesInLineCommentPrefix:
-  Minimum: 1
-  Maximum: -1
 TabWidth: 4
 UseTab: Never
-BreakBeforeBraces: Allman
-AllowAllArgumentsOnNextLine: false
-Cpp11BracedListStyle: false
+ReflowComments: false
