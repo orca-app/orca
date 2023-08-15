@@ -91,8 +91,8 @@ ORCA_EXPORT void OnInit(void)
                                 UNICODE_RANGE_LATIN_EXTENDED_A,
                                 UNICODE_RANGE_LATIN_EXTENDED_B,
                                 UNICODE_RANGE_SPECIALS };
-    // NOTE(ben): Weird that images are "create from data" but fonts are "create from memory"
-    // TODO: Decide whether we're using strings or explicit pointer + length
+    //NOTE(ben): Weird that images are "create from data" but fonts are "create from memory"
+    //TODO: Decide whether we're using strings or explicit pointer + length
     pongFont = mg_font_create_from_memory(fontStr.len, (byte*)fontStr.ptr, 5, ranges);
 
     mem_arena_clear(mem_scratch());
