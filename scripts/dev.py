@@ -19,9 +19,9 @@ ANGLE_VERSION = "2023-07-05"
 
 def attach_dev_commands(subparsers):
     dev_cmd = subparsers.add_parser("dev", help="Commands for building Orca itself. Must be run from the root of an Orca source checkout.")
-    dev_cmd.set_defaults(func=orca_root_only)
+    dev_cmd.set_defaults(func=orca_source_only)
 
-    dev_sub = dev_cmd.add_subparsers(required=is_orca_root(), title='commands')
+    dev_sub = dev_cmd.add_subparsers(required=is_orca_source(), title='commands')
 
     build_cmd = dev_sub.add_parser("build-runtime", help="Build the Orca runtime from source.")
     build_cmd.add_argument("--release", action="store_true", help="compile Orca in release mode (default is debug)")
@@ -35,15 +35,39 @@ def attach_dev_commands(subparsers):
     install_cmd.set_defaults(func=dev_shellish(install))
 
 
-def is_orca_root():
-    try:
-        os.stat(".orcaroot")
-        return True
-    except FileNotFoundError:
-        return False
+# Checks if the Orca tool should use a source checkout of Orca instead of a system install.
+# This is copy-pasted to the command-line tool so it can work before loading anything.
+#
+# Returns: (use source, source directory, is actually the source's tool)
+def check_if_source():
+    def path_is_in_orca_source(path):
+        dir = path
+        while True:
+            try:
+                os.stat(os.path.join(dir, ".orcaroot"))
+                return (True, dir)
+            except FileNotFoundError:
+                pass
+
+            newdir = os.path.dirname(dir)
+            if newdir == dir: # TODO: Verify on Windows (it will probably not work)
+                return (False, None)
+            dir = newdir
+
+    in_source, current_source_dir = path_is_in_orca_source(os.getcwd())
+    script_is_source, script_source_dir = path_is_in_orca_source(os.path.dirname(os.path.abspath(__file__)))
+
+    use_source = in_source or script_is_source
+    source_dir = current_source_dir or script_source_dir
+    return (use_source, source_dir, script_is_source)
 
 
-def orca_root_only(args):
+def is_orca_source():
+    use_source, _, _ = check_if_source()
+    return use_source
+
+
+def orca_source_only(args):
     print("The Orca dev commands can only be run from an Orca source checkout.")
     print()
     print("If you want to build Orca yourself, download the source here:")
@@ -52,7 +76,14 @@ def orca_root_only(args):
 
 
 def dev_shellish(func):
-    return shellish(func) if is_orca_root() else orca_root_only
+    use_source, source_dir, _ = check_if_source()
+    if not use_source:
+        return orca_source_only
+
+    def func_from_source(args):
+        os.chdir(source_dir)
+        func(args)
+    return shellish(func_from_source)
 
 
 def build_runtime(args):
