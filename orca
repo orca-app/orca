@@ -7,24 +7,45 @@ import os
 import sys
 
 
-root = True
-try:
-    os.stat(".orcaroot")
-except FileNotFoundError:
-    root = False
+if __name__ != "__main__":
+    print("why are you importing the orca command-line tool as a Python module, you absolute goofball")
+    exit(1)
 
-if root:
-    # Running from Orca source checkout; use local source's scripts.
 
-    scriptdir = os.path.dirname(os.path.abspath(__file__))
-    if scriptdir != os.getcwd():
-        # Only print this warning if running the system-installed Orca.
-        # It's annoying to see this if you run ./orca from the source.
+# If you modify this, be sure to modify the version in scripts/dev.py as well.
+def check_if_source():
+    def path_is_in_orca_source(path):
+        dir = path
+        while True:
+            try:
+                os.stat(os.path.join(dir, ".orcaroot"))
+                return (True, dir)
+            except FileNotFoundError:
+                pass
+
+            newdir = os.path.dirname(dir)
+            if newdir == dir:
+                return (False, None)
+            dir = newdir
+
+    in_source, current_source_dir = path_is_in_orca_source(os.getcwd())
+    script_is_source, script_source_dir = path_is_in_orca_source(os.path.dirname(os.path.abspath(__file__)))
+
+    use_source = in_source or script_is_source
+    source_dir = current_source_dir or script_source_dir
+    return (use_source, source_dir, script_is_source)
+
+
+use_source, source_dir, is_source = check_if_source()
+if use_source:
+    # Use the source checkout's scripts instead of the system-installed scripts.
+
+    if not is_source:
         print("The Orca tool is running from a local source checkout and will")
         print("use that instead of the system Orca installation.")
         print()
 
-    sys.path.append(os.getcwd())
+    sys.path.append(source_dir)
     import scripts.orca
 else:
     # Running from outside Orca source checkout; use system Orca install.

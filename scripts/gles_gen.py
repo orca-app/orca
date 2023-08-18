@@ -32,7 +32,7 @@ def gen_gles_header(spec, filename):
 	tree = et.parse(spec)
 	reg.loadElementTree(tree)
 
-	logFile = open('./gles_gen.log', 'w')
+	logFile = open('./build/gles_gen.log', 'w')
 	gen = COutputGenerator(diagFile=logFile)
 	reg.setGenerator(gen)
 	reg.apiGen(genOpts)

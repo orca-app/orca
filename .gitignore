@@ -28,7 +28,6 @@ src/orca_surface.c
 src/graphics/orca_gl31.h
 *bind_gen.c
 *_stubs.c
-gles_gen.log
 
 .vscode/launch.json
 .vscode/settings.json
