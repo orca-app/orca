@@ -2663,65 +2663,67 @@ oc_ui_text_box_result oc_ui_text_box(const char* name, oc_arena* arena, oc_str8 
 
 	oc_ui_sig sig = oc_ui_box_sig(frame);
 
+	if(sig.pressed)
+	{
+		if(!oc_ui_box_active(frame))
+		{
+			oc_ui_box_activate(frame);
+
+			//NOTE: focus
+			ui->focus = frame;
+			ui->editFirstDisplayedChar = 0;
+			ui->editCursor = 0;
+			ui->editMark = 0;
+		}
+		ui->editCursorBlinkStart = ui->frameTime;
+	}
+
+	if(sig.pressed || sig.dragging)
+	{
+		//NOTE: set cursor/extend selection on mouse press or drag
+		oc_vec2 pos = oc_ui_mouse_position();
+		f32 cursorX = pos.x - frame->rect.x - textMargin;
+
+		oc_str32 codepoints = oc_utf8_push_to_codepoints(&ui->frameArena, text);
+		i32 newCursor = codepoints.len;
+		f32 x = 0;
+		for(int i = ui->editFirstDisplayedChar; i<codepoints.len; i++)
+		{
+			oc_rect bbox = oc_text_bounding_box_utf32(style->font, style->fontSize, oc_str32_slice(codepoints, i, i+1));
+			if(x + 0.5*bbox.w > cursorX)
+			{
+				newCursor = i;
+				break;
+			}
+			x += bbox.w;
+		}
+		//NOTE: put cursor the closest to new cursor (this maximizes the resulting selection,
+		//      and seems to be the standard behaviour across a number of text editor)
+		if(sig.pressed && abs(newCursor - ui->editCursor) > abs(newCursor - ui->editMark))
+		{
+			i32 tmp = ui->editCursor;
+			ui->editCursor = ui->editMark;
+			ui->editMark = tmp;
+		}
+		//NOTE: set the new cursor, and set or leave the mark depending on mode
+		ui->editCursor = newCursor;
+		if(sig.pressed && !(oc_key_mods(&ui->input) & OC_KEYMOD_SHIFT))
+		{
+			ui->editMark = ui->editCursor;
+		}
+	}
+
 	if(sig.hovering)
 	{
 		oc_ui_box_set_hot(frame, true);
-
-		if(sig.pressed)
-		{
-			if(!oc_ui_box_active(frame))
-			{
-				oc_ui_box_activate(frame);
-
-				//NOTE: focus
-				ui->focus = frame;
-				ui->editFirstDisplayedChar = 0;
-				ui->editCursor = 0;
-				ui->editMark = 0;
-			}
-			ui->editCursorBlinkStart = ui->frameTime;
-		}
-
-		if(sig.pressed || sig.dragging)
-		{
-			//NOTE: set cursor/extend selection on mouse press or drag
-			oc_vec2 pos = oc_ui_mouse_position();
-			f32 cursorX = pos.x - frame->rect.x - textMargin;
-
-			oc_str32 codepoints = oc_utf8_push_to_codepoints(&ui->frameArena, text);
-			i32 newCursor = codepoints.len;
-			f32 x = 0;
-			for(int i = ui->editFirstDisplayedChar; i<codepoints.len; i++)
-			{
-				oc_rect bbox = oc_text_bounding_box_utf32(style->font, style->fontSize, oc_str32_slice(codepoints, i, i+1));
-				if(x + 0.5*bbox.w > cursorX)
-				{
-					newCursor = i;
-					break;
-				}
-				x += bbox.w;
-			}
-			//NOTE: put cursor the closest to new cursor (this maximizes the resulting selection,
-			//      and seems to be the standard behaviour across a number of text editor)
-			if(abs(newCursor - ui->editCursor) > abs(newCursor - ui->editMark))
-			{
-				i32 tmp = ui->editCursor;
-				ui->editCursor = ui->editMark;
-				ui->editMark = tmp;
-			}
-			//NOTE: set the new cursor, and set or leave the mark depending on mode
-			ui->editCursor = newCursor;
-			if(sig.pressed && !(oc_key_mods(&ui->input) & OC_KEYMOD_SHIFT))
-			{
-				ui->editMark = ui->editCursor;
-			}
-		}
 	}
 	else
 	{
 		oc_ui_box_set_hot(frame, false);
 
-		if(sig.pressed)
+		if(oc_mouse_pressed(&ui->input, OC_MOUSE_LEFT) ||
+			oc_mouse_pressed(&ui->input, OC_MOUSE_RIGHT) ||
+			oc_mouse_pressed(&ui->input, OC_MOUSE_MIDDLE))
 		{
 			if(oc_ui_box_active(frame))
 			{
