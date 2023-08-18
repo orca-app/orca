@@ -13,13 +13,13 @@ const f32 BLOCK_WIDTH = (BLOCKS_WIDTH - ((NUM_BLOCKS_PER_ROW + 1) * BLOCKS_PADDI
 
 #define PADDLE_MAX_LAUNCH_ANGLE 0.7f
 
-const oc_color paddleColor = {1, 0, 0, 1};
-oc_rect paddle = {300, 50, 200, 24};
+const oc_color paddleColor = { 1, 0, 0, 1 };
+oc_rect paddle = { 300, 50, 200, 24 };
 
-const oc_color ballColor = {1, 1, 0, 1};
-oc_rect ball = {200, 200, 20, 20};
+const oc_color ballColor = { 1, 1, 0, 1 };
+oc_rect ball = { 200, 200, 20, 20 };
 
-oc_vec2 velocity = {5, 5};
+oc_vec2 velocity = { 5, 5 };
 
 // This is upside down from how it will actually be drawn.
 int blockHealth[NUM_BLOCKS] = {
@@ -28,10 +28,10 @@ int blockHealth[NUM_BLOCKS] = {
     2, 2, 2, 2, 2, 2, 2,
     2, 2, 2, 2, 2, 2, 2,
     3, 3, 3, 3, 3, 3, 3,
-    3, 3, 3, 3, 3, 3, 3,
+    3, 3, 3, 3, 3, 3, 3
 };
 
-oc_vec2 frameSize = {100, 100};
+oc_vec2 frameSize = { 100, 100 };
 
 bool leftDown = false;
 bool rightDown = false;
@@ -49,7 +49,8 @@ int checkCollision(oc_rect block);
 oc_mat2x3 flipY(oc_rect r);
 oc_mat2x3 flipYAt(oc_vec2 pos);
 
-oc_str8 loadFile(oc_arena* arena, oc_str8 filename) {
+oc_str8 loadFile(oc_arena* arena, oc_str8 filename)
+{
     oc_file file = oc_file_open(filename, OC_FILE_ACCESS_READ, 0);
     if(oc_file_last_error(file) != OC_IO_OK)
     {
@@ -73,23 +74,23 @@ ORCA_EXPORT void oc_on_init(void)
 
     if(oc_image_is_nil(waterImage))
     {
-		oc_log_error("couldn't load water image\n");
+        oc_log_error("couldn't load water image\n");
     }
     if(oc_image_is_nil(ballImage))
     {
-		oc_log_error("couldn't load ball image\n");
+        oc_log_error("couldn't load ball image\n");
     }
     if(oc_image_is_nil(paddleImage))
     {
-		oc_log_error("couldn't load paddle image\n");
+        oc_log_error("couldn't load paddle image\n");
     }
 
     oc_str8 fontStr = loadFile(oc_scratch(), OC_STR8("/Literata-SemiBoldItalic.ttf"));
-    oc_unicode_range ranges[5] = {OC_UNICODE_BASIC_LATIN,
-                               OC_UNICODE_C1_CONTROLS_AND_LATIN_1_SUPPLEMENT,
-                               OC_UNICODE_LATIN_EXTENDED_A,
-                               OC_UNICODE_LATIN_EXTENDED_B,
-                               OC_UNICODE_SPECIALS};
+    oc_unicode_range ranges[5] = { OC_UNICODE_BASIC_LATIN,
+                                   OC_UNICODE_C1_CONTROLS_AND_LATIN_1_SUPPLEMENT,
+                                   OC_UNICODE_LATIN_EXTENDED_A,
+                                   OC_UNICODE_LATIN_EXTENDED_B,
+                                   OC_UNICODE_SPECIALS };
     // NOTE(ben): Weird that images are "create from data" but fonts are "create from memory"
     // TODO: Decide whether we're using strings or explicit pointer + length
     pongFont = oc_font_create_from_memory(fontStr, 5, ranges);
@@ -153,7 +154,7 @@ ORCA_EXPORT void oc_on_key_up(int key)
 
 ORCA_EXPORT void oc_on_frame_refresh(void)
 {
-    f32 aspect = frameSize.x/frameSize.y;
+    f32 aspect = frameSize.x / frameSize.y;
 
     if(leftDown)
     {
@@ -170,25 +171,25 @@ ORCA_EXPORT void oc_on_frame_refresh(void)
     ball.x = oc_clamp(ball.x, 0, frameSize.x - ball.w);
     ball.y = oc_clamp(ball.y, 0, frameSize.y - ball.h);
 
-    if (ball.x + ball.w >= frameSize.x) {
+    if(ball.x + ball.w >= frameSize.x)
+    {
         velocity.x = -velocity.x;
     }
-    if (ball.x <= 0) {
+    if(ball.x <= 0)
+    {
         velocity.x = -velocity.x;
     }
-    if (ball.y + ball.h >= frameSize.y) {
+    if(ball.y + ball.h >= frameSize.y)
+    {
         velocity.y = -velocity.y;
     }
 
-    if (
-        ball.y <= paddle.y + paddle.h
-        && ball.x+ball.w >= paddle.x
-        && ball.x <= paddle.x + paddle.w
-        && velocity.y < 0
-    ) {
-        f32 t = ((ball.x + ball.w/2) - paddle.x) / paddle.w;
+    if(
+        ball.y <= paddle.y + paddle.h && ball.x + ball.w >= paddle.x && ball.x <= paddle.x + paddle.w && velocity.y < 0)
+    {
+        f32 t = ((ball.x + ball.w / 2) - paddle.x) / paddle.w;
         f32 launchAngle = lerp(-PADDLE_MAX_LAUNCH_ANGLE, PADDLE_MAX_LAUNCH_ANGLE, t);
-        f32 speed = sqrtf(velocity.x*velocity.x + velocity.y*velocity.y);
+        f32 speed = sqrtf(velocity.x * velocity.x + velocity.y * velocity.y);
         velocity = (oc_vec2){
             sinf(launchAngle) * speed,
             cosf(launchAngle) * speed,
@@ -198,26 +199,31 @@ ORCA_EXPORT void oc_on_frame_refresh(void)
         oc_log_info("PONG!");
     }
 
-    if (ball.y <= 0) {
-        ball.x = frameSize.x/2. - ball.w;
-        ball.y = frameSize.y/2. - ball.h;
+    if(ball.y <= 0)
+    {
+        ball.x = frameSize.x / 2. - ball.w;
+        ball.y = frameSize.y / 2. - ball.h;
     }
 
-    for (int i = 0; i < NUM_BLOCKS; i++) {
-        if (blockHealth[i] <= 0) {
+    for(int i = 0; i < NUM_BLOCKS; i++)
+    {
+        if(blockHealth[i] <= 0)
+        {
             continue;
         }
 
         oc_rect r = blockRect(i);
         int result = checkCollision(r);
-        if (result) {
+        if(result)
+        {
             oc_log_info("Collision! direction=%d", result);
             blockHealth[i] -= 1;
 
             f32 vx = velocity.x;
             f32 vy = velocity.y;
 
-            switch (result) {
+            switch(result)
+            {
             case 1:
             case 5:
                 velocity.y = -vy;
@@ -238,42 +244,42 @@ ORCA_EXPORT void oc_on_frame_refresh(void)
                 break;
             }
         }
-
     }
 
     oc_canvas_set_current(canvas);
 
-    oc_set_color_rgba(10.0f/255.0f, 31.0f/255.0f, 72.0f/255.0f, 1);
+    oc_set_color_rgba(10.0f / 255.0f, 31.0f / 255.0f, 72.0f / 255.0f, 1);
     oc_clear();
 
-    oc_image_draw(waterImage, (oc_rect){0, 0, frameSize.x, frameSize.y});
+    oc_image_draw(waterImage, (oc_rect){ 0, 0, frameSize.x, frameSize.y });
 
     oc_mat2x3 yUp = {
         1, 0, 0,
-        0, -1, frameSize.y,
+        0, -1, frameSize.y
     };
 
     oc_matrix_push(yUp);
     {
-        for (int i = 0; i < NUM_BLOCKS; i++) {
-            if (blockHealth[i] <= 0) {
+        for(int i = 0; i < NUM_BLOCKS; i++)
+        {
+            if(blockHealth[i] <= 0)
+            {
                 continue;
             }
 
             oc_rect r = blockRect(i);
             oc_set_color_rgba(0, 0, 0, 0.2);
-            oc_rounded_rectangle_fill(r.x, r.y-2, r.w, r.h, 4);
+            oc_rounded_rectangle_fill(r.x, r.y - 2, r.w, r.h, 4);
             oc_set_color_rgba(0.9, 0.9, 0.9, 1);
             oc_rounded_rectangle_fill(r.x, r.y, r.w, r.h, 4);
 
             int fontSize = 18;
             oc_str8 text = oc_str8_pushf(oc_scratch(),
-                "%d", blockHealth[i]
-            );
+                                         "%d", blockHealth[i]);
             oc_rect textRect = oc_text_bounding_box(pongFont, fontSize, text);
 
             oc_vec2 textPos = {
-                r.x + r.w/2 - textRect.w/2,
+                r.x + r.w / 2 - textRect.w / 2,
                 r.y + 9, // TODO: oc_text_bounding_box is returning extremely wack results for height.
             };
 
@@ -305,7 +311,8 @@ ORCA_EXPORT void oc_on_frame_refresh(void)
     oc_surface_present(surface);
 }
 
-oc_rect blockRect(int i) {
+oc_rect blockRect(int i)
+{
     int row = i / NUM_BLOCKS_PER_ROW;
     int col = i % NUM_BLOCKS_PER_ROW;
     return (oc_rect){
@@ -318,7 +325,8 @@ oc_rect blockRect(int i) {
 
 // Returns a cardinal direction 1-8 for the collision with the block, or zero
 // if no collision. 1 is straight up and directions proceed clockwise.
-int checkCollision(oc_rect block) {
+int checkCollision(oc_rect block)
+{
     // Note that all the logic for this game has the origin in the bottom left.
 
     f32 ballx2 = ball.x + ball.w;
@@ -326,20 +334,15 @@ int checkCollision(oc_rect block) {
     f32 blockx2 = block.x + block.w;
     f32 blocky2 = block.y + block.h;
 
-    if (
-        ballx2 < block.x
-        || blockx2 < ball.x
-        || bally2 < block.y
-        || blocky2 < ball.y
-    ) {
+    if(ballx2 < block.x || blockx2 < ball.x || bally2 < block.y || blocky2 < ball.y)
+    {
         // Ball is fully outside block
         return 0;
     }
 
-    // if (
-    //     (block.x <= ball.x && ballx2 <= blockx2)
-    //     && (block.y <= ball.y && bally2 <= blocky2)
-    // ) {
+    // if ((block.x <= ball.x && ballx2 <= blockx2)
+    //     && (block.y <= ball.y && bally2 <= blocky2))
+    // {
     //     // Ball is fully inside block; do not consider as a collision
     //     return 0;
     // }
@@ -355,106 +358,117 @@ int checkCollision(oc_rect block) {
     //
     // We assume significant tunneling can't happen.
 
-    oc_vec2 ballCenter = (oc_vec2){ball.x + ball.w/2, ball.y + ball.h/2};
-    oc_vec2 blockCenter = (oc_vec2){block.x + block.w/2, block.y + block.h/2};
+    oc_vec2 ballCenter = (oc_vec2){ ball.x + ball.w / 2, ball.y + ball.h / 2 };
+    oc_vec2 blockCenter = (oc_vec2){ block.x + block.w / 2, block.y + block.h / 2 };
 
     // Moving right
-    if (velocity.x > 0) {
+    if(velocity.x > 0)
+    {
         // Ball's top right corner
-        if (
-            ballCenter.x <= block.x && block.x <= ballx2
-            && ballCenter.y <= block.y && block.y <= bally2
-        ) { return 2; }
+        if(ballCenter.x <= block.x && block.x <= ballx2 && ballCenter.y <= block.y && block.y <= bally2)
+        {
+            return 2;
+        }
 
         // Ball's bottom right corner
-        if (
-            ballCenter.x <= block.x && block.x <= ballx2
-            && ball.y <= blocky2 && blocky2 <= ballCenter.y
-        ) { return 4; }
+        if(ballCenter.x <= block.x && block.x <= ballx2 && ball.y <= blocky2 && blocky2 <= ballCenter.y)
+        {
+            return 4;
+        }
 
         // Ball's right edge
-        if (
-            ballCenter.x <= block.x && block.x <= ballx2
-        ) { return 3; }
+        if(ballCenter.x <= block.x && block.x <= ballx2)
+        {
+            return 3;
+        }
     }
 
     // Moving up
-    if (velocity.y > 0) {
+    if(velocity.y > 0)
+    {
         // Ball's top left corner
-        if (
-            ball.x <= blockx2 && blockx2 <= ballCenter.x
-            && ballCenter.y <= block.y && block.y <= bally2
-        ) { return 8; }
+        if(ball.x <= blockx2 && blockx2 <= ballCenter.x && ballCenter.y <= block.y && block.y <= bally2)
+        {
+            return 8;
+        }
 
         // Ball's top right corner
-        if (
-            ballCenter.x <= block.x && block.x <= ballx2
-            && ballCenter.y <= block.y && block.y <= bally2
-        ) { return 2; }
+        if(ballCenter.x <= block.x && block.x <= ballx2 && ballCenter.y <= block.y && block.y <= bally2)
+        {
+            return 2;
+        }
 
         // Ball's top edge
-        if (
-            ballCenter.y <= block.y && block.y <= bally2
-        ) { return 1; }
+        if(ballCenter.y <= block.y && block.y <= bally2)
+        {
+            return 1;
+        }
     }
 
     // Moving left
-    if (velocity.x < 0) {
+    if(velocity.x < 0)
+    {
         // Ball's bottom left corner
-        if (
-            ball.x <= blockx2 && blockx2 <= ballCenter.x
-            && ball.y <= blocky2 && blocky2 <= ballCenter.y
-        ) { return 6; }
+        if(ball.x <= blockx2 && blockx2 <= ballCenter.x && ball.y <= blocky2 && blocky2 <= ballCenter.y)
+        {
+            return 6;
+        }
 
         // Ball's top left corner
-        if (
-            ball.x <= blockx2 && blockx2 <= ballCenter.x
-            && ballCenter.y <= block.y && block.y <= bally2
-        ) { return 8; }
+        if(ball.x <= blockx2 && blockx2 <= ballCenter.x && ballCenter.y <= block.y && block.y <= bally2)
+        {
+            return 8;
+        }
 
         // Ball's left edge
-        if (
-            ball.x <= blockx2 && blockx2 <= ballCenter.x
-        ) { return 7; }
+        if(ball.x <= blockx2 && blockx2 <= ballCenter.x)
+        {
+            return 7;
+        }
     }
 
     // Moving down
-    if (velocity.y < 0) {
+    if(velocity.y < 0)
+    {
         // Ball's bottom right corner
-        if (
-            ballCenter.x <= block.x && block.x <= ballx2
-            && ball.y <= blocky2 && blocky2 <= ballCenter.y
-        ) { return 4; }
+        if(ballCenter.x <= block.x && block.x <= ballx2 && ball.y <= blocky2 && blocky2 <= ballCenter.y)
+        {
+            return 4;
+        }
 
         // Ball's bottom left corner
-        if (
-            ball.x <= blockx2 && blockx2 <= ballCenter.x
-            && ball.y <= blocky2 && blocky2 <= ballCenter.y
-        ) { return 6; }
+        if(ball.x <= blockx2 && blockx2 <= ballCenter.x && ball.y <= blocky2 && blocky2 <= ballCenter.y)
+        {
+            return 6;
+        }
 
         // Ball's bottom edge
-        if (
-            ball.y <= blocky2 && blocky2 <= ballCenter.y
-        ) { return 5; }
+        if(ball.y <= blocky2 && blocky2 <= ballCenter.y)
+        {
+            return 5;
+        }
     }
 
     return 0;
 }
 
-f32 lerp(f32 a, f32 b, f32 t) {
+f32 lerp(f32 a, f32 b, f32 t)
+{
     return (1 - t) * a + t * b;
 }
 
-oc_mat2x3 flipY(oc_rect r) {
+oc_mat2x3 flipY(oc_rect r)
+{
     return (oc_mat2x3){
         1, 0, 0,
-        0, -1, 2 * r.y + r.h,
+        0, -1, 2 * r.y + r.h
     };
 }
 
-oc_mat2x3 flipYAt(oc_vec2 pos) {
+oc_mat2x3 flipYAt(oc_vec2 pos)
+{
     return (oc_mat2x3){
         1, 0, 0,
-        0, -1, 2 * pos.y,
+        0, -1, 2 * pos.y
     };
 }
