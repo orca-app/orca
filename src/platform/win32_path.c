@@ -10,23 +10,23 @@
 #include"win32_string_helpers.h"
 #include"platform_path.c"
 
-bool path_is_absolute(str8 path)
+bool oc_path_is_absolute(oc_str8 path)
 {
-	mem_arena_scope scratch = mem_scratch_begin();
-	str16 pathW = win32_utf8_to_wide_null_terminated(scratch.arena, path);
+	oc_arena_scope scratch = oc_scratch_begin();
+	oc_str16 pathW = oc_win32_utf8_to_wide_null_terminated(scratch.arena, path);
 	bool result = !PathIsRelativeW(pathW.ptr);
 
-	mem_scratch_end(scratch);
+	oc_scratch_end(scratch);
 	return(result);
 }
 
-str8 path_executable(mem_arena* arena)
+oc_str8 oc_path_executable(oc_arena* arena)
 {
 	///////////////////////////////////////////////////////////////////
 	//TODO use wide chars
 	///////////////////////////////////////////////////////////////////
 
-	char* buffer = mem_arena_alloc_array(arena, char, MAX_PATH+2);
+	char* buffer = oc_arena_push_array(arena, char, MAX_PATH+2);
 	int size = GetModuleFileName(NULL, buffer, MAX_PATH+1);
 	//TODO: check for errors...
 	for(int i=0; i<size; i++)
@@ -36,7 +36,7 @@ str8 path_executable(mem_arena* arena)
 			buffer[i] = '/';
 		}
 	}
-	return(str8_from_buffer(size, buffer));
+	return(oc_str8_from_buffer(size, buffer));
 }
 
-str8 path_canonical(mem_arena* arena, str8 path); //TODO
+oc_str8 oc_path_canonical(oc_arena* arena, oc_str8 path); //TODO

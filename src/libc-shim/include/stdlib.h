@@ -5,7 +5,7 @@
 extern "C" {
 #endif
 
-#define abort(...) ORCA_ABORT(__VA_ARGS__)
+#define abort(...) OC_ABORT(__VA_ARGS__)
 
 int abs (int);
 

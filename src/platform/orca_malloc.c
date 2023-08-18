@@ -6,8 +6,8 @@
 #define LACKS_UNISTD_H
 #define LACKS_SYS_PARAM_H
 
-extern void* orca_mem_grow(u64 size);
-#define MORECORE orca_mem_grow
+extern void* oc_mem_grow(u64 size);
+#define MORECORE oc_mem_grow
 #define MORECORE_CONTIGUOUS 0
 /*
   This is a version (aka dlmalloc) of malloc/free/realloc written by
@@ -5485,7 +5485,7 @@ History:
          * Add 'USE_DL_PREFIX' to quickly allow co-existence with existing
            memory allocation routines
          * Set 'malloc_getpagesize' for WIN32 platforms (needs more work)
-         * Use 'assert' rather than 'ASSERT' in WIN32 code to conform to
+         * Use 'assert' rather than 'OC_ASSERT' in WIN32 code to conform to
            usage of 'assert' in non-WIN32 code
          * Improve WIN32 'sbrk()' emulation's 'findRegion()' routine to
            avoid infinite loop

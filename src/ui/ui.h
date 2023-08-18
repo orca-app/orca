@@ -18,38 +18,38 @@
 extern "C" {
 #endif
 
-typedef struct ui_key
+typedef struct oc_ui_key
 {
 	u64 hash;
-} ui_key;
+} oc_ui_key;
 
 typedef enum
 {
-	UI_AXIS_X,
-	UI_AXIS_Y,
-	UI_AXIS_COUNT
-} ui_axis;
+	OC_UI_AXIS_X,
+	OC_UI_AXIS_Y,
+	OC_UI_AXIS_COUNT
+} oc_ui_axis;
 
 typedef enum
 {
-	UI_ALIGN_START,
-	UI_ALIGN_END,
-	UI_ALIGN_CENTER,
-} ui_align;
+	OC_UI_ALIGN_START,
+	OC_UI_ALIGN_END,
+	OC_UI_ALIGN_CENTER,
+} oc_ui_align;
 
-typedef union ui_layout_align
+typedef union oc_ui_layout_align
 {
 	struct
 	{
-		ui_align x;
-		ui_align y;
+		oc_ui_align x;
+		oc_ui_align y;
 	};
-	ui_align c[UI_AXIS_COUNT];
-} ui_layout_align;
+	oc_ui_align c[OC_UI_AXIS_COUNT];
+} oc_ui_layout_align;
 
-typedef struct ui_layout
+typedef struct oc_ui_layout
 {
-	ui_axis axis;
+	oc_ui_axis axis;
 	f32 spacing;
 	union
 	{
@@ -58,183 +58,183 @@ typedef struct ui_layout
 			f32 x;
 			f32 y;
 		};
-		f32 c[UI_AXIS_COUNT];
+		f32 c[OC_UI_AXIS_COUNT];
 	} margin;
-	ui_layout_align align;
+	oc_ui_layout_align align;
 
-} ui_layout;
+} oc_ui_layout;
 
-typedef enum ui_size_kind
+typedef enum oc_ui_size_kind
 {
-	UI_SIZE_TEXT,
-	UI_SIZE_PIXELS,
-	UI_SIZE_CHILDREN,
-	UI_SIZE_PARENT,
-	UI_SIZE_PARENT_MINUS_PIXELS,
+	OC_UI_SIZE_TEXT,
+	OC_UI_SIZE_PIXELS,
+	OC_UI_SIZE_CHILDREN,
+	OC_UI_SIZE_PARENT,
+	OC_UI_SIZE_PARENT_MINUS_PIXELS,
 
-} ui_size_kind;
+} oc_ui_size_kind;
 
-typedef struct ui_size
+typedef struct oc_ui_size
 {
-	ui_size_kind kind;
+	oc_ui_size_kind kind;
 	f32 value;
 	f32 relax;
-} ui_size;
+} oc_ui_size;
 
-typedef union ui_box_size
+typedef union oc_ui_box_size
 {
 	struct
 	{
-		ui_size width;
-		ui_size height;
+		oc_ui_size width;
+		oc_ui_size height;
 	};
-	ui_size c[UI_AXIS_COUNT];
-} ui_box_size;
+	oc_ui_size c[OC_UI_AXIS_COUNT];
+} oc_ui_box_size;
 
-typedef union ui_box_floating
+typedef union oc_ui_box_floating
 {
 	struct
 	{
 		bool x;
 		bool y;
 	};
-	bool c[UI_AXIS_COUNT];
-} ui_box_floating;
+	bool c[OC_UI_AXIS_COUNT];
+} oc_ui_box_floating;
 
-//NOTE: flags for axis-dependent properties (e.g. UI_STYLE_FLOAT_X/Y) need to be consecutive bits
+//NOTE: flags for axis-dependent properties (e.g. OC_UI_STYLE_FLOAT_X/Y) need to be consecutive bits
 //      in order to play well with axis agnostic functions
-typedef u64 ui_style_mask;
+typedef u64 oc_ui_style_mask;
 enum
 {
-	UI_STYLE_NONE            = 0,
-	UI_STYLE_SIZE_WIDTH      = 1<<1,
-	UI_STYLE_SIZE_HEIGHT     = 1<<2,
-	UI_STYLE_LAYOUT_AXIS     = 1<<3,
-	UI_STYLE_LAYOUT_ALIGN_X  = 1<<4,
-	UI_STYLE_LAYOUT_ALIGN_Y  = 1<<5,
-	UI_STYLE_LAYOUT_SPACING  = 1<<6,
-	UI_STYLE_LAYOUT_MARGIN_X = 1<<7,
-	UI_STYLE_LAYOUT_MARGIN_Y = 1<<8,
-	UI_STYLE_FLOAT_X         = 1<<9,
-	UI_STYLE_FLOAT_Y         = 1<<10,
-	UI_STYLE_COLOR           = 1<<11,
-	UI_STYLE_BG_COLOR        = 1<<12,
-	UI_STYLE_BORDER_COLOR    = 1<<13,
-	UI_STYLE_BORDER_SIZE     = 1<<14,
-	UI_STYLE_ROUNDNESS       = 1<<15,
-	UI_STYLE_FONT            = 1<<16,
-	UI_STYLE_FONT_SIZE       = 1<<17,
-	UI_STYLE_ANIMATION_TIME  = 1<<18,
-	UI_STYLE_ANIMATION_MASK  = 1<<19,
+	OC_UI_STYLE_NONE            = 0,
+	OC_UI_STYLE_SIZE_WIDTH      = 1<<1,
+	OC_UI_STYLE_SIZE_HEIGHT     = 1<<2,
+	OC_UI_STYLE_LAYOUT_AXIS     = 1<<3,
+	OC_UI_STYLE_LAYOUT_ALIGN_X  = 1<<4,
+	OC_UI_STYLE_LAYOUT_ALIGN_Y  = 1<<5,
+	OC_UI_STYLE_LAYOUT_SPACING  = 1<<6,
+	OC_UI_STYLE_LAYOUT_MARGIN_X = 1<<7,
+	OC_UI_STYLE_LAYOUT_MARGIN_Y = 1<<8,
+	OC_UI_STYLE_FLOAT_X         = 1<<9,
+	OC_UI_STYLE_FLOAT_Y         = 1<<10,
+	OC_UI_STYLE_COLOR           = 1<<11,
+	OC_UI_STYLE_BG_COLOR        = 1<<12,
+	OC_UI_STYLE_BORDER_COLOR    = 1<<13,
+	OC_UI_STYLE_BORDER_SIZE     = 1<<14,
+	OC_UI_STYLE_ROUNDNESS       = 1<<15,
+	OC_UI_STYLE_FONT            = 1<<16,
+	OC_UI_STYLE_FONT_SIZE       = 1<<17,
+	OC_UI_STYLE_ANIMATION_TIME  = 1<<18,
+	OC_UI_STYLE_ANIMATION_MASK  = 1<<19,
 
 	//masks
-	UI_STYLE_SIZE = UI_STYLE_SIZE_WIDTH
-	              | UI_STYLE_SIZE_HEIGHT,
+	OC_UI_STYLE_SIZE = OC_UI_STYLE_SIZE_WIDTH
+	              | OC_UI_STYLE_SIZE_HEIGHT,
 
-	UI_STYLE_LAYOUT_MARGINS = UI_STYLE_LAYOUT_MARGIN_X
-	                        | UI_STYLE_LAYOUT_MARGIN_Y,
+	OC_UI_STYLE_LAYOUT_MARGINS = OC_UI_STYLE_LAYOUT_MARGIN_X
+	                        | OC_UI_STYLE_LAYOUT_MARGIN_Y,
 
-	UI_STYLE_LAYOUT = UI_STYLE_LAYOUT_AXIS
-	                | UI_STYLE_LAYOUT_ALIGN_X
-	                | UI_STYLE_LAYOUT_ALIGN_Y
-	                | UI_STYLE_LAYOUT_SPACING
-	                | UI_STYLE_LAYOUT_MARGIN_X
-	                | UI_STYLE_LAYOUT_MARGIN_Y,
+	OC_UI_STYLE_LAYOUT = OC_UI_STYLE_LAYOUT_AXIS
+	                | OC_UI_STYLE_LAYOUT_ALIGN_X
+	                | OC_UI_STYLE_LAYOUT_ALIGN_Y
+	                | OC_UI_STYLE_LAYOUT_SPACING
+	                | OC_UI_STYLE_LAYOUT_MARGIN_X
+	                | OC_UI_STYLE_LAYOUT_MARGIN_Y,
 
-	UI_STYLE_FLOAT = UI_STYLE_FLOAT_X
-	               | UI_STYLE_FLOAT_Y,
+	OC_UI_STYLE_FLOAT = OC_UI_STYLE_FLOAT_X
+	               | OC_UI_STYLE_FLOAT_Y,
 
-	UI_STYLE_MASK_INHERITED = UI_STYLE_COLOR
-	                        | UI_STYLE_FONT
-	                        | UI_STYLE_FONT_SIZE
-	                        | UI_STYLE_ANIMATION_TIME
-	                        | UI_STYLE_ANIMATION_MASK,
+	OC_UI_STYLE_MASK_INHERITED = OC_UI_STYLE_COLOR
+	                        | OC_UI_STYLE_FONT
+	                        | OC_UI_STYLE_FONT_SIZE
+	                        | OC_UI_STYLE_ANIMATION_TIME
+	                        | OC_UI_STYLE_ANIMATION_MASK,
 };
 
-typedef struct ui_style
+typedef struct oc_ui_style
 {
-	ui_box_size size;
-	ui_layout layout;
-	ui_box_floating floating;
-	vec2 floatTarget;
-	mg_color color;
-	mg_color bgColor;
-	mg_color borderColor;
-	mg_font font;
+	oc_ui_box_size size;
+	oc_ui_layout layout;
+	oc_ui_box_floating floating;
+	oc_vec2 floatTarget;
+	oc_color color;
+	oc_color bgColor;
+	oc_color borderColor;
+	oc_font font;
 	f32 fontSize;
 	f32 borderSize;
 	f32 roundness;
 	f32 animationTime;
-	ui_style_mask animationMask;
-} ui_style;
+	oc_ui_style_mask animationMask;
+} oc_ui_style;
 
-typedef struct ui_tag { u64 hash; } ui_tag;
+typedef struct oc_ui_tag { u64 hash; } oc_ui_tag;
 
 typedef enum
 {
-	UI_SEL_ANY,
-	UI_SEL_OWNER,
-	UI_SEL_TEXT,
-	UI_SEL_TAG,
-	UI_SEL_STATUS,
-	UI_SEL_KEY,
+	OC_UI_SEL_ANY,
+	OC_UI_SEL_OWNER,
+	OC_UI_SEL_TEXT,
+	OC_UI_SEL_TAG,
+	OC_UI_SEL_STATUS,
+	OC_UI_SEL_KEY,
 	//...
-} ui_selector_kind;
+} oc_ui_selector_kind;
 
-typedef u8 ui_status;
+typedef u8 oc_ui_status;
 enum
 {
-	UI_NONE     = 0,
-	UI_HOVER    = 1<<1,
-	UI_ACTIVE   = 1<<2,
-	UI_DRAGGING = 1<<3,
+	OC_UI_NONE     = 0,
+	OC_UI_HOVER    = 1<<1,
+	OC_UI_ACTIVE   = 1<<2,
+	OC_UI_DRAGGING = 1<<3,
 };
 
 typedef enum
 {
-	UI_SEL_DESCENDANT = 0,
-	UI_SEL_AND = 1,
+	OC_UI_SEL_DESCENDANT = 0,
+	OC_UI_SEL_AND = 1,
 	//...
-} ui_selector_op;
+} oc_ui_selector_op;
 
-typedef struct ui_selector
+typedef struct oc_ui_selector
 {
-	list_elt listElt;
-	ui_selector_kind kind;
-	ui_selector_op op;
+	oc_list_elt listElt;
+	oc_ui_selector_kind kind;
+	oc_ui_selector_op op;
 	union
 	{
-		str8 text;
-		ui_key key;
-		ui_tag tag;
-		ui_status status;
+		oc_str8 text;
+		oc_ui_key key;
+		oc_ui_tag tag;
+		oc_ui_status status;
 		//...
 	};
-} ui_selector;
+} oc_ui_selector;
 
-typedef struct ui_pattern { list_info l; } ui_pattern;
+typedef struct oc_ui_pattern { oc_list l; } oc_ui_pattern;
 
-typedef struct ui_box ui_box;
+typedef struct oc_ui_box oc_ui_box;
 
-typedef struct ui_style_rule
+typedef struct oc_ui_style_rule
 {
-	list_elt boxElt;
-	list_elt buildElt;
-	list_elt tmpElt;
+	oc_list_elt boxElt;
+	oc_list_elt buildElt;
+	oc_list_elt tmpElt;
 
-	ui_box* owner;
-	ui_pattern pattern;
-	ui_style_mask mask;
-	ui_style* style;
-} ui_style_rule;
+	oc_ui_box* owner;
+	oc_ui_pattern pattern;
+	oc_ui_style_mask mask;
+	oc_ui_style* style;
+} oc_ui_style_rule;
 
-typedef struct ui_sig
+typedef struct oc_ui_sig
 {
-	ui_box* box;
+	oc_ui_box* box;
 
-	vec2 mouse;
-	vec2 delta;
-	vec2 wheel;
+	oc_vec2 mouse;
+	oc_vec2 delta;
+	oc_vec2 wheel;
 
 	bool pressed;
 	bool released;
@@ -245,70 +245,70 @@ typedef struct ui_sig
 	bool dragging;
 	bool hovering;
 
-} ui_sig;
+} oc_ui_sig;
 
-typedef void(*ui_box_draw_proc)(ui_box* box, void* data);
+typedef void(*oc_ui_box_draw_proc)(oc_ui_box* box, void* data);
 
 typedef enum
 {
-	UI_FLAG_CLICKABLE        = (1<<0),
-	UI_FLAG_SCROLL_WHEEL_X   = (1<<1),
-	UI_FLAG_SCROLL_WHEEL_Y   = (1<<2),
-	UI_FLAG_BLOCK_MOUSE      = (1<<3),
-	UI_FLAG_HOT_ANIMATION    = (1<<4),
-	UI_FLAG_ACTIVE_ANIMATION = (1<<5),
+	OC_UI_FLAG_CLICKABLE        = (1<<0),
+	OC_UI_FLAG_SCROLL_WHEEL_X   = (1<<1),
+	OC_UI_FLAG_SCROLL_WHEEL_Y   = (1<<2),
+	OC_UI_FLAG_BLOCK_MOUSE      = (1<<3),
+	OC_UI_FLAG_HOT_ANIMATION    = (1<<4),
+	OC_UI_FLAG_ACTIVE_ANIMATION = (1<<5),
 	//WARN: these two following flags need to be kept as consecutive bits to
 	//      play well with axis-agnostic functions
-	UI_FLAG_ALLOW_OVERFLOW_X = (1<<6),
-	UI_FLAG_ALLOW_OVERFLOW_Y = (1<<7),
-	UI_FLAG_CLIP             = (1<<8),
-	UI_FLAG_DRAW_BACKGROUND  = (1<<9),
-	UI_FLAG_DRAW_FOREGROUND  = (1<<10),
-	UI_FLAG_DRAW_BORDER      = (1<<11),
-	UI_FLAG_DRAW_TEXT        = (1<<12),
-	UI_FLAG_DRAW_PROC        = (1<<13),
+	OC_UI_FLAG_ALLOW_OVERFLOW_X = (1<<6),
+	OC_UI_FLAG_ALLOW_OVERFLOW_Y = (1<<7),
+	OC_UI_FLAG_CLIP             = (1<<8),
+	OC_UI_FLAG_DRAW_BACKGROUND  = (1<<9),
+	OC_UI_FLAG_DRAW_FOREGROUND  = (1<<10),
+	OC_UI_FLAG_DRAW_BORDER      = (1<<11),
+	OC_UI_FLAG_DRAW_TEXT        = (1<<12),
+	OC_UI_FLAG_DRAW_PROC        = (1<<13),
 
-	UI_FLAG_OVERLAY          = (1<<14),
-} ui_flags;
+	OC_UI_FLAG_OVERLAY          = (1<<14),
+} oc_ui_flags;
 
-struct ui_box
+struct oc_ui_box
 {
 	// hierarchy
-	list_elt listElt;
-	list_info children;
-	ui_box* parent;
+	oc_list_elt listElt;
+	oc_list children;
+	oc_ui_box* parent;
 
-	list_elt overlayElt;
+	oc_list_elt overlayElt;
 
 	// keying and caching
-	list_elt bucketElt;
-	ui_key key;
+	oc_list_elt bucketElt;
+	oc_ui_key key;
 	u64 frameCounter;
 
 	// builder-provided info
-	ui_flags flags;
-	str8 string;
-	list_info tags;
+	oc_ui_flags flags;
+	oc_str8 string;
+	oc_list tags;
 
-	ui_box_draw_proc drawProc;
+	oc_ui_box_draw_proc drawProc;
 	void* drawData;
 
 	// styling
-	list_info beforeRules;
-	list_info afterRules;
+	oc_list beforeRules;
+	oc_list afterRules;
 
-	//ui_style_tag tag;
-	ui_style* targetStyle;
-	ui_style style;
+	//oc_ui_style_tag tag;
+	oc_ui_style* targetStyle;
+	oc_ui_style style;
 	u32 z;
 
-	vec2 floatPos;
+	oc_vec2 floatPos;
 	f32 childrenSum[2];
 	f32 spacing[2];
-	mp_rect rect;
+	oc_rect rect;
 
 	// signals
-	ui_sig* sig;
+	oc_ui_sig* sig;
 
 	// stateful behaviour
 	bool fresh;
@@ -317,8 +317,8 @@ struct ui_box
 	bool dragging;
 	bool hot;
 	bool active;
-	vec2 scroll;
-	vec2 pressedMouse;
+	oc_vec2 scroll;
+	oc_vec2 pressedMouse;
 
 	// animation data
 	f32 hotTransition;
@@ -329,144 +329,144 @@ struct ui_box
 // context
 //-----------------------------------------------------------------------------
 
-enum { UI_MAX_INPUT_CHAR_PER_FRAME = 64 };
+enum { OC_UI_MAX_INPUT_CHAR_PER_FRAME = 64 };
 
-typedef struct ui_input_text
+typedef struct oc_ui_input_text
 {
 	u8 count;
-	utf32 codePoints[UI_MAX_INPUT_CHAR_PER_FRAME];
+	oc_utf32 codePoints[OC_UI_MAX_INPUT_CHAR_PER_FRAME];
 
-} ui_input_text;
+} oc_ui_input_text;
 
-typedef struct ui_stack_elt ui_stack_elt;
-struct ui_stack_elt
+typedef struct oc_ui_stack_elt oc_ui_stack_elt;
+struct oc_ui_stack_elt
 {
-	ui_stack_elt* parent;
+	oc_ui_stack_elt* parent;
 	union
 	{
-		ui_box* box;
-		ui_size size;
-		mp_rect clip;
+		oc_ui_box* box;
+		oc_ui_size size;
+		oc_rect clip;
 	};
 };
 
-typedef struct ui_tag_elt
+typedef struct oc_ui_tag_elt
 {
-	list_elt listElt;
-	ui_tag tag;
-} ui_tag_elt;
+	oc_list_elt listElt;
+	oc_ui_tag tag;
+} oc_ui_tag_elt;
 
-enum { UI_BOX_MAP_BUCKET_COUNT = 1024 };
+enum { OC_UI_BOX_MAP_BUCKET_COUNT = 1024 };
 
-typedef struct ui_context
+typedef struct oc_ui_context
 {
 	bool init;
 
-	mp_input_state input;
+	oc_input_state input;
 
 	u64 frameCounter;
 	f64 frameTime;
 	f64 lastFrameDuration;
 
-	mem_arena frameArena;
-	mem_pool boxPool;
-	list_info boxMap[UI_BOX_MAP_BUCKET_COUNT];
+	oc_arena frameArena;
+	oc_pool boxPool;
+	oc_list boxMap[OC_UI_BOX_MAP_BUCKET_COUNT];
 
-	ui_box* root;
-	ui_box* overlay;
-	list_info overlayList;
-	ui_stack_elt* boxStack;
-	ui_stack_elt* clipStack;
+	oc_ui_box* root;
+	oc_ui_box* overlay;
+	oc_list overlayList;
+	oc_ui_stack_elt* boxStack;
+	oc_ui_stack_elt* clipStack;
 
-	list_info nextBoxBeforeRules;
-	list_info nextBoxAfterRules;
-	list_info nextBoxTags;
+	oc_list nextBoxBeforeRules;
+	oc_list nextBoxAfterRules;
+	oc_list nextBoxTags;
 
 	u32 z;
-	ui_box* hovered;
+	oc_ui_box* hovered;
 
-	ui_box* focus;
+	oc_ui_box* focus;
 	i32 editCursor;
 	i32 editMark;
 	i32 editFirstDisplayedChar;
 	f64 editCursorBlinkStart;
 
-} ui_context;
+} oc_ui_context;
 
 //-------------------------------------------------------------------------------------
 // UI context initialization and frame cycle
 //-------------------------------------------------------------------------------------
-MP_API void ui_init(ui_context* context);
-MP_API ui_context* ui_get_context(void);
-MP_API void ui_set_context(ui_context* context);
+ORCA_API void oc_ui_init(oc_ui_context* context);
+ORCA_API oc_ui_context* oc_ui_get_context(void);
+ORCA_API void oc_ui_set_context(oc_ui_context* context);
 
-MP_API void ui_process_event(mp_event* event);
-MP_API void ui_begin_frame(vec2 size, ui_style* defaultStyle, ui_style_mask mask);
-MP_API void ui_end_frame(void);
-MP_API void ui_draw(void);
+ORCA_API void oc_ui_process_event(oc_event* event);
+ORCA_API void oc_ui_begin_frame(oc_vec2 size, oc_ui_style* defaultStyle, oc_ui_style_mask mask);
+ORCA_API void oc_ui_end_frame(void);
+ORCA_API void oc_ui_draw(void);
 
-#define ui_frame(size, style, mask) defer_loop(ui_begin_frame((size), (style), (mask)), ui_end_frame())
+#define oc_ui_frame(size, style, mask) oc_defer_loop(oc_ui_begin_frame((size), (style), (mask)), oc_ui_end_frame())
 
 //-------------------------------------------------------------------------------------
 // Box keys
 //-------------------------------------------------------------------------------------
-MP_API ui_key ui_key_make_str8(str8 string);
-MP_API ui_key ui_key_make_path(str8_list path);
+ORCA_API oc_ui_key oc_ui_key_make_str8(oc_str8 string);
+ORCA_API oc_ui_key oc_ui_key_make_path(oc_str8_list path);
 
-MP_API ui_box* ui_box_lookup_key(ui_key key);
-MP_API ui_box* ui_box_lookup_str8(str8 string);
+ORCA_API oc_ui_box* oc_ui_box_lookup_key(oc_ui_key key);
+ORCA_API oc_ui_box* oc_ui_box_lookup_str8(oc_str8 string);
 
 // C-string helper
-#define ui_key_make(s) ui_key_make_str8(STR8(s))
-#define ui_box_lookup(s) ui_box_lookup_str8(STR8(s))
+#define oc_ui_key_make(s) oc_ui_key_make_str8(OC_STR8(s))
+#define oc_ui_box_lookup(s) oc_ui_box_lookup_str8(OC_STR8(s))
 
 //-------------------------------------------------------------------------------------
 // Box hierarchy building
 //-------------------------------------------------------------------------------------
-MP_API ui_box* ui_box_make_str8(str8 string, ui_flags flags);
-MP_API ui_box* ui_box_begin_str8(str8 string, ui_flags flags);
+ORCA_API oc_ui_box* oc_ui_box_make_str8(oc_str8 string, oc_ui_flags flags);
+ORCA_API oc_ui_box* oc_ui_box_begin_str8(oc_str8 string, oc_ui_flags flags);
 
-MP_API ui_box* ui_box_end(void);
-#define ui_container(name, flags) defer_loop(ui_box_begin(name, flags), ui_box_end())
-#define ui_container_str8(name, flags) defer_loop(ui_box_begin_str8(name, flags), ui_box_end())
+ORCA_API oc_ui_box* oc_ui_box_end(void);
+#define oc_ui_container(name, flags) oc_defer_loop(oc_ui_box_begin(name, flags), oc_ui_box_end())
+#define oc_ui_container_str8(name, flags) oc_defer_loop(oc_ui_box_begin_str8(name, flags), oc_ui_box_end())
 
-MP_API void ui_box_push(ui_box* box);
-MP_API void ui_box_pop(void);
-MP_API ui_box* ui_box_top(void);
+ORCA_API void oc_ui_box_push(oc_ui_box* box);
+ORCA_API void oc_ui_box_pop(void);
+ORCA_API oc_ui_box* oc_ui_box_top(void);
 
-MP_API void ui_box_set_draw_proc(ui_box* box, ui_box_draw_proc proc, void* data);
+ORCA_API void oc_ui_box_set_draw_proc(oc_ui_box* box, oc_ui_box_draw_proc proc, void* data);
 
 // C-string helpers
-#define ui_box_lookup(s) ui_box_lookup_str8(STR8(s))
-#define ui_box_make(s, flags) ui_box_make_str8(STR8(s), flags)
-#define ui_box_begin(s, flags) ui_box_begin_str8(STR8(s), flags)
+#define oc_ui_box_lookup(s) oc_ui_box_lookup_str8(OC_STR8(s))
+#define oc_ui_box_make(s, flags) oc_ui_box_make_str8(OC_STR8(s), flags)
+#define oc_ui_box_begin(s, flags) oc_ui_box_begin_str8(OC_STR8(s), flags)
 
 //-------------------------------------------------------------------------------------
 // Box status and signals
 //-------------------------------------------------------------------------------------
-MP_API bool ui_box_closed(ui_box* box);
-MP_API void ui_box_set_closed(ui_box* box, bool closed);
+ORCA_API bool oc_ui_box_closed(oc_ui_box* box);
+ORCA_API void oc_ui_box_set_closed(oc_ui_box* box, bool closed);
 
-MP_API bool ui_box_active(ui_box* box);
-MP_API void ui_box_activate(ui_box* box);
-MP_API void ui_box_deactivate(ui_box* box);
+ORCA_API bool oc_ui_box_active(oc_ui_box* box);
+ORCA_API void oc_ui_box_activate(oc_ui_box* box);
+ORCA_API void oc_ui_box_deactivate(oc_ui_box* box);
 
-MP_API bool ui_box_hot(ui_box* box);
-MP_API void ui_box_set_hot(ui_box* box, bool hot);
+ORCA_API bool oc_ui_box_hot(oc_ui_box* box);
+ORCA_API void oc_ui_box_set_hot(oc_ui_box* box, bool hot);
 
-MP_API ui_sig ui_box_sig(ui_box* box);
+ORCA_API oc_ui_sig oc_ui_box_sig(oc_ui_box* box);
 
 //-------------------------------------------------------------------------------------
 // Tagging
 //-------------------------------------------------------------------------------------
-MP_API ui_tag ui_tag_make_str8(str8 string);
-MP_API void ui_tag_box_str8(ui_box* box, str8 string);
-MP_API void ui_tag_next_str8(str8 string);
+ORCA_API oc_ui_tag oc_ui_tag_make_str8(oc_str8 string);
+ORCA_API void oc_ui_tag_box_str8(oc_ui_box* box, oc_str8 string);
+ORCA_API void oc_ui_tag_next_str8(oc_str8 string);
 
 // C-string helpers
-#define ui_tag_make(s) ui_tag_make_str8(STR8(s))
-#define ui_tag_box(b, s) ui_tag_box_str8(b, STR8(s))
-#define ui_tag_next(s) ui_tag_next_str8(STR8(s))
+#define oc_ui_tag_make(s) oc_ui_tag_make_str8(OC_STR8(s))
+#define oc_ui_tag_box(b, s) oc_ui_tag_box_str8(b, OC_STR8(s))
+#define oc_ui_tag_next(s) oc_ui_tag_next_str8(OC_STR8(s))
 
 //-------------------------------------------------------------------------------------
 // Styling
@@ -474,74 +474,74 @@ MP_API void ui_tag_next_str8(str8 string);
 //NOTE: styling API
 //WARN: You can use a pattern in multiple rules, but be aware that a pattern is references an underlying list of selectors,
 //      hence pushing to a pattern also modifies rules in which the pattern was previously used!
-MP_API void ui_apply_style_with_mask(ui_style* dst, ui_style* src, ui_style_mask mask);
+ORCA_API void oc_ui_apply_style_with_mask(oc_ui_style* dst, oc_ui_style* src, oc_ui_style_mask mask);
 
-MP_API void ui_pattern_push(mem_arena* arena, ui_pattern* pattern, ui_selector selector);
-MP_API ui_pattern ui_pattern_all(void);
-MP_API ui_pattern ui_pattern_owner(void);
+ORCA_API void oc_ui_pattern_push(oc_arena* arena, oc_ui_pattern* pattern, oc_ui_selector selector);
+ORCA_API oc_ui_pattern oc_ui_pattern_all(void);
+ORCA_API oc_ui_pattern oc_ui_pattern_owner(void);
 
-MP_API void ui_style_next(ui_style* style, ui_style_mask mask);
-MP_API void ui_style_match_before(ui_pattern pattern, ui_style* style, ui_style_mask mask);
-MP_API void ui_style_match_after(ui_pattern pattern, ui_style* style, ui_style_mask mask);
+ORCA_API void oc_ui_style_next(oc_ui_style* style, oc_ui_style_mask mask);
+ORCA_API void oc_ui_style_match_before(oc_ui_pattern pattern, oc_ui_style* style, oc_ui_style_mask mask);
+ORCA_API void oc_ui_style_match_after(oc_ui_pattern pattern, oc_ui_style* style, oc_ui_style_mask mask);
 
 //-------------------------------------------------------------------------
 // Basic widget helpers
 //-------------------------------------------------------------------------
 enum {
-	UI_STYLE_TAG_USER_MAX = 1<<16,
-	UI_STYLE_TAG_LABEL,
-	UI_STYLE_TAG_BUTTON,
-	UI_STYLE_TAG_SCROLLBAR,
-	UI_STYLE_TAG_PANEL,
-	UI_STYLE_TAG_TOOLTIP,
-	UI_STYLE_TAG_MENU
+	OC_UI_STYLE_TAG_USER_MAX = 1<<16,
+	OC_UI_STYLE_TAG_LABEL,
+	OC_UI_STYLE_TAG_BUTTON,
+	OC_UI_STYLE_TAG_SCROLLBAR,
+	OC_UI_STYLE_TAG_PANEL,
+	OC_UI_STYLE_TAG_TOOLTIP,
+	OC_UI_STYLE_TAG_MENU
 };
 
-MP_API ui_sig ui_label(const char* label);
-MP_API ui_sig ui_label_str8(str8 label);
+ORCA_API oc_ui_sig oc_ui_label(const char* label);
+ORCA_API oc_ui_sig oc_ui_label_str8(oc_str8 label);
 
-MP_API ui_sig ui_button(const char* label);
-MP_API ui_sig ui_checkbox(const char* name, bool* checked);
-MP_API ui_box* ui_slider(const char* label, f32 thumbRatio, f32* scrollValue);
+ORCA_API oc_ui_sig oc_ui_button(const char* label);
+ORCA_API oc_ui_sig oc_ui_checkbox(const char* name, bool* checked);
+ORCA_API oc_ui_box* oc_ui_slider(const char* label, f32 thumbRatio, f32* scrollValue);
 
-MP_API void ui_panel_begin(const char* name, ui_flags flags);
-MP_API void ui_panel_end(void);
-#define ui_panel(s, f) defer_loop(ui_panel_begin(s, f), ui_panel_end())
+ORCA_API void oc_ui_panel_begin(const char* name, oc_ui_flags flags);
+ORCA_API void oc_ui_panel_end(void);
+#define oc_ui_panel(s, f) oc_defer_loop(oc_ui_panel_begin(s, f), oc_ui_panel_end())
 
-MP_API ui_sig ui_tooltip_begin(const char* name);
-MP_API void ui_tooltip_end(void);
-#define ui_tooltip(name) defer_loop(ui_tooltip_begin(name), ui_tooltip_end())
+ORCA_API oc_ui_sig oc_ui_tooltip_begin(const char* name);
+ORCA_API void oc_ui_tooltip_end(void);
+#define oc_ui_tooltip(name) oc_defer_loop(oc_ui_tooltip_begin(name), oc_ui_tooltip_end())
 
-MP_API void ui_menu_bar_begin(const char* label);
-MP_API void ui_menu_bar_end(void);
-#define ui_menu_bar(name) defer_loop(ui_menu_bar_begin(name), ui_menu_bar_end())
+ORCA_API void oc_ui_menu_bar_begin(const char* label);
+ORCA_API void oc_ui_menu_bar_end(void);
+#define oc_ui_menu_bar(name) oc_defer_loop(oc_ui_menu_bar_begin(name), oc_ui_menu_bar_end())
 
-MP_API void ui_menu_begin(const char* label);
-MP_API void ui_menu_end(void);
-#define ui_menu(name) defer_loop(ui_menu_begin(name), ui_menu_end())
+ORCA_API void oc_ui_menu_begin(const char* label);
+ORCA_API void oc_ui_menu_end(void);
+#define oc_ui_menu(name) oc_defer_loop(oc_ui_menu_begin(name), oc_ui_menu_end())
 
-MP_API ui_sig ui_menu_button(const char* name);
+ORCA_API oc_ui_sig oc_ui_menu_button(const char* name);
 
-typedef struct ui_text_box_result
+typedef struct oc_ui_text_box_result
 {
 	bool changed;
 	bool accepted;
-	str8 text;
+	oc_str8 text;
 
-}ui_text_box_result;
+}oc_ui_text_box_result;
 
-MP_API ui_text_box_result ui_text_box(const char* name, mem_arena* arena, str8 text);
+ORCA_API oc_ui_text_box_result oc_ui_text_box(const char* name, oc_arena* arena, oc_str8 text);
 
 
-typedef struct ui_select_popup_info
+typedef struct oc_ui_select_popup_info
 {
 	bool changed;
 	int selectedIndex;
 	int optionCount;
-	str8* options;
-} ui_select_popup_info;
+	oc_str8* options;
+} oc_ui_select_popup_info;
 
-MP_API ui_select_popup_info ui_select_popup(const char* name, ui_select_popup_info* info);
+ORCA_API oc_ui_select_popup_info oc_ui_select_popup(const char* name, oc_ui_select_popup_info* info);
 
 #ifdef __cplusplus
 } // extern "C"

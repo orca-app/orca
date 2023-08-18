@@ -6,7 +6,7 @@ layout(std430) buffer;
 
 layout(binding = 0) restrict readonly buffer elementBufferSSBO
 {
-	mg_gl_path_elt elements[];
+	oc_gl_path_elt elements[];
 } elementBuffer;
 
 layout(binding = 1) coherent restrict buffer segmentCountBufferSSBO
@@ -16,17 +16,17 @@ layout(binding = 1) coherent restrict buffer segmentCountBufferSSBO
 
 layout(binding = 2) restrict buffer segmentBufferSSBO
 {
-	mg_gl_segment elements[];
+	oc_gl_segment elements[];
 } segmentBuffer;
 
 layout(binding = 3) restrict buffer pathQueueBufferSSBO
 {
-	mg_gl_path_queue elements[];
+	oc_gl_path_queue elements[];
 } pathQueueBuffer;
 
 layout(binding = 4) coherent restrict buffer tileQueueBufferSSBO
 {
-	mg_gl_tile_queue elements[];
+	oc_gl_tile_queue elements[];
 } tileQueueBuffer;
 
 layout(binding = 5) coherent restrict buffer tileOpCountBufferSSBO
@@ -36,7 +36,7 @@ layout(binding = 5) coherent restrict buffer tileOpCountBufferSSBO
 
 layout(binding = 6) restrict buffer tileOpBufferSSBO
 {
-	mg_gl_tile_op elements[];
+	oc_gl_tile_op elements[];
 } tileOpBuffer;
 
 layout(location = 0) uniform float scale;
@@ -46,8 +46,8 @@ layout(location = 2) uniform int elementBufferStart;
 void bin_to_tiles(int segIndex)
 {
 	//NOTE: add segment index to the queues of tiles it overlaps with
-	const mg_gl_segment seg = segmentBuffer.elements[segIndex];
-	const mg_gl_path_queue pathQueue = pathQueueBuffer.elements[seg.pathIndex];
+	const oc_gl_segment seg = segmentBuffer.elements[segIndex];
+	const oc_gl_path_queue pathQueue = pathQueueBuffer.elements[seg.pathIndex];
 
 	ivec4 pathArea = pathQueue.area;
 	ivec4 coveredTiles = ivec4(seg.box)/int(tileSize);
@@ -81,7 +81,7 @@ void bin_to_tiles(int segIndex)
 			bool crossB = (sbl*sbr < 0);
 
 			vec2 s0, s1;
-			if(seg.config == MG_GL_TL||seg.config == MG_GL_BR)
+			if(seg.config == OC_GL_TL||seg.config == OC_GL_BR)
 			{
 				s0 = seg.box.xy;
 				s1 = seg.box.zw;
@@ -107,7 +107,7 @@ void bin_to_tiles(int segIndex)
 
 				if(tileOpIndex < tileOpBuffer.elements.length())
 				{
-					tileOpBuffer.elements[tileOpIndex].kind = MG_GL_OP_SEGMENT;
+					tileOpBuffer.elements[tileOpIndex].kind = OC_GL_OP_SEGMENT;
 					tileOpBuffer.elements[tileOpIndex].index = segIndex;
 					tileOpBuffer.elements[tileOpIndex].windingOffsetOrCrossRight = 0;
 					tileOpBuffer.elements[tileOpIndex].next = -1;
@@ -148,19 +148,19 @@ int push_segment(in vec2 p[4], int kind, int pathIndex)
 
 		switch(kind)
 		{
-			case MG_GL_LINE:
+			case OC_GL_LINE:
 				s = p[0];
 				c = p[0];
 				e = p[1];
 				break;
 
-			case MG_GL_QUADRATIC:
+			case OC_GL_QUADRATIC:
 				s = p[0];
 				c = p[1];
 				e = p[2];
 				break;
 
-			case MG_GL_CUBIC:
+			case OC_GL_CUBIC:
 			{
 				s = p[0];
 				float sqrNorm0 = dot(p[1]-p[0], p[1]-p[0]);
@@ -197,32 +197,32 @@ int push_segment(in vec2 p[4], int kind, int pathIndex)
 
 		if(goingUp == goingRight)
 		{
-			if(kind == MG_GL_LINE)
+			if(kind == OC_GL_LINE)
 			{
-				segmentBuffer.elements[segIndex].config = MG_GL_BR;
+				segmentBuffer.elements[segIndex].config = OC_GL_BR;
 			}
 			else if(dy > alpha*dx)
 			{
-				segmentBuffer.elements[segIndex].config = MG_GL_TL;
+				segmentBuffer.elements[segIndex].config = OC_GL_TL;
 			}
 			else
 			{
-				segmentBuffer.elements[segIndex].config = MG_GL_BR;
+				segmentBuffer.elements[segIndex].config = OC_GL_BR;
 			}
 		}
 		else
 		{
-			if(kind == MG_GL_LINE)
+			if(kind == OC_GL_LINE)
 			{
-				segmentBuffer.elements[segIndex].config = MG_GL_TR;
+				segmentBuffer.elements[segIndex].config = OC_GL_TR;
 			}
 			else if(dy < ofs - alpha*dx)
 			{
-				segmentBuffer.elements[segIndex].config = MG_GL_BL;
+				segmentBuffer.elements[segIndex].config = OC_GL_BL;
 			}
 			else
 			{
-				segmentBuffer.elements[segIndex].config = MG_GL_TR;
+				segmentBuffer.elements[segIndex].config = OC_GL_TR;
 			}
 		}
 	}
@@ -234,7 +234,7 @@ int push_segment(in vec2 p[4], int kind, int pathIndex)
 
 void line_setup(vec2 p[4], int pathIndex)
 {
-	int segIndex = push_segment(p, MG_GL_LINE, pathIndex);
+	int segIndex = push_segment(p, OC_GL_LINE, pathIndex);
 	if(segIndex < segmentBuffer.elements.length())
 	{
 		segmentBuffer.elements[segIndex].hullVertex = p[0];
@@ -304,7 +304,7 @@ mat3 barycentric_matrix(vec2 v0, vec2 v1, vec2 v2)
 
 void quadratic_emit(vec2 p[4], int pathIndex)
 {
-	int segIndex = push_segment(p, MG_GL_QUADRATIC, pathIndex);
+	int segIndex = push_segment(p, OC_GL_QUADRATIC, pathIndex);
 
 	if(segIndex < segmentBuffer.elements.length())
 	{
@@ -318,8 +318,8 @@ void quadratic_emit(vec2 p[4], int pathIndex)
 		float e = p[1].x - p[0].x;
 		float f = p[0].x*p[1].y - p[1].x*p[0].y;
 
-		float flip = (  segmentBuffer.elements[segIndex].config == MG_GL_TL
-	             	|| segmentBuffer.elements[segIndex].config == MG_GL_BL)? -1 : 1;
+		float flip = (  segmentBuffer.elements[segIndex].config == OC_GL_TL
+	             	|| segmentBuffer.elements[segIndex].config == OC_GL_BL)? -1 : 1;
 
 		float g = flip*(p[2].x*(p[0].y - p[1].y) + p[0].x*(p[1].y - p[2].y) + p[1].x*(p[2].y - p[0].y));
 
@@ -663,7 +663,7 @@ vec2 select_hull_vertex(vec2 p0, vec2 p1, vec2 p2, vec2 p3)
 
 void cubic_emit(cubic_info curve, vec2 p[4], float s0, float s1, vec2 sp[4], int pathIndex)
 {
-	int segIndex = push_segment(sp, MG_GL_CUBIC, pathIndex);
+	int segIndex = push_segment(sp, OC_GL_CUBIC, pathIndex);
 
 	if(segIndex < segmentBuffer.elements.length())
 	{
@@ -839,23 +839,23 @@ void main()
 {
 	int eltIndex = int(gl_WorkGroupID.x);
 
-	mg_gl_path_elt elt = elementBuffer.elements[elementBufferStart + eltIndex];
+	oc_gl_path_elt elt = elementBuffer.elements[elementBufferStart + eltIndex];
 
 	switch(elt.kind)
 	{
-		case MG_GL_LINE:
+		case OC_GL_LINE:
 		{
 			vec2 p[4] = {elt.p[0]*scale, elt.p[1]*scale, vec2(0), vec2(0)};
 			line_setup(p, elt.pathIndex);
 		} break;
 
-		case MG_GL_QUADRATIC:
+		case OC_GL_QUADRATIC:
 		{
 			vec2 p[4] = {elt.p[0]*scale, elt.p[1]*scale, elt.p[2]*scale, vec2(0)};
 			quadratic_setup(p, elt.pathIndex);
 		} break;
 
-		case MG_GL_CUBIC:
+		case OC_GL_CUBIC:
 		{
 			vec2 p[4] = {elt.p[0]*scale, elt.p[1]*scale, elt.p[2]*scale, elt.p[3]*scale};
 			cubic_setup(p, elt.pathIndex);

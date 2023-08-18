@@ -15,21 +15,21 @@
 #include"lists.h"
 #include"ringbuffer.h"
 #include"memory.h"
-#include"macro_helpers.h"
+#include"macros.h"
 #include"platform_debug.h"
 #include"platform_clock.h"
 #include"graphics/graphics_surface.h"
 
-#include"mp_app.c"
+#include"app.c"
 
 //--------------------------------------------------------------------
 // mp window struct and utility functions
 //--------------------------------------------------------------------
 
-static u32 mp_osx_get_window_style_mask(mp_window_style style)
+static u32 oc_osx_get_window_style_mask(oc_window_style style)
 {
 	u32 mask = 0;
-	if(style & MP_WINDOW_STYLE_NO_TITLE)
+	if(style & OC_WINDOW_STYLE_NO_TITLE)
 	{
 		mask = NSWindowStyleMaskBorderless;
 	}
@@ -38,15 +38,15 @@ static u32 mp_osx_get_window_style_mask(mp_window_style style)
 		mask = NSWindowStyleMaskTitled;
 	}
 
-	if(!(style & MP_WINDOW_STYLE_FIXED_SIZE))
+	if(!(style & OC_WINDOW_STYLE_FIXED_SIZE))
 	{
 		mask |= NSWindowStyleMaskResizable;
 	}
-	if(!(style & MP_WINDOW_STYLE_NO_CLOSE))
+	if(!(style & OC_WINDOW_STYLE_NO_CLOSE))
 	{
 		mask |= NSWindowStyleMaskClosable;
 	}
-	if(!(style & MP_WINDOW_STYLE_NO_MINIFY))
+	if(!(style & OC_WINDOW_STYLE_NO_MINIFY))
 	{
 		mask |= NSWindowStyleMaskMiniaturizable;
 	}
@@ -55,205 +55,205 @@ static u32 mp_osx_get_window_style_mask(mp_window_style style)
 
 //---------------------------------------------------------------
 
-static void mp_init_osx_keys()
+static void oc_init_osx_keys()
 {
-	memset(__mpApp.keyCodes, MP_KEY_UNKNOWN, 256*sizeof(int));
+	memset(oc_appData.keyCodes, OC_KEY_UNKNOWN, 256*sizeof(int));
 
-	__mpApp.keyCodes[0x1D] = MP_KEY_0;
-	__mpApp.keyCodes[0x12] = MP_KEY_1;
-	__mpApp.keyCodes[0x13] = MP_KEY_2;
-	__mpApp.keyCodes[0x14] = MP_KEY_3;
-	__mpApp.keyCodes[0x15] = MP_KEY_4;
-	__mpApp.keyCodes[0x17] = MP_KEY_5;
-	__mpApp.keyCodes[0x16] = MP_KEY_6;
-	__mpApp.keyCodes[0x1A] = MP_KEY_7;
-	__mpApp.keyCodes[0x1C] = MP_KEY_8;
-	__mpApp.keyCodes[0x19] = MP_KEY_9;
-	__mpApp.keyCodes[0x00] = MP_KEY_A;
-	__mpApp.keyCodes[0x0B] = MP_KEY_B;
-	__mpApp.keyCodes[0x08] = MP_KEY_C;
-	__mpApp.keyCodes[0x02] = MP_KEY_D;
-	__mpApp.keyCodes[0x0E] = MP_KEY_E;
-	__mpApp.keyCodes[0x03] = MP_KEY_F;
-	__mpApp.keyCodes[0x05] = MP_KEY_G;
-	__mpApp.keyCodes[0x04] = MP_KEY_H;
-	__mpApp.keyCodes[0x22] = MP_KEY_I;
-	__mpApp.keyCodes[0x26] = MP_KEY_J;
-	__mpApp.keyCodes[0x28] = MP_KEY_K;
-	__mpApp.keyCodes[0x25] = MP_KEY_L;
-	__mpApp.keyCodes[0x2E] = MP_KEY_M;
-	__mpApp.keyCodes[0x2D] = MP_KEY_N;
-	__mpApp.keyCodes[0x1F] = MP_KEY_O;
-	__mpApp.keyCodes[0x23] = MP_KEY_P;
-	__mpApp.keyCodes[0x0C] = MP_KEY_Q;
-	__mpApp.keyCodes[0x0F] = MP_KEY_R;
-	__mpApp.keyCodes[0x01] = MP_KEY_S;
-	__mpApp.keyCodes[0x11] = MP_KEY_T;
-	__mpApp.keyCodes[0x20] = MP_KEY_U;
-	__mpApp.keyCodes[0x09] = MP_KEY_V;
-	__mpApp.keyCodes[0x0D] = MP_KEY_W;
-	__mpApp.keyCodes[0x07] = MP_KEY_X;
-	__mpApp.keyCodes[0x10] = MP_KEY_Y;
-	__mpApp.keyCodes[0x06] = MP_KEY_Z;
+	oc_appData.keyCodes[0x1D] = OC_KEY_0;
+	oc_appData.keyCodes[0x12] = OC_KEY_1;
+	oc_appData.keyCodes[0x13] = OC_KEY_2;
+	oc_appData.keyCodes[0x14] = OC_KEY_3;
+	oc_appData.keyCodes[0x15] = OC_KEY_4;
+	oc_appData.keyCodes[0x17] = OC_KEY_5;
+	oc_appData.keyCodes[0x16] = OC_KEY_6;
+	oc_appData.keyCodes[0x1A] = OC_KEY_7;
+	oc_appData.keyCodes[0x1C] = OC_KEY_8;
+	oc_appData.keyCodes[0x19] = OC_KEY_9;
+	oc_appData.keyCodes[0x00] = OC_KEY_A;
+	oc_appData.keyCodes[0x0B] = OC_KEY_B;
+	oc_appData.keyCodes[0x08] = OC_KEY_C;
+	oc_appData.keyCodes[0x02] = OC_KEY_D;
+	oc_appData.keyCodes[0x0E] = OC_KEY_E;
+	oc_appData.keyCodes[0x03] = OC_KEY_F;
+	oc_appData.keyCodes[0x05] = OC_KEY_G;
+	oc_appData.keyCodes[0x04] = OC_KEY_H;
+	oc_appData.keyCodes[0x22] = OC_KEY_I;
+	oc_appData.keyCodes[0x26] = OC_KEY_J;
+	oc_appData.keyCodes[0x28] = OC_KEY_K;
+	oc_appData.keyCodes[0x25] = OC_KEY_L;
+	oc_appData.keyCodes[0x2E] = OC_KEY_M;
+	oc_appData.keyCodes[0x2D] = OC_KEY_N;
+	oc_appData.keyCodes[0x1F] = OC_KEY_O;
+	oc_appData.keyCodes[0x23] = OC_KEY_P;
+	oc_appData.keyCodes[0x0C] = OC_KEY_Q;
+	oc_appData.keyCodes[0x0F] = OC_KEY_R;
+	oc_appData.keyCodes[0x01] = OC_KEY_S;
+	oc_appData.keyCodes[0x11] = OC_KEY_T;
+	oc_appData.keyCodes[0x20] = OC_KEY_U;
+	oc_appData.keyCodes[0x09] = OC_KEY_V;
+	oc_appData.keyCodes[0x0D] = OC_KEY_W;
+	oc_appData.keyCodes[0x07] = OC_KEY_X;
+	oc_appData.keyCodes[0x10] = OC_KEY_Y;
+	oc_appData.keyCodes[0x06] = OC_KEY_Z;
 
-	__mpApp.keyCodes[0x27] = MP_KEY_APOSTROPHE;
-	__mpApp.keyCodes[0x2A] = MP_KEY_BACKSLASH;
-	__mpApp.keyCodes[0x2B] = MP_KEY_COMMA;
-	__mpApp.keyCodes[0x18] = MP_KEY_EQUAL;
-	__mpApp.keyCodes[0x32] = MP_KEY_GRAVE_ACCENT;
-	__mpApp.keyCodes[0x21] = MP_KEY_LEFT_BRACKET;
-	__mpApp.keyCodes[0x1B] = MP_KEY_MINUS;
-	__mpApp.keyCodes[0x2F] = MP_KEY_PERIOD;
-	__mpApp.keyCodes[0x1E] = MP_KEY_RIGHT_BRACKET;
-	__mpApp.keyCodes[0x29] = MP_KEY_SEMICOLON;
-	__mpApp.keyCodes[0x2C] = MP_KEY_SLASH;
-	__mpApp.keyCodes[0x0A] = MP_KEY_WORLD_1;
+	oc_appData.keyCodes[0x27] = OC_KEY_APOSTROPHE;
+	oc_appData.keyCodes[0x2A] = OC_KEY_BACKSLASH;
+	oc_appData.keyCodes[0x2B] = OC_KEY_COMMA;
+	oc_appData.keyCodes[0x18] = OC_KEY_EQUAL;
+	oc_appData.keyCodes[0x32] = OC_KEY_GRAVE_ACCENT;
+	oc_appData.keyCodes[0x21] = OC_KEY_LEFT_BRACKET;
+	oc_appData.keyCodes[0x1B] = OC_KEY_MINUS;
+	oc_appData.keyCodes[0x2F] = OC_KEY_PERIOD;
+	oc_appData.keyCodes[0x1E] = OC_KEY_RIGHT_BRACKET;
+	oc_appData.keyCodes[0x29] = OC_KEY_SEMICOLON;
+	oc_appData.keyCodes[0x2C] = OC_KEY_SLASH;
+	oc_appData.keyCodes[0x0A] = OC_KEY_WORLD_1;
 
-	__mpApp.keyCodes[0x33] = MP_KEY_BACKSPACE;
-	__mpApp.keyCodes[0x39] = MP_KEY_CAPS_LOCK;
-	__mpApp.keyCodes[0x75] = MP_KEY_DELETE;
-	__mpApp.keyCodes[0x7D] = MP_KEY_DOWN;
-	__mpApp.keyCodes[0x77] = MP_KEY_END;
-	__mpApp.keyCodes[0x24] = MP_KEY_ENTER;
-	__mpApp.keyCodes[0x35] = MP_KEY_ESCAPE;
-	__mpApp.keyCodes[0x7A] = MP_KEY_F1;
-	__mpApp.keyCodes[0x78] = MP_KEY_F2;
-	__mpApp.keyCodes[0x63] = MP_KEY_F3;
-	__mpApp.keyCodes[0x76] = MP_KEY_F4;
-	__mpApp.keyCodes[0x60] = MP_KEY_F5;
-	__mpApp.keyCodes[0x61] = MP_KEY_F6;
-	__mpApp.keyCodes[0x62] = MP_KEY_F7;
-	__mpApp.keyCodes[0x64] = MP_KEY_F8;
-	__mpApp.keyCodes[0x65] = MP_KEY_F9;
-	__mpApp.keyCodes[0x6D] = MP_KEY_F10;
-	__mpApp.keyCodes[0x67] = MP_KEY_F11;
-	__mpApp.keyCodes[0x6F] = MP_KEY_F12;
-	__mpApp.keyCodes[0x69] = MP_KEY_F13;
-	__mpApp.keyCodes[0x6B] = MP_KEY_F14;
-	__mpApp.keyCodes[0x71] = MP_KEY_F15;
-	__mpApp.keyCodes[0x6A] = MP_KEY_F16;
-	__mpApp.keyCodes[0x40] = MP_KEY_F17;
-	__mpApp.keyCodes[0x4F] = MP_KEY_F18;
-	__mpApp.keyCodes[0x50] = MP_KEY_F19;
-	__mpApp.keyCodes[0x5A] = MP_KEY_F20;
-	__mpApp.keyCodes[0x73] = MP_KEY_HOME;
-	__mpApp.keyCodes[0x72] = MP_KEY_INSERT;
-	__mpApp.keyCodes[0x7B] = MP_KEY_LEFT;
-	__mpApp.keyCodes[0x3A] = MP_KEY_LEFT_ALT;
-	__mpApp.keyCodes[0x3B] = MP_KEY_LEFT_CONTROL;
-	__mpApp.keyCodes[0x38] = MP_KEY_LEFT_SHIFT;
-	__mpApp.keyCodes[0x37] = MP_KEY_LEFT_SUPER;
-	__mpApp.keyCodes[0x6E] = MP_KEY_MENU;
-	__mpApp.keyCodes[0x47] = MP_KEY_NUM_LOCK;
-	__mpApp.keyCodes[0x79] = MP_KEY_PAGE_DOWN;
-	__mpApp.keyCodes[0x74] = MP_KEY_PAGE_UP;
-	__mpApp.keyCodes[0x7C] = MP_KEY_RIGHT;
-	__mpApp.keyCodes[0x3D] = MP_KEY_RIGHT_ALT;
-	__mpApp.keyCodes[0x3E] = MP_KEY_RIGHT_CONTROL;
-	__mpApp.keyCodes[0x3C] = MP_KEY_RIGHT_SHIFT;
-	__mpApp.keyCodes[0x36] = MP_KEY_RIGHT_SUPER;
-	__mpApp.keyCodes[0x31] = MP_KEY_SPACE;
-	__mpApp.keyCodes[0x30] = MP_KEY_TAB;
-	__mpApp.keyCodes[0x7E] = MP_KEY_UP;
+	oc_appData.keyCodes[0x33] = OC_KEY_BACKSPACE;
+	oc_appData.keyCodes[0x39] = OC_KEY_CAPS_LOCK;
+	oc_appData.keyCodes[0x75] = OC_KEY_DELETE;
+	oc_appData.keyCodes[0x7D] = OC_KEY_DOWN;
+	oc_appData.keyCodes[0x77] = OC_KEY_END;
+	oc_appData.keyCodes[0x24] = OC_KEY_ENTER;
+	oc_appData.keyCodes[0x35] = OC_KEY_ESCAPE;
+	oc_appData.keyCodes[0x7A] = OC_KEY_F1;
+	oc_appData.keyCodes[0x78] = OC_KEY_F2;
+	oc_appData.keyCodes[0x63] = OC_KEY_F3;
+	oc_appData.keyCodes[0x76] = OC_KEY_F4;
+	oc_appData.keyCodes[0x60] = OC_KEY_F5;
+	oc_appData.keyCodes[0x61] = OC_KEY_F6;
+	oc_appData.keyCodes[0x62] = OC_KEY_F7;
+	oc_appData.keyCodes[0x64] = OC_KEY_F8;
+	oc_appData.keyCodes[0x65] = OC_KEY_F9;
+	oc_appData.keyCodes[0x6D] = OC_KEY_F10;
+	oc_appData.keyCodes[0x67] = OC_KEY_F11;
+	oc_appData.keyCodes[0x6F] = OC_KEY_F12;
+	oc_appData.keyCodes[0x69] = OC_KEY_F13;
+	oc_appData.keyCodes[0x6B] = OC_KEY_F14;
+	oc_appData.keyCodes[0x71] = OC_KEY_F15;
+	oc_appData.keyCodes[0x6A] = OC_KEY_F16;
+	oc_appData.keyCodes[0x40] = OC_KEY_F17;
+	oc_appData.keyCodes[0x4F] = OC_KEY_F18;
+	oc_appData.keyCodes[0x50] = OC_KEY_F19;
+	oc_appData.keyCodes[0x5A] = OC_KEY_F20;
+	oc_appData.keyCodes[0x73] = OC_KEY_HOME;
+	oc_appData.keyCodes[0x72] = OC_KEY_INSERT;
+	oc_appData.keyCodes[0x7B] = OC_KEY_LEFT;
+	oc_appData.keyCodes[0x3A] = OC_KEY_LEFT_ALT;
+	oc_appData.keyCodes[0x3B] = OC_KEY_LEFT_CONTROL;
+	oc_appData.keyCodes[0x38] = OC_KEY_LEFT_SHIFT;
+	oc_appData.keyCodes[0x37] = OC_KEY_LEFT_SUPER;
+	oc_appData.keyCodes[0x6E] = OC_KEY_MENU;
+	oc_appData.keyCodes[0x47] = OC_KEY_NUM_LOCK;
+	oc_appData.keyCodes[0x79] = OC_KEY_PAGE_DOWN;
+	oc_appData.keyCodes[0x74] = OC_KEY_PAGE_UP;
+	oc_appData.keyCodes[0x7C] = OC_KEY_RIGHT;
+	oc_appData.keyCodes[0x3D] = OC_KEY_RIGHT_ALT;
+	oc_appData.keyCodes[0x3E] = OC_KEY_RIGHT_CONTROL;
+	oc_appData.keyCodes[0x3C] = OC_KEY_RIGHT_SHIFT;
+	oc_appData.keyCodes[0x36] = OC_KEY_RIGHT_SUPER;
+	oc_appData.keyCodes[0x31] = OC_KEY_SPACE;
+	oc_appData.keyCodes[0x30] = OC_KEY_TAB;
+	oc_appData.keyCodes[0x7E] = OC_KEY_UP;
 
-	__mpApp.keyCodes[0x52] = MP_KEY_KP_0;
-	__mpApp.keyCodes[0x53] = MP_KEY_KP_1;
-	__mpApp.keyCodes[0x54] = MP_KEY_KP_2;
-	__mpApp.keyCodes[0x55] = MP_KEY_KP_3;
-	__mpApp.keyCodes[0x56] = MP_KEY_KP_4;
-	__mpApp.keyCodes[0x57] = MP_KEY_KP_5;
-	__mpApp.keyCodes[0x58] = MP_KEY_KP_6;
-	__mpApp.keyCodes[0x59] = MP_KEY_KP_7;
-	__mpApp.keyCodes[0x5B] = MP_KEY_KP_8;
-	__mpApp.keyCodes[0x5C] = MP_KEY_KP_9;
-	__mpApp.keyCodes[0x45] = MP_KEY_KP_ADD;
-	__mpApp.keyCodes[0x41] = MP_KEY_KP_DECIMAL;
-	__mpApp.keyCodes[0x4B] = MP_KEY_KP_DIVIDE;
-	__mpApp.keyCodes[0x4C] = MP_KEY_KP_ENTER;
-	__mpApp.keyCodes[0x51] = MP_KEY_KP_EQUAL;
-	__mpApp.keyCodes[0x43] = MP_KEY_KP_MULTIPLY;
-	__mpApp.keyCodes[0x4E] = MP_KEY_KP_SUBTRACT;
+	oc_appData.keyCodes[0x52] = OC_KEY_KP_0;
+	oc_appData.keyCodes[0x53] = OC_KEY_KP_1;
+	oc_appData.keyCodes[0x54] = OC_KEY_KP_2;
+	oc_appData.keyCodes[0x55] = OC_KEY_KP_3;
+	oc_appData.keyCodes[0x56] = OC_KEY_KP_4;
+	oc_appData.keyCodes[0x57] = OC_KEY_KP_5;
+	oc_appData.keyCodes[0x58] = OC_KEY_KP_6;
+	oc_appData.keyCodes[0x59] = OC_KEY_KP_7;
+	oc_appData.keyCodes[0x5B] = OC_KEY_KP_8;
+	oc_appData.keyCodes[0x5C] = OC_KEY_KP_9;
+	oc_appData.keyCodes[0x45] = OC_KEY_KP_ADD;
+	oc_appData.keyCodes[0x41] = OC_KEY_KP_DECIMAL;
+	oc_appData.keyCodes[0x4B] = OC_KEY_KP_DIVIDE;
+	oc_appData.keyCodes[0x4C] = OC_KEY_KP_ENTER;
+	oc_appData.keyCodes[0x51] = OC_KEY_KP_EQUAL;
+	oc_appData.keyCodes[0x43] = OC_KEY_KP_MULTIPLY;
+	oc_appData.keyCodes[0x4E] = OC_KEY_KP_SUBTRACT;
 
-	memset(__mpApp.nativeKeys, 0, sizeof(int)*MP_KEY_COUNT);
+	memset(oc_appData.nativeKeys, 0, sizeof(int)*OC_KEY_COUNT);
 	for(int nativeKey=0; nativeKey<256; nativeKey++)
 	{
-		mp_key_code mpKey = __mpApp.keyCodes[nativeKey];
+		oc_key_code mpKey = oc_appData.keyCodes[nativeKey];
 		if(mpKey)
 		{
-			__mpApp.nativeKeys[mpKey] = nativeKey;
+			oc_appData.nativeKeys[mpKey] = nativeKey;
 		}
 	}
 }
 
-static int mp_convert_osx_key(unsigned short nsCode)
+static int oc_convert_osx_key(unsigned short nsCode)
 {
 	if(nsCode >= 265)
 	{
-		return(MP_KEY_UNKNOWN);
+		return(OC_KEY_UNKNOWN);
 	}
 	else
 	{
-		return(__mpApp.keyCodes[nsCode]);
+		return(oc_appData.keyCodes[nsCode]);
 	}
 }
 
-static mp_keymod_flags mp_convert_osx_mods(NSUInteger nsFlags)
+static oc_keymod_flags oc_convert_osx_mods(NSUInteger nsFlags)
 {
-	mp_keymod_flags mods = MP_KEYMOD_NONE;
+	oc_keymod_flags mods = OC_KEYMOD_NONE;
 	if(nsFlags & NSEventModifierFlagShift)
 	{
-		mods |= MP_KEYMOD_SHIFT;
+		mods |= OC_KEYMOD_SHIFT;
 	}
 	if(nsFlags & NSEventModifierFlagControl)
 	{
-		mods |= MP_KEYMOD_CTRL;
+		mods |= OC_KEYMOD_CTRL;
 	}
 	if(nsFlags & NSEventModifierFlagOption)
 	{
-		mods |= MP_KEYMOD_ALT;
+		mods |= OC_KEYMOD_ALT;
 	}
 	if(nsFlags & NSEventModifierFlagCommand)
 	{
-		mods |= MP_KEYMOD_CMD;
-		mods |= MP_KEYMOD_MAIN_MODIFIER;
+		mods |= OC_KEYMOD_CMD;
+		mods |= OC_KEYMOD_MAIN_MODIFIER;
 	}
 	return(mods);
 }
 
-static void mp_update_keyboard_layout()
+static void oc_update_keyboard_layout()
 {
-	if(__mpApp.osx.kbLayoutInputSource)
+	if(oc_appData.osx.kbLayoutInputSource)
 	{
-		CFRelease(__mpApp.osx.kbLayoutInputSource);
-		__mpApp.osx.kbLayoutInputSource = 0;
-		__mpApp.osx.kbLayoutUnicodeData = nil;
+		CFRelease(oc_appData.osx.kbLayoutInputSource);
+		oc_appData.osx.kbLayoutInputSource = 0;
+		oc_appData.osx.kbLayoutUnicodeData = nil;
 	}
 
-	__mpApp.osx.kbLayoutInputSource = TISCopyCurrentKeyboardLayoutInputSource();
-	if(!__mpApp.osx.kbLayoutInputSource)
+	oc_appData.osx.kbLayoutInputSource = TISCopyCurrentKeyboardLayoutInputSource();
+	if(!oc_appData.osx.kbLayoutInputSource)
 	{
-		log_error("Failed to load keyboard layout input source");
+		oc_log_error("Failed to load keyboard layout input source");
 	}
 
-	__mpApp.osx.kbLayoutUnicodeData = TISGetInputSourceProperty(__mpApp.osx.kbLayoutInputSource,
+	oc_appData.osx.kbLayoutUnicodeData = TISGetInputSourceProperty(oc_appData.osx.kbLayoutInputSource,
 	                                                            kTISPropertyUnicodeKeyLayoutData);
-	if(!__mpApp.osx.kbLayoutUnicodeData)
+	if(!oc_appData.osx.kbLayoutUnicodeData)
 	{
-		log_error("Failed to load keyboard layout unicode data");
+		oc_log_error("Failed to load keyboard layout unicode data");
 	}
 
-	memset(__mpApp.keyLabels, 0, sizeof(mp_key_utf8)*MP_KEY_COUNT);
+	memset(oc_appData.keyLabels, 0, sizeof(oc_key_utf8)*OC_KEY_COUNT);
 
-	for(int key=0; key<MP_KEY_COUNT; key++)
+	for(int key=0; key<OC_KEY_COUNT; key++)
 	{
 		//TODO: check that the key is printable
-		int nativeKey = __mpApp.nativeKeys[key];
+		int nativeKey = oc_appData.nativeKeys[key];
 
 		UInt32 deadKeyState = 0;
 		UniChar characters[4];
 		UniCharCount characterCount = 0;
 
-		if(UCKeyTranslate((UCKeyboardLayout*)[(NSData*) __mpApp.osx.kbLayoutUnicodeData bytes],
+		if(UCKeyTranslate((UCKeyboardLayout*)[(NSData*) oc_appData.osx.kbLayoutUnicodeData bytes],
 	             		nativeKey,
 	             		kUCKeyActionDisplay,
 	             		0,
@@ -264,32 +264,32 @@ static void mp_update_keyboard_layout()
 	             		&characterCount,
 	             		characters) != noErr)
 		{
-			__mpApp.keyLabels[key].labelLen = 0;
+			oc_appData.keyLabels[key].labelLen = 0;
 		}
 		else
 		{
 			NSString* nsString = [[NSString alloc] initWithCharacters: characters length: characterCount];
 			const char* cstring = [nsString UTF8String];
 			u32 len = strlen(cstring);
-			__mpApp.keyLabels[key].labelLen = minimum(len, 8);
-			memcpy(__mpApp.keyLabels[key].label, cstring, __mpApp.keyLabels[key].labelLen);
+			oc_appData.keyLabels[key].labelLen = oc_min(len, 8);
+			memcpy(oc_appData.keyLabels[key].label, cstring, oc_appData.keyLabels[key].labelLen);
 		}
 	}
 }
 
-str8 mp_key_to_label(mp_key_code key)
+oc_str8 oc_key_to_label(oc_key_code key)
 {
-	mp_key_utf8* keyInfo = &(__mpApp.keyLabels[key]);
-	str8 label = str8_from_buffer(keyInfo->labelLen, keyInfo->label);
+	oc_key_utf8* keyInfo = &(oc_appData.keyLabels[key]);
+	oc_str8 label = oc_str8_from_buffer(keyInfo->labelLen, keyInfo->label);
 	return(label);
 }
 
-mp_key_code mp_label_to_key(str8 label)
+oc_key_code oc_label_to_key(oc_str8 label)
 {
-	mp_key_code res = MP_KEY_UNKNOWN;
-	for(int key=0; key<MP_KEY_COUNT; key++)
+	oc_key_code res = OC_KEY_UNKNOWN;
+	for(int key=0; key<OC_KEY_COUNT; key++)
 	{
-		str8 keyLabel = mp_key_to_label(key);
+		oc_str8 keyLabel = oc_key_to_label(key);
 		if(  keyLabel.len == label.len
 		  && !strncmp(keyLabel.ptr, label.ptr, label.len))
 		{
@@ -301,31 +301,31 @@ mp_key_code mp_label_to_key(str8 label)
 }
 
 
-@interface MPNativeWindow : NSWindow
+@interface OCWindow : NSWindow
 {
-	mp_window_data* mpWindow;
+	oc_window_data* mpWindow;
 }
-- (id)initWithMPWindow:(mp_window_data*) window contentRect:(NSRect) rect styleMask:(uint32) style;
+- (id)initWithWindowData:(oc_window_data*) window contentRect:(NSRect) rect styleMask:(uint32) style;
 @end
 
 
-@interface MPKeyboardLayoutListener : NSObject
+@interface OCKeyboardLayoutListener : NSObject
 @end
 
-@implementation MPKeyboardLayoutListener
+@implementation OCKeyboardLayoutListener
 
 - (void)selectedKeyboardInputSourceChanged:(NSObject* )object
 {
-	mp_update_keyboard_layout();
+	oc_update_keyboard_layout();
 }
 
 @end
 
-void mp_install_keyboard_layout_listener()
+void oc_install_keyboard_layout_listener()
 {
-	__mpApp.osx.kbLayoutListener = [[MPKeyboardLayoutListener alloc] init];
+	oc_appData.osx.kbLayoutListener = [[OCKeyboardLayoutListener alloc] init];
 	[[NSDistributedNotificationCenter defaultCenter]
-		addObserver: __mpApp.osx.kbLayoutListener
+		addObserver: oc_appData.osx.kbLayoutListener
 		selector: @selector(selectedKeyboardInputSourceChanged:)
 		name:(__bridge NSString*)kTISNotifySelectedKeyboardInputSourceChanged
 		object:nil];
@@ -335,10 +335,10 @@ void mp_install_keyboard_layout_listener()
 // Application and app delegate
 //---------------------------------------------------------------
 
-@interface MPApplication : NSApplication
+@interface OCApplication : NSApplication
 @end
 
-@implementation MPApplication
+@implementation OCApplication
 -(void)noOpThread:(id)object
 {}
 
@@ -352,11 +352,11 @@ void mp_install_keyboard_layout_listener()
 
 @end
 
-@interface MPAppDelegate : NSObject <NSApplicationDelegate>
+@interface OCAppDelegate : NSObject <NSApplicationDelegate>
 -(id)init;
 @end
 
-@implementation MPAppDelegate
+@implementation OCAppDelegate
 
 -(id)init
 {
@@ -373,14 +373,14 @@ void mp_install_keyboard_layout_listener()
 {
 	//NOTE: We set shouldQuit to true and send a Quit event
 	//	We then return a value to cancel the direct termination because we still
-	//	want to execte the code after mp_event_loop(). If the user didn't set shouldQuit to
-	//	false, mp_event_loop() will exit, and the user can execute any cleanup needed and
+	//	want to execte the code after oc_event_loop(). If the user didn't set shouldQuit to
+	//	false, oc_event_loop() will exit, and the user can execute any cleanup needed and
 	//	exit the program.
 
-	__mpApp.shouldQuit = true;
-	mp_event event = {};
-	event.type = MP_EVENT_QUIT;
-	mp_queue_event(&event);
+	oc_appData.shouldQuit = true;
+	oc_event event = {};
+	event.type = OC_EVENT_QUIT;
+	oc_queue_event(&event);
 
 	return(NSTerminateCancel);
 }
@@ -407,9 +407,9 @@ void mp_install_keyboard_layout_listener()
 
 - (void)timerElapsed:(NSTimer*)timer
 {
-	mp_event event = {};
-	event.type = MP_EVENT_FRAME;
-	mp_queue_event(&event);
+	oc_event event = {};
+	event.type = OC_EVENT_FRAME;
+	oc_queue_event(&event);
 }
 
 - (void)applicationDidFinishLaunching:(NSNotification *)notification
@@ -438,19 +438,19 @@ void mp_install_keyboard_layout_listener()
 
 - (BOOL)application:(NSApplication *)application openFile:(NSString *)filename
 {
-	mp_event event = {0};
-	event.window = (mp_window){0};
-	event.type = MP_EVENT_PATHDROP;
+	oc_event event = {0};
+	event.window = (oc_window){0};
+	event.type = OC_EVENT_PATHDROP;
 
-	mem_arena* scratch = mem_scratch();
-	mem_arena_scope scope = mem_arena_scope_begin(scratch);
+	oc_arena* scratch = oc_scratch();
+	oc_arena_scope scope = oc_arena_scope_begin(scratch);
 
-	str8 path = str8_push_cstring(scratch, [filename UTF8String]);
-	str8_list_push(scratch, &event.paths, path);
+	oc_str8 path = oc_str8_push_cstring(scratch, [filename UTF8String]);
+	oc_str8_list_push(scratch, &event.paths, path);
 
-	mp_queue_event(&event);
+	oc_queue_event(&event);
 
-	mem_arena_scope_end(scope);
+	oc_arena_scope_end(scope);
 
 	return(YES);
 }
@@ -459,38 +459,38 @@ void mp_install_keyboard_layout_listener()
 {
 	NSString* nsPath = [[appleEvent paramDescriptorForKeyword:keyDirectObject] stringValue];
 
-	mp_event event = {};
-	event.window = (mp_window){0};
-	event.type = MP_EVENT_PATHDROP;
+	oc_event event = {};
+	event.window = (oc_window){0};
+	event.type = OC_EVENT_PATHDROP;
 
-	mem_arena* scratch = mem_scratch();
-	mem_arena_scope scope = mem_arena_scope_begin(scratch);
+	oc_arena* scratch = oc_scratch();
+	oc_arena_scope scope = oc_arena_scope_begin(scratch);
 
-	str8 path = str8_push_cstring(scratch, [nsPath UTF8String]);
-	str8_list_push(scratch, &event.paths, path);
+	oc_str8 path = oc_str8_push_cstring(scratch, [nsPath UTF8String]);
+	oc_str8_list_push(scratch, &event.paths, path);
 
-	mp_queue_event(&event);
+	oc_queue_event(&event);
 
-	mem_arena_scope_end(scope);
+	oc_arena_scope_end(scope);
 }
 
 //TODO: drag and drop paths
 
-@end // @implementation MPAppDelegate
+@end // @implementation OCAppDelegate
 
 //---------------------------------------------------------------
 // Custom NSWindow
 //---------------------------------------------------------------
 
-@implementation MPNativeWindow
-- (id)initWithMPWindow:(mp_window_data*) window contentRect:(NSRect) rect styleMask:(uint32) style
+@implementation OCWindow
+- (id)initWithWindowData:(oc_window_data*) window contentRect:(NSRect) rect styleMask:(uint32) style
 {
 	mpWindow = window;
 	return([self initWithContentRect:rect styleMask:style backing:NSBackingStoreBuffered defer:NO]);
 }
 - (BOOL)canBecomeKeyWindow
 {
-	return(!(mpWindow->style & MP_WINDOW_STYLE_NO_FOCUS));
+	return(!(mpWindow->style & OC_WINDOW_STYLE_NO_FOCUS));
 }
 /*
 - (NSDragOperation)draggingEntered:(id <NSDraggingInfo>)sender
@@ -571,22 +571,22 @@ void mp_install_keyboard_layout_listener()
 - (BOOL)validateMenuItem:(NSMenuItem *)menuItem;
 */
 
-@end //@implementation MPNativeWindow
+@end //@implementation OCWindow
 
 //---------------------------------------------------------------
 // Custom NSWindow delegate
 //---------------------------------------------------------------
 
-@interface MPNativeWindowDelegate : NSObject
+@interface OCWindowDelegate : NSObject
 {
-	mp_window_data* mpWindow;
+	oc_window_data* mpWindow;
 }
-- (id)initWithMPWindow:(mp_window_data*) window;
+- (id)initWithWindowData:(oc_window_data*) window;
 @end
 
-@implementation MPNativeWindowDelegate
+@implementation OCWindowDelegate
 
-- (id)initWithMPWindow:(mp_window_data*) window
+- (id)initWithWindowData:(oc_window_data*) window
 {
 	self = [super init];
 	if(self != nil)
@@ -598,22 +598,22 @@ void mp_install_keyboard_layout_listener()
 
 - (void)windowDidBecomeKey:(NSNotification*)notification
 {
-	mp_event event = {};
-	event.window = mp_window_handle_from_ptr(mpWindow);
-	event.type = MP_EVENT_WINDOW_FOCUS;
+	oc_event event = {};
+	event.window = oc_window_handle_from_ptr(mpWindow);
+	event.type = OC_EVENT_WINDOW_FOCUS;
 
 	mpWindow->hidden = false;
 
-	mp_queue_event(&event);
+	oc_queue_event(&event);
 }
 
 - (void)windowDidResignKey:(NSNotification*)notification
 {
-	mp_event event = {};
-	event.window = mp_window_handle_from_ptr(mpWindow);
-	event.type = MP_EVENT_WINDOW_UNFOCUS;
+	oc_event event = {};
+	event.window = oc_window_handle_from_ptr(mpWindow);
+	event.type = OC_EVENT_WINDOW_UNFOCUS;
 
-	mp_queue_event(&event);
+	oc_queue_event(&event);
 }
 
 - (void)windowDidMove:(NSNotification *)notification
@@ -622,9 +622,9 @@ void mp_install_keyboard_layout_listener()
 	const NSRect frameRect = [mpWindow->osx.nsWindow frame];
 	NSScreen* screen = mpWindow->osx.nsWindow.screen;
 
-	mp_event event = {};
-	event.window = mp_window_handle_from_ptr(mpWindow);
-	event.type = MP_EVENT_WINDOW_MOVE;
+	oc_event event = {};
+	event.window = oc_window_handle_from_ptr(mpWindow);
+	event.type = OC_EVENT_WINDOW_MOVE;
 
 	event.move.frame.x = frameRect.origin.x;
 	event.move.frame.y = screen.frame.size.height - frameRect.origin.y - frameRect.size.height;
@@ -636,7 +636,7 @@ void mp_install_keyboard_layout_listener()
 	event.move.content.w = contentRect.size.width;
 	event.move.content.h = contentRect.size.height;
 
-	mp_queue_event(&event);
+	oc_queue_event(&event);
 }
 
 - (void)windowDidResize:(NSNotification *)notification
@@ -645,9 +645,9 @@ void mp_install_keyboard_layout_listener()
 	const NSRect frameRect = [mpWindow->osx.nsWindow frame];
 	NSScreen* screen = mpWindow->osx.nsWindow.screen;
 
-	mp_event event = {};
-	event.window = mp_window_handle_from_ptr(mpWindow);
-	event.type = MP_EVENT_WINDOW_RESIZE;
+	oc_event event = {};
+	event.window = oc_window_handle_from_ptr(mpWindow);
+	event.type = OC_EVENT_WINDOW_RESIZE;
 
 	event.move.frame.x = frameRect.origin.x;
 	event.move.frame.y = screen.frame.size.height - frameRect.origin.y - frameRect.size.height;
@@ -659,13 +659,13 @@ void mp_install_keyboard_layout_listener()
 	event.move.content.w = contentRect.size.width;
 	event.move.content.h = contentRect.size.height;
 
-	if(__mpApp.liveResizeCallback)
+	if(oc_appData.liveResizeCallback)
 	{
-		__mpApp.liveResizeCallback(event, __mpApp.liveResizeData);
+		oc_appData.liveResizeCallback(event, oc_appData.liveResizeData);
 	}
 
 	//TODO: also ensure we don't overflow the queue during live resize...
-	mp_queue_event(&event);
+	oc_queue_event(&event);
 }
 
 -(void)windowWillStartLiveResize:(NSNotification *)notification
@@ -686,40 +686,40 @@ void mp_install_keyboard_layout_listener()
 	[mpWindow->osx.nsWindowDelegate release];
 	mpWindow->osx.nsWindowDelegate = nil;
 
-	mp_window_recycle_ptr(mpWindow);
+	oc_window_recycle_ptr(mpWindow);
 }
 
 - (BOOL)windowShouldClose:(id)sender
 {
 	mpWindow->shouldClose = true;
 
-	mp_event event = {};
-	event.window = mp_window_handle_from_ptr(mpWindow);
-	event.type = MP_EVENT_WINDOW_CLOSE;
+	oc_event event = {};
+	event.window = oc_window_handle_from_ptr(mpWindow);
+	event.type = OC_EVENT_WINDOW_CLOSE;
 
-	mp_queue_event(&event);
+	oc_queue_event(&event);
 
 	return(mpWindow->shouldClose);
 }
 
-@end //@implementation MPNativeWindowDelegate
+@end //@implementation OCWindowDelegate
 
 //---------------------------------------------------------------
 // Custom NSView
 //---------------------------------------------------------------
 
-@interface MPNativeView : NSView <NSTextInputClient>
+@interface OCView : NSView <NSTextInputClient>
 {
-	mp_window_data* window;
+	oc_window_data* window;
 	NSTrackingArea* trackingArea;
 	NSMutableAttributedString* markedText;
 }
-- (id)initWithMPWindow:(mp_window_data*) mpWindow;
+- (id)initWithWindowData:(oc_window_data*) mpWindow;
 @end
 
-@implementation MPNativeView
+@implementation OCView
 
-- (id)initWithMPWindow:(mp_window_data*) mpWindow
+- (id)initWithWindowData:(oc_window_data*) mpWindow
 {
 	self = [super init];
 	if(self != nil)
@@ -753,7 +753,7 @@ void mp_install_keyboard_layout_listener()
 
 -(void)drawRect:(NSRect)dirtyRect
 {
-	if(window->style & MP_WINDOW_STYLE_NO_TITLE)
+	if(window->style & OC_WINDOW_STYLE_NO_TITLE)
 	{
 		[NSGraphicsContext saveGraphicsState];
 		NSBezierPath *path = [NSBezierPath bezierPathWithRoundedRect:[self frame] xRadius:5 yRadius:5];
@@ -762,7 +762,7 @@ void mp_install_keyboard_layout_listener()
 		NSRectFill([self frame]);
 	}
 
-	if(window->style & MP_WINDOW_STYLE_NO_TITLE)
+	if(window->style & OC_WINDOW_STYLE_NO_TITLE)
 	{
 		[NSGraphicsContext restoreGraphicsState];
 		[window->osx.nsWindow invalidateShadow];
@@ -776,9 +776,9 @@ void mp_install_keyboard_layout_listener()
 
 - (void)cursorUpdate:(NSEvent*)event
 {
-	if(__mpApp.osx.cursor)
+	if(oc_appData.osx.cursor)
 	{
-		[__mpApp.osx.cursor set];
+		[oc_appData.osx.cursor set];
 	}
 	else
 	{
@@ -786,48 +786,48 @@ void mp_install_keyboard_layout_listener()
 	}
 }
 
-static void mp_process_mouse_button(NSEvent* nsEvent, mp_window_data* window, mp_mouse_button button, mp_key_action action)
+static void oc_process_mouse_button(NSEvent* nsEvent, oc_window_data* window, oc_mouse_button button, oc_key_action action)
 {
-	mp_event event = {};
-	event.window = mp_window_handle_from_ptr(window);
-	event.type = MP_EVENT_MOUSE_BUTTON;
+	oc_event event = {};
+	event.window = oc_window_handle_from_ptr(window);
+	event.type = OC_EVENT_MOUSE_BUTTON;
 	event.key.action = action;
 	event.key.code = button;
-	event.key.mods = mp_convert_osx_mods([nsEvent modifierFlags]);
+	event.key.mods = oc_convert_osx_mods([nsEvent modifierFlags]);
 	event.key.clickCount = [nsEvent clickCount];
 
-	mp_queue_event(&event);
+	oc_queue_event(&event);
 }
 
 - (void)mouseDown:(NSEvent *)nsEvent
 {
-	mp_process_mouse_button(nsEvent, window, MP_MOUSE_LEFT, MP_KEY_PRESS);
+	oc_process_mouse_button(nsEvent, window, OC_MOUSE_LEFT, OC_KEY_PRESS);
 	[window->osx.nsWindow makeFirstResponder:self];
 }
 
 - (void)mouseUp:(NSEvent*)nsEvent
 {
-	mp_process_mouse_button(nsEvent, window, MP_MOUSE_LEFT, MP_KEY_RELEASE);
+	oc_process_mouse_button(nsEvent, window, OC_MOUSE_LEFT, OC_KEY_RELEASE);
 }
 
 - (void)rightMouseDown:(NSEvent*)nsEvent
 {
-	mp_process_mouse_button(nsEvent, window, MP_MOUSE_RIGHT, MP_KEY_PRESS);
+	oc_process_mouse_button(nsEvent, window, OC_MOUSE_RIGHT, OC_KEY_PRESS);
 }
 
 - (void)rightMouseUp:(NSEvent*)nsEvent
 {
-	mp_process_mouse_button(nsEvent, window, MP_MOUSE_RIGHT, MP_KEY_RELEASE);
+	oc_process_mouse_button(nsEvent, window, OC_MOUSE_RIGHT, OC_KEY_RELEASE);
 }
 
 - (void)otherMouseDown:(NSEvent*)nsEvent
 {
-	mp_process_mouse_button(nsEvent, window, [nsEvent buttonNumber], MP_KEY_PRESS);
+	oc_process_mouse_button(nsEvent, window, [nsEvent buttonNumber], OC_KEY_PRESS);
 }
 
 - (void)otherMouseUp:(NSEvent*)nsEvent
 {
-	mp_process_mouse_button(nsEvent, window, [nsEvent buttonNumber], MP_KEY_RELEASE);
+	oc_process_mouse_button(nsEvent, window, [nsEvent buttonNumber], OC_KEY_RELEASE);
 }
 
 - (void)mouseDragged:(NSEvent*)nsEvent
@@ -840,90 +840,90 @@ static void mp_process_mouse_button(NSEvent* nsEvent, mp_window_data* window, mp
 	NSPoint p = [self convertPoint:[nsEvent locationInWindow] fromView:nil];
 
 	NSRect frame = [[window->osx.nsWindow contentView] frame];
-	mp_event event = {};
-	event.type = MP_EVENT_MOUSE_MOVE;
-	event.window = mp_window_handle_from_ptr(window);
+	oc_event event = {};
+	event.type = OC_EVENT_MOUSE_MOVE;
+	event.window = oc_window_handle_from_ptr(window);
 	event.mouse.x = p.x;
 	event.mouse.y = frame.size.height - p.y;
 	event.mouse.deltaX = [nsEvent deltaX];
 	event.mouse.deltaY = [nsEvent deltaY];
-	event.mouse.mods = mp_convert_osx_mods([nsEvent modifierFlags]);
+	event.mouse.mods = oc_convert_osx_mods([nsEvent modifierFlags]);
 
-	mp_queue_event(&event);
+	oc_queue_event(&event);
 }
 
 - (void)scrollWheel:(NSEvent*)nsEvent
 {
-	mp_event event = {};
-	event.window = mp_window_handle_from_ptr(window);
-	event.type = MP_EVENT_MOUSE_WHEEL;
+	oc_event event = {};
+	event.window = oc_window_handle_from_ptr(window);
+	event.type = OC_EVENT_MOUSE_WHEEL;
 
 	double factor = [nsEvent hasPreciseScrollingDeltas] ? 0.1 : 1.0;
 	event.mouse.x = 0;
 	event.mouse.y = 0;
 	event.mouse.deltaX = -[nsEvent scrollingDeltaX]*factor;
 	event.mouse.deltaY = -[nsEvent scrollingDeltaY]*factor;
-	event.mouse.mods = mp_convert_osx_mods([nsEvent modifierFlags]);
+	event.mouse.mods = oc_convert_osx_mods([nsEvent modifierFlags]);
 
-	mp_queue_event(&event);
+	oc_queue_event(&event);
 }
 
 - (void)mouseExited:(NSEvent *)nsEvent
 {
-	mp_event event = {};
-	event.window = mp_window_handle_from_ptr(window);
-	event.type = MP_EVENT_MOUSE_LEAVE;
-	mp_queue_event(&event);
+	oc_event event = {};
+	event.window = oc_window_handle_from_ptr(window);
+	event.type = OC_EVENT_MOUSE_LEAVE;
+	oc_queue_event(&event);
 }
 
 - (void)mouseEntered:(NSEvent *)nsEvent
 {
-	mp_event event = {};
-	event.window = mp_window_handle_from_ptr(window);
-	event.type = MP_EVENT_MOUSE_ENTER;
-	mp_queue_event(&event);
+	oc_event event = {};
+	event.window = oc_window_handle_from_ptr(window);
+	event.type = OC_EVENT_MOUSE_ENTER;
+	oc_queue_event(&event);
 }
 
 - (void)keyDown:(NSEvent*)nsEvent
 {
-	mp_key_action action = [nsEvent isARepeat] ? MP_KEY_REPEAT : MP_KEY_PRESS;
+	oc_key_action action = [nsEvent isARepeat] ? OC_KEY_REPEAT : OC_KEY_PRESS;
 
-	mp_event event = {};
-	event.window = mp_window_handle_from_ptr(window);
-	event.type = MP_EVENT_KEYBOARD_KEY;
+	oc_event event = {};
+	event.window = oc_window_handle_from_ptr(window);
+	event.type = OC_EVENT_KEYBOARD_KEY;
 	event.key.action = action;
-	event.key.code = mp_convert_osx_key([nsEvent keyCode]);
-	event.key.mods = mp_convert_osx_mods([nsEvent modifierFlags]);
+	event.key.code = oc_convert_osx_key([nsEvent keyCode]);
+	event.key.mods = oc_convert_osx_mods([nsEvent modifierFlags]);
 
-	str8 label = mp_key_to_label(event.key.code);
+	oc_str8 label = oc_key_to_label(event.key.code);
 	event.key.labelLen = label.len;
 	memcpy(event.key.label, label.ptr, label.len);
 
-	mp_queue_event(&event);
+	oc_queue_event(&event);
 
 	[self interpretKeyEvents:@[nsEvent]];
 }
 
 - (void)keyUp:(NSEvent*)nsEvent
 {
-	mp_event event = {};
-	event.window = mp_window_handle_from_ptr(window);
-	event.type = MP_EVENT_KEYBOARD_KEY;
-	event.key.action = MP_KEY_RELEASE;
-	event.key.code = mp_convert_osx_key([nsEvent keyCode]);
-	event.key.mods = mp_convert_osx_mods([nsEvent modifierFlags]);
+	oc_event event = {};
+	event.window = oc_window_handle_from_ptr(window);
+	event.type = OC_EVENT_KEYBOARD_KEY;
+	event.key.action = OC_KEY_RELEASE;
+	event.key.code = oc_convert_osx_key([nsEvent keyCode]);
+	event.key.mods = oc_convert_osx_mods([nsEvent modifierFlags]);
 
-	mp_queue_event(&event);
+	oc_queue_event(&event);
 }
 
 - (void) flagsChanged:(NSEvent*)nsEvent
 {
-	mp_event event = {};
-	event.window = mp_window_handle_from_ptr(window);
-	event.type = MP_EVENT_KEYBOARD_MODS;
-	event.key.mods = mp_convert_osx_mods([nsEvent modifierFlags]);
+	oc_event event = {};
+	event.window = oc_window_handle_from_ptr(window);
+	event.type = OC_EVENT_KEYBOARD_MODS;
+	event.key.mods = oc_convert_osx_mods([nsEvent modifierFlags]);
 
-	mp_queue_event(&event);
+	oc_queue_event(&event);
 }
 
 - (BOOL)performKeyEquivalent:(NSEvent*)nsEvent
@@ -937,12 +937,12 @@ static void mp_process_mouse_button(NSEvent* nsEvent, mp_window_data* window, mp
 		}
 		else if([nsEvent charactersIgnoringModifiers] == [NSString stringWithUTF8String:"q"])
 		{
-			__mpApp.shouldQuit = true;
+			oc_appData.shouldQuit = true;
 
-			mp_event event = {};
-			event.type = MP_EVENT_QUIT;
+			oc_event event = {};
+			event.type = OC_EVENT_QUIT;
 
-			mp_queue_event(&event);
+			oc_queue_event(&event);
 
 			//[NSApp terminate:self];
 			return(YES);
@@ -1024,7 +1024,7 @@ static const NSRange kEmptyRange = { NSNotFound, 0 };
 {
 	NSString* characters;
 	NSEvent* nsEvent = [NSApp currentEvent];
-	mp_keymod_flags mods = mp_convert_osx_mods([nsEvent modifierFlags]);
+	oc_keymod_flags mods = oc_convert_osx_mods([nsEvent modifierFlags]);
 
 	if([string isKindOfClass:[NSAttributedString class]])
 	{
@@ -1038,7 +1038,7 @@ static const NSRange kEmptyRange = { NSNotFound, 0 };
 	NSRange range = NSMakeRange(0, [characters length]);
 	while (range.length)
 	{
-		utf32 codepoint = 0;
+		oc_utf32 codepoint = 0;
 
 		if ([characters getBytes:&codepoint
 				maxLength:sizeof(codepoint)
@@ -1053,15 +1053,15 @@ static const NSRange kEmptyRange = { NSNotFound, 0 };
 				continue;
 			}
 
-			mp_event event = {};
-			event.window = mp_window_handle_from_ptr(window);
-			event.type = MP_EVENT_KEYBOARD_CHAR;
+			oc_event event = {};
+			event.window = oc_window_handle_from_ptr(window);
+			event.type = OC_EVENT_KEYBOARD_CHAR;
 			event.character.codepoint = codepoint;
 
-			str8 seq = utf8_encode(event.character.sequence, event.character.codepoint);
+			oc_str8 seq = oc_utf8_encode(event.character.sequence, event.character.codepoint);
 			event.character.seqLen = seq.len;
 
-			mp_queue_event(&event);
+			oc_queue_event(&event);
 		}
 	}
 	[self unmarkText];
@@ -1072,50 +1072,7 @@ static const NSRange kEmptyRange = { NSNotFound, 0 };
 }
 
 
-@end //@implementation MPNativeView
-
-/*
-void mp_sleep_nanoseconds(u64 nanoseconds)
-{
-	timespec rqtp;
-	rqtp.tv_sec = nanoseconds / 1000000000;
-	rqtp.tv_nsec = nanoseconds - rqtp.tv_sec * 1000000000;
-	nanosleep(&rqtp, 0);
-}
-
-static mach_timebase_info_data_t __machTimeBase__ = {1,1};
-
-u64 mp_get_elapsed_nanoseconds()
-{
-	//NOTE(martin): according to the documentation, mach_absolute_time() does not
-	//              increment when the system is asleep
-	u64 now = mach_absolute_time();
-	now *= __machTimeBase__.numer;
-	now /= __machTimeBase__.denom;
-	return(now);
-}
-
-f64 mp_get_elapsed_seconds()
-{
-	return(1.e-9*(f64)mp_get_elapsed_nanoseconds());
-}
-*/
-/*
-CVReturn DisplayLinkCallback(CVDisplayLinkRef displayLink,
-                             const CVTimeStamp *inNow,
-                             const CVTimeStamp *inOutputTime,
-                             CVOptionFlags flagsIn,
-                             CVOptionFlags *flagsOut,
-                             void *displayLinkContext)
-{
-	if(__mpApp.displayRefreshCallback)
-	{
-		__mpApp.displayRefreshCallback(__mpApp.displayRefreshData);
-	}
-
-	return(0);
-}
-*/
+@end //@implementation OCView
 
 //***************************************************************
 //			public API
@@ -1125,33 +1082,33 @@ CVReturn DisplayLinkCallback(CVDisplayLinkRef displayLink,
 // App public API
 //---------------------------------------------------------------
 
-void mp_init()
+void oc_init()
 {@autoreleasepool {
-	if(!__mpApp.init)
+	if(!oc_appData.init)
 	{
-		memset(&__mpApp, 0, sizeof(__mpApp));
+		memset(&oc_appData, 0, sizeof(oc_appData));
 
-		mem_arena_init(&__mpApp.eventArena);
+		oc_arena_init(&oc_appData.eventArena);
 
-		mp_clock_init();
+		oc_clock_init();
 
-		mp_init_osx_keys();
-		mp_update_keyboard_layout();
-		mp_install_keyboard_layout_listener();
+		oc_init_osx_keys();
+		oc_update_keyboard_layout();
+		oc_install_keyboard_layout_listener();
 
-		mp_init_window_handles();
+		oc_init_window_handles();
 
-		ringbuffer_init(&__mpApp.eventQueue, 16);
+		oc_ringbuffer_init(&oc_appData.eventQueue, 16);
 
-		[MPApplication sharedApplication];
-		MPAppDelegate* delegate = [[MPAppDelegate alloc] init];
+		[OCApplication sharedApplication];
+		OCAppDelegate* delegate = [[OCAppDelegate alloc] init];
 		[NSApp setDelegate: delegate];
 
 		[NSThread detachNewThreadSelector:@selector(noOpThread:)
 		                         toTarget:NSApp
 		                         withObject:nil];
 
-		__mpApp.init = true;
+		oc_appData.init = true;
 
 		[NSApp run];
 		[NSApp setActivationPolicy:NSApplicationActivationPolicyRegular];
@@ -1160,78 +1117,78 @@ void mp_init()
 	}
 }}
 
-void mp_terminate()
+void oc_terminate()
 {
 	//TODO: proper app data cleanup (eg delegate, etc)
-	if(__mpApp.init)
+	if(oc_appData.init)
 	{
-		mem_arena_release(&__mpApp.eventArena);
-		__mpApp = (mp_app){0};
+		oc_arena_cleanup(&oc_appData.eventArena);
+		oc_appData = (oc_app){0};
 	}
 }
 
-bool mp_should_quit()
+bool oc_should_quit()
 {
-	return(__mpApp.shouldQuit);
+	return(oc_appData.shouldQuit);
 }
 
-void mp_do_quit()
+void oc_do_quit()
 {
-	__mpApp.shouldQuit = true;
+	oc_appData.shouldQuit = true;
 }
 
-void mp_cancel_quit()
+void oc_cancel_quit()
 {
-	__mpApp.shouldQuit = false;
+	oc_appData.shouldQuit = false;
 }
 
-void mp_request_quit()
+void oc_request_quit()
 {
-	__mpApp.shouldQuit = true;
-	mp_event event = {};
-	event.type = MP_EVENT_QUIT;
-	mp_queue_event(&event);
+	oc_appData.shouldQuit = true;
+	oc_event event = {};
+	event.type = OC_EVENT_QUIT;
+	oc_queue_event(&event);
 }
 
-void mp_set_cursor(mp_mouse_cursor cursor)
+void oc_set_cursor(oc_mouse_cursor cursor)
 {
 	switch(cursor)
 	{
-		case MP_MOUSE_CURSOR_ARROW:
+		case OC_MOUSE_CURSOR_ARROW:
 		{
-			__mpApp.osx.cursor = [NSCursor arrowCursor];
+			oc_appData.osx.cursor = [NSCursor arrowCursor];
 		} break;
-		case MP_MOUSE_CURSOR_RESIZE_0:
+		case OC_MOUSE_CURSOR_RESIZE_0:
 		{
-			__mpApp.osx.cursor = [[NSCursor class] performSelector:@selector(_windowResizeEastWestCursor)];
+			oc_appData.osx.cursor = [[NSCursor class] performSelector:@selector(_windowResizeEastWestCursor)];
 		} break;
-		case MP_MOUSE_CURSOR_RESIZE_90:
+		case OC_MOUSE_CURSOR_RESIZE_90:
 		{
-			__mpApp.osx.cursor = [[NSCursor class] performSelector:@selector(_windowResizeNorthSouthCursor)];
+			oc_appData.osx.cursor = [[NSCursor class] performSelector:@selector(_windowResizeNorthSouthCursor)];
 		} break;
-		case MP_MOUSE_CURSOR_RESIZE_45:
+		case OC_MOUSE_CURSOR_RESIZE_45:
 		{
-			__mpApp.osx.cursor = [[NSCursor class] performSelector:@selector(_windowResizeNorthEastSouthWestCursor)];
+			oc_appData.osx.cursor = [[NSCursor class] performSelector:@selector(_windowResizeNorthEastSouthWestCursor)];
 		} break;
-		case MP_MOUSE_CURSOR_RESIZE_135:
+		case OC_MOUSE_CURSOR_RESIZE_135:
 		{
-			__mpApp.osx.cursor = [[NSCursor class] performSelector:@selector(_windowResizeNorthWestSouthEastCursor)];
+			oc_appData.osx.cursor = [[NSCursor class] performSelector:@selector(_windowResizeNorthWestSouthEastCursor)];
 		} break;
-		case MP_MOUSE_CURSOR_TEXT:
+		case OC_MOUSE_CURSOR_TEXT:
 		{
-			__mpApp.osx.cursor = [NSCursor IBeamCursor];
+			oc_appData.osx.cursor = [NSCursor IBeamCursor];
 		} break;
 	}
-	[__mpApp.osx.cursor set];
+	[oc_appData.osx.cursor set];
 }
 
-void mp_clipboard_clear()
+void oc_clipboard_clear()
 {@autoreleasepool{
 	NSPasteboard* pb = [NSPasteboard generalPasteboard];
 	[pb clearContents];
 }}
 
-void mp_clipboard_set_string(str8 string)
+void oc_clipboard_set_string(oc_str8 string)
 {@autoreleasepool{
 
 	NSString* nsString = [[NSString alloc] initWithBytes:string.ptr length:string.len encoding:NSUTF8StringEncoding];
@@ -1239,33 +1196,33 @@ void mp_clipboard_set_string(str8 string)
 	[pb writeObjects:[[NSArray alloc] initWithObjects:nsString, nil]];
 }}
 
-str8 mp_clipboard_copy_string(str8 backing)
+oc_str8 oc_clipboard_copy_string(oc_str8 backing)
 {@autoreleasepool{
 	//WARN(martin): maxSize includes space for a null terminator
 
 	NSPasteboard* pb = [NSPasteboard generalPasteboard];
 	NSString* nsString = [pb stringForType:NSPasteboardTypeString];
 	const char* cString = [nsString UTF8String];
-	u32 len = minimum(backing.len-1, strlen(cString)); //length without null terminator
+	u32 len = oc_min(backing.len-1, strlen(cString)); //length without null terminator
 	strncpy(backing.ptr, cString, backing.len-1);
 	backing.ptr[len] = '\0';
 
-	str8 result = str8_slice(backing, 0, len);
+	oc_str8 result = oc_str8_slice(backing, 0, len);
 	return(result);
 }}
 
-str8 mp_clipboard_get_string(mem_arena* arena)
+oc_str8 oc_clipboard_get_string(oc_arena* arena)
 {@autoreleasepool{
 	//WARN(martin): maxSize includes space for a null terminator
 
 	NSPasteboard* pb = [NSPasteboard generalPasteboard];
 	NSString* nsString = [pb stringForType:NSPasteboardTypeString];
 	const char* cString = [nsString UTF8String];
-	str8 result = str8_push_cstring(arena, cString);
+	oc_str8 result = oc_str8_push_cstring(arena, cString);
 	return(result);
 }}
 
-bool mp_clipboard_has_tag(const char* tag)
+bool oc_clipboard_has_tag(const char* tag)
 {@autoreleasepool{
 
 	NSString* tagString = [[NSString alloc] initWithUTF8String: tag];
@@ -1277,7 +1234,7 @@ bool mp_clipboard_has_tag(const char* tag)
 	return(available != nil);
 }}
 
-void mp_clipboard_set_data_for_tag(const char* tag, str8 string)
+void oc_clipboard_set_data_for_tag(const char* tag, oc_str8 string)
 {@autoreleasepool{
 
 	NSString* tagString = [[NSString alloc] initWithUTF8String: tag];
@@ -1289,14 +1246,14 @@ void mp_clipboard_set_data_for_tag(const char* tag, str8 string)
 	[pb setData: nsData forType: tagString];
 }}
 
-str8 mp_clipboard_get_data_for_tag(mem_arena* arena, const char* tag)
+oc_str8 oc_clipboard_get_data_for_tag(oc_arena* arena, const char* tag)
 {@autoreleasepool{
 
 	NSString* tagString = [[NSString alloc] initWithUTF8String: tag];
 
 	NSPasteboard* pb = [NSPasteboard generalPasteboard];
 	NSData* nsData = [pb dataForType: tagString];
-	str8 result = str8_push_buffer(arena, [nsData length], (char*)[nsData bytes]);
+	oc_str8 result = oc_str8_push_buffer(arena, [nsData length], (char*)[nsData bytes]);
 	return(result);
 }}
 
@@ -1305,20 +1262,20 @@ str8 mp_clipboard_get_data_for_tag(mem_arena* arena, const char* tag)
 // Window public API
 //---------------------------------------------------------------
 
-mp_window mp_window_create(mp_rect contentRect, const char* title, mp_window_style style)
+oc_window oc_window_create(oc_rect contentRect, oc_str8 title, oc_window_style style)
 {@autoreleasepool{
-	mp_window_data* window = mp_window_alloc();
+	oc_window_data* window = oc_window_alloc();
 	if(!window)
 	{
-		log_error("Could not allocate window data\n");
-		return((mp_window){0});
+		oc_log_error("Could not allocate window data\n");
+		return((oc_window){0});
 	}
 
 	window->style = style;
 	window->shouldClose = false;
 	window->hidden = true;
 
-	u32 styleMask = mp_osx_get_window_style_mask(style);
+	u32 styleMask = oc_osx_get_window_style_mask(style);
 
 	NSRect screenRect = [[NSScreen mainScreen] frame];
 	NSRect rect = NSMakeRect(contentRect.x,
@@ -1326,31 +1283,34 @@ mp_window mp_window_create(mp_rect contentRect, const char* title, mp_window_sty
 				 contentRect.w,
 				 contentRect.h);
 
-	window->osx.nsWindow = [[MPNativeWindow alloc] initWithMPWindow: window contentRect:rect styleMask:styleMask];
-	window->osx.nsWindowDelegate = [[MPNativeWindowDelegate alloc] initWithMPWindow:window];
+	window->osx.nsWindow = [[OCWindow alloc] initWithWindowData: window contentRect:rect styleMask:styleMask];
+	window->osx.nsWindowDelegate = [[OCWindowDelegate alloc] initWithWindowData:window];
 
 	[window->osx.nsWindow setDelegate:(id)window->osx.nsWindowDelegate];
-	[window->osx.nsWindow setTitle:[NSString stringWithUTF8String:title]];
 
-	if(style & MP_WINDOW_STYLE_NO_TITLE)
+
+
+	[window->osx.nsWindow setTitle:[[NSString alloc] initWithBytes:(void*)title.ptr length: title.len encoding: NSUTF8StringEncoding]];
+
+	if(style & OC_WINDOW_STYLE_NO_TITLE)
 	{
 		[window->osx.nsWindow setOpaque:NO];
 		[window->osx.nsWindow setBackgroundColor:[NSColor clearColor]];
 		[window->osx.nsWindow setHasShadow:YES];
 	}
-	if(style & MP_WINDOW_STYLE_FLOAT)
+	if(style & OC_WINDOW_STYLE_FLOAT)
 	{
 		[window->osx.nsWindow setLevel:NSFloatingWindowLevel];
 		[window->osx.nsWindow setHidesOnDeactivate:YES];
 	}
-	if(style & MP_WINDOW_STYLE_NO_BUTTONS)
+	if(style & OC_WINDOW_STYLE_NO_BUTTONS)
 	{
 		[[window->osx.nsWindow standardWindowButton:NSWindowCloseButton] setHidden:YES];
 		[[window->osx.nsWindow standardWindowButton:NSWindowMiniaturizeButton] setHidden:YES];
 		[[window->osx.nsWindow standardWindowButton:NSWindowZoomButton] setHidden:YES];
 	}
 
-	MPNativeView* view = [[MPNativeView alloc] initWithMPWindow:window];
+	OCView* view = [[OCView alloc] initWithWindowData:window];
 	[view setCanDrawConcurrently: YES];
 
 	[window->osx.nsWindow setContentView:view];
@@ -1358,15 +1318,15 @@ mp_window mp_window_create(mp_rect contentRect, const char* title, mp_window_sty
 	[window->osx.nsWindow setAcceptsMouseMovedEvents:YES];
 
 
-	mp_window windowHandle = mp_window_handle_from_ptr(window);
+	oc_window windowHandle = oc_window_handle_from_ptr(window);
 
 	return(windowHandle);
 }//autoreleasepool
 }
 
-void mp_window_destroy(mp_window window)
+void oc_window_destroy(oc_window window)
 {@autoreleasepool{
-	mp_window_data* windowData = mp_window_ptr_from_handle(window);
+	oc_window_data* windowData = oc_window_ptr_from_handle(window);
 	if(windowData)
 	{
 		[windowData->osx.nsWindow orderOut:nil];
@@ -1380,14 +1340,14 @@ void mp_window_destroy(mp_window window)
 
 		[windowData->osx.nsWindow close]; //also release the window
 
-		mp_window_recycle_ptr(windowData);
+		oc_window_recycle_ptr(windowData);
 	}
 } // autoreleasepool
 }
 
-bool mp_window_should_close(mp_window window)
+bool oc_window_should_close(oc_window window)
 {
-	mp_window_data* windowData = mp_window_ptr_from_handle(window);
+	oc_window_data* windowData = oc_window_ptr_from_handle(window);
 	if(windowData)
 	{
 		return(windowData->shouldClose);
@@ -1398,18 +1358,18 @@ bool mp_window_should_close(mp_window window)
 	}
 }
 
-void mp_window_cancel_close(mp_window window)
+void oc_window_cancel_close(oc_window window)
 {
-	mp_window_data* windowData = mp_window_ptr_from_handle(window);
+	oc_window_data* windowData = oc_window_ptr_from_handle(window);
 	if(windowData)
 	{
 		windowData->shouldClose = false;
 	}
 }
 
-void mp_window_request_close(mp_window window)
+void oc_window_request_close(oc_window window)
 {
-	mp_window_data* windowData = mp_window_ptr_from_handle(window);
+	oc_window_data* windowData = oc_window_ptr_from_handle(window);
 	if(windowData)
 	{
 		[windowData->osx.nsWindow close];
@@ -1417,9 +1377,9 @@ void mp_window_request_close(mp_window window)
 	}
 }
 
-void* mp_window_native_pointer(mp_window window)
+void* oc_window_native_pointer(oc_window window)
 {
-	mp_window_data* windowData = mp_window_ptr_from_handle(window);
+	oc_window_data* windowData = oc_window_ptr_from_handle(window);
 	if(windowData)
 	{
 		return((__bridge void*)windowData->osx.nsWindow);
@@ -1430,18 +1390,18 @@ void* mp_window_native_pointer(mp_window window)
 	}
 }
 
-void mp_window_center(mp_window window)
+void oc_window_center(oc_window window)
 {@autoreleasepool{
-	mp_window_data* windowData = mp_window_ptr_from_handle(window);
+	oc_window_data* windowData = oc_window_ptr_from_handle(window);
 	if(windowData)
 	{
 		[windowData->osx.nsWindow center];
 	}
 }}
 
-bool mp_window_is_hidden(mp_window window)
+bool oc_window_is_hidden(oc_window window)
 {
-	mp_window_data* windowData = mp_window_ptr_from_handle(window);
+	oc_window_data* windowData = oc_window_ptr_from_handle(window);
 	if(windowData)
 	{
 		return(windowData->hidden);
@@ -1452,9 +1412,9 @@ bool mp_window_is_hidden(mp_window window)
 	}
 }
 
-bool mp_window_is_focused(mp_window window)
+bool oc_window_is_focused(oc_window window)
 {@autoreleasepool{
-	mp_window_data* windowData = mp_window_ptr_from_handle(window);
+	oc_window_data* windowData = oc_window_ptr_from_handle(window);
 	if(windowData)
 	{
 		return([windowData->osx.nsWindow isKeyWindow]);
@@ -1465,9 +1425,9 @@ bool mp_window_is_focused(mp_window window)
 	}
 }}
 
-void mp_window_hide(mp_window window)
+void oc_window_hide(oc_window window)
 {@autoreleasepool{
-	mp_window_data* windowData = mp_window_ptr_from_handle(window);
+	oc_window_data* windowData = oc_window_ptr_from_handle(window);
 	if(windowData)
 	{
 		windowData->hidden = true;
@@ -1475,27 +1435,27 @@ void mp_window_hide(mp_window window)
 	}
 }}
 
-void mp_window_focus(mp_window window)
+void oc_window_focus(oc_window window)
 {@autoreleasepool{
-	mp_window_data* windowData = mp_window_ptr_from_handle(window);
+	oc_window_data* windowData = oc_window_ptr_from_handle(window);
 	if(windowData)
 	{
 		[windowData->osx.nsWindow makeKeyWindow];
 	}
 }}
 
-void mp_window_send_to_back(mp_window window)
+void oc_window_send_to_back(oc_window window)
 {@autoreleasepool{
-	mp_window_data* windowData = mp_window_ptr_from_handle(window);
+	oc_window_data* windowData = oc_window_ptr_from_handle(window);
 	if(windowData)
 	{
 		[windowData->osx.nsWindow orderBack:nil];
 	}
 }}
 
-void mp_window_bring_to_front(mp_window window)
+void oc_window_bring_to_front(oc_window window)
 {@autoreleasepool{
-	mp_window_data* windowData = mp_window_ptr_from_handle(window);
+	oc_window_data* windowData = oc_window_ptr_from_handle(window);
 	if(windowData)
 	{
 		windowData->hidden = false;
@@ -1503,22 +1463,22 @@ void mp_window_bring_to_front(mp_window window)
 	}
 }}
 
-void mp_window_bring_to_front_and_focus(mp_window window)
+void oc_window_bring_to_front_and_focus(oc_window window)
 {
-	mp_window_bring_to_front(window);
-	mp_window_focus(window);
+	oc_window_bring_to_front(window);
+	oc_window_focus(window);
 }
 
-mp_rect mp_window_get_frame_rect(mp_window window)
+oc_rect oc_window_get_frame_rect(oc_window window)
 {
-	mp_rect rect = {0};
-	mp_window_data* windowData = mp_window_ptr_from_handle(window);
+	oc_rect rect = {0};
+	oc_window_data* windowData = oc_window_ptr_from_handle(window);
 	if(windowData)
 	{
 		NSRect frameRect = windowData->osx.nsWindow.frame;
 		NSScreen* screen = windowData->osx.nsWindow.screen;
 
-		rect = (mp_rect){
+		rect = (oc_rect){
 			frameRect.origin.x,
 			screen.frame.size.height - frameRect.origin.y - frameRect.size.height,
 			frameRect.size.width,
@@ -1528,9 +1488,9 @@ mp_rect mp_window_get_frame_rect(mp_window window)
 	return(rect);
 }
 
-void mp_window_set_frame_rect(mp_window window, mp_rect rect)
+void oc_window_set_frame_rect(oc_window window, oc_rect rect)
 {@autoreleasepool{
-	mp_window_data* windowData = mp_window_ptr_from_handle(window);
+	oc_window_data* windowData = oc_window_ptr_from_handle(window);
 	if(windowData)
 	{
 		NSScreen* screen = windowData->osx.nsWindow.screen;
@@ -1544,16 +1504,16 @@ void mp_window_set_frame_rect(mp_window window, mp_rect rect)
 	}
 }}
 
-mp_rect mp_window_get_content_rect(mp_window window)
+oc_rect oc_window_get_content_rect(oc_window window)
 {@autoreleasepool{
-	mp_window_data* windowData = mp_window_ptr_from_handle(window);
+	oc_window_data* windowData = oc_window_ptr_from_handle(window);
 	if(windowData)
 	{
 		NSScreen* screen = [windowData->osx.nsWindow screen];
 		NSView* view = [windowData->osx.nsWindow contentView];
 		NSRect contentRect = [windowData->osx.nsWindow convertRectToScreen: view.frame];
 
-		mp_rect rect = {
+		oc_rect rect = {
 			contentRect.origin.x,
 			screen.frame.size.height - contentRect.origin.y - contentRect.size.height,
 			contentRect.size.width,
@@ -1563,14 +1523,14 @@ mp_rect mp_window_get_content_rect(mp_window window)
 	}
 	else
 	{
-		return((mp_rect){});
+		return((oc_rect){});
 	}
 }}
 
-void mp_window_set_content_rect(mp_window window, mp_rect rect)
+void oc_window_set_content_rect(oc_window window, oc_rect rect)
 {@autoreleasepool{
 
-	mp_window_data* windowData = mp_window_ptr_from_handle(window);
+	oc_window_data* windowData = oc_window_ptr_from_handle(window);
 	if(windowData)
 	{
 		NSScreen* screen = [windowData->osx.nsWindow screen];
@@ -1590,31 +1550,31 @@ void mp_window_set_content_rect(mp_window window, mp_rect rect)
 // platform surface
 //--------------------------------------------------------------------
 
-void* mg_osx_surface_native_layer(mg_surface_data* surface)
+void* oc_osx_surface_native_layer(oc_surface_data* surface)
 {
 	return((void*)surface->layer.caLayer);
 }
 
-vec2 mg_osx_surface_contents_scaling(mg_surface_data* surface)
+oc_vec2 oc_osx_surface_contents_scaling(oc_surface_data* surface)
 {@autoreleasepool{
 	f32 contentsScale = [surface->layer.caLayer contentsScale];
-	vec2 res = {contentsScale, contentsScale};
+	oc_vec2 res = {contentsScale, contentsScale};
 	return(res);
 }}
 
-vec2 mg_osx_surface_get_size(mg_surface_data* surface)
+oc_vec2 oc_osx_surface_get_size(oc_surface_data* surface)
 {@autoreleasepool{
 	CGRect bounds = surface->layer.caLayer.bounds;
-	vec2 res = {bounds.size.width, bounds.size.height};
+	oc_vec2 res = {bounds.size.width, bounds.size.height};
 	return(res);
 }}
 
-bool mg_osx_surface_get_hidden(mg_surface_data* surface)
+bool oc_osx_surface_get_hidden(oc_surface_data* surface)
 {@autoreleasepool{
 	return([surface->layer.caLayer isHidden]);
 }}
 
-void mg_osx_surface_set_hidden(mg_surface_data* surface, bool hidden)
+void oc_osx_surface_set_hidden(oc_surface_data* surface, bool hidden)
 {@autoreleasepool{
 	[CATransaction begin];
 	[CATransaction setDisableActions:YES];
@@ -1622,18 +1582,18 @@ void mg_osx_surface_set_hidden(mg_surface_data* surface, bool hidden)
 	[CATransaction commit];
 }}
 
-void mg_surface_cleanup(mg_surface_data* surface)
+void oc_surface_cleanup(oc_surface_data* surface)
 {@autoreleasepool{
 	[surface->layer.caLayer release];
 }}
 
-void mg_surface_init_for_window(mg_surface_data* surface, mp_window_data* window)
+void oc_surface_init_for_window(oc_surface_data* surface, oc_window_data* window)
 {@autoreleasepool{
-	surface->nativeLayer = mg_osx_surface_native_layer;
-	surface->contentsScaling = mg_osx_surface_contents_scaling;
-	surface->getSize = mg_osx_surface_get_size;
-	surface->getHidden = mg_osx_surface_get_hidden;
-	surface->setHidden = mg_osx_surface_set_hidden;
+	surface->nativeLayer = oc_osx_surface_native_layer;
+	surface->contentsScaling = oc_osx_surface_contents_scaling;
+	surface->getSize = oc_osx_surface_get_size;
+	surface->getHidden = oc_osx_surface_get_hidden;
+	surface->setHidden = oc_osx_surface_set_hidden;
 
 	surface->layer.caLayer = [[CALayer alloc] init];
 	[surface->layer.caLayer retain];
@@ -1651,28 +1611,28 @@ void mg_surface_init_for_window(mg_surface_data* surface, mp_window_data* window
 //------------------------------------------------------------------------------------------------
 // Remote surfaces
 //------------------------------------------------------------------------------------------------
-mg_surface_id mg_osx_surface_remote_id(mg_surface_data* surface)
+oc_surface_id oc_osx_surface_remote_id(oc_surface_data* surface)
 {
-	mg_surface_id remoteID = 0;
+	oc_surface_id remoteID = 0;
 	if(surface->layer.caContext)
 	{
 		@autoreleasepool
 		{
-			remoteID = (mg_surface_id)[surface->layer.caContext contextId];
+			remoteID = (oc_surface_id)[surface->layer.caContext contextId];
 		}
 	}
 	return(remoteID);
 }
 
-void mg_surface_init_remote(mg_surface_data* surface, u32 width, u32 height)
+void oc_surface_init_remote(oc_surface_data* surface, u32 width, u32 height)
 {@autoreleasepool{
 
-	surface->nativeLayer = mg_osx_surface_native_layer;
-	surface->contentsScaling = mg_osx_surface_contents_scaling;
-	surface->getSize = mg_osx_surface_get_size;
-	surface->getHidden = mg_osx_surface_get_hidden;
-	surface->setHidden = mg_osx_surface_set_hidden;
-	surface->remoteID = mg_osx_surface_remote_id;
+	surface->nativeLayer = oc_osx_surface_native_layer;
+	surface->contentsScaling = oc_osx_surface_contents_scaling;
+	surface->getSize = oc_osx_surface_get_size;
+	surface->getHidden = oc_osx_surface_get_hidden;
+	surface->setHidden = oc_osx_surface_set_hidden;
+	surface->remoteID = oc_osx_surface_remote_id;
 
 	surface->layer.caLayer = [[CALayer alloc] init];
 	[surface->layer.caLayer retain];
@@ -1685,21 +1645,21 @@ void mg_surface_init_remote(mg_surface_data* surface, u32 width, u32 height)
 	[surface->layer.caContext setLayer:surface->layer.caLayer];
 }}
 
-void mg_osx_surface_host_connect(mg_surface_data* surface, mg_surface_id remoteID)
+void oc_osx_surface_host_connect(oc_surface_data* surface, oc_surface_id remoteID)
 {@autoreleasepool{
 	[(CALayerHost*)surface->layer.caLayer setContextId: (CAContextID)remoteID];
 }}
 
-void mg_surface_init_host(mg_surface_data* surface, mp_window_data* window)
+void oc_surface_init_host(oc_surface_data* surface, oc_window_data* window)
 {@autoreleasepool{
 
-	surface->api = MG_HOST;
-	surface->nativeLayer = mg_osx_surface_native_layer;
-	surface->contentsScaling = mg_osx_surface_contents_scaling;
-	surface->getSize = mg_osx_surface_get_size;
-	surface->getHidden = mg_osx_surface_get_hidden;
-	surface->setHidden = mg_osx_surface_set_hidden;
-	surface->hostConnect = mg_osx_surface_host_connect;
+	surface->api = OC_HOST;
+	surface->nativeLayer = oc_osx_surface_native_layer;
+	surface->contentsScaling = oc_osx_surface_contents_scaling;
+	surface->getSize = oc_osx_surface_get_size;
+	surface->getHidden = oc_osx_surface_get_hidden;
+	surface->setHidden = oc_osx_surface_set_hidden;
+	surface->hostConnect = oc_osx_surface_host_connect;
 
 	surface->layer.caLayer = [[CALayerHost alloc] init];
 	[surface->layer.caLayer retain];
@@ -1711,16 +1671,16 @@ void mg_surface_init_host(mg_surface_data* surface, mp_window_data* window)
 	[window->osx.nsView.layer addSublayer: surface->layer.caLayer];
 }}
 
-mg_surface_data* mg_osx_surface_create_host(mp_window windowHandle)
+oc_surface_data* oc_osx_surface_create_host(oc_window windowHandle)
 {
-	mg_surface_data* surface = 0;
-	mp_window_data* window = mp_window_ptr_from_handle(windowHandle);
+	oc_surface_data* surface = 0;
+	oc_window_data* window = oc_window_ptr_from_handle(windowHandle);
 	if(window)
 	{
-		surface = malloc_type(mg_surface_data);
+		surface = oc_malloc_type(oc_surface_data);
 		if(surface)
 		{
-			mg_surface_init_host(surface, window);
+			oc_surface_init_host(surface, window);
 		}
 	}
 	return(surface);
@@ -1730,20 +1690,20 @@ mg_surface_data* mg_osx_surface_create_host(mp_window windowHandle)
 // view management
 //--------------------------------------------------------------------
 /*
-mp_view mp_view_create(mp_window windowHandle, mp_rect frame)
+oc_view oc_view_create(oc_window windowHandle, oc_rect frame)
 {@autoreleasepool{
-	mp_window_data* window = mp_window_ptr_from_handle(windowHandle);
+	oc_window_data* window = oc_window_ptr_from_handle(windowHandle);
 	if(!window)
 	{
-		log_error("Can't create view for nil window\n");
-		return(mp_view_nil());
+		oc_log_error("Can't create view for nil window\n");
+		return(oc_view_nil());
 	}
 
-	mp_view_data* view = mp_view_alloc();
+	oc_view_data* view = oc_view_alloc();
 	if(!view)
 	{
-		log_error("Could not allocate view data\n");
-		return(mp_view_nil());
+		oc_log_error("Could not allocate view data\n");
+		return(oc_view_nil());
 	}
 
 	view->window = windowHandle;
@@ -1754,18 +1714,18 @@ mp_view mp_view_create(mp_window windowHandle, mp_rect frame)
 
 	[[window->osx.nsWindow contentView] addSubview: view->nsView];
 
-	return(mp_view_handle_from_ptr(view));
+	return(oc_view_handle_from_ptr(view));
 }}
 
-void mp_view_destroy(mp_view viewHandle)
+void oc_view_destroy(oc_view viewHandle)
 {@autoreleasepool{
-	mp_view_data* view = mp_view_ptr_from_handle(viewHandle);
+	oc_view_data* view = oc_view_ptr_from_handle(viewHandle);
 	if(!view)
 	{
 		return;
 	}
 
-	mp_window_data* window = mp_window_ptr_from_handle(view->window);
+	oc_window_data* window = oc_window_ptr_from_handle(view->window);
 	if(!window)
 	{
 		return;
@@ -1773,12 +1733,12 @@ void mp_view_destroy(mp_view viewHandle)
 
 	[view->nsView removeFromSuperview];
 
-	mp_view_recycle_ptr(view);
+	oc_view_recycle_ptr(view);
 }}
 
-void mp_view_set_frame(mp_view viewHandle, mp_rect frame)
+void oc_view_set_frame(oc_view viewHandle, oc_rect frame)
 {
-	mp_view_data* view = mp_view_ptr_from_handle(viewHandle);
+	oc_view_data* view = oc_view_ptr_from_handle(viewHandle);
 	if(!view)
 	{
 		return;
@@ -1787,9 +1747,9 @@ void mp_view_set_frame(mp_view viewHandle, mp_rect frame)
 	NSRect nsFrame = {{frame.x, frame.y}, {frame.w, frame.h}};
 	[view->nsView setFrame: nsFrame];
 
-	if(!mg_surface_is_nil(view->surface))
+	if(!oc_surface_is_nil(view->surface))
 	{
-		mg_surface_resize(view->surface, frame.w, frame.h);
+		oc_surface_resize(view->surface, frame.w, frame.h);
 	}
 }
 */
@@ -1797,50 +1757,50 @@ void mp_view_set_frame(mp_view viewHandle, mp_rect frame)
 // Main loop throttle
 //--------------------------------------------------------------------
 
-void mp_set_target_fps(u32 fps)
+void oc_set_target_fps(u32 fps)
 {
-	__mpApp.frameStats.targetFramePeriod = 1./(f64)fps;
-	__mpApp.frameStats.workTime = 0;
-	__mpApp.frameStats.remainingTime = 0;
+	oc_appData.frameStats.targetFramePeriod = 1./(f64)fps;
+	oc_appData.frameStats.workTime = 0;
+	oc_appData.frameStats.remainingTime = 0;
 
-	if(__mpApp.osx.frameTimer)
+	if(oc_appData.osx.frameTimer)
 	{
-		[__mpApp.osx.frameTimer invalidate];
+		[oc_appData.osx.frameTimer invalidate];
 	}
 
-	__mpApp.osx.frameTimer = [NSTimer timerWithTimeInterval: __mpApp.frameStats.targetFramePeriod
+	oc_appData.osx.frameTimer = [NSTimer timerWithTimeInterval: oc_appData.frameStats.targetFramePeriod
 	                          target: [NSApp delegate]
 				  selector:@selector(timerElapsed:)
 				  userInfo:nil
 				  repeats:YES];
 
-	[[NSRunLoop currentRunLoop] addTimer:__mpApp.osx.frameTimer forMode:NSRunLoopCommonModes];
+	[[NSRunLoop currentRunLoop] addTimer:oc_appData.osx.frameTimer forMode:NSRunLoopCommonModes];
 }
 /*
-void mp_begin_frame()
+void oc_begin_frame()
 {
-	__mpApp.frameStats.start = mp_get_elapsed_seconds();
+	oc_appData.frameStats.start = oc_get_elapsed_seconds();
 
 	LOG_DEBUG("workTime = %.6f (%.6f fps), remaining = %.6f\n",
-	             __mpApp.frameStats.workTime,
-	             1/__mpApp.frameStats.workTime,
-	             __mpApp.frameStats.remainingTime);
+	             oc_appData.frameStats.workTime,
+	             1/oc_appData.frameStats.workTime,
+	             oc_appData.frameStats.remainingTime);
 
 }
 
-void mp_end_frame()
+void oc_end_frame()
 {
-	__mpApp.frameStats.workTime = mp_get_elapsed_seconds() - __mpApp.frameStats.start;
-	__mpApp.frameStats.remainingTime = __mpApp.frameStats.targetFramePeriod - __mpApp.frameStats.workTime;
+	oc_appData.frameStats.workTime = oc_get_elapsed_seconds() - oc_appData.frameStats.start;
+	oc_appData.frameStats.remainingTime = oc_appData.frameStats.targetFramePeriod - oc_appData.frameStats.workTime;
 
-	while(__mpApp.frameStats.remainingTime > 100e-9)
+	while(oc_appData.frameStats.remainingTime > 100e-9)
 	{
-		if(__mpApp.frameStats.remainingTime > 10e-6)
+		if(oc_appData.frameStats.remainingTime > 10e-6)
 		{
-			mp_sleep_nanoseconds(__mpApp.frameStats.remainingTime*0.8*1e9);
+			oc_sleep_nano(oc_appData.frameStats.remainingTime*0.8*1e9);
 		}
-		__mpApp.frameStats.workTime = mp_get_elapsed_seconds() - __mpApp.frameStats.start;
-		__mpApp.frameStats.remainingTime = __mpApp.frameStats.targetFramePeriod - __mpApp.frameStats.workTime;
+		oc_appData.frameStats.workTime = oc_get_elapsed_seconds() - oc_appData.frameStats.start;
+		oc_appData.frameStats.remainingTime = oc_appData.frameStats.targetFramePeriod - oc_appData.frameStats.workTime;
 	}
 }
 */
@@ -1849,14 +1809,14 @@ void mp_end_frame()
 // Events handling
 //--------------------------------------------------------------------
 
-void mp_set_live_resize_callback(mp_live_resize_callback callback, void* data)
+void oc_set_live_resize_callback(oc_live_resize_callback callback, void* data)
 {
-	__mpApp.liveResizeCallback = callback;
-	__mpApp.liveResizeData = data;
+	oc_appData.liveResizeCallback = callback;
+	oc_appData.liveResizeData = data;
 }
 
 
-void mp_pump_events(f64 timeout)
+void oc_pump_events(f64 timeout)
 {
 	@autoreleasepool
 	{
@@ -1900,7 +1860,7 @@ void mp_pump_events(f64 timeout)
 	}
 }
 
-i32 mp_dispatch_on_main_thread_sync(mp_window main_window, mp_dispatch_proc proc, void* user)
+i32 oc_dispatch_on_main_thread_sync(oc_window main_window, oc_dispatch_proc proc, void* user)
 {
 	__block i32 result = 0;
 	dispatch_block_t block = ^{
@@ -1923,12 +1883,11 @@ i32 mp_dispatch_on_main_thread_sync(mp_window main_window, mp_dispatch_proc proc
 // system dialogs windows
 //--------------------------------------------------------------------
 
-str8 mp_open_dialog(mem_arena* arena,
-                           const char* title,
-                           const char* defaultPath,
-                           int filterCount,
-                           const char** filters,
-                           bool directory)
+oc_str8 oc_open_dialog(oc_arena* arena,
+                       oc_str8 title,
+                       oc_str8 defaultPath,
+                       oc_str8_list filters,
+                       bool directory)
 {
 	@autoreleasepool
 	{
@@ -1937,13 +1896,15 @@ str8 mp_open_dialog(mem_arena* arena,
 		NSOpenPanel* dialog = [NSOpenPanel openPanel] ;
 		[dialog setLevel:CGShieldingWindowLevel()];
 
-		if(filterCount)
+		if(filters.eltCount)
 		{
 	 		NSMutableArray * fileTypesArray = [NSMutableArray array];
-			for(int i=0; i < filterCount; i++)
-			{
-				NSString * filt = [NSString stringWithUTF8String:filters[i]];
-				[fileTypesArray addObject:filt];
+
+	 		oc_list_for(&filters.list, elt, oc_str8_elt, listElt)
+	 		{
+				oc_str8 string = elt->string;
+				NSString * filter = [[NSString alloc] initWithBytes:string.ptr length:string.len encoding:NSUTF8StringEncoding];
+				[fileTypesArray addObject:filter];
 			}
 			[dialog setAllowedFileTypes:fileTypesArray];
 		}
@@ -1959,7 +1920,18 @@ str8 mp_open_dialog(mem_arena* arena,
 
 
 		[dialog setAllowsMultipleSelection:FALSE];
-		NSString* nsPath =  [[NSString stringWithUTF8String:defaultPath?defaultPath:"~"] stringByExpandingTildeInPath];
+
+		NSString* nsPath = 0;;
+		if(defaultPath.len)
+		{
+			nsPath = [[NSString alloc] initWithBytes: defaultPath.ptr length: defaultPath.len encoding: NSUTF8StringEncoding];
+		}
+		else
+		{
+			nsPath = [NSString stringWithUTF8String: "~"];
+		}
+		nsPath = [nsPath stringByExpandingTildeInPath];
+
 		[dialog setDirectoryURL:[NSURL fileURLWithPath:nsPath]];
 
 		// Display the dialog box. If the OK pressed,
@@ -1973,7 +1945,7 @@ str8 mp_open_dialog(mem_arena* arena,
 
 			const char* result = [[[files objectAtIndex:0] path] UTF8String];
 
-			str8 path = str8_push_cstring(arena, result);
+			oc_str8 path = oc_str8_push_cstring(arena, result);
 			[keyWindow makeKeyWindow];
 
 			return(path);
@@ -1981,17 +1953,15 @@ str8 mp_open_dialog(mem_arena* arena,
 		else
 		{
 			[keyWindow makeKeyWindow];
-			return((str8){0, 0});
+			return((oc_str8){0, 0});
 		}
 	}
 }
 
-
-str8 mp_save_dialog(mem_arena* arena,
-                           const char* title,
-                           const char* defaultPath,
-                           int filterCount,
-                           const char** filters)
+oc_str8 oc_save_dialog(oc_arena* arena,
+                       oc_str8 title,
+                       oc_str8 defaultPath,
+                       oc_str8_list filters)
 {
 	@autoreleasepool
 	{
@@ -2000,19 +1970,30 @@ str8 mp_save_dialog(mem_arena* arena,
 		NSSavePanel* dialog = [NSSavePanel savePanel] ;
 		[dialog setLevel:CGShieldingWindowLevel()];
 
-		if(filterCount)
+		if(filters.eltCount)
 		{
-		 	NSMutableArray * fileTypesArray = [NSMutableArray array];
-			for(int i=0; i < filterCount; i++)
-			{
-				NSString * filt = [NSString stringWithUTF8String:filters[i]];
-				[fileTypesArray addObject:filt];
-			}
+	 		NSMutableArray * fileTypesArray = [NSMutableArray array];
 
-			// Enable options in the dialog.
+	 		oc_list_for(&filters.list, elt, oc_str8_elt, listElt)
+	 		{
+				oc_str8 string = elt->string;
+				NSString * filter = [[NSString alloc] initWithBytes:string.ptr length:string.len encoding:NSUTF8StringEncoding];
+				[fileTypesArray addObject:filter];
+			}
 			[dialog setAllowedFileTypes:fileTypesArray];
 		}
-		NSString* nsPath =  [[NSString stringWithUTF8String:defaultPath?defaultPath:"~"] stringByExpandingTildeInPath];
+
+		NSString* nsPath = 0;;
+		if(defaultPath.len)
+		{
+			nsPath = [[NSString alloc] initWithBytes: defaultPath.ptr length: defaultPath.len encoding: NSUTF8StringEncoding];
+		}
+		else
+		{
+			nsPath = [NSString stringWithUTF8String: "~"];
+		}
+		nsPath = [nsPath stringByExpandingTildeInPath];
+
 		[dialog setDirectoryURL:[NSURL fileURLWithPath:nsPath]];
 
 		// Display the dialog box. If the OK pressed,
@@ -2026,22 +2007,21 @@ str8 mp_save_dialog(mem_arena* arena,
 
 			const char* result = [[files path] UTF8String];
 
-			str8 path = str8_push_cstring(arena, result);
+			oc_str8 path = oc_str8_push_cstring(arena, result);
 			[keyWindow makeKeyWindow];
 			return(path);
 		}
 		else
 		{
 			[keyWindow makeKeyWindow];
-			return((str8){0, 0});
+			return((oc_str8){0, 0});
 		}
 	}
 }
 
-int mp_alert_popup(const char* title,
-                   const char* message,
-                   uint32 count,
-                   const char** options)
+int oc_alert_popup(oc_str8 title,
+                   oc_str8 message,
+                   oc_str8_list options)
 {
 	__block int result = 0;
 
@@ -2052,22 +2032,23 @@ int mp_alert_popup(const char* title,
 
 			NSAlert* alert = [[NSAlert alloc] init];
 			NSString* string;
-			for(int i=count-1;i>=0;i--)
+
+			oc_list_for_reverse((oc_list*)&options.list, elt, oc_str8_elt, listElt)
 			{
-				string = [[NSString alloc] initWithUTF8String:options[i]];
+				string = [[NSString alloc] initWithBytes:elt->string.ptr length:elt->string.len encoding: NSUTF8StringEncoding];
 				[alert addButtonWithTitle:string];
 				[string release];
 			}
-			string = [[NSString alloc] initWithUTF8String:title];
+			string = [[NSString alloc] initWithBytes:title.ptr length:title.len encoding: NSUTF8StringEncoding];
 			[alert setMessageText:string];
 			[string release];
 
-			string = [[NSString alloc] initWithUTF8String:message];
+			string = [[NSString alloc] initWithBytes: message.ptr length: message.len encoding: NSUTF8StringEncoding];
 			[alert setInformativeText:string];
 			[string release];
 
 			[alert setAlertStyle:NSAlertStyleWarning];
-			result = count - ([alert runModal]-NSAlertFirstButtonReturn) - 1;
+			result = options.eltCount - ([alert runModal]-NSAlertFirstButtonReturn) - 1;
 			[keyWindow makeKeyWindow];
 		}
 	};
@@ -2088,7 +2069,7 @@ int mp_alert_popup(const char* title,
 // file system stuff... //TODO: move elsewhere
 //--------------------------------------------------------------------
 
-int mp_file_move(str8 from, str8 to)
+int oc_file_move(oc_str8 from, oc_str8 to)
 {@autoreleasepool{
 	NSString* nsFrom = [[NSString alloc] initWithBytes:from.ptr length:from.len encoding: NSUTF8StringEncoding];
 	NSString* nsTo = [[NSString alloc] initWithBytes:to.ptr length:to.len encoding: NSUTF8StringEncoding];
@@ -2103,7 +2084,7 @@ int mp_file_move(str8 from, str8 to)
 	}
 }}
 
-int mp_file_remove(str8 path)
+int oc_file_remove(oc_str8 path)
 {@autoreleasepool{
 	NSString* nsPath = [[NSString alloc] initWithBytes:path.ptr length:path.len encoding: NSUTF8StringEncoding];
 	NSError* err;
@@ -2117,7 +2098,7 @@ int mp_file_remove(str8 path)
 	}
 }}
 
-int mp_directory_create(str8 path)
+int oc_directory_create(oc_str8 path)
 {@autoreleasepool{
 
 	NSString* nsPath = [[NSString alloc] initWithBytes:path.ptr length:path.len encoding: NSUTF8StringEncoding];

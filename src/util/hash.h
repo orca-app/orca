@@ -16,13 +16,13 @@
 extern "C" {
 #endif
 
-MP_API u64 mp_hash_aes_u64(u64 x);
-MP_API u64 mp_hash_aes_u64_x2(u64 x, u64 y);
-MP_API u64 mp_hash_aes_string(str8 string);
-MP_API u64 mp_hash_aes_string_seed(str8 string, u64 seed);
+ORCA_API u64 oc_hash_aes_u64(u64 x);
+ORCA_API u64 oc_hash_aes_u64_x2(u64 x, u64 y);
+ORCA_API u64 oc_hash_aes_string(oc_str8 string);
+ORCA_API u64 oc_hash_aes_string_seed(oc_str8 string, u64 seed);
 
-MP_API u64 mp_hash_xx64_string_seed(str8 string, u64 seed);
-MP_API u64 mp_hash_xx64_string(str8 string);
+ORCA_API u64 oc_hash_xx64_string_seed(oc_str8 string, u64 seed);
+ORCA_API u64 oc_hash_xx64_string(oc_str8 string);
 
 
 #ifdef __cplusplus

@@ -6,12 +6,12 @@ layout(std430) buffer;
 
 layout(binding = 0) restrict readonly buffer pathBufferSSBO
 {
-	mg_gl_path elements[];
+	oc_gl_path elements[];
 } pathBuffer;
 
 layout(binding = 1) restrict writeonly buffer pathQueueBufferSSBO
 {
-	mg_gl_path_queue elements[];
+	oc_gl_path_queue elements[];
 } pathQueueBuffer;
 
 layout(binding = 2) coherent restrict buffer tileQueueCountBufferSSBO
@@ -21,7 +21,7 @@ layout(binding = 2) coherent restrict buffer tileQueueCountBufferSSBO
 
 layout(binding = 3) restrict writeonly buffer tileQueueBufferSSBO
 {
-	mg_gl_tile_queue elements[];
+	oc_gl_tile_queue elements[];
 } tileQueueBuffer;
 
 layout(location = 0) uniform int tileSize;
@@ -32,7 +32,7 @@ layout(location = 3) uniform int pathQueueBufferStart;
 void main()
 {
 	uint pathIndex = gl_WorkGroupID.x;
-	const mg_gl_path path = pathBuffer.elements[pathIndex + pathBufferStart];
+	const oc_gl_path path = pathBuffer.elements[pathIndex + pathBufferStart];
 
 	//NOTE: we don't clip on the right, since we need those tiles to accurately compute
 	//      the prefix sum of winding increments in the backprop pass.

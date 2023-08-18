@@ -9,58 +9,54 @@
 #define __DEBUG_H_
 
 #include"platform/platform_debug.h"
-#include"util/macro_helpers.h"
+#include"util/macros.h"
 
 //----------------------------------------------------------------
 // Logging
 //----------------------------------------------------------------
-#define log_generic(level, msg, ...) log_push(level, __FUNCTION__, __FILE__, __LINE__, msg, ##__VA_ARGS__)
+#define oc_log_generic(level, msg, ...) oc_log_ext(level, __FUNCTION__, __FILE__, __LINE__, msg, ##__VA_ARGS__)
 
-#define log_error(msg, ...) log_generic(LOG_LEVEL_ERROR, msg, ##__VA_ARGS__)
+#define oc_log_error(msg, ...) oc_log_generic(OC_LOG_LEVEL_ERROR, msg, ##__VA_ARGS__)
 
-#ifndef LOG_COMPILE_WARNING
-	#define LOG_COMPILE_WARNING 1
+#ifndef OC_LOG_COMPILE_WARNING
+	#define OC_LOG_COMPILE_WARNING 1
 #endif
 
-#ifndef LOG_COMPILE_INFO
-	#define LOG_COMPILE_INFO 1
+#ifndef OC_LOG_COMPILE_INFO
+	#define OC_LOG_COMPILE_INFO 1
 #endif
 
-#if LOG_COMPILE_WARNING || LOG_COMPILE_INFO
-	#define log_warning(msg, ...) log_generic(LOG_LEVEL_WARNING, msg, ##__VA_ARGS__)
+#if OC_LOG_COMPILE_WARNING || OC_LOG_COMPILE_INFO
+	#define oc_log_warning(msg, ...) oc_log_generic(OC_LOG_LEVEL_WARNING, msg, ##__VA_ARGS__)
 
-	#if LOG_COMPILE_INFO
-		#define log_info(msg, ...) log_generic(LOG_LEVEL_INFO, msg, ##__VA_ARGS__ )
+	#if OC_LOG_COMPILE_INFO
+		#define oc_log_info(msg, ...) oc_log_generic(OC_LOG_LEVEL_INFO, msg, ##__VA_ARGS__ )
 	#else
-		#define log_info(msg, ...)
+		#define oc_log_info(msg, ...)
 	#endif
 #else
-	#define log_warning(msg, ...)
-	#define log_info(msg, ...)
+	#define oc_log_warning(msg, ...)
+	#define oc_log_info(msg, ...)
 #endif
 
 //----------------------------------------------------------------
 // Abort/Assert
 //----------------------------------------------------------------
 
-#define ORCA_ABORT(fmt, ...) orca_abort(__FILE__, __FUNCTION__, __LINE__, fmt, ##__VA_ARGS__)
+#define OC_ABORT(fmt, ...) oc_abort_ext(__FILE__, __FUNCTION__, __LINE__, fmt, ##__VA_ARGS__)
 
-#define _ORCA_ASSERT_(test, fmt, ...) ((test) || (orca_assert_fail(__FILE__, __FUNCTION__, __LINE__, #test, fmt, ##__VA_ARGS__), 0))
-#define ORCA_ASSERT(test, ...) _ORCA_ASSERT_(test, ORCA_VA_NOPT("", ##__VA_ARGS__) ORCA_ARG1(__VA_ARGS__) ORCA_VA_COMMA_TAIL(__VA_ARGS__))
-
-
-#ifndef NO_ASSERT
-
-	#define ASSERT(x, ...) ORCA_ASSERT(x, #__VA_ARGS__)
-
-	#ifdef DEBUG
-		#define DEBUG_ASSERT(x, ...) ASSERT(x, ##__VA_ARGS__ )
-	#else
-		#define DEBUG_ASSERT(x, ...)
-	#endif
+#ifdef OC_NO_ASSERT
+	#define OC_ASSERT(x, ...)
+	#define OC_DEBUG_ASSERT(x, ...)
 #else
-	#define ASSERT(x, ...)
-	#define DEBUG_ASSERT(x, ...)
+	#define _OC_ASSERT_(test, fmt, ...) ((test) || (oc_assert_fail(__FILE__, __FUNCTION__, __LINE__, #test, fmt, ##__VA_ARGS__), 0))
+	#define OC_ASSERT(test, ...) _OC_ASSERT_(test, OC_VA_NOPT("", ##__VA_ARGS__) OC_ARG1(__VA_ARGS__) OC_VA_COMMA_TAIL(__VA_ARGS__))
+
+	#ifdef OC_DEBUG
+		#define OC_DEBUG_ASSERT(x, ...) OC_ASSERT(x, ##__VA_ARGS__ )
+	#else
+		#define OC_DEBUG_ASSERT(x, ...)
+	#endif
 #endif
 
 

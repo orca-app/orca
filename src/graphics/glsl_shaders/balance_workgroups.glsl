@@ -11,7 +11,7 @@ layout(binding = 0) coherent restrict readonly buffer screenTilesCountBufferSSBO
 
 layout(binding = 1) coherent restrict writeonly buffer dispatchBufferSSBO
 {
-	mg_gl_dispatch_indirect_command elements[];
+	oc_gl_dispatch_indirect_command elements[];
 } dispatchBuffer;
 
 

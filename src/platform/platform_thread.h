@@ -9,6 +9,7 @@
 #ifndef __PLATFORM_THREAD_H_
 #define __PLATFORM_THREAD_H_
 
+#include"util/strings.h"
 
 #ifdef __cplusplus
 	#include<atomic>
@@ -27,59 +28,64 @@ extern "C" {
 
 enum
 {
-	MP_THREAD_NAME_MAX_SIZE = 64, // including null terminator
+	OC_THREAD_NAME_MAX_SIZE = 64, // including null terminator
 };
 
-typedef struct mp_thread mp_thread;
+typedef struct oc_thread oc_thread;
 
-typedef i32 (*mp_thread_start_function)(void* userPointer);
+typedef i32 (*oc_thread_start_function)(void* userPointer);
 
-MP_API mp_thread* mp_thread_create(mp_thread_start_function start, void* userPointer);
-MP_API mp_thread* mp_thread_create_with_name(mp_thread_start_function start, void* userPointer, const char* name);
-MP_API const char* mp_thread_get_name(mp_thread* thread);
-MP_API u64 mp_thread_unique_id(mp_thread* thread);
-MP_API u64 mp_thread_self_id();
-MP_API int mp_thread_signal(mp_thread* thread, int sig);
-MP_API int mp_thread_join(mp_thread* thread, i64* exitCode);
-MP_API int mp_thread_detach(mp_thread* thread);
+ORCA_API oc_thread* oc_thread_create(oc_thread_start_function start, void* userPointer);
+ORCA_API oc_thread* oc_thread_create_with_name(oc_thread_start_function start, void* userPointer, oc_str8 name);
+ORCA_API oc_str8 oc_thread_get_name(oc_thread* thread);
+ORCA_API u64 oc_thread_unique_id(oc_thread* thread);
+ORCA_API u64 oc_thread_self_id();
+ORCA_API int oc_thread_signal(oc_thread* thread, int sig);
+ORCA_API int oc_thread_join(oc_thread* thread, i64* exitCode);
+ORCA_API int oc_thread_detach(oc_thread* thread);
 
 //---------------------------------------------------------------
 // Platform Mutex API
 //---------------------------------------------------------------
 
-typedef struct mp_mutex mp_mutex;
+typedef struct oc_mutex oc_mutex;
 
-MP_API mp_mutex* mp_mutex_create();
-MP_API int mp_mutex_destroy(mp_mutex* mutex);
-MP_API int mp_mutex_lock(mp_mutex* mutex);
-MP_API int mp_mutex_unlock(mp_mutex* mutex);
+ORCA_API oc_mutex* oc_mutex_create();
+ORCA_API int oc_mutex_destroy(oc_mutex* mutex);
+ORCA_API int oc_mutex_lock(oc_mutex* mutex);
+ORCA_API int oc_mutex_unlock(oc_mutex* mutex);
 
 //---------------------------------------------------------------
 // Lightweight ticket mutex API
 //---------------------------------------------------------------
 
-typedef struct mp_ticket_spin_mutex
+typedef struct oc_ticket
 {
 	volatile _Atomic(u64) nextTicket;
 	volatile _Atomic(u64) serving;
-} mp_ticket_spin_mutex;
+} oc_ticket;
 
-MP_API void mp_ticket_spin_mutex_init(mp_ticket_spin_mutex* mutex);
-MP_API void mp_ticket_spin_mutex_lock(mp_ticket_spin_mutex* mutex);
-MP_API void mp_ticket_spin_mutex_unlock(mp_ticket_spin_mutex* mutex);
+ORCA_API void oc_ticket_init(oc_ticket* mutex);
+ORCA_API void oc_ticket_lock(oc_ticket* mutex);
+ORCA_API void oc_ticket_unlock(oc_ticket* mutex);
 
 //---------------------------------------------------------------
 // Platform condition variable API
 //---------------------------------------------------------------
 
-typedef struct mp_condition mp_condition;
+typedef struct oc_condition oc_condition;
 
-MP_API mp_condition* mp_condition_create();
-MP_API int mp_condition_destroy(mp_condition* cond);
-MP_API int mp_condition_wait(mp_condition* cond, mp_mutex* mutex);
-MP_API int mp_condition_timedwait(mp_condition* cond, mp_mutex* mutex, f64 seconds);
-MP_API int mp_condition_signal(mp_condition* cond);
-MP_API int mp_condition_broadcast(mp_condition* cond);
+ORCA_API oc_condition* oc_condition_create();
+ORCA_API int oc_condition_destroy(oc_condition* cond);
+ORCA_API int oc_condition_wait(oc_condition* cond, oc_mutex* mutex);
+ORCA_API int oc_condition_timedwait(oc_condition* cond, oc_mutex* mutex, f64 seconds);
+ORCA_API int oc_condition_signal(oc_condition* cond);
+ORCA_API int oc_condition_broadcast(oc_condition* cond);
+
+//---------------------------------------------------------------
+// Putting threads to sleep
+//---------------------------------------------------------------
+ORCA_API void oc_sleep_nano(u64 nanoseconds); // sleep for a given number of nanoseconds
 
 #ifdef __cplusplus
 } // extern "C"

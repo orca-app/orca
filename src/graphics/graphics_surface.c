@@ -12,33 +12,33 @@
 // per-thread selected surface
 //---------------------------------------------------------------
 
-mp_thread_local mg_surface __mgSelectedSurface = {0};
+oc_thread_local oc_surface oc_selectedSurface = {0};
 
 //---------------------------------------------------------------
 // typed handles functions
 //---------------------------------------------------------------
 
-mg_surface mg_surface_handle_alloc(mg_surface_data* surface)
+oc_surface oc_surface_handle_alloc(oc_surface_data* surface)
 {
-	mg_surface handle = {.h = mg_handle_alloc(MG_HANDLE_SURFACE, (void*)surface) };
+	oc_surface handle = {.h = oc_graphics_handle_alloc(OC_GRAPHICS_HANDLE_SURFACE, (void*)surface) };
 	return(handle);
 }
 
-mg_surface_data* mg_surface_data_from_handle(mg_surface handle)
+oc_surface_data* oc_surface_data_from_handle(oc_surface handle)
 {
-	mg_surface_data* data = mg_data_from_handle(MG_HANDLE_SURFACE, handle.h);
+	oc_surface_data* data = oc_graphics_data_from_handle(OC_GRAPHICS_HANDLE_SURFACE, handle.h);
 	return(data);
 }
 
-mg_image mg_image_handle_alloc(mg_image_data* image)
+oc_image oc_image_handle_alloc(oc_image_data* image)
 {
-	mg_image handle = {.h = mg_handle_alloc(MG_HANDLE_IMAGE, (void*)image) };
+	oc_image handle = {.h = oc_graphics_handle_alloc(OC_GRAPHICS_HANDLE_IMAGE, (void*)image) };
 	return(handle);
 }
 
-mg_image_data* mg_image_data_from_handle(mg_image handle)
+oc_image_data* oc_image_data_from_handle(oc_image handle)
 {
-	mg_image_data* data = mg_data_from_handle(MG_HANDLE_IMAGE, handle.h);
+	oc_image_data* data = oc_graphics_data_from_handle(OC_GRAPHICS_HANDLE_IMAGE, handle.h);
 	return(data);
 }
 
@@ -46,48 +46,48 @@ mg_image_data* mg_image_data_from_handle(mg_image handle)
 // surface API
 //---------------------------------------------------------------
 
-#if MG_COMPILE_GL
-	#if PLATFORM_WINDOWS
+#if OC_COMPILE_GL
+	#if OC_PLATFORM_WINDOWS
 		#include"wgl_surface.h"
-		#define gl_surface_create_for_window mg_wgl_surface_create_for_window
+		#define oc_gl_surface_create_for_window oc_wgl_surface_create_for_window
 	#endif
 #endif
 
-#if MG_COMPILE_GLES
+#if OC_COMPILE_GLES
 	#include"egl_surface.h"
 #endif
 
-#if MG_COMPILE_METAL
+#if OC_COMPILE_METAL
 	#include"mtl_surface.h"
 #endif
 
-#if MG_COMPILE_CANVAS
-	#if PLATFORM_MACOS
-		mg_surface_data* mtl_canvas_surface_create_for_window(mp_window window);
-	#elif PLATFORM_WINDOWS
-		mg_surface_data* gl_canvas_surface_create_for_window(mp_window window);
+#if OC_COMPILE_CANVAS
+	#if OC_PLATFORM_MACOS
+		oc_surface_data* oc_mtl_canvas_surface_create_for_window(oc_window window);
+	#elif OC_PLATFORM_WINDOWS
+		oc_surface_data* oc_gl_canvas_surface_create_for_window(oc_window window);
 	#endif
 #endif
 
-bool mg_is_surface_backend_available(mg_surface_api api)
+bool oc_is_surface_backend_available(oc_surface_api api)
 {
 	bool result = false;
 	switch(api)
 	{
-		#if MG_COMPILE_METAL
-			case MG_METAL:
+		#if OC_COMPILE_METAL
+			case OC_METAL:
 		#endif
 
-		#if MG_COMPILE_GL
-			case MG_GL:
+		#if OC_COMPILE_GL
+			case OC_GL:
 		#endif
 
-		#if MG_COMPILE_GLES
-			case MG_GLES:
+		#if OC_COMPILE_GLES
+			case OC_GLES:
 		#endif
 
-		#if MG_COMPILE_CANVAS
-			case MG_CANVAS:
+		#if OC_COMPILE_CANVAS
+			case OC_CANVAS:
 		#endif
 			result = true;
 			break;
@@ -98,45 +98,45 @@ bool mg_is_surface_backend_available(mg_surface_api api)
 	return(result);
 }
 
-mg_surface mg_surface_nil() { return((mg_surface){.h = 0}); }
-bool mg_surface_is_nil(mg_surface surface) { return(surface.h == 0); }
+oc_surface oc_surface_nil() { return((oc_surface){.h = 0}); }
+bool oc_surface_is_nil(oc_surface surface) { return(surface.h == 0); }
 
-mg_surface mg_surface_create_for_window(mp_window window, mg_surface_api api)
+oc_surface oc_surface_create_for_window(oc_window window, oc_surface_api api)
 {
-	if(__mgData.init)
+	if(oc_graphicsData.init)
 	{
-		mg_init();
+		oc_graphics_init();
 	}
-	mg_surface surfaceHandle = mg_surface_nil();
-	mg_surface_data* surface = 0;
+	oc_surface surfaceHandle = oc_surface_nil();
+	oc_surface_data* surface = 0;
 
 	switch(api)
 	{
-	#if MG_COMPILE_GL
-		case MG_GL:
-			surface = gl_surface_create_for_window(window);
+	#if OC_COMPILE_GL
+		case OC_GL:
+			surface = oc_gl_surface_create_for_window(window);
 			break;
 	#endif
 
-	#if MG_COMPILE_GLES
-		case MG_GLES:
-			surface = mg_egl_surface_create_for_window(window);
+	#if OC_COMPILE_GLES
+		case OC_GLES:
+			surface = oc_egl_surface_create_for_window(window);
 			break;
 	#endif
 
-	#if MG_COMPILE_METAL
-		case MG_METAL:
-			surface = mg_mtl_surface_create_for_window(window);
+	#if OC_COMPILE_METAL
+		case OC_METAL:
+			surface = oc_mtl_surface_create_for_window(window);
 			break;
 	#endif
 
-	#if MG_COMPILE_CANVAS
-		case MG_CANVAS:
+	#if OC_COMPILE_CANVAS
+		case OC_CANVAS:
 
-		#if PLATFORM_MACOS
-			surface = mtl_canvas_surface_create_for_window(window);
-		#elif PLATFORM_WINDOWS
-			surface = gl_canvas_surface_create_for_window(window);
+		#if OC_PLATFORM_MACOS
+			surface = oc_mtl_canvas_surface_create_for_window(window);
+		#elif OC_PLATFORM_WINDOWS
+			surface = oc_gl_canvas_surface_create_for_window(window);
 		#endif
 			break;
 	#endif
@@ -146,26 +146,26 @@ mg_surface mg_surface_create_for_window(mp_window window, mg_surface_api api)
 	}
 	if(surface)
 	{
-		surfaceHandle = mg_surface_handle_alloc(surface);
-		mg_surface_prepare(surfaceHandle);
+		surfaceHandle = oc_surface_handle_alloc(surface);
+		oc_surface_select(surfaceHandle);
 	}
 	return(surfaceHandle);
 }
 
-mg_surface mg_surface_create_remote(u32 width, u32 height, mg_surface_api api)
+oc_surface oc_surface_create_remote(u32 width, u32 height, oc_surface_api api)
 {
-	if(!__mgData.init)
+	if(!oc_graphicsData.init)
 	{
-		mg_init();
+		oc_graphics_init();
 	}
-	mg_surface surfaceHandle = mg_surface_nil();
-	mg_surface_data* surface = 0;
+	oc_surface surfaceHandle = oc_surface_nil();
+	oc_surface_data* surface = 0;
 
 	switch(api)
 	{
-	#if MG_COMPILE_GLES
-		case MG_GLES:
-			surface = mg_egl_surface_create_remote(width, height);
+	#if OC_COMPILE_GLES
+		case OC_GLES:
+			surface = oc_egl_surface_create_remote(width, height);
 			break;
 	#endif
 
@@ -174,42 +174,42 @@ mg_surface mg_surface_create_remote(u32 width, u32 height, mg_surface_api api)
 	}
 	if(surface)
 	{
-		surfaceHandle = mg_surface_handle_alloc(surface);
-		mg_surface_prepare(surfaceHandle);
+		surfaceHandle = oc_surface_handle_alloc(surface);
+		oc_surface_select(surfaceHandle);
 	}
 	return(surfaceHandle);
 }
 
-mg_surface mg_surface_create_host(mp_window window)
+oc_surface oc_surface_create_host(oc_window window)
 {
-	if(!__mgData.init)
+	if(!oc_graphicsData.init)
 	{
-		mg_init();
+		oc_graphics_init();
 	}
-	mg_surface handle = mg_surface_nil();
-	mg_surface_data* surface = 0;
-	#if PLATFORM_MACOS
-		surface = mg_osx_surface_create_host(window);
-	#elif PLATFORM_WINDOWS
-		surface = mg_win32_surface_create_host(window);
+	oc_surface handle = oc_surface_nil();
+	oc_surface_data* surface = 0;
+	#if OC_PLATFORM_MACOS
+		surface = oc_osx_surface_create_host(window);
+	#elif OC_PLATFORM_WINDOWS
+		surface = oc_win32_surface_create_host(window);
 	#endif
 
 	if(surface)
 	{
-		handle = mg_surface_handle_alloc(surface);
+		handle = oc_surface_handle_alloc(surface);
 	}
 	return(handle);
 }
 
-void mg_surface_destroy(mg_surface handle)
+void oc_surface_destroy(oc_surface handle)
 {
-	DEBUG_ASSERT(__mgData.init);
-	mg_surface_data* surface = mg_surface_data_from_handle(handle);
+	OC_DEBUG_ASSERT(oc_graphicsData.init);
+	oc_surface_data* surface = oc_surface_data_from_handle(handle);
 	if(surface)
 	{
-		if(__mgSelectedSurface.h == handle.h)
+		if(oc_selectedSurface.h == handle.h)
 		{
-			mg_surface_deselect();
+			oc_surface_deselect();
 		}
 
 		if(surface->backend && surface->backend->destroy)
@@ -217,64 +217,64 @@ void mg_surface_destroy(mg_surface handle)
 			surface->backend->destroy(surface->backend);
 		}
 		surface->destroy(surface);
-		mg_handle_recycle(handle.h);
+		oc_graphics_handle_recycle(handle.h);
 	}
 }
 
-void mg_surface_deselect()
+void oc_surface_deselect()
 {
-	DEBUG_ASSERT(__mgData.init);
+	OC_DEBUG_ASSERT(oc_graphicsData.init);
 
-	mg_surface_data* prevSurface = mg_surface_data_from_handle(__mgSelectedSurface);
+	oc_surface_data* prevSurface = oc_surface_data_from_handle(oc_selectedSurface);
 	if(prevSurface && prevSurface->deselect)
 	{
 		prevSurface->deselect(prevSurface);
 	}
-	__mgSelectedSurface = mg_surface_nil();
+	oc_selectedSurface = oc_surface_nil();
 }
 
-void mg_surface_prepare(mg_surface surface)
+void oc_surface_select(oc_surface surface)
 {
-	DEBUG_ASSERT(__mgData.init);
+	OC_DEBUG_ASSERT(oc_graphicsData.init);
 
-	if(surface.h != __mgSelectedSurface.h)
+	if(surface.h != oc_selectedSurface.h)
 	{
-		mg_surface_deselect();
+		oc_surface_deselect();
 	}
 
-	mg_surface_data* surfaceData = mg_surface_data_from_handle(surface);
+	oc_surface_data* surfaceData = oc_surface_data_from_handle(surface);
 	if(surfaceData && surfaceData->prepare)
 	{
 		surfaceData->prepare(surfaceData);
-		__mgSelectedSurface = surface;
+		oc_selectedSurface = surface;
 	}
 }
 
-void mg_surface_present(mg_surface surface)
+void oc_surface_present(oc_surface surface)
 {
-	DEBUG_ASSERT(__mgData.init);
-	mg_surface_data* surfaceData = mg_surface_data_from_handle(surface);
+	OC_DEBUG_ASSERT(oc_graphicsData.init);
+	oc_surface_data* surfaceData = oc_surface_data_from_handle(surface);
 	if(surfaceData && surfaceData->present)
 	{
 		surfaceData->present(surfaceData);
 	}
 }
 
-void mg_surface_swap_interval(mg_surface surface, int swap)
+void oc_surface_swap_interval(oc_surface surface, int swap)
 {
-	DEBUG_ASSERT(__mgData.init);
-	mg_surface_data* surfaceData = mg_surface_data_from_handle(surface);
+	OC_DEBUG_ASSERT(oc_graphicsData.init);
+	oc_surface_data* surfaceData = oc_surface_data_from_handle(surface);
 	if(surfaceData && surfaceData->swapInterval)
 	{
 		surfaceData->swapInterval(surfaceData, swap);
 	}
 }
 
-vec2 mg_surface_get_size(mg_surface surface)
+oc_vec2 oc_surface_get_size(oc_surface surface)
 {
-	DEBUG_ASSERT(__mgData.init);
-	vec2 size = {0};
-	mg_surface_data* surfaceData = mg_surface_data_from_handle(surface);
+	OC_DEBUG_ASSERT(oc_graphicsData.init);
+	oc_vec2 size = {0};
+	oc_surface_data* surfaceData = oc_surface_data_from_handle(surface);
 	if(surfaceData && surfaceData->getSize)
 	{
 		size = surfaceData->getSize(surfaceData);
@@ -282,11 +282,11 @@ vec2 mg_surface_get_size(mg_surface surface)
 	return(size);
 }
 
-vec2 mg_surface_contents_scaling(mg_surface surface)
+oc_vec2 oc_surface_contents_scaling(oc_surface surface)
 {
-	DEBUG_ASSERT(__mgData.init);
-	vec2 scaling = {1, 1};
-	mg_surface_data* surfaceData = mg_surface_data_from_handle(surface);
+	OC_DEBUG_ASSERT(oc_graphicsData.init);
+	oc_vec2 scaling = {1, 1};
+	oc_surface_data* surfaceData = oc_surface_data_from_handle(surface);
 	if(surfaceData && surfaceData->contentsScaling)
 	{
 		scaling = surfaceData->contentsScaling(surfaceData);
@@ -294,21 +294,21 @@ vec2 mg_surface_contents_scaling(mg_surface surface)
 	return(scaling);
 }
 
-void mg_surface_set_hidden(mg_surface surface, bool hidden)
+void oc_surface_set_hidden(oc_surface surface, bool hidden)
 {
-	DEBUG_ASSERT(__mgData.init);
-	mg_surface_data* surfaceData = mg_surface_data_from_handle(surface);
+	OC_DEBUG_ASSERT(oc_graphicsData.init);
+	oc_surface_data* surfaceData = oc_surface_data_from_handle(surface);
 	if(surfaceData && surfaceData->setHidden)
 	{
 		surfaceData->setHidden(surfaceData, hidden);
 	}
 }
 
-bool mg_surface_get_hidden(mg_surface surface)
+bool oc_surface_get_hidden(oc_surface surface)
 {
-	DEBUG_ASSERT(__mgData.init);
+	OC_DEBUG_ASSERT(oc_graphicsData.init);
 	bool res = false;
-	mg_surface_data* surfaceData = mg_surface_data_from_handle(surface);
+	oc_surface_data* surfaceData = oc_surface_data_from_handle(surface);
 	if(surfaceData && surfaceData->getHidden)
 	{
 		res = surfaceData->getHidden(surfaceData);
@@ -316,10 +316,10 @@ bool mg_surface_get_hidden(mg_surface surface)
 	return(res);
 }
 
-void* mg_surface_native_layer(mg_surface surface)
+void* oc_surface_native_layer(oc_surface surface)
 {
 	void* res = 0;
-	mg_surface_data* surfaceData = mg_surface_data_from_handle(surface);
+	oc_surface_data* surfaceData = oc_surface_data_from_handle(surface);
 	if(surfaceData && surfaceData->nativeLayer)
 	{
 		res = surfaceData->nativeLayer(surfaceData);
@@ -327,10 +327,10 @@ void* mg_surface_native_layer(mg_surface surface)
 	return(res);
 }
 
-mg_surface_id mg_surface_remote_id(mg_surface handle)
+oc_surface_id oc_surface_remote_id(oc_surface handle)
 {
-	mg_surface_id remoteId = 0;
-	mg_surface_data* surface = mg_surface_data_from_handle(handle);
+	oc_surface_id remoteId = 0;
+	oc_surface_data* surface = oc_surface_data_from_handle(handle);
 	if(surface && surface->remoteID)
 	{
 		remoteId = surface->remoteID(surface);
@@ -338,27 +338,27 @@ mg_surface_id mg_surface_remote_id(mg_surface handle)
 	return(remoteId);
 }
 
-void mg_surface_host_connect(mg_surface handle, mg_surface_id remoteID)
+void oc_surface_host_connect(oc_surface handle, oc_surface_id remoteID)
 {
-	mg_surface_data* surface = mg_surface_data_from_handle(handle);
+	oc_surface_data* surface = oc_surface_data_from_handle(handle);
 	if(surface && surface->hostConnect)
 	{
 		surface->hostConnect(surface, remoteID);
 	}
 }
 
-void mg_surface_render_commands(mg_surface surface,
-                                mg_color clearColor,
+void oc_surface_render_commands(oc_surface surface,
+                                oc_color clearColor,
                                 u32 primitiveCount,
-                                mg_primitive* primitives,
+                                oc_primitive* primitives,
                                 u32 eltCount,
-                                mg_path_elt* elements)
+                                oc_path_elt* elements)
 {
-	mg_surface_data* surfaceData = mg_surface_data_from_handle(surface);
+	oc_surface_data* surfaceData = oc_surface_data_from_handle(surface);
 
-	if(surface.h != __mgSelectedSurface.h)
+	if(surface.h != oc_selectedSurface.h)
 	{
-		log_error("surface is not selected. Make sure to call mg_surface_prepare() before drawing onto a surface.\n");
+		oc_log_error("surface is not selected. Make sure to call oc_surface_select() before drawing onto a surface.\n");
 	}
 	else if(surfaceData && surfaceData->backend)
 	{
@@ -375,10 +375,10 @@ void mg_surface_render_commands(mg_surface surface,
 //NOTE(martin): images
 //------------------------------------------------------------------------------------------
 
-vec2 mg_image_size(mg_image image)
+oc_vec2 oc_image_size(oc_image image)
 {
-	vec2 res = {0};
-	mg_image_data* imageData = mg_image_data_from_handle(image);
+	oc_vec2 res = {0};
+	oc_image_data* imageData = oc_image_data_from_handle(image);
 	if(imageData)
 	{
 		res = imageData->size;
@@ -386,67 +386,67 @@ vec2 mg_image_size(mg_image image)
 	return(res);
 }
 
-mg_image mg_image_create(mg_surface surface, u32 width, u32 height)
+oc_image oc_image_create(oc_surface surface, u32 width, u32 height)
 {
-	mg_image image = mg_image_nil();
-	mg_surface_data* surfaceData = mg_surface_data_from_handle(surface);
+	oc_image image = oc_image_nil();
+	oc_surface_data* surfaceData = oc_surface_data_from_handle(surface);
 
-	if(surface.h != __mgSelectedSurface.h)
+	if(surface.h != oc_selectedSurface.h)
 	{
-		log_error("surface is not selected. Make sure to call mg_surface_prepare() before modifying graphics resources.\n");
+		oc_log_error("surface is not selected. Make sure to call oc_surface_select() before modifying graphics resources.\n");
 	}
 	else if(surfaceData && surfaceData->backend)
 	{
-		DEBUG_ASSERT(surfaceData->api == MG_CANVAS);
+		OC_DEBUG_ASSERT(surfaceData->api == OC_CANVAS);
 
-		mg_image_data* imageData = surfaceData->backend->imageCreate(surfaceData->backend, (vec2){width, height});
+		oc_image_data* imageData = surfaceData->backend->imageCreate(surfaceData->backend, (oc_vec2){width, height});
 		if(imageData)
 		{
 			imageData->surface = surface;
-			image = mg_image_handle_alloc(imageData);
+			image = oc_image_handle_alloc(imageData);
 		}
 	}
 	return(image);
 }
 
-void mg_image_destroy(mg_image image)
+void oc_image_destroy(oc_image image)
 {
-	mg_image_data* imageData = mg_image_data_from_handle(image);
+	oc_image_data* imageData = oc_image_data_from_handle(image);
 
 	if(imageData)
 	{
-		if(imageData->surface.h != __mgSelectedSurface.h)
+		if(imageData->surface.h != oc_selectedSurface.h)
 		{
-			log_error("surface is not selected. Make sure to call mg_surface_prepare() before modifying graphics resources.\n");
+			oc_log_error("surface is not selected. Make sure to call oc_surface_select() before modifying graphics resources.\n");
 		}
 		else
 		{
-			mg_surface_data* surface = mg_surface_data_from_handle(imageData->surface);
+			oc_surface_data* surface = oc_surface_data_from_handle(imageData->surface);
 			if(surface && surface->backend)
 			{
 				surface->backend->imageDestroy(surface->backend, imageData);
-				mg_handle_recycle(image.h);
+				oc_graphics_handle_recycle(image.h);
 			}
 		}
 	}
 }
 
-void mg_image_upload_region_rgba8(mg_image image, mp_rect region, u8* pixels)
+void oc_image_upload_region_rgba8(oc_image image, oc_rect region, u8* pixels)
 {
-	mg_image_data* imageData = mg_image_data_from_handle(image);
+	oc_image_data* imageData = oc_image_data_from_handle(image);
 
 	if(imageData)
 	{
-		if(imageData->surface.h != __mgSelectedSurface.h)
+		if(imageData->surface.h != oc_selectedSurface.h)
 		{
-			log_error("surface is not selected. Make sure to call mg_surface_prepare() before modifying graphics resources.\n");
+			oc_log_error("surface is not selected. Make sure to call oc_surface_select() before modifying graphics resources.\n");
 		}
 		else
 		{
-			mg_surface_data* surfaceData = mg_surface_data_from_handle(imageData->surface);
+			oc_surface_data* surfaceData = oc_surface_data_from_handle(imageData->surface);
 			if(surfaceData)
 			{
-				DEBUG_ASSERT(surfaceData->backend);
+				OC_DEBUG_ASSERT(surfaceData->backend);
 				surfaceData->backend->imageUploadRegion(surfaceData->backend, imageData, region, pixels);
 			}
 		}

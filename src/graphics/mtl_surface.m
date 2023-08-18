@@ -12,12 +12,12 @@
 #include<simd/simd.h>
 
 #include"graphics_surface.h"
-#include"util/macro_helpers.h"
+#include"util/macros.h"
 #include"app/osx_app.h"
 
-typedef struct mg_mtl_surface
+typedef struct oc_mtl_surface
 {
-	mg_surface_data interface;
+	oc_surface_data interface;
 
 	// permanent mtl resources
 	id<MTLDevice> device;
@@ -28,11 +28,11 @@ typedef struct mg_mtl_surface
 	id<CAMetalDrawable>  drawable;
 	id<MTLCommandBuffer> commandBuffer;
 
-} mg_mtl_surface;
+} oc_mtl_surface;
 
-void mg_mtl_surface_destroy(mg_surface_data* interface)
+void oc_mtl_surface_destroy(oc_surface_data* interface)
 {
-	mg_mtl_surface* surface = (mg_mtl_surface*)interface;
+	oc_mtl_surface* surface = (oc_mtl_surface*)interface;
 
 	@autoreleasepool
 	{
@@ -48,10 +48,10 @@ void mg_mtl_surface_destroy(mg_surface_data* interface)
 		[surface->mtlLayer release];
 		[surface->device release];
 	}
-	//NOTE: we don't use mp_layer_cleanup here, because the CAMetalLayer is taken care off by the surface itself
+	//NOTE: we don't use oc_layer_cleanup here, because the CAMetalLayer is taken care off by the surface itself
 }
 
-void mg_mtl_surface_acquire_command_buffer(mg_mtl_surface* surface)
+void oc_mtl_surface_acquire_command_buffer(oc_mtl_surface* surface)
 {
 	if(surface->commandBuffer == nil)
 	{
@@ -60,7 +60,7 @@ void mg_mtl_surface_acquire_command_buffer(mg_mtl_surface* surface)
 	}
 }
 
-void mg_mtl_surface_acquire_drawable(mg_mtl_surface* surface)
+void oc_mtl_surface_acquire_drawable(oc_mtl_surface* surface)
 {@autoreleasepool{
 	/*WARN(martin):
 		//TODO: we should stop trying to render if we detect that the app is in the background
@@ -81,15 +81,15 @@ void mg_mtl_surface_acquire_drawable(mg_mtl_surface* surface)
 	}
 }}
 
-void mg_mtl_surface_prepare(mg_surface_data* interface)
+void oc_mtl_surface_prepare(oc_surface_data* interface)
 {
-	mg_mtl_surface* surface = (mg_mtl_surface*)interface;
-	mg_mtl_surface_acquire_command_buffer(surface);
+	oc_mtl_surface* surface = (oc_mtl_surface*)interface;
+	oc_mtl_surface_acquire_command_buffer(surface);
 }
 
-void mg_mtl_surface_present(mg_surface_data* interface)
+void oc_mtl_surface_present(oc_surface_data* interface)
 {
-	mg_mtl_surface* surface = (mg_mtl_surface*)interface;
+	oc_mtl_surface* surface = (oc_mtl_surface*)interface;
 	@autoreleasepool
 	{
 		if(surface->commandBuffer != nil)
@@ -107,9 +107,9 @@ void mg_mtl_surface_present(mg_surface_data* interface)
 	}
 }
 
-void mg_mtl_surface_swap_interval(mg_surface_data* interface, int swap)
+void oc_mtl_surface_swap_interval(oc_surface_data* interface, int swap)
 {
-	mg_mtl_surface* surface = (mg_mtl_surface*)interface;
+	oc_mtl_surface* surface = (oc_mtl_surface*)interface;
 	@autoreleasepool
 	{
 		[surface->mtlLayer setDisplaySyncEnabled: (swap ? YES : NO)];
@@ -117,11 +117,11 @@ void mg_mtl_surface_swap_interval(mg_surface_data* interface, int swap)
 }
 
 /*
-void mg_mtl_surface_set_frame(mg_surface_data* interface, mp_rect frame)
+void oc_mtl_surface_set_frame(oc_surface_data* interface, oc_rect frame)
 {
-	mg_mtl_surface* surface = (mg_mtl_surface*)interface;
-	mg_osx_surface_set_frame(interface, frame);
-	vec2 scale = mg_osx_surface_contents_scaling(interface);
+	oc_mtl_surface* surface = (oc_mtl_surface*)interface;
+	oc_osx_surface_set_frame(interface, frame);
+	oc_vec2 scale = oc_osx_surface_contents_scaling(interface);
 
 	CGRect cgFrame = {{frame.x, frame.y}, {frame.w, frame.h}};
 
@@ -140,29 +140,29 @@ void mg_mtl_surface_set_frame(mg_surface_data* interface, mp_rect frame)
 
 
 //TODO fix that according to real scaling, depending on the monitor settings
-static const f32 MG_MTL_SURFACE_CONTENTS_SCALING = 2;
+static const f32 OC_MTL_SURFACE_CONTENTS_SCALING = 2;
 
 //NOTE: max frames in flight (n frames being queued on the GPU while we're working on the n+1 frame).
 //      for triple buffering, there's 2 frames being queued on the GPU while we're working on the 3rd frame
-static const int MG_MTL_MAX_FRAMES_IN_FLIGHT = 2;
+static const int OC_MTL_MAX_FRAMES_IN_FLIGHT = 2;
 
-mg_surface_data* mg_mtl_surface_create_for_window(mp_window window)
+oc_surface_data* oc_mtl_surface_create_for_window(oc_window window)
 {
-	mg_mtl_surface* surface = 0;
-	mp_window_data* windowData = mp_window_ptr_from_handle(window);
+	oc_mtl_surface* surface = 0;
+	oc_window_data* windowData = oc_window_ptr_from_handle(window);
 	if(windowData)
 	{
-		surface = (mg_mtl_surface*)malloc(sizeof(mg_mtl_surface));
+		surface = (oc_mtl_surface*)malloc(sizeof(oc_mtl_surface));
 
-		mg_surface_init_for_window((mg_surface_data*)surface, windowData);
+		oc_surface_init_for_window((oc_surface_data*)surface, windowData);
 
 		//NOTE(martin): setup interface functions
-		surface->interface.api = MG_METAL;
-		surface->interface.destroy = mg_mtl_surface_destroy;
-		surface->interface.prepare = mg_mtl_surface_prepare;
+		surface->interface.api = OC_METAL;
+		surface->interface.destroy = oc_mtl_surface_destroy;
+		surface->interface.prepare = oc_mtl_surface_prepare;
 		surface->interface.deselect = 0;
-		surface->interface.present = mg_mtl_surface_present;
-		surface->interface.swapInterval = mg_mtl_surface_swap_interval;
+		surface->interface.present = oc_mtl_surface_present;
+		surface->interface.swapInterval = oc_mtl_surface_swap_interval;
 
 		@autoreleasepool
 		{
@@ -191,7 +191,7 @@ mg_surface_data* mg_mtl_surface_create_for_window(mp_window window)
 			}
 			if(surface->device == nil)
 			{
-				log_warning("Couldn't select a discrete GPU, using first available device\n");
+				oc_log_warning("Couldn't select a discrete GPU, using first available device\n");
 				surface->device = devices[0];
 			}
 
@@ -212,10 +212,10 @@ mg_surface_data* mg_mtl_surface_create_for_window(mp_window window)
 			NSRect frame = [[windowData->osx.nsWindow contentView] frame];
 			CGSize size = frame.size;
 			surface->mtlLayer.frame = (CGRect){{0, 0}, size};
-			size.width *= MG_MTL_SURFACE_CONTENTS_SCALING;
-			size.height *= MG_MTL_SURFACE_CONTENTS_SCALING;
+			size.width *= OC_MTL_SURFACE_CONTENTS_SCALING;
+			size.height *= OC_MTL_SURFACE_CONTENTS_SCALING;
 			surface->mtlLayer.drawableSize = size;
-			surface->mtlLayer.contentsScale = MG_MTL_SURFACE_CONTENTS_SCALING;
+			surface->mtlLayer.contentsScale = OC_MTL_SURFACE_CONTENTS_SCALING;
 
 			surface->mtlLayer.pixelFormat = MTLPixelFormatBGRA8Unorm;
 
@@ -234,15 +234,15 @@ mg_surface_data* mg_mtl_surface_create_for_window(mp_window window)
 			surface->commandBuffer = nil;
 		}
 	}
-	return((mg_surface_data*)surface);
+	return((oc_surface_data*)surface);
 }
 
-void* mg_mtl_surface_layer(mg_surface surface)
+void* oc_mtl_surface_layer(oc_surface surface)
 {
-	mg_surface_data* surfaceData = mg_surface_data_from_handle(surface);
-	if(surfaceData && surfaceData->api == MG_METAL)
+	oc_surface_data* surfaceData = oc_surface_data_from_handle(surface);
+	if(surfaceData && surfaceData->api == OC_METAL)
 	{
-		mg_mtl_surface* mtlSurface = (mg_mtl_surface*)surfaceData;
+		oc_mtl_surface* mtlSurface = (oc_mtl_surface*)surfaceData;
 		return(mtlSurface->mtlLayer);
 	}
 	else
@@ -251,13 +251,13 @@ void* mg_mtl_surface_layer(mg_surface surface)
 	}
 }
 
-void* mg_mtl_surface_drawable(mg_surface surface)
+void* oc_mtl_surface_drawable(oc_surface surface)
 {
-	mg_surface_data* surfaceData = mg_surface_data_from_handle(surface);
-	if(surfaceData && surfaceData->api == MG_METAL)
+	oc_surface_data* surfaceData = oc_surface_data_from_handle(surface);
+	if(surfaceData && surfaceData->api == OC_METAL)
 	{
-		mg_mtl_surface* mtlSurface = (mg_mtl_surface*)surfaceData;
-		mg_mtl_surface_acquire_drawable(mtlSurface);
+		oc_mtl_surface* mtlSurface = (oc_mtl_surface*)surfaceData;
+		oc_mtl_surface_acquire_drawable(mtlSurface);
 		return(mtlSurface->drawable);
 	}
 	else
@@ -266,13 +266,13 @@ void* mg_mtl_surface_drawable(mg_surface surface)
 	}
 }
 
-void* mg_mtl_surface_command_buffer(mg_surface surface)
+void* oc_mtl_surface_command_buffer(oc_surface surface)
 {
-	mg_surface_data* surfaceData = mg_surface_data_from_handle(surface);
-	if(surfaceData && surfaceData->api == MG_METAL)
+	oc_surface_data* surfaceData = oc_surface_data_from_handle(surface);
+	if(surfaceData && surfaceData->api == OC_METAL)
 	{
-		mg_mtl_surface* mtlSurface = (mg_mtl_surface*)surfaceData;
-		mg_mtl_surface_acquire_command_buffer(mtlSurface);
+		oc_mtl_surface* mtlSurface = (oc_mtl_surface*)surfaceData;
+		oc_mtl_surface_acquire_command_buffer(mtlSurface);
 		return(mtlSurface->commandBuffer);
 	}
 	else

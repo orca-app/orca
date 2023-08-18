@@ -6,17 +6,17 @@ layout(std430) buffer;
 
 layout(binding = 0) restrict readonly buffer pathBufferSSBO
 {
-	mg_gl_path elements[];
+	oc_gl_path elements[];
 } pathBuffer;
 
 layout(binding = 1) restrict readonly buffer pathQueueBufferSSBO
 {
-	mg_gl_path_queue elements[];
+	oc_gl_path_queue elements[];
 } pathQueueBuffer;
 
 layout(binding = 2) restrict readonly buffer tileQueueBufferSSBO
 {
-	mg_gl_tile_queue elements[];
+	oc_gl_tile_queue elements[];
 } tileQueueBuffer;
 
 layout(binding = 3) coherent restrict buffer tileOpCountBufferSSBO
@@ -26,12 +26,12 @@ layout(binding = 3) coherent restrict buffer tileOpCountBufferSSBO
 
 layout(binding = 4) restrict buffer tileOpBufferSSBO
 {
-	mg_gl_tile_op elements[];
+	oc_gl_tile_op elements[];
 } tileOpBuffer;
 
 layout(binding = 5) restrict writeonly buffer screenTilesBufferSSBO
 {
-	mg_gl_screen_tile elements[];
+	oc_gl_screen_tile elements[];
 } screenTilesBuffer;
 
 layout(binding = 6) coherent restrict buffer screenTilesCountBufferSSBO
@@ -54,7 +54,7 @@ void main()
 
 	for(int pathIndex = 0; pathIndex < pathCount; pathIndex++)
 	{
-		mg_gl_path_queue pathQueue = pathQueueBuffer.elements[pathIndex];
+		oc_gl_path_queue pathQueue = pathQueueBuffer.elements[pathIndex];
 		ivec2 pathTileCoord = tileCoord - pathQueue.area.xy;
 
 		vec4 pathBox = pathBuffer.elements[pathBufferStart + pathIndex].box;
@@ -77,7 +77,7 @@ void main()
 			}
 
 			int pathTileIndex = pathQueue.tileQueues + pathTileCoord.y * pathQueue.area.z + pathTileCoord.x;
-			mg_gl_tile_queue tileQueue = tileQueueBuffer.elements[pathTileIndex];
+			oc_gl_tile_queue tileQueue = tileQueueBuffer.elements[pathTileIndex];
 
 			int windingOffset = tileQueue.windingOffset;
 			int firstOpIndex = tileQueue.first;
@@ -107,7 +107,7 @@ void main()
 						return;
 					}
 
-					tileOpBuffer.elements[pathOpIndex].kind = MG_GL_OP_CLIP_FILL;
+					tileOpBuffer.elements[pathOpIndex].kind = OC_GL_OP_CLIP_FILL;
 					tileOpBuffer.elements[pathOpIndex].next = -1;
 					tileOpBuffer.elements[pathOpIndex].index = pathIndex;
 					tileOpBuffer.elements[pathOpIndex].windingOffsetOrCrossRight = windingOffset;
@@ -126,7 +126,7 @@ void main()
 					  && tileBox.y >= clip.y
 					  && tileBox.w < clip.w)
 					{
-						tileOpBuffer.elements[pathOpIndex].kind = MG_GL_OP_FILL;
+						tileOpBuffer.elements[pathOpIndex].kind = OC_GL_OP_FILL;
 
 						if(  pathBuffer.elements[pathBufferStart + pathIndex].color.a == 1
 						  && pathBuffer.elements[pathBufferStart + pathIndex].textureID < 0)
@@ -147,7 +147,7 @@ void main()
 					return;
 				}
 
-				tileOpBuffer.elements[startOpIndex].kind = MG_GL_OP_START;
+				tileOpBuffer.elements[startOpIndex].kind = OC_GL_OP_START;
 				tileOpBuffer.elements[startOpIndex].next = -1;
 				tileOpBuffer.elements[startOpIndex].index = pathIndex;
 				tileOpBuffer.elements[startOpIndex].windingOffsetOrCrossRight = windingOffset;
@@ -173,7 +173,7 @@ void main()
 					return;
 				}
 
-				tileOpBuffer.elements[endOpIndex].kind = MG_GL_OP_END;
+				tileOpBuffer.elements[endOpIndex].kind = OC_GL_OP_END;
 				tileOpBuffer.elements[endOpIndex].next = -1;
 				tileOpBuffer.elements[endOpIndex].index = pathIndex;
 				tileOpBuffer.elements[endOpIndex].windingOffsetOrCrossRight = windingOffset;

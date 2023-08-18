@@ -11,42 +11,42 @@
 #include"gl_loader.h"
 
 #include<GL/wglext.h>
-#include"util/macro_helpers.h"
+#include"util/macros.h"
 
-#define WGL_PROC_LIST \
-	WGL_PROC(WGLCHOOSEPIXELFORMATARB, wglChoosePixelFormatARB) \
-	WGL_PROC(WGLCREATECONTEXTATTRIBSARB, wglCreateContextAttribsARB) \
-	WGL_PROC(WGLMAKECONTEXTCURRENTARB, wglMakeContextCurrentARB) \
-	WGL_PROC(WGLSWAPINTERVALEXT, wglSwapIntervalEXT) \
+#define OC_WGL_PROC_LIST \
+	OC_WGL_PROC(WGLCHOOSEPIXELFORMATARB, wglChoosePixelFormatARB) \
+	OC_WGL_PROC(WGLCREATECONTEXTATTRIBSARB, wglCreateContextAttribsARB) \
+	OC_WGL_PROC(WGLMAKECONTEXTCURRENTARB, wglMakeContextCurrentARB) \
+	OC_WGL_PROC(WGLSWAPINTERVALEXT, wglSwapIntervalEXT) \
 
 //NOTE: wgl function pointers declarations
 
-#define WGL_PROC(type, name) _cat3_(PFN, type, PROC) name = 0;
-	WGL_PROC_LIST
-#undef WGL_PROC
+#define OC_WGL_PROC(type, name) OC_CAT3(PFN, type, PROC) name = 0;
+	OC_WGL_PROC_LIST
+#undef OC_WGL_PROC
 
 //NOTE: wgl loader
 
-typedef struct wgl_dummy_context
+typedef struct oc_wgl_dummy_context
 {
 	bool init;
 	HWND hWnd;
 	HDC hDC;
 	HGLRC glContext;
 
-} wgl_dummy_context;
+} oc_wgl_dummy_context;
 
-static wgl_dummy_context __mgWGLDummyContext = {0};
+static oc_wgl_dummy_context oc_wglDummyContext = {0};
 
-static void wgl_init()
+static void oc_wgl_init()
 {
-	if(!__mgWGLDummyContext.init)
+	if(!oc_wglDummyContext.init)
 	{
 		//NOTE: create a dummy window
 		WNDCLASS windowClass = {.style = CS_OWNDC,
 		                        .lpfnWndProc = DefWindowProc,
 		                        .hInstance = GetModuleHandleW(NULL),
-		                        .lpszClassName = "wgl_helper_window_class",
+		                        .lpszClassName = "oc_wgl_helper_window_class",
 		                        .hCursor = LoadCursor(0, IDC_ARROW)};
 
 		if(!RegisterClass(&windowClass))
@@ -55,18 +55,18 @@ static void wgl_init()
 			goto quit;
 		}
 
-		__mgWGLDummyContext.hWnd = CreateWindow("wgl_helper_window_class",
+		oc_wglDummyContext.hWnd = CreateWindow("oc_wgl_helper_window_class",
 		                                        "dummy",
 		                                        WS_OVERLAPPEDWINDOW,
 	                                            0, 0, 100, 100,
 	                                            0, 0, windowClass.hInstance, 0);
 
-		if(!__mgWGLDummyContext.hWnd)
+		if(!oc_wglDummyContext.hWnd)
 		{
 			//TODO: error
 			goto quit;
 		}
-		__mgWGLDummyContext.hDC = GetDC(__mgWGLDummyContext.hWnd);
+		oc_wglDummyContext.hDC = GetDC(oc_wglDummyContext.hWnd);
 
 		PIXELFORMATDESCRIPTOR pixelFormatDesc =
 		{
@@ -88,44 +88,44 @@ static void wgl_init()
 			0, 0, 0
 		};
 
-		int pixelFormat = ChoosePixelFormat(__mgWGLDummyContext.hDC, &pixelFormatDesc);
-		SetPixelFormat(__mgWGLDummyContext.hDC, pixelFormat, &pixelFormatDesc);
+		int pixelFormat = ChoosePixelFormat(oc_wglDummyContext.hDC, &pixelFormatDesc);
+		SetPixelFormat(oc_wglDummyContext.hDC, pixelFormat, &pixelFormatDesc);
 
-		__mgWGLDummyContext.glContext = wglCreateContext(__mgWGLDummyContext.hDC);
-		wglMakeCurrent(__mgWGLDummyContext.hDC, __mgWGLDummyContext.glContext);
+		oc_wglDummyContext.glContext = wglCreateContext(oc_wglDummyContext.hDC);
+		wglMakeCurrent(oc_wglDummyContext.hDC, oc_wglDummyContext.glContext);
 
 		//NOTE(martin): now load WGL extension functions
-		#define WGL_PROC(type, name) name = (_cat3_(PFN, type, PROC))wglGetProcAddress( #name );
-			WGL_PROC_LIST
-		#undef WGL_PROC
+		#define OC_WGL_PROC(type, name) name = (OC_CAT3(PFN, type, PROC))wglGetProcAddress( #name );
+			OC_WGL_PROC_LIST
+		#undef OC_WGL_PROC
 
-		__mgWGLDummyContext.init = true;
+		oc_wglDummyContext.init = true;
 	}
 	else
 	{
-		wglMakeCurrent(__mgWGLDummyContext.hDC, __mgWGLDummyContext.glContext);
+		wglMakeCurrent(oc_wglDummyContext.hDC, oc_wglDummyContext.glContext);
 	}
 	quit:;
 }
 
-#undef WGL_PROC_LIST
+#undef OC_WGL_PROC_LIST
 
 
-typedef struct mg_wgl_surface
+typedef struct oc_wgl_surface
 {
-	mg_surface_data interface;
+	oc_surface_data interface;
 
 	HDC hDC;
 	HGLRC glContext;
 
 	//NOTE: this may be a bit wasteful to have one api struct per surface, but win32 docs says that loading procs
 	//      from different contexts might select different implementations (eg. depending on context version/pixel format)
-	mg_gl_api api;
-} mg_wgl_surface;
+	oc_gl_api api;
+} oc_wgl_surface;
 
-void mg_wgl_surface_destroy(mg_surface_data* interface)
+void oc_wgl_surface_destroy(oc_surface_data* interface)
 {
-	mg_wgl_surface* surface = (mg_wgl_surface*)interface;
+	oc_wgl_surface* surface = (oc_wgl_surface*)interface;
 
 	if(surface->glContext == wglGetCurrentContext())
 	{
@@ -133,39 +133,39 @@ void mg_wgl_surface_destroy(mg_surface_data* interface)
 	}
 	wglDeleteContext(surface->glContext);
 
-	mg_surface_cleanup(interface);
+	oc_surface_cleanup(interface);
 
 	free(surface);
 }
 
-void mg_wgl_surface_prepare(mg_surface_data* interface)
+void oc_wgl_surface_prepare(oc_surface_data* interface)
 {
-	mg_wgl_surface* surface = (mg_wgl_surface*)interface;
+	oc_wgl_surface* surface = (oc_wgl_surface*)interface;
 
 	wglMakeCurrent(surface->hDC, surface->glContext);
-	mg_gl_select_api(&surface->api);
+	oc_gl_select_api(&surface->api);
 }
 
-void mg_wgl_surface_present(mg_surface_data* interface)
+void oc_wgl_surface_present(oc_surface_data* interface)
 {
-	mg_wgl_surface* surface = (mg_wgl_surface*)interface;
+	oc_wgl_surface* surface = (oc_wgl_surface*)interface;
 
 	SwapBuffers(surface->hDC);
 }
 
-void mg_wgl_surface_deselect(mg_surface_data* interface)
+void oc_wgl_surface_deselect(oc_surface_data* interface)
 {
 	wglMakeCurrent(NULL, NULL);
-	mg_gl_deselect_api();
+	oc_gl_deselect_api();
 }
 
-void mg_wgl_surface_swap_interval(mg_surface_data* interface, int swap)
+void oc_wgl_surface_swap_interval(oc_surface_data* interface, int swap)
 {
-	mg_wgl_surface* surface = (mg_wgl_surface*)interface;
+	oc_wgl_surface* surface = (oc_wgl_surface*)interface;
 	wglSwapIntervalEXT(swap);
 }
 
-void* mg_wgl_get_proc(const char* name)
+void* oc_wgl_get_proc(const char* name)
 {
 	void* p = wglGetProcAddress(name);
 	if(  p == 0
@@ -181,28 +181,28 @@ void* mg_wgl_get_proc(const char* name)
 	return(p);
 }
 
-mg_surface_data* mg_wgl_surface_create_for_window(mp_window window)
+oc_surface_data* oc_wgl_surface_create_for_window(oc_window window)
 {
-	mg_wgl_surface* surface = 0;
+	oc_wgl_surface* surface = 0;
 
-	mp_window_data* windowData = mp_window_ptr_from_handle(window);
+	oc_window_data* windowData = oc_window_ptr_from_handle(window);
 	if(windowData)
 	{
-		wgl_init();
+		oc_wgl_init();
 
 		//NOTE: fill surface data and load api
-		surface = malloc_type(mg_wgl_surface);
+		surface = oc_malloc_type(oc_wgl_surface);
 		if(surface)
 		{
-			memset(surface, 0, sizeof(mg_wgl_surface));
-			mg_surface_init_for_window((mg_surface_data*)surface, windowData);
+			memset(surface, 0, sizeof(oc_wgl_surface));
+			oc_surface_init_for_window((oc_surface_data*)surface, windowData);
 
-			surface->interface.api = MG_GL;
-			surface->interface.destroy = mg_wgl_surface_destroy;
-			surface->interface.prepare = mg_wgl_surface_prepare;
-			surface->interface.present = mg_wgl_surface_present;
-			surface->interface.swapInterval = mg_wgl_surface_swap_interval;
-			surface->interface.deselect = mg_wgl_surface_deselect;
+			surface->interface.api = OC_GL;
+			surface->interface.destroy = oc_wgl_surface_destroy;
+			surface->interface.prepare = oc_wgl_surface_prepare;
+			surface->interface.present = oc_wgl_surface_present;
+			surface->interface.swapInterval = oc_wgl_surface_swap_interval;
+			surface->interface.deselect = oc_wgl_surface_deselect;
 
 			surface->hDC = GetDC(surface->interface.layer.hWnd);
 
@@ -259,7 +259,7 @@ mg_surface_data* mg_wgl_surface_create_for_window(mp_window window)
 				WGL_CONTEXT_PROFILE_MASK_ARB, WGL_CONTEXT_CORE_PROFILE_BIT_ARB,
 				0};
 
-			surface->glContext = wglCreateContextAttribsARB(surface->hDC, __mgWGLDummyContext.glContext, contextAttrs);
+			surface->glContext = wglCreateContextAttribsARB(surface->hDC, oc_wglDummyContext.glContext, contextAttrs);
 
 			if(!surface->glContext)
 			{
@@ -271,8 +271,8 @@ mg_surface_data* mg_wgl_surface_create_for_window(mp_window window)
 			//NOTE: make gl context current and load api
 			wglMakeCurrent(surface->hDC, surface->glContext);
 			wglSwapIntervalEXT(1);
-			mg_gl_load_gl44(&surface->api, mg_wgl_get_proc);
+			oc_gl_load_gl44(&surface->api, oc_wgl_get_proc);
 		}
 	}
-	return((mg_surface_data*)surface);
+	return((oc_surface_data*)surface);
 }

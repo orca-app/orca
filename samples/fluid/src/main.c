@@ -162,23 +162,23 @@ GLuint compile_shader(const char* vs, const char* fs)
 	glGetProgramiv(prog, GL_LINK_STATUS, &status);
 	if(status != GL_TRUE)
 	{
-		log_error("program failed to link: ");
+		oc_log_error("program failed to link: ");
 		int logSize = 0;
 		glGetProgramiv(prog, GL_INFO_LOG_LENGTH, &logSize);
 
-		mem_arena_scope scratch = mem_scratch_begin();
-		char* log = mem_arena_alloc(scratch.arena, logSize);
+		oc_arena_scope scratch = oc_scratch_begin();
+		char* log = oc_arena_push(scratch.arena, logSize);
 
 		glGetProgramInfoLog(prog, logSize, 0, log);
-		log_error("%s\n", log);
+		oc_log_error("%s\n", log);
 
-		mem_scratch_end(scratch);
+		oc_scratch_end(scratch);
 	}
 
 	int err = glGetError();
 	if(err)
 	{
-		log_error("gl error %i\n", err);
+		oc_log_error("gl error %i\n", err);
 	}
 
 	return(prog);
@@ -186,7 +186,7 @@ GLuint compile_shader(const char* vs, const char* fs)
 
 void init_advect(advect_program* program)
 {
-	log_info("compiling advect...");
+	oc_log_info("compiling advect...");
 	program->prog = compile_shader(glsl_common_vertex, glsl_advect);
 	program->pos = glGetAttribLocation(program->prog, "pos");
 	program->src = glGetUniformLocation(program->prog, "src");
@@ -197,7 +197,7 @@ void init_advect(advect_program* program)
 
 void init_div(div_program* program)
 {
-	log_info("compiling div...");
+	oc_log_info("compiling div...");
 	program->prog = compile_shader(glsl_common_vertex, glsl_divergence);
 	program->pos = glGetAttribLocation(program->prog, "pos");
 	program->src = glGetUniformLocation(program->prog, "src");
@@ -205,7 +205,7 @@ void init_div(div_program* program)
 
 void init_jacobi(jacobi_program* program)
 {
-	log_info("compiling jacobi...");
+	oc_log_info("compiling jacobi...");
 	program->prog = compile_shader(glsl_common_vertex, glsl_jacobi_step);
 	program->pos = glGetAttribLocation(program->prog, "pos");
 	program->xTex = glGetUniformLocation(program->prog, "xTex");
@@ -214,7 +214,7 @@ void init_jacobi(jacobi_program* program)
 
 void init_multigrid_restrict_residual(multigrid_restrict_residual_program* program)
 {
-	log_info("compiling multigrid restrict residual...");
+	oc_log_info("compiling multigrid restrict residual...");
 	program->prog = compile_shader(glsl_common_vertex, glsl_multigrid_restrict_residual);
 	program->pos = glGetAttribLocation(program->prog, "pos");
 	program->xTex = glGetUniformLocation(program->prog, "xTex");
@@ -223,7 +223,7 @@ void init_multigrid_restrict_residual(multigrid_restrict_residual_program* progr
 
 void init_multigrid_correct(multigrid_correct_program* program)
 {
-	log_info("compiling multigrid correct...");
+	oc_log_info("compiling multigrid correct...");
 	program->prog = compile_shader(glsl_common_vertex, glsl_multigrid_correct);
 	program->pos = glGetAttribLocation(program->prog, "pos");
 	program->src = glGetUniformLocation(program->prog, "src");
@@ -233,7 +233,7 @@ void init_multigrid_correct(multigrid_correct_program* program)
 
 void init_subtract(subtract_program* program)
 {
-	log_info("compiling subtract...");
+	oc_log_info("compiling subtract...");
 	program->prog = compile_shader(glsl_common_vertex, glsl_subtract_pressure);
 	program->pos = glGetAttribLocation(program->prog, "pos");
 	program->src = glGetUniformLocation(program->prog, "src");
@@ -243,7 +243,7 @@ void init_subtract(subtract_program* program)
 
 void init_splat(splat_program* program)
 {
-	log_info("compiling splat...");
+	oc_log_info("compiling splat...");
 	program->prog = compile_shader(glsl_common_vertex, glsl_splat);
 	program->pos = glGetAttribLocation(program->prog, "pos");
 	program->src = glGetUniformLocation(program->prog, "src");
@@ -257,7 +257,7 @@ void init_splat(splat_program* program)
 
 void init_blit(blit_program* program)
 {
-	log_info("compiling blit...");
+	oc_log_info("compiling blit...");
 	program->prog = compile_shader(glsl_blit_vertex, glsl_blit_fragment);
 	program->pos = glGetAttribLocation(program->prog, "pos");
 	program->mvp = glGetUniformLocation(program->prog, "mvp");
@@ -267,7 +267,7 @@ void init_blit(blit_program* program)
 
 void init_blit_div(blit_program* program)
 {
-	log_info("compiling blit div...");
+	oc_log_info("compiling blit div...");
 	program->prog = compile_shader(glsl_blit_div_vertex, glsl_blit_div_fragment);
 	program->pos = glGetAttribLocation(program->prog, "pos");
 	program->mvp = glGetUniformLocation(program->prog, "mvp");
@@ -276,7 +276,7 @@ void init_blit_div(blit_program* program)
 
 void init_blit_residue(blit_residue_program* program)
 {
-	log_info("compiling blit residue...");
+	oc_log_info("compiling blit residue...");
 	program->prog = compile_shader(glsl_blit_div_vertex, glsl_blit_residue_fragment);
 	program->pos = glGetAttribLocation(program->prog, "pos");
 	program->mvp = glGetUniformLocation(program->prog, "mvp");
@@ -325,7 +325,7 @@ void init_frame_buffer(frame_buffer* framebuffer,
 	GLenum err = glCheckFramebufferStatus(GL_FRAMEBUFFER);
 	if(err != GL_FRAMEBUFFER_COMPLETE)
 	{
-		log_info("Frame buffer incomplete, %i", err);
+		oc_log_info("Frame buffer incomplete, %i", err);
 	}
 }
 
@@ -372,7 +372,7 @@ static bool resetCmd = false;
 void reset()
 {
 //	resetCmd = true;
-	log_info("reset");
+	oc_log_info("reset");
 
 	reset_texture(colorBuffer.textures[0], texWidth, texHeight, (char*)colorInitData);
 	reset_texture(colorBuffer.textures[1], texWidth, texHeight, (char*)colorInitData);
@@ -407,17 +407,17 @@ int frameWidth = 800;
 int frameHeight = 600;
 
 
-ORCA_EXPORT void OnMouseDown(int button)
+ORCA_EXPORT void oc_on_mouse_down(int button)
 {
 	mouseInput.down = true;
 }
 
-ORCA_EXPORT void OnMouseUp(int button)
+ORCA_EXPORT void oc_on_mouse_up(int button)
 {
 	mouseInput.down = false;
 }
 
-ORCA_EXPORT void OnMouseMove(float x, float y, float dx, float dy)
+ORCA_EXPORT void oc_on_mouse_move(float x, float y, float dx, float dy)
 {
 	mouseInput.x = x * 2;
 	mouseInput.y = y * 2;
@@ -611,14 +611,14 @@ void input_splat(float t)
 
 float testDiv[texWidth/2][texWidth/2][4];
 
-mg_surface surface;
+oc_surface surface;
 
-ORCA_EXPORT void OnInit()
+ORCA_EXPORT void oc_on_init()
 {
-	log_info("Hello, world (from C)");
+	oc_log_info("Hello, world (from C)");
 
-	surface = mg_surface_gles();
-	mg_surface_prepare(surface);
+	surface = oc_surface_gles();
+	oc_surface_select(surface);
 
 //	init_color_checker();
 //	init_velocity_vortex();
@@ -637,17 +637,17 @@ ORCA_EXPORT void OnInit()
 	init_blit_div(&blitDivProgram);
 
 	// init frame buffers
-	log_info("create color buffer");
+	oc_log_info("create color buffer");
 	init_frame_buffer(&colorBuffer, texWidth, texHeight, TEX_INTERNAL_FORMAT, TEX_FORMAT, TEX_TYPE, (char*)colorInitData);
-	log_info("create velocity buffer");
+	oc_log_info("create velocity buffer");
 	init_frame_buffer(&velocityBuffer, texWidth, texHeight, TEX_INTERNAL_FORMAT, TEX_FORMAT, TEX_TYPE, (char*)velocityInitData);
 
 	int gridFactor = 1;
 	for(int i=0; i<MULTIGRID_COUNT; i++)
 	{
-		log_info("create div buffer %i", i);
+		oc_log_info("create div buffer %i", i);
 		init_frame_buffer(&divBuffer[i], texWidth/gridFactor, texHeight/gridFactor, TEX_INTERNAL_FORMAT, TEX_FORMAT, TEX_TYPE, 0);
-		log_info("create pressure buffer %i", i);
+		oc_log_info("create pressure buffer %i", i);
 		init_frame_buffer(&pressureBuffer[i], texWidth/gridFactor, texHeight/gridFactor, TEX_INTERNAL_FORMAT, TEX_FORMAT, TEX_TYPE, 0);
 		gridFactor *= 2;
 	}
@@ -682,20 +682,20 @@ ORCA_EXPORT void OnInit()
 	}
 }
 
-ORCA_EXPORT void OnFrameResize(u32 width, u32 height)
+ORCA_EXPORT void oc_on_resize(u32 width, u32 height)
 {
 	frameWidth = width*2;
 	frameHeight = height*2;
 }
 
-ORCA_EXPORT void OnFrameRefresh()
+ORCA_EXPORT void oc_on_frame_refresh()
 {
 	float aspectRatio = texWidth/texHeight; //TODO replace with actual aspect ratio?
 
 	static float t = 0;
 	t += 1./60.;
 
-	mg_surface_prepare(surface);
+	oc_surface_select(surface);
 
 	glViewport(0, 0, texWidth, texHeight);
 
@@ -925,5 +925,5 @@ ORCA_EXPORT void OnFrameRefresh()
 
 //*/
 
-	mg_surface_present(surface);
+	oc_surface_present(surface);
 }

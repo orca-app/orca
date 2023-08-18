@@ -11,126 +11,121 @@
 
 #include"util/typedefs.h"
 #include"platform/platform.h"
-#include"app/mp_app.h"
+#include"app/app.h"
 
 //------------------------------------------------------------------------------------------
 //NOTE(martin): backends selection
 //------------------------------------------------------------------------------------------
 
 typedef enum {
-	MG_NONE,
-	MG_METAL,
-	MG_GL,
-	MG_GLES,
-	MG_CANVAS,
-	MG_HOST } mg_surface_api;
+	OC_NONE,
+	OC_METAL,
+	OC_GL,
+	OC_GLES,
+	OC_CANVAS,
+	OC_HOST } oc_surface_api;
 
 //NOTE: these macros are used to select which backend to include when building milepost
 //      they can be overridden by passing them to the compiler command line
-#if PLATFORM_MACOS
-	#ifndef MG_COMPILE_METAL
-		#define MG_COMPILE_METAL 1
+#if OC_PLATFORM_MACOS
+	#ifndef OC_COMPILE_METAL
+		#define OC_COMPILE_METAL 1
 	#endif
 
-	#ifndef MG_COMPILE_GLES
-		#define MG_COMPILE_GLES 1
+	#ifndef OC_COMPILE_GLES
+		#define OC_COMPILE_GLES 1
 	#endif
 
-	#ifndef MG_COMPILE_CANVAS
-		#if !MG_COMPILE_METAL
-			#error "Canvas surface requires a Metal backend on macOS. Make sure you define MG_COMPILE_METAL to 1."
+	#ifndef OC_COMPILE_CANVAS
+		#if !OC_COMPILE_METAL
+			#error "Canvas surface requires a Metal backend on macOS. Make sure you define OC_COMPILE_METAL to 1."
 		#endif
-		#define MG_COMPILE_CANVAS 1
+		#define OC_COMPILE_CANVAS 1
 	#endif
 
-	#define MG_COMPILE_GL 0
+	#define OC_COMPILE_GL 0
 
-#elif PLATFORM_WINDOWS
-	#ifndef MG_COMPILE_GL
-		#define MG_COMPILE_GL 1
+#elif OC_PLATFORM_WINDOWS
+	#ifndef OC_COMPILE_GL
+		#define OC_COMPILE_GL 1
 	#endif
 
-	#ifndef MG_COMPILE_GLES
-		#define MG_COMPILE_GLES 1
+	#ifndef OC_COMPILE_GLES
+		#define OC_COMPILE_GLES 1
 	#endif
 
-	#ifndef MG_COMPILE_CANVAS
-		#if !MG_COMPILE_GL
-			#error "Canvas surface requires an OpenGL backend on Windows. Make sure you define MG_COMPILE_GL to 1."
+	#ifndef OC_COMPILE_CANVAS
+		#if !OC_COMPILE_GL
+			#error "Canvas surface requires an OpenGL backend on Windows. Make sure you define OC_COMPILE_GL to 1."
 		#endif
-		#define MG_COMPILE_CANVAS 1
+		#define OC_COMPILE_CANVAS 1
 	#endif
 
 #elif PLATFORM_LINUX
-	#ifndef MG_COMPILE_GL
-		#define MG_COMPILE_GL 1
+	#ifndef OC_COMPILE_GL
+		#define OC_COMPILE_GL 1
 	#endif
 
-	#ifndef MG_COMPILE_CANVAS
-		#if !MG_COMPILE_GL
-			#error "Canvas surface requires an OpenGL backend on Linux. Make sure you define MG_COMPILE_GL to 1."
+	#ifndef OC_COMPILE_CANVAS
+		#if !OC_COMPILE_GL
+			#error "Canvas surface requires an OpenGL backend on Linux. Make sure you define OC_COMPILE_GL to 1."
 		#endif
-		#define MG_COMPILE_CANVAS 1
+		#define OC_COMPILE_CANVAS 1
 	#endif
 #endif
 
 //NOTE: these macros are used to select backend-specific APIs to include when using milepost
-#ifdef MG_EXPOSE_SURFACE_METAL
+#ifdef OC_EXPOSE_SURFACE_METAL
 	#include"mtl_surface.h"
 #endif
 
-#ifdef MG_EXPOSE_SURFACE_WGL
+#ifdef OC_EXPOSE_SURFACE_WGL
 	#include"wgl_surface.h"
 #endif
 
 //TODO: expose nsgl surface when supported, expose egl surface, etc...
 
-//TODO: add MG_INCLUDE_OPENGL/GLES/etc, once we know how we make different gl versions co-exist
+//TODO: add OC_INCLUDE_OPENGL/GLES/etc, once we know how we make different gl versions co-exist
 
-MP_API bool mg_is_surface_api_available(mg_surface_api api);
+ORCA_API bool oc_is_surface_api_available(oc_surface_api api);
 
 //------------------------------------------------------------------------------------------
 //NOTE(martin): graphics surface
 //------------------------------------------------------------------------------------------
-typedef struct mg_surface { u64 h; } mg_surface;
+typedef struct oc_surface { u64 h; } oc_surface;
 
-MP_API mg_surface mg_surface_nil(void);
-MP_API bool mg_surface_is_nil(mg_surface surface);
+ORCA_API oc_surface oc_surface_nil(void);
+ORCA_API bool oc_surface_is_nil(oc_surface surface);
 
-MP_API mg_surface mg_surface_create_for_window(mp_window window, mg_surface_api api);
-MP_API void mg_surface_destroy(mg_surface surface);
+ORCA_API oc_surface oc_surface_create_for_window(oc_window window, oc_surface_api api);
+ORCA_API void oc_surface_destroy(oc_surface surface);
 
-MP_API void mg_surface_prepare(mg_surface surface);
-MP_API void mg_surface_present(mg_surface surface);
-MP_API void mg_surface_deselect(void);
+ORCA_API void oc_surface_select(oc_surface surface);
+ORCA_API void oc_surface_present(oc_surface surface);
+ORCA_API void oc_surface_deselect(void);
 
-MP_API void mg_surface_swap_interval(mg_surface surface, int swap);
-MP_API vec2 mg_surface_get_size(mg_surface surface);
-MP_API vec2 mg_surface_contents_scaling(mg_surface surface);
-MP_API bool mg_surface_get_hidden(mg_surface surface);
-MP_API void mg_surface_set_hidden(mg_surface surface, bool hidden);
+ORCA_API void oc_surface_swap_interval(oc_surface surface, int swap);
+ORCA_API oc_vec2 oc_surface_get_size(oc_surface surface);
+ORCA_API oc_vec2 oc_surface_contents_scaling(oc_surface surface);
+ORCA_API bool oc_surface_get_hidden(oc_surface surface);
+ORCA_API void oc_surface_set_hidden(oc_surface surface, bool hidden);
 
 //NOTE(martin): surface sharing
-typedef u64 mg_surface_id;
+typedef u64 oc_surface_id;
 
-MP_API mg_surface mg_surface_create_remote(u32 width, u32 height, mg_surface_api api);
-MP_API mg_surface mg_surface_create_host(mp_window window);
-MP_API mg_surface_id mg_surface_remote_id(mg_surface surface);
-MP_API void mg_surface_host_connect(mg_surface surface, mg_surface_id remoteId);
+ORCA_API oc_surface oc_surface_create_remote(u32 width, u32 height, oc_surface_api api);
+ORCA_API oc_surface oc_surface_create_host(oc_window window);
+ORCA_API oc_surface_id oc_surface_remote_id(oc_surface surface);
+ORCA_API void oc_surface_host_connect(oc_surface surface, oc_surface_id remoteId);
 
 //------------------------------------------------------------------------------------------
 //NOTE(martin): graphics canvas structs
 //------------------------------------------------------------------------------------------
-typedef struct mg_canvas { u64 h; } mg_canvas;
-typedef struct mg_font { u64 h; } mg_font;
-typedef struct mg_image { u64 h; } mg_image;
+typedef struct oc_canvas { u64 h; } oc_canvas;
+typedef struct oc_font { u64 h; } oc_font;
+typedef struct oc_image { u64 h; } oc_image;
 
-typedef struct mg_mat2x3
-{
-	f32 m[6];
-} mg_mat2x3;
-
-typedef struct mg_color
+typedef struct oc_color
 {
 	union
 	{
@@ -143,16 +138,16 @@ typedef struct mg_color
 		};
 		f32 c[4];
 	};
-} mg_color;
+} oc_color;
 
-typedef enum {MG_JOINT_MITER = 0,
-              MG_JOINT_BEVEL,
-	          MG_JOINT_NONE } mg_joint_type;
+typedef enum {OC_JOINT_MITER = 0,
+              OC_JOINT_BEVEL,
+	          OC_JOINT_NONE } oc_joint_type;
 
-typedef enum {MG_CAP_NONE = 0,
-              MG_CAP_SQUARE } mg_cap_type;
+typedef enum {OC_CAP_NONE = 0,
+              OC_CAP_SQUARE } oc_cap_type;
 
-typedef struct mg_font_extents
+typedef struct oc_font_extents
 {
 	f32 ascent;    // the extent above the baseline (by convention a positive value extends above the baseline)
 	f32 descent;   // the extent below the baseline (by convention, positive value extends below the baseline)
@@ -161,9 +156,9 @@ typedef struct mg_font_extents
 	f32 capHeight; // height of the upper case letter 'M'
 	f32 width;     // maximum width of the font
 
-} mg_font_extents;
+} oc_font_extents;
 
-typedef struct mg_text_extents
+typedef struct oc_text_extents
 {
 	f32 xBearing;
 	f32 yBearing;
@@ -172,159 +167,159 @@ typedef struct mg_text_extents
 	f32 xAdvance;
 	f32 yAdvance;
 
-} mg_text_extents;
+} oc_text_extents;
 
 //------------------------------------------------------------------------------------------
 //NOTE(martin): graphics canvas
 //------------------------------------------------------------------------------------------
-MP_API mg_canvas mg_canvas_nil(void);
-MP_API bool mg_canvas_is_nil(mg_canvas canvas);
+ORCA_API oc_canvas oc_canvas_nil(void);
+ORCA_API bool oc_canvas_is_nil(oc_canvas canvas);
 
-MP_API mg_canvas mg_canvas_create(void);
-MP_API void mg_canvas_destroy(mg_canvas canvas);
-MP_API mg_canvas mg_canvas_set_current(mg_canvas canvas);
-MP_API void mg_render(mg_surface surface, mg_canvas canvas);
+ORCA_API oc_canvas oc_canvas_create(void);
+ORCA_API void oc_canvas_destroy(oc_canvas canvas);
+ORCA_API oc_canvas oc_canvas_set_current(oc_canvas canvas);
+ORCA_API void oc_render(oc_surface surface, oc_canvas canvas);
 
 //------------------------------------------------------------------------------------------
 //NOTE(martin): fonts
 //------------------------------------------------------------------------------------------
-MP_API mg_font mg_font_nil(void);
-MP_API mg_font mg_font_create_from_memory(u32 size, byte* buffer, u32 rangeCount, unicode_range* ranges);
-MP_API void mg_font_destroy(mg_font font);
+ORCA_API oc_font oc_font_nil(void);
+ORCA_API oc_font oc_font_create_from_memory(oc_str8 mem, u32 rangeCount, oc_unicode_range* ranges);
+ORCA_API void oc_font_destroy(oc_font font);
 
 //NOTE(martin): the following int valued functions return -1 if font is invalid or codepoint is not present in font//
 //TODO(martin): add enum error codes
 
-MP_API mg_font_extents mg_font_get_extents(mg_font font);
-MP_API mg_font_extents mg_font_get_scaled_extents(mg_font font, f32 emSize);
-MP_API f32 mg_font_get_scale_for_em_pixels(mg_font font, f32 emSize);
+ORCA_API oc_font_extents oc_font_get_extents(oc_font font);
+ORCA_API oc_font_extents oc_font_get_scaled_extents(oc_font font, f32 emSize);
+ORCA_API f32 oc_font_get_scale_for_em_pixels(oc_font font, f32 emSize);
 
 //NOTE(martin): if you need to process more than one codepoint, first convert your codepoints to glyph indices, then use the
 //              glyph index versions of the functions, which can take an array of glyph indices.
 
-MP_API str32 mg_font_get_glyph_indices(mg_font font, str32 codePoints, str32 backing);
-MP_API str32 mg_font_push_glyph_indices(mg_font font, mem_arena* arena, str32 codePoints);
-MP_API u32 mg_font_get_glyph_index(mg_font font, utf32 codePoint);
+ORCA_API oc_str32 oc_font_get_glyph_indices(oc_font font, oc_str32 codePoints, oc_str32 backing);
+ORCA_API oc_str32 oc_font_push_glyph_indices(oc_font font, oc_arena* arena, oc_str32 codePoints);
+ORCA_API u32 oc_font_get_glyph_index(oc_font font, oc_utf32 codePoint);
 
-MP_API int mg_font_get_codepoint_extents(mg_font font, utf32 codePoint, mg_text_extents* outExtents);
+ORCA_API int oc_font_get_codepoint_extents(oc_font font, oc_utf32 codePoint, oc_text_extents* outExtents);
 
-MP_API int mg_font_get_glyph_extents(mg_font font, str32 glyphIndices, mg_text_extents* outExtents);
+ORCA_API int oc_font_get_glyph_extents(oc_font font, oc_str32 glyphIndices, oc_text_extents* outExtents);
 
-MP_API mp_rect mg_text_bounding_box_utf32(mg_font font, f32 fontSize, str32 text);
-MP_API mp_rect mg_text_bounding_box(mg_font font, f32 fontSize, str8 text);
+ORCA_API oc_rect oc_text_bounding_box_utf32(oc_font font, f32 fontSize, oc_str32 text);
+ORCA_API oc_rect oc_text_bounding_box(oc_font font, f32 fontSize, oc_str8 text);
 
 //------------------------------------------------------------------------------------------
 //NOTE(martin): images
 //------------------------------------------------------------------------------------------
-MP_API mg_image mg_image_nil(void);
-MP_API bool mg_image_is_nil(mg_image a);
+ORCA_API oc_image oc_image_nil(void);
+ORCA_API bool oc_image_is_nil(oc_image a);
 
-MP_API mg_image mg_image_create(mg_surface surface, u32 width, u32 height);
-MP_API mg_image mg_image_create_from_rgba8(mg_surface surface, u32 width, u32 height, u8* pixels);
-MP_API mg_image mg_image_create_from_data(mg_surface surface, str8 data, bool flip);
-MP_API mg_image mg_image_create_from_file(mg_surface surface, str8 path, bool flip);
+ORCA_API oc_image oc_image_create(oc_surface surface, u32 width, u32 height);
+ORCA_API oc_image oc_image_create_from_rgba8(oc_surface surface, u32 width, u32 height, u8* pixels);
+ORCA_API oc_image oc_image_create_from_memory(oc_surface surface, oc_str8 mem, bool flip);
+ORCA_API oc_image oc_image_create_from_file(oc_surface surface, oc_str8 path, bool flip);
 
-MP_API void mg_image_destroy(mg_image image);
+ORCA_API void oc_image_destroy(oc_image image);
 
-MP_API void mg_image_upload_region_rgba8(mg_image image, mp_rect region, u8* pixels);
-MP_API vec2 mg_image_size(mg_image image);
+ORCA_API void oc_image_upload_region_rgba8(oc_image image, oc_rect region, u8* pixels);
+ORCA_API oc_vec2 oc_image_size(oc_image image);
 
 //------------------------------------------------------------------------------------------
 //NOTE(martin): atlasing
 //------------------------------------------------------------------------------------------
 
 //NOTE: rectangle allocator
-typedef struct mg_rect_atlas mg_rect_atlas;
+typedef struct oc_rect_atlas oc_rect_atlas;
 
-MP_API mg_rect_atlas* mg_rect_atlas_create(mem_arena* arena, i32 width, i32 height);
-MP_API mp_rect mg_rect_atlas_alloc(mg_rect_atlas* atlas, i32 width, i32 height);
-MP_API void mg_rect_atlas_recycle(mg_rect_atlas* atlas, mp_rect rect);
+ORCA_API oc_rect_atlas* oc_rect_atlas_create(oc_arena* arena, i32 width, i32 height);
+ORCA_API oc_rect oc_rect_atlas_alloc(oc_rect_atlas* atlas, i32 width, i32 height);
+ORCA_API void oc_rect_atlas_recycle(oc_rect_atlas* atlas, oc_rect rect);
 
 //NOTE: image atlas helpers
-typedef struct mg_image_region
+typedef struct oc_image_region
 {
-	mg_image image;
-	mp_rect rect;
-} mg_image_region;
+	oc_image image;
+	oc_rect rect;
+} oc_image_region;
 
-MP_API mg_image_region mg_image_atlas_alloc_from_rgba8(mg_rect_atlas* atlas, mg_image backingImage, u32 width, u32 height, u8* pixels);
-MP_API mg_image_region mg_image_atlas_alloc_from_data(mg_rect_atlas* atlas, mg_image backingImage, str8 data, bool flip);
-MP_API mg_image_region mg_image_atlas_alloc_from_file(mg_rect_atlas* atlas, mg_image backingImage, str8 path, bool flip);
-MP_API void mg_image_atlas_recycle(mg_rect_atlas* atlas, mg_image_region imageRgn);
+ORCA_API oc_image_region oc_image_atlas_alloc_from_rgba8(oc_rect_atlas* atlas, oc_image backingImage, u32 width, u32 height, u8* pixels);
+ORCA_API oc_image_region oc_image_atlas_alloc_from_data(oc_rect_atlas* atlas, oc_image backingImage, oc_str8 data, bool flip);
+ORCA_API oc_image_region oc_image_atlas_alloc_from_file(oc_rect_atlas* atlas, oc_image backingImage, oc_str8 path, bool flip);
+ORCA_API void oc_image_atlas_recycle(oc_rect_atlas* atlas, oc_image_region imageRgn);
 
 //------------------------------------------------------------------------------------------
 //NOTE(martin): transform, viewport and clipping
 //------------------------------------------------------------------------------------------
-MP_API void mg_viewport(mp_rect viewPort);
+ORCA_API void oc_viewport(oc_rect viewPort);
 
-MP_API void mg_matrix_push(mg_mat2x3 matrix);
-MP_API void mg_matrix_pop(void);
+ORCA_API void oc_matrix_push(oc_mat2x3 matrix);
+ORCA_API void oc_matrix_pop(void);
 
-MP_API void mg_clip_push(f32 x, f32 y, f32 w, f32 h);
-MP_API void mg_clip_pop(void);
+ORCA_API void oc_clip_push(f32 x, f32 y, f32 w, f32 h);
+ORCA_API void oc_clip_pop(void);
 
 //------------------------------------------------------------------------------------------
 //NOTE(martin): graphics attributes setting/getting
 //------------------------------------------------------------------------------------------
-MP_API void mg_set_color(mg_color color);
-MP_API void mg_set_color_rgba(f32 r, f32 g, f32 b, f32 a);
-MP_API void mg_set_width(f32 width);
-MP_API void mg_set_tolerance(f32 tolerance);
-MP_API void mg_set_joint(mg_joint_type joint);
-MP_API void mg_set_max_joint_excursion(f32 maxJointExcursion);
-MP_API void mg_set_cap(mg_cap_type cap);
-MP_API void mg_set_font(mg_font font);
-MP_API void mg_set_font_size(f32 size);
-MP_API void mg_set_text_flip(bool flip);
-MP_API void mg_set_image(mg_image image);
-MP_API void mg_set_image_source_region(mp_rect region);
+ORCA_API void oc_set_color(oc_color color);
+ORCA_API void oc_set_color_rgba(f32 r, f32 g, f32 b, f32 a);
+ORCA_API void oc_set_width(f32 width);
+ORCA_API void oc_set_tolerance(f32 tolerance);
+ORCA_API void oc_set_joint(oc_joint_type joint);
+ORCA_API void oc_set_max_joint_excursion(f32 maxJointExcursion);
+ORCA_API void oc_set_cap(oc_cap_type cap);
+ORCA_API void oc_set_font(oc_font font);
+ORCA_API void oc_set_font_size(f32 size);
+ORCA_API void oc_set_text_flip(bool flip);
+ORCA_API void oc_set_image(oc_image image);
+ORCA_API void oc_set_image_source_region(oc_rect region);
 
-MP_API mg_color mg_get_color(void);
-MP_API f32 mg_get_width(void);
-MP_API f32 mg_get_tolerance(void);
-MP_API mg_joint_type mg_get_joint(void);
-MP_API f32 mg_get_max_joint_excursion(void);
-MP_API mg_cap_type mg_get_cap(void);
-MP_API mg_font mg_get_font(void);
-MP_API f32 mg_get_font_size(void);
-MP_API bool mg_get_text_flip(void);
+ORCA_API oc_color oc_get_color(void);
+ORCA_API f32 oc_get_width(void);
+ORCA_API f32 oc_get_tolerance(void);
+ORCA_API oc_joint_type oc_get_joint(void);
+ORCA_API f32 oc_get_max_joint_excursion(void);
+ORCA_API oc_cap_type oc_get_cap(void);
+ORCA_API oc_font oc_get_font(void);
+ORCA_API f32 oc_get_font_size(void);
+ORCA_API bool oc_get_text_flip(void);
 
 //------------------------------------------------------------------------------------------
 //NOTE(martin): path construction
 //------------------------------------------------------------------------------------------
-MP_API vec2 mg_get_position(void);
-MP_API void mg_move_to(f32 x, f32 y);
-MP_API void mg_line_to(f32 x, f32 y);
-MP_API void mg_quadratic_to(f32 x1, f32 y1, f32 x2, f32 y2);
-MP_API void mg_cubic_to(f32 x1, f32 y1, f32 x2, f32 y2, f32 x3, f32 y3);
-MP_API void mg_close_path(void);
+ORCA_API oc_vec2 oc_get_position(void);
+ORCA_API void oc_move_to(f32 x, f32 y);
+ORCA_API void oc_line_to(f32 x, f32 y);
+ORCA_API void oc_quadratic_to(f32 x1, f32 y1, f32 x2, f32 y2);
+ORCA_API void oc_cubic_to(f32 x1, f32 y1, f32 x2, f32 y2, f32 x3, f32 y3);
+ORCA_API void oc_close_path(void);
 
-MP_API mp_rect mg_glyph_outlines(str32 glyphIndices);
-MP_API void mg_codepoints_outlines(str32 string);
-MP_API void mg_text_outlines(str8 string);
+ORCA_API oc_rect oc_glyph_outlines(oc_str32 glyphIndices);
+ORCA_API void oc_codepoints_outlines(oc_str32 string);
+ORCA_API void oc_text_outlines(oc_str8 string);
 
 //------------------------------------------------------------------------------------------
 //NOTE(martin): clear/fill/stroke
 //------------------------------------------------------------------------------------------
-MP_API void mg_clear(void);
-MP_API void mg_fill(void);
-MP_API void mg_stroke(void);
+ORCA_API void oc_clear(void);
+ORCA_API void oc_fill(void);
+ORCA_API void oc_stroke(void);
 
 //------------------------------------------------------------------------------------------
 //NOTE(martin): 'fast' shapes primitives
 //------------------------------------------------------------------------------------------
-MP_API void mg_rectangle_fill(f32 x, f32 y, f32 w, f32 h);
-MP_API void mg_rectangle_stroke(f32 x, f32 y, f32 w, f32 h);
-MP_API void mg_rounded_rectangle_fill(f32 x, f32 y, f32 w, f32 h, f32 r);
-MP_API void mg_rounded_rectangle_stroke(f32 x, f32 y, f32 w, f32 h, f32 r);
-MP_API void mg_ellipse_fill(f32 x, f32 y, f32 rx, f32 ry);
-MP_API void mg_ellipse_stroke(f32 x, f32 y, f32 rx, f32 ry);
-MP_API void mg_circle_fill(f32 x, f32 y, f32 r);
-MP_API void mg_circle_stroke(f32 x, f32 y, f32 r);
-MP_API void mg_arc(f32 x, f32 y, f32 r, f32 arcAngle, f32 startAngle);
+ORCA_API void oc_rectangle_fill(f32 x, f32 y, f32 w, f32 h);
+ORCA_API void oc_rectangle_stroke(f32 x, f32 y, f32 w, f32 h);
+ORCA_API void oc_rounded_rectangle_fill(f32 x, f32 y, f32 w, f32 h, f32 r);
+ORCA_API void oc_rounded_rectangle_stroke(f32 x, f32 y, f32 w, f32 h, f32 r);
+ORCA_API void oc_ellipse_fill(f32 x, f32 y, f32 rx, f32 ry);
+ORCA_API void oc_ellipse_stroke(f32 x, f32 y, f32 rx, f32 ry);
+ORCA_API void oc_circle_fill(f32 x, f32 y, f32 r);
+ORCA_API void oc_circle_stroke(f32 x, f32 y, f32 r);
+ORCA_API void oc_arc(f32 x, f32 y, f32 r, f32 arcAngle, f32 startAngle);
 
 //NOTE: image helpers
-MP_API void mg_image_draw(mg_image image, mp_rect rect);
-MP_API void mg_image_draw_region(mg_image image, mp_rect srcRegion, mp_rect dstRegion);
+ORCA_API void oc_image_draw(oc_image image, oc_rect rect);
+ORCA_API void oc_image_draw_region(oc_image image, oc_rect srcRegion, oc_rect dstRegion);
 
 #endif //__GRAPHICS_H_

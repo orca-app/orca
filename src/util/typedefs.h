@@ -40,7 +40,18 @@ typedef union
 		f32 y;
 	};
 	f32 c[2];
-} vec2;
+} oc_vec2;
+
+typedef union
+{
+	struct
+	{
+		f32 x;
+		f32 y;
+		f32 z;
+	};
+	f32 c[3];
+} oc_vec3;
 
 typedef union
 {
@@ -50,7 +61,7 @@ typedef union
 		i32 y;
 	};
 	i32 c[2];
-} ivec2;
+} oc_vec2i;
 
 typedef union
 {
@@ -62,9 +73,12 @@ typedef union
 		f32 w;
 	};
 	f32 c[4];
-} vec4;
+} oc_vec4;
 
-#define vec4_expand_xyz(v) (v).x, (v).y, (v).z
+typedef struct oc_mat2x3
+{
+	f32 m[6];
+} oc_mat2x3;
 
 typedef union
 {
@@ -77,10 +91,10 @@ typedef union
 	};
 	struct
 	{
-		vec2 xy;
-		vec2 wh;
+		oc_vec2 xy;
+		oc_vec2 wh;
 	};
 	f32 c[4];
-} mp_rect;
+} oc_rect;
 
 #endif //__TYPEDEFS_H_

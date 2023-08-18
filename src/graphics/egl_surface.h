@@ -10,9 +10,9 @@
 #define __EGL_SURFACE_H_
 
 #include"graphics_surface.h"
-#include"app/mp_app.h"
+#include"app/app.h"
 
-mg_surface_data* mg_egl_surface_create_for_window(mp_window window);
-mg_surface_data* mg_egl_surface_create_remote(u32 width, u32 height);
+oc_surface_data* oc_egl_surface_create_for_window(oc_window window);
+oc_surface_data* oc_egl_surface_create_remote(u32 width, u32 height);
 
 #endif // __EGL_SURFACE_H_

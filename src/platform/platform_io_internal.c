@@ -9,12 +9,12 @@
 #include"platform_io_internal.h"
 #include"platform_path.h"
 
-file_table __globalFileTable = {0};
+oc_file_table oc_globalFileTable = {0};
 
-file_slot* file_slot_alloc(file_table* table)
+oc_file_slot* oc_file_slot_alloc(oc_file_table* table)
 {
-	file_slot* slot = list_pop_entry(&table->freeList, file_slot, freeListElt);
-	if(!slot && table->nextSlot < ORCA_MAX_FILE_SLOTS)
+	oc_file_slot* slot = oc_list_pop_entry(&table->freeList, oc_file_slot, freeListElt);
+	if(!slot && table->nextSlot < OC_IO_MAX_FILE_SLOTS)
 	{
 		slot = &table->slots[table->nextSlot];
 		slot->generation = 1;
@@ -22,36 +22,36 @@ file_slot* file_slot_alloc(file_table* table)
 	}
 
 	u32 tmpGeneration = slot->generation;
-	memset(slot, 0, sizeof(file_slot));
+	memset(slot, 0, sizeof(oc_file_slot));
 	slot->generation = tmpGeneration;
 
 	return(slot);
 }
 
-void file_slot_recycle(file_table* table, file_slot* slot)
+void oc_file_slot_recycle(oc_file_table* table, oc_file_slot* slot)
 {
 	slot->generation++;
-	list_push(&table->freeList, &slot->freeListElt);
+	oc_list_push(&table->freeList, &slot->freeListElt);
 }
 
-file_handle file_handle_from_slot(file_table* table, file_slot* slot)
+oc_file oc_file_from_slot(oc_file_table* table, oc_file_slot* slot)
 {
 	u64 index = slot - table->slots;
 	u64 generation = slot->generation;
-	file_handle handle = {.h = (generation<<32) | index };
+	oc_file handle = {.h = (generation<<32) | index };
 	return(handle);
 }
 
-file_slot* file_slot_from_handle(file_table* table, file_handle handle)
+oc_file_slot* oc_file_slot_from_handle(oc_file_table* table, oc_file handle)
 {
-	file_slot* slot = 0;
+	oc_file_slot* slot = 0;
 
 	u64 index = handle.h & 0xffffffff;
 	u64 generation = handle.h>>32;
 
 	if(index < table->nextSlot)
 	{
-		file_slot* candidate = &table->slots[index];
+		oc_file_slot* candidate = &table->slots[index];
 		if(candidate->generation == generation)
 		{
 			slot = candidate;
@@ -60,149 +60,149 @@ file_slot* file_slot_from_handle(file_table* table, file_handle handle)
 	return(slot);
 }
 
-io_cmp io_wait_single_req(io_req* req)
+oc_io_cmp oc_io_wait_single_req(oc_io_req* req)
 {
-	return(io_wait_single_req_with_table(req, &__globalFileTable));
+	return(oc_io_wait_single_req_with_table(req, &oc_globalFileTable));
 }
 
 //-----------------------------------------------------------------------
 // io common primitives
 //-----------------------------------------------------------------------
 
-typedef struct io_open_restrict_context
+typedef struct oc_io_open_restrict_context
 {
-	io_error error;
+	oc_io_error error;
 	u64 rootUID;
-	io_file_desc rootFd;
-	io_file_desc fd;
+	oc_file_desc rootFd;
+	oc_file_desc fd;
 
-} io_open_restrict_context;
+} oc_io_open_restrict_context;
 
-io_error io_open_restrict_enter(io_open_restrict_context* context, str8 name, file_access_rights accessRights, file_open_flags openFlags)
+oc_io_error oc_io_open_restrict_enter(oc_io_open_restrict_context* context, oc_str8 name, oc_file_access accessRights, oc_file_open_flags openFlags)
 {
-	io_file_desc nextFd = io_raw_open_at(context->fd, name, accessRights, openFlags);
-	if(io_file_desc_is_nil(nextFd))
+	oc_file_desc nextFd = oc_io_raw_open_at(context->fd, name, accessRights, openFlags);
+	if(oc_file_desc_is_nil(nextFd))
 	{
-		context->error = io_raw_last_error();
+		context->error = oc_io_raw_last_error();
 	}
 	else
 	{
 		if(context->fd != context->rootFd)
 		{
-			io_raw_close(context->fd);
+			oc_io_raw_close(context->fd);
 		}
 		context->fd = nextFd;
 	}
 	return(context->error);
 }
 
-typedef struct io_open_restrict_result
+typedef struct oc_io_open_restrict_result
 {
-	io_error error;
-	io_file_desc fd;
-} io_open_restrict_result;
+	oc_io_error error;
+	oc_file_desc fd;
+} oc_io_open_restrict_result;
 
 
-io_open_restrict_result io_open_restrict(io_file_desc dirFd, str8 path, file_access_rights accessRights, file_open_flags openFlags)
+oc_io_open_restrict_result oc_io_open_restrict(oc_file_desc dirFd, oc_str8 path, oc_file_access accessRights, oc_file_open_flags openFlags)
 {
-	mem_arena_scope scratch = mem_scratch_begin();
+	oc_arena_scope scratch = oc_scratch_begin();
 
-	str8_list sep = {0};
-	str8_list_push(scratch.arena, &sep, STR8("/"));
-	str8_list_push(scratch.arena, &sep, STR8("\\"));
-	str8_list pathElements = str8_split(scratch.arena, path, sep);
+	oc_str8_list sep = {0};
+	oc_str8_list_push(scratch.arena, &sep, OC_STR8("/"));
+	oc_str8_list_push(scratch.arena, &sep, OC_STR8("\\"));
+	oc_str8_list pathElements = oc_str8_split(scratch.arena, path, sep);
 
-	io_open_restrict_context context = {
-		.error = IO_OK,
+	oc_io_open_restrict_context context = {
+		.error = OC_IO_OK,
 		.rootFd = dirFd,
 		.fd = dirFd,
 	};
 
-	if(io_file_desc_is_nil(dirFd))
+	if(oc_file_desc_is_nil(dirFd))
 	{
-		context.error = IO_ERR_HANDLE;
+		context.error = OC_IO_ERR_HANDLE;
 	}
 	else
 	{
-		file_status status;
-		context.error = io_raw_fstat(dirFd, &status);
+		oc_file_status status;
+		context.error = oc_io_raw_fstat(dirFd, &status);
 		context.rootUID = status.uid;
 	}
 
-	if(context.error == IO_OK)
+	if(context.error == OC_IO_OK)
 	{
-		for_list(&pathElements.list, elt, str8_elt, listElt)
+		oc_list_for(&pathElements.list, elt, oc_str8_elt, listElt)
 		{
-			str8 name = elt->string;
-			file_access_rights eltAccessRights = FILE_ACCESS_READ;
-			file_open_flags eltOpenFlags = 0;
+			oc_str8 name = elt->string;
+			oc_file_access eltAccessRights = OC_FILE_ACCESS_READ;
+			oc_file_open_flags eltOpenFlags = 0;
 
-			bool atLastElement = (&elt->listElt == list_last(&pathElements.list));
+			bool atLastElement = (&elt->listElt == oc_list_last(&pathElements.list));
 			if(atLastElement)
 			{
 				eltAccessRights = accessRights;
 				eltOpenFlags = openFlags;
 			}
 
-			if(  !str8_cmp(name, STR8("."))
+			if(  !oc_str8_cmp(name, OC_STR8("."))
 			  && !atLastElement)
 			{
 				//NOTE: if we're not at the last element we can just skip '.' elements
 				continue;
 			}
-			else if(!str8_cmp(name, STR8("..")))
+			else if(!oc_str8_cmp(name, OC_STR8("..")))
 			{
 				//NOTE: check that we don't escape root dir
-				file_status status;
-				context.error = io_raw_fstat(context.fd, &status);
+				oc_file_status status;
+				context.error = oc_io_raw_fstat(context.fd, &status);
 				if(context.error)
 				{
 					break;
 				}
 				else if(status.uid == context.rootUID)
 				{
-					context.error = IO_ERR_WALKOUT;
+					context.error = OC_IO_ERR_WALKOUT;
 					break;
 				}
 			}
-			else if(!io_raw_file_exists_at(context.fd, name, FILE_OPEN_SYMLINK))
+			else if(!oc_io_raw_file_exists_at(context.fd, name, OC_FILE_OPEN_SYMLINK))
 			{
-				//NOTE: if the file doesn't exists, but we're at the last element and FILE_OPEN_CREATE
-				//      is set, we create the file. Otherwise it is a IO_ERROR_NO_ENTRY error.
+				//NOTE: if the file doesn't exists, but we're at the last element and OC_FILE_OPEN_CREATE
+				//      is set, we create the file. Otherwise it is a OC_IO_ERROR_NO_ENTRY error.
 				if(  !atLastElement
-			  	|| !(openFlags & FILE_OPEN_CREATE))
+			  	|| !(openFlags & OC_FILE_OPEN_CREATE))
 				{
-					context.error = IO_ERR_NO_ENTRY;
+					context.error = OC_IO_ERR_NO_ENTRY;
 					break;
 				}
 			}
 			else
 			{
 				//NOTE: if the file exists, we check the type of file
-				file_status status = {0};
-				context.error = io_raw_fstat_at(context.fd, name, FILE_OPEN_SYMLINK, &status);
+				oc_file_status status = {0};
+				context.error = oc_io_raw_fstat_at(context.fd, name, OC_FILE_OPEN_SYMLINK, &status);
 				if(context.error)
 				{
 					break;
 				}
 
-				if(status.type == MP_FILE_REGULAR)
+				if(status.type == OC_FILE_REGULAR)
 				{
 					if(!atLastElement)
 					{
-						context.error = IO_ERR_NOT_DIR;
+						context.error = OC_IO_ERR_NOT_DIR;
 						break;
 					}
 				}
-				else if(status.type == MP_FILE_SYMLINK)
+				else if(status.type == OC_FILE_SYMLINK)
 				{
-					//TODO  - do we need a FILE_OPEN_NO_FOLLOW that fails if last element is a symlink?
-					//      - do we need a FILE_OPEN_NO_SYMLINKS that fails if _any_ element is a symlink?
+					//TODO  - do we need a OC_FILE_OPEN_NO_FOLLOW that fails if last element is a symlink?
+					//      - do we need a OC_FILE_OPEN_NO_SYMLINKS that fails if _any_ element is a symlink?
 
 					if(  !atLastElement
-				  	|| !(openFlags & FILE_OPEN_SYMLINK))
+				  	|| !(openFlags & OC_FILE_OPEN_SYMLINK))
 					{
-						io_raw_read_link_result link = io_raw_read_link_at(scratch.arena, context.fd, name);
+						oc_io_raw_read_link_result link = oc_io_raw_read_link_at(scratch.arena, context.fd, name);
 						if(link.error)
 						{
 							context.error = link.error;
@@ -211,19 +211,19 @@ io_open_restrict_result io_open_restrict(io_file_desc dirFd, str8 path, file_acc
 						if(link.target.len == 0)
 						{
 							//NOTE: treat an empty target as a '.'
-							link.target = STR8(".");
+							link.target = OC_STR8(".");
 						}
-						else if(path_is_absolute(link.target))
+						else if(oc_path_is_absolute(link.target))
 						{
-							context.error = IO_ERR_WALKOUT;
+							context.error = OC_IO_ERR_WALKOUT;
 							break;
 						}
 
-						str8_list linkElements = str8_split(scratch.arena, link.target, sep);
-						if(!list_empty(&linkElements.list))
+						oc_str8_list linkElements = oc_str8_split(scratch.arena, link.target, sep);
+						if(!oc_list_empty(&linkElements.list))
 						{
 							//NOTE: insert linkElements into pathElements after elt
-							list_elt* tmp = elt->listElt.next;
+							oc_list_elt* tmp = elt->listElt.next;
 							elt->listElt.next = linkElements.list.first;
 							linkElements.list.last->next = tmp;
 							if(!tmp)
@@ -234,63 +234,63 @@ io_open_restrict_result io_open_restrict(io_file_desc dirFd, str8 path, file_acc
 						continue;
 					}
 				}
-				else if(status.type != MP_FILE_DIRECTORY)
+				else if(status.type != OC_FILE_DIRECTORY)
 				{
-					context.error = IO_ERR_NOT_DIR;
+					context.error = OC_IO_ERR_NOT_DIR;
 					break;
 				}
 			}
 
 			//NOTE: if we arrive here, we have no errors and the correct flags are set,
 			//      so we can enter the element
-			DEBUG_ASSERT(context.error == IO_OK);
-			io_open_restrict_enter(&context, name, eltAccessRights, eltOpenFlags);
+			OC_DEBUG_ASSERT(context.error == OC_IO_OK);
+			oc_io_open_restrict_enter(&context, name, eltAccessRights, eltOpenFlags);
 		}
 	}
 
-	if(context.error && !io_file_desc_is_nil(context.fd))
+	if(context.error && !oc_file_desc_is_nil(context.fd))
 	{
 		if(context.fd != context.rootFd)
 		{
-			io_raw_close(context.fd);
+			oc_io_raw_close(context.fd);
 		}
-		context.fd = io_file_desc_nil();
+		context.fd = oc_file_desc_nil();
 	}
 
-	io_open_restrict_result result = {
+	oc_io_open_restrict_result result = {
 		.error = context.error,
 		.fd = context.fd
 	};
 
-	mem_scratch_end(scratch);
+	oc_scratch_end(scratch);
 	return(result);
 }
 
-io_cmp io_open_at(file_slot* atSlot, io_req* req, file_table* table)
+oc_io_cmp oc_io_open_at(oc_file_slot* atSlot, oc_io_req* req, oc_file_table* table)
 {
-	io_cmp cmp = {0};
+	oc_io_cmp cmp = {0};
 
-	file_slot* slot = file_slot_alloc(table);
+	oc_file_slot* slot = oc_file_slot_alloc(table);
 	if(!slot)
 	{
-		cmp.error = IO_ERR_MAX_FILES;
+		cmp.error = OC_IO_ERR_MAX_FILES;
 		cmp.result = 0;
 	}
 	else
 	{
-		slot->fd = io_file_desc_nil();
-		cmp.handle = file_handle_from_slot(table, slot);
+		slot->fd = oc_file_desc_nil();
+		cmp.handle = oc_file_from_slot(table, slot);
 
 
-		str8 path = str8_from_buffer(req->size, req->buffer);
+		oc_str8 path = oc_str8_from_buffer(req->size, req->buffer);
 
 		if(!path.len)
 		{
-			slot->error = IO_ERR_ARG;
+			slot->error = OC_IO_ERR_ARG;
 		}
-		else if(!atSlot && !file_handle_is_nil(req->handle))
+		else if(!atSlot && !oc_file_is_nil(req->handle))
 		{
-			slot->error = IO_ERR_HANDLE;
+			slot->error = OC_IO_ERR_HANDLE;
 		}
 		else
 		{
@@ -302,34 +302,34 @@ io_cmp io_open_at(file_slot* atSlot, io_req* req, file_table* table)
 
 			if(slot->rights != req->open.rights)
 			{
-				slot->error = IO_ERR_PERM;
+				slot->error = OC_IO_ERR_PERM;
 			}
 			else
 			{
-				io_file_desc dirFd = atSlot ? atSlot->fd : io_file_desc_nil();
+				oc_file_desc dirFd = atSlot ? atSlot->fd : oc_file_desc_nil();
 
-				if(req->open.flags & FILE_OPEN_RESTRICT)
+				if(req->open.flags & OC_FILE_OPEN_RESTRICT)
 				{
-					io_open_restrict_result res = io_open_restrict(dirFd, path, slot->rights, req->open.flags);
+					oc_io_open_restrict_result res = oc_io_open_restrict(dirFd, path, slot->rights, req->open.flags);
 					slot->error = res.error;
 					slot->fd = res.fd;
 				}
 				else
 				{
-					slot->fd = io_raw_open_at(dirFd, path, slot->rights, req->open.flags);
-					if(io_file_desc_is_nil(slot->fd))
+					slot->fd = oc_io_raw_open_at(dirFd, path, slot->rights, req->open.flags);
+					if(oc_file_desc_is_nil(slot->fd))
 					{
-						slot->error = io_raw_last_error();
+						slot->error = oc_io_raw_last_error();
 					}
 				}
 			}
 		}
 
-		if(slot->error == IO_OK)
+		if(slot->error == OC_IO_OK)
 		{
-			file_status status;
-			slot->error = io_raw_fstat(slot->fd, &status);
-			if(slot->error == IO_OK)
+			oc_file_status status;
+			slot->error = oc_io_raw_fstat(slot->fd, &status);
+			if(slot->error == OC_IO_OK)
 			{
 				slot->type = status.type;
 			}

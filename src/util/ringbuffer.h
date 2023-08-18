@@ -9,8 +9,9 @@
 #ifndef __RINGBUFFER_H_
 #define __RINGBUFFER_H_
 
+#include<stdatomic.h>
+
 #include"typedefs.h"
-#include"atomic.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -25,17 +26,17 @@ typedef struct ringbuffer
 
 	u8* buffer;
 
-} ringbuffer;
+} oc_ringbuffer;
 
-void ringbuffer_init(ringbuffer* ring, u8 capExp);
-void ringbuffer_cleanup(ringbuffer* ring);
-u64 ringbuffer_read_available(ringbuffer* ring);
-u64 ringbuffer_write_available(ringbuffer* ring);
-u64 ringbuffer_read(ringbuffer* ring, u64 size, u8* data);
-u64 ringbuffer_write(ringbuffer* ring, u64 size, u8* data);
-u64 ringbuffer_reserve(ringbuffer* ring, u64 size, u8* data);
-void ringbuffer_commit(ringbuffer* ring);
-void ringbuffer_rewind(ringbuffer* ring);
+void oc_ringbuffer_init(oc_ringbuffer* ring, u8 capExp);
+void oc_ringbuffer_cleanup(oc_ringbuffer* ring);
+u64 oc_ringbuffer_read_available(oc_ringbuffer* ring);
+u64 oc_ringbuffer_write_available(oc_ringbuffer* ring);
+u64 oc_ringbuffer_read(oc_ringbuffer* ring, u64 size, u8* data);
+u64 oc_ringbuffer_write(oc_ringbuffer* ring, u64 size, u8* data);
+u64 oc_ringbuffer_reserve(oc_ringbuffer* ring, u64 size, u8* data);
+void oc_ringbuffer_commit(oc_ringbuffer* ring);
+void oc_ringbuffer_rewind(oc_ringbuffer* ring);
 
 #ifdef __cplusplus
 } // extern "C"

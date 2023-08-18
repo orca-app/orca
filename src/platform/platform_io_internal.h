@@ -11,60 +11,60 @@
 #include"platform_io.h"
 #include"platform.h"
 
-#if PLATFORM_MACOS || PLATFORM_LINUX
-	typedef int io_file_desc;
-#elif PLATFORM_WINDOWS
+#if OC_PLATFORM_MACOS || PLATFORM_LINUX
+	typedef int oc_file_desc;
+#elif OC_PLATFORM_WINDOWS
 	#ifndef WIN32_LEAN_AND_MEAN
 	#define WIN32_LEAN_AND_MEAN
 	#endif
 	#include<windows.h>
-	typedef HANDLE io_file_desc;
+	typedef HANDLE oc_file_desc;
 #endif
 
-typedef struct file_slot
+typedef struct oc_file_slot
 {
 	u32 generation;
-	io_error error;
+	oc_io_error error;
 	bool fatal;
-	list_elt freeListElt;
+	oc_list_elt freeListElt;
 
-	file_type type;
-	file_access_rights rights;
-	io_file_desc fd;
+	oc_file_type type;
+	oc_file_access rights;
+	oc_file_desc fd;
 
-} file_slot;
+} oc_file_slot;
 
 enum
 {
-	ORCA_MAX_FILE_SLOTS = 256,
+	OC_IO_MAX_FILE_SLOTS = 256,
 };
 
-typedef struct file_table
+typedef struct oc_file_table
 {
-	file_slot slots[ORCA_MAX_FILE_SLOTS];
+	oc_file_slot slots[OC_IO_MAX_FILE_SLOTS];
 	u32 nextSlot;
-	list_info freeList;
-} file_table;
+	oc_list freeList;
+} oc_file_table;
 
-file_slot* file_slot_alloc(file_table* table);
-void file_slot_recycle(file_table* table, file_slot* slot);
-file_handle file_handle_from_slot(file_table* table, file_slot* slot);
-file_slot* file_slot_from_handle(file_table* table, file_handle handle);
+oc_file_slot* oc_file_slot_alloc(oc_file_table* table);
+void oc_file_slot_recycle(oc_file_table* table, oc_file_slot* slot);
+oc_file oc_file_from_slot(oc_file_table* table, oc_file_slot* slot);
+oc_file_slot* oc_file_slot_from_handle(oc_file_table* table, oc_file handle);
 
-MP_API io_cmp io_wait_single_req_with_table(io_req* req, file_table* table);
+ORCA_API oc_io_cmp oc_io_wait_single_req_with_table(oc_io_req* req, oc_file_table* table);
 
 
 //-----------------------------------------------------------------------
 // raw io primitives
 //-----------------------------------------------------------------------
 
-io_file_desc io_file_desc_nil();
-bool io_file_desc_is_nil(io_file_desc fd);
+oc_file_desc oc_file_desc_nil();
+bool oc_file_desc_is_nil(oc_file_desc fd);
 
 /*WARN
-	io_raw_xxx_at functions are similar to posix openat() regarding path resolution,
+	oc_io_raw_xxx_at functions are similar to posix openat() regarding path resolution,
 	but with some important differences:
-		- If dirFd is a non-nil fd, path is considered relative to dirFd _even if it is an absolute path_
+		- If dirFd is a non-nil fd, path is considered relative to dirFd _even if it is an absolute oc_path_
 		- If dirFd is a nil fd, it is _ignored_ (i.e., path can be absolute, or relative to the current directory)
 
 	This means that:
@@ -72,19 +72,19 @@ bool io_file_desc_is_nil(io_file_desc fd);
 		- we don't need a special handle value to use a path relative to the current working directory
 		  (we just pass a nil dirFd with a relative path)
 */
-io_file_desc io_raw_open_at(io_file_desc dirFd, str8 path, file_access_rights accessRights, file_open_flags openFlags);
-void io_raw_close(io_file_desc fd);
-io_error io_raw_last_error();
-bool io_raw_file_exists_at(io_file_desc dirFd, str8 path, file_open_flags openFlags);
-io_error io_raw_fstat(io_file_desc fd, file_status* status);
-io_error io_raw_fstat_at(io_file_desc dirFd, str8 path, file_open_flags openFlags, file_status* status);
+oc_file_desc oc_io_raw_open_at(oc_file_desc dirFd, oc_str8 path, oc_file_access accessRights, oc_file_open_flags openFlags);
+void oc_io_raw_close(oc_file_desc fd);
+oc_io_error oc_io_raw_last_error();
+bool oc_io_raw_file_exists_at(oc_file_desc dirFd, oc_str8 path, oc_file_open_flags openFlags);
+oc_io_error oc_io_raw_fstat(oc_file_desc fd, oc_file_status* status);
+oc_io_error oc_io_raw_fstat_at(oc_file_desc dirFd, oc_str8 path, oc_file_open_flags openFlags, oc_file_status* status);
 
-typedef struct io_raw_read_link_result
+typedef struct oc_io_raw_read_link_result
 {
-	io_error error;
-	str8 target;
-} io_raw_read_link_result;
+	oc_io_error error;
+	oc_str8 target;
+} oc_io_raw_read_link_result;
 
-io_raw_read_link_result io_raw_read_link_at(mem_arena* arena, io_file_desc dirFd, str8 path);
+oc_io_raw_read_link_result oc_io_raw_read_link_at(oc_arena* arena, oc_file_desc dirFd, oc_str8 path);
 
 #endif //__PLATFORM_IO_INTERNAL_H_

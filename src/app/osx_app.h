@@ -9,7 +9,7 @@
 #ifndef __OSX_APP_H_
 #define __OSX_APP_H_
 
-#include"mp_app.h"
+#include"app.h"
 #include"graphics/graphics.h"
 
 #ifdef __OBJC__
@@ -26,19 +26,19 @@
 
 #include<Carbon/Carbon.h>
 
-typedef struct osx_window_data
+typedef struct oc_osx_window_data
 {
 	NSWindow* nsWindow;
 	NSView*   nsView;
 	NSObject* nsWindowDelegate;
 
-} osx_window_data;
+} oc_osx_window_data;
 
-#define MP_PLATFORM_WINDOW_DATA osx_window_data osx;
+#define OC_PLATFORM_WINDOW_DATA oc_osx_window_data osx;
 
-const u32 MP_APP_MAX_VIEWS = 128;
+const u32 OC_APP_MAX_VIEWS = 128;
 
-typedef struct osx_app_data
+typedef struct oc_osx_app_data
 {
 	NSTimer* frameTimer;
 	NSCursor* cursor;
@@ -47,9 +47,9 @@ typedef struct osx_app_data
 	void* kbLayoutUnicodeData;
 	id kbLayoutListener;
 
-} osx_app_data;
+} oc_osx_app_data;
 
-#define MP_PLATFORM_APP_DATA osx_app_data osx;
+#define OC_PLATFORM_APP_DATA oc_osx_app_data osx;
 
 //-----------------------------------------------
 // Surface layer
@@ -76,11 +76,11 @@ typedef struct osx_app_data
 	@end
 #endif
 
-typedef struct mp_layer
+typedef struct oc_layer
 {
 	CALayer* caLayer;
 	CAContext* caContext;
-} mp_layer;
+} oc_layer;
 
 
 

@@ -1,10 +1,10 @@
 [
 {
-	"name": "orca_log",
-	"cname": "orca_log",
+	"name": "oc_runtime_log",
+	"cname": "oc_runtime_log",
 	"ret": {"name": "void", "tag": "v"},
 	"args": [ {"name": "level",
-			   "type": {"name": "log_level", "tag": "i"}},
+			   "type": {"name": "oc_log_level", "tag": "i"}},
 			  {"name": "fileLen",
 			   "type": {"name": "int", "tag": "i"}},
 			  {"name": "file",
@@ -22,15 +22,15 @@
 			]
 },
 {
-	"name": "orca_mem_grow",
-	"cname": "orca_mem_grow",
+	"name": "oc_mem_grow",
+	"cname": "oc_mem_grow",
 	"ret": {"name": "int", "tag": "i"},
 	"args": [ {"name": "size",
 			   "type": {"name": "u64", "tag": "I"}}]
 },
 {
-	"name": "orca_runtime_assert_fail",
-	"cname": "orca_assert_fail",
+	"name": "oc_runtime_assert_fail",
+	"cname": "oc_assert_fail",
 	"ret": {"name": "void", "tag": "v"},
 	"args": [ {"name": "file",
 			   "type": {"name": "const char*", "tag": "p"}},
@@ -45,8 +45,8 @@
 			]
 },
 {
-	"name": "orca_runtime_abort",
-	"cname": "orca_abort",
+	"name": "oc_runtime_abort_ext",
+	"cname": "oc_abort_ext",
 	"ret": {"name": "void", "tag": "v"},
 	"args": [ {"name": "file",
 			   "type": {"name": "const char*", "tag": "p"}},

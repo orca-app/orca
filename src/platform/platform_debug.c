@@ -7,34 +7,34 @@
 *****************************************************************/
 #include"platform_debug.h"
 
-typedef struct log_config
+typedef struct oc_log_config
 {
-	log_output* output;
-	log_level level;
-} log_config;
+	oc_log_output* output;
+	oc_log_level level;
+} oc_log_config;
 
-//TODO: make default output a compile-time constant to avoid check in log_push()?
-static log_config __logConfig = {0, LOG_LEVEL_INFO};
+//TODO: make default output a compile-time constant to avoid check in oc_log_ext()?
+static oc_log_config __logConfig = {0, OC_LOG_LEVEL_INFO};
 
-void log_set_output(log_output* output)
+void oc_log_set_output(oc_log_output* output)
 {
 	__logConfig.output = output;
 }
 
-void log_set_level(log_level level)
+void oc_log_set_level(oc_log_level level)
 {
 	__logConfig.level = level;
 }
 
-void platform_log_push(log_output* output,
-                       log_level level,
+void platform_log_push(oc_log_output* output,
+                       oc_log_level level,
                        const char* file,
                        const char* function,
                        int line,
                        const char* fmt,
                        va_list ap);
 
-void log_push(log_level level,
+void oc_log_ext(oc_log_level level,
                const char* function,
                const char* file,
                int line,
@@ -43,7 +43,7 @@ void log_push(log_level level,
 {
 	if(!__logConfig.output)
 	{
-		__logConfig.output = LOG_DEFAULT_OUTPUT;
+		__logConfig.output = OC_LOG_DEFAULT_OUTPUT;
 	}
 
 	if(level <= __logConfig.level)

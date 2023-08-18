@@ -11,112 +11,112 @@
 // File stream read/write API
 //------------------------------------------------------------------------------
 
-file_handle file_handle_nil()
+oc_file oc_file_nil()
 {
-	return((file_handle){0});
+	return((oc_file){0});
 }
 
-bool file_handle_is_nil(file_handle handle)
+bool oc_file_is_nil(oc_file handle)
 {
 	return(handle.h == 0);
 }
 
-file_handle file_open(str8 path, file_access_rights rights, file_open_flags flags)
+oc_file oc_file_open(oc_str8 path, oc_file_access rights, oc_file_open_flags flags)
 {
-	io_req req = {.op = IO_OP_OPEN_AT,
+	oc_io_req req = {.op = OC_IO_OPEN_AT,
 	              .size = path.len,
 	              .buffer = path.ptr,
 	              .open.rights = rights,
 	              .open.flags = flags };
 
-	io_cmp cmp = io_wait_single_req(&req);
+	oc_io_cmp cmp = oc_io_wait_single_req(&req);
 
 	//WARN: we always return a handle that can be queried for errors. Handles must be closed
 	//      even if there was an error when opening
 	return(cmp.handle);
 }
 
-file_handle file_open_at(file_handle dir, str8 path, file_access_rights rights, file_open_flags flags)
+oc_file oc_file_open_at(oc_file dir, oc_str8 path, oc_file_access rights, oc_file_open_flags flags)
 {
-	io_req req = {.op = IO_OP_OPEN_AT,
+	oc_io_req req = {.op = OC_IO_OPEN_AT,
 	              .handle = dir,
 	              .size = path.len,
 	              .buffer = path.ptr,
 	              .open.rights = rights,
 	              .open.flags = flags,};
 
-	io_cmp cmp = io_wait_single_req(&req);
+	oc_io_cmp cmp = oc_io_wait_single_req(&req);
 	return(cmp.handle);
 }
 
-void file_close(file_handle file)
+void oc_file_close(oc_file file)
 {
-	io_req req = {.op = IO_OP_CLOSE,
+	oc_io_req req = {.op = OC_IO_CLOSE,
 	              .handle = file};
-	io_wait_single_req(&req);
+	oc_io_wait_single_req(&req);
 }
 
-i64 file_seek(file_handle file, i64 offset, file_whence whence)
+i64 oc_file_seek(oc_file file, i64 offset, oc_file_whence whence)
 {
-	io_req req = {.op = IO_OP_SEEK,
+	oc_io_req req = {.op = OC_IO_SEEK,
 	              .handle = file,
 	              .offset = offset,
 	              .whence = whence};
 
-	io_cmp cmp = io_wait_single_req(&req);
+	oc_io_cmp cmp = oc_io_wait_single_req(&req);
 	return(cmp.offset);
 }
 
-i64 file_pos(file_handle file)
+i64 oc_file_pos(oc_file file)
 {
-	return(file_seek(file, 0, FILE_SEEK_CURRENT));
+	return(oc_file_seek(file, 0, OC_FILE_SEEK_CURRENT));
 }
 
-u64 file_write(file_handle file, u64 size, char* buffer)
+u64 oc_file_write(oc_file file, u64 size, char* buffer)
 {
-	io_req req = {.op = IO_OP_WRITE,
+	oc_io_req req = {.op = OC_IO_WRITE,
 	              .handle = file,
 	              .size = size,
 	              .buffer = buffer};
 
-	io_cmp cmp = io_wait_single_req(&req);
+	oc_io_cmp cmp = oc_io_wait_single_req(&req);
 	return(cmp.size);
 }
 
-u64 file_read(file_handle file, u64 size, char* buffer)
+u64 oc_file_read(oc_file file, u64 size, char* buffer)
 {
-	io_req req = {.op = IO_OP_READ,
+	oc_io_req req = {.op = OC_IO_READ,
 	              .handle = file,
 	              .size = size,
 	              .buffer = buffer};
 
-	io_cmp cmp = io_wait_single_req(&req);
+	oc_io_cmp cmp = oc_io_wait_single_req(&req);
 	return(cmp.size);
 }
 
-io_error file_last_error(file_handle file)
+oc_io_error oc_file_last_error(oc_file file)
 {
-	io_req req = {.op = IO_OP_ERROR,
+	oc_io_req req = {.op = OC_OC_IO_ERROR,
 	              .handle = file};
 
-	io_cmp cmp = io_wait_single_req(&req);
-	return((io_error)cmp.result);
+	oc_io_cmp cmp = oc_io_wait_single_req(&req);
+	return((oc_io_error)cmp.result);
 }
 
-file_status file_get_status(file_handle file)
+oc_file_status oc_file_get_status(oc_file file)
 {
-	file_status status = {0};
-	io_req req = {.op = IO_OP_FSTAT,
+	oc_file_status status = {0};
+	oc_io_req req = {.op = OC_IO_FSTAT,
 	              .handle = file,
-	              .size = sizeof(file_status),
+	              .size = sizeof(oc_file_status),
 	              .buffer = (char*)&status};
 
-	io_cmp cmp = io_wait_single_req(&req);
+	oc_io_cmp cmp = oc_io_wait_single_req(&req);
 	return(status);
 }
 
-u64 file_size(file_handle file)
+u64 oc_file_size(oc_file file)
 {
-	file_status status = file_get_status(file);
+	oc_file_status status = oc_file_get_status(file);
 	return(status.size);
 }

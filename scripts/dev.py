@@ -1,4 +1,3 @@
-import argparse
 from datetime import datetime
 import glob
 import os
@@ -20,9 +19,9 @@ ANGLE_VERSION = "2023-07-05"
 
 def attach_dev_commands(subparsers):
     dev_cmd = subparsers.add_parser("dev", help="Commands for building Orca itself. Must be run from the root of an Orca source checkout.")
-    dev_cmd.set_defaults(func=orca_root_only)
+    dev_cmd.set_defaults(func=orca_source_only)
 
-    dev_sub = dev_cmd.add_subparsers(required=is_orca_root(), title='commands')
+    dev_sub = dev_cmd.add_subparsers(required=is_orca_source(), title='commands')
 
     build_cmd = dev_sub.add_parser("build-runtime", help="Build the Orca runtime from source.")
     build_cmd.add_argument("--release", action="store_true", help="compile Orca in release mode (default is debug)")
@@ -36,15 +35,39 @@ def attach_dev_commands(subparsers):
     install_cmd.set_defaults(func=dev_shellish(install))
 
 
-def is_orca_root():
-    try:
-        os.stat(".orcaroot")
-        return True
-    except FileNotFoundError:
-        return False
+# Checks if the Orca tool should use a source checkout of Orca instead of a system install.
+# This is copy-pasted to the command-line tool so it can work before loading anything.
+#
+# Returns: (use source, source directory, is actually the source's tool)
+def check_if_source():
+    def path_is_in_orca_source(path):
+        dir = path
+        while True:
+            try:
+                os.stat(os.path.join(dir, ".orcaroot"))
+                return (True, dir)
+            except FileNotFoundError:
+                pass
+
+            newdir = os.path.dirname(dir)
+            if newdir == dir: # TODO: Verify on Windows (it will probably not work)
+                return (False, None)
+            dir = newdir
+
+    in_source, current_source_dir = path_is_in_orca_source(os.getcwd())
+    script_is_source, script_source_dir = path_is_in_orca_source(os.path.dirname(os.path.abspath(__file__)))
+
+    use_source = in_source or script_is_source
+    source_dir = current_source_dir or script_source_dir
+    return (use_source, source_dir, script_is_source)
 
 
-def orca_root_only(args):
+def is_orca_source():
+    use_source, _, _ = check_if_source()
+    return use_source
+
+
+def orca_source_only(args):
     print("The Orca dev commands can only be run from an Orca source checkout.")
     print()
     print("If you want to build Orca yourself, download the source here:")
@@ -53,7 +76,14 @@ def orca_root_only(args):
 
 
 def dev_shellish(func):
-    return shellish(func) if is_orca_root() else orca_root_only
+    use_source, source_dir, _ = check_if_source()
+    if not use_source:
+        return orca_source_only
+
+    def func_from_source(args):
+        os.chdir(source_dir)
+        func(args)
+    return shellish(func_from_source)
 
 
 def build_runtime(args):
@@ -137,7 +167,7 @@ def build_platform_layer_lib_win(release):
     subprocess.run([
         "cl", "/nologo",
         "/we4013", "/Zi", "/Zc:preprocessor",
-        "/DMP_BUILD_DLL",
+        "/DOC_BUILD_DLL",
         "/std:c11", "/experimental:c11atomics",
         *includes,
         "src/orca.c", "/Fo:build/bin/orca.o",
@@ -154,7 +184,7 @@ def build_platform_layer_lib_mac(release):
 
     flags = ["-mmacos-version-min=10.15.4", "-maes"]
     cflags = ["-std=c11"]
-    debug_flags = ["-O3"] if release else ["-g", "-DDEBUG", "-DLOG_COMPILE_DEBUG"]
+    debug_flags = ["-O3"] if release else ["-g", "-DOC_DEBUG", "-DOC_LOG_COMPILE_DEBUG"]
     ldflags = [f"-L{sdk_dir}/usr/lib", f"-F{sdk_dir}/System/Library/Frameworks/"]
     includes = ["-Isrc", "-Isrc/util", "-Isrc/platform", "-Iext", "-Iext/angle/include"]
 
@@ -327,7 +357,7 @@ def build_orca_mac(release):
         "-Iext/wasm3/source"
     ]
     libs = ["-Lbuild/bin", "-Lbuild/lib", "-lorca", "-lwasm3"]
-    debug_flags = ["-O2"] if release else ["-g", "-DLOG_COMPILE_DEBUG"]
+    debug_flags = ["-O2"] if release else ["-g", "-DOC_DEBUG -DOC_LOG_COMPILE_DEBUG"]
     flags = [
         *debug_flags,
         "-mmacos-version-min=10.15.4",
@@ -485,6 +515,17 @@ def yeet(path):
     shutil.rmtree(path)
 
 
+def prompt(msg):
+    while True:
+        answer = input(f"{msg} (y/n)> ")
+        if answer.lower() in ["y", "yes"]:
+            return True
+        elif answer.lower() in ["n", "no"]:
+            return False
+        else:
+            print("Please enter \"yes\" or \"no\" and press return.")
+
+
 def install(args):
     if platform.system() == "Windows":
         dest = os.path.join(os.getenv("LOCALAPPDATA"), "orca")
@@ -495,31 +536,42 @@ def install(args):
         print("The Orca command-line tools will be installed to:")
         print(dest)
         print()
-        while True:
-            answer = input("Proceed with the installation? (y/n) >")
-            if answer.lower() in ["y", "yes"]:
-                break
-            elif answer.lower() in ["n", "no"]:
-                return
-            else:
-                print("Please enter \"yes\" or \"no\" and press return.")
+        if not prompt("Proceed with the installation?"):
+            return
 
     bin_dir = os.path.join(dest, "bin")
     yeet(bin_dir)
+
+    # The MS Store version of Python does some really stupid stuff with AppData:
+    # https://git.handmade.network/hmn/orca/issues/32
+    #
+    # Any new files and folders created in AppData actually get created in a special
+    # folder specific to the Python version. However, if the files or folders already
+    # exist, the redirect does not happen. So, if we first use the shell to create the
+    # paths we need, the following scripts work regardless of Python install.
+    #
+    # Also apparently you can't just do mkdir in a subprocess call here, hence the
+    # trivial batch script.
+    if platform.system() == "Windows":
+        subprocess.run(["scripts\\mkdir.bat", bin_dir], check=True)
+
     shutil.copytree("scripts", os.path.join(bin_dir, "sys_scripts"))
     shutil.copy("orca", bin_dir)
     if platform.system() == "Windows":
         shutil.copy("orca.bat", bin_dir)
 
-    # TODO: Customize these instructions for Windows
     print()
     if platform.system() == "Windows":
-        print("The Orca tools have been installed. Make sure the Orca tools are on your PATH by")
-        print("adding the following path to your system PATH variable:")
-        print()
+        print("The Orca tools have been installed to the following directory:")
         print(bin_dir)
         print()
-        print("You can do this in the Windows settings by searching for \"environment variables\".")
+        print("The tools will need to be on your PATH in order to actually use them.")
+        if prompt("Would you like to automatically add Orca to your PATH?"):
+            subprocess.run(["powershell", "scripts\\updatepath.ps1", bin_dir], check=True)
+            print("Orca has been added to your PATH. Restart any open terminals to use it.")
+        else:
+            print("No worries. You can manually add Orca to your PATH in the Windows settings")
+            print("this in the Windows settings by searching for \"environment variables\".")
     else:
         print("The Orca tools have been installed. Make sure the Orca tools are on your PATH by")
         print("adding the following to your shell config:")

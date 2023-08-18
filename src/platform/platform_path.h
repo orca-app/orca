@@ -16,18 +16,18 @@
 	the string.
 */
 
-MP_API str8 path_slice_directory(str8 path);
-MP_API str8 path_slice_filename(str8 path);
+ORCA_API oc_str8 oc_path_slice_directory(oc_str8 path);
+ORCA_API oc_str8 oc_path_slice_filename(oc_str8 path);
 
-MP_API str8_list path_split(mem_arena* arena, str8 path);
-MP_API str8 path_join(mem_arena* arena, str8_list elements);
-MP_API str8 path_append(mem_arena* arena, str8 parent, str8 relPath);
+ORCA_API oc_str8_list oc_path_split(oc_arena* arena, oc_str8 path);
+ORCA_API oc_str8 oc_path_join(oc_arena* arena, oc_str8_list elements);
+ORCA_API oc_str8 oc_path_append(oc_arena* arena, oc_str8 parent, oc_str8 relPath);
 
-MP_API bool path_is_absolute(str8 path);
-MP_API str8 path_executable(mem_arena* arena);
-MP_API str8 path_canonical(mem_arena* arena, str8 path);
+ORCA_API bool oc_path_is_absolute(oc_str8 path);
+ORCA_API oc_str8 oc_path_executable(oc_arena* arena);
+ORCA_API oc_str8 oc_path_canonical(oc_arena* arena, oc_str8 path);
 
-// helper: gets the path from path_executable() and appends relPath
-MP_API str8 path_executable_relative(mem_arena* arena, str8 relPath);
+// helper: gets the path from oc_path_executable() and appends relPath
+ORCA_API oc_str8 oc_path_executable_relative(oc_arena* arena, oc_str8 relPath);
 
 #endif //__PLATFORM_PATH_H_

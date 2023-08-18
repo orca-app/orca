@@ -2,9 +2,9 @@
 
 #include <orca.h>
 
-vec2 frameSize = {100, 100};
+oc_vec2 frameSize = {100, 100};
 
-mg_surface surface;
+oc_surface surface;
 
 unsigned int program;
 
@@ -31,26 +31,24 @@ void compile_shader(GLuint shader, const char* source)
 	int err = glGetError();
 	if(err)
 	{
-		log_info("gl error");
+		oc_log_info("gl error");
 	}
 }
 
-char* ORCA_IMPORT(orca_mem_grow)(u64 size);
-
-ORCA_EXPORT void OnInit(void)
+ORCA_EXPORT void oc_on_init(void)
 {
-    surface = mg_surface_gles();
-    mg_surface_prepare(surface);
+    surface = oc_surface_gles();
+    oc_surface_select(surface);
 
     const char* extensions = (const char*)glGetString(GL_EXTENSIONS);
-    log_info("GLES extensions: %s\n", extensions);
+    oc_log_info("GLES extensions: %s\n", extensions);
 
     int extensionCount = 0;
     glGetIntegerv(GL_NUM_EXTENSIONS, &extensionCount);
     for(int i=0; i<extensionCount; i++)
     {
 		const char* extension = (const char*)glGetStringi(GL_EXTENSIONS, i);
-		log_info("GLES extension %i: %s\n", i, extension);
+		oc_log_info("GLES extension %i: %s\n", i, extension);
     }
 
 	unsigned int vshader = glCreateShader(GL_VERTEX_SHADER);
@@ -78,18 +76,18 @@ ORCA_EXPORT void OnInit(void)
     glEnableVertexAttribArray(0);
 }
 
-ORCA_EXPORT void OnFrameResize(u32 width, u32 height)
+ORCA_EXPORT void oc_on_resize(u32 width, u32 height)
 {
-    log_info("frame resize %u, %u", width, height);
+    oc_log_info("frame resize %u, %u", width, height);
     frameSize.x = width;
     frameSize.y = height;
 }
 
-ORCA_EXPORT void OnFrameRefresh(void)
+ORCA_EXPORT void oc_on_frame_refresh(void)
 {
     f32 aspect = frameSize.x/frameSize.y;
 
-    mg_surface_prepare(surface);
+    oc_surface_select(surface);
 
 	glClearColor(0, 1, 1, 1);
 	glClear(GL_COLOR_BUFFER_BIT);
@@ -108,5 +106,5 @@ ORCA_EXPORT void OnFrameRefresh(void)
 
     glDrawArrays(GL_TRIANGLES, 0, 3);
 
-    mg_surface_present(surface);
+    oc_surface_present(surface);
 }

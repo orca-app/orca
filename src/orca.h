@@ -10,39 +10,40 @@
 #define __ORCA_H_
 
 #include"util/typedefs.h"
-#include"util/macro_helpers.h"
+#include"util/macros.h"
 #include"util/debug.h"
 #include"util/lists.h"
 #include"util/memory.h"
 #include"util/strings.h"
 #include"util/utf8.h"
 #include"util/hash.h"
+#include"util/algebra.h"
 
 #include"platform/platform.h"
 #include"platform/platform_clock.h"
 #include"platform/platform_path.h"
 #include"platform/platform_io.h"
 
-#if !defined(PLATFORM_ORCA) || !(PLATFORM_ORCA)
+#if !defined(OC_PLATFORM_ORCA) || !(OC_PLATFORM_ORCA)
 	#include"platform/platform_thread.h"
 #endif
 
-#include"app/mp_app.h"
+#include"app/app.h"
 
 //----------------------------------------------------------------
 // graphics
 //----------------------------------------------------------------
 #include"graphics/graphics.h"
 
-#if PLATFORM_ORCA
+#if OC_PLATFORM_ORCA
 	//TODO: maybe make this conditional
 	#include"graphics/orca_gl31.h"
 
-	mg_surface mg_surface_canvas();
-	mg_surface mg_surface_gles();
+	oc_surface oc_surface_canvas();
+	oc_surface oc_surface_gles();
 
 #else
-	#ifdef MG_INCLUDE_GL_API
+	#ifdef OC_INCLUDE_GL_API
 		#include"graphics/gl_api.h"
 	#endif
 #endif

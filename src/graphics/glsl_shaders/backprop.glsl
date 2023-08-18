@@ -6,12 +6,12 @@ layout(std430) buffer;
 
 layout(binding = 0) restrict readonly buffer pathQueueBufferSSBO
 {
-	mg_gl_path_queue elements[];
+	oc_gl_path_queue elements[];
 } pathQueueBuffer;
 
 layout(binding = 1) restrict buffer tileQueueBufferSSBO
 {
-	mg_gl_tile_queue elements[];
+	oc_gl_tile_queue elements[];
 } tileQueueBuffer;
 
 layout(location = 0) uniform int pathQueueBufferStart;
@@ -30,7 +30,7 @@ void main()
 	barrier();
 
 	int rowIndex = 0;
-	mg_gl_path_queue pathQueue = pathQueueBuffer.elements[pathQueueBufferStart + pathIndex];
+	oc_gl_path_queue pathQueue = pathQueueBuffer.elements[pathQueueBufferStart + pathIndex];
 	int tileQueueBase = pathQueue.tileQueues;
 	int rowSize = pathQueue.area.z;
 	int rowCount = pathQueue.area.w;
