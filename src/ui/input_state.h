@@ -1,4 +1,4 @@
-/************************************************************//**
+/************************************************************/ /**
 *
 *	@file: input_state.h
 *	@author: Martin Fouilleul
@@ -8,66 +8,70 @@
 #ifndef __INPUT_STATE_H_
 #define __INPUT_STATE_H_
 
-#include"platform/platform.h"
-#include"util/typedefs.h"
-#include"util/strings.h"
-#include"util/utf8.h"
-#include"app/app.h"
+#include "app/app.h"
+#include "platform/platform.h"
+#include "util/strings.h"
+#include "util/typedefs.h"
+#include "util/utf8.h"
 
 typedef struct oc_key_state
 {
-	u64 lastUpdate;
-	u32 transitionCount;
-	u32 repeatCount;
-	bool down;
-	bool sysClicked;
-	bool sysDoubleClicked;
+    u64 lastUpdate;
+    u32 transitionCount;
+    u32 repeatCount;
+    bool down;
+    bool sysClicked;
+    bool sysDoubleClicked;
 
 } oc_key_state;
 
 typedef struct oc_keyboard_state
 {
-	oc_key_state keys[OC_KEY_COUNT];
-	oc_keymod_flags  mods;
+    oc_key_state keys[OC_KEY_COUNT];
+    oc_keymod_flags mods;
 } oc_keyboard_state;
 
 typedef struct oc_mouse_state
 {
-	u64 lastUpdate;
-	bool posValid;
-	oc_vec2 pos;
-	oc_vec2 delta;
-	oc_vec2 wheel;
+    u64 lastUpdate;
+    bool posValid;
+    oc_vec2 pos;
+    oc_vec2 delta;
+    oc_vec2 wheel;
 
-	union
-	{
-		oc_key_state buttons[OC_MOUSE_BUTTON_COUNT];
-		struct
-		{
-			oc_key_state left;
-			oc_key_state right;
-			oc_key_state middle;
-			oc_key_state ext1;
-			oc_key_state ext2;
-		};
-	};
+    union
+    {
+        oc_key_state buttons[OC_MOUSE_BUTTON_COUNT];
+
+        struct
+        {
+            oc_key_state left;
+            oc_key_state right;
+            oc_key_state middle;
+            oc_key_state ext1;
+            oc_key_state ext2;
+        };
+    };
 } oc_mouse_state;
 
-enum { OC_INPUT_TEXT_BACKING_SIZE = 64 };
+enum
+{
+    OC_INPUT_TEXT_BACKING_SIZE = 64
+};
 
 typedef struct oc_text_state
 {
-	u64 lastUpdate;
-	oc_utf32 backing[OC_INPUT_TEXT_BACKING_SIZE];
-	oc_str32 codePoints;
+    u64 lastUpdate;
+    oc_utf32 backing[OC_INPUT_TEXT_BACKING_SIZE];
+    oc_str32 codePoints;
 } oc_text_state;
 
 typedef struct oc_input_state
 {
-	u64 frameCounter;
-	oc_keyboard_state keyboard;
-	oc_mouse_state	mouse;
-	oc_text_state text;
+    u64 frameCounter;
+    oc_keyboard_state keyboard;
+    oc_mouse_state mouse;
+    oc_text_state text;
 } oc_input_state;
 
 ORCA_API void oc_input_process_event(oc_input_state* state, oc_event* event);

@@ -1,4 +1,4 @@
-/************************************************************//**
+/************************************************************/ /**
 *
 *	@file: mtl_surface.h
 *	@author: Martin Fouilleul
@@ -9,10 +9,10 @@
 #ifndef __MTL_SURFACE_H_
 #define __MTL_SURFACE_H_
 
-#include"graphics_surface.h"
+#include "graphics_surface.h"
 
 #ifdef __OBJC__
-	#import<Metal/Metal.h>
+    #import <Metal/Metal.h>
 #endif
 
 oc_surface_data* oc_mtl_surface_create_for_window(oc_window window);

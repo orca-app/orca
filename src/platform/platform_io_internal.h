@@ -1,4 +1,4 @@
-/************************************************************//**
+/************************************************************/ /**
 *
 *	@file: platform_io_internal.h
 *	@author: Martin Fouilleul
@@ -8,42 +8,42 @@
 #ifndef __PLATFORM_IO_INTERNAL_H_
 #define __PLATFORM_IO_INTERNAL_H_
 
-#include"platform_io.h"
-#include"platform.h"
+#include "platform.h"
+#include "platform_io.h"
 
 #if OC_PLATFORM_MACOS || PLATFORM_LINUX
-	typedef int oc_file_desc;
+typedef int oc_file_desc;
 #elif OC_PLATFORM_WINDOWS
-	#ifndef WIN32_LEAN_AND_MEAN
-	#define WIN32_LEAN_AND_MEAN
-	#endif
-	#include<windows.h>
-	typedef HANDLE oc_file_desc;
+    #ifndef WIN32_LEAN_AND_MEAN
+        #define WIN32_LEAN_AND_MEAN
+    #endif
+    #include <windows.h>
+typedef HANDLE oc_file_desc;
 #endif
 
 typedef struct oc_file_slot
 {
-	u32 generation;
-	oc_io_error error;
-	bool fatal;
-	oc_list_elt freeListElt;
+    u32 generation;
+    oc_io_error error;
+    bool fatal;
+    oc_list_elt freeListElt;
 
-	oc_file_type type;
-	oc_file_access rights;
-	oc_file_desc fd;
+    oc_file_type type;
+    oc_file_access rights;
+    oc_file_desc fd;
 
 } oc_file_slot;
 
 enum
 {
-	OC_IO_MAX_FILE_SLOTS = 256,
+    OC_IO_MAX_FILE_SLOTS = 256,
 };
 
 typedef struct oc_file_table
 {
-	oc_file_slot slots[OC_IO_MAX_FILE_SLOTS];
-	u32 nextSlot;
-	oc_list freeList;
+    oc_file_slot slots[OC_IO_MAX_FILE_SLOTS];
+    u32 nextSlot;
+    oc_list freeList;
 } oc_file_table;
 
 oc_file_slot* oc_file_slot_alloc(oc_file_table* table);
@@ -52,7 +52,6 @@ oc_file oc_file_from_slot(oc_file_table* table, oc_file_slot* slot);
 oc_file_slot* oc_file_slot_from_handle(oc_file_table* table, oc_file handle);
 
 ORCA_API oc_io_cmp oc_io_wait_single_req_with_table(oc_io_req* req, oc_file_table* table);
-
 
 //-----------------------------------------------------------------------
 // raw io primitives
@@ -81,8 +80,8 @@ oc_io_error oc_io_raw_fstat_at(oc_file_desc dirFd, oc_str8 path, oc_file_open_fl
 
 typedef struct oc_io_raw_read_link_result
 {
-	oc_io_error error;
-	oc_str8 target;
+    oc_io_error error;
+    oc_str8 target;
 } oc_io_raw_read_link_result;
 
 oc_io_raw_read_link_result oc_io_raw_read_link_at(oc_arena* arena, oc_file_desc dirFd, oc_str8 path);

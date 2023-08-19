@@ -2,12 +2,13 @@
 #define _STDLIB_H
 
 #ifdef __cplusplus
-extern "C" {
+extern "C"
+{
 #endif
 
 #define abort(...) OC_ABORT(__VA_ARGS__)
 
-int abs (int);
+    int abs(int);
 
 #ifdef __cplusplus
 }

@@ -1,8 +1,9 @@
-#ifndef	_ERRNO_H
+#ifndef _ERRNO_H
 #define _ERRNO_H
 
 #ifdef __cplusplus
-extern "C" {
+extern "C"
+{
 #endif
 
 #include <features.h>
@@ -10,13 +11,14 @@ extern "C" {
 #include <bits/errno.h>
 
 #ifdef __GNUC__
-__attribute__((const))
+    __attribute__((const))
 #endif
-int *__errno_location(void);
+    int*
+    __errno_location(void);
 #define errno (*__errno_location())
 
 #ifdef _GNU_SOURCE
-extern char *program_invocation_short_name, *program_invocation_name;
+    extern char *program_invocation_short_name, *program_invocation_name;
 #endif
 
 #ifdef __cplusplus
@@ -24,4 +26,3 @@ extern char *program_invocation_short_name, *program_invocation_name;
 #endif
 
 #endif
-

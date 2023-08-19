@@ -6,13 +6,17 @@ layout(std430) buffer;
 
 layout(binding = 0) restrict readonly buffer pathQueueBufferSSBO
 {
-	oc_gl_path_queue elements[];
-} pathQueueBuffer;
+    oc_gl_path_queue elements[];
+}
+
+pathQueueBuffer;
 
 layout(binding = 1) restrict buffer tileQueueBufferSSBO
 {
-	oc_gl_tile_queue elements[];
-} tileQueueBuffer;
+    oc_gl_tile_queue elements[];
+}
+
+tileQueueBuffer;
 
 layout(location = 0) uniform int pathQueueBufferStart;
 
@@ -20,32 +24,32 @@ shared int nextRowIndex;
 
 void main()
 {
-	int pathIndex = int(gl_WorkGroupID.x);
-	int localID = int(gl_LocalInvocationID.x);
+    int pathIndex = int(gl_WorkGroupID.x);
+    int localID = int(gl_LocalInvocationID.x);
 
-	if(localID == 0)
-	{
-		nextRowIndex = 0;
-	}
-	barrier();
+    if(localID == 0)
+    {
+        nextRowIndex = 0;
+    }
+    barrier();
 
-	int rowIndex = 0;
-	oc_gl_path_queue pathQueue = pathQueueBuffer.elements[pathQueueBufferStart + pathIndex];
-	int tileQueueBase = pathQueue.tileQueues;
-	int rowSize = pathQueue.area.z;
-	int rowCount = pathQueue.area.w;
+    int rowIndex = 0;
+    oc_gl_path_queue pathQueue = pathQueueBuffer.elements[pathQueueBufferStart + pathIndex];
+    int tileQueueBase = pathQueue.tileQueues;
+    int rowSize = pathQueue.area.z;
+    int rowCount = pathQueue.area.w;
 
-	rowIndex = atomicAdd(nextRowIndex, 1);
-	while(rowIndex < rowCount)
-	{
-		int sum = 0;
-		for(int x = rowSize-1; x >= 0; x--)
-		{
-			int tileIndex = tileQueueBase + rowIndex * rowSize.x + x;
-			int offset = tileQueueBuffer.elements[tileIndex].windingOffset;
-			tileQueueBuffer.elements[tileIndex].windingOffset = sum;
-			sum += offset;
-		}
-		rowIndex = atomicAdd(nextRowIndex, 1);
-	}
+    rowIndex = atomicAdd(nextRowIndex, 1);
+    while(rowIndex < rowCount)
+    {
+        int sum = 0;
+        for(int x = rowSize - 1; x >= 0; x--)
+        {
+            int tileIndex = tileQueueBase + rowIndex * rowSize.x + x;
+            int offset = tileQueueBuffer.elements[tileIndex].windingOffset;
+            tileQueueBuffer.elements[tileIndex].windingOffset = sum;
+            sum += offset;
+        }
+        rowIndex = atomicAdd(nextRowIndex, 1);
+    }
 }

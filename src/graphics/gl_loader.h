@@ -8,9 +8,9 @@
 #ifndef __GL_LOADER_H__
 #define __GL_LOADER_H__
 
-#include"gl_api.h"
+#include "gl_api.h"
 
-typedef void*(*oc_gl_load_proc)(const char* name);
+typedef void* (*oc_gl_load_proc)(const char* name);
 
 void oc_gl_load_gl41(oc_gl_api* api, oc_gl_load_proc loadProc);
 void oc_gl_load_gl43(oc_gl_api* api, oc_gl_load_proc loadProc);

@@ -1,4 +1,4 @@
-/************************************************************//**
+/************************************************************/ /**
 *
 *	@file: platform_path.h
 *	@author: Martin Fouilleul
@@ -8,7 +8,7 @@
 #ifndef __PLATFORM_PATH_H_
 #define __PLATFORM_PATH_H_
 
-#include"util/strings.h"
+#include "util/strings.h"
 
 /*NOTE:
 	by convention, functions that take an arena and return a path

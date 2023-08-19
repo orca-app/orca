@@ -224,24 +224,24 @@ ORCA_EXPORT void oc_on_frame_refresh(void)
 
             switch(result)
             {
-            case 1:
-            case 5:
-                velocity.y = -vy;
-                break;
-            case 3:
-            case 7:
-                velocity.x = -vx;
-                break;
-            case 2:
-            case 6:
-                velocity.x = -vy;
-                velocity.y = -vx;
-                break;
-            case 4:
-            case 8:
-                velocity.x = vy;
-                velocity.y = vx;
-                break;
+                case 1:
+                case 5:
+                    velocity.y = -vy;
+                    break;
+                case 3:
+                case 7:
+                    velocity.x = -vx;
+                    break;
+                case 2:
+                case 6:
+                    velocity.x = -vy;
+                    velocity.y = -vx;
+                    break;
+                case 4:
+                case 8:
+                    velocity.x = vy;
+                    velocity.y = vx;
+                    break;
             }
         }
     }

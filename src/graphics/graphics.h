@@ -1,4 +1,4 @@
-/************************************************************//**
+/************************************************************/ /**
 *
 *	@file: graphics.h
 *	@author: Martin Fouilleul
@@ -9,78 +9,80 @@
 #ifndef __GRAPHICS_H_
 #define __GRAPHICS_H_
 
-#include"util/typedefs.h"
-#include"platform/platform.h"
-#include"app/app.h"
+#include "app/app.h"
+#include "platform/platform.h"
+#include "util/typedefs.h"
 
 //------------------------------------------------------------------------------------------
 //NOTE(martin): backends selection
 //------------------------------------------------------------------------------------------
 
-typedef enum {
-	OC_NONE,
-	OC_METAL,
-	OC_GL,
-	OC_GLES,
-	OC_CANVAS,
-	OC_HOST } oc_surface_api;
+typedef enum
+{
+    OC_NONE,
+    OC_METAL,
+    OC_GL,
+    OC_GLES,
+    OC_CANVAS,
+    OC_HOST
+} oc_surface_api;
 
 //NOTE: these macros are used to select which backend to include when building milepost
 //      they can be overridden by passing them to the compiler command line
 #if OC_PLATFORM_MACOS
-	#ifndef OC_COMPILE_METAL
-		#define OC_COMPILE_METAL 1
-	#endif
+    #ifndef OC_COMPILE_METAL
+        #define OC_COMPILE_METAL 1
+    #endif
 
-	#ifndef OC_COMPILE_GLES
-		#define OC_COMPILE_GLES 1
-	#endif
+    #ifndef OC_COMPILE_GLES
+        #define OC_COMPILE_GLES 1
+    #endif
 
-	#ifndef OC_COMPILE_CANVAS
-		#if !OC_COMPILE_METAL
-			#error "Canvas surface requires a Metal backend on macOS. Make sure you define OC_COMPILE_METAL to 1."
-		#endif
-		#define OC_COMPILE_CANVAS 1
-	#endif
+    #ifndef OC_COMPILE_CANVAS
+        #if !OC_COMPILE_METAL
+            #error "Canvas surface requires a Metal backend on macOS. Make sure you define OC_COMPILE_METAL to 1."
+        #endif
+        #define OC_COMPILE_CANVAS 1
+    #endif
 
-	#define OC_COMPILE_GL 0
+    #define OC_COMPILE_GL 0
 
 #elif OC_PLATFORM_WINDOWS
-	#ifndef OC_COMPILE_GL
-		#define OC_COMPILE_GL 1
-	#endif
+    #ifndef OC_COMPILE_GL
+        #define OC_COMPILE_GL 1
+    #endif
 
-	#ifndef OC_COMPILE_GLES
-		#define OC_COMPILE_GLES 1
-	#endif
+    #ifndef OC_COMPILE_GLES
+        #define OC_COMPILE_GLES 1
+    #endif
 
-	#ifndef OC_COMPILE_CANVAS
-		#if !OC_COMPILE_GL
-			#error "Canvas surface requires an OpenGL backend on Windows. Make sure you define OC_COMPILE_GL to 1."
-		#endif
-		#define OC_COMPILE_CANVAS 1
-	#endif
+    #ifndef OC_COMPILE_CANVAS
+        #if !OC_COMPILE_GL
+            #error "Canvas surface requires an OpenGL backend on Windows. Make sure you define OC_COMPILE_GL to 1."
+        #endif
+        #define OC_COMPILE_CANVAS 1
+    #endif
 
 #elif PLATFORM_LINUX
-	#ifndef OC_COMPILE_GL
-		#define OC_COMPILE_GL 1
-	#endif
+    #ifndef OC_COMPILE_GL
+        #define OC_COMPILE_GL 1
+    #endif
 
-	#ifndef OC_COMPILE_CANVAS
-		#if !OC_COMPILE_GL
-			#error "Canvas surface requires an OpenGL backend on Linux. Make sure you define OC_COMPILE_GL to 1."
-		#endif
-		#define OC_COMPILE_CANVAS 1
-	#endif
+    #ifndef OC_COMPILE_CANVAS
+        #if !OC_COMPILE_GL
+            #error "Canvas surface requires an OpenGL backend on Linux. Make sure you define OC_COMPILE_GL to 1."
+        #endif
+        #define OC_COMPILE_CANVAS 1
+    #endif
 #endif
 
 //NOTE: these macros are used to select backend-specific APIs to include when using milepost
 #ifdef OC_EXPOSE_SURFACE_METAL
-	#include"mtl_surface.h"
+    #include "mtl_surface.h"
 #endif
 
 #ifdef OC_EXPOSE_SURFACE_WGL
-	#include"wgl_surface.h"
+    #include "wgl_surface.h"
 #endif
 
 //TODO: expose nsgl surface when supported, expose egl surface, etc...
@@ -92,7 +94,10 @@ ORCA_API bool oc_is_surface_api_available(oc_surface_api api);
 //------------------------------------------------------------------------------------------
 //NOTE(martin): graphics surface
 //------------------------------------------------------------------------------------------
-typedef struct oc_surface { u64 h; } oc_surface;
+typedef struct oc_surface
+{
+    u64 h;
+} oc_surface;
 
 ORCA_API oc_surface oc_surface_nil(void);
 ORCA_API bool oc_surface_is_nil(oc_surface surface);
@@ -121,51 +126,69 @@ ORCA_API void oc_surface_host_connect(oc_surface surface, oc_surface_id remoteId
 //------------------------------------------------------------------------------------------
 //NOTE(martin): graphics canvas structs
 //------------------------------------------------------------------------------------------
-typedef struct oc_canvas { u64 h; } oc_canvas;
-typedef struct oc_font { u64 h; } oc_font;
-typedef struct oc_image { u64 h; } oc_image;
+typedef struct oc_canvas
+{
+    u64 h;
+} oc_canvas;
+
+typedef struct oc_font
+{
+    u64 h;
+} oc_font;
+
+typedef struct oc_image
+{
+    u64 h;
+} oc_image;
 
 typedef struct oc_color
 {
-	union
-	{
-		struct
-		{
-			f32 r;
-			f32 g;
-			f32 b;
-			f32 a;
-		};
-		f32 c[4];
-	};
+    union
+    {
+        struct
+        {
+            f32 r;
+            f32 g;
+            f32 b;
+            f32 a;
+        };
+
+        f32 c[4];
+    };
 } oc_color;
 
-typedef enum {OC_JOINT_MITER = 0,
-              OC_JOINT_BEVEL,
-	          OC_JOINT_NONE } oc_joint_type;
+typedef enum
+{
+    OC_JOINT_MITER = 0,
+    OC_JOINT_BEVEL,
+    OC_JOINT_NONE
+} oc_joint_type;
 
-typedef enum {OC_CAP_NONE = 0,
-              OC_CAP_SQUARE } oc_cap_type;
+typedef enum
+{
+    OC_CAP_NONE = 0,
+    OC_CAP_SQUARE
+} oc_cap_type;
 
 typedef struct oc_font_extents
 {
-	f32 ascent;    // the extent above the baseline (by convention a positive value extends above the baseline)
-	f32 descent;   // the extent below the baseline (by convention, positive value extends below the baseline)
-	f32 leading;   // spacing between one row's descent and the next row's ascent
-	f32 xHeight;   // height of the lower case letter 'x'
-	f32 capHeight; // height of the upper case letter 'M'
-	f32 width;     // maximum width of the font
+    f32 ascent;    // the extent above the baseline (by convention a positive value extends above the baseline)
+    f32 descent;   // the extent below the baseline (by convention, positive value extends below the baseline)
+    f32 leading;   // spacing between one row's descent and the next row's ascent
+    f32 xHeight;   // height of the lower case letter 'x'
+    f32 capHeight; // height of the upper case letter 'M'
+    f32 width;     // maximum width of the font
 
 } oc_font_extents;
 
 typedef struct oc_text_extents
 {
-	f32 xBearing;
-	f32 yBearing;
-	f32 width;
-	f32 height;
-	f32 xAdvance;
-	f32 yAdvance;
+    f32 xBearing;
+    f32 yBearing;
+    f32 width;
+    f32 height;
+    f32 xAdvance;
+    f32 yAdvance;
 
 } oc_text_extents;
 
@@ -238,8 +261,8 @@ ORCA_API void oc_rect_atlas_recycle(oc_rect_atlas* atlas, oc_rect rect);
 //NOTE: image atlas helpers
 typedef struct oc_image_region
 {
-	oc_image image;
-	oc_rect rect;
+    oc_image image;
+    oc_rect rect;
 } oc_image_region;
 
 ORCA_API oc_image_region oc_image_atlas_alloc_from_rgba8(oc_rect_atlas* atlas, oc_image backingImage, u32 width, u32 height, u8* pixels);

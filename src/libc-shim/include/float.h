@@ -2,10 +2,11 @@
 #define _FLOAT_H
 
 #ifdef __cplusplus
-extern "C" {
+extern "C"
+{
 #endif
 
-int __flt_rounds(void);
+    int __flt_rounds(void);
 #define FLT_ROUNDS (__flt_rounds())
 
 #define FLT_RADIX 2
