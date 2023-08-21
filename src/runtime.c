@@ -204,7 +204,8 @@ void orca_surface_render_commands(oc_surface surface,
     if(((char*)primitives > memBase)
        && ((char*)primitives + primitiveCount * sizeof(oc_primitive) - memBase <= memSize)
        && ((char*)elements > memBase)
-       && ((char*)elements + eltCount * sizeof(oc_path_elt) - memBase <= memSize))
+       && ((char*)elements + eltCount * sizeof(oc_path_elt) - memBase <= memSize)
+       && oc_window_is_minimized(app->window) == false)
     {
         oc_surface_render_commands(surface,
                                    clearColor,
