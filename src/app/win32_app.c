@@ -1252,6 +1252,10 @@ void oc_surface_init_for_window(oc_surface_data* surface, oc_window_data* window
         oc_log_error("couldn't enable blur behind\n");
     }
 
+    //NOTE(reuben): Creating the child window takes focus away from the main window, but we want to keep 
+    //the focus on the main window
+    SetFocus(window->win32.hWnd);
+
     surface->layer.parent = window;
     oc_list_append(&window->win32.layers, &surface->layer.listElt);
 }
