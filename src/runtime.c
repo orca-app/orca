@@ -313,8 +313,8 @@ void oc_runtime_env_init(oc_runtime_env* runtime)
 
 #include "wasmbind/clock_api_bind_gen.c"
 #include "wasmbind/core_api_bind_gen.c"
-#include "wasmbind/gles_api_bind_gen.c"
 #include "wasmbind/gles_api_bind_manual.c"
+#include "wasmbind/gles_api_bind_gen.c"
 #include "wasmbind/io_api_bind_gen.c"
 #include "wasmbind/surface_api_bind_gen.c"
 

@@ -11,6 +11,7 @@
 
 #include "platform/platform_debug.h"
 #include "util/macros.h"
+#include "util/debug.h"
 
 #ifdef __cplusplus
 extern "C"
