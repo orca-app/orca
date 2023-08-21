@@ -15,3 +15,4 @@ PointerAlignment: Left
 SeparateDefinitionBlocks: Always
 SpaceBeforeParens: Never
 ReflowComments: false
+SortIncludes: false
