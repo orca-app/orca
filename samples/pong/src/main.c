@@ -4,6 +4,7 @@
 
 #define NUM_BLOCKS_PER_ROW 7
 #define NUM_BLOCKS 42 // 7 * 6
+#define NUM_BLOCKS_TO_WIN (NUM_BLOCKS - 2)
 
 #define BLOCKS_WIDTH 810.0f
 #define BLOCK_HEIGHT 30.0f
@@ -30,6 +31,7 @@ int blockHealth[NUM_BLOCKS] = {
     3, 3, 3, 3, 3, 3, 3,
     3, 3, 3, 3, 3, 3, 3
 };
+int score = 0;
 
 oc_vec2 frameSize = { 100, 100 };
 
@@ -96,6 +98,18 @@ ORCA_EXPORT void oc_on_init(void)
     pongFont = oc_font_create_from_memory(fontStr, 5, ranges);
 
     oc_arena_clear(oc_scratch());
+}
+
+ORCA_EXPORT void oc_on_terminate(void)
+{
+    if(score == NUM_BLOCKS_TO_WIN)
+    {
+        oc_log_info("you win!\n");
+    }
+    else
+    {
+        oc_log_info("goodbye world!\n");
+    }
 }
 
 ORCA_EXPORT void oc_on_resize(u32 width, u32 height)
@@ -219,6 +233,11 @@ ORCA_EXPORT void oc_on_frame_refresh(void)
             oc_log_info("Collision! direction=%d", result);
             blockHealth[i] -= 1;
 
+            if(blockHealth[i] == 0)
+            {
+                ++score;
+            }
+
             f32 vx = velocity.x;
             f32 vy = velocity.y;
 
@@ -244,6 +263,11 @@ ORCA_EXPORT void oc_on_frame_refresh(void)
                     break;
             }
         }
+    }
+
+    if(score == NUM_BLOCKS_TO_WIN)
+    {
+        oc_request_quit();
     }
 
     oc_canvas_set_current(canvas);
@@ -303,6 +327,20 @@ ORCA_EXPORT void oc_on_frame_refresh(void)
             oc_image_draw(ballImage, ball);
         }
         oc_matrix_pop();
+
+        // draw score text
+        {
+            oc_move_to(10, 10);
+            oc_str8 text = oc_str8_pushf(oc_scratch(), "Destroy all %d blocks to win! Current score: %d", NUM_BLOCKS_TO_WIN, score);
+            oc_rect textRect = oc_text_bounding_box(pongFont, 20, text);
+            oc_vec2 textPos = { 10, 10 };
+            oc_matrix_push(flipYAt(textPos));
+            {
+                oc_text_outlines(text);
+                oc_fill();
+            }
+            oc_matrix_pop();
+        }
     }
     oc_matrix_pop();
 
