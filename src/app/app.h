@@ -287,6 +287,7 @@ extern "C"
 
     ORCA_API bool oc_should_quit(void);
     ORCA_API void oc_cancel_quit(void);
+    ORCA_API void oc_request_quit(void);
 
     ORCA_API void oc_set_cursor(oc_mouse_cursor cursor);
 
@@ -400,6 +401,10 @@ extern "C"
     ORCA_API int oc_file_remove(oc_str8 path);
 
     ORCA_API int oc_directory_create(oc_str8 path);
+
+#else
+
+    void ORCA_IMPORT(oc_request_quit)(void);
 
 #endif // !defined(OC_PLATFORM_ORCA) || !(OC_PLATFORM_ORCA)
 
