@@ -57,5 +57,11 @@
 			  {"name": "note",
 			   "type": {"name": "const char*", "tag": "p"}}
 			]
+},
+{
+	"name": "oc_get_host_platform_impl",
+	"cname": "oc_get_host_platform",
+	"ret": {"name": "int", "tag": "i"},
+	"args": []
 }
 ]

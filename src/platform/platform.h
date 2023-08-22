@@ -108,4 +108,21 @@
     #endif
 #endif
 
+#ifdef __cplusplus
+extern "C"
+{
+#endif
+
+    typedef enum
+    {
+        OC_HOST_PLATFORM_MACOS,
+        OC_HOST_PLATFORM_WINDOWS,
+    } oc_host_platform;
+
+    ORCA_API oc_host_platform oc_get_host_platform();
+
+#ifdef __cplusplus
+} // extern "C"
+#endif
+
 #endif // __PLATFORM_H_

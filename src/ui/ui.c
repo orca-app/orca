@@ -2300,7 +2300,7 @@ typedef struct oc_ui_edit_command
 
 } oc_ui_edit_command;
 
-const oc_ui_edit_command OC_UI_EDIT_COMMANDS[] = {
+const oc_ui_edit_command OC_UI_EDIT_COMMANDS_MACOS[] = {
     //NOTE(martin): move one left
     {
         .key = OC_KEY_LEFT,
@@ -2376,7 +2376,7 @@ const oc_ui_edit_command OC_UI_EDIT_COMMANDS[] = {
     //NOTE(martin): select all
     {
         .key = OC_KEY_Q,
-        .mods = OC_KEYMOD_MAIN_MODIFIER,
+        .mods = OC_KEYMOD_CMD,
         .operation = OC_UI_EDIT_SELECT_ALL,
         .move = OC_UI_EDIT_MOVE_NONE },
     //NOTE(martin): delete
@@ -2394,24 +2394,134 @@ const oc_ui_edit_command OC_UI_EDIT_COMMANDS[] = {
     //NOTE(martin): cut
     {
         .key = OC_KEY_X,
-        .mods = OC_KEYMOD_MAIN_MODIFIER,
+        .mods = OC_KEYMOD_CMD,
         .operation = OC_UI_EDIT_CUT,
         .move = OC_UI_EDIT_MOVE_NONE },
     //NOTE(martin): copy
     {
         .key = OC_KEY_C,
-        .mods = OC_KEYMOD_MAIN_MODIFIER,
+        .mods = OC_KEYMOD_CMD,
         .operation = OC_UI_EDIT_COPY,
         .move = OC_UI_EDIT_MOVE_NONE },
     //NOTE(martin): paste
     {
         .key = OC_KEY_V,
-        .mods = OC_KEYMOD_MAIN_MODIFIER,
+        .mods = OC_KEYMOD_CMD,
         .operation = OC_UI_EDIT_PASTE,
         .move = OC_UI_EDIT_MOVE_NONE }
 };
 
-const u32 OC_UI_EDIT_COMMAND_COUNT = sizeof(OC_UI_EDIT_COMMANDS) / sizeof(oc_ui_edit_command);
+const oc_ui_edit_command OC_UI_EDIT_COMMANDS_WINDOWS[] = {
+    //NOTE(martin): move one left
+    {
+        .key = OC_KEY_LEFT,
+        .operation = OC_UI_EDIT_MOVE,
+        .move = OC_UI_EDIT_MOVE_ONE,
+        .direction = -1 },
+    //NOTE(martin): move one right
+    {
+        .key = OC_KEY_RIGHT,
+        .operation = OC_UI_EDIT_MOVE,
+        .move = OC_UI_EDIT_MOVE_ONE,
+        .direction = 1 },
+    //NOTE(martin): move start
+    {
+        .key = OC_KEY_HOME,
+        .operation = OC_UI_EDIT_MOVE,
+        .move = OC_UI_EDIT_MOVE_LINE,
+        .direction = -1 },
+    { .key = OC_KEY_UP,
+      .operation = OC_UI_EDIT_MOVE,
+      .move = OC_UI_EDIT_MOVE_LINE,
+      .direction = -1 },
+    //NOTE(martin): move end
+    {
+        .key = OC_KEY_END,
+        .operation = OC_UI_EDIT_MOVE,
+        .move = OC_UI_EDIT_MOVE_LINE,
+        .direction = 1 },
+    { .key = OC_KEY_DOWN,
+      .operation = OC_UI_EDIT_MOVE,
+      .move = OC_UI_EDIT_MOVE_LINE,
+      .direction = 1 },
+    //NOTE(martin): select one left
+    {
+        .key = OC_KEY_LEFT,
+        .mods = OC_KEYMOD_SHIFT,
+        .operation = OC_UI_EDIT_SELECT,
+        .move = OC_UI_EDIT_MOVE_ONE,
+        .direction = -1 },
+    //NOTE(martin): select one right
+    {
+        .key = OC_KEY_RIGHT,
+        .mods = OC_KEYMOD_SHIFT,
+        .operation = OC_UI_EDIT_SELECT,
+        .move = OC_UI_EDIT_MOVE_ONE,
+        .direction = 1 },
+    //NOTE(martin): extend select to start
+    {
+        .key = OC_KEY_HOME,
+        .mods = OC_KEYMOD_SHIFT,
+        .operation = OC_UI_EDIT_SELECT_EXTEND,
+        .move = OC_UI_EDIT_MOVE_LINE,
+        .direction = -1 },
+    { .key = OC_KEY_UP,
+      .mods = OC_KEYMOD_SHIFT,
+      .operation = OC_UI_EDIT_SELECT_EXTEND,
+      .move = OC_UI_EDIT_MOVE_LINE,
+      .direction = -1 },
+    //NOTE(martin): extend select to end
+    {
+        .key = OC_KEY_END,
+        .mods = OC_KEYMOD_SHIFT,
+        .operation = OC_UI_EDIT_SELECT_EXTEND,
+        .move = OC_UI_EDIT_MOVE_LINE,
+        .direction = 1 },
+    { .key = OC_KEY_DOWN,
+      .mods = OC_KEYMOD_SHIFT,
+      .operation = OC_UI_EDIT_SELECT_EXTEND,
+      .move = OC_UI_EDIT_MOVE_LINE,
+      .direction = 1 },
+    //NOTE(martin): select all
+    {
+        .key = OC_KEY_A,
+        .mods = OC_KEYMOD_CTRL,
+        .operation = OC_UI_EDIT_SELECT_ALL,
+        .move = OC_UI_EDIT_MOVE_NONE },
+    //NOTE(martin): delete
+    {
+        .key = OC_KEY_DELETE,
+        .operation = OC_UI_EDIT_DELETE,
+        .move = OC_UI_EDIT_MOVE_ONE,
+        .direction = 1 },
+    //NOTE(martin): backspace
+    {
+        .key = OC_KEY_BACKSPACE,
+        .operation = OC_UI_EDIT_DELETE,
+        .move = OC_UI_EDIT_MOVE_ONE,
+        .direction = -1 },
+    //NOTE(martin): cut
+    {
+        .key = OC_KEY_X,
+        .mods = OC_KEYMOD_CTRL,
+        .operation = OC_UI_EDIT_CUT,
+        .move = OC_UI_EDIT_MOVE_NONE },
+    //NOTE(martin): copy
+    {
+        .key = OC_KEY_C,
+        .mods = OC_KEYMOD_CTRL,
+        .operation = OC_UI_EDIT_COPY,
+        .move = OC_UI_EDIT_MOVE_NONE },
+    //NOTE(martin): paste
+    {
+        .key = OC_KEY_V,
+        .mods = OC_KEYMOD_CTRL,
+        .operation = OC_UI_EDIT_PASTE,
+        .move = OC_UI_EDIT_MOVE_NONE }
+};
+
+const u32 OC_UI_EDIT_COMMAND_MACOS_COUNT = sizeof(OC_UI_EDIT_COMMANDS_MACOS) / sizeof(oc_ui_edit_command);
+const u32 OC_UI_EDIT_COMMAND_WINDOWS_COUNT = sizeof(OC_UI_EDIT_COMMANDS_WINDOWS) / sizeof(oc_ui_edit_command);
 
 void oc_ui_edit_perform_move(oc_ui_context* ui, oc_ui_edit_move move, int direction, u32 textLen)
 {
@@ -2733,10 +2843,26 @@ oc_ui_text_box_result oc_ui_text_box(const char* name, oc_arena* arena, oc_str8 
 
         //NOTE handle shortcuts
         oc_keymod_flags mods = oc_key_mods(&ui->input);
-
-        for(int i = 0; i < OC_UI_EDIT_COMMAND_COUNT; i++)
+        const oc_ui_edit_command*  editCommands;
+        u32 editCommandCount;
+        oc_host_platform hostPlatform = oc_get_host_platform();
+        switch(hostPlatform)
         {
-            const oc_ui_edit_command* command = &(OC_UI_EDIT_COMMANDS[i]);
+            case OC_HOST_PLATFORM_MACOS:
+                editCommands = OC_UI_EDIT_COMMANDS_MACOS;
+                editCommandCount = OC_UI_EDIT_COMMAND_MACOS_COUNT;
+                break;
+            case OC_HOST_PLATFORM_WINDOWS:
+                editCommands = OC_UI_EDIT_COMMANDS_WINDOWS;
+                editCommandCount = OC_UI_EDIT_COMMAND_WINDOWS_COUNT;
+                break;
+            default:
+                OC_ASSERT(0, "unknown host platform: %i", hostPlatform);
+        }
+
+        for(int i = 0; i < editCommandCount; i++)
+        {
+            const oc_ui_edit_command* command = &(editCommands[i]);
 
             if((oc_key_pressed(&ui->input, command->key) || oc_key_repeated(&ui->input, command->key))
                && mods == command->mods)

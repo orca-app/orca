@@ -20,6 +20,7 @@
     #include "platform/win32_path.c"
     #include "platform/win32_io.c"
     #include "platform/win32_thread.c"
+    #include "platform/win32_platform.c"
 //TODO
 #elif OC_PLATFORM_MACOS
     #include "platform/native_debug.c"
@@ -27,6 +28,7 @@
     #include "platform/osx_clock.c"
     #include "platform/posix_io.c"
     #include "platform/posix_thread.c"
+    #include "platform/osx_platform.c"
 
 /*
 	#include"platform/unix_rng.c"
@@ -50,6 +52,7 @@
     #include "platform/orca_malloc.c"
     #include "platform/platform_io_common.c"
     #include "platform/orca_io_stubs.c"
+    #include "platform/orca_platform.c"
 #else
     #error "Unsupported platform"
 #endif
