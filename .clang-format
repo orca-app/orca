@@ -1,5 +1,4 @@
 AllowAllArgumentsOnNextLine: false
-BreakBeforeBraces: Allman
 Cpp11BracedListStyle: false
 ColumnLimit: 0
 BreakBeforeBinaryOperators: NonAssignment
@@ -16,3 +15,21 @@ SeparateDefinitionBlocks: Always
 SpaceBeforeParens: Never
 ReflowComments: false
 SortIncludes: false
+BreakBeforeBraces: Custom
+BraceWrapping:
+  AfterCaseLabel: true
+  AfterClass: true
+  AfterControlStatement: Always
+  AfterExternBlock: false
+  AfterEnum: true
+  AfterFunction: true
+  AfterNamespace: true
+  AfterObjCDeclaration: true
+  AfterStruct: true
+  AfterObjCDeclaration: true
+  AfterUnion: true
+  BeforeCatch: true
+  BeforeElse: true
+  BeforeLambdaBody: true
+  BeforeWhile: true
+IndentExternBlock: false
