@@ -62,6 +62,10 @@
 	"name": "oc_get_host_platform",
 	"cname": "oc_get_host_platform",
 	"ret": {"name": "int", "tag": "i"},
-	"args": []
+},
+{
+	"name": "oc_request_quit_stub",
+	"cname": "oc_request_quit",
+	"ret": {"name": "void", "tag": "v"},
 }
 ]

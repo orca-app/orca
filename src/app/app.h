@@ -274,6 +274,8 @@ extern "C"
 
     } oc_event;
 
+    ORCA_API void oc_request_quit(void);
+
 //NOTE: these APIs are not directly available to Orca apps
 #if !defined(OC_PLATFORM_ORCA) || !(OC_PLATFORM_ORCA)
     //--------------------------------------------------------------------
@@ -285,7 +287,6 @@ extern "C"
 
     ORCA_API bool oc_should_quit(void);
     ORCA_API void oc_cancel_quit(void);
-    ORCA_API void oc_request_quit(void);
 
     ORCA_API void oc_set_cursor(oc_mouse_cursor cursor);
 

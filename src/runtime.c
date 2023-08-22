@@ -796,6 +796,15 @@ i32 orca_runloop(void* user)
         oc_arena_clear(oc_scratch());
     }
 
+    if(exports[OC_EXPORT_TERMINATE])
+    {
+        M3Result res = m3_Call(exports[OC_EXPORT_TERMINATE], 0, 0);
+        if(res)
+        {
+            ORCA_WASM3_ABORT(app->runtime.m3Runtime, res, "Runtime error");
+        }
+    }
+
     return (0);
 }
 

@@ -26,7 +26,8 @@
     X(OC_EXPORT_KEY_UP, "oc_on_key_up", "", "i")              \
     X(OC_EXPORT_FRAME_REFRESH, "oc_on_frame_refresh", "", "") \
     X(OC_EXPORT_FRAME_RESIZE, "oc_on_resize", "", "ii")       \
-    X(OC_EXPORT_RAW_EVENT, "oc_on_raw_event", "", "i")
+    X(OC_EXPORT_RAW_EVENT, "oc_on_raw_event", "", "i")        \
+    X(OC_EXPORT_TERMINATE, "oc_on_terminate", "", "")
 
 typedef enum
 {
