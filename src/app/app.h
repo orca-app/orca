@@ -274,8 +274,6 @@ extern "C"
 
     } oc_event;
 
-    ORCA_API void oc_request_quit(void);
-
 //NOTE: these APIs are not directly available to Orca apps
 #if !defined(OC_PLATFORM_ORCA) || !(OC_PLATFORM_ORCA)
     //--------------------------------------------------------------------
