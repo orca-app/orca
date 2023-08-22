@@ -215,6 +215,7 @@ static oc_keymod_flags oc_convert_osx_mods(NSUInteger nsFlags)
     if(nsFlags & NSEventModifierFlagCommand)
     {
         mods |= OC_KEYMOD_CMD;
+        mods |= OC_KEYMOD_MAIN_MODIFIER;
     }
     return (mods);
 }

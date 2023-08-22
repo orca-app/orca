@@ -59,7 +59,7 @@
 			]
 },
 {
-	"name": "oc_get_host_platform_impl",
+	"name": "oc_get_host_platform",
 	"cname": "oc_get_host_platform",
 	"ret": {"name": "int", "tag": "i"},
 	"args": []

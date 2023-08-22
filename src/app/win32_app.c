@@ -196,6 +196,7 @@ static oc_keymod_flags oc_get_mod_keys()
     if(GetKeyState(VK_CONTROL) & 0x8000)
     {
         mods |= OC_KEYMOD_CTRL;
+        mods |= OC_KEYMOD_MAIN_MODIFIER;
     }
     if(GetKeyState(VK_MENU) & 0x8000)
     {
