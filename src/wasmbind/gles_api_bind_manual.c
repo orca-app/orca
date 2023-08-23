@@ -848,7 +848,9 @@ const void* glShaderSource_stub(IM3Runtime runtime, IM3ImportContext _ctx, uint6
     i32 lengthArrayOffset = *(i32*)&_sp[3];
 
     int* stringOffsetArray = (int*)((char*)_mem + stringArrayOffset);
-    const char** stringArray = (const char**)oc_arena_push_array(oc_scratch(), char*, count);
+
+    oc_arena_scope scratch = oc_scratch_begin();
+    const char** stringArray = (const char**)oc_arena_push_array(scratch.arena, char*, count);
     for(int i = 0; i < count; i++)
     {
         stringArray[i] = (char*)_mem + stringOffsetArray[i];
@@ -857,6 +859,8 @@ const void* glShaderSource_stub(IM3Runtime runtime, IM3ImportContext _ctx, uint6
     int* lengthArray = lengthArrayOffset ? (int*)((char*)_mem + lengthArrayOffset) : 0;
 
     glShaderSource(shader, count, stringArray, lengthArray);
+
+    oc_scratch_end(scratch);
     return (0);
 }
 

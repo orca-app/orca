@@ -451,15 +451,15 @@ void oc_install_keyboard_layout_listener()
     event.window = (oc_window){ 0 };
     event.type = OC_EVENT_PATHDROP;
 
-    oc_arena* scratch = oc_scratch();
-    oc_arena_scope scope = oc_arena_scope_begin(scratch);
+    oc_arena_scope scratch = oc_scratch_begin();
 
-    oc_str8 path = oc_str8_push_cstring(scratch, [filename UTF8String]);
-    oc_str8_list_push(scratch, &event.paths, path);
+    oc_str8 path = oc_str8_push_cstring(scratch.arena, [filename UTF8String]);
+    oc_str8_list_push(scratch.arena, &event.paths, path);
 
     oc_queue_event(&event);
 
-    oc_arena_scope_end(scope);
+    //NOTE: oc_queue_event copies paths to the event queue, so we can clear the arena scope here
+    oc_scratch_end(scratch);
 
     return (YES);
 }
@@ -472,15 +472,15 @@ void oc_install_keyboard_layout_listener()
     event.window = (oc_window){ 0 };
     event.type = OC_EVENT_PATHDROP;
 
-    oc_arena* scratch = oc_scratch();
-    oc_arena_scope scope = oc_arena_scope_begin(scratch);
+    oc_arena_scope scratch = oc_scratch_begin();
 
-    oc_str8 path = oc_str8_push_cstring(scratch, [nsPath UTF8String]);
-    oc_str8_list_push(scratch, &event.paths, path);
+    oc_str8 path = oc_str8_push_cstring(scratch.arena, [nsPath UTF8String]);
+    oc_str8_list_push(scratch.arena, &event.paths, path);
 
     oc_queue_event(&event);
 
-    oc_arena_scope_end(scope);
+    //NOTE: oc_queue_event copies paths to the event queue, so we can clear the arena scope here
+    oc_scratch_end(scratch);
 }
 
 //TODO: drag and drop paths
@@ -1535,7 +1535,6 @@ void oc_window_restore(oc_window window)
         }
     }
 }
-
 
 void oc_window_send_to_back(oc_window window)
 {
