@@ -1471,6 +1471,22 @@ bool oc_window_is_focused(oc_window window)
     }
 }
 
+bool oc_window_is_minimized(oc_window window)
+{
+    @autoreleasepool
+    {
+        oc_window_data* windowData = oc_window_ptr_from_handle(window);
+        if(windowData)
+        {
+            return ([windowData->osx.nsWindow isMiniaturized]);
+        }
+        else
+        {
+            return (false);
+        }
+    }
+}
+
 void oc_window_hide(oc_window window)
 {
     @autoreleasepool
@@ -1495,6 +1511,31 @@ void oc_window_focus(oc_window window)
         }
     }
 }
+
+void oc_window_minimize(oc_window window)
+{
+    @autoreleasepool
+    {
+        oc_window_data* windowData = oc_window_ptr_from_handle(window);
+        if(windowData)
+        {
+            [windowData->osx.nsWindow miniaturize:windowData->osx.nsWindow];
+        }
+    }
+}
+
+void oc_window_restore(oc_window window)
+{
+    @autoreleasepool
+    {
+        oc_window_data* windowData = oc_window_ptr_from_handle(window);
+        if(windowData && [windowData->osx.nsWindow isMiniaturized])
+        {
+            [windowData->osx.nsWindow deminiaturize:windowData->osx.nsWindow];
+        }
+    }
+}
+
 
 void oc_window_send_to_back(oc_window window)
 {

@@ -325,9 +325,7 @@ extern "C"
     ORCA_API void oc_window_show(oc_window window);
 
     ORCA_API bool oc_window_is_minimized(oc_window window);
-    ORCA_API bool oc_window_is_maximized(oc_window window);
     ORCA_API void oc_window_minimize(oc_window window);
-    ORCA_API void oc_window_maximize(oc_window window);
     ORCA_API void oc_window_restore(oc_window window);
 
     ORCA_API bool oc_window_has_focus(oc_window window);
