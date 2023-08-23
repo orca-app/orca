@@ -140,6 +140,8 @@ frame_buffer divBuffer[4];
 
 GLuint vertexBuffer;
 
+oc_surface surface;
+
 //----------------------------------------------------------------
 //NOTE(martin): initialization
 //----------------------------------------------------------------
@@ -419,10 +421,10 @@ ORCA_EXPORT void oc_on_mouse_up(int button)
 
 ORCA_EXPORT void oc_on_mouse_move(float x, float y, float dx, float dy)
 {
-    mouseInput.x = x * 2;
-    mouseInput.y = y * 2;
-    mouseInput.deltaX = dx * 2;
-    mouseInput.deltaY = dy * 2;
+    mouseInput.x = x;
+    mouseInput.y = y;
+    mouseInput.deltaX = dx;
+    mouseInput.deltaY = dy;
 }
 
 void init_color_checker()
@@ -580,19 +582,20 @@ void input_splat(float t)
     //NOTE: apply force and dye
     if(mouseInput.down && (mouseInput.deltaX || mouseInput.deltaY))
     {
+	    oc_vec2 scaling = oc_surface_contents_scaling(surface);
         // account for margin
         float margin = 32;
 
         float offset = margin / texWidth;
         float ratio = 1 - 2 * margin / texWidth;
 
-        float splatPosX = (mouseInput.x / frameWidth) * ratio + offset;
-        float splatPosY = (1 - mouseInput.y / frameHeight) * ratio + offset;
+        float splatPosX = (mouseInput.x * scaling.x / frameWidth) * ratio + offset;
+        float splatPosY = (1 - mouseInput.y * scaling.y / frameHeight) * ratio + offset;
 
-        float splatVelX = (10000. * DELTA * mouseInput.deltaX / frameWidth) * ratio;
-        float splatVelY = (-10000. * DELTA * mouseInput.deltaY / frameWidth) * ratio;
+        float splatVelX = (10000. * DELTA * mouseInput.deltaX * scaling.x / frameWidth) * ratio;
+        float splatVelY = (-10000. * DELTA * mouseInput.deltaY * scaling.y / frameWidth) * ratio;
 
-        float intensity = 100 * sqrtf(square(ratio * mouseInput.deltaX / frameWidth) + square(ratio * mouseInput.deltaY / frameHeight));
+        float intensity = 100 * sqrtf(square(ratio * mouseInput.deltaX * scaling.x / frameWidth) + square(ratio * mouseInput.deltaY * scaling.y / frameHeight));
 
         float r = intensity * (sinf(2 * M_PI * 0.1 * t) + 1);
         float g = 0.5 * intensity * (cosf(2 * M_PI * 0.1 / M_E * t + 654) + 1);
@@ -608,8 +611,6 @@ void input_splat(float t)
 }
 
 float testDiv[texWidth / 2][texWidth / 2][4];
-
-oc_surface surface;
 
 ORCA_EXPORT void oc_on_init()
 {
@@ -682,8 +683,9 @@ ORCA_EXPORT void oc_on_init()
 
 ORCA_EXPORT void oc_on_resize(u32 width, u32 height)
 {
-    frameWidth = width * 2;
-    frameHeight = height * 2;
+    oc_vec2 scaling = oc_surface_contents_scaling(surface);
+    frameWidth = width * scaling.x;
+    frameHeight = height * scaling.y;
 }
 
 ORCA_EXPORT void oc_on_frame_refresh()

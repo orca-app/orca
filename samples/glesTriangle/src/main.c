@@ -96,7 +96,9 @@ ORCA_EXPORT void oc_on_frame_refresh(void)
 
     static float alpha = 0;
 
-    glViewport(0, 0, frameSize.x * 2, frameSize.y * 2);
+    oc_vec2 scaling = oc_surface_contents_scaling(surface);
+
+    glViewport(0, 0, frameSize.x * scaling.x, frameSize.y * scaling.y);
 
     GLfloat matrix[] = { cosf(alpha) / aspect, sinf(alpha), 0, 0,
                          -sinf(alpha) / aspect, cosf(alpha), 0, 0,

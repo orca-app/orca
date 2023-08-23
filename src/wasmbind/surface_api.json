@@ -53,6 +53,14 @@
 		 "type": {"name": "oc_surface", "tag": "S"}}]
 },
 {
+    "name": "oc_surface_contents_scaling",
+    "cname": "oc_surface_contents_scaling",
+    "ret": {"name": "oc_vec2", "tag": "S"},
+    "args": [
+        {"name": "surface",
+         "type": {"name": "oc_surface", "tag": "S"}}]
+},
+{
 	"name": "oc_surface_render_commands",
 	"cname": "orca_surface_render_commands",
 	"ret": {"name": "void", "tag": "v"},
