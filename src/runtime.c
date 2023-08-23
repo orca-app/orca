@@ -66,6 +66,16 @@ oc_runtime_env* oc_runtime_env_get()
     return (&__orcaApp.runtime);
 }
 
+void oc_runtime_window_set_title(const char* title)
+{
+    oc_window_set_title(__orcaApp.window, OC_STR8(title));
+}
+
+void oc_runtime_window_set_size(f32 width, f32 height)
+{
+    oc_window_set_content_size(__orcaApp.window, (oc_vec2){ .x = width, .y = height });
+}
+
 void oc_runtime_log(oc_log_level level,
                     int fileLen,
                     char* file,

@@ -323,6 +323,8 @@ ORCA_API bool oc_window_is_hidden(oc_window window);
 ORCA_API void oc_window_hide(oc_window window);
 ORCA_API void oc_window_show(oc_window window);
 
+ORCA_API void oc_window_set_title(oc_window window, oc_str8 title);
+
 ORCA_API bool oc_window_is_minimized(oc_window window);
 ORCA_API bool oc_window_is_maximized(oc_window window);
 ORCA_API void oc_window_minimize(oc_window window);
@@ -402,6 +404,10 @@ ORCA_API int oc_directory_create(oc_str8 path);
 #else
 
 void ORCA_IMPORT(oc_request_quit)(void);
+
+void ORCA_IMPORT(oc_runtime_window_set_title)(const char* title);
+
+void ORCA_IMPORT(oc_runtime_window_set_size)(f32 width, f32 height);
 
 #endif // !defined(OC_PLATFORM_ORCA) || !(OC_PLATFORM_ORCA)
 

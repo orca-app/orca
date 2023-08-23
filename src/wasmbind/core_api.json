@@ -69,5 +69,25 @@
 	"cname": "oc_request_quit",
 	"ret": {"name": "void", "tag": "v"},
 	"args": []
+},
+{
+	"name": "oc_runtime_window_set_title",
+	"cname": "oc_runtime_window_set_title",
+	"ret": {"name": "void", "tag": "v"},
+	"args": [
+		{ "name": "title",
+		  "type": {"name": "const char*", "tag": "p"}}
+	]
+},
+{
+	"name": "oc_runtime_window_set_size",
+	"cname": "oc_runtime_window_set_size",
+	"ret": {"name": "void", "tag": "v"},
+	"args": [
+		{ "name": "width",
+		  "type": {"name": "f32", "tag": "f"}},
+		{ "name": "height",
+		  "type": {"name": "f32", "tag": "f"}}
+	]
 }
 ]

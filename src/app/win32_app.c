@@ -789,6 +789,20 @@ void oc_window_show(oc_window window)
     }
 }
 
+void oc_window_set_title(oc_window window, oc_str8 title)
+{
+    oc_window_data* windowData = oc_window_ptr_from_handle(window);
+    if(windowData)
+    {
+        oc_arena_scope scratch = oc_scratch_begin();
+        const char* titleCString = oc_str8_to_cstring(scratch.arena, title);
+
+        SetWindowText(windowData->win32.hWnd, titleCString);
+
+        oc_scratch_end(scratch);
+    }
+}
+
 bool oc_window_is_minimized(oc_window window)
 {
     oc_window_data* windowData = oc_window_ptr_from_handle(window);
@@ -1252,7 +1266,7 @@ void oc_surface_init_for_window(oc_surface_data* surface, oc_window_data* window
         oc_log_error("couldn't enable blur behind\n");
     }
 
-    //NOTE(reuben): Creating the child window takes focus away from the main window, but we want to keep 
+    //NOTE(reuben): Creating the child window takes focus away from the main window, but we want to keep
     //the focus on the main window
     SetFocus(window->win32.hWnd);
 
