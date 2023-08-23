@@ -92,9 +92,9 @@ void oc_runtime_window_set_title(oc_str8 title)
     }
 }
 
-void oc_runtime_window_set_size(f32 width, f32 height)
+void oc_runtime_window_set_size(oc_vec2 size)
 {
-    oc_window_set_content_size(__orcaApp.window, (oc_vec2){ .x = width, .y = height });
+    oc_window_set_content_size(__orcaApp.window, size);
 }
 
 void oc_runtime_log(oc_log_level level,
