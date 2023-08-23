@@ -76,7 +76,7 @@
 	"ret": {"name": "void", "tag": "v"},
 	"args": [
 		{ "name": "title",
-		  "type": {"name": "const char*", "tag": "p"}}
+		  "type": {"name": "oc_str8", "tag": "S"}}
 	]
 },
 {

@@ -405,7 +405,7 @@ ORCA_API int oc_directory_create(oc_str8 path);
 
 void ORCA_IMPORT(oc_request_quit)(void);
 
-void ORCA_IMPORT(oc_runtime_window_set_title)(const char* title);
+void ORCA_IMPORT(oc_runtime_window_set_title)(oc_str8 title);
 
 void ORCA_IMPORT(oc_runtime_window_set_size)(f32 width, f32 height);
 

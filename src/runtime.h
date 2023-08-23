@@ -125,4 +125,6 @@ typedef struct oc_runtime
 oc_runtime* oc_runtime_get();
 oc_runtime_env* oc_runtime_env_get();
 
+void* oc_runtime_ptr_to_native(oc_runtime* runtime, void* wasmPtr, u32 length);
+
 #endif //__RUNTIME_H_

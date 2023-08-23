@@ -66,9 +66,30 @@ oc_runtime_env* oc_runtime_env_get()
     return (&__orcaApp.runtime);
 }
 
-void oc_runtime_window_set_title(const char* title)
+void* oc_runtime_ptr_to_native(oc_runtime* orca, void* wasmPtr, u32 length)
 {
-    oc_window_set_title(__orcaApp.window, OC_STR8(title));
+    // We can't use the runtime's memory pointer directly because wasm3 embeds a
+    // header at the beginning of the block we give it.
+    u64 bufferIndex = (u64)wasmPtr & 0xffffffff;
+    u32 memSize = 0;
+    char* memory = (char*)m3_GetMemory(orca->runtime.m3Runtime, &memSize, 0);
+
+    if(bufferIndex + length < memSize)
+    {
+        char* nativePtr = memory + bufferIndex;
+        return nativePtr;
+    }
+
+    return NULL;
+}
+
+void oc_runtime_window_set_title(oc_str8 title)
+{
+    title.ptr = oc_runtime_ptr_to_native(oc_runtime_get(), title.ptr, title.len);
+    if(title.ptr)
+    {
+        oc_window_set_title(__orcaApp.window, title);
+    }
 }
 
 void oc_runtime_window_set_size(f32 width, f32 height)
