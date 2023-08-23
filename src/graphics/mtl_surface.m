@@ -53,10 +53,13 @@ void oc_mtl_surface_destroy(oc_surface_data* interface)
 
 void oc_mtl_surface_acquire_command_buffer(oc_mtl_surface* surface)
 {
-    if(surface->commandBuffer == nil)
+    @autoreleasepool
     {
-        surface->commandBuffer = [surface->commandQueue commandBuffer];
-        [surface->commandBuffer retain];
+        if(surface->commandBuffer == nil)
+        {
+            surface->commandBuffer = [surface->commandQueue commandBuffer];
+            [surface->commandBuffer retain];
+        }
     }
 }
 
@@ -102,8 +105,9 @@ void oc_mtl_surface_present(oc_surface_data* interface)
                 [surface->commandBuffer presentDrawable:surface->drawable];
                 [surface->drawable release];
                 surface->drawable = nil;
+
+                [surface->commandBuffer commit];
             }
-            [surface->commandBuffer commit];
             [surface->commandBuffer release];
             surface->commandBuffer = nil;
         }
