@@ -11,7 +11,6 @@
 oc_io_cmp oc_runtime_io_wait_single_req(oc_io_req* wasmReq)
 {
     oc_runtime* orca = oc_runtime_get();
-    oc_arena* scratch = oc_scratch();
 
     oc_io_cmp cmp = { 0 };
     oc_io_req req = *wasmReq;

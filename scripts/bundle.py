@@ -22,6 +22,7 @@ def init_parser(parser):
 	parser.add_argument("-n", "--name", default="out", help="the app's name")
 	parser.add_argument("-O", "--orca-dir", default=".")
 	parser.add_argument("--version", default="0.0.0", help="a version number to embed in the application bundle")
+	parser.add_argument("--mtl-enable-capture", action='store_true', help="Enable Metal frame capture for the application bundle (macOS only)")
 	parser.add_argument("module", help="a .wasm file containing the application's wasm module")
 	parser.set_defaults(func=shellish(make_app))
 
@@ -169,9 +170,14 @@ def macos_make_app(args):
 			<string>icon.icns</string>
 			<key>NSHighResolutionCapable</key>
 			<string>True</string>
+	"""
+	if args.mtl_enable_capture == True:
+		plist_contents += f"""
 			<key>MetalCaptureEnabled</key>
-			<true/>
-		</dict>
+			<true/>"""
+
+	plist_contents += f"""
+	</dict>
 	</plist>
 	"""
 

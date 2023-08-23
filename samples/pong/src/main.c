@@ -56,7 +56,9 @@ oc_str8 loadFile(oc_arena* arena, oc_str8 filename)
     oc_file file = oc_file_open(filename, OC_FILE_ACCESS_READ, 0);
     if(oc_file_last_error(file) != OC_IO_OK)
     {
-        oc_log_error("Couldn't open file %s\n", oc_str8_to_cstring(oc_scratch(), filename));
+        oc_arena_scope scope = oc_arena_scope_begin(arena);
+        oc_log_error("Couldn't open file %s\n", oc_str8_to_cstring(arena, filename));
+        oc_arena_scope_end(scope);
     }
     u64 size = oc_file_size(file);
     char* buffer = oc_arena_push(arena, size);
@@ -347,6 +349,8 @@ ORCA_EXPORT void oc_on_frame_refresh(void)
     oc_surface_select(surface);
     oc_render(surface, canvas);
     oc_surface_present(surface);
+
+    oc_arena_clear(oc_scratch());
 }
 
 oc_rect blockRect(int i)

@@ -719,8 +719,8 @@ oc_rect oc_text_bounding_box_utf32(oc_font font, f32 fontSize, oc_str32 codePoin
         return ((oc_rect){ 0 });
     }
 
-    oc_arena* scratch = oc_scratch();
-    oc_str32 glyphIndices = oc_font_push_glyph_indices(font, scratch, codePoints);
+    oc_arena_scope scratch = oc_scratch_begin();
+    oc_str32 glyphIndices = oc_font_push_glyph_indices(font, scratch.arena, codePoints);
 
     //NOTE(martin): find width of missing character
     //TODO(martin): should cache that at font creation...
@@ -789,6 +789,8 @@ oc_rect oc_text_bounding_box_utf32(oc_font font, f32 fontSize, oc_str32 codePoin
 
     f32 fontScale = oc_font_get_scale_for_em_pixels(font, fontSize);
     oc_rect rect = { 0, -fontData->extents.ascent * fontScale, width * fontScale, (y + lineHeight) * fontScale };
+
+    oc_scratch_end(scratch);
     return (rect);
 }
 
@@ -799,9 +801,11 @@ oc_rect oc_text_bounding_box(oc_font font, f32 fontSize, oc_str8 text)
         return ((oc_rect){ 0 });
     }
 
-    oc_arena* scratch = oc_scratch();
-    oc_str32 codePoints = oc_utf8_push_to_codepoints(scratch, text);
-    return (oc_text_bounding_box_utf32(font, fontSize, codePoints));
+    oc_arena_scope scratch = oc_scratch_begin();
+    oc_str32 codePoints = oc_utf8_push_to_codepoints(scratch.arena, text);
+    oc_rect result = oc_text_bounding_box_utf32(font, fontSize, codePoints);
+    oc_scratch_end(scratch);
+    return (result);
 }
 
 //------------------------------------------------------------------------------------------
@@ -1353,8 +1357,12 @@ void oc_codepoints_outlines(oc_str32 codePoints)
         return;
     }
 
-    oc_str32 glyphIndices = oc_font_push_glyph_indices(canvas->attributes.font, oc_scratch(), codePoints);
+    oc_arena_scope scratch = oc_scratch_begin();
+
+    oc_str32 glyphIndices = oc_font_push_glyph_indices(canvas->attributes.font, scratch.arena, codePoints);
     oc_glyph_outlines_from_font_data(fontData, glyphIndices);
+
+    oc_scratch_end(scratch);
 }
 
 void oc_text_outlines(oc_str8 text)
@@ -1370,11 +1378,13 @@ void oc_text_outlines(oc_str8 text)
         return;
     }
 
-    oc_arena* scratch = oc_scratch();
-    oc_str32 codePoints = oc_utf8_push_to_codepoints(scratch, text);
-    oc_str32 glyphIndices = oc_font_push_glyph_indices(canvas->attributes.font, scratch, codePoints);
+    oc_arena_scope scratch = oc_scratch_begin();
+    oc_str32 codePoints = oc_utf8_push_to_codepoints(scratch.arena, text);
+    oc_str32 glyphIndices = oc_font_push_glyph_indices(canvas->attributes.font, scratch.arena, codePoints);
 
     oc_glyph_outlines_from_font_data(fontData, glyphIndices);
+
+    oc_scratch_end(scratch);
 }
 
 //------------------------------------------------------------------------------------------
@@ -1579,7 +1589,9 @@ oc_image oc_image_create_from_file(oc_surface surface, oc_str8 path, bool flip)
     oc_image image = oc_image_nil();
     int width, height, channels;
 
-    const char* cpath = oc_str8_to_cstring(oc_scratch(), path);
+    oc_arena_scope scratch = oc_scratch_begin();
+
+    const char* cpath = oc_str8_to_cstring(scratch.arena, path);
 
     stbi_set_flip_vertically_on_load(flip ? 1 : 0);
     u8* pixels = stbi_load(cpath, &width, &height, &channels, 4);
@@ -1592,6 +1604,8 @@ oc_image oc_image_create_from_file(oc_surface surface, oc_str8 path, bool flip)
     {
         oc_log_error("stbi_load() failed: %s\n", stbi_failure_reason());
     }
+    oc_scratch_end(scratch);
+
     return (image);
 }
 
@@ -1719,9 +1733,13 @@ oc_image_region oc_image_atlas_alloc_from_file(oc_rect_atlas* atlas, oc_image ba
 
     stbi_set_flip_vertically_on_load(flip ? 1 : 0);
 
-    const char* cpath = oc_str8_to_cstring(oc_scratch(), path);
+    oc_arena_scope scratch = oc_scratch_begin();
+
+    const char* cpath = oc_str8_to_cstring(scratch.arena, path);
     int width, height, channels;
     u8* pixels = stbi_load(cpath, &width, &height, &channels, 4);
+    oc_scratch_end(scratch);
+
     if(pixels)
     {
         imageRgn = oc_image_atlas_alloc_from_rgba8(atlas, backingImage, width, height, pixels);
