@@ -12,10 +12,8 @@
 #define _USE_MATH_DEFINES //NOTE: necessary for MSVC
 #include <math.h>
 
-#include "milepost.h"
-#include "mtl_surface.h"
-
-#define LOG_SUBSYSTEM "Main"
+#include "orca.h"
+#include "graphics/mtl_surface.h"
 
 #import <Metal/Metal.h>
 #import <QuartzCore/CAMetalLayer.h>
@@ -28,21 +26,19 @@ static const my_vertex triangle[3] = { { { 250, -250 }, { 1, 0, 0, 1 } },
 
 int main()
 {
-    LogLevel(LOG_LEVEL_DEBUG);
+    oc_init();
 
-    mp_init();
-
-    mp_rect rect = { .x = 100, .y = 100, .w = 800, .h = 600 };
-    mp_window window = mp_window_create(rect, "test", 0);
+    oc_rect rect = { .x = 100, .y = 100, .w = 800, .h = 600 };
+    oc_window window = oc_window_create(rect, OC_STR8("test"), 0);
 
     //NOTE: create surface
-    mg_surface surface = mg_surface_create_for_window(window, MG_BACKEND_METAL);
+    oc_surface surface = oc_surface_create_for_window(window, OC_METAL);
 
     //NOTE(martin): load the library
     id<MTLDevice> device = MTLCreateSystemDefaultDevice();
 
-    str8 shaderPath = path_executable_relative(mem_scratch(), STR8("triangle_shader.metallib"));
-    const char* shaderPathCString = str8_to_cstring(mem_scratch(), shaderPath);
+    oc_str8 shaderPath = oc_path_executable_relative(oc_scratch(), OC_STR8("triangle_shader.metallib"));
+    const char* shaderPathCString = oc_str8_to_cstring(oc_scratch(), shaderPath);
     NSString* metalFileName = [[NSString alloc] initWithCString:shaderPathCString encoding:NSUTF8StringEncoding];
     NSError* err = 0;
     id<MTLLibrary> library = [device newLibraryWithFile:metalFileName error:&err];
@@ -61,7 +57,7 @@ int main()
     pipelineStateDescriptor.vertexFunction = vertexFunction;
     pipelineStateDescriptor.fragmentFunction = fragmentFunction;
 
-    CAMetalLayer* layer = mg_mtl_surface_layer(surface);
+    CAMetalLayer* layer = oc_mtl_surface_layer(surface);
     pipelineStateDescriptor.colorAttachments[0].pixelFormat = layer.pixelFormat;
 
     id<MTLRenderPipelineState> pipelineState = [device newRenderPipelineStateWithDescriptor:pipelineStateDescriptor error:&err];
@@ -74,35 +70,37 @@ int main()
 
     // start app
 
-    mp_window_bring_to_front(window);
-    mp_window_focus(window);
+    oc_window_bring_to_front(window);
+    oc_window_focus(window);
 
-    while(!mp_should_quit())
+    while(!oc_should_quit())
     {
-        mp_pump_events(0);
-        mp_event event = { 0 };
-        while(mp_next_event(&event))
+        oc_pump_events(0);
+        oc_event* event = 0;
+        while((event = oc_next_event(oc_scratch())) != 0)
         {
-            switch(event.type)
+            switch(event->type)
             {
-                case MP_EVENT_WINDOW_CLOSE:
+                case OC_EVENT_WINDOW_CLOSE:
                 {
-                    mp_request_quit();
+                    oc_request_quit();
                 }
                 break;
 
                 default:
                     break;
             }
+
+            oc_arena_clear(oc_scratch());
         }
 
         vector_uint2 viewportSize;
         viewportSize.x = 800;
         viewportSize.y = 600;
 
-        mg_surface_prepare(surface);
-        id<CAMetalDrawable> drawable = mg_mtl_surface_drawable(surface);
-        id<MTLCommandBuffer> commandBuffer = mg_mtl_surface_command_buffer(surface);
+        oc_surface_select(surface);
+        id<CAMetalDrawable> drawable = oc_mtl_surface_drawable(surface);
+        id<MTLCommandBuffer> commandBuffer = oc_mtl_surface_command_buffer(surface);
 
         MTLRenderPassDescriptor* renderPassDescriptor = [MTLRenderPassDescriptor renderPassDescriptor];
         renderPassDescriptor.colorAttachments[0].texture = drawable.texture;
@@ -118,10 +116,10 @@ int main()
         [encoder drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:3];
         [encoder endEncoding];
 
-        mg_surface_present(surface);
+        oc_surface_present(surface);
     }
 
-    mp_terminate();
+    oc_terminate();
 
     return (0);
 }

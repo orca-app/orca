@@ -8,12 +8,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#define MG_INCLUDE_GL_API 1
-#include "milepost.h"
+#define OC_INCLUDE_GL_API
+#include "orca.h"
 
-#define LOG_SUBSYSTEM "Main"
-
-#ifdef OS_WIN64
+#ifdef OC_PLATFORM_WINDOWS
     #include <process.h>
     #include <io.h>
     #include <fcntl.h>
@@ -35,7 +33,7 @@ void terminate_child(process_id child)
     TerminateProcess(child, 0);
 }
 
-#elif OS_MACOS
+#elif OC_PLATFORM_MACOS
     #include <unistd.h>
     #include <signal.h>
 
@@ -48,7 +46,7 @@ process_id spawn_child(char* program, char** argv)
     {
         char* envp[] = { 0 };
         execve(program, argv, envp);
-        assert(0);
+        OC_ASSERT(0);
     }
     return (pid);
 }
@@ -86,7 +84,7 @@ void compile_shader(GLuint shader, const char* source)
     int err = glGetError();
     if(err)
     {
-        printf("gl error: %i\n", err);
+        oc_log_error("gl error: %i\n", err);
     }
 
     int status = 0;
@@ -96,25 +94,25 @@ void compile_shader(GLuint shader, const char* source)
         char buffer[256];
         int size = 0;
         glGetShaderInfoLog(shader, 256, &size, buffer);
-        printf("shader error: %.*s\n", size, buffer);
+        oc_log_error("shader error: %.*s\n", size, buffer);
     }
 }
 
 int child_main(int writeFd)
 {
-    mp_init();
+    oc_init();
 
-    mp_rect rect = { .x = 100, .y = 100, .w = 800, .h = 600 };
-    mp_window window = mp_window_create(rect, "test", 0);
+    oc_rect rect = { .x = 100, .y = 100, .w = 800, .h = 600 };
+    oc_window window = oc_window_create(rect, OC_STR8("test"), 0);
 
     //NOTE: create surface
-    mg_surface surface = mg_surface_create_remote(800, 600, MG_BACKEND_GLES);
-    mg_surface_id connectionID = mg_surface_remote_id(surface);
+    oc_surface surface = oc_surface_create_remote(800, 600, OC_GLES);
+    oc_surface_id connectionID = oc_surface_remote_id(surface);
 
-    mg_surface_prepare(surface);
+    oc_surface_select(surface);
 
     //NOTE: init shader and gl state
-    mg_surface_prepare(surface);
+    oc_surface_select(surface);
 
     GLuint vao;
     glGenVertexArrays(1, &vao);
@@ -148,7 +146,7 @@ int child_main(int writeFd)
         char buffer[256];
         int size = 0;
         glGetProgramInfoLog(program, 256, &size, buffer);
-        printf("link error: %.*s\n", size, buffer);
+        oc_log_error("link error: %.*s\n", size, buffer);
     }
 
     glUseProgram(program);
@@ -157,17 +155,17 @@ int child_main(int writeFd)
     write(writeFd, &connectionID, sizeof(connectionID));
 
     //NOTE: render loop
-    while(!mp_should_quit())
+    while(!oc_should_quit())
     {
-        mp_pump_events(0);
-        mp_event event = { 0 };
-        while(mp_next_event(&event))
+        oc_pump_events(0);
+        oc_event* event = 0;
+        while((event = oc_next_event(oc_scratch())) != 0)
         {
-            switch(event.type)
+            switch(event->type)
             {
-                case MP_EVENT_WINDOW_CLOSE:
+                case OC_EVENT_WINDOW_CLOSE:
                 {
-                    mp_request_quit();
+                    oc_request_quit();
                 }
                 break;
 
@@ -176,12 +174,12 @@ int child_main(int writeFd)
             }
         }
 
-        mg_surface_prepare(surface);
+        oc_surface_select(surface);
 
-        mp_rect rect = mg_surface_get_frame(surface);
-        vec2 scaling = mg_surface_contents_scaling(surface);
+        oc_vec2 size = oc_surface_get_size(surface);
+        oc_vec2 scaling = oc_surface_contents_scaling(surface);
 
-        glViewport(0, 0, rect.w * scaling.x, rect.h * scaling.y);
+        glViewport(0, 0, size.x * scaling.x, size.y * scaling.y);
         glClearColor(0.3, 0.3, 1, 1);
         glClear(GL_COLOR_BUFFER_BIT);
 
@@ -204,24 +202,22 @@ int child_main(int writeFd)
 
         glDrawArrays(GL_TRIANGLES, 0, 3);
 
-        mg_surface_present(surface);
+        oc_surface_present(surface);
     }
 
-    mp_terminate();
+    oc_terminate();
 
     return (0);
 }
 
 int main(int argc, char** argv)
 {
-    LogLevel(LOG_LEVEL_DEBUG);
-
     if(argc > 1)
     {
         if(!strcmp(argv[1], "--child"))
         {
             int writeFd = atoi(argv[2]);
-            printf("child process created with file desc %i\n", writeFd);
+            oc_log_info("child process created with file desc %i\n", writeFd);
             return (child_main(writeFd));
         }
         else
@@ -230,20 +226,20 @@ int main(int argc, char** argv)
         }
     }
     //	setvbuf( stdout, NULL, _IONBF, 0 );
-    mp_init();
+    oc_init();
 
     //NOTE: create main window
-    mp_rect rect = { .x = 100, .y = 100, .w = 800, .h = 600 };
-    mp_window window = mp_window_create(rect, "test", 0);
+    oc_rect rect = { .x = 100, .y = 100, .w = 800, .h = 600 };
+    oc_window window = oc_window_create(rect, OC_STR8("test"), 0);
 
     //NOTE: create surface client
-    mg_surface surface = mg_surface_create_host(window);
+    oc_surface surface = oc_surface_create_host(window);
 
     //NOTE setup descriptors
     int fileDesc[2];
     pipe(fileDesc);
 
-    printf("parent process created readFd %i and writeFd %i\n", fileDesc[0], fileDesc[1]);
+    oc_log_info("parent process created readFd %i and writeFd %i\n", fileDesc[0], fileDesc[1]);
 
     char writeDescStr[64];
     snprintf(writeDescStr, 64, "%i", fileDesc[1]);
@@ -252,40 +248,42 @@ int main(int argc, char** argv)
     process_id child = spawn_child(args[0], args);
 
     //NOTE: read the connection id
-    mg_surface_id connectionID = 0;
+    oc_surface_id connectionID = 0;
     read(fileDesc[0], &connectionID, sizeof(connectionID));
-    printf("received child connection id %llu\n", connectionID);
+    oc_log_info("received child connection id %llu\n", connectionID);
 
     //NOTE: connect the client
-    mg_surface_host_connect(surface, connectionID);
+    oc_surface_host_connect(surface, connectionID);
 
     //NOTE: show the window
-    mp_window_bring_to_front(window);
+    oc_window_bring_to_front(window);
 
-    while(!mp_should_quit())
+    while(!oc_should_quit())
     {
-        mp_pump_events(0);
-        mp_event event = { 0 };
-        while(mp_next_event(&event))
+        oc_pump_events(0);
+        oc_event* event = 0;
+        while((event = oc_next_event(oc_scratch())) != 0)
         {
-            switch(event.type)
+            switch(event->type)
             {
-                case MP_EVENT_WINDOW_CLOSE:
+                case OC_EVENT_WINDOW_CLOSE:
                 {
-                    mp_request_quit();
+                    oc_request_quit();
                 }
                 break;
 
                 default:
                     break;
             }
+
+            oc_arena_clear(oc_scratch());
         }
-        mg_surface_prepare(surface);
-        mg_surface_present(surface);
+        oc_surface_select(surface);
+        oc_surface_present(surface);
     }
 
     terminate_child(child);
 
-    mp_terminate();
+    oc_terminate();
     return (0);
 }

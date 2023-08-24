@@ -1,17 +1,23 @@
 #!/bin/bash
 
-BINDIR=../../bin
-RESDIR=../../resources
+BINDIR=bin
+LIBDIR=../../build/bin
+RESDIR=../resources
 SRCDIR=../../src
 
 INCLUDES="-I$SRCDIR -I$SRCDIR/util -I$SRCDIR/platform -I$SRCDIR/app"
-LIBS="-L$BINDIR -lmilepost -framework Foundation -framework Metal"
+LIBS="-L$LIBDIR -lorca -framework Foundation -framework Metal"
 FLAGS="-mmacos-version-min=10.15.4 -DOC_DEBUG -DLOG_COMPILE_DEBUG"
+
+mkdir -p $BINDIR
+clang -g $FLAGS $LIBS $INCLUDES -o $BINDIR/example_metal_triangle main.m
 
 xcrun -sdk macosx metal -c -o shader.air shader.metal
 xcrun -sdk macosx metallib -o shader.metallib shader.air
-cp shader.metallib $BINDIR/triangle_shader.metallib
+mv shader.air $BINDIR/
 
-clang -g $FLAGS $LIBS $INCLUDES -o $BINDIR/example_metal_triangle main.m
+cp $LIBDIR/liborca.dylib $BINDIR/
+cp $LIBDIR/mtl_renderer.metallib $BINDIR/
+cp shader.metallib $BINDIR/triangle_shader.metallib
 
 install_name_tool -add_rpath "@executable_path" $BINDIR/example_metal_triangle

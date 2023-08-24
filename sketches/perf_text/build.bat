@@ -1,4 +1,6 @@
 
-set INCLUDES=/I ..\..\src /I ..\..\src\util /I ..\..\src\platform /I ../../ext
+set INCLUDES=/I ..\..\src /I ..\..\src\util /I ..\..\src\platform /I ../../ext /I ../../ext/angle_headers
 
-cl /we4013 /Zi /Zc:preprocessor /std:c11 %INCLUDES% main.c /link /LIBPATH:../../bin milepost.dll.lib /out:../../bin/perf_text.exe
+if not exist "bin" mkdir bin
+cl /we4013 /Zi /Zc:preprocessor /std:c11 /experimental:c11atomics %INCLUDES% main.c /link /LIBPATH:../../build/bin orca.dll.lib /out:bin/example_perf_text.exe
+cp ../../build/bin/orca.dll bin/

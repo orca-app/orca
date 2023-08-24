@@ -36,3 +36,5 @@ __pycache__
 scripts/files
 
 ext/angle
+
+sketches/*/bin

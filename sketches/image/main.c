@@ -14,59 +14,58 @@
 #define _USE_MATH_DEFINES //NOTE: necessary for MSVC
 #include <math.h>
 
-#include "milepost.h"
+#include "orca.h"
 
 int main()
 {
-    mp_init();
-    mp_clock_init(); //TODO put that in mp_init()?
+    oc_init();
 
-    mp_rect windowRect = { .x = 100, .y = 100, .w = 810, .h = 610 };
-    mp_window window = mp_window_create(windowRect, "test", 0);
+    oc_rect windowRect = { .x = 100, .y = 100, .w = 810, .h = 610 };
+    oc_window window = oc_window_create(windowRect, OC_STR8("test"), 0);
 
-    mp_rect contentRect = mp_window_get_content_rect(window);
+    oc_rect contentRect = oc_window_get_content_rect(window);
 
     //NOTE: create surface
-    mg_surface surface = mg_surface_create_for_window(window, MG_CANVAS);
-    if(mg_surface_is_nil(surface))
+    oc_surface surface = oc_surface_create_for_window(window, OC_CANVAS);
+    if(oc_surface_is_nil(surface))
     {
-        log_error("couldn't create surface\n");
+        oc_log_error("couldn't create surface\n");
         return (-1);
     }
-    mg_surface_swap_interval(surface, 0);
+    oc_surface_swap_interval(surface, 0);
 
     //NOTE: create canvas
-    mg_canvas canvas = mg_canvas_create();
-    if(mg_canvas_is_nil(canvas))
+    oc_canvas canvas = oc_canvas_create();
+    if(oc_canvas_is_nil(canvas))
     {
-        printf("Error: couldn't create canvas\n");
+        oc_log_error("Error: couldn't create canvas\n");
         return (-1);
     }
 
     //NOTE: create image
-    str8 imagePath = path_executable_relative(mem_scratch(), STR8("../../sketches/resources/triceratops.png"));
-    mg_image image = mg_image_create_from_file(surface, imagePath, false);
-    vec2 imageSize = mg_image_size(image);
+    oc_str8 imagePath = oc_path_executable_relative(oc_scratch(), OC_STR8("../../resources/triceratops.png"));
+    oc_image image = oc_image_create_from_file(surface, imagePath, false);
+    oc_vec2 imageSize = oc_image_size(image);
 
-    str8 imagePath2 = path_executable_relative(mem_scratch(), STR8("../../sketches/resources/Top512.png"));
-    mg_image image2 = mg_image_create_from_file(surface, imagePath2, false);
-    vec2 imageSize2 = mg_image_size(image2);
+    oc_str8 imagePath2 = oc_path_executable_relative(oc_scratch(), OC_STR8("../../resources/Top512.png"));
+    oc_image image2 = oc_image_create_from_file(surface, imagePath2, false);
+    oc_vec2 imageSize2 = oc_image_size(image2);
 
     // start app
-    mp_window_bring_to_front(window);
-    mp_window_focus(window);
+    oc_window_bring_to_front(window);
+    oc_window_focus(window);
 
-    while(!mp_should_quit())
+    while(!oc_should_quit())
     {
-        mp_pump_events(0);
-        mp_event* event = 0;
-        while((event = mp_next_event(mem_scratch())) != 0)
+        oc_pump_events(0);
+        oc_event* event = 0;
+        while((event = oc_next_event(oc_scratch())) != 0)
         {
             switch(event->type)
             {
-                case MP_EVENT_WINDOW_CLOSE:
+                case OC_EVENT_WINDOW_CLOSE:
                 {
-                    mp_request_quit();
+                    oc_request_quit();
                 }
                 break;
 
@@ -75,46 +74,46 @@ int main()
             }
         }
 
-        mg_surface_prepare(surface);
+        oc_surface_select(surface);
 
-        mg_set_color_rgba(0, 1, 1, 1);
-        mg_clear();
+        oc_set_color_rgba(0, 1, 1, 1);
+        oc_clear();
 
-        mg_set_color_rgba(1, 1, 1, 1);
+        oc_set_color_rgba(1, 1, 1, 1);
         /*
-			mg_matrix_push((mg_mat2x3){0.707, -0.707, 200,
+			oc_matrix_push((oc_mat2x3){0.707, -0.707, 200,
 			                           0.707, 0.707, 100});
-			mg_set_image(image);
-			mg_set_image_source_region((mp_rect){500, 500, 2000, 1400});
+			oc_set_image(image);
+			oc_set_image_source_region((oc_rect){500, 500, 2000, 1400});
 
-			mg_move_to(0, 0);
-			mg_line_to(200, 0);
-			mg_line_to(300, 100);
-			mg_line_to(200, 200);
-			mg_line_to(0, 200);
-			mg_line_to(100, 100);
-			mg_close_path();
-			mg_fill();
+			oc_move_to(0, 0);
+			oc_line_to(200, 0);
+			oc_line_to(300, 100);
+			oc_line_to(200, 200);
+			oc_line_to(0, 200);
+			oc_line_to(100, 100);
+			oc_close_path();
+			oc_fill();
 
-			mg_matrix_pop();
+			oc_matrix_pop();
 
-			mg_image_draw(image2, (mp_rect){300, 200, 300, 300});
+			oc_image_draw(image2, (oc_rect){300, 200, 300, 300});
 */
-        mg_image_draw(image, (mp_rect){ 100, 100, 300, 300 });
-        mg_image_draw(image2, (mp_rect){ 300, 200, 300, 300 });
+        oc_image_draw(image, (oc_rect){ 100, 100, 300, 300 });
+        oc_image_draw(image2, (oc_rect){ 300, 200, 300, 300 });
 
-        mg_render(surface, canvas);
-        mg_surface_present(surface);
+        oc_render(surface, canvas);
+        oc_surface_present(surface);
 
-        mem_arena_clear(mem_scratch());
+        oc_arena_clear(oc_scratch());
     }
 
-    mg_image_destroy(image);
-    mg_canvas_destroy(canvas);
-    mg_surface_destroy(surface);
-    mp_window_destroy(window);
+    oc_image_destroy(image);
+    oc_canvas_destroy(canvas);
+    oc_surface_destroy(surface);
+    oc_window_destroy(window);
 
-    mp_terminate();
+    oc_terminate();
 
     return (0);
 }

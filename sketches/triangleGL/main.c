@@ -12,14 +12,14 @@
 #define _USE_MATH_DEFINES //NOTE: necessary for MSVC
 #include <math.h>
 
-#define MG_INCLUDE_GL_API
-#include "milepost.h"
+#define OC_INCLUDE_GL_API
+#include "orca.h"
 
 unsigned int program;
 
 const char* vshaderSource =
     "#version 430\n"
-    "attribute vec4 vPosition;\n"
+    "in vec4 vPosition;\n"
     "uniform mat4 transform;\n"
     "void main()\n"
     "{\n"
@@ -29,9 +29,10 @@ const char* vshaderSource =
 const char* fshaderSource =
     "#version 430\n"
     "precision mediump float;\n"
+    "layout(location = 0) out vec4 diffuse;"
     "void main()\n"
     "{\n"
-    "    gl_FragColor = vec4(1.0, 0.0, 0.0, 1.0);\n"
+    "    diffuse = vec4(1.0, 0.0, 0.0, 1.0);\n"
     "}\n";
 
 void compile_shader(GLuint shader, const char* source)
@@ -42,7 +43,7 @@ void compile_shader(GLuint shader, const char* source)
     int err = glGetError();
     if(err)
     {
-        printf("gl error: %i\n", err);
+        oc_log_error("gl error: %i\n", err);
     }
 
     int status = 0;
@@ -52,22 +53,31 @@ void compile_shader(GLuint shader, const char* source)
         char buffer[256];
         int size = 0;
         glGetShaderInfoLog(shader, 256, &size, buffer);
-        printf("shader error: %.*s\n", size, buffer);
+        oc_log_error("shader error: %.*s\n", size, buffer);
     }
 }
 
 int main()
 {
-    mp_init();
+    oc_init();
 
-    mp_rect rect = { .x = 100, .y = 100, .w = 800, .h = 600 };
-    mp_window window = mp_window_create(rect, "test", 0);
+    oc_rect rect = { .x = 100, .y = 100, .w = 800, .h = 600 };
+    oc_window window = oc_window_create(rect, OC_STR8("test"), 0);
 
     //NOTE: create surface
-    mg_surface surface = mg_surface_create_for_window(window, MG_GL);
+    oc_surface surface = oc_surface_create_for_window(window, OC_GL);
+
+    if(oc_surface_is_nil(surface))
+    {
+#if OC_PLATFORM_MACOS
+        OC_ABORT("Desktop OpenGL surface is not implemented yet on macOS\n");
+#else
+        OC_ABORT("Couldn't create GL surface\n");
+#endif
+    }
 
     //NOTE: init shader and gl state
-    mg_surface_prepare(surface);
+    oc_surface_select(surface);
 
     GLuint vao;
     glGenVertexArrays(1, &vao);
@@ -101,25 +111,25 @@ int main()
         char buffer[256];
         int size = 0;
         glGetProgramInfoLog(program, 256, &size, buffer);
-        printf("link error: %.*s\n", size, buffer);
+        oc_log_error("link error: %.*s\n", size, buffer);
     }
 
     glUseProgram(program);
 
-    mp_window_bring_to_front(window);
-    //	mp_window_focus(window);
+    oc_window_bring_to_front(window);
+    //	oc_window_focus(window);
 
-    while(!mp_should_quit())
+    while(!oc_should_quit())
     {
-        mp_pump_events(0);
-        mp_event* event = 0;
-        while((event = mp_next_event(mem_scratch())) != 0)
+        oc_pump_events(0);
+        oc_event* event = 0;
+        while((event = oc_next_event(oc_scratch())) != 0)
         {
             switch(event->type)
             {
-                case MP_EVENT_WINDOW_CLOSE:
+                case OC_EVENT_WINDOW_CLOSE:
                 {
-                    mp_request_quit();
+                    oc_request_quit();
                 }
                 break;
 
@@ -128,7 +138,7 @@ int main()
             }
         }
 
-        mg_surface_prepare(surface);
+        oc_surface_select(surface);
 
         glClearColor(0.3, 0.3, 1, 1);
         glClear(GL_COLOR_BUFFER_BIT);
@@ -152,12 +162,12 @@ int main()
 
         glDrawArrays(GL_TRIANGLES, 0, 3);
 
-        mg_surface_present(surface);
+        oc_surface_present(surface);
 
-        mem_arena_clear(mem_scratch());
+        oc_arena_clear(oc_scratch());
     }
 
-    mp_terminate();
+    oc_terminate();
 
     return (0);
 }

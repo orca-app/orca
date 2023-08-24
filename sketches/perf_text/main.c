@@ -2,12 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#define LOG_DEFAULT_LEVEL LOG_LEVEL_MESSAGE
-#define LOG_COMPILE_DEBUG
-
-#include "milepost.h"
-
-#define LOG_SUBSYSTEM "Main"
+#include "orca.h"
 
 static const char* TEST_STRING =
     "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Nulla quam enim, aliquam in placerat luctus, rutrum in quam. "
@@ -59,17 +54,17 @@ static const char* TEST_STRING =
     "faucibus eros, vel luctus justo leo vitae ante. Curabitur aliquam condimentum ipsum sit amet ultrices. Nullam ac velit semper, dapibus urna "
     "sit amet, malesuada enim. Mauris ultricies nibh orci.";
 
-mg_font create_font(const char* path)
+oc_font create_font(const char* path)
 {
     //NOTE(martin): create font
-    str8 fontPath = path_executable_relative(mem_scratch(), STR8(path));
-    char* fontPathCString = str8_to_cstring(mem_scratch(), fontPath);
+    oc_str8 fontPath = oc_path_executable_relative(oc_scratch(), OC_STR8(path));
+    char* fontPathCString = oc_str8_to_cstring(oc_scratch(), fontPath);
 
     FILE* fontFile = fopen(fontPathCString, "r");
     if(!fontFile)
     {
-        log_error("Could not load font file '%s'\n", fontPathCString);
-        return (mg_font_nil());
+        oc_log_error("Could not load font file '%s'\n", fontPathCString);
+        return (oc_font_nil());
     }
     unsigned char* fontData = 0;
     fseek(fontFile, 0, SEEK_END);
@@ -79,13 +74,13 @@ mg_font create_font(const char* path)
     fread(fontData, 1, fontDataSize, fontFile);
     fclose(fontFile);
 
-    unicode_range ranges[5] = { UNICODE_RANGE_BASIC_LATIN,
-                                UNICODE_RANGE_C1_CONTROLS_AND_LATIN_1_SUPPLEMENT,
-                                UNICODE_RANGE_LATIN_EXTENDED_A,
-                                UNICODE_RANGE_LATIN_EXTENDED_B,
-                                UNICODE_RANGE_SPECIALS };
+    oc_unicode_range ranges[5] = { OC_UNICODE_BASIC_LATIN,
+                                   OC_UNICODE_C1_CONTROLS_AND_LATIN_1_SUPPLEMENT,
+                                   OC_UNICODE_LATIN_EXTENDED_A,
+                                   OC_UNICODE_LATIN_EXTENDED_B,
+                                   OC_UNICODE_SPECIALS };
 
-    mg_font font = mg_font_create_from_memory(fontDataSize, fontData, 5, ranges);
+    oc_font font = oc_font_create_from_memory(oc_str8_from_buffer(fontDataSize, (char*)fontData), 5, ranges);
     free(fontData);
 
     return (font);
@@ -98,45 +93,45 @@ enum
 
 int main()
 {
-    mp_init();
-    mp_clock_init();
+    oc_init();
+    oc_clock_init();
 
-    mp_rect rect = { .x = 100, .y = 100, .w = 980, .h = 600 };
-    mp_window window = mp_window_create(rect, "test", 0);
+    oc_rect rect = { .x = 100, .y = 100, .w = 980, .h = 600 };
+    oc_window window = oc_window_create(rect, OC_STR8("test"), 0);
 
-    mp_rect contentRect = mp_window_get_content_rect(window);
+    oc_rect contentRect = oc_window_get_content_rect(window);
 
     //NOTE: create surface, canvas and font
 
-    mg_surface surface = mg_surface_create_for_window(window, MG_CANVAS);
-    if(mg_surface_is_nil(surface))
+    oc_surface surface = oc_surface_create_for_window(window, OC_CANVAS);
+    if(oc_surface_is_nil(surface))
     {
-        log_error("couldn't create surface\n");
+        oc_log_error("couldn't create surface\n");
         return (-1);
     }
-    mg_surface_swap_interval(surface, 0);
+    oc_surface_swap_interval(surface, 0);
 
-    mg_canvas canvas = mg_canvas_create();
+    oc_canvas canvas = oc_canvas_create();
 
     int fontIndex = 0;
-    mg_font fonts[FONT_COUNT] = { create_font("../../resources/OpenSansLatinSubset.ttf"),
-                                  create_font("../../sketches/resources/CMUSerif-Roman.ttf"),
-                                  create_font("../../sketches/resources/Courier.ttf") };
+    oc_font fonts[FONT_COUNT] = { create_font("../../resources/OpenSansLatinSubset.ttf"),
+                                  create_font("../../resources/CMUSerif-Roman.ttf"),
+                                  create_font("../../resources/Courier.ttf") };
 
-    mg_font_extents extents[FONT_COUNT];
+    oc_font_extents extents[FONT_COUNT];
     f32 fontScales[FONT_COUNT];
     f32 lineHeights[FONT_COUNT];
 
     for(int i = 0; i < FONT_COUNT; i++)
     {
-        extents[i] = mg_font_get_extents(fonts[i]);
-        fontScales[i] = mg_font_get_scale_for_em_pixels(fonts[i], 14);
+        extents[i] = oc_font_get_extents(fonts[i]);
+        fontScales[i] = oc_font_get_scale_for_em_pixels(fonts[i], 14);
         lineHeights[i] = fontScales[i] * (extents[i].ascent + extents[i].descent + extents[i].leading);
     }
 
-    int codePointCount = utf8_codepoint_count_for_string(STR8((char*)TEST_STRING));
-    u32* codePoints = malloc_array(utf32, codePointCount);
-    utf8_to_codepoints(codePointCount, codePoints, STR8((char*)TEST_STRING));
+    int codePointCount = oc_utf8_codepoint_count_for_string(OC_STR8((char*)TEST_STRING));
+    u32* codePoints = oc_malloc_array(oc_utf32, codePointCount);
+    oc_utf8_to_codepoints(codePointCount, codePoints, OC_STR8((char*)TEST_STRING));
 
     u32 glyphCount = 0;
     for(int i = 0; i < codePointCount; i++)
@@ -148,46 +143,46 @@ int main()
     }
 
     // start app
-    mp_window_bring_to_front(window);
-    mp_window_focus(window);
+    oc_window_bring_to_front(window);
+    oc_window_focus(window);
 
     f64 frameTime = 0;
 
     bool tracked = false;
-    vec2 trackPoint = { 0 };
+    oc_vec2 trackPoint = { 0 };
     f32 zoom = 1;
 
     f32 startX = 10;
     f32 startY = 10 + lineHeights[fontIndex];
 
-    mp_input_state inputState = { 0 };
+    oc_input_state inputState = { 0 };
 
-    while(!mp_should_quit())
+    while(!oc_should_quit())
     {
-        f64 startFrameTime = mp_get_time(MP_CLOCK_MONOTONIC);
+        f64 startFrameTime = oc_clock_time(OC_CLOCK_MONOTONIC);
 
-        mp_pump_events(0);
-        mp_event* event = 0;
-        while((event = mp_next_event(mem_scratch())) != 0)
+        oc_pump_events(0);
+        oc_event* event = 0;
+        while((event = oc_next_event(oc_scratch())) != 0)
         {
-            mp_input_process_event(&inputState, event);
+            oc_input_process_event(&inputState, event);
 
             switch(event->type)
             {
-                case MP_EVENT_WINDOW_CLOSE:
+                case OC_EVENT_WINDOW_CLOSE:
                 {
-                    mp_request_quit();
+                    oc_request_quit();
                 }
                 break;
 
-                case MP_EVENT_MOUSE_BUTTON:
+                case OC_EVENT_MOUSE_BUTTON:
                 {
-                    if(event->key.code == MP_MOUSE_LEFT)
+                    if(event->key.code == OC_MOUSE_LEFT)
                     {
-                        if(event->key.action == MP_KEY_PRESS)
+                        if(event->key.action == OC_KEY_PRESS)
                         {
                             tracked = true;
-                            vec2 mousePos = mp_mouse_position(&inputState);
+                            oc_vec2 mousePos = oc_mouse_position(&inputState);
                             trackPoint.x = mousePos.x / zoom - startX;
                             trackPoint.y = mousePos.y / zoom - startY;
                         }
@@ -199,23 +194,23 @@ int main()
                 }
                 break;
 
-                case MP_EVENT_MOUSE_WHEEL:
+                case OC_EVENT_MOUSE_WHEEL:
                 {
-                    vec2 mousePos = mp_mouse_position(&inputState);
+                    oc_vec2 mousePos = oc_mouse_position(&inputState);
                     f32 trackX = mousePos.x / zoom - startX;
                     f32 trackY = mousePos.y / zoom - startY;
 
                     zoom *= 1 + event->mouse.deltaY * 0.01;
-                    zoom = Clamp(zoom, 0.2, 10);
+                    zoom = oc_clamp(zoom, 0.2, 10);
 
                     startX = mousePos.x / zoom - trackX;
                     startY = mousePos.y / zoom - trackY;
                 }
                 break;
 
-                case MP_EVENT_KEYBOARD_KEY:
+                case OC_EVENT_KEYBOARD_KEY:
                 {
-                    if(event->key.code == MP_KEY_SPACE && event->key.action == MP_KEY_PRESS)
+                    if(event->key.code == OC_KEY_SPACE && event->key.action == OC_KEY_PRESS)
                     {
                         fontIndex = (fontIndex + 1) % FONT_COUNT;
                     }
@@ -229,7 +224,7 @@ int main()
 
         if(tracked)
         {
-            vec2 mousePos = mp_mouse_position(&inputState);
+            oc_vec2 mousePos = oc_mouse_position(&inputState);
             startX = mousePos.x / zoom - trackPoint.x;
             startY = mousePos.y / zoom - trackPoint.y;
         }
@@ -238,26 +233,26 @@ int main()
         f32 textY = startY;
 
         /*
-		mg_set_color_rgba(1, 1, 1, 1);
-		mg_clear();
-		mg_set_color_rgba(1, 0, 0, 1);
+		oc_set_color_rgba(1, 1, 1, 1);
+		oc_clear();
+		oc_set_color_rgba(1, 0, 0, 1);
 		for(int i=0; i<1000; i++)
 		{
-			mg_rectangle_fill(0, 0, 100, 100);
+			oc_rectangle_fill(0, 0, 100, 100);
 		}
 */
 
-        mg_matrix_push((mg_mat2x3){ zoom, 0, 0,
+        oc_matrix_push((oc_mat2x3){ zoom, 0, 0,
                                     0, zoom, 0 });
 
-        mg_set_color_rgba(1, 1, 1, 1);
-        mg_clear();
+        oc_set_color_rgba(1, 1, 1, 1);
+        oc_clear();
 
-        mg_set_font(fonts[fontIndex]);
-        mg_set_font_size(14);
-        mg_set_color_rgba(0, 0, 0, 1);
+        oc_set_font(fonts[fontIndex]);
+        oc_set_font_size(14);
+        oc_set_color_rgba(0, 0, 0, 1);
 
-        mg_move_to(textX, textY);
+        oc_move_to(textX, textY);
 
         int startIndex = 0;
         while(startIndex < codePointCount)
@@ -273,42 +268,42 @@ int main()
             }
 
             u32 glyphs[512];
-            mg_font_get_glyph_indices(fonts[fontIndex], (str32){ subIndex, codePoints + startIndex }, (str32){ 512, glyphs });
+            oc_font_get_glyph_indices(fonts[fontIndex], oc_str32_from_buffer(subIndex, codePoints + startIndex), oc_str32_from_buffer(512, glyphs));
 
-            mg_glyph_outlines((str32){ subIndex, glyphs });
-            mg_fill();
+            oc_glyph_outlines(oc_str32_from_buffer(subIndex, glyphs));
+            oc_fill();
 
             textY += lineHeights[fontIndex];
-            mg_move_to(textX, textY);
+            oc_move_to(textX, textY);
             startIndex++;
 
             startIndex += subIndex;
         }
 
-        mg_matrix_pop();
+        oc_matrix_pop();
 
-        mg_set_color_rgba(0, 0, 1, 1);
-        mg_set_font(fonts[fontIndex]);
-        mg_set_font_size(14);
-        mg_move_to(10, contentRect.h - 10 - lineHeights[fontIndex]);
+        oc_set_color_rgba(0, 0, 1, 1);
+        oc_set_font(fonts[fontIndex]);
+        oc_set_font_size(14);
+        oc_move_to(10, contentRect.h - 10 - lineHeights[fontIndex]);
 
-        str8 text = str8_pushf(mem_scratch(),
-                               "Test program: %i glyphs, frame time = %fs, fps = %f",
-                               glyphCount,
-                               frameTime,
-                               1. / frameTime);
-        mg_text_outlines(text);
-        mg_fill();
+        oc_str8 text = oc_str8_pushf(oc_scratch(),
+                                     "Test program: %i glyphs, frame time = %fs, fps = %f",
+                                     glyphCount,
+                                     frameTime,
+                                     1. / frameTime);
+        oc_text_outlines(text);
+        oc_fill();
 
-        f64 startFlushTime = mp_get_time(MP_CLOCK_MONOTONIC);
+        f64 startFlushTime = oc_clock_time(OC_CLOCK_MONOTONIC);
 
-        mg_surface_prepare(surface);
-        mg_render(surface, canvas);
+        oc_surface_select(surface);
+        oc_render(surface, canvas);
 
-        f64 startPresentTime = mp_get_time(MP_CLOCK_MONOTONIC);
-        mg_surface_present(surface);
+        f64 startPresentTime = oc_clock_time(OC_CLOCK_MONOTONIC);
+        oc_surface_present(surface);
 
-        f64 endFrameTime = mp_get_time(MP_CLOCK_MONOTONIC);
+        f64 endFrameTime = oc_clock_time(OC_CLOCK_MONOTONIC);
 
         frameTime = (endFrameTime - startFrameTime);
 
@@ -319,18 +314,18 @@ int main()
                (startPresentTime - startFlushTime) * 1000,
                (endFrameTime - startPresentTime) * 1000);
 
-        mp_input_next_frame(&inputState);
-        mem_arena_clear(mem_scratch());
+        oc_input_next_frame(&inputState);
+        oc_arena_clear(oc_scratch());
     }
 
     for(int i = 0; i < FONT_COUNT; i++)
     {
-        mg_font_destroy(fonts[i]);
+        oc_font_destroy(fonts[i]);
     }
-    mg_canvas_destroy(canvas);
-    mg_surface_destroy(surface);
-    mp_window_destroy(window);
-    mp_terminate();
+    oc_canvas_destroy(canvas);
+    oc_surface_destroy(surface);
+    oc_window_destroy(window);
+    oc_terminate();
 
     return (0);
 }

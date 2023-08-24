@@ -10,111 +10,111 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "milepost.h"
+#include "orca.h"
 
 int main()
 {
-    mp_init();
+    oc_init();
 
-    mp_rect rect = { .x = 100, .y = 100, .w = 800, .h = 600 };
-    mp_window window = mp_window_create(rect, "test", 0);
+    oc_rect rect = { .x = 100, .y = 100, .w = 800, .h = 600 };
+    oc_window window = oc_window_create(rect, OC_STR8("test"), 0);
 
-    mp_window_bring_to_front(window);
-    mp_window_focus(window);
+    oc_window_bring_to_front(window);
+    oc_window_focus(window);
 
-    mp_window_center(window);
+    oc_window_center(window);
 
-    while(!mp_should_quit())
+    while(!oc_should_quit())
     {
-        mp_pump_events(0);
-        mp_event* event = 0;
-        while((event = mp_next_event(mem_scratch())) != 0)
+        oc_pump_events(0);
+        oc_event* event = 0;
+        while((event = oc_next_event(oc_scratch())) != 0)
         {
             switch(event->type)
             {
-                case MP_EVENT_WINDOW_CLOSE:
+                case OC_EVENT_WINDOW_CLOSE:
                 {
-                    mp_request_quit();
+                    oc_request_quit();
                 }
                 break;
 
-                case MP_EVENT_WINDOW_RESIZE:
+                case OC_EVENT_WINDOW_RESIZE:
                 {
-                    printf("resized, frame = {%f, %f, %f, %f}, content = {%f, %f, %f, %f}\n",
-                           event->move.frame.x,
-                           event->move.frame.y,
-                           event->move.frame.w,
-                           event->move.frame.h,
-                           event->move.content.x,
-                           event->move.content.y,
-                           event->move.content.w,
-                           event->move.content.h);
+                    oc_log_info("resized, frame = {%f, %f, %f, %f}, content = {%f, %f, %f, %f}\n",
+                                event->move.frame.x,
+                                event->move.frame.y,
+                                event->move.frame.w,
+                                event->move.frame.h,
+                                event->move.content.x,
+                                event->move.content.y,
+                                event->move.content.w,
+                                event->move.content.h);
                 }
                 break;
 
-                case MP_EVENT_WINDOW_MOVE:
+                case OC_EVENT_WINDOW_MOVE:
                 {
-                    printf("moved, frame = {%f, %f, %f, %f}, content = {%f, %f, %f, %f}\n",
-                           event->move.frame.x,
-                           event->move.frame.y,
-                           event->move.frame.w,
-                           event->move.frame.h,
-                           event->move.content.x,
-                           event->move.content.y,
-                           event->move.content.w,
-                           event->move.content.h);
+                    oc_log_info("moved, frame = {%f, %f, %f, %f}, content = {%f, %f, %f, %f}\n",
+                                event->move.frame.x,
+                                event->move.frame.y,
+                                event->move.frame.w,
+                                event->move.frame.h,
+                                event->move.content.x,
+                                event->move.content.y,
+                                event->move.content.w,
+                                event->move.content.h);
                 }
                 break;
 
-                case MP_EVENT_MOUSE_MOVE:
+                case OC_EVENT_MOUSE_MOVE:
                 {
-                    printf("mouse moved, pos = {%f, %f}, delta = {%f, %f}\n",
-                           event->mouse.x,
-                           event->mouse.y,
-                           event->mouse.deltaX,
-                           event->mouse.deltaY);
+                    oc_log_info("mouse moved, pos = {%f, %f}, delta = {%f, %f}\n",
+                                event->mouse.x,
+                                event->mouse.y,
+                                event->mouse.deltaX,
+                                event->mouse.deltaY);
                 }
                 break;
 
-                case MP_EVENT_MOUSE_WHEEL:
+                case OC_EVENT_MOUSE_WHEEL:
                 {
-                    printf("mouse wheel, delta = {%f, %f}\n",
-                           event->mouse.deltaX,
-                           event->mouse.deltaY);
+                    oc_log_info("mouse wheel, delta = {%f, %f}\n",
+                                event->mouse.deltaX,
+                                event->mouse.deltaY);
                 }
                 break;
 
-                case MP_EVENT_MOUSE_ENTER:
+                case OC_EVENT_MOUSE_ENTER:
                 {
-                    printf("mouse enter\n");
+                    oc_log_info("mouse enter\n");
                 }
                 break;
 
-                case MP_EVENT_MOUSE_LEAVE:
+                case OC_EVENT_MOUSE_LEAVE:
                 {
-                    printf("mouse leave\n");
+                    oc_log_info("mouse leave\n");
                 }
                 break;
 
-                case MP_EVENT_MOUSE_BUTTON:
+                case OC_EVENT_MOUSE_BUTTON:
                 {
-                    printf("mouse button %i: %i\n",
-                           event->key.code,
-                           event->key.action == MP_KEY_PRESS ? 1 : 0);
+                    oc_log_info("mouse button %i: %i\n",
+                                event->key.code,
+                                event->key.action == OC_KEY_PRESS ? 1 : 0);
                 }
                 break;
 
-                case MP_EVENT_KEYBOARD_KEY:
+                case OC_EVENT_KEYBOARD_KEY:
                 {
-                    printf("key %i: %s\n",
-                           event->key.code,
-                           event->key.action == MP_KEY_PRESS ? "press" : (event->key.action == MP_KEY_RELEASE ? "release" : "repeat"));
+                    oc_log_info("key %i: %s\n",
+                                event->key.code,
+                                event->key.action == OC_KEY_PRESS ? "press" : (event->key.action == OC_KEY_RELEASE ? "release" : "repeat"));
                 }
                 break;
 
-                case MP_EVENT_KEYBOARD_CHAR:
+                case OC_EVENT_KEYBOARD_CHAR:
                 {
-                    printf("entered char %s\n", event->character.sequence);
+                    oc_log_info("entered char %s\n", event->character.sequence);
                 }
                 break;
 
@@ -122,10 +122,10 @@ int main()
                     break;
             }
         }
-        mem_arena_clear(mem_scratch());
+        oc_arena_clear(oc_scratch());
     }
 
-    mp_terminate();
+    oc_terminate();
 
     return (0);
 }

@@ -14,21 +14,19 @@
 #define _USE_MATH_DEFINES //NOTE: necessary for MSVC
 #include <math.h>
 
-#include "milepost.h"
+#include "orca.h"
 
-#define LOG_SUBSYSTEM "Main"
-
-mg_font create_font()
+oc_font create_font()
 {
     //NOTE(martin): create font
-    str8 fontPath = path_executable_relative(mem_scratch(), STR8("../resources/OpenSansLatinSubset.ttf"));
-    char* fontPathCString = str8_to_cstring(mem_scratch(), fontPath);
+    oc_str8 fontPath = oc_path_executable_relative(oc_scratch(), OC_STR8("../../resources/OpenSansLatinSubset.ttf"));
+    char* fontPathCString = oc_str8_to_cstring(oc_scratch(), fontPath);
 
     FILE* fontFile = fopen(fontPathCString, "r");
     if(!fontFile)
     {
-        log_error("Could not load font file '%s': %s\n", fontPathCString, strerror(errno));
-        return (mg_font_nil());
+        oc_log_error("Could not load font file '%s': %s\n", fontPathCString, strerror(errno));
+        return (oc_font_nil());
     }
     unsigned char* fontData = 0;
     fseek(fontFile, 0, SEEK_END);
@@ -38,13 +36,13 @@ mg_font create_font()
     fread(fontData, 1, fontDataSize, fontFile);
     fclose(fontFile);
 
-    unicode_range ranges[5] = { UNICODE_RANGE_BASIC_LATIN,
-                                UNICODE_RANGE_C1_CONTROLS_AND_LATIN_1_SUPPLEMENT,
-                                UNICODE_RANGE_LATIN_EXTENDED_A,
-                                UNICODE_RANGE_LATIN_EXTENDED_B,
-                                UNICODE_RANGE_SPECIALS };
+    oc_unicode_range ranges[5] = { OC_UNICODE_BASIC_LATIN,
+                                   OC_UNICODE_C1_CONTROLS_AND_LATIN_1_SUPPLEMENT,
+                                   OC_UNICODE_LATIN_EXTENDED_A,
+                                   OC_UNICODE_LATIN_EXTENDED_B,
+                                   OC_UNICODE_SPECIALS };
 
-    mg_font font = mg_font_create_from_memory(fontDataSize, fontData, 5, ranges);
+    oc_font font = oc_font_create_from_memory(oc_str8_from_buffer(fontDataSize, (char*)fontData), 5, ranges);
     free(fontData);
 
     return (font);
@@ -52,77 +50,76 @@ mg_font create_font()
 
 int main()
 {
-    mp_init();
-    mp_clock_init(); //TODO put that in mp_init()?
+    oc_init();
 
-    mp_rect windowRect = { .x = 100, .y = 100, .w = 810, .h = 610 };
-    mp_window window = mp_window_create(windowRect, "test", 0);
+    oc_rect windowRect = { .x = 100, .y = 100, .w = 810, .h = 610 };
+    oc_window window = oc_window_create(windowRect, OC_STR8("test"), 0);
 
-    mp_rect contentRect = mp_window_get_content_rect(window);
+    oc_rect contentRect = oc_window_get_content_rect(window);
 
     //NOTE: create surface
-    mg_surface surface = mg_surface_create_for_window(window, MG_CANVAS);
-    if(mg_surface_is_nil(surface))
+    oc_surface surface = oc_surface_create_for_window(window, OC_CANVAS);
+    if(oc_surface_is_nil(surface))
     {
-        printf("Error: couldn't create surface\n");
+        oc_log_error("Error: couldn't create surface\n");
         return (-1);
     }
-    mg_surface_swap_interval(surface, 0);
+    oc_surface_swap_interval(surface, 0);
 
-    mg_canvas canvas = mg_canvas_create();
+    oc_canvas canvas = oc_canvas_create();
 
-    if(mg_canvas_is_nil(canvas))
+    if(oc_canvas_is_nil(canvas))
     {
         printf("Error: couldn't create canvas\n");
         return (-1);
     }
 
-    mg_font font = create_font();
+    oc_font font = create_font();
 
     // start app
-    mp_window_bring_to_front(window);
-    mp_window_focus(window);
+    oc_window_bring_to_front(window);
+    oc_window_focus(window);
 
     f32 x = 400, y = 300;
     f32 speed = 0;
     f32 dx = speed, dy = speed;
     f64 frameTime = 0;
 
-    while(!mp_should_quit())
+    while(!oc_should_quit())
     {
-        f64 startTime = mp_get_time(MP_CLOCK_MONOTONIC);
+        f64 startTime = oc_clock_time(OC_CLOCK_MONOTONIC);
 
-        mp_pump_events(0);
-        mp_event* event = 0;
-        while((event = mp_next_event(mem_scratch())) != 0)
+        oc_pump_events(0);
+        oc_event* event = 0;
+        while((event = oc_next_event(oc_scratch())) != 0)
         {
             switch(event->type)
             {
-                case MP_EVENT_WINDOW_CLOSE:
+                case OC_EVENT_WINDOW_CLOSE:
                 {
-                    mp_request_quit();
+                    oc_request_quit();
                 }
                 break;
 
-                case MP_EVENT_KEYBOARD_KEY:
+                case OC_EVENT_KEYBOARD_KEY:
                 {
-                    if(event->key.action == MP_KEY_PRESS || event->key.action == MP_KEY_REPEAT)
+                    if(event->key.action == OC_KEY_PRESS || event->key.action == OC_KEY_REPEAT)
                     {
-                        f32 factor = (event->key.mods & MP_KEYMOD_SHIFT) ? 10 : 1;
+                        f32 factor = (event->key.mods & OC_KEYMOD_SHIFT) ? 10 : 1;
 
-                        if(event->key.code == MP_KEY_LEFT)
+                        if(event->key.code == OC_KEY_LEFT)
                         {
                             x -= 0.3 * factor;
                         }
-                        else if(event->key.code == MP_KEY_RIGHT)
+                        else if(event->key.code == OC_KEY_RIGHT)
                         {
                             x += 0.3 * factor;
                         }
-                        else if(event->key.code == MP_KEY_UP)
+                        else if(event->key.code == OC_KEY_UP)
                         {
                             y -= 0.3 * factor;
                         }
-                        else if(event->key.code == MP_KEY_DOWN)
+                        else if(event->key.code == OC_KEY_DOWN)
                         {
                             y += 0.3 * factor;
                         }
@@ -159,61 +156,61 @@ int main()
         y += dy;
 
         // background
-        mg_set_color_rgba(0, 1, 1, 1);
-        mg_clear();
+        oc_set_color_rgba(0, 1, 1, 1);
+        oc_clear();
 
-        mg_set_color_rgba(1, 0, 1, 1);
-        mg_rectangle_fill(0, 0, 100, 100);
+        oc_set_color_rgba(1, 0, 1, 1);
+        oc_rectangle_fill(0, 0, 100, 100);
 
         // head
-        mg_set_color_rgba(1, 1, 0, 1);
+        oc_set_color_rgba(1, 1, 0, 1);
 
-        mg_circle_fill(x, y, 200);
+        oc_circle_fill(x, y, 200);
 
         // smile
         f32 frown = frameTime > 0.033 ? -100 : 0;
 
-        mg_set_color_rgba(0, 0, 0, 1);
-        mg_set_width(20);
-        mg_move_to(x - 100, y + 100);
-        mg_cubic_to(x - 50, y + 150 + frown, x + 50, y + 150 + frown, x + 100, y + 100);
-        mg_stroke();
+        oc_set_color_rgba(0, 0, 0, 1);
+        oc_set_width(20);
+        oc_move_to(x - 100, y + 100);
+        oc_cubic_to(x - 50, y + 150 + frown, x + 50, y + 150 + frown, x + 100, y + 100);
+        oc_stroke();
 
         // eyes
-        mg_ellipse_fill(x - 70, y - 50, 30, 50);
-        mg_ellipse_fill(x + 70, y - 50, 30, 50);
+        oc_ellipse_fill(x - 70, y - 50, 30, 50);
+        oc_ellipse_fill(x + 70, y - 50, 30, 50);
 
         // text
-        mg_set_color_rgba(0, 0, 1, 1);
-        mg_set_font(font);
-        mg_set_font_size(12);
-        mg_move_to(50, 600 - 50);
+        oc_set_color_rgba(0, 0, 1, 1);
+        oc_set_font(font);
+        oc_set_font_size(12);
+        oc_move_to(50, 600 - 50);
 
-        str8 text = str8_pushf(mem_scratch(),
-                               "Milepost vector graphics test program (frame time = %fs, fps = %f)...",
-                               frameTime,
-                               1. / frameTime);
-        mg_text_outlines(text);
-        mg_fill();
+        oc_str8 text = oc_str8_pushf(oc_scratch(),
+                                     "Orca vector graphics test program (frame time = %fs, fps = %f)...",
+                                     frameTime,
+                                     1. / frameTime);
+        oc_text_outlines(text);
+        oc_fill();
 
-        printf("Milepost vector graphics test program (frame time = %fs, fps = %f)...\n",
-               frameTime,
-               1. / frameTime);
+        oc_log_info("Orca vector graphics test program (frame time = %fs, fps = %f)...\n",
+                    frameTime,
+                    1. / frameTime);
 
-        mg_surface_prepare(surface);
-        mg_render(surface, canvas);
-        mg_surface_present(surface);
+        oc_surface_select(surface);
+        oc_render(surface, canvas);
+        oc_surface_present(surface);
 
-        mem_arena_clear(mem_scratch());
-        frameTime = mp_get_time(MP_CLOCK_MONOTONIC) - startTime;
+        oc_arena_clear(oc_scratch());
+        frameTime = oc_clock_time(OC_CLOCK_MONOTONIC) - startTime;
     }
 
-    mg_font_destroy(font);
-    mg_canvas_destroy(canvas);
-    mg_surface_destroy(surface);
-    mp_window_destroy(window);
+    oc_font_destroy(font);
+    oc_canvas_destroy(canvas);
+    oc_surface_destroy(surface);
+    oc_window_destroy(window);
 
-    mp_terminate();
+    oc_terminate();
 
     return (0);
 }

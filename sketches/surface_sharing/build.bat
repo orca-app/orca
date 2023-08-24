@@ -1,4 +1,8 @@
 
-set INCLUDES=/I ..\..\src /I ..\..\src\util /I ..\..\src\platform /I ../../ext /I ../../ext/angle_headers
+set INCLUDES=/I ..\..\src /I ..\..\src\util /I ..\..\src\platform /I ../../ext /I ../../ext/angle/include
 
-cl /we4013 /Zi /Zc:preprocessor /std:c11 %INCLUDES% main.c /link /LIBPATH:../../bin milepost.dll.lib /out:../../bin/example_surface_sharing.exe
+if not exist "bin" mkdir bin
+cl /we4013 /Zi /Zc:preprocessor /std:c11 /experimental:c11atomics %INCLUDES% main.c /link /LIBPATH:../../build/bin orca.dll.lib /out:bin/example_surface_sharing.exe
+cp ../../build/bin/orca.dll bin/
+cp ../../ext/angle/bin/libEGL.dll bin/
+cp ../../ext/angle/bin/libGLESv2.dll bin/
