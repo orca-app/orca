@@ -2313,6 +2313,20 @@ const oc_ui_edit_command OC_UI_EDIT_COMMANDS_MACOS[] = {
         .operation = OC_UI_EDIT_MOVE,
         .move = OC_UI_EDIT_MOVE_ONE,
         .direction = 1 },
+    //NOTE(martin): move one word left
+    {
+        .key = OC_KEY_LEFT,
+        .mods = OC_KEYMOD_ALT,
+        .operation = OC_UI_EDIT_MOVE,
+        .move = OC_UI_EDIT_MOVE_WORD,
+        .direction = -1 },
+    //NOTE(martin): move one word right
+    {
+        .key = OC_KEY_RIGHT,
+        .mods = OC_KEYMOD_ALT,
+        .operation = OC_UI_EDIT_MOVE,
+        .move = OC_UI_EDIT_MOVE_WORD,
+        .direction = 1 },
     //NOTE(martin): move start
     {
         .key = OC_KEY_Q,
@@ -2348,6 +2362,20 @@ const oc_ui_edit_command OC_UI_EDIT_COMMANDS_MACOS[] = {
         .mods = OC_KEYMOD_SHIFT,
         .operation = OC_UI_EDIT_SELECT,
         .move = OC_UI_EDIT_MOVE_ONE,
+        .direction = 1 },
+    //NOTE(martin): select one word left
+    {
+        .key = OC_KEY_LEFT,
+        .mods = OC_KEYMOD_ALT | OC_KEYMOD_SHIFT,
+        .operation = OC_UI_EDIT_SELECT,
+        .move = OC_UI_EDIT_MOVE_WORD,
+        .direction = -1 },
+    //NOTE(martin): select one word right
+    {
+        .key = OC_KEY_RIGHT,
+        .mods = OC_KEYMOD_ALT | OC_KEYMOD_SHIFT,
+        .operation = OC_UI_EDIT_SELECT,
+        .move = OC_UI_EDIT_MOVE_WORD,
         .direction = 1 },
     //NOTE(martin): extend select to start
     {
@@ -2385,11 +2413,25 @@ const oc_ui_edit_command OC_UI_EDIT_COMMANDS_MACOS[] = {
         .operation = OC_UI_EDIT_DELETE,
         .move = OC_UI_EDIT_MOVE_ONE,
         .direction = 1 },
+    //NOTE(martin): delete word
+    {
+        .key = OC_KEY_DELETE,
+        .mods = OC_KEYMOD_ALT,
+        .operation = OC_UI_EDIT_DELETE,
+        .move = OC_UI_EDIT_MOVE_WORD,
+        .direction = 1 },
     //NOTE(martin): backspace
     {
         .key = OC_KEY_BACKSPACE,
         .operation = OC_UI_EDIT_DELETE,
         .move = OC_UI_EDIT_MOVE_ONE,
+        .direction = -1 },
+    //NOTE(martin): backspace word
+    {
+        .key = OC_KEY_BACKSPACE,
+        .mods = OC_KEYMOD_ALT,
+        .operation = OC_UI_EDIT_DELETE,
+        .move = OC_UI_EDIT_MOVE_WORD,
         .direction = -1 },
     //NOTE(martin): cut
     {
@@ -2424,6 +2466,20 @@ const oc_ui_edit_command OC_UI_EDIT_COMMANDS_WINDOWS[] = {
         .operation = OC_UI_EDIT_MOVE,
         .move = OC_UI_EDIT_MOVE_ONE,
         .direction = 1 },
+    //NOTE(martin): move one word left
+    {
+        .key = OC_KEY_LEFT,
+        .mods = OC_KEYMOD_CTRL,
+        .operation = OC_UI_EDIT_MOVE,
+        .move = OC_UI_EDIT_MOVE_WORD,
+        .direction = -1 },
+    //NOTE(martin): move one word right
+    {
+        .key = OC_KEY_RIGHT,
+        .mods = OC_KEYMOD_CTRL,
+        .operation = OC_UI_EDIT_MOVE,
+        .move = OC_UI_EDIT_MOVE_WORD,
+        .direction = 1 },
     //NOTE(martin): move start
     {
         .key = OC_KEY_HOME,
@@ -2457,6 +2513,20 @@ const oc_ui_edit_command OC_UI_EDIT_COMMANDS_WINDOWS[] = {
         .mods = OC_KEYMOD_SHIFT,
         .operation = OC_UI_EDIT_SELECT,
         .move = OC_UI_EDIT_MOVE_ONE,
+        .direction = 1 },
+    //NOTE(martin): select one word left
+    {
+        .key = OC_KEY_LEFT,
+        .mods = OC_KEYMOD_CTRL | OC_KEYMOD_SHIFT,
+        .operation = OC_UI_EDIT_SELECT,
+        .move = OC_UI_EDIT_MOVE_WORD,
+        .direction = -1 },
+    //NOTE(martin): select one word right
+    {
+        .key = OC_KEY_RIGHT,
+        .mods = OC_KEYMOD_CTRL | OC_KEYMOD_SHIFT,
+        .operation = OC_UI_EDIT_SELECT,
+        .move = OC_UI_EDIT_MOVE_WORD,
         .direction = 1 },
     //NOTE(martin): extend select to start
     {
@@ -2494,11 +2564,25 @@ const oc_ui_edit_command OC_UI_EDIT_COMMANDS_WINDOWS[] = {
         .operation = OC_UI_EDIT_DELETE,
         .move = OC_UI_EDIT_MOVE_ONE,
         .direction = 1 },
+    //NOTE(martin): delete word
+    {
+        .key = OC_KEY_DELETE,
+        .mods = OC_KEYMOD_CTRL,
+        .operation = OC_UI_EDIT_DELETE,
+        .move = OC_UI_EDIT_MOVE_WORD,
+        .direction = 1 },
     //NOTE(martin): backspace
     {
         .key = OC_KEY_BACKSPACE,
         .operation = OC_UI_EDIT_DELETE,
         .move = OC_UI_EDIT_MOVE_ONE,
+        .direction = -1 },
+    //NOTE(martin): backspace word
+    {
+        .key = OC_KEY_BACKSPACE,
+        .mods = OC_KEYMOD_CTRL,
+        .operation = OC_UI_EDIT_DELETE,
+        .move = OC_UI_EDIT_MOVE_WORD,
         .direction = -1 },
     //NOTE(martin): cut
     {
@@ -2523,7 +2607,23 @@ const oc_ui_edit_command OC_UI_EDIT_COMMANDS_WINDOWS[] = {
 const u32 OC_UI_EDIT_COMMAND_MACOS_COUNT = sizeof(OC_UI_EDIT_COMMANDS_MACOS) / sizeof(oc_ui_edit_command);
 const u32 OC_UI_EDIT_COMMAND_WINDOWS_COUNT = sizeof(OC_UI_EDIT_COMMANDS_WINDOWS) / sizeof(oc_ui_edit_command);
 
-void oc_ui_edit_perform_move(oc_ui_context* ui, oc_ui_edit_move move, int direction, u32 textLen)
+bool oc_ui_edit_is_word_separator(u32 codepoint)
+{
+    //NOTE(ilia): Printable ascii character, except for alphanumeric and _
+    return ('!' <= codepoint && codepoint <= '~'
+            && !('0' <= codepoint && codepoint <= '9')
+            && !('A' <= codepoint && codepoint <= 'Z')
+            && !('a' <= codepoint && codepoint <= 'z')
+            && codepoint != '_');
+}
+
+bool oc_ui_edit_is_whitespace(u32 codepoint)
+{
+    return (codepoint == ' ' || (0x09 <= codepoint && codepoint <= 0x0d) || codepoint == 0x85 || codepoint == 0xa0
+            || codepoint == 0x1680 || (0x2000 <= codepoint && codepoint <= 0x200a) || codepoint == 0x202f|| codepoint == 0x205f || codepoint == 0x3000);
+}
+
+void oc_ui_edit_perform_move(oc_ui_context* ui, oc_ui_edit_move move, int direction, oc_str32 codepoints)
 {
     switch(move)
     {
@@ -2536,7 +2636,7 @@ void oc_ui_edit_perform_move(oc_ui_context* ui, oc_ui_edit_move move, int direct
             {
                 ui->editCursor--;
             }
-            else if(direction > 0 && ui->editCursor < textLen)
+            else if(direction > 0 && ui->editCursor < codepoints.len)
             {
                 ui->editCursor++;
             }
@@ -2551,14 +2651,66 @@ void oc_ui_edit_perform_move(oc_ui_context* ui, oc_ui_edit_move move, int direct
             }
             else if(direction > 0)
             {
-                ui->editCursor = textLen;
+                ui->editCursor = codepoints.len;
             }
         }
         break;
 
         case OC_UI_EDIT_MOVE_WORD:
-            OC_DEBUG_ASSERT(0, "not implemented yet");
+        {
+            //NOTE(ilia): a simple word break algorithm borrowed from Qt
+            //            https://github.com/qt/qtbase/blob/cbea2f5705c39e31600cb7fff552db92198afd34/src/gui/text/qtextlayout.cpp#L643-L714
+            //            proper implementation would involve bringing in ICU or querying unicode ranges and parsing ICU rules
+            if(direction < 0)
+            {
+                while(ui->editCursor > 0 && oc_ui_edit_is_whitespace(codepoints.ptr[ui->editCursor - 1]))
+                {
+                    ui->editCursor--;
+                }
+
+                if(ui->editCursor > 0 && oc_ui_edit_is_word_separator(codepoints.ptr[ui->editCursor - 1]))
+                {
+                    ui->editCursor--;
+                    while(ui->editCursor > 0 && oc_ui_edit_is_word_separator(codepoints.ptr[ui->editCursor - 1]))
+                    {
+                        ui->editCursor--;
+                    }
+                } else {
+                    while(ui->editCursor > 0
+                          && !oc_ui_edit_is_whitespace(codepoints.ptr[ui->editCursor - 1])
+                          && !oc_ui_edit_is_word_separator(codepoints.ptr[ui->editCursor - 1]))
+                    {
+                        ui->editCursor--;
+                    }
+                }
+            }
+            else if(direction > 0)
+            {
+                if(ui->editCursor < codepoints.len && oc_ui_edit_is_word_separator(codepoints.ptr[ui->editCursor]))
+                {
+                    ui->editCursor++;
+                    while(ui->editCursor < codepoints.len && oc_ui_edit_is_word_separator(codepoints.ptr[ui->editCursor]))
+                    {
+                        ui->editCursor++;
+                    }
+                }
+                else
+                {
+                    while(ui->editCursor < codepoints.len
+                          && !oc_ui_edit_is_whitespace(codepoints.ptr[ui->editCursor])
+                          && !oc_ui_edit_is_word_separator(codepoints.ptr[ui->editCursor]))
+                    {
+                        ui->editCursor++;
+                    }
+                }
+
+                while(ui->editCursor < codepoints.len && oc_ui_edit_is_whitespace(codepoints.ptr[ui->editCursor]))
+                {
+                    ui->editCursor++;
+                }
+            }
             break;
+        }
     }
 }
 
@@ -2577,7 +2729,7 @@ oc_str32 oc_ui_edit_perform_operation(oc_ui_context* ui, oc_ui_edit_op operation
             {
                 //NOTE: we special case move-one when there is a selection
                 //      (just place the cursor at begining/end of selection)
-                oc_ui_edit_perform_move(ui, move, direction, codepoints.len);
+                oc_ui_edit_perform_move(ui, move, direction, codepoints);
             }
             ui->editMark = ui->editCursor;
         }
@@ -2585,7 +2737,7 @@ oc_str32 oc_ui_edit_perform_operation(oc_ui_context* ui, oc_ui_edit_op operation
 
         case OC_UI_EDIT_SELECT:
         {
-            oc_ui_edit_perform_move(ui, move, direction, codepoints.len);
+            oc_ui_edit_perform_move(ui, move, direction, codepoints);
         }
         break;
 
@@ -2597,7 +2749,7 @@ oc_str32 oc_ui_edit_perform_operation(oc_ui_context* ui, oc_ui_edit_op operation
                 ui->editCursor = ui->editMark;
                 ui->editMark = tmp;
             }
-            oc_ui_edit_perform_move(ui, move, direction, codepoints.len);
+            oc_ui_edit_perform_move(ui, move, direction, codepoints);
         }
         break;
 
@@ -2605,7 +2757,7 @@ oc_str32 oc_ui_edit_perform_operation(oc_ui_context* ui, oc_ui_edit_op operation
         {
             if(ui->editCursor == ui->editMark)
             {
-                oc_ui_edit_perform_move(ui, move, direction, codepoints.len);
+                oc_ui_edit_perform_move(ui, move, direction, codepoints);
             }
             codepoints = oc_ui_edit_delete_selection(ui, codepoints);
             ui->editMark = ui->editCursor;
@@ -2865,7 +3017,7 @@ oc_ui_text_box_result oc_ui_text_box(const char* name, oc_arena* arena, oc_str8 
             const oc_ui_edit_command* command = &(editCommands[i]);
 
             if((oc_key_pressed(&ui->input, command->key) || oc_key_repeated(&ui->input, command->key))
-               && mods == command->mods)
+               && (mods & ~OC_KEYMOD_MAIN_MODIFIER) == command->mods)
             {
                 codepoints = oc_ui_edit_perform_operation(ui, command->operation, command->move, command->direction, codepoints);
                 break;
