@@ -2620,7 +2620,7 @@ bool oc_ui_edit_is_word_separator(u32 codepoint)
 bool oc_ui_edit_is_whitespace(u32 codepoint)
 {
     return (codepoint == ' ' || (0x09 <= codepoint && codepoint <= 0x0d) || codepoint == 0x85 || codepoint == 0xa0
-            || codepoint == 0x1680 || (0x2000 <= codepoint && codepoint <= 0x200a) || codepoint == 0x202f|| codepoint == 0x205f || codepoint == 0x3000);
+            || codepoint == 0x1680 || (0x2000 <= codepoint && codepoint <= 0x200a) || codepoint == 0x202f || codepoint == 0x205f || codepoint == 0x3000);
 }
 
 void oc_ui_edit_perform_move(oc_ui_context* ui, oc_ui_edit_move move, int direction, oc_str32 codepoints)
