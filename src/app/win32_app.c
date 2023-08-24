@@ -151,6 +151,8 @@ void oc_init()
     {
         memset(&oc_appData, 0, sizeof(oc_appData));
 
+        oc_clock_init();
+
         oc_init_common();
         oc_init_keys();
 
