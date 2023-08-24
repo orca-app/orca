@@ -1448,6 +1448,7 @@ void oc_rectangle_stroke(f32 x, f32 y, f32 w, f32 h)
 
 void oc_rounded_rectangle_path(f32 x, f32 y, f32 w, f32 h, f32 r)
 {
+    r = oc_min(r, oc_min(w / 2, h / 2));
     f32 c = r * 4 * (sqrt(2) - 1) / 3;
 
     oc_move_to(x + r, y);
