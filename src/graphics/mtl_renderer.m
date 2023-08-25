@@ -952,6 +952,11 @@ void oc_mtl_render_batch(oc_mtl_canvas_backend* backend,
     int pathCount = backend->pathCount - backend->pathBatchStart;
     int eltCount = backend->eltCount - backend->eltBatchStart;
 
+    if(!pathCount || !eltCount)
+    {
+        return;
+    }
+
     //NOTE: update intermediate buffers sizes if needed
 
     oc_mtl_grow_buffer_if_needed(backend, &backend->pathQueueBuffer, pathCount * sizeof(oc_mtl_path_queue));
@@ -984,108 +989,96 @@ void oc_mtl_render_batch(oc_mtl_canvas_backend* backend,
         [blitEncoder endEncoding];
 
         //NOTE: path setup pass
-        if(pathCount > 0)
-        {
-            id<MTLComputeCommandEncoder> pathEncoder = [surface->commandBuffer computeCommandEncoder];
-            pathEncoder.label = @"path pass";
-            [pathEncoder setComputePipelineState:backend->pathPipeline];
+        id<MTLComputeCommandEncoder> pathEncoder = [surface->commandBuffer computeCommandEncoder];
+        pathEncoder.label = @"path pass";
+        [pathEncoder setComputePipelineState:backend->pathPipeline];
 
-            int tileQueueMax = [backend->tileQueueBuffer length] / sizeof(oc_mtl_tile_queue);
+        int tileQueueMax = [backend->tileQueueBuffer length] / sizeof(oc_mtl_tile_queue);
 
-            [pathEncoder setBytes:&pathCount length:sizeof(int) atIndex:0];
-            [pathEncoder setBuffer:backend->pathBuffer[backend->bufferIndex] offset:pathBufferOffset atIndex:1];
-            [pathEncoder setBuffer:backend->pathQueueBuffer offset:0 atIndex:2];
-            [pathEncoder setBuffer:backend->tileQueueBuffer offset:0 atIndex:3];
-            [pathEncoder setBuffer:backend->tileQueueCountBuffer offset:0 atIndex:4];
-            [pathEncoder setBytes:&tileQueueMax length:sizeof(int) atIndex:5];
-            [pathEncoder setBytes:&tileSize length:sizeof(int) atIndex:6];
-            [pathEncoder setBytes:&scale length:sizeof(int) atIndex:7];
+        [pathEncoder setBytes:&pathCount length:sizeof(int) atIndex:0];
+        [pathEncoder setBuffer:backend->pathBuffer[backend->bufferIndex] offset:pathBufferOffset atIndex:1];
+        [pathEncoder setBuffer:backend->pathQueueBuffer offset:0 atIndex:2];
+        [pathEncoder setBuffer:backend->tileQueueBuffer offset:0 atIndex:3];
+        [pathEncoder setBuffer:backend->tileQueueCountBuffer offset:0 atIndex:4];
+        [pathEncoder setBytes:&tileQueueMax length:sizeof(int) atIndex:5];
+        [pathEncoder setBytes:&tileSize length:sizeof(int) atIndex:6];
+        [pathEncoder setBytes:&scale length:sizeof(int) atIndex:7];
 
-            MTLSize pathGridSize = MTLSizeMake(pathCount, 1, 1);
-            MTLSize pathGroupSize = MTLSizeMake([backend->pathPipeline maxTotalThreadsPerThreadgroup], 1, 1);
+        MTLSize pathGridSize = MTLSizeMake(pathCount, 1, 1);
+        MTLSize pathGroupSize = MTLSizeMake([backend->pathPipeline maxTotalThreadsPerThreadgroup], 1, 1);
 
-            [pathEncoder dispatchThreads:pathGridSize threadsPerThreadgroup:pathGroupSize];
-            [pathEncoder endEncoding];
-        }
+        [pathEncoder dispatchThreads:pathGridSize threadsPerThreadgroup:pathGroupSize];
+        [pathEncoder endEncoding];
+
+        //NOTE: segment setup pass
+        id<MTLComputeCommandEncoder> segmentEncoder = [surface->commandBuffer computeCommandEncoder];
+        segmentEncoder.label = @"segment pass";
+        [segmentEncoder setComputePipelineState:backend->segmentPipeline];
 
         int tileOpMax = [backend->tileOpBuffer length] / sizeof(oc_mtl_tile_op);
         int segmentMax = [backend->segmentBuffer length] / sizeof(oc_mtl_segment);
 
-        //NOTE: segment setup pass
-        if(eltCount > 0)
-        {
-            id<MTLComputeCommandEncoder> segmentEncoder = [surface->commandBuffer computeCommandEncoder];
-            segmentEncoder.label = @"segment pass";
-            [segmentEncoder setComputePipelineState:backend->segmentPipeline];
+        [segmentEncoder setBytes:&eltCount length:sizeof(int) atIndex:0];
+        [segmentEncoder setBuffer:backend->elementBuffer[backend->bufferIndex] offset:elementBufferOffset atIndex:1];
+        [segmentEncoder setBuffer:backend->segmentCountBuffer offset:0 atIndex:2];
+        [segmentEncoder setBuffer:backend->segmentBuffer offset:0 atIndex:3];
+        [segmentEncoder setBuffer:backend->pathQueueBuffer offset:0 atIndex:4];
+        [segmentEncoder setBuffer:backend->tileQueueBuffer offset:0 atIndex:5];
+        [segmentEncoder setBuffer:backend->tileOpBuffer offset:0 atIndex:6];
+        [segmentEncoder setBuffer:backend->tileOpCountBuffer offset:0 atIndex:7];
+        [segmentEncoder setBytes:&tileOpMax length:sizeof(int) atIndex:8];
+        [segmentEncoder setBytes:&segmentMax length:sizeof(int) atIndex:9];
+        [segmentEncoder setBytes:&tileSize length:sizeof(int) atIndex:10];
+        [segmentEncoder setBytes:&scale length:sizeof(int) atIndex:11];
+        [segmentEncoder setBuffer:backend->logBuffer[backend->bufferIndex] offset:0 atIndex:12];
+        [segmentEncoder setBuffer:backend->logOffsetBuffer[backend->bufferIndex] offset:0 atIndex:13];
 
-            [segmentEncoder setBytes:&eltCount length:sizeof(int) atIndex:0];
-            [segmentEncoder setBuffer:backend->elementBuffer[backend->bufferIndex] offset:elementBufferOffset atIndex:1];
-            [segmentEncoder setBuffer:backend->segmentCountBuffer offset:0 atIndex:2];
-            [segmentEncoder setBuffer:backend->segmentBuffer offset:0 atIndex:3];
-            [segmentEncoder setBuffer:backend->pathQueueBuffer offset:0 atIndex:4];
-            [segmentEncoder setBuffer:backend->tileQueueBuffer offset:0 atIndex:5];
-            [segmentEncoder setBuffer:backend->tileOpBuffer offset:0 atIndex:6];
-            [segmentEncoder setBuffer:backend->tileOpCountBuffer offset:0 atIndex:7];
-            [segmentEncoder setBytes:&tileOpMax length:sizeof(int) atIndex:8];
-            [segmentEncoder setBytes:&segmentMax length:sizeof(int) atIndex:9];
-            [segmentEncoder setBytes:&tileSize length:sizeof(int) atIndex:10];
-            [segmentEncoder setBytes:&scale length:sizeof(int) atIndex:11];
-            [segmentEncoder setBuffer:backend->logBuffer[backend->bufferIndex] offset:0 atIndex:12];
-            [segmentEncoder setBuffer:backend->logOffsetBuffer[backend->bufferIndex] offset:0 atIndex:13];
+        MTLSize segmentGridSize = MTLSizeMake(eltCount, 1, 1);
+        MTLSize segmentGroupSize = MTLSizeMake([backend->segmentPipeline maxTotalThreadsPerThreadgroup], 1, 1);
 
-            MTLSize segmentGridSize = MTLSizeMake(eltCount, 1, 1);
-            MTLSize segmentGroupSize = MTLSizeMake([backend->segmentPipeline maxTotalThreadsPerThreadgroup], 1, 1);
-
-            [segmentEncoder dispatchThreads:segmentGridSize threadsPerThreadgroup:segmentGroupSize];
-            [segmentEncoder endEncoding];
-        }
+        [segmentEncoder dispatchThreads:segmentGridSize threadsPerThreadgroup:segmentGroupSize];
+        [segmentEncoder endEncoding];
 
         //NOTE: backprop pass
-        if(pathCount > 0)
-        {
-            id<MTLComputeCommandEncoder> backpropEncoder = [surface->commandBuffer computeCommandEncoder];
-            backpropEncoder.label = @"backprop pass";
-            [backpropEncoder setComputePipelineState:backend->backpropPipeline];
+        id<MTLComputeCommandEncoder> backpropEncoder = [surface->commandBuffer computeCommandEncoder];
+        backpropEncoder.label = @"backprop pass";
+        [backpropEncoder setComputePipelineState:backend->backpropPipeline];
 
-            [backpropEncoder setBuffer:backend->pathQueueBuffer offset:0 atIndex:0];
-            [backpropEncoder setBuffer:backend->tileQueueBuffer offset:0 atIndex:1];
-            [backpropEncoder setBuffer:backend->logBuffer[backend->bufferIndex] offset:0 atIndex:2];
-            [backpropEncoder setBuffer:backend->logOffsetBuffer[backend->bufferIndex] offset:0 atIndex:3];
+        [backpropEncoder setBuffer:backend->pathQueueBuffer offset:0 atIndex:0];
+        [backpropEncoder setBuffer:backend->tileQueueBuffer offset:0 atIndex:1];
+        [backpropEncoder setBuffer:backend->logBuffer[backend->bufferIndex] offset:0 atIndex:2];
+        [backpropEncoder setBuffer:backend->logOffsetBuffer[backend->bufferIndex] offset:0 atIndex:3];
 
-            MTLSize backpropGroupSize = MTLSizeMake([backend->backpropPipeline maxTotalThreadsPerThreadgroup], 1, 1);
-            MTLSize backpropGridSize = MTLSizeMake(pathCount * backpropGroupSize.width, 1, 1);
+        MTLSize backpropGroupSize = MTLSizeMake([backend->backpropPipeline maxTotalThreadsPerThreadgroup], 1, 1);
+        MTLSize backpropGridSize = MTLSizeMake(pathCount * backpropGroupSize.width, 1, 1);
 
-            [backpropEncoder dispatchThreads:backpropGridSize threadsPerThreadgroup:backpropGroupSize];
-            [backpropEncoder endEncoding];
-        }
+        [backpropEncoder dispatchThreads:backpropGridSize threadsPerThreadgroup:backpropGroupSize];
+        [backpropEncoder endEncoding];
 
         //NOTE: merge pass
-        if(pathCount > 0)
-        {
-            id<MTLComputeCommandEncoder> mergeEncoder = [surface->commandBuffer computeCommandEncoder];
-            mergeEncoder.label = @"merge pass";
-            [mergeEncoder setComputePipelineState:backend->mergePipeline];
+        id<MTLComputeCommandEncoder> mergeEncoder = [surface->commandBuffer computeCommandEncoder];
+        mergeEncoder.label = @"merge pass";
+        [mergeEncoder setComputePipelineState:backend->mergePipeline];
 
-            [mergeEncoder setBytes:&pathCount length:sizeof(int) atIndex:0];
-            [mergeEncoder setBuffer:backend->pathBuffer[backend->bufferIndex] offset:pathBufferOffset atIndex:1];
-            [mergeEncoder setBuffer:backend->pathQueueBuffer offset:0 atIndex:2];
-            [mergeEncoder setBuffer:backend->tileQueueBuffer offset:0 atIndex:3];
-            [mergeEncoder setBuffer:backend->tileOpBuffer offset:0 atIndex:4];
-            [mergeEncoder setBuffer:backend->tileOpCountBuffer offset:0 atIndex:5];
-            [mergeEncoder setBuffer:backend->rasterDispatchBuffer offset:0 atIndex:6];
-            [mergeEncoder setBuffer:backend->screenTilesBuffer offset:0 atIndex:7];
-            [mergeEncoder setBytes:&tileOpMax length:sizeof(int) atIndex:8];
-            [mergeEncoder setBytes:&tileSize length:sizeof(int) atIndex:9];
-            [mergeEncoder setBytes:&scale length:sizeof(float) atIndex:10];
-            [mergeEncoder setBuffer:backend->logBuffer[backend->bufferIndex] offset:0 atIndex:11];
-            [mergeEncoder setBuffer:backend->logOffsetBuffer[backend->bufferIndex] offset:0 atIndex:12];
+        [mergeEncoder setBytes:&pathCount length:sizeof(int) atIndex:0];
+        [mergeEncoder setBuffer:backend->pathBuffer[backend->bufferIndex] offset:pathBufferOffset atIndex:1];
+        [mergeEncoder setBuffer:backend->pathQueueBuffer offset:0 atIndex:2];
+        [mergeEncoder setBuffer:backend->tileQueueBuffer offset:0 atIndex:3];
+        [mergeEncoder setBuffer:backend->tileOpBuffer offset:0 atIndex:4];
+        [mergeEncoder setBuffer:backend->tileOpCountBuffer offset:0 atIndex:5];
+        [mergeEncoder setBuffer:backend->rasterDispatchBuffer offset:0 atIndex:6];
+        [mergeEncoder setBuffer:backend->screenTilesBuffer offset:0 atIndex:7];
+        [mergeEncoder setBytes:&tileOpMax length:sizeof(int) atIndex:8];
+        [mergeEncoder setBytes:&tileSize length:sizeof(int) atIndex:9];
+        [mergeEncoder setBytes:&scale length:sizeof(float) atIndex:10];
+        [mergeEncoder setBuffer:backend->logBuffer[backend->bufferIndex] offset:0 atIndex:11];
+        [mergeEncoder setBuffer:backend->logOffsetBuffer[backend->bufferIndex] offset:0 atIndex:12];
 
-            MTLSize mergeGridSize = MTLSizeMake(nTilesX, nTilesY, 1);
-            MTLSize mergeGroupSize = MTLSizeMake(OC_MTL_TILE_SIZE, OC_MTL_TILE_SIZE, 1);
+        MTLSize mergeGridSize = MTLSizeMake(nTilesX, nTilesY, 1);
+        MTLSize mergeGroupSize = MTLSizeMake(OC_MTL_TILE_SIZE, OC_MTL_TILE_SIZE, 1);
 
-            [mergeEncoder dispatchThreads:mergeGridSize threadsPerThreadgroup:mergeGroupSize];
-            [mergeEncoder endEncoding];
-        }
+        [mergeEncoder dispatchThreads:mergeGridSize threadsPerThreadgroup:mergeGroupSize];
+        [mergeEncoder endEncoding];
 
         //NOTE: raster pass
         id<MTLComputeCommandEncoder> rasterEncoder = [surface->commandBuffer computeCommandEncoder];
