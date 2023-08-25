@@ -96,6 +96,7 @@
 //NOTE: macos application layer and graphics backends are defined in orca.m
 #elif OC_PLATFORM_ORCA
     #include "app/orca_app.c"
+    #include "wasmbind/core_api_stubs.c"
     #include "graphics/graphics_common.c"
     #include "graphics/orca_surface_stubs.c"
 #else

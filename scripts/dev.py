@@ -397,6 +397,7 @@ def gen_all_bindings():
     )
 
     bindgen("core", "src/wasmbind/core_api.json",
+        guest_stubs="src/wasmbind/core_api_stubs.c",
         wasm3_bindings="src/wasmbind/core_api_bind_gen.c",
     )
 

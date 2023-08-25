@@ -10,6 +10,8 @@ oc_arena textArena = { 0 };
 
 ORCA_EXPORT void oc_on_init(void)
 {
+    oc_runtime_window_set_title(OC_STR8("ui"));
+
     surface = oc_surface_canvas();
     canvas = oc_canvas_create();
     oc_ui_init(&ui);

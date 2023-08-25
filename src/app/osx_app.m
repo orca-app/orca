@@ -1471,6 +1471,29 @@ bool oc_window_is_focused(oc_window window)
     }
 }
 
+void oc_window_set_title(oc_window window, oc_str8 title)
+{
+    dispatch_block_t block = ^{
+      @autoreleasepool
+      {
+          oc_window_data* windowData = oc_window_ptr_from_handle(window);
+          if(windowData)
+          {
+              windowData->osx.nsWindow.title = [[NSString alloc] initWithBytes:title.ptr length:title.len encoding:NSUTF8StringEncoding];
+          }
+      }
+    };
+
+    if([NSThread isMainThread])
+    {
+        block();
+    }
+    else
+    {
+        dispatch_sync(dispatch_get_main_queue(), block);
+    }
+}
+
 bool oc_window_is_minimized(oc_window window)
 {
     @autoreleasepool
@@ -1634,23 +1657,33 @@ oc_rect oc_window_get_content_rect(oc_window window)
 
 void oc_window_set_content_rect(oc_window window, oc_rect rect)
 {
-    @autoreleasepool
+    dispatch_block_t block = ^{
+      @autoreleasepool
+      {
+          oc_window_data* windowData = oc_window_ptr_from_handle(window);
+          if(windowData)
+          {
+              NSScreen* screen = [windowData->osx.nsWindow screen];
+              NSRect contentRect = {
+                  rect.x,
+                  screen.frame.size.height - rect.y - rect.h,
+                  rect.w,
+                  rect.h
+              };
+
+              NSRect frameRect = [windowData->osx.nsWindow frameRectForContentRect:contentRect];
+              [windowData->osx.nsWindow setFrame:frameRect display:YES];
+          }
+      }
+    };
+
+    if([NSThread isMainThread])
     {
-
-        oc_window_data* windowData = oc_window_ptr_from_handle(window);
-        if(windowData)
-        {
-            NSScreen* screen = [windowData->osx.nsWindow screen];
-            NSRect contentRect = {
-                rect.x,
-                screen.frame.size.height - rect.y - rect.h,
-                rect.w,
-                rect.h
-            };
-
-            NSRect frameRect = [windowData->osx.nsWindow frameRectForContentRect:contentRect];
-            [windowData->osx.nsWindow setFrame:frameRect display:YES];
-        }
+        block();
+    }
+    else
+    {
+        dispatch_sync(dispatch_get_main_queue(), block);
     }
 }
 
