@@ -211,7 +211,7 @@ typedef enum
     OC_KEYMOD_SHIFT = 0x02,
     OC_KEYMOD_CTRL = 0x04,
     OC_KEYMOD_CMD = 0x08,
-    OC_KEYMOD_MAIN_MODIFIER = 0x16 /* CMD on Mac, CTRL on Win32 */
+    OC_KEYMOD_MAIN_MODIFIER = 0x10 /* CMD on Mac, CTRL on Win32 */
 } oc_keymod_flags;
 
 typedef enum

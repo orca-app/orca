@@ -528,7 +528,7 @@ LRESULT oc_win32_win_proc(HWND windowHandle, UINT message, WPARAM wParam, LPARAM
 
         case WM_CHAR:
         {
-            if((u32)wParam >= 32)
+            if((u32)wParam >= 0x20 && (u32)wParam <= 0x7e)
             {
                 oc_event event = { 0 };
                 event.window = oc_window_handle_from_ptr(mpWindow);
