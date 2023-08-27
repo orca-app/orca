@@ -126,6 +126,15 @@ ORCA_API void oc_surface_bring_to_front(oc_surface surface); //DOC: puts surface
 ORCA_API void oc_surface_send_to_back(oc_surface surface);   //DOC: puts surface at the bottom of the surface stack
 
 //------------------------------------------------------------------------------------------
+//SECTION: vsync
+//------------------------------------------------------------------------------------------
+
+typedef void (*oc_vsync_callback)(void* data);
+
+ORCA_API void oc_vsync_init();
+ORCA_API void oc_vsync_window(oc_window window);
+
+//------------------------------------------------------------------------------------------
 //SECTION: graphics canvas structs
 //------------------------------------------------------------------------------------------
 typedef struct oc_canvas

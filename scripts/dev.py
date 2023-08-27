@@ -128,7 +128,6 @@ def build_platform_layer(target, release):
 
 
 def build_platform_layer_lib_win(release):
-
     embed_text_files("src\\graphics\\glsl_shaders.h", "glsl_", [
         "src\\graphics\\glsl_shaders\\common.glsl",
         "src\\graphics\\glsl_shaders\\blit_vertex.glsl",
@@ -157,6 +156,8 @@ def build_platform_layer_lib_win(release):
         "ole32.lib",
         "shell32.lib",
         "shlwapi.lib",
+        "dxgi.lib",
+        "dxguid.lib",
         "/LIBPATH:ext/angle/lib",
         "libEGL.dll.lib",
         "libGLESv2.dll.lib",
@@ -177,7 +178,6 @@ def build_platform_layer_lib_win(release):
         "/OUT:build/bin/orca.dll",
         "/IMPLIB:build/bin/orca.dll.lib",
     ], check=True)
-
 
 def build_platform_layer_lib_mac(release):
     sdk_dir = "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk"

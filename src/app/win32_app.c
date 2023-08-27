@@ -9,6 +9,7 @@
 
 #include "app.c"
 #include "platform/platform_thread.h"
+#include "graphics/graphics.h"
 #include <dwmapi.h>
 
 void oc_init_keys()
@@ -169,6 +170,8 @@ void oc_init()
         u32 wheelScrollLines = 3;
         SystemParametersInfo(SPI_GETWHEELSCROLLLINES, 0, &wheelScrollLines, 0);
         oc_appData.win32.wheelScrollLines = wheelScrollLines;
+
+        oc_vsync_init();
     }
 }
 
@@ -580,6 +583,14 @@ LRESULT oc_win32_win_proc(HWND windowHandle, UINT message, WPARAM wParam, LPARAM
             oc_dispatch_proc proc = (oc_dispatch_proc)wParam;
             void* user = (void*)lParam;
             result = proc(user);
+        }
+        break;
+
+        case OC_WM_USER_VBLANK:
+        {
+            oc_event event = { 0 };
+            event.type = OC_EVENT_FRAME;
+            oc_queue_event(&event);
         }
         break;
 

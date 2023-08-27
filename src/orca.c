@@ -74,6 +74,7 @@
 
 #if OC_PLATFORM_WINDOWS
     #include "app/win32_app.c"
+    #include "graphics/win32_vsync.c"
     #include "graphics/graphics_common.c"
     #include "graphics/graphics_surface.c"
 
