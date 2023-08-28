@@ -1750,23 +1750,51 @@ void oc_osx_update_layers(oc_window_data* window)
 
 void oc_osx_surface_bring_to_front(oc_surface_data* surface)
 {
-    oc_window_data* window = oc_window_ptr_from_handle(surface->layer.window);
-    if(window)
+    dispatch_block_t block = ^{
+      @autoreleasepool
+      {
+          oc_window_data* window = oc_window_ptr_from_handle(surface->layer.window);
+          if(window)
+          {
+              oc_list_remove(&window->osx.layers, &surface->layer.listElt);
+              oc_list_push_back(&window->osx.layers, &surface->layer.listElt);
+              oc_osx_update_layers(window);
+          }
+      }
+    };
+
+    if([NSThread isMainThread])
     {
-        oc_list_remove(&window->osx.layers, &surface->layer.listElt);
-        oc_list_push_back(&window->osx.layers, &surface->layer.listElt);
-        oc_osx_update_layers(window);
+        block();
+    }
+    else
+    {
+        dispatch_sync(dispatch_get_main_queue(), block);
     }
 }
 
 void oc_osx_surface_send_to_back(oc_surface_data* surface)
 {
-    oc_window_data* window = oc_window_ptr_from_handle(surface->layer.window);
-    if(window)
+    dispatch_block_t block = ^{
+      @autoreleasepool
+      {
+          oc_window_data* window = oc_window_ptr_from_handle(surface->layer.window);
+          if(window)
+          {
+              oc_list_remove(&window->osx.layers, &surface->layer.listElt);
+              oc_list_push(&window->osx.layers, &surface->layer.listElt);
+              oc_osx_update_layers(window);
+          }
+      }
+    };
+
+    if([NSThread isMainThread])
     {
-        oc_list_remove(&window->osx.layers, &surface->layer.listElt);
-        oc_list_push(&window->osx.layers, &surface->layer.listElt);
-        oc_osx_update_layers(window);
+        block();
+    }
+    else
+    {
+        dispatch_sync(dispatch_get_main_queue(), block);
     }
 }
 

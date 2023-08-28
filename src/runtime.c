@@ -675,6 +675,8 @@ i32 orca_runloop(void* user)
 
         if(app->debugOverlay.show)
         {
+            oc_surface_bring_to_front(app->debugOverlay.surface);
+
             oc_ui_style debugUIDefaultStyle = { .bgColor = { 0 },
                                                 .color = { 1, 1, 1, 1 },
                                                 .font = app->debugOverlay.fontReg,

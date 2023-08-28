@@ -37,6 +37,30 @@
 		 "type": {"name": "u8*", "tag": "p"}}]
 },
 {
+    "name": "oc_surface_contents_scaling",
+    "cname": "oc_surface_contents_scaling",
+    "ret": {"name": "oc_vec2", "tag": "S"},
+    "args": [
+        {"name": "surface",
+         "type": {"name": "oc_surface", "tag": "S"}}]
+},
+{
+    "name": "oc_surface_bring_to_front",
+    "cname": "oc_surface_bring_to_front",
+    "ret": {"name": "void", "tag": "v"},
+    "args": [
+        {"name": "surface",
+         "type": {"name": "oc_surface", "tag": "S"}}]
+},
+{
+    "name": "oc_surface_send_to_back",
+    "cname": "oc_surface_send_to_back",
+    "ret": {"name": "void", "tag": "v"},
+    "args": [
+        {"name": "surface",
+         "type": {"name": "oc_surface", "tag": "S"}}]
+},
+{
 	"name": "oc_surface_select",
 	"cname": "oc_surface_select",
 	"ret": {"name": "void", "tag": "v"},
@@ -51,14 +75,6 @@
 	"args": [
 		{"name": "surface",
 		 "type": {"name": "oc_surface", "tag": "S"}}]
-},
-{
-    "name": "oc_surface_contents_scaling",
-    "cname": "oc_surface_contents_scaling",
-    "ret": {"name": "oc_vec2", "tag": "S"},
-    "args": [
-        {"name": "surface",
-         "type": {"name": "oc_surface", "tag": "S"}}]
 },
 {
 	"name": "oc_surface_render_commands",
