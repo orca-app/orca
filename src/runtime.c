@@ -636,11 +636,11 @@ i32 orca_runloop(void* user)
                 {
                     if(event->key.action == OC_KEY_PRESS)
                     {
-                        if(event->key.code == OC_KEY_D && (event->key.mods & (OC_KEYMOD_SHIFT | OC_KEYMOD_CMD)))
+                        if(event->key.code == OC_KEY_D
+                           && (event->key.mods & OC_KEYMOD_SHIFT)
+                           && (event->key.mods & OC_KEYMOD_MAIN_MODIFIER))
                         {
-#if 1 // EPILEPSY WARNING! on windows this has a bug which causes a pretty strong stroboscopic effect
                             debug_overlay_toggle(&app->debugOverlay);
-#endif
                         }
 
                         if(exports[OC_EXPORT_KEY_DOWN])

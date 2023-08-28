@@ -266,20 +266,35 @@ static void oc_win32_update_child_layers(oc_window_data* window)
     int clientWidth = (clientRect.right - clientRect.left);
     int clientHeight = (clientRect.bottom - clientRect.top);
 
+    oc_list_for(&window->win32.layers, layer, oc_layer, listElt)
+    {
+        SetWindowPos(layer->hWnd,
+                     0,
+                     point.x,
+                     point.y,
+                     clientWidth,
+                     clientHeight,
+                     SWP_NOACTIVATE | SWP_NOOWNERZORDER | SWP_NOZORDER);
+    }
+}
+
+static void oc_win32_update_child_layers_zorder(oc_window_data* window)
+{
     HWND insertAfter = window->win32.hWnd;
 
     oc_list_for(&window->win32.layers, layer, oc_layer, listElt)
     {
         SetWindowPos(layer->hWnd,
                      insertAfter,
-                     point.x,
-                     point.y,
-                     clientWidth,
-                     clientHeight,
-                     SWP_NOACTIVATE | SWP_NOOWNERZORDER | SWP_NOZORDER);
+                     0, 0, 0, 0,
+                     SWP_NOACTIVATE | SWP_NOMOVE | SWP_NOSIZE | SWP_NOREDRAW | SWP_NOOWNERZORDER);
 
         insertAfter = layer->hWnd;
     }
+    SetWindowPos(window->win32.hWnd,
+                 insertAfter,
+                 0, 0, 0, 0,
+                 SWP_NOACTIVATE | SWP_NOMOVE | SWP_NOSIZE | SWP_NOREDRAW);
 }
 
 LRESULT oc_win32_win_proc(HWND windowHandle, UINT message, WPARAM wParam, LPARAM lParam)
@@ -1172,6 +1187,20 @@ void oc_win32_surface_set_hidden(oc_surface_data* surface, bool hidden)
     ShowWindow(surface->layer.hWnd, hidden ? SW_HIDE : SW_NORMAL);
 }
 
+void oc_win32_surface_bring_to_front(oc_surface_data* surface)
+{
+	oc_list_remove(&surface->layer.parent->win32.layers, &surface->layer.listElt);
+	oc_list_push(&surface->layer.parent->win32.layers, &surface->layer.listElt);
+	oc_win32_update_child_layers_zorder(surface->layer.parent);
+}
+
+void oc_win32_surface_send_to_back(oc_surface_data* surface)
+{
+	oc_list_remove(&surface->layer.parent->win32.layers, &surface->layer.listElt);
+	oc_list_push_back(&surface->layer.parent->win32.layers, &surface->layer.listElt);
+	oc_win32_update_child_layers_zorder(surface->layer.parent);
+}
+
 void* oc_win32_surface_native_layer(oc_surface_data* surface)
 {
     return ((void*)surface->layer.hWnd);
@@ -1227,6 +1256,8 @@ void oc_surface_init_for_window(oc_surface_data* surface, oc_window_data* window
     surface->getHidden = oc_win32_surface_get_hidden;
     surface->setHidden = oc_win32_surface_set_hidden;
     surface->nativeLayer = oc_win32_surface_native_layer;
+    surface->bringToFront = oc_win32_surface_bring_to_front;
+    surface->sendToBack = oc_win32_surface_send_to_back;
 
     //NOTE(martin): create a child window for the surface
     WNDCLASS layerWindowClass = { .style = CS_HREDRAW | CS_VREDRAW | CS_OWNDC,
