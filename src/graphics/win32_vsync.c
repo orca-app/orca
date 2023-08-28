@@ -6,33 +6,14 @@
 *
 *****************************************************************/
 
-// #define WIN32_LEAN_AND_MEAN
-// #define WIN32_EXTRA_LEAN
-// #define NOMINMAX
-
-// #define D3D11_NO_HELPERS
-// #define CINTERFACE
-// #define COBJMACROS
-
-// #define interface struct
-
-// #include <windows.h>
-
 #include "platform/platform_thread.h"
 #include "app/win32_app.h"
-
-// This forward declaration is needed to suppress an order of declarations bug in the d3d headers.
-// d3d11shader.h(454): warning C4115: 'ID3D11ModuleInstance': named type definition in parentheses
-// struct ID3D11ModuleInstance;
 
 #define COBJMACROS
 #define interface struct
 #include <d3d11_1.h>
 #include <dxgi1_6.h>
 #undef interface
-
-// #include <dxgidebug.h>
-// #include <d3dcompiler.h>
 
 typedef struct oc_vsync_data
 {
@@ -125,7 +106,7 @@ static i32 oc_window_vysnc_notification_thread(void* userPointer)
     return 0;
 }
 
-void oc_vsync_init()
+void oc_vsync_init(void)
 {
     if(__oc_vsync_data.adapter)
     {

@@ -131,7 +131,7 @@ ORCA_API void oc_surface_send_to_back(oc_surface surface);   //DOC: puts surface
 
 typedef void (*oc_vsync_callback)(void* data);
 
-ORCA_API void oc_vsync_init();
+ORCA_API void oc_vsync_init(void);
 ORCA_API void oc_vsync_window(oc_window window);
 
 //------------------------------------------------------------------------------------------
