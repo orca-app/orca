@@ -3,6 +3,6 @@ set INCLUDES=/I ..\..\src /I ..\..\src\util /I ..\..\src\platform /I ../../ext /
 
 if not exist "bin" mkdir bin
 cl /we4013 /Zi /Zc:preprocessor /std:c11 /experimental:c11atomics %INCLUDES% main.c /link /LIBPATH:../../build/bin orca.dll.lib /out:bin/example_surface_sharing.exe
-cp ../../build/bin/orca.dll bin/
-cp ../../ext/angle/bin/libEGL.dll bin/
-cp ../../ext/angle/bin/libGLESv2.dll bin/
+copy ..\..\build\bin\orca.dll bin
+copy ..\..\ext\angle\bin\libEGL.dll bin
+copy ..\..\ext\angle\bin\libGLESv2.dll bin
