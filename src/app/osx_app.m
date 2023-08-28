@@ -304,7 +304,10 @@ oc_key_code oc_label_to_key(oc_str8 label)
 @interface OCWindow : NSWindow
 {
     oc_window_data* mpWindow;
+  @public
+    CVDisplayLinkRef displayLink;
 }
+
 - (id)initWithWindowData:(oc_window_data*)window contentRect:(NSRect)rect styleMask:(uint32)style;
 @end
 
@@ -703,6 +706,9 @@ void oc_install_keyboard_layout_listener()
 
 - (BOOL)windowShouldClose:(id)sender
 {
+    OCWindow* ocWindow = (OCWindow*)mpWindow->osx.nsWindow;
+    CVDisplayLinkStop(ocWindow->displayLink);
+
     mpWindow->shouldClose = true;
 
     oc_event event = {};
@@ -1126,6 +1132,8 @@ void oc_init()
             [NSApp run];
             [NSApp setActivationPolicy:NSApplicationActivationPolicyRegular];
             [NSApp activateIgnoringOtherApps:YES];
+
+            oc_vsync_init();
         }
     }
 }
@@ -2334,5 +2342,99 @@ int oc_directory_create(oc_str8 path)
         {
             return (-1);
         }
+    }
+}
+
+static CVReturn oc_display_link_callback(
+    CVDisplayLinkRef displayLink,
+    const CVTimeStamp* inNow,
+    const CVTimeStamp* inOutputTime,
+    CVOptionFlags flagsIn,
+    CVOptionFlags* flagsOut,
+    void* displayLinkContext)
+{
+    oc_event event = { 0 };
+    event.type = OC_EVENT_FRAME;
+    oc_queue_event(&event);
+
+    OCWindow* ocWindow = (OCWindow*)displayLinkContext;
+
+    CGDirectDisplayID displays[4];
+    uint32_t matchingDisplayCount;
+    CGError err = CGGetDisplaysWithRect(ocWindow.frame, 4, displays, &matchingDisplayCount);
+    if(err == kCGErrorSuccess)
+    {
+        // determine which display has the greatest intersecting area
+        if(matchingDisplayCount > 0)
+        {
+            CGDirectDisplayID* selectedDisplay = NULL;
+            CGFloat selectedIntersectArea = 0.0f;
+
+            for(uint32_t i = 0; i < matchingDisplayCount; ++i)
+            {
+                CGRect displayBounds = CGDisplayBounds(displays[i]);
+                CGRect intersection = CGRectIntersection(ocWindow.frame, displayBounds);
+                CGFloat intersectArea = intersection.size.width * intersection.size.width;
+                if(selectedDisplay == NULL || intersectArea < selectedIntersectArea)
+                {
+                    selectedDisplay = displays + i;
+                    selectedIntersectArea = intersectArea;
+                }
+            }
+
+            if(selectedDisplay)
+            {
+                CGDirectDisplayID currentDisplay = CVDisplayLinkGetCurrentCGDisplay(ocWindow->displayLink);
+                if(currentDisplay != *selectedDisplay)
+                {
+                    CVDisplayLinkSetCurrentCGDisplay(ocWindow->displayLink, *selectedDisplay);
+                }
+            }
+        }
+    }
+    else
+    {
+        oc_log_error("CGGetDisplaysWithRect failed with error: %d\n", err);
+    }
+
+    return kCVReturnSuccess;
+}
+
+void oc_vsync_init(void)
+{
+}
+
+void oc_vsync_window(oc_window window)
+{
+    oc_window_data* windowData = oc_window_ptr_from_handle(window);
+    if(!windowData)
+    {
+        return;
+    }
+
+    OCWindow* ocWindow = (OCWindow*)windowData->osx.nsWindow;
+
+    CVReturn ret;
+
+    if((ret = CVDisplayLinkCreateWithActiveCGDisplays(&ocWindow->displayLink)) != kCVReturnSuccess)
+    {
+        oc_log_error("CVDisplayLinkCreateWithActiveCGDisplays error: %d\n", ret);
+    }
+
+    CGDirectDisplayID mainDisplay = CGMainDisplayID();
+
+    if((ret = CVDisplayLinkSetCurrentCGDisplay(ocWindow->displayLink, mainDisplay)) != kCVReturnSuccess)
+    {
+        oc_log_error("CVDisplayLinkSetCurrentCGDisplay ret: %d\n", ret);
+    }
+
+    if((ret = CVDisplayLinkSetOutputCallback(ocWindow->displayLink, oc_display_link_callback, ocWindow)) != kCVReturnSuccess)
+    {
+        oc_log_error("CVDisplayLinkSetOutputCallback ret: %d\n", ret);
+    }
+
+    if((ret = CVDisplayLinkStart(ocWindow->displayLink)) != kCVReturnSuccess)
+    {
+        oc_log_error("CVDisplayLinkStart ret: %d\n", ret);
     }
 }
