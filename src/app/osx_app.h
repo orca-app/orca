@@ -32,6 +32,8 @@ typedef struct oc_osx_window_data
     NSView* nsView;
     NSObject* nsWindowDelegate;
 
+    oc_list layers;
+
 } oc_osx_window_data;
 
 #define OC_PLATFORM_WINDOW_DATA oc_osx_window_data osx;
@@ -78,6 +80,9 @@ typedef uint32_t CAContextID;
 
 typedef struct oc_layer
 {
+    oc_window window;
+    oc_list_elt listElt;
+
     CALayer* caLayer;
     CAContext* caContext;
 } oc_layer;

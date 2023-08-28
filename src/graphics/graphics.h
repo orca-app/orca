@@ -115,6 +115,9 @@ ORCA_API oc_vec2 oc_surface_contents_scaling(oc_surface surface);
 ORCA_API bool oc_surface_get_hidden(oc_surface surface);
 ORCA_API void oc_surface_set_hidden(oc_surface surface, bool hidden);
 
+ORCA_API void oc_surface_bring_to_front(oc_surface surface);
+ORCA_API void oc_surface_send_to_back(oc_surface surface);
+
 //NOTE(martin): surface sharing
 typedef u64 oc_surface_id;
 

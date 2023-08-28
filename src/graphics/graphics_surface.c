@@ -372,6 +372,24 @@ void oc_surface_render_commands(oc_surface surface,
     }
 }
 
+void oc_surface_bring_to_front(oc_surface handle)
+{
+    oc_surface_data* surface = oc_surface_data_from_handle(handle);
+    if(surface && surface->bringToFront)
+    {
+        surface->bringToFront(surface);
+    }
+}
+
+void oc_surface_send_to_back(oc_surface handle)
+{
+    oc_surface_data* surface = oc_surface_data_from_handle(handle);
+    if(surface && surface->sendToBack)
+    {
+        surface->sendToBack(surface);
+    }
+}
+
 //------------------------------------------------------------------------------------------
 //NOTE(martin): images
 //------------------------------------------------------------------------------------------

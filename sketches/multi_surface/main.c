@@ -65,6 +65,22 @@ int main()
                 }
                 break;
 
+                case OC_EVENT_KEYBOARD_KEY:
+                {
+                    if(event->key.action == OC_KEY_PRESS)
+                    {
+                        if(event->key.code == OC_KEY_UP)
+                        {
+                            oc_surface_bring_to_front(surface2);
+                        }
+                        else if(event->key.code == OC_KEY_DOWN)
+                        {
+                            oc_surface_send_to_back(surface2);
+                        }
+                    }
+                }
+                break;
+
                 default:
                     break;
             }
@@ -89,7 +105,7 @@ int main()
         oc_clear();
 
         oc_set_color_rgba(0, 0, 1, 1);
-        oc_rectangle_fill(300, 300, 300, 200);
+        oc_rectangle_fill(200, 200, 300, 200);
 
         oc_render(surface2, canvas2);
         //*/

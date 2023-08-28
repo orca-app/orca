@@ -1311,10 +1311,10 @@ oc_window oc_window_create(oc_rect contentRect, oc_str8 title, oc_window_style s
             oc_log_error("Could not allocate window data\n");
             return ((oc_window){ 0 });
         }
-
         window->style = style;
         window->shouldClose = false;
         window->hidden = true;
+        window->osx.layers = (oc_list){ 0 };
 
         u32 styleMask = oc_osx_get_window_style_mask(style);
 
@@ -1735,10 +1735,51 @@ void oc_osx_surface_set_hidden(oc_surface_data* surface, bool hidden)
     }
 }
 
+void oc_osx_update_layers(oc_window_data* window)
+{
+    @autoreleasepool
+    {
+        int z = 0;
+        oc_list_for(&window->osx.layers, layer, oc_layer, listElt)
+        {
+            layer->caLayer.zPosition = (CGFloat)z;
+            z++;
+        }
+    }
+}
+
+void oc_osx_surface_bring_to_front(oc_surface_data* surface)
+{
+    oc_window_data* window = oc_window_ptr_from_handle(surface->layer.window);
+    if(window)
+    {
+        oc_list_remove(&window->osx.layers, &surface->layer.listElt);
+        oc_list_push_back(&window->osx.layers, &surface->layer.listElt);
+        oc_osx_update_layers(window);
+    }
+}
+
+void oc_osx_surface_send_to_back(oc_surface_data* surface)
+{
+    oc_window_data* window = oc_window_ptr_from_handle(surface->layer.window);
+    if(window)
+    {
+        oc_list_remove(&window->osx.layers, &surface->layer.listElt);
+        oc_list_push(&window->osx.layers, &surface->layer.listElt);
+        oc_osx_update_layers(window);
+    }
+}
+
 void oc_surface_cleanup(oc_surface_data* surface)
 {
     @autoreleasepool
     {
+        oc_window_data* window = oc_window_ptr_from_handle(surface->layer.window);
+        if(window)
+        {
+            oc_list_remove(&window->osx.layers, &surface->layer.listElt);
+            oc_osx_update_layers(window);
+        }
         [surface->layer.caLayer release];
     }
 }
@@ -1747,11 +1788,16 @@ void oc_surface_init_for_window(oc_surface_data* surface, oc_window_data* window
 {
     @autoreleasepool
     {
+        surface->layer.window = oc_window_handle_from_ptr(window);
+
         surface->nativeLayer = oc_osx_surface_native_layer;
         surface->contentsScaling = oc_osx_surface_contents_scaling;
         surface->getSize = oc_osx_surface_get_size;
         surface->getHidden = oc_osx_surface_get_hidden;
         surface->setHidden = oc_osx_surface_set_hidden;
+
+        surface->bringToFront = oc_osx_surface_bring_to_front;
+        surface->sendToBack = oc_osx_surface_send_to_back;
 
         surface->layer.caLayer = [[CALayer alloc] init];
         [surface->layer.caLayer retain];
@@ -1760,10 +1806,12 @@ void oc_surface_init_for_window(oc_surface_data* surface, oc_window_data* window
         CGSize size = frame.size;
         surface->layer.caLayer.frame = (CGRect){ { 0, 0 }, size };
         surface->layer.caLayer.contentsScale = window->osx.nsView.layer.contentsScale;
-
         surface->layer.caLayer.autoresizingMask = kCALayerWidthSizable | kCALayerHeightSizable;
 
         [window->osx.nsView.layer addSublayer:surface->layer.caLayer];
+
+        oc_list_push_back(&window->osx.layers, &surface->layer.listElt);
+        oc_osx_update_layers(window);
     }
 }
 
