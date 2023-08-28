@@ -251,7 +251,6 @@ void orca_surface_render_commands(oc_surface surface,
 void debug_overlay_toggle(oc_debug_overlay* overlay)
 {
     overlay->show = !overlay->show;
-    oc_surface_set_hidden(overlay->surface, !overlay->show);
 
     if(overlay->show)
     {
@@ -826,6 +825,7 @@ i32 orca_runloop(void* user)
             oc_set_color_rgba(0, 0, 0, 0);
             oc_clear();
         }
+
         oc_render(app->debugOverlay.surface, app->debugOverlay.canvas);
         oc_surface_present(app->debugOverlay.surface);
 
@@ -866,8 +866,6 @@ int main(int argc, char** argv)
     oc_arena_init(&app->debugOverlay.logArena);
 
     oc_surface_swap_interval(app->debugOverlay.surface, 1);
-
-    oc_surface_set_hidden(app->debugOverlay.surface, true);
 
     oc_surface_deselect();
 
