@@ -187,6 +187,7 @@ i32 orca_surface_callback(void* user)
 {
     orca_surface_create_data* data = (orca_surface_create_data*)user;
     data->surface = oc_surface_create_for_window(data->window, data->api);
+    oc_surface_swap_interval(data->surface, 0);
 
     //NOTE: this will be called on main thread, so we need to deselect the surface here,
     //      and reselect it on the orca thread
@@ -673,6 +674,20 @@ i32 orca_runloop(void* user)
             }
         }
 
+        oc_surface_deselect();
+
+        if(exports[OC_EXPORT_FRAME_REFRESH])
+        {
+            M3Result res = m3_Call(exports[OC_EXPORT_FRAME_REFRESH], 0, 0);
+            if(res)
+            {
+                ORCA_WASM3_ABORT(app->runtime.m3Runtime, res, "Runtime error");
+            }
+        }
+
+        oc_surface_select(app->debugOverlay.surface);
+        oc_canvas_set_current(app->debugOverlay.canvas);
+
         if(app->debugOverlay.show)
         {
             oc_surface_bring_to_front(app->debugOverlay.surface);
@@ -804,27 +819,15 @@ i32 orca_runloop(void* user)
                 }
             }
 
-            oc_surface_select(app->debugOverlay.surface);
-            oc_canvas_set_current(app->debugOverlay.canvas);
             oc_ui_draw();
-
-            oc_render(app->debugOverlay.surface, app->debugOverlay.canvas);
         }
-
-        if(exports[OC_EXPORT_FRAME_REFRESH])
+        else
         {
-            M3Result res = m3_Call(exports[OC_EXPORT_FRAME_REFRESH], 0, 0);
-            if(res)
-            {
-                ORCA_WASM3_ABORT(app->runtime.m3Runtime, res, "Runtime error");
-            }
+            oc_set_color_rgba(0, 0, 0, 0);
+            oc_clear();
         }
-
-        if(app->debugOverlay.show)
-        {
-            oc_surface_select(app->debugOverlay.surface);
-            oc_surface_present(app->debugOverlay.surface);
-        }
+        oc_render(app->debugOverlay.surface, app->debugOverlay.canvas);
+        oc_surface_present(app->debugOverlay.surface);
 
         oc_arena_clear(oc_scratch());
     }
@@ -862,7 +865,7 @@ int main(int argc, char** argv)
     app->debugOverlay.maxEntries = 200;
     oc_arena_init(&app->debugOverlay.logArena);
 
-    oc_surface_swap_interval(app->debugOverlay.surface, 0);
+    oc_surface_swap_interval(app->debugOverlay.surface, 1);
 
     oc_surface_set_hidden(app->debugOverlay.surface, true);
 
