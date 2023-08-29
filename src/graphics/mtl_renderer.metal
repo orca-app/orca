@@ -83,7 +83,8 @@ int mtl_itoa_right_aligned(int bufSize, thread char* buffer, int64_t value, bool
         buffer[index] = '0' + (value % 10);
         index--;
         value /= 10;
-    } while(value != 0 && index >= stop);
+    }
+    while(value != 0 && index >= stop);
 
     if(zeroPad)
     {
@@ -1259,8 +1260,8 @@ kernel void mtl_segment_setup(constant int* elementCount [[buffer(0)]],
                               device oc_mtl_tile_queue* tileQueueBuffer [[buffer(5)]],
                               device oc_mtl_tile_op* tileOpBuffer [[buffer(6)]],
                               device atomic_int* tileOpCount [[buffer(7)]],
-                              constant int* segmentMax [[buffer(8)]],
-                              constant int* tileOpMax [[buffer(9)]],
+                              constant int* tileOpMax [[buffer(8)]],
+                              constant int* segmentMax [[buffer(9)]],
                               constant int* tileSize [[buffer(10)]],
                               constant float* scale [[buffer(11)]],
 
@@ -1323,10 +1324,19 @@ kernel void mtl_backprop(const device oc_mtl_path_queue* pathQueueBuffer [[buffe
                          device oc_mtl_tile_queue* tileQueueBuffer [[buffer(1)]],
                          device char* logBuffer [[buffer(2)]],
                          device atomic_int* logOffsetBuffer [[buffer(3)]],
+                         device int* segmentCount [[buffer(4)]],
                          uint pathIndex [[threadgroup_position_in_grid]],
-                         uint localID [[thread_position_in_threadgroup]])
+                         uint localID [[thread_position_in_threadgroup]],
+                         uint uid [[thread_position_in_grid]])
 {
-    //	mtl_log_context log = {.buffer = logBuffer, .offset = logOffsetBuffer, .enabled = false};
+    mtl_log_context log = { .buffer = logBuffer, .offset = logOffsetBuffer, .enabled = false };
+
+    if(uid == 0)
+    {
+        mtl_log(log, "segmentCount = ");
+        mtl_log_i32(log, segmentCount[0]);
+        mtl_log(log, "\n");
+    }
 
     threadgroup atomic_int nextRowIndex;
     if(localID == 0)

@@ -1049,6 +1049,8 @@ void oc_mtl_render_batch(oc_mtl_canvas_backend* backend,
         [backpropEncoder setBuffer:backend->logBuffer[backend->bufferIndex] offset:0 atIndex:2];
         [backpropEncoder setBuffer:backend->logOffsetBuffer[backend->bufferIndex] offset:0 atIndex:3];
 
+        [backpropEncoder setBuffer:backend->segmentCountBuffer offset:0 atIndex:4];
+
         MTLSize backpropGroupSize = MTLSizeMake([backend->backpropPipeline maxTotalThreadsPerThreadgroup], 1, 1);
         MTLSize backpropGridSize = MTLSizeMake(pathCount * backpropGroupSize.width, 1, 1);
 
@@ -1563,7 +1565,7 @@ oc_canvas_backend* oc_mtl_canvas_backend_create(oc_mtl_surface* surface)
                                                               options:bufferOptions];
 
         backend->segmentCountBuffer = [surface->device newBufferWithLength:sizeof(int)
-                                                                   options:bufferOptions];
+                                                                   options:MTLResourceStorageModeShared];
 
         backend->pathQueueBuffer = [surface->device newBufferWithLength:OC_MTL_DEFAULT_PATH_QUEUE_BUFFER_LEN * sizeof(oc_mtl_path_queue)
                                                                 options:bufferOptions];
