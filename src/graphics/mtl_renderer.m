@@ -1204,8 +1204,8 @@ void oc_mtl_canvas_render(oc_canvas_backend* interface,
     f32 scale = surface->mtlLayer.contentsScale;
     oc_vec2 viewportSize = { frameSize.x * scale, frameSize.y * scale };
     int tileSize = OC_MTL_TILE_SIZE;
-    int nTilesX = (int)(viewportSize.x * scale + tileSize - 1) / tileSize;
-    int nTilesY = (int)(viewportSize.y * scale + tileSize - 1) / tileSize;
+    int nTilesX = (int)(viewportSize.x + tileSize - 1) / tileSize;
+    int nTilesY = (int)(viewportSize.y + tileSize - 1) / tileSize;
 
     if(viewportSize.x != backend->frameSize.x || viewportSize.y != backend->frameSize.y)
     {
