@@ -35,6 +35,8 @@ src/graphics/orca_gl31.h
 __pycache__
 scripts/files
 
-ext/angle
+# explicitly abandon old ext dir
+/ext
+src/ext/angle
 
 sketches/*/bin

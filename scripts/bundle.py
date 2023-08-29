@@ -70,8 +70,8 @@ def macos_make_app(args):
 	#-----------------------------------------------------------
 	orca_exe = os.path.join(args.orca_dir, 'build/bin/orca_runtime')
 	orca_lib = os.path.join(args.orca_dir, 'build/bin/liborca.dylib')
-	gles_lib = os.path.join(args.orca_dir, 'ext/angle/bin/libGLESv2.dylib')
-	egl_lib = os.path.join(args.orca_dir, 'ext/angle/bin/libEGL.dylib')
+	gles_lib = os.path.join(args.orca_dir, 'src/ext/angle/bin/libGLESv2.dylib')
+	egl_lib = os.path.join(args.orca_dir, 'src/ext/angle/bin/libEGL.dylib')
 	renderer_lib = os.path.join(args.orca_dir, 'build/bin/mtl_renderer.metallib')
 
 	shutil.copy(orca_exe, exe_dir)

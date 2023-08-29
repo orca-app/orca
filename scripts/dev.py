@@ -1,4 +1,3 @@
-from datetime import datetime
 import glob
 import os
 import platform
@@ -11,14 +10,15 @@ from . import checksum
 from .bindgen import bindgen
 from .gles_gen import gles_gen
 from .log import *
-from .utils import pushd, removeall
+from .utils import pushd, removeall, yeetdir, yeetfile
 from .embed_text_files import *
+from .version import check_if_source, is_orca_source, orca_version
 
 ANGLE_VERSION = "2023-07-05"
 
 
 def attach_dev_commands(subparsers):
-    dev_cmd = subparsers.add_parser("dev", help="Commands for building Orca itself. Must be run from the root of an Orca source checkout.")
+    dev_cmd = subparsers.add_parser("dev", help="Commands for building Orca itself. Must be run from within an Orca source checkout.")
     dev_cmd.set_defaults(func=orca_source_only)
 
     dev_sub = dev_cmd.add_subparsers(required=is_orca_source(), title='commands')
@@ -36,38 +36,6 @@ def attach_dev_commands(subparsers):
 
     uninstall_cmd = dev_sub.add_parser("uninstall", help="Uninstall the system installation of Orca.")
     uninstall_cmd.set_defaults(func=dev_shellish(uninstall))
-
-
-# Checks if the Orca tool should use a source checkout of Orca instead of a system install.
-# This is copy-pasted to the command-line tool so it can work before loading anything.
-#
-# Returns: (use source, source directory, is actually the source's tool)
-def check_if_source():
-    def path_is_in_orca_source(path):
-        dir = path
-        while True:
-            try:
-                os.stat(os.path.join(dir, ".orcaroot"))
-                return (True, dir)
-            except FileNotFoundError:
-                pass
-
-            newdir = os.path.dirname(dir)
-            if newdir == dir: # TODO: Verify on Windows (it will probably not work)
-                return (False, None)
-            dir = newdir
-
-    in_source, current_source_dir = path_is_in_orca_source(os.getcwd())
-    script_is_source, script_source_dir = path_is_in_orca_source(os.path.dirname(os.path.abspath(__file__)))
-
-    use_source = in_source or script_is_source
-    source_dir = current_source_dir or script_source_dir
-    return (use_source, source_dir, script_is_source)
-
-
-def is_orca_source():
-    use_source, _, _ = check_if_source()
-    return use_source
 
 
 def orca_source_only(args):
@@ -99,10 +67,10 @@ def build_runtime(args):
 
 
 def clean(args):
-    yeet("build")
-    yeet("ext/angle")
-    yeet("scripts/files")
-    yeet("scripts/__pycache__")
+    yeetdir("build")
+    yeetdir("src/ext/angle")
+    yeetdir("scripts/files")
+    yeetdir("scripts/__pycache__")
 
 
 def build_platform_layer(target, release):
@@ -145,8 +113,8 @@ def build_platform_layer_lib_win(release):
 
     includes = [
         "/I", "src",
-        "/I", "ext",
-        "/I", "ext/angle/include",
+        "/I", "src/ext",
+        "/I", "src/ext/angle/include",
     ]
     libs = [
         "user32.lib",
@@ -161,7 +129,7 @@ def build_platform_layer_lib_win(release):
         "shlwapi.lib",
         "dxgi.lib",
         "dxguid.lib",
-        "/LIBPATH:ext/angle/lib",
+        "/LIBPATH:src/ext/angle/lib",
         "libEGL.dll.lib",
         "libGLESv2.dll.lib",
         "/DELAYLOAD:libEGL.dll",
@@ -189,7 +157,7 @@ def build_platform_layer_lib_mac(release):
     cflags = ["-std=c11"]
     debug_flags = ["-O3"] if release else ["-g", "-DOC_DEBUG", "-DOC_LOG_COMPILE_DEBUG"]
     ldflags = [f"-L{sdk_dir}/usr/lib", f"-F{sdk_dir}/System/Library/Frameworks/"]
-    includes = ["-Isrc", "-Isrc/util", "-Isrc/platform", "-Iext", "-Iext/angle/include"]
+    includes = ["-Isrc", "-Isrc/util", "-Isrc/platform", "-Isrc/ext", "-Isrc/ext/angle/include"]
 
     # compile metal shader
     subprocess.run([
@@ -228,7 +196,7 @@ def build_platform_layer_lib_mac(release):
         *ldflags, "-dylib",
         "-o", "build/bin/liborca.dylib",
         "build/orca_c.o", "build/orca_objc.o",
-        "-Lext/angle/bin", "-lc",
+        "-Lsrc/ext/angle/bin", "-lc",
         "-framework", "Carbon", "-framework", "Cocoa", "-framework", "Metal", "-framework", "QuartzCore",
         "-weak-lEGL", "-weak-lGLESv2",
     ], check=True)
@@ -271,14 +239,14 @@ def build_wasm3(release):
 
 
 def build_wasm3_lib_win(release):
-    for f in glob.iglob("./ext/wasm3/source/*.c"):
+    for f in glob.iglob("./src/ext/wasm3/source/*.c"):
         name = os.path.splitext(os.path.basename(f))[0]
         subprocess.run([
             "cl", "/nologo",
             "/Zi", "/Zc:preprocessor", "/c",
             "/O2",
             f"/Fo:build/obj/{name}.obj",
-            "/I", "./ext/wasm3/source",
+            "/I", "./src/ext/wasm3/source",
             f,
         ], check=True)
     subprocess.run([
@@ -288,7 +256,7 @@ def build_wasm3_lib_win(release):
 
 
 def build_wasm3_lib_mac(release):
-    includes = ["-Iext/wasm3/source"]
+    includes = ["-Isrc/ext/wasm3/source"]
     debug_flags = ["-g", "-O2"]
     flags = [
         *debug_flags,
@@ -297,7 +265,7 @@ def build_wasm3_lib_mac(release):
         "-Dd_m3VerboseErrorMessages",
     ]
 
-    for f in glob.iglob("ext/wasm3/source/*.c"):
+    for f in glob.iglob("src/ext/wasm3/source/*.c"):
         name = os.path.splitext(os.path.basename(f))[0] + ".o"
         subprocess.run([
             "clang", "-c", *flags, *includes,
@@ -330,9 +298,9 @@ def build_orca_win(release):
     # compile orca
     includes = [
         "/I", "src",
-        "/I", "ext",
-        "/I", "ext/angle/include",
-        "/I", "ext/wasm3/source",
+        "/I", "src/ext",
+        "/I", "src/ext/angle/include",
+        "/I", "src/ext/wasm3/source",
     ]
     libs = [
         "/LIBPATH:build/bin",
@@ -355,9 +323,9 @@ def build_orca_mac(release):
 
     includes = [
         "-Isrc",
-        "-Iext",
-        "-Iext/angle/include",
-        "-Iext/wasm3/source"
+        "-Isrc/ext",
+        "-Isrc/ext/angle/include",
+        "-Isrc/ext/wasm3/source"
     ]
     libs = ["-Lbuild/bin", "-Lbuild/lib", "-lorca", "-lwasm3"]
     debug_flags = ["-O2"] if release else ["-g", "-DOC_DEBUG -DOC_LOG_COMPILE_DEBUG"]
@@ -390,7 +358,7 @@ def build_orca_mac(release):
 
 
 def gen_all_bindings():
-    gles_gen("ext/gl.xml",
+    gles_gen("src/ext/gl.xml",
         "src/wasmbind/gles_api.json",
         "src/graphics/orca_gl31.h"
     )
@@ -459,15 +427,15 @@ def verify_angle():
     checkfiles = None
     if platform.system() == "Windows":
         checkfiles = [
-            "ext/angle/bin/libEGL.dll",
-            "ext/angle/lib/libEGL.dll.lib",
-            "ext/angle/bin/libGLESv2.dll",
-            "ext/angle/lib/libGLESv2.dll.lib",
+            "src/ext/angle/bin/libEGL.dll",
+            "src/ext/angle/lib/libEGL.dll.lib",
+            "src/ext/angle/bin/libGLESv2.dll",
+            "src/ext/angle/lib/libGLESv2.dll.lib",
         ]
     elif platform.system() == "Darwin":
         checkfiles = [
-            "ext/angle/bin/libEGL.dylib",
-            "ext/angle/bin/libGLESv2.dylib",
+            "src/ext/angle/bin/libEGL.dylib",
+            "src/ext/angle/bin/libGLESv2.dylib",
         ]
 
     if checkfiles is None:
@@ -512,11 +480,7 @@ def download_angle():
     with ZipFile(filepath, "r") as anglezip:
         anglezip.extractall(path="scripts/files")
 
-    shutil.copytree(f"scripts/files/angle/", "ext/angle", dirs_exist_ok=True)
-
-def yeet(path):
-    os.makedirs(path, exist_ok=True)
-    shutil.rmtree(path)
+    shutil.copytree(f"scripts/files/angle/", "src/ext/angle", dirs_exist_ok=True)
 
 
 def prompt(msg):
@@ -529,29 +493,40 @@ def prompt(msg):
         else:
             print("Please enter \"yes\" or \"no\" and press return.")
 
-
-def install_path():
+def install_dir():
     if platform.system() == "Windows":
-        orca_dir = os.path.join(os.getenv("LOCALAPPDATA"), "orca")
+        return os.path.join(os.getenv("LOCALAPPDATA"), "orca")
     else:
-        orca_dir = os.path.expanduser(os.path.join("~", ".orca"))
-
-    bin_dir = os.path.join(orca_dir, "bin")
-
-    return (orca_dir, bin_dir)
+        return os.path.expanduser(os.path.join("~", ".orca"))
 
 
 def install(args):
-    dest, bin_dir = install_path()
+    dest = install_dir()
+    bin_dir = os.path.join(dest, "bin")
+    src_dir = os.path.join(dest, "src")
+    version_file = os.path.join(dest, ".orcaversion")
+
+    version = orca_version()
+    existing_version = None
+    try:
+        with open(version_file, "r") as f:
+            existing_version = f.read().strip()
+    except FileNotFoundError:
+        pass
 
     if not args.no_confirm:
-        print("The Orca command-line tools will be installed to:")
+        print(f"The Orca command-line tools (version {version}) will be installed to:")
         print(dest)
         print()
+        if existing_version is not None:
+            print(f"This will overwrite version {existing_version}.")
+            print()
         if not prompt("Proceed with the installation?"):
             return
 
-    yeet(bin_dir)
+    yeetdir(bin_dir)
+    yeetdir(src_dir)
+    yeetfile(version_file)
 
     # The MS Store version of Python does some really stupid stuff with AppData:
     # https://git.handmade.network/hmn/orca/issues/32
@@ -562,14 +537,19 @@ def install(args):
     # paths we need, the following scripts work regardless of Python install.
     #
     # Also apparently you can't just do mkdir in a subprocess call here, hence the
-    # trivial batch script.
+    # trivial batch scripts.
     if platform.system() == "Windows":
         subprocess.run(["scripts\\mkdir.bat", bin_dir], check=True)
+        subprocess.run(["scripts\\mkdir.bat", src_dir], check=True)
+        subprocess.run(["scripts\\touch.bat", version_file], check=True)
 
     shutil.copytree("scripts", os.path.join(bin_dir, "sys_scripts"))
     shutil.copy("orca", bin_dir)
+    shutil.copytree("src", src_dir, dirs_exist_ok=True)
     if platform.system() == "Windows":
         shutil.copy("orca.bat", bin_dir)
+    with open(version_file, "w") as f:
+        f.write(version)
 
     print()
     if platform.system() == "Windows":
@@ -582,7 +562,7 @@ def install(args):
             print("Orca has been added to your PATH. Restart any open terminals to use it.")
         else:
             print("No worries. You can manually add Orca to your PATH in the Windows settings")
-            print("this in the Windows settings by searching for \"environment variables\".")
+            print("by searching for \"environment variables\".")
     else:
         print("The Orca tools have been installed. Make sure the Orca tools are on your PATH by")
         print("adding the following to your shell config:")

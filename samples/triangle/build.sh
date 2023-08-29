@@ -12,21 +12,19 @@ else
 fi
 
 ORCA_DIR=../..
-STDLIB_DIR=../../src/libc-shim
+STDLIB_DIR=$ORCA_DIR/src/libc-shim
 
 wasmFlags="--target=wasm32 \
   --no-standard-libraries \
-  -fno-builtin \
+  -mbulk-memory \
+  -g -O2 \
+  -D__ORCA__ \
   -Wl,--no-entry \
   -Wl,--export-dynamic \
-  -g \
-  -O2 \
-  -mbulk-memory \
-  -D__ORCA__ \
-  -I $STDLIB_DIR/include \
-  -I $ORCA_DIR/ext \
-  -I $ORCA_DIR/src"
+  -isystem $STDLIB_DIR/include \
+  -I $ORCA_DIR/src \
+  -I $ORCA_DIR/src/ext"
 
-$CLANG $wasmFlags -o ./module.wasm ../../src/orca.c ../../src/libc-shim/src/*.c src/main.c
+$CLANG $wasmFlags -o ./module.wasm $ORCA_DIR/src/orca.c $STDLIB_DIR/src/*.c src/main.c
 
-orca bundle --orca-dir ../.. --name Triangle module.wasm
+orca bundle --orca-dir $ORCA_DIR --name Triangle module.wasm

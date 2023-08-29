@@ -41,9 +41,9 @@ if use_source:
     # Use the source checkout's scripts instead of the system-installed scripts.
 
     if not is_source:
-        print("The Orca tool is running from a local source checkout and will")
-        print("use that instead of the system Orca installation.")
-        print()
+        print("The Orca tool is running from a local source checkout and will", file=sys.stderr)
+        print("use that instead of the system Orca installation.", file=sys.stderr)
+        print(file=sys.stderr)
 
     sys.path.append(source_dir)
     import scripts.orca

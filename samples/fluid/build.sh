@@ -12,23 +12,21 @@ else
 fi
 
 ORCA_DIR=../..
-STDLIB_DIR=../../src/libc-shim
+STDLIB_DIR=$ORCA_DIR/src/libc-shim
 
 python3 ../../scripts/embed_text_files.py --prefix=glsl_ --output src/glsl_shaders.h src/shaders/*.glsl
 
 wasmFlags="--target=wasm32 \
   --no-standard-libraries \
-  -fno-builtin \
+  -mbulk-memory \
+  -g -O2 \
+  -D__ORCA__ \
   -Wl,--no-entry \
   -Wl,--export-dynamic \
-  -g \
-  -O2 \
-  -mbulk-memory \
-  -D__ORCA__ \
-  -I $STDLIB_DIR/include \
-  -I $ORCA_DIR/ext \
-  -I $ORCA_DIR/src"
+  -isystem $STDLIB_DIR/include \
+  -I $ORCA_DIR/src \
+  -I $ORCA_DIR/src/ext"
 
-$CLANG $wasmFlags -o ./module.wasm ../../src/orca.c $STDLIB_DIR/src/*.c src/main.c
+$CLANG $wasmFlags -o ./module.wasm $ORCA_DIR/src/orca.c $STDLIB_DIR/src/*.c src/main.c
 
-orca bundle --orca-dir ../..  --icon icon.png --name Fluid module.wasm
+orca bundle --orca-dir $ORCA_DIR --name Fluid --icon icon.png module.wasm
