@@ -1300,18 +1300,40 @@ void oc_ui_draw_box(oc_ui_box* box)
 
     oc_ui_style* style = &box->style;
 
+    bool draw = true;
+
+    {
+        oc_rect clip = oc_clip();
+        oc_rect expRect = {
+            box->rect.x - 0.5 * style->borderSize,
+            box->rect.y - 0.5 * style->borderSize,
+            box->rect.w + style->borderSize,
+            box->rect.h + style->borderSize
+        };
+
+        if((expRect.x + expRect.w < clip.x)
+           || (expRect.y + expRect.h < clip.y)
+           || (expRect.x > clip.x + clip.w)
+           || (expRect.y > clip.y + clip.h))
+        {
+            draw = false;
+        }
+    }
+
     if(box->flags & OC_UI_FLAG_CLIP)
     {
         oc_clip_push(box->rect.x, box->rect.y, box->rect.w, box->rect.h);
     }
 
-    if(box->flags & OC_UI_FLAG_DRAW_BACKGROUND)
+    if(draw && (box->flags & OC_UI_FLAG_DRAW_BACKGROUND))
     {
         oc_set_color(style->bgColor);
         oc_ui_rectangle_fill(box->rect, style->roundness);
     }
 
-    if((box->flags & OC_UI_FLAG_DRAW_PROC) && box->drawProc)
+    if(draw
+       && (box->flags & OC_UI_FLAG_DRAW_PROC)
+       && box->drawProc)
     {
         box->drawProc(box, box->drawData);
     }
@@ -1321,7 +1343,7 @@ void oc_ui_draw_box(oc_ui_box* box)
         oc_ui_draw_box(child);
     }
 
-    if(box->flags & OC_UI_FLAG_DRAW_TEXT)
+    if(draw && (box->flags & OC_UI_FLAG_DRAW_TEXT))
     {
         oc_rect textBox = oc_text_bounding_box(style->font, style->fontSize, box->string);
 
@@ -1371,7 +1393,7 @@ void oc_ui_draw_box(oc_ui_box* box)
         oc_clip_pop();
     }
 
-    if(box->flags & OC_UI_FLAG_DRAW_BORDER)
+    if(draw && (box->flags & OC_UI_FLAG_DRAW_BORDER))
     {
         oc_set_width(style->borderSize);
         oc_set_color(style->borderColor);
@@ -2675,7 +2697,9 @@ void oc_ui_edit_perform_move(oc_ui_context* ui, oc_ui_edit_move move, int direct
                     {
                         ui->editCursor--;
                     }
-                } else {
+                }
+                else
+                {
                     while(ui->editCursor > 0
                           && !oc_ui_edit_is_whitespace(codepoints.ptr[ui->editCursor - 1])
                           && !oc_ui_edit_is_word_separator(codepoints.ptr[ui->editCursor - 1]))
@@ -2995,7 +3019,7 @@ oc_ui_text_box_result oc_ui_text_box(const char* name, oc_arena* arena, oc_str8 
 
         //NOTE handle shortcuts
         oc_keymod_flags mods = oc_key_mods(&ui->input);
-        const oc_ui_edit_command*  editCommands;
+        const oc_ui_edit_command* editCommands;
         u32 editCommandCount;
         oc_host_platform hostPlatform = oc_get_host_platform();
         switch(hostPlatform)

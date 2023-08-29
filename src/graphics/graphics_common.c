@@ -972,6 +972,19 @@ void oc_clip_pop()
     }
 }
 
+oc_rect oc_clip()
+{
+    oc_rect clip = { -FLT_MAX / 2, -FLT_MAX / 2, FLT_MAX, FLT_MAX };
+
+    oc_canvas_data* canvas = __mgCurrentCanvas;
+    if(canvas)
+    {
+        clip = oc_clip_stack_top(canvas);
+    }
+
+    return (clip);
+}
+
 //------------------------------------------------------------------------------------------
 //NOTE(martin): graphics attributes setting/getting
 //------------------------------------------------------------------------------------------

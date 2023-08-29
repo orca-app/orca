@@ -283,6 +283,7 @@ ORCA_API void oc_matrix_pop(void);
 
 ORCA_API void oc_clip_push(f32 x, f32 y, f32 w, f32 h);
 ORCA_API void oc_clip_pop(void);
+ORCA_API oc_rect oc_clip();
 
 //------------------------------------------------------------------------------------------
 //NOTE(martin): graphics attributes setting/getting
