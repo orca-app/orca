@@ -32,7 +32,7 @@ ORCA_EXPORT void oc_on_init(void)
                                        OC_UNICODE_LATIN_EXTENDED_A,
                                        OC_UNICODE_LATIN_EXTENDED_B,
                                        OC_UNICODE_SPECIALS };
-        // TODO: Decide whether we're using strings or explicit pointer + length
+
         font = oc_font_create_from_memory(oc_str8_from_buffer(size, buffer), 5, ranges);
     }
 

@@ -97,8 +97,7 @@ ORCA_EXPORT void oc_on_init(void)
                                    OC_UNICODE_LATIN_EXTENDED_A,
                                    OC_UNICODE_LATIN_EXTENDED_B,
                                    OC_UNICODE_SPECIALS };
-    // NOTE(ben): Weird that images are "create from data" but fonts are "create from memory"
-    // TODO: Decide whether we're using strings or explicit pointer + length
+
     pongFont = oc_font_create_from_memory(fontStr, 5, ranges);
 
     oc_arena_clear(oc_scratch());

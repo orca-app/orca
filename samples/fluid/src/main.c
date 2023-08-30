@@ -161,7 +161,6 @@ GLuint compile_shader(const char* vs, const char* fs)
     glAttachShader(prog, fragmentShader);
     glLinkProgram(prog);
 
-    //TODO errors
     int status = 0;
     glGetProgramiv(prog, GL_LINK_STATUS, &status);
     if(status != GL_TRUE)
@@ -582,7 +581,7 @@ void input_splat(float t)
     //NOTE: apply force and dye
     if(mouseInput.down && (mouseInput.deltaX || mouseInput.deltaY))
     {
-	    oc_vec2 scaling = oc_surface_contents_scaling(surface);
+        oc_vec2 scaling = oc_surface_contents_scaling(surface);
         // account for margin
         float margin = 32;
 
@@ -690,7 +689,7 @@ ORCA_EXPORT void oc_on_resize(u32 width, u32 height)
 
 ORCA_EXPORT void oc_on_frame_refresh()
 {
-    float aspectRatio = texWidth / texHeight; //TODO replace with actual aspect ratio?
+    float aspectRatio = texWidth / texHeight;
 
     static float t = 0;
     t += 1. / 60.;
@@ -717,58 +716,6 @@ ORCA_EXPORT void oc_on_frame_refresh()
     glDrawArrays(GL_TRIANGLES, 0, 6);
 
     frame_buffer_swap(&velocityBuffer);
-
-    /*
-	//DEBUG
-	static bool splatTrig = false;
-	static bool splat = false;
-	static float splatStart = 0;
-	static int splatDir = 0;
-
-	static int frameCount = 0;
-
-	if(resetCmd)
-	{
-		frameCount = 0;
-		splat = true;
-		splatStart = frameT;
-	}
-
-	if(splat)
-	{
-		if(frameT - splatStart >= 0.5)
-		{
-			splat = false;
-			splatDir++;
-			splatDir = splatDir % 3;
-		}
-		float dirX = 0;
-		float dirY = 0;
-		if(splatDir == 0)
-		{
-			dirX = 0;
-			dirY = 0.3;
-		}
-		if(splatDir == 1)
-		{
-			dirX = 0.3;
-			dirY = 0;
-		}
-		if(splatDir == 2)
-		{
-			dirX = 0.2121;
-			dirY = 0.2121;
-		}
-		apply_splat(0.5, 0.5, dirX, dirY, 1.5, 1., 0.1, false);
-	}
-	resetCmd = false;
-
-	if(frameCount>20)
-	{
-		return;
-	}
-	frameCount++;
-*/
 
     input_splat(t);
 
@@ -854,7 +801,6 @@ ORCA_EXPORT void oc_on_frame_refresh()
 
     //NOTE: Blit color texture to screen
 
-    //NOTE: blit residue to screen
     glViewport(0, 0, frameWidth, frameHeight);
 
     float displayMatrix[16] = {
@@ -864,23 +810,6 @@ ORCA_EXPORT void oc_on_frame_refresh()
         0, 0, 0, 1
     };
 
-    /*
-	glUseProgram(blitResidueProgram.prog);
-	glBindFramebuffer(GL_FRAMEBUFFER, 0);
-
-	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, pressureBuffer[0].textures[0]);
-	glUniform1i(blitResidueProgram.xTex, 0);
-
-	glActiveTexture(GL_TEXTURE1);
-	glBindTexture(GL_TEXTURE_2D, divBuffer[0].textures[0]);
-	glUniform1i(blitResidueProgram.bTex, 1);
-
-	glUniformMatrix4fv(blitResidueProgram.mvp, 1, GL_FALSE, displayMatrix);
-
-	glDrawArrays(GL_TRIANGLES, 0, 6);
-//*/
-    //*
     glUseProgram(blitProgram.prog);
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
@@ -893,34 +822,6 @@ ORCA_EXPORT void oc_on_frame_refresh()
     glUniformMatrix4fv(blitProgram.mvp, 1, GL_FALSE, displayMatrix);
 
     glDrawArrays(GL_TRIANGLES, 0, 6);
-    /*/
-
-	//NOTE: recompute divergence of (corrected) velocity
-	glUseProgram(divProgram.prog);
-	glBindFramebuffer(GL_FRAMEBUFFER, divBuffer[0].fbos[1]);
-
-	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, velocityBuffer.textures[0]);
-	glUniform1i(divProgram.src, 0);
-
-	glDrawArrays(GL_TRIANGLES, 0, 6);
-
-	frame_buffer_swap(&divBuffer[0]);
-
-	//NOTE: Blit divergence to screen
-	glViewport(0, 0, canvas_width(), canvas_height());
-	glUseProgram(blitDivProgram.prog);
-	glBindFramebuffer(GL_FRAMEBUFFER, 0);
-
-	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, divBuffer[0].textures[0]);
-	glUniform1i(blitDivProgram.tex, 0);
-
-	glUniformMatrix4fv(blitDivProgram.mvp, 1, GL_FALSE, displayMatrix);
-
-	glDrawArrays(GL_TRIANGLES, 0, 6);
-
-//*/
 
     oc_surface_present(surface);
 }
