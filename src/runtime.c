@@ -565,7 +565,7 @@ i32 orca_runloop(void* user)
             {
                 case OC_EVENT_WINDOW_CLOSE:
                 {
-                    oc_request_quit();
+					oc_request_quit();
                 }
                 break;
 
@@ -841,6 +841,8 @@ i32 orca_runloop(void* user)
         }
     }
 
+    app->quit = true;
+
     return (0);
 }
 
@@ -889,7 +891,7 @@ int main(int argc, char** argv)
 
     oc_thread* runloopThread = oc_thread_create(orca_runloop, 0);
 
-    while(!oc_should_quit())
+    while(!app->quit)
     {
         oc_pump_events(-1);
         //TODO: what to do with mem scratch here?
@@ -899,7 +901,6 @@ int main(int argc, char** argv)
 
     oc_canvas_destroy(app->debugOverlay.canvas);
     oc_surface_destroy(app->debugOverlay.surface);
-
     oc_window_destroy(app->window);
 
     oc_terminate();

@@ -111,6 +111,7 @@ typedef struct oc_debug_overlay
 
 typedef struct oc_runtime
 {
+	bool quit;
     oc_window window;
 
     oc_file_table fileTable;
