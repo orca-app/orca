@@ -19,7 +19,7 @@
 #include "platform_clock.h"
 #include "platform_debug.h"
 #include "ringbuffer.h"
-
+#include "platform/platform_path.h"
 #include "app.c"
 
 //--------------------------------------------------------------------
@@ -2133,73 +2133,87 @@ oc_str8 oc_open_dialog(oc_arena* arena,
                        oc_str8_list filters,
                        bool directory)
 {
-    @autoreleasepool
+    __block oc_str8 path = { 0 };
+
+    dispatch_block_t block = ^{
+      @autoreleasepool
+      {
+          NSWindow* keyWindow = [NSApp keyWindow];
+
+          NSOpenPanel* dialog = [NSOpenPanel openPanel];
+
+          NSString* nsTitle = [[NSString alloc] initWithBytes:title.ptr length:title.len encoding:NSUTF8StringEncoding];
+          //NOTE: title is not displayed since OS X 10.11, now use setMessage instead.
+          //      see https://stackoverflow.com/questions/36879212/title-bar-missing-in-nsopenpanel
+          [dialog setMessage:nsTitle];
+
+          [dialog setLevel:NSModalPanelWindowLevel];
+
+          if(filters.eltCount)
+          {
+              NSMutableArray* fileTypesArray = [NSMutableArray array];
+
+              oc_list_for((oc_list*)&filters.list, elt, oc_str8_elt, listElt)
+              {
+                  oc_str8 string = elt->string;
+                  NSString* filter = [[NSString alloc] initWithBytes:string.ptr length:string.len encoding:NSUTF8StringEncoding];
+                  [fileTypesArray addObject:filter];
+              }
+              [dialog setAllowedFileTypes:fileTypesArray];
+          }
+          // Enable options in the dialog.
+          if(directory)
+          {
+              [dialog setCanChooseDirectories:YES];
+          }
+          else
+          {
+              [dialog setCanChooseFiles:YES];
+          }
+
+          [dialog setAllowsMultipleSelection:FALSE];
+
+          NSString* nsPath = 0;
+          ;
+          if(defaultPath.len)
+          {
+              nsPath = [[NSString alloc] initWithBytes:defaultPath.ptr length:defaultPath.len encoding:NSUTF8StringEncoding];
+          }
+          else
+          {
+              nsPath = [NSString stringWithUTF8String:"~"];
+          }
+          nsPath = [nsPath stringByExpandingTildeInPath];
+
+          [dialog setDirectoryURL:[NSURL fileURLWithPath:nsPath]];
+
+          // Display the dialog box. If the OK pressed,
+          // process the files.
+
+          if([dialog runModal] == NSModalResponseOK)
+          {
+              // Gets list of all files selected
+              NSArray* files = [dialog URLs];
+              //TODO: Loop through the files and process them.
+
+              const char* result = [[[files objectAtIndex:0] path] UTF8String];
+
+              path = oc_str8_push_cstring(arena, result);
+          }
+          [keyWindow makeKeyWindow];
+      }
+    };
+
+    if([NSThread isMainThread])
     {
-        NSWindow* keyWindow = [NSApp keyWindow];
-
-        NSOpenPanel* dialog = [NSOpenPanel openPanel];
-        [dialog setLevel:CGShieldingWindowLevel()];
-
-        if(filters.eltCount)
-        {
-            NSMutableArray* fileTypesArray = [NSMutableArray array];
-
-            oc_list_for(&filters.list, elt, oc_str8_elt, listElt)
-            {
-                oc_str8 string = elt->string;
-                NSString* filter = [[NSString alloc] initWithBytes:string.ptr length:string.len encoding:NSUTF8StringEncoding];
-                [fileTypesArray addObject:filter];
-            }
-            [dialog setAllowedFileTypes:fileTypesArray];
-        }
-        // Enable options in the dialog.
-        if(directory)
-        {
-            [dialog setCanChooseDirectories:YES];
-        }
-        else
-        {
-            [dialog setCanChooseFiles:YES];
-        }
-
-        [dialog setAllowsMultipleSelection:FALSE];
-
-        NSString* nsPath = 0;
-        ;
-        if(defaultPath.len)
-        {
-            nsPath = [[NSString alloc] initWithBytes:defaultPath.ptr length:defaultPath.len encoding:NSUTF8StringEncoding];
-        }
-        else
-        {
-            nsPath = [NSString stringWithUTF8String:"~"];
-        }
-        nsPath = [nsPath stringByExpandingTildeInPath];
-
-        [dialog setDirectoryURL:[NSURL fileURLWithPath:nsPath]];
-
-        // Display the dialog box. If the OK pressed,
-        // process the files.
-
-        if([dialog runModal] == NSModalResponseOK)
-        {
-            // Gets list of all files selected
-            NSArray* files = [dialog URLs];
-            //TODO: Loop through the files and process them.
-
-            const char* result = [[[files objectAtIndex:0] path] UTF8String];
-
-            oc_str8 path = oc_str8_push_cstring(arena, result);
-            [keyWindow makeKeyWindow];
-
-            return (path);
-        }
-        else
-        {
-            [keyWindow makeKeyWindow];
-            return ((oc_str8){ 0, 0 });
-        }
+        block();
     }
+    else
+    {
+        dispatch_sync(dispatch_get_main_queue(), block);
+    }
+
+    return (path);
 }
 
 oc_str8 oc_save_dialog(oc_arena* arena,
@@ -2207,61 +2221,221 @@ oc_str8 oc_save_dialog(oc_arena* arena,
                        oc_str8 defaultPath,
                        oc_str8_list filters)
 {
-    @autoreleasepool
+    __block oc_str8 path = { 0 };
+
+    dispatch_block_t block = ^{
+      @autoreleasepool
+      {
+          NSWindow* keyWindow = [NSApp keyWindow];
+
+          NSSavePanel* dialog = [NSSavePanel savePanel];
+          [dialog setLevel:CGShieldingWindowLevel()];
+
+          if(filters.eltCount)
+          {
+              NSMutableArray* fileTypesArray = [NSMutableArray array];
+
+              oc_list_for((oc_list*)&filters.list, elt, oc_str8_elt, listElt)
+              {
+                  oc_str8 string = elt->string;
+                  NSString* filter = [[NSString alloc] initWithBytes:string.ptr length:string.len encoding:NSUTF8StringEncoding];
+                  [fileTypesArray addObject:filter];
+              }
+              [dialog setAllowedFileTypes:fileTypesArray];
+          }
+
+          NSString* nsPath = 0;
+          ;
+          if(defaultPath.len)
+          {
+              nsPath = [[NSString alloc] initWithBytes:defaultPath.ptr length:defaultPath.len encoding:NSUTF8StringEncoding];
+          }
+          else
+          {
+              nsPath = [NSString stringWithUTF8String:"~"];
+          }
+          nsPath = [nsPath stringByExpandingTildeInPath];
+
+          [dialog setDirectoryURL:[NSURL fileURLWithPath:nsPath]];
+
+          // Display the dialog box. If the OK pressed,
+          // process the files.
+
+          if([dialog runModal] == NSModalResponseOK)
+          {
+              // Gets list of all files selected
+              NSURL* files = [dialog URL];
+              // Loop through the files and process them.
+
+              const char* result = [[files path] UTF8String];
+
+              path = oc_str8_push_cstring(arena, result);
+          }
+          [keyWindow makeKeyWindow];
+      }
+    };
+
+    if([NSThread isMainThread])
     {
-        NSWindow* keyWindow = [NSApp keyWindow];
-
-        NSSavePanel* dialog = [NSSavePanel savePanel];
-        [dialog setLevel:CGShieldingWindowLevel()];
-
-        if(filters.eltCount)
-        {
-            NSMutableArray* fileTypesArray = [NSMutableArray array];
-
-            oc_list_for(&filters.list, elt, oc_str8_elt, listElt)
-            {
-                oc_str8 string = elt->string;
-                NSString* filter = [[NSString alloc] initWithBytes:string.ptr length:string.len encoding:NSUTF8StringEncoding];
-                [fileTypesArray addObject:filter];
-            }
-            [dialog setAllowedFileTypes:fileTypesArray];
-        }
-
-        NSString* nsPath = 0;
-        ;
-        if(defaultPath.len)
-        {
-            nsPath = [[NSString alloc] initWithBytes:defaultPath.ptr length:defaultPath.len encoding:NSUTF8StringEncoding];
-        }
-        else
-        {
-            nsPath = [NSString stringWithUTF8String:"~"];
-        }
-        nsPath = [nsPath stringByExpandingTildeInPath];
-
-        [dialog setDirectoryURL:[NSURL fileURLWithPath:nsPath]];
-
-        // Display the dialog box. If the OK pressed,
-        // process the files.
-
-        if([dialog runModal] == NSModalResponseOK)
-        {
-            // Gets list of all files selected
-            NSURL* files = [dialog URL];
-            // Loop through the files and process them.
-
-            const char* result = [[files path] UTF8String];
-
-            oc_str8 path = oc_str8_push_cstring(arena, result);
-            [keyWindow makeKeyWindow];
-            return (path);
-        }
-        else
-        {
-            [keyWindow makeKeyWindow];
-            return ((oc_str8){ 0, 0 });
-        }
+        block();
     }
+    else
+    {
+        dispatch_sync(dispatch_get_main_queue(), block);
+    }
+
+    return (path);
+}
+
+ORCA_API oc_file_dialog_result oc_file_dialog_for_table(oc_arena* arena, oc_file_dialog_desc* desc, oc_file_table* table)
+{
+    __block oc_file_dialog_result result = { 0 };
+
+    dispatch_block_t block = ^{
+      @autoreleasepool
+      {
+          oc_arena_scope scratch = oc_scratch_begin_next(arena);
+
+          NSWindow* keyWindow = [NSApp keyWindow];
+
+          NSSavePanel* dialog = 0;
+          if(desc->kind == OC_FILE_DIALOG_OPEN)
+          {
+              NSOpenPanel* openPanel = [NSOpenPanel openPanel];
+              dialog = (NSSavePanel*)openPanel;
+
+              openPanel.canChooseFiles = (desc->flags & OC_FILE_DIALOG_FILES) ? YES : NO;
+              openPanel.canChooseDirectories = (desc->flags & OC_FILE_DIALOG_DIRECTORIES) ? YES : NO;
+              openPanel.allowsMultipleSelection = (desc->flags & OC_FILE_DIALOG_MULTIPLE) ? YES : NO;
+          }
+          else
+          {
+              dialog = [NSSavePanel savePanel];
+
+              dialog.canCreateDirectories = (desc->flags & OC_FILE_DIALOG_CREATE_DIRECTORIES) ? YES : NO;
+          }
+
+          //NOTE: set title. "title" property is not displayed since OS X 10.11, now use setMessage instead.
+          //      see https://stackoverflow.com/questions/36879212/title-bar-missing-in-nsopenpanel
+          NSString* nsTitle = [[NSString alloc] initWithBytes:desc->title.ptr
+                                                       length:desc->title.len
+                                                     encoding:NSUTF8StringEncoding];
+          [dialog setMessage:nsTitle];
+
+          //NOTE: set ok button
+          if(desc->okLabel.len)
+          {
+              NSString* label = [[NSString alloc] initWithBytes:desc->okLabel.ptr
+                                                         length:desc->okLabel.len
+                                                       encoding:NSUTF8StringEncoding];
+
+              [dialog setPrompt:label];
+          }
+
+          //NOTE: set starting path
+          oc_str8 startPath = { 0 };
+          {
+              oc_str8_list list = { 0 };
+              if(!oc_file_is_nil(desc->startAt))
+              {
+                  oc_file_slot* slot = oc_file_slot_from_handle(table, desc->startAt);
+                  if(slot)
+                  {
+                      char path[PATH_MAX];
+                      if(fcntl(slot->fd, F_GETPATH, path) != -1)
+                      {
+                          oc_str8 string = oc_str8_push_cstring(scratch.arena, path);
+                          oc_str8_list_push(scratch.arena, &list, string);
+                      }
+                  }
+              }
+              if(desc->startPath.len)
+              {
+                  oc_str8_list_push(scratch.arena, &list, desc->startPath);
+              }
+              startPath = oc_path_join(scratch.arena, list);
+          }
+
+          NSString* nsPath = 0;
+          if(startPath.len)
+          {
+              nsPath = [[NSString alloc] initWithBytes:startPath.ptr
+                                                length:startPath.len
+                                              encoding:NSUTF8StringEncoding];
+          }
+          else
+          {
+              nsPath = [NSString stringWithUTF8String:"~"];
+          }
+          nsPath = [nsPath stringByExpandingTildeInPath];
+          [dialog setDirectoryURL:[NSURL fileURLWithPath:nsPath]];
+
+          //NOTE: set filters
+          if(desc->filters.eltCount)
+          {
+              NSMutableArray* fileTypesArray = [NSMutableArray array];
+
+              oc_list_for((oc_list*)&desc->filters.list, elt, oc_str8_elt, listElt)
+              {
+                  oc_str8 string = elt->string;
+                  NSString* filter = [[NSString alloc] initWithBytes:string.ptr length:string.len encoding:NSUTF8StringEncoding];
+                  [fileTypesArray addObject:filter];
+              }
+              [dialog setAllowedFileTypes:fileTypesArray];
+          }
+
+          // Display the dialog box. If the OK pressed,
+          // process the files.
+
+          [dialog validateVisibleColumns];
+          [dialog setLevel:NSModalPanelWindowLevel];
+
+          if([dialog runModal] == NSModalResponseOK)
+          {
+              if(desc->kind == OC_FILE_DIALOG_OPEN && (desc->flags & OC_FILE_DIALOG_MULTIPLE))
+              {
+                  // Gets list of all files selected
+                  NSArray* files = [((NSOpenPanel*)dialog) URLs];
+
+                  const char* path = [[[files objectAtIndex:0] path] UTF8String];
+                  result.path = oc_str8_push_cstring(arena, path);
+
+                  for(int i = 0; i < [files count]; i++)
+                  {
+                      const char* path = [[[files objectAtIndex:i] path] UTF8String];
+                      oc_str8 string = oc_str8_push_cstring(arena, path);
+                      oc_str8_list_push(arena, &result.selection, string);
+                  }
+              }
+              else
+              {
+                  const char* path = [[[dialog URL] path] UTF8String];
+                  result.path = oc_str8_push_cstring(arena, path);
+
+                  oc_str8_list_push(arena, &result.selection, result.path);
+              }
+              result.button = OC_FILE_DIALOG_OK;
+          }
+          else
+          {
+              result.button = OC_FILE_DIALOG_CANCEL;
+          }
+          [keyWindow makeKeyWindow];
+
+          oc_scratch_end(scratch);
+      }
+    };
+
+    if([NSThread isMainThread])
+    {
+        block();
+    }
+    else
+    {
+        dispatch_sync(dispatch_get_main_queue(), block);
+    }
+
+    return (result);
 }
 
 int oc_alert_popup(oc_str8 title,

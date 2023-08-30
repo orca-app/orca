@@ -27,7 +27,8 @@
     X(OC_EXPORT_FRAME_REFRESH, "oc_on_frame_refresh", "", "") \
     X(OC_EXPORT_FRAME_RESIZE, "oc_on_resize", "", "ii")       \
     X(OC_EXPORT_RAW_EVENT, "oc_on_raw_event", "", "i")        \
-    X(OC_EXPORT_TERMINATE, "oc_on_terminate", "", "")
+    X(OC_EXPORT_TERMINATE, "oc_on_terminate", "", "")         \
+    X(OC_EXPORT_ARENA_PUSH, "oc_arena_push_stub", "i", "iI")
 
 typedef enum
 {
@@ -111,13 +112,13 @@ typedef struct oc_debug_overlay
 
 typedef struct oc_runtime
 {
-	bool quit;
+    bool quit;
     oc_window window;
 
     oc_file_table fileTable;
     oc_file rootDir;
 
-    oc_runtime_env runtime;
+    oc_runtime_env env;
 
     oc_debug_overlay debugOverlay;
 
@@ -127,5 +128,6 @@ oc_runtime* oc_runtime_get();
 oc_runtime_env* oc_runtime_env_get();
 
 void* oc_runtime_ptr_to_native(oc_runtime* runtime, void* wasmPtr, u32 length);
+void* oc_wasm_arena_push(oc_runtime_env* env, i32 arenaIndex, u64 size);
 
 #endif //__RUNTIME_H_

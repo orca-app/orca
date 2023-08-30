@@ -1189,16 +1189,16 @@ void oc_win32_surface_set_hidden(oc_surface_data* surface, bool hidden)
 
 void oc_win32_surface_bring_to_front(oc_surface_data* surface)
 {
-	oc_list_remove(&surface->layer.parent->win32.layers, &surface->layer.listElt);
-	oc_list_push(&surface->layer.parent->win32.layers, &surface->layer.listElt);
-	oc_win32_update_child_layers_zorder(surface->layer.parent);
+    oc_list_remove(&surface->layer.parent->win32.layers, &surface->layer.listElt);
+    oc_list_push(&surface->layer.parent->win32.layers, &surface->layer.listElt);
+    oc_win32_update_child_layers_zorder(surface->layer.parent);
 }
 
 void oc_win32_surface_send_to_back(oc_surface_data* surface)
 {
-	oc_list_remove(&surface->layer.parent->win32.layers, &surface->layer.listElt);
-	oc_list_push_back(&surface->layer.parent->win32.layers, &surface->layer.listElt);
-	oc_win32_update_child_layers_zorder(surface->layer.parent);
+    oc_list_remove(&surface->layer.parent->win32.layers, &surface->layer.listElt);
+    oc_list_push_back(&surface->layer.parent->win32.layers, &surface->layer.listElt);
+    oc_win32_update_child_layers_zorder(surface->layer.parent);
 }
 
 void* oc_win32_surface_native_layer(oc_surface_data* surface)
@@ -1563,6 +1563,207 @@ oc_str8 oc_save_dialog(oc_arena* arena,
     }
     CoUninitialize();
     return (res);
+}
+
+#include "platform/platform_io_internal.h"
+
+oc_str16 win32_path_from_handle_null_terminated(oc_arena* arena, HANDLE handle); // defined in win32_io.c
+
+oc_file_dialog_result oc_file_dialog_for_table(oc_arena* arena, oc_file_dialog_desc* desc, oc_file_table* table)
+{
+    oc_arena_scope scratch = oc_scratch_begin_next(arena);
+    oc_file_dialog_result result = { 0 };
+
+    HRESULT hr = CoInitializeEx(NULL, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
+    if(SUCCEEDED(hr))
+    {
+        IFileDialog* dialog = 0;
+
+        if(desc->kind == OC_FILE_DIALOG_OPEN)
+        {
+            hr = CoCreateInstance(&CLSID_FileOpenDialog, NULL, CLSCTX_ALL, &IID_IFileOpenDialog, (void**)&dialog);
+            if(SUCCEEDED(hr))
+            {
+                FILEOPENDIALOGOPTIONS opt;
+                dialog->lpVtbl->GetOptions(dialog, &opt);
+
+                //NOTE: OC_FILE_DIALOG_FILES is always implied, since IFileDialog offers no way to pick _only_ folders
+                if(desc->flags & OC_FILE_DIALOG_DIRECTORIES)
+                {
+                    opt |= FOS_PICKFOLDERS;
+                }
+                else
+                {
+                    opt &= ~FOS_PICKFOLDERS;
+                }
+
+                if(desc->flags & OC_FILE_DIALOG_MULTIPLE)
+                {
+                    opt |= FOS_ALLOWMULTISELECT;
+                }
+                else
+                {
+                    opt &= ~FOS_ALLOWMULTISELECT;
+                }
+
+                dialog->lpVtbl->SetOptions(dialog, opt);
+            }
+        }
+        else
+        {
+            hr = CoCreateInstance(&CLSID_FileSaveDialog, NULL, CLSCTX_ALL, &IID_IFileSaveDialog, (void**)&dialog);
+
+            //NOTE: OC_FILE_DIALOG_CREATE_DIRECTORIES is implied, IFileSaveDialog offers no way of disabling it...
+        }
+
+        if(SUCCEEDED(hr))
+        {
+            //NOTE set title
+            if(desc->title.len)
+            {
+                oc_str16 titleWide = oc_win32_utf8_to_wide(scratch.arena, desc->title);
+                dialog->lpVtbl->SetTitle(dialog, (LPCWSTR)titleWide.ptr);
+            }
+
+            //NOTE set ok button
+            if(desc->okLabel.len)
+            {
+                oc_str16 okLabelWide = oc_win32_utf8_to_wide(scratch.arena, desc->okLabel);
+                dialog->lpVtbl->SetOkButtonLabel(dialog, (LPCWSTR)okLabelWide.ptr);
+            }
+
+            //NOTE: set starting path
+            oc_str8 startPath = { 0 };
+            {
+                oc_str8_list list = { 0 };
+                if(!oc_file_is_nil(desc->startAt))
+                {
+                    oc_file_slot* slot = oc_file_slot_from_handle(table, desc->startAt);
+                    if(slot)
+                    {
+                        oc_str16 pathWide = win32_path_from_handle_null_terminated(scratch.arena, slot->fd);
+                        oc_str8 path = oc_win32_wide_to_utf8(scratch.arena, pathWide);
+                        //NOTE: remove potential \\?\ prefix which doesn't work with SHCreateItemFromParsingName()
+                        if(!oc_str8_cmp(oc_str8_slice(path, 0, 4), OC_STR8("\\\\?\\")))
+                        {
+                            path = oc_str8_slice(path, 4, path.len);
+                        }
+                        oc_str8_list_push(scratch.arena, &list, path);
+                    }
+                }
+                if(desc->startPath.len)
+                {
+                    oc_str8_list_push(scratch.arena, &list, desc->startPath);
+                }
+                startPath = oc_path_join(scratch.arena, list);
+            }
+
+            if(startPath.len)
+            {
+                oc_str16 pathWide = oc_win32_utf8_to_wide(scratch.arena, startPath);
+
+                IShellItem* item = 0;
+                hr = SHCreateItemFromParsingName((LPCWSTR)pathWide.ptr, NULL, &IID_IShellItem, (void**)&item);
+                if(SUCCEEDED(hr))
+                {
+                    hr = dialog->lpVtbl->SetFolder(dialog, item);
+                    item->lpVtbl->Release(item);
+                }
+            }
+
+            //NOTE: set filters
+            if(desc->filters.eltCount)
+            {
+                COMDLG_FILTERSPEC* filterSpecs = oc_arena_push_array(scratch.arena, COMDLG_FILTERSPEC, desc->filters.eltCount);
+
+                int i = 0;
+                oc_list_for(&desc->filters.list, elt, oc_str8_elt, listElt)
+                {
+                    oc_str8_list list = { 0 };
+                    oc_str8_list_push(scratch.arena, &list, OC_STR8("*."));
+                    oc_str8_list_push(scratch.arena, &list, elt->string);
+                    oc_str8 filter = oc_str8_list_join(scratch.arena, list);
+
+                    int filterWideSize = 1 + MultiByteToWideChar(CP_UTF8, 0, filter.ptr, filter.len, NULL, 0);
+                    filterSpecs[i].pszSpec = oc_arena_push_array(scratch.arena, wchar_t, filterWideSize);
+                    MultiByteToWideChar(CP_UTF8, 0, filter.ptr, filter.len, (LPWSTR)filterSpecs[i].pszSpec, filterWideSize);
+                    ((LPWSTR)(filterSpecs[i].pszSpec))[filterWideSize - 1] = 0;
+
+                    filterSpecs[i].pszName = filterSpecs[i].pszSpec;
+                    i++;
+                }
+
+                hr = dialog->lpVtbl->SetFileTypes(dialog, i, filterSpecs);
+            }
+
+            hr = dialog->lpVtbl->Show(dialog, NULL);
+
+            if(SUCCEEDED(hr))
+            {
+                if(desc->kind == OC_FILE_DIALOG_OPEN && (desc->flags & OC_FILE_DIALOG_MULTIPLE))
+                {
+                    IShellItemArray* array = 0;
+                    hr = ((IFileOpenDialog*)dialog)->lpVtbl->GetResults((IFileOpenDialog*)dialog, &array);
+                    if(SUCCEEDED(hr))
+                    {
+                        int count = 0;
+                        array->lpVtbl->GetCount(array, &count);
+                        for(int i = 0; i < count; i++)
+                        {
+                            IShellItem* item = 0;
+                            hr = array->lpVtbl->GetItemAt(array, i, &item);
+                            if(SUCCEEDED(hr))
+                            {
+                                PWSTR pathWCStr = 0;
+                                hr = item->lpVtbl->GetDisplayName(item, SIGDN_FILESYSPATH, &pathWCStr);
+                                if(SUCCEEDED(hr))
+                                {
+                                    oc_str16 pathWide = oc_str16_from_buffer(lstrlenW(pathWCStr), pathWCStr);
+                                    oc_str8 path = oc_win32_wide_to_utf8(arena, pathWide);
+                                    oc_str8_list_push(arena, &result.selection, path);
+
+                                    if(i == 0)
+                                    {
+                                        result.path = path;
+                                    }
+
+                                    CoTaskMemFree(pathWCStr);
+                                }
+                                item->lpVtbl->Release(item);
+                            }
+                        }
+                        result.button = OC_FILE_DIALOG_OK;
+                    }
+                }
+                else
+                {
+                    IShellItem* item;
+                    hr = dialog->lpVtbl->GetResult(dialog, &item);
+                    if(SUCCEEDED(hr))
+                    {
+                        PWSTR pathWCStr;
+                        hr = item->lpVtbl->GetDisplayName(item, SIGDN_FILESYSPATH, &pathWCStr);
+
+                        if(SUCCEEDED(hr))
+                        {
+                            oc_str16 pathWide = oc_str16_from_buffer(lstrlenW(pathWCStr), pathWCStr);
+                            result.path = oc_win32_wide_to_utf8(arena, pathWide);
+                            oc_str8_list_push(arena, &result.selection, result.path);
+
+                            CoTaskMemFree(pathWCStr);
+                        }
+                        item->lpVtbl->Release(item);
+                        result.button = OC_FILE_DIALOG_OK;
+                    }
+                }
+            }
+        }
+        dialog->lpVtbl->Release(dialog);
+    }
+    CoUninitialize();
+
+    oc_scratch_end(scratch);
+    return (result);
 }
 
 #include <commctrl.h>

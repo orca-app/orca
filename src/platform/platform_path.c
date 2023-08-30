@@ -54,7 +54,7 @@ oc_str8_list oc_path_split(oc_arena* arena, oc_str8 path)
 oc_str8 oc_path_join(oc_arena* arena, oc_str8_list elements)
 {
     //TODO: check if elements have ending/begining '/' ?
-    oc_str8 res = oc_str8_list_collate(arena, elements, OC_STR8("/"), OC_STR8("/"), (oc_str8){ 0 });
+    oc_str8 res = oc_str8_list_collate(arena, elements, OC_STR8(""), OC_STR8("/"), (oc_str8){ 0 });
     return (res);
 }
 

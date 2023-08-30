@@ -389,6 +389,60 @@ ORCA_API oc_str8 oc_save_dialog(oc_arena* arena,
                                 oc_str8 defaultPath,
                                 oc_str8_list filters);
 
+#endif // !defined(OC_PLATFORM_ORCA) || !(OC_PLATFORM_ORCA)
+
+#include "platform/platform_io.h"
+
+typedef enum
+{
+    OC_FILE_DIALOG_SAVE,
+    OC_FILE_DIALOG_OPEN,
+} oc_file_dialog_kind;
+
+typedef u32 oc_file_dialog_flags;
+
+enum _oc_file_dialog_flags
+{
+    OC_FILE_DIALOG_FILES = 1,
+    OC_FILE_DIALOG_DIRECTORIES = 1 << 1,
+    OC_FILE_DIALOG_MULTIPLE = 1 << 2,
+    OC_FILE_DIALOG_CREATE_DIRECTORIES = 1 << 3,
+};
+
+typedef struct oc_file_dialog_desc
+{
+    oc_file_dialog_kind kind;
+    oc_file_dialog_flags flags;
+    oc_str8 title;
+    oc_str8 okLabel;
+    oc_file startAt;
+    oc_str8 startPath;
+    oc_str8_list filters;
+
+    //... later customization options with checkboxes / radiobuttons
+} oc_file_dialog_desc;
+
+typedef enum
+{
+    OC_FILE_DIALOG_CANCEL = 0,
+    OC_FILE_DIALOG_OK,
+} oc_file_dialog_button;
+
+typedef struct oc_file_dialog_result
+{
+    oc_file_dialog_button button;
+    oc_str8 path;
+    oc_str8_list selection;
+
+} oc_file_dialog_result;
+
+#if !defined(OC_PLATFORM_ORCA) || !(OC_PLATFORM_ORCA)
+
+ORCA_API oc_file_dialog_result oc_file_dialog(oc_arena* arena, oc_file_dialog_desc* desc);
+
+typedef struct oc_file_table oc_file_table;
+ORCA_API oc_file_dialog_result oc_file_dialog_for_table(oc_arena* arena, oc_file_dialog_desc* desc, oc_file_table* table);
+
 ORCA_API int oc_alert_popup(oc_str8 title,
                             oc_str8 message,
                             oc_str8_list options);
@@ -404,9 +458,7 @@ ORCA_API int oc_directory_create(oc_str8 path);
 #else
 
 void ORCA_IMPORT(oc_request_quit)(void);
-
 void ORCA_IMPORT(oc_runtime_window_set_title)(oc_str8 title);
-
 void ORCA_IMPORT(oc_runtime_window_set_size)(oc_vec2 size);
 
 #endif // !defined(OC_PLATFORM_ORCA) || !(OC_PLATFORM_ORCA)

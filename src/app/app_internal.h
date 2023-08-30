@@ -12,6 +12,7 @@
 #include "app.h"
 
 #include "platform/platform.h"
+#include "platform/platform_io_internal.h"
 #include "util/ringbuffer.h"
 
 #if OC_PLATFORM_WINDOWS

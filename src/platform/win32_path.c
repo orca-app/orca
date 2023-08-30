@@ -13,7 +13,7 @@
 bool oc_path_is_absolute(oc_str8 path)
 {
     oc_arena_scope scratch = oc_scratch_begin();
-    oc_str16 pathW = oc_win32_utf8_to_wide_null_terminated(scratch.arena, path);
+    oc_str16 pathW = oc_win32_utf8_to_wide(scratch.arena, path);
     bool result = !PathIsRelativeW(pathW.ptr);
 
     oc_scratch_end(scratch);

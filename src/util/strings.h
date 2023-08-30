@@ -17,11 +17,10 @@
 #include <string.h>
 
 #ifdef __cplusplus
-extern "C"
-{
+extern "C" {
 #endif
 
-    /*NOTE:
+/*NOTE:
 	By convention, functions that take an arena and return a string slice allocated on
 	this arena, always allocate one more element and null-terminate the string. This is
 	done so we can pass those strings directly to C APIs that requires C strings without
@@ -31,14 +30,14 @@ extern "C"
 	into the original string. Only the _list nodes_ are allocated on the arena.
 */
 
-    //----------------------------------------------------------------------------------
-    // u8 strings
-    //----------------------------------------------------------------------------------
-    typedef struct oc_str8
-    {
-        u64 len;
-        char* ptr;
-    } oc_str8;
+//----------------------------------------------------------------------------------
+// u8 strings
+//----------------------------------------------------------------------------------
+typedef struct oc_str8
+{
+    u64 len;
+    char* ptr;
+} oc_str8;
 
 #define OC_STR8(s) ((oc_str8){ .len = (s) ? strlen(s) : 0, .ptr = (char*)s })
 
@@ -51,109 +50,109 @@ extern "C"
 #define oc_str8_lp(s) ((s).len), ((s).ptr)
 #define oc_str8_ip(s) (int)oc_str8_lp(s)
 
-    ORCA_API oc_str8 oc_str8_from_buffer(u64 len, char* buffer);
-    ORCA_API oc_str8 oc_str8_slice(oc_str8 s, u64 start, u64 end);
+ORCA_API oc_str8 oc_str8_from_buffer(u64 len, char* buffer);
+ORCA_API oc_str8 oc_str8_slice(oc_str8 s, u64 start, u64 end);
 
-    ORCA_API oc_str8 oc_str8_push_buffer(oc_arena* arena, u64 len, char* buffer);
-    ORCA_API oc_str8 oc_str8_push_cstring(oc_arena* arena, const char* str);
-    ORCA_API oc_str8 oc_str8_push_copy(oc_arena* arena, oc_str8 s);
-    ORCA_API oc_str8 oc_str8_push_slice(oc_arena* arena, oc_str8 s, u64 start, u64 end);
+ORCA_API oc_str8 oc_str8_push_buffer(oc_arena* arena, u64 len, char* buffer);
+ORCA_API oc_str8 oc_str8_push_cstring(oc_arena* arena, const char* str);
+ORCA_API oc_str8 oc_str8_push_copy(oc_arena* arena, oc_str8 s);
+ORCA_API oc_str8 oc_str8_push_slice(oc_arena* arena, oc_str8 s, u64 start, u64 end);
 
-    ORCA_API oc_str8 oc_str8_pushfv(oc_arena* arena, const char* format, va_list args);
-    ORCA_API oc_str8 oc_str8_pushf(oc_arena* arena, const char* format, ...);
+ORCA_API oc_str8 oc_str8_pushfv(oc_arena* arena, const char* format, va_list args);
+ORCA_API oc_str8 oc_str8_pushf(oc_arena* arena, const char* format, ...);
 
-    ORCA_API int oc_str8_cmp(oc_str8 s1, oc_str8 s2);
+ORCA_API int oc_str8_cmp(oc_str8 s1, oc_str8 s2);
 
-    ORCA_API char* oc_str8_to_cstring(oc_arena* arena, oc_str8 string);
+ORCA_API char* oc_str8_to_cstring(oc_arena* arena, oc_str8 string);
 
-    //----------------------------------------------------------------------------------
-    // string lists
-    //----------------------------------------------------------------------------------
-    typedef struct oc_str8_elt
-    {
-        oc_list_elt listElt;
-        oc_str8 string;
-    } oc_str8_elt;
+//----------------------------------------------------------------------------------
+// string lists
+//----------------------------------------------------------------------------------
+typedef struct oc_str8_elt
+{
+    oc_list_elt listElt;
+    oc_str8 string;
+} oc_str8_elt;
 
-    typedef struct oc_str8_list
-    {
-        oc_list list;
-        u64 eltCount;
-        u64 len;
-    } oc_str8_list;
+typedef struct oc_str8_list
+{
+    oc_list list;
+    u64 eltCount;
+    u64 len;
+} oc_str8_list;
 
-    ORCA_API void oc_str8_list_push(oc_arena* arena, oc_str8_list* list, oc_str8 str);
-    ORCA_API void oc_str8_list_pushf(oc_arena* arena, oc_str8_list* list, const char* format, ...);
+ORCA_API void oc_str8_list_push(oc_arena* arena, oc_str8_list* list, oc_str8 str);
+ORCA_API void oc_str8_list_pushf(oc_arena* arena, oc_str8_list* list, const char* format, ...);
 
-    ORCA_API oc_str8 oc_str8_list_collate(oc_arena* arena, oc_str8_list list, oc_str8 prefix, oc_str8 separator, oc_str8 postfix);
-    ORCA_API oc_str8 oc_str8_list_join(oc_arena* arena, oc_str8_list list);
-    ORCA_API oc_str8_list oc_str8_split(oc_arena* arena, oc_str8 str, oc_str8_list separators);
+ORCA_API oc_str8 oc_str8_list_collate(oc_arena* arena, oc_str8_list list, oc_str8 prefix, oc_str8 separator, oc_str8 postfix);
+ORCA_API oc_str8 oc_str8_list_join(oc_arena* arena, oc_str8_list list);
+ORCA_API oc_str8_list oc_str8_split(oc_arena* arena, oc_str8 str, oc_str8_list separators);
 
-    //----------------------------------------------------------------------------------
-    // u16 strings
-    //----------------------------------------------------------------------------------
-    typedef struct oc_str16
-    {
-        u64 len;
-        u16* ptr;
-    } oc_str16;
+//----------------------------------------------------------------------------------
+// u16 strings
+//----------------------------------------------------------------------------------
+typedef struct oc_str16
+{
+    u64 len;
+    u16* ptr;
+} oc_str16;
 
-    ORCA_API oc_str16 oc_str16_from_buffer(u64 len, u16* buffer);
-    ORCA_API oc_str16 oc_str16_slice(oc_str16 s, u64 start, u64 end);
+ORCA_API oc_str16 oc_str16_from_buffer(u64 len, u16* buffer);
+ORCA_API oc_str16 oc_str16_slice(oc_str16 s, u64 start, u64 end);
 
-    ORCA_API oc_str16 oc_str16_push_buffer(oc_arena* arena, u64 len, u16* buffer);
-    ORCA_API oc_str16 oc_str16_push_copy(oc_arena* arena, oc_str16 s);
-    ORCA_API oc_str16 oc_str16_push_slice(oc_arena* arena, oc_str16 s, u64 start, u64 end);
+ORCA_API oc_str16 oc_str16_push_buffer(oc_arena* arena, u64 len, u16* buffer);
+ORCA_API oc_str16 oc_str16_push_copy(oc_arena* arena, oc_str16 s);
+ORCA_API oc_str16 oc_str16_push_slice(oc_arena* arena, oc_str16 s, u64 start, u64 end);
 
-    typedef struct oc_str16_elt
-    {
-        oc_list_elt listElt;
-        oc_str16 string;
-    } oc_str16_elt;
+typedef struct oc_str16_elt
+{
+    oc_list_elt listElt;
+    oc_str16 string;
+} oc_str16_elt;
 
-    typedef struct oc_str16_list
-    {
-        oc_list list;
-        u64 eltCount;
-        u64 len;
-    } oc_str16_list;
+typedef struct oc_str16_list
+{
+    oc_list list;
+    u64 eltCount;
+    u64 len;
+} oc_str16_list;
 
-    ORCA_API void oc_str16_list_push(oc_arena* arena, oc_str16_list* list, oc_str16 str);
-    ORCA_API oc_str16 oc_str16_list_join(oc_arena* arena, oc_str16_list list);
-    ORCA_API oc_str16_list oc_str16_split(oc_arena* arena, oc_str16 str, oc_str16_list separators);
+ORCA_API void oc_str16_list_push(oc_arena* arena, oc_str16_list* list, oc_str16 str);
+ORCA_API oc_str16 oc_str16_list_join(oc_arena* arena, oc_str16_list list);
+ORCA_API oc_str16_list oc_str16_split(oc_arena* arena, oc_str16 str, oc_str16_list separators);
 
-    //----------------------------------------------------------------------------------
-    // u32 strings
-    //----------------------------------------------------------------------------------
-    typedef struct oc_str32
-    {
-        u64 len;
-        u32* ptr;
-    } oc_str32;
+//----------------------------------------------------------------------------------
+// u32 strings
+//----------------------------------------------------------------------------------
+typedef struct oc_str32
+{
+    u64 len;
+    u32* ptr;
+} oc_str32;
 
-    ORCA_API oc_str32 oc_str32_from_buffer(u64 len, u32* buffer);
-    ORCA_API oc_str32 oc_str32_slice(oc_str32 s, u64 start, u64 end);
+ORCA_API oc_str32 oc_str32_from_buffer(u64 len, u32* buffer);
+ORCA_API oc_str32 oc_str32_slice(oc_str32 s, u64 start, u64 end);
 
-    ORCA_API oc_str32 oc_str32_push_buffer(oc_arena* arena, u64 len, u32* buffer);
-    ORCA_API oc_str32 oc_str32_push_copy(oc_arena* arena, oc_str32 s);
-    ORCA_API oc_str32 oc_str32_push_slice(oc_arena* arena, oc_str32 s, u64 start, u64 end);
+ORCA_API oc_str32 oc_str32_push_buffer(oc_arena* arena, u64 len, u32* buffer);
+ORCA_API oc_str32 oc_str32_push_copy(oc_arena* arena, oc_str32 s);
+ORCA_API oc_str32 oc_str32_push_slice(oc_arena* arena, oc_str32 s, u64 start, u64 end);
 
-    typedef struct oc_str32_elt
-    {
-        oc_list_elt listElt;
-        oc_str32 string;
-    } oc_str32_elt;
+typedef struct oc_str32_elt
+{
+    oc_list_elt listElt;
+    oc_str32 string;
+} oc_str32_elt;
 
-    typedef struct oc_str32_list
-    {
-        oc_list list;
-        u64 eltCount;
-        u64 len;
-    } oc_str32_list;
+typedef struct oc_str32_list
+{
+    oc_list list;
+    u64 eltCount;
+    u64 len;
+} oc_str32_list;
 
-    ORCA_API void oc_str32_list_push(oc_arena* arena, oc_str32_list* list, oc_str32 str);
-    ORCA_API oc_str32 oc_str32_list_join(oc_arena* arena, oc_str32_list list);
-    ORCA_API oc_str32_list oc_str32_split(oc_arena* arena, oc_str32 str, oc_str32_list separators);
+ORCA_API void oc_str32_list_push(oc_arena* arena, oc_str32_list* list, oc_str32 str);
+ORCA_API oc_str32 oc_str32_list_join(oc_arena* arena, oc_str32_list list);
+ORCA_API oc_str32_list oc_str32_split(oc_arena* arena, oc_str32 str, oc_str32_list separators);
 
 #ifdef __cplusplus
 } // extern "C"

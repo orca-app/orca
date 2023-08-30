@@ -10,6 +10,7 @@
 
 #include "platform.h"
 #include "platform_io.h"
+#include "platform_io_dialog.h"
 
 #if OC_PLATFORM_MACOS || PLATFORM_LINUX
 typedef int oc_file_desc;
@@ -46,12 +47,22 @@ typedef struct oc_file_table
     oc_list freeList;
 } oc_file_table;
 
+ORCA_API oc_file_table* oc_file_table_get_global();
+
 oc_file_slot* oc_file_slot_alloc(oc_file_table* table);
 void oc_file_slot_recycle(oc_file_table* table, oc_file_slot* slot);
 oc_file oc_file_from_slot(oc_file_table* table, oc_file_slot* slot);
 oc_file_slot* oc_file_slot_from_handle(oc_file_table* table, oc_file handle);
 
-ORCA_API oc_io_cmp oc_io_wait_single_req_with_table(oc_io_req* req, oc_file_table* table);
+ORCA_API oc_io_cmp oc_io_wait_single_req_for_table(oc_io_req* req, oc_file_table* table);
+
+ORCA_API oc_file oc_file_open_with_request_for_table(oc_str8 path, oc_file_access rights, oc_file_open_flags flags, oc_file_table* table);
+
+ORCA_API oc_file_open_with_dialog_result oc_file_open_with_dialog_for_table(oc_arena* arena,
+                                                                            oc_file_access rights,
+                                                                            oc_file_open_flags flags,
+                                                                            oc_file_dialog_desc* desc,
+                                                                            oc_file_table* table);
 
 //-----------------------------------------------------------------------
 // raw io primitives
