@@ -10,43 +10,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-#define _USE_MATH_DEFINES //NOTE: necessary for MSVC
 #include <math.h>
 
 #include "orca.h"
-
-oc_font create_font()
-{
-    //NOTE(martin): create font
-    oc_str8 fontPath = oc_path_executable_relative(oc_scratch(), OC_STR8("../../resources/OpenSansLatinSubset.ttf"));
-    char* fontPathCString = oc_str8_to_cstring(oc_scratch(), fontPath);
-
-    FILE* fontFile = fopen(fontPathCString, "r");
-    if(!fontFile)
-    {
-        oc_log_error("Could not load font file '%s': %s\n", fontPathCString, strerror(errno));
-        return (oc_font_nil());
-    }
-    unsigned char* fontData = 0;
-    fseek(fontFile, 0, SEEK_END);
-    u32 fontDataSize = ftell(fontFile);
-    rewind(fontFile);
-    fontData = (unsigned char*)malloc(fontDataSize);
-    fread(fontData, 1, fontDataSize, fontFile);
-    fclose(fontFile);
-
-    oc_unicode_range ranges[5] = { OC_UNICODE_BASIC_LATIN,
-                                   OC_UNICODE_C1_CONTROLS_AND_LATIN_1_SUPPLEMENT,
-                                   OC_UNICODE_LATIN_EXTENDED_A,
-                                   OC_UNICODE_LATIN_EXTENDED_B,
-                                   OC_UNICODE_SPECIALS };
-
-    oc_font font = oc_font_create_from_memory(oc_str8_from_buffer(fontDataSize, (char*)fontData), 5, ranges);
-    free(fontData);
-
-    return (font);
-}
 
 int main()
 {
@@ -59,31 +25,29 @@ int main()
 
     //NOTE: create surface
     oc_surface surface = oc_surface_create_for_window(window, OC_CANVAS);
+    oc_surface_swap_interval(surface, 1);
+
     if(oc_surface_is_nil(surface))
     {
         oc_log_error("Error: couldn't create surface\n");
         return (-1);
     }
-    oc_surface_swap_interval(surface, 0);
 
+    //TODO: create canvas
     oc_canvas canvas = oc_canvas_create();
 
     if(oc_canvas_is_nil(canvas))
     {
-        printf("Error: couldn't create canvas\n");
+        oc_log_error("Error: couldn't create canvas\n");
         return (-1);
     }
-
-    oc_font font = create_font();
 
     // start app
     oc_window_bring_to_front(window);
     oc_window_focus(window);
 
-    f32 x = 400, y = 300;
-    f32 speed = 0;
-    f32 dx = speed, dy = speed;
     f64 frameTime = 0;
+    f32 x = 0, y = 0;
 
     while(!oc_should_quit())
     {
@@ -103,25 +67,23 @@ int main()
 
                 case OC_EVENT_KEYBOARD_KEY:
                 {
-                    if(event->key.action == OC_KEY_PRESS || event->key.action == OC_KEY_REPEAT)
+                    if(event->key.action == OC_KEY_PRESS)
                     {
-                        f32 factor = (event->key.mods & OC_KEYMOD_SHIFT) ? 10 : 1;
-
                         if(event->key.code == OC_KEY_LEFT)
                         {
-                            x -= 0.3 * factor;
+                            x -= 1;
                         }
-                        else if(event->key.code == OC_KEY_RIGHT)
+                        if(event->key.code == OC_KEY_RIGHT)
                         {
-                            x += 0.3 * factor;
+                            x += 1;
                         }
-                        else if(event->key.code == OC_KEY_UP)
+                        if(event->key.code == OC_KEY_UP)
                         {
-                            y -= 0.3 * factor;
+                            y -= 1;
                         }
-                        else if(event->key.code == OC_KEY_DOWN)
+                        if(event->key.code == OC_KEY_DOWN)
                         {
-                            y += 0.3 * factor;
+                            y += 1;
                         }
                     }
                 }
@@ -132,72 +94,92 @@ int main()
             }
         }
 
-        if(x - 200 < 0)
-        {
-            x = 200;
-            dx = speed;
-        }
-        if(x + 200 > contentRect.w)
-        {
-            x = contentRect.w - 200;
-            dx = -speed;
-        }
-        if(y - 200 < 0)
-        {
-            y = 200;
-            dy = speed;
-        }
-        if(y + 200 > contentRect.h)
-        {
-            y = contentRect.h - 200;
-            dy = -speed;
-        }
-        x += dx;
-        y += dy;
+        oc_surface_select(surface);
 
         // background
         oc_set_color_rgba(0, 1, 1, 1);
         oc_clear();
 
-        oc_set_color_rgba(1, 0, 1, 1);
-        oc_rectangle_fill(0, 0, 100, 100);
-
-        // head
-        oc_set_color_rgba(1, 1, 0, 1);
-
-        oc_circle_fill(x, y, 200);
-
-        // smile
-        f32 frown = frameTime > 0.033 ? -100 : 0;
-
-        oc_set_color_rgba(0, 0, 0, 1);
-        oc_set_width(20);
-        oc_move_to(x - 100, y + 100);
-        oc_cubic_to(x - 50, y + 150 + frown, x + 50, y + 150 + frown, x + 100, y + 100);
-        oc_stroke();
-
-        // eyes
-        oc_ellipse_fill(x - 70, y - 50, 30, 50);
-        oc_ellipse_fill(x + 70, y - 50, 30, 50);
-
-        // text
-        oc_set_color_rgba(0, 0, 1, 1);
-        oc_set_font(font);
-        oc_set_font_size(12);
-        oc_move_to(50, 600 - 50);
-
-        oc_str8 text = oc_str8_pushf(oc_scratch(),
-                                     "Orca vector graphics test program (frame time = %fs, fps = %f)...",
-                                     frameTime,
-                                     1. / frameTime);
-        oc_text_outlines(text);
+        oc_move_to(100, 100);
+        oc_line_to(150, 150);
+        oc_line_to(100, 200);
+        oc_line_to(50, 150);
+        oc_close_path();
+        oc_set_color_rgba(1, 0, 0, 1);
         oc_fill();
+
+        oc_move_to(200, 100);
+        oc_line_to(410, 100);
+        oc_line_to(410, 200);
+        oc_line_to(200, 200);
+        oc_close_path();
+        oc_set_color_rgba(0, 1, 0, 1);
+        oc_fill();
+
+        oc_set_color_rgba(0, 0.5, 1, 0.5);
+        oc_rectangle_fill(120, 120, 200, 200);
+
+        oc_set_color_rgba(1, 0, 0.5, 1);
+        oc_rectangle_fill(700, 500, 200, 200);
+
+        oc_move_to(300, 300);
+        oc_quadratic_to(400, 500, 500, 300);
+        oc_close_path();
+        oc_set_color_rgba(0, 0, 1, 1);
+        oc_fill();
+
+        oc_move_to(200, 450);
+        oc_cubic_to(200, 250, 400, 550, 400, 450);
+        oc_close_path();
+        oc_set_color_rgba(1, 0.5, 0, 1);
+        oc_fill();
+
+        /*
+			oc_set_joint(OC_JOINT_NONE);
+			oc_set_max_joint_excursion(20);
+
+			oc_set_cap(OC_CAP_SQUARE);
+
+			oc_move_to(x+200, y+200);
+			oc_line_to(x+300, y+300);
+			oc_line_to(x+200, y+400);
+			oc_line_to(x+100, y+300);
+			oc_close_path();
+			oc_set_color_rgba(1, 0, 0, 1);
+		//	oc_set_width(2);
+			oc_stroke();
+
+			oc_move_to(400, 400);
+			oc_quadratic_to(600, 601, 800, 400);
+			oc_set_color_rgba(0, 0, 1, 1);
+			oc_stroke();
+
+			oc_move_to(x+400, y+300);
+			oc_cubic_to(x+400, y+100, x+600, y+400, x+600, y+300);
+			oc_close_path();
+			oc_set_color_rgba(0, 0, 1, 1);
+			oc_stroke();
+
+			oc_set_color_rgba(1, 0, 0, 1);
+			oc_rounded_rectangle_fill(100, 100, 200, 300, 20);
+
+			oc_move_to(x+8, y+8);
+			oc_line_to(x+33, y+8);
+			oc_line_to(x+33, y+19);
+			oc_line_to(x+8, y+19);
+			oc_close_path();
+			oc_set_color_rgba(0, 0, 1, 1);
+			oc_fill();
+*/
+
+        oc_set_width(1);
+        oc_set_color_rgba(1, 0, 0, 1);
+        oc_rounded_rectangle_stroke(400, 400, 160, 160, 80);
 
         oc_log_info("Orca vector graphics test program (frame time = %fs, fps = %f)...\n",
                     frameTime,
                     1. / frameTime);
 
-        oc_surface_select(surface);
         oc_render(surface, canvas);
         oc_surface_present(surface);
 
@@ -205,7 +187,6 @@ int main()
         frameTime = oc_clock_time(OC_CLOCK_MONOTONIC) - startTime;
     }
 
-    oc_font_destroy(font);
     oc_canvas_destroy(canvas);
     oc_surface_destroy(surface);
     oc_window_destroy(window);

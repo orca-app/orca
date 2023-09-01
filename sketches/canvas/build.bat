@@ -1,3 +1,4 @@
+
 set INCLUDES=/I ..\..\src /I ..\..\src\util /I ..\..\src\platform /I ../../ext /I ../../ext/angle_headers
 
 if not exist "bin" mkdir bin

@@ -455,6 +455,11 @@ static void oc_cubic_split(oc_vec2 p[4], f32 t, oc_vec2 outLeft[4], oc_vec2 outR
 
 void oc_mtl_render_stroke_line(oc_mtl_canvas_backend* backend, oc_vec2* p)
 {
+    if(p[0].x == p[1].x && p[0].y == p[1].y)
+    {
+        return;
+    }
+
     f32 width = backend->primitive->attributes.width;
 
     oc_vec2 v = { p[1].x - p[0].x, p[1].y - p[0].y };

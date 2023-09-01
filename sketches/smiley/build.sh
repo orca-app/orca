@@ -10,9 +10,9 @@ LIBS="-L$LIBDIR -lorca"
 FLAGS="-mmacos-version-min=10.15.4 -DOC_DEBUG -DLOG_COMPILE_DEBUG"
 
 mkdir -p $BINDIR
-clang -g $FLAGS $LIBS $INCLUDES -o $BINDIR/example_polygon main.c
+clang -g $FLAGS $LIBS $INCLUDES -o $BINDIR/example_smiley main.c
 
 cp $LIBDIR/liborca.dylib $BINDIR/
 cp $LIBDIR/mtl_renderer.metallib $BINDIR/
 
-install_name_tool -add_rpath "@executable_path" $BINDIR/example_polygon
+install_name_tool -add_rpath "@executable_path" $BINDIR/example_smiley
