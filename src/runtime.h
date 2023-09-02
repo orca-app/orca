@@ -54,18 +54,18 @@ const oc_export_desc OC_EXPORT_DESC[] = {
 #undef OC_STR8_LIT
 };
 
-typedef struct wasm_memory
+typedef struct oc_wasm_memory
 {
     char* ptr;
     u64 reserved;
     u64 committed;
 
-} wasm_memory;
+} oc_wasm_memory;
 
-typedef struct oc_runtime_env
+typedef struct oc_wasm_env
 {
     oc_str8 wasmBytecode;
-    wasm_memory wasmMemory;
+    oc_wasm_memory wasmMemory;
 
     // wasm3 data
     IM3Environment m3Env;
@@ -74,7 +74,7 @@ typedef struct oc_runtime_env
     IM3Function exports[OC_EXPORT_COUNT];
     u32 rawEventOffset;
 
-} oc_runtime_env;
+} oc_wasm_env;
 
 typedef struct log_entry
 {
@@ -114,20 +114,20 @@ typedef struct oc_runtime
 {
     bool quit;
     oc_window window;
+    oc_debug_overlay debugOverlay;
 
     oc_file_table fileTable;
     oc_file rootDir;
 
-    oc_runtime_env env;
-
-    oc_debug_overlay debugOverlay;
+    oc_wasm_env env;
 
 } oc_runtime;
 
-oc_runtime* oc_runtime_get();
-oc_runtime_env* oc_runtime_env_get();
+oc_runtime* oc_runtime_get(void);
+oc_wasm_env* oc_runtime_get_env(void);
+oc_str8 oc_runtime_get_wasm_memory(void);
 
-void* oc_runtime_ptr_to_native(oc_runtime* runtime, void* wasmPtr, u32 length);
-void* oc_wasm_arena_push(oc_runtime_env* env, i32 arenaIndex, u64 size);
+void orca_wasm3_abort(IM3Runtime runtime, M3Result res, const char* file, const char* function, int line, const char* msg);
+#define ORCA_WASM3_ABORT(runtime, err, msg) orca_wasm3_abort(runtime, err, __FILE__, __FUNCTION__, __LINE__, msg)
 
 #endif //__RUNTIME_H_

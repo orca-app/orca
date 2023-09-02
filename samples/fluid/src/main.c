@@ -615,7 +615,7 @@ ORCA_EXPORT void oc_on_init()
 {
     oc_log_info("Hello, world (from C)");
 
-    oc_runtime_window_set_title(OC_STR8("fluid"));
+    oc_window_set_title(OC_STR8("fluid"));
 
     surface = oc_surface_gles();
     oc_surface_select(surface);

@@ -56,9 +56,18 @@ oc_runtime* oc_runtime_get()
     return (&__orcaApp);
 }
 
-oc_runtime_env* oc_runtime_env_get()
+oc_wasm_env* oc_runtime_get_env()
 {
     return (&__orcaApp.env);
+}
+
+oc_str8 oc_runtime_get_wasm_memory()
+{
+    oc_str8 mem = { 0 };
+    u32 size = 0;
+    mem.ptr = (char*)m3_GetMemory(__orcaApp.env.m3Runtime, &size, 0);
+    mem.len = size;
+    return (mem);
 }
 
 void orca_wasm3_abort(IM3Runtime runtime, M3Result res, const char* file, const char* function, int line, const char* msg)
@@ -75,67 +84,21 @@ void orca_wasm3_abort(IM3Runtime runtime, M3Result res, const char* file, const 
     }
 }
 
-#define ORCA_WASM3_ABORT(runtime, err, msg) orca_wasm3_abort(runtime, err, __FILE__, __FUNCTION__, __LINE__, msg)
-
-void* oc_runtime_env_ptr_to_native(oc_runtime_env* env, void* wasmPtr, u32 length)
+void oc_bridge_window_set_title(oc_wasm_str8 title)
 {
-    // We can't use the runtime's memory pointer directly because wasm3 embeds a
-    // header at the beginning of the block we give it.
-    u64 bufferIndex = (u64)wasmPtr & 0xffffffff;
-    u32 memSize = 0;
-    char* memory = (char*)m3_GetMemory(env->m3Runtime, &memSize, 0);
-
-    if(bufferIndex + length < memSize)
+    oc_str8 nativeTitle = oc_wasm_str8_to_native(title);
+    if(nativeTitle.ptr)
     {
-        char* nativePtr = memory + bufferIndex;
-        return nativePtr;
-    }
-    //TODO directly abort here?
-
-    return NULL;
-}
-
-void* oc_runtime_ptr_to_native(oc_runtime* orca, void* wasmPtr, u32 length)
-{
-    return (oc_runtime_env_ptr_to_native(&orca->env, wasmPtr, length));
-}
-
-void* oc_wasm_arena_push(oc_runtime_env* env, i32 arenaIndex, u64 size)
-{
-    void* retValues[1] = { 0 };
-    const void* retPointers[1] = { &retValues[0] };
-    const void* args[2] = { &arenaIndex, &size };
-
-    M3Result res = m3_Call(env->exports[OC_EXPORT_ARENA_PUSH], 2, args);
-    if(res)
-    {
-        ORCA_WASM3_ABORT(env->m3Runtime, res, "Runtime error");
-    }
-
-    res = m3_GetResults(env->exports[OC_EXPORT_ARENA_PUSH], 1, retPointers);
-    if(res)
-    {
-        ORCA_WASM3_ABORT(env->m3Runtime, res, "Runtime error");
-    }
-    void* ptr = oc_runtime_env_ptr_to_native(env, retValues[0], size);
-    return (ptr);
-}
-
-void oc_runtime_window_set_title(oc_str8 title)
-{
-    title.ptr = oc_runtime_ptr_to_native(oc_runtime_get(), title.ptr, title.len);
-    if(title.ptr)
-    {
-        oc_window_set_title(__orcaApp.window, title);
+        oc_window_set_title(__orcaApp.window, nativeTitle);
     }
 }
 
-void oc_runtime_window_set_size(oc_vec2 size)
+void oc_bridge_window_set_size(oc_vec2 size)
 {
     oc_window_set_content_size(__orcaApp.window, size);
 }
 
-void oc_runtime_log(oc_log_level level,
+void oc_bridge_log(oc_log_level level,
                     int fileLen,
                     char* file,
                     int functionLen,
@@ -372,9 +335,9 @@ char m3_type_to_tag(M3ValueType type)
     }
 }
 
-void oc_runtime_env_init(oc_runtime_env* runtime)
+void oc_wasm_env_init(oc_wasm_env* runtime)
 {
-    memset(runtime, 0, sizeof(oc_runtime_env));
+    memset(runtime, 0, sizeof(oc_wasm_env));
     oc_base_allocator* allocator = oc_base_allocator_default();
     runtime->wasmMemory.committed = 0;
     runtime->wasmMemory.reserved = 4ULL << 30;
@@ -392,7 +355,7 @@ i32 orca_runloop(void* user)
 {
     oc_runtime* app = &__orcaApp;
 
-    oc_runtime_env_init(&app->env);
+    oc_wasm_env_init(&app->env);
 
     //NOTE: loads wasm module
     const char* bundleNameCString = "module";
@@ -418,7 +381,7 @@ i32 orca_runloop(void* user)
 
     app->env.m3Runtime = m3_NewRuntime(app->env.m3Env, stackSize, NULL);
     //NOTE: host memory will be freed when runtime is freed.
-    m3_RuntimeSetMemoryCallbacks(app->env.m3Runtime, wasm_memory_resize_callback, wasm_memory_free_callback, &app->env.wasmMemory);
+    m3_RuntimeSetMemoryCallbacks(app->env.m3Runtime, oc_wasm_memory_resize_callback, oc_wasm_memory_free_callback, &app->env.wasmMemory);
 
     M3Result res = m3_ParseModule(app->env.m3Env, &app->env.m3Module, (u8*)app->env.wasmBytecode.ptr, app->env.wasmBytecode.len);
     if(res)
@@ -569,7 +532,7 @@ i32 orca_runloop(void* user)
             if(exports[OC_EXPORT_RAW_EVENT])
             {
 #ifndef M3_BIG_ENDIAN
-                oc_event* eventPtr = (oc_event*)wasm_memory_offset_to_ptr(&app->env.wasmMemory, app->env.rawEventOffset);
+                oc_event* eventPtr = (oc_event*)oc_wasm_address_to_ptr(app->env.rawEventOffset, sizeof(oc_event));
                 memcpy(eventPtr, event, sizeof(*event));
 
                 const void* args[1] = { &app->env.rawEventOffset };
