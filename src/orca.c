@@ -53,6 +53,7 @@
     #include "platform/platform_io_common.c"
     #include "platform/orca_io_stubs.c"
     #include "platform/orca_platform.c"
+    #include "platform/platform_path.c"
 #else
     #error "Unsupported platform"
 #endif

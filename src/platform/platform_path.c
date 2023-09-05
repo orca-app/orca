@@ -90,6 +90,8 @@ oc_str8 oc_path_append(oc_arena* arena, oc_str8 parent, oc_str8 relPath)
     return (result);
 }
 
+#if !defined(OC_PLATFORM_ORCA) || !OC_PLATFORM_ORCA
+
 oc_str8 oc_path_executable_relative(oc_arena* arena, oc_str8 relPath)
 {
     oc_str8_list list = { 0 };
@@ -103,3 +105,5 @@ oc_str8 oc_path_executable_relative(oc_arena* arena, oc_str8 relPath)
     oc_scratch_end(scratch);
     return (path);
 }
+
+#endif
