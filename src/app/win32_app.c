@@ -1206,31 +1206,6 @@ void* oc_win32_surface_native_layer(oc_surface_data* surface)
     return ((void*)surface->layer.hWnd);
 }
 
-oc_surface_id oc_win32_surface_remote_id(oc_surface_data* surface)
-{
-    return ((oc_surface_id)surface->layer.hWnd);
-}
-
-void oc_win32_surface_host_connect(oc_surface_data* surface, oc_surface_id remoteID)
-{
-    HWND dstWnd = surface->layer.hWnd;
-    HWND srcWnd = (HWND)remoteID;
-
-    RECT dstRect;
-    GetClientRect(dstWnd, &dstRect);
-
-    SetParent(srcWnd, dstWnd);
-    ShowWindow(srcWnd, SW_NORMAL);
-
-    SetWindowPos(srcWnd,
-                 HWND_TOP,
-                 0,
-                 0,
-                 dstRect.right - dstRect.left,
-                 dstRect.bottom - dstRect.top,
-                 SWP_NOACTIVATE | SWP_NOZORDER);
-}
-
 void oc_surface_cleanup(oc_surface_data* surface)
 {
     oc_list_remove(&surface->layer.parent->win32.layers, &surface->layer.listElt);
@@ -1305,68 +1280,6 @@ void oc_surface_init_for_window(oc_surface_data* surface, oc_window_data* window
 
     surface->layer.parent = window;
     oc_list_append(&window->win32.layers, &surface->layer.listElt);
-}
-
-void oc_surface_init_remote(oc_surface_data* surface, u32 width, u32 height)
-{
-    surface->contentsScaling = oc_win32_surface_contents_scaling;
-    surface->getSize = oc_win32_surface_get_size;
-    surface->getHidden = oc_win32_surface_get_hidden;
-    surface->setHidden = oc_win32_surface_set_hidden;
-    surface->nativeLayer = oc_win32_surface_native_layer;
-    surface->remoteID = oc_win32_surface_remote_id;
-
-    WNDCLASS layerWindowClass = { .style = CS_HREDRAW | CS_VREDRAW | CS_OWNDC,
-                                  .lpfnWndProc = DefWindowProc,
-                                  .hInstance = GetModuleHandleW(NULL),
-                                  .lpszClassName = "server_layer_window_class",
-                                  .hCursor = LoadCursor(0, IDC_ARROW) };
-
-    RegisterClass(&layerWindowClass);
-
-    //NOTE(martin): create a temporary parent window. This seems like a necessary hack, because if layer window is created as
-    //              a normal window first, and then parented to the client window, it breaks resizing the parent
-    //              window for some reason...
-    HWND tmpParent = CreateWindow("server_layer_window_class", "layerParent",
-                                  WS_OVERLAPPED,
-                                  0, 0, width, height,
-                                  0,
-                                  0,
-                                  layerWindowClass.hInstance,
-                                  0);
-
-    //NOTE: create the layer window
-    surface->layer.hWnd = CreateWindowEx(WS_EX_NOACTIVATE,
-                                         "server_layer_window_class", "layer",
-                                         WS_CHILD,
-                                         0, 0, width, height,
-                                         tmpParent,
-                                         0,
-                                         layerWindowClass.hInstance,
-                                         0);
-
-    //NOTE: unparent it and destroy tmp parent
-    SetParent(surface->layer.hWnd, 0);
-    DestroyWindow(tmpParent);
-}
-
-oc_surface_data* oc_win32_surface_create_host(oc_window window)
-{
-    oc_surface_data* surface = 0;
-    oc_window_data* windowData = oc_window_ptr_from_handle(window);
-    if(windowData)
-    {
-        surface = oc_malloc_type(oc_surface_data);
-        if(surface)
-        {
-            memset(surface, 0, sizeof(oc_surface_data));
-            oc_surface_init_for_window(surface, windowData);
-
-            surface->api = OC_HOST;
-            surface->hostConnect = oc_win32_surface_host_connect;
-        }
-    }
-    return (surface);
 }
 
 //--------------------------------------------------------------------

@@ -14,7 +14,7 @@
 #include "util/typedefs.h"
 
 //------------------------------------------------------------------------------------------
-//NOTE(martin): backends selection
+//SECTION: backends selection
 //------------------------------------------------------------------------------------------
 
 typedef enum
@@ -85,49 +85,48 @@ typedef enum
     #include "wgl_surface.h"
 #endif
 
-//TODO: expose nsgl surface when supported, expose egl surface, etc...
-
-//TODO: add OC_INCLUDE_OPENGL/GLES/etc, once we know how we make different gl versions co-exist
-
 ORCA_API bool oc_is_surface_api_available(oc_surface_api api);
 
 //------------------------------------------------------------------------------------------
-//NOTE(martin): graphics surface
+//SECTION: graphics surface
 //------------------------------------------------------------------------------------------
 typedef struct oc_surface
 {
     u64 h;
 } oc_surface;
 
-ORCA_API oc_surface oc_surface_nil(void);
-ORCA_API bool oc_surface_is_nil(oc_surface surface);
+ORCA_API oc_surface oc_surface_nil(void);            //DOC: returns a nil surface
+ORCA_API bool oc_surface_is_nil(oc_surface surface); //DOC: true if surface is nil
+
+#if !defined(OC_PLATFORM_ORCA) || !OC_PLATFORM_ORCA
 
 ORCA_API oc_surface oc_surface_create_for_window(oc_window window, oc_surface_api api);
-ORCA_API void oc_surface_destroy(oc_surface surface);
-
-ORCA_API void oc_surface_select(oc_surface surface);
-ORCA_API void oc_surface_present(oc_surface surface);
-ORCA_API void oc_surface_deselect(void);
 
 ORCA_API void oc_surface_swap_interval(oc_surface surface, int swap);
-ORCA_API oc_vec2 oc_surface_get_size(oc_surface surface);
-ORCA_API oc_vec2 oc_surface_contents_scaling(oc_surface surface);
 ORCA_API bool oc_surface_get_hidden(oc_surface surface);
 ORCA_API void oc_surface_set_hidden(oc_surface surface, bool hidden);
 
-ORCA_API void oc_surface_bring_to_front(oc_surface surface);
-ORCA_API void oc_surface_send_to_back(oc_surface surface);
+#else
 
-//NOTE(martin): surface sharing
-typedef u64 oc_surface_id;
+ORCA_API oc_surface oc_surface_canvas(); //DOC: creates a surface for use with the canvas API
+ORCA_API oc_surface oc_surface_gles();   //DOC: create a surface for use with GLES API
 
-ORCA_API oc_surface oc_surface_create_remote(u32 width, u32 height, oc_surface_api api);
-ORCA_API oc_surface oc_surface_create_host(oc_window window);
-ORCA_API oc_surface_id oc_surface_remote_id(oc_surface surface);
-ORCA_API void oc_surface_host_connect(oc_surface surface, oc_surface_id remoteId);
+#endif
+
+ORCA_API void oc_surface_destroy(oc_surface surface); //DOC: destroys the surface
+
+ORCA_API void oc_surface_select(oc_surface surface);  //DOC: selects the surface in the current thread before drawing
+ORCA_API void oc_surface_present(oc_surface surface); //DOC: presents the surface to its window
+ORCA_API void oc_surface_deselect(void);              //DOC: deselects the current thread's previously selected surface
+
+ORCA_API oc_vec2 oc_surface_get_size(oc_surface surface);
+ORCA_API oc_vec2 oc_surface_contents_scaling(oc_surface surface); //DOC: returns the scaling of the surface (pixels = points * scale)
+
+ORCA_API void oc_surface_bring_to_front(oc_surface surface); //DOC: puts surface on top of the surface stack
+ORCA_API void oc_surface_send_to_back(oc_surface surface);   //DOC: puts surface at the bottom of the surface stack
 
 //------------------------------------------------------------------------------------------
-//NOTE(martin): graphics canvas structs
+//SECTION: graphics canvas structs
 //------------------------------------------------------------------------------------------
 typedef struct oc_canvas
 {
@@ -196,18 +195,18 @@ typedef struct oc_text_extents
 } oc_text_extents;
 
 //------------------------------------------------------------------------------------------
-//NOTE(martin): graphics canvas
+//SECTION: graphics canvas
 //------------------------------------------------------------------------------------------
-ORCA_API oc_canvas oc_canvas_nil(void);
-ORCA_API bool oc_canvas_is_nil(oc_canvas canvas);
+ORCA_API oc_canvas oc_canvas_nil(void);           //DOC: returns a nil canvas
+ORCA_API bool oc_canvas_is_nil(oc_canvas canvas); //DOC: true if canvas is nil
 
-ORCA_API oc_canvas oc_canvas_create(void);
-ORCA_API void oc_canvas_destroy(oc_canvas canvas);
-ORCA_API oc_canvas oc_canvas_set_current(oc_canvas canvas);
-ORCA_API void oc_render(oc_surface surface, oc_canvas canvas);
+ORCA_API oc_canvas oc_canvas_create(void);                     //DOC: create a new canvas
+ORCA_API void oc_canvas_destroy(oc_canvas canvas);             //DOC: destroys canvas
+ORCA_API oc_canvas oc_canvas_set_current(oc_canvas canvas);    //DOC: selects canvas in the current thread
+ORCA_API void oc_render(oc_surface surface, oc_canvas canvas); //DOC: renders all canvas commands onto surface
 
 //------------------------------------------------------------------------------------------
-//NOTE(martin): fonts
+//SECTION: fonts
 //------------------------------------------------------------------------------------------
 ORCA_API oc_font oc_font_nil(void);
 ORCA_API oc_font oc_font_create_from_memory(oc_str8 mem, u32 rangeCount, oc_unicode_range* ranges);
@@ -235,7 +234,7 @@ ORCA_API oc_rect oc_text_bounding_box_utf32(oc_font font, f32 fontSize, oc_str32
 ORCA_API oc_rect oc_text_bounding_box(oc_font font, f32 fontSize, oc_str8 text);
 
 //------------------------------------------------------------------------------------------
-//NOTE(martin): images
+//SECTION: images
 //------------------------------------------------------------------------------------------
 ORCA_API oc_image oc_image_nil(void);
 ORCA_API bool oc_image_is_nil(oc_image a);
@@ -251,7 +250,7 @@ ORCA_API void oc_image_upload_region_rgba8(oc_image image, oc_rect region, u8* p
 ORCA_API oc_vec2 oc_image_size(oc_image image);
 
 //------------------------------------------------------------------------------------------
-//NOTE(martin): atlasing
+//SECTION: atlasing
 //------------------------------------------------------------------------------------------
 
 //NOTE: rectangle allocator
@@ -274,19 +273,18 @@ ORCA_API oc_image_region oc_image_atlas_alloc_from_file(oc_rect_atlas* atlas, oc
 ORCA_API void oc_image_atlas_recycle(oc_rect_atlas* atlas, oc_image_region imageRgn);
 
 //------------------------------------------------------------------------------------------
-//NOTE(martin): transform, viewport and clipping
+//SECTION: transform, viewport and clipping
 //------------------------------------------------------------------------------------------
-ORCA_API void oc_viewport(oc_rect viewPort);
-
 ORCA_API void oc_matrix_push(oc_mat2x3 matrix);
 ORCA_API void oc_matrix_pop(void);
+ORCA_API oc_mat2x3 oc_matrix_top();
 
 ORCA_API void oc_clip_push(f32 x, f32 y, f32 w, f32 h);
 ORCA_API void oc_clip_pop(void);
-ORCA_API oc_rect oc_clip();
+ORCA_API oc_rect oc_clip_top();
 
 //------------------------------------------------------------------------------------------
-//NOTE(martin): graphics attributes setting/getting
+//SECTION: graphics attributes setting/getting
 //------------------------------------------------------------------------------------------
 ORCA_API void oc_set_color(oc_color color);
 ORCA_API void oc_set_color_rgba(f32 r, f32 g, f32 b, f32 a);
@@ -310,9 +308,11 @@ ORCA_API oc_cap_type oc_get_cap(void);
 ORCA_API oc_font oc_get_font(void);
 ORCA_API f32 oc_get_font_size(void);
 ORCA_API bool oc_get_text_flip(void);
+ORCA_API oc_image oc_get_image();
+ORCA_API oc_rect oc_get_image_source_region();
 
 //------------------------------------------------------------------------------------------
-//NOTE(martin): path construction
+//SECTION: path construction
 //------------------------------------------------------------------------------------------
 ORCA_API oc_vec2 oc_get_position(void);
 ORCA_API void oc_move_to(f32 x, f32 y);
@@ -326,14 +326,14 @@ ORCA_API void oc_codepoints_outlines(oc_str32 string);
 ORCA_API void oc_text_outlines(oc_str8 string);
 
 //------------------------------------------------------------------------------------------
-//NOTE(martin): clear/fill/stroke
+//SECTION: clear/fill/stroke
 //------------------------------------------------------------------------------------------
 ORCA_API void oc_clear(void);
 ORCA_API void oc_fill(void);
 ORCA_API void oc_stroke(void);
 
 //------------------------------------------------------------------------------------------
-//NOTE(martin): 'fast' shapes primitives
+//SECTION: shapes helpers
 //------------------------------------------------------------------------------------------
 ORCA_API void oc_rectangle_fill(f32 x, f32 y, f32 w, f32 h);
 ORCA_API void oc_rectangle_stroke(f32 x, f32 y, f32 w, f32 h);

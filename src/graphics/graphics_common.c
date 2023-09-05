@@ -928,6 +928,21 @@ void oc_matrix_pop()
     }
 }
 
+oc_mat2x3 oc_matrix_top()
+{
+    oc_mat2x3 mat = {
+        1, 0, 0,
+        0, 1, 0
+    };
+    oc_canvas_data* canvas = __mgCurrentCanvas;
+    if(canvas)
+    {
+        mat = oc_matrix_stack_top(canvas);
+    }
+
+    return (mat);
+}
+
 void oc_clip_push(f32 x, f32 y, f32 w, f32 h)
 {
     oc_canvas_data* canvas = __mgCurrentCanvas;
@@ -972,7 +987,7 @@ void oc_clip_pop()
     }
 }
 
-oc_rect oc_clip()
+oc_rect oc_clip_top()
 {
     oc_rect clip = { -FLT_MAX / 2, -FLT_MAX / 2, FLT_MAX, FLT_MAX };
 
@@ -1191,6 +1206,28 @@ bool oc_get_text_flip()
         flip = canvas->textFlip;
     }
     return (flip);
+}
+
+oc_image oc_get_image()
+{
+    oc_image image = oc_image_nil();
+    oc_canvas_data* canvas = __mgCurrentCanvas;
+    if(canvas)
+    {
+        image = canvas->attributes.image;
+    }
+    return (image);
+}
+
+oc_rect oc_get_image_source_region()
+{
+    oc_rect rect = { 0 };
+    oc_canvas_data* canvas = __mgCurrentCanvas;
+    if(canvas)
+    {
+        rect = canvas->attributes.srcRegion;
+    }
+    return (rect);
 }
 
 //------------------------------------------------------------------------------------------

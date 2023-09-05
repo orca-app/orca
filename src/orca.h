@@ -40,9 +40,6 @@
     //TODO: maybe make this conditional
     #include "graphics/orca_gl31.h"
 
-oc_surface oc_surface_canvas();
-oc_surface oc_surface_gles();
-
 #else
     #ifdef OC_INCLUDE_GL_API
         #include "graphics/gl_api.h"

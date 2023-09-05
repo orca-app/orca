@@ -150,22 +150,6 @@ void oc_egl_surface_init(oc_egl_surface* surface)
     eglSwapInterval(surface->eglDisplay, 1);
 }
 
-oc_surface_data* oc_egl_surface_create_remote(u32 width, u32 height)
-{
-    oc_egl_surface* surface = 0;
-
-    surface = oc_malloc_type(oc_egl_surface);
-    if(surface)
-    {
-        memset(surface, 0, sizeof(oc_egl_surface));
-
-        oc_surface_init_remote((oc_surface_data*)surface, width, height);
-        oc_egl_surface_init(surface);
-    }
-
-    return ((oc_surface_data*)surface);
-}
-
 oc_surface_data* oc_egl_surface_create_for_window(oc_window window)
 {
     oc_egl_surface* surface = 0;

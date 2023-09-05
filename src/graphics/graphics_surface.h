@@ -31,8 +31,6 @@ typedef oc_vec2 (*oc_surface_contents_scaling_proc)(oc_surface_data* surface);
 typedef bool (*oc_surface_get_hidden_proc)(oc_surface_data* surface);
 typedef void (*oc_surface_set_hidden_proc)(oc_surface_data* surface, bool hidden);
 typedef void* (*oc_surface_native_layer_proc)(oc_surface_data* surface);
-typedef oc_surface_id (*oc_surface_remote_id_proc)(oc_surface_data* surface);
-typedef void (*oc_surface_host_connect_proc)(oc_surface_data* surface, oc_surface_id remoteId);
 
 typedef void (*oc_surface_bring_to_front_proc)(oc_surface_data* surface);
 typedef void (*oc_surface_send_to_back_proc)(oc_surface_data* surface);
@@ -52,8 +50,6 @@ typedef struct oc_surface_data
     oc_surface_get_hidden_proc getHidden;
     oc_surface_set_hidden_proc setHidden;
     oc_surface_native_layer_proc nativeLayer;
-    oc_surface_remote_id_proc remoteID;
-    oc_surface_host_connect_proc hostConnect;
 
     oc_surface_bring_to_front_proc bringToFront;
     oc_surface_send_to_back_proc sendToBack;
@@ -66,8 +62,6 @@ oc_surface oc_surface_handle_alloc(oc_surface_data* surface);
 oc_surface_data* oc_surface_data_from_handle(oc_surface handle);
 
 void oc_surface_init_for_window(oc_surface_data* surface, oc_window_data* window);
-void oc_surface_init_remote(oc_surface_data* surface, u32 width, u32 height);
-void oc_surface_init_host(oc_surface_data* surface, oc_window_data* window);
 void oc_surface_cleanup(oc_surface_data* surface);
 void* oc_surface_native_layer(oc_surface surface);
 

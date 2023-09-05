@@ -153,55 +153,6 @@ oc_surface oc_surface_create_for_window(oc_window window, oc_surface_api api)
     return (surfaceHandle);
 }
 
-oc_surface oc_surface_create_remote(u32 width, u32 height, oc_surface_api api)
-{
-    if(!oc_graphicsData.init)
-    {
-        oc_graphics_init();
-    }
-    oc_surface surfaceHandle = oc_surface_nil();
-    oc_surface_data* surface = 0;
-
-    switch(api)
-    {
-#if OC_COMPILE_GLES
-        case OC_GLES:
-            surface = oc_egl_surface_create_remote(width, height);
-            break;
-#endif
-
-        default:
-            break;
-    }
-    if(surface)
-    {
-        surfaceHandle = oc_surface_handle_alloc(surface);
-        oc_surface_select(surfaceHandle);
-    }
-    return (surfaceHandle);
-}
-
-oc_surface oc_surface_create_host(oc_window window)
-{
-    if(!oc_graphicsData.init)
-    {
-        oc_graphics_init();
-    }
-    oc_surface handle = oc_surface_nil();
-    oc_surface_data* surface = 0;
-#if OC_PLATFORM_MACOS
-    surface = oc_osx_surface_create_host(window);
-#elif OC_PLATFORM_WINDOWS
-    surface = oc_win32_surface_create_host(window);
-#endif
-
-    if(surface)
-    {
-        handle = oc_surface_handle_alloc(surface);
-    }
-    return (handle);
-}
-
 void oc_surface_destroy(oc_surface handle)
 {
     OC_DEBUG_ASSERT(oc_graphicsData.init);
@@ -326,26 +277,6 @@ void* oc_surface_native_layer(oc_surface surface)
         res = surfaceData->nativeLayer(surfaceData);
     }
     return (res);
-}
-
-oc_surface_id oc_surface_remote_id(oc_surface handle)
-{
-    oc_surface_id remoteId = 0;
-    oc_surface_data* surface = oc_surface_data_from_handle(handle);
-    if(surface && surface->remoteID)
-    {
-        remoteId = surface->remoteID(surface);
-    }
-    return (remoteId);
-}
-
-void oc_surface_host_connect(oc_surface handle, oc_surface_id remoteID)
-{
-    oc_surface_data* surface = oc_surface_data_from_handle(handle);
-    if(surface && surface->hostConnect)
-    {
-        surface->hostConnect(surface, remoteID);
-    }
 }
 
 void oc_surface_render_commands(oc_surface surface,
