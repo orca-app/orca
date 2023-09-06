@@ -206,6 +206,13 @@ enum oc_file_perm
     OC_FILE_SET_UID = 1 << 11,
 };
 
+typedef struct oc_datestamp
+{
+    i64 seconds;  // seconds relative to NTP epoch.
+    u64 fraction; // fraction of seconds elapsed since the time specified by seconds.
+
+} oc_datestamp;
+
 typedef struct oc_file_status
 {
     u64 uid;
@@ -213,7 +220,9 @@ typedef struct oc_file_status
     oc_file_perm perm;
     u64 size;
 
-    //TODO times
+    oc_datestamp creationDate;
+    oc_datestamp accessDate;
+    oc_datestamp modificationDate;
 
 } oc_file_status;
 

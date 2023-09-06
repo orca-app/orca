@@ -85,6 +85,7 @@ void oc_clock_init()
     //RandomSeedFromDevice();
 }
 
+/*
 u64 oc_clock_timestamp(oc_clock_kind clock)
 {
     u64 ts = 0;
@@ -120,16 +121,9 @@ u64 oc_clock_timestamp(oc_clock_kind clock)
         break;
     }
 
-    /*
-	//NOTE(martin): add a random fuzz between 0 and 1 times the system fuzz
-	//TODO(martin): ensure that we always return a value greater than the last value
-	f64 fuzz = RandomU32()/(f64)(~(0UL)) * OC_CLOCK_FUZZ;
-	ts_timediff tdfuzz = TimediffFromSeconds(fuzz);
-	ts = TimestampAdd(ts, tdfuzz);
-	*/
-
     return (ts);
 }
+*/
 
 f64 oc_clock_time(oc_clock_kind clock)
 {

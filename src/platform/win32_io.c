@@ -229,6 +229,36 @@ bool oc_io_raw_file_exists_at(oc_file_desc dirFd, oc_str8 path, oc_file_open_fla
     return (result);
 }
 
+enum
+{
+    OC_NTP_01_JAN_1601 = -9435484800LL,
+    OC_WIN32_TICKS_PER_SECOND = 10000000LL
+};
+
+oc_datestamp oc_datestamp_from_win32_filetime(FILETIME ft)
+{
+    oc_datestamp d = { 0 };
+
+    i64 win32Ticks = (((u64)ft.high) << 32) | (u64)ft.low;
+
+    i64 win32Seconds = win32Ticks / OC_WIN32_TICKS_PER_SECOND;
+    u64 win32Rem = 0;
+    if(winTicks < 0)
+    {
+        win32Seconds -= OC_WIN32_TICKS_PER_SECOND;
+        win32Rem = win32Ticks - seconds * OC_WIN32_TICKS_PER_SECOND;
+    }
+    else
+    {
+        win32Rem = win32Ticks % OC_WIN32_TICKS_PER_SECOND;
+    }
+
+    d.seconds = win32Seconds + OC_NTP_01_JAN_1601;
+    d.fraction = (win32Rem * (1ULL << 32)) / OC_WIN32_TICKS_PER_SECOND;
+
+    return (d);
+}
+
 oc_io_error oc_io_raw_fstat(oc_file_desc fd, oc_file_status* status)
 {
     oc_io_error error = OC_IO_OK;
@@ -290,7 +320,16 @@ oc_io_error oc_io_raw_fstat(oc_file_desc fd, oc_file_status* status)
         {
             status->perm = OC_FILE_OWNER_WRITE | OC_FILE_GROUP_WRITE | OC_FILE_OTHER_WRITE;
         }
-        //TODO: times
+
+        FILETIME win32CreationDate;
+        FILETIME win32AccessDate;
+        FILETIME win32ModificationDate;
+
+        GetFileTime(fd, &win32CreationDate, &win32AccessDate, &win32ModificationDate);
+
+        status->creationDate = oc_datestamp_from_win32_filetime(win32CreationDate);
+        status->accessDate = oc_datestamp_from_win32_filetime(win32AccessDate);
+        status->modificationDate = oc_datestamp_from_win32_filetime(win32ModificationDate);
     }
     return (error);
 }

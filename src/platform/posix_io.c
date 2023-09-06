@@ -280,6 +280,17 @@ static oc_file_type oc_io_convert_type_from_stat(u16 mode)
     return (type);
 }
 
+static const u64 OC_NTP_JAN_1970 = 2208988800ULL; // seconds from january 1900 to january 1970
+
+oc_datestamp oc_datestamp_from_timespec(struct timespec ts)
+{
+    oc_datestamp d = { 0 };
+    d.seconds = ts.tv_sec + OC_NTP_JAN_1970;
+    d.fraction = (ts.tv_nsec * (1ULL << 32)) / 1000000000;
+
+    return (d);
+}
+
 oc_io_error oc_io_raw_fstat(oc_file_desc fd, oc_file_status* status)
 {
     oc_io_error error = OC_IO_OK;
@@ -294,7 +305,10 @@ oc_io_error oc_io_raw_fstat(oc_file_desc fd, oc_file_status* status)
         status->perm = oc_io_convert_perm_from_stat(s.st_mode);
         status->type = oc_io_convert_type_from_stat(s.st_mode);
         status->size = s.st_size;
-        //TODO: times
+
+        status->creationDate = oc_datestamp_from_timespec(s.st_birthtimespec);
+        status->accessDate = oc_datestamp_from_timespec(s.st_atimespec);
+        status->modificationDate = oc_datestamp_from_timespec(s.st_mtimespec);
     }
     return (error);
 }
