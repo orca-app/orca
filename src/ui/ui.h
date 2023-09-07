@@ -175,6 +175,26 @@ typedef struct oc_ui_style
     oc_ui_style_mask animationMask;
 } oc_ui_style;
 
+typedef struct oc_ui_theme
+{
+    oc_color white;
+    oc_color primary;
+    oc_color primaryHover;
+    oc_color primaryActive;
+    oc_color fill0;
+    oc_color fill1;
+    oc_color fill2;
+    oc_color bg0;
+    oc_color bg1;
+    oc_color bg2;
+    oc_color bg3;
+    oc_color bg4;
+    oc_color text0;
+    oc_color text1;
+    oc_color text2;
+    oc_color text3;
+} oc_ui_theme;
+
 typedef struct oc_ui_tag
 {
     u64 hash;
@@ -526,15 +546,13 @@ ORCA_API oc_ui_sig oc_ui_label_str8(oc_str8 label);
 
 ORCA_API oc_ui_sig oc_ui_button(const char* label);
 ORCA_API oc_ui_sig oc_ui_checkbox(const char* name, bool* checked);
-ORCA_API oc_ui_box* oc_ui_slider(const char* label, f32 thumbRatio, f32* scrollValue);
+ORCA_API oc_ui_box* oc_ui_slider(const char* label, f32* value);
+ORCA_API oc_ui_box* oc_ui_scrollbar(const char* label, f32 thumbRatio, f32* scrollValue);
+ORCA_API void oc_ui_tooltip(const char* label);
 
 ORCA_API void oc_ui_panel_begin(const char* name, oc_ui_flags flags);
 ORCA_API void oc_ui_panel_end(void);
 #define oc_ui_panel(s, f) oc_defer_loop(oc_ui_panel_begin(s, f), oc_ui_panel_end())
-
-ORCA_API oc_ui_sig oc_ui_tooltip_begin(const char* name);
-ORCA_API void oc_ui_tooltip_end(void);
-#define oc_ui_tooltip(name) oc_defer_loop(oc_ui_tooltip_begin(name), oc_ui_tooltip_end())
 
 ORCA_API void oc_ui_menu_bar_begin(const char* label);
 ORCA_API void oc_ui_menu_bar_end(void);
