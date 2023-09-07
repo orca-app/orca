@@ -11,6 +11,11 @@ def needs_arg_ptr_stub(decl):
 			res = True
 	return(res)
 
+def printError(str):
+	# This prints a string with a red foreground color.
+	# See this link for an explanation of console escape codes: https://stackabuse.com/how-to-print-colored-text-in-python/
+	print("\x1b[38;5;196m" + "error: " + str + "\033[0;0m")
+
 
 def bindgen(apiName, spec, **kwargs):
 	guest_stubs_path = kwargs.get("guest_stubs")
@@ -152,37 +157,39 @@ def bindgen(apiName, spec, **kwargs):
 				argTag = arg['type']['tag']
 				argLen = arg.get('len')
 
-				if argTag == 'p' and argLen != None:
-
-					s += '\t{\n'
-					s += '\t\tOC_ASSERT(((char*)'+ argName + ' >= (char*)_mem) && (((char*)'+ argName +' - (char*)_mem) < m3_GetMemorySize(runtime)), "parameter \''+argName+'\' is out of bounds");\n'
-					s += '\t\tOC_ASSERT((char*)' + argName + ' + '
-
-					proc = argLen.get('proc')
-					if proc != None:
-						s += proc + '(runtime, '
-						lenProcArgs = argLen['args']
-						for i, lenProcArg in enumerate(lenProcArgs):
-							s += lenProcArg
-							if i < len(lenProcArgs)-1:
-								s += ', '
-						s += ')'
+				if argTag == 'p':
+					if argLen == None:
+						printError("binding '" + name + "' missing pointer length decoration for param '" + argName + "'")
 					else:
-						components =  argLen.get('components')
-						countArg = argLen.get('count')
+						s += '\t{\n'
+						s += '\t\tOC_ASSERT(((char*)'+ argName + ' >= (char*)_mem) && (((char*)'+ argName +' - (char*)_mem) < m3_GetMemorySize(runtime)), "parameter \''+argName+'\' is out of bounds");\n'
+						s += '\t\tOC_ASSERT((char*)' + argName + ' + '
 
-						if components != None:
-							s += str(components)
+						proc = argLen.get('proc')
+						if proc != None:
+							s += proc + '(runtime, '
+							lenProcArgs = argLen['args']
+							for i, lenProcArg in enumerate(lenProcArgs):
+								s += lenProcArg
+								if i < len(lenProcArgs)-1:
+									s += ', '
+							s += ')'
+						else:
+							components =  argLen.get('components')
+							countArg = argLen.get('count')
+
+							if components != None:
+								s += str(components)
+								if countArg != None:
+									s += '*'
 							if countArg != None:
-								s += '*'
-						if countArg != None:
-							s += countArg
+								s += countArg
 
-					if typeCName.endswith('**') or (typeCName.startswith('void') == False and typeCName.startswith('const void') == False):
-						s += '*sizeof('+typeCName[:-1]+')'
+						if typeCName.endswith('**') or (typeCName.startswith('void') == False and typeCName.startswith('const void') == False):
+							s += '*sizeof('+typeCName[:-1]+')'
 
-					s += ' <= ((char*)_mem + m3_GetMemorySize(runtime)), "parameter \''+argName+'\' overflows wasm memory");\n'
-					s += '\t}\n'
+						s += ' <= ((char*)_mem + m3_GetMemorySize(runtime)), "parameter \''+argName+'\' overflows wasm memory");\n'
+						s += '\t}\n'
 
 			s += '\t'
 

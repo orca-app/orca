@@ -34,7 +34,8 @@
 		{"name": "region",
 		 "type": {"name": "oc_rect", "tag": "S"}},
 		{"name": "pixels",
-		 "type": {"name": "u8*", "tag": "p"}}]
+		 "type": {"name": "u8*", "tag": "p"},
+		 "len": {"proc": "orca_image_upload_region_rgba8_length", "args": ["region"]}}]
 },
 {
     "name": "oc_surface_get_size",
@@ -96,11 +97,13 @@
 		{"name": "primitiveCount",
 		 "type": {"name": "u32", "tag": "i"}},
 		{"name": "primitives",
-		 "type": {"name": "oc_primitive*", "tag": "p"}},
+		 "type": {"name": "oc_primitive*", "tag": "p"},
+		 "len": {"count": "primitiveCount"}},
 		{"name": "eltCount",
 		 "type": {"name": "u32", "tag": "i"}},
 		{"name": "elements",
-		 "type": {"name": "oc_path_elt*", "tag": "p"}}]
+		 "type": {"name": "oc_path_elt*", "tag": "p"},
+		 "len": {"count": "eltCount"}}]
 },
 {
 	"name": "oc_surface_canvas",

@@ -8,17 +8,20 @@
 			  {"name": "fileLen",
 			   "type": {"name": "int", "tag": "i"}},
 			  {"name": "file",
-			   "type": {"name": "char*", "tag": "p"}},
+			   "type": {"name": "char*", "tag": "p"},
+				"len": {"count": "fileLen"}},
 			  {"name": "functionLen",
 			   "type": {"name": "int", "tag": "i"}},
 			  {"name": "function",
-			   "type": {"name": "char*", "tag": "p"}},
+			   "type": {"name": "char*", "tag": "p"},
+				"len": {"count": "functionLen"}},
 			  {"name": "line",
 			   "type": {"name": "int", "tag": "i"}},
 			  {"name": "msgLen",
 			   "type": {"name": "int", "tag": "i"}},
 			  {"name": "msg",
-			   "type": {"name": "char*", "tag": "p"}}
+			   "type": {"name": "char*", "tag": "p"},
+				"len": {"count": "msgLen"}}
 			]
 },
 {
@@ -33,15 +36,19 @@
 	"cname": "oc_assert_fail",
 	"ret": {"name": "void", "tag": "v"},
 	"args": [ {"name": "file",
-			   "type": {"name": "const char*", "tag": "p"}},
+			   "type": {"name": "const char*", "tag": "p"},
+				"len": {"proc": "orca_check_cstring", "args": ["file"]}},
 			  {"name": "function",
-			   "type": {"name": "const char*", "tag": "p"}},
+			   "type": {"name": "const char*", "tag": "p"},
+				"len": {"proc": "orca_check_cstring", "args": ["function"]}},
 			  {"name": "line",
 			   "type": {"name": "int", "tag": "i"}},
 			  {"name": "src",
-			   "type": {"name": "const char*", "tag": "p"}},
+			   "type": {"name": "const char*", "tag": "p"},
+				"len": {"proc": "orca_check_cstring", "args": ["src"]}},
 			  {"name": "note",
-			   "type": {"name": "const char*", "tag": "p"}}
+			   "type": {"name": "const char*", "tag": "p"},
+				"len": {"proc": "orca_check_cstring", "args": ["note"]}}
 			]
 },
 {
@@ -49,13 +56,16 @@
 	"cname": "oc_abort_ext",
 	"ret": {"name": "void", "tag": "v"},
 	"args": [ {"name": "file",
-			   "type": {"name": "const char*", "tag": "p"}},
+			   "type": {"name": "const char*", "tag": "p"},
+				"len": {"proc": "orca_check_cstring", "args": ["file"]}},
 			  {"name": "function",
-			   "type": {"name": "const char*", "tag": "p"}},
+			   "type": {"name": "const char*", "tag": "p"},
+				"len": {"proc": "orca_check_cstring", "args": ["function"]}},
 			  {"name": "line",
 			   "type": {"name": "int", "tag": "i"}},
 			  {"name": "note",
-			   "type": {"name": "const char*", "tag": "p"}}
+			   "type": {"name": "const char*", "tag": "p"},
+				"len": {"proc": "orca_check_cstring", "args": ["note"]}}
 			]
 },
 {

@@ -3,25 +3,6 @@
 // Manual pointer size checking functions
 //------------------------------------------------------------------------
 
-u64 orca_gles_check_cstring(IM3Runtime runtime, const char* ptr)
-{
-    uint32_t memorySize = 0;
-    char* memory = (char*)m3_GetMemory(runtime, &memorySize, 0);
-
-    //NOTE: Here we are guaranteed that ptr is in [ memory ; memory + memorySize [
-    //      hence (memory + memorySize) - ptr is representable by size_t and <= memorySize
-    size_t maxLen = (memory + memorySize) - ptr;
-
-    u64 len = strnlen(ptr, maxLen);
-
-    if(len == maxLen)
-    {
-        //NOTE: string overflows wasm memory, return a length that will trigger the bounds check
-        len = maxLen + 1;
-    }
-    return (len + 1); //include null-terminator
-}
-
 u64 orca_gl_type_size(GLenum type)
 {
     u64 size = 8;
@@ -772,37 +753,37 @@ u64 orca_glGetUniformuiv_params_length(IM3Runtime runtime, GLuint program, GLint
 
 u64 orca_glGetFragDataLocation_name_length(IM3Runtime runtime, const GLchar* name)
 {
-    return (orca_gles_check_cstring(runtime, name));
+    return (orca_check_cstring(runtime, name));
 }
 
 u64 orca_glGetUniformBlockIndex_uniformBlockName_length(IM3Runtime runtime, const GLchar* uniformBlockName)
 {
-    return (orca_gles_check_cstring(runtime, uniformBlockName));
+    return (orca_check_cstring(runtime, uniformBlockName));
 }
 
 u64 orca_glGetProgramResourceIndex_name_length(IM3Runtime runtime, const GLchar* name)
 {
-    return (orca_gles_check_cstring(runtime, name));
+    return (orca_check_cstring(runtime, name));
 }
 
 u64 orca_glGetProgramResourceLocation_name_length(IM3Runtime runtime, const GLchar* name)
 {
-    return (orca_gles_check_cstring(runtime, name));
+    return (orca_check_cstring(runtime, name));
 }
 
 u64 orca_glBindAttribLocation_name_length(IM3Runtime runtime, const GLchar* name)
 {
-    return (orca_gles_check_cstring(runtime, name));
+    return (orca_check_cstring(runtime, name));
 }
 
 u64 orca_glGetAttribLocation_name_length(IM3Runtime runtime, const GLchar* name)
 {
-    return (orca_gles_check_cstring(runtime, name));
+    return (orca_check_cstring(runtime, name));
 }
 
 u64 orca_glGetUniformLocation_name_length(IM3Runtime runtime, const GLchar* name)
 {
-    return (orca_gles_check_cstring(runtime, name));
+    return (orca_check_cstring(runtime, name));
 }
 
 //------------------------------------------------------------------------
@@ -967,7 +948,7 @@ const void* glGetUniformIndices_stub(IM3Runtime runtime, IM3ImportContext _ctx, 
         char* raw = ((char*)_mem + uniformNames[i]);
         OC_ASSERT(raw >= (char*)_mem && (raw - (char*)_mem) < memorySize, "uniformName[%i] is out of bounds", i);
 
-        u64 len = orca_gles_check_cstring(runtime, raw);
+        u64 len = orca_check_cstring(runtime, raw);
 
         OC_ASSERT(raw + len <= ((char*)_mem + memorySize), "uniformName[%i] overflows wasm memory", i);
 

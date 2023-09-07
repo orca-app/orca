@@ -70,6 +70,25 @@ oc_str8 oc_runtime_get_wasm_memory()
     return (mem);
 }
 
+u64 orca_check_cstring(IM3Runtime runtime, const char* ptr)
+{
+    uint32_t memorySize = 0;
+    char* memory = (char*)m3_GetMemory(runtime, &memorySize, 0);
+
+    //NOTE: Here we are guaranteed that ptr is in [ memory ; memory + memorySize [
+    //      hence (memory + memorySize) - ptr is representable by size_t and <= memorySize
+    size_t maxLen = (memory + memorySize) - ptr;
+
+    u64 len = strnlen(ptr, maxLen);
+
+    if(len == maxLen)
+    {
+        //NOTE: string overflows wasm memory, return a length that will trigger the bounds check
+        len = maxLen + 1;
+    }
+    return (len + 1); //include null-terminator
+}
+
 void orca_wasm3_abort(IM3Runtime runtime, M3Result res, const char* file, const char* function, int line, const char* msg)
 {
     M3ErrorInfo errInfo = { 0 };
@@ -99,13 +118,13 @@ void oc_bridge_window_set_size(oc_vec2 size)
 }
 
 void oc_bridge_log(oc_log_level level,
-                    int fileLen,
-                    char* file,
-                    int functionLen,
-                    char* function,
-                    int line,
-                    int msgLen,
-                    char* msg)
+                   int fileLen,
+                   char* file,
+                   int functionLen,
+                   char* function,
+                   int line,
+                   int msgLen,
+                   char* msg)
 {
     oc_debug_overlay* debug = &__orcaApp.debugOverlay;
 
@@ -349,6 +368,7 @@ void oc_wasm_env_init(oc_wasm_env* runtime)
 #include "wasmbind/gles_api_bind_manual.c"
 #include "wasmbind/gles_api_bind_gen.c"
 #include "wasmbind/io_api_bind_gen.c"
+#include "wasmbind/surface_api_bind_manual.c"
 #include "wasmbind/surface_api_bind_gen.c"
 
 i32 orca_runloop(void* user)
