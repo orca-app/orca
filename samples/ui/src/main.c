@@ -75,19 +75,9 @@ void widget_end_view(void)
 
 ORCA_EXPORT void oc_on_frame_refresh(void)
 {
-    oc_ui_style defaultStyle = { .bgColor = { 0 },
-                                 .color = { 1, 1, 1, 1 },
-                                 .font = font,
-                                 .fontSize = 16,
-                                 .borderColor = { 0.278, 0.333, 0.412, 1 },
-                                 .borderSize = 2 };
+    oc_ui_style defaultStyle = { .font = font };
 
-    oc_ui_style_mask defaultMask = OC_UI_STYLE_BG_COLOR
-                                 | OC_UI_STYLE_COLOR
-                                 | OC_UI_STYLE_BORDER_COLOR
-                                 | OC_UI_STYLE_BORDER_SIZE
-                                 | OC_UI_STYLE_FONT
-                                 | OC_UI_STYLE_FONT_SIZE;
+    oc_ui_style_mask defaultMask = OC_UI_STYLE_FONT;
 
     oc_ui_frame(frameSize, &defaultStyle, defaultMask)
     {
@@ -98,21 +88,20 @@ ORCA_EXPORT void oc_on_frame_refresh(void)
                                          .layout.axis = OC_UI_AXIS_Y,
                                          .layout.align.x = OC_UI_ALIGN_CENTER,
                                          .layout.align.y = OC_UI_ALIGN_START,
-                                         .layout.spacing = 10,
-                                         .layout.margin.x = 10,
-                                         .layout.margin.y = 10,
-                                         .bgColor = { 0.11, 0.11, 0.11, 1 } },
+                                         .layout.spacing = 10},
                          OC_UI_STYLE_SIZE
-                             | OC_UI_STYLE_LAYOUT
-                             | OC_UI_STYLE_BG_COLOR);
+                             | OC_UI_STYLE_LAYOUT);
 
         oc_ui_container("background", OC_UI_FLAG_DRAW_BACKGROUND)
         {
             oc_ui_style_next(&(oc_ui_style){ .size.width = { OC_UI_SIZE_PARENT, 1 },
                                              .size.height = { OC_UI_SIZE_CHILDREN },
-                                             .layout.align.x = OC_UI_ALIGN_CENTER },
+                                             .layout.align.x = OC_UI_ALIGN_CENTER,
+                                             .layout.margin.x = 10,
+                                             .layout.margin.y = 10 },
                              OC_UI_STYLE_SIZE
-                                 | OC_UI_STYLE_LAYOUT_ALIGN_X);
+                                 | OC_UI_STYLE_LAYOUT_ALIGN_X
+                                 | OC_UI_STYLE_LAYOUT_MARGINS);
             oc_ui_container("title", 0)
             {
                 oc_ui_style_next(&(oc_ui_style){ .fontSize = 26 }, OC_UI_STYLE_FONT_SIZE);
@@ -120,19 +109,7 @@ ORCA_EXPORT void oc_on_frame_refresh(void)
 
                 if(oc_ui_box_sig(oc_ui_box_top()).hovering)
                 {
-                    oc_ui_tooltip("tooltip")
-                    {
-                        oc_ui_style_next(&(oc_ui_style){ .bgColor = { 1, 0.99, 0.82, 1 } },
-                                         OC_UI_STYLE_BG_COLOR);
-
-                        oc_ui_container("background", OC_UI_FLAG_DRAW_BACKGROUND)
-                        {
-                            oc_ui_style_next(&(oc_ui_style){ .color = { 0, 0, 0, 1 } },
-                                             OC_UI_STYLE_COLOR);
-
-                            oc_ui_label("That is a tooltip!");
-                        }
-                    }
+                    oc_ui_tooltip("That is a tooltip!");
                 }
             }
 
@@ -167,8 +144,10 @@ ORCA_EXPORT void oc_on_frame_refresh(void)
             }
 
             oc_ui_style_next(&(oc_ui_style){ .size.width = { OC_UI_SIZE_PARENT, 1 },
-                                             .size.height = { OC_UI_SIZE_PARENT, 1, 1 } },
-                             OC_UI_STYLE_SIZE);
+                                             .size.height = { OC_UI_SIZE_PARENT, 1, 1 },
+                                             .layout.margin.x = 10,
+                                             .layout.margin.y = 10 },
+                             OC_UI_STYLE_SIZE | OC_UI_STYLE_LAYOUT_MARGINS);
 
             oc_ui_style_next(&(oc_ui_style){ .layout.axis = OC_UI_AXIS_X }, OC_UI_STYLE_LAYOUT_AXIS);
             oc_ui_container("contents", 0)
@@ -218,13 +197,6 @@ ORCA_EXPORT void oc_on_frame_refresh(void)
                                                          .size.height = { OC_UI_SIZE_PARENT, 1 } },
                                          OC_UI_STYLE_SIZE);
 
-                        oc_ui_pattern pattern = { 0 };
-                        oc_ui_pattern_push(oc_scratch(), &pattern, (oc_ui_selector){ .kind = OC_UI_SEL_TAG, .tag = oc_ui_tag_make("checkbox") });
-                        oc_ui_style_match_after(pattern,
-                                                &(oc_ui_style){ .bgColor = { 0, 1, 0, 1 },
-                                                                .color = { 1, 1, 1, 1 } },
-                                                OC_UI_STYLE_COLOR | OC_UI_STYLE_BG_COLOR);
-
                         widget_view("checkboxes")
                         {
                             static bool check1 = true;
@@ -253,45 +225,39 @@ ORCA_EXPORT void oc_on_frame_refresh(void)
                                                  | OC_UI_STYLE_LAYOUT_SPACING);
                             oc_ui_container("contents", 0)
                             {
-                                oc_ui_style_next(&(oc_ui_style){ .size.width = { OC_UI_SIZE_PIXELS, 20 },
-                                                                 .size.height = { OC_UI_SIZE_PIXELS, 200 } },
-                                                 OC_UI_STYLE_SIZE);
+                                oc_ui_style_next(&(oc_ui_style){ .size.height = { OC_UI_SIZE_PIXELS, 200 } },
+                                                 OC_UI_STYLE_SIZE_HEIGHT);
                                 static f32 slider1 = 0;
-                                oc_ui_slider("slider1", 0.2, &slider1);
+                                oc_ui_slider("slider1", &slider1);
 
-                                oc_ui_style_next(&(oc_ui_style){ .size.width = { OC_UI_SIZE_PIXELS, 20 },
-                                                                 .size.height = { OC_UI_SIZE_PIXELS, 200 } },
-                                                 OC_UI_STYLE_SIZE);
+                                oc_ui_style_next(&(oc_ui_style){ .size.height = { OC_UI_SIZE_PIXELS, 200 } },
+                                                 OC_UI_STYLE_SIZE_HEIGHT);
                                 static f32 slider2 = 0;
-                                oc_ui_slider("slider2", 0.2, &slider2);
+                                oc_ui_slider("slider2", &slider2);
 
-                                oc_ui_style_next(&(oc_ui_style){ .size.width = { OC_UI_SIZE_PIXELS, 20 },
-                                                                 .size.height = { OC_UI_SIZE_PIXELS, 200 } },
-                                                 OC_UI_STYLE_SIZE);
+                                oc_ui_style_next(&(oc_ui_style){ .size.height = { OC_UI_SIZE_PIXELS, 200 } },
+                                                 OC_UI_STYLE_SIZE_HEIGHT);
                                 static f32 slider3 = 0;
-                                oc_ui_slider("slider3", 0.2, &slider3);
+                                oc_ui_slider("slider3", &slider3);
                             }
                         }
 
                         widget_view("Horizontal Sliders")
                         {
-                            oc_ui_style_next(&(oc_ui_style){ .size.width = { OC_UI_SIZE_PIXELS, 200 },
-                                                             .size.height = { OC_UI_SIZE_PIXELS, 20 } },
-                                             OC_UI_STYLE_SIZE);
+                            oc_ui_style_next(&(oc_ui_style){ .size.width = { OC_UI_SIZE_PIXELS, 200 } },
+                                             OC_UI_STYLE_SIZE_WIDTH);
                             static f32 slider1 = 0;
-                            oc_ui_slider("slider1", 0.2, &slider1);
+                            oc_ui_slider("slider1", &slider1);
 
-                            oc_ui_style_next(&(oc_ui_style){ .size.width = { OC_UI_SIZE_PIXELS, 200 },
-                                                             .size.height = { OC_UI_SIZE_PIXELS, 20 } },
-                                             OC_UI_STYLE_SIZE);
+                            oc_ui_style_next(&(oc_ui_style){ .size.width = { OC_UI_SIZE_PIXELS, 200 } },
+                                             OC_UI_STYLE_SIZE_WIDTH);
                             static f32 slider2 = 0;
-                            oc_ui_slider("slider2", 0.2, &slider2);
+                            oc_ui_slider("slider2", &slider2);
 
-                            oc_ui_style_next(&(oc_ui_style){ .size.width = { OC_UI_SIZE_PIXELS, 200 },
-                                                             .size.height = { OC_UI_SIZE_PIXELS, 20 } },
-                                             OC_UI_STYLE_SIZE);
+                            oc_ui_style_next(&(oc_ui_style){ .size.width = { OC_UI_SIZE_PIXELS, 200 } },
+                                             OC_UI_STYLE_SIZE_WIDTH);
                             static f32 slider3 = 0;
-                            oc_ui_slider("slider3", 0.2, &slider3);
+                            oc_ui_slider("slider3", &slider3);
                         }
                     }
                 }
@@ -325,16 +291,12 @@ ORCA_EXPORT void oc_on_frame_refresh(void)
                                      OC_UI_STYLE_SIZE);
                     widget_view("Test")
                     {
-                        oc_ui_pattern pattern = { 0 };
-                        oc_ui_pattern_push(oc_scratch(), &pattern, (oc_ui_selector){ .kind = OC_UI_SEL_TEXT, .text = OC_STR8("panel") });
-                        oc_ui_style_match_after(pattern, &(oc_ui_style){ .bgColor = { 0.3, 0.3, 1, 1 } }, OC_UI_STYLE_BG_COLOR);
-
                         static int selected = 0;
-                        oc_str8 options[] = { OC_STR8("option 1"),
-                                              OC_STR8("option 2"),
-                                              OC_STR8("long option 3"),
-                                              OC_STR8("option 4"),
-                                              OC_STR8("option 5") };
+                        oc_str8 options[] = { OC_STR8("Option 1"),
+                                              OC_STR8("Option 2"),
+                                              OC_STR8("Long option 3"),
+                                              OC_STR8("Option 4"),
+                                              OC_STR8("Option 5") };
                         oc_ui_select_popup_info info = { .selectedIndex = selected,
                                                          .optionCount = 5,
                                                          .options = options };

@@ -13,6 +13,37 @@
 #include "util/hash.h"
 #include "util/memory.h"
 
+//NOTE(ilia): Design system by semi.design: https://semi.design/en-US/start/overview
+
+#define OC_UI_DARK_BLUE_2 { 0.074, 0.361, 0.722, 1 }
+#define OC_UI_DARK_BLUE_5 { 0.33, 0.66, 1, 1 }
+#define OC_UI_DARK_BLUE_6 { 0.5, 0.757, 1, 1 }
+#define OC_UI_DARK_BLUE_7 { 0.66, 0.84, 1, 1 }
+#define OC_UI_DARK_GREY_7 { 0.786, 0.792, 0.804, 1 }
+#define OC_UI_DARK_GREY_9 { 0.976, 0.976, 0.976, 1 }
+
+#define OC_UI_DARK_BG_0 { 0.086, 0.086, 0.102, 1 }
+#define OC_UI_DARK_TEXT_0 OC_UI_DARK_GREY_9
+
+static oc_ui_theme OC_UI_DARK_THEME = {
+    .white = { 0.894, 0.906, 0.961, 1 },
+    .primary = OC_UI_DARK_BLUE_5,
+    .primaryHover = OC_UI_DARK_BLUE_6,
+    .primaryActive = OC_UI_DARK_BLUE_7,
+    .fill0 = { 1, 1, 1, 0.12 },
+    .fill1 = { 1, 1, 1, 0.16 },
+    .fill2 = { 1, 1, 1, 0.2 },
+    .bg0 = OC_UI_DARK_BG_0,
+    .bg1 = { 0.137, 0.141, 0.161, 1 },
+    .bg2 = { 0.208, 0.212, 0.235, 1 },
+    .bg3 = { 0.263, 0.267, 0.29, 1 },
+    .bg4 = { 0.31, 0.318, 0.349, 1 },
+    .text0 = OC_UI_DARK_TEXT_0,
+    .text1 = { 0.976, 0.976, 0.976, 0.8 }, // OC_UI_DARK_GREY_9
+    .text2 = { 0.976, 0.976, 0.976, 0.6 }, // OC_UI_DARK_GREY_9
+    .text3 = { 0.976, 0.976, 0.976, 0.35 } // OC_UI_DARK_GREY_9
+};
+
 static oc_ui_style OC_UI_STYLE_DEFAULTS = {
     .size.width = { .kind = OC_UI_SIZE_CHILDREN,
                     .value = 0,
@@ -24,9 +55,13 @@ static oc_ui_style OC_UI_STYLE_DEFAULTS = {
     .layout = { .axis = OC_UI_AXIS_Y,
                 .align = { OC_UI_ALIGN_START,
                            OC_UI_ALIGN_START } },
-    .color = { 0, 0, 0, 1 },
-    .fontSize = 16,
+    .bgColor = OC_UI_DARK_BG_0,
+    .color = OC_UI_DARK_TEXT_0,
+    .fontSize = 14,
 };
+
+#undef OC_UI_DARK_BG_0
+#undef OC_UI_DARK_TEXT_0
 
 oc_thread_local oc_ui_context oc_uiThreadContext = { 0 };
 oc_thread_local oc_ui_context* oc_uiCurrentContext = 0;
@@ -1583,12 +1618,11 @@ oc_ui_sig oc_ui_button_str8(oc_str8 label)
                                  .size.height = { OC_UI_SIZE_TEXT },
                                  .layout.align.x = OC_UI_ALIGN_CENTER,
                                  .layout.align.y = OC_UI_ALIGN_CENTER,
-                                 .layout.margin.x = 5,
-                                 .layout.margin.y = 5,
-                                 .bgColor = { 0.5, 0.5, 0.5, 1 },
-                                 .borderColor = { 0.2, 0.2, 0.2, 1 },
-                                 .borderSize = 1,
-                                 .roundness = 10 };
+                                 .layout.margin.x = 12,
+                                 .layout.margin.y = 6,
+                                 .color = OC_UI_DARK_THEME.primary,
+                                 .bgColor = OC_UI_DARK_THEME.fill0,
+                                 .roundness = 3 };
 
     oc_ui_style_mask defaultMask = OC_UI_STYLE_SIZE_WIDTH
                                  | OC_UI_STYLE_SIZE_HEIGHT
@@ -1596,30 +1630,25 @@ oc_ui_sig oc_ui_button_str8(oc_str8 label)
                                  | OC_UI_STYLE_LAYOUT_MARGIN_Y
                                  | OC_UI_STYLE_LAYOUT_ALIGN_X
                                  | OC_UI_STYLE_LAYOUT_ALIGN_Y
+                                 | OC_UI_STYLE_COLOR
                                  | OC_UI_STYLE_BG_COLOR
-                                 | OC_UI_STYLE_BORDER_COLOR
-                                 | OC_UI_STYLE_BORDER_SIZE
                                  | OC_UI_STYLE_ROUNDNESS;
 
     oc_ui_style_next(&defaultStyle, defaultMask);
 
-    oc_ui_style activeStyle = { .bgColor = { 0.3, 0.3, 0.3, 1 },
-                                .borderColor = { 0.2, 0.2, 0.2, 1 },
-                                .borderSize = 2 };
-    oc_ui_style_mask activeMask = OC_UI_STYLE_BG_COLOR
-                                | OC_UI_STYLE_BORDER_COLOR
-                                | OC_UI_STYLE_BORDER_SIZE;
+    oc_ui_pattern hoverPattern = { 0 };
+    oc_ui_pattern_push(&ui->frameArena, &hoverPattern, (oc_ui_selector){ .kind = OC_UI_SEL_STATUS, .status = OC_UI_HOVER });
+    oc_ui_style hoverStyle = { .bgColor = OC_UI_DARK_THEME.fill1 };
+    oc_ui_style_match_before(hoverPattern, &hoverStyle, OC_UI_STYLE_BG_COLOR);
+
     oc_ui_pattern activePattern = { 0 };
-    oc_ui_pattern_push(&ui->frameArena,
-                       &activePattern,
-                       (oc_ui_selector){ .kind = OC_UI_SEL_STATUS,
-                                         .status = OC_UI_ACTIVE | OC_UI_HOVER });
-    oc_ui_style_match_before(activePattern, &activeStyle, activeMask);
+    oc_ui_pattern_push(&ui->frameArena, &activePattern, (oc_ui_selector){ .kind = OC_UI_SEL_STATUS, .status = OC_UI_ACTIVE });
+    oc_ui_style activeStyle = { .bgColor = OC_UI_DARK_THEME.fill2 };
+    oc_ui_style_match_before(activePattern, &activeStyle, OC_UI_STYLE_BG_COLOR);
 
     oc_ui_flags flags = OC_UI_FLAG_CLICKABLE
                       | OC_UI_FLAG_CLIP
                       | OC_UI_FLAG_DRAW_BACKGROUND
-                      | OC_UI_FLAG_DRAW_BORDER
                       | OC_UI_FLAG_DRAW_TEXT
                       | OC_UI_FLAG_HOT_ANIMATION
                       | OC_UI_FLAG_ACTIVE_ANIMATION;
@@ -1638,73 +1667,119 @@ oc_ui_sig oc_ui_button(const char* label)
 
 void oc_ui_checkbox_draw(oc_ui_box* box, void* data)
 {
-    bool checked = *(bool*)data;
-    if(checked)
-    {
-        oc_move_to(box->rect.x + 0.2 * box->rect.w, box->rect.y + 0.5 * box->rect.h);
-        oc_line_to(box->rect.x + 0.4 * box->rect.w, box->rect.y + 0.75 * box->rect.h);
-        oc_line_to(box->rect.x + 0.8 * box->rect.w, box->rect.y + 0.2 * box->rect.h);
+    oc_mat2x3 matrix = {
+        box->rect.w, 0, box->rect.x,
+        0, box->rect.h, box->rect.y
+    };
+    oc_matrix_push(matrix);
 
-        oc_set_color(box->style.color);
-        oc_set_width(0.2 * box->rect.w);
-        oc_set_joint(OC_JOINT_MITER);
-        oc_set_max_joint_excursion(0.2 * box->rect.h);
-        oc_stroke();
-    }
+    oc_move_to(0.7255, 0.3045);
+    oc_cubic_to(0.7529, 0.3255, 0.7581, 0.3647, 0.7371, 0.3921);
+    oc_line_to(0.4663, 0.7463);
+    oc_cubic_to(0.4545, 0.7617, 0.4363, 0.7708, 0.4169, 0.7708);
+    oc_cubic_to(0.3975, 0.7709, 0.3792, 0.762, 0.3673, 0.7467);
+    oc_line_to(0.2215, 0.5592);
+    oc_cubic_to(0.2003, 0.532, 0.2052, 0.4927, 0.2325, 0.4715);
+    oc_cubic_to(0.2597, 0.4503, 0.299, 0.4552, 0.3202, 0.4825);
+    oc_line_to(0.4162, 0.606);
+    oc_line_to(0.6379, 0.3162);
+    oc_cubic_to(0.6588, 0.2888, 0.698, 0.2836, 0.7255, 0.3045);
+
+    oc_set_color(box->style.color);
+    oc_fill();
+
+    oc_matrix_pop();
 }
 
 oc_ui_sig oc_ui_checkbox(const char* name, bool* checked)
 {
     oc_ui_context* ui = oc_ui_get_context();
 
-    oc_ui_style defaultStyle = { .size.width = { OC_UI_SIZE_PIXELS, 20 },
-                                 .size.height = { OC_UI_SIZE_PIXELS, 20 },
-                                 .bgColor = { 1, 1, 1, 1 },
-                                 .color = { 0, 0, 0, 1 },
-                                 .borderColor = { 0.2, 0.2, 0.2, 1 },
-                                 .borderSize = 1,
-                                 .roundness = 5 };
+    oc_ui_box* box;
+    if (*checked)
+    {
+        oc_ui_style defaultStyle = { .size.width = { OC_UI_SIZE_PIXELS, 16 },
+                                     .size.height = { OC_UI_SIZE_PIXELS, 16 },
+                                     .bgColor = OC_UI_DARK_THEME.primary,
+                                     .color = OC_UI_DARK_THEME.white,
+                                     .roundness = 3 };
 
-    oc_ui_style_mask defaultMask = OC_UI_STYLE_SIZE_WIDTH
-                                 | OC_UI_STYLE_SIZE_HEIGHT
-                                 | OC_UI_STYLE_BG_COLOR
-                                 | OC_UI_STYLE_COLOR
-                                 | OC_UI_STYLE_BORDER_COLOR
-                                 | OC_UI_STYLE_BORDER_SIZE
-                                 | OC_UI_STYLE_ROUNDNESS;
+        oc_ui_style_mask defaultMask = OC_UI_STYLE_SIZE_WIDTH
+                                     | OC_UI_STYLE_SIZE_HEIGHT
+                                     | OC_UI_STYLE_BG_COLOR
+                                     | OC_UI_STYLE_COLOR
+                                     | OC_UI_STYLE_ROUNDNESS;
 
-    oc_ui_style_next(&defaultStyle, defaultMask);
+        oc_ui_style_next(&defaultStyle, defaultMask);
 
-    oc_ui_style activeStyle = { .bgColor = { 0.5, 0.5, 0.5, 1 },
-                                .borderColor = { 0.2, 0.2, 0.2, 1 },
-                                .borderSize = 2 };
-    oc_ui_style_mask activeMask = OC_UI_STYLE_BG_COLOR
-                                | OC_UI_STYLE_BORDER_COLOR
-                                | OC_UI_STYLE_BORDER_SIZE;
-    oc_ui_pattern activePattern = { 0 };
-    oc_ui_pattern_push(&ui->frameArena,
-                       &activePattern,
-                       (oc_ui_selector){ .kind = OC_UI_SEL_STATUS,
-                                         .status = OC_UI_ACTIVE | OC_UI_HOVER });
-    oc_ui_style_match_before(activePattern, &activeStyle, activeMask);
+        oc_ui_pattern hoverPattern = { 0 };
+        oc_ui_pattern_push(&ui->frameArena, &hoverPattern, (oc_ui_selector){ .kind = OC_UI_SEL_STATUS, .status = OC_UI_HOVER });
+        oc_ui_style hoverStyle = { .bgColor = OC_UI_DARK_THEME.primaryHover };
+        oc_ui_style_match_before(hoverPattern, &hoverStyle, OC_UI_STYLE_BG_COLOR);
 
-    oc_ui_flags flags = OC_UI_FLAG_CLICKABLE
-                      | OC_UI_FLAG_CLIP
-                      | OC_UI_FLAG_DRAW_BACKGROUND
-                      | OC_UI_FLAG_DRAW_PROC
-                      | OC_UI_FLAG_DRAW_BORDER
-                      | OC_UI_FLAG_HOT_ANIMATION
-                      | OC_UI_FLAG_ACTIVE_ANIMATION;
+        oc_ui_pattern activePattern = { 0 };
+        oc_ui_pattern_push(&ui->frameArena, &activePattern, (oc_ui_selector){ .kind = OC_UI_SEL_STATUS, .status = OC_UI_ACTIVE });
+        oc_ui_style activeStyle = { .bgColor = OC_UI_DARK_THEME.primaryActive };
+        oc_ui_style_match_before(activePattern, &activeStyle, OC_UI_STYLE_BG_COLOR);
 
-    oc_ui_box* box = oc_ui_box_make(name, flags);
-    oc_ui_tag_box(box, "checkbox");
+        oc_ui_flags flags = OC_UI_FLAG_CLICKABLE
+                          | OC_UI_FLAG_CLIP
+                          | OC_UI_FLAG_DRAW_BACKGROUND
+                          | OC_UI_FLAG_DRAW_PROC
+                          | OC_UI_FLAG_HOT_ANIMATION
+                          | OC_UI_FLAG_ACTIVE_ANIMATION;
+
+        box = oc_ui_box_make(name, flags);
+        oc_ui_tag_box(box, "checkbox");
+
+        oc_ui_box_set_draw_proc(box, oc_ui_checkbox_draw, 0);
+    }
+    else
+    {
+        oc_ui_style defaultStyle = { .size.width = { OC_UI_SIZE_PIXELS, 16 },
+                                     .size.height = { OC_UI_SIZE_PIXELS, 16 },
+                                     .bgColor = { 0 },
+                                     .borderColor = OC_UI_DARK_THEME.text3,
+                                     .borderSize = 1,
+                                     .roundness = 3 };
+
+        oc_ui_style_mask defaultMask = OC_UI_STYLE_SIZE_WIDTH
+                                     | OC_UI_STYLE_SIZE_HEIGHT
+                                     | OC_UI_STYLE_BG_COLOR
+                                     | OC_UI_STYLE_BORDER_COLOR
+                                     | OC_UI_STYLE_BORDER_SIZE
+                                     | OC_UI_STYLE_ROUNDNESS;
+
+        oc_ui_style_next(&defaultStyle, defaultMask);
+
+        oc_ui_pattern hoverPattern = { 0 };
+        oc_ui_pattern_push(&ui->frameArena, &hoverPattern, (oc_ui_selector){ .kind = OC_UI_SEL_STATUS, .status = OC_UI_HOVER });
+        oc_ui_style hoverStyle = { .bgColor = OC_UI_DARK_THEME.fill0,
+                                   .borderColor = OC_UI_DARK_THEME.primary };
+        oc_ui_style_match_before(hoverPattern, &hoverStyle, OC_UI_STYLE_BG_COLOR | OC_UI_STYLE_BORDER_COLOR);
+
+        oc_ui_pattern activePattern = { 0 };
+        oc_ui_pattern_push(&ui->frameArena, &activePattern, (oc_ui_selector){ .kind = OC_UI_SEL_STATUS, .status = OC_UI_ACTIVE });
+        oc_ui_style activeStyle = { .bgColor = OC_UI_DARK_THEME.fill1,
+                                    .borderColor = OC_UI_DARK_THEME.primary };
+        oc_ui_style_match_before(activePattern, &activeStyle, OC_UI_STYLE_BG_COLOR | OC_UI_STYLE_BORDER_COLOR);
+
+        oc_ui_flags flags = OC_UI_FLAG_CLICKABLE
+                          | OC_UI_FLAG_CLIP
+                          | OC_UI_FLAG_DRAW_BACKGROUND
+                          | OC_UI_FLAG_DRAW_BORDER
+                          | OC_UI_FLAG_HOT_ANIMATION
+                          | OC_UI_FLAG_ACTIVE_ANIMATION;
+
+        box = oc_ui_box_make(name, flags);
+        oc_ui_tag_box(box, "checkbox");
+    }
 
     oc_ui_sig sig = oc_ui_button_behavior(box);
     if(sig.clicked)
     {
         *checked = !*checked;
     }
-    oc_ui_box_set_draw_proc(box, oc_ui_checkbox_draw, checked);
 
     return (sig);
 }
@@ -1712,64 +1787,255 @@ oc_ui_sig oc_ui_checkbox(const char* name, bool* checked)
 //------------------------------------------------------------------------------
 // slider / scrollbar
 //------------------------------------------------------------------------------
-oc_ui_box* oc_ui_slider(const char* label, f32 thumbRatio, f32* scrollValue)
+oc_ui_box* oc_ui_slider(const char* label, f32* value)
 {
     oc_ui_style_match_before(oc_ui_pattern_all(), &(oc_ui_style){ 0 }, OC_UI_STYLE_LAYOUT);
     oc_ui_box* frame = oc_ui_box_begin(label, 0);
     {
+        oc_ui_axis trackAxis = (frame->rect.w > frame->rect.h) ? OC_UI_AXIS_X : OC_UI_AXIS_Y;
+        oc_ui_axis secondAxis = (trackAxis == OC_UI_AXIS_Y) ? OC_UI_AXIS_X : OC_UI_AXIS_Y;
+        f32 trackThickness = 4;
+        f32 thumbSize = 24;
+
+        f32 beforeRatio, afterRatio, thumbRatio, trackFillRatio;
+        if(trackAxis == OC_UI_AXIS_X)
+        {
+            thumbRatio = oc_min(thumbSize / frame->rect.w, 1.);
+            beforeRatio = (*value) * (1. - thumbRatio);
+            afterRatio = (1. - *value) * (1. - thumbRatio);
+            trackFillRatio = beforeRatio + thumbRatio;
+        }
+        else
+        {
+            thumbRatio = oc_min(thumbSize / frame->rect.h, 1.);
+            beforeRatio = (1. - *value) * (1. - thumbRatio);
+            afterRatio = (*value) * (1. - thumbRatio);
+            trackFillRatio = thumbRatio + afterRatio;
+        }
+
+        if(frame->rect.w > 0 || frame->rect.h > 0)
+        {
+            oc_ui_style frameStyle = { .layout.axis = trackAxis,
+                                       .layout.align.x = OC_UI_ALIGN_START,
+                                       .layout.align.y = OC_UI_ALIGN_START };
+            frameStyle.size.c[secondAxis] = (oc_ui_size){ OC_UI_SIZE_PIXELS, thumbSize };
+            oc_ui_style_box_before(frame,
+                                   oc_ui_pattern_owner(),
+                                   &frameStyle,
+                                   (OC_UI_STYLE_SIZE_WIDTH << secondAxis) | OC_UI_STYLE_LAYOUT);
+        }
+
+        oc_ui_style trackStyle = { .floating.x = true,
+                                   .floating.y = true,
+                                   .bgColor = OC_UI_DARK_THEME.fill0,
+                                   .roundness = trackThickness / 2 };
+        trackStyle.size.c[trackAxis] = (oc_ui_size){ OC_UI_SIZE_PARENT, 1 };
+        trackStyle.size.c[secondAxis] = (oc_ui_size){ OC_UI_SIZE_PIXELS, trackThickness };
+        trackStyle.floatTarget.c[trackAxis] = 0;
+        trackStyle.floatTarget.c[secondAxis] = (thumbSize - trackThickness) / 2;
+
+
+        oc_ui_style_mask styleMask = OC_UI_STYLE_SIZE
+                                   | OC_UI_STYLE_BG_COLOR
+                                   | OC_UI_STYLE_ROUNDNESS;
+        oc_ui_style_mask styleFloatMask = styleMask | OC_UI_STYLE_FLOAT;
+
+        oc_ui_style_next(&trackStyle, styleFloatMask);
+        oc_ui_box* track = oc_ui_box_make("track", OC_UI_FLAG_DRAW_BACKGROUND);
+        oc_ui_tag_box(track, "track");
+
+        if(trackAxis == OC_UI_AXIS_X)
+        {
+            oc_ui_style trackFillStyle = { .size.width = (oc_ui_size){ OC_UI_SIZE_PARENT, trackFillRatio },
+                                           .size.height = (oc_ui_size){ OC_UI_SIZE_PIXELS, trackThickness },
+                                           .floating.x = true,
+                                           .floating.y = true,
+                                           .floatTarget.x = 0,
+                                           .floatTarget.y = (thumbSize - trackThickness) / 2,
+                                           .bgColor = OC_UI_DARK_THEME.primary,
+                                           .roundness = trackThickness / 2 };
+            oc_ui_style_next(&trackFillStyle, styleFloatMask);
+            oc_ui_box* trackFill = oc_ui_box_make("track_fill", OC_UI_FLAG_DRAW_BACKGROUND);
+            oc_ui_tag_box(trackFill, "track_fill");
+        }
+        else
+        {
+            oc_ui_style trackFillStyle = { .size.width = (oc_ui_size){ OC_UI_SIZE_PIXELS, trackThickness },
+                                           .size.height = (oc_ui_size){ OC_UI_SIZE_PARENT, trackFillRatio },
+                                           .floating.x = true,
+                                           .floating.y = true,
+                                           .floatTarget.x = (thumbSize - trackThickness) / 2,
+                                           .floatTarget.y = frame->rect.h * (1 - trackFillRatio),
+                                           .bgColor = OC_UI_DARK_THEME.primary,
+                                           .roundness = trackThickness / 2 };
+            oc_ui_style_next(&trackFillStyle, styleFloatMask);
+            oc_ui_box* trackFill = oc_ui_box_make("track_fill", OC_UI_FLAG_DRAW_BACKGROUND);
+            oc_ui_tag_box(trackFill, "track_fill");
+        }
+
+        oc_ui_style beforeSpacerStyle = { 0 };
+        beforeSpacerStyle.size.c[trackAxis] = (oc_ui_size){ OC_UI_SIZE_PARENT, beforeRatio };
+        oc_ui_style_next(&beforeSpacerStyle, OC_UI_STYLE_SIZE);
+        oc_ui_box* beforeSpacer = oc_ui_box_make("before_spacer", 0);
+
+        oc_ui_style thumbStyle = { .size.width = (oc_ui_size){ OC_UI_SIZE_PIXELS, thumbSize },
+                                   .size.height = (oc_ui_size){ OC_UI_SIZE_PIXELS, thumbSize },
+                                   .bgColor = OC_UI_DARK_THEME.white,
+                                   .roundness = thumbSize / 2 };
+        oc_ui_style_next(&thumbStyle, styleMask);
+
+        oc_ui_context* ui = oc_ui_get_context();
+        oc_ui_style thumbActiveStyle = { .borderColor = OC_UI_DARK_THEME.primary,
+                                         .borderSize = 1 };
+        oc_ui_pattern thumbActivePattern = { 0 };
+        oc_ui_pattern_push(&ui->frameArena,
+                           &thumbActivePattern,
+                           (oc_ui_selector){ .kind = OC_UI_SEL_STATUS,
+                                             .status = OC_UI_ACTIVE });
+        oc_ui_style_match_after(thumbActivePattern, &thumbActiveStyle, OC_UI_STYLE_BORDER_COLOR | OC_UI_STYLE_BORDER_SIZE);
+
+        oc_ui_flags thumbFlags = OC_UI_FLAG_CLICKABLE
+                               | OC_UI_FLAG_DRAW_BACKGROUND
+                               | OC_UI_FLAG_DRAW_BORDER;
+        oc_ui_box* thumb = oc_ui_box_make("thumb", thumbFlags);
+        oc_ui_tag_box(thumb, "thumb");
+
+        oc_ui_style afterSpacerStyle = { 0 };
+        afterSpacerStyle.size.c[trackAxis] = (oc_ui_size){ OC_UI_SIZE_PARENT, afterRatio };
+        oc_ui_style_next(&afterSpacerStyle, OC_UI_STYLE_SIZE);
+        oc_ui_box* afterSpacer = oc_ui_box_make("after_spacer", 0);
+
+        //NOTE: interaction
+        oc_ui_sig thumbSig = oc_ui_box_sig(thumb);
+        oc_ui_sig trackSig = oc_ui_box_sig(track);
+        if(thumbSig.dragging)
+        {
+            f32 trackExtents = track->rect.c[2 + trackAxis] - thumb->rect.c[2 + trackAxis];
+            *value = (trackSig.mouse.c[trackAxis] - thumb->pressedMouse.c[trackAxis]) / trackExtents;
+            *value = oc_clamp(*value, 0, 1);
+            if(trackAxis == OC_UI_AXIS_Y)
+            {
+                *value = 1 - *value;
+            }
+        }
+
+        if(oc_ui_box_active(frame))
+        {
+            //NOTE: activated from outside
+            oc_ui_box_set_hot(track, true);
+            oc_ui_box_set_hot(thumb, true);
+            oc_ui_box_activate(track);
+            oc_ui_box_activate(thumb);
+        }
+
+        if(trackSig.hovering)
+        {
+            oc_ui_box_set_hot(track, true);
+            oc_ui_box_set_hot(thumb, true);
+        }
+        else if(thumbSig.wheel.c[trackAxis] == 0)
+        {
+            oc_ui_box_set_hot(track, false);
+            oc_ui_box_set_hot(thumb, false);
+        }
+
+        if(thumbSig.dragging)
+        {
+            oc_ui_box_activate(track);
+            oc_ui_box_activate(thumb);
+        }
+        else if(thumbSig.wheel.c[trackAxis] == 0)
+        {
+            oc_ui_box_deactivate(track);
+            oc_ui_box_deactivate(thumb);
+            oc_ui_box_deactivate(frame);
+        }
+    }
+    oc_ui_box_end();
+
+    return (frame);
+}
+
+oc_ui_box* oc_ui_scrollbar(const char* label, f32 thumbRatio, f32* scrollValue)
+{
+    oc_ui_style_match_before(oc_ui_pattern_all(), &(oc_ui_style){ 0 }, OC_UI_STYLE_LAYOUT);
+    oc_ui_box* frame = oc_ui_box_begin(label, 0);
+    {
+        f32 minThumbRatio = 17. / oc_max(frame->rect.w, frame->rect.h);
+        thumbRatio = oc_min(oc_max(thumbRatio, minThumbRatio), 1.);
         f32 beforeRatio = (*scrollValue) * (1. - thumbRatio);
         f32 afterRatio = (1. - *scrollValue) * (1. - thumbRatio);
 
         oc_ui_axis trackAxis = (frame->rect.w > frame->rect.h) ? OC_UI_AXIS_X : OC_UI_AXIS_Y;
         oc_ui_axis secondAxis = (trackAxis == OC_UI_AXIS_Y) ? OC_UI_AXIS_X : OC_UI_AXIS_Y;
         f32 roundness = 0.5 * frame->rect.c[2 + secondAxis];
-        f32 animationTime = 0.5;
 
         oc_ui_style trackStyle = { .size.width = { OC_UI_SIZE_PARENT, 1 },
                                    .size.height = { OC_UI_SIZE_PARENT, 1 },
                                    .layout.axis = trackAxis,
                                    .layout.align.x = OC_UI_ALIGN_START,
                                    .layout.align.y = OC_UI_ALIGN_START,
-                                   .bgColor = { 0.5, 0.5, 0.5, 1 },
                                    .roundness = roundness };
 
-        oc_ui_style beforeStyle = trackStyle;
-        beforeStyle.size.c[trackAxis] = (oc_ui_size){ OC_UI_SIZE_PARENT, beforeRatio };
+        oc_ui_style beforeSpacerStyle = trackStyle;
+        beforeSpacerStyle.size.c[trackAxis] = (oc_ui_size){ OC_UI_SIZE_PARENT, beforeRatio };
 
-        oc_ui_style afterStyle = trackStyle;
-        afterStyle.size.c[trackAxis] = (oc_ui_size){ OC_UI_SIZE_PARENT, afterRatio };
+        oc_ui_style afterSpacerStyle = trackStyle;
+        afterSpacerStyle.size.c[trackAxis] = (oc_ui_size){ OC_UI_SIZE_PARENT, afterRatio };
 
         oc_ui_style thumbStyle = trackStyle;
         thumbStyle.size.c[trackAxis] = (oc_ui_size){ OC_UI_SIZE_PARENT, thumbRatio };
-        thumbStyle.bgColor = (oc_color){ 0.3, 0.3, 0.3, 1 };
+        thumbStyle.bgColor = OC_UI_DARK_THEME.fill2;
 
-        oc_ui_style_mask styleMask = OC_UI_STYLE_SIZE_WIDTH
-                                   | OC_UI_STYLE_SIZE_HEIGHT
-                                   | OC_UI_STYLE_LAYOUT
-                                   | OC_UI_STYLE_BG_COLOR
-                                   | OC_UI_STYLE_ROUNDNESS;
+        oc_ui_style_mask trackStyleMask = OC_UI_STYLE_SIZE_WIDTH
+                                        | OC_UI_STYLE_SIZE_HEIGHT
+                                        | OC_UI_STYLE_LAYOUT
+                                        | OC_UI_STYLE_ROUNDNESS;
 
         oc_ui_flags trackFlags = OC_UI_FLAG_CLIP
                                | OC_UI_FLAG_DRAW_BACKGROUND
                                | OC_UI_FLAG_HOT_ANIMATION
                                | OC_UI_FLAG_ACTIVE_ANIMATION;
 
-        oc_ui_style_next(&trackStyle, styleMask);
+        oc_ui_style_next(&trackStyle, trackStyleMask);
         oc_ui_box* track = oc_ui_box_begin("track", trackFlags);
+        oc_ui_tag_box(track, "track");
 
-        oc_ui_style_next(&beforeStyle, OC_UI_STYLE_SIZE_WIDTH | OC_UI_STYLE_SIZE_HEIGHT);
-        oc_ui_box* beforeSpacer = oc_ui_box_make("before", 0);
+        oc_ui_style_next(&beforeSpacerStyle, OC_UI_STYLE_SIZE);
+        oc_ui_box* beforeSpacer = oc_ui_box_make("before_spacer", 0);
+
+        oc_ui_context* ui = oc_ui_get_context();
+        oc_ui_style thumbHoverActiveStyle = { .bgColor = OC_UI_DARK_THEME.fill1 };
+        oc_ui_pattern thumbHoverPattern = { 0 };
+        oc_ui_pattern_push(&ui->frameArena,
+                           &thumbHoverPattern,
+                           (oc_ui_selector){ .kind = OC_UI_SEL_STATUS,
+                                             .status = OC_UI_HOVER });
+        oc_ui_style_match_after(thumbHoverPattern, &thumbHoverActiveStyle, OC_UI_STYLE_BG_COLOR);
+        oc_ui_pattern thumbActivePattern = { 0 };
+        oc_ui_pattern_push(&ui->frameArena,
+                           &thumbActivePattern,
+                           (oc_ui_selector){ .kind = OC_UI_SEL_STATUS,
+                                             .status = OC_UI_ACTIVE });
+        oc_ui_style_match_after(thumbActivePattern, &thumbHoverActiveStyle, OC_UI_STYLE_BG_COLOR);
+
+        oc_ui_style_mask thumbStyleMask = OC_UI_STYLE_SIZE_WIDTH
+                                        | OC_UI_STYLE_SIZE_HEIGHT
+                                        | OC_UI_STYLE_LAYOUT
+                                        | OC_UI_STYLE_BG_COLOR
+                                        | OC_UI_STYLE_ROUNDNESS;
 
         oc_ui_flags thumbFlags = OC_UI_FLAG_CLICKABLE
                                | OC_UI_FLAG_DRAW_BACKGROUND
                                | OC_UI_FLAG_HOT_ANIMATION
                                | OC_UI_FLAG_ACTIVE_ANIMATION;
 
-        oc_ui_style_next(&thumbStyle, styleMask);
+        oc_ui_style_next(&thumbStyle, thumbStyleMask);
         oc_ui_box* thumb = oc_ui_box_make("thumb", thumbFlags);
+        oc_ui_tag_box(thumb, "thumb");
 
-        oc_ui_style_next(&afterStyle, OC_UI_STYLE_SIZE_WIDTH | OC_UI_STYLE_SIZE_HEIGHT);
-        oc_ui_box* afterSpacer = oc_ui_box_make("after", 0);
+        oc_ui_style_next(&afterSpacerStyle, OC_UI_STYLE_SIZE);
+        oc_ui_box* afterSpacer = oc_ui_box_make("after_spacer", 0);
 
         oc_ui_box_end();
 
@@ -1834,10 +2100,14 @@ void oc_ui_panel_begin(const char* str, oc_ui_flags flags)
           | OC_UI_FLAG_SCROLL_WHEEL_Y;
 
     oc_ui_box_begin(str, flags);
+
+    oc_ui_box_begin("contents", 0);
 }
 
 void oc_ui_panel_end(void)
 {
+    oc_ui_box_end(); // contents
+
     oc_ui_box* panel = oc_ui_box_top();
     oc_ui_sig sig = oc_ui_box_sig(panel);
 
@@ -1856,7 +2126,7 @@ void oc_ui_panel_end(void)
     if(needsScrollX)
     {
         f32 thumbRatioX = panel->rect.w / contentsW;
-        f32 sliderX = panel->scroll.x / (contentsW - panel->rect.w);
+        f32 scrollValueX = panel->scroll.x / (contentsW - panel->rect.w);
 
         oc_ui_style_next(&(oc_ui_style){ .size.width = { OC_UI_SIZE_PARENT, 1., 0 },
                                          .size.height = { OC_UI_SIZE_PIXELS, 10, 0 },
@@ -1866,9 +2136,9 @@ void oc_ui_panel_end(void)
                          OC_UI_STYLE_SIZE
                              | OC_UI_STYLE_FLOAT);
 
-        scrollBarX = oc_ui_slider("scrollerX", thumbRatioX, &sliderX);
+        scrollBarX = oc_ui_scrollbar("scrollerX", thumbRatioX, &scrollValueX);
 
-        panel->scroll.x = sliderX * (contentsW - panel->rect.w);
+        panel->scroll.x = scrollValueX * (contentsW - panel->rect.w);
         if(sig.hovering)
         {
             oc_ui_box_activate(scrollBarX);
@@ -1878,7 +2148,7 @@ void oc_ui_panel_end(void)
     if(needsScrollY)
     {
         f32 thumbRatioY = panel->rect.h / contentsH;
-        f32 sliderY = panel->scroll.y / (contentsH - panel->rect.h);
+        f32 scrollValueY = panel->scroll.y / (contentsH - panel->rect.h);
 
         f32 spacerSize = needsScrollX ? 10 : 0;
 
@@ -1890,52 +2160,89 @@ void oc_ui_panel_end(void)
                          OC_UI_STYLE_SIZE
                              | OC_UI_STYLE_FLOAT);
 
-        scrollBarY = oc_ui_slider("scrollerY", thumbRatioY, &sliderY);
+        scrollBarY = oc_ui_scrollbar("scrollerY", thumbRatioY, &scrollValueY);
 
-        panel->scroll.y = sliderY * (contentsH - panel->rect.h);
-        if(sig.hovering)
-        {
-            oc_ui_box_activate(scrollBarY);
-        }
+        panel->scroll.y = scrollValueY * (contentsH - panel->rect.h);
     }
     panel->scroll.x = oc_clamp(panel->scroll.x, 0, contentsW - panel->rect.w);
     panel->scroll.y = oc_clamp(panel->scroll.y, 0, contentsH - panel->rect.h);
 
-    oc_ui_box_end();
+    oc_ui_box_end(); // panel
 }
 
 //------------------------------------------------------------------------------
 // tooltips
 //------------------------------------------------------------------------------
 
-oc_ui_sig oc_ui_tooltip_begin(const char* name)
+void oc_ui_tooltip_arrow_draw(oc_ui_box* box, void* data)
+{
+    oc_mat2x3 matrix = {
+        -box->rect.w, 0, box->rect.x + box->rect.w + 1,
+        0, box->rect.h, box->rect.y
+    };
+    oc_matrix_push(matrix);
+
+    oc_move_to(0, 0);
+    oc_line_to(0.0417, 0);
+    oc_cubic_to(0.0417, 0.1667, 0.0833, 0.2292, 0.1667, 0.3125);
+    oc_quadratic_to(0.2917, 0.4167, 0.2917, 0.5);
+    oc_quadratic_to(0.25, 0.6042, 0.1667, 0.6875);
+    oc_quadratic_to(0.0417, 0.8333, 0.0417, 1);
+    oc_line_to(0, 1);
+    oc_line_to(0, 0);
+
+    oc_set_color(box->style.bgColor);
+    oc_fill();
+
+    oc_matrix_pop();
+}
+
+void oc_ui_tooltip(const char* label)
 {
     oc_ui_context* ui = oc_ui_get_context();
 
     oc_vec2 p = oc_ui_mouse_position();
 
-    oc_ui_style style = { .size.width = { OC_UI_SIZE_CHILDREN },
-                          .size.height = { OC_UI_SIZE_CHILDREN },
-                          .floating.x = true,
-                          .floating.y = true,
-                          .floatTarget = { p.x, p.y } };
-    oc_ui_style_mask mask = OC_UI_STYLE_SIZE | OC_UI_STYLE_FLOAT;
+    oc_ui_container(label, 0)
+    {
+        oc_ui_style arrowStyle = { .size.width = { OC_UI_SIZE_PIXELS, 24 },
+                                   .size.height = { OC_UI_SIZE_PIXELS, 24 },
+                                   .floating.x = true,
+                                   .floating.y = true,
+                                   .floatTarget = { p.x, p.y + 5},
+                                   .bgColor = OC_UI_DARK_GREY_7 };
+        oc_ui_style_mask arrowMask = OC_UI_STYLE_SIZE
+                                   | OC_UI_STYLE_FLOAT
+                                   | OC_UI_STYLE_BG_COLOR;
+        oc_ui_style_next(&arrowStyle, arrowMask);
 
-    oc_ui_style_next(&style, mask);
+        oc_ui_box* arrow = oc_ui_box_make("arrow", OC_UI_FLAG_OVERLAY | OC_UI_FLAG_DRAW_PROC);
+        oc_ui_box_set_draw_proc(arrow, oc_ui_tooltip_arrow_draw, 0);
 
-    oc_ui_flags flags = OC_UI_FLAG_OVERLAY
-                      | OC_UI_FLAG_DRAW_BACKGROUND
-                      | OC_UI_FLAG_DRAW_BORDER;
+        oc_ui_style contentsStyle = { .size.width = { OC_UI_SIZE_CHILDREN },
+                                      .size.height = { OC_UI_SIZE_CHILDREN },
+                                      .layout.margin.x = 12,
+                                      .layout.margin.y = 8,
+                                      .floating.x = true,
+                                      .floating.y = true,
+                                      .floatTarget = { p.x + 24, p.y },
+                                      .bgColor = OC_UI_DARK_GREY_7,
+                                      .color = OC_UI_DARK_THEME.bg0,
+                                      .roundness = 6 };
+        oc_ui_style_mask contentsMask = OC_UI_STYLE_SIZE
+                                      | OC_UI_STYLE_LAYOUT_MARGINS
+                                      | OC_UI_STYLE_FLOAT
+                                      | OC_UI_STYLE_COLOR
+                                      | OC_UI_STYLE_BG_COLOR
+                                      | OC_UI_STYLE_ROUNDNESS;
+        oc_ui_style_next(&contentsStyle, contentsMask);
 
-    oc_ui_box* tooltip = oc_ui_box_make(name, flags);
-    oc_ui_box_push(tooltip);
+        oc_ui_box* contents = oc_ui_box_begin("contents", OC_UI_FLAG_OVERLAY | OC_UI_FLAG_DRAW_BACKGROUND);
 
-    return (oc_ui_box_sig(tooltip));
-}
+        oc_ui_label(label);
 
-void oc_ui_tooltip_end(void)
-{
-    oc_ui_box_pop(); // tooltip
+        oc_ui_box_end();
+    }
 }
 
 //------------------------------------------------------------------------------
@@ -1948,11 +2255,9 @@ void oc_ui_menu_bar_begin(const char* name)
         .size.width = { OC_UI_SIZE_PARENT, 1, 0 },
         .size.height = { OC_UI_SIZE_CHILDREN },
         .layout.axis = OC_UI_AXIS_X,
-        .layout.spacing = 20,
     };
     oc_ui_style_mask mask = OC_UI_STYLE_SIZE
-                          | OC_UI_STYLE_LAYOUT_AXIS
-                          | OC_UI_STYLE_LAYOUT_SPACING;
+                          | OC_UI_STYLE_LAYOUT_AXIS;
 
     oc_ui_style_next(&style, mask);
     oc_ui_box* bar = oc_ui_box_begin(name, OC_UI_FLAG_DRAW_BACKGROUND);
@@ -1972,20 +2277,41 @@ void oc_ui_menu_bar_end(void)
 
 void oc_ui_menu_begin(const char* label)
 {
+    oc_ui_context* ui = oc_ui_get_context();
     oc_ui_box* container = oc_ui_box_make(label, 0);
     oc_ui_box_push(container);
+
+    oc_ui_style_next(&(oc_ui_style){ .size.width = { OC_UI_SIZE_CHILDREN },
+                                     .size.height = { OC_UI_SIZE_CHILDREN },
+                                     .layout.margin.x = 8,
+                                     .layout.margin.y = 4,
+                                     .bgColor = {0, 0, 0, 0} },
+                     OC_UI_STYLE_SIZE | OC_UI_STYLE_LAYOUT_MARGINS | OC_UI_STYLE_BG_COLOR);
+
+    oc_ui_pattern hoverPattern = { 0 };
+    oc_ui_pattern_push(&ui->frameArena, &hoverPattern, (oc_ui_selector){ .kind = OC_UI_SEL_STATUS, .status = OC_UI_HOVER });
+    oc_ui_style hoverStyle = { .bgColor = OC_UI_DARK_THEME.fill0 };
+    oc_ui_style_match_before(hoverPattern, &hoverStyle, OC_UI_STYLE_BG_COLOR);
+
+    oc_ui_pattern draggingPattern = { 0 };
+    oc_ui_pattern_push(&ui->frameArena, &draggingPattern, (oc_ui_selector){ .kind = OC_UI_SEL_STATUS, .status = OC_UI_DRAGGING });
+    oc_ui_style draggingStyle = { .bgColor = OC_UI_DARK_THEME.fill2 };
+    oc_ui_style_match_before(draggingPattern, &draggingStyle, OC_UI_STYLE_BG_COLOR);
+
+    oc_ui_box* button = oc_ui_box_begin("button", OC_UI_FLAG_CLICKABLE | OC_UI_FLAG_DRAW_BACKGROUND);
 
     oc_ui_style_next(&(oc_ui_style){ .size.width = { OC_UI_SIZE_TEXT },
                                      .size.height = { OC_UI_SIZE_TEXT } },
                      OC_UI_STYLE_SIZE);
+    oc_ui_box* buttonLabel = oc_ui_box_make(label, OC_UI_FLAG_DRAW_TEXT);
 
-    oc_ui_box* button = oc_ui_box_make(label, OC_UI_FLAG_CLICKABLE | OC_UI_FLAG_DRAW_TEXT);
+    oc_ui_box_end(); // button
+
     oc_ui_box* bar = container->parent;
 
     oc_ui_sig sig = oc_ui_box_sig(button);
     oc_ui_sig barSig = oc_ui_box_sig(bar);
 
-    oc_ui_context* ui = oc_ui_get_context();
 
     oc_ui_style style = { .size.width = { OC_UI_SIZE_CHILDREN },
                           .size.height = { OC_UI_SIZE_CHILDREN },
@@ -1994,10 +2320,9 @@ void oc_ui_menu_begin(const char* label)
                           .floatTarget = { button->rect.x,
                                            button->rect.y + button->rect.h },
                           .layout.axis = OC_UI_AXIS_Y,
-                          .layout.spacing = 5,
                           .layout.margin.x = 0,
-                          .layout.margin.y = 5,
-                          .bgColor = { 0.2, 0.2, 0.2, 1 } };
+                          .layout.margin.y = 4,
+                          .bgColor = OC_UI_DARK_THEME.bg1};
 
     oc_ui_style_mask mask = OC_UI_STYLE_SIZE
                           | OC_UI_STYLE_FLOAT
@@ -2021,11 +2346,17 @@ void oc_ui_menu_begin(const char* label)
         {
             oc_ui_box_deactivate(button);
         }
+
+        if(sig.clicked)
+        {
+            oc_ui_box_deactivate(bar);
+            oc_ui_box_deactivate(button);
+        }
     }
     else
     {
         oc_ui_box_deactivate(button);
-        if(sig.pressed)
+        if(sig.clicked)
         {
             oc_ui_box_activate(bar);
             oc_ui_box_activate(button);
@@ -2048,18 +2379,22 @@ oc_ui_sig oc_ui_menu_button(const char* name)
 
     oc_ui_style_next(&(oc_ui_style){ .size.width = { OC_UI_SIZE_TEXT },
                                      .size.height = { OC_UI_SIZE_TEXT },
-                                     .layout.margin.x = 5,
+                                     .layout.margin.x = 8,
+                                     .layout.margin.y = 4,
                                      .bgColor = { 0, 0, 0, 0 } },
                      OC_UI_STYLE_SIZE
-                         | OC_UI_STYLE_LAYOUT_MARGIN_X
+                         | OC_UI_STYLE_LAYOUT_MARGINS
                          | OC_UI_STYLE_BG_COLOR);
 
-    oc_ui_pattern pattern = { 0 };
-    oc_ui_pattern_push(&ui->frameArena, &pattern, (oc_ui_selector){ .kind = OC_UI_SEL_STATUS, .status = OC_UI_HOVER });
+    oc_ui_pattern hoverPattern = { 0 };
+    oc_ui_pattern_push(&ui->frameArena, &hoverPattern, (oc_ui_selector){ .kind = OC_UI_SEL_STATUS, .status = OC_UI_HOVER });
+    oc_ui_style hoverStyle = { .bgColor = OC_UI_DARK_THEME.fill0 };
+    oc_ui_style_match_before(hoverPattern, &hoverStyle, OC_UI_STYLE_BG_COLOR);
 
-    oc_ui_style style = { .bgColor = { 0, 0, 1, 1 } };
-    oc_ui_style_mask mask = OC_UI_STYLE_BG_COLOR;
-    oc_ui_style_match_before(pattern, &style, mask);
+    oc_ui_pattern draggingPattern = { 0 };
+    oc_ui_pattern_push(&ui->frameArena, &draggingPattern, (oc_ui_selector){ .kind = OC_UI_SEL_STATUS, .status = OC_UI_DRAGGING });
+    oc_ui_style draggingStyle = { .bgColor = OC_UI_DARK_THEME.fill2 };
+    oc_ui_style_match_before(draggingPattern, &draggingStyle, OC_UI_STYLE_BG_COLOR);
 
     oc_ui_flags flags = OC_UI_FLAG_CLICKABLE
                       | OC_UI_FLAG_CLIP
@@ -2071,32 +2406,61 @@ oc_ui_sig oc_ui_menu_button(const char* name)
     return (sig);
 }
 
+//------------------------------------------------------------------------------
+// Select
+//------------------------------------------------------------------------------
+
 void oc_ui_select_popup_draw_arrow(oc_ui_box* box, void* data)
 {
-    f32 r = oc_min(box->parent->style.roundness, box->rect.w);
-    f32 cr = r * 4 * (sqrt(2) - 1) / 3;
+    oc_mat2x3 matrix = {
+        box->rect.w / 2, 0, box->rect.x + box->rect.w / 4,
+        0, box->rect.h / 2, box->rect.y + box->rect.h / 4
+    };
+    oc_matrix_push(matrix);
 
-    oc_move_to(box->rect.x, box->rect.y);
-    oc_line_to(box->rect.x + box->rect.w - r, box->rect.y);
-    oc_cubic_to(box->rect.x + box->rect.w - cr, box->rect.y,
-                box->rect.x + box->rect.w, box->rect.y + cr,
-                box->rect.x + box->rect.w, box->rect.y + r);
-    oc_line_to(box->rect.x + box->rect.w, box->rect.y + box->rect.h - r);
-    oc_cubic_to(box->rect.x + box->rect.w, box->rect.y + box->rect.h - cr,
-                box->rect.x + box->rect.w - cr, box->rect.y + box->rect.h,
-                box->rect.x + box->rect.w - r, box->rect.y + box->rect.h);
-    oc_line_to(box->rect.x, box->rect.y + box->rect.h);
-
-    oc_set_color(box->style.bgColor);
-    oc_fill();
-
-    oc_move_to(box->rect.x + 0.25 * box->rect.w, box->rect.y + 0.45 * box->rect.h);
-    oc_line_to(box->rect.x + 0.5 * box->rect.w, box->rect.y + 0.75 * box->rect.h);
-    oc_line_to(box->rect.x + 0.75 * box->rect.w, box->rect.y + 0.45 * box->rect.h);
+    oc_move_to(0.17, 0.3166);
+    oc_cubic_to(0.1944, 0.2922, 0.234, 0.2922, 0.2584, 0.3166);
+    oc_line_to(0.4941, 0.5523);
+    oc_line_to(0.7298, 0.3166);
+    oc_cubic_to(0.7542, 0.2922, 0.7938, 0.2922, 0.8182, 0.3166);
+    oc_cubic_to(0.8426, 0.341, 0.8426, 0.3806, 0.8182, 0.405);
+    oc_line_to(0.5383, 0.6849);
+    oc_cubic_to(0.5139, 0.7093, 0.4743, 0.7093, 0.4499, 0.6849);
+    oc_line_to(0.17, 0.405);
+    oc_cubic_to(0.1456, 0.3806, 0.1456, 0.341, 0.17, 0.3166);
     oc_close_path();
 
     oc_set_color(box->style.color);
     oc_fill();
+
+    oc_matrix_pop();
+}
+
+void oc_ui_select_popup_draw_checkmark(oc_ui_box *box, void *data)
+{
+    oc_mat2x3 matrix = {
+        box->rect.w, 0, box->rect.x,
+        0, box->rect.h, box->rect.y
+    };
+    oc_matrix_push(matrix);
+
+    oc_move_to(0.8897, 0.1777);
+    oc_cubic_to(0.9181, 0.1973, 0.9252, 0.2362, 0.9056, 0.2647);
+    oc_line_to(0.489, 0.8688);
+    oc_cubic_to(0.4782, 0.8844, 0.4609, 0.8943, 0.442, 0.8957);
+    oc_cubic_to(0.4231, 0.897, 0.4046, 0.8898, 0.3917, 0.8759);
+    oc_line_to(0.1209, 0.5842);
+    oc_cubic_to(0.0974, 0.5589, 0.0988, 0.5194, 0.1241, 0.4959);
+    oc_cubic_to(0.1494, 0.4724, 0.189, 0.4738, 0.2125, 0.4991);
+    oc_line_to(0.4303, 0.7337);
+    oc_line_to(0.8027, 0.1937);
+    oc_cubic_to(0.8223, 0.1653, 0.8612, 0.1581, 0.8897, 0.1777);
+    oc_close_path();
+
+    oc_set_color(box->style.color);
+    oc_fill();
+
+    oc_matrix_pop();
 }
 
 oc_ui_select_popup_info oc_ui_select_popup(const char* name, oc_ui_select_popup_info* info)
@@ -2107,6 +2471,24 @@ oc_ui_select_popup_info oc_ui_select_popup(const char* name, oc_ui_select_popup_
 
     oc_ui_container(name, 0)
     {
+        oc_ui_pattern hoverPattern = { 0 };
+        oc_ui_pattern_push(&ui->frameArena, &hoverPattern, (oc_ui_selector){ .kind = OC_UI_SEL_STATUS, .status = OC_UI_HOVER });
+        oc_ui_style hoverStyle = { .bgColor = OC_UI_DARK_THEME.fill1 };
+        oc_ui_style_match_after(hoverPattern, &hoverStyle, OC_UI_STYLE_BG_COLOR);
+
+        oc_ui_pattern activePattern = { 0 };
+        oc_ui_pattern_push(&ui->frameArena, &activePattern, (oc_ui_selector){ .kind = OC_UI_SEL_STATUS, .status = OC_UI_ACTIVE });
+        oc_ui_style activeStyle = { .borderColor = OC_UI_DARK_THEME.primary,
+                                    .borderSize = 1 };
+        oc_ui_style_match_after(activePattern, &activeStyle, OC_UI_STYLE_BORDER_COLOR | OC_UI_STYLE_BORDER_SIZE);
+
+        oc_ui_pattern draggingPattern = { 0 };
+        oc_ui_pattern_push(&ui->frameArena, &draggingPattern, (oc_ui_selector){ .kind = OC_UI_SEL_STATUS, .status = OC_UI_DRAGGING });
+        oc_ui_style draggingStyle = { .bgColor = OC_UI_DARK_THEME.fill2,
+                                      .borderColor = OC_UI_DARK_THEME.primary,
+                                      .borderSize = 1 };
+        oc_ui_style_match_after(draggingPattern, &draggingStyle, OC_UI_STYLE_BG_COLOR | OC_UI_STYLE_BORDER_COLOR | OC_UI_STYLE_BORDER_SIZE);
+
         oc_ui_box* button = oc_ui_box_make("button",
                                            OC_UI_FLAG_CLICKABLE
                                                | OC_UI_FLAG_DRAW_BACKGROUND
@@ -2128,32 +2510,32 @@ oc_ui_select_popup_info oc_ui_select_popup(const char* name, oc_ui_select_popup_
                                oc_ui_pattern_owner(),
                                &(oc_ui_style){ .size.width = { OC_UI_SIZE_PIXELS, buttonWidth },
                                                .size.height = { OC_UI_SIZE_CHILDREN },
-                                               .layout.margin.x = 5,
-                                               .layout.margin.y = 1,
-                                               .roundness = 5,
-                                               .borderSize = 1,
-                                               .borderColor = { 0.3, 0.3, 0.3, 1 } },
+                                               .layout.margin.x = 12,
+                                               .layout.margin.y = 6,
+                                               .bgColor = OC_UI_DARK_THEME.fill0,
+                                               .roundness = 3 },
                                OC_UI_STYLE_SIZE
                                    | OC_UI_STYLE_LAYOUT_MARGIN_X
                                    | OC_UI_STYLE_LAYOUT_MARGIN_Y
-                                   | OC_UI_STYLE_ROUNDNESS
-                                   | OC_UI_STYLE_BORDER_SIZE
-                                   | OC_UI_STYLE_BORDER_COLOR);
+                                   | OC_UI_STYLE_BG_COLOR
+                                   | OC_UI_STYLE_ROUNDNESS);
+
         oc_ui_box_push(button);
         {
-            oc_ui_label_str8(info->options[info->selectedIndex]);
+            oc_ui_container("selected_option", 0)
+            {
+                oc_ui_label_str8(info->options[info->selectedIndex]);
+            }
 
             oc_ui_style_next(&(oc_ui_style){ .size.width = { OC_UI_SIZE_PIXELS, button->rect.h },
                                              .size.height = { OC_UI_SIZE_PIXELS, button->rect.h },
                                              .floating.x = true,
                                              .floating.y = true,
                                              .floatTarget = { button->rect.w - button->rect.h, 0 },
-                                             .color = { 0, 0, 0, 1 },
-                                             .bgColor = { 0.7, 0.7, 0.7, 1 } },
+                                             .color = OC_UI_DARK_THEME.text2 },
                              OC_UI_STYLE_SIZE
                                  | OC_UI_STYLE_FLOAT
-                                 | OC_UI_STYLE_COLOR
-                                 | OC_UI_STYLE_BG_COLOR);
+                                 | OC_UI_STYLE_COLOR);
 
             oc_ui_box* arrow = oc_ui_box_make("arrow", OC_UI_FLAG_DRAW_PROC);
             oc_ui_box_set_draw_proc(arrow, oc_ui_select_popup_draw_arrow, 0);
@@ -2166,8 +2548,11 @@ oc_ui_select_popup_info oc_ui_select_popup(const char* name, oc_ui_select_popup_
                                               | OC_UI_FLAG_BLOCK_MOUSE
                                               | OC_UI_FLAG_OVERLAY);
 
+        f32 checkmarkSize = 16;
+        f32 checkmarkSpacing = 5;
+
         //TODO: set width to max(button.w, max child...)
-        f32 containerWidth = oc_max(maxOptionWidth + 2 * panel->style.layout.margin.x,
+        f32 containerWidth = oc_max(maxOptionWidth + checkmarkSize + checkmarkSpacing + 2 * panel->style.layout.margin.x,
                                     button->rect.w);
 
         oc_ui_style_box_before(panel,
@@ -2177,15 +2562,17 @@ oc_ui_select_popup_info oc_ui_select_popup(const char* name, oc_ui_select_popup_
                                                .floating.x = true,
                                                .floating.y = true,
                                                .floatTarget = { button->rect.x,
-                                                                button->rect.y + button->rect.h },
+                                                                button->rect.y + button->rect.h + 4 },
                                                .layout.axis = OC_UI_AXIS_Y,
                                                .layout.margin.x = 0,
                                                .layout.margin.y = 5,
-                                               .bgColor = { 0.2, 0.2, 0.2, 1 } },
+                                               .bgColor = OC_UI_DARK_THEME.bg3,
+                                               .roundness = 6 },
                                OC_UI_STYLE_SIZE
                                    | OC_UI_STYLE_FLOAT
                                    | OC_UI_STYLE_LAYOUT
-                                   | OC_UI_STYLE_BG_COLOR);
+                                   | OC_UI_STYLE_BG_COLOR
+                                   | OC_UI_STYLE_ROUNDNESS);
 
         oc_ui_box_push(panel);
         {
@@ -2193,40 +2580,77 @@ oc_ui_select_popup_info oc_ui_select_popup(const char* name, oc_ui_select_popup_
             {
                 oc_ui_style_next(&(oc_ui_style){ .size.width = { OC_UI_SIZE_PARENT, 1 },
                                                  .size.height = { OC_UI_SIZE_TEXT },
-                                                 .layout.axis = OC_UI_AXIS_Y,
+                                                 .layout.axis = OC_UI_AXIS_X,
                                                  .layout.align.x = OC_UI_ALIGN_START,
-                                                 .layout.margin.x = 5,
-                                                 .layout.margin.y = 2.5 },
+                                                 .layout.align.y = OC_UI_ALIGN_CENTER,
+                                                 .layout.spacing = checkmarkSpacing,
+                                                 .layout.margin.x = 12,
+                                                 .layout.margin.y = 8,
+                                                 .bgColor = { 0, 0, 0, 0 } },
                                  OC_UI_STYLE_SIZE
                                      | OC_UI_STYLE_LAYOUT_AXIS
                                      | OC_UI_STYLE_LAYOUT_ALIGN_X
+                                     | OC_UI_STYLE_LAYOUT_ALIGN_Y
+                                     | OC_UI_STYLE_LAYOUT_SPACING
                                      | OC_UI_STYLE_LAYOUT_MARGIN_X
-                                     | OC_UI_STYLE_LAYOUT_MARGIN_Y);
+                                     | OC_UI_STYLE_LAYOUT_MARGIN_Y
+                                     | OC_UI_STYLE_BG_COLOR);
 
-                oc_ui_pattern pattern = { 0 };
-                oc_ui_pattern_push(&ui->frameArena, &pattern, (oc_ui_selector){ .kind = OC_UI_SEL_STATUS, .status = OC_UI_HOVER });
-                oc_ui_style_match_before(pattern, &(oc_ui_style){ .bgColor = { 0, 0, 1, 1 } }, OC_UI_STYLE_BG_COLOR);
+                oc_ui_pattern hoverPattern = { 0 };
+                oc_ui_pattern_push(&ui->frameArena, &hoverPattern, (oc_ui_selector){ .kind = OC_UI_SEL_STATUS, .status = OC_UI_HOVER });
+                oc_ui_style_match_before(hoverPattern, &(oc_ui_style){ .bgColor = OC_UI_DARK_THEME.fill0 }, OC_UI_STYLE_BG_COLOR);
 
-                oc_ui_box* box = oc_ui_box_make_str8(info->options[i],
-                                                     OC_UI_FLAG_DRAW_TEXT
-                                                         | OC_UI_FLAG_CLICKABLE
-                                                         | OC_UI_FLAG_DRAW_BACKGROUND);
-                oc_ui_sig sig = oc_ui_box_sig(box);
-                if(sig.pressed)
+                oc_ui_pattern draggingPattern = { 0 };
+                oc_ui_pattern_push(&ui->frameArena, &draggingPattern, (oc_ui_selector){ .kind = OC_UI_SEL_STATUS, .status = OC_UI_DRAGGING });
+                oc_ui_style_match_before(draggingPattern, &(oc_ui_style){ .bgColor = OC_UI_DARK_THEME.fill2 }, OC_UI_STYLE_BG_COLOR);
+
+                oc_ui_box* wrapper = oc_ui_box_begin_str8(info->options[i],
+                                                          OC_UI_FLAG_CLICKABLE | OC_UI_FLAG_DRAW_BACKGROUND);
+                if(i == info->selectedIndex)
+                {
+                    oc_ui_style_next(&(oc_ui_style){ .size.width = { OC_UI_SIZE_PIXELS, checkmarkSize },
+                                                     .size.height = { OC_UI_SIZE_PIXELS, checkmarkSize },
+                                                     .color = OC_UI_DARK_THEME.text2 },
+                                     OC_UI_STYLE_SIZE | OC_UI_STYLE_COLOR);
+                    oc_ui_box* checkmark = oc_ui_box_make("checkmark", OC_UI_FLAG_DRAW_PROC);
+                    oc_ui_box_set_draw_proc(checkmark, oc_ui_select_popup_draw_checkmark, 0);
+                }
+                else
+                {
+                    oc_ui_style_next(&(oc_ui_style){ .size.width = { OC_UI_SIZE_PIXELS, checkmarkSize },
+                                                     .size.height = { OC_UI_SIZE_PIXELS, checkmarkSize } },
+                                     OC_UI_STYLE_SIZE);
+                    oc_ui_box* spacer = oc_ui_box_make("spacer", 0);
+                }
+
+                oc_ui_container("label", 0)
+                {
+                    oc_ui_style_next(&(oc_ui_style){ .size.width = { OC_UI_SIZE_PIXELS, maxOptionWidth },
+                                                     .size.height = { OC_UI_SIZE_TEXT } },
+                                     OC_UI_STYLE_SIZE);
+                    oc_ui_box* label = oc_ui_box_make_str8(info->options[i], OC_UI_FLAG_DRAW_TEXT);
+                }
+
+                oc_ui_sig sig = oc_ui_box_sig(wrapper);
+                if(sig.clicked)
                 {
                     result.selectedIndex = i;
                 }
+
+                oc_ui_box_end(); // wrapper
             }
         }
         oc_ui_box_pop();
 
         oc_ui_context* ui = oc_ui_get_context();
-        if(oc_ui_box_active(panel) && oc_mouse_pressed(&ui->input, OC_MOUSE_LEFT))
+        if(oc_ui_box_active(panel) && oc_mouse_released(&ui->input, OC_MOUSE_LEFT))
         {
+            oc_ui_box_deactivate(button);
             oc_ui_box_deactivate(panel);
         }
-        else if(oc_ui_box_sig(button).pressed)
+        else if(oc_ui_box_sig(button).clicked)
         {
+            oc_ui_box_activate(button);
             oc_ui_box_activate(panel);
         }
         oc_ui_box_set_closed(panel, !oc_ui_box_active(panel));
@@ -2837,9 +3261,7 @@ void oc_ui_text_box_render(oc_ui_box* box, void* data)
     oc_str32 before = oc_str32_slice(codepoints, 0, firstDisplayedChar);
     oc_rect beforeBox = oc_text_bounding_box_utf32(style->font, style->fontSize, before);
 
-    f32 textMargin = 5; //TODO: make that configurable
-
-    f32 textX = textMargin + box->rect.x - beforeBox.w;
+    f32 textX = box->rect.x - beforeBox.w;
     f32 textTop = box->rect.y + 0.5 * (box->rect.h - lineHeight);
     f32 textY = textTop + extents.ascent;
 
@@ -2863,7 +3285,7 @@ void oc_ui_text_box_render(oc_ui_box* box, void* data)
             selectBox.x += beforeSelectBox.x + beforeSelectBox.w;
             selectBox.y += textY;
 
-            oc_set_color_rgba(0, 0, 1, 1);
+            oc_set_color((oc_color)OC_UI_DARK_BLUE_2);
             oc_rectangle_fill(selectBox.x, selectBox.y, selectBox.w, lineHeight);
 
             oc_set_font(style->font);
@@ -2874,7 +3296,7 @@ void oc_ui_text_box_render(oc_ui_box* box, void* data)
             oc_codepoints_outlines(beforeSelect);
             oc_fill();
 
-            oc_set_color_rgba(1, 1, 1, 1);
+            oc_set_color(box->style.color);
             oc_codepoints_outlines(select);
             oc_fill();
 
@@ -2886,7 +3308,7 @@ void oc_ui_text_box_render(oc_ui_box* box, void* data)
         {
             if(!((u64)(2 * (ui->frameTime - ui->editCursorBlinkStart)) & 1))
             {
-                f32 caretX = box->rect.x + textMargin - beforeBox.w + beforeSelectBox.w;
+                f32 caretX = box->rect.x - beforeBox.w + beforeSelectBox.w;
                 f32 caretY = textTop;
                 oc_set_color(style->color);
                 oc_rectangle_fill(caretX, caretY, 1, lineHeight);
@@ -2918,17 +3340,48 @@ oc_ui_text_box_result oc_ui_text_box(const char* name, oc_arena* arena, oc_str8 
 
     oc_ui_text_box_result result = { .text = text };
 
+    oc_ui_style frameStyle = { .layout.margin.x = 12,
+                               .layout.margin.y = 6,
+                               .bgColor = OC_UI_DARK_THEME.fill0,
+                               .roundness = 3 };
+    oc_ui_style_mask frameMask = OC_UI_STYLE_LAYOUT_MARGIN_X
+                               | OC_UI_STYLE_LAYOUT_MARGIN_Y
+                               | OC_UI_STYLE_BG_COLOR
+                               | OC_UI_STYLE_ROUNDNESS;
+    oc_ui_style_next(&frameStyle, frameMask);
+
+    oc_ui_pattern hoverPattern = { 0 };
+    oc_ui_pattern_push(&ui->frameArena, &hoverPattern, (oc_ui_selector){ .kind = OC_UI_SEL_STATUS, .status = OC_UI_HOVER });
+    oc_ui_style hoverStyle = { .bgColor = OC_UI_DARK_THEME.fill1 };
+    oc_ui_style_match_after(hoverPattern, &hoverStyle, OC_UI_STYLE_BG_COLOR);
+
+    oc_ui_pattern activePattern = { 0 };
+    oc_ui_pattern_push(&ui->frameArena, &activePattern, (oc_ui_selector){ .kind = OC_UI_SEL_STATUS, .status = OC_UI_ACTIVE });
+    oc_ui_style activeStyle = { .borderColor = OC_UI_DARK_THEME.primary,
+                                .borderSize = 1 };
+    oc_ui_style_match_after(activePattern, &activeStyle, OC_UI_STYLE_BORDER_COLOR | OC_UI_STYLE_BORDER_SIZE);
+
+    oc_ui_pattern draggingPattern = { 0 };
+    oc_ui_pattern_push(&ui->frameArena, &draggingPattern, (oc_ui_selector){ .kind = OC_UI_SEL_STATUS, .status = OC_UI_DRAGGING });
+    oc_ui_style draggingStyle = { .bgColor = OC_UI_DARK_THEME.fill2 };
+    oc_ui_style_match_after(draggingPattern, &draggingStyle, OC_UI_STYLE_BG_COLOR);
+
     oc_ui_flags frameFlags = OC_UI_FLAG_CLICKABLE
                            | OC_UI_FLAG_DRAW_BACKGROUND
-                           | OC_UI_FLAG_DRAW_BORDER
-                           | OC_UI_FLAG_CLIP
-                           | OC_UI_FLAG_DRAW_PROC;
+                           | OC_UI_FLAG_DRAW_BORDER;
+    oc_ui_box* frame = oc_ui_box_begin(name, frameFlags);
+    oc_ui_tag_box(frame, "frame");
+    oc_font font = frame->style.font;
+    f32 fontSize = frame->style.fontSize;
 
-    oc_ui_box* frame = oc_ui_box_make(name, frameFlags);
-    oc_ui_style* style = &frame->style;
-    f32 textMargin = 5; //TODO parameterize this margin! must be the same as in oc_ui_text_box_render
+    oc_ui_style textStyle = { .size.width = (oc_ui_size){ OC_UI_SIZE_PARENT, 1 },
+                              .size.height = (oc_ui_size){ OC_UI_SIZE_PARENT, 1 } };
+    oc_ui_style_next(&textStyle, OC_UI_STYLE_SIZE);
 
-    oc_font_extents extents = oc_font_get_scaled_extents(style->font, style->fontSize);
+    oc_ui_box* textBox = oc_ui_box_make("text", OC_UI_FLAG_CLIP | OC_UI_FLAG_DRAW_PROC);
+    oc_ui_tag_box(textBox, "text");
+
+    oc_font_extents extents = oc_font_get_scaled_extents(font, fontSize);
 
     oc_ui_sig sig = oc_ui_box_sig(frame);
 
@@ -2937,6 +3390,7 @@ oc_ui_text_box_result oc_ui_text_box(const char* name, oc_arena* arena, oc_str8 
         if(!oc_ui_box_active(frame))
         {
             oc_ui_box_activate(frame);
+            oc_ui_box_activate(textBox);
 
             //NOTE: focus
             ui->focus = frame;
@@ -2951,14 +3405,14 @@ oc_ui_text_box_result oc_ui_text_box(const char* name, oc_arena* arena, oc_str8 
     {
         //NOTE: set cursor/extend selection on mouse press or drag
         oc_vec2 pos = oc_ui_mouse_position();
-        f32 cursorX = pos.x - frame->rect.x - textMargin;
+        f32 cursorX = pos.x - textBox->rect.x;
 
         oc_str32 codepoints = oc_utf8_push_to_codepoints(&ui->frameArena, text);
         i32 newCursor = codepoints.len;
         f32 x = 0;
         for(int i = ui->editFirstDisplayedChar; i < codepoints.len; i++)
         {
-            oc_rect bbox = oc_text_bounding_box_utf32(style->font, style->fontSize, oc_str32_slice(codepoints, i, i + 1));
+            oc_rect bbox = oc_text_bounding_box_utf32(font, fontSize, oc_str32_slice(codepoints, i, i + 1));
             if(x + 0.5 * bbox.w > cursorX)
             {
                 newCursor = i;
@@ -2995,6 +3449,7 @@ oc_ui_text_box_result oc_ui_text_box(const char* name, oc_arena* arena, oc_str8 
             if(oc_ui_box_active(frame))
             {
                 oc_ui_box_deactivate(frame);
+                oc_ui_box_deactivate(textBox);
 
                 //NOTE loose focus
                 ui->focus = 0;
@@ -3060,6 +3515,7 @@ oc_ui_text_box_result oc_ui_text_box(const char* name, oc_arena* arena, oc_str8 
             //TODO(martin): extract in gui_edit_complete() (and use below)
             result.accepted = true;
             oc_ui_box_deactivate(frame);
+            oc_ui_box_deactivate(textBox);
             ui->focus = 0;
         }
 
@@ -3073,13 +3529,13 @@ oc_ui_text_box_result oc_ui_text_box(const char* name, oc_arena* arena, oc_str8 
             {
                 i32 firstDisplayedChar = ui->editFirstDisplayedChar;
                 oc_str32 firstToCursor = oc_str32_slice(codepoints, firstDisplayedChar, ui->editCursor);
-                oc_rect firstToCursorBox = oc_text_bounding_box_utf32(style->font, style->fontSize, firstToCursor);
+                oc_rect firstToCursorBox = oc_text_bounding_box_utf32(font, fontSize, firstToCursor);
 
-                while(firstToCursorBox.w > (frame->rect.w - 2 * textMargin))
+                while(firstToCursorBox.w > textBox->rect.w)
                 {
                     firstDisplayedChar++;
                     firstToCursor = oc_str32_slice(codepoints, firstDisplayedChar, ui->editCursor);
-                    firstToCursorBox = oc_text_bounding_box_utf32(style->font, style->fontSize, firstToCursor);
+                    firstToCursorBox = oc_text_bounding_box_utf32(font, fontSize, firstToCursor);
                 }
 
                 ui->editFirstDisplayedChar = firstDisplayedChar;
@@ -3089,15 +3545,17 @@ oc_ui_text_box_result oc_ui_text_box(const char* name, oc_arena* arena, oc_str8 
         //NOTE: set renderer
         oc_str32* renderCodepoints = oc_arena_push_type(&ui->frameArena, oc_str32);
         *renderCodepoints = oc_str32_push_copy(&ui->frameArena, codepoints);
-        oc_ui_box_set_draw_proc(frame, oc_ui_text_box_render, renderCodepoints);
+        oc_ui_box_set_draw_proc(textBox, oc_ui_text_box_render, renderCodepoints);
     }
     else
     {
         //NOTE: set renderer
         oc_str32* renderCodepoints = oc_arena_push_type(&ui->frameArena, oc_str32);
         *renderCodepoints = oc_utf8_push_to_codepoints(&ui->frameArena, text);
-        oc_ui_box_set_draw_proc(frame, oc_ui_text_box_render, renderCodepoints);
+        oc_ui_box_set_draw_proc(textBox, oc_ui_text_box_render, renderCodepoints);
     }
+
+    oc_ui_box_end(); // frame
 
     return (result);
 }
