@@ -1,9 +1,37 @@
 [
 {
 	"name": "oc_io_wait_single_req",
-	"cname": "oc_runtime_io_wait_single_req",
+	"cname": "oc_bridge_io_single_rect",
 	"ret": {"name": "oc_io_cmp", "tag": "S"},
 	"args": [ {"name": "req",
 	           "type": {"name": "oc_io_req*", "tag": "p"}}]
+},
+{
+    "name": "oc_file_open_with_request",
+    "cname": "oc_file_open_with_request_bridge",
+    "ret": {"name": "oc_file", "tag": "S"},
+    "args": [
+        {"name": "path",
+         "type": {"name": "oc_str8", "cname": "oc_wasm_str8", "tag": "S"}},
+        {"name": "rights",
+         "type": {"name": "oc_file_access", "tag": "i"}},
+        {"name": "flags",
+         "type": {"name": "oc_file_open_flags", "tag": "i"}}
+    ]
+},
+{
+    "name": "oc_file_open_with_dialog",
+    "cname": "oc_file_open_with_dialog_bridge",
+    "ret": {"name": "oc_file_open_with_dialog_result", "cname": "oc_wasm_file_open_with_dialog_result", "tag": "S"},
+    "args": [
+        {"name": "arena",
+         "type": {"name": "oc_arena*", "cname": "i32", "tag": "i"}},
+        {"name": "rights",
+         "type": {"name": "oc_file_access", "tag": "i"}},
+        {"name": "flags",
+         "type": {"name": "oc_file_open_flags", "tag": "i"}},
+        {"name": "desc",
+         "type": {"name": "oc_file_dialog_desc*", "cname": "oc_wasm_file_dialog_desc*", "tag": "p"}}
+    ]
 }
 ]

@@ -11,7 +11,7 @@
 
 #include "win32_string_helpers.h"
 
-oc_str16 oc_win32_utf8_to_wide_null_terminated(oc_arena* arena, oc_str8 s)
+oc_str16 oc_win32_utf8_to_wide(oc_arena* arena, oc_str8 s)
 {
     oc_str16 res = { 0 };
     res.len = 1 + MultiByteToWideChar(CP_UTF8, 0, s.ptr, s.len, NULL, 0);

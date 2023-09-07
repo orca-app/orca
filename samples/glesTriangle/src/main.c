@@ -37,7 +37,7 @@ void compile_shader(GLuint shader, const char* source)
 
 ORCA_EXPORT void oc_on_init(void)
 {
-    oc_runtime_window_set_title(OC_STR8("triangle"));
+    oc_window_set_title(OC_STR8("triangle"));
 
     surface = oc_surface_gles();
     oc_surface_select(surface);

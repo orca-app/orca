@@ -37,6 +37,14 @@
 		 "type": {"name": "u8*", "tag": "p"}}]
 },
 {
+    "name": "oc_surface_get_size",
+    "cname": "oc_surface_get_size",
+    "ret": {"name": "oc_vec2", "tag": "S"},
+    "args": [
+        {"name": "surface",
+         "type": {"name": "oc_surface", "tag": "S"}}]
+},
+{
     "name": "oc_surface_contents_scaling",
     "cname": "oc_surface_contents_scaling",
     "ret": {"name": "oc_vec2", "tag": "S"},

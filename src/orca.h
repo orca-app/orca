@@ -22,6 +22,7 @@
 #include "platform/platform.h"
 #include "platform/platform_clock.h"
 #include "platform/platform_io.h"
+#include "platform/platform_io_dialog.h"
 #include "platform/platform_path.h"
 
 #if !defined(OC_PLATFORM_ORCA) || !(OC_PLATFORM_ORCA)
@@ -38,9 +39,6 @@
 #if OC_PLATFORM_ORCA
     //TODO: maybe make this conditional
     #include "graphics/orca_gl31.h"
-
-oc_surface oc_surface_canvas();
-oc_surface oc_surface_gles();
 
 #else
     #ifdef OC_INCLUDE_GL_API

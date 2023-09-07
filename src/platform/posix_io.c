@@ -518,7 +518,7 @@ oc_io_cmp oc_io_get_error(oc_file_slot* slot, oc_io_req* req)
     return (cmp);
 }
 
-oc_io_cmp oc_io_wait_single_req_with_table(oc_io_req* req, oc_file_table* table)
+oc_io_cmp oc_io_wait_single_req_for_table(oc_io_req* req, oc_file_table* table)
 {
     oc_io_cmp cmp = { 0 };
 

@@ -73,7 +73,7 @@ oc_io_error oc_io_raw_last_error()
     return (error);
 }
 
-static oc_str16 win32_path_from_handle_null_terminated(oc_arena* arena, HANDLE handle)
+oc_str16 win32_path_from_handle_null_terminated(oc_arena* arena, HANDLE handle)
 {
     oc_str16 res = { 0 };
 
@@ -108,7 +108,7 @@ static oc_str16 win32_get_path_at_null_terminated(oc_arena* arena, oc_file_desc 
     oc_arena_scope scratch = oc_scratch_begin_next(arena);
 
     oc_str16 dirPathW = win32_path_from_handle_null_terminated(scratch.arena, dirFd);
-    oc_str16 pathW = oc_win32_utf8_to_wide_null_terminated(scratch.arena, path);
+    oc_str16 pathW = oc_win32_utf8_to_wide(scratch.arena, path);
 
     if(dirPathW.len && pathW.len)
     {
@@ -194,7 +194,7 @@ oc_file_desc oc_io_raw_open_at(oc_file_desc dirFd, oc_str8 path, oc_file_access 
     }
 
     oc_arena_scope scratch = oc_scratch_begin();
-    oc_str16 pathW = oc_win32_utf8_to_wide_null_terminated(scratch.arena, path);
+    oc_str16 pathW = oc_win32_utf8_to_wide(scratch.arena, path);
 
     if(dirFd == NULL || dirFd == INVALID_HANDLE_VALUE)
     {
@@ -505,7 +505,7 @@ static oc_io_cmp oc_io_get_error(oc_file_slot* slot, oc_io_req* req)
     return (cmp);
 }
 
-oc_io_cmp oc_io_wait_single_req_with_table(oc_io_req* req, oc_file_table* table)
+oc_io_cmp oc_io_wait_single_req_for_table(oc_io_req* req, oc_file_table* table)
 {
     oc_io_cmp cmp = { 0 };
 

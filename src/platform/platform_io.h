@@ -222,4 +222,10 @@ ORCA_API u64 oc_file_size(oc_file file);
 
 //TODO: Complete as needed...
 
+//----------------------------------------------------------------
+// Acquiring new file capabilities through user interaction
+//----------------------------------------------------------------
+
+ORCA_API oc_file oc_file_open_with_request(oc_str8 path, oc_file_access rights, oc_file_open_flags flags);
+
 #endif //__PLATFORM_IO_H_

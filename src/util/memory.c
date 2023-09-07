@@ -241,7 +241,7 @@ ORCA_API oc_arena* oc_scratch_next(oc_arena* used)
     return (res);
 }
 
-ORCA_API oc_arena_scope oc_scratch_begin()
+ORCA_API oc_arena_scope oc_scratch_begin(void)
 {
     oc_arena* scratch = oc_scratch();
     oc_arena_scope scope = oc_arena_scope_begin(scratch);

@@ -1,7 +1,7 @@
 [
 {
-	"name": "oc_runtime_log",
-	"cname": "oc_runtime_log",
+	"name": "oc_bridge_log",
+	"cname": "oc_bridge_log",
 	"ret": {"name": "void", "tag": "v"},
 	"args": [ {"name": "level",
 			   "type": {"name": "oc_log_level", "tag": "i"}},
@@ -29,7 +29,7 @@
 			   "type": {"name": "u64", "tag": "I"}}]
 },
 {
-	"name": "oc_runtime_assert_fail",
+	"name": "oc_bridge_assert_fail",
 	"cname": "oc_assert_fail",
 	"ret": {"name": "void", "tag": "v"},
 	"args": [ {"name": "file",
@@ -45,7 +45,7 @@
 			]
 },
 {
-	"name": "oc_runtime_abort_ext",
+	"name": "oc_bridge_abort_ext",
 	"cname": "oc_abort_ext",
 	"ret": {"name": "void", "tag": "v"},
 	"args": [ {"name": "file",
@@ -71,17 +71,17 @@
 	"args": []
 },
 {
-	"name": "oc_runtime_window_set_title",
-	"cname": "oc_runtime_window_set_title",
+	"name": "oc_window_set_title",
+	"cname": "oc_bridge_window_set_title",
 	"ret": {"name": "void", "tag": "v"},
 	"args": [
 		{ "name": "title",
-		  "type": {"name": "oc_str8", "tag": "S"}}
+		  "type": {"name": "oc_str8", "cname": "oc_wasm_str8", "tag": "S"}}
 	]
 },
 {
-	"name": "oc_runtime_window_set_size",
-	"cname": "oc_runtime_window_set_size",
+	"name": "oc_window_set_size",
+	"cname": "oc_bridge_window_set_size",
 	"ret": {"name": "void", "tag": "v"},
 	"args": [
 		{ "name": "size",

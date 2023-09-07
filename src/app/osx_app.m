@@ -19,7 +19,7 @@
 #include "platform_clock.h"
 #include "platform_debug.h"
 #include "ringbuffer.h"
-
+#include "platform/platform_path.h"
 #include "app.c"
 
 //--------------------------------------------------------------------
@@ -1843,213 +1843,6 @@ void oc_surface_init_for_window(oc_surface_data* surface, oc_window_data* window
     }
 }
 
-//------------------------------------------------------------------------------------------------
-// Remote surfaces
-//------------------------------------------------------------------------------------------------
-oc_surface_id oc_osx_surface_remote_id(oc_surface_data* surface)
-{
-    oc_surface_id remoteID = 0;
-    if(surface->layer.caContext)
-    {
-        @autoreleasepool
-        {
-            remoteID = (oc_surface_id)[surface->layer.caContext contextId];
-        }
-    }
-    return (remoteID);
-}
-
-void oc_surface_init_remote(oc_surface_data* surface, u32 width, u32 height)
-{
-    @autoreleasepool
-    {
-
-        surface->nativeLayer = oc_osx_surface_native_layer;
-        surface->contentsScaling = oc_osx_surface_contents_scaling;
-        surface->getSize = oc_osx_surface_get_size;
-        surface->getHidden = oc_osx_surface_get_hidden;
-        surface->setHidden = oc_osx_surface_set_hidden;
-        surface->remoteID = oc_osx_surface_remote_id;
-
-        surface->layer.caLayer = [[CALayer alloc] init];
-        [surface->layer.caLayer retain];
-        [surface->layer.caLayer setFrame:(CGRect){ { 0, 0 }, { width, height } }];
-
-        NSDictionary* dict = [[NSDictionary alloc] init];
-        CGSConnectionID connectionID = CGSMainConnectionID();
-        surface->layer.caContext = [CAContext contextWithCGSConnection:connectionID options:dict];
-        [surface->layer.caContext retain];
-        [surface->layer.caContext setLayer:surface->layer.caLayer];
-    }
-}
-
-void oc_osx_surface_host_connect(oc_surface_data* surface, oc_surface_id remoteID)
-{
-    @autoreleasepool
-    {
-        [(CALayerHost*)surface->layer.caLayer setContextId:(CAContextID)remoteID];
-    }
-}
-
-void oc_surface_init_host(oc_surface_data* surface, oc_window_data* window)
-{
-    @autoreleasepool
-    {
-
-        surface->api = OC_HOST;
-        surface->nativeLayer = oc_osx_surface_native_layer;
-        surface->contentsScaling = oc_osx_surface_contents_scaling;
-        surface->getSize = oc_osx_surface_get_size;
-        surface->getHidden = oc_osx_surface_get_hidden;
-        surface->setHidden = oc_osx_surface_set_hidden;
-        surface->hostConnect = oc_osx_surface_host_connect;
-
-        surface->layer.caLayer = [[CALayerHost alloc] init];
-        [surface->layer.caLayer retain];
-
-        NSRect frame = [[window->osx.nsWindow contentView] frame];
-        CGSize size = frame.size;
-        [surface->layer.caLayer setFrame:(CGRect){ { 0, 0 }, size }];
-
-        [window->osx.nsView.layer addSublayer:surface->layer.caLayer];
-    }
-}
-
-oc_surface_data* oc_osx_surface_create_host(oc_window windowHandle)
-{
-    oc_surface_data* surface = 0;
-    oc_window_data* window = oc_window_ptr_from_handle(windowHandle);
-    if(window)
-    {
-        surface = oc_malloc_type(oc_surface_data);
-        if(surface)
-        {
-            oc_surface_init_host(surface, window);
-        }
-    }
-    return (surface);
-}
-
-//--------------------------------------------------------------------
-// view management
-//--------------------------------------------------------------------
-/*
-oc_view oc_view_create(oc_window windowHandle, oc_rect frame)
-{@autoreleasepool{
-	oc_window_data* window = oc_window_ptr_from_handle(windowHandle);
-	if(!window)
-	{
-		oc_log_error("Can't create view for nil window\n");
-		return(oc_view_nil());
-	}
-
-	oc_view_data* view = oc_view_alloc();
-	if(!view)
-	{
-		oc_log_error("Could not allocate view data\n");
-		return(oc_view_nil());
-	}
-
-	view->window = windowHandle;
-
-	NSRect nsFrame = {{frame.x, frame.y}, {frame.w, frame.h}};
-	view->nsView = [[NSView alloc] initWithFrame: nsFrame];
-	[view->nsView setWantsLayer:YES];
-
-	[[window->osx.nsWindow contentView] addSubview: view->nsView];
-
-	return(oc_view_handle_from_ptr(view));
-}}
-
-void oc_view_destroy(oc_view viewHandle)
-{@autoreleasepool{
-	oc_view_data* view = oc_view_ptr_from_handle(viewHandle);
-	if(!view)
-	{
-		return;
-	}
-
-	oc_window_data* window = oc_window_ptr_from_handle(view->window);
-	if(!window)
-	{
-		return;
-	}
-
-	[view->nsView removeFromSuperview];
-
-	oc_view_recycle_ptr(view);
-}}
-
-void oc_view_set_frame(oc_view viewHandle, oc_rect frame)
-{
-	oc_view_data* view = oc_view_ptr_from_handle(viewHandle);
-	if(!view)
-	{
-		return;
-	}
-
-	NSRect nsFrame = {{frame.x, frame.y}, {frame.w, frame.h}};
-	[view->nsView setFrame: nsFrame];
-
-	if(!oc_surface_is_nil(view->surface))
-	{
-		oc_surface_resize(view->surface, frame.w, frame.h);
-	}
-}
-*/
-//--------------------------------------------------------------------
-// Main loop throttle
-//--------------------------------------------------------------------
-
-void oc_set_target_fps(u32 fps)
-{
-    oc_appData.frameStats.targetFramePeriod = 1. / (f64)fps;
-    oc_appData.frameStats.workTime = 0;
-    oc_appData.frameStats.remainingTime = 0;
-
-    if(oc_appData.osx.frameTimer)
-    {
-        [oc_appData.osx.frameTimer invalidate];
-    }
-
-    oc_appData.osx.frameTimer = [NSTimer timerWithTimeInterval:oc_appData.frameStats.targetFramePeriod
-                                                        target:[NSApp delegate]
-                                                      selector:@selector(timerElapsed:)
-                                                      userInfo:nil
-                                                       repeats:YES];
-
-    [[NSRunLoop currentRunLoop] addTimer:oc_appData.osx.frameTimer forMode:NSRunLoopCommonModes];
-}
-
-/*
-void oc_begin_frame()
-{
-	oc_appData.frameStats.start = oc_get_elapsed_seconds();
-
-	LOG_DEBUG("workTime = %.6f (%.6f fps), remaining = %.6f\n",
-	             oc_appData.frameStats.workTime,
-	             1/oc_appData.frameStats.workTime,
-	             oc_appData.frameStats.remainingTime);
-
-}
-
-void oc_end_frame()
-{
-	oc_appData.frameStats.workTime = oc_get_elapsed_seconds() - oc_appData.frameStats.start;
-	oc_appData.frameStats.remainingTime = oc_appData.frameStats.targetFramePeriod - oc_appData.frameStats.workTime;
-
-	while(oc_appData.frameStats.remainingTime > 100e-9)
-	{
-		if(oc_appData.frameStats.remainingTime > 10e-6)
-		{
-			oc_sleep_nano(oc_appData.frameStats.remainingTime*0.8*1e9);
-		}
-		oc_appData.frameStats.workTime = oc_get_elapsed_seconds() - oc_appData.frameStats.start;
-		oc_appData.frameStats.remainingTime = oc_appData.frameStats.targetFramePeriod - oc_appData.frameStats.workTime;
-	}
-}
-*/
-
 //--------------------------------------------------------------------
 // Events handling
 //--------------------------------------------------------------------
@@ -2133,73 +1926,87 @@ oc_str8 oc_open_dialog(oc_arena* arena,
                        oc_str8_list filters,
                        bool directory)
 {
-    @autoreleasepool
+    __block oc_str8 path = { 0 };
+
+    dispatch_block_t block = ^{
+      @autoreleasepool
+      {
+          NSWindow* keyWindow = [NSApp keyWindow];
+
+          NSOpenPanel* dialog = [NSOpenPanel openPanel];
+
+          NSString* nsTitle = [[NSString alloc] initWithBytes:title.ptr length:title.len encoding:NSUTF8StringEncoding];
+          //NOTE: title is not displayed since OS X 10.11, now use setMessage instead.
+          //      see https://stackoverflow.com/questions/36879212/title-bar-missing-in-nsopenpanel
+          [dialog setMessage:nsTitle];
+
+          [dialog setLevel:NSModalPanelWindowLevel];
+
+          if(filters.eltCount)
+          {
+              NSMutableArray* fileTypesArray = [NSMutableArray array];
+
+              oc_list_for((oc_list*)&filters.list, elt, oc_str8_elt, listElt)
+              {
+                  oc_str8 string = elt->string;
+                  NSString* filter = [[NSString alloc] initWithBytes:string.ptr length:string.len encoding:NSUTF8StringEncoding];
+                  [fileTypesArray addObject:filter];
+              }
+              [dialog setAllowedFileTypes:fileTypesArray];
+          }
+          // Enable options in the dialog.
+          if(directory)
+          {
+              [dialog setCanChooseDirectories:YES];
+          }
+          else
+          {
+              [dialog setCanChooseFiles:YES];
+          }
+
+          [dialog setAllowsMultipleSelection:FALSE];
+
+          NSString* nsPath = 0;
+          ;
+          if(defaultPath.len)
+          {
+              nsPath = [[NSString alloc] initWithBytes:defaultPath.ptr length:defaultPath.len encoding:NSUTF8StringEncoding];
+          }
+          else
+          {
+              nsPath = [NSString stringWithUTF8String:"~"];
+          }
+          nsPath = [nsPath stringByExpandingTildeInPath];
+
+          [dialog setDirectoryURL:[NSURL fileURLWithPath:nsPath]];
+
+          // Display the dialog box. If the OK pressed,
+          // process the files.
+
+          if([dialog runModal] == NSModalResponseOK)
+          {
+              // Gets list of all files selected
+              NSArray* files = [dialog URLs];
+              //TODO: Loop through the files and process them.
+
+              const char* result = [[[files objectAtIndex:0] path] UTF8String];
+
+              path = oc_str8_push_cstring(arena, result);
+          }
+          [keyWindow makeKeyWindow];
+      }
+    };
+
+    if([NSThread isMainThread])
     {
-        NSWindow* keyWindow = [NSApp keyWindow];
-
-        NSOpenPanel* dialog = [NSOpenPanel openPanel];
-        [dialog setLevel:CGShieldingWindowLevel()];
-
-        if(filters.eltCount)
-        {
-            NSMutableArray* fileTypesArray = [NSMutableArray array];
-
-            oc_list_for(&filters.list, elt, oc_str8_elt, listElt)
-            {
-                oc_str8 string = elt->string;
-                NSString* filter = [[NSString alloc] initWithBytes:string.ptr length:string.len encoding:NSUTF8StringEncoding];
-                [fileTypesArray addObject:filter];
-            }
-            [dialog setAllowedFileTypes:fileTypesArray];
-        }
-        // Enable options in the dialog.
-        if(directory)
-        {
-            [dialog setCanChooseDirectories:YES];
-        }
-        else
-        {
-            [dialog setCanChooseFiles:YES];
-        }
-
-        [dialog setAllowsMultipleSelection:FALSE];
-
-        NSString* nsPath = 0;
-        ;
-        if(defaultPath.len)
-        {
-            nsPath = [[NSString alloc] initWithBytes:defaultPath.ptr length:defaultPath.len encoding:NSUTF8StringEncoding];
-        }
-        else
-        {
-            nsPath = [NSString stringWithUTF8String:"~"];
-        }
-        nsPath = [nsPath stringByExpandingTildeInPath];
-
-        [dialog setDirectoryURL:[NSURL fileURLWithPath:nsPath]];
-
-        // Display the dialog box. If the OK pressed,
-        // process the files.
-
-        if([dialog runModal] == NSModalResponseOK)
-        {
-            // Gets list of all files selected
-            NSArray* files = [dialog URLs];
-            //TODO: Loop through the files and process them.
-
-            const char* result = [[[files objectAtIndex:0] path] UTF8String];
-
-            oc_str8 path = oc_str8_push_cstring(arena, result);
-            [keyWindow makeKeyWindow];
-
-            return (path);
-        }
-        else
-        {
-            [keyWindow makeKeyWindow];
-            return ((oc_str8){ 0, 0 });
-        }
+        block();
     }
+    else
+    {
+        dispatch_sync(dispatch_get_main_queue(), block);
+    }
+
+    return (path);
 }
 
 oc_str8 oc_save_dialog(oc_arena* arena,
@@ -2207,61 +2014,221 @@ oc_str8 oc_save_dialog(oc_arena* arena,
                        oc_str8 defaultPath,
                        oc_str8_list filters)
 {
-    @autoreleasepool
+    __block oc_str8 path = { 0 };
+
+    dispatch_block_t block = ^{
+      @autoreleasepool
+      {
+          NSWindow* keyWindow = [NSApp keyWindow];
+
+          NSSavePanel* dialog = [NSSavePanel savePanel];
+          [dialog setLevel:CGShieldingWindowLevel()];
+
+          if(filters.eltCount)
+          {
+              NSMutableArray* fileTypesArray = [NSMutableArray array];
+
+              oc_list_for((oc_list*)&filters.list, elt, oc_str8_elt, listElt)
+              {
+                  oc_str8 string = elt->string;
+                  NSString* filter = [[NSString alloc] initWithBytes:string.ptr length:string.len encoding:NSUTF8StringEncoding];
+                  [fileTypesArray addObject:filter];
+              }
+              [dialog setAllowedFileTypes:fileTypesArray];
+          }
+
+          NSString* nsPath = 0;
+          ;
+          if(defaultPath.len)
+          {
+              nsPath = [[NSString alloc] initWithBytes:defaultPath.ptr length:defaultPath.len encoding:NSUTF8StringEncoding];
+          }
+          else
+          {
+              nsPath = [NSString stringWithUTF8String:"~"];
+          }
+          nsPath = [nsPath stringByExpandingTildeInPath];
+
+          [dialog setDirectoryURL:[NSURL fileURLWithPath:nsPath]];
+
+          // Display the dialog box. If the OK pressed,
+          // process the files.
+
+          if([dialog runModal] == NSModalResponseOK)
+          {
+              // Gets list of all files selected
+              NSURL* files = [dialog URL];
+              // Loop through the files and process them.
+
+              const char* result = [[files path] UTF8String];
+
+              path = oc_str8_push_cstring(arena, result);
+          }
+          [keyWindow makeKeyWindow];
+      }
+    };
+
+    if([NSThread isMainThread])
     {
-        NSWindow* keyWindow = [NSApp keyWindow];
-
-        NSSavePanel* dialog = [NSSavePanel savePanel];
-        [dialog setLevel:CGShieldingWindowLevel()];
-
-        if(filters.eltCount)
-        {
-            NSMutableArray* fileTypesArray = [NSMutableArray array];
-
-            oc_list_for(&filters.list, elt, oc_str8_elt, listElt)
-            {
-                oc_str8 string = elt->string;
-                NSString* filter = [[NSString alloc] initWithBytes:string.ptr length:string.len encoding:NSUTF8StringEncoding];
-                [fileTypesArray addObject:filter];
-            }
-            [dialog setAllowedFileTypes:fileTypesArray];
-        }
-
-        NSString* nsPath = 0;
-        ;
-        if(defaultPath.len)
-        {
-            nsPath = [[NSString alloc] initWithBytes:defaultPath.ptr length:defaultPath.len encoding:NSUTF8StringEncoding];
-        }
-        else
-        {
-            nsPath = [NSString stringWithUTF8String:"~"];
-        }
-        nsPath = [nsPath stringByExpandingTildeInPath];
-
-        [dialog setDirectoryURL:[NSURL fileURLWithPath:nsPath]];
-
-        // Display the dialog box. If the OK pressed,
-        // process the files.
-
-        if([dialog runModal] == NSModalResponseOK)
-        {
-            // Gets list of all files selected
-            NSURL* files = [dialog URL];
-            // Loop through the files and process them.
-
-            const char* result = [[files path] UTF8String];
-
-            oc_str8 path = oc_str8_push_cstring(arena, result);
-            [keyWindow makeKeyWindow];
-            return (path);
-        }
-        else
-        {
-            [keyWindow makeKeyWindow];
-            return ((oc_str8){ 0, 0 });
-        }
+        block();
     }
+    else
+    {
+        dispatch_sync(dispatch_get_main_queue(), block);
+    }
+
+    return (path);
+}
+
+ORCA_API oc_file_dialog_result oc_file_dialog_for_table(oc_arena* arena, oc_file_dialog_desc* desc, oc_file_table* table)
+{
+    __block oc_file_dialog_result result = { 0 };
+
+    dispatch_block_t block = ^{
+      @autoreleasepool
+      {
+          oc_arena_scope scratch = oc_scratch_begin_next(arena);
+
+          NSWindow* keyWindow = [NSApp keyWindow];
+
+          NSSavePanel* dialog = 0;
+          if(desc->kind == OC_FILE_DIALOG_OPEN)
+          {
+              NSOpenPanel* openPanel = [NSOpenPanel openPanel];
+              dialog = (NSSavePanel*)openPanel;
+
+              openPanel.canChooseFiles = (desc->flags & OC_FILE_DIALOG_FILES) ? YES : NO;
+              openPanel.canChooseDirectories = (desc->flags & OC_FILE_DIALOG_DIRECTORIES) ? YES : NO;
+              openPanel.allowsMultipleSelection = (desc->flags & OC_FILE_DIALOG_MULTIPLE) ? YES : NO;
+          }
+          else
+          {
+              dialog = [NSSavePanel savePanel];
+
+              dialog.canCreateDirectories = (desc->flags & OC_FILE_DIALOG_CREATE_DIRECTORIES) ? YES : NO;
+          }
+
+          //NOTE: set title. "title" property is not displayed since OS X 10.11, now use setMessage instead.
+          //      see https://stackoverflow.com/questions/36879212/title-bar-missing-in-nsopenpanel
+          NSString* nsTitle = [[NSString alloc] initWithBytes:desc->title.ptr
+                                                       length:desc->title.len
+                                                     encoding:NSUTF8StringEncoding];
+          [dialog setMessage:nsTitle];
+
+          //NOTE: set ok button
+          if(desc->okLabel.len)
+          {
+              NSString* label = [[NSString alloc] initWithBytes:desc->okLabel.ptr
+                                                         length:desc->okLabel.len
+                                                       encoding:NSUTF8StringEncoding];
+
+              [dialog setPrompt:label];
+          }
+
+          //NOTE: set starting path
+          oc_str8 startPath = { 0 };
+          {
+              oc_str8_list list = { 0 };
+              if(!oc_file_is_nil(desc->startAt))
+              {
+                  oc_file_slot* slot = oc_file_slot_from_handle(table, desc->startAt);
+                  if(slot)
+                  {
+                      char path[PATH_MAX];
+                      if(fcntl(slot->fd, F_GETPATH, path) != -1)
+                      {
+                          oc_str8 string = oc_str8_push_cstring(scratch.arena, path);
+                          oc_str8_list_push(scratch.arena, &list, string);
+                      }
+                  }
+              }
+              if(desc->startPath.len)
+              {
+                  oc_str8_list_push(scratch.arena, &list, desc->startPath);
+              }
+              startPath = oc_path_join(scratch.arena, list);
+          }
+
+          NSString* nsPath = 0;
+          if(startPath.len)
+          {
+              nsPath = [[NSString alloc] initWithBytes:startPath.ptr
+                                                length:startPath.len
+                                              encoding:NSUTF8StringEncoding];
+          }
+          else
+          {
+              nsPath = [NSString stringWithUTF8String:"~"];
+          }
+          nsPath = [nsPath stringByExpandingTildeInPath];
+          [dialog setDirectoryURL:[NSURL fileURLWithPath:nsPath]];
+
+          //NOTE: set filters
+          if(desc->filters.eltCount)
+          {
+              NSMutableArray* fileTypesArray = [NSMutableArray array];
+
+              oc_list_for((oc_list*)&desc->filters.list, elt, oc_str8_elt, listElt)
+              {
+                  oc_str8 string = elt->string;
+                  NSString* filter = [[NSString alloc] initWithBytes:string.ptr length:string.len encoding:NSUTF8StringEncoding];
+                  [fileTypesArray addObject:filter];
+              }
+              [dialog setAllowedFileTypes:fileTypesArray];
+          }
+
+          // Display the dialog box. If the OK pressed,
+          // process the files.
+
+          [dialog validateVisibleColumns];
+          [dialog setLevel:NSModalPanelWindowLevel];
+
+          if([dialog runModal] == NSModalResponseOK)
+          {
+              if(desc->kind == OC_FILE_DIALOG_OPEN && (desc->flags & OC_FILE_DIALOG_MULTIPLE))
+              {
+                  // Gets list of all files selected
+                  NSArray* files = [((NSOpenPanel*)dialog) URLs];
+
+                  const char* path = [[[files objectAtIndex:0] path] UTF8String];
+                  result.path = oc_str8_push_cstring(arena, path);
+
+                  for(int i = 0; i < [files count]; i++)
+                  {
+                      const char* path = [[[files objectAtIndex:i] path] UTF8String];
+                      oc_str8 string = oc_str8_push_cstring(arena, path);
+                      oc_str8_list_push(arena, &result.selection, string);
+                  }
+              }
+              else
+              {
+                  const char* path = [[[dialog URL] path] UTF8String];
+                  result.path = oc_str8_push_cstring(arena, path);
+
+                  oc_str8_list_push(arena, &result.selection, result.path);
+              }
+              result.button = OC_FILE_DIALOG_OK;
+          }
+          else
+          {
+              result.button = OC_FILE_DIALOG_CANCEL;
+          }
+          [keyWindow makeKeyWindow];
+
+          oc_scratch_end(scratch);
+      }
+    };
+
+    if([NSThread isMainThread])
+    {
+        block();
+    }
+    else
+    {
+        dispatch_sync(dispatch_get_main_queue(), block);
+    }
+
+    return (result);
 }
 
 int oc_alert_popup(oc_str8 title,

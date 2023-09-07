@@ -16,7 +16,6 @@ STDLIB_DIR=../../src/libc-shim
 
 wasmFlags="--target=wasm32 \
   --no-standard-libraries \
-  -fno-builtin \
   -Wl,--no-entry \
   -Wl,--export-dynamic \
   -g \

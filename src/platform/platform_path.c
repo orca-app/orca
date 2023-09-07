@@ -54,7 +54,7 @@ oc_str8_list oc_path_split(oc_arena* arena, oc_str8 path)
 oc_str8 oc_path_join(oc_arena* arena, oc_str8_list elements)
 {
     //TODO: check if elements have ending/begining '/' ?
-    oc_str8 res = oc_str8_list_collate(arena, elements, OC_STR8("/"), OC_STR8("/"), (oc_str8){ 0 });
+    oc_str8 res = oc_str8_list_collate(arena, elements, OC_STR8(""), OC_STR8("/"), (oc_str8){ 0 });
     return (res);
 }
 
@@ -90,6 +90,8 @@ oc_str8 oc_path_append(oc_arena* arena, oc_str8 parent, oc_str8 relPath)
     return (result);
 }
 
+#if !defined(OC_PLATFORM_ORCA) || !OC_PLATFORM_ORCA
+
 oc_str8 oc_path_executable_relative(oc_arena* arena, oc_str8 relPath)
 {
     oc_str8_list list = { 0 };
@@ -103,3 +105,5 @@ oc_str8 oc_path_executable_relative(oc_arena* arena, oc_str8 relPath)
     oc_scratch_end(scratch);
     return (path);
 }
+
+#endif

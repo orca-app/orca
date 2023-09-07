@@ -19,7 +19,7 @@
 
 oc_font orca_font_create(const char* resourcePath)
 {
-    //NOTE(martin): create default font
+    //NOTE(martin): create default fonts
     oc_str8 fontPath = oc_path_executable_relative(oc_scratch(), OC_STR8(resourcePath));
 
     FILE* fontFile = fopen(fontPath.ptr, "r");
@@ -49,11 +49,6 @@ oc_font orca_font_create(const char* resourcePath)
     return (font);
 }
 
-oc_font oc_font_create_default()
-{
-    return (orca_font_create("../resources/OpenSansLatinSubset.ttf"));
-}
-
 oc_runtime __orcaApp = { 0 };
 
 oc_runtime* oc_runtime_get()
@@ -61,43 +56,49 @@ oc_runtime* oc_runtime_get()
     return (&__orcaApp);
 }
 
-oc_runtime_env* oc_runtime_env_get()
+oc_wasm_env* oc_runtime_get_env()
 {
-    return (&__orcaApp.runtime);
+    return (&__orcaApp.env);
 }
 
-void* oc_runtime_ptr_to_native(oc_runtime* orca, void* wasmPtr, u32 length)
+oc_str8 oc_runtime_get_wasm_memory()
 {
-    // We can't use the runtime's memory pointer directly because wasm3 embeds a
-    // header at the beginning of the block we give it.
-    u64 bufferIndex = (u64)wasmPtr & 0xffffffff;
-    u32 memSize = 0;
-    char* memory = (char*)m3_GetMemory(orca->runtime.m3Runtime, &memSize, 0);
+    oc_str8 mem = { 0 };
+    u32 size = 0;
+    mem.ptr = (char*)m3_GetMemory(__orcaApp.env.m3Runtime, &size, 0);
+    mem.len = size;
+    return (mem);
+}
 
-    if(bufferIndex + length < memSize)
+void orca_wasm3_abort(IM3Runtime runtime, M3Result res, const char* file, const char* function, int line, const char* msg)
+{
+    M3ErrorInfo errInfo = { 0 };
+    m3_GetErrorInfo(runtime, &errInfo);
+    if(errInfo.message && res == errInfo.result)
     {
-        char* nativePtr = memory + bufferIndex;
-        return nativePtr;
+        oc_abort_ext(file, function, line, "%s: %s (%s)", msg, res, errInfo.message);
     }
-
-    return NULL;
-}
-
-void oc_runtime_window_set_title(oc_str8 title)
-{
-    title.ptr = oc_runtime_ptr_to_native(oc_runtime_get(), title.ptr, title.len);
-    if(title.ptr)
+    else
     {
-        oc_window_set_title(__orcaApp.window, title);
+        oc_abort_ext(file, function, line, "%s: %s", msg, res);
     }
 }
 
-void oc_runtime_window_set_size(oc_vec2 size)
+void oc_bridge_window_set_title(oc_wasm_str8 title)
+{
+    oc_str8 nativeTitle = oc_wasm_str8_to_native(title);
+    if(nativeTitle.ptr)
+    {
+        oc_window_set_title(__orcaApp.window, nativeTitle);
+    }
+}
+
+void oc_bridge_window_set_size(oc_vec2 size)
 {
     oc_window_set_content_size(__orcaApp.window, size);
 }
 
-void oc_runtime_log(oc_log_level level,
+void oc_bridge_log(oc_log_level level,
                     int fileLen,
                     char* file,
                     int functionLen,
@@ -231,8 +232,8 @@ void orca_surface_render_commands(oc_surface surface,
 {
     oc_runtime* app = &__orcaApp;
 
-    char* memBase = app->runtime.wasmMemory.ptr;
-    u32 memSize = app->runtime.wasmMemory.committed;
+    char* memBase = app->env.wasmMemory.ptr;
+    u32 memSize = app->env.wasmMemory.committed;
     if(((char*)primitives > memBase)
        && ((char*)primitives + primitiveCount * sizeof(oc_primitive) - memBase <= memSize)
        && ((char*)elements > memBase)
@@ -334,9 +335,9 @@ char m3_type_to_tag(M3ValueType type)
     }
 }
 
-void oc_runtime_env_init(oc_runtime_env* runtime)
+void oc_wasm_env_init(oc_wasm_env* runtime)
 {
-    memset(runtime, 0, sizeof(oc_runtime_env));
+    memset(runtime, 0, sizeof(oc_wasm_env));
     oc_base_allocator* allocator = oc_base_allocator_default();
     runtime->wasmMemory.committed = 0;
     runtime->wasmMemory.reserved = 4ULL << 30;
@@ -350,27 +351,11 @@ void oc_runtime_env_init(oc_runtime_env* runtime)
 #include "wasmbind/io_api_bind_gen.c"
 #include "wasmbind/surface_api_bind_gen.c"
 
-void orca_wasm3_abort(IM3Runtime runtime, M3Result res, const char* file, const char* function, int line, const char* msg)
-{
-    M3ErrorInfo errInfo = { 0 };
-    m3_GetErrorInfo(runtime, &errInfo);
-    if(errInfo.message && res == errInfo.result)
-    {
-        oc_abort_ext(file, function, line, "%s: %s (%s)", msg, res, errInfo.message);
-    }
-    else
-    {
-        oc_abort_ext(file, function, line, "%s: %s", msg, res);
-    }
-}
-
-#define ORCA_WASM3_ABORT(runtime, err, msg) orca_wasm3_abort(runtime, err, __FILE__, __FUNCTION__, __LINE__, msg)
-
 i32 orca_runloop(void* user)
 {
     oc_runtime* app = &__orcaApp;
 
-    oc_runtime_env_init(&app->runtime);
+    oc_wasm_env_init(&app->env);
 
     //NOTE: loads wasm module
     const char* bundleNameCString = "module";
@@ -386,42 +371,42 @@ i32 orca_runloop(void* user)
     u64 wasmSize = ftell(file);
     rewind(file);
 
-    app->runtime.wasmBytecode.len = wasmSize;
-    app->runtime.wasmBytecode.ptr = oc_malloc_array(char, wasmSize);
-    fread(app->runtime.wasmBytecode.ptr, 1, app->runtime.wasmBytecode.len, file);
+    app->env.wasmBytecode.len = wasmSize;
+    app->env.wasmBytecode.ptr = oc_malloc_array(char, wasmSize);
+    fread(app->env.wasmBytecode.ptr, 1, app->env.wasmBytecode.len, file);
     fclose(file);
 
     u32 stackSize = 65536;
-    app->runtime.m3Env = m3_NewEnvironment();
+    app->env.m3Env = m3_NewEnvironment();
 
-    app->runtime.m3Runtime = m3_NewRuntime(app->runtime.m3Env, stackSize, NULL);
+    app->env.m3Runtime = m3_NewRuntime(app->env.m3Env, stackSize, NULL);
     //NOTE: host memory will be freed when runtime is freed.
-    m3_RuntimeSetMemoryCallbacks(app->runtime.m3Runtime, wasm_memory_resize_callback, wasm_memory_free_callback, &app->runtime.wasmMemory);
+    m3_RuntimeSetMemoryCallbacks(app->env.m3Runtime, oc_wasm_memory_resize_callback, oc_wasm_memory_free_callback, &app->env.wasmMemory);
 
-    M3Result res = m3_ParseModule(app->runtime.m3Env, &app->runtime.m3Module, (u8*)app->runtime.wasmBytecode.ptr, app->runtime.wasmBytecode.len);
+    M3Result res = m3_ParseModule(app->env.m3Env, &app->env.m3Module, (u8*)app->env.wasmBytecode.ptr, app->env.wasmBytecode.len);
     if(res)
     {
-        ORCA_WASM3_ABORT(app->runtime.m3Runtime, res, "The application couldn't parse its web assembly module");
+        ORCA_WASM3_ABORT(app->env.m3Runtime, res, "The application couldn't parse its web assembly module");
     }
 
-    res = m3_LoadModule(app->runtime.m3Runtime, app->runtime.m3Module);
+    res = m3_LoadModule(app->env.m3Runtime, app->env.m3Module);
     if(res)
     {
-        ORCA_WASM3_ABORT(app->runtime.m3Runtime, res, "The application couldn't load its web assembly module into the runtime");
+        ORCA_WASM3_ABORT(app->env.m3Runtime, res, "The application couldn't load its web assembly module into the runtime");
     }
-    m3_SetModuleName(app->runtime.m3Module, bundleNameCString);
+    m3_SetModuleName(app->env.m3Module, bundleNameCString);
 
     oc_arena_clear(oc_scratch());
 
     //NOTE: bind orca APIs
     {
         int err = 0;
-        err |= bindgen_link_core_api(app->runtime.m3Module);
-        err |= bindgen_link_surface_api(app->runtime.m3Module);
-        err |= bindgen_link_clock_api(app->runtime.m3Module);
-        err |= bindgen_link_io_api(app->runtime.m3Module);
-        err |= bindgen_link_gles_api(app->runtime.m3Module);
-        err |= manual_link_gles_api(app->runtime.m3Module);
+        err |= bindgen_link_core_api(app->env.m3Module);
+        err |= bindgen_link_surface_api(app->env.m3Module);
+        err |= bindgen_link_clock_api(app->env.m3Module);
+        err |= bindgen_link_io_api(app->env.m3Module);
+        err |= bindgen_link_gles_api(app->env.m3Module);
+        err |= manual_link_gles_api(app->env.m3Module);
 
         if(err)
         {
@@ -429,10 +414,10 @@ i32 orca_runloop(void* user)
         }
     }
     //NOTE: compile
-    res = m3_CompileModule(app->runtime.m3Module);
+    res = m3_CompileModule(app->env.m3Module);
     if(res)
     {
-        ORCA_WASM3_ABORT(app->runtime.m3Runtime, res, "The application couldn't compile its web assembly module");
+        ORCA_WASM3_ABORT(app->env.m3Runtime, res, "The application couldn't compile its web assembly module");
     }
 
     //NOTE: Find and type check event handlers.
@@ -440,7 +425,7 @@ i32 orca_runloop(void* user)
     {
         const oc_export_desc* desc = &OC_EXPORT_DESC[i];
         IM3Function handler = 0;
-        m3_FindFunction(&handler, app->runtime.m3Runtime, desc->name.ptr);
+        m3_FindFunction(&handler, app->env.m3Runtime, desc->name.ptr);
 
         if(handler)
         {
@@ -481,7 +466,7 @@ i32 orca_runloop(void* user)
 
             if(checked)
             {
-                app->runtime.exports[i] = handler;
+                app->env.exports[i] = handler;
             }
             else
             {
@@ -491,8 +476,8 @@ i32 orca_runloop(void* user)
     }
 
     //NOTE: get location of the raw event slot
-    IM3Global rawEventGlobal = m3_FindGlobal(app->runtime.m3Module, "oc_rawEvent");
-    app->runtime.rawEventOffset = (u32)rawEventGlobal->intValue;
+    IM3Global rawEventGlobal = m3_FindGlobal(app->env.m3Module, "oc_rawEvent");
+    app->env.rawEventOffset = (u32)rawEventGlobal->intValue;
 
     //NOTE: preopen the app local root dir
     {
@@ -502,11 +487,11 @@ i32 orca_runloop(void* user)
                           .open.rights = OC_FILE_ACCESS_READ | OC_FILE_ACCESS_WRITE,
                           .size = localRootPath.len,
                           .buffer = localRootPath.ptr };
-        oc_io_cmp cmp = oc_io_wait_single_req_with_table(&req, &app->fileTable);
+        oc_io_cmp cmp = oc_io_wait_single_req_for_table(&req, &app->fileTable);
         app->rootDir = cmp.handle;
     }
 
-    IM3Function* exports = app->runtime.exports;
+    IM3Function* exports = app->env.exports;
 
     //NOTE: call init handler
     if(exports[OC_EXPORT_ON_INIT])
@@ -514,7 +499,7 @@ i32 orca_runloop(void* user)
         M3Result res = m3_Call(exports[OC_EXPORT_ON_INIT], 0, 0);
         if(res)
         {
-            ORCA_WASM3_ABORT(app->runtime.m3Runtime, res, "Runtime error");
+            ORCA_WASM3_ABORT(app->env.m3Runtime, res, "Runtime error");
         }
     }
 
@@ -527,7 +512,7 @@ i32 orca_runloop(void* user)
         M3Result res = m3_Call(exports[OC_EXPORT_FRAME_RESIZE], 2, args);
         if(res)
         {
-            ORCA_WASM3_ABORT(app->runtime.m3Runtime, res, "Runtime error");
+            ORCA_WASM3_ABORT(app->env.m3Runtime, res, "Runtime error");
         }
     }
 
@@ -547,14 +532,14 @@ i32 orca_runloop(void* user)
             if(exports[OC_EXPORT_RAW_EVENT])
             {
 #ifndef M3_BIG_ENDIAN
-                oc_event* eventPtr = (oc_event*)wasm_memory_offset_to_ptr(&app->runtime.wasmMemory, app->runtime.rawEventOffset);
+                oc_event* eventPtr = (oc_event*)oc_wasm_address_to_ptr(app->env.rawEventOffset, sizeof(oc_event));
                 memcpy(eventPtr, event, sizeof(*event));
 
-                const void* args[1] = { &app->runtime.rawEventOffset };
+                const void* args[1] = { &app->env.rawEventOffset };
                 M3Result res = m3_Call(exports[OC_EXPORT_RAW_EVENT], 1, args);
                 if(res)
                 {
-                    ORCA_WASM3_ABORT(app->runtime.m3Runtime, res, "Runtime error");
+                    ORCA_WASM3_ABORT(app->env.m3Runtime, res, "Runtime error");
                 }
 #else
                 oc_log_error("oc_on_raw_event() is not supported on big endian platforms");
@@ -565,7 +550,7 @@ i32 orca_runloop(void* user)
             {
                 case OC_EVENT_WINDOW_CLOSE:
                 {
-					oc_request_quit();
+                    oc_request_quit();
                 }
                 break;
 
@@ -581,7 +566,7 @@ i32 orca_runloop(void* user)
                         M3Result res = m3_Call(exports[OC_EXPORT_FRAME_RESIZE], 2, args);
                         if(res)
                         {
-                            ORCA_WASM3_ABORT(app->runtime.m3Runtime, res, "Runtime error");
+                            ORCA_WASM3_ABORT(app->env.m3Runtime, res, "Runtime error");
                         }
                     }
                 }
@@ -598,7 +583,7 @@ i32 orca_runloop(void* user)
                             M3Result res = m3_Call(exports[OC_EXPORT_MOUSE_DOWN], 1, args);
                             if(res)
                             {
-                                ORCA_WASM3_ABORT(app->runtime.m3Runtime, res, "Runtime error");
+                                ORCA_WASM3_ABORT(app->env.m3Runtime, res, "Runtime error");
                             }
                         }
                     }
@@ -611,7 +596,7 @@ i32 orca_runloop(void* user)
                             M3Result res = m3_Call(exports[OC_EXPORT_MOUSE_UP], 1, args);
                             if(res)
                             {
-                                ORCA_WASM3_ABORT(app->runtime.m3Runtime, res, "Runtime error");
+                                ORCA_WASM3_ABORT(app->env.m3Runtime, res, "Runtime error");
                             }
                         }
                     }
@@ -626,7 +611,7 @@ i32 orca_runloop(void* user)
                         M3Result res = m3_Call(exports[OC_EXPORT_MOUSE_MOVE], 4, args);
                         if(res)
                         {
-                            ORCA_WASM3_ABORT(app->runtime.m3Runtime, res, "Runtime error");
+                            ORCA_WASM3_ABORT(app->env.m3Runtime, res, "Runtime error");
                         }
                     }
                 }
@@ -649,7 +634,7 @@ i32 orca_runloop(void* user)
                             M3Result res = m3_Call(exports[OC_EXPORT_KEY_DOWN], 1, args);
                             if(res)
                             {
-                                ORCA_WASM3_ABORT(app->runtime.m3Runtime, res, "Runtime error");
+                                ORCA_WASM3_ABORT(app->env.m3Runtime, res, "Runtime error");
                             }
                         }
                     }
@@ -661,7 +646,7 @@ i32 orca_runloop(void* user)
                             M3Result res = m3_Call(exports[OC_EXPORT_KEY_UP], 1, args);
                             if(res)
                             {
-                                ORCA_WASM3_ABORT(app->runtime.m3Runtime, res, "Runtime error");
+                                ORCA_WASM3_ABORT(app->env.m3Runtime, res, "Runtime error");
                             }
                         }
                     }
@@ -680,7 +665,7 @@ i32 orca_runloop(void* user)
             M3Result res = m3_Call(exports[OC_EXPORT_FRAME_REFRESH], 0, 0);
             if(res)
             {
-                ORCA_WASM3_ABORT(app->runtime.m3Runtime, res, "Runtime error");
+                ORCA_WASM3_ABORT(app->env.m3Runtime, res, "Runtime error");
             }
         }
 
@@ -837,7 +822,7 @@ i32 orca_runloop(void* user)
         M3Result res = m3_Call(exports[OC_EXPORT_TERMINATE], 0, 0);
         if(res)
         {
-            ORCA_WASM3_ABORT(app->runtime.m3Runtime, res, "Runtime error");
+            ORCA_WASM3_ABORT(app->env.m3Runtime, res, "Runtime error");
         }
     }
 

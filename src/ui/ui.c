@@ -1338,7 +1338,7 @@ void oc_ui_draw_box(oc_ui_box* box)
     bool draw = true;
 
     {
-        oc_rect clip = oc_clip();
+        oc_rect clip = oc_clip_top();
         oc_rect expRect = {
             box->rect.x - 0.5 * style->borderSize,
             box->rect.y - 0.5 * style->borderSize,
