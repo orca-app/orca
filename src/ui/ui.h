@@ -175,6 +175,175 @@ typedef struct oc_ui_style
     oc_ui_style_mask animationMask;
 } oc_ui_style;
 
+typedef struct oc_ui_palette
+{
+    oc_color red0;
+    oc_color red1;
+    oc_color red2;
+    oc_color red3;
+    oc_color red4;
+    oc_color red5;
+    oc_color red6;
+    oc_color red7;
+    oc_color red8;
+    oc_color red9;
+    oc_color orange0;
+    oc_color orange1;
+    oc_color orange2;
+    oc_color orange3;
+    oc_color orange4;
+    oc_color orange5;
+    oc_color orange6;
+    oc_color orange7;
+    oc_color orange8;
+    oc_color orange9;    
+    oc_color amber0;
+    oc_color amber1;
+    oc_color amber2;
+    oc_color amber3;
+    oc_color amber4;
+    oc_color amber5;
+    oc_color amber6;
+    oc_color amber7;
+    oc_color amber8;
+    oc_color amber9;
+    oc_color yellow0;
+    oc_color yellow1;
+    oc_color yellow2;
+    oc_color yellow3;
+    oc_color yellow4;
+    oc_color yellow5;
+    oc_color yellow6;
+    oc_color yellow7;
+    oc_color yellow8;
+    oc_color yellow9;
+    oc_color lime0;
+    oc_color lime1;
+    oc_color lime2;
+    oc_color lime3;
+    oc_color lime4;
+    oc_color lime5;
+    oc_color lime6;
+    oc_color lime7;
+    oc_color lime8;
+    oc_color lime9;
+    oc_color lightGreen0;
+    oc_color lightGreen1;
+    oc_color lightGreen2;
+    oc_color lightGreen3;
+    oc_color lightGreen4;
+    oc_color lightGreen5;
+    oc_color lightGreen6;
+    oc_color lightGreen7;
+    oc_color lightGreen8;
+    oc_color lightGreen9;
+    oc_color green0;
+    oc_color green1;
+    oc_color green2;
+    oc_color green3;
+    oc_color green4;
+    oc_color green5;
+    oc_color green6;
+    oc_color green7;
+    oc_color green8;
+    oc_color green9;
+    oc_color teal0;
+    oc_color teal1;
+    oc_color teal2;
+    oc_color teal3;
+    oc_color teal4;
+    oc_color teal5;
+    oc_color teal6;
+    oc_color teal7;
+    oc_color teal8;
+    oc_color teal9;
+    oc_color cyan0;
+    oc_color cyan1;
+    oc_color cyan2;
+    oc_color cyan3;
+    oc_color cyan4;
+    oc_color cyan5;
+    oc_color cyan6;
+    oc_color cyan7;
+    oc_color cyan8;
+    oc_color cyan9;
+    oc_color lightBlue0;
+    oc_color lightBlue1;
+    oc_color lightBlue2;
+    oc_color lightBlue3;
+    oc_color lightBlue4;
+    oc_color lightBlue5;
+    oc_color lightBlue6;
+    oc_color lightBlue7;
+    oc_color lightBlue8;
+    oc_color lightBlue9;
+    oc_color blue0;
+    oc_color blue1;
+    oc_color blue2;
+    oc_color blue3;
+    oc_color blue4;
+    oc_color blue5;
+    oc_color blue6;
+    oc_color blue7;
+    oc_color blue8;
+    oc_color blue9;
+    oc_color indigo0;
+    oc_color indigo1;
+    oc_color indigo2;
+    oc_color indigo3;
+    oc_color indigo4;
+    oc_color indigo5;
+    oc_color indigo6;
+    oc_color indigo7;
+    oc_color indigo8;
+    oc_color indigo9;
+    oc_color violet0;
+    oc_color violet1;
+    oc_color violet2;
+    oc_color violet3;
+    oc_color violet4;
+    oc_color violet5;
+    oc_color violet6;
+    oc_color violet7;
+    oc_color violet8;
+    oc_color violet9;
+    oc_color purple0;
+    oc_color purple1;
+    oc_color purple2;
+    oc_color purple3;
+    oc_color purple4;
+    oc_color purple5;
+    oc_color purple6;
+    oc_color purple7;
+    oc_color purple8;
+    oc_color purple9;
+    oc_color pink0;
+    oc_color pink1;
+    oc_color pink2;
+    oc_color pink3;
+    oc_color pink4;
+    oc_color pink5;
+    oc_color pink6;
+    oc_color pink7;
+    oc_color pink8;
+    oc_color pink9;
+    oc_color grey0;
+    oc_color grey1;
+    oc_color grey2;
+    oc_color grey3;
+    oc_color grey4;
+    oc_color grey5;
+    oc_color grey6;
+    oc_color grey7;
+    oc_color grey8;
+    oc_color grey9;
+    oc_color black;
+    oc_color white;
+} oc_ui_palette;
+
+extern oc_ui_palette OC_UI_DARK_PALETTE;
+extern oc_ui_palette OC_UI_LIGHT_PALETTE;
+
 typedef struct oc_ui_theme
 {
     oc_color white;
@@ -193,7 +362,14 @@ typedef struct oc_ui_theme
     oc_color text1;
     oc_color text2;
     oc_color text3;
+    oc_color sliderThumbBorder;
+    oc_color elevatedBorder;
+
+    oc_ui_palette *palette;
 } oc_ui_theme;
+
+extern oc_ui_theme OC_UI_DARK_THEME;
+extern oc_ui_theme OC_UI_LIGHT_THEME;
 
 typedef struct oc_ui_tag
 {
@@ -434,6 +610,7 @@ typedef struct oc_ui_context
     i32 editFirstDisplayedChar;
     f64 editCursorBlinkStart;
 
+    oc_ui_theme* theme;
 } oc_ui_context;
 
 //-------------------------------------------------------------------------------------
@@ -447,6 +624,7 @@ ORCA_API void oc_ui_process_event(oc_event* event);
 ORCA_API void oc_ui_begin_frame(oc_vec2 size, oc_ui_style* defaultStyle, oc_ui_style_mask mask);
 ORCA_API void oc_ui_end_frame(void);
 ORCA_API void oc_ui_draw(void);
+ORCA_API void oc_ui_set_theme(oc_ui_theme* theme);
 
 #define oc_ui_frame(size, style, mask) oc_defer_loop(oc_ui_begin_frame((size), (style), (mask)), oc_ui_end_frame())
 
