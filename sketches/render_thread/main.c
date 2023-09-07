@@ -28,7 +28,7 @@ i32 render_thread(void* user)
         }
 
         oc_surface_select(surface);
-        oc_canvas_set_current(canvas);
+        oc_canvas_select(canvas);
 
         oc_set_color_rgba(0, 0, 0.5, 0.5);
         oc_clear();

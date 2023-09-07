@@ -352,7 +352,7 @@ ORCA_EXPORT void oc_on_frame_refresh(void)
         }
     }
 
-    oc_canvas_set_current(canvas);
+    oc_canvas_select(canvas);
     oc_surface_select(surface);
     oc_ui_draw();
     oc_render(surface, canvas);

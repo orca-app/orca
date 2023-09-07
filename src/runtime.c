@@ -695,7 +695,7 @@ i32 orca_runloop(void* user)
         }
 
         oc_surface_select(app->debugOverlay.surface);
-        oc_canvas_set_current(app->debugOverlay.canvas);
+        oc_canvas_select(app->debugOverlay.canvas);
 
         if(app->debugOverlay.show)
         {
@@ -899,7 +899,7 @@ int main(int argc, char** argv)
     for(int i = 0; i < 3; i++)
     {
         oc_surface_select(app->debugOverlay.surface);
-        oc_canvas_set_current(app->debugOverlay.canvas);
+        oc_canvas_select(app->debugOverlay.canvas);
         oc_render(app->debugOverlay.surface, app->debugOverlay.canvas);
         oc_surface_present(app->debugOverlay.surface);
     }

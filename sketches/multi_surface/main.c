@@ -87,7 +87,7 @@ int main()
         }
 
         oc_surface_select(surface1);
-        oc_canvas_set_current(canvas1);
+        oc_canvas_select(canvas1);
 
         oc_set_color_rgba(0, 0, 0.5, 0.5);
         oc_clear();
@@ -99,7 +99,7 @@ int main()
 
         //*
         oc_surface_select(surface2);
-        oc_canvas_set_current(canvas2);
+        oc_canvas_select(canvas2);
 
         oc_set_color_rgba(0, 0, 0, 0);
         oc_clear();

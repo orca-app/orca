@@ -213,7 +213,7 @@ ORCA_API bool oc_canvas_is_nil(oc_canvas canvas); //DOC: true if canvas is nil
 
 ORCA_API oc_canvas oc_canvas_create(void);                     //DOC: create a new canvas
 ORCA_API void oc_canvas_destroy(oc_canvas canvas);             //DOC: destroys canvas
-ORCA_API oc_canvas oc_canvas_set_current(oc_canvas canvas);    //DOC: selects canvas in the current thread
+ORCA_API oc_canvas oc_canvas_select(oc_canvas canvas);         //DOC: selects canvas in the current thread
 ORCA_API void oc_render(oc_surface surface, oc_canvas canvas); //DOC: renders all canvas commands onto surface
 
 //------------------------------------------------------------------------------------------
@@ -221,6 +221,9 @@ ORCA_API void oc_render(oc_surface surface, oc_canvas canvas); //DOC: renders al
 //------------------------------------------------------------------------------------------
 ORCA_API oc_font oc_font_nil(void);
 ORCA_API oc_font oc_font_create_from_memory(oc_str8 mem, u32 rangeCount, oc_unicode_range* ranges);
+ORCA_API oc_font oc_font_create_from_file(oc_file file, u32 rangeCount, oc_unicode_range* ranges);
+ORCA_API oc_font oc_font_create_from_path(oc_str8 path, u32 rangeCount, oc_unicode_range* ranges);
+
 ORCA_API void oc_font_destroy(oc_font font);
 
 //NOTE(martin): the following int valued functions return -1 if font is invalid or codepoint is not present in font//
@@ -253,7 +256,8 @@ ORCA_API bool oc_image_is_nil(oc_image a);
 ORCA_API oc_image oc_image_create(oc_surface surface, u32 width, u32 height);
 ORCA_API oc_image oc_image_create_from_rgba8(oc_surface surface, u32 width, u32 height, u8* pixels);
 ORCA_API oc_image oc_image_create_from_memory(oc_surface surface, oc_str8 mem, bool flip);
-ORCA_API oc_image oc_image_create_from_file(oc_surface surface, oc_str8 path, bool flip);
+ORCA_API oc_image oc_image_create_from_file(oc_surface surface, oc_file file, bool flip);
+ORCA_API oc_image oc_image_create_from_path(oc_surface surface, oc_str8 path, bool flip);
 
 ORCA_API void oc_image_destroy(oc_image image);
 
@@ -355,6 +359,8 @@ ORCA_API void oc_ellipse_stroke(f32 x, f32 y, f32 rx, f32 ry);
 ORCA_API void oc_circle_fill(f32 x, f32 y, f32 r);
 ORCA_API void oc_circle_stroke(f32 x, f32 y, f32 r);
 ORCA_API void oc_arc(f32 x, f32 y, f32 r, f32 arcAngle, f32 startAngle);
+
+ORCA_API void oc_text_fill(f32 x, f32 y, oc_str8 text);
 
 //NOTE: image helpers
 ORCA_API void oc_image_draw(oc_image image, oc_rect rect);

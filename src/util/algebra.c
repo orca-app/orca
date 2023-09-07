@@ -5,6 +5,7 @@
 *	@date: 15/08/2023
 *
 *****************************************************************/
+#include <math.h>
 #include "algebra.h"
 
 bool oc_vec2_equal(oc_vec2 v0, oc_vec2 v1)
@@ -52,4 +53,24 @@ oc_vec2 oc_mat2x3_mul(oc_mat2x3 m, oc_vec2 p)
     f32 x = p.x * m.m[0] + p.y * m.m[1] + m.m[2];
     f32 y = p.x * m.m[3] + p.y * m.m[4] + m.m[5];
     return ((oc_vec2){ x, y });
+}
+
+oc_mat2x3 oc_mat2x3_rotate(f32 radians)
+{
+    const f32 sinRot = sinf(radians);
+    const f32 cosRot = cosf(radians);
+    oc_mat2x3 rot = {
+        cosRot, -sinRot, 0,
+        sinRot, cosRot, 0
+    };
+    return rot;
+}
+
+oc_mat2x3 oc_mat2x3_translate(f32 x, f32 y)
+{
+    oc_mat2x3 translate = {
+        1, 0, x,
+        0, 1, y
+    };
+    return translate;
 }

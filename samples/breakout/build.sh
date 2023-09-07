@@ -29,4 +29,4 @@ wasmFlags="--target=wasm32 \
 
 $CLANG $wasmFlags -o ./module.wasm ../../src/orca.c $STDLIB_DIR/src/*.c src/main.c
 
-orca bundle --orca-dir ../.. --name Pong --icon icon.png --resource-dir data module.wasm
+orca bundle --orca-dir ../.. --name Breakout --icon icon.png --resource-dir data module.wasm

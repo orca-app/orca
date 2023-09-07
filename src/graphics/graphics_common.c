@@ -542,6 +542,46 @@ oc_font oc_font_create_from_memory(oc_str8 mem, u32 rangeCount, oc_unicode_range
     return (fontHandle);
 }
 
+oc_font oc_font_create_from_file(oc_file file, u32 rangeCount, oc_unicode_range* ranges)
+{
+    oc_font font = oc_font_nil();
+    oc_arena_scope scratch = oc_scratch_begin();
+
+    u64 size = oc_file_size(file);
+    char* buffer = oc_arena_push(scratch.arena, size);
+    u64 read = oc_file_read(file, size, buffer);
+
+    if(read != size)
+    {
+        oc_log_error("Couldn't read font data\n");
+    }
+    else
+    {
+        font = oc_font_create_from_memory(oc_str8_from_buffer(size, buffer), rangeCount, ranges);
+    }
+
+    oc_scratch_end(scratch);
+    return (font);
+}
+
+oc_font oc_font_create_from_path(oc_str8 path, u32 rangeCount, oc_unicode_range* ranges)
+{
+    oc_font font = oc_font_nil();
+
+    oc_file file = oc_file_open(path, OC_FILE_ACCESS_READ, OC_FILE_OPEN_NONE);
+    if(oc_file_last_error(file) != OC_IO_OK)
+    {
+        oc_log_error("Could not open file %*.s\n", oc_str8_ip(path));
+    }
+    else
+    {
+        font = oc_font_create_from_file(file, rangeCount, ranges);
+    }
+    oc_file_close(file);
+
+    return (font);
+}
+
 void oc_font_destroy(oc_font fontHandle)
 {
     oc_font_data* fontData = oc_font_data_from_handle(fontHandle);
@@ -858,7 +898,7 @@ oc_canvas oc_canvas_create()
 
         canvasHandle = oc_canvas_handle_alloc(canvas);
 
-        oc_canvas_set_current(canvasHandle);
+        oc_canvas_select(canvasHandle);
     }
     return (canvasHandle);
 }
@@ -878,7 +918,7 @@ void oc_canvas_destroy(oc_canvas handle)
     }
 }
 
-oc_canvas oc_canvas_set_current(oc_canvas canvas)
+oc_canvas oc_canvas_select(oc_canvas canvas)
 {
     oc_canvas old = __mgCurrentCanvasHandle;
     __mgCurrentCanvasHandle = canvas;
@@ -1595,6 +1635,13 @@ void oc_arc(f32 x, f32 y, f32 r, f32 arcAngle, f32 startAngle)
     }
 }
 
+void oc_text_fill(f32 x, f32 y, oc_str8 text)
+{
+    oc_move_to(x, y);
+    oc_text_outlines(text);
+    oc_fill();
+}
+
 //------------------------------------------------------------------------------------------
 //NOTE(martin): images
 //------------------------------------------------------------------------------------------
@@ -1633,34 +1680,44 @@ oc_image oc_image_create_from_memory(oc_surface surface, oc_str8 mem, bool flip)
     return (image);
 }
 
-#if !OC_PLATFORM_ORCA
-
-oc_image oc_image_create_from_file(oc_surface surface, oc_str8 path, bool flip)
+oc_image oc_image_create_from_file(oc_surface surface, oc_file file, bool flip)
 {
     oc_image image = oc_image_nil();
-    int width, height, channels;
-
     oc_arena_scope scratch = oc_scratch_begin();
 
-    const char* cpath = oc_str8_to_cstring(scratch.arena, path);
+    u64 size = oc_file_size(file);
+    char* buffer = oc_arena_push(scratch.arena, size);
+    u64 read = oc_file_read(file, size, buffer);
 
-    stbi_set_flip_vertically_on_load(flip ? 1 : 0);
-    u8* pixels = stbi_load(cpath, &width, &height, &channels, 4);
-    if(pixels)
+    if(read != size)
     {
-        image = oc_image_create_from_rgba8(surface, width, height, pixels);
-        free(pixels);
+        oc_log_error("Couldn't read image data\n");
     }
     else
     {
-        oc_log_error("stbi_load() failed: %s\n", stbi_failure_reason());
+        image = oc_image_create_from_memory(surface, oc_str8_from_buffer(size, buffer), flip);
     }
-    oc_scratch_end(scratch);
 
+    oc_scratch_end(scratch);
     return (image);
 }
 
-#endif // !OC_PLATFORM_ORCA
+oc_image oc_image_create_from_path(oc_surface surface, oc_str8 path, bool flip)
+{
+    oc_image image = oc_image_nil();
+
+    oc_file file = oc_file_open(path, OC_FILE_ACCESS_READ, OC_FILE_OPEN_NONE);
+    if(oc_file_last_error(file) != OC_IO_OK)
+    {
+        oc_log_error("Could not open file %*.s\n", oc_str8_ip(path));
+    }
+    else
+    {
+        image = oc_image_create_from_file(surface, file, flip);
+    }
+    oc_file_close(file);
+    return (image);
+}
 
 void oc_image_draw_region(oc_image image, oc_rect srcRegion, oc_rect dstRegion)
 {
