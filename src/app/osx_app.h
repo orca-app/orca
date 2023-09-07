@@ -1,11 +1,10 @@
-/************************************************************/ /**
+/*************************************************************************
 *
-*	@file: osx_app.h
-*	@author: Martin Fouilleul
-*	@date: 12/02/2021
-*	@revision:
+*  Orca
+*  Copyright 2023 Martin Fouilleul and the Orca project contributors
+*  See LICENSE.txt for licensing information
 *
-*****************************************************************/
+**************************************************************************/
 #ifndef __OSX_APP_H_
 #define __OSX_APP_H_
 

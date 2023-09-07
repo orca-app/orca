@@ -1,11 +1,10 @@
-/************************************************************/ /**
+/*************************************************************************
 *
-*	@file: unix_memory.c
-*	@author: Martin Fouilleul
-*	@date: 10/09/2021
-*	@revision:
+*  Orca
+*  Copyright 2023 Martin Fouilleul and the Orca project contributors
+*  See LICENSE.txt for licensing information
 *
-*****************************************************************/
+**************************************************************************/
 #include "platform_memory.h"
 #include <sys/mman.h>
 

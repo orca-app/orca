@@ -1,11 +1,10 @@
-/************************************************************/ /**
+/*************************************************************************
 *
-*	@file: macros.h
-*	@author: Martin Fouilleul
-*	@date: 27/03/2020
-*	@revision:
+*  Orca
+*  Copyright 2023 Martin Fouilleul and the Orca project contributors
+*  See LICENSE.txt for licensing information
 *
-*****************************************************************/
+**************************************************************************/
 #ifndef __MACROS_H_
 #define __MACROS_H_
 

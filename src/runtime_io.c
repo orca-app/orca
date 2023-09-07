@@ -1,10 +1,10 @@
-/************************************************************/ /**
+/*************************************************************************
 *
-*	@file: runtime_io.c
-*	@author: Martin Fouilleul
-*	@date: 09/05/2023
+*  Orca
+*  Copyright 2023 Martin Fouilleul and the Orca project contributors
+*  See LICENSE.txt for licensing information
 *
-*****************************************************************/
+**************************************************************************/
 #include "platform/platform_io_internal.h"
 #include "runtime.h"
 #include "runtime_memory.h"

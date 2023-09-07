@@ -1,11 +1,10 @@
-/************************************************************/ /**
+/*************************************************************************
 *
-*	@file: platform_thread.h
-*	@author: Martin Fouilleul
-*	@date: 21/03/2019
-*	@revision:
+*  Orca
+*  Copyright 2023 Martin Fouilleul and the Orca project contributors
+*  See LICENSE.txt for licensing information
 *
-*****************************************************************/
+**************************************************************************/
 #ifndef __PLATFORM_THREAD_H_
 #define __PLATFORM_THREAD_H_
 

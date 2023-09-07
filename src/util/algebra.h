@@ -1,10 +1,10 @@
-/************************************************************/ /**
+/*************************************************************************
 *
-*	@file: algebra.h
-*	@author: Martin Fouilleul
-*	@date: 15/08/2023
+*  Orca
+*  Copyright 2023 Martin Fouilleul and the Orca project contributors
+*  See LICENSE.txt for licensing information
 *
-*****************************************************************/
+**************************************************************************/
 #ifndef __ALGEBRA_H_
 #define __ALGEBRA_H_
 

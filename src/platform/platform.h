@@ -1,12 +1,11 @@
-//*****************************************************************
-//
-//	$file: platform.h $
-//	$author: Martin Fouilleul $
-//	$date: 22/12/2022 $
-//	$revision: $
-//	$note: (C) 2022 by Martin Fouilleul - all rights reserved $
-//
-//*****************************************************************
+/*************************************************************************
+*
+*  Orca
+*  Copyright 2023 Martin Fouilleul and the Orca project contributors
+*  See LICENSE.txt for licensing information
+*
+**************************************************************************/
+
 #ifndef __PLATFORM_H_
 #define __PLATFORM_H_
 
@@ -109,17 +108,16 @@
 #endif
 
 #ifdef __cplusplus
-extern "C"
-{
+extern "C" {
 #endif
 
-    typedef enum
-    {
-        OC_HOST_PLATFORM_MACOS,
-        OC_HOST_PLATFORM_WINDOWS,
-    } oc_host_platform;
+typedef enum
+{
+    OC_HOST_PLATFORM_MACOS,
+    OC_HOST_PLATFORM_WINDOWS,
+} oc_host_platform;
 
-    ORCA_API oc_host_platform oc_get_host_platform();
+ORCA_API oc_host_platform oc_get_host_platform();
 
 #ifdef __cplusplus
 } // extern "C"

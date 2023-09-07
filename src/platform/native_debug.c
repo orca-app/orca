@@ -1,10 +1,10 @@
-/************************************************************/ /**
+/*************************************************************************
 *
-*	@file: native_debug.c
-*	@author: Martin Fouilleul
-*	@date: 13/08/2023
+*  Orca
+*  Copyright 2023 Martin Fouilleul and the Orca project contributors
+*  See LICENSE.txt for licensing information
 *
-*****************************************************************/
+**************************************************************************/
 #include <stdio.h>
 
 #include "app/app.h"

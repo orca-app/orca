@@ -1,12 +1,10 @@
-//*****************************************************************
-//
-//	$file: osx_app.m $
-//	$author: Martin Fouilleul $
-//	$date: 16/05/2020 $
-//	$revision: $
-//	$note: (C) 2020 by Martin Fouilleul - all rights reserved $
-//
-//*****************************************************************
+/*************************************************************************
+*
+*  Orca
+*  Copyright 2023 Martin Fouilleul and the Orca project contributors
+*  See LICENSE.txt for licensing information
+*
+**************************************************************************/
 
 #import <QuartzCore/QuartzCore.h> //CATransaction
 

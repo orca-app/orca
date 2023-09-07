@@ -1,11 +1,10 @@
-/************************************************************/ /**
+/*************************************************************************
 *
-*	@file: gl_canvas.c
-*	@author: Martin Fouilleul
-*	@date: 29/01/2023
-*	@revision:
+*  Orca
+*  Copyright 2023 Martin Fouilleul and the Orca project contributors
+*  See LICENSE.txt for licensing information
 *
-*****************************************************************/
+**************************************************************************/
 #include "gl_api.h"
 #include "glsl_shaders.h"
 #include "graphics_surface.h"

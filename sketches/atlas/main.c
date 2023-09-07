@@ -1,11 +1,10 @@
-/************************************************************/ /**
+/*************************************************************************
 *
-*	@file: main.cpp
-*	@author: Martin Fouilleul
-*	@date: 30/07/2022
-*	@revision:
+*  Orca
+*  Copyright 2023 Martin Fouilleul and the Orca project contributors
+*  See LICENSE.txt for licensing information
 *
-*****************************************************************/
+**************************************************************************/
 #include <errno.h>
 #include <stdlib.h>
 #include <string.h>

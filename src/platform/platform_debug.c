@@ -1,10 +1,10 @@
-/************************************************************/ /**
+/*************************************************************************
 *
-*	@file: platform_log.c
-*	@author: Martin Fouilleul
-*	@date: 18/04/2023
+*  Orca
+*  Copyright 2023 Martin Fouilleul and the Orca project contributors
+*  See LICENSE.txt for licensing information
 *
-*****************************************************************/
+**************************************************************************/
 #include "platform_debug.h"
 
 typedef struct oc_log_config

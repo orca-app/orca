@@ -1,11 +1,10 @@
-/************************************************************/ /**
+/*************************************************************************
 *
-*	@file: platform_clock.h
-*	@author: Martin Fouilleul
-*	@date: 07/03/2019
-*	@revision:
+*  Orca
+*  Copyright 2023 Martin Fouilleul and the Orca project contributors
+*  See LICENSE.txt for licensing information
 *
-*****************************************************************/
+**************************************************************************/
 #ifndef __PLATFORM_CLOCK_H_
 #define __PLATFORM_CLOCK_H_
 

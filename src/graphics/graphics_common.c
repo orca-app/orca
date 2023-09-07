@@ -1,11 +1,10 @@
-/************************************************************/ /**
+/*************************************************************************
 *
-*	@file: graphics_common.c
-*	@author: Martin Fouilleul
-*	@date: 23/01/2023
-*	@revision:
+*  Orca
+*  Copyright 2023 Martin Fouilleul and the Orca project contributors
+*  See LICENSE.txt for licensing information
 *
-*****************************************************************/
+**************************************************************************/
 
 #define _USE_MATH_DEFINES //NOTE: necessary for MSVC
 #include "platform/platform.h"

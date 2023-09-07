@@ -1,3 +1,10 @@
+/*************************************************************************
+*
+*  Orca
+*  Copyright 2023 Martin Fouilleul and the Orca project contributors
+*  See LICENSE.txt for licensing information
+*
+**************************************************************************/
 #include "orca.h"
 
 oc_vec2 frameSize = { 100, 100 };

@@ -1,10 +1,10 @@
-/************************************************************/ /**
+/*************************************************************************
 *
-*	@file: win32_path.c
-*	@author: Martin Fouilleul
-*	@date: 24/05/2023
+*  Orca
+*  Copyright 2023 Martin Fouilleul and the Orca project contributors
+*  See LICENSE.txt for licensing information
 *
-*****************************************************************/
+**************************************************************************/
 #include <shlwapi.h>                                           // PathIsRelative()
 
 #include "platform_path.c"

@@ -1,11 +1,10 @@
-/************************************************************/ /**
+/*************************************************************************
 *
-*	@file: app.c
-*	@author: Martin Fouilleul
-*	@date: 23/12/2022
-*	@revision:
+*  Orca
+*  Copyright 2023 Martin Fouilleul and the Orca project contributors
+*  See LICENSE.txt for licensing information
 *
-*****************************************************************/
+**************************************************************************/
 #include "app_internal.h"
 #include "platform/platform_debug.h"
 

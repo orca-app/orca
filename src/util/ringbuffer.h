@@ -1,11 +1,10 @@
-/************************************************************/ /**
+/*************************************************************************
 *
-*	@file: ringbuffer.h
-*	@author: Martin Fouilleul
-*	@date: 31/07/2022
-*	@revision:
+*  Orca
+*  Copyright 2023 Martin Fouilleul and the Orca project contributors
+*  See LICENSE.txt for licensing information
 *
-*****************************************************************/
+**************************************************************************/
 #ifndef __RINGBUFFER_H_
 #define __RINGBUFFER_H_
 

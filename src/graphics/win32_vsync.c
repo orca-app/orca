@@ -1,10 +1,10 @@
-/************************************************************/ /**
+/*************************************************************************
 *
-*	@file: win32_vsync.h
-*	@author: Reuben Dunnington
-*	@date: 26/08/2023
+*  Orca
+*  Copyright 2023 Martin Fouilleul and the Orca project contributors
+*  See LICENSE.txt for licensing information
 *
-*****************************************************************/
+**************************************************************************/
 
 #include "platform/platform_thread.h"
 #include "app/win32_app.h"

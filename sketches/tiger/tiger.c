@@ -1,3 +1,10 @@
+/*************************************************************************
+*
+*  Orca
+*  Copyright 2023 Martin Fouilleul and the Orca project contributors
+*  See LICENSE.txt for licensing information
+*
+**************************************************************************/
 void draw_tiger(bool singlePath, int singlePathIndex)
 {
 

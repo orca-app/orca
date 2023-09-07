@@ -1,10 +1,10 @@
-/************************************************************/ /**
+/*************************************************************************
 *
-*	@file: platform_io_internal.c
-*	@author: Martin Fouilleul
-*	@date: 11/06/2023
+*  Orca
+*  Copyright 2023 Martin Fouilleul and the Orca project contributors
+*  See LICENSE.txt for licensing information
 *
-*****************************************************************/
+**************************************************************************/
 #include "app/app.h"
 #include "platform/platform_io_internal.h"
 #include "platform/platform_path.h"

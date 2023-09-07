@@ -1,11 +1,10 @@
-/************************************************************/ /**
+/*************************************************************************
 *
-*	@file: mtl_renderer.h
-*	@author: Martin Fouilleul
-*	@date: 01/08/2022
-*	@revision:
+*  Orca
+*  Copyright 2023 Martin Fouilleul and the Orca project contributors
+*  See LICENSE.txt for licensing information
 *
-*****************************************************************/
+**************************************************************************/
 #ifndef __MTL_RENDERER_H_
 #define __MTL_RENDERER_H_
 

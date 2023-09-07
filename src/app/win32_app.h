@@ -1,12 +1,11 @@
-//*****************************************************************
-//
-//	$file: win32_app.h $
-//	$author: Martin Fouilleul $
-//	$date: 20/12/2022 $
-//	$revision: $
-//	$note: (C) 2022 by Martin Fouilleul - all rights reserved $
-//
-//*****************************************************************
+/*************************************************************************
+*
+*  Orca
+*  Copyright 2023 Martin Fouilleul and the Orca project contributors
+*  See LICENSE.txt for licensing information
+*
+**************************************************************************/
+
 #ifndef __WIN32_APP_H_
 #define __WIN32_APP_H_
 

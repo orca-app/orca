@@ -1,10 +1,10 @@
-/************************************************************/ /**
+/*************************************************************************
 *
-*	@file: win32_string_helpers.h
-*	@author: Martin Fouilleul
-*	@date: 24/05/2023
+*  Orca
+*  Copyright 2023 Martin Fouilleul and the Orca project contributors
+*  See LICENSE.txt for licensing information
 *
-*****************************************************************/
+**************************************************************************/
 #ifndef __WIN32_STRING_HELPERS_H_
 #define __WIN32_STRING_HELPERS_H_
 

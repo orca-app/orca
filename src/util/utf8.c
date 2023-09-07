@@ -1,12 +1,11 @@
-//*****************************************************************
-//
-//	$file: utf8.c $
-//	$author: Martin Fouilleul $
-//	$date: 05/11/2016 $
-//	$revision: $
-//	$note: (C) 2016 by Martin Fouilleul - all rights reserved $
-//
-//*****************************************************************
+/*************************************************************************
+*
+*  Orca
+*  Copyright 2023 Martin Fouilleul and the Orca project contributors
+*  See LICENSE.txt for licensing information
+*
+**************************************************************************/
+
 #include "utf8.h"
 
 //-----------------------------------------------------------------
@@ -166,11 +165,11 @@ oc_utf8_dec oc_utf8_decode_at(oc_str8 string, u64 offset)
                 //NOTE(martin): invalid byte encountered
                 break;
             }
-
-        } while(offset < string.len
-                && string.ptr[offset]
-                && !oc_utf8_is_start_byte(string.ptr[offset])
-                && sz < expectedSize);
+        }
+        while(offset < string.len
+              && string.ptr[offset]
+              && !oc_utf8_is_start_byte(string.ptr[offset])
+              && sz < expectedSize);
 
         if(sz != expectedSize)
         {

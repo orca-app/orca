@@ -1,10 +1,10 @@
-/************************************************************/ /**
+/*************************************************************************
 *
-*	@file: runtime_memory.h
-*	@author: Martin Fouilleul
-*	@date: 02/09/2023
+*  Orca
+*  Copyright 2023 Martin Fouilleul and the Orca project contributors
+*  See LICENSE.txt for licensing information
 *
-*****************************************************************/
+**************************************************************************/
 #ifndef __RUNTIME_MEMORY_H_
 #define __RUNTIME_MEMORY_H_
 

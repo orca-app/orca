@@ -1,11 +1,10 @@
-/************************************************************/ /**
+/*************************************************************************
 *
-*	@file: egl_surface.cpp
-*	@author: Martin Fouilleul
-*	@date: 17/02/2023
-*	@revision:
+*  Orca
+*  Copyright 2023 Martin Fouilleul and the Orca project contributors
+*  See LICENSE.txt for licensing information
 *
-*****************************************************************/
+**************************************************************************/
 
 #define EGL_EGLEXT_PROTOTYPES
 #include "app/app_internal.h"

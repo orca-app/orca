@@ -1,10 +1,10 @@
-/************************************************************/ /**
+/*************************************************************************
 *
-*	@file: input_state.h
-*	@author: Martin Fouilleul
-*	@date: 19/04/2023
+*  Orca
+*  Copyright 2023 Martin Fouilleul and the Orca project contributors
+*  See LICENSE.txt for licensing information
 *
-*****************************************************************/
+**************************************************************************/
 #ifndef __INPUT_STATE_H_
 #define __INPUT_STATE_H_
 

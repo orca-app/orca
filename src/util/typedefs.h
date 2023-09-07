@@ -1,12 +1,11 @@
-//*****************************************************************
-//
-//	$file: typedefs.h $
-//	$author: Martin Fouilleul $
-//	$date: 23/36/2015 $
-//	$revision: $
-//	$note: (C) 2015 by Martin Fouilleul - all rights reserved $
-//
-//*****************************************************************
+/*************************************************************************
+*
+*  Orca
+*  Copyright 2023 Martin Fouilleul and the Orca project contributors
+*  See LICENSE.txt for licensing information
+*
+**************************************************************************/
+
 #ifndef __TYPEDEFS_H_
 #define __TYPEDEFS_H_
 

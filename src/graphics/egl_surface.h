@@ -1,11 +1,10 @@
-/************************************************************/ /**
+/*************************************************************************
 *
-*	@file: egl_surface.h
-*	@author: Martin Fouilleul
-*	@date: 28/01/2023
-*	@revision:
+*  Orca
+*  Copyright 2023 Martin Fouilleul and the Orca project contributors
+*  See LICENSE.txt for licensing information
 *
-*****************************************************************/
+**************************************************************************/
 #ifndef __EGL_SURFACE_H_
 #define __EGL_SURFACE_H_
 

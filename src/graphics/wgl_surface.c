@@ -1,11 +1,10 @@
-/************************************************************/ /**
+/*************************************************************************
 *
-*	@file: wgl_surface.c
-*	@author: Martin Fouilleul
-*	@date: 01/08/2022
-*	@revision:
+*  Orca
+*  Copyright 2023 Martin Fouilleul and the Orca project contributors
+*  See LICENSE.txt for licensing information
 *
-*****************************************************************/
+**************************************************************************/
 #include "app/win32_app.h"
 #include "gl_loader.h"
 #include "graphics_surface.h"

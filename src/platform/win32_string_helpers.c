@@ -1,10 +1,10 @@
-/************************************************************/ /**
+/*************************************************************************
 *
-*	@file: win32_string_helpers.c
-*	@author: Martin Fouilleul
-*	@date: 24/05/2023
+*  Orca
+*  Copyright 2023 Martin Fouilleul and the Orca project contributors
+*  See LICENSE.txt for licensing information
 *
-*****************************************************************/
+**************************************************************************/
 
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>

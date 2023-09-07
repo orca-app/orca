@@ -1,11 +1,10 @@
-/************************************************************/ /**
+/*************************************************************************
 *
-*	@file: milepost.m
-*	@author: Martin Fouilleul
-*	@date: 13/02/2021
-*	@revision:
+*  Orca
+*  Copyright 2023 Martin Fouilleul and the Orca project contributors
+*  See LICENSE.txt for licensing information
 *
-*****************************************************************/
+**************************************************************************/
 
 #include "app/osx_app.m"
 #include "graphics/graphics_common.c"

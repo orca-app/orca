@@ -1,11 +1,10 @@
-/************************************************************/ /**
+/*************************************************************************
 *
-*	@file: osx_clock.cpp
-*	@author: Martin Fouilleul
-*	@date: 07/03/2019
-*	@revision:
+*  Orca
+*  Copyright 2023 Martin Fouilleul and the Orca project contributors
+*  See LICENSE.txt for licensing information
 *
-*****************************************************************/
+**************************************************************************/
 
 #include <Availability.h> // availability macros
 #include <mach/clock.h>

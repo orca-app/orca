@@ -1,10 +1,10 @@
-/************************************************************/ /**
+/*************************************************************************
 *
-*	@file: osx_path.m
-*	@author: Martin Fouilleul
-*	@date: 24/05/2023
+*  Orca
+*  Copyright 2023 Martin Fouilleul and the Orca project contributors
+*  See LICENSE.txt for licensing information
 *
-*****************************************************************/
+**************************************************************************/
 
 #import <Foundation/Foundation.h>
 #include <libgen.h>

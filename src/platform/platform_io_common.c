@@ -1,10 +1,10 @@
-/************************************************************/ /**
+/*************************************************************************
 *
-*	@file: platform_io_common.c
-*	@author: Martin Fouilleul
-*	@date: 25/05/2023
+*  Orca
+*  Copyright 2023 Martin Fouilleul and the Orca project contributors
+*  See LICENSE.txt for licensing information
 *
-*****************************************************************/
+**************************************************************************/
 
 #include "platform_io.h"
 #include "platform_io_dialog.h"

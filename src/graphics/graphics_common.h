@@ -1,10 +1,10 @@
-/************************************************************/ /**
+/*************************************************************************
 *
-*	@file: graphics_common.h
-*	@author: Martin Fouilleul
-*	@date: 26/04/2023
+*  Orca
+*  Copyright 2023 Martin Fouilleul and the Orca project contributors
+*  See LICENSE.txt for licensing information
 *
-*****************************************************************/
+**************************************************************************/
 #ifndef __GRAPHICS_COMMON_H_
 #define __GRAPHICS_COMMON_H_
 

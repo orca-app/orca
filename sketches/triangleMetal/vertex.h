@@ -1,3 +1,10 @@
+/*************************************************************************
+*
+*  Orca
+*  Copyright 2023 Martin Fouilleul and the Orca project contributors
+*  See LICENSE.txt for licensing information
+*
+**************************************************************************/
 
 #ifndef __VERTEX_H__
 #define __VERTEX_H__

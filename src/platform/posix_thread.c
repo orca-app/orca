@@ -1,11 +1,10 @@
-/************************************************************/ /**
+/*************************************************************************
 *
-*	@file: posix_thread.c
-*	@author: Martin Fouilleul
-*	@date: 21/03/2019
-*	@revision:
+*  Orca
+*  Copyright 2023 Martin Fouilleul and the Orca project contributors
+*  See LICENSE.txt for licensing information
 *
-*****************************************************************/
+**************************************************************************/
 #include <pthread.h>
 #include <signal.h> //needed for pthread_kill() on linux
 #include <stdlib.h>

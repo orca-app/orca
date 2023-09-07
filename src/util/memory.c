@@ -1,11 +1,10 @@
-/************************************************************/ /**
+/*************************************************************************
 *
-*	@file: memory.c
-*	@author: Martin Fouilleul
-*	@date: 24/10/2019
-*	@revision:
+*  Orca
+*  Copyright 2023 Martin Fouilleul and the Orca project contributors
+*  See LICENSE.txt for licensing information
 *
-*****************************************************************/
+**************************************************************************/
 #include "memory.h"
 #include "macros.h"
 #include "platform/platform.h"

@@ -1,11 +1,10 @@
-/************************************************************/ /**
+/*************************************************************************
 *
-*	@file: ringbuffer.cpp
-*	@author: Martin Fouilleul
-*	@date: 31/07/2022
-*	@revision:
+*  Orca
+*  Copyright 2023 Martin Fouilleul and the Orca project contributors
+*  See LICENSE.txt for licensing information
 *
-*****************************************************************/
+**************************************************************************/
 #include "ringbuffer.h"
 #include <stdlib.h> // malloc, free
 

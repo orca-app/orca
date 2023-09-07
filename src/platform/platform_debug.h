@@ -1,10 +1,10 @@
-/************************************************************/ /**
+/*************************************************************************
 *
-*	@file: platform_debug.h
-*	@author: Martin Fouilleul
-*	@date: 13/08/2023
+*  Orca
+*  Copyright 2023 Martin Fouilleul and the Orca project contributors
+*  See LICENSE.txt for licensing information
 *
-*****************************************************************/
+**************************************************************************/
 #ifndef __PLATFORM_DEBUG_H_
 #define __PLATFORM_DEBUG_H_
 

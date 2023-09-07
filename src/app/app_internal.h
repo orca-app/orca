@@ -1,11 +1,10 @@
-/************************************************************/ /**
+/*************************************************************************
 *
-*	@file: app_internal.h
-*	@author: Martin Fouilleul
-*	@date: 23/12/2022
-*	@revision:
+*  Orca
+*  Copyright 2023 Martin Fouilleul and the Orca project contributors
+*  See LICENSE.txt for licensing information
 *
-*****************************************************************/
+**************************************************************************/
 #ifndef __APP_INTERNAL_H_
 #define __APP_INTERNAL_H_
 

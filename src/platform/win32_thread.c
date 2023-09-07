@@ -1,10 +1,10 @@
-/************************************************************/ /**
+/*************************************************************************
 *
-*	@file: win32_thread.c
-*	@author: Reuben Dunnington
-*	@date: 7/30/2023
+*  Orca
+*  Copyright 2023 Martin Fouilleul and the Orca project contributors
+*  See LICENSE.txt for licensing information
 *
-*****************************************************************/
+**************************************************************************/
 #include <math.h>                                              //INFINITY
 #include <processthreadsapi.h>
 #include <synchapi.h>

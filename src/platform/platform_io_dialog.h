@@ -1,10 +1,10 @@
-/************************************************************/ /**
+/*************************************************************************
 *
-*	@file: platform_io_dialog.h
-*	@author: Martin Fouilleul
-*	@date: 01/09/2023
+*  Orca
+*  Copyright 2023 Martin Fouilleul and the Orca project contributors
+*  See LICENSE.txt for licensing information
 *
-*****************************************************************/
+**************************************************************************/
 #ifndef __PLATFORM_IO_DIALOG_H_
 #define __PLATFORM_IO_DIALOG_H_
 

@@ -1,8 +1,8 @@
-/************************************************************/ /**
+/*************************************************************************
 *
-*	@file: lists.h
-*	@author: Martin Fouilleul
-*	@date: 22/11/2017
+*  Orca
+*  Copyright 2023 Martin Fouilleul and the Orca project contributors
+*  See LICENSE.txt for licensing information
 *	@brief: Implements generic intrusive linked list and dynamic array
 *
 ****************************************************************/

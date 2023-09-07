@@ -1,11 +1,10 @@
-/************************************************************/ /**
+/*************************************************************************
 *
-*	@file: mtl_surface.h
-*	@author: Martin Fouilleul
-*	@date: 25/12/2022
-*	@revision:
+*  Orca
+*  Copyright 2023 Martin Fouilleul and the Orca project contributors
+*  See LICENSE.txt for licensing information
 *
-*****************************************************************/
+**************************************************************************/
 #ifndef __MTL_SURFACE_H_
 #define __MTL_SURFACE_H_
 

@@ -1,12 +1,11 @@
-//*****************************************************************
-//
-//	$file: utf8.h $
-//	$author: Martin Fouilleul $
-//	$date: 05/11/2016 $
-//	$revision: $
-//	$note: (C) 2016 by Martin Fouilleul - all rights reserved $
-//
-//*****************************************************************
+/*************************************************************************
+*
+*  Orca
+*  Copyright 2023 Martin Fouilleul and the Orca project contributors
+*  See LICENSE.txt for licensing information
+*
+**************************************************************************/
+
 #ifndef __UTF8_H_
 #define __UTF8_H_
 
@@ -14,52 +13,51 @@
 #include "typedefs.h"
 
 #ifdef __cplusplus
-extern "C"
-{
+extern "C" {
 #endif
 
-    typedef u32 oc_utf32;
+typedef u32 oc_utf32;
 
-    //-----------------------------------------------------------------
-    //NOTE: getting sizes / offsets / indices
-    //-----------------------------------------------------------------
-    ORCA_API u32 oc_utf8_size_from_leading_char(char leadingChar);
-    ORCA_API u32 oc_utf8_codepoint_size(oc_utf32 codePoint);
+//-----------------------------------------------------------------
+//NOTE: getting sizes / offsets / indices
+//-----------------------------------------------------------------
+ORCA_API u32 oc_utf8_size_from_leading_char(char leadingChar);
+ORCA_API u32 oc_utf8_codepoint_size(oc_utf32 codePoint);
 
-    ORCA_API u64 oc_utf8_codepoint_count_for_string(oc_str8 string);
-    ORCA_API u64 oc_utf8_byte_count_for_codepoints(oc_str32 codePoints);
+ORCA_API u64 oc_utf8_codepoint_count_for_string(oc_str8 string);
+ORCA_API u64 oc_utf8_byte_count_for_codepoints(oc_str32 codePoints);
 
-    ORCA_API u64 oc_utf8_next_offset(oc_str8 string, u64 byteOffset);
-    ORCA_API u64 oc_utf8_prev_offset(oc_str8 string, u64 byteOffset);
+ORCA_API u64 oc_utf8_next_offset(oc_str8 string, u64 byteOffset);
+ORCA_API u64 oc_utf8_prev_offset(oc_str8 string, u64 byteOffset);
 
-    //-----------------------------------------------------------------
-    //NOTE: encoding / decoding
-    //-----------------------------------------------------------------
-    typedef struct oc_utf8_dec
-    {
-        oc_utf32 codepoint; //NOTE: decoded codepoint
-        u32 size;           //NOTE: size of corresponding oc_utf8 sequence
-    } oc_utf8_dec;
+//-----------------------------------------------------------------
+//NOTE: encoding / decoding
+//-----------------------------------------------------------------
+typedef struct oc_utf8_dec
+{
+    oc_utf32 codepoint; //NOTE: decoded codepoint
+    u32 size;           //NOTE: size of corresponding oc_utf8 sequence
+} oc_utf8_dec;
 
-    ORCA_API oc_utf8_dec oc_utf8_decode(oc_str8 string);                //NOTE: decode a single oc_utf8 sequence at start of string
-    ORCA_API oc_utf8_dec oc_utf8_decode_at(oc_str8 string, u64 offset); //NOTE: decode a single oc_utf8 sequence starting at byte offset
-    ORCA_API oc_str8 oc_utf8_encode(char* dst, oc_utf32 codePoint);     //NOTE: encode codepoint into backing buffer dst
+ORCA_API oc_utf8_dec oc_utf8_decode(oc_str8 string);                //NOTE: decode a single oc_utf8 sequence at start of string
+ORCA_API oc_utf8_dec oc_utf8_decode_at(oc_str8 string, u64 offset); //NOTE: decode a single oc_utf8 sequence starting at byte offset
+ORCA_API oc_str8 oc_utf8_encode(char* dst, oc_utf32 codePoint);     //NOTE: encode codepoint into backing buffer dst
 
-    ORCA_API oc_str32 oc_utf8_to_codepoints(u64 maxCount, oc_utf32* backing, oc_str8 string);
-    ORCA_API oc_str8 oc_utf8_from_codepoints(u64 maxBytes, char* backing, oc_str32 codePoints);
+ORCA_API oc_str32 oc_utf8_to_codepoints(u64 maxCount, oc_utf32* backing, oc_str8 string);
+ORCA_API oc_str8 oc_utf8_from_codepoints(u64 maxBytes, char* backing, oc_str32 codePoints);
 
-    ORCA_API oc_str32 oc_utf8_push_to_codepoints(oc_arena* arena, oc_str8 string);
-    ORCA_API oc_str8 oc_utf8_push_from_codepoints(oc_arena* arena, oc_str32 codePoints);
+ORCA_API oc_str32 oc_utf8_push_to_codepoints(oc_arena* arena, oc_str8 string);
+ORCA_API oc_str8 oc_utf8_push_from_codepoints(oc_arena* arena, oc_str32 codePoints);
 
-    //-----------------------------------------------------------------
-    // oc_utf8 range struct and X-macros for defining oc_utf8 ranges
-    //-----------------------------------------------------------------
+//-----------------------------------------------------------------
+// oc_utf8 range struct and X-macros for defining oc_utf8 ranges
+//-----------------------------------------------------------------
 
-    typedef struct oc_unicode_range
-    {
-        oc_utf32 firstCodePoint;
-        u32 count;
-    } oc_unicode_range;
+typedef struct oc_unicode_range
+{
+    oc_utf32 firstCodePoint;
+    u32 count;
+} oc_unicode_range;
 
 //NOTE(martin): range declared here are defined in utf8.cpp
 //              they can be used by prefixing them with UTF8_RANGE_, as in 'UTF8_RANGE_BASIC_LATIN'
@@ -191,7 +189,7 @@ extern "C"
 
 #define OC_UNICODE_RANGE(start, count, name) \
     ORCA_API extern const oc_unicode_range OC_CAT2(OC_UNICODE_, name);
-    OC_UNICODE_RANGES
+OC_UNICODE_RANGES
 #undef OC_UNICODE_RANGE
 
 #ifdef __cplusplus
