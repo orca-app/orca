@@ -239,14 +239,14 @@ oc_datestamp oc_datestamp_from_win32_filetime(FILETIME ft)
 {
     oc_datestamp d = { 0 };
 
-    i64 win32Ticks = (((u64)ft.high) << 32) | (u64)ft.low;
+    i64 win32Ticks = (((u64)ft.dwHighDateTime) << 32) | (u64)ft.dwLowDateTime;
 
     i64 win32Seconds = win32Ticks / OC_WIN32_TICKS_PER_SECOND;
     u64 win32Rem = 0;
-    if(winTicks < 0)
+    if(win32Ticks < 0)
     {
         win32Seconds -= OC_WIN32_TICKS_PER_SECOND;
-        win32Rem = win32Ticks - seconds * OC_WIN32_TICKS_PER_SECOND;
+        win32Rem = win32Ticks - win32Seconds * OC_WIN32_TICKS_PER_SECOND;
     }
     else
     {
