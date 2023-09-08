@@ -207,7 +207,10 @@ i32 orca_surface_callback(void* user)
 {
     orca_surface_create_data* data = (orca_surface_create_data*)user;
     data->surface = oc_surface_create_for_window(data->window, data->api);
+
+#if OC_PLATFORM_WINDOWS
     oc_surface_swap_interval(data->surface, 0);
+#endif
 
     //NOTE: this will be called on main thread, so we need to deselect the surface here,
     //      and reselect it on the orca thread
