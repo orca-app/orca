@@ -20,7 +20,7 @@ f32 minf(f32 a, f32 b);
 ORCA_EXPORT void oc_on_init(void)
 {
     oc_window_set_title(OC_STR8("clock"));
-    oc_runtime_window_set_size((oc_vec2){ .x = 400, .y = 400 });
+    oc_window_set_size((oc_vec2){ .x = 400, .y = 400 });
 
     surface = oc_surface_canvas();
     canvas = oc_canvas_create();
