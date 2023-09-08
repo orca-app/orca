@@ -788,7 +788,7 @@ i32 orca_runloop(void* user)
 
                     oc_ui_panel("log view", OC_UI_FLAG_SCROLL_WHEEL_Y)
                     {
-                        panel = oc_ui_box_top();
+                        panel = oc_ui_box_top()->parent;
 
                         oc_ui_style_next(&(oc_ui_style){ .size.width = { OC_UI_SIZE_PARENT, 1 },
                                                          .size.height = { OC_UI_SIZE_CHILDREN },
