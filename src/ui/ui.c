@@ -1679,7 +1679,7 @@ oc_ui_sig oc_ui_checkbox(const char* name, bool* checked)
     oc_ui_theme* theme = ui->theme;
 
     oc_ui_box* box;
-    if (*checked)
+    if(*checked)
     {
         oc_ui_style defaultStyle = { .size.width = { OC_UI_SIZE_PIXELS, 16 },
                                      .size.height = { OC_UI_SIZE_PIXELS, 16 },
@@ -1819,7 +1819,6 @@ oc_ui_box* oc_ui_slider(const char* label, f32* value)
         trackStyle.size.c[secondAxis] = (oc_ui_size){ OC_UI_SIZE_PIXELS, trackThickness };
         trackStyle.floatTarget.c[trackAxis] = 0;
         trackStyle.floatTarget.c[secondAxis] = (thumbSize - trackThickness) / 2;
-
 
         oc_ui_style_mask styleMask = OC_UI_STYLE_SIZE
                                    | OC_UI_STYLE_BG_COLOR
@@ -2196,21 +2195,25 @@ void oc_ui_tooltip(const char* label)
     oc_ui_theme* theme = ui->theme;
 
     oc_vec2 p = oc_ui_mouse_position();
-
-    oc_ui_container(label, 0)
+    oc_ui_style containerStyle = { .floating.x = true,
+                                   .floating.y = true,
+                                   .floatTarget.x = p.x,
+                                   .floatTarget.y = p.y };
+    oc_ui_style_next(&containerStyle, OC_UI_STYLE_FLOAT);
+    oc_ui_container(label, OC_UI_FLAG_OVERLAY)
     {
         oc_ui_style arrowStyle = { .size.width = { OC_UI_SIZE_PIXELS, 24 },
                                    .size.height = { OC_UI_SIZE_PIXELS, 24 },
                                    .floating.x = true,
                                    .floating.y = true,
-                                   .floatTarget = { p.x, p.y + 5},
+                                   .floatTarget = { 0, 5 },
                                    .bgColor = theme->palette->grey7 };
         oc_ui_style_mask arrowMask = OC_UI_STYLE_SIZE
                                    | OC_UI_STYLE_FLOAT
                                    | OC_UI_STYLE_BG_COLOR;
         oc_ui_style_next(&arrowStyle, arrowMask);
 
-        oc_ui_box* arrow = oc_ui_box_make("arrow", OC_UI_FLAG_OVERLAY | OC_UI_FLAG_DRAW_PROC);
+        oc_ui_box* arrow = oc_ui_box_make("arrow", OC_UI_FLAG_DRAW_PROC);
         oc_ui_box_set_draw_proc(arrow, oc_ui_tooltip_arrow_draw, 0);
 
         oc_ui_style contentsStyle = { .size.width = { OC_UI_SIZE_CHILDREN },
@@ -2219,7 +2222,7 @@ void oc_ui_tooltip(const char* label)
                                       .layout.margin.y = 8,
                                       .floating.x = true,
                                       .floating.y = true,
-                                      .floatTarget = { p.x + 24, p.y },
+                                      .floatTarget = { 24, 0 },
                                       .bgColor = theme->palette->grey7,
                                       .color = theme->bg0,
                                       .roundness = 6 };
@@ -2231,7 +2234,7 @@ void oc_ui_tooltip(const char* label)
                                       | OC_UI_STYLE_ROUNDNESS;
         oc_ui_style_next(&contentsStyle, contentsMask);
 
-        oc_ui_box* contents = oc_ui_box_begin("contents", OC_UI_FLAG_OVERLAY | OC_UI_FLAG_DRAW_BACKGROUND);
+        oc_ui_box* contents = oc_ui_box_begin("contents", OC_UI_FLAG_DRAW_BACKGROUND);
 
         oc_ui_label(label);
 
@@ -2280,7 +2283,7 @@ void oc_ui_menu_begin(const char* label)
                                      .size.height = { OC_UI_SIZE_CHILDREN },
                                      .layout.margin.x = 8,
                                      .layout.margin.y = 4,
-                                     .bgColor = {0, 0, 0, 0} },
+                                     .bgColor = { 0, 0, 0, 0 } },
                      OC_UI_STYLE_SIZE | OC_UI_STYLE_LAYOUT_MARGINS | OC_UI_STYLE_BG_COLOR);
 
     oc_ui_pattern hoverPattern = { 0 };
@@ -2435,7 +2438,7 @@ void oc_ui_select_popup_draw_arrow(oc_ui_box* box, void* data)
     oc_matrix_pop();
 }
 
-void oc_ui_select_popup_draw_checkmark(oc_ui_box *box, void *data)
+void oc_ui_select_popup_draw_checkmark(oc_ui_box* box, void* data)
 {
     oc_mat2x3 matrix = {
         box->rect.w, 0, box->rect.x,
@@ -3737,8 +3740,8 @@ oc_ui_palette OC_UI_DARK_PALETTE = {
 
 oc_ui_theme OC_UI_DARK_THEME = {
     .white = { 0.894, 0.906, 0.961, 1 },
-    .primary = { 0.33, 0.66, 1, 1 }, // blue5
-    .primaryHover = { 0.5, 0.757, 1, 1 }, // blue6
+    .primary = { 0.33, 0.66, 1, 1 },       // blue5
+    .primaryHover = { 0.5, 0.757, 1, 1 },  // blue6
     .primaryActive = { 0.66, 0.84, 1, 1 }, // blue7
     .fill0 = { 1, 1, 1, 0.12 },
     .fill1 = { 1, 1, 1, 0.16 },
@@ -3748,9 +3751,9 @@ oc_ui_theme OC_UI_DARK_THEME = {
     .bg2 = { 0.208, 0.212, 0.235, 1 },
     .bg3 = { 0.263, 0.267, 0.29, 1 },
     .bg4 = { 0.31, 0.318, 0.349, 1 },
-    .text0 = { 0.976, 0.976, 0.976, 1 }, // grey9
-    .text1 = { 0.976, 0.976, 0.976, 0.8 }, // grey9
-    .text2 = { 0.976, 0.976, 0.976, 0.6 }, // grey9
+    .text0 = { 0.976, 0.976, 0.976, 1 },    // grey9
+    .text1 = { 0.976, 0.976, 0.976, 0.8 },  // grey9
+    .text2 = { 0.976, 0.976, 0.976, 0.6 },  // grey9
     .text3 = { 0.976, 0.976, 0.976, 0.35 }, // grey9
     .sliderThumbBorder = { 0, 0, 0, 0.075 },
     .elevatedBorder = { 1, 1, 1, 0.1 }
@@ -3923,19 +3926,19 @@ oc_ui_palette OC_UI_LIGHT_PALETTE = {
 
 oc_ui_theme OC_UI_LIGHT_THEME = {
     .white = { 1, 1, 1, 1 },
-    .primary = { 0.000, 0.392, 0.980, 1 }, // blue5
-    .primaryHover = { 0.000, 0.384, 0.839, 1 }, // blue6
+    .primary = { 0.000, 0.392, 0.980, 1 },       // blue5
+    .primaryHover = { 0.000, 0.384, 0.839, 1 },  // blue6
     .primaryActive = { 0.000, 0.310, 0.702, 1 }, // blue7
-    .fill0 = { 0.180, 0.196, 0.220, 0.05 }, // grey8
-    .fill1 = { 0.180, 0.196, 0.220, 0.09 }, // grey8
-    .fill2 = { 0.180, 0.196, 0.220, 0.13 }, // grey8
+    .fill0 = { 0.180, 0.196, 0.220, 0.05 },      // grey8
+    .fill1 = { 0.180, 0.196, 0.220, 0.09 },      // grey8
+    .fill2 = { 0.180, 0.196, 0.220, 0.13 },      // grey8
     .bg0 = { 1, 1, 1, 1 },
     .bg1 = { 1, 1, 1, 1 },
     .bg2 = { 1, 1, 1, 1 },
     .bg3 = { 1, 1, 1, 1 },
     .bg4 = { 1, 1, 1, 1 },
-    .text0 = { 0.110, 0.122, 0.137, 1 }, // grey9
-    .text1 = { 0.110, 0.122, 0.137, 0.8 }, // grey9
+    .text0 = { 0.110, 0.122, 0.137, 1 },    // grey9
+    .text1 = { 0.110, 0.122, 0.137, 0.8 },  // grey9
     .text2 = { 0.110, 0.122, 0.137, 0.62 }, // grey9
     .text3 = { 0.110, 0.122, 0.137, 0.35 }, // grey9
     .sliderThumbBorder = { 0, 0, 0, 0.075 },

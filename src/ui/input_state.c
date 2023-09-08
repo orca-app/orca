@@ -72,17 +72,33 @@ static void oc_update_mouse_move(oc_input_state* state, f32 x, f32 y, f32 deltaX
         mouse->wheel = (oc_vec2){ 0, 0 };
         mouse->lastUpdate = frameCounter;
     }
+    mouse->posValid = true;
     mouse->pos = (oc_vec2){ x, y };
     mouse->delta.x += deltaX;
     mouse->delta.y += deltaY;
 }
 
-static void oc_update_mouse_wheel(oc_input_state* state, f32 deltaX, f32 deltaY)
+static void oc_update_mouse_leave(oc_input_state* state)
 {
     u64 frameCounter = state->frameCounter;
     oc_mouse_state* mouse = &state->mouse;
     if(mouse->lastUpdate != frameCounter)
     {
+        mouse->delta = (oc_vec2){ 0, 0 };
+        mouse->wheel = (oc_vec2){ 0, 0 };
+        mouse->lastUpdate = frameCounter;
+    }
+    mouse->posValid = false;
+}
+
+static void oc_update_mouse_wheel(oc_input_state* state, f32 deltaX, f32 deltaY)
+{
+    oc_log_info("wheel");
+    u64 frameCounter = state->frameCounter;
+    oc_mouse_state* mouse = &state->mouse;
+    if(mouse->lastUpdate != frameCounter)
+    {
+        mouse->posValid = false;
         mouse->delta = (oc_vec2){ 0, 0 };
         mouse->wheel = (oc_vec2){ 0, 0 };
         mouse->lastUpdate = frameCounter;
@@ -141,6 +157,10 @@ void oc_input_process_event(oc_input_state* state, oc_event* event)
 
         case OC_EVENT_MOUSE_MOVE:
             oc_update_mouse_move(state, event->mouse.x, event->mouse.y, event->mouse.deltaX, event->mouse.deltaY);
+            break;
+
+        case OC_EVENT_MOUSE_LEAVE:
+            oc_update_mouse_leave(state);
             break;
 
         case OC_EVENT_MOUSE_WHEEL:
@@ -305,7 +325,14 @@ oc_keymod_flags oc_key_mods(oc_input_state* input)
 
 oc_vec2 oc_mouse_position(oc_input_state* input)
 {
-    return (input->mouse.pos);
+    if(input->mouse.posValid)
+    {
+       return (input->mouse.pos);
+    }
+    else
+    {
+       return ((oc_vec2){ -1, -1 });
+    }
 }
 
 oc_vec2 oc_mouse_delta(oc_input_state* input)
