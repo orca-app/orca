@@ -2405,36 +2405,35 @@ void oc_vsync_init(void)
 void oc_vsync_wait(oc_window window)
 {
     // TODO figure out why this causes stuttering with triple buffering
+    oc_window_data* windowData = oc_window_ptr_from_handle(window);
+    if(!windowData)
+    {
+        return;
+    }
 
-    // oc_window_data* windowData = oc_window_ptr_from_handle(window);
-    // if(!windowData)
-    // {
-    //     return;
-    // }
+    OCWindow* ocWindow = (OCWindow*)windowData->osx.nsWindow;
 
-    // OCWindow* ocWindow = (OCWindow*)windowData->osx.nsWindow;
+    CVReturn ret;
 
-    // CVReturn ret;
+    if((ret = CVDisplayLinkCreateWithActiveCGDisplays(&ocWindow->displayLink)) != kCVReturnSuccess)
+    {
+        oc_log_error("CVDisplayLinkCreateWithActiveCGDisplays error: %d\n", ret);
+    }
 
-    // if((ret = CVDisplayLinkCreateWithActiveCGDisplays(&ocWindow->displayLink)) != kCVReturnSuccess)
-    // {
-    //     oc_log_error("CVDisplayLinkCreateWithActiveCGDisplays error: %d\n", ret);
-    // }
+    CGDirectDisplayID mainDisplay = CGMainDisplayID();
 
-    // CGDirectDisplayID mainDisplay = CGMainDisplayID();
+    if((ret = CVDisplayLinkSetCurrentCGDisplay(ocWindow->displayLink, mainDisplay)) != kCVReturnSuccess)
+    {
+        oc_log_error("CVDisplayLinkSetCurrentCGDisplay ret: %d\n", ret);
+    }
 
-    // if((ret = CVDisplayLinkSetCurrentCGDisplay(ocWindow->displayLink, mainDisplay)) != kCVReturnSuccess)
-    // {
-    //     oc_log_error("CVDisplayLinkSetCurrentCGDisplay ret: %d\n", ret);
-    // }
+    if((ret = CVDisplayLinkSetOutputCallback(ocWindow->displayLink, oc_display_link_callback, ocWindow)) != kCVReturnSuccess)
+    {
+        oc_log_error("CVDisplayLinkSetOutputCallback ret: %d\n", ret);
+    }
 
-    // if((ret = CVDisplayLinkSetOutputCallback(ocWindow->displayLink, oc_display_link_callback, ocWindow)) != kCVReturnSuccess)
-    // {
-    //     oc_log_error("CVDisplayLinkSetOutputCallback ret: %d\n", ret);
-    // }
-
-    // if((ret = CVDisplayLinkStart(ocWindow->displayLink)) != kCVReturnSuccess)
-    // {
-    //     oc_log_error("CVDisplayLinkStart ret: %d\n", ret);
-    // }
+    if((ret = CVDisplayLinkStart(ocWindow->displayLink)) != kCVReturnSuccess)
+    {
+        oc_log_error("CVDisplayLinkStart ret: %d\n", ret);
+    }
 }
