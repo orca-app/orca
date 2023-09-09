@@ -676,19 +676,6 @@ i32 orca_runloop(void* user)
                 }
                 break;
 
-                case OC_EVENT_FRAME:
-                {
-                    if(exports[OC_EXPORT_FRAME_REFRESH])
-                    {
-                        M3Result res = m3_Call(exports[OC_EXPORT_FRAME_REFRESH], 0, 0);
-                        if(res)
-                        {
-                            ORCA_WASM3_ABORT(app->runtime.m3Runtime, res, "Runtime error");
-                        }
-                    }
-                }
-                break;
-
                 default:
                     break;
             }
@@ -851,6 +838,8 @@ i32 orca_runloop(void* user)
         oc_surface_present(app->debugOverlay.surface);
 
         oc_arena_clear(oc_scratch());
+
+        oc_vsync_wait(app->window);
     }
 
     if(exports[OC_EXPORT_TERMINATE])
@@ -879,8 +868,6 @@ int main(int argc, char** argv)
     //NOTE: create window and surfaces
     oc_rect windowRect = { .x = 100, .y = 100, .w = 810, .h = 610 };
     app->window = oc_window_create(windowRect, OC_STR8("orca"), 0);
-
-    oc_vsync_window(app->window);
 
     app->debugOverlay.show = false;
     app->debugOverlay.surface = oc_surface_create_for_window(app->window, OC_CANVAS);

@@ -586,14 +586,6 @@ LRESULT oc_win32_win_proc(HWND windowHandle, UINT message, WPARAM wParam, LPARAM
         }
         break;
 
-        case OC_WM_USER_VBLANK:
-        {
-            oc_event event = { 0 };
-            event.type = OC_EVENT_FRAME;
-            oc_queue_event(&event);
-        }
-        break;
-
         default:
         {
             handled = false;

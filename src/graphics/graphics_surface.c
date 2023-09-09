@@ -148,7 +148,10 @@ oc_surface oc_surface_create_for_window(oc_window window, oc_surface_api api)
     if(surface)
     {
         surfaceHandle = oc_surface_handle_alloc(surface);
+        // On windows, we do a manual wait for vsync in runtime.c so just turn all the swap intervals off
+#if OC_PLATFORM_WINDOWS
         oc_surface_swap_interval(surfaceHandle, 0);
+#endif
         oc_surface_select(surfaceHandle);
     }
     return (surfaceHandle);
