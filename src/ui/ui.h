@@ -196,7 +196,7 @@ typedef struct oc_ui_palette
     oc_color orange6;
     oc_color orange7;
     oc_color orange8;
-    oc_color orange9;    
+    oc_color orange9;
     oc_color amber0;
     oc_color amber1;
     oc_color amber2;
@@ -365,7 +365,7 @@ typedef struct oc_ui_theme
     oc_color sliderThumbBorder;
     oc_color elevatedBorder;
 
-    oc_ui_palette *palette;
+    oc_ui_palette* palette;
 } oc_ui_theme;
 
 extern oc_ui_theme OC_UI_DARK_THEME;
@@ -451,6 +451,7 @@ typedef struct oc_ui_sig
     bool released;
     bool clicked;
     bool doubleClicked;
+    bool tripleClicked;
     bool rightPressed;
 
     bool dragging;
@@ -577,6 +578,14 @@ enum
     OC_UI_BOX_MAP_BUCKET_COUNT = 1024
 };
 
+typedef enum
+{
+    OC_UI_EDIT_MOVE_NONE = 0,
+    OC_UI_EDIT_MOVE_CHAR,
+    OC_UI_EDIT_MOVE_WORD,
+    OC_UI_EDIT_MOVE_LINE
+} oc_ui_edit_move;
+
 typedef struct oc_ui_context
 {
     bool init;
@@ -609,6 +618,9 @@ typedef struct oc_ui_context
     i32 editMark;
     i32 editFirstDisplayedChar;
     f64 editCursorBlinkStart;
+    oc_ui_edit_move editSelectionMode;
+    i32 editWordSelectionInitialCursor;
+    i32 editWordSelectionInitialMark;
 
     oc_ui_theme* theme;
 } oc_ui_context;

@@ -20,6 +20,7 @@ static void oc_update_key_state(oc_input_state* state, oc_key_state* key, oc_key
         key->repeatCount = 0;
         key->sysClicked = false;
         key->sysDoubleClicked = false;
+        key->sysTripleClicked = false;
         key->lastUpdate = frameCounter;
     }
 
@@ -93,7 +94,6 @@ static void oc_update_mouse_leave(oc_input_state* state)
 
 static void oc_update_mouse_wheel(oc_input_state* state, f32 deltaX, f32 deltaY)
 {
-    oc_log_info("wheel");
     u64 frameCounter = state->frameCounter;
     oc_mouse_state* mouse = &state->mouse;
     if(mouse->lastUpdate != frameCounter)
@@ -178,9 +178,14 @@ void oc_input_process_event(oc_input_state* state, oc_event* event)
                 {
                     key->sysClicked = true;
                 }
-                if(event->key.clickCount >= 2)
+
+                if(event->key.clickCount % 2 == 0)
                 {
                     key->sysDoubleClicked = true;
+                }
+                else if(event->key.clickCount > 1)
+                {
+                    key->sysTripleClicked = true;
                 }
             }
 
@@ -314,8 +319,15 @@ bool oc_mouse_clicked(oc_input_state* input, oc_mouse_button button)
 bool oc_mouse_double_clicked(oc_input_state* input, oc_mouse_button button)
 {
     oc_key_state state = oc_mouse_button_get_state(input, button);
-    bool doubleClicked = state.sysClicked && (state.lastUpdate == input->frameCounter);
+    bool doubleClicked = state.sysDoubleClicked && (state.lastUpdate == input->frameCounter);
     return (doubleClicked);
+}
+
+bool oc_mouse_triple_clicked(oc_input_state* input, oc_mouse_button button)
+{
+    oc_key_state state = oc_mouse_button_get_state(input, button);
+    bool tripleClicked = state.sysTripleClicked && (state.lastUpdate == input->frameCounter);
+    return (tripleClicked);
 }
 
 oc_keymod_flags oc_key_mods(oc_input_state* input)

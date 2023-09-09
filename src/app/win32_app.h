@@ -40,6 +40,8 @@ typedef struct oc_win32_app_data
     int mouseCaptureMask;
     bool mouseTracked;
     oc_vec2 lastMousePos;
+    u32 lastClickTime[OC_MOUSE_BUTTON_COUNT];
+    u32 clickCount[OC_MOUSE_BUTTON_COUNT];
     u32 wheelScrollLines;
 
 } oc_win32_app_data;

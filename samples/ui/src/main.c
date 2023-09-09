@@ -15,7 +15,6 @@ ORCA_EXPORT void oc_on_init(void)
     surface = oc_surface_canvas();
     canvas = oc_canvas_create();
     oc_ui_init(&ui);
-    oc_ui_set_theme(&OC_UI_LIGHT_THEME);
 
     //NOTE: load font
     {

@@ -67,6 +67,7 @@ extern "C"
     float cosf(float);
 
     double fabs(double);
+    float fabsf(float);
 
     double floor(double);
 

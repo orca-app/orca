@@ -22,6 +22,7 @@ typedef struct oc_key_state
     bool down;
     bool sysClicked;
     bool sysDoubleClicked;
+    bool sysTripleClicked;
 
 } oc_key_state;
 

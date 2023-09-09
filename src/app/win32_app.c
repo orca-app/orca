@@ -233,7 +233,31 @@ static void oc_win32_process_mouse_event(oc_window_data* window, oc_key_action a
         }
     }
 
-    //TODO click/double click
+    if(action == OC_KEY_PRESS)
+    {
+        u32 clickTime = GetMessageTime();
+        if(clickTime - oc_appData.win32.lastClickTime[button] > GetDoubleClickTime())
+        {
+            oc_appData.win32.clickCount[button] = 0;
+        }
+        for (int i = 0; i < OC_MOUSE_BUTTON_COUNT; i++)
+        {
+            if(i != button)
+            {
+                oc_appData.win32.clickCount[i] = 0;
+            }
+        }
+        oc_appData.win32.lastClickTime[button] = clickTime;
+        oc_appData.win32.clickCount[button]++;
+    }
+    else
+    {
+        u32 clickTime = GetMessageTime();
+        if(clickTime - oc_appData.win32.lastClickTime[button] > GetDoubleClickTime())
+        {
+            oc_appData.win32.clickCount[button] = 0;
+        }
+    }
 
     oc_event event = { 0 };
     event.window = oc_window_handle_from_ptr(window);
@@ -241,6 +265,7 @@ static void oc_win32_process_mouse_event(oc_window_data* window, oc_key_action a
     event.key.action = action;
     event.key.code = button;
     event.key.mods = oc_get_mod_keys();
+    event.key.clickCount = oc_appData.win32.clickCount[button];
 
     oc_queue_event(&event);
 }
@@ -311,6 +336,15 @@ LRESULT oc_win32_win_proc(HWND windowHandle, UINT message, WPARAM wParam, LPARAM
 
     switch(message)
     {
+        case WM_ACTIVATE:
+        {
+            for(int i = 0; i < OC_MOUSE_BUTTON_COUNT; i++)
+            {
+                oc_appData.win32.clickCount[i] = 0;
+            }
+        }
+        break;
+
         case WM_CLOSE:
         {
             oc_event event = { 0 };
@@ -458,6 +492,14 @@ LRESULT oc_win32_win_proc(HWND windowHandle, UINT message, WPARAM wParam, LPARAM
             {
                 event.mouse.deltaX = event.mouse.x - oc_appData.win32.lastMousePos.x;
                 event.mouse.deltaY = event.mouse.y - oc_appData.win32.lastMousePos.y;
+            }
+            if(abs(event.mouse.x - oc_appData.win32.lastMousePos.x) > GetSystemMetrics(SM_CXDOUBLECLK) / 2
+               || abs(event.mouse.y - oc_appData.win32.lastMousePos.y) > GetSystemMetrics(SM_CYDOUBLECLK) / 2)
+            {
+                for(int i = 0; i < OC_MOUSE_BUTTON_COUNT; i++)
+                {
+                    oc_appData.win32.clickCount[i] = 0;
+                }
             }
             oc_appData.win32.lastMousePos = (oc_vec2){ event.mouse.x, event.mouse.y };
 
