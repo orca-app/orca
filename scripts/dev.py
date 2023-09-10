@@ -34,6 +34,9 @@ def attach_dev_commands(subparsers):
     install_cmd.add_argument("--no-confirm", action="store_true", help="don't ask the user for confirmation before installing")
     install_cmd.set_defaults(func=dev_shellish(install))
 
+    uninstall_cmd = dev_sub.add_parser("uninstall", help="Uninstall the system installation of Orca.")
+    uninstall_cmd.set_defaults(func=dev_shellish(uninstall))
+
 
 # Checks if the Orca tool should use a source checkout of Orca instead of a system install.
 # This is copy-pasted to the command-line tool so it can work before loading anything.
@@ -527,11 +530,19 @@ def prompt(msg):
             print("Please enter \"yes\" or \"no\" and press return.")
 
 
-def install(args):
+def install_path():
     if platform.system() == "Windows":
-        dest = os.path.join(os.getenv("LOCALAPPDATA"), "orca")
+        orca_dir = os.path.join(os.getenv("LOCALAPPDATA"), "orca")
     else:
-        dest = os.path.expanduser(os.path.join("~", ".orca"))
+        orca_dir = os.path.expanduser(os.path.join("~", ".orca"))
+
+    bin_dir = os.path.join(orca_dir, "bin")
+
+    return (orca_dir, bin_dir)
+
+
+def install(args):
+    dest, bin_dir = install_path()
 
     if not args.no_confirm:
         print("The Orca command-line tools will be installed to:")
@@ -540,7 +551,6 @@ def install(args):
         if not prompt("Proceed with the installation?"):
             return
 
-    bin_dir = os.path.join(dest, "bin")
     yeet(bin_dir)
 
     # The MS Store version of Python does some really stupid stuff with AppData:
@@ -579,3 +589,24 @@ def install(args):
         print()
         print(f"export PATH=\"{bin_dir}:$PATH\"")
     print()
+
+
+def uninstall(args):
+    orca_dir, bin_dir = install_path()
+
+    if not os.path.exists(orca_dir):
+        print("Orca is not installed on your system.")
+        exit()
+
+    print(f"Orca is currently installed at {orca_dir}.")
+    if prompt("Are you sure you want to uninstall?"):
+        yeet(orca_dir)
+
+        if platform.system() == "Windows":
+            print("Orca has been uninstalled from your system.")
+            print()
+            if prompt("Would you like to automatically remove Orca from your PATH?"):
+                subprocess.run(["powershell", "scripts\\updatepath.ps1", bin_dir, "-remove"], check=True)
+                print("Orca has been removed from your PATH.")
+        else:
+            print("Orca has been uninstalled from your system. You may wish to remove it from your PATH.")
