@@ -1,14 +1,20 @@
---------
+------
 **DISCLAIMER: This project is very much a Work In Progress. We're making it accessible in this very early state so that participants to the [Wheel Reinvention Jam 2023](https://handmade.network/jam/2023) can try it out and maybe use it as their jamming platform. Expect bugs, missing and/or incomplete features, unstable APIs, and sparse documentation. Some current issues might be a show stopper for you, so make sure you can build and run the sample apps before jumping in.**
 
 **If you do choose to try out Orca anyway, well thanks! We'll do our best to answer your questions, and we'd really appreciate to hear your feedback!**
 
---------
+------
 
 # Orca
---
+---
 
-Orca is a devlopment platform and runtime environment for cross-platform, sandboxed graphical WebAssembly applications.
+Orca is a devlopment platform and runtime environment for cross-platform, sandboxed graphical WebAssembly applications. In this early MVP you can:
+
+- Receive mouse and keyboard input
+- Draw paths, images and text using a 2D vector graphics API.
+- Draw 2D/3D graphics using OpenGL ES 3.1 (minus a few features)
+- Build user interfaces using our UI API and default widgets.
+- Read and write files using a capability based API. 
 
 ## Installing
 

@@ -6,9 +6,9 @@
 --------
 
 # Orca Quick Start Guide
---
+---
 
-This is a short introduction to developping an application that can be run by the Orca runtime. We'll present the basic structure of an Orca application, and walk through a simple example in C. 
+This is a short introduction to developping an application that can be run by the Orca runtime. We'll present the basic structure of an Orca application, and walk through a simple example in C.
 
 ## Basic structure
 
@@ -39,9 +39,9 @@ For a list of available handlers and their signatures, see the [app cheatsheet](
 
 ## Clock Example
 
-Let's look at the [clock example](../samples/clock). This is a simple app that shows an analog clock and showcases a couple of interesting Orca APIs. 
+Let's look at the [clock example](../samples/clock). This is a simple app that shows an analog clock and showcases a couple of interesting Orca APIs.
 
-Open [`main.c`](../samples/clock/src/main.c) and look at the definition of `oc_on_init()`. This handler is called when the applications starts, right after the application window has been created. 
+Open [`main.c`](../samples/clock/src/main.c) and look at the definition of `oc_on_init()`. This handler is called when the applications starts, right after the application window has been created.
 
 The first thing we do here is set the title and dimensions of the window. We then create the graphics resources that we'll use to draw the clock onto the window.
 
@@ -51,11 +51,11 @@ The next line of `oc_init()` creates a _graphics surface_. A surface represents 
 
 Before drawing into it, the surface must be selected as the current surface by calling `oc_surface_select()`. Once all drawing is done you can display the result by calling `oc_surface_present()`.
 
-### Canvas 
+### Canvas
 
 After creating the surface, we create a _canvas_. A canvas holds some context for drawing commands, like the current color or stroke width, as well as a command buffer that records all drawing commands. All canvas drawing functions use an implicit _current canvas_. You can select a canvas to be the current canvas by calling `oc_canvas_select()`, as seen at the begining of `oc_on_frame_refresh()`.
 
-Canvas drawing functions like `oc_fill()` or `oc_stroke` merely add to the current canvas command buffer. You can later render those commands onto a canvas surface by calling `oc_render()`. 
+Canvas drawing functions like `oc_fill()` or `oc_stroke` merely add to the current canvas command buffer. You can later render those commands onto a canvas surface by calling `oc_render()`.
 
 To summarize, the general structure of canvas drawing code is like the following:
 
@@ -73,7 +73,7 @@ oc_surface_present(surface); // display the result
 
 Canvas drawing functions can be roughly divided into three groups:
 
-- Path functions like `oc_line_to()` or `oc_cubic_to()` are used to specify paths using lines and curves. 
+- Path functions like `oc_line_to()` or `oc_cubic_to()` are used to specify paths using lines and curves.
 - Attributes setup functions like `oc_set_color()` or `oc_set_width()` are used to set attributes used by subsequent commands.
 - Command functions like `oc_stroke()` and `oc_fill()` encode commands into the canvas command buffer using the current path and attributes.
 
@@ -90,11 +90,11 @@ As an example, the back of the clock is drawn using these two calls:
 For a list of canvas drawing functions, see the [graphics API cheatsheet](../doc/cheatsheets/cheatsheet_graphics.h).
 
 #### Transforms
- 
+
 A special case of attribute setting function is the pair `oc_matrix_push()` and `oc_matrix_pop()`, which are used to manipulate a stack of transform matrices:
 
-- `oc_matrix_push()` multiplies the matrix currently on top of the stack with its argument, and pushes the result on the stack. 
-- `oc_matrix_pop()` pops a matrix from the stack. 
+- `oc_matrix_push()` multiplies the matrix currently on top of the stack with its argument, and pushes the result on the stack.
+- `oc_matrix_pop()` pops a matrix from the stack.
 
 The matrix on the top of the stack at the time a command is encoded is used to transform the path of that command.
 
@@ -126,7 +126,7 @@ Going back to `oc_init()`, after creating a surface and a canvas, we create a fo
     font = oc_font_create_from_path(OC_STR8("/segoeui.ttf"), 5, ranges);
 ```
 
-The font is loaded from a font file located in a data folder inside the app bundle. By default, Orca apps use this data folder as their "root" for file operations. 
+The font is loaded from a font file located in a data folder inside the app bundle. By default, Orca apps use this data folder as their "root" for file operations.
 
 Along with the path of the font file, we pass to the creation function the unicode ranges we want to load.
 
@@ -171,10 +171,8 @@ For more examples of how to use Orca APIs, you can look at the other [sample app
 - [breakout](./samples/breakout) is a mini breakout game making use of the vector graphics API. It demonstrates using input and drawing images.
 - 	[triangle](./samples/triangle) shows how to draw a spining triangle using the GLES API.
 -  [fluid](./samples/fluid) is a fluid simulation using a more complex GLES setup.
--  [ui](./samples/ui) showcases the UI API and Orca's default UI widgets.  
+-  [ui](./samples/ui) showcases the UI API and Orca's default UI widgets.
 
 For a list of Orca APIs, you can look at the [API cheatsheets](../doc/cheatsheets).
 
-You can also ask questions in the [Handmade Network Discord](https://discord.gg/hmn), in particular in the [#orca](https://discord.com/channels/239737791225790464/1121811864066732082) channel. 
-
-
+You can also ask questions in the [Handmade Network Discord](https://discord.gg/hmn), in particular in the [#orca](https://discord.com/channels/239737791225790464/1121811864066732082) channel.
