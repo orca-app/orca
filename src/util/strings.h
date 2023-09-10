@@ -34,8 +34,8 @@ extern "C" {
 //----------------------------------------------------------------------------------
 typedef struct oc_str8
 {
-    u64 len;
     char* ptr;
+    u64 len;
 } oc_str8;
 
 #define OC_STR8(s) ((oc_str8){ .len = (s) ? strlen(s) : 0, .ptr = (char*)s })
@@ -43,7 +43,7 @@ typedef struct oc_str8
 //NOTE: this only works with string literals, but is sometimes necessary to generate compile-time constants
 #define OC_STR8_LIT(s)   \
     {                    \
-        sizeof(s) - 1, s \
+        s, sizeof(s) - 1 \
     }
 
 #define oc_str8_lp(s) ((s).len), ((s).ptr)
@@ -92,8 +92,8 @@ ORCA_API oc_str8_list oc_str8_split(oc_arena* arena, oc_str8 str, oc_str8_list s
 //----------------------------------------------------------------------------------
 typedef struct oc_str16
 {
-    u64 len;
     u16* ptr;
+    u64 len;
 } oc_str16;
 
 ORCA_API oc_str16 oc_str16_from_buffer(u64 len, u16* buffer);
@@ -125,8 +125,8 @@ ORCA_API oc_str16_list oc_str16_split(oc_arena* arena, oc_str16 str, oc_str16_li
 //----------------------------------------------------------------------------------
 typedef struct oc_str32
 {
-    u64 len;
     u32* ptr;
+    u64 len;
 } oc_str32;
 
 ORCA_API oc_str32 oc_str32_from_buffer(u64 len, u32* buffer);

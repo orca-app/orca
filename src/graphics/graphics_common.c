@@ -636,8 +636,8 @@ oc_str32 oc_font_get_glyph_indices_from_font_data(oc_font_data* fontData, oc_str
 u32 oc_font_get_glyph_index_from_font_data(oc_font_data* fontData, oc_utf32 codePoint)
 {
     u32 glyphIndex = 0;
-    oc_str32 codePoints = { 1, &codePoint };
-    oc_str32 backing = { 1, &glyphIndex };
+    oc_str32 codePoints = { .ptr = &codePoint, .len = 1 };
+    oc_str32 backing = { .ptr = &glyphIndex, 1 };
     oc_font_get_glyph_indices_from_font_data(fontData, codePoints, backing);
     return (glyphIndex);
 }
@@ -655,15 +655,15 @@ oc_str32 oc_font_get_glyph_indices(oc_font font, oc_str32 codePoints, oc_str32 b
 oc_str32 oc_font_push_glyph_indices(oc_font font, oc_arena* arena, oc_str32 codePoints)
 {
     u32* buffer = oc_arena_push_array(arena, u32, codePoints.len);
-    oc_str32 backing = { codePoints.len, buffer };
+    oc_str32 backing = { .ptr = buffer, .len = codePoints.len };
     return (oc_font_get_glyph_indices(font, codePoints, backing));
 }
 
 u32 oc_font_get_glyph_index(oc_font font, oc_utf32 codePoint)
 {
     u32 glyphIndex = 0;
-    oc_str32 codePoints = { 1, &codePoint };
-    oc_str32 backing = { 1, &glyphIndex };
+    oc_str32 codePoints = { .ptr = &codePoint, .len = 1 };
+    oc_str32 backing = { .ptr = &glyphIndex, .len = 1 };
     oc_font_get_glyph_indices(font, codePoints, backing);
     return (glyphIndex);
 }
@@ -783,7 +783,7 @@ oc_text_metrics oc_font_text_metrics_utf32(oc_font font, f32 fontSize, oc_str32 
 
     if(missingGlyphIndex)
     {
-        oc_font_get_glyph_metrics_from_font_data(fontData, (oc_str32){ 1, &missingGlyphIndex }, &missingGlyphMetrics);
+        oc_font_get_glyph_metrics_from_font_data(fontData, (oc_str32){ .ptr = &missingGlyphIndex, .len = 1 }, &missingGlyphMetrics);
     }
     else
     {
@@ -793,7 +793,7 @@ oc_text_metrics oc_font_text_metrics_utf32(oc_font font, f32 fontSize, oc_str32 
         missingGlyphIndex = oc_font_get_glyph_index_from_font_data(fontData, 'X');
         if(missingGlyphIndex)
         {
-            oc_font_get_glyph_metrics_from_font_data(fontData, (oc_str32){ 1, &missingGlyphIndex }, &missingGlyphMetrics);
+            oc_font_get_glyph_metrics_from_font_data(fontData, (oc_str32){ .ptr = &missingGlyphIndex, .len = 1 }, &missingGlyphMetrics);
         }
         else
         {

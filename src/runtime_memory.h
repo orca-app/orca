@@ -72,8 +72,8 @@ void oc_wasm_list_push_back(oc_wasm_list* list, oc_wasm_list_elt* elt);
 
 typedef struct oc_wasm_str8
 {
-    u64 len;
     u32 ptr;
+    u64 len;
 } oc_wasm_str8;
 
 typedef struct oc_wasm_str8_elt
