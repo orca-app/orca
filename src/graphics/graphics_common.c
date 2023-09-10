@@ -37,7 +37,7 @@ typedef struct oc_glyph_data
     bool exists;
     oc_utf32 codePoint;
     oc_path_descriptor pathDescriptor;
-    oc_text_extents extents;
+    oc_glyph_metrics metrics;
     //...
 
 } oc_glyph_data;
@@ -62,7 +62,7 @@ typedef struct oc_font_data
     oc_path_elt* outlines;
 
     f32 unitsPerEm;
-    oc_font_extents extents;
+    oc_font_metrics metrics;
 
 } oc_font_data;
 
@@ -398,16 +398,16 @@ oc_font oc_font_create_from_memory(oc_str8 mem, u32 rangeCount, oc_unicode_range
         stbtt_GetFontVMetrics(&stbttFontInfo, &ascent, &descent, &lineGap);
         stbtt_GetFontBoundingBox(&stbttFontInfo, &x0, &y0, &x1, &y1);
 
-        font->extents.ascent = ascent;
-        font->extents.descent = -descent;
-        font->extents.leading = lineGap;
-        font->extents.width = x1 - x0;
+        font->metrics.ascent = ascent;
+        font->metrics.descent = -descent;
+        font->metrics.lineGap = lineGap;
+        font->metrics.width = x1 - x0;
 
         stbtt_GetCodepointBox(&stbttFontInfo, 'x', &x0, &y0, &x1, &y1);
-        font->extents.xHeight = y1 - y0;
+        font->metrics.xHeight = y1 - y0;
 
         stbtt_GetCodepointBox(&stbttFontInfo, 'M', &x0, &y0, &x1, &y1);
-        font->extents.capHeight = y1 - y0;
+        font->metrics.capHeight = y1 - y0;
 
         //NOTE(martin): load codepoint ranges
         font->rangeCount = rangeCount;
@@ -483,13 +483,16 @@ oc_font oc_font_create_from_memory(oc_str8 mem, u32 rangeCount, oc_unicode_range
                 stbtt_GetGlyphHMetrics(&stbttFontInfo, stbttGlyphIndex, &xAdvance, &xBearing);
                 stbtt_GetGlyphBox(&stbttFontInfo, stbttGlyphIndex, &x0, &y0, &x1, &y1);
 
-                glyph->extents.xAdvance = (f32)xAdvance;
-                glyph->extents.yAdvance = 0;
-                glyph->extents.xBearing = (f32)xBearing;
-                glyph->extents.yBearing = y0;
+                //NOTE(martin): stb stbtt_GetGlyphBox returns bottom left and top right corners, with y up,
+                //              so we have to set .y = -y1
+                glyph->metrics.ink = (oc_rect){
+                    .x = x0,
+                    .y = -y1,
+                    .w = x1 - x0,
+                    .h = y1 - y0
+                };
 
-                glyph->extents.width = x1 - x0;
-                glyph->extents.height = y1 - y0;
+                glyph->metrics.advance = (oc_vec2){ xAdvance, 0 };
 
                 //NOTE(martin): load glyph outlines
 
@@ -673,34 +676,34 @@ oc_glyph_data* oc_font_get_glyph_data(oc_font_data* fontData, u32 glyphIndex)
     return (&(fontData->glyphs[glyphIndex - 1]));
 }
 
-oc_font_extents oc_font_get_extents(oc_font font)
+oc_font_metrics oc_font_get_metrics_unscaled(oc_font font)
 {
     oc_font_data* fontData = oc_font_data_from_handle(font);
     if(!fontData)
     {
-        return ((oc_font_extents){ 0 });
+        return ((oc_font_metrics){ 0 });
     }
-    return (fontData->extents);
+    return (fontData->metrics);
 }
 
-oc_font_extents oc_font_get_scaled_extents(oc_font font, f32 emSize)
+oc_font_metrics oc_font_get_metrics(oc_font font, f32 emSize)
 {
     oc_font_data* fontData = oc_font_data_from_handle(font);
     if(!fontData)
     {
-        return ((oc_font_extents){ 0 });
+        return ((oc_font_metrics){ 0 });
     }
     f32 scale = emSize / fontData->unitsPerEm;
-    oc_font_extents extents = fontData->extents;
+    oc_font_metrics metrics = fontData->metrics;
 
-    extents.ascent *= scale;
-    extents.descent *= scale;
-    extents.leading *= scale;
-    extents.xHeight *= scale;
-    extents.capHeight *= scale;
-    extents.width *= scale;
+    metrics.ascent *= scale;
+    metrics.descent *= scale;
+    metrics.lineGap *= scale;
+    metrics.xHeight *= scale;
+    metrics.capHeight *= scale;
+    metrics.width *= scale;
 
-    return (extents);
+    return (metrics);
 }
 
 f32 oc_font_get_scale_for_em_pixels(oc_font font, f32 emSize)
@@ -713,9 +716,10 @@ f32 oc_font_get_scale_for_em_pixels(oc_font font, f32 emSize)
     return (emSize / fontData->unitsPerEm);
 }
 
-void oc_font_get_glyph_extents_from_font_data(oc_font_data* fontData,
+////////////////////////////////////////////////////////////////////////////////////////////::
+void oc_font_get_glyph_metrics_from_font_data(oc_font_data* fontData,
                                               oc_str32 glyphIndices,
-                                              oc_text_extents* outExtents)
+                                              oc_glyph_metrics* outMetrics)
 {
     for(int i = 0; i < glyphIndices.len; i++)
     {
@@ -724,22 +728,23 @@ void oc_font_get_glyph_extents_from_font_data(oc_font_data* fontData,
             continue;
         }
         oc_glyph_data* glyph = oc_font_get_glyph_data(fontData, glyphIndices.ptr[i]);
-        outExtents[i] = glyph->extents;
+        outMetrics[i] = glyph->metrics;
     }
 }
 
-int oc_font_get_glyph_extents(oc_font font, oc_str32 glyphIndices, oc_text_extents* outExtents)
+/*
+int oc_font_get_glyph_metrics(oc_font font, oc_str32 glyphIndices, oc_text_metrics* outMetrics)
 {
     oc_font_data* fontData = oc_font_data_from_handle(font);
     if(!fontData)
     {
         return (-1);
     }
-    oc_font_get_glyph_extents_from_font_data(fontData, glyphIndices, outExtents);
+    oc_font_get_glyph_metrics_from_font_data(fontData, glyphIndices, outMetrics);
     return (0);
 }
 
-int oc_font_get_codepoint_extents(oc_font font, oc_utf32 codePoint, oc_text_extents* outExtents)
+int oc_font_get_codepoint_metrics(oc_font font, oc_utf32 codePoint, oc_text_metrics* outMetrics)
 {
     oc_font_data* fontData = oc_font_data_from_handle(font);
     if(!fontData)
@@ -750,21 +755,23 @@ int oc_font_get_codepoint_extents(oc_font font, oc_utf32 codePoint, oc_text_exte
     oc_str32 codePoints = { 1, &codePoint };
     oc_str32 backing = { 1, &glyphIndex };
     oc_str32 glyphs = oc_font_get_glyph_indices_from_font_data(fontData, codePoints, backing);
-    oc_font_get_glyph_extents_from_font_data(fontData, glyphs, outExtents);
+    oc_font_get_glyph_metrics_from_font_data(fontData, glyphs, outMetrics);
     return (0);
 }
+*/
+/////////////////////////////////////////////////
 
-oc_rect oc_text_bounding_box_utf32(oc_font font, f32 fontSize, oc_str32 codePoints)
+oc_text_metrics oc_font_text_metrics_utf32(oc_font font, f32 fontSize, oc_str32 codePoints)
 {
     if(!codePoints.len || !codePoints.ptr)
     {
-        return ((oc_rect){ 0 });
+        return ((oc_text_metrics){ 0 });
     }
 
     oc_font_data* fontData = oc_font_data_from_handle(font);
     if(!fontData)
     {
-        return ((oc_rect){ 0 });
+        return ((oc_text_metrics){ 0 });
     }
 
     oc_arena_scope scratch = oc_scratch_begin();
@@ -772,86 +779,123 @@ oc_rect oc_text_bounding_box_utf32(oc_font font, f32 fontSize, oc_str32 codePoin
 
     //NOTE(martin): find width of missing character
     //TODO(martin): should cache that at font creation...
-    oc_text_extents missingGlyphExtents;
+    oc_glyph_metrics missingGlyphMetrics = { 0 };
     u32 missingGlyphIndex = oc_font_get_glyph_index_from_font_data(fontData, 0xfffd);
 
     if(missingGlyphIndex)
     {
-        oc_font_get_glyph_extents_from_font_data(fontData, (oc_str32){ 1, &missingGlyphIndex }, &missingGlyphExtents);
+        oc_font_get_glyph_metrics_from_font_data(fontData, (oc_str32){ 1, &missingGlyphIndex }, &missingGlyphMetrics);
     }
     else
     {
-        //NOTE(martin): could not find replacement glyph, try to get an 'x' to get a somewhat correct width
+        //NOTE(martin): could not find replacement glyph, try to get an 'X' to get a somewhat correct dimensions
         //              to render an empty rectangle. Otherwise just render with the max font width
-        f32 boxWidth = fontData->extents.width * 0.8;
-        f32 xBearing = fontData->extents.width * 0.1;
-        f32 xAdvance = fontData->extents.width;
 
-        missingGlyphIndex = oc_font_get_glyph_index_from_font_data(fontData, 'x');
+        missingGlyphIndex = oc_font_get_glyph_index_from_font_data(fontData, 'X');
         if(missingGlyphIndex)
         {
-            oc_font_get_glyph_extents_from_font_data(fontData, (oc_str32){ 1, &missingGlyphIndex }, &missingGlyphExtents);
+            oc_font_get_glyph_metrics_from_font_data(fontData, (oc_str32){ 1, &missingGlyphIndex }, &missingGlyphMetrics);
         }
         else
         {
-            missingGlyphExtents.xBearing = fontData->extents.width * 0.1;
-            missingGlyphExtents.yBearing = 0;
-            missingGlyphExtents.width = fontData->extents.width * 0.8;
-            missingGlyphExtents.xAdvance = fontData->extents.width;
-            missingGlyphExtents.yAdvance = 0;
+            missingGlyphMetrics = (oc_glyph_metrics){
+                .ink = {
+                    .x = fontData->metrics.width * 0.1,
+                    .y = -fontData->metrics.ascent,
+                    .w = fontData->metrics.width * 0.8,
+                    .h = fontData->metrics.ascent,
+                },
+                .advance = { .x = fontData->metrics.width, .y = 0 },
+            };
         }
     }
 
     //NOTE(martin): accumulate text extents
-    f32 width = 0;
-    f32 x = 0;
-    f32 y = 0;
-    f32 lineHeight = fontData->extents.descent + fontData->extents.ascent;
+    oc_text_metrics metrics = { 0 };
+    f32 lineHeight = fontData->metrics.descent + fontData->metrics.ascent + fontData->metrics.lineGap;
+
+    if(glyphIndices.len)
+    {
+        metrics.logical.y = -(fontData->metrics.ascent + fontData->metrics.lineGap);
+        metrics.logical.h += lineHeight + fontData->metrics.lineGap;
+    }
+
+    f32 inkX0 = 0, inkX1 = 0, inkY0 = 0, inkY1 = 0;
 
     for(int i = 0; i < glyphIndices.len; i++)
     {
         //TODO(martin): make it failsafe for fonts that don't have a glyph for the line-feed codepoint ?
 
         oc_glyph_data* glyph = 0;
-        oc_text_extents extents;
+        oc_glyph_metrics glyphMetrics;
         if(!glyphIndices.ptr[i] || glyphIndices.ptr[i] >= fontData->glyphCount)
         {
-            extents = missingGlyphExtents;
+            glyphMetrics = missingGlyphMetrics;
         }
         else
         {
             glyph = oc_font_get_glyph_data(fontData, glyphIndices.ptr[i]);
-            extents = glyph->extents;
+            glyphMetrics = glyph->metrics;
         }
-        x += extents.xAdvance;
-        y += extents.yAdvance;
+
+        inkX0 = oc_min(inkX0, metrics.advance.x + glyphMetrics.ink.x);
+        inkX1 = oc_max(inkX1, metrics.advance.x + glyphMetrics.ink.x + glyphMetrics.ink.w);
+
+        inkY0 = oc_min(inkY0, metrics.advance.y + glyphMetrics.ink.y);
+        inkY1 = oc_max(inkY1, metrics.advance.y + glyphMetrics.ink.y + glyphMetrics.ink.h);
+
+        metrics.advance.x += glyphMetrics.advance.x;
+        metrics.advance.y += glyphMetrics.advance.y;
+
+        metrics.logical.w = oc_max(metrics.logical.w, metrics.advance.x);
 
         if(glyph && glyph->codePoint == '\n')
         {
-            width = oc_max(width, x);
-            x = 0;
-            y += lineHeight + fontData->extents.leading;
+            metrics.advance.y += lineHeight;
+            metrics.advance.x = 0;
+
+            if(i < glyphIndices.len - 1)
+            {
+                metrics.logical.h += lineHeight;
+            }
         }
     }
-    width = oc_max(width, x);
+    metrics.ink = (oc_rect){
+        inkX0,
+        inkY0,
+        inkX1 - inkX0,
+        inkY1 - inkY0
+    };
+
+    OC_ASSERT(metrics.ink.y <= 0);
 
     f32 fontScale = oc_font_get_scale_for_em_pixels(font, fontSize);
-    oc_rect rect = { 0, -fontData->extents.ascent * fontScale, width * fontScale, (y + lineHeight) * fontScale };
+
+    metrics.ink.x *= fontScale;
+    metrics.ink.y *= fontScale;
+    metrics.ink.w *= fontScale;
+    metrics.ink.h *= fontScale;
+    metrics.logical.x *= fontScale;
+    metrics.logical.y *= fontScale;
+    metrics.logical.w *= fontScale;
+    metrics.logical.h *= fontScale;
+    metrics.advance.x *= fontScale;
+    metrics.advance.y *= fontScale;
 
     oc_scratch_end(scratch);
-    return (rect);
+    return (metrics);
 }
 
-oc_rect oc_text_bounding_box(oc_font font, f32 fontSize, oc_str8 text)
+oc_text_metrics oc_font_text_metrics(oc_font font, f32 fontSize, oc_str8 text)
 {
     if(!text.len || !text.ptr)
     {
-        return ((oc_rect){ 0 });
+        return ((oc_text_metrics){ 0 });
     }
 
     oc_arena_scope scratch = oc_scratch_begin();
     oc_str32 codePoints = oc_utf8_push_to_codepoints(scratch.arena, text);
-    oc_rect result = oc_text_bounding_box_utf32(font, fontSize, codePoints);
+    oc_text_metrics result = oc_font_text_metrics_utf32(font, fontSize, codePoints);
     oc_scratch_end(scratch);
     return (result);
 }
@@ -1377,31 +1421,40 @@ oc_rect oc_glyph_outlines_from_font_data(oc_font_data* fontData, oc_str32 glyphI
             glyphIndex = oc_font_get_glyph_index_from_font_data(fontData, 0xfffd);
             if(!glyphIndex)
             {
-                //NOTE(martin): could not find replacement glyph, try to get an 'x' to get a somewhat correct width
+                //NOTE(martin): could not find replacement glyph, try to get an 'X' to get a somewhat correct dimensions
                 //              to render an empty rectangle. Otherwise just render with the max font width
-                f32 boxWidth = fontData->extents.width * 0.8;
-                f32 xBearing = fontData->extents.width * 0.1;
-                f32 xAdvance = fontData->extents.width;
 
-                glyphIndex = oc_font_get_glyph_index_from_font_data(fontData, 'x');
-                if(glyphIndex)
+                oc_glyph_metrics missingGlyphMetrics = { 0 };
+                u32 missingGlyphIndex = oc_font_get_glyph_index_from_font_data(fontData, 'X');
+
+                if(missingGlyphIndex)
                 {
-                    oc_glyph_data* glyph = &(fontData->glyphs[glyphIndex]);
-                    boxWidth = glyph->extents.width;
-                    xBearing = glyph->extents.xBearing;
-                    xAdvance = glyph->extents.xAdvance;
+                    oc_font_get_glyph_metrics_from_font_data(fontData, (oc_str32){ .len = 1, .ptr = &missingGlyphIndex }, &missingGlyphMetrics);
                 }
+                else
+                {
+                    missingGlyphMetrics = (oc_glyph_metrics){
+                        .ink = {
+                            .x = fontData->metrics.width * 0.1,
+                            .y = -fontData->metrics.ascent,
+                            .w = fontData->metrics.width * 0.8,
+                            .h = fontData->metrics.ascent,
+                        },
+                        .advance = { .x = fontData->metrics.width, .y = 0 },
+                    };
+                }
+
                 f32 oldStrokeWidth = canvas->attributes.width;
 
-                oc_set_width(boxWidth * 0.005);
-                oc_rectangle_stroke(xOffset + xBearing * scale,
-                                    yOffset,
-                                    boxWidth * scale * flip,
-                                    fontData->extents.capHeight * scale);
+                oc_set_width(missingGlyphMetrics.ink.w * 0.005);
+                oc_rectangle_stroke(xOffset + missingGlyphMetrics.ink.x * scale,
+                                    yOffset + missingGlyphMetrics.ink.y * scale,
+                                    missingGlyphMetrics.ink.w * scale * flip,
+                                    missingGlyphMetrics.ink.h * scale);
 
                 oc_set_width(oldStrokeWidth);
-                oc_move_to(xOffset + xAdvance * scale, yOffset);
-                maxWidth = oc_max(maxWidth, xOffset + xAdvance * scale - startX);
+                oc_move_to(xOffset + missingGlyphMetrics.advance.x * scale, yOffset);
+                maxWidth = oc_max(maxWidth, xOffset + missingGlyphMetrics.advance.x * scale - startX);
                 continue;
             }
         }
@@ -1419,11 +1472,11 @@ oc_rect oc_glyph_outlines_from_font_data(oc_font_data* fontData, oc_str32 glyphI
                 elements[eltIndex].p[pIndex].y = elements[eltIndex].p[pIndex].y * scale * flip + yOffset;
             }
         }
-        oc_move_to(xOffset + scale * glyph->extents.xAdvance, yOffset);
+        oc_move_to(xOffset + scale * glyph->metrics.advance.x, yOffset);
 
-        maxWidth = oc_max(maxWidth, xOffset + scale * glyph->extents.xAdvance - startX);
+        maxWidth = oc_max(maxWidth, xOffset + scale * glyph->metrics.advance.x - startX);
     }
-    f32 lineHeight = (fontData->extents.ascent + fontData->extents.descent) * scale;
+    f32 lineHeight = (fontData->metrics.ascent + fontData->metrics.descent) * scale;
     oc_rect box = { startX, startY, maxWidth, canvas->subPathLastPoint.y - startY + lineHeight };
     return (box);
 }

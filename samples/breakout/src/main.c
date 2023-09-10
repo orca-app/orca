@@ -416,11 +416,11 @@ ORCA_EXPORT void oc_on_frame_refresh(void)
 
             int fontSize = 18;
             oc_str8 text = oc_str8_pushf(oc_scratch(), "%d", blockHealth[i]);
-            oc_rect textRect = oc_text_bounding_box(font, fontSize, text);
+            oc_rect textRect = oc_font_text_metrics(font, fontSize, text).ink;
 
             oc_vec2 textPos = {
-                r.x + r.w / 2 - textRect.w / 2,
-                r.y + 9, // TODO: oc_text_bounding_box is returning extremely wack results for height.
+                r.x + r.w / 2 - textRect.w / 2 - textRect.x,
+                r.y + r.h / 2 - textRect.h / 2 - textRect.y - textRect.h, //NOTE: we render with y-up so we need to flip bounding box coordinates.
             };
 
             oc_set_color_rgba(0.9, 0.9, 0.9, 1);
@@ -449,10 +449,9 @@ ORCA_EXPORT void oc_on_frame_refresh(void)
 
         // draw score text
         {
-            oc_move_to(10, 10);
+            oc_move_to(20, 20);
             oc_str8 text = oc_str8_pushf(oc_scratch(), "Destroy all %d blocks to win! Current score: %d", NUM_BLOCKS_TO_WIN, score);
-            oc_rect textRect = oc_text_bounding_box(font, 20, text);
-            oc_vec2 textPos = { 10, 10 };
+            oc_vec2 textPos = { 20, 20 };
             oc_matrix_push(flip_y_at(textPos));
             {
                 oc_set_color_rgba(0.9, 0.9, 0.9, 1);

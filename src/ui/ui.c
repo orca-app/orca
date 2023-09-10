@@ -964,7 +964,7 @@ void oc_ui_styling_prepass(oc_ui_context* ui, oc_ui_box* box, oc_list* before, o
     if(desiredSize[OC_UI_AXIS_X].kind == OC_UI_SIZE_TEXT
        || desiredSize[OC_UI_AXIS_Y].kind == OC_UI_SIZE_TEXT)
     {
-        textBox = oc_text_bounding_box(style->font, style->fontSize, box->string);
+        textBox = oc_font_text_metrics(style->font, style->fontSize, box->string).logical;
     }
 
     for(int i = 0; i < OC_UI_AXIS_COUNT; i++)
@@ -1362,7 +1362,7 @@ void oc_ui_draw_box(oc_ui_box* box)
 
     if(draw && (box->flags & OC_UI_FLAG_DRAW_TEXT))
     {
-        oc_rect textBox = oc_text_bounding_box(style->font, style->fontSize, box->string);
+        oc_rect textBox = oc_font_text_metrics(style->font, style->fontSize, box->string).logical;
 
         f32 x = 0;
         f32 y = 0;
@@ -2508,7 +2508,7 @@ oc_ui_select_popup_info oc_ui_select_popup(const char* name, oc_ui_select_popup_
         oc_rect bbox = { 0 };
         for(int i = 0; i < info->optionCount; i++)
         {
-            bbox = oc_text_bounding_box(button->style.font, button->style.fontSize, info->options[i]);
+            bbox = oc_font_text_metrics(button->style.font, button->style.fontSize, info->options[i]).logical;
             maxOptionWidth = oc_max(maxOptionWidth, bbox.w);
         }
         f32 buttonWidth = maxOptionWidth + 2 * button->style.layout.margin.x + button->rect.h;
@@ -3305,11 +3305,11 @@ void oc_ui_text_box_render(oc_ui_box* box, void* data)
     }
 
     oc_ui_style* style = &box->style;
-    oc_font_extents extents = oc_font_get_scaled_extents(style->font, style->fontSize);
+    oc_font_metrics extents = oc_font_get_metrics(style->font, style->fontSize);
     f32 lineHeight = extents.ascent + extents.descent;
 
     oc_str32 before = oc_str32_slice(codepoints, 0, firstDisplayedChar);
-    oc_rect beforeBox = oc_text_bounding_box_utf32(style->font, style->fontSize, before);
+    oc_rect beforeBox = oc_font_text_metrics_utf32(style->font, style->fontSize, before).logical;
 
     f32 textX = box->rect.x - beforeBox.w;
     f32 textTop = box->rect.y + 0.5 * (box->rect.h - lineHeight);
@@ -3321,7 +3321,7 @@ void oc_ui_text_box_render(oc_ui_box* box, void* data)
         u32 selectEnd = oc_max(ui->editCursor, ui->editMark);
 
         oc_str32 beforeSelect = oc_str32_slice(codepoints, 0, selectStart);
-        oc_rect beforeSelectBox = oc_text_bounding_box_utf32(style->font, style->fontSize, beforeSelect);
+        oc_rect beforeSelectBox = oc_font_text_metrics_utf32(style->font, style->fontSize, beforeSelect).logical;
         beforeSelectBox.x += textX;
         beforeSelectBox.y += textY;
 
@@ -3329,8 +3329,8 @@ void oc_ui_text_box_render(oc_ui_box* box, void* data)
         {
             oc_str32 select = oc_str32_slice(codepoints, selectStart, selectEnd);
             oc_str32 afterSelect = oc_str32_slice(codepoints, selectEnd, codepoints.len);
-            oc_rect selectBox = oc_text_bounding_box_utf32(style->font, style->fontSize, select);
-            oc_rect afterSelectBox = oc_text_bounding_box_utf32(style->font, style->fontSize, afterSelect);
+            oc_rect selectBox = oc_font_text_metrics_utf32(style->font, style->fontSize, select).logical;
+            oc_rect afterSelectBox = oc_font_text_metrics_utf32(style->font, style->fontSize, afterSelect).logical;
 
             selectBox.x += beforeSelectBox.x + beforeSelectBox.w;
             selectBox.y += textY;
@@ -3432,7 +3432,7 @@ oc_ui_text_box_result oc_ui_text_box(const char* name, oc_arena* arena, oc_str8 
     oc_ui_box* textBox = oc_ui_box_make("text", OC_UI_FLAG_CLIP | OC_UI_FLAG_DRAW_PROC);
     oc_ui_tag_box(textBox, "text");
 
-    oc_font_extents extents = oc_font_get_scaled_extents(font, fontSize);
+    oc_font_metrics extents = oc_font_get_metrics(font, fontSize);
 
     oc_ui_sig sig = oc_ui_box_sig(frame);
 
@@ -3464,7 +3464,7 @@ oc_ui_text_box_result oc_ui_text_box(const char* name, oc_arena* arena, oc_str8 
         f32 x = 0;
         for(int i = ui->editFirstDisplayedChar; i < codepoints.len; i++)
         {
-            oc_rect bbox = oc_text_bounding_box_utf32(font, fontSize, oc_str32_slice(codepoints, i, i + 1));
+            oc_rect bbox = oc_font_text_metrics_utf32(font, fontSize, oc_str32_slice(codepoints, i, i + 1)).logical;
             if(x < cursorX)
             {
                 hoveredChar = i;
@@ -3520,7 +3520,7 @@ oc_ui_text_box_result oc_ui_text_box(const char* name, oc_arena* arena, oc_str8 
         }
         else if(ui->editSelectionMode == OC_UI_EDIT_MOVE_LINE)
         {
-            oc_rect bbox = oc_text_bounding_box_utf32(font, fontSize, codepoints);
+            oc_rect bbox = oc_font_text_metrics_utf32(font, fontSize, codepoints).logical;
             if(fabsf(bbox.w - cursorX) < fabsf(cursorX))
             {
                 ui->editCursor = codepoints.len;
@@ -3537,8 +3537,8 @@ oc_ui_text_box_result oc_ui_text_box(const char* name, oc_arena* arena, oc_str8 
             if(oc_min(ui->editCursor, ui->editMark) == oc_min(ui->editWordSelectionInitialCursor, ui->editWordSelectionInitialMark)
                && oc_max(ui->editCursor, ui->editMark) == oc_max(ui->editWordSelectionInitialCursor, ui->editWordSelectionInitialMark))
             {
-                oc_rect editCursorPrefixBbox = oc_text_bounding_box_utf32(font, fontSize, oc_str32_slice(codepoints, 0, ui->editCursor));
-                oc_rect editMarkPrefixBbox = oc_text_bounding_box_utf32(font, fontSize, oc_str32_slice(codepoints, 0, ui->editMark));
+                oc_rect editCursorPrefixBbox = oc_font_text_metrics_utf32(font, fontSize, oc_str32_slice(codepoints, 0, ui->editCursor)).logical;
+                oc_rect editMarkPrefixBbox = oc_font_text_metrics_utf32(font, fontSize, oc_str32_slice(codepoints, 0, ui->editMark)).logical;
                 f32 editCursorX = editCursorPrefixBbox.w;
                 f32 editMarkX = editMarkPrefixBbox.w;
                 if(fabsf(cursorX - editMarkX) < fabsf(cursorX - editCursorX))
@@ -3665,13 +3665,13 @@ oc_ui_text_box_result oc_ui_text_box(const char* name, oc_arena* arena, oc_str8 
             {
                 i32 firstDisplayedChar = ui->editFirstDisplayedChar;
                 oc_str32 firstToCursor = oc_str32_slice(codepoints, firstDisplayedChar, ui->editCursor);
-                oc_rect firstToCursorBox = oc_text_bounding_box_utf32(font, fontSize, firstToCursor);
+                oc_rect firstToCursorBox = oc_font_text_metrics_utf32(font, fontSize, firstToCursor).logical;
 
                 while(firstToCursorBox.w > textBox->rect.w)
                 {
                     firstDisplayedChar++;
                     firstToCursor = oc_str32_slice(codepoints, firstDisplayedChar, ui->editCursor);
-                    firstToCursorBox = oc_text_bounding_box_utf32(font, fontSize, firstToCursor);
+                    firstToCursorBox = oc_font_text_metrics_utf32(font, fontSize, firstToCursor).logical;
                 }
 
                 ui->editFirstDisplayedChar = firstDisplayedChar;

@@ -94,11 +94,13 @@ ORCA_EXPORT void oc_on_frame_refresh(void)
     // clock face
     for(int i = 0; i < oc_array_size(clockNumberStrings); ++i)
     {
-        oc_rect textRect = oc_text_bounding_box(font, fontSize, clockNumberStrings[i]);
-        textRect.h -= 10 * uiScale; // oc_text_bounding_box height doesn't seem to be a tight fit around the glyph
+        oc_rect textRect = oc_font_text_metrics(font, fontSize, clockNumberStrings[i]).ink;
 
         const f32 angle = i * ((M_PI * 2) / 12.0f) - (M_PI / 2);
-        oc_mat2x3 transform = mat_transform(centerX - (textRect.w / 2), centerY + (textRect.h / 2), angle);
+        oc_mat2x3 transform = mat_transform(centerX - (textRect.w / 2) - textRect.x,
+                                            centerY - (textRect.h / 2) - textRect.y,
+                                            angle);
+
         oc_vec2 pos = oc_mat2x3_mul(transform, (oc_vec2){ clockRadius * 0.8f, 0 });
 
         oc_set_color_rgba(0.2, 0.2, 0.2, 1);

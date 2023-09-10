@@ -185,27 +185,30 @@ typedef enum
     OC_CAP_SQUARE
 } oc_cap_type;
 
-typedef struct oc_font_extents
+typedef struct oc_font_metrics
 {
     f32 ascent;    // the extent above the baseline (by convention a positive value extends above the baseline)
     f32 descent;   // the extent below the baseline (by convention, positive value extends below the baseline)
-    f32 leading;   // spacing between one row's descent and the next row's ascent
+    f32 lineGap;   // spacing between one row's descent and the next row's ascent
     f32 xHeight;   // height of the lower case letter 'x'
     f32 capHeight; // height of the upper case letter 'M'
     f32 width;     // maximum width of the font
 
-} oc_font_extents;
+} oc_font_metrics;
 
-typedef struct oc_text_extents
+typedef struct oc_glyph_metrics
 {
-    f32 xBearing;
-    f32 yBearing;
-    f32 width;
-    f32 height;
-    f32 xAdvance;
-    f32 yAdvance;
+    oc_rect ink;
+    oc_vec2 advance;
+} oc_glyph_metrics;
 
-} oc_text_extents;
+typedef struct oc_text_metrics
+{
+    oc_rect ink;
+    oc_rect logical;
+    oc_vec2 advance;
+
+} oc_text_metrics;
 
 //------------------------------------------------------------------------------------------
 //SECTION: graphics canvas
@@ -222,32 +225,25 @@ ORCA_API void oc_render(oc_canvas canvas);             //DOC: renders all canvas
 //SECTION: fonts
 //------------------------------------------------------------------------------------------
 ORCA_API oc_font oc_font_nil(void);
+ORCA_API bool oc_font_is_nil(oc_font font);
+
 ORCA_API oc_font oc_font_create_from_memory(oc_str8 mem, u32 rangeCount, oc_unicode_range* ranges);
 ORCA_API oc_font oc_font_create_from_file(oc_file file, u32 rangeCount, oc_unicode_range* ranges);
 ORCA_API oc_font oc_font_create_from_path(oc_str8 path, u32 rangeCount, oc_unicode_range* ranges);
 
 ORCA_API void oc_font_destroy(oc_font font);
 
-//NOTE(martin): the following int valued functions return -1 if font is invalid or codepoint is not present in font//
-//TODO(martin): add enum error codes
-
-ORCA_API oc_font_extents oc_font_get_extents(oc_font font);
-ORCA_API oc_font_extents oc_font_get_scaled_extents(oc_font font, f32 emSize);
-ORCA_API f32 oc_font_get_scale_for_em_pixels(oc_font font, f32 emSize);
-
-//NOTE(martin): if you need to process more than one codepoint, first convert your codepoints to glyph indices, then use the
-//              glyph index versions of the functions, which can take an array of glyph indices.
-
 ORCA_API oc_str32 oc_font_get_glyph_indices(oc_font font, oc_str32 codePoints, oc_str32 backing);
 ORCA_API oc_str32 oc_font_push_glyph_indices(oc_font font, oc_arena* arena, oc_str32 codePoints);
 ORCA_API u32 oc_font_get_glyph_index(oc_font font, oc_utf32 codePoint);
 
-ORCA_API int oc_font_get_codepoint_extents(oc_font font, oc_utf32 codePoint, oc_text_extents* outExtents);
+// metrics
+ORCA_API oc_font_metrics oc_font_get_metrics(oc_font font, f32 emSize);
+ORCA_API oc_font_metrics oc_font_get_metrics_unscaled(oc_font font);
+ORCA_API f32 oc_font_get_scale_for_em_pixels(oc_font font, f32 emSize);
 
-ORCA_API int oc_font_get_glyph_extents(oc_font font, oc_str32 glyphIndices, oc_text_extents* outExtents);
-
-ORCA_API oc_rect oc_text_bounding_box_utf32(oc_font font, f32 fontSize, oc_str32 text);
-ORCA_API oc_rect oc_text_bounding_box(oc_font font, f32 fontSize, oc_str8 text);
+ORCA_API oc_text_metrics oc_font_text_metrics_utf32(oc_font font, f32 fontSize, oc_str32 codepoints);
+ORCA_API oc_text_metrics oc_font_text_metrics(oc_font font, f32 fontSize, oc_str8 text);
 
 //------------------------------------------------------------------------------------------
 //SECTION: images

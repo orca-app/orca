@@ -118,15 +118,15 @@ int main()
                                   create_font("../../resources/CMUSerif-Roman.ttf"),
                                   create_font("../../resources/Courier.ttf") };
 
-    oc_font_extents extents[FONT_COUNT];
+    oc_font_metrics extents[FONT_COUNT];
     f32 fontScales[FONT_COUNT];
     f32 lineHeights[FONT_COUNT];
 
     for(int i = 0; i < FONT_COUNT; i++)
     {
-        extents[i] = oc_font_get_extents(fonts[i]);
+        extents[i] = oc_font_get_metrics_unscaled(fonts[i]);
         fontScales[i] = oc_font_get_scale_for_em_pixels(fonts[i], 14);
-        lineHeights[i] = fontScales[i] * (extents[i].ascent + extents[i].descent + extents[i].leading);
+        lineHeights[i] = fontScales[i] * (extents[i].ascent + extents[i].descent + extents[i].lineGap);
     }
 
     int codePointCount = oc_utf8_codepoint_count_for_string(OC_STR8((char*)TEST_STRING));
