@@ -220,6 +220,14 @@ void* oc_graphics_data_from_handle(oc_graphics_handle_kind kind, u64 h)
 }
 
 //------------------------------------------------------------------------------------------
+//NOTE(martin): surface nil and is nil
+//------------------------------------------------------------------------------------------
+
+oc_surface oc_surface_nil() { return ((oc_surface){ .h = 0 }); }
+
+bool oc_surface_is_nil(oc_surface surface) { return (surface.h == 0); }
+
+//------------------------------------------------------------------------------------------
 //NOTE(martin): graphics canvas internal
 //------------------------------------------------------------------------------------------
 
@@ -926,13 +934,14 @@ oc_canvas oc_canvas_select(oc_canvas canvas)
     return (old);
 }
 
-void oc_render(oc_surface surface, oc_canvas canvas)
+void oc_render(oc_canvas canvas)
 {
+    oc_surface selectedSurface = oc_surface_get_selected();
     oc_canvas_data* canvasData = oc_canvas_data_from_handle(canvas);
-    if(canvasData)
+    if(canvasData && !oc_surface_is_nil(selectedSurface))
     {
         int eltCount = canvasData->path.startIndex + canvasData->path.count;
-        oc_surface_render_commands(surface,
+        oc_surface_render_commands(selectedSurface,
                                    canvasData->clearColor,
                                    canvasData->primitiveCount,
                                    canvasData->primitives,

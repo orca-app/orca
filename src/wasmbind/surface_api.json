@@ -78,6 +78,18 @@
 		 "type": {"name": "oc_surface", "tag": "S"}}]
 },
 {
+	"name": "oc_surface_deselect",
+	"cname": "oc_surface_deselect",
+	"ret": {"name": "void", "tag": "v"},
+	"args": []
+},
+{
+	"name": "oc_surface_get_selected",
+	"cname": "oc_surface_get_selected",
+	"ret": {"name": "oc_surface", "tag": "S"},
+	"args": []
+},
+{
 	"name": "oc_surface_present",
 	"cname": "oc_surface_present",
 	"ret": {"name": "void", "tag": "v"},

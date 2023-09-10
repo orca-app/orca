@@ -632,7 +632,7 @@ int main()
 
         oc_ui_draw();
 
-        oc_render(surface, canvas);
+        oc_render(canvas);
         oc_surface_present(surface);
 
         oc_arena_clear(scratch);

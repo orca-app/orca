@@ -465,7 +465,7 @@ ORCA_EXPORT void oc_on_frame_refresh(void)
     oc_matrix_pop();
 
     oc_surface_select(surface);
-    oc_render(surface, canvas);
+    oc_render(canvas);
     oc_surface_present(surface);
 
     oc_arena_clear(oc_scratch());

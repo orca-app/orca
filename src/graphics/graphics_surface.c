@@ -14,6 +14,11 @@
 
 oc_thread_local oc_surface oc_selectedSurface = { 0 };
 
+oc_surface oc_surface_get_selected()
+{
+    return (oc_selectedSurface);
+}
+
 //---------------------------------------------------------------
 // typed handles functions
 //---------------------------------------------------------------
@@ -97,10 +102,6 @@ bool oc_is_surface_backend_available(oc_surface_api api)
     }
     return (result);
 }
-
-oc_surface oc_surface_nil() { return ((oc_surface){ .h = 0 }); }
-
-bool oc_surface_is_nil(oc_surface surface) { return (surface.h == 0); }
 
 oc_surface oc_surface_create_for_window(oc_window window, oc_surface_api api)
 {

@@ -36,7 +36,7 @@ i32 render_thread(void* user)
         oc_set_color_rgba(1, 0, 0, 1);
         oc_rectangle_fill(100, 100, 300, 150);
 
-        oc_render(surface, canvas);
+        oc_render(canvas);
 
         oc_surface_present(surface);
 

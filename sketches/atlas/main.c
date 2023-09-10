@@ -87,7 +87,7 @@ int main()
         oc_image_draw_region(image1.image, image1.rect, (oc_rect){ 100, 100, 300, 300 });
         oc_image_draw_region(image2.image, image2.rect, (oc_rect){ 300, 200, 300, 300 });
 
-        oc_render(surface, canvas);
+        oc_render(canvas);
         oc_surface_present(surface);
 
         oc_arena_clear(oc_scratch());

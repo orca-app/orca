@@ -355,7 +355,7 @@ ORCA_EXPORT void oc_on_frame_refresh(void)
     oc_canvas_select(canvas);
     oc_surface_select(surface);
     oc_ui_draw();
-    oc_render(surface, canvas);
+    oc_render(canvas);
     oc_surface_present(surface);
 
     oc_arena_clear(oc_scratch());

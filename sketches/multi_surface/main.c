@@ -95,7 +95,7 @@ int main()
         oc_set_color_rgba(1, 0, 0, 1);
         oc_rectangle_fill(100, 100, 300, 150);
 
-        oc_render(surface1, canvas1);
+        oc_render(canvas1);
 
         //*
         oc_surface_select(surface2);
@@ -107,7 +107,7 @@ int main()
         oc_set_color_rgba(0, 0, 1, 1);
         oc_rectangle_fill(200, 200, 300, 200);
 
-        oc_render(surface2, canvas2);
+        oc_render(canvas2);
         //*/
 
         oc_surface_present(surface1);

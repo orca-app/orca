@@ -198,7 +198,7 @@ int main()
                     1. / frameTime);
 
         oc_surface_select(surface);
-        oc_render(surface, canvas);
+        oc_render(canvas);
         oc_surface_present(surface);
 
         oc_arena_clear(oc_scratch());

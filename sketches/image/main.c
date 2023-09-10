@@ -102,7 +102,7 @@ int main()
         oc_image_draw(image, (oc_rect){ 100, 100, 300, 300 });
         oc_image_draw(image2, (oc_rect){ 300, 200, 300, 300 });
 
-        oc_render(surface, canvas);
+        oc_render(canvas);
         oc_surface_present(surface);
 
         oc_arena_clear(oc_scratch());

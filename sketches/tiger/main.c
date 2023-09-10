@@ -233,7 +233,7 @@ int main()
                     frameTime,
                     1. / frameTime);
 
-        oc_render(surface, canvas);
+        oc_render(canvas);
         oc_surface_present(surface);
 
         oc_input_next_frame(&inputState);

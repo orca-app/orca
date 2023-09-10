@@ -65,7 +65,7 @@ oc_canvas_select(canvas); // make the canvas current
 //... add commands to the canvas command buffer using drawing functions
 
 oc_surface_select(surface);  // select the canvas surface
-oc_render(surface, canvas);  // render the canvas commands into it
+oc_render(canvas);           // render the canvas commands into it
 oc_surface_present(surface); // display the result
 ```
 

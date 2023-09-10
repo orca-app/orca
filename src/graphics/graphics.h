@@ -115,9 +115,11 @@ ORCA_API oc_surface oc_surface_gles();   //DOC: create a surface for use with GL
 
 ORCA_API void oc_surface_destroy(oc_surface surface); //DOC: destroys the surface
 
-ORCA_API void oc_surface_select(oc_surface surface);  //DOC: selects the surface in the current thread before drawing
+ORCA_API void oc_surface_select(oc_surface surface); //DOC: selects the surface in the current thread before drawing
+ORCA_API void oc_surface_deselect(void);             //DOC: deselects the current thread's previously selected surface
+ORCA_API oc_surface oc_surface_get_selected();
+
 ORCA_API void oc_surface_present(oc_surface surface); //DOC: presents the surface to its window
-ORCA_API void oc_surface_deselect(void);              //DOC: deselects the current thread's previously selected surface
 
 ORCA_API oc_vec2 oc_surface_get_size(oc_surface surface);
 ORCA_API oc_vec2 oc_surface_contents_scaling(oc_surface surface); //DOC: returns the scaling of the surface (pixels = points * scale)
@@ -211,10 +213,10 @@ typedef struct oc_text_extents
 ORCA_API oc_canvas oc_canvas_nil(void);           //DOC: returns a nil canvas
 ORCA_API bool oc_canvas_is_nil(oc_canvas canvas); //DOC: true if canvas is nil
 
-ORCA_API oc_canvas oc_canvas_create(void);                     //DOC: create a new canvas
-ORCA_API void oc_canvas_destroy(oc_canvas canvas);             //DOC: destroys canvas
-ORCA_API oc_canvas oc_canvas_select(oc_canvas canvas);         //DOC: selects canvas in the current thread
-ORCA_API void oc_render(oc_surface surface, oc_canvas canvas); //DOC: renders all canvas commands onto surface
+ORCA_API oc_canvas oc_canvas_create(void);             //DOC: create a new canvas
+ORCA_API void oc_canvas_destroy(oc_canvas canvas);     //DOC: destroys canvas
+ORCA_API oc_canvas oc_canvas_select(oc_canvas canvas); //DOC: selects canvas in the current thread
+ORCA_API void oc_render(oc_canvas canvas);             //DOC: renders all canvas commands onto surface
 
 //------------------------------------------------------------------------------------------
 //SECTION: fonts

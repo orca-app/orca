@@ -16,8 +16,8 @@ oc_surface oc_surface_gles();
 void oc_surface_destroy(oc_surface surface);
 
 void oc_surface_select(oc_surface surface);
-void oc_surface_present(oc_surface surface);
 void oc_surface_deselect(void);
+void oc_surface_present(oc_surface surface);
 
 oc_vec2 oc_surface_get_size(oc_surface surface);
 oc_vec2 oc_surface_contents_scaling(oc_surface surface);
@@ -32,7 +32,7 @@ bool oc_canvas_is_nil(oc_canvas canvas);
 oc_canvas oc_canvas_create(void);
 void oc_canvas_destroy(oc_canvas canvas);
 oc_canvas oc_canvas_set_current(oc_canvas canvas);
-void oc_render(oc_surface surface, oc_canvas canvas);
+void oc_render(oc_canvas canvas);
 
 //------------------------------------------------------------------------------------------
 // transform and clipping
