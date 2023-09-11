@@ -35,7 +35,7 @@ extern "C" {
 typedef struct oc_str8
 {
     char* ptr;
-    u64 len;
+    size_t len;
 } oc_str8;
 
 #define OC_STR8(s) ((oc_str8){ .len = (s) ? strlen(s) : 0, .ptr = (char*)s })
@@ -93,7 +93,7 @@ ORCA_API oc_str8_list oc_str8_split(oc_arena* arena, oc_str8 str, oc_str8_list s
 typedef struct oc_str16
 {
     u16* ptr;
-    u64 len;
+    size_t len;
 } oc_str16;
 
 ORCA_API oc_str16 oc_str16_from_buffer(u64 len, u16* buffer);
@@ -126,7 +126,7 @@ ORCA_API oc_str16_list oc_str16_split(oc_arena* arena, oc_str16 str, oc_str16_li
 typedef struct oc_str32
 {
     u32* ptr;
-    u64 len;
+    size_t len;
 } oc_str32;
 
 ORCA_API oc_str32 oc_str32_from_buffer(u64 len, u32* buffer);
