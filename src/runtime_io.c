@@ -134,7 +134,8 @@ oc_wasm_file_open_with_dialog_result oc_file_open_with_dialog_bridge(oc_wasm_add
 
     oc_list_for(&nativeResult.selection, elt, oc_file_open_with_dialog_elt, listElt)
     {
-        oc_wasm_file_open_with_dialog_elt* wasmElt = oc_wasm_arena_push(wasmArena, sizeof(oc_wasm_file_open_with_dialog_elt));
+        oc_wasm_addr wasmEltAddr = oc_wasm_arena_push(wasmArena, sizeof(oc_wasm_file_open_with_dialog_elt));
+        oc_wasm_file_open_with_dialog_elt* wasmElt = oc_wasm_address_to_ptr(wasmEltAddr, sizeof(oc_wasm_file_open_with_dialog_elt));
         wasmElt->file = elt->file;
 
         oc_wasm_list_push_back(&result.selection, &wasmElt->listElt);

@@ -67,15 +67,22 @@ typedef struct oc_text_state
     oc_str32 codePoints;
 } oc_text_state;
 
+typedef struct oc_clipboard_state
+{
+    u64 lastUpdate;
+    oc_str8 pastedText;
+} oc_clipboard_state;
+
 typedef struct oc_input_state
 {
     u64 frameCounter;
     oc_keyboard_state keyboard;
     oc_mouse_state mouse;
     oc_text_state text;
+    oc_clipboard_state clipboard;
 } oc_input_state;
 
-ORCA_API void oc_input_process_event(oc_input_state* state, oc_event* event);
+ORCA_API void oc_input_process_event(oc_input_state* state, oc_arena* arena, oc_event* event);
 ORCA_API void oc_input_next_frame(oc_input_state* state);
 
 ORCA_API bool oc_key_down(oc_input_state* state, oc_key_code key);
@@ -100,6 +107,9 @@ ORCA_API oc_vec2 oc_mouse_wheel(oc_input_state* state);
 
 ORCA_API oc_str32 oc_input_text_utf32(oc_input_state* state, oc_arena* arena);
 ORCA_API oc_str8 oc_input_text_utf8(oc_input_state* state, oc_arena* arena);
+
+ORCA_API bool oc_clipboard_pasted(oc_input_state* state);
+ORCA_API oc_str8 oc_clipboard_pasted_text(oc_input_state* state);
 
 ORCA_API oc_keymod_flags oc_key_mods(oc_input_state* state);
 

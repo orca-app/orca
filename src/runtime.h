@@ -9,6 +9,8 @@
 #define __RUNTIME_H_
 
 #include "platform/platform_io_internal.h"
+#include "runtime_memory.h"
+#include "runtime_clipboard.h"
 
 #include "m3_compile.h"
 #include "m3_env.h"
@@ -121,6 +123,7 @@ typedef struct oc_runtime
 
     oc_wasm_env env;
 
+    oc_runtime_clipboard clipboard;
 } oc_runtime;
 
 oc_runtime* oc_runtime_get(void);

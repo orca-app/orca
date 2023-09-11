@@ -333,7 +333,10 @@ ORCA_EXPORT void oc_on_frame_refresh(void)
                                                  OC_UI_STYLE_LAYOUT_SPACING);
                                 oc_ui_container("buttons", 0)
                                 {
-                                    oc_ui_button("Button A");
+                                    if(oc_ui_button("Break the law").clicked)
+                                    {
+                                        oc_clipboard_set_string((oc_str8)OC_STR8_LIT("Check out my cool website"));
+                                    }
                                     oc_ui_button("Button B");
                                     oc_ui_button("Button C");
                                     oc_ui_button("Button D");

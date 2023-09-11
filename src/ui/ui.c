@@ -7,6 +7,7 @@
 **************************************************************************/
 #include "ui.h"
 #include "math.h"
+#include "app/app.h"
 #include "platform/platform.h"
 #include "platform/platform_clock.h"
 #include "platform/platform_debug.h"
@@ -329,7 +330,7 @@ void oc_ui_style_box_after(oc_ui_box* box, oc_ui_pattern pattern, oc_ui_style* s
 void oc_ui_process_event(oc_event* event)
 {
     oc_ui_context* ui = oc_ui_get_context();
-    oc_input_process_event(&ui->input, event);
+    oc_input_process_event(&ui->input, &ui->frameArena, event);
 }
 
 oc_vec2 oc_ui_mouse_position(void)
@@ -590,6 +591,8 @@ oc_ui_sig oc_ui_box_sig(oc_ui_box* box)
 
             sig.dragging = box->dragging;
         }
+
+        sig.pasted = oc_clipboard_pasted(input);
     }
     return (sig);
 }
@@ -1438,8 +1441,6 @@ void oc_ui_begin_frame(oc_vec2 size, oc_ui_style* defaultStyle, oc_ui_style_mask
 {
     oc_ui_context* ui = oc_ui_get_context();
 
-    oc_arena_clear(&ui->frameArena);
-
     ui->frameCounter++;
     f64 time = oc_clock_time(OC_CLOCK_MONOTONIC);
     ui->lastFrameDuration = time - ui->frameTime;
@@ -1515,6 +1516,7 @@ void oc_ui_end_frame(void)
         }
     }
 
+    oc_arena_clear(&ui->frameArena);
     oc_input_next_frame(&ui->input);
 }
 
@@ -2699,7 +2701,6 @@ oc_str32 oc_ui_edit_delete_selection(oc_ui_context* ui, oc_str32 codepoints)
 
 void oc_ui_edit_copy_selection_to_clipboard(oc_ui_context* ui, oc_str32 codepoints)
 {
-#if !OC_PLATFORM_ORCA
     if(ui->editCursor == ui->editMark)
     {
         return;
@@ -2709,15 +2710,13 @@ void oc_ui_edit_copy_selection_to_clipboard(oc_ui_context* ui, oc_str32 codepoin
     oc_str32 selection = oc_str32_slice(codepoints, start, end);
     oc_str8 string = oc_utf8_push_from_codepoints(&ui->frameArena, selection);
 
-    oc_clipboard_clear();
     oc_clipboard_set_string(string);
-#endif
 }
 
 oc_str32 oc_ui_edit_replace_selection_with_clipboard(oc_ui_context* ui, oc_str32 codepoints)
 {
 #if OC_PLATFORM_ORCA
-    oc_str32 result = { 0 };
+    oc_str32 result = codepoints;
 #else
     oc_str8 string = oc_clipboard_get_string(&ui->frameArena);
     oc_str32 input = oc_utf8_push_to_codepoints(&ui->frameArena, string);
@@ -3095,9 +3094,19 @@ const oc_ui_edit_command OC_UI_EDIT_COMMANDS_WINDOWS[] = {
         .mods = OC_KEYMOD_CTRL,
         .operation = OC_UI_EDIT_CUT,
         .move = OC_UI_EDIT_MOVE_NONE },
+    {
+        .key = OC_KEY_DELETE,
+        .mods = OC_KEYMOD_SHIFT,
+        .operation = OC_UI_EDIT_CUT,
+        .move = OC_UI_EDIT_MOVE_NONE },
     //NOTE(martin): copy
     {
         .key = OC_KEY_C,
+        .mods = OC_KEYMOD_CTRL,
+        .operation = OC_UI_EDIT_COPY,
+        .move = OC_UI_EDIT_MOVE_NONE },
+    {
+        .key = OC_KEY_INSERT,
         .mods = OC_KEYMOD_CTRL,
         .operation = OC_UI_EDIT_COPY,
         .move = OC_UI_EDIT_MOVE_NONE },
@@ -3105,6 +3114,11 @@ const oc_ui_edit_command OC_UI_EDIT_COMMANDS_WINDOWS[] = {
     {
         .key = OC_KEY_V,
         .mods = OC_KEYMOD_CTRL,
+        .operation = OC_UI_EDIT_PASTE,
+        .move = OC_UI_EDIT_MOVE_NONE },
+    {
+        .key = OC_KEY_INSERT,
+        .mods = OC_KEYMOD_SHIFT,
         .operation = OC_UI_EDIT_PASTE,
         .move = OC_UI_EDIT_MOVE_NONE }
 };
@@ -3694,6 +3708,13 @@ oc_ui_text_box_result oc_ui_text_box(const char* name, oc_arena* arena, oc_str8 
                 codepoints = oc_ui_edit_perform_operation(ui, command->operation, command->move, command->direction, codepoints);
                 break;
             }
+        }
+
+        if(sig.pasted)
+        {
+            oc_str8 pastedText = oc_clipboard_pasted_text(&ui->input);
+            oc_str32 input = oc_utf8_push_to_codepoints(&ui->frameArena, pastedText);
+            codepoints = oc_ui_edit_replace_selection_with_codepoints(ui, codepoints, input);
         }
 
         //NOTE(martin): check changed/accepted

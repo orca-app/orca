@@ -106,5 +106,23 @@
         { "name": "scanCode",
           "type": {"name": "oc_scan_code", "tag": "i"}}
     ]
+},
+{
+	"name": "oc_clipboard_get_string",
+	"cname": "oc_bridge_clipboard_get_string",
+	"ret": { "name": "oc_str8", "cname": "oc_wasm_str8", "tag": "S"},
+	"args": [
+        {"name": "arena",
+         "type": {"name": "oc_arena*", "cname": "i32", "tag": "i"}}
+     ]
+},
+{
+	"name": "oc_clipboard_set_string",
+	"cname": "oc_bridge_clipboard_set_string",
+	"ret": {"name": "void", "tag": "v"},
+	"args": [
+		{ "name": "value",
+		  "type": {"name": "oc_str8", "cname": "oc_wasm_str8", "tag": "S"}}
+	]
 }
 ]

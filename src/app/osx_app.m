@@ -1243,6 +1243,7 @@ void oc_clipboard_set_string(oc_str8 string)
 
         NSString* nsString = [[NSString alloc] initWithBytes:string.ptr length:string.len encoding:NSUTF8StringEncoding];
         NSPasteboard* pb = [NSPasteboard generalPasteboard];
+        [pb clearContents];
         [pb writeObjects:[[NSArray alloc] initWithObjects:nsString, nil]];
     }
 }

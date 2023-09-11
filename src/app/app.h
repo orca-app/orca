@@ -58,6 +58,7 @@ typedef enum
     OC_EVENT_MOUSE_WHEEL,
     OC_EVENT_MOUSE_ENTER,
     OC_EVENT_MOUSE_LEAVE,
+    OC_EVENT_CLIPBOARD_PASTE,
     OC_EVENT_WINDOW_RESIZE,
     OC_EVENT_WINDOW_MOVE,
     OC_EVENT_WINDOW_FOCUS,
@@ -478,6 +479,8 @@ void oc_window_set_size(oc_vec2 size);
 
 void ORCA_IMPORT(oc_request_quit)(void);
 oc_key_code ORCA_IMPORT(oc_scancode_to_keycode)(oc_scan_code scanCode);
+
+void oc_clipboard_set_string(oc_str8 string);
 
 #endif // !defined(OC_PLATFORM_ORCA) || !(OC_PLATFORM_ORCA)
 

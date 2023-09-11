@@ -127,7 +127,7 @@ void oc_wasm_list_push_back(oc_wasm_list* list, oc_wasm_list_elt* elt)
 // Wasm arenas helpers
 //------------------------------------------------------------------------------------
 
-void* oc_wasm_arena_push(oc_wasm_addr arena, u64 size)
+oc_wasm_addr oc_wasm_arena_push(oc_wasm_addr arena, u64 size)
 {
     oc_wasm_env* env = oc_runtime_get_env();
 
@@ -146,6 +146,6 @@ void* oc_wasm_arena_push(oc_wasm_addr arena, u64 size)
     {
         ORCA_WASM3_ABORT(env->m3Runtime, res, "Runtime error");
     }
-    void* ptr = oc_wasm_address_to_ptr(retValues[0], size);
-    return (ptr);
+
+    return (retValues[0]);
 }

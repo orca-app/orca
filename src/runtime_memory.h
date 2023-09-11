@@ -8,8 +8,6 @@
 #ifndef __RUNTIME_MEMORY_H_
 #define __RUNTIME_MEMORY_H_
 
-#include "runtime.h"
-
 typedef u32 oc_wasm_addr;
 typedef u32 oc_wasm_size;
 
@@ -96,6 +94,6 @@ typedef struct oc_wasm_str8_list
 // Wasm arenas helpers
 //------------------------------------------------------------------------------------
 
-void* oc_wasm_arena_push(oc_wasm_addr arena, u64 size);
+oc_wasm_addr oc_wasm_arena_push(oc_wasm_addr arena, u64 size);
 
 #endif //__RUNTIME_MEMORY_H_

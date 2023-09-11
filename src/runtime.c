@@ -14,6 +14,7 @@
 #include "orca.h"
 
 #include "runtime.h"
+#include "runtime_clipboard.c"
 #include "runtime_io.c"
 #include "runtime_memory.c"
 
@@ -115,6 +116,16 @@ void oc_bridge_window_set_title(oc_wasm_str8 title)
 void oc_bridge_window_set_size(oc_vec2 size)
 {
     oc_window_set_content_size(__orcaApp.window, size);
+}
+
+oc_wasm_str8 oc_bridge_clipboard_get_string(oc_wasm_addr wasmArena)
+{
+    return oc_runtime_clipboard_get_string(&__orcaApp.clipboard, wasmArena);
+}
+
+void oc_bridge_clipboard_set_string(oc_wasm_str8 value)
+{
+    oc_runtime_clipboard_set_string(&__orcaApp.clipboard, value);
 }
 
 void oc_bridge_log(oc_log_level level,
@@ -553,7 +564,6 @@ i32 orca_runloop(void* user)
         oc_event* event = 0;
         while((event = oc_next_event(oc_scratch())) != 0)
         {
-
             if(app->debugOverlay.show)
             {
                 oc_ui_process_event(event);
@@ -561,19 +571,41 @@ i32 orca_runloop(void* user)
 
             if(exports[OC_EXPORT_RAW_EVENT])
             {
-#ifndef M3_BIG_ENDIAN
-                oc_event* eventPtr = (oc_event*)oc_wasm_address_to_ptr(app->env.rawEventOffset, sizeof(oc_event));
-                memcpy(eventPtr, event, sizeof(*event));
-
-                const void* args[1] = { &app->env.rawEventOffset };
-                M3Result res = m3_Call(exports[OC_EXPORT_RAW_EVENT], 1, args);
-                if(res)
+                oc_arena_scope scratch = oc_scratch_begin();
+                oc_event* clipboardEvent = oc_runtime_clipboard_process_event_begin(&__orcaApp.clipboard, scratch.arena, event);
+                oc_event* events[2];
+                u64 eventsCount;
+                if(clipboardEvent != 0)
                 {
-                    ORCA_WASM3_ABORT(app->env.m3Runtime, res, "Runtime error");
+                    events[0] = clipboardEvent;
+                    events[1] = event;
+                    eventsCount = 2;
                 }
+                else
+                {
+                    events[0] = event;
+                    eventsCount = 1;
+                }
+
+                for(int i = 0; i < eventsCount; i++)
+                {
+#ifndef M3_BIG_ENDIAN
+                    oc_event* eventPtr = (oc_event*)oc_wasm_address_to_ptr(app->env.rawEventOffset, sizeof(oc_event));
+                    memcpy(eventPtr, events[i], sizeof(*events[i]));
+
+                    const void* args[1] = { &app->env.rawEventOffset };
+                    M3Result res = m3_Call(exports[OC_EXPORT_RAW_EVENT], 1, args);
+                    if(res)
+                    {
+                        ORCA_WASM3_ABORT(app->env.m3Runtime, res, "Runtime error");
+                    }
 #else
-                oc_log_error("oc_on_raw_event() is not supported on big endian platforms");
+                    oc_log_error("oc_on_raw_event() is not supported on big endian platforms");
 #endif
+                }
+
+                oc_runtime_clipboard_process_event_end(&__orcaApp.clipboard);
+                oc_scratch_end(scratch);
             }
 
             switch(event->type)

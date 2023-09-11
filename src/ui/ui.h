@@ -456,6 +456,8 @@ typedef struct oc_ui_sig
     bool dragging;
     bool hovering;
 
+    bool pasted;
+
 } oc_ui_sig;
 
 typedef void (*oc_ui_box_draw_proc)(oc_ui_box* box, void* data);
@@ -620,6 +622,8 @@ typedef struct oc_ui_context
     oc_ui_edit_move editSelectionMode;
     i32 editWordSelectionInitialCursor;
     i32 editWordSelectionInitialMark;
+    
+    bool clipboardRegistered;
 
     oc_ui_theme* theme;
 } oc_ui_context;
