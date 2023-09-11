@@ -43,6 +43,8 @@ typedef struct oc_win32_app_data
     u32 clickCount[OC_MOUSE_BUTTON_COUNT];
     u32 wheelScrollLines;
 
+    DWORD mainThreadID;
+
 } oc_win32_app_data;
 
 #define OC_PLATFORM_APP_DATA oc_win32_app_data win32;
@@ -50,6 +52,7 @@ typedef struct oc_win32_app_data
 enum OC_WM_USER
 {
     OC_WM_USER_DISPATCH_PROC = 0x0400, // WM_USER messages are defined from 0x400 to 0x7FFF
+    OC_WM_USER_WAKEUP = 0x0401,
 };
 
 #endif __WIN32_APP_H_

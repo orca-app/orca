@@ -195,6 +195,11 @@ void oc_bridge_log(oc_log_level level,
                msg);
 }
 
+void oc_bridge_request_quit(void)
+{
+    __orcaApp.quit = true;
+}
+
 typedef struct orca_surface_create_data
 {
     oc_window window;
@@ -543,7 +548,7 @@ i32 orca_runloop(void* user)
 
     oc_ui_set_context(&app->debugOverlay.ui);
 
-    while(!oc_should_quit())
+    while(!app->quit)
     {
         oc_event* event = 0;
         while((event = oc_next_event(oc_scratch())) != 0)
@@ -575,7 +580,7 @@ i32 orca_runloop(void* user)
             {
                 case OC_EVENT_WINDOW_CLOSE:
                 {
-                    oc_request_quit();
+                    app->quit = true;
                 }
                 break;
 
@@ -857,7 +862,7 @@ i32 orca_runloop(void* user)
         }
     }
 
-    app->quit = true;
+    oc_request_quit();
 
     return (0);
 }
@@ -902,7 +907,7 @@ int main(int argc, char** argv)
 
     oc_thread* runloopThread = oc_thread_create(orca_runloop, 0);
 
-    while(!app->quit)
+    while(!oc_should_quit())
     {
         oc_pump_events(-1);
         //TODO: what to do with mem scratch here?

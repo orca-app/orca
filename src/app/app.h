@@ -282,7 +282,6 @@ ORCA_API void oc_init(void);
 ORCA_API void oc_terminate(void);
 
 ORCA_API bool oc_should_quit(void);
-ORCA_API void oc_cancel_quit(void);
 ORCA_API void oc_request_quit(void);
 
 ORCA_API void oc_set_cursor(oc_mouse_cursor cursor);

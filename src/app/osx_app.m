@@ -376,11 +376,9 @@ void oc_install_keyboard_layout_listener()
 {
     //NOTE: We set shouldQuit to true and send a Quit event
     //	We then return a value to cancel the direct termination because we still
-    //	want to execte the code after oc_event_loop(). If the user didn't set shouldQuit to
-    //	false, oc_event_loop() will exit, and the user can execute any cleanup needed and
-    //	exit the program.
+    //	want to execute cleanup code. Use can then call oc_request_quit() to exit
+    //  the main runloop
 
-    oc_appData.shouldQuit = true;
     oc_event event = {};
     event.type = OC_EVENT_QUIT;
     oc_queue_event(&event);
@@ -1162,9 +1160,21 @@ void oc_cancel_quit()
 void oc_request_quit()
 {
     oc_appData.shouldQuit = true;
-    oc_event event = {};
-    event.type = OC_EVENT_QUIT;
-    oc_queue_event(&event);
+
+    @autoreleasepool
+    {
+        NSEvent* event = [NSEvent otherEventWithType:NSEventTypeApplicationDefined
+                                            location:NSMakePoint(0, 0)
+                                       modifierFlags:0
+                                           timestamp:0.0
+                                        windowNumber:0
+                                             context:nil
+                                             subtype:0
+                                               data1:0
+                                               data2:0];
+
+        [NSApp postEvent:event atStart:NO];
+    }
 }
 
 void oc_set_cursor(oc_mouse_cursor cursor)

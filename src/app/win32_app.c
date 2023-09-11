@@ -170,6 +170,8 @@ void oc_init()
         SystemParametersInfo(SPI_GETWHEELSCROLLLINES, 0, &wheelScrollLines, 0);
         oc_appData.win32.wheelScrollLines = wheelScrollLines;
 
+        oc_appData.win32.mainThreadID = GetCurrentThreadId();
+
         oc_vsync_init();
     }
 }
@@ -659,6 +661,7 @@ void oc_cancel_quit()
 void oc_request_quit()
 {
     oc_appData.shouldQuit = true;
+	PostThreadMessage(oc_appData.win32.mainThreadID, OC_WM_USER_WAKEUP, 0, 0);
 }
 
 void oc_pump_events(f64 timeout)

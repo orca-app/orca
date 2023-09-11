@@ -76,7 +76,7 @@
 },
 {
 	"name": "oc_request_quit",
-	"cname": "oc_request_quit",
+	"cname": "oc_bridge_request_quit",
 	"ret": {"name": "void", "tag": "v"},
 	"args": []
 },

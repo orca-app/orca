@@ -1368,6 +1368,10 @@ void oc_mtl_canvas_destroy(oc_canvas_backend* interface)
 
     @autoreleasepool
     {
+        id<MTLCommandBuffer> endBuffer = [backend->surface->commandQueue commandBuffer];
+        [endBuffer commit];
+        [endBuffer waitUntilCompleted];
+
         [backend->pathPipeline release];
         [backend->segmentPipeline release];
         [backend->backpropPipeline release];
