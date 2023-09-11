@@ -14,13 +14,13 @@
 
 oc_str8 oc_str8_from_buffer(u64 len, char* buffer)
 {
-    return ((oc_str8){ .len = len, .ptr = buffer });
+    return ((oc_str8){.ptr = buffer , .len = len});
 }
 
 oc_str8 oc_str8_slice(oc_str8 s, u64 start, u64 end)
 {
     OC_ASSERT(start <= end && start <= s.len && end <= s.len);
-    return ((oc_str8){ .len = end - start, .ptr = s.ptr + start });
+    return ((oc_str8){.ptr = s.ptr + start , .len = end - start});
 }
 
 oc_str8 oc_str8_push_buffer(oc_arena* arena, u64 len, char* buffer)
@@ -158,7 +158,7 @@ oc_str8 oc_str8_list_collate(oc_arena* arena, oc_str8_list list, oc_str8 prefix,
 
 oc_str8 oc_str8_list_join(oc_arena* arena, oc_str8_list list)
 {
-    oc_str8 empty = { .len = 0, .ptr = 0 };
+    oc_str8 empty = {.ptr = 0 , .len = 0};
     return (oc_str8_list_collate(arena, list, empty, empty, empty));
 }
 
@@ -221,13 +221,13 @@ oc_str8_list oc_str8_split(oc_arena* arena, oc_str8 str, oc_str8_list separators
 //----------------------------------------------------------------------------------
 oc_str16 oc_str16_from_buffer(u64 len, u16* buffer)
 {
-    return ((oc_str16){ .len = len, .ptr = buffer });
+    return ((oc_str16){.ptr = buffer , .len = len});
 }
 
 oc_str16 oc_str16_slice(oc_str16 s, u64 start, u64 end)
 {
     OC_ASSERT(start <= end && start <= s.len && end <= s.len);
-    return ((oc_str16){ .len = end - start, .ptr = s.ptr + start });
+    return ((oc_str16){.ptr = s.ptr + start , .len = end - start});
 }
 
 oc_str16 oc_str16_push_buffer(oc_arena* arena, u64 len, u16* buffer)
@@ -298,7 +298,7 @@ oc_str16 oc_str16_list_collate(oc_arena* arena, oc_str16_list list, oc_str16 pre
 
 oc_str16 oc_str16_list_join(oc_arena* arena, oc_str16_list list)
 {
-    oc_str16 empty = { .len = 0, .ptr = 0 };
+    oc_str16 empty = {.ptr = 0 , .len = 0};
     return (oc_str16_list_collate(arena, list, empty, empty, empty));
 }
 
@@ -307,13 +307,13 @@ oc_str16 oc_str16_list_join(oc_arena* arena, oc_str16_list list)
 //----------------------------------------------------------------------------------
 oc_str32 oc_str32_from_buffer(u64 len, u32* buffer)
 {
-    return ((oc_str32){ .len = len, .ptr = buffer });
+    return ((oc_str32){.ptr = buffer , .len = len});
 }
 
 oc_str32 oc_str32_slice(oc_str32 s, u64 start, u64 end)
 {
     OC_ASSERT(start <= end && start <= s.len && end <= s.len);
-    return ((oc_str32){ .len = end - start, .ptr = s.ptr + start });
+    return ((oc_str32){.ptr = s.ptr + start , .len = end - start});
 }
 
 oc_str32 oc_str32_push_buffer(oc_arena* arena, u64 len, u32* buffer)
@@ -384,6 +384,6 @@ oc_str32 oc_str32_list_collate(oc_arena* arena, oc_str32_list list, oc_str32 pre
 
 oc_str32 oc_str32_list_join(oc_arena* arena, oc_str32_list list)
 {
-    oc_str32 empty = { .len = 0, .ptr = 0 };
+    oc_str32 empty = {.ptr = 0 , .len = 0};
     return (oc_str32_list_collate(arena, list, empty, empty, empty));
 }

@@ -225,7 +225,7 @@ oc_str8 oc_utf8_encode(char* dest, oc_utf32 codePoint)
         dest[3] = (codePoint & 0x3F) | 0x80;
         sz = 4;
     }
-    oc_str8 res = { .len = sz, .ptr = dest };
+    oc_str8 res = {.ptr = dest , .len = sz};
     return (res);
 }
 
@@ -239,7 +239,7 @@ oc_str32 oc_utf8_to_codepoints(u64 maxCount, oc_utf32* backing, oc_str8 string)
         backing[codePointIndex] = decode.codepoint;
         byteOffset += decode.size;
     }
-    oc_str32 res = { .len = codePointIndex, .ptr = backing };
+    oc_str32 res = {.ptr = backing , .len = codePointIndex};
     return (res);
 }
 
@@ -257,7 +257,7 @@ oc_str8 oc_utf8_from_codepoints(u64 maxBytes, char* backing, oc_str32 codePoints
         oc_utf8_encode(backing + byteOffset, codePoint);
         byteOffset += byteCount;
     }
-    oc_str8 res = { .len = byteOffset, .ptr = backing };
+    oc_str8 res = {.ptr = backing , .len = byteOffset};
     return (res);
 }
 

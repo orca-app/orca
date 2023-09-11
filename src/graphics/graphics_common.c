@@ -629,7 +629,7 @@ oc_str32 oc_font_get_glyph_indices_from_font_data(oc_font_data* fontData, oc_str
         }
         backing.ptr[i] = glyphIndex;
     }
-    oc_str32 res = { .len = count, .ptr = backing.ptr };
+    oc_str32 res = {.ptr = backing.ptr , .len = count};
     return (res);
 }
 
@@ -1428,7 +1428,7 @@ oc_rect oc_glyph_outlines_from_font_data(oc_font_data* fontData, oc_str32 glyphI
 
                 if(missingGlyphIndex)
                 {
-                    oc_font_get_glyph_metrics_from_font_data(fontData, (oc_str32){ .len = 1, .ptr = &missingGlyphIndex }, &missingGlyphMetrics);
+                    oc_font_get_glyph_metrics_from_font_data(fontData, (oc_str32){.ptr = &missingGlyphIndex , .len = 1}, &missingGlyphMetrics);
                 }
                 else
                 {
