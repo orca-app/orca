@@ -3178,12 +3178,14 @@ oc_str32 oc_ui_edit_perform_operation(oc_ui_context* ui, oc_ui_edit_op operation
     {
         case OC_UI_EDIT_MOVE:
         {
+            bool wasSelectionEmpty = ui->editCursor == ui->editMark;
+            
             //NOTE(martin): we place the cursor on the direction-most side of the selection
             //              before performing the move
             u32 cursor = direction < 0 ? oc_min(ui->editCursor, ui->editMark) : oc_max(ui->editCursor, ui->editMark);
             ui->editCursor = cursor;
 
-            if(ui->editCursor == ui->editMark || move != OC_UI_EDIT_MOVE_CHAR)
+            if(wasSelectionEmpty || move != OC_UI_EDIT_MOVE_CHAR)
             {
                 //NOTE: we special case move-one when there is a selection
                 //      (just place the cursor at begining/end of selection)
