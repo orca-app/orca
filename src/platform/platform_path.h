@@ -8,8 +8,12 @@
 #ifndef __PLATFORM_PATH_H_
 #define __PLATFORM_PATH_H_
 
-#include"platform.h"
+#include "platform.h"
 #include "util/strings.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /*NOTE:
 	by convention, functions that take an arena and return a path
@@ -33,6 +37,10 @@ ORCA_API oc_str8 oc_path_canonical(oc_arena* arena, oc_str8 path);
 
 // helper: gets the path from oc_path_executable() and appends relPath
 ORCA_API oc_str8 oc_path_executable_relative(oc_arena* arena, oc_str8 relPath);
+#endif
+
+#ifdef __cplusplus
+}
 #endif
 
 #endif //__PLATFORM_PATH_H_

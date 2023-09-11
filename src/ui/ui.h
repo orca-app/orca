@@ -464,6 +464,7 @@ typedef void (*oc_ui_box_draw_proc)(oc_ui_box* box, void* data);
 
 typedef enum
 {
+    OC_UI_FLAG_NONE = 0,
     OC_UI_FLAG_CLICKABLE = (1 << 0),
     OC_UI_FLAG_SCROLL_WHEEL_X = (1 << 1),
     OC_UI_FLAG_SCROLL_WHEEL_Y = (1 << 2),

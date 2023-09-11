@@ -10,6 +10,10 @@
 
 #include "typedefs.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 bool oc_vec2_equal(oc_vec2 v0, oc_vec2 v1);
 oc_vec2 oc_vec2_mul(f32 f, oc_vec2 v);
 oc_vec2 oc_vec2_add(oc_vec2 v0, oc_vec2 v1);
@@ -22,5 +26,9 @@ oc_mat2x3 oc_mat2x3_rotate(f32 radians);
 oc_mat2x3 oc_mat2x3_translate(f32 x, f32 y);
 
 //TODO: complete
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif //__ALGEBRA_H_

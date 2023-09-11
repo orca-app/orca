@@ -12,6 +12,9 @@
 #include "platform/platform.h"
 #include "util/typedefs.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 //------------------------------------------------------------------------------------------
 //SECTION: backends selection
 //------------------------------------------------------------------------------------------
@@ -363,5 +366,9 @@ ORCA_API void oc_text_fill(f32 x, f32 y, oc_str8 text);
 //NOTE: image helpers
 ORCA_API void oc_image_draw(oc_image image, oc_rect rect);
 ORCA_API void oc_image_draw_region(oc_image image, oc_rect srcRegion, oc_rect dstRegion);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif //__GRAPHICS_H_

@@ -14,6 +14,10 @@
 #include "util/typedefs.h"
 #include "util/utf8.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef struct oc_key_state
 {
     u64 lastUpdate;
@@ -112,5 +116,9 @@ ORCA_API bool oc_clipboard_pasted(oc_input_state* state);
 ORCA_API oc_str8 oc_clipboard_pasted_text(oc_input_state* state);
 
 ORCA_API oc_keymod_flags oc_key_mods(oc_input_state* state);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif //__INPUT_STATE_H_

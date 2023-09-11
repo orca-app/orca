@@ -101,7 +101,11 @@
     #define ORCA_IMPORT(f) __attribute__((import_name(#f))) f
 
     #if OC_COMPILER_CLANG
-        #define ORCA_EXPORT __attribute__((visibility("default")))
+        #ifdef __cplusplus
+            #define ORCA_EXPORT __attribute__((visibility("default"))) extern "C"
+        #else
+            #define ORCA_EXPORT __attribute__((visibility("default")))
+        #endif
     #else
         #error "Orca apps can only be compiled with clang for now"
     #endif

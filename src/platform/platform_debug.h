@@ -10,6 +10,10 @@
 
 #include "platform.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 //----------------------------------------------------------------
 // Assert / Abort
 //----------------------------------------------------------------
@@ -41,5 +45,9 @@ ORCA_API void oc_log_ext(oc_log_level level,
                          int line,
                          const char* fmt,
                          ...);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif //__PLATFORM_DEBUG_H_

@@ -12,7 +12,7 @@ void* memset(void* b, int c, size_t n)
     return (__builtin_memset(b, c, n));
 }
 
-void* memcpy(void* restrict dst, const void* restrict src, size_t n)
+void* memcpy(void* __restrict dst, const void* __restrict src, size_t n)
 {
     return (__builtin_memcpy(dst, src, n));
 }
@@ -92,7 +92,7 @@ int strncmp(const char* s1, const char* s2, size_t n)
     return (res);
 }
 
-char* strcpy(char* restrict s1, const char* restrict s2)
+char* strcpy(char* __restrict s1, const char* __restrict s2)
 {
     size_t i = 0;
     while(s2[i] != '\0')
@@ -104,7 +104,7 @@ char* strcpy(char* restrict s1, const char* restrict s2)
     return (s1);
 }
 
-char* strncpy(char* restrict s1, const char* restrict s2, size_t len)
+char* strncpy(char* __restrict s1, const char* __restrict s2, size_t len)
 {
     size_t i = 0;
     while(i < len && s2[i] != '\0')

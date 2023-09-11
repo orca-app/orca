@@ -31,7 +31,7 @@ ORCA_EXPORT void oc_on_init(void)
             oc_log_error("Couldn't open file OpenSansLatinSubset.ttf\n");
         }
         u64 size = oc_file_size(file);
-        char* buffer = oc_arena_push(oc_scratch(), size);
+        char* buffer = (char*)oc_arena_push(oc_scratch(), size);
         oc_file_read(file, size, buffer);
         oc_file_close(file);
         oc_unicode_range ranges[5] = { OC_UNICODE_BASIC_LATIN,
@@ -95,7 +95,7 @@ ORCA_EXPORT void oc_on_frame_refresh(void)
                                          .layout.axis = OC_UI_AXIS_Y,
                                          .layout.align.x = OC_UI_ALIGN_CENTER,
                                          .layout.align.y = OC_UI_ALIGN_START,
-                                         .layout.spacing = 10},
+                                         .layout.spacing = 10 },
                          OC_UI_STYLE_SIZE
                              | OC_UI_STYLE_LAYOUT);
 
@@ -109,7 +109,7 @@ ORCA_EXPORT void oc_on_frame_refresh(void)
                              OC_UI_STYLE_SIZE
                                  | OC_UI_STYLE_LAYOUT_ALIGN_X
                                  | OC_UI_STYLE_LAYOUT_MARGINS);
-            oc_ui_container("title", 0)
+            oc_ui_container("title", OC_UI_FLAG_NONE)
             {
                 oc_ui_style_next(&(oc_ui_style){ .fontSize = 26 }, OC_UI_STYLE_FONT_SIZE);
                 oc_ui_label("Orca UI Demo");
@@ -157,13 +157,13 @@ ORCA_EXPORT void oc_on_frame_refresh(void)
                              OC_UI_STYLE_SIZE | OC_UI_STYLE_LAYOUT_MARGINS);
 
             oc_ui_style_next(&(oc_ui_style){ .layout.axis = OC_UI_AXIS_X }, OC_UI_STYLE_LAYOUT_AXIS);
-            oc_ui_container("contents", 0)
+            oc_ui_container("contents", OC_UI_FLAG_NONE)
             {
                 oc_ui_style_next(&(oc_ui_style){ .size.width = { OC_UI_SIZE_PARENT, 0.5 },
                                                  .size.height = { OC_UI_SIZE_PARENT, 1 } },
                                  OC_UI_STYLE_SIZE);
 
-                oc_ui_container("left", 0)
+                oc_ui_container("left", OC_UI_FLAG_NONE)
                 {
                     oc_ui_style_next(&(oc_ui_style){ .layout.axis = OC_UI_AXIS_X,
                                                      .layout.spacing = 10,
@@ -177,7 +177,7 @@ ORCA_EXPORT void oc_on_frame_refresh(void)
                                          | OC_UI_STYLE_LAYOUT_MARGIN_Y
                                          | OC_UI_STYLE_SIZE);
 
-                    oc_ui_container("up", 0)
+                    oc_ui_container("up", OC_UI_FLAG_NONE)
                     {
                         oc_ui_style_next(&(oc_ui_style){ .size.width = { OC_UI_SIZE_PARENT, 0.5 },
                                                          .size.height = { OC_UI_SIZE_PARENT, 1 } },
@@ -222,7 +222,7 @@ ORCA_EXPORT void oc_on_frame_refresh(void)
                                      OC_UI_STYLE_LAYOUT_AXIS
                                          | OC_UI_STYLE_SIZE);
 
-                    oc_ui_container("down", 0)
+                    oc_ui_container("down", OC_UI_FLAG_NONE)
                     {
                         widget_view("Vertical Sliders")
                         {
@@ -230,7 +230,7 @@ ORCA_EXPORT void oc_on_frame_refresh(void)
                                                              .layout.spacing = 10 },
                                              OC_UI_STYLE_LAYOUT_AXIS
                                                  | OC_UI_STYLE_LAYOUT_SPACING);
-                            oc_ui_container("contents", 0)
+                            oc_ui_container("contents", OC_UI_FLAG_NONE)
                             {
                                 oc_ui_style_next(&(oc_ui_style){ .size.height = { OC_UI_SIZE_PIXELS, 200 } },
                                                  OC_UI_STYLE_SIZE_HEIGHT);

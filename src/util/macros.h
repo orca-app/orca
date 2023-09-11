@@ -77,19 +77,19 @@ static inline u64 oc_next_pow2(u64 x)
 
 //NOTE(martin): 'hygienic' max/min/square/cube macros.
 #ifdef __cplusplus
-    //NOTE(martin): in C++ we use templates and decltype/declval
-    //              (overloaded functions would be ambiguous because of the
-    //              overload resolution and conversion/promotion rules)
-    #include <utility>
+//NOTE(martin): in C++ we use templates and decltype/declval
+//              (overloaded functions would be ambiguous because of the
+//              overload resolution and conversion/promotion rules)
+//    #include <utility>
 
 template <typename Ta, typename Tb>
-inline decltype(std::declval<Ta>() + std::declval<Tb>()) oc_min(Ta a, Tb b)
+inline decltype(Ta() + Tb()) oc_min(Ta a, Tb b)
 {
     return (a < b ? a : b);
 }
 
 template <typename Ta, typename Tb>
-inline decltype(std::declval<Ta>() + std::declval<Tb>()) oc_max(Ta a, Tb b)
+inline decltype(Ta() + Tb()) oc_max(Ta a, Tb b)
 {
     return (a > b ? a : b);
 }

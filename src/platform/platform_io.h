@@ -11,6 +11,10 @@
 #include "util/strings.h"
 #include "util/typedefs.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 //----------------------------------------------------------------
 // IO API
 //----------------------------------------------------------------
@@ -187,7 +191,7 @@ typedef enum oc_file_type
 
 typedef u16 oc_file_perm;
 
-enum oc_file_perm
+enum oc_file_perm_enum
 {
     OC_FILE_OTHER_EXEC = 1 << 0,
     OC_FILE_OTHER_WRITE = 1 << 1,
@@ -236,5 +240,9 @@ ORCA_API u64 oc_file_size(oc_file file);
 //----------------------------------------------------------------
 
 ORCA_API oc_file oc_file_open_with_request(oc_str8 path, oc_file_access rights, oc_file_open_flags flags);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif //__PLATFORM_IO_H_

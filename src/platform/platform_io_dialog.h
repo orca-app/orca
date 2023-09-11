@@ -11,6 +11,10 @@
 #include "platform_io.h"
 #include "app/app.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef struct oc_file_open_with_dialog_elt
 {
     oc_list_elt listElt;
@@ -25,5 +29,9 @@ typedef struct oc_file_open_with_dialog_result
 } oc_file_open_with_dialog_result;
 
 ORCA_API oc_file_open_with_dialog_result oc_file_open_with_dialog(oc_arena* arena, oc_file_access rights, oc_file_open_flags flags, oc_file_dialog_desc* desc);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif //__PLATFORM_IO_DIALOG_H_

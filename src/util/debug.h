@@ -11,6 +11,10 @@
 #include "platform/platform_debug.h"
 #include "util/macros.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 //----------------------------------------------------------------
 // Logging
 //----------------------------------------------------------------
@@ -57,6 +61,10 @@
     #else
         #define OC_DEBUG_ASSERT(x, ...)
     #endif
+#endif
+
+#ifdef __cplusplus
+}
 #endif
 
 #endif //__DEBUG_H_
