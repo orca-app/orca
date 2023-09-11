@@ -39,6 +39,7 @@ void oc_render(oc_canvas canvas);
 //------------------------------------------------------------------------------------------
 
 void oc_matrix_push(oc_mat2x3 matrix);
+void oc_matrix_multiply_push(oc_mat2x3 matrix);
 void oc_matrix_pop(void);
 oc_mat2x3 oc_matrix_top();
 

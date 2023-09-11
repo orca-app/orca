@@ -202,7 +202,7 @@ int main()
         oc_set_color_rgba(1, 0, 1, 1);
         oc_clear();
 
-        oc_matrix_push((oc_mat2x3){ zoom, 0, startX,
+        oc_matrix_multiply_push((oc_mat2x3){ zoom, 0, startX,
                                     0, zoom, startY });
 
         draw_tiger(singlePath, singlePathIndex);

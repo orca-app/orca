@@ -629,7 +629,7 @@ oc_str32 oc_font_get_glyph_indices_from_font_data(oc_font_data* fontData, oc_str
         }
         backing.ptr[i] = glyphIndex;
     }
-    oc_str32 res = {.ptr = backing.ptr , .len = count};
+    oc_str32 res = { .ptr = backing.ptr, .len = count };
     return (res);
 }
 
@@ -1002,6 +1002,15 @@ void oc_render(oc_canvas canvas)
 //------------------------------------------------------------------------------------------
 
 void oc_matrix_push(oc_mat2x3 matrix)
+{
+    oc_canvas_data* canvas = __mgCurrentCanvas;
+    if(canvas)
+    {
+        oc_matrix_stack_push(canvas, matrix);
+    }
+}
+
+void oc_matrix_multiply_push(oc_mat2x3 matrix)
 {
     oc_canvas_data* canvas = __mgCurrentCanvas;
     if(canvas)
@@ -1428,7 +1437,7 @@ oc_rect oc_glyph_outlines_from_font_data(oc_font_data* fontData, oc_str32 glyphI
 
                 if(missingGlyphIndex)
                 {
-                    oc_font_get_glyph_metrics_from_font_data(fontData, (oc_str32){.ptr = &missingGlyphIndex , .len = 1}, &missingGlyphMetrics);
+                    oc_font_get_glyph_metrics_from_font_data(fontData, (oc_str32){ .ptr = &missingGlyphIndex, .len = 1 }, &missingGlyphMetrics);
                 }
                 else
                 {

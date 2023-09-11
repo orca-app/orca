@@ -80,7 +80,7 @@ int main()
 
         oc_set_color_rgba(1, 1, 1, 1);
         /*
-			oc_matrix_push((oc_mat2x3){0.707, -0.707, 200,
+			oc_matrix_multiply_push((oc_mat2x3){0.707, -0.707, 200,
 			                           0.707, 0.707, 100});
 			oc_set_image(image);
 			oc_set_image_source_region((oc_rect){500, 500, 2000, 1400});

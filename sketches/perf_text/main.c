@@ -249,7 +249,7 @@ int main()
 		}
 */
 
-        oc_matrix_push((oc_mat2x3){ zoom, 0, 0,
+        oc_matrix_multiply_push((oc_mat2x3){ zoom, 0, 0,
                                     0, zoom, 0 });
 
         oc_set_color_rgba(1, 1, 1, 1);

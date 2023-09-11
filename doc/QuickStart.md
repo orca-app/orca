@@ -91,9 +91,9 @@ For a list of canvas drawing functions, see the [graphics API cheatsheet](../doc
 
 #### Transforms
 
-A special case of attribute setting function is the pair `oc_matrix_push()` and `oc_matrix_pop()`, which are used to manipulate a stack of transform matrices:
+A special case of attribute setting function is the pair `oc_matrix_multiply_push()` and `oc_matrix_pop()`, which are used to manipulate a stack of transform matrices:
 
-- `oc_matrix_push()` multiplies the matrix currently on top of the stack with its argument, and pushes the result on the stack.
+- `oc_matrix_multiply_push()` multiplies the matrix currently on top of the stack with its argument, and pushes the result on the stack.
 - `oc_matrix_pop()` pops a matrix from the stack.
 
 The matrix on the top of the stack at the time a command is encoded is used to transform the path of that command.
@@ -102,7 +102,7 @@ You can see an example of using transform matrices when drawing the clock's hand
 
 ```
     // hours hand
-    oc_matrix_push(mat_transform(centerX, centerY, hoursRotation));
+    oc_matrix_multiply_push(mat_transform(centerX, centerY, hoursRotation));
     {
         oc_set_color_rgba(.2, 0.2, 0.2, 1);
         oc_rounded_rectangle_fill(0, -7.5 * uiScale, clockRadius * 0.5f, 15 * uiScale, 5 * uiScale);

@@ -401,7 +401,7 @@ ORCA_EXPORT void oc_on_frame_refresh(void)
         0, -1, frameSize.y
     };
 
-    oc_matrix_push(yUp);
+    oc_matrix_multiply_push(yUp);
     {
         for(int i = 0; i < NUM_BLOCKS; i++)
         {
@@ -437,7 +437,7 @@ ORCA_EXPORT void oc_on_frame_refresh(void)
             oc_set_font(font);
             oc_set_font_size(18);
             oc_move_to(textPos.x, textPos.y);
-            oc_matrix_push(flip_y_at(textPos));
+            oc_matrix_multiply_push(flip_y_at(textPos));
             {
                 oc_text_outlines(text);
                 oc_fill();
@@ -448,7 +448,7 @@ ORCA_EXPORT void oc_on_frame_refresh(void)
         oc_set_color(paddleColor);
         oc_rounded_rectangle_fill(paddle.x, paddle.y, paddle.w, paddle.h, 4);
 
-        oc_matrix_push(flip_y(ball));
+        oc_matrix_multiply_push(flip_y(ball));
         {
             oc_image_draw(ballImage, ball);
         }
@@ -459,7 +459,7 @@ ORCA_EXPORT void oc_on_frame_refresh(void)
             oc_move_to(20, 20);
             oc_str8 text = oc_str8_pushf(oc_scratch(), "Destroy all %d blocks to win! Current score: %d", NUM_BLOCKS_TO_WIN, score);
             oc_vec2 textPos = { 20, 20 };
-            oc_matrix_push(flip_y_at(textPos));
+            oc_matrix_multiply_push(flip_y_at(textPos));
             {
                 oc_set_color_rgba(0.9, 0.9, 0.9, 1);
                 oc_text_outlines(text);

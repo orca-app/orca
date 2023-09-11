@@ -115,7 +115,7 @@ ORCA_EXPORT void oc_on_frame_refresh(void)
     }
 
     // hours hand
-    oc_matrix_push(mat_transform(centerX, centerY, hoursRotation));
+    oc_matrix_multiply_push(mat_transform(centerX, centerY, hoursRotation));
     {
         oc_set_color_rgba(.2, 0.2, 0.2, 1);
         oc_rounded_rectangle_fill(0, -7.5 * uiScale, clockRadius * 0.5f, 15 * uiScale, 5 * uiScale);
@@ -123,7 +123,7 @@ ORCA_EXPORT void oc_on_frame_refresh(void)
     oc_matrix_pop();
 
     // minutes hand
-    oc_matrix_push(mat_transform(centerX, centerY, minutesRotation));
+    oc_matrix_multiply_push(mat_transform(centerX, centerY, minutesRotation));
     {
         oc_set_color_rgba(.2, 0.2, 0.2, 1);
         oc_rounded_rectangle_fill(0, -5 * uiScale, clockRadius * 0.7f, 10 * uiScale, 5 * uiScale);
@@ -131,7 +131,7 @@ ORCA_EXPORT void oc_on_frame_refresh(void)
     oc_matrix_pop();
 
     // seconds hand
-    oc_matrix_push(mat_transform(centerX, centerY, secondsRotation));
+    oc_matrix_multiply_push(mat_transform(centerX, centerY, secondsRotation));
     {
         oc_set_color_rgba(1, 0.2, 0.2, 1);
         oc_rounded_rectangle_fill(0, -2.5 * uiScale, clockRadius * 0.8f, 5 * uiScale, 5 * uiScale);

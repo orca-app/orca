@@ -1656,7 +1656,7 @@ void oc_ui_checkbox_draw(oc_ui_box* box, void* data)
         box->rect.w, 0, box->rect.x,
         0, box->rect.h, box->rect.y
     };
-    oc_matrix_push(matrix);
+    oc_matrix_multiply_push(matrix);
 
     oc_move_to(0.7255, 0.3045);
     oc_cubic_to(0.7529, 0.3255, 0.7581, 0.3647, 0.7371, 0.3921);
@@ -2175,7 +2175,7 @@ void oc_ui_tooltip_arrow_draw(oc_ui_box* box, void* data)
         -box->rect.w, 0, box->rect.x + box->rect.w + 1,
         0, box->rect.h, box->rect.y
     };
-    oc_matrix_push(matrix);
+    oc_matrix_multiply_push(matrix);
 
     oc_move_to(0, 0);
     oc_line_to(0.0417, 0);
@@ -2421,7 +2421,7 @@ void oc_ui_select_popup_draw_arrow(oc_ui_box* box, void* data)
         box->rect.w / 2, 0, box->rect.x + box->rect.w / 4,
         0, box->rect.h / 2, box->rect.y + box->rect.h / 4
     };
-    oc_matrix_push(matrix);
+    oc_matrix_multiply_push(matrix);
 
     oc_move_to(0.17, 0.3166);
     oc_cubic_to(0.1944, 0.2922, 0.234, 0.2922, 0.2584, 0.3166);
@@ -2447,7 +2447,7 @@ void oc_ui_select_popup_draw_checkmark(oc_ui_box* box, void* data)
         box->rect.w, 0, box->rect.x,
         0, box->rect.h, box->rect.y
     };
-    oc_matrix_push(matrix);
+    oc_matrix_multiply_push(matrix);
 
     oc_move_to(0.8897, 0.1777);
     oc_cubic_to(0.9181, 0.1973, 0.9252, 0.2362, 0.9056, 0.2647);
