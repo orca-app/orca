@@ -98,7 +98,6 @@ static void oc_update_mouse_wheel(oc_input_state* state, f32 deltaX, f32 deltaY)
     oc_mouse_state* mouse = &state->mouse;
     if(mouse->lastUpdate != frameCounter)
     {
-        mouse->posValid = false;
         mouse->delta = (oc_vec2){ 0, 0 };
         mouse->wheel = (oc_vec2){ 0, 0 };
         mouse->lastUpdate = frameCounter;
