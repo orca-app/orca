@@ -128,6 +128,12 @@ def bindgen(apiName, spec, **kwargs):
 					retTypeCName = decl['ret'].get('cname', retTypeName)
 					s += retTypeCName + '* __retPtr = (' + retTypeCName + '*)((char*)_mem + *(i32*)&_sp[0]);\n'
 
+					s += '\t{\n'
+					s += '\t\tOC_ASSERT(((char*)__retPtr >= (char*)_mem) && (((char*)__retPtr - (char*)_mem) < m3_GetMemorySize(runtime)), "return pointer is out of bounds");\n'
+					s += '\t\tOC_ASSERT((char*)__retPtr + sizeof(' + retTypeCName + ') <= ((char*)_mem + m3_GetMemorySize(runtime)), "return pointer is out of bounds");\n'
+					s += '\t}\n'
+
+
 			for argIndex, arg in enumerate(decl['args']):
 
 				argName = arg['name']
@@ -193,7 +199,7 @@ def bindgen(apiName, spec, **kwargs):
 						if typeCName.endswith('**') or (typeCName.startswith('void') == False and typeCName.startswith('const void') == False):
 							s += '*sizeof('+typeCName[:-1]+')'
 
-						s += ' <= ((char*)_mem + m3_GetMemorySize(runtime)), "parameter \''+argName+'\' overflows wasm memory");\n'
+						s += ' <= ((char*)_mem + m3_GetMemorySize(runtime)), "parameter \''+argName+'\' is out of bounds");\n'
 						s += '\t}\n'
 
 			s += '\t'
