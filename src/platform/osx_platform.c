@@ -8,14 +8,13 @@
 #include "platform.h"
 
 #ifdef __cplusplus
-extern "C"
-{
+extern "C" {
 #endif
 
-	oc_host_platform oc_get_host_platform()
-	{
-		return OC_HOST_PLATFORM_MACOS;
-	}
+oc_host_platform oc_get_host_platform(void)
+{
+    return OC_HOST_PLATFORM_MACOS;
+}
 
 #ifdef __cplusplus
 } // extern "C"
