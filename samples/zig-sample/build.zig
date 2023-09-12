@@ -93,7 +93,7 @@ pub fn build(b: *std.Build) !void {
     b.installArtifact(wasm_lib);
 
     // Runs the orca build command
-    const bundle_cmd_str = [_][]const u8{ "orca", "bundle", "--orca-dir", "../..", "--name", "Calc", "--icon", "icon.png", "--resource-dir", "data", "zig-out/lib/module.wasm" };
+    const bundle_cmd_str = [_][]const u8{ "orca", "bundle", "--orca-dir", "../..", "--name", "Sample", "--icon", "icon.png", "--resource-dir", "data", "zig-out/lib/module.wasm" };
     var bundle_cmd = b.addSystemCommand(&bundle_cmd_str);
     bundle_cmd.step.dependOn(b.getInstallStep());
 
