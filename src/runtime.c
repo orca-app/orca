@@ -579,6 +579,7 @@ i32 orca_runloop(void* user)
             switch(event->type)
             {
                 case OC_EVENT_WINDOW_CLOSE:
+                case OC_EVENT_QUIT:
                 {
                     app->quit = true;
                 }

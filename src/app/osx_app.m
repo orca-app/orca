@@ -951,8 +951,6 @@ static void oc_process_mouse_button(NSEvent* nsEvent, oc_window_data* window, oc
         }
         else if([nsEvent charactersIgnoringModifiers] == [NSString stringWithUTF8String:"q"])
         {
-            oc_appData.shouldQuit = true;
-
             oc_event event = {};
             event.type = OC_EVENT_QUIT;
 
@@ -1145,11 +1143,6 @@ void oc_terminate()
 bool oc_should_quit()
 {
     return (oc_appData.shouldQuit);
-}
-
-void oc_do_quit()
-{
-    oc_appData.shouldQuit = true;
 }
 
 void oc_cancel_quit()
