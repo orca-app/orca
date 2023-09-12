@@ -6,6 +6,7 @@ set wasmFlags=--target=wasm32^
        -fno-builtin ^
        -Wl,--no-entry ^
        -Wl,--export-dynamic ^
+       -Wl,--relocatable ^
        -g ^
        -O2 ^
        -mbulk-memory ^

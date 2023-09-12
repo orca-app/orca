@@ -1,17 +1,15 @@
+const std = @import("std");
 const c = @cImport({
     @cDefine("__ORCA__", "");
     @cInclude("orca.h");
 });
 
-// export var oc_rawEvent: c.oc_event = c.oc_rawEvent;
+pub fn log_info(comptime fmt: []const u8, args: anytype, source: std.builtin.SourceLocation) void {
+    var format_buf: [512:0]u8 = undefined;
+    _ = std.fmt.bufPrintZ(&format_buf, fmt, args) catch 0; // just discard NoSpaceLeft error for now
 
-pub fn log_info(fmt: []const u8) void {
-    c.oc_log_ext(c.OC_LOG_LEVEL_INFO, "UnknownFunc", "UnknownFile", 0, fmt.ptr);
+    var line: c_int = @intCast(source.line);
+    c.oc_log_ext(c.OC_LOG_LEVEL_INFO, source.fn_name.ptr, source.file.ptr, line, format_buf[0..].ptr);
 }
 
-// ORCA_API void oc_log_ext(oc_log_level level,
-//                          const char* function,
-//                          const char* file,
-//                          int line,
-//                          const char* fmt,
-//                          ...);
+pub const oc_request_quit = c.oc_request_quit;
