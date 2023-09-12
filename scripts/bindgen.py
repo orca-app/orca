@@ -123,6 +123,11 @@ def bindgen(apiName, spec, **kwargs):
 			if retTag != 'v':
 				firstArgIndex = 1
 
+				if retTag == 'S':
+					retTypeName = decl['ret']['name']
+					retTypeCName = decl['ret'].get('cname', retTypeName)
+					s += retTypeCName + '* __retPtr = (' + retTypeCName + '*)((char*)_mem + *(i32*)&_sp[0]);\n'
+
 			for argIndex, arg in enumerate(decl['args']):
 
 				argName = arg['name']
@@ -202,9 +207,7 @@ def bindgen(apiName, spec, **kwargs):
 			elif retTag == 'F':
 				s += '*((f64*)&_sp[0]) = (f64)'
 			elif retTag == 'S':
-				retTypeName = decl['ret']['name']
-				retTypeCName = decl['ret'].get('cname', retTypeName)
-				s += '*(' + retTypeCName + '*)((char*)_mem + *(i32*)&_sp[0]) = '
+				s += '*__retPtr = '
 			elif retTag == 'p':
 				print("Warning: " + name + ": pointer return type not supported yet")
 
