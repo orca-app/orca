@@ -778,6 +778,16 @@ typedef struct oc_ui_select_popup_info
 
 ORCA_API oc_ui_select_popup_info oc_ui_select_popup(const char* name, oc_ui_select_popup_info* info);
 
+typedef struct oc_ui_radio_group_info
+{
+    bool changed;
+    int selectedIndex; // -1 if nothing is selected
+    int optionCount;
+    oc_str8* options;
+} oc_ui_radio_group_info;
+
+ORCA_API oc_ui_radio_group_info oc_ui_radio_group(const char* name, oc_ui_radio_group_info* info);
+
 #ifdef __cplusplus
 } // extern "C"
 #endif

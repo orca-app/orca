@@ -15,6 +15,7 @@
 #include "util/memory.h"
 
 //NOTE(ilia): Design system by semi.design: https://semi.design/en-US/start/overview
+//            New widgets should support dark and light theme
 
 oc_thread_local oc_ui_context oc_uiThreadContext = { 0 };
 oc_thread_local oc_ui_context* oc_uiCurrentContext = 0;
@@ -536,6 +537,16 @@ void oc_ui_box_set_hot(oc_ui_box* box, bool hot)
 bool oc_ui_box_hot(oc_ui_box* box)
 {
     return (box->hot);
+}
+
+void oc_ui_box_set_dragging(oc_ui_box* box, bool dragging)
+{
+    box->dragging = dragging;
+}
+
+bool oc_ui_box_dragging(oc_ui_box* box)
+{
+    return (box->dragging);
 }
 
 oc_ui_sig oc_ui_box_sig(oc_ui_box* box)
@@ -1320,20 +1331,12 @@ void oc_ui_draw_box(oc_ui_box* box)
     oc_ui_style* style = &box->style;
 
     bool draw = true;
-
     {
         oc_rect clip = oc_clip_top();
-        oc_rect expRect = {
-            box->rect.x - 0.5 * style->borderSize,
-            box->rect.y - 0.5 * style->borderSize,
-            box->rect.w + style->borderSize,
-            box->rect.h + style->borderSize
-        };
-
-        if((expRect.x + expRect.w < clip.x)
-           || (expRect.y + expRect.h < clip.y)
-           || (expRect.x > clip.x + clip.w)
-           || (expRect.y > clip.y + clip.h))
+        if((box->rect.x + box->rect.w < clip.x)
+           || (box->rect.y + box->rect.h < clip.y)
+           || (box->rect.x > clip.x + clip.w)
+           || (box->rect.y > clip.y + clip.h))
         {
             draw = false;
         }
@@ -1344,10 +1347,16 @@ void oc_ui_draw_box(oc_ui_box* box)
         oc_clip_push(box->rect.x, box->rect.y, box->rect.w, box->rect.h);
     }
 
+    oc_rect insetRect = { .x = box->rect.x + style->borderSize / 2,
+                          .y = box->rect.y + style->borderSize / 2,
+                          .w = box->rect.w - style->borderSize,
+                          .h = box->rect.h - style->borderSize };
+    f32 insetRoundness = oc_max(style->roundness - style->borderSize / 2, 0);
+
     if(draw && (box->flags & OC_UI_FLAG_DRAW_BACKGROUND))
     {
         oc_set_color(style->bgColor);
-        oc_ui_rectangle_fill(box->rect, style->roundness);
+        oc_ui_rectangle_fill(insetRect, insetRoundness);
     }
 
     if(draw
@@ -1416,7 +1425,7 @@ void oc_ui_draw_box(oc_ui_box* box)
     {
         oc_set_width(style->borderSize);
         oc_set_color(style->borderColor);
-        oc_ui_rectangle_stroke(box->rect, style->roundness);
+        oc_ui_rectangle_stroke(insetRect, insetRoundness);
     }
 }
 
@@ -2668,6 +2677,116 @@ oc_ui_select_popup_info oc_ui_select_popup(const char* name, oc_ui_select_popup_
         }
         oc_ui_box_set_closed(panel, !oc_ui_box_active(panel));
     }
+    result.changed = result.selectedIndex != info->selectedIndex;
+    return (result);
+}
+
+//------------------------------------------------------------------------------
+// Radio group
+//------------------------------------------------------------------------------
+
+oc_ui_radio_group_info oc_ui_radio_group(const char* name, oc_ui_radio_group_info* info)
+{
+    oc_ui_radio_group_info result = *info;
+
+    oc_ui_context* ui = oc_ui_get_context();
+    oc_ui_theme* theme = ui->theme;
+
+    oc_ui_style_next(&(oc_ui_style){ .layout.axis = OC_UI_AXIS_Y,
+                                     .layout.spacing = 12 },
+                     OC_UI_STYLE_LAYOUT_AXIS
+                         | OC_UI_STYLE_LAYOUT_SPACING);
+    oc_ui_container(name, 0)
+    {
+        for(int i = 0; i < info->optionCount; i++)
+        {
+            oc_ui_style_next(&(oc_ui_style){ .layout.axis = OC_UI_AXIS_X,
+                                             .layout.spacing = 8 },
+                             OC_UI_STYLE_LAYOUT_AXIS
+                                 | OC_UI_STYLE_LAYOUT_SPACING);
+            oc_ui_box* row = oc_ui_box_begin_str8(info->options[i], OC_UI_FLAG_CLICKABLE);
+            oc_ui_box* radio = oc_ui_box_make("radio", OC_UI_FLAG_DRAW_BACKGROUND | OC_UI_FLAG_DRAW_BORDER);
+            
+            oc_ui_sig sig = oc_ui_box_sig(row);
+            if(sig.clicked)
+            {
+                result.selectedIndex = i;
+            }
+
+            oc_ui_box_set_hot(radio, sig.hovering);
+            oc_ui_box_set_dragging(radio, sig.dragging);
+
+            const char* defaultTagStr = "radio";
+            const char* selectedTagStr = "radio_selected";
+            const char* radioTagStr = result.selectedIndex == i ? selectedTagStr : defaultTagStr;
+            oc_ui_tag_box(radio, radioTagStr);
+
+            oc_ui_style baseStyle = { .size.width = { OC_UI_SIZE_PIXELS, 16 },
+                                      .size.height = { OC_UI_SIZE_PIXELS, 16 },
+                                      .roundness = 8 };
+            oc_ui_style_mask baseMask = OC_UI_STYLE_SIZE
+                                      | OC_UI_STYLE_ROUNDNESS;
+            oc_ui_style_box_before(radio, oc_ui_pattern_owner(), &baseStyle, baseMask);
+
+            oc_ui_tag defaultTag = oc_ui_tag_make(defaultTagStr);
+            oc_ui_pattern defaultPattern = { 0 };
+            oc_ui_pattern_push(&ui->frameArena, &defaultPattern, (oc_ui_selector){ .kind = OC_UI_SEL_TAG, .tag = defaultTag });
+            oc_ui_style defaultStyle = { .borderColor = theme->text3,
+                                         .borderSize = 1 };
+            oc_ui_style_mask defaultMask = OC_UI_STYLE_BORDER_COLOR
+                                         | OC_UI_STYLE_BORDER_SIZE;
+            oc_ui_style_box_before(radio, defaultPattern, &defaultStyle, defaultMask);
+
+            oc_ui_pattern hoverPattern = { 0 };
+            oc_ui_pattern_push(&ui->frameArena, &hoverPattern, (oc_ui_selector){ .kind = OC_UI_SEL_TAG, .tag = defaultTag });
+            oc_ui_pattern_push(&ui->frameArena, &hoverPattern, (oc_ui_selector){ .op = OC_UI_SEL_AND, .kind = OC_UI_SEL_STATUS, .status = OC_UI_HOVER });
+            oc_ui_style hoverStyle = { .bgColor = theme->fill0,
+                                       .borderColor = theme->primary };
+            oc_ui_style_mask hoverMask = OC_UI_STYLE_BG_COLOR
+                                       | OC_UI_STYLE_BORDER_COLOR;
+            oc_ui_style_box_after(radio, hoverPattern, &hoverStyle, hoverMask);
+
+            oc_ui_pattern draggingPattern = { 0 };
+            oc_ui_pattern_push(&ui->frameArena, &draggingPattern, (oc_ui_selector){ .kind = OC_UI_SEL_TAG, .tag = defaultTag });
+            oc_ui_pattern_push(&ui->frameArena, &draggingPattern, (oc_ui_selector){ .op = OC_UI_SEL_AND, .kind = OC_UI_SEL_STATUS, .status = OC_UI_DRAGGING });
+            oc_ui_style draggingStyle = { .bgColor = theme->fill1,
+                                          .borderColor = theme->primary };
+            oc_ui_style_mask draggingMask = OC_UI_STYLE_BG_COLOR
+                                          | OC_UI_STYLE_BORDER_COLOR;
+            oc_ui_style_box_after(radio, draggingPattern, &draggingStyle, draggingMask);
+
+            oc_ui_tag selectedTag = oc_ui_tag_make(selectedTagStr);
+            oc_ui_pattern selectedPattern = { 0 };
+            oc_ui_pattern_push(&ui->frameArena, &selectedPattern, (oc_ui_selector){ .kind = OC_UI_SEL_TAG, .tag = selectedTag });
+            oc_ui_style selectedStyle = { .bgColor = theme->palette->white,
+                                          .borderColor = theme->primary,
+                                          .borderSize = 4.6666666666667 };
+            oc_ui_style_mask selectedMask = OC_UI_STYLE_BG_COLOR
+                                          | OC_UI_STYLE_BORDER_COLOR
+                                          | OC_UI_STYLE_BORDER_SIZE;
+            oc_ui_style_box_before(radio, selectedPattern, &selectedStyle, selectedMask);
+
+            oc_ui_pattern selectedHoverPattern = { 0 };
+            oc_ui_pattern_push(&ui->frameArena, &selectedHoverPattern, (oc_ui_selector){ .kind = OC_UI_SEL_TAG, .tag = selectedTag });
+            oc_ui_pattern_push(&ui->frameArena, &selectedHoverPattern, (oc_ui_selector){ .op = OC_UI_SEL_AND, .kind = OC_UI_SEL_STATUS, .status = OC_UI_HOVER });
+            oc_ui_style selectedHoverStyle = { .borderColor = theme->primaryHover };
+            oc_ui_style_box_after(radio, selectedHoverPattern, &selectedHoverStyle, OC_UI_STYLE_BORDER_COLOR);
+
+            oc_ui_pattern selectedDraggingPattern = { 0 };
+            oc_ui_pattern_push(&ui->frameArena, &selectedDraggingPattern, (oc_ui_selector){ .kind = OC_UI_SEL_TAG, .tag = selectedTag });
+            oc_ui_pattern_push(&ui->frameArena, &selectedDraggingPattern, (oc_ui_selector){ .op = OC_UI_SEL_AND, .kind = OC_UI_SEL_STATUS, .status = OC_UI_DRAGGING });
+            oc_ui_style selectedDraggingStyle = { .borderColor = theme->primaryActive };
+            oc_ui_style_box_after(radio, selectedDraggingPattern, &selectedDraggingStyle, OC_UI_STYLE_BORDER_COLOR);
+
+            oc_ui_container("label", 0)
+            {
+                oc_ui_label_str8(info->options[i]);
+            }
+
+            oc_ui_box_end(); // row
+        }
+    }
+    result.changed = result.selectedIndex != info->selectedIndex;
     return (result);
 }
 

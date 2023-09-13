@@ -14,6 +14,7 @@ oc_canvas canvas;
 oc_font font;
 oc_ui_context ui;
 oc_arena textArena = { 0 };
+oc_ui_theme* theme = &OC_UI_DARK_THEME;
 
 ORCA_EXPORT void oc_on_init(void)
 {
@@ -86,6 +87,7 @@ void widget_end_view(void)
 ORCA_EXPORT void oc_on_frame_refresh(void)
 {
     oc_arena_scope scratch = oc_scratch_begin();
+    oc_ui_set_theme(theme);
 
     oc_ui_style defaultStyle = { .font = font };
 
@@ -184,7 +186,7 @@ ORCA_EXPORT void oc_on_frame_refresh(void)
 
                     oc_ui_container("up", OC_UI_FLAG_NONE)
                     {
-                        oc_ui_style_next(&(oc_ui_style){ .size.width = { OC_UI_SIZE_PARENT, 0.5 },
+                        oc_ui_style_next(&(oc_ui_style){ .size.width = { OC_UI_SIZE_PARENT, 0.33 },
                                                          .size.height = { OC_UI_SIZE_PARENT, 1 } },
                                          OC_UI_STYLE_SIZE);
                         widget_view("Buttons")
@@ -205,7 +207,7 @@ ORCA_EXPORT void oc_on_frame_refresh(void)
                             }
                         }
 
-                        oc_ui_style_next(&(oc_ui_style){ .size.width = { OC_UI_SIZE_PARENT, 0.5 },
+                        oc_ui_style_next(&(oc_ui_style){ .size.width = { OC_UI_SIZE_PARENT, 0.33 },
                                                          .size.height = { OC_UI_SIZE_PARENT, 1 } },
                                          OC_UI_STYLE_SIZE);
 
@@ -218,6 +220,24 @@ ORCA_EXPORT void oc_on_frame_refresh(void)
                             oc_ui_checkbox("check1", &check1);
                             oc_ui_checkbox("check2", &check2);
                             oc_ui_checkbox("check3", &check3);
+                        }
+
+                        oc_ui_style_next(&(oc_ui_style){ .size.width = { OC_UI_SIZE_PARENT, 0.33 },
+                                                         .size.height = { OC_UI_SIZE_PARENT, 1 } },
+                                         OC_UI_STYLE_SIZE);
+
+                        widget_view("Radio group")
+                        {
+                            static int radioSelected = 0;
+                            oc_str8 options[] = { OC_STR8("Dark theme"),
+                                                  OC_STR8("Light theme") };
+                            oc_ui_radio_group_info info = { .selectedIndex = radioSelected,
+                                                            .optionCount = 2,
+                                                            .options = options };
+
+                            oc_ui_radio_group_info result = oc_ui_radio_group("radio_group", &info);
+                            radioSelected = result.selectedIndex;
+                            theme = radioSelected == 0 ? &OC_UI_DARK_THEME : &OC_UI_LIGHT_THEME;
                         }
                     }
 
