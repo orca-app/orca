@@ -1331,12 +1331,20 @@ void oc_ui_draw_box(oc_ui_box* box)
     oc_ui_style* style = &box->style;
 
     bool draw = true;
+
     {
         oc_rect clip = oc_clip_top();
-        if((box->rect.x + box->rect.w < clip.x)
-           || (box->rect.y + box->rect.h < clip.y)
-           || (box->rect.x > clip.x + clip.w)
-           || (box->rect.y > clip.y + clip.h))
+        oc_rect expRect = {
+            box->rect.x - 0.5 * style->borderSize,
+            box->rect.y - 0.5 * style->borderSize,
+            box->rect.w + style->borderSize,
+            box->rect.h + style->borderSize
+        };
+
+        if((expRect.x + expRect.w < clip.x)
+           || (expRect.y + expRect.h < clip.y)
+           || (expRect.x > clip.x + clip.w)
+           || (expRect.y > clip.y + clip.h))
         {
             draw = false;
         }
@@ -1347,16 +1355,10 @@ void oc_ui_draw_box(oc_ui_box* box)
         oc_clip_push(box->rect.x, box->rect.y, box->rect.w, box->rect.h);
     }
 
-    oc_rect insetRect = { .x = box->rect.x + style->borderSize / 2,
-                          .y = box->rect.y + style->borderSize / 2,
-                          .w = box->rect.w - style->borderSize,
-                          .h = box->rect.h - style->borderSize };
-    f32 insetRoundness = oc_max(style->roundness - style->borderSize / 2, 0);
-
     if(draw && (box->flags & OC_UI_FLAG_DRAW_BACKGROUND))
     {
         oc_set_color(style->bgColor);
-        oc_ui_rectangle_fill(insetRect, insetRoundness);
+        oc_ui_rectangle_fill(box->rect, style->roundness);
     }
 
     if(draw
@@ -1425,7 +1427,7 @@ void oc_ui_draw_box(oc_ui_box* box)
     {
         oc_set_width(style->borderSize);
         oc_set_color(style->borderColor);
-        oc_ui_rectangle_stroke(insetRect, insetRoundness);
+        oc_ui_rectangle_stroke(box->rect, style->roundness);
     }
 }
 
@@ -2685,6 +2687,20 @@ oc_ui_select_popup_info oc_ui_select_popup(const char* name, oc_ui_select_popup_
 // Radio group
 //------------------------------------------------------------------------------
 
+void oc_ui_radio_indicator_draw(oc_ui_box* box, void* data)
+{
+    oc_mat2x3 matrix = {
+        box->rect.w, 0, box->rect.x,
+        0, box->rect.h, box->rect.y
+    };
+    oc_matrix_multiply_push(matrix);
+
+    oc_set_color(box->style.color);
+    oc_circle_fill(0.5, 0.5, 35.0 / 192);
+
+    oc_matrix_pop();
+}
+
 oc_ui_radio_group_info oc_ui_radio_group(const char* name, oc_ui_radio_group_info* info)
 {
     oc_ui_radio_group_info result = *info;
@@ -2705,7 +2721,9 @@ oc_ui_radio_group_info oc_ui_radio_group(const char* name, oc_ui_radio_group_inf
                              OC_UI_STYLE_LAYOUT_AXIS
                                  | OC_UI_STYLE_LAYOUT_SPACING);
             oc_ui_box* row = oc_ui_box_begin_str8(info->options[i], OC_UI_FLAG_CLICKABLE);
-            oc_ui_box* radio = oc_ui_box_make("radio", OC_UI_FLAG_DRAW_BACKGROUND | OC_UI_FLAG_DRAW_BORDER);
+            oc_ui_flags flags = OC_UI_FLAG_DRAW_BACKGROUND | OC_UI_FLAG_DRAW_BORDER | OC_UI_FLAG_DRAW_PROC;
+            oc_ui_box* radio = oc_ui_box_make("radio", flags);
+            oc_ui_box_set_draw_proc(radio, oc_ui_radio_indicator_draw, 0);
             
             oc_ui_sig sig = oc_ui_box_sig(row);
             if(sig.clicked)
@@ -2723,9 +2741,11 @@ oc_ui_radio_group_info oc_ui_radio_group(const char* name, oc_ui_radio_group_inf
 
             oc_ui_style baseStyle = { .size.width = { OC_UI_SIZE_PIXELS, 16 },
                                       .size.height = { OC_UI_SIZE_PIXELS, 16 },
+                                      .color = { 0, 0, 0, 0 },
                                       .roundness = 8 };
             oc_ui_style_mask baseMask = OC_UI_STYLE_SIZE
-                                      | OC_UI_STYLE_ROUNDNESS;
+                                      | OC_UI_STYLE_ROUNDNESS
+                                      | OC_UI_STYLE_COLOR;
             oc_ui_style_box_before(radio, oc_ui_pattern_owner(), &baseStyle, baseMask);
 
             oc_ui_tag defaultTag = oc_ui_tag_make(defaultTagStr);
@@ -2758,25 +2778,23 @@ oc_ui_radio_group_info oc_ui_radio_group(const char* name, oc_ui_radio_group_inf
             oc_ui_tag selectedTag = oc_ui_tag_make(selectedTagStr);
             oc_ui_pattern selectedPattern = { 0 };
             oc_ui_pattern_push(&ui->frameArena, &selectedPattern, (oc_ui_selector){ .kind = OC_UI_SEL_TAG, .tag = selectedTag });
-            oc_ui_style selectedStyle = { .bgColor = theme->palette->white,
-                                          .borderColor = theme->primary,
-                                          .borderSize = 4.6666666666667 };
-            oc_ui_style_mask selectedMask = OC_UI_STYLE_BG_COLOR
-                                          | OC_UI_STYLE_BORDER_COLOR
-                                          | OC_UI_STYLE_BORDER_SIZE;
+            oc_ui_style selectedStyle = { .color = theme->palette->white,
+                                          .bgColor = theme->primary };
+            oc_ui_style_mask selectedMask = OC_UI_STYLE_COLOR
+                                          | OC_UI_STYLE_BG_COLOR;
             oc_ui_style_box_before(radio, selectedPattern, &selectedStyle, selectedMask);
 
             oc_ui_pattern selectedHoverPattern = { 0 };
             oc_ui_pattern_push(&ui->frameArena, &selectedHoverPattern, (oc_ui_selector){ .kind = OC_UI_SEL_TAG, .tag = selectedTag });
             oc_ui_pattern_push(&ui->frameArena, &selectedHoverPattern, (oc_ui_selector){ .op = OC_UI_SEL_AND, .kind = OC_UI_SEL_STATUS, .status = OC_UI_HOVER });
-            oc_ui_style selectedHoverStyle = { .borderColor = theme->primaryHover };
-            oc_ui_style_box_after(radio, selectedHoverPattern, &selectedHoverStyle, OC_UI_STYLE_BORDER_COLOR);
+            oc_ui_style selectedHoverStyle = { .bgColor = theme->primaryHover };
+            oc_ui_style_box_after(radio, selectedHoverPattern, &selectedHoverStyle, OC_UI_STYLE_BG_COLOR);
 
             oc_ui_pattern selectedDraggingPattern = { 0 };
             oc_ui_pattern_push(&ui->frameArena, &selectedDraggingPattern, (oc_ui_selector){ .kind = OC_UI_SEL_TAG, .tag = selectedTag });
             oc_ui_pattern_push(&ui->frameArena, &selectedDraggingPattern, (oc_ui_selector){ .op = OC_UI_SEL_AND, .kind = OC_UI_SEL_STATUS, .status = OC_UI_DRAGGING });
-            oc_ui_style selectedDraggingStyle = { .borderColor = theme->primaryActive };
-            oc_ui_style_box_after(radio, selectedDraggingPattern, &selectedDraggingStyle, OC_UI_STYLE_BORDER_COLOR);
+            oc_ui_style selectedDraggingStyle = { .bgColor = theme->primaryActive };
+            oc_ui_style_box_after(radio, selectedDraggingPattern, &selectedDraggingStyle, OC_UI_STYLE_BG_COLOR);
 
             oc_ui_container("label", 0)
             {
