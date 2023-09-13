@@ -17,9 +17,10 @@ oc_wasm_str8 oc_runtime_clipboard_get_string(oc_runtime_clipboard* clipboard, oc
     {
         oc_arena_scope scratch = oc_scratch_begin();
         oc_str8 value = oc_clipboard_get_string(scratch.arena);
-        oc_wasm_addr valueAddr = oc_wasm_arena_push(wasmArena, value.len);
-        char* valuePtr = (char*)oc_wasm_address_to_ptr(valueAddr, value.len);
+        oc_wasm_addr valueAddr = oc_wasm_arena_push(wasmArena, value.len + 1);
+        char* valuePtr = (char*)oc_wasm_address_to_ptr(valueAddr, value.len + 1);
         memcpy(valuePtr, value.ptr, value.len);
+        valuePtr[value.len] = '\0';
         oc_scratch_end(scratch);
         result = (oc_wasm_str8){ .ptr = valueAddr,
                                  .len = value.len };
