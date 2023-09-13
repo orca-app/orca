@@ -2778,15 +2778,29 @@ const oc_ui_edit_command OC_UI_EDIT_COMMANDS_MACOS[] = {
         .direction = 1 },
     //NOTE(martin): move start
     {
-        .key = OC_KEY_Q,
+        .key = OC_KEY_A,
         .mods = OC_KEYMOD_CTRL,
         .operation = OC_UI_EDIT_MOVE,
         .move = OC_UI_EDIT_MOVE_LINE,
         .direction = -1 },
+
     { .key = OC_KEY_UP,
       .operation = OC_UI_EDIT_MOVE,
       .move = OC_UI_EDIT_MOVE_LINE,
       .direction = -1 },
+
+    { .key = OC_KEY_UP,
+      .mods = OC_KEYMOD_CMD,
+      .operation = OC_UI_EDIT_MOVE,
+      .move = OC_UI_EDIT_MOVE_LINE,
+      .direction = -1 },
+
+    { .key = OC_KEY_LEFT,
+      .mods = OC_KEYMOD_CMD,
+      .operation = OC_UI_EDIT_MOVE,
+      .move = OC_UI_EDIT_MOVE_LINE,
+      .direction = -1 },
+
     //NOTE(martin): move end
     {
         .key = OC_KEY_E,
@@ -2794,10 +2808,24 @@ const oc_ui_edit_command OC_UI_EDIT_COMMANDS_MACOS[] = {
         .operation = OC_UI_EDIT_MOVE,
         .move = OC_UI_EDIT_MOVE_LINE,
         .direction = 1 },
+
     { .key = OC_KEY_DOWN,
       .operation = OC_UI_EDIT_MOVE,
       .move = OC_UI_EDIT_MOVE_LINE,
       .direction = 1 },
+
+    { .key = OC_KEY_DOWN,
+      .mods = OC_KEYMOD_CMD,
+      .operation = OC_UI_EDIT_MOVE,
+      .move = OC_UI_EDIT_MOVE_LINE,
+      .direction = 1 },
+
+    { .key = OC_KEY_RIGHT,
+      .mods = OC_KEYMOD_CMD,
+      .operation = OC_UI_EDIT_MOVE,
+      .move = OC_UI_EDIT_MOVE_LINE,
+      .direction = 1 },
+
     //NOTE(martin): select one left
     {
         .key = OC_KEY_LEFT,
@@ -2828,13 +2856,26 @@ const oc_ui_edit_command OC_UI_EDIT_COMMANDS_MACOS[] = {
         .direction = 1 },
     //NOTE(martin): extend select to start
     {
-        .key = OC_KEY_Q,
+        .key = OC_KEY_A,
         .mods = OC_KEYMOD_CTRL | OC_KEYMOD_SHIFT,
         .operation = OC_UI_EDIT_SELECT_EXTEND,
         .move = OC_UI_EDIT_MOVE_LINE,
         .direction = -1 },
+
     { .key = OC_KEY_UP,
       .mods = OC_KEYMOD_SHIFT,
+      .operation = OC_UI_EDIT_SELECT_EXTEND,
+      .move = OC_UI_EDIT_MOVE_LINE,
+      .direction = -1 },
+
+    { .key = OC_KEY_UP,
+      .mods = OC_KEYMOD_CMD | OC_KEYMOD_SHIFT,
+      .operation = OC_UI_EDIT_SELECT_EXTEND,
+      .move = OC_UI_EDIT_MOVE_LINE,
+      .direction = -1 },
+
+    { .key = OC_KEY_LEFT,
+      .mods = OC_KEYMOD_CMD | OC_KEYMOD_SHIFT,
       .operation = OC_UI_EDIT_SELECT_EXTEND,
       .move = OC_UI_EDIT_MOVE_LINE,
       .direction = -1 },
@@ -2845,14 +2886,28 @@ const oc_ui_edit_command OC_UI_EDIT_COMMANDS_MACOS[] = {
         .operation = OC_UI_EDIT_SELECT_EXTEND,
         .move = OC_UI_EDIT_MOVE_LINE,
         .direction = 1 },
+
     { .key = OC_KEY_DOWN,
       .mods = OC_KEYMOD_SHIFT,
       .operation = OC_UI_EDIT_SELECT_EXTEND,
       .move = OC_UI_EDIT_MOVE_LINE,
       .direction = 1 },
+
+    { .key = OC_KEY_DOWN,
+      .mods = OC_KEYMOD_CMD | OC_KEYMOD_SHIFT,
+      .operation = OC_UI_EDIT_SELECT_EXTEND,
+      .move = OC_UI_EDIT_MOVE_LINE,
+      .direction = 1 },
+
+    { .key = OC_KEY_RIGHT,
+      .mods = OC_KEYMOD_CMD | OC_KEYMOD_SHIFT,
+      .operation = OC_UI_EDIT_SELECT_EXTEND,
+      .move = OC_UI_EDIT_MOVE_LINE,
+      .direction = 1 },
+
     //NOTE(martin): select all
     {
-        .key = OC_KEY_Q,
+        .key = OC_KEY_A,
         .mods = OC_KEYMOD_CMD,
         .operation = OC_UI_EDIT_SELECT_ALL,
         .move = OC_UI_EDIT_MOVE_NONE },
@@ -2945,6 +3000,7 @@ const oc_ui_edit_command OC_UI_EDIT_COMMANDS_WINDOWS[] = {
         .operation = OC_UI_EDIT_MOVE,
         .move = OC_UI_EDIT_MOVE_LINE,
         .direction = 1 },
+
     { .key = OC_KEY_DOWN,
       .operation = OC_UI_EDIT_MOVE,
       .move = OC_UI_EDIT_MOVE_LINE,
@@ -3178,7 +3234,7 @@ oc_str32 oc_ui_edit_perform_operation(oc_ui_context* ui, oc_ui_edit_op operation
         case OC_UI_EDIT_MOVE:
         {
             bool wasSelectionEmpty = ui->editCursor == ui->editMark;
-            
+
             //NOTE(martin): we place the cursor on the direction-most side of the selection
             //              before performing the move
             u32 cursor = direction < 0 ? oc_min(ui->editCursor, ui->editMark) : oc_max(ui->editCursor, ui->editMark);
