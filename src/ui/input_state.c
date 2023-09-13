@@ -140,7 +140,7 @@ void oc_input_process_event(oc_input_state* state, oc_event* event)
     {
         case OC_EVENT_KEYBOARD_KEY:
         {
-            oc_key_state* key = &state->keyboard.keys[event->key.code];
+            oc_key_state* key = &state->keyboard.keys[event->key.keyCode];
             oc_update_key_state(state, key, event->key.action);
             oc_update_key_mods(state, event->key.mods);
         }
@@ -168,7 +168,7 @@ void oc_input_process_event(oc_input_state* state, oc_event* event)
 
         case OC_EVENT_MOUSE_BUTTON:
         {
-            oc_key_state* key = &state->mouse.buttons[event->key.code];
+            oc_key_state* key = &state->mouse.buttons[event->key.button];
             oc_update_key_state(state, key, event->key.action);
 
             if(event->key.action == OC_KEY_PRESS)
@@ -288,6 +288,30 @@ int oc_key_repeated(oc_input_state* input, oc_key_code key)
     return (res);
 }
 
+bool oc_key_down_scancode(oc_input_state* state, oc_scan_code scanCode)
+{
+    oc_key_code key = oc_scancode_to_keycode(scanCode);
+    return (oc_key_down(state, key));
+}
+
+int oc_key_pressed_scancode(oc_input_state* state, oc_scan_code scanCode)
+{
+    oc_key_code key = oc_scancode_to_keycode(scanCode);
+    return (oc_key_pressed(state, key));
+}
+
+int oc_key_released_scancode(oc_input_state* state, oc_scan_code scanCode)
+{
+    oc_key_code key = oc_scancode_to_keycode(scanCode);
+    return (oc_key_released(state, key));
+}
+
+int oc_key_repeated_scancode(oc_input_state* state, oc_scan_code scanCode)
+{
+    oc_key_code key = oc_scancode_to_keycode(scanCode);
+    return (oc_key_repeated(state, key));
+}
+
 bool oc_mouse_down(oc_input_state* input, oc_mouse_button button)
 {
     oc_key_state state = oc_mouse_button_get_state(input, button);
@@ -338,11 +362,11 @@ oc_vec2 oc_mouse_position(oc_input_state* input)
 {
     if(input->mouse.posValid)
     {
-       return (input->mouse.pos);
+        return (input->mouse.pos);
     }
     else
     {
-       return ((oc_vec2){ -1, -1 });
+        return ((oc_vec2){ -1, -1 });
     }
 }
 

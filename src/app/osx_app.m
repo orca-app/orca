@@ -55,143 +55,133 @@ static u32 oc_osx_get_window_style_mask(oc_window_style style)
 
 static void oc_init_osx_keys()
 {
-    memset(oc_appData.keyCodes, OC_KEY_UNKNOWN, 256 * sizeof(int));
+    memset(oc_appData.scanCodes, OC_SCANCODE_UNKNOWN, 256 * sizeof(int));
 
-    oc_appData.keyCodes[0x1D] = OC_KEY_0;
-    oc_appData.keyCodes[0x12] = OC_KEY_1;
-    oc_appData.keyCodes[0x13] = OC_KEY_2;
-    oc_appData.keyCodes[0x14] = OC_KEY_3;
-    oc_appData.keyCodes[0x15] = OC_KEY_4;
-    oc_appData.keyCodes[0x17] = OC_KEY_5;
-    oc_appData.keyCodes[0x16] = OC_KEY_6;
-    oc_appData.keyCodes[0x1A] = OC_KEY_7;
-    oc_appData.keyCodes[0x1C] = OC_KEY_8;
-    oc_appData.keyCodes[0x19] = OC_KEY_9;
-    oc_appData.keyCodes[0x00] = OC_KEY_A;
-    oc_appData.keyCodes[0x0B] = OC_KEY_B;
-    oc_appData.keyCodes[0x08] = OC_KEY_C;
-    oc_appData.keyCodes[0x02] = OC_KEY_D;
-    oc_appData.keyCodes[0x0E] = OC_KEY_E;
-    oc_appData.keyCodes[0x03] = OC_KEY_F;
-    oc_appData.keyCodes[0x05] = OC_KEY_G;
-    oc_appData.keyCodes[0x04] = OC_KEY_H;
-    oc_appData.keyCodes[0x22] = OC_KEY_I;
-    oc_appData.keyCodes[0x26] = OC_KEY_J;
-    oc_appData.keyCodes[0x28] = OC_KEY_K;
-    oc_appData.keyCodes[0x25] = OC_KEY_L;
-    oc_appData.keyCodes[0x2E] = OC_KEY_M;
-    oc_appData.keyCodes[0x2D] = OC_KEY_N;
-    oc_appData.keyCodes[0x1F] = OC_KEY_O;
-    oc_appData.keyCodes[0x23] = OC_KEY_P;
-    oc_appData.keyCodes[0x0C] = OC_KEY_Q;
-    oc_appData.keyCodes[0x0F] = OC_KEY_R;
-    oc_appData.keyCodes[0x01] = OC_KEY_S;
-    oc_appData.keyCodes[0x11] = OC_KEY_T;
-    oc_appData.keyCodes[0x20] = OC_KEY_U;
-    oc_appData.keyCodes[0x09] = OC_KEY_V;
-    oc_appData.keyCodes[0x0D] = OC_KEY_W;
-    oc_appData.keyCodes[0x07] = OC_KEY_X;
-    oc_appData.keyCodes[0x10] = OC_KEY_Y;
-    oc_appData.keyCodes[0x06] = OC_KEY_Z;
+    oc_appData.scanCodes[0x1D] = OC_SCANCODE_0;
+    oc_appData.scanCodes[0x12] = OC_SCANCODE_1;
+    oc_appData.scanCodes[0x13] = OC_SCANCODE_2;
+    oc_appData.scanCodes[0x14] = OC_SCANCODE_3;
+    oc_appData.scanCodes[0x15] = OC_SCANCODE_4;
+    oc_appData.scanCodes[0x17] = OC_SCANCODE_5;
+    oc_appData.scanCodes[0x16] = OC_SCANCODE_6;
+    oc_appData.scanCodes[0x1A] = OC_SCANCODE_7;
+    oc_appData.scanCodes[0x1C] = OC_SCANCODE_8;
+    oc_appData.scanCodes[0x19] = OC_SCANCODE_9;
+    oc_appData.scanCodes[0x00] = OC_SCANCODE_A;
+    oc_appData.scanCodes[0x0B] = OC_SCANCODE_B;
+    oc_appData.scanCodes[0x08] = OC_SCANCODE_C;
+    oc_appData.scanCodes[0x02] = OC_SCANCODE_D;
+    oc_appData.scanCodes[0x0E] = OC_SCANCODE_E;
+    oc_appData.scanCodes[0x03] = OC_SCANCODE_F;
+    oc_appData.scanCodes[0x05] = OC_SCANCODE_G;
+    oc_appData.scanCodes[0x04] = OC_SCANCODE_H;
+    oc_appData.scanCodes[0x22] = OC_SCANCODE_I;
+    oc_appData.scanCodes[0x26] = OC_SCANCODE_J;
+    oc_appData.scanCodes[0x28] = OC_SCANCODE_K;
+    oc_appData.scanCodes[0x25] = OC_SCANCODE_L;
+    oc_appData.scanCodes[0x2E] = OC_SCANCODE_M;
+    oc_appData.scanCodes[0x2D] = OC_SCANCODE_N;
+    oc_appData.scanCodes[0x1F] = OC_SCANCODE_O;
+    oc_appData.scanCodes[0x23] = OC_SCANCODE_P;
+    oc_appData.scanCodes[0x0C] = OC_SCANCODE_Q;
+    oc_appData.scanCodes[0x0F] = OC_SCANCODE_R;
+    oc_appData.scanCodes[0x01] = OC_SCANCODE_S;
+    oc_appData.scanCodes[0x11] = OC_SCANCODE_T;
+    oc_appData.scanCodes[0x20] = OC_SCANCODE_U;
+    oc_appData.scanCodes[0x09] = OC_SCANCODE_V;
+    oc_appData.scanCodes[0x0D] = OC_SCANCODE_W;
+    oc_appData.scanCodes[0x07] = OC_SCANCODE_X;
+    oc_appData.scanCodes[0x10] = OC_SCANCODE_Y;
+    oc_appData.scanCodes[0x06] = OC_SCANCODE_Z;
 
-    oc_appData.keyCodes[0x27] = OC_KEY_APOSTROPHE;
-    oc_appData.keyCodes[0x2A] = OC_KEY_BACKSLASH;
-    oc_appData.keyCodes[0x2B] = OC_KEY_COMMA;
-    oc_appData.keyCodes[0x18] = OC_KEY_EQUAL;
-    oc_appData.keyCodes[0x32] = OC_KEY_GRAVE_ACCENT;
-    oc_appData.keyCodes[0x21] = OC_KEY_LEFT_BRACKET;
-    oc_appData.keyCodes[0x1B] = OC_KEY_MINUS;
-    oc_appData.keyCodes[0x2F] = OC_KEY_PERIOD;
-    oc_appData.keyCodes[0x1E] = OC_KEY_RIGHT_BRACKET;
-    oc_appData.keyCodes[0x29] = OC_KEY_SEMICOLON;
-    oc_appData.keyCodes[0x2C] = OC_KEY_SLASH;
-    oc_appData.keyCodes[0x0A] = OC_KEY_WORLD_1;
+    oc_appData.scanCodes[0x27] = OC_SCANCODE_APOSTROPHE;
+    oc_appData.scanCodes[0x2A] = OC_SCANCODE_BACKSLASH;
+    oc_appData.scanCodes[0x2B] = OC_SCANCODE_COMMA;
+    oc_appData.scanCodes[0x18] = OC_SCANCODE_EQUAL;
+    oc_appData.scanCodes[0x32] = OC_SCANCODE_GRAVE_ACCENT;
+    oc_appData.scanCodes[0x21] = OC_SCANCODE_LEFT_BRACKET;
+    oc_appData.scanCodes[0x1B] = OC_SCANCODE_MINUS;
+    oc_appData.scanCodes[0x2F] = OC_SCANCODE_PERIOD;
+    oc_appData.scanCodes[0x1E] = OC_SCANCODE_RIGHT_BRACKET;
+    oc_appData.scanCodes[0x29] = OC_SCANCODE_SEMICOLON;
+    oc_appData.scanCodes[0x2C] = OC_SCANCODE_SLASH;
+    oc_appData.scanCodes[0x0A] = OC_SCANCODE_WORLD_1;
 
-    oc_appData.keyCodes[0x33] = OC_KEY_BACKSPACE;
-    oc_appData.keyCodes[0x39] = OC_KEY_CAPS_LOCK;
-    oc_appData.keyCodes[0x75] = OC_KEY_DELETE;
-    oc_appData.keyCodes[0x7D] = OC_KEY_DOWN;
-    oc_appData.keyCodes[0x77] = OC_KEY_END;
-    oc_appData.keyCodes[0x24] = OC_KEY_ENTER;
-    oc_appData.keyCodes[0x35] = OC_KEY_ESCAPE;
-    oc_appData.keyCodes[0x7A] = OC_KEY_F1;
-    oc_appData.keyCodes[0x78] = OC_KEY_F2;
-    oc_appData.keyCodes[0x63] = OC_KEY_F3;
-    oc_appData.keyCodes[0x76] = OC_KEY_F4;
-    oc_appData.keyCodes[0x60] = OC_KEY_F5;
-    oc_appData.keyCodes[0x61] = OC_KEY_F6;
-    oc_appData.keyCodes[0x62] = OC_KEY_F7;
-    oc_appData.keyCodes[0x64] = OC_KEY_F8;
-    oc_appData.keyCodes[0x65] = OC_KEY_F9;
-    oc_appData.keyCodes[0x6D] = OC_KEY_F10;
-    oc_appData.keyCodes[0x67] = OC_KEY_F11;
-    oc_appData.keyCodes[0x6F] = OC_KEY_F12;
-    oc_appData.keyCodes[0x69] = OC_KEY_F13;
-    oc_appData.keyCodes[0x6B] = OC_KEY_F14;
-    oc_appData.keyCodes[0x71] = OC_KEY_F15;
-    oc_appData.keyCodes[0x6A] = OC_KEY_F16;
-    oc_appData.keyCodes[0x40] = OC_KEY_F17;
-    oc_appData.keyCodes[0x4F] = OC_KEY_F18;
-    oc_appData.keyCodes[0x50] = OC_KEY_F19;
-    oc_appData.keyCodes[0x5A] = OC_KEY_F20;
-    oc_appData.keyCodes[0x73] = OC_KEY_HOME;
-    oc_appData.keyCodes[0x72] = OC_KEY_INSERT;
-    oc_appData.keyCodes[0x7B] = OC_KEY_LEFT;
-    oc_appData.keyCodes[0x3A] = OC_KEY_LEFT_ALT;
-    oc_appData.keyCodes[0x3B] = OC_KEY_LEFT_CONTROL;
-    oc_appData.keyCodes[0x38] = OC_KEY_LEFT_SHIFT;
-    oc_appData.keyCodes[0x37] = OC_KEY_LEFT_SUPER;
-    oc_appData.keyCodes[0x6E] = OC_KEY_MENU;
-    oc_appData.keyCodes[0x47] = OC_KEY_NUM_LOCK;
-    oc_appData.keyCodes[0x79] = OC_KEY_PAGE_DOWN;
-    oc_appData.keyCodes[0x74] = OC_KEY_PAGE_UP;
-    oc_appData.keyCodes[0x7C] = OC_KEY_RIGHT;
-    oc_appData.keyCodes[0x3D] = OC_KEY_RIGHT_ALT;
-    oc_appData.keyCodes[0x3E] = OC_KEY_RIGHT_CONTROL;
-    oc_appData.keyCodes[0x3C] = OC_KEY_RIGHT_SHIFT;
-    oc_appData.keyCodes[0x36] = OC_KEY_RIGHT_SUPER;
-    oc_appData.keyCodes[0x31] = OC_KEY_SPACE;
-    oc_appData.keyCodes[0x30] = OC_KEY_TAB;
-    oc_appData.keyCodes[0x7E] = OC_KEY_UP;
+    oc_appData.scanCodes[0x33] = OC_SCANCODE_BACKSPACE;
+    oc_appData.scanCodes[0x39] = OC_SCANCODE_CAPS_LOCK;
+    oc_appData.scanCodes[0x75] = OC_SCANCODE_DELETE;
+    oc_appData.scanCodes[0x7D] = OC_SCANCODE_DOWN;
+    oc_appData.scanCodes[0x77] = OC_SCANCODE_END;
+    oc_appData.scanCodes[0x24] = OC_SCANCODE_ENTER;
+    oc_appData.scanCodes[0x35] = OC_SCANCODE_ESCAPE;
+    oc_appData.scanCodes[0x7A] = OC_SCANCODE_F1;
+    oc_appData.scanCodes[0x78] = OC_SCANCODE_F2;
+    oc_appData.scanCodes[0x63] = OC_SCANCODE_F3;
+    oc_appData.scanCodes[0x76] = OC_SCANCODE_F4;
+    oc_appData.scanCodes[0x60] = OC_SCANCODE_F5;
+    oc_appData.scanCodes[0x61] = OC_SCANCODE_F6;
+    oc_appData.scanCodes[0x62] = OC_SCANCODE_F7;
+    oc_appData.scanCodes[0x64] = OC_SCANCODE_F8;
+    oc_appData.scanCodes[0x65] = OC_SCANCODE_F9;
+    oc_appData.scanCodes[0x6D] = OC_SCANCODE_F10;
+    oc_appData.scanCodes[0x67] = OC_SCANCODE_F11;
+    oc_appData.scanCodes[0x6F] = OC_SCANCODE_F12;
+    oc_appData.scanCodes[0x69] = OC_SCANCODE_F13;
+    oc_appData.scanCodes[0x6B] = OC_SCANCODE_F14;
+    oc_appData.scanCodes[0x71] = OC_SCANCODE_F15;
+    oc_appData.scanCodes[0x6A] = OC_SCANCODE_F16;
+    oc_appData.scanCodes[0x40] = OC_SCANCODE_F17;
+    oc_appData.scanCodes[0x4F] = OC_SCANCODE_F18;
+    oc_appData.scanCodes[0x50] = OC_SCANCODE_F19;
+    oc_appData.scanCodes[0x5A] = OC_SCANCODE_F20;
+    oc_appData.scanCodes[0x73] = OC_SCANCODE_HOME;
+    oc_appData.scanCodes[0x72] = OC_SCANCODE_INSERT;
+    oc_appData.scanCodes[0x7B] = OC_SCANCODE_LEFT;
+    oc_appData.scanCodes[0x3A] = OC_SCANCODE_LEFT_ALT;
+    oc_appData.scanCodes[0x3B] = OC_SCANCODE_LEFT_CONTROL;
+    oc_appData.scanCodes[0x38] = OC_SCANCODE_LEFT_SHIFT;
+    oc_appData.scanCodes[0x37] = OC_SCANCODE_LEFT_SUPER;
+    oc_appData.scanCodes[0x6E] = OC_SCANCODE_MENU;
+    oc_appData.scanCodes[0x47] = OC_SCANCODE_NUM_LOCK;
+    oc_appData.scanCodes[0x79] = OC_SCANCODE_PAGE_DOWN;
+    oc_appData.scanCodes[0x74] = OC_SCANCODE_PAGE_UP;
+    oc_appData.scanCodes[0x7C] = OC_SCANCODE_RIGHT;
+    oc_appData.scanCodes[0x3D] = OC_SCANCODE_RIGHT_ALT;
+    oc_appData.scanCodes[0x3E] = OC_SCANCODE_RIGHT_CONTROL;
+    oc_appData.scanCodes[0x3C] = OC_SCANCODE_RIGHT_SHIFT;
+    oc_appData.scanCodes[0x36] = OC_SCANCODE_RIGHT_SUPER;
+    oc_appData.scanCodes[0x31] = OC_SCANCODE_SPACE;
+    oc_appData.scanCodes[0x30] = OC_SCANCODE_TAB;
+    oc_appData.scanCodes[0x7E] = OC_SCANCODE_UP;
 
-    oc_appData.keyCodes[0x52] = OC_KEY_KP_0;
-    oc_appData.keyCodes[0x53] = OC_KEY_KP_1;
-    oc_appData.keyCodes[0x54] = OC_KEY_KP_2;
-    oc_appData.keyCodes[0x55] = OC_KEY_KP_3;
-    oc_appData.keyCodes[0x56] = OC_KEY_KP_4;
-    oc_appData.keyCodes[0x57] = OC_KEY_KP_5;
-    oc_appData.keyCodes[0x58] = OC_KEY_KP_6;
-    oc_appData.keyCodes[0x59] = OC_KEY_KP_7;
-    oc_appData.keyCodes[0x5B] = OC_KEY_KP_8;
-    oc_appData.keyCodes[0x5C] = OC_KEY_KP_9;
-    oc_appData.keyCodes[0x45] = OC_KEY_KP_ADD;
-    oc_appData.keyCodes[0x41] = OC_KEY_KP_DECIMAL;
-    oc_appData.keyCodes[0x4B] = OC_KEY_KP_DIVIDE;
-    oc_appData.keyCodes[0x4C] = OC_KEY_KP_ENTER;
-    oc_appData.keyCodes[0x51] = OC_KEY_KP_EQUAL;
-    oc_appData.keyCodes[0x43] = OC_KEY_KP_MULTIPLY;
-    oc_appData.keyCodes[0x4E] = OC_KEY_KP_SUBTRACT;
-
-    memset(oc_appData.nativeKeys, 0, sizeof(int) * OC_KEY_COUNT);
-    for(int nativeKey = 0; nativeKey < 256; nativeKey++)
-    {
-        oc_key_code mpKey = oc_appData.keyCodes[nativeKey];
-        if(mpKey)
-        {
-            oc_appData.nativeKeys[mpKey] = nativeKey;
-        }
-    }
+    oc_appData.scanCodes[0x52] = OC_SCANCODE_KP_0;
+    oc_appData.scanCodes[0x53] = OC_SCANCODE_KP_1;
+    oc_appData.scanCodes[0x54] = OC_SCANCODE_KP_2;
+    oc_appData.scanCodes[0x55] = OC_SCANCODE_KP_3;
+    oc_appData.scanCodes[0x56] = OC_SCANCODE_KP_4;
+    oc_appData.scanCodes[0x57] = OC_SCANCODE_KP_5;
+    oc_appData.scanCodes[0x58] = OC_SCANCODE_KP_6;
+    oc_appData.scanCodes[0x59] = OC_SCANCODE_KP_7;
+    oc_appData.scanCodes[0x5B] = OC_SCANCODE_KP_8;
+    oc_appData.scanCodes[0x5C] = OC_SCANCODE_KP_9;
+    oc_appData.scanCodes[0x45] = OC_SCANCODE_KP_ADD;
+    oc_appData.scanCodes[0x41] = OC_SCANCODE_KP_DECIMAL;
+    oc_appData.scanCodes[0x4B] = OC_SCANCODE_KP_DIVIDE;
+    oc_appData.scanCodes[0x4C] = OC_SCANCODE_KP_ENTER;
+    oc_appData.scanCodes[0x51] = OC_SCANCODE_KP_EQUAL;
+    oc_appData.scanCodes[0x43] = OC_SCANCODE_KP_MULTIPLY;
+    oc_appData.scanCodes[0x4E] = OC_SCANCODE_KP_SUBTRACT;
 }
 
 static int oc_convert_osx_key(unsigned short nsCode)
 {
-    if(nsCode >= 265)
+    if(nsCode >= OC_SCANCODE_COUNT)
     {
-        return (OC_KEY_UNKNOWN);
+        return (OC_SCANCODE_UNKNOWN);
     }
     else
     {
-        return (oc_appData.keyCodes[nsCode]);
+        return (oc_appData.scanCodes[nsCode]);
     }
 }
 
@@ -218,64 +208,91 @@ static oc_keymod_flags oc_convert_osx_mods(NSUInteger nsFlags)
     return (mods);
 }
 
+/////////////////////// WIP ////////////////////////////////////
 static void oc_update_keyboard_layout()
 {
-    if(oc_appData.osx.kbLayoutInputSource)
+    @autoreleasepool
     {
-        CFRelease(oc_appData.osx.kbLayoutInputSource);
-        oc_appData.osx.kbLayoutInputSource = 0;
-        oc_appData.osx.kbLayoutUnicodeData = nil;
-    }
-
-    oc_appData.osx.kbLayoutInputSource = TISCopyCurrentKeyboardLayoutInputSource();
-    if(!oc_appData.osx.kbLayoutInputSource)
-    {
-        oc_log_error("Failed to load keyboard layout input source");
-    }
-
-    oc_appData.osx.kbLayoutUnicodeData = TISGetInputSourceProperty(oc_appData.osx.kbLayoutInputSource,
-                                                                   kTISPropertyUnicodeKeyLayoutData);
-    if(!oc_appData.osx.kbLayoutUnicodeData)
-    {
-        oc_log_error("Failed to load keyboard layout unicode data");
-    }
-
-    memset(oc_appData.keyLabels, 0, sizeof(oc_key_utf8) * OC_KEY_COUNT);
-
-    for(int key = 0; key < OC_KEY_COUNT; key++)
-    {
-        //TODO: check that the key is printable
-        int nativeKey = oc_appData.nativeKeys[key];
-
-        UInt32 deadKeyState = 0;
-        UniChar characters[4];
-        UniCharCount characterCount = 0;
-
-        if(UCKeyTranslate((UCKeyboardLayout*)[(NSData*)oc_appData.osx.kbLayoutUnicodeData bytes],
-                          nativeKey,
-                          kUCKeyActionDisplay,
-                          0,
-                          LMGetKbdType(),
-                          kUCKeyTranslateNoDeadKeysBit,
-                          &deadKeyState,
-                          sizeof(characters) / sizeof(UniChar),
-                          &characterCount,
-                          characters)
-           != noErr)
+        TISInputSourceRef kbLayoutInputSource = TISCopyCurrentKeyboardLayoutInputSource();
+        if(!kbLayoutInputSource)
         {
-            oc_appData.keyLabels[key].labelLen = 0;
+            oc_log_error("Failed to load keyboard layout\n");
+            goto end;
         }
-        else
+
+        CFDataRef kbLayoutUnicodeData = TISGetInputSourceProperty(kbLayoutInputSource,
+                                                                  kTISPropertyUnicodeKeyLayoutData);
+        if(!kbLayoutUnicodeData)
         {
-            NSString* nsString = [[NSString alloc] initWithCharacters:characters length:characterCount];
-            const char* cstring = [nsString UTF8String];
-            u32 len = strlen(cstring);
-            oc_appData.keyLabels[key].labelLen = oc_min(len, 8);
-            memcpy(oc_appData.keyLabels[key].label, cstring, oc_appData.keyLabels[key].labelLen);
+            oc_log_error("Failed to load keyboard layout\n");
+            goto end;
         }
+
+        UCKeyboardLayout* kbdLayout = (UCKeyboardLayout*)[(NSData*)kbLayoutUnicodeData bytes];
+        UInt32 kbdType = LMGetKbdType();
+
+        //NOTE: default US layout
+        memcpy(oc_appData.keyMap, oc_defaultKeyMap, sizeof(oc_key_code) * OC_SCANCODE_COUNT);
+
+        for(int osxCode = 0; osxCode < OC_SCANCODE_COUNT; osxCode++)
+        {
+            oc_key_code keyCode = OC_KEY_UNKNOWN;
+            oc_scan_code scanCode = oc_appData.scanCodes[osxCode];
+
+            if(scanCode == OC_SCANCODE_ENTER)
+            {
+                oc_log_info("scan code enter\n");
+            }
+
+            if(scanCode != OC_SCANCODE_UNKNOWN && scanCode < 256)
+            {
+                UInt32 deadKeyState = 0;
+                UniChar characters[8];
+                UniCharCount characterCount = 0;
+
+                OSStatus status = UCKeyTranslate(kbdLayout,
+                                                 osxCode,
+                                                 kUCKeyActionDown,
+                                                 0,
+                                                 kbdType,
+                                                 kUCKeyTranslateNoDeadKeysBit,
+                                                 &deadKeyState,
+                                                 sizeof(characters) / sizeof(UniChar),
+                                                 &characterCount,
+                                                 characters);
+
+                if(status == noErr)
+                {
+                    oc_appData.keyMap[scanCode] = characters[0];
+                }
+            }
+        }
+
+        //NOTE fix digit row for azerty keyboards
+        bool azerty = true;
+        for(int scanCode = OC_SCANCODE_0; scanCode <= OC_SCANCODE_9; scanCode++)
+        {
+            if(oc_appData.keyMap[scanCode] >= OC_KEY_0 && oc_appData.keyMap[scanCode] <= OC_KEY_9)
+            {
+                azerty = false;
+                break;
+            }
+        }
+        if(azerty)
+        {
+            for(int scanCode = OC_SCANCODE_0; scanCode <= OC_SCANCODE_9; scanCode++)
+            {
+                oc_appData.keyMap[scanCode] = OC_KEY_0 + (scanCode - OC_SCANCODE_0);
+            }
+        }
+
+    end:
+        kbLayoutUnicodeData = nil;
+        CFRelease(kbLayoutInputSource);
     }
 }
 
+/*
 oc_str8 oc_key_to_label(oc_key_code key)
 {
     oc_key_utf8* keyInfo = &(oc_appData.keyLabels[key]);
@@ -298,7 +315,7 @@ oc_key_code oc_label_to_key(oc_str8 label)
     }
     return (res);
 }
-
+*/
 @interface OCWindow : NSWindow
 {
     oc_window_data* mpWindow;
@@ -806,7 +823,7 @@ static void oc_process_mouse_button(NSEvent* nsEvent, oc_window_data* window, oc
     event.window = oc_window_handle_from_ptr(window);
     event.type = OC_EVENT_MOUSE_BUTTON;
     event.key.action = action;
-    event.key.code = button;
+    event.key.button = button;
     event.key.mods = oc_convert_osx_mods([nsEvent modifierFlags]);
     event.key.clickCount = [nsEvent clickCount];
 
@@ -906,12 +923,13 @@ static void oc_process_mouse_button(NSEvent* nsEvent, oc_window_data* window, oc
     event.window = oc_window_handle_from_ptr(window);
     event.type = OC_EVENT_KEYBOARD_KEY;
     event.key.action = action;
-    event.key.code = oc_convert_osx_key([nsEvent keyCode]);
+    event.key.scanCode = oc_convert_osx_key([nsEvent keyCode]);
+    event.key.keyCode = oc_scancode_to_keycode(event.key.scanCode);
     event.key.mods = oc_convert_osx_mods([nsEvent modifierFlags]);
 
-    oc_str8 label = oc_key_to_label(event.key.code);
-    event.key.labelLen = label.len;
-    memcpy(event.key.label, label.ptr, label.len);
+    //    oc_str8 label = oc_key_to_label(event.key.code);
+    //    event.key.labelLen = label.len;
+    //    memcpy(event.key.label, label.ptr, label.len);
 
     oc_queue_event(&event);
 
@@ -924,7 +942,8 @@ static void oc_process_mouse_button(NSEvent* nsEvent, oc_window_data* window, oc
     event.window = oc_window_handle_from_ptr(window);
     event.type = OC_EVENT_KEYBOARD_KEY;
     event.key.action = OC_KEY_RELEASE;
-    event.key.code = oc_convert_osx_key([nsEvent keyCode]);
+    event.key.scanCode = oc_convert_osx_key([nsEvent keyCode]);
+    event.key.keyCode = oc_scancode_to_keycode(event.key.scanCode);
     event.key.mods = oc_convert_osx_mods([nsEvent modifierFlags]);
 
     oc_queue_event(&event);

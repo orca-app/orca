@@ -43,9 +43,6 @@ typedef struct oc_osx_app_data
 {
     NSTimer* frameTimer;
     NSCursor* cursor;
-
-    TISInputSourceRef kbLayoutInputSource;
-    void* kbLayoutUnicodeData;
     id kbLayoutListener;
 
 } oc_osx_app_data;

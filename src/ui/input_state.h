@@ -83,6 +83,11 @@ ORCA_API int oc_key_pressed(oc_input_state* state, oc_key_code key);
 ORCA_API int oc_key_released(oc_input_state* state, oc_key_code key);
 ORCA_API int oc_key_repeated(oc_input_state* state, oc_key_code key);
 
+ORCA_API bool oc_key_down_scancode(oc_input_state* state, oc_scan_code key);
+ORCA_API int oc_key_pressed_scancode(oc_input_state* state, oc_scan_code key);
+ORCA_API int oc_key_released_scancode(oc_input_state* state, oc_scan_code key);
+ORCA_API int oc_key_repeated_scancode(oc_input_state* state, oc_scan_code key);
+
 ORCA_API bool oc_mouse_down(oc_input_state* state, oc_mouse_button button);
 ORCA_API int oc_mouse_pressed(oc_input_state* state, oc_mouse_button button);
 ORCA_API int oc_mouse_released(oc_input_state* state, oc_mouse_button button);

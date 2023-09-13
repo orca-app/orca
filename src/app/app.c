@@ -180,6 +180,23 @@ oc_event* oc_next_event(oc_arena* arena)
 }
 
 //---------------------------------------------------------------
+// key / scan codes
+//---------------------------------------------------------------
+
+oc_key_code oc_scancode_to_keycode(oc_scan_code scanCode)
+{
+    return (oc_appData.keyMap[scanCode]);
+}
+
+#define OC_DEFAULT_KEYMAP_ENTRY(sc, sv, ...) [(int) sc] = (oc_key_code)sc,
+
+oc_key_code oc_defaultKeyMap[OC_SCANCODE_COUNT] = {
+    OC_KEY_TABLE(OC_DEFAULT_KEYMAP_ENTRY)
+};
+
+#undef OC_DEFAULT_KEYMAP_ENTRY
+
+//---------------------------------------------------------------
 // window rects helpers
 //---------------------------------------------------------------
 

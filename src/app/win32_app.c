@@ -13,134 +13,173 @@
 
 void oc_init_keys()
 {
-    memset(oc_appData.keyCodes, OC_KEY_UNKNOWN, 256 * sizeof(int));
+    memset(oc_appData.scanCodes, OC_SCANCODE_UNKNOWN, 256 * sizeof(int));
 
-    oc_appData.keyCodes[0x00B] = OC_KEY_0;
-    oc_appData.keyCodes[0x002] = OC_KEY_1;
-    oc_appData.keyCodes[0x003] = OC_KEY_2;
-    oc_appData.keyCodes[0x004] = OC_KEY_3;
-    oc_appData.keyCodes[0x005] = OC_KEY_4;
-    oc_appData.keyCodes[0x006] = OC_KEY_5;
-    oc_appData.keyCodes[0x007] = OC_KEY_6;
-    oc_appData.keyCodes[0x008] = OC_KEY_7;
-    oc_appData.keyCodes[0x009] = OC_KEY_8;
-    oc_appData.keyCodes[0x00A] = OC_KEY_9;
-    oc_appData.keyCodes[0x01E] = OC_KEY_A;
-    oc_appData.keyCodes[0x030] = OC_KEY_B;
-    oc_appData.keyCodes[0x02E] = OC_KEY_C;
-    oc_appData.keyCodes[0x020] = OC_KEY_D;
-    oc_appData.keyCodes[0x012] = OC_KEY_E;
-    oc_appData.keyCodes[0x021] = OC_KEY_F;
-    oc_appData.keyCodes[0x022] = OC_KEY_G;
-    oc_appData.keyCodes[0x023] = OC_KEY_H;
-    oc_appData.keyCodes[0x017] = OC_KEY_I;
-    oc_appData.keyCodes[0x024] = OC_KEY_J;
-    oc_appData.keyCodes[0x025] = OC_KEY_K;
-    oc_appData.keyCodes[0x026] = OC_KEY_L;
-    oc_appData.keyCodes[0x032] = OC_KEY_M;
-    oc_appData.keyCodes[0x031] = OC_KEY_N;
-    oc_appData.keyCodes[0x018] = OC_KEY_O;
-    oc_appData.keyCodes[0x019] = OC_KEY_P;
-    oc_appData.keyCodes[0x010] = OC_KEY_Q;
-    oc_appData.keyCodes[0x013] = OC_KEY_R;
-    oc_appData.keyCodes[0x01F] = OC_KEY_S;
-    oc_appData.keyCodes[0x014] = OC_KEY_T;
-    oc_appData.keyCodes[0x016] = OC_KEY_U;
-    oc_appData.keyCodes[0x02F] = OC_KEY_V;
-    oc_appData.keyCodes[0x011] = OC_KEY_W;
-    oc_appData.keyCodes[0x02D] = OC_KEY_X;
-    oc_appData.keyCodes[0x015] = OC_KEY_Y;
-    oc_appData.keyCodes[0x02C] = OC_KEY_Z;
-    oc_appData.keyCodes[0x028] = OC_KEY_APOSTROPHE;
-    oc_appData.keyCodes[0x02B] = OC_KEY_BACKSLASH;
-    oc_appData.keyCodes[0x033] = OC_KEY_COMMA;
-    oc_appData.keyCodes[0x00D] = OC_KEY_EQUAL;
-    oc_appData.keyCodes[0x029] = OC_KEY_GRAVE_ACCENT;
-    oc_appData.keyCodes[0x01A] = OC_KEY_LEFT_BRACKET;
-    oc_appData.keyCodes[0x00C] = OC_KEY_MINUS;
-    oc_appData.keyCodes[0x034] = OC_KEY_PERIOD;
-    oc_appData.keyCodes[0x01B] = OC_KEY_RIGHT_BRACKET;
-    oc_appData.keyCodes[0x027] = OC_KEY_SEMICOLON;
-    oc_appData.keyCodes[0x035] = OC_KEY_SLASH;
-    oc_appData.keyCodes[0x056] = OC_KEY_WORLD_2;
-    oc_appData.keyCodes[0x00E] = OC_KEY_BACKSPACE;
-    oc_appData.keyCodes[0x153] = OC_KEY_DELETE;
-    oc_appData.keyCodes[0x14F] = OC_KEY_END;
-    oc_appData.keyCodes[0x01C] = OC_KEY_ENTER;
-    oc_appData.keyCodes[0x001] = OC_KEY_ESCAPE;
-    oc_appData.keyCodes[0x147] = OC_KEY_HOME;
-    oc_appData.keyCodes[0x152] = OC_KEY_INSERT;
-    oc_appData.keyCodes[0x15D] = OC_KEY_MENU;
-    oc_appData.keyCodes[0x151] = OC_KEY_PAGE_DOWN;
-    oc_appData.keyCodes[0x149] = OC_KEY_PAGE_UP;
-    oc_appData.keyCodes[0x045] = OC_KEY_PAUSE;
-    oc_appData.keyCodes[0x146] = OC_KEY_PAUSE;
-    oc_appData.keyCodes[0x039] = OC_KEY_SPACE;
-    oc_appData.keyCodes[0x00F] = OC_KEY_TAB;
-    oc_appData.keyCodes[0x03A] = OC_KEY_CAPS_LOCK;
-    oc_appData.keyCodes[0x145] = OC_KEY_NUM_LOCK;
-    oc_appData.keyCodes[0x046] = OC_KEY_SCROLL_LOCK;
-    oc_appData.keyCodes[0x03B] = OC_KEY_F1;
-    oc_appData.keyCodes[0x03C] = OC_KEY_F2;
-    oc_appData.keyCodes[0x03D] = OC_KEY_F3;
-    oc_appData.keyCodes[0x03E] = OC_KEY_F4;
-    oc_appData.keyCodes[0x03F] = OC_KEY_F5;
-    oc_appData.keyCodes[0x040] = OC_KEY_F6;
-    oc_appData.keyCodes[0x041] = OC_KEY_F7;
-    oc_appData.keyCodes[0x042] = OC_KEY_F8;
-    oc_appData.keyCodes[0x043] = OC_KEY_F9;
-    oc_appData.keyCodes[0x044] = OC_KEY_F10;
-    oc_appData.keyCodes[0x057] = OC_KEY_F11;
-    oc_appData.keyCodes[0x058] = OC_KEY_F12;
-    oc_appData.keyCodes[0x064] = OC_KEY_F13;
-    oc_appData.keyCodes[0x065] = OC_KEY_F14;
-    oc_appData.keyCodes[0x066] = OC_KEY_F15;
-    oc_appData.keyCodes[0x067] = OC_KEY_F16;
-    oc_appData.keyCodes[0x068] = OC_KEY_F17;
-    oc_appData.keyCodes[0x069] = OC_KEY_F18;
-    oc_appData.keyCodes[0x06A] = OC_KEY_F19;
-    oc_appData.keyCodes[0x06B] = OC_KEY_F20;
-    oc_appData.keyCodes[0x06C] = OC_KEY_F21;
-    oc_appData.keyCodes[0x06D] = OC_KEY_F22;
-    oc_appData.keyCodes[0x06E] = OC_KEY_F23;
-    oc_appData.keyCodes[0x076] = OC_KEY_F24;
-    oc_appData.keyCodes[0x038] = OC_KEY_LEFT_ALT;
-    oc_appData.keyCodes[0x01D] = OC_KEY_LEFT_CONTROL;
-    oc_appData.keyCodes[0x02A] = OC_KEY_LEFT_SHIFT;
-    oc_appData.keyCodes[0x15B] = OC_KEY_LEFT_SUPER;
-    oc_appData.keyCodes[0x137] = OC_KEY_PRINT_SCREEN;
-    oc_appData.keyCodes[0x138] = OC_KEY_RIGHT_ALT;
-    oc_appData.keyCodes[0x11D] = OC_KEY_RIGHT_CONTROL;
-    oc_appData.keyCodes[0x036] = OC_KEY_RIGHT_SHIFT;
-    oc_appData.keyCodes[0x15C] = OC_KEY_RIGHT_SUPER;
-    oc_appData.keyCodes[0x150] = OC_KEY_DOWN;
-    oc_appData.keyCodes[0x14B] = OC_KEY_LEFT;
-    oc_appData.keyCodes[0x14D] = OC_KEY_RIGHT;
-    oc_appData.keyCodes[0x148] = OC_KEY_UP;
-    oc_appData.keyCodes[0x052] = OC_KEY_KP_0;
-    oc_appData.keyCodes[0x04F] = OC_KEY_KP_1;
-    oc_appData.keyCodes[0x050] = OC_KEY_KP_2;
-    oc_appData.keyCodes[0x051] = OC_KEY_KP_3;
-    oc_appData.keyCodes[0x04B] = OC_KEY_KP_4;
-    oc_appData.keyCodes[0x04C] = OC_KEY_KP_5;
-    oc_appData.keyCodes[0x04D] = OC_KEY_KP_6;
-    oc_appData.keyCodes[0x047] = OC_KEY_KP_7;
-    oc_appData.keyCodes[0x048] = OC_KEY_KP_8;
-    oc_appData.keyCodes[0x049] = OC_KEY_KP_9;
-    oc_appData.keyCodes[0x04E] = OC_KEY_KP_ADD;
-    oc_appData.keyCodes[0x053] = OC_KEY_KP_DECIMAL;
-    oc_appData.keyCodes[0x135] = OC_KEY_KP_DIVIDE;
-    oc_appData.keyCodes[0x11C] = OC_KEY_KP_ENTER;
-    oc_appData.keyCodes[0x037] = OC_KEY_KP_MULTIPLY;
-    oc_appData.keyCodes[0x04A] = OC_KEY_KP_SUBTRACT;
+    oc_appData.scanCodes[0x00B] = OC_SCANCODE_0;
+    oc_appData.scanCodes[0x002] = OC_SCANCODE_1;
+    oc_appData.scanCodes[0x003] = OC_SCANCODE_2;
+    oc_appData.scanCodes[0x004] = OC_SCANCODE_3;
+    oc_appData.scanCodes[0x005] = OC_SCANCODE_4;
+    oc_appData.scanCodes[0x006] = OC_SCANCODE_5;
+    oc_appData.scanCodes[0x007] = OC_SCANCODE_6;
+    oc_appData.scanCodes[0x008] = OC_SCANCODE_7;
+    oc_appData.scanCodes[0x009] = OC_SCANCODE_8;
+    oc_appData.scanCodes[0x00A] = OC_SCANCODE_9;
+    oc_appData.scanCodes[0x01E] = OC_SCANCODE_A;
+    oc_appData.scanCodes[0x030] = OC_SCANCODE_B;
+    oc_appData.scanCodes[0x02E] = OC_SCANCODE_C;
+    oc_appData.scanCodes[0x020] = OC_SCANCODE_D;
+    oc_appData.scanCodes[0x012] = OC_SCANCODE_E;
+    oc_appData.scanCodes[0x021] = OC_SCANCODE_F;
+    oc_appData.scanCodes[0x022] = OC_SCANCODE_G;
+    oc_appData.scanCodes[0x023] = OC_SCANCODE_H;
+    oc_appData.scanCodes[0x017] = OC_SCANCODE_I;
+    oc_appData.scanCodes[0x024] = OC_SCANCODE_J;
+    oc_appData.scanCodes[0x025] = OC_SCANCODE_K;
+    oc_appData.scanCodes[0x026] = OC_SCANCODE_L;
+    oc_appData.scanCodes[0x032] = OC_SCANCODE_M;
+    oc_appData.scanCodes[0x031] = OC_SCANCODE_N;
+    oc_appData.scanCodes[0x018] = OC_SCANCODE_O;
+    oc_appData.scanCodes[0x019] = OC_SCANCODE_P;
+    oc_appData.scanCodes[0x010] = OC_SCANCODE_Q;
+    oc_appData.scanCodes[0x013] = OC_SCANCODE_R;
+    oc_appData.scanCodes[0x01F] = OC_SCANCODE_S;
+    oc_appData.scanCodes[0x014] = OC_SCANCODE_T;
+    oc_appData.scanCodes[0x016] = OC_SCANCODE_U;
+    oc_appData.scanCodes[0x02F] = OC_SCANCODE_V;
+    oc_appData.scanCodes[0x011] = OC_SCANCODE_W;
+    oc_appData.scanCodes[0x02D] = OC_SCANCODE_X;
+    oc_appData.scanCodes[0x015] = OC_SCANCODE_Y;
+    oc_appData.scanCodes[0x02C] = OC_SCANCODE_Z;
+    oc_appData.scanCodes[0x028] = OC_SCANCODE_APOSTROPHE;
+    oc_appData.scanCodes[0x02B] = OC_SCANCODE_BACKSLASH;
+    oc_appData.scanCodes[0x033] = OC_SCANCODE_COMMA;
+    oc_appData.scanCodes[0x00D] = OC_SCANCODE_EQUAL;
+    oc_appData.scanCodes[0x029] = OC_SCANCODE_GRAVE_ACCENT;
+    oc_appData.scanCodes[0x01A] = OC_SCANCODE_LEFT_BRACKET;
+    oc_appData.scanCodes[0x00C] = OC_SCANCODE_MINUS;
+    oc_appData.scanCodes[0x034] = OC_SCANCODE_PERIOD;
+    oc_appData.scanCodes[0x01B] = OC_SCANCODE_RIGHT_BRACKET;
+    oc_appData.scanCodes[0x027] = OC_SCANCODE_SEMICOLON;
+    oc_appData.scanCodes[0x035] = OC_SCANCODE_SLASH;
+    oc_appData.scanCodes[0x056] = OC_SCANCODE_WORLD_2;
+    oc_appData.scanCodes[0x00E] = OC_SCANCODE_BACKSPACE;
+    oc_appData.scanCodes[0x153] = OC_SCANCODE_DELETE;
+    oc_appData.scanCodes[0x14F] = OC_SCANCODE_END;
+    oc_appData.scanCodes[0x01C] = OC_SCANCODE_ENTER;
+    oc_appData.scanCodes[0x001] = OC_SCANCODE_ESCAPE;
+    oc_appData.scanCodes[0x147] = OC_SCANCODE_HOME;
+    oc_appData.scanCodes[0x152] = OC_SCANCODE_INSERT;
+    oc_appData.scanCodes[0x15D] = OC_SCANCODE_MENU;
+    oc_appData.scanCodes[0x151] = OC_SCANCODE_PAGE_DOWN;
+    oc_appData.scanCodes[0x149] = OC_SCANCODE_PAGE_UP;
+    oc_appData.scanCodes[0x045] = OC_SCANCODE_PAUSE;
+    oc_appData.scanCodes[0x146] = OC_SCANCODE_PAUSE;
+    oc_appData.scanCodes[0x039] = OC_SCANCODE_SPACE;
+    oc_appData.scanCodes[0x00F] = OC_SCANCODE_TAB;
+    oc_appData.scanCodes[0x03A] = OC_SCANCODE_CAPS_LOCK;
+    oc_appData.scanCodes[0x145] = OC_SCANCODE_NUM_LOCK;
+    oc_appData.scanCodes[0x046] = OC_SCANCODE_SCROLL_LOCK;
+    oc_appData.scanCodes[0x03B] = OC_SCANCODE_F1;
+    oc_appData.scanCodes[0x03C] = OC_SCANCODE_F2;
+    oc_appData.scanCodes[0x03D] = OC_SCANCODE_F3;
+    oc_appData.scanCodes[0x03E] = OC_SCANCODE_F4;
+    oc_appData.scanCodes[0x03F] = OC_SCANCODE_F5;
+    oc_appData.scanCodes[0x040] = OC_SCANCODE_F6;
+    oc_appData.scanCodes[0x041] = OC_SCANCODE_F7;
+    oc_appData.scanCodes[0x042] = OC_SCANCODE_F8;
+    oc_appData.scanCodes[0x043] = OC_SCANCODE_F9;
+    oc_appData.scanCodes[0x044] = OC_SCANCODE_F10;
+    oc_appData.scanCodes[0x057] = OC_SCANCODE_F11;
+    oc_appData.scanCodes[0x058] = OC_SCANCODE_F12;
+    oc_appData.scanCodes[0x064] = OC_SCANCODE_F13;
+    oc_appData.scanCodes[0x065] = OC_SCANCODE_F14;
+    oc_appData.scanCodes[0x066] = OC_SCANCODE_F15;
+    oc_appData.scanCodes[0x067] = OC_SCANCODE_F16;
+    oc_appData.scanCodes[0x068] = OC_SCANCODE_F17;
+    oc_appData.scanCodes[0x069] = OC_SCANCODE_F18;
+    oc_appData.scanCodes[0x06A] = OC_SCANCODE_F19;
+    oc_appData.scanCodes[0x06B] = OC_SCANCODE_F20;
+    oc_appData.scanCodes[0x06C] = OC_SCANCODE_F21;
+    oc_appData.scanCodes[0x06D] = OC_SCANCODE_F22;
+    oc_appData.scanCodes[0x06E] = OC_SCANCODE_F23;
+    oc_appData.scanCodes[0x076] = OC_SCANCODE_F24;
+    oc_appData.scanCodes[0x038] = OC_SCANCODE_LEFT_ALT;
+    oc_appData.scanCodes[0x01D] = OC_SCANCODE_LEFT_CONTROL;
+    oc_appData.scanCodes[0x02A] = OC_SCANCODE_LEFT_SHIFT;
+    oc_appData.scanCodes[0x15B] = OC_SCANCODE_LEFT_SUPER;
+    oc_appData.scanCodes[0x137] = OC_SCANCODE_PRINT_SCREEN;
+    oc_appData.scanCodes[0x138] = OC_SCANCODE_RIGHT_ALT;
+    oc_appData.scanCodes[0x11D] = OC_SCANCODE_RIGHT_CONTROL;
+    oc_appData.scanCodes[0x036] = OC_SCANCODE_RIGHT_SHIFT;
+    oc_appData.scanCodes[0x15C] = OC_SCANCODE_RIGHT_SUPER;
+    oc_appData.scanCodes[0x150] = OC_SCANCODE_DOWN;
+    oc_appData.scanCodes[0x14B] = OC_SCANCODE_LEFT;
+    oc_appData.scanCodes[0x14D] = OC_SCANCODE_RIGHT;
+    oc_appData.scanCodes[0x148] = OC_SCANCODE_UP;
+    oc_appData.scanCodes[0x052] = OC_SCANCODE_KP_0;
+    oc_appData.scanCodes[0x04F] = OC_SCANCODE_KP_1;
+    oc_appData.scanCodes[0x050] = OC_SCANCODE_KP_2;
+    oc_appData.scanCodes[0x051] = OC_SCANCODE_KP_3;
+    oc_appData.scanCodes[0x04B] = OC_SCANCODE_KP_4;
+    oc_appData.scanCodes[0x04C] = OC_SCANCODE_KP_5;
+    oc_appData.scanCodes[0x04D] = OC_SCANCODE_KP_6;
+    oc_appData.scanCodes[0x047] = OC_SCANCODE_KP_7;
+    oc_appData.scanCodes[0x048] = OC_SCANCODE_KP_8;
+    oc_appData.scanCodes[0x049] = OC_SCANCODE_KP_9;
+    oc_appData.scanCodes[0x04E] = OC_SCANCODE_KP_ADD;
+    oc_appData.scanCodes[0x053] = OC_SCANCODE_KP_DECIMAL;
+    oc_appData.scanCodes[0x135] = OC_SCANCODE_KP_DIVIDE;
+    oc_appData.scanCodes[0x11C] = OC_SCANCODE_KP_ENTER;
+    oc_appData.scanCodes[0x037] = OC_SCANCODE_KP_MULTIPLY;
+    oc_appData.scanCodes[0x04A] = OC_SCANCODE_KP_SUBTRACT;
+}
 
-    memset(oc_appData.nativeKeys, 0, sizeof(int) * OC_KEY_COUNT);
-    for(int nativeKey = 0; nativeKey < 256; nativeKey++)
+void oc_win32_update_keyboard_layout()
+{
+    memcpy(oc_appData.keyMap, oc_defaultKeyMap, sizeof(oc_key_code) * OC_SCANCODE_COUNT);
+
+    for(int winCode = 0; winCode < OC_SCANCODE_COUNT; winCode++)
     {
-        oc_key_code mpKey = oc_appData.keyCodes[nativeKey];
-        if(mpKey)
+        oc_scan_code scanCode = oc_appData.scanCodes[winCode];
+
+        if(scanCode < 256)
         {
-            oc_appData.nativeKeys[mpKey] = nativeKey;
+            int vk = MapVirtualKey(winCode, MAPVK_VSC_TO_VK);
+            if(vk)
+            {
+                int ch = MapVirtualKey(vk, MAPVK_VK_TO_CHAR);
+                ch &= 0x7fff;
+                if(ch)
+                {
+                    if(ch >= 'A' && ch <= 'Z')
+                    {
+                        oc_appData.keyMap[scanCode] = 'a' + (ch - 'A');
+                    }
+                    else
+                    {
+                        oc_appData.keyMap[scanCode] = ch;
+                    }
+                }
+            }
+        }
+    }
+
+    //NOTE fix digit row for azerty keyboards
+    bool azerty = true;
+    for(int scanCode = OC_SCANCODE_0; scanCode <= OC_SCANCODE_9; scanCode++)
+    {
+        if(oc_appData.keyMap[scanCode] >= OC_KEY_0 && oc_appData.keyMap[scanCode] <= OC_KEY_9)
+        {
+            azerty = false;
+            break;
+        }
+    }
+    if(azerty)
+    {
+        for(int scanCode = OC_SCANCODE_0; scanCode <= OC_SCANCODE_9; scanCode++)
+        {
+            oc_appData.keyMap[scanCode] = OC_KEY_0 + (scanCode - OC_SCANCODE_0);
         }
     }
 }
@@ -155,6 +194,7 @@ void oc_init()
 
         oc_init_common();
         oc_init_keys();
+        oc_win32_update_keyboard_layout();
 
         oc_appData.win32.savedConsoleCodePage = GetConsoleOutputCP();
         SetConsoleOutputCP(CP_UTF8);
@@ -189,7 +229,7 @@ void oc_terminate()
 
 static oc_key_code oc_convert_win32_key(int code)
 {
-    return (oc_appData.keyCodes[code]);
+    return (oc_appData.scanCodes[code]);
 }
 
 static oc_keymod_flags oc_get_mod_keys()
@@ -241,7 +281,7 @@ static void oc_win32_process_mouse_event(oc_window_data* window, oc_key_action a
         {
             oc_appData.win32.clickCount[button] = 0;
         }
-        for (int i = 0; i < OC_MOUSE_BUTTON_COUNT; i++)
+        for(int i = 0; i < OC_MOUSE_BUTTON_COUNT; i++)
         {
             if(i != button)
             {
@@ -264,7 +304,7 @@ static void oc_win32_process_mouse_event(oc_window_data* window, oc_key_action a
     event.window = oc_window_handle_from_ptr(window);
     event.type = OC_EVENT_MOUSE_BUTTON;
     event.key.action = action;
-    event.key.code = button;
+    event.key.button = button;
     event.key.mods = oc_get_mod_keys();
     event.key.clickCount = oc_appData.win32.clickCount[button];
 
@@ -549,6 +589,12 @@ LRESULT oc_win32_win_proc(HWND windowHandle, UINT message, WPARAM wParam, LPARAM
         }
         break;
 
+        case WM_INPUTLANGCHANGE:
+        {
+            oc_win32_update_keyboard_layout();
+        }
+        break;
+
         case WM_KEYDOWN:
         case WM_SYSKEYDOWN:
         {
@@ -563,7 +609,8 @@ LRESULT oc_win32_win_proc(HWND windowHandle, UINT message, WPARAM wParam, LPARAM
             event.window = oc_window_handle_from_ptr(mpWindow);
             event.type = OC_EVENT_KEYBOARD_KEY;
             event.key.action = (lParam & 0x40000000) ? OC_KEY_REPEAT : OC_KEY_PRESS;
-            event.key.code = oc_convert_win32_key(HIWORD(lParam) & 0x1ff);
+            event.key.scanCode = oc_convert_win32_key(HIWORD(lParam) & 0x1ff);
+            event.key.keyCode = oc_scancode_to_keycode(event.key.scanCode);
             event.key.mods = oc_get_mod_keys();
             oc_queue_event(&event);
         }
@@ -581,7 +628,8 @@ LRESULT oc_win32_win_proc(HWND windowHandle, UINT message, WPARAM wParam, LPARAM
             event.window = oc_window_handle_from_ptr(mpWindow);
             event.type = OC_EVENT_KEYBOARD_KEY;
             event.key.action = OC_KEY_RELEASE;
-            event.key.code = oc_convert_win32_key(HIWORD(lParam) & 0x1ff);
+            event.key.scanCode = oc_convert_win32_key(HIWORD(lParam) & 0x1ff);
+            event.key.keyCode = oc_scancode_to_keycode(event.key.scanCode);
             event.key.mods = oc_get_mod_keys();
             oc_queue_event(&event);
         }
@@ -661,7 +709,7 @@ void oc_cancel_quit()
 void oc_request_quit()
 {
     oc_appData.shouldQuit = true;
-	PostThreadMessage(oc_appData.win32.mainThreadID, OC_WM_USER_WAKEUP, 0, 0);
+    PostThreadMessage(oc_appData.win32.mainThreadID, OC_WM_USER_WAKEUP, 0, 0);
 }
 
 void oc_pump_events(f64 timeout)

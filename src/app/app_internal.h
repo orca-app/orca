@@ -52,12 +52,6 @@ typedef struct oc_window_data
 // Global App State
 //---------------------------------------------------------------
 
-typedef struct oc_key_utf8
-{
-    u8 labelLen;
-    char label[8];
-} oc_key_utf8;
-
 enum
 {
     OC_APP_MAX_WINDOWS = 128
@@ -82,11 +76,12 @@ typedef struct oc_app
     oc_live_resize_callback liveResizeCallback;
     void* liveResizeData;
 
-    oc_key_utf8 keyLabels[512];
-    int keyCodes[512];
-    int nativeKeys[OC_KEY_COUNT];
+    oc_scan_code scanCodes[OC_SCANCODE_COUNT]; // native virtual key code to oc_scan_code
+    oc_key_code keyMap[OC_SCANCODE_COUNT];     // oc_scan_code to oc_key_code, as per current keyboard layout
 
     OC_PLATFORM_APP_DATA
 } oc_app;
+
+extern oc_key_code oc_defaultKeyMap[OC_SCANCODE_COUNT];
 
 #endif // __APP_INTERNAL_H_

@@ -97,5 +97,14 @@
 		{ "name": "size",
 		  "type": {"name": "oc_vec2", "tag": "S"}}
 	]
+},
+{
+    "name": "oc_scancode_to_keycode",
+    "cname": "oc_scancode_to_keycode",
+    "ret": { "name": "oc_key_code", "tag": "i"},
+    "args": [
+        { "name": "scanCode",
+          "type": {"name": "oc_scan_code", "tag": "i"}}
+    ]
 }
 ]

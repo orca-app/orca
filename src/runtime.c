@@ -609,8 +609,8 @@ i32 orca_runloop(void* user)
                     {
                         if(exports[OC_EXPORT_MOUSE_DOWN])
                         {
-                            int key = event->key.code;
-                            const void* args[1] = { &key };
+                            oc_mouse_button button = event->key.button;
+                            const void* args[1] = { &button };
                             M3Result res = m3_Call(exports[OC_EXPORT_MOUSE_DOWN], 1, args);
                             if(res)
                             {
@@ -622,8 +622,8 @@ i32 orca_runloop(void* user)
                     {
                         if(exports[OC_EXPORT_MOUSE_UP])
                         {
-                            int key = event->key.code;
-                            const void* args[1] = { &key };
+                            oc_mouse_button button = event->key.button;
+                            const void* args[1] = { &button };
                             M3Result res = m3_Call(exports[OC_EXPORT_MOUSE_UP], 1, args);
                             if(res)
                             {
@@ -652,7 +652,7 @@ i32 orca_runloop(void* user)
                 {
                     if(event->key.action == OC_KEY_PRESS)
                     {
-                        if(event->key.code == OC_KEY_D
+                        if(event->key.keyCode == OC_KEY_D
                            && (event->key.mods & OC_KEYMOD_SHIFT)
                            && (event->key.mods & OC_KEYMOD_MAIN_MODIFIER))
                         {
@@ -661,7 +661,7 @@ i32 orca_runloop(void* user)
 
                         if(exports[OC_EXPORT_KEY_DOWN])
                         {
-                            const void* args[1] = { &event->key.code };
+                            const void* args[1] = { &event->key.scanCode };
                             M3Result res = m3_Call(exports[OC_EXPORT_KEY_DOWN], 1, args);
                             if(res)
                             {
@@ -673,7 +673,7 @@ i32 orca_runloop(void* user)
                     {
                         if(exports[OC_EXPORT_KEY_UP])
                         {
-                            const void* args[1] = { &event->key.code };
+                            const void* args[1] = { &event->key.scanCode };
                             M3Result res = m3_Call(exports[OC_EXPORT_KEY_UP], 1, args);
                             if(res)
                             {
