@@ -64,13 +64,15 @@ static const char* TEST_STRING =
 oc_font create_font(const char* path)
 {
     //NOTE(martin): create font
-    oc_str8 fontPath = oc_path_executable_relative(oc_scratch(), OC_STR8(path));
-    char* fontPathCString = oc_str8_to_cstring(oc_scratch(), fontPath);
+    oc_arena_scope* scratch = oc_scratch_begin()
+        oc_str8 fontPath = oc_path_executable_relative(scratch.arena, OC_STR8(path));
+    char* fontPathCString = oc_str8_to_cstring(scratch.arena, fontPath);
 
     FILE* fontFile = fopen(fontPathCString, "r");
     if(!fontFile)
     {
         oc_log_error("Could not load font file '%s'\n", fontPathCString);
+        oc_scratch_end(scratch);
         return (oc_font_nil());
     }
     unsigned char* fontData = 0;
@@ -89,7 +91,7 @@ oc_font create_font(const char* path)
 
     oc_font font = oc_font_create_from_memory(oc_str8_from_buffer(fontDataSize, (char*)fontData), 5, ranges);
     free(fontData);
-
+    oc_scratch_end(scratch);
     return (font);
 }
 
@@ -167,10 +169,11 @@ int main()
     while(!oc_should_quit())
     {
         f64 startFrameTime = oc_clock_time(OC_CLOCK_MONOTONIC);
+        oc_arena_scope* scratch = oc_scratch_begin();
 
         oc_pump_events(0);
         oc_event* event = 0;
-        while((event = oc_next_event(oc_scratch())) != 0)
+        while((event = oc_next_event(scratch.arena)) != 0)
         {
             oc_input_process_event(&inputState, event);
 
@@ -250,7 +253,7 @@ int main()
 */
 
         oc_matrix_multiply_push((oc_mat2x3){ zoom, 0, 0,
-                                    0, zoom, 0 });
+                                             0, zoom, 0 });
 
         oc_set_color_rgba(1, 1, 1, 1);
         oc_clear();
@@ -294,7 +297,7 @@ int main()
         oc_set_font_size(14);
         oc_move_to(10, contentRect.h - 10 - lineHeights[fontIndex]);
 
-        oc_str8 text = oc_str8_pushf(oc_scratch(),
+        oc_str8 text = oc_str8_pushf(scratch.arena,
                                      "Test program: %i glyphs, frame time = %fs, fps = %f",
                                      glyphCount,
                                      frameTime,
@@ -322,7 +325,7 @@ int main()
                (endFrameTime - startPresentTime) * 1000);
 
         oc_input_next_frame(&inputState);
-        oc_arena_clear(oc_scratch());
+        oc_scratch_end(scratch);
     }
 
     for(int i = 0; i < FONT_COUNT; i++)

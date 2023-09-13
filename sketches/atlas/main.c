@@ -41,14 +41,17 @@ int main()
     }
 
     //NOTE: create atlas
+
+    oc_arena_scope scratch = oc_scratch_begin();
+
     oc_arena permanentArena = { 0 };
     oc_arena_init(&permanentArena);
 
     oc_rect_atlas* atlas = oc_rect_atlas_create(&permanentArena, 16000, 16000);
     oc_image atlasImage = oc_image_create(surface, 16000, 16000);
 
-    oc_str8 path1 = oc_path_executable_relative(oc_scratch(), OC_STR8("../../../sketches/resources/triceratops.png"));
-    oc_str8 path2 = oc_path_executable_relative(oc_scratch(), OC_STR8("../../../sketches/resources/Top512.png"));
+    oc_str8 path1 = oc_path_executable_relative(scratch.arena, OC_STR8("../../../sketches/resources/triceratops.png"));
+    oc_str8 path2 = oc_path_executable_relative(scratch.arena, OC_STR8("../../../sketches/resources/Top512.png"));
 
     oc_image_region image1 = oc_image_atlas_alloc_from_file(atlas, atlasImage, path1, false);
     oc_image_region image2 = oc_image_atlas_alloc_from_file(atlas, atlasImage, path2, false);
@@ -57,11 +60,14 @@ int main()
     oc_window_bring_to_front(window);
     oc_window_focus(window);
 
+    oc_scratch_end(scratch);
+
     while(!oc_should_quit())
     {
+        scratch = oc_scratch_begin();
         oc_pump_events(0);
         oc_event* event = 0;
-        while((event = oc_next_event(oc_scratch())) != 0)
+        while((event = oc_next_event(scratch.arena)) != 0)
         {
             switch(event->type)
             {
@@ -89,7 +95,7 @@ int main()
         oc_render(canvas);
         oc_surface_present(surface);
 
-        oc_arena_clear(oc_scratch());
+        oc_scratch_end(scratch);
     }
 
     oc_image_atlas_recycle(atlas, image1);

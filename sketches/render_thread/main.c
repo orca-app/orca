@@ -18,8 +18,10 @@ i32 render_thread(void* user)
 {
     while(!oc_should_quit())
     {
+        oc_arena_scope* scratch = oc_scratch_begin();
+
         oc_event* event = 0;
-        while((event = oc_next_event(oc_scratch())) != 0)
+        while((event = oc_next_event(scratch.arena)) != 0)
         {
             switch(event->type)
             {
@@ -47,7 +49,7 @@ i32 render_thread(void* user)
 
         oc_surface_present(surface);
 
-        oc_arena_clear(oc_scratch());
+        oc_scratch_end(scratch);
     }
     return (0);
 }

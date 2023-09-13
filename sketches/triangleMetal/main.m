@@ -36,8 +36,10 @@ int main()
     //NOTE(martin): load the library
     id<MTLDevice> device = MTLCreateSystemDefaultDevice();
 
-    oc_str8 shaderPath = oc_path_executable_relative(oc_scratch(), OC_STR8("triangle_shader.metallib"));
-    const char* shaderPathCString = oc_str8_to_cstring(oc_scratch(), shaderPath);
+    oc_arena_scope* scratch = oc_scratch_begin();
+
+    oc_str8 shaderPath = oc_path_executable_relative(scratch.arena, OC_STR8("triangle_shader.metallib"));
+    const char* shaderPathCString = oc_str8_to_cstring(scratch.arena, shaderPath);
     NSString* metalFileName = [[NSString alloc] initWithCString:shaderPathCString encoding:NSUTF8StringEncoding];
     NSError* err = 0;
     id<MTLLibrary> library = [device newLibraryWithFile:metalFileName error:&err];
@@ -67,6 +69,7 @@ int main()
         return (-1);
     }
 
+    oc_scratch_end(scrathc);
     // start app
 
     oc_window_bring_to_front(window);
@@ -74,9 +77,10 @@ int main()
 
     while(!oc_should_quit())
     {
+        scratch = oc_scratch_begin();
         oc_pump_events(0);
         oc_event* event = 0;
-        while((event = oc_next_event(oc_scratch())) != 0)
+        while((event = oc_next_event(scratch.arena)) != 0)
         {
             switch(event->type)
             {
@@ -89,8 +93,6 @@ int main()
                 default:
                     break;
             }
-
-            oc_arena_clear(oc_scratch());
         }
 
         vector_uint2 viewportSize;
@@ -116,6 +118,8 @@ int main()
         [encoder endEncoding];
 
         oc_surface_present(surface);
+
+        oc_scratch_end(scratch);
     }
 
     oc_terminate();

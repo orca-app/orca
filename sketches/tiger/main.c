@@ -20,13 +20,15 @@
 oc_font create_font()
 {
     //NOTE(martin): create font
-    oc_str8 fontPath = oc_path_executable_relative(oc_scratch(), OC_STR8("../../resources/OpenSansLatinSubset.ttf"));
-    char* fontPathCString = oc_str8_to_cstring(oc_scratch(), fontPath);
+    oc_arena_scope* scratch = oc_scratch_begin();
+    oc_str8 fontPath = oc_path_executable_relative(scratch.arena, OC_STR8("../../resources/OpenSansLatinSubset.ttf"));
+    char* fontPathCString = oc_str8_to_cstring(scratch.arena, fontPath);
 
     FILE* fontFile = fopen(fontPathCString, "r");
     if(!fontFile)
     {
         oc_log_error("Could not load font file '%s': %s\n", fontPathCString, strerror(errno));
+        oc_scratch_end(scratch);
         return (oc_font_nil());
     }
     unsigned char* fontData = 0;
@@ -45,7 +47,7 @@ oc_font create_font()
 
     oc_font font = oc_font_create_from_memory(oc_str8_from_buffer(fontDataSize, (char*)fontData), 5, ranges);
     free(fontData);
-
+    oc_scratch_end(scratch);
     return (font);
 }
 
@@ -96,11 +98,12 @@ int main()
 
     while(!oc_should_quit())
     {
+        oc_arena_scope* scratch = oc_scratch_begin();
         f64 startTime = oc_clock_time(OC_CLOCK_MONOTONIC);
 
         oc_pump_events(0);
         oc_event* event = 0;
-        while((event = oc_next_event(oc_scratch())) != 0)
+        while((event = oc_next_event(scratch.arena)) != 0)
         {
             oc_input_process_event(&inputState, event);
 
@@ -203,7 +206,7 @@ int main()
         oc_clear();
 
         oc_matrix_multiply_push((oc_mat2x3){ zoom, 0, startX,
-                                    0, zoom, startY });
+                                             0, zoom, startY });
 
         draw_tiger(singlePath, singlePathIndex);
 
@@ -221,7 +224,7 @@ int main()
         oc_set_font_size(12);
         oc_move_to(50, 600 - 50);
 
-        oc_str8 text = oc_str8_pushf(oc_scratch(),
+        oc_str8 text = oc_str8_pushf(scratch.arena,
                                      "Orca vector graphics test program (frame time = %fs, fps = %f)...",
                                      frameTime,
                                      1. / frameTime);
@@ -236,7 +239,9 @@ int main()
         oc_surface_present(surface);
 
         oc_input_next_frame(&inputState);
-        oc_arena_clear(oc_scratch());
+
+        oc_scratch_end(scratch);
+
         frameTime = oc_clock_time(OC_CLOCK_MONOTONIC) - startTime;
     }
 

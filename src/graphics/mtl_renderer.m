@@ -1484,8 +1484,13 @@ oc_canvas_backend* oc_mtl_canvas_backend_create(oc_mtl_surface* surface)
     @autoreleasepool
     {
         //NOTE: load metal library
-        oc_str8 shaderPath = oc_path_executable_relative(oc_scratch(), OC_STR8("mtl_renderer.metallib"));
+        oc_arena_scope scratch = oc_scratch_begin();
+
+        oc_str8 shaderPath = oc_path_executable_relative(scratch.arena, OC_STR8("mtl_renderer.metallib"));
         NSString* metalFileName = [[NSString alloc] initWithBytes:shaderPath.ptr length:shaderPath.len encoding:NSUTF8StringEncoding];
+
+        oc_scratch_end(scratch);
+
         NSError* err = 0;
         id<MTLLibrary> library = [surface->device newLibraryWithFile:metalFileName error:&err];
         if(err != nil)

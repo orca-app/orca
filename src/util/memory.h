@@ -96,8 +96,6 @@ ORCA_API void oc_pool_clear(oc_pool* pool);
 //--------------------------------------------------------------------------------
 //NOTE(martin): per-thread implicit scratch arena
 //--------------------------------------------------------------------------------
-ORCA_API oc_arena* oc_scratch();
-ORCA_API oc_arena* oc_scratch_next(oc_arena* used);
 ORCA_API oc_arena_scope oc_scratch_begin(void);
 ORCA_API oc_arena_scope oc_scratch_begin_next(oc_arena* used);
 

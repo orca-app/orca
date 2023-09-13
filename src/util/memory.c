@@ -216,40 +216,34 @@ static oc_arena* oc_scratch_at_index(int index)
     return (scratch);
 }
 
-oc_arena* oc_scratch()
-{
-    return (oc_scratch_at_index(0));
-}
-
-ORCA_API oc_arena* oc_scratch_next(oc_arena* used)
-{
-    oc_arena* res = 0;
-    if((used >= __scratchPool)
-       && (used - __scratchPool < OC_SCRATCH_POOL_SIZE))
-    {
-        u64 index = used - __scratchPool;
-        if(index + 1 < OC_SCRATCH_POOL_SIZE)
-        {
-            res = oc_scratch_at_index(index + 1);
-        }
-    }
-    else
-    {
-        res = oc_scratch_at_index(0);
-    }
-    return (res);
-}
-
 ORCA_API oc_arena_scope oc_scratch_begin(void)
 {
-    oc_arena* scratch = oc_scratch();
+    oc_arena* scratch = oc_scratch_at_index(0);
     oc_arena_scope scope = oc_arena_scope_begin(scratch);
     return (scope);
 }
 
 ORCA_API oc_arena_scope oc_scratch_begin_next(oc_arena* used)
 {
-    oc_arena* scratch = oc_scratch_next(used);
-    oc_arena_scope scope = oc_arena_scope_begin(scratch);
+    oc_arena_scope scope = { 0 };
+    oc_arena* arena = 0;
+    if((used >= __scratchPool)
+       && (used - __scratchPool < OC_SCRATCH_POOL_SIZE))
+    {
+        u64 index = used - __scratchPool;
+        if(index + 1 < OC_SCRATCH_POOL_SIZE)
+        {
+            arena = oc_scratch_at_index(index + 1);
+        }
+    }
+    else
+    {
+        arena = oc_scratch_at_index(0);
+    }
+
+    OC_ASSERT(arena);
+
+    scope = oc_arena_scope_begin(arena);
+
     return (scope);
 }

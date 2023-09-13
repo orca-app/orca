@@ -58,11 +58,12 @@ int main()
 
     while(!oc_should_quit())
     {
+        oc_arena_scope* scratch = oc_scratch_begin();
         f64 startTime = oc_clock_time(OC_CLOCK_MONOTONIC);
 
         oc_pump_events(0);
         oc_event* event = 0;
-        while((event = oc_next_event(oc_scratch())) != 0)
+        while((event = oc_next_event(scratch.arena)) != 0)
         {
             switch(event->type)
             {
@@ -120,7 +121,7 @@ int main()
         oc_surface_present(surface1);
         oc_surface_present(surface2);
 
-        oc_arena_clear(oc_scratch());
+        oc_scratch_end(scratch);
     }
 
     oc_canvas_destroy(canvas1);

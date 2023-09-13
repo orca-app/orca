@@ -86,14 +86,14 @@ void platform_log_push(oc_log_output* output,
 
 _Noreturn void oc_abort_ext(const char* file, const char* function, int line, const char* fmt, ...)
 {
-    oc_arena* scratch = oc_scratch();
+    oc_arena_scope scratch = oc_scratch_begin();
 
     va_list ap;
     va_start(ap, fmt);
-    oc_str8 note = oc_str8_pushfv(scratch, fmt, ap);
+    oc_str8 note = oc_str8_pushfv(scratch.arena, fmt, ap);
     va_end(ap);
 
-    oc_str8 msg = oc_str8_pushf(scratch,
+    oc_str8 msg = oc_str8_pushf(scratch.arena,
                                 "Fatal error in function %s() in file \"%s\", line %i:\n%.*s\n",
                                 function,
                                 file,
@@ -104,7 +104,7 @@ _Noreturn void oc_abort_ext(const char* file, const char* function, int line, co
     oc_log_error(msg.ptr);
 
     oc_str8_list options = { 0 };
-    oc_str8_list_push(scratch, &options, OC_STR8("OK"));
+    oc_str8_list_push(scratch.arena, &options, OC_STR8("OK"));
 
     oc_alert_popup(OC_STR8("Fatal Error"), msg, options);
 
@@ -114,14 +114,14 @@ _Noreturn void oc_abort_ext(const char* file, const char* function, int line, co
 
 _Noreturn void oc_assert_fail(const char* file, const char* function, int line, const char* src, const char* fmt, ...)
 {
-    oc_arena* scratch = oc_scratch();
+    oc_arena_scope scratch = oc_scratch_begin();
 
     va_list ap;
     va_start(ap, fmt);
-    oc_str8 note = oc_str8_pushfv(scratch, fmt, ap);
+    oc_str8 note = oc_str8_pushfv(scratch.arena, fmt, ap);
     va_end(ap);
 
-    oc_str8 msg = oc_str8_pushf(scratch,
+    oc_str8 msg = oc_str8_pushf(scratch.arena,
                                 "Assertion failed in function %s() in file \"%s\", line %i:\n%s\nNote: %.*s\n",
                                 function,
                                 file,
@@ -132,7 +132,7 @@ _Noreturn void oc_assert_fail(const char* file, const char* function, int line, 
     oc_log_error(msg.ptr);
 
     oc_str8_list options = { 0 };
-    oc_str8_list_push(scratch, &options, OC_STR8("OK"));
+    oc_str8_list_push(scratch.arena, &options, OC_STR8("OK"));
 
     oc_alert_popup(OC_STR8("Assertion Failed"), msg, options);
 

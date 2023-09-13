@@ -19,7 +19,9 @@ int main(int argc, char** argv)
         .okLabel = OC_STR8("Select")
     };
 
-    oc_str8_list_push(oc_scratch(), &desc.filters, OC_STR8("txt"));
+    oc_arena_scope* scratch = oc_scratch_begin();
+
+    oc_str8_list_push(scratch.arena, &desc.filters, OC_STR8("txt"));
 
     oc_file file = oc_file_open_with_dialog(OC_FILE_ACCESS_READ, 0, &desc);
     if(oc_file_is_nil(file))

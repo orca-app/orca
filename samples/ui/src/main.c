@@ -25,13 +25,15 @@ ORCA_EXPORT void oc_on_init(void)
 
     //NOTE: load font
     {
+        oc_arena_scope scratch = oc_scratch_begin();
+
         oc_file file = oc_file_open(OC_STR8("/OpenSansLatinSubset.ttf"), OC_FILE_ACCESS_READ, 0);
         if(oc_file_last_error(file) != OC_IO_OK)
         {
             oc_log_error("Couldn't open file OpenSansLatinSubset.ttf\n");
         }
         u64 size = oc_file_size(file);
-        char* buffer = (char*)oc_arena_push(oc_scratch(), size);
+        char* buffer = (char*)oc_arena_push(scratch.arena, size);
         oc_file_read(file, size, buffer);
         oc_file_close(file);
         oc_unicode_range ranges[5] = { OC_UNICODE_BASIC_LATIN,
@@ -41,9 +43,10 @@ ORCA_EXPORT void oc_on_init(void)
                                        OC_UNICODE_SPECIALS };
 
         font = oc_font_create_from_memory(oc_str8_from_buffer(size, buffer), 5, ranges);
+
+        oc_scratch_end(scratch);
     }
 
-    oc_arena_clear(oc_scratch());
     oc_arena_init(&textArena);
 }
 
@@ -82,6 +85,8 @@ void widget_end_view(void)
 
 ORCA_EXPORT void oc_on_frame_refresh(void)
 {
+    oc_arena_scope scratch = oc_scratch_begin();
+
     oc_ui_style defaultStyle = { .font = font };
 
     oc_ui_style_mask defaultMask = OC_UI_STYLE_FONT;
@@ -285,7 +290,7 @@ ORCA_EXPORT void oc_on_frame_refresh(void)
                                                          .size.height = { OC_UI_SIZE_TEXT } },
                                          OC_UI_STYLE_SIZE);
                         static oc_str8 text = { 0 };
-                        oc_ui_text_box_result res = oc_ui_text_box("textbox", oc_scratch(), text);
+                        oc_ui_text_box_result res = oc_ui_text_box("textbox", scratch.arena, text);
                         if(res.changed)
                         {
                             oc_arena_clear(&textArena);
@@ -368,5 +373,5 @@ ORCA_EXPORT void oc_on_frame_refresh(void)
     oc_render(canvas);
     oc_surface_present(surface);
 
-    oc_arena_clear(oc_scratch());
+    oc_scratch_end(scratch);
 }

@@ -50,13 +50,13 @@ static oc_log_output oc_logDefaultOutput = { .kind = ORCA_LOG_OUTPUT_CONSOLE };
 oc_log_output* OC_LOG_DEFAULT_OUTPUT = &oc_logDefaultOutput;
 
 void ORCA_IMPORT(oc_bridge_log)(oc_log_level level,
-                                 int fileLen,
-                                 const char* file,
-                                 int functionLen,
-                                 const char* function,
-                                 int line,
-                                 int msgLen,
-                                 const char* msg);
+                                int fileLen,
+                                const char* file,
+                                int functionLen,
+                                const char* function,
+                                int line,
+                                int msgLen,
+                                const char* msg);
 
 void platform_log_push(oc_log_output* output,
                        oc_log_level level,
@@ -66,20 +66,19 @@ void platform_log_push(oc_log_output* output,
                        const char* fmt,
                        va_list ap)
 {
-    oc_arena* scratch = oc_scratch();
-    oc_arena_scope tmp = oc_arena_scope_begin(scratch);
+    oc_arena_scope scratch = oc_scratch_begin();
 
-    oc_stbsp_context ctx = { .arena = scratch,
+    oc_stbsp_context ctx = { .arena = scratch.arena,
                              .list = { 0 } };
 
     char buf[STB_SPRINTF_MIN];
     stbsp_vsprintfcb(oc_stbsp_callback, &ctx, buf, fmt, ap);
 
-    oc_str8 string = oc_str8_list_join(scratch, ctx.list);
+    oc_str8 string = oc_str8_list_join(scratch.arena, ctx.list);
 
     oc_bridge_log(level, strlen(file), file, strlen(function), function, line, oc_str8_ip(string));
 
-    oc_arena_scope_end(tmp);
+    oc_scratch_end(scratch);
 }
 
 //----------------------------------------------------------------

@@ -120,8 +120,6 @@ void update_and_render(app_data* app)
     glDrawArrays(GL_TRIANGLES, 0, 3);
 
     oc_surface_present(app->surface);
-
-    oc_arena_clear(oc_scratch());
 }
 
 i32 render(void* user)
@@ -169,14 +167,16 @@ i32 render(void* user)
 
     while(!oc_should_quit())
     {
+        oc_arena_scope* scratch = oc_scratch_begin();
+
         oc_event* event = 0;
 
-        while((event = oc_next_event(oc_scratch())) != 0)
+        while((event = oc_next_event(scratch.arena)) != 0)
         {
             process_event(app, *event);
         }
         update_and_render(app);
-        oc_arena_clear(oc_scratch());
+        oc_scratch_end(scratch);
     }
 
     return (0);

@@ -152,13 +152,15 @@ void debug_print_styles(oc_ui_box* box, int indent)
 oc_font create_font()
 {
     //NOTE(martin): create font
-    oc_str8 fontPath = oc_path_executable_relative(oc_scratch(), OC_STR8("../../resources/OpenSansLatinSubset.ttf"));
-    char* fontPathCString = oc_str8_to_cstring(oc_scratch(), fontPath);
+    oc_arena_scope scratch = oc_scratch_begin();
+    oc_str8 fontPath = oc_path_executable_relative(scratch.arena, OC_STR8("../../resources/OpenSansLatinSubset.ttf"));
+    char* fontPathCString = oc_str8_to_cstring(scratch.arena, fontPath);
 
     FILE* fontFile = fopen(fontPathCString, "r");
     if(!fontFile)
     {
         oc_log_error("Could not load font file '%s': %s\n", fontPathCString, strerror(errno));
+        oc_scratch_end(scratch);
         return (oc_font_nil());
     }
     unsigned char* fontData = 0;
@@ -178,6 +180,7 @@ oc_font create_font()
     oc_font font = oc_font_create_from_memory(oc_str8_from_buffer(fontDataSize, (char*)fontData), 5, ranges);
     free(fontData);
 
+    oc_scratch_end(scratch);
     return (font);
 }
 
@@ -240,7 +243,7 @@ int main()
 
     while(!oc_should_quit())
     {
-        oc_arena* scratch = oc_scratch();
+        oc_arena_scope scratch = oc_scratch_begin();
 
         bool printDebugStyle = false;
 
@@ -545,7 +548,7 @@ int main()
                                                              .size.height = { OC_UI_SIZE_TEXT } },
                                              OC_UI_STYLE_SIZE);
                             static oc_str8 text = { 0 };
-                            oc_ui_text_box_result res = oc_ui_text_box("textbox", oc_scratch(), text);
+                            oc_ui_text_box_result res = oc_ui_text_box("textbox", scratch.arena, text);
                             if(res.changed)
                             {
                                 oc_arena_clear(&textArena);
@@ -559,7 +562,7 @@ int main()
                         widget_view("Test")
                         {
                             oc_ui_pattern pattern = { 0 };
-                            oc_ui_pattern_push(oc_scratch(), &pattern, (oc_ui_selector){ .kind = OC_UI_SEL_TEXT, .text = OC_STR8("panel") });
+                            oc_ui_pattern_push(scratch.arena, &pattern, (oc_ui_selector){ .kind = OC_UI_SEL_TEXT, .text = OC_STR8("panel") });
                             oc_ui_style_match_after(pattern, &(oc_ui_style){ .bgColor = { 0.3, 0.3, 1, 1 } }, OC_UI_STYLE_BG_COLOR);
 
                             static int selected = 0;
@@ -634,7 +637,7 @@ int main()
         oc_render(canvas);
         oc_surface_present(surface);
 
-        oc_arena_clear(scratch);
+        oc_scratch_end(scratch);
     }
 
     oc_surface_destroy(surface);

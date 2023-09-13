@@ -42,23 +42,28 @@ int main()
     }
 
     //NOTE: create image
-    oc_str8 imagePath = oc_path_executable_relative(oc_scratch(), OC_STR8("../../resources/triceratops.png"));
+    oc_arena_scope* scratch = oc_scratch_begin();
+
+    oc_str8 imagePath = oc_path_executable_relative(scratch.arena, OC_STR8("../../resources/triceratops.png"));
     oc_image image = oc_image_create_from_file(surface, imagePath, false);
     oc_vec2 imageSize = oc_image_size(image);
 
-    oc_str8 imagePath2 = oc_path_executable_relative(oc_scratch(), OC_STR8("../../resources/Top512.png"));
+    oc_str8 imagePath2 = oc_path_executable_relative(scratch.arena, OC_STR8("../../resources/Top512.png"));
     oc_image image2 = oc_image_create_from_file(surface, imagePath2, false);
     oc_vec2 imageSize2 = oc_image_size(image2);
 
+    oc_scratch_end(scratch);
     // start app
     oc_window_bring_to_front(window);
     oc_window_focus(window);
 
     while(!oc_should_quit())
     {
+        scratch = oc_scratch_begin();
+
         oc_pump_events(0);
         oc_event* event = 0;
-        while((event = oc_next_event(oc_scratch())) != 0)
+        while((event = oc_next_event(scratch.arena)) != 0)
         {
             switch(event->type)
             {
@@ -104,7 +109,7 @@ int main()
         oc_render(canvas);
         oc_surface_present(surface);
 
-        oc_arena_clear(oc_scratch());
+        oc_scratch_end(scratch);
     }
 
     oc_image_destroy(image);

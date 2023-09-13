@@ -21,32 +21,37 @@
 oc_font orca_font_create(const char* resourcePath)
 {
     //NOTE(martin): create default fonts
-    oc_str8 fontPath = oc_path_executable_relative(oc_scratch(), OC_STR8(resourcePath));
+    oc_arena_scope scratch = oc_scratch_begin();
+    oc_str8 fontPath = oc_path_executable_relative(scratch.arena, OC_STR8(resourcePath));
+
+    oc_font font = oc_font_nil();
 
     FILE* fontFile = fopen(fontPath.ptr, "r");
     if(!fontFile)
     {
         oc_log_error("Could not load font file '%s': %s\n", fontPath.ptr, strerror(errno));
-        return (oc_font_nil());
     }
-    char* fontData = 0;
-    fseek(fontFile, 0, SEEK_END);
-    u32 fontDataSize = ftell(fontFile);
-    rewind(fontFile);
-    fontData = malloc(fontDataSize);
-    fread(fontData, 1, fontDataSize, fontFile);
-    fclose(fontFile);
+    else
+    {
+        char* fontData = 0;
+        fseek(fontFile, 0, SEEK_END);
+        u32 fontDataSize = ftell(fontFile);
+        rewind(fontFile);
+        fontData = malloc(fontDataSize);
+        fread(fontData, 1, fontDataSize, fontFile);
+        fclose(fontFile);
 
-    oc_unicode_range ranges[5] = { OC_UNICODE_BASIC_LATIN,
-                                   OC_UNICODE_C1_CONTROLS_AND_LATIN_1_SUPPLEMENT,
-                                   OC_UNICODE_LATIN_EXTENDED_A,
-                                   OC_UNICODE_LATIN_EXTENDED_B,
-                                   OC_UNICODE_SPECIALS };
+        oc_unicode_range ranges[5] = { OC_UNICODE_BASIC_LATIN,
+                                       OC_UNICODE_C1_CONTROLS_AND_LATIN_1_SUPPLEMENT,
+                                       OC_UNICODE_LATIN_EXTENDED_A,
+                                       OC_UNICODE_LATIN_EXTENDED_B,
+                                       OC_UNICODE_SPECIALS };
 
-    oc_font font = oc_font_create_from_memory(oc_str8_from_buffer(fontDataSize, fontData), 5, ranges);
+        font = oc_font_create_from_memory(oc_str8_from_buffer(fontDataSize, fontData), 5, ranges);
 
-    free(fontData);
-
+        free(fontData);
+    }
+    oc_scratch_end(scratch);
     return (font);
 }
 
@@ -301,6 +306,8 @@ void debug_overlay_toggle(oc_debug_overlay* overlay)
 
 void log_entry_ui(oc_debug_overlay* overlay, log_entry* entry)
 {
+    oc_arena_scope scratch = oc_scratch_begin();
+
     static const char* levelNames[] = { "Error: ", "Warning: ", "Info: " };
     static const oc_color levelColors[] = { { 0.8, 0, 0, 1 },
                                             { 1, 0.5, 0, 1 },
@@ -325,7 +332,7 @@ void log_entry_ui(oc_debug_overlay* overlay, log_entry* entry)
                          | OC_UI_STYLE_LAYOUT_MARGINS
                          | OC_UI_STYLE_BG_COLOR);
 
-    oc_str8 key = oc_str8_pushf(oc_scratch(), "%ull", entry->recordIndex);
+    oc_str8 key = oc_str8_pushf(scratch.arena, "%ull", entry->recordIndex);
 
     oc_ui_container_str8(key, OC_UI_FLAG_DRAW_BACKGROUND)
     {
@@ -343,7 +350,7 @@ void log_entry_ui(oc_debug_overlay* overlay, log_entry* entry)
                                  | OC_UI_STYLE_FONT);
             oc_ui_label(levelNames[entry->level]);
 
-            oc_str8 loc = oc_str8_pushf(oc_scratch(),
+            oc_str8 loc = oc_str8_pushf(scratch.arena,
                                         "%.*s() in %.*s:%i:",
                                         oc_str8_ip(entry->file),
                                         oc_str8_ip(entry->function),
@@ -352,6 +359,7 @@ void log_entry_ui(oc_debug_overlay* overlay, log_entry* entry)
         }
         oc_ui_label_str8(entry->msg);
     }
+    oc_scratch_end(scratch);
 }
 
 char m3_type_to_tag(M3ValueType type)
@@ -399,8 +407,10 @@ i32 orca_runloop(void* user)
     oc_wasm_env_init(&app->env);
 
     //NOTE: loads wasm module
+    oc_arena_scope scratch = oc_scratch_begin();
+
     const char* bundleNameCString = "module";
-    oc_str8 modulePath = oc_path_executable_relative(oc_scratch(), OC_STR8("../app/wasm/module.wasm"));
+    oc_str8 modulePath = oc_path_executable_relative(scratch.arena, OC_STR8("../app/wasm/module.wasm"));
 
     FILE* file = fopen(modulePath.ptr, "rb");
     if(!file)
@@ -437,7 +447,7 @@ i32 orca_runloop(void* user)
     }
     m3_SetModuleName(app->env.m3Module, bundleNameCString);
 
-    oc_arena_clear(oc_scratch());
+    oc_scratch_end(scratch);
 
     //NOTE: bind orca APIs
     {
@@ -522,7 +532,9 @@ i32 orca_runloop(void* user)
 
     //NOTE: preopen the app local root dir
     {
-        oc_str8 localRootPath = oc_path_executable_relative(oc_scratch(), OC_STR8("../app/data"));
+        scratch = oc_scratch_begin();
+
+        oc_str8 localRootPath = oc_path_executable_relative(scratch.arena, OC_STR8("../app/data"));
 
         oc_io_req req = { .op = OC_IO_OPEN_AT,
                           .open.rights = OC_FILE_ACCESS_READ | OC_FILE_ACCESS_WRITE,
@@ -530,6 +542,8 @@ i32 orca_runloop(void* user)
                           .buffer = localRootPath.ptr };
         oc_io_cmp cmp = oc_io_wait_single_req_for_table(&req, &app->fileTable);
         app->rootDir = cmp.handle;
+
+        oc_scratch_end(scratch);
     }
 
     IM3Function* exports = app->env.exports;
@@ -561,8 +575,10 @@ i32 orca_runloop(void* user)
 
     while(!app->quit)
     {
+        scratch = oc_scratch_begin();
         oc_event* event = 0;
-        while((event = oc_next_event(oc_scratch())) != 0)
+
+        while((event = oc_next_event(scratch.arena)) != 0)
         {
             if(app->debugOverlay.show)
             {
@@ -571,7 +587,6 @@ i32 orca_runloop(void* user)
 
             if(exports[OC_EXPORT_RAW_EVENT])
             {
-                oc_arena_scope scratch = oc_scratch_begin();
                 oc_event* clipboardEvent = oc_runtime_clipboard_process_event_begin(&__orcaApp.clipboard, scratch.arena, event);
                 oc_event* events[2];
                 u64 eventsCount;
@@ -605,7 +620,6 @@ i32 orca_runloop(void* user)
                 }
 
                 oc_runtime_clipboard_process_event_end(&__orcaApp.clipboard);
-                oc_scratch_end(scratch);
             }
 
             switch(event->type)
@@ -818,8 +832,8 @@ i32 orca_runloop(void* user)
                     //      and we need to change that to size according to its parent (whereas the default is sizing according
                     //      to its children)
                     oc_ui_pattern pattern = { 0 };
-                    oc_ui_pattern_push(oc_scratch(), &pattern, (oc_ui_selector){ .kind = OC_UI_SEL_OWNER });
-                    oc_ui_pattern_push(oc_scratch(), &pattern, (oc_ui_selector){ .kind = OC_UI_SEL_TEXT, .text = OC_STR8("contents") });
+                    oc_ui_pattern_push(scratch.arena, &pattern, (oc_ui_selector){ .kind = OC_UI_SEL_OWNER });
+                    oc_ui_pattern_push(scratch.arena, &pattern, (oc_ui_selector){ .kind = OC_UI_SEL_TEXT, .text = OC_STR8("contents") });
                     oc_ui_style_match_after(pattern, &(oc_ui_style){ .size.width = { OC_UI_SIZE_PARENT, 1 } }, OC_UI_STYLE_SIZE_WIDTH);
 
                     oc_ui_box* panel = oc_ui_box_lookup("log view");
@@ -877,7 +891,7 @@ i32 orca_runloop(void* user)
         oc_render(app->debugOverlay.canvas);
         oc_surface_present(app->debugOverlay.surface);
 
-        oc_arena_clear(oc_scratch());
+        oc_scratch_end(scratch);
 
 #if OC_PLATFORM_WINDOWS
         //NOTE(martin): on windows we set all surfaces to non-synced, and do a single "manual" wait here.

@@ -120,9 +120,10 @@ int main()
 
     while(!oc_should_quit())
     {
+        oc_arena_scope* scratch = oc_scratch_begin();
         oc_pump_events(0);
         oc_event* event = 0;
-        while((event = oc_next_event(oc_scratch())) != 0)
+        while((event = oc_next_event(scratch.arena)) != 0)
         {
             switch(event->type)
             {
@@ -163,7 +164,7 @@ int main()
 
         oc_surface_present(surface);
 
-        oc_arena_clear(oc_scratch());
+        oc_scratch_end(scratch);
     }
 
     oc_terminate();

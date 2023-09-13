@@ -12,7 +12,8 @@ int main(int argc, char** argv)
 {
     oc_init();
 
-    oc_str8 path = oc_path_executable_relative(oc_scratch(), OC_STR8("../"));
+    oc_arena_scope* scratch = oc_scratch_begin();
+    oc_str8 path = oc_path_executable_relative(scratch.arena, OC_STR8("../"));
     oc_file dir = oc_file_open(path, OC_FILE_ACCESS_READ, 0);
 
     oc_file_dialog_desc desc = {
@@ -24,9 +25,9 @@ int main(int argc, char** argv)
         .startPath = OC_STR8(".."),
     };
 
-    oc_str8_list_push(oc_scratch(), &desc.filters, OC_STR8("txt"));
+    oc_str8_list_push(scratch.arena, &desc.filters, OC_STR8("txt"));
 
-    oc_file_dialog_result res = oc_file_dialog(oc_scratch(), &desc);
+    oc_file_dialog_result res = oc_file_dialog(scratch.arena, &desc);
 
     if(res.button == OC_FILE_DIALOG_CANCEL)
     {
