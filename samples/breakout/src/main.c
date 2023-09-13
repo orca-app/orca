@@ -125,7 +125,7 @@ ORCA_EXPORT void oc_on_resize(u32 width, u32 height)
     frameSize.y = height;
 }
 
-ORCA_EXPORT void oc_on_key_down(int key)
+ORCA_EXPORT void oc_on_key_down(oc_scan_code scan, oc_key_code key)
 {
     oc_log_info("key down: %i", key);
     if(key == OC_KEY_LEFT)
@@ -138,7 +138,7 @@ ORCA_EXPORT void oc_on_key_down(int key)
     }
 }
 
-ORCA_EXPORT void oc_on_key_up(int key)
+ORCA_EXPORT void oc_on_key_up(oc_scan_code scan, oc_key_code key)
 {
     oc_log_info("key up: %i", key);
     if(key == OC_KEY_LEFT)

@@ -661,8 +661,8 @@ i32 orca_runloop(void* user)
 
                         if(exports[OC_EXPORT_KEY_DOWN])
                         {
-                            const void* args[1] = { &event->key.scanCode };
-                            M3Result res = m3_Call(exports[OC_EXPORT_KEY_DOWN], 1, args);
+                            const void* args[2] = { &event->key.scanCode, &event->key.keyCode };
+                            M3Result res = m3_Call(exports[OC_EXPORT_KEY_DOWN], 2, args);
                             if(res)
                             {
                                 ORCA_WASM3_ABORT(app->env.m3Runtime, res, "Runtime error");
@@ -673,8 +673,8 @@ i32 orca_runloop(void* user)
                     {
                         if(exports[OC_EXPORT_KEY_UP])
                         {
-                            const void* args[1] = { &event->key.scanCode };
-                            M3Result res = m3_Call(exports[OC_EXPORT_KEY_UP], 1, args);
+                            const void* args[2] = { &event->key.scanCode, &event->key.keyCode };
+                            M3Result res = m3_Call(exports[OC_EXPORT_KEY_UP], 2, args);
                             if(res)
                             {
                                 ORCA_WASM3_ABORT(app->env.m3Runtime, res, "Runtime error");

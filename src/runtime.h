@@ -22,8 +22,8 @@
     X(OC_EXPORT_MOUSE_LEAVE, "oc_on_mouse_leave", "", "")     \
     X(OC_EXPORT_MOUSE_MOVE, "oc_on_mouse_move", "", "ffff")   \
     X(OC_EXPORT_MOUSE_WHEEL, "oc_on_mouse_wheel", "", "ff")   \
-    X(OC_EXPORT_KEY_DOWN, "oc_on_key_down", "", "i")          \
-    X(OC_EXPORT_KEY_UP, "oc_on_key_up", "", "i")              \
+    X(OC_EXPORT_KEY_DOWN, "oc_on_key_down", "", "ii")         \
+    X(OC_EXPORT_KEY_UP, "oc_on_key_up", "", "ii")             \
     X(OC_EXPORT_FRAME_REFRESH, "oc_on_frame_refresh", "", "") \
     X(OC_EXPORT_FRAME_RESIZE, "oc_on_resize", "", "ii")       \
     X(OC_EXPORT_RAW_EVENT, "oc_on_raw_event", "", "i")        \
