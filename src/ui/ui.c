@@ -3231,33 +3231,30 @@ const oc_ui_edit_command OC_UI_EDIT_COMMANDS_WINDOWS[] = {
         .mods = OC_KEYMOD_CTRL,
         .operation = OC_UI_EDIT_CUT,
         .move = OC_UI_EDIT_MOVE_NONE },
-    {
-        .key = OC_KEY_DELETE,
-        .mods = OC_KEYMOD_SHIFT,
-        .operation = OC_UI_EDIT_CUT,
-        .move = OC_UI_EDIT_MOVE_NONE },
+    { .key = OC_KEY_DELETE,
+      .mods = OC_KEYMOD_SHIFT,
+      .operation = OC_UI_EDIT_CUT,
+      .move = OC_UI_EDIT_MOVE_NONE },
     //NOTE(martin): copy
     {
         .key = OC_KEY_C,
         .mods = OC_KEYMOD_CTRL,
         .operation = OC_UI_EDIT_COPY,
         .move = OC_UI_EDIT_MOVE_NONE },
-    {
-        .key = OC_KEY_INSERT,
-        .mods = OC_KEYMOD_CTRL,
-        .operation = OC_UI_EDIT_COPY,
-        .move = OC_UI_EDIT_MOVE_NONE },
+    { .key = OC_KEY_INSERT,
+      .mods = OC_KEYMOD_CTRL,
+      .operation = OC_UI_EDIT_COPY,
+      .move = OC_UI_EDIT_MOVE_NONE },
     //NOTE(martin): paste
     {
         .key = OC_KEY_V,
         .mods = OC_KEYMOD_CTRL,
         .operation = OC_UI_EDIT_PASTE,
         .move = OC_UI_EDIT_MOVE_NONE },
-    {
-        .key = OC_KEY_INSERT,
-        .mods = OC_KEYMOD_SHIFT,
-        .operation = OC_UI_EDIT_PASTE,
-        .move = OC_UI_EDIT_MOVE_NONE }
+    { .key = OC_KEY_INSERT,
+      .mods = OC_KEYMOD_SHIFT,
+      .operation = OC_UI_EDIT_PASTE,
+      .move = OC_UI_EDIT_MOVE_NONE }
 };
 
 const u32 OC_UI_EDIT_COMMAND_MACOS_COUNT = sizeof(OC_UI_EDIT_COMMANDS_MACOS) / sizeof(oc_ui_edit_command);
@@ -3913,6 +3910,7 @@ oc_ui_text_box_result oc_ui_text_box(const char* name, oc_arena* arena, oc_str8 
 
 //------------------------------------------------------------------------------
 // Themes
+// doc/UIColors.md has them visualized
 //------------------------------------------------------------------------------
 
 oc_ui_palette OC_UI_DARK_PALETTE = {
