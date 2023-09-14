@@ -231,9 +231,9 @@ oc_key_state oc_mouse_button_get_state(oc_input_state* input, oc_mouse_button bu
     return (state);
 }
 
-int oc_key_state_press_count(oc_input_state* input, oc_key_state* key)
+u8 oc_key_state_press_count(oc_input_state* input, oc_key_state* key)
 {
-    int count = 0;
+    u8 count = 0;
     if(key->lastUpdate == input->frameCounter)
     {
         count = key->transitionCount / 2;
@@ -246,9 +246,9 @@ int oc_key_state_press_count(oc_input_state* input, oc_key_state* key)
     return (count);
 }
 
-int oc_key_state_release_count(oc_input_state* input, oc_key_state* key)
+u8 oc_key_state_release_count(oc_input_state* input, oc_key_state* key)
 {
-    int count = 0;
+    u8 count = 0;
     if(key->lastUpdate == input->frameCounter)
     {
         count = key->transitionCount / 2;
@@ -261,9 +261,9 @@ int oc_key_state_release_count(oc_input_state* input, oc_key_state* key)
     return (count);
 }
 
-int oc_key_state_repeat_count(oc_input_state* input, oc_key_state* key)
+u8 oc_key_state_repeat_count(oc_input_state* input, oc_key_state* key)
 {
-    int count = 0;
+    u8 count = 0;
     if(key->lastUpdate == input->frameCounter)
     {
         count = key->repeatCount;
@@ -277,25 +277,22 @@ bool oc_key_down(oc_input_state* input, oc_key_code key)
     return (state.down);
 }
 
-int oc_key_pressed(oc_input_state* input, oc_key_code key)
+u8 oc_key_press_count(oc_input_state* input, oc_key_code key)
 {
     oc_key_state state = oc_key_get_state(input, key);
-    int res = oc_key_state_press_count(input, &state);
-    return (res);
+    return (oc_key_state_press_count(input, &state));
 }
 
-int oc_key_released(oc_input_state* input, oc_key_code key)
+u8 oc_key_release_count(oc_input_state* input, oc_key_code key)
 {
     oc_key_state state = oc_key_get_state(input, key);
-    int res = oc_key_state_release_count(input, &state);
-    return (res);
+    return (oc_key_state_release_count(input, &state));
 }
 
-int oc_key_repeated(oc_input_state* input, oc_key_code key)
+u8 oc_key_repeat_count(oc_input_state* input, oc_key_code key)
 {
     oc_key_state state = oc_key_get_state(input, key);
-    int res = oc_key_state_repeat_count(input, &state);
-    return (res);
+    return (oc_key_state_repeat_count(input, &state));
 }
 
 bool oc_key_down_scancode(oc_input_state* state, oc_scan_code scanCode)
@@ -304,22 +301,22 @@ bool oc_key_down_scancode(oc_input_state* state, oc_scan_code scanCode)
     return (oc_key_down(state, key));
 }
 
-int oc_key_pressed_scancode(oc_input_state* state, oc_scan_code scanCode)
+u8 oc_key_press_count_scancode(oc_input_state* state, oc_scan_code scanCode)
 {
     oc_key_code key = oc_scancode_to_keycode(scanCode);
-    return (oc_key_pressed(state, key));
+    return (oc_key_press_count(state, key));
 }
 
-int oc_key_released_scancode(oc_input_state* state, oc_scan_code scanCode)
+u8 oc_key_release_count_scancode(oc_input_state* state, oc_scan_code scanCode)
 {
     oc_key_code key = oc_scancode_to_keycode(scanCode);
-    return (oc_key_released(state, key));
+    return (oc_key_release_count(state, key));
 }
 
-int oc_key_repeated_scancode(oc_input_state* state, oc_scan_code scanCode)
+u8 oc_key_repeat_count_scancode(oc_input_state* state, oc_scan_code scanCode)
 {
     oc_key_code key = oc_scancode_to_keycode(scanCode);
-    return (oc_key_repeated(state, key));
+    return (oc_key_repeat_count(state, key));
 }
 
 bool oc_mouse_down(oc_input_state* input, oc_mouse_button button)
@@ -328,18 +325,16 @@ bool oc_mouse_down(oc_input_state* input, oc_mouse_button button)
     return (state.down);
 }
 
-int oc_mouse_pressed(oc_input_state* input, oc_mouse_button button)
+u8 oc_mouse_pressed(oc_input_state* input, oc_mouse_button button)
 {
     oc_key_state state = oc_mouse_button_get_state(input, button);
-    int res = oc_key_state_press_count(input, &state);
-    return (res);
+    return (oc_key_state_press_count(input, &state));
 }
 
-int oc_mouse_released(oc_input_state* input, oc_mouse_button button)
+u8 oc_mouse_released(oc_input_state* input, oc_mouse_button button)
 {
     oc_key_state state = oc_mouse_button_get_state(input, button);
-    int res = oc_key_state_release_count(input, &state);
-    return (res);
+    return (oc_key_state_release_count(input, &state));
 }
 
 bool oc_mouse_clicked(oc_input_state* input, oc_mouse_button button)

@@ -3836,7 +3836,7 @@ oc_ui_text_box_result oc_ui_text_box(const char* name, oc_arena* arena, oc_str8 
         {
             const oc_ui_edit_command* command = &(editCommands[i]);
 
-            if((oc_key_pressed(&ui->input, command->key) || oc_key_repeated(&ui->input, command->key))
+            if((oc_key_press_count(&ui->input, command->key) || oc_key_repeat_count(&ui->input, command->key))
                && (mods & ~OC_KEYMOD_MAIN_MODIFIER) == command->mods)
             {
                 codepoints = oc_ui_edit_perform_operation(ui, command->operation, command->move, command->direction, codepoints);
@@ -3858,7 +3858,7 @@ oc_ui_text_box_result oc_ui_text_box(const char* name, oc_arena* arena, oc_str8 
             result.text = oc_utf8_push_from_codepoints(arena, codepoints);
         }
 
-        if(oc_key_pressed(&ui->input, OC_KEY_ENTER))
+        if(oc_key_press_count(&ui->input, OC_KEY_ENTER))
         {
             //TODO(martin): extract in gui_edit_complete() (and use below)
             result.accepted = true;

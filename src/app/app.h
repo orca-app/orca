@@ -37,15 +37,19 @@ typedef enum
     OC_MOUSE_CURSOR_TEXT
 } oc_mouse_cursor;
 
-typedef i32 oc_window_style;
-static const oc_window_style OC_WINDOW_STYLE_NO_TITLE = 0x01 << 0,
-                             OC_WINDOW_STYLE_FIXED_SIZE = 0x01 << 1,
-                             OC_WINDOW_STYLE_NO_CLOSE = 0x01 << 2,
-                             OC_WINDOW_STYLE_NO_MINIFY = 0x01 << 3,
-                             OC_WINDOW_STYLE_NO_FOCUS = 0x01 << 4,
-                             OC_WINDOW_STYLE_FLOAT = 0x01 << 5,
-                             OC_WINDOW_STYLE_POPUPMENU = 0x01 << 6,
-                             OC_WINDOW_STYLE_NO_BUTTONS = 0x01 << 7;
+typedef u32 oc_window_style;
+
+enum oc_window_style_enum
+{
+    OC_WINDOW_STYLE_NO_TITLE = 0x01 << 0,
+    OC_WINDOW_STYLE_FIXED_SIZE = 0x01 << 1,
+    OC_WINDOW_STYLE_NO_CLOSE = 0x01 << 2,
+    OC_WINDOW_STYLE_NO_MINIFY = 0x01 << 3,
+    OC_WINDOW_STYLE_NO_FOCUS = 0x01 << 4,
+    OC_WINDOW_STYLE_FLOAT = 0x01 << 5,
+    OC_WINDOW_STYLE_POPUPMENU = 0x01 << 6,
+    OC_WINDOW_STYLE_NO_BUTTONS = 0x01 << 7
+};
 
 typedef enum
 {
