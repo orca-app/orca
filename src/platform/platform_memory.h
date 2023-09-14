@@ -12,28 +12,27 @@
 #include "util/typedefs.h"
 
 #ifdef __cplusplus
-extern "C"
-{
+extern "C" {
 #endif
 
-    //--------------------------------------------------------------------------------
-    //NOTE(martin): base allocator
-    //--------------------------------------------------------------------------------
-    typedef struct oc_base_allocator oc_base_allocator;
+//--------------------------------------------------------------------------------
+//NOTE(martin): base allocator
+//--------------------------------------------------------------------------------
+typedef struct oc_base_allocator oc_base_allocator;
 
-    typedef void* (*oc_mem_reserve_function)(oc_base_allocator* context, u64 size);
-    typedef void (*oc_mem_modify_function)(oc_base_allocator* context, void* ptr, u64 size);
+typedef void* (*oc_mem_reserve_proc)(oc_base_allocator* context, u64 size);
+typedef void (*oc_mem_modify_proc)(oc_base_allocator* context, void* ptr, u64 size);
 
-    typedef struct oc_base_allocator
-    {
-        oc_mem_reserve_function reserve;
-        oc_mem_modify_function commit;
-        oc_mem_modify_function decommit;
-        oc_mem_modify_function release;
+typedef struct oc_base_allocator
+{
+    oc_mem_reserve_proc reserve;
+    oc_mem_modify_proc commit;
+    oc_mem_modify_proc decommit;
+    oc_mem_modify_proc release;
 
-    } oc_base_allocator;
+} oc_base_allocator;
 
-    ORCA_API oc_base_allocator* oc_base_allocator_default();
+ORCA_API oc_base_allocator* oc_base_allocator_default();
 
 #define oc_base_reserve(base, size) base->reserve(base, size)
 #define oc_base_commit(base, ptr, size) base->commit(base, ptr, size)
@@ -48,9 +47,9 @@ extern "C"
 #define oc_malloc_type(type) ((type*)malloc(sizeof(type)))
 #define oc_malloc_array(type, count) ((type*)malloc(sizeof(type) * count))
 
-    //--------------------------------------------------------------------------------
-    //NOTE(martin): memset / memcpy
-    //--------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------
+//NOTE(martin): memset / memcpy
+//--------------------------------------------------------------------------------
 
 #include <string.h>
 

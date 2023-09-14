@@ -18,7 +18,7 @@ struct oc_thread
 {
     bool valid;
     pthread_t pthread;
-    oc_thread_start_function start;
+    oc_thread_start_proc start;
     void* userPointer;
     oc_str8 name;
     char nameBuffer[OC_THREAD_NAME_MAX_SIZE];
@@ -35,7 +35,7 @@ static void* oc_thread_bootstrap(void* data)
     return ((void*)(ptrdiff_t)exitCode);
 }
 
-oc_thread* oc_thread_create_with_name(oc_thread_start_function start, void* userPointer, oc_str8 name)
+oc_thread* oc_thread_create_with_name(oc_thread_start_proc start, void* userPointer, oc_str8 name)
 {
     oc_thread* thread = (oc_thread*)malloc(sizeof(oc_thread));
     if(!thread)
@@ -69,7 +69,7 @@ oc_thread* oc_thread_create_with_name(oc_thread_start_function start, void* user
     }
 }
 
-oc_thread* oc_thread_create(oc_thread_start_function start, void* userPointer)
+oc_thread* oc_thread_create(oc_thread_start_proc start, void* userPointer)
 {
     return (oc_thread_create_with_name(start, userPointer, (oc_str8){ 0 }));
 }

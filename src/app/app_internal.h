@@ -73,9 +73,6 @@ typedef struct oc_app
     oc_window_data windowPool[OC_APP_MAX_WINDOWS];
     oc_list windowFreeList;
 
-    oc_live_resize_callback liveResizeCallback;
-    void* liveResizeData;
-
     oc_scan_code scanCodes[OC_SCANCODE_COUNT]; // native virtual key code to oc_scan_code
     oc_key_code keyMap[OC_SCANCODE_COUNT];     // oc_scan_code to oc_key_code, as per current keyboard layout
 

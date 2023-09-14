@@ -687,11 +687,6 @@ void oc_install_keyboard_layout_listener()
     event.move.content.w = contentRect.size.width;
     event.move.content.h = contentRect.size.height;
 
-    if(oc_appData.liveResizeCallback)
-    {
-        oc_appData.liveResizeCallback(event, oc_appData.liveResizeData);
-    }
-
     //TODO: also ensure we don't overflow the queue during live resize...
     oc_queue_event(&event);
 }
@@ -1873,12 +1868,6 @@ void oc_surface_init_for_window(oc_surface_data* surface, oc_window_data* window
 //--------------------------------------------------------------------
 // Events handling
 //--------------------------------------------------------------------
-
-void oc_set_live_resize_callback(oc_live_resize_callback callback, void* data)
-{
-    oc_appData.liveResizeCallback = callback;
-    oc_appData.liveResizeData = data;
-}
 
 void oc_pump_events(f64 timeout)
 {

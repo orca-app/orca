@@ -5,7 +5,7 @@
 *  See LICENSE.txt for licensing information
 *
 **************************************************************************/
-#include <math.h>                                              //INFINITY
+#include <math.h> //INFINITY
 #include <processthreadsapi.h>
 #include <synchapi.h>
 #include <winuser.h> // PostMessage
@@ -14,7 +14,7 @@
 
 struct oc_thread
 {
-    oc_thread_start_function start;
+    oc_thread_start_proc start;
     HANDLE handle;
     DWORD threadId;
     void* userPointer;
@@ -29,7 +29,7 @@ static DWORD WINAPI oc_thread_bootstrap(LPVOID lpParameter)
     return (exitCode);
 }
 
-oc_thread* oc_thread_create_with_name(oc_thread_start_function start, void* userPointer, oc_str8 name)
+oc_thread* oc_thread_create_with_name(oc_thread_start_proc start, void* userPointer, oc_str8 name)
 {
     oc_thread* thread = (oc_thread*)malloc(sizeof(oc_thread));
     thread->start = start;
@@ -75,7 +75,7 @@ oc_thread* oc_thread_create_with_name(oc_thread_start_function start, void* user
     return (thread);
 }
 
-oc_thread* oc_thread_create(oc_thread_start_function start, void* userPointer)
+oc_thread* oc_thread_create(oc_thread_start_proc start, void* userPointer)
 {
     return (oc_thread_create_with_name(start, userPointer, (oc_str8){ 0 }));
 }

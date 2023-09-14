@@ -316,9 +316,6 @@ ORCA_API void oc_set_cursor(oc_mouse_cursor cursor);
 ORCA_API void oc_pump_events(f64 timeout);
 ORCA_API oc_event* oc_next_event(oc_arena* arena);
 
-typedef void (*oc_live_resize_callback)(oc_event event, void* data);
-ORCA_API void oc_set_live_resize_callback(oc_live_resize_callback callback, void* data);
-
 ORCA_API oc_key_code oc_scancode_to_keycode(oc_scan_code scanCode);
 
 //--------------------------------------------------------------------
