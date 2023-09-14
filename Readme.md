@@ -98,11 +98,17 @@ The following additional resources may also help you familiarize yourself with O
 
 ## FAQ
 
+**What platforms does Orca supports?**
+
+We currently support Windows 10 and up, and macOS 10.15 and up.
+
 **What languages can I use with Orca?**
 
-In principle, you can use any language and toolchain that can produce an Orca-compatible WebAssembly module. However, several important parts of Orca, such as the UI, are provided as part of the support library, which is written in C. Therefore, at this early stage, it may be difficult to use any language other than C.
+In principle, you can use any language and toolchain that can produce a WebAssembly module and bind to the Orca APIs. However, several important parts of Orca, such as the UI, are provided as part of the support library, which must be compiled to WebAssembly with you app, and is written in C. Therefore, at this early stage, it may be difficult to use any language other than C.
 
-We look forward to expanding the number of officially-supported languages in the future.
+C-style C++ is possible but requires compiling the support library in C as a separate object file, and then adding that object to your compile command when building your app.
+
+We're currently working with contributors to add support for Odin and Zig, and we look forward to expanding the number of officially-supported languages in the future. 
 
 **I am getting errors about atomics when building the runtime on Windows.**
 
