@@ -161,7 +161,7 @@ void oc_bridge_log(oc_log_level level,
     //NOTE: allocate a new entry
     //TODO: should probably use a buddy allocator over the arena or something
     log_entry* entry = 0;
-    oc_list_for(&debug->logFreeList, elt, log_entry, listElt)
+    oc_list_for(debug->logFreeList, elt, log_entry, listElt)
     {
         if(elt->cap >= cap)
         {
@@ -587,7 +587,7 @@ i32 orca_runloop(void* user)
 
             if(exports[OC_EXPORT_RAW_EVENT])
             {
-                oc_event* clipboardEvent = oc_runtime_clipboard_process_event_begin(&__orcaApp.clipboard, scratch.arena, event);
+                oc_event* clipboardEvent = oc_runtime_clipboard_process_event_begin(scratch.arena, &__orcaApp.clipboard, event);
                 oc_event* events[2];
                 u64 eventsCount;
                 if(clipboardEvent != 0)
@@ -815,7 +815,7 @@ i32 orca_runloop(void* user)
                         oc_ui_style_match_after(oc_ui_pattern_all(), &buttonStyle, buttonStyleMask);
                         if(oc_ui_button("Clear").clicked)
                         {
-                            oc_list_for_safe(&app->debugOverlay.logEntries, entry, log_entry, listElt)
+                            oc_list_for_safe(app->debugOverlay.logEntries, entry, log_entry, listElt)
                             {
                                 oc_list_remove(&app->debugOverlay.logEntries, &entry->listElt);
                                 oc_list_push(&app->debugOverlay.logFreeList, &entry->listElt);
@@ -856,7 +856,7 @@ i32 orca_runloop(void* user)
 
                         oc_ui_container("contents", 0)
                         {
-                            oc_list_for(&app->debugOverlay.logEntries, entry, log_entry, listElt)
+                            oc_list_for(app->debugOverlay.logEntries, entry, log_entry, listElt)
                             {
                                 log_entry_ui(&app->debugOverlay, entry);
                             }

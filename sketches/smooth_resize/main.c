@@ -167,7 +167,7 @@ i32 render(void* user)
 
     while(!oc_should_quit())
     {
-        oc_arena_scope* scratch = oc_scratch_begin();
+        oc_arena_scope scratch = oc_scratch_begin();
 
         oc_event* event = 0;
 

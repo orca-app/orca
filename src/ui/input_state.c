@@ -63,7 +63,7 @@ static void oc_update_key_mods(oc_input_state* state, oc_keymod_flags mods)
     state->keyboard.mods = mods;
 }
 
-static void oc_update_clipboard_paste(oc_input_state* state, oc_arena* arena)
+static void oc_update_clipboard_paste(oc_arena* arena, oc_input_state* state)
 {
     state->clipboard.lastUpdate = state->frameCounter;
     state->clipboard.pastedText = oc_clipboard_get_string(arena);
@@ -140,7 +140,7 @@ void oc_input_next_frame(oc_input_state* state)
     state->frameCounter++;
 }
 
-void oc_input_process_event(oc_input_state* state, oc_arena* arena, oc_event* event)
+void oc_input_process_event(oc_arena* arena, oc_input_state* state, oc_event* event)
 {
     switch(event->type)
     {
@@ -161,7 +161,7 @@ void oc_input_process_event(oc_input_state* state, oc_arena* arena, oc_event* ev
             break;
 
         case OC_EVENT_CLIPBOARD_PASTE:
-            oc_update_clipboard_paste(state, arena);
+            oc_update_clipboard_paste(arena, state);
             break;
 
         case OC_EVENT_MOUSE_MOVE:
@@ -399,7 +399,7 @@ oc_vec2 oc_mouse_wheel(oc_input_state* input)
     }
 }
 
-oc_str32 oc_input_text_utf32(oc_input_state* input, oc_arena* arena)
+oc_str32 oc_input_text_utf32(oc_arena* arena, oc_input_state* input)
 {
     oc_str32 res = { 0 };
     if(input->text.lastUpdate == input->frameCounter)
@@ -409,7 +409,7 @@ oc_str32 oc_input_text_utf32(oc_input_state* input, oc_arena* arena)
     return (res);
 }
 
-oc_str8 oc_input_text_utf8(oc_input_state* input, oc_arena* arena)
+oc_str8 oc_input_text_utf8(oc_arena* arena, oc_input_state* input)
 {
     oc_str8 res = { 0 };
     if(input->text.lastUpdate == input->frameCounter)

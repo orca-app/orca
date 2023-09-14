@@ -120,7 +120,7 @@ int main()
 
     while(!oc_should_quit())
     {
-        oc_arena_scope* scratch = oc_scratch_begin();
+        oc_arena_scope scratch = oc_scratch_begin();
         oc_pump_events(0);
         oc_event* event = 0;
         while((event = oc_next_event(scratch.arena)) != 0)

@@ -335,7 +335,7 @@ static void oc_win32_update_child_layers(oc_window_data* window)
     int clientWidth = (clientRect.right - clientRect.left);
     int clientHeight = (clientRect.bottom - clientRect.top);
 
-    oc_list_for(&window->win32.layers, layer, oc_layer, listElt)
+    oc_list_for(window->win32.layers, layer, oc_layer, listElt)
     {
         SetWindowPos(layer->hWnd,
                      0,
@@ -351,7 +351,7 @@ static void oc_win32_update_child_layers_zorder(oc_window_data* window)
 {
     HWND insertAfter = window->win32.hWnd;
 
-    oc_list_for(&window->win32.layers, layer, oc_layer, listElt)
+    oc_list_for(window->win32.layers, layer, oc_layer, listElt)
     {
         SetWindowPos(layer->hWnd,
                      insertAfter,
@@ -1416,7 +1416,7 @@ oc_str8 oc_open_dialog(oc_arena* arena,
                 COMDLG_FILTERSPEC* filterSpecs = oc_arena_push_array(arena, COMDLG_FILTERSPEC, filters.eltCount);
 
                 int i = 0;
-                oc_list_for(&filters.list, elt, oc_str8_elt, listElt)
+                oc_list_for(filters.list, elt, oc_str8_elt, listElt)
                 {
                     oc_str8_list list = { 0 };
                     oc_str8_list_push(arena, &list, OC_STR8("*."));
@@ -1504,7 +1504,7 @@ oc_str8 oc_save_dialog(oc_arena* arena,
                 COMDLG_FILTERSPEC* filterSpecs = oc_arena_push_array(arena, COMDLG_FILTERSPEC, filters.eltCount);
 
                 int i = 0;
-                oc_list_for(&filters.list, elt, oc_str8_elt, listElt)
+                oc_list_for(filters.list, elt, oc_str8_elt, listElt)
                 {
                     oc_str8_list list = { 0 };
                     oc_str8_list_push(arena, &list, OC_STR8("*."));
@@ -1685,7 +1685,7 @@ oc_file_dialog_result oc_file_dialog_for_table(oc_arena* arena, oc_file_dialog_d
                 COMDLG_FILTERSPEC* filterSpecs = oc_arena_push_array(scratch.arena, COMDLG_FILTERSPEC, desc->filters.eltCount);
 
                 int i = 0;
-                oc_list_for(&desc->filters.list, elt, oc_str8_elt, listElt)
+                oc_list_for(desc->filters.list, elt, oc_str8_elt, listElt)
                 {
                     oc_str8_list list = { 0 };
                     oc_str8_list_push(scratch.arena, &list, OC_STR8("*."));
@@ -1784,7 +1784,7 @@ int oc_alert_popup(oc_str8 title,
     TASKDIALOG_BUTTON* buttons = oc_arena_push_array(scratch.arena, TASKDIALOG_BUTTON, options.eltCount);
 
     int i = 0;
-    oc_list_for(&options.list, elt, oc_str8_elt, listElt)
+    oc_list_for(options.list, elt, oc_str8_elt, listElt)
     {
         int textWideSize = MultiByteToWideChar(CP_UTF8, 0, elt->string.ptr, elt->string.len, NULL, 0);
         wchar_t* textWide = oc_arena_push_array(scratch.arena, wchar_t, textWideSize + 1);

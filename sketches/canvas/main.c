@@ -51,7 +51,7 @@ int main()
     while(!oc_should_quit())
     {
         f64 startTime = oc_clock_time(OC_CLOCK_MONOTONIC);
-        oc_arena_scope* scratch = oc_scratch_begin();
+        oc_arena_scope scratch = oc_scratch_begin();
 
         oc_pump_events(0);
         oc_event* event = 0;
@@ -69,19 +69,19 @@ int main()
                 {
                     if(event->key.action == OC_KEY_PRESS)
                     {
-                        if(event->key.code == OC_KEY_LEFT)
+                        if(event->key.keyCode == OC_KEY_LEFT)
                         {
                             x -= 1;
                         }
-                        if(event->key.code == OC_KEY_RIGHT)
+                        if(event->key.keyCode == OC_KEY_RIGHT)
                         {
                             x += 1;
                         }
-                        if(event->key.code == OC_KEY_UP)
+                        if(event->key.keyCode == OC_KEY_UP)
                         {
                             y -= 1;
                         }
-                        if(event->key.code == OC_KEY_DOWN)
+                        if(event->key.keyCode == OC_KEY_DOWN)
                         {
                             y += 1;
                         }

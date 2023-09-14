@@ -14,13 +14,13 @@
 
 oc_str8 oc_str8_from_buffer(u64 len, char* buffer)
 {
-    return ((oc_str8){.ptr = buffer , .len = len});
+    return ((oc_str8){ .ptr = buffer, .len = len });
 }
 
 oc_str8 oc_str8_slice(oc_str8 s, u64 start, u64 end)
 {
     OC_ASSERT(start <= end && start <= s.len && end <= s.len);
-    return ((oc_str8){.ptr = s.ptr + start , .len = end - start});
+    return ((oc_str8){ .ptr = s.ptr + start, .len = end - start });
 }
 
 oc_str8 oc_str8_push_buffer(oc_arena* arena, u64 len, char* buffer)
@@ -136,15 +136,15 @@ oc_str8 oc_str8_list_collate(oc_arena* arena, oc_str8_list list, oc_str8 prefix,
     memcpy(dst, prefix.ptr, prefix.len);
     dst += prefix.len;
 
-    oc_str8_elt* elt = oc_list_first_entry(&list.list, oc_str8_elt, listElt);
+    oc_str8_elt* elt = oc_list_first_entry(list.list, oc_str8_elt, listElt);
     if(elt)
     {
         memcpy(dst, elt->string.ptr, elt->string.len);
         dst += elt->string.len;
-        elt = oc_list_next_entry(&list.list, elt, oc_str8_elt, listElt);
+        elt = oc_list_next_entry(list.list, elt, oc_str8_elt, listElt);
     }
 
-    for(; elt != 0; elt = oc_list_next_entry(&list.list, elt, oc_str8_elt, listElt))
+    for(; elt != 0; elt = oc_list_next_entry(list.list, elt, oc_str8_elt, listElt))
     {
         memcpy(dst, separator.ptr, separator.len);
         dst += separator.len;
@@ -158,7 +158,7 @@ oc_str8 oc_str8_list_collate(oc_arena* arena, oc_str8_list list, oc_str8 prefix,
 
 oc_str8 oc_str8_list_join(oc_arena* arena, oc_str8_list list)
 {
-    oc_str8 empty = {.ptr = 0 , .len = 0};
+    oc_str8 empty = { .ptr = 0, .len = 0 };
     return (oc_str8_list_collate(arena, list, empty, empty, empty));
 }
 
@@ -174,7 +174,7 @@ oc_str8_list oc_str8_split(oc_arena* arena, oc_str8 str, oc_str8_list separators
     {
         //NOTE(martin): search all separators and try to match them to the current ptr
         oc_str8* foundSep = 0;
-        oc_list_for(&separators.list, elt, oc_str8_elt, listElt)
+        oc_list_for(separators.list, elt, oc_str8_elt, listElt)
         {
             oc_str8* separator = &elt->string;
             bool equal = true;
@@ -221,13 +221,13 @@ oc_str8_list oc_str8_split(oc_arena* arena, oc_str8 str, oc_str8_list separators
 //----------------------------------------------------------------------------------
 oc_str16 oc_str16_from_buffer(u64 len, u16* buffer)
 {
-    return ((oc_str16){.ptr = buffer , .len = len});
+    return ((oc_str16){ .ptr = buffer, .len = len });
 }
 
 oc_str16 oc_str16_slice(oc_str16 s, u64 start, u64 end)
 {
     OC_ASSERT(start <= end && start <= s.len && end <= s.len);
-    return ((oc_str16){.ptr = s.ptr + start , .len = end - start});
+    return ((oc_str16){ .ptr = s.ptr + start, .len = end - start });
 }
 
 oc_str16 oc_str16_push_buffer(oc_arena* arena, u64 len, u16* buffer)
@@ -276,15 +276,15 @@ oc_str16 oc_str16_list_collate(oc_arena* arena, oc_str16_list list, oc_str16 pre
     memcpy(dst, prefix.ptr, prefix.len * sizeof(u16));
     dst += prefix.len * sizeof(u16);
 
-    oc_str16_elt* elt = oc_list_first_entry(&list.list, oc_str16_elt, listElt);
+    oc_str16_elt* elt = oc_list_first_entry(list.list, oc_str16_elt, listElt);
     if(elt)
     {
         memcpy(dst, elt->string.ptr, elt->string.len * sizeof(u16));
         dst += elt->string.len * sizeof(u16);
-        elt = oc_list_next_entry(&list.list, elt, oc_str16_elt, listElt);
+        elt = oc_list_next_entry(list.list, elt, oc_str16_elt, listElt);
     }
 
-    for(; elt != 0; elt = oc_list_next_entry(&list.list, elt, oc_str16_elt, listElt))
+    for(; elt != 0; elt = oc_list_next_entry(list.list, elt, oc_str16_elt, listElt))
     {
         memcpy(dst, separator.ptr, separator.len * sizeof(u16));
         dst += separator.len * sizeof(u16);
@@ -298,7 +298,7 @@ oc_str16 oc_str16_list_collate(oc_arena* arena, oc_str16_list list, oc_str16 pre
 
 oc_str16 oc_str16_list_join(oc_arena* arena, oc_str16_list list)
 {
-    oc_str16 empty = {.ptr = 0 , .len = 0};
+    oc_str16 empty = { .ptr = 0, .len = 0 };
     return (oc_str16_list_collate(arena, list, empty, empty, empty));
 }
 
@@ -307,13 +307,13 @@ oc_str16 oc_str16_list_join(oc_arena* arena, oc_str16_list list)
 //----------------------------------------------------------------------------------
 oc_str32 oc_str32_from_buffer(u64 len, u32* buffer)
 {
-    return ((oc_str32){.ptr = buffer , .len = len});
+    return ((oc_str32){ .ptr = buffer, .len = len });
 }
 
 oc_str32 oc_str32_slice(oc_str32 s, u64 start, u64 end)
 {
     OC_ASSERT(start <= end && start <= s.len && end <= s.len);
-    return ((oc_str32){.ptr = s.ptr + start , .len = end - start});
+    return ((oc_str32){ .ptr = s.ptr + start, .len = end - start });
 }
 
 oc_str32 oc_str32_push_buffer(oc_arena* arena, u64 len, u32* buffer)
@@ -362,15 +362,15 @@ oc_str32 oc_str32_list_collate(oc_arena* arena, oc_str32_list list, oc_str32 pre
     memcpy(dst, prefix.ptr, prefix.len * sizeof(u32));
     dst += prefix.len * sizeof(u32);
 
-    oc_str32_elt* elt = oc_list_first_entry(&list.list, oc_str32_elt, listElt);
+    oc_str32_elt* elt = oc_list_first_entry(list.list, oc_str32_elt, listElt);
     if(elt)
     {
         memcpy(dst, elt->string.ptr, elt->string.len * sizeof(u32));
         dst += elt->string.len * sizeof(u32);
-        elt = oc_list_next_entry(&list.list, elt, oc_str32_elt, listElt);
+        elt = oc_list_next_entry(list.list, elt, oc_str32_elt, listElt);
     }
 
-    for(; elt != 0; elt = oc_list_next_entry(&list.list, elt, oc_str32_elt, listElt))
+    for(; elt != 0; elt = oc_list_next_entry(list.list, elt, oc_str32_elt, listElt))
     {
         memcpy(dst, separator.ptr, separator.len * sizeof(u32));
         dst += separator.len * sizeof(u32);
@@ -384,6 +384,6 @@ oc_str32 oc_str32_list_collate(oc_arena* arena, oc_str32_list list, oc_str32 pre
 
 oc_str32 oc_str32_list_join(oc_arena* arena, oc_str32_list list)
 {
-    oc_str32 empty = {.ptr = 0 , .len = 0};
+    oc_str32 empty = { .ptr = 0, .len = 0 };
     return (oc_str32_list_collate(arena, list, empty, empty, empty));
 }

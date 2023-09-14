@@ -135,13 +135,13 @@ oc_io_open_restrict_result oc_io_open_restrict(oc_file_desc dirFd, oc_str8 path,
 
     if(context.error == OC_IO_OK)
     {
-        oc_list_for(&pathElements.list, elt, oc_str8_elt, listElt)
+        oc_list_for(pathElements.list, elt, oc_str8_elt, listElt)
         {
             oc_str8 name = elt->string;
             oc_file_access eltAccessRights = OC_FILE_ACCESS_READ;
             oc_file_open_flags eltOpenFlags = 0;
 
-            bool atLastElement = (&elt->listElt == oc_list_last(&pathElements.list));
+            bool atLastElement = (&elt->listElt == oc_list_last(pathElements.list));
             if(atLastElement)
             {
                 eltAccessRights = accessRights;
@@ -224,7 +224,7 @@ oc_io_open_restrict_result oc_io_open_restrict(oc_file_desc dirFd, oc_str8 path,
                         }
 
                         oc_str8_list linkElements = oc_str8_split(scratch.arena, link.target, sep);
-                        if(!oc_list_empty(&linkElements.list))
+                        if(!oc_list_empty(linkElements.list))
                         {
                             //NOTE: insert linkElements into pathElements after elt
                             oc_list_elt* tmp = elt->listElt.next;
@@ -404,7 +404,7 @@ oc_file_open_with_dialog_result oc_file_open_with_dialog_for_table(oc_arena* are
     if(dialogResult.button == OC_FILE_DIALOG_OK)
     {
         int i = 0;
-        oc_list_for(&dialogResult.selection.list, elt, oc_str8_elt, listElt)
+        oc_list_for(dialogResult.selection.list, elt, oc_str8_elt, listElt)
         {
             oc_file file = oc_file_nil();
             if(elt->string.len)

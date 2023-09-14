@@ -12,7 +12,7 @@ int main(int argc, char** argv)
 {
     oc_init();
 
-    oc_arena_scope* scratch = oc_scratch_begin();
+    oc_arena_scope scratch = oc_scratch_begin();
     oc_str8 path = oc_path_executable_relative(scratch.arena, OC_STR8("../"));
     oc_file dir = oc_file_open(path, OC_FILE_ACCESS_READ, 0);
 
@@ -36,7 +36,7 @@ int main(int argc, char** argv)
     else
     {
         oc_log_info("Selected files:\n");
-        oc_list_for(&res.selection.list, elt, oc_str8_elt, listElt)
+        oc_list_for(res.selection.list, elt, oc_str8_elt, listElt)
         {
             oc_log_info("\t%.*s\n", (int)elt->string.len, elt->string.ptr);
         }

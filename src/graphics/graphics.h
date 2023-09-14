@@ -234,7 +234,7 @@ ORCA_API oc_font oc_font_create_from_path(oc_str8 path, u32 rangeCount, oc_unico
 ORCA_API void oc_font_destroy(oc_font font);
 
 ORCA_API oc_str32 oc_font_get_glyph_indices(oc_font font, oc_str32 codePoints, oc_str32 backing);
-ORCA_API oc_str32 oc_font_push_glyph_indices(oc_font font, oc_arena* arena, oc_str32 codePoints);
+ORCA_API oc_str32 oc_font_push_glyph_indices(oc_arena* arena, oc_font font, oc_str32 codePoints);
 ORCA_API u32 oc_font_get_glyph_index(oc_font font, oc_utf32 codePoint);
 
 // metrics

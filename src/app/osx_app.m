@@ -1762,7 +1762,7 @@ void oc_osx_update_layers(oc_window_data* window)
     @autoreleasepool
     {
         int z = 0;
-        oc_list_for(&window->osx.layers, layer, oc_layer, listElt)
+        oc_list_for(window->osx.layers, layer, oc_layer, listElt)
         {
             layer->caLayer.zPosition = (CGFloat)z;
             z++;
@@ -1962,7 +1962,7 @@ oc_str8 oc_open_dialog(oc_arena* arena,
           {
               NSMutableArray* fileTypesArray = [NSMutableArray array];
 
-              oc_list_for((oc_list*)&filters.list, elt, oc_str8_elt, listElt)
+              oc_list_for(filters.list, elt, oc_str8_elt, listElt)
               {
                   oc_str8 string = elt->string;
                   NSString* filter = [[NSString alloc] initWithBytes:string.ptr length:string.len encoding:NSUTF8StringEncoding];
@@ -2044,7 +2044,7 @@ oc_str8 oc_save_dialog(oc_arena* arena,
           {
               NSMutableArray* fileTypesArray = [NSMutableArray array];
 
-              oc_list_for((oc_list*)&filters.list, elt, oc_str8_elt, listElt)
+              oc_list_for(filters.list, elt, oc_str8_elt, listElt)
               {
                   oc_str8 string = elt->string;
                   NSString* filter = [[NSString alloc] initWithBytes:string.ptr length:string.len encoding:NSUTF8StringEncoding];
@@ -2184,7 +2184,7 @@ ORCA_API oc_file_dialog_result oc_file_dialog_for_table(oc_arena* arena, oc_file
           {
               NSMutableArray* fileTypesArray = [NSMutableArray array];
 
-              oc_list_for((oc_list*)&desc->filters.list, elt, oc_str8_elt, listElt)
+              oc_list_for(desc->filters.list, elt, oc_str8_elt, listElt)
               {
                   oc_str8 string = elt->string;
                   NSString* filter = [[NSString alloc] initWithBytes:string.ptr length:string.len encoding:NSUTF8StringEncoding];
@@ -2261,7 +2261,7 @@ int oc_alert_popup(oc_str8 title,
           NSAlert* alert = [[NSAlert alloc] init];
           NSString* string;
 
-          oc_list_for_reverse((oc_list*)&options.list, elt, oc_str8_elt, listElt)
+          oc_list_for_reverse(options.list, elt, oc_str8_elt, listElt)
           {
               string = [[NSString alloc] initWithBytes:elt->string.ptr length:elt->string.len encoding:NSUTF8StringEncoding];
               [alert addButtonWithTitle:string];

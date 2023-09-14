@@ -190,7 +190,7 @@ oc_ui_key oc_ui_key_make_path(oc_str8_list path)
     {
         seed = parent->key.hash;
     }
-    oc_list_for(&path.list, elt, oc_str8_elt, listElt)
+    oc_list_for(path.list, elt, oc_str8_elt, listElt)
     {
         seed = oc_hash_xx64_string_seed(elt->string, seed);
     }
@@ -214,7 +214,7 @@ oc_ui_box* oc_ui_box_lookup_key(oc_ui_key key)
     oc_ui_context* ui = oc_ui_get_context();
     u64 index = key.hash & (OC_UI_BOX_MAP_BUCKET_COUNT - 1);
 
-    oc_list_for(&ui->boxMap[index], box, oc_ui_box, bucketElt)
+    oc_list_for(ui->boxMap[index], box, oc_ui_box, bucketElt)
     {
         if(oc_ui_key_equal(key, box->key))
         {
@@ -331,7 +331,7 @@ void oc_ui_style_box_after(oc_ui_box* box, oc_ui_pattern pattern, oc_ui_style* s
 void oc_ui_process_event(oc_event* event)
 {
     oc_ui_context* ui = oc_ui_get_context();
-    oc_input_process_event(&ui->input, &ui->frameArena, event);
+    oc_input_process_event(&ui->frameArena, &ui->input, event);
 }
 
 oc_vec2 oc_ui_mouse_position(void)
@@ -450,14 +450,14 @@ oc_ui_box* oc_ui_box_make_str8(oc_str8 string, oc_ui_flags flags)
     ui->nextBoxTags = (oc_list){ 0 };
 
     box->beforeRules = ui->nextBoxBeforeRules;
-    oc_list_for(&box->beforeRules, rule, oc_ui_style_rule, boxElt)
+    oc_list_for(box->beforeRules, rule, oc_ui_style_rule, boxElt)
     {
         rule->owner = box;
     }
     ui->nextBoxBeforeRules = (oc_list){ 0 };
 
     box->afterRules = ui->nextBoxAfterRules;
-    oc_list_for(&box->afterRules, rule, oc_ui_style_rule, boxElt)
+    oc_list_for(box->afterRules, rule, oc_ui_style_rule, boxElt)
     {
         rule->owner = box;
     }
@@ -854,7 +854,7 @@ bool oc_ui_style_selector_match(oc_ui_box* box, oc_ui_style_rule* rule, oc_ui_se
 
         case OC_UI_SEL_TAG:
         {
-            oc_list_for(&box->tags, elt, oc_ui_tag_elt, listElt)
+            oc_list_for(box->tags, elt, oc_ui_tag_elt, listElt)
             {
                 if(elt->tag.hash == selector->tag.hash)
                 {
@@ -893,14 +893,14 @@ bool oc_ui_style_selector_match(oc_ui_box* box, oc_ui_style_rule* rule, oc_ui_se
 
 void oc_ui_style_rule_match(oc_ui_context* ui, oc_ui_box* box, oc_ui_style_rule* rule, oc_list* buildList, oc_list* tmpList)
 {
-    oc_ui_selector* selector = oc_list_first_entry(&rule->pattern.l, oc_ui_selector, listElt);
+    oc_ui_selector* selector = oc_list_first_entry(rule->pattern.l, oc_ui_selector, listElt);
     bool match = oc_ui_style_selector_match(box, rule, selector);
 
-    selector = oc_list_next_entry(&rule->pattern.l, selector, oc_ui_selector, listElt);
+    selector = oc_list_next_entry(rule->pattern.l, selector, oc_ui_selector, listElt);
     while(match && selector && selector->op == OC_UI_SEL_AND)
     {
         match = match && oc_ui_style_selector_match(box, rule, selector);
-        selector = oc_list_next_entry(&rule->pattern.l, selector, oc_ui_selector, listElt);
+        selector = oc_list_next_entry(rule->pattern.l, selector, oc_ui_selector, listElt);
     }
 
     if(match)
@@ -935,27 +935,27 @@ void oc_ui_styling_prepass(oc_ui_context* ui, oc_ui_box* box, oc_list* before, o
 
     //NOTE: append box before rules to before and tmp
     oc_list tmpBefore = { 0 };
-    oc_list_for(&box->beforeRules, rule, oc_ui_style_rule, boxElt)
+    oc_list_for(box->beforeRules, rule, oc_ui_style_rule, boxElt)
     {
         oc_list_append(before, &rule->buildElt);
         oc_list_append(&tmpBefore, &rule->tmpElt);
     }
     //NOTE: match before rules
-    oc_list_for(before, rule, oc_ui_style_rule, buildElt)
+    oc_list_for(*before, rule, oc_ui_style_rule, buildElt)
     {
         oc_ui_style_rule_match(ui, box, rule, before, &tmpBefore);
     }
 
     //NOTE: prepend box after rules to after and append them to tmp
     oc_list tmpAfter = { 0 };
-    oc_list_for_reverse(&box->afterRules, rule, oc_ui_style_rule, boxElt)
+    oc_list_for_reverse(box->afterRules, rule, oc_ui_style_rule, boxElt)
     {
         oc_list_push(after, &rule->buildElt);
         oc_list_append(&tmpAfter, &rule->tmpElt);
     }
 
     //NOTE: match after rules
-    oc_list_for(after, rule, oc_ui_style_rule, buildElt)
+    oc_list_for(*after, rule, oc_ui_style_rule, buildElt)
     {
         oc_ui_style_rule_match(ui, box, rule, after, &tmpAfter);
     }
@@ -996,17 +996,17 @@ void oc_ui_styling_prepass(oc_ui_context* ui, oc_ui_box* box, oc_list* before, o
     }
 
     //NOTE: descend in children
-    oc_list_for(&box->children, child, oc_ui_box, listElt)
+    oc_list_for(box->children, child, oc_ui_box, listElt)
     {
         oc_ui_styling_prepass(ui, child, before, after);
     }
 
     //NOTE: remove temporary rules
-    oc_list_for(&tmpBefore, rule, oc_ui_style_rule, tmpElt)
+    oc_list_for(tmpBefore, rule, oc_ui_style_rule, tmpElt)
     {
         oc_list_remove(before, &rule->buildElt);
     }
-    oc_list_for(&tmpAfter, rule, oc_ui_style_rule, tmpElt)
+    oc_list_for(tmpAfter, rule, oc_ui_style_rule, tmpElt)
     {
         oc_list_remove(after, &rule->buildElt);
     }
@@ -1024,7 +1024,7 @@ void oc_ui_layout_downward_dependent_size(oc_ui_context* ui, oc_ui_box* box, int
 {
     //NOTE: layout children and compute spacing
     f32 count = 0;
-    oc_list_for(&box->children, child, oc_ui_box, listElt)
+    oc_list_for(box->children, child, oc_ui_box, listElt)
     {
         if(!oc_ui_box_hidden(child))
         {
@@ -1048,7 +1048,7 @@ void oc_ui_layout_downward_dependent_size(oc_ui_context* ui, oc_ui_box* box, int
 
         if(box->style.layout.axis == axis)
         {
-            oc_list_for(&box->children, child, oc_ui_box, listElt)
+            oc_list_for(box->children, child, oc_ui_box, listElt)
             {
                 if(oc_ui_layout_downward_dependency(child, axis))
                 {
@@ -1058,7 +1058,7 @@ void oc_ui_layout_downward_dependent_size(oc_ui_context* ui, oc_ui_box* box, int
         }
         else
         {
-            oc_list_for(&box->children, child, oc_ui_box, listElt)
+            oc_list_for(box->children, child, oc_ui_box, listElt)
             {
                 if(oc_ui_layout_downward_dependency(child, axis))
                 {
@@ -1078,7 +1078,7 @@ void oc_ui_layout_upward_dependent_size(oc_ui_context* ui, oc_ui_box* box, int a
     f32 margin = box->style.layout.margin.c[axis];
     f32 availableSize = oc_max(0, box->rect.c[2 + axis] - box->spacing[axis] - 2 * margin);
 
-    oc_list_for(&box->children, child, oc_ui_box, listElt)
+    oc_list_for(box->children, child, oc_ui_box, listElt)
     {
         oc_ui_size* size = &child->style.size.c[axis];
         if(size->kind == OC_UI_SIZE_PARENT)
@@ -1101,7 +1101,7 @@ void oc_ui_layout_upward_dependent_size(oc_ui_context* ui, oc_ui_box* box, int a
         //      total slack available
         f32 slack = 0;
 
-        oc_list_for(&box->children, child, oc_ui_box, listElt)
+        oc_list_for(box->children, child, oc_ui_box, listElt)
         {
             if(!oc_ui_box_hidden(child)
                && !child->style.floating.c[axis])
@@ -1119,7 +1119,7 @@ void oc_ui_layout_upward_dependent_size(oc_ui_context* ui, oc_ui_box* box, int a
             f32 alpha = oc_clamp(excess / slack, 0, 1);
 
             sum = 0;
-            oc_list_for(&box->children, child, oc_ui_box, listElt)
+            oc_list_for(box->children, child, oc_ui_box, listElt)
             {
                 f32 relax = child->style.size.c[axis].relax;
                 child->rect.c[2 + axis] -= alpha * child->rect.c[2 + axis] * relax;
@@ -1132,7 +1132,7 @@ void oc_ui_layout_upward_dependent_size(oc_ui_context* ui, oc_ui_box* box, int a
         //NOTE: if we're solving on the secondary axis, we remove excess to each box individually
         //      according to its own slack. Children sum is the maximum child size.
 
-        oc_list_for(&box->children, child, oc_ui_box, listElt)
+        oc_list_for(box->children, child, oc_ui_box, listElt)
         {
             if(!oc_ui_box_hidden(child) && !child->style.floating.c[axis])
             {
@@ -1151,7 +1151,7 @@ void oc_ui_layout_upward_dependent_size(oc_ui_context* ui, oc_ui_box* box, int a
     box->childrenSum[axis] = sum;
 
     //NOTE: recurse in children
-    oc_list_for(&box->children, child, oc_ui_box, listElt)
+    oc_list_for(box->children, child, oc_ui_box, listElt)
     {
         oc_ui_layout_upward_dependent_size(ui, child, axis);
     }
@@ -1201,7 +1201,7 @@ void oc_ui_layout_compute_rect(oc_ui_context* ui, oc_ui_box* box, oc_vec2 pos)
     currentPos.x -= box->scroll.x;
     currentPos.y -= box->scroll.y;
 
-    oc_list_for(&box->children, child, oc_ui_box, listElt)
+    oc_list_for(box->children, child, oc_ui_box, listElt)
     {
         if(align[secondAxis] == OC_UI_ALIGN_CENTER)
         {
@@ -1250,7 +1250,7 @@ void oc_ui_layout_find_next_hovered_recursive(oc_ui_context* ui, oc_ui_box* box,
     }
     if(hit || !(box->flags & OC_UI_FLAG_CLIP))
     {
-        oc_list_for(&box->children, child, oc_ui_box, listElt)
+        oc_list_for(box->children, child, oc_ui_box, listElt)
         {
             oc_ui_layout_find_next_hovered_recursive(ui, child, p);
         }
@@ -1272,7 +1272,7 @@ void oc_ui_solve_layout(oc_ui_context* ui)
     oc_ui_styling_prepass(ui, ui->root, &beforeRules, &afterRules);
 
     //NOTE: reparent overlay boxes
-    oc_list_for(&ui->overlayList, box, oc_ui_box, overlayElt)
+    oc_list_for(ui->overlayList, box, oc_ui_box, overlayElt)
     {
         if(box->parent)
         {
@@ -1368,7 +1368,7 @@ void oc_ui_draw_box(oc_ui_box* box)
         box->drawProc(box, box->drawData);
     }
 
-    oc_list_for(&box->children, child, oc_ui_box, listElt)
+    oc_list_for(box->children, child, oc_ui_box, listElt)
     {
         oc_ui_draw_box(child);
     }
@@ -1518,7 +1518,7 @@ void oc_ui_end_frame(void)
     //NOTE: prune unused boxes
     for(int i = 0; i < OC_UI_BOX_MAP_BUCKET_COUNT; i++)
     {
-        oc_list_for_safe(&ui->boxMap[i], box, oc_ui_box, bucketElt)
+        oc_list_for_safe(ui->boxMap[i], box, oc_ui_box, bucketElt)
         {
             if(box->frameCounter < ui->frameCounter)
             {
@@ -2724,7 +2724,7 @@ oc_ui_radio_group_info oc_ui_radio_group(const char* name, oc_ui_radio_group_inf
             oc_ui_flags flags = OC_UI_FLAG_DRAW_BACKGROUND | OC_UI_FLAG_DRAW_BORDER | OC_UI_FLAG_DRAW_PROC;
             oc_ui_box* radio = oc_ui_box_make("radio", flags);
             oc_ui_box_set_draw_proc(radio, oc_ui_radio_indicator_draw, 0);
-            
+
             oc_ui_sig sig = oc_ui_box_sig(row);
             if(sig.clicked)
             {
@@ -3806,7 +3806,7 @@ oc_ui_text_box_result oc_ui_text_box(const char* name, oc_arena* arena, oc_str8 
         ui->editMark = oc_clamp(ui->editMark, 0, codepoints.len);
 
         //NOTE replace selection with input codepoints
-        oc_str32 input = oc_input_text_utf32(&ui->input, &ui->frameArena);
+        oc_str32 input = oc_input_text_utf32(&ui->frameArena, &ui->input);
         if(input.len)
         {
             codepoints = oc_ui_edit_replace_selection_with_codepoints(ui, codepoints, input);

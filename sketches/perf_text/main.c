@@ -64,8 +64,8 @@ static const char* TEST_STRING =
 oc_font create_font(const char* path)
 {
     //NOTE(martin): create font
-    oc_arena_scope* scratch = oc_scratch_begin()
-        oc_str8 fontPath = oc_path_executable_relative(scratch.arena, OC_STR8(path));
+    oc_arena_scope scratch = oc_scratch_begin();
+    oc_str8 fontPath = oc_path_executable_relative(scratch.arena, OC_STR8(path));
     char* fontPathCString = oc_str8_to_cstring(scratch.arena, fontPath);
 
     FILE* fontFile = fopen(fontPathCString, "r");
@@ -169,13 +169,13 @@ int main()
     while(!oc_should_quit())
     {
         f64 startFrameTime = oc_clock_time(OC_CLOCK_MONOTONIC);
-        oc_arena_scope* scratch = oc_scratch_begin();
+        oc_arena_scope scratch = oc_scratch_begin();
 
         oc_pump_events(0);
         oc_event* event = 0;
         while((event = oc_next_event(scratch.arena)) != 0)
         {
-            oc_input_process_event(&inputState, event);
+            oc_input_process_event(&inputState, scratch.arena, event);
 
             switch(event->type)
             {
@@ -187,7 +187,7 @@ int main()
 
                 case OC_EVENT_MOUSE_BUTTON:
                 {
-                    if(event->key.code == OC_MOUSE_LEFT)
+                    if(event->key.keyCode == OC_MOUSE_LEFT)
                     {
                         if(event->key.action == OC_KEY_PRESS)
                         {
@@ -220,7 +220,7 @@ int main()
 
                 case OC_EVENT_KEYBOARD_KEY:
                 {
-                    if(event->key.code == OC_KEY_SPACE && event->key.action == OC_KEY_PRESS)
+                    if(event->key.keyCode == OC_KEY_SPACE && event->key.action == OC_KEY_PRESS)
                     {
                         fontIndex = (fontIndex + 1) % FONT_COUNT;
                     }

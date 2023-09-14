@@ -69,7 +69,7 @@ void oc_arena_init_with_options(oc_arena* arena, oc_arena_options* options)
 
 void oc_arena_cleanup(oc_arena* arena)
 {
-    oc_list_for_safe(&arena->chunks, chunk, oc_arena_chunk, listElt)
+    oc_list_for_safe(arena->chunks, chunk, oc_arena_chunk, listElt)
     {
         oc_base_release(arena->base, chunk, chunk->cap);
     }
@@ -85,7 +85,7 @@ void* oc_arena_push(oc_arena* arena, u64 size)
     u64 lastCap = chunk->cap;
     while(nextOffset > chunk->cap)
     {
-        chunk = oc_list_next_entry(&arena->chunks, chunk, oc_arena_chunk, listElt);
+        chunk = oc_list_next_entry(arena->chunks, chunk, oc_arena_chunk, listElt);
         if(chunk)
         {
             nextOffset = chunk->offset + size;
@@ -123,11 +123,11 @@ void* oc_arena_push(oc_arena* arena, u64 size)
 
 void oc_arena_clear(oc_arena* arena)
 {
-    oc_list_for(&arena->chunks, chunk, oc_arena_chunk, listElt)
+    oc_list_for(arena->chunks, chunk, oc_arena_chunk, listElt)
     {
         chunk->offset = sizeof(oc_arena_chunk);
     }
-    arena->currentChunk = oc_list_first_entry(&arena->chunks, oc_arena_chunk, listElt);
+    arena->currentChunk = oc_list_first_entry(arena->chunks, oc_arena_chunk, listElt);
 }
 
 oc_arena_scope oc_arena_scope_begin(oc_arena* arena)
@@ -167,7 +167,7 @@ void oc_pool_cleanup(oc_pool* pool)
 
 void* oc_pool_alloc(oc_pool* pool)
 {
-    if(oc_list_empty(&pool->freeList))
+    if(oc_list_empty(pool->freeList))
     {
         return (oc_arena_push(&pool->arena, pool->blockSize));
     }

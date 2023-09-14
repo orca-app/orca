@@ -21,11 +21,15 @@ extern "C" {
 // Intrusive linked lists
 //-------------------------------------------------------------------------
 
-#define oc_list_entry(ptr, type, member) \
-    oc_container_of(ptr, type, member)
+#define oc_list_begin(l) (l).first
+#define oc_list_end(l) ((oc_list_elt*)0)
+#define oc_list_last(l) (l).last
 
 #define oc_list_next(elt) (elt)->next
 #define oc_list_prev(elt) (elt)->prev
+
+#define oc_list_entry(ptr, type, member) \
+    oc_container_of(ptr, type, member)
 
 #define oc_list_next_entry(list, elt, type, member) \
     ((elt->member.next != oc_list_end(list)) ? oc_list_entry(elt->member.next, type, member) : 0)
@@ -59,7 +63,7 @@ extern "C" {
         elt = __tmp,                                                                    \
               __tmp = elt ? oc_list_checked_entry(elt->member.next, type, member) : 0)
 
-#define oc_list_pop_entry(list, type, member) (oc_list_empty(list) ? 0 : oc_list_entry(oc_list_pop(list), type, member))
+#define oc_list_pop_entry(list, type, member) (oc_list_empty(*list) ? 0 : oc_list_entry(oc_list_pop(list), type, member))
 
 typedef struct oc_list_elt oc_list_elt;
 
@@ -78,21 +82,6 @@ typedef struct oc_list
 static inline void oc_list_init(oc_list* list)
 {
     list->first = list->last = 0;
-}
-
-static inline oc_list_elt* oc_list_begin(oc_list* list)
-{
-    return (list->first);
-}
-
-static inline oc_list_elt* oc_list_end(oc_list* list)
-{
-    return (0);
-}
-
-static inline oc_list_elt* oc_list_last(oc_list* list)
-{
-    return (list->last);
 }
 
 static inline void oc_list_insert(oc_list* list, oc_list_elt* afterElt, oc_list_elt* elt)
@@ -170,8 +159,8 @@ static inline void oc_list_push(oc_list* list, oc_list_elt* elt)
 
 static inline oc_list_elt* oc_list_pop(oc_list* list)
 {
-    oc_list_elt* elt = oc_list_begin(list);
-    if(elt != oc_list_end(list))
+    oc_list_elt* elt = oc_list_begin(*list);
+    if(elt != oc_list_end(*list))
     {
         oc_list_remove(list, elt);
         return (elt);
@@ -201,8 +190,8 @@ static inline void oc_list_push_back(oc_list* list, oc_list_elt* elt)
 
 static inline oc_list_elt* oc_list_pop_back(oc_list* list)
 {
-    oc_list_elt* elt = oc_list_last(list);
-    if(elt != oc_list_end(list))
+    oc_list_elt* elt = oc_list_last(*list);
+    if(elt != oc_list_end(*list))
     {
         oc_list_remove(list, elt);
         return (elt);
@@ -213,9 +202,9 @@ static inline oc_list_elt* oc_list_pop_back(oc_list* list)
     }
 }
 
-static inline bool oc_list_empty(oc_list* list)
+static inline bool oc_list_empty(oc_list list)
 {
-    return (list->first == 0 || list->last == 0);
+    return (list.first == 0 || list.last == 0);
 }
 
 #ifdef __cplusplus

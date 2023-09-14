@@ -20,7 +20,7 @@
 oc_font create_font()
 {
     //NOTE(martin): create font
-    oc_arena_scope* scratch = oc_scratch_begin();
+    oc_arena_scope scratch = oc_scratch_begin();
     oc_str8 fontPath = oc_path_executable_relative(scratch.arena, OC_STR8("../../resources/OpenSansLatinSubset.ttf"));
     char* fontPathCString = oc_str8_to_cstring(scratch.arena, fontPath);
 
@@ -98,7 +98,7 @@ int main()
 
     while(!oc_should_quit())
     {
-        oc_arena_scope* scratch = oc_scratch_begin();
+        oc_arena_scope scratch = oc_scratch_begin();
         f64 startTime = oc_clock_time(OC_CLOCK_MONOTONIC);
 
         oc_pump_events(0);

@@ -36,7 +36,7 @@ int main()
     //NOTE(martin): load the library
     id<MTLDevice> device = MTLCreateSystemDefaultDevice();
 
-    oc_arena_scope* scratch = oc_scratch_begin();
+    oc_arena_scope scratch = oc_scratch_begin();
 
     oc_str8 shaderPath = oc_path_executable_relative(scratch.arena, OC_STR8("triangle_shader.metallib"));
     const char* shaderPathCString = oc_str8_to_cstring(scratch.arena, shaderPath);

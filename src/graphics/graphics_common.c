@@ -652,7 +652,7 @@ oc_str32 oc_font_get_glyph_indices(oc_font font, oc_str32 codePoints, oc_str32 b
     return (oc_font_get_glyph_indices_from_font_data(fontData, codePoints, backing));
 }
 
-oc_str32 oc_font_push_glyph_indices(oc_font font, oc_arena* arena, oc_str32 codePoints)
+oc_str32 oc_font_push_glyph_indices(oc_arena* arena, oc_font font, oc_str32 codePoints)
 {
     u32* buffer = oc_arena_push_array(arena, u32, codePoints.len);
     oc_str32 backing = { .ptr = buffer, .len = codePoints.len };
@@ -774,7 +774,7 @@ oc_text_metrics oc_font_text_metrics_utf32(oc_font font, f32 fontSize, oc_str32 
     }
 
     oc_arena_scope scratch = oc_scratch_begin();
-    oc_str32 glyphIndices = oc_font_push_glyph_indices(font, scratch.arena, codePoints);
+    oc_str32 glyphIndices = oc_font_push_glyph_indices(scratch.arena, font, codePoints);
 
     //NOTE(martin): find width of missing character
     //TODO(martin): should cache that at font creation...
@@ -1519,7 +1519,7 @@ void oc_codepoints_outlines(oc_str32 codePoints)
 
     oc_arena_scope scratch = oc_scratch_begin();
 
-    oc_str32 glyphIndices = oc_font_push_glyph_indices(canvas->attributes.font, scratch.arena, codePoints);
+    oc_str32 glyphIndices = oc_font_push_glyph_indices(scratch.arena, canvas->attributes.font, codePoints);
     oc_glyph_outlines_from_font_data(fontData, glyphIndices);
 
     oc_scratch_end(scratch);
@@ -1540,7 +1540,7 @@ void oc_text_outlines(oc_str8 text)
 
     oc_arena_scope scratch = oc_scratch_begin();
     oc_str32 codePoints = oc_utf8_push_to_codepoints(scratch.arena, text);
-    oc_str32 glyphIndices = oc_font_push_glyph_indices(canvas->attributes.font, scratch.arena, codePoints);
+    oc_str32 glyphIndices = oc_font_push_glyph_indices(scratch.arena, canvas->attributes.font, codePoints);
 
     oc_glyph_outlines_from_font_data(fontData, glyphIndices);
 
