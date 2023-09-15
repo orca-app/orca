@@ -1619,7 +1619,7 @@ oc_ui_sig oc_ui_button_str8(oc_str8 label)
                                  .layout.margin.y = 6,
                                  .color = theme->primary,
                                  .bgColor = theme->fill0,
-                                 .roundness = 3 };
+                                 .roundness = theme->roundnessSmall };
 
     oc_ui_style_mask defaultMask = OC_UI_STYLE_SIZE_WIDTH
                                  | OC_UI_STYLE_SIZE_HEIGHT
@@ -1706,7 +1706,7 @@ oc_ui_sig oc_ui_checkbox(const char* name, bool* checked)
                                      .size.height = { OC_UI_SIZE_PIXELS, 16 },
                                      .bgColor = theme->primary,
                                      .color = theme->white,
-                                     .roundness = 3 };
+                                     .roundness = theme->roundnessSmall };
 
         oc_ui_style_mask defaultMask = OC_UI_STYLE_SIZE_WIDTH
                                      | OC_UI_STYLE_SIZE_HEIGHT
@@ -1751,7 +1751,7 @@ oc_ui_sig oc_ui_checkbox(const char* name, bool* checked)
                                      .bgColor = { 0 },
                                      .borderColor = theme->text3,
                                      .borderSize = 1,
-                                     .roundness = 3 };
+                                     .roundness = theme->roundnessSmall };
 
         oc_ui_style_mask defaultMask = OC_UI_STYLE_SIZE_WIDTH
                                      | OC_UI_STYLE_SIZE_HEIGHT
@@ -2260,7 +2260,7 @@ void oc_ui_tooltip(const char* label)
                                       .floatTarget = { 24, 0 },
                                       .bgColor = theme->palette->grey7,
                                       .color = theme->bg0,
-                                      .roundness = 6 };
+                                      .roundness = theme->roundnessMedium };
         oc_ui_style_mask contentsMask = OC_UI_STYLE_SIZE
                                       | OC_UI_STYLE_LAYOUT_MARGINS
                                       | OC_UI_STYLE_FLOAT
@@ -2552,7 +2552,7 @@ oc_ui_select_popup_info oc_ui_select_popup(const char* name, oc_ui_select_popup_
                                                .layout.margin.x = 12,
                                                .layout.margin.y = 6,
                                                .bgColor = theme->fill0,
-                                               .roundness = 3 },
+                                               .roundness = theme->roundnessSmall },
                                OC_UI_STYLE_SIZE
                                    | OC_UI_STYLE_LAYOUT_MARGIN_X
                                    | OC_UI_STYLE_LAYOUT_MARGIN_Y
@@ -2563,7 +2563,16 @@ oc_ui_select_popup_info oc_ui_select_popup(const char* name, oc_ui_select_popup_
         {
             oc_ui_container("selected_option", 0)
             {
-                oc_ui_label_str8(info->options[info->selectedIndex]);
+                if(info->selectedIndex == -1)
+                {
+                    oc_ui_style_next(&(oc_ui_style){ .color = theme->text2 },
+                                     OC_UI_STYLE_COLOR);
+                    oc_ui_label_str8(info->placeholder);
+                }
+                else
+                {
+                    oc_ui_label_str8(info->options[info->selectedIndex]);
+                }
             }
 
             oc_ui_style_next(&(oc_ui_style){ .size.width = { OC_UI_SIZE_PIXELS, button->rect.h },
@@ -2609,7 +2618,7 @@ oc_ui_select_popup_info oc_ui_select_popup(const char* name, oc_ui_select_popup_
                                                .bgColor = theme->bg3,
                                                .borderColor = theme->elevatedBorder,
                                                .borderSize = 1,
-                                               .roundness = 6 },
+                                               .roundness = theme->roundnessMedium },
                                OC_UI_STYLE_SIZE
                                    | OC_UI_STYLE_FLOAT
                                    | OC_UI_STYLE_LAYOUT
@@ -2744,9 +2753,11 @@ oc_ui_radio_group_info oc_ui_radio_group(const char* name, oc_ui_radio_group_inf
         for(int i = 0; i < info->optionCount; i++)
         {
             oc_ui_style_next(&(oc_ui_style){ .layout.axis = OC_UI_AXIS_X,
-                                             .layout.spacing = 8 },
+                                             .layout.spacing = 8,
+                                             .layout.align.y = OC_UI_ALIGN_CENTER },
                              OC_UI_STYLE_LAYOUT_AXIS
-                                 | OC_UI_STYLE_LAYOUT_SPACING);
+                                 | OC_UI_STYLE_LAYOUT_SPACING
+                                 | OC_UI_STYLE_LAYOUT_ALIGN_Y);
             oc_ui_box* row = oc_ui_box_begin_str8(info->options[i], OC_UI_FLAG_CLICKABLE);
             oc_ui_flags flags = OC_UI_FLAG_DRAW_BACKGROUND | OC_UI_FLAG_DRAW_BORDER | OC_UI_FLAG_DRAW_PROC;
             oc_ui_box* radio = oc_ui_box_make("radio", flags);
@@ -2825,6 +2836,7 @@ oc_ui_radio_group_info oc_ui_radio_group(const char* name, oc_ui_radio_group_inf
 
             oc_ui_container("label", 0)
             {
+                oc_ui_tag_next("label");
                 oc_ui_label_str8(info->options[i]);
             }
 
@@ -3626,7 +3638,7 @@ oc_ui_text_box_result oc_ui_text_box(const char* name, oc_arena* arena, oc_str8 
     oc_ui_style frameStyle = { .layout.margin.x = 12,
                                .layout.margin.y = 6,
                                .bgColor = theme->fill0,
-                               .roundness = 3 };
+                               .roundness = theme->roundnessSmall };
     oc_ui_style_mask frameMask = OC_UI_STYLE_LAYOUT_MARGIN_X
                                | OC_UI_STYLE_LAYOUT_MARGIN_Y
                                | OC_UI_STYLE_BG_COLOR
@@ -4110,6 +4122,7 @@ oc_ui_theme OC_UI_DARK_THEME = {
     .primary = { 0.33, 0.66, 1, 1 },       // blue5
     .primaryHover = { 0.5, 0.757, 1, 1 },  // blue6
     .primaryActive = { 0.66, 0.84, 1, 1 }, // blue7
+    .border = { 1, 1, 1, 0.08 },
     .fill0 = { 1, 1, 1, 0.12 },
     .fill1 = { 1, 1, 1, 0.16 },
     .fill2 = { 1, 1, 1, 0.2 },
@@ -4123,7 +4136,11 @@ oc_ui_theme OC_UI_DARK_THEME = {
     .text2 = { 0.976, 0.976, 0.976, 0.6 },  // grey9
     .text3 = { 0.976, 0.976, 0.976, 0.35 }, // grey9
     .sliderThumbBorder = { 0, 0, 0, 0.075 },
-    .elevatedBorder = { 1, 1, 1, 0.1 }
+    .elevatedBorder = { 1, 1, 1, 0.1 },
+
+    .roundnessSmall = 3,
+    .roundnessMedium = 6,
+    .roundnessLarge = 9
 };
 
 oc_ui_palette OC_UI_LIGHT_PALETTE = {
@@ -4296,6 +4313,7 @@ oc_ui_theme OC_UI_LIGHT_THEME = {
     .primary = { 0.000, 0.392, 0.980, 1 },       // blue5
     .primaryHover = { 0.000, 0.384, 0.839, 1 },  // blue6
     .primaryActive = { 0.000, 0.310, 0.702, 1 }, // blue7
+    .border = { 0.110, 0.122, 0.137, 0.08 },     // grey9
     .fill0 = { 0.180, 0.196, 0.220, 0.05 },      // grey8
     .fill1 = { 0.180, 0.196, 0.220, 0.09 },      // grey8
     .fill2 = { 0.180, 0.196, 0.220, 0.13 },      // grey8
@@ -4308,6 +4326,10 @@ oc_ui_theme OC_UI_LIGHT_THEME = {
     .text1 = { 0.110, 0.122, 0.137, 0.8 },  // grey9
     .text2 = { 0.110, 0.122, 0.137, 0.62 }, // grey9
     .text3 = { 0.110, 0.122, 0.137, 0.35 }, // grey9
-    .sliderThumbBorder = { 0, 0, 0, 0.075 },
-    .elevatedBorder = { 0, 0, 0, 0.075 }
+    .sliderThumbBorder = { 0, 0, 0, 0.125 },
+    .elevatedBorder = { 0, 0, 0, 0.075 },
+
+    .roundnessSmall = 3,
+    .roundnessMedium = 6,
+    .roundnessLarge = 9
 };

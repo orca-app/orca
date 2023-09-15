@@ -349,6 +349,7 @@ typedef struct oc_ui_theme
     oc_color primary;
     oc_color primaryHover;
     oc_color primaryActive;
+    oc_color border;
     oc_color fill0;
     oc_color fill1;
     oc_color fill2;
@@ -363,6 +364,10 @@ typedef struct oc_ui_theme
     oc_color text3;
     oc_color sliderThumbBorder;
     oc_color elevatedBorder;
+
+    f32 roundnessSmall;
+    f32 roundnessMedium;
+    f32 roundnessLarge;
 
     oc_ui_palette* palette;
 } oc_ui_theme;
@@ -772,9 +777,10 @@ ORCA_API oc_ui_text_box_result oc_ui_text_box(const char* name, oc_arena* arena,
 typedef struct oc_ui_select_popup_info
 {
     bool changed;
-    int selectedIndex;
+    int selectedIndex; // -1 if nothing is selected
     int optionCount;
     oc_str8* options;
+    oc_str8 placeholder;
 } oc_ui_select_popup_info;
 
 ORCA_API oc_ui_select_popup_info oc_ui_select_popup(const char* name, oc_ui_select_popup_info* info);

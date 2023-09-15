@@ -10,4 +10,5 @@ int strcmp(const char* s1, const char* s2);
 int strncmp(const char* s1, const char* s2, size_t n);
 char* strcpy(char* __restrict s1, const char* __restrict s2);
 
+#define snprintf stbsp_snprintf
 #define vsnprintf stbsp_vsnprintf
