@@ -15,6 +15,7 @@
 
 #include "orca.h"
 
+/*
 void debug_print_indent(int indent)
 {
     for(int i = 0; i < indent; i++)
@@ -148,110 +149,124 @@ void debug_print_styles(oc_ui_box* box, int indent)
         }
     }
 }
+*/
 
-oc_font create_font()
+oc_vec2 frameSize = { 1200, 838 };
+
+oc_surface surface;
+oc_canvas canvas;
+oc_font fontRegular;
+oc_font fontBold;
+oc_ui_context ui;
+oc_arena textArena = { 0 };
+oc_arena logArena = { 0 };
+oc_str8_list logLines;
+
+typedef enum cmd
 {
-    //NOTE(martin): create font
-    oc_arena_scope scratch = oc_scratch_begin();
-    oc_str8 fontPath = oc_path_executable_relative(scratch.arena, OC_STR8("../../resources/OpenSansLatinSubset.ttf"));
-    char* fontPathCString = oc_str8_to_cstring(scratch.arena, fontPath);
+    CMD_NONE,
+    CMD_SET_DARK_THEME,
+    CMD_SET_LIGHT_THEME
+} cmd;
 
-    FILE* fontFile = fopen(fontPathCString, "r");
-    if(!fontFile)
+cmd command = CMD_NONE;
+
+void log_push(const char* line)
+{
+    oc_str8_list_push(&logArena, &logLines, (oc_str8)OC_STR8(line));
+}
+
+void log_pushf(const char* format, ...)
+{
+    va_list args;
+    va_start(args, format);
+    oc_str8 str = oc_str8_pushfv(&logArena, format, args);
+    va_end(args);
+    oc_str8_list_push(&logArena, &logLines, str);
+}
+
+void column_begin(const char* header, f32 widthFraction)
+{
+    oc_ui_style_next(&(oc_ui_style){ .size.width = { OC_UI_SIZE_PARENT, widthFraction },
+                                     .size.height = { OC_UI_SIZE_PARENT, 1 },
+                                     .layout.axis = OC_UI_AXIS_Y,
+                                     .layout.margin.y = 8,
+                                     .layout.spacing = 24,
+                                     .bgColor = ui.theme->bg1,
+                                     .borderColor = ui.theme->border,
+                                     .borderSize = 1,
+                                     .roundness = ui.theme->roundnessSmall },
+                     OC_UI_STYLE_SIZE
+                         | OC_UI_STYLE_LAYOUT_AXIS
+                         | OC_UI_STYLE_LAYOUT_MARGIN_Y
+                         | OC_UI_STYLE_LAYOUT_SPACING
+                         | OC_UI_STYLE_BG_COLOR
+                         | OC_UI_STYLE_BORDER_COLOR
+                         | OC_UI_STYLE_BORDER_SIZE
+                         | OC_UI_STYLE_ROUNDNESS);
+    oc_ui_box_begin(header, OC_UI_FLAG_DRAW_BACKGROUND | OC_UI_FLAG_DRAW_BORDER);
+
+    oc_ui_style_next(&(oc_ui_style){ .size.width = { OC_UI_SIZE_PARENT, 1 },
+                                     .layout.align.x = OC_UI_ALIGN_CENTER },
+                     OC_UI_STYLE_SIZE_WIDTH
+                         | OC_UI_STYLE_LAYOUT_ALIGN_X);
+    oc_ui_container("header", OC_UI_FLAG_NONE)
     {
-        oc_log_error("Could not load font file '%s': %s\n", fontPathCString, strerror(errno));
-        oc_scratch_end(scratch);
-        return (oc_font_nil());
-    }
-    unsigned char* fontData = 0;
-    fseek(fontFile, 0, SEEK_END);
-    u32 fontDataSize = ftell(fontFile);
-    rewind(fontFile);
-    fontData = (unsigned char*)malloc(fontDataSize);
-    fread(fontData, 1, fontDataSize, fontFile);
-    fclose(fontFile);
-
-    oc_unicode_range ranges[5] = { OC_UNICODE_BASIC_LATIN,
-                                   OC_UNICODE_C1_CONTROLS_AND_LATIN_1_SUPPLEMENT,
-                                   OC_UNICODE_LATIN_EXTENDED_A,
-                                   OC_UNICODE_LATIN_EXTENDED_B,
-                                   OC_UNICODE_SPECIALS };
-
-    oc_font font = oc_font_create_from_memory(oc_str8_from_buffer(fontDataSize, (char*)fontData), 5, ranges);
-    free(fontData);
-
-    oc_scratch_end(scratch);
-    return (font);
-}
-
-void widget_begin_view(char* str)
-{
-    oc_ui_style_next(&(oc_ui_style){ .layout.axis = OC_UI_AXIS_Y,
-                                     .layout.spacing = 10,
-                                     .layout.margin.x = 10,
-                                     .layout.margin.y = 10,
-                                     .layout.align.x = OC_UI_ALIGN_CENTER,
-                                     .layout.align.y = OC_UI_ALIGN_START },
-                     OC_UI_STYLE_LAYOUT);
-
-    oc_ui_box_begin(str, OC_UI_FLAG_DRAW_BORDER);
-    oc_ui_label(str);
-}
-
-void widget_end_view(void)
-{
-    oc_ui_box_end();
-}
-
-#define widget_view(s) oc_defer_loop(widget_begin_view(s), widget_end_view())
-
-int main()
-{
-    oc_init();
-    oc_clock_init(); //TODO put that in oc_init()?
-
-    oc_ui_context context;
-    oc_ui_init(&context);
-    oc_ui_set_context(&context);
-
-    oc_rect windowRect = { .x = 100, .y = 100, .w = 810, .h = 610 };
-    oc_window window = oc_window_create(windowRect, OC_STR8("test"), 0);
-
-    oc_rect contentRect = oc_window_get_content_rect(window);
-
-    //NOTE: create surface
-    oc_surface surface = oc_surface_create_for_window(window, OC_CANVAS);
-    oc_surface_swap_interval(surface, 0);
-
-    //TODO: create canvas
-    oc_canvas canvas = oc_canvas_create();
-
-    if(oc_canvas_is_nil(canvas))
-    {
-        oc_log_error("Error: couldn't create canvas\n");
-        return (-1);
+        oc_ui_style_next(&(oc_ui_style){ .fontSize = 18 },
+                         OC_UI_STYLE_FONT_SIZE);
+        oc_ui_label(header);
     }
 
-    oc_font font = create_font();
+    oc_ui_style_next(&(oc_ui_style){ .size.width = { OC_UI_SIZE_PARENT, 1 },
+                                     .size.height = { OC_UI_SIZE_PARENT, 1, 1 },
+                                     .layout.align.x = OC_UI_ALIGN_START,
+                                     .layout.margin.x = 16,
+                                     .layout.spacing = 24 },
+                     OC_UI_STYLE_SIZE
+                         | OC_UI_STYLE_LAYOUT_ALIGN_X
+                         | OC_UI_STYLE_LAYOUT_MARGIN_X
+                         | OC_UI_STYLE_LAYOUT_SPACING);
+    oc_ui_box_begin("contents", OC_UI_FLAG_NONE | OC_UI_FLAG_DRAW_BORDER);
+}
 
-    oc_arena textArena = { 0 };
-    oc_arena_init(&textArena);
+void column_end()
+{
+    oc_ui_box_end(); // contents
+    oc_ui_box_end(); // column
+}
 
-    // start app
-    oc_window_bring_to_front(window);
-    oc_window_focus(window);
+#define column(h, w) oc_defer_loop(column_begin(h, w), column_end())
+
+void labeled_slider(const char* label, f32* value)
+{
+    oc_ui_style_next(&(oc_ui_style){ .layout.axis = OC_UI_AXIS_X,
+                                     .layout.spacing = 8 },
+                     OC_UI_STYLE_LAYOUT_AXIS
+                         | OC_UI_STYLE_LAYOUT_SPACING);
+    oc_ui_container(label, OC_UI_FLAG_NONE)
+    {
+        oc_ui_style_match_after(oc_ui_pattern_owner(),
+                                &(oc_ui_style){ .size.width = { OC_UI_SIZE_PIXELS, 100 } },
+                                OC_UI_STYLE_SIZE_WIDTH);
+        oc_ui_label(label);
+
+        oc_ui_style_next(&(oc_ui_style){ .size.width = { OC_UI_SIZE_PIXELS, 100 } },
+                         OC_UI_STYLE_SIZE_WIDTH);
+        oc_ui_slider("slider", value);
+    }
+}
+
+i32 ui_runloop(void* user)
+{
+    canvas = oc_canvas_create();
+    oc_ui_init(&ui);
 
     while(!oc_should_quit())
     {
         oc_arena_scope scratch = oc_scratch_begin();
 
-        bool printDebugStyle = false;
-
-        f64 startTime = oc_clock_time(OC_CLOCK_MONOTONIC);
-
-        oc_pump_events(0);
         oc_event* event = 0;
-        while((event = oc_next_event(scratch)) != 0)
+        while((event = oc_next_event(scratch.arena)) != 0)
         {
             oc_ui_process_event(event);
 
@@ -263,12 +278,9 @@ int main()
                 }
                 break;
 
-                case OC_EVENT_KEYBOARD_KEY:
+                case OC_EVENT_WINDOW_RESIZE:
                 {
-                    if(event->key.action == OC_KEY_PRESS && event->key.code == OC_KEY_P)
-                    {
-                        printDebugStyle = true;
-                    }
+                    frameSize = (oc_vec2){ event->move.content.w, event->move.content.h };
                 }
                 break;
 
@@ -277,367 +289,710 @@ int main()
             }
         }
 
-        //TEST UI
-        oc_ui_style defaultStyle = { .bgColor = { 0 },
-                                     .color = { 1, 1, 1, 1 },
-                                     .font = font,
-                                     .fontSize = 16,
-                                     .borderColor = { 1, 0, 0, 1 },
-                                     .borderSize = 2 };
+        switch(command)
+        {
+            case CMD_SET_DARK_THEME:
+                oc_ui_set_theme(&OC_UI_DARK_THEME);
+                break;
+            case CMD_SET_LIGHT_THEME:
+                oc_ui_set_theme(&OC_UI_LIGHT_THEME);
+                break;
+            default:
+                break;
+        }
+        command = CMD_NONE;
 
-        oc_ui_style_mask defaultMask = OC_UI_STYLE_BG_COLOR
-                                     | OC_UI_STYLE_COLOR
-                                     | OC_UI_STYLE_BORDER_COLOR
-                                     | OC_UI_STYLE_BORDER_SIZE
-                                     | OC_UI_STYLE_FONT
-                                     | OC_UI_STYLE_FONT_SIZE;
-
-        oc_ui_flags debugFlags = OC_UI_FLAG_DRAW_BORDER;
-
-        oc_ui_box* root = 0;
-
-        oc_vec2 frameSize = oc_surface_get_size(surface);
-
+        oc_ui_style defaultStyle = { .font = fontRegular };
+        oc_ui_style_mask defaultMask = OC_UI_STYLE_FONT;
         oc_ui_frame(frameSize, &defaultStyle, defaultMask)
         {
-            root = oc_ui_box_top();
-            oc_ui_style_match_before(oc_ui_pattern_all(), &defaultStyle, defaultMask);
+            oc_ui_style_next(&(oc_ui_style){ .size.width = { OC_UI_SIZE_PARENT, 1, .minSize = 1200 },
+                                             .size.height = { OC_UI_SIZE_PARENT, 1, .minSize = 838 } },
+                             OC_UI_STYLE_SIZE);
 
-            oc_ui_style_next(&(oc_ui_style){ .size.width = { OC_UI_SIZE_PARENT, 1 },
-                                             .size.height = { OC_UI_SIZE_PARENT, 1 },
-                                             .layout.axis = OC_UI_AXIS_Y,
-                                             .layout.align.x = OC_UI_ALIGN_CENTER,
-                                             .layout.align.y = OC_UI_ALIGN_START,
-                                             .layout.spacing = 10,
-                                             .layout.margin.x = 10,
-                                             .layout.margin.y = 10,
-                                             .bgColor = { 0.11, 0.11, 0.11, 1 } },
-                             OC_UI_STYLE_SIZE
-                                 | OC_UI_STYLE_LAYOUT
-                                 | OC_UI_STYLE_BG_COLOR);
-
-            oc_ui_container("background", OC_UI_FLAG_DRAW_BACKGROUND)
+            oc_ui_container("top level", OC_UI_FLAG_NONE)
             {
+                //--------------------------------------------------------------------------------------------
+                // Menu bar
+                //--------------------------------------------------------------------------------------------
+                oc_ui_menu_bar("menu_bar")
+                {
+                    oc_ui_menu("File")
+                    {
+                        if(oc_ui_menu_button("Quit").pressed)
+                        {
+                            oc_request_quit();
+                        }
+                    }
+
+                    oc_ui_menu("Theme")
+                    {
+                        if(oc_ui_menu_button("Dark theme").pressed)
+                        {
+                            command = CMD_SET_DARK_THEME;
+                        }
+                        if(oc_ui_menu_button("Light theme").pressed)
+                        {
+                            command = CMD_SET_LIGHT_THEME;
+                        }
+                    }
+                }
+
                 oc_ui_style_next(&(oc_ui_style){ .size.width = { OC_UI_SIZE_PARENT, 1 },
-                                                 .size.height = { OC_UI_SIZE_CHILDREN },
-                                                 .layout.align.x = OC_UI_ALIGN_CENTER },
+                                                 .size.height = { OC_UI_SIZE_PARENT, 1, 1 },
+                                                 .layout.axis = OC_UI_AXIS_X,
+                                                 .layout.margin.x = 16,
+                                                 .layout.margin.y = 16,
+                                                 .layout.spacing = 16 },
                                  OC_UI_STYLE_SIZE
-                                     | OC_UI_STYLE_LAYOUT_ALIGN_X);
-                oc_ui_container("title", debugFlags)
+                                     | OC_UI_STYLE_LAYOUT_AXIS
+                                     | OC_UI_STYLE_LAYOUT_MARGINS
+                                     | OC_UI_STYLE_LAYOUT_SPACING);
+
+                oc_ui_container("background", OC_UI_FLAG_DRAW_BACKGROUND)
                 {
-                    oc_ui_style_next(&(oc_ui_style){ .fontSize = 26 }, OC_UI_STYLE_FONT_SIZE);
-                    oc_ui_label("Orca UI Demo");
-
-                    if(oc_ui_box_sig(oc_ui_box_top()).hovering)
+                    column("Widgets", 1.0 / 3)
                     {
-                        oc_ui_tooltip("tooltip")
-                        {
-                            oc_ui_style_next(&(oc_ui_style){ .bgColor = { 1, 0.99, 0.82, 1 } },
-                                             OC_UI_STYLE_BG_COLOR);
 
-                            oc_ui_container("background", OC_UI_FLAG_DRAW_BACKGROUND)
+                        oc_ui_style_next(&(oc_ui_style){ .size.width = { OC_UI_SIZE_PARENT, 1 },
+                                                         .layout.axis = OC_UI_AXIS_X,
+                                                         .layout.spacing = 32 },
+                                         OC_UI_STYLE_SIZE_WIDTH
+                                             | OC_UI_STYLE_LAYOUT_AXIS
+                                             | OC_UI_STYLE_LAYOUT_SPACING);
+                        oc_ui_container("top", OC_UI_FLAG_NONE)
+                        {
+                            oc_ui_style_next(&(oc_ui_style){ .layout.axis = OC_UI_AXIS_Y,
+                                                             .layout.spacing = 24 },
+                                             OC_UI_STYLE_LAYOUT_AXIS
+                                                 | OC_UI_STYLE_LAYOUT_SPACING);
+                            oc_ui_container("top_left", OC_UI_FLAG_NONE)
                             {
-                                oc_ui_style_next(&(oc_ui_style){ .color = { 0, 0, 0, 1 } },
-                                                 OC_UI_STYLE_COLOR);
+                                //-----------------------------------------------------------------------------
+                                // Label
+                                //-----------------------------------------------------------------------------
+                                oc_ui_label("Label");
 
-                                oc_ui_label("That is a tooltip!");
-                            }
-                        }
-                    }
-                }
-
-                oc_ui_menu_bar("Menu bar")
-                {
-                    oc_ui_menu("Menu 1")
-                    {
-                        if(oc_ui_menu_button("Option 1.1").pressed)
-                        {
-                            oc_log_info("Pressed option 1.1\n");
-                        }
-                        oc_ui_menu_button("Option 1.2");
-                        oc_ui_menu_button("Option 1.3");
-                        oc_ui_menu_button("Option 1.4");
-                    }
-
-                    oc_ui_menu("Menu 2")
-                    {
-                        oc_ui_menu_button("Option 2.1");
-                        oc_ui_menu_button("Option 2.2");
-                        oc_ui_menu_button("Option 2.3");
-                        oc_ui_menu_button("Option 2.4");
-                    }
-
-                    oc_ui_menu("Menu 3")
-                    {
-                        oc_ui_menu_button("Option 3.1");
-                        oc_ui_menu_button("Option 3.2");
-                        oc_ui_menu_button("Option 3.3");
-                        oc_ui_menu_button("Option 3.4");
-                    }
-                }
-
-                oc_ui_style_next(&(oc_ui_style){ .size.width = { OC_UI_SIZE_PARENT, 1 },
-                                                 .size.height = { OC_UI_SIZE_PARENT, 1, 1 } },
-                                 OC_UI_STYLE_SIZE);
-
-                oc_ui_style_next(&(oc_ui_style){ .layout.axis = OC_UI_AXIS_X }, OC_UI_STYLE_LAYOUT_AXIS);
-                oc_ui_container("contents", debugFlags)
-                {
-                    oc_ui_style_next(&(oc_ui_style){ .size.width = { OC_UI_SIZE_PARENT, 0.5 },
-                                                     .size.height = { OC_UI_SIZE_PARENT, 1 },
-                                                     .borderColor = { 0, 0, 1, 1 } },
-                                     OC_UI_STYLE_SIZE
-                                         | OC_UI_STYLE_BORDER_COLOR);
-
-                    oc_ui_container("left", debugFlags)
-                    {
-                        oc_ui_style_next(&(oc_ui_style){ .layout.axis = OC_UI_AXIS_X,
-                                                         .layout.spacing = 10,
-                                                         .layout.margin.x = 10,
-                                                         .layout.margin.y = 10,
-                                                         .size.width = { OC_UI_SIZE_PARENT, 1 },
-                                                         .size.height = { OC_UI_SIZE_PARENT, 0.5 } },
-                                         OC_UI_STYLE_LAYOUT_AXIS
-                                             | OC_UI_STYLE_LAYOUT_SPACING
-                                             | OC_UI_STYLE_LAYOUT_MARGIN_X
-                                             | OC_UI_STYLE_LAYOUT_MARGIN_Y
-                                             | OC_UI_STYLE_SIZE);
-
-                        oc_ui_container("up", debugFlags)
-                        {
-                            oc_ui_style_next(&(oc_ui_style){ .size.width = { OC_UI_SIZE_PARENT, 0.5 },
-                                                             .size.height = { OC_UI_SIZE_PARENT, 1 } },
-                                             OC_UI_STYLE_SIZE);
-                            widget_view("Buttons")
-                            {
-                                if(oc_ui_button("Test Dialog").clicked)
+                                //-----------------------------------------------------------------------------
+                                // Button
+                                //-----------------------------------------------------------------------------
+                                if(oc_ui_button("Button").clicked)
                                 {
-                                    static oc_str8 options_strings[] = {
-                                        OC_STR8_LIT("Accept"),
-                                        OC_STR8_LIT("Reject"),
-                                    };
-
-                                    oc_str8_list options = { 0 };
-                                    oc_str8_list_push(scratch, &options, options_strings[0]);
-                                    oc_str8_list_push(scratch, &options, options_strings[1]);
-
-                                    int res = oc_alert_popup(OC_STR8("test dialog"), OC_STR8("dialog message"), options);
-                                    if(res >= 0)
-                                    {
-                                        oc_log_info("selected options %i: %s\n", res, options_strings[res].ptr);
-                                    }
-                                    else
-                                    {
-                                        oc_log_info("no options selected\n");
-                                    }
+                                    log_push("Button clicked");
                                 }
 
-                                if(oc_ui_button("Open").clicked)
-                                {
-                                    oc_str8_list filters = { 0 };
-                                    oc_str8_list_push(scratch, &filters, OC_STR8("md"));
-
-                                    oc_str8 file = oc_open_dialog(scratch, OC_STR8("Open File"), OC_STR8("C:\\Users"), filters, false);
-                                    oc_log_info("selected file %.*s\n", (int)file.len, file.ptr);
-                                }
-
-                                if(oc_ui_button("Save").clicked)
-                                {
-                                    oc_str8_list filters = { 0 };
-
-                                    oc_str8 file = oc_save_dialog(scratch, OC_STR8("Save File"), OC_STR8("C:\\Users"), filters);
-                                    oc_log_info("selected file %.*s\n", (int)file.len, file.ptr);
-                                }
-                            }
-
-                            oc_ui_style_next(&(oc_ui_style){ .size.width = { OC_UI_SIZE_PARENT, 0.5 },
-                                                             .size.height = { OC_UI_SIZE_PARENT, 1 } },
-                                             OC_UI_STYLE_SIZE);
-
-                            oc_ui_pattern pattern = { 0 };
-                            oc_ui_pattern_push(scratch, &pattern, (oc_ui_selector){ .kind = OC_UI_SEL_TAG, .tag = oc_ui_tag_make("checkbox") });
-                            oc_ui_style_match_after(pattern,
-                                                    &(oc_ui_style){ .bgColor = { 0, 1, 0, 1 },
-                                                                    .color = { 1, 1, 1, 1 } },
-                                                    OC_UI_STYLE_COLOR | OC_UI_STYLE_BG_COLOR);
-
-                            widget_view("checkboxes")
-                            {
-                                static bool check1 = true;
-                                static bool check2 = false;
-                                static bool check3 = false;
-
-                                oc_ui_checkbox("check1", &check1);
-                                oc_ui_checkbox("check2", &check2);
-                                oc_ui_checkbox("check3", &check3);
-                            }
-                        }
-
-                        oc_ui_style_next(&(oc_ui_style){ .layout.axis = OC_UI_AXIS_X,
-                                                         .size.width = { OC_UI_SIZE_PARENT, 1 },
-                                                         .size.height = { OC_UI_SIZE_PARENT, 0.5 } },
-                                         OC_UI_STYLE_LAYOUT_AXIS
-                                             | OC_UI_STYLE_SIZE);
-
-                        oc_ui_container("down", debugFlags)
-                        {
-                            widget_view("Vertical Sliders")
-                            {
                                 oc_ui_style_next(&(oc_ui_style){ .layout.axis = OC_UI_AXIS_X,
-                                                                 .layout.spacing = 10 },
+                                                                 .layout.align.y = OC_UI_ALIGN_CENTER,
+                                                                 .layout.spacing = 8 },
+                                                 OC_UI_STYLE_LAYOUT_AXIS
+                                                     | OC_UI_STYLE_LAYOUT_ALIGN_Y
+                                                     | OC_UI_STYLE_LAYOUT_SPACING);
+                                oc_ui_container("checkbox", OC_UI_FLAG_NONE)
+                                {
+                                    //-------------------------------------------------------------------------
+                                    // Checkbox
+                                    //-------------------------------------------------------------------------
+                                    static bool checked = false;
+                                    if(oc_ui_checkbox("checkbox", &checked).clicked)
+                                    {
+                                        if(checked)
+                                        {
+                                            log_push("Checkbox checked");
+                                        }
+                                        else
+                                        {
+                                            log_push("Checkbox unchecked");
+                                        }
+                                    }
+
+                                    oc_ui_label("Checkbox");
+                                }
+                            }
+
+                            //---------------------------------------------------------------------------------
+                            // Vertical slider
+                            //---------------------------------------------------------------------------------
+                            static float vSliderValue = 0;
+                            static float vSliderLoggedValue = 0;
+                            static f64 vSliderLogTime = 0;
+                            oc_ui_style_next(&(oc_ui_style){ .size.height = { OC_UI_SIZE_PIXELS, 130 } },
+                                             OC_UI_STYLE_SIZE_HEIGHT);
+                            oc_ui_slider("v_slider", &vSliderValue);
+                            f64 now = oc_clock_time(OC_CLOCK_MONOTONIC);
+                            if((now - vSliderLogTime) >= 0.2 && vSliderValue != vSliderLoggedValue)
+                            {
+                                log_pushf("Vertical slider moved to %f", vSliderValue);
+                                vSliderLoggedValue = vSliderValue;
+                                vSliderLogTime = now;
+                            }
+
+                            oc_ui_style_next(&(oc_ui_style){ .layout.axis = OC_UI_AXIS_Y,
+                                                             .layout.spacing = 24 },
+                                             OC_UI_STYLE_LAYOUT_AXIS
+                                                 | OC_UI_STYLE_LAYOUT_SPACING);
+                            oc_ui_container("top_right", OC_UI_FLAG_NONE)
+                            {
+                                //-----------------------------------------------------------------------------
+                                // Tooltip
+                                //-----------------------------------------------------------------------------
+                                if(oc_ui_label("Tooltip").hovering)
+                                {
+                                    oc_ui_tooltip("Hi");
+                                }
+
+                                //-----------------------------------------------------------------------------
+                                // Radio group
+                                //-----------------------------------------------------------------------------
+                                static int radioSelected = 0;
+                                oc_str8 options[] = { OC_STR8("Radio 1"),
+                                                      OC_STR8("Radio 2") };
+                                oc_ui_radio_group_info radioGroupInfo = { .selectedIndex = radioSelected,
+                                                                          .optionCount = 2,
+                                                                          .options = options };
+                                oc_ui_radio_group_info result = oc_ui_radio_group("radio_group", &radioGroupInfo);
+                                radioSelected = result.selectedIndex;
+                                if(result.changed)
+                                {
+                                    log_pushf("Selected Radio %i", result.selectedIndex + 1);
+                                }
+
+                                //-----------------------------------------------------------------------------
+                                // Horizontal slider
+                                //-----------------------------------------------------------------------------
+                                static float hSliderValue = 0;
+                                static float hSliderLoggedValue = 0;
+                                static f64 hSliderLogTime = 0;
+                                oc_ui_style_next(&(oc_ui_style){ .size.width = { OC_UI_SIZE_PIXELS, 130 } },
+                                                 OC_UI_STYLE_SIZE_WIDTH);
+                                oc_ui_slider("h_slider", &hSliderValue);
+                                f64 now = oc_clock_time(OC_CLOCK_MONOTONIC);
+                                if((now - hSliderLogTime) >= 0.2 && hSliderValue != hSliderLoggedValue)
+                                {
+                                    log_pushf("Slider moved to %f", hSliderValue);
+                                    hSliderLoggedValue = hSliderValue;
+                                    hSliderLogTime = now;
+                                }
+                            }
+                        }
+
+                        //-------------------------------------------------------------------------------------
+                        // Text box
+                        //-------------------------------------------------------------------------------------
+                        oc_ui_style_next(&(oc_ui_style){ .size.width = { OC_UI_SIZE_PIXELS, 305 },
+                                                         .size.height = { OC_UI_SIZE_TEXT } },
+                                         OC_UI_STYLE_SIZE);
+                        static oc_str8 text = OC_STR8_LIT("Text box");
+                        oc_ui_text_box_result res = oc_ui_text_box("text", scratch.arena, text);
+                        if(res.changed)
+                        {
+                            oc_arena_clear(&textArena);
+                            text = oc_str8_push_copy(&textArena, res.text);
+                        }
+                        if(res.accepted)
+                        {
+                            log_pushf("Entered text \"%s\"", text.ptr);
+                        }
+
+                        //-------------------------------------------------------------------------------------
+                        // Select
+                        //-------------------------------------------------------------------------------------
+                        static int selected = -1;
+                        oc_str8 options[] = { OC_STR8("Option 1"),
+                                              OC_STR8("Option 2") };
+                        oc_ui_select_popup_info info = { .selectedIndex = selected,
+                                                         .optionCount = 2,
+                                                         .options = options,
+                                                         .placeholder = OC_STR8_LIT("Select") };
+                        oc_ui_select_popup_info result = oc_ui_select_popup("select", &info);
+                        if(result.selectedIndex != selected)
+                        {
+                            log_pushf("Selected %s", options[result.selectedIndex].ptr);
+                        }
+                        selected = result.selectedIndex;
+
+                        //-------------------------------------------------------------------------------------
+                        // Scrollable panel
+                        //-------------------------------------------------------------------------------------
+                        oc_ui_style_next(&(oc_ui_style){ .size.width = { OC_UI_SIZE_PARENT, 1 },
+                                                         .size.height = { OC_UI_SIZE_PARENT, 1, 1 },
+                                                         .layout.margin.x = 16,
+                                                         .layout.margin.y = 16,
+                                                         .layout.spacing = 8,
+                                                         .bgColor = ui.theme->bg2,
+                                                         .borderColor = ui.theme->border,
+                                                         .borderSize = 1,
+                                                         .roundness = ui.theme->roundnessSmall },
+                                         OC_UI_STYLE_SIZE
+                                             | OC_UI_STYLE_LAYOUT_MARGINS
+                                             | OC_UI_STYLE_LAYOUT_SPACING
+                                             | OC_UI_STYLE_BG_COLOR
+                                             | OC_UI_STYLE_BORDER_COLOR
+                                             | OC_UI_STYLE_BORDER_SIZE
+                                             | OC_UI_STYLE_ROUNDNESS);
+                        oc_ui_panel("log", OC_UI_FLAG_DRAW_BACKGROUND | OC_UI_FLAG_DRAW_BORDER)
+                        {
+                            if(oc_list_empty(logLines.list))
+                            {
+                                oc_ui_style_next(&(oc_ui_style){ .color = ui.theme->text2 },
+                                                 OC_UI_STYLE_COLOR);
+                                oc_ui_label("Log");
+                            }
+
+                            i32 i = 0;
+                            oc_list_for(logLines.list, logLine, oc_str8_elt, listElt)
+                            {
+                                char id[15];
+                                snprintf(id, sizeof(id), "%d", i);
+                                oc_ui_container(id, OC_UI_FLAG_NONE)
+                                {
+                                    oc_ui_label_str8(logLine->string);
+                                }
+                                i++;
+                            }
+                        }
+                    }
+
+                    //-----------------------------------------------------------------------------------------
+                    // Styling
+                    //-----------------------------------------------------------------------------------------
+                    // Initial values here are hardcoded from the dark theme and everything is overridden all
+                    // the time. In a real program you'd only override what you need and supply the values from
+                    // ui.theme or ui.theme->palette.
+                    //
+                    // Rule-based styling is described at
+                    // https://www.forkingpaths.dev/posts/23-03-10/rule_based_styling_imgui.html
+                    column("Styling", 2.0 / 3)
+                    {
+                        static f32 unselectedWidth = 16;
+                        static f32 unselectedHeight = 16;
+                        static f32 unselectedRoundness = 8;
+                        static f32 unselectedBgR = 0.086;
+                        static f32 unselectedBgG = 0.086;
+                        static f32 unselectedBgB = 0.102;
+                        static f32 unselectedBgA = 1;
+                        static f32 unselectedBorderR = 0.976;
+                        static f32 unselectedBorderG = 0.976;
+                        static f32 unselectedBorderB = 0.976;
+                        static f32 unselectedBorderA = 0.35;
+                        static f32 unselectedBorderSize = 1;
+                        static oc_ui_status unselectedWhenStatus = OC_UI_NONE;
+
+                        static f32 selectedWidth = 16;
+                        static f32 selectedHeight = 16;
+                        static f32 selectedRoundness = 8;
+                        static f32 selectedR = 1;
+                        static f32 selectedG = 1;
+                        static f32 selectedB = 1;
+                        static f32 selectedA = 1;
+                        static f32 selectedBgR = 0.33;
+                        static f32 selectedBgG = 0.66;
+                        static f32 selectedBgB = 1;
+                        static f32 selectedBgA = 1;
+                        static oc_ui_status selectedWhenStatus = OC_UI_NONE;
+
+                        static oc_color labelFontColor = { 0.976, 0.976, 0.976, 1 };
+                        static oc_font* labelFont = &fontRegular;
+                        static f32 labelFontSize = 14;
+
+                        oc_ui_style_next(&(oc_ui_style){ .size.width = { OC_UI_SIZE_PARENT, 1 },
+                                                         .size.height = { OC_UI_SIZE_PIXELS, 152 },
+                                                         .layout.margin.x = 320,
+                                                         .layout.margin.y = 16,
+                                                         .bgColor = OC_UI_DARK_THEME.bg0,
+                                                         .roundness = OC_UI_DARK_THEME.roundnessSmall },
+                                         OC_UI_STYLE_SIZE
+                                             | OC_UI_STYLE_LAYOUT_MARGINS
+                                             | OC_UI_STYLE_BG_COLOR
+                                             | OC_UI_STYLE_ROUNDNESS);
+                        oc_ui_container("styled_radios", OC_UI_FLAG_DRAW_BACKGROUND | OC_UI_FLAG_DRAW_BORDER)
+                        {
+                            oc_ui_pattern unselectedPattern = { 0 };
+                            oc_ui_pattern_push(scratch.arena,
+                                               &unselectedPattern,
+                                               (oc_ui_selector){ .kind = OC_UI_SEL_TAG,
+                                                                 .tag = oc_ui_tag_make("radio") });
+                            oc_ui_pattern_push(scratch.arena,
+                                               &unselectedPattern,
+                                               (oc_ui_selector){ .op = OC_UI_SEL_AND,
+                                                                 .kind = OC_UI_SEL_STATUS,
+                                                                 .status = unselectedWhenStatus });
+                            oc_ui_style_match_after(unselectedPattern,
+                                                    &(oc_ui_style){ .size.width = { OC_UI_SIZE_PIXELS, unselectedWidth },
+                                                                    .size.height = { OC_UI_SIZE_PIXELS, unselectedHeight },
+                                                                    .bgColor = { unselectedBgR, unselectedBgG, unselectedBgB, unselectedBgA },
+                                                                    .borderColor = { unselectedBorderR, unselectedBorderG, unselectedBorderB, unselectedBorderA },
+                                                                    .borderSize = unselectedBorderSize,
+                                                                    .roundness = unselectedRoundness },
+                                                    OC_UI_STYLE_SIZE
+                                                        | OC_UI_STYLE_BG_COLOR
+                                                        | OC_UI_STYLE_BORDER_COLOR
+                                                        | OC_UI_STYLE_BORDER_SIZE
+                                                        | OC_UI_STYLE_ROUNDNESS);
+
+                            oc_ui_pattern selectedPattern = { 0 };
+                            oc_ui_pattern_push(scratch.arena,
+                                               &selectedPattern,
+                                               (oc_ui_selector){ .kind = OC_UI_SEL_TAG,
+                                                                 .tag = oc_ui_tag_make("radio_selected") });
+                            oc_ui_pattern_push(scratch.arena,
+                                               &selectedPattern,
+                                               (oc_ui_selector){ .op = OC_UI_SEL_AND,
+                                                                 .kind = OC_UI_SEL_STATUS,
+                                                                 .status = selectedWhenStatus });
+                            oc_ui_style_match_after(selectedPattern,
+                                                    &(oc_ui_style){ .size.width = { OC_UI_SIZE_PIXELS, selectedWidth },
+                                                                    .size.height = { OC_UI_SIZE_PIXELS, selectedHeight },
+                                                                    .color = { selectedR, selectedG, selectedB, selectedA },
+                                                                    .bgColor = { selectedBgR, selectedBgG, selectedBgB, selectedBgA },
+                                                                    .roundness = selectedRoundness },
+                                                    OC_UI_STYLE_SIZE
+                                                        | OC_UI_STYLE_COLOR
+                                                        | OC_UI_STYLE_BG_COLOR
+                                                        | OC_UI_STYLE_ROUNDNESS);
+
+                            oc_ui_pattern labelPattern = { 0 };
+                            oc_ui_tag labelTag = oc_ui_tag_make("label");
+                            oc_ui_pattern_push(scratch.arena, &labelPattern, (oc_ui_selector){ .kind = OC_UI_SEL_TAG, .tag = labelTag });
+                            oc_ui_style_match_after(labelPattern,
+                                                    &(oc_ui_style){ .color = labelFontColor,
+                                                                    .font = *labelFont,
+                                                                    .fontSize = labelFontSize },
+                                                    OC_UI_STYLE_COLOR
+                                                        | OC_UI_STYLE_FONT
+                                                        | OC_UI_STYLE_FONT_SIZE);
+
+                            static int selectedIndex = 0;
+                            oc_str8 options[] = { OC_STR8("I"),
+                                                  OC_STR8("Am"),
+                                                  OC_STR8("Stylish") };
+                            oc_ui_radio_group_info radioGroupInfo = { .selectedIndex = selectedIndex,
+                                                                      .optionCount = oc_array_size(options),
+                                                                      .options = options };
+                            oc_ui_radio_group_info result = oc_ui_radio_group("radio_group", &radioGroupInfo);
+                            selectedIndex = result.selectedIndex;
+                        }
+
+                        oc_ui_style_next(&(oc_ui_style){ .layout.axis = OC_UI_AXIS_X,
+                                                         .layout.spacing = 32 },
+                                         OC_UI_STYLE_LAYOUT_AXIS
+                                             | OC_UI_STYLE_LAYOUT_SPACING);
+                        oc_ui_container("controls", OC_UI_FLAG_NONE)
+                        {
+                            oc_ui_style_next(&(oc_ui_style){ .layout.axis = OC_UI_AXIS_Y,
+                                                             .layout.spacing = 16 },
+                                             OC_UI_STYLE_LAYOUT_AXIS
+                                                 | OC_UI_STYLE_LAYOUT_SPACING);
+                            oc_ui_container("unselected", OC_UI_FLAG_NONE)
+                            {
+                                oc_ui_style_next(&(oc_ui_style){ .fontSize = 16 },
+                                                 OC_UI_STYLE_FONT_SIZE);
+                                oc_ui_label("Radio style");
+
+                                oc_ui_style_next(&(oc_ui_style){ .layout.spacing = 4 },
+                                                 OC_UI_STYLE_LAYOUT_SPACING);
+                                oc_ui_container("size", OC_UI_FLAG_NONE)
+                                {
+                                    f32 widthSlider = (unselectedWidth - 8) / 16;
+                                    labeled_slider("Width", &widthSlider);
+                                    unselectedWidth = 8 + widthSlider * 16;
+
+                                    f32 heightSlider = (unselectedHeight - 8) / 16;
+                                    labeled_slider("Height", &heightSlider);
+                                    unselectedHeight = 8 + heightSlider * 16;
+
+                                    f32 roundnessSlider = (unselectedRoundness - 4) / 8;
+                                    labeled_slider("Roundness", &roundnessSlider);
+                                    unselectedRoundness = 4 + roundnessSlider * 8;
+                                }
+
+                                oc_ui_style_next(&(oc_ui_style){ .layout.spacing = 4 },
+                                                 OC_UI_STYLE_LAYOUT_SPACING);
+                                oc_ui_container("background", OC_UI_FLAG_NONE)
+                                {
+                                    labeled_slider("Background R", &unselectedBgR);
+                                    labeled_slider("Background G", &unselectedBgG);
+                                    labeled_slider("Background B", &unselectedBgB);
+                                    labeled_slider("Background A", &unselectedBgA);
+                                }
+
+                                oc_ui_style_next(&(oc_ui_style){ .layout.spacing = 4 },
+                                                 OC_UI_STYLE_LAYOUT_SPACING);
+                                oc_ui_container("border", OC_UI_FLAG_NONE)
+                                {
+                                    labeled_slider("Border R", &unselectedBorderR);
+                                    labeled_slider("Border G", &unselectedBorderG);
+                                    labeled_slider("Border B", &unselectedBorderB);
+                                    labeled_slider("Border A", &unselectedBorderA);
+                                }
+
+                                f32 borderSizeSlider = unselectedBorderSize / 5;
+                                labeled_slider("Border size", &borderSizeSlider);
+                                unselectedBorderSize = borderSizeSlider * 5;
+
+                                oc_ui_style_next(&(oc_ui_style){ .layout.spacing = 10 },
+                                                 OC_UI_STYLE_LAYOUT_SPACING);
+                                oc_ui_container("status_override", OC_UI_FLAG_NONE)
+                                {
+                                    oc_ui_label("Override");
+
+                                    static int statusIndex = 0;
+                                    oc_str8 statusOptions[] = { OC_STR8("Always"),
+                                                                OC_STR8("When hovering"),
+                                                                OC_STR8("When dragging") };
+                                    oc_ui_radio_group_info statusInfo = { .selectedIndex = statusIndex,
+                                                                          .optionCount = oc_array_size(statusOptions),
+                                                                          .options = statusOptions };
+                                    oc_ui_radio_group_info result = oc_ui_radio_group("status", &statusInfo);
+                                    statusIndex = result.selectedIndex;
+                                    switch(statusIndex)
+                                    {
+                                        case 0:
+                                            unselectedWhenStatus = OC_UI_NONE;
+                                            break;
+                                        case 1:
+                                            unselectedWhenStatus = OC_UI_HOVER;
+                                            break;
+                                        case 2:
+                                            unselectedWhenStatus = OC_UI_DRAGGING;
+                                            break;
+                                        default:
+                                            break;
+                                    }
+                                }
+                            }
+
+                            oc_ui_style_next(&(oc_ui_style){ .layout.axis = OC_UI_AXIS_Y,
+                                                             .layout.spacing = 16 },
+                                             OC_UI_STYLE_LAYOUT_AXIS
+                                                 | OC_UI_STYLE_LAYOUT_SPACING);
+                            oc_ui_container("selected", OC_UI_FLAG_NONE)
+                            {
+                                oc_ui_style_next(&(oc_ui_style){ .fontSize = 16 },
+                                                 OC_UI_STYLE_FONT_SIZE);
+                                oc_ui_label("Radio selected style");
+
+                                oc_ui_style_next(&(oc_ui_style){ .layout.spacing = 4 },
+                                                 OC_UI_STYLE_LAYOUT_SPACING);
+                                oc_ui_container("size", OC_UI_FLAG_NONE)
+                                {
+                                    f32 widthSlider = (selectedWidth - 8) / 16;
+                                    labeled_slider("Width", &widthSlider);
+                                    selectedWidth = 8 + widthSlider * 16;
+
+                                    f32 heightSlider = (selectedHeight - 8) / 16;
+                                    labeled_slider("Height", &heightSlider);
+                                    selectedHeight = 8 + heightSlider * 16;
+
+                                    f32 roundnessSlider = (selectedRoundness - 4) / 8;
+                                    labeled_slider("Roundness", &roundnessSlider);
+                                    selectedRoundness = 4 + roundnessSlider * 8;
+                                }
+
+                                oc_ui_style_next(&(oc_ui_style){ .layout.spacing = 4 },
+                                                 OC_UI_STYLE_LAYOUT_SPACING);
+                                oc_ui_container("color", OC_UI_FLAG_NONE)
+                                {
+                                    labeled_slider("Center R", &selectedR);
+                                    labeled_slider("Center G", &selectedG);
+                                    labeled_slider("Center B", &selectedB);
+                                    labeled_slider("Center A", &selectedA);
+                                }
+
+                                oc_ui_style_next(&(oc_ui_style){ .layout.spacing = 4 },
+                                                 OC_UI_STYLE_LAYOUT_SPACING);
+                                oc_ui_container("background", OC_UI_FLAG_NONE)
+                                {
+                                    labeled_slider("Background R", &selectedBgR);
+                                    labeled_slider("Background G", &selectedBgG);
+                                    labeled_slider("Background B", &selectedBgB);
+                                    labeled_slider("Background A", &selectedBgA);
+                                }
+
+                                oc_ui_style_next(&(oc_ui_style){ .layout.spacing = 10 },
+                                                 OC_UI_STYLE_LAYOUT_SPACING);
+                                oc_ui_container("status_override", OC_UI_FLAG_NONE)
+                                {
+                                    oc_ui_style_next(&(oc_ui_style){ .size.height = { OC_UI_SIZE_PIXELS, 30 } },
+                                                     OC_UI_STYLE_SIZE_HEIGHT);
+                                    oc_ui_box_make("spacer", OC_UI_FLAG_NONE);
+
+                                    oc_ui_label("Override");
+
+                                    static int statusIndex = 0;
+                                    oc_str8 statusOptions[] = { OC_STR8("Always"),
+                                                                OC_STR8("When hovering"),
+                                                                OC_STR8("When dragging") };
+                                    oc_ui_radio_group_info statusInfo = { .selectedIndex = statusIndex,
+                                                                          .optionCount = oc_array_size(statusOptions),
+                                                                          .options = statusOptions };
+                                    oc_ui_radio_group_info result = oc_ui_radio_group("status", &statusInfo);
+                                    statusIndex = result.selectedIndex;
+                                    switch(statusIndex)
+                                    {
+                                        case 0:
+                                            selectedWhenStatus = OC_UI_NONE;
+                                            break;
+                                        case 1:
+                                            selectedWhenStatus = OC_UI_HOVER;
+                                            break;
+                                        case 2:
+                                            selectedWhenStatus = OC_UI_DRAGGING;
+                                            break;
+                                        default:
+                                            break;
+                                    }
+                                }
+                            }
+
+                            oc_ui_style_next(&(oc_ui_style){ .layout.axis = OC_UI_AXIS_Y,
+                                                             .layout.spacing = 16 },
+                                             OC_UI_STYLE_LAYOUT_AXIS
+                                                 | OC_UI_STYLE_LAYOUT_SPACING);
+                            oc_ui_container("label", OC_UI_FLAG_NONE)
+                            {
+                                oc_ui_style_next(&(oc_ui_style){ .fontSize = 16 },
+                                                 OC_UI_STYLE_FONT_SIZE);
+                                oc_ui_label("Label style");
+
+                                oc_ui_style_next(&(oc_ui_style){ .layout.axis = OC_UI_AXIS_X,
+                                                                 .layout.spacing = 8 },
                                                  OC_UI_STYLE_LAYOUT_AXIS
                                                      | OC_UI_STYLE_LAYOUT_SPACING);
-                                oc_ui_container("contents", 0)
+                                oc_ui_container("font_color", OC_UI_FLAG_NONE)
                                 {
-                                    oc_ui_style_next(&(oc_ui_style){ .size.width = { OC_UI_SIZE_PIXELS, 20 },
-                                                                     .size.height = { OC_UI_SIZE_PIXELS, 200 } },
-                                                     OC_UI_STYLE_SIZE);
-                                    static f32 slider1 = 0;
-                                    oc_ui_slider("slider1", 0.2, &slider1);
+                                    oc_ui_style_match_after(oc_ui_pattern_owner(),
+                                                            &(oc_ui_style){ .size.width = { OC_UI_SIZE_PIXELS, 100 } },
+                                                            OC_UI_STYLE_SIZE_WIDTH);
+                                    oc_ui_label("Font color");
 
-                                    oc_ui_style_next(&(oc_ui_style){ .size.width = { OC_UI_SIZE_PIXELS, 20 },
-                                                                     .size.height = { OC_UI_SIZE_PIXELS, 200 } },
-                                                     OC_UI_STYLE_SIZE);
-                                    static f32 slider2 = 0;
-                                    oc_ui_slider("slider2", 0.2, &slider2);
-
-                                    oc_ui_style_next(&(oc_ui_style){ .size.width = { OC_UI_SIZE_PIXELS, 20 },
-                                                                     .size.height = { OC_UI_SIZE_PIXELS, 200 } },
-                                                     OC_UI_STYLE_SIZE);
-                                    static f32 slider3 = 0;
-                                    oc_ui_slider("slider3", 0.2, &slider3);
+                                    static int colorSelected = 0;
+                                    oc_str8 colorNames[] = { OC_STR8("Default"),
+                                                             OC_STR8("Red"),
+                                                             OC_STR8("Orange"),
+                                                             OC_STR8("Amber"),
+                                                             OC_STR8("Yellow"),
+                                                             OC_STR8("Lime"),
+                                                             OC_STR8("Light Green"),
+                                                             OC_STR8("Green") };
+                                    oc_color colors[] = { OC_UI_DARK_THEME.text0,
+                                                          OC_UI_DARK_THEME.palette->red5,
+                                                          OC_UI_DARK_THEME.palette->orange5,
+                                                          OC_UI_DARK_THEME.palette->amber5,
+                                                          OC_UI_DARK_THEME.palette->yellow5,
+                                                          OC_UI_DARK_THEME.palette->lime5,
+                                                          OC_UI_DARK_THEME.palette->lightGreen5,
+                                                          OC_UI_DARK_THEME.palette->green5 };
+                                    oc_ui_select_popup_info colorInfo = { .selectedIndex = colorSelected,
+                                                                          .optionCount = oc_array_size(colorNames),
+                                                                          .options = colorNames };
+                                    oc_ui_select_popup_info colorResult = oc_ui_select_popup("color", &colorInfo);
+                                    colorSelected = colorResult.selectedIndex;
+                                    labelFontColor = colors[colorSelected];
                                 }
-                            }
 
-                            widget_view("Horizontal Sliders")
-                            {
-                                oc_ui_style_next(&(oc_ui_style){ .size.width = { OC_UI_SIZE_PIXELS, 200 },
-                                                                 .size.height = { OC_UI_SIZE_PIXELS, 20 } },
-                                                 OC_UI_STYLE_SIZE);
-                                static f32 slider1 = 0;
-                                oc_ui_slider("slider1", 0.2, &slider1);
-
-                                oc_ui_style_next(&(oc_ui_style){ .size.width = { OC_UI_SIZE_PIXELS, 200 },
-                                                                 .size.height = { OC_UI_SIZE_PIXELS, 20 } },
-                                                 OC_UI_STYLE_SIZE);
-                                static f32 slider2 = 0;
-                                oc_ui_slider("slider2", 0.2, &slider2);
-
-                                oc_ui_style_next(&(oc_ui_style){ .size.width = { OC_UI_SIZE_PIXELS, 200 },
-                                                                 .size.height = { OC_UI_SIZE_PIXELS, 20 } },
-                                                 OC_UI_STYLE_SIZE);
-                                static f32 slider3 = 0;
-                                oc_ui_slider("slider3", 0.2, &slider3);
-                            }
-                        }
-                    }
-
-                    oc_ui_style_next(&(oc_ui_style){ .size.width = { OC_UI_SIZE_PARENT, 0.5 },
-                                                     .size.height = { OC_UI_SIZE_PARENT, 1 } },
-                                     OC_UI_STYLE_SIZE);
-
-                    oc_ui_container("right", debugFlags)
-                    {
-
-                        oc_ui_style_next(&(oc_ui_style){ .size.width = { OC_UI_SIZE_PARENT, 1 },
-                                                         .size.height = { OC_UI_SIZE_PARENT, 0.33 } },
-                                         OC_UI_STYLE_SIZE);
-                        widget_view("Text box")
-                        {
-                            oc_ui_style_next(&(oc_ui_style){ .size.width = { OC_UI_SIZE_PIXELS, 300 },
-                                                             .size.height = { OC_UI_SIZE_TEXT } },
-                                             OC_UI_STYLE_SIZE);
-                            static oc_str8 text = { 0 };
-                            oc_ui_text_box_result res = oc_ui_text_box("textbox", scratch.arena, text);
-                            if(res.changed)
-                            {
-                                oc_arena_clear(&textArena);
-                                text = oc_str8_push_copy(&textArena, res.text);
-                            }
-                        }
-
-                        oc_ui_style_next(&(oc_ui_style){ .size.width = { OC_UI_SIZE_PARENT, 1 },
-                                                         .size.height = { OC_UI_SIZE_PARENT, 0.33 } },
-                                         OC_UI_STYLE_SIZE);
-                        widget_view("Test")
-                        {
-                            oc_ui_pattern pattern = { 0 };
-                            oc_ui_pattern_push(scratch.arena, &pattern, (oc_ui_selector){ .kind = OC_UI_SEL_TEXT, .text = OC_STR8("panel") });
-                            oc_ui_style_match_after(pattern, &(oc_ui_style){ .bgColor = { 0.3, 0.3, 1, 1 } }, OC_UI_STYLE_BG_COLOR);
-
-                            static int selected = 0;
-                            oc_str8 options[] = { OC_STR8("option 1"),
-                                                  OC_STR8("option 2"),
-                                                  OC_STR8("long option 3"),
-                                                  OC_STR8("option 4"),
-                                                  OC_STR8("option 5") };
-                            oc_ui_select_popup_info info = { .selectedIndex = selected,
-                                                             .optionCount = 5,
-                                                             .options = options };
-
-                            oc_ui_select_popup_info result = oc_ui_select_popup("popup", &info);
-                            selected = result.selectedIndex;
-                        }
-
-                        oc_ui_style_next(&(oc_ui_style){ .size.width = { OC_UI_SIZE_PARENT, 1 },
-                                                         .size.height = { OC_UI_SIZE_PARENT, 0.33 } },
-                                         OC_UI_STYLE_SIZE);
-                        widget_view("Color")
-                        {
-                            oc_ui_style_next(&(oc_ui_style){ .size.width = { OC_UI_SIZE_PARENT, 1 },
-                                                             .size.height = { OC_UI_SIZE_PARENT, 0.7 },
-                                                             .layout.axis = OC_UI_AXIS_X },
-                                             OC_UI_STYLE_SIZE
-                                                 | OC_UI_STYLE_LAYOUT_AXIS);
-
-                            oc_ui_panel("Panel", OC_UI_FLAG_DRAW_BORDER)
-                            {
-                                oc_ui_style_next(&(oc_ui_style){ .layout.axis = OC_UI_AXIS_X },
-                                                 OC_UI_STYLE_LAYOUT_AXIS);
-                                oc_ui_container("contents", 0)
+                                oc_ui_style_next(&(oc_ui_style){ .layout.axis = OC_UI_AXIS_X,
+                                                                 .layout.spacing = 8 },
+                                                 OC_UI_STYLE_LAYOUT_AXIS
+                                                     | OC_UI_STYLE_LAYOUT_SPACING);
+                                oc_ui_container("font", OC_UI_FLAG_NONE)
                                 {
-                                    oc_ui_style_next(&(oc_ui_style){ .layout.spacing = 20 },
-                                                     OC_UI_STYLE_LAYOUT_SPACING);
-                                    oc_ui_container("buttons", 0)
-                                    {
-                                        oc_ui_button("Button A");
-                                        oc_ui_button("Button B");
-                                        oc_ui_button("Button C");
-                                        oc_ui_button("Button D");
-                                    }
+                                    oc_ui_style_match_after(oc_ui_pattern_owner(),
+                                                            &(oc_ui_style){ .size.width = { OC_UI_SIZE_PIXELS, 100 } },
+                                                            OC_UI_STYLE_SIZE_WIDTH);
+                                    oc_ui_label("Font");
 
-                                    oc_ui_style_next(&(oc_ui_style){ .layout.axis = OC_UI_AXIS_X,
-                                                                     .layout.spacing = 20 },
-                                                     OC_UI_STYLE_LAYOUT_SPACING
-                                                         | OC_UI_STYLE_LAYOUT_AXIS);
-
-                                    oc_ui_container("buttons2", 0)
-                                    {
-                                        oc_ui_button("Button A");
-                                        oc_ui_button("Button B");
-                                        oc_ui_button("Button C");
-                                        oc_ui_button("Button D");
-                                    }
+                                    static int fontSelected = 0;
+                                    oc_str8 fontNames[] = { OC_STR8("Regular"),
+                                                            OC_STR8("Bold") };
+                                    oc_font* fonts[] = { &fontRegular,
+                                                         &fontBold };
+                                    oc_ui_select_popup_info fontInfo = { .selectedIndex = fontSelected,
+                                                                         .optionCount = oc_array_size(fontNames),
+                                                                         .options = fontNames };
+                                    oc_ui_select_popup_info fontResult = oc_ui_select_popup("font_style", &fontInfo);
+                                    fontSelected = fontResult.selectedIndex;
+                                    labelFont = fonts[fontSelected];
                                 }
+
+                                f32 fontSizeSlider = (labelFontSize - 8) / 16;
+                                labeled_slider("Font size", &fontSizeSlider);
+                                labelFontSize = 8 + fontSizeSlider * 16;
                             }
                         }
                     }
                 }
             }
         }
-        if(printDebugStyle)
-        {
-            debug_print_styles(root, 0);
-        }
 
+        oc_canvas_select(canvas);
         oc_surface_select(surface);
-
         oc_ui_draw();
-
         oc_render(canvas);
         oc_surface_present(surface);
 
         oc_scratch_end(scratch);
+    }
+    return (0);
+}
+
+int main()
+{
+    oc_init();
+    oc_clock_init(); //TODO put that in oc_init()?
+
+    oc_rect windowRect = { .x = 100, .y = 100, .w = frameSize.x, .h = frameSize.y };
+    oc_window window = oc_window_create(windowRect, OC_STR8("test"), 0);
+
+    oc_rect contentRect = oc_window_get_content_rect(window);
+
+    oc_window_set_title(window, OC_STR8("Orca UI Demo"));
+
+    surface = oc_surface_create_for_window(window, OC_CANVAS);
+    oc_surface_deselect();
+
+    oc_arena_scope scratch = oc_scratch_begin();
+
+    oc_font* fonts[2] = { &fontRegular, &fontBold };
+    oc_str8 fontNames[2] = {
+        oc_path_executable_relative(scratch.arena, OC_STR8("../OpenSans-Regular.ttf")),
+        oc_path_executable_relative(scratch.arena, OC_STR8("../OpenSans-Bold.ttf"))
+    };
+
+    for(int i = 0; i < 2; i++)
+    {
+        oc_file file = oc_file_open(fontNames[i], OC_FILE_ACCESS_READ, 0);
+        if(oc_file_last_error(file) != OC_IO_OK)
+        {
+            oc_log_error("Couldn't open file %.*s\n", oc_str8_ip(fontNames[i]));
+        }
+        u64 size = oc_file_size(file);
+        char* buffer = (char*)oc_arena_push(scratch.arena, size);
+        oc_file_read(file, size, buffer);
+        oc_file_close(file);
+        oc_unicode_range ranges[5] = { OC_UNICODE_BASIC_LATIN,
+                                       OC_UNICODE_C1_CONTROLS_AND_LATIN_1_SUPPLEMENT,
+                                       OC_UNICODE_LATIN_EXTENDED_A,
+                                       OC_UNICODE_LATIN_EXTENDED_B,
+                                       OC_UNICODE_SPECIALS };
+
+        *fonts[i] = oc_font_create_from_memory(oc_str8_from_buffer(size, buffer), 5, ranges);
+    }
+    oc_scratch_end(scratch);
+
+    oc_arena_init(&textArena);
+    oc_arena_init(&logArena);
+    oc_list_init(&logLines.list);
+
+    // start app
+    oc_window_bring_to_front(window);
+    oc_window_focus(window);
+
+    oc_thread* runloopThread = oc_thread_create(ui_runloop, 0);
+
+    while(!oc_should_quit())
+    {
+        oc_pump_events(-1);
+        //TODO: what to do with mem scratch here?
     }
 
     oc_surface_destroy(surface);

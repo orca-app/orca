@@ -69,7 +69,7 @@ typedef struct oc_ui_layout
 
 typedef enum oc_ui_size_kind
 {
-    OC_UI_SIZE_TEXT,
+    OC_UI_SIZE_TEXT = 0,
     OC_UI_SIZE_PIXELS,
     OC_UI_SIZE_CHILDREN,
     OC_UI_SIZE_PARENT,
@@ -82,6 +82,7 @@ typedef struct oc_ui_size
     oc_ui_size_kind kind;
     f32 value;
     f32 relax;
+    f32 minSize;
 } oc_ui_size;
 
 typedef union oc_ui_box_size
@@ -479,8 +480,8 @@ typedef enum
     OC_UI_FLAG_ACTIVE_ANIMATION = (1 << 5),
     //WARN: these two following flags need to be kept as consecutive bits to
     //      play well with axis-agnostic functions
-    OC_UI_FLAG_ALLOW_OVERFLOW_X = (1 << 6),
-    OC_UI_FLAG_ALLOW_OVERFLOW_Y = (1 << 7),
+    OC_UI_FLAG_OVERFLOW_ALLOW_X = (1 << 6),
+    OC_UI_FLAG_OVERFLOW_ALLOW_Y = (1 << 7),
     OC_UI_FLAG_CLIP = (1 << 8),
     OC_UI_FLAG_DRAW_BACKGROUND = (1 << 9),
     OC_UI_FLAG_DRAW_FOREGROUND = (1 << 10),
@@ -488,7 +489,7 @@ typedef enum
     OC_UI_FLAG_DRAW_TEXT = (1 << 12),
     OC_UI_FLAG_DRAW_PROC = (1 << 13),
 
-    OC_UI_FLAG_OVERLAY = (1 << 14),
+    OC_UI_FLAG_OVERLAY = (1 << 16),
 } oc_ui_flags;
 
 struct oc_ui_box
@@ -525,6 +526,7 @@ struct oc_ui_box
     oc_vec2 floatPos;
     f32 childrenSum[2];
     f32 spacing[2];
+    f32 minSize[2];
     oc_rect rect;
 
     // signals
@@ -656,12 +658,8 @@ ORCA_API void oc_ui_set_theme(oc_ui_theme* theme);
 ORCA_API oc_ui_key oc_ui_key_make_str8(oc_str8 string);
 ORCA_API oc_ui_key oc_ui_key_make_path(oc_str8_list path);
 
-ORCA_API oc_ui_box* oc_ui_box_lookup_key(oc_ui_key key);
-ORCA_API oc_ui_box* oc_ui_box_lookup_str8(oc_str8 string);
-
 // C-string helper
 #define oc_ui_key_make(s) oc_ui_key_make_str8(OC_STR8(s))
-#define oc_ui_box_lookup(s) oc_ui_box_lookup_str8(OC_STR8(s))
 
 //-------------------------------------------------------------------------------------
 // Box hierarchy building
@@ -676,6 +674,9 @@ ORCA_API oc_ui_box* oc_ui_box_end(void);
 ORCA_API void oc_ui_box_push(oc_ui_box* box);
 ORCA_API void oc_ui_box_pop(void);
 ORCA_API oc_ui_box* oc_ui_box_top(void);
+
+ORCA_API oc_ui_box* oc_ui_box_lookup_key(oc_ui_key key);
+ORCA_API oc_ui_box* oc_ui_box_lookup_str8(oc_str8 string);
 
 ORCA_API void oc_ui_box_set_draw_proc(oc_ui_box* box, oc_ui_box_draw_proc proc, void* data);
 
