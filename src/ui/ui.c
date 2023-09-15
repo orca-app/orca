@@ -524,6 +524,11 @@ void oc_ui_box_deactivate(oc_ui_box* box)
     box->active = false;
 }
 
+void oc_ui_box_set_active(oc_ui_box* box, bool active)
+{
+    box->active = active;
+}
+
 bool oc_ui_box_active(oc_ui_box* box)
 {
     return (box->active);
@@ -537,16 +542,6 @@ void oc_ui_box_set_hot(oc_ui_box* box, bool hot)
 bool oc_ui_box_hot(oc_ui_box* box)
 {
     return (box->hot);
-}
-
-void oc_ui_box_set_dragging(oc_ui_box* box, bool dragging)
-{
-    box->dragging = dragging;
-}
-
-bool oc_ui_box_dragging(oc_ui_box* box)
-{
-    return (box->dragging);
 }
 
 oc_ui_sig oc_ui_box_sig(oc_ui_box* box)
@@ -1600,7 +1595,7 @@ oc_ui_sig oc_ui_button_behavior(oc_ui_box* box)
     {
         oc_ui_box_set_hot(box, false);
     }
-    if(!sig.dragging)
+    if(!sig.hovering && !sig.dragging)
     {
         oc_ui_box_deactivate(box);
     }
@@ -2307,10 +2302,10 @@ void oc_ui_menu_begin(const char* label)
     oc_ui_style hoverStyle = { .bgColor = theme->fill0 };
     oc_ui_style_match_before(hoverPattern, &hoverStyle, OC_UI_STYLE_BG_COLOR);
 
-    oc_ui_pattern draggingPattern = { 0 };
-    oc_ui_pattern_push(&ui->frameArena, &draggingPattern, (oc_ui_selector){ .kind = OC_UI_SEL_STATUS, .status = OC_UI_DRAGGING });
-    oc_ui_style draggingStyle = { .bgColor = theme->fill2 };
-    oc_ui_style_match_before(draggingPattern, &draggingStyle, OC_UI_STYLE_BG_COLOR);
+    oc_ui_pattern activePattern = { 0 };
+    oc_ui_pattern_push(&ui->frameArena, &activePattern, (oc_ui_selector){ .kind = OC_UI_SEL_STATUS, .status = OC_UI_ACTIVE });
+    oc_ui_style activeStyle = { .bgColor = theme->fill2 };
+    oc_ui_style_match_before(activePattern, &activeStyle, OC_UI_STYLE_BG_COLOR);
 
     oc_ui_box* button = oc_ui_box_begin("button", OC_UI_FLAG_CLICKABLE | OC_UI_FLAG_DRAW_BACKGROUND);
 
@@ -2409,10 +2404,10 @@ oc_ui_sig oc_ui_menu_button(const char* name)
     oc_ui_style hoverStyle = { .bgColor = theme->fill0 };
     oc_ui_style_match_before(hoverPattern, &hoverStyle, OC_UI_STYLE_BG_COLOR);
 
-    oc_ui_pattern draggingPattern = { 0 };
-    oc_ui_pattern_push(&ui->frameArena, &draggingPattern, (oc_ui_selector){ .kind = OC_UI_SEL_STATUS, .status = OC_UI_DRAGGING });
-    oc_ui_style draggingStyle = { .bgColor = theme->fill2 };
-    oc_ui_style_match_before(draggingPattern, &draggingStyle, OC_UI_STYLE_BG_COLOR);
+    oc_ui_pattern activePattern = { 0 };
+    oc_ui_pattern_push(&ui->frameArena, &activePattern, (oc_ui_selector){ .kind = OC_UI_SEL_STATUS, .status = OC_UI_ACTIVE });
+    oc_ui_style activeStyle = { .bgColor = theme->fill2 };
+    oc_ui_style_match_before(activePattern, &activeStyle, OC_UI_STYLE_BG_COLOR);
 
     oc_ui_flags flags = OC_UI_FLAG_CLICKABLE
                       | OC_UI_FLAG_CLIP
@@ -2501,12 +2496,13 @@ oc_ui_select_popup_info oc_ui_select_popup(const char* name, oc_ui_select_popup_
                                     .borderSize = 1 };
         oc_ui_style_match_after(activePattern, &activeStyle, OC_UI_STYLE_BORDER_COLOR | OC_UI_STYLE_BORDER_SIZE);
 
-        oc_ui_pattern draggingPattern = { 0 };
-        oc_ui_pattern_push(&ui->frameArena, &draggingPattern, (oc_ui_selector){ .kind = OC_UI_SEL_STATUS, .status = OC_UI_DRAGGING });
-        oc_ui_style draggingStyle = { .bgColor = theme->fill2,
-                                      .borderColor = theme->primary,
-                                      .borderSize = 1 };
-        oc_ui_style_match_after(draggingPattern, &draggingStyle, OC_UI_STYLE_BG_COLOR | OC_UI_STYLE_BORDER_COLOR | OC_UI_STYLE_BORDER_SIZE);
+        oc_ui_pattern mouseDownPattern = { 0 };
+        oc_ui_pattern_push(&ui->frameArena, &mouseDownPattern, (oc_ui_selector){ .kind = OC_UI_SEL_STATUS, .status = OC_UI_ACTIVE });
+        oc_ui_pattern_push(&ui->frameArena, &mouseDownPattern, (oc_ui_selector){ .op = OC_UI_SEL_AND, .kind = OC_UI_SEL_STATUS, .status = OC_UI_HOVER });
+        oc_ui_style mouseDownStyle = { .bgColor = theme->fill2,
+                                       .borderColor = theme->primary,
+                                       .borderSize = 1 };
+        oc_ui_style_match_after(mouseDownPattern, &mouseDownStyle, OC_UI_STYLE_BG_COLOR | OC_UI_STYLE_BORDER_COLOR | OC_UI_STYLE_BORDER_SIZE);
 
         oc_ui_box* button = oc_ui_box_make("button",
                                            OC_UI_FLAG_CLICKABLE
@@ -2624,9 +2620,9 @@ oc_ui_select_popup_info oc_ui_select_popup(const char* name, oc_ui_select_popup_
                 oc_ui_pattern_push(&ui->frameArena, &hoverPattern, (oc_ui_selector){ .kind = OC_UI_SEL_STATUS, .status = OC_UI_HOVER });
                 oc_ui_style_match_before(hoverPattern, &(oc_ui_style){ .bgColor = theme->fill0 }, OC_UI_STYLE_BG_COLOR);
 
-                oc_ui_pattern draggingPattern = { 0 };
-                oc_ui_pattern_push(&ui->frameArena, &draggingPattern, (oc_ui_selector){ .kind = OC_UI_SEL_STATUS, .status = OC_UI_DRAGGING });
-                oc_ui_style_match_before(draggingPattern, &(oc_ui_style){ .bgColor = theme->fill2 }, OC_UI_STYLE_BG_COLOR);
+                oc_ui_pattern activePattern = { 0 };
+                oc_ui_pattern_push(&ui->frameArena, &activePattern, (oc_ui_selector){ .kind = OC_UI_SEL_STATUS, .status = OC_UI_ACTIVE });
+                oc_ui_style_match_before(activePattern, &(oc_ui_style){ .bgColor = theme->fill2 }, OC_UI_STYLE_BG_COLOR);
 
                 oc_ui_box* wrapper = oc_ui_box_begin_str8(info->options[i],
                                                           OC_UI_FLAG_CLICKABLE | OC_UI_FLAG_DRAW_BACKGROUND);
@@ -2672,10 +2668,17 @@ oc_ui_select_popup_info oc_ui_select_popup(const char* name, oc_ui_select_popup_
             oc_ui_box_deactivate(button);
             oc_ui_box_deactivate(panel);
         }
-        else if(oc_ui_box_sig(button).clicked)
+        else
         {
-            oc_ui_box_activate(button);
-            oc_ui_box_activate(panel);
+            oc_ui_sig sig = oc_ui_box_sig(button);
+            if(sig.pressed)
+            {
+                oc_ui_box_activate(button);
+            }
+            if(sig.clicked)
+            {
+                oc_ui_box_activate(panel);
+            }
         }
         oc_ui_box_set_closed(panel, !oc_ui_box_active(panel));
     }
@@ -2732,7 +2735,7 @@ oc_ui_radio_group_info oc_ui_radio_group(const char* name, oc_ui_radio_group_inf
             }
 
             oc_ui_box_set_hot(radio, sig.hovering);
-            oc_ui_box_set_dragging(radio, sig.dragging);
+            oc_ui_box_set_active(radio, sig.hovering && sig.dragging);
 
             const char* defaultTagStr = "radio";
             const char* selectedTagStr = "radio_selected";
@@ -2766,14 +2769,14 @@ oc_ui_radio_group_info oc_ui_radio_group(const char* name, oc_ui_radio_group_inf
                                        | OC_UI_STYLE_BORDER_COLOR;
             oc_ui_style_box_after(radio, hoverPattern, &hoverStyle, hoverMask);
 
-            oc_ui_pattern draggingPattern = { 0 };
-            oc_ui_pattern_push(&ui->frameArena, &draggingPattern, (oc_ui_selector){ .kind = OC_UI_SEL_TAG, .tag = defaultTag });
-            oc_ui_pattern_push(&ui->frameArena, &draggingPattern, (oc_ui_selector){ .op = OC_UI_SEL_AND, .kind = OC_UI_SEL_STATUS, .status = OC_UI_DRAGGING });
-            oc_ui_style draggingStyle = { .bgColor = theme->fill1,
-                                          .borderColor = theme->primary };
-            oc_ui_style_mask draggingMask = OC_UI_STYLE_BG_COLOR
-                                          | OC_UI_STYLE_BORDER_COLOR;
-            oc_ui_style_box_after(radio, draggingPattern, &draggingStyle, draggingMask);
+            oc_ui_pattern activePattern = { 0 };
+            oc_ui_pattern_push(&ui->frameArena, &activePattern, (oc_ui_selector){ .kind = OC_UI_SEL_TAG, .tag = defaultTag });
+            oc_ui_pattern_push(&ui->frameArena, &activePattern, (oc_ui_selector){ .op = OC_UI_SEL_AND, .kind = OC_UI_SEL_STATUS, .status = OC_UI_ACTIVE });
+            oc_ui_style activeStyle = { .bgColor = theme->fill1,
+                                        .borderColor = theme->primary };
+            oc_ui_style_mask activeMask = OC_UI_STYLE_BG_COLOR
+                                        | OC_UI_STYLE_BORDER_COLOR;
+            oc_ui_style_box_after(radio, activePattern, &activeStyle, activeMask);
 
             oc_ui_tag selectedTag = oc_ui_tag_make(selectedTagStr);
             oc_ui_pattern selectedPattern = { 0 };
@@ -2790,11 +2793,11 @@ oc_ui_radio_group_info oc_ui_radio_group(const char* name, oc_ui_radio_group_inf
             oc_ui_style selectedHoverStyle = { .bgColor = theme->primaryHover };
             oc_ui_style_box_after(radio, selectedHoverPattern, &selectedHoverStyle, OC_UI_STYLE_BG_COLOR);
 
-            oc_ui_pattern selectedDraggingPattern = { 0 };
-            oc_ui_pattern_push(&ui->frameArena, &selectedDraggingPattern, (oc_ui_selector){ .kind = OC_UI_SEL_TAG, .tag = selectedTag });
-            oc_ui_pattern_push(&ui->frameArena, &selectedDraggingPattern, (oc_ui_selector){ .op = OC_UI_SEL_AND, .kind = OC_UI_SEL_STATUS, .status = OC_UI_DRAGGING });
-            oc_ui_style selectedDraggingStyle = { .bgColor = theme->primaryActive };
-            oc_ui_style_box_after(radio, selectedDraggingPattern, &selectedDraggingStyle, OC_UI_STYLE_BG_COLOR);
+            oc_ui_pattern selectedActivePattern = { 0 };
+            oc_ui_pattern_push(&ui->frameArena, &selectedActivePattern, (oc_ui_selector){ .kind = OC_UI_SEL_TAG, .tag = selectedTag });
+            oc_ui_pattern_push(&ui->frameArena, &selectedActivePattern, (oc_ui_selector){ .op = OC_UI_SEL_AND, .kind = OC_UI_SEL_STATUS, .status = OC_UI_ACTIVE });
+            oc_ui_style selectedActiveStyle = { .bgColor = theme->primaryActive };
+            oc_ui_style_box_after(radio, selectedActivePattern, &selectedActiveStyle, OC_UI_STYLE_BG_COLOR);
 
             oc_ui_container("label", 0)
             {
