@@ -68,8 +68,8 @@ export fn oc_on_frame_refresh() void {
 
     {
         const translation: oc.Mat2x3 = .{ .m = [_]f32{ 1, 0, 50, 0, 1, 50 } };
-        oc.matrixPush(translation);
-        defer oc.matrixPop();
+        translation.push();
+        defer oc.Mat2x3.pop();
 
         oc.assert(std.meta.eql(oc.matrixTop(), translation), "top of matrix stack should be what we pushed", .{}, @src());
         oc.setWidth(1);

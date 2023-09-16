@@ -75,7 +75,7 @@ pub const ListElt = extern struct {
     next: ?*ListElt,
 };
 
-pub const EltList = extern struct {
+pub const List = extern struct {
     first: ?*ListElt,
     last: ?*ListElt,
 };
@@ -107,7 +107,7 @@ pub const ArenaChunk = extern struct {
 
 pub const Arena = extern struct {
     base: ?*BaseAllocator,
-    chunks: EltList,
+    chunks: List,
     current_chunk: ?*ArenaChunk,
 
     extern fn oc_arena_init(arena: *Arena) void;
@@ -183,8 +183,6 @@ pub const ArenaOptions = extern struct {
 //------------------------------------------------------------------------------------------
 // [STRINGS]
 //------------------------------------------------------------------------------------------
-
-
 
 //------------------------------------------------------------------------------------------
 // [UTF8]
@@ -409,7 +407,7 @@ pub const windowSetSize = oc_window_set_size;
 // [APP] file dialogs
 //------------------------------------------------------------------------------------------
 
-const FileDialogKind = enum (c_uint) {
+const FileDialogKind = enum(c_uint) {
     Save,
     Open,
 };
@@ -444,7 +442,7 @@ const FileDialogDesc = extern struct {
 //     //... later customization options with checkboxes / radiobuttons
 // } oc_file_dialog_desc;
 
-const FileDialogButton = enum (c_uint) {
+const FileDialogButton = enum(c_uint) {
     Cancel,
     Ok,
 };
@@ -489,17 +487,6 @@ pub const clockTime = oc_clock_time;
 pub const Surface = extern struct {
     h: u64,
 
-    pub const canvas = oc_surface_canvas;
-    pub const gles = oc_surface_gles;
-    pub const select = oc_surface_select;
-    pub const present = oc_surface_present;
-    pub const getSize = oc_surface_get_size;
-    pub const contentsScaling = oc_surface_contents_scaling;
-    pub const bringToFront = oc_surface_bring_to_front;
-    pub const sendToBack = oc_surface_send_to_back;
-    // pub const renderCommands = oc_surface_render_commands;
-    pub const render = oc_render;
-
     extern fn oc_surface_canvas() Surface;
     extern fn oc_surface_gles() Surface;
     extern fn oc_surface_select(surface: Surface) void;
@@ -517,22 +504,33 @@ pub const Surface = extern struct {
     //     elements: [*]PathElt,
     // ) void;
     extern fn oc_render(surface: Surface, canvas: Canvas) void;
+
+    pub const canvas = oc_surface_canvas;
+    pub const gles = oc_surface_gles;
+    pub const select = oc_surface_select;
+    pub const present = oc_surface_present;
+    pub const getSize = oc_surface_get_size;
+    pub const contentsScaling = oc_surface_contents_scaling;
+    pub const bringToFront = oc_surface_bring_to_front;
+    pub const sendToBack = oc_surface_send_to_back;
+    // pub const renderCommands = oc_surface_render_commands;
+    pub const render = oc_render;
 };
 
 pub const Canvas = extern struct {
     h: u64,
-
-    pub const nil = oc_canvas_nil;
-    pub const isNil = oc_canvas_is_nil;
-    pub const create = oc_canvas_create;
-    pub const destroy = oc_canvas_destroy;
-    pub const setCurrent = oc_canvas_set_current;
 
     extern fn oc_canvas_nil() Canvas;
     extern fn oc_canvas_is_nil(canvas: Canvas) bool;
     extern fn oc_canvas_create() Canvas;
     extern fn oc_canvas_destroy(canvas: Canvas) void;
     extern fn oc_canvas_set_current(canvas: Canvas) Canvas;
+
+    pub const nil = oc_canvas_nil;
+    pub const isNil = oc_canvas_is_nil;
+    pub const create = oc_canvas_create;
+    pub const destroy = oc_canvas_destroy;
+    pub const setCurrent = oc_canvas_set_current;
 };
 
 pub const Image = extern struct {
@@ -547,6 +545,15 @@ pub const Image = extern struct {
     extern fn oc_image_destroy(image: Image) void;
     extern fn oc_image_upload_region_rgba8(image: Image, region: Rect, pixels: [*]u8) void;
     extern fn oc_image_size(image: Image) Vec2;
+    extern fn oc_image_draw(image: Image, rect: Rect) void;
+    extern fn oc_image_draw_region(image: Image, srcRegion: Rect, dstRegion: Rect) void;
+
+    pub const create = oc_image_create;
+    pub const destroy = oc_image_destroy;
+    pub const uploadRegionRgba8 = oc_image_upload_region_rgba8;
+    pub const size = oc_image_size;
+    pub const draw = oc_image_draw;
+    pub const drawRegion = oc_image_draw_region;
 };
 
 pub const Rect = extern union {
@@ -651,21 +658,25 @@ const TextExtents = extern struct {
 
 pub const Mat2x3 = extern struct {
     m: [6]f32,
+
+    extern fn oc_matrix_push(matrix: Mat2x3) void;
+    extern fn oc_matrix_pop() void;
+    extern fn oc_matrix_top() Mat2x3;
+
+    pub const push = oc_matrix_push;
+    pub const pop = oc_matrix_pop;
+    pub const top = oc_matrix_top;
 };
 
-extern fn oc_matrix_push(matrix: Mat2x3) void;
-extern fn oc_matrix_pop() void;
-extern fn oc_matrix_top() Mat2x3;
-extern fn oc_clip_push(x: f32, y: f32, w: f32, h: f32) void;
-extern fn oc_clip_pop() void;
-extern fn oc_clip_top() Rect;
+pub const clip = struct {
+    extern fn oc_clip_push(x: f32, y: f32, w: f32, h: f32) void;
+    extern fn oc_clip_pop() void;
+    extern fn oc_clip_top() Rect;
 
-pub const matrixPush = oc_matrix_push;
-pub const matrixPop = oc_matrix_pop;
-pub const matrixTop = oc_matrix_top;
-pub const clipPush = oc_clip_push;
-pub const clipPop = oc_clip_pop;
-pub const clipTop = oc_clip_top;
+    pub const push = oc_clip_push;
+    pub const pop = oc_clip_pop;
+    pub const top = oc_clip_top;
+};
 
 //------------------------------------------------------------------------------------------
 // [GRAPHICS]: graphics attributes setting/getting
@@ -784,20 +795,39 @@ pub const circleStroke = oc_circle_stroke;
 pub const arc = oc_arc;
 
 //------------------------------------------------------------------------------------------
-// [GRAPHICS]: image helpers
-//------------------------------------------------------------------------------------------
-extern fn oc_image_draw(image: Image, rect: Rect) void;
-extern fn oc_image_draw_region(image: Image, srcRegion: Rect, dstRegion: Rect) void;
-
-pub const imageDraw = oc_image_draw;
-pub const imageDrawRegion = oc_image_draw_region;
-
-//------------------------------------------------------------------------------------------
-// [FILE IO] types
+// [FILE IO] basic API
 //------------------------------------------------------------------------------------------
 
 const File = extern struct {
     h: u64,
+
+    extern fn oc_file_nil() File;
+    extern fn oc_file_is_nil(file: File) bool;
+    extern fn oc_file_open(path: Str8, rights: FileAccessFlags, flags: FileOpenFlags) File;
+    extern fn oc_file_open_at(dir: File, path: Str8, rights: FileAccessFlags, flags: FileOpenFlags) File;
+    extern fn oc_file_close(file: File) void;
+    extern fn oc_file_last_error(file: File) IoError;
+    extern fn oc_file_pos(file: File) i64;
+    extern fn oc_file_seek(file: File, offset: i64, whence: FileWhence) i64;
+    extern fn oc_file_write(file: File, size: u64, buffer: ?[*]u8) u64;
+    extern fn oc_file_read(file: File, size: u64, buffer: ?[*]u8) u64;
+
+    extern fn oc_file_get_status(file: File) FileStatus;
+    extern fn oc_file_size(file: File) u64;
+
+    pub const nil = oc_file_nil;
+    pub const isNil = oc_file_is_nil;
+    pub const open = oc_file_open;
+    pub const openAt = oc_file_open_at;
+    pub const close = oc_file_close;
+    pub const lastError = oc_file_last_error;
+    pub const pos = oc_file_pos;
+    pub const seek = oc_file_seek;
+    pub const write = oc_file_write;
+    pub const read = oc_file_read;
+
+    const getStatus = oc_file_get_status;
+    const size = oc_file_size;
 };
 
 const FileOpenFlags = packed struct(u16) {
@@ -817,7 +847,7 @@ const FileAccessFlags = packed struct(u16) {
     write: bool,
 };
 
-const FileWhence = enum (c_uint) {
+const FileWhence = enum(c_uint) {
     Set,
     End,
     Current,
@@ -826,7 +856,7 @@ const FileWhence = enum (c_uint) {
 const IoReqId = u16;
 const IoOp = u32;
 
-const IoOpEnum = enum (c_uint) {
+const IoOpEnum = enum(c_uint) {
     OpenAt = 0,
     Close,
     FStat,
@@ -861,27 +891,27 @@ const IoReq = extern struct {
 const IoError = enum(i32) {
     Ok = 0,
     Unknown,
-    Op,          // unsupported operation
-    Handle,      // invalid handle
-    Prev,        // previously had a fatal error (last error stored on handle)
-    Arg,         // invalid argument or argument combination
-    Perm,        // access denied
-    Space,       // no space left
-    NoEntry,    // file or directory does not exist
-    Exists,      // file already exists
-    NotDir,     // path element is not a directory
-    Dir,         // attempted to write directory
-    MaxFiles,   // max open files reached
-    MaxLinks,   // too many symbolic links in path
+    Op, // unsupported operation
+    Handle, // invalid handle
+    Prev, // previously had a fatal error (last error stored on handle)
+    Arg, // invalid argument or argument combination
+    Perm, // access denied
+    Space, // no space left
+    NoEntry, // file or directory does not exist
+    Exists, // file already exists
+    NotDir, // path element is not a directory
+    Dir, // attempted to write directory
+    MaxFiles, // max open files reached
+    MaxLinks, // too many symbolic links in path
     PathLength, // path too long
-    FileSize,   // file too big
-    Overflow,    // offset too big
-    NotReady,   // no data ready to be read/written
-    Mem,         // failed to allocate memory
-    Interrupt,   // operation interrupted by a signal
-    Physical,    // physical IO error
-    NoDevice,   // device not found
-    Walkout,     // attempted to walk out of root directory
+    FileSize, // file too big
+    Overflow, // offset too big
+    NotReady, // no data ready to be read/written
+    Mem, // failed to allocate memory
+    Interrupt, // operation interrupted by a signal
+    Physical, // physical IO error
+    NoDevice, // device not found
+    Walkout, // attempted to walk out of root directory
 };
 
 const IoCmp = extern struct {
@@ -895,33 +925,7 @@ const IoCmp = extern struct {
     },
 };
 
-//------------------------------------------------------------------------------------------
-// [FILE IO] complete io queue api
-//------------------------------------------------------------------------------------------
-
-extern fn oc_io_wait_single_req(req: *IoReq) IoCmp;
-
-//------------------------------------------------------------------------------------------
-// [FILE IO] file IO wrapper API
-//------------------------------------------------------------------------------------------
-extern fn oc_file_nil() File;
-extern fn oc_file_is_nil(handle: File) bool;
-
-extern fn oc_file_open(path: Str8, rights: FileAccessFlags, flags: FileOpenFlags) File;
-extern fn oc_file_open_at(dir: File, path: Str8, rights: FileAccessFlags, flags: FileOpenFlags) File;
-extern fn oc_file_close(file: File) void;
-extern fn oc_file_last_error(handle: File) IoError;
-
-extern fn oc_file_pos(file: File) i64;
-extern fn oc_file_seek(file: File, offset: i64, whence: oc_file_whence) i64;
-extern fn oc_file_write(file: File, size: u64, buffer: ?[*]c_char) u64;
-extern fn oc_file_read(file: File, size: u64, buffer: ?[*]c_char) u64;
-
-//------------------------------------------------------------------------------------------
-// [FILE IO] File system wrapper
-//------------------------------------------------------------------------------------------
-
-const FileType = enum (c_uint) {
+const FileType = enum(c_uint) {
     Unknown,
     Regular,
     Directory,
@@ -948,7 +952,7 @@ const FilePerm = packed struct(u16) {
 };
 
 const DateStamp = extern struct {
-    seconds: i64,  // seconds relative to NTP epoch.
+    seconds: i64, // seconds relative to NTP epoch.
     fraction: u64, // fraction of seconds elapsed since the time specified by seconds.
 };
 
@@ -958,17 +962,33 @@ const FileStatus = extern struct {
     perm: FilePerm,
     size: u64,
 
-    creation_date: DateStamp, 
+    creation_date: DateStamp,
     access_date: DateStamp,
     modification_date: DateStamp,
 };
 
-extern fn oc_file_get_status(file: File) oc_file_status;
-extern fn oc_file_size(file: File) u64;
+//------------------------------------------------------------------------------------------
+// [FILE IO] complete io queue api
+//------------------------------------------------------------------------------------------
+
+extern fn oc_io_wait_single_req(req: *IoReq) IoCmp;
+
+pub const ioWaitSingleReq = oc_io_wait_single_req;
 
 //------------------------------------------------------------------------------------------
 // [FILE IO] Asking users for file capabilities
 //------------------------------------------------------------------------------------------
 
+const FileOpenWithDialogElt = extern struct {
+    list_elt: ListElt,
+    file: File,
+};
+
+const FileOpenWithDialogResult = extern struct {
+    button: FileDialogButton,
+    file: File,
+    selection: List,
+};
+
 extern fn oc_file_open_with_request(path: Str8, rights: FileAccessFlags, flags: FileOpenFlags) File;
-extern fn oc_file_open_with_dialog(arena: *Arena, rights: FileAccessFlags, flags: FileOpenFlags, desc: oc_file_dialog_desc*) oc_file_open_with_dialog_result;
+extern fn oc_file_open_with_dialog(arena: *Arena, rights: FileAccessFlags, flags: FileOpenFlags, desc: *FileDialogDesc) FileOpenWithDialogResult;
