@@ -1633,11 +1633,17 @@ oc_ui_sig oc_ui_button_str8(oc_str8 label)
     oc_ui_pattern_push(&ui->frameArena, &hoverPattern, (oc_ui_selector){ .kind = OC_UI_SEL_STATUS, .status = OC_UI_HOVER });
     oc_ui_style hoverStyle = { .bgColor = theme->fill1 };
     oc_ui_style_match_before(hoverPattern, &hoverStyle, OC_UI_STYLE_BG_COLOR);
-
+    /*
     oc_ui_pattern activePattern = { 0 };
     oc_ui_pattern_push(&ui->frameArena, &activePattern, (oc_ui_selector){ .kind = OC_UI_SEL_STATUS, .status = OC_UI_ACTIVE });
-    oc_ui_style activeStyle = { .bgColor = theme->fill2 };
+    oc_ui_style activeStyle = { .bgColor = theme->fill1 };
     oc_ui_style_match_before(activePattern, &activeStyle, OC_UI_STYLE_BG_COLOR);
+*/
+    oc_ui_pattern activeAndHoverPattern = { 0 };
+    oc_ui_pattern_push(&ui->frameArena, &activeAndHoverPattern, (oc_ui_selector){ .kind = OC_UI_SEL_STATUS, .status = OC_UI_ACTIVE });
+    oc_ui_pattern_push(&ui->frameArena, &activeAndHoverPattern, (oc_ui_selector){ .op = OC_UI_SEL_AND, .kind = OC_UI_SEL_STATUS, .status = OC_UI_HOVER });
+    oc_ui_style activeAndHoverStyle = { .bgColor = theme->fill2 };
+    oc_ui_style_match_before(activeAndHoverPattern, &activeAndHoverStyle, OC_UI_STYLE_BG_COLOR);
 
     oc_ui_flags flags = OC_UI_FLAG_CLICKABLE
                       | OC_UI_FLAG_CLIP
@@ -1710,11 +1716,17 @@ oc_ui_sig oc_ui_checkbox(const char* name, bool* checked)
         oc_ui_pattern_push(&ui->frameArena, &hoverPattern, (oc_ui_selector){ .kind = OC_UI_SEL_STATUS, .status = OC_UI_HOVER });
         oc_ui_style hoverStyle = { .bgColor = theme->primaryHover };
         oc_ui_style_match_before(hoverPattern, &hoverStyle, OC_UI_STYLE_BG_COLOR);
-
+        /*
         oc_ui_pattern activePattern = { 0 };
         oc_ui_pattern_push(&ui->frameArena, &activePattern, (oc_ui_selector){ .kind = OC_UI_SEL_STATUS, .status = OC_UI_ACTIVE });
-        oc_ui_style activeStyle = { .bgColor = theme->primaryActive };
+        oc_ui_style activeStyle = { .bgColor = theme->primaryHover };
         oc_ui_style_match_before(activePattern, &activeStyle, OC_UI_STYLE_BG_COLOR);
+*/
+        oc_ui_pattern activeAndHoverPattern = { 0 };
+        oc_ui_pattern_push(&ui->frameArena, &activeAndHoverPattern, (oc_ui_selector){ .kind = OC_UI_SEL_STATUS, .status = OC_UI_ACTIVE });
+        oc_ui_pattern_push(&ui->frameArena, &activeAndHoverPattern, (oc_ui_selector){ .op = OC_UI_SEL_AND, .kind = OC_UI_SEL_STATUS, .status = OC_UI_HOVER });
+        oc_ui_style activeAndHoverStyle = { .bgColor = theme->primaryActive };
+        oc_ui_style_match_before(activeAndHoverPattern, &activeAndHoverStyle, OC_UI_STYLE_BG_COLOR);
 
         oc_ui_flags flags = OC_UI_FLAG_CLICKABLE
                           | OC_UI_FLAG_CLIP
@@ -1752,11 +1764,19 @@ oc_ui_sig oc_ui_checkbox(const char* name, bool* checked)
                                    .borderColor = theme->primary };
         oc_ui_style_match_before(hoverPattern, &hoverStyle, OC_UI_STYLE_BG_COLOR | OC_UI_STYLE_BORDER_COLOR);
 
+        /*
         oc_ui_pattern activePattern = { 0 };
         oc_ui_pattern_push(&ui->frameArena, &activePattern, (oc_ui_selector){ .kind = OC_UI_SEL_STATUS, .status = OC_UI_ACTIVE });
-        oc_ui_style activeStyle = { .bgColor = theme->fill1,
+        oc_ui_style activeStyle = { .bgColor = theme->fill0,
                                     .borderColor = theme->primary };
         oc_ui_style_match_before(activePattern, &activeStyle, OC_UI_STYLE_BG_COLOR | OC_UI_STYLE_BORDER_COLOR);
+*/
+        oc_ui_pattern activeAndHoverPattern = { 0 };
+        oc_ui_pattern_push(&ui->frameArena, &activeAndHoverPattern, (oc_ui_selector){ .kind = OC_UI_SEL_STATUS, .status = OC_UI_ACTIVE });
+        oc_ui_pattern_push(&ui->frameArena, &activeAndHoverPattern, (oc_ui_selector){ .op = OC_UI_SEL_AND, .kind = OC_UI_SEL_STATUS, .status = OC_UI_HOVER });
+        oc_ui_style activeAndHoverStyle = { .bgColor = theme->fill1,
+                                            .borderColor = theme->primary };
+        oc_ui_style_match_before(activeAndHoverPattern, &activeAndHoverStyle, OC_UI_STYLE_BG_COLOR);
 
         oc_ui_flags flags = OC_UI_FLAG_CLICKABLE
                           | OC_UI_FLAG_CLIP
