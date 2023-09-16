@@ -211,8 +211,8 @@ def windows_make_app(args):
 	#-----------------------------------------------------------
 	orca_exe = os.path.join(args.orca_dir, 'build/bin/orca_runtime.exe')
 	orca_lib = os.path.join(args.orca_dir, 'build/bin/orca.dll')
-	gles_lib = os.path.join(args.orca_dir, 'ext/angle/bin/libGLESv2.dll')
-	egl_lib = os.path.join(args.orca_dir, 'ext/angle/bin/libEGL.dll')
+	gles_lib = os.path.join(args.orca_dir, 'src/ext/angle/bin/libGLESv2.dll')
+	egl_lib = os.path.join(args.orca_dir, 'src/ext/angle/bin/libEGL.dll')
 
 	shutil.copy(orca_exe, os.path.join(exe_dir, app_name + '.exe'))
 	shutil.copy(orca_lib, exe_dir)
