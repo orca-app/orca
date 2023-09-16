@@ -21,7 +21,10 @@ attach_version_command(subparsers)
 # Using argparse action="version" requires us to pass a single string
 # and doesn't allow us to run our own custom version-printing function.
 argv = sys.argv[1:]
-if argv[0] in ["-v", "--version"]:
+
+if len(argv) == 0:
+    argv = ["-h"]
+elif argv[0] in ["-v", "--version"]:
     argv = ["version"]
 
 args = parser.parse_args(argv)
