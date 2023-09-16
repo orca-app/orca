@@ -558,7 +558,7 @@ def install(args):
         print()
         print("The tools will need to be on your PATH in order to actually use them.")
         if prompt("Would you like to automatically add Orca to your PATH?"):
-            subprocess.run(["powershell", "scripts\\updatepath.ps1", bin_dir], check=True)
+            subprocess.run(["powershell", "scripts\\updatepath.ps1", f'"{bin_dir}"'], check=True)
             print("Orca has been added to your PATH. Restart any open terminals to use it.")
         else:
             print("No worries. You can manually add Orca to your PATH in the Windows settings")
@@ -600,7 +600,7 @@ def uninstall(args):
             print("Orca has been uninstalled from your system.")
             print()
             if prompt("Would you like to automatically remove Orca from your PATH?"):
-                subprocess.run(["powershell", "scripts\\updatepath.ps1", bin_dir, "-remove"], check=True)
+                subprocess.run(["powershell", "scripts\\updatepath.ps1", f'"{bin_dir}"', "-remove"], check=True)
                 print("Orca has been removed from your PATH.")
         else:
             print("Orca has been uninstalled from your system. You may wish to remove it from your PATH.")

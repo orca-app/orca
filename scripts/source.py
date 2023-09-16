@@ -104,7 +104,7 @@ def cflags(args):
     print()
     print("Complete clang example:")
     print()
-    print(f"clang --target=wasm32 --no-standard-libraries -mbulk-memory -g -O2 -D__ORCA__ -Wl,--no-entry -Wl,--export-dynamic -isystem {sysinclude} -I {include} -I {extinclude} {orcac} {libcsource} your-main.c")
+    print(f"clang --target=wasm32 --no-standard-libraries -mbulk-memory -g -O2 -D__ORCA__ -Wl,--no-entry -Wl,--export-dynamic -isystem \"{sysinclude}\" -I \"{include}\" -I \"{extinclude}\" \"{orcac}\" \"{libcsource}\" your-main.c")
     print()
     if not path_contains(os.getcwd(), args.srcdir):
         print("If these paths look crazy to you, consider vendoring the source code into your")
