@@ -230,7 +230,7 @@ i32 orca_surface_callback(void* user)
     data->surface = oc_surface_create_for_window(data->window, data->api);
 
 #if OC_PLATFORM_WINDOWS
-    //NOTE(martin): on windows we set all surfaces to non-synced, and do a single "manual" wait here.
+    //NOTE(martin): on windows we set all user surfaces to non-synced, and do a single wait on the debug overlay.
     //              on macOS each surface is individually synced to the monitor refresh rate but don't block each other
     oc_surface_swap_interval(data->surface, 0);
 #endif
@@ -892,12 +892,6 @@ i32 orca_runloop(void* user)
         oc_surface_present(app->debugOverlay.surface);
 
         oc_scratch_end(scratch);
-
-#if OC_PLATFORM_WINDOWS
-        //NOTE(martin): on windows we set all surfaces to non-synced, and do a single "manual" wait here.
-        //              on macOS each surface is individually synced to the monitor refresh rate but don't block each other
-        oc_vsync_wait(app->window);
-#endif
     }
 
     if(exports[OC_EXPORT_TERMINATE])
@@ -935,13 +929,7 @@ int main(int argc, char** argv)
     app->debugOverlay.maxEntries = 200;
     oc_arena_init(&app->debugOverlay.logArena);
 
-#if OC_PLATFORM_WINDOWS
-    //NOTE(martin): on windows we set all surfaces to non-synced, and do a single "manual" wait here.
-    //              on macOS each surface is individually synced to the monitor refresh rate but don't block each other
-    oc_surface_swap_interval(app->debugOverlay.surface, 0);
-#else
     oc_surface_swap_interval(app->debugOverlay.surface, 1);
-#endif
 
     oc_surface_deselect();
 
