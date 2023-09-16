@@ -388,12 +388,13 @@ typedef enum
 
 typedef u8 oc_ui_status;
 
-enum
+enum oc_ui_status_enum
 {
     OC_UI_NONE = 0,
     OC_UI_HOVER = 1 << 1,
-    OC_UI_ACTIVE = 1 << 2,
-    OC_UI_DRAGGING = 1 << 3,
+    OC_UI_HOT = 1 << 2,
+    OC_UI_ACTIVE = 1 << 3,
+    OC_UI_DRAGGING = 1 << 4,
 };
 
 typedef enum
@@ -623,7 +624,7 @@ typedef struct oc_ui_context
     oc_ui_edit_move editSelectionMode;
     i32 editWordSelectionInitialCursor;
     i32 editWordSelectionInitialMark;
-    
+
     bool clipboardRegistered;
 
     oc_ui_theme* theme;

@@ -867,6 +867,10 @@ bool oc_ui_style_selector_match(oc_ui_box* box, oc_ui_style_rule* rule, oc_ui_se
             {
                 res = res && oc_ui_box_hovering(box, oc_ui_mouse_position());
             }
+            if(selector->status & OC_UI_HOT)
+            {
+                res = res && box->hot;
+            }
             if(selector->status & OC_UI_ACTIVE)
             {
                 res = res && box->active;
@@ -2780,14 +2784,14 @@ oc_ui_radio_group_info oc_ui_radio_group(const char* name, oc_ui_radio_group_inf
                                          | OC_UI_STYLE_BORDER_SIZE;
             oc_ui_style_box_before(radio, defaultPattern, &defaultStyle, defaultMask);
 
-            oc_ui_pattern hoverPattern = { 0 };
-            oc_ui_pattern_push(&ui->frameArena, &hoverPattern, (oc_ui_selector){ .kind = OC_UI_SEL_TAG, .tag = defaultTag });
-            oc_ui_pattern_push(&ui->frameArena, &hoverPattern, (oc_ui_selector){ .op = OC_UI_SEL_AND, .kind = OC_UI_SEL_STATUS, .status = OC_UI_HOVER });
-            oc_ui_style hoverStyle = { .bgColor = theme->fill0,
-                                       .borderColor = theme->primary };
-            oc_ui_style_mask hoverMask = OC_UI_STYLE_BG_COLOR
-                                       | OC_UI_STYLE_BORDER_COLOR;
-            oc_ui_style_box_after(radio, hoverPattern, &hoverStyle, hoverMask);
+            oc_ui_pattern hotPattern = { 0 };
+            oc_ui_pattern_push(&ui->frameArena, &hotPattern, (oc_ui_selector){ .kind = OC_UI_SEL_TAG, .tag = defaultTag });
+            oc_ui_pattern_push(&ui->frameArena, &hotPattern, (oc_ui_selector){ .op = OC_UI_SEL_AND, .kind = OC_UI_SEL_STATUS, .status = OC_UI_HOT });
+            oc_ui_style hotStyle = { .bgColor = theme->fill0,
+                                     .borderColor = theme->primary };
+            oc_ui_style_mask hotMask = OC_UI_STYLE_BG_COLOR
+                                     | OC_UI_STYLE_BORDER_COLOR;
+            oc_ui_style_box_after(radio, hotPattern, &hotStyle, hotMask);
 
             oc_ui_pattern activePattern = { 0 };
             oc_ui_pattern_push(&ui->frameArena, &activePattern, (oc_ui_selector){ .kind = OC_UI_SEL_TAG, .tag = defaultTag });
@@ -2807,11 +2811,11 @@ oc_ui_radio_group_info oc_ui_radio_group(const char* name, oc_ui_radio_group_inf
                                           | OC_UI_STYLE_BG_COLOR;
             oc_ui_style_box_before(radio, selectedPattern, &selectedStyle, selectedMask);
 
-            oc_ui_pattern selectedHoverPattern = { 0 };
-            oc_ui_pattern_push(&ui->frameArena, &selectedHoverPattern, (oc_ui_selector){ .kind = OC_UI_SEL_TAG, .tag = selectedTag });
-            oc_ui_pattern_push(&ui->frameArena, &selectedHoverPattern, (oc_ui_selector){ .op = OC_UI_SEL_AND, .kind = OC_UI_SEL_STATUS, .status = OC_UI_HOVER });
-            oc_ui_style selectedHoverStyle = { .bgColor = theme->primaryHover };
-            oc_ui_style_box_after(radio, selectedHoverPattern, &selectedHoverStyle, OC_UI_STYLE_BG_COLOR);
+            oc_ui_pattern selectedHotPattern = { 0 };
+            oc_ui_pattern_push(&ui->frameArena, &selectedHotPattern, (oc_ui_selector){ .kind = OC_UI_SEL_TAG, .tag = selectedTag });
+            oc_ui_pattern_push(&ui->frameArena, &selectedHotPattern, (oc_ui_selector){ .op = OC_UI_SEL_AND, .kind = OC_UI_SEL_STATUS, .status = OC_UI_HOT });
+            oc_ui_style selectedHotStyle = { .bgColor = theme->primaryHover };
+            oc_ui_style_box_after(radio, selectedHotPattern, &selectedHotStyle, OC_UI_STYLE_BG_COLOR);
 
             oc_ui_pattern selectedActivePattern = { 0 };
             oc_ui_pattern_push(&ui->frameArena, &selectedActivePattern, (oc_ui_selector){ .kind = OC_UI_SEL_TAG, .tag = selectedTag });
