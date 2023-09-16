@@ -570,6 +570,20 @@ def install(args):
         print(f"export PATH=\"{bin_dir}:$PATH\"")
     print()
 
+def install_path():
+    if platform.system() == "Windows":
+        orca_dir = os.path.join(os.getenv("LOCALAPPDATA"), "orca")
+    else:
+        orca_dir = os.path.expanduser(os.path.join("~", ".orca"))
+
+    bin_dir = os.path.join(orca_dir, "bin")
+
+    return (orca_dir, bin_dir)
+
+def yeet(path):
+    os.makedirs(path, exist_ok=True)
+    shutil.rmtree(path)
+
 
 def uninstall(args):
     orca_dir, bin_dir = install_path()
