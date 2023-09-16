@@ -15,6 +15,8 @@ Orca is a development platform and runtime environment for cross-platform, sandb
 - Build user interfaces using our UI API and default widgets.
 - Read and write files using a capability-based API.
 
+To learn more about the project and its goals, read the [announcement post](https://orca-app.dev/posts/230607/orca_announcement.html).
+
 ## Installing
 
 The Orca command-line tools must be installed to your system in order to use them in your own projects.
@@ -61,7 +63,7 @@ orca version
 
 If you encounter any errors, see the FAQ below.
 
-Once the `orca` tools are installed, you can use them from anywhere to
+Once the `orca` tools are installed and on your PATH, you can use them from anywhere.
 
 ### Building the sample Orca apps
 
@@ -88,7 +90,7 @@ For a more thorough overview, please read the [Quick Start Guide](./doc/QuickSta
 
 The following additional resources may also help you familiarize yourself with Orca and its APIs:
 
-- The [samples folder](./samples) contains sample applications that show various aspects of the Orca API and support library:
+- The [samples folder](./samples) contains sample applications that show various aspects of the Orca API and core library:
 	- [`breakout`](./samples/breakout) is a small breakout game making use of the vector graphics API.
 	- [`clock`](./samples/clock) is a simple clock showcasing vector graphics and the time API.
 	- [`triangle`](./samples/triangle) shows how to draw a spinning triangle using the GLES API.
@@ -98,17 +100,21 @@ The following additional resources may also help you familiarize yourself with O
 
 ## FAQ
 
-**What platforms does Orca supports?**
+**What platforms does Orca support?**
 
-We currently support Windows 10 and up, and macOS 10.15 and up.
+We currently support Windows 10 and up, and macOS 10.15 and up. We plan to expand to more platforms in the future.
 
 **What languages can I use with Orca?**
 
-In principle, you can use any language and toolchain that can produce a WebAssembly module and bind to the Orca APIs. However, several important parts of Orca, such as the UI, are provided as part of the support library, which must be compiled to WebAssembly with you app, and is written in C. Therefore, at this early stage, it may be difficult to use any language other than C.
+In principle, you can use any language and toolchain that can produce a WebAssembly module and bind to the Orca APIs. However, several important parts of Orca, such as the UI, are provided as part of the core library, which must be compiled to WebAssembly with your app, and is written in C. Therefore, at this early stage, it may be difficult to use any language other than C.
 
-C-style C++ is possible but requires compiling the support library in C as a separate object file, and then adding that object to your compile command when building your app.
+C-style C++ is possible but requires compiling the core library in C as a separate object file, and then adding that object to your compile command when building your app.
 
 We're currently working with contributors to add support for Odin and Zig, and we look forward to expanding the number of officially-supported languages in the future. 
+
+**Which WebAssembly features does Orca support?**
+
+We currently use [wasm3](https://github.com/wasm3/wasm3) for our interpreter. We therefore support whatever features wasm3 supports. In practice this means all WebAssembly 1.0 features, bulk memory operations, and a couple other small features.
 
 **I am getting errors about atomics when building the runtime on Windows.**
 
