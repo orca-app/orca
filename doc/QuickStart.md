@@ -207,10 +207,10 @@ You can unconditionally abort the application with a message box using `OC_ABORT
 
 For more examples of how to use Orca APIs, you can look at the other [sample apps](../samples):
 
-- [breakout](./samples/breakout) is a mini breakout game making use of the vector graphics API. It demonstrates using input and drawing images.
-- [triangle](./samples/triangle) shows how to draw a spining triangle using the GLES API.
-- [fluid](./samples/fluid) is a fluid simulation using a more complex GLES setup.
-- [ui](./samples/ui) showcases the UI API and Orca's default UI widgets.
+- [breakout](../samples/breakout) is a mini breakout game making use of the vector graphics API. It demonstrates using input and drawing images.
+- [triangle](../samples/triangle) shows how to draw a spining triangle using the GLES API.
+- [fluid](../samples/fluid) is a fluid simulation using a more complex GLES setup.
+- [ui](../samples/ui) showcases the UI API and Orca's default UI widgets.
 
 For a list of Orca APIs, you can look at the [API cheatsheets](../doc/cheatsheets).
 
