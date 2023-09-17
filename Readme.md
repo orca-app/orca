@@ -39,7 +39,7 @@ The Orca command-line tools must be installed to your system in order to use the
 Clone the repo, then `cd` into the `orca` directory:
 
 ```
-git clone git@git.handmade.network:hmn/orca.git
+git clone https://git.handmade.network/hmn/orca.git
 cd orca
 ```
 
