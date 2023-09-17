@@ -7,6 +7,8 @@
 
 # Orca
 
+![Example Orca apps](doc/images/orca-apps-lg.webp)
+
 Orca is a development platform and runtime environment for cross-platform, sandboxed graphical WebAssembly applications. In this early MVP you can:
 
 - Receive mouse and keyboard input.
