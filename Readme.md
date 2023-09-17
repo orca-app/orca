@@ -31,10 +31,12 @@ The Orca command-line tools must be installed to your system in order to use the
 	- **Windows users:** `clang` can be installed via the Visual Studio installer. Search for "C++ Clang Compiler".
 	- **Mac users:** Apple's built-in `clang` does not support WebAssembly. We recommend installing `clang` via [Homebrew](https://brew.sh/) with `brew install clang`.
 - MSVC (Visual Studio 2022 17.5 or newer) (Windows only)
-	- This can be installed through the [Visual Studio Community](https://visualstudio.microsoft.com/) installer.
+	- This can be installed through the [Visual Studio Community](https://visualstudio.microsoft.com/) installer. Ensure that your Visual Studio installation includes "Desktop development with C++".
 	- Please note the version requirement! Orca requires C11 atomics, which were only added to MSVC in late 2022.
 
 ### Installation instructions
+
+**Windows users:** You must perform all the following actions from a 64-bit Visual Studio command prompt. We recommend searching for "x64 Native Tools Command Prompt".
 
 Clone the repo, then `cd` into the `orca` directory:
 
@@ -115,6 +117,12 @@ We're currently working with contributors to add support for Odin and Zig, and w
 **Which WebAssembly features does Orca support?**
 
 We currently use [wasm3](https://github.com/wasm3/wasm3) for our interpreter. We therefore support whatever features wasm3 supports. In practice this means all WebAssembly 1.0 features, bulk memory operations, and a couple other small features.
+
+**I am getting "unsupported OS" errors when building on Windows.**
+
+You are likely running from the wrong kind of Visual Studio command prompt. Search for "x64 Native Tools Command Prompt" or run `vcvarsall.bat` with `x64` for the architecture.
+
+To verify that you are in the correct type of command prompt, simply run `cl` with no arguments, and verify that you are building for x64.
 
 **I am getting errors about atomics when building the runtime on Windows.**
 

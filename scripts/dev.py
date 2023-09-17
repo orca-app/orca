@@ -391,12 +391,15 @@ def gen_all_bindings():
 def ensure_programs():
     if platform.system() == "Windows":
         try:
+            # TODO: Verify that the output includes `x64`
             subprocess.run(["cl"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         except FileNotFoundError:
             msg = log_error("MSVC was not found on your system.")
-            msg.more("If you have already installed Visual Studio, make sure you are running in a")
-            msg.more("Visual Studio command prompt or you have run vcvarsall.bat. Otherwise, download")
-            msg.more("and install Visual Studio: https://visualstudio.microsoft.com/")
+            msg.more("If you have already installed Visual Studio, make sure you are running in an")
+            msg.more("x64 Visual Studio command prompt or you have run vcvarsall.bat with x64 for")
+            msg.more("the architecture. Otherwise, download and install Visual Studio, and ensure")
+            msg.more("that your installation includes \"Desktop development with C++\" and")
+            msg.more("\"C++ Clang Compiler\": https://visualstudio.microsoft.com/")
             exit(1)
 
     try:
