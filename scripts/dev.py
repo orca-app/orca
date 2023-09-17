@@ -8,6 +8,7 @@ from zipfile import ZipFile
 
 from . import checksum
 from .bindgen import bindgen
+from .checksum import dirsum
 from .gles_gen import gles_gen
 from .log import *
 from .utils import pushd, removeall, yeetdir, yeetfile
@@ -64,6 +65,21 @@ def build_runtime(args):
     build_platform_layer("lib", args.release)
     build_wasm3(args.release)
     build_orca(args.release)
+
+    with open("build/orcaruntime.sum", "w") as f:
+        f.write(runtime_checksum())
+
+
+def runtime_checksum_last():
+    try:
+        with open("build/orcaruntime.sum", "r") as f:
+            return f.read()
+    except FileNotFoundError:
+        return None
+
+
+def runtime_checksum():
+    return dirsum("src")
 
 
 def clean(args):
@@ -504,6 +520,20 @@ def install_dir():
 
 
 def install(args):
+    if runtime_checksum_last() is None:
+        print("You must build the Orca runtime before you can install it to your")
+        print("system. Please run the following command first:")
+        print()
+        print("orca dev build-runtime")
+        exit(1)
+
+    if runtime_checksum() != runtime_checksum_last():
+        print("Your build of the Orca runtime is out of date. We recommend that you")
+        print("rebuild the runtime first with `orca dev build-runtime`.")
+        if not prompt("Do you wish to install the runtime anyway?"):
+            return
+        print()
+
     dest = install_dir()
     bin_dir = os.path.join(dest, "bin")
     src_dir = os.path.join(dest, "src")

@@ -4,6 +4,7 @@ import os
 import re
 import shutil
 
+from .checksum import dirsum
 from .log import *
 from .utils import yeetdir
 from .version import src_dir, orca_version
@@ -54,7 +55,7 @@ def vendor_file_path(vendor_dir):
 
 
 def vendor_checksum(dir):
-    return dirhash(dir, excluded_extensions=["orcavendor"])
+    return dirsum(dir, excluded_extensions=["orcavendor"])
 
 
 def cflags(args):
@@ -110,80 +111,3 @@ def cflags(args):
         print("If these paths look crazy to you, consider vendoring the source code into your")
         print("project using `orca source vendor`.")
         print()
-
-
-# -----------------------------------------------------------------------------
-# Directory-hashing implementation pulled from the checksumdir package on pypi.
-# Licensed under the MIT license.
-# -----------------------------------------------------------------------------
-
-def dirhash(
-    dirname,
-    hash_func=hashlib.sha1,
-    excluded_files=None,
-    ignore_hidden=False,
-    followlinks=False,
-    excluded_extensions=None,
-    include_paths=False
-):
-    if not excluded_files:
-        excluded_files = []
-
-    if not excluded_extensions:
-        excluded_extensions = []
-
-    if not os.path.isdir(dirname):
-        raise TypeError("{} is not a directory.".format(dirname))
-
-    hashvalues = []
-    for root, dirs, files in os.walk(dirname, topdown=True, followlinks=followlinks):
-        if ignore_hidden and re.search(r"/\.", root):
-            continue
-
-        dirs.sort()
-        files.sort()
-
-        for fname in files:
-            if ignore_hidden and fname.startswith("."):
-                continue
-
-            if fname.split(".")[-1:][0] in excluded_extensions:
-                continue
-
-            if fname in excluded_files:
-                continue
-
-            hashvalues.append(_filehash(os.path.join(root, fname), hash_func))
-
-            if include_paths:
-                hasher = hash_func()
-                # get the resulting relative path into array of elements
-                path_list = os.path.relpath(os.path.join(root, fname)).split(os.sep)
-                # compute the hash on joined list, removes all os specific separators
-                hasher.update(''.join(path_list).encode('utf-8'))
-                hashvalues.append(hasher.hexdigest())
-
-    return _reduce_hash(hashvalues, hash_func)
-
-
-def _filehash(filepath, hashfunc):
-    hasher = hashfunc()
-    blocksize = 64 * 1024
-
-    if not os.path.exists(filepath):
-        return hasher.hexdigest()
-
-    with open(filepath, "rb") as fp:
-        while True:
-            data = fp.read(blocksize)
-            if not data:
-                break
-            hasher.update(data)
-    return hasher.hexdigest()
-
-
-def _reduce_hash(hashlist, hashfunc):
-    hasher = hashfunc()
-    for hashvalue in sorted(hashlist):
-        hasher.update(hashvalue.encode("utf-8"))
-    return hasher.hexdigest()
