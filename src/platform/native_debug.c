@@ -60,7 +60,7 @@ void platform_log_push(oc_log_output* output,
     if(isatty(fd))
     {
         fprintf(output->f,
-                "%s%s:%s %s() in %s:%i: ",
+                "%s%s:%s %s in %s():%i: ",
                 OC_LOG_FORMATS[level],
                 OC_LOG_HEADINGS[level],
                 OC_LOG_FORMAT_STOP,
@@ -71,7 +71,7 @@ void platform_log_push(oc_log_output* output,
     else
     {
         fprintf(output->f,
-                "%s: %s() in %s:%i: ",
+                "%s: %s in %s():%i: ",
                 OC_LOG_HEADINGS[level],
                 function,
                 file,
