@@ -50,18 +50,18 @@ static oc_log_output oc_logDefaultOutput = { .kind = ORCA_LOG_OUTPUT_CONSOLE };
 oc_log_output* OC_LOG_DEFAULT_OUTPUT = &oc_logDefaultOutput;
 
 void ORCA_IMPORT(oc_bridge_log)(oc_log_level level,
-                                int fileLen,
-                                const char* file,
                                 int functionLen,
                                 const char* function,
+                                int fileLen,
+                                const char* file,
                                 int line,
                                 int msgLen,
                                 const char* msg);
 
 void platform_log_push(oc_log_output* output,
                        oc_log_level level,
-                       const char* file,
                        const char* function,
+                       const char* file,
                        int line,
                        const char* fmt,
                        va_list ap)
@@ -76,7 +76,7 @@ void platform_log_push(oc_log_output* output,
 
     oc_str8 string = oc_str8_list_join(scratch.arena, ctx.list);
 
-    oc_bridge_log(level, strlen(file), file, strlen(function), function, line, oc_str8_ip(string));
+    oc_bridge_log(level, strlen(function), function, strlen(file), file, line, oc_str8_ip(string));
 
     oc_scratch_end(scratch);
 }

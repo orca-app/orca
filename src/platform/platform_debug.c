@@ -28,8 +28,8 @@ void oc_log_set_level(oc_log_level level)
 
 void platform_log_push(oc_log_output* output,
                        oc_log_level level,
-                       const char* file,
                        const char* function,
+                       const char* file,
                        int line,
                        const char* fmt,
                        va_list ap);

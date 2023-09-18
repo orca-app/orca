@@ -134,10 +134,10 @@ void oc_bridge_clipboard_set_string(oc_wasm_str8 value)
 }
 
 void oc_bridge_log(oc_log_level level,
-                   int fileLen,
-                   char* file,
                    int functionLen,
                    char* function,
+                   int fileLen,
+                   char* file,
                    int line,
                    int msgLen,
                    char* msg)
@@ -179,13 +179,13 @@ void oc_bridge_log(oc_log_level level,
     }
     char* payload = (char*)entry + sizeof(log_entry);
 
-    entry->file.len = fileLen;
-    entry->file.ptr = payload;
-    payload += entry->file.len;
-
     entry->function.len = functionLen;
     entry->function.ptr = payload;
     payload += entry->function.len;
+
+    entry->file.len = fileLen;
+    entry->file.ptr = payload;
+    payload += entry->file.len;
 
     entry->msg.len = msgLen;
     entry->msg.ptr = payload;
@@ -203,8 +203,8 @@ void oc_bridge_log(oc_log_level level,
     oc_list_push_back(&debug->logEntries, &entry->listElt);
 
     oc_log_ext(level,
-               file,
                function,
+               file,
                line,
                "%.*s\n",
                msgLen,
