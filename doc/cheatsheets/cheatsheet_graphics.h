@@ -117,21 +117,21 @@ oc_font oc_font_nil(void);
 bool oc_font_is_nil(oc_font font);
 
 oc_font oc_font_create_from_memory(oc_str8 mem, u32 rangeCount, oc_unicode_range* ranges);
+oc_font oc_font_create_from_file(oc_file file, u32 rangeCount, oc_unicode_range* ranges);
+oc_font oc_font_create_from_path(oc_str8 path, u32 rangeCount, oc_unicode_range* ranges);
+
 void oc_font_destroy(oc_font font);
 
-oc_font_extents oc_font_get_extents(oc_font font);
-oc_font_extents oc_font_get_scaled_extents(oc_font font, f32 emSize);
+oc_str32 oc_font_get_glyph_indices(oc_font font, oc_str32 codePoints, oc_str32 backing);
+oc_str32 oc_font_push_glyph_indices(oc_arena* arena, oc_font font, oc_str32 codePoints);
+u32 oc_font_get_glyph_index(oc_font font, oc_utf32 codePoint);
+
+oc_font_metrics oc_font_get_metrics(oc_font font, f32 emSize);
+oc_font_metrics oc_font_get_metrics_unscaled(oc_font font);
 f32 oc_font_get_scale_for_em_pixels(oc_font font, f32 emSize);
 
-u32 oc_font_get_glyph_index(oc_font font, oc_utf32 codePoint);
-oc_str32 oc_font_get_glyph_indices(oc_font font, oc_str32 codePoints, oc_str32 backing);
-oc_str32 oc_font_push_glyph_indices(oc_font font, oc_arena* arena, oc_str32 codePoints);
-
-int oc_font_get_codepoint_extents(oc_font font, oc_utf32 codePoint, oc_text_extents* outExtents);
-int oc_font_get_glyph_extents(oc_font font, oc_str32 glyphIndices, oc_text_extents* outExtents);
-
-oc_rect oc_text_bounding_box_utf32(oc_font font, f32 fontSize, oc_str32 text);
-oc_rect oc_text_bounding_box(oc_font font, f32 fontSize, oc_str8 text);
+oc_text_metrics oc_font_text_metrics_utf32(oc_font font, f32 fontSize, oc_str32 codepoints);
+oc_text_metrics oc_font_text_metrics(oc_font font, f32 fontSize, oc_str8 text);
 
 //------------------------------------------------------------------------------------------
 // images
@@ -142,7 +142,8 @@ bool oc_image_is_nil(oc_image a);
 oc_image oc_image_create(oc_surface surface, u32 width, u32 height);
 oc_image oc_image_create_from_rgba8(oc_surface surface, u32 width, u32 height, u8* pixels);
 oc_image oc_image_create_from_memory(oc_surface surface, oc_str8 mem, bool flip);
-oc_image oc_image_create_from_file(oc_surface surface, oc_str8 path, bool flip);
+oc_image oc_image_create_from_file(oc_surface surface, oc_file file, bool flip);
+oc_image oc_image_create_from_path(oc_surface surface, oc_str8 path, bool flip);
 
 void oc_image_destroy(oc_image image);
 
