@@ -227,9 +227,9 @@ ORCA_API void oc_render(oc_canvas canvas);             //DOC: renders all canvas
 ORCA_API oc_font oc_font_nil(void);
 ORCA_API bool oc_font_is_nil(oc_font font);
 
-ORCA_API oc_font oc_font_create_from_memory(oc_str8 mem, u32 rangeCount, oc_unicode_range* ranges);
-ORCA_API oc_font oc_font_create_from_file(oc_file file, u32 rangeCount, oc_unicode_range* ranges);
-ORCA_API oc_font oc_font_create_from_path(oc_str8 path, u32 rangeCount, oc_unicode_range* ranges);
+ORCA_API oc_font oc_font_create_from_memory(oc_str8 mem, u32 rangeCount, const oc_unicode_range* ranges);
+ORCA_API oc_font oc_font_create_from_file(oc_file file, u32 rangeCount, const oc_unicode_range* ranges);
+ORCA_API oc_font oc_font_create_from_path(oc_str8 path, u32 rangeCount, const oc_unicode_range* ranges);
 
 ORCA_API void oc_font_destroy(oc_font font);
 
