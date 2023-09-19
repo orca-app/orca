@@ -1,6 +1,7 @@
 import glob
 import os
 import platform
+import re
 import urllib.request
 import shutil
 import subprocess
@@ -406,16 +407,33 @@ def gen_all_bindings():
 
 def ensure_programs():
     if platform.system() == "Windows":
+        MSVC_MAJOR, MSVC_MINOR = 19, 35
         try:
-            # TODO: Verify that the output includes `x64`
-            subprocess.run(["cl"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            result = subprocess.run(["cl"], capture_output=True, text=True)
+            if "for x64" not in result.stderr:
+                msg = log_error("MSVC is not running in 64-bit mode. Make sure you are running in")
+                msg.more("an x64 Visual Studio command prompt, such as the \"x64 Native Tools")
+                msg.more("Command Prompt\" from your Start Menu.")
+                msg.more()
+                msg.more("MSVC reported itself as:")
+                msg.more(result.stderr.splitlines()[0])
+                exit(1)
+
+            m = re.search(r"Version (\d+)\.(\d+).(\d+)", result.stderr)
+            major, minor, patch = int(m.group(1)), int(m.group(2)), int(m.group(3))
+            if major < MSVC_MAJOR or minor < MSVC_MINOR:
+                msg = log_error(f"Your version of MSVC is too old. You have version {major}.{minor}.{patch},")
+                msg.more(f"but version {MSVC_MAJOR}.{MSVC_MINOR} or greater is required.")
+                msg.more()
+                msg.more("Please update Visual Studio to the latest version and try again.")
+                exit(1)
         except FileNotFoundError:
             msg = log_error("MSVC was not found on your system.")
             msg.more("If you have already installed Visual Studio, make sure you are running in an")
-            msg.more("x64 Visual Studio command prompt or you have run vcvarsall.bat with x64 for")
-            msg.more("the architecture. Otherwise, download and install Visual Studio, and ensure")
-            msg.more("that your installation includes \"Desktop development with C++\" and")
-            msg.more("\"C++ Clang Compiler\": https://visualstudio.microsoft.com/")
+            msg.more("x64 Visual Studio command prompt, such as the \"x64 Native Tools Command")
+            msg.more("Prompt\" from your Start Menu. Otherwise, download and install Visual Studio,")
+            msg.more("and ensure that your installation includes \"Desktop development with C++\"")
+            msg.more("and \"C++ Clang Compiler\": https://visualstudio.microsoft.com/")
             exit(1)
 
     try:
