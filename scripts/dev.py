@@ -170,7 +170,7 @@ def build_platform_layer_lib_win(release):
 def build_platform_layer_lib_mac(release):
     sdk_dir = "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk"
 
-    flags = ["-mmacos-version-min=10.15.4", "-maes"]
+    flags = ["-mmacos-version-min=10.15.4"]
     cflags = ["-std=c11"]
     debug_flags = ["-O3"] if release else ["-g", "-DOC_DEBUG", "-DOC_LOG_COMPILE_DEBUG"]
     ldflags = [f"-L{sdk_dir}/usr/lib", f"-F{sdk_dir}/System/Library/Frameworks/"]
@@ -280,6 +280,7 @@ def build_wasm3_lib_mac(release):
         "-foptimize-sibling-calls",
         "-Wno-extern-initializer",
         "-Dd_m3VerboseErrorMessages",
+        "-mmacos-version-min=10.15.4"
     ]
 
     for f in glob.iglob("src/ext/wasm3/source/*.c"):
@@ -348,9 +349,7 @@ def build_orca_mac(release):
     debug_flags = ["-O2"] if release else ["-g", "-DOC_DEBUG -DOC_LOG_COMPILE_DEBUG"]
     flags = [
         *debug_flags,
-        "-mmacos-version-min=10.15.4",
-        "-maes",
-    ]
+        "-mmacos-version-min=10.15.4"]
 
     gen_all_bindings()
 

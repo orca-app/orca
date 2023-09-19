@@ -12,17 +12,11 @@
 #include "typedefs.h"
 
 #ifdef __cplusplus
-extern "C"
-{
+extern "C" {
 #endif
 
-    ORCA_API u64 oc_hash_aes_u64(u64 x);
-    ORCA_API u64 oc_hash_aes_u64_x2(u64 x, u64 y);
-    ORCA_API u64 oc_hash_aes_string(oc_str8 string);
-    ORCA_API u64 oc_hash_aes_string_seed(oc_str8 string, u64 seed);
-
-    ORCA_API u64 oc_hash_xx64_string_seed(oc_str8 string, u64 seed);
-    ORCA_API u64 oc_hash_xx64_string(oc_str8 string);
+ORCA_API u64 oc_hash_xx64_string_seed(oc_str8 string, u64 seed);
+ORCA_API u64 oc_hash_xx64_string(oc_str8 string);
 
 #ifdef __cplusplus
 } // extern "C"
