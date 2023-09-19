@@ -279,10 +279,14 @@ void orca_surface_render_commands(oc_surface surface,
 
     char* memBase = app->env.wasmMemory.ptr;
     u32 memSize = app->env.wasmMemory.committed;
+    oc_rect window_content_rect = oc_window_get_content_rect(app->window);
+
     if(((char*)primitives > memBase)
        && ((char*)primitives + primitiveCount * sizeof(oc_primitive) - memBase <= memSize)
        && ((char*)elements > memBase)
        && ((char*)elements + eltCount * sizeof(oc_path_elt) - memBase <= memSize)
+       && window_content_rect.w > 0
+       && window_content_rect.h > 0
        && oc_window_is_minimized(app->window) == false)
     {
         oc_surface_render_commands(surface,
