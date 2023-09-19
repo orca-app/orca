@@ -67,7 +67,7 @@ void oc_vsync_init(void)
         adapter = adapterFallback;
         if(adapter)
         {
-            oc_log_info("Couldn't find a dedicated hardware DXGI adapater, using software fallback.");
+            oc_log_info("Couldn't find a dedicated hardware DXGI adapater, using software fallback.\n");
         }
     }
 
@@ -80,7 +80,7 @@ void oc_vsync_init(void)
     }
     else
     {
-        oc_log_info("Couldn't find any DXGI adapters - vsync will be unavailable.");
+        oc_log_info("Couldn't find any DXGI adapters - vsync will be unavailable.\n");
         IDXGIFactory_Release(factory);
     }
 }
@@ -92,14 +92,14 @@ void oc_vsync_wait(oc_window window)
         oc_window_data* windowData = oc_window_ptr_from_handle(window);
         if(!windowData)
         {
-            oc_log_error("Failed to get window ptr - assuming window was closed.");
+            oc_log_error("Failed to get window ptr - assuming window was closed.\n");
             return;
         }
 
         RECT windowRect = { 0 };
         if(GetWindowRect(windowData->win32.hWnd, &windowRect) == FALSE)
         {
-            oc_log_error("Failed to get window rect with error: %d.", GetLastError());
+            oc_log_error("Failed to get window rect with error: %d.\n", GetLastError());
             return;
         }
 
@@ -127,7 +127,7 @@ void oc_vsync_wait(oc_window window)
             }
             else
             {
-                oc_log_error("Failed to get IDXGIOutput desc with error: %d", hr);
+                oc_log_error("Failed to get IDXGIOutput desc with error: %d\n", hr);
             }
 
             if(selectedOutput != output)
@@ -143,14 +143,15 @@ void oc_vsync_wait(oc_window window)
             if(FAILED(hr))
             {
                 // TODO(reuben) - fall back to software timer
-                oc_log_warning("Failed to wait for vblank with error: %d", hr);
+                oc_log_warning("Failed to wait for vblank with error: %d\n", hr);
             }
 
             IDXGIOutput_Release(selectedOutput);
         }
-        else
+        else if(output)
         {
-            oc_log_warning("No outputs found. Were all monitors unplugged?");
+            // just use the last output found as a fallback - the window may be minimized or not otherwise visible on any monitor
+            IDXGIOutput_WaitForVBlank(output);
         }
     }
 }
