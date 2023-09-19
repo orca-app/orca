@@ -23,15 +23,15 @@ To learn more about the project and its goals, read the [announcement post](http
 
 The Orca command-line tools must be installed to your system in order to use them in your own projects.
 
-**At this early stage, you must build Orca yourself - in the future, this installation process will be streamlined.**
+**At this early stage, you must build Orca yourself - in the future, there will be fewer dependencies and this installation process will be streamlined.**
 
 ### Requirements
 
 - Windows or Mac (Linux is not yet supported)
-- [Python 3](https://www.python.org/) (for command line tools)
+- [Python 3.8](https://www.python.org/) or newer (for command line tools)
 - Clang
 	- **Windows users:** `clang` can be installed via the Visual Studio installer. Search for "C++ Clang Compiler".
-	- **Mac users:** Apple's built-in `clang` does not support WebAssembly. We recommend installing `clang` via [Homebrew](https://brew.sh/) with `brew install clang`.
+	- **Mac users:** Apple's built-in `clang` does not support WebAssembly. We recommend installing `clang` via [Homebrew](https://brew.sh/) with `brew install llvm`.
 - MSVC (Visual Studio 2022 17.5 or newer) (Windows only)
 	- This can be installed through the [Visual Studio Community](https://visualstudio.microsoft.com/) installer. Ensure that your Visual Studio installation includes "Desktop development with C++".
 	- Please note the version requirement! Orca requires C11 atomics, which were only added to MSVC in late 2022.
@@ -50,13 +50,13 @@ cd orca
 Build the Orca runtime:
 
 ```
-./orca dev build-runtime
+python orca dev build-runtime
 ```
 
 Install the Orca dev tools. If on Windows, the tool can automatically add `orca` to your PATH. Otherwise, you must manually add the Orca install directory to your PATH, e.g. by updating `.zshrc` or `.bashrc`.
 
 ```
-./orca dev install
+python orca dev install
 ```
 
 Finally, verify that Orca is successfully installed by running the `orca version` command. Note the lack of `./`!

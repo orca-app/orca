@@ -7,8 +7,15 @@ import os
 import sys
 
 
+MAJOR, MINOR = 3, 8
+
 if __name__ != "__main__":
     print("why are you importing the orca command-line tool as a Python module, you absolute goofball")
+    exit(1)
+
+if sys.version_info.major < MAJOR or sys.version_info.minor < MINOR:
+    print("Your Python version is too old.")
+    print("Orca requires version {}.{}, but you have version {}.{}.".format(MAJOR, MINOR, sys.version_info.major, sys.version_info.minor))
     exit(1)
 
 
