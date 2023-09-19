@@ -159,6 +159,8 @@ oc_rect oc_rect_atlas_alloc(oc_rect_atlas* atlas, i32 width, i32 height);
 void oc_rect_atlas_recycle(oc_rect_atlas* atlas, oc_rect rect);
 
 oc_image_region oc_image_atlas_alloc_from_rgba8(oc_rect_atlas* atlas, oc_image backingImage, u32 width, u32 height, u8* pixels);
-oc_image_region oc_image_atlas_alloc_from_data(oc_rect_atlas* atlas, oc_image backingImage, oc_str8 data, bool flip);
-oc_image_region oc_image_atlas_alloc_from_file(oc_rect_atlas* atlas, oc_image backingImage, oc_str8 path, bool flip);
+oc_image_region oc_image_atlas_alloc_from_memory(oc_rect_atlas* atlas, oc_image backingImage, oc_str8 mem, bool flip);
+oc_image_region oc_image_atlas_alloc_from_file(oc_rect_atlas* atlas, oc_image backingImage, oc_file file, bool flip);
+oc_image_region oc_image_atlas_alloc_from_path(oc_rect_atlas* atlas, oc_image backingImage, oc_str8 path, bool flip);
+
 void oc_image_atlas_recycle(oc_rect_atlas* atlas, oc_image_region imageRgn);

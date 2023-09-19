@@ -1887,16 +1887,14 @@ oc_image_region oc_image_atlas_alloc_from_rgba8(oc_rect_atlas* atlas, oc_image b
     return (imageRgn);
 }
 
-#if !OC_PLATFORM_ORCA
-
-oc_image_region oc_image_atlas_alloc_from_data(oc_rect_atlas* atlas, oc_image backingImage, oc_str8 data, bool flip)
+oc_image_region oc_image_atlas_alloc_from_memory(oc_rect_atlas* atlas, oc_image backingImage, oc_str8 mem, bool flip)
 {
     oc_image_region imageRgn = { 0 };
 
-    stbi_set_flip_vertically_on_load(flip ? 1 : 0);
-
     int width, height, channels;
-    u8* pixels = stbi_load_from_memory((u8*)data.ptr, data.len, &width, &height, &channels, 4);
+
+    stbi_set_flip_vertically_on_load(flip ? 1 : 0);
+    u8* pixels = stbi_load_from_memory((u8*)mem.ptr, mem.len, &width, &height, &channels, 4);
     if(pixels)
     {
         imageRgn = oc_image_atlas_alloc_from_rgba8(atlas, backingImage, width, height, pixels);
@@ -1905,27 +1903,45 @@ oc_image_region oc_image_atlas_alloc_from_data(oc_rect_atlas* atlas, oc_image ba
     return (imageRgn);
 }
 
-oc_image_region oc_image_atlas_alloc_from_file(oc_rect_atlas* atlas, oc_image backingImage, oc_str8 path, bool flip)
+oc_image_region oc_image_atlas_alloc_from_file(oc_rect_atlas* atlas, oc_image backingImage, oc_file file, bool flip)
 {
     oc_image_region imageRgn = { 0 };
-
-    stbi_set_flip_vertically_on_load(flip ? 1 : 0);
 
     oc_arena_scope scratch = oc_scratch_begin();
 
-    const char* cpath = oc_str8_to_cstring(scratch.arena, path);
-    int width, height, channels;
-    u8* pixels = stbi_load(cpath, &width, &height, &channels, 4);
-    oc_scratch_end(scratch);
+    u64 size = oc_file_size(file);
+    char* buffer = oc_arena_push(scratch.arena, size);
+    u64 read = oc_file_read(file, size, buffer);
 
-    if(pixels)
+    if(read != size)
     {
-        imageRgn = oc_image_atlas_alloc_from_rgba8(atlas, backingImage, width, height, pixels);
-        free(pixels);
+        oc_log_error("Couldn't read image data\n");
     }
+    else
+    {
+        imageRgn = oc_image_atlas_alloc_from_memory(atlas, backingImage, oc_str8_from_buffer(size, buffer), flip);
+    }
+
+    oc_scratch_end(scratch);
     return (imageRgn);
 }
-#endif // !OC_PLATFORM_ORCA
+
+oc_image_region oc_image_atlas_alloc_from_path(oc_rect_atlas* atlas, oc_image backingImage, oc_str8 path, bool flip)
+{
+    oc_image_region imageRgn = { 0 };
+
+    oc_file file = oc_file_open(path, OC_FILE_ACCESS_READ, OC_FILE_OPEN_NONE);
+    if(oc_file_last_error(file) != OC_IO_OK)
+    {
+        oc_log_error("Could not open file %*.s\n", oc_str8_ip(path));
+    }
+    else
+    {
+        imageRgn = oc_image_atlas_alloc_from_file(atlas, backingImage, file, flip);
+    }
+    oc_file_close(file);
+    return (imageRgn);
+}
 
 void oc_image_atlas_recycle(oc_rect_atlas* atlas, oc_image_region imageRgn)
 {

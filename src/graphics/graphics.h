@@ -281,8 +281,9 @@ typedef struct oc_image_region
 } oc_image_region;
 
 ORCA_API oc_image_region oc_image_atlas_alloc_from_rgba8(oc_rect_atlas* atlas, oc_image backingImage, u32 width, u32 height, u8* pixels);
-ORCA_API oc_image_region oc_image_atlas_alloc_from_data(oc_rect_atlas* atlas, oc_image backingImage, oc_str8 data, bool flip);
-ORCA_API oc_image_region oc_image_atlas_alloc_from_file(oc_rect_atlas* atlas, oc_image backingImage, oc_str8 path, bool flip);
+ORCA_API oc_image_region oc_image_atlas_alloc_from_memory(oc_rect_atlas* atlas, oc_image backingImage, oc_str8 mem, bool flip);
+ORCA_API oc_image_region oc_image_atlas_alloc_from_file(oc_rect_atlas* atlas, oc_image backingImage, oc_file file, bool flip);
+ORCA_API oc_image_region oc_image_atlas_alloc_from_path(oc_rect_atlas* atlas, oc_image backingImage, oc_str8 path, bool flip);
 ORCA_API void oc_image_atlas_recycle(oc_rect_atlas* atlas, oc_image_region imageRgn);
 
 //------------------------------------------------------------------------------------------
