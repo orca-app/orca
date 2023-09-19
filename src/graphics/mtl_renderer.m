@@ -15,9 +15,12 @@
 
 #include "mtl_renderer.h"
 
-const int OC_MTL_INPUT_BUFFERS_COUNT = 3,
-          OC_MTL_TILE_SIZE = 16,
-          OC_MTL_MSAA_COUNT = 8;
+enum
+{
+    OC_MTL_INPUT_BUFFERS_COUNT = 3,
+    OC_MTL_TILE_SIZE = 16,
+    OC_MTL_MSAA_COUNT = 8
+};
 
 typedef struct oc_mtl_canvas_backend
 {
