@@ -19,7 +19,8 @@ enum
 {
     OC_MTL_INPUT_BUFFERS_COUNT = 3,
     OC_MTL_TILE_SIZE = 16,
-    OC_MTL_MSAA_COUNT = 8
+    OC_MTL_MSAA_COUNT = 8,
+    OC_MTL_OFFSET_CURVE_SAMPLE_COUNT = 5,
 };
 
 typedef struct oc_mtl_canvas_backend
@@ -514,8 +515,7 @@ void oc_mtl_render_stroke_quadratic(oc_mtl_canvas_backend* backend, oc_vec2* p)
     }
     else
     {
-        const int CHECK_SAMPLE_COUNT = 5;
-        f32 checkSamples[CHECK_SAMPLE_COUNT] = { 1. / 6, 2. / 6, 3. / 6, 4. / 6, 5. / 6 };
+        f32 checkSamples[OC_MTL_OFFSET_CURVE_SAMPLE_COUNT] = { 1. / 6, 2. / 6, 3. / 6, 4. / 6, 5. / 6 };
 
         f32 d2LowBound = oc_square(0.5 * width - tolerance);
         f32 d2HighBound = oc_square(0.5 * width + tolerance);
@@ -523,7 +523,7 @@ void oc_mtl_render_stroke_quadratic(oc_mtl_canvas_backend* backend, oc_vec2* p)
         f32 maxOvershoot = 0;
         f32 maxOvershootParameter = 0;
 
-        for(int i = 0; i < CHECK_SAMPLE_COUNT; i++)
+        for(int i = 0; i < OC_MTL_OFFSET_CURVE_SAMPLE_COUNT; i++)
         {
             f32 t = checkSamples[i];
 
@@ -616,8 +616,7 @@ void oc_mtl_render_stroke_cubic(oc_mtl_canvas_backend* backend, oc_vec2* p)
     }
     else
     {
-        const int CHECK_SAMPLE_COUNT = 5;
-        f32 checkSamples[CHECK_SAMPLE_COUNT] = { 1. / 6, 2. / 6, 3. / 6, 4. / 6, 5. / 6 };
+        f32 checkSamples[OC_MTL_OFFSET_CURVE_SAMPLE_COUNT] = { 1. / 6, 2. / 6, 3. / 6, 4. / 6, 5. / 6 };
 
         f32 d2LowBound = oc_square(0.5 * width - tolerance);
         f32 d2HighBound = oc_square(0.5 * width + tolerance);
@@ -625,7 +624,7 @@ void oc_mtl_render_stroke_cubic(oc_mtl_canvas_backend* backend, oc_vec2* p)
         f32 maxOvershoot = 0;
         f32 maxOvershootParameter = 0;
 
-        for(int i = 0; i < CHECK_SAMPLE_COUNT; i++)
+        for(int i = 0; i < OC_MTL_OFFSET_CURVE_SAMPLE_COUNT; i++)
         {
             f32 t = checkSamples[i];
 
