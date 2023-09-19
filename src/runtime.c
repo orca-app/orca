@@ -680,6 +680,20 @@ i32 orca_runloop(void* user)
                 }
                 break;
 
+                case OC_EVENT_MOUSE_WHEEL:
+                {
+                    if(exports[OC_EXPORT_MOUSE_WHEEL])
+                    {
+                        const void* args[2] = { &event->mouse.deltaX, &event->mouse.deltaY };
+                        M3Result res = m3_Call(exports[OC_EXPORT_MOUSE_WHEEL], 2, args);
+                        if(res)
+                        {
+                            ORCA_WASM3_ABORT(app->env.m3Runtime, res, "Runtime error");
+                        }
+                    }
+                }
+                break;
+
                 case OC_EVENT_MOUSE_MOVE:
                 {
                     if(exports[OC_EXPORT_MOUSE_MOVE])
