@@ -290,7 +290,7 @@ def build_wasm3_lib_mac(release):
             "-o", f"build/obj/{name}",
             f,
         ], check=True)
-    subprocess.run(["ar", "-rcs", "build/lib/libwasm3.a", *glob.glob("build/obj/*.o")], check=True)
+    subprocess.run(["libtool", "-static", "-o", "build/lib/libwasm3.a", "-no_warning_for_no_symbols", *glob.glob("build/obj/*.o")], check=True)
     subprocess.run(["rm", "-rf", "build/obj"], check=True)
 
 
