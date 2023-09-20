@@ -1,3 +1,6 @@
+#ifndef _LIBM_H
+#define _LIBM_H
+
 #include <float.h>
 #include <math.h>
 #include <stdint.h>
@@ -144,8 +147,13 @@ int __rem_pio2f(float, double*);
 float __sindf(double);
 float __cosdf(double);
 
+float __math_xflowf(uint32_t, float);
+float __math_uflowf(uint32_t);
+float __math_oflowf(uint32_t);
 float __math_invalidf(float);
 double __math_xflow(uint32_t, double);
 double __math_uflow(uint32_t);
 double __math_oflow(uint32_t);
 double __math_invalid(double);
+
+#endif // _LIBM_H

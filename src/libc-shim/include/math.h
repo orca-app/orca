@@ -82,6 +82,7 @@ double log2(double);
 float log2f(float);
 
 double pow(double, double);
+float powf(float, float);
 
 double scalbn(double, int);
 
