@@ -616,8 +616,13 @@ def install(args):
         print()
         print("The tools will need to be on your PATH in order to actually use them.")
         if prompt("Would you like to automatically add Orca to your PATH?"):
-            subprocess.run(["powershell", "scripts\\updatepath.ps1", f'"{bin_dir}"'], check=True)
-            print("Orca has been added to your PATH. Restart any open terminals to use it.")
+            try:
+                subprocess.run(["powershell", "-ExecutionPolicy", "Bypass", "scripts\\updatepath.ps1", f'"{bin_dir}"'], check=True)
+                print("Orca has been added to your PATH. Restart any open terminals to use it.")
+            except subprocess.CalledProcessError:
+                msg = log_warning(f"Failed to automatically add Orca to your PATH.")
+                msg.more("Please manually add the following directory to your PATH:")
+                msg.more(bin_dir)
         else:
             print("No worries. You can manually add Orca to your PATH in the Windows settings")
             print("by searching for \"environment variables\".")
@@ -658,7 +663,12 @@ def uninstall(args):
             print("Orca has been uninstalled from your system.")
             print()
             if prompt("Would you like to automatically remove Orca from your PATH?"):
-                subprocess.run(["powershell", "scripts\\updatepath.ps1", f'"{bin_dir}"', "-remove"], check=True)
-                print("Orca has been removed from your PATH.")
+                try:
+                    subprocess.run(["powershell", "-ExecutionPolicy", "Bypass", "scripts\\updatepath.ps1", f'"{bin_dir}"', "-remove"], check=True)
+                    print("Orca has been removed from your PATH.")
+                except subprocess.CalledProcessError:
+                    msg = log_warning(f"Failed to automatically remove Orca from your PATH.")
+                    msg.more("Please manually remove the following directory from your PATH:")
+                    msg.more(bin_dir)
         else:
             print("Orca has been uninstalled from your system. You may wish to remove it from your PATH.")
