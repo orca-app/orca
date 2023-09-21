@@ -408,21 +408,29 @@ def ensure_programs():
     if platform.system() == "Windows":
         MSVC_MAJOR, MSVC_MINOR = 19, 35
         try:
-            result = subprocess.run(["cl"], capture_output=True, text=True)
-            if "for x64" not in result.stderr:
+            cl_only = subprocess.run(["cl"], capture_output=True, text=True)
+            desc = cl_only.stderr.splitlines()[0]
+
+            detect = subprocess.run(["cl", "/EP", "scripts\\msvc_version.txt"], capture_output=True, text=True)
+            parts = [x for x in detect.stdout.splitlines() if x]
+            version, arch = int(parts[0]), parts[1]
+            major, minor = int(version / 100), version % 100
+
+            if arch != "x64":
                 msg = log_error("MSVC is not running in 64-bit mode. Make sure you are running in")
                 msg.more("an x64 Visual Studio command prompt, such as the \"x64 Native Tools")
                 msg.more("Command Prompt\" from your Start Menu.")
                 msg.more()
                 msg.more("MSVC reported itself as:")
-                msg.more(result.stderr.splitlines()[0])
+                msg.more(desc)
                 exit(1)
 
-            m = re.search(r"Version (\d+)\.(\d+).(\d+)", result.stderr)
-            major, minor, patch = int(m.group(1)), int(m.group(2)), int(m.group(3))
             if major < MSVC_MAJOR or minor < MSVC_MINOR:
-                msg = log_error(f"Your version of MSVC is too old. You have version {major}.{minor}.{patch},")
+                msg = log_error(f"Your version of MSVC is too old. You have version {major}.{minor},")
                 msg.more(f"but version {MSVC_MAJOR}.{MSVC_MINOR} or greater is required.")
+                msg.more()
+                msg.more("MSVC reported itself as:")
+                msg.more(desc)
                 msg.more()
                 msg.more("Please update Visual Studio to the latest version and try again.")
                 exit(1)
