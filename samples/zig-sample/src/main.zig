@@ -54,6 +54,10 @@ export fn oc_on_mouse_up(button: oc.MouseButton) void {
     oc.log.info("mouse up! {}", .{button}, @src());
 }
 
+export fn oc_on_mouse_wheel(dx: f32, dy: f32) void {
+    oc.log.info("mouse wheel! dx: {d:.2}, dy: {d:.2}", .{ dx, dy }, @src());
+}
+
 export fn oc_on_key_down(scan: oc.ScanCode, key: oc.KeyCode) void {
     oc.log.info("key down: {} {}", .{ scan, key }, @src());
 }
@@ -131,10 +135,6 @@ export fn oc_on_frame_refresh() void {
 
         const center_x = frame_size.x / 2;
         const text_begin_x = center_x - text_rect.Flat.w / 2;
-
-        oc.log.info("text rect width: {d}", .{text_rect.Flat.w}, @src());
-        oc.log.info("center_x: {d}", .{center_x}, @src());
-        oc.log.info("text_begin_x: {d}", .{text_begin_x}, @src());
 
         Mat2x3.push(Mat2x3.translate(text_begin_x, 150));
         defer Mat2x3.pop();

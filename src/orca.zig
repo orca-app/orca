@@ -90,6 +90,109 @@ pub const ListElt = extern struct {
 pub const List = extern struct {
     first: ?*ListElt,
     last: ?*ListElt,
+
+    pub fn init() List {
+        return .{
+            .first = null,
+            .last = null,
+        };
+    }
+
+    pub fn begin(self: *List) ?*ListElt {
+        return self.first;
+    }
+
+    pub fn end() ?*ListElt {
+        return null;
+    }
+
+    pub fn last(self: *List) ?*ListElt {
+        return self.last;
+    }
+
+    pub fn insert(self: *List, after_elt: *ListElt, elt: *ListElt) void {
+        elt.prev = after_elt;
+        elt.next = after_elt.next;
+        if (after_elt.next != null) {
+            after_elt.next.prev = elt;
+        } else {
+            self.last = elt;
+        }
+        after_elt.next = elt;
+    }
+
+    pub fn insertBefore(self: *List, before_elt: *ListElt, elt: *ListElt) void {
+        elt.next = before_elt;
+        elt.prev = before_elt.prev;
+        if (before_elt.prev != null) {
+            before_elt.prev.next = elt;
+        } else {
+            self.first = elt;
+        }
+        before_elt.prev = elt;
+    }
+
+    pub fn remove(self: *List, elt: *ListElt) void {
+        if (elt.prev != null) {
+            elt.prev.next = elt.next;
+        } else {
+            self.first = elt.next;
+        }
+        if (elt.next != null) {
+            elt.next.prev = elt.prev;
+        } else {
+            self.last = elt.prev;
+        }
+        elt.prev = blk: {
+            const tmp = null;
+            elt.next = tmp;
+            break :blk tmp;
+        };
+    }
+
+    pub fn push(self: *List, elt: *ListElt) void {
+        elt.next = self.first;
+        elt.prev = null;
+        if (self.first != null) {
+            self.first.prev = elt;
+        } else {
+            self.last = elt;
+        }
+        self.first = elt;
+    }
+
+    pub fn pop(self: *List) ListElt {
+        var elt: *ListElt = begin(self);
+        if (elt != end(self)) {
+            remove(self, elt);
+            return elt;
+        }
+        return null;
+    }
+
+    pub fn pushBack(self: *List, elt: *ListElt) void {
+        elt.prev = self.last;
+        elt.next = null;
+        if (self.last != null) {
+            self.last.next = elt;
+        } else {
+            self.first = elt;
+        }
+        self.last = elt;
+    }
+
+    pub fn popBack(self: *List) ListElt {
+        var elt: *ListElt = last(self);
+        if (elt != end(self)) {
+            remove(self, elt);
+            return elt;
+        }
+        return null;
+    }
+
+    pub fn empty(self: *const List) bool {
+        return (self.first == null) or (self.last == null);
+    }
 };
 
 //------------------------------------------------------------------------------------------
@@ -198,87 +301,129 @@ pub const ArenaOptions = extern struct {
 
 fn stringType(comptime CharType: type) type {
     return extern struct {
-        const Self = @This();
+        pub const StrListElt = extern struct {
+            list_elt: ListElt,
+            string: Str,
+        };
+
+        pub const StrList = extern struct {
+            list: List,
+            elt_count: u64,
+            len: u64,
+
+            pub fn init() StrList {
+                return .{
+                    .list = List.init(),
+                    .elt_count = 0,
+                    .len = 0,
+                };
+            }
+
+            pub fn push(list: *StrList, str: *Str, arena: *Arena) void {
+                var elt: *StrListElt = arena.pushType(ListElt);
+                elt.string = str;
+                list.append(elt.list_elt);
+                list.elt_count += 1;
+                list.len += str.len;
+            }
+
+            pub fn pushf(list: *StrList, arena: *Arena, comptime format: []const u8, args: anytype) Str {
+                var str = Str.pushf(arena, format, args);
+                list.push(str, arena);
+            }
+
+            // TODO
+            // pub fn join(list: *const StrList, arena: *Arena) Str;
+            //     const empty = Str{ .ptr = null, .len = 0 };
+            //     return list.collate(arena, empty, empty, empty));
+            // }
+            // pub fn collate(list: *StrList, arena: *Arena, prefix: Str, separator: Str, postfix: Str) Str;
+        };
+
+        const Str = @This();
 
         ptr: ?[*]CharType,
         len: usize,
 
         extern fn strncmp(a: ?[*]u8, b: ?[*]u8, len: usize) c_int;
 
-        // extern fn oc_str8_push_buffer(arena: *Arena, len: u64, buffer: [*]u8) oc_str8;
-        // extern fn oc_str8_push_cstring(arena: *Arena, str: [*]const u8) oc_str8;
-        // extern fn oc_str8_push_copy(arena: *Arena, s: oc_str8) oc_str8;
-        // extern fn oc_str8_push_slice(arena: *Arena, s: oc_str8, start: u64, end: u64) oc_str8;
-        // // extern fn oc_str8_pushfv(arena: oc_arena*, char: const* format, args: va_list) oc_str8;
-        // // extern fn oc_str8_pushf(arena: oc_arena*, char: const* format, ...) oc_str8;
-        // extern fn oc_str8_cmp(s1: oc_str8, s2: oc_str8) c_int;
-
-        // extern fn oc_str8_list_push(oc_arena* arena, oc_str8_list* list, oc_str8 str) void;
-        // extern fn oc_str8_list_pushf(oc_arena* arena, oc_str8_list* list, const char* format, ...) void;
-
-        // extern fn oc_str8_list_collate(oc_arena* arena, oc_str8_list list, oc_str8 prefix, oc_str8 separator, oc_str8 postfix) oc_str8;
-        // extern fn oc_str8_list_join(oc_arena* arena, oc_str8_list list) oc_str8;
-        // extern fn oc_str8_split(oc_arena* arena, oc_str8 str, oc_str8_list separators) oc_str8_list;
-
-        // extern fn oc_str16_from_buffer(u64 len, u16* buffer) oc_str16;
-        // extern fn oc_str16_slice(oc_str16 s, u64 start, u64 end) oc_str16;
-
-        // extern fn oc_str16_push_buffer(oc_arena* arena, u64 len, u16* buffer) oc_str16;
-        // extern fn oc_str16_push_copy(oc_arena* arena, oc_str16 s) oc_str16;
-        // extern fn oc_str16_push_slice(oc_arena* arena, oc_str16 s, u64 start, u64 end) oc_str16;
-        // extern fn oc_str16_list_push(oc_arena* arena, oc_str16_list* list, oc_str16 str) void;
-        // extern fn oc_str16_list_join(oc_arena* arena, oc_str16_list list) oc_str16;
-        // extern fn oc_str16_split(oc_arena* arena, oc_str16 str, oc_str16_list separators) oc_str16_list;
-        // extern fn oc_str32_from_buffer(u64 len, u32* buffer) oc_str32;
-        // extern fn oc_str32_slice(oc_str32 s, u64 start, u64 end) oc_str32;
-
-        // extern fn oc_str32_push_buffer(oc_arena* arena, u64 len, u32* buffer) oc_str32;
-        // extern fn oc_str32_push_copy(oc_arena* arena, oc_str32 s) oc_str32;
-        // extern fn oc_str32_push_slice(oc_arena* arena, oc_str32 s, u64 start, u64 end) oc_str32;
-        // extern fn oc_str32_list_push(oc_arena* arena, oc_str32_list* list, oc_str32 str) void;
-        // extern fn oc_str32_list_join(oc_arena* arena, oc_str32_list list) oc_str32;
-        // extern fn oc_str32_split(oc_arena* arena, oc_str32 str, oc_str32_list separators) oc_str32_list;
-
-        pub fn fromSlice(str: []const CharType) Self {
+        pub fn fromSlice(str: []const CharType) Str {
             return .{
                 .ptr = @constCast(str.ptr),
                 .len = str.len,
             };
         }
 
-        pub fn slice(self: *const Self) []CharType {
-            if (self.ptr) |p| {
-                return p[0..self.len];
+        pub fn slice(str: *const Str) []CharType {
+            if (str.ptr) |p| {
+                return p[0..str.len];
             }
 
             return &[_]CharType{};
         }
 
-        pub fn sliceInner(self: *const Self, start: u64, end: u64) []CharType {
-            if (self.ptr) |p| {
+        pub fn sliceInner(str: *const Str, start: u64, end: u64) []CharType {
+            if (str.ptr) |p| {
                 assert(start <= end, "{}.sliceLen: start <= end", .{typename()}, @src());
-                assert(end <= self.len, "{}.sliceLen: end <= self.len", .{typename()}, @src());
+                assert(end <= str.len, "{}.sliceLen: end <= str.len", .{typename()}, @src());
                 return p[start..end];
             }
 
             return &[_]CharType{};
         }
 
-        pub fn fromBuffer(len: u64, buffer: ?[]CharType) Self {
+        pub fn fromBuffer(len: u64, buffer: ?[]CharType) Str {
             return .{
                 .ptr = buffer,
                 .len = @intCast(len),
             };
         }
 
-        // pub fn cmp(a: *const Self, b: *const Self) std.math.Order {
-        //     if (CharType != u8) {
-        //         @compileError("cmp() is only supported for Str8");
-        //     }
-        //     const value = strncmp(a.ptr, b.ptr, std.math.min(a.len, b.len));
+        pub fn pushBuffer(arena: *Arena, buffer: []u8) Str {
+            var str: Str = undefined;
+            str.len = buffer.len;
+            str.ptr = arena.pushArray(CharType, buffer.len + 1);
+            @memcpy(str.ptr[0..buffer.len], buffer);
+            str.ptr[buffer.len] = 0;
+            return str;
+        }
 
-        // }
+        pub fn pushCopy(str: *const Str, arena: *Arena) Str {
+            return pushBuffer(arena, str.ptr[0..str.len]);
+        }
+
+        pub fn pushSlice(str: *const Str, arena: *Arena, start: usize, end: usize) Str {
+            return pushBuffer(arena, str.ptr[start..end]);
+        }
+
+        pub fn pushf(arena: *Arena, format: []const u8, args: anytype) Str {
+            if (CharType != u8) {
+                @compileError("pushf() is only supported for Str8");
+            }
+
+            var str: Str = undefined;
+            str.len = @intCast(std.fmt.count(format, args));
+            str.ptr = arena.pushArray(CharType, str.len + 1);
+            _ = std.fmt.bufPrintZ(str.ptr[0 .. str.len + 1], format, args) catch unreachable;
+            return str;
+        }
+
         // TODO
+        // pub fn split() void;
+
+        pub fn cmp(a: *const Str, b: *const Str) std.math.Order {
+            if (CharType != u8) {
+                @compileError("cmp() is only supported for Str8");
+            }
+            const value = strncmp(a.ptr, b.ptr, std.math.min(a.len, b.len));
+            if (value < 0) {
+                return .lt;
+            } else if (value == 0) {
+                return .eq;
+            } else {
+                return .gt;
+            }
+        }
 
         fn typename() []const u8 {
             return switch (CharType) {
@@ -317,136 +462,6 @@ pub const Str32ListElt = stringListEltType(Str32);
 pub const Str8List = stringListType(Str8);
 pub const Str16List = stringListType(Str8);
 pub const Str32List = stringListType(Str8);
-
-// pub const Str8 = extern struct {
-//     ptr: ?[*:0]u8,
-//     len: usize,
-
-//     pub fn fromSlice(slice: [:0]const u8) Str8 {
-//         return .{
-//             ptr: @constCast(slice.ptr),
-//             len: slice.len,
-//         };
-//     }
-// };
-
-// typedef struct oc_str8
-// {
-//     char* ptr;
-//     size_t len;
-// } oc_str8;
-
-// #define OC_STR8(s) ((oc_str8){ .ptr = (char*)s, .len = (s) ? strlen(s) : 0 })
-
-//NOTE: this only works with string literals, but is sometimes necessary to generate compile-time constants
-// #define OC_STR8_LIT(s)            \
-//     {                             \
-//         (char*)(s), sizeof(s) - 1 \
-//     }
-
-// #define oc_str8_lp(s) ((s).len), ((s).ptr)
-// #define oc_str8_ip(s) (int)oc_str8_lp(s)
-
-// ORCA_API oc_str8 oc_str8_from_buffer(u64 len, char* buffer);
-// ORCA_API oc_str8 oc_str8_slice(oc_str8 s, u64 start, u64 end);
-
-// ORCA_API oc_str8 oc_str8_push_buffer(oc_arena* arena, u64 len, char* buffer);
-// ORCA_API oc_str8 oc_str8_push_cstring(oc_arena* arena, const char* str);
-// ORCA_API oc_str8 oc_str8_push_copy(oc_arena* arena, oc_str8 s);
-// ORCA_API oc_str8 oc_str8_push_slice(oc_arena* arena, oc_str8 s, u64 start, u64 end);
-
-// ORCA_API oc_str8 oc_str8_pushfv(oc_arena* arena, const char* format, va_list args);
-// ORCA_API oc_str8 oc_str8_pushf(oc_arena* arena, const char* format, ...);
-
-// ORCA_API int oc_str8_cmp(oc_str8 s1, oc_str8 s2);
-
-// ORCA_API char* oc_str8_to_cstring(oc_arena* arena, oc_str8 string);
-
-// typedef struct oc_str8_elt
-// {
-//     oc_list_elt listElt;
-//     oc_str8 string;
-// } oc_str8_elt;
-
-// typedef struct oc_str8_list
-// {
-//     oc_list list;
-//     u64 eltCount;
-//     u64 len;
-// } oc_str8_list;
-
-// ORCA_API void oc_str8_list_push(oc_arena* arena, oc_str8_list* list, oc_str8 str);
-// ORCA_API void oc_str8_list_pushf(oc_arena* arena, oc_str8_list* list, const char* format, ...);
-
-// ORCA_API oc_str8 oc_str8_list_collate(oc_arena* arena, oc_str8_list list, oc_str8 prefix, oc_str8 separator, oc_str8 postfix);
-// ORCA_API oc_str8 oc_str8_list_join(oc_arena* arena, oc_str8_list list);
-// ORCA_API oc_str8_list oc_str8_split(oc_arena* arena, oc_str8 str, oc_str8_list separators);
-
-// //----------------------------------------------------------------------------------
-// // [STRINGS] u16 strings
-// //----------------------------------------------------------------------------------
-// typedef struct oc_str16
-// {
-//     u16* ptr;
-//     size_t len;
-// } oc_str16;
-
-// ORCA_API oc_str16 oc_str16_from_buffer(u64 len, u16* buffer);
-// ORCA_API oc_str16 oc_str16_slice(oc_str16 s, u64 start, u64 end);
-
-// ORCA_API oc_str16 oc_str16_push_buffer(oc_arena* arena, u64 len, u16* buffer);
-// ORCA_API oc_str16 oc_str16_push_copy(oc_arena* arena, oc_str16 s);
-// ORCA_API oc_str16 oc_str16_push_slice(oc_arena* arena, oc_str16 s, u64 start, u64 end);
-
-// typedef struct oc_str16_elt
-// {
-//     oc_list_elt listElt;
-//     oc_str16 string;
-// } oc_str16_elt;
-
-// typedef struct oc_str16_list
-// {
-//     oc_list list;
-//     u64 eltCount;
-//     u64 len;
-// } oc_str16_list;
-
-// ORCA_API void oc_str16_list_push(oc_arena* arena, oc_str16_list* list, oc_str16 str);
-// ORCA_API oc_str16 oc_str16_list_join(oc_arena* arena, oc_str16_list list);
-// ORCA_API oc_str16_list oc_str16_split(oc_arena* arena, oc_str16 str, oc_str16_list separators);
-
-// //----------------------------------------------------------------------------------
-// // [STRINGS] u32 strings
-// //----------------------------------------------------------------------------------
-// typedef struct oc_str32
-// {
-//     u32* ptr;
-//     size_t len;
-// } oc_str32;
-
-// ORCA_API oc_str32 oc_str32_from_buffer(u64 len, u32* buffer);
-// ORCA_API oc_str32 oc_str32_slice(oc_str32 s, u64 start, u64 end);
-
-// ORCA_API oc_str32 oc_str32_push_buffer(oc_arena* arena, u64 len, u32* buffer);
-// ORCA_API oc_str32 oc_str32_push_copy(oc_arena* arena, oc_str32 s);
-// ORCA_API oc_str32 oc_str32_push_slice(oc_arena* arena, oc_str32 s, u64 start, u64 end);
-
-// typedef struct oc_str32_elt
-// {
-//     oc_list_elt listElt;
-//     oc_str32 string;
-// } oc_str32_elt;
-
-// typedef struct oc_str32_list
-// {
-//     oc_list list;
-//     u64 eltCount;
-//     u64 len;
-// } oc_str32_list;
-
-// ORCA_API void oc_str32_list_push(oc_arena* arena, oc_str32_list* list, oc_str32 str);
-// ORCA_API oc_str32 oc_str32_list_join(oc_arena* arena, oc_str32_list list);
-// ORCA_API oc_str32_list oc_str32_split(oc_arena* arena, oc_str32 str, oc_str32_list separators);
 
 //------------------------------------------------------------------------------------------
 // [UTF8]
@@ -1402,6 +1417,7 @@ pub const Surface = extern struct {
     extern fn oc_surface_contents_scaling(surface: Surface) Vec2;
     extern fn oc_surface_bring_to_front(surface: Surface) void;
     extern fn oc_surface_send_to_back(surface: Surface) void;
+    // TODO
     // extern fn oc_surface_render_commands(
     //     surface: Surface,
     //     color: Color,
@@ -1615,6 +1631,18 @@ pub const ellipseStroke = oc_ellipse_stroke;
 pub const circleFill = oc_circle_fill;
 pub const circleStroke = oc_circle_stroke;
 pub const arc = oc_arc;
+
+//------------------------------------------------------------------------------------------
+// [GRAPHICS]: GLES
+//------------------------------------------------------------------------------------------
+
+// TODO
+
+//------------------------------------------------------------------------------------------
+// [UI]: GLES
+//------------------------------------------------------------------------------------------
+
+// TODO
 
 //------------------------------------------------------------------------------------------
 // [FILE IO] basic API
