@@ -13,7 +13,7 @@ def print_clang_install_info(upgrade):
     if platform.system() == "Windows":
         printw(f"Please install Clang {CLANG_MAJOR}.{CLANG_MINOR} or newer. We recommend installing Clang via the Visual Studio installer. In the installer, search for \"C++ Clang Compiler\".")
     elif platform.system() == "Darwin":
-        printw(f"Please install Clang {CLANG_MAJOR}.{CLANG_MINOR} or newer. We recommend installing Clang via Homebrew:")
+        printw(f"Please install Clang {CLANG_MAJOR}.{CLANG_MINOR} or newer. We recommend installing Clang via Homebrew (https://brew.sh/):")
         printw()
         if upgrade:
             printw("  brew upgrade llvm")
@@ -42,6 +42,14 @@ except FileNotFoundError:
     exit(1)
 except subprocess.CalledProcessError:
     printw("WARNING: Could not check Clang version. You may encounter build errors.")
+
+try:
+    subprocess.run(["wasm-ld", "--version"], capture_output=True, check=True)
+except FileNotFoundError:
+    printw("ERROR: wasm-ld was not found on your system. This is a component of Clang that is required in order to produce WebAssembly modules. This likely means that an old or otherwise incompatible version of Clang is being used, such as Apple's version of Clang.")
+    printw()
+    print_clang_install_info(False)
+    exit(1)
 
 try:
     subprocess.run(["orca", "version"], capture_output=True, shell=True, check=True)

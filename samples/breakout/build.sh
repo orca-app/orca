@@ -2,13 +2,14 @@
 
 set -euo pipefail
 
-if [[ -x /usr/local/opt/llvm/bin/clang ]]; then
-  CLANG=/usr/local/opt/llvm/bin/clang
-elif [[ -x /opt/homebrew/opt/llvm/bin/clang ]]; then
-  CLANG=/opt/homebrew/opt/llvm/bin/clang
+# The following code checks if you have the necessary programs to compile the samples.
+# This code exists to improve the experience of first-time Orca users and can
+# be safely deleted in your own projects if you wish.
+if [ -f ../../scripts/sample_build_check.py ]; then
+  python3 ../../scripts/sample_build_check.py
 else
-  echo "Could not find Homebrew clang; this script will probably not work."
-  CLANG=clang
+  echo "Could not check if you have the necessary tools to build the Orca samples."
+  echo "If you have copied this script to your own project, you can delete this code."
 fi
 
 ORCA_DIR=../..
@@ -25,6 +26,6 @@ wasmFlags="--target=wasm32 \
   -I $ORCA_DIR/src \
   -I $ORCA_DIR/src/ext"
 
-$CLANG $wasmFlags -o ./module.wasm $ORCA_DIR/src/orca.c $STDLIB_DIR/src/*.c src/main.c
+clang $wasmFlags -o ./module.wasm $ORCA_DIR/src/orca.c $STDLIB_DIR/src/*.c src/main.c
 
 orca bundle --orca-dir $ORCA_DIR --name Breakout --icon icon.png --resource-dir data module.wasm

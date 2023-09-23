@@ -1,7 +1,7 @@
 @echo off
 setlocal enabledelayedexpansion
 
-:: The following code simply checks that you have a compatible version of Clang.
+:: The following code checks if you have the necessary programs to compile the samples.
 :: This code exists to improve the experience of first-time Orca users and can
 :: be safely deleted in your own projects if you wish.
 if exist "..\..\scripts\sample_build_check.py" (
