@@ -17,7 +17,7 @@ from .embed_text_files import *
 from .version import check_if_source, is_orca_source, orca_version
 
 ANGLE_VERSION = "2023-07-05"
-
+MAC_SDK_DIR = "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk"
 
 def attach_dev_commands(subparsers):
     dev_cmd = subparsers.add_parser("dev", help="Commands for building Orca itself. Must be run from within an Orca source checkout.")
@@ -168,12 +168,10 @@ def build_platform_layer_lib_win(release):
     ], check=True)
 
 def build_platform_layer_lib_mac(release):
-    sdk_dir = "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk"
-
     flags = ["-mmacos-version-min=10.15.4"]
     cflags = ["-std=c11"]
     debug_flags = ["-O3"] if release else ["-g", "-DOC_DEBUG", "-DOC_LOG_COMPILE_DEBUG"]
-    ldflags = [f"-L{sdk_dir}/usr/lib", f"-F{sdk_dir}/System/Library/Frameworks/"]
+    ldflags = [f"-L{MAC_SDK_DIR}/usr/lib", f"-F{MAC_SDK_DIR}/System/Library/Frameworks/"]
     includes = ["-Isrc", "-Isrc/util", "-Isrc/platform", "-Isrc/ext", "-Isrc/ext/angle/include"]
 
     # compile metal shader
@@ -443,19 +441,24 @@ def ensure_programs():
             msg.more("and \"C++ Clang Compiler\": https://visualstudio.microsoft.com/")
             exit(1)
 
-    try:
-        subprocess.run(["clang", "-v"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    except FileNotFoundError:
-        msg = log_error("clang was not found on your system.")
-        if platform.system() == "Windows":
-            msg.more("We recommend installing clang via the Visual Studio installer.")
-        elif platform.system() == "Darwin":
+    if platform.system() == "Darwin":
+        try:
+            subprocess.run(["clang", "-v"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except FileNotFoundError:
+            msg = log_error("clang was not found on your system.")
             msg.more("Run the following to install it:")
             msg.more()
             msg.more("  brew install llvm")
             msg.more()
-        exit(1)
-    # TODO(ben): Check for xcode command line tools
+            exit(1)
+
+        if not os.path.exists(MAC_SDK_DIR):
+            msg = log_error("The Xcode command-line tools are not installed.")
+            msg.more("Run the following to install them:")
+            msg.more()
+            msg.more("  xcode-select --install")
+            msg.more()
+            exit(1)
 
 
 def ensure_angle():

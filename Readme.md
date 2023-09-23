@@ -29,12 +29,14 @@ The Orca command-line tools must be installed to your system in order to use the
 
 - Windows or Mac (Linux is not yet supported)
 - [Python 3.8](https://www.python.org/) or newer (for command line tools)
-- Clang
+- Clang (version 11.0 or newer)
 	- **Windows users:** `clang` can be installed via the Visual Studio installer. Search for "C++ Clang Compiler".
 	- **Mac users:** Apple's built-in `clang` does not support WebAssembly. We recommend installing `clang` via [Homebrew](https://brew.sh/) with `brew install llvm`.
 - MSVC (Visual Studio 2022 17.5 or newer) (Windows only)
 	- This can be installed through the [Visual Studio Community](https://visualstudio.microsoft.com/) installer. Ensure that your Visual Studio installation includes "Desktop development with C++".
 	- Please note the version requirement! Orca requires C11 atomics, which were only added to MSVC in late 2022.
+- Xcode command-line tools (Mac only)
+	- These can be installed with `xcode-select --install`.
 
 ### Installation instructions
 
