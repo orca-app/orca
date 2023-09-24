@@ -84,6 +84,9 @@ float log2f(float);
 double pow(double, double);
 float powf(float, float);
 
+double exp(double);
+float expf(float);
+
 double scalbn(double, int);
 
 double sin(double);
