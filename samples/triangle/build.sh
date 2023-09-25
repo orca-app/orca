@@ -15,6 +15,7 @@ fi
 ORCA_DIR=../..
 STDLIB_DIR=$ORCA_DIR/src/libc-shim
 
+# common flags to build wasm modules
 wasmFlags="--target=wasm32 \
   --no-standard-libraries \
   -mbulk-memory \
@@ -26,6 +27,11 @@ wasmFlags="--target=wasm32 \
   -I $ORCA_DIR/src \
   -I $ORCA_DIR/src/ext"
 
-clang $wasmFlags -o ./module.wasm $ORCA_DIR/src/orca.c $STDLIB_DIR/src/*.c src/main.c
+# build orca core as wasm module
+clang $wasmFlags -Wl,--relocatable -o ./liborca.a $ORCA_DIR/src/orca.c $STDLIB_DIR/src/*.c
 
+# build sample as wasm module and link it with the orca module
+clang $wasmFlags -L . -lorca -o module.wasm src/main.c
+
+# create app directory and copy files into it
 orca bundle --orca-dir $ORCA_DIR --name Triangle module.wasm
