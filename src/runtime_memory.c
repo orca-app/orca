@@ -5,25 +5,33 @@
 *  See LICENSE.txt for licensing information
 *
 **************************************************************************/
-
+#include <limits.h>
 #include "runtime.h"
 #include "runtime_memory.h"
 
-void* oc_wasm_memory_resize_callback(void* p, unsigned long size, void* userData)
+void* oc_wasm_memory_resize_callback(void* p, unsigned long newSize, void* userData)
 {
+    //NOTE: this is called by wasm3. The size passed includes wasm3 memory header.
+    //      We first align it on 4K page size
+
+    newSize = oc_align_up_pow2(newSize, 4 << 10);
+
     oc_wasm_memory* memory = (oc_wasm_memory*)userData;
 
-    if(memory->committed >= size)
+    if(memory->committed >= newSize)
     {
         return (memory->ptr);
     }
-    else if(memory->committed < memory->reserved)
+    else if(newSize <= memory->reserved)
     {
-        u32 commitSize = size - memory->committed;
+        u32 commitSize = newSize - memory->committed;
 
         oc_base_allocator* allocator = oc_base_allocator_default();
         oc_base_commit(allocator, memory->ptr + memory->committed, commitSize);
         memory->committed += commitSize;
+
+        OC_DEBUG_ASSERT((memory->committed & 0xfff) == 0, "Committed pointer is not aligned on page size");
+
         return (memory->ptr);
     }
     else
@@ -47,16 +55,21 @@ extern u32 oc_mem_grow(u64 size)
     oc_wasm_env* env = oc_runtime_get_env();
     oc_wasm_memory* memory = &env->wasmMemory;
 
-    size = oc_align_up_pow2(size, d_m3MemPageSize);
-    u64 totalSize = size + m3_GetMemorySize(env->m3Runtime);
+    u32 oldMemSize = m3_GetMemorySize(env->m3Runtime);
 
-    u32 addr = memory->committed;
+    //NOTE: compute total size and align on wasm memory page size
+    OC_ASSERT(oldMemSize <= UINT_MAX - size, "Memory size overflow");
+    u64 newMemSize = size + oldMemSize;
+
+    newMemSize = oc_align_up_pow2(newMemSize, d_m3MemPageSize);
 
     //NOTE: call resize memory, which will call our custom resize callback... this is a bit involved because
     //      wasm3 doesn't allow resizing the memory directly
-    M3Result res = ResizeMemory(env->m3Runtime, totalSize / d_m3MemPageSize);
+    M3Result res = ResizeMemory(env->m3Runtime, newMemSize / d_m3MemPageSize);
 
-    return (addr);
+    OC_DEBUG_ASSERT(oldMemSize + size <= m3_GetMemorySize(env->m3Runtime), "Memory returned by oc_mem_grow overflows wasm memory");
+
+    return (oldMemSize);
 }
 
 void* oc_wasm_address_to_ptr(oc_wasm_addr addr, oc_wasm_size size)
