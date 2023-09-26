@@ -436,32 +436,17 @@ fn stringType(comptime CharType: type) type {
     };
 }
 
-fn stringListEltType(comptime StringType: type) type {
-    return extern struct {
-        list_elt: ListElt,
-        string: StringType,
-    };
-}
-
-fn stringListType() type {
-    return extern struct {
-        list: List,
-        elt_count: u64,
-        len: u64,
-    };
-}
-
 pub const Str8 = stringType(u8);
 pub const Str16 = stringType(u16);
 pub const Str32 = stringType(u32);
 
-pub const Str8ListElt = stringListEltType(Str8);
-pub const Str16ListElt = stringListEltType(Str16);
-pub const Str32ListElt = stringListEltType(Str32);
+pub const Str8ListElt = Str8.StrListElt;
+pub const Str16ListElt = Str16.StrListElt;
+pub const Str32ListElt = Str32.StrListElt;
 
-pub const Str8List = stringListType(Str8);
-pub const Str16List = stringListType(Str8);
-pub const Str32List = stringListType(Str8);
+pub const Str8List = Str8.StrList;
+pub const Str16List = Str16.StrList;
+pub const Str32List = Str32.StrList;
 
 //------------------------------------------------------------------------------------------
 // [UTF8]
