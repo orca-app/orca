@@ -23,6 +23,7 @@
 #include "platform/platform_io.h"
 #include "platform/platform_io_dialog.h"
 #include "platform/platform_path.h"
+#include "platform/platform_subprocess.h"
 
 #if !defined(OC_PLATFORM_ORCA) || !(OC_PLATFORM_ORCA)
     #include "platform/platform_thread.h"

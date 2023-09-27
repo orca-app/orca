@@ -20,6 +20,7 @@
     #include "platform/win32_io.c"
     #include "platform/win32_thread.c"
     #include "platform/win32_platform.c"
+    #include "platform/win32_subprocess.c"
 //TODO
 #elif OC_PLATFORM_MACOS
     #include "platform/native_debug.c"
@@ -53,6 +54,7 @@
     #include "platform/orca_io_stubs.c"
     #include "platform/orca_platform.c"
     #include "platform/platform_path.c"
+    #include "platform/orca_subprocess.c"
 #else
     #error "Unsupported platform"
 #endif
@@ -98,6 +100,7 @@
 #elif OC_PLATFORM_ORCA
     #include "app/orca_app.c"
     #include "wasmbind/core_api_stubs.c"
+    #include "wasmbind/subprocess_api_stubs.c"
     #include "graphics/graphics_common.c"
     #include "graphics/orca_surface_stubs.c"
 #else

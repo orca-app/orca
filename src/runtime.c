@@ -15,6 +15,7 @@
 
 #include "runtime.h"
 #include "runtime_clipboard.c"
+#include "runtime_subprocess.c"
 #include "runtime_io.c"
 #include "runtime_memory.c"
 
@@ -216,6 +217,12 @@ void oc_bridge_request_quit(void)
     __orcaApp.quit = true;
 }
 
+// TODO: wait why do I have this bridge
+oc_wasm_str8 oc_bridge_run_cmd(oc_wasm_addr wasmArena, oc_wasm_str8 cmd)
+{
+    return oc_runtime_run_cmd(wasmArena, cmd);
+}
+
 typedef struct orca_surface_create_data
 {
     oc_window window;
@@ -403,6 +410,7 @@ void oc_wasm_env_init(oc_wasm_env* runtime)
 #include "wasmbind/io_api_bind_gen.c"
 #include "wasmbind/surface_api_bind_manual.c"
 #include "wasmbind/surface_api_bind_gen.c"
+#include "wasmbind/subprocess_api_bind_gen.c"
 
 i32 orca_runloop(void* user)
 {
@@ -461,6 +469,7 @@ i32 orca_runloop(void* user)
         err |= bindgen_link_clock_api(app->env.m3Module);
         err |= bindgen_link_io_api(app->env.m3Module);
         err |= bindgen_link_gles_api(app->env.m3Module);
+        err |= bindgen_link_subprocess_api(app->env.m3Module);
         err |= manual_link_gles_api(app->env.m3Module);
 
         if(err)

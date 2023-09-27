@@ -1,0 +1,74 @@
+[
+    {
+        "directory": "{{ORCAROOT}}",
+        "file": "src/orca.c",
+        "arguments": [
+            "src/orca.c",
+            "-g",
+            "-D",
+            "OC_DEBUG",
+            "-D",
+            "OC_LOG_COMPILE_DEBUG",
+            "-c",
+            "-std=c11",
+            "-I",
+            "src",
+            "-I",
+            "src/util",
+            "-I",
+            "src/platform",
+            "-I",
+            "src/ext",
+            "-I",
+            "src/ext/angle/include"
+        ]
+    },
+    {
+        "directory": "{{ORCAROOT}}",
+        "file": "src/orca.m",
+        "arguments": [
+            "-xobjective-c",
+            "src/orca.m",
+            "-g",
+            "-D",
+            "OC_DEBUG",
+            "-D",
+            "OC_LOG_COMPILE_DEBUG",
+            "-c",
+            "-I",
+            "src",
+            "-I",
+            "src/util",
+            "-I",
+            "src/platform",
+            "-I",
+            "src/ext",
+            "-I",
+            "src/ext/angle/include"
+        ]
+    },
+    {
+        "directory": "{{ORCAROOT}}",
+        "file": "src/runtime.c",
+        "arguments": [
+            "src/runtime.c",
+            "-g",
+            "-D",
+            "OC_DEBUG",
+            "-D",
+            "OC_LOG_COMPILE_DEBUG",
+            "-I",
+            "src",
+            "-I",
+            "src/ext",
+            "-I",
+            "src/ext/angle/include",
+            "-I",
+            "src/ext/wasm3/source",
+            "-Lbuild/bin",
+            "-Lbuild/lib",
+            "-lorca",
+            "-lwasm3"
+        ]
+    }
+]

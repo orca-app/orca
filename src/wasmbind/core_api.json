@@ -1,128 +1,326 @@
 [
-{
-	"name": "oc_bridge_log",
-	"cname": "oc_bridge_log",
-	"ret": {"name": "void", "tag": "v"},
-	"args": [ {"name": "level",
-			   "type": {"name": "oc_log_level", "tag": "i"}},
-			  {"name": "functionLen",
-			   "type": {"name": "int", "tag": "i"}},
-			  {"name": "function",
-			   "type": {"name": "char*", "tag": "p"},
-				"len": {"count": "functionLen"}},
-              {"name": "fileLen",
-			   "type": {"name": "int", "tag": "i"}},
-			  {"name": "file",
-			   "type": {"name": "char*", "tag": "p"},
-				"len": {"count": "fileLen"}},
-			  {"name": "line",
-			   "type": {"name": "int", "tag": "i"}},
-			  {"name": "msgLen",
-			   "type": {"name": "int", "tag": "i"}},
-			  {"name": "msg",
-			   "type": {"name": "char*", "tag": "p"},
-				"len": {"count": "msgLen"}}
-			]
-},
-{
-	"name": "oc_mem_grow",
-	"cname": "oc_mem_grow",
-	"ret": {"name": "int", "tag": "i"},
-	"args": [ {"name": "size",
-			   "type": {"name": "u64", "tag": "I"}}]
-},
-{
-	"name": "oc_bridge_assert_fail",
-	"cname": "oc_assert_fail",
-	"ret": {"name": "void", "tag": "v"},
-	"args": [ {"name": "file",
-			   "type": {"name": "const char*", "tag": "p"},
-				"len": {"proc": "orca_check_cstring", "args": ["file"]}},
-			  {"name": "function",
-			   "type": {"name": "const char*", "tag": "p"},
-				"len": {"proc": "orca_check_cstring", "args": ["function"]}},
-			  {"name": "line",
-			   "type": {"name": "int", "tag": "i"}},
-			  {"name": "src",
-			   "type": {"name": "const char*", "tag": "p"},
-				"len": {"proc": "orca_check_cstring", "args": ["src"]}},
-			  {"name": "note",
-			   "type": {"name": "const char*", "tag": "p"},
-				"len": {"proc": "orca_check_cstring", "args": ["note"]}}
-			]
-},
-{
-	"name": "oc_bridge_abort_ext",
-	"cname": "oc_abort_ext",
-	"ret": {"name": "void", "tag": "v"},
-	"args": [ {"name": "file",
-			   "type": {"name": "const char*", "tag": "p"},
-				"len": {"proc": "orca_check_cstring", "args": ["file"]}},
-			  {"name": "function",
-			   "type": {"name": "const char*", "tag": "p"},
-				"len": {"proc": "orca_check_cstring", "args": ["function"]}},
-			  {"name": "line",
-			   "type": {"name": "int", "tag": "i"}},
-			  {"name": "note",
-			   "type": {"name": "const char*", "tag": "p"},
-				"len": {"proc": "orca_check_cstring", "args": ["note"]}}
-			]
-},
-{
-	"name": "oc_get_host_platform",
-	"cname": "oc_get_host_platform",
-	"ret": {"name": "int", "tag": "i"},
-	"args": []
-},
-{
-	"name": "oc_request_quit",
-	"cname": "oc_bridge_request_quit",
-	"ret": {"name": "void", "tag": "v"},
-	"args": []
-},
-{
-	"name": "oc_window_set_title",
-	"cname": "oc_bridge_window_set_title",
-	"ret": {"name": "void", "tag": "v"},
-	"args": [
-		{ "name": "title",
-		  "type": {"name": "oc_str8", "cname": "oc_wasm_str8", "tag": "S"}}
-	]
-},
-{
-	"name": "oc_window_set_size",
-	"cname": "oc_bridge_window_set_size",
-	"ret": {"name": "void", "tag": "v"},
-	"args": [
-		{ "name": "size",
-		  "type": {"name": "oc_vec2", "tag": "S"}}
-	]
-},
-{
-    "name": "oc_scancode_to_keycode",
-    "cname": "oc_scancode_to_keycode",
-    "ret": { "name": "oc_key_code", "tag": "i"},
-    "args": [
-        { "name": "scanCode",
-          "type": {"name": "oc_scan_code", "tag": "i"}}
-    ]
-},
-{
-	"name": "oc_clipboard_get_string",
-	"cname": "oc_bridge_clipboard_get_string",
-	"ret": { "name": "oc_str8", "cname": "oc_wasm_str8", "tag": "S"},
-	"args": [
-        {"name": "arena",
-         "type": {"name": "oc_arena*", "cname": "i32", "tag": "i"}}
-     ]
-},
-{
-	"name": "oc_clipboard_set_string",
-	"cname": "oc_bridge_clipboard_set_string",
-	"ret": {"name": "void", "tag": "v"},
-	"args": [
-		{ "name": "value",
-		  "type": {"name": "oc_str8", "cname": "oc_wasm_str8", "tag": "S"}}
-	]
-}
+	{
+		"name": "oc_bridge_log",
+		"cname": "oc_bridge_log",
+		"ret": {
+			"name": "void",
+			"tag": "v"
+		},
+		"args": [
+			{
+				"name": "level",
+				"type": {
+					"name": "oc_log_level",
+					"tag": "i"
+				}
+			},
+			{
+				"name": "functionLen",
+				"type": {
+					"name": "int",
+					"tag": "i"
+				}
+			},
+			{
+				"name": "function",
+				"type": {
+					"name": "char*",
+					"tag": "p"
+				},
+				"len": {
+					"count": "functionLen"
+				}
+			},
+			{
+				"name": "fileLen",
+				"type": {
+					"name": "int",
+					"tag": "i"
+				}
+			},
+			{
+				"name": "file",
+				"type": {
+					"name": "char*",
+					"tag": "p"
+				},
+				"len": {
+					"count": "fileLen"
+				}
+			},
+			{
+				"name": "line",
+				"type": {
+					"name": "int",
+					"tag": "i"
+				}
+			},
+			{
+				"name": "msgLen",
+				"type": {
+					"name": "int",
+					"tag": "i"
+				}
+			},
+			{
+				"name": "msg",
+				"type": {
+					"name": "char*",
+					"tag": "p"
+				},
+				"len": {
+					"count": "msgLen"
+				}
+			}
+		]
+	},
+	{
+		"name": "oc_mem_grow",
+		"cname": "oc_mem_grow",
+		"ret": {
+			"name": "int",
+			"tag": "i"
+		},
+		"args": [
+			{
+				"name": "size",
+				"type": {
+					"name": "u64",
+					"tag": "I"
+				}
+			}
+		]
+	},
+	{
+		"name": "oc_bridge_assert_fail",
+		"cname": "oc_assert_fail",
+		"ret": {
+			"name": "void",
+			"tag": "v"
+		},
+		"args": [
+			{
+				"name": "file",
+				"type": {
+					"name": "const char*",
+					"tag": "p"
+				},
+				"len": {
+					"proc": "orca_check_cstring",
+					"args": [
+						"file"
+					]
+				}
+			},
+			{
+				"name": "function",
+				"type": {
+					"name": "const char*",
+					"tag": "p"
+				},
+				"len": {
+					"proc": "orca_check_cstring",
+					"args": [
+						"function"
+					]
+				}
+			},
+			{
+				"name": "line",
+				"type": {
+					"name": "int",
+					"tag": "i"
+				}
+			},
+			{
+				"name": "src",
+				"type": {
+					"name": "const char*",
+					"tag": "p"
+				},
+				"len": {
+					"proc": "orca_check_cstring",
+					"args": [
+						"src"
+					]
+				}
+			},
+			{
+				"name": "note",
+				"type": {
+					"name": "const char*",
+					"tag": "p"
+				},
+				"len": {
+					"proc": "orca_check_cstring",
+					"args": [
+						"note"
+					]
+				}
+			}
+		]
+	},
+	{
+		"name": "oc_bridge_abort_ext",
+		"cname": "oc_abort_ext",
+		"ret": {
+			"name": "void",
+			"tag": "v"
+		},
+		"args": [
+			{
+				"name": "file",
+				"type": {
+					"name": "const char*",
+					"tag": "p"
+				},
+				"len": {
+					"proc": "orca_check_cstring",
+					"args": [
+						"file"
+					]
+				}
+			},
+			{
+				"name": "function",
+				"type": {
+					"name": "const char*",
+					"tag": "p"
+				},
+				"len": {
+					"proc": "orca_check_cstring",
+					"args": [
+						"function"
+					]
+				}
+			},
+			{
+				"name": "line",
+				"type": {
+					"name": "int",
+					"tag": "i"
+				}
+			},
+			{
+				"name": "note",
+				"type": {
+					"name": "const char*",
+					"tag": "p"
+				},
+				"len": {
+					"proc": "orca_check_cstring",
+					"args": [
+						"note"
+					]
+				}
+			}
+		]
+	},
+	{
+		"name": "oc_get_host_platform",
+		"cname": "oc_get_host_platform",
+		"ret": {
+			"name": "int",
+			"tag": "i"
+		},
+		"args": []
+	},
+	{
+		"name": "oc_request_quit",
+		"cname": "oc_bridge_request_quit",
+		"ret": {
+			"name": "void",
+			"tag": "v"
+		},
+		"args": []
+	},
+	{
+		"name": "oc_window_set_title",
+		"cname": "oc_bridge_window_set_title",
+		"ret": {
+			"name": "void",
+			"tag": "v"
+		},
+		"args": [
+			{
+				"name": "title",
+				"type": {
+					"name": "oc_str8",
+					"cname": "oc_wasm_str8",
+					"tag": "S"
+				}
+			}
+		]
+	},
+	{
+		"name": "oc_window_set_size",
+		"cname": "oc_bridge_window_set_size",
+		"ret": {
+			"name": "void",
+			"tag": "v"
+		},
+		"args": [
+			{
+				"name": "size",
+				"type": {
+					"name": "oc_vec2",
+					"tag": "S"
+				}
+			}
+		]
+	},
+	{
+		"name": "oc_scancode_to_keycode",
+		"cname": "oc_scancode_to_keycode",
+		"ret": {
+			"name": "oc_key_code",
+			"tag": "i"
+		},
+		"args": [
+			{
+				"name": "scanCode",
+				"type": {
+					"name": "oc_scan_code",
+					"tag": "i"
+				}
+			}
+		]
+	},
+	{
+		"name": "oc_clipboard_get_string",
+		"cname": "oc_bridge_clipboard_get_string",
+		"ret": {
+			"name": "oc_str8",
+			"cname": "oc_wasm_str8",
+			"tag": "S"
+		},
+		"args": [
+			{
+				"name": "arena",
+				"type": {
+					"name": "oc_arena*",
+					"cname": "i32",
+					"tag": "i"
+				}
+			}
+		]
+	},
+	{
+		"name": "oc_clipboard_set_string",
+		"cname": "oc_bridge_clipboard_set_string",
+		"ret": {
+			"name": "void",
+			"tag": "v"
+		},
+		"args": [
+			{
+				"name": "value",
+				"type": {
+					"name": "oc_str8",
+					"cname": "oc_wasm_str8",
+					"tag": "S"
+				}
+			}
+		]
+	}
 ]

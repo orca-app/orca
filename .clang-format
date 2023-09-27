@@ -26,7 +26,6 @@ BraceWrapping:
   AfterNamespace: true
   AfterObjCDeclaration: true
   AfterStruct: true
-  AfterObjCDeclaration: true
   AfterUnion: true
   BeforeCatch: true
   BeforeElse: true

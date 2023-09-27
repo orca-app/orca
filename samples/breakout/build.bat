@@ -19,7 +19,7 @@ set STDLIB_DIR=%ORCA_DIR%\src\libc-shim
 set wasmFlags=--target=wasm32^
        --no-standard-libraries ^
        -mbulk-memory ^
-       -g -O2 ^
+       -g ^
        -D__ORCA__ ^
        -Wl,--no-entry ^
        -Wl,--export-dynamic ^

@@ -11,6 +11,7 @@
 #include "platform/platform_io_internal.h"
 #include "runtime_memory.h"
 #include "runtime_clipboard.h"
+#include "runtime_subprocess.h"
 
 #include "m3_compile.h"
 #include "m3_env.h"

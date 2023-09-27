@@ -1,7 +1,7 @@
 import glob
+import json
 import os
 import platform
-import re
 import urllib.request
 import shutil
 import subprocess
@@ -63,6 +63,8 @@ def build_runtime(args):
     ensure_programs()
     ensure_angle()
 
+    plonk_compile_commands()
+
     build_platform_layer("lib", args.release)
     build_wasm3(args.release)
     build_orca(args.release)
@@ -88,6 +90,14 @@ def clean(args):
     yeetdir("src/ext/angle")
     yeetdir("scripts/files")
     yeetdir("scripts/__pycache__")
+
+
+def plonk_compile_commands():
+    os.makedirs("build", exist_ok=True)
+    with open("scripts/compile_commands.template.json") as infile:
+        out = infile.read().replace(r'"{{ORCAROOT}}"', json.dumps(os.getcwd()))
+        with open("build/compile_commands.json", "w") as outfile:
+            outfile.write(out)
 
 
 def build_platform_layer(target, release):
@@ -344,7 +354,7 @@ def build_orca_mac(release):
         "-Isrc/ext/wasm3/source"
     ]
     libs = ["-Lbuild/bin", "-Lbuild/lib", "-lorca", "-lwasm3"]
-    debug_flags = ["-O2"] if release else ["-g", "-DOC_DEBUG -DOC_LOG_COMPILE_DEBUG"]
+    debug_flags = ["-O2"] if release else ["-g", "-DOC_DEBUG", "-DOC_LOG_COMPILE_DEBUG"]
     flags = [
         *debug_flags,
         "-mmacos-version-min=10.15.4"]
@@ -376,22 +386,18 @@ def gen_all_bindings():
         "src/wasmbind/gles_api.json",
         "src/graphics/orca_gl31.h"
     )
-
     bindgen("gles", "src/wasmbind/gles_api.json",
         wasm3_bindings="src/wasmbind/gles_api_bind_gen.c",
     )
-
     bindgen("core", "src/wasmbind/core_api.json",
         guest_stubs="src/wasmbind/core_api_stubs.c",
         wasm3_bindings="src/wasmbind/core_api_bind_gen.c",
     )
-
     bindgen("surface", "src/wasmbind/surface_api.json",
         guest_stubs="src/graphics/orca_surface_stubs.c",
         guest_include="graphics/graphics.h",
         wasm3_bindings="src/wasmbind/surface_api_bind_gen.c",
     )
-
     bindgen("clock", "src/wasmbind/clock_api.json",
         guest_include="platform/platform_clock.h",
         wasm3_bindings="src/wasmbind/clock_api_bind_gen.c",
@@ -399,6 +405,10 @@ def gen_all_bindings():
     bindgen("io", "src/wasmbind/io_api.json",
         guest_stubs="src/platform/orca_io_stubs.c",
         wasm3_bindings="src/wasmbind/io_api_bind_gen.c",
+    )
+    bindgen("subprocess", "src/wasmbind/subprocess_api.json",
+        guest_stubs="src/wasmbind/subprocess_api_stubs.c",
+        wasm3_bindings="src/wasmbind/subprocess_api_bind_gen.c",
     )
 
 

@@ -1,0 +1,29 @@
+[
+    {
+        "name": "oc_run_cmd",
+        "cname": "oc_bridge_run_cmd",
+        "ret": {
+            "name": "oc_str8",
+            "cname": "oc_wasm_str8",
+            "tag": "S"
+        },
+        "args": [
+            {
+                "name": "arena",
+                "type": {
+                    "name": "oc_arena*",
+                    "cname": "i32",
+                    "tag": "i"
+                }
+            },
+            {
+                "name": "cmd",
+                "type": {
+                    "name": "oc_str8",
+                    "cname": "oc_wasm_str8",
+                    "tag": "S"
+                }
+            }
+        ]
+    }
+]
