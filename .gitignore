@@ -33,6 +33,7 @@ src/graphics/orca_gl31.h
 .vscode/settings.json
 
 __pycache__
+/.cache
 scripts/files
 
 # explicitly abandon old ext dir
