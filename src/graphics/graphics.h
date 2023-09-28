@@ -110,8 +110,8 @@ ORCA_API void oc_surface_set_hidden(oc_surface surface, bool hidden);
 
 #else
 
-ORCA_API oc_surface oc_surface_canvas(); //DOC: creates a surface for use with the canvas API
-ORCA_API oc_surface oc_surface_gles();   //DOC: create a surface for use with GLES API
+ORCA_API oc_surface oc_surface_canvas(void); //DOC: creates a surface for use with the canvas API
+ORCA_API oc_surface oc_surface_gles(void);   //DOC: create a surface for use with GLES API
 
 #endif
 
