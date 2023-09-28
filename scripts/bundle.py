@@ -7,6 +7,7 @@ import subprocess
 from argparse import ArgumentParser
 
 from .log import *
+from .version import install_dir
 
 
 def attach_bundle_commands(subparsers):

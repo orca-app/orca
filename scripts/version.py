@@ -38,20 +38,13 @@ def is_orca_source():
     return use_source
 
 
-def actual_install_dir():
+def install_dir():
     # The path adjustment in here is technically sort of fragile because it depends
     # on the current location of this actual file. But oh well.
     if is_orca_source():
-        raise Exception("actual_install_dir should not be called when using the source version of the Orca tools")
-    return os.path.normpath(os.path.join(os.path.abspath(__file__), "../../.."))
-
-
-def src_dir():
-    # More fragile path adjustments! Yay!
-    if is_orca_source():
-        return os.path.normpath(os.path.join(os.path.abspath(__file__), "../../src"))
+        return os.path.normpath(os.path.join(os.path.abspath(__file__), "../.."))
     else:
-        return os.path.normpath(os.path.join(os.path.abspath(__file__), "../../../src"))
+        return os.path.normpath(os.path.join(os.path.abspath(__file__), "../../.."))
 
 
 def orca_version():
@@ -68,7 +61,7 @@ def orca_version():
             return f"dev-{version}"
     else:
         try:
-            with open(os.path.join(actual_install_dir(), ".orcaversion"), "r") as f:
+            with open(os.path.join(install_dir(), ".orcaversion"), "r") as f:
                 version = f.read().strip()
                 return version
         except FileNotFoundError:
@@ -92,4 +85,4 @@ def print_orca_version(args):
         sys.stderr.write(f"Source dir: {source_dir}\n")
     else:
         sys.stderr.write(f"Orca is running from a system installation.\n")
-        sys.stderr.write(f"Install dir: {actual_install_dir()}\n")
+        sys.stderr.write(f"Install dir: {install_dir()}\n")

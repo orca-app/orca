@@ -575,6 +575,8 @@ def install(args):
     dest = install_dir()
     bin_dir = os.path.join(dest, "bin")
     src_dir = os.path.join(dest, "src")
+    runtime_dir = os.path.join(dest, "build", "bin")
+    resources_dir = os.path.join(dest, "resources")
     version_file = os.path.join(dest, ".orcaversion")
 
     version = orca_version()
@@ -597,6 +599,8 @@ def install(args):
 
     yeetdir(bin_dir)
     yeetdir(src_dir)
+    yeetdir(runtime_dir)
+    yeetdir(resources_dir)
     yeetfile(version_file)
 
     # The MS Store version of Python does some really stupid stuff with AppData:
@@ -617,6 +621,8 @@ def install(args):
     shutil.copytree("scripts", os.path.join(bin_dir, "sys_scripts"))
     shutil.copy("orca", bin_dir)
     shutil.copytree("src", src_dir, dirs_exist_ok=True)
+    shutil.copytree(os.path.join("build", "bin"), runtime_dir, dirs_exist_ok=True)
+    shutil.copytree("resources", resources_dir, dirs_exist_ok=True)
     if platform.system() == "Windows":
         shutil.copy("orca.bat", bin_dir)
     with open(version_file, "w") as f:

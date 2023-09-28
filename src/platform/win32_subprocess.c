@@ -91,21 +91,22 @@ oc_str8 oc_run_cmd(oc_arena* arena, oc_str8 cmd)
     char* outputBuf = NULL;
     while(true)
     {
-        const int chunkSize = 1024;
-        char* chunk = oc_arena_push(arena, chunkSize);
-        if(outputBuf == NULL)
-        {
-            // Initialize output buffer to first allocated chunk
-            outputBuf = chunk;
-        }
-
+// TODO: apply smartness to this number
+#define CHUNK_SIZE 1024
+        char chunkBuf[CHUNK_SIZE];
         DWORD nRead;
-        BOOL success = ReadFile(childStdoutRd, chunk, chunkSize, &nRead, NULL);
+        BOOL success = ReadFile(childStdoutRd, chunkBuf, CHUNK_SIZE, &nRead, NULL);
         if(!success || nRead == 0)
         {
             break;
         }
 
+        char* dst = oc_arena_push(arena, nRead);
+        if(!outputBuf)
+        {
+            outputBuf = dst;
+        }
+        memcpy(dst, chunkBuf, nRead);
         outputLen += nRead;
     }
 

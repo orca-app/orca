@@ -7,7 +7,7 @@ import shutil
 from .checksum import dirsum
 from .log import *
 from .utils import yeetdir
-from .version import src_dir, orca_version
+from .version import orca_version, install_dir
 
 
 def attach_source_commands(subparsers):
@@ -15,12 +15,16 @@ def attach_source_commands(subparsers):
     source_sub = source_cmd.add_subparsers(required=True, title="commands")
 
     cflags_cmd = source_sub.add_parser("cflags", help="Get help setting up a C or C++ compiler to compile the Orca source.")
-    cflags_cmd.add_argument("srcdir", nargs="?", default=src_dir(), help="the directory containing the Orca source code (defaults to system installation)")
+    cflags_cmd.add_argument("srcdir", nargs="?", default=path_in_install("src"), help="the directory containing the Orca source code (defaults to system installation)")
     cflags_cmd.set_defaults(func=shellish(cflags))
 
     vendor_cmd = source_sub.add_parser("vendor", help="Copy the Orca source code into your project.")
     vendor_cmd.add_argument("dir", type=str, help="the directory into which the Orca source code will be copied")
     vendor_cmd.set_defaults(func=shellish(vendor))
+
+
+def path_in_install(path):
+    return os.path.join(install_dir(), path)
 
 
 def vendor(args):
@@ -41,12 +45,19 @@ def vendor(args):
                 exit(1)
 
     yeetdir(args.dir)
-    shutil.copytree(src_dir(), args.dir)
+
+    vendor_src = os.path.join(args.dir, "src")
+    vendor_runtime = os.path.join(args.dir, "build", "bin")
+    vendor_resources = os.path.join(args.dir, "resources")
+    shutil.copytree(path_in_install("src"), vendor_src)
+    shutil.copytree(path_in_install("build/bin"), vendor_runtime)
+    shutil.copytree(path_in_install("resources"), vendor_resources)
     with open(vendor_file_path(args.dir), "w") as f:
         json.dump({
             "version": orca_version(),
             "checksum": vendor_checksum(args.dir),
         }, f, indent=2)
+
     print(f"Version {orca_version()} of the Orca source code has been copied to {args.dir}.")
 
 
