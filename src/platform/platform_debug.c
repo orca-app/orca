@@ -50,7 +50,7 @@ void oc_log_ext(oc_log_level level,
     {
         va_list ap;
         va_start(ap, fmt);
-        platform_log_push(__logConfig.output, level, file, function, line, fmt, ap);
+        platform_log_push(__logConfig.output, level, function, file, line, fmt, ap);
         va_end(ap);
     }
 }

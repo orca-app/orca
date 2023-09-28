@@ -356,8 +356,8 @@ void log_entry_ui(oc_debug_overlay* overlay, log_entry* entry)
 
             oc_str8 loc = oc_str8_pushf(scratch.arena,
                                         "%.*s() in %.*s:%i:",
-                                        oc_str8_ip(entry->file),
                                         oc_str8_ip(entry->function),
+                                        oc_str8_ip(entry->file),
                                         entry->line);
             oc_ui_label_str8(loc);
         }
