@@ -13,27 +13,27 @@
 #if OC_PLATFORM_ORCA
 enum
 {
-    OC_ARENA_DEFAULT_RESERVE_SIZE = 1 << 20
+    OC_ARENA_DEFAULT_RESERVE_SIZE = 1 << 20,
 };
 #else
 enum
 {
-    OC_ARENA_DEFAULT_RESERVE_SIZE = 1 << 30
+    OC_ARENA_DEFAULT_RESERVE_SIZE = 1 << 30,
 };
 #endif
 
 enum
 {
-    OC_ARENA_COMMIT_ALIGNMENT = 4 << 10
+    OC_ARENA_COMMIT_ALIGNMENT = 4 << 10,
 };
 
 //--------------------------------------------------------------------------------
 //NOTE(martin): memory arena
 //--------------------------------------------------------------------------------
 
-oc_arena_chunk* oc_arena_chunk_alloc(oc_arena* arena, u64 reserveSize)
+oc_arena_chunk* oc_arena_chunk_alloc(oc_arena* arena, u64 chunkMinSize)
 {
-    reserveSize = oc_align_up_pow2(reserveSize, OC_ARENA_COMMIT_ALIGNMENT);
+    u64 reserveSize = oc_align_up_pow2(chunkMinSize + sizeof(oc_arena_chunk), OC_ARENA_COMMIT_ALIGNMENT);
     u64 commitSize = oc_align_up_pow2(sizeof(oc_arena_chunk), OC_ARENA_COMMIT_ALIGNMENT);
 
     char* mem = oc_base_reserve(arena->base, reserveSize);
@@ -78,17 +78,24 @@ void oc_arena_cleanup(oc_arena* arena)
 
 void* oc_arena_push(oc_arena* arena, u64 size)
 {
+    return oc_arena_push_aligned(arena, size, 1);
+}
+
+void* oc_arena_push_aligned(oc_arena* arena, u64 size, u32 alignment)
+{
     oc_arena_chunk* chunk = arena->currentChunk;
     OC_ASSERT(chunk);
 
-    u64 nextOffset = chunk->offset + size;
+    u64 alignedOffset = oc_align_up_pow2(chunk->offset, alignment);
+    u64 nextOffset = alignedOffset + size;
     u64 lastCap = chunk->cap;
     while(nextOffset > chunk->cap)
     {
         chunk = oc_list_next_entry(arena->chunks, chunk, oc_arena_chunk, listElt);
         if(chunk)
         {
-            nextOffset = chunk->offset + size;
+            alignedOffset = oc_align_up_pow2(chunk->offset, alignment);
+            nextOffset = alignedOffset + size;
             lastCap = chunk->cap;
         }
         else
@@ -98,10 +105,11 @@ void* oc_arena_push(oc_arena* arena, u64 size)
     }
     if(!chunk)
     {
-        u64 reserveSize = oc_max(lastCap * 1.5, size);
+        u64 chunkMinSize = oc_max(lastCap * 1.5, size + alignment);
 
-        chunk = oc_arena_chunk_alloc(arena, reserveSize);
-        nextOffset = chunk->offset + size;
+        chunk = oc_arena_chunk_alloc(arena, chunkMinSize);
+        alignedOffset = oc_align_up_pow2(chunk->offset, alignment);
+        nextOffset = alignedOffset + size;
     }
     OC_ASSERT(nextOffset <= chunk->cap);
 
@@ -115,8 +123,8 @@ void* oc_arena_push(oc_arena* arena, u64 size)
         oc_base_commit(arena->base, chunk->ptr + chunk->committed, commitSize);
         chunk->committed = nextCommitted;
     }
-    char* p = chunk->ptr + chunk->offset;
-    chunk->offset += size;
+    char* p = chunk->ptr + alignedOffset;
+    chunk->offset = nextOffset;
 
     return (p);
 }

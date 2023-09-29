@@ -55,13 +55,14 @@ ORCA_API void oc_arena_init_with_options(oc_arena* arena, oc_arena_options* opti
 ORCA_API void oc_arena_cleanup(oc_arena* arena);
 
 ORCA_API void* oc_arena_push(oc_arena* arena, u64 size);
+ORCA_API void* oc_arena_push_aligned(oc_arena* arena, u64 size, u32 alignment);
 ORCA_API void oc_arena_clear(oc_arena* arena);
 
 ORCA_API oc_arena_scope oc_arena_scope_begin(oc_arena* arena);
 ORCA_API void oc_arena_scope_end(oc_arena_scope scope);
 
-#define oc_arena_push_type(arena, type) ((type*)oc_arena_push(arena, sizeof(type)))
-#define oc_arena_push_array(arena, type, count) ((type*)oc_arena_push(arena, sizeof(type) * (count)))
+#define oc_arena_push_type(arena, type) ((type*)oc_arena_push_aligned(arena, sizeof(type), _Alignof(type)))
+#define oc_arena_push_array(arena, type, count) ((type*)oc_arena_push_aligned(arena, sizeof(type) * (count), _Alignof(type)))
 
 //--------------------------------------------------------------------------------
 //NOTE(martin): memory pool
