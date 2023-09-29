@@ -439,7 +439,7 @@ i32 orca_runloop(void* user)
     fread(app->env.wasmBytecode.ptr, 1, app->env.wasmBytecode.len, file);
     fclose(file);
 
-    u32 stackSize = 65536;
+    u32 stackSize = 65536 * 20; // MOAR STACK
     app->env.m3Env = m3_NewEnvironment();
 
     app->env.m3Runtime = m3_NewRuntime(app->env.m3Env, stackSize, NULL);
