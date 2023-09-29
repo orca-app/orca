@@ -3,6 +3,7 @@ const oc = @import("orca");
 
 const Vec2 = oc.Vec2;
 const Mat2x3 = oc.Mat2x3;
+const Str8 = oc.Str8;
 
 var surface: oc.Surface = undefined;
 var canvas: oc.Canvas = undefined;
@@ -27,7 +28,7 @@ export fn oc_on_init() void {
     oc.assert(oc.Canvas.nil().isNil() == true, "nil canvas should be nil", .{}, @src());
     oc.assert(canvas.isNil() == false, "created canvas should not be nil", .{}, @src());
 
-    var ranges = oc.UnicodeRange.range(&[_]oc.UnicodeRange.Enum{
+    const ranges = oc.UnicodeRange.range(&[_]oc.UnicodeRange.Enum{
         .BasicLatin,
         .C1ControlsAndLatin1Supplement,
         .LatinExtendedA,
@@ -37,7 +38,7 @@ export fn oc_on_init() void {
     font = oc.Font.createFromPath("/zig.ttf", &ranges);
     oc.assert(font.isNil() == false, "created font should not be nil", .{}, @src());
 
-    orca_image = oc.Image.createFromPath(surface, oc.Str8.fromSlice("/orca_jumping.jpg"), false);
+    orca_image = oc.Image.createFromPath(surface, Str8.fromSlice("/orca_jumping.jpg"), false);
     oc.assert(orca_image.isNil() == false, "created image should not be nil", .{}, @src());
 }
 
@@ -129,14 +130,28 @@ export fn oc_on_frame_refresh() void {
     }
 
     {
-        const str = oc.Str8.fromSlice("Hello from Zig!");
+        var scratch_scope = oc.Arena.scratchBegin();
+        defer scratch_scope.end();
+
+        var scratch: *oc.Arena = scratch_scope.arena;
+
+        var str1: Str8 = Str8.collate(scratch, &[_][]const u8{ "Hello", "from", "Zig!" }, ">> ", " ", " <<") catch |e| fatal(e, @src());
+
+        var str2_list = oc.Str8List.init();
+        var tmp = Str8.fromSlice("All");
+        str2_list.push(tmp, scratch) catch |e| fatal(e, @src());
+        str2_list.pushSlice("your", scratch) catch |e| fatal(e, @src());
+        str2_list.pushSlice("base!!", scratch) catch |e| fatal(e, @src());
+        var str2: Str8 = str2_list.collate(scratch, Str8.fromSlice("<< "), Str8.fromSlice("-"), Str8.fromSlice(" >>")) catch |e| fatal(e, @src());
+
         const font_size = 18;
-        const text_rect = font.textMetrics(font_size, str).ink;
+        const text_metrics = font.textMetrics(font_size, str1);
+        const text_rect = text_metrics.ink;
 
         const center_x = frame_size.x / 2;
         const text_begin_x = center_x - text_rect.Flat.w / 2;
 
-        Mat2x3.push(Mat2x3.translate(text_begin_x, 150));
+        Mat2x3.push(Mat2x3.translate(text_begin_x, 100));
         defer Mat2x3.pop();
 
         oc.setColorRgba(1.0, 0.05, 0.05, 1.0);
@@ -144,7 +159,30 @@ export fn oc_on_frame_refresh() void {
         oc.setFont(font);
         oc.setFontSize(font_size);
         oc.moveTo(0, 0);
-        oc.textOutlines(str);
+        oc.textOutlines(str1);
+        oc.moveTo(0, 35);
+        oc.textOutlines(str2);
+        oc.fill();
+    }
+
+    {
+        var scratch_scope = oc.Arena.scratchBegin();
+        defer scratch_scope.end();
+
+        var scratch: *oc.Arena = scratch_scope.arena;
+
+        var separators = oc.Str8List.init();
+        separators.pushSlice(" ", scratch) catch |e| fatal(e, @src());
+        separators.pushSlice("|", scratch) catch |e| fatal(e, @src());
+        separators.pushSlice("-", scratch) catch |e| fatal(e, @src());
+
+        const big_string = Str8.fromSlice("This is |a one-word string that  |  has no      spaces in it");
+        var strings: oc.Str8List = big_string.split(scratch, separators) catch |e| fatal(e, @src());
+        var collated = strings.join(scratch) catch |e| fatal(e, @src());
+
+        oc.setFontSize(12);
+        oc.moveTo(0, 170);
+        oc.textOutlines(collated);
         oc.fill();
     }
 
@@ -170,4 +208,9 @@ export fn oc_on_frame_refresh() void {
 
 export fn oc_on_terminate() void {
     oc.log.info("byebye {}", .{counter}, @src());
+}
+
+fn fatal(err: anyerror, source: std.builtin.SourceLocation) noreturn {
+    oc.abort("Caught fatal {}", .{err}, source);
+    unreachable;
 }

@@ -1,4 +1,5 @@
 const std = @import("std");
+const AllocError = std.mem.Allocator.Error;
 
 //------------------------------------------------------------------------------------------
 // [PLATFORM]
@@ -23,14 +24,21 @@ pub const log = struct {
         Info,
     };
 
-    pub const Output = opaque {};
+    pub const Output = opaque {
+        extern var OC_LOG_DEFAULT_OUTPUT: ?*Output;
+        extern fn oc_log_set_output(output: *Output) void;
 
-    extern var OC_LOG_DEFAULT_OUTPUT: ?*Output;
+        pub inline fn default() ?*Output {
+            return OC_LOG_DEFAULT_OUTPUT;
+        }
+
+        const set = oc_log_set_output;
+    };
+
     extern fn oc_log_set_level(level: Level) void;
-    extern fn oc_log_set_output(output: *Output) void;
     extern fn oc_log_ext(level: Level, function: [*]const u8, file: [*]const u8, line: c_int, fmt: [*]const u8, ...) void;
 
-    const DEFAULT_OUTPUT = OC_LOG_DEFAULT_OUTPUT;
+    const setLevel = oc_log_set_level;
 
     pub fn info(comptime fmt: []const u8, args: anytype, source: std.builtin.SourceLocation) void {
         ext(Level.Info, fmt, args, source);
@@ -66,7 +74,7 @@ pub fn assert(condition: bool, comptime fmt: []const u8, args: anytype, source: 
         _ = std.fmt.bufPrintZ(&format_buf, fmt, args) catch 0;
         var line: c_int = @intCast(source.line);
 
-        oc_assert_fail(source.file.ptr, source.fn_name.ptr, line, "", format_buf[0..].ptr);
+        oc_assert_fail(source.file.ptr, source.fn_name.ptr, line, "assertion failed", format_buf[0..].ptr);
     }
 }
 
@@ -85,6 +93,28 @@ pub fn abort(comptime fmt: []const u8, args: anytype, source: std.builtin.Source
 pub const ListElt = extern struct {
     prev: ?*ListElt,
     next: ?*ListElt,
+
+    pub fn entry(self: *ListElt, comptime ParentType: type, comptime field_name_in_parent: []const u8) *ParentType {
+        return @fieldParentPtr(ParentType, field_name_in_parent, self);
+    }
+
+    pub fn nextEntry(comptime ParentType: type, comptime field_name_in_parent: []const u8, elt_parent: *ParentType) ?*ParentType {
+        const elt: ?*ListElt = @field(elt_parent, field_name_in_parent);
+        if (elt.next) |next| {
+            return next.entry(ParentType, field_name_in_parent);
+        }
+
+        return null;
+    }
+
+    pub fn prevEntry(comptime ParentType: type, comptime field_name_in_parent: []const u8, elt_parent: *ParentType) ?*ParentType {
+        const elt: ?*ListElt = @field(elt_parent, field_name_in_parent);
+        if (elt.prev) |prev| {
+            return prev.entry(ParentType, field_name_in_parent);
+        }
+
+        return null;
+    }
 };
 
 pub const List = extern struct {
@@ -110,22 +140,72 @@ pub const List = extern struct {
         return self.last;
     }
 
-    pub fn insert(self: *List, after_elt: *ListElt, elt: *ListElt) void {
+    pub fn firstEntry(self: *List, comptime EltParentType: type, comptime field_name_in_parent: []const u8) ?*EltParentType {
+        if (self.first) |elt| {
+            return elt.entry(EltParentType, field_name_in_parent);
+        }
+        return null;
+    }
+
+    pub fn lastEntry(self: *List, comptime EltParentType: type, comptime field_name_in_parent: []const u8) ?*EltParentType {
+        if (self.last) |elt| {
+            return elt.entry(EltParentType, field_name_in_parent);
+        }
+        return null;
+    }
+
+    const IterDirection = enum {
+        Forward,
+        Backward,
+    };
+
+    pub fn makeIter(comptime direction: IterDirection, comptime EltParentType: type, comptime field_name_in_parent: []const u8) type {
+        return struct {
+            const Self = @This();
+
+            item: ?*ListElt,
+
+            pub fn next(self: *Self) ?*EltParentType {
+                if (self.item) |elt| {
+                    var entry: *EltParentType = elt.entry(EltParentType, field_name_in_parent);
+                    self.item = if (direction == .Forward) elt.next else elt.prev;
+                    return entry;
+                }
+                return null;
+            }
+        };
+    }
+
+    pub fn iter(self: *const List, comptime EltParentType: type, comptime field_name_in_parent: []const u8) makeIter(.Forward, EltParentType, field_name_in_parent) {
+        const Iter = makeIter(.Forward, EltParentType, field_name_in_parent);
+        return Iter{
+            .item = self.first,
+        };
+    }
+
+    pub fn iterReverse(self: *const List, comptime EltParentType: type, comptime field_name_in_parent: []const u8) makeIter(.Backward, EltParentType, field_name_in_parent) {
+        const Iter = makeIter(.Backward, EltParentType, field_name_in_parent);
+        return Iter{
+            .item = self.last,
+        };
+    }
+
+    pub fn insert(self: *List, after_elt: ?*ListElt, elt: *ListElt) void {
         elt.prev = after_elt;
         elt.next = after_elt.next;
-        if (after_elt.next != null) {
-            after_elt.next.prev = elt;
+        if (after_elt.next) |elt_next| {
+            after_elt.next.prev = elt_next;
         } else {
             self.last = elt;
         }
         after_elt.next = elt;
     }
 
-    pub fn insertBefore(self: *List, before_elt: *ListElt, elt: *ListElt) void {
+    pub fn insertBefore(self: *List, before_elt: ?*ListElt, elt: *ListElt) void {
         elt.next = before_elt;
         elt.prev = before_elt.prev;
-        if (before_elt.prev != null) {
-            before_elt.prev.next = elt;
+        if (before_elt.prev) |elt_prev| {
+            before_elt.prev.next = elt_prev;
         } else {
             self.first = elt;
         }
@@ -153,19 +233,25 @@ pub const List = extern struct {
     pub fn push(self: *List, elt: *ListElt) void {
         elt.next = self.first;
         elt.prev = null;
-        if (self.first != null) {
-            self.first.prev = elt;
+        if (self.first) |elt_first| {
+            elt_first.prev = elt;
         } else {
             self.last = elt;
         }
         self.first = elt;
     }
 
-    pub fn pop(self: *List) ListElt {
-        var elt: *ListElt = begin(self);
-        if (elt != end(self)) {
-            remove(self, elt);
-            return elt;
+    pub fn pop(self: *List) ?*ListElt {
+        if (self.begin()) |elt_begin| {
+            remove(self, elt_begin);
+            return elt_begin;
+        }
+        return null;
+    }
+
+    pub fn popEntry(self: *List, comptime EltParentType: type, comptime field_name_in_parent: []const u8) ?*EltParentType {
+        if (self.pop()) |elt| {
+            return elt.entry(EltParentType, field_name_in_parent);
         }
         return null;
     }
@@ -173,19 +259,18 @@ pub const List = extern struct {
     pub fn pushBack(self: *List, elt: *ListElt) void {
         elt.prev = self.last;
         elt.next = null;
-        if (self.last != null) {
-            self.last.next = elt;
+        if (self.last) |last_elt| {
+            last_elt.next = elt;
         } else {
             self.first = elt;
         }
         self.last = elt;
     }
 
-    pub fn popBack(self: *List) ListElt {
-        var elt: *ListElt = last(self);
-        if (elt != end(self)) {
-            remove(self, elt);
-            return elt;
+    pub fn popBack(self: *List) ?*ListElt {
+        if (self.last()) |last_elt| {
+            remove(self, last_elt);
+            return last_elt;
         }
         return null;
     }
@@ -220,6 +305,20 @@ pub const ArenaChunk = extern struct {
     cap: u64,
 };
 
+pub const ArenaScope = extern struct {
+    arena: *Arena,
+    chunk: *ArenaChunk,
+    offset: u64,
+
+    extern fn oc_arena_scope_end(scope: ArenaScope) void;
+    pub const end = oc_arena_scope_end;
+};
+
+pub const ArenaOptions = extern struct {
+    base: ?*BaseAllocator,
+    reserve: u64,
+};
+
 pub const Arena = extern struct {
     base: ?*BaseAllocator,
     chunks: List,
@@ -229,11 +328,10 @@ pub const Arena = extern struct {
     extern fn oc_arena_init_with_options(arena: *Arena, options: *ArenaOptions) void;
     extern fn oc_arena_cleanup(arena: *Arena) void;
     extern fn oc_arena_push(arena: *Arena, size: u64) ?[*]u8;
+    extern fn oc_arena_push_aligned(arena: *Arena, size: u64, alignment: u32) ?[*]u8;
     extern fn oc_arena_clear(arena: *Arena) void;
     extern fn oc_arena_scope_begin(arena: *Arena) ArenaScope;
-    extern fn oc_arena_scope_end(scope: ArenaScope) void;
 
-    extern fn oc_scratch() *Arena;
     extern fn oc_scratch_next(used: *Arena) *Arena;
     extern fn oc_scratch_begin() ArenaScope;
     extern fn oc_scratch_begin_next(used: *Arena) ArenaScope;
@@ -249,50 +347,38 @@ pub const Arena = extern struct {
         return arena;
     }
     pub const deinit = oc_arena_cleanup;
-    pub fn push(arena: *Arena, size: u64) ?[]u8 {
-        if (oc_arena_push(arena, size)) |mem| {
-            return mem[0..size];
-        }
-        return null;
-    }
+
     pub const clear = oc_arena_clear;
     pub const scopeBegin = oc_arena_scope_begin;
-    pub const scopeEnd = oc_arena_scope_end;
 
-    pub fn pushType(arena: *Arena, comptime T: type) ?*T {
-        if (arena.push(@sizeOf(T))) |mem| {
-            std.debug.assert(mem.len >= @sizeOf(T));
-            return @alignCast(@ptrCast(mem.ptr));
-        }
-
-        return null;
+    pub fn push(arena: *Arena, size: usize) AllocError![]u8 {
+        return arena.pushAligned(size, 1);
     }
 
-    pub fn pushArray(arena: *Arena, comptime T: type, count: u64) ?[]T {
-        if (arena.push(@sizeOf(T) * count)) |mem| {
-            std.debug.assert(mem.len >= @sizeOf(T) * count);
-            var items: [*]T = @alignCast(@ptrCast(mem.ptr));
-            return items[0..count];
+    pub fn pushAligned(arena: *Arena, size: usize, alignment: u32) AllocError![]u8 {
+        if (oc_arena_push_aligned(arena, size, alignment)) |mem| {
+            return mem[0..size];
         }
-        return null;
+        return AllocError.OutOfMemory;
     }
 
-    pub const scratch = oc_scratch;
+    pub fn pushType(arena: *Arena, comptime T: type) AllocError!*T {
+        var mem: []u8 = try arena.pushAligned(@sizeOf(T), @alignOf(T));
+        assert(mem.len >= @sizeOf(T), "need at least {} bytes, but got {}", .{ mem.len, @sizeOf(T) }, @src());
+        var p: *T = @alignCast(@ptrCast(mem.ptr));
+        return p;
+    }
+
+    pub fn pushArray(arena: *Arena, comptime T: type, count: usize) AllocError![]T {
+        var mem: []u8 = try arena.pushAligned(@sizeOf(T) * count, @alignOf(T));
+        std.debug.assert(mem.len >= @sizeOf(T) * count);
+        var items: [*]T = @alignCast(@ptrCast(mem.ptr));
+        return items[0..count];
+    }
+
     pub const scratchNext = oc_scratch_next;
     pub const scratchBegin = oc_scratch_begin;
     pub const scratchBeginNext = oc_scratch_begin_next;
-    pub const scratchEnd = scopeEnd;
-};
-
-pub const ArenaScope = extern struct {
-    arena: ?*Arena,
-    chunk: ?*ArenaChunk,
-    offset: u64,
-};
-
-pub const ArenaOptions = extern struct {
-    base: ?*BaseAllocator,
-    reserve: u64,
 };
 
 //------------------------------------------------------------------------------------------
@@ -319,25 +405,82 @@ fn stringType(comptime CharType: type) type {
                 };
             }
 
-            pub fn push(list: *StrList, str: *Str, arena: *Arena) void {
-                var elt: *StrListElt = arena.pushType(ListElt);
+            pub fn push(list: *StrList, str: Str, arena: *Arena) AllocError!void {
+                var elt: *StrListElt = try arena.pushType(StrListElt);
                 elt.string = str;
-                list.append(elt.list_elt);
+                list.list.pushBack(&elt.list_elt);
                 list.elt_count += 1;
                 list.len += str.len;
             }
 
-            pub fn pushf(list: *StrList, arena: *Arena, comptime format: []const u8, args: anytype) Str {
-                var str = Str.pushf(arena, format, args);
-                list.push(str, arena);
+            pub fn pushSlice(list: *StrList, str: []const CharType, arena: *Arena) AllocError!void {
+                try list.push(Str.fromSlice(str), arena);
             }
 
-            // TODO
-            // pub fn join(list: *const StrList, arena: *Arena) Str;
-            //     const empty = Str{ .ptr = null, .len = 0 };
-            //     return list.collate(arena, empty, empty, empty));
-            // }
-            // pub fn collate(list: *StrList, arena: *Arena, prefix: Str, separator: Str, postfix: Str) Str;
+            pub fn pushf(list: *StrList, arena: *Arena, comptime format: []const u8, args: anytype) AllocError!Str {
+                var str = try Str.pushf(arena, format, args);
+                try list.list.push(str, arena);
+            }
+
+            pub fn iter(list: *const StrList) List.makeIter(.Forward, StrListElt, "list_elt") {
+                return list.list.iter(StrListElt, "list_elt");
+            }
+
+            pub fn iterReverse(list: *const StrList) List.makeIter(.Backward, StrListElt, "list_elt") {
+                return list.list.iterReverse(StrListElt, "list_elt");
+            }
+
+            pub fn find(list: *const StrList, needle: *const Str) ?*StrListElt {
+                return list.findSlice(needle.slice());
+            }
+
+            pub fn findSlice(list: *const StrList, needle: []const CharType) ?*StrListElt {
+                var iterator = list.iter();
+                while (iterator.next()) |elt_string| {
+                    if (std.mem.eql(CharType, elt_string.string.slice(), needle)) {
+                        return elt_string;
+                    }
+                }
+                return null;
+            }
+
+            pub fn contains(list: *const StrList, needle: *const Str) bool {
+                return list.findSlice(needle.slice()) != null;
+            }
+
+            pub fn containsSlice(list: *const StrList, needle: []const CharType) bool {
+                return list.findSlice(needle) != null;
+            }
+
+            pub fn join(list: *const StrList, arena: *Arena) AllocError!Str {
+                const empty = Str{ .ptr = null, .len = 0 };
+                return try list.collate(arena, empty, empty, empty);
+            }
+
+            pub fn collate(list: *const StrList, arena: *Arena, prefix: Str, separator: Str, postfix: Str) AllocError!Str {
+                var str: Str = undefined;
+                str.len = @intCast(prefix.len + list.len + (list.elt_count - 1) * separator.len + postfix.len);
+                str.ptr = (try arena.pushArray(CharType, str.len + 1)).ptr;
+                @memcpy(str.ptr.?[0..prefix.len], prefix.slice());
+
+                var offset = prefix.len;
+
+                var iterator = list.iter();
+                var index: usize = 0;
+                while (iterator.next()) |list_str| {
+                    if (index > 0) {
+                        @memcpy(str.ptr.?[offset .. offset + separator.len], separator.slice());
+                        offset += separator.len;
+                    }
+                    @memcpy(str.ptr.?[offset .. offset + list_str.string.len], list_str.string.slice());
+                    offset += list_str.string.len;
+                    index += 1;
+                }
+
+                @memcpy(str.ptr.?[offset .. offset + postfix.len], postfix.slice());
+                str.ptr.?[str.len] = 0;
+                return str;
+            }
         };
 
         const Str = @This();
@@ -408,8 +551,84 @@ fn stringType(comptime CharType: type) type {
             return str;
         }
 
-        // TODO
-        // pub fn split() void;
+        pub fn join(arena: *Arena, strings: []const []const CharType) AllocError!Str {
+            const empty = &[_]CharType{};
+            return collate(arena, strings, empty, empty, empty);
+        }
+
+        pub fn collate(
+            arena: *Arena,
+            strings: []const []const CharType,
+            prefix: []const CharType,
+            separator: []const CharType,
+            postfix: []const CharType,
+        ) AllocError!Str {
+            var strings_total_len: usize = 0;
+            for (strings) |s| {
+                strings_total_len += s.len;
+            }
+
+            var str: Str = undefined;
+            str.len = prefix.len + strings_total_len + (strings.len - 1) * separator.len + postfix.len;
+            str.ptr = (try arena.pushArray(CharType, str.len + 1)).ptr;
+            @memcpy(str.ptr.?[0..prefix.len], prefix);
+
+            var offset = prefix.len;
+
+            for (strings, 0..) |list_str, index| {
+                if (index > 0) {
+                    @memcpy(str.ptr.?[offset .. offset + separator.len], separator);
+                    offset += separator.len;
+                }
+                @memcpy(str.ptr.?[offset .. offset + list_str.len], list_str);
+                offset += list_str.len;
+            }
+
+            @memcpy(str.ptr.?[offset .. offset + postfix.len], postfix);
+            offset += postfix.len;
+            str.ptr.?[str.len] = 0;
+            return str;
+        }
+
+        pub fn split(str: *const Str, arena: *Arena, separators: StrList) AllocError!StrList {
+            var list = StrList.init();
+            if (str.ptr == null) {
+                return list;
+            }
+
+            const ptr = str.ptr.?;
+
+            var offset: usize = 0;
+            var offset_substring: usize = 0;
+
+            while (offset < str.len) {
+                const haystack = ptr[offset..str.len];
+                var separator_iter = separators.iter();
+                while (separator_iter.next()) |list_sep| {
+                    if (std.mem.startsWith(CharType, haystack, list_sep.string.slice()) and list_sep.string.len > 0) {
+                        var substr = ptr[offset_substring..offset];
+                        if (separators.containsSlice(substr)) {
+                            substr = ptr[offset..offset];
+                        }
+                        try list.pushSlice(substr, arena);
+
+                        // -1 / +1 to account for offset += 1 at the end of the loop
+                        offset += list_sep.string.len - 1;
+                        offset_substring = offset + 1;
+                        break;
+                    }
+                }
+
+                offset += 1;
+            }
+
+            if (offset_substring != offset) {
+                var substr = ptr[offset_substring..offset];
+                try list.pushSlice(substr, arena);
+            }
+
+            return list;
+        }
 
         pub fn cmp(a: *const Str, b: *const Str) std.math.Order {
             if (CharType != u8) {
