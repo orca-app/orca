@@ -363,8 +363,21 @@ pub const Arena = extern struct {
         return items[0..count];
     }
 
+    pub fn pushStr(arena: *Arena, str: []u8) AllocError![]u8 {
+        var result = try arena.pushArray(u8, str.len + 1);
+        @memcpy(result[0..str.len], str);
+        result[str.len] = 0;
+        return result;
+    }
+
     pub const scratchBegin = oc_scratch_begin;
     pub const scratchBeginNext = oc_scratch_begin_next;
+};
+
+pub const Pool = extern struct {
+    arena: Arena,
+    free_list: List,
+    block_size: u64,
 };
 
 //------------------------------------------------------------------------------------------
@@ -1194,6 +1207,36 @@ const MouseCursor = enum(c_uint) {
 extern fn oc_set_cursor(cursor: MouseCursor) void;
 pub const setCursor = oc_set_cursor;
 
+pub const EventType = enum(c_uint) {
+    none,
+    keyboard_mods,
+    keyboard_key,
+    keyboard_char,
+    mouse_button,
+    mouse_move,
+    mouse_wheel,
+    mouse_enter,
+    mouse_leave,
+    clipboard_paste,
+    window_resize,
+    window_move,
+    window_focus,
+    window_unfocus,
+    window_hide,
+    window_show,
+    window_close,
+    pathdrop,
+    frame,
+    quit,
+};
+
+pub const KeyAction = enum(c_uint) {
+    NoAction,
+    Press,
+    Release,
+    Repeat,
+};
+
 pub const ScanCode = enum(c_uint) {
     Unknown = 0,
     Space = 32,
@@ -1440,7 +1483,18 @@ pub const KeyCode = enum(c_uint) {
     RightAlt = 346,
     RightSuper = 347,
     Menu = 348,
-    Count = 349,
+};
+
+pub const key_code_count: usize = 349;
+
+pub const KeymodFlags = packed struct(c_uint) {
+    none: bool,
+    alt: bool,
+    shift: bool,
+    ctrl: bool,
+    cmd: bool,
+    main_modified: bool, // cmd on Mac, ctrl on Win32
+    _: u26,
 };
 
 pub const MouseButton = enum(c_uint) {
@@ -1451,9 +1505,110 @@ pub const MouseButton = enum(c_uint) {
     Ext2 = 0x04,
 };
 
+pub const mouse_button_count: usize = 5;
+
+/// Keyboard and mouse buttons input
+pub const KeyEvent = extern struct {
+    action: KeyAction,
+    scan_code: ScanCode,
+    key_code: KeyCode,
+    button: MouseButton,
+    mods: KeymodFlags,
+    click_count: u8,
+};
+
+/// Character input
+pub const CharEvent = extern struct {
+    codepoint: Utf32,
+    sequence: [8]u8,
+    sequence_len: u8,
+};
+
+/// Mouse move/scroll
+pub const MouseEvent = extern struct {
+    x: f32,
+    y: f32,
+    delta_x: f32,
+    delta_y: f32,
+    mods: KeymodFlags,
+};
+
+/// Window resize / move
+pub const MoveEvent = extern struct {
+    frame: Rect,
+    content: Rect,
+};
+
+pub const CEvent = extern struct {
+    window: Window,
+    type: EventType,
+    data: extern union {
+        key: KeyEvent,
+        character: CharEvent,
+        mouse: MouseEvent,
+        move: MoveEvent,
+        paths: Str8List,
+    },
+
+    pub fn event(self: *CEvent) Event {
+        return .{ .window = self.window, .event = switch (self.type) {
+            .none => .none,
+            .keyboard_mods => .{ .keyboard_mods = self.data.key },
+            .keyboard_key => .{ .keyboard_key = self.data.key },
+            .keyboard_char => .{ .keyboard_char = self.data.character },
+            .mouse_button => .{ .mouse_button = self.data.key },
+            .mouse_move => .{ .mouse_move = self.data.mouse },
+            .mouse_wheel => .{ .mouse_wheel = self.data.mouse },
+            .mouse_enter => .{ .mouse_enter = self.data.mouse },
+            .mouse_leave => .{ .mouse_leave = self.data.mouse },
+            .clipboard_paste => .clipboard_paste,
+            .window_resize => .{ .window_resize = self.data.move },
+            .window_move => .{ .window_move = self.data.move },
+            .window_focus => .window_focus,
+            .window_unfocus => .window_unfocus,
+            .window_hide => .window_hide,
+            .window_show => .window_show,
+            .window_close => .window_close,
+            .pathdrop => .{ .pathdrop = self.data.paths },
+            .frame => .frame,
+            .quit => .quit,
+        } };
+    }
+};
+
+pub const Event = struct {
+    window: Window,
+    event: union(EventType) {
+        none,
+        keyboard_mods: KeyEvent,
+        keyboard_key: KeyEvent,
+        keyboard_char: CharEvent,
+        mouse_button: KeyEvent,
+        mouse_move: MouseEvent,
+        mouse_wheel: MouseEvent,
+        mouse_enter: MouseEvent,
+        mouse_leave: MouseEvent,
+        clipboard_paste,
+        window_resize: MoveEvent,
+        window_move: MoveEvent,
+        window_focus,
+        window_unfocus,
+        window_hide,
+        window_show,
+        window_close,
+        pathdrop: Str8List,
+        frame,
+        quit,
+    },
+};
+
 //------------------------------------------------------------------------------------------
 // [APP] windows
 //------------------------------------------------------------------------------------------
+
+pub const Window = extern struct {
+    h: u64,
+};
 
 extern fn oc_window_set_title(title: Str8) void;
 extern fn oc_window_set_size(size: Vec2) void;
@@ -1677,21 +1832,26 @@ pub const Image = extern struct {
     pub const drawRegion = oc_image_draw_region;
 };
 
-pub const Rect = extern union {
-    Flat: extern struct {
-        x: f32,
-        y: f32,
-        w: f32,
-        h: f32,
-    },
-    Pairs: extern struct {
-        xy: Vec2,
-        wh: Vec2,
-    },
-    Array: [4]f32,
+pub const Rect = extern struct {
+    x: f32,
+    y: f32,
+    w: f32,
+    h: f32,
 
     pub fn xywh(x: f32, y: f32, w: f32, h: f32) Rect {
-        return .{ .Flat = .{ .x = x, .y = y, .w = w, .h = h } };
+        return .{ .x = x, .y = y, .w = w, .h = h };
+    }
+
+    pub fn xyArray(rect: *Rect) *[2]f32 {
+        return @ptrCast(rect);
+    }
+
+    pub fn whArray(rect: *Rect) *[2]f32 {
+        return @ptrCast(&rect.w);
+    }
+
+    pub fn array(rect: *Rect) *[4]f32 {
+        return @ptrCast(rect);
     }
 };
 
@@ -1700,6 +1860,10 @@ pub const Color = extern struct {
     g: f32 = 1.0,
     b: f32 = 1.0,
     a: f32 = 1.0,
+
+    pub fn rgba(r: f32, g: f32, b: f32, a: f32) Color {
+        return .{ .r = r, .g = g, .b = b, .a = a };
+    }
 
     pub fn toArray(color: *Color) *[4]f32 {
         return @ptrCast(color);
@@ -1846,6 +2010,1314 @@ pub const Canvas = extern struct {
 };
 
 //------------------------------------------------------------------------------------------
+// [UI]: input state
+//------------------------------------------------------------------------------------------
+
+pub const KeyState = extern struct {
+    last_update: u64,
+    transition_count: u32,
+    repeat_count: u32,
+    down: bool,
+    sys_clicked: bool,
+    sys_double_clicked: bool,
+    sys_triple_clicked: bool,
+};
+
+pub const KeyboardState = extern struct {
+    keys: [key_code_count]KeyState,
+    mods: KeymodFlags,
+};
+
+pub const MouseButtonsState = extern struct {
+    left: KeyState,
+    right: KeyState,
+    middle: KeyState,
+    ext1: KeyState,
+    ext2: KeyState,
+
+    pub fn array(self: *MouseButtonsState) [mouse_button_count]KeyState {
+        return .{
+            self.left,
+            self.right,
+            self.middle,
+            self.ext1,
+            self.ext2,
+        };
+    }
+};
+
+pub const MouseState = extern struct {
+    last_update: u64,
+    pos_valid: bool,
+    pos: Vec2,
+    delta: Vec2,
+    wheel: Vec2,
+    buttons: MouseButtonsState,
+};
+
+pub const TextState = extern struct {
+    last_update: u64,
+    backing: [64]Utf32,
+    codepoints: Str32,
+};
+
+pub const ClipboardState = extern struct {
+    last_update: u64,
+    pasted_text: Str8,
+};
+
+pub const InputState = extern struct {
+    frame_counter: u64,
+    keyboard: KeyboardState,
+    mouse: MouseState,
+    text: TextState,
+    clipboard: ClipboardState,
+
+    extern fn oc_input_process_event(arena: *Arena, state: *InputState, event: *CEvent) void;
+    extern fn oc_input_next_frame(state: *InputState) void;
+
+    extern fn oc_key_down(state: *InputState, key: KeyCode) bool;
+    extern fn oc_key_press_count(state: *InputState, key: KeyCode) u8;
+    extern fn oc_key_release_count(state: *InputState, key: KeyCode) u8;
+    extern fn oc_key_repeat_count(state: *InputState, key: KeyCode) u8;
+
+    extern fn oc_key_down_scancode(state: *InputState, key: ScanCode) bool;
+    extern fn oc_key_press_count_scancode(state: *InputState, key: ScanCode) u8;
+    extern fn oc_key_release_count_scancode(state: *InputState, key: ScanCode) u8;
+    extern fn oc_key_repeat_count_scancode(state: *InputState, key: ScanCode) u8;
+
+    extern fn oc_mouse_down(state: *InputState, button: MouseButton) bool;
+    extern fn oc_mouse_pressed(state: *InputState, button: MouseButton) u8;
+    extern fn oc_mouse_released(state: *InputState, button: MouseButton) u8;
+    extern fn oc_mouse_clicked(state: *InputState, button: MouseButton) bool;
+    extern fn oc_mouse_double_clicked(state: *InputState, button: MouseButton) bool;
+    extern fn oc_mouse_position(state: *InputState) Vec2;
+    extern fn oc_mouse_delta(state: *InputState) Vec2;
+    extern fn oc_mouse_wheel(state: *InputState) Vec2;
+
+    extern fn oc_input_text_utf32(arena: *Arena, state: *InputState) Str32;
+    extern fn oc_input_text_utf8(arena: *Arena, state: *InputState) Str8;
+
+    extern fn oc_clipboard_pasted(state: *InputState) bool;
+    extern fn oc_clipboard_pasted_text(state: *InputState) Str8;
+
+    extern fn oc_key_mods(state: *InputState) KeymodFlags;
+
+    pub fn processEvent(self: *InputState, arena: *Arena, event: *CEvent) void {
+        oc_input_process_event(arena, self, event);
+    }
+
+    pub const nextFrame = oc_input_next_frame;
+
+    pub const keyDown = oc_key_down;
+    pub const keyPressCount = oc_key_press_count;
+    pub const keyReleaseCount = oc_key_release_count;
+    pub const keyRepeatCount = oc_key_repeat_count;
+
+    pub const keyDownScancode = oc_key_down_scancode;
+    pub const keyPressCountScancode = oc_key_press_count_scancode;
+    pub const keyReleaseCountScancode = oc_key_release_count_scancode;
+    pub const keyRepeatCountScancode = oc_key_repeat_count_scancode;
+
+    pub const mouseDown = oc_mouse_down;
+    pub const mousePressed = oc_mouse_pressed;
+    pub const mouseReleased = oc_mouse_released;
+    pub const mouseClicked = oc_mouse_clicked;
+    pub const mouseDoubleClicked = oc_mouse_double_clicked;
+    pub const mousePosition = oc_mouse_position;
+    pub const mouseDelta = oc_mouse_delta;
+    pub const mouseWheel = oc_mouse_wheel;
+
+    pub const inputTextUtf32 = oc_input_text_utf32;
+    pub const inputTextUtf8 = oc_input_text_utf8;
+
+    pub const clipboardPasted = oc_clipboard_pasted;
+
+    pub fn clipboardPastedText(self: *InputState) []u8 {
+        return oc_clipboard_pasted_text(self).slice();
+    }
+
+    pub const keyMods = oc_key_mods;
+};
+
+//------------------------------------------------------------------------------------------
+// [UI]: structs
+//------------------------------------------------------------------------------------------
+
+pub const UiKey = extern struct {
+    hash: u64,
+};
+
+pub const UiAxis = enum(c_uint) { X, Y };
+
+pub const UiLayoutMargin = struct {
+    x: ?f32 = null,
+    y: ?f32 = null,
+
+    pub fn array(self: *UiLayoutMargin) *[2]?f32 {
+        return @ptrCast(self);
+    }
+};
+
+pub const UiAlignment = enum(c_uint) { Start, End, Center };
+
+pub const UiLayoutAlignment = struct {
+    x: ?UiAlignment = null,
+    y: ?UiAlignment = null,
+
+    pub fn array(self: *UiLayoutAlignment) *[2]?UiAlignment {
+        return @ptrCast(self);
+    }
+};
+
+pub const UiLayout = struct {
+    axis: ?UiAxis = null,
+    spacing: ?f32 = null,
+    margin: UiLayoutMargin = .{},
+    alignment: UiLayoutAlignment = .{},
+};
+
+pub const UiSizeKind = enum(c_uint) {
+    Text,
+    Pixels,
+    Children,
+    Parent,
+    ParentMinusPixels,
+};
+
+pub const UiSizeCustom = struct {
+    kind: UiSizeKind = .Text,
+    value: f32 = 0,
+    relax: f32 = 0,
+    min_size: f32 = 0,
+};
+
+pub const UiSize = union(enum) {
+    text,
+    pixels: f32,
+    children,
+    fill_parent,
+    parent: f32,
+    parent_minus_pixels: f32,
+    custom: UiSizeCustom,
+};
+
+pub const UiBoxSize = struct {
+    width: ?UiSize = null,
+    height: ?UiSize = null,
+
+    pub fn array(self: *UiBoxSize) *[2]?UiSize {
+        return @ptrCast(self);
+    }
+};
+
+pub const UiBoxFloating = struct {
+    x: ?bool = null,
+    y: ?bool = null,
+
+    pub fn array(self: *UiBoxFloating) *[2]?bool {
+        return @ptrCast(self);
+    }
+};
+
+pub const FloatTarget = struct {
+    x: ?f32 = null,
+    y: ?f32 = null,
+
+    pub fn array(self: *FloatTarget) *[2]f32 {
+        return @ptrCast(self);
+    }
+};
+
+//NOTE: flags for axis-dependent properties (e.g. FloatX/Y) need to be consecutive bits
+//      in order to play well with axis agnostic functions. Using explicit bit shifts here
+//      so that arithmetic on flags is possible
+pub const UiAnimationMask = enum(c_uint) {
+    None = 0,
+    SizeWidth = 1 << 1,
+    SizeHeight = 1 << 2,
+    LayoutAxis = 1 << 3,
+    LayoutAlignX = 1 << 4,
+    LayoutAlignY = 1 << 5,
+    LayoutSpacing = 1 << 6,
+    LayoutMarginX = 1 << 7,
+    LayoutMarginY = 1 << 8,
+    FloatX = 1 << 9,
+    FloatY = 1 << 10,
+    Color = 1 << 11,
+    BgColor = 1 << 12,
+    BorderColor = 1 << 13,
+    BorderSize = 1 << 14,
+    Roundness = 1 << 15,
+
+    FontSize = 1 << 17,
+};
+
+pub const UiStyle = struct {
+    size: UiBoxSize = .{},
+    layout: UiLayout = .{},
+    floating: UiBoxFloating = .{},
+    float_target: FloatTarget = .{},
+    color: ?Color = null,
+    bg_color: ?Color = null,
+    border_color: ?Color = null,
+    font: ?Font = null,
+    font_size: ?f32 = null,
+    border_size: ?f32 = null,
+    roundness: ?f32 = null,
+    animation_time: ?f32 = null,
+    animation_mask: UiAnimationMask = .None,
+};
+
+pub const UiPalette = extern struct {
+    red0: Color,
+    red1: Color,
+    red2: Color,
+    red3: Color,
+    red4: Color,
+    red5: Color,
+    red6: Color,
+    red7: Color,
+    red8: Color,
+    red9: Color,
+    orange0: Color,
+    orange1: Color,
+    orange2: Color,
+    orange3: Color,
+    orange4: Color,
+    orange5: Color,
+    orange6: Color,
+    orange7: Color,
+    orange8: Color,
+    orange9: Color,
+    amber0: Color,
+    amber1: Color,
+    amber2: Color,
+    amber3: Color,
+    amber4: Color,
+    amber5: Color,
+    amber6: Color,
+    amber7: Color,
+    amber8: Color,
+    amber9: Color,
+    yellow0: Color,
+    yellow1: Color,
+    yellow2: Color,
+    yellow3: Color,
+    yellow4: Color,
+    yellow5: Color,
+    yellow6: Color,
+    yellow7: Color,
+    yellow8: Color,
+    yellow9: Color,
+    lime0: Color,
+    lime1: Color,
+    lime2: Color,
+    lime3: Color,
+    lime4: Color,
+    lime5: Color,
+    lime6: Color,
+    lime7: Color,
+    lime8: Color,
+    lime9: Color,
+    light_green0: Color,
+    light_green1: Color,
+    light_green2: Color,
+    light_green3: Color,
+    light_green4: Color,
+    light_green5: Color,
+    light_green6: Color,
+    light_green7: Color,
+    light_green8: Color,
+    light_green9: Color,
+    green0: Color,
+    green1: Color,
+    green2: Color,
+    green3: Color,
+    green4: Color,
+    green5: Color,
+    green6: Color,
+    green7: Color,
+    green8: Color,
+    green9: Color,
+    teal0: Color,
+    teal1: Color,
+    teal2: Color,
+    teal3: Color,
+    teal4: Color,
+    teal5: Color,
+    teal6: Color,
+    teal7: Color,
+    teal8: Color,
+    teal9: Color,
+    cyan0: Color,
+    cyan1: Color,
+    cyan2: Color,
+    cyan3: Color,
+    cyan4: Color,
+    cyan5: Color,
+    cyan6: Color,
+    cyan7: Color,
+    cyan8: Color,
+    cyan9: Color,
+    light_blue0: Color,
+    light_blue1: Color,
+    light_blue2: Color,
+    light_blue3: Color,
+    light_blue4: Color,
+    light_blue5: Color,
+    light_blue6: Color,
+    light_blue7: Color,
+    light_blue8: Color,
+    light_blue9: Color,
+    blue0: Color,
+    blue1: Color,
+    blue2: Color,
+    blue3: Color,
+    blue4: Color,
+    blue5: Color,
+    blue6: Color,
+    blue7: Color,
+    blue8: Color,
+    blue9: Color,
+    indigo0: Color,
+    indigo1: Color,
+    indigo2: Color,
+    indigo3: Color,
+    indigo4: Color,
+    indigo5: Color,
+    indigo6: Color,
+    indigo7: Color,
+    indigo8: Color,
+    indigo9: Color,
+    violet0: Color,
+    violet1: Color,
+    violet2: Color,
+    violet3: Color,
+    violet4: Color,
+    violet5: Color,
+    violet6: Color,
+    violet7: Color,
+    violet8: Color,
+    violet9: Color,
+    purple0: Color,
+    purple1: Color,
+    purple2: Color,
+    purple3: Color,
+    purple4: Color,
+    purple5: Color,
+    purple6: Color,
+    purple7: Color,
+    purple8: Color,
+    purple9: Color,
+    pink0: Color,
+    pink1: Color,
+    pink2: Color,
+    pink3: Color,
+    pink4: Color,
+    pink5: Color,
+    pink6: Color,
+    pink7: Color,
+    pink8: Color,
+    pink9: Color,
+    grey0: Color,
+    grey1: Color,
+    grey2: Color,
+    grey3: Color,
+    grey4: Color,
+    grey5: Color,
+    grey6: Color,
+    grey7: Color,
+    grey8: Color,
+    grey9: Color,
+    black: Color,
+    white: Color,
+};
+
+/// Visualized in doc/UIColors.md
+pub const ui_dark_palette = @extern(*UiPalette, .{ .name = "OC_UI_DARK_PALETTE" });
+
+/// Visualized in doc/UIColors.md
+pub const ui_light_palette = @extern(*UiPalette, .{ .name = "OC_UI_LIGHT_PALETTE" });
+
+pub const UiTheme = extern struct {
+    white: Color,
+    primary: Color,
+    primary_hover: Color,
+    primary_active: Color,
+    border: Color,
+    fill0: Color,
+    fill1: Color,
+    fill2: Color,
+    bg0: Color,
+    bg1: Color,
+    bg2: Color,
+    bg3: Color,
+    bg4: Color,
+    text0: Color,
+    text1: Color,
+    text2: Color,
+    text3: Color,
+    slider_thumb_border: Color,
+    elevated_border: Color,
+
+    roundness_small: f32,
+    roundness_medium: f32,
+    roundness_large: f32,
+
+    palette: *UiPalette,
+};
+
+pub const ui_dark_theme = @extern(*UiTheme, .{ .name = "OC_UI_DARK_THEME" });
+pub const ui_light_theme = @extern(*UiTheme, .{ .name = "OC_UI_LIGHT_THEME" });
+
+pub const UiTag = extern struct {
+    hash: u64,
+};
+
+pub const UiSelectorKind = enum(c_uint) {
+    any,
+    owner,
+    text,
+    tag,
+    status,
+    key,
+};
+
+pub const UiStatus = packed struct(u8) {
+    _: u1 = 0,
+
+    hover: bool = false,
+    hot: bool = false,
+    active: bool = false,
+    dragging: bool = false,
+
+    __: u3 = 0,
+
+    pub fn empty(self: UiStatus) bool {
+        return !self.hover and !self.hot and !self.active and !self.dragging;
+    }
+};
+
+pub const UiSelectorOp = enum(c_uint) {
+    Descendant,
+    And,
+};
+
+pub const UiSelector = struct {
+    op: UiSelectorOp = .Descendant,
+    sel: union(UiSelectorKind) {
+        any,
+        owner,
+        text: []u8,
+        key: UiKey,
+        tag: UiTag,
+        status: UiStatus,
+    },
+};
+
+pub const UiPattern = extern struct {
+    l: List,
+
+    extern fn oc_ui_pattern_push(arena: *Arena, pattern: *UiPattern, selector: UiSelectorInternal) void;
+    extern fn oc_ui_pattern_all() UiPattern;
+    extern fn oc_ui_pattern_owner() UiPattern;
+
+    pub fn init() UiPattern {
+        return .{ .l = List.init() };
+    }
+
+    /// Push the selector onto frame arena and insert it into the pattern's linked list.
+    /// Underlying UiSelector implementation has a ListElt within it that is not exposed to the Zig interface
+    /// in order to simplify the conversion.
+    ///
+    /// WARN: You can use a pattern in multiple rules, but be aware that a pattern is referencing
+    ///       an underlying list of selectors, hence pushing to a pattern also modifies rules in
+    ///       which the pattern was previously used!
+    pub fn push(self: *UiPattern, arena: *Arena, selector: UiSelector) void {
+        oc_ui_pattern_push(arena, self, uiConvertSelector(selector));
+    }
+
+    pub const all = oc_ui_pattern_all;
+    pub const owner = oc_ui_pattern_owner;
+};
+
+pub const UiStyleRule = struct {
+    box_elt: ListElt,
+    build_elt: ListElt,
+    tmp_elt: ListElt,
+
+    owner: *UiBox,
+    pattern: UiPattern,
+    style: *UiStyle,
+};
+
+pub const UiSig = extern struct {
+    box: *UiBox,
+
+    mouse: Vec2,
+    delta: Vec2,
+    wheel: Vec2,
+
+    pressed: bool,
+    released: bool,
+    clicked: bool,
+    doubleClicked: bool,
+    tripleClicked: bool,
+    rightPressed: bool,
+
+    dragging: bool,
+    hovering: bool,
+
+    pasted: bool,
+};
+
+pub const UiBoxDrawProc = *fn (box: *UiBox, data: ?*anyopaque) callconv(.C) void;
+
+pub const UiOverflowAllow = packed struct {
+    x: bool = false,
+    y: bool = false,
+
+    pub fn array(self: *UiOverflowAllow) *[2]bool {
+        return @ptrCast(self);
+    }
+};
+
+pub const UiFlags = packed struct(c_uint) {
+    clickable: bool = false, // 0
+    scroll_wheel_x: bool = false, // 1
+    scroll_wheel_y: bool = false, // 2
+    block_mouse: bool = false, // 3
+    hot_animation: bool = false, // 4
+    active_animation: bool = false, // 5
+    overflow_allow: UiOverflowAllow = .{}, // 6-7
+    clip: bool = false, // 8
+    draw_background: bool = false, // 9
+    draw_foreground: bool = false, // 10
+    draw_border: bool = false, // 11
+    draw_text: bool = false, // 12
+    draw_proc: bool = false, // 13
+    _: u2 = 0, // 14-15
+
+    overlay: bool = false, // 16
+    __: u15 = 0,
+};
+
+pub const UiBox = extern struct {
+    // hierarchy
+    list_elt: ListElt,
+    children: List,
+    parent: ?*UiBox,
+
+    overlay_elt: ListElt,
+
+    // keying and caching
+    bucket_elt: ListElt,
+    key: UiKey,
+    frame_counter: u64,
+
+    // builder-provided info
+    flags: UiFlags,
+    string: Str8,
+    tags: List,
+
+    draw_proc: UiBoxDrawProc,
+    draw_data: *anyopaque,
+
+    // styling
+    before_rules: List,
+    after_rules: List,
+
+    target_style: ?*UiStyle,
+    style: UiStyleInternal,
+    z: u32,
+
+    float_pos: Vec2,
+    children_sum: [2]f32,
+    spacing: [2]f32,
+    min_size: [2]f32,
+    rect: Rect,
+
+    // signals
+    sig: ?*UiSig,
+
+    // stateful behavior
+    fresh: bool,
+    closed: bool,
+    parent_closed: bool,
+    dragging: bool,
+    hot: bool,
+    active: bool,
+    scroll: Vec2,
+    pressed_mouse: Vec2,
+
+    // animation data
+    hot_transition: f32,
+    active_transition: f32,
+};
+
+pub const UiInputText = extern struct {
+    count: u8,
+    codepoints: [64]Utf32,
+};
+
+const UiCSize = extern struct {
+    kind: UiSizeKind,
+    value: f32 = 0,
+    relax: f32 = 0,
+    min_size: f32 = 0,
+
+    fn fromUiSize(ui_size: UiSize) UiCSize {
+        return switch (ui_size) {
+            .text => .{ .kind = .Text },
+            .pixels => |pixels| .{ .kind = .Pixels, .value = pixels },
+            .children => .{ .kind = .Children },
+            .fill_parent => .{ .kind = .Parent, .value = 1 },
+            .parent => |fraction| .{ .kind = .Parent, .value = fraction },
+            .parent_minus_pixels => |pixels| .{ .kind = .ParentMinusPixels, .value = pixels },
+            .custom => |custom| .{
+                .kind = custom.kind,
+                .value = custom.value,
+                .relax = custom.relax,
+                .min_size = custom.min_size,
+            },
+        };
+    }
+};
+
+pub const UiStackElt = extern struct {
+    parent: ?*UiStackElt,
+    elt: extern union {
+        box: *UiBox,
+        size: UiCSize,
+        clip: Rect,
+    },
+};
+
+pub const UiTagElt = extern struct {
+    list_elt: ListElt,
+    tag: UiTag,
+};
+
+pub const UiEditMove = enum(c_uint) {
+    none,
+    char,
+    word,
+    line,
+};
+
+pub const UiContext = extern struct {
+    is_init: bool,
+
+    input: InputState,
+
+    frame_counter: u64,
+    frame_time: f64,
+    last_frame_duration: f64,
+
+    frame_arena: Arena,
+    box_pool: Pool,
+    box_map: [1024]List,
+
+    root: *UiBox,
+    overlay: *UiBox,
+    overlay_list: List,
+    box_stack: *UiStackElt,
+    clip_stack: *UiStackElt,
+
+    next_box_before_rules: List,
+    next_box_after_rules: List,
+    next_box_tags: List,
+
+    z: u32,
+    hovered: ?*UiBox,
+
+    focus: ?*UiBox,
+    edit_cursor: i32,
+    edit_mark: i32,
+    edit_first_displayed_char: i32,
+    edit_cursor_blink_start: f64,
+    edit_selection_mode: UiEditMove,
+    edit_word_selection_initial_cursor: i32,
+    edit_word_selection_initial_mark: i32,
+
+    theme: *UiTheme,
+
+    extern fn oc_ui_init(context: *UiContext) void;
+    pub const init = oc_ui_init;
+};
+
+const UiLayoutAlignmentInternal = extern struct {
+    x: UiAlignment,
+    y: UiAlignment,
+};
+
+const UiLayoutMarginInternal = extern struct {
+    x: f32,
+    y: f32,
+};
+
+const UiLayoutInternal = extern struct {
+    axis: UiAxis,
+    spacing: f32,
+    margin: UiLayoutMarginInternal,
+    alignment: UiLayoutAlignmentInternal,
+};
+
+const UiBoxSizeInternal = extern struct {
+    width: UiCSize,
+    height: UiCSize,
+};
+
+const UiBoxFloatingInternal = extern struct {
+    x: bool,
+    y: bool,
+};
+
+const UiFloatTargetInternal = extern struct {
+    x: f32,
+    y: f32,
+};
+
+const UiStyleInternal = extern struct {
+    size: UiBoxSizeInternal,
+    layout: UiLayoutInternal,
+    floating: UiBoxFloatingInternal,
+    float_target: UiFloatTargetInternal,
+    color: Color,
+    bg_color: Color,
+    border_color: Color,
+    font: Font,
+    font_size: f32,
+    border_size: f32,
+    roundness: f32,
+    animation_time: f32,
+    animation_mask: UiAnimationMask,
+};
+
+const UiStyleMaskInternal = packed struct(u64) {
+    _: u1 = 0,
+    size_width: bool = false,
+    size_height: bool = false,
+    layout_axis: bool = false,
+    layout_align_x: bool = false,
+    layout_align_y: bool = false,
+    layout_spacing: bool = false,
+    layout_margin_x: bool = false,
+    layout_margin_y: bool = false,
+    float_x: bool = false,
+    float_y: bool = false,
+    color: bool = false,
+    bg_color: bool = false,
+    border_color: bool = false,
+    border_size: bool = false,
+    roundness: bool = false,
+    font: bool = false,
+    font_size: bool = false,
+    animation_time: bool = false,
+    animation_mask: bool = false,
+    __: u44 = 0,
+};
+
+//------------------------------------------------------------------------------------------
+// [UI]: context initialization and frame cycle
+//------------------------------------------------------------------------------------------
+
+extern fn oc_ui_get_context() *UiContext;
+extern fn oc_ui_set_context(context: *UiContext) void;
+
+extern fn oc_ui_process_event(event: *CEvent) void;
+extern fn oc_ui_begin_frame(size: Vec2, default_style: *UiStyleInternal, mask: UiStyleMaskInternal) void;
+extern fn oc_ui_end_frame() void;
+extern fn oc_ui_draw() void;
+extern fn oc_ui_set_theme(theme: *UiTheme) void;
+
+pub const uiGetContext = oc_ui_get_context;
+pub const uiSetContext = oc_ui_set_context;
+pub const uiProcessCEvent = oc_ui_process_event;
+
+pub const uiEndFrame = oc_ui_end_frame;
+pub const uiDraw = oc_ui_draw;
+pub const uiSetTheme = oc_ui_set_theme;
+
+pub fn uiBeginFrame(size: Vec2, default_style: *UiStyle) void {
+    var default_style_and_mask = uiConvertStyle(default_style);
+    oc_ui_begin_frame(size, &default_style_and_mask.style, default_style_and_mask.mask);
+}
+
+const UiStyleAndMaskInternal = struct {
+    style: UiStyleInternal,
+    mask: UiStyleMaskInternal,
+};
+
+fn uiConvertStyle(style: *const UiStyle) UiStyleAndMaskInternal {
+    var style_internal: UiStyleInternal = std.mem.zeroes(UiStyleInternal);
+    var mask: UiStyleMaskInternal = .{};
+    if (style.size.width) |width| {
+        style_internal.size.width = UiCSize.fromUiSize(width);
+        mask.size_width = true;
+    }
+    if (style.size.height) |height| {
+        style_internal.size.height = UiCSize.fromUiSize(height);
+        mask.size_height = true;
+    }
+    if (style.layout.axis) |axis| {
+        style_internal.layout.axis = axis;
+        mask.layout_axis = true;
+    }
+    if (style.layout.alignment.x) |x| {
+        style_internal.layout.alignment.x = x;
+        mask.layout_align_x = true;
+    }
+    if (style.layout.alignment.y) |y| {
+        style_internal.layout.alignment.y = y;
+        mask.layout_align_y = true;
+    }
+    if (style.layout.spacing) |spacing| {
+        style_internal.layout.spacing = spacing;
+        mask.layout_spacing = true;
+    }
+    if (style.layout.margin.x) |x| {
+        style_internal.layout.margin.x = x;
+        mask.layout_margin_x = true;
+    }
+    if (style.layout.margin.y) |y| {
+        style_internal.layout.margin.y = y;
+        mask.layout_margin_y = true;
+    }
+    if (style.floating.x) |x| {
+        style_internal.floating.x = x;
+        if (style.float_target.x) |target_x| {
+            style_internal.float_target.x = target_x;
+        }
+        mask.float_x = true;
+    }
+    if (style.floating.y) |y| {
+        style_internal.floating.y = y;
+        if (style.float_target.y) |target_y| {
+            style_internal.float_target.y = target_y;
+        }
+        mask.float_y = true;
+    }
+    if (style.color) |color| {
+        style_internal.color = color;
+        mask.color = true;
+    }
+    if (style.bg_color) |bg_color| {
+        style_internal.bg_color = bg_color;
+        mask.bg_color = true;
+    }
+    if (style.border_color) |border_color| {
+        style_internal.border_color = border_color;
+        mask.border_color = true;
+    }
+    if (style.border_size) |border_size| {
+        style_internal.border_size = border_size;
+        mask.border_size = true;
+    }
+    if (style.roundness) |roundness| {
+        style_internal.roundness = roundness;
+        mask.roundness = true;
+    }
+    if (style.font) |font| {
+        style_internal.font = font;
+        mask.font = true;
+    }
+    if (style.font_size) |font_size| {
+        style_internal.font_size = font_size;
+        mask.font_size = true;
+    }
+    if (style.animation_time) |animation_time| {
+        style_internal.animation_time = animation_time;
+        mask.animation_time = true;
+    }
+    if (style.animation_mask != .None) {
+        style_internal.animation_mask = @enumFromInt(
+            @intFromEnum(style_internal.animation_mask) | @intFromEnum(style.animation_mask),
+        );
+        mask.animation_mask = true;
+    }
+
+    return .{ .style = style_internal, .mask = mask };
+}
+
+//------------------------------------------------------------------------------------------
+// [UI]: box keys
+//------------------------------------------------------------------------------------------
+
+extern fn oc_ui_key_make_str8(string: Str8) UiKey;
+extern fn oc_ui_key_make_path(path: Str8List) UiKey;
+
+pub fn uiKeyMake(string: []const u8) UiKey {
+    return oc_ui_key_make_str8(Str8.fromSlice(string));
+}
+
+pub const uiKeyMakePath = oc_ui_key_make_path;
+
+//------------------------------------------------------------------------------------------
+// [UI]: box hierarchy building
+//------------------------------------------------------------------------------------------
+
+extern fn oc_ui_box_make_str8(string: Str8, flags: UiFlags) *UiBox;
+extern fn oc_ui_box_begin_str8(string: Str8, flags: UiFlags) *UiBox;
+extern fn oc_ui_box_end() *UiBox;
+
+extern fn oc_ui_box_push(box: *UiBox) void;
+extern fn oc_ui_box_pop() void;
+extern fn oc_ui_box_top() ?*UiBox;
+
+extern fn oc_ui_box_lookup_key(key: UiKey) ?*UiBox;
+extern fn oc_ui_box_lookup_str8(string: Str8) ?*UiBox;
+
+extern fn oc_ui_box_set_draw_proc(box: UiBox, proc: UiBoxDrawProc, data: ?*anyopaque) void;
+
+pub fn uiBoxMake(string: []const u8, flags: UiFlags) *UiBox {
+    return oc_ui_box_make_str8(Str8.fromSlice(string), flags);
+}
+
+pub fn uiBoxBegin(string: []const u8, flags: UiFlags) *UiBox {
+    return oc_ui_box_begin_str8(Str8.fromSlice(string), flags);
+}
+
+pub const uiBoxEnd = oc_ui_box_end;
+
+pub const uiBoxPush = oc_ui_box_push;
+pub const uiBoxPop = oc_ui_box_pop;
+pub const uiBoxTop = oc_ui_box_top;
+
+pub const uiBoxLookupKey = oc_ui_box_lookup_key;
+
+pub fn uiBoxLookupStr(string: []const u8) ?*UiBox {
+    return oc_ui_box_lookup_str8(Str8.fromSlice(string));
+}
+
+pub const uiBoxSetDrawProc = oc_ui_box_set_draw_proc;
+
+//------------------------------------------------------------------------------------------
+// [UI]: box status and signals
+//------------------------------------------------------------------------------------------
+
+extern fn oc_ui_box_closed(box: *UiBox) bool;
+extern fn oc_ui_box_set_closed(box: *UiBox, closed: bool) void;
+
+extern fn oc_ui_box_active(box: *UiBox) bool;
+extern fn oc_ui_box_activate(box: *UiBox) void;
+extern fn oc_ui_box_deactivate(box: *UiBox) void;
+
+extern fn oc_ui_box_hot(box: *UiBox) bool;
+extern fn oc_ui_box_set_hot(box: *UiBox, hot: bool) void;
+
+extern fn oc_ui_box_sig(box: *UiBox) UiSig;
+
+pub const uiBoxClosed = oc_ui_box_closed;
+pub const uiBoxSetClosed = oc_ui_box_set_closed;
+
+pub const uiBoxActive = oc_ui_box_active;
+pub const uiBoxActivate = oc_ui_box_activate;
+pub const uiBoxDeactivate = oc_ui_box_deactivate;
+
+pub const uiBoxHot = oc_ui_box_hot;
+pub const uiBoxSetHot = oc_ui_box_set_hot;
+
+pub const uiBoxSig = oc_ui_box_sig;
+
+//------------------------------------------------------------------------------------------
+// [UI]: tagging
+//------------------------------------------------------------------------------------------
+
+extern fn oc_ui_tag_make_str8(string: Str8) UiTag;
+extern fn oc_ui_tag_box_str8(box: *UiBox, string: Str8) void;
+extern fn oc_ui_tag_next_str8(string: Str8) void;
+
+pub fn uiTagMake(string: []const u8) UiTag {
+    return oc_ui_tag_make_str8(Str8.fromSlice(string));
+}
+
+pub fn uiTagBox(box: *UiBox, string: []const u8) void {
+    oc_ui_tag_box_str8(box, Str8.fromSlice(string));
+}
+
+pub fn uiTagNext(string: []const u8) void {
+    oc_ui_tag_next_str8(Str8.fromSlice(string));
+}
+
+//------------------------------------------------------------------------------------------
+// [UI]: styling
+//------------------------------------------------------------------------------------------
+
+const UiSelectorDataInternal = extern union {
+    text: Str8,
+    key: UiKey,
+    tag: UiTag,
+    status: UiStatus,
+};
+
+const UiSelectorInternal = extern struct {
+    list_elt: ListElt,
+    kind: UiSelectorKind,
+    op: UiSelectorOp,
+    data: UiSelectorDataInternal,
+};
+
+extern fn oc_ui_style_next(style: *UiStyleInternal, mask: UiStyleMaskInternal) void;
+extern fn oc_ui_style_match_before(pattern: UiPattern, style: *UiStyleInternal, mask: UiStyleMaskInternal) void;
+extern fn oc_ui_style_match_after(patterh: UiPattern, style: *UiStyleInternal, mask: UiStyleMaskInternal) void;
+
+pub fn uiStyleNext(style: UiStyle) void {
+    var style_and_mask = uiConvertStyle(&style);
+    oc_ui_style_next(&style_and_mask.style, style_and_mask.mask);
+}
+
+pub fn uiStyleMatchBefore(pattern: UiPattern, style: UiStyle) void {
+    var style_and_mask = uiConvertStyle(&style);
+    oc_ui_style_match_before(pattern, &style_and_mask.style, style_and_mask.mask);
+}
+
+pub fn uiStyleMatchAfter(pattern: UiPattern, style: UiStyle) void {
+    var style_and_mask = uiConvertStyle(&style);
+    oc_ui_style_match_after(pattern, &style_and_mask.style, style_and_mask.mask);
+}
+
+pub fn uiApplyStyle(dst: *UiStyle, src: *UiStyle) void {
+    if (src.size.width) |width| {
+        dst.size.width = width;
+    }
+    if (src.size.height) |height| {
+        dst.size.height = height;
+    }
+    if (src.layout.axis) |axis| {
+        dst.layout.axis = axis;
+    }
+    if (src.layout.alignment.x) |x| {
+        dst.layout.alignment.x = x;
+    }
+    if (src.layout.alignment.y) |y| {
+        dst.layout.alignment.y = y;
+    }
+    if (src.layout.spacing) |spacing| {
+        dst.layout.spacing = spacing;
+    }
+    if (src.layout.margin.x) |x| {
+        dst.layout.margin.x = x;
+    }
+    if (src.layout.margin.y) |y| {
+        dst.layout.margin.y = y;
+    }
+    if (src.floating.x) |x| {
+        dst.floating.x = x;
+    }
+    if (src.float_target.x) |x| {
+        dst.float_target.x = x;
+    }
+    if (src.floating.y) |y| {
+        dst.floating.y = y;
+    }
+    if (src.float_target.y) |y| {
+        dst.float_target.y = y;
+    }
+    if (src.color) |color| {
+        dst.color = color;
+    }
+    if (src.bg_color) |bg_color| {
+        dst.bg_color = bg_color;
+    }
+    if (src.border_color) |border_color| {
+        dst.border_color = border_color;
+    }
+    if (src.border_size) |border_size| {
+        dst.border_size = border_size;
+    }
+    if (src.roudness) |roudness| {
+        dst.roudness = roudness;
+    }
+    if (src.font) |font| {
+        dst.font = font;
+    }
+    if (src.font_size) |font_size| {
+        dst.font_size = font_size;
+    }
+    if (src.animation_time) |animation_time| {
+        dst.animation_time = animation_time;
+    }
+    if (src.animation_mask) |animation_mask| {
+        dst.animation_mask = animation_mask;
+    }
+}
+
+fn uiConvertSelector(selector: UiSelector) UiSelectorInternal {
+    var data: UiSelectorDataInternal = switch (selector.sel) {
+        .any, .owner => std.mem.zeroes(UiSelectorDataInternal),
+        .text => |text| .{ .text = Str8.fromSlice(text) },
+        .key => |key| .{ .key = key },
+        .tag => |tag| .{ .tag = tag },
+        .status => |status| .{ .status = status },
+    };
+
+    return UiSelectorInternal{
+        .list_elt = .{ .prev = null, .next = null },
+        .kind = selector.sel,
+        .op = selector.op,
+        .data = data,
+    };
+}
+
+//------------------------------------------------------------------------------------------
+// [UI]: basic widget helpers
+//------------------------------------------------------------------------------------------
+
+extern fn oc_ui_label_str8(label: Str8) UiSig;
+extern fn oc_ui_button_str8(label: Str8) UiSig;
+extern fn oc_ui_checkbox_str8(label: Str8, checked: *bool) UiSig;
+extern fn oc_ui_slider_str8(label: Str8, value: *f32) *UiBox;
+extern fn oc_ui_scrollbar_str8(label: Str8, thumbRatio: f32, scrollValue: *f32) *UiBox;
+extern fn oc_ui_tooltip_str8(label: Str8) void;
+
+extern fn oc_ui_panel_begin_str8(name: Str8, flags: UiFlags) void;
+extern fn oc_ui_panel_end() void;
+
+extern fn oc_ui_menu_bar_begin_str8(label: Str8) void;
+extern fn oc_ui_menu_bar_end() void;
+extern fn oc_ui_menu_begin_str8(label: Str8) void;
+extern fn oc_ui_menu_end() void;
+extern fn oc_ui_menu_button_str8(name: Str8) UiSig;
+
+const UiTextBoxResultInternal = extern struct {
+    changed: bool,
+    accepted: bool,
+    text: Str8,
+};
+extern fn oc_ui_text_box_str8(name: Str8, arena: Arena, text: Str8) UiTextBoxResultInternal;
+
+const UiSelectPopupInfoInternal = extern struct {
+    changed: bool,
+    selected_index: c_int,
+    option_count: c_int,
+    options: [*]Str8,
+    placeholder: Str8,
+};
+extern fn oc_ui_select_popup_str8(name: Str8, info: *UiSelectPopupInfoInternal) UiSelectPopupInfoInternal;
+
+const UiRadioGroupInfoInternal = extern struct {
+    changed: bool,
+    selected_index: c_int,
+    option_count: c_int,
+    options: [*]Str8,
+};
+extern fn oc_ui_radio_group_str8(name: Str8, info: UiRadioGroupInfoInternal) UiRadioGroupInfoInternal;
+
+pub fn uiLabel(label: []const u8) UiSig {
+    return oc_ui_label_str8(Str8.fromSlice(label));
+}
+
+pub fn uiButton(label: []const u8) UiSig {
+    return oc_ui_button_str8(Str8.fromSlice(label));
+}
+
+pub fn uiCheckbox(label: []const u8, checked: *bool) UiSig {
+    return oc_ui_checkbox_str8(Str8.fromSlice(label), checked);
+}
+
+pub fn uiSlider(label: []const u8, value: *f32) *UiBox {
+    return oc_ui_slider_str8(Str8.fromSlice(label), value);
+}
+
+pub fn uiScrollbar(label: []const u8, thumbRatio: f32, scrollValue: *f32) *UiBox {
+    return oc_ui_scrollbar_str8(Str8.fromSlice(label), thumbRatio, scrollValue);
+}
+
+pub fn uiTooltip(label: []const u8) void {
+    oc_ui_tooltip_str8(Str8.fromSlice(label));
+}
+
+pub fn uiPanelBegin(name: []const u8, flags: UiFlags) void {
+    oc_ui_panel_begin_str8(Str8.fromSlice(name), flags);
+}
+
+pub fn uiPanelEnd() void {
+    oc_ui_panel_end();
+}
+
+pub fn uiMenuBarBegin(label: []const u8) void {
+    oc_ui_menu_bar_begin_str8(Str8.fromSlice(label));
+}
+
+pub fn uiMenuBarEnd() void {
+    oc_ui_menu_bar_end();
+}
+
+pub fn uiMenuBegin(label: []const u8) void {
+    oc_ui_menu_begin_str8(Str8.fromSlice(label));
+}
+
+pub fn uiMenuEnd() void {
+    oc_ui_menu_end();
+}
+
+pub fn uiMenuButton(name: []const u8) UiSig {
+    return oc_ui_menu_button_str8(Str8.fromSlice(name));
+}
+
+pub const UiTextBoxResult = struct {
+    changed: bool,
+    accepted: bool,
+    text: []u8,
+};
+
+pub fn uiTextBox(name: []const u8, arena: Arena, text: []const u8) UiTextBoxResult {
+    var result_internal = oc_ui_text_box_str8(Str8.fromSlice(name), arena, Str8.fromSlice(text));
+    return .{
+        .changed = result_internal.changed,
+        .accepted = result_internal.accepted,
+        .text = result_internal.text.slice(),
+    };
+}
+
+pub const UiSelectPopupInfo = struct {
+    changed: bool = false,
+    selected_index: ?usize,
+    options: [][]const u8,
+    placeholder: []const u8 = "",
+};
+
+pub fn uiSelectPopup(name: []const u8, info: *UiSelectPopupInfo) UiSelectPopupInfo {
+    var info_internal = UiSelectPopupInfoInternal{
+        .changed = info.changed,
+        .selected_index = if (info.selected_index) |selected_index| @intCast(selected_index) else -1,
+        .option_count = @intCast(info.options.len),
+        .options = @ptrCast(info.options.ptr),
+        .placeholder = Str8.fromSlice(info.placeholder),
+    };
+    var result_internal = oc_ui_select_popup_str8(Str8.fromSlice(name), &info_internal);
+    return .{
+        .changed = result_internal.changed,
+        .selected_index = if (result_internal.selected_index >= 0) @intCast(result_internal.selected_index) else null,
+        .options = @ptrCast(result_internal.options[0..@intCast(result_internal.option_count)]),
+        .placeholder = result_internal.placeholder.slice(),
+    };
+}
+
+pub const UiRadioGroupInfo = struct {
+    changed: bool = false,
+    selected_index: ?usize,
+    options: [][]const u8,
+};
+
+pub fn uiRadioGroup(name: []const u8, info: *UiRadioGroupInfo) UiRadioGroupInfo {
+    var info_internal = UiRadioGroupInfoInternal{
+        .changed = info.changed,
+        .selected_index = if (info.selected_index) |selected_index| @intCast(selected_index) else -1,
+        .option_count = @intCast(info.options.len),
+        .options = @ptrCast(info.options.ptr),
+    };
+    var result_internal = oc_ui_radio_group_str8(Str8.fromSlice(name), info_internal);
+    return .{
+        .changed = result_internal.changed,
+        .selected_index = if (result_internal.selected_index >= 0) @intCast(result_internal.selected_index) else null,
+        .options = @ptrCast(result_internal.options[0..@intCast(result_internal.option_count)]),
+    };
+}
+
+//------------------------------------------------------------------------------------------
 // [GRAPHICS]: GLES
 //------------------------------------------------------------------------------------------
 
@@ -1861,22 +3333,28 @@ pub const Canvas = extern struct {
 // [FILE IO] basic API
 //------------------------------------------------------------------------------------------
 
-const File = extern struct {
+pub const File = extern struct {
     const OpenFlags = packed struct(u16) {
-        none: bool,
-        append: bool,
-        truncate: bool,
-        create: bool,
+        _: u1 = 0,
 
-        symlink: bool,
-        no_follow: bool,
-        restrict: bool,
+        append: bool = false,
+        truncate: bool = false,
+        create: bool = false,
+
+        symlink: bool = false,
+        no_follow: bool = false,
+        restrict: bool = false,
+
+        __: u9 = 0,
     };
 
     const AccessFlags = packed struct(u16) {
-        none: bool,
-        read: bool,
-        write: bool,
+        _: u1 = 0,
+
+        read: bool = false,
+        write: bool = false,
+
+        __: u13 = 0,
     };
 
     const Whence = enum(c_uint) {
@@ -1975,8 +3453,8 @@ const File = extern struct {
     extern fn oc_file_last_error(file: File) io.Error;
     extern fn oc_file_pos(file: File) i64;
     extern fn oc_file_seek(file: File, offset: i64, whence: Whence) i64;
-    extern fn oc_file_write(file: File, size: u64, buffer: ?[*]u8) u64;
-    extern fn oc_file_read(file: File, size: u64, buffer: ?[*]u8) u64;
+    extern fn oc_file_write(file: File, size: u64, buffer: [*]u8) u64;
+    extern fn oc_file_read(file: File, size: u64, buffer: [*]u8) u64;
 
     extern fn oc_file_get_status(file: File) Status;
     extern fn oc_file_size(file: File) u64;
@@ -1992,11 +3470,22 @@ const File = extern struct {
     pub const lastError = oc_file_last_error;
     pub const pos = oc_file_pos;
     pub const seek = oc_file_seek;
-    pub const write = oc_file_write;
-    pub const read = oc_file_read;
+
+    pub fn write(self: File, size: u64, buffer: []u8) u64 {
+        assert(size <= buffer.len, "Trying to write more than the buffer length: {d}/{d}", .{ size, buffer.len }, @src());
+        return @intCast(oc_file_write(self, size, buffer.ptr));
+    }
+
+    pub fn read(self: File, size: u64, buffer: []u8) u64 {
+        assert(size <= buffer.len, "Trying to read more than the buffer length: {d}/{d}", .{ size, buffer.len }, @src());
+        return @intCast(oc_file_read(self, size, buffer.ptr));
+    }
 
     pub const getStatus = oc_file_get_status;
-    pub const size = oc_file_size;
+
+    pub fn getSize(self: File) usize {
+        return @intCast(oc_file_size(self));
+    }
 
     pub const openWithRequest = oc_file_open_with_request;
     pub const openWithDialog = oc_file_open_with_dialog;
@@ -2006,11 +3495,11 @@ const File = extern struct {
 // [FILE IO] low-level io queue api
 //------------------------------------------------------------------------------------------
 
-const io = struct {
-    const ReqId = u16;
-    const Op = u32;
+pub const io = struct {
+    pub const ReqId = u16;
+    pub const Op = u32;
 
-    const OpEnum = enum(c_uint) {
+    pub const OpEnum = enum(c_uint) {
         OpenAt = 0,
         Close,
         FStat,
@@ -2020,7 +3509,7 @@ const io = struct {
         Error,
     };
 
-    const Req = extern struct {
+    pub const Req = extern struct {
         id: ReqId,
         op: Op,
         handle: File,
@@ -2042,7 +3531,7 @@ const io = struct {
         },
     };
 
-    const Error = enum(i32) {
+    pub const Error = enum(i32) {
         Ok = 0,
         Unknown,
         Op, // unsupported operation
@@ -2068,7 +3557,7 @@ const io = struct {
         Walkout, // attempted to walk out of root directory
     };
 
-    const Cmp = extern struct {
+    pub const Cmp = extern struct {
         id: ReqId,
         err: Error,
         data: extern union {

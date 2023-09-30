@@ -73,6 +73,12 @@ ORCA_EXPORT void oc_on_raw_event(oc_event* event)
     oc_ui_process_event(event);
 }
 
+ORCA_EXPORT void oc_on_resize(u32 width, u32 height)
+{
+    frameSize.x = width;
+    frameSize.y = height;
+}
+
 void log_push(const char* line)
 {
     oc_str8_list_push(&logArena, &logLines, (oc_str8)OC_STR8(line));
@@ -156,12 +162,6 @@ void labeled_slider(const char* label, f32* value)
                          OC_UI_STYLE_SIZE_WIDTH);
         oc_ui_slider("slider", value);
     }
-}
-
-ORCA_EXPORT void oc_on_resize(u32 width, u32 height)
-{
-    frameSize.x = width;
-    frameSize.y = height;
 }
 
 void reset_next_radio_group_to_dark_theme(oc_arena* arena);
@@ -330,7 +330,7 @@ ORCA_EXPORT void oc_on_frame_refresh(void)
                             radioSelected = result.selectedIndex;
                             if(result.changed)
                             {
-                                log_pushf("Selected Radio %i", result.selectedIndex + 1);
+                                log_pushf("Selected %s", options[result.selectedIndex].ptr);
                             }
 
                             //-----------------------------------------------------------------------------
@@ -359,13 +359,13 @@ ORCA_EXPORT void oc_on_frame_refresh(void)
                                                      .size.height = { OC_UI_SIZE_TEXT } },
                                      OC_UI_STYLE_SIZE);
                     static oc_str8 text = OC_STR8_LIT("Text box");
-                    oc_ui_text_box_result res = oc_ui_text_box("text", scratch.arena, text);
-                    if(res.changed)
+                    oc_ui_text_box_result result = oc_ui_text_box("text", scratch.arena, text);
+                    if(result.changed)
                     {
                         oc_arena_clear(&textArena);
-                        text = oc_str8_push_copy(&textArena, res.text);
+                        text = oc_str8_push_copy(&textArena, result.text);
                     }
-                    if(res.accepted)
+                    if(result.accepted)
                     {
                         log_pushf("Entered text \"%s\"", text.ptr);
                     }
@@ -465,7 +465,7 @@ ORCA_EXPORT void oc_on_frame_refresh(void)
 
                     oc_ui_style_next(&(oc_ui_style){ .size.width = { OC_UI_SIZE_PARENT, 1 },
                                                      .size.height = { OC_UI_SIZE_PIXELS, 152 },
-                                                     .layout.margin.x = 320,
+                                                     .layout.margin.x = 310,
                                                      .layout.margin.y = 16,
                                                      .bgColor = OC_UI_DARK_THEME.bg0,
                                                      .roundness = OC_UI_DARK_THEME.roundnessSmall },
@@ -527,8 +527,8 @@ ORCA_EXPORT void oc_on_frame_refresh(void)
                                                     | OC_UI_STYLE_BG_COLOR
                                                     | OC_UI_STYLE_ROUNDNESS);
 
-                        oc_ui_pattern labelPattern = { 0 };
                         oc_ui_tag labelTag = oc_ui_tag_make("label");
+                        oc_ui_pattern labelPattern = { 0 };
                         oc_ui_pattern_push(scratch.arena, &labelPattern, (oc_ui_selector){ .kind = OC_UI_SEL_TAG, .tag = labelTag });
                         oc_ui_style_match_after(labelPattern,
                                                 &(oc_ui_style){ .color = labelFontColor,
@@ -818,32 +818,32 @@ ORCA_EXPORT void oc_on_frame_refresh(void)
 // You won't need it in a real program as long as your colors come from ui.theme or ui.theme->palette
 void reset_next_radio_group_to_dark_theme(oc_arena* arena)
 {
-    oc_ui_tag defaultTag = oc_ui_tag_make("radio");
-    oc_ui_pattern defaultPattern = { 0 };
-    oc_ui_pattern_push(arena, &defaultPattern, (oc_ui_selector){ .kind = OC_UI_SEL_TAG, .tag = defaultTag });
-    oc_ui_style defaultStyle = { .borderColor = OC_UI_DARK_THEME.text3,
-                                 .borderSize = 1 };
-    oc_ui_style_mask defaultMask = OC_UI_STYLE_BORDER_COLOR
-                                 | OC_UI_STYLE_BORDER_SIZE;
-    oc_ui_style_match_after(defaultPattern, &defaultStyle, defaultMask);
+    oc_ui_tag unselectedTag = oc_ui_tag_make("radio");
+    oc_ui_pattern unselectedPattern = { 0 };
+    oc_ui_pattern_push(arena, &unselectedPattern, (oc_ui_selector){ .kind = OC_UI_SEL_TAG, .tag = unselectedTag });
+    oc_ui_style unselectedStyle = { .borderColor = OC_UI_DARK_THEME.text3,
+                                    .borderSize = 1 };
+    oc_ui_style_mask unselectedMask = OC_UI_STYLE_BORDER_COLOR
+                                    | OC_UI_STYLE_BORDER_SIZE;
+    oc_ui_style_match_after(unselectedPattern, &unselectedStyle, unselectedMask);
 
-    oc_ui_pattern hoverPattern = { 0 };
-    oc_ui_pattern_push(arena, &hoverPattern, (oc_ui_selector){ .kind = OC_UI_SEL_TAG, .tag = defaultTag });
-    oc_ui_pattern_push(arena, &hoverPattern, (oc_ui_selector){ .op = OC_UI_SEL_AND, .kind = OC_UI_SEL_STATUS, .status = OC_UI_HOVER });
+    oc_ui_pattern unselectedHoverPattern = { 0 };
+    oc_ui_pattern_push(arena, &unselectedHoverPattern, (oc_ui_selector){ .kind = OC_UI_SEL_TAG, .tag = unselectedTag });
+    oc_ui_pattern_push(arena, &unselectedHoverPattern, (oc_ui_selector){ .op = OC_UI_SEL_AND, .kind = OC_UI_SEL_STATUS, .status = OC_UI_HOVER });
     oc_ui_style hoverStyle = { .bgColor = OC_UI_DARK_THEME.fill0,
                                .borderColor = OC_UI_DARK_THEME.primary };
     oc_ui_style_mask hoverMask = OC_UI_STYLE_BG_COLOR
                                | OC_UI_STYLE_BORDER_COLOR;
-    oc_ui_style_match_after(hoverPattern, &hoverStyle, hoverMask);
+    oc_ui_style_match_after(unselectedHoverPattern, &hoverStyle, hoverMask);
 
-    oc_ui_pattern activePattern = { 0 };
-    oc_ui_pattern_push(arena, &activePattern, (oc_ui_selector){ .kind = OC_UI_SEL_TAG, .tag = defaultTag });
-    oc_ui_pattern_push(arena, &activePattern, (oc_ui_selector){ .op = OC_UI_SEL_AND, .kind = OC_UI_SEL_STATUS, .status = OC_UI_ACTIVE });
+    oc_ui_pattern unselectedActivePattern = { 0 };
+    oc_ui_pattern_push(arena, &unselectedActivePattern, (oc_ui_selector){ .kind = OC_UI_SEL_TAG, .tag = unselectedTag });
+    oc_ui_pattern_push(arena, &unselectedActivePattern, (oc_ui_selector){ .op = OC_UI_SEL_AND, .kind = OC_UI_SEL_STATUS, .status = OC_UI_ACTIVE });
     oc_ui_style activeStyle = { .bgColor = OC_UI_DARK_THEME.fill1,
                                 .borderColor = OC_UI_DARK_THEME.primary };
     oc_ui_style_mask activeMask = OC_UI_STYLE_BG_COLOR
                                 | OC_UI_STYLE_BORDER_COLOR;
-    oc_ui_style_match_after(activePattern, &activeStyle, activeMask);
+    oc_ui_style_match_after(unselectedActivePattern, &activeStyle, activeMask);
 
     oc_ui_tag selectedTag = oc_ui_tag_make("radio_selected");
     oc_ui_pattern selectedPattern = { 0 };

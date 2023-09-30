@@ -205,7 +205,7 @@ export fn oc_on_frame_refresh() void {
         const text_rect = text_metrics.ink;
 
         const center_x = frame_size.x / 2;
-        const text_begin_x = center_x - text_rect.Flat.w / 2;
+        const text_begin_x = center_x - text_rect.w / 2;
 
         Mat2x3.push(Mat2x3.translate(text_begin_x, 100));
         defer Mat2x3.pop();

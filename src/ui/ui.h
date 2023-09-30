@@ -518,7 +518,6 @@ struct oc_ui_box
     oc_list beforeRules;
     oc_list afterRules;
 
-    //oc_ui_style_tag tag;
     oc_ui_style* targetStyle;
     oc_ui_style style;
     u32 z;
@@ -632,8 +631,6 @@ typedef struct oc_ui_context
     i32 editWordSelectionInitialCursor;
     i32 editWordSelectionInitialMark;
 
-    bool clipboardRegistered;
-
     oc_ui_theme* theme;
 } oc_ui_context;
 
@@ -731,17 +728,6 @@ ORCA_API void oc_ui_style_match_after(oc_ui_pattern pattern, oc_ui_style* style,
 //-------------------------------------------------------------------------
 // Basic widget helpers
 //-------------------------------------------------------------------------
-enum
-{
-    OC_UI_STYLE_TAG_USER_MAX = 1 << 16,
-    OC_UI_STYLE_TAG_LABEL,
-    OC_UI_STYLE_TAG_BUTTON,
-    OC_UI_STYLE_TAG_SCROLLBAR,
-    OC_UI_STYLE_TAG_PANEL,
-    OC_UI_STYLE_TAG_TOOLTIP,
-    OC_UI_STYLE_TAG_MENU
-};
-
 ORCA_API oc_ui_sig oc_ui_label(const char* label);
 ORCA_API oc_ui_sig oc_ui_label_str8(oc_str8 label);
 
