@@ -36,9 +36,11 @@ export fn oc_on_init() void {
         .Specials,
     });
     font = oc.Font.createFromPath("/zig.ttf", &ranges);
+    oc.assert(oc.Font.nil().isNil() == true, "nil font should be nil", .{}, @src());
     oc.assert(font.isNil() == false, "created font should not be nil", .{}, @src());
 
     orca_image = oc.Image.createFromPath(surface, Str8.fromSlice("/orca_jumping.jpg"), false);
+    oc.assert(oc.Image.nil().isNil() == true, "nil image should be nil", .{}, @src());
     oc.assert(orca_image.isNil() == false, "created image should not be nil", .{}, @src());
 }
 
@@ -79,7 +81,7 @@ export fn oc_on_key_up(scan: oc.ScanCode, key: oc.KeyCode) void {
 export fn oc_on_frame_refresh() void {
     counter += 1;
 
-    const secs: f64 = oc.clockTime(oc.ClockKind.Date);
+    const secs: f64 = oc.clock.time(.Date);
 
     if (last_seconds != @floor(secs)) {
         last_seconds = @floor(secs);
@@ -87,10 +89,10 @@ export fn oc_on_frame_refresh() void {
     }
 
     _ = canvas.select();
-    oc.setColorRgba(0.05, 0.05, 0.05, 1.0);
-    oc.clear();
+    oc.Canvas.setColorRgba(0.05, 0.05, 0.05, 1.0);
+    oc.Canvas.clear();
 
-    oc.setColorRgba(1.0, 0.05, 0.05, 1.0);
+    oc.Canvas.setColorRgba(1.0, 0.05, 0.05, 1.0);
 
     {
         const translation: Mat2x3 = .{ .m = [_]f32{ 1, 0, 50, 0, 1, 50 } };
@@ -98,24 +100,24 @@ export fn oc_on_frame_refresh() void {
         defer Mat2x3.pop();
 
         oc.assert(std.meta.eql(Mat2x3.top(), translation), "top of matrix stack should be what we pushed", .{}, @src());
-        oc.setWidth(1);
-        oc.rectangleFill(50, 0, 10, 10);
-        oc.rectangleStroke(70, 0, 10, 10);
-        oc.roundedRectangleFill(90, 0, 10, 10, 3);
-        oc.roundedRectangleStroke(110, 0, 10, 10, 3);
+        oc.Canvas.setWidth(1);
+        oc.Canvas.rectangleFill(50, 0, 10, 10);
+        oc.Canvas.rectangleStroke(70, 0, 10, 10);
+        oc.Canvas.roundedRectangleFill(90, 0, 10, 10, 3);
+        oc.Canvas.roundedRectangleStroke(110, 0, 10, 10, 3);
 
         const green = oc.Color{ .Flat = .{ .r = 0.05, .g = 1, .b = 0.05, .a = 1 } };
-        oc.setColor(green);
-        oc.assert(std.meta.eql(oc.getColor().Flat, green.Flat), "color should be green", .{}, @src());
+        oc.Canvas.setColor(green);
+        oc.assert(std.meta.eql(oc.Canvas.getColor().Flat, green.Flat), "color should be green", .{}, @src());
 
-        oc.setTolerance(1);
-        oc.setJoint(.Bevel);
-        oc.ellipseFill(140, 5, 10, 5);
-        oc.ellipseStroke(170, 5, 10, 5);
-        oc.circleFill(195, 5, 5);
-        oc.circleStroke(215, 5, 5);
+        oc.Canvas.setTolerance(1);
+        oc.Canvas.setJoint(.Bevel);
+        oc.Canvas.ellipseFill(140, 5, 10, 5);
+        oc.Canvas.ellipseStroke(170, 5, 10, 5);
+        oc.Canvas.circleFill(195, 5, 5);
+        oc.Canvas.circleStroke(215, 5, 5);
 
-        oc.arc(230, 5, 5, 0, std.math.pi);
+        oc.Canvas.arc(230, 5, 5, 0, std.math.pi);
     }
 
     {
@@ -126,7 +128,7 @@ export fn oc_on_frame_refresh() void {
         Mat2x3.push(Mat2x3.mul_m(trans, rot));
         defer Mat2x3.pop();
 
-        oc.rectangleFill(-5, -5, 10, 10);
+        oc.Canvas.rectangleFill(-5, -5, 10, 10);
     }
 
     {
@@ -170,15 +172,14 @@ export fn oc_on_frame_refresh() void {
         Mat2x3.push(Mat2x3.translate(text_begin_x, 100));
         defer Mat2x3.pop();
 
-        oc.setColorRgba(1.0, 0.05, 0.05, 1.0);
-
-        oc.setFont(font);
-        oc.setFontSize(font_size);
-        oc.moveTo(0, 0);
-        oc.textOutlines(str1);
-        oc.moveTo(0, 35);
-        oc.textOutlines(str2);
-        oc.fill();
+        oc.Canvas.setColorRgba(1.0, 0.05, 0.05, 1.0);
+        oc.Canvas.setFont(font);
+        oc.Canvas.setFontSize(font_size);
+        oc.Canvas.moveTo(0, 0);
+        oc.Canvas.textOutlines(str1);
+        oc.Canvas.moveTo(0, 35);
+        oc.Canvas.textOutlines(str2);
+        oc.Canvas.fill();
     }
 
     {
@@ -196,10 +197,10 @@ export fn oc_on_frame_refresh() void {
         var strings: oc.Str8List = big_string.split(scratch, separators) catch |e| fatal(e, @src());
         var collated = strings.join(scratch) catch |e| fatal(e, @src());
 
-        oc.setFontSize(12);
-        oc.moveTo(0, 170);
-        oc.textOutlines(collated);
-        oc.fill();
+        oc.Canvas.setFontSize(12);
+        oc.Canvas.moveTo(0, 170);
+        oc.Canvas.textOutlines(collated);
+        oc.Canvas.fill();
     }
 
     {

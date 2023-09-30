@@ -1458,68 +1458,28 @@ pub const MouseButton = enum(c_uint) {
 //------------------------------------------------------------------------------------------
 
 extern fn oc_window_set_title(title: Str8) void;
+extern fn oc_window_set_size(size: Vec2) void;
 
-pub fn windowSetTitle(title: [:0]const u8) void {
-    // var title_str8: Str8 = .{
-    //     .ptr = @constCast(title.ptr),
-    //     .len = title.len,
-    // };
+pub fn windowSetTitle(title: []const u8) void {
     oc_window_set_title(Str8.fromSlice(title));
 }
 
-extern fn oc_window_set_size(size: Vec2) void;
-// pub const windowSetTitle = oc_window_set_title;
 pub const windowSetSize = oc_window_set_size;
-
-//------------------------------------------------------------------------------------------
-// [APP] file dialogs
-//------------------------------------------------------------------------------------------
-
-const FileDialogKind = enum(c_uint) {
-    Save,
-    Open,
-};
-
-const FileDialogFlags = packed struct(u32) {
-    files: bool,
-    directories: bool,
-    multiple: bool,
-    create_directories: bool,
-};
-
-const FileDialogDesc = extern struct {
-    kind: FileDialogKind,
-    flags: FileDialogFlags,
-    title: Str8,
-    ok_label: Str8,
-    start_at: File,
-    start_path: Str8,
-    filters: Str8List,
-};
-
-const FileDialogButton = enum(c_uint) {
-    Cancel,
-    Ok,
-};
-
-const FileDialogResult = extern struct {
-    button: FileDialogButton,
-    path: Str8,
-    selection: Str8List,
-};
 
 //------------------------------------------------------------------------------------------
 // [CLOCK]
 //------------------------------------------------------------------------------------------
 
-pub const ClockKind = enum(c_uint) {
-    Monotonic,
-    Uptime,
-    Date,
-};
+pub const clock = struct {
+    pub const Kind = enum(c_uint) {
+        Monotonic,
+        Uptime,
+        Date,
+    };
 
-extern fn oc_clock_time(clock: ClockKind) f64;
-pub const clockTime = oc_clock_time;
+    extern fn oc_clock_time(clock: Kind) f64;
+    pub const time = oc_clock_time;
+};
 
 //------------------------------------------------------------------------------------------
 // [MATH] Vec2
@@ -1545,7 +1505,7 @@ pub const Vec2 = extern struct {
 };
 
 //------------------------------------------------------------------------------------------
-// [MATH] Matrix
+// [MATH] Matrix stack
 //------------------------------------------------------------------------------------------
 
 pub const Mat2x3 = extern struct {
@@ -1632,28 +1592,10 @@ pub const Surface = extern struct {
     // pub const renderCommands = oc_surface_render_commands;
 };
 
-pub const Canvas = extern struct {
-    h: u64,
-
-    extern fn oc_canvas_nil() Canvas;
-    extern fn oc_canvas_is_nil(canvas: Canvas) bool;
-    extern fn oc_canvas_create() Canvas;
-    extern fn oc_canvas_destroy(canvas: Canvas) void;
-    extern fn oc_canvas_select(canvas: Canvas) Canvas;
-    extern fn oc_render(canvas: Canvas) void;
-
-    pub const nil = oc_canvas_nil;
-    pub const isNil = oc_canvas_is_nil;
-    pub const create = oc_canvas_create;
-    pub const destroy = oc_canvas_destroy;
-    pub const select = oc_canvas_select;
-    pub const render = oc_render;
-};
-
 pub const Image = extern struct {
     h: u64,
 
-    extern fn oc_image_nil(void) Image;
+    extern fn oc_image_nil() Image;
     extern fn oc_image_is_nil(image: Image) bool;
     extern fn oc_image_create(surface: Surface, width: u32, height: u32) Image;
     extern fn oc_image_create_from_rgba8(surface: Surface, width: u32, height: u32, pixels: [*]u8) Image;
@@ -1709,120 +1651,134 @@ pub const Color = extern union {
 };
 
 //------------------------------------------------------------------------------------------
-// [GRAPHICS]: graphics attributes setting/getting
+// [GRAPHICS]: Canvas
 //------------------------------------------------------------------------------------------
 
-extern fn oc_set_color(color: Color) void;
-extern fn oc_set_color_rgba(r: f32, g: f32, b: f32, a: f32) void;
-extern fn oc_set_width(width: f32) void;
-extern fn oc_set_tolerance(tolerance: f32) void;
-extern fn oc_set_joint(joint: JointType) void;
-extern fn oc_set_max_joint_excursion(max_joint_excursion: f32) void;
-extern fn oc_set_cap(cap: CapType) void;
-extern fn oc_set_font(font: Font) void;
-extern fn oc_set_font_size(size: f32) void;
-extern fn oc_set_text_flip(flip: bool) void;
-extern fn oc_set_image(image: Image) void;
-extern fn oc_set_image_source_region(region: Rect) void;
+pub const Canvas = extern struct {
+    h: u64,
 
-extern fn oc_get_color() Color;
-extern fn oc_get_width() f32;
-extern fn oc_get_tolerance() f32;
-extern fn oc_get_joint() JointType;
-extern fn oc_get_max_joint_excursion() f32;
-extern fn oc_get_cap() CapType;
-extern fn oc_get_font() Font;
-extern fn oc_get_font_size() f32;
-extern fn oc_get_text_flip() bool;
-extern fn oc_get_image() Image;
-extern fn oc_get_image_source_region() Rect;
+    extern fn oc_canvas_nil() Canvas;
+    extern fn oc_canvas_is_nil(canvas: Canvas) bool;
+    extern fn oc_canvas_create() Canvas;
+    extern fn oc_canvas_destroy(canvas: Canvas) void;
+    extern fn oc_canvas_select(canvas: Canvas) Canvas;
+    extern fn oc_render(canvas: Canvas) void;
 
-pub const setColor = oc_set_color;
-pub const setColorRgba = oc_set_color_rgba;
-pub const setWidth = oc_set_width;
-pub const setTolerance = oc_set_tolerance;
-pub const setJoint = oc_set_joint;
-pub const setMaxJointExcursion = oc_set_max_joint_excursion;
-pub const setCap = oc_set_cap;
-pub const setFont = oc_set_font;
-pub const setFontSize = oc_set_font_size;
-pub const setTextFlip = oc_set_text_flip;
-pub const setImage = oc_set_image;
-pub const setImageSourceRegion = oc_set_image_source_region;
+    pub const nil = oc_canvas_nil;
+    pub const isNil = oc_canvas_is_nil;
+    pub const create = oc_canvas_create;
+    pub const destroy = oc_canvas_destroy;
+    pub const select = oc_canvas_select;
+    pub const render = oc_render;
 
-pub const getColor = oc_get_color;
-pub const getWidth = oc_get_width;
-pub const getTolerance = oc_get_tolerance;
-pub const getJoint = oc_get_joint;
-pub const getMaxJointExcursion = oc_get_max_joint_excursion;
-pub const getCap = oc_get_cap;
-pub const getFont = oc_get_font;
-pub const getFontSize = oc_get_font_size;
-pub const getTextFlip = oc_get_text_flip;
-pub const getImage = oc_get_image;
-pub const getImageSourceRegion = oc_get_image_source_region;
+    // vector graphics
 
-//------------------------------------------------------------------------------------------
-// [GRAPHICS]: construction: path
-//------------------------------------------------------------------------------------------
+    extern fn oc_clear() void;
+    extern fn oc_fill() void;
+    extern fn oc_stroke() void;
 
-extern fn oc_get_position() Vec2;
-extern fn oc_move_to(x: f32, y: f32) void;
-extern fn oc_line_to(x: f32, y: f32) void;
-extern fn oc_quadratic_to(x1: f32, y1: f32, x2: f32, y2: f32) void;
-extern fn oc_cubic_to(x1: f32, y1: f32, x2: f32, y2: f32, x3: f32, y3: f32) void;
-extern fn oc_close_path() void;
+    pub const clear = oc_clear;
+    pub const fill = oc_fill;
+    pub const stroke = oc_stroke;
 
-extern fn oc_glyph_outlines(glyph_indices: Str32) Rect;
-extern fn oc_codepoints_outlines(string: Str32) void;
-extern fn oc_text_outlines(string: Str8) void;
+    //  attributes setting/getting
 
-pub const getPosition = oc_get_position;
-pub const moveTo = oc_move_to;
-pub const lineTo = oc_line_to;
-pub const quadraticTo = oc_quadratic_to;
-pub const cubicTo = oc_cubic_to;
-pub const closePath = oc_close_path;
+    extern fn oc_set_color(color: Color) void;
+    extern fn oc_set_color_rgba(r: f32, g: f32, b: f32, a: f32) void;
+    extern fn oc_set_width(width: f32) void;
+    extern fn oc_set_tolerance(tolerance: f32) void;
+    extern fn oc_set_joint(joint: JointType) void;
+    extern fn oc_set_max_joint_excursion(max_joint_excursion: f32) void;
+    extern fn oc_set_cap(cap: CapType) void;
+    extern fn oc_set_font(font: Font) void;
+    extern fn oc_set_font_size(size: f32) void;
+    extern fn oc_set_text_flip(flip: bool) void;
+    extern fn oc_set_image(image: Image) void;
+    extern fn oc_set_image_source_region(region: Rect) void;
 
-pub const glyphOutlines = oc_glyph_outlines;
-pub const codepointsOutlines = oc_codepoints_outlines;
-pub const textOutlines = oc_text_outlines;
+    extern fn oc_get_color() Color;
+    extern fn oc_get_width() f32;
+    extern fn oc_get_tolerance() f32;
+    extern fn oc_get_joint() JointType;
+    extern fn oc_get_max_joint_excursion() f32;
+    extern fn oc_get_cap() CapType;
+    extern fn oc_get_font() Font;
+    extern fn oc_get_font_size() f32;
+    extern fn oc_get_text_flip() bool;
+    extern fn oc_get_image() Image;
+    extern fn oc_get_image_source_region() Rect;
 
-//------------------------------------------------------------------------------------------
-// [GRAPHICS]: vector graphics
-//------------------------------------------------------------------------------------------
+    pub const setColor = oc_set_color;
+    pub const setColorRgba = oc_set_color_rgba;
+    pub const setWidth = oc_set_width;
+    pub const setTolerance = oc_set_tolerance;
+    pub const setJoint = oc_set_joint;
+    pub const setMaxJointExcursion = oc_set_max_joint_excursion;
+    pub const setCap = oc_set_cap;
+    pub const setFont = oc_set_font;
+    pub const setFontSize = oc_set_font_size;
+    pub const setTextFlip = oc_set_text_flip;
+    pub const setImage = oc_set_image;
+    pub const setImageSourceRegion = oc_set_image_source_region;
 
-extern fn oc_clear() void;
-extern fn oc_fill() void;
-extern fn oc_stroke() void;
+    pub const getColor = oc_get_color;
+    pub const getWidth = oc_get_width;
+    pub const getTolerance = oc_get_tolerance;
+    pub const getJoint = oc_get_joint;
+    pub const getMaxJointExcursion = oc_get_max_joint_excursion;
+    pub const getCap = oc_get_cap;
+    pub const getFont = oc_get_font;
+    pub const getFontSize = oc_get_font_size;
+    pub const getTextFlip = oc_get_text_flip;
+    pub const getImage = oc_get_image;
+    pub const getImageSourceRegion = oc_get_image_source_region;
 
-pub const clear = oc_clear;
-pub const fill = oc_fill;
-pub const stroke = oc_stroke;
+    // path construction
 
-//------------------------------------------------------------------------------------------
-// [GRAPHICS]: shape helpers
-//------------------------------------------------------------------------------------------
+    extern fn oc_get_position() Vec2;
+    extern fn oc_move_to(x: f32, y: f32) void;
+    extern fn oc_line_to(x: f32, y: f32) void;
+    extern fn oc_quadratic_to(x1: f32, y1: f32, x2: f32, y2: f32) void;
+    extern fn oc_cubic_to(x1: f32, y1: f32, x2: f32, y2: f32, x3: f32, y3: f32) void;
+    extern fn oc_close_path() void;
 
-extern fn oc_rectangle_fill(x: f32, y: f32, w: f32, h: f32) void;
-extern fn oc_rectangle_stroke(x: f32, y: f32, w: f32, h: f32) void;
-extern fn oc_rounded_rectangle_fill(x: f32, y: f32, w: f32, h: f32, r: f32) void;
-extern fn oc_rounded_rectangle_stroke(x: f32, y: f32, w: f32, h: f32, r: f32) void;
-extern fn oc_ellipse_fill(x: f32, y: f32, rx: f32, ry: f32) void;
-extern fn oc_ellipse_stroke(x: f32, y: f32, rx: f32, ry: f32) void;
-extern fn oc_circle_fill(x: f32, y: f32, r: f32) void;
-extern fn oc_circle_stroke(x: f32, y: f32, r: f32) void;
-extern fn oc_arc(x: f32, y: f32, r: f32, arc_angle: f32, start_angle: f32) void;
+    extern fn oc_glyph_outlines(glyph_indices: Str32) Rect;
+    extern fn oc_codepoints_outlines(string: Str32) void;
+    extern fn oc_text_outlines(string: Str8) void;
 
-pub const rectangleFill = oc_rectangle_fill;
-pub const rectangleStroke = oc_rectangle_stroke;
-pub const roundedRectangleFill = oc_rounded_rectangle_fill;
-pub const roundedRectangleStroke = oc_rounded_rectangle_stroke;
-pub const ellipseFill = oc_ellipse_fill;
-pub const ellipseStroke = oc_ellipse_stroke;
-pub const circleFill = oc_circle_fill;
-pub const circleStroke = oc_circle_stroke;
-pub const arc = oc_arc;
+    pub const getPosition = oc_get_position;
+    pub const moveTo = oc_move_to;
+    pub const lineTo = oc_line_to;
+    pub const quadraticTo = oc_quadratic_to;
+    pub const cubicTo = oc_cubic_to;
+    pub const closePath = oc_close_path;
+
+    pub const glyphOutlines = oc_glyph_outlines;
+    pub const codepointsOutlines = oc_codepoints_outlines;
+    pub const textOutlines = oc_text_outlines;
+
+    // shape helpers
+
+    extern fn oc_rectangle_fill(x: f32, y: f32, w: f32, h: f32) void;
+    extern fn oc_rectangle_stroke(x: f32, y: f32, w: f32, h: f32) void;
+    extern fn oc_rounded_rectangle_fill(x: f32, y: f32, w: f32, h: f32, r: f32) void;
+    extern fn oc_rounded_rectangle_stroke(x: f32, y: f32, w: f32, h: f32, r: f32) void;
+    extern fn oc_ellipse_fill(x: f32, y: f32, rx: f32, ry: f32) void;
+    extern fn oc_ellipse_stroke(x: f32, y: f32, rx: f32, ry: f32) void;
+    extern fn oc_circle_fill(x: f32, y: f32, r: f32) void;
+    extern fn oc_circle_stroke(x: f32, y: f32, r: f32) void;
+    extern fn oc_arc(x: f32, y: f32, r: f32, arc_angle: f32, start_angle: f32) void;
+
+    pub const rectangleFill = oc_rectangle_fill;
+    pub const rectangleStroke = oc_rectangle_stroke;
+    pub const roundedRectangleFill = oc_rounded_rectangle_fill;
+    pub const roundedRectangleStroke = oc_rounded_rectangle_stroke;
+    pub const ellipseFill = oc_ellipse_fill;
+    pub const ellipseStroke = oc_ellipse_stroke;
+    pub const circleFill = oc_circle_fill;
+    pub const circleStroke = oc_circle_stroke;
+    pub const arc = oc_arc;
+};
 
 //------------------------------------------------------------------------------------------
 // [GRAPHICS]: GLES
@@ -1831,7 +1787,7 @@ pub const arc = oc_arc;
 // TODO
 
 //------------------------------------------------------------------------------------------
-// [UI]: GLES
+// [UI]
 //------------------------------------------------------------------------------------------
 
 // TODO
@@ -2013,6 +1969,33 @@ const FileStatus = extern struct {
     creation_date: DateStamp,
     access_date: DateStamp,
     modification_date: DateStamp,
+};
+
+const FileDialogKind = enum(c_uint) {
+    Save,
+    Open,
+};
+
+const FileDialogFlags = packed struct(u32) {
+    files: bool,
+    directories: bool,
+    multiple: bool,
+    create_directories: bool,
+};
+
+const FileDialogDesc = extern struct {
+    kind: FileDialogKind,
+    flags: FileDialogFlags,
+    title: Str8,
+    ok_label: Str8,
+    start_at: File,
+    start_path: Str8,
+    filters: Str8List,
+};
+
+const FileDialogButton = enum(c_uint) {
+    Cancel,
+    Ok,
 };
 
 const FileOpenWithDialogElt = extern struct {
