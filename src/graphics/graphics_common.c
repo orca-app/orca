@@ -369,7 +369,7 @@ oc_font_data* oc_font_data_from_handle(oc_font handle)
     return (data);
 }
 
-oc_font oc_font_create_from_memory(oc_str8 mem, u32 rangeCount, const oc_unicode_range* ranges)
+oc_font oc_font_create_from_memory(oc_str8 mem, u32 rangeCount, oc_unicode_range* ranges)
 {
     if(!oc_graphicsData.init)
     {
@@ -552,7 +552,7 @@ oc_font oc_font_create_from_memory(oc_str8 mem, u32 rangeCount, const oc_unicode
     return (fontHandle);
 }
 
-oc_font oc_font_create_from_file(oc_file file, u32 rangeCount, const oc_unicode_range* ranges)
+oc_font oc_font_create_from_file(oc_file file, u32 rangeCount, oc_unicode_range* ranges)
 {
     oc_font font = oc_font_nil();
     oc_arena_scope scratch = oc_scratch_begin();
@@ -574,7 +574,7 @@ oc_font oc_font_create_from_file(oc_file file, u32 rangeCount, const oc_unicode_
     return (font);
 }
 
-oc_font oc_font_create_from_path(oc_str8 path, u32 rangeCount, const oc_unicode_range* ranges)
+oc_font oc_font_create_from_path(oc_str8 path, u32 rangeCount, oc_unicode_range* ranges)
 {
     oc_font font = oc_font_nil();
 
