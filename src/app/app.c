@@ -188,7 +188,7 @@ oc_key_code oc_scancode_to_keycode(oc_scan_code scanCode)
     return (oc_appData.keyMap[scanCode]);
 }
 
-#define OC_DEFAULT_KEYMAP_ENTRY(sc, sv, ...) [(int) sc] = (oc_key_code)sc,
+#define OC_DEFAULT_KEYMAP_ENTRY(sc, sv, kc, ...) [(int) sc] = OC_VA_NOPT(sv, ##__VA_ARGS__) __VA_ARGS__,
 
 oc_key_code oc_defaultKeyMap[OC_SCANCODE_COUNT] = {
     OC_KEY_TABLE(OC_DEFAULT_KEYMAP_ENTRY)
