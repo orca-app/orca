@@ -138,10 +138,26 @@ export fn oc_on_frame_refresh() void {
         var str1: Str8 = Str8.collate(scratch, &[_][]const u8{ "Hello", "from", "Zig!" }, ">> ", " ", " <<") catch |e| fatal(e, @src());
 
         var str2_list = oc.Str8List.init();
-        var tmp = Str8.fromSlice("All");
-        str2_list.push(tmp, scratch) catch |e| fatal(e, @src());
-        str2_list.pushSlice("your", scratch) catch |e| fatal(e, @src());
-        str2_list.pushSlice("base!!", scratch) catch |e| fatal(e, @src());
+        str2_list.push(scratch, Str8.fromSlice("All")) catch |e| fatal(e, @src());
+        str2_list.pushf(scratch, "your", .{}) catch |e| fatal(e, @src());
+        str2_list.pushSlice(scratch, "base!!") catch |e| fatal(e, @src());
+
+        oc.assert(str2_list.containsSlice("All"), "str2_list should have the string we just pushed", .{}, @src());
+
+        {
+            var elt_first = str2_list.list.first;
+            var elt_last = str2_list.list.last;
+            oc.assert(elt_first != null, "list checks", .{}, @src());
+            oc.assert(elt_last != null, "list checks", .{}, @src());
+            oc.assert(elt_first != elt_last, "list checks", .{}, @src());
+            oc.assert(elt_first.?.next != null, "list checks", .{}, @src());
+            oc.assert(elt_first.?.prev == null, "list checks", .{}, @src());
+            oc.assert(elt_last.?.next == null, "list checks", .{}, @src());
+            oc.assert(elt_last.?.prev != null, "list checks", .{}, @src());
+            oc.assert(elt_first.?.next != elt_last, "list checks", .{}, @src());
+            oc.assert(elt_last.?.prev != elt_first, "list checks", .{}, @src());
+        }
+
         var str2: Str8 = str2_list.collate(scratch, Str8.fromSlice("<< "), Str8.fromSlice("-"), Str8.fromSlice(" >>")) catch |e| fatal(e, @src());
 
         const font_size = 18;
@@ -172,9 +188,9 @@ export fn oc_on_frame_refresh() void {
         var scratch: *oc.Arena = scratch_scope.arena;
 
         var separators = oc.Str8List.init();
-        separators.pushSlice(" ", scratch) catch |e| fatal(e, @src());
-        separators.pushSlice("|", scratch) catch |e| fatal(e, @src());
-        separators.pushSlice("-", scratch) catch |e| fatal(e, @src());
+        separators.pushSlice(scratch, " ") catch |e| fatal(e, @src());
+        separators.pushSlice(scratch, "|") catch |e| fatal(e, @src());
+        separators.pushSlice(scratch, "-") catch |e| fatal(e, @src());
 
         const big_string = Str8.fromSlice("This is |a one-word string that  |  has no      spaces in it");
         var strings: oc.Str8List = big_string.split(scratch, separators) catch |e| fatal(e, @src());

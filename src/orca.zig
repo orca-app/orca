@@ -128,18 +128,6 @@ pub const List = extern struct {
         };
     }
 
-    pub fn begin(self: *List) ?*ListElt {
-        return self.first;
-    }
-
-    pub fn end() ?*ListElt {
-        return null;
-    }
-
-    pub fn last(self: *List) ?*ListElt {
-        return self.last;
-    }
-
     pub fn firstEntry(self: *List, comptime EltParentType: type, comptime field_name_in_parent: []const u8) ?*EltParentType {
         if (self.first) |elt| {
             return elt.entry(EltParentType, field_name_in_parent);
@@ -242,7 +230,7 @@ pub const List = extern struct {
     }
 
     pub fn pop(self: *List) ?*ListElt {
-        if (self.begin()) |elt_begin| {
+        if (self.first) |elt_begin| {
             remove(self, elt_begin);
             return elt_begin;
         }
@@ -268,7 +256,7 @@ pub const List = extern struct {
     }
 
     pub fn popBack(self: *List) ?*ListElt {
-        if (self.last()) |last_elt| {
+        if (self.last) |last_elt| {
             remove(self, last_elt);
             return last_elt;
         }
@@ -405,7 +393,7 @@ fn stringType(comptime CharType: type) type {
                 };
             }
 
-            pub fn push(list: *StrList, str: Str, arena: *Arena) AllocError!void {
+            pub fn push(list: *StrList, arena: *Arena, str: Str) AllocError!void {
                 var elt: *StrListElt = try arena.pushType(StrListElt);
                 elt.string = str;
                 list.list.pushBack(&elt.list_elt);
@@ -413,13 +401,13 @@ fn stringType(comptime CharType: type) type {
                 list.len += str.len;
             }
 
-            pub fn pushSlice(list: *StrList, str: []const CharType, arena: *Arena) AllocError!void {
-                try list.push(Str.fromSlice(str), arena);
+            pub fn pushSlice(list: *StrList, arena: *Arena, str: []const CharType) AllocError!void {
+                try list.push(arena, Str.fromSlice(str));
             }
 
-            pub fn pushf(list: *StrList, arena: *Arena, comptime format: []const u8, args: anytype) AllocError!Str {
+            pub fn pushf(list: *StrList, arena: *Arena, comptime format: []const u8, args: anytype) AllocError!void {
                 var str = try Str.pushf(arena, format, args);
-                try list.list.push(str, arena);
+                try list.push(arena, str);
             }
 
             pub fn iter(list: *const StrList) List.makeIter(.Forward, StrListElt, "list_elt") {
@@ -539,15 +527,15 @@ fn stringType(comptime CharType: type) type {
             return pushBuffer(arena, str.ptr[start..end]);
         }
 
-        pub fn pushf(arena: *Arena, format: []const u8, args: anytype) Str {
+        pub fn pushf(arena: *Arena, comptime format: []const u8, args: anytype) AllocError!Str {
             if (CharType != u8) {
                 @compileError("pushf() is only supported for Str8");
             }
 
             var str: Str = undefined;
             str.len = @intCast(std.fmt.count(format, args));
-            str.ptr = arena.pushArray(CharType, str.len + 1);
-            _ = std.fmt.bufPrintZ(str.ptr[0 .. str.len + 1], format, args) catch unreachable;
+            str.ptr = (try arena.pushArray(CharType, str.len + 1)).ptr;
+            _ = std.fmt.bufPrintZ(str.ptr.?[0 .. str.len + 1], format, args) catch unreachable;
             return str;
         }
 
@@ -610,7 +598,7 @@ fn stringType(comptime CharType: type) type {
                         if (separators.containsSlice(substr)) {
                             substr = ptr[offset..offset];
                         }
-                        try list.pushSlice(substr, arena);
+                        try list.pushSlice(arena, substr);
 
                         // -1 / +1 to account for offset += 1 at the end of the loop
                         offset += list_sep.string.len - 1;
@@ -624,7 +612,7 @@ fn stringType(comptime CharType: type) type {
 
             if (offset_substring != offset) {
                 var substr = ptr[offset_substring..offset];
-                try list.pushSlice(substr, arena);
+                try list.pushSlice(arena, substr);
             }
 
             return list;
