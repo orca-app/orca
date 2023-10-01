@@ -320,7 +320,6 @@ pub const Arena = extern struct {
     extern fn oc_arena_clear(arena: *Arena) void;
     extern fn oc_arena_scope_begin(arena: *Arena) ArenaScope;
 
-    extern fn oc_scratch_next(used: *Arena) *Arena;
     extern fn oc_scratch_begin() ArenaScope;
     extern fn oc_scratch_begin_next(used: *Arena) ArenaScope;
 
@@ -364,13 +363,12 @@ pub const Arena = extern struct {
         return items[0..count];
     }
 
-    pub const scratchNext = oc_scratch_next;
     pub const scratchBegin = oc_scratch_begin;
     pub const scratchBeginNext = oc_scratch_begin_next;
 };
 
 //------------------------------------------------------------------------------------------
-// [STRINGS] u8 strings
+// [STRINGS]
 //------------------------------------------------------------------------------------------
 
 fn stringType(comptime CharType: type) type {
@@ -647,13 +645,13 @@ pub const Str8 = stringType(u8);
 pub const Str16 = stringType(u16);
 pub const Str32 = stringType(u32);
 
-pub const Str8ListElt = Str8.StrListElt;
-pub const Str16ListElt = Str16.StrListElt;
-pub const Str32ListElt = Str32.StrListElt;
-
 pub const Str8List = Str8.StrList;
 pub const Str16List = Str16.StrList;
 pub const Str32List = Str32.StrList;
+
+pub const Str8ListElt = Str8.StrListElt;
+pub const Str16ListElt = Str16.StrListElt;
+pub const Str32ListElt = Str32.StrListElt;
 
 //------------------------------------------------------------------------------------------
 // [UTF8]
