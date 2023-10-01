@@ -29,6 +29,7 @@
     #include "platform/posix_io.c"
     #include "platform/posix_thread.c"
     #include "platform/osx_platform.c"
+    #include "platform/osx_subprocess.c"
 
 /*
 	#include"platform/unix_rng.c"
