@@ -1596,12 +1596,12 @@ pub const Image = extern struct {
     extern fn oc_image_nil() Image;
     extern fn oc_image_is_nil(image: Image) bool;
     extern fn oc_image_create(surface: Surface, width: u32, height: u32) Image;
-    extern fn oc_image_create_from_rgba8(surface: Surface, width: u32, height: u32, pixels: [*]u8) Image;
+    extern fn oc_image_create_from_rgba8(surface: Surface, width: u32, height: u32, pixels: [*]const u8) Image;
     extern fn oc_image_create_from_memory(surface: Surface, mem: Str8, flip: bool) Image;
     extern fn oc_image_create_from_file(surface: Surface, file: File, flip: bool) Image;
     extern fn oc_image_create_from_path(surface: Surface, path: Str8, flip: bool) Image;
     extern fn oc_image_destroy(image: Image) void;
-    extern fn oc_image_upload_region_rgba8(image: Image, region: Rect, pixels: [*]u8) void;
+    extern fn oc_image_upload_region_rgba8(image: Image, region: Rect, pixels: [*]const u8) void;
     extern fn oc_image_size(image: Image) Vec2;
     extern fn oc_image_draw(image: Image, rect: Rect) void;
     extern fn oc_image_draw_region(image: Image, srcRegion: Rect, dstRegion: Rect) void;
@@ -1638,14 +1638,24 @@ pub const Rect = extern union {
     }
 };
 
-pub const Color = extern union {
-    Flat: extern struct {
-        r: f32,
-        g: f32,
-        b: f32,
-        a: f32,
-    },
-    Array: [4]f32,
+pub const Color = extern struct {
+    r: f32 = 1.0,
+    g: f32 = 1.0,
+    b: f32 = 1.0,
+    a: f32 = 1.0,
+
+    pub fn toArray(color: *Color) *[4]f32 {
+        return @ptrCast(color);
+    }
+
+    pub fn toRgba8(color: *const Color) u32 {
+        var c: u32 = 0;
+        c |= @as(u32, @intFromFloat(color.r * 255.0));
+        c |= @as(u32, @intFromFloat(color.g * 255.0)) << 8;
+        c |= @as(u32, @intFromFloat(color.b * 255.0)) << 16;
+        c |= @as(u32, @intFromFloat(color.a * 255.0)) << 24;
+        return c;
+    }
 };
 
 //------------------------------------------------------------------------------------------

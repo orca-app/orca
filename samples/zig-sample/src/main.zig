@@ -1,6 +1,8 @@
 const std = @import("std");
 const oc = @import("orca");
 
+const lerp = std.math.lerp;
+
 const Vec2 = oc.Vec2;
 const Mat2x3 = oc.Mat2x3;
 const Str8 = oc.Str8;
@@ -9,6 +11,7 @@ var surface: oc.Surface = undefined;
 var canvas: oc.Canvas = undefined;
 var font: oc.Font = undefined;
 var orca_image: oc.Image = undefined;
+var gradient_image: oc.Image = undefined;
 
 var counter: u32 = 0;
 var last_seconds: f64 = 0;
@@ -42,6 +45,41 @@ export fn oc_on_init() void {
     orca_image = oc.Image.createFromPath(surface, Str8.fromSlice("/orca_jumping.jpg"), false);
     oc.assert(oc.Image.nil().isNil() == true, "nil image should be nil", .{}, @src());
     oc.assert(orca_image.isNil() == false, "created image should not be nil", .{}, @src());
+
+    // generate a gradient and upload it to an image
+    {
+        const width = 256;
+        const height = 128;
+
+        const tl = oc.Color{ .r = 70.0 / 255.0, .g = 13.0 / 255.0, .b = 108.0 / 255.0 };
+        const bl = oc.Color{ .r = 251.0 / 255.0, .g = 167.0 / 255.0, .b = 87.0 / 255.0 };
+        const tr = oc.Color{ .r = 48.0 / 255.0, .g = 164.0 / 255.0, .b = 219.0 / 255.0 };
+        const br = oc.Color{ .r = 151.0 / 255.0, .g = 222.0 / 255.0, .b = 150.0 / 255.0 };
+
+        var pixels: [width * height]u32 = undefined;
+        for (0..height) |y| {
+            for (0..width) |x| {
+                const h: f32 = @floatFromInt(height - 1);
+                const w: f32 = @floatFromInt(width - 1);
+                const y_norm: f32 = @as(f32, @floatFromInt(y)) / h;
+                const x_norm: f32 = @as(f32, @floatFromInt(x)) / w;
+
+                const tl_weight = (1 - x_norm) * (1 - y_norm);
+                const bl_weight = (1 - x_norm) * y_norm;
+                const tr_weight = x_norm * (1 - y_norm);
+                const br_weight = x_norm * y_norm;
+
+                const r: f32 = tl_weight * tl.r + bl_weight * bl.r + tr_weight * tr.r + br_weight * br.r;
+                const g: f32 = tl_weight * tl.g + bl_weight * bl.g + tr_weight * tr.g + br_weight * br.g;
+                const b: f32 = tl_weight * tl.b + bl_weight * bl.b + tr_weight * tr.b + br_weight * br.b;
+                const color = oc.Color{ .r = r, .g = g, .b = b, .a = 1.0 };
+                pixels[y * width + x] = color.toRgba8();
+            }
+        }
+
+        gradient_image = oc.Image.create(surface, width, height);
+        gradient_image.uploadRegionRgba8(oc.Rect.xywh(0, 0, width, height), @ptrCast((&pixels).ptr));
+    }
 }
 
 export fn oc_on_resize(width: u32, height: u32) void {
@@ -106,9 +144,9 @@ export fn oc_on_frame_refresh() void {
         oc.Canvas.roundedRectangleFill(90, 0, 10, 10, 3);
         oc.Canvas.roundedRectangleStroke(110, 0, 10, 10, 3);
 
-        const green = oc.Color{ .Flat = .{ .r = 0.05, .g = 1, .b = 0.05, .a = 1 } };
+        const green = oc.Color{ .r = 0.05, .g = 1, .b = 0.05, .a = 1 };
         oc.Canvas.setColor(green);
-        oc.assert(std.meta.eql(oc.Canvas.getColor().Flat, green.Flat), "color should be green", .{}, @src());
+        oc.assert(std.meta.eql(oc.Canvas.getColor(), green), "color should be green", .{}, @src());
 
         oc.Canvas.setTolerance(1);
         oc.Canvas.setJoint(.Bevel);
@@ -204,18 +242,32 @@ export fn oc_on_frame_refresh() void {
     }
 
     {
-        const trans = Mat2x3.translate(0, 200);
-        const scale = Mat2x3.scaleUniform(0.25);
-        Mat2x3.push(Mat2x3.mul_m(trans, scale));
-        defer Mat2x3.pop();
+        const orca_size = orca_image.size();
 
-        const size = orca_image.size();
+        {
+            const trans = Mat2x3.translate(0, 200);
+            const scale = Mat2x3.scaleUniform(0.25);
+            Mat2x3.push(Mat2x3.mul_m(trans, scale));
+            defer Mat2x3.pop();
 
-        orca_image.draw(oc.Rect.xywh(0, 0, size.x, size.y));
+            orca_image.draw(oc.Rect.xywh(0, 0, orca_size.x, orca_size.y));
 
-        var half_size = orca_image.size();
-        half_size.x /= 2;
-        orca_image.drawRegion(oc.Rect.xywh(0, 0, half_size.x, half_size.y), oc.Rect.xywh(size.x + 10, 0, half_size.x, half_size.y));
+            var half_size = orca_size;
+            half_size.x /= 2;
+            orca_image.drawRegion(oc.Rect.xywh(0, 0, half_size.x, half_size.y), oc.Rect.xywh(orca_size.x + 10, 0, half_size.x, half_size.y));
+        }
+
+        {
+            const x_offset = orca_size.x * 0.25 + orca_size.x * 0.25 * 0.5 + 5;
+            const gradient_size = gradient_image.size();
+
+            const trans = Mat2x3.translate(x_offset, 200);
+            const scale = Mat2x3.scaleUniform((orca_size.y * 0.25) / gradient_size.y);
+            Mat2x3.push(Mat2x3.mul_m(trans, scale));
+            defer Mat2x3.pop();
+
+            gradient_image.draw(oc.Rect.xywh(0, 0, gradient_size.x, gradient_size.y));
+        }
     }
 
     surface.select();
@@ -230,4 +282,8 @@ export fn oc_on_terminate() void {
 fn fatal(err: anyerror, source: std.builtin.SourceLocation) noreturn {
     oc.abort("Caught fatal {}", .{err}, source);
     unreachable;
+}
+
+fn oneMinusLerp(a: anytype, b: anytype, t: anytype) @TypeOf(a, b, t) {
+    return 1.0 - lerp(a, b, t);
 }
