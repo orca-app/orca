@@ -1797,24 +1797,127 @@ pub const Canvas = extern struct {
 //------------------------------------------------------------------------------------------
 
 const File = extern struct {
+    const OpenFlags = packed struct(u16) {
+        none: bool,
+        append: bool,
+        truncate: bool,
+        create: bool,
+
+        symlink: bool,
+        no_follow: bool,
+        restrict: bool,
+    };
+
+    const AccessFlags = packed struct(u16) {
+        none: bool,
+        read: bool,
+        write: bool,
+    };
+
+    const Whence = enum(c_uint) {
+        Set,
+        End,
+        Current,
+    };
+
+    const Type = enum(c_uint) {
+        Unknown,
+        Regular,
+        Directory,
+        Symlink,
+        Block,
+        Character,
+        Fifo,
+        Socket,
+    };
+
+    const Perm = packed struct(u16) {
+        other_exec: bool,
+        other_write: bool,
+        other_read: bool,
+        group_exec: bool,
+        group_write: bool,
+        group_read: bool,
+        owner_exec: bool,
+        owner_write: bool,
+        owner_read: bool,
+        sticky_bit: bool,
+        set_gid: bool,
+        set_uid: bool,
+    };
+
+    const DateStamp = extern struct {
+        seconds: i64, // seconds relative to NTP epoch.
+        fraction: u64, // fraction of seconds elapsed since the time specified by seconds.
+    };
+
+    const Status = extern struct {
+        uid: u64,
+        type: Type,
+        perm: Perm,
+        size: u64,
+
+        creation_date: DateStamp,
+        access_date: DateStamp,
+        modification_date: DateStamp,
+    };
+
+    const DialogKind = enum(c_uint) {
+        Save,
+        Open,
+    };
+
+    const DialogFlags = packed struct(u32) {
+        files: bool,
+        directories: bool,
+        multiple: bool,
+        create_directories: bool,
+    };
+
+    const DialogDesc = extern struct {
+        kind: DialogKind,
+        flags: DialogFlags,
+        title: Str8,
+        ok_label: Str8,
+        start_at: File,
+        start_path: Str8,
+        filters: Str8List,
+    };
+
+    const DialogButton = enum(c_uint) {
+        Cancel,
+        Ok,
+    };
+
+    const OpenWithDialogElt = extern struct {
+        list_elt: ListElt,
+        file: File,
+    };
+
+    const OpenWithDialogResult = extern struct {
+        button: DialogButton,
+        file: File,
+        selection: List,
+    };
+
     h: u64,
 
     extern fn oc_file_nil() File;
     extern fn oc_file_is_nil(file: File) bool;
-    extern fn oc_file_open(path: Str8, rights: FileAccessFlags, flags: FileOpenFlags) File;
-    extern fn oc_file_open_at(dir: File, path: Str8, rights: FileAccessFlags, flags: FileOpenFlags) File;
+    extern fn oc_file_open(path: Str8, rights: AccessFlags, flags: OpenFlags) File;
+    extern fn oc_file_open_at(dir: File, path: Str8, rights: AccessFlags, flags: OpenFlags) File;
     extern fn oc_file_close(file: File) void;
-    extern fn oc_file_last_error(file: File) IoError;
+    extern fn oc_file_last_error(file: File) io.Error;
     extern fn oc_file_pos(file: File) i64;
-    extern fn oc_file_seek(file: File, offset: i64, whence: FileWhence) i64;
+    extern fn oc_file_seek(file: File, offset: i64, whence: Whence) i64;
     extern fn oc_file_write(file: File, size: u64, buffer: ?[*]u8) u64;
     extern fn oc_file_read(file: File, size: u64, buffer: ?[*]u8) u64;
 
-    extern fn oc_file_get_status(file: File) FileStatus;
+    extern fn oc_file_get_status(file: File) Status;
     extern fn oc_file_size(file: File) u64;
 
-    extern fn oc_file_open_with_request(path: Str8, rights: FileAccessFlags, flags: FileOpenFlags) File;
-    extern fn oc_file_open_with_dialog(arena: *Arena, rights: FileAccessFlags, flags: FileOpenFlags, desc: *FileDialogDesc) FileOpenWithDialogResult;
+    extern fn oc_file_open_with_request(path: Str8, rights: AccessFlags, flags: OpenFlags) File;
+    extern fn oc_file_open_with_dialog(arena: *Arena, rights: AccessFlags, flags: OpenFlags, desc: *DialogDesc) OpenWithDialogResult;
 
     pub const nil = oc_file_nil;
     pub const isNil = oc_file_is_nil;
@@ -1834,185 +1937,84 @@ const File = extern struct {
     pub const openWithDialog = oc_file_open_with_dialog;
 };
 
-const FileOpenFlags = packed struct(u16) {
-    none: bool,
-    append: bool,
-    truncate: bool,
-    create: bool,
+//------------------------------------------------------------------------------------------
+// [FILE IO] low-level io queue api
+//------------------------------------------------------------------------------------------
 
-    symlink: bool,
-    no_follow: bool,
-    restrict: bool,
-};
+const io = struct {
+    const ReqId = u16;
+    const Op = u32;
 
-const FileAccessFlags = packed struct(u16) {
-    none: bool,
-    read: bool,
-    write: bool,
-};
+    const OpEnum = enum(c_uint) {
+        OpenAt = 0,
+        Close,
+        FStat,
+        Seek,
+        Read,
+        Write,
+        Error,
+    };
 
-const FileWhence = enum(c_uint) {
-    Set,
-    End,
-    Current,
-};
-
-const IoReqId = u16;
-const IoOp = u32;
-
-const IoOpEnum = enum(c_uint) {
-    OpenAt = 0,
-    Close,
-    FStat,
-    Seek,
-    Read,
-    Write,
-    Error,
-};
-
-const IoReq = extern struct {
-    id: IoReqId,
-    op: IoOp,
-    handle: File,
-
-    offset: i64,
-    size: u64,
-
-    buffer: extern union {
-        data: ?[*]u8,
-        unused: u64, // This is a horrible hack to get the same layout on wasm and on host
-    },
-
-    type: extern union {
-        open: extern struct {
-            rights: FileAccessFlags,
-            flags: FileOpenFlags,
-        },
-        whence: FileWhence,
-    },
-};
-
-const IoError = enum(i32) {
-    Ok = 0,
-    Unknown,
-    Op, // unsupported operation
-    Handle, // invalid handle
-    Prev, // previously had a fatal error (last error stored on handle)
-    Arg, // invalid argument or argument combination
-    Perm, // access denied
-    Space, // no space left
-    NoEntry, // file or directory does not exist
-    Exists, // file already exists
-    NotDir, // path element is not a directory
-    Dir, // attempted to write directory
-    MaxFiles, // max open files reached
-    MaxLinks, // too many symbolic links in path
-    PathLength, // path too long
-    FileSize, // file too big
-    Overflow, // offset too big
-    NotReady, // no data ready to be read/written
-    Mem, // failed to allocate memory
-    Interrupt, // operation interrupted by a signal
-    Physical, // physical IO error
-    NoDevice, // device not found
-    Walkout, // attempted to walk out of root directory
-};
-
-const IoCmp = extern struct {
-    id: IoReqId,
-    err: IoError,
-    data: extern union {
-        result: i64,
-        size: u64,
-        offset: i64,
+    const Req = extern struct {
+        id: ReqId,
+        op: Op,
         handle: File,
-    },
+
+        offset: i64,
+        size: u64,
+
+        buffer: extern union {
+            data: ?[*]u8,
+            unused: u64, // This is a horrible hack to get the same layout on wasm and on host
+        },
+
+        type: extern union {
+            open: extern struct {
+                rights: File.AccessFlags,
+                flags: File.OpenFlags,
+            },
+            whence: File.Whence,
+        },
+    };
+
+    const Error = enum(i32) {
+        Ok = 0,
+        Unknown,
+        Op, // unsupported operation
+        Handle, // invalid handle
+        Prev, // previously had a fatal error (last error stored on handle)
+        Arg, // invalid argument or argument combination
+        Perm, // access denied
+        Space, // no space left
+        NoEntry, // file or directory does not exist
+        Exists, // file already exists
+        NotDir, // path element is not a directory
+        Dir, // attempted to write directory
+        MaxFiles, // max open files reached
+        MaxLinks, // too many symbolic links in path
+        PathLength, // path too long
+        FileSize, // file too big
+        Overflow, // offset too big
+        NotReady, // no data ready to be read/written
+        Mem, // failed to allocate memory
+        Interrupt, // operation interrupted by a signal
+        Physical, // physical IO error
+        NoDevice, // device not found
+        Walkout, // attempted to walk out of root directory
+    };
+
+    const Cmp = extern struct {
+        id: ReqId,
+        err: Error,
+        data: extern union {
+            result: i64,
+            size: u64,
+            offset: i64,
+            handle: File,
+        },
+    };
+
+    extern fn oc_io_wait_single_req(req: *Req) Cmp;
+
+    pub const waitSingleReq = oc_io_wait_single_req;
 };
-
-const FileType = enum(c_uint) {
-    Unknown,
-    Regular,
-    Directory,
-    Symlink,
-    Block,
-    Character,
-    Fifo,
-    Socket,
-};
-
-const FilePerm = packed struct(u16) {
-    other_exec: bool,
-    other_write: bool,
-    other_read: bool,
-    group_exec: bool,
-    group_write: bool,
-    group_read: bool,
-    owner_exec: bool,
-    owner_write: bool,
-    owner_read: bool,
-    sticky_bit: bool,
-    set_gid: bool,
-    set_uid: bool,
-};
-
-const DateStamp = extern struct {
-    seconds: i64, // seconds relative to NTP epoch.
-    fraction: u64, // fraction of seconds elapsed since the time specified by seconds.
-};
-
-const FileStatus = extern struct {
-    uid: u64,
-    type: FileType,
-    perm: FilePerm,
-    size: u64,
-
-    creation_date: DateStamp,
-    access_date: DateStamp,
-    modification_date: DateStamp,
-};
-
-const FileDialogKind = enum(c_uint) {
-    Save,
-    Open,
-};
-
-const FileDialogFlags = packed struct(u32) {
-    files: bool,
-    directories: bool,
-    multiple: bool,
-    create_directories: bool,
-};
-
-const FileDialogDesc = extern struct {
-    kind: FileDialogKind,
-    flags: FileDialogFlags,
-    title: Str8,
-    ok_label: Str8,
-    start_at: File,
-    start_path: Str8,
-    filters: Str8List,
-};
-
-const FileDialogButton = enum(c_uint) {
-    Cancel,
-    Ok,
-};
-
-const FileOpenWithDialogElt = extern struct {
-    list_elt: ListElt,
-    file: File,
-};
-
-const FileOpenWithDialogResult = extern struct {
-    button: FileDialogButton,
-    file: File,
-    selection: List,
-};
-
-//------------------------------------------------------------------------------------------
-// [FILE IO] complete io queue api
-//------------------------------------------------------------------------------------------
-
-extern fn oc_io_wait_single_req(req: *IoReq) IoCmp;
-
-pub const ioWaitSingleReq = oc_io_wait_single_req;
