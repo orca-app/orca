@@ -1551,6 +1551,62 @@ pub const clip = struct {
 };
 
 //------------------------------------------------------------------------------------------
+// [GRAPHICS]: path primitives
+//------------------------------------------------------------------------------------------
+
+const PathEltType = enum(c_uint) {
+    Move,
+    Line,
+    Quadratic,
+    Cubic,
+};
+
+const PathElt = extern struct {
+    type: PathEltType,
+    p: [3]Vec2,
+};
+
+const PathDescriptor = extern struct {
+    start_index: u32,
+    count: u32,
+    start_point: Vec2,
+};
+
+const Attributes = extern struct {
+    width: f32,
+    tolerance: f32,
+    color: Color,
+    joint: JointType,
+    max_joint_excursion: f32,
+    cap: CapType,
+
+    font: Font,
+    font_size: f32,
+
+    image: Image,
+    src_region: Rect,
+
+    transform: Mat2x3,
+    clip: Rect,
+};
+
+const PrimitiveCmd = enum(c_uint) {
+    Fill,
+    Stroke,
+    Jump,
+};
+
+const Primitive = extern struct {
+    cmd: PrimitiveCmd,
+    attributes: Attributes,
+    data: extern union {
+        path: PathDescriptor,
+        rect: Rect,
+        jump: u32,
+    },
+};
+
+//------------------------------------------------------------------------------------------
 // [GRAPHICS]: resources
 //------------------------------------------------------------------------------------------
 
@@ -1567,15 +1623,14 @@ pub const Surface = extern struct {
     extern fn oc_surface_contents_scaling(surface: Surface) Vec2;
     extern fn oc_surface_bring_to_front(surface: Surface) void;
     extern fn oc_surface_send_to_back(surface: Surface) void;
-    // TODO
-    // extern fn oc_surface_render_commands(
-    //     surface: Surface,
-    //     color: Color,
-    //     primitive_count: u32,
-    //     primitives: [*]Primitive,
-    //     elt_count: u32,
-    //     elements: [*]PathElt,
-    // ) void;
+    extern fn oc_surface_render_commands(
+        surface: Surface,
+        color: Color,
+        primitive_count: u32,
+        primitives: [*]Primitive,
+        elt_count: u32,
+        elements: [*]PathElt,
+    ) void;
 
     pub const nil = oc_surface_nil;
     pub const isNil = oc_surface_is_nil;
@@ -1587,7 +1642,9 @@ pub const Surface = extern struct {
     pub const contentsScaling = oc_surface_contents_scaling;
     pub const bringToFront = oc_surface_bring_to_front;
     pub const sendToBack = oc_surface_send_to_back;
-    // pub const renderCommands = oc_surface_render_commands;
+    pub fn renderCommands(surface: Surface, color: Color, primitives: []Primitive, elements: []PathElt) void {
+        oc_surface_render_commands(surface, color, @intCast(primitives.len), primitives.ptr, @intCast(elements.len), elements.ptr);
+    }
 };
 
 pub const Image = extern struct {
