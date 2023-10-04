@@ -582,6 +582,14 @@ void input_splat(float t)
 {
     bool applySplat = false;
     float x, y, deltaX, deltaY;
+    static f64 lastFrameTime = 0;
+    if (lastFrameTime == 0)
+    {
+        lastFrameTime = startTime;
+    }
+    f64 now = oc_clock_time(OC_CLOCK_MONOTONIC);
+    float frameDuration = now - lastFrameTime;
+    lastFrameTime = now;
 
     if (mouseInput.down && (mouseInput.deltaX || mouseInput.deltaY))
     {
@@ -589,13 +597,12 @@ void input_splat(float t)
         applySplat = true;
         x = mouseInput.x * scaling.x / frameWidth;
         y = mouseInput.y * scaling.y / frameHeight;
-        deltaX = mouseInput.deltaX * scaling.x / frameWidth;
-        deltaY = mouseInput.deltaY * scaling.y / frameHeight;
+        deltaX = 1. / 60 / frameDuration * mouseInput.deltaX * scaling.x / frameWidth;
+        deltaY = 1. / 60 / frameDuration * mouseInput.deltaY * scaling.y / frameHeight;
         mouseInput.deltaX = 0;
         mouseInput.deltaY = 0;
     }
 
-    f64 now = oc_clock_time(OC_CLOCK_MONOTONIC);
     f64 timeSinceStart = now - startTime;
     if (!mouseWasDown && timeSinceStart < 1)
     {
@@ -603,15 +610,8 @@ void input_splat(float t)
         float totalDeltaX = 0.5;
         x = 0.1 + totalDeltaX * timeSinceStart;
         y = 0.5;
-
-        static f64 lastFrameTime = 0;
-        if (lastFrameTime == 0)
-        {
-            lastFrameTime = startTime;
-        }
-        deltaX = totalDeltaX * (now - lastFrameTime) / 3;
+        deltaX = totalDeltaX / 180;
         deltaY = 0;
-        lastFrameTime = now;
     }
 
     //NOTE: apply force and dye
