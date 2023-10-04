@@ -140,6 +140,7 @@ frame_buffer divBuffer[4];
 GLuint vertexBuffer;
 
 oc_surface surface;
+f64 startTime;
 
 //----------------------------------------------------------------
 //NOTE(martin): initialization
@@ -403,6 +404,7 @@ typedef struct mouse_input
 } mouse_input;
 
 mouse_input mouseInput = { 0 };
+bool mouseWasDown = false;
 
 int frameWidth = 800;
 int frameHeight = 600;
@@ -410,6 +412,7 @@ int frameHeight = 600;
 ORCA_EXPORT void oc_on_mouse_down(int button)
 {
     mouseInput.down = true;
+    mouseWasDown = true;
 }
 
 ORCA_EXPORT void oc_on_mouse_up(int button)
@@ -577,23 +580,56 @@ void multigrid_clear(frame_buffer* error)
 
 void input_splat(float t)
 {
-    //NOTE: apply force and dye
-    if(mouseInput.down && (mouseInput.deltaX || mouseInput.deltaY))
+    bool applySplat = false;
+    float x, y, deltaX, deltaY;
+
+    if (mouseInput.down && (mouseInput.deltaX || mouseInput.deltaY))
     {
         oc_vec2 scaling = oc_surface_contents_scaling(surface);
+        applySplat = true;
+        x = mouseInput.x * scaling.x / frameWidth;
+        y = mouseInput.y * scaling.y / frameHeight;
+        deltaX = mouseInput.deltaX * scaling.x / frameWidth;
+        deltaY = mouseInput.deltaY * scaling.y / frameHeight;
+        mouseInput.deltaX = 0;
+        mouseInput.deltaY = 0;
+    }
+
+    f64 now = oc_clock_time(OC_CLOCK_MONOTONIC);
+    f64 timeSinceStart = now - startTime;
+    if (!mouseWasDown && timeSinceStart < 1)
+    {
+        applySplat = true;
+        float totalDeltaX = 0.5;
+        x = 0.1 + totalDeltaX * timeSinceStart;
+        y = 0.5;
+
+        static f64 lastFrameTime = 0;
+        if (lastFrameTime == 0)
+        {
+            lastFrameTime = startTime;
+        }
+        deltaX = totalDeltaX * (now - lastFrameTime) / 3;
+        deltaY = 0;
+        lastFrameTime = now;
+    }
+
+    //NOTE: apply force and dye
+    if(applySplat)
+    {
         // account for margin
         float margin = 32;
 
         float offset = margin / texWidth;
         float ratio = 1 - 2 * margin / texWidth;
 
-        float splatPosX = (mouseInput.x * scaling.x / frameWidth) * ratio + offset;
-        float splatPosY = (1 - mouseInput.y * scaling.y / frameHeight) * ratio + offset;
+        float splatPosX = x * ratio + offset;
+        float splatPosY = (1 - y) * ratio + offset;
 
-        float splatVelX = (10000. * DELTA * mouseInput.deltaX * scaling.x / frameWidth) * ratio;
-        float splatVelY = (-10000. * DELTA * mouseInput.deltaY * scaling.y / frameWidth) * ratio;
+        float splatVelX = (10000. * DELTA * deltaX) * ratio;
+        float splatVelY = (-10000. * DELTA * deltaY) * ratio;
 
-        float intensity = 100 * sqrtf(square(ratio * mouseInput.deltaX * scaling.x / frameWidth) + square(ratio * mouseInput.deltaY * scaling.y / frameHeight));
+        float intensity = 100 * sqrtf(square(ratio * deltaX) + square(ratio * deltaY));
 
         float r = intensity * (sinf(2 * M_PI * 0.1 * t) + 1);
         float g = 0.5 * intensity * (cosf(2 * M_PI * 0.1 / M_E * t + 654) + 1);
@@ -602,9 +638,6 @@ void input_splat(float t)
         float radius = 0.005;
 
         apply_splat(splatPosX, splatPosY, radius, splatVelX, splatVelY, r, g, b, false);
-
-        mouseInput.deltaX = 0;
-        mouseInput.deltaY = 0;
     }
 }
 
@@ -677,6 +710,8 @@ ORCA_EXPORT void oc_on_init()
             testDiv[i][j][0] = 0.5 + 0.5 * cosf(j / 100. * 3.14159 + i / 100. * 1.2139);
         }
     }
+
+    startTime = oc_clock_time(OC_CLOCK_MONOTONIC);
 }
 
 ORCA_EXPORT void oc_on_resize(u32 width, u32 height)
