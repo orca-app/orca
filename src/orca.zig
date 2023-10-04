@@ -1485,7 +1485,10 @@ pub const KeyCode = enum(c_uint) {
     Menu = 348,
 };
 
-pub const key_code_count: usize = 349;
+pub const key_code_count: usize = blk: {
+    const enum_fields = @typeInfo(KeyCode).Enum.fields;
+    break :blk enum_fields[enum_fields.len - 1].value + 1;
+};
 
 pub const KeymodFlags = packed struct(c_uint) {
     none: bool,
@@ -1505,7 +1508,10 @@ pub const MouseButton = enum(c_uint) {
     Ext2 = 0x04,
 };
 
-pub const mouse_button_count: usize = 5;
+pub const mouse_button_count: usize = blk: {
+    const enum_fields = @typeInfo(MouseButton).Enum.fields;
+    break :blk enum_fields[enum_fields.len - 1].value + 1;
+};
 
 /// Keyboard and mouse buttons input
 pub const KeyEvent = extern struct {
@@ -2143,1188 +2149,1183 @@ pub const InputState = extern struct {
 //------------------------------------------------------------------------------------------
 // [UI]: structs
 //------------------------------------------------------------------------------------------
+pub const ui = struct {
+    pub const Key = extern struct {
+        hash: u64,
 
-pub const UiKey = extern struct {
-    hash: u64,
-};
+        extern fn oc_ui_key_make_str8(string: Str8) Key;
+        extern fn oc_ui_key_make_path(path: Str8List) Key;
 
-pub const UiAxis = enum(c_uint) { X, Y };
+        pub fn make(string: []const u8) Key {
+            return oc_ui_key_make_str8(Str8.fromSlice(string));
+        }
 
-pub const UiLayoutMargin = struct {
-    x: ?f32 = null,
-    y: ?f32 = null,
+        pub const makePath = oc_ui_key_make_path;
+    };
 
-    pub fn array(self: *UiLayoutMargin) *[2]?f32 {
-        return @ptrCast(self);
-    }
-};
+    pub const Axis = enum(c_uint) {
+        X,
+        Y,
+    };
 
-pub const UiAlignment = enum(c_uint) { Start, End, Center };
+    pub const LayoutMargin = struct {
+        x: ?f32 = null,
+        y: ?f32 = null,
 
-pub const UiLayoutAlignment = struct {
-    x: ?UiAlignment = null,
-    y: ?UiAlignment = null,
+        pub fn array(self: *LayoutMargin) *[2]?f32 {
+            return @ptrCast(self);
+        }
+    };
 
-    pub fn array(self: *UiLayoutAlignment) *[2]?UiAlignment {
-        return @ptrCast(self);
-    }
-};
+    pub const Alignment = enum(c_uint) {
+        Start,
+        End,
+        Center,
+    };
 
-pub const UiLayout = struct {
-    axis: ?UiAxis = null,
-    spacing: ?f32 = null,
-    margin: UiLayoutMargin = .{},
-    alignment: UiLayoutAlignment = .{},
-};
+    pub const LayoutAlignment = struct {
+        x: ?Alignment = null,
+        y: ?Alignment = null,
 
-pub const UiSizeKind = enum(c_uint) {
-    Text,
-    Pixels,
-    Children,
-    Parent,
-    ParentMinusPixels,
-};
+        pub fn array(self: *LayoutAlignment) *[2]?Alignment {
+            return @ptrCast(self);
+        }
+    };
 
-pub const UiSizeCustom = struct {
-    kind: UiSizeKind = .Text,
-    value: f32 = 0,
-    relax: f32 = 0,
-    min_size: f32 = 0,
-};
+    pub const Layout = struct {
+        axis: ?Axis = null,
+        spacing: ?f32 = null,
+        margin: LayoutMargin = .{},
+        alignment: LayoutAlignment = .{},
+    };
 
-pub const UiSize = union(enum) {
-    text,
-    pixels: f32,
-    children,
-    fill_parent,
-    parent: f32,
-    parent_minus_pixels: f32,
-    custom: UiSizeCustom,
-};
+    pub const SizeKind = enum(c_uint) {
+        Text,
+        Pixels,
+        Children,
+        Parent,
+        ParentMinusPixels,
+    };
 
-pub const UiBoxSize = struct {
-    width: ?UiSize = null,
-    height: ?UiSize = null,
+    pub const SizeCustom = struct {
+        kind: SizeKind = .Text,
+        value: f32 = 0,
+        relax: f32 = 0,
+        min_size: f32 = 0,
+    };
 
-    pub fn array(self: *UiBoxSize) *[2]?UiSize {
-        return @ptrCast(self);
-    }
-};
+    pub const Size = union(enum) {
+        text,
+        pixels: f32,
+        children,
+        fill_parent,
+        parent: f32,
+        parent_minus_pixels: f32,
+        custom: SizeCustom,
+    };
 
-pub const UiBoxFloating = struct {
-    x: ?bool = null,
-    y: ?bool = null,
+    pub const BoxSize = struct {
+        width: ?Size = null,
+        height: ?Size = null,
 
-    pub fn array(self: *UiBoxFloating) *[2]?bool {
-        return @ptrCast(self);
-    }
-};
+        pub fn array(self: *BoxSize) *[2]?Size {
+            return @ptrCast(self);
+        }
+    };
 
-pub const FloatTarget = struct {
-    x: ?f32 = null,
-    y: ?f32 = null,
+    pub const BoxFloating = struct {
+        x: ?bool = null,
+        y: ?bool = null,
 
-    pub fn array(self: *FloatTarget) *[2]f32 {
-        return @ptrCast(self);
-    }
-};
+        pub fn array(self: *BoxFloating) *[2]?bool {
+            return @ptrCast(self);
+        }
+    };
 
-//NOTE: flags for axis-dependent properties (e.g. FloatX/Y) need to be consecutive bits
-//      in order to play well with axis agnostic functions. Using explicit bit shifts here
-//      so that arithmetic on flags is possible
-pub const UiAnimationMask = enum(c_uint) {
-    None = 0,
-    SizeWidth = 1 << 1,
-    SizeHeight = 1 << 2,
-    LayoutAxis = 1 << 3,
-    LayoutAlignX = 1 << 4,
-    LayoutAlignY = 1 << 5,
-    LayoutSpacing = 1 << 6,
-    LayoutMarginX = 1 << 7,
-    LayoutMarginY = 1 << 8,
-    FloatX = 1 << 9,
-    FloatY = 1 << 10,
-    Color = 1 << 11,
-    BgColor = 1 << 12,
-    BorderColor = 1 << 13,
-    BorderSize = 1 << 14,
-    Roundness = 1 << 15,
+    pub const FloatTarget = struct {
+        x: ?f32 = null,
+        y: ?f32 = null,
 
-    FontSize = 1 << 17,
-};
+        pub fn array(self: *FloatTarget) *[2]f32 {
+            return @ptrCast(self);
+        }
+    };
 
-pub const UiStyle = struct {
-    size: UiBoxSize = .{},
-    layout: UiLayout = .{},
-    floating: UiBoxFloating = .{},
-    float_target: FloatTarget = .{},
-    color: ?Color = null,
-    bg_color: ?Color = null,
-    border_color: ?Color = null,
-    font: ?Font = null,
-    font_size: ?f32 = null,
-    border_size: ?f32 = null,
-    roundness: ?f32 = null,
-    animation_time: ?f32 = null,
-    animation_mask: UiAnimationMask = .None,
-};
+    //NOTE: flags for axis-dependent properties (e.g. FloatX/Y) need to be consecutive bits
+    //      in order to play well with axis agnostic functions. Using explicit bit shifts here
+    //      so that arithmetic on flags is possible
+    pub const AnimationMask = enum(c_uint) {
+        None = 0,
+        SizeWidth = 1 << 1,
+        SizeHeight = 1 << 2,
+        LayoutAxis = 1 << 3,
+        LayoutAlignX = 1 << 4,
+        LayoutAlignY = 1 << 5,
+        LayoutSpacing = 1 << 6,
+        LayoutMarginX = 1 << 7,
+        LayoutMarginY = 1 << 8,
+        FloatX = 1 << 9,
+        FloatY = 1 << 10,
+        Color = 1 << 11,
+        BgColor = 1 << 12,
+        BorderColor = 1 << 13,
+        BorderSize = 1 << 14,
+        Roundness = 1 << 15,
 
-pub const UiPalette = extern struct {
-    red0: Color,
-    red1: Color,
-    red2: Color,
-    red3: Color,
-    red4: Color,
-    red5: Color,
-    red6: Color,
-    red7: Color,
-    red8: Color,
-    red9: Color,
-    orange0: Color,
-    orange1: Color,
-    orange2: Color,
-    orange3: Color,
-    orange4: Color,
-    orange5: Color,
-    orange6: Color,
-    orange7: Color,
-    orange8: Color,
-    orange9: Color,
-    amber0: Color,
-    amber1: Color,
-    amber2: Color,
-    amber3: Color,
-    amber4: Color,
-    amber5: Color,
-    amber6: Color,
-    amber7: Color,
-    amber8: Color,
-    amber9: Color,
-    yellow0: Color,
-    yellow1: Color,
-    yellow2: Color,
-    yellow3: Color,
-    yellow4: Color,
-    yellow5: Color,
-    yellow6: Color,
-    yellow7: Color,
-    yellow8: Color,
-    yellow9: Color,
-    lime0: Color,
-    lime1: Color,
-    lime2: Color,
-    lime3: Color,
-    lime4: Color,
-    lime5: Color,
-    lime6: Color,
-    lime7: Color,
-    lime8: Color,
-    lime9: Color,
-    light_green0: Color,
-    light_green1: Color,
-    light_green2: Color,
-    light_green3: Color,
-    light_green4: Color,
-    light_green5: Color,
-    light_green6: Color,
-    light_green7: Color,
-    light_green8: Color,
-    light_green9: Color,
-    green0: Color,
-    green1: Color,
-    green2: Color,
-    green3: Color,
-    green4: Color,
-    green5: Color,
-    green6: Color,
-    green7: Color,
-    green8: Color,
-    green9: Color,
-    teal0: Color,
-    teal1: Color,
-    teal2: Color,
-    teal3: Color,
-    teal4: Color,
-    teal5: Color,
-    teal6: Color,
-    teal7: Color,
-    teal8: Color,
-    teal9: Color,
-    cyan0: Color,
-    cyan1: Color,
-    cyan2: Color,
-    cyan3: Color,
-    cyan4: Color,
-    cyan5: Color,
-    cyan6: Color,
-    cyan7: Color,
-    cyan8: Color,
-    cyan9: Color,
-    light_blue0: Color,
-    light_blue1: Color,
-    light_blue2: Color,
-    light_blue3: Color,
-    light_blue4: Color,
-    light_blue5: Color,
-    light_blue6: Color,
-    light_blue7: Color,
-    light_blue8: Color,
-    light_blue9: Color,
-    blue0: Color,
-    blue1: Color,
-    blue2: Color,
-    blue3: Color,
-    blue4: Color,
-    blue5: Color,
-    blue6: Color,
-    blue7: Color,
-    blue8: Color,
-    blue9: Color,
-    indigo0: Color,
-    indigo1: Color,
-    indigo2: Color,
-    indigo3: Color,
-    indigo4: Color,
-    indigo5: Color,
-    indigo6: Color,
-    indigo7: Color,
-    indigo8: Color,
-    indigo9: Color,
-    violet0: Color,
-    violet1: Color,
-    violet2: Color,
-    violet3: Color,
-    violet4: Color,
-    violet5: Color,
-    violet6: Color,
-    violet7: Color,
-    violet8: Color,
-    violet9: Color,
-    purple0: Color,
-    purple1: Color,
-    purple2: Color,
-    purple3: Color,
-    purple4: Color,
-    purple5: Color,
-    purple6: Color,
-    purple7: Color,
-    purple8: Color,
-    purple9: Color,
-    pink0: Color,
-    pink1: Color,
-    pink2: Color,
-    pink3: Color,
-    pink4: Color,
-    pink5: Color,
-    pink6: Color,
-    pink7: Color,
-    pink8: Color,
-    pink9: Color,
-    grey0: Color,
-    grey1: Color,
-    grey2: Color,
-    grey3: Color,
-    grey4: Color,
-    grey5: Color,
-    grey6: Color,
-    grey7: Color,
-    grey8: Color,
-    grey9: Color,
-    black: Color,
-    white: Color,
-};
+        FontSize = 1 << 17,
+    };
 
-/// Visualized in doc/UIColors.md
-pub const ui_dark_palette = @extern(*UiPalette, .{ .name = "OC_UI_DARK_PALETTE" });
+    pub const Style = struct {
+        size: BoxSize = .{},
+        layout: Layout = .{},
+        floating: BoxFloating = .{},
+        float_target: FloatTarget = .{},
+        color: ?Color = null,
+        bg_color: ?Color = null,
+        border_color: ?Color = null,
+        font: ?Font = null,
+        font_size: ?f32 = null,
+        border_size: ?f32 = null,
+        roundness: ?f32 = null,
+        animation_time: ?f32 = null,
+        animation_mask: AnimationMask = .None,
+    };
 
-/// Visualized in doc/UIColors.md
-pub const ui_light_palette = @extern(*UiPalette, .{ .name = "OC_UI_LIGHT_PALETTE" });
+    pub const Palette = extern struct {
+        red0: Color,
+        red1: Color,
+        red2: Color,
+        red3: Color,
+        red4: Color,
+        red5: Color,
+        red6: Color,
+        red7: Color,
+        red8: Color,
+        red9: Color,
+        orange0: Color,
+        orange1: Color,
+        orange2: Color,
+        orange3: Color,
+        orange4: Color,
+        orange5: Color,
+        orange6: Color,
+        orange7: Color,
+        orange8: Color,
+        orange9: Color,
+        amber0: Color,
+        amber1: Color,
+        amber2: Color,
+        amber3: Color,
+        amber4: Color,
+        amber5: Color,
+        amber6: Color,
+        amber7: Color,
+        amber8: Color,
+        amber9: Color,
+        yellow0: Color,
+        yellow1: Color,
+        yellow2: Color,
+        yellow3: Color,
+        yellow4: Color,
+        yellow5: Color,
+        yellow6: Color,
+        yellow7: Color,
+        yellow8: Color,
+        yellow9: Color,
+        lime0: Color,
+        lime1: Color,
+        lime2: Color,
+        lime3: Color,
+        lime4: Color,
+        lime5: Color,
+        lime6: Color,
+        lime7: Color,
+        lime8: Color,
+        lime9: Color,
+        light_green0: Color,
+        light_green1: Color,
+        light_green2: Color,
+        light_green3: Color,
+        light_green4: Color,
+        light_green5: Color,
+        light_green6: Color,
+        light_green7: Color,
+        light_green8: Color,
+        light_green9: Color,
+        green0: Color,
+        green1: Color,
+        green2: Color,
+        green3: Color,
+        green4: Color,
+        green5: Color,
+        green6: Color,
+        green7: Color,
+        green8: Color,
+        green9: Color,
+        teal0: Color,
+        teal1: Color,
+        teal2: Color,
+        teal3: Color,
+        teal4: Color,
+        teal5: Color,
+        teal6: Color,
+        teal7: Color,
+        teal8: Color,
+        teal9: Color,
+        cyan0: Color,
+        cyan1: Color,
+        cyan2: Color,
+        cyan3: Color,
+        cyan4: Color,
+        cyan5: Color,
+        cyan6: Color,
+        cyan7: Color,
+        cyan8: Color,
+        cyan9: Color,
+        light_blue0: Color,
+        light_blue1: Color,
+        light_blue2: Color,
+        light_blue3: Color,
+        light_blue4: Color,
+        light_blue5: Color,
+        light_blue6: Color,
+        light_blue7: Color,
+        light_blue8: Color,
+        light_blue9: Color,
+        blue0: Color,
+        blue1: Color,
+        blue2: Color,
+        blue3: Color,
+        blue4: Color,
+        blue5: Color,
+        blue6: Color,
+        blue7: Color,
+        blue8: Color,
+        blue9: Color,
+        indigo0: Color,
+        indigo1: Color,
+        indigo2: Color,
+        indigo3: Color,
+        indigo4: Color,
+        indigo5: Color,
+        indigo6: Color,
+        indigo7: Color,
+        indigo8: Color,
+        indigo9: Color,
+        violet0: Color,
+        violet1: Color,
+        violet2: Color,
+        violet3: Color,
+        violet4: Color,
+        violet5: Color,
+        violet6: Color,
+        violet7: Color,
+        violet8: Color,
+        violet9: Color,
+        purple0: Color,
+        purple1: Color,
+        purple2: Color,
+        purple3: Color,
+        purple4: Color,
+        purple5: Color,
+        purple6: Color,
+        purple7: Color,
+        purple8: Color,
+        purple9: Color,
+        pink0: Color,
+        pink1: Color,
+        pink2: Color,
+        pink3: Color,
+        pink4: Color,
+        pink5: Color,
+        pink6: Color,
+        pink7: Color,
+        pink8: Color,
+        pink9: Color,
+        grey0: Color,
+        grey1: Color,
+        grey2: Color,
+        grey3: Color,
+        grey4: Color,
+        grey5: Color,
+        grey6: Color,
+        grey7: Color,
+        grey8: Color,
+        grey9: Color,
+        black: Color,
+        white: Color,
+    };
 
-pub const UiTheme = extern struct {
-    white: Color,
-    primary: Color,
-    primary_hover: Color,
-    primary_active: Color,
-    border: Color,
-    fill0: Color,
-    fill1: Color,
-    fill2: Color,
-    bg0: Color,
-    bg1: Color,
-    bg2: Color,
-    bg3: Color,
-    bg4: Color,
-    text0: Color,
-    text1: Color,
-    text2: Color,
-    text3: Color,
-    slider_thumb_border: Color,
-    elevated_border: Color,
+    /// Visualized in doc/UIColors.md
+    pub const dark_palette = @extern(*Palette, .{ .name = "OC_UI_DARK_PALETTE" });
 
-    roundness_small: f32,
-    roundness_medium: f32,
-    roundness_large: f32,
+    /// Visualized in doc/UIColors.md
+    pub const light_palette = @extern(*Palette, .{ .name = "OC_UI_LIGHT_PALETTE" });
 
-    palette: *UiPalette,
-};
+    pub const Theme = extern struct {
+        white: Color,
+        primary: Color,
+        primary_hover: Color,
+        primary_active: Color,
+        border: Color,
+        fill0: Color,
+        fill1: Color,
+        fill2: Color,
+        bg0: Color,
+        bg1: Color,
+        bg2: Color,
+        bg3: Color,
+        bg4: Color,
+        text0: Color,
+        text1: Color,
+        text2: Color,
+        text3: Color,
+        slider_thumb_border: Color,
+        elevated_border: Color,
 
-pub const ui_dark_theme = @extern(*UiTheme, .{ .name = "OC_UI_DARK_THEME" });
-pub const ui_light_theme = @extern(*UiTheme, .{ .name = "OC_UI_LIGHT_THEME" });
+        roundness_small: f32,
+        roundness_medium: f32,
+        roundness_large: f32,
 
-pub const UiTag = extern struct {
-    hash: u64,
-};
+        palette: *Palette,
+    };
 
-pub const UiSelectorKind = enum(c_uint) {
-    any,
-    owner,
-    text,
-    tag,
-    status,
-    key,
-};
+    pub const dark_theme = @extern(*Theme, .{ .name = "OC_UI_DARK_THEME" });
+    pub const light_theme = @extern(*Theme, .{ .name = "OC_UI_LIGHT_THEME" });
 
-pub const UiStatus = packed struct(u8) {
-    _: u1 = 0,
+    pub const Tag = extern struct {
+        hash: u64,
 
-    hover: bool = false,
-    hot: bool = false,
-    active: bool = false,
-    dragging: bool = false,
+        extern fn oc_ui_tag_make_str8(string: Str8) Tag;
 
-    __: u3 = 0,
+        pub fn make(string: []const u8) Tag {
+            return oc_ui_tag_make_str8(Str8.fromSlice(string));
+        }
+    };
 
-    pub fn empty(self: UiStatus) bool {
-        return !self.hover and !self.hot and !self.active and !self.dragging;
-    }
-};
-
-pub const UiSelectorOp = enum(c_uint) {
-    Descendant,
-    And,
-};
-
-pub const UiSelector = struct {
-    op: UiSelectorOp = .Descendant,
-    sel: union(UiSelectorKind) {
+    pub const SelectorKind = enum(c_uint) {
         any,
         owner,
+        text,
+        tag,
+        status,
+        key,
+    };
+
+    pub const Status = packed struct(u8) {
+        _: u1 = 0,
+
+        hover: bool = false,
+        hot: bool = false,
+        active: bool = false,
+        dragging: bool = false,
+
+        __: u3 = 0,
+
+        pub fn empty(self: Status) bool {
+            return !self.hover and !self.hot and !self.active and !self.dragging;
+        }
+    };
+
+    pub const SelectorOp = enum(c_uint) {
+        Descendant,
+        And,
+    };
+
+    pub const Selector = struct {
+        op: SelectorOp = .Descendant,
+        sel: union(SelectorKind) {
+            any,
+            owner,
+            text: []u8,
+            key: Key,
+            tag: Tag,
+            status: Status,
+        },
+    };
+
+    pub const Pattern = extern struct {
+        l: List,
+
+        extern fn oc_ui_pattern_push(arena: *Arena, pattern: *Pattern, selector: SelectorInternal) void;
+        extern fn oc_ui_pattern_all() Pattern;
+        extern fn oc_ui_pattern_owner() Pattern;
+
+        pub fn init() Pattern {
+            return .{ .l = List.init() };
+        }
+
+        /// Push the selector onto frame arena and insert it into the pattern's linked list.
+        /// Underlying Selector implementation has a ListElt within it that is not exposed to the Zig interface
+        /// in order to simplify the conversion.
+        ///
+        /// WARN: You can use a pattern in multiple rules, but be aware that a pattern is referencing
+        ///       an underlying list of selectors, hence pushing to a pattern also modifies rules in
+        ///       which the pattern was previously used!
+        pub fn push(self: *Pattern, arena: *Arena, selector: Selector) void {
+            oc_ui_pattern_push(arena, self, convertSelector(selector));
+        }
+
+        pub const all = oc_ui_pattern_all;
+        pub const owner = oc_ui_pattern_owner;
+    };
+
+    pub const StyleRule = struct {
+        box_elt: ListElt,
+        build_elt: ListElt,
+        tmp_elt: ListElt,
+
+        owner: *Box,
+        pattern: Pattern,
+        style: *Style,
+    };
+
+    pub const Sig = extern struct {
+        box: *Box,
+
+        mouse: Vec2,
+        delta: Vec2,
+        wheel: Vec2,
+
+        pressed: bool,
+        released: bool,
+        clicked: bool,
+        doubleClicked: bool,
+        tripleClicked: bool,
+        rightPressed: bool,
+
+        dragging: bool,
+        hovering: bool,
+
+        pasted: bool,
+    };
+
+    pub const BoxDrawProc = *fn (box: *Box, data: ?*anyopaque) callconv(.C) void;
+
+    pub const OverflowAllow = packed struct {
+        x: bool = false,
+        y: bool = false,
+
+        pub fn array(self: *OverflowAllow) *[2]bool {
+            return @ptrCast(self);
+        }
+    };
+
+    pub const Flags = packed struct(c_uint) {
+        clickable: bool = false, // 0
+        scroll_wheel_x: bool = false, // 1
+        scroll_wheel_y: bool = false, // 2
+        block_mouse: bool = false, // 3
+        hot_animation: bool = false, // 4
+        active_animation: bool = false, // 5
+        overflow_allow: OverflowAllow = .{}, // 6-7
+        clip: bool = false, // 8
+        draw_background: bool = false, // 9
+        draw_foreground: bool = false, // 10
+        draw_border: bool = false, // 11
+        draw_text: bool = false, // 12
+        draw_proc: bool = false, // 13
+        _: u2 = 0, // 14-15
+
+        overlay: bool = false, // 16
+        __: u15 = 0,
+    };
+
+    pub const Box = extern struct {
+        // hierarchy
+        list_elt: ListElt,
+        children: List,
+        parent: ?*Box,
+
+        overlay_elt: ListElt,
+
+        // keying and caching
+        bucket_elt: ListElt,
+        key: Key,
+        frame_counter: u64,
+
+        // builder-provided info
+        flags: Flags,
+        string: Str8,
+        tags: List,
+
+        draw_proc: BoxDrawProc,
+        draw_data: *anyopaque,
+
+        // styling
+        before_rules: List,
+        after_rules: List,
+
+        target_style: ?*Style,
+        style: StyleInternal,
+        z: u32,
+
+        float_pos: Vec2,
+        children_sum: [2]f32,
+        spacing: [2]f32,
+        min_size: [2]f32,
+        rect: Rect,
+
+        // signals
+        sig: ?*Sig,
+
+        // stateful behavior
+        fresh: bool,
+        closed: bool,
+        parent_closed: bool,
+        dragging: bool,
+        hot: bool,
+        active: bool,
+        scroll: Vec2,
+        pressed_mouse: Vec2,
+
+        // animation data
+        hot_transition: f32,
+        active_transition: f32,
+
+        // status and signals
+        extern fn oc_ui_box_closed(box: *Box) bool;
+        extern fn oc_ui_box_set_closed(box: *Box, closed: bool) void;
+
+        extern fn oc_ui_box_active(box: *Box) bool;
+        extern fn oc_ui_box_activate(box: *Box) void;
+        extern fn oc_ui_box_deactivate(box: *Box) void;
+
+        extern fn oc_ui_box_hot(box: *Box) bool;
+        extern fn oc_ui_box_set_hot(box: *Box, hot: bool) void;
+
+        extern fn oc_ui_box_sig(box: *Box) Sig;
+
+        pub const closed = oc_ui_box_closed;
+        pub const setClosed = oc_ui_box_set_closed;
+
+        pub const active = oc_ui_box_active;
+        pub const activate = oc_ui_box_activate;
+        pub const deactivate = oc_ui_box_deactivate;
+
+        pub const hot = oc_ui_box_hot;
+        pub const setHot = oc_ui_box_set_hot;
+
+        pub const sig = oc_ui_box_sig;
+    };
+
+    pub const InputText = extern struct {
+        count: u8,
+        codepoints: [64]Utf32,
+    };
+
+    const CSize = extern struct {
+        kind: SizeKind,
+        value: f32 = 0,
+        relax: f32 = 0,
+        min_size: f32 = 0,
+
+        fn fromSize(size: Size) CSize {
+            return switch (size) {
+                .text => .{ .kind = .Text },
+                .pixels => |pixels| .{ .kind = .Pixels, .value = pixels },
+                .children => .{ .kind = .Children },
+                .fill_parent => .{ .kind = .Parent, .value = 1 },
+                .parent => |fraction| .{ .kind = .Parent, .value = fraction },
+                .parent_minus_pixels => |pixels| .{ .kind = .ParentMinusPixels, .value = pixels },
+                .custom => |custom| .{
+                    .kind = custom.kind,
+                    .value = custom.value,
+                    .relax = custom.relax,
+                    .min_size = custom.min_size,
+                },
+            };
+        }
+    };
+
+    pub const StackElt = extern struct {
+        parent: ?*StackElt,
+        elt: extern union {
+            box: *Box,
+            size: CSize,
+            clip: Rect,
+        },
+    };
+
+    pub const TagElt = extern struct {
+        list_elt: ListElt,
+        tag: Tag,
+    };
+
+    pub const EditMove = enum(c_uint) {
+        none,
+        char,
+        word,
+        line,
+    };
+
+    pub const Context = extern struct {
+        is_init: bool,
+
+        input: InputState,
+
+        frame_counter: u64,
+        frame_time: f64,
+        last_frame_duration: f64,
+
+        frame_arena: Arena,
+        box_pool: Pool,
+        box_map: [1024]List,
+
+        root: *Box,
+        overlay: *Box,
+        overlay_list: List,
+        box_stack: *StackElt,
+        clip_stack: *StackElt,
+
+        next_box_before_rules: List,
+        next_box_after_rules: List,
+        next_box_tags: List,
+
+        z: u32,
+        hovered: ?*Box,
+
+        focus: ?*Box,
+        edit_cursor: i32,
+        edit_mark: i32,
+        edit_first_displayed_char: i32,
+        edit_cursor_blink_start: f64,
+        edit_selection_mode: EditMove,
+        edit_word_selection_initial_cursor: i32,
+        edit_word_selection_initial_mark: i32,
+
+        theme: *Theme,
+
+        extern fn oc_ui_init(context: *Context) void;
+        pub const init = oc_ui_init;
+    };
+
+    const LayoutAlignmentInternal = extern struct {
+        x: Alignment,
+        y: Alignment,
+    };
+
+    const LayoutMarginInternal = extern struct {
+        x: f32,
+        y: f32,
+    };
+
+    const LayoutInternal = extern struct {
+        axis: Axis,
+        spacing: f32,
+        margin: LayoutMarginInternal,
+        alignment: LayoutAlignmentInternal,
+    };
+
+    const BoxSizeInternal = extern struct {
+        width: CSize,
+        height: CSize,
+    };
+
+    const BoxFloatingInternal = extern struct {
+        x: bool,
+        y: bool,
+    };
+
+    const FloatTargetInternal = extern struct {
+        x: f32,
+        y: f32,
+    };
+
+    const StyleInternal = extern struct {
+        size: BoxSizeInternal,
+        layout: LayoutInternal,
+        floating: BoxFloatingInternal,
+        float_target: FloatTargetInternal,
+        color: Color,
+        bg_color: Color,
+        border_color: Color,
+        font: Font,
+        font_size: f32,
+        border_size: f32,
+        roundness: f32,
+        animation_time: f32,
+        animation_mask: AnimationMask,
+    };
+
+    const StyleMaskInternal = packed struct(u64) {
+        _: u1 = 0,
+        size_width: bool = false,
+        size_height: bool = false,
+        layout_axis: bool = false,
+        layout_align_x: bool = false,
+        layout_align_y: bool = false,
+        layout_spacing: bool = false,
+        layout_margin_x: bool = false,
+        layout_margin_y: bool = false,
+        float_x: bool = false,
+        float_y: bool = false,
+        color: bool = false,
+        bg_color: bool = false,
+        border_color: bool = false,
+        border_size: bool = false,
+        roundness: bool = false,
+        font: bool = false,
+        font_size: bool = false,
+        animation_time: bool = false,
+        animation_mask: bool = false,
+        __: u44 = 0,
+    };
+
+    //------------------------------------------------------------------------------------------
+    // [UI]: context initialization and frame cycle
+    //------------------------------------------------------------------------------------------
+
+    extern fn oc_ui_get_context() *Context;
+    extern fn oc_ui_set_context(context: *Context) void;
+
+    extern fn oc_ui_process_event(event: *CEvent) void;
+    extern fn oc_ui_begin_frame(size: Vec2, default_style: *StyleInternal, mask: StyleMaskInternal) void;
+    extern fn oc_ui_end_frame() void;
+    extern fn oc_ui_draw() void;
+    extern fn oc_ui_set_theme(theme: *Theme) void;
+
+    pub const getContext = oc_ui_get_context;
+    pub const setContext = oc_ui_set_context;
+    pub const processCEvent = oc_ui_process_event;
+
+    pub const endFrame = oc_ui_end_frame;
+    pub const draw = oc_ui_draw;
+    pub const setTheme = oc_ui_set_theme;
+
+    pub fn beginFrame(size: Vec2, default_style: *Style) void {
+        var default_style_and_mask = convertStyle(default_style);
+        oc_ui_begin_frame(size, &default_style_and_mask.style, default_style_and_mask.mask);
+    }
+
+    const StyleAndMaskInternal = struct {
+        style: StyleInternal,
+        mask: StyleMaskInternal,
+    };
+
+    fn convertStyle(style: *const Style) StyleAndMaskInternal {
+        var style_internal: StyleInternal = std.mem.zeroes(StyleInternal);
+        var mask: StyleMaskInternal = .{};
+        if (style.size.width) |width| {
+            style_internal.size.width = CSize.fromSize(width);
+            mask.size_width = true;
+        }
+        if (style.size.height) |height| {
+            style_internal.size.height = CSize.fromSize(height);
+            mask.size_height = true;
+        }
+        if (style.layout.axis) |axis| {
+            style_internal.layout.axis = axis;
+            mask.layout_axis = true;
+        }
+        if (style.layout.alignment.x) |x| {
+            style_internal.layout.alignment.x = x;
+            mask.layout_align_x = true;
+        }
+        if (style.layout.alignment.y) |y| {
+            style_internal.layout.alignment.y = y;
+            mask.layout_align_y = true;
+        }
+        if (style.layout.spacing) |spacing| {
+            style_internal.layout.spacing = spacing;
+            mask.layout_spacing = true;
+        }
+        if (style.layout.margin.x) |x| {
+            style_internal.layout.margin.x = x;
+            mask.layout_margin_x = true;
+        }
+        if (style.layout.margin.y) |y| {
+            style_internal.layout.margin.y = y;
+            mask.layout_margin_y = true;
+        }
+        if (style.floating.x) |x| {
+            style_internal.floating.x = x;
+            if (style.float_target.x) |target_x| {
+                style_internal.float_target.x = target_x;
+            }
+            mask.float_x = true;
+        }
+        if (style.floating.y) |y| {
+            style_internal.floating.y = y;
+            if (style.float_target.y) |target_y| {
+                style_internal.float_target.y = target_y;
+            }
+            mask.float_y = true;
+        }
+        if (style.color) |color| {
+            style_internal.color = color;
+            mask.color = true;
+        }
+        if (style.bg_color) |bg_color| {
+            style_internal.bg_color = bg_color;
+            mask.bg_color = true;
+        }
+        if (style.border_color) |border_color| {
+            style_internal.border_color = border_color;
+            mask.border_color = true;
+        }
+        if (style.border_size) |border_size| {
+            style_internal.border_size = border_size;
+            mask.border_size = true;
+        }
+        if (style.roundness) |roundness| {
+            style_internal.roundness = roundness;
+            mask.roundness = true;
+        }
+        if (style.font) |font| {
+            style_internal.font = font;
+            mask.font = true;
+        }
+        if (style.font_size) |font_size| {
+            style_internal.font_size = font_size;
+            mask.font_size = true;
+        }
+        if (style.animation_time) |animation_time| {
+            style_internal.animation_time = animation_time;
+            mask.animation_time = true;
+        }
+        if (style.animation_mask != .None) {
+            style_internal.animation_mask = @enumFromInt(
+                @intFromEnum(style_internal.animation_mask) | @intFromEnum(style.animation_mask),
+            );
+            mask.animation_mask = true;
+        }
+
+        return .{ .style = style_internal, .mask = mask };
+    }
+
+    //------------------------------------------------------------------------------------------
+    // [UI]: box hierarchy building
+    //------------------------------------------------------------------------------------------
+    extern fn oc_ui_box_make_str8(string: Str8, flags: Flags) *Box;
+    extern fn oc_ui_box_begin_str8(string: Str8, flags: Flags) *Box;
+    extern fn oc_ui_box_end() *Box;
+
+    extern fn oc_ui_box_push(box: *Box) void;
+    extern fn oc_ui_box_pop() void;
+    extern fn oc_ui_box_top() ?*Box;
+
+    extern fn oc_ui_box_lookup_key(key: Key) ?*Box;
+    extern fn oc_ui_box_lookup_str8(string: Str8) ?*Box;
+
+    extern fn oc_ui_box_set_draw_proc(box: Box, proc: BoxDrawProc, data: ?*anyopaque) void;
+
+    pub fn boxMake(string: []const u8, flags: Flags) *Box {
+        return oc_ui_box_make_str8(Str8.fromSlice(string), flags);
+    }
+
+    pub fn boxBegin(string: []const u8, flags: Flags) *Box {
+        return oc_ui_box_begin_str8(Str8.fromSlice(string), flags);
+    }
+
+    pub const boxEnd = oc_ui_box_end;
+
+    pub const boxPush = oc_ui_box_push;
+    pub const boxPop = oc_ui_box_pop;
+    pub const boxTop = oc_ui_box_top;
+
+    pub const boxLookupKey = oc_ui_box_lookup_key;
+
+    pub fn boxLookupStr(string: []const u8) ?*Box {
+        return oc_ui_box_lookup_str8(Str8.fromSlice(string));
+    }
+
+    pub const boxSetDrawProc = oc_ui_box_set_draw_proc;
+
+    //------------------------------------------------------------------------------------------
+    // [UI]: tagging
+    //------------------------------------------------------------------------------------------
+
+    extern fn oc_ui_tag_box_str8(box: *Box, string: Str8) void;
+    extern fn oc_ui_tag_next_str8(string: Str8) void;
+
+    pub fn tagBox(box: *Box, string: []const u8) void {
+        oc_ui_tag_box_str8(box, Str8.fromSlice(string));
+    }
+
+    pub fn tagNext(string: []const u8) void {
+        oc_ui_tag_next_str8(Str8.fromSlice(string));
+    }
+
+    //------------------------------------------------------------------------------------------
+    // [UI]: styling
+    //------------------------------------------------------------------------------------------
+
+    const SelectorDataInternal = extern union {
+        text: Str8,
+        key: Key,
+        tag: Tag,
+        status: Status,
+    };
+
+    const SelectorInternal = extern struct {
+        list_elt: ListElt,
+        kind: SelectorKind,
+        op: SelectorOp,
+        data: SelectorDataInternal,
+    };
+
+    extern fn oc_ui_style_next(style: *StyleInternal, mask: StyleMaskInternal) void;
+    extern fn oc_ui_style_match_before(pattern: Pattern, style: *StyleInternal, mask: StyleMaskInternal) void;
+    extern fn oc_ui_style_match_after(patterh: Pattern, style: *StyleInternal, mask: StyleMaskInternal) void;
+
+    pub fn styleNext(style: Style) void {
+        var style_and_mask = convertStyle(&style);
+        oc_ui_style_next(&style_and_mask.style, style_and_mask.mask);
+    }
+
+    pub fn styleMatchBefore(pattern: Pattern, style: Style) void {
+        var style_and_mask = convertStyle(&style);
+        oc_ui_style_match_before(pattern, &style_and_mask.style, style_and_mask.mask);
+    }
+
+    pub fn styleMatchAfter(pattern: Pattern, style: Style) void {
+        var style_and_mask = convertStyle(&style);
+        oc_ui_style_match_after(pattern, &style_and_mask.style, style_and_mask.mask);
+    }
+
+    pub fn applyStyle(dst: *Style, src: *Style) void {
+        if (src.size.width) |width| {
+            dst.size.width = width;
+        }
+        if (src.size.height) |height| {
+            dst.size.height = height;
+        }
+        if (src.layout.axis) |axis| {
+            dst.layout.axis = axis;
+        }
+        if (src.layout.alignment.x) |x| {
+            dst.layout.alignment.x = x;
+        }
+        if (src.layout.alignment.y) |y| {
+            dst.layout.alignment.y = y;
+        }
+        if (src.layout.spacing) |spacing| {
+            dst.layout.spacing = spacing;
+        }
+        if (src.layout.margin.x) |x| {
+            dst.layout.margin.x = x;
+        }
+        if (src.layout.margin.y) |y| {
+            dst.layout.margin.y = y;
+        }
+        if (src.floating.x) |x| {
+            dst.floating.x = x;
+        }
+        if (src.float_target.x) |x| {
+            dst.float_target.x = x;
+        }
+        if (src.floating.y) |y| {
+            dst.floating.y = y;
+        }
+        if (src.float_target.y) |y| {
+            dst.float_target.y = y;
+        }
+        if (src.color) |color| {
+            dst.color = color;
+        }
+        if (src.bg_color) |bg_color| {
+            dst.bg_color = bg_color;
+        }
+        if (src.border_color) |border_color| {
+            dst.border_color = border_color;
+        }
+        if (src.border_size) |border_size| {
+            dst.border_size = border_size;
+        }
+        if (src.roudness) |roudness| {
+            dst.roudness = roudness;
+        }
+        if (src.font) |font| {
+            dst.font = font;
+        }
+        if (src.font_size) |font_size| {
+            dst.font_size = font_size;
+        }
+        if (src.animation_time) |animation_time| {
+            dst.animation_time = animation_time;
+        }
+        if (src.animation_mask) |animation_mask| {
+            dst.animation_mask = animation_mask;
+        }
+    }
+
+    fn convertSelector(selector: Selector) SelectorInternal {
+        var data: SelectorDataInternal = switch (selector.sel) {
+            .any, .owner => std.mem.zeroes(SelectorDataInternal),
+            .text => |text| .{ .text = Str8.fromSlice(text) },
+            .key => |key| .{ .key = key },
+            .tag => |tag| .{ .tag = tag },
+            .status => |status| .{ .status = status },
+        };
+
+        return SelectorInternal{
+            .list_elt = .{ .prev = null, .next = null },
+            .kind = selector.sel,
+            .op = selector.op,
+            .data = data,
+        };
+    }
+
+    //------------------------------------------------------------------------------------------
+    // [UI]: basic widget helpers
+    //------------------------------------------------------------------------------------------
+
+    extern fn oc_ui_label_str8(label: Str8) Sig;
+    extern fn oc_ui_button_str8(label: Str8) Sig;
+    extern fn oc_ui_checkbox_str8(label: Str8, checked: *bool) Sig;
+    extern fn oc_ui_slider_str8(label: Str8, value: *f32) *Box;
+    extern fn oc_ui_scrollbar_str8(label: Str8, thumbRatio: f32, scrollValue: *f32) *Box;
+    extern fn oc_ui_tooltip_str8(label: Str8) void;
+
+    extern fn oc_ui_panel_begin_str8(name: Str8, flags: Flags) void;
+    extern fn oc_ui_panel_end() void;
+
+    extern fn oc_ui_menu_bar_begin_str8(label: Str8) void;
+    extern fn oc_ui_menu_bar_end() void;
+    extern fn oc_ui_menu_begin_str8(label: Str8) void;
+    extern fn oc_ui_menu_end() void;
+    extern fn oc_ui_menu_button_str8(name: Str8) Sig;
+
+    const TextBoxResultInternal = extern struct {
+        changed: bool,
+        accepted: bool,
+        text: Str8,
+    };
+    extern fn oc_ui_text_box_str8(name: Str8, arena: Arena, text: Str8) TextBoxResultInternal;
+
+    const SelectPopupInfoInternal = extern struct {
+        changed: bool,
+        selected_index: c_int,
+        option_count: c_int,
+        options: [*]Str8,
+        placeholder: Str8,
+    };
+    extern fn oc_ui_select_popup_str8(name: Str8, info: *SelectPopupInfoInternal) SelectPopupInfoInternal;
+
+    const RadioGroupInfoInternal = extern struct {
+        changed: bool,
+        selected_index: c_int,
+        option_count: c_int,
+        options: [*]Str8,
+    };
+    extern fn oc_ui_radio_group_str8(name: Str8, info: RadioGroupInfoInternal) RadioGroupInfoInternal;
+
+    pub fn makeLabel(label: []const u8) Sig {
+        return oc_ui_label_str8(Str8.fromSlice(label));
+    }
+
+    pub fn button(label: []const u8) Sig {
+        return oc_ui_button_str8(Str8.fromSlice(label));
+    }
+
+    pub fn checkbox(name: []const u8, checked: *bool) Sig {
+        return oc_ui_checkbox_str8(Str8.fromSlice(name), checked);
+    }
+
+    pub fn slider(name: []const u8, value: *f32) *Box {
+        return oc_ui_slider_str8(Str8.fromSlice(name), value);
+    }
+
+    pub fn scrollbar(name: []const u8, thumbRatio: f32, scrollValue: *f32) *Box {
+        return oc_ui_scrollbar_str8(Str8.fromSlice(name), thumbRatio, scrollValue);
+    }
+
+    pub fn tooltip(label: []const u8) void {
+        oc_ui_tooltip_str8(Str8.fromSlice(label));
+    }
+
+    pub fn panelBegin(name: []const u8, flags: Flags) void {
+        oc_ui_panel_begin_str8(Str8.fromSlice(name), flags);
+    }
+
+    pub fn panelEnd() void {
+        oc_ui_panel_end();
+    }
+
+    pub fn menuBarBegin(label: []const u8) void {
+        oc_ui_menu_bar_begin_str8(Str8.fromSlice(label));
+    }
+
+    pub fn menuBarEnd() void {
+        oc_ui_menu_bar_end();
+    }
+
+    pub fn menuBegin(label: []const u8) void {
+        oc_ui_menu_begin_str8(Str8.fromSlice(label));
+    }
+
+    pub fn menuEnd() void {
+        oc_ui_menu_end();
+    }
+
+    pub fn menuButton(label: []const u8) Sig {
+        return oc_ui_menu_button_str8(Str8.fromSlice(label));
+    }
+
+    pub const TextBoxResult = struct {
+        changed: bool,
+        accepted: bool,
         text: []u8,
-        key: UiKey,
-        tag: UiTag,
-        status: UiStatus,
-    },
-};
+    };
 
-pub const UiPattern = extern struct {
-    l: List,
-
-    extern fn oc_ui_pattern_push(arena: *Arena, pattern: *UiPattern, selector: UiSelectorInternal) void;
-    extern fn oc_ui_pattern_all() UiPattern;
-    extern fn oc_ui_pattern_owner() UiPattern;
-
-    pub fn init() UiPattern {
-        return .{ .l = List.init() };
+    pub fn textBox(name: []const u8, arena: Arena, text: []const u8) TextBoxResult {
+        var result_internal = oc_ui_text_box_str8(Str8.fromSlice(name), arena, Str8.fromSlice(text));
+        return .{
+            .changed = result_internal.changed,
+            .accepted = result_internal.accepted,
+            .text = result_internal.text.slice(),
+        };
     }
 
-    /// Push the selector onto frame arena and insert it into the pattern's linked list.
-    /// Underlying UiSelector implementation has a ListElt within it that is not exposed to the Zig interface
-    /// in order to simplify the conversion.
-    ///
-    /// WARN: You can use a pattern in multiple rules, but be aware that a pattern is referencing
-    ///       an underlying list of selectors, hence pushing to a pattern also modifies rules in
-    ///       which the pattern was previously used!
-    pub fn push(self: *UiPattern, arena: *Arena, selector: UiSelector) void {
-        oc_ui_pattern_push(arena, self, uiConvertSelector(selector));
+    pub const SelectPopupInfo = struct {
+        changed: bool = false,
+        selected_index: ?usize,
+        options: [][]const u8,
+        placeholder: []const u8 = "",
+    };
+
+    pub fn selectPopup(name: []const u8, info: *SelectPopupInfo) SelectPopupInfo {
+        var info_internal = SelectPopupInfoInternal{
+            .changed = info.changed,
+            .selected_index = if (info.selected_index) |selected_index| @intCast(selected_index) else -1,
+            .option_count = @intCast(info.options.len),
+            .options = @ptrCast(info.options.ptr),
+            .placeholder = Str8.fromSlice(info.placeholder),
+        };
+        var result_internal = oc_ui_select_popup_str8(Str8.fromSlice(name), &info_internal);
+        return .{
+            .changed = result_internal.changed,
+            .selected_index = if (result_internal.selected_index >= 0) @intCast(result_internal.selected_index) else null,
+            .options = @ptrCast(result_internal.options[0..@intCast(result_internal.option_count)]),
+            .placeholder = result_internal.placeholder.slice(),
+        };
     }
 
-    pub const all = oc_ui_pattern_all;
-    pub const owner = oc_ui_pattern_owner;
-};
+    pub const RadioGroupInfo = struct {
+        changed: bool = false,
+        selected_index: ?usize,
+        options: [][]const u8,
+    };
 
-pub const UiStyleRule = struct {
-    box_elt: ListElt,
-    build_elt: ListElt,
-    tmp_elt: ListElt,
-
-    owner: *UiBox,
-    pattern: UiPattern,
-    style: *UiStyle,
-};
-
-pub const UiSig = extern struct {
-    box: *UiBox,
-
-    mouse: Vec2,
-    delta: Vec2,
-    wheel: Vec2,
-
-    pressed: bool,
-    released: bool,
-    clicked: bool,
-    doubleClicked: bool,
-    tripleClicked: bool,
-    rightPressed: bool,
-
-    dragging: bool,
-    hovering: bool,
-
-    pasted: bool,
-};
-
-pub const UiBoxDrawProc = *fn (box: *UiBox, data: ?*anyopaque) callconv(.C) void;
-
-pub const UiOverflowAllow = packed struct {
-    x: bool = false,
-    y: bool = false,
-
-    pub fn array(self: *UiOverflowAllow) *[2]bool {
-        return @ptrCast(self);
-    }
-};
-
-pub const UiFlags = packed struct(c_uint) {
-    clickable: bool = false, // 0
-    scroll_wheel_x: bool = false, // 1
-    scroll_wheel_y: bool = false, // 2
-    block_mouse: bool = false, // 3
-    hot_animation: bool = false, // 4
-    active_animation: bool = false, // 5
-    overflow_allow: UiOverflowAllow = .{}, // 6-7
-    clip: bool = false, // 8
-    draw_background: bool = false, // 9
-    draw_foreground: bool = false, // 10
-    draw_border: bool = false, // 11
-    draw_text: bool = false, // 12
-    draw_proc: bool = false, // 13
-    _: u2 = 0, // 14-15
-
-    overlay: bool = false, // 16
-    __: u15 = 0,
-};
-
-pub const UiBox = extern struct {
-    // hierarchy
-    list_elt: ListElt,
-    children: List,
-    parent: ?*UiBox,
-
-    overlay_elt: ListElt,
-
-    // keying and caching
-    bucket_elt: ListElt,
-    key: UiKey,
-    frame_counter: u64,
-
-    // builder-provided info
-    flags: UiFlags,
-    string: Str8,
-    tags: List,
-
-    draw_proc: UiBoxDrawProc,
-    draw_data: *anyopaque,
-
-    // styling
-    before_rules: List,
-    after_rules: List,
-
-    target_style: ?*UiStyle,
-    style: UiStyleInternal,
-    z: u32,
-
-    float_pos: Vec2,
-    children_sum: [2]f32,
-    spacing: [2]f32,
-    min_size: [2]f32,
-    rect: Rect,
-
-    // signals
-    sig: ?*UiSig,
-
-    // stateful behavior
-    fresh: bool,
-    closed: bool,
-    parent_closed: bool,
-    dragging: bool,
-    hot: bool,
-    active: bool,
-    scroll: Vec2,
-    pressed_mouse: Vec2,
-
-    // animation data
-    hot_transition: f32,
-    active_transition: f32,
-};
-
-pub const UiInputText = extern struct {
-    count: u8,
-    codepoints: [64]Utf32,
-};
-
-const UiCSize = extern struct {
-    kind: UiSizeKind,
-    value: f32 = 0,
-    relax: f32 = 0,
-    min_size: f32 = 0,
-
-    fn fromUiSize(ui_size: UiSize) UiCSize {
-        return switch (ui_size) {
-            .text => .{ .kind = .Text },
-            .pixels => |pixels| .{ .kind = .Pixels, .value = pixels },
-            .children => .{ .kind = .Children },
-            .fill_parent => .{ .kind = .Parent, .value = 1 },
-            .parent => |fraction| .{ .kind = .Parent, .value = fraction },
-            .parent_minus_pixels => |pixels| .{ .kind = .ParentMinusPixels, .value = pixels },
-            .custom => |custom| .{
-                .kind = custom.kind,
-                .value = custom.value,
-                .relax = custom.relax,
-                .min_size = custom.min_size,
-            },
+    pub fn radioGroup(name: []const u8, info: *RadioGroupInfo) RadioGroupInfo {
+        var info_internal = RadioGroupInfoInternal{
+            .changed = info.changed,
+            .selected_index = if (info.selected_index) |selected_index| @intCast(selected_index) else -1,
+            .option_count = @intCast(info.options.len),
+            .options = @ptrCast(info.options.ptr),
+        };
+        var result_internal = oc_ui_radio_group_str8(Str8.fromSlice(name), info_internal);
+        return .{
+            .changed = result_internal.changed,
+            .selected_index = if (result_internal.selected_index >= 0) @intCast(result_internal.selected_index) else null,
+            .options = @ptrCast(result_internal.options[0..@intCast(result_internal.option_count)]),
         };
     }
 };
 
-pub const UiStackElt = extern struct {
-    parent: ?*UiStackElt,
-    elt: extern union {
-        box: *UiBox,
-        size: UiCSize,
-        clip: Rect,
-    },
-};
-
-pub const UiTagElt = extern struct {
-    list_elt: ListElt,
-    tag: UiTag,
-};
-
-pub const UiEditMove = enum(c_uint) {
-    none,
-    char,
-    word,
-    line,
-};
-
-pub const UiContext = extern struct {
-    is_init: bool,
-
-    input: InputState,
-
-    frame_counter: u64,
-    frame_time: f64,
-    last_frame_duration: f64,
-
-    frame_arena: Arena,
-    box_pool: Pool,
-    box_map: [1024]List,
-
-    root: *UiBox,
-    overlay: *UiBox,
-    overlay_list: List,
-    box_stack: *UiStackElt,
-    clip_stack: *UiStackElt,
-
-    next_box_before_rules: List,
-    next_box_after_rules: List,
-    next_box_tags: List,
-
-    z: u32,
-    hovered: ?*UiBox,
-
-    focus: ?*UiBox,
-    edit_cursor: i32,
-    edit_mark: i32,
-    edit_first_displayed_char: i32,
-    edit_cursor_blink_start: f64,
-    edit_selection_mode: UiEditMove,
-    edit_word_selection_initial_cursor: i32,
-    edit_word_selection_initial_mark: i32,
-
-    theme: *UiTheme,
-
-    extern fn oc_ui_init(context: *UiContext) void;
-    pub const init = oc_ui_init;
-};
-
-const UiLayoutAlignmentInternal = extern struct {
-    x: UiAlignment,
-    y: UiAlignment,
-};
-
-const UiLayoutMarginInternal = extern struct {
-    x: f32,
-    y: f32,
-};
-
-const UiLayoutInternal = extern struct {
-    axis: UiAxis,
-    spacing: f32,
-    margin: UiLayoutMarginInternal,
-    alignment: UiLayoutAlignmentInternal,
-};
-
-const UiBoxSizeInternal = extern struct {
-    width: UiCSize,
-    height: UiCSize,
-};
-
-const UiBoxFloatingInternal = extern struct {
-    x: bool,
-    y: bool,
-};
-
-const UiFloatTargetInternal = extern struct {
-    x: f32,
-    y: f32,
-};
-
-const UiStyleInternal = extern struct {
-    size: UiBoxSizeInternal,
-    layout: UiLayoutInternal,
-    floating: UiBoxFloatingInternal,
-    float_target: UiFloatTargetInternal,
-    color: Color,
-    bg_color: Color,
-    border_color: Color,
-    font: Font,
-    font_size: f32,
-    border_size: f32,
-    roundness: f32,
-    animation_time: f32,
-    animation_mask: UiAnimationMask,
-};
-
-const UiStyleMaskInternal = packed struct(u64) {
-    _: u1 = 0,
-    size_width: bool = false,
-    size_height: bool = false,
-    layout_axis: bool = false,
-    layout_align_x: bool = false,
-    layout_align_y: bool = false,
-    layout_spacing: bool = false,
-    layout_margin_x: bool = false,
-    layout_margin_y: bool = false,
-    float_x: bool = false,
-    float_y: bool = false,
-    color: bool = false,
-    bg_color: bool = false,
-    border_color: bool = false,
-    border_size: bool = false,
-    roundness: bool = false,
-    font: bool = false,
-    font_size: bool = false,
-    animation_time: bool = false,
-    animation_mask: bool = false,
-    __: u44 = 0,
-};
-
-//------------------------------------------------------------------------------------------
-// [UI]: context initialization and frame cycle
-//------------------------------------------------------------------------------------------
-
-extern fn oc_ui_get_context() *UiContext;
-extern fn oc_ui_set_context(context: *UiContext) void;
-
-extern fn oc_ui_process_event(event: *CEvent) void;
-extern fn oc_ui_begin_frame(size: Vec2, default_style: *UiStyleInternal, mask: UiStyleMaskInternal) void;
-extern fn oc_ui_end_frame() void;
-extern fn oc_ui_draw() void;
-extern fn oc_ui_set_theme(theme: *UiTheme) void;
-
-pub const uiGetContext = oc_ui_get_context;
-pub const uiSetContext = oc_ui_set_context;
-pub const uiProcessCEvent = oc_ui_process_event;
-
-pub const uiEndFrame = oc_ui_end_frame;
-pub const uiDraw = oc_ui_draw;
-pub const uiSetTheme = oc_ui_set_theme;
-
-pub fn uiBeginFrame(size: Vec2, default_style: *UiStyle) void {
-    var default_style_and_mask = uiConvertStyle(default_style);
-    oc_ui_begin_frame(size, &default_style_and_mask.style, default_style_and_mask.mask);
-}
-
-const UiStyleAndMaskInternal = struct {
-    style: UiStyleInternal,
-    mask: UiStyleMaskInternal,
-};
-
-fn uiConvertStyle(style: *const UiStyle) UiStyleAndMaskInternal {
-    var style_internal: UiStyleInternal = std.mem.zeroes(UiStyleInternal);
-    var mask: UiStyleMaskInternal = .{};
-    if (style.size.width) |width| {
-        style_internal.size.width = UiCSize.fromUiSize(width);
-        mask.size_width = true;
-    }
-    if (style.size.height) |height| {
-        style_internal.size.height = UiCSize.fromUiSize(height);
-        mask.size_height = true;
-    }
-    if (style.layout.axis) |axis| {
-        style_internal.layout.axis = axis;
-        mask.layout_axis = true;
-    }
-    if (style.layout.alignment.x) |x| {
-        style_internal.layout.alignment.x = x;
-        mask.layout_align_x = true;
-    }
-    if (style.layout.alignment.y) |y| {
-        style_internal.layout.alignment.y = y;
-        mask.layout_align_y = true;
-    }
-    if (style.layout.spacing) |spacing| {
-        style_internal.layout.spacing = spacing;
-        mask.layout_spacing = true;
-    }
-    if (style.layout.margin.x) |x| {
-        style_internal.layout.margin.x = x;
-        mask.layout_margin_x = true;
-    }
-    if (style.layout.margin.y) |y| {
-        style_internal.layout.margin.y = y;
-        mask.layout_margin_y = true;
-    }
-    if (style.floating.x) |x| {
-        style_internal.floating.x = x;
-        if (style.float_target.x) |target_x| {
-            style_internal.float_target.x = target_x;
-        }
-        mask.float_x = true;
-    }
-    if (style.floating.y) |y| {
-        style_internal.floating.y = y;
-        if (style.float_target.y) |target_y| {
-            style_internal.float_target.y = target_y;
-        }
-        mask.float_y = true;
-    }
-    if (style.color) |color| {
-        style_internal.color = color;
-        mask.color = true;
-    }
-    if (style.bg_color) |bg_color| {
-        style_internal.bg_color = bg_color;
-        mask.bg_color = true;
-    }
-    if (style.border_color) |border_color| {
-        style_internal.border_color = border_color;
-        mask.border_color = true;
-    }
-    if (style.border_size) |border_size| {
-        style_internal.border_size = border_size;
-        mask.border_size = true;
-    }
-    if (style.roundness) |roundness| {
-        style_internal.roundness = roundness;
-        mask.roundness = true;
-    }
-    if (style.font) |font| {
-        style_internal.font = font;
-        mask.font = true;
-    }
-    if (style.font_size) |font_size| {
-        style_internal.font_size = font_size;
-        mask.font_size = true;
-    }
-    if (style.animation_time) |animation_time| {
-        style_internal.animation_time = animation_time;
-        mask.animation_time = true;
-    }
-    if (style.animation_mask != .None) {
-        style_internal.animation_mask = @enumFromInt(
-            @intFromEnum(style_internal.animation_mask) | @intFromEnum(style.animation_mask),
-        );
-        mask.animation_mask = true;
-    }
-
-    return .{ .style = style_internal, .mask = mask };
-}
-
-//------------------------------------------------------------------------------------------
-// [UI]: box keys
-//------------------------------------------------------------------------------------------
-
-extern fn oc_ui_key_make_str8(string: Str8) UiKey;
-extern fn oc_ui_key_make_path(path: Str8List) UiKey;
-
-pub fn uiKeyMake(string: []const u8) UiKey {
-    return oc_ui_key_make_str8(Str8.fromSlice(string));
-}
-
-pub const uiKeyMakePath = oc_ui_key_make_path;
-
-//------------------------------------------------------------------------------------------
-// [UI]: box hierarchy building
-//------------------------------------------------------------------------------------------
-
-extern fn oc_ui_box_make_str8(string: Str8, flags: UiFlags) *UiBox;
-extern fn oc_ui_box_begin_str8(string: Str8, flags: UiFlags) *UiBox;
-extern fn oc_ui_box_end() *UiBox;
-
-extern fn oc_ui_box_push(box: *UiBox) void;
-extern fn oc_ui_box_pop() void;
-extern fn oc_ui_box_top() ?*UiBox;
-
-extern fn oc_ui_box_lookup_key(key: UiKey) ?*UiBox;
-extern fn oc_ui_box_lookup_str8(string: Str8) ?*UiBox;
-
-extern fn oc_ui_box_set_draw_proc(box: UiBox, proc: UiBoxDrawProc, data: ?*anyopaque) void;
-
-pub fn uiBoxMake(string: []const u8, flags: UiFlags) *UiBox {
-    return oc_ui_box_make_str8(Str8.fromSlice(string), flags);
-}
-
-pub fn uiBoxBegin(string: []const u8, flags: UiFlags) *UiBox {
-    return oc_ui_box_begin_str8(Str8.fromSlice(string), flags);
-}
-
-pub const uiBoxEnd = oc_ui_box_end;
-
-pub const uiBoxPush = oc_ui_box_push;
-pub const uiBoxPop = oc_ui_box_pop;
-pub const uiBoxTop = oc_ui_box_top;
-
-pub const uiBoxLookupKey = oc_ui_box_lookup_key;
-
-pub fn uiBoxLookupStr(string: []const u8) ?*UiBox {
-    return oc_ui_box_lookup_str8(Str8.fromSlice(string));
-}
-
-pub const uiBoxSetDrawProc = oc_ui_box_set_draw_proc;
-
-//------------------------------------------------------------------------------------------
-// [UI]: box status and signals
-//------------------------------------------------------------------------------------------
-
-extern fn oc_ui_box_closed(box: *UiBox) bool;
-extern fn oc_ui_box_set_closed(box: *UiBox, closed: bool) void;
-
-extern fn oc_ui_box_active(box: *UiBox) bool;
-extern fn oc_ui_box_activate(box: *UiBox) void;
-extern fn oc_ui_box_deactivate(box: *UiBox) void;
-
-extern fn oc_ui_box_hot(box: *UiBox) bool;
-extern fn oc_ui_box_set_hot(box: *UiBox, hot: bool) void;
-
-extern fn oc_ui_box_sig(box: *UiBox) UiSig;
-
-pub const uiBoxClosed = oc_ui_box_closed;
-pub const uiBoxSetClosed = oc_ui_box_set_closed;
-
-pub const uiBoxActive = oc_ui_box_active;
-pub const uiBoxActivate = oc_ui_box_activate;
-pub const uiBoxDeactivate = oc_ui_box_deactivate;
-
-pub const uiBoxHot = oc_ui_box_hot;
-pub const uiBoxSetHot = oc_ui_box_set_hot;
-
-pub const uiBoxSig = oc_ui_box_sig;
-
-//------------------------------------------------------------------------------------------
-// [UI]: tagging
-//------------------------------------------------------------------------------------------
-
-extern fn oc_ui_tag_make_str8(string: Str8) UiTag;
-extern fn oc_ui_tag_box_str8(box: *UiBox, string: Str8) void;
-extern fn oc_ui_tag_next_str8(string: Str8) void;
-
-pub fn uiTagMake(string: []const u8) UiTag {
-    return oc_ui_tag_make_str8(Str8.fromSlice(string));
-}
-
-pub fn uiTagBox(box: *UiBox, string: []const u8) void {
-    oc_ui_tag_box_str8(box, Str8.fromSlice(string));
-}
-
-pub fn uiTagNext(string: []const u8) void {
-    oc_ui_tag_next_str8(Str8.fromSlice(string));
-}
-
-//------------------------------------------------------------------------------------------
-// [UI]: styling
-//------------------------------------------------------------------------------------------
-
-const UiSelectorDataInternal = extern union {
-    text: Str8,
-    key: UiKey,
-    tag: UiTag,
-    status: UiStatus,
-};
-
-const UiSelectorInternal = extern struct {
-    list_elt: ListElt,
-    kind: UiSelectorKind,
-    op: UiSelectorOp,
-    data: UiSelectorDataInternal,
-};
-
-extern fn oc_ui_style_next(style: *UiStyleInternal, mask: UiStyleMaskInternal) void;
-extern fn oc_ui_style_match_before(pattern: UiPattern, style: *UiStyleInternal, mask: UiStyleMaskInternal) void;
-extern fn oc_ui_style_match_after(patterh: UiPattern, style: *UiStyleInternal, mask: UiStyleMaskInternal) void;
-
-pub fn uiStyleNext(style: UiStyle) void {
-    var style_and_mask = uiConvertStyle(&style);
-    oc_ui_style_next(&style_and_mask.style, style_and_mask.mask);
-}
-
-pub fn uiStyleMatchBefore(pattern: UiPattern, style: UiStyle) void {
-    var style_and_mask = uiConvertStyle(&style);
-    oc_ui_style_match_before(pattern, &style_and_mask.style, style_and_mask.mask);
-}
-
-pub fn uiStyleMatchAfter(pattern: UiPattern, style: UiStyle) void {
-    var style_and_mask = uiConvertStyle(&style);
-    oc_ui_style_match_after(pattern, &style_and_mask.style, style_and_mask.mask);
-}
-
-pub fn uiApplyStyle(dst: *UiStyle, src: *UiStyle) void {
-    if (src.size.width) |width| {
-        dst.size.width = width;
-    }
-    if (src.size.height) |height| {
-        dst.size.height = height;
-    }
-    if (src.layout.axis) |axis| {
-        dst.layout.axis = axis;
-    }
-    if (src.layout.alignment.x) |x| {
-        dst.layout.alignment.x = x;
-    }
-    if (src.layout.alignment.y) |y| {
-        dst.layout.alignment.y = y;
-    }
-    if (src.layout.spacing) |spacing| {
-        dst.layout.spacing = spacing;
-    }
-    if (src.layout.margin.x) |x| {
-        dst.layout.margin.x = x;
-    }
-    if (src.layout.margin.y) |y| {
-        dst.layout.margin.y = y;
-    }
-    if (src.floating.x) |x| {
-        dst.floating.x = x;
-    }
-    if (src.float_target.x) |x| {
-        dst.float_target.x = x;
-    }
-    if (src.floating.y) |y| {
-        dst.floating.y = y;
-    }
-    if (src.float_target.y) |y| {
-        dst.float_target.y = y;
-    }
-    if (src.color) |color| {
-        dst.color = color;
-    }
-    if (src.bg_color) |bg_color| {
-        dst.bg_color = bg_color;
-    }
-    if (src.border_color) |border_color| {
-        dst.border_color = border_color;
-    }
-    if (src.border_size) |border_size| {
-        dst.border_size = border_size;
-    }
-    if (src.roudness) |roudness| {
-        dst.roudness = roudness;
-    }
-    if (src.font) |font| {
-        dst.font = font;
-    }
-    if (src.font_size) |font_size| {
-        dst.font_size = font_size;
-    }
-    if (src.animation_time) |animation_time| {
-        dst.animation_time = animation_time;
-    }
-    if (src.animation_mask) |animation_mask| {
-        dst.animation_mask = animation_mask;
-    }
-}
-
-fn uiConvertSelector(selector: UiSelector) UiSelectorInternal {
-    var data: UiSelectorDataInternal = switch (selector.sel) {
-        .any, .owner => std.mem.zeroes(UiSelectorDataInternal),
-        .text => |text| .{ .text = Str8.fromSlice(text) },
-        .key => |key| .{ .key = key },
-        .tag => |tag| .{ .tag = tag },
-        .status => |status| .{ .status = status },
-    };
-
-    return UiSelectorInternal{
-        .list_elt = .{ .prev = null, .next = null },
-        .kind = selector.sel,
-        .op = selector.op,
-        .data = data,
-    };
-}
-
-//------------------------------------------------------------------------------------------
-// [UI]: basic widget helpers
-//------------------------------------------------------------------------------------------
-
-extern fn oc_ui_label_str8(label: Str8) UiSig;
-extern fn oc_ui_button_str8(label: Str8) UiSig;
-extern fn oc_ui_checkbox_str8(label: Str8, checked: *bool) UiSig;
-extern fn oc_ui_slider_str8(label: Str8, value: *f32) *UiBox;
-extern fn oc_ui_scrollbar_str8(label: Str8, thumbRatio: f32, scrollValue: *f32) *UiBox;
-extern fn oc_ui_tooltip_str8(label: Str8) void;
-
-extern fn oc_ui_panel_begin_str8(name: Str8, flags: UiFlags) void;
-extern fn oc_ui_panel_end() void;
-
-extern fn oc_ui_menu_bar_begin_str8(label: Str8) void;
-extern fn oc_ui_menu_bar_end() void;
-extern fn oc_ui_menu_begin_str8(label: Str8) void;
-extern fn oc_ui_menu_end() void;
-extern fn oc_ui_menu_button_str8(name: Str8) UiSig;
-
-const UiTextBoxResultInternal = extern struct {
-    changed: bool,
-    accepted: bool,
-    text: Str8,
-};
-extern fn oc_ui_text_box_str8(name: Str8, arena: Arena, text: Str8) UiTextBoxResultInternal;
-
-const UiSelectPopupInfoInternal = extern struct {
-    changed: bool,
-    selected_index: c_int,
-    option_count: c_int,
-    options: [*]Str8,
-    placeholder: Str8,
-};
-extern fn oc_ui_select_popup_str8(name: Str8, info: *UiSelectPopupInfoInternal) UiSelectPopupInfoInternal;
-
-const UiRadioGroupInfoInternal = extern struct {
-    changed: bool,
-    selected_index: c_int,
-    option_count: c_int,
-    options: [*]Str8,
-};
-extern fn oc_ui_radio_group_str8(name: Str8, info: UiRadioGroupInfoInternal) UiRadioGroupInfoInternal;
-
-pub fn uiLabel(label: []const u8) UiSig {
-    return oc_ui_label_str8(Str8.fromSlice(label));
-}
-
-pub fn uiButton(label: []const u8) UiSig {
-    return oc_ui_button_str8(Str8.fromSlice(label));
-}
-
-pub fn uiCheckbox(label: []const u8, checked: *bool) UiSig {
-    return oc_ui_checkbox_str8(Str8.fromSlice(label), checked);
-}
-
-pub fn uiSlider(label: []const u8, value: *f32) *UiBox {
-    return oc_ui_slider_str8(Str8.fromSlice(label), value);
-}
-
-pub fn uiScrollbar(label: []const u8, thumbRatio: f32, scrollValue: *f32) *UiBox {
-    return oc_ui_scrollbar_str8(Str8.fromSlice(label), thumbRatio, scrollValue);
-}
-
-pub fn uiTooltip(label: []const u8) void {
-    oc_ui_tooltip_str8(Str8.fromSlice(label));
-}
-
-pub fn uiPanelBegin(name: []const u8, flags: UiFlags) void {
-    oc_ui_panel_begin_str8(Str8.fromSlice(name), flags);
-}
-
-pub fn uiPanelEnd() void {
-    oc_ui_panel_end();
-}
-
-pub fn uiMenuBarBegin(label: []const u8) void {
-    oc_ui_menu_bar_begin_str8(Str8.fromSlice(label));
-}
-
-pub fn uiMenuBarEnd() void {
-    oc_ui_menu_bar_end();
-}
-
-pub fn uiMenuBegin(label: []const u8) void {
-    oc_ui_menu_begin_str8(Str8.fromSlice(label));
-}
-
-pub fn uiMenuEnd() void {
-    oc_ui_menu_end();
-}
-
-pub fn uiMenuButton(name: []const u8) UiSig {
-    return oc_ui_menu_button_str8(Str8.fromSlice(name));
-}
-
-pub const UiTextBoxResult = struct {
-    changed: bool,
-    accepted: bool,
-    text: []u8,
-};
-
-pub fn uiTextBox(name: []const u8, arena: Arena, text: []const u8) UiTextBoxResult {
-    var result_internal = oc_ui_text_box_str8(Str8.fromSlice(name), arena, Str8.fromSlice(text));
-    return .{
-        .changed = result_internal.changed,
-        .accepted = result_internal.accepted,
-        .text = result_internal.text.slice(),
-    };
-}
-
-pub const UiSelectPopupInfo = struct {
-    changed: bool = false,
-    selected_index: ?usize,
-    options: [][]const u8,
-    placeholder: []const u8 = "",
-};
-
-pub fn uiSelectPopup(name: []const u8, info: *UiSelectPopupInfo) UiSelectPopupInfo {
-    var info_internal = UiSelectPopupInfoInternal{
-        .changed = info.changed,
-        .selected_index = if (info.selected_index) |selected_index| @intCast(selected_index) else -1,
-        .option_count = @intCast(info.options.len),
-        .options = @ptrCast(info.options.ptr),
-        .placeholder = Str8.fromSlice(info.placeholder),
-    };
-    var result_internal = oc_ui_select_popup_str8(Str8.fromSlice(name), &info_internal);
-    return .{
-        .changed = result_internal.changed,
-        .selected_index = if (result_internal.selected_index >= 0) @intCast(result_internal.selected_index) else null,
-        .options = @ptrCast(result_internal.options[0..@intCast(result_internal.option_count)]),
-        .placeholder = result_internal.placeholder.slice(),
-    };
-}
-
-pub const UiRadioGroupInfo = struct {
-    changed: bool = false,
-    selected_index: ?usize,
-    options: [][]const u8,
-};
-
-pub fn uiRadioGroup(name: []const u8, info: *UiRadioGroupInfo) UiRadioGroupInfo {
-    var info_internal = UiRadioGroupInfoInternal{
-        .changed = info.changed,
-        .selected_index = if (info.selected_index) |selected_index| @intCast(selected_index) else -1,
-        .option_count = @intCast(info.options.len),
-        .options = @ptrCast(info.options.ptr),
-    };
-    var result_internal = oc_ui_radio_group_str8(Str8.fromSlice(name), info_internal);
-    return .{
-        .changed = result_internal.changed,
-        .selected_index = if (result_internal.selected_index >= 0) @intCast(result_internal.selected_index) else null,
-        .options = @ptrCast(result_internal.options[0..@intCast(result_internal.option_count)]),
-    };
-}
-
 //------------------------------------------------------------------------------------------
 // [GRAPHICS]: GLES
-//------------------------------------------------------------------------------------------
-
-// TODO
-
-//------------------------------------------------------------------------------------------
-// [UI]
 //------------------------------------------------------------------------------------------
 
 // TODO

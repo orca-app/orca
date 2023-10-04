@@ -1989,13 +1989,13 @@ oc_ui_sig oc_ui_checkbox(const char* name, bool* checked)
 //------------------------------------------------------------------------------
 // slider / scrollbar
 //------------------------------------------------------------------------------
-oc_ui_box* oc_ui_slider_str8(oc_str8 label, f32* value)
+oc_ui_box* oc_ui_slider_str8(oc_str8 name, f32* value)
 {
     oc_ui_context* ui = oc_ui_get_context();
     oc_ui_theme* theme = ui->theme;
 
     oc_ui_style_match_before(oc_ui_pattern_all(), &(oc_ui_style){ 0 }, OC_UI_STYLE_LAYOUT);
-    oc_ui_box* frame = oc_ui_box_begin_str8(label, 0);
+    oc_ui_box* frame = oc_ui_box_begin_str8(name, 0);
     {
         oc_ui_axis trackAxis = (frame->rect.w > frame->rect.h) ? OC_UI_AXIS_X : OC_UI_AXIS_Y;
         oc_ui_axis secondAxis = (trackAxis == OC_UI_AXIS_Y) ? OC_UI_AXIS_X : OC_UI_AXIS_Y;
@@ -2166,17 +2166,17 @@ oc_ui_box* oc_ui_slider_str8(oc_str8 label, f32* value)
     return (frame);
 }
 
-oc_ui_box* oc_ui_slider(const char* label, f32* value)
+oc_ui_box* oc_ui_slider(const char* name, f32* value)
 {
-    return oc_ui_slider_str8(OC_STR8(label), value);
+    return oc_ui_slider_str8(OC_STR8(name), value);
 }
 
-oc_ui_box* oc_ui_scrollbar_str8(oc_str8 label, f32 thumbRatio, f32* scrollValue)
+oc_ui_box* oc_ui_scrollbar_str8(oc_str8 name, f32 thumbRatio, f32* scrollValue)
 {
     oc_ui_context* ui = oc_ui_get_context();
     oc_ui_theme* theme = ui->theme;
     oc_ui_style_match_before(oc_ui_pattern_all(), &(oc_ui_style){ 0 }, OC_UI_STYLE_LAYOUT);
-    oc_ui_box* frame = oc_ui_box_begin_str8(label, 0);
+    oc_ui_box* frame = oc_ui_box_begin_str8(name, 0);
     {
         f32 minThumbRatio = 17. / oc_max(frame->rect.w, frame->rect.h);
         thumbRatio = oc_min(oc_max(thumbRatio, minThumbRatio), 1.);
@@ -2302,9 +2302,9 @@ oc_ui_box* oc_ui_scrollbar_str8(oc_str8 label, f32 thumbRatio, f32* scrollValue)
     return (frame);
 }
 
-oc_ui_box* oc_ui_scrollbar(const char* label, f32 thumbRatio, f32* scrollValue)
+oc_ui_box* oc_ui_scrollbar(const char* name, f32 thumbRatio, f32* scrollValue)
 {
-    return oc_ui_scrollbar_str8(OC_STR8(label), thumbRatio, scrollValue);
+    return oc_ui_scrollbar_str8(OC_STR8(name), thumbRatio, scrollValue);
 }
 
 //------------------------------------------------------------------------------
@@ -2633,7 +2633,7 @@ void oc_ui_menu_end(void)
     oc_ui_box_pop(); // container
 }
 
-oc_ui_sig oc_ui_menu_button_str8(oc_str8 name)
+oc_ui_sig oc_ui_menu_button_str8(oc_str8 label)
 {
     oc_ui_context* ui = oc_ui_get_context();
     oc_ui_theme* theme = ui->theme;
@@ -2662,14 +2662,14 @@ oc_ui_sig oc_ui_menu_button_str8(oc_str8 name)
                       | OC_UI_FLAG_DRAW_TEXT
                       | OC_UI_FLAG_DRAW_BACKGROUND;
 
-    oc_ui_box* box = oc_ui_box_make_str8(name, flags);
+    oc_ui_box* box = oc_ui_box_make_str8(label, flags);
     oc_ui_sig sig = oc_ui_box_sig(box);
     return (sig);
 }
 
-oc_ui_sig oc_ui_menu_button(const char* name)
+oc_ui_sig oc_ui_menu_button(const char* label)
 {
-    return oc_ui_menu_button_str8(OC_STR8(name));
+    return oc_ui_menu_button_str8(OC_STR8(label));
 }
 
 //------------------------------------------------------------------------------

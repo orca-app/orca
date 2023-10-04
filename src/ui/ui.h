@@ -733,23 +733,23 @@ ORCA_API oc_ui_sig oc_ui_label_str8(oc_str8 label);
 
 ORCA_API oc_ui_sig oc_ui_button(const char* label);
 ORCA_API oc_ui_sig oc_ui_checkbox(const char* name, bool* checked);
-ORCA_API oc_ui_box* oc_ui_slider(const char* label, f32* value);
-ORCA_API oc_ui_box* oc_ui_scrollbar(const char* label, f32 thumbRatio, f32* scrollValue);
+ORCA_API oc_ui_box* oc_ui_slider(const char* name, f32* value);
+ORCA_API oc_ui_box* oc_ui_scrollbar(const char* name, f32 thumbRatio, f32* scrollValue);
 ORCA_API void oc_ui_tooltip(const char* label);
 
 ORCA_API void oc_ui_panel_begin(const char* name, oc_ui_flags flags);
 ORCA_API void oc_ui_panel_end(void);
 #define oc_ui_panel(s, f) oc_defer_loop(oc_ui_panel_begin(s, f), oc_ui_panel_end())
 
-ORCA_API void oc_ui_menu_bar_begin(const char* label);
+ORCA_API void oc_ui_menu_bar_begin(const char* name);
 ORCA_API void oc_ui_menu_bar_end(void);
 #define oc_ui_menu_bar(name) oc_defer_loop(oc_ui_menu_bar_begin(name), oc_ui_menu_bar_end())
 
 ORCA_API void oc_ui_menu_begin(const char* label);
 ORCA_API void oc_ui_menu_end(void);
-#define oc_ui_menu(name) oc_defer_loop(oc_ui_menu_begin(name), oc_ui_menu_end())
+#define oc_ui_menu(label) oc_defer_loop(oc_ui_menu_begin(label), oc_ui_menu_end())
 
-ORCA_API oc_ui_sig oc_ui_menu_button(const char* name);
+ORCA_API oc_ui_sig oc_ui_menu_button(const char* label);
 
 typedef struct oc_ui_text_box_result
 {
