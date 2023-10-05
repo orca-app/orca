@@ -2795,9 +2795,6 @@ pub const ui = struct {
         edit_word_selection_initial_mark: i32,
 
         theme: *Theme,
-
-        extern fn oc_ui_init(context: *Context) void;
-        pub const init = oc_ui_init;
     };
 
     const LayoutAlignmentInternal = extern struct {
@@ -2875,7 +2872,7 @@ pub const ui = struct {
     //------------------------------------------------------------------------------------------
     // [UI]: context initialization and frame cycle
     //------------------------------------------------------------------------------------------
-
+    extern fn oc_ui_init(context: *Context) void;
     extern fn oc_ui_get_context() *Context;
     extern fn oc_ui_set_context(context: *Context) void;
 
@@ -2885,18 +2882,20 @@ pub const ui = struct {
     extern fn oc_ui_draw() void;
     extern fn oc_ui_set_theme(theme: *Theme) void;
 
+    pub const init = oc_ui_init;
     pub const getContext = oc_ui_get_context;
     pub const setContext = oc_ui_set_context;
-    pub const processCEvent = oc_ui_process_event;
 
-    pub const endFrame = oc_ui_end_frame;
-    pub const draw = oc_ui_draw;
-    pub const setTheme = oc_ui_set_theme;
+    pub const processCEvent = oc_ui_process_event;
 
     pub fn beginFrame(size: Vec2, default_style: *Style) void {
         var default_style_and_mask = convertStyle(default_style);
         oc_ui_begin_frame(size, &default_style_and_mask.style, default_style_and_mask.mask);
     }
+
+    pub const endFrame = oc_ui_end_frame;
+    pub const draw = oc_ui_draw;
+    pub const setTheme = oc_ui_set_theme;
 
     const StyleAndMaskInternal = struct {
         style: StyleInternal,
@@ -3192,7 +3191,7 @@ pub const ui = struct {
         accepted: bool,
         text: Str8,
     };
-    extern fn oc_ui_text_box_str8(name: Str8, arena: Arena, text: Str8) TextBoxResultInternal;
+    extern fn oc_ui_text_box_str8(name: Str8, arena: *Arena, text: Str8) TextBoxResultInternal;
 
     const SelectPopupInfoInternal = extern struct {
         changed: bool,
@@ -3269,7 +3268,7 @@ pub const ui = struct {
         text: []u8,
     };
 
-    pub fn textBox(name: []const u8, arena: Arena, text: []const u8) TextBoxResult {
+    pub fn textBox(name: []const u8, arena: *Arena, text: []const u8) TextBoxResult {
         var result_internal = oc_ui_text_box_str8(Str8.fromSlice(name), arena, Str8.fromSlice(text));
         return .{
             .changed = result_internal.changed,

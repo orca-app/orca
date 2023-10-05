@@ -26,7 +26,7 @@ export fn oc_on_init() void {
 
     surface = oc.Surface.canvas();
     canvas = oc.Canvas.create();
-    ui_ctx.init();
+    ui.init(&ui_ctx);
 
     var fonts = [_]*oc.Font{ &font_regular, &font_bold };
     var font_names = [_][]const u8{ "/OpenSans-Regular.ttf", "/OpenSans-Bold.ttf" };
@@ -300,7 +300,7 @@ fn widgets(arena: *oc.Arena) void {
             .height = .text,
         },
     });
-    var textResult = ui.textBox("text", arena.*, text);
+    var textResult = ui.textBox("text", arena, text);
     if (textResult.changed) {
         text_arena.clear();
         text = text_arena.pushStr(textResult.text) catch {
