@@ -101,7 +101,7 @@ The following additional resources may also help you familiarize yourself with O
 	- [`clock`](./samples/clock) is a simple clock showcasing vector graphics and the time API.
 	- [`triangle`](./samples/triangle) shows how to draw a spinning triangle using the GLES API.
 	- [`fluid`](./samples/fluid) is a fluid simulation using a more complex GLES setup.
-	- [`ui`](./samples/ui) showcases the UI API and Orca's default UI widgets.  
+	- [`ui`](./samples/ui) showcases the UI API and Orca's default UI widgets.
 - The [API Cheatsheets](./doc/cheatsheets) provide a list of Orca API functions, grouped by topic.
 
 ## FAQ
@@ -116,7 +116,7 @@ In principle, you can use any language and toolchain that can produce a WebAssem
 
 C-style C++ is possible but requires compiling the core library in C as a separate object file, and then adding that object to your compile command when building your app.
 
-We're currently working with contributors to add support for Odin and Zig, and we look forward to expanding the number of officially-supported languages in the future. 
+We're currently working with contributors to add support for Odin and Zig, and we look forward to expanding the number of officially-supported languages in the future.
 
 **Which WebAssembly features does Orca support?**
 
@@ -138,9 +138,4 @@ Please ensure that you have installed Orca to your system per the installation i
 
 ## License
 
-Orca is distributed under the terms of the GNU Affero General Public License version 3, with additional terms in accordance with section 7 of AGPLv3. These additional terms ensure that:
-
-- Modified versions of Orca must reasonably inform users that they are modified.
-- You can distribute your application's WebAssembly modules under the terms of your choice, and are not required to license them under the terms of the AGPLv3.
-
-Copyright and License details can be found in [LICENSE.txt](./LICENSE.txt)
+Orca is distributed under the terms of the  MIT license or the Apache License version 2.0, at your option. Copyright and License details can be found in [LICENSE.txt](./LICENSE.txt)
