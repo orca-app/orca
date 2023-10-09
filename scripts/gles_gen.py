@@ -1,6 +1,10 @@
-from .reg_modified import *
 import xml.etree.ElementTree as et
 from argparse import ArgumentParser
+
+if __name__ == "__main__":
+	from reg_modified import *
+else:
+	from .reg_modified import *
 
 # remove APIs that can't be sandboxed
 removeProc = [
