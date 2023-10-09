@@ -41,3 +41,5 @@ scripts/files
 src/ext/angle
 
 sketches/*/bin
+
+.cache
