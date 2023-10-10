@@ -1,4 +1,5 @@
 const std = @import("std");
+const builtin = @import("builtin");
 const AllocError = std.mem.Allocator.Error;
 
 //------------------------------------------------------------------------------------------
@@ -69,7 +70,7 @@ extern fn oc_abort_ext(file: [*]const u8, function: [*]const u8, line: c_int, fm
 extern fn oc_assert_fail(file: [*]const u8, function: [*]const u8, line: c_int, src: [*]const u8, fmt: [*]const u8, ...) void;
 
 pub fn assert(condition: bool, comptime fmt: []const u8, args: anytype, source: std.builtin.SourceLocation) void {
-    if (condition == false) {
+    if (builtin.mode == .Debug and condition == false) {
         var format_buf: [512:0]u8 = undefined;
         _ = std.fmt.bufPrintZ(&format_buf, fmt, args) catch 0;
         var line: c_int = @intCast(source.line);
@@ -672,12 +673,11 @@ pub const Str32ListElt = Str32.StrListElt;
 
 pub const Utf32 = u32;
 
-pub const Utf8Dec = extern struct {
-    code_point: Utf32, // decoded codepoint
-    size: u32, // size of corresponding oc_utf8 sequence
-};
-
-pub const Utf8 = struct {
+pub const utf8 = struct {
+    pub const Utf8Dec = extern struct {
+        code_point: Utf32, // decoded codepoint
+        size: u32, // size of corresponding oc_utf8 sequence
+    };
 
     // getting sizes / offsets / indices
     extern fn oc_utf8_size_from_leading_char(leadingChar: c_char) u32;
@@ -1152,17 +1152,6 @@ pub const Font = extern struct {
     pub const getScaleForEmPixels = oc_font_get_scale_for_em_pixels;
     pub const textMetricsUtf32 = oc_font_text_metrics_utf32;
     pub const textMetrics = oc_font_text_metrics;
-};
-
-pub const JointType = enum(c_uint) {
-    Miter,
-    Bevel,
-    None,
-};
-
-pub const CapType = enum(c_uint) {
-    None,
-    Square,
 };
 
 pub const FontMetrics = extern struct {
@@ -1661,6 +1650,13 @@ pub const Vec2 = extern struct {
             .y = a.y + b.y,
         };
     }
+
+    pub fn zero() Vec2 {
+        return .{
+            .x = 0,
+            .y = 0,
+        };
+    }
 };
 
 //------------------------------------------------------------------------------------------
@@ -1731,6 +1727,17 @@ const PathDescriptor = extern struct {
     start_index: u32,
     count: u32,
     start_point: Vec2,
+};
+
+pub const JointType = enum(c_uint) {
+    Miter,
+    Bevel,
+    None,
+};
+
+pub const CapType = enum(c_uint) {
+    None,
+    Square,
 };
 
 const Attributes = extern struct {
@@ -1811,6 +1818,11 @@ pub const Surface = extern struct {
 pub const Image = extern struct {
     h: u64,
 
+    const FlipMode = enum {
+        NoFlip,
+        Flip,
+    };
+
     extern fn oc_image_nil() Image;
     extern fn oc_image_is_nil(image: Image) bool;
     extern fn oc_image_create(surface: Surface, width: u32, height: u32) Image;
@@ -1828,9 +1840,15 @@ pub const Image = extern struct {
     pub const isNil = oc_image_is_nil;
     pub const create = oc_image_create;
     pub const createFromRgba8 = oc_image_create_from_rgba8;
-    pub const createFromMemory = oc_image_create_from_memory;
-    pub const createFromFile = oc_image_create_from_file;
-    pub const createFromPath = oc_image_create_from_path;
+    pub fn createFromMemory(surface: Surface, mem: []const u8, flip: FlipMode) Image {
+        return oc_image_create_from_memory(surface, Str8.fromSlice(mem), flip == .Flip);
+    }
+    pub fn createFromFile(surface: Surface, file: File, flip: FlipMode) Image {
+        return oc_image_create_from_file(surface, file, flip == .Flip);
+    }
+    pub fn createFromPath(surface: Surface, path: []const u8, flip: FlipMode) Image {
+        return oc_image_create_from_path(surface, Str8.fromSlice(path), flip == .Flip);
+    }
     pub const destroy = oc_image_destroy;
     pub const uploadRegionRgba8 = oc_image_upload_region_rgba8;
     pub const size = oc_image_size;
@@ -3334,7 +3352,7 @@ pub const ui = struct {
 //------------------------------------------------------------------------------------------
 
 pub const File = extern struct {
-    const OpenFlags = packed struct(u16) {
+    pub const OpenFlags = packed struct(u16) {
         _: u1 = 0,
 
         append: bool = false,
@@ -3346,24 +3364,63 @@ pub const File = extern struct {
         restrict: bool = false,
 
         __: u9 = 0,
+
+        pub fn none() OpenFlags {
+            return .{
+                .append = false,
+                .truncate = false,
+                .create = false,
+                .symlink = false,
+                .no_follow = false,
+                .restrict = false,
+            };
+        }
     };
 
-    const AccessFlags = packed struct(u16) {
+    pub const AccessFlags = packed struct(u16) {
         _: u1 = 0,
 
         read: bool = false,
         write: bool = false,
 
         __: u13 = 0,
+
+        pub fn none() AccessFlags {
+            return .{
+                .read = false,
+                .write = false,
+            };
+        }
+
+        pub fn readonly() AccessFlags {
+            return .{
+                .read = true,
+                .write = false,
+            };
+        }
+
+        pub fn writeonly() AccessFlags {
+            return .{
+                .read = false,
+                .write = true,
+            };
+        }
+
+        pub fn readwrite() AccessFlags {
+            return .{
+                .read = true,
+                .write = true,
+            };
+        }
     };
 
-    const Whence = enum(c_uint) {
+    pub const Whence = enum(c_uint) {
         Set,
         End,
         Current,
     };
 
-    const Type = enum(c_uint) {
+    pub const Type = enum(c_uint) {
         Unknown,
         Regular,
         Directory,
@@ -3374,7 +3431,7 @@ pub const File = extern struct {
         Socket,
     };
 
-    const Perm = packed struct(u16) {
+    pub const Perm = packed struct(u16) {
         other_exec: bool,
         other_write: bool,
         other_read: bool,
@@ -3387,14 +3444,16 @@ pub const File = extern struct {
         sticky_bit: bool,
         set_gid: bool,
         set_uid: bool,
+
+        _: u4 = 0,
     };
 
-    const DateStamp = extern struct {
+    pub const DateStamp = extern struct {
         seconds: i64, // seconds relative to NTP epoch.
         fraction: u64, // fraction of seconds elapsed since the time specified by seconds.
     };
 
-    const Status = extern struct {
+    pub const Status = extern struct {
         uid: u64,
         type: Type,
         perm: Perm,
@@ -3405,19 +3464,19 @@ pub const File = extern struct {
         modification_date: DateStamp,
     };
 
-    const DialogKind = enum(c_uint) {
+    pub const DialogKind = enum(c_uint) {
         Save,
         Open,
     };
 
-    const DialogFlags = packed struct(u32) {
+    pub const DialogFlags = packed struct(u32) {
         files: bool,
         directories: bool,
         multiple: bool,
         create_directories: bool,
     };
 
-    const DialogDesc = extern struct {
+    pub const DialogDesc = extern struct {
         kind: DialogKind,
         flags: DialogFlags,
         title: Str8,
@@ -3427,21 +3486,32 @@ pub const File = extern struct {
         filters: Str8List,
     };
 
-    const DialogButton = enum(c_uint) {
+    pub const DialogButton = enum(c_uint) {
         Cancel,
         Ok,
     };
 
-    const OpenWithDialogElt = extern struct {
+    pub const OpenWithDialogElt = extern struct {
         list_elt: ListElt,
         file: File,
     };
 
-    const OpenWithDialogResult = extern struct {
+    pub const OpenWithDialogResult = extern struct {
         button: DialogButton,
         file: File,
         selection: List,
     };
+
+    pub const ErrorWrappedIo = struct {
+        pub fn write(file: File, buffer: []const u8) io.Error!usize {
+            var written: u64 = file.write(buffer);
+            try file.lastError();
+            return written;
+        }
+    };
+
+    pub const Writer = std.io.Writer(File, io.Error, write);
+    pub const Reader = std.io.Reader(File, io.Error, read);
 
     h: u64,
 
@@ -3450,44 +3520,113 @@ pub const File = extern struct {
     extern fn oc_file_open(path: Str8, rights: AccessFlags, flags: OpenFlags) File;
     extern fn oc_file_open_at(dir: File, path: Str8, rights: AccessFlags, flags: OpenFlags) File;
     extern fn oc_file_close(file: File) void;
-    extern fn oc_file_last_error(file: File) io.Error;
+    extern fn oc_file_last_error(file: File) io.ErrorEnum;
     extern fn oc_file_pos(file: File) i64;
     extern fn oc_file_seek(file: File, offset: i64, whence: Whence) i64;
-    extern fn oc_file_write(file: File, size: u64, buffer: [*]u8) u64;
+    extern fn oc_file_write(file: File, size: u64, buffer: [*]const u8) u64;
     extern fn oc_file_read(file: File, size: u64, buffer: [*]u8) u64;
-
     extern fn oc_file_get_status(file: File) Status;
     extern fn oc_file_size(file: File) u64;
 
     extern fn oc_file_open_with_request(path: Str8, rights: AccessFlags, flags: OpenFlags) File;
-    extern fn oc_file_open_with_dialog(arena: *Arena, rights: AccessFlags, flags: OpenFlags, desc: *DialogDesc) OpenWithDialogResult;
+    extern fn oc_file_open_with_dialog(arena: *Arena, rights: AccessFlags, flags: OpenFlags, desc: *const DialogDesc) OpenWithDialogResult;
 
     pub const nil = oc_file_nil;
     pub const isNil = oc_file_is_nil;
-    pub const open = oc_file_open;
-    pub const openAt = oc_file_open_at;
+
+    pub fn open(path: []const u8, rights: AccessFlags, flags: OpenFlags) io.Error!File {
+        var file = oc_file_open(Str8.fromSlice(path), rights, flags);
+        try file.lastError();
+        return file;
+    }
+
+    pub fn openAt(dir: File, path: []const u8, rights: AccessFlags, flags: OpenFlags) io.Error!File {
+        var file = oc_file_open_at(dir, Str8.fromSlice(path), rights, flags);
+        try file.lastError();
+        return file;
+    }
+
     pub const close = oc_file_close;
-    pub const lastError = oc_file_last_error;
-    pub const pos = oc_file_pos;
-    pub const seek = oc_file_seek;
 
-    pub fn write(self: File, size: u64, buffer: []u8) u64 {
-        assert(size <= buffer.len, "Trying to write more than the buffer length: {d}/{d}", .{ size, buffer.len }, @src());
-        return @intCast(oc_file_write(self, size, buffer.ptr));
+    pub fn lastError(file: File) io.Error!void {
+        const err: io.ErrorEnum = oc_file_last_error(file);
+        return switch (err) {
+            .Ok => {},
+            .Unknown => io.Error.Unknown,
+            .Op => io.Error.Op,
+            .Handle => io.Error.Handle,
+            .Prev => io.Error.Prev,
+            .Arg => io.Error.Arg,
+            .Perm => io.Error.Perm,
+            .Space => io.Error.Space,
+            .NoEntry => io.Error.NoEntry,
+            .Exists => io.Error.Exists,
+            .NotDir => io.Error.NotDir,
+            .Dir => io.Error.Dir,
+            .MaxFiles => io.Error.MaxFiles,
+            .MaxLinks => io.Error.MaxLinks,
+            .PathLength => io.Error.PathLength,
+            .FileSize => io.Error.FileSize,
+            .Overflow => io.Error.Overflow,
+            .NotReady => io.Error.NotReady,
+            .Mem => io.Error.Mem,
+            .Interrupt => io.Error.Interrupt,
+            .Physical => io.Error.Physical,
+            .NoDevice => io.Error.NoDevice,
+            .Walkout => io.Error.Walkout,
+        };
     }
 
-    pub fn read(self: File, size: u64, buffer: []u8) u64 {
-        assert(size <= buffer.len, "Trying to read more than the buffer length: {d}/{d}", .{ size, buffer.len }, @src());
-        return @intCast(oc_file_read(self, size, buffer.ptr));
+    pub fn pos(file: File) io.Error!i64 {
+        var position = oc_file_pos(file);
+        try file.lastError();
+        return position;
     }
 
-    pub const getStatus = oc_file_get_status;
-
-    pub fn getSize(self: File) usize {
-        return @intCast(oc_file_size(self));
+    pub fn seek(file: File, offset: i64, whence: Whence) io.Error!i64 {
+        var res = oc_file_seek(file, offset, whence);
+        try file.lastError();
+        return res;
     }
 
-    pub const openWithRequest = oc_file_open_with_request;
+    pub fn writer(file: File) Writer {
+        return .{ .context = file };
+    }
+
+    pub fn write(file: File, buffer: []const u8) io.Error!usize {
+        var written: u64 = oc_file_write(file, buffer.len, buffer.ptr);
+        try file.lastError();
+        const max = std.math.maxInt(usize);
+        return if (written > max) max else @intCast(written);
+    }
+
+    pub fn reader(file: File) Reader {
+        return .{ .context = file };
+    }
+
+    pub fn read(file: File, buffer: []u8) io.Error!usize {
+        var num_bytes: u64 = oc_file_read(file, buffer.len, buffer.ptr);
+        try file.lastError();
+        return @intCast(num_bytes);
+    }
+
+    pub fn getStatus(file: File) io.Error!Status {
+        var status = oc_file_get_status(file);
+        try file.lastError();
+        return status;
+    }
+
+    pub fn getSize(file: File) io.Error!u64 {
+        var size = oc_file_size(file);
+        try file.lastError();
+        return size;
+    }
+
+    pub fn openWithRequest(path: []const u8, rights: AccessFlags, flags: OpenFlags) io.Error!File {
+        var file = oc_file_open_with_request(Str8.fromSlice(path), rights, flags);
+        try file.lastError();
+        return file;
+    }
     pub const openWithDialog = oc_file_open_with_dialog;
 };
 
@@ -3531,7 +3670,7 @@ pub const io = struct {
         },
     };
 
-    pub const Error = enum(i32) {
+    pub const ErrorEnum = enum(i32) {
         Ok = 0,
         Unknown,
         Op, // unsupported operation
@@ -3557,9 +3696,34 @@ pub const io = struct {
         Walkout, // attempted to walk out of root directory
     };
 
+    pub const Error = error{
+        Unknown,
+        Op,
+        Handle,
+        Prev,
+        Arg,
+        Perm,
+        Space,
+        NoEntry,
+        Exists,
+        NotDir,
+        Dir,
+        MaxFiles,
+        MaxLinks,
+        PathLength,
+        FileSize,
+        Overflow,
+        NotReady,
+        Mem,
+        Interrupt,
+        Physical,
+        NoDevice,
+        Walkout,
+    };
+
     pub const Cmp = extern struct {
         id: ReqId,
-        err: Error,
+        err: ErrorEnum,
         data: extern union {
             result: i64,
             size: u64,

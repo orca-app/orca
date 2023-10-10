@@ -21,6 +21,30 @@ const Cmd = enum {
 var cmd: Cmd = .None;
 
 export fn oc_on_init() void {
+    const Helpers = struct {
+        fn loadFont(font_path: []const u8) !oc.Font {
+            var scratch = oc.Arena.scratchBegin();
+            defer scratch.end();
+
+            var file = try oc.File.open(font_path, .{ .read = true }, .{});
+
+            var size = try file.getSize();
+            var buffer = try scratch.arena.push(@intCast(size));
+            _ = try file.read(buffer);
+            file.close();
+
+            var ranges = oc.UnicodeRange.range(&[_]oc.UnicodeRange.Enum{
+                .BasicLatin,
+                .C1ControlsAndLatin1Supplement,
+                .LatinExtendedA,
+                .LatinExtendedB,
+                .Specials,
+            });
+
+            return oc.Font.createFromMemory(buffer, &ranges);
+        }
+    };
+
     oc.windowSetTitle("Orca Zig UI Demo");
     oc.windowSetSize(frame_size);
 
@@ -31,31 +55,10 @@ export fn oc_on_init() void {
     var fonts = [_]*oc.Font{ &font_regular, &font_bold };
     var font_names = [_][]const u8{ "/OpenSans-Regular.ttf", "/OpenSans-Bold.ttf" };
     for (fonts, font_names) |font, name| {
-        var scratch = oc.Arena.scratchBegin();
-        defer scratch.end();
-
-        var file = oc.File.open(oc.Str8.fromSlice(name), .{ .read = true }, .{});
-        if (file.lastError() != oc.io.Error.Ok) {
-            oc.log.err("Couldn't open file {s}", .{name}, @src());
-        }
-
-        var size = file.getSize();
-        var buffer = scratch.arena.push(size) catch {
-            oc.log.err("Out of memory", .{}, @src());
-            return;
+        font.* = Helpers.loadFont(name) catch |e| {
+            oc.abort("Caught fatal {} when loading font '{s}'.", .{ e, name }, @src());
+            unreachable;
         };
-        _ = file.read(size, buffer);
-        file.close();
-
-        var ranges = oc.UnicodeRange.range(&[_]oc.UnicodeRange.Enum{
-            .BasicLatin,
-            .C1ControlsAndLatin1Supplement,
-            .LatinExtendedA,
-            .LatinExtendedB,
-            .Specials,
-        });
-
-        font.* = oc.Font.createFromMemory(buffer[0..size], &ranges);
     }
 
     text_arena = oc.Arena.init();

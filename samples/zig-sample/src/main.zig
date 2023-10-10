@@ -28,6 +28,9 @@ export fn oc_on_init() void {
     surface = oc.Surface.canvas();
     canvas = oc.Canvas.create();
 
+    const surface_scaling = surface.contentsScaling();
+    oc.log.info("surface scaling: {d:.2} {d:.2}", .{ surface_scaling.x, surface_scaling.y }, @src());
+
     oc.assert(oc.Canvas.nil().isNil() == true, "nil canvas should be nil", .{}, @src());
     oc.assert(canvas.isNil() == false, "created canvas should not be nil", .{}, @src());
 
@@ -42,7 +45,7 @@ export fn oc_on_init() void {
     oc.assert(oc.Font.nil().isNil() == true, "nil font should be nil", .{}, @src());
     oc.assert(font.isNil() == false, "created font should not be nil", .{}, @src());
 
-    orca_image = oc.Image.createFromPath(surface, Str8.fromSlice("/orca_jumping.jpg"), false);
+    orca_image = oc.Image.createFromPath(surface, "/orca_jumping.jpg", .NoFlip);
     oc.assert(oc.Image.nil().isNil() == true, "nil image should be nil", .{}, @src());
     oc.assert(orca_image.isNil() == false, "created image should not be nil", .{}, @src());
 
@@ -79,12 +82,20 @@ export fn oc_on_init() void {
 
         gradient_image = oc.Image.create(surface, width, height);
         gradient_image.uploadRegionRgba8(oc.Rect.xywh(0, 0, width, height), @ptrCast((&pixels).ptr));
+
+        var tmp_image = oc.Image.create(surface, width, height);
+        tmp_image.uploadRegionRgba8(oc.Rect.xywh(0, 0, width, height), @ptrCast((&pixels).ptr));
+        tmp_image.destroy();
+        tmp_image = oc.Image.nil();
     }
+
+    testFileApis() catch |e| fatal(e, @src());
 }
 
 export fn oc_on_resize(width: u32, height: u32) void {
     frame_size = Vec2{ .x = @floatFromInt(width), .y = @floatFromInt(height) };
-    oc.log.info("frame resize: {d:.2}, {d:.2}", .{ frame_size.x, frame_size.y }, @src());
+    const surface_size = surface.getSize();
+    oc.log.info("frame resize: {d:.2}, {d:.2}, surface size: {d:.2} {d:.2}", .{ frame_size.x, frame_size.y, surface_size.x, surface_size.y }, @src());
 }
 
 export fn oc_on_mouse_down(button: oc.MouseButton) void {
@@ -127,10 +138,23 @@ export fn oc_on_frame_refresh() void {
     }
 
     _ = canvas.select();
-    oc.Canvas.setColorRgba(0.05, 0.05, 0.05, 1.0);
-    oc.Canvas.clear();
 
-    oc.Canvas.setColorRgba(1.0, 0.05, 0.05, 1.0);
+    {
+        const c1 = oc.Color{ .r = 0.05, .g = 0.05, .b = 0.05, .a = 1.0 };
+        const c2 = oc.Color{ .r = 0.05, .g = 0.05, .b = 0.05, .a = 1.0 };
+        oc.Canvas.setColorRgba(c1.r, c1.g, c1.b, c1.a);
+        oc.assert(std.meta.eql(oc.Canvas.getColor(), c1), "color should be what we set", .{}, @src());
+        oc.Canvas.setColor(c2);
+        oc.assert(std.meta.eql(oc.Canvas.getColor(), c2), "color should be what we set", .{}, @src());
+        oc.Canvas.clear();
+
+        oc.Canvas.setTolerance(1);
+        oc.assert(oc.Canvas.getTolerance() == 1, "tolerance should be 1", .{}, @src());
+        oc.Canvas.setJoint(.Bevel);
+        oc.assert(oc.Canvas.getJoint() == .Bevel, "joint should be what we set", .{}, @src());
+        oc.Canvas.setCap(.Square);
+        oc.assert(oc.Canvas.getCap() == .Square, "cap should be what we set", .{}, @src());
+    }
 
     {
         const translation: Mat2x3 = .{ .m = [_]f32{ 1, 0, 50, 0, 1, 50 } };
@@ -139,6 +163,7 @@ export fn oc_on_frame_refresh() void {
 
         oc.assert(std.meta.eql(Mat2x3.top(), translation), "top of matrix stack should be what we pushed", .{}, @src());
         oc.Canvas.setWidth(1);
+        oc.assert(oc.Canvas.getWidth() == 1, "width should be 1", .{}, @src());
         oc.Canvas.rectangleFill(50, 0, 10, 10);
         oc.Canvas.rectangleStroke(70, 0, 10, 10);
         oc.Canvas.roundedRectangleFill(90, 0, 10, 10, 3);
@@ -148,21 +173,26 @@ export fn oc_on_frame_refresh() void {
         oc.Canvas.setColor(green);
         oc.assert(std.meta.eql(oc.Canvas.getColor(), green), "color should be green", .{}, @src());
 
-        oc.Canvas.setTolerance(1);
-        oc.Canvas.setJoint(.Bevel);
         oc.Canvas.ellipseFill(140, 5, 10, 5);
         oc.Canvas.ellipseStroke(170, 5, 10, 5);
         oc.Canvas.circleFill(195, 5, 5);
         oc.Canvas.circleStroke(215, 5, 5);
 
-        oc.Canvas.arc(230, 5, 5, 0, std.math.pi);
+        oc.Canvas.arc(235, 5, 5, std.math.pi, 0);
+        oc.Canvas.stroke();
+
+        oc.Canvas.arc(260, 5, 5, std.math.pi, 0);
+        oc.Canvas.fill();
+
+        oc.Canvas.moveTo(0, 0);
+        oc.assert(std.meta.eql(Vec2.zero(), oc.Canvas.getPosition()), "pos should be zero after moving there", .{}, @src());
     }
 
     {
         rotation_demo += 0.03;
 
         const rot = Mat2x3.rotate(rotation_demo);
-        const trans = Mat2x3.translate(285, 55);
+        const trans = Mat2x3.translate(335, 55);
         Mat2x3.push(Mat2x3.mul_m(trans, rot));
         defer Mat2x3.pop();
 
@@ -276,6 +306,9 @@ export fn oc_on_frame_refresh() void {
 }
 
 export fn oc_on_terminate() void {
+    font.destroy();
+    canvas.destroy();
+
     oc.log.info("byebye {}", .{counter}, @src());
 }
 
@@ -286,4 +319,51 @@ fn fatal(err: anyerror, source: std.builtin.SourceLocation) noreturn {
 
 fn oneMinusLerp(a: anytype, b: anytype, t: anytype) @TypeOf(a, b, t) {
     return 1.0 - lerp(a, b, t);
+}
+
+fn testFileApis() !void {
+    var cwd = try oc.File.open("/", oc.File.AccessFlags.readonly(), oc.File.OpenFlags.none());
+    oc.assert(cwd.isNil() == false, "file should be valid", .{}, @src());
+    defer cwd.close();
+
+    var orca_jumping_file = try oc.File.open("/orca_jumping.jpg", oc.File.AccessFlags.readonly(), oc.File.OpenFlags.none());
+    oc.assert(orca_jumping_file.isNil() == false, "file should be valid", .{}, @src());
+    orca_jumping_file.close();
+
+    orca_jumping_file = try oc.File.openAt(cwd, "orca_jumping.jpg", oc.File.AccessFlags.readonly(), oc.File.OpenFlags.none());
+    oc.assert((try orca_jumping_file.getStatus()).type == .Regular, "status API works", .{}, @src());
+    oc.assert(try orca_jumping_file.getSize() > 0, "size API works", .{}, @src());
+    oc.assert(orca_jumping_file.isNil() == false, "file should be valid", .{}, @src());
+
+    var tmp_image = oc.Image.createFromFile(surface, orca_jumping_file, .NoFlip);
+    oc.assert(tmp_image.isNil() == false, "image loaded from file should not be nil", .{}, @src());
+    tmp_image.destroy();
+    orca_jumping_file.close();
+
+    const temp_file_contents = "hello world!";
+    const temp_file_path = "/temp_file.txt";
+    {
+        var tmp_file = try oc.File.open(temp_file_path, oc.File.AccessFlags.readwrite(), oc.File.OpenFlags{ .create = true });
+        defer tmp_file.close();
+
+        oc.assert(tmp_file.isNil() == false, "file should be valid", .{}, @src());
+        oc.assert(try tmp_file.pos() == 0, "new file shouldn't have anything in it yet", .{}, @src());
+
+        var writer = tmp_file.writer();
+        const written = try writer.write(temp_file_contents);
+        oc.assert(written == temp_file_contents.len, "should have written some bytes.", .{}, @src());
+    }
+
+    {
+        var tmp_file = try oc.File.open(temp_file_path, oc.File.AccessFlags.readwrite(), oc.File.OpenFlags{ .create = true });
+        defer tmp_file.close();
+
+        _ = try tmp_file.seek(0, .Set);
+        oc.assert(try tmp_file.pos() == 0, "should be back at the beginning of the file", .{}, @src());
+
+        var buffer: [temp_file_contents.len]u8 = undefined;
+        var reader = tmp_file.reader();
+        _ = try reader.read(&buffer);
+        oc.assert(std.mem.eql(u8, temp_file_contents, &buffer), "should have read what was in the original buffer", .{}, @src());
+    }
 }
