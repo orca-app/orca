@@ -15,7 +15,7 @@ removeProc = [
 	"glGetBufferPointerv"
 ]
 
-def gen_gles_header(spec, filename):
+def gen_gles_header(spec, filename, log_file):
 	# Generates the GLES header, wrapping gl functions
 	# prototypes in ORCA_IMPORT() macro
 
@@ -36,7 +36,7 @@ def gen_gles_header(spec, filename):
 	tree = et.parse(spec)
 	reg.loadElementTree(tree)
 
-	logFile = open('./build/gles_gen.log', 'w')
+	logFile = open(log_file, 'w')
 	gen = COutputGenerator(diagFile=logFile)
 	reg.setGenerator(gen)
 	reg.apiGen(genOpts)
@@ -297,8 +297,8 @@ def gen_gles_bindgen_json(spec, filename):
 	f.write(json)
 	f.close()
 
-def gles_gen(spec, json, header):
-	gen_gles_header(spec, header)
+def gles_gen(spec, json, header, log_file):
+	gen_gles_header(spec, header, log_file)
 	gen_gles_bindgen_json(spec, json)
 
 #----------------------------------------
@@ -310,10 +310,11 @@ if __name__ == "__main__":
 	parser.add_argument("-s", "--spec")
 	parser.add_argument("--header")
 	parser.add_argument("-j", "--json")
+	parser.add_argument("-l", "--log")
 
 	args = parser.parse_args()
 
 	glesHeader = args.header
 	jsonFile = args.json
 
-	gles_gen(args.spec, jsonFile, glesHeader)
+	gles_gen(args.spec, jsonFile, glesHeader, args.log or './build/gles_gen.log')
