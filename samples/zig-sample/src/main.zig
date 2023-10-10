@@ -7,6 +7,8 @@ const Vec2 = oc.Vec2;
 const Mat2x3 = oc.Mat2x3;
 const Str8 = oc.Str8;
 
+var allocator = std.heap.wasm_allocator;
+
 var surface: oc.Surface = undefined;
 var canvas: oc.Canvas = undefined;
 var font: oc.Font = undefined;
@@ -261,7 +263,23 @@ export fn oc_on_frame_refresh() void {
         separators.pushSlice(scratch, "|") catch |e| fatal(e, @src());
         separators.pushSlice(scratch, "-") catch |e| fatal(e, @src());
 
-        const big_string = Str8.fromSlice("This is |a one-word string that  |  has no      spaces in it");
+        var strings_array = std.ArrayList([]const u8).init(allocator);
+        defer strings_array.deinit();
+        strings_array.append("This ") catch unreachable;
+        strings_array.append("is") catch unreachable;
+        strings_array.append(" |a") catch unreachable;
+        strings_array.append("one-word string that ") catch unreachable;
+        strings_array.append(" |  has") catch unreachable;
+        strings_array.append(" no ") catch unreachable;
+        strings_array.append("    spaces i") catch unreachable;
+        strings_array.append("n it") catch unreachable;
+
+        var single_string = std.ArrayList(u8).init(allocator);
+        for (strings_array.items) |str| {
+            single_string.appendSlice(str) catch unreachable;
+        }
+
+        const big_string = Str8.fromSlice(single_string.items);
         var strings: oc.Str8List = big_string.split(scratch, separators) catch |e| fatal(e, @src());
         var collated = strings.join(scratch) catch |e| fatal(e, @src());
 
