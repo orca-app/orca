@@ -114,12 +114,12 @@ inline T oc_cube(T a)
         #define oc_tga_variants(def, ...)                                                                       \
             def(u8, ##__VA_ARGS__) def(i8, ##__VA_ARGS__) def(u16, ##__VA_ARGS__) def(i16, ##__VA_ARGS__)       \
                 def(u32, ##__VA_ARGS__) def(i32, ##__VA_ARGS__) def(u64, ##__VA_ARGS__) def(i64, ##__VA_ARGS__) \
-                        def(f32, ##__VA_ARGS__) def(f64, ##__VA_ARGS__)
+                    def(f32, ##__VA_ARGS__) def(f64, ##__VA_ARGS__)
     #else
         #define oc_tga_variants(def, ...)                                                                       \
             def(u8, ##__VA_ARGS__) def(i8, ##__VA_ARGS__) def(u16, ##__VA_ARGS__) def(i16, ##__VA_ARGS__)       \
                 def(u32, ##__VA_ARGS__) def(i32, ##__VA_ARGS__) def(u64, ##__VA_ARGS__) def(i64, ##__VA_ARGS__) \
-                    def(size_t, ##__VA_ARGS__)                                                        \
+                    def(size_t, ##__VA_ARGS__)                                                                  \
                         def(f32, ##__VA_ARGS__) def(f64, ##__VA_ARGS__)
     #endif
     // This macro generates one _Generic association between a type and its variant

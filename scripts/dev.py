@@ -14,45 +14,31 @@ from .gles_gen import gles_gen
 from .log import *
 from .utils import pushd, removeall, yeetdir, yeetfile
 from .embed_text_files import *
-from .version import check_if_source, is_orca_source, orca_version
+from .version import orca_version
 
 ANGLE_VERSION = "2023-07-05"
 MAC_SDK_DIR = "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk"
 
 def attach_dev_commands(subparsers):
-    dev_cmd = subparsers.add_parser("dev", help="Commands for building Orca itself. Must be run from within an Orca source checkout.")
-    dev_cmd.set_defaults(func=orca_source_only)
-
-    dev_sub = dev_cmd.add_subparsers(required=is_orca_source(), title='commands')
-
-    build_cmd = dev_sub.add_parser("build-runtime", help="Build the Orca runtime from source.")
+    build_cmd = subparsers.add_parser("build-runtime", help="Build the Orca runtime from source.")
     build_cmd.add_argument("--release", action="store_true", help="compile Orca in release mode (default is debug)")
     build_cmd.set_defaults(func=dev_shellish(build_runtime))
 
-    clean_cmd = dev_sub.add_parser("clean", help="Delete all build artifacts and start fresh.")
+    tool_cmd = subparsers.add_parser("build-tool", help="Build the Orca CLI tool from source.")
+    tool_cmd.set_defaults(func=dev_shellish(build_tool))
+
+    clean_cmd = subparsers.add_parser("clean", help="Delete all build artifacts and start fresh.")
     clean_cmd.set_defaults(func=dev_shellish(clean))
 
-    install_cmd = dev_sub.add_parser("install", help="Install the Orca tools into a system folder.")
-    install_cmd.add_argument("--no-confirm", action="store_true", help="don't ask the user for confirmation before installing")
+    install_cmd = subparsers.add_parser("install", help="Install the Orca tools into a system folder.")
     install_cmd.set_defaults(func=dev_shellish(install))
 
-    uninstall_cmd = dev_sub.add_parser("uninstall", help="Uninstall the system installation of Orca.")
+    uninstall_cmd = subparsers.add_parser("uninstall", help="Uninstall the system installation of Orca.")
     uninstall_cmd.set_defaults(func=dev_shellish(uninstall))
 
 
-def orca_source_only(args):
-    print("The Orca dev commands can only be run from an Orca source checkout.")
-    print()
-    print("If you want to build Orca yourself, download the source here:")
-    print("https://git.handmade.network/hmn/orca")
-    exit(1)
-
-
 def dev_shellish(func):
-    use_source, source_dir, _ = check_if_source()
-    if not use_source:
-        return orca_source_only
-
+    source_dir = get_source_root()
     def func_from_source(args):
         os.chdir(source_dir)
         func(args)
@@ -532,6 +518,55 @@ def download_angle():
     shutil.copytree(f"scripts/files/angle/", "src/ext/angle", dirs_exist_ok=True)
 
 
+def build_tool(args):
+    ensure_programs()
+    os.makedirs("build/bin", exist_ok=True)
+
+    with pushd("src/tool"):
+        os.makedirs("build/bin", exist_ok=True)
+
+        res = subprocess.run(["git", "rev-parse", "--short", "HEAD"], check=True, capture_output=True, text=True)
+        githash = res.stdout.strip()
+
+        outname = "orca.exe" if platform.system() == "Windows" else "orca"
+
+        if platform.system() == "Windows":
+            libs = [
+                "-l", "shlwapi",
+                "-l", "shell32",
+                "-l", "ole32",
+            ]
+
+        elif platform.system() == "Darwin":
+            libs = ["-framework", "Cocoa"]
+        else:
+            libs = []
+
+        srcFiles = ["main.c"] if platform.system() == "Windows" else ["main.c", "../platform/osx_path.m"]
+
+        subprocess.run([
+            "clang",
+            "-std=c11",
+            "-g", #"-gcodeview", #output debug info
+            "-I", "..",
+            "-D", "FLAG_IMPLEMENTATION",
+            "-D", "OC_NO_APP_LAYER",
+            "-D", f"ORCA_TOOL_VERSION={githash}",
+            *libs,
+            "-MJ", "build/main.json",
+            "-o", f"build/bin/{outname}",
+            *srcFiles
+        ], check=True)
+
+        with open("build/compile_commands.json", "w") as f:
+            f.write("[\n")
+            with open("build/main.json") as m:
+                f.write(m.read())
+            f.write("]")
+
+    shutil.copy(f"src/tool/build/bin/{outname}", "build/bin/")
+
+
 def prompt(msg):
     while True:
         answer = input(f"{msg} (y/n)> ")
@@ -541,6 +576,7 @@ def prompt(msg):
             return False
         else:
             print("Please enter \"yes\" or \"no\" and press return.")
+
 
 def install_dir():
     if platform.system() == "Windows":
@@ -554,46 +590,30 @@ def install(args):
         print("You must build the Orca runtime before you can install it to your")
         print("system. Please run the following command first:")
         print()
-        print("orca dev build-runtime")
+        print("orcadev build-runtime")
         exit(1)
 
     if runtime_checksum() != runtime_checksum_last():
         print("Your build of the Orca runtime is out of date. We recommend that you")
-        print("rebuild the runtime first with `orca dev build-runtime`.")
+        print("rebuild the runtime first with `orcadev build-runtime`.")
         if not prompt("Do you wish to install the runtime anyway?"):
             return
         print()
 
-    dest = install_dir()
-    bin_dir = os.path.join(dest, "bin")
-    src_dir = os.path.join(dest, "src")
-    build_dir = os.path.join(dest, "build", "bin")
-    res_dir = os.path.join(dest, "resources")
-    version_file = os.path.join(dest, ".orcaversion")
+    # TODO: Check for the CLI tool
 
     version = orca_version()
-    existing_version = None
-    try:
-        with open(version_file, "r") as f:
-            existing_version = f.read().strip()
-    except FileNotFoundError:
-        pass
 
-    if not args.no_confirm:
-        print(f"The Orca command-line tools (version {version}) will be installed to:")
-        print(dest)
-        print()
-        if existing_version is not None:
-            print(f"This will overwrite version {existing_version}.")
-            print()
-        if not prompt("Proceed with the installation?"):
-            return
+    dest = install_dir()
+    tool_bin_dir = os.path.join(dest, "bin")
+    versions_dir = os.path.join(dest, "versions")
+    runtime_dir = os.path.join(versions_dir, version)
+    runtime_bin_dir = os.path.join(runtime_dir, "bin")
+    runtime_src_dir = os.path.join(runtime_dir, "src")
+    runtime_res_dir = os.path.join(runtime_dir, "resources")
 
-    yeetdir(bin_dir)
-    yeetdir(src_dir)
-    yeetdir(build_dir)
-    yeetdir(res_dir)
-    yeetfile(version_file)
+    yeetdir(tool_bin_dir)
+    yeetdir(runtime_dir)
 
     # The MS Store version of Python does some really stupid stuff with AppData:
     # https://git.handmade.network/hmn/orca/issues/32
@@ -606,58 +626,76 @@ def install(args):
     # Also apparently you can't just do mkdir in a subprocess call here, hence the
     # trivial batch scripts.
     if platform.system() == "Windows":
-        subprocess.run(["scripts\\mkdir.bat", bin_dir], check=True)
-        subprocess.run(["scripts\\mkdir.bat", src_dir], check=True)
-        subprocess.run(["scripts\\mkdir.bat", build_dir], check=True)
-        subprocess.run(["scripts\\mkdir.bat", res_dir], check=True)
-        subprocess.run(["scripts\\touch.bat", version_file], check=True)
+        subprocess.run(["scripts\\mkdir.bat", tool_bin_dir], check=True)
+        subprocess.run(["scripts\\mkdir.bat", runtime_bin_dir], check=True)
     else:
-        # unfortunately need to do this since build_dir is nested
-        os.makedirs(build_dir, exist_ok=True)
+        os.makedirs(tool_bin_dir, exist_ok=True)
+        os.makedirs(runtime_bin_dir, exist_ok=True)
 
-    shutil.copytree("scripts", os.path.join(bin_dir, "sys_scripts"))
-    shutil.copy("orca", bin_dir)
-    shutil.copytree("src", src_dir, dirs_exist_ok=True)
-    shutil.copytree("resources", res_dir, dirs_exist_ok=True)
+    tool_path = "build\\bin\\orca.exe" if platform.system() == "Windows" else "build/bin/orca"
+
+    shutil.copy(tool_path, tool_bin_dir)
+    shutil.copytree("src", runtime_src_dir, dirs_exist_ok=True)
+    shutil.copytree("resources", runtime_res_dir, dirs_exist_ok=True)
     if platform.system() == "Windows":
-        shutil.copy("orca.bat", bin_dir)
-        shutil.copy("build\\bin\\orca.dll", build_dir)
-        shutil.copy("build\\bin\\orca_runtime.exe", build_dir)
-        shutil.copy("src\\ext\\angle\\bin\\libEGL.dll", build_dir)
-        shutil.copy("src\\ext\\angle\\bin\\libGLESv2.dll", build_dir)
+        shutil.copy("build\\bin\\orca.dll", runtime_bin_dir)
+        shutil.copy("build\\bin\\orca_runtime.exe", runtime_bin_dir)
+        shutil.copy("src\\ext\\angle\\bin\\libEGL.dll", runtime_bin_dir)
+        shutil.copy("src\\ext\\angle\\bin\\libGLESv2.dll", runtime_bin_dir)
     else:
-        shutil.copy("build/bin/liborca.dylib", build_dir)
-        shutil.copy("build/bin/mtl_renderer.metallib", build_dir)
-        shutil.copy("build/bin/orca_runtime", build_dir)
-        shutil.copy("src/ext/angle/bin/libEGL.dylib", build_dir)
-        shutil.copy("src/ext/angle/bin/libGLESv2.dylib", build_dir)
+        shutil.copy("build/bin/liborca.dylib", runtime_bin_dir)
+        shutil.copy("build/bin/mtl_renderer.metallib", runtime_bin_dir)
+        shutil.copy("build/bin/orca_runtime", runtime_bin_dir)
+        shutil.copy("src/ext/angle/bin/libEGL.dylib", runtime_bin_dir)
+        shutil.copy("src/ext/angle/bin/libGLESv2.dylib", runtime_bin_dir)
 
-    with open(version_file, "w") as f:
+    with open(os.path.join(versions_dir, "current"), "w") as f:
         f.write(version)
 
     print()
+    print("The Orca tooling has been installed to the following directory:")
+    print(tool_bin_dir)
+    print()
+    print(f"The Orca runtime (version {version}) has been installed to the following directory:")
+    print(runtime_dir)
     if platform.system() == "Windows":
-        print("The Orca tools have been installed to the following directory:")
-        print(bin_dir)
         print()
-        print("The tools will need to be on your PATH in order to actually use them.")
+        print("The tool will need to be on your PATH in order to actually use it.")
         if prompt("Would you like to automatically add Orca to your PATH?"):
             try:
-                subprocess.run(["powershell", "-ExecutionPolicy", "Bypass", "scripts\\updatepath.ps1", f'"{bin_dir}"'], check=True)
+                subprocess.run(["powershell", "-ExecutionPolicy", "Bypass", "scripts\\updatepath.ps1", f'"{tool_bin_dir}"'], check=True)
                 print("Orca has been added to your PATH. Restart any open terminals to use it.")
             except subprocess.CalledProcessError:
                 msg = log_warning(f"Failed to automatically add Orca to your PATH.")
                 msg.more("Please manually add the following directory to your PATH:")
-                msg.more(bin_dir)
+                msg.more(tool_bin_dir)
         else:
             print("No worries. You can manually add Orca to your PATH in the Windows settings")
             print("by searching for \"environment variables\".")
     else:
-        print("The Orca tools have been installed. Make sure the Orca tools are on your PATH by")
-        print("adding the following to your shell config:")
         print()
-        print(f"export PATH=\"{bin_dir}:$PATH\"")
+        print("Make sure the Orca tools are on your PATH by adding the following to your shell config:")
+        print()
+        print(f"export PATH=\"{tool_bin_dir}:$PATH\"")
     print()
+
+
+# Gets the root directory of the current Orca source checkout.
+# This is copy-pasted to the command-line tool so it can work before loading anything.
+def get_source_root():
+    dir = os.getcwd()
+    while True:
+        try:
+            os.stat(os.path.join(dir, ".orcasource"))
+            return dir
+        except FileNotFoundError:
+            pass
+
+        newdir = os.path.dirname(dir)
+        if newdir == dir:
+            raise Exception(f"Directory {os.getcwd()} does not seem to be part of the Orca source code.")
+        dir = newdir
+
 
 def install_path():
     if platform.system() == "Windows":
@@ -668,6 +706,7 @@ def install_path():
     bin_dir = os.path.join(orca_dir, "bin")
 
     return (orca_dir, bin_dir)
+
 
 def yeet(path):
     os.makedirs(path, exist_ok=True)
