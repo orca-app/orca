@@ -1545,29 +1545,33 @@ pub const CEvent = extern struct {
         paths: Str8List,
     },
 
-    pub fn event(self: *CEvent) Event {
-        return .{ .window = self.window, .event = switch (self.type) {
-            .none => .none,
-            .keyboard_mods => .{ .keyboard_mods = self.data.key },
-            .keyboard_key => .{ .keyboard_key = self.data.key },
-            .keyboard_char => .{ .keyboard_char = self.data.character },
-            .mouse_button => .{ .mouse_button = self.data.key },
-            .mouse_move => .{ .mouse_move = self.data.mouse },
-            .mouse_wheel => .{ .mouse_wheel = self.data.mouse },
-            .mouse_enter => .{ .mouse_enter = self.data.mouse },
-            .mouse_leave => .{ .mouse_leave = self.data.mouse },
-            .clipboard_paste => .clipboard_paste,
-            .window_resize => .{ .window_resize = self.data.move },
-            .window_move => .{ .window_move = self.data.move },
-            .window_focus => .window_focus,
-            .window_unfocus => .window_unfocus,
-            .window_hide => .window_hide,
-            .window_show => .window_show,
-            .window_close => .window_close,
-            .pathdrop => .{ .pathdrop = self.data.paths },
-            .frame => .frame,
-            .quit => .quit,
-        } };
+    pub fn event(self: *const CEvent) Event {
+        return .{
+            .window = self.window,
+            .event = switch (self.type) {
+                .none => .none,
+                .keyboard_mods => .{ .keyboard_mods = self.data.key },
+                .keyboard_key => .{ .keyboard_key = self.data.key },
+                .keyboard_char => .{ .keyboard_char = self.data.character },
+                .mouse_button => .{ .mouse_button = self.data.key },
+                .mouse_move => .{ .mouse_move = self.data.mouse },
+                .mouse_wheel => .{ .mouse_wheel = self.data.mouse },
+                .mouse_enter => .{ .mouse_enter = self.data.mouse },
+                .mouse_leave => .{ .mouse_leave = self.data.mouse },
+                .clipboard_paste => .clipboard_paste,
+                .window_resize => .{ .window_resize = self.data.move },
+                .window_move => .{ .window_move = self.data.move },
+                .window_focus => .window_focus,
+                .window_unfocus => .window_unfocus,
+                .window_hide => .window_hide,
+                .window_show => .window_show,
+                .window_close => .window_close,
+                .pathdrop => .{ .pathdrop = self.data.paths },
+                .frame => .frame,
+                .quit => .quit,
+            },
+            .c_event = self,
+        };
     }
 };
 
@@ -1595,6 +1599,7 @@ pub const Event = struct {
         frame,
         quit,
     },
+    c_event: *const CEvent,
 };
 
 //------------------------------------------------------------------------------------------
@@ -2894,7 +2899,7 @@ pub const ui = struct {
     extern fn oc_ui_get_context() *Context;
     extern fn oc_ui_set_context(context: *Context) void;
 
-    extern fn oc_ui_process_event(event: *CEvent) void;
+    extern fn oc_ui_process_event(event: *const CEvent) void;
     extern fn oc_ui_begin_frame(size: Vec2, default_style: *StyleInternal, mask: StyleMaskInternal) void;
     extern fn oc_ui_end_frame() void;
     extern fn oc_ui_draw() void;
@@ -3736,3 +3741,117 @@ pub const io = struct {
 
     pub const waitSingleReq = oc_io_wait_single_req;
 };
+
+//------------------------------------------------------------------------------------------
+// [Orca hooks]
+//------------------------------------------------------------------------------------------
+
+const root = @import("root");
+
+fn oc_on_init() callconv(.C) void {
+    callHandler(root.onInit, .{}, @src());
+}
+
+fn oc_on_mouse_down(button: MouseButton) callconv(.C) void {
+    callHandler(root.onMouseDown, .{button}, @src());
+}
+
+fn oc_on_mouse_up(button: MouseButton) callconv(.C) void {
+    callHandler(root.onMouseUp, .{button}, @src());
+}
+
+fn oc_on_mouse_enter() callconv(.C) void {
+    callHandler(root.onMouseEnter, .{}, @src());
+}
+
+fn oc_on_mouse_leave() callconv(.C) void {
+    callHandler(root.onMouseLeave, .{}, @src());
+}
+
+fn oc_on_mouse_move(x: f32, y: f32, deltaX: f32, deltaY: f32) callconv(.C) void {
+    callHandler(root.onMouseMove, .{ x, y, deltaX, deltaY }, @src());
+}
+
+fn oc_on_mouse_wheel(deltaX: f32, deltaY: f32) callconv(.C) void {
+    callHandler(root.onMouseWheel, .{ deltaX, deltaY }, @src());
+}
+
+fn oc_on_key_down(scan: ScanCode, key: KeyCode) callconv(.C) void {
+    callHandler(root.onKeyDown, .{ scan, key }, @src());
+}
+
+fn oc_on_key_up(scan: ScanCode, key: KeyCode) callconv(.C) void {
+    callHandler(root.onKeyUp, .{ scan, key }, @src());
+}
+
+fn oc_on_frame_refresh() callconv(.C) void {
+    callHandler(root.onFrameRefresh, .{}, @src());
+}
+
+fn oc_on_resize(width: u32, height: u32) callconv(.C) void {
+    callHandler(root.onResize, .{ width, height }, @src());
+}
+
+fn oc_on_raw_event(c_event: *CEvent) callconv(.C) void {
+    const event: Event = c_event.event();
+    callHandler(root.onRawEvent, .{&event}, @src());
+}
+
+fn oc_on_terminate() callconv(.C) void {
+    callHandler(root.onTerminate, .{}, @src());
+}
+
+fn fatal(err: anyerror, source: std.builtin.SourceLocation) noreturn {
+    abort("Caught fatal {}", .{err}, source);
+    unreachable;
+}
+
+fn callHandler(func: anytype, params: anytype, source: std.builtin.SourceLocation) void {
+    switch (@typeInfo(@typeInfo(@TypeOf(func)).Fn.return_type.?)) {
+        .Void => @call(.auto, func, params),
+        .ErrorUnion => @call(.auto, func, params) catch |e| fatal(e, source),
+        else => @compileError("Orca event handler must have void return type"),
+    }
+}
+
+comptime {
+    if (@hasDecl(root, "onInit")) {
+        @export(oc_on_init, .{ .name = "oc_on_init" });
+    }
+    if (@hasDecl(root, "onMouseDown")) {
+        @export(oc_on_mouse_down, .{ .name = "oc_on_mouse_down" });
+    }
+    if (@hasDecl(root, "onMouseUp")) {
+        @export(oc_on_mouse_up, .{ .name = "oc_on_mouse_up" });
+    }
+    if (@hasDecl(root, "onMouseEnter")) {
+        @export(oc_on_mouse_enter, .{ .name = "oc_on_mouse_enter" });
+    }
+    if (@hasDecl(root, "onMouseLeave")) {
+        @export(oc_on_mouse_leave, .{ .name = "oc_on_mouse_leave" });
+    }
+    if (@hasDecl(root, "onMouseMove")) {
+        @export(oc_on_mouse_move, .{ .name = "oc_on_mouse_move" });
+    }
+    if (@hasDecl(root, "onMouseWheel")) {
+        @export(oc_on_mouse_wheel, .{ .name = "oc_on_mouse_wheel" });
+    }
+    if (@hasDecl(root, "onKeyDown")) {
+        @export(oc_on_key_down, .{ .name = "oc_on_key_down" });
+    }
+    if (@hasDecl(root, "onKeyUp")) {
+        @export(oc_on_key_up, .{ .name = "oc_on_key_up" });
+    }
+    if (@hasDecl(root, "onFrameRefresh")) {
+        @export(oc_on_frame_refresh, .{ .name = "oc_on_frame_refresh" });
+    }
+    if (@hasDecl(root, "onResize")) {
+        @export(oc_on_resize, .{ .name = "oc_on_resize" });
+    }
+    if (@hasDecl(root, "onRawEvent")) {
+        @export(oc_on_raw_event, .{ .name = "oc_on_raw_event" });
+    }
+    if (@hasDecl(root, "onTerminate")) {
+        @export(oc_on_terminate, .{ .name = "oc_on_terminate" });
+    }
+}

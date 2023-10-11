@@ -1,6 +1,11 @@
 const std = @import("std");
 const oc = @import("orca");
 
+// Unfortunately needed to force the comptime code in orca.zig to be run
+comptime {
+    _ = oc;
+}
+
 const lerp = std.math.lerp;
 
 const Vec2 = oc.Vec2;
@@ -21,7 +26,7 @@ var frame_size: Vec2 = .{ .x = 0, .y = 0 };
 
 var rotation_demo: f32 = 0;
 
-export fn oc_on_init() void {
+pub fn onInit() !void {
     oc.windowSetTitle("zig sample");
     oc.windowSetSize(Vec2{ .x = 480, .y = 640 });
 
@@ -91,32 +96,32 @@ export fn oc_on_init() void {
         tmp_image = oc.Image.nil();
     }
 
-    testFileApis() catch |e| fatal(e, @src());
+    try testFileApis();
 }
 
-export fn oc_on_resize(width: u32, height: u32) void {
+pub fn onResize(width: u32, height: u32) void {
     frame_size = Vec2{ .x = @floatFromInt(width), .y = @floatFromInt(height) };
     const surface_size = surface.getSize();
     oc.log.info("frame resize: {d:.2}, {d:.2}, surface size: {d:.2} {d:.2}", .{ frame_size.x, frame_size.y, surface_size.x, surface_size.y }, @src());
 }
 
-export fn oc_on_mouse_down(button: oc.MouseButton) void {
+pub fn onMouseDown(button: oc.MouseButton) void {
     oc.log.info("mouse down! {}", .{button}, @src());
 }
 
-export fn oc_on_mouse_up(button: oc.MouseButton) void {
+pub fn onMouseUp(button: oc.MouseButton) void {
     oc.log.info("mouse up! {}", .{button}, @src());
 }
 
-export fn oc_on_mouse_wheel(dx: f32, dy: f32) void {
+pub fn onMouseWheel(dx: f32, dy: f32) void {
     oc.log.info("mouse wheel! dx: {d:.2}, dy: {d:.2}", .{ dx, dy }, @src());
 }
 
-export fn oc_on_key_down(scan: oc.ScanCode, key: oc.KeyCode) void {
+pub fn onKeyDown(scan: oc.ScanCode, key: oc.KeyCode) void {
     oc.log.info("key down: {} {}", .{ scan, key }, @src());
 }
 
-export fn oc_on_key_up(scan: oc.ScanCode, key: oc.KeyCode) void {
+pub fn onKeyUp(scan: oc.ScanCode, key: oc.KeyCode) void {
     oc.log.info("key up: {} {}", .{ scan, key }, @src());
 
     switch (key) {
@@ -129,7 +134,7 @@ export fn oc_on_key_up(scan: oc.ScanCode, key: oc.KeyCode) void {
     }
 }
 
-export fn oc_on_frame_refresh() void {
+pub fn onFrameRefresh() !void {
     counter += 1;
 
     const secs: f64 = oc.clock.time(.Date);
@@ -207,12 +212,12 @@ export fn oc_on_frame_refresh() void {
 
         var scratch: *oc.Arena = scratch_scope.arena;
 
-        var str1: Str8 = Str8.collate(scratch, &[_][]const u8{ "Hello", "from", "Zig!" }, ">> ", " ", " <<") catch |e| fatal(e, @src());
+        var str1: Str8 = try Str8.collate(scratch, &[_][]const u8{ "Hello", "from", "Zig!" }, ">> ", " ", " <<");
 
         var str2_list = oc.Str8List.init();
-        str2_list.push(scratch, Str8.fromSlice("All")) catch |e| fatal(e, @src());
-        str2_list.pushf(scratch, "your", .{}) catch |e| fatal(e, @src());
-        str2_list.pushSlice(scratch, "base!!") catch |e| fatal(e, @src());
+        try str2_list.push(scratch, Str8.fromSlice("All"));
+        try str2_list.pushf(scratch, "your", .{});
+        try str2_list.pushSlice(scratch, "base!!");
 
         oc.assert(str2_list.containsSlice("All"), "str2_list should have the string we just pushed", .{}, @src());
 
@@ -230,7 +235,7 @@ export fn oc_on_frame_refresh() void {
             oc.assert(elt_last.?.prev != elt_first, "list checks", .{}, @src());
         }
 
-        var str2: Str8 = str2_list.collate(scratch, Str8.fromSlice("<< "), Str8.fromSlice("-"), Str8.fromSlice(" >>")) catch |e| fatal(e, @src());
+        var str2: Str8 = try str2_list.collate(scratch, Str8.fromSlice("<< "), Str8.fromSlice("-"), Str8.fromSlice(" >>"));
 
         const font_size = 18;
         const text_metrics = font.textMetrics(font_size, str1);
@@ -259,29 +264,29 @@ export fn oc_on_frame_refresh() void {
         var scratch: *oc.Arena = scratch_scope.arena;
 
         var separators = oc.Str8List.init();
-        separators.pushSlice(scratch, " ") catch |e| fatal(e, @src());
-        separators.pushSlice(scratch, "|") catch |e| fatal(e, @src());
-        separators.pushSlice(scratch, "-") catch |e| fatal(e, @src());
+        try separators.pushSlice(scratch, " ");
+        try separators.pushSlice(scratch, "|");
+        try separators.pushSlice(scratch, "-");
 
         var strings_array = std.ArrayList([]const u8).init(allocator);
         defer strings_array.deinit();
-        strings_array.append("This ") catch unreachable;
-        strings_array.append("is") catch unreachable;
-        strings_array.append(" |a") catch unreachable;
-        strings_array.append("one-word string that ") catch unreachable;
-        strings_array.append(" |  has") catch unreachable;
-        strings_array.append(" no ") catch unreachable;
-        strings_array.append("    spaces i") catch unreachable;
-        strings_array.append("n it") catch unreachable;
+        try strings_array.append("This ");
+        try strings_array.append("is");
+        try strings_array.append(" |a");
+        try strings_array.append("one-word string that ");
+        try strings_array.append(" |  has");
+        try strings_array.append(" no ");
+        try strings_array.append("    spaces i");
+        try strings_array.append("n it");
 
         var single_string = std.ArrayList(u8).init(allocator);
         for (strings_array.items) |str| {
-            single_string.appendSlice(str) catch unreachable;
+            try single_string.appendSlice(str);
         }
 
         const big_string = Str8.fromSlice(single_string.items);
-        var strings: oc.Str8List = big_string.split(scratch, separators) catch |e| fatal(e, @src());
-        var collated = strings.join(scratch) catch |e| fatal(e, @src());
+        var strings: oc.Str8List = try big_string.split(scratch, separators);
+        var collated = try strings.join(scratch);
 
         oc.Canvas.setFontSize(12);
         oc.Canvas.moveTo(0, 170);
@@ -323,16 +328,11 @@ export fn oc_on_frame_refresh() void {
     surface.present();
 }
 
-export fn oc_on_terminate() void {
+pub fn onTerminate() void {
     font.destroy();
     canvas.destroy();
 
     oc.log.info("byebye {}", .{counter}, @src());
-}
-
-fn fatal(err: anyerror, source: std.builtin.SourceLocation) noreturn {
-    oc.abort("Caught fatal {}", .{err}, source);
-    unreachable;
 }
 
 fn oneMinusLerp(a: anytype, b: anytype, t: anytype) @TypeOf(a, b, t) {

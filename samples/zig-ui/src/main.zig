@@ -2,6 +2,11 @@ const std = @import("std");
 const oc = @import("orca");
 const ui = oc.ui;
 
+// Unfortunately needed to force the comptime code in orca.zig to be run
+comptime {
+    _ = oc;
+}
+
 var frame_size: oc.Vec2 = .{ .x = 1200, .y = 838 };
 
 var surface: oc.Surface = undefined;
@@ -20,31 +25,7 @@ const Cmd = enum {
 };
 var cmd: Cmd = .None;
 
-export fn oc_on_init() void {
-    const Helpers = struct {
-        fn loadFont(font_path: []const u8) !oc.Font {
-            var scratch = oc.Arena.scratchBegin();
-            defer scratch.end();
-
-            var file = try oc.File.open(font_path, .{ .read = true }, .{});
-
-            var size = try file.getSize();
-            var buffer = try scratch.arena.push(@intCast(size));
-            _ = try file.read(buffer);
-            file.close();
-
-            var ranges = oc.UnicodeRange.range(&[_]oc.UnicodeRange.Enum{
-                .BasicLatin,
-                .C1ControlsAndLatin1Supplement,
-                .LatinExtendedA,
-                .LatinExtendedB,
-                .Specials,
-            });
-
-            return oc.Font.createFromMemory(buffer, &ranges);
-        }
-    };
-
+pub fn onInit() !void {
     oc.windowSetTitle("Orca Zig UI Demo");
     oc.windowSetSize(frame_size);
 
@@ -55,10 +36,28 @@ export fn oc_on_init() void {
     var fonts = [_]*oc.Font{ &font_regular, &font_bold };
     var font_names = [_][]const u8{ "/OpenSans-Regular.ttf", "/OpenSans-Bold.ttf" };
     for (fonts, font_names) |font, name| {
-        font.* = Helpers.loadFont(name) catch |e| {
-            oc.abort("Caught fatal {} when loading font '{s}'.", .{ e, name }, @src());
-            unreachable;
+        var scratch = oc.Arena.scratchBegin();
+        defer scratch.end();
+
+        var file = oc.File.open(name, .{ .read = true }, .{}) catch |e| {
+            oc.log.err("Couldn't open file {s}", .{name}, @src());
+            return e;
         };
+
+        var size = try file.getSize();
+        var buffer = try scratch.arena.push(@intCast(size));
+        _ = try file.read(buffer);
+        file.close();
+
+        var ranges = oc.UnicodeRange.range(&[_]oc.UnicodeRange.Enum{
+            .BasicLatin,
+            .C1ControlsAndLatin1Supplement,
+            .LatinExtendedA,
+            .LatinExtendedB,
+            .Specials,
+        });
+
+        font.* = oc.Font.createFromMemory(buffer, &ranges);
     }
 
     text_arena = oc.Arena.init();
@@ -66,16 +65,16 @@ export fn oc_on_init() void {
     log_lines = oc.Str8List.init();
 }
 
-export fn oc_on_raw_event(event: *oc.CEvent) void {
-    ui.processCEvent(event);
+pub fn onRawEvent(event: *const oc.Event) void {
+    oc.ui.processCEvent(event.c_event);
 }
 
-export fn oc_on_resize(width: u32, height: u32) void {
+pub fn onResize(width: u32, height: u32) void {
     frame_size.x = @floatFromInt(width);
     frame_size.y = @floatFromInt(height);
 }
 
-export fn oc_on_frame_refresh() void {
+pub fn onFrameRefresh() void {
     var scratch = oc.Arena.scratchBegin();
     defer scratch.end();
 
