@@ -151,13 +151,13 @@ oc_wasm_addr oc_wasm_arena_push(oc_wasm_addr arena, u64 size)
     M3Result res = m3_Call(env->exports[OC_EXPORT_ARENA_PUSH], 2, args);
     if(res)
     {
-        ORCA_WASM3_ABORT(env->m3Runtime, res, "Runtime error");
+        OC_WASM3_TRAP(env->m3Runtime, res, "Runtime error");
     }
 
     res = m3_GetResults(env->exports[OC_EXPORT_ARENA_PUSH], 1, retPointers);
     if(res)
     {
-        ORCA_WASM3_ABORT(env->m3Runtime, res, "Runtime error");
+        OC_WASM3_TRAP(env->m3Runtime, res, "Runtime error");
     }
 
     return (retValues[0]);

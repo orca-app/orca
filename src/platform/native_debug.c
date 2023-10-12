@@ -7,7 +7,8 @@
 **************************************************************************/
 #include <stdio.h>
 
-#include "app/app.h"
+#include "util/memory.h"
+#include "util/strings.h"
 #include "platform_debug.c"
 //----------------------------------------------------------------
 // Logging
@@ -102,14 +103,7 @@ _Noreturn void oc_abort_ext(const char* file, const char* function, int line, co
                                 note.ptr);
 
     oc_log_error(msg.ptr);
-
-    oc_str8_list options = { 0 };
-    oc_str8_list_push(scratch.arena, &options, OC_STR8("OK"));
-
-    oc_alert_popup(OC_STR8("Fatal Error"), msg, options);
-
-    //TODO: could terminate more gracefully?
-    exit(-1);
+    abort();
 }
 
 _Noreturn void oc_assert_fail(const char* file, const char* function, int line, const char* src, const char* fmt, ...)
@@ -130,12 +124,5 @@ _Noreturn void oc_assert_fail(const char* file, const char* function, int line, 
                                 oc_str8_ip(note));
 
     oc_log_error(msg.ptr);
-
-    oc_str8_list options = { 0 };
-    oc_str8_list_push(scratch.arena, &options, OC_STR8("OK"));
-
-    oc_alert_popup(OC_STR8("Assertion Failed"), msg, options);
-
-    //TODO: could terminate more gracefully?
-    exit(-1);
+    abort();
 }

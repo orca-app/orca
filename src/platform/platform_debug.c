@@ -5,6 +5,7 @@
 *  See LICENSE.txt for licensing information
 *
 **************************************************************************/
+#include <stdarg.h>
 #include "platform_debug.h"
 
 typedef struct oc_log_config

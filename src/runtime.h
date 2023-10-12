@@ -130,7 +130,15 @@ oc_runtime* oc_runtime_get(void);
 oc_wasm_env* oc_runtime_get_env(void);
 oc_str8 oc_runtime_get_wasm_memory(void);
 
-void orca_wasm3_abort(IM3Runtime runtime, M3Result res, const char* file, const char* function, int line, const char* msg);
-#define ORCA_WASM3_ABORT(runtime, err, msg) orca_wasm3_abort(runtime, err, __FILE__, __FUNCTION__, __LINE__, msg)
+void oc_abort_ext_dialog(const char* file, const char* function, int line, const char* fmt, ...);
+void oc_assert_fail_dialog(const char* file, const char* function, int line, const char* test, const char* fmt, ...);
+
+#define _OC_ASSERT_DIALOG_(test, fmt, ...) \
+    ((test) || (oc_assert_fail_dialog(__FILE__, __FUNCTION__, __LINE__, #test, fmt, ##__VA_ARGS__), 0))
+#define OC_ASSERT_DIALOG(test, ...) \
+    _OC_ASSERT_DIALOG_(test, OC_VA_NOPT("", ##__VA_ARGS__) OC_ARG1(__VA_ARGS__) OC_VA_COMMA_TAIL(__VA_ARGS__))
+
+void oc_wasm3_trap(IM3Runtime runtime, M3Result res, const char* file, const char* function, int line, const char* msg);
+#define OC_WASM3_TRAP(runtime, err, msg) oc_wasm3_trap(runtime, err, __FILE__, __FUNCTION__, __LINE__, msg)
 
 #endif //__RUNTIME_H_
