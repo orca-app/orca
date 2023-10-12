@@ -374,7 +374,8 @@ def build_orca_mac(release):
 def gen_all_bindings():
     gles_gen("src/ext/gl.xml",
         "src/wasmbind/gles_api.json",
-        "src/graphics/orca_gl31.h"
+        "src/graphics/orca_gl31.h",
+        log_file='./build/gles_gen.log'
     )
 
     bindgen("gles", "src/wasmbind/gles_api.json",
