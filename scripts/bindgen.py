@@ -135,8 +135,8 @@ def bindgen(apiName, spec, **kwargs):
                     s += retTypeCName + '* __retPtr = (' + retTypeCName + '*)((char*)_mem + *(i32*)&_sp[0]);\n'
 
                     s += '\t{\n'
-                    s += '\t\tOC_ASSERT(((char*)__retPtr >= (char*)_mem) && (((char*)__retPtr - (char*)_mem) < m3_GetMemorySize(runtime)), "return pointer is out of bounds");\n'
-                    s += '\t\tOC_ASSERT((char*)__retPtr + sizeof(' + retTypeCName + ') <= ((char*)_mem + m3_GetMemorySize(runtime)), "return pointer is out of bounds");\n'
+                    s += '\t\tOC_ASSERT_DIALOG(((char*)__retPtr >= (char*)_mem) && (((char*)__retPtr - (char*)_mem) < m3_GetMemorySize(runtime)), "return pointer is out of bounds");\n'
+                    s += '\t\tOC_ASSERT_DIALOG((char*)__retPtr + sizeof(' + retTypeCName + ') <= ((char*)_mem + m3_GetMemorySize(runtime)), "return pointer is out of bounds");\n'
                     s += '\t}\n'
 
             for argIndex, arg in enumerate(decl['args']):
@@ -178,8 +178,8 @@ def bindgen(apiName, spec, **kwargs):
                         printError("binding '" + name + "' missing pointer length decoration for param '" + argName + "'")
                     else:
                         s += '\t{\n'
-                        s += '\t\tOC_ASSERT(((char*)'+ argName + ' >= (char*)_mem) && (((char*)'+ argName +' - (char*)_mem) < m3_GetMemorySize(runtime)), "parameter \''+argName+'\' is out of bounds");\n'
-                        s += '\t\tOC_ASSERT((char*)' + argName + ' + '
+                        s += '\t\tOC_ASSERT_DIALOG(((char*)'+ argName + ' >= (char*)_mem) && (((char*)'+ argName +' - (char*)_mem) < m3_GetMemorySize(runtime)), "parameter \''+argName+'\' is out of bounds");\n'
+                        s += '\t\tOC_ASSERT_DIALOG((char*)' + argName + ' + '
 
                         proc = argLen.get('proc')
                         if proc != None:
