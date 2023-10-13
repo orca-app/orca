@@ -392,22 +392,11 @@ ORCA_API bool oc_clipboard_has_tag(const char* tag);
 ORCA_API void oc_clipboard_set_data_for_tag(const char* tag, oc_str8 data);
 ORCA_API oc_str8 oc_clipboard_get_data_for_tag(oc_arena* arena, const char* tag);
 
+#endif // !defined(OC_PLATFORM_ORCA) || !(OC_PLATFORM_ORCA)
+
 //--------------------------------------------------------------------
 // native open/save/alert windows
 //--------------------------------------------------------------------
-
-ORCA_API oc_str8 oc_open_dialog(oc_arena* arena,
-                                oc_str8 title,
-                                oc_str8 defaultPath,
-                                oc_str8_list filters,
-                                bool directory);
-
-ORCA_API oc_str8 oc_save_dialog(oc_arena* arena,
-                                oc_str8 title,
-                                oc_str8 defaultPath,
-                                oc_str8_list filters);
-
-#endif // !defined(OC_PLATFORM_ORCA) || !(OC_PLATFORM_ORCA)
 
 #include "platform/platform_io.h"
 
