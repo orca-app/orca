@@ -87,6 +87,10 @@ ORCA_API oc_str8 oc_str8_list_collate(oc_arena* arena, oc_str8_list list, oc_str
 ORCA_API oc_str8 oc_str8_list_join(oc_arena* arena, oc_str8_list list);
 ORCA_API oc_str8_list oc_str8_split(oc_arena* arena, oc_str8 str, oc_str8_list separators);
 
+#define oc_str8_list_first(sl) (oc_list_empty(sl.list) ? (oc_str8){ 0 } : (oc_list_first_entry(sl.list, oc_str8_elt, listElt)->string))
+#define oc_str8_list_last(sl) (oc_list_empty(sl.list) ? (oc_str8){ 0 } : (oc_list_last_entry(sl.list, oc_str8_elt, listElt)->string))
+#define oc_str8_list_for(sl, elt) oc_list_for(sl.list, elt, oc_str8_elt, listElt)
+
 //----------------------------------------------------------------------------------
 // u16 strings
 //----------------------------------------------------------------------------------
@@ -120,6 +124,10 @@ ORCA_API void oc_str16_list_push(oc_arena* arena, oc_str16_list* list, oc_str16 
 ORCA_API oc_str16 oc_str16_list_join(oc_arena* arena, oc_str16_list list);
 ORCA_API oc_str16_list oc_str16_split(oc_arena* arena, oc_str16 str, oc_str16_list separators);
 
+#define oc_str16_list_first(sl) (oc_list_empty(sl.list) ? (oc_str16){ 0 } : (oc_list_first_entry(sl.list, oc_str16_elt, listElt)->string))
+#define oc_str16_list_last(sl) (oc_list_empty(sl.list) ? (oc_str16){ 0 } : (oc_list_last_entry(sl.list, oc_str16_elt, listElt)->string))
+#define oc_str16_list_for(sl, elt) oc_list_for(sl.list, elt, oc_str16_elt, listElt)
+
 //----------------------------------------------------------------------------------
 // u32 strings
 //----------------------------------------------------------------------------------
@@ -152,6 +160,10 @@ typedef struct oc_str32_list
 ORCA_API void oc_str32_list_push(oc_arena* arena, oc_str32_list* list, oc_str32 str);
 ORCA_API oc_str32 oc_str32_list_join(oc_arena* arena, oc_str32_list list);
 ORCA_API oc_str32_list oc_str32_split(oc_arena* arena, oc_str32 str, oc_str32_list separators);
+
+#define oc_str32_list_first(sl) (oc_list_empty(sl.list) ? (oc_str32){ 0 } : (oc_list_first_entry(sl.list, oc_str32_elt, listElt)->string))
+#define oc_str32_list_last(sl) (oc_list_empty(sl.list) ? (oc_str32){ 0 } : (oc_list_last_entry(sl.list, oc_str32_elt, listElt)->string))
+#define oc_str32_list_for(sl, elt) oc_list_for(sl.list, elt, oc_str32_elt, listElt)
 
 #ifdef __cplusplus
 } // extern "C"
