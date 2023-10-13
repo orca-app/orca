@@ -111,10 +111,7 @@ oc_io_open_restrict_result oc_io_open_restrict(oc_file_desc dirFd, oc_str8 path,
 {
     oc_arena_scope scratch = oc_scratch_begin();
 
-    oc_str8_list sep = { 0 };
-    oc_str8_list_push(scratch.arena, &sep, OC_STR8("/"));
-    oc_str8_list_push(scratch.arena, &sep, OC_STR8("\\"));
-    oc_str8_list pathElements = oc_str8_split(scratch.arena, path, sep);
+    oc_str8_list pathElements = oc_path_split(scratch.arena, path);
 
     oc_io_open_restrict_context context = {
         .error = OC_IO_OK,
@@ -223,7 +220,8 @@ oc_io_open_restrict_result oc_io_open_restrict(oc_file_desc dirFd, oc_str8 path,
                             break;
                         }
 
-                        oc_str8_list linkElements = oc_str8_split(scratch.arena, link.target, sep);
+                        oc_str8_list linkElements = oc_path_split(scratch.arena, link.target);
+
                         if(!oc_list_empty(linkElements.list))
                         {
                             //NOTE: insert linkElements into pathElements after elt
