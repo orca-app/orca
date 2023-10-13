@@ -1736,10 +1736,10 @@ oc_file_dialog_result oc_file_dialog_for_table(oc_arena* arena, oc_file_dialog_d
                     {
                         int count = 0;
                         array->lpVtbl->GetCount(array, &count);
-                        for(int i = 0; i < count; i++)
+                        for(int itemIndex = 0; itemIndex < count; itemIndex++)
                         {
                             IShellItem* item = 0;
-                            hr = array->lpVtbl->GetItemAt(array, i, &item);
+                            hr = array->lpVtbl->GetItemAt(array, itemIndex, &item);
                             if(SUCCEEDED(hr))
                             {
                                 PWSTR pathWCStr = 0;
@@ -1748,9 +1748,19 @@ oc_file_dialog_result oc_file_dialog_for_table(oc_arena* arena, oc_file_dialog_d
                                 {
                                     oc_str16 pathWide = oc_str16_from_buffer(lstrlenW(pathWCStr), pathWCStr);
                                     oc_str8 path = oc_win32_wide_to_utf8(arena, pathWide);
+
+                                    //NOTE: convert Windows backslashes to forward slashes
+                                    for(int i = 0; i < path.len; i++)
+                                    {
+                                        if(path.ptr[i] == '\\')
+                                        {
+                                            path.ptr[i] = '/';
+                                        }
+                                    }
+
                                     oc_str8_list_push(arena, &result.selection, path);
 
-                                    if(i == 0)
+                                    if(itemIndex == 0)
                                     {
                                         result.path = path;
                                     }
@@ -1775,7 +1785,18 @@ oc_file_dialog_result oc_file_dialog_for_table(oc_arena* arena, oc_file_dialog_d
                         if(SUCCEEDED(hr))
                         {
                             oc_str16 pathWide = oc_str16_from_buffer(lstrlenW(pathWCStr), pathWCStr);
-                            result.path = oc_win32_wide_to_utf8(arena, pathWide);
+                            oc_str8 path = oc_win32_wide_to_utf8(arena, pathWide);
+
+                            //NOTE: convert Windows backslashes to forward slashes
+                            for(int i = 0; i < path.len; i++)
+                            {
+                                if(path.ptr[i] == '\\')
+                                {
+                                    path.ptr[i] = '/';
+                                }
+                            }
+
+                            result.path = path;
                             oc_str8_list_push(arena, &result.selection, result.path);
 
                             CoTaskMemFree(pathWCStr);
