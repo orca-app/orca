@@ -1482,6 +1482,16 @@ oc_str8 oc_open_dialog(oc_arena* arena,
         }
     }
     CoUninitialize();
+
+    //NOTE: convert Windows backslashes to forward slashes
+    for(int i = 0; i < res.len; i++)
+    {
+        if(res.ptr[i] == '\\')
+        {
+            res.ptr[i] = '/';
+        }
+    }
+
     return (res);
 }
 
@@ -1570,6 +1580,16 @@ oc_str8 oc_save_dialog(oc_arena* arena,
         }
     }
     CoUninitialize();
+
+    //NOTE: convert Windows backslashes to forward slashes
+    for(int i = 0; i < res.len; i++)
+    {
+        if(res.ptr[i] == '\\')
+        {
+            res.ptr[i] = '/';
+        }
+    }
+
     return (res);
 }
 

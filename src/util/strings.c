@@ -196,23 +196,16 @@ oc_str8_list oc_str8_split(oc_arena* arena, oc_str8 str, oc_str8_list separators
         }
         if(foundSep)
         {
-            //NOTE(martin): we found a separator. If the start of the current substring is != ptr,
-            //              the current substring is not empty and we emit the substring
-            if(ptr != subStart)
-            {
-                oc_str8 sub = oc_str8_from_buffer(ptr - subStart, subStart);
-                oc_str8_list_push(arena, &list, sub);
-            }
+            oc_str8 sub = oc_str8_from_buffer(ptr - subStart, subStart);
+            oc_str8_list_push(arena, &list, sub);
             ptr += foundSep->len - 1; //NOTE(martin): ptr is incremented at the end of the loop
             subStart = ptr + 1;
         }
     }
     //NOTE(martin): emit the last substring
-    if(ptr != subStart)
-    {
-        oc_str8 sub = oc_str8_from_buffer(ptr - subStart, subStart);
-        oc_str8_list_push(arena, &list, sub);
-    }
+    oc_str8 sub = oc_str8_from_buffer(ptr - subStart, subStart);
+    oc_str8_list_push(arena, &list, sub);
+
     return (list);
 }
 
