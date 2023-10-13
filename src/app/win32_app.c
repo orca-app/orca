@@ -1832,7 +1832,7 @@ int oc_alert_popup(oc_str8 title,
         MultiByteToWideChar(CP_UTF8, 0, elt->string.ptr, elt->string.len, textWide, textWideSize);
         textWide[textWideSize] = '\0';
 
-        buttons[i].nButtonID = i + 1;
+        buttons[i].nButtonID = i + 100;
         buttons[i].pszButtonText = textWide;
 
         i++;
@@ -1874,7 +1874,7 @@ int oc_alert_popup(oc_str8 title,
         }
         else
         {
-            button--;
+            button -= 100;
         }
     }
 
