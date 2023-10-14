@@ -29,3 +29,14 @@ oc_str8 oc_win32_wide_to_utf8(oc_arena* arena, oc_str16 s)
     WideCharToMultiByte(CP_UTF8, 0, s.ptr, s.len, res.ptr, res.len, NULL, NULL);
     return (res);
 }
+
+void oc_win32_path_normalize_slash_in_place(oc_str8 path)
+{
+    for(int i = 0; i < path.len; i++)
+    {
+        if(path.ptr[i] == '\\')
+        {
+            path.ptr[i] = '/';
+        }
+    }
+}

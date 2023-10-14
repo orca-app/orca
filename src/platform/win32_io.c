@@ -410,14 +410,8 @@ oc_io_raw_read_link_result oc_io_raw_read_link(oc_arena* arena, oc_file_desc fd)
             result.error = OC_IO_ERR_UNKNOWN;
         }
     }
-    //NOTE: convert windows backslash sep to forward slash sep
-    for(int i = 0; i < result.target.len; i++)
-    {
-        if(result.target.ptr[i] == '\\')
-        {
-            result.target.ptr[i] = '/';
-        }
-    }
+    oc_win32_path_normalize_slash_in_place(result.target);
+
     return (result);
 }
 
