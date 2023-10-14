@@ -1483,14 +1483,7 @@ oc_str8 oc_open_dialog(oc_arena* arena,
     }
     CoUninitialize();
 
-    //NOTE: convert Windows backslashes to forward slashes
-    for(int i = 0; i < res.len; i++)
-    {
-        if(res.ptr[i] == '\\')
-        {
-            res.ptr[i] = '/';
-        }
-    }
+    oc_win32_path_normalize_slash_in_place(res);
 
     return (res);
 }
@@ -1581,14 +1574,7 @@ oc_str8 oc_save_dialog(oc_arena* arena,
     }
     CoUninitialize();
 
-    //NOTE: convert Windows backslashes to forward slashes
-    for(int i = 0; i < res.len; i++)
-    {
-        if(res.ptr[i] == '\\')
-        {
-            res.ptr[i] = '/';
-        }
-    }
+    oc_win32_path_normalize_slash_in_place(res);
 
     return (res);
 }
@@ -1750,13 +1736,7 @@ oc_file_dialog_result oc_file_dialog_for_table(oc_arena* arena, oc_file_dialog_d
                                     oc_str8 path = oc_win32_wide_to_utf8(arena, pathWide);
 
                                     //NOTE: convert Windows backslashes to forward slashes
-                                    for(int i = 0; i < path.len; i++)
-                                    {
-                                        if(path.ptr[i] == '\\')
-                                        {
-                                            path.ptr[i] = '/';
-                                        }
-                                    }
+                                    oc_win32_path_normalize_slash_in_place(path);
 
                                     oc_str8_list_push(arena, &result.selection, path);
 
@@ -1787,14 +1767,7 @@ oc_file_dialog_result oc_file_dialog_for_table(oc_arena* arena, oc_file_dialog_d
                             oc_str16 pathWide = oc_str16_from_buffer(lstrlenW(pathWCStr), pathWCStr);
                             oc_str8 path = oc_win32_wide_to_utf8(arena, pathWide);
 
-                            //NOTE: convert Windows backslashes to forward slashes
-                            for(int i = 0; i < path.len; i++)
-                            {
-                                if(path.ptr[i] == '\\')
-                                {
-                                    path.ptr[i] = '/';
-                                }
-                            }
+                            oc_win32_path_normalize_slash_in_place(path);
 
                             result.path = path;
                             oc_str8_list_push(arena, &result.selection, result.path);

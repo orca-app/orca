@@ -5,7 +5,7 @@
 *  See LICENSE.txt for licensing information
 *
 **************************************************************************/
-#include <shlwapi.h>                                           // PathIsRelative()
+#include <shlwapi.h> // PathIsRelative()
 
 #include "platform_path.c"
 #include "win32_string_helpers.h"
@@ -29,14 +29,10 @@ oc_str8 oc_path_executable(oc_arena* arena)
     char* buffer = oc_arena_push_array(arena, char, MAX_PATH + 2);
     int size = GetModuleFileName(NULL, buffer, MAX_PATH + 1);
     //TODO: check for errors...
-    for(int i = 0; i < size; i++)
-    {
-        if(buffer[i] == '\\')
-        {
-            buffer[i] = '/';
-        }
-    }
-    return (oc_str8_from_buffer(size, buffer));
+    oc_str8 path = oc_str8_from_buffer(size, buffer);
+
+    oc_win32_path_normalize_slash_in_place(path);
+    return (path);
 }
 
 oc_str8 oc_path_canonical(oc_arena* arena, oc_str8 path); //TODO
