@@ -1,17 +1,9 @@
 const std = @import("std");
 const oc = @import("orca");
 
-// Register event handlers with orca
+// Unfortunately needed to force the comptime code in orca.zig to be run
 comptime {
-    oc.registerHandler(onInit, .Init);
-    oc.registerHandler(onResize, .Resize);
-    oc.registerHandler(onMouseDown, .MouseDown);
-    oc.registerHandler(onMouseUp, .MouseUp);
-    oc.registerHandler(onMouseWheel, .MouseWheel);
-    oc.registerHandler(onKeyDown, .KeyDown);
-    oc.registerHandler(onKeyUp, .KeyUp);
-    oc.registerHandler(onFrameRefresh, .FrameRefresh);
-    oc.registerHandler(onTerminate, .Terminate);
+    _ = oc;
 }
 
 const lerp = std.math.lerp;
@@ -34,7 +26,7 @@ var frame_size: Vec2 = .{ .x = 0, .y = 0 };
 
 var rotation_demo: f32 = 0;
 
-fn onInit() !void {
+pub fn onInit() !void {
     oc.windowSetTitle("zig sample");
     oc.windowSetSize(Vec2{ .x = 480, .y = 640 });
 
@@ -107,29 +99,29 @@ fn onInit() !void {
     try testFileApis();
 }
 
-fn onResize(width: u32, height: u32) void {
+pub fn onResize(width: u32, height: u32) void {
     frame_size = Vec2{ .x = @floatFromInt(width), .y = @floatFromInt(height) };
     const surface_size = surface.getSize();
     oc.log.info("frame resize: {d:.2}, {d:.2}, surface size: {d:.2} {d:.2}", .{ frame_size.x, frame_size.y, surface_size.x, surface_size.y }, @src());
 }
 
-fn onMouseDown(button: oc.MouseButton) void {
+pub fn onMouseDown(button: oc.MouseButton) void {
     oc.log.info("mouse down! {}", .{button}, @src());
 }
 
-fn onMouseUp(button: oc.MouseButton) void {
+pub fn onMouseUp(button: oc.MouseButton) void {
     oc.log.info("mouse up! {}", .{button}, @src());
 }
 
-fn onMouseWheel(dx: f32, dy: f32) void {
+pub fn onMouseWheel(dx: f32, dy: f32) void {
     oc.log.info("mouse wheel! dx: {d:.2}, dy: {d:.2}", .{ dx, dy }, @src());
 }
 
-fn onKeyDown(scan: oc.ScanCode, key: oc.KeyCode) void {
+pub fn onKeyDown(scan: oc.ScanCode, key: oc.KeyCode) void {
     oc.log.info("key down: {} {}", .{ scan, key }, @src());
 }
 
-fn onKeyUp(scan: oc.ScanCode, key: oc.KeyCode) void {
+pub fn onKeyUp(scan: oc.ScanCode, key: oc.KeyCode) void {
     oc.log.info("key up: {} {}", .{ scan, key }, @src());
 
     switch (key) {
@@ -142,7 +134,7 @@ fn onKeyUp(scan: oc.ScanCode, key: oc.KeyCode) void {
     }
 }
 
-fn onFrameRefresh() !void {
+pub fn onFrameRefresh() !void {
     counter += 1;
 
     const secs: f64 = oc.clock.time(.Date);
@@ -336,7 +328,7 @@ fn onFrameRefresh() !void {
     surface.present();
 }
 
-fn onTerminate() void {
+pub fn onTerminate() void {
     font.destroy();
     canvas.destroy();
 

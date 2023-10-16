@@ -93,7 +93,7 @@ pub fn build(b: *std.Build) !void {
 
     // Runs the app
     const run_cmd_windows = [_][]const u8{"Sample/bin/Sample.exe"};
-    const run_cmd_macos = [_][]const u8{"Sample.app/Contents/MacOS/orca_runtime"};
+    const run_cmd_macos = [_][]const u8{ "open", "Sample.app" };
     const run_cmd_str: []const []const u8 = switch (builtin.os.tag) {
         .windows => &run_cmd_windows,
         .macos => &run_cmd_macos,

@@ -2,12 +2,9 @@ const std = @import("std");
 const oc = @import("orca");
 const ui = oc.ui;
 
-// Register event handlers with orca
+// Unfortunately needed to force the comptime code in orca.zig to be run
 comptime {
-    oc.registerHandler(onInit, .Init);
-    oc.registerHandler(onResize, .Resize);
-    oc.registerHandler(onRawEvent, .RawEvent);
-    oc.registerHandler(onFrameRefresh, .FrameRefresh);
+    _ = oc;
 }
 
 var frame_size: oc.Vec2 = .{ .x = 1200, .y = 838 };
@@ -28,7 +25,7 @@ const Cmd = enum {
 };
 var cmd: Cmd = .None;
 
-fn onInit() !void {
+pub fn onInit() !void {
     oc.windowSetTitle("Orca Zig UI Demo");
     oc.windowSetSize(frame_size);
 
@@ -68,16 +65,16 @@ fn onInit() !void {
     log_lines = oc.Str8List.init();
 }
 
-fn onRawEvent(event: *const oc.Event) void {
+pub fn onRawEvent(event: *const oc.Event) void {
     oc.ui.processCEvent(event.c_event);
 }
 
-fn onResize(width: u32, height: u32) void {
+pub fn onResize(width: u32, height: u32) void {
     frame_size.x = @floatFromInt(width);
     frame_size.y = @floatFromInt(height);
 }
 
-fn onFrameRefresh() void {
+pub fn onFrameRefresh() void {
     var scratch = oc.Arena.scratchBegin();
     defer scratch.end();
 

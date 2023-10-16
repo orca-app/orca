@@ -3746,6 +3746,61 @@ pub const io = struct {
 // [Orca hooks]
 //------------------------------------------------------------------------------------------
 
+const root = @import("root");
+
+fn oc_on_init() callconv(.C) void {
+    callHandler(root.onInit, .{}, @src());
+}
+
+fn oc_on_mouse_down(button: MouseButton) callconv(.C) void {
+    callHandler(root.onMouseDown, .{button}, @src());
+}
+
+fn oc_on_mouse_up(button: MouseButton) callconv(.C) void {
+    callHandler(root.onMouseUp, .{button}, @src());
+}
+
+fn oc_on_mouse_enter() callconv(.C) void {
+    callHandler(root.onMouseEnter, .{}, @src());
+}
+
+fn oc_on_mouse_leave() callconv(.C) void {
+    callHandler(root.onMouseLeave, .{}, @src());
+}
+
+fn oc_on_mouse_move(x: f32, y: f32, deltaX: f32, deltaY: f32) callconv(.C) void {
+    callHandler(root.onMouseMove, .{ x, y, deltaX, deltaY }, @src());
+}
+
+fn oc_on_mouse_wheel(deltaX: f32, deltaY: f32) callconv(.C) void {
+    callHandler(root.onMouseWheel, .{ deltaX, deltaY }, @src());
+}
+
+fn oc_on_key_down(scan: ScanCode, key: KeyCode) callconv(.C) void {
+    callHandler(root.onKeyDown, .{ scan, key }, @src());
+}
+
+fn oc_on_key_up(scan: ScanCode, key: KeyCode) callconv(.C) void {
+    callHandler(root.onKeyUp, .{ scan, key }, @src());
+}
+
+fn oc_on_frame_refresh() callconv(.C) void {
+    callHandler(root.onFrameRefresh, .{}, @src());
+}
+
+fn oc_on_resize(width: u32, height: u32) callconv(.C) void {
+    callHandler(root.onResize, .{ width, height }, @src());
+}
+
+fn oc_on_raw_event(c_event: *CEvent) callconv(.C) void {
+    const event: Event = c_event.event();
+    callHandler(root.onRawEvent, .{&event}, @src());
+}
+
+fn oc_on_terminate() callconv(.C) void {
+    callHandler(root.onTerminate, .{}, @src());
+}
+
 fn fatal(err: anyerror, source: std.builtin.SourceLocation) noreturn {
     abort("Caught fatal {}", .{err}, source);
     unreachable;
@@ -3759,64 +3814,44 @@ fn callHandler(func: anytype, params: anytype, source: std.builtin.SourceLocatio
     }
 }
 
-pub const HandlerType = enum {
-    Init,
-    MouseDown,
-    MouseUp,
-    MouseEnter,
-    MouseLeave,
-    MouseMove,
-    MouseWheel,
-    KeyDown,
-    KeyUp,
-    FrameRefresh,
-    Resize,
-    RawEvent,
-    Terminate,
-};
-
-pub fn registerHandler(comptime func: anytype, comptime handler_type: HandlerType) void {
-    comptime {
-        // Relies on lazy evaluation to avoid compiling non-valid bindings
-        const Bindings = struct {
-            fn generic() callconv(.C) void {
-                callHandler(func, .{}, @src());
-            }
-            fn mouseButton(button: MouseButton) callconv(.C) void {
-                callHandler(func, .{button}, @src());
-            }
-            fn mouseMove(x: f32, y: f32, deltaX: f32, deltaY: f32) callconv(.C) void {
-                callHandler(func, .{ x, y, deltaX, deltaY }, @src());
-            }
-            fn mouseWheel(deltaX: f32, deltaY: f32) callconv(.C) void {
-                callHandler(func, .{ deltaX, deltaY }, @src());
-            }
-            fn key(scan_code: ScanCode, key_code: KeyCode) callconv(.C) void {
-                callHandler(func, .{ scan_code, key_code }, @src());
-            }
-            fn resize(width: u32, height: u32) callconv(.C) void {
-                callHandler(func, .{ width, height }, @src());
-            }
-            fn rawEvent(c_event: *CEvent) callconv(.C) void {
-                const event: Event = c_event.event();
-                callHandler(func, .{&event}, @src());
-            }
-        };
-
-        switch (handler_type) {
-            .Init => @export(Bindings.generic, .{ .name = "oc_on_init" }),
-            .MouseDown => @export(Bindings.mouseButton, .{ .name = "oc_on_mouse_down" }),
-            .MouseUp => @export(Bindings.mouseButton, .{ .name = "oc_on_mouse_up" }),
-            .MouseEnter => @export(Bindings.generic, .{ .name = "oc_on_mouse_enter" }),
-            .MouseLeave => @export(Bindings.generic, .{ .name = "oc_on_mouse_leave" }),
-            .MouseMove => @export(Bindings.mouseMove, .{ .name = "oc_on_mouse_move" }),
-            .MouseWheel => @export(Bindings.mouseWheel, .{ .name = "oc_on_mouse_wheel" }),
-            .KeyDown => @export(Bindings.key, .{ .name = "oc_on_key_down" }),
-            .KeyUp => @export(Bindings.key, .{ .name = "oc_on_key_up" }),
-            .FrameRefresh => @export(Bindings.generic, .{ .name = "oc_on_frame_refresh" }),
-            .Resize => @export(Bindings.resize, .{ .name = "oc_on_resize" }),
-            .RawEvent => @export(Bindings.rawEvent, .{ .name = "oc_on_raw_event" }),
-            .Terminate => @export(Bindings.generic, .{ .name = "oc_on_terminate" }),
-        }
+comptime {
+    if (@hasDecl(root, "onInit")) {
+        @export(oc_on_init, .{ .name = "oc_on_init" });
+    }
+    if (@hasDecl(root, "onMouseDown")) {
+        @export(oc_on_mouse_down, .{ .name = "oc_on_mouse_down" });
+    }
+    if (@hasDecl(root, "onMouseUp")) {
+        @export(oc_on_mouse_up, .{ .name = "oc_on_mouse_up" });
+    }
+    if (@hasDecl(root, "onMouseEnter")) {
+        @export(oc_on_mouse_enter, .{ .name = "oc_on_mouse_enter" });
+    }
+    if (@hasDecl(root, "onMouseLeave")) {
+        @export(oc_on_mouse_leave, .{ .name = "oc_on_mouse_leave" });
+    }
+    if (@hasDecl(root, "onMouseMove")) {
+        @export(oc_on_mouse_move, .{ .name = "oc_on_mouse_move" });
+    }
+    if (@hasDecl(root, "onMouseWheel")) {
+        @export(oc_on_mouse_wheel, .{ .name = "oc_on_mouse_wheel" });
+    }
+    if (@hasDecl(root, "onKeyDown")) {
+        @export(oc_on_key_down, .{ .name = "oc_on_key_down" });
+    }
+    if (@hasDecl(root, "onKeyUp")) {
+        @export(oc_on_key_up, .{ .name = "oc_on_key_up" });
+    }
+    if (@hasDecl(root, "onFrameRefresh")) {
+        @export(oc_on_frame_refresh, .{ .name = "oc_on_frame_refresh" });
+    }
+    if (@hasDecl(root, "onResize")) {
+        @export(oc_on_resize, .{ .name = "oc_on_resize" });
+    }
+    if (@hasDecl(root, "onRawEvent")) {
+        @export(oc_on_raw_event, .{ .name = "oc_on_raw_event" });
+    }
+    if (@hasDecl(root, "onTerminate")) {
+        @export(oc_on_terminate, .{ .name = "oc_on_terminate" });
     }
 }
