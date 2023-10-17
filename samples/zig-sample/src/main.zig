@@ -195,7 +195,7 @@ pub fn onFrameRefresh() !void {
 
         const rot = Mat2x3.rotate(rotation_demo);
         const trans = Mat2x3.translate(335, 55);
-        Mat2x3.push(Mat2x3.mul_m(trans, rot));
+        Mat2x3.push(Mat2x3.mulM(trans, rot));
         defer Mat2x3.pop();
 
         oc.Canvas.rectangleFill(-5, -5, 10, 10);
@@ -233,7 +233,7 @@ pub fn onFrameRefresh() !void {
         var str2: Str8 = str2_list.collate(scratch, Str8.fromSlice("<< "), Str8.fromSlice("-"), Str8.fromSlice(" >>"));
 
         const font_size = 18;
-        const text_metrics = font.textMetrics(font_size, str1);
+        const text_metrics = font.textMetrics(font_size, str1.slice());
         const text_rect = text_metrics.ink;
 
         const center_x = frame_size.x / 2;
@@ -246,9 +246,9 @@ pub fn onFrameRefresh() !void {
         oc.Canvas.setFont(font);
         oc.Canvas.setFontSize(font_size);
         oc.Canvas.moveTo(0, 0);
-        oc.Canvas.textOutlines(str1);
+        oc.Canvas.textOutlines(str1.slice());
         oc.Canvas.moveTo(0, 35);
-        oc.Canvas.textOutlines(str2);
+        oc.Canvas.textOutlines(str2.slice());
         oc.Canvas.fill();
     }
 
@@ -285,7 +285,7 @@ pub fn onFrameRefresh() !void {
 
         oc.Canvas.setFontSize(12);
         oc.Canvas.moveTo(0, 170);
-        oc.Canvas.textOutlines(collated);
+        oc.Canvas.textOutlines(collated.slice());
         oc.Canvas.fill();
     }
 
@@ -295,7 +295,7 @@ pub fn onFrameRefresh() !void {
         {
             const trans = Mat2x3.translate(0, 200);
             const scale = Mat2x3.scaleUniform(0.25);
-            Mat2x3.push(Mat2x3.mul_m(trans, scale));
+            Mat2x3.push(Mat2x3.mulM(trans, scale));
             defer Mat2x3.pop();
 
             orca_image.draw(oc.Rect.xywh(0, 0, orca_size.x, orca_size.y));
@@ -311,7 +311,7 @@ pub fn onFrameRefresh() !void {
 
             const trans = Mat2x3.translate(x_offset, 200);
             const scale = Mat2x3.scaleUniform((orca_size.y * 0.25) / gradient_size.y);
-            Mat2x3.push(Mat2x3.mul_m(trans, scale));
+            Mat2x3.push(Mat2x3.mulM(trans, scale));
             defer Mat2x3.pop();
 
             gradient_image.draw(oc.Rect.xywh(0, 0, gradient_size.x, gradient_size.y));

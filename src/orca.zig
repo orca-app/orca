@@ -687,10 +687,18 @@ pub const utf8 = struct {
 
     pub const sizeFromLeadingChar = oc_utf8_size_from_leading_char;
     pub const codepointSize = oc_utf8_codepoint_size;
-    pub const codepointCountForString = oc_utf8_codepoint_count_for_string;
-    pub const byteCountForCodepoints = oc_utf8_byte_count_for_codepoints;
-    pub const nextOffset = oc_utf8_next_offset;
-    pub const prevOffset = oc_utf8_prev_offset;
+    pub fn codepointCountForString(string: []const u8) u64 {
+        return oc_utf8_codepoint_count_for_string(Str8.fromSlice(string));
+    }
+    pub fn byteCountForCodepoints(code_points: []const u32) u64 {
+        return oc_utf8_byte_count_for_codepoints(Str32.fromSlice(code_points));
+    }
+    pub fn nextOffset(string: []const u8, byte_offset: u64) u64 {
+        return oc_utf8_next_offset(Str8.fromSlice(string), byte_offset);
+    }
+    pub fn prevOffset(string: []const u8, byte_offset: u64) u64 {
+        return oc_utf8_prev_offset(Str8.fromSlice(string), byte_offset);
+    }
 
     // encoding / decoding
     extern fn oc_utf8_decode(string: Str8) Utf8Dec; //NOTE: decode a single oc_utf8 sequence at start of string
@@ -701,13 +709,28 @@ pub const utf8 = struct {
     extern fn oc_utf8_push_to_codepoints(arena: *Arena, string: Str8) Str32;
     extern fn oc_utf8_push_from_codepoints(arena: *Arena, code_points: Str32) Str8;
 
-    pub const decode = oc_utf8_decode;
-    pub const decodeAt = oc_utf8_decode_at;
-    pub const encode = oc_utf8_encode;
-    pub const toCodepoints = oc_utf8_to_codepoints;
-    pub const fromCodepoints = oc_utf8_from_codepoints;
-    pub const pushToCodepoints = oc_utf8_push_to_codepoints;
-    pub const pushFromCodepoints = oc_utf8_push_from_codepoints;
+    pub fn decode(string: []const u8) Utf8Dec { //NOTE: decode a single oc_utf8 sequence at start of string
+        return oc_utf8_decode(Str8.fromSlice(string));
+    }
+    pub fn decodeAt(string: []const u8, offset: u64) Utf8Dec {
+        return oc_utf8_decode_at(Str8.fromSlice(string), offset);
+    }
+    pub fn encode(dst: []u8, code_point: Utf32) []const u8 { // returns slice of dst
+        assert(dst.len >= 4, "utf8 encode needs at least 4 bytes to encode a codepoint", @src());
+        return oc_utf8_encode(dst.ptr, code_point).slice();
+    }
+    pub fn toCodepoints(dst: []Utf32, string: []const u8) []const Utf32 { // returns slice of dst
+        return oc_utf8_to_codepoints(dst.len, dst.ptr, Str8.fromSlice(string)).slice();
+    }
+    pub fn fromCodepoints(dst: []u8, code_points: []const Utf32) []const u8 { // returns slice of dst
+        return oc_utf8_from_codepoints(dst.len, dst.ptr, Str32.fromSlice(code_points)).slice();
+    }
+    pub fn pushToCodepoints(arena: *Arena, string: []const u8) []const Utf32 {
+        return oc_utf8_push_to_codepoints(arena, Str8.fromSlice(string)).slice();
+    }
+    pub fn pushFromCodepoints(arena: *Arena, code_points: []const Utf32) []const u8 {
+        return oc_utf8_push_from_codepoints(arena, Str32.fromSlice(code_points)).slice();
+    }
 };
 
 //------------------------------------------------------------------------------------------
@@ -1149,7 +1172,9 @@ pub const Font = extern struct {
     pub const getMetricsUnscaled = oc_font_get_metrics_unscaled;
     pub const getScaleForEmPixels = oc_font_get_scale_for_em_pixels;
     pub const textMetricsUtf32 = oc_font_text_metrics_utf32;
-    pub const textMetrics = oc_font_text_metrics;
+    pub fn textMetrics(font: Font, font_size: f32, text: []const u8) TextMetrics {
+        return oc_font_text_metrics(font, font_size, Str8.fromSlice(text));
+    }
 };
 
 pub const FontMetrics = extern struct {
@@ -1680,7 +1705,7 @@ pub const Mat2x3 = extern struct {
     extern fn oc_matrix_top() Mat2x3;
 
     pub const mul = oc_mat2x3_mul;
-    pub const mul_m = oc_mat2x3_mul_m;
+    pub const mulM = oc_mat2x3_mul_m;
     pub const inv = oc_mat2x3_inv;
     pub const rotate = oc_mat2x3_rotate;
     pub const translate = oc_mat2x3_translate;
@@ -2009,9 +2034,15 @@ pub const Canvas = extern struct {
     pub const cubicTo = oc_cubic_to;
     pub const closePath = oc_close_path;
 
-    pub const glyphOutlines = oc_glyph_outlines;
-    pub const codepointsOutlines = oc_codepoints_outlines;
-    pub const textOutlines = oc_text_outlines;
+    pub fn glyphOutlines(glyph_indices: []const u32) Rect {
+        return oc_glyph_outlines(Str32.fromSlice(glyph_indices));
+    }
+    pub fn codepointsOutlines(string: []const u32) void {
+        oc_codepoints_outlines(Str32.fromSlice(string));
+    }
+    pub fn textOutlines(string: []const u8) void {
+        oc_text_outlines(Str8.fromSlice(string));
+    }
 
     // shape helpers
 
@@ -2155,12 +2186,16 @@ pub const InputState = extern struct {
     pub const mouseDelta = oc_mouse_delta;
     pub const mouseWheel = oc_mouse_wheel;
 
-    pub const inputTextUtf32 = oc_input_text_utf32;
-    pub const inputTextUtf8 = oc_input_text_utf8;
+    pub fn inputTextUtf32(arena: *Arena, state: *InputState) []const Utf32 {
+        return oc_input_text_utf32(arena, state).slice();
+    }
+    pub fn inputTextUtf8(arena: *Arena, state: *InputState) []const u8 {
+        return oc_input_text_utf8(arena, state).slice();
+    }
 
     pub const clipboardPasted = oc_clipboard_pasted;
 
-    pub fn clipboardPastedText(self: *InputState) []u8 {
+    pub fn clipboardPastedText(self: *InputState) []const u8 {
         return oc_clipboard_pasted_text(self).slice();
     }
 
@@ -3479,7 +3514,7 @@ pub const File = extern struct {
         create_directories: bool,
     };
 
-    pub const DialogDesc = extern struct {
+    const CDialogDesc = extern struct {
         kind: DialogKind,
         flags: DialogFlags,
         title: Str8,
@@ -3487,6 +3522,28 @@ pub const File = extern struct {
         start_at: File,
         start_path: Str8,
         filters: Str8List,
+    };
+
+    pub const DialogDesc = struct {
+        kind: DialogKind,
+        flags: DialogFlags,
+        title: []const u8,
+        ok_label: []const u8,
+        start_at: File,
+        start_path: []const u8,
+        filters: Str8List,
+
+        fn c_desc(self: *const DialogDesc) CDialogDesc {
+            return .{
+                .kind = self.kind,
+                .flags = self.flags,
+                .title = Str8.fromSlice(self.title),
+                .ok_label = Str8.fromSlice(self.ok_label),
+                .start_at = self.start_at,
+                .start_path = Str8.fromSlice(self.start_path),
+                .filters = self.filters,
+            };
+        }
     };
 
     pub const DialogButton = enum(c_uint) {
@@ -3532,7 +3589,7 @@ pub const File = extern struct {
     extern fn oc_file_size(file: File) u64;
 
     extern fn oc_file_open_with_request(path: Str8, rights: AccessFlags, flags: OpenFlags) File;
-    extern fn oc_file_open_with_dialog(arena: *Arena, rights: AccessFlags, flags: OpenFlags, desc: *const DialogDesc) OpenWithDialogResult;
+    extern fn oc_file_open_with_dialog(arena: *Arena, rights: AccessFlags, flags: OpenFlags, desc: *const CDialogDesc) OpenWithDialogResult;
 
     pub const nil = oc_file_nil;
     pub const isNil = oc_file_is_nil;
@@ -3630,7 +3687,10 @@ pub const File = extern struct {
         try file.lastError();
         return file;
     }
-    pub const openWithDialog = oc_file_open_with_dialog;
+    pub fn openWithDialog(arena: *Arena, rights: AccessFlags, flags: OpenFlags, desc: *const DialogDesc) OpenWithDialogResult {
+        const c_desc = desc.c_desc();
+        return oc_file_open_with_dialog(arena, rights, flags, &c_desc);
+    }
 };
 
 //------------------------------------------------------------------------------------------
