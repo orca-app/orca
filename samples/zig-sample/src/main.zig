@@ -1,10 +1,5 @@
 const std = @import("std");
-const oc = @import("orca");
-
-// Unfortunately needed to force the comptime code in orca.zig to be run
-comptime {
-    _ = oc;
-}
+const oc = @import("root");
 
 const lerp = std.math.lerp;
 

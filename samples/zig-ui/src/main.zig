@@ -1,5 +1,5 @@
 const std = @import("std");
-const oc = @import("orca");
+const oc = @import("root");
 const ui = oc.ui;
 
 // Unfortunately needed to force the comptime code in orca.zig to be run

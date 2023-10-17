@@ -3746,59 +3746,59 @@ pub const io = struct {
 // [Orca hooks]
 //------------------------------------------------------------------------------------------
 
-const root = @import("root");
+const app = @import("app");
 
 fn oc_on_init() callconv(.C) void {
-    callHandler(root.onInit, .{}, @src());
+    callHandler(app.onInit, .{}, @src());
 }
 
 fn oc_on_mouse_down(button: MouseButton) callconv(.C) void {
-    callHandler(root.onMouseDown, .{button}, @src());
+    callHandler(app.onMouseDown, .{button}, @src());
 }
 
 fn oc_on_mouse_up(button: MouseButton) callconv(.C) void {
-    callHandler(root.onMouseUp, .{button}, @src());
+    callHandler(app.onMouseUp, .{button}, @src());
 }
 
 fn oc_on_mouse_enter() callconv(.C) void {
-    callHandler(root.onMouseEnter, .{}, @src());
+    callHandler(app.onMouseEnter, .{}, @src());
 }
 
 fn oc_on_mouse_leave() callconv(.C) void {
-    callHandler(root.onMouseLeave, .{}, @src());
+    callHandler(app.onMouseLeave, .{}, @src());
 }
 
 fn oc_on_mouse_move(x: f32, y: f32, deltaX: f32, deltaY: f32) callconv(.C) void {
-    callHandler(root.onMouseMove, .{ x, y, deltaX, deltaY }, @src());
+    callHandler(app.onMouseMove, .{ x, y, deltaX, deltaY }, @src());
 }
 
 fn oc_on_mouse_wheel(deltaX: f32, deltaY: f32) callconv(.C) void {
-    callHandler(root.onMouseWheel, .{ deltaX, deltaY }, @src());
+    callHandler(app.onMouseWheel, .{ deltaX, deltaY }, @src());
 }
 
 fn oc_on_key_down(scan: ScanCode, key: KeyCode) callconv(.C) void {
-    callHandler(root.onKeyDown, .{ scan, key }, @src());
+    callHandler(app.onKeyDown, .{ scan, key }, @src());
 }
 
 fn oc_on_key_up(scan: ScanCode, key: KeyCode) callconv(.C) void {
-    callHandler(root.onKeyUp, .{ scan, key }, @src());
+    callHandler(app.onKeyUp, .{ scan, key }, @src());
 }
 
 fn oc_on_frame_refresh() callconv(.C) void {
-    callHandler(root.onFrameRefresh, .{}, @src());
+    callHandler(app.onFrameRefresh, .{}, @src());
 }
 
 fn oc_on_resize(width: u32, height: u32) callconv(.C) void {
-    callHandler(root.onResize, .{ width, height }, @src());
+    callHandler(app.onResize, .{ width, height }, @src());
 }
 
 fn oc_on_raw_event(c_event: *CEvent) callconv(.C) void {
     const event: Event = c_event.event();
-    callHandler(root.onRawEvent, .{&event}, @src());
+    callHandler(app.onRawEvent, .{&event}, @src());
 }
 
 fn oc_on_terminate() callconv(.C) void {
-    callHandler(root.onTerminate, .{}, @src());
+    callHandler(app.onTerminate, .{}, @src());
 }
 
 fn fatal(err: anyerror, source: std.builtin.SourceLocation) noreturn {
@@ -3815,43 +3815,43 @@ fn callHandler(func: anytype, params: anytype, source: std.builtin.SourceLocatio
 }
 
 comptime {
-    if (@hasDecl(root, "onInit")) {
+    if (@hasDecl(app, "onInit")) {
         @export(oc_on_init, .{ .name = "oc_on_init" });
     }
-    if (@hasDecl(root, "onMouseDown")) {
+    if (@hasDecl(app, "onMouseDown")) {
         @export(oc_on_mouse_down, .{ .name = "oc_on_mouse_down" });
     }
-    if (@hasDecl(root, "onMouseUp")) {
+    if (@hasDecl(app, "onMouseUp")) {
         @export(oc_on_mouse_up, .{ .name = "oc_on_mouse_up" });
     }
-    if (@hasDecl(root, "onMouseEnter")) {
+    if (@hasDecl(app, "onMouseEnter")) {
         @export(oc_on_mouse_enter, .{ .name = "oc_on_mouse_enter" });
     }
-    if (@hasDecl(root, "onMouseLeave")) {
+    if (@hasDecl(app, "onMouseLeave")) {
         @export(oc_on_mouse_leave, .{ .name = "oc_on_mouse_leave" });
     }
-    if (@hasDecl(root, "onMouseMove")) {
+    if (@hasDecl(app, "onMouseMove")) {
         @export(oc_on_mouse_move, .{ .name = "oc_on_mouse_move" });
     }
-    if (@hasDecl(root, "onMouseWheel")) {
+    if (@hasDecl(app, "onMouseWheel")) {
         @export(oc_on_mouse_wheel, .{ .name = "oc_on_mouse_wheel" });
     }
-    if (@hasDecl(root, "onKeyDown")) {
+    if (@hasDecl(app, "onKeyDown")) {
         @export(oc_on_key_down, .{ .name = "oc_on_key_down" });
     }
-    if (@hasDecl(root, "onKeyUp")) {
+    if (@hasDecl(app, "onKeyUp")) {
         @export(oc_on_key_up, .{ .name = "oc_on_key_up" });
     }
-    if (@hasDecl(root, "onFrameRefresh")) {
+    if (@hasDecl(app, "onFrameRefresh")) {
         @export(oc_on_frame_refresh, .{ .name = "oc_on_frame_refresh" });
     }
-    if (@hasDecl(root, "onResize")) {
+    if (@hasDecl(app, "onResize")) {
         @export(oc_on_resize, .{ .name = "oc_on_resize" });
     }
-    if (@hasDecl(root, "onRawEvent")) {
+    if (@hasDecl(app, "onRawEvent")) {
         @export(oc_on_raw_event, .{ .name = "oc_on_raw_event" });
     }
-    if (@hasDecl(root, "onTerminate")) {
+    if (@hasDecl(app, "onTerminate")) {
         @export(oc_on_terminate, .{ .name = "oc_on_terminate" });
     }
 }

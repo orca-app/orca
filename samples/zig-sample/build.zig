@@ -64,12 +64,12 @@ pub fn build(b: *std.Build) !void {
     orca_lib.addCSourceFiles(orca_sources.items, &orca_compile_opts);
 
     // builds the wasm module out of the orca C sources and main.zig
-    const orca_module: *std.Build.Module = b.createModule(.{
-        .source_file = .{ .path = "../../src/orca.zig" },
+    const app_module: *std.Build.Module = b.createModule(.{
+        .source_file = .{ .path = "src/main.zig" },
     });
     const wasm_lib = b.addSharedLibrary(.{
         .name = "module",
-        .root_source_file = .{ .path = "src/main.zig" },
+        .root_source_file = .{ .path = "../../src/orca.zig" },
         .target = wasm_target,
         .optimize = optimize,
     });
@@ -77,7 +77,7 @@ pub fn build(b: *std.Build) !void {
     wasm_lib.addIncludePath(.{ .path = "../../src" });
     wasm_lib.addIncludePath(.{ .path = "../../src/libc-shim/include" });
     wasm_lib.addIncludePath(.{ .path = "../../ext" });
-    wasm_lib.addModule("orca", orca_module);
+    wasm_lib.addModule("app", app_module);
     wasm_lib.linkLibrary(orca_lib);
 
     // copies the wasm module into zig-out/wasm_lib
