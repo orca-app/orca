@@ -1,6 +1,5 @@
 const std = @import("std");
 const builtin = @import("builtin");
-const AllocError = std.mem.Allocator.Error;
 
 //------------------------------------------------------------------------------------------
 // [PLATFORM]
@@ -316,8 +315,8 @@ pub const Arena = extern struct {
     extern fn oc_arena_init(arena: *Arena) void;
     extern fn oc_arena_init_with_options(arena: *Arena, options: *ArenaOptions) void;
     extern fn oc_arena_cleanup(arena: *Arena) void;
-    extern fn oc_arena_push(arena: *Arena, size: u64) ?[*]u8;
-    extern fn oc_arena_push_aligned(arena: *Arena, size: u64, alignment: u32) ?[*]u8;
+    extern fn oc_arena_push(arena: *Arena, size: u64) [*]u8;
+    extern fn oc_arena_push_aligned(arena: *Arena, size: u64, alignment: u32) [*]u8;
     extern fn oc_arena_clear(arena: *Arena) void;
     extern fn oc_arena_scope_begin(arena: *Arena) ArenaScope;
 
@@ -339,33 +338,32 @@ pub const Arena = extern struct {
     pub const clear = oc_arena_clear;
     pub const scopeBegin = oc_arena_scope_begin;
 
-    pub fn push(arena: *Arena, size: usize) AllocError![]u8 {
+    pub fn push(arena: *Arena, size: usize) []u8 {
         return arena.pushAligned(size, 1);
     }
 
-    pub fn pushAligned(arena: *Arena, size: usize, alignment: u32) AllocError![]u8 {
-        if (oc_arena_push_aligned(arena, size, alignment)) |mem| {
-            return mem[0..size];
-        }
-        return AllocError.OutOfMemory;
+    pub fn pushAligned(arena: *Arena, size: usize, alignment: u32) []u8 {
+        var mem = oc_arena_push_aligned(arena, size, alignment);
+        return mem[0..size];
     }
 
-    pub fn pushType(arena: *Arena, comptime T: type) AllocError!*T {
-        var mem: []u8 = try arena.pushAligned(@sizeOf(T), @alignOf(T));
+    pub fn pushType(arena: *Arena, comptime T: type) *T {
+        var mem: []u8 = arena.pushAligned(@sizeOf(T), @alignOf(T));
         assert(mem.len >= @sizeOf(T), "need at least {} bytes, but got {}", .{ mem.len, @sizeOf(T) }, @src());
         var p: *T = @alignCast(@ptrCast(mem.ptr));
         return p;
     }
 
-    pub fn pushArray(arena: *Arena, comptime T: type, count: usize) AllocError![]T {
-        var mem: []u8 = try arena.pushAligned(@sizeOf(T) * count, @alignOf(T));
-        std.debug.assert(mem.len >= @sizeOf(T) * count);
+    pub fn pushArray(arena: *Arena, comptime T: type, count: usize) []T {
+        var mem: []u8 = arena.pushAligned(@sizeOf(T) * count, @alignOf(T));
+        const min_bytes = @sizeOf(T) * count;
+        assert(mem.len >= min_bytes, "need at least {} bytes, but got {}", .{ mem.len, min_bytes }, @src());
         var items: [*]T = @alignCast(@ptrCast(mem.ptr));
         return items[0..count];
     }
 
-    pub fn pushStr(arena: *Arena, str: []u8) AllocError![]u8 {
-        var result = try arena.pushArray(u8, str.len + 1);
+    pub fn pushStr(arena: *Arena, str: []u8) []u8 {
+        var result = arena.pushArray(u8, str.len + 1);
         @memcpy(result[0..str.len], str);
         result[str.len] = 0;
         return result;
@@ -405,21 +403,21 @@ fn stringType(comptime CharType: type) type {
                 };
             }
 
-            pub fn push(list: *StrList, arena: *Arena, str: Str) AllocError!void {
-                var elt: *StrListElt = try arena.pushType(StrListElt);
+            pub fn push(list: *StrList, arena: *Arena, str: Str) void {
+                var elt: *StrListElt = arena.pushType(StrListElt);
                 elt.string = str;
                 list.list.pushBack(&elt.list_elt);
                 list.elt_count += 1;
                 list.len += str.len;
             }
 
-            pub fn pushSlice(list: *StrList, arena: *Arena, str: []const CharType) AllocError!void {
-                try list.push(arena, Str.fromSlice(str));
+            pub fn pushSlice(list: *StrList, arena: *Arena, str: []const CharType) void {
+                list.push(arena, Str.fromSlice(str));
             }
 
-            pub fn pushf(list: *StrList, arena: *Arena, comptime format: []const u8, args: anytype) AllocError!void {
-                var str = try Str.pushf(arena, format, args);
-                try list.push(arena, str);
+            pub fn pushf(list: *StrList, arena: *Arena, comptime format: []const u8, args: anytype) void {
+                var str = Str.pushf(arena, format, args);
+                list.push(arena, str);
             }
 
             pub fn iter(list: *const StrList) List.makeIter(.Forward, StrListElt, "list_elt") {
@@ -452,15 +450,15 @@ fn stringType(comptime CharType: type) type {
                 return list.findSlice(needle) != null;
             }
 
-            pub fn join(list: *const StrList, arena: *Arena) AllocError!Str {
+            pub fn join(list: *const StrList, arena: *Arena) Str {
                 const empty = Str{ .ptr = null, .len = 0 };
-                return try list.collate(arena, empty, empty, empty);
+                return list.collate(arena, empty, empty, empty);
             }
 
-            pub fn collate(list: *const StrList, arena: *Arena, prefix: Str, separator: Str, postfix: Str) AllocError!Str {
+            pub fn collate(list: *const StrList, arena: *Arena, prefix: Str, separator: Str, postfix: Str) Str {
                 var str: Str = undefined;
                 str.len = @intCast(prefix.len + list.len + (list.elt_count - 1) * separator.len + postfix.len);
-                str.ptr = (try arena.pushArray(CharType, str.len + 1)).ptr;
+                str.ptr = arena.pushArray(CharType, str.len + 1).ptr;
                 @memcpy(str.ptr.?[0..prefix.len], prefix.slice());
 
                 var offset = prefix.len;
@@ -539,19 +537,19 @@ fn stringType(comptime CharType: type) type {
             return pushBuffer(arena, str.ptr[start..end]);
         }
 
-        pub fn pushf(arena: *Arena, comptime format: []const u8, args: anytype) AllocError!Str {
+        pub fn pushf(arena: *Arena, comptime format: []const u8, args: anytype) Str {
             if (CharType != u8) {
                 @compileError("pushf() is only supported for Str8");
             }
 
             var str: Str = undefined;
             str.len = @intCast(std.fmt.count(format, args));
-            str.ptr = (try arena.pushArray(CharType, str.len + 1)).ptr;
+            str.ptr = arena.pushArray(CharType, str.len + 1).ptr;
             _ = std.fmt.bufPrintZ(str.ptr.?[0 .. str.len + 1], format, args) catch unreachable;
             return str;
         }
 
-        pub fn join(arena: *Arena, strings: []const []const CharType) AllocError!Str {
+        pub fn join(arena: *Arena, strings: []const []const CharType) Str {
             const empty = &[_]CharType{};
             return collate(arena, strings, empty, empty, empty);
         }
@@ -562,7 +560,7 @@ fn stringType(comptime CharType: type) type {
             prefix: []const CharType,
             separator: []const CharType,
             postfix: []const CharType,
-        ) AllocError!Str {
+        ) Str {
             var strings_total_len: usize = 0;
             for (strings) |s| {
                 strings_total_len += s.len;
@@ -570,7 +568,7 @@ fn stringType(comptime CharType: type) type {
 
             var str: Str = undefined;
             str.len = prefix.len + strings_total_len + (strings.len - 1) * separator.len + postfix.len;
-            str.ptr = (try arena.pushArray(CharType, str.len + 1)).ptr;
+            str.ptr = arena.pushArray(CharType, str.len + 1).ptr;
             @memcpy(str.ptr.?[0..prefix.len], prefix);
 
             var offset = prefix.len;
@@ -590,7 +588,7 @@ fn stringType(comptime CharType: type) type {
             return str;
         }
 
-        pub fn split(str: *const Str, arena: *Arena, separators: StrList) AllocError!StrList {
+        pub fn split(str: *const Str, arena: *Arena, separators: StrList) StrList {
             var list = StrList.init();
             if (str.ptr == null) {
                 return list;
@@ -610,7 +608,7 @@ fn stringType(comptime CharType: type) type {
                         if (separators.containsSlice(substr)) {
                             substr = ptr[offset..offset];
                         }
-                        try list.pushSlice(arena, substr);
+                        list.pushSlice(arena, substr);
 
                         // -1 / +1 to account for offset += 1 at the end of the loop
                         offset += list_sep.string.len - 1;
@@ -624,7 +622,7 @@ fn stringType(comptime CharType: type) type {
 
             if (offset_substring != offset) {
                 var substr = ptr[offset_substring..offset];
-                try list.pushSlice(arena, substr);
+                list.pushSlice(arena, substr);
             }
 
             return list;

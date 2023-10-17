@@ -45,7 +45,7 @@ pub fn onInit() !void {
         };
 
         var size = try file.getSize();
-        var buffer = try scratch.arena.push(@intCast(size));
+        var buffer = scratch.arena.push(@intCast(size));
         _ = try file.read(buffer);
         file.close();
 
@@ -305,11 +305,7 @@ fn widgets(arena: *oc.Arena) void {
     var textResult = ui.textBox("text", arena, text);
     if (textResult.changed) {
         text_arena.clear();
-        text = text_arena.pushStr(textResult.text) catch {
-            oc.log.err("Out of memory", .{}, @src());
-            oc.requestQuit();
-            return;
-        };
+        text = text_arena.pushStr(textResult.text);
     }
     if (textResult.accepted) {
         logPushf("Entered text {s}", .{text});
@@ -802,24 +798,12 @@ fn labeledSlider(label: []const u8, value: *f32) void {
 }
 
 fn logPush(line: []const u8) void {
-    log_lines.push(&log_arena, oc.Str8.fromSlice(line)) catch {
-        oc.log.err("Out of memory", .{}, @src());
-        oc.requestQuit();
-        return;
-    };
+    log_lines.push(&log_arena, oc.Str8.fromSlice(line));
 }
 
 fn logPushf(comptime fmt: []const u8, args: anytype) void {
-    var str = oc.Str8.pushf(&log_arena, fmt, args) catch {
-        oc.log.err("Out of memory", .{}, @src());
-        oc.requestQuit();
-        return;
-    };
-    log_lines.push(&log_arena, str) catch {
-        oc.log.err("Out of memory", .{}, @src());
-        oc.requestQuit();
-        return;
-    };
+    var str = oc.Str8.pushf(&log_arena, fmt, args);
+    log_lines.push(&log_arena, str);
 }
 
 /// This makes sure the light theme doesn't break the styling overrides
