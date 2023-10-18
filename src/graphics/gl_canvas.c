@@ -1143,6 +1143,11 @@ void oc_gl_render_batch(oc_gl_canvas_backend* backend,
     //      so the maximum _allowed_ group count is one less.
     maxWorkGroupCount--;
 
+    if (maxWorkGroupCount <= 0) {
+        oc_log_error("max work group count is non-positive: %d\n", maxWorkGroupCount);
+        return;
+    }
+
     glUseProgram(backend->pathSetup);
 
     glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, backend->tileQueueCountBuffer);
