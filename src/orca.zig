@@ -3341,19 +3341,25 @@ pub const ui = struct {
     };
 
     pub fn selectPopup(name: []const u8, info: *SelectPopupInfo) SelectPopupInfo {
+        var scratch = Arena.scratchBegin();
+        defer scratch.end();
+        var options_internal = scratch.arena.pushArray(Str8, info.options.len);
+        for (info.options, options_internal) |option, *option_internal| {
+            option_internal.* = Str8.fromSlice(option);
+        }
         var info_internal = SelectPopupInfoInternal{
             .changed = info.changed,
             .selected_index = if (info.selected_index) |selected_index| @intCast(selected_index) else -1,
             .option_count = @intCast(info.options.len),
-            .options = @ptrCast(info.options.ptr),
+            .options = options_internal.ptr,
             .placeholder = Str8.fromSlice(info.placeholder),
         };
         var result_internal = oc_ui_select_popup_str8(Str8.fromSlice(name), &info_internal);
         return .{
             .changed = result_internal.changed,
             .selected_index = if (result_internal.selected_index >= 0) @intCast(result_internal.selected_index) else null,
-            .options = @ptrCast(result_internal.options[0..@intCast(result_internal.option_count)]),
-            .placeholder = result_internal.placeholder.slice(),
+            .options = info.options,
+            .placeholder = info.placeholder,
         };
     }
 
@@ -3364,17 +3370,23 @@ pub const ui = struct {
     };
 
     pub fn radioGroup(name: []const u8, info: *RadioGroupInfo) RadioGroupInfo {
+        var scratch = Arena.scratchBegin();
+        defer scratch.end();
+        var options_internal = scratch.arena.pushArray(Str8, info.options.len);
+        for (info.options, options_internal) |option, *option_internal| {
+            option_internal.* = Str8.fromSlice(option);
+        }
         var info_internal = RadioGroupInfoInternal{
             .changed = info.changed,
             .selected_index = if (info.selected_index) |selected_index| @intCast(selected_index) else -1,
             .option_count = @intCast(info.options.len),
-            .options = @ptrCast(info.options.ptr),
+            .options = options_internal.ptr,
         };
         var result_internal = oc_ui_radio_group_str8(Str8.fromSlice(name), info_internal);
         return .{
             .changed = result_internal.changed,
             .selected_index = if (result_internal.selected_index >= 0) @intCast(result_internal.selected_index) else null,
-            .options = @ptrCast(result_internal.options[0..@intCast(result_internal.option_count)]),
+            .options = info.options,
         };
     }
 };
