@@ -18,6 +18,8 @@
 #include "runtime_io.c"
 #include "runtime_memory.c"
 
+static const char* s_test_wasm_module_path = NULL;
+
 oc_font orca_font_create(const char* resourcePath)
 {
     //NOTE(martin): create default fonts
@@ -271,6 +273,14 @@ void oc_bridge_log(oc_log_level level,
                msg);
 }
 
+void oc_bridge_exit(int ec)
+{
+    //TODO: send a trap exit to wasm3 to stop interpreter,
+    // then when we return from the trap, quit app
+    // temporarily, we just exit here
+    exit(ec);
+}
+
 void oc_bridge_request_quit(void)
 {
     __orcaApp.quit = true;
@@ -475,11 +485,15 @@ i32 orca_runloop(void* user)
 
     const char* bundleNameCString = "module";
     oc_str8 modulePath = oc_path_executable_relative(scratch.arena, OC_STR8("../app/wasm/module.wasm"));
+    if(s_test_wasm_module_path)
+    {
+        modulePath = oc_str8_push_copy(scratch.arena, OC_STR8(s_test_wasm_module_path));
+    }
 
     FILE* file = fopen(modulePath.ptr, "rb");
     if(!file)
     {
-        OC_ABORT("The application couldn't load: web assembly module not found");
+        OC_ABORT("The application couldn't load: web assembly module '%s' not found", modulePath.ptr);
     }
 
     fseek(file, 0, SEEK_END);
@@ -611,6 +625,35 @@ i32 orca_runloop(void* user)
     }
 
     IM3Function* exports = app->env.exports;
+
+    if(s_test_wasm_module_path)
+    {
+        i32 returnCode = 0;
+        if(exports[OC_EXPORT_ON_TEST])
+        {
+            M3Result res = m3_Call(exports[OC_EXPORT_ON_TEST], 0, 0);
+            if(res)
+            {
+                OC_WASM3_TRAP(app->env.m3Runtime, res, "Runtime error");
+                returnCode = 1;
+            }
+            else
+            {
+                res = m3_GetResultsV(exports[OC_EXPORT_ON_TEST], &returnCode);
+                if(returnCode != 0)
+                {
+                    oc_log_error("Tests failed. Exit code: %d\n", returnCode);
+                }
+            }
+        }
+        else
+        {
+            returnCode = 1;
+            oc_log_error("Failed to find oc_on_test() hook - unable to run tests.\n");
+        }
+        oc_request_quit();
+        return returnCode;
+    }
 
     //NOTE: call init handler
     if(exports[OC_EXPORT_ON_INIT])
@@ -994,6 +1037,14 @@ i32 orca_runloop(void* user)
 
 int main(int argc, char** argv)
 {
+    if(argc > 1)
+    {
+        if(strstr(argv[1], "--test="))
+        {
+            s_test_wasm_module_path = argv[1] + sizeof("--test=") - 1;
+        }
+    }
+
     oc_log_set_level(OC_LOG_LEVEL_INFO);
 
     oc_init();
@@ -1001,34 +1052,38 @@ int main(int argc, char** argv)
 
     oc_runtime* app = &__orcaApp;
 
-    //NOTE: create window and surfaces
-    oc_rect windowRect = { .x = 100, .y = 100, .w = 810, .h = 610 };
-    app->window = oc_window_create(windowRect, OC_STR8("orca"), 0);
-
-    app->debugOverlay.show = false;
-    app->debugOverlay.surface = oc_surface_create_for_window(app->window, OC_CANVAS);
-    app->debugOverlay.canvas = oc_canvas_create();
-    app->debugOverlay.fontReg = orca_font_create("../resources/Menlo.ttf");
-    app->debugOverlay.fontBold = orca_font_create("../resources/Menlo Bold.ttf");
     app->debugOverlay.maxEntries = 200;
     oc_arena_init(&app->debugOverlay.logArena);
 
+    if(s_test_wasm_module_path == NULL)
+    {
+        //NOTE: create window and surfaces
+        oc_rect windowRect = { .x = 100, .y = 100, .w = 810, .h = 610 };
+        app->window = oc_window_create(windowRect, OC_STR8("orca"), 0);
+
+        app->debugOverlay.show = false;
+        app->debugOverlay.surface = oc_surface_create_for_window(app->window, OC_CANVAS);
+        app->debugOverlay.canvas = oc_canvas_create();
+        app->debugOverlay.fontReg = orca_font_create("../resources/Menlo.ttf");
+        app->debugOverlay.fontBold = orca_font_create("../resources/Menlo Bold.ttf");
+
 #if OC_PLATFORM_WINDOWS
-    //NOTE(martin): on windows we set all surfaces to non-synced, and do a single "manual" wait here.
-    //              on macOS each surface is individually synced to the monitor refresh rate but don't block each other
-    oc_surface_swap_interval(app->debugOverlay.surface, 0);
+        //NOTE(martin): on windows we set all surfaces to non-synced, and do a single "manual" wait here.
+        //              on macOS each surface is individually synced to the monitor refresh rate but don't block each other
+        oc_surface_swap_interval(app->debugOverlay.surface, 0);
 #else
-    oc_surface_swap_interval(app->debugOverlay.surface, 1);
+        oc_surface_swap_interval(app->debugOverlay.surface, 1);
 #endif
 
-    oc_surface_deselect();
+        oc_surface_deselect();
 
-    oc_ui_init(&app->debugOverlay.ui);
+        oc_ui_init(&app->debugOverlay.ui);
 
-    //NOTE: show window and start runloop
-    oc_window_bring_to_front(app->window);
-    oc_window_focus(app->window);
-    oc_window_center(app->window);
+        //NOTE: show window and start runloop
+        oc_window_bring_to_front(app->window);
+        oc_window_focus(app->window);
+        oc_window_center(app->window);
+    }
 
     oc_thread* runloopThread = oc_thread_create(orca_runloop, 0);
 
@@ -1038,12 +1093,16 @@ int main(int argc, char** argv)
         //TODO: what to do with mem scratch here?
     }
 
-    oc_thread_join(runloopThread, NULL);
+    i64 exitCode = 0;
+    oc_thread_join(runloopThread, &exitCode);
 
-    oc_canvas_destroy(app->debugOverlay.canvas);
-    oc_surface_destroy(app->debugOverlay.surface);
-    oc_window_destroy(app->window);
+    if(s_test_wasm_module_path == NULL)
+    {
+        oc_canvas_destroy(app->debugOverlay.canvas);
+        oc_surface_destroy(app->debugOverlay.surface);
+        oc_window_destroy(app->window);
+    }
 
     oc_terminate();
-    return (0);
+    return (int)(exitCode);
 }

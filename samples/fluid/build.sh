@@ -13,27 +13,22 @@ else
 fi
 
 ORCA_DIR=../..
-STDLIB_DIR=$ORCA_DIR/src/libc-shim
 
 python3 ../../scripts/embed_text_files.py --prefix=glsl_ --output src/glsl_shaders.h src/shaders/*.glsl
 
 # common flags to build wasm modules
 wasmFlags="--target=wasm32 \
-  --no-standard-libraries \
   -mbulk-memory \
   -g -O2 \
   -D__ORCA__ \
   -Wl,--no-entry \
   -Wl,--export-dynamic \
-  -isystem $STDLIB_DIR/include \
+  --sysroot $ORCA_DIR/build/orca-libc \
   -I $ORCA_DIR/src \
   -I $ORCA_DIR/src/ext"
 
-# build orca core as wasm module
-clang $wasmFlags -Wl,--relocatable -o ./liborca.a $ORCA_DIR/src/orca.c $STDLIB_DIR/src/*.c
-
 # build sample as wasm module and link it with the orca module
-clang $wasmFlags -L . -lorca -o module.wasm src/main.c
+clang $wasmFlags -L $ORCA_DIR/build/bin -lorca_wasm -o module.wasm src/main.c
 
 # create app directory and copy files into it
 orca bundle --orca-dir $ORCA_DIR --name Fluid --icon icon.png module.wasm

@@ -1,7 +1,7 @@
 [
 {
 	"name": "oc_io_wait_single_req",
-	"cname": "oc_bridge_io_single_rect",
+	"cname": "oc_bridge_io_wait_single_req",
 	"ret": {"name": "oc_io_cmp", "tag": "S"},
 	"args": [ {"name": "req",
 	           "type": {"name": "oc_io_req*", "tag": "p"},

@@ -22,14 +22,20 @@
 #define OC_EXPAND_NIL(...)
 
 //----------------------------------------------------------------------------------------
-// Variadic macros helpers and replacement for __VA_OPT__ extension
+// Variadic macros helpers and portable replacement for __VA_OPT__ extension
 //----------------------------------------------------------------------------------------
 #define OC_ARG1_UTIL(a, ...) a
 #define OC_ARG1(...) OC_ARG1_UTIL(__VA_ARGS__)
 #define OC_VA_COMMA_TAIL(a, ...) , ##__VA_ARGS__
 
 //NOTE: this expands to opt if __VA_ARGS__ is empty, and to , va1, va2, ... opt otherwise
-#define OC_VA_NOPT_UTIL(opt, ...) , ##__VA_ARGS__ opt
+#if OC_COMPILER_CLANG
+    // on clang we use __VA_OPT__ because ##__VA_ARGS__ does not swallow the previous token if there is _no_ arguments
+    #define OC_VA_NOPT_UTIL(opt, ...) __VA_OPT__(, ) __VA_ARGS__ opt
+#else
+    // on msvc __VA_OPT__ does not exist in C mode, but ##__VA_ARGS__ works even when there is no arguments
+    #define OC_VA_NOPT_UTIL(opt, ...) , ##__VA_ARGS__ opt
+#endif
 
 //NOTE: this expands to opt if __VA_ARGS__ is empty, and to nothing otherwise
 #define OC_VA_NOPT(opt, ...) OC_PASS(OC_ARG1, OC_VA_NOPT_UTIL(opt, ##__VA_ARGS__))

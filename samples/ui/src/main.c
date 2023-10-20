@@ -7,6 +7,7 @@
 **************************************************************************/
 #include "orca.h"
 #include <math.h>
+#include <stdio.h>
 
 oc_vec2 frameSize = { 1200, 838 };
 

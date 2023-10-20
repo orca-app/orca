@@ -12,27 +12,23 @@ if exist "..\..\scripts\sample_build_check.py" (
        echo If you have copied this script to your own project, you can delete this code.
 )
 
-set ORCA_DIR=..\..
-set STDLIB_DIR=%ORCA_DIR%\src\libc-shim
+
+set ORCA_DIR=../..
+set STDLIB_DIR=%ORCA_DIR%/build/orca-libc
 
 :: common flags to build wasm modules
 set wasmFlags=--target=wasm32^
-       --no-standard-libraries ^
        -mbulk-memory ^
        -g -O2 ^
        -D__ORCA__ ^
        -Wl,--no-entry ^
        -Wl,--export-dynamic ^
-       -isystem %STDLIB_DIR%\include ^
-       -I%ORCA_DIR%\src ^
-       -I%ORCA_DIR%\src\ext
-
-:: build orca core as wasm module
-clang %wasmFlags% -Wl,--relocatable -o .\liborca.a %ORCA_DIR%\src\orca.c %ORCA_DIR%\src\libc-shim\src\*.c
-IF %ERRORLEVEL% NEQ 0 EXIT /B %ERRORLEVEL%
+       --sysroot %ORCA_DIR%/build/orca-libc ^
+       -I%ORCA_DIR%/src ^
+       -I%ORCA_DIR%/src/ext
 
 :: build sample as wasm module and link it with the orca module
-clang %wasmFlags% -L . -lorca -o module.wasm src/main.c
+clang %wasmFlags% -L %ORCA_DIR%/build/bin -lorca_wasm -o module.wasm src/main.c
 IF %ERRORLEVEL% NEQ 0 EXIT /B %ERRORLEVEL%
 
 :: create app directory and copy files into it
