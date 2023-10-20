@@ -16,6 +16,8 @@ build
 *.app
 *.dylib
 *.a
+*.o
+*.d
 
 Debug/*
 
