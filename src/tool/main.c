@@ -8,6 +8,7 @@
 #include "flag.h"
 
 int bundle(int argc, char** argv);
+int version(int argc, char** argv);
 
 int main(int argc, char** argv)
 {
@@ -19,6 +20,19 @@ int main(int argc, char** argv)
     bool* doBundle = flag_command(&c, "bundle", "Package a WebAssembly module into a standalone Orca application.");
     bool* doSource = flag_command(&c, "source", "Commands for helping compile the Orca source code into your project.");
     bool* doVersion = flag_command(&c, "version", "Print the current Orca version.");
+
+    // Hacks to achieve the following:
+    // - `orca` => `orca -h`
+    // - `orca -v`, `orca --version` => `orca version`
+    if(argc == 1)
+    {
+        flag_print_usage(&c, "orca", stderr);
+        return 0;
+    }
+    if(strcmp(argv[1], "-v") == 0 || strcmp(argv[1], "--version") == 0)
+    {
+        argv[1] = "version";
+    }
 
     if(!flag_parse(&c, argc, argv))
     {
@@ -45,6 +59,10 @@ int main(int argc, char** argv)
     {
         return bundle(rest_argc, rest_argv);
     }
+    else if(*doVersion)
+    {
+        return version(rest_argc, rest_argv);
+    }
     else
     {
         fprintf(stderr, "ERROR: didn't handle all available commands or something, o no\n");
@@ -67,6 +85,7 @@ int bundle(int argc, char** argv)
     flag_str(&c, "O", "orca-dir", ".", NULL);
     flag_str(&c, NULL, "version", "0.0.0", "a version number to embed in the application bundle");
     // TODO: mtl-enable-capture
+
     char** module = flag_pos(&c, "module", "a .wasm file containing the application's wasm module");
 
     if(!flag_parse(&c, argc, argv))
@@ -88,6 +107,25 @@ int bundle(int argc, char** argv)
     }
 
     printf("Module: %s\n", *module);
+
+    return 0;
+}
+
+#ifndef ORCA_TOOL_VERSION
+    #define ORCA_TOOL_VERSION unknown
+#endif
+
+// I love C so much
+#define _TOSTRING(x) #x
+#define TOSTRING(x) _TOSTRING(x)
+
+int version(int argc, char** argv)
+{
+    fprintf(stderr, "Orca CLI tool version: ");
+    printf(TOSTRING(ORCA_TOOL_VERSION));
+    fprintf(stderr, "\n");
+
+    // TODO: Print runtime / install version info
 
     return 0;
 }

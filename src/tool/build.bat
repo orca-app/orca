@@ -1,9 +1,13 @@
 @echo off
+setlocal enabledelayedexpansion
+
+for /f "delims=" %%v in ('git rev-parse --short HEAD') do set githash=%%v
 
 clang ^
     -std=c11 ^
     -I.. ^
     -DFLAG_IMPLEMENTATION ^
+    -DORCA_TOOL_VERSION=!githash! ^
     -MJbuild\main.json ^
     -o build\orca.exe ^
     main.c

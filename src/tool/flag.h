@@ -12,7 +12,6 @@
     #include <stdbool.h>
     #include <stdint.h>
     #include <stddef.h>
-    #include <inttypes.h>
     #include <limits.h>
     #include <string.h>
     #include <errno.h>
