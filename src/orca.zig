@@ -403,7 +403,7 @@ fn stringType(comptime CharType: type) type {
                 };
             }
 
-            pub fn push(list: *StrList, arena: *Arena, str: Str) void {
+            pub fn pushStr(list: *StrList, arena: *Arena, str: Str) void {
                 var elt: *StrListElt = arena.pushType(StrListElt);
                 elt.string = str;
                 list.list.pushBack(&elt.list_elt);
@@ -411,13 +411,13 @@ fn stringType(comptime CharType: type) type {
                 list.len += str.len;
             }
 
-            pub fn pushSlice(list: *StrList, arena: *Arena, str: []const CharType) void {
-                list.push(arena, Str.fromSlice(str));
+            pub fn push(list: *StrList, arena: *Arena, str: []const CharType) void {
+                list.pushStr(arena, Str.fromSlice(str));
             }
 
             pub fn pushf(list: *StrList, arena: *Arena, comptime format: []const u8, args: anytype) void {
                 var str = Str.pushf(arena, format, args);
-                list.push(arena, str);
+                list.pushStr(arena, Str.fromSlice(str));
             }
 
             pub fn iter(list: *const StrList) List.makeIter(.Forward, StrListElt, "list_elt") {
@@ -428,11 +428,11 @@ fn stringType(comptime CharType: type) type {
                 return list.list.iterReverse(StrListElt, "list_elt");
             }
 
-            pub fn find(list: *const StrList, needle: *const Str) ?*StrListElt {
+            pub fn findStr(list: *const StrList, needle: *const Str) ?*StrListElt {
                 return list.findSlice(needle.slice());
             }
 
-            pub fn findSlice(list: *const StrList, needle: []const CharType) ?*StrListElt {
+            pub fn find(list: *const StrList, needle: []const CharType) ?*StrListElt {
                 var iterator = list.iter();
                 while (iterator.next()) |elt_string| {
                     if (std.mem.eql(CharType, elt_string.string.slice(), needle)) {
@@ -442,24 +442,32 @@ fn stringType(comptime CharType: type) type {
                 return null;
             }
 
-            pub fn contains(list: *const StrList, needle: *const Str) bool {
-                return list.findSlice(needle.slice()) != null;
+            pub fn containsStr(list: *const StrList, needle: *const Str) bool {
+                return list.find(needle.slice()) != null;
             }
 
-            pub fn containsSlice(list: *const StrList, needle: []const CharType) bool {
-                return list.findSlice(needle) != null;
+            pub fn contains(list: *const StrList, needle: []const CharType) bool {
+                return list.find(needle) != null;
             }
 
-            pub fn join(list: *const StrList, arena: *Arena) Str {
-                const empty = Str{ .ptr = null, .len = 0 };
-                return list.collate(arena, empty, empty, empty);
+            pub fn join(list: *const StrList, arena: *Arena) []CharType {
+                return list.collate(arena, "", "", "");
             }
 
-            pub fn collate(list: *const StrList, arena: *Arena, prefix: Str, separator: Str, postfix: Str) Str {
-                var str: Str = undefined;
-                str.len = @intCast(prefix.len + list.len + (list.elt_count - 1) * separator.len + postfix.len);
-                str.ptr = arena.pushArray(CharType, str.len + 1).ptr;
-                @memcpy(str.ptr.?[0..prefix.len], prefix.slice());
+            pub fn collateStr(list: *const StrList, arena: *Arena, prefix: Str, separator: Str, postfix: Str) Str {
+                return Str.fromSlice(list.collate(arena, prefix.slice(), separator.slice(), postfix.slice()));
+            }
+
+            pub fn collate(
+                list: *const StrList,
+                arena: *Arena,
+                prefix: []const CharType,
+                separator: []const CharType,
+                postfix: []const CharType,
+            ) []CharType {
+                const len: usize = @intCast(prefix.len + list.len + (list.elt_count - 1) * separator.len + postfix.len);
+                var ptr: [*]CharType = arena.pushArray(CharType, len + 1).ptr;
+                @memcpy(ptr[0..prefix.len], prefix);
 
                 var offset = prefix.len;
 
@@ -467,17 +475,17 @@ fn stringType(comptime CharType: type) type {
                 var index: usize = 0;
                 while (iterator.next()) |list_str| {
                     if (index > 0) {
-                        @memcpy(str.ptr.?[offset .. offset + separator.len], separator.slice());
+                        @memcpy(ptr[offset .. offset + separator.len], separator);
                         offset += separator.len;
                     }
-                    @memcpy(str.ptr.?[offset .. offset + list_str.string.len], list_str.string.slice());
+                    @memcpy(ptr[offset .. offset + list_str.string.len], list_str.string.slice());
                     offset += list_str.string.len;
                     index += 1;
                 }
 
-                @memcpy(str.ptr.?[offset .. offset + postfix.len], postfix.slice());
-                str.ptr.?[str.len] = 0;
-                return str;
+                @memcpy(ptr[offset .. offset + postfix.len], postfix);
+                ptr[len] = 0;
+                return ptr[0..len];
             }
         };
 
@@ -520,36 +528,34 @@ fn stringType(comptime CharType: type) type {
             };
         }
 
-        pub fn pushBuffer(arena: *Arena, buffer: []u8) Str {
-            var str: Str = undefined;
-            str.len = buffer.len;
-            str.ptr = arena.pushArray(CharType, buffer.len + 1);
-            @memcpy(str.ptr[0..buffer.len], buffer);
-            str.ptr[buffer.len] = 0;
-            return str;
+        pub fn pushBuffer(arena: *Arena, buffer: []const CharType) []CharType {
+            const len = buffer.len;
+            var ptr: [*]CharType = arena.pushArray(CharType, buffer.len + 1);
+            @memcpy(ptr[0..buffer.len], buffer);
+            ptr[buffer.len] = 0;
+            return ptr[0..len];
         }
 
-        pub fn pushCopy(str: *const Str, arena: *Arena) Str {
+        pub fn pushCopy(str: *const Str, arena: *Arena) []CharType {
             return pushBuffer(arena, str.ptr[0..str.len]);
         }
 
-        pub fn pushSlice(str: *const Str, arena: *Arena, start: usize, end: usize) Str {
+        pub fn pushInner(str: *const Str, arena: *Arena, start: usize, end: usize) []CharType {
             return pushBuffer(arena, str.ptr[start..end]);
         }
 
-        pub fn pushf(arena: *Arena, comptime format: []const u8, args: anytype) Str {
+        pub fn pushf(arena: *Arena, comptime format: []const u8, args: anytype) []u8 {
             if (CharType != u8) {
                 @compileError("pushf() is only supported for Str8");
             }
 
-            var str: Str = undefined;
-            str.len = @intCast(std.fmt.count(format, args));
-            str.ptr = arena.pushArray(CharType, str.len + 1).ptr;
-            _ = std.fmt.bufPrintZ(str.ptr.?[0 .. str.len + 1], format, args) catch unreachable;
-            return str;
+            const len: usize = @intCast(std.fmt.count(format, args));
+            var ptr: [*]u8 = arena.pushArray(CharType, len + 1).ptr;
+            _ = std.fmt.bufPrintZ(ptr[0 .. len + 1], format, args) catch unreachable;
+            return ptr[0..len];
         }
 
-        pub fn join(arena: *Arena, strings: []const []const CharType) Str {
+        pub fn join(arena: *Arena, strings: []const []const CharType) []CharType {
             const empty = &[_]CharType{};
             return collate(arena, strings, empty, empty, empty);
         }
@@ -560,58 +566,62 @@ fn stringType(comptime CharType: type) type {
             prefix: []const CharType,
             separator: []const CharType,
             postfix: []const CharType,
-        ) Str {
+        ) []CharType {
             var strings_total_len: usize = 0;
             for (strings) |s| {
                 strings_total_len += s.len;
             }
 
-            var str: Str = undefined;
-            str.len = prefix.len + strings_total_len + (strings.len - 1) * separator.len + postfix.len;
-            str.ptr = arena.pushArray(CharType, str.len + 1).ptr;
-            @memcpy(str.ptr.?[0..prefix.len], prefix);
+            const len = prefix.len + strings_total_len + (strings.len - 1) * separator.len + postfix.len;
+            var ptr: [*]CharType = arena.pushArray(CharType, len + 1).ptr;
+            @memcpy(ptr[0..prefix.len], prefix);
 
             var offset = prefix.len;
 
             for (strings, 0..) |list_str, index| {
                 if (index > 0) {
-                    @memcpy(str.ptr.?[offset .. offset + separator.len], separator);
+                    @memcpy(ptr[offset .. offset + separator.len], separator);
                     offset += separator.len;
                 }
-                @memcpy(str.ptr.?[offset .. offset + list_str.len], list_str);
+                @memcpy(ptr[offset .. offset + list_str.len], list_str);
                 offset += list_str.len;
             }
 
-            @memcpy(str.ptr.?[offset .. offset + postfix.len], postfix);
+            @memcpy(ptr[offset .. offset + postfix.len], postfix);
             offset += postfix.len;
-            str.ptr.?[str.len] = 0;
-            return str;
+            ptr[len] = 0;
+            return ptr[0..len];
         }
 
-        pub fn split(str: *const Str, arena: *Arena, separators: StrList) StrList {
+        pub fn split(str: []const CharType, arena: *Arena, separators: []const []const u8) StrList {
             var list = StrList.init();
-            if (str.ptr == null) {
-                return list;
-            }
 
-            const ptr = str.ptr.?;
+            const ptr = str.ptr;
 
             var offset: usize = 0;
             var offset_substring: usize = 0;
 
             while (offset < str.len) {
                 const haystack = ptr[offset..str.len];
-                var separator_iter = separators.iter();
-                while (separator_iter.next()) |list_sep| {
-                    if (std.mem.startsWith(CharType, haystack, list_sep.string.slice()) and list_sep.string.len > 0) {
+                for (separators) |separator| {
+                    if (std.mem.startsWith(CharType, haystack, separator) and separator.len > 0) {
                         var substr = ptr[offset_substring..offset];
-                        if (separators.containsSlice(substr)) {
+
+                        var is_substr_separator: bool = false;
+                        for (separators) |sep2| {
+                            if (std.mem.eql(u8, sep2, substr)) {
+                                is_substr_separator = true;
+                                break;
+                            }
+                        }
+
+                        if (is_substr_separator) {
                             substr = ptr[offset..offset];
                         }
-                        list.pushSlice(arena, substr);
+                        list.push(arena, substr);
 
                         // -1 / +1 to account for offset += 1 at the end of the loop
-                        offset += list_sep.string.len - 1;
+                        offset += separator.len - 1;
                         offset_substring = offset + 1;
                         break;
                     }
@@ -622,7 +632,7 @@ fn stringType(comptime CharType: type) type {
 
             if (offset_substring != offset) {
                 var substr = ptr[offset_substring..offset];
-                list.pushSlice(arena, substr);
+                list.push(arena, substr);
             }
 
             return list;

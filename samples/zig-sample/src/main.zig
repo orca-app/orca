@@ -207,14 +207,14 @@ pub fn onFrameRefresh() !void {
 
         var scratch: *oc.Arena = scratch_scope.arena;
 
-        var str1: Str8 = Str8.collate(scratch, &[_][]const u8{ "Hello", "from", "Zig!" }, ">> ", " ", " <<");
+        var str1: []const u8 = Str8.collate(scratch, &[_][]const u8{ "Hello", "from", "Zig!" }, ">> ", " ", " <<");
 
         var str2_list = oc.Str8List.init();
-        str2_list.push(scratch, Str8.fromSlice("All"));
+        str2_list.pushStr(scratch, Str8.fromSlice("All"));
         str2_list.pushf(scratch, "your", .{});
-        str2_list.pushSlice(scratch, "base!!");
+        str2_list.push(scratch, "base!!");
 
-        oc.assert(str2_list.containsSlice("All"), "str2_list should have the string we just pushed", .{}, @src());
+        oc.assert(str2_list.contains("All"), "str2_list should have the string we just pushed", .{}, @src());
 
         {
             var elt_first = str2_list.list.first;
@@ -230,10 +230,10 @@ pub fn onFrameRefresh() !void {
             oc.assert(elt_last.?.prev != elt_first, "list checks", .{}, @src());
         }
 
-        var str2: Str8 = str2_list.collate(scratch, Str8.fromSlice("<< "), Str8.fromSlice("-"), Str8.fromSlice(" >>"));
+        var str2: []const u8 = str2_list.collate(scratch, "<< ", "-", " >>");
 
         const font_size = 18;
-        const text_metrics = font.textMetrics(font_size, str1.slice());
+        const text_metrics = font.textMetrics(font_size, str1);
         const text_rect = text_metrics.ink;
 
         const center_x = frame_size.x / 2;
@@ -246,9 +246,9 @@ pub fn onFrameRefresh() !void {
         oc.Canvas.setFont(font);
         oc.Canvas.setFontSize(font_size);
         oc.Canvas.moveTo(0, 0);
-        oc.Canvas.textOutlines(str1.slice());
+        oc.Canvas.textOutlines(str1);
         oc.Canvas.moveTo(0, 35);
-        oc.Canvas.textOutlines(str2.slice());
+        oc.Canvas.textOutlines(str2);
         oc.Canvas.fill();
     }
 
@@ -257,11 +257,6 @@ pub fn onFrameRefresh() !void {
         defer scratch_scope.end();
 
         var scratch: *oc.Arena = scratch_scope.arena;
-
-        var separators = oc.Str8List.init();
-        separators.pushSlice(scratch, " ");
-        separators.pushSlice(scratch, "|");
-        separators.pushSlice(scratch, "-");
 
         var strings_array = std.ArrayList([]const u8).init(allocator);
         defer strings_array.deinit();
@@ -280,12 +275,13 @@ pub fn onFrameRefresh() !void {
         }
 
         const big_string = Str8.fromSlice(single_string.items);
-        var strings: oc.Str8List = big_string.split(scratch, separators);
-        var collated = strings.join(scratch);
+        const separators = [_][]const u8{ " ", "|", "-" };
+        var strings: oc.Str8List = Str8.split(big_string.slice(), scratch, &separators);
+        var collated: []const u8 = strings.join(scratch);
 
         oc.Canvas.setFontSize(12);
         oc.Canvas.moveTo(0, 170);
-        oc.Canvas.textOutlines(collated.slice());
+        oc.Canvas.textOutlines(collated);
         oc.Canvas.fill();
     }
 

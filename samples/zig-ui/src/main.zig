@@ -798,7 +798,7 @@ fn labeledSlider(label: []const u8, value: *f32) void {
 }
 
 fn logPush(line: []const u8) void {
-    log_lines.push(&log_arena, oc.Str8.fromSlice(line));
+    log_lines.push(&log_arena, line);
 }
 
 fn logPushf(comptime fmt: []const u8, args: anytype) void {
