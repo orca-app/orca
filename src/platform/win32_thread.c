@@ -37,7 +37,7 @@ oc_thread* oc_thread_create_with_name(oc_thread_start_proc start, void* userPoin
     thread->userPointer = userPointer;
     if(name.len && name.ptr)
     {
-        strncpy(thread->nameBuffer, name.ptr, oc_min(name.len, OC_THREAD_NAME_MAX_SIZE - 1));
+        strncpy_s(thread->nameBuffer, OC_THREAD_NAME_MAX_SIZE, name.ptr, oc_min(name.len, OC_THREAD_NAME_MAX_SIZE - 1));
         thread->nameBuffer[OC_THREAD_NAME_MAX_SIZE - 1] = '\0';
         thread->name = OC_STR8(thread->nameBuffer);
     }
@@ -66,7 +66,8 @@ oc_thread* oc_thread_create_with_name(oc_thread_start_proc start, void* userPoin
     if(thread->name.len)
     {
         wchar_t widename[OC_THREAD_NAME_MAX_SIZE];
-        size_t length = mbstowcs(widename, thread->nameBuffer, OC_THREAD_NAME_MAX_SIZE - 1);
+        size_t length;
+        mbstowcs_s(&length, widename, OC_THREAD_NAME_MAX_SIZE, thread->nameBuffer, OC_THREAD_NAME_MAX_SIZE - 1);
         widename[length] = '\0';
 
         SetThreadDescription(thread->handle, widename);
@@ -213,7 +214,7 @@ int oc_condition_wait(oc_condition* cond, oc_mutex* mutex)
 
 int oc_condition_timedwait(oc_condition* cond, oc_mutex* mutex, f64 seconds)
 {
-    const f32 ms = (seconds == INFINITY) ? INFINITE : seconds * 1000;
+    const f32 ms = (seconds == INFINITY) ? (f32)INFINITE : seconds * 1000;
     if(!SleepConditionVariableSRW(&cond->cond, &mutex->lock, ms, 0))
     {
         return (GetLastError());

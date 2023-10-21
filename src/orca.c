@@ -13,14 +13,7 @@
 
 #if OC_PLATFORM_WINDOWS
     #include "platform/native_debug.c"
-    #include "platform/win32_memory.c"
-    #include "platform/win32_clock.c"
-    #include "platform/win32_string_helpers.c"
-    #include "platform/win32_path.c"
-    #include "platform/win32_io.c"
-    #include "platform/win32_thread.c"
-    #include "platform/win32_platform.c"
-//TODO
+    #include "platform/win32.c"
 #elif OC_PLATFORM_MACOS
     #include "platform/native_debug.c"
     #include "platform/unix_memory.c"
