@@ -22,7 +22,11 @@ int main(int argc, char** argv)
     flag_str(&c, "O", "orca-dir", ".", NULL);
     flag_str(&c, NULL, "version", "0.0.0", "a version number to embed in the application bundle");
     // TODO: mtl-enable-capture
-    char** module = flag_pos(&c, "module", "a .wasm file containing the application's wasm module");
+    // char** module = flag_pos(&c, "module", "a .wasm file containing the application's wasm module");
+
+    flag_command(&c, "bundle", "Package a WebAssembly module into a standalone Orca application.");
+    flag_command(&c, "source", "Commands for helping compile the Orca source code into your project.");
+    flag_command(&c, "version", "Print the current Orca version.");
 
     if(!flag_parse(&c, argc, argv))
     {
@@ -35,7 +39,14 @@ int main(int argc, char** argv)
         exit(1);
     }
 
-    if(!flag_parse_positional(&c))
+    // if(!flag_parse_positional(&c))
+    // {
+    //     flag_print_usage(&c, "orca", stderr);
+    //     flag_print_error(&c, stderr);
+    //     exit(1);
+    // }
+
+    if(!flag_parse_command(&c))
     {
         flag_print_usage(&c, "orca", stderr);
         flag_print_error(&c, stderr);
@@ -45,7 +56,7 @@ int main(int argc, char** argv)
     int rest_argc = flag_rest_argc(&c);
     char** rest_argv = flag_rest_argv(&c);
 
-    printf("Module: %s\n", *module);
+    // printf("Module: %s\n", *module);
 
     return 0;
 }

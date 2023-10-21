@@ -54,6 +54,8 @@ typedef enum
     FLAG_ERROR_INTEGER_OVERFLOW,
     FLAG_ERROR_INVALID_SIZE_SUFFIX,
     FLAG_ERROR_HELP, // pseudo-error to indicate the help command
+    FLAG_ERROR_NO_COMMAND,
+    FLAG_ERROR_UNKNOWN_COMMAND,
     COUNT_FLAG_ERRORS,
 } Flag_Error;
 
@@ -75,6 +77,13 @@ typedef struct
     char* value;
 } Flag_Positional;
 
+typedef struct
+{
+    char* name;
+    char* desc;
+    bool chosen;
+} Flag_Command;
+
     #ifndef FLAGS_CAP
         #define FLAGS_CAP 256
     #endif
@@ -85,6 +94,8 @@ typedef struct
     size_t flags_count;
     Flag_Positional positionals[FLAGS_CAP];
     size_t positionals_count;
+    Flag_Command commands[FLAGS_CAP];
+    size_t commands_count;
 
     Flag_Error flag_error;
     char* flag_error_name;
@@ -102,7 +113,10 @@ uint64_t* flag_uint64(Flag_Context* c, const char* shortName, const char* longNa
 size_t* flag_size(Flag_Context* c, const char* shortName, const char* longName, uint64_t def, const char* desc);
 char** flag_str(Flag_Context* c, const char* shortName, const char* longName, const char* def, const char* desc);
 char** flag_pos(Flag_Context* c, const char* name, const char* desc);
+bool* flag_command(Flag_Context* c, const char* name, const char* desc);
 bool flag_parse(Flag_Context* c, int argc, char** argv);
+bool flag_parse_positional(Flag_Context* c);
+bool flag_parse_command(Flag_Context* c);
 int flag_rest_argc(Flag_Context* c);
 char** flag_rest_argv(Flag_Context* c);
 bool flag_error_is_help(Flag_Context* c);
@@ -186,6 +200,7 @@ char** flag_str(Flag_Context* c, const char* shortName, const char* longName, co
 
 char** flag_pos(Flag_Context* c, const char* name, const char* desc)
 {
+    assert(c->commands_count == 0);
     assert(c->positionals_count < FLAGS_CAP);
     assert(name);
     Flag_Positional* pos = &c->positionals[c->positionals_count++];
@@ -195,6 +210,20 @@ char** flag_pos(Flag_Context* c, const char* name, const char* desc)
         .desc = (char*)(desc ? desc : ""),
     };
     return &pos->value;
+}
+
+bool* flag_command(Flag_Context* c, const char* name, const char* desc)
+{
+    assert(c->positionals_count == 0);
+    assert(c->commands_count < FLAGS_CAP);
+    assert(name);
+    Flag_Command* cmd = &c->commands[c->commands_count++];
+    *cmd = (Flag_Command){
+        // NOTE: I won't touch them I promise Kappa
+        .name = (char*)name,
+        .desc = (char*)(desc ? desc : ""),
+    };
+    return &cmd->chosen;
 }
 
 static char* flag_shift_args(int* argc, char*** argv)
@@ -441,6 +470,30 @@ bool flag_parse_positional(Flag_Context* c)
     return true;
 }
 
+bool flag_parse_command(Flag_Context* c)
+{
+    if(c->rest_argc == 0)
+    {
+        c->flag_error = FLAG_ERROR_NO_COMMAND;
+        return false;
+    }
+    char* userCmd = flag_shift_args(&c->rest_argc, &c->rest_argv);
+
+    for(int i = 0; i < c->commands_count; i++)
+    {
+        Flag_Command* cmd = &c->commands[i];
+        if(strcmp(userCmd, cmd->name) == 0)
+        {
+            cmd->chosen = true;
+            return true;
+        }
+    }
+
+    c->flag_error = FLAG_ERROR_UNKNOWN_COMMAND;
+    c->flag_error_name = userCmd;
+    return false;
+}
+
 typedef struct
 {
     int width;
@@ -517,6 +570,21 @@ void flag_wrap_fprint_autowrap(FILE* f, Flag_Textwrap* w, oc_arena* a, oc_str8 s
 /*
 This tries to mimic Python's argparse very closely, because I like it. For example:
 
+usage: orca [-h] {bundle,source,dev,version} ...
+
+options:
+  -h, --help            show this help message and exit
+
+commands:
+  {bundle,source,dev,version}
+    bundle              Package a WebAssembly module into a standalone Orca application.
+    source              Commands for helping compile the Orca source code into your project.
+    dev                 Commands for building Orca itself. Must be run from within an Orca source checkout.
+    version             Print the current Orca version.
+
+
+or:
+
 usage: orca bundle [-h] [-d RESOURCE_FILES] [-D RESOURCE_DIRS] [-i ICON] [-C OUT_DIR] [-n NAME] [-O ORCA_DIR]
                    [--version VERSION] [--mtl-enable-capture]
                    module
@@ -585,6 +653,21 @@ void flag_print_usage(Flag_Context* c, const char* cmd, FILE* f)
                 flag_wrap_fprint(f, &w, OC_STR8(pos->name));
                 flag_wrap_fprint(f, &w, OC_STR8(" "));
             }
+        }
+
+        if(c->commands_count > 0)
+        {
+            flag_wrap_fnewline(f, &w);
+
+            oc_str8_list names = { 0 };
+            for(int i = 0; i < c->commands_count; i++)
+            {
+                Flag_Command* cmd = &c->commands[i];
+                oc_str8_list_push(a, &names, OC_STR8(cmd->name));
+            }
+            oc_str8 allNames = oc_str8_list_collate(a, names, OC_STR8("{ "), OC_STR8(", "), OC_STR8(" }"));
+            flag_wrap_fprint_autowrap(f, &w, a, allNames);
+            flag_wrap_fprint(f, &w, OC_STR8("..."));
         }
 
         w.indent = 0;
@@ -656,6 +739,29 @@ void flag_print_usage(Flag_Context* c, const char* cmd, FILE* f)
         }
     }
 
+    // Sub-commands
+    if(c->commands_count > 0)
+    {
+        flag_wrap_fnewline(f, &w);
+        flag_wrap_fprintln(f, &w, OC_STR8("commands:"));
+        for(size_t i = 0; i < c->commands_count; i++)
+        {
+            flag_wrap_fprint(f, &w, OC_STR8("  "));
+
+            Flag_Command* cmd = &c->commands[i];
+            flag_wrap_fprint(f, &w, OC_STR8(cmd->name));
+
+            if(cmd->desc[0] != 0)
+            {
+                w.indent = descIndent;
+                flag_wrap_fadvanceto(f, &w, w.indent);
+                flag_wrap_fprint_autowrap(f, &w, a, oc_str8_push_cstring(a, cmd->desc));
+                w.indent = 0;
+            }
+            flag_wrap_fnewline(f, &w);
+        }
+    }
+
     flag_wrap_fnewline(f, &w);
 }
 
@@ -666,7 +772,7 @@ bool flag_error_is_help(Flag_Context* c)
 
 void flag_print_error(Flag_Context* c, FILE* stream)
 {
-    static_assert(COUNT_FLAG_ERRORS == 7, "Exhaustive flag error printing");
+    static_assert(COUNT_FLAG_ERRORS == 9, "Exhaustive flag error printing");
     switch(c->flag_error)
     {
         case FLAG_NO_ERROR:
@@ -687,6 +793,12 @@ void flag_print_error(Flag_Context* c, FILE* stream)
             break;
         case FLAG_ERROR_INVALID_SIZE_SUFFIX:
             fprintf(stream, "ERROR: %s: invalid size suffix\n", c->flag_error_name);
+            break;
+        case FLAG_ERROR_NO_COMMAND:
+            fprintf(stream, "ERROR: no command provided\n");
+            break;
+        case FLAG_ERROR_UNKNOWN_COMMAND:
+            fprintf(stream, "ERROR: %s: invalid command\n", c->flag_error_name);
             break;
         case FLAG_ERROR_HELP:
         case COUNT_FLAG_ERRORS:
