@@ -235,6 +235,12 @@ static char* flag_shift_args(int* argc, char*** argv)
     return result;
 }
 
+static void flag_unshift_args(int* argc, char*** argv)
+{
+    *argc += 1;
+    *argv -= 1;
+}
+
 static bool flag_shift_value(char* flag, char** value, int* argc, char*** argv)
 {
     char* equalLoc = strchr(flag, '=');
@@ -267,6 +273,7 @@ char** flag_rest_argv(Flag_Context* c)
 
 bool flag_parse(Flag_Context* c, int argc, char** argv)
 {
+    // Eat the first arg
     flag_shift_args(&argc, &argv);
 
     while(argc > 0)
@@ -276,8 +283,7 @@ bool flag_parse(Flag_Context* c, int argc, char** argv)
         if(*flag != '-')
         {
             // Break at first non-flag arg, and unshift to make sure we process it
-            argc += 1;
-            argv -= 1;
+            flag_unshift_args(&argc, &argv);
             break;
         }
 
@@ -485,6 +491,8 @@ bool flag_parse_command(Flag_Context* c)
         if(strcmp(userCmd, cmd->name) == 0)
         {
             cmd->chosen = true;
+            // push the command itself as the next argv[0]
+            flag_unshift_args(&c->rest_argc, &c->rest_argv);
             return true;
         }
     }
@@ -646,7 +654,6 @@ void flag_print_usage(Flag_Context* c, const char* cmd, FILE* f)
 
         if(c->positionals_count > 0)
         {
-            flag_wrap_fnewline(f, &w);
             for(int i = 0; i < c->positionals_count; i++)
             {
                 Flag_Positional* pos = &c->positionals[i];
@@ -657,8 +664,6 @@ void flag_print_usage(Flag_Context* c, const char* cmd, FILE* f)
 
         if(c->commands_count > 0)
         {
-            flag_wrap_fnewline(f, &w);
-
             oc_str8_list names = { 0 };
             for(int i = 0; i < c->commands_count; i++)
             {
