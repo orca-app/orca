@@ -228,6 +228,10 @@ void oc_gl_canvas_encode_element(oc_gl_canvas_backend* backend, oc_path_elt_type
     if(backend->eltCount >= bufferCap)
     {
         int newBufferCap = (int)(bufferCap * 1.5);
+        while(backend->eltCount > newBufferCap)
+        {
+            newBufferCap = (int)(newBufferCap * 1.5);
+        }
         int newBufferSize = newBufferCap * sizeof(oc_gl_path_elt);
 
         oc_log_info("growing element buffer to %i elements\n", newBufferCap);
@@ -286,13 +290,17 @@ void oc_gl_canvas_encode_path(oc_gl_canvas_backend* backend, oc_primitive* primi
     if(backend->pathCount >= bufferCap)
     {
         int newBufferCap = (int)(bufferCap * 1.5);
+        while(backend->pathCount > newBufferCap)
+        {
+            newBufferCap = (int)(newBufferCap * 1.5);
+        }
         int newBufferSize = newBufferCap * sizeof(oc_gl_path);
 
         oc_log_info("growing path buffer to %i elements\n", newBufferCap);
 
         oc_gl_grow_input_buffer(&backend->pathBuffer[bufferIndex],
                                 backend->pathBatchStart * sizeof(oc_gl_path),
-                                backend->eltCount * sizeof(oc_gl_path),
+                                backend->pathCount * sizeof(oc_gl_path),
                                 newBufferSize);
     }
 
