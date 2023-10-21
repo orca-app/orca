@@ -53,6 +53,7 @@ typedef enum
     FLAG_ERROR_INVALID_NUMBER,
     FLAG_ERROR_INTEGER_OVERFLOW,
     FLAG_ERROR_INVALID_SIZE_SUFFIX,
+    FLAG_ERROR_HELP, // pseudo-error to indicate the help command
     COUNT_FLAG_ERRORS,
 } Flag_Error;
 
@@ -67,6 +68,13 @@ typedef struct
     Flag_Value def;
 } Flag;
 
+typedef struct
+{
+    char* name;
+    char* desc;
+    char* value;
+} Flag_Positional;
+
     #ifndef FLAGS_CAP
         #define FLAGS_CAP 256
     #endif
@@ -75,6 +83,8 @@ typedef struct
 {
     Flag flags[FLAGS_CAP];
     size_t flags_count;
+    Flag_Positional positionals[FLAGS_CAP];
+    size_t positionals_count;
 
     Flag_Error flag_error;
     char* flag_error_name;
@@ -91,9 +101,11 @@ bool* flag_bool(Flag_Context* c, const char* shortName, const char* longName, bo
 uint64_t* flag_uint64(Flag_Context* c, const char* shortName, const char* longName, uint64_t def, const char* desc);
 size_t* flag_size(Flag_Context* c, const char* shortName, const char* longName, uint64_t def, const char* desc);
 char** flag_str(Flag_Context* c, const char* shortName, const char* longName, const char* def, const char* desc);
+char** flag_pos(Flag_Context* c, const char* name, const char* desc);
 bool flag_parse(Flag_Context* c, int argc, char** argv);
 int flag_rest_argc(Flag_Context* c);
 char** flag_rest_argv(Flag_Context* c);
+bool flag_error_is_help(Flag_Context* c);
 void flag_print_error(Flag_Context* c, FILE* stream);
 void flag_print_usage(Flag_Context* c, const char* prefix, FILE* stream);
 
@@ -172,6 +184,19 @@ char** flag_str(Flag_Context* c, const char* shortName, const char* longName, co
     return &flag->val.as_str;
 }
 
+char** flag_pos(Flag_Context* c, const char* name, const char* desc)
+{
+    assert(c->positionals_count < FLAGS_CAP);
+    assert(name);
+    Flag_Positional* pos = &c->positionals[c->positionals_count++];
+    *pos = (Flag_Positional){
+        // NOTE: I won't touch them I promise Kappa
+        .name = (char*)name,
+        .desc = (char*)(desc ? desc : ""),
+    };
+    return &pos->value;
+}
+
 static char* flag_shift_args(int* argc, char*** argv)
 {
     assert(*argc > 0);
@@ -221,21 +246,19 @@ bool flag_parse(Flag_Context* c, int argc, char** argv)
 
         if(*flag != '-')
         {
-            // NOTE: pushing non-flag arg back into args
-            c->rest_argc = argc + 1;
-            c->rest_argv = argv - 1;
-            return true;
+            // Break at first non-flag arg, and unshift to make sure we process it
+            argc += 1;
+            argv -= 1;
+            break;
         }
 
         if(strcmp(flag, "--") == 0)
         {
-            // NOTE: but if it's the terminator we don't need to push it back
-            c->rest_argc = argc;
-            c->rest_argv = argv;
-            return true;
+            // But if it's the terminator we don't need to unshift it
+            break;
         }
 
-        // NOTE: remove the dash(es)
+        // Remove the dash(es)
         flag += 1;
         bool longFlag = false;
         if(*flag == '-')
@@ -247,15 +270,24 @@ bool flag_parse(Flag_Context* c, int argc, char** argv)
         bool found = false;
         for(size_t i = 0; i < c->flags_count; ++i)
         {
-            const char* expectedName = longFlag ? c->flags[i].longName : c->flags[i].shortName;
-            if(strncmp(expectedName, flag, strlen(expectedName)) == 0)
+            Flag* flagObj = &c->flags[i];
+
+            const char* expectedName = longFlag ? flagObj->longName : flagObj->shortName;
+            int expectedLen = strlen(flag);
+            char* eq = strchr(flag, '=');
+            if(eq)
+            {
+                expectedLen = eq - flag;
+            }
+
+            if(strncmp(expectedName, flag, expectedLen) == 0)
             {
                 static_assert(COUNT_FLAG_TYPES == 4, "Exhaustive flag type parsing");
-                switch(c->flags[i].type)
+                switch(flagObj->type)
                 {
                     case FLAG_BOOL:
                     {
-                        c->flags[i].val.as_bool = true;
+                        flagObj->val.as_bool = true;
                     }
                     break;
 
@@ -265,10 +297,10 @@ bool flag_parse(Flag_Context* c, int argc, char** argv)
                         if(!flag_shift_value(flag, &value, &argc, &argv))
                         {
                             c->flag_error = FLAG_ERROR_NO_VALUE;
-                            c->flag_error_name = flag;
+                            c->flag_error_name = flagObj->longName;
                             return false;
                         }
-                        c->flags[i].val.as_str = value;
+                        flagObj->val.as_str = value;
                     }
                     break;
 
@@ -278,7 +310,7 @@ bool flag_parse(Flag_Context* c, int argc, char** argv)
                         if(!flag_shift_value(flag, &arg, &argc, &argv))
                         {
                             c->flag_error = FLAG_ERROR_NO_VALUE;
-                            c->flag_error_name = flag;
+                            c->flag_error_name = flagObj->longName;
                             return false;
                         }
 
@@ -291,18 +323,18 @@ bool flag_parse(Flag_Context* c, int argc, char** argv)
                         if(*endptr != '\0')
                         {
                             c->flag_error = FLAG_ERROR_INVALID_NUMBER;
-                            c->flag_error_name = flag;
+                            c->flag_error_name = flagObj->longName;
                             return false;
                         }
 
                         if(result == ULLONG_MAX && errno == ERANGE)
                         {
                             c->flag_error = FLAG_ERROR_INTEGER_OVERFLOW;
-                            c->flag_error_name = flag;
+                            c->flag_error_name = flagObj->longName;
                             return false;
                         }
 
-                        c->flags[i].val.as_uint64 = result;
+                        flagObj->val.as_uint64 = result;
                     }
                     break;
 
@@ -312,7 +344,7 @@ bool flag_parse(Flag_Context* c, int argc, char** argv)
                         if(!flag_shift_value(flag, &arg, &argc, &argv))
                         {
                             c->flag_error = FLAG_ERROR_NO_VALUE;
-                            c->flag_error_name = flag;
+                            c->flag_error_name = flagObj->longName;
                             return false;
                         }
 
@@ -343,7 +375,7 @@ bool flag_parse(Flag_Context* c, int argc, char** argv)
                         else if(strcmp(endptr, "") != 0)
                         {
                             c->flag_error = FLAG_ERROR_INVALID_SIZE_SUFFIX;
-                            c->flag_error_name = flag;
+                            c->flag_error_name = flagObj->longName;
                             // TODO: capability to report what exactly is the wrong suffix
                             return false;
                         }
@@ -351,11 +383,11 @@ bool flag_parse(Flag_Context* c, int argc, char** argv)
                         if(result == ULLONG_MAX && errno == ERANGE)
                         {
                             c->flag_error = FLAG_ERROR_INTEGER_OVERFLOW;
-                            c->flag_error_name = flag;
+                            c->flag_error_name = flagObj->longName;
                             return false;
                         }
 
-                        c->flags[i].val.as_size = result;
+                        flagObj->val.as_size = result;
                     }
                     break;
 
@@ -373,14 +405,39 @@ bool flag_parse(Flag_Context* c, int argc, char** argv)
 
         if(!found)
         {
-            c->flag_error = FLAG_ERROR_UNKNOWN;
-            c->flag_error_name = flag;
+            if(strcmp("h", flag) == 0 || strcmp("help", flag) == 0)
+            {
+                c->flag_error = FLAG_ERROR_HELP;
+                c->flag_error_name = "help";
+            }
+            else
+            {
+                c->flag_error = FLAG_ERROR_UNKNOWN;
+                c->flag_error_name = flag;
+            }
             return false;
         }
     }
 
     c->rest_argc = argc;
     c->rest_argv = argv;
+    return true;
+}
+
+bool flag_parse_positional(Flag_Context* c)
+{
+    for(int i = 0; i < c->positionals_count; i++)
+    {
+        Flag_Positional* pos = &c->positionals[i];
+        if(c->rest_argc == 0)
+        {
+            c->flag_error = FLAG_ERROR_NO_VALUE;
+            c->flag_error_name = pos->name;
+            return false;
+        }
+        pos->value = flag_shift_args(&c->rest_argc, &c->rest_argv);
+    }
+
     return true;
 }
 
@@ -488,11 +545,15 @@ void flag_print_usage(Flag_Context* c, const char* cmd, FILE* f)
         .width = 100,
     };
 
-    // Usage w/ short flags
+    int descIndent = 24;
+
+    // Usage
     {
         oc_str8 prefix = oc_str8_pushf(a, "usage: %s ", cmd);
         fputs(prefix.ptr, f);
         w.indent = prefix.len;
+
+        flag_wrap_fprint(f, &w, OC_STR8("[-h] "));
 
         for(size_t i = 0; i < c->flags_count; i++)
         {
@@ -515,87 +576,97 @@ void flag_print_usage(Flag_Context* c, const char* cmd, FILE* f)
             flag_wrap_fprint(f, &w, flagUsage);
         }
 
+        if(c->positionals_count > 0)
+        {
+            flag_wrap_fnewline(f, &w);
+            for(int i = 0; i < c->positionals_count; i++)
+            {
+                Flag_Positional* pos = &c->positionals[i];
+                flag_wrap_fprint(f, &w, OC_STR8(pos->name));
+                flag_wrap_fprint(f, &w, OC_STR8(" "));
+            }
+        }
+
         w.indent = 0;
         flag_wrap_fnewline(f, &w);
     }
 
-    // TODO: positional arguments
+    // Positional arguments
+    if(c->positionals_count > 0)
+    {
+        flag_wrap_fnewline(f, &w);
+        flag_wrap_fprintln(f, &w, OC_STR8("positional arguments:"));
+        for(size_t i = 0; i < c->positionals_count; i++)
+        {
+            flag_wrap_fprint(f, &w, OC_STR8("  "));
+
+            Flag_Positional* pos = &c->positionals[i];
+            flag_wrap_fprint(f, &w, OC_STR8(pos->name));
+
+            if(pos->desc[0] != 0)
+            {
+                w.indent = descIndent;
+                flag_wrap_fadvanceto(f, &w, w.indent);
+                flag_wrap_fprint_autowrap(f, &w, a, oc_str8_push_cstring(a, pos->desc));
+                w.indent = 0;
+            }
+            flag_wrap_fnewline(f, &w);
+        }
+    }
 
     // All flags
-    flag_wrap_fnewline(f, &w);
-    flag_wrap_fprintln(f, &w, OC_STR8("options:"));
-    for(size_t i = 0; i < c->flags_count; i++)
     {
-        flag_wrap_fprint(f, &w, OC_STR8("  "));
-
-        Flag* flag = &c->flags[i];
-        bool hasShort = flag->shortName[0] != 0;
-        oc_str8 valueNameOut = flag->valueName
-                                 ? oc_str8_pushf(a, " %s", flag->valueName)
-                                 : OC_STR8("");
-
-        oc_str8 shortOut, longOut;
-        if(hasShort)
-        {
-            shortOut = oc_str8_pushf(a, "-%s%s", flag->shortName, valueNameOut.ptr);
-        }
-        longOut = oc_str8_pushf(a, "--%s%s", flag->longName, valueNameOut.ptr);
-
-        oc_str8 bothFlags = hasShort
-                              ? oc_str8_pushf(a, "%s, %s", shortOut.ptr, longOut.ptr)
-                              : longOut;
-        flag_wrap_fprint(f, &w, bothFlags);
-
-        if(flag->desc[0] != 0)
-        {
-            w.indent = 24;
-            flag_wrap_fadvanceto(f, &w, w.indent);
-            flag_wrap_fprint_autowrap(f, &w, a, oc_str8_push_cstring(a, flag->desc));
-            w.indent = 0;
-        }
         flag_wrap_fnewline(f, &w);
+        flag_wrap_fprintln(f, &w, OC_STR8("options:"));
+
+        flag_wrap_fprint(f, &w, OC_STR8("  -h, --help"));
+        flag_wrap_fadvanceto(f, &w, descIndent);
+        flag_wrap_fprintln(f, &w, OC_STR8("show this help message and exit"));
+
+        for(size_t i = 0; i < c->flags_count; i++)
+        {
+            flag_wrap_fprint(f, &w, OC_STR8("  "));
+
+            Flag* flag = &c->flags[i];
+            bool hasShort = flag->shortName[0] != 0;
+            oc_str8 valueNameOut = flag->valueName
+                                     ? oc_str8_pushf(a, " %s", flag->valueName)
+                                     : OC_STR8("");
+
+            oc_str8 shortOut, longOut;
+            if(hasShort)
+            {
+                shortOut = oc_str8_pushf(a, "-%s%s", flag->shortName, valueNameOut.ptr);
+            }
+            longOut = oc_str8_pushf(a, "--%s%s", flag->longName, valueNameOut.ptr);
+
+            oc_str8 bothFlags = hasShort
+                                  ? oc_str8_pushf(a, "%s, %s", shortOut.ptr, longOut.ptr)
+                                  : longOut;
+            flag_wrap_fprint(f, &w, bothFlags);
+
+            if(flag->desc[0] != 0)
+            {
+                w.indent = descIndent;
+                flag_wrap_fadvanceto(f, &w, w.indent);
+                flag_wrap_fprint_autowrap(f, &w, a, oc_str8_push_cstring(a, flag->desc));
+                w.indent = 0;
+            }
+            flag_wrap_fnewline(f, &w);
+        }
     }
 
     flag_wrap_fnewline(f, &w);
-    return;
+}
 
-    for(size_t i = 0; i < c->flags_count; ++i)
-    {
-        Flag* flag = &c->flags[i];
-
-        fprintf(f, "    --%s\n", flag->longName);
-        fprintf(f, "        %s\n", flag->desc);
-        static_assert(COUNT_FLAG_TYPES == 4, "Exhaustive flag type defaults printing");
-        switch(c->flags[i].type)
-        {
-            case FLAG_BOOL:
-                if(flag->def.as_bool)
-                {
-                    fprintf(f, "        Default: %s\n", flag->def.as_bool ? "true" : "false");
-                }
-                break;
-            case FLAG_UINT64:
-                fprintf(f, "        Default: %" PRIu64 "\n", flag->def.as_uint64);
-                break;
-            case FLAG_SIZE:
-                fprintf(f, "        Default: %zu\n", flag->def.as_size);
-                break;
-            case FLAG_STR:
-                if(flag->def.as_str)
-                {
-                    fprintf(f, "        Default: %s\n", flag->def.as_str);
-                }
-                break;
-            default:
-                assert(0 && "unreachable");
-                exit(69);
-        }
-    }
+bool flag_error_is_help(Flag_Context* c)
+{
+    return c->flag_error == FLAG_ERROR_HELP;
 }
 
 void flag_print_error(Flag_Context* c, FILE* stream)
 {
-    static_assert(COUNT_FLAG_ERRORS == 6, "Exhaustive flag error printing");
+    static_assert(COUNT_FLAG_ERRORS == 7, "Exhaustive flag error printing");
     switch(c->flag_error)
     {
         case FLAG_NO_ERROR:
@@ -603,20 +674,21 @@ void flag_print_error(Flag_Context* c, FILE* stream)
             fprintf(stream, "Operation Failed Successfully! Please tell the developer of this software that they don't know what they are doing! :)");
             break;
         case FLAG_ERROR_UNKNOWN:
-            fprintf(stream, "ERROR: -%s: unknown flag\n", c->flag_error_name);
+            fprintf(stream, "ERROR: %s: unknown flag\n", c->flag_error_name);
             break;
         case FLAG_ERROR_NO_VALUE:
-            fprintf(stream, "ERROR: -%s: no value provided\n", c->flag_error_name);
+            fprintf(stream, "ERROR: %s: no value provided\n", c->flag_error_name);
             break;
         case FLAG_ERROR_INVALID_NUMBER:
-            fprintf(stream, "ERROR: -%s: invalid number\n", c->flag_error_name);
+            fprintf(stream, "ERROR: %s: invalid number\n", c->flag_error_name);
             break;
         case FLAG_ERROR_INTEGER_OVERFLOW:
-            fprintf(stream, "ERROR: -%s: integer overflow\n", c->flag_error_name);
+            fprintf(stream, "ERROR: %s: integer overflow\n", c->flag_error_name);
             break;
         case FLAG_ERROR_INVALID_SIZE_SUFFIX:
-            fprintf(stream, "ERROR: -%s: invalid size suffix\n", c->flag_error_name);
+            fprintf(stream, "ERROR: %s: invalid size suffix\n", c->flag_error_name);
             break;
+        case FLAG_ERROR_HELP:
         case COUNT_FLAG_ERRORS:
         default:
             assert(0 && "unreachable");
