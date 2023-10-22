@@ -1,7 +1,6 @@
 import os
 
 from .log import *
-from .version import src_dir
 
 
 def attach_source_commands(subparsers):
@@ -9,7 +8,7 @@ def attach_source_commands(subparsers):
     source_sub = source_cmd.add_subparsers(required=True, title="commands")
 
     cflags_cmd = source_sub.add_parser("cflags", help="Get help setting up a C or C++ compiler to compile the Orca source.")
-    cflags_cmd.add_argument("srcdir", nargs="?", default=src_dir(), help="the directory containing the Orca source code (defaults to system installation)")
+    cflags_cmd.add_argument("srcdir", nargs="?", default="TODO-NEED-REAL-INSTALL-DIR-OR-SOMETHING", help="the directory containing the Orca source code (defaults to system installation)")
     cflags_cmd.set_defaults(func=shellish(cflags))
 
 

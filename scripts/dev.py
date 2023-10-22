@@ -14,45 +14,31 @@ from .gles_gen import gles_gen
 from .log import *
 from .utils import pushd, removeall, yeetdir, yeetfile
 from .embed_text_files import *
-from .version import check_if_source, is_orca_source, orca_version
 
 ANGLE_VERSION = "2023-07-05"
 MAC_SDK_DIR = "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk"
 
 def attach_dev_commands(subparsers):
-    dev_cmd = subparsers.add_parser("dev", help="Commands for building Orca itself. Must be run from within an Orca source checkout.")
-    dev_cmd.set_defaults(func=orca_source_only)
-
-    dev_sub = dev_cmd.add_subparsers(required=is_orca_source(), title='commands')
-
-    build_cmd = dev_sub.add_parser("build-runtime", help="Build the Orca runtime from source.")
+    build_cmd = subparsers.add_parser("build-runtime", help="Build the Orca runtime from source.")
     build_cmd.add_argument("--release", action="store_true", help="compile Orca in release mode (default is debug)")
     build_cmd.set_defaults(func=dev_shellish(build_runtime))
 
-    clean_cmd = dev_sub.add_parser("clean", help="Delete all build artifacts and start fresh.")
+    tool_cmd = subparsers.add_parser("build-tool", help="Build the Orca CLI tool from source.")
+    tool_cmd.set_defaults(func=dev_shellish(build_tool))
+
+    clean_cmd = subparsers.add_parser("clean", help="Delete all build artifacts and start fresh.")
     clean_cmd.set_defaults(func=dev_shellish(clean))
 
-    install_cmd = dev_sub.add_parser("install", help="Install the Orca tools into a system folder.")
+    install_cmd = subparsers.add_parser("install", help="Install the Orca tools into a system folder.")
     install_cmd.add_argument("--no-confirm", action="store_true", help="don't ask the user for confirmation before installing")
     install_cmd.set_defaults(func=dev_shellish(install))
 
-    uninstall_cmd = dev_sub.add_parser("uninstall", help="Uninstall the system installation of Orca.")
+    uninstall_cmd = subparsers.add_parser("uninstall", help="Uninstall the system installation of Orca.")
     uninstall_cmd.set_defaults(func=dev_shellish(uninstall))
 
 
-def orca_source_only(args):
-    print("The Orca dev commands can only be run from an Orca source checkout.")
-    print()
-    print("If you want to build Orca yourself, download the source here:")
-    print("https://git.handmade.network/hmn/orca")
-    exit(1)
-
-
 def dev_shellish(func):
-    use_source, source_dir, _ = check_if_source()
-    if not use_source:
-        return orca_source_only
-
+    source_dir = get_source_root()
     def func_from_source(args):
         os.chdir(source_dir)
         func(args)
@@ -532,6 +518,37 @@ def download_angle():
     shutil.copytree(f"scripts/files/angle/", "src/ext/angle", dirs_exist_ok=True)
 
 
+def build_tool(args):
+    ensure_programs()
+
+    with pushd("src/tool"):
+        os.makedirs("build/bin", exist_ok=True)
+
+        res = subprocess.run(["git", "rev-parse", "--short", "HEAD"], check=True, capture_output=True, text=True)
+        githash = res.stdout.strip()
+
+        outname = "orca.exe" if platform.system() == "Windows" else "orca"
+
+        subprocess.run([
+            "clang",
+            "-std=c11",
+            "-I", "..",
+            "-D", "FLAG_IMPLEMENTATION",
+            "-D", f"ORCA_TOOL_VERSION={githash}",
+            "-MJ", "build/main.json",
+            "-o", f"build/bin/{outname}",
+            "main.c",
+        ], check=True)
+
+        with open("build/compile_commands.json", "w") as f:
+            f.write("[\n")
+            with open("build/main.json") as m:
+                f.write(m.read())
+            f.write("]")
+    
+    shutil.copy(f"src/tool/build/bin/{outname}", "build/bin/")
+
+
 def prompt(msg):
     while True:
         answer = input(f"{msg} (y/n)> ")
@@ -541,6 +558,7 @@ def prompt(msg):
             return False
         else:
             print("Please enter \"yes\" or \"no\" and press return.")
+
 
 def install_dir():
     if platform.system() == "Windows":
@@ -659,6 +677,24 @@ def install(args):
         print(f"export PATH=\"{bin_dir}:$PATH\"")
     print()
 
+
+# Gets the root directory of the current Orca source checkout.
+# This is copy-pasted to the command-line tool so it can work before loading anything.
+def get_source_root():
+    dir = os.getcwd()
+    while True:
+        try:
+            os.stat(os.path.join(dir, ".orcasource"))
+            return dir
+        except FileNotFoundError:
+            pass
+
+        newdir = os.path.dirname(dir)
+        if newdir == dir:
+            raise Exception(f"Directory {os.getcwd()} does not seem to be part of the Orca source code.")
+        dir = newdir
+
+
 def install_path():
     if platform.system() == "Windows":
         orca_dir = os.path.join(os.getenv("LOCALAPPDATA"), "orca")
@@ -668,6 +704,7 @@ def install_path():
     bin_dir = os.path.join(orca_dir, "bin")
 
     return (orca_dir, bin_dir)
+
 
 def yeet(path):
     os.makedirs(path, exist_ok=True)
