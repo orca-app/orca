@@ -121,7 +121,7 @@ typedef enum
     OC_HOST_PLATFORM_WINDOWS,
 } oc_host_platform;
 
-ORCA_API oc_host_platform oc_get_host_platform();
+ORCA_API oc_host_platform oc_get_host_platform(void);
 
 #ifdef __cplusplus
 } // extern "C"
