@@ -1,10 +1,24 @@
 #include "flag.h"
+#include "platform/platform_path.h"
 #include "util/strings.h"
+#include "util/memory.h"
+#include <processenv.h>
 
-int winBundle(oc_str8_list resourceFiles, oc_str8_list resourceDirs, char* icon, char* outDir, char* name, char* orcaDir, char* version);
+int winBundle(
+    oc_arena* a,
+    oc_str8 name,
+    oc_str8 icon,
+    oc_str8 version,
+    oc_str8_list resourceFiles,
+    oc_str8_list resourceDirs,
+    oc_str8 outDir,
+    oc_str8 orcaDir);
 
 int bundle(int argc, char** argv)
 {
+    oc_arena a;
+    oc_arena_init(&a);
+
     Flag_Context c;
     flag_init_context(&c);
 
@@ -37,30 +51,50 @@ int bundle(int argc, char** argv)
         return 1;
     }
 
-#ifdef _WIN32
-    return winBundle(*resourceFiles, *resourceDirs, *icon, *outDir, *name, *orcaDir, *version);
+#ifdef OC_PLATFORM_WINDOWS
+    return winBundle(
+        &a,
+        OC_STR8(*name),
+        OC_STR8(*icon),
+        OC_STR8(*version),
+        *resourceFiles,
+        *resourceDirs,
+        OC_STR8(*outDir),
+        OC_STR8(*orcaDir));
 #else
     #error Can't build the bundle script on this platform!
 #endif
 }
 
-#ifdef _WIN32
+#ifdef OC_PLATFORM_WINDOWS
 int winBundle(
+    oc_arena* a,
+    oc_str8 name,
+    oc_str8 icon,
+    oc_str8 version,
     oc_str8_list resourceFiles,
     oc_str8_list resourceDirs,
-    char* icon,
-    char* outDir,
-    char* name,
-    char* orcaDir,
-    char* version)
+    oc_str8 outDir,
+    oc_str8 orcaDir)
 {
-    printf("Resource files:\n");
-    oc_str8_list_for(resourceFiles, it)
+    if(!outDir.ptr)
     {
-        printf("  %s\n", it->string.ptr);
+        u64 len = GetCurrentDirectory(0, NULL);
+        char* buf = oc_arena_push(a, len);
+        GetCurrentDirectory(len, buf);
+        outDir = OC_STR8(buf);
     }
 
-    fprintf(stderr, "TODO: Actually bundle :)\n");
-    return 1;
+    //-----------------------------------------------------------
+    //NOTE: make bundle directory structure
+    //-----------------------------------------------------------
+    oc_str8 bundleDir = oc_path_append(a, outDir, name);
+    oc_str8 exeDir = oc_path_append(a, bundleDir, OC_STR8("bin"));
+    oc_str8 resDir = oc_path_append(a, bundleDir, OC_STR8("resources"));
+    oc_str8 guestDir = oc_path_append(a, bundleDir, OC_STR8("app"));
+    oc_str8 wasmDir = oc_path_append(a, bundleDir, OC_STR8("wasm"));
+    oc_str8 dataDir = oc_path_append(a, bundleDir, OC_STR8("data"));
+
+    return 0;
 }
 #endif
