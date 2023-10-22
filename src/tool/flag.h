@@ -29,8 +29,8 @@ typedef enum
 {
     FLAG_BOOL = 0,
     FLAG_UINT64,
-    FLAG_SIZE,
     FLAG_STR,
+    FLAG_STR_LIST,
     COUNT_FLAG_TYPES,
 } Flag_Type;
 
@@ -42,6 +42,7 @@ typedef union
     uint64_t as_uint64;
     bool as_bool;
     size_t as_size;
+    oc_str8_list as_str_list;
 } Flag_Value;
 
 typedef enum
@@ -109,8 +110,8 @@ void flag_init_context(Flag_Context* c);
 char* flag_name(void* val);
 bool* flag_bool(Flag_Context* c, const char* shortName, const char* longName, bool def, const char* desc);
 uint64_t* flag_uint64(Flag_Context* c, const char* shortName, const char* longName, uint64_t def, const char* desc);
-size_t* flag_size(Flag_Context* c, const char* shortName, const char* longName, uint64_t def, const char* desc);
 char** flag_str(Flag_Context* c, const char* shortName, const char* longName, const char* def, const char* desc);
+oc_str8_list* flag_strs(Flag_Context* c, const char* shortName, const char* longName, const char* desc);
 char** flag_pos(Flag_Context* c, const char* name, const char* desc);
 bool* flag_command(Flag_Context* c, const char* name, const char* desc);
 bool flag_parse(Flag_Context* c, int argc, char** argv);
@@ -122,11 +123,9 @@ bool flag_error_is_help(Flag_Context* c);
 void flag_print_error(Flag_Context* c, FILE* stream);
 void flag_print_usage(Flag_Context* c, const char* prefix, FILE* stream);
 
-#endif // FLAG_H_
-
 //////////////////////////////
 
-#ifdef FLAG_IMPLEMENTATION
+    #ifdef FLAG_IMPLEMENTATION
 
 oc_str8 oc_str8_toupper_inplace(oc_str8 str)
 {
@@ -180,14 +179,6 @@ uint64_t* flag_uint64(Flag_Context* c, const char* shortName, const char* longNa
     return &flag->val.as_uint64;
 }
 
-size_t* flag_size(Flag_Context* c, const char* shortName, const char* longName, uint64_t def, const char* desc)
-{
-    Flag* flag = flag_new(c, FLAG_SIZE, shortName, longName, desc);
-    flag->val.as_size = def;
-    flag->def.as_size = def;
-    return &flag->val.as_size;
-}
-
 char** flag_str(Flag_Context* c, const char* shortName, const char* longName, const char* def, const char* desc)
 {
     Flag* flag = flag_new(c, FLAG_STR, shortName, longName, desc);
@@ -195,6 +186,14 @@ char** flag_str(Flag_Context* c, const char* shortName, const char* longName, co
     flag->def.as_str = (char*)def;
     flag->valueName = oc_str8_toupper_inplace(oc_str8_push_cstring(&c->a, longName)).ptr;
     return &flag->val.as_str;
+}
+
+oc_str8_list* flag_strs(Flag_Context* c, const char* shortName, const char* longName, const char* desc)
+{
+    Flag* flag = flag_new(c, FLAG_STR_LIST, shortName, longName, desc);
+    flag->val.as_str_list = (oc_str8_list){ 0 };
+    flag->valueName = oc_str8_toupper_inplace(oc_str8_push_cstring(&c->a, longName)).ptr;
+    return &flag->val.as_str_list;
 }
 
 char** flag_pos(Flag_Context* c, const char* name, const char* desc)
@@ -338,6 +337,19 @@ bool flag_parse(Flag_Context* c, int argc, char** argv)
                     }
                     break;
 
+                    case FLAG_STR_LIST:
+                    {
+                        char* value;
+                        if(!flag_shift_value(flag, &value, &argc, &argv))
+                        {
+                            c->flag_error = FLAG_ERROR_NO_VALUE;
+                            c->flag_error_name = flagObj->longName;
+                            return false;
+                        }
+                        oc_str8_list_push(&c->a, &flagObj->val.as_str_list, OC_STR8(value));
+                    }
+                    break;
+
                     case FLAG_UINT64:
                     {
                         char* arg;
@@ -369,59 +381,6 @@ bool flag_parse(Flag_Context* c, int argc, char** argv)
                         }
 
                         flagObj->val.as_uint64 = result;
-                    }
-                    break;
-
-                    case FLAG_SIZE:
-                    {
-                        char* arg;
-                        if(!flag_shift_value(flag, &arg, &argc, &argv))
-                        {
-                            c->flag_error = FLAG_ERROR_NO_VALUE;
-                            c->flag_error_name = flagObj->longName;
-                            return false;
-                        }
-
-                        static_assert(sizeof(unsigned long long int) == sizeof(size_t), "The original author designed this for x86_64 machine with the compiler that expects unsigned long long int and size_t to be the same thing, so they could use strtoull() function to parse it. Please adjust this code for your case and maybe even send the patch to upstream to make it work on a wider range of environments.");
-                        char* endptr;
-                        // TODO: replace strtoull with a custom solution
-                        // That way we can get rid of the dependency on errno and static_assert
-                        unsigned long long int result = strtoull(arg, &endptr, 10);
-
-                        // TODO: handle more multiplicative suffixes like in dd(1). From the dd(1) man page:
-                        // > N and BYTES may be followed by the following
-                        // > multiplicative suffixes: c =1, w =2, b =512, kB =1000, K
-                        // > =1024, MB =1000*1000, M =1024*1024, xM =M, GB
-                        // > =1000*1000*1000, G =1024*1024*1024, and so on for T, P,
-                        // > E, Z, Y.
-                        if(strcmp(endptr, "K") == 0)
-                        {
-                            result *= 1024;
-                        }
-                        else if(strcmp(endptr, "M") == 0)
-                        {
-                            result *= 1024 * 1024;
-                        }
-                        else if(strcmp(endptr, "G") == 0)
-                        {
-                            result *= 1024 * 1024 * 1024;
-                        }
-                        else if(strcmp(endptr, "") != 0)
-                        {
-                            c->flag_error = FLAG_ERROR_INVALID_SIZE_SUFFIX;
-                            c->flag_error_name = flagObj->longName;
-                            // TODO: capability to report what exactly is the wrong suffix
-                            return false;
-                        }
-
-                        if(result == ULLONG_MAX && errno == ERANGE)
-                        {
-                            c->flag_error = FLAG_ERROR_INTEGER_OVERFLOW;
-                            c->flag_error_name = flagObj->longName;
-                            return false;
-                        }
-
-                        flagObj->val.as_size = result;
                     }
                     break;
 
@@ -636,12 +595,13 @@ void flag_print_usage(Flag_Context* c, const char* cmd, FILE* f)
             bool hasShort = flag->shortName[0] != 0;
             const char* name = hasShort ? flag->shortName : flag->longName;
             const char* dashes = hasShort ? "-" : "--";
+            const char* dots = flag->type == FLAG_STR_LIST ? "..." : "";
 
             // For now all flags are optional, so they get brackets.
             oc_str8 flagUsage;
             if(flag->valueName)
             {
-                flagUsage = oc_str8_pushf(a, "[%s%s %s] ", dashes, name, flag->valueName);
+                flagUsage = oc_str8_pushf(a, "[%s%s %s%s] ", dashes, name, flag->valueName, dots);
             }
             else
             {
@@ -812,7 +772,9 @@ void flag_print_error(Flag_Context* c, FILE* stream)
     }
 }
 
-#endif
+    #endif
+
+#endif // FLAG_H_
 
 // Original copyright notice:
 
