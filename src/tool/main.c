@@ -106,9 +106,8 @@ int bundle(int argc, char** argv)
         return 1;
     }
 
-    printf("Module: %s\n", *module);
-
-    return 0;
+    fprintf(stderr, "TODO: implement bundling :)");
+    return 1;
 }
 
 #ifndef ORCA_TOOL_VERSION
