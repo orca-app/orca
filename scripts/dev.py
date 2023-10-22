@@ -610,6 +610,9 @@ def install(args):
         subprocess.run(["scripts\\mkdir.bat", build_dir], check=True)
         subprocess.run(["scripts\\mkdir.bat", res_dir], check=True)
         subprocess.run(["scripts\\touch.bat", version_file], check=True)
+    else:
+        # unfortunately need to do this since build_dir is nested
+        os.makedirs(build_dir, exist_ok=True)
 
     shutil.copytree("scripts", os.path.join(bin_dir, "sys_scripts"))
     shutil.copy("orca", bin_dir)
@@ -621,6 +624,13 @@ def install(args):
         shutil.copy("build\\bin\\orca_runtime.exe", build_dir)
         shutil.copy("ext\\angle\\bin\\libEGL.dll", build_dir)
         shutil.copy("ext\\angle\\bin\\libGLESv2.dll", build_dir)
+    else:
+        shutil.copy("build/bin/liborca.dylib", build_dir)
+        shutil.copy("build/bin/mtl_renderer.metallib", build_dir)
+        shutil.copy("build/bin/orca_runtime", build_dir)
+        shutil.copy("ext/angle/bin/libEGL.dylib", build_dir)
+        shutil.copy("ext/angle/bin/libGLESv2.dylib", build_dir)
+
     with open(version_file, "w") as f:
         f.write(version)
 
