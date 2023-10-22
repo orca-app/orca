@@ -566,6 +566,8 @@ def install(args):
     dest = install_dir()
     bin_dir = os.path.join(dest, "bin")
     src_dir = os.path.join(dest, "src")
+    build_dir = os.path.join(dest, "build", "bin")
+    res_dir = os.path.join(dest, "resources")
     version_file = os.path.join(dest, ".orcaversion")
 
     version = orca_version()
@@ -588,6 +590,8 @@ def install(args):
 
     yeetdir(bin_dir)
     yeetdir(src_dir)
+    yeetdir(build_dir)
+    yeetdir(res_dir)
     yeetfile(version_file)
 
     # The MS Store version of Python does some really stupid stuff with AppData:
@@ -603,13 +607,20 @@ def install(args):
     if platform.system() == "Windows":
         subprocess.run(["scripts\\mkdir.bat", bin_dir], check=True)
         subprocess.run(["scripts\\mkdir.bat", src_dir], check=True)
+        subprocess.run(["scripts\\mkdir.bat", build_dir], check=True)
+        subprocess.run(["scripts\\mkdir.bat", res_dir], check=True)
         subprocess.run(["scripts\\touch.bat", version_file], check=True)
 
     shutil.copytree("scripts", os.path.join(bin_dir, "sys_scripts"))
     shutil.copy("orca", bin_dir)
     shutil.copytree("src", src_dir, dirs_exist_ok=True)
+    shutil.copytree("resources", res_dir, dirs_exist_ok=True)
     if platform.system() == "Windows":
         shutil.copy("orca.bat", bin_dir)
+        shutil.copy("build\\bin\\orca.dll", build_dir)
+        shutil.copy("build\\bin\\orca_runtime.exe", build_dir)
+        shutil.copy("ext\\angle\\bin\\libEGL.dll", build_dir)
+        shutil.copy("ext\\angle\\bin\\libGLESv2.dll", build_dir)
     with open(version_file, "w") as f:
         f.write(version)
 
