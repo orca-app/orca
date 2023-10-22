@@ -1,11 +1,16 @@
 #include <stdio.h>
 
+#include "flag.h"
+
 #include "util/memory.c"
 #include "platform/win32_memory.c"
 #include "util/strings.c"
 #include "platform/native_debug.c"
 
-#include "flag.h"
+#if OC_PLATFORM_WINDOWS
+    #include "platform/win32_path.c"
+    #include "platform/win32_string_helpers.c"
+#endif
 
 #include "bundle.c"
 

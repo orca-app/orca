@@ -529,12 +529,18 @@ def build_tool(args):
 
         outname = "orca.exe" if platform.system() == "Windows" else "orca"
 
+        if platform.system() == "Windows":
+            libs = ["-l", "shlwapi"]
+        else:
+            libs = []
+
         subprocess.run([
             "clang",
             "-std=c11",
             "-I", "..",
             "-D", "FLAG_IMPLEMENTATION",
             "-D", f"ORCA_TOOL_VERSION={githash}",
+            *libs,
             "-MJ", "build/main.json",
             "-o", f"build/bin/{outname}",
             "main.c",
