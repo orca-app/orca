@@ -476,6 +476,15 @@ LRESULT oc_win32_win_proc(HWND windowHandle, UINT message, WPARAM wParam, LPARAM
                 }
                 oc_queue_event(&event);
             }
+            else if((wParam == SIZE_RESTORED) || (wParam == SIZE_MAXIMIZED))
+            {
+                oc_event event = { 0 };
+                event.window = oc_window_handle_from_ptr(mpWindow);
+                event.type = OC_EVENT_WINDOW_RESIZE;
+                event.move.frame = oc_window_get_frame_rect(event.window);
+                event.move.content = oc_window_get_content_rect(event.window);
+                oc_queue_event(&event);
+            }
         }
         break;
 
