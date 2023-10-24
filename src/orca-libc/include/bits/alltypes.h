@@ -132,6 +132,11 @@ typedef unsigned long wctype_t;
 #define __DEFINED_wctype_t
 #endif
 
+#if defined(__NEED_FILE) && !defined(__DEFINED_FILE)
+typedef struct _IO_FILE FILE;
+#define __DEFINED_FILE
+#endif
+
 #if defined(__NEED_va_list) && !defined(__DEFINED_va_list)
 typedef __builtin_va_list va_list;
 #define __DEFINED_va_list
