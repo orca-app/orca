@@ -622,14 +622,14 @@ def install(args):
         shutil.copy("orca.bat", bin_dir)
         shutil.copy("build\\bin\\orca.dll", build_dir)
         shutil.copy("build\\bin\\orca_runtime.exe", build_dir)
-        shutil.copy("ext\\angle\\bin\\libEGL.dll", build_dir)
-        shutil.copy("ext\\angle\\bin\\libGLESv2.dll", build_dir)
+        shutil.copy("src\\ext\\angle\\bin\\libEGL.dll", build_dir)
+        shutil.copy("src\\ext\\angle\\bin\\libGLESv2.dll", build_dir)
     else:
         shutil.copy("build/bin/liborca.dylib", build_dir)
         shutil.copy("build/bin/mtl_renderer.metallib", build_dir)
         shutil.copy("build/bin/orca_runtime", build_dir)
-        shutil.copy("ext/angle/bin/libEGL.dylib", build_dir)
-        shutil.copy("ext/angle/bin/libGLESv2.dylib", build_dir)
+        shutil.copy("src/ext/angle/bin/libEGL.dylib", build_dir)
+        shutil.copy("src/ext/angle/bin/libGLESv2.dylib", build_dir)
 
     with open(version_file, "w") as f:
         f.write(version)
