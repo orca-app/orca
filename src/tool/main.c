@@ -1,3 +1,11 @@
+/*************************************************************************
+*
+*  Orca
+*  Copyright 2023 Martin Fouilleul and the Orca project contributors
+*  See LICENSE.txt for licensing information
+*
+**************************************************************************/
+
 #include <stdio.h>
 
 #include "flag.h"
@@ -13,6 +21,7 @@
 #endif
 
 #include "bundle.c"
+#include "system.c"
 
 int version(int argc, char** argv);
 
