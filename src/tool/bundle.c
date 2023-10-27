@@ -1,8 +1,19 @@
+/*************************************************************************
+*
+*  Orca
+*  Copyright 2023 Martin Fouilleul and the Orca project contributors
+*  See LICENSE.txt for licensing information
+*
+**************************************************************************/
+
+#include <processenv.h>
+#include <stdio.h>
+
 #include "flag.h"
 #include "platform/platform_path.h"
 #include "util/strings.h"
 #include "util/memory.h"
-#include <processenv.h>
+#include "system.h"
 
 int winBundle(
     oc_arena* a,
@@ -66,7 +77,23 @@ int bundle(int argc, char** argv)
 #endif
 }
 
+#define TRY(cmd)                                                                              \
+    {                                                                                         \
+        bool __result = cmd;                                                                  \
+        if(!__result)                                                                         \
+        {                                                                                     \
+            int code = oc_sys_err.code;                                                       \
+            if(code == 0)                                                                     \
+            {                                                                                 \
+                code = 1;                                                                     \
+            }                                                                                 \
+            fprintf(stderr, "ERROR (code %d): %.*s\n", code, oc_str8_printf(oc_sys_err.msg)); \
+            return code;                                                                      \
+        }                                                                                     \
+    }
+
 #ifdef OC_PLATFORM_WINDOWS
+
 int winBundle(
     oc_arena* a,
     oc_str8 name,
@@ -79,10 +106,7 @@ int winBundle(
 {
     if(!outDir.ptr)
     {
-        u64 len = GetCurrentDirectory(0, NULL);
-        char* buf = oc_arena_push(a, len);
-        GetCurrentDirectory(len, buf);
-        outDir = OC_STR8(buf);
+        outDir = oc_sys_getcwd(a);
     }
 
     //-----------------------------------------------------------
@@ -95,6 +119,20 @@ int winBundle(
     oc_str8 wasmDir = oc_path_append(a, bundleDir, OC_STR8("wasm"));
     oc_str8 dataDir = oc_path_append(a, bundleDir, OC_STR8("data"));
 
+    if(oc_sys_path_exists(bundleDir))
+    {
+        TRY(oc_sys_rmdir(bundleDir));
+    }
+    TRY(oc_sys_mkdirs(bundleDir));
+    TRY(oc_sys_mkdirs(exeDir));
+    TRY(oc_sys_mkdirs(resDir));
+    TRY(oc_sys_mkdirs(guestDir));
+    TRY(oc_sys_mkdirs(wasmDir));
+    TRY(oc_sys_mkdirs(dataDir));
+
+    printf("u good");
+
     return 0;
 }
-#endif
+
+#endif // OC_PLATFORM_WINDOWS
