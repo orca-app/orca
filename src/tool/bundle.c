@@ -21,8 +21,7 @@ int winBundle(
     oc_str8 name,
     oc_str8 icon,
     oc_str8 version,
-    oc_str8_list resourceFiles,
-    oc_str8_list resourceDirs,
+    oc_str8_list resources,
     oc_str8 outDir,
     oc_str8 orcaDir,
     oc_str8 module);
@@ -38,8 +37,7 @@ int bundle(int argc, char** argv)
     char** name = flag_str(&c, "n", "name", "out", "the app's name");
     char** icon = flag_str(&c, "i", "icon", NULL, "an image file to use as the application's icon");
     char** version = flag_str(&c, NULL, "version", "0.0.0", "a version number to embed in the application bundle");
-    oc_str8_list* resourceFiles = flag_strs(&c, "d", "resource", "copy a file to the app's resource directory");
-    oc_str8_list* resourceDirs = flag_strs(&c, "D", "resource-dir", "copy a directory to the app's resource directory");
+    oc_str8_list* resources = flag_strs(&c, "d", "resource", "copy a file to the app's resource directory");
     char** outDir = flag_str(&c, "C", "out-dir", NULL, "where to place the final application bundle (defaults to the current directory)");
     char** orcaDir = flag_str(&c, "O", "orca-dir", ".", NULL);
     // TODO: mtl-enable-capture
@@ -70,8 +68,7 @@ int bundle(int argc, char** argv)
         OC_STR8(*name),
         OC_STR8(*icon),
         OC_STR8(*version),
-        *resourceFiles,
-        *resourceDirs,
+        *resources,
         OC_STR8(*outDir),
         OC_STR8(*orcaDir),
         OC_STR8(*module));
@@ -102,8 +99,7 @@ int winBundle(
     oc_str8 name,
     oc_str8 icon,
     oc_str8 version,
-    oc_str8_list resourceFiles,
-    oc_str8_list resourceDirs,
+    oc_str8_list resources,
     oc_str8 outDir,
     oc_str8 orcaDir,
     oc_str8 module)
@@ -123,7 +119,7 @@ int winBundle(
     oc_str8 wasmDir = oc_path_append(a, bundleDir, OC_STR8("wasm"));
     oc_str8 dataDir = oc_path_append(a, bundleDir, OC_STR8("data"));
 
-    if(oc_sys_path_exists(bundleDir))
+    if(oc_sys_exists(bundleDir))
     {
         TRY(oc_sys_rmdir(bundleDir));
     }
@@ -152,16 +148,19 @@ int winBundle(
     //NOTE: copy wasm module and data
     //-----------------------------------------------------------
     TRY(oc_sys_copy(module, oc_path_append(a, wasmDir, OC_STR8("/module.wasm"))));
-    if(!oc_str8_list_empty(resourceFiles))
+    oc_str8_list_for(resources, it)
     {
-        oc_str8_list_for(resourceFiles, it)
+        oc_str8 resource = it->string;
+        oc_str8 dst = oc_path_append(a, dataDir, oc_path_slice_filename(resource));
+        if(oc_sys_isdir(resource))
         {
-            oc_str8 resource = it->string;
-            oc_str8 dst = oc_path_append(a, dataDir, oc_path_slice_filename(resource));
+            oc_sys_copytree(resource, dst);
+        }
+        else
+        {
             oc_sys_copy(resource, dst);
         }
     }
-    // TODO: resource dirs
 
     //-----------------------------------------------------------
     //NOTE: copy runtime resources

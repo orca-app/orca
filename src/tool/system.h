@@ -21,7 +21,8 @@ typedef struct
 extern oc_sys_err_def oc_sys_err;
 
 oc_str8 oc_sys_getcwd(oc_arena* a);
-bool oc_sys_path_exists(oc_str8 path);
+bool oc_sys_exists(oc_str8 path);
+bool oc_sys_isdir(oc_str8 path);
 bool oc_sys_mkdirs(oc_str8 path);
 bool oc_sys_rmdir(oc_str8 path);
 bool oc_sys_copy(oc_str8 src, oc_str8 dst);

@@ -31,7 +31,7 @@ oc_str8 oc_sys_getcwd(oc_arena* a)
     return OC_STR8(buf);
 }
 
-bool oc_sys_path_exists(oc_str8 path)
+bool oc_sys_exists(oc_str8 path)
 {
     struct _stat stat;
 
@@ -47,6 +47,24 @@ bool oc_sys_path_exists(oc_str8 path)
     }
 
     return true;
+}
+
+bool oc_sys_isdir(oc_str8 path)
+{
+    struct _stat stat;
+
+    oc_arena_scope scratch = oc_scratch_begin();
+    const char* cpath = oc_str8_to_cstring(scratch.arena, path);
+    int result = _stat(cpath, &stat);
+    oc_scratch_end(scratch);
+
+    if(result)
+    {
+        OC_ASSERT(errno == ENOENT);
+        return false;
+    }
+
+    return (stat.st_mode & _S_IFDIR) != 0;
 }
 
 bool oc_sys_mkdirs(oc_str8 path)
@@ -96,6 +114,14 @@ bool oc_sys_rmdir(oc_str8 path)
 
 bool oc_sys_copy(oc_str8 src, oc_str8 dst)
 {
+    if(oc_sys_isdir(src))
+    {
+        oc_sys_err = (oc_sys_err_def){
+            .msg = OC_STR8("can only copy files, not directories; use oc_sys_copytree for directories"),
+        };
+        return false;
+    }
+
     char* csrc = _fullpath(NULL, src.ptr, src.len * 2);
     char* cdst = _fullpath(NULL, dst.ptr, dst.len * 2);
     oc_arena_scope scratch = oc_scratch_begin();
@@ -119,11 +145,21 @@ bool oc_sys_copy(oc_str8 src, oc_str8 dst)
 
 bool oc_sys_copytree(oc_str8 src, oc_str8 dst)
 {
+    if(!oc_sys_isdir(src))
+    {
+        oc_sys_err = (oc_sys_err_def){
+            .msg = OC_STR8("can only copy directories, not files; use oc_sys_copy for files"),
+        };
+        return false;
+    }
+
+    if(!oc_sys_mkdirs(oc_path_slice_directory(dst)))
+    {
+        return false;
+    }
+
     char* csrc = _fullpath(NULL, src.ptr, src.len * 2);
     char* cdst = _fullpath(NULL, dst.ptr, dst.len * 2);
-    // TODO: remove these debugs
-    printf("SRC: %s\n", csrc);
-    printf("DST: %s\n", cdst);
     oc_arena_scope scratch = oc_scratch_begin();
     oc_str8 cmd = oc_str8_pushf(scratch.arena, "xcopy /s /e /y \"%s\" \"%s\"", csrc, cdst);
     int result = system(cmd.ptr);
