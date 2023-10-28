@@ -130,7 +130,19 @@ int winBundle(
     TRY(oc_sys_mkdirs(wasmDir));
     TRY(oc_sys_mkdirs(dataDir));
 
-    printf("u good");
+    //-----------------------------------------------------------
+    //NOTE: copy orca runtime executable and libraries
+    //-----------------------------------------------------------
+    oc_str8 orcaExe = oc_path_append(a, orcaDir, OC_STR8("build/bin/orca_runtime.exe"));
+    oc_str8 orcaLib = oc_path_append(a, orcaDir, OC_STR8("build/bin/orca.dll"));
+    oc_str8 glesLib = oc_path_append(a, orcaDir, OC_STR8("src/ext/angle/bin/libGLESv2.dll"));
+    oc_str8 eglLib = oc_path_append(a, orcaDir, OC_STR8("src/ext/angle/bin/libEGL.dll"));
+
+    oc_str8 exeOut = oc_path_append(a, exeDir, oc_str8_pushf(a, "%.*s.exe", oc_str8_printf(name)));
+    TRY(oc_sys_copy(orcaExe, exeOut));
+    TRY(oc_sys_copy(orcaLib, exeDir));
+    TRY(oc_sys_copy(glesLib, exeDir));
+    TRY(oc_sys_copy(eglLib, exeDir));
 
     return 0;
 }
