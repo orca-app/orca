@@ -11,6 +11,7 @@
 
 #include "flag.h"
 #include "platform/platform_path.h"
+#include "util/lists.h"
 #include "util/strings.h"
 #include "util/memory.h"
 #include "system.h"
@@ -23,7 +24,8 @@ int winBundle(
     oc_str8_list resourceFiles,
     oc_str8_list resourceDirs,
     oc_str8 outDir,
-    oc_str8 orcaDir);
+    oc_str8 orcaDir,
+    oc_str8 module);
 
 int bundle(int argc, char** argv)
 {
@@ -71,7 +73,8 @@ int bundle(int argc, char** argv)
         *resourceFiles,
         *resourceDirs,
         OC_STR8(*outDir),
-        OC_STR8(*orcaDir));
+        OC_STR8(*orcaDir),
+        OC_STR8(*module));
 #else
     #error Can't build the bundle script on this platform!
 #endif
@@ -102,7 +105,8 @@ int winBundle(
     oc_str8_list resourceFiles,
     oc_str8_list resourceDirs,
     oc_str8 outDir,
-    oc_str8 orcaDir)
+    oc_str8 orcaDir,
+    oc_str8 module)
 {
     if(!outDir.ptr)
     {
@@ -143,6 +147,32 @@ int winBundle(
     TRY(oc_sys_copy(orcaLib, exeDir));
     TRY(oc_sys_copy(glesLib, exeDir));
     TRY(oc_sys_copy(eglLib, exeDir));
+
+    //-----------------------------------------------------------
+    //NOTE: copy wasm module and data
+    //-----------------------------------------------------------
+    TRY(oc_sys_copy(module, oc_path_append(a, wasmDir, OC_STR8("/module.wasm"))));
+    if(!oc_str8_list_empty(resourceFiles))
+    {
+        oc_str8_list_for(resourceFiles, it)
+        {
+            oc_str8 resource = it->string;
+            oc_str8 dst = oc_path_append(a, dataDir, oc_path_slice_filename(resource));
+            oc_sys_copy(resource, dst);
+        }
+    }
+    // TODO: resource dirs
+
+    //-----------------------------------------------------------
+    //NOTE: copy runtime resources
+    //-----------------------------------------------------------
+    oc_sys_copy(oc_path_append(a, orcaDir, OC_STR8("resources/Menlo.ttf")), resDir);
+    oc_sys_copy(oc_path_append(a, orcaDir, OC_STR8("resources/Menlo Bold.ttf")), resDir);
+
+    //-----------------------------------------------------------
+    //NOTE make icon
+    //-----------------------------------------------------------
+    //TODO
 
     return 0;
 }

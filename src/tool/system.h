@@ -25,5 +25,6 @@ bool oc_sys_path_exists(oc_str8 path);
 bool oc_sys_mkdirs(oc_str8 path);
 bool oc_sys_rmdir(oc_str8 path);
 bool oc_sys_copy(oc_str8 src, oc_str8 dst);
+bool oc_sys_copytree(oc_str8 src, oc_str8 dst);
 
 #endif // __SYSTEM_H_
