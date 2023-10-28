@@ -98,9 +98,6 @@ bool oc_sys_copy(oc_str8 src, oc_str8 dst)
 {
     char* csrc = _fullpath(NULL, src.ptr, src.len * 2);
     char* cdst = _fullpath(NULL, dst.ptr, dst.len * 2);
-    // TODO: remove these debugs
-    printf("SRC: %s\n", csrc);
-    printf("DST: %s\n", cdst);
     oc_arena_scope scratch = oc_scratch_begin();
     oc_str8 cmd = oc_str8_pushf(scratch.arena, "copy \"%s\" \"%s\"", csrc, cdst);
     int result = system(cmd.ptr);
@@ -112,6 +109,32 @@ bool oc_sys_copy(oc_str8 src, oc_str8 dst)
     {
         oc_sys_err = (oc_sys_err_def){
             .msg = OC_STR8("failed to copy file"),
+            .code = result,
+        };
+        return false;
+    }
+
+    return true;
+}
+
+bool oc_sys_copytree(oc_str8 src, oc_str8 dst)
+{
+    char* csrc = _fullpath(NULL, src.ptr, src.len * 2);
+    char* cdst = _fullpath(NULL, dst.ptr, dst.len * 2);
+    // TODO: remove these debugs
+    printf("SRC: %s\n", csrc);
+    printf("DST: %s\n", cdst);
+    oc_arena_scope scratch = oc_scratch_begin();
+    oc_str8 cmd = oc_str8_pushf(scratch.arena, "xcopy /s /e /y \"%s\" \"%s\"", csrc, cdst);
+    int result = system(cmd.ptr);
+    oc_scratch_end(scratch);
+    free(csrc);
+    free(cdst);
+
+    if(result)
+    {
+        oc_sys_err = (oc_sys_err_def){
+            .msg = OC_STR8("failed to copy tree"),
             .code = result,
         };
         return false;

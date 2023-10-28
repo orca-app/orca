@@ -90,6 +90,7 @@ ORCA_API oc_str8_list oc_str8_split(oc_arena* arena, oc_str8 str, oc_str8_list s
 #define oc_str8_list_first(sl) (oc_list_empty(sl.list) ? (oc_str8){ 0 } : (oc_list_first_entry(sl.list, oc_str8_elt, listElt)->string))
 #define oc_str8_list_last(sl) (oc_list_empty(sl.list) ? (oc_str8){ 0 } : (oc_list_last_entry(sl.list, oc_str8_elt, listElt)->string))
 #define oc_str8_list_for(sl, elt) oc_list_for(sl.list, elt, oc_str8_elt, listElt)
+#define oc_str8_list_empty(sl) (oc_list_empty(sl.list))
 
 // Allows use of oc_str8 with standard printf via the %.*s specifier
 #define oc_str8_printf(str) (int)str.len, str.ptr
