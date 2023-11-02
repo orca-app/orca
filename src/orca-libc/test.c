@@ -16,11 +16,11 @@ __attribute__((export_name("foo"))) double foo(double a)
     return (cos(a));
 }
 
-__attribute__((export_name("bar"))) double bar(const char* s)
+__attribute__((export_name("bar"))) double bar()
 {
 
     double res = 0;
-    sscanf(s, "%lf", &res);
+    sscanf("42.53", "%lf", &res);
     return (res);
 }
 
