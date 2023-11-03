@@ -271,6 +271,14 @@ void oc_bridge_log(oc_log_level level,
                msg);
 }
 
+void oc_bridge_exit(int ec)
+{
+    //TODO: send a trap exit to wasm3 to stop interpreter,
+    // then when we return from the trap, quit app
+    // temporarily, we just exit here
+    exit(ec);
+}
+
 void oc_bridge_request_quit(void)
 {
     __orcaApp.quit = true;
