@@ -13,7 +13,7 @@ else
 fi
 
 ORCA_DIR=../..
-STDLIB_DIR=$ORCA_DIR/src/libc-shim
+STDLIB_DIR=$ORCA_DIR/src/orca-libc
 
 # common flags to build wasm modules
 wasmFlags="--target=wasm32 \
@@ -23,12 +23,12 @@ wasmFlags="--target=wasm32 \
   -D__ORCA__ \
   -Wl,--no-entry \
   -Wl,--export-dynamic \
-  -isystem $STDLIB_DIR/include \
+  --sysroot $STDLIB_DIR \
   -I $ORCA_DIR/src \
   -I $ORCA_DIR/src/ext"
 
 # build orca core as wasm module
-clang $wasmFlags -Wl,--relocatable -o ./liborca.a $ORCA_DIR/src/orca.c $STDLIB_DIR/src/*.c
+clang $wasmFlags -Wl,--relocatable -o ./liborca.a $ORCA_DIR/src/orca.c $ORCA_DIR/src/orca-libc/lib/libc.o
 
 # build sample as wasm module and link it with the orca module
 clang $wasmFlags -L . -lorca -o module.wasm src/main.c

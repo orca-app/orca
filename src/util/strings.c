@@ -5,6 +5,7 @@
 *  See LICENSE.txt for licensing information
 *
 **************************************************************************/
+#include <stdio.h>
 #include "strings.h"
 #include "platform/platform_debug.h"
 
