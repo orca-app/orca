@@ -101,11 +101,13 @@ void oc_mtl_surface_present(oc_surface_data* interface)
         {
             if(surface->drawable != nil)
             {
-                [surface->commandBuffer presentDrawable:surface->drawable];
-                [surface->drawable release];
-                surface->drawable = nil;
 
                 [surface->commandBuffer commit];
+                [surface->commandBuffer waitUntilScheduled];
+                [surface->drawable present];
+
+                [surface->drawable release];
+                surface->drawable = nil;
             }
             [surface->commandBuffer release];
             surface->commandBuffer = nil;
@@ -208,6 +210,7 @@ oc_surface_data* oc_mtl_surface_create_for_window(oc_window window)
 
             [surface->mtlLayer setOpaque:NO];
             surface->mtlLayer.autoresizingMask = kCALayerWidthSizable | kCALayerHeightSizable;
+            surface->mtlLayer.presentsWithTransaction = YES;
             [surface->interface.layer.caLayer addSublayer:(CALayer*)surface->mtlLayer];
 
             //-----------------------------------------------------------
@@ -222,10 +225,6 @@ oc_surface_data* oc_mtl_surface_create_for_window(oc_window window)
             surface->mtlLayer.contentsScale = OC_MTL_SURFACE_CONTENTS_SCALING;
 
             surface->mtlLayer.pixelFormat = MTLPixelFormatBGRA8Unorm;
-
-            //NOTE(martin): handling resizing
-            //			surface->mtlLayer.autoresizingMask = kCALayerHeightSizable | kCALayerWidthSizable;
-            //			surface->mtlLayer.needsDisplayOnBoundsChange = YES;
 
             //-----------------------------------------------------------
             //NOTE(martin): create a command queue
