@@ -317,6 +317,10 @@ ORCA_API void oc_set_cursor(oc_mouse_cursor cursor);
 
 	oc_next_event() get the next event from the event queue, allocating from the passed arena
 */
+typedef void (*oc_event_proc)(oc_event* event, void* userData);
+
+ORCA_API void oc_set_event_callback(oc_event_proc callback, void* userData);
+
 ORCA_API void oc_pump_events(f64 timeout);
 ORCA_API oc_event* oc_next_event(oc_arena* arena);
 

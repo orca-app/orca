@@ -472,9 +472,394 @@ void oc_wasm_env_init(oc_wasm_env* runtime)
 #include "wasmbind/surface_api_bind_manual.c"
 #include "wasmbind/surface_api_bind_gen.c"
 
-i32 orca_runloop(void* user)
+void render_frame(oc_runtime* app)
 {
+    IM3Function* exports = app->env.exports;
+
+    oc_arena_scope scratch = oc_scratch_begin();
+
+    oc_surface_deselect();
+
+    if(exports[OC_EXPORT_FRAME_REFRESH])
+    {
+        M3Result res = m3_Call(exports[OC_EXPORT_FRAME_REFRESH], 0, 0);
+        if(res)
+        {
+            OC_WASM3_TRAP(app->env.m3Runtime, res, "Runtime error");
+        }
+    }
+
+    oc_surface_select(app->debugOverlay.surface);
+    oc_canvas_select(app->debugOverlay.canvas);
+
+    if(app->debugOverlay.show)
+    {
+        oc_ui_set_context(&app->debugOverlay.ui);
+
+        oc_surface_bring_to_front(app->debugOverlay.surface);
+
+        oc_ui_style debugUIDefaultStyle = { .bgColor = { 0 },
+                                            .color = { 1, 1, 1, 1 },
+                                            .font = app->debugOverlay.fontReg,
+                                            .fontSize = 16,
+                                            .borderColor = { 1, 0, 0, 1 },
+                                            .borderSize = 2 };
+
+        oc_ui_style_mask debugUIDefaultMask = OC_UI_STYLE_BG_COLOR
+                                            | OC_UI_STYLE_COLOR
+                                            | OC_UI_STYLE_BORDER_COLOR
+                                            | OC_UI_STYLE_BORDER_SIZE
+                                            | OC_UI_STYLE_FONT
+                                            | OC_UI_STYLE_FONT_SIZE;
+
+        oc_vec2 frameSize = oc_surface_get_size(app->debugOverlay.surface);
+
+        oc_ui_frame(frameSize, &debugUIDefaultStyle, debugUIDefaultMask)
+        {
+            oc_ui_style_next(&(oc_ui_style){ .size.width = { OC_UI_SIZE_PARENT, 1 },
+                                             .size.height = { OC_UI_SIZE_PARENT, 1, 1 } },
+                             OC_UI_STYLE_SIZE);
+
+            oc_ui_container("overlay area", 0)
+            {
+                //...
+            }
+
+            oc_ui_style_next(&(oc_ui_style){ .size.width = { OC_UI_SIZE_PARENT, 1 },
+                                             .size.height = { OC_UI_SIZE_PARENT, 0.4 },
+                                             .layout.axis = OC_UI_AXIS_Y,
+                                             .bgColor = { 0, 0, 0, 0.5 } },
+                             OC_UI_STYLE_SIZE
+                                 | OC_UI_STYLE_LAYOUT_AXIS
+                                 | OC_UI_STYLE_BG_COLOR);
+
+            oc_ui_container("log console", OC_UI_FLAG_DRAW_BACKGROUND)
+            {
+                oc_ui_style_next(&(oc_ui_style){ .size.width = { OC_UI_SIZE_PARENT, 1 },
+                                                 .size.height = { OC_UI_SIZE_CHILDREN },
+                                                 .layout.axis = OC_UI_AXIS_X,
+                                                 .layout.spacing = 10,
+                                                 .layout.margin.x = 10,
+                                                 .layout.margin.y = 10 },
+                                 OC_UI_STYLE_SIZE
+                                     | OC_UI_STYLE_LAYOUT);
+
+                oc_ui_container("log toolbar", 0)
+                {
+                    oc_ui_style buttonStyle = { .layout.margin.x = 4,
+                                                .layout.margin.y = 4,
+                                                .roundness = 2,
+                                                .bgColor = { 0, 0, 0, 0.5 },
+                                                .color = { 1, 1, 1, 1 } };
+
+                    oc_ui_style_mask buttonStyleMask = OC_UI_STYLE_LAYOUT_MARGINS
+                                                     | OC_UI_STYLE_ROUNDNESS
+                                                     | OC_UI_STYLE_BG_COLOR
+                                                     | OC_UI_STYLE_COLOR;
+
+                    oc_ui_style_match_after(oc_ui_pattern_all(), &buttonStyle, buttonStyleMask);
+                    if(oc_ui_button("Clear").clicked)
+                    {
+                        oc_list_for_safe(app->debugOverlay.logEntries, entry, log_entry, listElt)
+                        {
+                            oc_list_remove(&app->debugOverlay.logEntries, &entry->listElt);
+                            oc_list_push(&app->debugOverlay.logFreeList, &entry->listElt);
+                            app->debugOverlay.entryCount--;
+                        }
+                    }
+                }
+
+                oc_ui_style_next(&(oc_ui_style){ .size.width = { OC_UI_SIZE_PARENT, 1 },
+                                                 .size.height = { OC_UI_SIZE_PARENT, 1, 1 } },
+                                 OC_UI_STYLE_SIZE);
+
+                //TODO: this is annoying to have to do that. Basically there's another 'contents' box inside oc_ui_panel,
+                //      and we need to change that to size according to its parent (whereas the default is sizing according
+                //      to its children)
+                oc_ui_pattern pattern = { 0 };
+                oc_ui_pattern_push(scratch.arena, &pattern, (oc_ui_selector){ .kind = OC_UI_SEL_OWNER });
+                oc_ui_pattern_push(scratch.arena, &pattern, (oc_ui_selector){ .kind = OC_UI_SEL_TEXT, .text = OC_STR8("contents") });
+                oc_ui_style_match_after(pattern, &(oc_ui_style){ .size.width = { OC_UI_SIZE_PARENT, 1 } }, OC_UI_STYLE_SIZE_WIDTH);
+
+                oc_ui_box* panel = oc_ui_box_lookup("log view");
+                f32 scrollY = 0;
+                if(panel)
+                {
+                    scrollY = panel->scroll.y;
+                }
+
+                oc_ui_panel("log view", OC_UI_FLAG_SCROLL_WHEEL_Y)
+                {
+                    panel = oc_ui_box_top()->parent;
+
+                    oc_ui_style_next(&(oc_ui_style){ .size.width = { OC_UI_SIZE_PARENT, 1 },
+                                                     .size.height = { OC_UI_SIZE_CHILDREN },
+                                                     .layout.axis = OC_UI_AXIS_Y,
+                                                     .layout.margin.y = 5 },
+                                     OC_UI_STYLE_SIZE
+                                         | OC_UI_STYLE_LAYOUT_AXIS);
+
+                    oc_ui_container("contents", 0)
+                    {
+                        oc_list_for(app->debugOverlay.logEntries, entry, log_entry, listElt)
+                        {
+                            log_entry_ui(&app->debugOverlay, entry);
+                        }
+                    }
+                }
+                if(app->debugOverlay.logScrollToLast)
+                {
+                    if(panel->scroll.y >= scrollY)
+                    {
+                        panel->scroll.y = oc_clamp_low(panel->childrenSum[1] - panel->rect.h, 0);
+                    }
+                    else
+                    {
+                        app->debugOverlay.logScrollToLast = false;
+                    }
+                }
+                else if(panel->scroll.y >= (panel->childrenSum[1] - panel->rect.h) - 1)
+                {
+                    app->debugOverlay.logScrollToLast = true;
+                }
+            }
+        }
+
+        oc_ui_draw();
+    }
+    else
+    {
+        oc_set_color_rgba(0, 0, 0, 0);
+        oc_clear();
+    }
+
+    oc_render(app->debugOverlay.canvas);
+    oc_surface_present(app->debugOverlay.surface);
+
+    oc_scratch_end(scratch);
+
+#if OC_PLATFORM_WINDOWS
+    //NOTE(martin): on windows we set all surfaces to non-synced, and do a single "manual" wait here.
+    //              on macOS each surface is individually synced to the monitor refresh rate but don't block each other
+    oc_vsync_wait(app->window);
+#endif
+}
+
+void event_proc(oc_event* event, void* userData)
+{
+    oc_runtime* app = (oc_runtime*)userData;
+    IM3Function* exports = app->env.exports;
+
+    oc_arena_scope scratch = oc_scratch_begin();
+
+    if(app->debugOverlay.show)
+    {
+        oc_ui_process_event(event);
+    }
+
+    if(exports[OC_EXPORT_RAW_EVENT])
+    {
+        oc_event* clipboardEvent = oc_runtime_clipboard_process_event_begin(scratch.arena, &__orcaApp.clipboard, event);
+        oc_event* events[2];
+        u64 eventsCount;
+        if(clipboardEvent != 0)
+        {
+            events[0] = clipboardEvent;
+            events[1] = event;
+            eventsCount = 2;
+        }
+        else
+        {
+            events[0] = event;
+            eventsCount = 1;
+        }
+
+        for(int i = 0; i < eventsCount; i++)
+        {
+#ifndef M3_BIG_ENDIAN
+            oc_event* eventPtr = (oc_event*)oc_wasm_address_to_ptr(app->env.rawEventOffset, sizeof(oc_event));
+            memcpy(eventPtr, events[i], sizeof(*events[i]));
+
+            const void* args[1] = { &app->env.rawEventOffset };
+            M3Result res = m3_Call(exports[OC_EXPORT_RAW_EVENT], 1, args);
+            if(res)
+            {
+                OC_WASM3_TRAP(app->env.m3Runtime, res, "Runtime error");
+            }
+#else
+            oc_log_error("oc_on_raw_event() is not supported on big endian platforms");
+#endif
+        }
+
+        oc_runtime_clipboard_process_event_end(&__orcaApp.clipboard);
+    }
+
+    switch(event->type)
+    {
+        case OC_EVENT_WINDOW_CLOSE:
+        case OC_EVENT_QUIT:
+        {
+            app->quit = true;
+        }
+        break;
+
+        case OC_EVENT_WINDOW_RESIZE:
+        {
+            oc_rect frame = { 0, 0, event->move.frame.w, event->move.frame.h };
+
+            if(exports[OC_EXPORT_FRAME_RESIZE])
+            {
+                u32 width = (u32)event->move.content.w;
+                u32 height = (u32)event->move.content.h;
+                const void* args[2] = { &width, &height };
+                M3Result res = m3_Call(exports[OC_EXPORT_FRAME_RESIZE], 2, args);
+                if(res)
+                {
+                    OC_WASM3_TRAP(app->env.m3Runtime, res, "Runtime error");
+                }
+            }
+        }
+        break;
+
+        case OC_EVENT_MOUSE_BUTTON:
+        {
+            if(event->key.action == OC_KEY_PRESS)
+            {
+                if(exports[OC_EXPORT_MOUSE_DOWN])
+                {
+                    oc_mouse_button button = event->key.button;
+                    const void* args[1] = { &button };
+                    M3Result res = m3_Call(exports[OC_EXPORT_MOUSE_DOWN], 1, args);
+                    if(res)
+                    {
+                        OC_WASM3_TRAP(app->env.m3Runtime, res, "Runtime error");
+                    }
+                }
+            }
+            else
+            {
+                if(exports[OC_EXPORT_MOUSE_UP])
+                {
+                    oc_mouse_button button = event->key.button;
+                    const void* args[1] = { &button };
+                    M3Result res = m3_Call(exports[OC_EXPORT_MOUSE_UP], 1, args);
+                    if(res)
+                    {
+                        OC_WASM3_TRAP(app->env.m3Runtime, res, "Runtime error");
+                    }
+                }
+            }
+        }
+        break;
+
+        case OC_EVENT_MOUSE_WHEEL:
+        {
+            if(exports[OC_EXPORT_MOUSE_WHEEL])
+            {
+                const void* args[2] = { &event->mouse.deltaX, &event->mouse.deltaY };
+                M3Result res = m3_Call(exports[OC_EXPORT_MOUSE_WHEEL], 2, args);
+                if(res)
+                {
+                    OC_WASM3_TRAP(app->env.m3Runtime, res, "Runtime error");
+                }
+            }
+        }
+        break;
+
+        case OC_EVENT_MOUSE_MOVE:
+        {
+            if(exports[OC_EXPORT_MOUSE_MOVE])
+            {
+                const void* args[4] = { &event->mouse.x, &event->mouse.y, &event->mouse.deltaX, &event->mouse.deltaY };
+                M3Result res = m3_Call(exports[OC_EXPORT_MOUSE_MOVE], 4, args);
+                if(res)
+                {
+                    OC_WASM3_TRAP(app->env.m3Runtime, res, "Runtime error");
+                }
+            }
+        }
+        break;
+
+        case OC_EVENT_KEYBOARD_KEY:
+        {
+            if(event->key.action == OC_KEY_PRESS)
+            {
+                if(event->key.keyCode == OC_KEY_D
+                   && (event->key.mods & OC_KEYMOD_SHIFT)
+                   && (event->key.mods & OC_KEYMOD_MAIN_MODIFIER))
+                {
+                    debug_overlay_toggle(&app->debugOverlay);
+                }
+
+                if(exports[OC_EXPORT_KEY_DOWN])
+                {
+                    const void* args[2] = { &event->key.scanCode, &event->key.keyCode };
+                    M3Result res = m3_Call(exports[OC_EXPORT_KEY_DOWN], 2, args);
+                    if(res)
+                    {
+                        OC_WASM3_TRAP(app->env.m3Runtime, res, "Runtime error");
+                    }
+                }
+            }
+            else if(event->key.action == OC_KEY_RELEASE)
+            {
+                if(exports[OC_EXPORT_KEY_UP])
+                {
+                    const void* args[2] = { &event->key.scanCode, &event->key.keyCode };
+                    M3Result res = m3_Call(exports[OC_EXPORT_KEY_UP], 2, args);
+                    if(res)
+                    {
+                        OC_WASM3_TRAP(app->env.m3Runtime, res, "Runtime error");
+                    }
+                }
+            }
+        }
+        break;
+
+        default:
+            break;
+    }
+
+    oc_scratch_end(scratch);
+}
+
+int main(int argc, char** argv)
+{
+    oc_log_set_level(OC_LOG_LEVEL_INFO);
+
+    oc_init();
+    oc_clock_init();
+
     oc_runtime* app = &__orcaApp;
+
+    //NOTE: create window and surfaces
+    oc_rect windowRect = { .x = 100, .y = 100, .w = 810, .h = 610 };
+    app->window = oc_window_create(windowRect, OC_STR8("orca"), 0);
+
+    app->debugOverlay.show = false;
+    app->debugOverlay.surface = oc_surface_create_for_window(app->window, OC_CANVAS);
+    app->debugOverlay.canvas = oc_canvas_create();
+    app->debugOverlay.fontReg = orca_font_create("../resources/Menlo.ttf");
+    app->debugOverlay.fontBold = orca_font_create("../resources/Menlo Bold.ttf");
+    app->debugOverlay.maxEntries = 200;
+    oc_arena_init(&app->debugOverlay.logArena);
+
+#if OC_PLATFORM_WINDOWS
+    //NOTE(martin): on windows we set all surfaces to non-synced, and do a single "manual" wait here.
+    //              on macOS each surface is individually synced to the monitor refresh rate but don't block each other
+    oc_surface_swap_interval(app->debugOverlay.surface, 0);
+#else
+    oc_surface_swap_interval(app->debugOverlay.surface, 1);
+#endif
+
+    oc_surface_deselect();
+
+    oc_ui_init(&app->debugOverlay.ui);
+
+    //NOTE: show window and start runloop
+    oc_window_bring_to_front(app->window);
+    oc_window_focus(app->window);
+    oc_window_center(app->window);
 
     oc_wasm_env_init(&app->env);
 
@@ -643,347 +1028,13 @@ i32 orca_runloop(void* user)
         }
     }
 
-    oc_ui_set_context(&app->debugOverlay.ui);
+    oc_set_event_callback(event_proc, app);
 
-    while(!app->quit)
+    while(!oc_should_quit())
     {
-        scratch = oc_scratch_begin();
-        oc_event* event = 0;
+        oc_pump_events(0);
 
-        while((event = oc_next_event(scratch.arena)) != 0)
-        {
-            if(app->debugOverlay.show)
-            {
-                oc_ui_process_event(event);
-            }
-
-            if(exports[OC_EXPORT_RAW_EVENT])
-            {
-                oc_event* clipboardEvent = oc_runtime_clipboard_process_event_begin(scratch.arena, &__orcaApp.clipboard, event);
-                oc_event* events[2];
-                u64 eventsCount;
-                if(clipboardEvent != 0)
-                {
-                    events[0] = clipboardEvent;
-                    events[1] = event;
-                    eventsCount = 2;
-                }
-                else
-                {
-                    events[0] = event;
-                    eventsCount = 1;
-                }
-
-                for(int i = 0; i < eventsCount; i++)
-                {
-#ifndef M3_BIG_ENDIAN
-                    oc_event* eventPtr = (oc_event*)oc_wasm_address_to_ptr(app->env.rawEventOffset, sizeof(oc_event));
-                    memcpy(eventPtr, events[i], sizeof(*events[i]));
-
-                    const void* args[1] = { &app->env.rawEventOffset };
-                    M3Result res = m3_Call(exports[OC_EXPORT_RAW_EVENT], 1, args);
-                    if(res)
-                    {
-                        OC_WASM3_TRAP(app->env.m3Runtime, res, "Runtime error");
-                    }
-#else
-                    oc_log_error("oc_on_raw_event() is not supported on big endian platforms");
-#endif
-                }
-
-                oc_runtime_clipboard_process_event_end(&__orcaApp.clipboard);
-            }
-
-            switch(event->type)
-            {
-                case OC_EVENT_WINDOW_CLOSE:
-                case OC_EVENT_QUIT:
-                {
-                    app->quit = true;
-                }
-                break;
-
-                case OC_EVENT_WINDOW_RESIZE:
-                {
-                    oc_rect frame = { 0, 0, event->move.frame.w, event->move.frame.h };
-
-                    if(exports[OC_EXPORT_FRAME_RESIZE])
-                    {
-                        u32 width = (u32)event->move.content.w;
-                        u32 height = (u32)event->move.content.h;
-                        const void* args[2] = { &width, &height };
-                        M3Result res = m3_Call(exports[OC_EXPORT_FRAME_RESIZE], 2, args);
-                        if(res)
-                        {
-                            OC_WASM3_TRAP(app->env.m3Runtime, res, "Runtime error");
-                        }
-                    }
-                }
-                break;
-
-                case OC_EVENT_MOUSE_BUTTON:
-                {
-                    if(event->key.action == OC_KEY_PRESS)
-                    {
-                        if(exports[OC_EXPORT_MOUSE_DOWN])
-                        {
-                            oc_mouse_button button = event->key.button;
-                            const void* args[1] = { &button };
-                            M3Result res = m3_Call(exports[OC_EXPORT_MOUSE_DOWN], 1, args);
-                            if(res)
-                            {
-                                OC_WASM3_TRAP(app->env.m3Runtime, res, "Runtime error");
-                            }
-                        }
-                    }
-                    else
-                    {
-                        if(exports[OC_EXPORT_MOUSE_UP])
-                        {
-                            oc_mouse_button button = event->key.button;
-                            const void* args[1] = { &button };
-                            M3Result res = m3_Call(exports[OC_EXPORT_MOUSE_UP], 1, args);
-                            if(res)
-                            {
-                                OC_WASM3_TRAP(app->env.m3Runtime, res, "Runtime error");
-                            }
-                        }
-                    }
-                }
-                break;
-
-                case OC_EVENT_MOUSE_WHEEL:
-                {
-                    if(exports[OC_EXPORT_MOUSE_WHEEL])
-                    {
-                        const void* args[2] = { &event->mouse.deltaX, &event->mouse.deltaY };
-                        M3Result res = m3_Call(exports[OC_EXPORT_MOUSE_WHEEL], 2, args);
-                        if(res)
-                        {
-                            OC_WASM3_TRAP(app->env.m3Runtime, res, "Runtime error");
-                        }
-                    }
-                }
-                break;
-
-                case OC_EVENT_MOUSE_MOVE:
-                {
-                    if(exports[OC_EXPORT_MOUSE_MOVE])
-                    {
-                        const void* args[4] = { &event->mouse.x, &event->mouse.y, &event->mouse.deltaX, &event->mouse.deltaY };
-                        M3Result res = m3_Call(exports[OC_EXPORT_MOUSE_MOVE], 4, args);
-                        if(res)
-                        {
-                            OC_WASM3_TRAP(app->env.m3Runtime, res, "Runtime error");
-                        }
-                    }
-                }
-                break;
-
-                case OC_EVENT_KEYBOARD_KEY:
-                {
-                    if(event->key.action == OC_KEY_PRESS)
-                    {
-                        if(event->key.keyCode == OC_KEY_D
-                           && (event->key.mods & OC_KEYMOD_SHIFT)
-                           && (event->key.mods & OC_KEYMOD_MAIN_MODIFIER))
-                        {
-                            debug_overlay_toggle(&app->debugOverlay);
-                        }
-
-                        if(exports[OC_EXPORT_KEY_DOWN])
-                        {
-                            const void* args[2] = { &event->key.scanCode, &event->key.keyCode };
-                            M3Result res = m3_Call(exports[OC_EXPORT_KEY_DOWN], 2, args);
-                            if(res)
-                            {
-                                OC_WASM3_TRAP(app->env.m3Runtime, res, "Runtime error");
-                            }
-                        }
-                    }
-                    else if(event->key.action == OC_KEY_RELEASE)
-                    {
-                        if(exports[OC_EXPORT_KEY_UP])
-                        {
-                            const void* args[2] = { &event->key.scanCode, &event->key.keyCode };
-                            M3Result res = m3_Call(exports[OC_EXPORT_KEY_UP], 2, args);
-                            if(res)
-                            {
-                                OC_WASM3_TRAP(app->env.m3Runtime, res, "Runtime error");
-                            }
-                        }
-                    }
-                }
-                break;
-
-                default:
-                    break;
-            }
-        }
-
-        oc_surface_deselect();
-
-        if(exports[OC_EXPORT_FRAME_REFRESH])
-        {
-            M3Result res = m3_Call(exports[OC_EXPORT_FRAME_REFRESH], 0, 0);
-            if(res)
-            {
-                OC_WASM3_TRAP(app->env.m3Runtime, res, "Runtime error");
-            }
-        }
-
-        oc_surface_select(app->debugOverlay.surface);
-        oc_canvas_select(app->debugOverlay.canvas);
-
-        if(app->debugOverlay.show)
-        {
-            oc_surface_bring_to_front(app->debugOverlay.surface);
-
-            oc_ui_style debugUIDefaultStyle = { .bgColor = { 0 },
-                                                .color = { 1, 1, 1, 1 },
-                                                .font = app->debugOverlay.fontReg,
-                                                .fontSize = 16,
-                                                .borderColor = { 1, 0, 0, 1 },
-                                                .borderSize = 2 };
-
-            oc_ui_style_mask debugUIDefaultMask = OC_UI_STYLE_BG_COLOR
-                                                | OC_UI_STYLE_COLOR
-                                                | OC_UI_STYLE_BORDER_COLOR
-                                                | OC_UI_STYLE_BORDER_SIZE
-                                                | OC_UI_STYLE_FONT
-                                                | OC_UI_STYLE_FONT_SIZE;
-
-            oc_vec2 frameSize = oc_surface_get_size(app->debugOverlay.surface);
-
-            oc_ui_frame(frameSize, &debugUIDefaultStyle, debugUIDefaultMask)
-            {
-                oc_ui_style_next(&(oc_ui_style){ .size.width = { OC_UI_SIZE_PARENT, 1 },
-                                                 .size.height = { OC_UI_SIZE_PARENT, 1, 1 } },
-                                 OC_UI_STYLE_SIZE);
-
-                oc_ui_container("overlay area", 0)
-                {
-                    //...
-                }
-
-                oc_ui_style_next(&(oc_ui_style){ .size.width = { OC_UI_SIZE_PARENT, 1 },
-                                                 .size.height = { OC_UI_SIZE_PARENT, 0.4 },
-                                                 .layout.axis = OC_UI_AXIS_Y,
-                                                 .bgColor = { 0, 0, 0, 0.5 } },
-                                 OC_UI_STYLE_SIZE
-                                     | OC_UI_STYLE_LAYOUT_AXIS
-                                     | OC_UI_STYLE_BG_COLOR);
-
-                oc_ui_container("log console", OC_UI_FLAG_DRAW_BACKGROUND)
-                {
-                    oc_ui_style_next(&(oc_ui_style){ .size.width = { OC_UI_SIZE_PARENT, 1 },
-                                                     .size.height = { OC_UI_SIZE_CHILDREN },
-                                                     .layout.axis = OC_UI_AXIS_X,
-                                                     .layout.spacing = 10,
-                                                     .layout.margin.x = 10,
-                                                     .layout.margin.y = 10 },
-                                     OC_UI_STYLE_SIZE
-                                         | OC_UI_STYLE_LAYOUT);
-
-                    oc_ui_container("log toolbar", 0)
-                    {
-                        oc_ui_style buttonStyle = { .layout.margin.x = 4,
-                                                    .layout.margin.y = 4,
-                                                    .roundness = 2,
-                                                    .bgColor = { 0, 0, 0, 0.5 },
-                                                    .color = { 1, 1, 1, 1 } };
-
-                        oc_ui_style_mask buttonStyleMask = OC_UI_STYLE_LAYOUT_MARGINS
-                                                         | OC_UI_STYLE_ROUNDNESS
-                                                         | OC_UI_STYLE_BG_COLOR
-                                                         | OC_UI_STYLE_COLOR;
-
-                        oc_ui_style_match_after(oc_ui_pattern_all(), &buttonStyle, buttonStyleMask);
-                        if(oc_ui_button("Clear").clicked)
-                        {
-                            oc_list_for_safe(app->debugOverlay.logEntries, entry, log_entry, listElt)
-                            {
-                                oc_list_remove(&app->debugOverlay.logEntries, &entry->listElt);
-                                oc_list_push(&app->debugOverlay.logFreeList, &entry->listElt);
-                                app->debugOverlay.entryCount--;
-                            }
-                        }
-                    }
-
-                    oc_ui_style_next(&(oc_ui_style){ .size.width = { OC_UI_SIZE_PARENT, 1 },
-                                                     .size.height = { OC_UI_SIZE_PARENT, 1, 1 } },
-                                     OC_UI_STYLE_SIZE);
-
-                    //TODO: this is annoying to have to do that. Basically there's another 'contents' box inside oc_ui_panel,
-                    //      and we need to change that to size according to its parent (whereas the default is sizing according
-                    //      to its children)
-                    oc_ui_pattern pattern = { 0 };
-                    oc_ui_pattern_push(scratch.arena, &pattern, (oc_ui_selector){ .kind = OC_UI_SEL_OWNER });
-                    oc_ui_pattern_push(scratch.arena, &pattern, (oc_ui_selector){ .kind = OC_UI_SEL_TEXT, .text = OC_STR8("contents") });
-                    oc_ui_style_match_after(pattern, &(oc_ui_style){ .size.width = { OC_UI_SIZE_PARENT, 1 } }, OC_UI_STYLE_SIZE_WIDTH);
-
-                    oc_ui_box* panel = oc_ui_box_lookup("log view");
-                    f32 scrollY = 0;
-                    if(panel)
-                    {
-                        scrollY = panel->scroll.y;
-                    }
-
-                    oc_ui_panel("log view", OC_UI_FLAG_SCROLL_WHEEL_Y)
-                    {
-                        panel = oc_ui_box_top()->parent;
-
-                        oc_ui_style_next(&(oc_ui_style){ .size.width = { OC_UI_SIZE_PARENT, 1 },
-                                                         .size.height = { OC_UI_SIZE_CHILDREN },
-                                                         .layout.axis = OC_UI_AXIS_Y,
-                                                         .layout.margin.y = 5 },
-                                         OC_UI_STYLE_SIZE
-                                             | OC_UI_STYLE_LAYOUT_AXIS);
-
-                        oc_ui_container("contents", 0)
-                        {
-                            oc_list_for(app->debugOverlay.logEntries, entry, log_entry, listElt)
-                            {
-                                log_entry_ui(&app->debugOverlay, entry);
-                            }
-                        }
-                    }
-                    if(app->debugOverlay.logScrollToLast)
-                    {
-                        if(panel->scroll.y >= scrollY)
-                        {
-                            panel->scroll.y = oc_clamp_low(panel->childrenSum[1] - panel->rect.h, 0);
-                        }
-                        else
-                        {
-                            app->debugOverlay.logScrollToLast = false;
-                        }
-                    }
-                    else if(panel->scroll.y >= (panel->childrenSum[1] - panel->rect.h) - 1)
-                    {
-                        app->debugOverlay.logScrollToLast = true;
-                    }
-                }
-            }
-
-            oc_ui_draw();
-        }
-        else
-        {
-            oc_set_color_rgba(0, 0, 0, 0);
-            oc_clear();
-        }
-
-        oc_render(app->debugOverlay.canvas);
-        oc_surface_present(app->debugOverlay.surface);
-
-        oc_scratch_end(scratch);
-
-#if OC_PLATFORM_WINDOWS
-        //NOTE(martin): on windows we set all surfaces to non-synced, and do a single "manual" wait here.
-        //              on macOS each surface is individually synced to the monitor refresh rate but don't block each other
-        oc_vsync_wait(app->window);
-#endif
+        render_frame(app);
     }
 
     if(exports[OC_EXPORT_TERMINATE])
@@ -994,59 +1045,6 @@ i32 orca_runloop(void* user)
             OC_WASM3_TRAP(app->env.m3Runtime, res, "Runtime error");
         }
     }
-
-    oc_request_quit();
-
-    return (0);
-}
-
-int main(int argc, char** argv)
-{
-    oc_log_set_level(OC_LOG_LEVEL_INFO);
-
-    oc_init();
-    oc_clock_init();
-
-    oc_runtime* app = &__orcaApp;
-
-    //NOTE: create window and surfaces
-    oc_rect windowRect = { .x = 100, .y = 100, .w = 810, .h = 610 };
-    app->window = oc_window_create(windowRect, OC_STR8("orca"), 0);
-
-    app->debugOverlay.show = false;
-    app->debugOverlay.surface = oc_surface_create_for_window(app->window, OC_CANVAS);
-    app->debugOverlay.canvas = oc_canvas_create();
-    app->debugOverlay.fontReg = orca_font_create("../resources/Menlo.ttf");
-    app->debugOverlay.fontBold = orca_font_create("../resources/Menlo Bold.ttf");
-    app->debugOverlay.maxEntries = 200;
-    oc_arena_init(&app->debugOverlay.logArena);
-
-#if OC_PLATFORM_WINDOWS
-    //NOTE(martin): on windows we set all surfaces to non-synced, and do a single "manual" wait here.
-    //              on macOS each surface is individually synced to the monitor refresh rate but don't block each other
-    oc_surface_swap_interval(app->debugOverlay.surface, 0);
-#else
-    oc_surface_swap_interval(app->debugOverlay.surface, 1);
-#endif
-
-    oc_surface_deselect();
-
-    oc_ui_init(&app->debugOverlay.ui);
-
-    //NOTE: show window and start runloop
-    oc_window_bring_to_front(app->window);
-    oc_window_focus(app->window);
-    oc_window_center(app->window);
-
-    oc_thread* runloopThread = oc_thread_create(orca_runloop, 0);
-
-    while(!oc_should_quit())
-    {
-        oc_pump_events(-1);
-        //TODO: what to do with mem scratch here?
-    }
-
-    oc_thread_join(runloopThread, NULL);
 
     oc_canvas_destroy(app->debugOverlay.canvas);
     oc_surface_destroy(app->debugOverlay.surface);

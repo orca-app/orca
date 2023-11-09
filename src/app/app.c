@@ -94,6 +94,12 @@ static void oc_terminate_common()
 // Event handling
 //---------------------------------------------------------------
 
+void oc_set_event_callback(oc_event_proc callback, void* userData)
+{
+    oc_appData.eventCallback = callback;
+    oc_appData.eventCallbackData = userData;
+}
+
 void oc_queue_event(oc_event* event)
 {
     oc_ringbuffer* queue = &oc_appData.eventQueue;
@@ -133,6 +139,18 @@ void oc_queue_event(oc_event* event)
         {
             oc_ringbuffer_commit(queue);
         }
+    }
+}
+
+void oc_dispatch_event(oc_event* event)
+{
+    if(oc_appData.eventCallback)
+    {
+        oc_appData.eventCallback(event, oc_appData.eventCallbackData);
+    }
+    else
+    {
+        oc_queue_event(event);
     }
 }
 

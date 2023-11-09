@@ -67,6 +67,8 @@ typedef struct oc_app
     oc_arena eventArena;
 
     oc_ringbuffer eventQueue;
+    oc_event_proc eventCallback;
+    void* eventCallbackData;
 
     oc_frame_stats frameStats;
 

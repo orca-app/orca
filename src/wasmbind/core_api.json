@@ -55,7 +55,7 @@
     "name": "oc_bridge_exit",
     "cname": "oc_bridge_exit",
     "ret": {"name": "void", "tag":"v"},
-    "args":[{ "name": "ec", "tag": "i"}]
+    "args":[{ "name": "ec", "type": {"name": "int", "tag": "i"}}]
 },
 {
 	"name": "oc_bridge_abort_ext",

@@ -398,7 +398,7 @@ void oc_install_keyboard_layout_listener()
 
     oc_event event = {};
     event.type = OC_EVENT_QUIT;
-    oc_queue_event(&event);
+    oc_dispatch_event(&event);
 
     return (NSTerminateCancel);
 }
@@ -431,7 +431,7 @@ void oc_install_keyboard_layout_listener()
 {
     oc_event event = {};
     event.type = OC_EVENT_FRAME;
-    oc_queue_event(&event);
+    oc_dispatch_event(&event);
 }
 
 - (void)applicationDidFinishLaunching:(NSNotification*)notification
@@ -472,7 +472,7 @@ void oc_install_keyboard_layout_listener()
     oc_str8 path = oc_str8_push_cstring(scratch.arena, [filename UTF8String]);
     oc_str8_list_push(scratch.arena, &event.paths, path);
 
-    oc_queue_event(&event);
+    oc_dispatch_event(&event);
 
     //NOTE: oc_queue_event copies paths to the event queue, so we can clear the arena scope here
     oc_scratch_end(scratch);
@@ -493,7 +493,7 @@ void oc_install_keyboard_layout_listener()
     oc_str8 path = oc_str8_push_cstring(scratch.arena, [nsPath UTF8String]);
     oc_str8_list_push(scratch.arena, &event.paths, path);
 
-    oc_queue_event(&event);
+    oc_dispatch_event(&event);
 
     //NOTE: oc_queue_event copies paths to the event queue, so we can clear the arena scope here
     oc_scratch_end(scratch);
@@ -632,7 +632,7 @@ void oc_install_keyboard_layout_listener()
 
     mpWindow->hidden = false;
 
-    oc_queue_event(&event);
+    oc_dispatch_event(&event);
 }
 
 - (void)windowDidResignKey:(NSNotification*)notification
@@ -641,7 +641,7 @@ void oc_install_keyboard_layout_listener()
     event.window = oc_window_handle_from_ptr(mpWindow);
     event.type = OC_EVENT_WINDOW_UNFOCUS;
 
-    oc_queue_event(&event);
+    oc_dispatch_event(&event);
 }
 
 - (void)windowDidMove:(NSNotification*)notification
@@ -664,7 +664,7 @@ void oc_install_keyboard_layout_listener()
     event.move.content.w = contentRect.size.width;
     event.move.content.h = contentRect.size.height;
 
-    oc_queue_event(&event);
+    oc_dispatch_event(&event);
 }
 
 - (void)windowDidResize:(NSNotification*)notification
@@ -688,7 +688,7 @@ void oc_install_keyboard_layout_listener()
     event.move.content.h = contentRect.size.height;
 
     //TODO: also ensure we don't overflow the queue during live resize...
-    oc_queue_event(&event);
+    oc_dispatch_event(&event);
 }
 
 - (void)windowWillStartLiveResize:(NSNotification*)notification
@@ -723,7 +723,7 @@ void oc_install_keyboard_layout_listener()
     event.window = oc_window_handle_from_ptr(mpWindow);
     event.type = OC_EVENT_WINDOW_CLOSE;
 
-    oc_queue_event(&event);
+    oc_dispatch_event(&event);
 
     return (mpWindow->shouldClose);
 }
@@ -822,7 +822,7 @@ static void oc_process_mouse_button(NSEvent* nsEvent, oc_window_data* window, oc
     event.key.mods = oc_convert_osx_mods([nsEvent modifierFlags]);
     event.key.clickCount = [nsEvent clickCount];
 
-    oc_queue_event(&event);
+    oc_dispatch_event(&event);
 }
 
 - (void)mouseDown:(NSEvent*)nsEvent
@@ -875,7 +875,7 @@ static void oc_process_mouse_button(NSEvent* nsEvent, oc_window_data* window, oc
     event.mouse.deltaY = [nsEvent deltaY];
     event.mouse.mods = oc_convert_osx_mods([nsEvent modifierFlags]);
 
-    oc_queue_event(&event);
+    oc_dispatch_event(&event);
 }
 
 - (void)scrollWheel:(NSEvent*)nsEvent
@@ -891,7 +891,7 @@ static void oc_process_mouse_button(NSEvent* nsEvent, oc_window_data* window, oc
     event.mouse.deltaY = -[nsEvent scrollingDeltaY] * factor;
     event.mouse.mods = oc_convert_osx_mods([nsEvent modifierFlags]);
 
-    oc_queue_event(&event);
+    oc_dispatch_event(&event);
 }
 
 - (void)mouseExited:(NSEvent*)nsEvent
@@ -899,7 +899,7 @@ static void oc_process_mouse_button(NSEvent* nsEvent, oc_window_data* window, oc
     oc_event event = {};
     event.window = oc_window_handle_from_ptr(window);
     event.type = OC_EVENT_MOUSE_LEAVE;
-    oc_queue_event(&event);
+    oc_dispatch_event(&event);
 }
 
 - (void)mouseEntered:(NSEvent*)nsEvent
@@ -907,7 +907,7 @@ static void oc_process_mouse_button(NSEvent* nsEvent, oc_window_data* window, oc
     oc_event event = {};
     event.window = oc_window_handle_from_ptr(window);
     event.type = OC_EVENT_MOUSE_ENTER;
-    oc_queue_event(&event);
+    oc_dispatch_event(&event);
 }
 
 - (void)keyDown:(NSEvent*)nsEvent
@@ -926,7 +926,7 @@ static void oc_process_mouse_button(NSEvent* nsEvent, oc_window_data* window, oc
     //    event.key.labelLen = label.len;
     //    memcpy(event.key.label, label.ptr, label.len);
 
-    oc_queue_event(&event);
+    oc_dispatch_event(&event);
 
     [self interpretKeyEvents:@[ nsEvent ]];
 }
@@ -941,7 +941,7 @@ static void oc_process_mouse_button(NSEvent* nsEvent, oc_window_data* window, oc
     event.key.keyCode = oc_scancode_to_keycode(event.key.scanCode);
     event.key.mods = oc_convert_osx_mods([nsEvent modifierFlags]);
 
-    oc_queue_event(&event);
+    oc_dispatch_event(&event);
 }
 
 - (void)flagsChanged:(NSEvent*)nsEvent
@@ -951,7 +951,7 @@ static void oc_process_mouse_button(NSEvent* nsEvent, oc_window_data* window, oc
     event.type = OC_EVENT_KEYBOARD_MODS;
     event.key.mods = oc_convert_osx_mods([nsEvent modifierFlags]);
 
-    oc_queue_event(&event);
+    oc_dispatch_event(&event);
 }
 
 - (BOOL)performKeyEquivalent:(NSEvent*)nsEvent
@@ -968,7 +968,7 @@ static void oc_process_mouse_button(NSEvent* nsEvent, oc_window_data* window, oc
             oc_event event = {};
             event.type = OC_EVENT_QUIT;
 
-            oc_queue_event(&event);
+            oc_dispatch_event(&event);
 
             //[NSApp terminate:self];
             return (YES);
@@ -1087,7 +1087,7 @@ static const NSRange kEmptyRange = { NSNotFound, 0 };
             oc_str8 seq = oc_utf8_encode(event.character.sequence, event.character.codepoint);
             event.character.seqLen = seq.len;
 
-            oc_queue_event(&event);
+            oc_dispatch_event(&event);
         }
     }
     [self unmarkText];
@@ -2203,7 +2203,7 @@ static CVReturn oc_display_link_callback(
 {
     oc_event event = { 0 };
     event.type = OC_EVENT_FRAME;
-    oc_queue_event(&event);
+    oc_dispatch_event(&event);
 
     OCWindow* ocWindow = (OCWindow*)displayLinkContext;
 
