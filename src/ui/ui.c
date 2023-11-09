@@ -4080,8 +4080,9 @@ oc_ui_text_box_result oc_ui_text_box_str8(oc_str8 name, oc_arena* arena, oc_str8
     {
         oc_str32 oldCodepoints = oc_utf8_push_to_codepoints(&ui->frameArena, text);
         oc_str32 codepoints = oldCodepoints;
-        ui->editCursor = oc_clamp(ui->editCursor, 0, codepoints.len);
-        ui->editMark = oc_clamp(ui->editMark, 0, codepoints.len);
+        //TODO(martin): check conversion here. Is there a way for editCursor or editMark to be negative at this point?
+        ui->editCursor = oc_clamp(ui->editCursor, 0, (i32)codepoints.len);
+        ui->editMark = oc_clamp(ui->editMark, 0, (i32)codepoints.len);
 
         //NOTE replace selection with input codepoints
         oc_str32 input = oc_input_text_utf32(&ui->frameArena, &ui->input);
