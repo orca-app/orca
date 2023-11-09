@@ -816,6 +816,12 @@ void event_proc(oc_event* event, void* userData)
         }
         break;
 
+        case OC_EVENT_FRAME:
+        {
+            render_frame(app);
+        }
+        break;
+
         default:
             break;
     }
@@ -1030,11 +1036,9 @@ int main(int argc, char** argv)
 
     oc_set_event_callback(event_proc, app);
 
-    while(!oc_should_quit())
+    while(!__orcaApp.quit)
     {
         oc_pump_events(0);
-
-        render_frame(app);
     }
 
     if(exports[OC_EXPORT_TERMINATE])

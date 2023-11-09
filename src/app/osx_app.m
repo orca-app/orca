@@ -779,6 +779,7 @@ void oc_install_keyboard_layout_listener()
 
 - (void)drawRect:(NSRect)dirtyRect
 {
+    /*
     if(window->style & OC_WINDOW_STYLE_NO_TITLE)
     {
         [NSGraphicsContext saveGraphicsState];
@@ -793,6 +794,19 @@ void oc_install_keyboard_layout_listener()
         [NSGraphicsContext restoreGraphicsState];
         [window->osx.nsWindow invalidateShadow];
     }
+    */
+}
+
+- (BOOL)wantsUpdateLayer
+{
+    return (YES);
+}
+
+- (void)updateLayer
+{
+    oc_event event = { 0 };
+    event.type = OC_EVENT_FRAME;
+    oc_dispatch_event(&event);
 }
 
 - (BOOL)acceptsFirstReponder
@@ -1323,6 +1337,8 @@ oc_str8 oc_clipboard_get_data_for_tag(oc_arena* arena, const char* tag)
 // Window public API
 //---------------------------------------------------------------
 
+void oc_display_link_init(oc_window window);
+
 oc_window oc_window_create(oc_rect contentRect, oc_str8 title, oc_window_style style)
 {
     @autoreleasepool
@@ -1379,6 +1395,8 @@ oc_window oc_window_create(oc_rect contentRect, oc_str8 title, oc_window_style s
         [window->osx.nsWindow setAcceptsMouseMovedEvents:YES];
 
         oc_window windowHandle = oc_window_handle_from_ptr(window);
+
+        oc_display_link_init(windowHandle);
 
         return (windowHandle);
     } //autoreleasepool
@@ -2201,15 +2219,25 @@ static CVReturn oc_display_link_callback(
     CVOptionFlags* flagsOut,
     void* displayLinkContext)
 {
-    oc_event event = { 0 };
-    event.type = OC_EVENT_FRAME;
-    oc_dispatch_event(&event);
+    oc_window_data* window = (oc_window_data*)displayLinkContext;
+    OCWindow* nsWindow = (OCWindow*)window->osx.nsWindow;
 
-    OCWindow* ocWindow = (OCWindow*)displayLinkContext;
+    dispatch_block_t block = ^{
+      [nsWindow.contentView setNeedsDisplay:YES];
+    };
+
+    if([NSThread isMainThread])
+    {
+        block();
+    }
+    else
+    {
+        dispatch_async(dispatch_get_main_queue(), block);
+    }
 
     CGDirectDisplayID displays[4];
     uint32_t matchingDisplayCount;
-    CGError err = CGGetDisplaysWithRect(ocWindow.frame, 4, displays, &matchingDisplayCount);
+    CGError err = CGGetDisplaysWithRect(nsWindow.frame, 4, displays, &matchingDisplayCount);
     if(err == kCGErrorSuccess)
     {
         // determine which display has the greatest intersecting area
@@ -2221,7 +2249,7 @@ static CVReturn oc_display_link_callback(
             for(uint32_t i = 0; i < matchingDisplayCount; ++i)
             {
                 CGRect displayBounds = CGDisplayBounds(displays[i]);
-                CGRect intersection = CGRectIntersection(ocWindow.frame, displayBounds);
+                CGRect intersection = CGRectIntersection(nsWindow.frame, displayBounds);
                 CGFloat intersectArea = intersection.size.width * intersection.size.width;
                 if(selectedDisplay == NULL || intersectArea < selectedIntersectArea)
                 {
@@ -2232,10 +2260,10 @@ static CVReturn oc_display_link_callback(
 
             if(selectedDisplay)
             {
-                CGDirectDisplayID currentDisplay = CVDisplayLinkGetCurrentCGDisplay(ocWindow->displayLink);
+                CGDirectDisplayID currentDisplay = CVDisplayLinkGetCurrentCGDisplay(nsWindow->displayLink);
                 if(currentDisplay != *selectedDisplay)
                 {
-                    CVDisplayLinkSetCurrentCGDisplay(ocWindow->displayLink, *selectedDisplay);
+                    CVDisplayLinkSetCurrentCGDisplay(nsWindow->displayLink, *selectedDisplay);
                 }
             }
         }
@@ -2248,41 +2276,36 @@ static CVReturn oc_display_link_callback(
     return kCVReturnSuccess;
 }
 
-void oc_vsync_init(void)
+void oc_display_link_init(oc_window window)
 {
-}
-
-void oc_vsync_wait(oc_window window)
-{
-    // TODO figure out why this causes stuttering with triple buffering
     oc_window_data* windowData = oc_window_ptr_from_handle(window);
     if(!windowData)
     {
         return;
     }
 
-    OCWindow* ocWindow = (OCWindow*)windowData->osx.nsWindow;
+    OCWindow* nsWindow = (OCWindow*)windowData->osx.nsWindow;
 
     CVReturn ret;
 
-    if((ret = CVDisplayLinkCreateWithActiveCGDisplays(&ocWindow->displayLink)) != kCVReturnSuccess)
+    if((ret = CVDisplayLinkCreateWithActiveCGDisplays(&nsWindow->displayLink)) != kCVReturnSuccess)
     {
         oc_log_error("CVDisplayLinkCreateWithActiveCGDisplays error: %d\n", ret);
     }
 
     CGDirectDisplayID mainDisplay = CGMainDisplayID();
 
-    if((ret = CVDisplayLinkSetCurrentCGDisplay(ocWindow->displayLink, mainDisplay)) != kCVReturnSuccess)
+    if((ret = CVDisplayLinkSetCurrentCGDisplay(nsWindow->displayLink, mainDisplay)) != kCVReturnSuccess)
     {
         oc_log_error("CVDisplayLinkSetCurrentCGDisplay ret: %d\n", ret);
     }
 
-    if((ret = CVDisplayLinkSetOutputCallback(ocWindow->displayLink, oc_display_link_callback, ocWindow)) != kCVReturnSuccess)
+    if((ret = CVDisplayLinkSetOutputCallback(nsWindow->displayLink, oc_display_link_callback, windowData)) != kCVReturnSuccess)
     {
         oc_log_error("CVDisplayLinkSetOutputCallback ret: %d\n", ret);
     }
 
-    if((ret = CVDisplayLinkStart(ocWindow->displayLink)) != kCVReturnSuccess)
+    if((ret = CVDisplayLinkStart(nsWindow->displayLink)) != kCVReturnSuccess)
     {
         oc_log_error("CVDisplayLinkStart ret: %d\n", ret);
     }
