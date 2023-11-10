@@ -109,8 +109,8 @@ inline T oc_cube(T a)
     //NOTE(martin): this macros helps generate variants of a generic 'template' for all arithmetic types.
     // the def parameter must be a macro that takes a type, and optional arguments
 
-    #if OC_COMPILER_CL
-        //NOTE: size_t conflicts with u64 on MSVC, whereas it is a distinct type on clang
+    // NOTE(reuben): msvc and clang **on Windows** define size_t as our u64 so we don't add a definition for it
+    #if OC_PLATFORM_WINDOWS
         #define oc_tga_variants(def, ...)                                                                       \
             def(u8, ##__VA_ARGS__) def(i8, ##__VA_ARGS__) def(u16, ##__VA_ARGS__) def(i16, ##__VA_ARGS__)       \
                 def(u32, ##__VA_ARGS__) def(i32, ##__VA_ARGS__) def(u64, ##__VA_ARGS__) def(i64, ##__VA_ARGS__) \
@@ -119,9 +119,9 @@ inline T oc_cube(T a)
         #define oc_tga_variants(def, ...)                                                                       \
             def(u8, ##__VA_ARGS__) def(i8, ##__VA_ARGS__) def(u16, ##__VA_ARGS__) def(i16, ##__VA_ARGS__)       \
                 def(u32, ##__VA_ARGS__) def(i32, ##__VA_ARGS__) def(u64, ##__VA_ARGS__) def(i64, ##__VA_ARGS__) \
-                    def(size_t, ##__VA_ARGS__)                                                                  \
-                        def(f32, ##__VA_ARGS__) def(f64, ##__VA_ARGS__)
+                    def(f32, ##__VA_ARGS__) def(f64, ##__VA_ARGS__) def(size_t, ##__VA_ARGS__)
     #endif
+
     // This macro generates one _Generic association between a type and its variant
     #define oc_tga_association(type, name) , type : OC_CAT3(name, _, type)
 
@@ -144,10 +144,10 @@ inline T oc_cube(T a)
         static inline type OC_CAT3(oc_cube, _, type)(type a) { return (a * a * a); }
 
 //NOTE(martin): instantiante our templates for all arithmetic types
-oc_tga_variants(oc_min_def)
-    oc_tga_variants(oc_max_def)
-        oc_tga_variants(oc_square_def)
-            oc_tga_variants(oc_cube_def)
+oc_tga_variants(oc_min_def);
+oc_tga_variants(oc_max_def);
+oc_tga_variants(oc_square_def);
+oc_tga_variants(oc_cube_def);
 
     //NOTE(martin): generate the _Generic associations between each type and its associated variant
     #define oc_min(a, b) oc_tga_select_binary(oc_min, a, b)
