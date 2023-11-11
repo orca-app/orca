@@ -534,9 +534,10 @@ def build_tool(args):
         else:
             libs = []
 
-        subprocess.run([
+        cmd = [
             "clang",
             "-std=c11",
+            "-g", "-gcodeview", #output debug info
             "-I", "..",
             "-D", "FLAG_IMPLEMENTATION",
             "-D", f"ORCA_TOOL_VERSION={githash}",
@@ -544,7 +545,9 @@ def build_tool(args):
             "-MJ", "build/main.json",
             "-o", f"build/bin/{outname}",
             "main.c",
-        ], check=True)
+        ]
+
+        subprocess.run(cmd, check=True)
 
         with open("build/compile_commands.json", "w") as f:
             f.write("[\n")
@@ -615,12 +618,7 @@ def install(args):
     # trivial batch scripts.
     if platform.system() == "Windows":
         subprocess.run(["scripts\\mkdir.bat", tool_bin_dir], check=True)
-        subprocess.run(["scripts\\mkdir.bat", versions_dir], check=True)
-        subprocess.run(["scripts\\mkdir.bat", runtime_dir], check=True)
         subprocess.run(["scripts\\mkdir.bat", runtime_bin_dir], check=True)
-        subprocess.run(["scripts\\mkdir.bat", runtime_src_dir], check=True)
-        subprocess.run(["scripts\\mkdir.bat", runtime_res_dir], check=True)
-        subprocess.run(["scripts\\touch.bat", version_file], check=True)
     else:
         os.makedirs(tool_bin_dir, exist_ok=True)
         os.makedirs(runtime_bin_dir, exist_ok=True)
