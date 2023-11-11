@@ -37,7 +37,7 @@ int bundle(int argc, char** argv)
     char** name = flag_str(&c, "n", "name", "out", "the app's name");
     char** icon = flag_str(&c, "i", "icon", NULL, "an image file to use as the application's icon");
     char** version = flag_str(&c, NULL, "version", "0.0.0", "a version number to embed in the application bundle");
-    oc_str8_list* resources = flag_strs(&c, "d", "resource", "copy a file to the app's resource directory");
+    oc_str8_list* resource_dirs = flag_strs(&c, "d", "resource-dir", "copy the contents of a folder to the resource directory");
     char** outDir = flag_str(&c, "C", "out-dir", NULL, "where to place the final application bundle (defaults to the current directory)");
     char** orcaDir = flag_str(&c, "O", "orca-dir", ".", NULL);
     // TODO: mtl-enable-capture
@@ -68,7 +68,7 @@ int bundle(int argc, char** argv)
         OC_STR8(*name),
         OC_STR8(*icon),
         OC_STR8(*version),
-        *resources,
+        *resource_dirs,
         OC_STR8(*outDir),
         OC_STR8(*orcaDir),
         OC_STR8(*module));
@@ -99,7 +99,7 @@ int winBundle(
     oc_str8 name,
     oc_str8 icon,
     oc_str8 version,
-    oc_str8_list resources,
+    oc_str8_list resource_dirs,
     oc_str8 outDir,
     oc_str8 orcaDir,
     oc_str8 module)
@@ -116,8 +116,8 @@ int winBundle(
     oc_str8 exeDir = oc_path_append(a, bundleDir, OC_STR8("bin"));
     oc_str8 resDir = oc_path_append(a, bundleDir, OC_STR8("resources"));
     oc_str8 guestDir = oc_path_append(a, bundleDir, OC_STR8("app"));
-    oc_str8 wasmDir = oc_path_append(a, bundleDir, OC_STR8("wasm"));
-    oc_str8 dataDir = oc_path_append(a, bundleDir, OC_STR8("data"));
+    oc_str8 wasmDir = oc_path_append(a, guestDir, OC_STR8("wasm"));
+    oc_str8 dataDir = oc_path_append(a, guestDir, OC_STR8("data"));
 
     if(oc_sys_exists(bundleDir))
     {
@@ -148,17 +148,16 @@ int winBundle(
     //NOTE: copy wasm module and data
     //-----------------------------------------------------------
     TRY(oc_sys_copy(module, oc_path_append(a, wasmDir, OC_STR8("/module.wasm"))));
-    oc_str8_list_for(resources, it)
+    oc_str8_list_for(resource_dirs, it)
     {
-        oc_str8 resource = it->string;
-        oc_str8 dst = oc_path_append(a, dataDir, oc_path_slice_filename(resource));
-        if(oc_sys_isdir(resource))
+        oc_str8 resource_dir = it->string;
+        if(oc_sys_isdir(resource_dir))
         {
-            oc_sys_copytree(resource, dst);
+            oc_sys_copytree(resource_dir, dataDir);
         }
         else
         {
-            oc_sys_copy(resource, dst);
+            printf("Error: Got %s as a resource dir, but it is not a directory. Ignoring.", resource_dir.ptr);
         }
     }
 

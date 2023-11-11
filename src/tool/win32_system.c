@@ -153,7 +153,8 @@ bool oc_sys_copytree(oc_str8 src, oc_str8 dst)
         return false;
     }
 
-    if(!oc_sys_mkdirs(oc_path_slice_directory(dst)))
+    oc_str8 dst_dir = oc_path_slice_directory(dst);
+    if(!oc_sys_exists(dst_dir) && !oc_sys_mkdirs(dst_dir))
     {
         return false;
     }
