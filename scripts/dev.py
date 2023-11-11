@@ -532,10 +532,15 @@ def build_tool(args):
 
         if platform.system() == "Windows":
             libs = ["-l", "shlwapi"]
+
+        elif platform.system() == "Darwin":
+            libs = ["-framework", "Cocoa"]
         else:
             libs = []
 
-        cmd = [
+        srcFiles = ["main.c"] if platform.system() == "Windows" else ["main.c", "../platform/osx_path.m"]
+
+        subprocess.run([
             "clang",
             "-std=c11",
             "-g", "-gcodeview", #output debug info
@@ -545,17 +550,15 @@ def build_tool(args):
             *libs,
             "-MJ", "build/main.json",
             "-o", f"build/bin/{outname}",
-            "main.c",
-        ]
-
-        subprocess.run(cmd, check=True)
+            *srcFiles
+        ], check=True)
 
         with open("build/compile_commands.json", "w") as f:
             f.write("[\n")
             with open("build/main.json") as m:
                 f.write(m.read())
             f.write("]")
-    
+
     shutil.copy(f"src/tool/build/bin/{outname}", "build/bin/")
 
 

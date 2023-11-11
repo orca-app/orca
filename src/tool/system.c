@@ -6,8 +6,10 @@
 *
 **************************************************************************/
 
-#ifdef OC_PLATFORM_WINDOWS
+#if OC_PLATFORM_WINDOWS
     #include "win32_system.c"
+#elif OC_PLATFORM_MACOS
+    #include "osx_system.c"
 #else
     #error Unsupported platform
 #endif

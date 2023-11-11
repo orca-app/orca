@@ -6,7 +6,7 @@
 *
 **************************************************************************/
 
-#include <processenv.h>
+//#include <processenv.h>
 #include <stdio.h>
 
 #include "flag.h"
@@ -17,6 +17,16 @@
 #include "system.h"
 
 int winBundle(
+    oc_arena* a,
+    oc_str8 name,
+    oc_str8 icon,
+    oc_str8 version,
+    oc_str8_list resources,
+    oc_str8 outDir,
+    oc_str8 orcaDir,
+    oc_str8 module);
+
+int macBundle(
     oc_arena* a,
     oc_str8 name,
     oc_str8 icon,
@@ -62,13 +72,23 @@ int bundle(int argc, char** argv)
         return 1;
     }
 
-#ifdef OC_PLATFORM_WINDOWS
+#if OC_PLATFORM_WINDOWS
     return winBundle(
         &a,
         OC_STR8(*name),
         OC_STR8(*icon),
         OC_STR8(*version),
         *resource_dirs,
+        OC_STR8(*outDir),
+        OC_STR8(*orcaDir),
+        OC_STR8(*module));
+#elif OC_PLATFORM_MACOS
+    return macBundle(
+        &a,
+        OC_STR8(*name),
+        OC_STR8(*icon),
+        OC_STR8(*version),
+        *resources,
         OC_STR8(*outDir),
         OC_STR8(*orcaDir),
         OC_STR8(*module));
@@ -92,7 +112,7 @@ int bundle(int argc, char** argv)
         }                                                                                     \
     }
 
-#ifdef OC_PLATFORM_WINDOWS
+#if OC_PLATFORM_WINDOWS
 
 int winBundle(
     oc_arena* a,
@@ -174,5 +194,93 @@ int winBundle(
 
     return 0;
 }
+#elif OC_PLATFORM_MACOS
 
-#endif // OC_PLATFORM_WINDOWS
+int macBundle(
+    oc_arena* a,
+    oc_str8 name,
+    oc_str8 icon,
+    oc_str8 version,
+    oc_str8_list resources,
+    oc_str8 outDir,
+    oc_str8 orcaDir,
+    oc_str8 module)
+{
+    if(!outDir.ptr)
+    {
+        outDir = oc_sys_getcwd(a);
+    }
+
+    //-----------------------------------------------------------
+    //NOTE: make bundle directory structure
+    //-----------------------------------------------------------
+    oc_str8_list list = { 0 };
+    oc_str8_list_push(a, &list, name);
+    oc_str8_list_push(a, &list, OC_STR8(".app"));
+    name = oc_str8_list_join(a, list);
+
+    oc_str8 bundleDir = oc_path_append(a, outDir, name);
+    oc_str8 contentsDir = oc_path_append(a, bundleDir, OC_STR8("Contents"));
+    oc_str8 exeDir = oc_path_append(a, contentsDir, OC_STR8("MacOS"));
+    oc_str8 resDir = oc_path_append(a, contentsDir, OC_STR8("resources"));
+    oc_str8 guestDir = oc_path_append(a, contentsDir, OC_STR8("app"));
+    oc_str8 wasmDir = oc_path_append(a, contentsDir, OC_STR8("wasm"));
+    oc_str8 dataDir = oc_path_append(a, contentsDir, OC_STR8("data"));
+
+    if(oc_sys_exists(bundleDir))
+    {
+        TRY(oc_sys_rmdir(bundleDir));
+    }
+    TRY(oc_sys_mkdirs(bundleDir));
+    TRY(oc_sys_mkdirs(contentsDir));
+    TRY(oc_sys_mkdirs(exeDir));
+    TRY(oc_sys_mkdirs(resDir));
+    TRY(oc_sys_mkdirs(guestDir));
+    TRY(oc_sys_mkdirs(wasmDir));
+    TRY(oc_sys_mkdirs(dataDir));
+
+    //-----------------------------------------------------------
+    //NOTE: copy orca runtime executable and libraries
+    //-----------------------------------------------------------
+    oc_str8 orcaExe = oc_path_append(a, orcaDir, OC_STR8("build/bin/orca_runtime"));
+    oc_str8 orcaLib = oc_path_append(a, orcaDir, OC_STR8("build/bin/liborca.dylib"));
+    oc_str8 glesLib = oc_path_append(a, orcaDir, OC_STR8("src/ext/angle/bin/libGLESv2.dylib"));
+    oc_str8 eglLib = oc_path_append(a, orcaDir, OC_STR8("src/ext/angle/bin/libEGL.dylib"));
+
+    TRY(oc_sys_copy(orcaExe, exeDir));
+    TRY(oc_sys_copy(orcaLib, exeDir));
+    TRY(oc_sys_copy(glesLib, exeDir));
+    TRY(oc_sys_copy(eglLib, exeDir));
+
+    //-----------------------------------------------------------
+    //NOTE: copy wasm module and data
+    //-----------------------------------------------------------
+    TRY(oc_sys_copy(module, oc_path_append(a, wasmDir, OC_STR8("/module.wasm"))));
+    oc_str8_list_for(resource_dirs, it)
+    {
+        oc_str8 resource_dir = it->string;
+        if(oc_sys_isdir(resource_dir))
+        {
+            oc_sys_copytree(resource_dir, dataDir);
+        }
+        else
+        {
+            printf("Error: Got %s as a resource dir, but it is not a directory. Ignoring.", resource_dir.ptr);
+        }
+    }
+
+    //-----------------------------------------------------------
+    //NOTE: copy runtime resources
+    //-----------------------------------------------------------
+    oc_sys_copy(oc_path_append(a, orcaDir, OC_STR8("resources/Menlo.ttf")), resDir);
+    oc_sys_copy(oc_path_append(a, orcaDir, OC_STR8("resources/Menlo Bold.ttf")), resDir);
+
+    //-----------------------------------------------------------
+    //NOTE make icon
+    //-----------------------------------------------------------
+    //TODO
+
+    return 0;
+}
+
+#endif
