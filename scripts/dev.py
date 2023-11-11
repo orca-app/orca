@@ -543,7 +543,7 @@ def build_tool(args):
         subprocess.run([
             "clang",
             "-std=c11",
-            "-g", "-gcodeview", #output debug info
+            "-g", #"-gcodeview", #output debug info
             "-I", "..",
             "-D", "FLAG_IMPLEMENTATION",
             "-D", f"ORCA_TOOL_VERSION={githash}",

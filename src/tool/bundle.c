@@ -88,7 +88,7 @@ int bundle(int argc, char** argv)
         OC_STR8(*name),
         OC_STR8(*icon),
         OC_STR8(*version),
-        *resources,
+        *resource_dirs,
         OC_STR8(*outDir),
         OC_STR8(*orcaDir),
         OC_STR8(*module));
@@ -201,7 +201,7 @@ int macBundle(
     oc_str8 name,
     oc_str8 icon,
     oc_str8 version,
-    oc_str8_list resources,
+    oc_str8_list resource_dirs,
     oc_str8 outDir,
     oc_str8 orcaDir,
     oc_str8 module)
@@ -224,8 +224,8 @@ int macBundle(
     oc_str8 exeDir = oc_path_append(a, contentsDir, OC_STR8("MacOS"));
     oc_str8 resDir = oc_path_append(a, contentsDir, OC_STR8("resources"));
     oc_str8 guestDir = oc_path_append(a, contentsDir, OC_STR8("app"));
-    oc_str8 wasmDir = oc_path_append(a, contentsDir, OC_STR8("wasm"));
-    oc_str8 dataDir = oc_path_append(a, contentsDir, OC_STR8("data"));
+    oc_str8 wasmDir = oc_path_append(a, guestDir, OC_STR8("wasm"));
+    oc_str8 dataDir = oc_path_append(a, guestDir, OC_STR8("data"));
 
     if(oc_sys_exists(bundleDir))
     {

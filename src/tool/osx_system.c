@@ -138,6 +138,12 @@ bool oc_sys_copy(oc_str8 src, oc_str8 dst)
     }
 
     oc_arena_scope scratch = oc_scratch_begin();
+
+    if(oc_sys_isdir(dst))
+    {
+        dst = oc_path_append(scratch.arena, dst, oc_path_slice_filename(src));
+    }
+
     const char* csrc = oc_str8_to_cstring(scratch.arena, src);
     const char* cdst = oc_str8_to_cstring(scratch.arena, dst);
 
