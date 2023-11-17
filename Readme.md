@@ -37,6 +37,8 @@ The Orca command-line tools must be installed to your system in order to use the
 	- Please note the version requirement! Orca requires C11 atomics, which were only added to MSVC in late 2022.
 - Xcode command-line tools (Mac only)
 	- These can be installed with `xcode-select --install`.
+        - If xcode-select --print-path prints /Library/Developer/CommandLineTools
+		then run `sudo xcode-select --switch /Applications/Xcode.app/Contents/Developer` (Be sure the Xcode app is installed, not just the command line tools).
 
 ### Installation instructions
 
