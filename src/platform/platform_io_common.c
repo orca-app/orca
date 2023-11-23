@@ -116,6 +116,7 @@ oc_file_status oc_file_get_status(oc_file file)
                       .buffer = (char*)&status };
 
     oc_io_cmp cmp = oc_io_wait_single_req(&req);
+    (void)cmp;
     return (status);
 }
 

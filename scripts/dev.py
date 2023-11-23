@@ -101,6 +101,8 @@ def build_platform_layer(target, release):
             build_platform_layer_lib_win(release)
         elif platform.system() == "Darwin":
             build_platform_layer_lib_mac(release)
+        elif platform.system() == "Linux":
+            build_platform_layer_lib_linux(release)
         else:
             log_error(f"can't build platform layer for unknown platform '{platform.system()}'")
             exit(1)
@@ -236,6 +238,25 @@ def build_platform_layer_lib_mac(release):
         "build/bin/liborca.dylib",
     ], check=True)
 
+def build_platform_layer_lib_linux(release):
+    flags = []
+    cflags = ["-std=c11"]
+    debug_flags = ["-O3"] if release else ["-g", "-DOC_DEBUG", "-DOC_LOG_COMPILE_DEBUG"]
+    ldflags = ["-lc"]
+    includes = [ "-Isrc" ]
+
+    # compile platform layer. We use one compilation unit for all C code, and one
+    # compilation unit for all Objective-C code
+    subprocess.run([
+        "cc",
+        *debug_flags, "-c",
+        "-o", "build/orca_c.o",
+        *cflags, *flags, *includes,
+        "src/orca.c"
+    ], check=True)
+    subprocess.run([
+        "ar", "rcs", "build/lib/liborca.a", "build/orca_c.o",
+    ], check=True)
 
 def build_wasm3(release):
     print("Building wasm3...")
@@ -248,6 +269,8 @@ def build_wasm3(release):
         build_wasm3_lib_win(release)
     elif platform.system() == "Darwin":
         build_wasm3_lib_mac(release)
+    elif platform.system() == "Linux":
+        build_wasm3_lib_linux(release)
     else:
         log_error(f"can't build wasm3 for unknown platform '{platform.system()}'")
         exit(1)
@@ -292,6 +315,27 @@ def build_wasm3_lib_mac(release):
     subprocess.run(["rm", "-rf", "build/obj"], check=True)
 
 
+def build_wasm3_lib_linux(release):
+    includes = ["-Isrc/ext/wasm3/source"]
+    debug_flags = ["-g", "-O2"]
+    flags = [
+        *debug_flags,
+        "-foptimize-sibling-calls",
+        "-Wno-extern-initializer",
+        "-Dd_m3VerboseErrorMessages",
+    ]
+
+    for f in glob.iglob("src/ext/wasm3/source/*.c"):
+        name = os.path.splitext(os.path.basename(f))[0] + ".o"
+        subprocess.run([
+            "clang", "-c", *flags, *includes,
+            "-o", f"build/obj/{name}",
+            f,
+        ], check=True)
+    subprocess.run(["ar", "rcs", "build/lib/libwasm3.a", *glob.glob("build/obj/*.o")], check=True)
+    subprocess.run(["rm", "-rf", "build/obj"], check=True)
+
+
 def build_orca(release):
     print("Building Orca runtime...")
 
@@ -302,6 +346,8 @@ def build_orca(release):
         build_orca_win(release)
     elif platform.system() == "Darwin":
         build_orca_mac(release)
+    elif platform.system() == "Linux":
+        build_orca_linux(release)
     else:
         log_error(f"can't build Orca for unknown platform '{platform.system()}'")
         exit(1)
@@ -370,6 +416,28 @@ def build_orca_mac(release):
         "build/bin/orca_runtime",
     ], check=True)
 
+
+def build_orca_linux(release):
+
+    includes = [
+        "-Isrc",
+        "-Isrc/ext",
+        "-Isrc/ext/angle/include",
+        "-Isrc/ext/wasm3/source"
+    ]
+    libs = ["-Lbuild/bin", "-Lbuild/lib", "-lorca", "-lwasm3", "-lpthread", "-lm"]
+    debug_flags = ["-O2"] if release else ["-g", "-DOC_DEBUG -DOC_LOG_COMPILE_DEBUG"]
+    flags = [ *debug_flags ]
+
+    gen_all_bindings()
+
+    # compile orca
+    subprocess.run([
+        "cc", *flags, *includes,
+        "-o", "build/bin/orca_runtime",
+        "src/runtime.c",
+        *libs,
+    ], check=True)
 
 def gen_all_bindings():
     gles_gen("src/ext/gl.xml",
@@ -485,6 +553,9 @@ def verify_angle():
             "src/ext/angle/bin/libEGL.dylib",
             "src/ext/angle/bin/libGLESv2.dylib",
         ]
+    elif platform.system() == "Linux":
+        checkfiles = []
+        log_warning("skipping ANGLE check on linux, TODO: fix later");
 
     if checkfiles is None:
         log_warning("could not verify if the correct version of ANGLE is present")

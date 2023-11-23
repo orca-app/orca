@@ -8,6 +8,8 @@
 
 #include "runtime_clipboard.h"
 
+#include <assert.h>
+
 #if OC_PLATFORM_WINDOWS || OC_PLATFORM_MACOS
 
 oc_wasm_str8 oc_runtime_clipboard_get_string(oc_runtime_clipboard* clipboard, oc_wasm_addr wasmArena)
@@ -90,6 +92,31 @@ oc_event* oc_runtime_clipboard_process_event_begin(oc_arena* arena, oc_runtime_c
 void oc_runtime_clipboard_process_event_end(oc_runtime_clipboard* clipboard)
 {
     clipboard->isGetAllowed = false;
+}
+
+#elif OC_PLATFORM_LINUX
+
+oc_wasm_str8 oc_runtime_clipboard_get_string(oc_runtime_clipboard* clipboard, oc_wasm_addr wasmArena)
+{
+    assert(false); // TODO
+    oc_wasm_str8 result = { 0 };
+    return result;
+}
+
+void oc_runtime_clipboard_set_string(oc_runtime_clipboard* clipboard, oc_wasm_str8 value)
+{
+    assert(false); // TODO
+}
+
+oc_event* oc_runtime_clipboard_process_event_begin(oc_arena* arena, oc_runtime_clipboard* clipboard, oc_event* origEvent)
+{
+    assert(false); // TODO
+    return NULL;
+}
+
+void oc_runtime_clipboard_process_event_end(oc_runtime_clipboard* clipboard)
+{
+    assert(false); // TODO
 }
 
 #else

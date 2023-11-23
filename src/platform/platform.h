@@ -28,6 +28,8 @@
     #error "Can't identify compiler"
 #endif
 
+// TODO: gcc
+
 //-----------------------------------------------------------------
 // OS identification
 //-----------------------------------------------------------------
@@ -37,8 +39,12 @@
     #error "Unsupported OS (32bit only version of Windows)"
 #elif defined(__APPLE__) && defined(__MACH__)
     #define OC_PLATFORM_MACOS 1
-#elif defined(__gnu_linux__)
-    #define PLATFORM_LINUX 1
+#elif defined(__linux__)
+    #define OC_PLATFORM_LINUX 1
+    #define _POSIX_C_SOURCE 200809L
+    #define _DEFAULT_SOURCE 1
+    #define _XOPEN_SOURCE 500
+    #define _GNU_SOURCE 1
 #elif defined(__ORCA__)
     #define OC_PLATFORM_ORCA 1
 #else

@@ -12,7 +12,7 @@
 #include "platform_io.h"
 #include "platform_io_dialog.h"
 
-#if OC_PLATFORM_MACOS || PLATFORM_LINUX
+#if OC_PLATFORM_MACOS || OC_PLATFORM_LINUX
 typedef int oc_file_desc;
 #elif OC_PLATFORM_WINDOWS
     #ifndef WIN32_LEAN_AND_MEAN

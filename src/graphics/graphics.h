@@ -65,7 +65,7 @@ typedef enum
         #define OC_COMPILE_CANVAS 1
     #endif
 
-#elif PLATFORM_LINUX
+#elif OC_PLATFORM_LINUX
     #ifndef OC_COMPILE_GL
         #define OC_COMPILE_GL 1
     #endif
