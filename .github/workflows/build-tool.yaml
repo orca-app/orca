@@ -5,11 +5,7 @@ on: [push]
 
 jobs:
   build-win:
-    name: Build (Windows)
-    strategy:
-      matrix:
-        os: [windows-2019]
-    runs-on: ${{ matrix.os }}
+    runs-on: windows-2022
     env:
       BUILD_OS: ${{ matrix.os }}
     steps:
@@ -23,4 +19,6 @@ jobs:
       - name: Build
         id: build
         shell: cmd
-        run: orcadev.bat build-tool
+        run: |
+          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat
+          orcadev.bat build-tool
