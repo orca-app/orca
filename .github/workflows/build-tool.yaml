@@ -22,3 +22,8 @@ jobs:
         run: |
           call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat
           orcadev.bat build-tool
+
+      - uses: actions/upload-artifact@v3
+        with:
+          name: orca.exe
+          path: build/bin/orca.exe
