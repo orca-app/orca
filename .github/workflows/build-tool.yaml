@@ -17,7 +17,6 @@ jobs:
           python-version: '3.8' 
 
       - name: Build
-        id: build
         shell: cmd
         run: |
           call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat
@@ -25,5 +24,28 @@ jobs:
 
       - uses: actions/upload-artifact@v3
         with:
-          name: orca.exe
+          name: orca-win
           path: build/bin/orca.exe
+  
+  build-macos:
+    strategy:
+      matrix:
+        os:
+          - [macos-latest]
+          - [self-hosted, macos]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.8' 
+
+      - name: Build
+        run: ./orcadev build-tool
+
+      - uses: actions/upload-artifact@v3
+        with:
+          name: orca-mac
+          path: build/bin/orca
