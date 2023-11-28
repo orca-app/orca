@@ -1,0 +1,22 @@
+name: build-tool
+
+# TODO: scope more tightly or something
+on: [push]
+
+jobs:
+  build-win:
+    name: Build (Windows)
+    strategy:
+      matrix:
+        os: [windows-2019]
+    runs-on: ${{ matrix.os }}
+    env:
+      BUILD_OS: ${{ matrix.os }}
+    steps:
+      - name: Check out
+        uses: actions/checkout@v2
+
+      - name: Build
+        id: build
+        shell: cmd
+        run: orcadev.bat build-tool
