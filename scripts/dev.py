@@ -520,6 +520,7 @@ def download_angle():
 
 def build_tool(args):
     ensure_programs()
+    os.makedirs("build/bin", exist_ok=True)
 
     with pushd("src/tool"):
         os.makedirs("build/bin", exist_ok=True)
