@@ -32,7 +32,7 @@ jobs:
       matrix:
         os:
           - [macos-latest]
-          - [self-hosted]
+          - [self-hosted, macos]
     runs-on: ${{ matrix.os }}
     steps:
       - name: Check out
