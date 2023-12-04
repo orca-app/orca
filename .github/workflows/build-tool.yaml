@@ -6,8 +6,6 @@ on: [push]
 jobs:
   build-win:
     runs-on: windows-2022
-    env:
-      BUILD_OS: ${{ matrix.os }}
     steps:
       - name: Check out
         uses: actions/checkout@v4
@@ -26,14 +24,9 @@ jobs:
         with:
           name: orca-win
           path: build/bin/orca.exe
-  
-  build-macos:
-    strategy:
-      matrix:
-        os:
-          - [macos-latest]
-          - [self-hosted, macos]
-    runs-on: ${{ matrix.os }}
+
+  build-macos-x64:
+    runs-on: macos-latest
     steps:
       - name: Check out
         uses: actions/checkout@v4
@@ -47,5 +40,23 @@ jobs:
 
       - uses: actions/upload-artifact@v3
         with:
-          name: orca-mac
+          name: orca-mac-x64
+          path: build/bin/orca
+
+  build-macos-arm64:
+    runs-on: [self-hosted, macos]
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.10' 
+
+      - name: Build
+        run: ./orcadev build-tool
+
+      - uses: actions/upload-artifact@v3
+        with:
+          name: orca-mac-arm64
           path: build/bin/orca
