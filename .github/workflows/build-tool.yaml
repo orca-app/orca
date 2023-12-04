@@ -39,12 +39,12 @@ jobs:
       - name: Tar
         run: |
           cp build/bin/orca orca-mac-x64
-          tar -cf orca.tar orca-mac-x64
+          tar -cf orca-mac-x64.tar orca-mac-x64
 
       - uses: actions/upload-artifact@v3
         with:
           name: orca-mac-x64.tar
-          path: orca.tar
+          path: orca-mac-x64.tar
 
   build-macos-arm64:
     runs-on: [self-hosted, macos]
@@ -61,12 +61,12 @@ jobs:
       - name: Tar
         run: |
           cp build/bin/orca orca-mac-arm64
-          tar -cf orca.tar orca-mac-arm64
+          tar -cf orca-mac-arm64.tar orca-mac-arm64
 
       - uses: actions/upload-artifact@v3
         with:
           name: orca-mac-arm64.tar
-          path: orca.tar
+          path: orca-mac-arm64.tar
   
   mac-make-universal:
     runs-on: macos-latest
