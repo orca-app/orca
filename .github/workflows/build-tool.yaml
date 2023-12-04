@@ -7,8 +7,7 @@ jobs:
   build-win:
     runs-on: windows-2022
     steps:
-      - name: Check out
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - uses: actions/setup-python@v4
         with:
@@ -28,8 +27,7 @@ jobs:
   build-macos-x64:
     runs-on: macos-latest
     steps:
-      - name: Check out
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - uses: actions/setup-python@v4
         with:
@@ -37,17 +35,21 @@ jobs:
 
       - name: Build
         run: ./orcadev build-tool
+      
+      - name: Tar
+        run: |
+          cp build/bin/orca orca-mac-x64
+          tar -cf orca.tar orca-mac-x64
 
       - uses: actions/upload-artifact@v3
         with:
-          name: orca-mac-x64
-          path: build/bin/orca
+          name: orca-mac-x64.tar
+          path: orca.tar
 
   build-macos-arm64:
     runs-on: [self-hosted, macos]
     steps:
-      - name: Check out
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - uses: actions/setup-python@v4
         with:
@@ -55,8 +57,47 @@ jobs:
 
       - name: Build
         run: ./orcadev build-tool
+      
+      - name: Tar
+        run: |
+          cp build/bin/orca orca-mac-arm64
+          tar -cf orca.tar orca-mac-arm64
 
       - uses: actions/upload-artifact@v3
         with:
-          name: orca-mac-arm64
-          path: build/bin/orca
+          name: orca-mac-arm64.tar
+          path: orca.tar
+  
+  mac-make-universal:
+    runs-on: macos-latest
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+      
+      - uses: actions/download-artifact@v3
+        with:
+          name: orca-mac-x64.tar
+
+      - uses: actions/download-artifact@v3
+        with:
+          name: orca-mac-arm64.tar
+      
+      - name: Untar
+        run: |
+          tar -xf orca-mac-x64.tar
+          tar -xf orca-mac-arm64.tar
+      
+      - name: Make universal binary
+        run: |
+          chmod +x orca-mac-x64
+          chmod +x orca-mac-arm64
+          lipo -create orca-mac-x64 orca-mac-arm64 -output orca
+      
+      - name: Tar
+        run: |
+          tar -cf orca.tar orca
+
+      - uses: actions/upload-artifact@v3
+        with:
+          name: orca-mac.tar
+          path: orca.tar
