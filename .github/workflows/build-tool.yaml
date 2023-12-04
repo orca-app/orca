@@ -70,6 +70,7 @@ jobs:
   
   mac-make-universal:
     runs-on: macos-latest
+    needs: [build-macos-x64, build-macos-arm64]
     steps:
       - name: Check out
         uses: actions/checkout@v4
