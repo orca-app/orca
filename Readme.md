@@ -28,7 +28,7 @@ The Orca command-line tools must be installed to your system in order to use the
 ### Requirements
 
 - Windows or Mac (Linux is not yet supported)
-- [Python 3.8](https://www.python.org/) or newer (for command line tools)
+- [Python 3.10](https://www.python.org/) or newer (for command line tools)
 - Clang (version 11.0 or newer)
 	- **Windows users:** `clang` can be installed via the Visual Studio installer. Search for "C++ Clang Compiler".
 	- **Mac users:** Apple's built-in `clang` does not support WebAssembly. We recommend installing `clang` via [Homebrew](https://brew.sh/) with `brew install llvm`.
