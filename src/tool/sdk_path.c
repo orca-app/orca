@@ -6,24 +6,22 @@
 *
 **************************************************************************/
 
-#include <combaseapi.h>
-#include <knownfolders.h>
 #include <stdio.h>
-#include <winerror.h>
+#include <stdlib.h>
+
+#if OC_PLATFORM_WINDOWS
+    #include <combaseapi.h>
+    #include <knownfolders.h>
+    #include <shlobj_core.h>
+    #include <winerror.h>
+    #include "platform/win32_string_helpers.h"
+#endif
 
 #include "flag.h"
 #include "platform/platform_path.h"
-#include "platform/win32_string_helpers.h"
-#include "util/lists.h"
 #include "util/strings.h"
 #include "util/memory.h"
 #include "util.h"
-#include "system.h"
-
-#if OC_PLATFORM_WINDOWS
-    #include <knownfolders.h>
-    #include <shlobj_core.h>
-#endif
 
 oc_str8 getOrcaDir(oc_arena* a);
 oc_str8 getCurrentVersionDir(oc_arena* a, oc_str8 orcaDir);
@@ -74,6 +72,13 @@ oc_str8 getOrcaDir(oc_arena* a)
 
     path = oc_path_append(a, path, OC_STR8("orca"));
     oc_win32_path_normalize_slash_in_place(path);
+    return path;
+}
+#elif OC_PLATFORM_MACOS
+oc_str8 getOrcaDir(oc_arena* a)
+{
+    oc_str8 path = OC_STR8(getenv("HOME"));
+    path = oc_path_append(a, path, OC_STR8(".orca"));
     return path;
 }
 #else

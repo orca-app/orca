@@ -648,6 +648,9 @@ def install(args):
         shutil.copy("src/ext/angle/bin/libEGL.dylib", runtime_bin_dir)
         shutil.copy("src/ext/angle/bin/libGLESv2.dylib", runtime_bin_dir)
 
+    with open(os.path.join(versions_dir, "current"), "w") as f:
+        f.write(version)
+
     print()
     print("The Orca tooling has been installed to the following directory:")
     print(tool_bin_dir)
