@@ -531,7 +531,11 @@ def build_tool(args):
         outname = "orca.exe" if platform.system() == "Windows" else "orca"
 
         if platform.system() == "Windows":
-            libs = ["-l", "shlwapi"]
+            libs = [
+                "-l", "shlwapi",
+                "-l", "shell32",
+                "-l", "ole32",
+            ]
 
         elif platform.system() == "Darwin":
             libs = ["-framework", "Cocoa"]

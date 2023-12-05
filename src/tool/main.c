@@ -6,6 +6,10 @@
 *
 **************************************************************************/
 
+#ifdef _MSC_VER
+    #define _CRT_SECURE_NO_DEPRECATE
+#endif
+
 #include <stdio.h>
 
 #include "flag.h"
@@ -13,6 +17,7 @@
 #include "util/memory.c"
 #include "util/strings.c"
 #include "platform/native_debug.c"
+#include "util.c"
 
 #if OC_PLATFORM_WINDOWS
     #include "platform/win32_path.c"
@@ -22,6 +27,7 @@
     #include "platform/unix_memory.c"
 #endif
 
+#include "sdk_path.c"
 #include "bundle.c"
 #include "system.c"
 
@@ -32,10 +38,8 @@ int main(int argc, char** argv)
     Flag_Context c;
     flag_init_context(&c);
 
-    // TODO: flag_version?
-
+    bool* doSdkPath = flag_command(&c, "sdk-path", "Print the path to the installed Orca SDK.");
     bool* doBundle = flag_command(&c, "bundle", "Package a WebAssembly module into a standalone Orca application.");
-    bool* doSource = flag_command(&c, "source", "Commands for helping compile the Orca source code into your project.");
     bool* doVersion = flag_command(&c, "version", "Print the current Orca version.");
 
     // Hacks to achieve the following:
@@ -72,7 +76,11 @@ int main(int argc, char** argv)
     int rest_argc = flag_rest_argc(&c);
     char** rest_argv = flag_rest_argv(&c);
 
-    if(*doBundle)
+    if(*doSdkPath)
+    {
+        return sdkPath(rest_argc, rest_argv);
+    }
+    else if(*doBundle)
     {
         return bundle(rest_argc, rest_argv);
     }
