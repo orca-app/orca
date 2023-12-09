@@ -66,16 +66,9 @@ typedef enum
     #endif
 
 #elif OC_PLATFORM_LINUX
-    #ifndef OC_COMPILE_GL
-        #define OC_COMPILE_GL 1
-    #endif
-
-    #ifndef OC_COMPILE_CANVAS
-        #if !OC_COMPILE_GL
-            #error "Canvas surface requires an OpenGL backend on Linux. Make sure you define OC_COMPILE_GL to 1."
-        #endif
-        #define OC_COMPILE_CANVAS 1
-    #endif
+    #define OC_COMPILE_GL 0
+    #define OC_COMPILE_GLES 1
+    #define OC_COMPILE_CANVAS 0
 #endif
 
 //NOTE: these macros are used to select backend-specific APIs to include when using milepost

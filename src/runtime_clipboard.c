@@ -120,5 +120,5 @@ void oc_runtime_clipboard_process_event_end(oc_runtime_clipboard* clipboard)
 }
 
 #else
-    #error Default clipboard handling is not supported on this platform"
+    #error Default clipboard handling is not supported on this platform
 #endif

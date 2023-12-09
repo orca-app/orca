@@ -125,6 +125,7 @@ typedef enum
 {
     OC_HOST_PLATFORM_MACOS,
     OC_HOST_PLATFORM_WINDOWS,
+    OC_HOST_PLATFORM_LINUX,
 } oc_host_platform;
 
 ORCA_API oc_host_platform oc_get_host_platform(void);

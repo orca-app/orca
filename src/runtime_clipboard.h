@@ -25,7 +25,7 @@ oc_event* oc_runtime_clipboard_process_event_begin(oc_arena* arena, oc_runtime_c
 void oc_runtime_clipboard_process_event_end(oc_runtime_clipboard* clipboard);
 
 #else
-    #error Default clipboard handling is not supported on this platform"
+    #error Default clipboard handling is not supported on this platform
 #endif
 
 #endif //__RUNTIME_CLIPBOARD_H_

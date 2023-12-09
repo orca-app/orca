@@ -243,12 +243,12 @@ def build_platform_layer_lib_linux(release):
     cflags = ["-std=c11"]
     debug_flags = ["-O3"] if release else ["-g", "-DOC_DEBUG", "-DOC_LOG_COMPILE_DEBUG"]
     ldflags = ["-lc"]
-    includes = [ "-Isrc" ]
+    includes = ["-Isrc", "-Isrc/platform", "-Isrc/ext"]
 
     # compile platform layer. We use one compilation unit for all C code, and one
     # compilation unit for all Objective-C code
     subprocess.run([
-        "cc",
+        "clang",
         *debug_flags, "-c",
         "-o", "build/orca_c.o",
         *cflags, *flags, *includes,
@@ -433,7 +433,7 @@ def build_orca_linux(release):
 
     # compile orca
     subprocess.run([
-        "cc", *flags, *includes,
+        "clang", *flags, *includes,
         "-o", "build/bin/orca_runtime",
         "src/runtime.c",
         *libs,

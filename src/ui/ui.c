@@ -3535,8 +3535,12 @@ const oc_ui_edit_command OC_UI_EDIT_COMMANDS_WINDOWS[] = {
       .move = OC_UI_EDIT_MOVE_NONE }
 };
 
+const oc_ui_edit_command OC_UI_EDIT_COMMANDS_LINUX[] = {
+};
+
 const u32 OC_UI_EDIT_COMMAND_MACOS_COUNT = sizeof(OC_UI_EDIT_COMMANDS_MACOS) / sizeof(oc_ui_edit_command);
 const u32 OC_UI_EDIT_COMMAND_WINDOWS_COUNT = sizeof(OC_UI_EDIT_COMMANDS_WINDOWS) / sizeof(oc_ui_edit_command);
+const u32 OC_UI_EDIT_COMMAND_LINUX_COUNT = sizeof(OC_UI_EDIT_COMMANDS_LINUX) / sizeof(oc_ui_edit_command);
 
 bool oc_ui_edit_is_word_separator(u32 codepoint)
 {
@@ -4105,6 +4109,10 @@ oc_ui_text_box_result oc_ui_text_box_str8(oc_str8 name, oc_arena* arena, oc_str8
             case OC_HOST_PLATFORM_WINDOWS:
                 editCommands = OC_UI_EDIT_COMMANDS_WINDOWS;
                 editCommandCount = OC_UI_EDIT_COMMAND_WINDOWS_COUNT;
+                break;
+            case OC_HOST_PLATFORM_LINUX:
+                editCommands = OC_UI_EDIT_COMMANDS_LINUX;
+                editCommandCount = OC_UI_EDIT_COMMAND_LINUX_COUNT;
                 break;
             default:
                 OC_ASSERT(0, "unknown host platform: %i", hostPlatform);

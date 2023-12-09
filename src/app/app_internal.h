@@ -18,6 +18,8 @@
     #include "win32_app.h"
 #elif OC_PLATFORM_MACOS
     #include "osx_app.h"
+#elif OC_PLATFORM_LINUX
+    #include "linux_app.h"
 #else
     #error "platform not supported yet"
 #endif
