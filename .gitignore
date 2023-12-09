@@ -16,6 +16,7 @@ build
 *.app
 *.dylib
 *.a
+*.swp
 
 Debug/*
 

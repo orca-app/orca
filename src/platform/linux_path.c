@@ -7,6 +7,7 @@
 **************************************************************************/
 
 #include "platform_path.c"
+#include <assert.h>
 
 bool oc_path_is_absolute(oc_str8 path)
 {
@@ -15,7 +16,7 @@ bool oc_path_is_absolute(oc_str8 path)
 
 oc_str8 oc_path_executable(oc_arena* arena)
 {
-  //assert(0 && "Unimplemented");
+  assert(0 && "Unimplemented");
   return (oc_str8){0};
 }
 

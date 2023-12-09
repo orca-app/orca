@@ -109,14 +109,14 @@ inline T oc_cube(T a)
     //NOTE(martin): this macros helps generate variants of a generic 'template' for all arithmetic types.
     // the def parameter must be a macro that takes a type, and optional arguments
 
-    #if OC_COMPILER_CLANG && 0
+    //NOTE: size_t conflicts with u64 on wasm target
+    #if __SIZEOF_SIZE_T__ != __SIZEOF_LONG_LONG__
         #define oc_tga_variants(def, ...)                                                                       \
             def(u8, ##__VA_ARGS__) def(i8, ##__VA_ARGS__) def(u16, ##__VA_ARGS__) def(i16, ##__VA_ARGS__)       \
                 def(u32, ##__VA_ARGS__) def(i32, ##__VA_ARGS__) def(u64, ##__VA_ARGS__) def(i64, ##__VA_ARGS__) \
                     def(size_t, ##__VA_ARGS__)                                                                  \
                         def(f32, ##__VA_ARGS__) def(f64, ##__VA_ARGS__)
     #else
-        //NOTE: size_t conflicts with u64 on MSVC, whereas it is a distinct type on clang
         #define oc_tga_variants(def, ...)                                                                       \
             def(u8, ##__VA_ARGS__) def(i8, ##__VA_ARGS__) def(u16, ##__VA_ARGS__) def(i16, ##__VA_ARGS__)       \
                 def(u32, ##__VA_ARGS__) def(i32, ##__VA_ARGS__) def(u64, ##__VA_ARGS__) def(i64, ##__VA_ARGS__) \

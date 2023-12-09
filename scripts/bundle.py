@@ -36,6 +36,8 @@ def make_app(args):
 		macos_make_app(args)
 	elif platformName == 'Windows':
 		windows_make_app(args)
+	elif platformName == 'Linux':
+		linux_make_app(args)
 	else:
 		log_error("Platform '" +  platformName + "' is not supported for now...")
 		exit(1)
@@ -249,6 +251,9 @@ def windows_make_app(args):
 	#NOTE make icon
 	#-----------------------------------------------------------
 	#TODO
+
+def linux_make_app(args):
+    assert(False, "Unimplemented")
 
 
 if __name__ == "__main__":
