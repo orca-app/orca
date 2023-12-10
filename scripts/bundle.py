@@ -273,10 +273,8 @@ def linux_make_app(args):
 	os.mkdir(data_dir)
 
 	orca_exe = os.path.join(args.orca_dir, 'build/bin/orca_runtime')
-	orca_lib = os.path.join(args.orca_dir, 'build/lib/liborca.a')
 
 	shutil.copy(orca_exe, os.path.join(exe_dir, app_name))
-	shutil.copy(orca_lib, lib_dir)
 	shutil.copy(args.module, os.path.join(wasm_dir, 'module.wasm'))
 
 	if args.resource_files != None:
