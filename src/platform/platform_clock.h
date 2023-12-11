@@ -23,7 +23,7 @@ typedef enum
 } oc_clock_kind;
 
 #if !defined(OC_PLATFORM_ORCA) || !OC_PLATFORM_ORCA
-ORCA_API void oc_clock_init(); // initialize the clock subsystem
+ORCA_API void oc_clock_init(void); // initialize the clock subsystem
 #endif
 
 ORCA_API f64 oc_clock_time(oc_clock_kind clock);
