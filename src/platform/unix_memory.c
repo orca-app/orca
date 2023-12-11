@@ -11,22 +11,15 @@
 /*NOTE(martin):
 	Linux and MacOS don't make a distinction between reserved and committed memory, contrary to Windows
 */
-void oc_base_nop(oc_base_allocator* context, void* ptr, u64 size)
-{
-    (void)context;
-    (void)ptr;
-    (void)size;
-}
+void oc_base_nop(oc_base_allocator* context UNUSED, void* ptr UNUSED, u64 size UNUSED) {}
 
-void* oc_base_reserve_mmap(oc_base_allocator* context, u64 size)
+void* oc_base_reserve_mmap(oc_base_allocator* context UNUSED, u64 size)
 {
-    (void)context;
     return (mmap(0, size, PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE, 0, 0));
 }
 
-void oc_base_release_mmap(oc_base_allocator* context, void* ptr, u64 size)
+void oc_base_release_mmap(oc_base_allocator* context UNUSED, void* ptr, u64 size)
 {
-    (void)context;
     munmap(ptr, size);
 }
 

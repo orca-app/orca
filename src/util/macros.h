@@ -162,4 +162,6 @@ oc_tga_variants(oc_min_def)
 #define oc_clamp_high(a, high) (oc_min((a), (high)))
 #define oc_clamp(a, low, high) (oc_clamp_low(oc_clamp_high((a), (high)), (low)))
 
+#define UNUSED  __attribute__((unused))
+
 #endif //__MACROS_H_
