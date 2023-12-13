@@ -17,7 +17,7 @@ typedef struct oc_runtime_clipboard
     f64 setAllowedUntil;
 } oc_runtime_clipboard;
 
-#if OC_PLATFORM_WINDOWS || OC_PLATFORM_MACOS
+#if OC_PLATFORM_WINDOWS || OC_PLATFORM_MACOS || OC_PLATFORM_LINUX
 
 oc_wasm_str8 oc_runtime_clipboard_get_string(oc_runtime_clipboard* clipboard, oc_wasm_addr wasmArena);
 void oc_runtime_clipboard_set_string(oc_runtime_clipboard* clipboard, oc_wasm_str8 value);

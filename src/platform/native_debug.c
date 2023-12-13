@@ -18,7 +18,7 @@
     #include <io.h>
     #define isatty _isatty
     #define fileno _fileno
-#elif OC_PLATFORM_MACOS || PLATFORM_LINUX
+#elif OC_PLATFORM_MACOS || OC_PLATFORM_LINUX
     #include <unistd.h>
 #endif
 

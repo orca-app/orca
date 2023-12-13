@@ -160,10 +160,13 @@ static int oc_io_convert_open_flags(oc_file_open_flags flags)
     {
         oflags |= O_NOFOLLOW;
     }
+// TODO: it seems that on macos you must allow following of symlinks, where on linux it's the default behavior
+#ifdef OC_PLATFORM_MACOS
     if(flags & OC_FILE_OPEN_SYMLINK)
     {
         oflags |= O_SYMLINK;
     }
+#endif
     return (oflags);
 }
 
@@ -306,9 +309,43 @@ oc_io_error oc_io_raw_fstat(oc_file_desc fd, oc_file_status* status)
         status->type = oc_io_convert_type_from_stat(s.st_mode);
         status->size = s.st_size;
 
-        status->creationDate = oc_datestamp_from_timespec(s.st_birthtimespec);
-        status->accessDate = oc_datestamp_from_timespec(s.st_atimespec);
-        status->modificationDate = oc_datestamp_from_timespec(s.st_mtimespec);
+        // TODO: linux does not keep track of when a file was created, just when it was last modified. For linux we'll choose the oldest of atime, mtime, and ctime
+        status->creationDate = oc_datestamp_from_timespec(
+#if OC_PLATFORM_MACOS
+            s.st_birthtimespec
+#elif OC_PLATFORM_LINUX
+            (s.st_mtim.tv_sec <= s.st_atim.tv_sec)
+                ? s.st_mtim
+            : (s.st_mtim.tv_sec == s.st_atim.tv_sec)
+                ? (s.st_mtim.tv_nsec <= s.st_atim.tv_nsec)
+                    ? s.st_mtim
+                    : s.st_atim
+                : s.st_atim
+
+#else
+    #error "unsupported POSIX platform"
+#endif
+        );
+
+        status->accessDate = oc_datestamp_from_timespec(
+#if OC_PLATFORM_MACOS
+            s.st_atimespec
+#elif OC_PLATFORM_LINUX
+            s.st_atim
+#else
+    #error "unsupported POSIX platform"
+#endif
+        );
+
+        status->modificationDate = oc_datestamp_from_timespec(
+#if OC_PLATFORM_MACOS
+            s.st_mtimespec
+#elif OC_PLATFORM_LINUX
+            s.st_mtim
+#else
+    #error "unsupported POSIX platform"
+#endif
+        );
     }
     return (error);
 }

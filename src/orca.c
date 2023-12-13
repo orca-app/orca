@@ -34,9 +34,9 @@
 	#include"platform/posix_socket.c"
 	*/
 
-#elif PLATFORM_LINUX
+#elif OC_PLATFORM_LINUX
     #include "platform/native_debug.c"
-    #include "platform/unix_base_memory.c"
+    #include "platform/unix_memory.c"
     #include "platform/linux_clock.c"
     #include "platform/posix_io.c"
     #include "platform/posix_thread.c"
@@ -95,6 +95,8 @@
 
 #elif OC_PLATFORM_MACOS
 //NOTE: macos application layer and graphics backends are defined in orca.m
+#elif OC_PLATFORM_LINUX
+// TODO: graphics stuff
 #elif OC_PLATFORM_ORCA
     #include "app/orca_app.c"
     #include "wasmbind/core_api_stubs.c"

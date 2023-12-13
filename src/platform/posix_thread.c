@@ -11,6 +11,7 @@
 #include <string.h>
 #include <sys/time.h>
 #include <unistd.h> // nanosleep()
+#include <assert.h>
 
 #include "platform_thread.h"
 
@@ -29,7 +30,13 @@ static void* oc_thread_bootstrap(void* data)
     oc_thread* thread = (oc_thread*)data;
     if(thread->name.len)
     {
+#if OC_PLATFORM_MACOS
         pthread_setname_np(thread->nameBuffer);
+#elif OC_PLATFORM_LINUX
+        pthread_setname_np(thread->pthread, thread->nameBuffer);
+#else
+    #error "unsupported POSIX platform"
+#endif
     }
     i32 exitCode = thread->start(thread->userPointer);
     return ((void*)(ptrdiff_t)exitCode);
@@ -81,17 +88,29 @@ oc_str8 oc_thread_get_name(oc_thread* thread)
 
 u64 oc_thread_unique_id(oc_thread* thread)
 {
+#if OC_PLATFORM_MACOS
     u64 id;
     pthread_threadid_np(thread->pthread, &id);
     return (id);
+#elif OC_PLATFORM_LINUX
+    return thread->pthread;
+#else
+    #error "unsupported POSIX platform"
+#endif
 }
 
 u64 oc_thread_self_id()
 {
+#if OC_PLATFORM_MACOS
     pthread_t thread = pthread_self();
     u64 id;
     pthread_threadid_np(thread, &id);
     return (id);
+#elif OC_PLATFORM_LINUX
+    return pthread_self();
+#else
+    #error "unsupported POSIX platform"
+#endif
 }
 
 int oc_thread_signal(oc_thread* thread, int sig)
@@ -249,7 +268,7 @@ int oc_condition_broadcast(oc_condition* cond)
 
 void oc_sleep_nano(u64 nanoseconds)
 {
-    timespec rqtp;
+    struct timespec rqtp;
     rqtp.tv_sec = nanoseconds / 1000000000;
     rqtp.tv_nsec = nanoseconds - rqtp.tv_sec * 1000000000;
     nanosleep(&rqtp, 0);
