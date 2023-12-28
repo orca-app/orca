@@ -14,13 +14,10 @@
     #include <knownfolders.h>
     #include <shlobj_core.h>
     #include <winerror.h>
-    #include "platform/win32_string_helpers.h"
 #endif
 
+#include "orca.h"
 #include "flag.h"
-#include "platform/platform_path.h"
-#include "util/strings.h"
-#include "util/memory.h"
 #include "util.h"
 
 oc_str8 getOrcaDir(oc_arena* a);

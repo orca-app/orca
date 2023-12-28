@@ -14,12 +14,8 @@
 #include <ftw.h>
 #include <copyfile.h>
 
+#include "orca.h"
 #include "system.h"
-
-#include "platform/platform_path.h"
-#include "util/debug.h"
-#include "util/memory.h"
-#include "util/strings.h"
 
 oc_sys_err_def oc_sys_err;
 

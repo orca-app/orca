@@ -10,10 +10,7 @@
 #include <stdio.h>
 
 #include "flag.h"
-#include "platform/platform_path.h"
-#include "util/lists.h"
-#include "util/strings.h"
-#include "util/memory.h"
+#include "orca.h"
 #include "system.h"
 
 int winBundle(

@@ -6,8 +6,8 @@
 *
 **************************************************************************/
 
+#include "orca.h"
 #include "util.h"
-#include "util/strings.h"
 
 bool isspace_cheap(int c)
 {

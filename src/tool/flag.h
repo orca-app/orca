@@ -1,9 +1,18 @@
+/*************************************************************************
+*
+*  Orca
+*  Copyright 2023 Martin Fouilleul and the Orca project contributors
+*  See LICENSE.txt for licensing information
+*
+**************************************************************************/
+
 // flag.h -- command-line flag parsing
 //
 //   Inspired by Go's flag module: https://pkg.go.dev/flag
 //
-#ifndef FLAG_H_
-    #define FLAG_H_
+
+#ifndef __FLAG_H_
+    #define __FLAG_H_
 
     #include <assert.h>
     #include <ctype.h>
@@ -16,8 +25,7 @@
     #include <string.h>
     #include <errno.h>
 
-    #include "util/memory.h"
-    #include "util/strings.h"
+    #include "orca.h"
 
 // TODO: *_var function variants
 // void flag_bool_var(bool *var, const char *name, bool def, const char *desc);
@@ -774,7 +782,7 @@ void flag_print_error(Flag_Context* c, FILE* stream)
 
     #endif
 
-#endif // FLAG_H_
+#endif // __FLAG_H_
 
 // Original copyright notice:
 

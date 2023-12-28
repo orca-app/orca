@@ -9,8 +9,7 @@
 #ifndef __SYSTEM_H_
 #define __SYSTEM_H_
 
-#include "util/typedefs.h"
-#include "util/strings.h"
+#include "orca.h"
 
 typedef struct
 {

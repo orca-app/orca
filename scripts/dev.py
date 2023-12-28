@@ -550,6 +550,7 @@ def build_tool(args):
             "-g", #"-gcodeview", #output debug info
             "-I", "..",
             "-D", "FLAG_IMPLEMENTATION",
+            "-D", "OC_NO_APP_LAYER",
             "-D", f"ORCA_TOOL_VERSION={githash}",
             *libs,
             "-MJ", "build/main.json",

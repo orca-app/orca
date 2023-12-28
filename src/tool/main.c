@@ -14,18 +14,8 @@
 
 #include "flag.h"
 
-#include "util/memory.c"
-#include "util/strings.c"
-#include "platform/native_debug.c"
+#include "orca.c"
 #include "util.c"
-
-#if OC_PLATFORM_WINDOWS
-    #include "platform/win32_path.c"
-    #include "platform/win32_string_helpers.c"
-    #include "platform/win32_memory.c"
-#elif OC_PLATFORM_MACOS
-    #include "platform/unix_memory.c"
-#endif
 
 #include "sdk_path.c"
 #include "bundle.c"
