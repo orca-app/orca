@@ -5,8 +5,9 @@
 *  See LICENSE.txt for licensing information
 *
 **************************************************************************/
-#include <stdio.h>
-#include "orca.h"
+
+#define OC_NO_APP_LAYER
+#include "orca.c"
 
 int test_write()
 {
@@ -619,8 +620,6 @@ int test_rights()
 
 int main(int argc, char** argv)
 {
-    oc_init();
-
     oc_arena_scope scratch = oc_scratch_begin();
     oc_arena* arena = scratch.arena;
 

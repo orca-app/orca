@@ -398,6 +398,7 @@ def gen_all_bindings():
         wasm3_bindings="src/wasmbind/clock_api_bind_gen.c",
     )
     bindgen("io", "src/wasmbind/io_api.json",
+        guest_include="platform/platform_io_dialog.h",
         guest_stubs="src/platform/orca_io_stubs.c",
         wasm3_bindings="src/wasmbind/io_api_bind_gen.c",
     )

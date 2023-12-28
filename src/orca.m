@@ -9,7 +9,6 @@
 #include "app/osx_app.m"
 #include "graphics/graphics_common.c"
 #include "graphics/graphics_surface.c"
-#include "platform/osx_path.m"
 
 #if OC_COMPILE_METAL
     #include "graphics/mtl_surface.m"
