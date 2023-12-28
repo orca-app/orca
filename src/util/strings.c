@@ -5,6 +5,10 @@
 *  See LICENSE.txt for licensing information
 *
 **************************************************************************/
+#include "platform/platform.h"
+#if !OC_PLATFORM_ORCA
+    #include <stdio.h>
+#endif
 #include "strings.h"
 #include "platform/platform_debug.h"
 
