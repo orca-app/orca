@@ -1,0 +1,27 @@
+name: create-release
+
+on:
+  push:
+    tags:
+      - '*'
+
+jobs:
+  build-tool:
+    uses: ./.github/workflows/build-tool.yaml
+
+  release:
+      runs-on: ubuntu-latest
+      permissions:
+        contents: write
+      needs: build-tool
+      steps: 
+        - uses: actions/download-artifact@v4
+          with:
+            # when name is not specified, all artifacts from this run will be downloaded
+            path: releases
+            merge-multiple: true
+
+        - uses: ncipollo/release-action@v1
+          with:
+            artifacts: "releases/*"
+

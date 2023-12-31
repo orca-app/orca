@@ -1,7 +1,7 @@
 name: build-tool
 
 # TODO: scope more tightly or something
-on: [push]
+on: [push, workflow_call]
 
 jobs:
   build-win:
@@ -16,10 +16,10 @@ jobs:
       - name: Build
         shell: cmd
         run: |
-          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat
+          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
           orcadev.bat build-tool
 
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: orca-win
           path: build/bin/orca.exe
@@ -41,7 +41,7 @@ jobs:
           cp build/bin/orca orca-mac-x64
           tar -cf orca-mac-x64.tar orca-mac-x64
 
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: orca-mac-x64.tar
           path: orca-mac-x64.tar
@@ -63,7 +63,7 @@ jobs:
           cp build/bin/orca orca-mac-arm64
           tar -cf orca-mac-arm64.tar orca-mac-arm64
 
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: orca-mac-arm64.tar
           path: orca-mac-arm64.tar
@@ -75,11 +75,11 @@ jobs:
       - name: Check out
         uses: actions/checkout@v4
       
-      - uses: actions/download-artifact@v3
+      - uses: actions/download-artifact@v4
         with:
           name: orca-mac-x64.tar
 
-      - uses: actions/download-artifact@v3
+      - uses: actions/download-artifact@v4
         with:
           name: orca-mac-arm64.tar
       
@@ -98,7 +98,7 @@ jobs:
         run: |
           tar -cf orca.tar orca
 
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: orca-mac.tar
           path: orca.tar
