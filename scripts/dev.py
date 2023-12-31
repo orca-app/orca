@@ -542,8 +542,6 @@ def build_tool(args):
         else:
             libs = []
 
-        srcFiles = ["main.c"] if platform.system() == "Windows" else ["main.c", "../platform/osx_path.m"]
-
         subprocess.run([
             "clang",
             "-std=c11",
@@ -555,7 +553,7 @@ def build_tool(args):
             *libs,
             "-MJ", "build/main.json",
             "-o", f"build/bin/{outname}",
-            *srcFiles
+            "main.c"
         ], check=True)
 
         with open("build/compile_commands.json", "w") as f:
