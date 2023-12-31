@@ -9,11 +9,14 @@ jobs:
   build-tool:
     uses: ./.github/workflows/build-tool.yaml
 
+  build-runtime:
+    uses: ./.github/workflows/build-runtime.yaml
+
   release:
       runs-on: ubuntu-latest
       permissions:
         contents: write
-      needs: build-tool
+      needs: [build-tool, build-runtime]
       steps: 
         - uses: actions/download-artifact@v4
           with:
