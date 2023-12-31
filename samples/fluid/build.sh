@@ -12,7 +12,7 @@ else
   echo "If you have copied this script to your own project, you can delete this code."
 fi
 
-ORCA_DIR=../..
+ORCA_DIR=$(orca sdk-path)
 STDLIB_DIR=$ORCA_DIR/src/libc-shim
 
 python3 ../../scripts/embed_text_files.py --prefix=glsl_ --output src/glsl_shaders.h src/shaders/*.glsl
@@ -36,4 +36,4 @@ clang $wasmFlags -Wl,--relocatable -o ./liborca.a $ORCA_DIR/src/orca.c $STDLIB_D
 clang $wasmFlags -L . -lorca -o module.wasm src/main.c
 
 # create app directory and copy files into it
-orca bundle --orca-dir $ORCA_DIR --name Fluid --icon icon.png module.wasm
+orca bundle --name Fluid --icon icon.png module.wasm

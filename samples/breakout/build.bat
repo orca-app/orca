@@ -12,7 +12,7 @@ if exist "..\..\scripts\sample_build_check.py" (
        echo If you have copied this script to your own project, you can delete this code.
 )
 
-set ORCA_DIR=..\..
+for /f %%i in ('orca sdk-path') do set ORCA_DIR=%%i
 set STDLIB_DIR=%ORCA_DIR%\src\libc-shim
 
 :: common flags to build wasm modules
@@ -36,4 +36,4 @@ clang %wasmFlags% -L . -lorca -o module.wasm src/main.c
 IF %ERRORLEVEL% NEQ 0 EXIT /B %ERRORLEVEL%
 
 :: create app directory and copy files into it
-orca bundle --orca-dir %ORCA_DIR% --name Breakout --icon icon.png --resource-dir data module.wasm
+orca bundle --name Breakout --icon icon.png --resource-dir data module.wasm

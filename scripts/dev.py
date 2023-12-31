@@ -6,6 +6,7 @@ import urllib.request
 import shutil
 import subprocess
 from zipfile import ZipFile
+import tarfile
 
 from . import checksum
 from .bindgen import bindgen
@@ -25,16 +26,16 @@ def attach_dev_commands(subparsers):
     build_cmd.set_defaults(func=dev_shellish(build_runtime))
 
     tool_cmd = subparsers.add_parser("build-tool", help="Build the Orca CLI tool from source.")
+    tool_cmd.add_argument("--version", help="embed a version string in the Orca CLI tool (default is git commit hash)")
+    tool_cmd.add_argument("--release", action="store_true", 
+        help="compile Orca CLI tool in release mode (default is debug)")
     tool_cmd.set_defaults(func=dev_shellish(build_tool))
 
     clean_cmd = subparsers.add_parser("clean", help="Delete all build artifacts and start fresh.")
     clean_cmd.set_defaults(func=dev_shellish(clean))
 
-    install_cmd = subparsers.add_parser("install", help="Install the Orca tools into a system folder.")
+    install_cmd = subparsers.add_parser("install", help="Install a dev build of the Orca tools into the system Orca directory.")
     install_cmd.set_defaults(func=dev_shellish(install))
-
-    uninstall_cmd = subparsers.add_parser("uninstall", help="Uninstall the system installation of Orca.")
-    uninstall_cmd.set_defaults(func=dev_shellish(uninstall))
 
 
 def dev_shellish(func):
@@ -66,7 +67,27 @@ def runtime_checksum_last():
 
 
 def runtime_checksum():
-    return dirsum("src")
+    if platform.system() == "Windows":
+        excluded_dirs = ["src\\tool", "src\\ext\\curl", "src\\ext\\zlib", "src\\ext\\microtar"]
+    elif platform.system() == "Darwin":
+        excluded_dirs = ["src/tool", "src/ext/curl", "src/ext/zlib", "src/ext/microtar"]
+    else:
+        log_error(f"can't generate runtime_checksum for unknown platform '{platform.system()}'")
+        exit(1)
+    return dirsum("src", excluded_dirs=excluded_dirs)
+
+
+def tool_checksum():
+    tool_dir = "src\\tool" if platform.system() == "Windows" else "src/tool"
+    return dirsum(tool_dir)
+
+
+def tool_checksum_last():
+    try:
+        with open("build/orcatool.sum", "r") as f:
+            return f.read()
+    except FileNotFoundError:
+        return None
 
 
 def clean(args):
@@ -132,7 +153,7 @@ def build_platform_layer_lib_win(release):
         "shlwapi.lib",
         "dxgi.lib",
         "dxguid.lib",
-        "/LIBPATH:src/ext/angle/lib",
+        "/LIBPATH:build/lib",
         "libEGL.dll.lib",
         "libGLESv2.dll.lib",
         "/DELAYLOAD:libEGL.dll",
@@ -197,7 +218,7 @@ def build_platform_layer_lib_mac(release):
         *ldflags, "-dylib",
         "-o", "build/bin/liborca.dylib",
         "build/orca_c.o", "build/orca_objc.o",
-        "-Lsrc/ext/angle/bin", "-lc",
+        "-Lbuild/bin", "-lc",
         "-framework", "Carbon", "-framework", "Cocoa", "-framework", "Metal", "-framework", "QuartzCore",
         "-weak-lEGL", "-weak-lGLESv2",
     ], check=True)
@@ -304,22 +325,16 @@ def build_orca_win(release):
         "/I", "src/ext/angle/include",
         "/I", "src/ext/wasm3/source",
     ]
-    libs = [
-        "/LIBPATH:build/bin",
-        "orca.dll.lib",
-        "wasm3.lib",
-    ]
 
     subprocess.run([
         "cl",
+        "/c",
         "/Zi", "/Zc:preprocessor",
         "/std:c11", "/experimental:c11atomics",
         *includes,
         "src/runtime.c",
-        "/link", *libs,
-        "/out:build/bin/orca_runtime.exe",
+        "/Fo:build/bin/runtime.obj",
     ], check=True)
-
 
 def build_orca_mac(release):
 
@@ -462,15 +477,15 @@ def verify_angle():
     checkfiles = None
     if platform.system() == "Windows":
         checkfiles = [
-            "src/ext/angle/bin/libEGL.dll",
-            "src/ext/angle/lib/libEGL.dll.lib",
-            "src/ext/angle/bin/libGLESv2.dll",
-            "src/ext/angle/lib/libGLESv2.dll.lib",
+            "build/bin/libEGL.dll",
+            "build/lib/libEGL.dll.lib",
+            "build/bin/libGLESv2.dll",
+            "build/lib/libGLESv2.dll.lib",
         ]
     elif platform.system() == "Darwin":
         checkfiles = [
-            "src/ext/angle/bin/libEGL.dylib",
-            "src/ext/angle/bin/libGLESv2.dylib",
+            "build/bin/libEGL.dylib",
+            "build/bin/libGLESv2.dylib",
         ]
 
     if checkfiles is None:
@@ -515,57 +530,196 @@ def download_angle():
     with ZipFile(filepath, "r") as anglezip:
         anglezip.extractall(path="scripts/files")
 
-    shutil.copytree(f"scripts/files/angle/", "src/ext/angle", dirs_exist_ok=True)
+    shutil.copytree(f"scripts/files/angle/include", "src/ext/angle/include", dirs_exist_ok=True)
+    shutil.copytree(f"scripts/files/angle/bin", "build/bin", dirs_exist_ok=True)
+    if platform.system() == "Windows":
+        shutil.copytree(f"scripts/files/angle/lib", "build/lib", dirs_exist_ok=True)
 
+def build_libcurl():
+    if platform.system() == "Windows":
+        if not os.path.exists("src/ext/curl/builds/static/"):
+            print("Building libcurl...")
+            with pushd("src/ext/curl/winbuild"):
+                subprocess.run("nmake /f Makefile.vc mode=static MACHINE=x64", check=True)
+            shutil.copytree(
+                "src/ext/curl/builds/libcurl-vc-x64-release-static-ipv6-sspi-schannel/",
+                "src/ext/curl/builds/static",
+                dirs_exist_ok=True)
+
+    elif platform.system() == "Darwin":
+        if not os.path.exists("src/ext/curl/builds/static/"):
+            print("Building libcurl...")
+            os.makedirs("src/ext/curl/builds", exist_ok=True)
+            with pushd("src/ext/curl/builds"):
+                prefix = os.path.join(os.getcwd(), "static")
+                subprocess.run([
+                    "../configure",
+                    "--with-secure-transport", 
+                    "--disable-shared", 
+                    "--disable-ldap", "--disable-ldaps", "--disable-aws",
+                    "--disable-manual", "--disable-debug",
+                    "--disable-dependency-tracking",
+                    "--without-brotli", "--without-zstd", "--without-libpsl",
+                    "--without-librtmp", "--without-zlib", "--without-nghttp2", 
+                    "--without-libidn2",
+                    f"--prefix={prefix}",
+                ] , check=True)
+                subprocess.run("make", check=True)
+                subprocess.run(["make", "install"], check=True)
+
+    else:
+        log_error(f"can't build libcurl for unknown platform '{platform.system()}'")
+        exit(1)
+
+
+def build_zlib():
+    if platform.system() == "Windows":
+        if not os.path.exists("src/ext/zlib/build/zlib.lib"):
+            print("Building zlib...")
+            os.makedirs("src/ext/zlib/build", exist_ok=True)
+            with pushd("src/ext/zlib/build"):
+                subprocess.run("nmake /f ../win32/Makefile.msc TOP=.. zlib.lib", check=True)
+
+    elif platform.system() == "Darwin":
+        if not os.path.exists("src/ext/zlib/build/libz.a"):
+            print("Building zlib...")
+            os.makedirs("src/ext/zlib/build", exist_ok=True)
+            with pushd("src/ext/zlib/build"):
+                subprocess.run(["../configure", "--static"], check=True)
+                subprocess.run(["make", "libz.a"], check=True)
+
+    else:
+        log_error(f"can't build zlib for unknown platform '{platform.system()}'")
+        exit(1)
+
+
+def build_tool_win(release, version, outname):
+    includes = [ 
+        "/I", "..",
+        "/I", "../ext/stb",
+        "/I", "../ext/curl/builds/static/include",
+        "/I", "../ext/zlib",
+        "/I", "../ext/microtar"
+    ]
+
+    # debug_flags = ["/O2"] if release else ["/Zi", "/DOC_DEBUG", "/DOC_LOG_COMPILE_DEBUG", "/W3"]
+    debug_flags = ["/O2"] if release else ["/Zi", "/DOC_DEBUG", "/DOC_LOG_COMPILE_DEBUG"]
+
+    libs = [
+        "shlwapi.lib",
+        "shell32.lib",
+        "ole32.lib",
+
+        # libs needed by curl
+        "advapi32.lib", 
+        "crypt32.lib", 
+        "normaliz.lib", 
+        "ws2_32.lib", 
+        "wldap32.lib",
+        "/LIBPATH:../ext/curl/builds/static/lib",
+        "libcurl_a.lib",
+
+        "/LIBPATH:../ext/zlib/build",
+        "zlib.lib",
+    ]
+
+    subprocess.run([
+        "cl",
+        "/nologo",
+        "/Zc:preprocessor",
+        "/std:c11", "/experimental:c11atomics",
+        *debug_flags,
+        *includes,
+        "/DFLAG_IMPLEMENTATION",
+        "/DOC_NO_APP_LAYER",
+        "/DOC_BUILD_DLL",
+        "/DCURL_STATICLIB",
+        f"/DORCA_TOOL_VERSION={version}",
+        "/MD",
+        f"/Febuild/bin/{outname}",
+        "main.c",
+        "/link",
+        *libs,
+    ], check=True)
+
+def build_tool_mac(release, version, outname):
+    includes = [ 
+        "-I", "..",
+        "-I", "../ext/curl/builds/static/include",
+        "-I", "../ext/zlib",
+        "-I", "../ext/microtar"
+    ]
+
+    debug_flags = ["-O2"] if release else ["-g", "-DOC_DEBUG", "-DOC_LOG_COMPILE_DEBUG"]
+
+    libs = [
+        "-framework", "Cocoa",
+
+        # libs needed by curl
+        "-framework", "SystemConfiguration",
+        "-framework", "CoreFoundation", 
+        "-framework", "CoreServices",
+        "-framework", "SystemConfiguration",
+        "-framework", "Security",
+        "-L../ext/curl/builds/static/lib", "-lcurl",
+
+        "-L../ext/zlib/build", "-lz",
+    ]
+    subprocess.run([
+        "clang",
+        "-mmacos-version-min=10.15.4",
+        "-std=c11",
+        *debug_flags,
+        *includes,
+        "-D", "FLAG_IMPLEMENTATION",
+        "-D", "OC_NO_APP_LAYER",
+        "-D", "OC_BUILD_DLL",
+        "-D", "CURL_STATICLIB",
+        "-D", f"ORCA_TOOL_VERSION={version}",
+        *libs,
+        "-MJ", "build/main.json",
+        "-o", f"build/bin/{outname}",
+        "main.c",
+    ], check=True)
+
+    with open("build/compile_commands.json", "w") as f:
+        f.write("[\n")
+        with open("build/main.json") as m:
+            f.write(m.read())
+        f.write("]")
 
 def build_tool(args):
+    print("Building Orca CLI tool...")
+
     ensure_programs()
+    build_libcurl()
+    build_zlib()
+
     os.makedirs("build/bin", exist_ok=True)
 
     with pushd("src/tool"):
         os.makedirs("build/bin", exist_ok=True)
-
-        res = subprocess.run(["git", "rev-parse", "--short", "HEAD"], check=True, capture_output=True, text=True)
-        githash = res.stdout.strip()
+        
+        if args.version == None:
+            res = subprocess.run(["git", "rev-parse", "--short", "HEAD"], check=True, capture_output=True, text=True)
+            version = res.stdout.strip()
+        else:
+            version = args.version
 
         outname = "orca.exe" if platform.system() == "Windows" else "orca"
 
         if platform.system() == "Windows":
-            libs = [
-                "-l", "shlwapi",
-                "-l", "shell32",
-                "-l", "ole32",
-            ]
-
+            build_tool_win(args.release, version, outname)
         elif platform.system() == "Darwin":
-            libs = ["-framework", "Cocoa"]
+            build_tool_mac(args.release, version, outname)
         else:
-            libs = []
-
-        srcFiles = ["main.c"] if platform.system() == "Windows" else ["main.c", "../platform/osx_path.m"]
-
-        subprocess.run([
-            "clang",
-            "-std=c11",
-            "-g", #"-gcodeview", #output debug info
-            "-I", "..",
-            "-D", "FLAG_IMPLEMENTATION",
-            "-D", "OC_NO_APP_LAYER",
-            "-D", f"ORCA_TOOL_VERSION={githash}",
-            *libs,
-            "-MJ", "build/main.json",
-            "-o", f"build/bin/{outname}",
-            *srcFiles
-        ], check=True)
-
-        with open("build/compile_commands.json", "w") as f:
-            f.write("[\n")
-            with open("build/main.json") as m:
-                f.write(m.read())
-            f.write("]")
+            log_error(f"can't build cli tool for unknown platform '{platform.system()}'")
+            exit(1)
 
     shutil.copy(f"src/tool/build/bin/{outname}", "build/bin/")
 
+    with open("build/orcatool.sum", "w") as f:
+        f.write(tool_checksum())
 
 def prompt(msg):
     while True:
@@ -578,12 +732,17 @@ def prompt(msg):
             print("Please enter \"yes\" or \"no\" and press return.")
 
 
-def install_dir():
-    if platform.system() == "Windows":
-        return os.path.join(os.getenv("LOCALAPPDATA"), "orca")
-    else:
-        return os.path.expanduser(os.path.join("~", ".orca"))
-
+def system_orca_dir():
+    try:
+        res = subprocess.run(["orca", "install-path"], check=True, capture_output=True, text=True)
+        install_path = res.stdout.strip()
+        return install_path
+    except subprocess.CalledProcessError:
+        print("You must install the Orca cli tool and add the directory where you") 
+        print("installed it to your PATH before the dev tooling can determine the")
+        print("system Orca directory. You can download the cli tool from:")
+        print("https://github.com/orca-app/orca/releases/latest")
+        exit(1)
 
 def install(args):
     if runtime_checksum_last() is None:
@@ -600,83 +759,64 @@ def install(args):
             return
         print()
 
-    # TODO: Check for the CLI tool
+    if tool_checksum_last() is None:
+        print("You must build the Orca tool before you can install it to your")
+        print("system. Please run the following command first:")
+        print()
+        print("orcadev build-tool")
+        exit(1)
 
+    if tool_checksum() != tool_checksum_last():
+        print("Your build of the Orca tool is out of date. We recommend that you")
+        print("rebuild the tool first with `orcadev build-tool`.")
+        if not prompt("Do you wish to install the tool anyway?"):
+            return
+        print()
+
+    orca_dir = system_orca_dir()
     version = orca_version()
+    dest = os.path.join(orca_dir, version)
 
-    dest = install_dir()
-    tool_bin_dir = os.path.join(dest, "bin")
-    versions_dir = os.path.join(dest, "versions")
-    runtime_dir = os.path.join(versions_dir, version)
-    runtime_bin_dir = os.path.join(runtime_dir, "bin")
-    runtime_src_dir = os.path.join(runtime_dir, "src")
-    runtime_res_dir = os.path.join(runtime_dir, "resources")
+    bin_dir = os.path.join(dest, "bin")
+    libc_dir = os.path.join(dest, "orca-libc")
+    res_dir = os.path.join(dest, "resources")
+    src_dir = os.path.join(dest, "src")
 
-    yeetdir(tool_bin_dir)
-    yeetdir(runtime_dir)
-
-    # The MS Store version of Python does some really stupid stuff with AppData:
-    # https://git.handmade.network/hmn/orca/issues/32
-    #
-    # Any new files and folders created in AppData actually get created in a special
-    # folder specific to the Python version. However, if the files or folders already
-    # exist, the redirect does not happen. So, if we first use the shell to create the
-    # paths we need, the following scripts work regardless of Python install.
-    #
-    # Also apparently you can't just do mkdir in a subprocess call here, hence the
-    # trivial batch scripts.
-    if platform.system() == "Windows":
-        subprocess.run(["scripts\\mkdir.bat", tool_bin_dir], check=True)
-        subprocess.run(["scripts\\mkdir.bat", runtime_bin_dir], check=True)
-    else:
-        os.makedirs(tool_bin_dir, exist_ok=True)
-        os.makedirs(runtime_bin_dir, exist_ok=True)
+    yeetdir(dest)
+    os.makedirs(bin_dir, exist_ok=True)
+    os.makedirs(libc_dir, exist_ok=True)
+    os.makedirs(res_dir, exist_ok=True)
+    os.makedirs(src_dir, exist_ok=True)
 
     tool_path = "build\\bin\\orca.exe" if platform.system() == "Windows" else "build/bin/orca"
 
-    shutil.copy(tool_path, tool_bin_dir)
-    shutil.copytree("src", runtime_src_dir, dirs_exist_ok=True)
-    shutil.copytree("resources", runtime_res_dir, dirs_exist_ok=True)
+    shutil.copy(tool_path, bin_dir)
+    shutil.copytree("src", src_dir, dirs_exist_ok=True)
+    shutil.copytree("resources", res_dir, dirs_exist_ok=True)
     if platform.system() == "Windows":
-        shutil.copy("build\\bin\\orca.dll", runtime_bin_dir)
-        shutil.copy("build\\bin\\orca_runtime.exe", runtime_bin_dir)
-        shutil.copy("src\\ext\\angle\\bin\\libEGL.dll", runtime_bin_dir)
-        shutil.copy("src\\ext\\angle\\bin\\libGLESv2.dll", runtime_bin_dir)
+        shutil.copy("build\\bin\\orca.dll", bin_dir)
+        shutil.copy("build\\bin\\orca.dll.lib", bin_dir)
+        shutil.copy("build\\bin\\wasm3.lib", bin_dir)
+        shutil.copy("build\\bin\\runtime.obj", bin_dir)
+        shutil.copy("build\\bin\\libEGL.dll", bin_dir)
+        shutil.copy("build\\bin\\libGLESv2.dll", bin_dir)
     else:
-        shutil.copy("build/bin/liborca.dylib", runtime_bin_dir)
-        shutil.copy("build/bin/mtl_renderer.metallib", runtime_bin_dir)
-        shutil.copy("build/bin/orca_runtime", runtime_bin_dir)
-        shutil.copy("src/ext/angle/bin/libEGL.dylib", runtime_bin_dir)
-        shutil.copy("src/ext/angle/bin/libGLESv2.dylib", runtime_bin_dir)
+        shutil.copy("build/bin/liborca.dylib", bin_dir)
+        shutil.copy("build/bin/mtl_renderer.metallib", bin_dir)
+        shutil.copy("build/bin/orca_runtime", bin_dir)
+        shutil.copy("build/bin/libEGL.dylib", bin_dir)
+        shutil.copy("build/bin/libGLESv2.dylib", bin_dir)
 
-    with open(os.path.join(versions_dir, "current"), "w") as f:
+    shutil.copy(tool_path, orca_dir)
+
+    with open(os.path.join(orca_dir, "current_version"), "w") as f:
         f.write(version)
 
+    # TODO(shaw): should dev versions and their checksums be added to all_versions file?
+
     print()
-    print("The Orca tooling has been installed to the following directory:")
-    print(tool_bin_dir)
-    print()
-    print(f"The Orca runtime (version {version}) has been installed to the following directory:")
-    print(runtime_dir)
-    if platform.system() == "Windows":
-        print()
-        print("The tool will need to be on your PATH in order to actually use it.")
-        if prompt("Would you like to automatically add Orca to your PATH?"):
-            try:
-                subprocess.run(["powershell", "-ExecutionPolicy", "Bypass", "scripts\\updatepath.ps1", f'"{tool_bin_dir}"'], check=True)
-                print("Orca has been added to your PATH. Restart any open terminals to use it.")
-            except subprocess.CalledProcessError:
-                msg = log_warning(f"Failed to automatically add Orca to your PATH.")
-                msg.more("Please manually add the following directory to your PATH:")
-                msg.more(tool_bin_dir)
-        else:
-            print("No worries. You can manually add Orca to your PATH in the Windows settings")
-            print("by searching for \"environment variables\".")
-    else:
-        print()
-        print("Make sure the Orca tools are on your PATH by adding the following to your shell config:")
-        print()
-        print(f"export PATH=\"{tool_bin_dir}:$PATH\"")
+    print("A dev build of Orca has been installed to the following directory:")
+    print(dest)
     print()
 
 
@@ -697,43 +837,7 @@ def get_source_root():
         dir = newdir
 
 
-def install_path():
-    if platform.system() == "Windows":
-        orca_dir = os.path.join(os.getenv("LOCALAPPDATA"), "orca")
-    else:
-        orca_dir = os.path.expanduser(os.path.join("~", ".orca"))
-
-    bin_dir = os.path.join(orca_dir, "bin")
-
-    return (orca_dir, bin_dir)
-
-
 def yeet(path):
     os.makedirs(path, exist_ok=True)
     shutil.rmtree(path)
 
-
-def uninstall(args):
-    orca_dir, bin_dir = install_path()
-
-    if not os.path.exists(orca_dir):
-        print("Orca is not installed on your system.")
-        exit()
-
-    print(f"Orca is currently installed at {orca_dir}.")
-    if prompt("Are you sure you want to uninstall?"):
-        yeet(orca_dir)
-
-        if platform.system() == "Windows":
-            print("Orca has been uninstalled from your system.")
-            print()
-            if prompt("Would you like to automatically remove Orca from your PATH?"):
-                try:
-                    subprocess.run(["powershell", "-ExecutionPolicy", "Bypass", "scripts\\updatepath.ps1", f'"{bin_dir}"', "-remove"], check=True)
-                    print("Orca has been removed from your PATH.")
-                except subprocess.CalledProcessError:
-                    msg = log_warning(f"Failed to automatically remove Orca from your PATH.")
-                    msg.more("Please manually remove the following directory from your PATH:")
-                    msg.more(bin_dir)
-        else:
-            print("Orca has been uninstalled from your system. You may wish to remove it from your PATH.")

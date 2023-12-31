@@ -44,3 +44,11 @@ src/ext/angle
 sketches/*/bin
 
 .cache
+
+tags
+
+src/ext/curl/builds/
+src/ext/curl/winbuild/*.inc
+src/ext/curl/winbuild/*.idb
+src/ext/zlib/build/
+

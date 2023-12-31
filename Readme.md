@@ -23,12 +23,9 @@ To learn more about the project and its goals, read the [announcement post](http
 
 The Orca command-line tools must be installed to your system in order to use them in your own projects.
 
-**At this early stage, you must build Orca yourself - in the future, there will be fewer dependencies and this installation process will be streamlined.**
-
 ### Requirements
 
 - Windows or Mac (Linux is not yet supported)
-- [Python 3.10](https://www.python.org/) or newer (for command line tools)
 - Clang (version 11.0 or newer)
 	- **Windows users:** `clang` can be installed via the Visual Studio installer. Search for "C++ Clang Compiler".
 	- **Mac users:** Apple's built-in `clang` does not support WebAssembly. We recommend installing `clang` via [Homebrew](https://brew.sh/) with `brew install llvm`.
@@ -38,30 +35,28 @@ The Orca command-line tools must be installed to your system in order to use the
 - Xcode command-line tools (Mac only)
 	- These can be installed with `xcode-select --install`.
 
-### Installation instructions
+### Installation Instructions
 
-**Windows users:** You must perform all the following actions from a 64-bit Visual Studio command prompt. We recommend searching for "x64 Native Tools Command Prompt".
+Download the cli tool from https://github.com/orca-app/orca/releases/latest, to the directory where you want orca to be installed.
 
-Clone the repo, then `cd` into the `orca` directory:
+**Windows:**  
+Download `orca.exe`
 
-```
-git clone https://git.handmade.network/hmn/orca.git
-cd orca
-```
+**Mac:**  
+Download `orca-cli-tool-mac-universal.tar.gz`  
+Extract: `tar -xzf orca-cli-tool-mac-universal.tar.gz`
 
-Build the Orca runtime:
+Add the directory where you installed the cli tool to your PATH.  
+**Windows Instructions:** https://learn.microsoft.com/en-us/previous-versions/office/developer/sharepoint-2010/ee537574(v=office.14)  
+**Mac Instructions:** https://support.apple.com/guide/terminal/use-environment-variables-apd382cc5fa-4f58-4449-b20a-41c53c006f8f/mac
 
-```
-python orca dev build-runtime
-```
-
-Install the Orca dev tools. If on Windows, the tool can automatically add `orca` to your PATH. Otherwise, you must manually add the Orca install directory to your PATH, e.g. by updating `.zshrc` or `.bashrc`.
+Install the latest version of the sdk:
 
 ```
-python orca dev install
+orca update
 ```
 
-Finally, verify that Orca is successfully installed by running the `orca version` command. Note the lack of `./`!
+Finally, verify that Orca is successfully installed by running the `orca version` command.
 
 ```
 orca version
@@ -104,6 +99,30 @@ The following additional resources may also help you familiarize yourself with O
 	- [`ui`](./samples/ui) showcases the UI API and Orca's default UI widgets.
 - The [API Cheatsheets](./doc/cheatsheets) provide a list of Orca API functions, grouped by topic.
 
+## For Developers
+
+The following instructions are only relevant for those who want to develop the orca runtime or orca cli tool.
+
+### Requirements
+
+All of the installation requirements for regular users also apply for developers, with the addition of python.
+
+- [Python 3.10](https://www.python.org/) or newer
+
+### Building 
+
+To build the runtime:
+
+```
+orcadev build-runtime
+```
+
+To build the cli tool:
+
+```
+orcadev build-tool
+```
+
 ## FAQ
 
 **What platforms does Orca support?**
@@ -134,7 +153,7 @@ Please ensure that you have the latest version of Visual Studio and MSVC install
 
 **I am getting errors saying that `orca` is not found.**
 
-Please ensure that you have installed Orca to your system per the installation instructions above. Please also ensure that the Orca install directory is on your PATH. The installation path is printed when running `./orca dev install`.
+Please ensure that you have installed Orca to your system per the installation instructions above. Please also ensure that the Orca install directory is on your PATH.
 
 ## License
 

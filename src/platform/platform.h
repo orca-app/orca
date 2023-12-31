@@ -34,7 +34,7 @@
 #if defined(_WIN64)
     #define OC_PLATFORM_WINDOWS 1
 #elif defined(_WIN32)
-    #error "Unsupported OS (32bit only version of Windows)"
+	#error "Unsupported OS (32bit only version of Windows)"
 #elif defined(__APPLE__) && defined(__MACH__)
     #define OC_PLATFORM_MACOS 1
 #elif defined(__gnu_linux__)

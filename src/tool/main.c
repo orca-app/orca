@@ -10,18 +10,28 @@
     #define _CRT_SECURE_NO_DEPRECATE
 #endif
 
+#ifndef ORCA_TOOL_VERSION
+    #define ORCA_TOOL_VERSION unknown
+#endif
+// I love C so much
+#define _TOSTRING(x) #x
+#define TOSTRING(x) _TOSTRING(x)
+
 #include <stdio.h>
 
 #include "flag.h"
 
 #include "orca.c"
 #include "util.c"
-
+#include "version.c"
 #include "sdk_path.c"
+#include "install_path.c"
 #include "bundle.c"
+#include "microtar.c"
+#include "tarball.c"
+#include "update.c"
+#include "list.c"
 #include "system.c"
-
-int version(int argc, char** argv);
 
 int main(int argc, char** argv)
 {
@@ -29,8 +39,11 @@ int main(int argc, char** argv)
     flag_init_context(&c);
 
     bool* doSdkPath = flag_command(&c, "sdk-path", "Print the path to the installed Orca SDK.");
+    bool* doInstallPath = flag_command(&c, "install-path", "Prints the path to the root directory where Orca is installed");
     bool* doBundle = flag_command(&c, "bundle", "Package a WebAssembly module into a standalone Orca application.");
     bool* doVersion = flag_command(&c, "version", "Print the current Orca version.");
+    bool* doUpdate = flag_command(&c, "update", "Install the latest version of Orca.");
+    bool* doList = flag_command(&c, "list", "List installed versions of Orca.");
 
     // Hacks to achieve the following:
     // - `orca` => `orca -h`
@@ -70,6 +83,10 @@ int main(int argc, char** argv)
     {
         return sdkPath(rest_argc, rest_argv);
     }
+    else if(*doInstallPath)
+    {
+        return installPath(rest_argc, rest_argv);
+    }
     else if(*doBundle)
     {
         return bundle(rest_argc, rest_argv);
@@ -78,30 +95,19 @@ int main(int argc, char** argv)
     {
         return version(rest_argc, rest_argv);
     }
+    else if(*doUpdate)
+    {
+        return update(rest_argc, rest_argv);
+    }
+    else if(*doList)
+    {
+        return list(rest_argc, rest_argv);
+    }
     else
     {
         fprintf(stderr, "ERROR: didn't handle all available commands or something, o no\n");
         return 1;
     }
-
-    return 0;
-}
-
-#ifndef ORCA_TOOL_VERSION
-    #define ORCA_TOOL_VERSION unknown
-#endif
-
-// I love C so much
-#define _TOSTRING(x) #x
-#define TOSTRING(x) _TOSTRING(x)
-
-int version(int argc, char** argv)
-{
-    fprintf(stderr, "Orca CLI tool version: ");
-    printf(TOSTRING(ORCA_TOOL_VERSION));
-    fprintf(stderr, "\n");
-
-    // TODO: Print runtime / install version info
 
     return 0;
 }

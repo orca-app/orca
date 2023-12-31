@@ -9,19 +9,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#if OC_PLATFORM_WINDOWS
-    #include <combaseapi.h>
-    #include <knownfolders.h>
-    #include <shlobj_core.h>
-    #include <winerror.h>
-#endif
-
 #include "orca.h"
 #include "flag.h"
 #include "util.h"
-
-oc_str8 getOrcaDir(oc_arena* a);
-oc_str8 getCurrentVersionDir(oc_arena* a, oc_str8 orcaDir);
+#include "system.h"
 
 int sdkPath(int argc, char** argv)
 {
@@ -31,7 +22,8 @@ int sdkPath(int argc, char** argv)
     Flag_Context c;
     flag_init_context(&c);
 
-    // TODO: version selection
+    flag_help(&c, "Prints the path to the installed Orca SDK. For use in scripts, e.g. `-I $(orca sdk-path)/src`.");
+    char** version = flag_str(&c, "v", "version", NULL, "select a specific version of the Orca SDK (default is latest version)");
 
     if(!flag_parse(&c, argc, argv))
     {
@@ -44,61 +36,12 @@ int sdkPath(int argc, char** argv)
         return 1;
     }
 
-    oc_str8 orcaDir = getOrcaDir(&a);
-    oc_str8 sdkDir = getCurrentVersionDir(&a, orcaDir);
+    oc_str8 version_dir = *version
+        ? get_version_dir(&a, OC_STR8(*version), true)
+        : current_version_dir(&a, true);
 
-    printf("%.*s", oc_str8_printf(sdkDir));
+    oc_str8 sdk_dir = oc_path_canonical(&a, version_dir);
+    printf("%.*s", oc_str8_ip(sdk_dir));
 
     return 0;
-}
-
-#if OC_PLATFORM_WINDOWS
-oc_str8 getOrcaDir(oc_arena* a)
-{
-    PWSTR pathWCStr;
-    HRESULT res = SHGetKnownFolderPath(&FOLDERID_LocalAppData, 0, NULL, &pathWCStr);
-    if(!SUCCEEDED(res))
-    {
-        fprintf(stderr, "Failed to locate system orca directory.\n");
-        exit(1);
-    }
-
-    oc_str16 pathWide = oc_str16_from_buffer(lstrlenW(pathWCStr), pathWCStr);
-    oc_str8 path = oc_win32_wide_to_utf8(a, pathWide);
-    CoTaskMemFree(pathWCStr);
-
-    path = oc_path_append(a, path, OC_STR8("orca"));
-    oc_win32_path_normalize_slash_in_place(path);
-    return path;
-}
-#elif OC_PLATFORM_MACOS
-oc_str8 getOrcaDir(oc_arena* a)
-{
-    oc_str8 path = OC_STR8(getenv("HOME"));
-    path = oc_path_append(a, path, OC_STR8(".orca"));
-    return path;
-}
-#else
-    #error "Unknown platform for sdk-path"
-#endif
-
-oc_str8 getCurrentVersionDir(oc_arena* a, oc_str8 orcaDir)
-{
-    oc_str8 currentFilePath = oc_path_append(a, orcaDir, OC_STR8("versions/current"));
-    FILE* current = fopen(currentFilePath.ptr, "r");
-    if(!current)
-    {
-        fprintf(stderr, "Failed to determine current Orca SDK version.\n");
-        exit(1);
-    }
-
-    char buf[64];
-    fgets(buf, sizeof(buf), current);
-    oc_str8 currentVersion = OC_STR8(buf);
-    currentVersion = oc_str8_trim_space(currentVersion);
-
-    oc_str8 res = orcaDir;
-    res = oc_path_append(a, res, OC_STR8("versions"));
-    res = oc_path_append(a, res, currentVersion);
-    return res;
 }

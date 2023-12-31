@@ -10,8 +10,6 @@ parser = argparse.ArgumentParser()
 parser.add_argument("-?", action="help", help=argparse.SUPPRESS)
 
 subparsers = parser.add_subparsers(required=True, title="commands")
-# TODO: Remove the bundle scripts
-# TODO: Remove the source scripts (cflags)
 attach_dev_commands(subparsers)
 
 # Hack to run -h by default if no arguments are provided
