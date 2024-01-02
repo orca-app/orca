@@ -81,6 +81,10 @@
         #include "graphics/graphics_common.c"
         #include "graphics/graphics_surface.c"
 
+        #if OC_COMPILE_D3D11
+            #include "graphics/d3d11_surface.c"
+        #endif
+
         #if OC_COMPILE_GL || OC_COMPILE_GLES
             #include "graphics/gl_loader.c"
         #endif

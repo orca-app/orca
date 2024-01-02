@@ -53,6 +53,7 @@ oc_image_data* oc_image_data_from_handle(oc_image handle)
 
 #if OC_COMPILE_GL
     #if OC_PLATFORM_WINDOWS
+        #include "d3d11_surface.h"
         #include "wgl_surface.h"
         #define oc_gl_surface_create_for_window oc_wgl_surface_create_for_window
     #endif
@@ -81,6 +82,10 @@ bool oc_is_surface_backend_available(oc_surface_api api)
     {
 #if OC_COMPILE_METAL
         case OC_METAL:
+#endif
+
+#if OC_COMPILE_D3D11
+        case OC_COMPILE_D3D11:
 #endif
 
 #if OC_COMPILE_GL
@@ -129,6 +134,12 @@ oc_surface oc_surface_create_for_window(oc_window window, oc_surface_api api)
 #if OC_COMPILE_METAL
         case OC_METAL:
             surface = oc_mtl_surface_create_for_window(window);
+            break;
+#endif
+
+#if OC_COMPILE_D3D11
+        case OC_D3D11:
+            surface = oc_d3d11_surface_create_for_window(window);
             break;
 #endif
 

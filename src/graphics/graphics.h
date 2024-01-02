@@ -23,6 +23,7 @@ typedef enum
 {
     OC_NONE,
     OC_METAL,
+    OC_D3D11,
     OC_GL,
     OC_GLES,
     OC_CANVAS,
@@ -50,6 +51,10 @@ typedef enum
     #define OC_COMPILE_GL 0
 
 #elif OC_PLATFORM_WINDOWS
+    #ifndef OC_COMPILE_D3D11
+        #define OC_COMPILE_D3D11 1
+    #endif
+
     #ifndef OC_COMPILE_GL
         #define OC_COMPILE_GL 1
     #endif
