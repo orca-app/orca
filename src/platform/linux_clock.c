@@ -21,14 +21,14 @@ static const u64 CLK_JAN_1970 = 2208988800ULL;
 
 static inline f64 tp_to_f64(struct timespec tp)
 {
-    return (f64)tp.tv_sec + (f64)tp.tv_nsec * 1e-9;
+    return (f64)tp.tv_sec + (f64)tp.tv_nsec / 1e-9;
 }
 
 void oc_clock_init(void)
 {
     struct timespec tp = {0};
     int ok = clock_gettime(CLOCK_BOOTTIME, &tp);
-    OC_ASSERT(ok == -1, "Couldn't retrieve boot time: %s (%d)", strerror(errno), errno);
+    OC_ASSERT(ok == 0, "Couldn't retrieve boot time: %s (%d)", strerror(errno), errno);
 
     bootTime = tp_to_f64(tp);
 }
@@ -41,7 +41,7 @@ f64 oc_clock_time(oc_clock_kind clock)
         {
             struct timespec tp = {0};
             int ok = clock_gettime(CLOCK_MONOTONIC_RAW, &tp);
-            OC_ASSERT(ok == -1, "Couldn't read monotonic clock: %s (%d)", strerror(errno), errno);
+            OC_ASSERT(ok == 0, "Couldn't read monotonic clock: %s (%d)", strerror(errno), errno);
             ts = tp_to_f64(tp);
         }
         break;
@@ -49,7 +49,7 @@ f64 oc_clock_time(oc_clock_kind clock)
         {
             struct timespec tp = {0};
             int ok = clock_gettime(CLOCK_BOOTTIME, &tp);
-            OC_ASSERT(ok == -1, "Couldn't read boottime clock: %s (%d)", strerror(errno), errno);
+            OC_ASSERT(ok == 0, "Couldn't read boottime clock: %s (%d)", strerror(errno), errno);
             ts = tp_to_f64(tp) - bootTime;
         }
         break;
@@ -57,7 +57,7 @@ f64 oc_clock_time(oc_clock_kind clock)
         {
             struct timespec tp = {0};
             int ok = clock_gettime(CLOCK_REALTIME, &tp);
-            OC_ASSERT(ok == -1, "Couldn't read realtime clock: %s (%d)", strerror(errno), errno);
+            OC_ASSERT(ok == 0, "Couldn't read realtime clock: %s (%d)", strerror(errno), errno);
             ts = tp_to_f64(tp) + (f64)CLK_JAN_1970;
         }
         break;

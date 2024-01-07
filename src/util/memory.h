@@ -64,6 +64,20 @@ ORCA_API void oc_arena_scope_end(oc_arena_scope scope);
 #define oc_arena_push_type(arena, type) ((type*)oc_arena_push_aligned(arena, sizeof(type), _Alignof(type)))
 #define oc_arena_push_array(arena, type, count) ((type*)oc_arena_push_aligned(arena, sizeof(type) * (count), _Alignof(type)))
 
+static inline void* oc_arena_push_zero(oc_arena* arena, u64 size)
+{
+    void* p = oc_arena_push(arena, size);
+    memset(p, 0, size);
+    return p;
+}
+
+static inline void* oc_arena_dup(oc_arena* arena, void* p, u64 size)
+{
+    void *p2 = oc_arena_push(arena, size);
+    memcpy(p2, p, size);
+    return p2;
+}
+
 //--------------------------------------------------------------------------------
 //NOTE(martin): memory pool
 //--------------------------------------------------------------------------------

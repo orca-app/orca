@@ -14,7 +14,7 @@ oc_app oc_appData = { 0 };
 // Window handles
 //---------------------------------------------------------------
 
-void oc_init_window_handles()
+void oc_init_window_handles(void)
 {
     oc_list_init(&oc_appData.windowFreeList);
     for(int i = 0; i < OC_APP_MAX_WINDOWS; i++)
@@ -79,13 +79,13 @@ void oc_window_recycle_ptr(oc_window_data* window)
 // Init
 //---------------------------------------------------------------
 
-static void oc_init_common()
+static void oc_init_common(void)
 {
     oc_init_window_handles();
     oc_ringbuffer_init(&oc_appData.eventQueue, 16);
 }
 
-static void oc_terminate_common()
+static void oc_terminate_common(void)
 {
     oc_ringbuffer_cleanup(&oc_appData.eventQueue);
 }

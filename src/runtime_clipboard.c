@@ -110,7 +110,7 @@ void oc_runtime_clipboard_set_string(oc_runtime_clipboard* clipboard, oc_wasm_st
 oc_event* oc_runtime_clipboard_process_event_begin(oc_arena* arena, oc_runtime_clipboard* clipboard, oc_event* origEvent)
 {
     assert(0 && "Unimplemented");
-    return (oc_event){0};
+    return NULL;
 }
 
 void oc_runtime_clipboard_process_event_end(oc_runtime_clipboard* clipboard)
