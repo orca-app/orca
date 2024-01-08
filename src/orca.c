@@ -65,28 +65,35 @@
 //---------------------------------------------------------------
 // app/graphics layer
 //---------------------------------------------------------------
-
     #if OC_PLATFORM_WINDOWS
         #include "platform/platform_io_dialog.c"
         #include "app/win32_app.c"
         #include "graphics/win32_vsync.c"
         #include "graphics/graphics_common.c"
-        #include "graphics/graphics_surface.c"
+        #include "graphics/canvas_renderer.c"
+        #include "graphics/surface.c"
+        #include "graphics/win32_surface.c"
 
-        #if OC_COMPILE_GL || OC_COMPILE_GLES
+        #include "graphics/backends.h"
+
+        #if OC_GRAPHICS_ENABLE_GL || OC_GRAPHICS_ENABLE_GLES
             #include "graphics/gl_loader.c"
         #endif
 
-        #if OC_COMPILE_GL
+        #if OC_GRAPHICS_ENABLE_GL
             #include "graphics/wgl_surface.c"
         #endif
 
-        #if OC_COMPILE_CANVAS
-            #include "graphics/gl_canvas.c"
+        #if OC_GRAPHICS_ENABLE_GLES
+            #include "graphics/gles_surface.c"
         #endif
 
-        #if OC_COMPILE_GLES
-            #include "graphics/egl_surface.c"
+        #if OC_GRAPHICS_ENABLE_WEBGPU
+            #include "graphics/wgpu_surface_win32.c"
+        #endif
+
+        #if OC_GRAPHICS_ENABLE_CANVAS
+            #include "graphics/wgpu_renderer.c"
         #endif
 
     #elif OC_PLATFORM_MACOS

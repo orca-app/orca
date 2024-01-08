@@ -46,8 +46,8 @@ ORCA_EXPORT void oc_on_init(void)
 {
     oc_window_set_title(OC_STR8("triangle"));
 
-    surface = oc_surface_gles();
-    oc_surface_select(surface);
+    surface = oc_gles_surface_create();
+    oc_gles_surface_make_current(surface);
 
     const char* extensions = (const char*)glGetString(GL_EXTENSIONS);
     oc_log_info("GLES extensions: %s\n", extensions);
@@ -96,7 +96,7 @@ ORCA_EXPORT void oc_on_frame_refresh(void)
 {
     f32 aspect = frameSize.x / frameSize.y;
 
-    oc_surface_select(surface);
+    oc_gles_surface_make_current(surface);
 
     glClearColor(0, 1, 1, 1);
     glClear(GL_COLOR_BUFFER_BIT);
@@ -117,5 +117,5 @@ ORCA_EXPORT void oc_on_frame_refresh(void)
 
     glDrawArrays(GL_TRIANGLES, 0, 3);
 
-    oc_surface_present(surface);
+    oc_gles_surface_swap_buffers(surface);
 }

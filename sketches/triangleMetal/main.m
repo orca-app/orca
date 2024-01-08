@@ -7,8 +7,6 @@
 **************************************************************************/
 #include <stdlib.h>
 #include <string.h>
-
-#define _USE_MATH_DEFINES //NOTE: necessary for MSVC
 #include <math.h>
 
 #include "orca.h"
@@ -30,12 +28,16 @@ int main()
     oc_rect rect = { .x = 100, .y = 100, .w = 800, .h = 600 };
     oc_window window = oc_window_create(rect, OC_STR8("test"), 0);
 
+    //NOTE: create device and command queue
+    id<MTLDevice> device = MTLCreateSystemDefaultDevice();
+    id<MTLCommandQueue> commandQueue = [device newCommandQueue];
+
     //NOTE: create surface
-    oc_surface surface = oc_surface_create_for_window(window, OC_METAL);
+    oc_surface surface = oc_mtl_surface_create_for_window(window);
+    CAMetalLayer* layer = oc_mtl_surface_layer(surface);
+    layer.device = device;
 
     //NOTE(martin): load the library
-    id<MTLDevice> device = MTLCreateSystemDefaultDevice();
-
     oc_arena_scope scratch = oc_scratch_begin();
 
     oc_str8 shaderPath = oc_path_executable_relative(scratch.arena, OC_STR8("triangle_shader.metallib"));
@@ -58,7 +60,6 @@ int main()
     pipelineStateDescriptor.vertexFunction = vertexFunction;
     pipelineStateDescriptor.fragmentFunction = fragmentFunction;
 
-    CAMetalLayer* layer = oc_mtl_surface_layer(surface);
     pipelineStateDescriptor.colorAttachments[0].pixelFormat = layer.pixelFormat;
 
     id<MTLRenderPipelineState> pipelineState = [device newRenderPipelineStateWithDescriptor:pipelineStateDescriptor error:&err];
@@ -69,57 +70,60 @@ int main()
         return (-1);
     }
 
-    oc_scratch_end(scrathc);
-    // start app
+    oc_scratch_end(scratch);
 
     oc_window_bring_to_front(window);
     oc_window_focus(window);
 
     while(!oc_should_quit())
     {
-        scratch = oc_scratch_begin();
-        oc_pump_events(0);
-        oc_event* event = 0;
-        while((event = oc_next_event(scratch.arena)) != 0)
+        @autoreleasepool
         {
-            switch(event->type)
+
+            scratch = oc_scratch_begin();
+            oc_pump_events(0);
+            oc_event* event = 0;
+            while((event = oc_next_event(scratch.arena)) != 0)
             {
-                case OC_EVENT_WINDOW_CLOSE:
+                switch(event->type)
                 {
-                    oc_request_quit();
-                }
-                break;
-
-                default:
+                    case OC_EVENT_WINDOW_CLOSE:
+                    {
+                        oc_request_quit();
+                    }
                     break;
+
+                    default:
+                        break;
+                }
             }
+
+            vector_uint2 viewportSize;
+            viewportSize.x = 800;
+            viewportSize.y = 600;
+
+            id<CAMetalDrawable> drawable = [layer nextDrawable];
+            id<MTLCommandBuffer> commandBuffer = [commandQueue commandBuffer];
+
+            MTLRenderPassDescriptor* renderPassDescriptor = [MTLRenderPassDescriptor renderPassDescriptor];
+            renderPassDescriptor.colorAttachments[0].texture = drawable.texture;
+            renderPassDescriptor.colorAttachments[0].storeAction = MTLStoreActionStore;
+            id<MTLRenderCommandEncoder> encoder = [commandBuffer renderCommandEncoderWithDescriptor:renderPassDescriptor];
+
+            //Set the pipeline state
+            [encoder setRenderPipelineState:pipelineState];
+
+            //Send data to the shader and add draw call
+            [encoder setVertexBytes:triangle length:sizeof(triangle) atIndex:vertexInputIndexVertices];
+            [encoder setVertexBytes:&viewportSize length:sizeof(viewportSize) atIndex:vertexInputIndexViewportSize];
+            [encoder drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:3];
+            [encoder endEncoding];
+
+            [commandBuffer presentDrawable:drawable];
+            [commandBuffer commit];
+
+            oc_scratch_end(scratch);
         }
-
-        vector_uint2 viewportSize;
-        viewportSize.x = 800;
-        viewportSize.y = 600;
-
-        oc_surface_select(surface);
-        id<CAMetalDrawable> drawable = oc_mtl_surface_drawable(surface);
-        id<MTLCommandBuffer> commandBuffer = oc_mtl_surface_command_buffer(surface);
-
-        MTLRenderPassDescriptor* renderPassDescriptor = [MTLRenderPassDescriptor renderPassDescriptor];
-        renderPassDescriptor.colorAttachments[0].texture = drawable.texture;
-        renderPassDescriptor.colorAttachments[0].storeAction = MTLStoreActionStore;
-        id<MTLRenderCommandEncoder> encoder = [commandBuffer renderCommandEncoderWithDescriptor:renderPassDescriptor];
-
-        //Set the pipeline state
-        [encoder setRenderPipelineState:pipelineState];
-
-        //Send data to the shader and add draw call
-        [encoder setVertexBytes:triangle length:sizeof(triangle) atIndex:vertexInputIndexVertices];
-        [encoder setVertexBytes:&viewportSize length:sizeof(viewportSize) atIndex:vertexInputIndexViewportSize];
-        [encoder drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:3];
-        [encoder endEncoding];
-
-        oc_surface_present(surface);
-
-        oc_scratch_end(scratch);
     }
 
     oc_terminate();
