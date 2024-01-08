@@ -19,7 +19,7 @@ from .version import orca_version
 
 ANGLE_VERSION = "2023-07-05"
 MAC_SDK_DIR = "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk"
-MACOS_VERSION_MIN = "10.15.4"
+MACOS_VERSION_MIN = "13.0.0"
 
 def attach_dev_commands(subparsers):
     build_cmd = subparsers.add_parser("build", help="Build Orca from source.")
@@ -256,16 +256,16 @@ def build_platform_layer_internal(release):
 
 
 def build_platform_layer_lib_win(release):
-    embed_text_files("src\\graphics\\glsl_shaders.h", "glsl_", [
-        "src\\graphics\\glsl_shaders\\common.glsl",
-        "src\\graphics\\glsl_shaders\\blit_vertex.glsl",
-        "src\\graphics\\glsl_shaders\\blit_fragment.glsl",
-        "src\\graphics\\glsl_shaders\\path_setup.glsl",
-        "src\\graphics\\glsl_shaders\\segment_setup.glsl",
-        "src\\graphics\\glsl_shaders\\backprop.glsl",
-        "src\\graphics\\glsl_shaders\\merge.glsl",
-        "src\\graphics\\glsl_shaders\\raster.glsl",
-        "src\\graphics\\glsl_shaders\\balance_workgroups.glsl",
+    embed_text_files("src/graphics/wgpu_renderer_shaders.h", "oc_wgsl_", [
+        "src/graphics/wgsl_shaders/common.wgsl",
+        "src/graphics/wgsl_shaders/path_setup.wgsl",
+        "src/graphics/wgsl_shaders/segment_setup.wgsl",
+        "src/graphics/wgsl_shaders/backprop.wgsl",
+        "src/graphics/wgsl_shaders/chunk.wgsl",
+        "src/graphics/wgsl_shaders/merge.wgsl",
+        "src/graphics/wgsl_shaders/balance_workgroups.wgsl",
+        "src/graphics/wgsl_shaders/raster.wgsl",
+        "src/graphics/wgsl_shaders/blit.wgsl",
     ])
 
     includes = [
@@ -277,6 +277,10 @@ def build_platform_layer_lib_win(release):
         "user32.lib",
         "opengl32.lib",
         "gdi32.lib",
+        "dxgi.lib",
+        "dxguid.lib",
+        "d3d11.lib",
+        "dcomp.lib",
         "shcore.lib",
         "delayimp.lib",
         "dwmapi.lib",
@@ -284,13 +288,14 @@ def build_platform_layer_lib_win(release):
         "ole32.lib",
         "shell32.lib",
         "shlwapi.lib",
-        "dxgi.lib",
-        "dxguid.lib",
-        "/LIBPATH:build/lib",
+        "/LIBPATH:src/ext/angle/lib",
         "libEGL.dll.lib",
         "libGLESv2.dll.lib",
         "/DELAYLOAD:libEGL.dll",
         "/DELAYLOAD:libGLESv2.dll",
+        "/LIBPATH:src/ext/dawn/bin",
+        "webgpu.dll.lib",
+        "/DELAYLOAD:webgpu.dll"
     ]
 
     subprocess.run([
@@ -308,25 +313,24 @@ def build_platform_layer_lib_win(release):
     ], check=True)
 
 def build_platform_layer_lib_mac(release):
+
+    embed_text_files("src/graphics/wgpu_renderer_shaders.h", "oc_wgsl_", [
+        "src/graphics/wgsl_shaders/common.wgsl",
+        "src/graphics/wgsl_shaders/path_setup.wgsl",
+        "src/graphics/wgsl_shaders/segment_setup.wgsl",
+        "src/graphics/wgsl_shaders/backprop.wgsl",
+        "src/graphics/wgsl_shaders/chunk.wgsl",
+        "src/graphics/wgsl_shaders/merge.wgsl",
+        "src/graphics/wgsl_shaders/balance_workgroups.wgsl",
+        "src/graphics/wgsl_shaders/raster.wgsl",
+        "src/graphics/wgsl_shaders/blit.wgsl",
+    ])
+
     flags = [f"-mmacos-version-min={MACOS_VERSION_MIN}"]
     cflags = ["-std=c11"]
     debug_flags = ["-O3"] if release else ["-g", "-DOC_DEBUG", "-DOC_LOG_COMPILE_DEBUG"]
     ldflags = [f"-L{MAC_SDK_DIR}/usr/lib", f"-F{MAC_SDK_DIR}/System/Library/Frameworks/"]
-    includes = ["-Isrc", "-Isrc/util", "-Isrc/platform", "-Isrc/ext", "-Isrc/ext/angle/include"]
-
-    # compile metal shader
-    subprocess.run([
-        "xcrun", "-sdk", "macosx", "metal",
-        # TODO: shaderFlagParam
-        "-fno-fast-math", "-c",
-        "-o", "build/mtl_renderer.air",
-        "src/graphics/mtl_renderer.metal",
-    ], check=True)
-    subprocess.run([
-        "xcrun", "-sdk", "macosx", "metallib",
-        "-o", "build/bin/mtl_renderer.metallib",
-        "build/mtl_renderer.air",
-    ], check=True)
+    includes = ["-Isrc", "-Isrc/ext", "-Isrc/ext/angle/include", "-Isrc/ext/dawn/include"]
 
     # compile platform layer. We use one compilation unit for all C code, and one
     # compilation unit for all Objective-C code
@@ -353,7 +357,7 @@ def build_platform_layer_lib_mac(release):
         "build/orca_c.o", "build/orca_objc.o",
         "-Lbuild/bin", "-lc",
         "-framework", "Carbon", "-framework", "Cocoa", "-framework", "Metal", "-framework", "QuartzCore",
-        "-weak-lEGL", "-weak-lGLESv2",
+        "-weak-lEGL", "-weak-lGLESv2", "-weak-lwebgpu"
     ], check=True)
 
     # change dependent libs path to @rpath
@@ -773,6 +777,7 @@ def package_sdk_internal(dest, target):
         shutil.copy(os.path.join("build", "bin", "liborca_wasm.a"), bin_dir)
         shutil.copy(os.path.join("build", "bin", "libEGL.dll"), bin_dir)
         shutil.copy(os.path.join("build", "bin", "libGLESv2.dll"), bin_dir)
+        shutil.copy(os.path.join("build", "bin", "webgpu.dll"), bin_dir)
     else:
         shutil.copy(os.path.join("build", "bin", "orca"), bin_dir)
         shutil.copy(os.path.join("build", "bin", "orca_runtime"), bin_dir)
@@ -780,7 +785,7 @@ def package_sdk_internal(dest, target):
         shutil.copy(os.path.join("build", "bin", "liborca_wasm.a"), bin_dir)
         shutil.copy(os.path.join("build", "bin", "libEGL.dylib"), bin_dir)
         shutil.copy(os.path.join("build", "bin", "libGLESv2.dylib"), bin_dir)
-        shutil.copy(os.path.join("build", "bin", "mtl_renderer.metallib"), bin_dir)
+        shutil.copy(os.path.join("build", "bin", "libwebgpu.dylib"), bin_dir)
 
     shutil.copytree(os.path.join("build", "orca-libc"), libc_dir, dirs_exist_ok=True)
     shutil.copytree("resources", res_dir, dirs_exist_ok=True)

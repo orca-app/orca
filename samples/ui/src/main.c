@@ -12,7 +12,8 @@
 oc_vec2 frameSize = { 1200, 838 };
 
 oc_surface surface;
-oc_canvas canvas;
+oc_canvas_renderer renderer;
+oc_canvas_context canvas;
 oc_font fontRegular;
 oc_font fontBold;
 oc_ui_context ui;
@@ -34,8 +35,10 @@ ORCA_EXPORT void oc_on_init(void)
     oc_window_set_title(OC_STR8("Orca UI Demo"));
     oc_window_set_size(frameSize);
 
-    surface = oc_surface_canvas();
-    canvas = oc_canvas_create();
+    renderer = oc_canvas_renderer_create();
+    surface = oc_canvas_surface_create(renderer);
+    canvas = oc_canvas_context_create();
+
     oc_ui_init(&ui);
 
     oc_font* fonts[2] = { &fontRegular, &fontBold };
@@ -806,15 +809,14 @@ ORCA_EXPORT void oc_on_frame_refresh(void)
         }
     }
 
-    oc_canvas_select(canvas);
-    oc_surface_select(surface);
+    oc_canvas_context_select(canvas);
 
     oc_set_color(ui.theme->bg0);
     oc_clear();
 
     oc_ui_draw();
-    oc_render(canvas);
-    oc_surface_present(surface);
+    oc_canvas_render(renderer, canvas, surface);
+    oc_canvas_present(renderer, surface);
 
     oc_scratch_end(scratch);
 }

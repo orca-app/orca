@@ -583,7 +583,7 @@ void input_splat(float t)
     bool applySplat = false;
     float x, y, deltaX, deltaY;
     static f64 lastFrameTime = 0;
-    if (lastFrameTime == 0)
+    if(lastFrameTime == 0)
     {
         lastFrameTime = startTime;
     }
@@ -591,7 +591,7 @@ void input_splat(float t)
     float frameDuration = now - lastFrameTime;
     lastFrameTime = now;
 
-    if (mouseInput.down && (mouseInput.deltaX || mouseInput.deltaY))
+    if(mouseInput.down && (mouseInput.deltaX || mouseInput.deltaY))
     {
         oc_vec2 scaling = oc_surface_contents_scaling(surface);
         applySplat = true;
@@ -604,7 +604,7 @@ void input_splat(float t)
     }
 
     f64 timeSinceStart = now - startTime;
-    if (!mouseWasDown && timeSinceStart < 1)
+    if(!mouseWasDown && timeSinceStart < 1)
     {
         applySplat = true;
         float totalDeltaX = 0.5;
@@ -649,8 +649,8 @@ ORCA_EXPORT void oc_on_init()
 
     oc_window_set_title(OC_STR8("fluid"));
 
-    surface = oc_surface_gles();
-    oc_surface_select(surface);
+    surface = oc_gles_surface_create();
+    oc_gles_surface_make_current(surface);
 
     //	init_color_checker();
     //	init_velocity_vortex();
@@ -728,7 +728,7 @@ ORCA_EXPORT void oc_on_frame_refresh()
     static float t = 0;
     t += 1. / 60.;
 
-    oc_surface_select(surface);
+    oc_gles_surface_make_current(surface);
 
     glViewport(0, 0, texWidth, texHeight);
 
@@ -857,5 +857,5 @@ ORCA_EXPORT void oc_on_frame_refresh()
 
     glDrawArrays(GL_TRIANGLES, 0, 6);
 
-    oc_surface_present(surface);
+    oc_gles_surface_swap_buffers(surface);
 }

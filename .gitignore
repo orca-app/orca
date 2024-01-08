@@ -27,6 +27,7 @@ src/wasmbind/gles_api.json
 src/bindgen_core_api.c
 src/bindgen_gles_api.c
 src/graphics/glsl_shaders.h
+src/graphics/wgpu_renderer_shaders.h
 src/io_stubs.c
 src/orca_surface.c
 src/graphics/orca_gl31.h

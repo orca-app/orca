@@ -10,14 +10,14 @@
 
 #include <stdlib.h> // malloc/free
 
-#include "graphics/graphics_surface.h"
-#include "lists.h"
-#include "macros.h"
-#include "memory.h"
-#include "platform_clock.h"
-#include "platform_debug.h"
-#include "ringbuffer.h"
+#include "util/lists.h"
+#include "util/macros.h"
+#include "util/memory.h"
+#include "util/ringbuffer.h"
+#include "platform/platform_clock.h"
+#include "platform/platform_debug.h"
 #include "platform/platform_path.h"
+#include "graphics/surface.h"
 #include "app.c"
 
 //--------------------------------------------------------------------
@@ -1336,7 +1336,7 @@ oc_window oc_window_create(oc_rect contentRect, oc_str8 title, oc_window_style s
         window->style = style;
         window->shouldClose = false;
         window->hidden = true;
-        window->osx.layers = (oc_list){ 0 };
+        window->osx.surfaces = (oc_list){ 0 };
 
         u32 styleMask = oc_osx_get_window_style_mask(style);
 
@@ -1710,162 +1710,6 @@ void oc_window_set_content_rect(oc_window window, oc_rect rect)
 }
 
 //--------------------------------------------------------------------
-// platform surface
-//--------------------------------------------------------------------
-
-void* oc_osx_surface_native_layer(oc_surface_data* surface)
-{
-    return ((void*)surface->layer.caLayer);
-}
-
-oc_vec2 oc_osx_surface_contents_scaling(oc_surface_data* surface)
-{
-    @autoreleasepool
-    {
-        f32 contentsScale = [surface->layer.caLayer contentsScale];
-        oc_vec2 res = { contentsScale, contentsScale };
-        return (res);
-    }
-}
-
-oc_vec2 oc_osx_surface_get_size(oc_surface_data* surface)
-{
-    @autoreleasepool
-    {
-        CGRect bounds = surface->layer.caLayer.bounds;
-        oc_vec2 res = { bounds.size.width, bounds.size.height };
-        return (res);
-    }
-}
-
-bool oc_osx_surface_get_hidden(oc_surface_data* surface)
-{
-    @autoreleasepool
-    {
-        return ([surface->layer.caLayer isHidden]);
-    }
-}
-
-void oc_osx_surface_set_hidden(oc_surface_data* surface, bool hidden)
-{
-    @autoreleasepool
-    {
-        [CATransaction begin];
-        [CATransaction setDisableActions:YES];
-        [surface->layer.caLayer setHidden:hidden];
-        [CATransaction commit];
-    }
-}
-
-void oc_osx_update_layers(oc_window_data* window)
-{
-    @autoreleasepool
-    {
-        int z = 0;
-        oc_list_for(window->osx.layers, layer, oc_layer, listElt)
-        {
-            layer->caLayer.zPosition = (CGFloat)z;
-            z++;
-        }
-    }
-}
-
-void oc_osx_surface_bring_to_front(oc_surface_data* surface)
-{
-    dispatch_block_t block = ^{
-      @autoreleasepool
-      {
-          oc_window_data* window = oc_window_ptr_from_handle(surface->layer.window);
-          if(window)
-          {
-              oc_list_remove(&window->osx.layers, &surface->layer.listElt);
-              oc_list_push_back(&window->osx.layers, &surface->layer.listElt);
-              oc_osx_update_layers(window);
-          }
-      }
-    };
-
-    if([NSThread isMainThread])
-    {
-        block();
-    }
-    else
-    {
-        dispatch_sync(dispatch_get_main_queue(), block);
-    }
-}
-
-void oc_osx_surface_send_to_back(oc_surface_data* surface)
-{
-    dispatch_block_t block = ^{
-      @autoreleasepool
-      {
-          oc_window_data* window = oc_window_ptr_from_handle(surface->layer.window);
-          if(window)
-          {
-              oc_list_remove(&window->osx.layers, &surface->layer.listElt);
-              oc_list_push(&window->osx.layers, &surface->layer.listElt);
-              oc_osx_update_layers(window);
-          }
-      }
-    };
-
-    if([NSThread isMainThread])
-    {
-        block();
-    }
-    else
-    {
-        dispatch_sync(dispatch_get_main_queue(), block);
-    }
-}
-
-void oc_surface_cleanup(oc_surface_data* surface)
-{
-    @autoreleasepool
-    {
-        oc_window_data* window = oc_window_ptr_from_handle(surface->layer.window);
-        if(window)
-        {
-            oc_list_remove(&window->osx.layers, &surface->layer.listElt);
-            oc_osx_update_layers(window);
-        }
-        [surface->layer.caLayer release];
-    }
-}
-
-void oc_surface_init_for_window(oc_surface_data* surface, oc_window_data* window)
-{
-    @autoreleasepool
-    {
-        surface->layer.window = oc_window_handle_from_ptr(window);
-
-        surface->nativeLayer = oc_osx_surface_native_layer;
-        surface->contentsScaling = oc_osx_surface_contents_scaling;
-        surface->getSize = oc_osx_surface_get_size;
-        surface->getHidden = oc_osx_surface_get_hidden;
-        surface->setHidden = oc_osx_surface_set_hidden;
-
-        surface->bringToFront = oc_osx_surface_bring_to_front;
-        surface->sendToBack = oc_osx_surface_send_to_back;
-
-        surface->layer.caLayer = [[CALayer alloc] init];
-        [surface->layer.caLayer retain];
-
-        NSRect frame = [[window->osx.nsWindow contentView] frame];
-        CGSize size = frame.size;
-        surface->layer.caLayer.frame = (CGRect){ { 0, 0 }, size };
-        surface->layer.caLayer.contentsScale = window->osx.nsView.layer.contentsScale;
-        surface->layer.caLayer.autoresizingMask = kCALayerWidthSizable | kCALayerHeightSizable;
-
-        [window->osx.nsView.layer addSublayer:surface->layer.caLayer];
-
-        oc_list_push_back(&window->osx.layers, &surface->layer.listElt);
-        oc_osx_update_layers(window);
-    }
-}
-
-//--------------------------------------------------------------------
 // Events handling
 //--------------------------------------------------------------------
 
@@ -2030,7 +1874,7 @@ ORCA_API oc_file_dialog_result oc_file_dialog_for_table(oc_arena* arena, oc_file
                   NSString* filter = [[NSString alloc] initWithBytes:string.ptr length:string.len encoding:NSUTF8StringEncoding];
                   [fileTypesArray addObject:filter];
               }
-              [dialog setAllowedFileTypes:fileTypesArray];
+              [dialog setAllowedContentTypes:fileTypesArray];
           }
 
           // Display the dialog box. If the OK pressed,

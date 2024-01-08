@@ -143,8 +143,8 @@ int winBundle(
     TRY(oc_sys_mkdirs(dataDir));
 
     oc_str8 sdk_dir = version.len > 0
-        ? get_version_dir(a, version, true)
-        : current_version_dir(a, true);
+                        ? get_version_dir(a, version, true)
+                        : current_version_dir(a, true);
 
     //-----------------------------------------------------------
     //NOTE: link runtime objects and application icon into exe
@@ -289,9 +289,8 @@ int macBundle(
     TRY(oc_sys_mkdirs(wasmDir));
     TRY(oc_sys_mkdirs(dataDir));
 
-    oc_str8 sdk_dir = version.len > 0
-        ? get_version_dir(a, version, true)
-        : current_version_dir(a, true);
+    oc_str8 sdk_dir = version.len > 0 ? get_version_dir(a, version, true)
+                                      : current_version_dir(a, true);
 
     //-----------------------------------------------------------
     //NOTE: copy orca runtime executable and libraries
@@ -300,13 +299,13 @@ int macBundle(
     oc_str8 orcaLib = oc_path_append(a, sdk_dir, OC_STR8("bin/liborca.dylib"));
     oc_str8 glesLib = oc_path_append(a, sdk_dir, OC_STR8("bin/libGLESv2.dylib"));
     oc_str8 eglLib = oc_path_append(a, sdk_dir, OC_STR8("bin/libEGL.dylib"));
-    oc_str8 renderer_lib = oc_path_append(a, sdk_dir, OC_STR8("bin/mtl_renderer.metallib"));
+    oc_str8 wgpu_lib = oc_path_append(a, sdk_dir, OC_STR8("bin/libwebgpu.dylib"));
 
     TRY(oc_sys_copy(orcaExe, exeDir));
     TRY(oc_sys_copy(orcaLib, exeDir));
     TRY(oc_sys_copy(glesLib, exeDir));
     TRY(oc_sys_copy(eglLib, exeDir));
-    TRY(oc_sys_copy(renderer_lib, exeDir));
+    TRY(oc_sys_copy(wgpu_lib, exeDir));
 
     //-----------------------------------------------------------
     //NOTE: copy wasm module and data
