@@ -13,6 +13,7 @@
 
 #define OC_INCLUDE_GL_API
 #include "orca.h"
+#include "graphics/gl_surface.h"
 
 unsigned int program;
 
@@ -64,19 +65,15 @@ int main()
     oc_window window = oc_window_create(rect, OC_STR8("test"), 0);
 
     //NOTE: create surface
-    oc_surface surface = oc_surface_create_for_window(window, OC_GL);
+    oc_surface surface = oc_gl_surface_create_for_window(window);
 
     if(oc_surface_is_nil(surface))
     {
-#if OC_PLATFORM_MACOS
-        OC_ABORT("Desktop OpenGL surface is not implemented yet on macOS\n");
-#else
         OC_ABORT("Couldn't create GL surface\n");
-#endif
     }
 
     //NOTE: init shader and gl state
-    oc_surface_select(surface);
+    oc_gl_surface_make_current(surface);
 
     GLuint vao;
     glGenVertexArrays(1, &vao);
@@ -138,8 +135,6 @@ int main()
             }
         }
 
-        oc_surface_select(surface);
-
         glClearColor(0.3, 0.3, 1, 1);
         glClear(GL_COLOR_BUFFER_BIT);
 
@@ -162,7 +157,7 @@ int main()
 
         glDrawArrays(GL_TRIANGLES, 0, 3);
 
-        oc_surface_present(surface);
+        oc_gl_surface_swap_buffers(surface);
 
         oc_scratch_end(scratch);
     }

@@ -5,11 +5,20 @@
 *  See LICENSE.txt for licensing information
 *
 **************************************************************************/
-
 #include "app.c"
-#include "platform/platform_thread.h"
-#include "graphics/graphics.h"
+
+#include <d3d11.h>
+#include <dxgi.h>
 #include <dwmapi.h>
+#include <initguid.h>
+//NOTE(martin): the official dcomp.h header doesn't work for C and doesn't declare IIDs, so we do it ourselves.
+#include "win32_dcomp_c_api.h"
+
+EXTERN_C const IID IID_IDCompositionDevice;
+DEFINE_GUID(IID_IDCompositionDevice, 0xC37EA93A, 0xE7AA, 0x450D, 0xB1, 0x6F, 0x97, 0x46, 0xCB, 0x04, 0x07, 0xF3);
+
+#include "platform/platform_thread.h"
+#include "graphics/surface.h"
 
 void oc_init_keys()
 {
@@ -213,6 +222,35 @@ void oc_init()
         oc_appData.win32.mainThreadID = GetCurrentThreadId();
 
         oc_vsync_init();
+
+        //NOTE: create DirectCompositionDevice
+        {
+            ID3D11Device* d3d11Device = 0;
+            UINT flags = 0;
+            HRESULT hr = D3D11CreateDevice(
+                NULL,
+                D3D_DRIVER_TYPE_HARDWARE,
+                NULL,
+                flags,
+                NULL,
+                0,
+                D3D11_SDK_VERSION,
+                &d3d11Device,
+                NULL,
+                NULL);
+
+            OC_ASSERT(hr == S_OK, "Failed to initialize Direct Composition: couldn't create D3D11 device");
+
+            IDXGIDevice* dxgiDevice;
+            hr = ID3D11Device_QueryInterface(d3d11Device, &IID_IDXGIDevice, (void**)&dxgiDevice);
+            OC_ASSERT(hr == S_OK, "Failed to initialize Direct Composition: couldn't get DXGI device");
+
+            hr = DCompositionCreateDevice(dxgiDevice, &IID_IDCompositionDevice, &oc_appData.win32.dcompDevice);
+            OC_ASSERT(hr == S_OK, "Failed to create DirectComposition device");
+
+            IDXGIDevice_Release(dxgiDevice);
+            ID3D11Device_Release(d3d11Device);
+        }
     }
 }
 
@@ -325,7 +363,7 @@ static void oc_win32_process_wheel_event(oc_window_data* window, f32 x, f32 y)
     oc_queue_event(&event);
 }
 
-static void oc_win32_update_child_layers(oc_window_data* window)
+static void oc_win32_update_child_surfaces(oc_window_data* window)
 {
     RECT clientRect;
     GetClientRect(window->win32.hWnd, &clientRect);
@@ -335,9 +373,11 @@ static void oc_win32_update_child_layers(oc_window_data* window)
     int clientWidth = (clientRect.right - clientRect.left);
     int clientHeight = (clientRect.bottom - clientRect.top);
 
-    oc_list_for(window->win32.layers, layer, oc_layer, listElt)
+    //NOTE(martin): even though surface's window is cloaked, we still move it to the
+    // parent window position, so it gets placed on the same monitor and gets consistent DPI
+    oc_list_for(window->win32.surfaces, surface, oc_surface_base, view.listElt)
     {
-        SetWindowPos(layer->hWnd,
+        SetWindowPos(surface->view.hWnd,
                      0,
                      point.x,
                      point.y,
@@ -345,25 +385,6 @@ static void oc_win32_update_child_layers(oc_window_data* window)
                      clientHeight,
                      SWP_NOACTIVATE | SWP_NOOWNERZORDER | SWP_NOZORDER);
     }
-}
-
-static void oc_win32_update_child_layers_zorder(oc_window_data* window)
-{
-    HWND insertAfter = window->win32.hWnd;
-
-    oc_list_for(window->win32.layers, layer, oc_layer, listElt)
-    {
-        SetWindowPos(layer->hWnd,
-                     insertAfter,
-                     0, 0, 0, 0,
-                     SWP_NOACTIVATE | SWP_NOMOVE | SWP_NOSIZE | SWP_NOREDRAW | SWP_NOOWNERZORDER);
-
-        insertAfter = layer->hWnd;
-    }
-    SetWindowPos(window->win32.hWnd,
-                 insertAfter,
-                 0, 0, 0, 0,
-                 SWP_NOACTIVATE | SWP_NOMOVE | SWP_NOSIZE | SWP_NOREDRAW);
 }
 
 LRESULT oc_win32_win_proc(HWND windowHandle, UINT message, WPARAM wParam, LPARAM lParam)
@@ -408,6 +429,7 @@ LRESULT oc_win32_win_proc(HWND windowHandle, UINT message, WPARAM wParam, LPARAM
                          rect.bottom - rect.top,
                          SWP_NOACTIVATE | SWP_NOZORDER);
 
+            oc_win32_update_child_surfaces(mpWindow);
             //TODO: send a message
         }
         break;
@@ -415,7 +437,7 @@ LRESULT oc_win32_win_proc(HWND windowHandle, UINT message, WPARAM wParam, LPARAM
         //TODO: enter/exit size & move
         case WM_WINDOWPOSCHANGED:
         {
-            oc_win32_update_child_layers(mpWindow);
+            oc_win32_update_child_surfaces(mpWindow);
             result = DefWindowProc(windowHandle, message, wParam, lParam);
         }
         break;
@@ -434,7 +456,7 @@ LRESULT oc_win32_win_proc(HWND windowHandle, UINT message, WPARAM wParam, LPARAM
 
             oc_queue_event(&event);
 
-            oc_win32_update_child_layers(mpWindow);
+            oc_win32_update_child_surfaces(mpWindow);
         }
         break;
 
@@ -762,6 +784,11 @@ i32 oc_dispatch_on_main_thread_sync(oc_window main_window, oc_dispatch_proc proc
 
 oc_window oc_window_create(oc_rect rect, oc_str8 title, oc_window_style style)
 {
+    oc_arena_scope scratch = oc_scratch_begin();
+
+    oc_window_data* window = oc_window_alloc();
+    memset(window, 0, sizeof(oc_window_data));
+
     WNDCLASS windowClass = { .style = CS_HREDRAW | CS_VREDRAW | CS_OWNDC,
                              .lpfnWndProc = oc_win32_win_proc,
                              .hInstance = GetModuleHandleW(NULL),
@@ -771,7 +798,7 @@ oc_window oc_window_create(oc_rect rect, oc_str8 title, oc_window_style style)
 
     if(!RegisterClass(&windowClass))
     {
-        //TODO: error
+        oc_log_error("Couldn't register window class");
         goto quit;
     }
 
@@ -792,7 +819,6 @@ oc_window oc_window_create(oc_rect rect, oc_str8 title, oc_window_style style)
     DWORD winStyle = WS_OVERLAPPEDWINDOW;
     AdjustWindowRect(&frame, winStyle, FALSE);
 
-    oc_arena_scope scratch = oc_scratch_begin();
     const char* titleCString = oc_str8_to_cstring(scratch.arena, title);
 
     HWND windowHandle = CreateWindow("ApplicationWindowClass", titleCString,
@@ -802,24 +828,47 @@ oc_window oc_window_create(oc_rect rect, oc_str8 title, oc_window_style style)
                                      frame.bottom - frame.top,
                                      0, 0, windowClass.hInstance, 0);
 
-    oc_scratch_end(scratch);
-
     if(!windowHandle)
     {
-        //TODO: error
+        oc_log_error("Couldn't create Win32 window handle");
         goto quit;
     }
+    window->win32.hWnd = windowHandle;
 
     UpdateWindow(windowHandle);
+    SetPropW(windowHandle, L"MilePost", window);
+
+    //NOTE: initialize direct composition on this window
+    {
+        HRESULT hr = 0;
+#define TRY_HR(expr)   \
+    hr = expr;         \
+    if(hr != S_OK)     \
+    {                  \
+        goto dcompEnd; \
+    }
+
+        IDCompositionDevice* device = oc_appData.win32.dcompDevice;
+        TRY_HR(device->lpVtbl->CreateTargetForHwnd(device, windowHandle, TRUE, &window->win32.dcompTarget));
+
+        TRY_HR(device->lpVtbl->CreateVisual(device, &window->win32.dcompRootVisual));
+
+        TRY_HR(window->win32.dcompTarget->lpVtbl->SetRoot(window->win32.dcompTarget, window->win32.dcompRootVisual));
+
+        TRY_HR(device->lpVtbl->Commit(device));
+
+    dcompEnd:
+        if(hr != S_OK)
+        {
+            oc_log_error("Failed to initialize DirectComposition on window");
+            goto quit;
+            //TODO: set error in handle
+        }
+    }
 
 //TODO: return wrapped window
 quit:;
-    oc_window_data* window = oc_window_alloc();
-    window->win32.hWnd = windowHandle;
-    window->win32.layers = (oc_list){ 0 };
-
-    SetPropW(windowHandle, L"MilePost", window);
-
+    oc_scratch_end(scratch);
     return (oc_window_handle_from_ptr(window));
 }
 
@@ -1253,138 +1302,6 @@ oc_str8 oc_clipboard_copy_string(oc_str8 backing)
 {
     //TODO
     return ((oc_str8){ 0 });
-}
-
-//--------------------------------------------------------------------------------
-// win32 surfaces
-//--------------------------------------------------------------------------------
-
-#include "graphics/graphics_surface.h"
-
-oc_vec2 oc_win32_surface_contents_scaling(oc_surface_data* surface)
-{
-    u32 dpi = GetDpiForWindow(surface->layer.hWnd);
-    oc_vec2 contentsScaling = (oc_vec2){ (float)dpi / 96., (float)dpi / 96. };
-    return (contentsScaling);
-}
-
-oc_vec2 oc_win32_surface_get_size(oc_surface_data* surface)
-{
-    oc_vec2 size = { 0 };
-    RECT rect;
-    if(GetClientRect(surface->layer.hWnd, &rect))
-    {
-        u32 dpi = GetDpiForWindow(surface->layer.hWnd);
-        f32 scale = (float)dpi / 96.;
-        size = (oc_vec2){ (rect.right - rect.left) / scale, (rect.bottom - rect.top) / scale };
-    }
-    return (size);
-}
-
-bool oc_win32_surface_get_hidden(oc_surface_data* surface)
-{
-    bool hidden = !IsWindowVisible(surface->layer.hWnd);
-    return (hidden);
-}
-
-void oc_win32_surface_set_hidden(oc_surface_data* surface, bool hidden)
-{
-    ShowWindow(surface->layer.hWnd, hidden ? SW_HIDE : SW_NORMAL);
-}
-
-void oc_win32_surface_bring_to_front(oc_surface_data* surface)
-{
-    oc_list_remove(&surface->layer.parent->win32.layers, &surface->layer.listElt);
-    oc_list_push(&surface->layer.parent->win32.layers, &surface->layer.listElt);
-    oc_win32_update_child_layers_zorder(surface->layer.parent);
-}
-
-void oc_win32_surface_send_to_back(oc_surface_data* surface)
-{
-    oc_list_remove(&surface->layer.parent->win32.layers, &surface->layer.listElt);
-    oc_list_push_back(&surface->layer.parent->win32.layers, &surface->layer.listElt);
-    oc_win32_update_child_layers_zorder(surface->layer.parent);
-}
-
-void* oc_win32_surface_native_layer(oc_surface_data* surface)
-{
-    return ((void*)surface->layer.hWnd);
-}
-
-void oc_surface_cleanup(oc_surface_data* surface)
-{
-    oc_list_remove(&surface->layer.parent->win32.layers, &surface->layer.listElt);
-    DestroyWindow(surface->layer.hWnd);
-}
-
-LRESULT LayerWinProc(HWND windowHandle, UINT message, WPARAM wParam, LPARAM lParam)
-{
-    if(message == WM_NCHITTEST)
-    {
-        return (HTTRANSPARENT);
-    }
-    else
-    {
-        return (DefWindowProc(windowHandle, message, wParam, lParam));
-    }
-}
-
-void oc_surface_init_for_window(oc_surface_data* surface, oc_window_data* window)
-{
-    surface->contentsScaling = oc_win32_surface_contents_scaling;
-    surface->getSize = oc_win32_surface_get_size;
-    surface->getHidden = oc_win32_surface_get_hidden;
-    surface->setHidden = oc_win32_surface_set_hidden;
-    surface->nativeLayer = oc_win32_surface_native_layer;
-    surface->bringToFront = oc_win32_surface_bring_to_front;
-    surface->sendToBack = oc_win32_surface_send_to_back;
-
-    //NOTE(martin): create a child window for the surface
-    WNDCLASS layerWindowClass = { .style = CS_HREDRAW | CS_VREDRAW | CS_OWNDC,
-                                  .lpfnWndProc = LayerWinProc,
-                                  .hInstance = GetModuleHandleW(NULL),
-                                  .lpszClassName = "layer_window_class",
-                                  .hCursor = LoadCursor(0, IDC_ARROW) };
-
-    RegisterClass(&layerWindowClass);
-
-    RECT parentRect;
-    GetClientRect(window->win32.hWnd, &parentRect);
-    POINT point = { 0 };
-    ClientToScreen(window->win32.hWnd, &point);
-
-    int clientWidth = parentRect.right - parentRect.left;
-    int clientHeight = parentRect.bottom - parentRect.top;
-
-    surface->layer.hWnd = CreateWindow("layer_window_class", "layer",
-                                       WS_POPUP | WS_VISIBLE,
-                                       point.x, point.y, clientWidth, clientHeight,
-                                       window->win32.hWnd,
-                                       0,
-                                       layerWindowClass.hInstance,
-                                       0);
-
-    HRGN region = CreateRectRgn(0, 0, -1, -1);
-
-    DWM_BLURBEHIND bb = { 0 };
-    bb.dwFlags = DWM_BB_ENABLE | DWM_BB_BLURREGION;
-    bb.hRgnBlur = region;
-    bb.fEnable = TRUE;
-
-    HRESULT res = DwmEnableBlurBehindWindow(surface->layer.hWnd, &bb);
-
-    DeleteObject(region);
-    if(res != S_OK)
-    {
-        oc_log_error("couldn't enable blur behind\n");
-    }
-
-    //NOTE(reuben): Creating the child window takes focus away from the main window, but we want to keep
-    //the focus on the main window
-    SetFocus(window->win32.hWnd);
-
-    surface->layer.parent = window;
-    oc_list_append(&window->win32.layers, &surface->layer.listElt);
 }
 
 //--------------------------------------------------------------------

@@ -10,8 +10,8 @@
 	"name": "oc_image_create",
 	"cname": "oc_image_create",
 	"ret": {"name": "oc_image", "tag": "S"},
-	"args": [ {"name": "surface",
-	           "type": {"name": "oc_surface", "tag": "S"}},
+	"args": [ {"name": "renderer",
+	           "type": {"name": "oc_canvas_renderer", "tag": "S"}},
 	          {"name": "width",
 	           "type": {"name": "u32", "tag": "i"}},
 	          {"name": "height",
@@ -70,40 +70,30 @@
          "type": {"name": "oc_surface", "tag": "S"}}]
 },
 {
-	"name": "oc_surface_select",
-	"cname": "oc_surface_select",
-	"ret": {"name": "void", "tag": "v"},
-	"args": [
-		{"name": "surface",
-		 "type": {"name": "oc_surface", "tag": "S"}}]
-},
-{
-	"name": "oc_surface_deselect",
-	"cname": "oc_surface_deselect",
-	"ret": {"name": "void", "tag": "v"},
+	"name": "oc_canvas_renderer_create",
+	"cname": "oc_bridge_canvas_renderer_create",
+	"ret": {"name": "oc_canvas_renderer", "tag": "S"},
 	"args": []
 },
 {
-	"name": "oc_surface_get_selected",
-	"cname": "oc_surface_get_selected",
+	"name": "oc_canvas_surface_create",
+	"cname": "oc_bridge_canvas_surface_create",
 	"ret": {"name": "oc_surface", "tag": "S"},
-	"args": []
+	"args": [
+        {"name": "renderer",
+         "type": {"name": "oc_canvas_renderer", "tag": "S"}}]
 },
 {
-	"name": "oc_surface_present",
-	"cname": "oc_surface_present",
+	"name": "oc_canvas_renderer_submit",
+	"cname": "oc_bridge_canvas_renderer_submit",
 	"ret": {"name": "void", "tag": "v"},
 	"args": [
-		{"name": "surface",
-		 "type": {"name": "oc_surface", "tag": "S"}}]
-},
-{
-	"name": "oc_surface_render_commands",
-	"cname": "orca_surface_render_commands",
-	"ret": {"name": "void", "tag": "v"},
-	"args": [
+        {"name": "renderer",
+         "type": {"name": "oc_canvas_renderer", "tag": "S"}},
 		{"name": "surface",
 		 "type": {"name": "oc_surface", "tag": "S"}},
+		{"name": "msaaSampleCount",
+		  "type" : {"name": "u32", "tag": "i"}},
 		{"name": "clearColor",
 		 "type": {"name": "oc_color", "tag": "S"}},
 		{"name": "primitiveCount",
@@ -118,15 +108,35 @@
 		 "len": {"count": "eltCount"}}]
 },
 {
-	"name": "oc_surface_canvas",
-	"cname": "orca_surface_canvas",
+    "name": "oc_canvas_present",
+    "cname": "oc_canvas_present",
+    "ret": {"name": "void", "tag": "v"},
+    "args": [
+        {"name": "renderer",
+         "type": {"name": "oc_canvas_renderer", "tag": "S"}},
+        {"name": "surface",
+         "type": {"name": "oc_surface", "tag": "S"}}]
+},
+{
+	"name": "oc_gles_surface_create",
+	"cname": "oc_bridge_gles_surface_create",
 	"ret": {"name": "oc_surface", "tag": "S"},
 	"args": []
 },
 {
-	"name": "oc_surface_gles",
-	"cname": "orca_surface_gles",
-	"ret": {"name": "oc_surface", "tag": "S"},
-	"args": []
+	"name": "oc_gles_surface_make_current",
+	"cname": "oc_gles_surface_make_current",
+	"ret": {"name": "void", "tag": "v"},
+	"args": [
+		{"name": "surface",
+		 "type": {"name": "oc_surface", "tag": "S"}}]
+},
+{
+	"name": "oc_gles_surface_swap_buffers",
+	"cname": "oc_gles_surface_swap_buffers",
+	"ret": {"name": "void", "tag": "v"},
+	"args": [
+		{"name": "surface",
+		 "type": {"name": "oc_surface", "tag": "S"}}]
 }
 ]
