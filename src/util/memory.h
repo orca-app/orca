@@ -73,7 +73,7 @@ static inline void* oc_arena_push_zero(oc_arena* arena, u64 size)
 
 static inline void* oc_arena_dup(oc_arena* arena, void* p, u64 size)
 {
-    void *p2 = oc_arena_push(arena, size);
+    void* p2 = oc_arena_push(arena, size);
     memcpy(p2, p, size);
     return p2;
 }

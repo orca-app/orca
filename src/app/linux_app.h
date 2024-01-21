@@ -217,7 +217,12 @@ typedef struct oc_linux_app_data
     oc_linux_x11 x11;
 } oc_linux_app_data;
 
-#define OC_PLATFORM_WINDOW_DATA int linux;
+typedef struct oc_linux_window_data
+{
+    u32 x11_id;
+} oc_linux_window_data;
+
+#define OC_PLATFORM_WINDOW_DATA oc_linux_window_data linux;
 #define OC_PLATFORM_APP_DATA oc_linux_app_data linux;
 
 typedef struct oc_layer

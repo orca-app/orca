@@ -139,12 +139,9 @@ static oc_graphics_data oc_graphicsData = { 0 };
 
 void oc_graphics_init()
 {
-    if(!oc_graphicsData.init)
-    {
-        oc_graphicsData.handleNextIndex = 0;
-        oc_arena_init(&oc_graphicsData.resourceArena);
-        oc_graphicsData.init = true;
-    }
+    oc_graphicsData.handleNextIndex = 0;
+    oc_arena_init(&oc_graphicsData.resourceArena);
+    oc_graphicsData.init = true;
 }
 
 //------------------------------------------------------------------------

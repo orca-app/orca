@@ -419,6 +419,53 @@ void oc_init(void)
     }
     OC_ASSERT(x11->setup.roots_len > 0);
 
+    // TODO(pld): aborts instead of asserts, with errno for relevant cases
+    // TODO(pld): after the above, create window and map window
+    //
+    // TODO(pld): clang-format
+    // TODO(pld): build w/ gcc instead of clang?
+    // TODO(pld): debug why gdb gets very confused when debugging runtime, while lldb doesn't
+
+    // TODO(pld): init keys
+    //
+    oc_scratch_end(scratch);
+    return;
+}
+
+void oc_terminate(void)
+{
+    oc_terminate_common();
+    assert(0 && "Unimplemented");
+    return;
+}
+bool oc_should_quit(void)
+{
+    assert(0 && "Unimplemented");
+    return false;
+}
+void oc_request_quit(void)
+{
+    assert(0 && "Unimplemented");
+    return;
+}
+void oc_set_cursor(oc_mouse_cursor cursor)
+{
+    assert(0 && "Unimplemented");
+    return;
+}
+void oc_pump_events(f64 timeout)
+{
+    assert(0 && "Unimplemented");
+    return;
+}
+
+oc_window oc_window_create(oc_rect contentRect, oc_str8 title, oc_window_style style)
+{
+    oc_linux_app_data *linux = &oc_appData.linux;
+    oc_linux_x11 *x11 = &linux->x11;
+
+    // TODO(pld): title (requires WM integration)
+    // TODO(pld): style
     /* Create window */
     u32 win_id = x11_gen_id(x11);
     {
@@ -428,11 +475,11 @@ void oc_init(void)
         x11_write_u32(&req, win_id);
         x11_write_u32(&req, x11->setup.roots[0].root);
         /* x, y */
-        x11_write_u16(&req, 0);
-        x11_write_u16(&req, 0);
+        x11_write_u16(&req, contentRect.x);
+        x11_write_u16(&req, contentRect.y);
         /* width, height, border_width */
-        x11_write_u16(&req, 100);
-        x11_write_u16(&req, 100);
+        x11_write_u16(&req, contentRect.w);
+        x11_write_u16(&req, contentRect.h);
         x11_write_u16(&req, 1);
         /* class */
         x11_write_u16(&req, X11_WINDOW_CLASS_INPUT_OUTPUT);
@@ -507,50 +554,13 @@ void oc_init(void)
         x11_clear_recv(x11);
     }
 
-    // TODO(pld): aborts instead of asserts, with errno for relevant cases
-    // TODO(pld): after the above, create window and map window
-    //
-    // TODO(pld): clang-format
-    // TODO(pld): build w/ gcc instead of clang?
-    // TODO(pld): debug why gdb gets very confused when debugging runtime, while lldb doesn't
+    oc_window_data *window_data = oc_window_alloc();
+    window_data->linux.x11_id = win_id;
+    oc_window window = oc_window_handle_from_ptr(window_data);
 
-    // TODO(pld): init keys
-    //
-    oc_scratch_end(scratch);
-    return;
+    return window;
 }
 
-void oc_terminate(void)
-{
-    oc_terminate_common();
-    assert(0 && "Unimplemented");
-    return;
-}
-bool oc_should_quit(void)
-{
-    assert(0 && "Unimplemented");
-    return false;
-}
-void oc_request_quit(void)
-{
-    assert(0 && "Unimplemented");
-    return;
-}
-void oc_set_cursor(oc_mouse_cursor cursor)
-{
-    assert(0 && "Unimplemented");
-    return;
-}
-void oc_pump_events(f64 timeout)
-{
-    assert(0 && "Unimplemented");
-    return;
-}
-oc_window oc_window_create(oc_rect contentRect, oc_str8 title, oc_window_style style)
-{
-    assert(0 && "Unimplemented");
-    return (oc_window){0};
-}
 void oc_window_destroy(oc_window window)
 {
     assert(0 && "Unimplemented");

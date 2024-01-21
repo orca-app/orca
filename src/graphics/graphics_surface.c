@@ -105,7 +105,7 @@ bool oc_is_surface_backend_available(oc_surface_api api)
 
 oc_surface oc_surface_create_for_window(oc_window window, oc_surface_api api)
 {
-    if(oc_graphicsData.init)
+    if(!oc_graphicsData.init)
     {
         oc_graphics_init();
     }

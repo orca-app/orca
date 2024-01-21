@@ -107,14 +107,9 @@
     #if OC_COMPILE_CANVAS && 0
         #include "graphics/gl_canvas.c"
     #endif
-    #if OC_COMPILE_GLES && 0
+    #if OC_COMPILE_GLES
         #include "graphics/egl_surface.c"
     #endif
-oc_surface_data* oc_egl_surface_create_for_window(oc_window window)
-{
-	assert(0 && "Unimplemented");
-	return NULL;
-}
 #elif OC_PLATFORM_ORCA
     #include "app/orca_app.c"
     #include "wasmbind/core_api_stubs.c"
