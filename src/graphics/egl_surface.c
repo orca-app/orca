@@ -29,6 +29,10 @@
     #define oc_gl_load_gles oc_gl_load_gles32
 #endif
 
+#if OC_PLATFORM_LINUX
+    #include <app/linux_app.h>
+#endif
+
 typedef struct oc_egl_surface
 {
     oc_surface_data interface;
@@ -99,13 +103,22 @@ void oc_egl_surface_init(oc_egl_surface* surface)
     surface->interface.deselect = oc_egl_surface_deselect;
     surface->interface.swapInterval = oc_egl_surface_swap_interval;
 
-    EGLAttrib displayAttribs[] = {
-        EGL_PLATFORM_ANGLE_TYPE_ANGLE, OC_EGL_PLATFORM_ANGLE_TYPE,
-        EGL_PLATFORM_ANGLE_DEVICE_TYPE_ANGLE, EGL_PLATFORM_ANGLE_DEVICE_TYPE_HARDWARE_ANGLE,
-        EGL_NONE
-    };
+    EGLDisplay eglDisplay = NULL;
+    {
+        #if OC_PLATFORM_LINUX
+        Display* dpy = oc_appData.linux.x11.display;
+        eglDisplay = eglGetPlatformDisplay(EGL_PLATFORM_X11_EXT, dpy, NULL);
+        #else
+        EGLAttrib displayAttribs[] = {
+            EGL_PLATFORM_ANGLE_TYPE_ANGLE, OC_EGL_PLATFORM_ANGLE_TYPE,
+            EGL_PLATFORM_ANGLE_DEVICE_TYPE_ANGLE, EGL_PLATFORM_ANGLE_DEVICE_TYPE_HARDWARE_ANGLE,
+            EGL_NONE
+        };
+        eglDisplay = eglGetPlatformDisplay(EGL_PLATFORM_ANGLE_ANGLE, (void*)EGL_DEFAULT_DISPLAY, displayAttribs);
+        #endif
+    }
 
-    surface->eglDisplay = eglGetPlatformDisplay(EGL_PLATFORM_ANGLE_ANGLE, (void*)EGL_DEFAULT_DISPLAY, displayAttribs);
+    surface->eglDisplay = eglDisplay;
     eglInitialize(surface->eglDisplay, NULL, NULL);
 
     EGLint const configAttributes[] = {
@@ -128,16 +141,18 @@ void oc_egl_surface_init(oc_egl_surface* surface)
     EGLint const surfaceAttributes[] = { EGL_NONE };
     surface->eglSurface = eglCreateWindowSurface(surface->eglDisplay,
                                                  surface->eglConfig,
-                                                 nativeLayer,
+                                                 (u32)(uintptr_t)nativeLayer,
                                                  surfaceAttributes);
 
     eglBindAPI(EGL_OPENGL_ES_API);
     EGLint contextAttributes[] = {
         EGL_CONTEXT_MAJOR_VERSION_KHR, OC_GLES_VERSION_MAJOR,
         EGL_CONTEXT_MINOR_VERSION_KHR, OC_GLES_VERSION_MINOR,
+        #if !OC_PLATFORM_LINUX
         EGL_CONTEXT_BIND_GENERATES_RESOURCE_CHROMIUM, EGL_TRUE,
         EGL_CONTEXT_CLIENT_ARRAYS_ENABLED_ANGLE, EGL_TRUE,
         EGL_CONTEXT_OPENGL_BACKWARDS_COMPATIBLE_ANGLE, EGL_FALSE,
+        #endif
         EGL_NONE
     };
 

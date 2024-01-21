@@ -241,12 +241,10 @@ def build_platform_layer_lib_mac(release):
 def build_platform_layer_lib_linux(release):
     flags = []
     cflags = ["-std=c11"]
-    debug_flags = ["-O3"] if release else ["-g", "-DOC_DEBUG", "-DOC_LOG_COMPILE_DEBUG"]
+    debug_flags = ["-O2"] if release else ["-gdwarf", "-DOC_DEBUG", "-DOC_LOG_COMPILE_DEBUG"]
     ldflags = ["-lc"]
     includes = ["-Isrc", "-Isrc/platform", "-Isrc/ext"]
 
-    # compile platform layer. We use one compilation unit for all C code, and one
-    # compilation unit for all Objective-C code
     subprocess.run([
         "clang",
         *debug_flags, "-c",
@@ -425,9 +423,10 @@ def build_orca_linux(release):
         "-Isrc/ext/angle/include",
         "-Isrc/ext/wasm3/source"
     ]
-    libs = ["-Lbuild/bin", "-Lbuild/lib", "-lorca", "-lwasm3", "-lpthread", "-lm"]
-    debug_flags = ["-O2"] if release else ["-g", "-DOC_DEBUG -DOC_LOG_COMPILE_DEBUG"]
-    flags = [ *debug_flags ]
+    libs = ["-Lbuild/bin", "-Lbuild/lib", "-lorca", "-lwasm3", "-lpthread", "-lm",
+            "-lX11", "-lX11-xcb", "-lxcb", "-lEGL"]
+    debug_flags = ["-O2"] if release else ["-gdwarf", "-DOC_DEBUG -DOC_LOG_COMPILE_DEBUG"]
+    flags = [ "-fuse-ld=lld", *debug_flags ]
 
     gen_all_bindings()
 
