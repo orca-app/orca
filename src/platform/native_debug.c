@@ -54,7 +54,7 @@ void platform_log_push(oc_log_output* output,
 {
     if(output == OC_LOG_DEFAULT_OUTPUT && output->f == 0)
     {
-        output->f = stdout;
+        output->f = stderr;
     }
 
     int fd = fileno(output->f);

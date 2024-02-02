@@ -68,7 +68,7 @@ typedef enum
 #elif OC_PLATFORM_LINUX
     #define OC_COMPILE_GL 0
     #define OC_COMPILE_GLES 1
-    #define OC_COMPILE_CANVAS 0
+    #define OC_COMPILE_CANVAS 1
 #endif
 
 //NOTE: these macros are used to select backend-specific APIs to include when using milepost

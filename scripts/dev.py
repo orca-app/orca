@@ -246,7 +246,7 @@ def build_platform_layer_lib_linux(release):
     includes = ["-Isrc", "-Isrc/platform", "-Isrc/ext"]
 
     subprocess.run([
-        "clang",
+        "gcc",
         *debug_flags, "-c",
         "-o", "build/orca_c.o",
         *cflags, *flags, *includes,
@@ -319,14 +319,14 @@ def build_wasm3_lib_linux(release):
     flags = [
         *debug_flags,
         "-foptimize-sibling-calls",
-        "-Wno-extern-initializer",
+        #"-Wno-extern-initializer",
         "-Dd_m3VerboseErrorMessages",
     ]
 
     for f in glob.iglob("src/ext/wasm3/source/*.c"):
         name = os.path.splitext(os.path.basename(f))[0] + ".o"
         subprocess.run([
-            "clang", "-c", *flags, *includes,
+            "gcc", "-c", *flags, *includes,
             "-o", f"build/obj/{name}",
             f,
         ], check=True)
@@ -426,13 +426,14 @@ def build_orca_linux(release):
     libs = ["-Lbuild/bin", "-Lbuild/lib", "-lorca", "-lwasm3", "-lpthread", "-lm",
             "-lX11", "-lX11-xcb", "-lxcb", "-lEGL"]
     debug_flags = ["-O2"] if release else ["-gdwarf", "-DOC_DEBUG -DOC_LOG_COMPILE_DEBUG"]
-    flags = [ "-fuse-ld=lld", *debug_flags ]
+    #flags = [ "-fuse-ld=lld", *debug_flags ]
+    flags = [ *debug_flags ]
 
     gen_all_bindings()
 
     # compile orca
     subprocess.run([
-        "clang", *flags, *includes,
+        "gcc", *flags, *includes,
         "-o", "build/bin/orca_runtime",
         "src/runtime.c",
         *libs,

@@ -63,6 +63,8 @@ extern "C" {
     #endif
 #endif
 
+#define oc_notpossible() OC_ABORT("Not possible")
+
 #ifdef __cplusplus
 }
 #endif

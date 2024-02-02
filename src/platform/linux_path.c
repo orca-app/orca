@@ -7,7 +7,8 @@
 **************************************************************************/
 
 #include "platform_path.c"
-#include <assert.h>
+#include <sys/auxv.h>
+#include <string.h>
 
 bool oc_path_is_absolute(oc_str8 path)
 {
@@ -16,8 +17,9 @@ bool oc_path_is_absolute(oc_str8 path)
 
 oc_str8 oc_path_executable(oc_arena* arena)
 {
-  assert(0 && "Unimplemented");
-  return (oc_str8){0};
+    const char* pathname = (const char*)getauxval(AT_EXECFN);
+    OC_ASSERT(pathname);
+    return oc_str8_push_cstring(arena, pathname);
 }
 
 oc_str8 oc_path_canonical(oc_arena* arena, oc_str8 path)

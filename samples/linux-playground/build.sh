@@ -1,0 +1,33 @@
+#!/bin/bash
+
+set -euxo pipefail
+
+PYTHON3="${PYTHON3:-python3}"
+
+# The following code checks if you have the necessary programs to compile the samples.
+# This code exists to improve the experience of first-time Orca users and can
+# be safely deleted in your own projects if you wish.
+if [ -f ../../scripts/sample_build_check.py ]; then
+  "$PYTHON3" ../../scripts/sample_build_check.py
+else
+  echo "Could not check if you have the necessary tools to build the Orca samples."
+  echo "If you have copied this script to your own project, you can delete this code."
+fi
+
+ORCA_DIR=../..
+STDLIB_DIR=$ORCA_DIR/src/libc-shim
+
+# common flags to build wasm modules
+WASM_FLAGS=''
+WASM_FLAGS+=' --target=wasm32 --no-standard-libraries -mbulk-memory -g -O2'
+WASM_FLAGS+=' -D__ORCA__ -Wl,--no-entry -Wl,--export-dynamic'
+WASM_FLAGS+=" -isystem $STDLIB_DIR/include -I $ORCA_DIR/src -I $ORCA_DIR/src/ext"
+
+# build orca core as wasm module
+clang $WASM_FLAGS -Wl,--relocatable -o ./liborca.a "$ORCA_DIR/src/orca.c" "$STDLIB_DIR"/src/*.c
+
+# build sample as wasm module and link it with the orca module
+clang $WASM_FLAGS -L . -lorca -o module.wasm main.c
+
+# create app directory and copy files into it
+orca bundle --orca-dir "$ORCA_DIR" --name LinuxPlayground module.wasm
