@@ -766,6 +766,7 @@ oc_window oc_window_create(oc_rect rect, oc_str8 title, oc_window_style style)
                              .lpfnWndProc = oc_win32_win_proc,
                              .hInstance = GetModuleHandleW(NULL),
                              .lpszClassName = "ApplicationWindowClass",
+                             .hIcon = LoadIcon(GetModuleHandle(0), "orca_application_icon"),
                              .hCursor = LoadCursor(0, IDC_ARROW) };
 
     if(!RegisterClass(&windowClass))
