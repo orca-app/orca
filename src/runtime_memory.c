@@ -8,11 +8,13 @@
 #include <limits.h>
 #include "runtime.h"
 #include "runtime_memory.h"
+#include "wasm/wasm.h"
 
-void* oc_wasm_memory_resize_callback(void* p, unsigned long newSize, void* userData)
+void* oc_runtime_wasm_memory_resize_callback(void* p, unsigned long newSize, void* userData)
 {
-    //NOTE: this is called by wasm3. The size passed includes wasm3 memory header.
-    //      We first align it on 4K page size
+    //NOTE: This is called by the wasm layer.
+    //      For the wasm3 backend, the size passed includes the wasm3 memory header.
+    //      We first align it on 4K page size.
 
     newSize = oc_align_up_pow2(newSize, 4 << 10);
 
@@ -41,7 +43,7 @@ void* oc_wasm_memory_resize_callback(void* p, unsigned long newSize, void* userD
     }
 }
 
-void oc_wasm_memory_free_callback(void* p, void* userData)
+void oc_runtime_wasm_memory_free_callback(void* p, void* userData)
 {
     oc_wasm_memory* memory = (oc_wasm_memory*)userData;
 
@@ -55,19 +57,21 @@ extern u32 oc_mem_grow(u64 size)
     oc_wasm_env* env = oc_runtime_get_env();
     oc_wasm_memory* memory = &env->wasmMemory;
 
-    u32 oldMemSize = m3_GetMemorySize(env->m3Runtime);
+    u64 oldMemSize = oc_wasm_mem_size(env->wasm);
 
     //NOTE: compute total size and align on wasm memory page size
     OC_ASSERT(oldMemSize <= UINT_MAX - size, "Memory size overflow");
-    u64 newMemSize = size + oldMemSize;
+    u64 desiredMemSize = size + oldMemSize;
 
-    newMemSize = oc_align_up_pow2(newMemSize, d_m3MemPageSize);
+    desiredMemSize = oc_align_up_pow2(desiredMemSize, OC_WASM_MEM_PAGE_SIZE);
 
     //NOTE: call resize memory, which will call our custom resize callback... this is a bit involved because
     //      wasm3 doesn't allow resizing the memory directly
-    M3Result res = ResizeMemory(env->m3Runtime, newMemSize / d_m3MemPageSize);
+    oc_wasm_status status = oc_wasm_mem_resize(env->wasm, desiredMemSize / OC_WASM_MEM_PAGE_SIZE);
+    OC_WASM_TRAP(status);
 
-    OC_DEBUG_ASSERT(oldMemSize + size <= m3_GetMemorySize(env->m3Runtime), "Memory returned by oc_mem_grow overflows wasm memory");
+    u64 newMemSize = oc_wasm_mem_size(env->wasm);
+    OC_DEBUG_ASSERT(oldMemSize + size <= newMemSize, "Memory returned by oc_mem_grow overflows wasm memory");
 
     return (oldMemSize);
 }
@@ -144,21 +148,15 @@ oc_wasm_addr oc_wasm_arena_push(oc_wasm_addr arena, u64 size)
 {
     oc_wasm_env* env = oc_runtime_get_env();
 
-    oc_wasm_addr retValues[1] = { 0 };
-    const void* retPointers[1] = { (void*)&retValues[0] };
-    const void* args[2] = { &arena, &size };
+    oc_wasm_val params[2];
+    params[0].I32 = arena;
+    params[1].I64 = size;
 
-    M3Result res = m3_Call(env->exports[OC_EXPORT_ARENA_PUSH], 2, args);
-    if(res)
-    {
-        OC_WASM3_TRAP(env->m3Runtime, res, "Runtime error");
-    }
+    oc_wasm_val returns[1];
 
-    res = m3_GetResults(env->exports[OC_EXPORT_ARENA_PUSH], 1, retPointers);
-    if(res)
-    {
-        OC_WASM3_TRAP(env->m3Runtime, res, "Runtime error");
-    }
+    oc_wasm_status status = oc_wasm_function_call(env->wasm, env->exports[OC_EXPORT_ARENA_PUSH], params, 2, returns, 1);
+    OC_WASM_TRAP(status);
 
-    return (retValues[0]);
+    static_assert(sizeof(oc_wasm_addr) == sizeof(i32));
+    return (oc_wasm_addr)returns[0].I32;
 }

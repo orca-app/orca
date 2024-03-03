@@ -62,6 +62,19 @@
 
 #define oc_array_size(array) (sizeof(array) / sizeof((array)[0]))
 
+//-----------------------------------------------------------------
+// endianness
+//-----------------------------------------------------------------
+
+union oc_endianness_test_detail
+{
+    uint32_t num;
+    uint8_t bytes[4];
+};
+
+#define oc_is_little_endian() (((union oc_endianness_test_detail){ .num = 0x01020304 }).bytes[0] == 0x4)
+#define oc_is_big_endian() (!OC_IS_LITTLE_ENDIAN())
+
 //----------------------------------------------------------------------------------------
 //NOTE(martin): bit-twiddling & arithmetic helpers
 //----------------------------------------------------------------------------------------
