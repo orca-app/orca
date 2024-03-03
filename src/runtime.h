@@ -11,10 +11,7 @@
 #include "platform/platform_io_internal.h"
 #include "runtime_memory.h"
 #include "runtime_clipboard.h"
-
-#include "m3_compile.h"
-#include "m3_env.h"
-#include "wasm3.h"
+#include "wasm/wasm.h"
 
 // Note oc_on_test() is a special handler only called for --test modules
 #define OC_EXPORTS(X)                                         \
@@ -71,13 +68,9 @@ typedef struct oc_wasm_env
     oc_str8 wasmBytecode;
     oc_wasm_memory wasmMemory;
 
-    // wasm3 data
-    IM3Environment m3Env;
-    IM3Runtime m3Runtime;
-    IM3Module m3Module;
-    IM3Function exports[OC_EXPORT_COUNT];
+    oc_wasm* wasm;
+    oc_wasm_function_handle* exports[OC_EXPORT_COUNT];
     u32 rawEventOffset;
-
 } oc_wasm_env;
 
 typedef struct log_entry
@@ -140,7 +133,14 @@ void oc_assert_fail_dialog(const char* file, const char* function, int line, con
 #define OC_ASSERT_DIALOG(test, ...) \
     _OC_ASSERT_DIALOG_(test, OC_VA_NOPT("", ##__VA_ARGS__) OC_ARG1(__VA_ARGS__) OC_VA_COMMA_TAIL(__VA_ARGS__))
 
-void oc_wasm3_trap(IM3Runtime runtime, M3Result res, const char* file, const char* function, int line, const char* msg);
-#define OC_WASM3_TRAP(runtime, err, msg) oc_wasm3_trap(runtime, err, __FILE__, __FUNCTION__, __LINE__, msg)
+#define OC_WASM_TRAP(status)                                                                          \
+    do                                                                                                \
+    {                                                                                                 \
+        if(oc_wasm_status_is_fail(status))                                                            \
+        {                                                                                             \
+            oc_abort_ext_dialog(__FILE__, __FUNCTION__, __LINE__, "%s", oc_wasm_status_str8(status)); \
+        }                                                                                             \
+    }                                                                                                 \
+    while(0)
 
 #endif //__RUNTIME_H_
