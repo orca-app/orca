@@ -82,4 +82,4 @@ mkdir dawn.out/bin
 mkdir dawn.out/include
 
 cp dawn.build/gen/include/dawn/webgpu.h dawn.out/include/
-cp dawn.build/Debug/libwebgpu.dylib dawn.out/bin/
+cp dawn.build/src/dawn/native/libwebgpu.dylib dawn.out/bin/
