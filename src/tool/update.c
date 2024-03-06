@@ -15,7 +15,7 @@
 #include "orca.h"
 
 #if OC_PLATFORM_WINDOWS
-        #define SDK_FILENAME OC_STR8("orca-sdk-windows")
+    #define SDK_FILENAME OC_STR8("orca-sdk-windows")
 #elif OC_PLATFORM_MACOS
     #if OC_ARCH_ARM64
         #define SDK_FILENAME OC_STR8("orca-sdk-mac-arm64")
@@ -330,7 +330,7 @@ static int replace_yourself_and_update(CURL* curl, oc_str8 repo_url_base, oc_str
     // download latest orca cli tool
     printf("Downloading cli tool version %.*s...\n", oc_str8_ip(new_version));
     oc_str8 tool_url = oc_path_append(scratch.arena, repo_url_base,
-                                      OC_STR8("/releases/latest/download/orca-cli-tool-mac-universal.tar.gz"));
+                                      OC_STR8("/releases/latest/download/orca-mac.tar.gz"));
     oc_str8 tarball_path = oc_path_append(scratch.arena, temp_dir, OC_STR8("tool.tar.gz"));
     CURLcode curl_code = download_file(curl, tool_url, tarball_path);
     if(curl_code != CURLE_OK)
