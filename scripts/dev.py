@@ -428,7 +428,10 @@ def build_sdk(release):
 
     clang = 'clang'
     if platform.system() == "Darwin":
-        brew_llvm = subprocess.check_output(["brew", "--prefix", "llvm"]).decode().strip()
+        try:
+            brew_llvm = subprocess.check_output(["brew", "--prefix", "llvm@15", "--installed"]).decode().strip()
+        except subprocess.CalledProcessError:
+            brew_llvm = subprocess.check_output(["brew", "--prefix", "llvm", "--installed"]).decode().strip()
         clang = os.path.join(brew_llvm, 'bin', 'clang')
 
     # compile sdk
