@@ -427,6 +427,12 @@ def build_sdk(release):
     libc_src = glob.glob("src/libc-shim/src/*.c")
 
     clang = 'clang'
+
+    #NOTE(martin): this is an extremely stupid workaround to play well with github CI runners, which
+    # have llvm clang only accessible through $(brew --prefix llvm@15), whereas locally we could want to
+    # use another version.
+    # TODO: we should probably pass a flag to inform the script it's running in CI. This would avoid picking
+    # llvm 15 when a later version is available locally?
     if platform.system() == "Darwin":
         try:
             brew_llvm = subprocess.check_output(["brew", "--prefix", "llvm@15", "--installed"]).decode().strip()
