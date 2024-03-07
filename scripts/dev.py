@@ -27,7 +27,7 @@ def attach_dev_commands(subparsers):
 
     tool_cmd = subparsers.add_parser("build-tool", help="Build the Orca CLI tool from source.")
     tool_cmd.add_argument("--version", help="embed a version string in the Orca CLI tool (default is git commit hash)")
-    tool_cmd.add_argument("--release", action="store_true", 
+    tool_cmd.add_argument("--release", action="store_true",
         help="compile Orca CLI tool in release mode (default is debug)")
     tool_cmd.set_defaults(func=dev_shellish(build_tool))
 
@@ -53,6 +53,7 @@ def build_runtime(args):
     build_platform_layer("lib", args.release)
     build_wasm3(args.release)
     build_orca(args.release)
+    build_sdk(args.release)
 
     with open("build/orcaruntime.sum", "w") as f:
         f.write(runtime_checksum())
@@ -405,6 +406,33 @@ def gen_all_bindings():
     )
 
 
+def build_sdk(release):
+    print("Building orca wasm SDK")
+    debug_flags = ["-O2"] if release else ["-g", "-DOC_DEBUG -DOC_LOG_COMPILE_DEBUG"]
+    flags = [
+        *debug_flags,
+        "--target=wasm32",
+        "--no-standard-libraries",
+        "-mbulk-memory",
+        "-D__ORCA__",
+        "-Wl,--no-entry",
+        "-Wl,--export-dynamic",
+        "-Wl,--relocatable"]
+
+    includes = [
+        "-isystem", "src/libc-shim/include",
+        "-I", "src",
+        "-I", "src/ext"]
+
+    libc_src = glob.glob("src/libc-shim/src/*.c")
+
+    # compile sdk
+    subprocess.run([
+        "clang", *flags, *includes,
+        "-o", "build/bin/liborca_wasm.a",
+        "src/orca.c", *libc_src,
+    ], check=True)
+
 def ensure_programs():
     if platform.system() == "Windows":
         MSVC_MAJOR, MSVC_MINOR = 19, 35
@@ -554,13 +582,13 @@ def build_libcurl():
                 prefix = os.path.join(os.getcwd(), "static")
                 subprocess.run([
                     "../configure",
-                    "--with-secure-transport", 
-                    "--disable-shared", 
+                    "--with-secure-transport",
+                    "--disable-shared",
                     "--disable-ldap", "--disable-ldaps", "--disable-aws",
                     "--disable-manual", "--disable-debug",
                     "--disable-dependency-tracking",
                     "--without-brotli", "--without-zstd", "--without-libpsl",
-                    "--without-librtmp", "--without-zlib", "--without-nghttp2", 
+                    "--without-librtmp", "--without-zlib", "--without-nghttp2",
                     "--without-libidn2",
                     f"--prefix={prefix}",
                 ] , check=True)
@@ -594,7 +622,7 @@ def build_zlib():
 
 
 def build_tool_win(release, version, outname):
-    includes = [ 
+    includes = [
         "/I", "..",
         "/I", "../ext/stb",
         "/I", "../ext/curl/builds/static/include",
@@ -611,10 +639,10 @@ def build_tool_win(release, version, outname):
         "ole32.lib",
 
         # libs needed by curl
-        "advapi32.lib", 
-        "crypt32.lib", 
-        "normaliz.lib", 
-        "ws2_32.lib", 
+        "advapi32.lib",
+        "crypt32.lib",
+        "normaliz.lib",
+        "ws2_32.lib",
         "wldap32.lib",
         "/LIBPATH:../ext/curl/builds/static/lib",
         "libcurl_a.lib",
@@ -643,7 +671,7 @@ def build_tool_win(release, version, outname):
     ], check=True)
 
 def build_tool_mac(release, version, outname):
-    includes = [ 
+    includes = [
         "-I", "..",
         "-I", "../ext/curl/builds/static/include",
         "-I", "../ext/zlib",
@@ -657,7 +685,7 @@ def build_tool_mac(release, version, outname):
 
         # libs needed by curl
         "-framework", "SystemConfiguration",
-        "-framework", "CoreFoundation", 
+        "-framework", "CoreFoundation",
         "-framework", "CoreServices",
         "-framework", "SystemConfiguration",
         "-framework", "Security",
@@ -699,7 +727,7 @@ def build_tool(args):
 
     with pushd("src/tool"):
         os.makedirs("build/bin", exist_ok=True)
-        
+
         if args.version == None:
             res = subprocess.run(["git", "rev-parse", "--short", "HEAD"], check=True, capture_output=True, text=True)
             version = res.stdout.strip()
@@ -738,7 +766,7 @@ def system_orca_dir():
         install_path = res.stdout.strip()
         return install_path
     except subprocess.CalledProcessError:
-        print("You must install the Orca cli tool and add the directory where you") 
+        print("You must install the Orca cli tool and add the directory where you")
         print("installed it to your PATH before the dev tooling can determine the")
         print("system Orca directory. You can download the cli tool from:")
         print("https://github.com/orca-app/orca/releases/latest")
@@ -840,4 +868,3 @@ def get_source_root():
 def yeet(path):
     os.makedirs(path, exist_ok=True)
     shutil.rmtree(path)
-
