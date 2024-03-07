@@ -407,7 +407,7 @@ def gen_all_bindings():
 
 
 def build_sdk(release):
-    print("Building orca wasm SDK")
+    print("Building Orca wasm SDK...")
     debug_flags = ["-O2"] if release else ["-g", "-DOC_DEBUG -DOC_LOG_COMPILE_DEBUG"]
     flags = [
         *debug_flags,
@@ -426,9 +426,14 @@ def build_sdk(release):
 
     libc_src = glob.glob("src/libc-shim/src/*.c")
 
+    clang = 'clang'
+    if platform.system() == "Darwin":
+        brew_llvm = subprocess.check_output(["brew", "--prefix", "llvm"]).decode().strip()
+        clang = os.path.join(brew_llvm, 'bin', 'clang')
+
     # compile sdk
     subprocess.run([
-        "clang", *flags, *includes,
+        clang, *flags, *includes,
         "-o", "build/bin/liborca_wasm.a",
         "src/orca.c", *libc_src,
     ], check=True)
