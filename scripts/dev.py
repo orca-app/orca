@@ -54,11 +54,11 @@ def build_runtime(args):
     build_platform_layer("lib", args.release)
     build_wasm3(args.release)
     build_orca(args.release)
+    build_libc(args.release)
     build_sdk(args.release)
 
     with open("build/orcaruntime.sum", "w") as f:
         f.write(runtime_checksum())
-
 
 def runtime_checksum_last():
     try:
@@ -406,10 +406,81 @@ def gen_all_bindings():
         wasm3_bindings="src/wasmbind/io_api_bind_gen.c",
     )
 
+def build_libc(release):
+    print("Building orca-libc...")
+
+    # create directory and copy header files
+    os.makedirs("build/orca-libc", exist_ok=True)
+    os.makedirs("build/orca-libc/lib", exist_ok=True)
+    os.makedirs("build/orca-libc/include", exist_ok=True)
+
+    shutil.copytree(f"src/orca-libc/include", "build/orca-libc/include", dirs_exist_ok=True)
+
+    # compile flags, include, etc
+    cfiles = []
+    dirs = os.listdir("src/orca-libc/src")
+    for directory in dirs:
+        cfiles.extend(glob.glob('src/orca-libc/src/' + directory + '/*.c'))
+
+    includes = [
+        "-Isrc",
+        "-isystem", "src/orca-libc/include",
+        "-isystem", "src/orca-libc/include/private",
+        "-Isrc/orca-libc/src/arch",
+        "-Isrc/orca-libc/src/internal"
+    ]
+
+    warning_flags = [
+        "-Wall", "-Wextra", "-Werror", "-Wno-null-pointer-arithmetic", "-Wno-unused-parameter", "-Wno-sign-compare", "-Wno-unused-variable", "-Wno-unused-function", "-Wno-ignored-attributes", "-Wno-missing-braces", "-Wno-ignored-pragmas", "-Wno-unused-but-set-variable", "-Wno-unknown-warning-option", "-Wno-parentheses", "-Wno-shift-op-parentheses", "-Wno-bitwise-op-parentheses", "-Wno-logical-op-parentheses", "-Wno-string-plus-int", "-Wno-dangling-else", "-Wno-unknown-pragmas"
+    ]
+
+    debug_flags = ["-O2", "-DNDEBUG"] if release else ["-g"]
+
+    flags = [
+        *debug_flags,
+        *warning_flags,
+        "--target=wasm32",
+        "--std=c11",
+        "-D__ORCA__",
+        "--no-standard-libraries",
+        "-fno-trapping-math",
+        "-mbulk-memory",
+        "-DBULK_MEMORY_THRESHOLD=32",
+        "-mthread-model", "single",
+        "-Wl,--relocatable"
+    ]
+
+    # compile dummy CRT
+    subprocess.run([
+        "clang", *flags, *includes,
+        "-o", "build/orca-libc/lib/crt1.o",
+        "src/orca-libc/src/crt/crt1.c"
+    ], check=True)
+
+    # compile standard lib
+    subprocess.run([
+        "clang", *flags, *includes,
+        "-o", "build/orca-libc/lib/libc.o",
+         *cfiles
+    ], check=True)
+
+    subprocess.run([
+        "llvm-ar", "crs",
+        "build/orca-libc/lib/libc.a",
+        "build/orca-libc/lib/libc.o"
+    ], check=True)
 
 def build_sdk(release):
     print("Building Orca wasm SDK...")
-    debug_flags = ["-O2"] if release else ["-g", "-DOC_DEBUG -DOC_LOG_COMPILE_DEBUG"]
+
+    includes = [
+        "-I", "src",
+        "-I", "src/ext",
+        "-I", "build/orca-libc/include",
+    ]
+
+    debug_flags = ["-O2", "-DNDEBUG"] if release else ["-g"]
+
     flags = [
         *debug_flags,
         "--target=wasm32",
@@ -418,14 +489,8 @@ def build_sdk(release):
         "-D__ORCA__",
         "-Wl,--no-entry",
         "-Wl,--export-dynamic",
-        "-Wl,--relocatable"]
-
-    includes = [
-        "-isystem", "src/libc-shim/include",
-        "-I", "src",
-        "-I", "src/ext"]
-
-    libc_src = glob.glob("src/libc-shim/src/*.c")
+        "-Wl,--relocatable"
+    ]
 
     clang = 'clang'
 
@@ -442,10 +507,11 @@ def build_sdk(release):
         clang = os.path.join(brew_llvm, 'bin', 'clang')
 
     # compile sdk
+
     subprocess.run([
         clang, *flags, *includes,
-        "-o", "build/bin/liborca_wasm.a",
-        "src/orca.c", *libc_src,
+         "-o", "build/bin/liborca_wasm.a",
+         "src/orca.c"
     ], check=True)
 
 def ensure_programs():

@@ -16,7 +16,9 @@
 #include "m3_env.h"
 #include "wasm3.h"
 
+// Note oc_on_test() is a special handler only called for --test modules
 #define OC_EXPORTS(X)                                         \
+    X(OC_EXPORT_ON_TEST, "oc_on_test", "i", "")               \
     X(OC_EXPORT_ON_INIT, "oc_on_init", "", "")                \
     X(OC_EXPORT_MOUSE_DOWN, "oc_on_mouse_down", "", "i")      \
     X(OC_EXPORT_MOUSE_UP, "oc_on_mouse_up", "", "i")          \

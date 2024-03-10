@@ -14,6 +14,9 @@
 // stb sprintf callback and user struct
 //----------------------------------------------------------------
 
+#define STB_SPRINTF_IMPLEMENTATION
+#include "ext/stb/stb_sprintf.h"
+
 typedef struct oc_stbsp_context
 {
     oc_arena* arena;

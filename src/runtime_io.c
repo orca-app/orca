@@ -9,34 +9,42 @@
 #include "runtime.h"
 #include "runtime_memory.h"
 
-oc_io_cmp oc_bridge_io_single_rect(oc_io_req* wasmReq)
+oc_io_cmp oc_bridge_io_wait_single_req(oc_io_req* wasmReq)
 {
     oc_runtime* orca = oc_runtime_get();
 
     oc_io_cmp cmp = { 0 };
     oc_io_req req = *wasmReq;
 
-    //TODO have a separate oc_wasm_io_req struct
-    void* buffer = oc_wasm_address_to_ptr((oc_wasm_addr)(uintptr_t)req.buffer, req.size);
-
-    if(buffer)
+    //TODO: lookup if operation needs a buffer in a compile-time table
+    oc_io_op op = wasmReq->op;
+    if(op == OC_IO_OPEN_AT
+       || op == OC_IO_FSTAT
+       || op == OC_IO_READ
+       || op == OC_IO_WRITE)
     {
-        req.buffer = buffer;
-
-        if(req.op == OC_IO_OPEN_AT)
+        //TODO have a separate oc_wasm_io_req struct, and marshall between wasm/native versions
+        void* buffer = oc_wasm_address_to_ptr((oc_wasm_addr)(uintptr_t)req.buffer, req.size);
+        if(buffer)
         {
-            if(req.handle.h == 0)
+            req.buffer = buffer;
+
+            //TODO: lookup in a compile-time table which operations use a 'at' handle that must be replaced by root handle if 0.
+            if(req.op == OC_IO_OPEN_AT && req.handle.h == 0)
             {
                 //NOTE: change root to app local folder
                 req.handle = orca->rootDir;
                 req.open.flags |= OC_FILE_OPEN_RESTRICT;
             }
         }
-        cmp = oc_io_wait_single_req_for_table(&req, &orca->fileTable);
+        else
+        {
+            cmp.error = OC_IO_ERR_ARG;
+        }
     }
-    else
+    if(cmp.error == OC_IO_OK)
     {
-        cmp.error = OC_IO_ERR_ARG;
+        cmp = oc_io_wait_single_req_for_table(&req, &orca->fileTable);
     }
 
     return (cmp);

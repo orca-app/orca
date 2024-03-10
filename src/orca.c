@@ -43,7 +43,6 @@
     #include "platform/orca_debug.c"
     #include "platform/orca_clock.c"
     #include "platform/orca_memory.c"
-    #include "platform/orca_malloc.c"
     #include "platform/platform_io_common.c"
     #include "platform/orca_io_stubs.c"
     #include "platform/orca_platform.c"

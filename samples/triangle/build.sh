@@ -3,17 +3,15 @@
 set -euo pipefail
 
 ORCA_DIR=$(orca sdk-path)
-STDLIB_DIR=$ORCA_DIR/src/libc-shim
 
 # common flags to build wasm modules
 wasmFlags=(--target=wasm32 \
-  --no-standard-libraries \
   -mbulk-memory \
   -g -O2 \
   -D__ORCA__ \
   -Wl,--no-entry \
   -Wl,--export-dynamic \
-  -isystem "$STDLIB_DIR"/include \
+  --sysroot "$ORCA_DIR"/orca-libc \
   -I "$ORCA_DIR"/src \
   -I "$ORCA_DIR"/src/ext)
 
