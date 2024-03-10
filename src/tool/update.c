@@ -285,7 +285,7 @@ static int replace_yourself_and_update(CURL* curl, oc_str8 repo_url_base, oc_str
     }
 
     // execute orca update with newer cli tool
-    oc_str8 cmd = oc_str8_pushf(scratch.arena, "%s update", new_tool_path.ptr);
+    oc_str8 cmd = oc_str8_pushf(scratch.arena, "\"%s\" update", new_tool_path.ptr);
     result = system(cmd.ptr);
     if(result)
     {
@@ -352,7 +352,7 @@ static int replace_yourself_and_update(CURL* curl, oc_str8 repo_url_base, oc_str
     TRY(oc_sys_move(temp_dir_orca, new_tool_path));
 
     // execute orca update with newer cli tool
-    oc_str8 cmd = oc_str8_pushf(scratch.arena, "%s update", new_tool_path.ptr);
+    oc_str8 cmd = oc_str8_pushf(scratch.arena, "\"%s\" update", new_tool_path.ptr);
     result = system(cmd.ptr);
     if(result)
     {
