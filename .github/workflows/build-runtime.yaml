@@ -1,6 +1,6 @@
 name: build-runtime
 
-on: 
+on:
   workflow_call:
   push:
     branches:
@@ -14,7 +14,7 @@ jobs:
 
       - uses: actions/setup-python@v4
         with:
-          python-version: '3.10' 
+          python-version: '3.10'
 
       - name: Build
         shell: cmd
@@ -35,13 +35,13 @@ jobs:
           path: orca-runtime-win.tar.gz
 
   build-macos-x64:
-    runs-on: macos-latest
+    runs-on: macos-13
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-python@v4
         with:
-          python-version: '3.10' 
+          python-version: '3.10'
 
       - name: Build
         run: |
@@ -56,13 +56,13 @@ jobs:
           path: orca-runtime-mac-x64.tar.gz
 
   build-macos-arm64:
-    runs-on: [self-hosted, macos]
+    runs-on: macos-14
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-python@v4
         with:
-          python-version: '3.10' 
+          python-version: '3.10'
 
       - name: Build
         run: |
@@ -75,4 +75,3 @@ jobs:
         with:
           name: orca-runtime-mac-arm64
           path: orca-runtime-mac-arm64.tar.gz
-
