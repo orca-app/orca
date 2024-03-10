@@ -450,22 +450,38 @@ def build_libc(release):
         "-Wl,--relocatable"
     ]
 
+    clang = 'clang'
+    llvm_ar = 'llvm-ar'
+
+    #NOTE(martin): this is an extremely stupid workaround to play well with github CI runners, which
+    # have llvm clang only accessible through $(brew --prefix llvm@15), whereas locally we could want to
+    # use another version.
+    # TODO: we should probably pass a flag to inform the script it's running in CI. This would avoid picking
+    # llvm 15 when a later version is available locally?
+    if platform.system() == "Darwin":
+        try:
+            brew_llvm = subprocess.check_output(["brew", "--prefix", "llvm@15", "--installed"], stderr=subprocess.DEVNULL).decode().strip()
+        except subprocess.CalledProcessError:
+            brew_llvm = subprocess.check_output(["brew", "--prefix", "llvm", "--installed"]).decode().strip()
+        clang = os.path.join(brew_llvm, 'bin', 'clang')
+        llvm_ar = os.path.join(brew_llvm, 'bin', 'llvm-ar')
+
     # compile dummy CRT
     subprocess.run([
-        "clang", *flags, *includes,
+        clang, *flags, *includes,
         "-o", "build/orca-libc/lib/crt1.o",
         "src/orca-libc/src/crt/crt1.c"
     ], check=True)
 
     # compile standard lib
     subprocess.run([
-        "clang", *flags, *includes,
+        clang, *flags, *includes,
         "-o", "build/orca-libc/lib/libc.o",
          *cfiles
     ], check=True)
 
     subprocess.run([
-        "llvm-ar", "crs",
+        llvm_ar, "crs",
         "build/orca-libc/lib/libc.a",
         "build/orca-libc/lib/libc.o"
     ], check=True)
