@@ -32,7 +32,7 @@ set wasmFlags=--target=wasm32^
        -I%ORCA_DIR%/src/ext
 
 :: build sample as wasm module and link it with the orca module
-clang %wasmFlags% -L %ORCA_DIR%/build/bin -lorca_wasm -o module.wasm src/main.c
+clang %wasmFlags% -L %ORCA_DIR%/bin -lorca_wasm -o module.wasm src/main.c
 IF %ERRORLEVEL% NEQ 0 EXIT /B %ERRORLEVEL%
 
 orca bundle --name Fluid --icon icon.png module.wasm
