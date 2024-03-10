@@ -501,7 +501,7 @@ def build_sdk(release):
     # llvm 15 when a later version is available locally?
     if platform.system() == "Darwin":
         try:
-            brew_llvm = subprocess.check_output(["brew", "--prefix", "llvm@15", "--installed"]).decode().strip()
+            brew_llvm = subprocess.check_output(["brew", "--prefix", "llvm@15", "--installed"], stderr=subprocess.DEVNULL).decode().strip()
         except subprocess.CalledProcessError:
             brew_llvm = subprocess.check_output(["brew", "--prefix", "llvm", "--installed"]).decode().strip()
         clang = os.path.join(brew_llvm, 'bin', 'clang')
@@ -893,7 +893,6 @@ def install(args):
 
     yeetdir(dest)
     os.makedirs(bin_dir, exist_ok=True)
-    os.makedirs(libc_dir, exist_ok=True)
     os.makedirs(res_dir, exist_ok=True)
     os.makedirs(src_dir, exist_ok=True)
 
@@ -902,6 +901,8 @@ def install(args):
     shutil.copy(tool_path, bin_dir)
     shutil.copytree("src", src_dir, dirs_exist_ok=True)
     shutil.copytree("resources", res_dir, dirs_exist_ok=True)
+    shutil.copytree("build/orca-libc", libc_dir)
+
     if platform.system() == "Windows":
         shutil.copy("build\\bin\\orca.dll", bin_dir)
         shutil.copy("build\\bin\\orca.dll.lib", bin_dir)
