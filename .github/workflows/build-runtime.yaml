@@ -1,0 +1,77 @@
+name: build-runtime
+
+on:
+  workflow_call:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-win:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Build
+        shell: cmd
+        run: |
+          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
+          orcadev.bat build-runtime --release
+
+      - name: Tarball
+        shell: cmd
+        run: |
+          rename build orca-runtime-win
+          rename src src-win
+          tar -czf orca-runtime-win.tar.gz orca-runtime-win src-win
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: orca-runtime-win
+          path: orca-runtime-win.tar.gz
+
+  build-macos-x64:
+    runs-on: macos-13
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Build
+        run: |
+          ./orcadev build-runtime --release
+          mv build orca-runtime-mac-x64
+          mv src src-mac-x64
+          tar --format=ustar -czf orca-runtime-mac-x64.tar.gz orca-runtime-mac-x64 src-mac-x64
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: orca-runtime-mac-x64
+          path: orca-runtime-mac-x64.tar.gz
+
+  build-macos-arm64:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Build
+        run: |
+          ./orcadev build-runtime --release
+          mv build orca-runtime-mac-arm64
+          mv src src-mac-arm64
+          tar --format=ustar -czf orca-runtime-mac-arm64.tar.gz orca-runtime-mac-arm64 src-mac-arm64
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: orca-runtime-mac-arm64
+          path: orca-runtime-mac-arm64.tar.gz

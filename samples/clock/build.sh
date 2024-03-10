@@ -1,37 +1,22 @@
-#!/bin/bash
+#!/bin/zsh
 
 set -euo pipefail
 
-# The following code checks if you have the necessary programs to compile the samples.
-# This code exists to improve the experience of first-time Orca users and can
-# be safely deleted in your own projects if you wish.
-if [ -f ../../scripts/sample_build_check.py ]; then
-  python3 ../../scripts/sample_build_check.py
-else
-  echo "Could not check if you have the necessary tools to build the Orca samples."
-  echo "If you have copied this script to your own project, you can delete this code."
-fi
-
-ORCA_DIR=../..
-STDLIB_DIR=$ORCA_DIR/src/libc-shim
+ORCA_DIR=$(orca sdk-path)
 
 # common flags to build wasm modules
-wasmFlags="--target=wasm32 \
-  --no-standard-libraries \
+wasmFlags=(--target=wasm32 \
   -mbulk-memory \
   -g -O2 \
   -D__ORCA__ \
   -Wl,--no-entry \
   -Wl,--export-dynamic \
-  -isystem $STDLIB_DIR/include \
-  -I $ORCA_DIR/src \
-  -I $ORCA_DIR/src/ext"
-
-# build orca core as wasm module
-clang $wasmFlags -Wl,--relocatable -o ./liborca.a $ORCA_DIR/src/orca.c $STDLIB_DIR/src/*.c
+  --sysroot "$ORCA_DIR"/orca-libc \
+  -I "$ORCA_DIR"/src \
+  -I "$ORCA_DIR"/src/ext)
 
 # build sample as wasm module and link it with the orca module
-clang $wasmFlags -L . -lorca -o module.wasm src/main.c
+clang "${wasmFlags[@]}" -L "$ORCA_DIR"/bin -lorca_wasm -o module.wasm src/main.c
 
 # create app directory and copy files into it
-orca bundle --orca-dir $ORCA_DIR --name Clock --icon icon.png --resource-dir data module.wasm
+orca bundle --name Clock --icon icon.png --resource-dir data module.wasm
