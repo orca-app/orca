@@ -35,6 +35,7 @@ def attach_dev_commands(subparsers):
     clean_cmd.set_defaults(func=dev_shellish(clean))
 
     install_cmd = subparsers.add_parser("install", help="Install a dev build of the Orca tools into the system Orca directory.")
+    install_cmd.add_argument("install_dir", nargs='?')
     install_cmd.set_defaults(func=dev_shellish(install))
 
 
@@ -815,7 +816,7 @@ def install(args):
             return
         print()
 
-    orca_dir = system_orca_dir()
+    orca_dir = system_orca_dir() if args.install_dir == None else args.install_dir
     version = orca_version()
     dest = os.path.join(orca_dir, version)
 
@@ -838,6 +839,7 @@ def install(args):
     if platform.system() == "Windows":
         shutil.copy("build\\bin\\orca.dll", bin_dir)
         shutil.copy("build\\bin\\orca.dll.lib", bin_dir)
+        shutil.copy("build\\bin\\liborca_wasm.a", bin_dir)
         shutil.copy("build\\bin\\wasm3.lib", bin_dir)
         shutil.copy("build\\bin\\runtime.obj", bin_dir)
         shutil.copy("build\\bin\\libEGL.dll", bin_dir)
@@ -846,6 +848,7 @@ def install(args):
         shutil.copy("build/bin/liborca.dylib", bin_dir)
         shutil.copy("build/bin/mtl_renderer.metallib", bin_dir)
         shutil.copy("build/bin/orca_runtime", bin_dir)
+        shutil.copy("build/bin/liborca_wasm.a", bin_dir)
         shutil.copy("build/bin/libEGL.dylib", bin_dir)
         shutil.copy("build/bin/libGLESv2.dylib", bin_dir)
 
