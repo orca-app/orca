@@ -6,6 +6,7 @@
 *
 **************************************************************************/
 #include <limits.h>
+#include <assert.h>
 #include "runtime.h"
 #include "runtime_memory.h"
 #include "wasm/wasm.h"
@@ -157,6 +158,6 @@ oc_wasm_addr oc_wasm_arena_push(oc_wasm_addr arena, u64 size)
     oc_wasm_status status = oc_wasm_function_call(env->wasm, env->exports[OC_EXPORT_ARENA_PUSH], params, 2, returns, 1);
     OC_WASM_TRAP(status);
 
-    static_assert(sizeof(oc_wasm_addr) == sizeof(i32));
+    static_assert(sizeof(oc_wasm_addr) == sizeof(i32), "wasm addres should be 32 bits");
     return (oc_wasm_addr)returns[0].I32;
 }
