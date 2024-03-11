@@ -81,7 +81,7 @@ jobs:
             cd artifacts
             tar -xzf orca-runtime-mac-x64.tar.gz
             cd ..
-            cp -r artifacts/orca-sdk-mac-x64/orca-libc orca-sdk-mac-x64/orca-libc
+            cp -r artifacts/orca-runtime-mac-x64/orca-libc orca-sdk-mac-x64/orca-libc
             cp artifacts/orca-runtime-mac-x64/bin/orca_runtime  orca-sdk-mac-x64/bin
             cp artifacts/orca-runtime-mac-x64/bin/liborca.dylib orca-sdk-mac-x64/bin
             cp artifacts/orca-runtime-mac-x64/bin/liborca_wasm.a orca-sdk-mac-x64/bin
@@ -114,7 +114,7 @@ jobs:
             cd artifacts
             tar -xzf orca-runtime-mac-arm64.tar.gz
             cd ..
-            cp -r artifacts/orca-sdk-mac-arm64/orca-libc orca-sdk-mac-arm64/orca-libc
+            cp -r artifacts/orca-runtime-mac-arm64/orca-libc orca-sdk-mac-arm64/orca-libc
             cp artifacts/orca-runtime-mac-arm64/bin/orca_runtime  orca-sdk-mac-arm64/bin
             cp artifacts/orca-runtime-mac-arm64/bin/liborca.dylib orca-sdk-mac-arm64/bin
             cp artifacts/orca-runtime-mac-arm64/bin/liborca_wasm.a orca-sdk-mac-arm64/bin
