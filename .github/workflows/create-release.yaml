@@ -38,7 +38,6 @@ jobs:
         - name: Package Windows Release
           run: |
             mkdir -p orca-sdk-windows/bin
-            mkdir -p orca-sdk-windows/orca-libc
             mkdir -p orca-sdk-windows/resources
             mkdir -p orca-sdk-windows/src
             # gather fonts
@@ -49,6 +48,7 @@ jobs:
             cd artifacts
             tar -xzf orca-runtime-win.tar.gz
             cd ..
+            cp -r artifacts/orca-runtime-win/orca-libc orca-sdk-windows/orca-libc
             cp artifacts/orca-runtime-win/bin/runtime.obj orca-sdk-windows/bin
             cp artifacts/orca-runtime-win/bin/orca.dll orca-sdk-windows/bin
             cp artifacts/orca-runtime-win/bin/orca.dll.lib orca-sdk-windows/bin
@@ -59,8 +59,6 @@ jobs:
             # gather source code
             cp -r artifacts/src-win/* orca-sdk-windows/src
 
-            # TODO(shaw): gather orca-libc once it is built by ci
-
             # generate checksum file
             find orca-sdk-windows -type f -exec sha1sum {} + | LC_ALL=C sort | sha1sum | cut -z -f 1 -d " " > sha1.sum
             # create release tarball
@@ -70,7 +68,6 @@ jobs:
         - name: Package Mac x64 Release
           run: |
             mkdir -p orca-sdk-mac-x64/bin
-            mkdir -p orca-sdk-mac-x64/orca-libc
             mkdir -p orca-sdk-mac-x64/resources
             mkdir -p orca-sdk-mac-x64/src
             # gather fonts
@@ -84,6 +81,7 @@ jobs:
             cd artifacts
             tar -xzf orca-runtime-mac-x64.tar.gz
             cd ..
+            cp -r artifacts/orca-sdk-mac-x64/orca-libc orca-sdk-mac-x64/orca-libc
             cp artifacts/orca-runtime-mac-x64/bin/orca_runtime  orca-sdk-mac-x64/bin
             cp artifacts/orca-runtime-mac-x64/bin/liborca.dylib orca-sdk-mac-x64/bin
             cp artifacts/orca-runtime-mac-x64/bin/liborca_wasm.a orca-sdk-mac-x64/bin
@@ -92,8 +90,6 @@ jobs:
             cp artifacts/orca-runtime-mac-x64/bin/mtl_renderer.metallib orca-sdk-mac-x64/bin
             # gather source code
             cp -r artifacts/src-mac-x64/* orca-sdk-mac-x64/src
-
-            # TODO(shaw): gather orca-libc once it is built by ci
 
             # generate checksum file
             find orca-sdk-mac-x64 -type f -exec sha1sum {} + | LC_ALL=C sort | sha1sum | cut -z -f 1 -d " " > sha1.sum
@@ -118,6 +114,7 @@ jobs:
             cd artifacts
             tar -xzf orca-runtime-mac-arm64.tar.gz
             cd ..
+            cp -r artifacts/orca-sdk-mac-arm64/orca-libc orca-sdk-mac-arm64/orca-libc
             cp artifacts/orca-runtime-mac-arm64/bin/orca_runtime  orca-sdk-mac-arm64/bin
             cp artifacts/orca-runtime-mac-arm64/bin/liborca.dylib orca-sdk-mac-arm64/bin
             cp artifacts/orca-runtime-mac-arm64/bin/liborca_wasm.a orca-sdk-mac-arm64/bin
@@ -126,8 +123,6 @@ jobs:
             cp artifacts/orca-runtime-mac-arm64/bin/mtl_renderer.metallib orca-sdk-mac-arm64/bin
             # gather source code
             cp -r artifacts/src-mac-arm64/* orca-sdk-mac-arm64/src
-
-            # TODO(shaw): gather orca-libc once it is built by ci
 
             # generate checksum file
             find orca-sdk-mac-arm64 -type f -exec sha1sum {} + | LC_ALL=C sort | sha1sum | cut -z -f 1 -d " " > sha1.sum
