@@ -18,6 +18,9 @@
 #include "runtime_io.c"
 #include "runtime_memory.c"
 
+#include "wasm/wasm.c"
+#include "wasm/backend_wasm3.c"
+
 static const char* s_test_wasm_module_path = NULL;
 
 oc_font orca_font_create(const char* resourcePath)
