@@ -21,28 +21,43 @@ ANGLE_VERSION = "2023-07-05"
 MAC_SDK_DIR = "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk"
 
 def attach_dev_commands(subparsers):
-    build_cmd = subparsers.add_parser("build", help="Build Orca runtime from source.")
+    build_cmd = subparsers.add_parser("build", help="Build Orca from source.")
     build_cmd.add_argument("--version", help="embed a version string in the Orca CLI tool (default is git commit hash)")
-    build_cmd.add_argument("--release", action="store_true", help="compile Orca in release mode (default is debug)")
+    build_cmd.add_argument("--release", action="store_true", help="compile in release mode (default is debug)")
     build_cmd.set_defaults(func=dev_shellish(build_all))
+
+    platform_layer_cmd = subparsers.add_parser("build-platform-layer", help="Build the Orca platform layer from source.")
+    platform_layer_cmd.add_argument("--release", action="store_true", help="compile in release mode (default is debug)")
+    platform_layer_cmd.set_defaults(func=dev_shellish(build_platform_layer))
+
+    runtime_cmd = subparsers.add_parser("build-runtime", help="Build the Orca runtime from source.")
+    runtime_cmd.add_argument("--release", action="store_true", help="compile in release mode (default is debug)")
+    runtime_cmd.set_defaults(func=dev_shellish(build_runtime))
+
+    libc_cmd = subparsers.add_parser("build-orca-libc", help="Build the Orca libC from source.")
+    libc_cmd.add_argument("--release", action="store_true", help="compile in release mode (default is debug)")
+    libc_cmd.set_defaults(func=dev_shellish(build_libc))
+
+    sdk_cmd = subparsers.add_parser("build-wasm-sdk", help="Build the Orca wasm sdk from source.")
+    sdk_cmd.add_argument("--release", action="store_true", help="compile in release mode (default is debug)")
+    sdk_cmd.set_defaults(func=dev_shellish(build_sdk))
 
     tool_cmd = subparsers.add_parser("build-tool", help="Build the Orca CLI tool from source.")
     tool_cmd.add_argument("--version", help="embed a version string in the Orca CLI tool (default is git commit hash)")
-    tool_cmd.add_argument("--release", action="store_true",
-        help="compile Orca CLI tool in release mode (default is debug)")
+    tool_cmd.add_argument("--release", action="store_true", help="compile Orca CLI tool in release mode (default is debug)")
     tool_cmd.set_defaults(func=dev_shellish(build_tool))
-
-    clean_cmd = subparsers.add_parser("clean", help="Delete all build artifacts and start fresh.")
-    clean_cmd.set_defaults(func=dev_shellish(clean))
-
-    install_cmd = subparsers.add_parser("install", help="Install a dev build of the Orca tools into the system Orca directory.")
-    install_cmd.add_argument("install_dir", nargs='?')
-    install_cmd.set_defaults(func=dev_shellish(install))
 
     package_cmd = subparsers.add_parser("package-sdk", help="Packages the Orca SDK for a release.")
     package_cmd.add_argument("--target")
     package_cmd.add_argument("dest")
     package_cmd.set_defaults(func=dev_shellish(package_sdk))
+
+    install_cmd = subparsers.add_parser("install", help="Install a dev build of the Orca tools into the system Orca directory.")
+    install_cmd.add_argument("install_dir", nargs='?')
+    install_cmd.set_defaults(func=dev_shellish(install))
+
+    clean_cmd = subparsers.add_parser("clean", help="Delete all build artifacts and start fresh.")
+    clean_cmd.set_defaults(func=dev_shellish(clean))
 
 def dev_shellish(func):
     source_dir = get_source_root()
@@ -56,15 +71,149 @@ def build_all(args):
     ensure_programs()
     ensure_angle()
 
-    build_platform_layer("lib", args.release)
-    build_wasm3(args.release)
-    build_orca(args.release)
-    build_libc(args.release)
-    build_sdk(args.release)
+    build_platform_layer_internal(args.release)
+    build_runtime_internal(args.release)
+    build_libc_internal(args.release)
+    build_sdk_internal(args.release)
     build_tool(args)
 
     with open("build/orcaruntime.sum", "w") as f:
         f.write(runtime_checksum())
+
+#------------------------------------------------------
+# build runtime
+#------------------------------------------------------
+
+def build_wasm3(release):
+    print("Building wasm3...")
+
+    os.makedirs("build/bin", exist_ok=True)
+    os.makedirs("build/lib", exist_ok=True)
+    os.makedirs("build/obj", exist_ok=True)
+
+    if platform.system() == "Windows":
+        build_wasm3_lib_win(release)
+    elif platform.system() == "Darwin":
+        build_wasm3_lib_mac(release)
+    else:
+        log_error(f"can't build wasm3 for unknown platform '{platform.system()}'")
+        exit(1)
+
+
+def build_wasm3_lib_win(release):
+    for f in glob.iglob("./src/ext/wasm3/source/*.c"):
+        name = os.path.splitext(os.path.basename(f))[0]
+        subprocess.run([
+            "cl", "/nologo",
+            "/Zi", "/Zc:preprocessor", "/c",
+            "/O2",
+            f"/Fo:build/obj/{name}.obj",
+            "/I", "./src/ext/wasm3/source",
+            f,
+        ], check=True)
+    subprocess.run([
+        "lib", "/nologo", "/out:build/bin/wasm3.lib",
+        "build/obj/*.obj",
+    ], check=True)
+
+
+def build_wasm3_lib_mac(release):
+    includes = ["-Isrc/ext/wasm3/source"]
+    debug_flags = ["-g", "-O2"]
+    flags = [
+        *debug_flags,
+        "-foptimize-sibling-calls",
+        "-Wno-extern-initializer",
+        "-Dd_m3VerboseErrorMessages",
+        "-mmacos-version-min=10.15.4"
+    ]
+
+    for f in glob.iglob("src/ext/wasm3/source/*.c"):
+        name = os.path.splitext(os.path.basename(f))[0] + ".o"
+        subprocess.run([
+            "clang", "-c", *flags, *includes,
+            "-o", f"build/obj/{name}",
+            f,
+        ], check=True)
+    subprocess.run(["libtool", "-static", "-o", "build/lib/libwasm3.a", "-no_warning_for_no_symbols", *glob.glob("build/obj/*.o")], check=True)
+    subprocess.run(["rm", "-rf", "build/obj"], check=True)
+
+def build_runtime(args):
+    build_runtime_internal(args.release)
+
+def build_runtime_internal(release):
+    build_platform_layer_internal(release)
+    build_wasm3(release)
+
+    print("Building Orca runtime...")
+
+    os.makedirs("build/bin", exist_ok=True)
+    os.makedirs("build/lib", exist_ok=True)
+
+    if platform.system() == "Windows":
+        build_runtime_win(release)
+    elif platform.system() == "Darwin":
+        build_runtime_mac(release)
+    else:
+        log_error(f"can't build Orca for unknown platform '{platform.system()}'")
+        exit(1)
+
+def build_runtime_win(release):
+
+    gen_all_bindings()
+
+    # compile orca
+    includes = [
+        "/I", "src",
+        "/I", "src/ext",
+        "/I", "src/ext/angle/include",
+        "/I", "src/ext/wasm3/source",
+    ]
+
+    subprocess.run([
+        "cl",
+        "/c",
+        "/Zi", "/Zc:preprocessor",
+        "/std:c11", "/experimental:c11atomics",
+        *includes,
+        "src/runtime.c",
+        "/Fo:build/bin/runtime.obj",
+    ], check=True)
+
+def build_runtime_mac(release):
+
+    includes = [
+        "-Isrc",
+        "-Isrc/ext",
+        "-Isrc/ext/angle/include",
+        "-Isrc/ext/wasm3/source"
+    ]
+    libs = ["-Lbuild/bin", "-Lbuild/lib", "-lorca", "-lwasm3"]
+    debug_flags = ["-O2"] if release else ["-g", "-DOC_DEBUG -DOC_LOG_COMPILE_DEBUG"]
+    flags = [
+        *debug_flags,
+        "-mmacos-version-min=10.15.4"]
+
+    gen_all_bindings()
+
+    # compile orca
+    subprocess.run([
+        "clang", *flags, *includes, *libs,
+        "-o", "build/bin/orca_runtime",
+        "src/runtime.c",
+    ], check=True)
+
+    # fix libs imports
+    subprocess.run([
+        "install_name_tool",
+        "-change", "build/bin/liborca.dylib", "@rpath/liborca.dylib",
+        "build/bin/orca_runtime",
+    ], check=True)
+    subprocess.run([
+        "install_name_tool",
+        "-add_rpath", "@executable_path/",
+        "build/bin/orca_runtime",
+    ], check=True)
 
 def runtime_checksum_last():
     try:
@@ -84,49 +233,24 @@ def runtime_checksum():
         exit(1)
     return dirsum("src", excluded_dirs=excluded_dirs)
 
+#------------------------------------------------------
+# build platform layer
+#------------------------------------------------------
+def build_platform_layer(args):
+    build_platform_layer_internal(args.release)
 
-def tool_checksum():
-    tool_dir = "src\\tool" if platform.system() == "Windows" else "src/tool"
-    return dirsum(tool_dir)
-
-
-def tool_checksum_last():
-    try:
-        with open("build/orcatool.sum", "r") as f:
-            return f.read()
-    except FileNotFoundError:
-        return None
-
-
-def clean(args):
-    yeetdir("build")
-    yeetdir("src/ext/angle")
-    yeetdir("scripts/files")
-    yeetdir("scripts/__pycache__")
-
-
-def build_platform_layer(target, release):
+def build_platform_layer_internal(release):
     print("Building Orca platform layer...")
 
     os.makedirs("build/bin", exist_ok=True)
     os.makedirs("build/lib", exist_ok=True)
 
-    if target == "lib":
-        if platform.system() == "Windows":
-            build_platform_layer_lib_win(release)
-        elif platform.system() == "Darwin":
-            build_platform_layer_lib_mac(release)
-        else:
-            log_error(f"can't build platform layer for unknown platform '{platform.system()}'")
-            exit(1)
-    elif target == "test":
-        with pushd("examples/test_app"):
-            # TODO?
-            subprocess.run(["./build.sh"])
-    elif target == "clean":
-        removeall("bin")
+    if platform.system() == "Windows":
+        build_platform_layer_lib_win(release)
+    elif platform.system() == "Darwin":
+        build_platform_layer_lib_mac(release)
     else:
-        log_error(f"unrecognized platform layer target '{target}'")
+        log_error(f"can't build platform layer for unknown platform '{platform.system()}'")
         exit(1)
 
 
@@ -251,135 +375,6 @@ def build_platform_layer_lib_mac(release):
         "build/bin/liborca.dylib",
     ], check=True)
 
-
-def build_wasm3(release):
-    print("Building wasm3...")
-
-    os.makedirs("build/bin", exist_ok=True)
-    os.makedirs("build/lib", exist_ok=True)
-    os.makedirs("build/obj", exist_ok=True)
-
-    if platform.system() == "Windows":
-        build_wasm3_lib_win(release)
-    elif platform.system() == "Darwin":
-        build_wasm3_lib_mac(release)
-    else:
-        log_error(f"can't build wasm3 for unknown platform '{platform.system()}'")
-        exit(1)
-
-
-def build_wasm3_lib_win(release):
-    for f in glob.iglob("./src/ext/wasm3/source/*.c"):
-        name = os.path.splitext(os.path.basename(f))[0]
-        subprocess.run([
-            "cl", "/nologo",
-            "/Zi", "/Zc:preprocessor", "/c",
-            "/O2",
-            f"/Fo:build/obj/{name}.obj",
-            "/I", "./src/ext/wasm3/source",
-            f,
-        ], check=True)
-    subprocess.run([
-        "lib", "/nologo", "/out:build/bin/wasm3.lib",
-        "build/obj/*.obj",
-    ], check=True)
-
-
-def build_wasm3_lib_mac(release):
-    includes = ["-Isrc/ext/wasm3/source"]
-    debug_flags = ["-g", "-O2"]
-    flags = [
-        *debug_flags,
-        "-foptimize-sibling-calls",
-        "-Wno-extern-initializer",
-        "-Dd_m3VerboseErrorMessages",
-        "-mmacos-version-min=10.15.4"
-    ]
-
-    for f in glob.iglob("src/ext/wasm3/source/*.c"):
-        name = os.path.splitext(os.path.basename(f))[0] + ".o"
-        subprocess.run([
-            "clang", "-c", *flags, *includes,
-            "-o", f"build/obj/{name}",
-            f,
-        ], check=True)
-    subprocess.run(["libtool", "-static", "-o", "build/lib/libwasm3.a", "-no_warning_for_no_symbols", *glob.glob("build/obj/*.o")], check=True)
-    subprocess.run(["rm", "-rf", "build/obj"], check=True)
-
-
-def build_orca(release):
-    print("Building Orca runtime...")
-
-    os.makedirs("build/bin", exist_ok=True)
-    os.makedirs("build/lib", exist_ok=True)
-
-    if platform.system() == "Windows":
-        build_orca_win(release)
-    elif platform.system() == "Darwin":
-        build_orca_mac(release)
-    else:
-        log_error(f"can't build Orca for unknown platform '{platform.system()}'")
-        exit(1)
-
-
-def build_orca_win(release):
-
-    gen_all_bindings()
-
-    # compile orca
-    includes = [
-        "/I", "src",
-        "/I", "src/ext",
-        "/I", "src/ext/angle/include",
-        "/I", "src/ext/wasm3/source",
-    ]
-
-    subprocess.run([
-        "cl",
-        "/c",
-        "/Zi", "/Zc:preprocessor",
-        "/std:c11", "/experimental:c11atomics",
-        *includes,
-        "src/runtime.c",
-        "/Fo:build/bin/runtime.obj",
-    ], check=True)
-
-def build_orca_mac(release):
-
-    includes = [
-        "-Isrc",
-        "-Isrc/ext",
-        "-Isrc/ext/angle/include",
-        "-Isrc/ext/wasm3/source"
-    ]
-    libs = ["-Lbuild/bin", "-Lbuild/lib", "-lorca", "-lwasm3"]
-    debug_flags = ["-O2"] if release else ["-g", "-DOC_DEBUG -DOC_LOG_COMPILE_DEBUG"]
-    flags = [
-        *debug_flags,
-        "-mmacos-version-min=10.15.4"]
-
-    gen_all_bindings()
-
-    # compile orca
-    subprocess.run([
-        "clang", *flags, *includes, *libs,
-        "-o", "build/bin/orca_runtime",
-        "src/runtime.c",
-    ], check=True)
-
-    # fix libs imports
-    subprocess.run([
-        "install_name_tool",
-        "-change", "build/bin/liborca.dylib", "@rpath/liborca.dylib",
-        "build/bin/orca_runtime",
-    ], check=True)
-    subprocess.run([
-        "install_name_tool",
-        "-add_rpath", "@executable_path/",
-        "build/bin/orca_runtime",
-    ], check=True)
-
-
 def gen_all_bindings():
     gles_gen("src/ext/gl.xml",
         "src/wasmbind/gles_api.json",
@@ -412,7 +407,63 @@ def gen_all_bindings():
         wasm3_bindings="src/wasmbind/io_api_bind_gen.c",
     )
 
-def build_libc(release):
+#------------------------------------------------------
+# build wasm SDK
+#------------------------------------------------------
+def build_sdk(args):
+    build_sdk_internal(args.release)
+
+def build_sdk_internal(release):
+    print("Building Orca wasm SDK...")
+
+    includes = [
+        "-I", "src",
+        "-I", "src/ext",
+        "-I", "build/orca-libc/include",
+    ]
+
+    debug_flags = ["-O2", "-DNDEBUG"] if release else ["-g"]
+
+    flags = [
+        *debug_flags,
+        "--target=wasm32",
+        "--no-standard-libraries",
+        "-mbulk-memory",
+        "-D__ORCA__",
+        "-Wl,--no-entry",
+        "-Wl,--export-dynamic",
+        "-Wl,--relocatable"
+    ]
+
+    clang = 'clang'
+
+    #NOTE(martin): this is an extremely stupid workaround to play well with github CI runners, which
+    # have llvm clang only accessible through $(brew --prefix llvm@15), whereas locally we could want to
+    # use another version.
+    # TODO: we should probably pass a flag to inform the script it's running in CI. This would avoid picking
+    # llvm 15 when a later version is available locally?
+    if platform.system() == "Darwin":
+        try:
+            brew_llvm = subprocess.check_output(["brew", "--prefix", "llvm@15", "--installed"], stderr=subprocess.DEVNULL).decode().strip()
+        except subprocess.CalledProcessError:
+            brew_llvm = subprocess.check_output(["brew", "--prefix", "llvm", "--installed"]).decode().strip()
+        clang = os.path.join(brew_llvm, 'bin', 'clang')
+
+    # compile sdk
+
+    subprocess.run([
+        clang, *flags, *includes,
+         "-o", "build/bin/liborca_wasm.a",
+         "src/orca.c"
+    ], check=True)
+
+#------------------------------------------------------
+# build libc
+#------------------------------------------------------
+def build_libc(args):
+    build_lib_internal(args.release)
+
+def build_libc_internal(release):
     print("Building orca-libc...")
 
     # create directory and copy header files
@@ -492,179 +543,42 @@ def build_libc(release):
         "build/orca-libc/lib/libc.o"
     ], check=True)
 
-def build_sdk(release):
-    print("Building Orca wasm SDK...")
+#------------------------------------------------------
+# build CLI tool
+#------------------------------------------------------
+def build_tool(args):
+    print("Building Orca CLI tool...")
 
-    includes = [
-        "-I", "src",
-        "-I", "src/ext",
-        "-I", "build/orca-libc/include",
-    ]
+    ensure_programs()
+    build_libcurl()
+    build_zlib()
 
-    debug_flags = ["-O2", "-DNDEBUG"] if release else ["-g"]
+    os.makedirs("build/bin", exist_ok=True)
 
-    flags = [
-        *debug_flags,
-        "--target=wasm32",
-        "--no-standard-libraries",
-        "-mbulk-memory",
-        "-D__ORCA__",
-        "-Wl,--no-entry",
-        "-Wl,--export-dynamic",
-        "-Wl,--relocatable"
-    ]
+    with pushd("src/tool"):
+        os.makedirs("build/bin", exist_ok=True)
 
-    clang = 'clang'
+        if args.version == None:
+            res = subprocess.run(["git", "rev-parse", "--short", "HEAD"], check=True, capture_output=True, text=True)
+            version = res.stdout.strip()
+        else:
+            version = args.version
 
-    #NOTE(martin): this is an extremely stupid workaround to play well with github CI runners, which
-    # have llvm clang only accessible through $(brew --prefix llvm@15), whereas locally we could want to
-    # use another version.
-    # TODO: we should probably pass a flag to inform the script it's running in CI. This would avoid picking
-    # llvm 15 when a later version is available locally?
-    if platform.system() == "Darwin":
-        try:
-            brew_llvm = subprocess.check_output(["brew", "--prefix", "llvm@15", "--installed"], stderr=subprocess.DEVNULL).decode().strip()
-        except subprocess.CalledProcessError:
-            brew_llvm = subprocess.check_output(["brew", "--prefix", "llvm", "--installed"]).decode().strip()
-        clang = os.path.join(brew_llvm, 'bin', 'clang')
+        outname = "orca.exe" if platform.system() == "Windows" else "orca"
 
-    # compile sdk
-
-    subprocess.run([
-        clang, *flags, *includes,
-         "-o", "build/bin/liborca_wasm.a",
-         "src/orca.c"
-    ], check=True)
-
-def ensure_programs():
-    if platform.system() == "Windows":
-        MSVC_MAJOR, MSVC_MINOR = 19, 35
-        try:
-            cl_only = subprocess.run(["cl"], capture_output=True, text=True)
-            desc = cl_only.stderr.splitlines()[0]
-
-            detect = subprocess.run(["cl", "/EP", "scripts\\msvc_version.txt"], capture_output=True, text=True)
-            parts = [x for x in detect.stdout.splitlines() if x]
-            version, arch = int(parts[0]), parts[1]
-            major, minor = int(version / 100), version % 100
-
-            if arch != "x64":
-                msg = log_error("MSVC is not running in 64-bit mode. Make sure you are running in")
-                msg.more("an x64 Visual Studio command prompt, such as the \"x64 Native Tools")
-                msg.more("Command Prompt\" from your Start Menu.")
-                msg.more()
-                msg.more("MSVC reported itself as:")
-                msg.more(desc)
-                exit(1)
-
-            if major < MSVC_MAJOR or minor < MSVC_MINOR:
-                msg = log_error(f"Your version of MSVC is too old. You have version {major}.{minor},")
-                msg.more(f"but version {MSVC_MAJOR}.{MSVC_MINOR} or greater is required.")
-                msg.more()
-                msg.more("MSVC reported itself as:")
-                msg.more(desc)
-                msg.more()
-                msg.more("Please update Visual Studio to the latest version and try again.")
-                exit(1)
-        except FileNotFoundError:
-            msg = log_error("MSVC was not found on your system.")
-            msg.more("If you have already installed Visual Studio, make sure you are running in an")
-            msg.more("x64 Visual Studio command prompt, such as the \"x64 Native Tools Command")
-            msg.more("Prompt\" from your Start Menu. Otherwise, download and install Visual Studio,")
-            msg.more("and ensure that your installation includes \"Desktop development with C++\"")
-            msg.more("and \"C++ Clang Compiler\": https://visualstudio.microsoft.com/")
+        if platform.system() == "Windows":
+            build_tool_win(args.release, version, outname)
+        elif platform.system() == "Darwin":
+            build_tool_mac(args.release, version, outname)
+        else:
+            log_error(f"can't build cli tool for unknown platform '{platform.system()}'")
             exit(1)
 
-    if platform.system() == "Darwin":
-        try:
-            subprocess.run(["clang", "-v"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        except FileNotFoundError:
-            msg = log_error("clang was not found on your system.")
-            msg.more("Run the following to install it:")
-            msg.more()
-            msg.more("  brew install llvm")
-            msg.more()
-            exit(1)
+    shutil.copy(f"src/tool/build/bin/{outname}", "build/bin/")
 
-        if not os.path.exists(MAC_SDK_DIR):
-            msg = log_error("The Xcode command-line tools are not installed.")
-            msg.more("Run the following to install them:")
-            msg.more()
-            msg.more("  xcode-select --install")
-            msg.more()
-            exit(1)
+    with open("build/orcatool.sum", "w") as f:
+        f.write(tool_checksum())
 
-
-def ensure_angle():
-    if not verify_angle():
-        download_angle()
-        print("Verifying ANGLE download...")
-        if not verify_angle():
-            log_error("automatic ANGLE download failed")
-            exit(1)
-
-
-def verify_angle():
-    checkfiles = None
-    if platform.system() == "Windows":
-        checkfiles = [
-            "build/bin/libEGL.dll",
-            "build/lib/libEGL.dll.lib",
-            "build/bin/libGLESv2.dll",
-            "build/lib/libGLESv2.dll.lib",
-        ]
-    elif platform.system() == "Darwin":
-        checkfiles = [
-            "build/bin/libEGL.dylib",
-            "build/bin/libGLESv2.dylib",
-        ]
-
-    if checkfiles is None:
-        log_warning("could not verify if the correct version of ANGLE is present")
-        return False
-
-    ok = True
-    for file in checkfiles:
-        if not os.path.isfile(file):
-            ok = False
-            continue
-        if not checksum.checkfile(file):
-            ok = False
-            continue
-
-    return ok
-
-
-def download_angle():
-    print("Downloading ANGLE...")
-    if platform.system() == "Windows":
-        build = "windows-2019"
-    elif platform.system() == "Darwin":
-        build = "macos-jank"
-    else:
-        log_error(f"could not automatically download ANGLE for unknown platform {platform.system()}")
-        return
-
-    os.makedirs("scripts/files", exist_ok=True)
-    filename = f"angle-{build}-{ANGLE_VERSION}.zip"
-    filepath = f"scripts/files/{filename}"
-    url = f"https://github.com/HandmadeNetwork/build-angle/releases/download/{ANGLE_VERSION}/{filename}"
-    with urllib.request.urlopen(url) as response:
-        with open(filepath, "wb") as out:
-            shutil.copyfileobj(response, out)
-
-    if not checksum.checkfile(filepath):
-        log_error(f"ANGLE download did not match checksum")
-        exit(1)
-
-    print("Extracting ANGLE...")
-    with ZipFile(filepath, "r") as anglezip:
-        anglezip.extractall(path="scripts/files")
-
-    shutil.copytree(f"scripts/files/angle/include", "src/ext/angle/include", dirs_exist_ok=True)
-    shutil.copytree(f"scripts/files/angle/bin", "build/bin", dirs_exist_ok=True)
-    if platform.system() == "Windows":
-        shutil.copytree(f"scripts/files/angle/lib", "build/lib", dirs_exist_ok=True)
 
 def build_libcurl():
     if platform.system() == "Windows":
@@ -819,50 +733,21 @@ def build_tool_mac(release, version, outname):
             f.write(m.read())
         f.write("]")
 
-def build_tool(args):
-    print("Building Orca CLI tool...")
-
-    ensure_programs()
-    build_libcurl()
-    build_zlib()
-
-    os.makedirs("build/bin", exist_ok=True)
-
-    with pushd("src/tool"):
-        os.makedirs("build/bin", exist_ok=True)
-
-        if args.version == None:
-            res = subprocess.run(["git", "rev-parse", "--short", "HEAD"], check=True, capture_output=True, text=True)
-            version = res.stdout.strip()
-        else:
-            version = args.version
-
-        outname = "orca.exe" if platform.system() == "Windows" else "orca"
-
-        if platform.system() == "Windows":
-            build_tool_win(args.release, version, outname)
-        elif platform.system() == "Darwin":
-            build_tool_mac(args.release, version, outname)
-        else:
-            log_error(f"can't build cli tool for unknown platform '{platform.system()}'")
-            exit(1)
-
-    shutil.copy(f"src/tool/build/bin/{outname}", "build/bin/")
-
-    with open("build/orcatool.sum", "w") as f:
-        f.write(tool_checksum())
-
-def prompt(msg):
-    while True:
-        answer = input(f"{msg} (y/n)> ")
-        if answer.lower() in ["y", "yes"]:
-            return True
-        elif answer.lower() in ["n", "no"]:
-            return False
-        else:
-            print("Please enter \"yes\" or \"no\" and press return.")
+def tool_checksum():
+    tool_dir = "src\\tool" if platform.system() == "Windows" else "src/tool"
+    return dirsum(tool_dir)
 
 
+def tool_checksum_last():
+    try:
+        with open("build/orcatool.sum", "r") as f:
+            return f.read()
+    except FileNotFoundError:
+        return None
+
+#------------------------------------------------------
+# package
+#------------------------------------------------------
 def system_orca_dir():
     try:
         res = subprocess.run(["orca", "install-path"], check=True, capture_output=True, text=True)
@@ -913,6 +798,9 @@ def package_sdk(args):
     target = platform.system() if args.target == None else args.target
     package_sdk_internal(dest, target)
 
+#------------------------------------------------------
+# install
+#------------------------------------------------------
 def install(args):
     if runtime_checksum_last() is None:
         print("You must build the Orca runtime before you can install it to your")
@@ -959,6 +847,160 @@ def install(args):
     print("A dev build of Orca has been installed to the following directory:")
     print(dest)
     print()
+
+#------------------------------------------------------
+# Clean
+#------------------------------------------------------
+def clean(args):
+    yeetdir("build")
+    yeetdir("src/ext/angle")
+    yeetdir("scripts/files")
+    yeetdir("scripts/__pycache__")
+
+
+#------------------------------------------------------
+# utils
+#------------------------------------------------------
+def ensure_programs():
+    if platform.system() == "Windows":
+        MSVC_MAJOR, MSVC_MINOR = 19, 35
+        try:
+            cl_only = subprocess.run(["cl"], capture_output=True, text=True)
+            desc = cl_only.stderr.splitlines()[0]
+
+            detect = subprocess.run(["cl", "/EP", "scripts\\msvc_version.txt"], capture_output=True, text=True)
+            parts = [x for x in detect.stdout.splitlines() if x]
+            version, arch = int(parts[0]), parts[1]
+            major, minor = int(version / 100), version % 100
+
+            if arch != "x64":
+                msg = log_error("MSVC is not running in 64-bit mode. Make sure you are running in")
+                msg.more("an x64 Visual Studio command prompt, such as the \"x64 Native Tools")
+                msg.more("Command Prompt\" from your Start Menu.")
+                msg.more()
+                msg.more("MSVC reported itself as:")
+                msg.more(desc)
+                exit(1)
+
+            if major < MSVC_MAJOR or minor < MSVC_MINOR:
+                msg = log_error(f"Your version of MSVC is too old. You have version {major}.{minor},")
+                msg.more(f"but version {MSVC_MAJOR}.{MSVC_MINOR} or greater is required.")
+                msg.more()
+                msg.more("MSVC reported itself as:")
+                msg.more(desc)
+                msg.more()
+                msg.more("Please update Visual Studio to the latest version and try again.")
+                exit(1)
+        except FileNotFoundError:
+            msg = log_error("MSVC was not found on your system.")
+            msg.more("If you have already installed Visual Studio, make sure you are running in an")
+            msg.more("x64 Visual Studio command prompt, such as the \"x64 Native Tools Command")
+            msg.more("Prompt\" from your Start Menu. Otherwise, download and install Visual Studio,")
+            msg.more("and ensure that your installation includes \"Desktop development with C++\"")
+            msg.more("and \"C++ Clang Compiler\": https://visualstudio.microsoft.com/")
+            exit(1)
+
+    if platform.system() == "Darwin":
+        try:
+            subprocess.run(["clang", "-v"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except FileNotFoundError:
+            msg = log_error("clang was not found on your system.")
+            msg.more("Run the following to install it:")
+            msg.more()
+            msg.more("  brew install llvm")
+            msg.more()
+            exit(1)
+
+        if not os.path.exists(MAC_SDK_DIR):
+            msg = log_error("The Xcode command-line tools are not installed.")
+            msg.more("Run the following to install them:")
+            msg.more()
+            msg.more("  xcode-select --install")
+            msg.more()
+            exit(1)
+
+
+def ensure_angle():
+    if not verify_angle():
+        download_angle()
+        print("Verifying ANGLE download...")
+        if not verify_angle():
+            log_error("automatic ANGLE download failed")
+            exit(1)
+
+
+def verify_angle():
+    checkfiles = None
+    if platform.system() == "Windows":
+        checkfiles = [
+            "build/bin/libEGL.dll",
+            "build/lib/libEGL.dll.lib",
+            "build/bin/libGLESv2.dll",
+            "build/lib/libGLESv2.dll.lib",
+        ]
+    elif platform.system() == "Darwin":
+        checkfiles = [
+            "build/bin/libEGL.dylib",
+            "build/bin/libGLESv2.dylib",
+        ]
+
+    if checkfiles is None:
+        log_warning("could not verify if the correct version of ANGLE is present")
+        return False
+
+    ok = True
+    for file in checkfiles:
+        if not os.path.isfile(file):
+            ok = False
+            continue
+        if not checksum.checkfile(file):
+            ok = False
+            continue
+
+    return ok
+
+
+def download_angle():
+    print("Downloading ANGLE...")
+    if platform.system() == "Windows":
+        build = "windows-2019"
+    elif platform.system() == "Darwin":
+        build = "macos-jank"
+    else:
+        log_error(f"could not automatically download ANGLE for unknown platform {platform.system()}")
+        return
+
+    os.makedirs("scripts/files", exist_ok=True)
+    filename = f"angle-{build}-{ANGLE_VERSION}.zip"
+    filepath = f"scripts/files/{filename}"
+    url = f"https://github.com/HandmadeNetwork/build-angle/releases/download/{ANGLE_VERSION}/{filename}"
+    with urllib.request.urlopen(url) as response:
+        with open(filepath, "wb") as out:
+            shutil.copyfileobj(response, out)
+
+    if not checksum.checkfile(filepath):
+        log_error(f"ANGLE download did not match checksum")
+        exit(1)
+
+    print("Extracting ANGLE...")
+    with ZipFile(filepath, "r") as anglezip:
+        anglezip.extractall(path="scripts/files")
+
+    shutil.copytree(f"scripts/files/angle/include", "src/ext/angle/include", dirs_exist_ok=True)
+    shutil.copytree(f"scripts/files/angle/bin", "build/bin", dirs_exist_ok=True)
+    if platform.system() == "Windows":
+        shutil.copytree(f"scripts/files/angle/lib", "build/lib", dirs_exist_ok=True)
+
+def prompt(msg):
+    while True:
+        answer = input(f"{msg} (y/n)> ")
+        if answer.lower() in ["y", "yes"]:
+            return True
+        elif answer.lower() in ["n", "no"]:
+            return False
+        else:
+            print("Please enter \"yes\" or \"no\" and press return.")
+
 
 # Gets the root directory of the current Orca source checkout.
 # This is copy-pasted to the command-line tool so it can work before loading anything.
