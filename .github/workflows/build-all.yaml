@@ -1,0 +1,100 @@
+name: build-all
+
+on:
+  workflow_call:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-win:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Build
+        shell: cmd
+        run: |
+          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
+          orcadev.bat build --release --version ${{github.ref_name}}
+
+      - name: Package
+        shell: cmd
+        run: |
+          orcadev.bat package-sdk orca-sdk-windows
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: orca-sdk-windows
+          path: orca-sdk-windows
+
+  build-macos-x64:
+    runs-on: macos-13
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Build
+        run: |
+          ./orcadev build --release --version ${{github.ref_name}}
+
+      - name: Package
+        run: |
+          ./orcadev package-sdk orca-sdk-mac-x64
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: orca-sdk-mac-x64
+          path: orca-sdk-mac-x64
+
+  build-macos-arm64:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Build
+        run: |
+          ./orcadev build --release --version ${{github.ref_name}}
+
+      - name: Package
+        run: |
+          ./orcadev package-sdk orca-sdk-mac-arm64
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: orca-sdk-mac-arm64
+          path: orca-sdk-mac-arm64
+
+  mac-make-universal:
+    runs-on: macos-latest
+    needs: [build-macos-x64, build-macos-arm64]
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Make universal binary
+        run: |
+          chmod +x artifacts/orca-sdk-mac-x64/bin/orca
+          chmod +x artifacts/orca-sdk-mac-arm64/bin/orca
+          lipo -create artifacts/orca-sdk-mac-x64/bin/orca artifacts/orca-sdk-mac-arm64/bin/orca -output orca
+
+      - name: Tar
+        run: |
+          tar --format=ustar -czf orca-mac.tar.gz orca
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: orca-mac
+          path: orca-mac.tar.gz

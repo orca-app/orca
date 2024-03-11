@@ -21,9 +21,10 @@ ANGLE_VERSION = "2023-07-05"
 MAC_SDK_DIR = "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk"
 
 def attach_dev_commands(subparsers):
-    build_cmd = subparsers.add_parser("build-runtime", help="Build the Orca runtime from source.")
+    build_cmd = subparsers.add_parser("build", help="Build Orca runtime from source.")
+    build_cmd.add_argument("--version", help="embed a version string in the Orca CLI tool (default is git commit hash)")
     build_cmd.add_argument("--release", action="store_true", help="compile Orca in release mode (default is debug)")
-    build_cmd.set_defaults(func=dev_shellish(build_runtime))
+    build_cmd.set_defaults(func=dev_shellish(build_all))
 
     tool_cmd = subparsers.add_parser("build-tool", help="Build the Orca CLI tool from source.")
     tool_cmd.add_argument("--version", help="embed a version string in the Orca CLI tool (default is git commit hash)")
@@ -38,6 +39,9 @@ def attach_dev_commands(subparsers):
     install_cmd.add_argument("install_dir", nargs='?')
     install_cmd.set_defaults(func=dev_shellish(install))
 
+    package_cmd = subparsers.add_parser("package-sdk", help="Packages the Orca SDK for a release.")
+    package_cmd.add_argument("dest")
+    package_cmd.set_defaults(func=dev_shellish(package_sdk))
 
 def dev_shellish(func):
     source_dir = get_source_root()
@@ -47,7 +51,7 @@ def dev_shellish(func):
     return shellish(func_from_source)
 
 
-def build_runtime(args):
+def build_all(args):
     ensure_programs()
     ensure_angle()
 
@@ -56,6 +60,7 @@ def build_runtime(args):
     build_orca(args.release)
     build_libc(args.release)
     build_sdk(args.release)
+    build_tool(args)
 
     with open("build/orcaruntime.sum", "w") as f:
         f.write(runtime_checksum())
@@ -869,6 +874,26 @@ def system_orca_dir():
         print("https://github.com/orca-app/orca/releases/latest")
         exit(1)
 
+def package_sdk_internal(dest):
+    bin_dir = os.path.join(dest, "bin")
+    libc_dir = os.path.join(dest, "orca-libc")
+    res_dir = os.path.join(dest, "resources")
+    src_dir = os.path.join(dest, "src")
+
+    yeetdir(dest)
+    os.makedirs(bin_dir, exist_ok=True)
+    os.makedirs(res_dir, exist_ok=True)
+    os.makedirs(src_dir, exist_ok=True)
+
+    shutil.copytree(os.path.join("build", "bin"), bin_dir, dirs_exist_ok=True)
+    shutil.copytree(os.path.join("build", "orca-libc"), libc_dir, dirs_exist_ok=True)
+    shutil.copytree("resources", res_dir, dirs_exist_ok=True)
+    shutil.copytree("src", src_dir, dirs_exist_ok=True)
+
+def package_sdk(args):
+    dest = args.dest
+    package_sdk_internal(dest)
+
 def install(args):
     if runtime_checksum_last() is None:
         print("You must build the Orca runtime before you can install it to your")
@@ -902,51 +927,19 @@ def install(args):
     version = orca_version()
     dest = os.path.join(orca_dir, version)
 
-    bin_dir = os.path.join(dest, "bin")
-    libc_dir = os.path.join(dest, "orca-libc")
-    res_dir = os.path.join(dest, "resources")
-    src_dir = os.path.join(dest, "src")
+    package_sdk_internal(dest)
 
-    yeetdir(dest)
-    os.makedirs(bin_dir, exist_ok=True)
-    os.makedirs(res_dir, exist_ok=True)
-    os.makedirs(src_dir, exist_ok=True)
-
-    tool_path = "build\\bin\\orca.exe" if platform.system() == "Windows" else "build/bin/orca"
-
-    shutil.copy(tool_path, bin_dir)
-    shutil.copytree("src", src_dir, dirs_exist_ok=True)
-    shutil.copytree("resources", res_dir, dirs_exist_ok=True)
-    shutil.copytree("build/orca-libc", libc_dir)
-
-    if platform.system() == "Windows":
-        shutil.copy("build\\bin\\orca.dll", bin_dir)
-        shutil.copy("build\\bin\\orca.dll.lib", bin_dir)
-        shutil.copy("build\\bin\\liborca_wasm.a", bin_dir)
-        shutil.copy("build\\bin\\wasm3.lib", bin_dir)
-        shutil.copy("build\\bin\\runtime.obj", bin_dir)
-        shutil.copy("build\\bin\\libEGL.dll", bin_dir)
-        shutil.copy("build\\bin\\libGLESv2.dll", bin_dir)
-    else:
-        shutil.copy("build/bin/liborca.dylib", bin_dir)
-        shutil.copy("build/bin/mtl_renderer.metallib", bin_dir)
-        shutil.copy("build/bin/orca_runtime", bin_dir)
-        shutil.copy("build/bin/liborca_wasm.a", bin_dir)
-        shutil.copy("build/bin/libEGL.dylib", bin_dir)
-        shutil.copy("build/bin/libGLESv2.dylib", bin_dir)
-
+    tool_path = os.path.join("build", "bin", "orca.exe") if platform.system() == "Windows" else os.path.join("build","bin","orca")
     shutil.copy(tool_path, orca_dir)
 
     with open(os.path.join(orca_dir, "current_version"), "w") as f:
         f.write(version)
 
     # TODO(shaw): should dev versions and their checksums be added to all_versions file?
-
     print()
     print("A dev build of Orca has been installed to the following directory:")
     print(dest)
     print()
-
 
 # Gets the root directory of the current Orca source checkout.
 # This is copy-pasted to the command-line tool so it can work before loading anything.
