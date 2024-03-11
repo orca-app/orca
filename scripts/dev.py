@@ -40,6 +40,7 @@ def attach_dev_commands(subparsers):
     install_cmd.set_defaults(func=dev_shellish(install))
 
     package_cmd = subparsers.add_parser("package-sdk", help="Packages the Orca SDK for a release.")
+    package_cmd.add_argument("--target")
     package_cmd.add_argument("dest")
     package_cmd.set_defaults(func=dev_shellish(package_sdk))
 
@@ -874,7 +875,7 @@ def system_orca_dir():
         print("https://github.com/orca-app/orca/releases/latest")
         exit(1)
 
-def package_sdk_internal(dest):
+def package_sdk_internal(dest, target):
     bin_dir = os.path.join(dest, "bin")
     libc_dir = os.path.join(dest, "orca-libc")
     res_dir = os.path.join(dest, "resources")
@@ -885,14 +886,32 @@ def package_sdk_internal(dest):
     os.makedirs(res_dir, exist_ok=True)
     os.makedirs(src_dir, exist_ok=True)
 
-    shutil.copytree(os.path.join("build", "bin"), bin_dir, dirs_exist_ok=True)
+    if target == "Windows":
+        shutil.copy(os.path.join("build", "bin", "orca.exe"), bin_dir)
+        shutil.copy(os.path.join("build", "bin", "orca.dll"), bin_dir)
+        shutil.copy(os.path.join("build", "bin", "orca.dll.lib"), bin_dir)
+        shutil.copy(os.path.join("build", "bin", "wasm3.lib"), bin_dir)
+        shutil.copy(os.path.join("build", "bin", "runtime.obj"), bin_dir)
+        shutil.copy(os.path.join("build", "bin", "liborca_wasm.a"), bin_dir)
+        shutil.copy(os.path.join("build", "bin", "libEGL.dll"), bin_dir)
+        shutil.copy(os.path.join("build", "bin", "libGLESv2.dll"), bin_dir)
+    else:
+        shutil.copy(os.path.join("build", "bin", "orca"), bin_dir)
+        shutil.copy(os.path.join("build", "bin", "orca_runtime"), bin_dir)
+        shutil.copy(os.path.join("build", "bin", "liborca.dylib"), bin_dir)
+        shutil.copy(os.path.join("build", "bin", "liborca_wasm.a"), bin_dir)
+        shutil.copy(os.path.join("build", "bin", "libEGL.dylib"), bin_dir)
+        shutil.copy(os.path.join("build", "bin", "libGLESv2.dylib"), bin_dir)
+        shutil.copy(os.path.join("build", "bin", "mtl_renderer.metallib"), bin_dir)
+
     shutil.copytree(os.path.join("build", "orca-libc"), libc_dir, dirs_exist_ok=True)
     shutil.copytree("resources", res_dir, dirs_exist_ok=True)
     shutil.copytree("src", src_dir, dirs_exist_ok=True)
 
 def package_sdk(args):
     dest = args.dest
-    package_sdk_internal(dest)
+    target = platform.system() if args.target == None else args.target
+    package_sdk_internal(dest, target)
 
 def install(args):
     if runtime_checksum_last() is None:
@@ -927,7 +946,7 @@ def install(args):
     version = orca_version()
     dest = os.path.join(orca_dir, version)
 
-    package_sdk_internal(dest)
+    package_sdk_internal(dest, platform.system())
 
     tool_path = os.path.join("build", "bin", "orca.exe") if platform.system() == "Windows" else os.path.join("build","bin","orca")
     shutil.copy(tool_path, orca_dir)
