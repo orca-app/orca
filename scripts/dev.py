@@ -71,8 +71,7 @@ def build_all(args):
     ensure_programs()
     ensure_angle()
 
-    build_platform_layer_internal(args.release)
-    build_runtime_internal(args.release)
+    build_runtime_internal(args.release) # this also builds the platform layer
     build_libc_internal(args.release)
     build_sdk_internal(args.release)
     build_tool(args)
