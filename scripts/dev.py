@@ -92,6 +92,47 @@ def build_all(args):
 # build dawn
 #------------------------------------------------------
 
+def dawn_required_commit():
+    with open("deps/dawn-commit.txt", "r") as f:
+        DAWN_COMMIT = f.read().strip() # hardcoded commit for now
+    return DAWN_COMMIT
+
+def check_dawn():
+    with open("deps/dawn-commit.txt", "r") as f:
+        DAWN_COMMIT = f.read().strip() # hardcoded commit for now
+
+    # check if we already have the binary, or extract commit
+    artifacts = []
+    if platform.system() == "Windows":
+        artifacts = ["build/bin/webgpu.lib", "build/bin/webgpu.dll"]
+    else:
+        artifacts = ["build/bin/libwebgpu.dylib"]
+
+    up_to_date = False
+
+    if os.path.exists("build/dawn.json"):
+        with open("build/dawn.json", "r") as f:
+            sums = json.loads(f.read())
+
+            up_to_date = True
+
+            for artifact in artifacts:
+                if artifact in sums:
+                    if os.path.isfile(artifact):
+                        s = checksum.filesum(artifact)
+                        if sums[artifact]['commit'] != DAWN_COMMIT or s != sums[artifact]['sum']:
+                            up_to_date = False
+                            break
+                    else:
+                        up_to_date = False
+                        break
+                else:
+                    up_to_date = False
+                    break
+
+    return up_to_date
+
+
 def build_dawn(args):
     build_dawn_internal(args.release, args.parallel, args.force)
 
@@ -102,38 +143,14 @@ def build_dawn_internal(release, jobs, force):
 
     # TODO ensure requirements
 
-    with open("deps/dawn-commit.txt", "r") as f:
-        DAWN_COMMIT = f.read().strip() # hardcoded commit for now
 
-    # check if we already have the binary, or extract commit
+    DAWN_COMMIT = dawn_required_commit()
+
+    # check if we already have the binary
     if not force:
-        artifacts = []
-        if platform.system() == "Windows":
-            artifacts = ["build/bin/webgpu.lib", "build/bin/webgpu.dll"]
-        else:
-            artifacts = ["build/bin/libwebgpu.dylib"]
-
-        if os.path.exists("build/dawn.json"):
-            with open("build/dawn.json", "r") as f:
-                sums = json.loads(f.read())
-
-                up_to_date = True
-
-                for artifact in artifacts:
-                    if artifact in sums:
-                        if os.path.isfile(artifact):
-                            s = checksum.filesum(artifact)
-                            if sums[artifact]['commit'] != DAWN_COMMIT or s != sums[artifact]['sum']:
-                                up_to_date = False
-                                break
-                    else:
-                        up_to_date = False
-                        break
-
-                if up_to_date:
-                    print("  * already up to date")
-                    print("Done")
-                    return
+        if check_dawn():
+            print("  * already up to date")
+            print("Done")
 
     with pushd("build"):
         # get depot tools repo
@@ -411,6 +428,14 @@ def build_platform_layer(args):
 
 def build_platform_layer_internal(release):
     print("Building Orca platform layer...")
+
+    if not check_dawn():
+        msg = log_error("Dawn binaries are not present or don't match required commit.")
+        msg.more(f"Dawn commit: {dawn_required_commit()}")
+        cmd = "./orcadev" if platform.system() == "Darwin" else "orcadev.bat"
+        msg.more(f"You can build the required files by running '{cmd} build-dawn'")
+        msg.more("Alternatively you can trigger a CI run to build the binaries on github")
+        exit()
 
     os.makedirs("build/bin", exist_ok=True)
     os.makedirs("build/lib", exist_ok=True)
