@@ -3,9 +3,6 @@ name: build-dawn
 on:
   workflow_dispatch:
   workflow_call:
-  push:
-    branches:
-      - webgpu-canvas
 
 jobs:
   build-mac:
