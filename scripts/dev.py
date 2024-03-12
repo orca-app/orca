@@ -97,16 +97,19 @@ def dawn_required_commit():
         DAWN_COMMIT = f.read().strip() # hardcoded commit for now
     return DAWN_COMMIT
 
-def check_dawn():
-    with open("deps/dawn-commit.txt", "r") as f:
-        DAWN_COMMIT = f.read().strip() # hardcoded commit for now
-
-    # check if we already have the binary, or extract commit
+def dawn_required_files():
     artifacts = []
     if platform.system() == "Windows":
-        artifacts = ["build/bin/webgpu.lib", "build/bin/webgpu.dll"]
+        artifacts = ["build/bin/webgpu.lib", "build/bin/webgpu.dll", "src/ext/dawn/include/webgpu.h"]
     else:
-        artifacts = ["build/bin/libwebgpu.dylib"]
+        artifacts = ["build/bin/libwebgpu.dylib", "src/ext/dawn/include/webgpu.h"]
+
+    return artifacts
+
+def check_dawn():
+
+    DAWN_COMMIT = dawn_required_commit()
+    artifacts = dawn_required_files()
 
     up_to_date = False
 
@@ -134,6 +137,7 @@ def check_dawn():
 
 
 def build_dawn(args):
+    ensure_programs()
     build_dawn_internal(args.release, args.parallel, args.force)
 
 def build_dawn_internal(release, jobs, force):
@@ -229,6 +233,7 @@ target_sources(webgpu PRIVATE ${WEBGPU_DAWN_NATIVE_PROC_GEN})"""
 
         # package result
         print("  * copying build artifacts...")
+        sums = dict()
 
         os.makedirs("dawn.out/include", exist_ok=True)
         os.makedirs("dawn.out/bin", exist_ok=True)
@@ -237,7 +242,11 @@ target_sources(webgpu PRIVATE ${WEBGPU_DAWN_NATIVE_PROC_GEN})"""
         shutil.copy("dawn.build/gen/include/dawn/webgpu.h", "dawn.out/include/")
         shutil.copytree("dawn.out/include", "../src/ext/dawn/include/", dirs_exist_ok=True)
 
-        sums = dict()
+        sums['src/ext/dawn/include/webgpu.h'] = {
+            "commit": DAWN_COMMIT,
+            "sum": checksum.filesum('../src/ext/dawn/include/webgpu.h')
+        }
+
         if platform.system() == "Windows":
             shutil.copy("dawn.build/Debug/webgpu.dll", "dawn.out/bin/")
             shutil.copy(f"dawn.build/src/dawn/native/{mode}/webgpu.lib", "dawn.out/bin/")
@@ -325,6 +334,7 @@ def build_wasm3_lib_mac(release):
     subprocess.run(["rm", "-rf", "build/obj"], check=True)
 
 def build_runtime(args):
+    ensure_programs()
     build_runtime_internal(args.release)
 
 def build_runtime_internal(release):
@@ -424,17 +434,28 @@ def runtime_checksum():
 # build platform layer
 #------------------------------------------------------
 def build_platform_layer(args):
+    ensure_programs()
     build_platform_layer_internal(args.release)
 
 def build_platform_layer_internal(release):
     print("Building Orca platform layer...")
 
     if not check_dawn():
-        msg = log_error("Dawn binaries are not present or don't match required commit.")
+        msg = log_error("Dawn files are not present or don't match required commit.")
         msg.more(f"Dawn commit: {dawn_required_commit()}")
+        msg.more("Dawn required files:")
+        for artifact in dawn_required_files():
+            msg.more(f"  * {artifact}")
         cmd = "./orcadev" if platform.system() == "Darwin" else "orcadev.bat"
+        msg.more("")
         msg.more(f"You can build the required files by running '{cmd} build-dawn'")
-        msg.more("Alternatively you can trigger a CI run to build the binaries on github")
+        msg.more("")
+        msg.more("Alternatively you can trigger a CI run to build the binaries on github:")
+        msg.more("  * Go to https://github.com/orca-app/orca/actions/workflows/build-dawn.yaml")
+        msg.more("  * Click on \"Run workflow\"")
+        msg.more("  * Once the run is complete, download the artifacts")
+        msg.more("  * Put the contents of the artifacts 'bin' directory in './build/bin'")
+        msg.more("  * Put the contents of the artifacts 'include' directory in './src/ext/dawn/include'")
         exit()
 
     os.makedirs("build/bin", exist_ok=True)
@@ -610,6 +631,7 @@ def gen_all_bindings():
 # build wasm SDK
 #------------------------------------------------------
 def build_sdk(args):
+    ensure_programs()
     build_sdk_internal(args.release)
 
 def build_sdk_internal(release):
@@ -660,6 +682,7 @@ def build_sdk_internal(release):
 # build libc
 #------------------------------------------------------
 def build_libc(args):
+    ensure_programs()
     build_lib_internal(args.release)
 
 def build_libc_internal(release):
@@ -1056,6 +1079,7 @@ def clean(args):
 def ensure_programs():
     if platform.system() == "Windows":
         MSVC_MAJOR, MSVC_MINOR = 19, 35
+
         try:
             cl_only = subprocess.run(["cl"], capture_output=True, text=True)
             desc = cl_only.stderr.splitlines()[0]
@@ -1093,22 +1117,33 @@ def ensure_programs():
             exit(1)
 
     if platform.system() == "Darwin":
+
+        notes = []
         try:
             subprocess.run(["clang", "-v"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         except FileNotFoundError:
-            msg = log_error("clang was not found on your system.")
-            msg.more("Run the following to install it:")
-            msg.more()
-            msg.more("  brew install llvm")
-            msg.more()
-            exit(1)
+            notes.append(["clang", "brew install llvm"])
 
         if not os.path.exists(MAC_SDK_DIR):
-            msg = log_error("The Xcode command-line tools are not installed.")
-            msg.more("Run the following to install them:")
-            msg.more()
-            msg.more("  xcode-select --install")
-            msg.more()
+            notes.append(["XCode command-line tools", "xcode-select --install"])
+
+        try:
+            subprocess.run(["cmake", "--version"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except FileNotFoundError:
+            notes.append(["cmake", "brew install cmake"])
+
+        try:
+            subprocess.run(["git", "-v"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except FileNotFoundError:
+            notes.append(["git", "xcode-select --install"])
+
+        if len(notes):
+            msg = log_error("The following required tools were not found on your system")
+            for note in notes:
+                msg.more(f"* {note[0]}")
+                if len(note) > 1:
+                    msg.more("  You can run this command to install it:")
+                    msg.more(f"    {note[1]}")
             exit(1)
 
 
