@@ -1,0 +1,40 @@
+name: build-dawn
+
+on:
+  workflow_dispatch:
+  workflow_call:
+  push:
+    branches:
+      - webgpu-canvas
+
+jobs:
+  build-mac:
+    runs-on: macos-13
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Dawn version
+        id: dawn-version
+        run: |
+          echo "DAWN_COMMIT=$(cat deps/dawn-commit.txt)" >> $GITHUB_OUTPUT
+
+      - name: Cache
+        id: cache-dawn
+        uses: actions/cache@v3
+        with:
+          path: dawn.out
+          key: dawn-${{ runner.os }}-${{ runner.arch }}-${{ steps.dawn-version.outputs.DAWN_COMMIT }}
+
+      - name: Build Dawn
+        if: steps.cache-dawn.outputs.cache-hit != 'true'
+        run: |
+          ./orcadev build-dawn --parallel 4
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dawn-mac-x64
+          path: build/dawn.out
