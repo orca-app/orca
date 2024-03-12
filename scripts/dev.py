@@ -7,6 +7,7 @@ import shutil
 import subprocess
 from zipfile import ZipFile
 import tarfile
+import json
 
 from . import checksum
 from .bindgen import bindgen
@@ -30,6 +31,12 @@ def attach_dev_commands(subparsers):
     platform_layer_cmd = subparsers.add_parser("build-platform-layer", help="Build the Orca platform layer from source.")
     platform_layer_cmd.add_argument("--release", action="store_true", help="compile in release mode (default is debug)")
     platform_layer_cmd.set_defaults(func=dev_shellish(build_platform_layer))
+
+    dawn_cmd = subparsers.add_parser("build-dawn", help="Build Dawn")
+    dawn_cmd.add_argument("--release", action="store_true", help="compile in release mode (default is debug)")
+    dawn_cmd.add_argument("--force", action="store_true", help="force rebuild even if up-to-date artifacts exist")
+    dawn_cmd.add_argument("--parallel", type=int)
+    dawn_cmd.set_defaults(func=dev_shellish(build_dawn))
 
     runtime_cmd = subparsers.add_parser("build-runtime", help="Build the Orca runtime from source.")
     runtime_cmd.add_argument("--release", action="store_true", help="compile in release mode (default is debug)")
@@ -80,6 +87,163 @@ def build_all(args):
     with open("build/orcaruntime.sum", "w") as f:
         f.write(runtime_checksum())
 
+
+#------------------------------------------------------
+# build dawn
+#------------------------------------------------------
+
+def build_dawn(args):
+    build_dawn_internal(args.release, args.parallel, args.force)
+
+def build_dawn_internal(release, jobs, force):
+    print("Building Dawn...", end='', flush=True)
+
+    # TODO ensure requirements
+
+    with open("deps/dawn-commit.txt", "r") as f:
+        DAWN_COMMIT = f.read().strip() # hardcoded commit for now
+
+    # check if we already have the binary, or extract commit
+    if not force:
+        artifacts = []
+        if platform.system() == "Windows":
+            artifacts = ["build/bin/webgpu.lib", "build/bin/webgpu.dll"]
+        else:
+            artifacts = ["build/bin/libwebgpu.dylib"]
+
+        if os.path.exists("build/dawn.json"):
+            with open("build/dawn.json", "r") as f:
+                sums = json.loads(f.read())
+
+                up_to_date = True
+
+                for artifact in artifacts:
+                    if artifact in sums:
+                        if os.path.isfile(artifact):
+                            s = checksum.filesum(artifact)
+                            if sums[artifact]['commit'] != DAWN_COMMIT or s != sums[artifact]['sum']:
+                                up_to_date = False
+                                break
+                    else:
+                        up_to_date = False
+                        break
+
+                if up_to_date:
+                    print(" already up to date")
+                    return
+    print("")
+
+    with pushd("build"):
+        # get depot tools repo
+        print("  * checking depot tools")
+        if not os.path.exists("depot_tools"):
+            subprocess.run([
+                "git", "clone", "--depth=1", "--no-tags", "--single-branch",
+                "https://chromium.googlesource.com/chromium/tools/depot_tools.git"
+            ], check=True)
+        os.environ["PATH"] = os.path.join(os.getcwd(), "depot_tools") + os.pathsep + os.environ["PATH"]
+
+        # get dawn repo
+        print("  * checking dawn")
+        if not os.path.exists("dawn"):
+            subprocess.run([
+                "git", "clone", "--no-tags", "--single-branch",
+                "https://dawn.googlesource.com/dawn"
+            ], check=True)
+
+        with pushd("dawn"):
+            subprocess.run([
+                "git", "restore", "."
+            ], check=True)
+
+            subprocess.run([
+                "git", "pull", "--force", "--no-tags"
+            ], check=True)
+
+            subprocess.run([
+                "git", "checkout", "--force", DAWN_COMMIT
+            ], check=True)
+
+            shutil.copy("scripts/standalone.gclient", ".gclient")
+            subprocess.run(["gclient", "sync"], check=True)
+
+        print("  * preparing build")
+        with open("dawn/src/dawn/native/CMakeLists.txt", "a") as f:
+            s = """add_library(webgpu SHARED ${DAWN_PLACEHOLDER_FILE})
+common_compile_options(webgpu)
+target_link_libraries(webgpu PRIVATE dawn_native)
+target_link_libraries(webgpu PUBLIC dawn_headers)
+target_compile_definitions(webgpu PRIVATE WGPU_IMPLEMENTATION WGPU_SHARED_LIBRARY)
+target_sources(webgpu PRIVATE ${WEBGPU_DAWN_NATIVE_PROC_GEN})"""
+
+            f.write(s)
+
+        mode = "Release" if release else "Debug"
+
+        subprocess.run([
+            "cmake",
+            "-S", "dawn",
+            "-B", "dawn.build",
+            "-D", f"CMAKE_BUILD_TYPE={mode}",
+            "-D", "CMAKE_POLICY_DEFAULT_CMP0091=NEW",
+            "-D", "BUILD_SHARED_LIBS=OFF",
+            "-D", "BUILD_SAMPLES=OFF",
+            "-D", "DAWN_ENABLE_METAL=ON",
+            "-D", "DAWN_ENABLE_NULL=OFF",
+            "-D", "DAWN_ENABLE_DESKTOP_GL=OFF",
+            "-D", "DAWN_ENABLE_OPENGLES=OFF",
+            "-D", "DAWN_ENABLE_VULKAN=OFF",
+            "-D", "DAWN_BUILD_SAMPLES=OFF",
+            "-D", "TINT_BUILD_SAMPLES=OFF",
+            "-D", "TINT_BUILD_DOCS=OFF",
+            "-D", "TINT_BUILD_TESTS=OFF"
+        ], check = True)
+
+        parallel = ["--parallel"]
+        if jobs != None:
+            parallel.append(str(jobs))
+
+        print("  * building")
+        subprocess.run([
+            "cmake", "--build", "dawn.build", "--config", mode, "--target", "webgpu", *parallel
+        ], check = True)
+
+        # package result
+        print("  * copying build artifacts...")
+
+        if not os.path.exists("../src/ext/dawn/include"):
+            os.makedirs("../src/ext/dawn/include")
+
+        shutil.copy("dawn.build/gen/include/dawn/webgpu.h", "../src/ext/dawn/include/")
+
+        sums = dict()
+        if platform.system() == "Windows":
+            shutil.copy("dawn.build/Debug/webgpu.dll", "bin/")
+            shutil.copy(f"dawn.build/src/dawn/native/{mode}/webgpu.lib", "bin/")
+
+            sums['build/bin/webgpu.dll'] = {
+                "commit": DAWN_COMMIT,
+                "sum": checksum.filesum('bin/webgpu.dll')
+            }
+            sums['build/bin/webgpu.lib'] = {
+                "commit": DAWN_COMMIT,
+                "sum": checksum.filesum('bin/webgpu.lib')
+            }
+        else:
+            shutil.copy("dawn.build/src/dawn/native/libwebgpu.dylib", "bin/")
+
+            sums['build/bin/libwebgpu.dylib'] = {
+                "commit": DAWN_COMMIT,
+                "sum": checksum.filesum('bin/libwebgpu.dylib')
+            }
+
+    # save artifacts checksums
+    with open('build/dawn.json', 'w') as f:
+        json.dump(sums, f)
+
+
+
+    print("Done")
 #------------------------------------------------------
 # build runtime
 #------------------------------------------------------
