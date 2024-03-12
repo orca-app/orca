@@ -147,7 +147,6 @@ def build_dawn_internal(release, jobs, force):
 
     # TODO ensure requirements
 
-
     DAWN_COMMIT = dawn_required_commit()
 
     # check if we already have the binary
@@ -165,6 +164,7 @@ def build_dawn_internal(release, jobs, force):
                 "https://chromium.googlesource.com/chromium/tools/depot_tools.git"
             ], check=True)
         os.environ["PATH"] = os.path.join(os.getcwd(), "depot_tools") + os.pathsep + os.environ["PATH"]
+        os.environ["DEPOT_TOOLS_WIN_TOOLCHAIN"] = "0"
 
         # get dawn repo
         print("  * checking dawn")
@@ -188,9 +188,12 @@ def build_dawn_internal(release, jobs, force):
             ], check=True)
 
             shutil.copy("scripts/standalone.gclient", ".gclient")
-            subprocess.run(["gclient", "sync"], check=True)
+
+            shell = True if platform.system() == "Windows" else False
+            subprocess.run(["gclient", "sync"], shell=shell, check=True)
 
         print("  * preparing build")
+
         with open("dawn/src/dawn/native/CMakeLists.txt", "a") as f:
             s = """add_library(webgpu SHARED ${DAWN_PLACEHOLDER_FILE})
 common_compile_options(webgpu)
@@ -198,10 +201,28 @@ target_link_libraries(webgpu PRIVATE dawn_native)
 target_link_libraries(webgpu PUBLIC dawn_headers)
 target_compile_definitions(webgpu PRIVATE WGPU_IMPLEMENTATION WGPU_SHARED_LIBRARY)
 target_sources(webgpu PRIVATE ${WEBGPU_DAWN_NATIVE_PROC_GEN})"""
-
             f.write(s)
 
         mode = "Release" if release else "Debug"
+
+        if platform.system() == "Windows":
+            backends = [
+                "-D", "DAWN_ENABLE_D3D12=ON",
+                "-D", "DAWN_ENABLE_D3D11=OFF",
+                "-D", "DAWN_ENABLE_METAL=OFF",
+                "-D", "DAWN_ENABLE_NULL=OFF",
+                "-D", "DAWN_ENABLE_DESKTOP_GL=OFF",
+                "-D", "DAWN_ENABLE_OPENGLES=OFF",
+                "-D", "DAWN_ENABLE_VULKAN=OFF"
+            ]
+        else:
+            backends = [
+                "-D", "DAWN_ENABLE_METAL=ON",
+                "-D", "DAWN_ENABLE_NULL=OFF",
+                "-D", "DAWN_ENABLE_DESKTOP_GL=OFF",
+                "-D", "DAWN_ENABLE_OPENGLES=OFF",
+                "-D", "DAWN_ENABLE_VULKAN=OFF"
+            ]
 
         subprocess.run([
             "cmake",
@@ -211,11 +232,7 @@ target_sources(webgpu PRIVATE ${WEBGPU_DAWN_NATIVE_PROC_GEN})"""
             "-D", "CMAKE_POLICY_DEFAULT_CMP0091=NEW",
             "-D", "BUILD_SHARED_LIBS=OFF",
             "-D", "BUILD_SAMPLES=OFF",
-            "-D", "DAWN_ENABLE_METAL=ON",
-            "-D", "DAWN_ENABLE_NULL=OFF",
-            "-D", "DAWN_ENABLE_DESKTOP_GL=OFF",
-            "-D", "DAWN_ENABLE_OPENGLES=OFF",
-            "-D", "DAWN_ENABLE_VULKAN=OFF",
+            *backends,
             "-D", "DAWN_BUILD_SAMPLES=OFF",
             "-D", "TINT_BUILD_SAMPLES=OFF",
             "-D", "TINT_BUILD_DOCS=OFF",
@@ -248,7 +265,7 @@ target_sources(webgpu PRIVATE ${WEBGPU_DAWN_NATIVE_PROC_GEN})"""
         }
 
         if platform.system() == "Windows":
-            shutil.copy("dawn.build/Debug/webgpu.dll", "dawn.out/bin/")
+            shutil.copy(f"dawn.build/{mode}/webgpu.dll", "dawn.out/bin/")
             shutil.copy(f"dawn.build/src/dawn/native/{mode}/webgpu.lib", "dawn.out/bin/")
             shutil.copytree("dawn.out/bin", "bin", dirs_exist_ok=True)
 
@@ -1049,6 +1066,8 @@ def install(args):
     version = orca_version()
     dest = os.path.join(orca_dir, version)
 
+    print(f"Installing dev build of Orca in {dest}")
+
     package_sdk_internal(dest, platform.system())
 
     tool_path = os.path.join("build", "bin", "orca.exe") if platform.system() == "Windows" else os.path.join("build","bin","orca")
@@ -1058,10 +1077,6 @@ def install(args):
         f.write(version)
 
     # TODO(shaw): should dev versions and their checksums be added to all_versions file?
-    print()
-    print("A dev build of Orca has been installed to the following directory:")
-    print(dest)
-    print()
 
 #------------------------------------------------------
 # Clean
@@ -1077,75 +1092,108 @@ def clean(args):
 # utils
 #------------------------------------------------------
 def ensure_programs():
+    missing = []
+
     if platform.system() == "Windows":
         MSVC_MAJOR, MSVC_MINOR = 19, 35
 
-        try:
-            cl_only = subprocess.run(["cl"], capture_output=True, text=True)
-            desc = cl_only.stderr.splitlines()[0]
+        # Get where Visual Studio is installed
+        where = subprocess.run(
+            ["%ProgramFiles(x86)%\\Microsoft Visual Studio\\Installer\\vswhere.exe",
+            "-latest",
+            "-requires", "Microsoft.VisualStudio.Workload.NativeDesktop",
+            "-property", "installationPath"],
+            capture_output=True,
+            shell=True,
+            text=True)
 
-            detect = subprocess.run(["cl", "/EP", "scripts\\msvc_version.txt"], capture_output=True, text=True)
-            parts = [x for x in detect.stdout.splitlines() if x]
-            version, arch = int(parts[0]), parts[1]
-            major, minor = int(version / 100), version % 100
+        if len(where.stdout) == 0:
+            missing.append(["Visual Studio"])
+        else:
+            # get the environment after calling vcvarsall.bat and update our own env with it
+            os.environ["__VSCMD_ARG_NO_LOGO"] = "1"
+            varsall = subprocess.run(
+                [os.path.join(where.stdout.strip(), "VC\\Auxiliary\\Build\\vcvarsall.bat"), "amd64", ">nul"
+                "&&",
+                "python", "-c", "import os; print(repr(os.environ))"],
+                capture_output=True,
+                text=True)
 
-            if arch != "x64":
-                msg = log_error("MSVC is not running in 64-bit mode. Make sure you are running in")
-                msg.more("an x64 Visual Studio command prompt, such as the \"x64 Native Tools")
-                msg.more("Command Prompt\" from your Start Menu.")
-                msg.more()
-                msg.more("MSVC reported itself as:")
-                msg.more(desc)
-                exit(1)
+            env = eval(varsall.stdout.splitlines()[-1].strip('environ'))
+            os.environ.update(env)
 
-            if major < MSVC_MAJOR or minor < MSVC_MINOR:
-                msg = log_error(f"Your version of MSVC is too old. You have version {major}.{minor},")
-                msg.more(f"but version {MSVC_MAJOR}.{MSVC_MINOR} or greater is required.")
-                msg.more()
-                msg.more("MSVC reported itself as:")
-                msg.more(desc)
-                msg.more()
-                msg.more("Please update Visual Studio to the latest version and try again.")
-                exit(1)
-        except FileNotFoundError:
-            msg = log_error("MSVC was not found on your system.")
-            msg.more("If you have already installed Visual Studio, make sure you are running in an")
-            msg.more("x64 Visual Studio command prompt, such as the \"x64 Native Tools Command")
-            msg.more("Prompt\" from your Start Menu. Otherwise, download and install Visual Studio,")
-            msg.more("and ensure that your installation includes \"Desktop development with C++\"")
-            msg.more("and \"C++ Clang Compiler\": https://visualstudio.microsoft.com/")
-            exit(1)
+            try:
+                cl_only = subprocess.run(["cl"], capture_output=True, text=True)
+                desc = cl_only.stderr.splitlines()[0]
 
-    if platform.system() == "Darwin":
+                detect = subprocess.run(["cl", "/EP", "scripts\\msvc_version.txt"], capture_output=True, text=True)
+                parts = [x for x in detect.stdout.splitlines() if x]
+                version, arch = int(parts[0]), parts[1]
+                major, minor = int(version / 100), version % 100
 
-        notes = []
+                if arch != "x64":
+                    msg = log_error("MSVC is not running in 64-bit mode. Make sure you are running in")
+                    msg.more("an x64 Visual Studio command prompt, such as the \"x64 Native Tools")
+                    msg.more("Command Prompt\" from your Start Menu.")
+                    msg.more()
+                    msg.more("MSVC reported itself as:")
+                    msg.more(desc)
+                    exit(1)
+
+                if major < MSVC_MAJOR or minor < MSVC_MINOR:
+                    msg = log_error(f"Your version of MSVC is too old. You have version {major}.{minor},")
+                    msg.more(f"but version {MSVC_MAJOR}.{MSVC_MINOR} or greater is required.")
+                    msg.more()
+                    msg.more("MSVC reported itself as:")
+                    msg.more(desc)
+                    msg.more()
+                    msg.more("Please update Visual Studio to the latest version and try again.")
+                    exit(1)
+            except FileNotFoundError:
+                missing.append(["Visual Studio"])
+
         try:
             subprocess.run(["clang", "-v"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         except FileNotFoundError:
-            notes.append(["clang", "brew install llvm"])
-
-        if not os.path.exists(MAC_SDK_DIR):
-            notes.append(["XCode command-line tools", "xcode-select --install"])
+            missing.append(["clang", "To install it, launch Visual Studio Installer, click Modify, and check \"Desktop development with C++\" and \"C++ Clang Compiler\""])
 
         try:
             subprocess.run(["cmake", "--version"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         except FileNotFoundError:
-            notes.append(["cmake", "brew install cmake"])
+            missing.append(["cmake", "To install it, launch Visual Studio Installer, click Modify, and check \"Desktop development with C++\" and \"C++ Clang Compiler\""])
 
         try:
             subprocess.run(["git", "-v"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         except FileNotFoundError:
-            notes.append(["git", "xcode-select --install"])
+            missing.append(["git", "You can install git for Windows from https://gitforwindows.org/"])
 
-        if len(notes):
-            msg = log_error("The following required tools were not found on your system")
-            for note in notes:
-                msg.more(f"* {note[0]}")
-                if len(note) > 1:
-                    msg.more("  You can run this command to install it:")
-                    msg.more(f"    {note[1]}")
-            exit(1)
+    if platform.system() == "Darwin":
 
+        try:
+            subprocess.run(["clang", "-v"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except FileNotFoundError:
+            missing.append(["clang", "To install it, run: brew install llvm"])
+
+        if not os.path.exists(MAC_SDK_DIR):
+            missing.append(["XCode command-line tools", "To install it, run: xcode-select --install"])
+
+        try:
+            subprocess.run(["cmake", "--version"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except FileNotFoundError:
+            missing.append(["cmake", "To install it, run: brew install cmake"])
+
+        try:
+            subprocess.run(["git", "-v"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except FileNotFoundError:
+            missing.append(["git", "To install it, run: xcode-select --install"])
+
+    if len(missing):
+        msg = log_error("The following required tools were not found on your system")
+        for entry in missing:
+            msg.more(f"* {entry[0]}")
+            if len(note) > 1:
+                msg.more(f" note: {entry[1]}")
+        exit(1)
 
 def ensure_angle():
     if not verify_angle():

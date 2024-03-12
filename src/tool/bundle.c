@@ -193,10 +193,12 @@ int winBundle(
     oc_str8 orcaLib = oc_path_append(a, sdk_dir, OC_STR8("bin/orca.dll"));
     oc_str8 glesLib = oc_path_append(a, sdk_dir, OC_STR8("bin/libGLESv2.dll"));
     oc_str8 eglLib = oc_path_append(a, sdk_dir, OC_STR8("bin/libEGL.dll"));
+    oc_str8 wgpuLib = oc_path_append(a, sdk_dir, OC_STR8("bin/webgpu.dll"));
 
     TRY(oc_sys_copy(orcaLib, exeDir));
     TRY(oc_sys_copy(glesLib, exeDir));
     TRY(oc_sys_copy(eglLib, exeDir));
+    TRY(oc_sys_copy(wgpuLib, exeDir));
 
     //-----------------------------------------------------------
     //NOTE: copy wasm module and data
