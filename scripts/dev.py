@@ -19,6 +19,7 @@ from .version import orca_version
 
 ANGLE_VERSION = "2023-07-05"
 MAC_SDK_DIR = "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk"
+MACOS_VERSION_MIN = "10.15.4"
 
 def attach_dev_commands(subparsers):
     build_cmd = subparsers.add_parser("build", help="Build Orca from source.")
@@ -124,7 +125,7 @@ def build_wasm3_lib_mac(release):
         "-foptimize-sibling-calls",
         "-Wno-extern-initializer",
         "-Dd_m3VerboseErrorMessages",
-        "-mmacos-version-min=10.15.4"
+        f"-mmacos-version-min={MACOS_VERSION_MIN}"
     ]
 
     for f in glob.iglob("src/ext/wasm3/source/*.c"):
@@ -191,7 +192,8 @@ def build_runtime_mac(release):
     debug_flags = ["-O2"] if release else ["-g", "-DOC_DEBUG -DOC_LOG_COMPILE_DEBUG"]
     flags = [
         *debug_flags,
-        "-mmacos-version-min=10.15.4"]
+        "--std=c11",
+        f"-mmacos-version-min={MACOS_VERSION_MIN}"]
 
     gen_all_bindings()
 
@@ -306,7 +308,7 @@ def build_platform_layer_lib_win(release):
     ], check=True)
 
 def build_platform_layer_lib_mac(release):
-    flags = ["-mmacos-version-min=10.15.4"]
+    flags = [f"-mmacos-version-min={MACOS_VERSION_MIN}"]
     cflags = ["-std=c11"]
     debug_flags = ["-O3"] if release else ["-g", "-DOC_DEBUG", "-DOC_LOG_COMPILE_DEBUG"]
     ldflags = [f"-L{MAC_SDK_DIR}/usr/lib", f"-F{MAC_SDK_DIR}/System/Library/Frameworks/"]
@@ -554,26 +556,19 @@ def build_tool(args):
 
     os.makedirs("build/bin", exist_ok=True)
 
-    with pushd("src/tool"):
-        os.makedirs("build/bin", exist_ok=True)
+    if args.version == None:
+        res = subprocess.run(["git", "rev-parse", "--short", "HEAD"], check=True, capture_output=True, text=True)
+        version = res.stdout.strip()
+    else:
+        version = args.version
 
-        if args.version == None:
-            res = subprocess.run(["git", "rev-parse", "--short", "HEAD"], check=True, capture_output=True, text=True)
-            version = res.stdout.strip()
-        else:
-            version = args.version
-
-        outname = "orca.exe" if platform.system() == "Windows" else "orca"
-
-        if platform.system() == "Windows":
-            build_tool_win(args.release, version, outname)
-        elif platform.system() == "Darwin":
-            build_tool_mac(args.release, version, outname)
-        else:
-            log_error(f"can't build cli tool for unknown platform '{platform.system()}'")
-            exit(1)
-
-    shutil.copy(f"src/tool/build/bin/{outname}", "build/bin/")
+    if platform.system() == "Windows":
+        build_tool_win(args.release, version)
+    elif platform.system() == "Darwin":
+        build_tool_mac(args.release, version)
+    else:
+        log_error(f"can't build cli tool for unknown platform '{platform.system()}'")
+        exit(1)
 
     with open("build/orcatool.sum", "w") as f:
         f.write(tool_checksum())
@@ -637,16 +632,15 @@ def build_zlib():
         exit(1)
 
 
-def build_tool_win(release, version, outname):
+def build_tool_win(release, version):
     includes = [
-        "/I", "..",
-        "/I", "../ext/stb",
-        "/I", "../ext/curl/builds/static/include",
-        "/I", "../ext/zlib",
-        "/I", "../ext/microtar"
+        "/I", "src",
+        "/I", "src/ext/stb",
+        "/I", "src/ext/curl/builds/static/include",
+        "/I", "src/ext/zlib",
+        "/I", "src/ext/microtar"
     ]
 
-    # debug_flags = ["/O2"] if release else ["/Zi", "/DOC_DEBUG", "/DOC_LOG_COMPILE_DEBUG", "/W3"]
     debug_flags = ["/O2"] if release else ["/Zi", "/DOC_DEBUG", "/DOC_LOG_COMPILE_DEBUG"]
 
     libs = [
@@ -660,10 +654,10 @@ def build_tool_win(release, version, outname):
         "normaliz.lib",
         "ws2_32.lib",
         "wldap32.lib",
-        "/LIBPATH:../ext/curl/builds/static/lib",
+        "/LIBPATH:src/ext/curl/builds/static/lib",
         "libcurl_a.lib",
 
-        "/LIBPATH:../ext/zlib/build",
+        "/LIBPATH:src/ext/zlib/build",
         "zlib.lib",
     ]
 
@@ -680,18 +674,18 @@ def build_tool_win(release, version, outname):
         "/DCURL_STATICLIB",
         f"/DORCA_TOOL_VERSION={version}",
         "/MD",
-        f"/Febuild/bin/{outname}",
-        "main.c",
+        f"/Febuild/bin/orca.exe",
+        "src/tool/main.c",
         "/link",
         *libs,
     ], check=True)
 
-def build_tool_mac(release, version, outname):
+def build_tool_mac(release, version):
     includes = [
-        "-I", "..",
-        "-I", "../ext/curl/builds/static/include",
-        "-I", "../ext/zlib",
-        "-I", "../ext/microtar"
+        "-I", "src",
+        "-I", "src/ext/curl/builds/static/include",
+        "-I", "src/ext/zlib",
+        "-I", "src/ext/microtar"
     ]
 
     debug_flags = ["-O2"] if release else ["-g", "-DOC_DEBUG", "-DOC_LOG_COMPILE_DEBUG"]
@@ -705,13 +699,13 @@ def build_tool_mac(release, version, outname):
         "-framework", "CoreServices",
         "-framework", "SystemConfiguration",
         "-framework", "Security",
-        "-L../ext/curl/builds/static/lib", "-lcurl",
+        "-Lsrc/ext/curl/builds/static/lib", "-lcurl",
 
-        "-L../ext/zlib/build", "-lz",
+        "-Lsrc/ext/zlib/build", "-lz",
     ]
     subprocess.run([
         "clang",
-        "-mmacos-version-min=10.15.4",
+        f"-mmacos-version-min={MACOS_VERSION_MIN}",
         "-std=c11",
         *debug_flags,
         *includes,
@@ -722,8 +716,8 @@ def build_tool_mac(release, version, outname):
         "-D", f"ORCA_TOOL_VERSION={version}",
         *libs,
         "-MJ", "build/main.json",
-        "-o", f"build/bin/{outname}",
-        "main.c",
+        "-o", f"build/bin/orca",
+        "src/tool/main.c",
     ], check=True)
 
     with open("build/compile_commands.json", "w") as f:
