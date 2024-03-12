@@ -20,7 +20,6 @@ class Entry:
 
 def log_error(msg):
     msg = f"ERROR: {msg}"
-    print(msg)
     entry = Entry(msg)
     errors.append(entry)
     return entry
@@ -28,7 +27,6 @@ def log_error(msg):
 
 def log_warning(msg):
     msg = f"WARNING: {msg}"
-    print(msg)
     entry = Entry(msg)
     warnings.append(entry)
     return entry
