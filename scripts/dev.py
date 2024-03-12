@@ -96,7 +96,9 @@ def build_dawn(args):
     build_dawn_internal(args.release, args.parallel, args.force)
 
 def build_dawn_internal(release, jobs, force):
-    print("Building Dawn...", end='', flush=True)
+    print("Building Dawn...")
+
+    os.makedirs("build/bin", exist_ok=True)
 
     # TODO ensure requirements
 
@@ -129,9 +131,9 @@ def build_dawn_internal(release, jobs, force):
                         break
 
                 if up_to_date:
-                    print(" already up to date")
+                    print("  * already up to date")
+                    print("Done")
                     return
-    print("")
 
     with pushd("build"):
         # get depot tools repo
@@ -211,15 +213,18 @@ target_sources(webgpu PRIVATE ${WEBGPU_DAWN_NATIVE_PROC_GEN})"""
         # package result
         print("  * copying build artifacts...")
 
-        if not os.path.exists("../src/ext/dawn/include"):
-            os.makedirs("../src/ext/dawn/include")
+        os.makedirs("dawn.out/include", exist_ok=True)
+        os.makedirs("dawn.out/bin", exist_ok=True)
+        os.makedirs("../src/ext/dawn/include", exist_ok=True)
 
-        shutil.copy("dawn.build/gen/include/dawn/webgpu.h", "../src/ext/dawn/include/")
+        shutil.copy("dawn.build/gen/include/dawn/webgpu.h", "dawn.out/include/")
+        shutil.copytree("dawn.out/include", "../src/ext/dawn/include/", dirs_exist_ok=True)
 
         sums = dict()
         if platform.system() == "Windows":
-            shutil.copy("dawn.build/Debug/webgpu.dll", "bin/")
-            shutil.copy(f"dawn.build/src/dawn/native/{mode}/webgpu.lib", "bin/")
+            shutil.copy("dawn.build/Debug/webgpu.dll", "dawn.out/bin/")
+            shutil.copy(f"dawn.build/src/dawn/native/{mode}/webgpu.lib", "dawn.out/bin/")
+            shutil.copytree("dawn.out/bin", "bin", dirs_exist_ok=True)
 
             sums['build/bin/webgpu.dll'] = {
                 "commit": DAWN_COMMIT,
@@ -230,7 +235,8 @@ target_sources(webgpu PRIVATE ${WEBGPU_DAWN_NATIVE_PROC_GEN})"""
                 "sum": checksum.filesum('bin/webgpu.lib')
             }
         else:
-            shutil.copy("dawn.build/src/dawn/native/libwebgpu.dylib", "bin/")
+            shutil.copy("dawn.build/src/dawn/native/libwebgpu.dylib", "dawn.out/bin/")
+            shutil.copytree("dawn.out/bin", "bin", dirs_exist_ok=True)
 
             sums['build/bin/libwebgpu.dylib'] = {
                 "commit": DAWN_COMMIT,
@@ -240,7 +246,6 @@ target_sources(webgpu PRIVATE ${WEBGPU_DAWN_NATIVE_PROC_GEN})"""
     # save artifacts checksums
     with open('build/dawn.json', 'w') as f:
         json.dump(sums, f)
-
 
 
     print("Done")

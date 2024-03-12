@@ -68,7 +68,7 @@ cmake                                         \
   -D TINT_BUILD_TESTS=OFF                     \
   || exit 1
 
-cmake --build dawn.build --config Debug --target webgpu --parallel
+cmake --build dawn.build --config Debug --target webgpu --parallel 4
 
 
 # package result
