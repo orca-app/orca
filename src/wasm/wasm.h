@@ -112,31 +112,31 @@ typedef struct oc_wasm_global_pointer
 
 typedef struct oc_wasm oc_wasm;
 
-ORCA_API bool oc_wasm_status_is_fail(oc_wasm_status status);
-ORCA_API oc_str8 oc_wasm_status_str8(oc_wasm_status status);
+bool oc_wasm_status_is_fail(oc_wasm_status status);
+oc_str8 oc_wasm_status_str8(oc_wasm_status status);
 
-ORCA_API size_t oc_wasm_valtype_size(oc_wasm_valtype valtype);
-ORCA_API oc_str8 oc_wasm_valtype_str8(oc_wasm_valtype valtype);
+size_t oc_wasm_valtype_size(oc_wasm_valtype valtype);
+oc_str8 oc_wasm_valtype_str8(oc_wasm_valtype valtype);
 
-ORCA_API oc_wasm* oc_wasm_create(void);
-ORCA_API void oc_wasm_destroy(oc_wasm* wasm);
+oc_wasm* oc_wasm_create(void);
+void oc_wasm_destroy(oc_wasm* wasm);
 
-ORCA_API oc_wasm_status oc_wasm_decode(oc_wasm* wasm, oc_str8 wasmBlob);
-ORCA_API oc_wasm_status oc_wasm_add_binding(oc_wasm* wasm, oc_wasm_binding* binding);
-ORCA_API oc_wasm_status oc_wasm_instantiate(oc_wasm* wasm, oc_str8 moduleDebugName, oc_wasm_mem_callbacks memCallbacks);
+oc_wasm_status oc_wasm_decode(oc_wasm* wasm, oc_str8 wasmBlob);
+oc_wasm_status oc_wasm_add_binding(oc_wasm* wasm, oc_wasm_binding* binding);
+oc_wasm_status oc_wasm_instantiate(oc_wasm* wasm, oc_str8 moduleDebugName, oc_wasm_mem_callbacks memCallbacks);
 
-ORCA_API u64 oc_wasm_mem_size(oc_wasm* wasm);
-ORCA_API oc_str8 oc_wasm_mem_get(oc_wasm* wasm);
-ORCA_API oc_wasm_status oc_wasm_mem_resize(oc_wasm* wasm, u32 countPages);
+u64 oc_wasm_mem_size(oc_wasm* wasm);
+oc_str8 oc_wasm_mem_get(oc_wasm* wasm);
+oc_wasm_status oc_wasm_mem_resize(oc_wasm* wasm, u32 countPages);
 
-ORCA_API oc_wasm_function_handle* oc_wasm_function_find(oc_wasm* wasm, oc_str8 exportName);
-ORCA_API oc_wasm_function_info oc_wasm_function_get_info(oc_arena* scratch, oc_wasm* wasm, oc_wasm_function_handle* handle);
-ORCA_API oc_wasm_status oc_wasm_function_call(oc_wasm* wasm, oc_wasm_function_handle* handle, oc_wasm_val* params, size_t countParams, oc_wasm_val* returns, size_t countReturns);
+oc_wasm_function_handle* oc_wasm_function_find(oc_wasm* wasm, oc_str8 exportName);
+oc_wasm_function_info oc_wasm_function_get_info(oc_arena* scratch, oc_wasm* wasm, oc_wasm_function_handle* handle);
+oc_wasm_status oc_wasm_function_call(oc_wasm* wasm, oc_wasm_function_handle* handle, oc_wasm_val* params, size_t countParams, oc_wasm_val* returns, size_t countReturns);
 
-ORCA_API oc_wasm_global_handle* oc_wasm_global_find(oc_wasm* wasm, oc_str8 exportName, oc_wasm_valtype expectedType);
-ORCA_API oc_wasm_val oc_wasm_global_get_value(oc_wasm_global_handle* global);
-ORCA_API void oc_wasm_global_set_value(oc_wasm_global_handle* global, oc_wasm_val value);
-ORCA_API oc_wasm_global_pointer oc_wasm_global_pointer_find(oc_wasm* wasm, oc_str8 exportName);
+oc_wasm_global_handle* oc_wasm_global_find(oc_wasm* wasm, oc_str8 exportName, oc_wasm_valtype expectedType);
+oc_wasm_val oc_wasm_global_get_value(oc_wasm_global_handle* global);
+void oc_wasm_global_set_value(oc_wasm_global_handle* global, oc_wasm_val value);
+oc_wasm_global_pointer oc_wasm_global_pointer_find(oc_wasm* wasm, oc_str8 exportName);
 
 //////////////////////////////////////////////////////////////////
 // Inline implementation
