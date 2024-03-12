@@ -19,6 +19,8 @@ build
 *.o
 *.d
 
+src/ext/dawn
+
 Debug/*
 
 scripts/__pycache__
@@ -54,4 +56,3 @@ src/ext/curl/builds/
 src/ext/curl/winbuild/*.inc
 src/ext/curl/winbuild/*.idb
 src/ext/zlib/build/
-
