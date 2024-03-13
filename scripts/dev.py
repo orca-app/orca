@@ -1032,7 +1032,45 @@ def package_sdk_internal(dest, target):
 
     shutil.copytree(os.path.join("build", "orca-libc"), libc_dir, dirs_exist_ok=True)
     shutil.copytree("resources", res_dir, dirs_exist_ok=True)
-    shutil.copytree("src", src_dir, dirs_exist_ok=True)
+
+    ignore_patterns = shutil.ignore_patterns(
+        '*.[!h]', # exclude anything that is not a header
+        'tool',
+        'ext',
+        'orca-libc'
+    )
+
+    def ignore(dirName, files):
+        # ignore everything that's not a header
+        result = [ x for x in files if os.path.isfile(os.path.join(dirName, x)) and x[-2:] != ".h" ]
+
+        # exclude or include specific sub-directories
+        ignoreDirs = []
+        onlyDirs = []
+
+        if dirName == 'src':
+            ignoreDirs = ['tool', 'orca-libc', 'wasm']
+        elif dirName == 'src/ext/curl':
+            onlyDirs = ['include']
+        elif dirName == 'src/ext/wasm3':
+            onlyDirs = ['source']
+        elif dirName == 'src/ext/zlib':
+            ignoreDirs = ['build']
+
+        if len(ignoreDirs):
+            result += [x for x in files if x in ignoreDirs]
+
+        if len(onlyDirs):
+            result += [x for x in files if os.path.isdir(os.path.join(dirName, x)) and x not in onlyDirs]
+
+        return result
+
+    shutil.copytree("src", src_dir, dirs_exist_ok=True, ignore=ignore)
+
+    for dirpath, dirnames, filenames in os.walk(src_dir, topdown=False):
+        if not os.listdir(dirpath):
+            os.rmdir(dirpath)
+
 
 def package_sdk(args):
     dest = args.dest
