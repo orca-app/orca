@@ -154,23 +154,31 @@ int winBundle(
         oc_str8 res_path = { 0 };
         if(icon.len > 0)
         {
-            if(oc_sys_exists(temp_dir))
+            if (oc_sys_exists(icon))
             {
-                TRY(oc_sys_rmdir(temp_dir));
-            }
-            TRY(oc_sys_mkdirs(temp_dir));
-            oc_str8 ico_path = oc_path_append(a, temp_dir, OC_STR8("icon.ico"));
-            if(!icon_from_image(a, icon, ico_path))
-            {
-                fprintf(stderr, "failed to create windows icon for %.*s\n", oc_str8_ip(icon));
-            }
+                if(oc_sys_exists(temp_dir))
+                {
+                    TRY(oc_sys_rmdir(temp_dir));
+                }
+                TRY(oc_sys_mkdirs(temp_dir));
+                oc_str8 ico_path = oc_path_append(a, temp_dir, OC_STR8("icon.ico"));
+                if(!icon_from_image(a, icon, ico_path))
+                {
+                    fprintf(stderr, "failed to create windows icon for \"%.*s\"\n", oc_str8_ip(icon));
+                }
 
-            res_path = oc_path_append(a, temp_dir, OC_STR8("icon.res"));
-            if(!resource_file_from_icon(a, ico_path, res_path))
+                res_path = oc_path_append(a, temp_dir, OC_STR8("icon.res"));
+                if(!resource_file_from_icon(a, ico_path, res_path))
+                {
+                    fprintf(stderr, "failed to create windows resource file for \"%.*s\"\n", oc_str8_ip(ico_path));
+                    res_path.ptr = 0;
+                    res_path.len = 0;
+                }
+
+            }
+            else
             {
-                fprintf(stderr, "failed to create windows resource file for %.*s\n", oc_str8_ip(ico_path));
-                res_path.ptr = 0;
-                res_path.len = 0;
+                fprintf(stderr, "warning: failed to find icon file \"%.*s\"\n", oc_str8_ip(icon));
             }
         }
 
@@ -347,47 +355,54 @@ int macBundle(
     //-----------------------------------------------------------
     if(icon.len)
     {
-        oc_str8 icon_dir = oc_path_slice_directory(icon);
-        oc_str8 iconset = oc_path_append(a, icon_dir, OC_STR8("icon.iconset"));
-        if(oc_sys_exists(iconset))
+        if (oc_sys_exists(icon))
         {
-            TRY(oc_sys_rmdir(iconset));
-        }
-        TRY(oc_sys_mkdirs(iconset));
+            oc_str8 icon_dir = oc_path_slice_directory(icon);
+            oc_str8 iconset = oc_path_append(a, icon_dir, OC_STR8("icon.iconset"));
+            if(oc_sys_exists(iconset))
+            {
+                TRY(oc_sys_rmdir(iconset));
+            }
+            TRY(oc_sys_mkdirs(iconset));
 
-        i32 size = 16;
-        for(i32 i = 0; i < 7; ++i)
-        {
-            oc_str8 sized_icon = oc_path_append(a, iconset, oc_str8_pushf(a, "icon_%dx%d.png", size, size));
-            oc_str8 cmd = oc_str8_pushf(a, "sips -z %d %d %.*s --out %s >/dev/null 2>&1",
-                                        size, size, oc_str8_ip(icon), sized_icon.ptr);
+            i32 size = 16;
+            for(i32 i = 0; i < 7; ++i)
+            {
+                oc_str8 sized_icon = oc_path_append(a, iconset, oc_str8_pushf(a, "icon_%dx%d.png", size, size));
+                oc_str8 cmd = oc_str8_pushf(a, "sips -z %d %d %.*s --out %s >/dev/null 2>&1",
+                                            size, size, oc_str8_ip(icon), sized_icon.ptr);
+                i32 result = system(cmd.ptr);
+                if(result)
+                {
+                    fprintf(stderr, "failed to generate %dx%d icon from %.*s\n", size, size, oc_str8_ip(icon));
+                }
+
+                i32 retina_size = size * 2;
+                oc_str8 retina_icon = oc_path_append(a, iconset, oc_str8_pushf(a, "icon_%dx%d@2x.png", size, size));
+                cmd = oc_str8_pushf(a, "sips -z %d %d %.*s --out %s >/dev/null 2>&1",
+                                    retina_size, retina_size, oc_str8_ip(icon), sized_icon.ptr);
+                result = system(cmd.ptr);
+                if(result)
+                {
+                    fprintf(stderr, "failed to generate %dx%d@2x retina icon from %.*s\n", size, size, oc_str8_ip(icon));
+                }
+
+                size *= 2;
+            }
+
+            oc_str8 icon_out = oc_path_append(a, resDir, OC_STR8("icon.icns"));
+            oc_str8 cmd = oc_str8_pushf(a, "iconutil -c icns -o %s %s", icon_out.ptr, iconset.ptr);
             i32 result = system(cmd.ptr);
             if(result)
             {
-                fprintf(stderr, "failed to generate %dx%d icon from %.*s\n", size, size, oc_str8_ip(icon));
+                fprintf(stderr, "failed to generate app icon from %.*s", oc_str8_ip(icon));
             }
-
-            i32 retina_size = size * 2;
-            oc_str8 retina_icon = oc_path_append(a, iconset, oc_str8_pushf(a, "icon_%dx%d@2x.png", size, size));
-            cmd = oc_str8_pushf(a, "sips -z %d %d %.*s --out %s >/dev/null 2>&1",
-                                retina_size, retina_size, oc_str8_ip(icon), sized_icon.ptr);
-            result = system(cmd.ptr);
-            if(result)
-            {
-                fprintf(stderr, "failed to generate %dx%d@2x retina icon from %.*s\n", size, size, oc_str8_ip(icon));
-            }
-
-            size *= 2;
+            TRY(oc_sys_rmdir(iconset));
         }
-
-        oc_str8 icon_out = oc_path_append(a, resDir, OC_STR8("icon.icns"));
-        oc_str8 cmd = oc_str8_pushf(a, "iconutil -c icns -o %s %s", icon_out.ptr, iconset.ptr);
-        i32 result = system(cmd.ptr);
-        if(result)
+        else
         {
-            fprintf(stderr, "failed to generate app icon from %.*s", oc_str8_ip(icon));
+            fprintf(stderr, "warning: failed to find icon file \"%.*s\"\n", oc_str8_ip(icon));
         }
-        TRY(oc_sys_rmdir(iconset));
     }
 
     //-----------------------------------------------------------
