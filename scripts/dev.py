@@ -100,9 +100,9 @@ def dawn_required_commit():
 def dawn_required_files():
     artifacts = []
     if platform.system() == "Windows":
-        artifacts = ["build/bin/webgpu.lib", "build/bin/webgpu.dll", "src/ext/dawn/include/webgpu.h"]
+        artifacts = ["bin/webgpu.lib", "bin/webgpu.dll", "include/webgpu.h"]
     else:
-        artifacts = ["build/bin/libwebgpu.dylib", "src/ext/dawn/include/webgpu.h"]
+        artifacts = ["bin/libwebgpu.dylib", "include/webgpu.h"]
 
     return artifacts
 
@@ -112,28 +112,41 @@ def check_dawn():
     artifacts = dawn_required_files()
 
     up_to_date = False
+    messages = []
 
-    if os.path.exists("build/dawn.json"):
-        with open("build/dawn.json", "r") as f:
-            sums = json.loads(f.read())
 
-            up_to_date = True
+    if os.path.exists("build/dawn.out/dawn.json"):
+        with pushd("build/dawn.out"):
+            with open("dawn.json", "r") as f:
+                sums = json.loads(f.read())
 
-            for artifact in artifacts:
-                if artifact in sums:
-                    if os.path.isfile(artifact):
-                        s = checksum.filesum(artifact)
-                        if sums[artifact]['commit'] != DAWN_COMMIT or s != sums[artifact]['sum']:
+                up_to_date = True
+
+                for artifact in artifacts:
+                    if artifact in sums:
+                        if os.path.isfile(artifact):
+                            s = checksum.filesum(artifact)
+                            if sums[artifact]['commit'] != DAWN_COMMIT or s != sums[artifact]['sum']:
+                                messages.append(f"build/dawn.out/{artifact} doesn't match checksum")
+                                up_to_date = False
+                        else:
+                            messages.append(f"build/dawn.out/{artifact} not found")
                             up_to_date = False
                             break
                     else:
+                        messages.append(f"build/dawn.out/{artifact} is not listed in checksum file")
                         up_to_date = False
-                        break
-                else:
-                    up_to_date = False
-                    break
+    else:
+        messages = ["build/dawn.out/dawn.json not found"]
 
-    return up_to_date
+    if up_to_date:
+        os.makedirs("src/ext/dawn/include", exist_ok=True)
+        shutil.copytree("build/dawn.out/include", "src/ext/dawn/include/", dirs_exist_ok=True)
+
+        os.makedirs("build/bin", exist_ok=True)
+        shutil.copytree("build/dawn.out/bin", "build/bin", dirs_exist_ok=True)
+
+    return (up_to_date, messages)
 
 
 def build_dawn(args):
@@ -151,7 +164,8 @@ def build_dawn_internal(release, jobs, force):
 
     # check if we already have the binary
     if not force:
-        if check_dawn():
+        dawn_ok, _ = check_dawn()
+        if dawn_ok:
             print("  * already up to date")
             print("Done")
 
@@ -254,42 +268,37 @@ target_sources(webgpu PRIVATE ${WEBGPU_DAWN_NATIVE_PROC_GEN})"""
 
         os.makedirs("dawn.out/include", exist_ok=True)
         os.makedirs("dawn.out/bin", exist_ok=True)
-        os.makedirs("../src/ext/dawn/include", exist_ok=True)
 
         shutil.copy("dawn.build/gen/include/dawn/webgpu.h", "dawn.out/include/")
-        shutil.copytree("dawn.out/include", "../src/ext/dawn/include/", dirs_exist_ok=True)
 
-        sums['src/ext/dawn/include/webgpu.h'] = {
+        sums['include/webgpu.h'] = {
             "commit": DAWN_COMMIT,
-            "sum": checksum.filesum('../src/ext/dawn/include/webgpu.h')
+            "sum": checksum.filesum('dawn.out/include/webgpu.h')
         }
 
         if platform.system() == "Windows":
             shutil.copy(f"dawn.build/{mode}/webgpu.dll", "dawn.out/bin/")
             shutil.copy(f"dawn.build/src/dawn/native/{mode}/webgpu.lib", "dawn.out/bin/")
-            shutil.copytree("dawn.out/bin", "bin", dirs_exist_ok=True)
 
-            sums['build/bin/webgpu.dll'] = {
+            sums['bin/webgpu.dll'] = {
                 "commit": DAWN_COMMIT,
-                "sum": checksum.filesum('bin/webgpu.dll')
+                "sum": checksum.filesum('dawn.out/bin/webgpu.dll')
             }
-            sums['build/bin/webgpu.lib'] = {
+            sums['bin/webgpu.lib'] = {
                 "commit": DAWN_COMMIT,
-                "sum": checksum.filesum('bin/webgpu.lib')
+                "sum": checksum.filesum('dawn.out/bin/webgpu.lib')
             }
         else:
             shutil.copy("dawn.build/src/dawn/native/libwebgpu.dylib", "dawn.out/bin/")
-            shutil.copytree("dawn.out/bin", "bin", dirs_exist_ok=True)
 
-            sums['build/bin/libwebgpu.dylib'] = {
+            sums['bin/libwebgpu.dylib'] = {
                 "commit": DAWN_COMMIT,
-                "sum": checksum.filesum('bin/libwebgpu.dylib')
+                "sum": checksum.filesum('dawn.out/bin/libwebgpu.dylib')
             }
 
     # save artifacts checksums
-    with open('build/dawn.json', 'w') as f:
+    with open('build/dawn.out/dawn.json', 'w') as f:
         json.dump(sums, f)
-
 
     print("Done")
 #------------------------------------------------------
@@ -457,22 +466,22 @@ def build_platform_layer(args):
 def build_platform_layer_internal(release):
     print("Building Orca platform layer...")
 
-    if not check_dawn():
+    dawn_ok, dawn_messages = check_dawn()
+    if not dawn_ok:
         msg = log_error("Dawn files are not present or don't match required commit.")
         msg.more(f"Dawn commit: {dawn_required_commit()}")
         msg.more("Dawn required files:")
-        for artifact in dawn_required_files():
-            msg.more(f"  * {artifact}")
+        for entry in dawn_messages:
+            msg.more(f"  * {entry}")
         cmd = "./orcadev" if platform.system() == "Darwin" else "orcadev.bat"
         msg.more("")
         msg.more(f"You can build the required files by running '{cmd} build-dawn'")
         msg.more("")
         msg.more("Alternatively you can trigger a CI run to build the binaries on github:")
-        msg.more("  * Go to https://github.com/orca-app/orca/actions/workflows/build-dawn.yaml")
-        msg.more("  * Click on \"Run workflow\"")
-        msg.more("  * Once the run is complete, download the artifacts")
-        msg.more("  * Put the contents of the artifacts 'bin' directory in './build/bin'")
-        msg.more("  * Put the contents of the artifacts 'include' directory in './src/ext/dawn/include'")
+        msg.more("  * For Windows, go to https://github.com/orca-app/orca/actions/workflows/build-dawn-win.yaml")
+        msg.more("  * For macOS, go to https://github.com/orca-app/orca/actions/workflows/build-dawn-mac.yaml")
+        msg.more("  * Click on \"Run workflow\" to tigger a new run, or download artifacts from a previous run")
+        msg.more("  * Put the contents of the artifacts folder in './build/dawn.out'")
         exit()
 
     os.makedirs("build/bin", exist_ok=True)
@@ -520,13 +529,13 @@ def build_platform_layer_lib_win(release):
         "ole32.lib",
         "shell32.lib",
         "shlwapi.lib",
-        "/LIBPATH:src/ext/angle/lib",
+        "/LIBPATH:build/lib",
+        "/LIBPATH:build/bin",
         "libEGL.dll.lib",
         "libGLESv2.dll.lib",
         "/DELAYLOAD:libEGL.dll",
         "/DELAYLOAD:libGLESv2.dll",
-        "/LIBPATH:src/ext/dawn/bin",
-        "webgpu.dll.lib",
+        "webgpu.lib",
         "/DELAYLOAD:webgpu.dll"
     ]
 
@@ -1023,7 +1032,45 @@ def package_sdk_internal(dest, target):
 
     shutil.copytree(os.path.join("build", "orca-libc"), libc_dir, dirs_exist_ok=True)
     shutil.copytree("resources", res_dir, dirs_exist_ok=True)
-    shutil.copytree("src", src_dir, dirs_exist_ok=True)
+
+    ignore_patterns = shutil.ignore_patterns(
+        '*.[!h]', # exclude anything that is not a header
+        'tool',
+        'ext',
+        'orca-libc'
+    )
+
+    def ignore(dirName, files):
+        # ignore everything that's not a header
+        result = [ x for x in files if os.path.isfile(os.path.join(dirName, x)) and x[-2:] != ".h" ]
+
+        # exclude or include specific sub-directories
+        ignoreDirs = []
+        onlyDirs = []
+
+        if dirName == 'src':
+            ignoreDirs = ['tool', 'orca-libc', 'wasm']
+        elif dirName == 'src/ext/curl':
+            onlyDirs = ['include']
+        elif dirName == 'src/ext/wasm3':
+            onlyDirs = ['source']
+        elif dirName == 'src/ext/zlib':
+            ignoreDirs = ['build']
+
+        if len(ignoreDirs):
+            result += [x for x in files if x in ignoreDirs]
+
+        if len(onlyDirs):
+            result += [x for x in files if os.path.isdir(os.path.join(dirName, x)) and x not in onlyDirs]
+
+        return result
+
+    shutil.copytree("src", src_dir, dirs_exist_ok=True, ignore=ignore)
+
+    for dirpath, dirnames, filenames in os.walk(src_dir, topdown=False):
+        if not os.listdir(dirpath):
+            os.rmdir(dirpath)
+
 
 def package_sdk(args):
     dest = args.dest
