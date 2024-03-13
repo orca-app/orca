@@ -18,12 +18,19 @@ jobs:
           with:
             # when name is not specified, all artifacts from this run will be downloaded
             path: artifacts
+            merge-multiple: true
+
+        - name: Untar
+          run: |
+            tar -xzf artifacts/orca-sdk-windows.tar.gz
+            tar -xzf artifacts/orca-sdk-mac-x64.tar.gz
+            tar -xzf artifacts/orca-sdk-mac-arm64.tar.gz
 
         - name: Package CLI Tool
           run: |
             mkdir releases
             cp artifacts/orca-sdk-windows/bin/orca.exe releases
-            cp artifacts/orca-mac/orca-mac.tar.gz releases
+            cp artifacts/orca-mac.tar.gz releases
 
         - name: Package Windows SDK
           run: |
@@ -33,12 +40,14 @@ jobs:
         - name: Package Mac x64 Release
           run: |
             chmod +x artifacts/orca-sdk-mac-x64/bin/orca
+            chmod +x artifacts/orca-sdk-mac-x64/bin/orca_runtime
             find orca-sdk-mac-x64 -type f -exec sha1sum {} + | LC_ALL=C sort | sha1sum | cut -z -f 1 -d " " > artifacts/sha1.sum
             tar --format=ustar -czf releases/orca-sdk-mac-x64.tar.gz -C artifacts orca-sdk-mac-x64 sha1.sum
 
         - name: Package Mac arm64 Release
           run: |
             chmod +x artifacts/orca-sdk-mac-arm64/bin/orca
+            chmod +x artifacts/orca-sdk-mac-arm64/bin/orca_runtime
             find orca-sdk-mac-arm64 -type f -exec sha1sum {} + | LC_ALL=C sort | sha1sum | cut -z -f 1 -d " " > artifacts/sha1.sum
             tar --format=ustar -czf releases/orca-sdk-mac-arm64.tar.gz -C artifacts orca-sdk-mac-arm64 sha1.sum
 

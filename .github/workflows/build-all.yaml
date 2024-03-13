@@ -42,6 +42,7 @@ jobs:
         shell: cmd
         run: |
           orcadev.bat package-sdk orca-sdk-windows || exit 1
+          tar --format=ustar -czf orca-sdk-windows.tar.gz orca-sdk-windows
 
       - uses: actions/upload-artifact@v4
         with:
@@ -74,11 +75,12 @@ jobs:
       - name: Package
         run: |
           ./orcadev package-sdk orca-sdk-mac-x64
+          tar --format=ustar -czf orca-sdk-mac-x64.tar.gz orca-sdk-mac-x64
 
       - uses: actions/upload-artifact@v4
         with:
           name: orca-sdk-mac-x64
-          path: orca-sdk-mac-x64
+          path: orca-sdk-mac-x64.tar.gz
 
   build-macos-arm64:
     needs: [build-dawn-mac]
@@ -106,11 +108,12 @@ jobs:
       - name: Package
         run: |
           ./orcadev package-sdk orca-sdk-mac-arm64
+          tar --format=ustar -czf orca-sdk-mac-arm64.tar.gz orca-sdk-mac-arm64
 
       - uses: actions/upload-artifact@v4
         with:
           name: orca-sdk-mac-arm64
-          path: orca-sdk-mac-arm64
+          path: orca-sdk-mac-arm64.tar.gz
 
   mac-make-universal:
     runs-on: macos-latest
@@ -119,11 +122,12 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           path: artifacts
+          merge-multiple: true
 
       - name: Make universal binary
         run: |
-          chmod +x artifacts/orca-sdk-mac-x64/bin/orca
-          chmod +x artifacts/orca-sdk-mac-arm64/bin/orca
+          tar -xzf artifacts/orca-sdk-mac-x64.tar.gz
+          tar -xzf artifacts/orca-sdk-mac-arm64.tar.gz
           lipo -create artifacts/orca-sdk-mac-x64/bin/orca artifacts/orca-sdk-mac-arm64/bin/orca -output orca
 
       - name: Tar
