@@ -7,6 +7,8 @@ on:
 jobs:
   build-all:
     uses: ./.github/workflows/build-all.yaml
+    with:
+      version: ${{ github.ref_name }}
 
   release:
     runs-on: ubuntu-latest
@@ -20,36 +22,12 @@ jobs:
           path: artifacts
           merge-multiple: true
 
-      - name: Untar
-        run: |
-          tar -xzf artifacts/orca-sdk-windows.tar.gz
-          tar -xzf artifacts/orca-sdk-mac-x64.tar.gz
-          tar -xzf artifacts/orca-sdk-mac-arm64.tar.gz
-
-      - name: Package CLI Tool
+      - name: Copy
         run: |
           mkdir releases
-          cp orca-sdk-windows/bin/orca.exe releases
-          cp orca-mac.tar.gz releases
-
-      - name: Package Windows SDK
-        run: |
-          find orca-sdk-windows -type f -exec sha1sum {} + | LC_ALL=C sort | sha1sum | cut -z -f 1 -d " " > sha1.sum
-          tar --format=ustar -czf releases/orca-sdk-windows.tar.gz orca-sdk-windows sha1.sum
-
-      - name: Package Mac x64 Release
-        run: |
-          chmod +x orca-sdk-mac-x64/bin/orca
-          chmod +x orca-sdk-mac-x64/bin/orca_runtime
-          find orca-sdk-mac-x64 -type f -exec sha1sum {} + | LC_ALL=C sort | sha1sum | cut -z -f 1 -d " " > sha1.sum
-          tar --format=ustar -czf releases/orca-sdk-mac-x64.tar.gz orca-sdk-mac-x64 sha1.sum
-
-      - name: Package Mac arm64 Release
-        run: |
-          chmod +x orca-sdk-mac-arm64/bin/orca
-          chmod +x orca-sdk-mac-arm64/bin/orca_runtime
-          find orca-sdk-mac-arm64 -type f -exec sha1sum {} + | LC_ALL=C sort | sha1sum | cut -z -f 1 -d " " > sha1.sum
-          tar --format=ustar -czf releases/orca-sdk-mac-arm64.tar.gz orca-sdk-mac-arm64 sha1.sum
+          cp artifacts/orca-windows.tar.gz releases
+          cp artifacts/orca-mac-x64.tar.gz releases
+          cp artifacts/orca-mac-arm64.tar.gz releases
 
       - uses: ncipollo/release-action@v1
         with:
