@@ -16,7 +16,6 @@ from .gles_gen import gles_gen
 from .log import *
 from .utils import pushd, removeall, yeetdir, yeetfile
 from .embed_text_files import *
-from .version import orca_version
 
 ANGLE_VERSION = "2023-07-05"
 MAC_SDK_DIR = "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk"
@@ -61,6 +60,7 @@ def attach_dev_commands(subparsers):
     package_cmd.set_defaults(func=dev_shellish(package_sdk))
 
     install_cmd = subparsers.add_parser("install", help="Install a dev build of the Orca tools into the system Orca directory.")
+    install_cmd.add_argument("--version")
     install_cmd.add_argument("install_dir", nargs='?')
     install_cmd.set_defaults(func=dev_shellish(install))
 
@@ -1110,7 +1110,7 @@ def install(args):
         print()
 
     orca_dir = system_orca_dir() if args.install_dir == None else args.install_dir
-    version = orca_version()
+    version = f"dev-{orca_commit()}" if args.version == None else args.version
     dest = os.path.join(orca_dir, version)
 
     print(f"Installing dev build of Orca in {dest}")
@@ -1341,6 +1341,22 @@ def get_source_root():
         if newdir == dir:
             raise Exception(f"Directory {os.getcwd()} does not seem to be part of the Orca source code.")
         dir = newdir
+
+
+def src_dir():
+    # Fragile path adjustments! Yay!
+    return os.path.normpath(os.path.join(os.path.abspath(__file__), "../../src"))
+
+
+def orca_commit():
+    with pushd(src_dir()):
+        try:
+            res = subprocess.run(["git", "rev-parse", "--short", "HEAD"], check=True, capture_output=True, text=True)
+            commit = res.stdout.strip()
+            return commit
+        except subprocess.CalledProcessError:
+            log_warning("failed to look up current git hash")
+            return "unknown"
 
 
 def yeet(path):

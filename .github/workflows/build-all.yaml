@@ -2,9 +2,14 @@ name: build-all
 
 on:
   workflow_call:
+    inputs:
+      version:
+        type: string
+        required: false
   push:
     branches:
       - main
+      - webgpu-canvas
 
 jobs:
   build-dawn-mac:
@@ -41,13 +46,17 @@ jobs:
       - name: Package
         shell: cmd
         run: |
-          orcadev.bat package-sdk orca-sdk-windows || exit 1
-          tar --format=ustar -czf orca-sdk-windows.tar.gz orca-sdk-windows
+          if [${{ inputs.version }}]==[] (
+            orcadev.bat install orca || exit 1
+          ) else (
+            orcadev.bat install --version ${{ inputs.version }} orca || exit 1
+          )
+          tar --format=ustar -czf orca-windows.tar.gz orca
 
       - uses: actions/upload-artifact@v4
         with:
-          name: orca-sdk-windows
-          path: orca-sdk-windows.tar.gz
+          name: orca-windows
+          path: orca-windows.tar.gz
 
   build-macos-x64:
     needs: [build-dawn-mac]
@@ -74,13 +83,17 @@ jobs:
 
       - name: Package
         run: |
-          ./orcadev package-sdk orca-sdk-mac-x64
-          tar --format=ustar -czf orca-sdk-mac-x64.tar.gz orca-sdk-mac-x64
+          if [ ${{ inputs.version }} != '' ] ; then
+            ./orcadev install --version ${{ inputs.version }} orca
+          else
+            ./orcadev install orca
+          fi
+          tar --format=ustar -czf orca-mac-x64.tar.gz orca
 
       - uses: actions/upload-artifact@v4
         with:
-          name: orca-sdk-mac-x64
-          path: orca-sdk-mac-x64.tar.gz
+          name: orca-mac-x64
+          path: orca-mac-x64.tar.gz
 
   build-macos-arm64:
     needs: [build-dawn-mac]
@@ -107,34 +120,14 @@ jobs:
 
       - name: Package
         run: |
-          ./orcadev package-sdk orca-sdk-mac-arm64
-          tar --format=ustar -czf orca-sdk-mac-arm64.tar.gz orca-sdk-mac-arm64
+          if [ ${{ inputs.version }} != '' ] ; then
+            ./orcadev install --version ${{ inputs.version }} orca
+          else
+            ./orcadev install orca
+          fi
+          tar --format=ustar -czf orca-mac-arm64.tar.gz orca
 
       - uses: actions/upload-artifact@v4
         with:
-          name: orca-sdk-mac-arm64
-          path: orca-sdk-mac-arm64.tar.gz
-
-  mac-make-universal:
-    runs-on: macos-latest
-    needs: [build-macos-x64, build-macos-arm64]
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          path: artifacts
-          merge-multiple: true
-
-      - name: Make universal binary
-        run: |
-          tar -xzf artifacts/orca-sdk-mac-x64.tar.gz
-          tar -xzf artifacts/orca-sdk-mac-arm64.tar.gz
-          lipo -create orca-sdk-mac-x64/bin/orca orca-sdk-mac-arm64/bin/orca -output orca
-
-      - name: Tar
-        run: |
-          tar --format=ustar -czf orca-mac.tar.gz orca
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: orca-mac
-          path: orca-mac.tar.gz
+          name: orca-mac-arm64
+          path: orca-mac-arm64.tar.gz
