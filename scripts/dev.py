@@ -1,5 +1,6 @@
 import glob
 import os
+import sys
 import platform
 import re
 import urllib.request
@@ -36,6 +37,11 @@ def attach_dev_commands(subparsers):
     dawn_cmd.add_argument("--force", action="store_true", help="force rebuild even if up-to-date artifacts exist")
     dawn_cmd.add_argument("--parallel", type=int)
     dawn_cmd.set_defaults(func=dev_shellish(build_dawn))
+
+    angle_cmd = subparsers.add_parser("build-angle", help="Build Angle")
+    angle_cmd.add_argument("--release", action="store_true", help="compile in release mode (default is debug)")
+    angle_cmd.add_argument("--force", action="store_true", help="force rebuild even if up-to-date artifacts exist")
+    angle_cmd.set_defaults(func=dev_shellish(build_angle))
 
     runtime_cmd = subparsers.add_parser("build-runtime", help="Build the Orca runtime from source.")
     runtime_cmd.add_argument("--release", action="store_true", help="compile in release mode (default is debug)")
@@ -77,7 +83,6 @@ def dev_shellish(func):
 
 def build_all(args):
     ensure_programs()
-    ensure_angle()
 
     build_runtime_internal(args.release) # this also builds the platform layer
     build_libc_internal(args.release)
@@ -168,6 +173,7 @@ def build_dawn_internal(release, jobs, force):
         if dawn_ok:
             print("  * already up to date")
             print("Done")
+            return
 
     with pushd("build"):
         # get depot tools repo
@@ -301,6 +307,198 @@ target_sources(webgpu PRIVATE ${WEBGPU_DAWN_NATIVE_PROC_GEN})"""
         json.dump(sums, f)
 
     print("Done")
+
+
+#------------------------------------------------------
+# build angle
+#------------------------------------------------------
+
+def angle_required_commit():
+    with open("deps/angle-commit.txt", "r") as f:
+        ANGLE_COMMIT = f.read().strip() # hardcoded commit for now
+    return ANGLE_COMMIT
+
+def dawn_required_files():
+    artifacts = []
+    if platform.system() == "Windows":
+        artifacts = ["bin/webgpu.lib", "bin/webgpu.dll", "include/webgpu.h"]
+    else:
+        artifacts = ["bin/libwebgpu.dylib", "include/webgpu.h"]
+
+    return artifacts
+
+#############################################################################
+#TODO: coalesce with check_angle
+# use a checksum for the whole output directory
+#############################################################################
+def check_angle():
+
+    ANGLE_COMMIT = angle_required_commit()
+
+    up_to_date = True
+    messages = []
+
+    if os.path.exists("build/angle.out/angle.json"):
+        with pushd("build/angle.out"):
+            with open("angle.json", "r") as f:
+                sums = json.loads(f.read())
+                if 'commit' not in sums or 'sum' not in sums:
+                    messages = ["malformed build/angle.out/angle.json"]
+                    up_to_date = False
+                elif sums['commit'] != ANGLE_COMMIT:
+                    messages.append("build/angle.out doesn't match the required commit")
+                    up_to_date = False
+                else:
+                    s = checksum.dirsum('.', excluded_files=["angle.json"])
+                    if s != sums['sum']:
+                        messages.append("build/angle.out doesn't match checksum")
+                        up_to_date = False
+    else:
+        messages = [["build/angle.out/angle.json not found"]]
+        up_to_date = False
+
+    if up_to_date:
+        os.makedirs("src/ext/angle/include", exist_ok=True)
+        shutil.copytree("build/angle.out/include", "src/ext/angle/include/", dirs_exist_ok=True)
+
+        os.makedirs("build/bin", exist_ok=True)
+        shutil.copytree("build/angle.out/bin", "build/bin", dirs_exist_ok=True)
+
+    return (up_to_date, messages)
+
+def build_angle(args):
+    ensure_programs()
+    build_angle_internal(args.release, args.force)
+
+def build_angle_internal(release, force):
+    print("Building Angle...")
+
+    os.makedirs("build/bin", exist_ok=True)
+
+    # TODO ensure requirements
+
+    ANGLE_COMMIT = angle_required_commit()
+
+    # check if we already have the binary
+    if not force:
+        angle_ok, _ = check_angle()
+        if angle_ok:
+            print("  * already up to date")
+            print("Done")
+            return
+
+    with pushd("build"):
+        # get depot tools repo
+        print("  * checking depot tools")
+        if not os.path.exists("depot_tools"):
+            subprocess.run([
+                "git", "clone", "--depth=1", "--no-tags", "--single-branch",
+                "https://chromium.googlesource.com/chromium/tools/depot_tools.git"
+            ], check=True)
+        os.environ["PATH"] = os.path.join(os.getcwd(), "depot_tools") + os.pathsep + os.environ["PATH"]
+        os.environ["DEPOT_TOOLS_WIN_TOOLCHAIN"] = "0"
+
+        # get angle repo
+        print("  * checking angle")
+        if not os.path.exists("angle"):
+            subprocess.run([
+                "git", "clone", "--no-tags", "--single-branch",
+                "https://chromium.googlesource.com/angle/angle"
+            ], check=True)
+
+        with pushd("angle"):
+            subprocess.run([
+                "git", "fetch", "--no-tags"
+            ], check=True)
+
+            subprocess.run([
+                "git", "reset", "--hard", ANGLE_COMMIT
+            ], check=True)
+
+            subprocess.run([
+                sys.executable, "scripts/bootstrap.py"
+            ], check=True)
+
+            shell = True if platform.system() == "Windows" else False
+            subprocess.run(["gclient", "sync"], shell=shell, check=True)
+
+            print("  * preparing build")
+
+            mode = "Release" if release else "Debug"
+            is_debug = "false" if release else "true"
+
+            gnargs = [
+                "angle_build_all=false",
+                "angle_build_tests=false",
+                f"is_debug={is_debug}",
+                "is_component_build=false",
+            ]
+
+            if platform.system() == "Windows":
+                gnargs += [
+                    "angle_enable_d3d9=false",
+                    "angle_enable_gl=false",
+                    "angle_enable_vulkan=false",
+                    "angle_enable_null=false"
+                ]
+            else:
+                gnargs += [
+                    #NOTE(martin): oddly enough, this is needed to avoid deprecation errors when _not_ using OpenGL,
+                    #              because angle uses some CGL APIs to detect GPUs.
+                    "treat_warnings_as_errors=false",
+                    "angle_enable_metal=true",
+                    "angle_enable_gl=false",
+                    "angle_enable_vulkan=false",
+                    "angle_enable_null=false"
+                ]
+
+            gnargString = '\n'.join(gnargs)
+
+            subprocess.run(["gn", "gen", f"out/{mode}", f"--args={gnargString}"], shell=shell, check=True)
+
+            print("  * building")
+            subprocess.run(["autoninja", "-C", f"out/{mode}", "libEGL", "libGLESv2"])
+
+        # package result
+        print("  * copying build artifacts...")
+
+        yeetdir("angle.out")
+        os.makedirs("angle.out/include", exist_ok=True)
+        os.makedirs("angle.out/bin", exist_ok=True)
+
+        # - includes
+        shutil.copytree("angle/include/KHR", "angle.out/include/KHR", dirs_exist_ok=True)
+        shutil.copytree("angle/include/EGL", "angle.out/include/EGL", dirs_exist_ok=True)
+        shutil.copytree("angle/include/GLES", "angle.out/include/GLES", dirs_exist_ok=True)
+        shutil.copytree("angle/include/GLES2", "angle.out/include/GLES2", dirs_exist_ok=True)
+        shutil.copytree("angle/include/GLES3", "angle.out/include/GLES3", dirs_exist_ok=True)
+
+        # - libs
+        if platform.system() == "Windows":
+            shutil.copy(f"angle/out/{mode}/libEGL.dll", "angle.out/bin/")
+            shutil.copy(f"angle/out/{mode}/libGLESv1_CM.dll", "angle.out/bin/")
+            shutil.copy(f"angle/out/{mode}/libGLESv2.dll", "angle.out/bin/")
+
+            shutil.copy(f"angle/out/{mode}/libEGL.dll.lib", "angle.out/bin/")
+            shutil.copy(f"angle/out/{mode}/libGLESv1_CM.dll.lib", "angle.out/bin/")
+            shutil.copy(f"angle/out/{mode}/libGLESv2.dll.lib", "angle.out/bin/")
+        else:
+            shutil.copy(f"angle/out/{mode}/libEGL.dylib", "angle.out/bin")
+            shutil.copy(f"angle/out/{mode}/libGLESv2.dylib", "angle.out/bin")
+
+    # - sums
+    sums = {
+        "commit": ANGLE_COMMIT,
+        "sum": checksum.dirsum("build/angle.out")
+    }
+
+    # save artifacts checksums
+    with open('build/angle.out/angle.json', 'w') as f:
+        json.dump(sums, f)
+
+    print("Done")
+
+
 #------------------------------------------------------
 # build runtime
 #------------------------------------------------------
@@ -465,6 +663,23 @@ def build_platform_layer(args):
 
 def build_platform_layer_internal(release):
     print("Building Orca platform layer...")
+
+    angle_ok, angle_messages = check_angle()
+    if not angle_ok:
+        msg = log_error("Angle files are not present or don't match required commit.")
+        msg.more(f"Angle commit: {angle_required_commit()}")
+        for entry in angle_messages:
+            msg.more(f"  * {entry}")
+        cmd = "./orcadev" if platform.system() == "Darwin" else "orcadev.bat"
+        msg.more("")
+        msg.more(f"You can build the required files by running '{cmd} build-angle'")
+        msg.more("")
+        msg.more("Alternatively you can trigger a CI run to build the binaries on github:")
+        msg.more("  * For Windows, go to https://github.com/orca-app/orca/actions/workflows/build-angle-win.yaml")
+        msg.more("  * For macOS, go to https://github.com/orca-app/orca/actions/workflows/build-angle-mac.yaml")
+        msg.more("  * Click on \"Run workflow\" to tigger a new run, or download artifacts from a previous run")
+        msg.more("  * Put the contents of the artifacts folder in './build/angle.out'")
+        exit()
 
     dawn_ok, dawn_messages = check_dawn()
     if not dawn_ok:
@@ -1244,76 +1459,76 @@ def ensure_programs():
                 msg.more(f" note: {entry[1]}")
         exit(1)
 
-def ensure_angle():
-    if not verify_angle():
-        download_angle()
-        print("Verifying ANGLE download...")
-        if not verify_angle():
-            log_error("automatic ANGLE download failed")
-            exit(1)
+# def ensure_angle():
+#     if not verify_angle():
+#         download_angle()
+#         print("Verifying ANGLE download...")
+#         if not verify_angle():
+#             log_error("automatic ANGLE download failed")
+#             exit(1)
 
 
-def verify_angle():
-    checkfiles = None
-    if platform.system() == "Windows":
-        checkfiles = [
-            "build/bin/libEGL.dll",
-            "build/lib/libEGL.dll.lib",
-            "build/bin/libGLESv2.dll",
-            "build/lib/libGLESv2.dll.lib",
-        ]
-    elif platform.system() == "Darwin":
-        checkfiles = [
-            "build/bin/libEGL.dylib",
-            "build/bin/libGLESv2.dylib",
-        ]
+# def verify_angle():
+#     checkfiles = None
+#     if platform.system() == "Windows":
+#         checkfiles = [
+#             "build/bin/libEGL.dll",
+#             "build/lib/libEGL.dll.lib",
+#             "build/bin/libGLESv2.dll",
+#             "build/lib/libGLESv2.dll.lib",
+#         ]
+#     elif platform.system() == "Darwin":
+#         checkfiles = [
+#             "build/bin/libEGL.dylib",
+#             "build/bin/libGLESv2.dylib",
+#         ]
 
-    if checkfiles is None:
-        log_warning("could not verify if the correct version of ANGLE is present")
-        return False
+#     if checkfiles is None:
+#         log_warning("could not verify if the correct version of ANGLE is present")
+#         return False
 
-    ok = True
-    for file in checkfiles:
-        if not os.path.isfile(file):
-            ok = False
-            continue
-        if not checksum.checkfile(file):
-            ok = False
-            continue
+#     ok = True
+#     for file in checkfiles:
+#         if not os.path.isfile(file):
+#             ok = False
+#             continue
+#         if not checksum.checkfile(file):
+#             ok = False
+#             continue
 
-    return ok
+#     return ok
 
 
-def download_angle():
-    print("Downloading ANGLE...")
-    if platform.system() == "Windows":
-        build = "windows-2019"
-    elif platform.system() == "Darwin":
-        build = "macos-jank"
-    else:
-        log_error(f"could not automatically download ANGLE for unknown platform {platform.system()}")
-        return
+# def download_angle():
+#     print("Downloading ANGLE...")
+#     if platform.system() == "Windows":
+#         build = "windows-2019"
+#     elif platform.system() == "Darwin":
+#         build = "macos-jank"
+#     else:
+#         log_error(f"could not automatically download ANGLE for unknown platform {platform.system()}")
+#         return
 
-    os.makedirs("scripts/files", exist_ok=True)
-    filename = f"angle-{build}-{ANGLE_VERSION}.zip"
-    filepath = f"scripts/files/{filename}"
-    url = f"https://github.com/HandmadeNetwork/build-angle/releases/download/{ANGLE_VERSION}/{filename}"
-    with urllib.request.urlopen(url) as response:
-        with open(filepath, "wb") as out:
-            shutil.copyfileobj(response, out)
+#     os.makedirs("scripts/files", exist_ok=True)
+#     filename = f"angle-{build}-{ANGLE_VERSION}.zip"
+#     filepath = f"scripts/files/{filename}"
+#     url = f"https://github.com/HandmadeNetwork/build-angle/releases/download/{ANGLE_VERSION}/{filename}"
+#     with urllib.request.urlopen(url) as response:
+#         with open(filepath, "wb") as out:
+#             shutil.copyfileobj(response, out)
 
-    if not checksum.checkfile(filepath):
-        log_error(f"ANGLE download did not match checksum")
-        exit(1)
+#     if not checksum.checkfile(filepath):
+#         log_error(f"ANGLE download did not match checksum")
+#         exit(1)
 
-    print("Extracting ANGLE...")
-    with ZipFile(filepath, "r") as anglezip:
-        anglezip.extractall(path="scripts/files")
+#     print("Extracting ANGLE...")
+#     with ZipFile(filepath, "r") as anglezip:
+#         anglezip.extractall(path="scripts/files")
 
-    shutil.copytree(f"scripts/files/angle/include", "src/ext/angle/include", dirs_exist_ok=True)
-    shutil.copytree(f"scripts/files/angle/bin", "build/bin", dirs_exist_ok=True)
-    if platform.system() == "Windows":
-        shutil.copytree(f"scripts/files/angle/lib", "build/lib", dirs_exist_ok=True)
+#     shutil.copytree(f"scripts/files/angle/include", "src/ext/angle/include", dirs_exist_ok=True)
+#     shutil.copytree(f"scripts/files/angle/bin", "build/bin", dirs_exist_ok=True)
+#     if platform.system() == "Windows":
+#         shutil.copytree(f"scripts/files/angle/lib", "build/lib", dirs_exist_ok=True)
 
 def prompt(msg):
     while True:
