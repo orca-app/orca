@@ -439,7 +439,8 @@ def build_angle_internal(release, force):
                     "angle_enable_d3d9=false",
                     "angle_enable_gl=false",
                     "angle_enable_vulkan=false",
-                    "angle_enable_null=false"
+                    "angle_enable_null=false",
+                    "angle_has_frame_capture=false"
                 ]
             else:
                 gnargs += [
@@ -452,12 +453,12 @@ def build_angle_internal(release, force):
                     "angle_enable_null=false"
                 ]
 
-            gnargString = '\n'.join(gnargs)
+            gnargString = ' '.join(gnargs)
 
             subprocess.run(["gn", "gen", f"out/{mode}", f"--args={gnargString}"], shell=shell, check=True)
 
             print("  * building")
-            subprocess.run(["autoninja", "-C", f"out/{mode}", "libEGL", "libGLESv2"])
+            subprocess.run(["autoninja", "-C", f"out/{mode}", "libEGL", "libGLESv2"], shell=shell, check=True)
 
         # package result
         print("  * copying build artifacts...")
@@ -476,12 +477,14 @@ def build_angle_internal(release, force):
         # - libs
         if platform.system() == "Windows":
             shutil.copy(f"angle/out/{mode}/libEGL.dll", "angle.out/bin/")
-            shutil.copy(f"angle/out/{mode}/libGLESv1_CM.dll", "angle.out/bin/")
             shutil.copy(f"angle/out/{mode}/libGLESv2.dll", "angle.out/bin/")
 
             shutil.copy(f"angle/out/{mode}/libEGL.dll.lib", "angle.out/bin/")
-            shutil.copy(f"angle/out/{mode}/libGLESv1_CM.dll.lib", "angle.out/bin/")
             shutil.copy(f"angle/out/{mode}/libGLESv2.dll.lib", "angle.out/bin/")
+
+            subprocess.run(["copy", "/y",
+                            "%ProgramFiles(x86)%\\Windows Kits\\10\\Redist\\D3D\\x64\\d3dcompiler_47.dll",
+                            "angle.out\\bin"], shell=True, check=True)
         else:
             shutil.copy(f"angle/out/{mode}/libEGL.dylib", "angle.out/bin")
             shutil.copy(f"angle/out/{mode}/libGLESv2.dylib", "angle.out/bin")
