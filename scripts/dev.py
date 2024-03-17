@@ -25,6 +25,7 @@ def attach_dev_commands(subparsers):
     build_cmd = subparsers.add_parser("build", help="Build Orca from source.")
     build_cmd.add_argument("--version", help="embed a version string in the Orca CLI tool (default is git commit hash)")
     build_cmd.add_argument("--release", action="store_true", help="compile in release mode (default is debug)")
+    build_cmd.add_argument("--wasm-backend", help="specify a wasm backend. Options: wasm3 (default), bytebox")
     build_cmd.set_defaults(func=dev_shellish(build_all))
 
     platform_layer_cmd = subparsers.add_parser("build-platform-layer", help="Build the Orca platform layer from source.")
@@ -33,6 +34,7 @@ def attach_dev_commands(subparsers):
 
     runtime_cmd = subparsers.add_parser("build-runtime", help="Build the Orca runtime from source.")
     runtime_cmd.add_argument("--release", action="store_true", help="compile in release mode (default is debug)")
+    runtime_cmd.add_argument("--wasm-backend", help="specify a wasm backend. Options: wasm3 (default), bytebox")
     runtime_cmd.set_defaults(func=dev_shellish(build_runtime))
 
     libc_cmd = subparsers.add_parser("build-orca-libc", help="Build the Orca libC from source.")
@@ -72,7 +74,7 @@ def build_all(args):
     ensure_programs()
     ensure_angle()
 
-    build_runtime_internal(args.release) # this also builds the platform layer
+    build_runtime_internal(args.release, args.wasm_backend) # this also builds the platform layer
     build_libc_internal(args.release)
     build_sdk_internal(args.release)
     build_tool(args)
@@ -138,12 +140,24 @@ def build_wasm3_lib_mac(release):
     subprocess.run(["libtool", "-static", "-o", "build/lib/libwasm3.a", "-no_warning_for_no_symbols", *glob.glob("build/obj/*.o")], check=True)
     subprocess.run(["rm", "-rf", "build/obj"], check=True)
 
-def build_runtime(args):
-    build_runtime_internal(args.release)
+def build_bytebox(release):
+    args = ["zig", "build"]
+    if release:
+        args += "-Doptimize=ReleaseSafe"
+    subprocess.run(args, cwd="src/ext/bytebox/")
 
-def build_runtime_internal(release):
+    shutil.copy("src/ext/bytebox/zig-out/lib/bytebox.lib", "build/bin")
+
+def build_runtime(args):
+    build_runtime_internal(args.release, args.wasm_backend)
+
+def build_runtime_internal(release, wasm_backend):
     build_platform_layer_internal(release)
-    build_wasm3(release)
+
+    if wasm_backend == "bytebox":  
+        build_bytebox(release)
+    else:
+        build_wasm3(release)
 
     print("Building Orca runtime...")
 
@@ -151,14 +165,14 @@ def build_runtime_internal(release):
     os.makedirs("build/lib", exist_ok=True)
 
     if platform.system() == "Windows":
-        build_runtime_win(release)
+        build_runtime_win(release, wasm_backend)
     elif platform.system() == "Darwin":
-        build_runtime_mac(release)
+        build_runtime_mac(release, wasm_backend)
     else:
         log_error(f"can't build Orca for unknown platform '{platform.system()}'")
         exit(1)
 
-def build_runtime_win(release):
+def build_runtime_win(release, wasm_backend):
 
     gen_all_bindings()
 
@@ -167,18 +181,32 @@ def build_runtime_win(release):
         "/I", "src",
         "/I", "src/ext",
         "/I", "src/ext/angle/include",
-        "/I", "src/ext/wasm3/source",
     ]
 
-    subprocess.run([
+    defines = []
+
+    if wasm_backend == "bytebox":
+        includes.extend(["/I", "src/ext/bytebox/zig-out/include"])
+        defines.extend(["/DOC_WASM_BACKEND_WASM3=0", "/DOC_WASM_BACKEND_BYTEBOX=1"])
+    else:
+        includes.extend(["/I", "src/ext/wasm3/source"])
+        defines.extend(["/DOC_WASM_BACKEND_WASM3=1", "/DOC_WASM_BACKEND_BYTEBOX=0"])
+
+    compile_args=[
         "cl",
         "/c",
         "/Zi", "/Zc:preprocessor",
         "/std:c11", "/experimental:c11atomics",
+        *defines,
         *includes,
         "src/runtime.c",
         "/Fo:build/bin/runtime.obj",
-    ], check=True)
+    ]
+
+    # if wasm_backend == "bytebox":
+    #     compile_args.append("/STACK:8388608,8388608")
+
+    subprocess.run(compile_args, check=True)
 
 def build_runtime_mac(release):
 
@@ -186,9 +214,17 @@ def build_runtime_mac(release):
         "-Isrc",
         "-Isrc/ext",
         "-Isrc/ext/angle/include",
-        "-Isrc/ext/wasm3/source"
     ]
-    libs = ["-Lbuild/bin", "-Lbuild/lib", "-lorca", "-lwasm3"]
+
+    libs = ["-Lbuild/bin", "-Lbuild/lib", "-lorca"]
+
+    if wasm_backend == "bytebox":
+        includes.append("src/ext/bytebox/zig-out/include")
+        libs.append("-lbytebox")
+    else:
+        includes.append("-Isrc/ext/wasm3/source")
+        libs.append("-lwasm3")
+
     debug_flags = ["-O2"] if release else ["-g", "-DOC_DEBUG -DOC_LOG_COMPILE_DEBUG"]
     flags = [
         *debug_flags,
@@ -773,6 +809,9 @@ def package_sdk_internal(dest, target):
         shutil.copy(os.path.join("build", "bin", "liborca_wasm.a"), bin_dir)
         shutil.copy(os.path.join("build", "bin", "libEGL.dll"), bin_dir)
         shutil.copy(os.path.join("build", "bin", "libGLESv2.dll"), bin_dir)
+        bytebox_lib_path = os.path.join("build", "bin", "bytebox.lib")
+        if os.path.exists(bytebox_lib_path):
+            shutil.copy(bytebox_lib_path, bin_dir)
     else:
         shutil.copy(os.path.join("build", "bin", "orca"), bin_dir)
         shutil.copy(os.path.join("build", "bin", "orca_runtime"), bin_dir)

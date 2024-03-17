@@ -9,9 +9,12 @@
 #ifndef __WASM_H_
 #define __WASM_H_
 
-// When more backends are added, make sure to check for them before automatically defaulting to wasm3
 #ifndef OC_WASM_BACKEND_WASM3
-    #define OC_WASM_BACKEND_WASM3 1
+    #error OC_WASM_BACKEND_WASM3 must be defined to 0 or 1
+#endif
+
+#ifndef OC_WASM_BACKEND_BYTEBOX
+    #error OC_WASM_BACKEND_BYTEBOX must be defined to 0 or 1
 #endif
 
 typedef enum oc_wasm_status

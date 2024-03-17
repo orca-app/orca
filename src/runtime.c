@@ -19,6 +19,7 @@
 #include "runtime_memory.c"
 
 #include "wasm/wasm.c"
+#include "wasm/backend_bytebox.c"
 #include "wasm/backend_wasm3.c"
 
 static const char* s_test_wasm_module_path = NULL;
