@@ -845,8 +845,10 @@ def install(args):
 # Clean
 #------------------------------------------------------
 def clean(args):
+    print("Removing build artifacts...")
     yeetdir("build")
     yeetdir("src/ext/angle")
+    yeetdir("src/ext/dawn")
     yeetdir("scripts/files")
     yeetdir("scripts/__pycache__")
 
