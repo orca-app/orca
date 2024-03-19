@@ -228,6 +228,7 @@ ORCA_API oc_rect oc_clip_top();
 //------------------------------------------------------------------------------------------
 ORCA_API void oc_set_color(oc_color color);
 ORCA_API void oc_set_color_rgba(f32 r, f32 g, f32 b, f32 a);
+ORCA_API void oc_set_gradient(oc_color bottomLeft, oc_color bottomRight, oc_color topRight, oc_color topLeft);
 ORCA_API void oc_set_width(f32 width);
 ORCA_API void oc_set_tolerance(f32 tolerance);
 ORCA_API void oc_set_joint(oc_joint_type joint);

@@ -62,7 +62,27 @@ const DEBUG_COLOR_FILL_OP = vec4f(1, 0, 0, 1);
 fn get_next_color(pathIndex : u32,
                   sourceSampleCoords : array<vec2f, OC_WGPU_SOURCE_SAMPLE_COUNT>) -> vec4f
 {
-    var nextColor : vec4f = pathBuffer[pathIndex].color;
+    var nextColor : vec4f;
+
+    if(pathBuffer[pathIndex].hasGradient == 0)
+    {
+        nextColor = pathBuffer[pathIndex].colors[0];
+    }
+    else
+    {
+        var sampleColor = vec4f(0, 0, 0, 0);
+        for(var sampleIndex : u32 = 0; sampleIndex < OC_WGPU_SOURCE_SAMPLE_COUNT; sampleIndex++)
+        {
+            let sampleCoord = vec3f(sourceSampleCoords[sampleIndex], 1);
+            let uv : vec2f = (pathBuffer[pathIndex].uvTransform * sampleCoord).xy;
+
+            let bottomColor : vec4f = (1. - uv.x) * pathBuffer[pathIndex].colors[0] + uv.x * pathBuffer[pathIndex].colors[1];
+            let topColor : vec4f = (1. - uv.x) * pathBuffer[pathIndex].colors[3] + uv.x * pathBuffer[pathIndex].colors[2];
+            sampleColor += uv.y * bottomColor + (1 - uv.y) * topColor;
+        }
+        nextColor = sampleColor / f32(OC_WGPU_SOURCE_SAMPLE_COUNT);
+    }
+
     nextColor = vec4f(nextColor.rgb * nextColor.a, nextColor.a);
 
     let textureID : i32 = pathBuffer[pathIndex].textureID;
