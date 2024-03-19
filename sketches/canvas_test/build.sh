@@ -13,6 +13,6 @@ mkdir -p $BINDIR
 clang -g $FLAGS $LIBS $INCLUDES -o $BINDIR/example_canvas main.c
 
 cp $LIBDIR/liborca.dylib $BINDIR/
-cp $SRCDIR/ext/dawn/bin/libwebgpu.dylib $BINDIR/
+cp $LIBDIR/libwebgpu.dylib $BINDIR/
 
 install_name_tool -add_rpath "@executable_path" $BINDIR/example_canvas

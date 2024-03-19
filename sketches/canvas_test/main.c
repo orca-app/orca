@@ -227,6 +227,15 @@ int main()
         oc_set_color_rgba(0.9, 0.1, 0.1, 1);
         oc_fill();
 
+        oc_set_gradient(
+            (oc_color){ 0, 0, 0, 1 },
+            (oc_color){ 1, 1, 1, 1 },
+            (oc_color){ 0, 1, 0, 1 },
+            (oc_color){ 1, 0, 0, 1 });
+
+        //oc_set_color_rgba(1, 0, 1, 1);
+        oc_rectangle_fill(500, 10, 200, 200);
+
         oc_move_to(350, 450);
         oc_cubic_to(250, 475, 450, 525, 350, 550);
         oc_cubic_to(150, 500, 150, 450, 350, 450);
