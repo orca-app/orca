@@ -13,13 +13,13 @@
 typedef struct oc_wgpu_path
 {
     f32 uvTransform[12];
-    oc_vec4 color;
+    oc_vec4 colors[4];
     oc_vec4 box;
     oc_vec4 clip;
     i32 cmd;
     i32 textureID;
-
-    char pad0[8];
+    i32 hasGradient;
+    char pad0[4];
     //...
 } oc_wgpu_path;
 
@@ -1489,16 +1489,23 @@ void oc_wgpu_canvas_encode_path(oc_wgpu_canvas_encoding_context* context, oc_pri
             (primitive->attributes.clip.y + primitive->attributes.clip.h) * context->scale.y,
         };
 
-        path->color = (oc_vec4){
-            primitive->attributes.color.r,
-            primitive->attributes.color.g,
-            primitive->attributes.color.b,
-            primitive->attributes.color.a
-        };
+        memcpy(path->colors, primitive->attributes.colors, 4 * sizeof(oc_color));
+        path->hasGradient = primitive->attributes.hasGradient;
 
-        if(!oc_image_is_nil(primitive->attributes.image))
+        if(!oc_image_is_nil(primitive->attributes.image) || primitive->attributes.hasGradient)
         {
-            oc_rect srcRegion = primitive->attributes.srcRegion;
+            oc_vec2 texSize;
+            oc_rect srcRegion;
+            if(!oc_image_is_nil(primitive->attributes.image))
+            {
+                texSize = oc_image_size(primitive->attributes.image);
+                srcRegion = primitive->attributes.srcRegion;
+            }
+            else
+            {
+                texSize = (oc_vec2){ 1, 1 };
+                srcRegion = (oc_rect){ 0, 0, 1, 1 };
+            }
 
             oc_rect destRegion = {
                 context->pathUserExtents.x,
@@ -1506,8 +1513,6 @@ void oc_wgpu_canvas_encode_path(oc_wgpu_canvas_encoding_context* context, oc_pri
                 (context->pathUserExtents.z - context->pathUserExtents.x),
                 (context->pathUserExtents.w - context->pathUserExtents.y),
             };
-
-            oc_vec2 texSize = oc_image_size(primitive->attributes.image);
 
             oc_mat2x3 srcRegionToImage = {
                 1 / texSize.x, 0, srcRegion.x / texSize.x,

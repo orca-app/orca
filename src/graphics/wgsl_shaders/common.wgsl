@@ -2,11 +2,12 @@
 struct oc_path
 {
     uvTransform : mat3x3f,
-    color : vec4f,
+    colors : array<vec4f, 4>,
     box: vec4f,
     clip: vec4f,
     cmd : u32,
     textureID : i32,
+    hasGradient : i32,
 };
 
 struct oc_path_elt

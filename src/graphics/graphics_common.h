@@ -40,7 +40,8 @@ typedef struct oc_attributes
 {
     f32 width;
     f32 tolerance;
-    oc_color color;
+    bool hasGradient;
+    oc_color colors[4];
     oc_joint_type joint;
     f32 maxJointExcursion;
     oc_cap_type cap;

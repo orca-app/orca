@@ -967,7 +967,8 @@ oc_canvas_context oc_canvas_context_create()
         context->clearColor = (oc_color){ 0, 0, 0, 0 };
 
         context->attributes = (oc_attributes){ 0 };
-        context->attributes.color = (oc_color){ 0, 0, 0, 1 };
+        context->attributes.hasGradient = false;
+        context->attributes.colors[0] = (oc_color){ 0, 0, 0, 1 };
         context->attributes.tolerance = 1;
         context->attributes.width = 10;
         context->attributes.clip = (oc_rect){ -FLT_MAX / 2, -FLT_MAX / 2, FLT_MAX, FLT_MAX };
@@ -1146,13 +1147,27 @@ void oc_set_color(oc_color color)
     oc_canvas_context_data* context = oc_currentCanvasContext;
     if(context)
     {
-        context->attributes.color = color;
+        context->attributes.hasGradient = false;
+        context->attributes.colors[0] = color;
     }
 }
 
 void oc_set_color_rgba(f32 r, f32 g, f32 b, f32 a)
 {
     oc_set_color((oc_color){ r, g, b, a });
+}
+
+void oc_set_gradient(oc_color bottomLeft, oc_color bottomRight, oc_color topRight, oc_color topLeft)
+{
+    oc_canvas_context_data* context = oc_currentCanvasContext;
+    if(context)
+    {
+        context->attributes.hasGradient = true;
+        context->attributes.colors[0] = bottomLeft;
+        context->attributes.colors[1] = bottomRight;
+        context->attributes.colors[2] = topRight;
+        context->attributes.colors[3] = topLeft;
+    }
 }
 
 void oc_set_width(f32 width)
@@ -1253,7 +1268,7 @@ oc_color oc_get_color()
     oc_canvas_context_data* context = oc_currentCanvasContext;
     if(context)
     {
-        color = context->attributes.color;
+        color = context->attributes.colors[0];
     }
     return (color);
 }
@@ -1594,7 +1609,7 @@ void oc_clear()
     if(context)
     {
         context->primitiveCount = 0;
-        context->clearColor = context->attributes.color;
+        context->clearColor = context->attributes.colors[0];
     }
 }
 
@@ -1839,11 +1854,14 @@ void oc_image_draw_region(oc_image image, oc_rect srcRegion, oc_rect dstRegion)
     {
         oc_image oldImage = context->attributes.image;
         oc_rect oldSrcRegion = context->attributes.srcRegion;
-        oc_color oldColor = context->attributes.color;
+        oc_color oldColors[4];
+        memcpy(oldColors, context->attributes.colors, 4 * sizeof(oc_color));
+        bool oldHasGradient = context->attributes.hasGradient;
 
         context->attributes.image = image;
         context->attributes.srcRegion = srcRegion;
-        context->attributes.color = (oc_color){ 1, 1, 1, 1 };
+        context->attributes.colors[0] = (oc_color){ 1, 1, 1, 1 };
+        context->attributes.hasGradient = false;
 
         oc_move_to(dstRegion.x, dstRegion.y);
         oc_line_to(dstRegion.x + dstRegion.w, dstRegion.y);
@@ -1855,7 +1873,8 @@ void oc_image_draw_region(oc_image image, oc_rect srcRegion, oc_rect dstRegion)
 
         context->attributes.image = oldImage;
         context->attributes.srcRegion = oldSrcRegion;
-        context->attributes.color = oldColor;
+        memcpy(context->attributes.colors, oldColors, 4 * sizeof(oc_color));
+        context->attributes.hasGradient = oldHasGradient;
     }
 }
 

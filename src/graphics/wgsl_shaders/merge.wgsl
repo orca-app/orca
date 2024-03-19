@@ -115,7 +115,7 @@
                     {
                         tileOpBuffer[opIndex].kind = OC_OP_FILL;
 
-                        if(pathBuffer[pathIndex].color.a == 1
+                        if(pathBuffer[pathIndex].colors[0].a == 1
                            && pathBuffer[pathIndex].textureID < 0)
                         {
                             //NOTE(martin): the tile is fully opaque, so no need to continue
