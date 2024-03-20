@@ -3173,6 +3173,11 @@ void oc_wgpu_canvas_submit(oc_canvas_renderer_base* rendererBase,
             wgpuRenderPassEncoderEnd(pass);
         }
 
+        WGPUCommandBuffer command = wgpuCommandEncoderFinish(encoder, NULL);
+        wgpuQueueSubmit(renderer->queue, 1, &command);
+        wgpuCommandBufferRelease(command);
+        wgpuCommandEncoderRelease(encoder);
+
         u32 batchCount = 0;
 
         while(oc_wgpu_canvas_encode_batch(&encodingContext))
@@ -3204,6 +3209,8 @@ void oc_wgpu_canvas_submit(oc_canvas_renderer_base* rendererBase,
                     oc_log_error("Could not allocate batch counters record\n");
                 }
             }
+
+            encoder = wgpuDeviceCreateCommandEncoder(renderer->device, NULL);
 
             //----------------------------------------------------------------------------------------
             //NOTE: reset counters
@@ -3462,12 +3469,20 @@ void oc_wgpu_canvas_submit(oc_canvas_renderer_base* rendererBase,
                 wgpuRenderPassEncoderEnd(pass);
             }
 
+            // submit to queue
+            WGPUCommandBuffer command = wgpuCommandEncoderFinish(encoder, NULL);
+            wgpuQueueSubmit(renderer->queue, 1, &command);
+            wgpuCommandBufferRelease(command);
+            wgpuCommandEncoderRelease(encoder);
+
             batchCount++;
         }
 
         //NOTE: resolve frame timestamps
         if(renderer->hasTimestamps && (renderer->debugRecordOptions.timingFlags & OC_WGPU_CANVAS_TIMING_FRAME))
         {
+            WGPUCommandEncoder encoder = wgpuDeviceCreateCommandEncoder(renderer->device, NULL);
+
             wgpuCommandEncoderWriteTimestamp(encoder, renderer->timestampsQuerySet, OC_WGPU_CANVAS_TIMESTAMP_INDEX_FRAME_END);
 
             wgpuCommandEncoderResolveQuerySet(encoder,
@@ -3483,14 +3498,14 @@ void oc_wgpu_canvas_submit(oc_canvas_renderer_base* rendererBase,
                                                  renderer->timestampsReadBuffer[renderer->rollingBufferIndex],
                                                  0,
                                                  2 * sizeof(u64));
+
+            WGPUCommandBuffer command = wgpuCommandEncoderFinish(encoder, NULL);
+            wgpuQueueSubmit(renderer->queue, 1, &command);
+            wgpuCommandBufferRelease(command);
+            wgpuCommandEncoderRelease(encoder);
         }
 
-        WGPUCommandBuffer command = wgpuCommandEncoderFinish(encoder, NULL);
-        wgpuQueueSubmit(renderer->queue, 1, &command);
-
         //NOTE: release transient stuff
-        wgpuCommandBufferRelease(command);
-        wgpuCommandEncoderRelease(encoder);
         wgpuTextureViewRelease(frameBuffer);
 
         f64 submitEnd = oc_clock_time(OC_CLOCK_MONOTONIC);
