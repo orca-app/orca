@@ -41,16 +41,30 @@ int main()
                                             });
 
     oc_arena_scope scratch = oc_scratch_begin();
-    oc_str8 path = oc_path_executable_relative(scratch.arena, OC_STR8("../../resources/triceratops.png"));
-    oc_image image = oc_image_create_from_path(renderer, path, false);
 
-    if(oc_image_is_nil(image))
+    oc_str8 gradPath = oc_path_executable_relative(scratch.arena, OC_STR8("../../resources/gradient_srgb.png"));
+    oc_image grad = oc_image_create_from_path(renderer, gradPath, false);
+
+    oc_str8 testImgPath = oc_path_executable_relative(scratch.arena, OC_STR8("../../resources/gamma-1.0-or-2.2.png"));
+    oc_image testImg = oc_image_create_from_path(renderer, testImgPath, false);
+
+    oc_str8 dalaiPath = oc_path_executable_relative(scratch.arena, OC_STR8("../../resources/gamma_dalai_lama_gray.png"));
+    oc_image dalai = oc_image_create_from_path(renderer, dalaiPath, false);
+
+    int w, h, ch;
+    u8* pixels = stbi_load(gradPath.ptr, &w, &h, &ch, 4);
+    printf("start (%i, %i, %i, %i)\n"
+           "end   (%i, %i, %i, %i)\n"
+           "mid   (%i, %i, %i, %i)\n",
+           pixels[0], pixels[1], pixels[2], pixels[3],
+           pixels[4 * 1023], pixels[4 * 1023 + 1], pixels[4 * 1023 + 2], pixels[4 * 1023 + 3],
+           pixels[4 * 512], pixels[4 * 512 + 1], pixels[4 * 512 + 2], pixels[4 * 512 + 3]);
+
+    oc_image dummy[8];
+    for(int i = 0; i < 8; i++)
     {
-        oc_log_error("Couldn't create image\n");
-        return (-1);
+        dummy[i] = oc_image_create(renderer, 10, 10);
     }
-
-    oc_vec2 imageSize = oc_image_size(image);
 
     oc_surface surface = oc_canvas_surface_create_for_window(renderer, window);
     if(oc_surface_is_nil(surface))
@@ -204,62 +218,84 @@ int main()
         oc_set_image(oc_image_nil());
 
         // background
-        oc_set_color_rgba(0, 1, 1, 1);
+        oc_set_color_rgba(0.5, 1, 1, 1);
         oc_clear();
 
-        oc_move_to(100, 50);
-        oc_line_to(250, 100);
-        oc_line_to(100, 100);
-        oc_close_path();
-        oc_set_color_rgba(1, 0.5, 0.1, 1);
-        oc_fill();
+        // image: linear gradient in srgb space
+        oc_image_draw(grad, (oc_rect){ 10, 10, 512, 40 });
 
-        oc_move_to(150, 150);
-        oc_quadratic_to(160, 200, 350, 250);
-        oc_line_to(150, 250);
-        oc_close_path();
-        oc_set_color_rgba(0.3, 0.1, 1, 1);
-        oc_fill();
+        // rects: linear gradient in srgb(?) space
+        for(int i = 0; i < 64; i++)
+        {
+            oc_set_color_rgba(i * 4 / 256., i * 4 / 256., i * 4 / 256., 1);
+            oc_rectangle_fill(10 + i * 8, 60, 8, 40);
+        }
 
-        oc_move_to(300, 300);
-        oc_quadratic_to(200, 350, 300, 400);
-        oc_line_to(200, 400);
-        oc_line_to(200, 300);
-        oc_close_path();
-        oc_set_color_rgba(0.9, 0.1, 0.1, 1);
-        oc_fill();
+        // same, with mixing done in shader
+        oc_set_gradient((oc_color){ 0, 0, 0, 1 },
+                        (oc_color){ 1, 1, 1, 1 },
+                        (oc_color){ 1, 1, 1, 1 },
+                        (oc_color){ 0, 0, 0, 1 });
+        oc_rectangle_fill(10, 110, 512, 40);
 
-        oc_set_gradient(
-            (oc_color){ 0, 0, 0, 1 },
-            (oc_color){ 1, 1, 1, 1 },
-            (oc_color){ 0, 1, 0, 1 },
-            (oc_color){ 1, 0, 0, 1 });
+        // mixing blue and yellow
+        for(int i = 0; i < 64; i++)
+        {
+            oc_set_color_rgba(i * 4 / 256., i * 4 / 256., (256 - i * 4) / 256., 1);
+            oc_rectangle_fill(10 + i * 8, 160, 8, 40);
+        }
 
-        oc_rectangle_fill(500, 10, 200, 200);
+        // mixing red and green
+        for(int i = 0; i < 64; i++)
+        {
+            oc_set_color_rgba((256 - i * 4) / 256., i * 4 / 256., 0, 1);
+            oc_rectangle_fill(10 + i * 8, 210, 8, 40);
+        }
 
-        oc_move_to(350, 450);
-        oc_cubic_to(250, 475, 450, 525, 350, 550);
-        oc_cubic_to(150, 500, 150, 450, 350, 450);
-        oc_set_color_rgba(1, 1, 1, 1);
-        oc_set_image(image);
-        oc_fill();
+        // same red to green, but done with a gpu-computed gradient
+        oc_set_gradient((oc_color){ 1, 0, 0, 1 },
+                        (oc_color){ 0, 1, 0, 1 },
+                        (oc_color){ 0, 1, 0, 1 },
+                        (oc_color){ 1, 0, 0, 1 });
+        oc_rectangle_fill(10, 260, 512, 40);
 
-        /*
-        oc_set_color_rgba(1, 1, 1, 1);
-        oc_set_image(image);
-        oc_set_image_source_region((oc_rect){ imageSize.x / 2, imageSize.y / 2, imageSize.x / 2, imageSize.y / 2 });
-        oc_rectangle_fill(400, 200, 200, 200);
-        */
+        // test image: scaled srgb image
+        oc_image_draw(testImg, (oc_rect){ 10, 311, 256, 128 });
 
-        oc_clip_push(400, 200, 200, 100);
-        oc_image_draw(image, (oc_rect){ 400, 200, 200, 200 });
-        oc_clip_pop();
+        // test image 2: scaled srgb image
+        oc_image_draw(dalai, (oc_rect){ 300, 311, 129, 111 });
+
+        // blend two square, red and green
+        oc_set_color_rgba(1, 0, 0, 1);
+        oc_rectangle_fill(550, 10, 100, 100);
+
+        oc_set_color_rgba(0, 1, 0, 0.5);
+        oc_rectangle_fill(550, 10, 100, 100);
+
+        // blend the colors to get the same blend
+        oc_set_color_rgba(0.5, 0.5, 0, 1);
+        oc_rectangle_fill(550, 120, 100, 100);
+
+        // blend two squares on different batches
+        {
+            oc_set_color_rgba(1, 0, 0, 1);
+            oc_rectangle_fill(550, 230, 100, 100);
+
+            // renderer dummy images to force new batch
+            for(int i = 0; i < 8; i++)
+            {
+                oc_image_draw(dummy[i], (oc_rect){ -10, -10, 10, 10 });
+            }
+
+            oc_set_color_rgba(0, 1, 0, 0.5);
+            oc_rectangle_fill(550, 230, 100, 100);
+        }
 
         oc_canvas_render(renderer, context, surface);
         oc_canvas_present(renderer, surface);
         oc_list debugRecords = oc_wgpu_canvas_debug_get_records(renderer);
 
-        //oc_wgpu_canvas_debug_log_records(debugRecords);
+        oc_wgpu_canvas_debug_log_records(debugRecords);
 
         oc_wgpu_canvas_debug_clear_records(renderer);
 

@@ -725,6 +725,7 @@ def build_platform_layer_lib_win(release):
         "src/graphics/wgsl_shaders/balance_workgroups.wgsl",
         "src/graphics/wgsl_shaders/raster.wgsl",
         "src/graphics/wgsl_shaders/blit.wgsl",
+        "src/graphics/wgsl_shaders/final_blit.wgsl",
     ])
 
     includes = [
@@ -783,6 +784,7 @@ def build_platform_layer_lib_mac(release):
         "src/graphics/wgsl_shaders/balance_workgroups.wgsl",
         "src/graphics/wgsl_shaders/raster.wgsl",
         "src/graphics/wgsl_shaders/blit.wgsl",
+        "src/graphics/wgsl_shaders/final_blit.wgsl",
     ])
 
     flags = [f"-mmacos-version-min={MACOS_VERSION_MIN}"]
