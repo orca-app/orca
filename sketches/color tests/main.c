@@ -234,6 +234,15 @@ int main()
         }
         y += 50;
 
+        // linear gradient in srgb space with mixing done in shader
+        oc_set_gradient(OC_GRADIENT_BLEND_SPACE_SRGB,
+                        (oc_color){ 0, 0, 0, 1 },
+                        (oc_color){ 1, 1, 1, 1 },
+                        (oc_color){ 1, 1, 1, 1 },
+                        (oc_color){ 0, 0, 0, 1 });
+        oc_rectangle_fill(10, y, 512, 40);
+        y += 50;
+
         // rects: linear gradient in linear space
         for(int i = 0; i < 64; i++)
         {
@@ -243,7 +252,8 @@ int main()
         y += 50;
 
         // same, with mixing done in shader
-        oc_set_gradient((oc_color){ 0, 0, 0, 1 },
+        oc_set_gradient(OC_GRADIENT_BLEND_SPACE_LINEAR,
+                        (oc_color){ 0, 0, 0, 1 },
                         (oc_color){ 1, 1, 1, 1 },
                         (oc_color){ 1, 1, 1, 1 },
                         (oc_color){ 0, 0, 0, 1 });
@@ -267,7 +277,8 @@ int main()
         y += 50;
 
         // same red to green, but done with a gpu-computed gradient
-        oc_set_gradient((oc_color){ 1, 0, 0, 1 },
+        oc_set_gradient(OC_GRADIENT_BLEND_SPACE_LINEAR,
+                        (oc_color){ 1, 0, 0, 1 },
                         (oc_color){ 0, 1, 0, 1 },
                         (oc_color){ 0, 1, 0, 1 },
                         (oc_color){ 1, 0, 0, 1 });
@@ -276,11 +287,9 @@ int main()
 
         // test image: scaled srgb image
         oc_image_draw(testImg, (oc_rect){ 10, y, 256, 128 });
-        y += 138;
 
         // test image 2: scaled srgb image
-        oc_image_draw(dalai, (oc_rect){ 10, y, 129, 111 });
-        y += 50;
+        oc_image_draw(dalai, (oc_rect){ 300, y, 129, 111 });
 
         // blend two square, red and green
         oc_set_color_rgba(1, 0, 0, 1);

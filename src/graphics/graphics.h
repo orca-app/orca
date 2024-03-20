@@ -87,6 +87,12 @@ typedef struct oc_color
     oc_color_space colorSpace;
 } oc_color;
 
+typedef enum oc_gradient_blend_space
+{
+    OC_GRADIENT_BLEND_SPACE_LINEAR,
+    OC_GRADIENT_BLEND_SPACE_SRGB,
+} oc_gradient_blend_space;
+
 typedef enum
 {
     OC_JOINT_MITER = 0,
@@ -254,7 +260,12 @@ ORCA_API void oc_set_color4f(f32 c0, f32 c1, f32 c2, f32 c3);
 ORCA_API void oc_set_color_rgba(f32 r, f32 g, f32 b, f32 a);
 ORCA_API void oc_set_color_srgba(f32 r, f32 g, f32 b, f32 a);
 ORCA_API void oc_set_color_space(oc_color_space colorSpace);
-ORCA_API void oc_set_gradient(oc_color bottomLeft, oc_color bottomRight, oc_color topRight, oc_color topLeft);
+ORCA_API void oc_set_gradient(oc_gradient_blend_space blendSpace,
+                              oc_color bottomLeft,
+                              oc_color bottomRight,
+                              oc_color topRight,
+                              oc_color topLeft);
+
 ORCA_API void oc_set_width(f32 width);
 ORCA_API void oc_set_tolerance(f32 tolerance);
 ORCA_API void oc_set_joint(oc_joint_type joint);

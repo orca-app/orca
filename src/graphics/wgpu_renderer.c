@@ -19,7 +19,7 @@ typedef struct oc_wgpu_path
     i32 cmd;
     i32 textureID;
     i32 hasGradient;
-    char pad0[4];
+    i32 gradientBlendSpace;
     //...
 } oc_wgpu_path;
 
@@ -1530,6 +1530,7 @@ void oc_wgpu_canvas_encode_path(oc_wgpu_canvas_encoding_context* context, oc_pri
         }
 
         path->hasGradient = primitive->attributes.hasGradient;
+        path->gradientBlendSpace = primitive->attributes.gradientBlendSpace;
 
         if(!oc_image_is_nil(primitive->attributes.image) || primitive->attributes.hasGradient)
         {

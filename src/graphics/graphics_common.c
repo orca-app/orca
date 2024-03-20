@@ -1240,11 +1240,12 @@ void oc_set_color_space(oc_color_space colorSpace)
     }
 }
 
-void oc_set_gradient(oc_color bottomLeft, oc_color bottomRight, oc_color topRight, oc_color topLeft)
+void oc_set_gradient(oc_gradient_blend_space blendSpace, oc_color bottomLeft, oc_color bottomRight, oc_color topRight, oc_color topLeft)
 {
     oc_canvas_context_data* context = oc_currentCanvasContext;
     if(context)
     {
+        context->attributes.gradientBlendSpace = blendSpace;
         context->attributes.hasGradient = true;
         context->attributes.colors[0] = bottomLeft;
         context->attributes.colors[1] = bottomRight;

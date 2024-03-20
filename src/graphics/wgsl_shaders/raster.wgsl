@@ -71,16 +71,34 @@ fn get_next_color(pathIndex : u32,
     else
     {
         var sampleColor = vec4f(0, 0, 0, 0);
+        var bl = pathBuffer[pathIndex].colors[0];
+        var br = pathBuffer[pathIndex].colors[1];
+        var tr = pathBuffer[pathIndex].colors[2];
+        var tl = pathBuffer[pathIndex].colors[3];
+
+        if(pathBuffer[pathIndex].gradientBlendSpace != 0)
+        {
+            bl = pow(bl, vec4f(0.4545, 0.4545, 0.4545, 1));
+            br = pow(br, vec4f(0.4545, 0.4545, 0.4545, 1));
+            tl = pow(tl, vec4f(0.4545, 0.4545, 0.4545, 1));
+            tr = pow(tr, vec4f(0.4545, 0.4545, 0.4545, 1));
+        }
+
         for(var sampleIndex : u32 = 0; sampleIndex < OC_WGPU_SOURCE_SAMPLE_COUNT; sampleIndex++)
         {
             let sampleCoord = vec3f(sourceSampleCoords[sampleIndex], 1);
             let uv : vec2f = (pathBuffer[pathIndex].uvTransform * sampleCoord).xy;
 
-            let bottomColor : vec4f = (1. - uv.x) * pathBuffer[pathIndex].colors[0] + uv.x * pathBuffer[pathIndex].colors[1];
-            let topColor : vec4f = (1. - uv.x) * pathBuffer[pathIndex].colors[3] + uv.x * pathBuffer[pathIndex].colors[2];
-            sampleColor += uv.y * bottomColor + (1 - uv.y) * topColor;
+            let bottom : vec4f = (1. - uv.x) * bl + uv.x * br;
+            let top : vec4f = (1. - uv.x) * tl + uv.x * tr;
+            sampleColor += uv.y * bottom + (1 - uv.y) * top;
         }
         nextColor = sampleColor / f32(OC_WGPU_SOURCE_SAMPLE_COUNT);
+
+        if(pathBuffer[pathIndex].gradientBlendSpace != 0)
+        {
+            nextColor = pow(nextColor, vec4f(2.2, 2.2, 2.2, 1));
+        }
     }
 
     nextColor = vec4f(nextColor.rgb * nextColor.a, nextColor.a);
