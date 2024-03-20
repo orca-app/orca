@@ -187,6 +187,7 @@ typedef struct oc_wgpu_canvas_renderer
     WGPUBindGroup rasterBindGroup;
     WGPUBindGroup srcTexturesBindGroup;
     WGPUBindGroup blitBindGroup;
+    WGPUBindGroup finalBlitBindGroup;
 
     WGPUBindGroupLayout pathSetupBindGroupLayout;
     WGPUBindGroupLayout segmentSetupBindGroupLayout;
@@ -197,6 +198,7 @@ typedef struct oc_wgpu_canvas_renderer
     WGPUBindGroupLayout rasterBindGroupLayout;
     WGPUBindGroupLayout srcTexturesBindGroupLayout;
     WGPUBindGroupLayout blitBindGroupLayout;
+    WGPUBindGroupLayout finalBlitBindGroupLayout;
 
     WGPUComputePipeline pathSetupPipeline;
     WGPUComputePipeline segmentSetupPipeline;
@@ -206,6 +208,7 @@ typedef struct oc_wgpu_canvas_renderer
     WGPUComputePipeline balancePipeline;
     WGPUComputePipeline rasterPipeline;
     WGPURenderPipeline blitPipeline;
+    WGPURenderPipeline finalBlitPipeline;
 
     WGPUBuffer pathBuffer;
     WGPUBuffer pathCountBuffer; // remove?
@@ -236,8 +239,10 @@ typedef struct oc_wgpu_canvas_renderer
 
     WGPUBuffer maxWorkGroupsPerDimensionBuffer;
 
+    WGPUTextureView batchTextureView;
+    oc_vec2 batchTextureSize;
+
     WGPUTextureView outTextureView;
-    oc_vec2 outTextureSize;
 
     WGPUTextureView dummyTextureView;
 
@@ -477,6 +482,7 @@ void oc_wgpu_renderer_create_render_pipeline(WGPUDevice device,
                                              const char* src,
                                              const char* vertexEntryPoint,
                                              const char* fragmentEntryPoint,
+                                             WGPUTextureFormat textureFormat,
                                              WGPUBindGroupLayoutDescriptor* bindGroupLayoutDesc,
                                              WGPUBindGroupLayout* bindGroupLayout,
                                              WGPURenderPipeline* pipeline)
@@ -532,7 +538,7 @@ void oc_wgpu_renderer_create_render_pipeline(WGPUDevice device,
             .targets = (WGPUColorTargetState[]){
                 // writing to one output, with alpha-blending enabled
                 {
-                    .format = WGPUTextureFormat_BGRA8Unorm,
+                    .format = textureFormat,
                     .blend = &(WGPUBlendState){
                         .color.operation = WGPUBlendOperation_Add,
                         .color.srcFactor = WGPUBlendFactor_One,
@@ -1249,9 +1255,36 @@ oc_canvas_renderer oc_canvas_renderer_create(void)
                                                 oc_wgsl_blit,
                                                 "vs",
                                                 "fs",
+                                                WGPUTextureFormat_RGBA8Unorm,
                                                 &bindGroupLayoutDesc,
                                                 &renderer->blitBindGroupLayout,
                                                 &renderer->blitPipeline);
+    }
+
+    //NOTE: final blit pipeline
+    {
+        WGPUBindGroupLayoutDescriptor bindGroupLayoutDesc = {
+            .entryCount = 1,
+            .entries = (WGPUBindGroupLayoutEntry[]){
+                {
+                    .binding = 0,
+                    .visibility = WGPUShaderStage_Fragment,
+                    .texture.sampleType = WGPUTextureSampleType_Float,
+                    .texture.viewDimension = WGPUTextureViewDimension_2D,
+                    .texture.multisampled = 0,
+                },
+            },
+        };
+
+        oc_wgpu_renderer_create_render_pipeline(renderer->device,
+                                                "final_blit",
+                                                oc_wgsl_final_blit,
+                                                "vs",
+                                                "fs",
+                                                WGPUTextureFormat_BGRA8Unorm,
+                                                &bindGroupLayoutDesc,
+                                                &renderer->finalBlitBindGroupLayout,
+                                                &renderer->finalBlitPipeline);
     }
 
     //NOTE: create timestamps query set and buffers
@@ -1490,6 +1523,15 @@ void oc_wgpu_canvas_encode_path(oc_wgpu_canvas_encoding_context* context, oc_pri
         };
 
         memcpy(path->colors, primitive->attributes.colors, 4 * sizeof(oc_color));
+        /*
+        for(int i = 0; i < 4; i++)
+        {
+            path->colors[i].x = pow(primitive->attributes.colors[i].r, 2.2);
+            path->colors[i].y = pow(primitive->attributes.colors[i].g, 2.2);
+            path->colors[i].z = pow(primitive->attributes.colors[i].b, 2.2);
+            path->colors[i].w = primitive->attributes.colors[i].a;
+        }
+        */
         path->hasGradient = primitive->attributes.hasGradient;
 
         if(!oc_image_is_nil(primitive->attributes.image) || primitive->attributes.hasGradient)
@@ -2342,10 +2384,11 @@ void oc_wgpu_canvas_update_resources_if_needed(oc_wgpu_canvas_encoding_context* 
                                                               "chunk elements buffer",
                                                               WGPUBufferUsage_Storage);
 
-    //NOTE: resize outTexture if needed
+    //NOTE: resize batchTexture and outTexture if needed
     bool updateTexture = (renderer->outTextureView == 0)
-                      || (renderer->outTextureSize.x != context->screenSize.x)
-                      || (renderer->outTextureSize.y != context->screenSize.y);
+                      || (renderer->batchTextureView == 0)
+                      || (renderer->batchTextureSize.x != context->screenSize.x)
+                      || (renderer->batchTextureSize.y != context->screenSize.y);
 
     if(updateTexture)
     {
@@ -2354,29 +2397,62 @@ void oc_wgpu_canvas_update_resources_if_needed(oc_wgpu_canvas_encoding_context* 
             wgpuTextureViewRelease(renderer->outTextureView);
         }
 
-        WGPUTextureDescriptor desc = {
-            .usage = WGPUTextureUsage_TextureBinding | WGPUTextureUsage_StorageBinding | WGPUTextureUsage_RenderAttachment,
-            .dimension = WGPUTextureDimension_2D,
-            .size = { context->screenSize.x, context->screenSize.y, 1 },
-            .format = WGPUTextureFormat_RGBA8Unorm,
-            .mipLevelCount = 1,
-            .sampleCount = 1,
-        };
-        WGPUTexture texture = wgpuDeviceCreateTexture(renderer->device, &desc);
+        if(renderer->batchTextureView)
+        {
+            wgpuTextureViewRelease(renderer->batchTextureView);
+        }
 
-        WGPUTextureViewDescriptor viewDesc = {
-            .format = desc.format,
-            .dimension = WGPUTextureViewDimension_2D,
-            .baseMipLevel = 0,
-            .mipLevelCount = 1,
-            .baseArrayLayer = 0,
-            .arrayLayerCount = 1,
-            .aspect = WGPUTextureAspect_All,
-        };
-        renderer->outTextureView = wgpuTextureCreateView(texture, &viewDesc);
-        wgpuTextureRelease(texture);
+        //batch texture
+        {
+            WGPUTextureDescriptor desc = {
+                .usage = WGPUTextureUsage_TextureBinding | WGPUTextureUsage_StorageBinding | WGPUTextureUsage_RenderAttachment,
+                .dimension = WGPUTextureDimension_2D,
+                .size = { context->screenSize.x, context->screenSize.y, 1 },
+                .format = WGPUTextureFormat_RGBA8Unorm,
+                .mipLevelCount = 1,
+                .sampleCount = 1,
+            };
+            WGPUTexture texture = wgpuDeviceCreateTexture(renderer->device, &desc);
 
-        renderer->outTextureSize = context->screenSize;
+            WGPUTextureViewDescriptor viewDesc = {
+                .format = desc.format,
+                .dimension = WGPUTextureViewDimension_2D,
+                .baseMipLevel = 0,
+                .mipLevelCount = 1,
+                .baseArrayLayer = 0,
+                .arrayLayerCount = 1,
+                .aspect = WGPUTextureAspect_All,
+            };
+            renderer->batchTextureView = wgpuTextureCreateView(texture, &viewDesc);
+            wgpuTextureRelease(texture);
+        }
+
+        //out texture
+        {
+            WGPUTextureDescriptor desc = {
+                .usage = WGPUTextureUsage_TextureBinding | WGPUTextureUsage_RenderAttachment,
+                .dimension = WGPUTextureDimension_2D,
+                .size = { context->screenSize.x, context->screenSize.y, 1 },
+                .format = WGPUTextureFormat_RGBA8Unorm,
+                .mipLevelCount = 1,
+                .sampleCount = 1,
+            };
+            WGPUTexture texture = wgpuDeviceCreateTexture(renderer->device, &desc);
+
+            WGPUTextureViewDescriptor viewDesc = {
+                .format = desc.format,
+                .dimension = WGPUTextureViewDimension_2D,
+                .baseMipLevel = 0,
+                .mipLevelCount = 1,
+                .baseArrayLayer = 0,
+                .arrayLayerCount = 1,
+                .aspect = WGPUTextureAspect_All,
+            };
+            renderer->outTextureView = wgpuTextureCreateView(texture, &viewDesc);
+            wgpuTextureRelease(texture);
+        }
+
+        renderer->batchTextureSize = context->screenSize;
     }
 
     //----------------------------------------------------------------------------------------
@@ -2745,7 +2821,7 @@ void oc_wgpu_canvas_update_resources_if_needed(oc_wgpu_canvas_encoding_context* 
                 },
                 {
                     .binding = 7,
-                    .textureView = renderer->outTextureView,
+                    .textureView = renderer->batchTextureView,
                 },
                 {
                     .binding = 8,
@@ -2796,7 +2872,7 @@ void oc_wgpu_canvas_update_resources_if_needed(oc_wgpu_canvas_encoding_context* 
     }
 
     //----------------------------------------------------------------------------------------
-    // Blit bindgroup
+    // Blit and final blit bindgroups
 
     if((renderer->blitBindGroup == 0)
        || updateTexture)
@@ -2806,17 +2882,40 @@ void oc_wgpu_canvas_update_resources_if_needed(oc_wgpu_canvas_encoding_context* 
             wgpuBindGroupRelease(renderer->blitBindGroup);
         }
 
-        WGPUBindGroupDescriptor bindGroupDesc = {
-            .layout = renderer->blitBindGroupLayout,
-            .entryCount = 1,
-            .entries = (WGPUBindGroupEntry[]){
-                {
-                    .binding = 0,
-                    .textureView = renderer->outTextureView,
-                },
-            }
-        };
-        renderer->blitBindGroup = wgpuDeviceCreateBindGroup(renderer->device, &bindGroupDesc);
+        if(renderer->finalBlitBindGroup)
+        {
+            wgpuBindGroupRelease(renderer->finalBlitBindGroup);
+        }
+
+        // blit
+        {
+            WGPUBindGroupDescriptor bindGroupDesc = {
+                .layout = renderer->blitBindGroupLayout,
+                .entryCount = 1,
+                .entries = (WGPUBindGroupEntry[]){
+                    {
+                        .binding = 0,
+                        .textureView = renderer->batchTextureView,
+                    },
+                }
+            };
+            renderer->blitBindGroup = wgpuDeviceCreateBindGroup(renderer->device, &bindGroupDesc);
+        }
+
+        // final blit
+        {
+            WGPUBindGroupDescriptor bindGroupDesc = {
+                .layout = renderer->blitBindGroupLayout,
+                .entryCount = 1,
+                .entries = (WGPUBindGroupEntry[]){
+                    {
+                        .binding = 0,
+                        .textureView = renderer->outTextureView,
+                    },
+                }
+            };
+            renderer->finalBlitBindGroup = wgpuDeviceCreateBindGroup(renderer->device, &bindGroupDesc);
+        }
     }
 }
 
@@ -3237,7 +3336,7 @@ void oc_wgpu_canvas_submit(oc_canvas_renderer_base* rendererBase,
                     .colorAttachmentCount = 1,
                     .colorAttachments = (WGPURenderPassColorAttachment[]){
                         {
-                            .view = renderer->outTextureView,
+                            .view = renderer->batchTextureView,
                             .depthSlice = WGPU_DEPTH_SLICE_UNDEFINED,
                             .loadOp = WGPULoadOp_Clear,
                             .storeOp = WGPUStoreOp_Store,
@@ -3454,7 +3553,7 @@ void oc_wgpu_canvas_submit(oc_canvas_renderer_base* rendererBase,
                     .colorAttachmentCount = 1,
                     .colorAttachments = (WGPURenderPassColorAttachment[]){
                         {
-                            .view = frameBuffer,
+                            .view = renderer->outTextureView,
                             .depthSlice = WGPU_DEPTH_SLICE_UNDEFINED,
                             .loadOp = WGPULoadOp_Load,
                             .storeOp = WGPUStoreOp_Store,
@@ -3483,11 +3582,39 @@ void oc_wgpu_canvas_submit(oc_canvas_renderer_base* rendererBase,
             batchCount++;
         }
 
+        encoder = wgpuDeviceCreateCommandEncoder(renderer->device, NULL);
+
+        //----------------------------------------------------------------------------------------
+        //NOTE: final blit pass
+        {
+            WGPURenderPassDescriptor desc = {
+                .label = "final blit",
+                .colorAttachmentCount = 1,
+                .colorAttachments = (WGPURenderPassColorAttachment[]){
+                    {
+                        .view = frameBuffer,
+                        .depthSlice = WGPU_DEPTH_SLICE_UNDEFINED,
+                        .loadOp = WGPULoadOp_Load,
+                        .storeOp = WGPUStoreOp_Store,
+                    },
+                },
+            };
+
+            WGPURenderPassEncoder pass = wgpuCommandEncoderBeginRenderPass(encoder, &desc);
+            {
+                wgpuRenderPassEncoderSetViewport(pass, 0.f, 0.f, screenSize.x, screenSize.y, 0.f, 1.f);
+                wgpuRenderPassEncoderSetPipeline(pass, renderer->finalBlitPipeline);
+                wgpuRenderPassEncoderSetBindGroup(pass, 0, renderer->finalBlitBindGroup, 0, NULL);
+
+                //    wgpuRenderPassEncoderSetVertexBuffer(pass, 0, renderer->vBuffer, 0, WGPU_WHOLE_SIZE);
+                wgpuRenderPassEncoderDraw(pass, 4, 1, 0, 0);
+            }
+            wgpuRenderPassEncoderEnd(pass);
+        }
+
         //NOTE: resolve frame timestamps
         if(renderer->hasTimestamps && (renderer->debugRecordOptions.timingFlags & OC_WGPU_CANVAS_TIMING_FRAME))
         {
-            WGPUCommandEncoder encoder = wgpuDeviceCreateCommandEncoder(renderer->device, NULL);
-
             wgpuCommandEncoderWriteTimestamp(encoder, renderer->timestampsQuerySet, OC_WGPU_CANVAS_TIMESTAMP_INDEX_FRAME_END);
 
             wgpuCommandEncoderResolveQuerySet(encoder,
@@ -3503,12 +3630,12 @@ void oc_wgpu_canvas_submit(oc_canvas_renderer_base* rendererBase,
                                                  renderer->timestampsReadBuffer[renderer->rollingBufferIndex],
                                                  0,
                                                  2 * sizeof(u64));
-
-            WGPUCommandBuffer command = wgpuCommandEncoderFinish(encoder, NULL);
-            wgpuQueueSubmit(renderer->queue, 1, &command);
-            wgpuCommandBufferRelease(command);
-            wgpuCommandEncoderRelease(encoder);
         }
+
+        command = wgpuCommandEncoderFinish(encoder, NULL);
+        wgpuQueueSubmit(renderer->queue, 1, &command);
+        wgpuCommandBufferRelease(command);
+        wgpuCommandEncoderRelease(encoder);
 
         //NOTE: release transient stuff
         wgpuTextureViewRelease(frameBuffer);
@@ -3656,9 +3783,9 @@ void oc_wgpu_canvas_destroy(oc_canvas_renderer_base* base)
     wgpuQuerySetRelease(renderer->timestampsQuerySet);
 
     // release texture views and sample
-    if(renderer->outTextureView)
+    if(renderer->batchTextureView)
     {
-        wgpuTextureViewRelease(renderer->outTextureView);
+        wgpuTextureViewRelease(renderer->batchTextureView);
     }
     if(renderer->dummyTextureView)
     {
@@ -3684,7 +3811,7 @@ oc_image_base* oc_wgpu_canvas_image_create(oc_canvas_renderer_base* base, oc_vec
             .usage = WGPUTextureUsage_TextureBinding | WGPUTextureUsage_CopyDst,
             .dimension = WGPUTextureDimension_2D,
             .size = { size.x, size.y, 1 },
-            .format = WGPUTextureFormat_RGBA8Unorm,
+            .format = WGPUTextureFormat_RGBA8UnormSrgb,
             .mipLevelCount = 1,
             .sampleCount = 1,
         };
