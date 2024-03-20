@@ -58,6 +58,15 @@ typedef struct oc_image
     u64 h;
 } oc_image;
 
+typedef enum oc_color_space_tag
+{
+    OC_COLOR_SPACE_RGB,
+    OC_COLOR_SPACE_SRGB,
+
+    //TODO: HSV, HSL, ...
+
+} oc_color_space;
+
 typedef struct oc_color
 {
     union
@@ -70,8 +79,12 @@ typedef struct oc_color
             f32 a;
         };
 
+        //...
+
         f32 c[4];
     };
+
+    oc_color_space colorSpace;
 } oc_color;
 
 typedef enum
@@ -111,6 +124,15 @@ typedef struct oc_text_metrics
     oc_vec2 advance;
 
 } oc_text_metrics;
+
+//------------------------------------------------------------------------------------------
+//SECTION: color helpers
+//------------------------------------------------------------------------------------------
+oc_color oc_color_rgba(f32 r, f32 g, f32 b, f32 a);
+oc_color oc_color_srgba(f32 r, f32 g, f32 b, f32 a);
+//TODO: hsv/hsl, conversions, ...
+
+oc_color oc_color_convert(oc_color color, oc_color_space colorSpace);
 
 //------------------------------------------------------------------------------------------
 //SECTION: canvas renderer
@@ -226,8 +248,12 @@ ORCA_API oc_rect oc_clip_top();
 //------------------------------------------------------------------------------------------
 //SECTION: graphics attributes setting/getting
 //------------------------------------------------------------------------------------------
+
 ORCA_API void oc_set_color(oc_color color);
+ORCA_API void oc_set_color4f(f32 c0, f32 c1, f32 c2, f32 c3);
 ORCA_API void oc_set_color_rgba(f32 r, f32 g, f32 b, f32 a);
+ORCA_API void oc_set_color_srgba(f32 r, f32 g, f32 b, f32 a);
+ORCA_API void oc_set_color_space(oc_color_space colorSpace);
 ORCA_API void oc_set_gradient(oc_color bottomLeft, oc_color bottomRight, oc_color topRight, oc_color topLeft);
 ORCA_API void oc_set_width(f32 width);
 ORCA_API void oc_set_tolerance(f32 tolerance);
@@ -241,6 +267,7 @@ ORCA_API void oc_set_image(oc_image image);
 ORCA_API void oc_set_image_source_region(oc_rect region);
 
 ORCA_API oc_color oc_get_color(void);
+ORCA_API oc_color_space oc_get_color_space(void);
 ORCA_API f32 oc_get_width(void);
 ORCA_API f32 oc_get_tolerance(void);
 ORCA_API oc_joint_type oc_get_joint(void);

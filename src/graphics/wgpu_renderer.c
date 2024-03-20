@@ -1522,16 +1522,13 @@ void oc_wgpu_canvas_encode_path(oc_wgpu_canvas_encoding_context* context, oc_pri
             (primitive->attributes.clip.y + primitive->attributes.clip.h) * context->scale.y,
         };
 
-        memcpy(path->colors, primitive->attributes.colors, 4 * sizeof(oc_color));
-        /*
+        //NOTE: shader expects linear rgba values
         for(int i = 0; i < 4; i++)
         {
-            path->colors[i].x = pow(primitive->attributes.colors[i].r, 2.2);
-            path->colors[i].y = pow(primitive->attributes.colors[i].g, 2.2);
-            path->colors[i].z = pow(primitive->attributes.colors[i].b, 2.2);
-            path->colors[i].w = primitive->attributes.colors[i].a;
+            oc_color c = oc_color_convert(primitive->attributes.colors[i], OC_COLOR_SPACE_RGB);
+            memcpy(path->colors[i].c, c.c, 4 * sizeof(f32));
         }
-        */
+
         path->hasGradient = primitive->attributes.hasGradient;
 
         if(!oc_image_is_nil(primitive->attributes.image) || primitive->attributes.hasGradient)

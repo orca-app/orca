@@ -112,6 +112,7 @@ typedef struct oc_canvas_context_data
     oc_list_elt freeListElt;
 
     oc_attributes attributes;
+    oc_color_space colorSpace;
     bool textFlip;
 
     oc_path_elt pathElements[OC_MAX_PATH_ELEMENT_COUNT];
@@ -1140,6 +1141,60 @@ oc_rect oc_clip_top()
 }
 
 //------------------------------------------------------------------------------------------
+//NOTE(martin): color helpers
+//------------------------------------------------------------------------------------------
+
+oc_color oc_color_convert(oc_color color, oc_color_space colorSpace)
+{
+    switch(colorSpace)
+    {
+        case OC_COLOR_SPACE_RGB:
+        {
+            switch(color.colorSpace)
+            {
+                case OC_COLOR_SPACE_RGB:
+                    // No conversion
+                    break;
+
+                case OC_COLOR_SPACE_SRGB:
+                {
+                    // SRGBA to RGBA
+                    for(int i = 0; i < 3; i++)
+                    {
+                        color.c[i] = powf(color.c[i], 2.2);
+                    }
+                }
+                break;
+            }
+        }
+        break;
+
+        case OC_COLOR_SPACE_SRGB:
+        {
+            switch(color.colorSpace)
+            {
+                case OC_COLOR_SPACE_RGB:
+                {
+                    // RGBA to SRGBA
+                    for(int i = 0; i < 3; i++)
+                    {
+                        color.c[i] = powf(color.c[i], 0.4545);
+                    }
+                }
+                break;
+
+                case OC_COLOR_SPACE_SRGB:
+                    // No conversion
+                    break;
+            }
+        }
+        break;
+    }
+    color.colorSpace = colorSpace;
+    return (color);
+}
+
+//------------------------------------------------------------------------------------------
 //NOTE(martin): graphics attributes setting/getting
 //------------------------------------------------------------------------------------------
 void oc_set_color(oc_color color)
@@ -1152,9 +1207,37 @@ void oc_set_color(oc_color color)
     }
 }
 
+void oc_set_color4f(f32 c0, f32 c1, f32 c2, f32 c3)
+{
+    oc_canvas_context_data* context = oc_currentCanvasContext;
+    if(context)
+    {
+        oc_color color = {
+            .colorSpace = context->colorSpace,
+            .c = { c0, c1, c2, c3 },
+        };
+        context->attributes.hasGradient = false;
+        context->attributes.colors[0] = color;
+    }
+}
+
 void oc_set_color_rgba(f32 r, f32 g, f32 b, f32 a)
 {
-    oc_set_color((oc_color){ r, g, b, a });
+    oc_set_color((oc_color){ r, g, b, a, OC_COLOR_SPACE_RGB });
+}
+
+void oc_set_color_srgba(f32 r, f32 g, f32 b, f32 a)
+{
+    oc_set_color((oc_color){ r, g, b, a, OC_COLOR_SPACE_SRGB });
+}
+
+void oc_set_color_space(oc_color_space colorSpace)
+{
+    oc_canvas_context_data* context = oc_currentCanvasContext;
+    if(context)
+    {
+        context->colorSpace = colorSpace;
+    }
 }
 
 void oc_set_gradient(oc_color bottomLeft, oc_color bottomRight, oc_color topRight, oc_color topLeft)
@@ -1271,6 +1354,17 @@ oc_color oc_get_color()
         color = context->attributes.colors[0];
     }
     return (color);
+}
+
+oc_color_space oc_get_color_space()
+{
+    oc_color_space colorSpace = { 0 };
+    oc_canvas_context_data* context = oc_currentCanvasContext;
+    if(context)
+    {
+        colorSpace = context->colorSpace;
+    }
+    return (colorSpace);
 }
 
 f32 oc_get_width()

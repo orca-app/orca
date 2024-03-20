@@ -221,49 +221,66 @@ int main()
         oc_set_color_rgba(0.5, 1, 1, 1);
         oc_clear();
 
+        f32 y = 10;
         // image: linear gradient in srgb space
-        oc_image_draw(grad, (oc_rect){ 10, 10, 512, 40 });
+        oc_image_draw(grad, (oc_rect){ 10, y, 512, 40 });
+        y += 50;
 
-        // rects: linear gradient in srgb(?) space
+        // rects: linear gradient in srgb space
+        for(int i = 0; i < 64; i++)
+        {
+            oc_set_color_srgba(i * 4 / 256., i * 4 / 256., i * 4 / 256., 1);
+            oc_rectangle_fill(10 + i * 8, y, 8, 40);
+        }
+        y += 50;
+
+        // rects: linear gradient in linear space
         for(int i = 0; i < 64; i++)
         {
             oc_set_color_rgba(i * 4 / 256., i * 4 / 256., i * 4 / 256., 1);
-            oc_rectangle_fill(10 + i * 8, 60, 8, 40);
+            oc_rectangle_fill(10 + i * 8, y, 8, 40);
         }
+        y += 50;
 
         // same, with mixing done in shader
         oc_set_gradient((oc_color){ 0, 0, 0, 1 },
                         (oc_color){ 1, 1, 1, 1 },
                         (oc_color){ 1, 1, 1, 1 },
                         (oc_color){ 0, 0, 0, 1 });
-        oc_rectangle_fill(10, 110, 512, 40);
+        oc_rectangle_fill(10, y, 512, 40);
+        y += 50;
 
         // mixing blue and yellow
         for(int i = 0; i < 64; i++)
         {
             oc_set_color_rgba(i * 4 / 256., i * 4 / 256., (256 - i * 4) / 256., 1);
-            oc_rectangle_fill(10 + i * 8, 160, 8, 40);
+            oc_rectangle_fill(10 + i * 8, y, 8, 40);
         }
+        y += 50;
 
         // mixing red and green
         for(int i = 0; i < 64; i++)
         {
             oc_set_color_rgba((256 - i * 4) / 256., i * 4 / 256., 0, 1);
-            oc_rectangle_fill(10 + i * 8, 210, 8, 40);
+            oc_rectangle_fill(10 + i * 8, y, 8, 40);
         }
+        y += 50;
 
         // same red to green, but done with a gpu-computed gradient
         oc_set_gradient((oc_color){ 1, 0, 0, 1 },
                         (oc_color){ 0, 1, 0, 1 },
                         (oc_color){ 0, 1, 0, 1 },
                         (oc_color){ 1, 0, 0, 1 });
-        oc_rectangle_fill(10, 260, 512, 40);
+        oc_rectangle_fill(10, y, 512, 40);
+        y += 50;
 
         // test image: scaled srgb image
-        oc_image_draw(testImg, (oc_rect){ 10, 311, 256, 128 });
+        oc_image_draw(testImg, (oc_rect){ 10, y, 256, 128 });
+        y += 138;
 
         // test image 2: scaled srgb image
-        oc_image_draw(dalai, (oc_rect){ 300, 311, 129, 111 });
+        oc_image_draw(dalai, (oc_rect){ 10, y, 129, 111 });
+        y += 50;
 
         // blend two square, red and green
         oc_set_color_rgba(1, 0, 0, 1);
