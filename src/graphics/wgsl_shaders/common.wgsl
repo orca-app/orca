@@ -8,6 +8,7 @@ struct oc_path
     cmd : u32,
     textureID : i32,
     hasGradient : i32,
+    blendSpace : i32,
 };
 
 struct oc_path_elt

@@ -19,7 +19,7 @@ typedef struct oc_wgpu_path
     i32 cmd;
     i32 textureID;
     i32 hasGradient;
-    char pad0[4];
+    i32 blendSpace;
     //...
 } oc_wgpu_path;
 
@@ -1522,17 +1522,23 @@ void oc_wgpu_canvas_encode_path(oc_wgpu_canvas_encoding_context* context, oc_pri
             (primitive->attributes.clip.y + primitive->attributes.clip.h) * context->scale.y,
         };
 
-        memcpy(path->colors, primitive->attributes.colors, 4 * sizeof(oc_color));
-        /*
         for(int i = 0; i < 4; i++)
         {
-            path->colors[i].x = pow(primitive->attributes.colors[i].r, 2.2);
-            path->colors[i].y = pow(primitive->attributes.colors[i].g, 2.2);
-            path->colors[i].z = pow(primitive->attributes.colors[i].b, 2.2);
-            path->colors[i].w = primitive->attributes.colors[i].a;
+            if(primitive->attributes.colors[i].colorSpace == OC_COLOR_SPACE_SRGB)
+            {
+                for(int j = 0; j < 3; j++)
+                {
+                    path->colors[i].c[j] = powf(primitive->attributes.colors[i].c[j], 2.2);
+                }
+                path->colors[i].c[3] = primitive->attributes.colors[i].c[3];
+            }
+            else
+            {
+                memcpy(&path->colors[i], primitive->attributes.colors[i].c, 4 * sizeof(f32));
+            }
         }
-        */
         path->hasGradient = primitive->attributes.hasGradient;
+        path->blendSpace = primitive->attributes.blendSpace;
 
         if(!oc_image_is_nil(primitive->attributes.image) || primitive->attributes.hasGradient)
         {
@@ -2923,6 +2929,7 @@ bool oc_wgpu_canvas_encode_batch(oc_wgpu_canvas_encoding_context* context)
 {
     if(context->pathBatchStart >= context->inputPrimitiveCount)
     {
+        oc_wgpu_canvas_update_resources_if_needed(context);
         return (false);
     }
     else

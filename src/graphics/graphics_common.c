@@ -1154,15 +1154,21 @@ void oc_set_color(oc_color color)
 
 void oc_set_color_rgba(f32 r, f32 g, f32 b, f32 a)
 {
-    oc_set_color((oc_color){ r, g, b, a });
+    oc_set_color((oc_color){ r, g, b, a, .colorSpace = OC_COLOR_SPACE_RGB });
 }
 
-void oc_set_gradient(oc_color bottomLeft, oc_color bottomRight, oc_color topRight, oc_color topLeft)
+void oc_set_color_srgba(f32 r, f32 g, f32 b, f32 a)
+{
+    oc_set_color((oc_color){ r, g, b, a, .colorSpace = OC_COLOR_SPACE_SRGB });
+}
+
+void oc_set_gradient(oc_gradient_blend_space blendSpace, oc_color bottomLeft, oc_color bottomRight, oc_color topRight, oc_color topLeft)
 {
     oc_canvas_context_data* context = oc_currentCanvasContext;
     if(context)
     {
         context->attributes.hasGradient = true;
+        context->attributes.blendSpace = blendSpace;
         context->attributes.colors[0] = bottomLeft;
         context->attributes.colors[1] = bottomRight;
         context->attributes.colors[2] = topRight;
