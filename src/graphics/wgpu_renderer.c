@@ -3017,7 +3017,7 @@ void oc_wgpu_canvas_submit(oc_canvas_renderer_base* rendererBase,
 
     WGPUSwapChain swapChain = oc_wgpu_surface_get_swapchain(surfaceHandle, renderer->device);
 
-    if(swapChain && primitiveCount && eltCount)
+    if(swapChain)
     {
         WGPUTextureView frameBuffer = wgpuSwapChainGetCurrentTextureView(swapChain);
         OC_ASSERT(frameBuffer);
