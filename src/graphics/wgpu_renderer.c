@@ -2921,11 +2921,7 @@ void oc_wgpu_canvas_update_resources_if_needed(oc_wgpu_canvas_encoding_context* 
 
 bool oc_wgpu_canvas_encode_batch(oc_wgpu_canvas_encoding_context* context)
 {
-    if(context->pathBatchStart >= context->inputPrimitiveCount)
-    {
-        return (false);
-    }
-    else
+    if(context->pathBatchStart < context->inputPrimitiveCount)
     {
         oc_wgpu_canvas_renderer* renderer = context->renderer;
 
@@ -3077,6 +3073,12 @@ bool oc_wgpu_canvas_encode_batch(oc_wgpu_canvas_encoding_context* context)
         oc_scratch_end(scratch);
 
         return (true);
+    }
+    else
+    {
+        // we need to update texture sizes even if command buffer is empty
+        oc_wgpu_canvas_update_resources_if_needed(context);
+        return (false);
     }
 }
 
