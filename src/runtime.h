@@ -92,7 +92,8 @@ typedef struct oc_debug_overlay
 {
     bool show;
     oc_surface surface;
-    oc_canvas canvas;
+    oc_canvas_context context;
+
     oc_font fontReg;
     oc_font fontBold;
     oc_ui_context ui;
@@ -111,6 +112,7 @@ typedef struct oc_runtime
 {
     bool quit;
     oc_window window;
+    oc_canvas_renderer canvasRenderer;
     oc_debug_overlay debugOverlay;
 
     oc_file_table fileTable;

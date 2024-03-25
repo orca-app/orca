@@ -4,10 +4,10 @@ BINDIR=bin
 LIBDIR=../../build/bin
 RESDIR=../resources
 SRCDIR=../../src
-EXTDIR=../../ext
-ANGLEDIR=../../ext/angle/
+EXTDIR=../../src/ext
+ANGLEDIR=../../src/ext/angle/
 
-INCLUDES="-I$SRCDIR -I$SRCDIR/util -I$SRCDIR/platform -I$SRCDIR/app -I$EXTDIR/ -I$ANGLEDIR/include"
+INCLUDES="-I$SRCDIR -I$EXTDIR -I$ANGLEDIR/include"
 LIBS="-L$LIBDIR -lorca"
 FLAGS="-mmacos-version-min=10.15.4 -DOC_DEBUG -DLOG_COMPILE_DEBUG"
 

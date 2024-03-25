@@ -371,6 +371,14 @@ ORCA_API void oc_window_center(oc_window window);
 ORCA_API oc_rect oc_window_content_rect_for_frame_rect(oc_rect frameRect, oc_window_style style);
 ORCA_API oc_rect oc_window_frame_rect_for_content_rect(oc_rect contentRect, oc_window_style style);
 
+//------------------------------------------------------------------------------------------
+//SECTION: vsync
+//------------------------------------------------------------------------------------------
+//TODO: surface-api-rework: remove this?
+
+ORCA_API void oc_vsync_init(void);
+ORCA_API void oc_vsync_wait(oc_window window);
+
 //---------------------------------------------------------------
 // Dispatching stuff to the main thread
 //---------------------------------------------------------------

@@ -40,16 +40,32 @@
     // graphics
     //----------------------------------------------------------------
     #include "graphics/graphics.h"
+    #include "graphics/backends.h"
+
+    #if OC_GRAPHICS_ENABLE_METAL
+        #include "graphics/mtl_surface.h"
+    #endif
+
+    #if OC_GRAPHICS_ENABLE_GL
+        #include "graphics/gl_surface.h"
+    #endif
+
+    #if OC_GRAPHICS_ENABLE_GLES
+        #include "graphics/gles_surface.h"
+    #endif
 
     #if OC_PLATFORM_ORCA
-        //TODO: maybe make this conditional
         #include "graphics/orca_gl31.h"
-
     #else
-        #ifdef OC_INCLUDE_GL_API
+        #if OC_GRAPHICS_INCLUDE_GL_API
             #include "graphics/gl_api.h"
         #endif
     #endif
+
+    #if OC_GRAPHICS_ENABLE_WEBGPU
+        #include "graphics/wgpu_surface.h"
+    #endif
+
     //----------------------------------------------------------------
     // UI
     //----------------------------------------------------------------

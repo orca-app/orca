@@ -2,99 +2,131 @@ name: build-all
 
 on:
   workflow_call:
+    inputs:
+      version:
+        type: string
+        required: false
   push:
     branches:
       - main
 
 jobs:
+  build-dawn-mac:
+    uses: ./.github/workflows/build-dawn-mac.yaml
+
+  build-dawn-win:
+    uses: ./.github/workflows/build-dawn-win.yaml
+
   build-win:
+    needs: [build-dawn-win]
     runs-on: windows-2022
     steps:
-      - uses: actions/checkout@v4
-
       - uses: actions/setup-python@v4
         with:
           python-version: '3.10'
+
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifact
+
+      - name: Copy Dawn
+        shell: cmd
+        run: |
+          xcopy artifact\dawn-windows-x64 build\dawn.out\ /s /y
 
       - name: Build
         shell: cmd
         run: |
           call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
-          orcadev.bat build --release --version ${{github.ref_name}}
+          orcadev.bat build --release --version ${{github.ref_name}} || exit 1
 
       - name: Package
         shell: cmd
         run: |
-          orcadev.bat package-sdk orca-sdk-windows
+          if [${{ inputs.version }}]==[] (
+            orcadev.bat install orca || exit 1
+          ) else (
+            orcadev.bat install --version ${{ inputs.version }} orca || exit 1
+          )
+          tar --format=ustar -czf orca-windows.tar.gz orca
 
       - uses: actions/upload-artifact@v4
         with:
-          name: orca-sdk-windows
-          path: orca-sdk-windows
+          name: orca-windows
+          path: orca-windows.tar.gz
 
   build-macos-x64:
+    needs: [build-dawn-mac]
     runs-on: macos-13
     steps:
-      - uses: actions/checkout@v4
-
       - uses: actions/setup-python@v4
         with:
           python-version: '3.10'
 
-      - name: Build
-        run: |
-          ./orcadev build --release --version ${{github.ref_name}}
-
-      - name: Package
-        run: |
-          ./orcadev package-sdk orca-sdk-mac-x64
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: orca-sdk-mac-x64
-          path: orca-sdk-mac-x64
-
-  build-macos-arm64:
-    runs-on: macos-14
-    steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v4
-        with:
-          python-version: '3.10'
-
-      - name: Build
-        run: |
-          ./orcadev build --release --version ${{github.ref_name}}
-
-      - name: Package
-        run: |
-          ./orcadev package-sdk orca-sdk-mac-arm64
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: orca-sdk-mac-arm64
-          path: orca-sdk-mac-arm64
-
-  mac-make-universal:
-    runs-on: macos-latest
-    needs: [build-macos-x64, build-macos-arm64]
-    steps:
       - uses: actions/download-artifact@v4
         with:
-          path: artifacts
+          path: artifact
 
-      - name: Make universal binary
+      - name: Copy Dawn
         run: |
-          chmod +x artifacts/orca-sdk-mac-x64/bin/orca
-          chmod +x artifacts/orca-sdk-mac-arm64/bin/orca
-          lipo -create artifacts/orca-sdk-mac-x64/bin/orca artifacts/orca-sdk-mac-arm64/bin/orca -output orca
+          mkdir -p build
+          cp -r artifact/dawn-mac-x64 build/dawn.out
 
-      - name: Tar
+      - name: Build
         run: |
-          tar --format=ustar -czf orca-mac.tar.gz orca
+          ./orcadev build --release --version ${{github.ref_name}}
+
+      - name: Package
+        run: |
+          if [ ${{ inputs.version }} != '' ] ; then
+            ./orcadev install --version ${{ inputs.version }} orca
+          else
+            ./orcadev install orca
+          fi
+          tar --format=ustar -czf orca-mac-x64.tar.gz orca
 
       - uses: actions/upload-artifact@v4
         with:
-          name: orca-mac
-          path: orca-mac.tar.gz
+          name: orca-mac-x64
+          path: orca-mac-x64.tar.gz
+
+  build-macos-arm64:
+    needs: [build-dawn-mac]
+    runs-on: macos-14
+    steps:
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifact
+
+      - name: Copy Dawn
+        run: |
+          mkdir -p build
+          cp -r artifact/dawn-mac-arm64 build/dawn.out
+
+      - name: Build
+        run: |
+          ./orcadev build --release --version ${{github.ref_name}}
+
+      - name: Package
+        run: |
+          if [ ${{ inputs.version }} != '' ] ; then
+            ./orcadev install --version ${{ inputs.version }} orca
+          else
+            ./orcadev install orca
+          fi
+          tar --format=ustar -czf orca-mac-arm64.tar.gz orca
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: orca-mac-arm64
+          path: orca-mac-arm64.tar.gz

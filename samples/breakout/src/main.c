@@ -39,7 +39,8 @@ bool rightDown = false;
 oc_vec2 frameSize = { 100, 100 };
 
 oc_surface surface;
-oc_canvas canvas;
+oc_canvas_renderer renderer;
+oc_canvas_context canvasContext;
 
 oc_image waterImage;
 oc_image brickImage;
@@ -75,12 +76,13 @@ ORCA_EXPORT void oc_on_init(void)
 {
     oc_window_set_title(OC_STR8("Breakout"));
 
-    surface = oc_surface_canvas();
-    canvas = oc_canvas_create();
+    renderer = oc_canvas_renderer_create();
+    surface = oc_canvas_surface_create(renderer);
+    canvasContext = oc_canvas_context_create();
 
-    waterImage = oc_image_create_from_path(surface, OC_STR8("/underwater.jpg"), false);
-    brickImage = oc_image_create_from_path(surface, OC_STR8("/brick.png"), false);
-    ballImage = oc_image_create_from_path(surface, OC_STR8("/ball.png"), false);
+    waterImage = oc_image_create_from_path(renderer, OC_STR8("/underwater.jpg"), false);
+    brickImage = oc_image_create_from_path(renderer, OC_STR8("/brick.png"), false);
+    ballImage = oc_image_create_from_path(renderer, OC_STR8("/ball.png"), false);
 
     if(oc_image_is_nil(waterImage))
     {
@@ -390,7 +392,7 @@ ORCA_EXPORT void oc_on_frame_refresh(void)
         oc_request_quit();
     }
 
-    oc_canvas_select(canvas);
+    oc_canvas_context_select(canvasContext);
 
     oc_set_color_rgba(10.0f / 255.0f, 31.0f / 255.0f, 72.0f / 255.0f, 1);
     oc_clear();
@@ -471,9 +473,8 @@ ORCA_EXPORT void oc_on_frame_refresh(void)
     }
     oc_matrix_pop();
 
-    oc_surface_select(surface);
-    oc_render(canvas);
-    oc_surface_present(surface);
+    oc_canvas_render(renderer, canvasContext, surface);
+    oc_canvas_present(renderer, surface);
 
     oc_scratch_end(scratch);
 }

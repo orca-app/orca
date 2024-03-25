@@ -14,13 +14,10 @@ class Entry:
         if len(msgs) == 0:
             msgs = [""]
         for msg in msgs:
-            print(msg)
             self.msgs.append(msg)
-
 
 def log_error(msg):
     msg = f"ERROR: {msg}"
-    print(msg)
     entry = Entry(msg)
     errors.append(entry)
     return entry
@@ -28,7 +25,6 @@ def log_error(msg):
 
 def log_warning(msg):
     msg = f"WARNING: {msg}"
-    print(msg)
     entry = Entry(msg)
     warnings.append(entry)
     return entry
@@ -81,5 +77,7 @@ def shellish(func):
             exitcode = 1
         finally:
             log_finish(exitcode == 0)
+            if exitcode == 0 and len(errors):
+                exitcode = 1
             exit(exitcode)
     return shellfunc

@@ -60,23 +60,29 @@ int main()
 
     oc_rect contentRect = oc_window_get_content_rect(window);
 
-    //NOTE: create surface
-    oc_surface surface = oc_surface_create_for_window(window, OC_CANVAS);
-    if(oc_surface_is_nil(surface))
+    //NOTE: create renderer, surface, and context
+
+    oc_canvas_renderer renderer = oc_canvas_renderer_create();
+    if(oc_canvas_renderer_is_nil(renderer))
     {
-        oc_log_error("Couldn't create surface\n");
+        oc_log_error("Error: couldn't create renderer\n");
         return (-1);
     }
-    oc_surface_swap_interval(surface, 0);
 
-    //TODO: create canvas
-    oc_canvas canvas = oc_canvas_create();
+    oc_surface surface = oc_canvas_surface_create_for_window(renderer, window);
+    if(oc_surface_is_nil(surface))
+    {
+        oc_log_error("Error: couldn't create surface\n");
+        return (-1);
+    }
 
-    if(oc_canvas_is_nil(canvas))
+    oc_canvas_context context = oc_canvas_context_create();
+    if(oc_canvas_context_is_nil(context))
     {
         oc_log_error("Error: couldn't create canvas\n");
         return (-1);
     }
+    oc_canvas_context_set_msaa_sample_count(context, 8);
 
     oc_font font = create_font();
 
@@ -105,7 +111,7 @@ int main()
         oc_event* event = 0;
         while((event = oc_next_event(scratch.arena)) != 0)
         {
-            oc_input_process_event(&inputState, event);
+            oc_input_process_event(scratch.arena, &inputState, event);
 
             switch(event->type)
             {
@@ -117,7 +123,7 @@ int main()
 
                 case OC_EVENT_MOUSE_BUTTON:
                 {
-                    if(event->key.code == OC_MOUSE_LEFT)
+                    if(event->key.keyCode == OC_MOUSE_LEFT)
                     {
                         if(event->key.action == OC_KEY_PRESS)
                         {
@@ -152,7 +158,7 @@ int main()
                 {
                     if(event->key.action == OC_KEY_PRESS || event->key.action == OC_KEY_REPEAT)
                     {
-                        switch(event->key.code)
+                        switch(event->key.keyCode)
                         {
                             case OC_KEY_SPACE:
                                 singlePath = !singlePath;
@@ -163,6 +169,10 @@ int main()
                                 if(event->key.mods & OC_KEYMOD_SHIFT)
                                 {
                                     singlePathIndex++;
+                                }
+                                else if(event->key.mods & OC_KEYMOD_CTRL)
+                                {
+                                    startY -= 0.1;
                                 }
                                 else
                                 {
@@ -177,12 +187,20 @@ int main()
                                 {
                                     singlePathIndex--;
                                 }
+                                else if(event->key.mods & OC_KEYMOD_CTRL)
+                                {
+                                    startY += 0.1;
+                                }
+
                                 else
                                 {
                                     zoom -= 0.001;
                                 }
                             }
                             break;
+
+                            default:
+                                break;
                         }
                     }
                 }
@@ -199,8 +217,6 @@ int main()
             startX = mousePos.x - trackPoint.x * zoom;
             startY = mousePos.y - trackPoint.y * zoom;
         }
-
-        oc_surface_select(surface);
 
         oc_set_color_rgba(1, 0, 1, 1);
         oc_clear();
@@ -231,13 +247,13 @@ int main()
         oc_text_outlines(text);
         oc_fill();
 
+        /*
         oc_log_info("Orca vector graphics test program (frame time = %fs, fps = %f)...\n",
                     frameTime,
                     1. / frameTime);
-
-        oc_render(canvas);
-        oc_surface_present(surface);
-
+        */
+        oc_canvas_render(renderer, context, surface);
+        oc_canvas_present(renderer, surface);
         oc_input_next_frame(&inputState);
 
         oc_scratch_end(scratch);
@@ -246,8 +262,9 @@ int main()
     }
 
     oc_font_destroy(font);
-    oc_canvas_destroy(canvas);
+    oc_canvas_context_destroy(context);
     oc_surface_destroy(surface);
+    oc_canvas_renderer_destroy(renderer);
     oc_window_destroy(window);
 
     oc_terminate();

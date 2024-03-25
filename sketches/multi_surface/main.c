@@ -77,11 +77,11 @@ int main()
                 {
                     if(event->key.action == OC_KEY_PRESS)
                     {
-                        if(event->key.code == OC_KEY_UP)
+                        if(event->key.keyCode == OC_KEY_UP)
                         {
                             oc_surface_bring_to_front(surface2);
                         }
-                        else if(event->key.code == OC_KEY_DOWN)
+                        else if(event->key.keyCode == OC_KEY_DOWN)
                         {
                             oc_surface_send_to_back(surface2);
                         }
@@ -112,7 +112,7 @@ int main()
         oc_set_color_rgba(0, 0, 0, 0);
         oc_clear();
 
-        oc_set_color_rgba(0, 0, 1, 1);
+        oc_set_color_rgba(0, 1, 0, 1);
         oc_rectangle_fill(200, 200, 300, 200);
 
         oc_render(canvas2);

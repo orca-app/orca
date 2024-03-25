@@ -14,6 +14,7 @@
 
 #define OC_INCLUDE_GL_API 1
 #include "orca.h"
+#include "graphics/gles_surface.h"
 
 unsigned int program;
 
@@ -64,8 +65,8 @@ int main()
     oc_window window = oc_window_create(rect, OC_STR8("test"), 0);
 
     //NOTE: create surface
-    oc_surface surface = oc_surface_create_for_window(window, OC_GLES);
-    oc_surface_select(surface);
+    oc_surface surface = oc_gles_surface_create_for_window(window);
+    oc_gles_surface_make_current(surface);
 
     //NOTE: init shader and gl state
     GLuint vao;
@@ -149,7 +150,7 @@ int main()
 
         glDrawArrays(GL_TRIANGLES, 0, 3);
 
-        oc_surface_present(surface);
+        oc_gles_surface_swap_buffers(surface);
 
         oc_scratch_end(scratch);
     }

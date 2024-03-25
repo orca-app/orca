@@ -1,5 +1,6 @@
 import glob
 import os
+import sys
 import platform
 import re
 import urllib.request
@@ -7,6 +8,7 @@ import shutil
 import subprocess
 from zipfile import ZipFile
 import tarfile
+import json
 
 from . import checksum
 from .bindgen import bindgen
@@ -15,11 +17,10 @@ from .gles_gen import gles_gen
 from .log import *
 from .utils import pushd, removeall, yeetdir, yeetfile
 from .embed_text_files import *
-from .version import orca_version
 
 ANGLE_VERSION = "2023-07-05"
 MAC_SDK_DIR = "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk"
-MACOS_VERSION_MIN = "10.15.4"
+MACOS_VERSION_MIN = "13.0.0"
 
 def attach_dev_commands(subparsers):
     build_cmd = subparsers.add_parser("build", help="Build Orca from source.")
@@ -30,6 +31,17 @@ def attach_dev_commands(subparsers):
     platform_layer_cmd = subparsers.add_parser("build-platform-layer", help="Build the Orca platform layer from source.")
     platform_layer_cmd.add_argument("--release", action="store_true", help="compile in release mode (default is debug)")
     platform_layer_cmd.set_defaults(func=dev_shellish(build_platform_layer))
+
+    dawn_cmd = subparsers.add_parser("build-dawn", help="Build Dawn")
+    dawn_cmd.add_argument("--release", action="store_true", help="compile in release mode (default is debug)")
+    dawn_cmd.add_argument("--force", action="store_true", help="force rebuild even if up-to-date artifacts exist")
+    dawn_cmd.add_argument("--parallel", type=int)
+    dawn_cmd.set_defaults(func=dev_shellish(build_dawn))
+
+    angle_cmd = subparsers.add_parser("build-angle", help="Build Angle")
+    angle_cmd.add_argument("--release", action="store_true", help="compile in release mode (default is debug)")
+    angle_cmd.add_argument("--force", action="store_true", help="force rebuild even if up-to-date artifacts exist")
+    angle_cmd.set_defaults(func=dev_shellish(build_angle))
 
     runtime_cmd = subparsers.add_parser("build-runtime", help="Build the Orca runtime from source.")
     runtime_cmd.add_argument("--release", action="store_true", help="compile in release mode (default is debug)")
@@ -54,6 +66,7 @@ def attach_dev_commands(subparsers):
     package_cmd.set_defaults(func=dev_shellish(package_sdk))
 
     install_cmd = subparsers.add_parser("install", help="Install a dev build of the Orca tools into the system Orca directory.")
+    install_cmd.add_argument("--version")
     install_cmd.add_argument("install_dir", nargs='?')
     install_cmd.set_defaults(func=dev_shellish(install))
 
@@ -70,7 +83,6 @@ def dev_shellish(func):
 
 def build_all(args):
     ensure_programs()
-    ensure_angle()
 
     build_runtime_internal(args.release) # this also builds the platform layer
     build_libc_internal(args.release)
@@ -79,6 +91,416 @@ def build_all(args):
 
     with open("build/orcaruntime.sum", "w") as f:
         f.write(runtime_checksum())
+
+
+#------------------------------------------------------
+# build dawn
+#------------------------------------------------------
+
+def dawn_required_commit():
+    with open("deps/dawn-commit.txt", "r") as f:
+        DAWN_COMMIT = f.read().strip() # hardcoded commit for now
+    return DAWN_COMMIT
+
+def dawn_required_files():
+    artifacts = []
+    if platform.system() == "Windows":
+        artifacts = ["bin/webgpu.lib", "bin/webgpu.dll", "include/webgpu.h"]
+    else:
+        artifacts = ["bin/libwebgpu.dylib", "include/webgpu.h"]
+
+    return artifacts
+
+def check_dawn():
+
+    DAWN_COMMIT = dawn_required_commit()
+    artifacts = dawn_required_files()
+
+    up_to_date = False
+    messages = []
+
+
+    if os.path.exists("build/dawn.out/dawn.json"):
+        with pushd("build/dawn.out"):
+            with open("dawn.json", "r") as f:
+                sums = json.loads(f.read())
+
+                up_to_date = True
+
+                for artifact in artifacts:
+                    if artifact in sums:
+                        if os.path.isfile(artifact):
+                            s = checksum.filesum(artifact)
+                            if sums[artifact]['commit'] != DAWN_COMMIT or s != sums[artifact]['sum']:
+                                messages.append(f"build/dawn.out/{artifact} doesn't match checksum")
+                                up_to_date = False
+                        else:
+                            messages.append(f"build/dawn.out/{artifact} not found")
+                            up_to_date = False
+                            break
+                    else:
+                        messages.append(f"build/dawn.out/{artifact} is not listed in checksum file")
+                        up_to_date = False
+    else:
+        messages = ["build/dawn.out/dawn.json not found"]
+
+    if up_to_date:
+        os.makedirs("src/ext/dawn/include", exist_ok=True)
+        shutil.copytree("build/dawn.out/include", "src/ext/dawn/include/", dirs_exist_ok=True)
+
+        os.makedirs("build/bin", exist_ok=True)
+        shutil.copytree("build/dawn.out/bin", "build/bin", dirs_exist_ok=True)
+
+    return (up_to_date, messages)
+
+
+def build_dawn(args):
+    ensure_programs()
+    build_dawn_internal(args.release, args.parallel, args.force)
+
+def build_dawn_internal(release, jobs, force):
+    print("Building Dawn...")
+
+    os.makedirs("build/bin", exist_ok=True)
+
+    # TODO ensure requirements
+
+    DAWN_COMMIT = dawn_required_commit()
+
+    # check if we already have the binary
+    if not force:
+        dawn_ok, _ = check_dawn()
+        if dawn_ok:
+            print("  * already up to date")
+            print("Done")
+            return
+
+    with pushd("build"):
+        # get depot tools repo
+        print("  * checking depot tools")
+        if not os.path.exists("depot_tools"):
+            subprocess.run([
+                "git", "clone", "--depth=1", "--no-tags", "--single-branch",
+                "https://chromium.googlesource.com/chromium/tools/depot_tools.git"
+            ], check=True)
+        os.environ["PATH"] = os.path.join(os.getcwd(), "depot_tools") + os.pathsep + os.environ["PATH"]
+        os.environ["DEPOT_TOOLS_WIN_TOOLCHAIN"] = "0"
+
+        # get dawn repo
+        print("  * checking dawn")
+        if not os.path.exists("dawn"):
+            subprocess.run([
+                "git", "clone", "--no-tags", "--single-branch",
+                "https://dawn.googlesource.com/dawn"
+            ], check=True)
+
+        with pushd("dawn"):
+            subprocess.run([
+                "git", "restore", "."
+            ], check=True)
+
+            subprocess.run([
+                "git", "pull", "--force", "--no-tags"
+            ], check=True)
+
+            subprocess.run([
+                "git", "checkout", "--force", DAWN_COMMIT
+            ], check=True)
+
+            shutil.copy("scripts/standalone.gclient", ".gclient")
+
+            shell = True if platform.system() == "Windows" else False
+            subprocess.run(["gclient", "sync"], shell=shell, check=True)
+
+        print("  * preparing build")
+
+        with open("dawn/src/dawn/native/CMakeLists.txt", "a") as f:
+            s = """add_library(webgpu SHARED ${DAWN_PLACEHOLDER_FILE})
+common_compile_options(webgpu)
+target_link_libraries(webgpu PRIVATE dawn_native)
+target_link_libraries(webgpu PUBLIC dawn_headers)
+target_compile_definitions(webgpu PRIVATE WGPU_IMPLEMENTATION WGPU_SHARED_LIBRARY)
+target_sources(webgpu PRIVATE ${WEBGPU_DAWN_NATIVE_PROC_GEN})"""
+            f.write(s)
+
+        mode = "Release" if release else "Debug"
+
+        if platform.system() == "Windows":
+            backends = [
+                "-D", "DAWN_ENABLE_D3D12=ON",
+                "-D", "DAWN_ENABLE_D3D11=OFF",
+                "-D", "DAWN_ENABLE_METAL=OFF",
+                "-D", "DAWN_ENABLE_NULL=OFF",
+                "-D", "DAWN_ENABLE_DESKTOP_GL=OFF",
+                "-D", "DAWN_ENABLE_OPENGLES=OFF",
+                "-D", "DAWN_ENABLE_VULKAN=OFF"
+            ]
+        else:
+            backends = [
+                "-D", "DAWN_ENABLE_METAL=ON",
+                "-D", "DAWN_ENABLE_NULL=OFF",
+                "-D", "DAWN_ENABLE_DESKTOP_GL=OFF",
+                "-D", "DAWN_ENABLE_OPENGLES=OFF",
+                "-D", "DAWN_ENABLE_VULKAN=OFF"
+            ]
+
+        subprocess.run([
+            "cmake",
+            "-S", "dawn",
+            "-B", "dawn.build",
+            "-D", f"CMAKE_BUILD_TYPE={mode}",
+            "-D", "CMAKE_POLICY_DEFAULT_CMP0091=NEW",
+            "-D", "BUILD_SHARED_LIBS=OFF",
+            "-D", "BUILD_SAMPLES=OFF",
+            *backends,
+            "-D", "DAWN_BUILD_SAMPLES=OFF",
+            "-D", "TINT_BUILD_SAMPLES=OFF",
+            "-D", "TINT_BUILD_DOCS=OFF",
+            "-D", "TINT_BUILD_TESTS=OFF"
+        ], check = True)
+
+        parallel = ["--parallel"]
+        if jobs != None:
+            parallel.append(str(jobs))
+
+        print("  * building")
+        subprocess.run([
+            "cmake", "--build", "dawn.build", "--config", mode, "--target", "webgpu", *parallel
+        ], check = True)
+
+        # package result
+        print("  * copying build artifacts...")
+        sums = dict()
+
+        os.makedirs("dawn.out/include", exist_ok=True)
+        os.makedirs("dawn.out/bin", exist_ok=True)
+
+        shutil.copy("dawn.build/gen/include/dawn/webgpu.h", "dawn.out/include/")
+
+        sums['include/webgpu.h'] = {
+            "commit": DAWN_COMMIT,
+            "sum": checksum.filesum('dawn.out/include/webgpu.h')
+        }
+
+        if platform.system() == "Windows":
+            shutil.copy(f"dawn.build/{mode}/webgpu.dll", "dawn.out/bin/")
+            shutil.copy(f"dawn.build/src/dawn/native/{mode}/webgpu.lib", "dawn.out/bin/")
+
+            sums['bin/webgpu.dll'] = {
+                "commit": DAWN_COMMIT,
+                "sum": checksum.filesum('dawn.out/bin/webgpu.dll')
+            }
+            sums['bin/webgpu.lib'] = {
+                "commit": DAWN_COMMIT,
+                "sum": checksum.filesum('dawn.out/bin/webgpu.lib')
+            }
+        else:
+            shutil.copy("dawn.build/src/dawn/native/libwebgpu.dylib", "dawn.out/bin/")
+
+            sums['bin/libwebgpu.dylib'] = {
+                "commit": DAWN_COMMIT,
+                "sum": checksum.filesum('dawn.out/bin/libwebgpu.dylib')
+            }
+
+    # save artifacts checksums
+    with open('build/dawn.out/dawn.json', 'w') as f:
+        json.dump(sums, f)
+
+    print("Done")
+
+
+#------------------------------------------------------
+# build angle
+#------------------------------------------------------
+
+def angle_required_commit():
+    with open("deps/angle-commit.txt", "r") as f:
+        ANGLE_COMMIT = f.read().strip() # hardcoded commit for now
+    return ANGLE_COMMIT
+
+def dawn_required_files():
+    artifacts = []
+    if platform.system() == "Windows":
+        artifacts = ["bin/webgpu.lib", "bin/webgpu.dll", "include/webgpu.h"]
+    else:
+        artifacts = ["bin/libwebgpu.dylib", "include/webgpu.h"]
+
+    return artifacts
+
+#############################################################################
+#TODO: coalesce with check_angle
+# use a checksum for the whole output directory
+#############################################################################
+def check_angle():
+
+    ANGLE_COMMIT = angle_required_commit()
+
+    up_to_date = True
+    messages = []
+
+    if os.path.exists("build/angle.out/angle.json"):
+        with pushd("build/angle.out"):
+            with open("angle.json", "r") as f:
+                sums = json.loads(f.read())
+                if 'commit' not in sums or 'sum' not in sums:
+                    messages = ["malformed build/angle.out/angle.json"]
+                    up_to_date = False
+                elif sums['commit'] != ANGLE_COMMIT:
+                    messages.append("build/angle.out doesn't match the required commit")
+                    up_to_date = False
+                else:
+                    s = checksum.dirsum('.', excluded_files=["angle.json"])
+                    if s != sums['sum']:
+                        messages.append("build/angle.out doesn't match checksum")
+                        up_to_date = False
+    else:
+        messages = [["build/angle.out/angle.json not found"]]
+        up_to_date = False
+
+    if up_to_date:
+        os.makedirs("src/ext/angle/include", exist_ok=True)
+        shutil.copytree("build/angle.out/include", "src/ext/angle/include/", dirs_exist_ok=True)
+
+        os.makedirs("build/bin", exist_ok=True)
+        shutil.copytree("build/angle.out/bin", "build/bin", dirs_exist_ok=True)
+
+    return (up_to_date, messages)
+
+def build_angle(args):
+    ensure_programs()
+    build_angle_internal(args.release, args.force)
+
+def build_angle_internal(release, force):
+    print("Building Angle...")
+
+    os.makedirs("build/bin", exist_ok=True)
+
+    # TODO ensure requirements
+
+    ANGLE_COMMIT = angle_required_commit()
+
+    # check if we already have the binary
+    if not force:
+        angle_ok, _ = check_angle()
+        if angle_ok:
+            print("  * already up to date")
+            print("Done")
+            return
+
+    with pushd("build"):
+        # get depot tools repo
+        print("  * checking depot tools")
+        if not os.path.exists("depot_tools"):
+            subprocess.run([
+                "git", "clone", "--depth=1", "--no-tags", "--single-branch",
+                "https://chromium.googlesource.com/chromium/tools/depot_tools.git"
+            ], check=True)
+        os.environ["PATH"] = os.path.join(os.getcwd(), "depot_tools") + os.pathsep + os.environ["PATH"]
+        os.environ["DEPOT_TOOLS_WIN_TOOLCHAIN"] = "0"
+
+        # get angle repo
+        print("  * checking angle")
+        if not os.path.exists("angle"):
+            subprocess.run([
+                "git", "clone", "--no-tags", "--single-branch",
+                "https://chromium.googlesource.com/angle/angle"
+            ], check=True)
+
+        with pushd("angle"):
+            subprocess.run([
+                "git", "fetch", "--no-tags"
+            ], check=True)
+
+            subprocess.run([
+                "git", "reset", "--hard", ANGLE_COMMIT
+            ], check=True)
+
+            subprocess.run([
+                sys.executable, "scripts/bootstrap.py"
+            ], check=True)
+
+            shell = True if platform.system() == "Windows" else False
+            subprocess.run(["gclient", "sync"], shell=shell, check=True)
+
+            print("  * preparing build")
+
+            mode = "Release" if release else "Debug"
+            is_debug = "false" if release else "true"
+
+            gnargs = [
+                "angle_build_all=false",
+                "angle_build_tests=false",
+                f"is_debug={is_debug}",
+                "is_component_build=false",
+            ]
+
+            if platform.system() == "Windows":
+                gnargs += [
+                    "angle_enable_d3d9=false",
+                    "angle_enable_gl=false",
+                    "angle_enable_vulkan=false",
+                    "angle_enable_null=false",
+                    "angle_has_frame_capture=false"
+                ]
+            else:
+                gnargs += [
+                    #NOTE(martin): oddly enough, this is needed to avoid deprecation errors when _not_ using OpenGL,
+                    #              because angle uses some CGL APIs to detect GPUs.
+                    "treat_warnings_as_errors=false",
+                    "angle_enable_metal=true",
+                    "angle_enable_gl=false",
+                    "angle_enable_vulkan=false",
+                    "angle_enable_null=false"
+                ]
+
+            gnargString = ' '.join(gnargs)
+
+            subprocess.run(["gn", "gen", f"out/{mode}", f"--args={gnargString}"], shell=shell, check=True)
+
+            print("  * building")
+            subprocess.run(["autoninja", "-C", f"out/{mode}", "libEGL", "libGLESv2"], shell=shell, check=True)
+
+        # package result
+        print("  * copying build artifacts...")
+
+        yeetdir("angle.out")
+        os.makedirs("angle.out/include", exist_ok=True)
+        os.makedirs("angle.out/bin", exist_ok=True)
+
+        # - includes
+        shutil.copytree("angle/include/KHR", "angle.out/include/KHR", dirs_exist_ok=True)
+        shutil.copytree("angle/include/EGL", "angle.out/include/EGL", dirs_exist_ok=True)
+        shutil.copytree("angle/include/GLES", "angle.out/include/GLES", dirs_exist_ok=True)
+        shutil.copytree("angle/include/GLES2", "angle.out/include/GLES2", dirs_exist_ok=True)
+        shutil.copytree("angle/include/GLES3", "angle.out/include/GLES3", dirs_exist_ok=True)
+
+        # - libs
+        if platform.system() == "Windows":
+            shutil.copy(f"angle/out/{mode}/libEGL.dll", "angle.out/bin/")
+            shutil.copy(f"angle/out/{mode}/libGLESv2.dll", "angle.out/bin/")
+
+            shutil.copy(f"angle/out/{mode}/libEGL.dll.lib", "angle.out/bin/")
+            shutil.copy(f"angle/out/{mode}/libGLESv2.dll.lib", "angle.out/bin/")
+
+            subprocess.run(["copy", "/y",
+                            "%ProgramFiles(x86)%\\Windows Kits\\10\\Redist\\D3D\\x64\\d3dcompiler_47.dll",
+                            "angle.out\\bin"], shell=True, check=True)
+        else:
+            shutil.copy(f"angle/out/{mode}/libEGL.dylib", "angle.out/bin")
+            shutil.copy(f"angle/out/{mode}/libGLESv2.dylib", "angle.out/bin")
+
+    # - sums
+    sums = {
+        "commit": ANGLE_COMMIT,
+        "sum": checksum.dirsum("build/angle.out")
+    }
+
+    # save artifacts checksums
+    with open('build/angle.out/angle.json', 'w') as f:
+        json.dump(sums, f)
+
+    print("Done")
+
 
 #------------------------------------------------------
 # build runtime
@@ -139,6 +561,7 @@ def build_wasm3_lib_mac(release):
     subprocess.run(["rm", "-rf", "build/obj"], check=True)
 
 def build_runtime(args):
+    ensure_programs()
     build_runtime_internal(args.release)
 
 def build_runtime_internal(release):
@@ -238,10 +661,46 @@ def runtime_checksum():
 # build platform layer
 #------------------------------------------------------
 def build_platform_layer(args):
+    ensure_programs()
     build_platform_layer_internal(args.release)
 
 def build_platform_layer_internal(release):
     print("Building Orca platform layer...")
+
+    angle_ok, angle_messages = check_angle()
+    if not angle_ok:
+        msg = log_error("Angle files are not present or don't match required commit.")
+        msg.more(f"Angle commit: {angle_required_commit()}")
+        for entry in angle_messages:
+            msg.more(f"  * {entry}")
+        cmd = "./orcadev" if platform.system() == "Darwin" else "orcadev.bat"
+        msg.more("")
+        msg.more(f"You can build the required files by running '{cmd} build-angle'")
+        msg.more("")
+        msg.more("Alternatively you can trigger a CI run to build the binaries on github:")
+        msg.more("  * For Windows, go to https://github.com/orca-app/orca/actions/workflows/build-angle-win.yaml")
+        msg.more("  * For macOS, go to https://github.com/orca-app/orca/actions/workflows/build-angle-mac.yaml")
+        msg.more("  * Click on \"Run workflow\" to tigger a new run, or download artifacts from a previous run")
+        msg.more("  * Put the contents of the artifacts folder in './build/angle.out'")
+        exit()
+
+    dawn_ok, dawn_messages = check_dawn()
+    if not dawn_ok:
+        msg = log_error("Dawn files are not present or don't match required commit.")
+        msg.more(f"Dawn commit: {dawn_required_commit()}")
+        msg.more("Dawn required files:")
+        for entry in dawn_messages:
+            msg.more(f"  * {entry}")
+        cmd = "./orcadev" if platform.system() == "Darwin" else "orcadev.bat"
+        msg.more("")
+        msg.more(f"You can build the required files by running '{cmd} build-dawn'")
+        msg.more("")
+        msg.more("Alternatively you can trigger a CI run to build the binaries on github:")
+        msg.more("  * For Windows, go to https://github.com/orca-app/orca/actions/workflows/build-dawn-win.yaml")
+        msg.more("  * For macOS, go to https://github.com/orca-app/orca/actions/workflows/build-dawn-mac.yaml")
+        msg.more("  * Click on \"Run workflow\" to tigger a new run, or download artifacts from a previous run")
+        msg.more("  * Put the contents of the artifacts folder in './build/dawn.out'")
+        exit()
 
     os.makedirs("build/bin", exist_ok=True)
     os.makedirs("build/lib", exist_ok=True)
@@ -256,16 +715,16 @@ def build_platform_layer_internal(release):
 
 
 def build_platform_layer_lib_win(release):
-    embed_text_files("src\\graphics\\glsl_shaders.h", "glsl_", [
-        "src\\graphics\\glsl_shaders\\common.glsl",
-        "src\\graphics\\glsl_shaders\\blit_vertex.glsl",
-        "src\\graphics\\glsl_shaders\\blit_fragment.glsl",
-        "src\\graphics\\glsl_shaders\\path_setup.glsl",
-        "src\\graphics\\glsl_shaders\\segment_setup.glsl",
-        "src\\graphics\\glsl_shaders\\backprop.glsl",
-        "src\\graphics\\glsl_shaders\\merge.glsl",
-        "src\\graphics\\glsl_shaders\\raster.glsl",
-        "src\\graphics\\glsl_shaders\\balance_workgroups.glsl",
+    embed_text_files("src/graphics/wgpu_renderer_shaders.h", "oc_wgsl_", [
+        "src/graphics/wgsl_shaders/common.wgsl",
+        "src/graphics/wgsl_shaders/path_setup.wgsl",
+        "src/graphics/wgsl_shaders/segment_setup.wgsl",
+        "src/graphics/wgsl_shaders/backprop.wgsl",
+        "src/graphics/wgsl_shaders/chunk.wgsl",
+        "src/graphics/wgsl_shaders/merge.wgsl",
+        "src/graphics/wgsl_shaders/balance_workgroups.wgsl",
+        "src/graphics/wgsl_shaders/raster.wgsl",
+        "src/graphics/wgsl_shaders/blit.wgsl",
     ])
 
     includes = [
@@ -277,6 +736,10 @@ def build_platform_layer_lib_win(release):
         "user32.lib",
         "opengl32.lib",
         "gdi32.lib",
+        "dxgi.lib",
+        "dxguid.lib",
+        "d3d11.lib",
+        "dcomp.lib",
         "shcore.lib",
         "delayimp.lib",
         "dwmapi.lib",
@@ -284,13 +747,14 @@ def build_platform_layer_lib_win(release):
         "ole32.lib",
         "shell32.lib",
         "shlwapi.lib",
-        "dxgi.lib",
-        "dxguid.lib",
         "/LIBPATH:build/lib",
+        "/LIBPATH:build/bin",
         "libEGL.dll.lib",
         "libGLESv2.dll.lib",
         "/DELAYLOAD:libEGL.dll",
         "/DELAYLOAD:libGLESv2.dll",
+        "webgpu.lib",
+        "/DELAYLOAD:webgpu.dll"
     ]
 
     subprocess.run([
@@ -308,25 +772,24 @@ def build_platform_layer_lib_win(release):
     ], check=True)
 
 def build_platform_layer_lib_mac(release):
+
+    embed_text_files("src/graphics/wgpu_renderer_shaders.h", "oc_wgsl_", [
+        "src/graphics/wgsl_shaders/common.wgsl",
+        "src/graphics/wgsl_shaders/path_setup.wgsl",
+        "src/graphics/wgsl_shaders/segment_setup.wgsl",
+        "src/graphics/wgsl_shaders/backprop.wgsl",
+        "src/graphics/wgsl_shaders/chunk.wgsl",
+        "src/graphics/wgsl_shaders/merge.wgsl",
+        "src/graphics/wgsl_shaders/balance_workgroups.wgsl",
+        "src/graphics/wgsl_shaders/raster.wgsl",
+        "src/graphics/wgsl_shaders/blit.wgsl",
+    ])
+
     flags = [f"-mmacos-version-min={MACOS_VERSION_MIN}"]
     cflags = ["-std=c11"]
     debug_flags = ["-O3"] if release else ["-g", "-DOC_DEBUG", "-DOC_LOG_COMPILE_DEBUG"]
     ldflags = [f"-L{MAC_SDK_DIR}/usr/lib", f"-F{MAC_SDK_DIR}/System/Library/Frameworks/"]
-    includes = ["-Isrc", "-Isrc/util", "-Isrc/platform", "-Isrc/ext", "-Isrc/ext/angle/include"]
-
-    # compile metal shader
-    subprocess.run([
-        "xcrun", "-sdk", "macosx", "metal",
-        # TODO: shaderFlagParam
-        "-fno-fast-math", "-c",
-        "-o", "build/mtl_renderer.air",
-        "src/graphics/mtl_renderer.metal",
-    ], check=True)
-    subprocess.run([
-        "xcrun", "-sdk", "macosx", "metallib",
-        "-o", "build/bin/mtl_renderer.metallib",
-        "build/mtl_renderer.air",
-    ], check=True)
+    includes = ["-Isrc", "-Isrc/ext", "-Isrc/ext/angle/include", "-Isrc/ext/dawn/include"]
 
     # compile platform layer. We use one compilation unit for all C code, and one
     # compilation unit for all Objective-C code
@@ -353,7 +816,7 @@ def build_platform_layer_lib_mac(release):
         "build/orca_c.o", "build/orca_objc.o",
         "-Lbuild/bin", "-lc",
         "-framework", "Carbon", "-framework", "Cocoa", "-framework", "Metal", "-framework", "QuartzCore",
-        "-weak-lEGL", "-weak-lGLESv2",
+        "-weak-lEGL", "-weak-lGLESv2", "-weak-lwebgpu"
     ], check=True)
 
     # change dependent libs path to @rpath
@@ -412,6 +875,7 @@ def gen_all_bindings():
 # build wasm SDK
 #------------------------------------------------------
 def build_sdk(args):
+    ensure_programs()
     build_sdk_internal(args.release)
 
 def build_sdk_internal(release):
@@ -462,6 +926,7 @@ def build_sdk_internal(release):
 # build libc
 #------------------------------------------------------
 def build_libc(args):
+    ensure_programs()
     build_lib_internal(args.release)
 
 def build_libc_internal(release):
@@ -773,6 +1238,7 @@ def package_sdk_internal(dest, target):
         shutil.copy(os.path.join("build", "bin", "liborca_wasm.a"), bin_dir)
         shutil.copy(os.path.join("build", "bin", "libEGL.dll"), bin_dir)
         shutil.copy(os.path.join("build", "bin", "libGLESv2.dll"), bin_dir)
+        shutil.copy(os.path.join("build", "bin", "webgpu.dll"), bin_dir)
     else:
         shutil.copy(os.path.join("build", "bin", "orca"), bin_dir)
         shutil.copy(os.path.join("build", "bin", "orca_runtime"), bin_dir)
@@ -780,11 +1246,49 @@ def package_sdk_internal(dest, target):
         shutil.copy(os.path.join("build", "bin", "liborca_wasm.a"), bin_dir)
         shutil.copy(os.path.join("build", "bin", "libEGL.dylib"), bin_dir)
         shutil.copy(os.path.join("build", "bin", "libGLESv2.dylib"), bin_dir)
-        shutil.copy(os.path.join("build", "bin", "mtl_renderer.metallib"), bin_dir)
+        shutil.copy(os.path.join("build", "bin", "libwebgpu.dylib"), bin_dir)
 
     shutil.copytree(os.path.join("build", "orca-libc"), libc_dir, dirs_exist_ok=True)
     shutil.copytree("resources", res_dir, dirs_exist_ok=True)
-    shutil.copytree("src", src_dir, dirs_exist_ok=True)
+
+    ignore_patterns = shutil.ignore_patterns(
+        '*.[!h]', # exclude anything that is not a header
+        'tool',
+        'ext',
+        'orca-libc'
+    )
+
+    def ignore(dirName, files):
+        # ignore everything that's not a header
+        result = [ x for x in files if os.path.isfile(os.path.join(dirName, x)) and x[-2:] != ".h" ]
+
+        # exclude or include specific sub-directories
+        ignoreDirs = []
+        onlyDirs = []
+
+        if dirName == 'src':
+            ignoreDirs = ['tool', 'orca-libc', 'wasm']
+        elif dirName == 'src/ext/curl':
+            onlyDirs = ['include']
+        elif dirName == 'src/ext/wasm3':
+            onlyDirs = ['source']
+        elif dirName == 'src/ext/zlib':
+            ignoreDirs = ['build']
+
+        if len(ignoreDirs):
+            result += [x for x in files if x in ignoreDirs]
+
+        if len(onlyDirs):
+            result += [x for x in files if os.path.isdir(os.path.join(dirName, x)) and x not in onlyDirs]
+
+        return result
+
+    shutil.copytree("src", src_dir, dirs_exist_ok=True, ignore=ignore)
+
+    for dirpath, dirnames, filenames in os.walk(src_dir, topdown=False):
+        if not os.listdir(dirpath):
+            os.rmdir(dirpath)
+
 
 def package_sdk(args):
     dest = args.dest
@@ -824,8 +1328,10 @@ def install(args):
         print()
 
     orca_dir = system_orca_dir() if args.install_dir == None else args.install_dir
-    version = orca_version()
+    version = f"dev-{orca_commit()}" if args.version == None else args.version
     dest = os.path.join(orca_dir, version)
+
+    print(f"Installing dev build of Orca in {dest}")
 
     package_sdk_internal(dest, platform.system())
 
@@ -836,10 +1342,6 @@ def install(args):
         f.write(version)
 
     # TODO(shaw): should dev versions and their checksums be added to all_versions file?
-    print()
-    print("A dev build of Orca has been installed to the following directory:")
-    print(dest)
-    print()
 
 #------------------------------------------------------
 # Clean
@@ -857,134 +1359,179 @@ def clean(args):
 # utils
 #------------------------------------------------------
 def ensure_programs():
+    missing = []
+
     if platform.system() == "Windows":
         MSVC_MAJOR, MSVC_MINOR = 19, 35
-        try:
-            cl_only = subprocess.run(["cl"], capture_output=True, text=True)
-            desc = cl_only.stderr.splitlines()[0]
 
-            detect = subprocess.run(["cl", "/EP", "scripts\\msvc_version.txt"], capture_output=True, text=True)
-            parts = [x for x in detect.stdout.splitlines() if x]
-            version, arch = int(parts[0]), parts[1]
-            major, minor = int(version / 100), version % 100
+        # Get where Visual Studio is installed
+        where = subprocess.run(
+            ["%ProgramFiles(x86)%\\Microsoft Visual Studio\\Installer\\vswhere.exe",
+            "-latest",
+            "-requires", "Microsoft.VisualStudio.Workload.NativeDesktop",
+            "-property", "installationPath"],
+            capture_output=True,
+            shell=True,
+            text=True)
 
-            if arch != "x64":
-                msg = log_error("MSVC is not running in 64-bit mode. Make sure you are running in")
-                msg.more("an x64 Visual Studio command prompt, such as the \"x64 Native Tools")
-                msg.more("Command Prompt\" from your Start Menu.")
-                msg.more()
-                msg.more("MSVC reported itself as:")
-                msg.more(desc)
-                exit(1)
+        if len(where.stdout) == 0:
+            missing.append(["Visual Studio"])
+        else:
+            # get the environment after calling vcvarsall.bat and update our own env with it
+            os.environ["__VSCMD_ARG_NO_LOGO"] = "1"
+            varsall = subprocess.run(
+                [os.path.join(where.stdout.strip(), "VC\\Auxiliary\\Build\\vcvarsall.bat"), "amd64", ">nul"
+                "&&",
+                "python", "-c", "import os; print(repr(os.environ))"],
+                capture_output=True,
+                text=True)
 
-            if major < MSVC_MAJOR or minor < MSVC_MINOR:
-                msg = log_error(f"Your version of MSVC is too old. You have version {major}.{minor},")
-                msg.more(f"but version {MSVC_MAJOR}.{MSVC_MINOR} or greater is required.")
-                msg.more()
-                msg.more("MSVC reported itself as:")
-                msg.more(desc)
-                msg.more()
-                msg.more("Please update Visual Studio to the latest version and try again.")
-                exit(1)
-        except FileNotFoundError:
-            msg = log_error("MSVC was not found on your system.")
-            msg.more("If you have already installed Visual Studio, make sure you are running in an")
-            msg.more("x64 Visual Studio command prompt, such as the \"x64 Native Tools Command")
-            msg.more("Prompt\" from your Start Menu. Otherwise, download and install Visual Studio,")
-            msg.more("and ensure that your installation includes \"Desktop development with C++\"")
-            msg.more("and \"C++ Clang Compiler\": https://visualstudio.microsoft.com/")
-            exit(1)
+            env = eval(varsall.stdout.splitlines()[-1].strip('environ'))
+            os.environ.update(env)
 
-    if platform.system() == "Darwin":
+            try:
+                cl_only = subprocess.run(["cl"], capture_output=True, text=True)
+                desc = cl_only.stderr.splitlines()[0]
+
+                detect = subprocess.run(["cl", "/EP", "scripts\\msvc_version.txt"], capture_output=True, text=True)
+                parts = [x for x in detect.stdout.splitlines() if x]
+                version, arch = int(parts[0]), parts[1]
+                major, minor = int(version / 100), version % 100
+
+                if arch != "x64":
+                    msg = log_error("MSVC is not running in 64-bit mode. Make sure you are running in")
+                    msg.more("an x64 Visual Studio command prompt, such as the \"x64 Native Tools")
+                    msg.more("Command Prompt\" from your Start Menu.")
+                    msg.more()
+                    msg.more("MSVC reported itself as:")
+                    msg.more(desc)
+                    exit(1)
+
+                if major < MSVC_MAJOR or minor < MSVC_MINOR:
+                    msg = log_error(f"Your version of MSVC is too old. You have version {major}.{minor},")
+                    msg.more(f"but version {MSVC_MAJOR}.{MSVC_MINOR} or greater is required.")
+                    msg.more()
+                    msg.more("MSVC reported itself as:")
+                    msg.more(desc)
+                    msg.more()
+                    msg.more("Please update Visual Studio to the latest version and try again.")
+                    exit(1)
+            except FileNotFoundError:
+                missing.append(["Visual Studio"])
+
         try:
             subprocess.run(["clang", "-v"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         except FileNotFoundError:
-            msg = log_error("clang was not found on your system.")
-            msg.more("Run the following to install it:")
-            msg.more()
-            msg.more("  brew install llvm")
-            msg.more()
-            exit(1)
+            missing.append(["clang", "To install it, launch Visual Studio Installer, click Modify, and check \"Desktop development with C++\" and \"C++ Clang Compiler\""])
+
+        try:
+            subprocess.run(["cmake", "--version"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except FileNotFoundError:
+            missing.append(["cmake", "To install it, launch Visual Studio Installer, click Modify, and check \"Desktop development with C++\" and \"C++ Clang Compiler\""])
+
+        try:
+            subprocess.run(["git", "-v"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except FileNotFoundError:
+            missing.append(["git", "You can install git for Windows from https://gitforwindows.org/"])
+
+    if platform.system() == "Darwin":
+
+        try:
+            subprocess.run(["clang", "-v"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except FileNotFoundError:
+            missing.append(["clang", "To install it, run: brew install llvm"])
 
         if not os.path.exists(MAC_SDK_DIR):
-            msg = log_error("The Xcode command-line tools are not installed.")
-            msg.more("Run the following to install them:")
-            msg.more()
-            msg.more("  xcode-select --install")
-            msg.more()
-            exit(1)
+            missing.append(["XCode command-line tools", "To install it, run: xcode-select --install"])
 
+        try:
+            subprocess.run(["cmake", "--version"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except FileNotFoundError:
+            missing.append(["cmake", "To install it, run: brew install cmake"])
 
-def ensure_angle():
-    if not verify_angle():
-        download_angle()
-        print("Verifying ANGLE download...")
-        if not verify_angle():
-            log_error("automatic ANGLE download failed")
-            exit(1)
+        try:
+            subprocess.run(["git", "-v"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except FileNotFoundError:
+            missing.append(["git", "To install it, run: xcode-select --install"])
 
-
-def verify_angle():
-    checkfiles = None
-    if platform.system() == "Windows":
-        checkfiles = [
-            "build/bin/libEGL.dll",
-            "build/lib/libEGL.dll.lib",
-            "build/bin/libGLESv2.dll",
-            "build/lib/libGLESv2.dll.lib",
-        ]
-    elif platform.system() == "Darwin":
-        checkfiles = [
-            "build/bin/libEGL.dylib",
-            "build/bin/libGLESv2.dylib",
-        ]
-
-    if checkfiles is None:
-        log_warning("could not verify if the correct version of ANGLE is present")
-        return False
-
-    ok = True
-    for file in checkfiles:
-        if not os.path.isfile(file):
-            ok = False
-            continue
-        if not checksum.checkfile(file):
-            ok = False
-            continue
-
-    return ok
-
-
-def download_angle():
-    print("Downloading ANGLE...")
-    if platform.system() == "Windows":
-        build = "windows-2019"
-    elif platform.system() == "Darwin":
-        build = "macos-jank"
-    else:
-        log_error(f"could not automatically download ANGLE for unknown platform {platform.system()}")
-        return
-
-    os.makedirs("scripts/files", exist_ok=True)
-    filename = f"angle-{build}-{ANGLE_VERSION}.zip"
-    filepath = f"scripts/files/{filename}"
-    url = f"https://github.com/HandmadeNetwork/build-angle/releases/download/{ANGLE_VERSION}/{filename}"
-    with urllib.request.urlopen(url) as response:
-        with open(filepath, "wb") as out:
-            shutil.copyfileobj(response, out)
-
-    if not checksum.checkfile(filepath):
-        log_error(f"ANGLE download did not match checksum")
+    if len(missing):
+        msg = log_error("The following required tools were not found on your system")
+        for entry in missing:
+            msg.more(f"* {entry[0]}")
+            if len(note) > 1:
+                msg.more(f" note: {entry[1]}")
         exit(1)
 
-    print("Extracting ANGLE...")
-    with ZipFile(filepath, "r") as anglezip:
-        anglezip.extractall(path="scripts/files")
+# def ensure_angle():
+#     if not verify_angle():
+#         download_angle()
+#         print("Verifying ANGLE download...")
+#         if not verify_angle():
+#             log_error("automatic ANGLE download failed")
+#             exit(1)
 
-    shutil.copytree(f"scripts/files/angle/include", "src/ext/angle/include", dirs_exist_ok=True)
-    shutil.copytree(f"scripts/files/angle/bin", "build/bin", dirs_exist_ok=True)
-    if platform.system() == "Windows":
-        shutil.copytree(f"scripts/files/angle/lib", "build/lib", dirs_exist_ok=True)
+
+# def verify_angle():
+#     checkfiles = None
+#     if platform.system() == "Windows":
+#         checkfiles = [
+#             "build/bin/libEGL.dll",
+#             "build/lib/libEGL.dll.lib",
+#             "build/bin/libGLESv2.dll",
+#             "build/lib/libGLESv2.dll.lib",
+#         ]
+#     elif platform.system() == "Darwin":
+#         checkfiles = [
+#             "build/bin/libEGL.dylib",
+#             "build/bin/libGLESv2.dylib",
+#         ]
+
+#     if checkfiles is None:
+#         log_warning("could not verify if the correct version of ANGLE is present")
+#         return False
+
+#     ok = True
+#     for file in checkfiles:
+#         if not os.path.isfile(file):
+#             ok = False
+#             continue
+#         if not checksum.checkfile(file):
+#             ok = False
+#             continue
+
+#     return ok
+
+
+# def download_angle():
+#     print("Downloading ANGLE...")
+#     if platform.system() == "Windows":
+#         build = "windows-2019"
+#     elif platform.system() == "Darwin":
+#         build = "macos-jank"
+#     else:
+#         log_error(f"could not automatically download ANGLE for unknown platform {platform.system()}")
+#         return
+
+#     os.makedirs("scripts/files", exist_ok=True)
+#     filename = f"angle-{build}-{ANGLE_VERSION}.zip"
+#     filepath = f"scripts/files/{filename}"
+#     url = f"https://github.com/HandmadeNetwork/build-angle/releases/download/{ANGLE_VERSION}/{filename}"
+#     with urllib.request.urlopen(url) as response:
+#         with open(filepath, "wb") as out:
+#             shutil.copyfileobj(response, out)
+
+#     if not checksum.checkfile(filepath):
+#         log_error(f"ANGLE download did not match checksum")
+#         exit(1)
+
+#     print("Extracting ANGLE...")
+#     with ZipFile(filepath, "r") as anglezip:
+#         anglezip.extractall(path="scripts/files")
+
+#     shutil.copytree(f"scripts/files/angle/include", "src/ext/angle/include", dirs_exist_ok=True)
+#     shutil.copytree(f"scripts/files/angle/bin", "build/bin", dirs_exist_ok=True)
+#     if platform.system() == "Windows":
+#         shutil.copytree(f"scripts/files/angle/lib", "build/lib", dirs_exist_ok=True)
 
 def prompt(msg):
     while True:
@@ -1012,6 +1559,22 @@ def get_source_root():
         if newdir == dir:
             raise Exception(f"Directory {os.getcwd()} does not seem to be part of the Orca source code.")
         dir = newdir
+
+
+def src_dir():
+    # Fragile path adjustments! Yay!
+    return os.path.normpath(os.path.join(os.path.abspath(__file__), "../../src"))
+
+
+def orca_commit():
+    with pushd(src_dir()):
+        try:
+            res = subprocess.run(["git", "rev-parse", "--short", "HEAD"], check=True, capture_output=True, text=True)
+            commit = res.stdout.strip()
+            return commit
+        except subprocess.CalledProcessError:
+            log_warning("failed to look up current git hash")
+            return "unknown"
 
 
 def yeet(path):
