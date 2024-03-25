@@ -41,6 +41,7 @@ typedef struct oc_attributes
     f32 width;
     f32 tolerance;
     bool hasGradient;
+    oc_gradient_blend_space blendSpace;
     oc_color colors[4];
     oc_joint_type joint;
     f32 maxJointExcursion;
