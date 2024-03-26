@@ -182,27 +182,19 @@ export fn bb_error_str(c_error: CError) [*:0]const u8 {
     };
 }
 
-export fn bb_module_definition_init(c_opts: CModuleDefinitionInitOpts) ?*core.ModuleDefinition {
+export fn bb_module_definition_create(c_opts: CModuleDefinitionInitOpts) ?*core.ModuleDefinition {
     var allocator = cffi_gpa.allocator();
-    var module: ?*core.ModuleDefinition = allocator.create(core.ModuleDefinition) catch null;
 
-    if (module) |m| {
-        const debug_name: []const u8 = if (c_opts.debug_name == null) "" else std.mem.sliceTo(c_opts.debug_name.?, 0);
-        const opts_translated = core.ModuleDefinitionOpts{
-            .debug_name = debug_name,
-        };
-        m.* = core.ModuleDefinition.init(allocator, opts_translated);
-    }
-
-    return module;
+    const debug_name: []const u8 = if (c_opts.debug_name == null) "" else std.mem.sliceTo(c_opts.debug_name.?, 0);
+    const opts_translated = core.ModuleDefinitionOpts{
+        .debug_name = debug_name,
+    };
+    return core.createModuleDefinition(allocator, opts_translated) catch null;
 }
 
-export fn bb_module_definition_deinit(module: ?*core.ModuleDefinition) void {
+export fn bb_module_definition_destroy(module: ?*core.ModuleDefinition) void {
     if (module) |m| {
-        m.deinit();
-
-        var allocator = cffi_gpa.allocator();
-        allocator.destroy(m);
+        m.destroy();
     }
 }
 
@@ -341,31 +333,21 @@ export fn bb_set_debug_trace_mode(c_mode: CDebugTraceMode) void {
     _ = core.DebugTrace.setMode(mode);
 }
 
-export fn bb_module_instance_init(module_definition: ?*ModuleDefinition) ?*ModuleInstance {
+export fn bb_module_instance_create(module_definition: ?*ModuleDefinition) ?*ModuleInstance {
     var allocator = cffi_gpa.allocator();
 
     var module: ?*core.ModuleInstance = null;
 
-    if (module_definition != null) {
-        module = allocator.create(core.ModuleInstance) catch null;
-
-        if (module) |m| {
-            m.* = core.ModuleInstance.init(module_definition.?, allocator) catch {
-                // TODO log out of memory?
-                return null;
-            };
-        }
+    if (module_definition) |def| {
+        module = core.createModuleInstance(.Stack, def, allocator) catch null;
     }
 
     return module;
 }
 
-export fn bb_module_instance_deinit(module: ?*ModuleInstance) void {
-    var allocator = cffi_gpa.allocator();
-
+export fn bb_module_instance_destroy(module: ?*ModuleInstance) void {
     if (module) |m| {
-        m.deinit();
-        allocator.destroy(m);
+        m.destroy();
     }
 }
 

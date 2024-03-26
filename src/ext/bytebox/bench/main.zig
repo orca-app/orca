@@ -21,12 +21,12 @@ fn run(allocator: std.mem.Allocator, benchmark: Benchmark) !void {
 
     var timer = try Timer.start();
 
-    var module_def = bytebox.ModuleDefinition.init(allocator, .{});
-    defer module_def.deinit();
+    var module_def = try bytebox.createModuleDefinition(allocator, .{});
+    defer module_def.destroy();
     try module_def.decode(wasm_data);
 
-    var module_instance = try bytebox.ModuleInstance.init(&module_def, allocator);
-    defer module_instance.deinit();
+    var module_instance = try bytebox.createModuleInstance(.Stack, module_def, allocator);
+    defer module_instance.destroy();
     try module_instance.instantiate(.{});
 
     const handle = try module_instance.getFunctionHandle("run");

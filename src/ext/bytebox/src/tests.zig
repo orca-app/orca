@@ -13,11 +13,11 @@ test "stack vm: integration" {
     const module_def_opts = core.ModuleDefinitionOpts{
         .debug_name = std.fs.path.basename(wasm_filepath),
     };
-    var module_def = core.ModuleDefinition.init(allocator, module_def_opts);
-    defer module_def.deinit();
+    var module_def = try core.createModuleDefinition(allocator, module_def_opts);
+    defer module_def.destroy();
 
     try module_def.decode(wasm_data);
 
-    var module_inst = try core.ModuleInstance.init(&module_def, allocator);
-    defer module_inst.deinit();
+    var module_inst = try core.createModuleInstance(.Stack, module_def, allocator);
+    defer module_inst.destroy();
 }

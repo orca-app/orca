@@ -3,6 +3,7 @@ const bytebox = @import("bytebox");
 const ValType = bytebox.ValType;
 const Val = bytebox.Val;
 const TaggedVal = bytebox.TaggedVal;
+const VmType = bytebox.VmType;
 const v128 = bytebox.v128;
 const i8x16 = bytebox.i8x16;
 const i16x8 = bytebox.i16x8;
@@ -614,16 +615,18 @@ fn parseCommands(json_path: []const u8, allocator: std.mem.Allocator) !std.Array
 
 const Module = struct {
     filename: []const u8 = "",
-    def: ?bytebox.ModuleDefinition = null,
-    inst: ?bytebox.ModuleInstance = null,
+    def: ?*bytebox.ModuleDefinition = null,
+    inst: ?*bytebox.ModuleInstance = null,
 };
 
 const TestOpts = struct {
+    vm_type: VmType = .Stack,
     suite_filter_or_null: ?[]const u8 = null,
     test_filter_or_null: ?[]const u8 = null,
     command_filter_or_null: ?[]const u8 = null,
     module_filter_or_null: ?[]const u8 = null,
     force_wasm_regen_only: bool = false,
+    log_suite: bool = false,
 };
 
 fn makeSpectestImports(allocator: std.mem.Allocator) !bytebox.ModuleImportPackage {
@@ -757,11 +760,11 @@ fn run(allocator: std.mem.Allocator, suite_path: []const u8, opts: *const TestOp
             // key memory is owned by commands list, so no need to free
 
             allocator.free(kv.value_ptr.filename); // ^^^
-            if (kv.value_ptr.def) |*def| {
-                def.deinit();
+            if (kv.value_ptr.def) |def| {
+                def.destroy();
             }
-            if (kv.value_ptr.inst) |*inst| {
-                inst.deinit();
+            if (kv.value_ptr.inst) |inst| {
+                inst.destroy();
             }
         }
         name_to_module.deinit();
@@ -865,7 +868,7 @@ fn run(allocator: std.mem.Allocator, suite_path: []const u8, opts: *const TestOp
 
             module.filename = try allocator.dupe(u8, module_filename);
 
-            module.def = bytebox.ModuleDefinition.init(allocator, .{ .debug_name = std.fs.path.basename(module_filename) });
+            module.def = try bytebox.createModuleDefinition(allocator, .{ .debug_name = std.fs.path.basename(module_filename) });
             (module.def.?).decode(module_data) catch |e| {
                 var expected_str_or_null: ?[]const u8 = null;
                 if (decode_expected_error) |unwrapped_expected| {
@@ -927,7 +930,7 @@ fn run(allocator: std.mem.Allocator, suite_path: []const u8, opts: *const TestOp
                 else => {},
             }
 
-            module.inst = try bytebox.ModuleInstance.init(&module.def.?, allocator);
+            module.inst = try bytebox.createModuleInstance(opts.vm_type, module.def.?, allocator);
             (module.inst.?).instantiate(.{ .imports = imports.items }) catch |e| {
                 if (instantiate_expected_error) |expected_str| {
                     if (isSameError(e, expected_str)) {
@@ -1219,11 +1222,20 @@ fn run(allocator: std.mem.Allocator, suite_path: []const u8, opts: *const TestOp
     return !did_fail_any_test;
 }
 
+pub fn parse_vm_type(backend_str: []const u8) VmType {
+    if (strcmp("stack", backend_str)) {
+        return .Stack;
+    } else if (strcmp("register", backend_str)) {
+        return .Register;
+    } else {
+        print("Failed parsing backend string '{s}'. Expected 'stack' or 'register'.", .{backend_str});
+        return .Stack;
+    }
+}
+
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     var allocator: std.mem.Allocator = gpa.allocator();
-
-    // var allocator: std.mem.Allocator = std.heap.c_allocator;
 
     var args = try std.process.argsAlloc(allocator);
     defer std.process.argsFree(allocator, args);
@@ -1237,6 +1249,8 @@ pub fn main() !void {
             const help_text =
                 \\
                 \\Usage: {s} [OPTION]...
+                \\    --backend <type>
+                \\      Options are: stack (default), register
                 \\
                 \\    --suite <suitename>
                 \\      Only run tests belonging to the given suite. Examples: i32, br_if,
@@ -1258,6 +1272,9 @@ pub fn main() !void {
                 \\      regenerate the wasm files and json driver, then run the test. This command
                 \\      will force regeneration of said files and skip running all tests.
                 \\
+                \\    --log-suite
+                \\      Log the name of each suite and aggregate test result.
+                \\
                 \\    --verbose
                 \\      Turn on verbose logging for each step of the test suite run.
                 \\
@@ -1265,6 +1282,9 @@ pub fn main() !void {
             ;
             print(help_text, .{args[0]});
             return;
+        } else if (strcmp("--backend", arg)) {
+            args_index += 1;
+            opts.vm_type = parse_vm_type(args[args_index]);
         } else if (strcmp("--suite", arg)) {
             args_index += 1;
             opts.suite_filter_or_null = args[args_index];
@@ -1284,6 +1304,8 @@ pub fn main() !void {
         } else if (strcmp("--force-wasm-regen-only", arg)) {
             opts.force_wasm_regen_only = true;
             print("Force-regenerating wasm files and driver .json, skipping test run\n", .{});
+        } else if (strcmp("--log-suite", arg)) {
+            opts.log_suite = true;
         } else if (strcmp("--verbose", arg) or strcmp("-v", arg)) {
             g_verbose_logging = true;
             print("verbose logging: on\n", .{});
@@ -1497,10 +1519,16 @@ pub fn main() !void {
         }
 
         if (opts.force_wasm_regen_only == false) {
-            logVerbose("Running test suite: {s}\n", .{suite});
+            if (opts.log_suite or g_verbose_logging) {
+                print("Running test suite: {s}\n", .{suite});
+            }
 
             var success: bool = try run(allocator, suite_path, &opts);
             did_all_succeed = did_all_succeed and success;
+
+            if (success and opts.log_suite and !g_verbose_logging) {
+                print("\tSuccess\n", .{});
+            }
         }
     }
 

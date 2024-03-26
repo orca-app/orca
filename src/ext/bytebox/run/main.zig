@@ -237,8 +237,8 @@ pub fn main() !void {
     const module_def_opts = bytebox.ModuleDefinitionOpts{
         .debug_name = std.fs.path.basename(opts.filename.?),
     };
-    var module_def = bytebox.ModuleDefinition.init(allocator, module_def_opts);
-    defer module_def.deinit();
+    var module_def = try bytebox.createModuleDefinition(allocator, module_def_opts);
+    defer module_def.destroy();
 
     module_def.decode(wasm_data) catch |e| {
         std.log.err("Caught error decoding module: {}", .{e});
@@ -253,8 +253,8 @@ pub fn main() !void {
         return;
     }
 
-    var module_instance = try bytebox.ModuleInstance.init(&module_def, allocator);
-    defer module_instance.deinit();
+    var module_instance = try bytebox.createModuleInstance(.Stack, module_def, allocator);
+    defer module_instance.destroy();
 
     var imports_wasi: bytebox.ModuleImportPackage = try wasi.initImports(.{
         .argv = opts.wasm_argv,

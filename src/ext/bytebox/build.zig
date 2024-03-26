@@ -29,18 +29,12 @@ pub fn build(b: *Build) void {
         .source_file = Build.LazyPath.relative("src/core.zig"),
     });
 
-    buildExeWithStep(b, target, optimize, bytebox_module, .{
+    _ = buildExeWithRunStep(b, target, optimize, bytebox_module, .{
         .exe_name = "bytebox",
         .root_src = "run/main.zig",
         .step_name = "run",
         .description = "Run a wasm program",
         .should_emit_asm = should_emit_asm,
-    });
-    buildExeWithStep(b, target, optimize, bytebox_module, .{
-        .exe_name = "testsuite",
-        .root_src = "test/main.zig",
-        .step_name = "test",
-        .description = "Run the test suite",
     });
 
     var bench_steps = [_]*Build.Step{
@@ -48,21 +42,13 @@ pub fn build(b: *Build) void {
         &bench_fibonacci_step.step,
         &bench_mandelbrot_step.step,
     };
-    buildExeWithStep(b, target, optimize, bytebox_module, .{
+    _ = buildExeWithRunStep(b, target, optimize, bytebox_module, .{
         .exe_name = "benchmark",
         .root_src = "bench/main.zig",
         .step_name = "bench",
         .description = "Run the benchmark suite",
         .step_dependencies = &bench_steps,
     });
-
-    // var c_header: *InstallFileStep = b.addInstallFileWithDir(std.build.FileSource{ .path = "src/bytebox.h" }, .header, "bytebox.h");
-
-    // const lib_bytebox: *CompileStep = b.addStaticLibrary("bytebox", "src/cffi.zig");
-    // lib_bytebox.setTarget(target);
-    // lib_bytebox.setBuildMode(b.standardOptimizeOption());
-    // lib_bytebox.step.dependOn(&c_header.step);
-    // lib_bytebox.emit_asm = if (should_emit_asm) .emit else .default;
 
     const lib_bytebox = b.addStaticLibrary(.{
         .name = "bytebox",
@@ -73,10 +59,38 @@ pub fn build(b: *Build) void {
     lib_bytebox.installHeader("src/bytebox.h", "bytebox.h");
     b.installArtifact(lib_bytebox);
 
-    // lib_bytebox.install();
+    // Unit tests
+    const unit_tests = b.addTest(.{
+        .root_source_file = .{ .path = "src/tests.zig" },
+        .target = target,
+        .optimize = optimize,
+    });
+    const run_unit_tests = b.addRunArtifact(unit_tests);
+    const unit_test_step = b.step("test-unit", "Run unit tests");
+    unit_test_step.dependOn(&run_unit_tests.step);
+
+    // wasm tests
+    var wasm_testsuite_step = buildExeWithRunStep(b, target, optimize, bytebox_module, .{
+        .exe_name = "testsuite",
+        .root_src = "test/main.zig",
+        .step_name = "test-wasm",
+        .description = "Run the wasm testsuite",
+    });
+
+    // wasi tests
+    const wasi_testsuite = b.addSystemCommand(&.{"python3"});
+    wasi_testsuite.addArg("test/wasi/run.py");
+    const wasi_testsuite_step = b.step("test-wasi", "Run wasi testsuite");
+    wasi_testsuite_step.dependOn(&wasi_testsuite.step);
+
+    // All tests
+    const all_tests_step = b.step("test", "Run unit, wasm, and wasi tests");
+    all_tests_step.dependOn(unit_test_step);
+    all_tests_step.dependOn(wasm_testsuite_step);
+    all_tests_step.dependOn(wasi_testsuite_step);
 }
 
-fn buildExeWithStep(b: *Build, target: CrossTarget, optimize: std.builtin.Mode, bytebox_module: *Build.Module, opts: ExeOpts) void {
+fn buildExeWithRunStep(b: *Build, target: CrossTarget, optimize: std.builtin.Mode, bytebox_module: *Build.Module, opts: ExeOpts) *Build.Step {
     const exe = b.addExecutable(.{
         .name = opts.exe_name,
         .root_source_file = Build.LazyPath.relative(opts.root_src),
@@ -105,8 +119,10 @@ fn buildExeWithStep(b: *Build, target: CrossTarget, optimize: std.builtin.Mode, 
         run.addArgs(args);
     }
 
-    const step = b.step(opts.step_name, opts.description);
+    const step: *Build.Step = b.step(opts.step_name, opts.description);
     step.dependOn(&run.step);
+
+    return step;
 }
 
 fn buildWasmLib(b: *Build, filepath: []const u8, optimize: std.builtin.Mode) *CompileStep {

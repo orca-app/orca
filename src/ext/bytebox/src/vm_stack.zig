@@ -83,9 +83,9 @@ const DebugTraceStackVM = struct {
 };
 
 const FunctionInstance = struct {
-    type_def_index: u32,
-    def_index: u32,
-    instructions_begin: u32,
+    type_def_index: usize,
+    def_index: usize,
+    instructions_begin: usize,
     local_types: std.ArrayList(ValType),
 };
 
@@ -1032,7 +1032,7 @@ const InstructionFuncs = struct {
 
             return FuncCallData{
                 .code = module_instance.module_def.code.instructions.items.ptr,
-                .continuation = func.instructions_begin,
+                .continuation = @intCast(func.instructions_begin),
             };
         }
 
@@ -5384,7 +5384,7 @@ pub const StackVM = struct {
             const name_section: *const NameCustomSection = &frame.module_instance.module_def.name_section;
             const module_name = name_section.getModuleName();
 
-            const func_name_index: u32 = frame.func.def_index + @as(u32, @intCast(frame.module_instance.module_def.imports.functions.items.len));
+            const func_name_index: usize = frame.func.def_index + frame.module_instance.module_def.imports.functions.items.len;
             const function_name = name_section.findFunctionName(func_name_index);
 
             try writer.print("{}: {s}!{s}\n", .{ reverse_index, module_name, function_name });
@@ -5421,11 +5421,11 @@ pub const StackVM = struct {
         }
 
         try self.stack.pushFrame(&func, module, param_types, func.local_types.items, func_type.calcNumReturns());
-        try self.stack.pushLabel(@as(u32, @intCast(return_types.len)), func_def.continuation);
+        try self.stack.pushLabel(@as(u32, @intCast(return_types.len)), @intCast(func_def.continuation));
 
         DebugTrace.traceFunction(module, self.stack.num_frames, func.def_index);
 
-        try InstructionFuncs.run(func.instructions_begin, module.module_def.code.instructions.items.ptr, &self.stack);
+        try InstructionFuncs.run(@intCast(func.instructions_begin), module.module_def.code.instructions.items.ptr, &self.stack);
 
         if (returns_slice.len > 0) {
             var index: i32 = @as(i32, @intCast(returns_slice.len - 1));

@@ -1,5 +1,8 @@
+const std = @import("std");
 const def = @import("definition.zig");
 const inst = @import("instance.zig");
+const vm_stack = @import("vm_stack.zig");
+const vm_register = @import("vm_register.zig");
 pub const wasi = @import("wasi.zig");
 
 pub const i8x16 = def.i8x16;
@@ -48,3 +51,22 @@ pub const WasmMemoryExternal = inst.WasmMemoryExternal;
 pub const WasmMemoryFreeFunction = inst.WasmMemoryFreeFunction;
 pub const WasmMemoryResizeFunction = inst.WasmMemoryResizeFunction;
 pub const InvokeOpts = inst.InvokeOpts;
+
+const AllocError = std.mem.Allocator.Error;
+
+pub fn createModuleDefinition(allocator: std.mem.Allocator, opts: ModuleDefinitionOpts) AllocError!*ModuleDefinition {
+    return try ModuleDefinition.create(allocator, opts);
+}
+
+pub const VmType = enum {
+    Stack,
+    Register,
+};
+
+pub fn createModuleInstance(vm_type: VmType, module_def: *const ModuleDefinition, allocator: std.mem.Allocator) AllocError!*ModuleInstance {
+    var vm: *inst.VM = switch (vm_type) {
+        .Stack => try inst.VM.create(vm_stack.StackVM, allocator),
+        .Register => try inst.VM.create(vm_register.RegisterVM, allocator),
+    };
+    return try ModuleInstance.create(module_def, vm, allocator);
+}
