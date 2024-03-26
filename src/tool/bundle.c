@@ -23,6 +23,7 @@ int winBundle(
     oc_str8 name,
     oc_str8 icon,
     oc_str8 version,
+    oc_str8 wasm_backend,
     oc_str8_list resource_files,
     oc_str8_list resource_dirs,
     oc_str8 app_version,
@@ -34,6 +35,7 @@ int macBundle(
     oc_str8 name,
     oc_str8 icon,
     oc_str8 version,
+    oc_str8 wasm_backend,
     oc_str8_list resource_files,
     oc_str8_list resource_dirs,
     oc_str8 app_version,
@@ -57,6 +59,7 @@ int bundle(int argc, char** argv)
     oc_str8_list* resource_files = flag_strs(&c, "d", "resource", "copy a file to the app's resource directory");
     oc_str8_list* resource_dirs = flag_strs(&c, "D", "resource-dir", "copy the contents of a folder to the app's resource directory");
     char** app_version = flag_str(&c, NULL, "app-version", "0.0.0", "a version number to embed in the application bundle");
+    char** wasm_backend = flag_str(&c, NULL, "wasm-backend", "wasm3", "the wasm backend to use: wasm3 (default) or bytebox");
     char** outDir = flag_str(&c, "C", "out-dir", NULL, "where to place the final application bundle (defaults to the current directory)");
     bool* mtlEnableCapture = flag_bool(&c, "M", "mtl-enable-capture", false, "enable Metal frame capture in Xcode for the application bundle (macOS only)");
 
@@ -86,6 +89,7 @@ int bundle(int argc, char** argv)
         OC_STR8(*name),
         OC_STR8(*icon),
         OC_STR8(*version),
+        OC_STR8(*wasm_backend),
         *resource_files,
         *resource_dirs,
         OC_STR8(*app_version),
@@ -97,6 +101,7 @@ int bundle(int argc, char** argv)
         OC_STR8(*name),
         OC_STR8(*icon),
         OC_STR8(*version),
+        OC_STR8(*wasm_backend),
         *resource_files,
         *resource_dirs,
         OC_STR8(*app_version),
@@ -115,6 +120,7 @@ int winBundle(
     oc_str8 name,
     oc_str8 icon,
     oc_str8 version,
+    oc_str8 wasm_backend,
     oc_str8_list resource_files,
     oc_str8_list resource_dirs,
     oc_str8 app_version,
@@ -143,8 +149,8 @@ int winBundle(
     TRY(oc_sys_mkdirs(dataDir));
 
     oc_str8 sdk_dir = version.len > 0
-        ? get_version_dir(a, version, true)
-        : current_version_dir(a, true);
+                        ? get_version_dir(a, version, true)
+                        : current_version_dir(a, true);
 
     //-----------------------------------------------------------
     //NOTE: link runtime objects and application icon into exe
@@ -154,7 +160,7 @@ int winBundle(
         oc_str8 res_path = { 0 };
         if(icon.len > 0)
         {
-            if (oc_sys_exists(icon))
+            if(oc_sys_exists(icon))
             {
                 if(oc_sys_exists(temp_dir))
                 {
@@ -174,7 +180,6 @@ int winBundle(
                     res_path.ptr = 0;
                     res_path.len = 0;
                 }
-
             }
             else
             {
@@ -182,10 +187,17 @@ int winBundle(
             }
         }
 
+        const char* wasm_libs = "wasm3.lib";
+        if(strcmp("bytebox", wasm_backend.ptr) == 0)
+        {
+            wasm_libs = "bytebox.lib ntdll.lib /STACK:8388608,8388608";
+        }
+
         oc_str8 exe_out = oc_path_append(a, exeDir, oc_str8_pushf(a, "%.*s.exe", oc_str8_ip(name)));
+        oc_str8 pdb_out = oc_path_append(a, exeDir, oc_str8_pushf(a, "%.*s.pdb", oc_str8_ip(name)));
         oc_str8 libpath = oc_path_append(a, sdk_dir, OC_STR8("bin"));
-        oc_str8 cmd = oc_str8_pushf(a, "link.exe /nologo /LIBPATH:%s runtime.obj orca.dll.lib wasm3.lib %.*s /out:%s",
-                                    libpath.ptr, oc_str8_ip(res_path), exe_out.ptr);
+        oc_str8 cmd = oc_str8_pushf(a, "link.exe /nologo /LIBPATH:%s runtime.obj orca.dll.lib %s %.*s /debug:full /pdb:%s /out:%s",
+                                    libpath.ptr, wasm_libs, oc_str8_ip(res_path), pdb_out.ptr, exe_out.ptr);
         i32 result = system(cmd.ptr);
         oc_sys_rmdir(temp_dir);
         if(result)
@@ -254,6 +266,7 @@ int macBundle(
     oc_str8 name,
     oc_str8 icon,
     oc_str8 version,
+    oc_str8 wasm_backend,
     oc_str8_list resource_files,
     oc_str8_list resource_dirs,
     oc_str8 app_version,
@@ -290,8 +303,8 @@ int macBundle(
     TRY(oc_sys_mkdirs(dataDir));
 
     oc_str8 sdk_dir = version.len > 0
-        ? get_version_dir(a, version, true)
-        : current_version_dir(a, true);
+                        ? get_version_dir(a, version, true)
+                        : current_version_dir(a, true);
 
     //-----------------------------------------------------------
     //NOTE: copy orca runtime executable and libraries
@@ -355,7 +368,7 @@ int macBundle(
     //-----------------------------------------------------------
     if(icon.len)
     {
-        if (oc_sys_exists(icon))
+        if(oc_sys_exists(icon))
         {
             oc_str8 icon_dir = oc_path_slice_directory(icon);
             oc_str8 iconset = oc_path_append(a, icon_dir, OC_STR8("icon.iconset"));

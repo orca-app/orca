@@ -208,7 +208,7 @@ def build_runtime_win(release, wasm_backend):
 
     subprocess.run(compile_args, check=True)
 
-def build_runtime_mac(release):
+def build_runtime_mac(release, wasm_backend):
 
     includes = [
         "-Isrc",
