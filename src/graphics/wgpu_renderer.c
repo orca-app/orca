@@ -1528,7 +1528,16 @@ void oc_wgpu_canvas_encode_path(oc_wgpu_canvas_encoding_context* context, oc_pri
             {
                 for(int j = 0; j < 3; j++)
                 {
-                    path->colors[i].c[j] = powf(primitive->attributes.colors[i].c[j], 2.2);
+                    f32 c = primitive->attributes.colors[i].c[j];
+                    if(c <= 0.04045)
+                    {
+                        c = c / 12.92;
+                    }
+                    else
+                    {
+                        c = powf((c + 0.055) / 1.055, 2.4);
+                    }
+                    path->colors[i].c[j] = c;
                 }
                 path->colors[i].c[3] = primitive->attributes.colors[i].c[3];
             }

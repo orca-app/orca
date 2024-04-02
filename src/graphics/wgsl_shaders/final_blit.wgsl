@@ -24,6 +24,12 @@ struct vertex_out
 @fragment fn fs(@builtin(position) pos: vec4f) -> @location(0) vec4f
 {
     var color = textureLoad(outTexture, vec2u(pos.xy), 0);
-    color = pow(color, vec4f(0.454545, 0.454545, 0.454545, 1));
+
+    let gamma : f32 = 1./2.4;
+    let rgb = select(1.055 * pow(color.rgb, vec3f(gamma, gamma, gamma)) - vec3f(0.055, 0.055, 0.055),
+                     color.rgb*12.92,
+                     color.rgb <= vec3f(0.0031308, 0.0031308, 0.0031308));
+
+    color = vec4f(rgb, color.a);
     return (color);
 }
