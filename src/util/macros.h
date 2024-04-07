@@ -56,6 +56,36 @@
 
 #define oc_array_size(array) (sizeof(array) / sizeof((array)[0]))
 
+#define oc_sizeof_member(type, member) (sizeof(((type *)NULL)->member))
+#define oc_typeof_member(type, member) (sizeof(((type *)NULL)->member))
+#define oc_array_size_of_member(type, member) (oc_array_size(((type *)NULL)->member))
+
+#define U8_MAX __UINT8_MAX__
+#define U16_MAX __UINT16_MAX__
+#define U32_MAX __UINT32_MAX__
+#define U64_MAX __UINT64_MAX__
+#define I8_MAX __INT8_MAX__
+#define I16_MAX __INT16_MAX__
+#define I32_MAX __INT32_MAX__
+#define I64_MAX __INT64_MAX__
+
+#define I8_MIN  (-I8_MAX - 1)
+#define I16_MIN (-I16_MAX - 1)
+#define I32_MIN (-I32_MAX - 1)
+#define I64_MIN (-I64_MAX - 1)
+
+#define OC_UNIQUE_NAME__(name, counter) oc_unique_name_ ## name ## counter
+#define OC_UNIQUE_NAME_(name, counter) OC_UNIQUE_NAME__(name, counter)
+#define OC_UNIQUE_NAME(name) OC_UNIQUE_NAME_(name, __COUNTER__)
+
+#define oc_swap_(a, b, tmp_sym) \
+  __extension__({          \
+    __typeof__(a) tmp_sym = a; \
+    a = b;                 \
+    b = tmp_sym;           \
+  })
+#define oc_swap(a, b) oc_swap_((a), (b), OC_UNIQUE_NAME(oc_swap))
+
 //----------------------------------------------------------------------------------------
 //NOTE(martin): bit-twiddling & arithmetic helpers
 //----------------------------------------------------------------------------------------

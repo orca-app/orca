@@ -18,6 +18,12 @@
 #include <X11/Xlib.h>
 #include <xcb/xproto.h>
 
+typedef struct x11_win_id_to_handle
+{
+  u32 winId;
+  oc_window handle;
+} x11_win_id_to_handle;
+
 typedef struct oc_linux_x11
 {
     Display* display;
@@ -27,6 +33,9 @@ typedef struct oc_linux_x11
         xcb_atom_t UTF8_STRING;
         xcb_atom_t WM_CHANGE_STATE;
     } atoms;
+    u32 rootWinId;
+    u32 winIdToHandleLen;
+    x11_win_id_to_handle winIdToHandle[128];
 } oc_linux_x11;
 
 typedef struct oc_linux_app_data
@@ -39,7 +48,7 @@ typedef enum x11_window_state
     X11_WINDOW_STATE_WITHDRAWN = 0,
     X11_WINDOW_STATE_NORMAL = 1,
     X11_WINDOW_STATE_ICONIC = 3,
-}
+} x11_window_state;
 
 typedef struct oc_linux_window_data
 {

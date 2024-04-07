@@ -15,6 +15,11 @@
 #include <xcb/xcb.h>
 #include <xcb/xcb_ewmh.h>
 
+static_assert(oc_array_size_of_member(oc_linux_x11, winIdToHandle) == OC_APP_MAX_WINDOWS,
+  "Must match OC_APP_MAX_WINDOWS");
+static_assert(oc_array_size_of_member(oc_linux_x11, winIdToHandle) <= U32_MAX,
+  "winIdToHandle's lengh must fit in winIdToHandleLen");
+
 // TODO(pld): window bring to front
 // TODO(pld): window focus
 // TODO(pld): window center
@@ -51,9 +56,8 @@ static inline void* memz(void* buf, size_t n)
     return (memset(buf, 0, n));
 }
 
-void free(void *ptr);
+void free(void* ptr);
 
-#define ARRAY_CAP(a) (sizeof(a) / sizeof(a[0]))
 void oc_init(void)
 {
     memset(&oc_appData, 0, sizeof(oc_appData));
@@ -82,12 +86,12 @@ void oc_init(void)
         DEF_ATOM(WM_CHANGE_STATE),
         #undef DEF_ATOM
     };
-    for(u64 i = 0; i < ARRAY_CAP(atoms); i++)
+    for(u64 i = 0; i < oc_array_size(atoms); i++)
     {
         atoms[i].cookie = xcb_intern_atom(conn, false, oc_str8_lp(atoms[i].s));
     }
     xcb_flush(conn);
-    for(u64 i = 0; i < ARRAY_CAP(atoms); i++)
+    for(u64 i = 0; i < oc_array_size(atoms); i++)
     {
         xcb_intern_atom_reply_t *reply = NULL;
         reply = xcb_intern_atom_reply(conn, atoms[i].cookie, NULL);
@@ -96,6 +100,15 @@ void oc_init(void)
         memcpy(atoms[i].atom, &reply->atom, sizeof(reply->atom));
         free(reply);
     }
+
+    {
+        const xcb_setup_t* setup = xcb_get_setup(conn);
+        xcb_screen_iterator_t iter = xcb_setup_roots_iterator(setup);
+        OC_ASSERT(iter.rem > 0);
+        xcb_screen_t* screen = iter.data;
+        x11->rootWinId = screen->root;
+    }
+
 
     // TODO(pld): aborts instead of OC_ASSERTs, with errno for relevant cases
     // TODO(pld): after the above, create window and map window
@@ -130,6 +143,21 @@ void oc_set_cursor(oc_mouse_cursor cursor)
 {
     OC_ASSERT(0 && "Unimplemented");
     return;
+}
+// TODO(pld): Does this lack thread safety?
+static oc_window window_handle_from_x11_id(u32 winId)
+{
+    oc_linux_x11* x11 = &oc_appData.linux.x11;
+    oc_window window = oc_window_null_handle();
+    for(u32 i = 0; i < x11->winIdToHandleLen; i++)
+    {
+        x11_win_id_to_handle* entry = &x11->winIdToHandle[i];
+        if(entry->winId == winId)
+        {
+            window = entry->handle;
+        }
+    }
+    return window;
 }
 static void log_generic_event(const char* name, xcb_generic_event_t* ev)
 {
@@ -184,7 +212,7 @@ void oc_pump_events(f64 timeout)
     }
     while(ev)
     {
-        const char *type = "(unk)";
+        const char* type = "(unk)";
         switch(ev->response_type)
         {
         case XCB_KEY_PRESS:
@@ -240,6 +268,16 @@ void oc_pump_events(f64 timeout)
             if(windowData)
             {
                 // TODO(pld): clean other things before recycling
+                x11_win_id_to_handle entry = {0};
+                for(u32 i = linux->x11.winIdToHandleLen - 1; i < U32_MAX; i--)
+                {
+                  oc_swap(linux->x11.winIdToHandle[i], entry);
+                  if(entry.winId == noti->window)
+                  {
+                    break;
+                  }
+                  OC_ASSERT(i > 0);
+                }
                 oc_window_recycle_ptr(windowData);
             }
         } break;
@@ -273,8 +311,8 @@ void oc_pump_events(f64 timeout)
             oc_window_data* windowData = oc_window_ptr_from_handle(window);
             if(windowData)
             {
-                windowData->posFromParent.x = noti->x;
-                windowData->posFromParent.y = noti->y;
+                windowData->linux.posFromParent.x = noti->x;
+                windowData->linux.posFromParent.y = noti->y;
             }
         } break;
         case XCB_CONFIGURE_NOTIFY:
@@ -348,16 +386,15 @@ oc_window oc_window_create(oc_rect contentRect, oc_str8 title, oc_window_style s
     oc_linux_app_data* linux = &oc_appData.linux;
     xcb_connection_t* conn = XGetXCBConnection(linux->x11.display);
 
+    if(linux->x11.winIdToHandleLen == oc_array_size(linux->x11.winIdToHandle))
+    {
+      return oc_window_null_handle();
+    }
+
     const xcb_setup_t* setup = xcb_get_setup(conn);
 
     u32 winId = xcb_generate_id(conn);
-    u32 parentId = 0;
-    {
-        xcb_screen_iterator_t iter = xcb_setup_roots_iterator(setup);
-        OC_ASSERT(iter.rem > 0);
-        xcb_screen_t* screen = iter.data;
-        parentId = screen->root;
-    }
+    u32 parentId = linux->x11.rootWinId;
     xcb_cw_t attributesMask = XCB_CW_BACK_PIXMAP |
         XCB_CW_BACK_PIXEL |
         XCB_CW_BORDER_PIXMAP |
@@ -450,8 +487,13 @@ oc_window oc_window_create(oc_rect contentRect, oc_str8 title, oc_window_style s
     xcb_flush(conn);
 
     oc_window_data* windowData = oc_window_alloc();
-    windowData->linux.x11Id = win_id;
+    windowData->linux.x11Id = winId;
     oc_window window = oc_window_handle_from_ptr(windowData);
+
+    linux->x11.winIdToHandle[linux->x11.winIdToHandleLen++] = (x11_win_id_to_handle){
+      .winId = winId,
+      .handle = window,
+    };
 
     oc_window_set_title(window, title);
     oc_window_show(window);
@@ -506,7 +548,7 @@ void oc_window_hide(oc_window window)
     oc_linux_app_data* linux = &oc_appData.linux;
     xcb_connection_t* conn = XGetXCBConnection(linux->x11.display);
     oc_window_data* windowData = oc_window_ptr_from_handle(window);
-    if(windowData && windowData.linux.state == X11_WINDOW_STATE_NORMAL)
+    if(windowData && windowData->linux.state == X11_WINDOW_STATE_NORMAL)
     {
         xcb_client_message_event_t msg =
         {
@@ -516,7 +558,7 @@ void oc_window_hide(oc_window window)
             .type = linux->x11.atoms.WM_CHANGE_STATE,
             .data.data32[0] = X11_WINDOW_STATE_ICONIC,
         };
-        xcb_send_event(conn, false, linux->x11.root, 0, &msg);
+        xcb_send_event(conn, false, linux->x11.rootWinId, 0, (const char*)&msg);
         xcb_flush(conn);
     }
     return;
@@ -526,9 +568,9 @@ void oc_window_show(oc_window window)
     oc_linux_app_data* linux = &oc_appData.linux;
     xcb_connection_t* conn = XGetXCBConnection(linux->x11.display);
     oc_window_data* windowData = oc_window_ptr_from_handle(window);
-    if(windowData && windowData.linux.state != X11_WINDOW_STATE_NORMAL)
+    if(windowData && windowData->linux.state != X11_WINDOW_STATE_NORMAL)
     {
-        OC_ASSERT(windowData.linux.state == X11_WINDOW_STATE_ICONIC);
+        OC_ASSERT(windowData->linux.state == X11_WINDOW_STATE_ICONIC);
         xcb_map_window(conn, windowData->linux.x11Id);
         xcb_flush(conn);
     }
@@ -594,7 +636,7 @@ bool oc_window_has_focus(oc_window window)
     {
         xcb_get_input_focus_cookie_t cookie = xcb_get_input_focus(conn);
         xcb_flush(conn);
-        xcb_get_input_focus_reply_t *reply = NULL;
+        xcb_get_input_focus_reply_t* reply = NULL;
         reply = xcb_get_input_focus_reply(conn, cookie, NULL);
         u32 focused_win_id = XCB_NONE;
         if(reply)
@@ -794,7 +836,7 @@ void oc_linux_surface_set_hidden(oc_surface_data* surface, bool hidden)
 
 void* oc_linux_surface_native_layer(oc_surface_data* surface)
 {
-    return ((void *)(uintptr_t)surface->layer.x11WinId);
+    return ((void*)(uintptr_t)surface->layer.x11WinId);
 }
 
 void oc_linux_surface_bring_to_front(oc_surface_data* surface)
