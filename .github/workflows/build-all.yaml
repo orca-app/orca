@@ -17,8 +17,14 @@ jobs:
   build-dawn-win:
     uses: ./.github/workflows/build-dawn-win.yaml
 
+  build-angle-mac:
+    uses: ./.github/workflows/build-angle-mac.yaml
+
+  build-angle-win:
+    uses: ./.github/workflows/build-angle-win.yaml
+
   build-win:
-    needs: [build-dawn-win]
+    needs: [build-dawn-win, build-angle-win]
     runs-on: windows-2022
     steps:
       - uses: actions/setup-python@v4
@@ -35,6 +41,11 @@ jobs:
         shell: cmd
         run: |
           xcopy artifact\dawn-windows-x64 build\dawn.out\ /s /y
+
+      - name: Copy Angle
+        shell: cmd
+        run: |
+          xcopy artifact\angle-windows-x64 build\angle.out\ /s /y
 
       - name: Build
         shell: cmd
@@ -58,7 +69,7 @@ jobs:
           path: orca-windows.tar.gz
 
   build-macos-x64:
-    needs: [build-dawn-mac]
+    needs: [build-dawn-mac, build-angle-mac]
     runs-on: macos-13
     steps:
       - uses: actions/setup-python@v4
@@ -75,6 +86,11 @@ jobs:
         run: |
           mkdir -p build
           cp -r artifact/dawn-mac-x64 build/dawn.out
+
+      - name: Copy Angle
+        run: |
+          mkdir -p build
+          cp -r artifact/angle-mac-x64 build/angle.out
 
       - name: Build
         run: |
@@ -95,7 +111,7 @@ jobs:
           path: orca-mac-x64.tar.gz
 
   build-macos-arm64:
-    needs: [build-dawn-mac]
+    needs: [build-dawn-mac, build-angle-mac]
     runs-on: macos-14
     steps:
       - uses: actions/setup-python@v4
@@ -112,6 +128,11 @@ jobs:
         run: |
           mkdir -p build
           cp -r artifact/dawn-mac-arm64 build/dawn.out
+
+      - name: Copy Angle
+        run: |
+          mkdir -p build
+          cp -r artifact/angle-mac-arm64 build/angle.out
 
       - name: Build
         run: |
