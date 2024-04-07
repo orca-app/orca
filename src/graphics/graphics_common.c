@@ -1140,6 +1140,83 @@ oc_rect oc_clip_top()
 }
 
 //------------------------------------------------------------------------------------------
+//NOTE(martin): color helpers
+//------------------------------------------------------------------------------------------
+
+oc_color oc_color_rgba(f32 r, f32 g, f32 b, f32 a)
+{
+    return ((oc_color){ r, g, b, a, OC_COLOR_SPACE_RGB });
+}
+
+oc_color oc_color_srgba(f32 r, f32 g, f32 b, f32 a)
+{
+    return ((oc_color){ r, g, b, a, OC_COLOR_SPACE_SRGB });
+}
+
+oc_color oc_color_convert(oc_color color, oc_color_space colorSpace)
+{
+    switch(colorSpace)
+    {
+        case OC_COLOR_SPACE_RGB:
+        {
+            switch(color.colorSpace)
+            {
+                case OC_COLOR_SPACE_RGB:
+                    // No conversion
+                    break;
+
+                case OC_COLOR_SPACE_SRGB:
+                {
+                    for(int i = 0; i < 3; i++)
+                    {
+                        if(color.c[i] <= 0.04045)
+                        {
+                            color.c[i] = color.c[i] / 12.92;
+                        }
+                        else
+                        {
+                            color.c[i] = powf((color.c[i] + 0.055) / 1.055, 2.4);
+                        }
+                    }
+                }
+                break;
+            }
+        }
+        break;
+
+        case OC_COLOR_SPACE_SRGB:
+        {
+            switch(color.colorSpace)
+            {
+                case OC_COLOR_SPACE_RGB:
+                {
+                    // RGBA to SRGBA
+                    for(int i = 0; i < 3; i++)
+                    {
+                        if(color.c[i] <= 0.0031308)
+                        {
+                            color.c[i] = color.c[i] * 12.92;
+                        }
+                        else
+                        {
+                            color.c[i] = 1.055 * powf(color.c[i], 1.0 / 2.4) - 0.055;
+                        }
+                    }
+                }
+                break;
+
+                case OC_COLOR_SPACE_SRGB:
+                    // No conversion
+                    break;
+            }
+        }
+        break;
+    }
+    color.colorSpace = colorSpace;
+    return (color);
+}
+
+//------------------------------------------------------------------------------------------
 //NOTE(martin): graphics attributes setting/getting
 //------------------------------------------------------------------------------------------
 void oc_set_color(oc_color color)

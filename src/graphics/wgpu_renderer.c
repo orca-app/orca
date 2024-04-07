@@ -1524,27 +1524,8 @@ void oc_wgpu_canvas_encode_path(oc_wgpu_canvas_encoding_context* context, oc_pri
 
         for(int i = 0; i < 4; i++)
         {
-            if(primitive->attributes.colors[i].colorSpace == OC_COLOR_SPACE_SRGB)
-            {
-                for(int j = 0; j < 3; j++)
-                {
-                    f32 c = primitive->attributes.colors[i].c[j];
-                    if(c <= 0.04045)
-                    {
-                        c = c / 12.92;
-                    }
-                    else
-                    {
-                        c = powf((c + 0.055) / 1.055, 2.4);
-                    }
-                    path->colors[i].c[j] = c;
-                }
-                path->colors[i].c[3] = primitive->attributes.colors[i].c[3];
-            }
-            else
-            {
-                memcpy(&path->colors[i], primitive->attributes.colors[i].c, 4 * sizeof(f32));
-            }
+            oc_color c = oc_color_convert(primitive->attributes.colors[i], OC_COLOR_SPACE_RGB);
+            memcpy(path->colors[i].c, c.c, 4 * sizeof(f32));
         }
         path->hasGradient = primitive->attributes.hasGradient;
         path->blendSpace = primitive->attributes.blendSpace;
