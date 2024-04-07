@@ -58,13 +58,13 @@ typedef struct oc_image
     u64 h;
 } oc_image;
 
-typedef enum
+typedef enum oc_gradient_blend_space
 {
     OC_GRADIENT_BLEND_LINEAR,
     OC_GRADIENT_BLEND_SRGB,
 } oc_gradient_blend_space;
 
-typedef enum
+typedef enum oc_color_space
 {
     OC_COLOR_SPACE_RGB,
     OC_COLOR_SPACE_SRGB,
@@ -126,6 +126,15 @@ typedef struct oc_text_metrics
     oc_vec2 advance;
 
 } oc_text_metrics;
+
+//------------------------------------------------------------------------------------------
+//SECTION: color helpers
+//------------------------------------------------------------------------------------------
+oc_color oc_color_rgba(f32 r, f32 g, f32 b, f32 a);
+oc_color oc_color_srgba(f32 r, f32 g, f32 b, f32 a);
+//TODO: hsv/hsl, conversions, ...
+
+oc_color oc_color_convert(oc_color color, oc_color_space colorSpace);
 
 //------------------------------------------------------------------------------------------
 //SECTION: canvas renderer
