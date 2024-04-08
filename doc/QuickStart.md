@@ -1,5 +1,5 @@
 --------
-**DISCLAIMER: This project is very much a Work In Progress. We're making it accessible in this very early state so that participants to the [Wheel Reinvention Jam 2023](https://handmade.network/jam/2023) can try it out and maybe use it as their jamming platform. Expect bugs, missing and/or incomplete features, unstable APIs, and sparse documentation. Some current issues might be a show stopper for you, so make sure you can build and run the sample apps before jumping in.**
+**DISCLAIMER: This project is very much a Work In Progress. Expect bugs, missing and/or incomplete features, unstable APIs, and sparse documentation. Some current issues might be a show stopper for you, so make sure you can build and run the sample apps before jumping in.**
 
 **If you do choose to try out Orca anyway, well thanks! We'll do our best to answer your questions, and we'd really appreciate to hear your feedback!**
 
@@ -13,15 +13,40 @@ This is a short introduction to developing an application that can be run by the
 
 An Orca app is a WebAssembly module designed for the Orca runtime. Your app interacts with the Orca runtime via WebAssembly imports and exports. For example, you can import functions from the Orca runtime to get user input, and export functions to the Orca runtime to draw to the screen.
 
-Orca also ships with a core library, written in C, which facilitates interaction with the Orca runtime and provides features like UI. This library should be compiled along with your app as part of producing your WebAssembly module.
+Orca also ships with a core library, written in C, which facilitates interaction with the Orca runtime and provides features like UI. It also ships with a C standard library implementation designed to work on WebAssembly. These libraries should be linked to your app as part of producing your WebAssembly module.
 
 You can, in principle, write an Orca app in any programming language that supports WebAssembly. However, at this early stage, C is the only officially supported language.
 
 ![Basic structure of a C app](images/app_c.png)
 
+For example, here's how we build the WebAssembly module for our Breakout example app:
+
+```
+ORCA_DIR=$(orca sdk-path)
+
+wasmFlags=(--target=wasm32 \
+  -mbulk-memory \
+  -g -O2 \
+  -D__ORCA__ \
+  -Wl,--no-entry \
+  -Wl,--export-dynamic \
+  --sysroot "$ORCA_DIR"/orca-libc \
+  -I "$ORCA_DIR"/src \
+  -I "$ORCA_DIR"/src/ext)
+
+clang "${wasmFlags[@]}" -L "$ORCA_DIR"/bin -lorca_wasm -o module.wasm src/main.c
+
+```
+
 Once you have compiled your WebAssembly module, you can bundle this module into an executable using the `orca bundle` command. The application bundle can include images, fonts, or any other private data that the app needs in order to function. These files can be read or written from the app without asking the user for permission. The resulting Orca executables are therefore self-contained.
 
 ![Example Orca application bundle](images/app_bundle.png)
+
+For example here's how we bundle the breakout example app:
+
+```
+orca bundle --name Breakout --icon icon.png --resource-dir data module.wasm
+```
 
 ## Basic structure
 
@@ -69,26 +94,27 @@ ORCA_EXPORT void oc_on_init(void)
 
 ### Graphics surfaces
 
-The next line of `oc_on_init()` creates a _graphics surface_. A surface represents a destination you can draw into using a specific API. In this sample, we're going to use a canvas surface, which allows drawing with a 2D vector graphics API. Other samples use a GLES surface to draw with the OpenGL ES API.
+Orca apps can create several _graphics surfaces_. A surface represents a destination you can draw into using a specific API. In this sample, we're going to use the canvas API, which allows drawing with a 2D vector graphics API. Other samples use a GLES surface to draw with the OpenGL ES API.
 
-Before drawing into it, the surface must be selected as the current surface by calling `oc_surface_select()`. Once all drawing is done you can display the result by calling `oc_surface_present()`.
+We first create a _canvas renderer_. From that renderer we can then create a _graphics surface_ compatible for drawing 2D vector graphics.  
 
 ```c
 oc_surface surface = { 0 };
-oc_canvas canvas = { 0 };
+oc_canvas_renderer renderer = { 0 };
+oc_canvas_context context = { 0 };
 
 ORCA_EXPORT void oc_on_init(void)
 {
     // ...
-    surface = oc_surface_canvas();
-    canvas = oc_canvas_create();
+    renderer = oc_canvas_renderer_create();
+    surface = oc_canvas_surface_create(renderer);
     // ...
 }
 ```
 
 ### Canvas
 
-After creating the surface, we create a _canvas_. A canvas holds some context for drawing commands, like the current color or stroke width, as well as a command buffer that records all drawing commands. All canvas drawing functions use an implicit _current canvas_. You can select a canvas to be the current canvas by calling `oc_canvas_select()`, as seen at the begining of `oc_on_frame_refresh()`.
+After creating the surface, , we create a _canvas context_. A canvas holds some context for drawing commands, like the current color or stroke width, as well as a command buffer that records all drawing commands. All canvas drawing functions use an implicit _current canvas_. You can select a canvas to be the current canvas by calling `oc_canvas_select()`, as seen at the begining of `oc_on_frame_refresh()`.
 
 Canvas drawing functions like `oc_fill()` or `oc_stroke` merely add to the current canvas command buffer. You can later render those commands onto a canvas surface by calling `oc_render()`.
 
@@ -97,13 +123,12 @@ To summarize, the general structure of canvas drawing code is like the following
 ```c
 ORCA_EXPORT void oc_on_frame_refresh(void)
 {
-    oc_canvas_select(canvas); // make the canvas current
+    oc_canvas_context_select(context); // make the canvas current
 
     //... add commands to the canvas command buffer using drawing functions
 
-    oc_surface_select(surface);  // select the canvas surface
-    oc_render(canvas);           // render the canvas commands into it
-    oc_surface_present(surface); // display the result
+    oc_canvas_render(renderer, context, surface); // render the canvas commands into the surface
+    oc_canvas_present(renderer, surface); // display the surface
 }
 ```
 
