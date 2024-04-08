@@ -58,10 +58,11 @@ jobs:
         run: |
           if [${{ inputs.version }}]==[] (
             orcadev.bat install orca || exit 1
+            tar --format=ustar -cvzf orca-windows.tar.gz orca
           ) else (
             orcadev.bat install --version ${{ inputs.version }} orca || exit 1
+            tar --format=ustar -cvzf orca-windows.tar.gz orca
           )
-          tar --format=ustar -czf orca-windows.tar.gz orca
 
       - uses: actions/upload-artifact@v4
         with:
