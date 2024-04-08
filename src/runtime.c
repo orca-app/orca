@@ -993,6 +993,7 @@ i32 orca_runloop(void* user)
         }
 
         oc_canvas_render(app->canvasRenderer, app->debugOverlay.context, app->debugOverlay.surface);
+        oc_canvas_present(app->canvasRenderer, app->debugOverlay.surface);
 
         oc_scratch_end(scratch);
 
