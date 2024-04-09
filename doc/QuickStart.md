@@ -13,9 +13,12 @@ This is a short introduction to developing an application that can be run by the
 
 An Orca app is a WebAssembly module designed for the Orca runtime. Your app interacts with the Orca runtime via WebAssembly imports and exports. For example, you can import functions from the Orca runtime to get user input, and export functions to the Orca runtime to draw to the screen.
 
-Orca also ships with a core library, written in C, which facilitates interaction with the Orca runtime and provides features like UI. It also ships with a C standard library implementation designed to work on WebAssembly. These libraries should be linked to your app as part of producing your WebAssembly module.
-
 You can, in principle, write an Orca app in any programming language that supports WebAssembly. However, at this early stage, C is the only officially supported language.
+
+Orca also ships with a core library which facilitates interaction with the Orca runtime and provides features like UI. It also ships with a C standard library implementation designed to work on WebAssembly. These libraries should be linked to your app as part of producing your WebAssembly module. You can get the paths to these libraries by running `orca sdk-path`:
+
+- The Orca core library is located in `$(orca sdk-path)/bin`
+- The Orca lib C root is located in  `$(orca sdk-path)/orca-libc` 
 
 ![Basic structure of a C app](images/app_c.png)
 

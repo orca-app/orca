@@ -26,10 +26,10 @@ The Orca command-line tools must be installed to your system in order to use the
 ### Requirements
 
 - Windows 10 or later, or Mac 13 or later (Linux is not yet supported)
-- Clang (version 11.0 or newer)
+- Clang version 11.0 or newer
 	- **Windows users:** `clang` can be installed via the Visual Studio installer. Search for "C++ Clang Compiler".
 	- **Mac users:** Apple's built-in `clang` does not support WebAssembly. We recommend installing `clang` via [Homebrew](https://brew.sh/) with `brew install llvm`.
-- When targeting WebAssembly, `clang` relies on builtins found in `libclang_rt.builtins-wasm32`, but most distributions of `clang` don't ship with this file. If `clang` complains that it can't find this file you will need to download it from [https://github.com/WebAssembly/wasi-sdk/releases](https://github.com/WebAssembly/wasi-sdk/releases).
+- **Clang runtime builtins.** When targeting WebAssembly, `clang` relies on builtins found in `libclang_rt.builtins-wasm32`, but most distributions of `clang` don't ship with this file. To know where `clang` expects to find this file, you can run `clang --target=wasm32 -print-libgcc-file-name`. If this file doesn't exist you will need to download it from [https://github.com/WebAssembly/wasi-sdk/releases](https://github.com/WebAssembly/wasi-sdk/releases). 
 
 ### Installation Instructions
 
@@ -120,6 +120,10 @@ We currently use [wasm3](https://github.com/wasm3/wasm3) for our interpreter. We
 **I am getting errors saying that `orca` is not found.**
 
 Please ensure that you have installed Orca to your system per the installation instructions above. Please also ensure that the Orca install directory is on your PATH.
+
+**I am getting errors from wasm-ld saying libclang_rt.builtins-wasm32.a is not found.**
+
+Please ensure that you downloaded and installed `libclang_rt.builtins-wasm32.a` into clang's library directory as per the requirements instructions above.
 
 ## License
 
