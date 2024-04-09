@@ -8,7 +8,6 @@ ORCA_DIR=$(orca sdk-path)
 wasmFlags=(--target=wasm32 \
   -mbulk-memory \
   -g -O2 \
-  -D__ORCA__ \
   -Wl,--no-entry \
   -Wl,--export-dynamic \
   --sysroot "$ORCA_DIR"/orca-libc \

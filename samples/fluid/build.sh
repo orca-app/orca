@@ -10,7 +10,6 @@ python3 ../../scripts/embed_text_files.py --prefix=glsl_ --output src/glsl_shade
 wasmFlags=(--target=wasm32 \
   -mbulk-memory \
   -g -O2 \
-  -D__ORCA__ \
   -Wl,--no-entry \
   -Wl,--export-dynamic \
   --sysroot "$ORCA_DIR"/orca-libc \

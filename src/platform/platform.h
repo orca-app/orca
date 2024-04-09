@@ -34,12 +34,12 @@
 #if defined(_WIN64)
     #define OC_PLATFORM_WINDOWS 1
 #elif defined(_WIN32)
-	#error "Unsupported OS (32bit only version of Windows)"
+    #error "Unsupported OS (32bit only version of Windows)"
 #elif defined(__APPLE__) && defined(__MACH__)
     #define OC_PLATFORM_MACOS 1
 #elif defined(__gnu_linux__)
     #define PLATFORM_LINUX 1
-#elif defined(__ORCA__)
+#elif defined(__wasm__)
     #define OC_PLATFORM_ORCA 1
 #else
     #error "Can't identify platform"
@@ -69,7 +69,7 @@
         #define OC_ARCH_ARM32 1
     #elif defined(__aarch64__)
         #define OC_ARCH_ARM64 1
-    #elif defined(__ORCA__)
+    #elif defined(__wasm32__)
         #define OC_ARCH_WASM32 1
     #else
         #error "Can't identify architecture"

@@ -7,7 +7,6 @@ for /f %%i in ('orca sdk-path') do set ORCA_DIR=%%i
 set wasmFlags=--target=wasm32^
        -mbulk-memory ^
        -g -O2 ^
-       -D__ORCA__ ^
        -Wl,--no-entry ^
        -Wl,--export-dynamic ^
        --sysroot %ORCA_DIR%/orca-libc ^

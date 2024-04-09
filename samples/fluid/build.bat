@@ -24,7 +24,6 @@ if !ERRORLEVEL! neq 0 exit /b !ERRORLEVEL!
 set wasmFlags=--target=wasm32^
        -mbulk-memory ^
        -g -O2 ^
-       -D__ORCA__ ^
        -Wl,--no-entry ^
        -Wl,--export-dynamic ^
        --sysroot %ORCA_DIR%/orca-libc ^
