@@ -9,6 +9,8 @@
 
 This is a short introduction to developing an application that can be run by the Orca runtime. We'll present the basic structure of an Orca application, and walk through a simple example in C.
 
+Please make sure your system fulfills the requirements outlined in the [Readme](./Readme.md).
+
 ## What is an Orca app?
 
 An Orca app is a WebAssembly module designed for the Orca runtime. Your app interacts with the Orca runtime via WebAssembly imports and exports. For example, you can import functions from the Orca runtime to get user input, and export functions to the Orca runtime to draw to the screen.
