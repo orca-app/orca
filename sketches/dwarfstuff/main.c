@@ -4,6 +4,15 @@
 #include <stdbool.h>
 #include <assert.h>
 
+#include "util/memory.h"
+#include "util/strings.h"
+
+#define X_ENUM(name, code) name = code,
+#define X_NAME_CASE(name, code) \
+    case name:                  \
+        res = #name;            \
+        break;
+
 #define DW_TAG_LIST(X)                       \
     X(DW_TAG_array_type, 0x01)               \
     X(DW_TAG_class_type, 0x02)               \
@@ -76,34 +85,22 @@
     X(DW_TAG_lo_user, 0x4080)                \
     X(DW_TAG_hi_user, 0xffff)
 
-#define DW_TAG_ENUM(name, code) name = code,
-
 enum
 {
-    DW_TAG_LIST(DW_TAG_ENUM)
+    DW_TAG_LIST(X_ENUM)
 };
-
-#undef DW_TAG_ENUM
 
 const char* get_tag_string(uint32_t tag)
 {
     const char* res = 0;
-#define DW_TAG_NAME_SWITCH(name, code) \
-    case name:                         \
-        res = #name;                   \
-        break;
-
     switch(tag)
     {
-        DW_TAG_LIST(DW_TAG_NAME_SWITCH);
+        DW_TAG_LIST(X_NAME_CASE);
 
         default:
             res = "Unknown tag name";
             break;
     }
-
-#undef DW_TAG_NAME_SWITCH
-
     return res;
 }
 
@@ -236,15 +233,9 @@ enum
     X(DW_AT_lo_user, 0x2000)               \
     X(DW_AT_hi_user, 0x3fff)
 
-#define DW_ATTR_ENUM(name, code) name = code,
-#define DW_ATTR_CASE(name, code) \
-    case name:                   \
-        res = #name;             \
-        break;
-
 enum
 {
-    DW_ATTR_LIST(DW_ATTR_ENUM)
+    DW_ATTR_LIST(X_ENUM)
 };
 
 const char* get_attr_name_string(uint32_t name)
@@ -252,7 +243,7 @@ const char* get_attr_name_string(uint32_t name)
     const char* res = 0;
     switch(name)
     {
-        DW_ATTR_LIST(DW_ATTR_CASE);
+        DW_ATTR_LIST(X_NAME_CASE);
 
         default:
             res = "Unknown attribute name";
@@ -260,9 +251,6 @@ const char* get_attr_name_string(uint32_t name)
     }
     return (res);
 }
-
-#undef DW_ATTR_ENUM
-#undef DW_ATTR_CASE
 
 #define DW_FORM_LIST(X)             \
     X(DW_FORM_addr, 0x01)           \
@@ -309,32 +297,23 @@ const char* get_attr_name_string(uint32_t name)
     X(DW_FORM_addrx3, 0x2b)         \
     X(DW_FORM_addrx4, 0x2c)
 
-#define DW_FORM_ENUM(name, code) name = code,
-#define DW_FORM_CASE(name, code) \
-    case name:                   \
-        res = #name;             \
-        break;
-
 enum
 {
-    DW_FORM_LIST(DW_FORM_ENUM)
+    DW_FORM_LIST(X_ENUM)
 };
 
-const char* get_attr_form_string(uint32_t form)
+const char* get_form_string(uint32_t form)
 {
     const char* res = 0;
 
     switch(form)
     {
-        DW_FORM_LIST(DW_FORM_CASE);
+        DW_FORM_LIST(X_NAME_CASE);
         default:
             res = "Unknown form";
     }
     return res;
 }
-
-#undef DW_FORM_ENUM
-#undef DW_FORM_CASE
 
 #define DW_LNS_LIST(X)                 \
     X(DW_LNS_copy, 0x01)               \
@@ -357,19 +336,45 @@ const char* get_attr_form_string(uint32_t form)
     X(DW_LNE_lo_user, 0x80)           \
     X(DW_LNE_hi_user, 0xff)
 
-#define DW_LN_ENUM(name, code) name = code,
-
 enum
 {
-    DW_LNS_LIST(DW_LN_ENUM)
+    DW_LNS_LIST(X_ENUM)
 };
 
 enum
 {
-    DW_LNE_LIST(DW_LN_ENUM)
+    DW_LNE_LIST(X_ENUM)
 };
 
-#undef DW_LN_ENUM
+#define DW_LNCT_LIST(X)              \
+    X(DW_LNCT_path, 0x01)            \
+    X(DW_LNCT_directory_index, 0x02) \
+    X(DW_LNCT_timestamp, 0x03)       \
+    X(DW_LNCT_size, 0x04)            \
+    X(DW_LNCT_MD5, 0x05)             \
+    X(DW_LNCT_lo_user, 0x2000)       \
+    X(DW_LNCT_hi_user, 0x3fff)
+
+enum
+{
+    DW_LNCT_LIST(X_ENUM)
+};
+
+const char* get_line_header_entry_format_string(uint32_t format)
+{
+    const char* res = 0;
+
+    switch(format)
+    {
+        DW_LNCT_LIST(X_NAME_CASE);
+        default:
+            res = "Unknown line header entry format";
+    }
+    return res;
+}
+
+#undef X_ENUM
+#undef X_NAME_CASE
 
 const char* sectionIdentifierStrings[] = {
     "custom",
@@ -664,6 +669,16 @@ typedef struct line_machine
 
 } line_machine;
 
+typedef struct file_entry
+{
+    oc_str8 path;
+    u64 dirIndex;
+    u64 timestamp;
+    u64 size;
+    u16 md5;
+
+} file_entry;
+
 typedef struct line_program_header
 {
     uint64_t unitLength;
@@ -679,11 +694,296 @@ typedef struct line_program_header
     uint8_t opcodeBase;
     uint8_t standardOpcodeLength[12]; //TODO not always 12, should point to allocated array
 
-    //TODO: directory stuff...
+    u64 dirEntryCount;
+    file_entry* dirEntries;
+
+    u64 fileEntryCount;
+    file_entry* fileEntries;
 
 } line_program_header;
 
-int read_line_program_header(line_program_header* header, char* data, uint64_t fileSize, uint64_t offset)
+typedef struct file_entry_format_elt
+{
+    u64 content;
+    u64 form;
+} file_entry_format_elt;
+
+int read_file_entries(oc_arena* arena,
+                      u64* entryCount,
+                      file_entry** entries,
+                      dwarf_sections* sections,
+                      line_program_header* header,
+                      char* data,
+                      u64 fileSize,
+                      u64 offset)
+{
+    u64 start = offset;
+    u8 formatCount = 0;
+    offset += read_u8(&formatCount, data, fileSize, offset);
+
+    oc_arena_scope scratch = oc_scratch_begin_next(arena);
+
+    file_entry_format_elt* format = oc_arena_push_array(scratch.arena, file_entry_format_elt, formatCount);
+
+    for(int i = 0; i < formatCount; i++)
+    {
+        offset += read_leb128_u64(&format[i].content, data, fileSize, offset);
+        offset += read_leb128_u64(&format[i].form, data, fileSize, offset);
+    }
+
+    offset += read_leb128_u64(entryCount, data, fileSize, offset);
+
+    *entries = oc_arena_push_array(arena, file_entry, *entryCount);
+    memset((*entries), 0, (*entryCount) * sizeof(file_entry));
+
+    for(uint64_t entryIndex = 0; entryIndex < *entryCount; entryIndex++)
+    {
+        for(int fmtIndex = 0; fmtIndex < formatCount; fmtIndex++)
+        {
+            uint64_t content = format[fmtIndex].content;
+            uint64_t form = format[fmtIndex].form;
+            file_entry* entry = &((*entries)[entryIndex]);
+
+            switch(content)
+            {
+                case DW_LNCT_path:
+                {
+                    switch(form)
+                    {
+                        case DW_FORM_string:
+                        {
+                            uint64_t len = strnlen(data + offset, fileSize - offset);
+                            if(len == fileSize - offset)
+                            {
+                                printf("error: unterminated string in file entry");
+                                exit(-1);
+                            }
+                            entry->path = oc_str8_from_buffer(len, data + offset);
+                            offset += len + 1;
+                        }
+                        break;
+                        case DW_FORM_line_strp:
+                        case DW_FORM_strp:
+                        case DW_FORM_strp_sup:
+                        {
+                            uint64_t strp = 0;
+                            if(header->addressSize == 4)
+                            {
+                                uint32_t strp32 = 0;
+                                offset += read_u32(&strp32, data, fileSize, offset);
+                                strp = strp32;
+                            }
+                            else
+                            {
+                                offset += read_u64(&strp, data, fileSize, offset);
+                            }
+                            uint64_t section = 0;
+                            uint64_t sectionSize = 0;
+                            if(form == DW_FORM_line_strp)
+                            {
+                                section = sections->debug_line_str;
+                                sectionSize = sections->debug_line_str_size;
+                            }
+                            else if(form == DW_FORM_line_strp)
+                            {
+                                section = sections->debug_str;
+                                sectionSize = sections->debug_str_size;
+                            }
+                            else
+                            {
+                                //TODO: supplementary string section
+                                printf("error: unsupported supplementary string section\n");
+                                exit(-1);
+                            }
+
+                            if(strp < sectionSize)
+                            {
+                                char* ptr = data + sections->debug_line_str + strp;
+                                uint64_t maxLen = sections->debug_line_str + strp;
+                                uint64_t len = strnlen(ptr, maxLen);
+
+                                if(len == maxLen)
+                                {
+                                    printf("error: unterminated string in file entry");
+                                    exit(-1);
+                                }
+                                entry->path = oc_str8_from_buffer(len, ptr);
+                            }
+                            else
+                            {
+                                printf("error: invalid string offset in file entry\n");
+                                exit(-1);
+                            }
+                        }
+                        break;
+
+                        default:
+                            printf("unsupported form code for %s file entry format\n",
+                                   get_line_header_entry_format_string(content));
+                            exit(-1);
+                            break;
+                    }
+                }
+                break;
+                case DW_LNCT_directory_index:
+                {
+                    switch(form)
+                    {
+                        case DW_FORM_data1:
+                        {
+                            u8 index8 = 0;
+                            offset += read_u8(&index8, data, fileSize, offset);
+                            entry->dirIndex = index8;
+                        }
+                        break;
+                        case DW_FORM_data2:
+                        {
+                            u16 index16 = 0;
+                            offset += read_u16(&index16, data, fileSize, offset);
+                            entry->dirIndex = index16;
+                        }
+                        break;
+                        case DW_FORM_udata:
+                        {
+                            offset += read_leb128_u64(&entry->dirIndex, data, fileSize, offset);
+                        }
+                        break;
+
+                        default:
+                            printf("unsupported form code for %s file entry format\n",
+                                   get_line_header_entry_format_string(content));
+                            exit(-1);
+                            break;
+                    }
+                }
+                break;
+                case DW_LNCT_timestamp:
+                {
+                    switch(form)
+                    {
+                        case DW_FORM_data4:
+                        {
+                            u32 timestamp32 = 0;
+                            offset += read_u32(&timestamp32, data, fileSize, offset);
+                            entry->timestamp = timestamp32;
+                        }
+                        break;
+                        case DW_FORM_data8:
+                        {
+                            offset += read_u64(&entry->timestamp, data, fileSize, offset);
+                        }
+                        break;
+                        case DW_FORM_udata:
+                        {
+                            offset += read_leb128_u64(&entry->timestamp, data, fileSize, offset);
+                        }
+                        break;
+                        case DW_FORM_block:
+                        {
+                            //NOTE(martin): I don't know how to interpret the block, so just warn and skip it
+                            u64 len = 0;
+                            offset += read_leb128_u64(&len, data, fileSize, offset);
+                            printf("warning: unsupported form DW_FORM_block in %s file entry format\n",
+                                   get_line_header_entry_format_string(content));
+                            offset += len;
+                        }
+                        break;
+
+                        default:
+                            printf("unsupported form code for %s file entry format\n",
+                                   get_line_header_entry_format_string(content));
+                            exit(-1);
+                            break;
+                    }
+                }
+                break;
+                case DW_LNCT_size:
+                {
+                    switch(form)
+                    {
+                        case DW_FORM_data1:
+                        {
+                            u8 size8 = 0;
+                            offset += read_u8(&size8, data, fileSize, offset);
+                            entry->size = size8;
+                        }
+                        break;
+                        case DW_FORM_data2:
+                        {
+                            u16 size16 = 0;
+                            offset += read_u16(&size16, data, fileSize, offset);
+                            entry->size = size16;
+                        }
+                        break;
+                        case DW_FORM_data4:
+                        {
+                            u32 size32 = 0;
+                            offset += read_u32(&size32, data, fileSize, offset);
+                            entry->size = size32;
+                        }
+                        break;
+                        case DW_FORM_data8:
+                        {
+                            offset += read_u64(&entry->size, data, fileSize, offset);
+                        }
+                        break;
+                        case DW_FORM_udata:
+                        {
+                            offset += read_leb128_u64(&entry->size, data, fileSize, offset);
+                        }
+                        break;
+
+                        default:
+                            printf("unsupported form code for %s file entry format\n",
+                                   get_line_header_entry_format_string(content));
+                            exit(-1);
+                            break;
+                    }
+                }
+                break;
+                case DW_LNCT_MD5:
+                {
+                    if(form != DW_FORM_data16)
+                    {
+                        printf("unsupported form code for %s file entry format\n",
+                               get_line_header_entry_format_string(content));
+                        exit(-1);
+                    }
+                    offset += read_u16(&entry->md5, data, fileSize, offset);
+                }
+                break;
+                case DW_LNCT_lo_user:
+                {
+                }
+                break;
+                case DW_LNCT_hi_user:
+                {
+                }
+                break;
+
+                default:
+                {
+                    if(content >= DW_LNCT_lo_user && content <= DW_LNCT_hi_user)
+                    {
+                        printf("error: unsupported vendor-defined content description\n");
+                        //TODO: just skip
+                        exit(-1);
+                    }
+                    else
+                    {
+                        printf("error: unrecognized directory entry content description\n");
+                        exit(-1);
+                    }
+                }
+                break;
+            }
+        }
+    }
+    oc_scratch_end(scratch);
+    return (offset - start);
+}
+
+int read_line_program_header(oc_arena* arena, line_program_header* header, dwarf_sections* sections, char* data, uint64_t fileSize, uint64_t offset)
 {
     uint64_t start = offset;
 
@@ -731,7 +1031,13 @@ int read_line_program_header(line_program_header* header, char* data, uint64_t f
         offset += read_u8(&header->standardOpcodeLength[i], data, fileSize, offset);
     }
 
-    //NOTE: skip through directory stuff for now
+    // directories
+    offset += read_file_entries(arena, &header->dirEntryCount, &header->dirEntries, sections, header, data, fileSize, offset);
+
+    // files
+    offset += read_file_entries(arena, &header->fileEntryCount, &header->fileEntries, sections, header, data, fileSize, offset);
+
+    //NOTE: return offset from start to beginning of line program code
     return (headerLengthBase + header->headerLength - start);
 }
 
@@ -745,7 +1051,8 @@ void line_machine_reset(line_machine* m, bool defaultIsStmt)
 
 void print_line_table_header()
 {
-    printf("|   address  | line | col  | file | stmt | block | end | prolog | epilog |\n");
+    printf("|   address  | line |  col | file | stmt | block | end | prolog | epilog |\n"
+           "|------------------------------------------------------------------------|\n");
 }
 
 void line_machine_emit_row(line_machine* m)
@@ -924,7 +1231,7 @@ int main(int argc, char** argv)
 
             if(attrName != 0 && attrForm != 0)
             {
-                printf("  %s %s\n", get_attr_name_string(attrName), get_attr_form_string(attrForm));
+                printf("  %s %s\n", get_attr_name_string(attrName), get_form_string(attrForm));
             }
         }
         while((attrName != 0 || attrForm != 0)
@@ -935,12 +1242,13 @@ int main(int argc, char** argv)
 
     printf("\ndump line table:\n\n");
 
-    print_line_table_header();
+    oc_arena arena = { 0 };
+    oc_arena_init(&arena);
 
     offset = dwarfSections.debug_line;
 
     line_program_header header = { 0 };
-    offset += read_line_program_header(&header, data, fileSize, offset);
+    offset += read_line_program_header(&arena, &header, &dwarfSections, data, fileSize, offset);
 
     uint64_t unitLineInfoEnd = dwarfSections.debug_line + header.addressSize + header.unitLength;
     if(unitLineInfoEnd >= dwarfSections.debug_line + dwarfSections.debug_line_size)
@@ -960,8 +1268,34 @@ int main(int argc, char** argv)
         exit(-1);
     }
 
+    //debug
+    printf("directories:\n");
+    for(int i = 0; i < header.dirEntryCount; i++)
+    {
+        printf("[%i] %.*s\n", i, oc_str8_ip(header.dirEntries[i].path));
+    }
+
+    printf("\nfiles:\n");
+    for(int i = 0; i < header.fileEntryCount; i++)
+    {
+        file_entry* entry = &(header.fileEntries[i]);
+        printf("[%i] %.*s\n"
+               "    dirIndex: %llu\n"
+               "    timestamp: %llu\n"
+               "    size: %llu\n"
+               "    md5: 0x%04x\n",
+               i, oc_str8_ip(entry->path),
+               entry->dirIndex,
+               entry->timestamp,
+               entry->size,
+               entry->md5);
+    }
+
+    printf("\n");
     line_machine machine;
     line_machine_reset(&machine, header.defaultIsStmt);
+
+    print_line_table_header();
 
     while(offset < unitLineInfoEnd)
     {
