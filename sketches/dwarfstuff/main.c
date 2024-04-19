@@ -1134,52 +1134,52 @@ int main(int argc, char** argv)
             size_t contentStart = offset;
 
             unsigned int nameSize = 0;
-
-            offset += read_leb128_u32(&nameSize, data, fileSize, offset);
-
-            //TODO: error if sectionSize < nameSize
-
-            //TODO: alloc in temp arena
             char* name = 0;
 
+            //TODO: error if sectionSize < nameSize
+            //TODO: alloc in temp arena
+
+            offset += read_leb128_u32(&nameSize, data, fileSize, offset);
             offset += read_str8(&name, nameSize, data, fileSize, offset);
 
             printf("%.*s\n", nameSize, name);
 
+            u64 dwarfSectionSize = sectionSize - (offset - contentStart);
+
             if(!strncmp(".debug_abbrev", name, nameSize))
             {
                 dwarfSections.debug_abbrev = offset;
-                dwarfSections.debug_abbrev_size = sectionSize - nameSize;
+                dwarfSections.debug_abbrev_size = dwarfSectionSize;
             }
             else if(!strncmp(".debug_info", name, nameSize))
             {
                 dwarfSections.debug_info = offset;
-                dwarfSections.debug_info_size = sectionSize - nameSize;
+                dwarfSections.debug_info_size = dwarfSectionSize;
             }
             else if(!strncmp(".debug_str_offsets", name, nameSize))
             {
                 dwarfSections.debug_str_offsets = offset;
-                dwarfSections.debug_str_offsets_size = sectionSize - nameSize;
+                dwarfSections.debug_str_offsets_size = dwarfSectionSize;
             }
             else if(!strncmp(".debug_str", name, nameSize))
             {
                 dwarfSections.debug_str = offset;
-                dwarfSections.debug_str_offsets_size = sectionSize - nameSize;
+                dwarfSections.debug_str_offsets_size = dwarfSectionSize;
             }
             else if(!strncmp(".debug_addr", name, nameSize))
             {
                 dwarfSections.debug_addr = offset;
-                dwarfSections.debug_addr_size = sectionSize - nameSize;
+                dwarfSections.debug_addr_size = dwarfSectionSize;
             }
             else if(!strncmp(".debug_line", name, nameSize))
             {
                 dwarfSections.debug_line = offset;
-                dwarfSections.debug_line_size = sectionSize - nameSize;
+                dwarfSections.debug_line_size = dwarfSectionSize;
             }
             else if(!strncmp(".debug_line_str", name, nameSize))
             {
                 dwarfSections.debug_line_str = offset;
-                dwarfSections.debug_line_str_size = sectionSize - nameSize;
+                dwarfSections.debug_line_str_size = dwarfSectionSize;
             }
 
             offset = contentStart + sectionSize;
@@ -1247,230 +1247,235 @@ int main(int argc, char** argv)
 
     offset = dwarfSections.debug_line;
 
-    line_program_header header = { 0 };
-    offset += read_line_program_header(&arena, &header, &dwarfSections, data, fileSize, offset);
-
-    uint64_t unitLineInfoEnd = dwarfSections.debug_line + header.addressSize + header.unitLength;
-    if(unitLineInfoEnd >= dwarfSections.debug_line + dwarfSections.debug_line_size)
+    while(offset - dwarfSections.debug_line < dwarfSections.debug_line_size)
     {
-        printf("error: inconsistent size information in line program header\n");
-        exit(-1);
-    }
+        u64 unitStart = offset;
+        line_program_header header = { 0 };
+        offset += read_line_program_header(&arena, &header, &dwarfSections, data, fileSize, offset);
 
-    if(header.version != 5)
-    {
-        printf("error: DWARF version %i not supported\n", header.version);
-        exit(-1);
-    }
-    if(header.addressSize != 4 && header.addressSize != 8)
-    {
-        printf("error: address size should be 4 or 8\n");
-        exit(-1);
-    }
+        uint64_t unitLineInfoEnd = unitStart + header.addressSize + header.unitLength;
 
-    //debug
-    printf("directories:\n");
-    for(int i = 0; i < header.dirEntryCount; i++)
-    {
-        printf("[%i] %.*s\n", i, oc_str8_ip(header.dirEntries[i].path));
-    }
-
-    printf("\nfiles:\n");
-    for(int i = 0; i < header.fileEntryCount; i++)
-    {
-        file_entry* entry = &(header.fileEntries[i]);
-        printf("[%i] %.*s\n"
-               "    dirIndex: %llu\n"
-               "    timestamp: %llu\n"
-               "    size: %llu\n"
-               "    md5: 0x%04x\n",
-               i, oc_str8_ip(entry->path),
-               entry->dirIndex,
-               entry->timestamp,
-               entry->size,
-               entry->md5);
-    }
-
-    printf("\n");
-    line_machine machine;
-    line_machine_reset(&machine, header.defaultIsStmt);
-
-    print_line_table_header();
-
-    while(offset < unitLineInfoEnd)
-    {
-        uint8_t opcode;
-        offset += read_u8(&opcode, data, fileSize, offset);
-
-        if(opcode >= header.opcodeBase)
+        if(unitLineInfoEnd > dwarfSections.debug_line + dwarfSections.debug_line_size)
         {
-            // special opcode
-            opcode -= header.opcodeBase;
-            uint64_t opAdvance = opcode / header.lineRange;
-
-            machine.line += header.lineBase + (opcode % header.lineRange);
-            machine.address += header.minInstructionLength * ((machine.opIndex + opAdvance) / header.maxOperationsPerInstruction);
-            machine.opIndex = (machine.opIndex + opAdvance) % header.maxOperationsPerInstruction;
-
-            line_machine_emit_row(&machine);
-
-            machine.basicBlock = false;
-            machine.prologueEnd = false;
-            machine.epilogueBegin = false;
-            machine.discriminator = 0;
+            printf("error: inconsistent size information in line program header\n");
+            exit(-1);
         }
-        else if(opcode == 0)
+
+        if(header.version != 5)
         {
-            // extended opcode
-            uint32_t opcodeSize = 0;
-            offset += read_leb128_u32(&opcodeSize, data, fileSize, offset);
+            printf("error: DWARF version %i not supported\n", header.version);
+            exit(-1);
+        }
+        if(header.addressSize != 4 && header.addressSize != 8)
+        {
+            printf("error: address size should be 4 or 8\n");
+            exit(-1);
+        }
+
+        //debug
+        printf("directories:\n");
+        for(int i = 0; i < header.dirEntryCount; i++)
+        {
+            printf("[%i] %.*s\n", i, oc_str8_ip(header.dirEntries[i].path));
+        }
+
+        printf("\nfiles:\n");
+        for(int i = 0; i < header.fileEntryCount; i++)
+        {
+            file_entry* entry = &(header.fileEntries[i]);
+            printf("[%i] %.*s\n"
+                   "    dirIndex: %llu\n"
+                   "    timestamp: %llu\n"
+                   "    size: %llu\n"
+                   "    md5: 0x%04x\n",
+                   i, oc_str8_ip(entry->path),
+                   entry->dirIndex,
+                   entry->timestamp,
+                   entry->size,
+                   entry->md5);
+        }
+
+        printf("\n");
+        line_machine machine;
+        line_machine_reset(&machine, header.defaultIsStmt);
+
+        print_line_table_header();
+
+        while(offset < unitLineInfoEnd)
+        {
+            uint8_t opcode;
             offset += read_u8(&opcode, data, fileSize, offset);
 
-            switch(opcode)
+            if(opcode >= header.opcodeBase)
             {
-                case DW_LNE_end_sequence:
-                {
-                    machine.endSequence = true;
-                    line_machine_emit_row(&machine);
-                    line_machine_reset(&machine, header.defaultIsStmt);
-                }
-                break;
-                case DW_LNE_set_address:
-                {
-                    uint64_t address = 0;
-                    if(header.addressSize == 4)
-                    {
-                        uint32_t address32 = 0;
-                        offset += read_u32(&address32, data, fileSize, offset);
-                        address = address32;
-                    }
-                    else if(header.addressSize == 8)
-                    {
-                        offset += read_u64(&address, data, fileSize, offset);
-                    }
-                    else
-                    {
-                        assert(0);
-                    }
-                    machine.address = address;
-                    machine.opIndex = 0;
-                }
-                break;
-                case DW_LNE_set_discriminator:
-                {
-                    uint64_t disc = 0;
-                    offset += read_leb128_u64(&disc, data, fileSize, offset);
-                    machine.discriminator = disc;
-                }
-                break;
+                // special opcode
+                opcode -= header.opcodeBase;
+                uint64_t opAdvance = opcode / header.lineRange;
 
-                default:
+                machine.line += header.lineBase + (opcode % header.lineRange);
+                machine.address += header.minInstructionLength * ((machine.opIndex + opAdvance) / header.maxOperationsPerInstruction);
+                machine.opIndex = (machine.opIndex + opAdvance) % header.maxOperationsPerInstruction;
+
+                line_machine_emit_row(&machine);
+
+                machine.basicBlock = false;
+                machine.prologueEnd = false;
+                machine.epilogueBegin = false;
+                machine.discriminator = 0;
+            }
+            else if(opcode == 0)
+            {
+                // extended opcode
+                uint32_t opcodeSize = 0;
+                offset += read_leb128_u32(&opcodeSize, data, fileSize, offset);
+                offset += read_u8(&opcode, data, fileSize, offset);
+
+                switch(opcode)
                 {
-                    if(opcode >= DW_LNE_lo_user && opcode <= DW_LNE_hi_user)
+                    case DW_LNE_end_sequence:
                     {
-                        printf("error: unsupported user opcode\n");
-                        exit(-1);
+                        machine.endSequence = true;
+                        line_machine_emit_row(&machine);
+                        line_machine_reset(&machine, header.defaultIsStmt);
                     }
-                    else
+                    break;
+                    case DW_LNE_set_address:
                     {
+                        uint64_t address = 0;
+                        if(header.addressSize == 4)
+                        {
+                            uint32_t address32 = 0;
+                            offset += read_u32(&address32, data, fileSize, offset);
+                            address = address32;
+                        }
+                        else if(header.addressSize == 8)
+                        {
+                            offset += read_u64(&address, data, fileSize, offset);
+                        }
+                        else
+                        {
+                            assert(0);
+                        }
+                        machine.address = address;
+                        machine.opIndex = 0;
+                    }
+                    break;
+                    case DW_LNE_set_discriminator:
+                    {
+                        uint64_t disc = 0;
+                        offset += read_leb128_u64(&disc, data, fileSize, offset);
+                        machine.discriminator = disc;
+                    }
+                    break;
+
+                    default:
+                    {
+                        if(opcode >= DW_LNE_lo_user && opcode <= DW_LNE_hi_user)
+                        {
+                            printf("error: unsupported user opcode\n");
+                            exit(-1);
+                        }
+                        else
+                        {
+                            printf("error: unrecognized line program opcode\n");
+                            exit(-1);
+                        }
+                    }
+                    break;
+                }
+            }
+            else
+            {
+                // standard opcode
+                switch(opcode)
+                {
+                    case DW_LNS_copy:
+                    {
+                        line_machine_emit_row(&machine);
+                        machine.discriminator = 0;
+                        machine.basicBlock = false;
+                        machine.prologueEnd = false;
+                        machine.epilogueBegin = false;
+                    }
+                    break;
+                    case DW_LNS_advance_pc:
+                    {
+                        uint64_t opAdvance = 0;
+                        offset += read_leb128_u64(&opAdvance, data, fileSize, offset);
+                        machine.address += header.minInstructionLength * ((machine.opIndex + opAdvance) / header.maxOperationsPerInstruction);
+                        machine.opIndex = (machine.opIndex + opAdvance) % header.maxOperationsPerInstruction;
+                    }
+                    break;
+                    case DW_LNS_advance_line:
+                    {
+                        int64_t lineAdvance = 0;
+                        offset += read_leb128_u64((uint64_t*)&lineAdvance, data, fileSize, offset);
+                        machine.line += lineAdvance;
+                    }
+                    break;
+                    case DW_LNS_set_file:
+                    {
+                        uint64_t file = 0;
+                        offset += read_leb128_u64(&file, data, fileSize, offset);
+                        machine.file = file;
+                    }
+                    break;
+                    case DW_LNS_set_column:
+                    {
+                        uint64_t column = 0;
+                        offset += read_leb128_u64(&column, data, fileSize, offset);
+                        machine.column = column;
+                    }
+                    break;
+                    case DW_LNS_negate_stmt:
+                    {
+                        machine.isStmt = !machine.isStmt;
+                    }
+                    break;
+                    case DW_LNS_set_basic_block:
+                    {
+                        machine.basicBlock = true;
+                    }
+                    break;
+                    case DW_LNS_const_add_pc:
+                    {
+                        // advance line and opIndex by same increments as special opcode 255
+                        opcode = 255 - header.opcodeBase;
+                        uint64_t opAdvance = opcode / header.lineRange;
+
+                        machine.address += header.minInstructionLength * ((machine.opIndex + opAdvance) / header.maxOperationsPerInstruction);
+                        machine.opIndex = (machine.opIndex + opAdvance) % header.maxOperationsPerInstruction;
+                    }
+                    break;
+                    case DW_LNS_fixed_advance_pc:
+                    {
+                        uint16_t inc = 0;
+                        offset += read_u16(&inc, data, fileSize, offset);
+                        machine.address += inc;
+                        machine.opIndex = 0;
+                    }
+                    break;
+                    case DW_LNS_set_prologue_end:
+                    {
+                        machine.prologueEnd = true;
+                    }
+                    break;
+                    case DW_LNS_set_epilogue_begin:
+                    {
+                        machine.epilogueBegin = true;
+                    }
+                    break;
+                    case DW_LNS_set_isa:
+                    {
+                        uint64_t isa = 0;
+                        offset += read_leb128_u64(&isa, data, fileSize, offset);
+                        machine.isa = isa;
+                    }
+                    break;
                         printf("error: unrecognized line program opcode\n");
                         exit(-1);
-                    }
+                        break;
                 }
-                break;
-            }
-        }
-        else
-        {
-            // standard opcode
-            switch(opcode)
-            {
-                case DW_LNS_copy:
-                {
-                    line_machine_emit_row(&machine);
-                    machine.discriminator = 0;
-                    machine.basicBlock = false;
-                    machine.prologueEnd = false;
-                    machine.epilogueBegin = false;
-                }
-                break;
-                case DW_LNS_advance_pc:
-                {
-                    uint64_t opAdvance = 0;
-                    offset += read_leb128_u64(&opAdvance, data, fileSize, offset);
-                    machine.address += header.minInstructionLength * ((machine.opIndex + opAdvance) / header.maxOperationsPerInstruction);
-                    machine.opIndex = (machine.opIndex + opAdvance) % header.maxOperationsPerInstruction;
-                }
-                break;
-                case DW_LNS_advance_line:
-                {
-                    int64_t lineAdvance = 0;
-                    offset += read_leb128_u64((uint64_t*)&lineAdvance, data, fileSize, offset);
-                    machine.line += lineAdvance;
-                }
-                break;
-                case DW_LNS_set_file:
-                {
-                    uint64_t file = 0;
-                    offset += read_leb128_u64(&file, data, fileSize, offset);
-                    machine.file = file;
-                }
-                break;
-                case DW_LNS_set_column:
-                {
-                    uint64_t column = 0;
-                    offset += read_leb128_u64(&column, data, fileSize, offset);
-                    machine.column = column;
-                }
-                break;
-                case DW_LNS_negate_stmt:
-                {
-                    machine.isStmt = !machine.isStmt;
-                }
-                break;
-                case DW_LNS_set_basic_block:
-                {
-                    machine.basicBlock = true;
-                }
-                break;
-                case DW_LNS_const_add_pc:
-                {
-                    // advance line and opIndex by same increments as special opcode 255
-                    opcode = 255 - header.opcodeBase;
-                    uint64_t opAdvance = opcode / header.lineRange;
-
-                    machine.address += header.minInstructionLength * ((machine.opIndex + opAdvance) / header.maxOperationsPerInstruction);
-                    machine.opIndex = (machine.opIndex + opAdvance) % header.maxOperationsPerInstruction;
-                }
-                break;
-                case DW_LNS_fixed_advance_pc:
-                {
-                    uint16_t inc = 0;
-                    offset += read_u16(&inc, data, fileSize, offset);
-                    machine.address += inc;
-                    machine.opIndex = 0;
-                }
-                break;
-                case DW_LNS_set_prologue_end:
-                {
-                    machine.prologueEnd = true;
-                }
-                break;
-                case DW_LNS_set_epilogue_begin:
-                {
-                    machine.epilogueBegin = true;
-                }
-                break;
-                case DW_LNS_set_isa:
-                {
-                    uint64_t isa = 0;
-                    offset += read_leb128_u64(&isa, data, fileSize, offset);
-                    machine.isa = isa;
-                }
-                break;
-                    printf("error: unrecognized line program opcode\n");
-                    exit(-1);
-                    break;
             }
         }
     }
