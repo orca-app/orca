@@ -708,6 +708,35 @@ typedef struct file_entry_format_elt
     u64 form;
 } file_entry_format_elt;
 
+typedef u32 line_entry_flags;
+
+enum line_entry_flags
+{
+    LINE_ENTRY_NONE = 0,
+    LINE_ENTRY_IS_STMT = 1 << 0,
+    LINE_ENTRY_BASIC_BLOCK = 1 << 1,
+    LINE_ENTRY_PROLOGUE_END = 1 << 2,
+    LINE_ENTRY_EPILOGUE_BEGIN = 1 << 3,
+};
+
+typedef struct line_entry
+{
+    u64 address;
+    file_entry* fileEntry;
+    u64 line;
+    u64 column;
+    u64 discriminator;
+    line_entry_flags flags;
+} line_entry;
+
+typedef struct line_table
+{
+    //TODO: separate translation units / ranges ?
+
+    u64 entryCount;
+    line_entry* entries;
+} line_table;
+
 int read_file_entries(oc_arena* arena,
                       u64* entryCount,
                       file_entry** entries,
