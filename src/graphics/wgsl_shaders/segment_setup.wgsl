@@ -728,7 +728,7 @@ fn cubic_emit(curve : cubic_info, p : array<vec2f, 4>, s0 : f32, s1 : f32, sp : 
         var v2 : vec2f;
         var K : mat3x3f;
 
-        //TODO: haul that up in caller
+        //TODO: haul that up in caller, we don't need to compute K for all monotonic segments
         let sqrNorm0 : f32 = dot(p[1] - p[0], p[1] - p[0]);
         let sqrNorm1 : f32 = dot(p[2] - p[3], p[2] - p[3]);
 

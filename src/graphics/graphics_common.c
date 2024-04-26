@@ -965,6 +965,7 @@ oc_canvas_context oc_canvas_context_create()
         context->clipStackSize = 0;
         context->primitiveCount = 0;
         context->clearColor = (oc_color){ 0, 0, 0, 0 };
+        context->msaaSampleCount = 8;
 
         context->attributes = (oc_attributes){ 0 };
         context->attributes.hasGradient = false;

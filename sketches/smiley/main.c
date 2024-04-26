@@ -58,20 +58,26 @@ int main()
 
     oc_rect contentRect = oc_window_get_content_rect(window);
 
-    //NOTE: create surface
-    oc_surface surface = oc_surface_create_for_window(window, OC_CANVAS);
+    //NOTE: create renderer, surface, and context
+
+    oc_canvas_renderer renderer = oc_canvas_renderer_create();
+    if(oc_canvas_renderer_is_nil(renderer))
+    {
+        oc_log_error("Error: couldn't create renderer\n");
+        return (-1);
+    }
+
+    oc_surface surface = oc_canvas_surface_create_for_window(renderer, window);
     if(oc_surface_is_nil(surface))
     {
         oc_log_error("Error: couldn't create surface\n");
         return (-1);
     }
-    oc_surface_swap_interval(surface, 0);
 
-    oc_canvas canvas = oc_canvas_create();
-
-    if(oc_canvas_is_nil(canvas))
+    oc_canvas_context context = oc_canvas_context_create();
+    if(oc_canvas_context_is_nil(context))
     {
-        printf("Error: couldn't create canvas\n");
+        oc_log_error("Error: couldn't create canvas\n");
         return (-1);
     }
 
@@ -109,19 +115,19 @@ int main()
                     {
                         f32 factor = (event->key.mods & OC_KEYMOD_SHIFT) ? 10 : 1;
 
-                        if(event->key.code == OC_KEY_LEFT)
+                        if(event->key.keyCode == OC_KEY_LEFT)
                         {
                             x -= 0.3 * factor;
                         }
-                        else if(event->key.code == OC_KEY_RIGHT)
+                        else if(event->key.keyCode == OC_KEY_RIGHT)
                         {
                             x += 0.3 * factor;
                         }
-                        else if(event->key.code == OC_KEY_UP)
+                        else if(event->key.keyCode == OC_KEY_UP)
                         {
                             y -= 0.3 * factor;
                         }
-                        else if(event->key.code == OC_KEY_DOWN)
+                        else if(event->key.keyCode == OC_KEY_DOWN)
                         {
                             y += 0.3 * factor;
                         }
@@ -199,17 +205,16 @@ int main()
                     frameTime,
                     1. / frameTime);
 
-        oc_surface_select(surface);
-        oc_render(canvas);
-        oc_surface_present(surface);
+        oc_canvas_render(renderer, context, surface);
+        oc_canvas_present(renderer, surface);
 
         oc_scratch_end(scratch);
         frameTime = oc_clock_time(OC_CLOCK_MONOTONIC) - startTime;
     }
 
-    oc_font_destroy(font);
-    oc_canvas_destroy(canvas);
+    oc_canvas_context_destroy(context);
     oc_surface_destroy(surface);
+    oc_canvas_renderer_destroy(renderer);
     oc_window_destroy(window);
 
     oc_terminate();
