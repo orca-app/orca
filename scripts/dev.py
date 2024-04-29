@@ -131,8 +131,11 @@ def check_dawn():
                     if artifact in sums:
                         if os.path.isfile(artifact):
                             s = checksum.filesum(artifact)
-                            if sums[artifact]['commit'] != DAWN_COMMIT or s != sums[artifact]['sum']:
-                                messages.append(f"build/dawn.out/{artifact} doesn't match checksum")
+                            if sums[artifact]['commit'] != DAWN_COMMIT:
+                                messages.append(f"build/dawn.out/{artifact} doesn't match dawn commit.\n  note: expected {DAWN_COMMIT}, got {sums[artifact]['commit']}")
+                                up_to_date = False
+                            elif s != sums[artifact]['sum']:
+                                messages.append(f"build/dawn.out/{artifact} doesn't match checksum.\n  note: expected {sums[artifact]['sum']}, got {s}")
                                 up_to_date = False
                         else:
                             messages.append(f"build/dawn.out/{artifact} not found")
@@ -346,12 +349,12 @@ def check_angle():
                     messages = ["malformed build/angle.out/angle.json"]
                     up_to_date = False
                 elif sums['commit'] != ANGLE_COMMIT:
-                    messages.append("build/angle.out doesn't match the required commit")
+                    messages.append(f"build/angle.out doesn't match the required angle commit.\n  note: expected {ANGLE_COMMIT}, got {sums['commit']}")
                     up_to_date = False
                 else:
-                    s = checksum.dirsum('.', excluded_files=["angle.json"])
+                    s = checksum.dirsum('.', excluded_files=["angle.json", ".DS_Store"])
                     if s != sums['sum']:
-                        messages.append("build/angle.out doesn't match checksum")
+                        messages.append(f"build/angle.out doesn't match checksum.\n  note: expected {sums['sum']}, got {s}")
                         up_to_date = False
     else:
         messages = [["build/angle.out/angle.json not found"]]
