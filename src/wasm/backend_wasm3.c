@@ -8,14 +8,9 @@
 
 #include "wasm.h"
 
-#if OC_WASM_BACKEND_WASM3
-
-// clang-format off
 #include "m3_compile.h"
 #include "m3_env.h"
 #include "wasm3.h"
-
-// clang-format on
 
 typedef struct oc_wasm_binding_wasm3
 {
@@ -431,10 +426,7 @@ oc_wasm_status oc_wasm_function_call(oc_wasm* wasm, oc_wasm_function_handle* han
     IM3Function m3Func = (IM3Function)handle;
 
     const void* valuePtrs[128];
-    if(oc_array_size(valuePtrs) < countParams)
-    {
-        OC_ASSERT("Need more static storage for params");
-    }
+    OC_ASSERT(countParams < oc_array_size(valuePtrs), "Need more static storage for params");
 
     for(size_t i = 0; i < countParams; ++i)
     {
@@ -449,10 +441,7 @@ oc_wasm_status oc_wasm_function_call(oc_wasm* wasm, oc_wasm_function_handle* han
 
     if(countReturns > 0)
     {
-        if(oc_array_size(valuePtrs) < countReturns)
-        {
-            OC_ASSERT("Need more static storage for returns");
-        }
+        OC_ASSERT(countReturns < oc_array_size(valuePtrs), "Need more static storage for returns");
 
         for(size_t i = 0; i < countReturns; ++i)
         {
@@ -538,5 +527,3 @@ oc_wasm* oc_wasm_create(void)
 
     return wasm;
 }
-
-#endif // OC_WASM_BACKEND_WASM3

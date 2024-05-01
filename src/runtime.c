@@ -22,7 +22,13 @@
 #include "runtime_memory.c"
 
 #include "wasm/wasm.c"
-#include "wasm/backend_wasm3.c"
+#if OC_WASM_BACKEND_WASM3
+    #include "wasm/backend_wasm3.c"
+#elif OC_WASM_BACKEND_BYTEBOX
+    #include "wasm/backend_bytebox.c"
+#else
+    #error "Unknown wasm backend"
+#endif
 
 static const char* s_test_wasm_module_path = NULL;
 
