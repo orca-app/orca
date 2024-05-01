@@ -112,14 +112,14 @@ ORCA_EXPORT void oc_on_frame_refresh(void)
 
         oc_vec2 pos = oc_mat2x3_mul(transform, (oc_vec2){ clockRadius * 0.8f, 0 });
 
-        oc_set_color_rgba(0.2, 0.2, 0.2, 1);
+        oc_set_color_srgba(0.2, 0.2, 0.2, 1);
         oc_text_fill(pos.x, pos.y, clockNumberStrings[i]);
     }
 
     // hours hand
     oc_matrix_multiply_push(mat_transform(centerX, centerY, hoursRotation));
     {
-        oc_set_color_rgba(.2, 0.2, 0.2, 1);
+        oc_set_color_srgba(.2, 0.2, 0.2, 1);
         oc_rounded_rectangle_fill(0, -7.5 * uiScale, clockRadius * 0.5f, 15 * uiScale, 5 * uiScale);
     }
     oc_matrix_pop();
@@ -127,7 +127,7 @@ ORCA_EXPORT void oc_on_frame_refresh(void)
     // minutes hand
     oc_matrix_multiply_push(mat_transform(centerX, centerY, minutesRotation));
     {
-        oc_set_color_rgba(.2, 0.2, 0.2, 1);
+        oc_set_color_srgba(.2, 0.2, 0.2, 1);
         oc_rounded_rectangle_fill(0, -5 * uiScale, clockRadius * 0.7f, 10 * uiScale, 5 * uiScale);
     }
     oc_matrix_pop();
@@ -135,12 +135,12 @@ ORCA_EXPORT void oc_on_frame_refresh(void)
     // seconds hand
     oc_matrix_multiply_push(mat_transform(centerX, centerY, secondsRotation));
     {
-        oc_set_color_rgba(1, 0.2, 0.2, 1);
+        oc_set_color_srgba(1, 0.2, 0.2, 1);
         oc_rounded_rectangle_fill(0, -2.5 * uiScale, clockRadius * 0.8f, 5 * uiScale, 5 * uiScale);
     }
     oc_matrix_pop();
 
-    oc_set_color_rgba(.2, 0.2, 0.2, 1);
+    oc_set_color_srgba(.2, 0.2, 0.2, 1);
     oc_circle_fill(centerX, centerY, 10 * uiScale);
 
     oc_canvas_render(renderer, context, surface);

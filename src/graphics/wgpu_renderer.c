@@ -3327,7 +3327,32 @@ void oc_wgpu_canvas_submit(oc_canvas_renderer_base* rendererBase,
             }
 
             //----------------------------------------------------------------------------------------
-            //NOTE: clear texture
+            //NOTE: clear out texture if this is the first batch
+            if(batchCount == 0)
+            {
+                //clear out texture
+                WGPURenderPassDescriptor desc = {
+                    .colorAttachmentCount = 1,
+                    .colorAttachments = (WGPURenderPassColorAttachment[]){
+                        {
+                            .view = renderer->outTextureView,
+                            .depthSlice = WGPU_DEPTH_SLICE_UNDEFINED,
+                            .loadOp = WGPULoadOp_Clear,
+                            .storeOp = WGPUStoreOp_Store,
+                            .clearValue = { 0, 0, 0, 0 },
+                        },
+                    },
+                };
+
+                WGPURenderPassEncoder pass = wgpuCommandEncoderBeginRenderPass(encoder, &desc);
+                {
+                    wgpuRenderPassEncoderSetViewport(pass, 0.f, 0.f, screenSize.x, screenSize.y, 0.f, 1.f);
+                }
+                wgpuRenderPassEncoderEnd(pass);
+            }
+
+            //----------------------------------------------------------------------------------------
+            //NOTE: clear batch texture
             {
                 WGPURenderPassDescriptor desc = {
                     .colorAttachmentCount = 1,
