@@ -567,9 +567,7 @@ def build_wasm3_lib_mac(release):
 
 def build_bytebox(release):
     print("Building bytebox...")
-    args = ["zig", "build"]
-    if release:
-        args += ["-Doptimize=ReleaseSafe"]
+    args = ["zig", "build", "-Doptimize=ReleaseFast"]
     subprocess.run(args, cwd="src/ext/bytebox/")
 
     if platform.system() == "Windows":
