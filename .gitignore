@@ -35,6 +35,8 @@ src/orca_surface.c
 src/graphics/orca_gl31.h
 *bind_gen.c
 *_stubs.c
+src/ext/bytebox/zig-cache
+src/ext/bytebox/zig-out
 
 .vscode/launch.json
 .vscode/settings.json

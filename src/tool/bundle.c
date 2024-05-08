@@ -142,19 +142,22 @@ int winBundle(
     TRY(oc_sys_mkdirs(wasmDir));
     TRY(oc_sys_mkdirs(dataDir));
 
-    oc_str8 sdk_dir = version.len > 0
-                        ? get_version_dir(a, version, true)
-                        : current_version_dir(a, true);
+    oc_str8 sdkDir = version.len > 0
+                       ? get_version_dir(a, version, true)
+                       : current_version_dir(a, true);
 
     //-----------------------------------------------------------
-    //NOTE: link runtime objects and application icon into exe
+    //NOTE: copy exe into directory and embed application icon
     //-----------------------------------------------------------
     {
+        oc_str8 exe_in = oc_path_append(a, sdkDir, OC_STR8("bin/orca_runtime.exe"));
+        oc_str8 exe_out = oc_path_append(a, exeDir, oc_str8_pushf(a, "%.*s.exe", oc_str8_ip(name)));
+        TRY(oc_sys_copy(exe_in, exe_out));
+
         oc_str8 temp_dir = oc_path_append(a, outDir, OC_STR8("temporary"));
-        oc_str8 res_path = { 0 };
         if(icon.len > 0)
         {
-            if (oc_sys_exists(icon))
+            if(oc_sys_exists(icon))
             {
                 if(oc_sys_exists(temp_dir))
                 {
@@ -167,14 +170,10 @@ int winBundle(
                     fprintf(stderr, "failed to create windows icon for \"%.*s\"\n", oc_str8_ip(icon));
                 }
 
-                res_path = oc_path_append(a, temp_dir, OC_STR8("icon.res"));
-                if(!resource_file_from_icon(a, ico_path, res_path))
+                if(!embed_icon_into_exe(a, exe_out, ico_path))
                 {
-                    fprintf(stderr, "failed to create windows resource file for \"%.*s\"\n", oc_str8_ip(ico_path));
-                    res_path.ptr = 0;
-                    res_path.len = 0;
+                    fprintf(stderr, "failed to embed icon into exe file %.*s", (int)exe_out.len, exe_out.ptr);
                 }
-
             }
             else
             {
@@ -182,26 +181,19 @@ int winBundle(
             }
         }
 
-        oc_str8 exe_out = oc_path_append(a, exeDir, oc_str8_pushf(a, "%.*s.exe", oc_str8_ip(name)));
-        oc_str8 libpath = oc_path_append(a, sdk_dir, OC_STR8("bin"));
-        oc_str8 cmd = oc_str8_pushf(a, "link.exe /nologo /LIBPATH:%s runtime.obj orca.dll.lib wasm3.lib %.*s /out:%s",
-                                    libpath.ptr, oc_str8_ip(res_path), exe_out.ptr);
-        i32 result = system(cmd.ptr);
-        oc_sys_rmdir(temp_dir);
-        if(result)
+        if(oc_sys_exists(temp_dir))
         {
-            fprintf(stderr, "failed to link application executable\n");
-            return result;
+            oc_sys_rmdir(temp_dir);
         }
     }
 
     //-----------------------------------------------------------
     //NOTE: copy orca libraries
     //-----------------------------------------------------------
-    oc_str8 orcaLib = oc_path_append(a, sdk_dir, OC_STR8("bin/orca.dll"));
-    oc_str8 glesLib = oc_path_append(a, sdk_dir, OC_STR8("bin/libGLESv2.dll"));
-    oc_str8 eglLib = oc_path_append(a, sdk_dir, OC_STR8("bin/libEGL.dll"));
-    oc_str8 wgpuLib = oc_path_append(a, sdk_dir, OC_STR8("bin/webgpu.dll"));
+    oc_str8 orcaLib = oc_path_append(a, sdkDir, OC_STR8("bin/orca.dll"));
+    oc_str8 glesLib = oc_path_append(a, sdkDir, OC_STR8("bin/libGLESv2.dll"));
+    oc_str8 eglLib = oc_path_append(a, sdkDir, OC_STR8("bin/libEGL.dll"));
+    oc_str8 wgpuLib = oc_path_append(a, sdkDir, OC_STR8("bin/webgpu.dll"));
 
     TRY(oc_sys_copy(orcaLib, exeDir));
     TRY(oc_sys_copy(glesLib, exeDir));
@@ -244,8 +236,8 @@ int winBundle(
     //-----------------------------------------------------------
     //NOTE: copy runtime resources
     //-----------------------------------------------------------
-    TRY(oc_sys_copy(oc_path_append(a, sdk_dir, OC_STR8("resources/Menlo.ttf")), resDir));
-    TRY(oc_sys_copy(oc_path_append(a, sdk_dir, OC_STR8("resources/Menlo Bold.ttf")), resDir));
+    TRY(oc_sys_copy(oc_path_append(a, sdkDir, OC_STR8("resources/Menlo.ttf")), resDir));
+    TRY(oc_sys_copy(oc_path_append(a, sdkDir, OC_STR8("resources/Menlo Bold.ttf")), resDir));
 
     return 0;
 }
@@ -291,17 +283,17 @@ int macBundle(
     TRY(oc_sys_mkdirs(wasmDir));
     TRY(oc_sys_mkdirs(dataDir));
 
-    oc_str8 sdk_dir = version.len > 0 ? get_version_dir(a, version, true)
-                                      : current_version_dir(a, true);
+    oc_str8 sdkDir = version.len > 0 ? get_version_dir(a, version, true)
+                                     : current_version_dir(a, true);
 
     //-----------------------------------------------------------
     //NOTE: copy orca runtime executable and libraries
     //-----------------------------------------------------------
-    oc_str8 orcaExe = oc_path_append(a, sdk_dir, OC_STR8("bin/orca_runtime"));
-    oc_str8 orcaLib = oc_path_append(a, sdk_dir, OC_STR8("bin/liborca.dylib"));
-    oc_str8 glesLib = oc_path_append(a, sdk_dir, OC_STR8("bin/libGLESv2.dylib"));
-    oc_str8 eglLib = oc_path_append(a, sdk_dir, OC_STR8("bin/libEGL.dylib"));
-    oc_str8 wgpu_lib = oc_path_append(a, sdk_dir, OC_STR8("bin/libwebgpu.dylib"));
+    oc_str8 orcaExe = oc_path_append(a, sdkDir, OC_STR8("bin/orca_runtime"));
+    oc_str8 orcaLib = oc_path_append(a, sdkDir, OC_STR8("bin/liborca.dylib"));
+    oc_str8 glesLib = oc_path_append(a, sdkDir, OC_STR8("bin/libGLESv2.dylib"));
+    oc_str8 eglLib = oc_path_append(a, sdkDir, OC_STR8("bin/libEGL.dylib"));
+    oc_str8 wgpu_lib = oc_path_append(a, sdkDir, OC_STR8("bin/libwebgpu.dylib"));
 
     TRY(oc_sys_copy(orcaExe, exeDir));
     TRY(oc_sys_copy(orcaLib, exeDir));
@@ -348,15 +340,15 @@ int macBundle(
     //-----------------------------------------------------------
     //NOTE: copy runtime resources
     //-----------------------------------------------------------
-    TRY(oc_sys_copy(oc_path_append(a, sdk_dir, OC_STR8("resources/Menlo.ttf")), resDir));
-    TRY(oc_sys_copy(oc_path_append(a, sdk_dir, OC_STR8("resources/Menlo Bold.ttf")), resDir));
+    TRY(oc_sys_copy(oc_path_append(a, sdkDir, OC_STR8("resources/Menlo.ttf")), resDir));
+    TRY(oc_sys_copy(oc_path_append(a, sdkDir, OC_STR8("resources/Menlo Bold.ttf")), resDir));
 
     //-----------------------------------------------------------
     //NOTE make icon
     //-----------------------------------------------------------
     if(icon.len)
     {
-        if (oc_sys_exists(icon))
+        if(oc_sys_exists(icon))
         {
             oc_str8 icon_dir = oc_path_slice_directory(icon);
             oc_str8 iconset = oc_path_append(a, icon_dir, OC_STR8("icon.iconset"));
