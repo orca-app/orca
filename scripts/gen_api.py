@@ -1,3 +1,4 @@
+import os
 import sys
 import subprocess
 import re
@@ -285,7 +286,61 @@ entries = dict()
 for proc in procs:
     generate_proc_entry(entries, proc, tu)
 
-dump = json.dumps(list(entries.values()), indent=2)
+
+# Load existing bindings
+oldEntries = dict()
+
+if os.path.exists("src/api.json"):
+    with open("src/api.json", "r") as f:
+        oldSpec = json.load(f)
+
+    for spec in oldSpec:
+        oldEntries[spec["name"]] = spec
+
+
+# for each generated bindings, check if we can instead pull the existing ones
+
+outSpec = []
+
+
+def check_entry_match(old, new):
+    for key in new.keys():
+        if key not in old:
+            return False
+        elif type(new[key]) != type(old[key]):
+            return False
+        elif isinstance(new[key], str):
+            if new[key] != old[key]:
+                return False
+        elif isinstance(new[key], list):
+            if len(new[key]) != len(old[key]):
+                return False
+            for oldIt, newIt in zip(old[key], new[key]):
+                if not check_entry_match(oldIt, newIt):
+                    return False
+        elif isinstance(new[key], dict):
+            if not check_entry_match(old[key], new[key]):
+                return False
+
+    return True
+
+for name, entry in entries.items():
+    if name in oldEntries:
+        oldEntry = oldEntries[name]
+        if check_entry_match(oldEntry, entry):
+            outSpec.append(oldEntry)
+        else:
+            print(f"entry {name} didn't match headers and was replaced by an up-to-date version.")
+            outSpec.append(entry)
+    else:
+        print(f"entry {name} was not found and was generated from the headers.")
+        outSpec.append(entry)
+
+removed = [name for name in oldEntries.keys() if name not in entries]
+for name in removed:
+    print(f"entry {name} was not used anymore and was removed.")
+
+dump = json.dumps(outSpec, indent=2)
 
 with open("src/api.json", "w") as f:
     print(dump, file=f)
