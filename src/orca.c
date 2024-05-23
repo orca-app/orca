@@ -57,6 +57,7 @@
 #include "util/algebra.c"
 #include "util/hash.c"
 #include "util/memory.c"
+#include "util/lists.c"
 #include "util/ringbuffer.c"
 #include "util/strings.c"
 #include "util/utf8.c"

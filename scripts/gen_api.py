@@ -83,7 +83,7 @@ def type_enum(entries, decl, tu):
     }
     return t
 
-def type_proc(entries, decl, procType, tu):
+def type_proc_from_decl(entries, decl, procType, tu):
 
     params = []
     for child in decl.get_children():
@@ -124,7 +124,7 @@ def add_named_type_if_needed(entries, decl, ast, tu):
 
         elif canonical.kind == cindex.TypeKind.POINTER and canonical.get_pointee().kind == cindex.TypeKind.FUNCTIONPROTO:
             decl = ast.get_declaration()
-            t = type_proc(entries, decl, canonical.get_pointee(), tu)
+            t = type_proc_from_decl(entries, decl, canonical.get_pointee(), tu)
 
         else:
             t = type_from_ast(entries, canonical, tu)
@@ -163,9 +163,25 @@ def type_from_ast(entries, ast, tu):
         t = {
             "kind": "bool",
         }
+    elif ast.kind == cindex.TypeKind.SCHAR:
+        t = {
+            "kind": "char"
+        }
+    elif ast.kind == cindex.TypeKind.UCHAR:
+        t = {
+            "kind": "u8"
+        }
     elif ast.kind == cindex.TypeKind.CHAR_S:
         t = {
             "kind": "char"
+        }
+    elif ast.kind == cindex.TypeKind.SHORT:
+        t = {
+            "kind": "i16"
+        }
+    elif ast.kind == cindex.TypeKind.USHORT:
+        t = {
+            "kind": "u16"
         }
     elif ast.kind == cindex.TypeKind.INT:
         t = {
@@ -175,6 +191,22 @@ def type_from_ast(entries, ast, tu):
         t = {
             "kind": "u32"
         }
+    elif ast.kind == cindex.TypeKind.LONG:
+        t = {
+            "kind": "long"
+        }
+    elif ast.kind == cindex.TypeKind.ULONG:
+        t = {
+            "kind": "unsigned long"
+        }
+    elif ast.kind == cindex.TypeKind.LONGLONG:
+        t = {
+            "kind": "long long"
+        }
+    elif ast.kind == cindex.TypeKind.ULONGLONG:
+        t = {
+            "kind": "unsigned long long"
+        }
     elif ast.kind == cindex.TypeKind.FLOAT:
         t = {
             "kind": "f32"
@@ -182,6 +214,10 @@ def type_from_ast(entries, ast, tu):
     elif ast.kind == cindex.TypeKind.DOUBLE:
         t = {
             "kind": "f64"
+        }
+    elif ast.kind == cindex.TypeKind.LONGDOUBLE:
+        t = {
+            "kind": "long double"
         }
     elif ast.kind == cindex.TypeKind.POINTER:
         t = {
@@ -196,16 +232,14 @@ def type_from_ast(entries, ast, tu):
         }
     elif ast.kind == cindex.TypeKind.ELABORATED:
         if is_primitive_typedef(ast.spelling):
-            #NOTE desugar primitive typedefs directly here
-            canonical = ast.get_canonical()
-            t = type_from_ast(entries, canonical, tu)
+            t = {
+                "kind": ast.spelling
+            }
         else:
             t = {
                 "kind": "namedType",
                 "name": ast.spelling
             }
-            decl = ast.get_declaration()
-            add_named_type_if_needed(entries, decl, ast, tu)
 
     elif ast.kind == cindex.TypeKind.RECORD:
         #TODO: could be a union?
@@ -213,11 +247,11 @@ def type_from_ast(entries, ast, tu):
             "kind": "namedType",
             "name": ast.spelling.removeprefix("struct ")
         }
-        decl = ast.get_declaration()
-        add_named_type_if_needed(entries, decl, ast, tu)
 
+    elif ast.kind == cindex.TypeKind.FUNCTIONPROTO:
+        t = type_proc_from_decl(entries, ast.get_declaration(), ast, tu)
     else:
-        print(f"error: unrecognized TypeKind.{ast.kind.spelling}")
+        print(f"error: unrecognized TypeKind.{ast.kind.spelling} for {ast.spelling}")
         return "NONE"
 
     return t
@@ -264,9 +298,61 @@ def generate_proc_entry(entries, ast, tu):
     entries[proc['name']] = proc
 
 
+def generate_type_entry(entries, ast, tu):
+    if (ast.spelling == "uint8_t"
+       or ast.spelling == "uint16_t"
+       or ast.spelling == "uint32_t"
+       or ast.spelling == "uint64_t"
+       or ast.spelling == "int8_t"
+       or ast.spelling == "int16_t"
+       or ast.spelling == "int32_t"
+       or ast.spelling == "int64_t"
+       or ast.spelling == "size_t"):
+        return
+
+    if ast.spelling not in entries:
+        entry = {
+            "kind": "typename",
+            "name": ast.spelling,
+            "extents": get_extents(ast),
+        }
+
+        if ast.kind == cindex.CursorKind.TYPEDEF_DECL:
+            underlying = ast.underlying_typedef_type
+
+            if underlying.kind == cindex.TypeKind.RECORD or underlying.kind == cindex.TypeKind.ENUM:
+                decl = underlying.get_declaration()
+
+                if decl.kind == cindex.CursorKind.STRUCT_DECL or decl.kind == cindex.CursorKind.UNION_DECL:
+                    t = type_struct_or_union(entries, decl, tu)
+                elif decl.kind == cindex.CursorKind.ENUM_DECL:
+                    t = type_enum(entries, decl, tu)
+                else:
+                    print(f"error: unrecognized {decl.kind} in type {ast.spelling}")
+                    t = "NONE"
+            elif underlying.kind == cindex.TypeKind.FUNCTIONPROTO:
+                decl = underlying.get_declaration()
+                t = type_proc_from_decl(entries, decl, underlying, tu)
+            elif underlying.kind == cindex.TypeKind.POINTER and underlying.get_pointee().kind == cindex.TypeKind.FUNCTIONPROTO:
+                decl = underlying.get_declaration()
+                t = type_proc_from_decl(entries, decl, underlying.get_pointee(), tu)
+            else:
+                t = type_from_ast(entries, underlying, tu)
+        elif ast.kind == cindex.CursorKind.STRUCT_DECL or ast.kind == cindex.CursorKind.UNION_DECL:
+            t = type_struct_or_union(entries, ast, tu)
+        elif ast.kind == cindex.CursorKind.ENUM_DECL:
+            t = type_enum(entries, ast, tu)
+        else:
+            print(f"error: unrecognized {ast.kind} in type {ast.spelling}")
+            t = "NONE"
+
+        entry["type"] = t
+        entries[entry["name"]] = entry
+
+
 # Get clang ast dump
 index = cindex.Index.create()
-tu = index.parse('src/orca.h', args=['-I', 'src', '-I', 'src/ext', '-DOC_PLATFORM_ORCA=1'])
+tu = index.parse('src/orca.h', args=['--target=wasm32', '--sysroot=src/orca-libc', '-I', 'src', '-I', 'src/ext'])
 
 # Store ast to file for debugging
 # with open("ast.txt", "w") as f:
@@ -275,13 +361,31 @@ tu = index.parse('src/orca.h', args=['-I', 'src', '-I', 'src/ext', '-DOC_PLATFOR
 # Get public api names
 apiNames = get_public_api_names()
 procs = []
+types = []
 
-for cursor in tu.cursor.walk_preorder():
-    if cursor.kind == cindex.CursorKind.FUNCTION_DECL and cursor.spelling in apiNames:
-        procs.append(cursor)
+
+for cursor in tu.cursor.get_children():
+    cursorFile = cursor.extent.start.file
+    if (cursorFile != None
+        and cursorFile.name.startswith('src')
+        and not cursorFile.name.startswith('src/orca-libc')
+        and not cursorFile.name.startswith('src/ext')):
+
+        if cursor.kind == cindex.CursorKind.FUNCTION_DECL:
+            procs.append(cursor)
+
+        if (cursor.kind == cindex.CursorKind.TYPEDEF_DECL
+            or cursor.kind == cindex.CursorKind.STRUCT_DECL
+            or cursor.kind == cindex.CursorKind.UNION_DECL
+            or cursor.kind == cindex.CursorKind.ENUM_DECL):
+            types.append(cursor)
+
 
 # Generate bindings
 entries = dict()
+
+for t in types:
+    generate_type_entry(entries, t, tu)
 
 for proc in procs:
     generate_proc_entry(entries, proc, tu)
@@ -324,14 +428,17 @@ def check_entry_match(old, new):
 
     return True
 
+mismatch = False
+
 for name, entry in entries.items():
     if name in oldEntries:
         oldEntry = oldEntries[name]
         if check_entry_match(oldEntry, entry):
             outSpec.append(oldEntry)
         else:
-            print(f"entry {name} didn't match headers and was replaced by an up-to-date version.")
-            outSpec.append(entry)
+            print(f"entry {name} didn't match headers, skipping.")
+            mismatch = True
+            outSpec.append(oldEntry)
     else:
         print(f"entry {name} was not found and was generated from the headers.")
         outSpec.append(entry)
