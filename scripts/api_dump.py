@@ -14,6 +14,7 @@ def type_struct_or_union(entries, decl, tu):
     fields = []
     for child in decl.get_children():
         if child.kind == cindex.CursorKind.FIELD_DECL:
+
             field = {
                 "name": child.spelling,
                 "type": type_from_ast(entries, child.type, tu)
@@ -39,6 +40,7 @@ def type_enum(entries, decl, tu):
     for child in decl.get_children():
         if child.kind == cindex.CursorKind.ENUM_CONSTANT_DECL:
             constant = {
+                "kind": "enum-constant",
                 "name": child.spelling,
                 "value": child.enum_value
             }
@@ -170,15 +172,26 @@ def type_from_ast(entries, ast, tu):
             "count": ast.element_count
         }
     elif ast.kind == cindex.TypeKind.ELABORATED:
+
+        if ast.spelling.startswith("enum (unnamed"):
+            print(f"unnamed enum {ast.spelling} with kind {ast.kind}")
+
         if is_primitive_typedef(ast.spelling):
             t = {
                 "kind": ast.spelling
             }
         else:
-            t = {
-                "kind": "namedType",
-                "name": ast.spelling
-            }
+            decl = ast.get_declaration()
+            if decl.is_anonymous():
+                if decl.kind == cindex.CursorKind.STRUCT_DECL or decl.kind == cindex.CursorKind.UNION_DECL:
+                    t = type_struct_or_union(entries, decl, tu)
+                elif decl.kind == cindex.CursorKind.ENUM_DECL:
+                    t = type_enum(entries, decl, tu)
+            else:
+                t = {
+                    "kind": "namedType",
+                    "name": ast.spelling
+                }
 
     elif ast.kind == cindex.TypeKind.RECORD:
         #TODO: could be a union?
@@ -262,7 +275,7 @@ def generate_type_entry(entries, ast, tu):
     if find_entry(entries, "typename", ast.spelling) == None:
         entry = {
             "kind": "typename",
-            "name": ast.spelling,
+            "name": ast.spelling if not ast.is_anonymous() else "",
         }
 
         if ast.kind == cindex.CursorKind.TYPEDEF_DECL:

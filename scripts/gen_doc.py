@@ -1,3 +1,4 @@
+import os
 import api_dump
 import json
 from argparse import ArgumentParser
@@ -27,10 +28,11 @@ def gen_macro(spec):
             s += "\n"
     return s
 
-def gen_indent(indent):
+def gen_indent(indent, width=4):
     s = ""
     for i in range(indent):
-        s += "    "
+        for j in range(width):
+            s += " "
     return s
 
 def get_first_non_array_type(t):
@@ -167,6 +169,9 @@ def gen_proc(spec):
 def escape_underscores(name):
     return name.replace("_", "\\_")
 
+def make_dir_name(name):
+    return name.replace("/", "_")
+
 def doc_fields(desc):
 
     s = ""
@@ -279,6 +284,17 @@ def find_entry_match(desc, dump):
     kind = desc["kind"]
     name = desc["name"]
 
+    if kind == "typename" and name == "":
+        # this can be an anonymous enum, so we'll just check the constants independently
+        if desc["type"]["kind"] == "enum":
+            for constant in desc["type"]["constants"]:
+                if not find_entry_match(constant, dump):
+                    return False
+            return True
+        else:
+            print(f"error: unexpected anonymous type of kind {kind}")
+            return False
+
     ast = api_dump.find_entry(dump, kind, name)
     if ast == None:
         print(f"error: couldn't find entry {name} of kind {kind}")
@@ -338,35 +354,91 @@ def check_entry_match(desc, ast, allowNameMismatch=False):
 
     return True
 
-def doc_contents(contents, dump):
+def doc_text(doc):
+    if isinstance(doc, str):
+        s = doc
+    elif isinstance(doc, list):
+        s = ""
+        for line in doc:
+            s += line + "\n"
+
+    return s
+
+
+
+def doc_module(outDir, module, dump):
+    moduleName = module["name"]
+
+    print(f"process module {moduleName}")
+
+    contents = module["contents"]
+    modules = [x for x in contents if x["kind"] == "module"]
     types = [x for x in contents if x["kind"] == "typename"]
     macros = [x for x in contents if x["kind"] == "macro"]
     procs = [x for x in contents if x["kind"] == "proc"]
 
-    s = ""
+    s = f"# {moduleName}\n\n"
 
-    if len(types):
+    if "brief" in module:
+        s += doc_text(module["brief"])
+        s += "\n\n"
+
+    if "doc" in module:
+        s += doc_text(module["doc"])
+        s += "\n\n"
+
+    ok = True
+    if ok and len(modules):
+        s += "### Modules\n\n"
+        subDir = os.path.join(outDir, make_dir_name(moduleName))
+
+        for subModule in modules:
+            subModuleName = subModule["name"]
+            subModulePath = os.path.join(make_dir_name(moduleName), make_dir_name(subModuleName) + ".md")
+            s += f"- [{subModuleName}]({subModulePath}) "
+            if "brief" in subModule:
+                s += doc_text(subModule["brief"])
+            s += "\n"
+
+            doc_module(subDir, subModule, dump)
+
+        s += "\n---\n\n"
+
+    if ok and len(types):
         s += "### Types\n\n"
         for e in types:
             if not find_entry_match(e, dump):
-                return ("", False)
+                ok = False
+                break
             s += doc_type(e)
 
-    if len(macros):
+    if ok and len(macros):
         s += "### Macros\n\n"
         for e in macros:
             #if not find_entry_match(e, dump):
             #    return ("", False)
             s += doc_macro(e)
 
-    if len(procs):
+    if ok and len(procs):
         s += "### Functions\n\n"
         for e in procs:
             if not find_entry_match(e, dump):
-                return ("", False)
+                ok = False
+                break
             s += doc_proc(e)
 
-    return (s, True)
+    if ok == False:
+        print("Couldn't complete doc generation")
+        exit(-1)
+
+
+    if not os.path.exists(outDir):
+        os.makedirs(outDir)
+
+    docName = outDir + "/" + make_dir_name(moduleName) + ".md"
+    with open(docName, "w") as f:
+        print(s, file=f, end='', flush=True)
+
 
 
 
@@ -384,21 +456,76 @@ dump = api_dump.get_api_entries()
 with open(args.desc, "r") as f:
     desc = json.load(f)
 
-# generate documentation
+# generate documentation files
+s = "# API reference\n\n"
+s += "### Modules\n\n"
+
+docDir = os.path.join(args.outDir, "docs/api")
+
 for module in desc:
     if module["kind"] == "module":
         moduleName = module["name"]
+        modulePath = moduleName + ".md"
 
-        print(f"process module {moduleName}")
+        s += f"- [{moduleName}]({modulePath})\n"
+        if "brief" in module:
+                s += doc_text(module["brief"])
+        s += "\n"
 
-        s, ok = doc_contents(module["contents"], dump)
+        doc_module(docDir, module, dump)
 
-        if ok == False:
-            print("Couldn't complete doc generation")
-            exit(-1)
+s += "\n---\n\n"
+with open(os.path.join(docDir, "api_reference.md"), "w") as f:
+    print(s, file=f, end="", flush=True)
 
-        s = f"# {moduleName}\n\n" + s
 
-        docName = args.outDir + "/" + moduleName + ".md"
-        with open(docName, "w") as f:
-            print(s, file=f, end='', flush=True)
+def gen_mkdoc_api_nav(dirPath, desc, indent):
+    s = ""
+    for module in desc:
+        moduleName = module["name"]
+        modulePath = os.path.join(dirPath, make_dir_name(moduleName) + ".md")
+
+        subModules = [x for x in module["contents"] if x["kind"] == "module"]
+        if len(subModules):
+            s += gen_indent(indent, width=2)
+            s += f"- {moduleName}:\n"
+            s += gen_indent(indent+1, width=2)
+            s += f"- Overview: '{modulePath}'\n"
+            s += gen_mkdoc_api_nav(os.path.join(dirPath, make_dir_name(moduleName)), subModules, indent+1)
+        else:
+            s += gen_indent(indent, width=2)
+            s += f"- {moduleName}: '{modulePath}'\n"
+
+
+    return s
+
+def gen_mkdoc_yaml(outDir, desc):
+    s = ("site_name: Orca Documentation\n"
+         "site_url: https://docs.orca-app.dev\n"
+         "site_description: Official Orca Documentation\n"
+         "\n"
+         "copyright: Copyright &copy; 2024 Martin Fouilleul and the Orca project contributors\n"
+         "\n"
+         "extra_css:\n"
+         "  - css/extra.css\n"
+         "theme: readthedocs\n"
+         "\n"
+         "nav:\n"
+         "  - Home: 'index.md'\n"
+         "  - Getting Started:\n"
+         "    - Installation: 'install.md'\n"
+         "    - Quick Start: 'QuickStart.md'\n"
+         "  - User Guide:\n"
+         "    - API Spec:\n"
+         "      - Overview: 'api_reference.md'\n")
+
+    s += gen_mkdoc_api_nav("api", desc, 3)
+
+    s += ("  - Developper Guide:\n"
+          "    - Building: 'building.md'\n"
+          "  - FAQ: 'faq.md'\n")
+
+    with open(os.path.join(outDir, "mkdocs.yml"), "w") as f:
+        print(s, file=f, end="", flush=True)
+
+gen_mkdoc_yaml(args.outDir, desc)
