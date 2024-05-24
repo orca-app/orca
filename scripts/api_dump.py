@@ -5,44 +5,6 @@ import re
 import json
 import clang.cindex as cindex
 
-
-def print_indent(indent, f):
-    for i in range(indent):
-        print("  ", end='', file=f)
-
-def pretty_print_ast(index, indent, f):
-    print_indent(indent, f)
-    print(f"{index.kind} ({index.spelling})", file=f)
-
-    if hasattr(index, "type"):
-        print_indent(indent, f)
-        print("type:", file=f)
-        pretty_print_ast(index.type, indent+1, f)
-
-    if hasattr(index, "get_children"):
-        children = list(index.get_children())
-        if len(children):
-            print_indent(indent, f)
-            print("children:", file=f)
-            for child in children:
-                pretty_print_ast(child, indent+1, f)
-
-
-def get_public_api_names():
-    # get function names of public APIs
-    r = subprocess.run("clang -E -fdirectives-only -DOC_PLATFORM_ORCA=1 -I src -I src/ext src/orca.h | grep '^[[:blank:]]*ORCA_API'", shell=True, capture_output=True)
-    lines = r.stdout.decode().splitlines()
-    regex = re.compile('.* ([a-z_][a-z_0-9]*)\\(')
-
-    names = []
-    for line in lines:
-        m = regex.search(line)
-        if m == None:
-            print(f"error: could match function name regex on line '{line}'")
-            exit()
-        names.append(m.group(1))
-    return names
-
 def type_struct(entries, ast, tu):
     print("type struct")
     pretty_print_ast(ast, 0, sys.stdout)
@@ -55,6 +17,12 @@ def type_struct_or_union(entries, decl, tu):
             field = {
                 "name": child.spelling,
                 "type": type_from_ast(entries, child.type, tu)
+            }
+            fields.append(field)
+        elif child.kind == cindex.CursorKind.STRUCT_DECL or child.kind == cindex.CursorKind.UNION_DECL:
+            field = {
+                "name": "",
+                "type": type_struct_or_union(entries, child.type.get_declaration(), tu)
             }
             fields.append(field)
 
@@ -86,14 +54,23 @@ def type_enum(entries, decl, tu):
 def type_proc_from_decl(entries, decl, procType, tu):
 
     params = []
-    for child in decl.get_children():
-        if child.kind == cindex.CursorKind.PARM_DECL:
-            param = {
-                "name": child.spelling,
-                "type": type_from_ast(entries, child.type, tu)
-            }
+    # for child in decl.get_children():
+    #     if child.kind == cindex.CursorKind.PARM_DECL:
+    #         param = {
+    #             "name": child.spelling,
+    #             "type": type_from_ast(entries, child.type, tu)
+    #         }
+    #         params.append(param)
+
+    for i, arg in enumerate(procType.argument_types()):
+        param = {
+            "name": "arg" + str(i),
+            "type": type_from_ast(entries, arg, tu)
+        }
+        params.append(param)
 
     t = {
+        "kind": "proc",
         "return": type_from_ast(entries, procType.get_result(), tu),
         "params": params
     }
@@ -110,7 +87,8 @@ def is_primitive_typedef(name):
         "u64",
         "i64",
         "f32",
-        "f64"
+        "f64",
+        "size_t"
     ]
     return name in primitives
 
@@ -189,7 +167,7 @@ def type_from_ast(entries, ast, tu):
         t = {
             "kind": "array",
             "type": type_from_ast(entries, ast.element_type, tu),
-            "len": ast.element_count
+            "count": ast.element_count
         }
     elif ast.kind == cindex.TypeKind.ELABORATED:
         if is_primitive_typedef(ast.spelling):
@@ -217,31 +195,24 @@ def type_from_ast(entries, ast, tu):
 
     return t
 
-def get_extents(ast):
-    start = ast.extent.start
-    end = ast.extent.end
+def add_entry_for_cursor(entries, entry, cursor):
+    fileName = cursor.extent.start.file.name
+    moduleName, _ = os.path.splitext(os.path.basename(fileName))
 
-    e = {
-        "file": start.file.name,
-        "start": {
-            "line": start.line,
-            "column": start.column,
-            "offset": start.offset
-        },
-        "end": {
-            "line": end.line,
-            "column": end.column,
-            "offset": end.offset
+    if fileName not in entries:
+        entries[fileName] = {
+            "kind": "file",
+            "name": fileName,
+            "contents": []
         }
-    }
-    return e
+
+    entries[fileName]["contents"].append(entry)
 
 def generate_proc_entry(entries, ast, tu):
 
     proc = {
         "kind": "proc",
         "name": ast.spelling,
-        "extents": get_extents(ast),
         "return": type_from_ast(entries, ast.type.get_result(), tu)
     }
 
@@ -256,8 +227,25 @@ def generate_proc_entry(entries, ast, tu):
             params.append(param)
 
     proc["params"] = params
-    entries[proc['name']] = proc
 
+    add_entry_for_cursor(entries, proc, ast)
+
+def find_entry(entries, kind, name):
+    if isinstance(entries, list):
+        for entry in entries:
+            candidate = find_entry(entry, kind, name)
+            if candidate != None:
+                return candidate
+
+    elif isinstance(entries, dict):
+        if "name" in entries and "kind" in entries and entries["kind"] == kind and entries["name"] == name:
+            return entries
+        for entry in entries.values():
+            candidate = find_entry(entry, kind, name)
+            if candidate != None:
+                return candidate
+
+    return None
 
 def generate_type_entry(entries, ast, tu):
     if (ast.spelling == "uint8_t"
@@ -271,11 +259,10 @@ def generate_type_entry(entries, ast, tu):
        or ast.spelling == "size_t"):
         return
 
-    if ast.spelling not in entries:
+    if find_entry(entries, "typename", ast.spelling) == None:
         entry = {
             "kind": "typename",
             "name": ast.spelling,
-            "extents": get_extents(ast),
         }
 
         if ast.kind == cindex.CursorKind.TYPEDEF_DECL:
@@ -308,97 +295,40 @@ def generate_type_entry(entries, ast, tu):
             t = "NONE"
 
         entry["type"] = t
-        entries[entry["name"]] = entry
+
+        add_entry_for_cursor(entries, entry, ast)
 
 
-# Get clang ast dump
-index = cindex.Index.create()
-tu = index.parse('src/orca.h', args=['--target=wasm32', '--sysroot=src/orca-libc', '-I', 'src', '-I', 'src/ext'])
+def get_api_entries():
+    # Get clang ast dump
+    index = cindex.Index.create()
+    tu = index.parse('src/orca.h', args=['--target=wasm32', '--sysroot=src/orca-libc', '-I', 'src', '-I', 'src/ext'])
 
-# Store ast to file for debugging
-# with open("ast.txt", "w") as f:
-#     pretty_print_ast(tu.cursor, 0, f)
+    # Dump api
+    entries = dict()
 
-# Generate bindings
-entries = dict()
+    for cursor in tu.cursor.get_children():
+        cursorFile = cursor.extent.start.file
+        if (cursorFile != None
+            and cursorFile.name.startswith('src')
+            and not cursorFile.name.startswith('src/orca-libc')
+            and not cursorFile.name.startswith('src/ext')):
 
-for cursor in tu.cursor.get_children():
-    cursorFile = cursor.extent.start.file
-    if (cursorFile != None
-        and cursorFile.name.startswith('src')
-        and not cursorFile.name.startswith('src/orca-libc')
-        and not cursorFile.name.startswith('src/ext')):
+            if cursor.kind == cindex.CursorKind.FUNCTION_DECL:
+                generate_proc_entry(entries, cursor, tu)
 
-        if cursor.kind == cindex.CursorKind.FUNCTION_DECL:
-            generate_proc_entry(entries, cursor, tu)
+            if (cursor.kind == cindex.CursorKind.TYPEDEF_DECL
+                or cursor.kind == cindex.CursorKind.STRUCT_DECL
+                or cursor.kind == cindex.CursorKind.UNION_DECL
+                or cursor.kind == cindex.CursorKind.ENUM_DECL):
+                generate_type_entry(entries, cursor, tu)
 
-        if (cursor.kind == cindex.CursorKind.TYPEDEF_DECL
-            or cursor.kind == cindex.CursorKind.STRUCT_DECL
-            or cursor.kind == cindex.CursorKind.UNION_DECL
-            or cursor.kind == cindex.CursorKind.ENUM_DECL):
-            generate_type_entry(entries, cursor, tu)
+    # TODO: also extract macros
 
+    return entries
 
-# Load existing bindings
-oldEntries = dict()
-
-if os.path.exists("src/api.json"):
-    with open("src/api.json", "r") as f:
-        oldSpec = json.load(f)
-
-    for spec in oldSpec:
-        oldEntries[spec["name"]] = spec
-
-
-# for each generated bindings, check if we can instead pull the existing ones
-
-outSpec = []
-
-
-def check_entry_match(old, new):
-    for key in new.keys():
-        if key not in old:
-            return False
-        elif type(new[key]) != type(old[key]):
-            return False
-        elif isinstance(new[key], str):
-            if new[key] != old[key]:
-                return False
-        elif isinstance(new[key], list):
-            if len(new[key]) != len(old[key]):
-                return False
-            for oldIt, newIt in zip(old[key], new[key]):
-                if not check_entry_match(oldIt, newIt):
-                    return False
-        elif isinstance(new[key], dict):
-            if not check_entry_match(old[key], new[key]):
-                return False
-
-    return True
-
-mismatch = False
-
-for name, entry in entries.items():
-    if name in oldEntries:
-        oldEntry = oldEntries[name]
-        if check_entry_match(oldEntry, entry):
-            outSpec.append(oldEntry)
-        else:
-            print(f"entry {name} didn't match headers, skipping.")
-            mismatch = True
-            outSpec.append(oldEntry)
-    else:
-        print(f"entry {name} was not found and was generated from the headers.")
-        outSpec.append(entry)
-
-removed = [name for name in oldEntries.keys() if name not in entries]
-for name in removed:
-    print(f"entry {name} was not used anymore and was removed.")
-
-dump = json.dumps(outSpec, indent=4)
-
-with open("src/api.json", "w") as f:
-    print(dump, file=f)
-
-
-# TODO compare generated api spec with comitted spec, warn about mismatch, prune old defs / generate new defs
+if __name__ == "__main__":
+    entries = get_api_entries()
+    dump = json.dumps(list(entries.values()), indent=4)
+    with open("api_dump.json", "w") as f:
+        print(dump, file=f)
