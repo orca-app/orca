@@ -241,11 +241,11 @@ ORCA_API void oc_image_atlas_recycle(oc_rect_atlas* atlas, oc_image_region image
 ORCA_API void oc_matrix_push(oc_mat2x3 matrix);
 ORCA_API void oc_matrix_multiply_push(oc_mat2x3 matrix);
 ORCA_API void oc_matrix_pop(void);
-ORCA_API oc_mat2x3 oc_matrix_top();
+ORCA_API oc_mat2x3 oc_matrix_top(void);
 
 ORCA_API void oc_clip_push(f32 x, f32 y, f32 w, f32 h);
 ORCA_API void oc_clip_pop(void);
-ORCA_API oc_rect oc_clip_top();
+ORCA_API oc_rect oc_clip_top(void);
 
 //------------------------------------------------------------------------------------------
 //SECTION: graphics attributes setting/getting
@@ -275,8 +275,8 @@ ORCA_API oc_cap_type oc_get_cap(void);
 ORCA_API oc_font oc_get_font(void);
 ORCA_API f32 oc_get_font_size(void);
 ORCA_API bool oc_get_text_flip(void);
-ORCA_API oc_image oc_get_image();
-ORCA_API oc_rect oc_get_image_source_region();
+ORCA_API oc_image oc_get_image(void);
+ORCA_API oc_rect oc_get_image_source_region(void);
 
 //------------------------------------------------------------------------------------------
 //SECTION: path construction

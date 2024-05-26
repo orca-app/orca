@@ -239,6 +239,15 @@ def generate_proc_entry(entries, ast, tu):
             }
             params.append(param)
 
+    if ast.type.kind != cindex.TypeKind.FUNCTIONNOPROTO and ast.type.is_function_variadic():
+        param = {
+            "name": "...",
+            "type": {
+                "kind": "variadic-param"
+            }
+        }
+        params.append(param)
+
     proc["params"] = params
 
     add_entry_for_cursor(entries, proc, ast)

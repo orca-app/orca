@@ -32,7 +32,7 @@ typedef struct oc_base_allocator
 
 } oc_base_allocator;
 
-ORCA_API oc_base_allocator* oc_base_allocator_default();
+ORCA_API oc_base_allocator* oc_base_allocator_default(void);
 
 #define oc_base_reserve(base, size) base->reserve(base, size)
 #define oc_base_commit(base, ptr, size) base->commit(base, ptr, size)

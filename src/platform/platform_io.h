@@ -157,7 +157,7 @@ ORCA_API oc_io_cmp oc_io_wait_single_req(oc_io_req* req);
 // File IO wrapper API
 //----------------------------------------------------------------
 
-ORCA_API oc_file oc_file_nil();
+ORCA_API oc_file oc_file_nil(void);
 ORCA_API bool oc_file_is_nil(oc_file handle);
 
 ORCA_API oc_file oc_file_open(oc_str8 path, oc_file_access rights, oc_file_open_flags flags);

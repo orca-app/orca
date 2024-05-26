@@ -12,6 +12,7 @@
                 {
                     "kind": "typename",
                     "name": "oc_vec2",
+                    "doc": "A 2D vector type.",
                     "type": {
                         "kind": "union",
                         "fields": [
@@ -22,12 +23,14 @@
                                     "fields": [
                                         {
                                             "name": "x",
+                                            "doc": "First component of the vector.",
                                             "type": {
                                                 "kind": "f32"
                                             }
                                         },
                                         {
                                             "name": "y",
+                                            "doc": "Second component of the vector.",
                                             "type": {
                                                 "kind": "f32"
                                             }
@@ -37,6 +40,7 @@
                             },
                             {
                                 "name": "c",
+                                "doc": "The vector components as an array.",
                                 "type": {
                                     "kind": "array",
                                     "type": {
@@ -51,6 +55,7 @@
                 {
                     "kind": "typename",
                     "name": "oc_vec3",
+                    "doc": "A 3D vector type.",
                     "type": {
                         "kind": "union",
                         "fields": [
@@ -61,18 +66,21 @@
                                     "fields": [
                                         {
                                             "name": "x",
+                                            "doc": "First component of the vector.",
                                             "type": {
                                                 "kind": "f32"
                                             }
                                         },
                                         {
                                             "name": "y",
+                                            "doc": "Second component of the vector.",
                                             "type": {
                                                 "kind": "f32"
                                             }
                                         },
                                         {
                                             "name": "z",
+                                            "doc": "Third component of the vector.",
                                             "type": {
                                                 "kind": "f32"
                                             }
@@ -82,6 +90,7 @@
                             },
                             {
                                 "name": "c",
+                                "doc": "The vector components as an array.",
                                 "type": {
                                     "kind": "array",
                                     "type": {
@@ -96,6 +105,7 @@
                 {
                     "kind": "typename",
                     "name": "oc_vec2i",
+                    "doc": "A 2D integer vector type.",
                     "type": {
                         "kind": "union",
                         "fields": [
@@ -106,12 +116,14 @@
                                     "fields": [
                                         {
                                             "name": "x",
+                                            "doc": "First component of the vector.",
                                             "type": {
                                                 "kind": "i32"
                                             }
                                         },
                                         {
                                             "name": "y",
+                                            "doc": "Second component of the vector.",
                                             "type": {
                                                 "kind": "i32"
                                             }
@@ -121,6 +133,7 @@
                             },
                             {
                                 "name": "c",
+                                "doc": "The vector components as an array.",
                                 "type": {
                                     "kind": "array",
                                     "type": {
@@ -135,6 +148,7 @@
                 {
                     "kind": "typename",
                     "name": "oc_vec4",
+                    "doc": "A 4D vector type.",
                     "type": {
                         "kind": "union",
                         "fields": [
@@ -145,24 +159,28 @@
                                     "fields": [
                                         {
                                             "name": "x",
+                                            "doc": "First component of the vector.",
                                             "type": {
                                                 "kind": "f32"
                                             }
                                         },
                                         {
                                             "name": "y",
+                                            "doc": "Second component of the vector.",
                                             "type": {
                                                 "kind": "f32"
                                             }
                                         },
                                         {
                                             "name": "z",
+                                            "doc": "Third component of the vector.",
                                             "type": {
                                                 "kind": "f32"
                                             }
                                         },
                                         {
                                             "name": "w",
+                                            "doc": "Fourth component of the vector.",
                                             "type": {
                                                 "kind": "f32"
                                             }
@@ -172,6 +190,7 @@
                             },
                             {
                                 "name": "c",
+                                "doc": "The vector components as an array.",
                                 "type": {
                                     "kind": "array",
                                     "type": {
@@ -186,11 +205,13 @@
                 {
                     "kind": "typename",
                     "name": "oc_mat2x3",
+                    "doc": "A 2-by-3 matrix.",
                     "type": {
                         "kind": "struct",
                         "fields": [
                             {
                                 "name": "m",
+                                "doc": "The elements of the matrix, stored in row-major order.",
                                 "type": {
                                     "kind": "array",
                                     "type": {
@@ -205,6 +226,7 @@
                 {
                     "kind": "typename",
                     "name": "oc_rect",
+                    "doc": "An axis-aligned rectangle.",
                     "type": {
                         "kind": "union",
                         "fields": [
@@ -215,24 +237,28 @@
                                     "fields": [
                                         {
                                             "name": "x",
+                                            "doc": "The x-coordinate of the top-left corner.",
                                             "type": {
                                                 "kind": "f32"
                                             }
                                         },
                                         {
                                             "name": "y",
+                                            "doc": "The y-coordinate of the top-left corner.",
                                             "type": {
                                                 "kind": "f32"
                                             }
                                         },
                                         {
                                             "name": "w",
+                                            "doc": "The width of the rectangle.",
                                             "type": {
                                                 "kind": "f32"
                                             }
                                         },
                                         {
                                             "name": "h",
+                                            "doc": "The height of the rectangle.",
                                             "type": {
                                                 "kind": "f32"
                                             }
@@ -247,6 +273,7 @@
                                     "fields": [
                                         {
                                             "name": "xy",
+                                            "doc": "The top-left corner of the rectangle.",
                                             "type": {
                                                 "kind": "namedType",
                                                 "name": "oc_vec2"
@@ -254,6 +281,7 @@
                                         },
                                         {
                                             "name": "wh",
+                                            "doc": "The size of the rectangle.",
                                             "type": {
                                                 "kind": "namedType",
                                                 "name": "oc_vec2"
@@ -264,6 +292,7 @@
                             },
                             {
                                 "name": "c",
+                                "doc": "The rectangle components as an array.",
                                 "type": {
                                     "kind": "array",
                                     "type": {
@@ -278,12 +307,15 @@
                 {
                     "kind": "proc",
                     "name": "oc_vec2_equal",
+                    "doc": "Check if two 2D vectors are equal.",
                     "return": {
-                        "kind": "bool"
+                        "kind": "bool",
+                        "doc": "`true` if `v0` and `v1` are equal, `false` otherwise."
                     },
                     "params": [
                         {
                             "name": "v0",
+                            "doc": "The first vector",
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_vec2"
@@ -291,6 +323,7 @@
                         },
                         {
                             "name": "v1",
+                            "doc": "The second vector",
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_vec2"
@@ -301,19 +334,23 @@
                 {
                     "kind": "proc",
                     "name": "oc_vec2_mul",
+                    "doc": "Multiply a 2D vector by a scalar.",
                     "return": {
                         "kind": "namedType",
-                        "name": "oc_vec2"
+                        "name": "oc_vec2",
+                        "doc": "The result of the multiplication."
                     },
                     "params": [
                         {
                             "name": "f",
+                            "doc": "The value by which to scale the vector.",
                             "type": {
                                 "kind": "f32"
                             }
                         },
                         {
                             "name": "v",
+                            "doc": "The vector to scale.",
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_vec2"
@@ -324,13 +361,16 @@
                 {
                     "kind": "proc",
                     "name": "oc_vec2_add",
+                    "doc": "Add two 2D vectors",
                     "return": {
                         "kind": "namedType",
-                        "name": "oc_vec2"
+                        "name": "oc_vec2",
+                        "doc": "The result vector."
                     },
                     "params": [
                         {
                             "name": "v0",
+                            "doc": "The first vector.",
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_vec2"
@@ -338,6 +378,7 @@
                         },
                         {
                             "name": "v1",
+                            "doc": "The second vector.",
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_vec2"
@@ -348,13 +389,16 @@
                 {
                     "kind": "proc",
                     "name": "oc_mat2x3_mul",
+                    "doc": "Transforms a vector by an affine transformation represented as a 2x3 matrix.",
                     "return": {
                         "kind": "namedType",
-                        "name": "oc_vec2"
+                        "name": "oc_vec2",
+                        "doc": "The result vector."
                     },
                     "params": [
                         {
                             "name": "m",
+                            "doc": "The input matrix. `m` holds an affine transformation. It is treated as a 3x3 matrix with an implicit `(0, 0, 1)` bottom row.",
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_mat2x3"
@@ -362,6 +406,7 @@
                         },
                         {
                             "name": "p",
+                            "doc": "The input vector. It is treated as a 3D homogeneous coordinate vector with an implicit z-coordinate equal to 1.",
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_vec2"
@@ -372,13 +417,16 @@
                 {
                     "kind": "proc",
                     "name": "oc_mat2x3_mul_m",
+                    "doc": "Multiply two affine transformations represented as 2x3 matrices. Both matrices are treated as 3x3 matrices with an implicit `(0, 0, 1)` bottom row",
                     "return": {
                         "kind": "namedType",
-                        "name": "oc_mat2x3"
+                        "name": "oc_mat2x3",
+                        "doc": "The result matrix."
                     },
                     "params": [
                         {
                             "name": "lhs",
+                            "doc": "The left-hand side matrix",
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_mat2x3"
@@ -386,6 +434,7 @@
                         },
                         {
                             "name": "rhs",
+                            "doc": "The right-hand side matrix",
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_mat2x3"
@@ -396,13 +445,16 @@
                 {
                     "kind": "proc",
                     "name": "oc_mat2x3_inv",
+                    "doc": "Invert an affine transform represented as a 2x3 matrix.",
                     "return": {
                         "kind": "namedType",
-                        "name": "oc_mat2x3"
+                        "name": "oc_mat2x3",
+                        "doc": "The result matrix"
                     },
                     "params": [
                         {
                             "name": "x",
+                            "doc": "The input matrix. It is treated as a 3x3 matrix with an implicit `(0, 0, 1)` bottom row.",
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_mat2x3"
@@ -413,13 +465,16 @@
                 {
                     "kind": "proc",
                     "name": "oc_mat2x3_rotate",
+                    "doc": "Return a 2x3 matrix representing a rotation.",
                     "return": {
                         "kind": "namedType",
-                        "name": "oc_mat2x3"
+                        "name": "oc_mat2x3",
+                        "doc": "The resulting rotation."
                     },
                     "params": [
                         {
                             "name": "radians",
+                            "doc": "The rotation angle, in radians.",
                             "type": {
                                 "kind": "f32"
                             }
@@ -429,19 +484,23 @@
                 {
                     "kind": "proc",
                     "name": "oc_mat2x3_translate",
+                    "doc": "Return a 2x3 matrix representing a translation.",
                     "return": {
                         "kind": "namedType",
-                        "name": "oc_mat2x3"
+                        "name": "oc_mat2x3",
+                        "doc": "The resulting translation."
                     },
                     "params": [
                         {
                             "name": "x",
+                            "doc": "The first component of the translation.",
                             "type": {
                                 "kind": "f32"
                             }
                         },
                         {
                             "name": "y",
+                            "doc": "The second component of the translation.",
                             "type": {
                                 "kind": "f32"
                             }
@@ -458,12 +517,19 @@
                 {
                     "kind": "proc",
                     "name": "oc_abort_ext",
+                    "doc": [
+                        "Abort the application, showing an error message.",
+                        "",
+                        "This function should not be called directly by user code, which should use the `OC_ABORT` macro instead, as the macro takes care of filling in the source location parameters of the function."
+                    ],
+                    "note": "This function does not return.",
                     "return": {
                         "kind": "void"
                     },
                     "params": [
                         {
                             "name": "file",
+                            "doc": "The name of the source file the abort originates from.",
                             "type": {
                                 "kind": "pointer",
                                 "type": {
@@ -473,6 +539,7 @@
                         },
                         {
                             "name": "function",
+                            "doc": "The name of the function the abort originates from.",
                             "type": {
                                 "kind": "pointer",
                                 "type": {
@@ -482,17 +549,26 @@
                         },
                         {
                             "name": "line",
+                            "doc": "The source line the abort originates from.",
                             "type": {
                                 "kind": "i32"
                             }
                         },
                         {
                             "name": "fmt",
+                            "doc": "The format string of the abort message similar to `printf()`.",
                             "type": {
                                 "kind": "pointer",
                                 "type": {
                                     "kind": "char"
                                 }
+                            }
+                        },
+                        {
+                            "name": "...",
+                            "doc": "Additional arguments for the abort message.",
+                            "type": {
+                                "kind": "variadic-param"
                             }
                         }
                     ]
@@ -500,12 +576,19 @@
                 {
                     "kind": "proc",
                     "name": "oc_assert_fail",
+                    "doc": [
+                        "Tigger a failed assertion. This aborts the application, showing the failed assertion and an error message.",
+                        "",
+                        "This function should not be called directly by user code, which should use the `OC_ASSERT` macro instead. The macro checks the assert condition and calls the function if it is false. It also takes care of filling in the source location parameters of the function."
+                    ],
+                    "note": "This function does not return.",
                     "return": {
                         "kind": "void"
                     },
                     "params": [
                         {
                             "name": "file",
+                            "doc": "The name of the source file the failed assertion originates from.",
                             "type": {
                                 "kind": "pointer",
                                 "type": {
@@ -515,6 +598,7 @@
                         },
                         {
                             "name": "function",
+                            "doc": "The name of the function the failed assertion originates from.",
                             "type": {
                                 "kind": "pointer",
                                 "type": {
@@ -524,12 +608,14 @@
                         },
                         {
                             "name": "line",
+                            "doc": "The source line the failed assertion originates from.",
                             "type": {
                                 "kind": "i32"
                             }
                         },
                         {
                             "name": "src",
+                            "doc": "The source code of the failed assert condition.",
                             "type": {
                                 "kind": "pointer",
                                 "type": {
@@ -539,11 +625,19 @@
                         },
                         {
                             "name": "fmt",
+                            "doc": "The format string of the error message, similar to `printf()`.",
                             "type": {
                                 "kind": "pointer",
                                 "type": {
                                     "kind": "char"
                                 }
+                            }
+                        },
+                        {
+                            "name": "...",
+                            "doc": "Additional arguments for the error message.",
+                            "type": {
+                                "kind": "variadic-param"
                             }
                         }
                     ]
@@ -551,6 +645,7 @@
                 {
                     "kind": "typename",
                     "name": "oc_log_level",
+                    "doc": "Constants allowing to specify the level of logging verbosity.",
                     "type": {
                         "kind": "enum",
                         "type": {
@@ -560,16 +655,19 @@
                             {
                                 "kind": "enum-constant",
                                 "name": "OC_LOG_LEVEL_ERROR",
+                                "doc": "Only errors are logged.",
                                 "value": 0
                             },
                             {
                                 "kind": "enum-constant",
                                 "name": "OC_LOG_LEVEL_WARNING",
+                                "doc": "Only warnings and errors are logged.",
                                 "value": 1
                             },
                             {
                                 "kind": "enum-constant",
                                 "name": "OC_LOG_LEVEL_INFO",
+                                "doc": "All messages are logged.",
                                 "value": 2
                             },
                             {
@@ -581,43 +679,19 @@
                     }
                 },
                 {
-                    "kind": "typename",
-                    "name": "oc_log_output",
-                    "type": {
-                        "kind": "struct"
-                    }
-                },
-                {
                     "kind": "proc",
                     "name": "oc_log_set_level",
+                    "doc": "Set the logging verbosity.",
                     "return": {
                         "kind": "void"
                     },
                     "params": [
                         {
                             "name": "level",
+                            "doc": "The desired logging level. Messages whose level is below this threshold will not be logged.",
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_log_level"
-                            }
-                        }
-                    ]
-                },
-                {
-                    "kind": "proc",
-                    "name": "oc_log_set_output",
-                    "return": {
-                        "kind": "void"
-                    },
-                    "params": [
-                        {
-                            "name": "output",
-                            "type": {
-                                "kind": "pointer",
-                                "type": {
-                                    "kind": "namedType",
-                                    "name": "oc_log_output"
-                                }
                             }
                         }
                     ]
@@ -625,12 +699,18 @@
                 {
                     "kind": "proc",
                     "name": "oc_log_ext",
+                    "doc": [
+                        "Log a message to the console.",
+                        "",
+                        "This function should not be called directly by user code, which should use the `oc_log_XXX` family of macros instead. The macros take care of filling in the message level and source location parameters of the function."
+                    ],
                     "return": {
                         "kind": "void"
                     },
                     "params": [
                         {
                             "name": "level",
+                            "doc": "The logging level of the message.",
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_log_level"
@@ -638,6 +718,7 @@
                         },
                         {
                             "name": "function",
+                            "doc": "The name of the function the message originated from",
                             "type": {
                                 "kind": "pointer",
                                 "type": {
@@ -647,6 +728,7 @@
                         },
                         {
                             "name": "file",
+                            "doc": "The name of the source file the message originated from",
                             "type": {
                                 "kind": "pointer",
                                 "type": {
@@ -656,17 +738,26 @@
                         },
                         {
                             "name": "line",
+                            "doc": "The source line the message originated from",
                             "type": {
                                 "kind": "i32"
                             }
                         },
                         {
                             "name": "fmt",
+                            "doc": "The format string of the message, similar to `printf()`.",
                             "type": {
                                 "kind": "pointer",
                                 "type": {
                                     "kind": "char"
                                 }
+                            }
+                        },
+                        {
+                            "name": "...",
+                            "doc": "Additional arguments of the message",
+                            "type": {
+                                "kind": "variadic-param"
                             }
                         }
                     ]
@@ -674,58 +765,106 @@
                 {
                     "kind": "macro",
                     "name": "oc_log_error",
+                    "doc": "Log an error to the console.",
                     "params": [
                         {
-                            "name": "msg"
+                            "name": "msg",
+                            "doc": "The format string of the message, similar to `printf()`."
+                        },
+                        {
+                            "name": "...",
+                            "doc": "Additional arguments of the message.",
+                            "type": {
+                                "kind": "variadic-param"
+                            }
                         }
-                    ],
-                    "isVariadic": true
+                    ]
                 },
                 {
                     "kind": "macro",
                     "name": "oc_log_warning",
+                    "doc": "Log a warning to the console.",
                     "params": [
                         {
-                            "name": "msg"
+                            "name": "msg",
+                            "doc": "The format string of the message, similar to `printf()`."
+                        },
+                        {
+                            "name": "...",
+                            "doc": "Additional arguments of the message.",
+                            "type": {
+                                "kind": "variadic-param"
+                            }
                         }
-                    ],
-                    "isVariadic": true
+                    ]
                 },
                 {
                     "kind": "macro",
                     "name": "oc_log_info",
+                    "doc": "Log a informative message to the console.",
                     "params": [
                         {
-                            "name": "msg"
+                            "name": "msg",
+                            "doc": "The format string of the message, similar to `printf()`."
+                        },
+                        {
+                            "name": "...",
+                            "doc": "Additional arguments of the message.",
+                            "type": {
+                                "kind": "variadic-param"
+                            }
                         }
-                    ],
-                    "isVariadic": true
+                    ]
                 },
                 {
                     "kind": "macro",
                     "name": "OC_ABORT",
-                    "params": [],
-                    "isVariadic": true
+                    "doc": "Abort the application with an optional error message.",
+                    "params": [
+                        {
+                            "name": "...",
+                            "doc": "An optional format string for the error message, followed by additional message arguments, similar to `printf()`.",
+                            "type": {
+                                "kind": "variadic-param"
+                            }
+                        }
+                    ]
                 },
                 {
                     "kind": "macro",
                     "name": "OC_ASSERT",
+                    "doc": "Test a given condition, and abort the application if it is false.",
                     "params": [
                         {
-                            "name": "test"
+                            "name": "test",
+                            "doc": "The condition expression to test."
+                        },
+                        {
+                            "name": "...",
+                            "doc": "An optional format string for the error message, followed by additional message arguments, similar to `printf()`.",
+                            "type": {
+                                "kind": "variadic-param"
+                            }
                         }
-                    ],
-                    "isVariadic": true
+                    ]
                 },
                 {
                     "kind": "macro",
                     "name": "OC_DEBUG_ASSERT",
+                    "doc": "Similar to `OC_ASSERT`, but only run in Debug mode.",
                     "params": [
                         {
-                            "name": "x"
+                            "name": "test",
+                            "doc": "The condition expression to test."
+                        },
+                        {
+                            "name": "...",
+                            "doc": "An optional format string for the error message, followed by additional message arguments, similar to `printf()`.",
+                            "type": {
+                                "kind": "variadic-param"
+                            }
                         }
-                    ],
-                    "isVariadic": true
+                    ]
                 }
             ]
         },
@@ -737,212 +876,296 @@
                 {
                     "kind": "macro",
                     "name": "oc_list_begin",
+                    "doc": "Get the first element of a list.",
                     "params": [
                         {
-                            "name": "l"
+                            "name": "l",
+                            "doc": "An `oc_list` list."
                         }
-                    ]
-                },
-                {
-                    "kind": "macro",
-                    "name": "oc_list_end",
-                    "params": [
-                        {
-                            "name": "l"
-                        }
-                    ]
+                    ],
+                    "return": {
+                        "doc": "A pointer to the first `oc_list_elt` of the list."
+                    }
                 },
                 {
                     "kind": "macro",
                     "name": "oc_list_last",
+                    "doc": "Returns the last element of a list.",
                     "params": [
                         {
-                            "name": "l"
+                            "name": "l",
+                            "doc": "An `oc_list` list."
                         }
-                    ]
+                    ],
+                    "return": {
+                        "doc": "A pointer to the last `oc_list_elt` of the list."
+                    }
                 },
                 {
                     "kind": "macro",
                     "name": "oc_list_next",
+                    "doc": "Get the next element in a list.",
                     "params": [
                         {
-                            "name": "elt"
+                            "name": "elt",
+                            "doc": "A pointer to an `oc_list_elt` element in a list."
                         }
-                    ]
+                    ],
+                    "return": {
+                        "doc": "A pointer to the next element in the list."
+                    }
                 },
                 {
                     "kind": "macro",
                     "name": "oc_list_prev",
+                    "doc": "Get the previous element in a list.",
                     "params": [
                         {
-                            "name": "elt"
+                            "name": "elt",
+                            "doc": "A pointer to an `oc_list_elt` element in a list."
                         }
-                    ]
+                    ],
+                    "return": {
+                        "doc": "A pointer to the previous element in the list."
+                    }
                 },
                 {
                     "kind": "macro",
                     "name": "oc_list_entry",
+                    "doc": "Get the entry for a given list element.",
                     "params": [
                         {
-                            "name": "ptr"
+                            "name": "elt",
+                            "doc": "A pointer to an `oc_list_elt` element.",
                         },
                         {
-                            "name": "type"
+                            "name": "type",
+                            "doc": "The type of the entry to retrieve."
                         },
                         {
-                            "name": "member"
+                            "name": "member",
+                            "doc": "The name of the `oc_list_elt` field in `type` by which the entry is linked into the list."
                         }
-                    ]
+                    ],
+                    "return": {
+                        "doc": "A pointer to the entry of type `type` which is linked into the list by element `elt`."
+                    }
                 },
                 {
                     "kind": "macro",
                     "name": "oc_list_next_entry",
+                    "doc": "Get the next entry in a list.",
                     "params": [
                         {
-                            "name": "list"
+                            "name": "list",
+                            "doc": "An `oc_list` object."
                         },
                         {
-                            "name": "elt"
+                            "name": "elt",
+                            "doc": "A pointer to an `oc_list_elt` element in that list."
                         },
                         {
-                            "name": "type"
+                            "name": "type",
+                            "doc": "The type of the entry to retrieve."
                         },
                         {
-                            "name": "member"
+                            "name": "member",
+                            "doc": "The name of the `oc_list_elt` field in `type` by which the entry is linked into the list."
                         }
-                    ]
+                    ],
+                    "return": {
+                        "doc": "A pointer to the entry of type `type` which is linked into the list after element `elt`."
+                    }
                 },
                 {
                     "kind": "macro",
                     "name": "oc_list_prev_entry",
+                    "doc": "Get the previous entry in a list.",
                     "params": [
                         {
-                            "name": "list"
+                            "name": "list",
+                            "doc": "An `oc_list` object."
                         },
                         {
-                            "name": "elt"
+                            "name": "elt",
+                            "doc": "A pointer to an `oc_list_elt` element in that list."
                         },
                         {
-                            "name": "type"
+                            "name": "type",
+                            "doc": "The type of the entry to retrieve."
                         },
                         {
-                            "name": "member"
+                            "name": "member",
+                            "doc": "The name of the `oc_list_elt` field in `type` by which the entry is linked into the list."
                         }
-                    ]
+                    ],
+                    "return": {
+                        "doc": "A pointer to the entry of type `type` which is linked into the list before element `elt`."
+                    }
                 },
                 {
                     "kind": "macro",
                     "name": "oc_list_checked_entry",
+                    "doc": "Same as `oc_list_entry`, but `elt` might be null."
                     "params": [
                         {
-                            "name": "list"
+                            "name": "elt",
+                            "doc": "A pointer to an `oc_list_elt` element."
                         },
                         {
-                            "name": "type"
+                            "name": "type",
+                            "doc": "The type of the entry to retrieve."
                         },
                         {
-                            "name": "member"
+                            "name": "member",
+                            "doc": "The name of the `oc_list_elt` field in `type` by which the entry is linked into the list."
                         }
-                    ]
+                    ],
+                    "return": {
+                        "doc": "If `elt` is null, the macro returns a null pointer. Otherwise it returns a pointer to the entry of type `type` which is linked into the list by element `elt`."
+                    }
                 },
                 {
                     "kind": "macro",
                     "name": "oc_list_first_entry",
+                    "doc": "Get the first entry of a list.",
                     "params": [
                         {
-                            "name": "list"
+                            "name": "list",
+                            "doc": "An `oc_list` object."
                         },
                         {
-                            "name": "type"
+                            "name": "type",
+                            "doc": "The type of the entry to retrieve."
                         },
                         {
-                            "name": "member"
+                            "name": "member",
+                            "doc": "The name of the `oc_list_elt` field in `type` by which the entry is linked into the list."
                         }
-                    ]
+                    ],
+                    "return": {
+                        "doc": "A pointer to the entry of type `type` which is the first entry in the list."
+                    }
                 },
                 {
                     "kind": "macro",
                     "name": "oc_list_last_entry",
+                    "doc": "Get the last entry of a list.",
                     "params": [
                         {
-                            "name": "list"
+                            "name": "list",
+                            "doc": "An `oc_list` object."
                         },
                         {
-                            "name": "type"
+                            "name": "type",
+                            "doc": "The type of the entry to retrieve."
                         },
                         {
-                            "name": "member"
+                            "name": "member",
+                            "doc": "The name of the `oc_list_elt` field in `type` by which the entry is linked into the list."
                         }
-                    ]
+                    ],
+                    "return": {
+                        "doc": "A pointer to the entry of type `type` which is the last entry in the list."
+                    }
                 },
                 {
                     "kind": "macro",
                     "name": "oc_list_for",
+                    "doc": [
+                        "Loop through a linked list.",
+                        "",
+                        "This macro creates a loop with an iterator named after the `elt` macro parameter. The iterator is of the type specified by the `type` macro parameter, which must be the type of the entries linked in the list.",
+                        "",
+                        "You should follow this macro with the loop body, where you can use the iterator."
+                    ]
                     "params": [
                         {
-                            "name": "list"
+                            "name": "list",
+                            "doc": "An `oc_list` object."
                         },
                         {
-                            "name": "elt"
+                            "name": "elt",
+                            "doc": "The name of the loop iterator."
                         },
                         {
-                            "name": "type"
+                            "name": "type",
+                            "doc": "The type of the loop iterator. This must be the type of the entries linked in `list`."
                         },
                         {
-                            "name": "member"
+                            "name": "member",
+                            "doc": "The name of the field of type `oc_list_elt` in `type` by which the list entries are linked."
                         }
-                    ]
+                    ],
+                    "note": "You should not add or remove elements from the list inside the loop body. If you need to do so, use `oc_list_for_safe` instead."
                 },
                 {
                     "kind": "macro",
                     "name": "oc_list_for_reverse",
+                    "doc": "Loop through a linked list from last to first. See `oc_list_for` for details.",
                     "params": [
                         {
-                            "name": "list"
+                            "name": "list",
+                            "doc": "An `oc_list` object."
                         },
                         {
-                            "name": "elt"
+                            "name": "elt",
+                            "doc": "The name of the loop iterator."
                         },
                         {
-                            "name": "type"
+                            "name": "type",
+                            "doc": "The type of the loop iterator. This must be the type of the entries linked in `list`."
                         },
                         {
-                            "name": "member"
+                            "name": "member",
+                            "doc": "The name of the field of type `oc_list_elt` in `type` by which the list entries are linked."
                         }
                     ]
                 },
                 {
                     "kind": "macro",
                     "name": "oc_list_for_safe",
+                    "doc": "Loop through a linked list in a way that allows adding or removing elements from it in the loop body. See `oc_list_for` for more details.",
                     "params": [
                         {
-                            "name": "list"
+                            "name": "list",
+                            "doc": "An `oc_list` object."
                         },
                         {
-                            "name": "elt"
+                            "name": "elt",
+                            "doc": "The name of the loop iterator."
                         },
                         {
-                            "name": "type"
+                            "name": "type",
+                            "doc": "The type of the loop iterator. This must be the type of the entries linked in `list`."
                         },
                         {
-                            "name": "member"
+                            "name": "member",
+                            "doc": "The name of the field of type `oc_list_elt` in `type` by which the list entries are linked."
                         }
                     ]
                 },
                 {
                     "kind": "macro",
                     "name": "oc_list_pop_entry",
+                    "doc": "Remove the first entry from a list and return it.",
                     "params": [
                         {
-                            "name": "list"
+                            "name": "list",
+                            "doc": "An `oc_list` object."
                         },
                         {
-                            "name": "type"
+                            "name": "type",
+                            "doc": "The type of the entry to retrieve."
                         },
                         {
-                            "name": "member"
+                            "name": "member",
+                            "doc": "The name of the field of type `oc_list_elt` in `type` by which the list entries are linked."
                         }
-                    ]
+                    ],
+                    "return": {
+                        "doc": "A pointer of type `type` to the entry that was removed from the list."
+                    }
                 },
                 {
                     "kind": "typename",
@@ -2077,9 +2300,14 @@
                                     "kind": "char"
                                 }
                             }
+                        },
+                        {
+                            "name": "...",
+                            "type": {
+                                "kind": "variadic-param"
+                            }
                         }
-                    ],
-                    "isVariadic": true
+                    ]
                 },
                 {
                     "kind": "proc",
@@ -2260,9 +2488,14 @@
                                     "kind": "char"
                                 }
                             }
+                        },
+                        {
+                            "name": "...",
+                            "type": {
+                                "kind": "variadic-param"
+                            }
                         }
-                    ],
-                    "isVariadic": true
+                    ]
                 },
                 {
                     "kind": "proc",

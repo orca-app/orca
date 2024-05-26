@@ -28,8 +28,8 @@ extern "C" {
 #define oc_list_next(elt) (elt)->next
 #define oc_list_prev(elt) (elt)->prev
 
-#define oc_list_entry(ptr, type, member) \
-    oc_container_of(ptr, type, member)
+#define oc_list_entry(elt, type, member) \
+    oc_container_of(elt, type, member)
 
 #define oc_list_next_entry(list, elt, type, member) \
     ((elt->member.next != oc_list_end(list)) ? oc_list_entry(elt->member.next, type, member) : 0)
@@ -37,8 +37,8 @@ extern "C" {
 #define oc_list_prev_entry(list, elt, type, member) \
     ((elt->member.prev != oc_list_end(list)) ? oc_list_entry(elt->member.prev, type, member) : 0)
 
-#define oc_list_checked_entry(list, type, member) \
-    (((list) != 0) ? oc_list_entry(list, type, member) : 0)
+#define oc_list_checked_entry(elt, type, member) \
+    (((elt) != 0) ? oc_list_entry(elt, type, member) : 0)
 
 #define oc_list_first_entry(list, type, member) \
     (oc_list_checked_entry(oc_list_begin(list), type, member))

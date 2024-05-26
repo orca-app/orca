@@ -14,8 +14,6 @@ def gen_macro(spec):
         s += param["name"]
         if i != len(spec["params"])-1:
             s += ", "
-    if "isVariadic" in spec and spec["isVariadic"] == True:
-        s += ", ..."
     s += ")"
     if isinstance(spec["text"], str):
         s += " " + spec["text"] + "\n"
@@ -86,7 +84,9 @@ def gen_type(typeSpec, typeName, indent):
 
     typeKind = typeSpec["kind"]
 
-    if typeKind == "struct" or typeKind == "enum" or typeKind == "union":
+    if typeKind == "variadic-param":
+        pass
+    elif typeKind == "struct" or typeKind == "enum" or typeKind == "union":
         s += typeKind
         if typeName != None:
             s += f" {typeName}"
@@ -156,8 +156,6 @@ def gen_proc(spec):
         s += " " + param["name"]
         if i != len(spec["params"])-1:
             s += ", "
-    if "isVariadic" in spec and spec["isVariadic"] == True:
-        s += ", ..."
     s += ");\n"
 
     return s
@@ -187,7 +185,7 @@ def doc_fields(desc, indent=0):
             s += f"- <code>{name}</code> "
 
         if "doc" in field:
-            s += field["doc"]
+            s += doc_text(field["doc"])
         s += "\n"
 
         if typeKind == "struct" or typeKind == "union":
@@ -203,7 +201,7 @@ def doc_enum_constants(desc):
         name = constant["name"]
         s += f"- <code>{name}</code> "
         if "doc" in constant:
-            s += field["doc"]
+            s += doc_text(constant["doc"])
         s += "\n"
 
     s += "\n"
@@ -228,7 +226,7 @@ def doc_type(desc):
     s += "\n```\n\n"
 
     if "doc" in desc:
-        s += desc["doc"]
+        s += doc_text(desc["doc"])
         s += "\n\n"
 
     if kind == "struct" or kind == "union":
@@ -240,6 +238,16 @@ def doc_type(desc):
     else:
         s += doc_typedef(name, desc["type"])
 
+    if "remarks" in desc:
+        s += "\n**Remarks**\n\n"
+        s += doc_text(desc["remarks"])
+        s += "\n"
+
+    if "note" in desc:
+        s += "\n**Note**\n\n"
+        s += doc_text(desc["note"])
+        s += "\n"
+
     s += "\n---\n\n"
     return s
 
@@ -249,53 +257,84 @@ def doc_typedef(name, desc):
 def doc_macro(desc):
     name = desc["name"]
 
-    s = "```\n"
+    s = f"#### <pre>{name}</pre>\n\n"
+
+    s += "```\n"
     s += f"#define {name}("
     for i, param in enumerate(desc["params"]):
         s += param["name"]
         if i != len(desc["params"])-1:
             s += ", "
-    if "isVariadic" in desc and desc["isVariadic"] == True:
-        s += "..."
     s += ")"
     s += "\n```\n\n"
 
     if "doc" in desc:
-        s += desc["doc"]
+        s += doc_text(desc["doc"])
         s += "\n\n"
 
     s += "**Parameters**\n\n"
     for param in desc["params"]:
         paramName = param["name"]
-        s += f"- **{paramName}** "
+        s += f"- <code>{paramName}</code> "
         if "doc" in param:
-            s += param["doc"]
+            s += doc_text(param["doc"])
         s += "\n"
 
-    # document variadic arg
+    if "return" in desc and "doc" in desc["return"]:
+        s += "\n**Return**\n\n"
+        s += doc_text(desc["return"]["doc"])
+        s += "\n"
+
+    if "remarks" in desc:
+        s += "\n**Remarks**\n\n"
+        s += doc_text(desc["remarks"])
+        s += "\n"
+
+    if "note" in desc:
+        s += "\n**Note**\n\n"
+        s += doc_text(desc["note"])
+        s += "\n"
+
     s += "\n---\n\n"
     return s
 
 def doc_proc(desc):
     name = desc["name"]
 
-    s = "```\n"
+    s = f"#### <pre>{name}</pre>\n\n"
+
+    s += "```\n"
     s += gen_proc(desc)
-    s += "\n```\n\n"
+    s += "```\n\n"
 
     if "doc" in desc:
-        s += desc["doc"]
+        s += doc_text(desc["doc"])
         s += "\n\n"
 
-    s += "**Parameters**\n\n"
-    for param in desc["params"]:
-        paramName = param["name"]
-        s += f"- **{paramName}** "
-        if "doc" in param:
-            s += param["doc"]
+    if len(desc["params"]):
+        s += "**Parameters**\n\n"
+        for param in desc["params"]:
+            paramName = param["name"]
+            s += f"- <code>{paramName}</code> "
+            if "doc" in param:
+                s += doc_text(param["doc"])
+            s += "\n"
+
+    if "doc" in desc["return"]:
+        s += "\n**Return**\n\n"
+        s += doc_text(desc["return"]["doc"])
         s += "\n"
 
-    # document variadic arg
+    if "remarks" in desc:
+        s += "\n**Remarks**\n\n"
+        s += doc_text(desc["remarks"])
+        s += "\n"
+
+    if "note" in desc:
+        s += "\n**Note**\n\n"
+        s += doc_text(desc["note"])
+        s += "\n"
+
     s += "\n---\n\n"
     return s
 
