@@ -945,11 +945,6 @@
                     ]
                 },
                 {
-                    "kind": "typename-forward",
-                    "name": "oc_list_elt",
-                    "keyword": "struct"
-                },
-                {
                     "kind": "typename",
                     "name": "oc_list_elt",
                     "doc": "An element of an intrusive doubly-linked list.",
@@ -12761,8 +12756,251 @@
         {
             "kind": "typename",
             "name": "oc_ui_box",
-            "type": {
-                "kind": "struct"
+            "type":  {
+                "kind": "struct",
+                "fields": [
+                    {
+                        "name": "listElt",
+                        "type": {
+                            "kind": "namedType",
+                            "name": "oc_list_elt"
+                        }
+                    },
+                    {
+                        "name": "children",
+                        "type": {
+                            "kind": "namedType",
+                            "name": "oc_list"
+                        }
+                    },
+                    {
+                        "name": "parent",
+                        "type": {
+                            "kind": "pointer",
+                            "type": {
+                                "kind": "namedType",
+                                "name": "oc_ui_box"
+                            }
+                        }
+                    },
+                    {
+                        "name": "overlayElt",
+                        "type": {
+                            "kind": "namedType",
+                            "name": "oc_list_elt"
+                        }
+                    },
+                    {
+                        "name": "bucketElt",
+                        "type": {
+                            "kind": "namedType",
+                            "name": "oc_list_elt"
+                        }
+                    },
+                    {
+                        "name": "key",
+                        "type": {
+                            "kind": "namedType",
+                            "name": "oc_ui_key"
+                        }
+                    },
+                    {
+                        "name": "frameCounter",
+                        "type": {
+                            "kind": "u64"
+                        }
+                    },
+                    {
+                        "name": "flags",
+                        "type": {
+                            "kind": "namedType",
+                            "name": "oc_ui_flags"
+                        }
+                    },
+                    {
+                        "name": "string",
+                        "type": {
+                            "kind": "namedType",
+                            "name": "oc_str8"
+                        }
+                    },
+                    {
+                        "name": "tags",
+                        "type": {
+                            "kind": "namedType",
+                            "name": "oc_list"
+                        }
+                    },
+                    {
+                        "name": "drawProc",
+                        "type": {
+                            "kind": "namedType",
+                            "name": "oc_ui_box_draw_proc"
+                        }
+                    },
+                    {
+                        "name": "drawData",
+                        "type": {
+                            "kind": "pointer",
+                            "type": {
+                                "kind": "void"
+                            }
+                        }
+                    },
+                    {
+                        "name": "beforeRules",
+                        "type": {
+                            "kind": "namedType",
+                            "name": "oc_list"
+                        }
+                    },
+                    {
+                        "name": "afterRules",
+                        "type": {
+                            "kind": "namedType",
+                            "name": "oc_list"
+                        }
+                    },
+                    {
+                        "name": "targetStyle",
+                        "type": {
+                            "kind": "pointer",
+                            "type": {
+                                "kind": "namedType",
+                                "name": "oc_ui_style"
+                            }
+                        }
+                    },
+                    {
+                        "name": "style",
+                        "type": {
+                            "kind": "namedType",
+                            "name": "oc_ui_style"
+                        }
+                    },
+                    {
+                        "name": "z",
+                        "type": {
+                            "kind": "u32"
+                        }
+                    },
+                    {
+                        "name": "floatPos",
+                        "type": {
+                            "kind": "namedType",
+                            "name": "oc_vec2"
+                        }
+                    },
+                    {
+                        "name": "childrenSum",
+                        "type": {
+                            "kind": "array",
+                            "type": {
+                                "kind": "f32"
+                            },
+                            "count": 2
+                        }
+                    },
+                    {
+                        "name": "spacing",
+                        "type": {
+                            "kind": "array",
+                            "type": {
+                                "kind": "f32"
+                            },
+                            "count": 2
+                        }
+                    },
+                    {
+                        "name": "minSize",
+                        "type": {
+                            "kind": "array",
+                            "type": {
+                                "kind": "f32"
+                            },
+                            "count": 2
+                        }
+                    },
+                    {
+                        "name": "rect",
+                        "type": {
+                            "kind": "namedType",
+                            "name": "oc_rect"
+                        }
+                    },
+                    {
+                        "name": "sig",
+                        "type": {
+                            "kind": "pointer",
+                            "type": {
+                                "kind": "namedType",
+                                "name": "oc_ui_sig"
+                            }
+                        }
+                    },
+                    {
+                        "name": "fresh",
+                        "type": {
+                            "kind": "bool"
+                        }
+                    },
+                    {
+                        "name": "closed",
+                        "type": {
+                            "kind": "bool"
+                        }
+                    },
+                    {
+                        "name": "parentClosed",
+                        "type": {
+                            "kind": "bool"
+                        }
+                    },
+                    {
+                        "name": "dragging",
+                        "type": {
+                            "kind": "bool"
+                        }
+                    },
+                    {
+                        "name": "hot",
+                        "type": {
+                            "kind": "bool"
+                        }
+                    },
+                    {
+                        "name": "active",
+                        "type": {
+                            "kind": "bool"
+                        }
+                    },
+                    {
+                        "name": "scroll",
+                        "type": {
+                            "kind": "namedType",
+                            "name": "oc_vec2"
+                        }
+                    },
+                    {
+                        "name": "pressedMouse",
+                        "type": {
+                            "kind": "namedType",
+                            "name": "oc_vec2"
+                        }
+                    },
+                    {
+                        "name": "hotTransition",
+                        "type": {
+                            "kind": "f32"
+                        }
+                    },
+                    {
+                        "name": "activeTransition",
+                        "type": {
+                            "kind": "f32"
+                        }
+                    }
+                ]
             }
         },
         {
@@ -13093,7 +13331,51 @@
             "kind": "typename",
             "name": "oc_ui_stack_elt",
             "type": {
-                "kind": "struct"
+                "kind": "struct",
+                "fields": [
+                    {
+                        "name": "parent",
+                        "type": {
+                            "kind": "pointer",
+                            "type": {
+                                "kind": "namedType",
+                                "name": "oc_ui_stack_elt"
+                            }
+                        }
+                    },
+                    {
+                        "name": "",
+                        "type": {
+                            "kind": "union",
+                            "fields": [
+                                {
+                                    "name": "box",
+                                    "type": {
+                                        "kind": "pointer",
+                                        "type": {
+                                            "kind": "namedType",
+                                            "name": "oc_ui_box"
+                                        }
+                                    }
+                                },
+                                {
+                                    "name": "size",
+                                    "type": {
+                                        "kind": "namedType",
+                                        "name": "oc_ui_size"
+                                    }
+                                },
+                                {
+                                    "name": "clip",
+                                    "type": {
+                                        "kind": "namedType",
+                                        "name": "oc_rect"
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                ]
             }
         },
         {

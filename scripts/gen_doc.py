@@ -78,7 +78,6 @@ def gen_enum_constant(constant, indent):
     if "value" in constant:
         s += " = "
         s += str(constant["value"])
-    s += ","
     return s
 
 def gen_type(typeSpec, typeName, indent):
@@ -101,9 +100,11 @@ def gen_type(typeSpec, typeName, indent):
                     s += gen_field(field, indent+1)
                     s += ";\n"
         else:
-            for constant in typeSpec["constants"]:
-                gen_enum_constant(constant, indent+1)
-                s += ";\n"
+            for i, constant in enumerate(typeSpec["constants"]):
+                s += gen_enum_constant(constant, indent+1)
+                if i != len(typeSpec["constants"])-1:
+                    s += ","
+                s += "\n"
 
         s += gen_indent(indent)
         s += "}"
@@ -172,39 +173,58 @@ def escape_underscores(name):
 def make_dir_name(name):
     return name.replace("/", "_")
 
-def doc_fields(desc):
+def doc_fields(desc, indent=0):
 
     s = ""
-    if "fields" in desc:
-        s += "**Fields**\n\n"
-        for field in desc["fields"]:
-            name = field["name"]
-            s += f"- **{name}** "
-            if "doc" in field:
-                s += field["doc"]
-            s += "\n"
+    for field in desc["fields"]:
+        name = field["name"]
+        typeKind = field["type"]["kind"]
 
+        s += gen_indent(indent)
+        if name == "" and (typeKind == "struct" or typeKind == "union"):
+            s += f"- Anonymous <code>{typeKind}</code>"
+        else:
+            s += f"- <code>{name}</code> "
+
+        if "doc" in field:
+            s += field["doc"]
         s += "\n"
+
+        if typeKind == "struct" or typeKind == "union":
+            s += doc_fields(field["type"], indent+1)
+
+    s += "\n"
 
     return s
 
 def doc_enum_constants(desc):
-    # s += "**Constants**\n\n"
-    # for constant in desc["constants"]:
-    #     name = field["name"]
-    #     s += f"- **{name}** \n"
+    s = "**Enum Constants**\n\n"
+    for constant in desc["constants"]:
+        name = constant["name"]
+        s += f"- <code>{name}</code> "
+        if "doc" in constant:
+            s += field["doc"]
+        s += "\n"
 
-    # s += "\n"
-    # return s
-    return ""
+    s += "\n"
+    return s
 
 def doc_type(desc):
     name = desc["name"]
     kind = desc["type"]["kind"]
 
-    s = "```\n"
+    if name != "":
+        s = f"#### <pre>{name}</pre>\n\n"
+    else:
+        s = f"#### Anonymous <code>{kind}</code>\n\n"
+
+    s += "```\n"
     s += "typedef "
     s += gen_type(desc["type"], name, 0)
+    if name != "":
+        s += f" {name};"
+    else:
+        s += ";"
     s += "\n```\n\n"
 
     if "doc" in desc:
@@ -212,9 +232,11 @@ def doc_type(desc):
         s += "\n\n"
 
     if kind == "struct" or kind == "union":
-        s += doc_fields(desc["type"])
+        if "fields" in desc["type"]:
+            s += "**Fields**\n\n"
+            s += doc_fields(desc["type"])
     elif kind == "enum":
-        s += doc_enum_constants(desc)
+        s += doc_enum_constants(desc["type"])
     else:
         s += doc_typedef(name, desc["type"])
 

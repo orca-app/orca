@@ -272,44 +272,46 @@ def generate_type_entry(entries, ast, tu):
        or ast.spelling == "size_t"):
         return
 
-    if find_entry(entries, "typename", ast.spelling) == None:
-        entry = {
-            "kind": "typename",
-            "name": ast.spelling if not ast.is_anonymous() else "",
-        }
+    #TODO: eliminate duplicate entries for forward typedefs of structs/union...
 
-        if ast.kind == cindex.CursorKind.TYPEDEF_DECL:
-            underlying = ast.underlying_typedef_type
+    entry = {
+        "kind": "typename",
+        "name": ast.spelling if not ast.is_anonymous() else "",
+    }
 
-            if underlying.kind == cindex.TypeKind.RECORD or underlying.kind == cindex.TypeKind.ENUM:
-                decl = underlying.get_declaration()
+    if ast.kind == cindex.CursorKind.TYPEDEF_DECL:
+        underlying = ast.underlying_typedef_type
 
-                if decl.kind == cindex.CursorKind.STRUCT_DECL or decl.kind == cindex.CursorKind.UNION_DECL:
-                    t = type_struct_or_union(entries, decl, tu)
-                elif decl.kind == cindex.CursorKind.ENUM_DECL:
-                    t = type_enum(entries, decl, tu)
-                else:
-                    print(f"error: unrecognized {decl.kind} in type {ast.spelling}")
-                    t = "NONE"
-            elif underlying.kind == cindex.TypeKind.FUNCTIONPROTO:
-                decl = underlying.get_declaration()
-                t = type_proc_from_decl(entries, decl, underlying, tu)
-            elif underlying.kind == cindex.TypeKind.POINTER and underlying.get_pointee().kind == cindex.TypeKind.FUNCTIONPROTO:
-                decl = underlying.get_declaration()
-                t = type_proc_from_decl(entries, decl, underlying.get_pointee(), tu)
+        if underlying.kind == cindex.TypeKind.RECORD or underlying.kind == cindex.TypeKind.ENUM:
+            decl = underlying.get_declaration()
+
+            if decl.kind == cindex.CursorKind.STRUCT_DECL or decl.kind == cindex.CursorKind.UNION_DECL:
+                t = type_struct_or_union(entries, decl, tu)
+            elif decl.kind == cindex.CursorKind.ENUM_DECL:
+                t = type_enum(entries, decl, tu)
             else:
-                t = type_from_ast(entries, underlying, tu)
-        elif ast.kind == cindex.CursorKind.STRUCT_DECL or ast.kind == cindex.CursorKind.UNION_DECL:
-            t = type_struct_or_union(entries, ast, tu)
-        elif ast.kind == cindex.CursorKind.ENUM_DECL:
-            t = type_enum(entries, ast, tu)
+                print(f"error: unrecognized {decl.kind} in type {ast.spelling}")
+                t = "NONE"
+        elif underlying.kind == cindex.TypeKind.FUNCTIONPROTO:
+            decl = underlying.get_declaration()
+            t = type_proc_from_decl(entries, decl, underlying, tu)
+        elif underlying.kind == cindex.TypeKind.POINTER and underlying.get_pointee().kind == cindex.TypeKind.FUNCTIONPROTO:
+            decl = underlying.get_declaration()
+            t = type_proc_from_decl(entries, decl, underlying.get_pointee(), tu)
         else:
-            print(f"error: unrecognized {ast.kind} in type {ast.spelling}")
-            t = "NONE"
+            t = type_from_ast(entries, underlying, tu)
 
-        entry["type"] = t
+    elif ast.kind == cindex.CursorKind.STRUCT_DECL or ast.kind == cindex.CursorKind.UNION_DECL:
+        t = type_struct_or_union(entries, ast, tu)
+    elif ast.kind == cindex.CursorKind.ENUM_DECL:
+        t = type_enum(entries, ast, tu)
+    else:
+        print(f"error: unrecognized {ast.kind} in type {ast.spelling}")
+        t = "NONE"
 
-        add_entry_for_cursor(entries, entry, ast)
+    entry["type"] = t
+
+    add_entry_for_cursor(entries, entry, ast)
 
 
 def get_api_entries():
