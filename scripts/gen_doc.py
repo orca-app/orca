@@ -118,6 +118,13 @@ def gen_type(typeSpec, typeName, indent):
         s += "[" + str(typeSpec["count"]) + "]"
     elif typeKind == "namedType":
         s += typeSpec["name"]
+    elif typeKind == "proc":
+        s += gen_type(typeSpec["return"], None, 0)
+        if typeName != None:
+            s += f" (*{typeName})"
+        s += "("
+        s += gen_param_list(typeSpec)
+        s += ")"
     else:
         s += typeKind
 
@@ -137,8 +144,20 @@ def gen_typename(spec):
     s = f"typedef "
     s += gen_type(typeSpec, typeName, 0)
 
-    s += f" {typeName};\n"
+    if typeSpec["kind"] != "proc":
+        s += f" {typeName};"
+    s += "\n"
 
+    return s
+
+def gen_param_list(spec):
+    s = "("
+    for i, param in enumerate(spec["params"]):
+        s += gen_type(param["type"], None, 0)
+        s += " " + param["name"]
+        if i != len(spec["params"])-1:
+            s += ", "
+    s += ")"
     return s
 
 def gen_proc(spec):
@@ -150,13 +169,8 @@ def gen_proc(spec):
     s += gen_type(spec["return"], None, 0)
     s += " "
     s += spec["name"]
-    s += "("
-    for i, param in enumerate(spec["params"]):
-        s += gen_type(param["type"], None, 0)
-        s += " " + param["name"]
-        if i != len(spec["params"])-1:
-            s += ", "
-    s += ");\n"
+    s += gen_param_list(spec)
+    s += ";\n"
 
     return s
 
@@ -219,7 +233,7 @@ def doc_type(desc):
     s += "```\n"
     s += "typedef "
     s += gen_type(desc["type"], name, 0)
-    if name != "":
+    if name != "" and desc["type"]["kind"] != "proc":
         s += f" {name};"
     else:
         s += ";"
@@ -450,7 +464,7 @@ def doc_module(outDir, module, dump):
 
     ok = True
     if ok and len(modules):
-        s += "### Modules\n\n"
+        s += "## Modules\n\n"
         subDir = os.path.join(outDir, make_dir_name(moduleName))
 
         for subModule in modules:
@@ -466,7 +480,7 @@ def doc_module(outDir, module, dump):
         s += "\n---\n\n"
 
     if ok and len(types):
-        s += "### Types\n\n"
+        s += "## Types\n\n"
         for e in types:
             if not find_entry_match(e, dump):
                 ok = False
@@ -474,14 +488,14 @@ def doc_module(outDir, module, dump):
             s += doc_type(e)
 
     if ok and len(macros):
-        s += "### Macros\n\n"
+        s += "## Macros\n\n"
         for e in macros:
             #if not find_entry_match(e, dump):
             #    return ("", False)
             s += doc_macro(e)
 
     if ok and len(procs):
-        s += "### Functions\n\n"
+        s += "## Functions\n\n"
         for e in procs:
             if not find_entry_match(e, dump):
                 ok = False

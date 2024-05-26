@@ -936,7 +936,7 @@
                     "params": [
                         {
                             "name": "elt",
-                            "doc": "A pointer to an `oc_list_elt` element.",
+                            "doc": "A pointer to an `oc_list_elt` element."
                         },
                         {
                             "name": "type",
@@ -1006,7 +1006,7 @@
                 {
                     "kind": "macro",
                     "name": "oc_list_checked_entry",
-                    "doc": "Same as `oc_list_entry`, but `elt` might be null."
+                    "doc": "Same as `oc_list_entry`, but `elt` might be null.",
                     "params": [
                         {
                             "name": "elt",
@@ -1078,7 +1078,7 @@
                         "This macro creates a loop with an iterator named after the `elt` macro parameter. The iterator is of the type specified by the `type` macro parameter, which must be the type of the entries linked in the list.",
                         "",
                         "You should follow this macro with the loop body, where you can use the iterator."
-                    ]
+                    ],
                     "params": [
                         {
                             "name": "list",
@@ -1256,8 +1256,7 @@
                 {
                     "kind": "proc",
                     "name": "oc_list_empty",
-                    "name": "Check if a list is empty.",
-                    "visibility": "ORCA_API",
+                    "doc": "Check if a list is empty.",
                     "return": {
                         "kind": "bool",
                         "doc": "`true` if the list is empty, `false` otherwise."
@@ -1418,7 +1417,7 @@
                     ]
                 },
                 {
-                    "kind": "proc"
+                    "kind": "proc",
                     "name": "oc_list_push_back",
                     "doc": "Add an element at the end of a list.",
                     "visibiliy": "ORCA_API",
@@ -1547,6 +1546,7 @@
                 {
                     "kind": "typename",
                     "name": "oc_mem_reserve_proc",
+                    "doc": "The prototype of a procedure to reserve memory from the system.",
                     "type": {
                         "kind": "proc",
                         "return": {
@@ -1578,6 +1578,7 @@
                 {
                     "kind": "typename",
                     "name": "oc_mem_modify_proc",
+                    "doc": "The prototype of a procedure to modify a memory reservation.",
                     "type": {
                         "kind": "proc",
                         "return": {
@@ -1615,11 +1616,13 @@
                 {
                     "kind": "typename",
                     "name": "oc_base_allocator",
+                    "doc": "A structure that defines how to allocate memory from the system.",
                     "type": {
                         "kind": "struct",
                         "fields": [
                             {
                                 "name": "reserve",
+                                "doc": "A procedure to reserve memory from the system.",
                                 "type": {
                                     "kind": "namedType",
                                     "name": "oc_mem_reserve_proc"
@@ -1627,6 +1630,7 @@
                             },
                             {
                                 "name": "commit",
+                                "doc": "A procedure to commit memory from the system.",
                                 "type": {
                                     "kind": "namedType",
                                     "name": "oc_mem_modify_proc"
@@ -1634,6 +1638,7 @@
                             },
                             {
                                 "name": "decommit",
+                                "doc": "A procedure to decommit memory from the system.",
                                 "type": {
                                     "kind": "namedType",
                                     "name": "oc_mem_modify_proc"
@@ -1641,6 +1646,7 @@
                             },
                             {
                                 "name": "release",
+                                "doc": "A procedure to release memory previously reserved from the system.",
                                 "type": {
                                     "kind": "namedType",
                                     "name": "oc_mem_modify_proc"
@@ -1652,6 +1658,7 @@
                 {
                     "kind": "typename",
                     "name": "oc_arena_chunk",
+                    "doc": "A contiguous chunk of memory managed by a memory arena.",
                     "type": {
                         "kind": "struct",
                         "fields": [
@@ -1695,11 +1702,13 @@
                 {
                     "kind": "typename",
                     "name": "oc_arena",
+                    "doc": "A memory arena, allowing to allocate memory in a linear or stack-like fashion.",
                     "type": {
                         "kind": "struct",
                         "fields": [
                             {
                                 "name": "base",
+                                "doc": "An allocator providing memory pages from the system",
                                 "type": {
                                     "kind": "pointer",
                                     "type": {
@@ -1710,6 +1719,7 @@
                             },
                             {
                                 "name": "chunks",
+                                "doc": "A list of `oc_arena_chunk` chunks.",
                                 "type": {
                                     "kind": "namedType",
                                     "name": "oc_list"
@@ -1717,6 +1727,7 @@
                             },
                             {
                                 "name": "currentChunk",
+                                "doc": "The chunk new memory allocations are pulled from.",
                                 "type": {
                                     "kind": "pointer",
                                     "type": {
@@ -1731,11 +1742,13 @@
                 {
                     "kind": "typename",
                     "name": "oc_arena_scope",
+                    "doc": "This struct provides a way to store the current offset in a given arena, in order to reset the arena to that offset later. This allows using arenas in a stack-like fashion, e.g. to create temporary \"scratch\" allocations",
                     "type": {
                         "kind": "struct",
                         "fields": [
                             {
                                 "name": "arena",
+                                "doc": "The arena which offset is stored.",
                                 "type": {
                                     "kind": "pointer",
                                     "type": {
@@ -1746,6 +1759,7 @@
                             },
                             {
                                 "name": "chunk",
+                                "doc": "The arena chunk to which the offset belongs.",
                                 "type": {
                                     "kind": "pointer",
                                     "type": {
@@ -1756,6 +1770,7 @@
                             },
                             {
                                 "name": "offset",
+                                "doc": "The offset to rewind the arena to.",
                                 "type": {
                                     "kind": "u64"
                                 }
@@ -1766,11 +1781,13 @@
                 {
                     "kind": "typename",
                     "name": "oc_arena_options",
+                    "doc": "Options for arena creation.",
                     "type": {
                         "kind": "struct",
                         "fields": [
                             {
                                 "name": "base",
+                                "doc": "The base allocator to use with this arena",
                                 "type": {
                                     "kind": "pointer",
                                     "type": {
@@ -1781,6 +1798,7 @@
                             },
                             {
                                 "name": "reserve",
+                                "doc": "The amount of memory to reserve up-front when creating the arena.",
                                 "type": {
                                     "kind": "u64"
                                 }
@@ -1791,12 +1809,14 @@
                 {
                     "kind": "proc",
                     "name": "oc_arena_init",
+                    "doc": "Initialize a memory arena.",
                     "return": {
                         "kind": "void"
                     },
                     "params": [
                         {
                             "name": "arena",
+                            "doc": "The arena to initialize.",
                             "type": {
                                 "kind": "pointer",
                                 "type": {
@@ -1810,12 +1830,14 @@
                 {
                     "kind": "proc",
                     "name": "oc_arena_init_with_options",
+                    "doc": "Initialize a memory arena with additional options.",
                     "return": {
                         "kind": "void"
                     },
                     "params": [
                         {
                             "name": "arena",
+                            "doc": "The arena to initialize.",
                             "type": {
                                 "kind": "pointer",
                                 "type": {
@@ -1826,6 +1848,7 @@
                         },
                         {
                             "name": "options",
+                            "doc": "The options to use to initialize the arena.",
                             "type": {
                                 "kind": "pointer",
                                 "type": {
@@ -1839,12 +1862,14 @@
                 {
                     "kind": "proc",
                     "name": "oc_arena_cleanup",
+                    "doc": "Release all resources allocated to a memory arena.",
                     "return": {
                         "kind": "void"
                     },
                     "params": [
                         {
                             "name": "arena",
+                            "doc": "The arena to cleanup.",
                             "type": {
                                 "kind": "pointer",
                                 "type": {
@@ -1858,15 +1883,18 @@
                 {
                     "kind": "proc",
                     "name": "oc_arena_push",
+                    "doc": "Allocate a block of memory from an arena.",
                     "return": {
                         "kind": "pointer",
                         "type": {
                             "kind": "void"
-                        }
+                        },
+                        "doc": "A pointer to the allocated memory."
                     },
                     "params": [
                         {
                             "name": "arena",
+                            "doc": "An arena to allocate memory from.",
                             "type": {
                                 "kind": "pointer",
                                 "type": {
@@ -1877,6 +1905,7 @@
                         },
                         {
                             "name": "size",
+                            "doc": "The size of the memory to allocate, in bytes.",
                             "type": {
                                 "kind": "u64"
                             }
@@ -1886,15 +1915,18 @@
                 {
                     "kind": "proc",
                     "name": "oc_arena_push_aligned",
+                    "doc": "Allocate an aligned block of memory from an arena.",
                     "return": {
                         "kind": "pointer",
                         "type": {
                             "kind": "void"
-                        }
+                        },
+                        "doc": "A pointer to the allocated memory"
                     },
                     "params": [
                         {
                             "name": "arena",
+                            "doc": "An arena to allocate memory from.",
                             "type": {
                                 "kind": "pointer",
                                 "type": {
@@ -1905,12 +1937,14 @@
                         },
                         {
                             "name": "size",
+                            "doc": "The size of the memory to allocate, in bytes.",
                             "type": {
                                 "kind": "u64"
                             }
                         },
                         {
                             "name": "alignment",
+                            "doc": "The desired alignment of the memory block, in bytes",
                             "type": {
                                 "kind": "u32"
                             }
@@ -1920,12 +1954,14 @@
                 {
                     "kind": "proc",
                     "name": "oc_arena_clear",
+                    "doc": "Reset an arena. All memory that was previously allocated from this arena is released to the arena, and can be reallocated by later calls to `oc_arena_push` and similar functions. No memory is actually released _to the system_.",
                     "return": {
                         "kind": "void"
                     },
                     "params": [
                         {
                             "name": "arena",
+                            "doc": "The arena to clear.",
                             "type": {
                                 "kind": "pointer",
                                 "type": {
@@ -1939,13 +1975,16 @@
                 {
                     "kind": "proc",
                     "name": "oc_arena_scope_begin",
+                    "doc": "Begin a memory scope. This creates an `oc_arena_scope` object that stores the current offset of the arena. The arena can later be reset to that offset by calling `oc_arena_scope_end`, releasing all memory that was allocated within the scope to the arena.",
                     "return": {
                         "kind": "namedType",
-                        "name": "oc_arena_scope"
+                        "name": "oc_arena_scope",
+                        "doc": "A `oc_arena_scope` object storing the current offset of the arena."
                     },
                     "params": [
                         {
                             "name": "arena",
+                            "doc": "The arena for which the scope is created.",
                             "type": {
                                 "kind": "pointer",
                                 "type": {
@@ -1959,12 +1998,14 @@
                 {
                     "kind": "proc",
                     "name": "oc_arena_scope_end",
+                    "doc": "End a memory scope. This resets an arena to the offset it had when the scope was created. All memory allocated within the scope is released back to the arena.",
                     "return": {
                         "kind": "void"
                     },
                     "params": [
                         {
                             "name": "scope",
+                            "doc": "An `oc_arena_scope` object that was created by a call to `oc_arena_scope_begin()`.",
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_arena_scope"
@@ -1973,38 +2014,95 @@
                     ]
                 },
                 {
+                    "kind": "proc",
+                    "name": "oc_scratch_begin",
+                    "doc": [
+                        "Begin a scratch scope. This creates a memory scope on a per-thread, global \"scratch\" arena. This allows easily creating temporary memory for scratch computations or intermediate results, in a stack-like fashion.",
+                        "",
+                        "If you must return results in an arena passed by the caller, and you also use a scratch arena to do intermediate computations, beware that the results arena could itself be a scatch arena. In this case, you have to be careful not to intermingle your scratch computations with the final result, or clear your result entirely. You can either:",
+                        "",
+                        "- Allocate memory for the result upfront and call `oc_scratch_begin` afterwards, if possible.",
+                        "- Use `oc_scratch_begin_next()` and pass it the result arena, to get a scratch arena that does not conflict with it."
+                    ],
+                    "return": {
+                        "kind": "namedType",
+                        "name": "oc_arena_scope",
+                        "doc": "A memory scope object. You can use the `arena` field of this object to allocate memory from the scratch scope. When you're done, pass the scope oject to `oc_scratch_end()`."
+                    },
+                    "params": []
+                },
+                {
+                    "kind": "proc",
+                    "name": "oc_scratch_begin_next",
+                    "doc": "Begin a scratch scope that does not conflict with a given arena. See `oc_scratch_begin()` for more details about when to use this function.",
+                    "return": {
+                        "kind": "namedType",
+                        "name": "oc_arena_scope",
+                        "doc": "A memory scope object. You can use the `arena` field of this object to allocate memory from the scratch scope. When you're done, pass the scope oject to `oc_scratch_end()`."
+                    },
+                    "params": [
+                        {
+                            "name": "used",
+                            "doc": "A pointer to a memory arena that the scratch scope shouldn't interfere with.",
+                            "type": {
+                                "kind": "pointer",
+                                "type": {
+                                    "kind": "namedType",
+                                    "name": "oc_arena"
+                                }
+                            }
+                        }
+                    ]
+                },
+                {
                     "kind": "macro",
+                    "doc": "Allocate a type from an arena. This macro takes care of the memory alignment and type cast.",
                     "name": "oc_arena_push_type",
                     "params": [
                         {
-                            "name": "arena"
+                            "name": "arena",
+                            "doc": "The arena to allocate from."
                         },
                         {
-                            "name": "type"
+                            "name": "type",
+                            "doc": "The type of the object to allocate."
                         }
-                    ]
+                    ],
+                    "return": {
+                        "doc": "A pointer to the allocated object."
+                    }
+
                 },
                 {
                     "kind": "macro",
                     "name": "oc_arena_push_array",
+                    "doc": "Allocate an array from an arena. This macro takes care of the size calculation, memory alignment and type cast.",
                     "params": [
                         {
-                            "name": "arena"
+                            "name": "arena",
+                            "doc": "The arena to allocate from."
                         },
                         {
-                            "name": "type"
+                            "name": "type",
+                            "doc": "The type of the array's elements."
                         },
                         {
-                            "name": "count"
+                            "name": "count",
+                            "doc": "The number of element in the array."
                         }
-                    ]
+                    ],
+                    "return": {
+                        "doc": "A pointer to the allocated array."
+                    }
                 },
                 {
                     "kind": "macro",
                     "name": "oc_scratch_end",
+                    "doc": "End a scratch scope.",
                     "params": [
                         {
-                            "name": "scope"
+                            "name": "scope",
+                            "doc": "A scope object created by a call to `oc_scratch_begin()` or similar functions."
                         }
                     ]
                 }
@@ -2086,7 +2184,6 @@
                 {
                     "kind": "proc",
                     "name": "oc_str8_from_buffer",
-                    "visibility": "ORCA_API",
                     "return": {
                         "kind": "namedType",
                         "name": "oc_str8"
@@ -2112,7 +2209,6 @@
                 {
                     "kind": "proc",
                     "name": "oc_str8_slice",
-                    "visibility": "ORCA_API",
                     "return": {
                         "kind": "namedType",
                         "name": "oc_str8"
@@ -2142,7 +2238,6 @@
                 {
                     "kind": "proc",
                     "name": "oc_str8_push_buffer",
-                    "visibility": "ORCA_API",
                     "return": {
                         "kind": "namedType",
                         "name": "oc_str8"
@@ -2178,7 +2273,6 @@
                 {
                     "kind": "proc",
                     "name": "oc_str8_push_cstring",
-                    "visibility": "ORCA_API",
                     "return": {
                         "kind": "namedType",
                         "name": "oc_str8"
@@ -2209,7 +2303,6 @@
                 {
                     "kind": "proc",
                     "name": "oc_str8_push_copy",
-                    "visibility": "ORCA_API",
                     "return": {
                         "kind": "namedType",
                         "name": "oc_str8"
@@ -2237,7 +2330,6 @@
                 {
                     "kind": "proc",
                     "name": "oc_str8_push_slice",
-                    "visibility": "ORCA_API",
                     "return": {
                         "kind": "namedType",
                         "name": "oc_str8"
@@ -2277,7 +2369,6 @@
                 {
                     "kind": "proc",
                     "name": "oc_str8_pushfv",
-                    "visibility": "ORCA_API",
                     "return": {
                         "kind": "namedType",
                         "name": "oc_str8"
@@ -2314,7 +2405,6 @@
                 {
                     "kind": "proc",
                     "name": "oc_str8_pushf",
-                    "visibility": "ORCA_API",
                     "return": {
                         "kind": "namedType",
                         "name": "oc_str8"
@@ -2351,7 +2441,6 @@
                 {
                     "kind": "proc",
                     "name": "oc_str8_cmp",
-                    "visibility": "ORCA_API",
                     "return": {
                         "kind": "i32"
                     },
@@ -2375,7 +2464,6 @@
                 {
                     "kind": "proc",
                     "name": "oc_str8_to_cstring",
-                    "visibility": "ORCA_API",
                     "return": {
                         "kind": "pointer",
                         "type": {
@@ -2456,7 +2544,6 @@
                 {
                     "kind": "proc",
                     "name": "oc_str8_list_push",
-                    "visibility": "ORCA_API",
                     "return": {
                         "kind": "void"
                     },
@@ -2493,7 +2580,6 @@
                 {
                     "kind": "proc",
                     "name": "oc_str8_list_pushf",
-                    "visibility": "ORCA_API",
                     "return": {
                         "kind": "void"
                     },
@@ -2539,7 +2625,6 @@
                 {
                     "kind": "proc",
                     "name": "oc_str8_list_collate",
-                    "visibility": "ORCA_API",
                     "return": {
                         "kind": "namedType",
                         "name": "oc_str8"
@@ -2588,7 +2673,6 @@
                 {
                     "kind": "proc",
                     "name": "oc_str8_list_join",
-                    "visibility": "ORCA_API",
                     "return": {
                         "kind": "namedType",
                         "name": "oc_str8"
@@ -2616,7 +2700,6 @@
                 {
                     "kind": "proc",
                     "name": "oc_str8_split",
-                    "visibility": "ORCA_API",
                     "return": {
                         "kind": "namedType",
                         "name": "oc_str8_list"
@@ -2718,7 +2801,6 @@
                 {
                     "kind": "proc",
                     "name": "oc_str16_from_buffer",
-                    "visibility": "ORCA_API",
                     "return": {
                         "kind": "namedType",
                         "name": "oc_str16"
@@ -2744,7 +2826,6 @@
                 {
                     "kind": "proc",
                     "name": "oc_str16_slice",
-                    "visibility": "ORCA_API",
                     "return": {
                         "kind": "namedType",
                         "name": "oc_str16"
@@ -2774,7 +2855,6 @@
                 {
                     "kind": "proc",
                     "name": "oc_str16_push_buffer",
-                    "visibility": "ORCA_API",
                     "return": {
                         "kind": "namedType",
                         "name": "oc_str16"
@@ -2810,7 +2890,6 @@
                 {
                     "kind": "proc",
                     "name": "oc_str16_push_copy",
-                    "visibility": "ORCA_API",
                     "return": {
                         "kind": "namedType",
                         "name": "oc_str16"
@@ -2838,7 +2917,6 @@
                 {
                     "kind": "proc",
                     "name": "oc_str16_push_slice",
-                    "visibility": "ORCA_API",
                     "return": {
                         "kind": "namedType",
                         "name": "oc_str16"
@@ -2929,7 +3007,6 @@
                 {
                     "kind": "proc",
                     "name": "oc_str16_list_push",
-                    "visibility": "ORCA_API",
                     "return": {
                         "kind": "void"
                     },
@@ -2966,7 +3043,6 @@
                 {
                     "kind": "proc",
                     "name": "oc_str16_list_join",
-                    "visibility": "ORCA_API",
                     "return": {
                         "kind": "namedType",
                         "name": "oc_str16"
@@ -2994,7 +3070,6 @@
                 {
                     "kind": "proc",
                     "name": "oc_str16_split",
-                    "visibility": "ORCA_API",
                     "return": {
                         "kind": "namedType",
                         "name": "oc_str16_list"
@@ -3086,7 +3161,6 @@
                 {
                     "kind": "proc",
                     "name": "oc_str32_from_buffer",
-                    "visibility": "ORCA_API",
                     "return": {
                         "kind": "namedType",
                         "name": "oc_str32"
@@ -3112,7 +3186,6 @@
                 {
                     "kind": "proc",
                     "name": "oc_str32_slice",
-                    "visibility": "ORCA_API",
                     "return": {
                         "kind": "namedType",
                         "name": "oc_str32"
@@ -3142,7 +3215,6 @@
                 {
                     "kind": "proc",
                     "name": "oc_str32_push_buffer",
-                    "visibility": "ORCA_API",
                     "return": {
                         "kind": "namedType",
                         "name": "oc_str32"
@@ -3178,7 +3250,6 @@
                 {
                     "kind": "proc",
                     "name": "oc_str32_push_copy",
-                    "visibility": "ORCA_API",
                     "return": {
                         "kind": "namedType",
                         "name": "oc_str32"
@@ -3206,7 +3277,6 @@
                 {
                     "kind": "proc",
                     "name": "oc_str32_push_slice",
-                    "visibility": "ORCA_API",
                     "return": {
                         "kind": "namedType",
                         "name": "oc_str32"
@@ -3297,7 +3367,6 @@
                 {
                     "kind": "proc",
                     "name": "oc_str32_list_push",
-                    "visibility": "ORCA_API",
                     "return": {
                         "kind": "void"
                     },
@@ -3334,7 +3403,6 @@
                 {
                     "kind": "proc",
                     "name": "oc_str32_list_join",
-                    "visibility": "ORCA_API",
                     "return": {
                         "kind": "namedType",
                         "name": "oc_str32"
@@ -3362,7 +3430,6 @@
                 {
                     "kind": "proc",
                     "name": "oc_str32_split",
-                    "visibility": "ORCA_API",
                     "return": {
                         "kind": "namedType",
                         "name": "oc_str32_list"
