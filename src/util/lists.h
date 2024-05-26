@@ -63,7 +63,8 @@ extern "C" {
         elt = __tmp,                                                                    \
               __tmp = elt ? oc_list_checked_entry(elt->member.next, type, member) : 0)
 
-#define oc_list_pop_entry(list, type, member) (oc_list_empty(*list) ? 0 : oc_list_entry(oc_list_pop(list), type, member))
+#define oc_list_pop_front_entry(list, type, member) (oc_list_empty(*list) ? 0 : oc_list_entry(oc_list_pop_front(list), type, member))
+#define oc_list_pop_back_entry(list, type, member) (oc_list_empty(*list) ? 0 : oc_list_entry(oc_list_pop_back(list), type, member))
 
 typedef struct oc_list_elt oc_list_elt;
 
@@ -79,18 +80,15 @@ typedef struct oc_list
     oc_list_elt* last;
 } oc_list;
 
+ORCA_API bool oc_list_empty(oc_list list);
 ORCA_API void oc_list_init(oc_list* list);
 ORCA_API void oc_list_insert(oc_list* list, oc_list_elt* afterElt, oc_list_elt* elt);
 ORCA_API void oc_list_insert_before(oc_list* list, oc_list_elt* beforeElt, oc_list_elt* elt);
 ORCA_API void oc_list_remove(oc_list* list, oc_list_elt* elt);
-ORCA_API void oc_list_push(oc_list* list, oc_list_elt* elt);
-ORCA_API oc_list_elt* oc_list_pop(oc_list* list);
+ORCA_API void oc_list_push_front(oc_list* list, oc_list_elt* elt);
+ORCA_API oc_list_elt* oc_list_pop_front(oc_list* list);
 ORCA_API void oc_list_push_back(oc_list* list, oc_list_elt* elt);
-
-#define oc_list_append(a, b) oc_list_push_back(a, b)
-
 ORCA_API oc_list_elt* oc_list_pop_back(oc_list* list);
-ORCA_API bool oc_list_empty(oc_list list);
 
 #ifdef __cplusplus
 } // extern "C"

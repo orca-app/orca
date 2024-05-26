@@ -72,7 +72,7 @@ void oc_list_remove(oc_list* list, oc_list_elt* elt)
     elt->prev = elt->next = 0;
 }
 
-void oc_list_push(oc_list* list, oc_list_elt* elt)
+void oc_list_push_front(oc_list* list, oc_list_elt* elt)
 {
     elt->next = list->first;
     elt->prev = 0;
@@ -87,7 +87,7 @@ void oc_list_push(oc_list* list, oc_list_elt* elt)
     list->first = elt;
 }
 
-oc_list_elt* oc_list_pop(oc_list* list)
+oc_list_elt* oc_list_pop_front(oc_list* list)
 {
     oc_list_elt* elt = oc_list_begin(*list);
     if(elt != oc_list_end(*list))

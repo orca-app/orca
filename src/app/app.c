@@ -20,7 +20,7 @@ void oc_init_window_handles()
     for(int i = 0; i < OC_APP_MAX_WINDOWS; i++)
     {
         oc_appData.windowPool[i].generation = 1;
-        oc_list_append(&oc_appData.windowFreeList, &oc_appData.windowPool[i].freeListElt);
+        oc_list_push_back(&oc_appData.windowFreeList, &oc_appData.windowPool[i].freeListElt);
     }
 }
 
@@ -36,7 +36,7 @@ oc_window oc_window_null_handle()
 
 oc_window_data* oc_window_alloc()
 {
-    return (oc_list_pop_entry(&oc_appData.windowFreeList, oc_window_data, freeListElt));
+    return (oc_list_pop_front_entry(&oc_appData.windowFreeList, oc_window_data, freeListElt));
 }
 
 oc_window_data* oc_window_ptr_from_handle(oc_window handle)
@@ -72,7 +72,7 @@ oc_window oc_window_handle_from_ptr(oc_window_data* window)
 void oc_window_recycle_ptr(oc_window_data* window)
 {
     window->generation++;
-    oc_list_push(&oc_appData.windowFreeList, &window->freeListElt);
+    oc_list_push_front(&oc_appData.windowFreeList, &window->freeListElt);
 }
 
 //---------------------------------------------------------------

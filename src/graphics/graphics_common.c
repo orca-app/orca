@@ -160,7 +160,7 @@ u64 oc_graphics_handle_alloc(oc_graphics_handle_kind kind, void* data)
         oc_graphics_init();
     }
 
-    oc_graphics_handle_slot* slot = oc_list_pop_entry(&oc_graphicsData.handleFreeList, oc_graphics_handle_slot, freeListElt);
+    oc_graphics_handle_slot* slot = oc_list_pop_front_entry(&oc_graphicsData.handleFreeList, oc_graphics_handle_slot, freeListElt);
     if(!slot && oc_graphicsData.handleNextIndex < OC_GRAPHICS_HANDLES_MAX_COUNT)
     {
         slot = &oc_graphicsData.handleArray[oc_graphicsData.handleNextIndex];
@@ -194,7 +194,7 @@ void oc_graphics_handle_recycle(u64 h)
         {
             OC_DEBUG_ASSERT(slot->generation != UINT32_MAX, "surface slot generation wrap around\n");
             slot->generation++;
-            oc_list_push(&oc_graphicsData.handleFreeList, &slot->freeListElt);
+            oc_list_push_front(&oc_graphicsData.handleFreeList, &slot->freeListElt);
         }
     }
 }
@@ -405,7 +405,7 @@ oc_font oc_font_create_from_memory(oc_str8 mem, u32 rangeCount, oc_unicode_range
     }
     oc_font fontHandle = oc_font_nil();
 
-    oc_font_data* font = oc_list_pop_entry(&oc_graphicsData.fontFreeList, oc_font_data, freeListElt);
+    oc_font_data* font = oc_list_pop_front_entry(&oc_graphicsData.fontFreeList, oc_font_data, freeListElt);
     if(!font)
     {
         font = oc_arena_push_type(&oc_graphicsData.resourceArena, oc_font_data);
@@ -629,7 +629,7 @@ void oc_font_destroy(oc_font fontHandle)
         free(fontData->glyphs);
         free(fontData->outlines);
 
-        oc_list_push(&oc_graphicsData.fontFreeList, &fontData->freeListElt);
+        oc_list_push_front(&oc_graphicsData.fontFreeList, &fontData->freeListElt);
         oc_graphics_handle_recycle(fontHandle.h);
     }
 }
@@ -952,7 +952,7 @@ oc_canvas_context oc_canvas_context_create()
     }
 
     oc_canvas_context contextHandle = oc_canvas_context_nil();
-    oc_canvas_context_data* context = oc_list_pop_entry(&oc_graphicsData.canvasFreeList, oc_canvas_context_data, freeListElt);
+    oc_canvas_context_data* context = oc_list_pop_front_entry(&oc_graphicsData.canvasFreeList, oc_canvas_context_data, freeListElt);
     if(!context)
     {
         context = oc_arena_push_type(&oc_graphicsData.resourceArena, oc_canvas_context_data);
@@ -991,7 +991,7 @@ void oc_canvas_context_destroy(oc_canvas_context handle)
             oc_currentCanvasContext = 0;
             oc_currentCanvasContextHandle = oc_canvas_context_nil();
         }
-        oc_list_push(&oc_graphicsData.canvasFreeList, &context->freeListElt);
+        oc_list_push_front(&oc_graphicsData.canvasFreeList, &context->freeListElt);
         oc_graphics_handle_recycle(handle.h);
     }
 }

@@ -37,7 +37,7 @@ oc_vec2 oc_surface_base_contents_scaling(oc_surface_base* surface)
 void oc_surface_base_bring_to_front(oc_surface_base* surface)
 {
     oc_list_remove(&surface->view.parent->win32.surfaces, &surface->view.listElt);
-    oc_list_push(&surface->view.parent->win32.surfaces, &surface->view.listElt);
+    oc_list_push_front(&surface->view.parent->win32.surfaces, &surface->view.listElt);
 
     IDCompositionVisual* rootVisual = surface->view.parent->win32.dcompRootVisual;
     rootVisual->lpVtbl->RemoveVisual(rootVisual, surface->view.dcompVisual);
@@ -192,5 +192,5 @@ void oc_surface_base_init_for_window(oc_surface_base* surface, oc_window_data* w
     SetFocus(window->win32.hWnd);
 
     surface->view.parent = window;
-    oc_list_append(&window->win32.surfaces, &surface->view.listElt);
+    oc_list_push_back(&window->win32.surfaces, &surface->view.listElt);
 }

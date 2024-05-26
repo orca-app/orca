@@ -114,7 +114,7 @@ void oc_str8_list_push(oc_arena* arena, oc_str8_list* list, oc_str8 str)
 {
     oc_str8_elt* elt = oc_arena_push_type(arena, oc_str8_elt);
     elt->string = str;
-    oc_list_append(&list->list, &elt->listElt);
+    oc_list_push_back(&list->list, &elt->listElt);
     list->eltCount++;
     list->len += str.len;
 }
@@ -256,7 +256,7 @@ void oc_str16_list_push(oc_arena* arena, oc_str16_list* list, oc_str16 str)
 {
     oc_str16_elt* elt = oc_arena_push_type(arena, oc_str16_elt);
     elt->string = str;
-    oc_list_append(&list->list, &elt->listElt);
+    oc_list_push_back(&list->list, &elt->listElt);
     list->eltCount++;
     list->len += str.len;
 }
@@ -342,7 +342,7 @@ void oc_str32_list_push(oc_arena* arena, oc_str32_list* list, oc_str32 str)
 {
     oc_str32_elt* elt = oc_arena_push_type(arena, oc_str32_elt);
     elt->string = str;
-    oc_list_append(&list->list, &elt->listElt);
+    oc_list_push_back(&list->list, &elt->listElt);
     list->eltCount++;
     list->len += str.len;
 }

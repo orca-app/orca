@@ -17,7 +17,7 @@ oc_file_table* oc_file_table_get_global()
 
 oc_file_slot* oc_file_slot_alloc(oc_file_table* table)
 {
-    oc_file_slot* slot = oc_list_pop_entry(&table->freeList, oc_file_slot, freeListElt);
+    oc_file_slot* slot = oc_list_pop_front_entry(&table->freeList, oc_file_slot, freeListElt);
     if(!slot && table->nextSlot < OC_IO_MAX_FILE_SLOTS)
     {
         slot = &table->slots[table->nextSlot];
@@ -35,7 +35,7 @@ oc_file_slot* oc_file_slot_alloc(oc_file_table* table)
 void oc_file_slot_recycle(oc_file_table* table, oc_file_slot* slot)
 {
     slot->generation++;
-    oc_list_push(&table->freeList, &slot->freeListElt);
+    oc_list_push_front(&table->freeList, &slot->freeListElt);
 }
 
 oc_file oc_file_from_slot(oc_file_table* table, oc_file_slot* slot)

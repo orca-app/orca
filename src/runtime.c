@@ -206,10 +206,10 @@ void oc_bridge_log(oc_log_level level,
     debug->entryCount++;
     if(debug->entryCount > debug->maxEntries)
     {
-        log_entry* e = oc_list_pop_entry(&debug->logEntries, log_entry, listElt);
+        log_entry* e = oc_list_pop_front_entry(&debug->logEntries, log_entry, listElt);
         if(e)
         {
-            oc_list_push(&debug->logFreeList, &e->listElt);
+            oc_list_push_front(&debug->logFreeList, &e->listElt);
             debug->entryCount--;
         }
     }
@@ -928,7 +928,7 @@ i32 orca_runloop(void* user)
                             oc_list_for_safe(app->debugOverlay.logEntries, entry, log_entry, listElt)
                             {
                                 oc_list_remove(&app->debugOverlay.logEntries, &entry->listElt);
-                                oc_list_push(&app->debugOverlay.logFreeList, &entry->listElt);
+                                oc_list_push_front(&app->debugOverlay.logFreeList, &entry->listElt);
                                 app->debugOverlay.entryCount--;
                             }
                         }

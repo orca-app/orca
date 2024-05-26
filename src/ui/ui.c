@@ -152,7 +152,7 @@ void oc_ui_tag_box_str8(oc_ui_box* box, oc_str8 string)
     oc_ui_context* ui = oc_ui_get_context();
     oc_ui_tag_elt* elt = oc_arena_push_type(&ui->frameArena, oc_ui_tag_elt);
     elt->tag = oc_ui_tag_make_str8(string);
-    oc_list_append(&box->tags, &elt->listElt);
+    oc_list_push_back(&box->tags, &elt->listElt);
 }
 
 void oc_ui_tag_next_str8(oc_str8 string)
@@ -160,7 +160,7 @@ void oc_ui_tag_next_str8(oc_str8 string)
     oc_ui_context* ui = oc_ui_get_context();
     oc_ui_tag_elt* elt = oc_arena_push_type(&ui->frameArena, oc_ui_tag_elt);
     elt->tag = oc_ui_tag_make_str8(string);
-    oc_list_append(&ui->nextBoxTags, &elt->listElt);
+    oc_list_push_back(&ui->nextBoxTags, &elt->listElt);
 }
 
 //-----------------------------------------------------------------------------
@@ -206,7 +206,7 @@ bool oc_ui_key_equal(oc_ui_key a, oc_ui_key b)
 void oc_ui_box_cache(oc_ui_context* ui, oc_ui_box* box)
 {
     u64 index = box->key.hash & (OC_UI_BOX_MAP_BUCKET_COUNT - 1);
-    oc_list_append(&(ui->boxMap[index]), &box->bucketElt);
+    oc_list_push_back(&(ui->boxMap[index]), &box->bucketElt);
 }
 
 oc_ui_box* oc_ui_box_lookup_key(oc_ui_key key)
@@ -238,7 +238,7 @@ void oc_ui_pattern_push(oc_arena* arena, oc_ui_pattern* pattern, oc_ui_selector 
 {
     oc_ui_selector* copy = oc_arena_push_type(arena, oc_ui_selector);
     *copy = selector;
-    oc_list_append(&pattern->l, &copy->listElt);
+    oc_list_push_back(&pattern->l, &copy->listElt);
 }
 
 oc_ui_pattern oc_ui_pattern_all(void)
@@ -268,7 +268,7 @@ void oc_ui_style_match_before(oc_ui_pattern pattern, oc_ui_style* style, oc_ui_s
         rule->style = oc_arena_push_type(&ui->frameArena, oc_ui_style);
         *rule->style = *style;
 
-        oc_list_append(&ui->nextBoxBeforeRules, &rule->boxElt);
+        oc_list_push_back(&ui->nextBoxBeforeRules, &rule->boxElt);
     }
 }
 
@@ -283,7 +283,7 @@ void oc_ui_style_match_after(oc_ui_pattern pattern, oc_ui_style* style, oc_ui_st
         rule->style = oc_arena_push_type(&ui->frameArena, oc_ui_style);
         *rule->style = *style;
 
-        oc_list_append(&ui->nextBoxAfterRules, &rule->boxElt);
+        oc_list_push_back(&ui->nextBoxAfterRules, &rule->boxElt);
     }
 }
 
@@ -303,7 +303,7 @@ void oc_ui_style_box_before(oc_ui_box* box, oc_ui_pattern pattern, oc_ui_style* 
         rule->style = oc_arena_push_type(&ui->frameArena, oc_ui_style);
         *rule->style = *style;
 
-        oc_list_append(&box->beforeRules, &rule->boxElt);
+        oc_list_push_back(&box->beforeRules, &rule->boxElt);
         rule->owner = box;
     }
 }
@@ -319,7 +319,7 @@ void oc_ui_style_box_after(oc_ui_box* box, oc_ui_pattern pattern, oc_ui_style* s
         rule->style = oc_arena_push_type(&ui->frameArena, oc_ui_style);
         *rule->style = *style;
 
-        oc_list_append(&box->afterRules, &rule->boxElt);
+        oc_list_push_back(&box->afterRules, &rule->boxElt);
         rule->owner = box;
     }
 }
@@ -406,13 +406,13 @@ oc_ui_box* oc_ui_box_make_str8(oc_str8 string, oc_ui_flags flags)
         box->parent = oc_ui_box_top();
         if(box->parent)
         {
-            oc_list_append(&box->parent->children, &box->listElt);
+            oc_list_push_back(&box->parent->children, &box->listElt);
             box->parentClosed = box->parent->closed || box->parent->parentClosed;
         }
 
         if(box->flags & OC_UI_FLAG_OVERLAY)
         {
-            oc_list_append(&ui->overlayList, &box->overlayElt);
+            oc_list_push_back(&ui->overlayList, &box->overlayElt);
         }
     }
     else
@@ -916,8 +916,8 @@ void oc_ui_style_rule_match(oc_ui_context* ui, oc_ui_box* box, oc_ui_style_rule*
             derived->style = rule->style;
             derived->pattern.l = (oc_list){ &selector->listElt, rule->pattern.l.last };
 
-            oc_list_append(buildList, &derived->buildElt);
-            oc_list_append(tmpList, &derived->tmpElt);
+            oc_list_push_back(buildList, &derived->buildElt);
+            oc_list_push_back(tmpList, &derived->tmpElt);
         }
     }
 }
@@ -936,8 +936,8 @@ void oc_ui_styling_prepass(oc_ui_context* ui, oc_ui_box* box, oc_list* before, o
     oc_list tmpBefore = { 0 };
     oc_list_for(box->beforeRules, rule, oc_ui_style_rule, boxElt)
     {
-        oc_list_append(before, &rule->buildElt);
-        oc_list_append(&tmpBefore, &rule->tmpElt);
+        oc_list_push_back(before, &rule->buildElt);
+        oc_list_push_back(&tmpBefore, &rule->tmpElt);
     }
     //NOTE: match before rules
     oc_list_for(*before, rule, oc_ui_style_rule, buildElt)
@@ -949,8 +949,8 @@ void oc_ui_styling_prepass(oc_ui_context* ui, oc_ui_box* box, oc_list* before, o
     oc_list tmpAfter = { 0 };
     oc_list_for_reverse(box->afterRules, rule, oc_ui_style_rule, boxElt)
     {
-        oc_list_push(after, &rule->buildElt);
-        oc_list_append(&tmpAfter, &rule->tmpElt);
+        oc_list_push_front(after, &rule->buildElt);
+        oc_list_push_back(&tmpAfter, &rule->tmpElt);
     }
 
     //NOTE: match after rules
@@ -1444,7 +1444,7 @@ void oc_ui_solve_layout(oc_ui_context* ui)
         if(box->parent)
         {
             oc_list_remove(&box->parent->children, &box->listElt);
-            oc_list_append(&ui->overlay->children, &box->listElt);
+            oc_list_push_back(&ui->overlay->children, &box->listElt);
         }
     }
 

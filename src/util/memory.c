@@ -181,13 +181,13 @@ void* oc_pool_alloc(oc_pool* pool)
     }
     else
     {
-        return (oc_list_pop(&pool->freeList));
+        return (oc_list_pop_front(&pool->freeList));
     }
 }
 
 void oc_pool_recycle(oc_pool* pool, void* ptr)
 {
-    oc_list_push(&pool->freeList, (oc_list_elt*)ptr);
+    oc_list_push_front(&pool->freeList, (oc_list_elt*)ptr);
 }
 
 void oc_pool_clear(oc_pool* pool)

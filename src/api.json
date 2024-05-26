@@ -1147,8 +1147,30 @@
                 },
                 {
                     "kind": "macro",
-                    "name": "oc_list_pop_entry",
+                    "name": "oc_list_pop_front_entry",
                     "doc": "Remove the first entry from a list and return it.",
+                    "params": [
+                        {
+                            "name": "list",
+                            "doc": "An `oc_list` object."
+                        },
+                        {
+                            "name": "type",
+                            "doc": "The type of the entry to retrieve."
+                        },
+                        {
+                            "name": "member",
+                            "doc": "The name of the field of type `oc_list_elt` in `type` by which the list entries are linked."
+                        }
+                    ],
+                    "return": {
+                        "doc": "A pointer of type `type` to the entry that was removed from the list."
+                    }
+                },
+                {
+                    "kind": "macro",
+                    "name": "oc_list_pop_back_entry",
+                    "doc": "Remove the last entry from a list and return it.",
                     "params": [
                         {
                             "name": "list",
@@ -1233,7 +1255,28 @@
                 },
                 {
                     "kind": "proc",
+                    "name": "oc_list_empty",
+                    "name": "Check if a list is empty.",
+                    "visibility": "ORCA_API",
+                    "return": {
+                        "kind": "bool",
+                        "doc": "`true` if the list is empty, `false` otherwise."
+                    },
+                    "params": [
+                        {
+                            "name": "list",
+                            "doc": "A linked list.",
+                            "type": {
+                                "kind": "namedType",
+                                "name": "oc_list"
+                            }
+                        }
+                    ]
+                },
+                {
+                    "kind": "proc",
                     "name": "oc_list_init",
+                    "doc": "Zero-initializes a linked list.",
                     "visibiliy": "ORCA_API",
                     "return": {
                         "kind": "void"
@@ -1241,6 +1284,7 @@
                     "params": [
                         {
                             "name": "list",
+                            "doc": "A pointer to the list to initialize.",
                             "type": {
                                 "kind": "pointer",
                                 "type": {
@@ -1249,11 +1293,13 @@
                                 }
                             }
                         }
-                    ]
+                    ],
+                    "note": "In C the same result can be achieved with `*list = (oc_list){0}`."
                 },
                 {
                     "kind": "proc",
                     "name": "oc_list_insert",
+                    "doc": "Insert an element in a list after a given element.",
                     "visibiliy": "ORCA_API",
                     "return": {
                         "kind": "void"
@@ -1263,6 +1309,7 @@
                             "name": "list",
                             "type": {
                                 "kind": "pointer",
+                                "doc": "The list to insert in.",
                                 "type": {
                                     "kind": "namedType",
                                     "name": "oc_list"
@@ -1273,6 +1320,7 @@
                             "name": "afterElt",
                             "type": {
                                 "kind": "pointer",
+                                "doc": "The element after which to insert.",
                                 "type": {
                                     "kind": "namedType",
                                     "name": "oc_list_elt"
@@ -1281,6 +1329,7 @@
                         },
                         {
                             "name": "elt",
+                            "doc": "The element to insert in the list.",
                             "type": {
                                 "kind": "pointer",
                                 "type": {
@@ -1294,6 +1343,7 @@
                 {
                     "kind": "proc",
                     "name": "oc_list_insert_before",
+                    "doc": "Insert an element in a list before a given element.",
                     "visibiliy": "ORCA_API",
                     "return": {
                         "kind": "void"
@@ -1301,6 +1351,7 @@
                     "params": [
                         {
                             "name": "list",
+                            "doc": "The list to insert in.",
                             "type": {
                                 "kind": "pointer",
                                 "type": {
@@ -1311,6 +1362,7 @@
                         },
                         {
                             "name": "beforeElt",
+                            "doc": "The element before which to insert.",
                             "type": {
                                 "kind": "pointer",
                                 "type": {
@@ -1321,6 +1373,7 @@
                         },
                         {
                             "name": "elt",
+                            "doc": "The element to insert in the list.",
                             "type": {
                                 "kind": "pointer",
                                 "type": {
@@ -1334,6 +1387,7 @@
                 {
                     "kind": "proc",
                     "name": "oc_list_remove",
+                    "doc": "Remove an element from a list.",
                     "visibiliy": "ORCA_API",
                     "return": {
                         "kind": "void"
@@ -1341,6 +1395,7 @@
                     "params": [
                         {
                             "name": "list",
+                            "doc": "The list to remove from.",
                             "type": {
                                 "kind": "pointer",
                                 "type": {
@@ -1351,6 +1406,7 @@
                         },
                         {
                             "name": "elt",
+                            "doc": "The element to remove from the list.",
                             "type": {
                                 "kind": "pointer",
                                 "type": {
@@ -1362,62 +1418,9 @@
                     ]
                 },
                 {
-                    "kind": "proc",
-                    "name": "oc_list_push",
-                    "visibiliy": "ORCA_API",
-                    "return": {
-                        "kind": "void"
-                    },
-                    "params": [
-                        {
-                            "name": "list",
-                            "type": {
-                                "kind": "pointer",
-                                "type": {
-                                    "kind": "namedType",
-                                    "name": "oc_list"
-                                }
-                            }
-                        },
-                        {
-                            "name": "elt",
-                            "type": {
-                                "kind": "pointer",
-                                "type": {
-                                    "kind": "namedType",
-                                    "name": "oc_list_elt"
-                                }
-                            }
-                        }
-                    ]
-                },
-                {
-                    "kind": "proc",
-                    "name": "oc_list_pop",
-                    "visibiliy": "ORCA_API",
-                    "return": {
-                        "kind": "pointer",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_list_elt"
-                        }
-                    },
-                    "params": [
-                        {
-                            "name": "list",
-                            "type": {
-                                "kind": "pointer",
-                                "type": {
-                                    "kind": "namedType",
-                                    "name": "oc_list"
-                                }
-                            }
-                        }
-                    ]
-                },
-                {
-                    "kind": "proc",
+                    "kind": "proc"
                     "name": "oc_list_push_back",
+                    "doc": "Add an element at the end of a list.",
                     "visibiliy": "ORCA_API",
                     "return": {
                         "kind": "void"
@@ -1425,6 +1428,7 @@
                     "params": [
                         {
                             "name": "list",
+                            "doc": "The list to add an element to.",
                             "type": {
                                 "kind": "pointer",
                                 "type": {
@@ -1435,6 +1439,7 @@
                         },
                         {
                             "name": "elt",
+                            "doc": "The element to add to the list.",
                             "type": {
                                 "kind": "pointer",
                                 "type": {
@@ -1448,17 +1453,20 @@
                 {
                     "kind": "proc",
                     "name": "oc_list_pop_back",
+                    "doc": "Remove the last element from a list.",
                     "visibiliy": "ORCA_API",
                     "return": {
                         "kind": "pointer",
                         "type": {
                             "kind": "namedType",
                             "name": "oc_list_elt"
-                        }
+                        },
+                        "doc": "The element that was removed, or a null pointer if the list was empty."
                     },
                     "params": [
                         {
                             "name": "list",
+                            "doc": "The list to remove an element from.",
                             "type": {
                                 "kind": "pointer",
                                 "type": {
@@ -1470,30 +1478,61 @@
                     ]
                 },
                 {
-                    "kind": "macro",
-                    "name": "oc_list_append",
+                    "kind": "proc",
+                    "name": "oc_list_push_front",
+                    "doc": "Add an element at the beginning of a list.",
+                    "visibiliy": "ORCA_API",
+                    "return": {
+                        "kind": "void"
+                    },
                     "params": [
                         {
-                            "name": "a"
+                            "name": "list",
+                            "doc": "The list to add an element to.",
+                            "type": {
+                                "kind": "pointer",
+                                "type": {
+                                    "kind": "namedType",
+                                    "name": "oc_list"
+                                }
+                            }
                         },
                         {
-                            "name": "b"
+                            "name": "elt",
+                            "doc": "The element to add to the list.",
+                            "type": {
+                                "kind": "pointer",
+                                "type": {
+                                    "kind": "namedType",
+                                    "name": "oc_list_elt"
+                                }
+                            }
                         }
                     ]
                 },
                 {
                     "kind": "proc",
-                    "name": "oc_list_empty",
-                    "visibility": "ORCA_API",
+                    "name": "oc_list_pop_front",
+                    "doc": "Remove the first element from a list.",
+                    "visibiliy": "ORCA_API",
                     "return": {
-                        "kind": "bool"
+                        "kind": "pointer",
+                        "type": {
+                            "kind": "namedType",
+                            "name": "oc_list_elt"
+                        },
+                        "doc": "The element that was removed, or a null pointer if the list was empty."
                     },
                     "params": [
                         {
                             "name": "list",
+                            "doc": "The list to remove an element from.",
                             "type": {
-                                "kind": "namedType",
-                                "name": "oc_list"
+                                "kind": "pointer",
+                                "type": {
+                                    "kind": "namedType",
+                                    "name": "oc_list"
+                                }
                             }
                         }
                     ]

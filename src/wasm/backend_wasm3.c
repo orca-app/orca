@@ -250,7 +250,7 @@ oc_wasm_status oc_wasm_add_binding(oc_wasm* wasm, oc_wasm_binding* binding)
     allocSize += binding->countReturns * sizeof(oc_wasm_valtype);
 
     oc_wasm_binding_elt_wasm3* elt = (oc_wasm_binding_elt_wasm3*)oc_arena_push_aligned(&wasm->arena, allocSize, _Alignof(oc_wasm_binding_elt_wasm3));
-    oc_list_push(&wasm->bindings, &elt->listElt);
+    oc_list_push_front(&wasm->bindings, &elt->listElt);
 
     elt->binding.info.importName = oc_str8_push_copy(&wasm->arena, binding->importName);
     elt->binding.info.proc = binding->proc;

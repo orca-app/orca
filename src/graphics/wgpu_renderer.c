@@ -3180,13 +3180,13 @@ void oc_wgpu_canvas_submit(oc_canvas_renderer_base* rendererBase,
             if(oldFrameCounters && (renderer->frameIndex - oldFrameCounters->frameIndex >= renderer->debugRecordOptions.maxRecordCount))
             {
                 //NOTE: recycle first (oldest) record
-                oc_list_pop(&renderer->debugRecords);
+                oc_list_pop_front(&renderer->debugRecords);
 
-                for(oc_wgpu_canvas_batch_counters* batchCounters = oc_list_pop_entry(&oldFrameCounters->batches, oc_wgpu_canvas_batch_counters, listElt);
+                for(oc_wgpu_canvas_batch_counters* batchCounters = oc_list_pop_front_entry(&oldFrameCounters->batches, oc_wgpu_canvas_batch_counters, listElt);
                     batchCounters != 0;
-                    batchCounters = oc_list_pop_entry(&oldFrameCounters->batches, oc_wgpu_canvas_batch_counters, listElt))
+                    batchCounters = oc_list_pop_front_entry(&oldFrameCounters->batches, oc_wgpu_canvas_batch_counters, listElt))
                 {
-                    oc_list_push(&renderer->batchCountersFreeList, &batchCounters->listElt);
+                    oc_list_push_front(&renderer->batchCountersFreeList, &batchCounters->listElt);
                 }
 
                 if(oldFrameCounters->gpuTime)
@@ -3196,11 +3196,11 @@ void oc_wgpu_canvas_submit(oc_canvas_renderer_base* rendererBase,
                 oc_wgpu_canvas_stats_remove_sample(&renderer->cpuEncodeTime);
                 oc_wgpu_canvas_stats_remove_sample(&renderer->cpuFrameTime);
 
-                oc_list_push(&renderer->frameCountersFreeList, &oldFrameCounters->listElt);
+                oc_list_push_front(&renderer->frameCountersFreeList, &oldFrameCounters->listElt);
             }
 
             //NOTE: get new record from free list or allocate it fresh from debug arena
-            frameCounters = oc_list_pop_entry(&renderer->frameCountersFreeList,
+            frameCounters = oc_list_pop_front_entry(&renderer->frameCountersFreeList,
                                               oc_wgpu_canvas_frame_counters,
                                               listElt);
             if(!frameCounters)
@@ -3287,7 +3287,7 @@ void oc_wgpu_canvas_submit(oc_canvas_renderer_base* rendererBase,
             oc_wgpu_canvas_batch_counters* batchCounters = 0;
             if(frameCounters)
             {
-                batchCounters = oc_list_pop_entry(&renderer->batchCountersFreeList,
+                batchCounters = oc_list_pop_front_entry(&renderer->batchCountersFreeList,
                                                   oc_wgpu_canvas_batch_counters,
                                                   listElt);
                 if(!batchCounters)
@@ -3303,7 +3303,7 @@ void oc_wgpu_canvas_submit(oc_canvas_renderer_base* rendererBase,
                 {
                     batchCounters->encodedPathCount = encodingContext.pathCount;
                     batchCounters->encodedElementCount = encodingContext.eltCount;
-                    oc_list_push(&frameCounters->batches, &batchCounters->listElt);
+                    oc_list_push_front(&frameCounters->batches, &batchCounters->listElt);
                 }
                 else
                 {
