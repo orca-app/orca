@@ -15,7 +15,7 @@ nav:
     - Quick Start: 'QuickStart.md'
   - User Guide:
     - API Spec:
-      - Overview: 'api_reference.md'
+      - Overview: 'api/api_reference.md'
       - Utility:
         - Overview: 'api/Utility.md'
         - Algebra: 'api/Utility/Algebra.md'
@@ -37,6 +37,8 @@ nav:
         - Canvas API: 'api/Graphics/Canvas API.md'
         - GLES Surface: 'api/Graphics/GLES Surface.md'
       - UI: 'api/UI.md'
+
   - Developper Guide:
     - Building: 'building.md'
+    - Editing the Documentation: 'documentation.md'
   - FAQ: 'faq.md'

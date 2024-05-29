@@ -58,3 +58,6 @@ src/ext/curl/builds/
 src/ext/curl/winbuild/*.inc
 src/ext/curl/winbuild/*.idb
 src/ext/zlib/build/
+
+doc/mkdocs/docs/api
+doc/mkdocs/mkdocs.yml

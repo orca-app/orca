@@ -517,6 +517,59 @@ def doc_module(outDir, module, dump):
 
 
 
+def gen_mkdoc_api_nav_recursive(dirPath, desc, indent):
+    s = ""
+    for module in desc:
+        moduleName = module["name"]
+        modulePath = os.path.join(dirPath, make_dir_name(moduleName) + ".md")
+
+        subModules = [x for x in module["contents"] if x["kind"] == "module"]
+        if len(subModules):
+            s += gen_indent(indent, width=2)
+            s += f"- {moduleName}:\n"
+            s += gen_indent(indent+1, width=2)
+            s += f"- Overview: '{modulePath}'\n"
+            s += gen_mkdoc_api_nav_recursive(os.path.join(dirPath, make_dir_name(moduleName)), subModules, indent+1)
+        else:
+            s += gen_indent(indent, width=2)
+            s += f"- {moduleName}: '{modulePath}'\n"
+
+    return s
+
+
+def gen_mkdoc_api_nav(dirPath, desc, indent):
+
+    s = "- API Spec:\n"
+    s += gen_indent(indent+1, width=2)
+    s += "- Overview: 'api/api_reference.md'\n"
+
+    s += gen_mkdoc_api_nav_recursive(dirPath, desc, indent+1)
+
+    return s
+
+def gen_mkdoc_yaml(outDir, desc):
+
+    with open(os.path.join(outDir, "mkdocs_template.yml"), "r") as f:
+        template = f.read()
+
+    lines = template.splitlines()
+    indent = -1
+    for line in lines:
+        if "{{API_NAV}}" in line:
+            indent = int((len(line) - len(line.lstrip(' '))) / 2)
+            break
+
+    if indent < 0:
+        print("error: no {{API_NAV}} placeholder found in mkdocs_template.yml")
+        exit(-1)
+
+    s = gen_mkdoc_api_nav("api", desc, indent)
+
+    s = template.replace('{{API_NAV}}', s)
+
+    with open(os.path.join(outDir, "mkdocs.yml"), "w") as f:
+        print(s, file=f, end="", flush=True)
+
 
 parser = ArgumentParser(prog='gen_doc')
 parser.add_argument("desc", help="a json description of the API")
@@ -552,55 +605,5 @@ for module in desc:
 s += "\n---\n\n"
 with open(os.path.join(docDir, "api_reference.md"), "w") as f:
     print(s, file=f, end="", flush=True)
-
-
-def gen_mkdoc_api_nav(dirPath, desc, indent):
-    s = ""
-    for module in desc:
-        moduleName = module["name"]
-        modulePath = os.path.join(dirPath, make_dir_name(moduleName) + ".md")
-
-        subModules = [x for x in module["contents"] if x["kind"] == "module"]
-        if len(subModules):
-            s += gen_indent(indent, width=2)
-            s += f"- {moduleName}:\n"
-            s += gen_indent(indent+1, width=2)
-            s += f"- Overview: '{modulePath}'\n"
-            s += gen_mkdoc_api_nav(os.path.join(dirPath, make_dir_name(moduleName)), subModules, indent+1)
-        else:
-            s += gen_indent(indent, width=2)
-            s += f"- {moduleName}: '{modulePath}'\n"
-
-
-    return s
-
-def gen_mkdoc_yaml(outDir, desc):
-    s = ("site_name: Orca Documentation\n"
-         "site_url: https://docs.orca-app.dev\n"
-         "site_description: Official Orca Documentation\n"
-         "\n"
-         "copyright: Copyright &copy; 2024 Martin Fouilleul and the Orca project contributors\n"
-         "\n"
-         "extra_css:\n"
-         "  - css/extra.css\n"
-         "theme: readthedocs\n"
-         "\n"
-         "nav:\n"
-         "  - Home: 'index.md'\n"
-         "  - Getting Started:\n"
-         "    - Installation: 'install.md'\n"
-         "    - Quick Start: 'QuickStart.md'\n"
-         "  - User Guide:\n"
-         "    - API Spec:\n"
-         "      - Overview: 'api_reference.md'\n")
-
-    s += gen_mkdoc_api_nav("api", desc, 3)
-
-    s += ("  - Developper Guide:\n"
-          "    - Building: 'building.md'\n"
-          "  - FAQ: 'faq.md'\n")
-
-    with open(os.path.join(outDir, "mkdocs.yml"), "w") as f:
-        print(s, file=f, end="", flush=True)
 
 gen_mkdoc_yaml(args.outDir, desc)
