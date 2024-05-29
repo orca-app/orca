@@ -131,6 +131,7 @@ ORCA_API oc_str16_list oc_str16_split(oc_arena* arena, oc_str16 str, oc_str16_li
 #define oc_str16_list_first(sl) (oc_list_empty(sl.list) ? (oc_str16){ 0 } : (oc_list_first_entry(sl.list, oc_str16_elt, listElt)->string))
 #define oc_str16_list_last(sl) (oc_list_empty(sl.list) ? (oc_str16){ 0 } : (oc_list_last_entry(sl.list, oc_str16_elt, listElt)->string))
 #define oc_str16_list_for(sl, elt) oc_list_for(sl.list, elt, oc_str16_elt, listElt)
+#define oc_str16_list_empty(sl) (oc_list_empty(sl.list))
 
 //----------------------------------------------------------------------------------
 // u32 strings
@@ -168,6 +169,7 @@ ORCA_API oc_str32_list oc_str32_split(oc_arena* arena, oc_str32 str, oc_str32_li
 #define oc_str32_list_first(sl) (oc_list_empty(sl.list) ? (oc_str32){ 0 } : (oc_list_first_entry(sl.list, oc_str32_elt, listElt)->string))
 #define oc_str32_list_last(sl) (oc_list_empty(sl.list) ? (oc_str32){ 0 } : (oc_list_last_entry(sl.list, oc_str32_elt, listElt)->string))
 #define oc_str32_list_for(sl, elt) oc_list_for(sl.list, elt, oc_str32_elt, listElt)
+#define oc_str32_list_empty(sl) (oc_list_empty(sl.list))
 
 #ifdef __cplusplus
 } // extern "C"

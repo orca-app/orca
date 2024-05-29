@@ -2116,11 +2116,13 @@
                 {
                     "kind": "typename",
                     "name": "oc_str8",
+                    "doc": "A type representing a string of bytes.",
                     "type": {
                         "kind": "struct",
                         "fields": [
                             {
                                 "name": "ptr",
+                                "doc": "A pointer to the string's bytes.",
                                 "type": {
                                     "kind": "pointer",
                                     "type": {
@@ -2130,6 +2132,7 @@
                             },
                             {
                                 "name": "len",
+                                "doc": "The length of the string.",
                                 "type": {
                                     "kind": "size_t"
                                 }
@@ -2140,63 +2143,71 @@
                 {
                     "kind": "macro",
                     "name": "OC_STR8",
+                    "doc": "Makes an `oc_str8` string from a C null-terminated string.",
                     "params": [
                         {
-                            "name": "s"
+                            "name": "s",
+                            "doc": "A null-terminated string."
                         }
                     ],
-                    "text": "((oc_str8){ .ptr = (char*)s, .len = (s) ? strlen(s) : 0 })"
-                },
-                {
-                    "kind": "macro",
-                    "name": "OC_STR8_LIT",
-                    "params": [
-                        {
-                            "name": "s"
-                        }
-                    ],
-                    "text": [
-                        "{",
-                        "   (char*)(s), sizeof(s) - 1",
-                        "}"
-                    ]
+                    "return": {
+                        "doc": "An `oc_str8` struct pointing to s."
+                    }
                 },
                 {
                     "kind": "macro",
                     "name": "oc_str8_lp",
+                    "doc": [
+                        "Expands a string `s` to `s.len, s.ptr`",
+                        "",
+                        "You can use this macro when calling functions that expect a `size_t` length and pointer arguments."
+                    ],
                     "params": [
                         {
-                            "name": "s"
+                            "name": "s",
+                            "doc": "The `oc_str8` string to expand."
                         }
-                    ],
-                    "text": "((s).len), ((s).ptr)"
+                    ]
                 },
                 {
                     "kind": "macro",
                     "name": "oc_str8_ip",
+                    "doc": [
+                        "Expands a string `s` to `(int)s.len, s.ptr`.",
+                        "",
+                        "You can use this macro when calling functions that expect an `i32` length and pointer arguments, for example:",
+                        "",
+                        "```",
+                        "printf(\".*s\", oc_str8_lp(s));",
+                        "```"
+                    ],
                     "params": [
                         {
-                            "name": "s"
+                            "name": "s",
+                            "doc": "The `oc_str8` string to expand."
                         }
-                    ],
-                    "text": "(int)oc_str8_lp(s)"
+                    ]
                 },
                 {
                     "kind": "proc",
                     "name": "oc_str8_from_buffer",
+                    "doc": "Make a string from a bytes buffer and a length.",
                     "return": {
                         "kind": "namedType",
-                        "name": "oc_str8"
+                        "name": "oc_str8",
+                        "doc": "The resulting string."
                     },
                     "params": [
                         {
                             "name": "len",
                             "type": {
-                                "kind": "u64"
+                                "kind": "u64",
+                                "doc": "The length of the buffer, in bytes."
                             }
                         },
                         {
                             "name": "buffer",
+                            "doc": "A buffer of bytes.",
                             "type": {
                                 "kind": "pointer",
                                 "type": {
@@ -2209,44 +2220,53 @@
                 {
                     "kind": "proc",
                     "name": "oc_str8_slice",
+                    "doc": "Make a string from a slice of another string. The resulting string designates some subsequence of the input string.",
                     "return": {
                         "kind": "namedType",
-                        "name": "oc_str8"
+                        "name": "oc_str8",
+                        "doc": "The resulting string slice."
                     },
                     "params": [
                         {
                             "name": "s",
                             "type": {
                                 "kind": "namedType",
-                                "name": "oc_str8"
+                                "name": "oc_str8",
+                                "doc": "The input string."
                             }
                         },
                         {
                             "name": "start",
+                            "doc": "The inclusive start index of the slice.",
                             "type": {
                                 "kind": "u64"
                             }
                         },
                         {
                             "name": "end",
+                            "doc": "The exclusive end index of the slice.",
                             "type": {
                                 "kind": "u64"
                             }
                         }
-                    ]
+                    ],
+                    "note": "The slice covers indices from `start` to `end-1`. `start` must be inferior or equal to `end`, and `end` must be inferior or equal to ``s.len`."
                 },
                 {
                     "kind": "proc",
                     "name": "oc_str8_push_buffer",
+                    "doc": "Pushes a copy of a buffer to an arena, and makes a string refering to that copy.",
                     "return": {
                         "kind": "namedType",
-                        "name": "oc_str8"
+                        "name": "oc_str8",
+                        "doc": "A string designating the copy of the input buffer."
                     },
                     "params": [
                         {
                             "name": "arena",
                             "type": {
                                 "kind": "pointer",
+                                "doc": "The arena on which to copy the input buffer.",
                                 "type": {
                                     "kind": "namedType",
                                     "name": "oc_arena"
@@ -2255,12 +2275,14 @@
                         },
                         {
                             "name": "len",
+                            "doc": "The length of the buffer.",
                             "type": {
                                 "kind": "u64"
                             }
                         },
                         {
                             "name": "buffer",
+                            "doc": "The buffer to copy.",
                             "type": {
                                 "kind": "pointer",
                                 "type": {
@@ -2273,15 +2295,18 @@
                 {
                     "kind": "proc",
                     "name": "oc_str8_push_cstring",
+                    "doc": "Pushes a copy of a C null-terminated string to an arena, and makes a string referring to that copy.",
                     "return": {
                         "kind": "namedType",
-                        "name": "oc_str8"
+                        "name": "oc_str8",
+                        "doc": "A string referring to the copy of the input string."
                     },
                     "params": [
                         {
                             "name": "arena",
                             "type": {
                                 "kind": "pointer",
+                                "doc": "The arena on which to copy the input buffer.",
                                 "type": {
                                     "kind": "namedType",
                                     "name": "oc_arena"
@@ -2290,6 +2315,7 @@
                         },
                         {
                             "name": "str",
+                            "doc": "A null-terminated string.",
                             "type": {
                                 "kind": "pointer",
                                 "attr": "const",
@@ -2303,13 +2329,16 @@
                 {
                     "kind": "proc",
                     "name": "oc_str8_push_copy",
+                    "doc": "Copy the contents of a string on an arena and make a new string referring to the copied bytes.",
                     "return": {
                         "kind": "namedType",
-                        "name": "oc_str8"
+                        "name": "oc_str8",
+                        "doc": "A string referring to the copy of the contents of the input string."
                     },
                     "params": [
                         {
                             "name": "arena",
+                            "doc": "The arena on which to copy the contents of the input string.",
                             "type": {
                                 "kind": "pointer",
                                 "type": {
@@ -2320,6 +2349,7 @@
                         },
                         {
                             "name": "s",
+                            "doc": "The input string.",
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_str8"
@@ -2330,6 +2360,7 @@
                 {
                     "kind": "proc",
                     "name": "oc_str8_push_slice",
+                    "doc": "Make a copy of a string slice. This function copies a subsequence of the input string onto an arena, and returns a new string referring to the copied content.",
                     "return": {
                         "kind": "namedType",
                         "name": "oc_str8"
@@ -2337,6 +2368,7 @@
                     "params": [
                         {
                             "name": "arena",
+                            "doc": "The arena on which to copy the slice of the input string.",
                             "type": {
                                 "kind": "pointer",
                                 "type": {
@@ -2347,6 +2379,7 @@
                         },
                         {
                             "name": "s",
+                            "doc": "The input string.",
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_str8"
@@ -2354,28 +2387,34 @@
                         },
                         {
                             "name": "start",
+                            "doc": "The inclusive start index of the slice.",
                             "type": {
                                 "kind": "u64"
                             }
                         },
                         {
                             "name": "end",
+                            "doc": "The exclusive end index of the slice.",
                             "type": {
                                 "kind": "u64"
                             }
                         }
-                    ]
+                    ],
+                    "note": "The slice covers indices from `start` to `end-1`. `start` must be inferior or equal to `end`, and `end` must be inferior or equal to ``s.len`."
                 },
                 {
                     "kind": "proc",
                     "name": "oc_str8_pushfv",
+                    "doc": "Build a string from a null-terminated format string and a variadic argument list, similar to `vasprintf()`.",
                     "return": {
                         "kind": "namedType",
-                        "name": "oc_str8"
+                        "name": "oc_str8",
+                        "doc": "The result string built from the format string and variadic arguments. The backing memory of the string is allocated on `arena`."
                     },
                     "params": [
                         {
                             "name": "arena",
+                            "doc": "The arena on which to allocate the contents of the string.",
                             "type": {
                                 "kind": "pointer",
                                 "type": {
@@ -2386,6 +2425,7 @@
                         },
                         {
                             "name": "format",
+                            "doc": "A null-terminated format string. The format of that string is the same as that of the C `sprintf()` family of functions.",
                             "type": {
                                 "kind": "pointer",
                                 "attr": "const",
@@ -2396,6 +2436,7 @@
                         },
                         {
                             "name": "args",
+                            "doc": "A variadic argument list or arguments referenced by the format string.",
                             "type": {
                                 "kind": "va_list"
                             }
@@ -2405,13 +2446,16 @@
                 {
                     "kind": "proc",
                     "name": "oc_str8_pushf",
+                    "doc": "Build a string from a null-terminated format string and variadic arguments, similar to `asprintf()`.",
                     "return": {
                         "kind": "namedType",
-                        "name": "oc_str8"
+                        "name": "oc_str8",
+                        "doc": "The result string built from the format string and variadic arguments. The backing memory of the string is allocated on `arena`."
                     },
                     "params": [
                         {
                             "name": "arena",
+                            "doc": "The arena on which to allocate the contents of the string.",
                             "type": {
                                 "kind": "pointer",
                                 "type": {
@@ -2424,6 +2468,7 @@
                             "name": "format",
                             "type": {
                                 "kind": "pointer",
+                                "doc": "A null-terminated format string. The format of that string is the same as that of the C `sprintf()` family of functions.",
                                 "attr": "const",
                                 "type": {
                                     "kind": "char"
@@ -2432,6 +2477,7 @@
                         },
                         {
                             "name": "...",
+                            "doc": "Additional arguments referenced by the format string.",
                             "type": {
                                 "kind": "variadic-param"
                             }
@@ -2441,12 +2487,15 @@
                 {
                     "kind": "proc",
                     "name": "oc_str8_cmp",
+                    "doc": "Lexicographically compare the contents of two strings.",
                     "return": {
-                        "kind": "i32"
+                        "kind": "i32",
+                        "doc": "This function returns `-1` if `s1` is less than `s2`, `+1` if `s1` is greater than `s2`, and `0` if `s1` and `s2` are equal."
                     },
                     "params": [
                         {
                             "name": "s1",
+                            "doc": "The first string to compare.",
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_str8"
@@ -2454,6 +2503,7 @@
                         },
                         {
                             "name": "s2",
+                            "doc": "The second string to compare.",
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_str8"
@@ -2464,15 +2514,18 @@
                 {
                     "kind": "proc",
                     "name": "oc_str8_to_cstring",
+                    "doc": "Create a null-terminated C-string from an `oc_str8` string.",
                     "return": {
                         "kind": "pointer",
                         "type": {
                             "kind": "char"
-                        }
+                        },
+                        "doc": "A null-terminated copy of the input string's contents. This copy is allocated on `arena`."
                     },
                     "params": [
                         {
                             "name": "arena",
+                            "doc": "The arena on which to copy the contents of `string` and the null terminator.",
                             "type": {
                                 "kind": "pointer",
                                 "type": {
@@ -2483,6 +2536,7 @@
                         },
                         {
                             "name": "string",
+                            "doc": "The input string.",
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_str8"
@@ -2493,11 +2547,13 @@
                 {
                     "kind": "typename",
                     "name": "oc_str8_elt",
+                    "doc": "A type representing an element of a string list.",
                     "type": {
                         "kind": "struct",
                         "fields": [
                             {
                                 "name": "listElt",
+                                "doc": "The string element is linked into its parent string list through this field.",
                                 "type": {
                                     "kind": "namedType",
                                     "name": "oc_list_elt"
@@ -2505,6 +2561,7 @@
                             },
                             {
                                 "name": "string",
+                                "doc": "The string for this element.",
                                 "type": {
                                     "kind": "namedType",
                                     "name": "oc_str8"
@@ -2516,11 +2573,13 @@
                 {
                     "kind": "typename",
                     "name": "oc_str8_list",
+                    "doc": "A type representing a string list.",
                     "type": {
                         "kind": "struct",
                         "fields": [
                             {
                                 "name": "list",
+                                "doc": "A linked-list of `oc_str8_elt`.",
                                 "type": {
                                     "kind": "namedType",
                                     "name": "oc_list"
@@ -2528,12 +2587,14 @@
                             },
                             {
                                 "name": "eltCount",
+                                "doc": "The number of elements in `list`.",
                                 "type": {
                                     "kind": "u64"
                                 }
                             },
                             {
                                 "name": "len",
+                                "doc": "The total length of the string list, which is the sum of the lengths over all elements.",
                                 "type": {
                                     "kind": "u64"
                                 }
@@ -2544,12 +2605,14 @@
                 {
                     "kind": "proc",
                     "name": "oc_str8_list_push",
+                    "doc": "Push a string element to the back of a string list. This creates a `oc_str8_elt` element referring to the contents of the input string, and links that element at the end of the string list.",
                     "return": {
                         "kind": "void"
                     },
                     "params": [
                         {
                             "name": "arena",
+                            "doc": "A memory arena on which to allocate the new string element.",
                             "type": {
                                 "kind": "pointer",
                                 "type": {
@@ -2560,6 +2623,7 @@
                         },
                         {
                             "name": "list",
+                            "doc": "The string list to link the new element into.",
                             "type": {
                                 "kind": "pointer",
                                 "type": {
@@ -2570,6 +2634,7 @@
                         },
                         {
                             "name": "str",
+                            "doc": "The string of the new element. Note that the contents of the string is not copied. The new string element refers to the same bytes as `str`.",
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_str8"
@@ -2580,12 +2645,14 @@
                 {
                     "kind": "proc",
                     "name": "oc_str8_list_pushf",
+                    "doc": "Build a string from a null-terminated format string an variadic arguments, and append it to a string list.",
                     "return": {
                         "kind": "void"
                     },
                     "params": [
                         {
                             "name": "arena",
+                            "doc": "The arena on which to allocate the contents of the string, as well as the string element.",
                             "type": {
                                 "kind": "pointer",
                                 "type": {
@@ -2596,6 +2663,7 @@
                         },
                         {
                             "name": "list",
+                            "doc": "The string list on which to append the new element.",
                             "type": {
                                 "kind": "pointer",
                                 "type": {
@@ -2606,6 +2674,7 @@
                         },
                         {
                             "name": "format",
+                            "doc": "A null-terminated format string. The format of that string is the same as that of the C `sprintf()` family of functions.",
                             "type": {
                                 "kind": "pointer",
                                 "attr": "const",
@@ -2616,6 +2685,7 @@
                         },
                         {
                             "name": "...",
+                            "doc": "Additional arguments references by the format string.",
                             "type": {
                                 "kind": "variadic-param"
                             }
@@ -2625,13 +2695,16 @@
                 {
                     "kind": "proc",
                     "name": "oc_str8_list_collate",
+                    "doc": "Build a string by combining the elements of a string list with a prefix, a suffix, and separators.",
                     "return": {
                         "kind": "namedType",
-                        "name": "oc_str8"
+                        "name": "oc_str8",
+                        "doc": "The resulting string, whose contents is allocated on `arena`."
                     },
                     "params": [
                         {
                             "name": "arena",
+                            "doc": "An arena on which to allocate the contents of the new string.",
                             "type": {
                                 "kind": "pointer",
                                 "type": {
@@ -2642,6 +2715,7 @@
                         },
                         {
                             "name": "list",
+                            "doc": "A string list containing the elements to combine",
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_str8_list"
@@ -2649,6 +2723,7 @@
                         },
                         {
                             "name": "prefix",
+                            "doc": "A prefix that is pasted at the beginning of the string.",
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_str8"
@@ -2656,13 +2731,15 @@
                         },
                         {
                             "name": "separator",
+                            "doc": "A separator that is pasted between each element of the input string list.",
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_str8"
                             }
                         },
                         {
-                            "name": "postfix",
+                            "name": "suffix",
+                            "doc": "A suffix that is pasted at the end of the string.",
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_str8"
@@ -2673,13 +2750,16 @@
                 {
                     "kind": "proc",
                     "name": "oc_str8_list_join",
+                    "doc": "Build a string by joining the elements of a string list.",
                     "return": {
                         "kind": "namedType",
-                        "name": "oc_str8"
+                        "name": "oc_str8",
+                        "doc": "The resulting string, whose contents is allocated on `arena`."
                     },
                     "params": [
                         {
                             "name": "arena",
+                            "doc": "The arena on which to allocate the new string.",
                             "type": {
                                 "kind": "pointer",
                                 "type": {
@@ -2690,6 +2770,7 @@
                         },
                         {
                             "name": "list",
+                            "doc": "A string list containing the elements of join.",
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_str8_list"
@@ -2700,13 +2781,20 @@
                 {
                     "kind": "proc",
                     "name": "oc_str8_split",
+                    "doc": [
+                        "Split a list into a string list according to separators.",
+                        "",
+                        "No string copies are made. The elements of the resulting string list refer to subsequences of the input string."
+                    ],
                     "return": {
                         "kind": "namedType",
-                        "name": "oc_str8_list"
+                        "name": "oc_str8_list",
+                        "doc": "The resulting string list."
                     },
                     "params": [
                         {
                             "name": "arena",
+                            "doc": "The arena on which to allocate the elements of the string list.",
                             "type": {
                                 "kind": "pointer",
                                 "type": {
@@ -2717,6 +2805,7 @@
                         },
                         {
                             "name": "str",
+                            "doc": "The input string.",
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_str8"
@@ -2724,6 +2813,7 @@
                         },
                         {
                             "name": "separators",
+                            "doc": "A list of separators used to split the input string.",
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_str8_list"
@@ -2734,54 +2824,74 @@
                 {
                     "kind": "macro",
                     "name": "oc_str8_list_first",
+                    "doc": "Get the first string of a string list.",
                     "params": [
                         {
-                            "name": "sl"
+                            "name": "sl",
+                            "doc": "The string list"
                         }
                     ],
-                    "text": "(oc_list_empty(sl.list) ? (oc_str8){ 0 } : (oc_list_first_entry(sl.list, oc_str8_elt, listElt)->string))"
+                    "return": {
+                        "doc": "An `oc_str8` referring to the first string of the string list, or an empty string if the list is empty."
+                    }
                 },
                 {
                     "kind": "macro",
                     "name": "oc_str8_list_last",
+                    "doc": "Get the last string of a string list.",
                     "params": [
                         {
-                            "name": "sl"
+                            "name": "sl",
+                            "doc": "The string list."
                         }
                     ],
-                    "text": "(oc_list_empty(sl.list) ? (oc_str8){ 0 } : (oc_list_last_entry(sl.list, oc_str8_elt, listElt)->string))"
+                    "return": {
+                        "doc": "An `oc_str8` referring to the last string of the string list, or an empty string if the list is empty."
+                    }
                 },
                 {
                     "kind": "macro",
                     "name": "oc_str8_list_for",
+                    "doc": [
+                        "Iterate through the strings of a string list.",
+                        "",
+                        "This macro creates a loop with an `oc_str8` iterator named after the `elt` macro parameter. You should follow it by the loop body, in which you can use the iterator to access each element."
+                    ],
                     "params": [
                         {
-                            "name": "sl"
+                            "name": "sl",
+                            "doc": "The string list."
                         },
                         {
-                            "name": "elt"
+                            "name": "elt",
+                            "doc": "The name of the loop iterator."
                         }
-                    ],
-                    "text": "oc_list_for(sl.list, elt, oc_str8_elt, listElt)"
+                    ]
                 },
                 {
                     "kind": "macro",
                     "name": "oc_str8_list_empty",
+                    "doc": "Checks if a string list is empty.",
                     "params": [
                         {
-                            "name": "sl"
+                            "name": "sl",
+                            "doc": "The string list."
                         }
                     ],
-                    "text": "(oc_list_empty(sl.list))"
+                    "return": {
+                        "doc": "`true` if the list is empty, `false` otherwise."
+                    }
                 },
                 {
                     "kind": "typename",
                     "name": "oc_str16",
+                    "doc": "A type describing a string of 16-bits characters (typically used for UTF-16).",
                     "type": {
                         "kind": "struct",
                         "fields": [
                             {
                                 "name": "ptr",
+                                "doc": "A pointer to the underlying 16-bits character array.",
                                 "type": {
                                     "kind": "pointer",
                                     "type": {
@@ -2791,6 +2901,7 @@
                             },
                             {
                                 "name": "len",
+                                "doc": "The length of the string, in 16-bits characters.",
                                 "type": {
                                     "kind": "size_t"
                                 }
@@ -2801,19 +2912,23 @@
                 {
                     "kind": "proc",
                     "name": "oc_str16_from_buffer",
+                    "doc": "Make an `oc_str16` string from a buffer of 16-bit characters.",
                     "return": {
                         "kind": "namedType",
-                        "name": "oc_str16"
+                        "name": "oc_str16",
+                        "doc": "The result string, referencing the input buffer's characters."
                     },
                     "params": [
                         {
                             "name": "len",
+                            "doc": "The length of the input buffer, in characters.",
                             "type": {
                                 "kind": "u64"
                             }
                         },
                         {
                             "name": "buffer",
+                            "doc": "The 16-bits characters buffer.",
                             "type": {
                                 "kind": "pointer",
                                 "type": {
@@ -2826,13 +2941,16 @@
                 {
                     "kind": "proc",
                     "name": "oc_str16_slice",
+                    "doc": "Make an `oc_str16` string from a slice of another `oc_str16` string.",
                     "return": {
                         "kind": "namedType",
-                        "name": "oc_str16"
+                        "name": "oc_str16",
+                        "doc": "The resulting string slice."
                     },
                     "params": [
                         {
                             "name": "s",
+                            "doc": "The input string.",
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_str16"
@@ -2840,28 +2958,34 @@
                         },
                         {
                             "name": "start",
+                            "doc": "The inclusive start index of the slice.",
                             "type": {
                                 "kind": "u64"
                             }
                         },
                         {
                             "name": "end",
+                            "doc": "The exclusive end index of the slice.",
                             "type": {
                                 "kind": "u64"
                             }
                         }
-                    ]
+                    ],
+                    "note": "The slice covers indices from `start` to `end-1`. `start` must be inferior or equal to `end`, and `end` must be inferior or equal to ``s.len`."
                 },
                 {
                     "kind": "proc",
                     "name": "oc_str16_push_buffer",
+                    "doc": "Copy the content of a 16-bit character buffer on an arena and make a new `oc_str16` referencing the copied contents.",
                     "return": {
                         "kind": "namedType",
-                        "name": "oc_str16"
+                        "name": "oc_str16",
+                        "doc": "The resulting string."
                     },
                     "params": [
                         {
                             "name": "arena",
+                            "doc": "The arena on which to copy the input buffer.",
                             "type": {
                                 "kind": "pointer",
                                 "type": {
@@ -2872,12 +2996,14 @@
                         },
                         {
                             "name": "len",
+                            "doc": "The length of the buffer.",
                             "type": {
                                 "kind": "u64"
                             }
                         },
                         {
                             "name": "buffer",
+                            "doc": "An input buffer of 16-bit characters.",
                             "type": {
                                 "kind": "pointer",
                                 "type": {
@@ -2890,13 +3016,16 @@
                 {
                     "kind": "proc",
                     "name": "oc_str16_push_copy",
+                    "doc": "Copy the contents of an `oc_str16` string and make a new string referencing the copied contents.",
                     "return": {
                         "kind": "namedType",
-                        "name": "oc_str16"
+                        "name": "oc_str16",
+                        "doc": "The resulting string referencing the copy of the input string."
                     },
                     "params": [
                         {
                             "name": "arena",
+                            "doc": "The arena on which to copy the contents of the input string.",
                             "type": {
                                 "kind": "pointer",
                                 "type": {
@@ -2907,6 +3036,7 @@
                         },
                         {
                             "name": "s",
+                            "doc": "The input string.",
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_str16"
@@ -2917,13 +3047,16 @@
                 {
                     "kind": "proc",
                     "name": "oc_str16_push_slice",
+                    "doc": "Copy a slice of an `oc_str16` string an make a new string referencing the copies contents.",
                     "return": {
                         "kind": "namedType",
-                        "name": "oc_str16"
+                        "name": "oc_str16",
+                        "doc": "The resulting string referencing the copied contents."
                     },
                     "params": [
                         {
                             "name": "arena",
+                            "doc": "The arena on which to copy the slice of the input string's contents.",
                             "type": {
                                 "kind": "pointer",
                                 "type": {
@@ -2934,6 +3067,7 @@
                         },
                         {
                             "name": "s",
+                            "doc": "The input string.",
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_str16"
@@ -2941,26 +3075,31 @@
                         },
                         {
                             "name": "start",
+                            "doc": "The inclusive start index of the slice.",
                             "type": {
                                 "kind": "u64"
                             }
                         },
                         {
                             "name": "end",
+                            "doc": "The exclusive end index of the slice.",
                             "type": {
                                 "kind": "u64"
                             }
                         }
-                    ]
+                    ],
+                    "note": "The slice covers indices from `start` to `end-1`. `start` must be inferior or equal to `end`, and `end` must be inferior or equal to ``s.len`."
                 },
                 {
                     "kind": "typename",
                     "name": "oc_str16_elt",
+                    "doc": "A type representing an element of an `oc_str16` list.",
                     "type": {
                         "kind": "struct",
                         "fields": [
                             {
                                 "name": "listElt",
+                                "doc": "The string element is linked into its parent string list through this field.",
                                 "type": {
                                     "kind": "namedType",
                                     "name": "oc_list_elt"
@@ -2968,6 +3107,7 @@
                             },
                             {
                                 "name": "string",
+                                "doc": "The string for this element.",
                                 "type": {
                                     "kind": "namedType",
                                     "name": "oc_str16"
@@ -2984,6 +3124,7 @@
                         "fields": [
                             {
                                 "name": "list",
+                                "doc": "A linked-list of `oc_str16_elt`.",
                                 "type": {
                                     "kind": "namedType",
                                     "name": "oc_list"
@@ -2991,12 +3132,14 @@
                             },
                             {
                                 "name": "eltCount",
+                                "doc": "The number of elements in `list`.",
                                 "type": {
                                     "kind": "u64"
                                 }
                             },
                             {
                                 "name": "len",
+                                "doc": "The total length of the string list, which is the sum of the lengths over all elements.",
                                 "type": {
                                     "kind": "u64"
                                 }
@@ -3007,12 +3150,14 @@
                 {
                     "kind": "proc",
                     "name": "oc_str16_list_push",
+                    "doc": "Push a string element to the back of a string list. This creates a `oc_str16_elt` element referring to the contents of the input string, and links that element at the end of the string list.",
                     "return": {
                         "kind": "void"
                     },
                     "params": [
                         {
                             "name": "arena",
+                            "doc": "A memory arena on which to allocate the new string element.",
                             "type": {
                                 "kind": "pointer",
                                 "type": {
@@ -3023,6 +3168,7 @@
                         },
                         {
                             "name": "list",
+                            "doc": "The string list to link the new element into.",
                             "type": {
                                 "kind": "pointer",
                                 "type": {
@@ -3033,6 +3179,7 @@
                         },
                         {
                             "name": "str",
+                            "doc": "The string of the new element. Note that the contents of the string is not copied. The new string element refers to the same bytes as `str`.",
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_str16"
@@ -3043,13 +3190,16 @@
                 {
                     "kind": "proc",
                     "name": "oc_str16_list_join",
+                    "doc": "Build a string by joining the elements of a string list.",
                     "return": {
                         "kind": "namedType",
-                        "name": "oc_str16"
+                        "name": "oc_str16",
+                        "doc": "The resulting string, whose content is allocated on `arena`."
                     },
                     "params": [
                         {
                             "name": "arena",
+                            "doc": "The arena on which to allocate the new string.",
                             "type": {
                                 "kind": "pointer",
                                 "type": {
@@ -3060,6 +3210,7 @@
                         },
                         {
                             "name": "list",
+                            "doc": "A string list containing the elements of join.",
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_str16_list"
@@ -3070,13 +3221,20 @@
                 {
                     "kind": "proc",
                     "name": "oc_str16_split",
+                    "doc": [
+                        "Split a list into a string list according to separators.",
+                        "",
+                        "No string copies are made. The elements of the resulting string list refer to subsequences of the input string."
+                    ],
                     "return": {
                         "kind": "namedType",
-                        "name": "oc_str16_list"
+                        "name": "oc_str16_list",
+                        "doc": "The resulting string list."
                     },
                     "params": [
                         {
                             "name": "arena",
+                            "doc": "The arena on which to allocate the elements of the string list.",
                             "type": {
                                 "kind": "pointer",
                                 "type": {
@@ -3087,6 +3245,7 @@
                         },
                         {
                             "name": "str",
+                            "doc": "The input string.",
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_str16"
@@ -3094,6 +3253,7 @@
                         },
                         {
                             "name": "separators",
+                            "doc": "A list of separators used to split the input string.",
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_str16_list"
@@ -3104,44 +3264,74 @@
                 {
                     "kind": "macro",
                     "name": "oc_str16_list_first",
+                    "doc": "Get the first string of a string list.",
                     "params": [
                         {
-                            "name": "sl"
+                            "name": "sl",
+                            "doc": "The string list"
                         }
                     ],
-                    "text": "(oc_list_empty(sl.list) ? (oc_str16){ 0 } : (oc_list_first_entry(sl.list, oc_str16_elt, listElt)->string))"
+                    "return": {
+                        "doc": "An `oc_str16` referring to the first string of the string list, or an empty string if the list is empty."
+                    }
                 },
                 {
                     "kind": "macro",
                     "name": "oc_str16_list_last",
+                    "doc": "Get the last string of a string list.",
                     "params": [
                         {
-                            "name": "sl"
+                            "name": "sl",
+                            "doc": "The string list."
                         }
                     ],
-                    "text": "(oc_list_empty(sl.list) ? (oc_str16){ 0 } : (oc_list_last_entry(sl.list, oc_str16_elt, listElt)->string))"
+                    "return": {
+                        "doc": "An `oc_str16` referring to the last string of the string list, or an empty string if the list is empty."
+                    }
                 },
                 {
                     "kind": "macro",
                     "name": "oc_str16_list_for",
+                    "doc": [
+                        "Iterate through the strings of a string list.",
+                        "",
+                        "This macro creates a loop with an `oc_str16` iterator named after the `elt` macro parameter. You should follow it by the loop body, in which you can use the iterator to access each element."
+                    ],
                     "params": [
                         {
-                            "name": "sl"
+                            "name": "sl",
+                            "doc": "The string list."
                         },
                         {
-                            "name": "elt"
+                            "name": "elt",
+                            "doc": "The name of the loop iterator."
+                        }
+                    ]
+                },
+                {
+                    "kind": "macro",
+                    "name": "oc_str16_list_empty",
+                    "doc": "Checks if a string list is empty.",
+                    "params": [
+                        {
+                            "name": "sl",
+                            "doc": "The string list."
                         }
                     ],
-                    "text": "oc_list_for(sl.list, elt, oc_str16_elt, listElt)"
+                    "return": {
+                        "doc": "`true` if the list is empty, `false` otherwise."
+                    }
                 },
                 {
                     "kind": "typename",
                     "name": "oc_str32",
+                    "doc": "A type describing a string of 32-bits characters (typically used for UTF-32 codepoints).",
                     "type": {
                         "kind": "struct",
                         "fields": [
                             {
                                 "name": "ptr",
+                                "doc": "A pointer to the underlying 32-bits character array.",
                                 "type": {
                                     "kind": "pointer",
                                     "type": {
@@ -3151,6 +3341,7 @@
                             },
                             {
                                 "name": "len",
+                                "doc": "The length of the string, in 32-bits characters.",
                                 "type": {
                                     "kind": "size_t"
                                 }
@@ -3161,19 +3352,23 @@
                 {
                     "kind": "proc",
                     "name": "oc_str32_from_buffer",
+                    "doc": "Make an `oc_str32` string from a buffer of 32-bit characters.",
                     "return": {
                         "kind": "namedType",
-                        "name": "oc_str32"
+                        "name": "oc_str32",
+                        "doc": "The result string, referencing the input buffer's characters."
                     },
                     "params": [
                         {
                             "name": "len",
+                            "doc": "The length of the input buffer, in characters.",
                             "type": {
                                 "kind": "u64"
                             }
                         },
                         {
                             "name": "buffer",
+                            "doc": "The 32-bits characters buffer.",
                             "type": {
                                 "kind": "pointer",
                                 "type": {
@@ -3186,13 +3381,16 @@
                 {
                     "kind": "proc",
                     "name": "oc_str32_slice",
+                    "doc": "Make an `oc_str32` string from a slice of another `oc_str32` string.",
                     "return": {
                         "kind": "namedType",
-                        "name": "oc_str32"
+                        "name": "oc_str32",
+                        "doc": "The resulting string slice."
                     },
                     "params": [
                         {
                             "name": "s",
+                            "doc": "The input string.",
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_str32"
@@ -3200,28 +3398,34 @@
                         },
                         {
                             "name": "start",
+                            "doc": "The inclusive start index of the slice.",
                             "type": {
                                 "kind": "u64"
                             }
                         },
                         {
                             "name": "end",
+                            "doc": "The exclusive end index of the slice.",
                             "type": {
                                 "kind": "u64"
                             }
                         }
-                    ]
+                    ],
+                    "note": "The slice covers indices from `start` to `end-1`. `start` must be inferior or equal to `end`, and `end` must be inferior or equal to ``s.len`."
                 },
                 {
                     "kind": "proc",
                     "name": "oc_str32_push_buffer",
+                    "doc": "Copy the content of a 32-bit character buffer on an arena and make a new `oc_str32` referencing the copied contents.",
                     "return": {
                         "kind": "namedType",
-                        "name": "oc_str32"
+                        "name": "oc_str32",
+                        "doc": "The resulting string."
                     },
                     "params": [
                         {
                             "name": "arena",
+                            "doc": "The arena on which to copy the input buffer.",
                             "type": {
                                 "kind": "pointer",
                                 "type": {
@@ -3232,12 +3436,14 @@
                         },
                         {
                             "name": "len",
+                            "doc": "The length of the buffer.",
                             "type": {
                                 "kind": "u64"
                             }
                         },
                         {
                             "name": "buffer",
+                            "doc": "An input buffer of 32-bit characters.",
                             "type": {
                                 "kind": "pointer",
                                 "type": {
@@ -3250,13 +3456,16 @@
                 {
                     "kind": "proc",
                     "name": "oc_str32_push_copy",
+                    "doc": "Copy the contents of an `oc_str32` string and make a new string referencing the copied contents.",
                     "return": {
                         "kind": "namedType",
-                        "name": "oc_str32"
+                        "name": "oc_str32",
+                        "doc": "The resulting string referencing the copy of the input string."
                     },
                     "params": [
                         {
                             "name": "arena",
+                            "doc": "The arena on which to copy the contents of the input string.",
                             "type": {
                                 "kind": "pointer",
                                 "type": {
@@ -3267,6 +3476,7 @@
                         },
                         {
                             "name": "s",
+                            "doc": "The input string.",
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_str32"
@@ -3277,13 +3487,16 @@
                 {
                     "kind": "proc",
                     "name": "oc_str32_push_slice",
+                    "doc": "Copy a slice of an `oc_str32` string an make a new string referencing the copies contents.",
                     "return": {
                         "kind": "namedType",
-                        "name": "oc_str32"
+                        "name": "oc_str32",
+                        "doc": "The resulting string referencing the copied contents."
                     },
                     "params": [
                         {
                             "name": "arena",
+                            "doc": "The arena on which to copy the slice of the input string's contents.",
                             "type": {
                                 "kind": "pointer",
                                 "type": {
@@ -3294,6 +3507,7 @@
                         },
                         {
                             "name": "s",
+                            "doc": "The input string.",
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_str32"
@@ -3301,26 +3515,31 @@
                         },
                         {
                             "name": "start",
+                            "doc": "The inclusive start index of the slice.",
                             "type": {
                                 "kind": "u64"
                             }
                         },
                         {
                             "name": "end",
+                            "doc": "The exclusive end index of the slice.",
                             "type": {
                                 "kind": "u64"
                             }
                         }
-                    ]
+                    ],
+                    "note": "The slice covers indices from `start` to `end-1`. `start` must be inferior or equal to `end`, and `end` must be inferior or equal to ``s.len`."
                 },
                 {
                     "kind": "typename",
                     "name": "oc_str32_elt",
+                    "doc": "A type representing an element of an `oc_str32` list.",
                     "type": {
                         "kind": "struct",
                         "fields": [
                             {
                                 "name": "listElt",
+                                "doc": "The string element is linked into its parent string list through this field.",
                                 "type": {
                                     "kind": "namedType",
                                     "name": "oc_list_elt"
@@ -3328,6 +3547,7 @@
                             },
                             {
                                 "name": "string",
+                                "doc": "The string for this element.",
                                 "type": {
                                     "kind": "namedType",
                                     "name": "oc_str32"
@@ -3344,6 +3564,7 @@
                         "fields": [
                             {
                                 "name": "list",
+                                "doc": "A linked-list of `oc_str32_elt`.",
                                 "type": {
                                     "kind": "namedType",
                                     "name": "oc_list"
@@ -3351,12 +3572,14 @@
                             },
                             {
                                 "name": "eltCount",
+                                "doc": "The number of elements in `list`.",
                                 "type": {
                                     "kind": "u64"
                                 }
                             },
                             {
                                 "name": "len",
+                                "doc": "The total length of the string list, which is the sum of the lengths over all elements.",
                                 "type": {
                                     "kind": "u64"
                                 }
@@ -3367,12 +3590,14 @@
                 {
                     "kind": "proc",
                     "name": "oc_str32_list_push",
+                    "doc": "Push a string element to the back of a string list. This creates a `oc_str32_elt` element referring to the contents of the input string, and links that element at the end of the string list.",
                     "return": {
                         "kind": "void"
                     },
                     "params": [
                         {
                             "name": "arena",
+                            "doc": "A memory arena on which to allocate the new string element.",
                             "type": {
                                 "kind": "pointer",
                                 "type": {
@@ -3383,6 +3608,7 @@
                         },
                         {
                             "name": "list",
+                            "doc": "The string list to link the new element into.",
                             "type": {
                                 "kind": "pointer",
                                 "type": {
@@ -3393,6 +3619,7 @@
                         },
                         {
                             "name": "str",
+                            "doc": "The string of the new element. Note that the contents of the string is not copied. The new string element refers to the same bytes as `str`.",
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_str32"
@@ -3403,13 +3630,16 @@
                 {
                     "kind": "proc",
                     "name": "oc_str32_list_join",
+                    "doc": "Build a string by joining the elements of a string list.",
                     "return": {
                         "kind": "namedType",
-                        "name": "oc_str32"
+                        "name": "oc_str32",
+                        "doc": "The resulting string, whose contents is allocated on `arena`."
                     },
                     "params": [
                         {
                             "name": "arena",
+                            "doc": "The arena on which to allocate the new string.",
                             "type": {
                                 "kind": "pointer",
                                 "type": {
@@ -3420,6 +3650,7 @@
                         },
                         {
                             "name": "list",
+                            "doc": "A string list containing the elements of join.",
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_str32_list"
@@ -3430,13 +3661,20 @@
                 {
                     "kind": "proc",
                     "name": "oc_str32_split",
+                    "doc": [
+                        "Split a list into a string list according to separators.",
+                        "",
+                        "No string copies are made. The elements of the resulting string list refer to subsequences of the input string."
+                    ],
                     "return": {
                         "kind": "namedType",
-                        "name": "oc_str32_list"
+                        "name": "oc_str32_list",
+                        "doc": "The resulting string list."
                     },
                     "params": [
                         {
                             "name": "arena",
+                            "doc": "The arena on which to allocate the elements of the string list.",
                             "type": {
                                 "kind": "pointer",
                                 "type": {
@@ -3447,6 +3685,7 @@
                         },
                         {
                             "name": "str",
+                            "doc": "The input string.",
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_str32"
@@ -3454,6 +3693,7 @@
                         },
                         {
                             "name": "separators",
+                            "doc": "A list of separators used to split the input string.",
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_str32_list"
@@ -3464,35 +3704,63 @@
                 {
                     "kind": "macro",
                     "name": "oc_str32_list_first",
+                    "doc": "Get the first string of a string list.",
                     "params": [
                         {
-                            "name": "sl"
+                            "name": "sl",
+                            "doc": "The string list"
                         }
                     ],
-                    "text": "(oc_list_empty(sl.list) ? (oc_str32){ 0 } : (oc_list_first_entry(sl.list, oc_str32_elt, listElt)->string))"
+                    "return": {
+                        "doc": "An `oc_str32` referring to the first string of the string list, or an empty string if the list is empty."
+                    }
                 },
                 {
                     "kind": "macro",
                     "name": "oc_str32_list_last",
+                    "doc": "Get the last string of a string list.",
                     "params": [
                         {
-                            "name": "sl"
+                            "name": "sl",
+                            "doc": "The string list."
                         }
                     ],
-                    "text": "(oc_list_empty(sl.list) ? (oc_str32){ 0 } : (oc_list_last_entry(sl.list, oc_str32_elt, listElt)->string))"
+                    "return": {
+                        "doc": "An `oc_str32` referring to the last string of the string list, or an empty string if the list is empty."
+                    }
                 },
                 {
                     "kind": "macro",
                     "name": "oc_str32_list_for",
+                    "doc": [
+                        "Iterate through the strings of a string list.",
+                        "",
+                        "This macro creates a loop with an `oc_str32` iterator named after the `elt` macro parameter. You should follow it by the loop body, in which you can use the iterator to access each element."
+                    ],
                     "params": [
                         {
-                            "name": "sl"
+                            "name": "sl",
+                            "doc": "The string list."
                         },
                         {
-                            "name": "elt"
+                            "name": "elt",
+                            "doc": "The name of the loop iterator."
+                        }
+                    ]
+                },
+                {
+                    "kind": "macro",
+                    "name": "oc_str32_list_empty",
+                    "doc": "Checks if a string list is empty.",
+                    "params": [
+                        {
+                            "name": "sl",
+                            "doc": "The string list."
                         }
                     ],
-                    "text": "oc_list_for(sl.list, elt, oc_str32_elt, listElt)"
+                    "return": {
+                        "doc": "`true` if the list is empty, `false` otherwise."
+                    }
                 }
             ]
         },
