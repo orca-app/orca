@@ -1,8 +1,8 @@
-name: build-site
+name: build-doc-site
 on:
   push:
     branches:
-      - martin/api-spec
+      - main
 jobs:
   build:
     runs-on: ubuntu-latest
