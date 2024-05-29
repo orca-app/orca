@@ -593,7 +593,7 @@ docDir = os.path.join(args.outDir, "docs/api")
 for module in desc:
     if module["kind"] == "module":
         moduleName = module["name"]
-        modulePath = moduleName + ".md"
+        modulePath = make_dir_name(moduleName) + ".md"
 
         s += f"- [{moduleName}]({modulePath})\n"
         if "brief" in module:
