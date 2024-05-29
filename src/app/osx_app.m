@@ -904,9 +904,15 @@ static void oc_process_mouse_button(NSEvent* nsEvent, oc_window_data* window, oc
 
 - (void)mouseEntered:(NSEvent*)nsEvent
 {
+    NSPoint p = [self convertPoint:[nsEvent locationInWindow] fromView:nil];
+    NSRect frame = [[window->osx.nsWindow contentView] frame];
+
     oc_event event = {};
-    event.window = oc_window_handle_from_ptr(window);
     event.type = OC_EVENT_MOUSE_ENTER;
+    event.window = oc_window_handle_from_ptr(window);
+    event.mouse.x = p.x;
+    event.mouse.y = frame.size.height - p.y;
+
     oc_queue_event(&event);
 }
 

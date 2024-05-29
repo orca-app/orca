@@ -4185,6 +4185,7 @@
                 {
                     "kind": "typename",
                     "name": "oc_event_type",
+                    "doc": "This enum defines the type events that can be sent to the application by the runtime. This determines which member of the `oc_event` union field is active.",
                     "type": {
                         "kind": "enum",
                         "type": {
@@ -4194,101 +4195,121 @@
                             {
                                 "kind": "enum-constant",
                                 "name": "OC_EVENT_NONE",
+                                "doc": "No event. That could be used simply to wake up the application.",
                                 "value": 0
                             },
                             {
                                 "kind": "enum-constant",
                                 "name": "OC_EVENT_KEYBOARD_MODS",
+                                "doc": "A modifier key event. This event is sent when a key such as <kbd>Alt</kbd>, <kbd>Control</kbd>, <kbd>Command</kbd> or <kbd>Shift</kbd> are pressed, released, or repeated. The `key` field contains the event's details.",
                                 "value": 1
                             },
                             {
                                 "kind": "enum-constant",
                                 "name": "OC_EVENT_KEYBOARD_KEY",
+                                "doc": "A key event. This event is sent when a normal key is pressed, released, or repeated. The `key` field contains the event's details.",
                                 "value": 2
                             },
                             {
                                 "kind": "enum-constant",
                                 "name": "OC_EVENT_KEYBOARD_CHAR",
+                                "doc": "A character input event. This event is sent when an input character is produced by the keyboard. The `character` field contains the event's details.",
                                 "value": 3
                             },
                             {
                                 "kind": "enum-constant",
                                 "name": "OC_EVENT_MOUSE_BUTTON",
+                                "doc": "A mouse button event. This is event sent when one of the mouse buttons is pressed, released, or clicked. The `key` field contains the event's details.",
                                 "value": 4
                             },
                             {
                                 "kind": "enum-constant",
                                 "name": "OC_EVENT_MOUSE_MOVE",
+                                "doc": "A mouse move event. This is event sent when the mouse is moved. The `mouse` field contains the event's details.",
                                 "value": 5
                             },
                             {
                                 "kind": "enum-constant",
                                 "name": "OC_EVENT_MOUSE_WHEEL",
+                                "doc": "A mouse wheel event. This is event sent when the mouse wheel is moved (or when a trackpad is scrolled). The `mouse` field contains the event's details.",
                                 "value": 6
                             },
                             {
                                 "kind": "enum-constant",
                                 "name": "OC_EVENT_MOUSE_ENTER",
+                                "doc": "A mouse enter event. This event is sent when the mouse enters the application's window. The `mouse` field contains the event's details.",
                                 "value": 7
                             },
                             {
                                 "kind": "enum-constant",
                                 "name": "OC_EVENT_MOUSE_LEAVE",
+                                "doc": "A mouse leave event. This event is sent when the mouse leaves the application's window.",
                                 "value": 8
                             },
                             {
                                 "kind": "enum-constant",
                                 "name": "OC_EVENT_CLIPBOARD_PASTE",
+                                "doc": "A clipboard paste event. This event is sent when the user uses the paste shortcut while the application window has focus.",
                                 "value": 9
                             },
                             {
                                 "kind": "enum-constant",
                                 "name": "OC_EVENT_WINDOW_RESIZE",
+                                "doc": "A resize event. This event is sent when the application's window is resized. The `move` field contains the event's details.",
                                 "value": 10
                             },
                             {
                                 "kind": "enum-constant",
                                 "name": "OC_EVENT_WINDOW_MOVE",
+                                "doc": "A move event. This event is sent when the window is moved. The `move` field contains the event's details.",
                                 "value": 11
                             },
                             {
                                 "kind": "enum-constant",
                                 "name": "OC_EVENT_WINDOW_FOCUS",
+                                "doc": "A focus event. This event is sent when the application gains focus.",
                                 "value": 12
                             },
                             {
                                 "kind": "enum-constant",
                                 "name": "OC_EVENT_WINDOW_UNFOCUS",
+                                "doc": "An unfocus event. This event is sent when the application looses focus.",
                                 "value": 13
                             },
                             {
                                 "kind": "enum-constant",
                                 "name": "OC_EVENT_WINDOW_HIDE",
+                                "doc": "A hide event. This event is sent when the application's window is hidden or minimized.",
                                 "value": 14
                             },
                             {
                                 "kind": "enum-constant",
                                 "name": "OC_EVENT_WINDOW_SHOW",
+                                "doc": "A show event. This event is sent when the application's window is shown or de-minimized.",
                                 "value": 15
                             },
                             {
                                 "kind": "enum-constant",
                                 "name": "OC_EVENT_WINDOW_CLOSE",
+                                "doc": "A close event. This event is sent when the window is about to be closed.",
                                 "value": 16
                             },
                             {
                                 "kind": "enum-constant",
                                 "name": "OC_EVENT_PATHDROP",
+                                "doc": "A path drop event. This event is sent when the user drops files onto the application's window. The `paths` field contains the event's details.",
                                 "value": 17
                             },
                             {
                                 "kind": "enum-constant",
                                 "name": "OC_EVENT_FRAME",
+                                "doc": "A frame event. This event is sent when the application should render a frame.",
                                 "value": 18
                             },
                             {
                                 "kind": "enum-constant",
                                 "name": "OC_EVENT_QUIT",
+                                "doc": "A quit event. This event is sent when the application has been requested to quit.",
                                 "value": 19
                             }
                         ]
@@ -4297,6 +4318,7 @@
                 {
                     "kind": "typename",
                     "name": "oc_key_action",
+                    "doc": "This enum describes the actions that can happen to a key.",
                     "type": {
                         "kind": "enum",
                         "type": {
@@ -4306,21 +4328,25 @@
                             {
                                 "kind": "enum-constant",
                                 "name": "OC_KEY_NO_ACTION",
+                                "doc": "No action happened on that key.",
                                 "value": 0
                             },
                             {
                                 "kind": "enum-constant",
                                 "name": "OC_KEY_PRESS",
+                                "doc": "The key was pressed.",
                                 "value": 1
                             },
                             {
                                 "kind": "enum-constant",
                                 "name": "OC_KEY_RELEASE",
+                                "doc": "The key was released.",
                                 "value": 2
                             },
                             {
                                 "kind": "enum-constant",
                                 "name": "OC_KEY_REPEAT",
+                                "doc": "The key was maintained pressed at least for the system's key repeat period.",
                                 "value": 3
                             }
                         ]
@@ -4329,6 +4355,7 @@
                 {
                     "kind": "typename",
                     "name": "oc_scan_code",
+                    "doc": "A code representing a key's physical location. This is independent of the system's keyboard layout.",
                     "type": {
                         "kind": "enum",
                         "type": {
@@ -4951,6 +4978,7 @@
                 {
                     "kind": "typename",
                     "name": "oc_key_code",
+                    "doc": "A code identifying a key. The physical location of the key corresponding to a given key code depends on the system's keyboard layout.",
                     "type": {
                         "kind": "enum",
                         "type": {
@@ -5615,6 +5643,7 @@
                 {
                     "kind": "typename",
                     "name": "oc_mouse_button",
+                    "doc": "A code identifying a mouse button.",
                     "type": {
                         "kind": "enum",
                         "type": {
@@ -5657,11 +5686,13 @@
                 {
                     "kind": "typename",
                     "name": "oc_key_event",
+                    "doc": "A structure describing a key event or a mouse button event.",
                     "type": {
                         "kind": "struct",
                         "fields": [
                             {
                                 "name": "action",
+                                "doc": "The action that was done on the key.",
                                 "type": {
                                     "kind": "namedType",
                                     "name": "oc_key_action"
@@ -5669,6 +5700,7 @@
                             },
                             {
                                 "name": "scanCode",
+                                "doc": "The scan code of the key. Only valid for key events.",
                                 "type": {
                                     "kind": "namedType",
                                     "name": "oc_scan_code"
@@ -5676,6 +5708,7 @@
                             },
                             {
                                 "name": "keyCode",
+                                "doc": "The key code of the key. Only valid for key events.",
                                 "type": {
                                     "kind": "namedType",
                                     "name": "oc_key_code"
@@ -5683,6 +5716,7 @@
                             },
                             {
                                 "name": "button",
+                                "doc": "The button of the mouse. Only valid for mouse button events.",
                                 "type": {
                                     "kind": "namedType",
                                     "name": "oc_mouse_button"
@@ -5690,6 +5724,7 @@
                             },
                             {
                                 "name": "mods",
+                                "doc": "Modifier flags indicating which modifier keys where pressed at the time of the event.",
                                 "type": {
                                     "kind": "namedType",
                                     "name": "oc_keymod_flags"
@@ -5697,6 +5732,7 @@
                             },
                             {
                                 "name": "clickCount",
+                                "doc" : "The number of clicks that where detected for the button. Only valid for mouse button events.",
                                 "type": {
                                     "kind": "u8"
                                 }
@@ -5707,11 +5743,13 @@
                 {
                     "kind": "typename",
                     "name": "oc_char_event",
+                    "doc": "A structure describing a character input event.",
                     "type": {
                         "kind": "struct",
                         "fields": [
                             {
                                 "name": "codepoint",
+                                "doc": "The unicode codepoint of the character.",
                                 "type": {
                                     "kind": "namedType",
                                     "name": "oc_utf32"
@@ -5719,6 +5757,7 @@
                             },
                             {
                                 "name": "sequence",
+                                "doc": "The utf8 sequence of the character.",
                                 "type": {
                                     "kind": "array",
                                     "type": {
@@ -5729,6 +5768,7 @@
                             },
                             {
                                 "name": "seqLen",
+                                "doc": "The utf8 sequence length.",
                                 "type": {
                                     "kind": "u8"
                                 }
@@ -5739,35 +5779,41 @@
                 {
                     "kind": "typename",
                     "name": "oc_mouse_event",
+                    "doc": "A structure describing a mouse move or a mouse wheel event. Mouse coordinates have their origin at the top-left corner of the window, with the y axis going down.",
                     "type": {
                         "kind": "struct",
                         "fields": [
                             {
                                 "name": "x",
+                                "doc": "The x coordinate of the mouse.",
                                 "type": {
                                     "kind": "f32"
                                 }
                             },
                             {
                                 "name": "y",
+                                "doc": "The y coordinate of the mouse.",
                                 "type": {
                                     "kind": "f32"
                                 }
                             },
                             {
                                 "name": "deltaX",
+                                "doc": "The delta from the last x coordinate of the mouse, or the scroll value along the x coordinate.",
                                 "type": {
                                     "kind": "f32"
                                 }
                             },
                             {
                                 "name": "deltaY",
+                                "doc": "The delta from the last y coordinate of the mouse, or the scoll value along the y  coordinate.",
                                 "type": {
                                     "kind": "f32"
                                 }
                             },
                             {
                                 "name": "mods",
+                                "doc": "Modifier flags indicating which modifier keys where pressed at the time of the event.",
                                 "type": {
                                     "kind": "namedType",
                                     "name": "oc_keymod_flags"
