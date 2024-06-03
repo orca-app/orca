@@ -178,6 +178,8 @@ typedef struct oc_wgpu_canvas_renderer
     WGPUDevice device;
     WGPUQueue queue;
 
+    WGPUSwapChain swapChain;
+
     WGPUBindGroup pathSetupBindGroup;
     WGPUBindGroup segmentSetupBindGroup;
     WGPUBindGroup backpropBindGroup;
@@ -392,8 +394,7 @@ static void oc_wgpu_canvas_on_adapter_request_ended(WGPURequestAdapterStatus sta
 
 static void oc_wgpu_canvas_on_device_error(WGPUErrorType type, const char* message, void* userdata)
 {
-    oc_log_error("%s\n", message);
-    exit(-1);
+    OC_ABORT("%s\n", message);
 }
 
 static void oc_wgpu_canvas_on_shader_error(WGPUCompilationInfoRequestStatus status, struct WGPUCompilationInfo const* compilationInfo, void* userdata)
@@ -3119,11 +3120,15 @@ void oc_wgpu_canvas_submit(oc_canvas_renderer_base* rendererBase,
 
     wgpuDeviceTick(renderer->device);
 
-    WGPUSwapChain swapChain = oc_wgpu_surface_get_swapchain(surfaceHandle, renderer->device);
-
-    if(swapChain)
+    if(!renderer->swapChain)
     {
-        WGPUTextureView frameBuffer = wgpuSwapChainGetCurrentTextureView(swapChain);
+        renderer->swapChain = oc_wgpu_surface_get_swapchain(surfaceHandle, renderer->device);
+        wgpuSwapChainReference(renderer->swapChain);
+    }
+
+    if(renderer->swapChain)
+    {
+        WGPUTextureView frameBuffer = wgpuSwapChainGetCurrentTextureView(renderer->swapChain);
         OC_ASSERT(frameBuffer);
 
         renderer->rollingBufferIndex = (renderer->rollingBufferIndex + 1) % OC_WGPU_CANVAS_ROLLING_BUFFER_COUNT;
@@ -3138,10 +3143,18 @@ void oc_wgpu_canvas_submit(oc_canvas_renderer_base* rendererBase,
 
         f64 submitStart = oc_clock_time(OC_CLOCK_MONOTONIC);
 
-        oc_vec2 screenSize = oc_surface_get_size(surfaceHandle);
         oc_vec2 scale = oc_surface_contents_scaling(surfaceHandle);
-        screenSize.x *= scale.x;
-        screenSize.y *= scale.y;
+        oc_vec2 screenSize = { 0 };
+        {
+            //TODO: here we get the size from the swapchain and not the surface, because surface could have been resized
+            //      since we got the framebuffer.
+            //      Scaling could also potentially have changed
+            //      Anyway we should handle rescaling better...
+            WGPUTexture texture = wgpuSwapChainGetCurrentTexture(renderer->swapChain);
+            screenSize.x = wgpuTextureGetWidth(texture);
+            screenSize.y = wgpuTextureGetHeight(texture);
+            wgpuTextureRelease(texture);
+        }
 
         //TODO: move that to enum
         i32 tileSize = 16;
@@ -3706,11 +3719,12 @@ void oc_wgpu_canvas_submit(oc_canvas_renderer_base* rendererBase,
 void oc_wgpu_canvas_present(oc_canvas_renderer_base* rendererBase, oc_surface surfaceHandle)
 {
     oc_wgpu_canvas_renderer* renderer = (oc_wgpu_canvas_renderer*)rendererBase;
-    WGPUSwapChain swapChain = oc_wgpu_surface_get_swapchain(surfaceHandle, renderer->device);
 
-    if(swapChain)
+    if(renderer->swapChain)
     {
-        wgpuSwapChainPresent(swapChain);
+        wgpuSwapChainPresent(renderer->swapChain);
+        wgpuSwapChainRelease(renderer->swapChain);
+        renderer->swapChain = 0;
     }
 }
 
