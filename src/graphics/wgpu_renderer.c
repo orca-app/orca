@@ -2297,9 +2297,9 @@ bool oc_wgpu_grow_buffer_if_needed(oc_wgpu_canvas_renderer* renderer,
             wgpuBufferRelease(*buffer);
         }
 
-        u32 newCap = oc_max(minCap * 1.5, OC_WGPU_CANVAS_BUFFER_DEFAULT_LEN);
-        u32 bufferLimit = oc_min(renderer->limits.maxBufferSize, renderer->limits.maxStorageBufferBindingSize);
-        u32 newSize = oc_clamp_high(newCap * eltSize, bufferLimit);
+        u64 newCap = oc_max(minCap * 1.5, OC_WGPU_CANVAS_BUFFER_DEFAULT_LEN);
+        u64 bufferLimit = oc_min(renderer->limits.maxBufferSize, renderer->limits.maxStorageBufferBindingSize);
+        u64 newSize = oc_clamp_high(newCap * eltSize, bufferLimit);
 
         WGPUBufferDescriptor desc = {
             .label = label,
@@ -3039,8 +3039,8 @@ bool oc_wgpu_canvas_encode_batch(oc_wgpu_canvas_encoding_context* context)
 
                 //NOTE: check encoding limits
                 {
-                    u32 bufferLimit = oc_min(renderer->limits.maxBufferSize, renderer->limits.maxStorageBufferBindingSize);
-                    u32 maxTileQueues = oc_min(context->maxBinQueueCount, context->screenTilesCount);
+                    u64 bufferLimit = oc_min(renderer->limits.maxBufferSize, renderer->limits.maxStorageBufferBindingSize);
+                    u64 maxTileQueues = oc_min(context->maxBinQueueCount, context->screenTilesCount);
 
                     if(context->pathCount * sizeof(oc_wgpu_path) >= bufferLimit
                        || context->eltCount * sizeof(oc_wgpu_path_elt) >= bufferLimit
