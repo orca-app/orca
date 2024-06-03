@@ -625,11 +625,13 @@ oc_canvas_renderer oc_canvas_renderer_create(void)
         WGPUDeviceDescriptor desc = {
             .requiredLimits = &(WGPURequiredLimits){ .limits = supported.limits },
         };
+
+        desc.requiredFeatures = (WGPUFeatureName[]){ WGPUFeatureName_TimestampQuery };
         if(renderer->hasTimestamps)
         {
-            desc.requiredFeatureCount = 1,
-            desc.requiredFeatures = (WGPUFeatureName[]){ WGPUFeatureName_TimestampQuery };
+            desc.requiredFeatureCount = 1;
         }
+
         renderer->device = wgpuAdapterCreateDevice(adapter, &desc);
         OC_ASSERT(renderer->device, "Failed to create WebGPU device");
 
@@ -1341,6 +1343,7 @@ oc_canvas_renderer oc_canvas_renderer_create(void)
     {
         handle = oc_canvas_renderer_handle_alloc((oc_canvas_renderer_base*)renderer);
     }
+
     return (handle);
 }
 
@@ -3201,8 +3204,8 @@ void oc_wgpu_canvas_submit(oc_canvas_renderer_base* rendererBase,
 
             //NOTE: get new record from free list or allocate it fresh from debug arena
             frameCounters = oc_list_pop_front_entry(&renderer->frameCountersFreeList,
-                                              oc_wgpu_canvas_frame_counters,
-                                              listElt);
+                                                    oc_wgpu_canvas_frame_counters,
+                                                    listElt);
             if(!frameCounters)
             {
                 frameCounters = oc_arena_push_type(&renderer->debugArena, oc_wgpu_canvas_frame_counters);
@@ -3288,8 +3291,8 @@ void oc_wgpu_canvas_submit(oc_canvas_renderer_base* rendererBase,
             if(frameCounters)
             {
                 batchCounters = oc_list_pop_front_entry(&renderer->batchCountersFreeList,
-                                                  oc_wgpu_canvas_batch_counters,
-                                                  listElt);
+                                                        oc_wgpu_canvas_batch_counters,
+                                                        listElt);
                 if(!batchCounters)
                 {
                     batchCounters = oc_arena_push_type(&renderer->debugArena, oc_wgpu_canvas_batch_counters);
