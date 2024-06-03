@@ -319,6 +319,7 @@ int main()
         f64 startFlushTime = oc_clock_time(OC_CLOCK_MONOTONIC);
 
         oc_canvas_render(renderer, context, surface);
+        oc_canvas_present(renderer, surface);
 
         f64 startPresentTime = oc_clock_time(OC_CLOCK_MONOTONIC);
 
