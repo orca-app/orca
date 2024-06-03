@@ -528,12 +528,14 @@ def build_wasm3(release):
 
 
 def build_wasm3_lib_win(release):
+    debug_flags = ["/O2", "/Zi"] if release else ["/Zi"]
+
     for f in glob.iglob("./src/ext/wasm3/source/*.c"):
         name = os.path.splitext(os.path.basename(f))[0]
         subprocess.run([
             "cl", "/nologo",
-            "/Zi", "/Zc:preprocessor", "/c",
-            "/O2",
+            *debug_flags,
+            "/Zc:preprocessor", "/c",
             f"/Fo:build/obj/{name}.obj",
             "/I", "./src/ext/wasm3/source",
             f,
@@ -586,7 +588,7 @@ def build_runtime(args):
 def build_runtime_internal(release, wasm_backend):
     build_platform_layer_internal(release)
 
-    if wasm_backend == "bytebox":  
+    if wasm_backend == "bytebox":
         build_bytebox(release)
     else:
         build_wasm3(release)
@@ -618,6 +620,8 @@ def build_runtime_win(release, wasm_backend):
     defines = []
     link_commands = ["build/bin/orca.dll.lib"]
 
+    debug_flags = ["/O2", "/Zi"] if release else ["/Zi", "/DOC_DEBUG", "/DOC_LOG_COMPILE_DEBUG"]
+
     if wasm_backend == "bytebox":
         includes += ["/I", "src/ext/bytebox/zig-out/include"]
         defines += ["/DOC_WASM_BACKEND_WASM3=0", "/DOC_WASM_BACKEND_BYTEBOX=1"]
@@ -633,7 +637,8 @@ def build_runtime_win(release, wasm_backend):
 
     compile_args=[
         "cl",
-        "/Zi", "/Zc:preprocessor",
+        *debug_flags,
+        "/Zc:preprocessor",
         "/std:c11", "/experimental:c11atomics",
         *defines,
         *includes,
@@ -814,9 +819,13 @@ def build_platform_layer_lib_win(release):
         "/DELAYLOAD:webgpu.dll"
     ]
 
+    debug_flags = ["/O2", "/Zi"] if release else ["/Zi", "/DOC_DEBUG", "/DOC_LOG_COMPILE_DEBUG"]
+
     subprocess.run([
         "cl", "/nologo",
-        "/we4013", "/Zi", "/Zc:preprocessor",
+        "/we4013",
+        *debug_flags,
+        "/Zc:preprocessor",
         "/DOC_BUILD_DLL",
         "/std:c11", "/experimental:c11atomics",
         *includes,
