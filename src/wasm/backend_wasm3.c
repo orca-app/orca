@@ -521,7 +521,7 @@ oc_wasm* oc_wasm_create(void)
     wasm->arena = arena;
     oc_list_init(&wasm->bindings);
 
-    u32 stackSize = 65536;
+    u32 stackSize = 1 << 20;
     wasm->m3Env = m3_NewEnvironment();
     wasm->m3Runtime = m3_NewRuntime(wasm->m3Env, stackSize, NULL);
 

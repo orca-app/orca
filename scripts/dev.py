@@ -528,7 +528,7 @@ def build_wasm3(release):
 
 
 def build_wasm3_lib_win(release):
-    debug_flags = ["/O2", "/Zi"] if release else ["/Zi"]
+    debug_flags = ["/O2", "/Zi"] if release else ["/O1", "/Zi"]
 
     for f in glob.iglob("./src/ext/wasm3/source/*.c"):
         name = os.path.splitext(os.path.basename(f))[0]
@@ -548,7 +548,7 @@ def build_wasm3_lib_win(release):
 
 def build_wasm3_lib_mac(release):
     includes = ["-Isrc/ext/wasm3/source"]
-    debug_flags = ["-g", "-O2"]
+    debug_flags = ["-g", "-O2"] if release else ["-g", "-O1"]
     flags = [
         *debug_flags,
         "-foptimize-sibling-calls",
@@ -958,7 +958,8 @@ def build_sdk_internal(release):
         "-I", "build/orca-libc/include",
     ]
 
-    debug_flags = ["-O2", "-DNDEBUG"] if release else ["-g"]
+    # we still use -O1 for debug, otherwise clang generates an ungodly amount of locals for no reason
+    debug_flags = ["-O2", "-DNDEBUG"] if release else ["-g", "-O1"]
 
     flags = [
         *debug_flags,
