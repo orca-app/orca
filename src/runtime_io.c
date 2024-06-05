@@ -30,10 +30,13 @@ oc_io_cmp oc_bridge_io_wait_single_req(oc_io_req* wasmReq)
             req.buffer = buffer;
 
             //TODO: lookup in a compile-time table which operations use a 'at' handle that must be replaced by root handle if 0.
-            if(req.op == OC_IO_OPEN_AT && req.handle.h == 0)
+            if(req.op == OC_IO_OPEN_AT)
             {
-                //NOTE: change root to app local folder
-                req.handle = orca->rootDir;
+                if(req.handle.h == 0)
+                {
+                    //NOTE: change root to app local folder
+                    req.handle = orca->rootDir;
+                }
                 req.open.flags |= OC_FILE_OPEN_RESTRICT;
             }
         }
