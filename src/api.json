@@ -6100,7 +6100,7 @@
                             },
                             {
                                 "name": "path",
-                                "doc": "The path that was selected when the user clicked the OK button. If the dialog box had the `OC_FILE_DIALOG_MULTIPLE` set, this is the first file of the list of selected paths.",
+                                "doc": "The path that was selected when the user clicked the OK button. If the dialog box had the `OC_FILE_DIALOG_MULTIPLE` flag set, this is the first file of the list of selected paths.",
                                 "type": {
                                     "kind": "namedType",
                                     "name": "oc_str8"
@@ -6108,7 +6108,7 @@
                             },
                             {
                                 "name": "selection",
-                                "doc": "If the dialog box had the `OC_FILE_DIALOG_MULTIPLE` set and the user clicked the OK button, this list contains the selected paths.",
+                                "doc": "If the dialog box had the `OC_FILE_DIALOG_MULTIPLE` flag set and the user clicked the OK button, this list contains the selected paths.",
                                 "type": {
                                     "kind": "namedType",
                                     "name": "oc_str8_list"
@@ -6590,6 +6590,7 @@
                 {
                     "kind": "typename",
                     "name": "oc_io_error",
+                    "doc": "A type identifying an I/O error.",
                     "type": {
                         "kind": "i32"
                     }
@@ -6597,6 +6598,7 @@
                 {
                     "kind": "typename",
                     "name": "oc_io_error_enum",
+                    "doc": "This enum declares all I/O error values.",
                     "type": {
                         "kind": "enum",
                         "type": {
@@ -6606,116 +6608,139 @@
                             {
                                 "kind": "enum-constant",
                                 "name": "OC_IO_OK",
+                                "doc": "No error.",
                                 "value": 0
                             },
                             {
                                 "kind": "enum-constant",
                                 "name": "OC_IO_ERR_UNKNOWN",
+                                "doc": "An unexpected error happened.",
                                 "value": 1
                             },
                             {
                                 "kind": "enum-constant",
                                 "name": "OC_IO_ERR_OP",
+                                "doc": "The request had an invalid operation.",
                                 "value": 2
                             },
                             {
                                 "kind": "enum-constant",
                                 "name": "OC_IO_ERR_HANDLE",
+                                "doc": "The request had an invalid handle.",
                                 "value": 3
                             },
                             {
                                 "kind": "enum-constant",
                                 "name": "OC_IO_ERR_PREV",
+                                "doc": "The operation was not carried out because the file handle has previous errors.",
                                 "value": 4
                             },
                             {
                                 "kind": "enum-constant",
                                 "name": "OC_IO_ERR_ARG",
+                                "doc": "The request contained wrong arguments.",
                                 "value": 5
                             },
                             {
                                 "kind": "enum-constant",
                                 "name": "OC_IO_ERR_PERM",
+                                "doc": "The operation requires permissions that the file handle doesn't have.",
                                 "value": 6
                             },
                             {
                                 "kind": "enum-constant",
                                 "name": "OC_IO_ERR_SPACE",
+                                "doc": "The operation couldn't complete due to a lack of space in the result buffer.",
                                 "value": 7
                             },
                             {
                                 "kind": "enum-constant",
                                 "name": "OC_IO_ERR_NO_ENTRY",
+                                "doc": "One of the directory in the path does not exist or couldn't be traversed.",
                                 "value": 8
                             },
                             {
                                 "kind": "enum-constant",
                                 "name": "OC_IO_ERR_EXISTS",
+                                "doc": "The file already exists.",
                                 "value": 9
                             },
                             {
                                 "kind": "enum-constant",
                                 "name": "OC_IO_ERR_NOT_DIR",
+                                "doc": "The file is not a directory.",
                                 "value": 10
                             },
                             {
                                 "kind": "enum-constant",
                                 "name": "OC_IO_ERR_DIR",
+                                "doc": "The file is a directory.",
                                 "value": 11
                             },
                             {
                                 "kind": "enum-constant",
                                 "name": "OC_IO_ERR_MAX_FILES",
+                                "doc": "There are too many opened files.",
                                 "value": 12
                             },
                             {
                                 "kind": "enum-constant",
                                 "name": "OC_IO_ERR_MAX_LINKS",
+                                "doc": "The path contains too many symbolic links (this may be indicative of a symlink loop).",
                                 "value": 13
                             },
                             {
                                 "kind": "enum-constant",
                                 "name": "OC_IO_ERR_PATH_LENGTH",
+                                "doc": "The path is too long.",
                                 "value": 14
                             },
                             {
                                 "kind": "enum-constant",
                                 "name": "OC_IO_ERR_FILE_SIZE",
+                                "doc": "The file is too large.",
                                 "value": 15
                             },
                             {
                                 "kind": "enum-constant",
                                 "name": "OC_IO_ERR_OVERFLOW",
+                                "doc": "The file is too large to be opened.",
                                 "value": 16
                             },
                             {
                                 "kind": "enum-constant",
                                 "name": "OC_IO_ERR_NOT_READY",
+                                "doc": "The file is locked or the device on which it is stored is not ready.",
                                 "value": 17
                             },
                             {
                                 "kind": "enum-constant",
                                 "name": "OC_IO_ERR_MEM",
+                                "doc": "The system is out of memory.",
                                 "value": 18
                             },
                             {
                                 "kind": "enum-constant",
                                 "name": "OC_IO_ERR_INTERRUPT",
+                                "doc": "The operation was interrupted by a signal.",
                                 "value": 19
                             },
                             {
                                 "kind": "enum-constant",
                                 "name": "OC_IO_ERR_PHYSICAL",
+                                "doc": "A physical error happened.",
                                 "value": 20
                             },
                             {
                                 "kind": "enum-constant",
                                 "name": "OC_IO_ERR_NO_DEVICE",
+                                "doc": "The device on which the file is stored was not found.",
                                 "value": 21
                             },
                             {
                                 "kind": "enum-constant",
                                 "name": "OC_IO_ERR_WALKOUT",
+                                "doc": "One element along the path is outside the root directory subtree.",
                                 "value": 22
                             }
                         ]
@@ -6724,11 +6749,13 @@
                 {
                     "kind": "typename",
                     "name": "oc_io_cmp",
+                    "doc": "A structure describing the completion of an I/O operation.",
                     "type": {
                         "kind": "struct",
                         "fields": [
                             {
                                 "name": "id",
+                                "doc": "The request ID as passed in the `oc_io_req` request that generated this completion.",
                                 "type": {
                                     "kind": "namedType",
                                     "name": "oc_io_req_id"
@@ -6736,6 +6763,7 @@
                             },
                             {
                                 "name": "error",
+                                "doc": "The error value for the operation.",
                                 "type": {
                                     "kind": "namedType",
                                     "name": "oc_io_error"
@@ -6748,24 +6776,28 @@
                                     "fields": [
                                         {
                                             "name": "result",
+                                            "doc": "This member is used to return integer results.",
                                             "type": {
                                                 "kind": "i64"
                                             }
                                         },
                                         {
                                             "name": "size",
+                                            "doc": "This member is used to return size results.",
                                             "type": {
                                                 "kind": "u64"
                                             }
                                         },
                                         {
                                             "name": "offset",
+                                            "doc": "This member is used to return offset results.",
                                             "type": {
                                                 "kind": "i64"
                                             }
                                         },
                                         {
                                             "name": "handle",
+                                            "doc": "This member is used to return handle results.",
                                             "type": {
                                                 "kind": "namedType",
                                                 "name": "oc_file"
@@ -6780,13 +6812,16 @@
                 {
                     "kind": "proc",
                     "name": "oc_io_wait_single_req",
+                    "doc": "Send a single I/O request and wait for its completion.",
                     "return": {
                         "kind": "namedType",
-                        "name": "oc_io_cmp"
+                        "name": "oc_io_cmp",
+                        "doc": "The result of the operation."
                     },
                     "params": [
                         {
                             "name": "req",
+                            "doc": "The I/O request to send.",
                             "type": {
                                 "kind": "pointer",
                                 "type": {
@@ -6800,6 +6835,7 @@
                 {
                     "kind": "proc",
                     "name": "oc_file_nil",
+                    "doc": "Returns a `nil` file handle",
                     "return": {
                         "kind": "namedType",
                         "name": "oc_file"
@@ -6808,13 +6844,16 @@
                 },
                 {
                     "kind": "proc",
+                    "doc": "Test if a file handle is `nil`.",
                     "name": "oc_file_is_nil",
                     "return": {
-                        "kind": "bool"
+                        "kind": "bool",
+                        "doc": "`true` if the handle is `nil`, and `false` otherwise."
                     },
                     "params": [
                         {
                             "name": "handle",
+                            "doc": "The handle to test.",
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_file"
@@ -6825,13 +6864,16 @@
                 {
                     "kind": "proc",
                     "name": "oc_file_open",
+                    "doc": "Open a file in the applications' default directory subtree.",
                     "return": {
                         "kind": "namedType",
-                        "name": "oc_file"
+                        "name": "oc_file",
+                        "doc": "A handle to the opened file."
                     },
                     "params": [
                         {
                             "name": "path",
+                            "doc": "The path of the file, relative to the applications' default directory.",
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_str8"
@@ -6839,6 +6881,7 @@
                         },
                         {
                             "name": "rights",
+                            "doc": "The request access rights for the file.",
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_file_access"
@@ -6846,6 +6889,7 @@
                         },
                         {
                             "name": "flags",
+                            "doc": "Flags controlling various options for the open operation. See `oc_file_open_flags`.",
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_file_open_flags"
@@ -6856,13 +6900,16 @@
                 {
                     "kind": "proc",
                     "name": "oc_file_open_at",
+                    "doc": "Open a file in a given directory's subtree.",
                     "return": {
                         "kind": "namedType",
-                        "name": "oc_file"
+                        "name": "oc_file",
+                        "doc": "A handle to the opened file."
                     },
                     "params": [
                         {
                             "name": "dir",
+                            "doc": "A directory handle identifying the root of the open operation.",
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_file"
@@ -6870,6 +6917,7 @@
                         },
                         {
                             "name": "path",
+                            "doc": "The path of the file to open, relative to `dir`.",
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_str8"
@@ -6877,6 +6925,7 @@
                         },
                         {
                             "name": "rights",
+                            "doc": "The request access rights for the file.",
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_file_access"
@@ -6884,6 +6933,7 @@
                         },
                         {
                             "name": "flags",
+                            "doc": "Flags controlling various options for the open operation. See `oc_file_open_flags`.",
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_file_open_flags"
@@ -6894,12 +6944,14 @@
                 {
                     "kind": "proc",
                     "name": "oc_file_close",
+                    "doc": "Close a file.",
                     "return": {
                         "kind": "void"
                     },
                     "params": [
                         {
                             "name": "file",
+                            "doc": "The file handle to close.",
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_file"
@@ -6910,12 +6962,15 @@
                 {
                     "kind": "proc",
                     "name": "oc_file_pos",
+                    "doc": "Get the current position in a file.",
                     "return": {
-                        "kind": "i64"
+                        "kind": "i64",
+                        "doc": "The current position in the file."
                     },
                     "params": [
                         {
                             "name": "file",
+                            "doc": "A handle to the file.",
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_file"
@@ -6926,12 +6981,15 @@
                 {
                     "kind": "proc",
                     "name": "oc_file_seek",
+                    "doc": "Set the current position in a file.",
                     "return": {
-                        "kind": "i64"
+                        "kind": "i64",
+                        "doc": "The new position in the file, or -1 if an error occurred."
                     },
                     "params": [
                         {
                             "name": "file",
+                            "doc": "A handle to the file.",
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_file"
@@ -6939,12 +6997,14 @@
                         },
                         {
                             "name": "offset",
+                            "doc": "The offset at which to move the file position, relative to the base position indicated by `whence`.",
                             "type": {
                                 "kind": "i64"
                             }
                         },
                         {
                             "name": "whence",
+                            "doc": "The base position for the seek operation.",
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_file_whence"
@@ -6955,12 +7015,15 @@
                 {
                     "kind": "proc",
                     "name": "oc_file_write",
+                    "doc": "Write data to a file.",
                     "return": {
-                        "kind": "u64"
+                        "kind": "u64",
+                        "doc": "The number of bytes written. A short count indicates an error."
                     },
                     "params": [
                         {
                             "name": "file",
+                            "doc": "A handle to the file.",
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_file"
@@ -6968,12 +7031,14 @@
                         },
                         {
                             "name": "size",
+                            "doc": "The number of bytes to write.",
                             "type": {
                                 "kind": "u64"
                             }
                         },
                         {
                             "name": "buffer",
+                            "doc": "The buffer containing the data to write. It must be at least `size` long.",
                             "type": {
                                 "kind": "pointer",
                                 "type": {
@@ -6986,12 +7051,15 @@
                 {
                     "kind": "proc",
                     "name": "oc_file_read",
+                    "doc": "Read from a file.",
                     "return": {
-                        "kind": "u64"
+                        "kind": "u64",
+                        "doc": "The number of bytes read. A short count indicates an error."
                     },
                     "params": [
                         {
                             "name": "file",
+                            "doc": "A handle to the file.",
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_file"
@@ -6999,12 +7067,14 @@
                         },
                         {
                             "name": "size",
+                            "doc": "The number of bytes to read.",
                             "type": {
                                 "kind": "u64"
                             }
                         },
                         {
                             "name": "buffer",
+                            "doc": "The buffer where to store the read data. It must be capable of holding at least `size` bytes.",
                             "type": {
                                 "kind": "pointer",
                                 "type": {
@@ -7017,13 +7087,16 @@
                 {
                     "kind": "proc",
                     "name": "oc_file_last_error",
+                    "doc": "Get the last error on a file handle.",
                     "return": {
                         "kind": "namedType",
-                        "name": "oc_io_error"
+                        "name": "oc_io_error",
+                        "doc": "The last error stored on the file handle."
                     },
                     "params": [
                         {
                             "name": "handle",
+                            "doc": "A handle to a file.",
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_file"
@@ -7034,6 +7107,7 @@
                 {
                     "kind": "typename",
                     "name": "oc_file_type",
+                    "doc": "An enum identifying the type of a file.",
                     "type": {
                         "kind": "enum",
                         "type": {
@@ -7043,40 +7117,48 @@
                             {
                                 "kind": "enum-constant",
                                 "name": "OC_FILE_UNKNOWN",
+                                "doc": "The file is of unknown type.",
                                 "value": 0
                             },
                             {
                                 "kind": "enum-constant",
                                 "name": "OC_FILE_REGULAR",
+                                "doc": "The file is a regular file.",
                                 "value": 1
                             },
                             {
                                 "kind": "enum-constant",
                                 "name": "OC_FILE_DIRECTORY",
+                                "doc": "The file is a directory.",
                                 "value": 2
                             },
                             {
                                 "kind": "enum-constant",
                                 "name": "OC_FILE_SYMLINK",
+                                "doc": "The file is a symbolic link.",
                                 "value": 3
                             },
                             {
                                 "kind": "enum-constant",
+                                "doc": "The file is a block device.",
                                 "name": "OC_FILE_BLOCK",
                                 "value": 4
                             },
                             {
                                 "kind": "enum-constant",
+                                "doc": "The file is a character device.",
                                 "name": "OC_FILE_CHARACTER",
                                 "value": 5
                             },
                             {
                                 "kind": "enum-constant",
+                                "doc": "The file is a FIFO pipe.",
                                 "name": "OC_FILE_FIFO",
                                 "value": 6
                             },
                             {
                                 "kind": "enum-constant",
+                                "doc": "The file is a socket.",
                                 "name": "OC_FILE_SOCKET",
                                 "value": 7
                             }
@@ -7086,6 +7168,7 @@
                 {
                     "kind": "typename",
                     "name": "oc_file_perm",
+                    "doc": "A type describing file permissions.",
                     "type": {
                         "kind": "u16"
                     }
@@ -7313,6 +7396,7 @@
                 {
                     "kind": "typename",
                     "name": "oc_file_open_with_dialog_elt",
+                    "doc": "An element of a list of file handles acquired through a file dialog.",
                     "type": {
                         "kind": "struct",
                         "fields": [
@@ -7336,11 +7420,13 @@
                 {
                     "kind": "typename",
                     "name": "oc_file_open_with_dialog_result",
+                    "doc": "A structure describing the result of a call to `oc_file_open_with_dialog()`.",
                     "type": {
                         "kind": "struct",
                         "fields": [
                             {
                                 "name": "button",
+                                "doc": "The button of the file dialog clicked by the user.",
                                 "type": {
                                     "kind": "namedType",
                                     "name": "oc_file_dialog_button"
@@ -7348,6 +7434,7 @@
                             },
                             {
                                 "name": "file",
+                                "doc": "The file that was opened through the dialog. If the dialog had the `OC_FILE_DIALOG_MULTIPLE` flag set, this is equal to the first handle in the `selection` list.",
                                 "type": {
                                     "kind": "namedType",
                                     "name": "oc_file"
@@ -7355,6 +7442,7 @@
                             },
                             {
                                 "name": "selection",
+                                "doc": "If the dialog had the `OC_FILE_DIALOG_MULTIPLE` flag set, this list of `oc_file_open_with_dialog_elt` contains the handles of the opened files.",
                                 "type": {
                                     "kind": "namedType",
                                     "name": "oc_list"
@@ -7366,13 +7454,16 @@
                 {
                     "kind": "proc",
                     "name": "oc_file_open_with_dialog",
+                    "doc": "Open files through a file dialog. This allows the user to select files outside the root directories currently accessible to the applications, giving them a way to provide new file capabilities to the application.",
                     "return": {
                         "kind": "namedType",
-                        "name": "oc_file_open_with_dialog_result"
+                        "name": "oc_file_open_with_dialog_result",
+                        "doc": "The result of the open operation."
                     },
                     "params": [
                         {
                             "name": "arena",
+                            "doc": "A memory arena on which to allocate elements of the result.",
                             "type": {
                                 "kind": "pointer",
                                 "type": {
@@ -7383,6 +7474,7 @@
                         },
                         {
                             "name": "rights",
+                            "doc": "The access rights requested on the files to open.",
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_file_access"
@@ -7390,6 +7482,7 @@
                         },
                         {
                             "name": "flags",
+                            "doc": "Flags controlling various options of the open operation. See `oc_file_open_flags`.",
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_file_open_flags"
@@ -7397,6 +7490,7 @@
                         },
                         {
                             "name": "desc",
+                            "doc": "A structure controlling the options of the file dialog window.",
                             "type": {
                                 "kind": "pointer",
                                 "type": {
@@ -7417,6 +7511,7 @@
                 {
                     "kind": "proc",
                     "name": "oc_path_slice_directory",
+                    "doc": "Get a string slice of the directory part of a path.",
                     "return": {
                         "kind": "namedType",
                         "name": "oc_str8"
@@ -7424,6 +7519,7 @@
                     "params": [
                         {
                             "name": "path",
+                            "doc": "The path to slice.",
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_str8"
@@ -7434,6 +7530,7 @@
                 {
                     "kind": "proc",
                     "name": "oc_path_slice_filename",
+                    "doc": "Get a string slice of the file name part of a path.",
                     "return": {
                         "kind": "namedType",
                         "name": "oc_str8"
@@ -7441,6 +7538,7 @@
                     "params": [
                         {
                             "name": "path",
+                            "doc": "The path to slice",
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_str8"
@@ -7451,13 +7549,16 @@
                 {
                     "kind": "proc",
                     "name": "oc_path_split",
+                    "doc": "Split a path into path elements.",
                     "return": {
                         "kind": "namedType",
-                        "name": "oc_str8_list"
+                        "name": "oc_str8_list",
+                        "doc": "A string list of path elements. The strings in this list are slices into the input path, refering to the same backing memory."
                     },
                     "params": [
                         {
                             "name": "arena",
+                            "doc": "An arena on which to allocate string list elements.",
                             "type": {
                                 "kind": "pointer",
                                 "type": {
@@ -7468,6 +7569,7 @@
                         },
                         {
                             "name": "path",
+                            "doc": "The path to slice.",
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_str8"
@@ -7478,13 +7580,16 @@
                 {
                     "kind": "proc",
                     "name": "oc_path_join",
+                    "doc": "Join path elements to form a path.",
                     "return": {
                         "kind": "namedType",
-                        "name": "oc_str8"
+                        "name": "oc_str8",
+                        "doc": "The resulting path."
                     },
                     "params": [
                         {
                             "name": "arena",
+                            "doc": "An arena on which to allocate the resulting path.",
                             "type": {
                                 "kind": "pointer",
                                 "type": {
@@ -7495,6 +7600,7 @@
                         },
                         {
                             "name": "elements",
+                            "doc": "A string list of path elements.",
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_str8_list"
@@ -7505,13 +7611,16 @@
                 {
                     "kind": "proc",
                     "name": "oc_path_append",
+                    "doc": "Append a path to another path.",
                     "return": {
                         "kind": "namedType",
-                        "name": "oc_str8"
+                        "name": "oc_str8",
+                        "doc": "The resulting path."
                     },
                     "params": [
                         {
                             "name": "arena",
+                            "doc": "An arena on which to allocate the resulting path.",
                             "type": {
                                 "kind": "pointer",
                                 "type": {
@@ -7522,6 +7631,7 @@
                         },
                         {
                             "name": "parent",
+                            "doc": "The first part of the path.",
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_str8"
@@ -7529,6 +7639,7 @@
                         },
                         {
                             "name": "relPath",
+                            "doc": "The relative path to append.",
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_str8"
@@ -7539,150 +7650,15 @@
                 {
                     "kind": "proc",
                     "name": "oc_path_is_absolute",
+                    "doc": "Test wether a path is an absolute path.",
                     "return": {
-                        "kind": "bool"
+                        "kind": "bool",
+                        "doc": "`true` if the path is absolute, `false` otherwise."
                     },
                     "params": [
                         {
                             "name": "path",
-                            "type": {
-                                "kind": "namedType",
-                                "name": "oc_str8"
-                            }
-                        }
-                    ]
-                },
-                {
-                    "kind": "proc",
-                    "name": "oc_path_slice_directory",
-                    "return": {
-                        "kind": "namedType",
-                        "name": "oc_str8"
-                    },
-                    "params": [
-                        {
-                            "name": "path",
-                            "type": {
-                                "kind": "namedType",
-                                "name": "oc_str8"
-                            }
-                        }
-                    ]
-                },
-                {
-                    "kind": "proc",
-                    "name": "oc_path_slice_filename",
-                    "return": {
-                        "kind": "namedType",
-                        "name": "oc_str8"
-                    },
-                    "params": [
-                        {
-                            "name": "path",
-                            "type": {
-                                "kind": "namedType",
-                                "name": "oc_str8"
-                            }
-                        }
-                    ]
-                },
-                {
-                    "kind": "proc",
-                    "name": "oc_path_split",
-                    "return": {
-                        "kind": "namedType",
-                        "name": "oc_str8_list"
-                    },
-                    "params": [
-                        {
-                            "name": "arena",
-                            "type": {
-                                "kind": "pointer",
-                                "type": {
-                                    "kind": "namedType",
-                                    "name": "oc_arena"
-                                }
-                            }
-                        },
-                        {
-                            "name": "path",
-                            "type": {
-                                "kind": "namedType",
-                                "name": "oc_str8"
-                            }
-                        }
-                    ]
-                },
-                {
-                    "kind": "proc",
-                    "name": "oc_path_join",
-                    "return": {
-                        "kind": "namedType",
-                        "name": "oc_str8"
-                    },
-                    "params": [
-                        {
-                            "name": "arena",
-                            "type": {
-                                "kind": "pointer",
-                                "type": {
-                                    "kind": "namedType",
-                                    "name": "oc_arena"
-                                }
-                            }
-                        },
-                        {
-                            "name": "elements",
-                            "type": {
-                                "kind": "namedType",
-                                "name": "oc_str8_list"
-                            }
-                        }
-                    ]
-                },
-                {
-                    "kind": "proc",
-                    "name": "oc_path_append",
-                    "return": {
-                        "kind": "namedType",
-                        "name": "oc_str8"
-                    },
-                    "params": [
-                        {
-                            "name": "arena",
-                            "type": {
-                                "kind": "pointer",
-                                "type": {
-                                    "kind": "namedType",
-                                    "name": "oc_arena"
-                                }
-                            }
-                        },
-                        {
-                            "name": "parent",
-                            "type": {
-                                "kind": "namedType",
-                                "name": "oc_str8"
-                            }
-                        },
-                        {
-                            "name": "relPath",
-                            "type": {
-                                "kind": "namedType",
-                                "name": "oc_str8"
-                            }
-                        }
-                    ]
-                },
-                {
-                    "kind": "proc",
-                    "name": "oc_path_is_absolute",
-                    "return": {
-                        "kind": "bool"
-                    },
-                    "params": [
-                        {
-                            "name": "path",
+                            "doc": "The path to test.",
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_str8"
