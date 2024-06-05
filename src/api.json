@@ -5825,11 +5825,13 @@
                 {
                     "kind": "typename",
                     "name": "oc_move_event",
+                    "doc": "A structure describing a window move or resize event.",
                     "type": {
                         "kind": "struct",
                         "fields": [
                             {
                                 "name": "frame",
+                                "doc": "The position and dimension of the frame rectangle, i.e. including the window title bar and border.",
                                 "type": {
                                     "kind": "namedType",
                                     "name": "oc_rect"
@@ -5837,6 +5839,7 @@
                             },
                             {
                                 "name": "content",
+                                "doc": "The position and dimension of the content rectangle, relative to the frame rectangle.",
                                 "type": {
                                     "kind": "namedType",
                                     "name": "oc_rect"
@@ -5848,11 +5851,13 @@
                 {
                     "kind": "typename",
                     "name": "oc_event",
+                    "doc": "A structure describing an event sent to the application.",
                     "type": {
                         "kind": "struct",
                         "fields": [
                             {
                                 "name": "window",
+                                "doc": "The window in which this event happened.",
                                 "type": {
                                     "kind": "namedType",
                                     "name": "oc_window"
@@ -5860,6 +5865,7 @@
                             },
                             {
                                 "name": "type",
+                                "doc": "The type of the event. This determines which member of the event union is active.",
                                 "type": {
                                     "kind": "namedType",
                                     "name": "oc_event_type"
@@ -5872,6 +5878,7 @@
                                     "fields": [
                                         {
                                             "name": "key",
+                                            "doc": "Details for a key or mouse button event.",
                                             "type": {
                                                 "kind": "namedType",
                                                 "name": "oc_key_event"
@@ -5879,6 +5886,7 @@
                                         },
                                         {
                                             "name": "character",
+                                            "doc": "Details for a character input event.",
                                             "type": {
                                                 "kind": "namedType",
                                                 "name": "oc_char_event"
@@ -5886,6 +5894,7 @@
                                         },
                                         {
                                             "name": "mouse",
+                                            "doc": "Details for a mouse move or mouse wheel event.",
                                             "type": {
                                                 "kind": "namedType",
                                                 "name": "oc_mouse_event"
@@ -5893,6 +5902,7 @@
                                         },
                                         {
                                             "name": "move",
+                                            "doc": "Details for a window move or resize event.",
                                             "type": {
                                                 "kind": "namedType",
                                                 "name": "oc_move_event"
@@ -5900,6 +5910,7 @@
                                         },
                                         {
                                             "name": "paths",
+                                            "doc": "Details for a drag and drop event.",
                                             "type": {
                                                 "kind": "namedType",
                                                 "name": "oc_str8_list"
@@ -5914,6 +5925,7 @@
                 {
                     "kind": "typename",
                     "name": "oc_file_dialog_kind",
+                    "doc": "This enum describes the kinds of possible file dialogs.",
                     "type": {
                         "kind": "enum",
                         "type": {
@@ -5923,11 +5935,13 @@
                             {
                                 "kind": "enum-constant",
                                 "name": "OC_FILE_DIALOG_SAVE",
+                                "doc": "The file dialog is a save dialog.",
                                 "value": 0
                             },
                             {
                                 "kind": "enum-constant",
                                 "name": "OC_FILE_DIALOG_OPEN",
+                                "doc": "The file dialog is an open dialog.",
                                 "value": 1
                             }
                         ]
@@ -5935,6 +5949,7 @@
                 },
                 {
                     "kind": "typename",
+                    "doc": "A type for flags describing various file dialog options.",
                     "name": "oc_file_dialog_flags",
                     "type": {
                         "kind": "u32"
@@ -5943,6 +5958,7 @@
                 {
                     "kind": "typename",
                     "name": "_oc_file_dialog_flags",
+                    "doc": "File dialog flags.",
                     "type": {
                         "kind": "enum",
                         "type": {
@@ -5952,21 +5968,25 @@
                             {
                                 "kind": "enum-constant",
                                 "name": "OC_FILE_DIALOG_FILES",
+                                "doc": "This dialog allows selecting files.",
                                 "value": 1
                             },
                             {
                                 "kind": "enum-constant",
                                 "name": "OC_FILE_DIALOG_DIRECTORIES",
+                                "doc": "This dialog allows selecting directories.",
                                 "value": 2
                             },
                             {
                                 "kind": "enum-constant",
                                 "name": "OC_FILE_DIALOG_MULTIPLE",
+                                "doc": "This dialog allows selecting multiple items.",
                                 "value": 4
                             },
                             {
                                 "kind": "enum-constant",
                                 "name": "OC_FILE_DIALOG_CREATE_DIRECTORIES",
+                                "doc": "This dialog allows creating directories.",
                                 "value": 8
                             }
                         ]
@@ -5975,11 +5995,13 @@
                 {
                     "kind": "typename",
                     "name": "oc_file_dialog_desc",
+                    "doc": "A structure describing a file dialog.",
                     "type": {
                         "kind": "struct",
                         "fields": [
                             {
                                 "name": "kind",
+                                "doc": "The kind of file dialog, see `oc_file_dialog_kind`.",
                                 "type": {
                                     "kind": "namedType",
                                     "name": "oc_file_dialog_kind"
@@ -5987,6 +6009,7 @@
                             },
                             {
                                 "name": "flags",
+                                "doc": "A combination of file dialog flags used to enable file dialog options.",
                                 "type": {
                                     "kind": "namedType",
                                     "name": "oc_file_dialog_flags"
@@ -5994,6 +6017,7 @@
                             },
                             {
                                 "name": "title",
+                                "doc": "The title of the dialog, displayed in the dialog title bar.",
                                 "type": {
                                     "kind": "namedType",
                                     "name": "oc_str8"
@@ -6001,6 +6025,7 @@
                             },
                             {
                                 "name": "okLabel",
+                                "doc": "Optional. The label of the OK button, e.g. \"Save\" or \"Open\".",
                                 "type": {
                                     "kind": "namedType",
                                     "name": "oc_str8"
@@ -6008,6 +6033,7 @@
                             },
                             {
                                 "name": "startAt",
+                                "doc": "Optional. A file handle to the root directory for the dialog. If set to zero, the root directory is the application's default data directory.",
                                 "type": {
                                     "kind": "namedType",
                                     "name": "oc_file"
@@ -6015,6 +6041,7 @@
                             },
                             {
                                 "name": "startPath",
+                                "doc": "Optional. The path of the starting directory of the dialog, relative to its root directory. If set to nil, the dialog starts at its root directory.",
                                 "type": {
                                     "kind": "namedType",
                                     "name": "oc_str8"
@@ -6022,6 +6049,7 @@
                             },
                             {
                                 "name": "filters",
+                                "doc": "A list of file extensions used to restrict which files can be selected in this dialog. An empty list allows all files to be selected. Extensions should be provided without a leading dot.",
                                 "type": {
                                     "kind": "namedType",
                                     "name": "oc_str8_list"
@@ -6033,6 +6061,7 @@
                 {
                     "kind": "typename",
                     "name": "oc_file_dialog_button",
+                    "doc": "An enum identifying the button clicked by the user when a file dialog returns.",
                     "type": {
                         "kind": "enum",
                         "type": {
@@ -6041,11 +6070,13 @@
                         "constants": [
                             {
                                 "kind": "enum-constant",
+                                "doc": "The user clicked the \"Cancel\" button, or closed the dialog box.",
                                 "name": "OC_FILE_DIALOG_CANCEL",
                                 "value": 0
                             },
                             {
                                 "kind": "enum-constant",
+                                "doc": "The user clicked the \"OK\" button.",
                                 "name": "OC_FILE_DIALOG_OK",
                                 "value": 1
                             }
@@ -6055,11 +6086,13 @@
                 {
                     "kind": "typename",
                     "name": "oc_file_dialog_result",
+                    "doc": "A structure describing the result of a file dialog.",
                     "type": {
                         "kind": "struct",
                         "fields": [
                             {
                                 "name": "button",
+                                "doc": "The button clicked by the user.",
                                 "type": {
                                     "kind": "namedType",
                                     "name": "oc_file_dialog_button"
@@ -6067,6 +6100,7 @@
                             },
                             {
                                 "name": "path",
+                                "doc": "The path that was selected when the user clicked the OK button. If the dialog box had the `OC_FILE_DIALOG_MULTIPLE` set, this is the first file of the list of selected paths.",
                                 "type": {
                                     "kind": "namedType",
                                     "name": "oc_str8"
@@ -6074,6 +6108,7 @@
                             },
                             {
                                 "name": "selection",
+                                "doc": "If the dialog box had the `OC_FILE_DIALOG_MULTIPLE` set and the user clicked the OK button, this list contains the selected paths.",
                                 "type": {
                                     "kind": "namedType",
                                     "name": "oc_str8_list"
@@ -6085,12 +6120,14 @@
                 {
                     "kind": "proc",
                     "name": "oc_window_set_title",
+                    "doc": "Set the title of the application's window.",
                     "return": {
                         "kind": "void"
                     },
                     "params": [
                         {
                             "name": "title",
+                            "doc": "The title to display in the title bar of the application.",
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_str8"
@@ -6101,12 +6138,14 @@
                 {
                     "kind": "proc",
                     "name": "oc_window_set_size",
+                    "doc": "Set the size of the application's window.",
                     "return": {
                         "kind": "void"
                     },
                     "params": [
                         {
                             "name": "size",
+                            "doc": "The new size of the application's window.",
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_vec2"
@@ -6117,6 +6156,7 @@
                 {
                     "kind": "proc",
                     "name": "oc_request_quit",
+                    "doc": "Request the system to quit the application.",
                     "return": {
                         "kind": "void"
                     },
@@ -6125,13 +6165,16 @@
                 {
                     "kind": "proc",
                     "name": "oc_scancode_to_keycode",
+                    "doc": "Convert a scancode to a keycode, according to current keyboard layout.",
                     "return": {
                         "kind": "namedType",
+                        "doc": "The converted key code.",
                         "name": "oc_key_code"
                     },
                     "params": [
                         {
                             "name": "scanCode",
+                            "doc": "The scan code to convert.",
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_scan_code"
@@ -6142,12 +6185,14 @@
                 {
                     "kind": "proc",
                     "name": "oc_clipboard_set_string",
+                    "doc": "Put a string in the clipboard.",
                     "return": {
                         "kind": "void"
                     },
                     "params": [
                         {
                             "name": "string",
+                            "doc": "A string to put in the clipboard.",
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_str8"
@@ -6172,11 +6217,13 @@
                 {
                     "kind": "typename",
                     "name": "oc_file",
+                    "doc": "An opaque handle identifying an opened file.",
                     "type": {
                         "kind": "struct",
                         "fields": [
                             {
                                 "name": "h",
+                                "doc": "Opaque file handle.",
                                 "type": {
                                     "kind": "u64"
                                 }
@@ -6187,6 +6234,7 @@
                 {
                     "kind": "typename",
                     "name": "oc_file_open_flags",
+                    "doc": "The type of file open flags describing file open options.",
                     "type": {
                         "kind": "u16"
                     }
@@ -6194,6 +6242,7 @@
                 {
                     "kind": "typename",
                     "name": "oc_file_open_flags_enum",
+                    "doc": "Flags for the `oc_file_open()` function.",
                     "type": {
                         "kind": "enum",
                         "type": {
@@ -6203,36 +6252,43 @@
                             {
                                 "kind": "enum-constant",
                                 "name": "OC_FILE_OPEN_NONE",
+                                "doc": "No options.",
                                 "value": 0
                             },
                             {
                                 "kind": "enum-constant",
                                 "name": "OC_FILE_OPEN_APPEND",
+                                "doc": "Open the file in 'append' mode. All writes append data at the end of the file.",
                                 "value": 2
                             },
                             {
                                 "kind": "enum-constant",
                                 "name": "OC_FILE_OPEN_TRUNCATE",
+                                "doc": "Truncate the file to 0 bytes when opening.",
                                 "value": 4
                             },
                             {
                                 "kind": "enum-constant",
                                 "name": "OC_FILE_OPEN_CREATE",
+                                "doc": "Create the file if it does not exist.",
                                 "value": 8
                             },
                             {
                                 "kind": "enum-constant",
                                 "name": "OC_FILE_OPEN_SYMLINK",
+                                "doc": "If the file is a symlink, open the symlink itself instead of following it.",
                                 "value": 16
                             },
                             {
                                 "kind": "enum-constant",
                                 "name": "OC_FILE_OPEN_NO_FOLLOW",
+                                "doc": "If the file is a symlink, the call to open will fail.",
                                 "value": 32
                             },
                             {
                                 "kind": "enum-constant",
                                 "name": "OC_FILE_OPEN_RESTRICT",
+                                "doc": "Reserved.",
                                 "value": 64
                             }
                         ]
@@ -6248,6 +6304,7 @@
                 {
                     "kind": "typename",
                     "name": "oc_file_access_enum",
+                    "doc": "This enum describes the access permissions of a file handle.",
                     "type": {
                         "kind": "enum",
                         "type": {
@@ -6257,16 +6314,19 @@
                             {
                                 "kind": "enum-constant",
                                 "name": "OC_FILE_ACCESS_NONE",
+                                "doc": "The file handle has no access permissions.",
                                 "value": 0
                             },
                             {
                                 "kind": "enum-constant",
                                 "name": "OC_FILE_ACCESS_READ",
+                                "doc": "The file handle can be used for reading from the file.",
                                 "value": 2
                             },
                             {
                                 "kind": "enum-constant",
                                 "name": "OC_FILE_ACCESS_WRITE",
+                                "doc": "The file handle can be used for writing to the file.",
                                 "value": 4
                             }
                         ]
@@ -6275,6 +6335,7 @@
                 {
                     "kind": "typename",
                     "name": "oc_file_whence",
+                    "doc": "This enum is used in `oc_file_seek()` to specify the starting point of the seek operation.",
                     "type": {
                         "kind": "enum",
                         "type": {
@@ -6284,16 +6345,19 @@
                             {
                                 "kind": "enum-constant",
                                 "name": "OC_FILE_SEEK_SET",
+                                "doc": "Set the file position relative to the beginning of the file.",
                                 "value": 0
                             },
                             {
                                 "kind": "enum-constant",
                                 "name": "OC_FILE_SEEK_END",
+                                "doc": "Set the file position relative to the end of the file.",
                                 "value": 1
                             },
                             {
                                 "kind": "enum-constant",
                                 "name": "OC_FILE_SEEK_CURRENT",
+                                "doc": "Set the file position relative to the current position.",
                                 "value": 2
                             }
                         ]
@@ -6302,12 +6366,14 @@
                 {
                     "kind": "typename",
                     "name": "oc_io_req_id",
+                    "doc": "A type used to identify I/O requests.",
                     "type": {
                         "kind": "u64"
                     }
                 },
                 {
                     "kind": "typename",
+                    "doc": "A type used to identify I/O operations.",
                     "name": "oc_io_op",
                     "type": {
                         "kind": "u32"
@@ -6316,6 +6382,7 @@
                 {
                     "kind": "typename",
                     "name": "oc_io_op_enum",
+                    "doc": "This enum declares all I/O operations.",
                     "type": {
                         "kind": "enum",
                         "type": {
@@ -6325,36 +6392,82 @@
                             {
                                 "kind": "enum-constant",
                                 "name": "OC_IO_OPEN_AT",
+                                "doc": [
+                                    "Open a file at a path relative to a given root directory.",
+                                    "",
+                                    "    - `handle` is the handle to the root directory. If it is nil, the application's default directory is used.",
+                                    "    - `size` is the size of the path, in bytes.",
+                                    "    - `buffer` points to an array containing the path of the file to open, relative to the directory identified by `handle`.",
+                                    "    - `open` contains the permissions and flags for the open operation."
+                                ],
                                 "value": 0
                             },
                             {
                                 "kind": "enum-constant",
                                 "name": "OC_IO_CLOSE",
+                                "doc": [
+                                    "Close a file handle.",
+                                    "",
+                                    "    - `handle` is the handle to close."
+                                ],
                                 "value": 1
                             },
                             {
                                 "kind": "enum-constant",
                                 "name": "OC_IO_FSTAT",
+                                "doc": [
+                                    "Get status information for a file handle.",
+                                    "",
+                                    "    - `handle` is the handle to stat.",
+                                    "    - `size` is the size of the result buffer. It should be at least `sizeof(oc_file_status)`.",
+                                    "    - `buffer` is the result buffer."
+                                ],
                                 "value": 2
                             },
                             {
                                 "kind": "enum-constant",
                                 "name": "OC_IO_SEEK",
+                                "doc": [
+                                    "Move the file position in a file.",
+                                    "",
+                                    "    - `handle` is the handle of the file.",
+                                    "    - `offset` specifies the offset of the new position, relative to the base position specified by `whence`.",
+                                    "    - `whence` determines the base position for the seek operation."
+                                ],
                                 "value": 3
                             },
                             {
                                 "kind": "enum-constant",
+                                "doc": [
+                                    "Read data from a file.",
+                                    "",
+                                    "    - `handle` is the handle of the file.",
+                                    "    - `size` is the number of bytes to read.",
+                                    "    - `buffer` is the result buffer. It should be big enough to hold `size` bytes."
+                                ],
                                 "name": "OC_IO_READ",
                                 "value": 4
                             },
                             {
                                 "kind": "enum-constant",
                                 "name": "OC_IO_WRITE",
+                                "doc": [
+                                    "Write data to a file.",
+                                    "",
+                                    "    - `handle` is the handle of the file.",
+                                    "    - `size` is the number of bytes to write.",
+                                    "    - `buffer` contains the data to write to the file."
+                                ],
                                 "value": 5
                             },
                             {
                                 "kind": "enum-constant",
                                 "name": "OC_OC_IO_ERROR",
+                                "doc": [
+                                    "Get the error attached to a file handle.",
+                                    "",
+                                    "    - `handle` is the handle of the file."
+                                ],
                                 "value": 6
                             }
                         ]
@@ -6363,11 +6476,13 @@
                 {
                     "kind": "typename",
                     "name": "oc_io_req",
+                    "doc": "A structure describing an I/O request.",
                     "type": {
                         "kind": "struct",
                         "fields": [
                             {
                                 "name": "id",
+                                "doc": "An identifier for the request. You can set this to any value you want. It is passed back in the `oc_io_cmp` completion and can be used to match requests and completions.",
                                 "type": {
                                     "kind": "namedType",
                                     "name": "oc_io_req_id"
@@ -6375,6 +6490,7 @@
                             },
                             {
                                 "name": "op",
+                                "doc": "The requested operation.",
                                 "type": {
                                     "kind": "namedType",
                                     "name": "oc_io_op"
@@ -6382,6 +6498,7 @@
                             },
                             {
                                 "name": "handle",
+                                "doc": "A file handle used by some operations.",
                                 "type": {
                                     "kind": "namedType",
                                     "name": "oc_file"
@@ -6389,12 +6506,14 @@
                             },
                             {
                                 "name": "offset",
+                                "doc": "An offset used by some operations.",
                                 "type": {
                                     "kind": "i64"
                                 }
                             },
                             {
                                 "name": "size",
+                                "doc": "A size indicating the capacity of the buffer pointed to by `buffer`, in bytes.",
                                 "type": {
                                     "kind": "u64"
                                 }
@@ -6406,6 +6525,7 @@
                                     "fields": [
                                         {
                                             "name": "buffer",
+                                            "doc": "A buffer used to pass data to the request or get back results.",
                                             "type": {
                                                 "kind": "pointer",
                                                 "type": {
@@ -6415,6 +6535,7 @@
                                         },
                                         {
                                             "name": "unused",
+                                            "doc": "reserved",
                                             "type": {
                                                 "kind": "u64"
                                             }
@@ -6428,34 +6549,14 @@
                                     "kind": "union",
                                     "fields": [
                                         {
-                                            "name": "",
-                                            "type": {
-                                                "kind": "struct",
-                                                "fields": [
-                                                    {
-                                                        "name": "rights",
-                                                        "type": {
-                                                            "kind": "namedType",
-                                                            "name": "oc_file_access"
-                                                        }
-                                                    },
-                                                    {
-                                                        "name": "flags",
-                                                        "type": {
-                                                            "kind": "namedType",
-                                                            "name": "oc_file_open_flags"
-                                                        }
-                                                    }
-                                                ]
-                                            }
-                                        },
-                                        {
                                             "name": "open",
+                                            "doc": "Holds options for the open operations.",
                                             "type": {
                                                 "kind": "struct",
                                                 "fields": [
                                                     {
                                                         "name": "rights",
+                                                        "doc": "The access permissions requested on the file to open.",
                                                         "type": {
                                                             "kind": "namedType",
                                                             "name": "oc_file_access"
@@ -6463,6 +6564,7 @@
                                                     },
                                                     {
                                                         "name": "flags",
+                                                        "doc": "The options to use when opening the file.",
                                                         "type": {
                                                             "kind": "namedType",
                                                             "name": "oc_file_open_flags"
@@ -6473,6 +6575,7 @@
                                         },
                                         {
                                             "name": "whence",
+                                            "doc": "The base position to use in seek operations.",
                                             "type": {
                                                 "kind": "namedType",
                                                 "name": "oc_file_whence"
@@ -11463,44 +11566,6 @@
                         "name": "spacing",
                         "type": {
                             "kind": "f32"
-                        }
-                    },
-                    {
-                        "name": "",
-                        "type": {
-                            "kind": "union",
-                            "fields": [
-                                {
-                                    "name": "",
-                                    "type": {
-                                        "kind": "struct",
-                                        "fields": [
-                                            {
-                                                "name": "x",
-                                                "type": {
-                                                    "kind": "f32"
-                                                }
-                                            },
-                                            {
-                                                "name": "y",
-                                                "type": {
-                                                    "kind": "f32"
-                                                }
-                                            }
-                                        ]
-                                    }
-                                },
-                                {
-                                    "name": "c",
-                                    "type": {
-                                        "kind": "array",
-                                        "type": {
-                                            "kind": "f32"
-                                        },
-                                        "count": 2
-                                    }
-                                }
-                            ]
                         }
                     },
                     {

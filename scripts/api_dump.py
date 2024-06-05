@@ -10,6 +10,32 @@ def type_struct(entries, ast, tu):
     pretty_print_ast(ast, 0, sys.stdout)
     return "TODO"
 
+
+def test_match(desc, ast):
+
+    for key in ast.keys():
+        if key not in desc:
+            return False
+        elif type(ast[key]) != type(desc[key]):
+            return False
+        elif isinstance(ast[key], str):
+            if ast[key] != desc[key]:
+                return False
+
+        elif isinstance(ast[key], list):
+            if len(ast[key]) != len(desc[key]):
+                return False
+
+            for descIt, astIt in zip(desc[key], ast[key]):
+                if not test_match(descIt, astIt):
+                    return False
+        elif isinstance(ast[key], dict):
+            if not test_match(desc[key], ast[key]):
+                return False
+
+    return True
+
+
 def type_struct_or_union(entries, decl, tu):
     fields = []
     for child in decl.get_children():
@@ -19,6 +45,47 @@ def type_struct_or_union(entries, decl, tu):
                 "name": child.spelling,
                 "type": type_from_ast(entries, child.type, tu)
             }
+
+            #NOTE: fields whose type is anonymous have two decl, one for the _anonymous type_ and one the the _named field_.
+            #      so for example, a field:
+            #
+            #      struct { int x; } foo;
+            #
+            #      would genereate:
+            #
+            #      {
+            #          "name": "",
+            #          "type": {
+            #              "kind": "struct",
+            #              "fields": [
+            #                  {
+            #                      "name": "x",
+            #                      "type": {
+            #                          "kind": "i32"
+            #                      }
+            #                  }
+            #              ]
+            #           }
+            #      },
+            #      {
+            #          "name": "foo",
+            #          "type": {
+            #              "kind": "struct",
+            #              "fields": [
+            #                  {
+            #                      "name": "x",
+            #                      "type": {
+            #                          "kind": "i32"
+            #                      }
+            #                  }
+            #              ]
+            #           }
+            #      }
+            #
+            #      so here if previous field was an anonymous decl with a matching type, we remove the anonymous decl.
+            if len(fields) > 0 and fields[-1]["name"] == "" and test_match(fields[-1]["type"], field["type"]):
+                fields = fields[:-1]
+
             fields.append(field)
         elif child.kind == cindex.CursorKind.STRUCT_DECL or child.kind == cindex.CursorKind.UNION_DECL:
             field = {
