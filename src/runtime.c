@@ -994,7 +994,7 @@ i32 orca_runloop(void* user)
         }
         else
         {
-            oc_set_color_rgba(0, 0, 0, 0);
+            oc_set_color_rgba(1, 0, 0, 1);
             oc_clear();
         }
 
