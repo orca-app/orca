@@ -1,0 +1,85 @@
+diff --git a/src/dawn/native/CMakeLists.txt b/src/dawn/native/CMakeLists.txt
+index ec833eb3c9..7a16653f5b 100644
+--- a/src/dawn/native/CMakeLists.txt
++++ b/src/dawn/native/CMakeLists.txt
+@@ -791,3 +791,9 @@ target_sources(webgpu_dawn PRIVATE ${WEBGPU_DAWN_NATIVE_PROC_GEN})
+ 
+ install_if_enabled(dawn_native)
+ install_if_enabled(webgpu_dawn)
++add_library(webgpu SHARED ${DAWN_PLACEHOLDER_FILE})
++common_compile_options(webgpu)
++target_link_libraries(webgpu PRIVATE dawn_native)
++target_link_libraries(webgpu PUBLIC dawn_headers)
++target_compile_definitions(webgpu PRIVATE WGPU_IMPLEMENTATION WGPU_SHARED_LIBRARY)
++target_sources(webgpu PRIVATE ${WEBGPU_DAWN_NATIVE_PROC_GEN})
+\ No newline at end of file
+diff --git a/src/dawn/native/Device.cpp b/src/dawn/native/Device.cpp
+index e0ac3fd894..3f971c6b6e 100644
+--- a/src/dawn/native/Device.cpp
++++ b/src/dawn/native/Device.cpp
+@@ -2284,7 +2284,7 @@ ResultOrError<Ref<SwapChainBase>> DeviceBase::CreateSwapChain(
+     config.presentMode = descriptor->presentMode;
+     config.viewFormatCount = 0;
+     config.viewFormats = nullptr;
+-    config.alphaMode = wgpu::CompositeAlphaMode::Opaque;
++    config.alphaMode = wgpu::CompositeAlphaMode::Premultiplied;
+ 
+     SwapChainBase* previousSwapChain = surface->GetAttachedSwapChain();
+     ResultOrError<Ref<SwapChainBase>> maybeNewSwapChain =
+diff --git a/src/dawn/native/d3d/SwapChainD3D.cpp b/src/dawn/native/d3d/SwapChainD3D.cpp
+index 43a575ccea..902691df6b 100644
+--- a/src/dawn/native/d3d/SwapChainD3D.cpp
++++ b/src/dawn/native/d3d/SwapChainD3D.cpp
+@@ -39,6 +39,10 @@
+ #include "dawn/native/d3d/Forward.h"
+ #include "dawn/native/d3d/UtilsD3D.h"
+ 
++#include <dcomp.h>
++#pragma comment(lib, "d3d11")
++#pragma comment(lib, "dcomp")
++
+ namespace dawn::native::d3d {
+ namespace {
+ 
+@@ -194,7 +198,7 @@ MaybeError SwapChain::InitializeSwapChainFromScratch() {
+     swapChainDesc.BufferCount = mConfig.bufferCount;
+     swapChainDesc.Scaling = DXGI_SCALING_STRETCH;
+     swapChainDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
+-    swapChainDesc.AlphaMode = DXGI_ALPHA_MODE_IGNORE;
++    swapChainDesc.AlphaMode = DXGI_ALPHA_MODE_PREMULTIPLIED;
+     swapChainDesc.Flags = mConfig.swapChainFlags;
+ 
+     ComPtr<IDXGIFactory2> factory2 = nullptr;
+@@ -205,10 +209,29 @@ MaybeError SwapChain::InitializeSwapChainFromScratch() {
+     switch (GetSurface()->GetType()) {
+         case Surface::Type::WindowsHWND: {
+             DAWN_TRY(CheckHRESULT(
+-                factory2->CreateSwapChainForHwnd(GetD3DDeviceForCreatingSwapChain(),
+-                                                 static_cast<HWND>(GetSurface()->GetHWND()),
+-                                                 &swapChainDesc, nullptr, nullptr, &swapChain1),
++                factory2->CreateSwapChainForComposition(GetD3DDeviceForCreatingSwapChain(),
++                                                        &swapChainDesc, nullptr, &swapChain1),
+                 "Creating the IDXGISwapChain1"));
++
++            // Create composition
++            IDCompositionDevice* compositeDevice = NULL;
++            DAWN_TRY(CheckHRESULT(
++                DCompositionCreateDevice(NULL, __uuidof(compositeDevice), (void**)&compositeDevice),
++                "Creating DCompositionDevice"));
++
++            IDCompositionTarget* compositeTarget = NULL;
++            DAWN_TRY(CheckHRESULT(
++                compositeDevice->CreateTargetForHwnd(static_cast<HWND>(GetSurface()->GetHWND()),
++                                                     TRUE, &compositeTarget),
++                "Creating composition target"));
++
++            IDCompositionVisual* compositeVisual = NULL;
++            DAWN_TRY(CheckHRESULT(compositeDevice->CreateVisual(&compositeVisual),
++                                  "Creating composition visual"));
++
++            compositeVisual->SetContent(swapChain1.Get());
++            compositeTarget->SetRoot(compositeVisual);
++            compositeDevice->Commit();
+             break;
+         }
+         case Surface::Type::WindowsCoreWindow: {
