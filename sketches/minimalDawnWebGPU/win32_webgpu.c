@@ -3,7 +3,7 @@
 
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
-#include<dwmapi.h>
+#include <dwmapi.h>
 
 #define _USE_MATH_DEFINES
 #include <math.h>
@@ -12,12 +12,18 @@
 
 // replace this with your favorite Assert() implementation
 #include <intrin.h>
-#define Assert(cond) do { if (!(cond)) __debugbreak(); } while (0)
+#define Assert(cond)        \
+    do                      \
+    {                       \
+        if(!(cond))         \
+            __debugbreak(); \
+    }                       \
+    while(0)
 
-#pragma comment (lib, "gdi32")
-#pragma comment (lib, "user32")
-#pragma comment (lib, "webgpu")
-#pragma comment (lib, "dwmapi")
+#pragma comment(lib, "gdi32")
+#pragma comment(lib, "user32")
+#pragma comment(lib, "webgpu")
+#pragma comment(lib, "dwmapi")
 
 static void FatalError(const char* message)
 {
@@ -32,7 +38,7 @@ static void OnDeviceError(WGPUErrorType type, const char* message, void* userdat
 
 static void OnAdapterRequestEnded(WGPURequestAdapterStatus status, WGPUAdapter adapter, const char* message, void* userdata)
 {
-    if (status != WGPURequestAdapterStatus_Success)
+    if(status != WGPURequestAdapterStatus_Success)
     {
         // cannot find adapter?
         FatalError(message);
@@ -41,7 +47,7 @@ static void OnAdapterRequestEnded(WGPURequestAdapterStatus status, WGPUAdapter a
     {
         // use first adapter provided
         WGPUAdapter* result = userdata;
-        if (*result == NULL)
+        if(*result == NULL)
         {
             *result = adapter;
         }
@@ -50,11 +56,11 @@ static void OnAdapterRequestEnded(WGPURequestAdapterStatus status, WGPUAdapter a
 
 static LRESULT CALLBACK WindowProc(HWND wnd, UINT msg, WPARAM wparam, LPARAM lparam)
 {
-    switch (msg)
+    switch(msg)
     {
-    case WM_DESTROY:
-        PostQuitMessage(0);
-        return 0;
+        case WM_DESTROY:
+            PostQuitMessage(0);
+            return 0;
     }
     return DefWindowProcW(wnd, msg, wparam, lparam);
 }
@@ -62,8 +68,7 @@ static LRESULT CALLBACK WindowProc(HWND wnd, UINT msg, WPARAM wparam, LPARAM lpa
 int WINAPI WinMain(HINSTANCE hinstance, HINSTANCE previnstance, LPSTR cmdline, int cmdshow)
 {
     // register window class to have custom WindowProc callback
-    WNDCLASSEXW wc =
-    {
+    WNDCLASSEXW wc = {
         .cbSize = sizeof(wc),
         .lpfnWndProc = &WindowProc,
         .hInstance = hinstance,
@@ -121,14 +126,13 @@ int WINAPI WinMain(HINSTANCE hinstance, HINSTANCE previnstance, LPSTR cmdline, i
 
     WGPUSurface surface;
     {
-        WGPUSurfaceDescriptor desc =
-        {
-            .nextInChain = &((WGPUSurfaceDescriptorFromWindowsHWND)
-            {
-                .chain.sType = WGPUSType_SurfaceDescriptorFromWindowsHWND,
-                .hinstance = wc.hInstance,
-                .hwnd = window,
-            }).chain,
+        WGPUSurfaceDescriptor desc = {
+            .nextInChain = &((WGPUSurfaceDescriptorFromWindowsHWND){
+                                 .chain.sType = WGPUSType_SurfaceDescriptorFromWindowsHWND,
+                                 .hinstance = wc.hInstance,
+                                 .hwnd = window,
+                             })
+                                .chain,
         };
         surface = wgpuInstanceCreateSurface(instance, &desc);
         Assert(surface && "Failed to create WebGPU surface");
@@ -136,8 +140,7 @@ int WINAPI WinMain(HINSTANCE hinstance, HINSTANCE previnstance, LPSTR cmdline, i
 
     WGPUAdapter adapter = NULL;
     {
-        WGPURequestAdapterOptions options =
-        {
+        WGPURequestAdapterOptions options = {
             .compatibleSurface = surface,
             // .powerPreference = WGPUPowerPreference_HighPerformance,
         };
@@ -154,8 +157,7 @@ int WINAPI WinMain(HINSTANCE hinstance, HINSTANCE previnstance, LPSTR cmdline, i
             WGPUAdapterProperties properties = { 0 };
             wgpuAdapterGetProperties(adapter, &properties);
 
-            const char* adapter_types[] =
-            {
+            const char* adapter_types[] = {
                 [WGPUAdapterType_DiscreteGPU] = "Discrete GPU",
                 [WGPUAdapterType_IntegratedGPU] = "Integrated GPU",
                 [WGPUAdapterType_CPU] = "CPU",
@@ -164,16 +166,16 @@ int WINAPI WinMain(HINSTANCE hinstance, HINSTANCE previnstance, LPSTR cmdline, i
 
             char temp[1024];
             wsprintfA(temp,
-                "Adapter       = %s\n"
-                "Driver        = %s\n"
-                "Vendor        = %s\n"
-                "Architecture  = %s\n"
-                "Adapter Type  = %s\n",
-                properties.name,
-                properties.driverDescription,
-                properties.vendorName,
-                properties.architecture,
-                adapter_types[properties.adapterType]);
+                      "Adapter       = %s\n"
+                      "Driver        = %s\n"
+                      "Vendor        = %s\n"
+                      "Architecture  = %s\n"
+                      "Adapter Type  = %s\n",
+                      properties.name,
+                      properties.driverDescription,
+                      properties.vendorName,
+                      properties.architecture,
+                      adapter_types[properties.adapterType]);
 
             OutputDebugStringA(temp);
         }
@@ -184,12 +186,11 @@ int WINAPI WinMain(HINSTANCE hinstance, HINSTANCE previnstance, LPSTR cmdline, i
         WGPUSupportedLimits supported = { 0 };
         wgpuAdapterGetLimits(adapter, &supported);
 
-        WGPUDeviceDescriptor desc =
-        {
+        WGPUDeviceDescriptor desc = {
             // extra features: https://dawn.googlesource.com/dawn/+/refs/heads/main/src/dawn/native/Features.cpp
             //.requiredFeaturesCount
             //.requiredFeatures = (WGPUFeatureName[]) { ... }
-            .requiredLimits = &(WGPURequiredLimits) { .limits = supported.limits },
+            .requiredLimits = &(WGPURequiredLimits){ .limits = supported.limits },
         };
 
         device = wgpuAdapterCreateDevice(adapter, &desc);
@@ -217,13 +218,13 @@ int WINAPI WinMain(HINSTANCE hinstance, HINSTANCE previnstance, LPSTR cmdline, i
     // swap chain will be created when window will be resized
     WGPUSwapChain swap_chain = NULL;
 
-    for (;;)
+    for(;;)
     {
         // process all incoming Windows messages
         MSG msg;
-        if (PeekMessageW(&msg, NULL, 0, 0, PM_REMOVE))
+        if(PeekMessageW(&msg, NULL, 0, 0, PM_REMOVE))
         {
-            if (msg.message == WM_QUIT)
+            if(msg.message == WM_QUIT)
             {
                 break;
             }
@@ -243,30 +244,22 @@ int WINAPI WinMain(HINSTANCE hinstance, HINSTANCE previnstance, LPSTR cmdline, i
         wgpuDeviceTick(device);
 
         // resize swap chain if needed
-        if (swap_chain == NULL || width != current_width || height != current_height)
+        if(width != current_width || height != current_height)
         {
-            if (swap_chain)
-            {
-                // release old swap chain
-                wgpuSwapChainRelease(swap_chain);
-                swap_chain = NULL;
-            }
-
             // resize to new size for non-zero window size
-            if (width != 0 && height != 0)
+            if(width != 0 && height != 0)
             {
-                WGPUSwapChainDescriptor desc =
-                {
+                WGPUSurfaceConfiguration config = {
+                    .device = device,
+                    .format = kSwapChainFormat,
+                    .usage = WGPUTextureUsage_RenderAttachment,
+                    .alphaMode = WGPUCompositeAlphaMode_Premultiplied,
                     .width = width,
                     .height = height,
-                    .usage = WGPUTextureUsage_RenderAttachment,
-                    .format = kSwapChainFormat,
-                    .presentMode = WGPUPresentMode_Fifo, // WGPUPresentMode_Mailbox // WGPUPresentMode_Immediate
+                    .presentMode = WGPUPresentMode_Fifo,
                 };
-                swap_chain = wgpuDeviceCreateSwapChain(device, surface, &desc);
-                Assert(surface && "Failed to create WebGPU swap chain");
+                wgpuSurfaceConfigure(surface, &config);
             }
-
             current_width = width;
             current_height = height;
         }
@@ -277,46 +270,59 @@ int WINAPI WinMain(HINSTANCE hinstance, HINSTANCE previnstance, LPSTR cmdline, i
         c1 = c2;
 
         // render only if window size is non-zero, which means swap chain is created
-        if (swap_chain)
+        WGPUTextureView next = 0;
         {
-            WGPUTextureView next = wgpuSwapChainGetCurrentTextureView(swap_chain);
-            if (!next)
-            {
-                FatalError("Cannot acquire next swap chain texture!");
-            }
+            WGPUSurfaceTexture surfaceTexture = { 0 };
+            wgpuSurfaceGetCurrentTexture(surface, &surfaceTexture);
 
-            WGPURenderPassDescriptor desc =
-            {
-                .colorAttachmentCount = 1,
-                .colorAttachments = (WGPURenderPassColorAttachment[])
-                {
-                    // one output to write to, initially cleared with background color
-                    {
-                        .view = next,
-                        .depthSlice = WGPU_DEPTH_SLICE_UNDEFINED,
-                        .loadOp = WGPULoadOp_Clear,
-                        .storeOp = WGPUStoreOp_Store,
-                        .clearValue = { 0.392, 0.584, 0.929, 0.5 }, // r,g,b,a
-                    },
-                },
+            WGPUTextureViewDescriptor desc = {
+                .format = kSwapChainFormat,
+                .dimension = WGPUTextureViewDimension_2D,
+                .baseMipLevel = 0,
+                .mipLevelCount = 1,
+                .baseArrayLayer = 0,
+                .arrayLayerCount = 1,
+                .aspect = WGPUTextureAspect_All,
             };
 
-            WGPUCommandEncoder encoder = wgpuDeviceCreateCommandEncoder(device, NULL);
-
-            // encode render pass
-            WGPURenderPassEncoder pass = wgpuCommandEncoderBeginRenderPass(encoder, &desc);
-            wgpuRenderPassEncoderEnd(pass);
-
-            // submit to queue
-            WGPUCommandBuffer command = wgpuCommandEncoderFinish(encoder, NULL);
-            wgpuQueueSubmit(queue, 1, &command);
-
-            wgpuCommandBufferRelease(command);
-            wgpuCommandEncoderRelease(encoder);
-            wgpuTextureViewRelease(next);
-
-            // present to output
-            wgpuSwapChainPresent(swap_chain);
+            next = wgpuTextureCreateView(surfaceTexture.texture, &desc);
+            wgpuTextureRelease(surfaceTexture.texture);
         }
+
+        if(!next)
+        {
+            FatalError("Cannot acquire next swap chain texture!");
+        }
+
+        WGPURenderPassDescriptor desc = {
+            .colorAttachmentCount = 1,
+            .colorAttachments = (WGPURenderPassColorAttachment[]){
+                // one output to write to, initially cleared with background color
+                {
+                    .view = next,
+                    .depthSlice = WGPU_DEPTH_SLICE_UNDEFINED,
+                    .loadOp = WGPULoadOp_Clear,
+                    .storeOp = WGPUStoreOp_Store,
+                    .clearValue = { 0.392, 0.584, 0.929, 0.5 }, // r,g,b,a
+                },
+            },
+        };
+
+        WGPUCommandEncoder encoder = wgpuDeviceCreateCommandEncoder(device, NULL);
+
+        // encode render pass
+        WGPURenderPassEncoder pass = wgpuCommandEncoderBeginRenderPass(encoder, &desc);
+        wgpuRenderPassEncoderEnd(pass);
+
+        // submit to queue
+        WGPUCommandBuffer command = wgpuCommandEncoderFinish(encoder, NULL);
+        wgpuQueueSubmit(queue, 1, &command);
+
+        wgpuCommandBufferRelease(command);
+        wgpuCommandEncoderRelease(encoder);
+        wgpuTextureViewRelease(next);
+
+        // present to output
+        wgpuSurfacePresent(surface);
     }
 }
