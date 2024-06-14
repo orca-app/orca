@@ -440,6 +440,8 @@ static const char* wa_instr_strings[] = {
     [WA_INSTR_f64x2_convert_low_i32x4_u] = "f64x2.convert_low_i32x4_u",
     [WA_INSTR_f32x4_demote_f64x2_zero] = "f32x4.demote_f64x2_zero",
     [WA_INSTR_f64x2_promote_low_f32x4] = "f64x2.promote_low_f32x4",
+
+    [WA_INSTR_move] = "move",
 };
 
 typedef enum wa_instruction_prefix
@@ -898,9 +900,6 @@ static const u64 wa_instr_decode_basic_len = oc_array_size(wa_instr_decode_basic
 static const u64 wa_instr_decode_extended_len = oc_array_size(wa_instr_decode_extended);
 static const u64 wa_instr_decode_vector_len = oc_array_size(wa_instr_decode_vector);
 
-typedef struct wa_instr_info wa_instr_info;
-typedef int (*wa_instr_parse_proc)(wa_input* input, wa_instr_op op, const wa_instr_info* info);
-
 typedef enum wa_immediate_type
 {
     WA_IMM_ZERO,
@@ -940,12 +939,9 @@ typedef struct wa_instr_info
 
     u32 outCount;
     wa_value_type out[WA_INSTR_OPD_MAX_COUNT];
-} wa_instr_info;
 
-int wa_parse_return(wa_input* input, wa_instr_op op, const wa_instr_info* info);
-int wa_parse_const(wa_input* input, wa_instr_op op, const wa_instr_info* info);
-int wa_parse_local_get(wa_input* input, wa_instr_op op, const wa_instr_info* info);
-int wa_parse_local_set(wa_input* input, wa_instr_op op, const wa_instr_info* info);
+    u32 opdCount;
+} wa_instr_info;
 
 static const wa_instr_info wa_instr_infos[] = {
     [WA_INSTR_nop] = {},
@@ -958,7 +954,9 @@ static const wa_instr_info wa_instr_infos[] = {
     [WA_INSTR_br] = {},
     [WA_INSTR_br_if] = {},
     [WA_INSTR_br_table] = {},
-    [WA_INSTR_return] = {},
+    [WA_INSTR_return] = {
+        .opdCount = 1,
+    },
     [WA_INSTR_call] = {},
     [WA_INSTR_call_indirect] = {},
     [WA_INSTR_ref_null] = {},
@@ -967,17 +965,16 @@ static const wa_instr_info wa_instr_infos[] = {
     [WA_INSTR_drop] = {},
     [WA_INSTR_select] = {},
     [WA_INSTR_select_t] = {},
+    //NOTE: variables instructions are handled separately so we don't record their stack arity here
     [WA_INSTR_local_get] = {
         .immCount = 1,
-        .imm = { WA_IMM_LOCAL_INDEX },
-        .outCount = 1,
-        .out = { WA_TYPE_I32 },
+        .imm = { WA_IMM_I32 },
+        .opdCount = 2,
     },
     [WA_INSTR_local_set] = {
         .immCount = 1,
-        .imm = { WA_IMM_LOCAL_INDEX },
-        .inCount = 1,
-        .in = { WA_TYPE_I32 },
+        .imm = { WA_IMM_I32 },
+        .opdCount = 2,
     },
     [WA_INSTR_local_tee] = {},
     [WA_INSTR_global_get] = {},
@@ -1016,6 +1013,7 @@ static const wa_instr_info wa_instr_infos[] = {
         .out = {
             WA_TYPE_I32,
         },
+        .opdCount = 2,
     },
     [WA_INSTR_i64_const] = {},
     [WA_INSTR_f32_const] = {},

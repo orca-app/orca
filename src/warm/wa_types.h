@@ -531,6 +531,10 @@ typedef enum wa_instr_op
     WA_INSTR_f32x4_demote_f64x2_zero,
     WA_INSTR_f64x2_promote_low_f32x4,
 
+    /* Internal opcodes */
+    WA_INSTR_internal_range_start,
+    WA_INSTR_move = WA_INSTR_internal_range_start,
+
     WA_INSTR_COUNT,
 
 } wa_instr_op;
@@ -601,21 +605,87 @@ typedef struct wa_module_toc_entry
 
 } wa_module_toc_entry;
 
-typedef struct wa_module_code_entry
+typedef struct wa_func_type
 {
+    u32 paramCount;
+    wa_value_type* params;
+
+    u32 returnCount;
+    wa_value_type* returns;
+
+} wa_func_type;
+
+typedef union wa_code
+{
+    wa_instr_op opcode;
+    wa_instr_immediate operand; //this should be wa_operand??
+} wa_code;
+
+typedef struct wa_func
+{
+    wa_func_type* type;
+
     u32 localCount;
     wa_value_type* locals;
 
     u32 instrCount;
     wa_module_instruction* instructions;
 
-} wa_module_code_entry;
+    u32 codeLen;
+    wa_code* code;
 
-typedef struct wa_module_code_section
+} wa_func;
+
+typedef enum wa_limits_kind
 {
-    u32 entryCount;
-    wa_module_code_entry* entries;
-} wa_module_code_section;
+    WA_LIMIT_MIN = 0,
+    WA_LIMIT_MIN_MAX = 1,
+} wa_limits_kind;
+
+typedef struct wa_limits
+{
+    wa_limits_kind kind;
+    u32 min;
+    u32 max;
+
+} wa_limits;
+
+typedef enum wa_import_kind
+{
+    WA_IMPORT_FUNCTION = 0x00,
+    WA_IMPORT_TABLE = 0x01,
+    WA_IMPORT_MEMORY = 0x02,
+    WA_IMPORT_GLOBAL = 0x03,
+} wa_import_kind;
+
+typedef struct wa_import
+{
+    oc_str8 moduleName;
+    oc_str8 importName;
+
+    wa_import_kind kind;
+    u32 index;
+    wa_value_type type;
+    wa_limits limits;
+    bool mut;
+
+} wa_import;
+
+typedef enum wa_export_kind
+{
+    WA_EXPORT_FUNCTION = 0x00,
+    WA_EXPORT_TABLE = 0x01,
+    WA_EXPORT_MEMORY = 0x02,
+    WA_EXPORT_GLOBAL = 0x03,
+} wa_export_kind;
+
+typedef struct wa_export
+{
+    oc_str8 name;
+    wa_export_kind kind;
+    u32 index;
+
+} wa_export;
 
 typedef struct wa_module
 {
@@ -638,7 +708,17 @@ typedef struct wa_module
         wa_module_toc_entry data;
     } toc;
 
-    wa_module_code_section code;
+    u32 typeCount;
+    wa_func_type* types;
+
+    u32 importCount;
+    wa_import* imports;
+
+    u32 exportCount;
+    wa_export* exports;
+
+    u32 functionCount;
+    wa_func* functions;
 
 } wa_module;
 
