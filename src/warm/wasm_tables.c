@@ -954,10 +954,12 @@ static const wa_instr_info wa_instr_infos[] = {
     [WA_INSTR_br] = {},
     [WA_INSTR_br_if] = {},
     [WA_INSTR_br_table] = {},
-    [WA_INSTR_return] = {
-        .opdCount = 1,
+    [WA_INSTR_return] = {},
+    [WA_INSTR_call] = {
+        .immCount = 1,
+        .imm = { WA_IMM_FUNC_INDEX },
+        .opdCount = 2,
     },
-    [WA_INSTR_call] = {},
     [WA_INSTR_call_indirect] = {},
     [WA_INSTR_ref_null] = {},
     [WA_INSTR_ref_is_null] = {},
@@ -1400,4 +1402,8 @@ static const wa_instr_info wa_instr_infos[] = {
     [WA_INSTR_f64x2_convert_low_i32x4_u] = {},
     [WA_INSTR_f32x4_demote_f64x2_zero] = {},
     [WA_INSTR_f64x2_promote_low_f32x4] = {},
+
+    [WA_INSTR_move] = {
+        .opdCount = 2,
+    },
 };
