@@ -99,7 +99,7 @@ WGPUSwapChain oc_wgpu_surface_get_swapchain(oc_surface handle, WGPUDevice device
             if(device && size.x != 0 && size.y != 0)
             {
                 surface->wgpuDevice = device;
-                wgpuDeviceReference(device);
+                wgpuDeviceAddRef(device);
 
                 WGPUSwapChainDescriptor desc = {
                     .width = size.x,
