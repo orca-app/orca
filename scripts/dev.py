@@ -228,6 +228,10 @@ target_compile_definitions(webgpu PRIVATE WGPU_IMPLEMENTATION WGPU_SHARED_LIBRAR
 target_sources(webgpu PRIVATE ${WEBGPU_DAWN_NATIVE_PROC_GEN})"""
             f.write(s)
 
+        # apply windows patch
+        with pushd("dawn"):
+            subprocess.run(["git", "apply", "../../deps/dawn-d3d12-transparent.diff"], check=True)
+
         mode = "Release" if release else "Debug"
 
         if platform.system() == "Windows":

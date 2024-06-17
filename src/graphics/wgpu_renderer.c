@@ -3123,7 +3123,7 @@ void oc_wgpu_canvas_submit(oc_canvas_renderer_base* rendererBase,
     if(!renderer->swapChain)
     {
         renderer->swapChain = oc_wgpu_surface_get_swapchain(surfaceHandle, renderer->device);
-        wgpuSwapChainReference(renderer->swapChain);
+        wgpuSwapChainAddRef(renderer->swapChain);
     }
 
     if(renderer->swapChain)
