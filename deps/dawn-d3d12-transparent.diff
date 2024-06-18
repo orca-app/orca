@@ -11,7 +11,7 @@ index ec833eb3c9..afcc4235c0 100644
  
  if (DAWN_ENABLE_D3D11)
 diff --git a/src/dawn/native/d3d/SwapChainD3D.cpp b/src/dawn/native/d3d/SwapChainD3D.cpp
-index 43a575ccea..613780d40c 100644
+index 43a575ccea..a280e1fe60 100644
 --- a/src/dawn/native/d3d/SwapChainD3D.cpp
 +++ b/src/dawn/native/d3d/SwapChainD3D.cpp
 @@ -92,6 +92,24 @@ DXGI_USAGE ToDXGIUsage(wgpu::TextureUsage usage) {
@@ -47,7 +47,28 @@ index 43a575ccea..613780d40c 100644
  
      // There is no previous swapchain so we can create one directly and don't have anything else
      // to do.
-@@ -193,8 +212,8 @@ MaybeError SwapChain::InitializeSwapChainFromScratch() {
+@@ -138,8 +157,9 @@ MaybeError SwapChain::Initialize(SwapChainBase* previousSwapChain) {
+     // always possible. Because DXGI requires that a new swapchain be created if the
+     // DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING flag is changed.
+     bool canReuseSwapChain =
+-        ((mConfig.swapChainFlags ^ previousD3DSwapChain->mConfig.swapChainFlags) &
+-         DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING) == 0;
++        (mConfig.alphaMode == previousD3DSwapChain->mConfig.alphaMode) &&
++        (((mConfig.swapChainFlags ^ previousD3DSwapChain->mConfig.swapChainFlags) &
++          DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING) == 0);
+ 
+     // We can't reuse the previous swapchain, so we destroy it and wait for all of its reference
+     // to be forgotten (otherwise DXGI complains that there are outstanding references).
+@@ -151,6 +171,8 @@ MaybeError SwapChain::Initialize(SwapChainBase* previousSwapChain) {
+     // After all this we know we can reuse the swapchain, see if it is possible to also reuse
+     // the buffers.
+     mDXGISwapChain = std::move(previousD3DSwapChain->mDXGISwapChain);
++    mDCompositionTarget = std::move(previousD3DSwapChain->mDCompositionTarget);
++    mDCompositionVisual = std::move(previousD3DSwapChain->mDCompositionVisual);
+ 
+     bool canReuseBuffers = GetWidth() == previousSwapChain->GetWidth() &&
+                            GetHeight() == previousSwapChain->GetHeight() &&
+@@ -193,8 +215,8 @@ MaybeError SwapChain::InitializeSwapChainFromScratch() {
      swapChainDesc.BufferUsage = mConfig.usage;
      swapChainDesc.BufferCount = mConfig.bufferCount;
      swapChainDesc.Scaling = DXGI_SCALING_STRETCH;
@@ -58,7 +79,7 @@ index 43a575ccea..613780d40c 100644
      swapChainDesc.Flags = mConfig.swapChainFlags;
  
      ComPtr<IDXGIFactory2> factory2 = nullptr;
-@@ -205,10 +224,31 @@ MaybeError SwapChain::InitializeSwapChainFromScratch() {
+@@ -205,10 +227,31 @@ MaybeError SwapChain::InitializeSwapChainFromScratch() {
      switch (GetSurface()->GetType()) {
          case Surface::Type::WindowsHWND: {
              DAWN_TRY(CheckHRESULT(
@@ -93,7 +114,7 @@ index 43a575ccea..613780d40c 100644
              break;
          }
          case Surface::Type::WindowsCoreWindow: {
-@@ -254,8 +294,10 @@ MaybeError SwapChain::PresentDXGISwapChain() {
+@@ -254,8 +297,10 @@ MaybeError SwapChain::PresentDXGISwapChain() {
      return {};
  }
  

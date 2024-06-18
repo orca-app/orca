@@ -994,7 +994,7 @@ i32 orca_runloop(void* user)
         }
         else
         {
-            oc_surface_bring_to_front(app->debugOverlay.surface);
+            oc_surface_send_to_back(app->debugOverlay.surface);
             oc_set_color_rgba(0, 0, 0, 0);
             oc_clear();
         }

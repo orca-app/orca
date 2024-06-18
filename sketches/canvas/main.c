@@ -183,6 +183,7 @@ int main()
                     1. / frameTime);
 */
         oc_canvas_render(renderer, context, surface);
+        oc_canvas_present(renderer, surface);
 
         oc_scratch_end(scratch);
 
