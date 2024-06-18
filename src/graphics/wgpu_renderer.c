@@ -396,11 +396,10 @@ static void oc_wgpu_canvas_on_device_error(WGPUErrorType type, const char* messa
     OC_ABORT("%s\n", message);
 }
 
-static void oc_wgpu_canvas_on_shader_error(WGPUCompilationInfoRequestStatus status, struct WGPUCompilationInfo const* compilationInfo, void* userdata)
+static void oc_wgpu_canvas_on_shader_error(WGPUCompilationInfoRequestStatus status, struct WGPUCompilationInfo const* compilationInfo, void* userdata1, void* userdata2)
 {
     for(int i = 0; i < compilationInfo->messageCount; i++)
     {
-
         const WGPUCompilationMessage* message = &compilationInfo->messages[i];
         oc_log_level level;
         switch(message->type)
@@ -448,7 +447,11 @@ void oc_wgpu_renderer_create_compute_pipeline(WGPUDevice device,
     };
 
     WGPUShaderModule module = wgpuDeviceCreateShaderModule(device, &desc);
-    wgpuShaderModuleGetCompilationInfo(module, oc_wgpu_canvas_on_shader_error, 0);
+    WGPUCompilationInfoCallbackInfo2 callbackInfo = {
+        .mode = WGPUCallbackMode_AllowSpontaneous,
+        .callback = oc_wgpu_canvas_on_shader_error,
+    };
+    wgpuShaderModuleGetCompilationInfo2(module, callbackInfo);
 
     for(int i = 0; i < bindGroupCount; i++)
     {
@@ -504,7 +507,11 @@ void oc_wgpu_renderer_create_render_pipeline(WGPUDevice device,
     };
 
     WGPUShaderModule module = wgpuDeviceCreateShaderModule(device, &desc);
-    wgpuShaderModuleGetCompilationInfo(module, oc_wgpu_canvas_on_shader_error, 0);
+    WGPUCompilationInfoCallbackInfo2 callbackInfo = {
+        .mode = WGPUCallbackMode_AllowSpontaneous,
+        .callback = oc_wgpu_canvas_on_shader_error,
+    };
+    wgpuShaderModuleGetCompilationInfo2(module, callbackInfo);
 
     *bindGroupLayout = wgpuDeviceCreateBindGroupLayout(device, bindGroupLayoutDesc);
 
