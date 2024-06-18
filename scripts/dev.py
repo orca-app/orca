@@ -260,9 +260,9 @@ target_sources(webgpu PRIVATE ${WEBGPU_DAWN_NATIVE_PROC_GEN})"""
             "-D", f"CMAKE_BUILD_TYPE={mode}",
             "-D", "CMAKE_POLICY_DEFAULT_CMP0091=NEW",
             "-D", "BUILD_SHARED_LIBS=OFF",
-            "-D", "BUILD_SAMPLES=OFF",
+            "-D", "BUILD_SAMPLES=ON",
             *backends,
-            "-D", "DAWN_BUILD_SAMPLES=OFF",
+            "-D", "DAWN_BUILD_SAMPLES=ON",
             "-D", "TINT_BUILD_SAMPLES=OFF",
             "-D", "TINT_BUILD_DOCS=OFF",
             "-D", "TINT_BUILD_TESTS=OFF"
