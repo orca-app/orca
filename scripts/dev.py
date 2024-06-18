@@ -230,7 +230,7 @@ target_sources(webgpu PRIVATE ${WEBGPU_DAWN_NATIVE_PROC_GEN})"""
 
         # apply windows patch
         with pushd("dawn"):
-            subprocess.run(["git", "apply", "../../deps/dawn-d3d12-transparent.diff"], check=True)
+            subprocess.run(["git", "apply", "-v", "../../deps/dawn-d3d12-transparent.diff"], check=True)
 
         mode = "Release" if release else "Debug"
 
