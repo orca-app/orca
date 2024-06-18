@@ -36,6 +36,7 @@ typedef void (*oc_canvas_renderer_image_upload_region_proc)(oc_canvas_renderer_b
 typedef void (*oc_canvas_renderer_submit_proc)(oc_canvas_renderer_base* renderer,
                                                oc_surface surface,
                                                u32 sampleCount,
+                                               bool clear,
                                                oc_color clearColor,
                                                u32 primitiveCount,
                                                oc_primitive* primitives,

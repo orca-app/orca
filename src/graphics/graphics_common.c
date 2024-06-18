@@ -130,6 +130,8 @@ typedef struct oc_canvas_context_data
 
     //NOTE: these are used at render time
     i32 msaaSampleCount;
+
+    bool clear;
     oc_color clearColor;
 
     oc_vec4 shapeExtents;
@@ -1024,6 +1026,7 @@ void oc_canvas_render(oc_canvas_renderer rendererHandle, oc_canvas_context conte
         oc_canvas_renderer_submit(rendererHandle,
                                   surfaceHandle,
                                   context->msaaSampleCount,
+                                  context->clear,
                                   context->clearColor,
                                   context->primitiveCount,
                                   context->primitives,
@@ -1033,6 +1036,7 @@ void oc_canvas_render(oc_canvas_renderer rendererHandle, oc_canvas_context conte
         context->primitiveCount = 0;
         context->path.startIndex = 0;
         context->path.count = 0;
+        context->clear = false;
     }
 }
 
@@ -1694,6 +1698,7 @@ void oc_clear()
     {
         context->primitiveCount = 0;
         context->clearColor = context->attributes.colors[0];
+        context->clear = true;
     }
 }
 

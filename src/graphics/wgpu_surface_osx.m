@@ -15,9 +15,9 @@ typedef struct oc_wgpu_surface
     oc_surface_base base;
     CAMetalLayer* mtlLayer;
 
-    WGPUDevice wgpuDevice;
+    WGPUDevice device;
     WGPUSurface wgpuSurface;
-    WGPUSwapChain wgpuSwapChain;
+    WGPUTexture currentTexture;
     oc_vec2 swapChainSize;
 
 } oc_wgpu_surface;
@@ -29,7 +29,15 @@ void oc_wgpu_surface_destroy(oc_surface_base* base)
         oc_wgpu_surface* surface = (oc_wgpu_surface*)base;
 
         wgpuSurfaceRelease(surface->wgpuSurface);
-        wgpuSwapChainRelease(surface->wgpuSwapChain);
+        if(surface->currentTexture)
+        {
+            wgpuTextureRelease(surface->currentTexture);
+        }
+        if(surface->device)
+        {
+            wgpuDeviceRelease(surface->device);
+        }
+
         [surface->mtlLayer release];
         oc_surface_base_cleanup(base);
         free(surface);
@@ -81,9 +89,6 @@ oc_surface oc_wgpu_surface_create_for_window(WGPUInstance instance, oc_window wi
                                     .chain,
             };
             surface->wgpuSurface = wgpuInstanceCreateSurface(instance, &desc);
-
-            //NOTE: swap chain is created the first time it's queried
-            surface->wgpuSwapChain = 0;
         }
         oc_surface handle = oc_surface_nil();
         if(surface)
@@ -94,9 +99,10 @@ oc_surface oc_wgpu_surface_create_for_window(WGPUInstance instance, oc_window wi
     }
 }
 
-WGPUSwapChain oc_wgpu_surface_get_swapchain(oc_surface handle, WGPUDevice device)
+WGPUTexture oc_wgpu_surface_get_current_texture(oc_surface handle, WGPUDevice device)
 {
-    WGPUSwapChain wgpuSwapChain = 0;
+    WGPUTexture texture = 0;
+
     oc_surface_base* base = oc_surface_from_handle(handle);
     if(base && base->api == OC_SURFACE_WEBGPU)
     {
@@ -106,48 +112,58 @@ WGPUSwapChain oc_wgpu_surface_get_swapchain(oc_surface handle, WGPUDevice device
         size.x *= scale.x;
         size.y *= scale.y;
 
-        if(surface->wgpuDevice != device
-           || surface->wgpuSwapChain == NULL
-           || surface->swapChainSize.x != size.x
-           || surface->swapChainSize.y != size.y)
+        if(surface->device != device
+           || surface->currentTexture == NULL)
         {
-            //oc_log_info("resize swapChain\n");
-
-            if(surface->wgpuSwapChain)
+            if(surface->currentTexture)
             {
-                wgpuSwapChainRelease(surface->wgpuSwapChain);
-                surface->wgpuSwapChain = 0;
+                wgpuTextureRelease(surface->currentTexture);
+                surface->currentTexture = 0;
+                wgpuSurfaceUnconfigure(surface->wgpuSurface);
             }
-
-            if(surface->wgpuDevice != 0 && surface->wgpuDevice != device)
+            if(surface->device)
             {
-                wgpuDeviceRelease(surface->wgpuDevice);
-                surface->wgpuDevice = 0;
+                wgpuDeviceRelease(surface->device);
             }
+            surface->device = device;
+            wgpuDeviceAddRef(surface->device);
 
-            //TODO: resize mtl layer?
-
-            if(device && size.x != 0 && size.y != 0)
+            if(surface->swapChainSize.x != size.x
+               || surface->swapChainSize.y != size.y)
             {
-                surface->wgpuDevice = device;
-                wgpuDeviceReference(device);
+                surface->swapChainSize = size;
 
-                WGPUSwapChainDescriptor desc = {
+                WGPUSurfaceConfiguration config = {
+                    .device = device,
+                    .format = WGPUTextureFormat_BGRA8Unorm,
+                    .usage = WGPUTextureUsage_RenderAttachment,
+                    .alphaMode = WGPUCompositeAlphaMode_Premultiplied,
                     .width = size.x,
                     .height = size.y,
-                    .usage = WGPUTextureUsage_RenderAttachment,
-                    .format = WGPUTextureFormat_BGRA8Unorm,
                     .presentMode = WGPUPresentMode_Fifo,
                 };
-                surface->wgpuSwapChain = wgpuDeviceCreateSwapChain(surface->wgpuDevice, surface->wgpuSurface, &desc);
-                if(!surface->wgpuSwapChain)
-                {
-                    oc_log_error("Failed to create WebGPU swap chain");
-                }
+                wgpuSurfaceConfigure(surface->wgpuSurface, &config);
             }
-            surface->swapChainSize = size;
+            WGPUSurfaceTexture surfaceTexture = { 0 };
+            wgpuSurfaceGetCurrentTexture(surface->wgpuSurface, &surfaceTexture);
+            surface->currentTexture = surfaceTexture.texture;
         }
-        wgpuSwapChain = surface->wgpuSwapChain;
+        texture = surface->currentTexture;
     }
-    return (wgpuSwapChain);
+    return texture;
+}
+
+void oc_wgpu_surface_present(oc_surface handle)
+{
+    oc_surface_base* base = oc_surface_from_handle(handle);
+    if(base && base->api == OC_SURFACE_WEBGPU)
+    {
+        oc_wgpu_surface* surface = (oc_wgpu_surface*)base;
+        if(surface->currentTexture)
+        {
+            wgpuSurfacePresent(surface->wgpuSurface);
+            wgpuTextureRelease(surface->currentTexture);
+            surface->currentTexture = 0;
+        }
+    }
 }

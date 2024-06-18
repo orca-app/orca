@@ -285,6 +285,7 @@ typedef struct oc_wgpu_image
 void oc_wgpu_canvas_submit(oc_canvas_renderer_base* rendererBase,
                            oc_surface surfaceHandle,
                            u32 sampleCount,
+                           bool clear,
                            oc_color clearColor,
                            u32 primitiveCount,
                            oc_primitive* primitives,
@@ -3108,6 +3109,7 @@ void oc_wgpu_canvas_timestamp_read_callback(WGPUBufferMapAsyncStatus status, voi
 void oc_wgpu_canvas_submit(oc_canvas_renderer_base* rendererBase,
                            oc_surface surfaceHandle,
                            u32 msaaSampleCount,
+                           bool clear,
                            oc_color clearColor,
                            u32 primitiveCount,
                            oc_primitive* primitives,
@@ -3260,29 +3262,6 @@ void oc_wgpu_canvas_submit(oc_canvas_renderer_base* rendererBase,
         if(renderer->hasTimestamps && (renderer->debugRecordOptions.timingFlags & OC_WGPU_CANVAS_TIMING_FRAME))
         {
             wgpuCommandEncoderWriteTimestamp(encoder, renderer->timestampsQuerySet, OC_WGPU_CANVAS_TIMESTAMP_INDEX_FRAME_BEGIN);
-        }
-
-        //----------------------------------------------------------------------------------------
-        //NOTE: clear framebuffer
-        {
-            WGPURenderPassDescriptor desc = {
-                .colorAttachmentCount = 1,
-                .colorAttachments = (WGPURenderPassColorAttachment[]){
-                    {
-                        .view = frameBuffer,
-                        .depthSlice = WGPU_DEPTH_SLICE_UNDEFINED,
-                        .loadOp = WGPULoadOp_Clear,
-                        .storeOp = WGPUStoreOp_Store,
-                        .clearValue = { clearColor.r, clearColor.g, clearColor.b, clearColor.a },
-                    },
-                },
-            };
-
-            WGPURenderPassEncoder pass = wgpuCommandEncoderBeginRenderPass(encoder, &desc);
-            {
-                wgpuRenderPassEncoderSetViewport(pass, 0.f, 0.f, screenSize.x, screenSize.y, 0.f, 1.f);
-            }
-            wgpuRenderPassEncoderEnd(pass);
         }
 
         WGPUCommandBuffer command = wgpuCommandEncoderFinish(encoder, NULL);
@@ -3618,6 +3597,10 @@ void oc_wgpu_canvas_submit(oc_canvas_renderer_base* rendererBase,
 
         //----------------------------------------------------------------------------------------
         //NOTE: final blit pass
+
+        WGPULoadOp loadOp = clear ? WGPULoadOp_Clear : WGPULoadOp_Load;
+
+        if(clear || batchCount)
         {
             WGPURenderPassDescriptor desc = {
                 .label = "final blit",
@@ -3626,8 +3609,9 @@ void oc_wgpu_canvas_submit(oc_canvas_renderer_base* rendererBase,
                     {
                         .view = frameBuffer,
                         .depthSlice = WGPU_DEPTH_SLICE_UNDEFINED,
-                        .loadOp = WGPULoadOp_Load,
+                        .loadOp = loadOp,
                         .storeOp = WGPUStoreOp_Store,
+                        .clearValue = { clearColor.r, clearColor.g, clearColor.b, clearColor.a },
                     },
                 },
             };
@@ -3635,10 +3619,13 @@ void oc_wgpu_canvas_submit(oc_canvas_renderer_base* rendererBase,
             WGPURenderPassEncoder pass = wgpuCommandEncoderBeginRenderPass(encoder, &desc);
             {
                 wgpuRenderPassEncoderSetViewport(pass, 0.f, 0.f, screenSize.x, screenSize.y, 0.f, 1.f);
-                wgpuRenderPassEncoderSetPipeline(pass, renderer->finalBlitPipeline);
-                wgpuRenderPassEncoderSetBindGroup(pass, 0, renderer->finalBlitBindGroup, 0, NULL);
 
-                wgpuRenderPassEncoderDraw(pass, 4, 1, 0, 0);
+                if(batchCount)
+                {
+                    wgpuRenderPassEncoderSetPipeline(pass, renderer->finalBlitPipeline);
+                    wgpuRenderPassEncoderSetBindGroup(pass, 0, renderer->finalBlitBindGroup, 0, NULL);
+                    wgpuRenderPassEncoderDraw(pass, 4, 1, 0, 0);
+                }
             }
             wgpuRenderPassEncoderEnd(pass);
         }
@@ -3705,6 +3692,7 @@ void oc_wgpu_canvas_submit(oc_canvas_renderer_base* rendererBase,
         }
         renderer->lastFrameTimeStamp = submitStart;
     }
+
     renderer->frameIndex++;
 }
 
@@ -3796,7 +3784,7 @@ void oc_wgpu_canvas_destroy(oc_canvas_renderer_base* base)
     release_buffer_if_needed(renderer->timestampsResolveBuffer);
     for(int i = 0; i < OC_WGPU_CANVAS_ROLLING_BUFFER_COUNT; i++)
     {
-        release_buffer_if_needed(renderer->timestampsReadBuffer[0]);
+        release_buffer_if_needed(renderer->timestampsReadBuffer[i]);
     }
 
     release_buffer_if_needed(renderer->debugDisplayOptionsBuffer);
