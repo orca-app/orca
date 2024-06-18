@@ -8,6 +8,11 @@ jobs:
   build-win:
     runs-on: windows-2022
     steps:
+      - name: crlf
+        run: |
+          git config --system core.autocrlf false
+          git config --system core.eol lf
+
       - uses: actions/checkout@v4
 
       - uses: actions/setup-python@v4
