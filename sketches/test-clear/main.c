@@ -37,13 +37,31 @@ ORCA_EXPORT void oc_on_frame_refresh(void)
     oc_set_color_rgba(.9, 0, .9, 1);
     oc_clear();
 
-    const f32 centerX = frameSize.x / 2;
-    const f32 centerY = frameSize.y / 2;
-    const f32 radius = oc_min(frameSize.x, frameSize.y) * 0.5f * 0.85f;
+    static f32 centerX = 400 / 2;
+    static f32 centerY = 300 / 2;
+    static f32 dx = 1;
+    static f32 dy = 1;
+    const f32 radius = oc_min(frameSize.x, frameSize.y) * 0.5f * 0.3f;
+
+    if(centerX + radius >= frameSize.x || centerX - radius <= 0)
+    {
+        dx = -dx;
+    }
+    if(centerY + radius >= frameSize.y || centerY - radius <= 0)
+    {
+        dy = -dy;
+    }
+    centerX += dx;
+    centerY += dy;
 
     oc_set_color_rgba(0.2, 0.2, 0.2, 1);
     oc_circle_fill(centerX, centerY, radius);
 
     oc_canvas_render(renderer, context, surface);
+
+    oc_set_color_rgba(1, 0, 0, 1);
+    oc_rectangle_fill(10, 10, 20, 20);
+    oc_canvas_render(renderer, context, surface);
+
     oc_canvas_present(renderer, surface);
 }

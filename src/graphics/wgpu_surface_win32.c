@@ -123,14 +123,17 @@ WGPUTexture oc_wgpu_surface_get_current_texture(oc_surface handle, WGPUDevice de
     return texture;
 }
 
-ORCA_API void oc_wgpu_surface_present(oc_surface handle)
+void oc_wgpu_surface_present(oc_surface handle)
 {
     oc_surface_base* base = oc_surface_from_handle(handle);
     if(base && base->api == OC_SURFACE_WEBGPU)
     {
         oc_wgpu_surface* surface = (oc_wgpu_surface*)base;
-        wgpuSurfacePresent(surface->wgpuSurface);
-        wgpuTextureRelease(surface->currentTexture);
-        surface->currentTexture = 0;
+        if(surface->currentTexture)
+        {
+            wgpuSurfacePresent(surface->wgpuSurface);
+            wgpuTextureRelease(surface->currentTexture);
+            surface->currentTexture = 0;
+        }
     }
 }

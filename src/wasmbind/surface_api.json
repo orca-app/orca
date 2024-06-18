@@ -94,6 +94,8 @@
 		 "type": {"name": "oc_surface", "tag": "S"}},
 		{"name": "msaaSampleCount",
 		  "type" : {"name": "u32", "tag": "i"}},
+		{"name": "clear",
+		 "type": {"name": "bool", "tag": "i"}},
 		{"name": "clearColor",
 		 "type": {"name": "oc_color", "tag": "S"}},
 		{"name": "primitiveCount",

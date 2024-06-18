@@ -82,6 +82,7 @@ typedef struct oc_primitive
 ORCA_API void oc_canvas_renderer_submit(oc_canvas_renderer renderer,
                                         oc_surface surface,
                                         u32 msaaSampleCount,
+                                        bool clear,
                                         oc_color clearColor,
                                         u32 primitiveCount,
                                         oc_primitive* primitives,
