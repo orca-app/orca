@@ -173,7 +173,7 @@ void oc_surface_base_init_for_window(oc_surface_base* surface, oc_window_data* w
         TRY_HR((window->win32.dcompRootVisual->lpVtbl->AddVisual(
             window->win32.dcompRootVisual,
             surface->view.dcompVisual,
-            TRUE,
+            FALSE,
             NULL)));
 
         TRY_HR((device->lpVtbl->Commit(device)));
@@ -194,5 +194,5 @@ void oc_surface_base_init_for_window(oc_surface_base* surface, oc_window_data* w
     SetFocus(window->win32.hWnd);
 
     surface->view.parent = window;
-    oc_list_push_back(&window->win32.surfaces, &surface->view.listElt);
+    oc_list_push_front(&window->win32.surfaces, &surface->view.listElt);
 }

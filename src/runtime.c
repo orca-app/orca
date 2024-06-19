@@ -850,19 +850,17 @@ i32 orca_runloop(void* user)
             }
         }
 
-        //TODO: wgpu-canvas: remove? oc_surface_deselect();
-
         if(exports[OC_EXPORT_FRAME_REFRESH])
         {
             oc_wasm_status status = oc_wasm_function_call(app->env.wasm, exports[OC_EXPORT_FRAME_REFRESH], NULL, 0, NULL, 0);
             OC_WASM_TRAP(status);
         }
 
-        //TODO: wgpu-canvas: remove? oc_surface_select(app->debugOverlay.surface);
         oc_canvas_context_select(app->debugOverlay.context);
 
         if(app->debugOverlay.show)
         {
+            //TODO: only move if it's not already on the front?
             oc_surface_bring_to_front(app->debugOverlay.surface);
 
             oc_ui_style debugUIDefaultStyle = { .bgColor = { 0 },
@@ -996,6 +994,7 @@ i32 orca_runloop(void* user)
         }
         else
         {
+            //TODO: only move if it's not already on the back?
             oc_surface_send_to_back(app->debugOverlay.surface);
             oc_set_color_rgba(0, 0, 0, 0);
             oc_clear();
