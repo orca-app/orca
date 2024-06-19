@@ -118,14 +118,16 @@ void oc_surface_base_init_for_window(oc_surface_base* surface, oc_window_data* w
     int clientWidth = parentRect.right - parentRect.left;
     int clientHeight = parentRect.bottom - parentRect.top;
 
-    surface->view.hWnd = CreateWindow(viewWindowClass.lpszClassName,
-                                      "view_window",
-                                      WS_POPUP,
-                                      0, 0, clientWidth, clientHeight,
-                                      NULL,
-                                      0,
-                                      viewWindowClass.hInstance,
-                                      0);
+    surface->view.hWnd = CreateWindowEx(
+        WS_EX_TOOLWINDOW,
+        viewWindowClass.lpszClassName,
+        "view_window",
+        WS_POPUP,
+        0, 0, clientWidth, clientHeight,
+        NULL,
+        0,
+        viewWindowClass.hInstance,
+        0);
 
     //NOTE: make the window transparent
     {
