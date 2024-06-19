@@ -189,23 +189,24 @@ def doc_fields(desc, indent=0):
 
     s = ""
     for field in desc["fields"]:
-        name = field["name"]
-        typeKind = field["type"]["kind"]
-
-        s += gen_indent(indent)
-        if name == "" and (typeKind == "struct" or typeKind == "union"):
-            s += f"- Anonymous <code>{typeKind}</code>"
-        else:
-            s += f"- <code>{name}</code> "
-
         if "doc" in field:
+            name = field["name"]
+            typeKind = field["type"]["kind"]
+
+            s += gen_indent(indent)
+            if name == "" and (typeKind == "struct" or typeKind == "union"):
+                s += f"- Anonymous <code>{typeKind}</code>"
+            else:
+                s += f"- <code>{name}</code> "
+
             s += doc_text(field["doc"])
-        s += "\n"
+            s += "\n"
 
-        if typeKind == "struct" or typeKind == "union":
-            s += doc_fields(field["type"], indent+1)
+            if typeKind == "struct" or typeKind == "union":
+                s += doc_fields(field["type"], indent+1)
 
-    s += "\n"
+    if s != "":
+        s = "**Fields**\n\n" + s + "\n"
 
     return s
 
@@ -245,7 +246,6 @@ def doc_type(desc):
 
     if kind == "struct" or kind == "union":
         if "fields" in desc["type"]:
-            s += "**Fields**\n\n"
             s += doc_fields(desc["type"])
     elif kind == "enum":
         s += doc_enum_constants(desc["type"])
@@ -312,6 +312,20 @@ def doc_macro(desc):
     s += "\n---\n\n"
     return s
 
+def doc_params(params):
+    s = ""
+    for param in params:
+        if "doc" in param:
+            paramName = param["name"]
+            s += f"- <code>{paramName}</code> "
+            s += doc_text(param["doc"])
+            s += "\n"
+
+    if s != "":
+        s =  "**Parameters**\n\n" + s
+
+    return s
+
 def doc_proc(desc):
     name = desc["name"]
 
@@ -325,14 +339,7 @@ def doc_proc(desc):
         s += doc_text(desc["doc"])
         s += "\n\n"
 
-    if len(desc["params"]):
-        s += "**Parameters**\n\n"
-        for param in desc["params"]:
-            paramName = param["name"]
-            s += f"- <code>{paramName}</code> "
-            if "doc" in param:
-                s += doc_text(param["doc"])
-            s += "\n"
+    s += doc_params(desc["params"])
 
     if "doc" in desc["return"]:
         s += "\n**Return**\n\n"

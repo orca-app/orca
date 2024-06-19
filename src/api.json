@@ -7684,6 +7684,7 @@
                 {
                     "kind": "typename",
                     "name": "oc_surface",
+                    "doc": "An opaque handle to a graphics surface.",
                     "type": {
                         "kind": "struct",
                         "fields": [
@@ -7699,6 +7700,7 @@
                 {
                     "kind": "proc",
                     "name": "oc_surface_nil",
+                    "doc": "Returns a `nil` surface handle.",
                     "return": {
                         "kind": "namedType",
                         "name": "oc_surface"
@@ -7708,6 +7710,7 @@
                 {
                     "kind": "proc",
                     "name": "oc_surface_is_nil",
+                    "doc": "Check if a surface handle is `nil`.",
                     "return": {
                         "kind": "bool"
                     },
@@ -7724,6 +7727,7 @@
                 {
                     "kind": "proc",
                     "name": "oc_surface_destroy",
+                    "doc": "Destroy a graphics surface.",
                     "return": {
                         "kind": "void"
                     },
@@ -7740,9 +7744,15 @@
                 {
                     "kind": "proc",
                     "name": "oc_surface_get_size",
+                    "doc": [
+                        "Get a surface's size.",
+                        "",
+                        "The size is returned in device-independent \"points\". To get the size in pixels, multiply the size in points by the scaling factor returned by `oc_surface_contents_scaling()`."
+                    ],
                     "return": {
                         "kind": "namedType",
-                        "name": "oc_vec2"
+                        "name": "oc_vec2",
+                        "doc": "The size of the surface, in points."
                     },
                     "params": [
                         {
@@ -7757,9 +7767,11 @@
                 {
                     "kind": "proc",
                     "name": "oc_surface_contents_scaling",
+                    "doc": "Get the scaling factor of a surface.",
                     "return": {
                         "kind": "namedType",
-                        "name": "oc_vec2"
+                        "name": "oc_vec2",
+                        "doc": "The scaling factor for each axis."
                     },
                     "params": [
                         {
@@ -7774,6 +7786,7 @@
                 {
                     "kind": "proc",
                     "name": "oc_surface_bring_to_front",
+                    "doc": "Bring a surface to the foreground, rendering it on top of other surfaces.",
                     "return": {
                         "kind": "void"
                     },
@@ -7790,6 +7803,7 @@
                 {
                     "kind": "proc",
                     "name": "oc_surface_send_to_back",
+                    "doc": "Send a surface to the background, rendering it below other surfaces.",
                     "return": {
                         "kind": "void"
                     },
@@ -7806,6 +7820,7 @@
                 {
                     "kind": "proc",
                     "name": "oc_surface_get_hidden",
+                    "doc": "Checks if a surface is hidden.",
                     "return": {
                         "kind": "bool"
                     },
@@ -7822,6 +7837,7 @@
                 {
                     "kind": "proc",
                     "name": "oc_surface_set_hidden",
+                    "doc": "Set the hidden status of a surface.",
                     "return": {
                         "kind": "void"
                     },
@@ -7844,6 +7860,7 @@
                 {
                     "kind": "typename",
                     "name": "oc_canvas_renderer",
+                    "doc": "An opaque handle representing a rendering engine for the canvas API.",
                     "type": {
                         "kind": "struct",
                         "fields": [
@@ -7859,6 +7876,7 @@
                 {
                     "kind": "typename",
                     "name": "oc_canvas_context",
+                    "doc": "An opaque handle to a canvas context. Canvas contexts are used to hold contextual state about drawing commands, such as the current color or the current line width, and to record drawing commands. Once commands have been recorded, they can be rendered to a surface using `oc_canvas_render()`.",
                     "type": {
                         "kind": "struct",
                         "fields": [
@@ -7874,6 +7892,7 @@
                 {
                     "kind": "typename",
                     "name": "oc_font",
+                    "doc": "An opaque font handle.",
                     "type": {
                         "kind": "struct",
                         "fields": [
@@ -7889,6 +7908,7 @@
                 {
                     "kind": "typename",
                     "name": "oc_image",
+                    "doc": "An opaque image handle.",
                     "type": {
                         "kind": "struct",
                         "fields": [
@@ -7904,6 +7924,7 @@
                 {
                     "kind": "typename",
                     "name": "oc_gradient_blend_space",
+                    "doc": "This enum describes possible blending modes for color gradient.",
                     "type": {
                         "kind": "enum",
                         "type": {
@@ -7913,11 +7934,13 @@
                             {
                                 "kind": "enum-constant",
                                 "name": "OC_GRADIENT_BLEND_LINEAR",
+                                "doc": "The gradient colors are interpolated in linear space.",
                                 "value": 0
                             },
                             {
                                 "kind": "enum-constant",
                                 "name": "OC_GRADIENT_BLEND_SRGB",
+                                "doc": "The gradient colors are interpolated in sRGB space.",
                                 "value": 1
                             }
                         ]
@@ -7926,6 +7949,7 @@
                 {
                     "kind": "typename",
                     "name": "oc_color_space",
+                    "doc": "An enum identifying possible color spaces.",
                     "type": {
                         "kind": "enum",
                         "type": {
@@ -7935,11 +7959,13 @@
                             {
                                 "kind": "enum-constant",
                                 "name": "OC_COLOR_SPACE_RGB",
+                                "doc": "A linear RGB color space.",
                                 "value": 0
                             },
                             {
                                 "kind": "enum-constant",
                                 "name": "OC_COLOR_SPACE_SRGB",
+                                "doc": "An sRGB color space.",
                                 "value": 1
                             }
                         ]
@@ -7948,6 +7974,7 @@
                 {
                     "kind": "typename",
                     "name": "oc_color",
+                    "doc": "A struct representing a color.",
                     "type": {
                         "kind": "struct",
                         "fields": [
@@ -7963,24 +7990,28 @@
                                                 "fields": [
                                                     {
                                                         "name": "r",
+                                                        "doc": "The red component of the color.",
                                                         "type": {
                                                             "kind": "f32"
                                                         }
                                                     },
                                                     {
                                                         "name": "g",
+                                                        "doc": "The green component of the color.",
                                                         "type": {
                                                             "kind": "f32"
                                                         }
                                                     },
                                                     {
                                                         "name": "b",
+                                                        "doc": "The blue component of the color.",
                                                         "type": {
                                                             "kind": "f32"
                                                         }
                                                     },
                                                     {
                                                         "name": "a",
+                                                        "doc": "The alpha component of the color.",
                                                         "type": {
                                                             "kind": "f32"
                                                         }
@@ -7990,6 +8021,7 @@
                                         },
                                         {
                                             "name": "c",
+                                            "doc": "The color components, as an array.",
                                             "type": {
                                                 "kind": "array",
                                                 "type": {
@@ -8003,6 +8035,7 @@
                             },
                             {
                                 "name": "colorSpace",
+                                "doc": "The color space of that color.",
                                 "type": {
                                     "kind": "namedType",
                                     "name": "oc_color_space"
@@ -8014,6 +8047,7 @@
                 {
                     "kind": "typename",
                     "name": "oc_joint_type",
+                    "doc": "Stroke joint types.",
                     "type": {
                         "kind": "enum",
                         "type": {
@@ -8023,16 +8057,19 @@
                             {
                                 "kind": "enum-constant",
                                 "name": "OC_JOINT_MITER",
+                                "doc": "Miter joint.",
                                 "value": 0
                             },
                             {
                                 "kind": "enum-constant",
                                 "name": "OC_JOINT_BEVEL",
+                                "doc": "Bevel joint.",
                                 "value": 1
                             },
                             {
                                 "kind": "enum-constant",
                                 "name": "OC_JOINT_NONE",
+                                "doc": "Don't join path segments.",
                                 "value": 2
                             }
                         ]
@@ -8041,6 +8078,7 @@
                 {
                     "kind": "typename",
                     "name": "oc_cap_type",
+                    "doc": "Cap types.",
                     "type": {
                         "kind": "enum",
                         "type": {
@@ -8050,11 +8088,13 @@
                             {
                                 "kind": "enum-constant",
                                 "name": "OC_CAP_NONE",
+                                "doc": "Don't draw caps.",
                                 "value": 0
                             },
                             {
                                 "kind": "enum-constant",
                                 "name": "OC_CAP_SQUARE",
+                                "doc": "Square caps.",
                                 "value": 1
                             }
                         ]
@@ -8063,41 +8103,48 @@
                 {
                     "kind": "typename",
                     "name": "oc_font_metrics",
+                    "doc": "A struct describing the metrics of a font.",
                     "type": {
                         "kind": "struct",
                         "fields": [
                             {
                                 "name": "ascent",
+                                "doc": "The ascent from the baseline to the top of the line (a positive value means the top line is above the baseline). ",
                                 "type": {
                                     "kind": "f32"
                                 }
                             },
                             {
                                 "name": "descent",
+                                "doc": "The descent from the baseline to the bottom line (a positive value means the bottom line is below the baseline). ",
                                 "type": {
                                     "kind": "f32"
                                 }
                             },
                             {
                                 "name": "lineGap",
+                                "doc": "The gap between two lines of text.",
                                 "type": {
                                     "kind": "f32"
                                 }
                             },
                             {
                                 "name": "xHeight",
+                                "doc": "The height of the lowercase character 'x'.",
                                 "type": {
                                     "kind": "f32"
                                 }
                             },
                             {
                                 "name": "capHeight",
+                                "doc" : "The height of capital letters.",
                                 "type": {
                                     "kind": "f32"
                                 }
                             },
                             {
                                 "name": "width",
+                                "doc": "The maximum character width.",
                                 "type": {
                                     "kind": "f32"
                                 }
@@ -8108,6 +8155,7 @@
                 {
                     "kind": "typename",
                     "name": "oc_glyph_metrics",
+                    "doc": "A struct describing the metrics of a single glyph.",
                     "type": {
                         "kind": "struct",
                         "fields": [
@@ -8115,11 +8163,13 @@
                                 "name": "ink",
                                 "type": {
                                     "kind": "namedType",
+                                    "doc": "The bounding box of the inked portion of the glyph.",
                                     "name": "oc_rect"
                                 }
                             },
                             {
                                 "name": "advance",
+                                "doc": "The default amount from which to advance the cursor after drawing this glyph.",
                                 "type": {
                                     "kind": "namedType",
                                     "name": "oc_vec2"
@@ -8131,11 +8181,13 @@
                 {
                     "kind": "typename",
                     "name": "oc_text_metrics",
+                    "doc": "A struct describing the metrics of a run of glyphs.",
                     "type": {
                         "kind": "struct",
                         "fields": [
                             {
                                 "name": "ink",
+                                "doc": "The bounding box of the inked portion of the text.",
                                 "type": {
                                     "kind": "namedType",
                                     "name": "oc_rect"
@@ -8143,6 +8195,7 @@
                             },
                             {
                                 "name": "logical",
+                                "doc": "The logical bounding box of the text (including ascents, descents, and line gaps).",
                                 "type": {
                                     "kind": "namedType",
                                     "name": "oc_rect"
@@ -8150,6 +8203,7 @@
                             },
                             {
                                 "name": "advance",
+                                "doc": "The amount from which to advance the cursor after drawing the text.",
                                 "type": {
                                     "kind": "namedType",
                                     "name": "oc_vec2"
@@ -8161,6 +8215,7 @@
                 {
                     "kind": "proc",
                     "name": "oc_color_rgba",
+                    "doc": "Create a color using RGBA values.",
                     "return": {
                         "kind": "namedType",
                         "name": "oc_color"
@@ -8195,6 +8250,7 @@
                 {
                     "kind": "proc",
                     "name": "oc_color_srgba",
+                    "doc": "Create a current color using sRGBA values.",
                     "return": {
                         "kind": "namedType",
                         "name": "oc_color"
@@ -8229,6 +8285,7 @@
                 {
                     "kind": "proc",
                     "name": "oc_color_convert",
+                    "doc": "Convert a color from one color space to another.",
                     "return": {
                         "kind": "namedType",
                         "name": "oc_color"
@@ -8236,6 +8293,7 @@
                     "params": [
                         {
                             "name": "color",
+                            "doc": "The color to convert",
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_color"
@@ -8243,6 +8301,7 @@
                         },
                         {
                             "name": "colorSpace",
+                            "doc": "The color space of the new color.",
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_color_space"
@@ -8253,6 +8312,7 @@
                 {
                     "kind": "proc",
                     "name": "oc_canvas_renderer_nil",
+                    "doc": "Returns a `nil` canvas renderer handle.",
                     "return": {
                         "kind": "namedType",
                         "name": "oc_canvas_renderer"
@@ -8262,6 +8322,7 @@
                 {
                     "kind": "proc",
                     "name": "oc_canvas_renderer_is_nil",
+                    "doc": "Checks if a canvas renderer handle is `nil`.",
                     "return": {
                         "kind": "bool"
                     },
@@ -8278,6 +8339,7 @@
                 {
                     "kind": "proc",
                     "name": "oc_canvas_renderer_create",
+                    "doc": "Create a canvas renderer.",
                     "return": {
                         "kind": "namedType",
                         "name": "oc_canvas_renderer"
@@ -8287,6 +8349,7 @@
                 {
                     "kind": "proc",
                     "name": "oc_canvas_renderer_destroy",
+                    "doc": "Destroy a canvas renderer.",
                     "return": {
                         "kind": "void"
                     },
@@ -8303,12 +8366,14 @@
                 {
                     "kind": "proc",
                     "name": "oc_canvas_render",
+                    "doc": "Render canvas commands onto a surface.",
                     "return": {
                         "kind": "void"
                     },
                     "params": [
                         {
                             "name": "renderer",
+                            "doc": "The canvas renderer.",
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_canvas_renderer"
@@ -8316,6 +8381,7 @@
                         },
                         {
                             "name": "context",
+                            "doc": "The canvas context containing the drawing commands to render.",
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_canvas_context"
@@ -8323,6 +8389,7 @@
                         },
                         {
                             "name": "surface",
+                            "doc": "The destination surface.",
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_surface"
@@ -8333,12 +8400,14 @@
                 {
                     "kind": "proc",
                     "name": "oc_canvas_present",
+                    "doc": "Present a canvas surface to the display.",
                     "return": {
                         "kind": "void"
                     },
                     "params": [
                         {
                             "name": "renderer",
+                            "doc": "The canvas renderer.",
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_canvas_renderer"
@@ -8346,6 +8415,7 @@
                         },
                         {
                             "name": "surface",
+                            "doc": "The surface to present.",
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_surface"
@@ -8356,13 +8426,16 @@
                 {
                     "kind": "proc",
                     "name": "oc_canvas_surface_create",
+                    "doc": "Create a surface for rendering vector graphics.",
                     "return": {
                         "kind": "namedType",
-                        "name": "oc_surface"
+                        "name": "oc_surface",
+                        "doc": "A handle to the created surface."
                     },
                     "params": [
                         {
                             "name": "renderer",
+                            "doc": "A canvas renderer.",
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_canvas_renderer"
@@ -8372,29 +8445,8 @@
                 },
                 {
                     "kind": "proc",
-                    "name": "oc_canvas_surface_swap_interval",
-                    "return": {
-                        "kind": "void"
-                    },
-                    "params": [
-                        {
-                            "name": "surface",
-                            "type": {
-                                "kind": "namedType",
-                                "name": "oc_surface"
-                            }
-                        },
-                        {
-                            "name": "swap",
-                            "type": {
-                                "kind": "i32"
-                            }
-                        }
-                    ]
-                },
-                {
-                    "kind": "proc",
                     "name": "oc_canvas_context_nil",
+                    "doc": "Returns a `nil` canvas context handle.",
                     "return": {
                         "kind": "namedType",
                         "name": "oc_canvas_context"
@@ -8404,6 +8456,7 @@
                 {
                     "kind": "proc",
                     "name": "oc_canvas_context_is_nil",
+                    "doc": "Checks if a canvas context handle is `nil`.",
                     "return": {
                         "kind": "bool"
                     },
@@ -8420,15 +8473,18 @@
                 {
                     "kind": "proc",
                     "name": "oc_canvas_context_create",
+                    "doc": "Create a canvas context.",
                     "return": {
                         "kind": "namedType",
-                        "name": "oc_canvas_context"
+                        "name": "oc_canvas_context",
+                        "doc": "A handle to the created canvas context."
                     },
                     "params": []
                 },
                 {
                     "kind": "proc",
                     "name": "oc_canvas_context_destroy",
+                    "doc": "Destroy a canvas context",
                     "return": {
                         "kind": "void"
                     },
@@ -8445,16 +8501,19 @@
                 {
                     "kind": "proc",
                     "name": "oc_canvas_context_select",
+                    "doc": "Make a canvas context current in the calling thread. Subsequent canvas commands will refer to this context until another context is made current.",
                     "return": {
                         "kind": "namedType",
-                        "name": "oc_canvas_context"
+                        "name": "oc_canvas_context",
+                        "doc": "The canvas context that was previously selected (or a `nil` handle if none was selected)."
                     },
                     "params": [
                         {
                             "name": "context",
                             "type": {
                                 "kind": "namedType",
-                                "name": "oc_canvas_context"
+                                "name": "oc_canvas_context",
+                                "doc": "The canvas context to select."
                             }
                         }
                     ]
@@ -8462,12 +8521,14 @@
                 {
                     "kind": "proc",
                     "name": "oc_canvas_context_set_msaa_sample_count",
+                    "doc": "Set the multisample anti-aliasing sample count for the commands of a context.",
                     "return": {
                         "kind": "void"
                     },
                     "params": [
                         {
                             "name": "context",
+                            "doc": "The canvas context.",
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_canvas_context"
@@ -8475,6 +8536,7 @@
                         },
                         {
                             "name": "sampleCount",
+                            "doc": "The number of samples to use for anti-aliasing when rendering commands from this context.",
                             "type": {
                                 "kind": "u32"
                             }
@@ -8484,6 +8546,7 @@
                 {
                     "kind": "proc",
                     "name": "oc_font_nil",
+                    "doc": "Return a `nil` font handle.",
                     "return": {
                         "kind": "namedType",
                         "name": "oc_font"
@@ -8493,6 +8556,7 @@
                 {
                     "kind": "proc",
                     "name": "oc_font_is_nil",
+                    "doc": "Check if a font handle is `nil`.",
                     "return": {
                         "kind": "bool"
                     },
@@ -8509,13 +8573,16 @@
                 {
                     "kind": "proc",
                     "name": "oc_font_create_from_memory",
+                    "doc": "Create a font from in-memory TrueType data.",
                     "return": {
                         "kind": "namedType",
-                        "name": "oc_font"
+                        "name": "oc_font",
+                        "doc": "A handle to the created font."
                     },
                     "params": [
                         {
                             "name": "mem",
+                            "doc": "A block of memory containing TrueType data (e.g. as loaded from a ttf file).",
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_str8"
@@ -8523,12 +8590,14 @@
                         },
                         {
                             "name": "rangeCount",
+                            "doc": "The number of unicode ranges to load.",
                             "type": {
                                 "kind": "u32"
                             }
                         },
                         {
                             "name": "ranges",
+                            "doc": "An array of unicode ranges to load.",
                             "type": {
                                 "kind": "pointer",
                                 "type": {
@@ -8542,13 +8611,16 @@
                 {
                     "kind": "proc",
                     "name": "oc_font_create_from_file",
+                    "doc": "Create a font from a TrueType font file.",
                     "return": {
                         "kind": "namedType",
-                        "name": "oc_font"
+                        "name": "oc_font",
+                        "doc": "A handle to the created font."
                     },
                     "params": [
                         {
                             "name": "file",
+                            "doc": "A handle to a TrueType font file.",
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_file"
@@ -8556,12 +8628,14 @@
                         },
                         {
                             "name": "rangeCount",
+                            "doc": "The number of unicode ranges to load.",
                             "type": {
                                 "kind": "u32"
                             }
                         },
                         {
                             "name": "ranges",
+                            "doc": "An array of unicode ranges to load.",
                             "type": {
                                 "kind": "pointer",
                                 "type": {
@@ -8575,13 +8649,16 @@
                 {
                     "kind": "proc",
                     "name": "oc_font_create_from_path",
+                    "doc": "Create a font from a TrueType font file path.",
                     "return": {
                         "kind": "namedType",
-                        "name": "oc_font"
+                        "name": "oc_font",
+                        "doc": "A handle to the created font."
                     },
                     "params": [
                         {
                             "name": "path",
+                            "doc": "The path of a ttf file.",
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_str8"
@@ -8589,12 +8666,14 @@
                         },
                         {
                             "name": "rangeCount",
+                            "doc": "The number of unicode ranges to load.",
                             "type": {
                                 "kind": "u32"
                             }
                         },
                         {
                             "name": "ranges",
+                            "doc": "An array of unicode ranges to load.",
                             "type": {
                                 "kind": "pointer",
                                 "type": {
@@ -8608,6 +8687,7 @@
                 {
                     "kind": "proc",
                     "name": "oc_font_destroy",
+                    "doc": "Destroy a font.",
                     "return": {
                         "kind": "void"
                     },
@@ -8624,13 +8704,16 @@
                 {
                     "kind": "proc",
                     "name": "oc_font_get_glyph_indices",
+                    "doc": "Get the glyph indices of a run of unicode code points in a given font.",
                     "return": {
                         "kind": "namedType",
-                        "name": "oc_str32"
+                        "name": "oc_str32",
+                        "doc": "A slice of glyph indices."
                     },
                     "params": [
                         {
                             "name": "font",
+                            "doc": "The font handle.",
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_font"
@@ -8638,6 +8721,7 @@
                         },
                         {
                             "name": "codePoints",
+                            "doc": "A slice of unicode code points.",
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_str32"
@@ -8645,6 +8729,7 @@
                         },
                         {
                             "name": "backing",
+                            "doc": "Backing memory for the result indices.",
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_str32"
@@ -8655,13 +8740,16 @@
                 {
                     "kind": "proc",
                     "name": "oc_font_push_glyph_indices",
+                    "doc": "Get the glyph indices of a run of unicode code points in a given font and push them on an arena.",
                     "return": {
                         "kind": "namedType",
-                        "name": "oc_str32"
+                        "name": "oc_str32",
+                        "doc": "A slice of glyph indices, allocated on `arena`."
                     },
                     "params": [
                         {
                             "name": "arena",
+                            "doc": "A memory arena on which to allocate the result indices.",
                             "type": {
                                 "kind": "pointer",
                                 "type": {
@@ -8672,6 +8760,7 @@
                         },
                         {
                             "name": "font",
+                            "doc": "The font handle",
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_font"
@@ -8679,6 +8768,7 @@
                         },
                         {
                             "name": "codePoints",
+                            "doc": "A slice of unicode code points.",
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_str32"
@@ -8689,12 +8779,15 @@
                 {
                     "kind": "proc",
                     "name": "oc_font_get_glyph_index",
+                    "doc": "Get the glyp index of a single codepoint in a given font.",
                     "return": {
-                        "kind": "u32"
+                        "kind": "u32",
+                        "doc": "The glyph index for that codepoint."
                     },
                     "params": [
                         {
                             "name": "font",
+                            "doc": "The font handle.",
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_font"
@@ -8702,6 +8795,7 @@
                         },
                         {
                             "name": "codePoint",
+                            "doc": "A unicode codepoint.",
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_utf32"
@@ -8712,6 +8806,7 @@
                 {
                     "kind": "proc",
                     "name": "oc_font_get_metrics",
+                    "doc": "Get a font's metrics for a given font size.",
                     "return": {
                         "kind": "namedType",
                         "name": "oc_font_metrics"
@@ -8719,6 +8814,7 @@
                     "params": [
                         {
                             "name": "font",
+                            "doc": "The font handle",
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_font"
@@ -8726,6 +8822,7 @@
                         },
                         {
                             "name": "emSize",
+                            "doc": "The desired size of an `m` character, in points.",
                             "type": {
                                 "kind": "f32"
                             }
@@ -8735,6 +8832,7 @@
                 {
                     "kind": "proc",
                     "name": "oc_font_get_metrics_unscaled",
+                    "doc": "Get a font's unscaled metrics.",
                     "return": {
                         "kind": "namedType",
                         "name": "oc_font_metrics"
@@ -8752,12 +8850,14 @@
                 {
                     "kind": "proc",
                     "name": "oc_font_get_scale_for_em_pixels",
+                    "doc": "Get a scale factor to apply to unscaled font metrics to obtain a given 'm' size.",
                     "return": {
                         "kind": "f32"
                     },
                     "params": [
                         {
                             "name": "font",
+                            "doc": "The font handle.",
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_font"
@@ -8765,6 +8865,7 @@
                         },
                         {
                             "name": "emSize",
+                            "doc": "The desired size for the 'm' character.",
                             "type": {
                                 "kind": "f32"
                             }
@@ -8774,13 +8875,16 @@
                 {
                     "kind": "proc",
                     "name": "oc_font_text_metrics_utf32",
+                    "doc": "Get text metrics for a run of unicode code points.",
                     "return": {
                         "kind": "namedType",
-                        "name": "oc_text_metrics"
+                        "name": "oc_text_metrics",
+                        "doc": "The text metrics."
                     },
                     "params": [
                         {
                             "name": "font",
+                            "doc": "The font handle.",
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_font"
@@ -8788,12 +8892,14 @@
                         },
                         {
                             "name": "fontSize",
+                            "doc": "The desired font size.",
                             "type": {
                                 "kind": "f32"
                             }
                         },
                         {
                             "name": "codepoints",
+                            "doc": "A slice of unicode code points.",
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_str32"
@@ -8804,13 +8910,16 @@
                 {
                     "kind": "proc",
                     "name": "oc_font_text_metrics",
+                    "doc": "Get the text metrics for a utf8 string.",
                     "return": {
                         "kind": "namedType",
-                        "name": "oc_text_metrics"
+                        "name": "oc_text_metrics",
+                        "doc": "The text metrics."
                     },
                     "params": [
                         {
                             "name": "font",
+                            "doc": "The font handle.",
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_font"
@@ -8818,12 +8927,14 @@
                         },
                         {
                             "name": "fontSize",
+                            "doc": "The desired font size.",
                             "type": {
                                 "kind": "f32"
                             }
                         },
                         {
                             "name": "text",
+                            "doc": "A utf8 encoded string.",
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_str8"
@@ -8834,6 +8945,7 @@
                 {
                     "kind": "proc",
                     "name": "oc_image_nil",
+                    "doc": "Returns a `nil` image handle.",
                     "return": {
                         "kind": "namedType",
                         "name": "oc_image"
@@ -8843,6 +8955,7 @@
                 {
                     "kind": "proc",
                     "name": "oc_image_is_nil",
+                    "doc": "Check if an image handle is `nil`.",
                     "return": {
                         "kind": "bool"
                     },
@@ -8859,13 +8972,16 @@
                 {
                     "kind": "proc",
                     "name": "oc_image_create",
+                    "doc": "Create an uninitialized image.",
                     "return": {
                         "kind": "namedType",
-                        "name": "oc_image"
+                        "name": "oc_image",
+                        "doc": "A handle to the created image."
                     },
                     "params": [
                         {
                             "name": "renderer",
+                            "doc": "The canvas renderer.",
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_canvas_renderer"
@@ -8873,12 +8989,14 @@
                         },
                         {
                             "name": "width",
+                            "doc": "Width of the image, in pixels.",
                             "type": {
                                 "kind": "u32"
                             }
                         },
                         {
                             "name": "height",
+                            "doc": "Height of the image, in pixels.",
                             "type": {
                                 "kind": "u32"
                             }
@@ -8888,6 +9006,7 @@
                 {
                     "kind": "proc",
                     "name": "oc_image_create_from_rgba8",
+                    "doc": "Create an image from an array of 8 bit per channel rgba values.",
                     "return": {
                         "kind": "namedType",
                         "name": "oc_image"
@@ -8895,6 +9014,7 @@
                     "params": [
                         {
                             "name": "renderer",
+                            "doc": "The canvas renderer.",
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_canvas_renderer"
@@ -8902,18 +9022,21 @@
                         },
                         {
                             "name": "width",
+                            "doc": "Width of the image, in pixels.",
                             "type": {
                                 "kind": "u32"
                             }
                         },
                         {
                             "name": "height",
+                            "doc": "Height of the image, in pixels.",
                             "type": {
                                 "kind": "u32"
                             }
                         },
                         {
                             "name": "pixels",
+                            "doc": "An array of packed rgba color values, with 8 bits per channel.",
                             "type": {
                                 "kind": "pointer",
                                 "type": {
@@ -8926,13 +9049,16 @@
                 {
                     "kind": "proc",
                     "name": "oc_image_create_from_memory",
+                    "doc": "Create an image from in-memory png, jpeg or bmp data.",
                     "return": {
                         "kind": "namedType",
-                        "name": "oc_image"
+                        "name": "oc_image",
+                        "doc": "A handle to the created image."
                     },
                     "params": [
                         {
                             "name": "renderer",
+                            "doc": "The canvas renderer.",
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_canvas_renderer"
@@ -8940,6 +9066,7 @@
                         },
                         {
                             "name": "mem",
+                            "doc": "A block of memory containing the image data.",
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_str8"
@@ -8947,6 +9074,7 @@
                         },
                         {
                             "name": "flip",
+                            "doc": "If true, flip the y-axis of the image while loading.",
                             "type": {
                                 "kind": "bool"
                             }
@@ -8956,13 +9084,16 @@
                 {
                     "kind": "proc",
                     "name": "oc_image_create_from_file",
+                    "doc": "Create an image from an image file. Supported formats are: png, jpeg or bmp.",
                     "return": {
                         "kind": "namedType",
-                        "name": "oc_image"
+                        "name": "oc_image",
+                        "doc": "A handle to the create image."
                     },
                     "params": [
                         {
                             "name": "renderer",
+                            "doc": "The canvas renderer.",
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_canvas_renderer"
@@ -8970,6 +9101,7 @@
                         },
                         {
                             "name": "file",
+                            "doc": "A handle to the image file.",
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_file"
@@ -8977,6 +9109,7 @@
                         },
                         {
                             "name": "flip",
+                            "doc": "If true, flip the y-axis of the image while loading.",
                             "type": {
                                 "kind": "bool"
                             }
@@ -8986,13 +9119,16 @@
                 {
                     "kind": "proc",
                     "name": "oc_image_create_from_path",
+                    "doc": "Create an image from an image file path. Supported formats are: png, jpeg or bmp.",
                     "return": {
                         "kind": "namedType",
-                        "name": "oc_image"
+                        "name": "oc_image",
+                        "doc": "A handle to the created image."
                     },
                     "params": [
                         {
                             "name": "renderer",
+                            "doc": "The canvas renderer",
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_canvas_renderer"
@@ -9000,6 +9136,7 @@
                         },
                         {
                             "name": "path",
+                            "doc": "A path to the image file.",
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_str8"
@@ -9007,6 +9144,7 @@
                         },
                         {
                             "name": "flip",
+                            "doc": "If true, flip the y-axis of the image while loading.",
                             "type": {
                                 "kind": "bool"
                             }
@@ -9016,6 +9154,7 @@
                 {
                     "kind": "proc",
                     "name": "oc_image_destroy",
+                    "doc": "Destroy an image.",
                     "return": {
                         "kind": "void"
                     },
@@ -9032,12 +9171,14 @@
                 {
                     "kind": "proc",
                     "name": "oc_image_upload_region_rgba8",
+                    "doc": "Upload pixels to an image.",
                     "return": {
                         "kind": "void"
                     },
                     "params": [
                         {
                             "name": "image",
+                            "doc": "The image handle.",
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_image"
@@ -9045,6 +9186,7 @@
                         },
                         {
                             "name": "region",
+                            "doc": "The rectangular region of the image to update.",
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_rect"
@@ -9052,6 +9194,7 @@
                         },
                         {
                             "name": "pixels",
+                            "doc":  "A buffer containing the pixel values to upload. Each pixel value is a packed 8-bit per channel RGBA color. The buffer must hold `region.w * region.h` pixel values.",
                             "type": {
                                 "kind": "pointer",
                                 "type": {
@@ -9064,6 +9207,7 @@
                 {
                     "kind": "proc",
                     "name": "oc_image_size",
+                    "doc": "Get the size of an image.",
                     "return": {
                         "kind": "namedType",
                         "name": "oc_vec2"
@@ -9081,6 +9225,7 @@
                 {
                     "kind": "typename",
                     "name": "oc_rect_atlas",
+                    "doc": "An opaque struct representing a rectangle atlas. This is used to allocate rectangular regions of an image to make texture atlases.",
                     "type": {
                         "kind": "struct"
                     }
@@ -9088,6 +9233,7 @@
                 {
                     "kind": "proc",
                     "name": "oc_rect_atlas_create",
+                    "doc": "Create a rectangle atlas.",
                     "return": {
                         "kind": "pointer",
                         "type": {
@@ -9098,6 +9244,7 @@
                     "params": [
                         {
                             "name": "arena",
+                            "doc": "A memory arena on which to allocate the atlas.",
                             "type": {
                                 "kind": "pointer",
                                 "type": {
@@ -9108,12 +9255,14 @@
                         },
                         {
                             "name": "width",
+                            "doc": "The width of the atlas.",
                             "type": {
                                 "kind": "i32"
                             }
                         },
                         {
                             "name": "height",
+                            "doc": "The height of the atlas.",
                             "type": {
                                 "kind": "i32"
                             }
@@ -9123,13 +9272,16 @@
                 {
                     "kind": "proc",
                     "name": "oc_rect_atlas_alloc",
+                    "doc": "Allocate a rectangular region from an atlas.",
                     "return": {
                         "kind": "namedType",
-                        "name": "oc_rect"
+                        "name": "oc_rect",
+                        "doc": "The allocated rectangle."
                     },
                     "params": [
                         {
                             "name": "atlas",
+                            "doc": "A pointer to the atlas.",
                             "type": {
                                 "kind": "pointer",
                                 "type": {
@@ -9140,12 +9292,14 @@
                         },
                         {
                             "name": "width",
+                            "doc": "The width of the rectangle to allocate.",
                             "type": {
                                 "kind": "i32"
                             }
                         },
                         {
                             "name": "height",
+                            "doc": "The height of the rectangle to allocate.",
                             "type": {
                                 "kind": "i32"
                             }
@@ -9155,12 +9309,14 @@
                 {
                     "kind": "proc",
                     "name": "oc_rect_atlas_recycle",
+                    "doc": "Recycle a rectangular region that was previously allocated from an atlas.",
                     "return": {
                         "kind": "void"
                     },
                     "params": [
                         {
                             "name": "atlas",
+                            "doc": "A pointer to the atlas.",
                             "type": {
                                 "kind": "pointer",
                                 "type": {
@@ -9171,6 +9327,7 @@
                         },
                         {
                             "name": "rect",
+                            "doc": "The rectangular region to recycle.",
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_rect"
@@ -9181,11 +9338,13 @@
                 {
                     "kind": "typename",
                     "name": "oc_image_region",
+                    "doc": "A struct describing a rectangular sub-region of an image.",
                     "type": {
                         "kind": "struct",
                         "fields": [
                             {
                                 "name": "image",
+                                "doc": "The image handle.",
                                 "type": {
                                     "kind": "namedType",
                                     "name": "oc_image"
@@ -9193,6 +9352,7 @@
                             },
                             {
                                 "name": "rect",
+                                "doc": "The rectangular region of the image.",
                                 "type": {
                                     "kind": "namedType",
                                     "name": "oc_rect"
@@ -9204,13 +9364,16 @@
                 {
                     "kind": "proc",
                     "name": "oc_image_atlas_alloc_from_rgba8",
+                    "doc": "Allocate an image region from an atlas and upload pixels to that region.",
                     "return": {
                         "kind": "namedType",
-                        "name": "oc_image_region"
+                        "name": "oc_image_region",
+                        "doc": "The allocated image region"
                     },
                     "params": [
                         {
                             "name": "atlas",
+                            "doc": "A pointer to the texture atlas.",
                             "type": {
                                 "kind": "pointer",
                                 "type": {
@@ -9221,6 +9384,7 @@
                         },
                         {
                             "name": "backingImage",
+                            "doc": "The backing image from which to allocate a region.",
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_image"
@@ -9228,18 +9392,21 @@
                         },
                         {
                             "name": "width",
+                            "doc": "The width of the region to allocate.",
                             "type": {
                                 "kind": "u32"
                             }
                         },
                         {
                             "name": "height",
+                            "doc": "The height of the region to allocate.",
                             "type": {
                                 "kind": "u32"
                             }
                         },
                         {
                             "name": "pixels",
+                            "doc": "A buffer containing pixels values to upload to the allocated region. Each pixel value is a packed 8-bit per channel RGBA color. The buffer must hold `region.w * region.h` pixel values.",
                             "type": {
                                 "kind": "pointer",
                                 "type": {
@@ -9252,13 +9419,16 @@
                 {
                     "kind": "proc",
                     "name": "oc_image_atlas_alloc_from_memory",
+                    "doc": "Allocate an image region from an atlas and upload an image to it.",
                     "return": {
                         "kind": "namedType",
-                        "name": "oc_image_region"
+                        "name": "oc_image_region",
+                        "doc": "The allocated image region"
                     },
                     "params": [
                         {
                             "name": "atlas",
+                            "doc": "A pointer to the atlas.",
                             "type": {
                                 "kind": "pointer",
                                 "type": {
@@ -9269,6 +9439,7 @@
                         },
                         {
                             "name": "backingImage",
+                            "doc": "The backing image from which to allocate an image region.",
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_image"
@@ -9276,6 +9447,7 @@
                         },
                         {
                             "name": "mem",
+                            "doc": "A block of memory containing the image data. Supported format are the same as `oc_image_create_from_memory()`.",
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_str8"
@@ -9283,6 +9455,7 @@
                         },
                         {
                             "name": "flip",
+                            "doc": "If true, flip the y-axis of the image while loading.",
                             "type": {
                                 "kind": "bool"
                             }
@@ -9292,13 +9465,16 @@
                 {
                     "kind": "proc",
                     "name": "oc_image_atlas_alloc_from_file",
+                    "doc": "Allocate an image region from an atlas and upload an image to it.",
                     "return": {
                         "kind": "namedType",
-                        "name": "oc_image_region"
+                        "name": "oc_image_region",
+                        "doc": "The allocated image region"
                     },
                     "params": [
                         {
                             "name": "atlas",
+                            "doc": "A pointer to the atlas.",
                             "type": {
                                 "kind": "pointer",
                                 "type": {
@@ -9309,6 +9485,7 @@
                         },
                         {
                             "name": "backingImage",
+                            "doc": "The backing image from which to allocate an image region.",
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_image"
@@ -9316,6 +9493,7 @@
                         },
                         {
                             "name": "file",
+                            "doc": "The image file.",
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_file"
@@ -9323,6 +9501,7 @@
                         },
                         {
                             "name": "flip",
+                            "doc": "If true, flip the y-axis of the image while loading.",
                             "type": {
                                 "kind": "bool"
                             }
@@ -9332,13 +9511,16 @@
                 {
                     "kind": "proc",
                     "name": "oc_image_atlas_alloc_from_path",
+                    "doc": "Allocate an image region from an atlas and upload an image to it.",
                     "return": {
                         "kind": "namedType",
-                        "name": "oc_image_region"
+                        "name": "oc_image_region",
+                        "doc": "The allocated image region"
                     },
                     "params": [
                         {
                             "name": "atlas",
+                            "doc": "A pointer to the atlas.",
                             "type": {
                                 "kind": "pointer",
                                 "type": {
@@ -9349,6 +9531,7 @@
                         },
                         {
                             "name": "backingImage",
+                            "doc": "The backing image from which to allocate an image region.",
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_image"
@@ -9356,6 +9539,7 @@
                         },
                         {
                             "name": "path",
+                            "doc": "The path to the image file.",
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_str8"
@@ -9363,6 +9547,7 @@
                         },
                         {
                             "name": "flip",
+                            "doc": "If true, flip the y-axis of the image while loading.",
                             "type": {
                                 "kind": "bool"
                             }
@@ -9372,12 +9557,14 @@
                 {
                     "kind": "proc",
                     "name": "oc_image_atlas_recycle",
+                    "doc": "Recycle an image region allocated from an atlas.",
                     "return": {
                         "kind": "void"
                     },
                     "params": [
                         {
                             "name": "atlas",
+                            "doc": "A pointer to the atlas.",
                             "type": {
                                 "kind": "pointer",
                                 "type": {
@@ -9388,6 +9575,7 @@
                         },
                         {
                             "name": "imageRgn",
+                            "doc": "The image region",
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_image_region"
@@ -9398,6 +9586,7 @@
                 {
                     "kind": "proc",
                     "name": "oc_matrix_push",
+                    "doc": "Push a matrix on the transform stack.",
                     "return": {
                         "kind": "void"
                     },
@@ -9413,6 +9602,7 @@
                 },
                 {
                     "kind": "proc",
+                    "doc": "Multiply a matrix with the top of the transform stack, and push the result on the top of the stack.",
                     "name": "oc_matrix_multiply_push",
                     "return": {
                         "kind": "void"
@@ -9430,6 +9620,7 @@
                 {
                     "kind": "proc",
                     "name": "oc_matrix_pop",
+                    "doc": "Pop a matrix from the transform stack.",
                     "return": {
                         "kind": "void"
                     },
@@ -9438,6 +9629,7 @@
                 {
                     "kind": "proc",
                     "name": "oc_matrix_top",
+                    "doc": "Get the top matrix of the transform stack.",
                     "return": {
                         "kind": "namedType",
                         "name": "oc_mat2x3"
@@ -9447,6 +9639,7 @@
                 {
                     "kind": "proc",
                     "name": "oc_clip_push",
+                    "doc": "Push a clip rectangle to the clip stack.",
                     "return": {
                         "kind": "void"
                     },
@@ -9480,6 +9673,7 @@
                 {
                     "kind": "proc",
                     "name": "oc_clip_pop",
+                    "doc": "Pop from the clip stack.",
                     "return": {
                         "kind": "void"
                     },
@@ -9488,6 +9682,7 @@
                 {
                     "kind": "proc",
                     "name": "oc_clip_top",
+                    "doc": "Get the clip rectangle from the top of the clip stack.",
                     "return": {
                         "kind": "namedType",
                         "name": "oc_rect"
@@ -9497,6 +9692,7 @@
                 {
                     "kind": "proc",
                     "name": "oc_set_color",
+                    "doc": "Set the current color.",
                     "return": {
                         "kind": "void"
                     },
@@ -9513,6 +9709,7 @@
                 {
                     "kind": "proc",
                     "name": "oc_set_color_rgba",
+                    "doc": "Set the current color using linear RGBA values.",
                     "return": {
                         "kind": "void"
                     },
@@ -9546,6 +9743,7 @@
                 {
                     "kind": "proc",
                     "name": "oc_set_color_srgba",
+                    "doc": "Set the current color using sRGBA values.",
                     "return": {
                         "kind": "void"
                     },
@@ -9579,12 +9777,14 @@
                 {
                     "kind": "proc",
                     "name": "oc_set_gradient",
+                    "doc": "Set the current color gradient.",
                     "return": {
                         "kind": "void"
                     },
                     "params": [
                         {
                             "name": "blendSpace",
+                            "doc": "The color space in the gradient's colors are blended.",
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_gradient_blend_space"
@@ -9592,6 +9792,7 @@
                         },
                         {
                             "name": "bottomLeft",
+                            "doc": "Color at the bottom left of the fill region.",
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_color"
@@ -9599,6 +9800,7 @@
                         },
                         {
                             "name": "bottomRight",
+                            "doc": "Color at the bottom right of the fill region.",
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_color"
@@ -9606,6 +9808,7 @@
                         },
                         {
                             "name": "topRight",
+                            "doc": "Color at the top right of the fill region.",
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_color"
@@ -9613,6 +9816,7 @@
                         },
                         {
                             "name": "topLeft",
+                            "doc": "Color at the top left of the fill region.",
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_color"
@@ -9623,6 +9827,7 @@
                 {
                     "kind": "proc",
                     "name": "oc_set_width",
+                    "doc": "Set the current line width.",
                     "return": {
                         "kind": "void"
                     },
@@ -9638,12 +9843,14 @@
                 {
                     "kind": "proc",
                     "name": "oc_set_tolerance",
+                    "doc": "Set the current tolerance for the line width. Bigger values increase performance but allow more inconsistent stroke widths along a path.",
                     "return": {
                         "kind": "void"
                     },
                     "params": [
                         {
                             "name": "tolerance",
+                            "doc": "The width tolerance, in pixels.",
                             "type": {
                                 "kind": "f32"
                             }
@@ -9653,6 +9860,7 @@
                 {
                     "kind": "proc",
                     "name": "oc_set_joint",
+                    "doc": "Set the current joint style.",
                     "return": {
                         "kind": "void"
                     },
@@ -9669,6 +9877,7 @@
                 {
                     "kind": "proc",
                     "name": "oc_set_max_joint_excursion",
+                    "doc": "Set the maximum joint excursion. If a joint would extend past this threshold, the renderer falls back to a bevel joint.",
                     "return": {
                         "kind": "void"
                     },
@@ -9684,6 +9893,7 @@
                 {
                     "kind": "proc",
                     "name": "oc_set_cap",
+                    "doc": "Set the current cap style.",
                     "return": {
                         "kind": "void"
                     },
@@ -9700,6 +9910,7 @@
                 {
                     "kind": "proc",
                     "name": "oc_set_font",
+                    "doc": "The the current font.",
                     "return": {
                         "kind": "void"
                     },
@@ -9716,6 +9927,7 @@
                 {
                     "kind": "proc",
                     "name": "oc_set_font_size",
+                    "doc": "Set the current font size.",
                     "return": {
                         "kind": "void"
                     },
@@ -9731,6 +9943,7 @@
                 {
                     "kind": "proc",
                     "name": "oc_set_text_flip",
+                    "doc": "Set the current text flip value. `true` flips the y-axis of text rendering commands.",
                     "return": {
                         "kind": "void"
                     },
@@ -9746,6 +9959,7 @@
                 {
                     "kind": "proc",
                     "name": "oc_set_image",
+                    "doc": "Set the current source image.",
                     "return": {
                         "kind": "void"
                     },
@@ -9762,6 +9976,7 @@
                 {
                     "kind": "proc",
                     "name": "oc_set_image_source_region",
+                    "doc": "Set the current source image region.",
                     "return": {
                         "kind": "void"
                     },
@@ -9778,6 +9993,7 @@
                 {
                     "kind": "proc",
                     "name": "oc_get_color",
+                    "doc": "Get the current color",
                     "return": {
                         "kind": "namedType",
                         "name": "oc_color"
@@ -9787,6 +10003,7 @@
                 {
                     "kind": "proc",
                     "name": "oc_get_width",
+                    "doc": "Get the current line width.",
                     "return": {
                         "kind": "f32"
                     },
@@ -9795,6 +10012,7 @@
                 {
                     "kind": "proc",
                     "name": "oc_get_tolerance",
+                    "doc": "Get the current line width tolerance.",
                     "return": {
                         "kind": "f32"
                     },
@@ -9803,6 +10021,7 @@
                 {
                     "kind": "proc",
                     "name": "oc_get_joint",
+                    "doc": "Get the current joint style.",
                     "return": {
                         "kind": "namedType",
                         "name": "oc_joint_type"
@@ -9812,6 +10031,7 @@
                 {
                     "kind": "proc",
                     "name": "oc_get_max_joint_excursion",
+                    "doc": "Get the current max joint excursion.",
                     "return": {
                         "kind": "f32"
                     },
@@ -9820,6 +10040,7 @@
                 {
                     "kind": "proc",
                     "name": "oc_get_cap",
+                    "doc": "Get the current cap style.",
                     "return": {
                         "kind": "namedType",
                         "name": "oc_cap_type"
@@ -9829,6 +10050,7 @@
                 {
                     "kind": "proc",
                     "name": "oc_get_font",
+                    "doc": "Get the current font.",
                     "return": {
                         "kind": "namedType",
                         "name": "oc_font"
@@ -9838,6 +10060,7 @@
                 {
                     "kind": "proc",
                     "name": "oc_get_font_size",
+                    "doc": "Get the current font size.",
                     "return": {
                         "kind": "f32"
                     },
@@ -9846,6 +10069,7 @@
                 {
                     "kind": "proc",
                     "name": "oc_get_text_flip",
+                    "doc": "Get the current text flip value.",
                     "return": {
                         "kind": "bool"
                     },
@@ -9854,6 +10078,7 @@
                 {
                     "kind": "proc",
                     "name": "oc_get_image",
+                    "doc": "Get the current source image.",
                     "return": {
                         "kind": "namedType",
                         "name": "oc_image"
@@ -9863,6 +10088,7 @@
                 {
                     "kind": "proc",
                     "name": "oc_get_image_source_region",
+                    "doc": "Get the current image source region.",
                     "return": {
                         "kind": "namedType",
                         "name": "oc_rect"
@@ -9872,6 +10098,7 @@
                 {
                     "kind": "proc",
                     "name": "oc_get_position",
+                    "doc": "Get the current cursor position.",
                     "return": {
                         "kind": "namedType",
                         "name": "oc_vec2"
@@ -9880,6 +10107,7 @@
                 },
                 {
                     "kind": "proc",
+                    "doc": "Move the cursor to a given position.",
                     "name": "oc_move_to",
                     "return": {
                         "kind": "void"
@@ -9902,6 +10130,7 @@
                 {
                     "kind": "proc",
                     "name": "oc_line_to",
+                    "doc": "Add a line to the path from the current position to a new one.",
                     "return": {
                         "kind": "void"
                     },
@@ -9923,6 +10152,7 @@
                 {
                     "kind": "proc",
                     "name": "oc_quadratic_to",
+                    "doc": "Add a quadratic Bézier curve to the path from the current position to a new one.",
                     "return": {
                         "kind": "void"
                     },
@@ -9956,6 +10186,7 @@
                 {
                     "kind": "proc",
                     "name": "oc_cubic_to",
+                    "doc": "Add a cubic Bézier curve to the path from the current position to a new one.",
                     "return": {
                         "kind": "void"
                     },
@@ -10001,6 +10232,7 @@
                 {
                     "kind": "proc",
                     "name": "oc_close_path",
+                    "doc": "Close the current path with a line.",
                     "return": {
                         "kind": "void"
                     },
@@ -10009,6 +10241,7 @@
                 {
                     "kind": "proc",
                     "name": "oc_glyph_outlines",
+                    "doc": "Add the outlines of a glyph run to the path, using glyph indices.",
                     "return": {
                         "kind": "namedType",
                         "name": "oc_rect"
@@ -10016,6 +10249,7 @@
                     "params": [
                         {
                             "name": "glyphIndices",
+                            "doc": "A slice of glyph indices.",
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_str32"
@@ -10026,12 +10260,14 @@
                 {
                     "kind": "proc",
                     "name": "oc_codepoints_outlines",
+                    "doc": "Add the outlines of a glyph run to the path, using unicode codepoints.",
                     "return": {
                         "kind": "void"
                     },
                     "params": [
                         {
                             "name": "string",
+                            "doc": "A slice of unicode code points.",
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_str32"
@@ -10042,12 +10278,14 @@
                 {
                     "kind": "proc",
                     "name": "oc_text_outlines",
+                    "doc": "Add the outlines of a glyph run to the path, using a utf8 string.",
                     "return": {
                         "kind": "void"
                     },
                     "params": [
                         {
                             "name": "string",
+                            "doc": "A utf8 string.",
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_str8"
@@ -10058,6 +10296,7 @@
                 {
                     "kind": "proc",
                     "name": "oc_clear",
+                    "doc": "Clear the canvas to the current color.",
                     "return": {
                         "kind": "void"
                     },
@@ -10066,6 +10305,7 @@
                 {
                     "kind": "proc",
                     "name": "oc_fill",
+                    "doc": "Fill the current path.",
                     "return": {
                         "kind": "void"
                     },
@@ -10074,6 +10314,7 @@
                 {
                     "kind": "proc",
                     "name": "oc_stroke",
+                    "doc": "Stroke the current path.",
                     "return": {
                         "kind": "void"
                     },
@@ -10082,6 +10323,7 @@
                 {
                     "kind": "proc",
                     "name": "oc_rectangle_fill",
+                    "doc": "Draw a filled rectangle.",
                     "return": {
                         "kind": "void"
                     },
@@ -10115,6 +10357,7 @@
                 {
                     "kind": "proc",
                     "name": "oc_rectangle_stroke",
+                    "doc": "Draw a stroked rectangle.",
                     "return": {
                         "kind": "void"
                     },
@@ -10148,6 +10391,7 @@
                 {
                     "kind": "proc",
                     "name": "oc_rounded_rectangle_fill",
+                    "doc": "Draw a filled rounded rectangle.",
                     "return": {
                         "kind": "void"
                     },
@@ -10187,6 +10431,7 @@
                 {
                     "kind": "proc",
                     "name": "oc_rounded_rectangle_stroke",
+                    "doc": "Draw a stroked rounded rectangle.",
                     "return": {
                         "kind": "void"
                     },
@@ -10226,6 +10471,7 @@
                 {
                     "kind": "proc",
                     "name": "oc_ellipse_fill",
+                    "doc": "Draw a filled ellipse.",
                     "return": {
                         "kind": "void"
                     },
@@ -10259,6 +10505,7 @@
                 {
                     "kind": "proc",
                     "name": "oc_ellipse_stroke",
+                    "doc": "Draw a stroked ellipse.",
                     "return": {
                         "kind": "void"
                     },
@@ -10292,6 +10539,7 @@
                 {
                     "kind": "proc",
                     "name": "oc_circle_fill",
+                    "doc": "Draw a filled circle.",
                     "return": {
                         "kind": "void"
                     },
@@ -10319,6 +10567,7 @@
                 {
                     "kind": "proc",
                     "name": "oc_circle_stroke",
+                    "doc": "Draw a stroked circle.",
                     "return": {
                         "kind": "void"
                     },
@@ -10346,6 +10595,7 @@
                 {
                     "kind": "proc",
                     "name": "oc_arc",
+                    "doc": "Add an arc to the path.",
                     "return": {
                         "kind": "void"
                     },
@@ -10385,6 +10635,7 @@
                 {
                     "kind": "proc",
                     "name": "oc_text_fill",
+                    "doc": "Draw a text line.",
                     "return": {
                         "kind": "void"
                     },
@@ -10413,6 +10664,7 @@
                 {
                     "kind": "proc",
                     "name": "oc_image_draw",
+                    "doc": "Draw an image.",
                     "return": {
                         "kind": "void"
                     },
@@ -10436,6 +10688,7 @@
                 {
                     "kind": "proc",
                     "name": "oc_image_draw_region",
+                    "doc": "Draw a sub-region of an image.",
                     "return": {
                         "kind": "void"
                     },
@@ -10473,6 +10726,7 @@
                 {
                     "kind": "proc",
                     "name": "oc_gles_surface_create",
+                    "doc": "Create a graphics surface for GLES rendering.",
                     "return": {
                         "kind": "namedType",
                         "name": "oc_surface"
@@ -10482,6 +10736,7 @@
                 {
                     "kind": "proc",
                     "name": "oc_gles_surface_make_current",
+                    "doc": "Make the GL context of the surface current.",
                     "return": {
                         "kind": "void"
                     },
@@ -10491,28 +10746,6 @@
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_surface"
-                            }
-                        }
-                    ]
-                },
-                {
-                    "kind": "proc",
-                    "name": "oc_gles_surface_swap_interval",
-                    "return": {
-                        "kind": "void"
-                    },
-                    "params": [
-                        {
-                            "name": "surface",
-                            "type": {
-                                "kind": "namedType",
-                                "name": "oc_surface"
-                            }
-                        },
-                        {
-                            "name": "interval",
-                            "type": {
-                                "kind": "i32"
                             }
                         }
                     ]
@@ -10520,6 +10753,7 @@
                 {
                     "kind": "proc",
                     "name": "oc_gles_surface_swap_buffers",
+                    "doc": "Swap the buffers of a GLES surface.",
                     "return": {
                         "kind": "void"
                     },
