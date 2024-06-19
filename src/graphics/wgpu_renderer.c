@@ -423,7 +423,8 @@ static void oc_wgpu_canvas_on_shader_error(WGPUCompilationInfoRequestStatus stat
 
 void oc_wgpu_renderer_create_compute_pipeline(WGPUDevice device,
                                               const char* label,
-                                              const char* src,
+                                              u64 codeLen,
+                                              const u8* code,
                                               const char* entryPoint,
                                               u32 bindGroupCount,
                                               WGPUBindGroupLayoutDescriptor* bindGroupLayoutDescs,
@@ -433,15 +434,24 @@ void oc_wgpu_renderer_create_compute_pipeline(WGPUDevice device,
     oc_arena_scope scratch = oc_scratch_begin();
     oc_str8_list list = { 0 };
 
-    oc_str8_list_push(scratch.arena, &list, OC_STR8(src));
-    oc_str8_list_push(scratch.arena, &list, OC_STR8(oc_wgsl_common));
+    /* oc_str8_list_push(scratch.arena, &list, OC_STR8(src)); */
+    /* oc_str8_list_push(scratch.arena, &list, OC_STR8(oc_wgsl_common)); */
+    /* oc_str8 code = oc_str8_list_join(scratch.arena, list); */
 
-    oc_str8 code = oc_str8_list_join(scratch.arena, list);
+    /* WGPUShaderModuleDescriptor desc = { */
+    /*     .nextInChain = &((WGPUShaderModuleWGSLDescriptor){ */
+    /*                          .chain.sType = WGPUSType_ShaderModuleWGSLDescriptor, */
+    /*                          .code = code.ptr, */
+    /*                      }) */
+    /*                         .chain, */
+    /* }; */
+    OC_ASSERT(codeLen % 4 == 0);
 
     WGPUShaderModuleDescriptor desc = {
-        .nextInChain = &((WGPUShaderModuleWGSLDescriptor){
-                             .chain.sType = WGPUSType_ShaderModuleWGSLDescriptor,
-                             .code = code.ptr,
+        .nextInChain = &((WGPUShaderModuleSPIRVDescriptor){
+                             .chain.sType = WGPUSType_ShaderModuleSPIRVDescriptor,
+                             .code = (uint32_t*)code,
+                             .codeSize = codeLen / 4,
                          })
                             .chain,
     };
@@ -482,7 +492,8 @@ void oc_wgpu_renderer_create_compute_pipeline(WGPUDevice device,
 
 void oc_wgpu_renderer_create_render_pipeline(WGPUDevice device,
                                              const char* label,
-                                             const char* src,
+                                             u64 codeLen,
+                                             const u8* code,
                                              const char* vertexEntryPoint,
                                              const char* fragmentEntryPoint,
                                              WGPUTextureFormat textureFormat,
@@ -493,15 +504,26 @@ void oc_wgpu_renderer_create_render_pipeline(WGPUDevice device,
     oc_arena_scope scratch = oc_scratch_begin();
     oc_str8_list list = { 0 };
 
-    oc_str8_list_push(scratch.arena, &list, OC_STR8(src));
-    oc_str8_list_push(scratch.arena, &list, OC_STR8(oc_wgsl_common));
+    /* oc_str8_list_push(scratch.arena, &list, OC_STR8(src)); */
+    /* oc_str8_list_push(scratch.arena, &list, OC_STR8(oc_wgsl_common)); */
 
-    oc_str8 code = oc_str8_list_join(scratch.arena, list);
+    /* oc_str8 code = oc_str8_list_join(scratch.arena, list); */
+
+    /* WGPUShaderModuleDescriptor desc = { */
+    /*     .nextInChain = &((WGPUShaderModuleWGSLDescriptor){ */
+    /*                          .chain.sType = WGPUSType_ShaderModuleWGSLDescriptor, */
+    /*                          .code = code.ptr, */
+    /*                      }) */
+    /*                         .chain, */
+    /* }; */
+
+    OC_ASSERT(codeLen % 4 == 0);
 
     WGPUShaderModuleDescriptor desc = {
-        .nextInChain = &((WGPUShaderModuleWGSLDescriptor){
-                             .chain.sType = WGPUSType_ShaderModuleWGSLDescriptor,
-                             .code = code.ptr,
+        .nextInChain = &((WGPUShaderModuleSPIRVDescriptor){
+                             .chain.sType = WGPUSType_ShaderModuleSPIRVDescriptor,
+                             .code = (uint32_t*)code,
+                             .codeSize = codeLen / 4,
                          })
                             .chain,
     };
@@ -864,6 +886,7 @@ oc_canvas_renderer oc_canvas_renderer_create(void)
 
         oc_wgpu_renderer_create_compute_pipeline(renderer->device,
                                                  "path setup",
+                                                 oc_wgsl_path_setup_len,
                                                  oc_wgsl_path_setup,
                                                  "path_setup",
                                                  1,
@@ -932,6 +955,7 @@ oc_canvas_renderer oc_canvas_renderer_create(void)
 
         oc_wgpu_renderer_create_compute_pipeline(renderer->device,
                                                  "segment setup",
+                                                 oc_wgsl_segment_setup_len,
                                                  oc_wgsl_segment_setup,
                                                  "segment_setup",
                                                  1,
@@ -965,6 +989,7 @@ oc_canvas_renderer oc_canvas_renderer_create(void)
 
         oc_wgpu_renderer_create_compute_pipeline(renderer->device,
                                                  "backprop pass",
+                                                 oc_wgsl_backprop_len,
                                                  oc_wgsl_backprop,
                                                  "backprop",
                                                  1,
@@ -1013,6 +1038,7 @@ oc_canvas_renderer oc_canvas_renderer_create(void)
 
         oc_wgpu_renderer_create_compute_pipeline(renderer->device,
                                                  "chunk pass",
+                                                 oc_wgsl_chunk_len,
                                                  oc_wgsl_chunk,
                                                  "chunk",
                                                  1,
@@ -1096,6 +1122,7 @@ oc_canvas_renderer oc_canvas_renderer_create(void)
 
         oc_wgpu_renderer_create_compute_pipeline(renderer->device,
                                                  "merge pass",
+                                                 oc_wgsl_merge_len,
                                                  oc_wgsl_merge,
                                                  "merge",
                                                  1,
@@ -1124,6 +1151,7 @@ oc_canvas_renderer oc_canvas_renderer_create(void)
 
         oc_wgpu_renderer_create_compute_pipeline(renderer->device,
                                                  "balance workgroups pass",
+                                                 oc_wgsl_balance_workgroups_len,
                                                  oc_wgsl_balance_workgroups,
                                                  "balance_workgroups",
                                                  1,
@@ -1233,6 +1261,7 @@ oc_canvas_renderer oc_canvas_renderer_create(void)
 
         oc_wgpu_renderer_create_compute_pipeline(renderer->device,
                                                  "raster",
+                                                 oc_wgsl_raster_len,
                                                  oc_wgsl_raster,
                                                  "raster",
                                                  2,
@@ -1261,6 +1290,7 @@ oc_canvas_renderer oc_canvas_renderer_create(void)
 
         oc_wgpu_renderer_create_render_pipeline(renderer->device,
                                                 "blit",
+                                                oc_wgsl_blit_len,
                                                 oc_wgsl_blit,
                                                 "vs",
                                                 "fs",
@@ -1287,6 +1317,7 @@ oc_canvas_renderer oc_canvas_renderer_create(void)
 
         oc_wgpu_renderer_create_render_pipeline(renderer->device,
                                                 "final_blit",
+                                                oc_wgsl_final_blit_len,
                                                 oc_wgsl_final_blit,
                                                 "vs",
                                                 "fs",

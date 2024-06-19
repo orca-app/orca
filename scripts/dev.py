@@ -17,6 +17,7 @@ from .gles_gen import gles_gen
 from .log import *
 from .utils import pushd, removeall, yeetdir, yeetfile
 from .embed_text_files import *
+from .embed_shaders import *
 
 ANGLE_VERSION = "2023-07-05"
 MAC_SDK_DIR = "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk"
@@ -265,7 +266,10 @@ target_sources(webgpu PRIVATE ${WEBGPU_DAWN_NATIVE_PROC_GEN})"""
             "-D", "DAWN_BUILD_SAMPLES=ON",
             "-D", "TINT_BUILD_SAMPLES=OFF",
             "-D", "TINT_BUILD_DOCS=OFF",
-            "-D", "TINT_BUILD_TESTS=OFF"
+            "-D", "TINT_BUILD_TESTS=OFF",
+            "-D", "TINT_BUILD_CMD_TOOLS=ON",
+            "-D", "TINT_BUILD_SPV_READER=ON",
+            "-D", "TINT_BUILD_SPV_WRITER=ON",
         ], check = True)
 
         parallel = ["--parallel"]
@@ -275,6 +279,10 @@ target_sources(webgpu PRIVATE ${WEBGPU_DAWN_NATIVE_PROC_GEN})"""
         print("  * building")
         subprocess.run([
             "cmake", "--build", "dawn.build", "--config", mode, "--target", "webgpu", *parallel
+        ], check = True)
+
+        subprocess.run([
+            "cmake", "--build", "dawn.build", "--config", mode, "--target", "tint_cmd_tint_cmd", *parallel
         ], check = True)
 
         # package result
@@ -780,18 +788,21 @@ def build_platform_layer_internal(release):
 
 
 def build_platform_layer_lib_win(release):
-    embed_text_files("src/graphics/wgpu_renderer_shaders.h", "oc_wgsl_", [
-        "src/graphics/wgsl_shaders/common.wgsl",
-        "src/graphics/wgsl_shaders/path_setup.wgsl",
-        "src/graphics/wgsl_shaders/segment_setup.wgsl",
-        "src/graphics/wgsl_shaders/backprop.wgsl",
-        "src/graphics/wgsl_shaders/chunk.wgsl",
-        "src/graphics/wgsl_shaders/merge.wgsl",
-        "src/graphics/wgsl_shaders/balance_workgroups.wgsl",
-        "src/graphics/wgsl_shaders/raster.wgsl",
-        "src/graphics/wgsl_shaders/blit.wgsl",
-        "src/graphics/wgsl_shaders/final_blit.wgsl",
-    ])
+    embed_shaders(
+        outputPath = "src/graphics/wgpu_renderer_shaders.h",
+        prefix = "oc_wgsl_",
+        commonPath = "src/graphics/wgsl_shaders/common.wgsl",
+        inputFiles = [
+            "src/graphics/wgsl_shaders/path_setup.wgsl",
+            "src/graphics/wgsl_shaders/segment_setup.wgsl",
+            "src/graphics/wgsl_shaders/backprop.wgsl",
+            "src/graphics/wgsl_shaders/chunk.wgsl",
+            "src/graphics/wgsl_shaders/merge.wgsl",
+            "src/graphics/wgsl_shaders/balance_workgroups.wgsl",
+            "src/graphics/wgsl_shaders/raster.wgsl",
+            "src/graphics/wgsl_shaders/blit.wgsl",
+            "src/graphics/wgsl_shaders/final_blit.wgsl",
+        ])
 
     includes = [
         "/I", "src",
@@ -847,18 +858,21 @@ def build_platform_layer_lib_win(release):
 
 def build_platform_layer_lib_mac(release):
 
-    embed_text_files("src/graphics/wgpu_renderer_shaders.h", "oc_wgsl_", [
-        "src/graphics/wgsl_shaders/common.wgsl",
-        "src/graphics/wgsl_shaders/path_setup.wgsl",
-        "src/graphics/wgsl_shaders/segment_setup.wgsl",
-        "src/graphics/wgsl_shaders/backprop.wgsl",
-        "src/graphics/wgsl_shaders/chunk.wgsl",
-        "src/graphics/wgsl_shaders/merge.wgsl",
-        "src/graphics/wgsl_shaders/balance_workgroups.wgsl",
-        "src/graphics/wgsl_shaders/raster.wgsl",
-        "src/graphics/wgsl_shaders/blit.wgsl",
-        "src/graphics/wgsl_shaders/final_blit.wgsl",
-    ])
+    embed_shaders(
+        outputPath = "src/graphics/wgpu_renderer_shaders.h",
+        prefix = "oc_wgsl_",
+        commonPath = "src/graphics/wgsl_shaders/common.wgsl",
+        inputFiles = [
+            "src/graphics/wgsl_shaders/path_setup.wgsl",
+            "src/graphics/wgsl_shaders/segment_setup.wgsl",
+            "src/graphics/wgsl_shaders/backprop.wgsl",
+            "src/graphics/wgsl_shaders/chunk.wgsl",
+            "src/graphics/wgsl_shaders/merge.wgsl",
+            "src/graphics/wgsl_shaders/balance_workgroups.wgsl",
+            "src/graphics/wgsl_shaders/raster.wgsl",
+            "src/graphics/wgsl_shaders/blit.wgsl",
+            "src/graphics/wgsl_shaders/final_blit.wgsl",
+        ])
 
     flags = [f"-mmacos-version-min={MACOS_VERSION_MIN}"]
     cflags = ["-std=c11"]
