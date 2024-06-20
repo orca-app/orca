@@ -1,4 +1,5 @@
 import os
+import platform
 from datetime import datetime
 from argparse import ArgumentParser
 import subprocess
@@ -47,14 +48,16 @@ def embed_shaders(outputPath, prefix, commonPath, inputFiles):
             common = f.read()
 
     for fileName in inputFiles:
+        s = common
         with open(fileName, "r") as f:
-            s = f.read()
-        s = s + common
+            s += f.read()
 
         with open("tmp_shader.wgsl","w") as f:
             f.write(s)
 
-        subprocess.run(["./build/dawn.build/tint",
+        tint = "tint.exe" if platform.system() == "Windows" else "tint"
+
+        subprocess.run([f"./build/dawn.out/bin/{tint}",
                         "tmp_shader.wgsl",
                         "-o", "tmp_shader.spv"], check=True)
 
@@ -62,6 +65,9 @@ def embed_shaders(outputPath, prefix, commonPath, inputFiles):
             data = f.read()
 
         shaders.append((fileName, data))
+
+    os.remove("tmp_shader.wgsl")
+    os.remove("tmp_shader.spv")
 
     # write spirv shaders to header
     with open(outputPath, "w") as output:

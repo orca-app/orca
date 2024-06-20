@@ -298,6 +298,7 @@ target_sources(webgpu PRIVATE ${WEBGPU_DAWN_NATIVE_PROC_GEN})"""
 
         if platform.system() == "Windows":
             shutil.copy(f"dawn.build/{mode}/webgpu.dll", "dawn.out/bin/")
+            shutil.copy(f"dawn.build/{mode}/tint.exe", "dawn.out/bin/tint.exe")
             shutil.copy(f"dawn.build/src/dawn/native/{mode}/webgpu.lib", "dawn.out/bin/")
 
             sums['bin/webgpu.dll'] = {
@@ -310,6 +311,7 @@ target_sources(webgpu PRIVATE ${WEBGPU_DAWN_NATIVE_PROC_GEN})"""
             }
         else:
             shutil.copy("dawn.build/src/dawn/native/libwebgpu.dylib", "dawn.out/bin/")
+            shutil.copy(f"dawn.build/{mode}/tint", "dawn.out/bin/tint")
 
             sums['bin/libwebgpu.dylib'] = {
                 "commit": DAWN_COMMIT,
