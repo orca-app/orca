@@ -651,7 +651,16 @@ oc_canvas_renderer oc_canvas_renderer_create(void)
 
         renderer->limits = supported.limits;
 
+        int enabledToggleCount = 1;
+        const char* enabledToggles[] = { "use_dxc" };
+
         WGPUDeviceDescriptor desc = {
+            .nextInChain = &((WGPUDawnTogglesDescriptor){
+                                 .chain.sType = WGPUSType_DawnTogglesDescriptor,
+                                 .enabledToggleCount = enabledToggleCount,
+                                 .enabledToggles = enabledToggles,
+                             })
+                                .chain,
             .requiredLimits = &(WGPURequiredLimits){ .limits = supported.limits },
         };
 
