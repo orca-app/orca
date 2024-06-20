@@ -154,9 +154,6 @@ def check_dawn():
         os.makedirs("src/ext/dawn/include", exist_ok=True)
         shutil.copytree("build/dawn.out/include", "src/ext/dawn/include/", dirs_exist_ok=True)
 
-        os.makedirs("build/bin", exist_ok=True)
-        shutil.copytree("build/dawn.out/bin", "build/bin", dirs_exist_ok=True)
-
     return (up_to_date, messages)
 
 
@@ -830,6 +827,7 @@ def build_platform_layer_lib_win(release):
         "libGLESv2.dll.lib",
         "/DELAYLOAD:libEGL.dll",
         "/DELAYLOAD:libGLESv2.dll",
+        "/LIBPATH:build/dawn.out/bin",
         "webgpu.lib",
         "/DELAYLOAD:webgpu.dll"
     ]
@@ -905,7 +903,7 @@ def build_platform_layer_lib_mac(release):
         "build/orca_c.o", "build/orca_objc.o",
         "-Lbuild/bin", "-lc",
         "-framework", "Carbon", "-framework", "Cocoa", "-framework", "Metal", "-framework", "QuartzCore",
-        "-weak-lEGL", "-weak-lGLESv2", "-weak-lwebgpu"
+        "-weak-lEGL", "-weak-lGLESv2", "-Lbuild/dawn.out/bin", "-weak-lwebgpu"
     ], check=True)
 
     # change dependent libs path to @rpath
@@ -1328,7 +1326,7 @@ def package_sdk_internal(dest, target):
         shutil.copy(os.path.join("build", "bin", "liborca_wasm.a"), bin_dir)
         shutil.copy(os.path.join("build", "bin", "libEGL.dll"), bin_dir)
         shutil.copy(os.path.join("build", "bin", "libGLESv2.dll"), bin_dir)
-        shutil.copy(os.path.join("build", "bin", "webgpu.dll"), bin_dir)
+        shutil.copy(os.path.join("build", "dawn.out", "bin", "webgpu.dll"), bin_dir)
     else:
         shutil.copy(os.path.join("build", "bin", "orca"), bin_dir)
         shutil.copy(os.path.join("build", "bin", "orca_runtime"), bin_dir)
@@ -1336,7 +1334,7 @@ def package_sdk_internal(dest, target):
         shutil.copy(os.path.join("build", "bin", "liborca_wasm.a"), bin_dir)
         shutil.copy(os.path.join("build", "bin", "libEGL.dylib"), bin_dir)
         shutil.copy(os.path.join("build", "bin", "libGLESv2.dylib"), bin_dir)
-        shutil.copy(os.path.join("build", "bin", "libwebgpu.dylib"), bin_dir)
+        shutil.copy(os.path.join("build", "dawn.out", "bin", "libwebgpu.dylib"), bin_dir)
 
 
     shutil.copytree(os.path.join("build", "orca-libc"), libc_dir, dirs_exist_ok=True)

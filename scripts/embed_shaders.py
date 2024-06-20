@@ -55,7 +55,6 @@ def embed_shaders(outputPath, prefix, commonPath, inputFiles):
             f.write(s)
 
         subprocess.run(["./build/dawn.build/tint",
-                        "--dump-inspector-bindings",
                         "tmp_shader.wgsl",
                         "-o", "tmp_shader.spv"], check=True)
 
