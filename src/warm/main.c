@@ -28,6 +28,7 @@ typedef struct wa_operand_slot
     wa_operand_slot_kind kind;
     wa_value_type type;
     u32 index;
+    u64 count;
     u64 originInstr;
     u64 originOpd;
 } wa_operand_slot;
@@ -42,10 +43,6 @@ typedef struct wa_build_context
     u64 opdStackLen;
     u64 opdStackCap;
     wa_operand_slot* opdStack;
-
-    u64 saveStackLen;
-    u64 saveStackCap;
-    wa_operand_slot* saveStack;
 
     u64 scopeStackLen;
     u64 scopeStackCap;
@@ -65,10 +62,8 @@ typedef struct wa_build_context
 
 } wa_build_context;
 
-void wa_scope_stack_push(wa_build_context* context, u64 inputCount)
+void wa_scope_stack_push(wa_build_context* context)
 {
-    OC_DEBUG_ASSERT(inputCount < context->opdStackLen);
-
     if(context->scopeStack == 0 || context->scopeStackLen >= context->scopeStackCap)
     {
         context->scopeStackCap = (context->scopeStackCap + 8) * 2;
@@ -81,7 +76,7 @@ void wa_scope_stack_push(wa_build_context* context, u64 inputCount)
             memcpy(context->scopeStack, tmp, context->scopeStackLen * sizeof(u64));
         }
     }
-    context->scopeStack[context->scopeStackLen] = context->opdStackLen - inputCount;
+    context->scopeStack[context->scopeStackLen] = context->opdStackLen;
     context->scopeStackLen++;
 }
 
@@ -119,6 +114,13 @@ void wa_operand_stack_push(wa_build_context* context, wa_operand_slot s)
     context->opdStackLen++;
 }
 
+void wa_free_slot(wa_build_context* context, u64 index)
+{
+    OC_DEBUG_ASSERT(context->freeRegLen >= WA_MAX_REG);
+    context->freeRegs[context->freeRegLen] = index;
+    context->freeRegLen++;
+}
+
 wa_operand_slot* wa_operand_stack_pop(wa_build_context* context)
 {
     wa_operand_slot* slot = 0;
@@ -129,11 +131,9 @@ wa_operand_slot* wa_operand_stack_pop(wa_build_context* context)
         context->opdStackLen--;
         slot = &context->opdStack[context->opdStackLen];
 
-        if(slot->kind == WA_OPERAND_SLOT_REG)
+        if(slot->kind == WA_OPERAND_SLOT_REG && slot->count == 0)
         {
-            OC_DEBUG_ASSERT(context->freeRegLen >= WA_MAX_REG);
-            context->freeRegs[context->freeRegLen] = slot->index;
-            context->freeRegLen++;
+            wa_free_slot(context, slot->index);
         }
     }
     return (slot);
@@ -145,12 +145,10 @@ void wa_operand_stack_pop_slots(wa_build_context* context, u64 count)
 
     for(u64 i = 0; i < count; i++)
     {
-        wa_operand_slot* slot = &context->opdStack[context->opdStackLen - count + i];
-        if(slot->kind == WA_OPERAND_SLOT_REG)
+        wa_operand_slot* slot = &context->opdStack[context->opdStackLen - i - 1];
+        if(slot->kind == WA_OPERAND_SLOT_REG && slot->count == 0)
         {
-            OC_DEBUG_ASSERT(context->freeRegLen >= WA_MAX_REG);
-            context->freeRegs[context->freeRegLen] = slot->index;
-            context->freeRegLen++;
+            wa_free_slot(context, slot->index);
         }
     }
 
@@ -167,56 +165,6 @@ wa_operand_slot* wa_operand_stack_top(wa_build_context* context)
         slot = &context->opdStack[context->opdStackLen - 1];
     }
     return (slot);
-}
-
-void wa_operand_stack_save_slots(wa_build_context* context, u64 count)
-{
-    OC_DEBUG_ASSERT(count <= context->opdStackLen);
-
-    if(context->saveStackLen + count > context->saveStackCap)
-    {
-        wa_operand_slot* tmp = context->saveStack;
-        context->saveStackCap = (context->saveStackLen + count) * 2;
-        context->saveStack = oc_arena_push_array(&context->internalArena, wa_operand_slot, context->saveStackCap);
-
-        if(tmp)
-        {
-            memcpy(context->saveStack, tmp, context->saveStackLen * sizeof(wa_operand_slot));
-        }
-    }
-    for(u64 i = 0; i < count; i++)
-    {
-        context->saveStack[context->saveStackLen + i] = context->opdStack[context->opdStackLen - count + 1];
-    }
-    context->saveStackLen += count;
-}
-
-void wa_operand_stack_restore_slots(wa_build_context* context, u64 count)
-{
-    OC_DEBUG_ASSERT(count <= context->saveStackLen);
-
-    if(context->opdStackLen + count > context->opdStackCap)
-    {
-        wa_operand_slot* tmp = context->opdStack;
-        context->opdStackCap = (context->opdStackLen + count) * 2;
-        context->opdStack = oc_arena_push_array(&context->internalArena, wa_operand_slot, context->opdStackCap);
-
-        if(tmp)
-        {
-            memcpy(context->opdStack, tmp, context->opdStackLen * sizeof(wa_operand_slot));
-        }
-    }
-    for(u64 i = 0; i < count; i++)
-    {
-        context->opdStack[context->opdStackLen + i] = context->saveStack[context->saveStackLen - count + 1];
-    }
-    context->opdStackLen += count;
-}
-
-void wa_operand_stack_forget_slots(wa_build_context* context, u64 count)
-{
-    OC_DEBUG_ASSERT(count <= context->saveStackLen);
-    context->saveStackLen -= count;
 }
 
 void wa_control_stack_push(wa_build_context* context, wa_instr* instr)
@@ -330,8 +278,8 @@ u32 wa_allocate_register(wa_build_context* context)
     u32 index = 0;
     if(context->freeRegLen)
     {
-        index = context->freeRegs[context->freeRegLen];
         context->freeRegLen--;
+        index = context->freeRegs[context->freeRegLen];
     }
     else
     {
@@ -347,6 +295,7 @@ u32 wa_allocate_register(wa_build_context* context)
 void wa_move_slot_if_used(wa_build_context* context, u32 slotIndex)
 {
     u32 newReg = UINT32_MAX;
+    u64 count = 0;
     for(u32 stackIndex = 0; stackIndex < context->opdStackLen; stackIndex++)
     {
         wa_operand_slot* slot = &context->opdStack[stackIndex];
@@ -358,6 +307,8 @@ void wa_move_slot_if_used(wa_build_context* context, u32 slotIndex)
             }
             slot->kind = WA_OPERAND_SLOT_REG;
             slot->index = newReg;
+            slot->count = count;
+            count++;
         }
     }
     if(newReg != UINT32_MAX)
@@ -964,8 +915,13 @@ void wa_compile_code(oc_arena* arena, wa_module* module)
                     exit(-1);
                 }
 
+                wa_move_locals_to_registers(&context);
+
                 //NOTE: check block type input
                 u64 inputCount = 0;
+                u64 outputCount = 0;
+                wa_value_type* outputTypes = 0;
+
                 if(instr->block.typeKind == WA_BLOCK_TYPE_USER)
                 {
                     wa_func_type* type = &module->types[instr->block.type.index];
@@ -990,11 +946,42 @@ void wa_compile_code(oc_arena* arena, wa_module* module)
                         }
                     }
                     inputCount = type->paramCount;
+                    outputCount = type->returnCount;
+                    outputTypes = type->returns;
                 }
-                wa_operand_stack_save_slots(&context, inputCount);
-                wa_scope_stack_push(&context, inputCount);
+                else
+                {
+                    outputCount = 1;
+                    outputTypes = &instr->block.type.valueType;
+                }
 
-                wa_move_locals_to_registers(&context);
+                u64 paramStart = context.opdStackLen - inputCount;
+
+                //NOTE allocate block results and push them on the stack
+                //TODO immediately put them in the freelist so they can be used in the branches (this might complicate copying results a bit...)
+                for(u64 outIndex = 0; outIndex < outputCount; outIndex++)
+                {
+                    u32 index = wa_allocate_register(&context);
+
+                    wa_operand_slot s = {
+                        .kind = WA_OPERAND_SLOT_REG,
+                        .index = index,
+                        .type = outputTypes[outIndex],
+                    };
+                    wa_operand_stack_push(&context, s);
+
+                    // wa_free_slot(&context, index);
+                }
+
+                wa_scope_stack_push(&context);
+
+                //NOTE copy params on top of the stack
+                for(u64 inIndex = 0; inIndex < inputCount; inIndex++)
+                {
+                    wa_operand_slot slotCopy = context.opdStack[paramStart + inIndex];
+                    slotCopy.count++;
+                    wa_operand_stack_push(&context, slotCopy);
+                }
 
                 wa_emit(&context, (wa_code){ .opcode = WA_INSTR_jump_if_zero });
                 wa_emit(&context, (wa_code){ .operand.immI64 = slot->index });
@@ -1064,8 +1051,33 @@ void wa_compile_code(oc_arena* arena, wa_module* module)
                     inputCount = type->paramCount;
                     outputCount = type->returnCount;
                 }
+                //NOTE move top operands to result slots
+                u64 scopeBase = context.scopeStack[context.scopeStackLen - 1];
+
+                u64 resultOperandStart = context.opdStackLen - outputCount;
+                u64 resultSlotStart = scopeBase - outputCount;
+                for(u64 outIndex = 0; outIndex < outputCount; outIndex++)
+                {
+                    wa_operand_slot* src = &context.opdStack[resultOperandStart + outIndex];
+                    wa_operand_slot* dst = &context.opdStack[resultSlotStart + outIndex];
+
+                    wa_emit(&context, (wa_code){ .opcode = WA_INSTR_move });
+                    wa_emit(&context, (wa_code){ .operand.immI64 = src->index });
+                    wa_emit(&context, (wa_code){ .operand.immI64 = dst->index });
+                }
+
+                //TODO: pop result operands, or pop until scope start ?? (shouldn't this already be done?)
                 wa_operand_stack_pop_slots(&context, outputCount);
-                wa_operand_stack_restore_slots(&context, inputCount);
+
+                //NOTE copy params on top of the stack
+                u64 paramStart = context.opdStackLen - (inputCount + outputCount);
+
+                for(u64 inIndex = 0; inIndex < inputCount; inIndex++)
+                {
+                    wa_operand_slot slotCopy = context.opdStack[paramStart + inIndex];
+                    slotCopy.count++;
+                    wa_operand_stack_push(&context, slotCopy);
+                }
 
                 block->block.elseBranch = instr;
 
@@ -1128,7 +1140,35 @@ void wa_compile_code(oc_arena* arena, wa_module* module)
                     inputCount = type->paramCount;
                     outputCount = type->returnCount;
                 }
-                wa_operand_stack_forget_slots(&context, inputCount);
+
+                //NOTE move top operands to result slots
+                u64 scopeBase = context.scopeStack[context.scopeStackLen - 1];
+
+                u64 resultOperandStart = context.opdStackLen - outputCount;
+                u64 resultSlotStart = scopeBase - outputCount;
+                for(u64 outIndex = 0; outIndex < outputCount; outIndex++)
+                {
+                    wa_operand_slot* src = &context.opdStack[resultOperandStart + outIndex];
+                    wa_operand_slot* dst = &context.opdStack[resultSlotStart + outIndex];
+
+                    wa_emit(&context, (wa_code){ .opcode = WA_INSTR_move });
+                    wa_emit(&context, (wa_code){ .operand.immI64 = src->index });
+                    wa_emit(&context, (wa_code){ .operand.immI64 = dst->index });
+                }
+
+                //TODO: pop result operands, or pop until scope start ?? (shouldn't this already be done?)
+                wa_operand_stack_pop_slots(&context, outputCount);
+
+                //TODO: pop saved params and put result slots on top of stack
+                context.opdStackLen -= outputCount;
+                for(u64 index = 0; index <= inputCount; index++)
+                {
+                    wa_operand_stack_pop(&context);
+                }
+                memcpy(&context.opdStack[context.opdStackLen],
+                       &context.opdStack[context.opdStackLen + inputCount],
+                       outputCount * sizeof(wa_operand_slot));
+
                 wa_scope_stack_pop(&context);
 
                 //TODO: patch jump targets
