@@ -534,6 +534,8 @@ typedef enum wa_instr_op
     /* Internal opcodes */
     WA_INSTR_internal_range_start,
     WA_INSTR_move = WA_INSTR_internal_range_start,
+    WA_INSTR_jump,
+    WA_INSTR_jump_if_zero,
 
     WA_INSTR_COUNT,
 
@@ -575,28 +577,38 @@ enum
     WA_INSTR_IMM_MAX_COUNT = 2,
 };
 
-typedef struct wa_module_instruction
+typedef enum wa_block_type_kind
+{
+    WA_BLOCK_TYPE_VOID,
+    WA_BLOCK_TYPE_VALUE_TYPE,
+    WA_BLOCK_TYPE_USER,
+} wa_block_type_kind;
+
+typedef struct wa_block wa_block;
+
+typedef struct wa_instr wa_instr;
+
+struct wa_block
+{
+    wa_block_type_kind typeKind;
+
+    union
+    {
+        wa_value_type valueType;
+        u32 index;
+    } type;
+
+    wa_instr* elseBranch;
+    wa_instr* end;
+};
+
+typedef struct wa_instr
 {
     wa_instr_op op;
     wa_instr_immediate imm[WA_INSTR_IMM_MAX_COUNT];
+    wa_block block;
 
-} wa_module_instruction;
-
-typedef enum wa_input_status
-{
-    WA_INPUT_OK = 0,
-    WA_INPUT_EOF,
-    WA_INPUT_OVERFLOW,
-} wa_input_status;
-
-typedef struct wa_input
-{
-    char* contents;
-    u64 len;
-    u64 offset;
-    wa_input_status status;
-
-} wa_input;
+} wa_instr;
 
 typedef struct wa_module_toc_entry
 {
@@ -629,7 +641,7 @@ typedef struct wa_func
     wa_value_type* locals;
 
     u32 instrCount;
-    wa_module_instruction* instructions;
+    wa_instr* instructions;
 
     u32 codeLen;
     wa_code* code;
