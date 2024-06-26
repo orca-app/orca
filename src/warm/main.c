@@ -290,8 +290,6 @@ u32 wa_allocate_register(wa_build_context* context)
     return (index);
 }
 
-//TODO: free register
-
 void wa_move_slot_if_used(wa_build_context* context, u32 slotIndex)
 {
     u32 newReg = UINT32_MAX;
@@ -796,6 +794,168 @@ void wa_parse_code(oc_arena* arena, wa_input* input, wa_module* module)
     }
 }
 
+void wa_push_block_inputs(wa_build_context* context, u64 inputCount, u64 outputCount)
+{
+    //NOTE copy inputs on top of the stack for else branch
+    u64 paramStart = context->opdStackLen - (inputCount + outputCount);
+    for(u64 inIndex = 0; inIndex < inputCount; inIndex++)
+    {
+        wa_operand_slot slotCopy = context->opdStack[paramStart + inIndex];
+        slotCopy.count++;
+        wa_operand_stack_push(context, slotCopy);
+    }
+}
+
+void wa_block_begin(wa_build_context* context, wa_instr* instr)
+{
+    //NOTE: check block type input
+    u64 inputCount = 0;
+    u64 outputCount = 0;
+    wa_value_type* inputTypes = 0;
+    wa_value_type* outputTypes = 0;
+
+    if(instr->block.typeKind == WA_BLOCK_TYPE_USER)
+    {
+        wa_func_type* type = &context->module->types[instr->block.type.index];
+        inputCount = type->paramCount;
+        inputTypes = type->params;
+        outputCount = type->returnCount;
+        outputTypes = type->returns;
+    }
+    else
+    {
+        outputCount = 1;
+        outputTypes = &instr->block.type.valueType;
+    }
+
+    if(inputCount > context->opdStackLen)
+    {
+        oc_log_error("not enough operands on stack (expected %i, got %i)\n",
+                     inputCount,
+                     context->opdStackLen);
+        exit(-1);
+    }
+    for(u64 inIndex = 0; inIndex < inputCount; inIndex++)
+    {
+        wa_value_type opdType = context->opdStack[context->opdStackLen - inputCount + inIndex].type;
+        wa_value_type expectedType = inputTypes[inIndex];
+        if(opdType != expectedType)
+        {
+            oc_log_error("operand type mismatch for param %i (expected %s, got %s)\n",
+                         inIndex,
+                         wa_value_type_string(expectedType),
+                         wa_value_type_string(opdType));
+            exit(-1);
+        }
+    }
+
+    //NOTE allocate block results and push them on the stack
+    //TODO immediately put them in the freelist so they can be used in the branches (this might complicate copying results a bit...)
+    for(u64 outIndex = 0; outIndex < outputCount; outIndex++)
+    {
+        u32 index = wa_allocate_register(context);
+
+        wa_operand_slot s = {
+            .kind = WA_OPERAND_SLOT_REG,
+            .index = index,
+            .type = outputTypes[outIndex],
+        };
+        wa_operand_stack_push(context, s);
+
+        // wa_free_slot(context, index);
+    }
+
+    wa_scope_stack_push(context);
+    wa_push_block_inputs(context, inputCount, outputCount);
+}
+
+void wa_block_end(wa_build_context* context, wa_instr* block, wa_instr* instr)
+{
+    //NOTE validate block type output
+    u64 inputCount = 0;
+    u64 outputCount = 0;
+
+    if(block->block.typeKind == WA_BLOCK_TYPE_VALUE_TYPE)
+    {
+        wa_operand_slot* slot = wa_operand_stack_top(context);
+        if(!slot)
+        {
+            oc_log_error("operand type mismatch (expected %s, got void)\n",
+                         wa_value_type_string(block->block.type.valueType));
+            exit(-1);
+        }
+        else if(slot->type != block->block.type.valueType)
+        {
+            oc_log_error("operand type mismatch (expected %s, got %s)\n",
+                         wa_value_type_string(block->block.type.valueType),
+                         wa_value_type_string(slot->type));
+            exit(-1);
+        }
+        outputCount = 1;
+    }
+    else if(block->block.typeKind == WA_BLOCK_TYPE_USER)
+    {
+        wa_func_type* type = &context->module->types[block->block.type.index];
+        ///////////////////////////////////////////////////////////////////
+        //TODO check that we have the _exact_ number of outputs
+        ///////////////////////////////////////////////////////////////////
+        if(type->returnCount > context->opdStackLen)
+        {
+            oc_log_error("not enough operands on stack (expected %i, got %i)\n",
+                         type->returnCount,
+                         context->opdStackLen);
+            exit(-1);
+        }
+        for(u64 returnIndex = 0; returnIndex < type->returnCount; returnIndex++)
+        {
+            wa_value_type opdType = context->opdStack[context->opdStackLen - type->returnCount + returnIndex].type;
+            wa_value_type expectedType = type->returns[returnIndex];
+            if(opdType != expectedType)
+            {
+                oc_log_error("operand type mismatch for return %i (expected %s, got %s)\n",
+                             returnIndex,
+                             wa_value_type_string(expectedType),
+                             wa_value_type_string(opdType));
+                exit(-1);
+            }
+        }
+        inputCount = type->paramCount;
+        outputCount = type->returnCount;
+    }
+    //NOTE move top operands to result slots
+    u64 scopeBase = context->scopeStack[context->scopeStackLen - 1];
+
+    u64 resultOperandStart = context->opdStackLen - outputCount;
+    u64 resultSlotStart = scopeBase - outputCount;
+    for(u64 outIndex = 0; outIndex < outputCount; outIndex++)
+    {
+        wa_operand_slot* src = &context->opdStack[resultOperandStart + outIndex];
+        wa_operand_slot* dst = &context->opdStack[resultSlotStart + outIndex];
+
+        wa_emit(context, (wa_code){ .opcode = WA_INSTR_move });
+        wa_emit(context, (wa_code){ .operand.immI64 = src->index });
+        wa_emit(context, (wa_code){ .operand.immI64 = dst->index });
+    }
+
+    //TODO: pop result operands, or pop until scope start ?? (shouldn't this already be done?)
+    wa_operand_stack_pop_slots(context, outputCount);
+
+    if(instr->op != WA_INSTR_else)
+    {
+        //NOTE: pop saved params, and push result slots on top of stack
+        context->opdStackLen -= outputCount;
+        for(u64 index = 0; index <= inputCount; index++)
+        {
+            wa_operand_stack_pop(context);
+        }
+        memcpy(&context->opdStack[context->opdStackLen],
+               &context->opdStack[context->opdStackLen + inputCount],
+               outputCount * sizeof(wa_operand_slot));
+
+        wa_scope_stack_pop(context);
+    }
+}
+
 void wa_compile_code(oc_arena* arena, wa_module* module)
 {
     for(u32 funcIndex = 0; funcIndex < module->functionCount; funcIndex++)
@@ -917,75 +1077,10 @@ void wa_compile_code(oc_arena* arena, wa_module* module)
 
                 wa_move_locals_to_registers(&context);
 
-                //NOTE: check block type input
-                u64 inputCount = 0;
-                u64 outputCount = 0;
-                wa_value_type* outputTypes = 0;
-
-                if(instr->block.typeKind == WA_BLOCK_TYPE_USER)
-                {
-                    wa_func_type* type = &module->types[instr->block.type.index];
-                    if(type->paramCount > context.opdStackLen)
-                    {
-                        oc_log_error("not enough operands on stack (expected %i, got %i)\n",
-                                     type->paramCount,
-                                     context.opdStackLen);
-                        exit(-1);
-                    }
-                    for(u64 paramIndex = 0; paramIndex < type->paramCount; paramIndex++)
-                    {
-                        wa_value_type opdType = context.opdStack[context.opdStackLen - type->paramCount + paramIndex].type;
-                        wa_value_type expectedType = type->params[paramIndex];
-                        if(opdType != expectedType)
-                        {
-                            oc_log_error("operand type mismatch for param %i (expected %s, got %s)\n",
-                                         paramIndex,
-                                         wa_value_type_string(expectedType),
-                                         wa_value_type_string(opdType));
-                            exit(-1);
-                        }
-                    }
-                    inputCount = type->paramCount;
-                    outputCount = type->returnCount;
-                    outputTypes = type->returns;
-                }
-                else
-                {
-                    outputCount = 1;
-                    outputTypes = &instr->block.type.valueType;
-                }
-
-                u64 paramStart = context.opdStackLen - inputCount;
-
-                //NOTE allocate block results and push them on the stack
-                //TODO immediately put them in the freelist so they can be used in the branches (this might complicate copying results a bit...)
-                for(u64 outIndex = 0; outIndex < outputCount; outIndex++)
-                {
-                    u32 index = wa_allocate_register(&context);
-
-                    wa_operand_slot s = {
-                        .kind = WA_OPERAND_SLOT_REG,
-                        .index = index,
-                        .type = outputTypes[outIndex],
-                    };
-                    wa_operand_stack_push(&context, s);
-
-                    // wa_free_slot(&context, index);
-                }
-
-                wa_scope_stack_push(&context);
-
-                //NOTE copy params on top of the stack
-                for(u64 inIndex = 0; inIndex < inputCount; inIndex++)
-                {
-                    wa_operand_slot slotCopy = context.opdStack[paramStart + inIndex];
-                    slotCopy.count++;
-                    wa_operand_stack_push(&context, slotCopy);
-                }
+                wa_block_begin(&context, instr);
 
                 wa_emit(&context, (wa_code){ .opcode = WA_INSTR_jump_if_zero });
                 wa_emit(&context, (wa_code){ .operand.immI64 = slot->index });
-
                 //TODO: record a jump target
                 wa_emit(&context, (wa_code){ .operand.immI64 = 0 });
             }
@@ -1000,84 +1095,15 @@ void wa_compile_code(oc_arena* arena, wa_module* module)
                     exit(-1);
                 }
 
-                //NOTE validate block type output
-                u64 inputCount = 0;
-                u64 outputCount = 0;
+                wa_block_end(&context, block, instr);
 
-                if(block->block.typeKind == WA_BLOCK_TYPE_VALUE_TYPE)
-                {
-                    wa_operand_slot* slot = wa_operand_stack_top(&context);
-                    if(!slot)
-                    {
-                        oc_log_error("operand type mismatch (expected %s, got void)\n",
-                                     wa_value_type_string(block->block.type.valueType));
-                        exit(-1);
-                    }
-                    else if(slot->type != block->block.type.valueType)
-                    {
-                        oc_log_error("operand type mismatch (expected %s, got %s)\n",
-                                     wa_value_type_string(block->block.type.valueType),
-                                     wa_value_type_string(slot->type));
-                        exit(-1);
-                    }
-                    outputCount = 1;
-                }
-                else if(block->block.typeKind == WA_BLOCK_TYPE_USER)
-                {
-                    wa_func_type* type = &module->types[block->block.type.index];
-                    ///////////////////////////////////////////////////////////////////
-                    //TODO check that we have the _exact_ number of outputs
-                    ///////////////////////////////////////////////////////////////////
-                    if(type->returnCount > context.opdStackLen)
-                    {
-                        oc_log_error("not enough operands on stack (expected %i, got %i)\n",
-                                     type->returnCount,
-                                     context.opdStackLen);
-                        exit(-1);
-                    }
-                    for(u64 returnIndex = 0; returnIndex < type->returnCount; returnIndex++)
-                    {
-                        wa_value_type opdType = context.opdStack[context.opdStackLen - type->returnCount + returnIndex].type;
-                        wa_value_type expectedType = type->returns[returnIndex];
-                        if(opdType != expectedType)
-                        {
-                            oc_log_error("operand type mismatch for return %i (expected %s, got %s)\n",
-                                         returnIndex,
-                                         wa_value_type_string(expectedType),
-                                         wa_value_type_string(opdType));
-                            exit(-1);
-                        }
-                    }
-                    inputCount = type->paramCount;
-                    outputCount = type->returnCount;
-                }
-                //NOTE move top operands to result slots
-                u64 scopeBase = context.scopeStack[context.scopeStackLen - 1];
+                //////////////////////////////////////////////////////////////////////////////////////////////
+                //TODO: need input and output here, could store that better in block type so we don't have to
+                //      switch on type kind.
+                //////////////////////////////////////////////////////////////////////////////////////////////
+                CONTINUE_HERE;
 
-                u64 resultOperandStart = context.opdStackLen - outputCount;
-                u64 resultSlotStart = scopeBase - outputCount;
-                for(u64 outIndex = 0; outIndex < outputCount; outIndex++)
-                {
-                    wa_operand_slot* src = &context.opdStack[resultOperandStart + outIndex];
-                    wa_operand_slot* dst = &context.opdStack[resultSlotStart + outIndex];
-
-                    wa_emit(&context, (wa_code){ .opcode = WA_INSTR_move });
-                    wa_emit(&context, (wa_code){ .operand.immI64 = src->index });
-                    wa_emit(&context, (wa_code){ .operand.immI64 = dst->index });
-                }
-
-                //TODO: pop result operands, or pop until scope start ?? (shouldn't this already be done?)
-                wa_operand_stack_pop_slots(&context, outputCount);
-
-                //NOTE copy params on top of the stack
-                u64 paramStart = context.opdStackLen - (inputCount + outputCount);
-
-                for(u64 inIndex = 0; inIndex < inputCount; inIndex++)
-                {
-                    wa_operand_slot slotCopy = context.opdStack[paramStart + inIndex];
-                    slotCopy.count++;
-                    wa_operand_stack_push(&context, slotCopy);
-                }
+                wa_push_block_inputs(context, inputCount, outputCount);
 
                 block->block.elseBranch = instr;
 
@@ -1092,85 +1118,7 @@ void wa_compile_code(oc_arena* arena, wa_module* module)
                 {
                     break;
                 }
-
-                u64 inputCount = 0;
-                u64 outputCount = 0;
-
-                if(block->block.typeKind == WA_BLOCK_TYPE_VALUE_TYPE)
-                {
-                    wa_operand_slot* slot = wa_operand_stack_top(&context);
-                    if(!slot)
-                    {
-                        oc_log_error("operand type mismatch (expected %s, got void)\n",
-                                     wa_value_type_string(block->block.type.valueType));
-                        exit(-1);
-                    }
-                    else if(slot->type != block->block.type.valueType)
-                    {
-                        oc_log_error("operand type mismatch (expected %s, got %s)\n",
-                                     wa_value_type_string(block->block.type.valueType),
-                                     wa_value_type_string(slot->type));
-                        exit(-1);
-                    }
-                    outputCount = 1;
-                }
-                else if(block->block.typeKind == WA_BLOCK_TYPE_USER)
-                {
-                    wa_func_type* type = &module->types[block->block.type.index];
-                    if(type->returnCount > context.opdStackLen)
-                    {
-                        oc_log_error("not enough operands on stack (expected %i, got %i)\n",
-                                     type->returnCount,
-                                     context.opdStackLen);
-                        exit(-1);
-                    }
-                    for(u64 returnIndex = 0; returnIndex < type->returnCount; returnIndex++)
-                    {
-                        wa_value_type opdType = context.opdStack[context.opdStackLen - type->returnCount + returnIndex].type;
-                        wa_value_type expectedType = type->returns[returnIndex];
-                        if(opdType != expectedType)
-                        {
-                            oc_log_error("operand type mismatch for return %i (expected %s, got %s)\n",
-                                         returnIndex,
-                                         wa_value_type_string(expectedType),
-                                         wa_value_type_string(opdType));
-                            exit(-1);
-                        }
-                    }
-                    inputCount = type->paramCount;
-                    outputCount = type->returnCount;
-                }
-
-                //NOTE move top operands to result slots
-                u64 scopeBase = context.scopeStack[context.scopeStackLen - 1];
-
-                u64 resultOperandStart = context.opdStackLen - outputCount;
-                u64 resultSlotStart = scopeBase - outputCount;
-                for(u64 outIndex = 0; outIndex < outputCount; outIndex++)
-                {
-                    wa_operand_slot* src = &context.opdStack[resultOperandStart + outIndex];
-                    wa_operand_slot* dst = &context.opdStack[resultSlotStart + outIndex];
-
-                    wa_emit(&context, (wa_code){ .opcode = WA_INSTR_move });
-                    wa_emit(&context, (wa_code){ .operand.immI64 = src->index });
-                    wa_emit(&context, (wa_code){ .operand.immI64 = dst->index });
-                }
-
-                //TODO: pop result operands, or pop until scope start ?? (shouldn't this already be done?)
-                wa_operand_stack_pop_slots(&context, outputCount);
-
-                //TODO: pop saved params and put result slots on top of stack
-                context.opdStackLen -= outputCount;
-                for(u64 index = 0; index <= inputCount; index++)
-                {
-                    wa_operand_stack_pop(&context);
-                }
-                memcpy(&context.opdStack[context.opdStackLen],
-                       &context.opdStack[context.opdStackLen + inputCount],
-                       outputCount * sizeof(wa_operand_slot));
-
-                wa_scope_stack_pop(&context);
-
+                wa_block_end(&context, block, instr);
                 //TODO: patch jump targets
             }
             else if(instr->op == WA_INSTR_call)
@@ -1194,7 +1142,7 @@ void wa_compile_code(oc_arena* arena, wa_module* module)
                     maxUsedSlot = oc_max(slot->index, maxUsedSlot);
                 }
 
-                //TODO: first check if we args are already in order at the end of the frame
+                //TODO: first check if we args are already in order at the end of the frame?
                 for(u32 argIndex = 0; argIndex < paramCount; argIndex++)
                 {
                     wa_operand_slot* slot = &context.opdStack[context.opdStackLen + argIndex];
