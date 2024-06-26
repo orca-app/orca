@@ -442,6 +442,8 @@ static const char* wa_instr_strings[] = {
     [WA_INSTR_f64x2_promote_low_f32x4] = "f64x2.promote_low_f32x4",
 
     [WA_INSTR_move] = "move",
+    [WA_INSTR_jump] = "jump",
+    [WA_INSTR_jump_if_zero] = "jump_if_zero",
 };
 
 typedef enum wa_instruction_prefix
@@ -1404,6 +1406,12 @@ static const wa_instr_info wa_instr_infos[] = {
     [WA_INSTR_f64x2_promote_low_f32x4] = {},
 
     [WA_INSTR_move] = {
+        .opdCount = 2,
+    },
+    [WA_INSTR_jump] = {
+        .opdCount = 1,
+    },
+    [WA_INSTR_jump_if_zero] = {
         .opdCount = 2,
     },
 };
