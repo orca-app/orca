@@ -577,30 +577,35 @@ enum
     WA_INSTR_IMM_MAX_COUNT = 2,
 };
 
-typedef enum wa_block_type_kind
-{
-    WA_BLOCK_TYPE_VOID,
-    WA_BLOCK_TYPE_VALUE_TYPE,
-    WA_BLOCK_TYPE_USER,
-} wa_block_type_kind;
-
-typedef struct wa_block wa_block;
-
 typedef struct wa_instr wa_instr;
 
-struct wa_block
+typedef struct wa_func_type
 {
-    wa_block_type_kind typeKind;
+    u32 paramCount;
+    wa_value_type* params;
 
-    union
-    {
-        wa_value_type valueType;
-        u32 index;
-    } type;
+    u32 returnCount;
+    wa_value_type* returns;
 
+} wa_func_type;
+
+typedef struct wa_jump_target
+{
+    oc_list_elt listElt;
+    u64 instrOffset;
+    u64 patchOffset;
+} wa_jump_target;
+
+typedef struct wa_block
+{
+    wa_func_type* type;
     wa_instr* elseBranch;
     wa_instr* end;
-};
+
+    //TODO: move this in transient struct?
+    oc_list jumpTargets;
+
+} wa_block;
 
 typedef struct wa_instr
 {
@@ -616,16 +621,6 @@ typedef struct wa_module_toc_entry
     u64 offset;
 
 } wa_module_toc_entry;
-
-typedef struct wa_func_type
-{
-    u32 paramCount;
-    wa_value_type* params;
-
-    u32 returnCount;
-    wa_value_type* returns;
-
-} wa_func_type;
 
 typedef union wa_code
 {

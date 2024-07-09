@@ -10,6 +10,46 @@
 // build context
 //-------------------------------------------------------------------------
 
+static const wa_value_type WA_BLOCK_TYPE_I32_VAL = WA_TYPE_I32;
+static const wa_value_type WA_BLOCK_TYPE_I64_VAL = WA_TYPE_I64;
+static const wa_value_type WA_BLOCK_TYPE_F32_VAL = WA_TYPE_F32;
+static const wa_value_type WA_BLOCK_TYPE_F64_VAL = WA_TYPE_F64;
+static const wa_value_type WA_BLOCK_TYPE_V128_VAL = WA_TYPE_V128;
+static const wa_value_type WA_BLOCK_TYPE_FUNC_REF_VAL = WA_TYPE_FUNC_REF;
+static const wa_value_type WA_BLOCK_TYPE_EXTERN_REF_VAL = WA_TYPE_EXTERN_REF;
+
+static const wa_func_type WA_BLOCK_VALUE_TYPES[] = {
+    { 0 },
+    {
+        .returnCount = 1,
+        .returns = (wa_value_type*)&WA_BLOCK_TYPE_I32_VAL,
+    },
+    {
+        .returnCount = 1,
+        .returns = (wa_value_type*)&WA_BLOCK_TYPE_I64_VAL,
+    },
+    {
+        .returnCount = 1,
+        .returns = (wa_value_type*)&WA_BLOCK_TYPE_F32_VAL,
+    },
+    {
+        .returnCount = 1,
+        .returns = (wa_value_type*)&WA_BLOCK_TYPE_F64_VAL,
+    },
+    {
+        .returnCount = 1,
+        .returns = (wa_value_type*)&WA_BLOCK_TYPE_V128_VAL,
+    },
+    {
+        .returnCount = 1,
+        .returns = (wa_value_type*)&WA_BLOCK_TYPE_FUNC_REF_VAL,
+    },
+    {
+        .returnCount = 1,
+        .returns = (wa_value_type*)&WA_BLOCK_TYPE_EXTERN_REF_VAL,
+    },
+};
+
 enum
 {
     WA_TYPE_STACK_MAX_LEN = 512,
@@ -334,6 +374,7 @@ void wa_print_bytecode(u64 len, wa_code* bytecode)
     for(u64 codeIndex = 0; codeIndex < len; codeIndex++)
     {
         wa_code* c = &bytecode[codeIndex];
+        printf("0x%08llx ", codeIndex);
         printf("%-16s0x%02x ", wa_instr_strings[c->opcode], c->opcode);
 
         const wa_instr_info* info = &wa_instr_infos[c->opcode];
@@ -348,6 +389,7 @@ void wa_print_bytecode(u64 len, wa_code* bytecode)
         }
         printf("\n");
     }
+    printf("0x%08llx eof\n", len);
 }
 
 typedef struct wa_control
@@ -385,6 +427,26 @@ void wa_interpret_func(wa_module* module, wa_func* func)
                 pc += 2;
             }
             break;
+
+            case WA_INSTR_jump:
+            {
+                pc += pc[0].operand.immI64 - 1;
+            }
+            break;
+
+            case WA_INSTR_jump_if_zero:
+            {
+                if(pc[0].operand.immI64 == 0)
+                {
+                    pc += pc[1].operand.immI64 - 1;
+                }
+                else
+                {
+                    pc += 2;
+                }
+            }
+            break;
+
             case WA_INSTR_call:
             {
                 controlStack[controlStackTop] = (wa_control){
@@ -605,15 +667,6 @@ void wa_parse_code(oc_arena* arena, wa_input* input, wa_module* module)
         u64 instrCount = 0;
         wa_instr* instructions = oc_arena_push_array(scratch.arena, wa_instr, instrCap);
 
-        wa_build_context context = {
-            .arenaScope = oc_arena_scope_begin(arena),
-            .module = module,
-            .codeCap = 4,
-            .code = oc_arena_push_array(scratch.arena, wa_code, 4),
-            .nextRegIndex = func->localCount,
-        };
-        oc_arena_init(&context.internalArena);
-
         while(!wa_input_end(input) && (input->offset - startOffset < len))
         {
             if(instrCount >= instrCap)
@@ -743,33 +796,27 @@ void wa_parse_code(oc_arena* arena, wa_input* input, wa_module* module)
                 i64 t = wa_read_leb128_i64(input);
                 if(t >= 0)
                 {
-                    instr->block.typeKind = WA_BLOCK_TYPE_USER;
-                    instr->block.type.index = (u64)t;
-                    if(instr->block.type.index >= module->typeCount)
+                    u64 typeIndex = (u64)t;
+
+                    if(typeIndex >= module->typeCount)
                     {
                         oc_log_error("unexpected type index %u (type count: %u)\n",
-                                     instr->block.type.index,
+                                     typeIndex,
                                      module->typeCount);
                         exit(-1);
                     }
+                    instr->block.type = &module->types[typeIndex];
                 }
                 else
                 {
-                    t &= 0x7f;
-                    if(t == 0x40)
+                    if(!wa_is_value_type(t & 0x7f))
                     {
-                        instr->block.typeKind = WA_BLOCK_TYPE_VOID;
+                        oc_log_error("unrecognized value type 0x%02x\n", t);
+                        exit(-1);
                     }
-                    else
-                    {
-                        if(!wa_is_value_type(t))
-                        {
-                            oc_log_error("unrecognized value type 0x%02x\n", t);
-                            exit(-1);
-                        }
-                        instr->block.typeKind = WA_BLOCK_TYPE_VALUE_TYPE;
-                        instr->block.type.valueType = t;
-                    }
+
+                    t = (t == -64) ? 0 : -t;
+                    instr->block.type = (wa_func_type*)&WA_BLOCK_VALUE_TYPES[t];
                 }
             }
 
@@ -809,36 +856,19 @@ void wa_push_block_inputs(wa_build_context* context, u64 inputCount, u64 outputC
 void wa_block_begin(wa_build_context* context, wa_instr* instr)
 {
     //NOTE: check block type input
-    u64 inputCount = 0;
-    u64 outputCount = 0;
-    wa_value_type* inputTypes = 0;
-    wa_value_type* outputTypes = 0;
+    wa_func_type* type = instr->block.type;
 
-    if(instr->block.typeKind == WA_BLOCK_TYPE_USER)
-    {
-        wa_func_type* type = &context->module->types[instr->block.type.index];
-        inputCount = type->paramCount;
-        inputTypes = type->params;
-        outputCount = type->returnCount;
-        outputTypes = type->returns;
-    }
-    else
-    {
-        outputCount = 1;
-        outputTypes = &instr->block.type.valueType;
-    }
-
-    if(inputCount > context->opdStackLen)
+    if(type->paramCount > context->opdStackLen)
     {
         oc_log_error("not enough operands on stack (expected %i, got %i)\n",
-                     inputCount,
+                     type->paramCount,
                      context->opdStackLen);
         exit(-1);
     }
-    for(u64 inIndex = 0; inIndex < inputCount; inIndex++)
+    for(u64 inIndex = 0; inIndex < type->paramCount; inIndex++)
     {
-        wa_value_type opdType = context->opdStack[context->opdStackLen - inputCount + inIndex].type;
-        wa_value_type expectedType = inputTypes[inIndex];
+        wa_value_type opdType = context->opdStack[context->opdStackLen - type->paramCount + inIndex].type;
+        wa_value_type expectedType = type->params[inIndex];
         if(opdType != expectedType)
         {
             oc_log_error("operand type mismatch for param %i (expected %s, got %s)\n",
@@ -851,14 +881,14 @@ void wa_block_begin(wa_build_context* context, wa_instr* instr)
 
     //NOTE allocate block results and push them on the stack
     //TODO immediately put them in the freelist so they can be used in the branches (this might complicate copying results a bit...)
-    for(u64 outIndex = 0; outIndex < outputCount; outIndex++)
+    for(u64 outIndex = 0; outIndex < type->returnCount; outIndex++)
     {
         u32 index = wa_allocate_register(context);
 
         wa_operand_slot s = {
             .kind = WA_OPERAND_SLOT_REG,
             .index = index,
-            .type = outputTypes[outIndex],
+            .type = type->returns[outIndex],
         };
         wa_operand_stack_push(context, s);
 
@@ -866,68 +896,41 @@ void wa_block_begin(wa_build_context* context, wa_instr* instr)
     }
 
     wa_scope_stack_push(context);
-    wa_push_block_inputs(context, inputCount, outputCount);
+    wa_push_block_inputs(context, type->paramCount, type->returnCount);
 }
 
 void wa_block_end(wa_build_context* context, wa_instr* block, wa_instr* instr)
 {
     //NOTE validate block type output
-    u64 inputCount = 0;
-    u64 outputCount = 0;
+    wa_func_type* type = block->block.type;
 
-    if(block->block.typeKind == WA_BLOCK_TYPE_VALUE_TYPE)
+    if(type->returnCount > context->opdStackLen)
     {
-        wa_operand_slot* slot = wa_operand_stack_top(context);
-        if(!slot)
-        {
-            oc_log_error("operand type mismatch (expected %s, got void)\n",
-                         wa_value_type_string(block->block.type.valueType));
-            exit(-1);
-        }
-        else if(slot->type != block->block.type.valueType)
-        {
-            oc_log_error("operand type mismatch (expected %s, got %s)\n",
-                         wa_value_type_string(block->block.type.valueType),
-                         wa_value_type_string(slot->type));
-            exit(-1);
-        }
-        outputCount = 1;
+        oc_log_error("not enough operands on stack (expected %i, got %i)\n",
+                     type->returnCount,
+                     context->opdStackLen);
+        exit(-1);
     }
-    else if(block->block.typeKind == WA_BLOCK_TYPE_USER)
+    for(u64 returnIndex = 0; returnIndex < type->returnCount; returnIndex++)
     {
-        wa_func_type* type = &context->module->types[block->block.type.index];
-        ///////////////////////////////////////////////////////////////////
-        //TODO check that we have the _exact_ number of outputs
-        ///////////////////////////////////////////////////////////////////
-        if(type->returnCount > context->opdStackLen)
+        wa_value_type opdType = context->opdStack[context->opdStackLen - type->returnCount + returnIndex].type;
+        wa_value_type expectedType = type->returns[returnIndex];
+        if(opdType != expectedType)
         {
-            oc_log_error("not enough operands on stack (expected %i, got %i)\n",
-                         type->returnCount,
-                         context->opdStackLen);
+            oc_log_error("operand type mismatch for return %i (expected %s, got %s)\n",
+                         returnIndex,
+                         wa_value_type_string(expectedType),
+                         wa_value_type_string(opdType));
             exit(-1);
         }
-        for(u64 returnIndex = 0; returnIndex < type->returnCount; returnIndex++)
-        {
-            wa_value_type opdType = context->opdStack[context->opdStackLen - type->returnCount + returnIndex].type;
-            wa_value_type expectedType = type->returns[returnIndex];
-            if(opdType != expectedType)
-            {
-                oc_log_error("operand type mismatch for return %i (expected %s, got %s)\n",
-                             returnIndex,
-                             wa_value_type_string(expectedType),
-                             wa_value_type_string(opdType));
-                exit(-1);
-            }
-        }
-        inputCount = type->paramCount;
-        outputCount = type->returnCount;
     }
+
     //NOTE move top operands to result slots
     u64 scopeBase = context->scopeStack[context->scopeStackLen - 1];
 
-    u64 resultOperandStart = context->opdStackLen - outputCount;
-    u64 resultSlotStart = scopeBase - outputCount;
-    for(u64 outIndex = 0; outIndex < outputCount; outIndex++)
+    u64 resultOperandStart = context->opdStackLen - type->returnCount;
+    u64 resultSlotStart = scopeBase - type->returnCount;
+    for(u64 outIndex = 0; outIndex < type->returnCount; outIndex++)
     {
         wa_operand_slot* src = &context->opdStack[resultOperandStart + outIndex];
         wa_operand_slot* dst = &context->opdStack[resultSlotStart + outIndex];
@@ -938,21 +941,40 @@ void wa_block_end(wa_build_context* context, wa_instr* block, wa_instr* instr)
     }
 
     //TODO: pop result operands, or pop until scope start ?? (shouldn't this already be done?)
-    wa_operand_stack_pop_slots(context, outputCount);
+    wa_operand_stack_pop_slots(context, type->returnCount);
 
     if(instr->op != WA_INSTR_else)
     {
         //NOTE: pop saved params, and push result slots on top of stack
-        context->opdStackLen -= outputCount;
-        for(u64 index = 0; index <= inputCount; index++)
+        context->opdStackLen -= type->returnCount;
+        for(u64 index = 0; index < type->paramCount; index++)
         {
             wa_operand_stack_pop(context);
         }
         memcpy(&context->opdStack[context->opdStackLen],
-               &context->opdStack[context->opdStackLen + inputCount],
-               outputCount * sizeof(wa_operand_slot));
+               &context->opdStack[context->opdStackLen + type->paramCount],
+               type->returnCount * sizeof(wa_operand_slot));
+        context->opdStackLen += type->returnCount;
 
         wa_scope_stack_pop(context);
+    }
+}
+
+void wa_emit_jump_target(wa_build_context* context, wa_instr* block, u64 instrOffset)
+{
+    wa_jump_target* target = oc_arena_push_type(&context->internalArena, wa_jump_target);
+    target->instrOffset = instrOffset;
+    target->patchOffset = context->codeLen;
+    oc_list_push_back(&block->block.jumpTargets, &target->listElt);
+
+    wa_emit(context, (wa_code){ .operand.immI64 = 0 });
+}
+
+void wa_patch_jump_targets(wa_build_context* context, wa_instr* block)
+{
+    oc_list_for(block->block.jumpTargets, target, wa_jump_target, listElt)
+    {
+        context->code[target->patchOffset].operand.immI64 = context->codeLen - target->instrOffset;
     }
 }
 
@@ -1079,10 +1101,10 @@ void wa_compile_code(oc_arena* arena, wa_module* module)
 
                 wa_block_begin(&context, instr);
 
+                u64 instrOffset = context.codeLen;
                 wa_emit(&context, (wa_code){ .opcode = WA_INSTR_jump_if_zero });
                 wa_emit(&context, (wa_code){ .operand.immI64 = slot->index });
-                //TODO: record a jump target
-                wa_emit(&context, (wa_code){ .operand.immI64 = 0 });
+                wa_emit_jump_target(&context, instr, instrOffset);
             }
             else if(instr->op == WA_INSTR_else)
             {
@@ -1097,29 +1119,32 @@ void wa_compile_code(oc_arena* arena, wa_module* module)
 
                 wa_block_end(&context, block, instr);
 
-                //////////////////////////////////////////////////////////////////////////////////////////////
-                //TODO: need input and output here, could store that better in block type so we don't have to
-                //      switch on type kind.
-                //////////////////////////////////////////////////////////////////////////////////////////////
-                CONTINUE_HERE;
-
-                wa_push_block_inputs(context, inputCount, outputCount);
+                wa_func_type* blockType = block->block.type;
+                wa_push_block_inputs(&context, blockType->paramCount, blockType->returnCount);
 
                 block->block.elseBranch = instr;
 
+                u64 instrOffset = context.codeLen;
                 wa_emit(&context, (wa_code){ .opcode = WA_INSTR_jump });
-                //TODO: record a jump target
-                wa_emit(&context, (wa_code){ .operand.immI64 = 0 });
+                wa_emit_jump_target(&context, instr, instrOffset);
+
+                wa_patch_jump_targets(&context, block);
             }
             else if(instr->op == WA_INSTR_end)
             {
                 wa_instr* block = wa_control_stack_pop(&context);
                 if(!block)
                 {
+                    //TODO should we sometimes emit a return here?
                     break;
                 }
                 wa_block_end(&context, block, instr);
-                //TODO: patch jump targets
+
+                if(block->op == WA_INSTR_if && block->block.elseBranch)
+                {
+                    block = block->block.elseBranch;
+                }
+                wa_patch_jump_targets(&context, block);
             }
             else if(instr->op == WA_INSTR_call)
             {
@@ -1326,12 +1351,6 @@ void wa_compile_code(oc_arena* arena, wa_module* module)
                     wa_emit(&context, (wa_code){ .operand = s.index });
                 }
             }
-
-            //TODO: count blocks
-            if(instr->op == WA_INSTR_end)
-            {
-                break;
-            }
         }
         func->code = context.code;
         func->codeLen = context.codeLen;
@@ -1426,7 +1445,7 @@ int main(int argc, char** argv)
         exit(-1);
     }
 
-    //    wa_interpret_func(&module, start);
+    wa_interpret_func(&module, start);
 
     oc_scratch_end(scratch);
 
