@@ -592,8 +592,7 @@ typedef struct wa_func_type
 typedef struct wa_jump_target
 {
     oc_list_elt listElt;
-    u64 instrOffset;
-    u64 patchOffset;
+    u64 offset;
 } wa_jump_target;
 
 typedef struct wa_block
