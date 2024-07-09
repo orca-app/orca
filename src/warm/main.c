@@ -75,9 +75,8 @@ typedef struct wa_operand_slot
 
 typedef struct wa_build_context
 {
-    oc_arena internalArena;
-
-    oc_arena_scope arenaScope;
+    oc_arena checkArena;
+    oc_arena codeArena;
     wa_module* module;
 
     u64 opdStackLen;
@@ -108,7 +107,7 @@ void wa_scope_stack_push(wa_build_context* context)
     {
         context->scopeStackCap = (context->scopeStackCap + 8) * 2;
         u64* tmp = context->scopeStack;
-        context->scopeStack = oc_arena_push_array(&context->internalArena, u64, context->scopeStackCap);
+        context->scopeStack = oc_arena_push_array(&context->checkArena, u64, context->scopeStackCap);
         OC_ASSERT(context->scopeStack, "out of memory");
 
         if(tmp)
@@ -142,7 +141,7 @@ void wa_operand_stack_push(wa_build_context* context, wa_operand_slot s)
     {
         context->opdStackCap = (context->opdStackCap + 8) * 2;
         wa_operand_slot* tmp = context->opdStack;
-        context->opdStack = oc_arena_push_array(&context->internalArena, wa_operand_slot, context->opdStackCap);
+        context->opdStack = oc_arena_push_array(&context->checkArena, wa_operand_slot, context->opdStackCap);
         OC_ASSERT(context->opdStack, "out of memory");
 
         if(tmp)
@@ -213,7 +212,7 @@ void wa_control_stack_push(wa_build_context* context, wa_instr* instr)
     {
         context->controlStackCap = (context->controlStackCap + 8) * 2;
         wa_instr** tmp = context->controlStack;
-        context->controlStack = oc_arena_push_array(&context->internalArena, wa_instr*, context->controlStackCap);
+        context->controlStack = oc_arena_push_array(&context->checkArena, wa_instr*, context->controlStackCap);
         OC_ASSERT(context->controlStack, "out of memory");
 
         if(tmp)
@@ -296,18 +295,17 @@ void wa_emit(wa_build_context* context, wa_code code)
     if(context->codeLen >= context->codeCap)
     {
         //TODO: better handle realloc
-        oc_arena_scope scratch = oc_scratch_begin_next(context->arenaScope.arena);
+        oc_arena_scope scratch = oc_scratch_begin();
         wa_code* tmp = oc_arena_push_array(scratch.arena, wa_code, context->codeLen);
         memcpy(tmp, context->code, context->codeLen * sizeof(wa_code));
 
-        oc_arena* arena = context->arenaScope.arena;
-        oc_arena_scope_end(context->arenaScope);
-
         context->codeCap = (context->codeCap + 1) * 1.5;
 
-        context->arenaScope = oc_arena_scope_begin(arena);
-        context->code = oc_arena_push_array(arena, wa_code, context->codeCap);
+        oc_arena_clear(&context->codeArena);
+        context->code = oc_arena_push_array(&context->codeArena, wa_code, context->codeCap);
         memcpy(context->code, tmp, context->codeLen * sizeof(wa_code));
+
+        oc_scratch_end(scratch);
     }
     context->code[context->codeLen] = code;
     context->codeLen++;
@@ -430,15 +428,15 @@ void wa_interpret_func(wa_module* module, wa_func* func)
 
             case WA_INSTR_jump:
             {
-                pc += pc[0].operand.immI64 - 1;
+                pc += pc[0].operand.immI64;
             }
             break;
 
             case WA_INSTR_jump_if_zero:
             {
-                if(pc[0].operand.immI64 == 0)
+                if(pc[1].operand.immI64 == 0)
                 {
-                    pc += pc[1].operand.immI64 - 1;
+                    pc += pc[0].operand.immI64;
                 }
                 else
                 {
@@ -960,11 +958,10 @@ void wa_block_end(wa_build_context* context, wa_instr* block, wa_instr* instr)
     }
 }
 
-void wa_emit_jump_target(wa_build_context* context, wa_instr* block, u64 instrOffset)
+void wa_emit_jump_target(wa_build_context* context, wa_instr* block)
 {
-    wa_jump_target* target = oc_arena_push_type(&context->internalArena, wa_jump_target);
-    target->instrOffset = instrOffset;
-    target->patchOffset = context->codeLen;
+    wa_jump_target* target = oc_arena_push_type(&context->checkArena, wa_jump_target);
+    target->offset = context->codeLen;
     oc_list_push_back(&block->block.jumpTargets, &target->listElt);
 
     wa_emit(context, (wa_code){ .operand.immI64 = 0 });
@@ -974,26 +971,27 @@ void wa_patch_jump_targets(wa_build_context* context, wa_instr* block)
 {
     oc_list_for(block->block.jumpTargets, target, wa_jump_target, listElt)
     {
-        context->code[target->patchOffset].operand.immI64 = context->codeLen - target->instrOffset;
+        context->code[target->offset].operand.immI64 = context->codeLen - target->offset;
     }
 }
 
 void wa_compile_code(oc_arena* arena, wa_module* module)
 {
+    wa_build_context context = {
+        .module = module,
+    };
+    oc_arena_init(&context.codeArena);
+    oc_arena_init(&context.checkArena);
+
+    context.codeCap = 4;
+    context.code = oc_arena_push_array(&context.codeArena, wa_code, 4);
+
     for(u32 funcIndex = 0; funcIndex < module->functionCount; funcIndex++)
     {
         wa_func* func = &module->functions[funcIndex];
 
-        oc_arena_scope scratch = oc_scratch_begin();
-
-        wa_build_context context = {
-            .arenaScope = oc_arena_scope_begin(arena),
-            .module = module,
-            .codeCap = 4,
-            .code = oc_arena_push_array(scratch.arena, wa_code, 4),
-            .nextRegIndex = func->localCount,
-        };
-        oc_arena_init(&context.internalArena);
+        oc_arena_clear(&context.checkArena);
+        context.nextRegIndex = func->localCount;
 
         for(u64 instrIndex = 0; instrIndex < func->instrCount; instrIndex++)
         {
@@ -1101,10 +1099,9 @@ void wa_compile_code(oc_arena* arena, wa_module* module)
 
                 wa_block_begin(&context, instr);
 
-                u64 instrOffset = context.codeLen;
                 wa_emit(&context, (wa_code){ .opcode = WA_INSTR_jump_if_zero });
+                wa_emit_jump_target(&context, instr);
                 wa_emit(&context, (wa_code){ .operand.immI64 = slot->index });
-                wa_emit_jump_target(&context, instr, instrOffset);
             }
             else if(instr->op == WA_INSTR_else)
             {
@@ -1124,9 +1121,8 @@ void wa_compile_code(oc_arena* arena, wa_module* module)
 
                 block->block.elseBranch = instr;
 
-                u64 instrOffset = context.codeLen;
                 wa_emit(&context, (wa_code){ .opcode = WA_INSTR_jump });
-                wa_emit_jump_target(&context, instr, instrOffset);
+                wa_emit_jump_target(&context, instr);
 
                 wa_patch_jump_targets(&context, block);
             }
@@ -1352,11 +1348,12 @@ void wa_compile_code(oc_arena* arena, wa_module* module)
                 }
             }
         }
-        func->code = context.code;
         func->codeLen = context.codeLen;
-
-        oc_scratch_end(scratch);
+        func->code = oc_arena_push_array(arena, wa_code, context.codeLen);
+        memcpy(func->code, context.code, context.codeLen * sizeof(wa_code));
     }
+    oc_arena_cleanup(&context.codeArena);
+    oc_arena_cleanup(&context.checkArena);
 }
 
 void wa_print_code(wa_module* module)
