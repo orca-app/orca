@@ -10,3 +10,4 @@ clang --target=wasm32 --no-standard-libraries -Wl,--no-entry -Wl,--export-all -o
 wasm2wat test/test.wasm > test/test.wat
 
 wat2wasm test/if.wat -o test/if.wasm
+wat2wasm test/block.wat -o test/block.wasm
