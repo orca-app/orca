@@ -921,6 +921,7 @@ typedef enum wa_immediate_type
     WA_IMM_MEM_ARG,
     WA_IMM_LANE_INDEX,
     WA_IMM_V128,
+    WA_IMM_LABEL,
 
 } wa_immediate_type;
 
@@ -953,8 +954,14 @@ static const wa_instr_info wa_instr_infos[] = {
     [WA_INSTR_if] = {},
     [WA_INSTR_else] = {},
     [WA_INSTR_end] = {},
-    [WA_INSTR_br] = {},
-    [WA_INSTR_br_if] = {},
+    [WA_INSTR_br] = {
+        .immCount = 1,
+        .imm = { WA_IMM_LABEL },
+    },
+    [WA_INSTR_br_if] = {
+        .immCount = 1,
+        .imm = { WA_IMM_LABEL },
+    },
     [WA_INSTR_br_table] = {},
     [WA_INSTR_return] = {},
     [WA_INSTR_call] = {
@@ -1410,6 +1417,9 @@ static const wa_instr_info wa_instr_infos[] = {
     },
     [WA_INSTR_jump] = {
         .opdCount = 1,
+    },
+    [WA_INSTR_jump_if] = {
+        .opdCount = 2,
     },
     [WA_INSTR_jump_if_zero] = {
         .opdCount = 2,
