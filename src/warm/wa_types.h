@@ -535,6 +535,7 @@ typedef enum wa_instr_op
     WA_INSTR_internal_range_start,
     WA_INSTR_move = WA_INSTR_internal_range_start,
     WA_INSTR_jump,
+    WA_INSTR_jump_if,
     WA_INSTR_jump_if_zero,
 
     WA_INSTR_COUNT,
@@ -595,22 +596,14 @@ typedef struct wa_jump_target
     u64 offset;
 } wa_jump_target;
 
-typedef struct wa_block
-{
-    wa_func_type* type;
-    wa_instr* elseBranch;
-    wa_instr* end;
-
-    //TODO: move this in transient struct?
-    oc_list jumpTargets;
-
-} wa_block;
-
 typedef struct wa_instr
 {
     wa_instr_op op;
     wa_instr_immediate imm[WA_INSTR_IMM_MAX_COUNT];
-    wa_block block;
+
+    wa_func_type* blockType;
+    wa_instr* elseBranch;
+    wa_instr* end;
 
 } wa_instr;
 
