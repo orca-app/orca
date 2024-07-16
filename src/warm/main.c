@@ -4,7 +4,639 @@
 #include "orca.h"
 
 #include "wa_types.h"
-#include "reader.c"
+#include "wasm_tables.c"
+
+//-------------------------------------------------------------------------
+// errors
+//-------------------------------------------------------------------------
+
+void wa_parse_error(wa_module* module, const char* fmt, ...)
+{
+    wa_error_elt* error = oc_arena_push_type(module->arena, wa_error_elt);
+
+    va_list ap;
+    va_start(ap, fmt);
+    error->string = oc_str8_pushfv(module->arena, fmt, ap);
+    va_end(ap);
+
+    oc_list_push_back(&module->errors, &error->listElt);
+}
+
+void wa_module_print_errors(wa_module* module)
+{
+    oc_list_for(module->errors, err, wa_error_elt, listElt)
+    {
+        printf("%.*s", oc_str8_ip(err->string));
+    }
+}
+
+//-------------------------------------------------------------------------
+// Input
+//-------------------------------------------------------------------------
+typedef enum wa_input_status
+{
+    WA_INPUT_OK = 0,
+    WA_INPUT_EOF,
+    WA_INPUT_OVERFLOW,
+} wa_input_status;
+
+typedef struct wa_input
+{
+    wa_module* module;
+    char* contents;
+    u64 len;
+    u64 offset;
+    wa_input_status status;
+
+} wa_input;
+
+char* wa_input_head(wa_input* input)
+{
+    return (input->contents + input->offset);
+}
+
+bool wa_input_end(wa_input* input)
+{
+    return (input->offset >= input->len);
+}
+
+void wa_input_seek(wa_input* input, u64 offset, oc_str8 label)
+{
+    if(offset > input->len)
+    {
+        input->offset = input->len;
+        input->status = WA_INPUT_EOF;
+        wa_parse_error(input->module,
+                       "Couldn't seek %.*s: unexpected end of input.\n",
+                       oc_str8_ip(label));
+    }
+    else
+    {
+        input->offset = offset;
+    }
+}
+
+int wa_read_status(wa_input* input)
+{
+    return (input->status);
+}
+
+u8 wa_read_byte(wa_input* input, oc_str8 label)
+{
+    if(input->status)
+    {
+        return (0);
+    }
+    if(input->offset + sizeof(u8) > input->len)
+    {
+        input->status = WA_INPUT_EOF;
+        wa_parse_error(input->module,
+                       "Couldn't read %.*s: unexpected end of input.\n",
+                       oc_str8_ip(label));
+        return (0);
+    }
+
+    u8 r = *(u8*)&input->contents[input->offset];
+    input->offset += sizeof(u8);
+    return (r);
+}
+
+u32 wa_read_raw_u32(wa_input* input, oc_str8 label)
+{
+    if(input->status)
+    {
+        return (0);
+    }
+    if(input->offset + sizeof(u32) > input->len)
+    {
+        input->status = WA_INPUT_EOF;
+        wa_parse_error(input->module,
+                       "Couldn't read %.*s: unexpected end of input.\n",
+                       oc_str8_ip(label));
+        return (0);
+    }
+
+    u32 r = *(u32*)&input->contents[input->offset];
+    input->offset += sizeof(u32);
+    return (r);
+}
+
+u64 wa_read_leb128_u64(wa_input* input, oc_str8 label)
+{
+    if(input->status)
+    {
+        return (0);
+    }
+
+    char byte = 0;
+    u64 shift = 0;
+    u64 res = 0;
+
+    do
+    {
+        if(input->offset + sizeof(char) > input->len)
+        {
+            input->status = WA_INPUT_EOF;
+            wa_parse_error(input->module,
+                           "Couldn't read %.*s: unexpected end of input.\n",
+                           oc_str8_ip(label));
+            return (0);
+        }
+
+        byte = input->contents[input->offset];
+        input->offset++;
+
+        if(shift >= 63 && byte > 1)
+        {
+            input->status = WA_INPUT_EOF;
+            wa_parse_error(input->module,
+                           "Couldn't read %.*s: leb128 overflow.\n",
+                           oc_str8_ip(label));
+            return (0);
+        }
+
+        res |= ((u64)byte & 0x7f) << shift;
+
+        shift += 7;
+    }
+    while(byte & 0x80);
+
+    return (res);
+}
+
+i64 wa_read_leb128_i64(wa_input* input, oc_str8 label)
+{
+    if(input->status)
+    {
+        return (0);
+    }
+
+    char byte = 0;
+    u64 shift = 0;
+    i64 res = 0;
+
+    do
+    {
+        if(input->offset + sizeof(char) > input->len)
+        {
+            input->status = WA_INPUT_EOF;
+            wa_parse_error(input->module,
+                           "Couldn't read %.*s: unexpected end of input.\n",
+                           oc_str8_ip(label));
+            return (0);
+        }
+        byte = input->contents[input->offset];
+        input->offset++;
+
+        if(shift >= 63 && byte > 1)
+        {
+            input->status = WA_INPUT_EOF;
+            wa_parse_error(input->module,
+                           "Couldn't read %.*s: leb128 overflow.\n",
+                           oc_str8_ip(label));
+            return (0);
+        }
+
+        res |= ((u64)byte & 0x7f) << shift;
+        shift += 7;
+    }
+    while(byte & 0x80);
+
+    if(shift < 64 && (byte & 0x40))
+    {
+        res |= (~0ULL << shift);
+    }
+
+    return (res);
+}
+
+u32 wa_read_leb128_u32(wa_input* input, oc_str8 label)
+{
+    if(input->status)
+    {
+        return (0);
+    }
+
+    u64 r = wa_read_leb128_u64(input, label);
+    if(r >= INT32_MAX)
+    {
+        r = 0;
+        if(input->status == WA_INPUT_OK)
+        {
+            input->status = WA_INPUT_OVERFLOW;
+            wa_parse_error(input->module,
+                           "Couldn't read %.*s: leb128 overflow.\n",
+                           oc_str8_ip(label));
+        }
+    }
+    return (u32)r;
+}
+
+f32 wa_read_f32(wa_input* input, oc_str8 label)
+{
+    if(input->status)
+    {
+        return (0);
+    }
+    if(input->offset + sizeof(f32) > input->len)
+    {
+        input->status = WA_INPUT_EOF;
+        wa_parse_error(input->module,
+                       "Couldn't read %.*s: unexpected end of input.\n",
+                       oc_str8_ip(label));
+        return (0);
+    }
+    f32 f = *(f32*)&input->contents[input->offset];
+    input->offset += sizeof(f32);
+    return f;
+}
+
+f64 wa_read_f64(wa_input* input, oc_str8 label)
+{
+    if(input->status)
+    {
+        return (0);
+    }
+    if(input->offset + sizeof(f64) > input->len)
+    {
+        input->status = WA_INPUT_EOF;
+        wa_parse_error(input->module,
+                       "Couldn't read %.*s: unexpected end of input.\n",
+                       oc_str8_ip(label));
+        return (0);
+    }
+    f64 f = *(f64*)&input->contents[input->offset];
+    input->offset += sizeof(f64);
+    return f;
+}
+
+oc_str8 wa_read_name(wa_input* input, oc_arena* arena, oc_str8 label)
+{
+    u32 len = wa_read_leb128_u32(input, label);
+    if(input->status)
+    {
+        return (oc_str8){ 0 };
+    }
+    if(input->offset + len > input->len)
+    {
+        input->status = WA_INPUT_EOF;
+        wa_parse_error(input->module,
+                       "Couldn't read %.*s: unexpected end of input.\n",
+                       oc_str8_ip(label));
+        return (oc_str8){ 0 };
+    }
+    oc_str8 res = {
+        .ptr = &input->contents[input->offset],
+        .len = len,
+    };
+    input->offset += len;
+    return (res);
+}
+
+//-------------------------------------------------------------------------
+// Parsing
+//-------------------------------------------------------------------------
+
+void wa_parse_sections(wa_input* input, wa_module* module)
+{
+    u32 magic = wa_read_raw_u32(input, OC_STR8("wasm magic number"));
+    u32 version = wa_read_raw_u32(input, OC_STR8("wasm version"));
+
+    if(wa_read_status(input))
+    {
+        return;
+    }
+
+    while(!wa_input_end(input))
+    {
+        u8 sectionID = wa_read_byte(input, OC_STR8("section ID"));
+        u32 sectionLen = wa_read_leb128_u32(input, OC_STR8("section length"));
+
+        if(wa_read_status(input))
+        {
+            return;
+        }
+
+        u64 contentOffset = input->offset;
+
+        switch(sectionID)
+        {
+            case 0:
+                break;
+
+                //TODO: check if section was already defined...
+
+            case 1:
+            {
+                module->toc.types.offset = input->offset;
+                module->toc.types.len = sectionLen;
+            }
+            break;
+
+            case 2:
+            {
+                module->toc.imports.offset = input->offset;
+                module->toc.imports.len = sectionLen;
+            }
+            break;
+
+            case 3:
+            {
+                module->toc.functions.offset = input->offset;
+                module->toc.functions.len = sectionLen;
+            }
+            break;
+
+            case 4:
+            {
+                module->toc.tables.offset = input->offset;
+                module->toc.tables.len = sectionLen;
+            }
+            break;
+
+            case 5:
+            {
+                module->toc.memory.offset = input->offset;
+                module->toc.memory.len = sectionLen;
+            }
+            break;
+
+            case 6:
+            {
+                module->toc.globals.offset = input->offset;
+                module->toc.globals.len = sectionLen;
+            }
+            break;
+
+            case 7:
+            {
+                module->toc.exports.offset = input->offset;
+                module->toc.exports.len = sectionLen;
+            }
+            break;
+
+            case 8:
+            {
+                module->toc.start.offset = input->offset;
+                module->toc.start.len = sectionLen;
+            }
+            break;
+
+            case 9:
+            {
+                module->toc.elements.offset = input->offset;
+                module->toc.elements.len = sectionLen;
+            }
+            break;
+
+            case 10:
+            {
+                module->toc.code.offset = input->offset;
+                module->toc.code.len = sectionLen;
+            }
+            break;
+
+            case 11:
+            {
+                module->toc.data.offset = input->offset;
+                module->toc.data.len = sectionLen;
+            }
+            break;
+
+            case 12:
+            {
+                module->toc.dataCount.offset = input->offset;
+                module->toc.dataCount.len = sectionLen;
+            }
+            break;
+
+            default:
+            {
+                wa_parse_error(module,
+                               "Unknown section identifier %i.\n",
+                               sectionID);
+            }
+        }
+        wa_input_seek(input, contentOffset + sectionLen, OC_STR8("next section"));
+    }
+}
+
+void wa_parse_types(oc_arena* arena, wa_input* input, wa_module* module)
+{
+    //NOTE: parse types section
+    wa_input_seek(input, module->toc.types.offset, OC_STR8("types section"));
+
+    u64 startOffset = input->offset;
+
+    module->typeCount = wa_read_leb128_u32(input, OC_STR8("types count"));
+    module->types = oc_arena_push_array(arena, wa_func_type, module->typeCount);
+
+    for(u32 typeIndex = 0; typeIndex < module->typeCount; typeIndex++)
+    {
+        wa_func_type* type = &module->types[typeIndex];
+
+        u8 b = wa_read_byte(input, OC_STR8("type prefix"));
+
+        if(b != 0x60)
+        {
+            wa_parse_error(module,
+                           "Unexpected prefix 0x%02x for function type.\n",
+                           b);
+            return;
+        }
+
+        type->paramCount = wa_read_leb128_u32(input, OC_STR8("parameter count"));
+
+        type->params = oc_arena_push_array(arena, wa_value_type, type->paramCount);
+        for(u32 typeIndex = 0; typeIndex < type->paramCount; typeIndex++)
+        {
+            type->params[typeIndex] = wa_read_leb128_u32(input, OC_STR8("parameter type"));
+        }
+
+        type->returnCount = wa_read_leb128_u32(input, OC_STR8("return count"));
+        type->returns = oc_arena_push_array(arena, wa_value_type, type->returnCount);
+        for(u32 typeIndex = 0; typeIndex < type->returnCount; typeIndex++)
+        {
+            type->returns[typeIndex] = wa_read_leb128_u32(input, OC_STR8("return type"));
+        }
+    }
+
+    //NOTE: check section size
+    if(input->offset - startOffset != module->toc.types.len)
+    {
+        wa_parse_error(module,
+                       "Size of type section does not match declared size (declared = %llu, actual = %llu)\n",
+                       module->toc.types.len,
+                       input->offset - startOffset);
+    }
+}
+
+void wa_parse_imports(oc_arena* arena, wa_input* input, wa_module* module)
+{
+    //NOTE: parse import section
+    wa_input_seek(input, module->toc.imports.offset, OC_STR8("import section"));
+
+    module->importCount = wa_read_leb128_u32(input, OC_STR8("imports count"));
+    module->imports = oc_arena_push_array(arena, wa_import, module->importCount);
+
+    for(u32 importIndex = 0; importIndex < module->importCount; importIndex++)
+    {
+        wa_import* import = &module->imports[importIndex];
+
+        import->moduleName = wa_read_name(input, arena, OC_STR8("module name"));
+        import->importName = wa_read_name(input, arena, OC_STR8("import name"));
+        import->kind = wa_read_byte(input, OC_STR8("import kind"));
+
+        switch((u32)import->kind)
+        {
+            case WA_IMPORT_FUNCTION:
+            {
+                import->index = wa_read_leb128_u32(input, OC_STR8("function index"));
+                if(import->index >= module->functionCount)
+                {
+                    wa_parse_error(module,
+                                   "Out of bounds type index in function import (function count: %u, got index %u)\n",
+                                   module->functionCount,
+                                   import->index);
+                }
+            }
+            break;
+            case WA_IMPORT_TABLE:
+            {
+                import->type = wa_read_byte(input, OC_STR8("table type"));
+                if(import->type != WA_TYPE_FUNC_REF && import->type != WA_TYPE_EXTERN_REF)
+                {
+                    wa_parse_error(module, "Invalid type 0x%02x in table import \n",
+                                   import->type);
+                }
+                u8 b = wa_read_byte(input, OC_STR8("table limit kind"));
+                if(b != WA_LIMIT_MIN && b != WA_LIMIT_MIN_MAX)
+                {
+                    wa_parse_error(module,
+                                   "Invalid limit kind 0x%02x in table import\n",
+                                   b);
+                    return;
+                }
+                import->limits.kind = b;
+
+                import->limits.min = wa_read_leb128_u32(input, OC_STR8("table min limit"));
+                if(import->limits.kind == WA_LIMIT_MIN_MAX)
+                {
+                    import->limits.max = wa_read_leb128_u32(input, OC_STR8("table max limit"));
+                }
+            }
+            break;
+            case WA_IMPORT_MEMORY:
+            {
+                u8 b = wa_read_byte(input, OC_STR8("memory limit kind"));
+                if(b != WA_LIMIT_MIN && b != WA_LIMIT_MIN_MAX)
+                {
+                    wa_parse_error(module,
+                                   "Invalid limit kind 0x%02x in table import\n",
+                                   b);
+                    return;
+                }
+                import->limits.kind = b;
+
+                import->limits.min = wa_read_leb128_u32(input, OC_STR8("memory min limit"));
+                if(import->limits.kind == WA_LIMIT_MIN_MAX)
+                {
+                    import->limits.max = wa_read_leb128_u32(input, OC_STR8("memory max limit"));
+                }
+            }
+            break;
+            case WA_IMPORT_GLOBAL:
+            {
+                //TODO
+            }
+            break;
+            default:
+            {
+                wa_parse_error(module,
+                               "Unknown import kind 0x%02x\n",
+                               (u8)import->kind);
+                return;
+            }
+        }
+    }
+}
+
+void wa_parse_functions(oc_arena* arena, wa_input* input, wa_module* module)
+{
+    //NOTE: parse function section
+    wa_input_seek(input, module->toc.functions.offset, OC_STR8("functions section"));
+
+    module->functionCount = wa_read_leb128_u32(input, OC_STR8("functions count"));
+    module->functions = oc_arena_push_array(arena, wa_func, module->functionCount);
+
+    for(u32 funcIndex = 0; funcIndex < module->functionCount; funcIndex++)
+    {
+        wa_func* func = &module->functions[funcIndex];
+        u32 typeIndex = wa_read_leb128_u32(input, OC_STR8("function type index"));
+
+        if(typeIndex >= module->typeCount)
+        {
+            wa_parse_error(module,
+                           "Invalid type index %i in function section\n",
+                           typeIndex);
+        }
+        func->type = &module->types[typeIndex];
+    }
+}
+
+void wa_parse_exports(oc_arena* arena, wa_input* input, wa_module* module)
+{
+    //NOTE: parse export section
+    wa_input_seek(input, module->toc.exports.offset, OC_STR8("exports section"));
+
+    module->exportCount = wa_read_leb128_u32(input, OC_STR8("exports count"));
+    module->exports = oc_arena_push_array(arena, wa_export, module->exportCount);
+
+    for(u32 exportIndex = 0; exportIndex < module->exportCount; exportIndex++)
+    {
+        wa_export* export = &module->exports[exportIndex];
+
+        export->name = wa_read_name(input, arena, OC_STR8("export name"));
+        export->kind = wa_read_byte(input, OC_STR8("export kind"));
+        export->index = wa_read_leb128_u32(input, OC_STR8("export index"));
+
+        switch((u32) export->kind)
+        {
+            case WA_EXPORT_FUNCTION:
+            {
+                if(export->index >= module->functionCount)
+                {
+                    wa_parse_error(module,
+                                   "Invalid type index in function export (function count: %u, got index %u)\n",
+                                   module->functionCount,
+                                   export->index);
+                }
+            }
+            break;
+            case WA_EXPORT_TABLE:
+            {
+                //TODO
+            }
+            break;
+            case WA_EXPORT_MEMORY:
+            {
+                //TODO
+            }
+            break;
+            case WA_EXPORT_GLOBAL:
+            {
+                //TODO
+            }
+            break;
+            default:
+            {
+                wa_parse_error(module,
+                               "Unknown export kind 0x%02x\n",
+                               (u8) export->kind);
+            }
+        }
+    }
+}
 
 //-------------------------------------------------------------------------
 // build context
@@ -615,39 +1247,40 @@ void wa_print_exports(wa_module* module)
 
 void wa_parse_code(oc_arena* arena, wa_input* input, wa_module* module)
 {
-    wa_input_seek(input, module->toc.code.offset);
+    wa_input_seek(input, module->toc.code.offset, OC_STR8("code section"));
 
-    u32 functionCount = wa_read_leb128_u32(input);
+    u32 functionCount = wa_read_leb128_u32(input, OC_STR8("functions count"));
     if(functionCount != module->functionCount)
     {
-        oc_log_error("Function count mismatch (function section: %i, code section: %i\n",
-                     module->functionCount,
-                     functionCount);
-        exit(-1);
+        wa_parse_error(module,
+                       "Function count mismatch (function section: %i, code section: %i\n",
+                       module->functionCount,
+                       functionCount);
     }
+    functionCount = oc_min(functionCount, module->functionCount);
 
-    for(u32 funcIndex = 0; funcIndex < module->functionCount; funcIndex++)
+    for(u32 funcIndex = 0; funcIndex < functionCount; funcIndex++)
     {
         wa_func* func = &module->functions[funcIndex];
 
         oc_arena_scope scratch = oc_scratch_begin();
 
-        u32 len = wa_read_leb128_u32(input);
+        u32 len = wa_read_leb128_u32(input, OC_STR8("function length"));
         u32 startOffset = input->offset;
 
         // read locals
-        u32 localEntryCount = wa_read_leb128_u32(input);
+        u32 localEntryCount = wa_read_leb128_u32(input, OC_STR8("local type entries count"));
         u32* counts = oc_arena_push_array(scratch.arena, u32, localEntryCount);
         wa_value_type* types = oc_arena_push_array(scratch.arena, wa_value_type, localEntryCount);
 
         func->localCount = func->type->paramCount;
         for(u32 localEntryIndex = 0; localEntryIndex < localEntryCount; localEntryIndex++)
         {
-            counts[localEntryIndex] = wa_read_leb128_u32(input);
-            types[localEntryIndex] = wa_read_byte(input);
+            counts[localEntryIndex] = wa_read_leb128_u32(input, OC_STR8("local entry count"));
+            types[localEntryIndex] = wa_read_byte(input, OC_STR8("local entry type index"));
             func->localCount += counts[localEntryIndex];
 
-            //TODO: validate types
+            //TODO: validate types? or validate later?
         }
 
         func->locals = oc_arena_push_array(arena, wa_value_type, func->localCount);
@@ -686,25 +1319,29 @@ void wa_parse_code(oc_arena* arena, wa_input* input, wa_module* module)
             }
             wa_instr* instr = &instructions[instrCount];
 
-            u8 byte = wa_read_byte(input);
+            u8 byte = wa_read_byte(input, OC_STR8("instruction"));
 
             if(byte == WA_INSTR_PREFIX_EXTENDED)
             {
-                u32 code = wa_read_leb128_u32(input);
+                u32 code = wa_read_leb128_u32(input, OC_STR8("extended instruction"));
                 if(code >= wa_instr_decode_extended_len)
                 {
-                    oc_log_error("Invalid extended instruction %i\n", code);
-                    exit(-1);
+                    wa_parse_error(module,
+                                   "Invalid extended instruction %i\n",
+                                   code);
+                    goto parse_function_end;
                 }
                 instr->op = wa_instr_decode_extended[code];
             }
             else if(byte == WA_INSTR_PREFIX_VECTOR)
             {
-                u32 code = wa_read_leb128_u32(input);
+                u32 code = wa_read_leb128_u32(input, OC_STR8("vector instructions"));
                 if(code >= wa_instr_decode_vector_len)
                 {
-                    oc_log_error("Invalid vector instruction %i\n", code);
-                    exit(-1);
+                    wa_parse_error(module,
+                                   "Invalid vector instruction %i\n",
+                                   code);
+                    goto parse_function_end;
                 }
                 instr->op = wa_instr_decode_vector[code];
             }
@@ -712,8 +1349,10 @@ void wa_parse_code(oc_arena* arena, wa_input* input, wa_module* module)
             {
                 if(byte >= wa_instr_decode_basic_len)
                 {
-                    oc_log_error("Invalid basic instruction 0x%02x\n", byte);
-                    exit(-1);
+                    wa_parse_error(module,
+                                   "Invalid basic instruction 0x%02x\n",
+                                   byte);
+                    goto parse_function_end;
                 }
                 instr->op = wa_instr_decode_basic[byte];
             }
@@ -727,37 +1366,37 @@ void wa_parse_code(oc_arena* arena, wa_input* input, wa_module* module)
                 {
                     case WA_IMM_ZERO:
                     {
-                        wa_read_byte(input);
+                        wa_read_byte(input, OC_STR8("zero immediate"));
                     }
                     break;
                     case WA_IMM_I32:
                     {
-                        instr->imm[immIndex].immI32 = wa_read_leb128_u32(input);
+                        instr->imm[immIndex].immI32 = wa_read_leb128_u32(input, OC_STR8("i32 immediate"));
                     }
                     break;
                     case WA_IMM_I64:
                     {
-                        instr->imm[immIndex].immI64 = wa_read_leb128_u64(input);
+                        instr->imm[immIndex].immI64 = wa_read_leb128_u64(input, OC_STR8("i64 immediate"));
                     }
                     break;
                     case WA_IMM_F32:
                     {
-                        instr->imm[immIndex].immF32 = wa_read_f32(input);
+                        instr->imm[immIndex].immF32 = wa_read_f32(input, OC_STR8("f32 immediate"));
                     }
                     break;
                     case WA_IMM_F64:
                     {
-                        instr->imm[immIndex].immF64 = wa_read_f64(input);
+                        instr->imm[immIndex].immF64 = wa_read_f64(input, OC_STR8("f64 immediate"));
                     }
                     break;
                     case WA_IMM_VALUE_TYPE:
                     {
-                        instr->imm[immIndex].valueType = wa_read_byte(input);
+                        instr->imm[immIndex].valueType = wa_read_byte(input, OC_STR8("value type immediate"));
                     }
                     break;
                     case WA_IMM_REF_TYPE:
                     {
-                        instr->imm[immIndex].valueType = wa_read_byte(input);
+                        instr->imm[immIndex].valueType = wa_read_byte(input, OC_STR8("ref type immediate"));
                     }
                     break;
 
@@ -770,18 +1409,18 @@ void wa_parse_code(oc_arena* arena, wa_input* input, wa_module* module)
                     case WA_IMM_DATA_INDEX:
                     case WA_IMM_LABEL:
                     {
-                        instr->imm[immIndex].index = wa_read_leb128_u32(input);
+                        instr->imm[immIndex].index = wa_read_leb128_u32(input, OC_STR8("index immediate"));
                     }
                     break;
                     case WA_IMM_MEM_ARG:
                     {
-                        instr->imm[immIndex].memArg.align = wa_read_leb128_u32(input);
-                        instr->imm[immIndex].memArg.offset = wa_read_leb128_u32(input);
+                        instr->imm[immIndex].memArg.align = wa_read_leb128_u32(input, OC_STR8("memory argument immediate"));
+                        instr->imm[immIndex].memArg.offset = wa_read_leb128_u32(input, OC_STR8("memory argument immediate"));
                     }
                     break;
                     case WA_IMM_LANE_INDEX:
                     {
-                        instr->imm[immIndex].laneIndex = wa_read_byte(input);
+                        instr->imm[immIndex].laneIndex = wa_read_byte(input, OC_STR8("lane index immediate"));
                     }
                     break;
                     /*
@@ -802,17 +1441,18 @@ void wa_parse_code(oc_arena* arena, wa_input* input, wa_module* module)
                || instr->op == WA_INSTR_if)
             {
                 // parse block type
-                i64 t = wa_read_leb128_i64(input);
+                i64 t = wa_read_leb128_i64(input, OC_STR8("block type"));
                 if(t >= 0)
                 {
                     u64 typeIndex = (u64)t;
 
                     if(typeIndex >= module->typeCount)
                     {
-                        oc_log_error("unexpected type index %u (type count: %u)\n",
-                                     typeIndex,
-                                     module->typeCount);
-                        exit(-1);
+                        wa_parse_error(module,
+                                       "unexpected type index %u (type count: %u)\n",
+                                       typeIndex,
+                                       module->typeCount);
+                        goto parse_function_end;
                     }
                     instr->blockType = &module->types[typeIndex];
                 }
@@ -820,8 +1460,10 @@ void wa_parse_code(oc_arena* arena, wa_input* input, wa_module* module)
                 {
                     if(!wa_is_value_type(t & 0x7f))
                     {
-                        oc_log_error("unrecognized value type 0x%02x\n", t);
-                        exit(-1);
+                        wa_parse_error(module,
+                                       "unrecognized value type 0x%02x\n",
+                                       t);
+                        goto parse_function_end;
                     }
 
                     t = (t == -64) ? 0 : -t;
@@ -835,18 +1477,21 @@ void wa_parse_code(oc_arena* arena, wa_input* input, wa_module* module)
         // check entry length
         if(input->offset - startOffset != len)
         {
-            oc_log_error("Size of code entry %i does not match declared size (declared %u, got %u)\n",
-                         funcIndex,
-                         len,
-                         input->offset - startOffset);
-            exit(-1);
+            wa_parse_error(module,
+                           "Size of code entry %i does not match declared size (declared %u, got %u)\n",
+                           funcIndex,
+                           len,
+                           input->offset - startOffset);
+            goto parse_function_end;
         }
 
         func->instrCount = instrCount;
         func->instructions = oc_arena_push_array(arena, wa_instr, func->instrCount);
         memcpy(func->instructions, instructions, func->instrCount * sizeof(wa_instr));
 
+    parse_function_end:
         oc_scratch_end(scratch);
+        wa_input_seek(input, startOffset + len, OC_STR8("next function"));
     }
 }
 
@@ -869,27 +1514,30 @@ void wa_block_begin(wa_build_context* context, wa_instr* instr)
 
     if(type->paramCount > context->opdStackLen)
     {
-        oc_log_error("not enough operands on stack (expected %i, got %i)\n",
-                     type->paramCount,
-                     context->opdStackLen);
-        exit(-1);
+        wa_parse_error(context->module,
+                       "not enough operands on stack (expected %i, got %i)\n",
+                       type->paramCount,
+                       context->opdStackLen);
+        //TODO: push fake inputs to continue validating the block correctly
     }
-    for(u64 inIndex = 0; inIndex < type->paramCount; inIndex++)
+    else
     {
-        wa_value_type opdType = context->opdStack[context->opdStackLen - type->paramCount + inIndex].type;
-        wa_value_type expectedType = type->params[inIndex];
-        if(opdType != expectedType)
+        for(u64 inIndex = 0; inIndex < type->paramCount; inIndex++)
         {
-            oc_log_error("operand type mismatch for param %i (expected %s, got %s)\n",
-                         inIndex,
-                         wa_value_type_string(expectedType),
-                         wa_value_type_string(opdType));
-            exit(-1);
+            wa_value_type opdType = context->opdStack[context->opdStackLen - type->paramCount + inIndex].type;
+            wa_value_type expectedType = type->params[inIndex];
+            if(opdType != expectedType)
+            {
+                wa_parse_error(context->module,
+                               "operand type mismatch for param %i (expected %s, got %s)\n",
+                               inIndex,
+                               wa_value_type_string(expectedType),
+                               wa_value_type_string(opdType));
+            }
         }
     }
 
     //NOTE allocate block results and push them on the stack
-    //TODO immediately put them in the freelist so they can be used in the branches (this might complicate copying results a bit...)
     for(u64 outIndex = 0; outIndex < type->returnCount; outIndex++)
     {
         u32 index = wa_allocate_register(context);
@@ -901,6 +1549,7 @@ void wa_block_begin(wa_build_context* context, wa_instr* instr)
         };
         wa_operand_stack_push(context, s);
 
+        //TODO immediately put them in the freelist so they can be used in the branches (this might complicate copying results a bit...)
         // wa_free_slot(context, index);
     }
 
@@ -915,25 +1564,29 @@ void wa_block_move_results_to_input_slots(wa_build_context* context, wa_block* b
 
     if(type->paramCount > context->opdStackLen)
     {
-        oc_log_error("not enough operands on stack (expected %i, got %i)\n",
-                     type->paramCount,
-                     context->opdStackLen);
-        exit(-1);
+        wa_parse_error(context->module,
+                       "not enough operands on stack (expected %i, got %i)\n",
+                       type->paramCount,
+                       context->opdStackLen);
+        return;
     }
-    for(u64 paramIndex = 0; paramIndex < type->paramCount; paramIndex++)
+    else
     {
-        wa_value_type opdType = context->opdStack[context->opdStackLen - type->paramCount + paramIndex].type;
-        wa_value_type expectedType = type->params[paramIndex];
-        if(opdType != expectedType)
+        for(u64 paramIndex = 0; paramIndex < type->paramCount; paramIndex++)
         {
-            oc_log_error("operand type mismatch for param %i (expected %s, got %s)\n",
-                         paramIndex,
-                         wa_value_type_string(expectedType),
-                         wa_value_type_string(opdType));
-            exit(-1);
+            wa_value_type opdType = context->opdStack[context->opdStackLen - type->paramCount + paramIndex].type;
+            wa_value_type expectedType = type->params[paramIndex];
+            if(opdType != expectedType)
+            {
+                wa_parse_error(context->module,
+                               "operand type mismatch for param %i (expected %s, got %s)\n",
+                               paramIndex,
+                               wa_value_type_string(expectedType),
+                               wa_value_type_string(opdType));
+                return;
+            }
         }
     }
-
     //NOTE move top operands to result slots
     u64 scopeBase = block->scopeBase;
 
@@ -958,22 +1611,27 @@ void wa_block_move_results_to_output_slots(wa_build_context* context, wa_block* 
 
     if(type->returnCount > context->opdStackLen)
     {
-        oc_log_error("not enough operands on stack (expected %i, got %i)\n",
-                     type->returnCount,
-                     context->opdStackLen);
-        exit(-1);
+        wa_parse_error(context->module,
+                       "not enough operands on stack (expected %i, got %i)\n",
+                       type->returnCount,
+                       context->opdStackLen);
+        return;
     }
-    for(u64 returnIndex = 0; returnIndex < type->returnCount; returnIndex++)
+    else
     {
-        wa_value_type opdType = context->opdStack[context->opdStackLen - type->returnCount + returnIndex].type;
-        wa_value_type expectedType = type->returns[returnIndex];
-        if(opdType != expectedType)
+        for(u64 returnIndex = 0; returnIndex < type->returnCount; returnIndex++)
         {
-            oc_log_error("operand type mismatch for return %i (expected %s, got %s)\n",
-                         returnIndex,
-                         wa_value_type_string(expectedType),
-                         wa_value_type_string(opdType));
-            exit(-1);
+            wa_value_type opdType = context->opdStack[context->opdStackLen - type->returnCount + returnIndex].type;
+            wa_value_type expectedType = type->returns[returnIndex];
+            if(opdType != expectedType)
+            {
+                wa_parse_error(context->module,
+                               "operand type mismatch for return %i (expected %s, got %s)\n",
+                               returnIndex,
+                               wa_value_type_string(expectedType),
+                               wa_value_type_string(opdType));
+                return;
+            }
         }
     }
 
@@ -1039,8 +1697,10 @@ void wa_emit_jump_target(wa_build_context* context, u32 level)
     wa_block* block = wa_control_stack_lookup(context, level);
     if(!block)
     {
-        oc_log_error("block level %u not found\n", level);
-        exit(-1);
+        wa_parse_error(context->module,
+                       "block level %u not found\n",
+                       level);
+        return;
     }
 
     wa_jump_target* target = oc_arena_push_type(&context->checkArena, wa_jump_target);
@@ -1064,12 +1724,12 @@ void wa_compile_branch(wa_build_context* context, wa_instr* instr)
     wa_block* block = wa_control_stack_lookup(context, label);
     if(!block)
     {
-        oc_log_error("block not found for label %u\n", label);
-        exit(-1);
+        wa_parse_error(context->module,
+                       "block level %u not found\n",
+                       label);
+        return;
     }
 
-    //TODO: must also allow branch from else block
-    //      and branch from if block must be patched to end of the _whole_ block, not just if branch...
     if(block->begin->op == WA_INSTR_block
        || block->begin->op == WA_INSTR_if)
     {
@@ -1135,10 +1795,10 @@ void wa_compile_code(oc_arena* arena, wa_module* module)
                     {
                         if(instr->imm[immIndex].index >= func->localCount)
                         {
-                            oc_log_error("invalid local index %u (localCount: %u)\n",
-                                         instr->imm[immIndex].index,
-                                         func->localCount);
-                            exit(-1);
+                            wa_parse_error(module,
+                                           "invalid local index %u (localCount: %u)\n",
+                                           instr->imm[immIndex].index,
+                                           func->localCount);
                         }
                     }
                     break;
@@ -1213,16 +1873,17 @@ void wa_compile_code(oc_arena* arena, wa_module* module)
                 wa_operand_slot slot = wa_operand_stack_pop(&context);
                 if(wa_operand_slot_is_nil(&slot))
                 {
-                    oc_log_error("unbalanced stack\n");
-                    exit(-1);
+                    wa_parse_error(module, "unbalanced stack\n");
+                    goto compile_function_end;
                 }
 
                 if(slot.type != WA_TYPE_I32)
                 {
-                    oc_log_error("operand type mismatch (expected %s, got %s)\n",
-                                 wa_value_type_string(WA_TYPE_I32),
-                                 wa_value_type_string(slot.type));
-                    exit(-1);
+                    wa_parse_error(module,
+                                   "operand type mismatch (expected %s, got %s)\n",
+                                   wa_value_type_string(WA_TYPE_I32),
+                                   wa_value_type_string(slot.type));
+                    goto compile_function_end;
                 }
 
                 wa_emit(&context, (wa_code){ .opcode = WA_INSTR_jump_if_zero });
@@ -1239,16 +1900,17 @@ void wa_compile_code(oc_arena* arena, wa_module* module)
                 wa_operand_slot slot = wa_operand_stack_pop(&context);
                 if(wa_operand_slot_is_nil(&slot))
                 {
-                    oc_log_error("unbalanced stack\n");
-                    exit(-1);
+                    wa_parse_error(module, "unbalanced stack\n");
+                    goto compile_function_end;
                 }
 
                 if(slot.type != WA_TYPE_I32)
                 {
-                    oc_log_error("operand type mismatch (expected %s, got %s)\n",
-                                 wa_value_type_string(WA_TYPE_I32),
-                                 wa_value_type_string(slot.type));
-                    exit(-1);
+                    wa_parse_error(module,
+                                   "operand type mismatch (expected %s, got %s)\n",
+                                   wa_value_type_string(WA_TYPE_I32),
+                                   wa_value_type_string(slot.type));
+                    goto compile_function_end;
                 }
 
                 wa_move_locals_to_registers(&context);
@@ -1266,8 +1928,8 @@ void wa_compile_code(oc_arena* arena, wa_module* module)
                    || ifBlock->begin->op != WA_INSTR_if
                    || ifBlock->begin->elseBranch)
                 {
-                    oc_log_error("unexpected else block\n");
-                    exit(-1);
+                    wa_parse_error(module, "unexpected else block\n");
+                    goto compile_function_end;
                 }
                 wa_func_type* type = ifBlock->begin->blockType;
 
@@ -1300,10 +1962,11 @@ void wa_compile_code(oc_arena* arena, wa_module* module)
 
                 if(context.opdStackLen < paramCount)
                 {
-                    oc_log_error("Not enough arguments on stack (expected: %u, got: %u)\n",
-                                 paramCount,
-                                 context.opdStackLen);
-                    exit(-1);
+                    wa_parse_error(module,
+                                   "Not enough arguments on stack (expected: %u, got: %u)\n",
+                                   paramCount,
+                                   context.opdStackLen);
+                    goto compile_function_end;
                 }
                 context.opdStackLen -= paramCount;
 
@@ -1322,11 +1985,12 @@ void wa_compile_code(oc_arena* arena, wa_module* module)
 
                     if(slot->type != paramType)
                     {
-                        oc_log_error("Type mismatch for argument %u (expected %s, got %s)\n",
-                                     argIndex,
-                                     wa_value_type_string(paramType),
-                                     wa_value_type_string(slot->type));
-                        exit(-1);
+                        wa_parse_error(module,
+                                       "Type mismatch for argument %u (expected %s, got %s)\n",
+                                       argIndex,
+                                       wa_value_type_string(paramType),
+                                       wa_value_type_string(slot->type));
+                        goto compile_function_end;
                     }
                     wa_emit(&context, (wa_code){ .opcode = WA_INSTR_move });
                     wa_emit(&context, (wa_code){ .operand.immI32 = slot->index });
@@ -1352,10 +2016,11 @@ void wa_compile_code(oc_arena* arena, wa_module* module)
                 // Check that there's the correct number / types of values on the stack
                 if(context.opdStackLen < func->type->returnCount)
                 {
-                    oc_log_error("Not enough return values (expected: %i, stack depth: %i)\n",
-                                 func->type->returnCount,
-                                 context.opdStackLen);
-                    exit(-1);
+                    wa_parse_error(module,
+                                   "Not enough return values (expected: %i, stack depth: %i)\n",
+                                   func->type->returnCount,
+                                   context.opdStackLen);
+                    goto compile_function_end;
                 }
 
                 u32 retSlotStart = context.opdStackLen - func->type->returnCount;
@@ -1367,10 +2032,11 @@ void wa_compile_code(oc_arena* arena, wa_module* module)
 
                     if(returnType != expectedType)
                     {
-                        oc_log_error("Argument type doesn't match function signature (expected %s, got %s)\n",
-                                     wa_value_type_string(expectedType),
-                                     wa_value_type_string(returnType));
-                        exit(-1);
+                        wa_parse_error(module,
+                                       "Argument type doesn't match function signature (expected %s, got %s)\n",
+                                       wa_value_type_string(expectedType),
+                                       wa_value_type_string(returnType));
+                        goto compile_function_end;
                     }
 
                     //NOTE store value to return slot
@@ -1406,16 +2072,17 @@ void wa_compile_code(oc_arena* arena, wa_module* module)
                 wa_operand_slot slot = wa_operand_stack_pop(&context);
                 if(wa_operand_slot_is_nil(&slot))
                 {
-                    oc_log_error("unbalanced stack\n");
-                    exit(-1);
+                    wa_parse_error(module, "unbalanced stack\n");
+                    goto compile_function_end;
                 }
 
                 if(slot.type != func->locals[localIndex])
                 {
-                    oc_log_error("type mismatch for local.set instruction (expected %s, got %s)\n",
-                                 wa_value_type_string(func->locals[localIndex]),
-                                 wa_value_type_string(slot.type));
-                    exit(-1);
+                    wa_parse_error(module,
+                                   "type mismatch for local.set instruction (expected %s, got %s)\n",
+                                   wa_value_type_string(func->locals[localIndex]),
+                                   wa_value_type_string(slot.type));
+                    goto compile_function_end;
                 }
 
                 // check if the local was used in the stack and if so save it to a slot
@@ -1471,14 +2138,14 @@ void wa_compile_code(oc_arena* arena, wa_module* module)
                     wa_operand_slot slot = wa_operand_stack_pop(&context);
                     if(wa_operand_slot_is_nil(&slot))
                     {
-                        oc_log_error("unbalanced stack\n");
-                        exit(-1);
+                        wa_parse_error(module, "unbalanced stack\n");
+                        goto compile_function_end;
                     }
 
                     if(slot.type != info->in[opdIndex])
                     {
-                        oc_log_error("operand type mismatch\n");
-                        exit(-1);
+                        wa_parse_error(module, "operand type mismatch\n");
+                        goto compile_function_end;
                     }
 
                     wa_code opd = { .operand = slot.index };
@@ -1506,6 +2173,9 @@ void wa_compile_code(oc_arena* arena, wa_module* module)
         func->codeLen = context.codeLen;
         func->code = oc_arena_push_array(arena, wa_code, context.codeLen);
         memcpy(func->code, context.code, context.codeLen * sizeof(wa_code));
+
+    compile_function_end:
+        continue;
     }
     oc_arena_cleanup(&context.codeArena);
     oc_arena_cleanup(&context.checkArena);
@@ -1544,7 +2214,14 @@ int main(int argc, char** argv)
     oc_arena arena = { 0 };
     oc_arena_init(&arena);
 
-    wa_input input = {};
+    wa_module module = {
+        .arena = &arena,
+    };
+
+    wa_input input = {
+        .module = &module,
+    };
+
     {
         oc_file file = oc_file_open(OC_STR8(modulePath), OC_FILE_ACCESS_READ, OC_FILE_OPEN_NONE);
 
@@ -1554,11 +2231,6 @@ int main(int argc, char** argv)
         oc_file_read(file, input.len, input.contents);
         oc_file_close(file);
     }
-
-    wa_module module = {
-        .len = input.len,
-        .bytes = input.contents,
-    };
 
     wa_parse_sections(&input, &module);
 
@@ -1576,7 +2248,20 @@ int main(int argc, char** argv)
     wa_print_exports(&module);
 
     wa_parse_code(&arena, &input, &module);
+
+    if(!oc_list_empty(module.errors))
+    {
+        wa_module_print_errors(&module);
+        exit(-1);
+    }
+
     wa_compile_code(&arena, &module);
+    if(!oc_list_empty(module.errors))
+    {
+        wa_module_print_errors(&module);
+        exit(-1);
+    }
+
     wa_print_code(&module);
 
     printf("Run:\n");
