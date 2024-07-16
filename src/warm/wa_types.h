@@ -686,10 +686,15 @@ typedef struct wa_export
 
 } wa_export;
 
+typedef struct wa_error_elt
+{
+    oc_list_elt listElt;
+    oc_str8 string;
+} wa_error_elt;
+
 typedef struct wa_module
 {
-    u64 len;
-    char* bytes;
+    oc_arena* arena;
 
     struct
     {
@@ -719,6 +724,7 @@ typedef struct wa_module
     u32 functionCount;
     wa_func* functions;
 
+    oc_list errors;
 } wa_module;
 
 #endif // __WA_TYPES_H_
