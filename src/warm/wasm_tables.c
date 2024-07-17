@@ -1,5 +1,4 @@
 #include "util/macros.h"
-#include "wa_types.h"
 
 static const char* wa_instr_strings[] = {
     [WA_INSTR_INVALID] = "[invalid instruction]",
