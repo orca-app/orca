@@ -884,7 +884,12 @@ static void oc_process_mouse_button(NSEvent* nsEvent, oc_window_data* window, oc
     event.window = oc_window_handle_from_ptr(window);
     event.type = OC_EVENT_MOUSE_WHEEL;
 
-    double factor = [nsEvent hasPreciseScrollingDeltas] ? 0.1 : 1.0;
+    //NOTE: glfw does this, but this seems to incorrectly reduce wheel speed:
+    //          double factor = [nsEvent hasPreciseScrollingDeltas] ? 0.1 : 1.0;
+    // SDL does not multiply wheel delta, but rounds towards infinity if this property is false
+
+    double factor = 1;
+
     event.mouse.x = 0;
     event.mouse.y = 0;
     event.mouse.deltaX = -[nsEvent scrollingDeltaX] * factor;
@@ -1101,6 +1106,40 @@ static const NSRange kEmptyRange = { NSNotFound, 0 };
 
 - (void)doCommandBySelector:(SEL)selector
 {
+}
+
+// drag and drop
+- (NSDragOperation)draggingEntered:(id<NSDraggingInfo>)sender
+{
+    return NSDragOperationGeneric;
+}
+
+- (BOOL)performDragOperation:(id<NSDraggingInfo>)sender
+{
+    NSPasteboard* pasteboard = [sender draggingPasteboard];
+    NSDictionary* options = @{ NSPasteboardURLReadingFileURLsOnlyKey : @YES };
+    NSArray* urls = [pasteboard readObjectsForClasses:@[ [NSURL class] ]
+                                              options:options];
+    const NSUInteger count = [urls count];
+    if(count)
+    {
+        oc_event event = {};
+        event.window = (oc_window){ 0 };
+        event.type = OC_EVENT_PATHDROP;
+
+        oc_arena_scope scratch = oc_scratch_begin();
+
+        for(NSUInteger i = 0; i < count; i++)
+        {
+            oc_str8_list_push(scratch.arena, &event.paths, OC_STR8([urls[i] fileSystemRepresentation]));
+        }
+        oc_queue_event(&event);
+
+        //NOTE: oc_queue_event copies paths to the event queue, so we can clear the arena scope here
+        oc_scratch_end(scratch);
+    }
+
+    return YES;
 }
 
 @end //@implementation OCView
@@ -1379,6 +1418,10 @@ oc_window oc_window_create(oc_rect contentRect, oc_str8 title, oc_window_style s
 
         OCView* view = [[OCView alloc] initWithWindowData:window];
         [view setCanDrawConcurrently:YES];
+
+        //enable drag and drop
+        NSArray<NSPasteboardType>* types = [NSArray arrayWithObject:NSPasteboardTypeFileURL];
+        [view registerForDraggedTypes:types];
 
         [window->osx.nsWindow setContentView:view];
         [window->osx.nsWindow makeFirstResponder:view];
