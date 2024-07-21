@@ -700,6 +700,7 @@ typedef enum
     WA_AST_MAGIC,
     WA_AST_SECTION,
     WA_AST_TYPE,
+    WA_AST_FUNC_ENTRY,
     WA_AST_TYPE_INDEX,
     WA_AST_FUNC_INDEX,
     WA_AST_LIMITS,
@@ -728,6 +729,7 @@ static const char* wa_ast_kind_strings[] = {
     "magic number",
     "section",
     "type",
+    "function entry",
     "type index",
     "func index",
     "limits",
@@ -767,6 +769,7 @@ typedef struct wa_ast
         oc_str8 str8;
         wa_instr* instr;
         wa_func* func;
+        wa_func_type* type;
     };
 
 } wa_ast;
@@ -1426,6 +1429,8 @@ void wa_parse_types(wa_parser* parser, wa_module* module)
         typeAst->parent = vector;
         oc_list_push_back(&vector->children, &typeAst->parentElt);
 
+        typeAst->type = type;
+
         wa_ast* b = wa_read_byte(parser, typeAst, OC_STR8("type prefix"));
 
         if(b->valU8 != 0x60)
@@ -1645,7 +1650,7 @@ void wa_parse_functions(wa_parser* parser, wa_module* module)
         wa_func* func = &module->functions[funcIndex];
 
         wa_ast* typeIndexAst = wa_read_leb128_u32(parser, vector, OC_STR8("type index"));
-        typeIndexAst->kind = WA_AST_TYPE_INDEX;
+        typeIndexAst->kind = WA_AST_FUNC_ENTRY;
         u32 typeIndex = typeIndexAst->valU32;
 
         if(typeIndex >= module->typeCount)
@@ -1951,49 +1956,49 @@ void wa_parse_code(wa_parser* parser, wa_module* module)
                 {
                     case WA_IMM_ZERO:
                     {
-                        wa_read_byte(parser, instrAst, OC_STR8("zero immediate"));
+                        wa_read_byte(parser, instrAst, OC_STR8("zero"));
                     }
                     break;
                     case WA_IMM_I32:
                     {
-                        wa_ast* immAst = wa_read_leb128_i32(parser, instrAst, OC_STR8("i32 immediate"));
+                        wa_ast* immAst = wa_read_leb128_i32(parser, instrAst, OC_STR8("i32"));
                         instr->imm[immIndex].immI32 = immAst->valI32;
                     }
                     break;
                     case WA_IMM_I64:
                     {
-                        wa_ast* immAst = wa_read_leb128_u64(parser, instrAst, OC_STR8("i64 immediate"));
+                        wa_ast* immAst = wa_read_leb128_u64(parser, instrAst, OC_STR8("i64"));
                         instr->imm[immIndex].immI64 = immAst->valI64;
                     }
                     break;
                     case WA_IMM_F32:
                     {
-                        wa_ast* immAst = wa_read_f32(parser, instrAst, OC_STR8("f32 immediate"));
+                        wa_ast* immAst = wa_read_f32(parser, instrAst, OC_STR8("f32"));
                         instr->imm[immIndex].immF32 = immAst->valF32;
                     }
                     break;
                     case WA_IMM_F64:
                     {
-                        wa_ast* immAst = wa_read_f64(parser, instrAst, OC_STR8("f64 immediate"));
+                        wa_ast* immAst = wa_read_f64(parser, instrAst, OC_STR8("f64"));
                         instr->imm[immIndex].immF64 = immAst->valF32;
                     }
                     break;
                     case WA_IMM_VALUE_TYPE:
                     {
-                        wa_ast* immAst = wa_parse_value_type(parser, instrAst, OC_STR8("value type immediate"));
+                        wa_ast* immAst = wa_parse_value_type(parser, instrAst, OC_STR8("value type"));
                         instr->imm[immIndex].valueType = immAst->valU32;
                     }
                     break;
                     case WA_IMM_REF_TYPE:
                     {
-                        wa_ast* immAst = wa_read_byte(parser, instrAst, OC_STR8("ref type immediate"));
+                        wa_ast* immAst = wa_read_byte(parser, instrAst, OC_STR8("ref type"));
                         instr->imm[immIndex].valueType = immAst->valU8;
                     }
                     break;
 
                     case WA_IMM_LOCAL_INDEX:
                     {
-                        wa_ast* immAst = wa_read_leb128_u32(parser, instrAst, OC_STR8("index immediate"));
+                        wa_ast* immAst = wa_read_leb128_u32(parser, instrAst, OC_STR8("index"));
                         instr->imm[immIndex].index = immAst->valU32;
 
                         if(immAst->valU32 >= func->localCount)
@@ -2031,7 +2036,7 @@ void wa_parse_code(wa_parser* parser, wa_module* module)
                     case WA_IMM_DATA_INDEX:
                     case WA_IMM_LABEL:
                     {
-                        wa_ast* immAst = wa_read_leb128_u32(parser, instrAst, OC_STR8("index immediate"));
+                        wa_ast* immAst = wa_read_leb128_u32(parser, instrAst, OC_STR8("index"));
                         instr->imm[immIndex].index = immAst->valU32;
                     }
                     break;
@@ -2042,8 +2047,8 @@ void wa_parse_code(wa_parser* parser, wa_module* module)
                         memArgAst->parent = instrAst;
                         oc_list_push_back(&instrAst->children, &memArgAst->parentElt);
 
-                        wa_ast* alignAst = wa_read_leb128_u32(parser, memArgAst, OC_STR8("memory argument immediate"));
-                        wa_ast* offsetAst = wa_read_leb128_u32(parser, memArgAst, OC_STR8("memory argument immediate"));
+                        wa_ast* alignAst = wa_read_leb128_u32(parser, memArgAst, OC_STR8("mem arg"));
+                        wa_ast* offsetAst = wa_read_leb128_u32(parser, memArgAst, OC_STR8("mem arg"));
 
                         instr->imm[immIndex].memArg.align = alignAst->valU32;
                         instr->imm[immIndex].memArg.offset = offsetAst->valU32;
@@ -2053,7 +2058,7 @@ void wa_parse_code(wa_parser* parser, wa_module* module)
                     break;
                     case WA_IMM_LANE_INDEX:
                     {
-                        wa_ast* immAst = wa_read_byte(parser, instrAst, OC_STR8("lane index immediate"));
+                        wa_ast* immAst = wa_read_byte(parser, instrAst, OC_STR8("lane index"));
                         instr->imm[immIndex].laneIndex = immAst->valU8;
                     }
                     break;
@@ -3530,6 +3535,41 @@ oc_str8 find_function_export_name(app_data* app, u32 funcIndex)
     return (res);
 }
 
+void push_func_type_str8_list(oc_arena* arena, oc_str8_list* list, wa_func_type* type)
+{
+    oc_str8_list_push(arena, list, OC_STR8("("));
+    for(u32 paramIndex = 0; paramIndex < type->paramCount; paramIndex++)
+    {
+        oc_str8_list_push(arena, list, OC_STR8(wa_value_type_string(type->params[paramIndex])));
+        if(paramIndex < type->paramCount - 1)
+        {
+            oc_str8_list_push(arena, list, OC_STR8(" "));
+        }
+    }
+    oc_str8_list_push(arena, list, OC_STR8(") -> ("));
+    for(u32 returnIndex = 0; returnIndex < type->returnCount; returnIndex++)
+    {
+        oc_str8_list_push(arena, list, OC_STR8(wa_value_type_string(type->returns[returnIndex])));
+        if(returnIndex < type->returnCount - 1)
+        {
+            oc_str8_list_push(arena, list, OC_STR8(" "));
+        }
+    }
+    oc_str8_list_push(arena, list, OC_STR8(")"));
+}
+
+oc_str8 push_func_type_str8(oc_arena* arena, wa_func_type* type)
+{
+    oc_arena_scope scratch = oc_scratch_begin_next(arena);
+
+    oc_str8_list list = { 0 };
+    push_func_type_str8_list(scratch.arena, &list, type);
+    oc_str8 str = oc_str8_list_join(arena, list);
+    oc_scratch_end(scratch);
+
+    return (str);
+}
+
 wa_box* build_ast_boxes(oc_arena* arena, app_data* app, wa_ast* ast, oc_vec2 pos)
 {
     wa_box* box = oc_arena_push_type(arena, wa_box);
@@ -3559,8 +3599,9 @@ wa_box* build_ast_boxes(oc_arena* arena, app_data* app, wa_ast* ast, oc_vec2 pos
         oc_str8 name = find_function_export_name(app, funcIndex);
         if(name.len)
         {
-            oc_str8_list_pushf(scratch.arena, &strList, "function \"%.*s\"", oc_str8_ip(name));
+            oc_str8_list_pushf(scratch.arena, &strList, "function %.*s ", oc_str8_ip(name));
         }
+        push_func_type_str8_list(scratch.arena, &strList, func->type);
     }
     else if(ast->kind == WA_AST_FUNC_INDEX)
     {
@@ -3569,6 +3610,15 @@ wa_box* build_ast_boxes(oc_arena* arena, app_data* app, wa_ast* ast, oc_vec2 pos
         {
             oc_str8_list_pushf(scratch.arena, &strList, "\"%.*s\"", oc_str8_ip(name));
         }
+    }
+    else if(ast->kind == WA_AST_TYPE)
+    {
+        wa_func_type* type = ast->type;
+        push_func_type_str8_list(scratch.arena, &strList, type);
+    }
+    else if(ast->kind == WA_AST_INSTR)
+    {
+        oc_str8_list_pushf(scratch.arena, &strList, "%s", wa_instr_strings[ast->instr->op]);
     }
 
     if(oc_list_empty(strList.list))
@@ -3619,15 +3669,10 @@ wa_box* build_ast_boxes(oc_arena* arena, app_data* app, wa_ast* ast, oc_vec2 pos
             oc_str8_list_pushf(scratch.arena, &strList, ": %s", wa_value_type_string(ast->valU32));
             break;
 
+        case WA_AST_FUNC_ENTRY:
         case WA_AST_TYPE_INDEX:
             oc_str8_list_pushf(scratch.arena, &strList, ": %i", (i32)ast->valU32);
             break;
-
-        case WA_AST_INSTR:
-        {
-            oc_str8_list_pushf(scratch.arena, &strList, ": %s", wa_instr_strings[ast->instr->op]);
-        }
-        break;
 
         case WA_AST_MAGIC:
         {
@@ -3644,10 +3689,13 @@ wa_box* build_ast_boxes(oc_arena* arena, app_data* app, wa_ast* ast, oc_vec2 pos
     if(oc_list_empty(ast->children))
     {
         oc_str8_list bytesList = { 0 };
-        oc_str8_list_pushf(scratch.arena, &bytesList, "0x");
         for(u64 i = 0; i < ast->loc.len; i++)
         {
-            oc_str8_list_pushf(scratch.arena, &bytesList, "%02x", app->contents.ptr[ast->loc.start + i]);
+            oc_str8_list_pushf(scratch.arena, &bytesList, "0x%02hhx", app->contents.ptr[ast->loc.start + i]);
+            if(i < ast->loc.len - 1)
+            {
+                oc_str8_list_pushf(scratch.arena, &bytesList, " ");
+            }
         }
 
         box->bytesString = oc_str8_list_join(arena, bytesList);
@@ -3772,7 +3820,7 @@ void build_box_ui(app_data* app, wa_box* box)
                          },
                          styleMask);
 
-        oc_ui_box_make_str8(box->string, OC_UI_FLAG_DRAW_TEXT);
+        oc_ui_box* uiBox = oc_ui_box_make_str8(box->string, OC_UI_FLAG_DRAW_TEXT);
 
         if(box->ast && oc_list_empty(box->ast->children))
         {
@@ -3788,6 +3836,46 @@ void build_box_ui(app_data* app, wa_box* box)
                              styleMask);
 
             oc_ui_box_make_str8(box->bytesString, OC_UI_FLAG_DRAW_TEXT);
+        }
+
+        if(oc_ui_box_sig(uiBox).hovering)
+        {
+            if(box->ast && (box->ast->kind == WA_AST_TYPE_INDEX || box->ast->kind == WA_AST_FUNC_ENTRY))
+            {
+                wa_func_type* type = &app->module->types[box->ast->valU32];
+
+                oc_arena_scope scratch = oc_scratch_begin();
+                oc_str8_list list = { 0 };
+
+                if(box->ast->kind == WA_AST_FUNC_ENTRY)
+                {
+                    //TODO: fix this hack
+                    u32 funcIndex = 0;
+                    oc_list_for(box->ast->parent->children, child, wa_ast, parentElt)
+                    {
+                        if(child == box->ast)
+                        {
+                            break;
+                        }
+                        funcIndex++;
+                    }
+                    funcIndex--;
+
+                    oc_str8 name = find_function_export_name(app, funcIndex);
+                    if(name.len)
+                    {
+                        oc_str8_list_push(scratch.arena, &list, name);
+                        oc_str8_list_push(scratch.arena, &list, OC_STR8(" "));
+                    }
+                }
+
+                push_func_type_str8_list(scratch.arena, &list, type);
+                oc_str8 str = oc_str8_list_join(scratch.arena, list);
+
+                oc_ui_tooltip_str8(str);
+
+                oc_scratch_end(scratch);
+            }
         }
     }
 
@@ -3907,7 +3995,10 @@ void load_module(app_data* app, oc_str8 modulePath)
     {
         wa_ast_print(app->module->root, app->contents);
         wa_print_code(app->module);
+    }
 
+    if(app->module->root)
+    {
         app->rootBox = build_ast_boxes(app->moduleArena, app, app->module->root, (oc_vec2){ BOX_MARGIN_W, BOX_MARGIN_H });
     }
 }
