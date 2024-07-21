@@ -987,7 +987,10 @@ static const wa_instr_info wa_instr_infos[] = {
         .opdCount = 2,
     },
     [WA_INSTR_local_tee] = {},
-    [WA_INSTR_global_get] = {},
+    [WA_INSTR_global_get] = {
+        .immCount = 1,
+        .imm = { WA_IMM_GLOBAL_INDEX },
+    },
     [WA_INSTR_global_set] = {},
     [WA_INSTR_table_get] = {},
     [WA_INSTR_table_set] = {},
@@ -1005,7 +1008,10 @@ static const wa_instr_info wa_instr_infos[] = {
     [WA_INSTR_i64_load16_u] = {},
     [WA_INSTR_i64_load32_s] = {},
     [WA_INSTR_i64_load32_u] = {},
-    [WA_INSTR_i32_store] = {},
+    [WA_INSTR_i32_store] = {
+        .immCount = 1,
+        .imm = { WA_IMM_MEM_ARG },
+    },
     [WA_INSTR_i64_store] = {},
     [WA_INSTR_f32_store] = {},
     [WA_INSTR_f64_store] = {},
