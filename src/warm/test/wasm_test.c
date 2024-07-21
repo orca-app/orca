@@ -1,10 +1,10 @@
-/*
+
 int foo(int x)
 {
-
+    return 42;
 }
-*/
+
 int start()
 {
-    return 42;
+    return foo(3);
 }
