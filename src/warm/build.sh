@@ -4,10 +4,9 @@ if [ ! -d bin ] ; then
 fi
 
 
-clang -g -I.. -I../ext -I../ext/angle/include -L../../build/bin -lorca -o bin/warm main.c
+clang -g -I.. -I../ext -L../../build/bin -lorca -o bin/warm main.c
 
 cp ../../build/bin/liborca.dylib ./bin
-cp ../../build/bin/libwebgpu.dylib ./bin
 
 install_name_tool -add_rpath '@executable_path/' bin/warm
 
@@ -18,3 +17,4 @@ wasm2wat test/test.wasm > test/test.wat
 
 wat2wasm test/if.wat -o test/if.wasm
 wat2wasm test/block.wat -o test/block.wasm
+wat2wasm test/import.wat -o test/import.wasm

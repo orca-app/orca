@@ -1,9 +1,9 @@
 #include <stdio.h>
 #include <errno.h>
-#include <math.h>
 
-#define OC_NO_APP_LAYER 1
 #include "orca.h"
+
+//#include "wa_types.h"
 
 typedef enum wa_instr_op
 {
@@ -556,7 +556,7 @@ typedef enum wa_value_type
 
 } wa_value_type;
 
-typedef union wa_immediate
+typedef union wa_instr_immediate
 {
     i32 immI32;
     i64 immI64;
@@ -573,16 +573,7 @@ typedef union wa_immediate
 
     u8 laneIndex;
 
-} wa_immediate;
-
-typedef union wa_value
-{
-    i32 valI32;
-    i64 valI64;
-    f32 valF32;
-    f64 valF64;
-    //TODO v128, funcref, externref...
-} wa_value;
+} wa_instr_immediate;
 
 enum
 {
@@ -607,7 +598,7 @@ typedef struct wa_instr
     oc_list_elt listElt;
 
     wa_instr_op op;
-    wa_immediate imm[WA_INSTR_IMM_MAX_COUNT];
+    wa_instr_immediate imm[WA_INSTR_IMM_MAX_COUNT];
 
     wa_func_type* blockType;
     wa_instr* elseBranch;
@@ -619,10 +610,8 @@ typedef struct wa_instr
 typedef union wa_code
 {
     wa_instr_op opcode;
-    wa_immediate operand; //this should be wa_operand??
+    wa_instr_immediate operand; //this should be wa_operand??
 } wa_code;
-
-typedef void (*wa_host_proc)(wa_value* args, wa_value* returns); //TODO: complete with memory / etc
 
 typedef struct wa_func
 {
@@ -635,8 +624,6 @@ typedef struct wa_func
 
     u32 codeLen;
     wa_code* code;
-
-    wa_host_proc proc;
 
 } wa_func;
 
@@ -824,7 +811,6 @@ typedef struct wa_module
     u32 exportCount;
     wa_export* exports;
 
-    u32 functionImportCount;
     u32 functionCount;
     wa_func* functions;
 
@@ -926,7 +912,7 @@ const char* wa_value_type_string(wa_value_type t)
 // errors
 //-------------------------------------------------------------------------
 
-typedef struct wa_module_error
+typedef struct wa_error
 {
     oc_list_elt moduleElt;
     oc_list_elt astElt;
@@ -934,11 +920,11 @@ typedef struct wa_module_error
     wa_ast* ast;
     bool blockEnd;
     oc_str8 string;
-} wa_module_error;
+} wa_error;
 
 void wa_parse_error(wa_parser* parser, wa_ast* ast, const char* fmt, ...)
 {
-    wa_module_error* error = oc_arena_push_type(parser->arena, wa_module_error);
+    wa_error* error = oc_arena_push_type(parser->arena, wa_error);
 
     va_list ap;
     va_start(ap, fmt);
@@ -953,7 +939,7 @@ void wa_parse_error(wa_parser* parser, wa_ast* ast, const char* fmt, ...)
 
 void wa_module_print_errors(wa_module* module)
 {
-    oc_list_for(module->errors, err, wa_module_error, moduleElt)
+    oc_list_for(module->errors, err, wa_error, moduleElt)
     {
         printf("%.*s", oc_str8_ip(err->string));
     }
@@ -1583,7 +1569,6 @@ void wa_parse_imports(wa_parser* parser, wa_module* module)
                                    module->functionCount,
                                    import->index);
                 }
-                module->functionImportCount++;
             }
             break;
             case WA_IMPORT_TABLE:
@@ -1657,28 +1642,12 @@ void wa_parse_functions(wa_parser* parser, wa_module* module)
     oc_list_push_back(&section->children, &vector->parentElt);
 
     wa_ast* functionCountAst = wa_read_leb128_u32(parser, vector, OC_STR8("count"));
-
     module->functionCount = functionCountAst->valU32;
-    module->functions = oc_arena_push_array(parser->arena, wa_func, module->functionImportCount + module->functionCount);
+    module->functions = oc_arena_push_array(parser->arena, wa_func, module->functionCount);
 
-    //NOTE: re-read imports, because the format is kinda stupid -- they should have included imports in the function section
-    memset(module->functions, 0, module->functionImportCount * sizeof(wa_func));
-    u32 funcImportIndex = 0;
-    for(u32 importIndex = 0; importIndex < module->importCount; importIndex++)
-    {
-        wa_import* import = &module->imports[importIndex];
-        if(import->kind == WA_IMPORT_FUNCTION)
-        {
-            wa_func* func = &module->functions[funcImportIndex];
-            func->type = &module->types[import->index];
-            funcImportIndex++;
-        }
-    }
-
-    //NOTE: read non-import functions
     for(u32 funcIndex = 0; funcIndex < module->functionCount; funcIndex++)
     {
-        wa_func* func = &module->functions[module->functionImportCount + funcIndex];
+        wa_func* func = &module->functions[funcIndex];
 
         wa_ast* typeIndexAst = wa_read_leb128_u32(parser, vector, OC_STR8("type index"));
         typeIndexAst->kind = WA_AST_FUNC_ENTRY;
@@ -1696,7 +1665,6 @@ void wa_parse_functions(wa_parser* parser, wa_module* module)
             func->type = &module->types[typeIndex];
         }
     }
-    module->functionCount += module->functionImportCount;
 
     vector->loc.len = parser->offset - vector->loc.start;
     section->loc.len = parser->offset - section->loc.start;
@@ -1823,17 +1791,17 @@ void wa_parse_code(wa_parser* parser, wa_module* module)
     wa_ast* functionCountAst = wa_read_leb128_u32(parser, vector, OC_STR8("count"));
     u32 functionCount = functionCountAst->valU32;
 
-    if(functionCount != module->functionCount - module->functionImportCount)
+    if(functionCount != module->functionCount)
     {
         wa_parse_error(parser,
                        functionCountAst,
                        "Function count mismatch (function section: %i, code section: %i\n",
-                       module->functionCount - module->functionImportCount,
+                       module->functionCount,
                        functionCount);
     }
-    functionCount = oc_min(functionCount + module->functionImportCount, module->functionCount);
+    functionCount = oc_min(functionCount, module->functionCount);
 
-    for(u32 funcIndex = module->functionImportCount; funcIndex < functionCount; funcIndex++)
+    for(u32 funcIndex = 0; funcIndex < functionCount; funcIndex++)
     {
         wa_func* func = &module->functions[funcIndex];
 
@@ -2249,8 +2217,8 @@ typedef struct wa_build_context
 
 void wa_compile_error(wa_build_context* context, wa_ast* ast, const char* fmt, ...)
 {
-    wa_module_error* error = oc_arena_push_type(context->arena, wa_module_error);
-    memset(error, 0, sizeof(wa_module_error));
+    wa_error* error = oc_arena_push_type(context->arena, wa_error);
+    memset(error, 0, sizeof(wa_error));
 
     va_list ap;
     va_start(ap, fmt);
@@ -2265,8 +2233,8 @@ void wa_compile_error(wa_build_context* context, wa_ast* ast, const char* fmt, .
 
 void wa_compile_error_block_end(wa_build_context* context, wa_ast* ast, const char* fmt, ...)
 {
-    wa_module_error* error = oc_arena_push_type(context->arena, wa_module_error);
-    memset(error, 0, sizeof(wa_module_error));
+    wa_error* error = oc_arena_push_type(context->arena, wa_error);
+    memset(error, 0, sizeof(wa_error));
 
     va_list ap;
     va_start(ap, fmt);
@@ -2781,7 +2749,7 @@ void wa_compile_code(oc_arena* arena, wa_module* module)
     context.codeCap = 4;
     context.code = oc_arena_push_array(&context.codeArena, wa_code, 4);
 
-    for(u32 funcIndex = module->functionImportCount; funcIndex < module->functionCount; funcIndex++)
+    for(u32 funcIndex = 0; funcIndex < module->functionCount; funcIndex++)
     {
         wa_func* func = &module->functions[funcIndex];
 
@@ -3126,7 +3094,7 @@ void wa_compile_code(oc_arena* arena, wa_module* module)
                     };
                     wa_operand_stack_push(&context, s);
 
-                    wa_emit(&context, (wa_code){ .operand = { .index = s.index } });
+                    wa_emit(&context, (wa_code){ .operand = s.index });
                 }
             }
         }
@@ -3185,6 +3153,103 @@ wa_module* wa_create_module(oc_arena* arena, oc_str8 contents)
     }
 
     return (module);
+}
+
+//-------------------------------------------------------------------------
+// interpreter
+//-------------------------------------------------------------------------
+
+typedef struct wa_control
+{
+    wa_code* returnPC;
+    wa_instr_immediate* returnFrame;
+} wa_control;
+
+void wa_interpret_func(wa_module* module, wa_func* func)
+{
+    wa_control controlStack[1024] = {};
+    u32 controlStackTop = 0;
+
+    wa_instr_immediate localsBuffer[1024];
+    wa_instr_immediate* locals = localsBuffer;
+    wa_code* code = func->code;
+    wa_code* pc = code;
+
+    while(1)
+    {
+        wa_instr_op opcode = pc->opcode;
+        pc++;
+
+        switch(opcode)
+        {
+            case WA_INSTR_i32_const:
+            {
+                locals[pc[1].operand.immI64].immI32 = pc[0].operand.immI32;
+                pc += 2;
+            }
+            break;
+            case WA_INSTR_move:
+            {
+                locals[pc[1].operand.immI64].immI64 = locals[pc[0].operand.immI64].immI64;
+                pc += 2;
+            }
+            break;
+
+            case WA_INSTR_jump:
+            {
+                pc += pc[0].operand.immI64;
+            }
+            break;
+
+            case WA_INSTR_jump_if_zero:
+            {
+                if(locals[pc[1].operand.immI64].immI64 == 0)
+                {
+                    pc += pc[0].operand.immI64;
+                }
+                else
+                {
+                    pc += 2;
+                }
+            }
+            break;
+
+            case WA_INSTR_call:
+            {
+                controlStack[controlStackTop] = (wa_control){
+                    .returnPC = pc + 2,
+                    .returnFrame = locals,
+                };
+                controlStackTop++;
+                wa_func* callee = &module->functions[pc[0].operand.immI64];
+                locals += pc[1].operand.immI64;
+                pc = callee->code;
+            }
+            break;
+            case WA_INSTR_return:
+            {
+                if(!controlStackTop)
+                {
+                    goto end;
+                }
+                controlStackTop--;
+                wa_control control = controlStack[controlStackTop];
+                locals = control.returnFrame;
+                pc = control.returnPC;
+            }
+            break;
+            case WA_INSTR_end:
+            {
+                goto end;
+            }
+            break;
+
+            default:
+                OC_ASSERT(0, "unreachable, op = %s", wa_instr_strings[opcode]);
+        }
+    }
+end:
+    printf("result: %lli\n", locals[0].immI64);
 }
 
 //-------------------------------------------------------------------------
@@ -3374,382 +3439,642 @@ void wa_print_code(wa_module* module)
 }
 
 //-------------------------------------------------------------------------
-// interpreter
-//-------------------------------------------------------------------------
-
-void wa_bind(wa_module* module, oc_str8 name, wa_func_type* type, wa_host_proc proc)
-{
-    u32 funcIndex = 0;
-    for(u32 importIndex = 0; importIndex < module->importCount; importIndex++)
-    {
-        wa_import* import = &module->imports[importIndex];
-
-        if(import->kind == WA_IMPORT_FUNCTION)
-        {
-            if(!oc_str8_cmp(name, import->importName))
-            {
-                wa_func* func = &module->functions[funcIndex];
-                func->proc = proc;
-                //TODO: check type
-                break;
-            }
-            funcIndex++;
-        }
-    }
-    //TODO return status
-}
-
-wa_func* wa_find_function(wa_module* module, oc_str8 name)
-{
-    wa_func* func = 0;
-    for(u32 exportIndex = 0; exportIndex < module->exportCount; exportIndex++)
-    {
-        wa_export* export = &module->exports[exportIndex];
-        if(export->kind == WA_EXPORT_FUNCTION && !oc_str8_cmp(export->name, name))
-        {
-            func = &module->functions[export->index];
-            break;
-        }
-    }
-    return (func);
-}
-
-typedef struct wa_control
-{
-    wa_code* returnPC;
-    wa_value* returnFrame;
-} wa_control;
-
-void wa_interpret_func(wa_module* module,
-                       wa_func* func,
-                       u32 argCount,
-                       wa_value* args,
-                       u32 retCount,
-                       wa_value* returns)
-{
-    wa_control controlStack[1024] = {};
-    u32 controlStackTop = 0;
-
-    wa_value localsBuffer[1024];
-    wa_value* locals = localsBuffer;
-    wa_code* code = func->code;
-    wa_code* pc = code;
-
-    //TODO check func type
-    memcpy(locals, args, argCount * sizeof(wa_immediate));
-
-    while(1)
-    {
-        wa_instr_op opcode = pc->opcode;
-        pc++;
-
-        switch(opcode)
-        {
-            case WA_INSTR_i32_const:
-            {
-                locals[pc[1].operand.immI32].valI32 = pc[0].operand.immI32;
-                pc += 2;
-            }
-            break;
-            case WA_INSTR_move:
-            {
-                locals[pc[1].operand.immI32].valI64 = locals[pc[0].operand.immI32].valI64;
-                pc += 2;
-            }
-            break;
-
-            case WA_INSTR_jump:
-            {
-                pc += pc[0].operand.immI64;
-            }
-            break;
-
-            case WA_INSTR_jump_if_zero:
-            {
-                if(locals[pc[1].operand.immI32].valI64 == 0)
-                {
-                    pc += pc[0].operand.immI64;
-                }
-                else
-                {
-                    pc += 2;
-                }
-            }
-            break;
-
-            case WA_INSTR_call:
-            {
-                wa_func* callee = &module->functions[pc[0].operand.immI64];
-
-                if(callee->code)
-                {
-                    controlStack[controlStackTop] = (wa_control){
-                        .returnPC = pc + 2,
-                        .returnFrame = locals,
-                    };
-                    controlStackTop++;
-
-                    locals += pc[1].operand.immI64;
-                    pc = callee->code;
-                }
-                else
-                {
-                    wa_value* saveLocals = locals;
-                    locals += pc[1].operand.immI64;
-                    callee->proc(locals, locals);
-                    pc += 2;
-                    locals = saveLocals;
-                }
-            }
-            break;
-            case WA_INSTR_return:
-            {
-                if(!controlStackTop)
-                {
-                    goto end;
-                }
-                controlStackTop--;
-                wa_control control = controlStack[controlStackTop];
-                locals = control.returnFrame;
-                pc = control.returnPC;
-            }
-            break;
-            case WA_INSTR_end:
-            {
-                goto end;
-            }
-            break;
-
-            default:
-                OC_ASSERT(0, "unreachable, op = %s", wa_instr_strings[opcode]);
-        }
-    }
-end:
-    for(u32 retIndex = 0; retIndex < retCount; retIndex++)
-    {
-        returns[retIndex] = locals[retIndex];
-    }
-}
-
-//-------------------------------------------------------------------------
 // main
 //-------------------------------------------------------------------------
 
-typedef struct wa_typed_value
+oc_font font_create(const char* resourcePath)
 {
-    wa_value_type type;
-    wa_value value;
+    //NOTE(martin): create default fonts
+    oc_arena_scope scratch = oc_scratch_begin();
+    oc_str8 fontPath = oc_path_executable_relative(scratch.arena, OC_STR8(resourcePath));
 
-} wa_typed_value;
+    oc_font font = oc_font_nil();
 
-wa_typed_value parse_func_argument(oc_str8 string)
-{
-    wa_typed_value res = { 0 };
-
-    u64 offset = 0;
-    u64 numberU64 = 0;
-    bool minus = false;
-
-    if(string.len && string.ptr[0] == '-')
+    FILE* fontFile = fopen(fontPath.ptr, "r");
+    if(!fontFile)
     {
-        minus = true;
-        offset++;
-    }
-
-    while(offset < string.len)
-    {
-        char c = string.ptr[offset];
-        if(c >= '0' && c <= '9')
-        {
-            numberU64 *= 10;
-            numberU64 += c - '0';
-            offset += 1;
-        }
-        else
-        {
-            break;
-        }
-    }
-
-    f64 numberF64;
-    if(offset < string.len
-       && string.ptr[offset] == '.')
-    {
-        offset += 1;
-
-        u64 decimals = 0;
-        u64 decimalCount = 0;
-
-        while(offset < string.len)
-        {
-            char c = string.ptr[offset];
-            if(c >= '0' && c <= '9')
-            {
-                decimals *= 10;
-                decimals += c - '0';
-                offset += 1;
-                decimalCount += 1;
-            }
-            else
-            {
-                break;
-            }
-        }
-        if(offset < string.len && string.ptr[offset] == 'L')
-        {
-            res.type = WA_TYPE_F64;
-            res.value.valF64 = (f64)numberU64 + (f64)decimals / pow(10, decimalCount);
-            if(minus)
-            {
-                res.value.valF64 = -res.value.valF64;
-            }
-        }
-        else
-        {
-            res.type = WA_TYPE_F32;
-            res.value.valF32 = (f64)numberU64 + (f64)decimals / pow(10, decimalCount);
-            if(minus)
-            {
-                res.value.valF32 = -res.value.valF32;
-            }
-        }
+        oc_log_error("Could not load font file '%s': %s\n", fontPath.ptr, strerror(errno));
     }
     else
     {
-        if(offset < string.len && string.ptr[offset] == 'L')
+        char* fontData = 0;
+        fseek(fontFile, 0, SEEK_END);
+        u32 fontDataSize = ftell(fontFile);
+        rewind(fontFile);
+        fontData = malloc(fontDataSize);
+        fread(fontData, 1, fontDataSize, fontFile);
+        fclose(fontFile);
+
+        oc_unicode_range ranges[5] = { OC_UNICODE_BASIC_LATIN,
+                                       OC_UNICODE_C1_CONTROLS_AND_LATIN_1_SUPPLEMENT,
+                                       OC_UNICODE_LATIN_EXTENDED_A,
+                                       OC_UNICODE_LATIN_EXTENDED_B,
+                                       OC_UNICODE_SPECIALS };
+
+        font = oc_font_create_from_memory(oc_str8_from_buffer(fontDataSize, fontData), 5, ranges);
+
+        free(fontData);
+    }
+    oc_scratch_end(scratch);
+    return (font);
+}
+
+typedef struct wa_box
+{
+    oc_list_elt listElt;
+    oc_list children;
+
+    wa_ast* ast;
+    oc_str8 string;
+    oc_str8 keyString;
+    oc_str8 addrString;
+    oc_str8 bytesString;
+
+    oc_vec2 textOffset;
+    oc_rect rect;
+    oc_rect childrenRect;
+    oc_rect addrRect;
+
+} wa_box;
+
+typedef struct app_data
+{
+    oc_window window;
+    oc_canvas_renderer renderer;
+    oc_surface surface;
+    oc_canvas_context canvas;
+    oc_font font;
+    oc_ui_context ui;
+
+    f32 fontSize;
+    f32 indentW;
+
+    oc_str8 contents;
+    oc_arena* moduleArena;
+    wa_module* module;
+    wa_box* rootBox;
+
+} app_data;
+
+static const f32 BOX_MARGIN_W = 2,
+                 BOX_MARGIN_H = 2,
+                 BOX_LINE_GAP = 4;
+
+oc_str8 find_function_export_name(app_data* app, u32 funcIndex)
+{
+    oc_str8 res = { 0 };
+    for(int exportIndex = 0; exportIndex < app->module->exportCount; exportIndex++)
+    {
+        wa_export* export = &app->module->exports[exportIndex];
+        if(export->kind == WA_EXPORT_FUNCTION && export->index == funcIndex)
         {
-            res.type = WA_TYPE_I64;
-            res.value.valI64 = numberU64;
-            if(minus)
-            {
-                res.value.valI64 = -res.value.valI64;
-            }
-        }
-        else
-        {
-            res.type = WA_TYPE_I32;
-            res.value.valI32 = numberU64;
-            if(minus)
-            {
-                res.value.valI32 = -res.value.valI32;
-            }
+            res = export->name;
+            break;
         }
     }
     return (res);
 }
 
-void test_proc(wa_value* args, wa_value* returns)
+void push_func_type_str8_list(oc_arena* arena, oc_str8_list* list, wa_func_type* type)
 {
-    printf("hello! %i\n", args[0].valI32);
-    returns[0].valI32 = 55;
+    oc_str8_list_push(arena, list, OC_STR8("("));
+    for(u32 paramIndex = 0; paramIndex < type->paramCount; paramIndex++)
+    {
+        oc_str8_list_push(arena, list, OC_STR8(wa_value_type_string(type->params[paramIndex])));
+        if(paramIndex < type->paramCount - 1)
+        {
+            oc_str8_list_push(arena, list, OC_STR8(" "));
+        }
+    }
+    oc_str8_list_push(arena, list, OC_STR8(") -> ("));
+    for(u32 returnIndex = 0; returnIndex < type->returnCount; returnIndex++)
+    {
+        oc_str8_list_push(arena, list, OC_STR8(wa_value_type_string(type->returns[returnIndex])));
+        if(returnIndex < type->returnCount - 1)
+        {
+            oc_str8_list_push(arena, list, OC_STR8(" "));
+        }
+    }
+    oc_str8_list_push(arena, list, OC_STR8(")"));
+}
+
+oc_str8 push_func_type_str8(oc_arena* arena, wa_func_type* type)
+{
+    oc_arena_scope scratch = oc_scratch_begin_next(arena);
+
+    oc_str8_list list = { 0 };
+    push_func_type_str8_list(scratch.arena, &list, type);
+    oc_str8 str = oc_str8_list_join(arena, list);
+    oc_scratch_end(scratch);
+
+    return (str);
+}
+
+wa_box* build_ast_boxes(oc_arena* arena, app_data* app, wa_ast* ast, oc_vec2 pos)
+{
+    wa_box* box = oc_arena_push_type(arena, wa_box);
+    memset(box, 0, sizeof(wa_box));
+
+    box->ast = ast;
+    box->keyString = oc_str8_pushf(arena, "%p", ast);
+
+    box->addrString = oc_str8_pushf(arena, "0x%08x", ast->loc.start);
+    {
+        oc_text_metrics metrics = oc_font_text_metrics(app->font, app->fontSize, box->addrString);
+        box->addrRect = (oc_rect){
+            BOX_MARGIN_W,
+            pos.y,
+            metrics.logical.w + 2 * BOX_MARGIN_W,
+            metrics.logical.h + 2 * BOX_MARGIN_H,
+        };
+    }
+
+    oc_arena_scope scratch = oc_scratch_begin_next(arena);
+    oc_str8_list strList = { 0 };
+
+    if(ast->kind == WA_AST_FUNC)
+    {
+        wa_func* func = ast->func;
+        u32 funcIndex = func - app->module->functions;
+        oc_str8 name = find_function_export_name(app, funcIndex);
+        if(name.len)
+        {
+            oc_str8_list_pushf(scratch.arena, &strList, "function %.*s ", oc_str8_ip(name));
+        }
+        push_func_type_str8_list(scratch.arena, &strList, func->type);
+    }
+    else if(ast->kind == WA_AST_FUNC_INDEX)
+    {
+        oc_str8 name = find_function_export_name(app, ast->valU32);
+        if(name.len)
+        {
+            oc_str8_list_pushf(scratch.arena, &strList, "\"%.*s\"", oc_str8_ip(name));
+        }
+    }
+    else if(ast->kind == WA_AST_TYPE)
+    {
+        wa_func_type* type = ast->type;
+        push_func_type_str8_list(scratch.arena, &strList, type);
+    }
+    else if(ast->kind == WA_AST_INSTR)
+    {
+        oc_str8_list_pushf(scratch.arena, &strList, "%s", wa_instr_strings[ast->instr->op]);
+    }
+
+    if(oc_list_empty(strList.list))
+    {
+        if(ast->label.len)
+        {
+            oc_str8_list_pushf(scratch.arena,
+                               &strList,
+                               "%.*s",
+                               oc_str8_ip(ast->label));
+        }
+        else
+        {
+            oc_str8_list_pushf(scratch.arena,
+                               &strList,
+                               "[%s]",
+                               wa_ast_kind_strings[ast->kind]);
+        }
+    }
+    switch(ast->kind)
+    {
+        case WA_AST_U8:
+            oc_str8_list_pushf(scratch.arena, &strList, ": 0x%.2hhx", ast->valU8);
+            break;
+        case WA_AST_U32:
+            oc_str8_list_pushf(scratch.arena, &strList, ": %u", ast->valU32);
+            break;
+        case WA_AST_I32:
+            oc_str8_list_pushf(scratch.arena, &strList, ": %i", ast->valI32);
+            break;
+        case WA_AST_U64:
+            oc_str8_list_pushf(scratch.arena, &strList, ": %llu", ast->valU64);
+            break;
+        case WA_AST_I64:
+            oc_str8_list_pushf(scratch.arena, &strList, ": %lli", ast->valI64);
+            break;
+        case WA_AST_F32:
+            oc_str8_list_pushf(scratch.arena, &strList, ": %f", ast->valF32);
+            break;
+        case WA_AST_F64:
+            oc_str8_list_pushf(scratch.arena, &strList, ": %f", ast->valF64);
+            break;
+        case WA_AST_NAME:
+            oc_str8_list_pushf(scratch.arena, &strList, ": %.*s", oc_str8_ip(ast->str8));
+            break;
+
+        case WA_AST_VALUE_TYPE:
+            oc_str8_list_pushf(scratch.arena, &strList, ": %s", wa_value_type_string(ast->valU32));
+            break;
+
+        case WA_AST_FUNC_ENTRY:
+        case WA_AST_TYPE_INDEX:
+            oc_str8_list_pushf(scratch.arena, &strList, ": %i", (i32)ast->valU32);
+            break;
+
+        case WA_AST_MAGIC:
+        {
+            oc_str8_list_pushf(scratch.arena, &strList, ": \\0asm");
+        }
+        break;
+
+        default:
+            break;
+    }
+
+    box->string = oc_str8_list_join(arena, strList);
+
+    if(oc_list_empty(ast->children))
+    {
+        oc_str8_list bytesList = { 0 };
+        for(u64 i = 0; i < ast->loc.len; i++)
+        {
+            oc_str8_list_pushf(scratch.arena, &bytesList, "0x%02hhx", app->contents.ptr[ast->loc.start + i]);
+            if(i < ast->loc.len - 1)
+            {
+                oc_str8_list_pushf(scratch.arena, &bytesList, " ");
+            }
+        }
+
+        box->bytesString = oc_str8_list_join(arena, bytesList);
+    }
+    oc_scratch_end(scratch);
+
+    oc_text_metrics metrics = oc_font_text_metrics(app->font, app->fontSize, box->string);
+    box->rect = (oc_rect){
+        pos.x,
+        pos.y,
+        metrics.logical.w + 2 * BOX_MARGIN_W,
+        metrics.logical.h + 2 * BOX_MARGIN_H,
+    };
+    box->childrenRect = box->rect;
+
+    //TODO: shouldn't we have that available in oc_text_metrics?
+    oc_font_metrics fontMetrics = oc_font_get_metrics(app->font, app->fontSize);
+
+    box->textOffset = (oc_vec2){
+        BOX_MARGIN_W - metrics.logical.x,
+        BOX_MARGIN_H + fontMetrics.ascent,
+    };
+
+    oc_vec2 nextPos = {
+        pos.x + app->indentW,
+        pos.y += box->rect.h + BOX_LINE_GAP
+    };
+
+    oc_list_for(ast->children, child, wa_ast, parentElt)
+    {
+        wa_box* childBox = build_ast_boxes(arena, app, child, nextPos);
+        nextPos.y += childBox->childrenRect.h + BOX_LINE_GAP;
+
+        oc_vec2 xy1 = {
+            oc_min(box->childrenRect.x, childBox->childrenRect.x),
+            oc_min(box->childrenRect.y, childBox->childrenRect.y),
+        };
+
+        oc_vec2 xy2 = {
+            oc_max(box->childrenRect.x + box->childrenRect.w, childBox->childrenRect.x + childBox->childrenRect.w),
+            oc_max(box->childrenRect.y + box->childrenRect.h, childBox->childrenRect.y + childBox->childrenRect.h),
+        };
+
+        box->childrenRect = (oc_rect){
+            xy1.x,
+            xy1.y,
+            xy2.x - xy1.x,
+            xy2.y - xy1.y,
+        };
+
+        oc_list_push_back(&box->children, &childBox->listElt);
+    }
+    return (box);
+}
+
+/*
+void draw_ast_boxes(app_data* app, oc_list boxes)
+{
+    oc_set_color_rgba(1, 1, 1, 1);
+    oc_clear();
+
+    oc_list_for(boxes, box, wa_box, listElt)
+    {
+        oc_set_color_rgba(1, 0, 0, 1);
+        oc_set_width(2);
+        oc_rectangle_stroke(box->rect.x, box->rect.y, box->rect.w, box->rect.h);
+
+        oc_set_color_rgba(0, 0, 0, 1);
+        oc_set_font(app->font);
+        oc_set_font_size(app->fontSize);
+        oc_text_fill(box->rect.x + box->textOffset.x, box->rect.y + box->textOffset.y, box->string);
+    }
+
+    oc_canvas_render(app->renderer, app->canvas, app->surface);
+    oc_canvas_present(app->renderer, app->surface);
+}
+*/
+
+void build_box_ui(app_data* app, wa_box* box)
+{
+    oc_ui_style_mask styleMask = OC_UI_STYLE_COLOR
+                               | OC_UI_STYLE_SIZE
+                               | OC_UI_STYLE_BORDER_SIZE
+                               | OC_UI_STYLE_FLOAT
+                               | OC_UI_STYLE_LAYOUT_MARGIN_X
+                               | OC_UI_STYLE_LAYOUT_MARGIN_Y;
+
+    oc_ui_style_next(&(oc_ui_style){
+                         .borderSize = 2,
+                         .color = { 0, 0, 0, 1 },
+                         .floating = { true, true },
+                         .floatTarget = (oc_vec2){
+                             0,
+                             box->rect.y },
+                         .layout.margin = { BOX_MARGIN_W, BOX_MARGIN_H },
+                     },
+                     styleMask);
+
+    oc_ui_container_str8(box->keyString, 0)
+    {
+        oc_ui_style_next(&(oc_ui_style){
+                             .borderSize = 2,
+                             .color = { 0, 0, 0, 1 },
+                             .floating = { true, true },
+                             .floatTarget = (oc_vec2){
+                                 box->addrRect.x,
+                                 0 },
+                             .layout.margin = { BOX_MARGIN_W, BOX_MARGIN_H },
+                         },
+                         styleMask);
+
+        oc_ui_box_make_str8(box->addrString, OC_UI_FLAG_DRAW_TEXT);
+
+        oc_ui_style_next(&(oc_ui_style){
+                             .borderSize = 2,
+                             .color = { 0, 0, 0, 1 },
+                             .floating = { true, true },
+                             .floatTarget = (oc_vec2){
+                                 box->addrRect.x + box->addrRect.w + box->rect.x,
+                                 0 },
+                             .layout.margin = { BOX_MARGIN_W, BOX_MARGIN_H },
+                         },
+                         styleMask);
+
+        oc_ui_box* uiBox = oc_ui_box_make_str8(box->string, OC_UI_FLAG_DRAW_TEXT);
+
+        if(box->ast && oc_list_empty(box->ast->children))
+        {
+            oc_ui_style_next(&(oc_ui_style){
+                                 .borderSize = 2,
+                                 .color = { 0, 0, 0, 1 },
+                                 .floating = { true, true },
+                                 .floatTarget = (oc_vec2){
+                                     box->addrRect.x + box->addrRect.w + app->rootBox->childrenRect.w + 8 * BOX_MARGIN_W,
+                                     0 },
+                                 .layout.margin = { BOX_MARGIN_W, BOX_MARGIN_H },
+                             },
+                             styleMask);
+
+            oc_ui_box_make_str8(box->bytesString, OC_UI_FLAG_DRAW_TEXT);
+        }
+
+        if(oc_ui_box_sig(uiBox).hovering)
+        {
+            if(box->ast && (box->ast->kind == WA_AST_TYPE_INDEX || box->ast->kind == WA_AST_FUNC_ENTRY))
+            {
+                wa_func_type* type = &app->module->types[box->ast->valU32];
+
+                oc_arena_scope scratch = oc_scratch_begin();
+                oc_str8_list list = { 0 };
+
+                if(box->ast->kind == WA_AST_FUNC_ENTRY)
+                {
+                    //TODO: fix this hack
+                    u32 funcIndex = 0;
+                    oc_list_for(box->ast->parent->children, child, wa_ast, parentElt)
+                    {
+                        if(child == box->ast)
+                        {
+                            break;
+                        }
+                        funcIndex++;
+                    }
+                    funcIndex--;
+
+                    oc_str8 name = find_function_export_name(app, funcIndex);
+                    if(name.len)
+                    {
+                        oc_str8_list_push(scratch.arena, &list, name);
+                        oc_str8_list_push(scratch.arena, &list, OC_STR8(" "));
+                    }
+                }
+
+                push_func_type_str8_list(scratch.arena, &list, type);
+                oc_str8 str = oc_str8_list_join(scratch.arena, list);
+
+                oc_ui_tooltip_str8(str);
+
+                oc_scratch_end(scratch);
+            }
+        }
+    }
+
+    if(!oc_list_empty(box->children))
+    {
+        oc_list_for(box->children, child, wa_box, listElt)
+        {
+            build_box_ui(app, child);
+        }
+    }
+}
+
+void build_boxes_ui(app_data* app)
+{
+    oc_ui_style defaultStyle = { .bgColor = { 0 },
+                                 .color = { 1, 1, 1, 1 },
+                                 .font = app->font,
+                                 .fontSize = app->fontSize,
+                                 .borderColor = { 1, 0, 0, 1 },
+                                 .borderSize = 2 };
+
+    oc_ui_style_mask defaultMask = OC_UI_STYLE_BG_COLOR
+                                 | OC_UI_STYLE_COLOR
+                                 | OC_UI_STYLE_BORDER_COLOR
+                                 | OC_UI_STYLE_BORDER_SIZE
+                                 | OC_UI_STYLE_FONT
+                                 | OC_UI_STYLE_FONT_SIZE;
+
+    oc_vec2 frameSize = oc_surface_get_size(app->surface);
+
+    oc_ui_set_theme(&OC_UI_LIGHT_THEME);
+    oc_ui_frame(frameSize, &defaultStyle, defaultMask)
+    {
+        if(app->rootBox)
+        {
+            oc_ui_panel("boxtree", 0)
+            {
+
+                oc_ui_style_next(&(oc_ui_style){
+                                     .size = {
+                                         .width = { OC_UI_SIZE_PIXELS, app->rootBox->childrenRect.w + 2 * BOX_MARGIN_W },
+                                         .height = { OC_UI_SIZE_PIXELS, app->rootBox->childrenRect.h + 2 * BOX_MARGIN_H },
+                                     },
+                                 },
+                                 OC_UI_STYLE_SIZE);
+
+                oc_ui_container("contents", 0)
+                {
+                    build_box_ui(app, app->rootBox);
+                }
+            }
+        }
+        else
+        {
+            oc_ui_style_next(&(oc_ui_style){
+                                 .size = {
+                                     .width = { OC_UI_SIZE_PARENT, 1 },
+                                     .height = { OC_UI_SIZE_PARENT, 1 },
+                                 },
+                                 .layout.align = { OC_UI_ALIGN_CENTER, OC_UI_ALIGN_CENTER },
+                             },
+                             OC_UI_STYLE_SIZE | OC_UI_STYLE_LAYOUT_ALIGN_X | OC_UI_STYLE_LAYOUT_ALIGN_Y);
+
+            oc_ui_container("droppanel", 0)
+            {
+                oc_ui_style_next(&(oc_ui_style){
+                                     .color = { 0, 0, 0, 1 },
+                                 },
+                                 OC_UI_STYLE_COLOR);
+
+                oc_ui_label("Drop a Wasm Module Here");
+            }
+        }
+    }
+
+    oc_ui_draw();
+
+    oc_canvas_render(app->renderer, app->canvas, app->surface);
+    oc_canvas_present(app->renderer, app->surface);
+}
+
+void update_ui(app_data* app)
+{
+    oc_arena_scope scratch = oc_scratch_begin();
+
+    build_boxes_ui(app);
+
+    oc_scratch_end(scratch);
+}
+
+void load_module(app_data* app, oc_str8 modulePath)
+{
+    //NOTE: unload previous module
+    app->rootBox = 0;
+    app->module = 0;
+    app->contents = (oc_str8){ 0 };
+
+    oc_arena_clear(app->moduleArena);
+
+    //NOTE: load module
+    oc_file file = oc_file_open(modulePath, OC_FILE_ACCESS_READ, OC_FILE_OPEN_NONE);
+
+    app->contents.len = oc_file_size(file);
+    app->contents.ptr = oc_arena_push(app->moduleArena, app->contents.len);
+
+    oc_file_read(file, app->contents.len, app->contents.ptr);
+    oc_file_close(file);
+
+    app->module = wa_create_module(app->moduleArena, app->contents);
+
+    if(!oc_list_empty(app->module->errors))
+    {
+        wa_module_print_errors(app->module);
+        //TODO: display / handle errors
+    }
+    else
+    {
+        wa_ast_print(app->module->root, app->contents);
+        wa_print_code(app->module);
+    }
+
+    if(app->module->root)
+    {
+        app->rootBox = build_ast_boxes(app->moduleArena, app, app->module->root, (oc_vec2){ BOX_MARGIN_W, BOX_MARGIN_H });
+    }
 }
 
 int main(int argc, char** argv)
 {
-    if(argc < 3)
-    {
-        printf("usage: warm module funcName [args...]\n");
-        exit(-1);
-    }
-    oc_str8 modulePath = OC_STR8(argv[1]);
-    oc_str8 funcName = OC_STR8(argv[2]);
-
     oc_arena arena = { 0 };
     oc_arena_init(&arena);
 
-    //NOTE: load module
-    oc_str8 contents = { 0 };
+    //Create window
+    oc_init();
 
-    oc_file file = oc_file_open(modulePath, OC_FILE_ACCESS_READ, OC_FILE_OPEN_NONE);
+    app_data app = {
+        .moduleArena = &arena,
+    };
 
-    contents.len = oc_file_size(file);
-    contents.ptr = oc_arena_push(&arena, contents.len);
+    oc_rect windowRect = { .x = 100, .y = 100, .w = 810, .h = 610 };
+    app.window = oc_window_create(windowRect, OC_STR8("waspector"), 0);
 
-    oc_file_read(file, contents.len, contents.ptr);
-    oc_file_close(file);
+    app.renderer = oc_canvas_renderer_create();
+    app.surface = oc_canvas_surface_create_for_window(app.renderer, app.window);
+    app.canvas = oc_canvas_context_create();
 
-    wa_module* module = wa_create_module(&arena, contents);
+    app.font = font_create("../resources/Menlo.ttf");
+    app.fontSize = 16;
+    oc_text_metrics metrics = oc_font_text_metrics(app.font, app.fontSize, OC_STR8("x"));
+    app.indentW = 2 * metrics.advance.x;
 
-    wa_ast_print(module->root, contents);
-    wa_print_code(module);
+    oc_ui_init(&app.ui);
 
-    if(!oc_list_empty(module->errors))
+    if(argc >= 2)
     {
-        wa_module_print_errors(module);
-        exit(-1);
+        load_module(&app, OC_STR8(argv[1]));
     }
 
-    wa_bind(module,
-            OC_STR8("test"),
-            &(wa_func_type){
-                .paramCount = 1,
-                .params = (wa_value_type[]){
-                    WA_TYPE_I32,
-                },
-                .returnCount = 1,
-                .returns = (wa_value_type[]){
-                    WA_TYPE_I32,
-                },
-            },
-            test_proc);
+    oc_window_bring_to_front(app.window);
+    oc_window_focus(app.window);
+    oc_window_center(app.window);
 
-    printf("Run:\n");
-    wa_func* func = wa_find_function(module, funcName);
-
-    if(!func)
+    while(!oc_should_quit())
     {
-        oc_log_error("Couldn't find function %.*s.\n", oc_str8_ip(funcName));
-        exit(-1);
-    }
 
-    u32 argCount = 0;
-    wa_value args[32] = {};
+        oc_pump_events(0);
+        //TODO: what to do with mem scratch here?
 
-    if(argc - 3 < func->type->paramCount)
-    {
-        oc_log_error("not enough arguments for function %.*s (expected %u, got %u)\n",
-                     oc_str8_ip(funcName),
-                     func->type->paramCount,
-                     argc - 3);
-        exit(-1);
-    }
-    else if(argc - 3 > func->type->paramCount)
-    {
-        oc_log_error("too many arguments for function %.*s (expected %u, got %u)\n",
-                     oc_str8_ip(funcName),
-                     func->type->paramCount,
-                     argc - 3);
-        exit(-1);
-    }
-
-    for(int i = 0; i < oc_min(argc - 3, 32); i++)
-    {
-        wa_typed_value val = parse_func_argument(OC_STR8(argv[i + 3]));
-
-        if(val.type != func->type->params[i])
+        oc_arena_scope scratch = oc_scratch_begin();
+        oc_event* event = 0;
+        while((event = oc_next_event(scratch.arena)) != 0)
         {
-            oc_log_error("wrong type for argument %i of function %.*s (expected %.*s, got %.*s)\n",
-                         i,
-                         oc_str8_ip(funcName),
-                         wa_value_type_string(func->type->params[i]),
-                         wa_value_type_string(val.type));
-            exit(-1);
+            oc_ui_process_event(event);
+
+            switch(event->type)
+            {
+                case OC_EVENT_WINDOW_CLOSE:
+                case OC_EVENT_QUIT:
+                {
+                    oc_request_quit();
+                }
+                break;
+
+                case OC_EVENT_PATHDROP:
+                {
+                    oc_str8 path = oc_str8_list_first(event->paths);
+                    load_module(&app, path);
+                }
+                break;
+
+                default:
+                    break;
+            }
         }
-        args[i] = val.value;
-        argCount++;
+
+        update_ui(&app);
+
+        oc_scratch_end(scratch);
     }
-
-    u32 retCount = 1;
-    wa_value returns[32];
-
-    wa_interpret_func(module, func, argCount, args, retCount, returns);
-
-    printf("results: ");
-    for(u32 retIndex = 0; retIndex < retCount; retIndex++)
-    {
-        printf("%lli ", returns[retIndex].valI64);
-    }
-    printf("\n");
 
     return (0);
 }
