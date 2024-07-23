@@ -556,12 +556,13 @@ typedef enum wa_value_type
 
 } wa_value_type;
 
-typedef union wa_immediate
+typedef union wa_code
 {
-    i32 immI32;
-    i64 immI64;
-    f32 immF32;
-    f64 immF64;
+    wa_instr_op opcode;
+    i32 valI32;
+    i64 valI64;
+    f32 valF32;
+    f64 valF64;
     u32 index;
     wa_value_type valueType;
 
@@ -573,7 +574,7 @@ typedef union wa_immediate
 
     u8 laneIndex;
 
-} wa_immediate;
+} wa_code;
 
 typedef union wa_value
 {
@@ -607,7 +608,7 @@ typedef struct wa_instr
     oc_list_elt listElt;
 
     wa_instr_op op;
-    wa_immediate imm[WA_INSTR_IMM_MAX_COUNT];
+    wa_code imm[WA_INSTR_IMM_MAX_COUNT];
 
     wa_func_type* blockType;
     wa_instr* elseBranch;
@@ -616,13 +617,9 @@ typedef struct wa_instr
     wa_ast* ast;
 } wa_instr;
 
-typedef union wa_code
-{
-    wa_instr_op opcode;
-    wa_immediate operand; //this should be wa_operand??
-} wa_code;
-
 typedef void (*wa_host_proc)(wa_value* args, wa_value* returns); //TODO: complete with memory / etc
+
+typedef struct wa_import wa_import;
 
 typedef struct wa_func
 {
@@ -636,6 +633,7 @@ typedef struct wa_func
     u32 codeLen;
     wa_code* code;
 
+    wa_import* import;
     wa_host_proc proc;
 
 } wa_func;
@@ -1671,6 +1669,7 @@ void wa_parse_functions(wa_parser* parser, wa_module* module)
         {
             wa_func* func = &module->functions[funcImportIndex];
             func->type = &module->types[import->index];
+            func->import = import;
             funcImportIndex++;
         }
     }
@@ -1994,25 +1993,25 @@ void wa_parse_code(wa_parser* parser, wa_module* module)
                     case WA_IMM_I32:
                     {
                         wa_ast* immAst = wa_read_leb128_i32(parser, instrAst, OC_STR8("i32"));
-                        instr->imm[immIndex].immI32 = immAst->valI32;
+                        instr->imm[immIndex].valI32 = immAst->valI32;
                     }
                     break;
                     case WA_IMM_I64:
                     {
                         wa_ast* immAst = wa_read_leb128_u64(parser, instrAst, OC_STR8("i64"));
-                        instr->imm[immIndex].immI64 = immAst->valI64;
+                        instr->imm[immIndex].valI64 = immAst->valI64;
                     }
                     break;
                     case WA_IMM_F32:
                     {
                         wa_ast* immAst = wa_read_f32(parser, instrAst, OC_STR8("f32"));
-                        instr->imm[immIndex].immF32 = immAst->valF32;
+                        instr->imm[immIndex].valF32 = immAst->valF32;
                     }
                     break;
                     case WA_IMM_F64:
                     {
                         wa_ast* immAst = wa_read_f64(parser, instrAst, OC_STR8("f64"));
-                        instr->imm[immIndex].immF64 = immAst->valF32;
+                        instr->imm[immIndex].valF64 = immAst->valF32;
                     }
                     break;
                     case WA_IMM_VALUE_TYPE:
@@ -2493,8 +2492,8 @@ void wa_move_slot_if_used(wa_build_context* context, u32 slotIndex)
     if(newReg != UINT32_MAX)
     {
         wa_emit(context, (wa_code){ .opcode = WA_INSTR_move });
-        wa_emit(context, (wa_code){ .operand.immI32 = slotIndex });
-        wa_emit(context, (wa_code){ .operand.immI32 = newReg });
+        wa_emit(context, (wa_code){ .valI32 = slotIndex });
+        wa_emit(context, (wa_code){ .valI32 = newReg });
     }
 }
 
@@ -2622,8 +2621,8 @@ void wa_block_move_results_to_input_slots(wa_build_context* context, wa_block* b
         wa_operand_slot* dst = &context->opdStack[resultSlotStart + outIndex];
 
         wa_emit(context, (wa_code){ .opcode = WA_INSTR_move });
-        wa_emit(context, (wa_code){ .operand.immI64 = src->index });
-        wa_emit(context, (wa_code){ .operand.immI64 = dst->index });
+        wa_emit(context, (wa_code){ .valI64 = src->index });
+        wa_emit(context, (wa_code){ .valI64 = dst->index });
     }
 }
 
@@ -2674,8 +2673,8 @@ void wa_block_move_results_to_output_slots(wa_build_context* context, wa_block* 
         wa_operand_slot* dst = &context->opdStack[resultSlotStart + outIndex];
 
         wa_emit(context, (wa_code){ .opcode = WA_INSTR_move });
-        wa_emit(context, (wa_code){ .operand.immI64 = src->index });
-        wa_emit(context, (wa_code){ .operand.immI64 = dst->index });
+        wa_emit(context, (wa_code){ .valI64 = src->index });
+        wa_emit(context, (wa_code){ .valI64 = dst->index });
     }
 }
 
@@ -2703,15 +2702,15 @@ void wa_block_end(wa_build_context* context, wa_block* block, wa_instr* instr)
         if(block->begin->elseBranch)
         {
             //NOTE: patch conditional jump to else branch
-            context->code[block->beginOffset + 1].operand.immI64 = block->elseOffset - (block->beginOffset + 1);
+            context->code[block->beginOffset + 1].valI64 = block->elseOffset - (block->beginOffset + 1);
 
             //NOTE: patch jump from end of if branch to end of else branch
-            context->code[block->elseOffset - 1].operand.immI64 = context->codeLen - (block->elseOffset - 1);
+            context->code[block->elseOffset - 1].valI64 = context->codeLen - (block->elseOffset - 1);
         }
         else
         {
             //NOTE patch conditional jump to end of block
-            context->code[block->beginOffset + 1].operand.immI64 = context->codeLen - (block->beginOffset + 1);
+            context->code[block->beginOffset + 1].valI64 = context->codeLen - (block->beginOffset + 1);
         }
     }
 
@@ -2722,7 +2721,7 @@ void wa_patch_jump_targets(wa_build_context* context, wa_block* block)
 {
     oc_list_for(block->jumpTargets, target, wa_jump_target, listElt)
     {
-        context->code[target->offset].operand.immI64 = context->codeLen - target->offset;
+        context->code[target->offset].valI64 = context->codeLen - target->offset;
     }
 }
 
@@ -2753,7 +2752,7 @@ void wa_compile_branch(wa_build_context* context, wa_instr* instr)
         target->offset = context->codeLen;
         oc_list_push_back(&block->jumpTargets, &target->listElt);
 
-        wa_emit(context, (wa_code){ .operand.immI64 = 0 });
+        wa_emit(context, (wa_code){ .valI64 = 0 });
     }
     else if(block->begin->op == WA_INSTR_loop)
     {
@@ -2761,7 +2760,7 @@ void wa_compile_branch(wa_build_context* context, wa_instr* instr)
 
         //jump to begin
         wa_emit(context, (wa_code){ .opcode = WA_INSTR_jump });
-        wa_emit(context, (wa_code){ .operand.immI64 = block->beginOffset - context->codeLen });
+        wa_emit(context, (wa_code){ .valI64 = block->beginOffset - context->codeLen });
     }
     else
     {
@@ -2829,12 +2828,12 @@ void wa_compile_code(oc_arena* arena, wa_module* module)
 
                 wa_emit(&context, (wa_code){ .opcode = WA_INSTR_jump_if_zero });
                 u64 jumpOffset = context.codeLen;
-                wa_emit(&context, (wa_code){ .operand.immI64 = 0 });
-                wa_emit(&context, (wa_code){ .operand.immI64 = slot.index });
+                wa_emit(&context, (wa_code){ .valI64 = 0 });
+                wa_emit(&context, (wa_code){ .valI64 = slot.index });
 
                 wa_compile_branch(&context, instr);
 
-                context.code[jumpOffset].operand.immI64 = context.codeLen - jumpOffset;
+                context.code[jumpOffset].valI64 = context.codeLen - jumpOffset;
             }
             else if(instr->op == WA_INSTR_if)
             {
@@ -2863,7 +2862,7 @@ void wa_compile_code(oc_arena* arena, wa_module* module)
 
                 wa_emit(&context, (wa_code){ .opcode = WA_INSTR_jump_if_zero });
                 wa_emit(&context, (wa_code){ 0 });
-                wa_emit(&context, (wa_code){ .operand.immI64 = slot.index });
+                wa_emit(&context, (wa_code){ .valI64 = slot.index });
             }
             else if(instr->op == WA_INSTR_else)
             {
@@ -2942,13 +2941,13 @@ void wa_compile_code(oc_arena* arena, wa_module* module)
                         goto compile_function_end;
                     }
                     wa_emit(&context, (wa_code){ .opcode = WA_INSTR_move });
-                    wa_emit(&context, (wa_code){ .operand.immI32 = slot->index });
-                    wa_emit(&context, (wa_code){ .operand.immI32 = maxUsedSlot + 1 + argIndex });
+                    wa_emit(&context, (wa_code){ .valI32 = slot->index });
+                    wa_emit(&context, (wa_code){ .valI32 = maxUsedSlot + 1 + argIndex });
                 }
 
                 wa_emit(&context, (wa_code){ .opcode = WA_INSTR_call });
-                wa_emit(&context, (wa_code){ .operand.immI64 = instr->imm[0].index });
-                wa_emit(&context, (wa_code){ .operand.immI64 = maxUsedSlot + 1 });
+                wa_emit(&context, (wa_code){ .valI64 = instr->imm[0].index });
+                wa_emit(&context, (wa_code){ .valI64 = maxUsedSlot + 1 });
 
                 for(u32 retIndex = 0; retIndex < callee->type->returnCount; retIndex++)
                 {
@@ -2998,8 +2997,8 @@ void wa_compile_code(oc_arena* arena, wa_module* module)
                         wa_move_slot_if_used(&context, retIndex);
 
                         wa_emit(&context, (wa_code){ .opcode = WA_INSTR_move });
-                        wa_emit(&context, (wa_code){ .operand.immI64 = slot->index });
-                        wa_emit(&context, (wa_code){ .operand.immI64 = retIndex });
+                        wa_emit(&context, (wa_code){ .valI64 = slot->index });
+                        wa_emit(&context, (wa_code){ .valI64 = retIndex });
                     }
                 }
                 wa_emit(&context, (wa_code){ .opcode = instr->op });
@@ -3055,7 +3054,7 @@ void wa_compile_code(oc_arena* arena, wa_module* module)
                     shortcutSet = true;
                     for(u32 instrIt = slot.originInstr; instrIt < instrIndex; instrIt++)
                     {
-                        if(func->instructions[instrIt].op == WA_INSTR_local_set && func->instructions[instrIt].imm[0].immI32 == localIndex)
+                        if(func->instructions[instrIt].op == WA_INSTR_local_set && func->instructions[instrIt].val[0].valI32 == localIndex)
                         {
                             shortcutSet = false;
                             break;
@@ -3065,14 +3064,14 @@ void wa_compile_code(oc_arena* arena, wa_module* module)
                 */
                 if(shortcutSet)
                 {
-                    OC_DEBUG_ASSERT(context.code[slot.originOpd].immU64 == slot.index);
-                    context.code[slot.originOpd].operand.immI64 = localIndex;
+                    OC_DEBUG_ASSERT(context.code[slot.originOpd].valU64 == slot.index);
+                    context.code[slot.originOpd].valI64 = localIndex;
                 }
                 else
                 {
                     wa_emit(&context, (wa_code){ .opcode = WA_INSTR_move });
-                    wa_emit(&context, (wa_code){ .operand.immI32 = slot.index });
-                    wa_emit(&context, (wa_code){ .operand.immI32 = localIndex });
+                    wa_emit(&context, (wa_code){ .valI32 = slot.index });
+                    wa_emit(&context, (wa_code){ .valI32 = localIndex });
                 }
             }
             else
@@ -3084,7 +3083,7 @@ void wa_compile_code(oc_arena* arena, wa_module* module)
                 //emit immediates
                 for(int immIndex = 0; immIndex < info->immCount; immIndex++)
                 {
-                    wa_emit(&context, (wa_code){ .operand = instr->imm[immIndex] });
+                    wa_emit(&context, instr->imm[immIndex]);
                 }
 
                 // validate stack, allocate slots and emit operands
@@ -3108,9 +3107,7 @@ void wa_compile_code(oc_arena* arena, wa_module* module)
                         goto compile_function_end;
                     }
 
-                    wa_code opd = { .operand = slot.index };
-
-                    wa_emit(&context, opd);
+                    wa_emit(&context, (wa_code){ .index = slot.index });
                 }
 
                 for(int opdIndex = 0; opdIndex < info->outCount; opdIndex++)
@@ -3126,7 +3123,7 @@ void wa_compile_code(oc_arena* arena, wa_module* module)
                     };
                     wa_operand_stack_push(&context, s);
 
-                    wa_emit(&context, (wa_code){ .operand = { .index = s.index } });
+                    wa_emit(&context, (wa_code){ .index = s.index });
                 }
             }
         }
@@ -3345,7 +3342,7 @@ void wa_print_bytecode(u64 len, wa_code* bytecode)
             {
                 break;
             }
-            printf("0x%02llx ", bytecode[codeIndex].operand.immI64);
+            printf("0x%02llx ", bytecode[codeIndex].valI64);
         }
         printf("\n");
     }
@@ -3377,7 +3374,38 @@ void wa_print_code(wa_module* module)
 // interpreter
 //-------------------------------------------------------------------------
 
-void wa_bind(wa_module* module, oc_str8 name, wa_func_type* type, wa_host_proc proc)
+typedef enum wa_status
+{
+    WA_OK = 0,
+    WA_FAIL_INVALID_ARGS,
+    WA_FAIL_TYPE_MISMATCH,
+} wa_status;
+
+static const char* wa_status_strings[] = {
+    "ok",
+    "invalid arguments",
+    "function type mismatch",
+};
+
+bool wa_check_instance(wa_module* module)
+{
+    //TODO: for now we don't differentiate between module and instance, so we just check that
+    //      all imports are fulfilled here...
+
+    for(u32 funcIndex = 0; funcIndex < module->functionImportCount; funcIndex++)
+    {
+        wa_func* func = &module->functions[funcIndex];
+        if(!func->proc)
+        {
+            oc_log_error("Couldn't instance module: import %.*s not satisfied.\n",
+                         oc_str8_ip(func->import->importName));
+            return false;
+        }
+    }
+    return true;
+}
+
+wa_status wa_bind(wa_module* module, oc_str8 name, wa_func_type* type, wa_host_proc proc)
 {
     u32 funcIndex = 0;
     for(u32 importIndex = 0; importIndex < module->importCount; importIndex++)
@@ -3390,13 +3418,33 @@ void wa_bind(wa_module* module, oc_str8 name, wa_func_type* type, wa_host_proc p
             {
                 wa_func* func = &module->functions[funcIndex];
                 func->proc = proc;
-                //TODO: check type
+
+                if(type->paramCount != func->type->paramCount
+                   || type->returnCount != func->type->returnCount)
+                {
+                    //log error to module
+                    return WA_FAIL_TYPE_MISMATCH;
+                }
+                for(u32 paramIndex = 0; paramIndex < type->paramCount; paramIndex++)
+                {
+                    if(type->params[paramIndex] != func->type->params[paramIndex])
+                    {
+                        return WA_FAIL_TYPE_MISMATCH;
+                    }
+                }
+                for(u32 returnIndex = 0; returnIndex < type->returnCount; returnIndex++)
+                {
+                    if(type->returns[returnIndex] != func->type->returns[returnIndex])
+                    {
+                        return WA_FAIL_TYPE_MISMATCH;
+                    }
+                }
                 break;
             }
             funcIndex++;
         }
     }
-    //TODO return status
+    return (WA_OK);
 }
 
 wa_func* wa_find_function(wa_module* module, oc_str8 name)
@@ -3420,13 +3468,18 @@ typedef struct wa_control
     wa_value* returnFrame;
 } wa_control;
 
-void wa_interpret_func(wa_module* module,
-                       wa_func* func,
-                       u32 argCount,
-                       wa_value* args,
-                       u32 retCount,
-                       wa_value* returns)
+wa_status wa_interpret_func(wa_module* module,
+                            wa_func* func,
+                            u32 argCount,
+                            wa_value* args,
+                            u32 retCount,
+                            wa_value* returns)
 {
+    if(argCount != func->type->paramCount || retCount != func->type->returnCount)
+    {
+        return WA_FAIL_INVALID_ARGS;
+    }
+
     wa_control controlStack[1024] = {};
     u32 controlStackTop = 0;
 
@@ -3435,8 +3488,7 @@ void wa_interpret_func(wa_module* module,
     wa_code* code = func->code;
     wa_code* pc = code;
 
-    //TODO check func type
-    memcpy(locals, args, argCount * sizeof(wa_immediate));
+    memcpy(locals, args, argCount * sizeof(wa_value));
 
     while(1)
     {
@@ -3447,28 +3499,28 @@ void wa_interpret_func(wa_module* module,
         {
             case WA_INSTR_i32_const:
             {
-                locals[pc[1].operand.immI32].valI32 = pc[0].operand.immI32;
+                locals[pc[1].valI32].valI32 = pc[0].valI32;
                 pc += 2;
             }
             break;
             case WA_INSTR_move:
             {
-                locals[pc[1].operand.immI32].valI64 = locals[pc[0].operand.immI32].valI64;
+                locals[pc[1].valI32].valI64 = locals[pc[0].valI32].valI64;
                 pc += 2;
             }
             break;
 
             case WA_INSTR_jump:
             {
-                pc += pc[0].operand.immI64;
+                pc += pc[0].valI64;
             }
             break;
 
             case WA_INSTR_jump_if_zero:
             {
-                if(locals[pc[1].operand.immI32].valI64 == 0)
+                if(locals[pc[1].valI32].valI64 == 0)
                 {
-                    pc += pc[0].operand.immI64;
+                    pc += pc[0].valI64;
                 }
                 else
                 {
@@ -3479,7 +3531,7 @@ void wa_interpret_func(wa_module* module,
 
             case WA_INSTR_call:
             {
-                wa_func* callee = &module->functions[pc[0].operand.immI64];
+                wa_func* callee = &module->functions[pc[0].valI64];
 
                 if(callee->code)
                 {
@@ -3489,13 +3541,13 @@ void wa_interpret_func(wa_module* module,
                     };
                     controlStackTop++;
 
-                    locals += pc[1].operand.immI64;
+                    locals += pc[1].valI64;
                     pc = callee->code;
                 }
                 else
                 {
                     wa_value* saveLocals = locals;
-                    locals += pc[1].operand.immI64;
+                    locals += pc[1].valI64;
                     callee->proc(locals, locals);
                     pc += 2;
                     locals = saveLocals;
@@ -3529,6 +3581,8 @@ end:
     {
         returns[retIndex] = locals[retIndex];
     }
+
+    return WA_OK;
 }
 
 //-------------------------------------------------------------------------
@@ -3679,77 +3733,88 @@ int main(int argc, char** argv)
         exit(-1);
     }
 
-    wa_bind(module,
-            OC_STR8("test"),
-            &(wa_func_type){
-                .paramCount = 1,
-                .params = (wa_value_type[]){
-                    WA_TYPE_I32,
-                },
-                .returnCount = 1,
-                .returns = (wa_value_type[]){
-                    WA_TYPE_I32,
-                },
-            },
-            test_proc);
-
-    printf("Run:\n");
-    wa_func* func = wa_find_function(module, funcName);
-
-    if(!func)
+    wa_status status = wa_bind(module,
+                               OC_STR8("test"),
+                               &(wa_func_type){
+                                   .paramCount = 1,
+                                   .params = (wa_value_type[]){
+                                       WA_TYPE_I32,
+                                   },
+                                   .returnCount = 1,
+                                   .returns = (wa_value_type[]){
+                                       WA_TYPE_I32,
+                                   },
+                               },
+                               test_proc);
+    if(status != WA_OK)
     {
-        oc_log_error("Couldn't find function %.*s.\n", oc_str8_ip(funcName));
+        oc_log_error("%s", wa_status_strings[status]);
         exit(-1);
     }
 
-    u32 argCount = 0;
-    wa_value args[32] = {};
-
-    if(argc - 3 < func->type->paramCount)
+    if(!wa_check_instance(module))
     {
-        oc_log_error("not enough arguments for function %.*s (expected %u, got %u)\n",
-                     oc_str8_ip(funcName),
-                     func->type->paramCount,
-                     argc - 3);
         exit(-1);
     }
-    else if(argc - 3 > func->type->paramCount)
+    else
     {
-        oc_log_error("too many arguments for function %.*s (expected %u, got %u)\n",
-                     oc_str8_ip(funcName),
-                     func->type->paramCount,
-                     argc - 3);
-        exit(-1);
-    }
+        printf("Run:\n");
+        wa_func* func = wa_find_function(module, funcName);
 
-    for(int i = 0; i < oc_min(argc - 3, 32); i++)
-    {
-        wa_typed_value val = parse_func_argument(OC_STR8(argv[i + 3]));
-
-        if(val.type != func->type->params[i])
+        if(!func)
         {
-            oc_log_error("wrong type for argument %i of function %.*s (expected %.*s, got %.*s)\n",
-                         i,
-                         oc_str8_ip(funcName),
-                         wa_value_type_string(func->type->params[i]),
-                         wa_value_type_string(val.type));
+            oc_log_error("Couldn't find function %.*s.\n", oc_str8_ip(funcName));
             exit(-1);
         }
-        args[i] = val.value;
-        argCount++;
+
+        u32 argCount = 0;
+        wa_value args[32] = {};
+
+        if(argc - 3 < func->type->paramCount)
+        {
+            oc_log_error("not enough arguments for function %.*s (expected %u, got %u)\n",
+                         oc_str8_ip(funcName),
+                         func->type->paramCount,
+                         argc - 3);
+            exit(-1);
+        }
+        else if(argc - 3 > func->type->paramCount)
+        {
+            oc_log_error("too many arguments for function %.*s (expected %u, got %u)\n",
+                         oc_str8_ip(funcName),
+                         func->type->paramCount,
+                         argc - 3);
+            exit(-1);
+        }
+
+        for(int i = 0; i < oc_min(argc - 3, 32); i++)
+        {
+            wa_typed_value val = parse_func_argument(OC_STR8(argv[i + 3]));
+
+            if(val.type != func->type->params[i])
+            {
+                oc_log_error("wrong type for argument %i of function %.*s (expected %.*s, got %.*s)\n",
+                             i,
+                             oc_str8_ip(funcName),
+                             wa_value_type_string(func->type->params[i]),
+                             wa_value_type_string(val.type));
+                exit(-1);
+            }
+            args[i] = val.value;
+            argCount++;
+        }
+
+        u32 retCount = 1;
+        wa_value returns[32];
+
+        wa_interpret_func(module, func, argCount, args, retCount, returns);
+
+        printf("results: ");
+        for(u32 retIndex = 0; retIndex < retCount; retIndex++)
+        {
+            printf("%lli ", returns[retIndex].valI64);
+        }
+        printf("\n");
     }
-
-    u32 retCount = 1;
-    wa_value returns[32];
-
-    wa_interpret_func(module, func, argCount, args, retCount, returns);
-
-    printf("results: ");
-    for(u32 retIndex = 0; retIndex < retCount; retIndex++)
-    {
-        printf("%lli ", returns[retIndex].valI64);
-    }
-    printf("\n");
-
     return (0);
 }
