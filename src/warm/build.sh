@@ -4,7 +4,7 @@ if [ ! -d bin ] ; then
 fi
 
 
-clang -g -I.. -I../ext -L../../build/bin -lorca -o bin/warm main.c
+clang -std=c11 -g -I.. -I../ext -L../../build/bin -lorca -o bin/warm main.c
 
 cp ../../build/bin/liborca.dylib ./bin
 
@@ -21,5 +21,5 @@ wat2wasm test/import.wat -o test/import.wasm
 
 
 # quick json test
-clang -g -I.. -I../ext -L../../build/bin -lorca -o bin/json_test json.c
+clang -std=c11 -g -I.. -I../ext -L../../build/bin -lorca -o bin/json_test json_test.c
 install_name_tool -add_rpath '@executable_path/' bin/json_test
