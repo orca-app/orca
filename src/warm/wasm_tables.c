@@ -1034,17 +1034,113 @@ static const wa_instr_info wa_instr_infos[] = {
     [WA_INSTR_i64_const] = {},
     [WA_INSTR_f32_const] = {},
     [WA_INSTR_f64_const] = {},
-    [WA_INSTR_i32_eqz] = {},
-    [WA_INSTR_i32_eq] = {},
-    [WA_INSTR_i32_ne] = {},
-    [WA_INSTR_i32_lt_s] = {},
-    [WA_INSTR_i32_lt_u] = {},
-    [WA_INSTR_i32_gt_s] = {},
-    [WA_INSTR_i32_gt_u] = {},
-    [WA_INSTR_i32_le_s] = {},
-    [WA_INSTR_i32_le_u] = {},
-    [WA_INSTR_i32_ge_s] = {},
-    [WA_INSTR_i32_ge_u] = {},
+    [WA_INSTR_i32_eqz] = {
+        .inCount = 1,
+        .in = { WA_TYPE_I32 },
+        .outCount = 1,
+        .out = { WA_TYPE_I32 },
+        .opdCount = 2,
+    },
+    [WA_INSTR_i32_eq] = {
+        .inCount = 2,
+        .in = {
+            WA_TYPE_I32,
+            WA_TYPE_I32,
+        },
+        .outCount = 1,
+        .out = { WA_TYPE_I32 },
+        .opdCount = 3,
+    },
+    [WA_INSTR_i32_ne] = {
+        .inCount = 2,
+        .in = {
+            WA_TYPE_I32,
+            WA_TYPE_I32,
+        },
+        .outCount = 1,
+        .out = { WA_TYPE_I32 },
+        .opdCount = 3,
+    },
+    [WA_INSTR_i32_lt_s] = {
+        .inCount = 2,
+        .in = {
+            WA_TYPE_I32,
+            WA_TYPE_I32,
+        },
+        .outCount = 1,
+        .out = { WA_TYPE_I32 },
+        .opdCount = 3,
+    },
+    [WA_INSTR_i32_lt_u] = {
+        .inCount = 2,
+        .in = {
+            WA_TYPE_I32,
+            WA_TYPE_I32,
+        },
+        .outCount = 1,
+        .out = { WA_TYPE_I32 },
+        .opdCount = 3,
+    },
+    [WA_INSTR_i32_gt_s] = {
+        .inCount = 2,
+        .in = {
+            WA_TYPE_I32,
+            WA_TYPE_I32,
+        },
+        .outCount = 1,
+        .out = { WA_TYPE_I32 },
+        .opdCount = 3,
+    },
+    [WA_INSTR_i32_gt_u] = {
+        .inCount = 2,
+        .in = {
+            WA_TYPE_I32,
+            WA_TYPE_I32,
+        },
+        .outCount = 1,
+        .out = { WA_TYPE_I32 },
+        .opdCount = 3,
+    },
+    [WA_INSTR_i32_le_s] = {
+        .inCount = 2,
+        .in = {
+            WA_TYPE_I32,
+            WA_TYPE_I32,
+        },
+        .outCount = 1,
+        .out = { WA_TYPE_I32 },
+        .opdCount = 3,
+    },
+    [WA_INSTR_i32_le_u] = {
+        .inCount = 2,
+        .in = {
+            WA_TYPE_I32,
+            WA_TYPE_I32,
+        },
+        .outCount = 1,
+        .out = { WA_TYPE_I32 },
+        .opdCount = 3,
+    },
+    [WA_INSTR_i32_ge_s] = {
+        .inCount = 2,
+        .in = {
+            WA_TYPE_I32,
+            WA_TYPE_I32,
+        },
+        .outCount = 1,
+        .out = { WA_TYPE_I32 },
+        .opdCount = 3,
+    },
+    [WA_INSTR_i32_ge_u] = {
+        .inCount = 2,
+        .in = {
+            WA_TYPE_I32,
+            WA_TYPE_I32,
+        },
+        .outCount = 1,
+        .out = { WA_TYPE_I32 },
+        .opdCount = 3,
+    },
     [WA_INSTR_i64_eqz] = {},
     [WA_INSTR_i64_eq] = {},
     [WA_INSTR_i64_ne] = {},
@@ -1068,24 +1164,219 @@ static const wa_instr_info wa_instr_infos[] = {
     [WA_INSTR_f64_gt] = {},
     [WA_INSTR_f64_le] = {},
     [WA_INSTR_f64_ge] = {},
-    [WA_INSTR_i32_clz] = {},
-    [WA_INSTR_i32_ctz] = {},
-    [WA_INSTR_i32_popcnt] = {},
-    [WA_INSTR_i32_add] = {},
-    [WA_INSTR_i32_sub] = {},
-    [WA_INSTR_i32_mul] = {},
-    [WA_INSTR_i32_div_s] = {},
-    [WA_INSTR_i32_div_u] = {},
-    [WA_INSTR_i32_rem_s] = {},
-    [WA_INSTR_i32_rem_u] = {},
-    [WA_INSTR_i32_and] = {},
-    [WA_INSTR_i32_or] = {},
-    [WA_INSTR_i32_xor] = {},
-    [WA_INSTR_i32_shl] = {},
-    [WA_INSTR_i32_shr_s] = {},
-    [WA_INSTR_i32_shr_u] = {},
-    [WA_INSTR_i32_rotl] = {},
-    [WA_INSTR_i32_rotr] = {},
+    [WA_INSTR_i32_clz] = {
+        .inCount = 1,
+        .in = {
+            WA_TYPE_I32,
+        },
+        .outCount = 1,
+        .out = {
+            WA_TYPE_I32,
+        },
+        .opdCount = 2,
+    },
+    [WA_INSTR_i32_ctz] = {
+        .inCount = 1,
+        .in = {
+            WA_TYPE_I32,
+        },
+        .outCount = 1,
+        .out = {
+            WA_TYPE_I32,
+        },
+        .opdCount = 2,
+    },
+    [WA_INSTR_i32_popcnt] = {
+        .inCount = 1,
+        .in = {
+            WA_TYPE_I32,
+        },
+        .outCount = 1,
+        .out = {
+            WA_TYPE_I32,
+        },
+        .opdCount = 2,
+    },
+    [WA_INSTR_i32_add] = {
+        .inCount = 2,
+        .in = {
+            WA_TYPE_I32,
+            WA_TYPE_I32,
+        },
+        .outCount = 1,
+        .out = {
+            WA_TYPE_I32,
+        },
+        .opdCount = 3,
+    },
+    [WA_INSTR_i32_sub] = {
+        .inCount = 2,
+        .in = {
+            WA_TYPE_I32,
+            WA_TYPE_I32,
+        },
+        .outCount = 1,
+        .out = {
+            WA_TYPE_I32,
+        },
+        .opdCount = 3,
+    },
+    [WA_INSTR_i32_mul] = {
+        .inCount = 2,
+        .in = {
+            WA_TYPE_I32,
+            WA_TYPE_I32,
+        },
+        .outCount = 1,
+        .out = {
+            WA_TYPE_I32,
+        },
+        .opdCount = 3,
+    },
+    [WA_INSTR_i32_div_s] = {
+        .inCount = 2,
+        .in = {
+            WA_TYPE_I32,
+            WA_TYPE_I32,
+        },
+        .outCount = 1,
+        .out = {
+            WA_TYPE_I32,
+        },
+        .opdCount = 3,
+    },
+    [WA_INSTR_i32_div_u] = {
+        .inCount = 2,
+        .in = {
+            WA_TYPE_I32,
+            WA_TYPE_I32,
+        },
+        .outCount = 1,
+        .out = {
+            WA_TYPE_I32,
+        },
+        .opdCount = 3,
+    },
+    [WA_INSTR_i32_rem_s] = {
+        .inCount = 2,
+        .in = {
+            WA_TYPE_I32,
+            WA_TYPE_I32,
+        },
+        .outCount = 1,
+        .out = {
+            WA_TYPE_I32,
+        },
+        .opdCount = 3,
+    },
+    [WA_INSTR_i32_rem_u] = {
+        .inCount = 2,
+        .in = {
+            WA_TYPE_I32,
+            WA_TYPE_I32,
+        },
+        .outCount = 1,
+        .out = {
+            WA_TYPE_I32,
+        },
+        .opdCount = 3,
+    },
+    [WA_INSTR_i32_and] = {
+        .inCount = 2,
+        .in = {
+            WA_TYPE_I32,
+            WA_TYPE_I32,
+        },
+        .outCount = 1,
+        .out = {
+            WA_TYPE_I32,
+        },
+        .opdCount = 3,
+    },
+    [WA_INSTR_i32_or] = {
+        .inCount = 2,
+        .in = {
+            WA_TYPE_I32,
+            WA_TYPE_I32,
+        },
+        .outCount = 1,
+        .out = {
+            WA_TYPE_I32,
+        },
+        .opdCount = 3,
+    },
+    [WA_INSTR_i32_xor] = {
+        .inCount = 2,
+        .in = {
+            WA_TYPE_I32,
+            WA_TYPE_I32,
+        },
+        .outCount = 1,
+        .out = {
+            WA_TYPE_I32,
+        },
+        .opdCount = 3,
+    },
+    [WA_INSTR_i32_shl] = {
+        .inCount = 2,
+        .in = {
+            WA_TYPE_I32,
+            WA_TYPE_I32,
+        },
+        .outCount = 1,
+        .out = {
+            WA_TYPE_I32,
+        },
+        .opdCount = 3,
+    },
+    [WA_INSTR_i32_shr_s] = {
+        .inCount = 2,
+        .in = {
+            WA_TYPE_I32,
+            WA_TYPE_I32,
+        },
+        .outCount = 1,
+        .out = {
+            WA_TYPE_I32,
+        },
+        .opdCount = 3,
+    },
+    [WA_INSTR_i32_shr_u] = {
+        .inCount = 2,
+        .in = {
+            WA_TYPE_I32,
+            WA_TYPE_I32,
+        },
+        .outCount = 1,
+        .out = {
+            WA_TYPE_I32,
+        },
+        .opdCount = 3,
+    },
+    [WA_INSTR_i32_rotl] = {
+        .inCount = 2,
+        .in = {
+            WA_TYPE_I32,
+            WA_TYPE_I32,
+        },
+        .outCount = 1,
+        .out = {
+            WA_TYPE_I32,
+        },
+        .opdCount = 3,
+    },
+    [WA_INSTR_i32_rotr] = {
+        .inCount = 2,
+        .in = {
+            WA_TYPE_I32,
+            WA_TYPE_I32,
+        },
+        .outCount = 1,
+        .out = {
+            WA_TYPE_I32,
+        },
+        .opdCount = 3,
+    },
     [WA_INSTR_i64_clz] = {},
     [WA_INSTR_i64_ctz] = {},
     [WA_INSTR_i64_popcnt] = {},
@@ -1157,8 +1448,28 @@ static const wa_instr_info wa_instr_infos[] = {
     [WA_INSTR_i64_reinterpret_f64] = {},
     [WA_INSTR_f32_reinterpret_i32] = {},
     [WA_INSTR_f64_reinterpret_i64] = {},
-    [WA_INSTR_i32_extend8_s] = {},
-    [WA_INSTR_i32_extend16_s] = {},
+    [WA_INSTR_i32_extend8_s] = {
+        .inCount = 1,
+        .in = {
+            WA_TYPE_I32,
+        },
+        .outCount = 1,
+        {
+            WA_TYPE_I32,
+        },
+        .opdCount = 2,
+    },
+    [WA_INSTR_i32_extend16_s] = {
+        .inCount = 1,
+        .in = {
+            WA_TYPE_I32,
+        },
+        .outCount = 1,
+        {
+            WA_TYPE_I32,
+        },
+        .opdCount = 2,
+    },
     [WA_INSTR_i64_extend8_s] = {},
     [WA_INSTR_i64_extend16_s] = {},
     [WA_INSTR_i64_extend32_s] = {},

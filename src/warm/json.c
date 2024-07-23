@@ -6,9 +6,9 @@
 
 typedef enum json_node_kind
 {
+    JSON_NULL,
     JSON_TRUE,
     JSON_FALSE,
-    JSON_NULL,
     JSON_NUM_F64,
     JSON_NUM_I64,
     JSON_STRING,
@@ -17,9 +17,9 @@ typedef enum json_node_kind
 } json_node_kind;
 
 const char* json_node_kind_strings[] = {
+    "null",
     "true",
     "false",
-    "null",
     "num f64",
     "num i64",
     "string",
@@ -33,6 +33,7 @@ typedef struct json_node
 {
     oc_list_elt listElt;
     oc_list children;
+    u64 childCount;
     json_node* parent;
 
     json_node_kind kind;
@@ -392,6 +393,7 @@ void json_node_add_child(json_node* node, json_node* child)
 {
     child->parent = node;
     oc_list_push_back(&node->children, &child->listElt);
+    node->childCount++;
 }
 
 oc_str8 json_convert_escaped_string(oc_arena* arena, oc_str8 string)
@@ -535,7 +537,7 @@ json_node* json_make_from_lex(json_parser* parser, json_lex* lex)
             break;
         case JSON_LEX_I64:
             node->kind = JSON_NUM_I64;
-            node->numF64 = lex->numI64;
+            node->numI64 = lex->numI64;
             break;
         case JSON_LEX_TRUE:
             node->kind = JSON_TRUE;
@@ -649,21 +651,19 @@ void json_print(json_node* node, int indent)
     }
 }
 
-int main()
+json_node* json_find(json_node* node, oc_str8 name)
 {
-    oc_str8 string = { 0 };
-    oc_file file = oc_file_open(OC_STR8("test.json"), OC_FILE_ACCESS_READ, OC_FILE_OPEN_NONE);
-
-    oc_arena arena = { 0 };
-    oc_arena_init(&arena);
-
-    string.len = oc_file_size(file);
-    string.ptr = oc_arena_push(&arena, string.len);
-
-    oc_file_read(file, string.len, string.ptr);
-    oc_file_close(file);
-
-    json_node* node = json_parse_str8(&arena, string);
-    json_print(node, 0);
-    return (0);
+    json_node* res = 0;
+    if(node->kind == JSON_OBJECT)
+    {
+        oc_list_for(node->children, child, json_node, listElt)
+        {
+            if(!oc_str8_cmp(child->name, name))
+            {
+                res = child;
+                break;
+            }
+        }
+    }
+    return (res);
 }
