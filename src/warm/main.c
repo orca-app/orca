@@ -897,6 +897,20 @@ bool wa_is_value_type(u64 t)
     }
 }
 
+bool wa_is_value_type_numeric(u64 t)
+{
+    switch(t)
+    {
+        case WA_TYPE_I32:
+        case WA_TYPE_I64:
+        case WA_TYPE_F32:
+        case WA_TYPE_F64:
+            return true;
+        default:
+            return false;
+    }
+}
+
 const char* wa_value_type_string(wa_value_type t)
 {
     switch(t)
@@ -926,6 +940,42 @@ const char* wa_value_type_string(wa_value_type t)
 // errors
 //-------------------------------------------------------------------------
 
+/*
+examples of assert_invalid strings:
+
+type mismatch
+unknown global
+unknown local
+unknown function
+unknown label
+unknown elem segment ...
+unknown table ...
+
+*/
+
+typedef enum wa_status
+{
+    WA_OK = 0,
+
+    WA_PARSE_ERROR,
+
+    WA_VALIDATION_TYPE_MISMATCH,
+    WA_VALIDATION_INVALID_TYPE,
+    WA_VALIDATION_INVALID_FUNCTION,
+    WA_VALIDATION_INVALID_GLOBAL,
+    WA_VALIDATION_INVALID_LOCAL,
+    WA_VALIDATION_INVALID_TABLE,
+    WA_VALIDATION_INVALID_MEMORY,
+    /*...*/
+
+    WA_ERROR_INVALID_ARGS,
+    WA_ERROR_BIND_TYPE,
+
+    WA_TRAP_INVALID_OP,
+    WA_TRAP_DIVIDE_BY_ZERO,
+    WA_TRAP_INTEGER_OVERFLOW,
+} wa_status;
+
 typedef struct wa_module_error
 {
     oc_list_elt moduleElt;
@@ -933,12 +983,17 @@ typedef struct wa_module_error
 
     wa_ast* ast;
     bool blockEnd;
+
+    wa_status status;
     oc_str8 string;
+
 } wa_module_error;
 
 void wa_parse_error(wa_parser* parser, wa_ast* ast, const char* fmt, ...)
 {
     wa_module_error* error = oc_arena_push_type(parser->arena, wa_module_error);
+
+    error->status = WA_PARSE_ERROR;
 
     va_list ap;
     va_start(ap, fmt);
@@ -1977,134 +2032,164 @@ void wa_parse_code(wa_parser* parser, wa_module* module)
 
             const wa_instr_info* info = &wa_instr_infos[instr->op];
 
-            //NOTE: parse immediates
-
-            ////////////////////////////////////////////////////////////////////
-            //TODO validate all immediates
-            ////////////////////////////////////////////////////////////////////
-
-            for(int immIndex = 0; immIndex < info->immCount; immIndex++)
+            if(!info->defined)
             {
-                switch(info->imm[immIndex])
+                wa_parse_error(parser, instrAst, "undefined instruction %s.\n", wa_instr_strings[instr->op]);
+                return;
+            }
+            //NOTE: parse immediates, special cases first, then generic
+
+            if(instr->op == WA_INSTR_select_t)
+            {
+                wa_ast* vector = wa_ast_alloc(parser, WA_AST_VECTOR);
+                vector->loc.start = parser->offset;
+                vector->parent = instrAst;
+                oc_list_push_back(&instrAst->children, &vector->parentElt);
+
+                wa_ast* count = wa_read_leb128_u32(parser, vector, OC_STR8("count"));
+                if(count->valU32 != 1)
                 {
-                    case WA_IMM_ZERO:
-                    {
-                        wa_read_byte(parser, instrAst, OC_STR8("zero"));
-                    }
-                    break;
-                    case WA_IMM_I32:
-                    {
-                        wa_ast* immAst = wa_read_leb128_i32(parser, instrAst, OC_STR8("i32"));
-                        instr->imm[immIndex].valI32 = immAst->valI32;
-                    }
-                    break;
-                    case WA_IMM_I64:
-                    {
-                        wa_ast* immAst = wa_read_leb128_u64(parser, instrAst, OC_STR8("i64"));
-                        instr->imm[immIndex].valI64 = immAst->valI64;
-                    }
-                    break;
-                    case WA_IMM_F32:
-                    {
-                        wa_ast* immAst = wa_read_f32(parser, instrAst, OC_STR8("f32"));
-                        instr->imm[immIndex].valF32 = immAst->valF32;
-                    }
-                    break;
-                    case WA_IMM_F64:
-                    {
-                        wa_ast* immAst = wa_read_f64(parser, instrAst, OC_STR8("f64"));
-                        instr->imm[immIndex].valF64 = immAst->valF32;
-                    }
-                    break;
-                    case WA_IMM_VALUE_TYPE:
-                    {
-                        wa_ast* immAst = wa_parse_value_type(parser, instrAst, OC_STR8("value type"));
-                        instr->imm[immIndex].valueType = immAst->valU32;
-                    }
-                    break;
-                    case WA_IMM_REF_TYPE:
-                    {
-                        wa_ast* immAst = wa_read_byte(parser, instrAst, OC_STR8("ref type"));
-                        instr->imm[immIndex].valueType = immAst->valU8;
-                    }
-                    break;
+                    wa_parse_error(parser,
+                                   count,
+                                   "select instruction can have at most one immediate\n");
+                    goto parse_function_end;
+                }
 
-                    case WA_IMM_LOCAL_INDEX:
-                    {
-                        wa_ast* immAst = wa_read_leb128_u32(parser, instrAst, OC_STR8("index"));
-                        instr->imm[immIndex].index = immAst->valU32;
+                wa_ast* immAst = wa_parse_value_type(parser, vector, OC_STR8("type"));
+                instr->imm[0].valueType = immAst->valU32;
 
-                        if(immAst->valU32 >= func->localCount)
+                vector->loc.len = parser->offset - vector->loc.start;
+            }
+            else
+            {
+                //generic case
+                ////////////////////////////////////////////////////////////////////
+                //TODO validate all immediates
+                ////////////////////////////////////////////////////////////////////
+
+                for(int immIndex = 0; immIndex < info->immCount; immIndex++)
+                {
+                    switch(info->imm[immIndex])
+                    {
+                        case WA_IMM_ZERO:
                         {
-                            wa_parse_error(parser,
-                                           immAst,
-                                           "invalid local index %u (localCount: %u)\n",
-                                           immAst->valU32,
-                                           func->localCount);
+                            wa_read_byte(parser, instrAst, OC_STR8("zero"));
                         }
-                    }
-                    break;
-
-                    case WA_IMM_FUNC_INDEX:
-                    {
-                        wa_ast* immAst = wa_read_leb128_u32(parser, instrAst, OC_STR8("function index"));
-                        instr->imm[immIndex].index = immAst->valU32;
-                        immAst->kind = WA_AST_FUNC_INDEX;
-
-                        if(immAst->valU32 >= module->functionCount)
+                        break;
+                        case WA_IMM_I32:
                         {
-                            wa_parse_error(parser,
-                                           immAst,
-                                           "invalid function index %u (function count: %u)\n",
-                                           immAst->valU32,
-                                           module->functionCount);
+                            wa_ast* immAst = wa_read_leb128_i32(parser, instrAst, OC_STR8("i32"));
+                            instr->imm[immIndex].valI32 = immAst->valI32;
                         }
-                    }
-                    break;
+                        break;
+                        case WA_IMM_I64:
+                        {
+                            wa_ast* immAst = wa_read_leb128_u64(parser, instrAst, OC_STR8("i64"));
+                            instr->imm[immIndex].valI64 = immAst->valI64;
+                        }
+                        break;
+                        case WA_IMM_F32:
+                        {
+                            wa_ast* immAst = wa_read_f32(parser, instrAst, OC_STR8("f32"));
+                            instr->imm[immIndex].valF32 = immAst->valF32;
+                        }
+                        break;
+                        case WA_IMM_F64:
+                        {
+                            wa_ast* immAst = wa_read_f64(parser, instrAst, OC_STR8("f64"));
+                            instr->imm[immIndex].valF64 = immAst->valF32;
+                        }
+                        break;
+                        case WA_IMM_VALUE_TYPE:
+                        {
+                            wa_ast* immAst = wa_parse_value_type(parser, instrAst, OC_STR8("value type"));
+                            instr->imm[immIndex].valueType = immAst->valU32;
+                        }
+                        break;
+                        case WA_IMM_REF_TYPE:
+                        {
+                            wa_ast* immAst = wa_read_byte(parser, instrAst, OC_STR8("ref type"));
+                            instr->imm[immIndex].valueType = immAst->valU8;
+                        }
+                        break;
 
-                    case WA_IMM_GLOBAL_INDEX:
-                    case WA_IMM_TYPE_INDEX:
-                    case WA_IMM_TABLE_INDEX:
-                    case WA_IMM_ELEM_INDEX:
-                    case WA_IMM_DATA_INDEX:
-                    case WA_IMM_LABEL:
-                    {
-                        wa_ast* immAst = wa_read_leb128_u32(parser, instrAst, OC_STR8("index"));
-                        instr->imm[immIndex].index = immAst->valU32;
-                    }
-                    break;
-                    case WA_IMM_MEM_ARG:
-                    {
-                        wa_ast* memArgAst = wa_ast_alloc(parser, WA_AST_MEM_ARG);
-                        memArgAst->loc.start = parser->offset;
-                        memArgAst->parent = instrAst;
-                        oc_list_push_back(&instrAst->children, &memArgAst->parentElt);
+                        case WA_IMM_LOCAL_INDEX:
+                        {
+                            wa_ast* immAst = wa_read_leb128_u32(parser, instrAst, OC_STR8("index"));
+                            instr->imm[immIndex].index = immAst->valU32;
 
-                        wa_ast* alignAst = wa_read_leb128_u32(parser, memArgAst, OC_STR8("mem arg"));
-                        wa_ast* offsetAst = wa_read_leb128_u32(parser, memArgAst, OC_STR8("mem arg"));
+                            if(immAst->valU32 >= func->localCount)
+                            {
+                                wa_parse_error(parser,
+                                               immAst,
+                                               "invalid local index %u (localCount: %u)\n",
+                                               immAst->valU32,
+                                               func->localCount);
+                            }
+                        }
+                        break;
 
-                        instr->imm[immIndex].memArg.align = alignAst->valU32;
-                        instr->imm[immIndex].memArg.offset = offsetAst->valU32;
+                        case WA_IMM_FUNC_INDEX:
+                        {
+                            wa_ast* immAst = wa_read_leb128_u32(parser, instrAst, OC_STR8("function index"));
+                            instr->imm[immIndex].index = immAst->valU32;
+                            immAst->kind = WA_AST_FUNC_INDEX;
 
-                        memArgAst->loc.len = parser->offset - memArgAst->loc.start;
-                    }
-                    break;
-                    case WA_IMM_LANE_INDEX:
-                    {
-                        wa_ast* immAst = wa_read_byte(parser, instrAst, OC_STR8("lane index"));
-                        instr->imm[immIndex].laneIndex = immAst->valU8;
-                    }
-                    break;
-                    /*
+                            if(immAst->valU32 >= module->functionCount)
+                            {
+                                wa_parse_error(parser,
+                                               immAst,
+                                               "invalid function index %u (function count: %u)\n",
+                                               immAst->valU32,
+                                               module->functionCount);
+                            }
+                        }
+                        break;
+
+                        case WA_IMM_GLOBAL_INDEX:
+                        case WA_IMM_TYPE_INDEX:
+                        case WA_IMM_TABLE_INDEX:
+                        case WA_IMM_ELEM_INDEX:
+                        case WA_IMM_DATA_INDEX:
+                        case WA_IMM_LABEL:
+                        {
+                            wa_ast* immAst = wa_read_leb128_u32(parser, instrAst, OC_STR8("index"));
+                            instr->imm[immIndex].index = immAst->valU32;
+                        }
+                        break;
+                        case WA_IMM_MEM_ARG:
+                        {
+                            wa_ast* memArgAst = wa_ast_alloc(parser, WA_AST_MEM_ARG);
+                            memArgAst->loc.start = parser->offset;
+                            memArgAst->parent = instrAst;
+                            oc_list_push_back(&instrAst->children, &memArgAst->parentElt);
+
+                            wa_ast* alignAst = wa_read_leb128_u32(parser, memArgAst, OC_STR8("mem arg"));
+                            wa_ast* offsetAst = wa_read_leb128_u32(parser, memArgAst, OC_STR8("mem arg"));
+
+                            instr->imm[immIndex].memArg.align = alignAst->valU32;
+                            instr->imm[immIndex].memArg.offset = offsetAst->valU32;
+
+                            memArgAst->loc.len = parser->offset - memArgAst->loc.start;
+                        }
+                        break;
+                        case WA_IMM_LANE_INDEX:
+                        {
+                            wa_ast* immAst = wa_read_byte(parser, instrAst, OC_STR8("lane index"));
+                            instr->imm[immIndex].laneIndex = immAst->valU8;
+                        }
+                        break;
+                        /*
                     case WA_IMM_V128:
                     {
                         //TODO
                     }
                     break;
                     */
-                    default:
-                        OC_ASSERT(0, "unsupported immediate type");
-                        break;
+                        default:
+                            OC_ASSERT(0, "unsupported immediate type");
+                            break;
+                    }
                 }
             }
 
@@ -2132,16 +2217,16 @@ void wa_parse_code(wa_parser* parser, wa_module* module)
                 }
                 else
                 {
-                    if(!wa_is_value_type(t & 0x7f))
+                    if(t != -64 && !wa_is_value_type(t & 0x7f))
                     {
                         wa_parse_error(parser,
                                        blockTypeAst,
-                                       "unrecognized value type 0x%02x\n",
-                                       t);
+                                       "unrecognized value type 0x%02hhx\n",
+                                       t & 0x7f);
                         goto parse_function_end;
                     }
-
                     t = (t == -64) ? 0 : -t;
+
                     instr->blockType = (wa_func_type*)&WA_BLOCK_VALUE_TYPES[t];
                 }
             }
@@ -2816,6 +2901,21 @@ int wa_compile_return(wa_build_context* context, wa_func* func, wa_instr* instr)
     return 0;
 }
 
+void wa_build_context_clear(wa_build_context* context)
+{
+    oc_arena_clear(&context->checkArena);
+    context->codeLen = 0;
+
+    context->opdStackLen = 0;
+    context->opdStackCap = 0;
+
+    context->controlStackLen = 0;
+    context->controlStackCap = 0;
+
+    context->nextRegIndex = 0;
+    context->freeRegLen = 0;
+}
+
 void wa_compile_code(oc_arena* arena, wa_module* module)
 {
     wa_build_context context = {
@@ -2832,18 +2932,95 @@ void wa_compile_code(oc_arena* arena, wa_module* module)
     {
         wa_func* func = &module->functions[funcIndex];
 
-        oc_arena_clear(&context.checkArena);
-        context.codeLen = 0;
+        wa_build_context_clear(&context);
         context.nextRegIndex = func->localCount;
 
         oc_list_for(func->instructions, instr, wa_instr, listElt)
         {
             const wa_instr_info* info = &wa_instr_infos[instr->op];
+
             //NOTE: immediates should have been validated when parsing instructions
 
             if(instr->op == WA_INSTR_nop)
             {
                 // do nothing
+            }
+            else if(instr->op == WA_INSTR_drop)
+            {
+                wa_operand_slot slot = wa_operand_stack_pop(&context);
+                if(wa_operand_slot_is_nil(&slot))
+                {
+                    wa_compile_error(&context,
+                                     instr->ast,
+                                     "unbalanced stack\n");
+                    goto compile_function_end;
+                }
+                //TODO: possibly remove instruction that pushed this operand?
+            }
+            else if(instr->op == WA_INSTR_select || instr->op == WA_INSTR_select_t)
+            {
+                wa_operand_slot slot2 = wa_operand_stack_pop(&context);
+                wa_operand_slot slot1 = wa_operand_stack_pop(&context);
+                wa_operand_slot slot0 = wa_operand_stack_pop(&context);
+
+                if(wa_operand_slot_is_nil(&slot2))
+                {
+                    wa_compile_error(&context,
+                                     instr->ast,
+                                     "unbalanced stack\n");
+                    goto compile_function_end;
+                }
+
+                if(slot0.type != slot1.type)
+                {
+                    //TODO: is this true?
+                    wa_compile_error(&context,
+                                     instr->ast,
+                                     "select first two operands should be of the same type\n");
+                    goto compile_function_end;
+                }
+                if(slot2.type != WA_TYPE_I32)
+                {
+                    wa_compile_error(&context,
+                                     instr->ast,
+                                     "select last operands should be type i32\n");
+                    goto compile_function_end;
+                }
+
+                if(instr->op == WA_INSTR_select_t)
+                {
+                    if(slot0.type != instr->imm[0].valueType)
+                    {
+                        wa_compile_error(&context,
+                                         instr->ast,
+                                         "select operands should be numeric\n");
+                        goto compile_function_end;
+                    }
+                }
+                else if(!wa_is_value_type_numeric(slot0.type))
+                {
+                    wa_compile_error(&context,
+                                     instr->ast,
+                                     "select operands should be numeric\n");
+                    goto compile_function_end;
+                }
+
+                u32 index = wa_allocate_register(&context);
+
+                wa_operand_slot out = {
+                    .kind = WA_OPERAND_SLOT_REG,
+                    .type = slot0.type,
+                    .index = index,
+                    .originInstr = instr,
+                    .originOpd = context.codeLen,
+                };
+                wa_operand_stack_push(&context, out);
+
+                wa_emit(&context, (wa_code){ .opcode = WA_INSTR_select });
+                wa_emit(&context, (wa_code){ .valI32 = slot0.index });
+                wa_emit(&context, (wa_code){ .valI32 = slot1.index });
+                wa_emit(&context, (wa_code){ .valI32 = slot2.index });
+                wa_emit(&context, (wa_code){ .valI32 = out.index });
             }
             else if(instr->op == WA_INSTR_block)
             {
@@ -3395,16 +3572,6 @@ void wa_print_code(wa_module* module)
 // interpreter
 //-------------------------------------------------------------------------
 
-typedef enum wa_status
-{
-    WA_OK = 0,
-    WA_FAIL_INVALID_ARGS,
-    WA_FAIL_TYPE_MISMATCH,
-    WA_TRAP_INVALID_OP,
-    WA_TRAP_DIVISION_BY_ZERO,
-    WA_TRAP_INTEGER_OVERFLOW,
-} wa_status;
-
 static const char* wa_status_strings[] = {
     "ok",
     "invalid arguments",
@@ -3448,20 +3615,20 @@ wa_status wa_bind(wa_module* module, oc_str8 name, wa_func_type* type, wa_host_p
                    || type->returnCount != func->type->returnCount)
                 {
                     //log error to module
-                    return WA_FAIL_TYPE_MISMATCH;
+                    return WA_ERROR_BIND_TYPE;
                 }
                 for(u32 paramIndex = 0; paramIndex < type->paramCount; paramIndex++)
                 {
                     if(type->params[paramIndex] != func->type->params[paramIndex])
                     {
-                        return WA_FAIL_TYPE_MISMATCH;
+                        return WA_ERROR_BIND_TYPE;
                     }
                 }
                 for(u32 returnIndex = 0; returnIndex < type->returnCount; returnIndex++)
                 {
                     if(type->returns[returnIndex] != func->type->returns[returnIndex])
                     {
-                        return WA_FAIL_TYPE_MISMATCH;
+                        return WA_ERROR_BIND_TYPE;
                     }
                 }
                 break;
@@ -3502,7 +3669,7 @@ wa_status wa_interpret_func(wa_module* module,
 {
     if(argCount != func->type->paramCount || retCount != func->type->returnCount)
     {
-        return WA_FAIL_INVALID_ARGS;
+        return WA_ERROR_INVALID_ARGS;
     }
 
     wa_control controlStack[1024] = {};
@@ -3623,7 +3790,7 @@ wa_status wa_interpret_func(wa_module* module,
             {
                 if(locals[pc[0].valI32].valI32 == 0)
                 {
-                    return WA_TRAP_DIVISION_BY_ZERO;
+                    return WA_TRAP_DIVIDE_BY_ZERO;
                 }
                 else if(locals[pc[0].valI32].valI32 == -1 && locals[pc[1].valI32].valI32 == INT32_MIN)
                 {
@@ -3641,7 +3808,7 @@ wa_status wa_interpret_func(wa_module* module,
             {
                 if(locals[pc[0].valI32].valI32 == 0)
                 {
-                    return WA_TRAP_DIVISION_BY_ZERO;
+                    return WA_TRAP_DIVIDE_BY_ZERO;
                 }
                 else
                 {
@@ -3655,7 +3822,7 @@ wa_status wa_interpret_func(wa_module* module,
             {
                 if(locals[pc[0].valI32].valI32 == 0)
                 {
-                    return WA_TRAP_DIVISION_BY_ZERO;
+                    return WA_TRAP_DIVIDE_BY_ZERO;
                 }
                 else if(locals[pc[0].valI32].valI32 == -1 && locals[pc[1].valI32].valI32 == INT32_MIN)
                 {
@@ -3673,7 +3840,7 @@ wa_status wa_interpret_func(wa_module* module,
             {
                 if(locals[pc[0].valI32].valI32 == 0)
                 {
-                    return WA_TRAP_DIVISION_BY_ZERO;
+                    return WA_TRAP_DIVIDE_BY_ZERO;
                 }
                 else
                 {
@@ -3869,6 +4036,284 @@ wa_status wa_interpret_func(wa_module* module,
             }
             break;
 
+            case WA_INSTR_i64_add:
+            {
+                locals[pc[2].valI32].valI64 = locals[pc[1].valI32].valI64 + locals[pc[0].valI32].valI64;
+                pc += 3;
+            }
+            break;
+
+            case WA_INSTR_i64_sub:
+            {
+                locals[pc[2].valI32].valI64 = locals[pc[1].valI32].valI64 - locals[pc[0].valI32].valI64;
+                pc += 3;
+            }
+            break;
+
+            case WA_INSTR_i64_mul:
+            {
+                locals[pc[2].valI32].valI64 = locals[pc[1].valI32].valI64 * locals[pc[0].valI32].valI64;
+                pc += 3;
+            }
+            break;
+
+            case WA_INSTR_i64_div_s:
+            {
+                if(locals[pc[0].valI32].valI64 == 0)
+                {
+                    return WA_TRAP_DIVIDE_BY_ZERO;
+                }
+                else if(locals[pc[0].valI32].valI64 == -1 && locals[pc[1].valI32].valI64 == INT64_MIN)
+                {
+                    return WA_TRAP_INTEGER_OVERFLOW;
+                }
+                else
+                {
+                    locals[pc[2].valI32].valI64 = locals[pc[1].valI32].valI64 / locals[pc[0].valI32].valI64;
+                }
+                pc += 3;
+            }
+            break;
+
+            case WA_INSTR_i64_div_u:
+            {
+                if(locals[pc[0].valI32].valI64 == 0)
+                {
+                    return WA_TRAP_DIVIDE_BY_ZERO;
+                }
+                else
+                {
+                    *(u64*)&locals[pc[2].valI32].valI64 = *(u64*)&locals[pc[1].valI32].valI64 / *(u64*)&locals[pc[0].valI32].valI64;
+                }
+                pc += 3;
+            }
+            break;
+
+            case WA_INSTR_i64_rem_s:
+            {
+                if(locals[pc[0].valI32].valI64 == 0)
+                {
+                    return WA_TRAP_DIVIDE_BY_ZERO;
+                }
+                else if(locals[pc[0].valI32].valI64 == -1 && locals[pc[1].valI32].valI64 == INT64_MIN)
+                {
+                    locals[pc[2].valI32].valI64 = 0;
+                }
+                else
+                {
+                    locals[pc[2].valI32].valI64 = locals[pc[1].valI32].valI64 % locals[pc[0].valI32].valI64;
+                }
+                pc += 3;
+            }
+            break;
+
+            case WA_INSTR_i64_rem_u:
+            {
+                if(locals[pc[0].valI32].valI64 == 0)
+                {
+                    return WA_TRAP_DIVIDE_BY_ZERO;
+                }
+                else
+                {
+                    *(u64*)&locals[pc[2].valI32].valI64 = *(u64*)&locals[pc[1].valI32].valI64 % *(u64*)&locals[pc[0].valI32].valI64;
+                }
+                pc += 3;
+            }
+            break;
+
+            case WA_INSTR_i64_and:
+            {
+                locals[pc[2].valI32].valI64 = locals[pc[1].valI32].valI64 & locals[pc[0].valI32].valI64;
+                pc += 3;
+            }
+            break;
+
+            case WA_INSTR_i64_or:
+            {
+                locals[pc[2].valI32].valI64 = locals[pc[1].valI32].valI64 | locals[pc[0].valI32].valI64;
+                pc += 3;
+            }
+            break;
+
+            case WA_INSTR_i64_xor:
+            {
+                locals[pc[2].valI32].valI64 = locals[pc[1].valI32].valI64 ^ locals[pc[0].valI32].valI64;
+                pc += 3;
+            }
+            break;
+
+            case WA_INSTR_i64_shl:
+            {
+                locals[pc[2].valI32].valI64 = locals[pc[1].valI32].valI64 << locals[pc[0].valI32].valI64;
+                pc += 3;
+            }
+            break;
+
+            case WA_INSTR_i64_shr_s:
+            {
+                locals[pc[2].valI32].valI64 = locals[pc[1].valI32].valI64 >> locals[pc[0].valI32].valI64;
+                pc += 3;
+            }
+            break;
+
+            case WA_INSTR_i64_shr_u:
+            {
+                *(u64*)&locals[pc[2].valI32].valI64 = *(u64*)&locals[pc[1].valI32].valI64 >> *(u64*)&locals[pc[0].valI32].valI64;
+                pc += 3;
+            }
+            break;
+
+            case WA_INSTR_i64_rotr:
+            {
+                u64 n = *(u64*)&locals[pc[1].valI32].valI64;
+                u64 r = *(u64*)&locals[pc[0].valI32].valI64;
+                *(u64*)&locals[pc[2].valI32].valI64 = (n >> r) | (n << (64 - r));
+                pc += 3;
+            }
+            break;
+
+            case WA_INSTR_i64_rotl:
+            {
+                u64 n = *(u64*)&locals[pc[1].valI32].valI64;
+                u64 r = *(u64*)&locals[pc[0].valI32].valI64;
+                *(u64*)&locals[pc[2].valI32].valI64 = (n << r) | (n >> (64 - r));
+                pc += 3;
+            }
+            break;
+
+            case WA_INSTR_i64_clz:
+            {
+                if(locals[pc[0].valI32].valI64 == 0)
+                {
+                    locals[pc[1].valI32].valI64 = 64;
+                }
+                else
+                {
+                    locals[pc[1].valI32].valI64 = __builtin_clzl(*(u64*)&locals[pc[0].valI32].valI64);
+                }
+                pc += 2;
+            }
+            break;
+
+            case WA_INSTR_i64_ctz:
+            {
+                if(locals[pc[0].valI32].valI64 == 0)
+                {
+                    locals[pc[1].valI32].valI64 = 64;
+                }
+                else
+                {
+                    locals[pc[1].valI32].valI64 = __builtin_ctzl(*(u64*)&locals[pc[0].valI32].valI64);
+                }
+                pc += 2;
+            }
+            break;
+
+            case WA_INSTR_i64_popcnt:
+            {
+                locals[pc[1].valI32].valI64 = __builtin_popcountl(*(u64*)&locals[pc[0].valI32].valI64);
+                pc += 2;
+            }
+            break;
+
+            case WA_INSTR_i64_extend8_s:
+            {
+                locals[pc[1].valI32].valI64 = (i64)(i8)(locals[pc[0].valI32].valI64 & 0xff);
+                pc += 2;
+            }
+            break;
+
+            case WA_INSTR_i64_extend16_s:
+            {
+                locals[pc[1].valI32].valI64 = (i64)(i16)(locals[pc[0].valI32].valI64 & 0xffff);
+                pc += 2;
+            }
+            break;
+
+            case WA_INSTR_i64_extend32_s:
+            {
+                locals[pc[1].valI32].valI64 = (i64)(i32)(locals[pc[0].valI32].valI64 & 0xffffffff);
+                pc += 2;
+            }
+            break;
+
+            case WA_INSTR_i64_eqz:
+            {
+                locals[pc[1].valI32].valI32 = (locals[pc[0].valI32].valI64 == 0) ? 1 : 0;
+                pc += 2;
+            }
+            break;
+
+            case WA_INSTR_i64_eq:
+            {
+                locals[pc[2].valI32].valI32 = (locals[pc[1].valI32].valI64 == locals[pc[0].valI32].valI64) ? 1 : 0;
+                pc += 3;
+            }
+            break;
+
+            case WA_INSTR_i64_ne:
+            {
+                locals[pc[2].valI32].valI32 = (locals[pc[1].valI32].valI64 != locals[pc[0].valI32].valI64) ? 1 : 0;
+                pc += 3;
+            }
+            break;
+
+            case WA_INSTR_i64_lt_s:
+            {
+                locals[pc[2].valI32].valI32 = (locals[pc[1].valI32].valI64 < locals[pc[0].valI32].valI64) ? 1 : 0;
+                pc += 3;
+            }
+            break;
+
+            case WA_INSTR_i64_lt_u:
+            {
+                locals[pc[2].valI32].valI32 = (*(u64*)&locals[pc[1].valI32].valI64 < *(u64*)&locals[pc[0].valI32].valI64) ? 1 : 0;
+                pc += 3;
+            }
+            break;
+
+            case WA_INSTR_i64_le_s:
+            {
+                locals[pc[2].valI32].valI32 = (locals[pc[1].valI32].valI64 <= locals[pc[0].valI32].valI64) ? 1 : 0;
+                pc += 3;
+            }
+            break;
+
+            case WA_INSTR_i64_le_u:
+            {
+                locals[pc[2].valI32].valI32 = (*(u64*)&locals[pc[1].valI32].valI64 <= *(u64*)&locals[pc[0].valI32].valI64) ? 1 : 0;
+                pc += 3;
+            }
+            break;
+
+            case WA_INSTR_i64_gt_s:
+            {
+                locals[pc[2].valI32].valI32 = (locals[pc[1].valI32].valI64 > locals[pc[0].valI32].valI64) ? 1 : 0;
+                pc += 3;
+            }
+            break;
+
+            case WA_INSTR_i64_gt_u:
+            {
+                locals[pc[2].valI32].valI32 = (*(u64*)&locals[pc[1].valI32].valI64 > *(u64*)&locals[pc[0].valI32].valI64) ? 1 : 0;
+                pc += 3;
+            }
+            break;
+
+            case WA_INSTR_i64_ge_s:
+            {
+                locals[pc[2].valI32].valI32 = (locals[pc[1].valI32].valI64 >= locals[pc[0].valI32].valI64) ? 1 : 0;
+                pc += 3;
+            }
+            break;
+
+            case WA_INSTR_i64_ge_u:
+            {
+                locals[pc[2].valI32].valI32 = (*(u64*)&locals[pc[1].valI32].valI64 >= *(u64*)&locals[pc[0].valI32].valI64) ? 1 : 0;
+                pc += 3;
+            }
+            break;
+
             default:
                 oc_log_error("invalid opcode %s\n", wa_instr_strings[opcode]);
                 return WA_TRAP_INVALID_OP;
@@ -4028,6 +4473,160 @@ wa_typed_value test_parse_value(json_node* arg)
     return (value);
 }
 
+typedef struct wa_test_env
+{
+    oc_arena* arena;
+    wa_module* module;
+
+    u32 passed;
+    u32 failed;
+    u32 skipped;
+
+} wa_test_env;
+
+typedef struct wa_test_result
+{
+    wa_status status;
+    u32 count;
+    wa_value* values;
+
+} wa_test_result;
+
+wa_test_result wa_test_invoke(wa_test_env* env, json_node* action)
+{
+    json_node* funcName = json_find_assert(action, "field", JSON_STRING);
+    json_node* args = json_find_assert(action, "args", JSON_LIST);
+
+    wa_func* func = wa_find_function(env->module, funcName->string);
+
+    u32 argCount = args->childCount;
+    OC_ASSERT(argCount == func->type->paramCount);
+
+    wa_value* argVals = oc_arena_push_array(env->arena, wa_value, argCount);
+
+    u32 argIndex = 0;
+    oc_list_for(args->children, arg, json_node, listElt)
+    {
+        wa_typed_value val = test_parse_value(arg);
+        argVals[argIndex] = val.value;
+        argIndex++;
+    }
+
+    wa_test_result res = { 0 };
+
+    res.count = func->type->returnCount;
+    res.values = oc_arena_push_array(env->arena, wa_value, res.count);
+
+    res.status = wa_interpret_func(env->module, func, argCount, argVals, res.count, res.values);
+
+    return res;
+}
+
+wa_test_result wa_test_action(wa_test_env* env, json_node* action)
+{
+    wa_test_result result = { 0 };
+
+    json_node* actionType = json_find_assert(action, "type", JSON_STRING);
+
+    if(!oc_str8_cmp(actionType->string, OC_STR8("invoke")))
+    {
+        result = wa_test_invoke(env, action);
+    }
+    /*
+    else if(!oc_str8_cmp(actionType->string, OC_STR8("get"))
+    {
+        //TODO
+    }
+    */
+    else
+    {
+        OC_ASSERT(0, "unreachable");
+    }
+    return (result);
+}
+
+typedef enum wa_test_status
+{
+    WA_TEST_FAIL,
+    WA_TEST_SKIP,
+    WA_TEST_PASS,
+} wa_test_status;
+
+static const char* wa_test_status_string[] = {
+    "[FAIL]",
+    "[SKIP]",
+    "[PASS]",
+};
+
+static const char* wa_test_status_color_start[] = {
+    "\033[38;5;9m\033[1m",
+    "\033[38;5;13m\033[1m",
+    "\033[38;5;10m\033[1m",
+};
+
+static const char* wa_test_status_color_stop = "\033[m";
+
+void wa_test_mark(wa_test_env* env, wa_test_status status, oc_str8 fileName, json_node* command)
+{
+    switch(status)
+    {
+        case WA_TEST_FAIL:
+            env->failed++;
+            break;
+        case WA_TEST_SKIP:
+            env->skipped++;
+            break;
+        case WA_TEST_PASS:
+            env->passed++;
+            break;
+    }
+
+    printf("%s", wa_test_status_color_start[status]);
+    printf("%s", wa_test_status_string[status]);
+    printf("%s", wa_test_status_color_stop);
+
+    printf(" %.*s", oc_str8_ip(fileName));
+
+    json_node* line = json_find(command, OC_STR8("line"));
+    if(line)
+    {
+        printf(":%lli", line->numI64);
+    }
+
+    json_node* type = json_find_assert(command, "type", JSON_STRING);
+    printf(" (%.*s)\n", oc_str8_ip(type->string));
+}
+
+#define wa_test_pass(env, fileName, command) wa_test_mark(env, WA_TEST_PASS, fileName, command)
+#define wa_test_fail(env, fileName, command) wa_test_mark(env, WA_TEST_FAIL, fileName, command)
+#define wa_test_skip(env, fileName, command) wa_test_mark(env, WA_TEST_SKIP, fileName, command)
+
+wa_module* wa_test_module_load(oc_arena* arena, oc_str8 filename)
+{
+    oc_arena_scope scratch = oc_scratch_begin_next(arena);
+
+    oc_str8 contents = { 0 };
+
+    oc_file file = oc_file_open(filename, OC_FILE_ACCESS_READ, OC_FILE_OPEN_NONE);
+    if(oc_file_is_nil(file))
+    {
+        oc_log_error("Couldn't open file %.*s\n", oc_str8_ip(filename));
+        return (0);
+    }
+
+    contents.len = oc_file_size(file);
+    contents.ptr = oc_arena_push(scratch.arena, contents.len);
+
+    oc_file_read(file, contents.len, contents.ptr);
+    oc_file_close(file);
+
+    wa_module* module = wa_module_create(arena, contents);
+
+    oc_scratch_end(scratch);
+
+    return (module);
+}
+
 int test_main(int argc, char** argv)
 {
     if(argc < 3)
@@ -4037,10 +4636,15 @@ int test_main(int argc, char** argv)
     }
 
     oc_str8 testPath = OC_STR8(argv[2]);
+    oc_str8 testName = oc_path_slice_filename(testPath);
     oc_str8 testDir = oc_path_slice_directory(testPath);
 
     oc_arena arena = { 0 };
     oc_arena_init(&arena);
+
+    wa_test_env env = {
+        .arena = &arena,
+    };
 
     oc_str8 contents = { 0 };
     {
@@ -4061,8 +4665,6 @@ int test_main(int argc, char** argv)
     json_node* json = json_parse_str8(&arena, contents);
     json_node* commands = json_find_assert(json, "commands", JSON_LIST);
 
-    wa_module* module = 0;
-
     oc_list_for(commands->children, command, json_node, listElt)
     {
         json_node* type = json_find_assert(command, "type", JSON_STRING);
@@ -4071,125 +4673,152 @@ int test_main(int argc, char** argv)
         {
             json_node* name = json_find_assert(command, "filename", JSON_STRING);
 
-            oc_str8 moduleContents = { 0 };
+            oc_str8_list list = { 0 };
+            oc_str8_list_push(&arena, &list, testDir);
+            oc_str8_list_push(&arena, &list, name->string);
+
+            oc_str8 filePath = oc_path_join(&arena, list);
+            oc_log_info("loading module %.*s\n", oc_str8_ip(filePath));
+
+            env.module = wa_test_module_load(&arena, filePath);
+            OC_ASSERT(env.module);
+
+            if(!oc_list_empty(env.module->errors))
             {
-                oc_str8_list list = { 0 };
-                oc_str8_list_push(&arena, &list, testDir);
-                oc_str8_list_push(&arena, &list, name->string);
+                wa_module_print_errors(env.module);
+                wa_module_print_errors(env.module);
 
-                oc_str8 filePath = oc_path_join(&arena, list);
-                oc_log_info("loading module %.*s\n", oc_str8_ip(filePath));
-
-                oc_file file = oc_file_open(filePath, OC_FILE_ACCESS_READ, OC_FILE_OPEN_NONE);
-                if(oc_file_is_nil(file))
-                {
-                    oc_log_error("Couldn't open module %.*s\n", filePath);
-                    return (-1);
-                }
-                moduleContents.len = oc_file_size(file);
-                moduleContents.ptr = oc_arena_push(&arena, moduleContents.len);
-
-                oc_file_read(file, moduleContents.len, moduleContents.ptr);
-                oc_file_close(file);
+                wa_test_fail(&env, testName, command);
+                continue;
             }
-            module = wa_module_create(&arena, moduleContents);
         }
         else if(!oc_str8_cmp(type->string, OC_STR8("assert_return")))
         {
-            if(!oc_list_empty(module->errors))
+            OC_ASSERT(env.module);
+            if(!oc_list_empty(env.module->errors))
             {
-                wa_module_print_errors(module);
-                printf("FAIL: couldn not validate module\n");
-                wa_module_print_errors(module);
+                wa_test_fail(&env, testName, command);
                 continue;
             }
 
             json_node* expected = json_find_assert(command, "expected", JSON_LIST);
-
             json_node* action = json_find_assert(command, "action", JSON_OBJECT);
-            json_node* actionType = json_find_assert(action, "type", JSON_STRING);
 
-            if(!oc_str8_cmp(actionType->string, OC_STR8("invoke")))
+            wa_test_result result = wa_test_action(&env, action);
+
+            bool check = (result.status == WA_OK)
+                      && (expected->childCount == result.count);
+            if(check)
             {
-                json_node* funcName = json_find_assert(action, "field", JSON_STRING);
-                json_node* args = json_find_assert(action, "args", JSON_LIST);
-
-                wa_func* func = wa_find_function(module, funcName->string);
-
-                u32 argCount = args->childCount;
-                OC_ASSERT(argCount == func->type->paramCount);
-
-                wa_value* argVals = oc_arena_push_array(&arena, wa_value, argCount);
-
-                u32 argIndex = 0;
-                oc_list_for(args->children, arg, json_node, listElt)
+                u32 retIndex = 0;
+                oc_list_for(expected->children, expectRet, json_node, listElt)
                 {
-                    wa_typed_value val = test_parse_value(arg);
-                    argVals[argIndex] = val.value;
-                    argIndex++;
-                }
+                    //TODO: handle expected NaN
 
-                u32 retCount = expected->childCount;
-                OC_ASSERT(retCount == func->type->returnCount);
-                wa_value* retVals = oc_arena_push_array(&arena, wa_value, retCount);
-
-                wa_status status = wa_interpret_func(module, func, argCount, argVals, retCount, retVals);
-
-                bool check = (status == WA_OK);
-                if(check)
-                {
-                    u32 retIndex = 0;
-                    oc_list_for(expected->children, expectRet, json_node, listElt)
+                    wa_typed_value expectVal = test_parse_value(expectRet);
+                    switch(expectVal.type)
                     {
-                        //TODO: handle expected NaN
-
-                        wa_typed_value expectVal = test_parse_value(expectRet);
-                        switch(expectVal.type)
-                        {
-                            case WA_TYPE_I32:
-                                check = check && (retVals[retIndex].valI32 == expectVal.value.valI32);
-                                break;
-                            case WA_TYPE_I64:
-                                check = check && (retVals[retIndex].valI64 == expectVal.value.valI64);
-                                break;
-                            case WA_TYPE_F32:
-                                check = check && (retVals[retIndex].valF32 == expectVal.value.valF32);
-                                break;
-                            case WA_TYPE_F64:
-                                check = check && (retVals[retIndex].valF64 == expectVal.value.valF64);
-                                break;
-                            default:
-                                oc_log_error("unexpected type %s\n", wa_value_type_string(expectVal.type));
-                                OC_ASSERT(0, "unreachable");
-                                break;
-                        }
-                        if(!check)
-                        {
+                        case WA_TYPE_I32:
+                            check = check && (result.values[retIndex].valI32 == expectVal.value.valI32);
                             break;
-                        }
+                        case WA_TYPE_I64:
+                            check = check && (result.values[retIndex].valI64 == expectVal.value.valI64);
+                            break;
+                        case WA_TYPE_F32:
+                            check = check && (result.values[retIndex].valF32 == expectVal.value.valF32);
+                            break;
+                        case WA_TYPE_F64:
+                            check = check && (result.values[retIndex].valF64 == expectVal.value.valF64);
+                            break;
+                        default:
+                            oc_log_error("unexpected type %s\n", wa_value_type_string(expectVal.type));
+                            OC_ASSERT(0, "unreachable");
+                            break;
+                    }
+                    if(!check)
+                    {
+                        break;
                     }
                 }
-                json_node* line = json_find(command, OC_STR8("line"));
-                if(!check)
-                {
-                    printf("FAIL: test failed");
-                }
-                else
-                {
-                    printf("SUCCESS: test ok");
-                }
-                if(line)
-                {
-                    printf(" on line %lli", line->numI64);
-                }
-                printf("\n");
+            }
+
+            if(!check)
+            {
+                wa_test_fail(&env, testName, command);
+            }
+            else
+            {
+                wa_test_pass(&env, testName, command);
+            }
+        }
+        else if(!oc_str8_cmp(type->string, OC_STR8("assert_trap")))
+        {
+            OC_ASSERT(env.module);
+            if(!oc_list_empty(env.module->errors))
+            {
+                wa_test_fail(&env, testName, command);
+                continue;
+            }
+
+            json_node* failure = json_find_assert(command, "text", JSON_STRING);
+            json_node* action = json_find_assert(command, "action", JSON_OBJECT);
+
+            wa_status expected = WA_OK;
+            if(!oc_str8_cmp(failure->string, OC_STR8("integer divide by zero")))
+            {
+                expected = WA_TRAP_DIVIDE_BY_ZERO;
+            }
+            else if(!oc_str8_cmp(failure->string, OC_STR8("integer overflow")))
+            {
+                expected = WA_TRAP_INTEGER_OVERFLOW;
+            }
+            else
+            {
+                wa_test_skip(&env, testName, command);
+                continue;
+            }
+
+            wa_test_result result = wa_test_action(&env, action);
+
+            if(result.status == WA_OK || result.status != expected)
+            {
+                wa_test_fail(&env, testName, command);
+            }
+            else
+            {
+                wa_test_pass(&env, testName, command);
+            }
+        }
+        else if(!oc_str8_cmp(type->string, OC_STR8("assert_invalid")))
+        {
+            json_node* filename = json_find_assert(command, "filename", JSON_STRING);
+            wa_module* module = wa_test_module_load(env.arena, filename->string);
+            OC_ASSERT(module);
+
+            //TODO: check the failure reason
+            if(oc_list_empty(module->errors))
+            {
+                wa_test_fail(&env, testName, command);
+            }
+            else
+            {
+                wa_test_pass(&env, testName, command);
             }
         }
         else
         {
-            printf("SKIP: %.*s\n", oc_str8_ip(type->string));
+            wa_test_skip(&env, testName, command);
         }
     }
+
+    printf("\n--------------------------------------------------------------\n"
+           "passed: %i, skipped: %i, failed: %i, total: %i\n"
+           "--------------------------------------------------------------\n",
+           env.passed,
+           env.skipped,
+           env.failed,
+           env.passed + env.skipped + env.failed);
+
     return (0);
 }
 
