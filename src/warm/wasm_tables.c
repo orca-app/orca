@@ -443,6 +443,7 @@ static const char* wa_instr_strings[] = {
     [WA_INSTR_move] = "move",
     [WA_INSTR_jump] = "jump",
     [WA_INSTR_jump_if_zero] = "jump_if_zero",
+    [WA_INSTR_jump_table] = "jump_table",
 };
 
 typedef enum wa_instruction_prefix
@@ -977,7 +978,9 @@ static const wa_instr_info wa_instr_infos[] = {
         .imm = { WA_IMM_LABEL },
         .defined = true,
     },
-    [WA_INSTR_br_table] = {},
+    [WA_INSTR_br_table] = {
+        .defined = true,
+    },
     [WA_INSTR_return] = {
         .defined = true,
     },
@@ -987,7 +990,15 @@ static const wa_instr_info wa_instr_infos[] = {
         .opdCount = 2,
         .defined = true,
     },
-    [WA_INSTR_call_indirect] = {},
+    [WA_INSTR_call_indirect] = {
+        .immCount = 2,
+        .imm = {
+            WA_IMM_TYPE_INDEX,
+            WA_IMM_TABLE_INDEX,
+        },
+        .opdCount = 4,
+        .defined = true,
+    },
     [WA_INSTR_ref_null] = {},
     [WA_INSTR_ref_is_null] = {},
     [WA_INSTR_ref_func] = {},
@@ -1087,7 +1098,16 @@ static const wa_instr_info wa_instr_infos[] = {
         .opdCount = 2,
         .defined = true,
     },
-    [WA_INSTR_f64_const] = {},
+    [WA_INSTR_f64_const] = {
+        .immCount = 1,
+        .imm = { WA_IMM_F64 },
+        .outCount = 1,
+        .out = {
+            WA_TYPE_F64,
+        },
+        .opdCount = 2,
+        .defined = true,
+    },
     [WA_INSTR_i32_eqz] = {
         .inCount = 1,
         .in = { WA_TYPE_I32 },

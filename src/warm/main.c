@@ -542,6 +542,7 @@ typedef enum wa_instr_op
     WA_INSTR_jump,
     WA_INSTR_jump_if,
     WA_INSTR_jump_if_zero,
+    WA_INSTR_jump_table,
 
     WA_INSTR_COUNT,
 
@@ -562,7 +563,9 @@ typedef enum wa_value_type
 typedef union wa_code
 {
     wa_instr_op opcode;
+    i32 valU32;
     i32 valI32;
+    u64 valU64;
     i64 valI64;
     f32 valF32;
     f64 valF64;
@@ -611,7 +614,8 @@ typedef struct wa_instr
     oc_list_elt listElt;
 
     wa_instr_op op;
-    wa_code imm[WA_INSTR_IMM_MAX_COUNT];
+    u32 immCount;
+    wa_code* imm;
 
     wa_func_type* blockType;
     wa_instr* elseBranch;
@@ -654,6 +658,12 @@ typedef struct wa_limits
     u32 max;
 
 } wa_limits;
+
+typedef struct wa_table_type
+{
+    wa_value_type type;
+    wa_limits limits;
+} wa_table_type;
 
 typedef enum wa_import_kind
 {
@@ -718,6 +728,7 @@ typedef enum
     WA_AST_TYPE_INDEX,
     WA_AST_FUNC_INDEX,
     WA_AST_LIMITS,
+    WA_AST_TABLE_TYPE,
     WA_AST_IMPORT,
     WA_AST_EXPORT,
     WA_AST_FUNC,
@@ -747,6 +758,7 @@ static const char* wa_ast_kind_strings[] = {
     "type index",
     "func index",
     "limits",
+    "table type",
     "import",
     "export",
     "function",
@@ -822,12 +834,16 @@ typedef struct wa_module
     u32 importCount;
     wa_import* imports;
 
-    u32 exportCount;
-    wa_export* exports;
-
     u32 functionImportCount;
     u32 functionCount;
     wa_func* functions;
+
+    u32 tableImportCount;
+    u32 tableCount;
+    wa_table_type* tables;
+
+    u32 exportCount;
+    wa_export* exports;
 
 } wa_module;
 
@@ -1126,7 +1142,7 @@ wa_ast* wa_read_leb128_u64(wa_parser* parser, wa_ast* parent, oc_str8 label)
         byte = parser->contents[parser->offset];
         parser->offset++;
 
-        if(shift >= 63 && byte > 1)
+        if(shift >= 64)
         {
             wa_parse_error(parser,
                            ast,
@@ -1175,7 +1191,7 @@ wa_ast* wa_read_leb128_i64(wa_parser* parser, wa_ast* parent, oc_str8 label)
         byte = parser->contents[parser->offset];
         parser->offset++;
 
-        if(shift >= 63 && byte > 1)
+        if(shift >= 64)
         {
             wa_parse_error(parser,
                            ast,
@@ -1654,8 +1670,8 @@ void wa_parse_imports(wa_parser* parser, wa_module* module)
                                    "Invalid type 0x%02x in table import \n",
                                    import->type);
                 }
-
                 wa_ast* limitsAst = wa_parse_limits(parser, importAst, &import->limits);
+                module->tableImportCount++;
             }
             break;
 
@@ -1765,6 +1781,83 @@ void wa_parse_functions(wa_parser* parser, wa_module* module)
                        section,
                        "Size of section does not match declared size (declared = %llu, actual = %llu)\n",
                        module->toc.functions.len,
+                       parser->offset - startOffset);
+    }
+}
+
+void wa_parse_tables(wa_parser* parser, wa_module* module)
+{
+    //NOTE: parse table section
+    wa_ast* section = module->toc.tables.ast;
+    if(!section)
+    {
+        return;
+    }
+
+    wa_parser_seek(parser, module->toc.tables.offset, OC_STR8("tables section"));
+    u64 startOffset = parser->offset;
+
+    wa_ast* vector = wa_ast_alloc(parser, WA_AST_VECTOR);
+    vector->loc.start = parser->offset;
+    vector->parent = section;
+    oc_list_push_back(&section->children, &vector->parentElt);
+
+    wa_ast* tableCountAst = wa_read_leb128_u32(parser, vector, OC_STR8("count"));
+    module->tableCount = tableCountAst->valU32;
+    module->tables = oc_arena_push_array(parser->arena, wa_table_type, module->tableImportCount + module->tableCount);
+
+    //NOTE: re-read imports, because the format is kinda stupid -- they should have included imports in the tables section
+    memset(module->tables, 0, module->tableImportCount * sizeof(wa_func));
+    u32 tableImportIndex = 0;
+    for(u32 importIndex = 0; importIndex < module->importCount; importIndex++)
+    {
+        wa_import* import = &module->imports[importIndex];
+        if(import->kind == WA_IMPORT_TABLE)
+        {
+            wa_table_type* table = &module->tables[tableImportIndex];
+            table->type = import->index;
+            table->limits = import->limits;
+            tableImportIndex++;
+        }
+    }
+
+    //NOTE: read non-import tables
+    for(u32 tableIndex = 0; tableIndex < module->tableCount; tableIndex++)
+    {
+        wa_table_type* table = &module->tables[tableIndex + module->tableImportCount];
+
+        wa_ast* tableAst = wa_ast_alloc(parser, WA_AST_TABLE_TYPE);
+        tableAst->loc.start = parser->offset;
+        tableAst->parent = vector;
+        oc_list_push_back(&vector->children, &tableAst->parentElt);
+
+        //TODO coalesce with parsing of table in imports
+        wa_ast* typeAst = wa_read_byte(parser, tableAst, OC_STR8("table type"));
+        table->type = typeAst->valU8;
+
+        if(table->type != WA_TYPE_FUNC_REF && table->type != WA_TYPE_EXTERN_REF)
+        {
+            wa_parse_error(parser,
+                           typeAst,
+                           "Invalid type 0x%02x in table import \n",
+                           table->type);
+        }
+        wa_ast* limitsAst = wa_parse_limits(parser, tableAst, &table->limits);
+
+        tableAst->loc.len = parser->offset - tableAst->loc.start;
+    }
+    module->tableCount += module->tableImportCount;
+
+    vector->loc.len = parser->offset - vector->loc.start;
+    section->loc.len = parser->offset - section->loc.start;
+
+    //NOTE: check section size
+    if(parser->offset - startOffset != module->toc.tables.len)
+    {
+        wa_parse_error(parser,
+                       section,
+                       "Size of section does not match declared size (declared = %llu, actual = %llu)\n",
+                       module->toc.tables.len,
                        parser->offset - startOffset);
     }
 }
@@ -2057,7 +2150,32 @@ void wa_parse_code(wa_parser* parser, wa_module* module)
                 }
 
                 wa_ast* immAst = wa_parse_value_type(parser, vector, OC_STR8("type"));
+
+                instr->immCount = 1;
+                instr->imm = oc_arena_push_type(parser->arena, wa_code);
                 instr->imm[0].valueType = immAst->valU32;
+
+                vector->loc.len = parser->offset - vector->loc.start;
+            }
+            else if(instr->op == WA_INSTR_br_table)
+            {
+                wa_ast* vector = wa_ast_alloc(parser, WA_AST_VECTOR);
+                vector->loc.start = parser->offset;
+                vector->parent = instrAst;
+                oc_list_push_back(&instrAst->children, &vector->parentElt);
+
+                wa_ast* count = wa_read_leb128_u32(parser, vector, OC_STR8("count"));
+
+                instr->immCount = count->valU32 + 1;
+                instr->imm = oc_arena_push_array(parser->arena, wa_code, instr->immCount);
+
+                for(u32 i = 0; i < instr->immCount - 1; i++)
+                {
+                    wa_ast* immAst = wa_read_leb128_u32(parser, vector, OC_STR8("label"));
+                    instr->imm[i].index = immAst->valU32;
+                }
+                wa_ast* immAst = wa_read_leb128_u32(parser, vector, OC_STR8("label"));
+                instr->imm[instr->immCount - 1].index = immAst->valU32;
 
                 vector->loc.len = parser->offset - vector->loc.start;
             }
@@ -2067,6 +2185,8 @@ void wa_parse_code(wa_parser* parser, wa_module* module)
                 ////////////////////////////////////////////////////////////////////
                 //TODO validate all immediates
                 ////////////////////////////////////////////////////////////////////
+                instr->immCount = info->immCount;
+                instr->imm = oc_arena_push_array(parser->arena, wa_code, instr->immCount);
 
                 for(int immIndex = 0; immIndex < info->immCount; immIndex++)
                 {
@@ -2098,7 +2218,7 @@ void wa_parse_code(wa_parser* parser, wa_module* module)
                         case WA_IMM_F64:
                         {
                             wa_ast* immAst = wa_read_f64(parser, instrAst, OC_STR8("f64"));
-                            instr->imm[immIndex].valF64 = immAst->valF32;
+                            instr->imm[immIndex].valF64 = immAst->valF64;
                         }
                         break;
                         case WA_IMM_VALUE_TYPE:
@@ -2813,9 +2933,8 @@ void wa_patch_jump_targets(wa_build_context* context, wa_block* block)
     }
 }
 
-void wa_compile_branch(wa_build_context* context, wa_instr* instr)
+void wa_compile_branch(wa_build_context* context, wa_instr* instr, u32 label)
 {
-    u32 label = instr->imm[0].index;
     wa_block* block = wa_control_stack_lookup(context, label);
     if(!block)
     {
@@ -3030,7 +3149,8 @@ void wa_compile_code(oc_arena* arena, wa_module* module)
             }
             else if(instr->op == WA_INSTR_br)
             {
-                wa_compile_branch(&context, instr);
+                u32 label = instr->imm[0].index;
+                wa_compile_branch(&context, instr, label);
             }
             else if(instr->op == WA_INSTR_br_if)
             {
@@ -3058,9 +3178,59 @@ void wa_compile_code(oc_arena* arena, wa_module* module)
                 wa_emit(&context, (wa_code){ .valI64 = 0 });
                 wa_emit(&context, (wa_code){ .valI64 = slot.index });
 
-                wa_compile_branch(&context, instr);
+                u32 label = instr->imm[0].index;
+                wa_compile_branch(&context, instr, label);
 
                 context.code[jumpOffset].valI64 = context.codeLen - jumpOffset;
+            }
+            else if(instr->op == WA_INSTR_br_table)
+            {
+                wa_operand_slot slot = wa_operand_stack_pop(&context);
+                if(wa_operand_slot_is_nil(&slot))
+                {
+                    wa_compile_error(&context,
+                                     instr->ast,
+                                     "unbalanced stack\n");
+                    goto compile_function_end;
+                }
+
+                if(slot.type != WA_TYPE_I32)
+                {
+                    wa_compile_error(&context,
+                                     instr->ast,
+                                     "operand type mismatch (expected %s, got %s)\n",
+                                     wa_value_type_string(WA_TYPE_I32),
+                                     wa_value_type_string(slot.type));
+                    goto compile_function_end;
+                }
+
+                wa_emit(&context, (wa_code){ .opcode = WA_INSTR_jump_table });
+                u64 baseOffset = context.codeLen;
+
+                wa_emit(&context, (wa_code){ .valU32 = instr->immCount });
+                wa_emit(&context, (wa_code){ .valU32 = slot.index });
+
+                oc_arena_scope scratch = oc_scratch_begin();
+                u64* patchOffsets = oc_arena_push_array(scratch.arena, u64, instr->immCount);
+
+                // reserve room for the table entries
+                for(u32 i = 0; i < instr->immCount; i++)
+                {
+                    patchOffsets[i] = context.codeLen;
+                    wa_emit(&context, (wa_code){ 0 });
+                }
+
+                // each entry jumps to a block that moves the results to the correct slots
+                // and jumps to the actual destination
+                //TODO: we can avoid this trampoline for branches that don't need result values
+                for(u32 i = 0; i < instr->immCount; i++)
+                {
+                    context.code[patchOffsets[i]].valI64 = context.codeLen - baseOffset;
+                    u32 label = instr->imm[i].index;
+                    wa_compile_branch(&context, instr, label);
+                }
+
+                oc_scratch_end(scratch);
             }
             else if(instr->op == WA_INSTR_if)
             {
@@ -3191,6 +3361,86 @@ void wa_compile_code(oc_arena* arena, wa_module* module)
                                           (wa_operand_slot){
                                               .kind = WA_OPERAND_SLOT_REG,
                                               .type = callee->type->returns[retIndex],
+                                              .index = maxUsedSlot + 1 + retIndex,
+                                          });
+                }
+            }
+            else if(instr->op == WA_INSTR_call_indirect)
+            {
+                //TODO: coalesce with regular call
+                wa_operand_slot slot = wa_operand_stack_pop(&context);
+                if(wa_operand_slot_is_nil(&slot))
+                {
+                    wa_compile_error(&context,
+                                     instr->ast,
+                                     "unbalanced stack\n");
+                    goto compile_function_end;
+                }
+
+                if(slot.type != WA_TYPE_I32)
+                {
+                    wa_compile_error(&context,
+                                     instr->ast,
+                                     "operand type mismatch (expected %s, got %s)\n",
+                                     wa_value_type_string(WA_TYPE_I32),
+                                     wa_value_type_string(slot.type));
+                    goto compile_function_end;
+                }
+
+                wa_func_type* type = &module->types[instr->imm[0].index];
+                u32 paramCount = type->paramCount;
+
+                if(context.opdStackLen < paramCount)
+                {
+                    wa_compile_error(&context,
+                                     instr->ast,
+                                     "Not enough arguments on stack (expected: %u, got: %u)\n",
+                                     paramCount,
+                                     context.opdStackLen);
+                    goto compile_function_end;
+                }
+                context.opdStackLen -= paramCount;
+
+                u32 maxUsedSlot = 0;
+                for(u32 stackIndex = 0; stackIndex < context.opdStackLen; stackIndex++)
+                {
+                    wa_operand_slot* slot = &context.opdStack[stackIndex];
+                    maxUsedSlot = oc_max(slot->index, maxUsedSlot);
+                }
+
+                //TODO: first check if we args are already in order at the end of the frame?
+                for(u32 argIndex = 0; argIndex < paramCount; argIndex++)
+                {
+                    wa_operand_slot* slot = &context.opdStack[context.opdStackLen + argIndex];
+                    wa_value_type paramType = type->params[argIndex];
+
+                    if(slot->type != paramType)
+                    {
+                        wa_compile_error(&context,
+                                         instr->ast,
+                                         "Type mismatch for argument %u (expected %s, got %s)\n",
+                                         argIndex,
+                                         wa_value_type_string(paramType),
+                                         wa_value_type_string(slot->type));
+                        goto compile_function_end;
+                    }
+                    wa_emit(&context, (wa_code){ .opcode = WA_INSTR_move });
+                    wa_emit(&context, (wa_code){ .valI32 = slot->index });
+                    wa_emit(&context, (wa_code){ .valI32 = maxUsedSlot + 1 + argIndex });
+                }
+
+                wa_emit(&context, (wa_code){ .opcode = WA_INSTR_call_indirect });
+                wa_emit(&context, (wa_code){ .valI64 = instr->imm[0].index });
+                wa_emit(&context, (wa_code){ .valI64 = instr->imm[1].index });
+                wa_emit(&context, (wa_code){ .valI64 = maxUsedSlot + 1 });
+                wa_emit(&context, (wa_code){ .valI32 = slot.index });
+
+                for(u32 retIndex = 0; retIndex < type->returnCount; retIndex++)
+                {
+                    wa_operand_stack_push(&context,
+                                          (wa_operand_slot){
+                                              .kind = WA_OPERAND_SLOT_REG,
+                                              .type = type->returns[retIndex],
                                               .index = maxUsedSlot + 1 + retIndex,
                                           });
                 }
@@ -3372,6 +3622,7 @@ wa_module* wa_module_create(oc_arena* arena, oc_str8 contents)
     wa_parse_types(&parser, module);
     wa_parse_imports(&parser, module);
     wa_parse_functions(&parser, module);
+    wa_parse_tables(&parser, module);
     wa_parse_exports(&parser, module);
     wa_parse_code(&parser, module);
 
@@ -3697,6 +3948,27 @@ wa_status wa_interpret_func(wa_module* module,
             }
             break;
 
+            case WA_INSTR_i64_const:
+            {
+                locals[pc[1].valI32].valI64 = pc[0].valI64;
+                pc += 2;
+            }
+            break;
+
+            case WA_INSTR_f32_const:
+            {
+                locals[pc[1].valI32].valF32 = pc[0].valF32;
+                pc += 2;
+            }
+            break;
+
+            case WA_INSTR_f64_const:
+            {
+                locals[pc[1].valI32].valF64 = pc[0].valF64;
+                pc += 2;
+            }
+            break;
+
             case WA_INSTR_move:
             {
                 locals[pc[1].valI32].valI64 = locals[pc[0].valI32].valI64;
@@ -3720,6 +3992,20 @@ wa_status wa_interpret_func(wa_module* module,
                 {
                     pc += 2;
                 }
+            }
+            break;
+
+            case WA_INSTR_jump_table:
+            {
+                u32 count = pc[0].valU32;
+                u32 index = locals[pc[1].valI32].valI32;
+
+                if(index >= count)
+                {
+                    index = count - 1;
+                }
+
+                pc += pc[1 + index].valI64;
             }
             break;
 
@@ -4975,7 +5261,6 @@ int test_main(int argc, char** argv)
             oc_str8_list_push(&arena, &list, name->string);
 
             oc_str8 filePath = oc_path_join(&arena, list);
-            oc_log_info("loading module %.*s\n", oc_str8_ip(filePath));
 
             env.module = wa_test_module_load(&arena, filePath);
             OC_ASSERT(env.module);
@@ -4989,157 +5274,159 @@ int test_main(int argc, char** argv)
                 continue;
             }
         }
-
-        if(filterLine >= 0)
+        else
         {
-            json_node* line = json_find(command, OC_STR8("line"));
-            if(!line || line->numI64 != filterLine)
+            if(filterLine >= 0)
             {
-                continue;
-            }
-        }
-
-        if(!oc_str8_cmp(type->string, OC_STR8("assert_return")))
-        {
-            OC_ASSERT(env.module);
-            if(!oc_list_empty(env.module->errors))
-            {
-                wa_test_fail(&env, testName, command);
-                continue;
-            }
-
-            json_node* expected = json_find_assert(command, "expected", JSON_LIST);
-            json_node* action = json_find_assert(command, "action", JSON_OBJECT);
-
-            wa_test_result result = wa_test_action(&env, action);
-
-            bool check = (result.status == WA_OK)
-                      && (expected->childCount == result.count);
-            if(check)
-            {
-                u32 retIndex = 0;
-                oc_list_for(expected->children, expectRet, json_node, listElt)
+                json_node* line = json_find(command, OC_STR8("line"));
+                if(!line || line->numI64 != filterLine)
                 {
-                    //TODO: handle expected NaN
-
-                    wa_typed_value expectVal = test_parse_value(expectRet);
-                    switch(expectVal.type)
-                    {
-                        case WA_TYPE_I32:
-                            check = check && (result.values[retIndex].valI32 == expectVal.value.valI32);
-                            break;
-                        case WA_TYPE_I64:
-                            check = check && (result.values[retIndex].valI64 == expectVal.value.valI64);
-                            break;
-                        case WA_TYPE_F32:
-                        {
-                            if(wa_is_nan_canonical_f32(expectVal.value.valF32))
-                            {
-                                check = check && wa_is_nan_canonical_f32(result.values[retIndex].valF32);
-                            }
-                            else if(wa_is_nan_arithmetic_f32(expectVal.value.valF32))
-                            {
-                                check = check && wa_is_nan_arithmetic_f32(result.values[retIndex].valF32);
-                            }
-                            else
-                            {
-                                check = check && (result.values[retIndex].valF32 == expectVal.value.valF32);
-                            }
-                        }
-                        break;
-                        case WA_TYPE_F64:
-                        {
-                            if(wa_is_nan_canonical_f64(expectVal.value.valF64))
-                            {
-                                check = check && wa_is_nan_canonical_f64(result.values[retIndex].valF64);
-                            }
-                            else if(wa_is_nan_arithmetic_f64(expectVal.value.valF64))
-                            {
-                                check = check && wa_is_nan_arithmetic_f64(result.values[retIndex].valF64);
-                            }
-                            else
-
-                                check = check && (result.values[retIndex].valF64 == expectVal.value.valF64);
-                        }
-                        break;
-                        default:
-                            oc_log_error("unexpected type %s\n", wa_value_type_string(expectVal.type));
-                            OC_ASSERT(0, "unreachable");
-                            break;
-                    }
-                    if(!check)
-                    {
-                        break;
-                    }
+                    continue;
                 }
             }
 
-            if(!check)
+            if(!oc_str8_cmp(type->string, OC_STR8("assert_return")))
             {
-                wa_test_fail(&env, testName, command);
-            }
-            else
-            {
-                wa_test_pass(&env, testName, command);
-            }
-        }
-        else if(!oc_str8_cmp(type->string, OC_STR8("assert_trap")))
-        {
-            OC_ASSERT(env.module);
-            if(!oc_list_empty(env.module->errors))
-            {
-                wa_test_fail(&env, testName, command);
-                continue;
-            }
+                OC_ASSERT(env.module);
+                if(!oc_list_empty(env.module->errors))
+                {
+                    wa_test_fail(&env, testName, command);
+                    continue;
+                }
 
-            json_node* failure = json_find_assert(command, "text", JSON_STRING);
-            json_node* action = json_find_assert(command, "action", JSON_OBJECT);
+                json_node* expected = json_find_assert(command, "expected", JSON_LIST);
+                json_node* action = json_find_assert(command, "action", JSON_OBJECT);
 
-            wa_status expected = WA_OK;
-            if(!oc_str8_cmp(failure->string, OC_STR8("integer divide by zero")))
-            {
-                expected = WA_TRAP_DIVIDE_BY_ZERO;
+                wa_test_result result = wa_test_action(&env, action);
+
+                bool check = (result.status == WA_OK)
+                          && (expected->childCount == result.count);
+                if(check)
+                {
+                    u32 retIndex = 0;
+                    oc_list_for(expected->children, expectRet, json_node, listElt)
+                    {
+                        //TODO: handle expected NaN
+
+                        wa_typed_value expectVal = test_parse_value(expectRet);
+                        switch(expectVal.type)
+                        {
+                            case WA_TYPE_I32:
+                                check = check && (result.values[retIndex].valI32 == expectVal.value.valI32);
+                                break;
+                            case WA_TYPE_I64:
+                                check = check && (result.values[retIndex].valI64 == expectVal.value.valI64);
+                                break;
+                            case WA_TYPE_F32:
+                            {
+                                if(wa_is_nan_canonical_f32(expectVal.value.valF32))
+                                {
+                                    check = check && wa_is_nan_canonical_f32(result.values[retIndex].valF32);
+                                }
+                                else if(wa_is_nan_arithmetic_f32(expectVal.value.valF32))
+                                {
+                                    check = check && wa_is_nan_arithmetic_f32(result.values[retIndex].valF32);
+                                }
+                                else
+                                {
+                                    check = check && (result.values[retIndex].valF32 == expectVal.value.valF32);
+                                }
+                            }
+                            break;
+                            case WA_TYPE_F64:
+                            {
+                                if(wa_is_nan_canonical_f64(expectVal.value.valF64))
+                                {
+                                    check = check && wa_is_nan_canonical_f64(result.values[retIndex].valF64);
+                                }
+                                else if(wa_is_nan_arithmetic_f64(expectVal.value.valF64))
+                                {
+                                    check = check && wa_is_nan_arithmetic_f64(result.values[retIndex].valF64);
+                                }
+                                else
+
+                                    check = check && (result.values[retIndex].valF64 == expectVal.value.valF64);
+                            }
+                            break;
+                            default:
+                                oc_log_error("unexpected type %s\n", wa_value_type_string(expectVal.type));
+                                OC_ASSERT(0, "unreachable");
+                                break;
+                        }
+                        if(!check)
+                        {
+                            break;
+                        }
+                    }
+                }
+
+                if(!check)
+                {
+                    wa_test_fail(&env, testName, command);
+                }
+                else
+                {
+                    wa_test_pass(&env, testName, command);
+                }
             }
-            else if(!oc_str8_cmp(failure->string, OC_STR8("integer overflow")))
+            else if(!oc_str8_cmp(type->string, OC_STR8("assert_trap")))
             {
-                expected = WA_TRAP_INTEGER_OVERFLOW;
+                OC_ASSERT(env.module);
+                if(!oc_list_empty(env.module->errors))
+                {
+                    wa_test_fail(&env, testName, command);
+                    continue;
+                }
+
+                json_node* failure = json_find_assert(command, "text", JSON_STRING);
+                json_node* action = json_find_assert(command, "action", JSON_OBJECT);
+
+                wa_status expected = WA_OK;
+                if(!oc_str8_cmp(failure->string, OC_STR8("integer divide by zero")))
+                {
+                    expected = WA_TRAP_DIVIDE_BY_ZERO;
+                }
+                else if(!oc_str8_cmp(failure->string, OC_STR8("integer overflow")))
+                {
+                    expected = WA_TRAP_INTEGER_OVERFLOW;
+                }
+                else
+                {
+                    wa_test_skip(&env, testName, command);
+                    continue;
+                }
+
+                wa_test_result result = wa_test_action(&env, action);
+
+                if(result.status == WA_OK || result.status != expected)
+                {
+                    wa_test_fail(&env, testName, command);
+                }
+                else
+                {
+                    wa_test_pass(&env, testName, command);
+                }
+            }
+            else if(!oc_str8_cmp(type->string, OC_STR8("assert_invalid")))
+            {
+                json_node* filename = json_find_assert(command, "filename", JSON_STRING);
+                wa_module* module = wa_test_module_load(env.arena, filename->string);
+                OC_ASSERT(module);
+
+                //TODO: check the failure reason
+                if(oc_list_empty(module->errors))
+                {
+                    wa_test_fail(&env, testName, command);
+                }
+                else
+                {
+                    wa_test_pass(&env, testName, command);
+                }
             }
             else
             {
                 wa_test_skip(&env, testName, command);
-                continue;
             }
-
-            wa_test_result result = wa_test_action(&env, action);
-
-            if(result.status == WA_OK || result.status != expected)
-            {
-                wa_test_fail(&env, testName, command);
-            }
-            else
-            {
-                wa_test_pass(&env, testName, command);
-            }
-        }
-        else if(!oc_str8_cmp(type->string, OC_STR8("assert_invalid")))
-        {
-            json_node* filename = json_find_assert(command, "filename", JSON_STRING);
-            wa_module* module = wa_test_module_load(env.arena, filename->string);
-            OC_ASSERT(module);
-
-            //TODO: check the failure reason
-            if(oc_list_empty(module->errors))
-            {
-                wa_test_fail(&env, testName, command);
-            }
-            else
-            {
-                wa_test_pass(&env, testName, command);
-            }
-        }
-        else
-        {
-            wa_test_skip(&env, testName, command);
         }
     }
 
