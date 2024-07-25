@@ -2,6 +2,7 @@
 #include <errno.h>
 #include <math.h>
 #include <stdint.h>
+#include <stdlib.h>
 
 #define OC_NO_APP_LAYER 1
 #include "orca.h"
@@ -4314,6 +4315,234 @@ wa_status wa_interpret_func(wa_module* module,
             }
             break;
 
+            case WA_INSTR_f32_abs:
+            {
+                locals[pc[1].valI32].valF32 = fabsf(locals[pc[0].valI32].valF32);
+                pc += 2;
+            }
+            break;
+
+            case WA_INSTR_f32_neg:
+            {
+                locals[pc[1].valI32].valF32 = -locals[pc[0].valI32].valF32;
+                pc += 2;
+            }
+            break;
+
+            case WA_INSTR_f32_ceil:
+            {
+                locals[pc[1].valI32].valF32 = ceilf(locals[pc[0].valI32].valF32);
+                pc += 2;
+            }
+            break;
+
+            case WA_INSTR_f32_floor:
+            {
+                locals[pc[1].valI32].valF32 = floorf(locals[pc[0].valI32].valF32);
+                pc += 2;
+            }
+            break;
+
+            case WA_INSTR_f32_trunc:
+            {
+                locals[pc[1].valI32].valF32 = truncf(locals[pc[0].valI32].valF32);
+                pc += 2;
+            }
+            break;
+
+            case WA_INSTR_f32_nearest:
+            {
+                locals[pc[1].valI32].valF32 = rintf(locals[pc[0].valI32].valF32);
+                pc += 2;
+            }
+            break;
+
+            case WA_INSTR_f32_sqrt:
+            {
+                locals[pc[1].valI32].valF32 = sqrtf(locals[pc[0].valI32].valF32);
+                pc += 2;
+            }
+            break;
+
+            case WA_INSTR_f32_add:
+            {
+                locals[pc[2].valI32].valF32 = locals[pc[1].valI32].valF32 + locals[pc[0].valI32].valF32;
+                pc += 3;
+            }
+            break;
+
+            case WA_INSTR_f32_sub:
+            {
+                locals[pc[2].valI32].valF32 = locals[pc[1].valI32].valF32 - locals[pc[0].valI32].valF32;
+                pc += 3;
+            }
+            break;
+
+            case WA_INSTR_f32_mul:
+            {
+                locals[pc[2].valI32].valF32 = locals[pc[1].valI32].valF32 * locals[pc[0].valI32].valF32;
+                pc += 3;
+            }
+            break;
+
+            case WA_INSTR_f32_div:
+            {
+                locals[pc[2].valI32].valF32 = locals[pc[1].valI32].valF32 / locals[pc[0].valI32].valF32;
+                pc += 3;
+            }
+            break;
+
+            case WA_INSTR_f32_min:
+            {
+                if(isnan(locals[pc[1].valI32].valF32) || isnan(locals[pc[0].valI32].valF32))
+                {
+                    u32 u = 0x7fc00000;
+                    memcpy(&locals[pc[2].valI32].valF32, &u, sizeof(f32));
+                }
+                else
+                {
+                    locals[pc[2].valI32].valF32 = oc_min(locals[pc[1].valI32].valF32, locals[pc[0].valI32].valF32);
+                }
+                pc += 3;
+            }
+            break;
+
+            case WA_INSTR_f32_max:
+            {
+                if(isnan(locals[pc[1].valI32].valF32) || isnan(locals[pc[0].valI32].valF32))
+                {
+                    u32 u = 0x7fc00000;
+                    memcpy(&locals[pc[2].valI32].valF32, &u, sizeof(f32));
+                }
+                else
+                {
+                    locals[pc[2].valI32].valF32 = oc_max(locals[pc[1].valI32].valF32, locals[pc[0].valI32].valF32);
+                }
+                pc += 3;
+            }
+            break;
+
+            case WA_INSTR_f32_copysign:
+            {
+                locals[pc[2].valI32].valF32 = copysignf(locals[pc[1].valI32].valF32, locals[pc[0].valI32].valF32);
+                pc += 3;
+            }
+            break;
+
+            case WA_INSTR_f64_abs:
+            {
+                locals[pc[1].valI32].valF64 = fabs(locals[pc[0].valI32].valF64);
+                pc += 2;
+            }
+            break;
+
+            case WA_INSTR_f64_neg:
+            {
+                locals[pc[1].valI32].valF64 = -locals[pc[0].valI32].valF64;
+                pc += 2;
+            }
+            break;
+
+            case WA_INSTR_f64_ceil:
+            {
+                locals[pc[1].valI32].valF64 = ceil(locals[pc[0].valI32].valF64);
+                pc += 2;
+            }
+            break;
+
+            case WA_INSTR_f64_floor:
+            {
+                locals[pc[1].valI32].valF64 = floor(locals[pc[0].valI32].valF64);
+                pc += 2;
+            }
+            break;
+
+            case WA_INSTR_f64_trunc:
+            {
+                locals[pc[1].valI32].valF64 = trunc(locals[pc[0].valI32].valF64);
+                pc += 2;
+            }
+            break;
+
+            case WA_INSTR_f64_nearest:
+            {
+                locals[pc[1].valI32].valF64 = rint(locals[pc[0].valI32].valF64);
+                pc += 2;
+            }
+            break;
+
+            case WA_INSTR_f64_sqrt:
+            {
+                locals[pc[1].valI32].valF64 = sqrt(locals[pc[0].valI32].valF64);
+                pc += 2;
+            }
+            break;
+
+            case WA_INSTR_f64_add:
+            {
+                locals[pc[2].valI32].valF64 = locals[pc[1].valI32].valF64 + locals[pc[0].valI32].valF64;
+                pc += 3;
+            }
+            break;
+
+            case WA_INSTR_f64_sub:
+            {
+                locals[pc[2].valI32].valF64 = locals[pc[1].valI32].valF64 - locals[pc[0].valI32].valF64;
+                pc += 3;
+            }
+            break;
+
+            case WA_INSTR_f64_mul:
+            {
+                locals[pc[2].valI32].valF64 = locals[pc[1].valI32].valF64 * locals[pc[0].valI32].valF64;
+                pc += 3;
+            }
+            break;
+
+            case WA_INSTR_f64_div:
+            {
+                locals[pc[2].valI32].valF64 = locals[pc[1].valI32].valF64 / locals[pc[0].valI32].valF64;
+                pc += 3;
+            }
+            break;
+
+            case WA_INSTR_f64_min:
+            {
+                if(isnan(locals[pc[1].valI32].valF64) || isnan(locals[pc[0].valI32].valF64))
+                {
+                    u64 u = 0x7ff8000000000000;
+                    memcpy(&locals[pc[2].valI32].valF64, &u, sizeof(f64));
+                }
+                else
+                {
+                    locals[pc[2].valI32].valF64 = oc_min(locals[pc[1].valI32].valF64, locals[pc[0].valI32].valF64);
+                }
+                pc += 3;
+            }
+            break;
+
+            case WA_INSTR_f64_max:
+            {
+                if(isnan(locals[pc[1].valI32].valF64) || isnan(locals[pc[0].valI32].valF64))
+                {
+                    u64 u = 0x7ff8000000000000;
+                    memcpy(&locals[pc[2].valI32].valF64, &u, sizeof(f64));
+                }
+                else
+                {
+                    locals[pc[2].valI32].valF64 = oc_max(locals[pc[1].valI32].valF64, locals[pc[0].valI32].valF64);
+                }
+                pc += 3;
+            }
+            break;
+
+            case WA_INSTR_f64_copysign:
+            {
+                locals[pc[2].valI32].valF64 = copysign(locals[pc[1].valI32].valF64, locals[pc[0].valI32].valF64);
+                pc += 3;
+            }
+            break;
+
             default:
                 oc_log_error("invalid opcode %s\n", wa_instr_strings[opcode]);
                 return WA_TRAP_INVALID_OP;
@@ -4439,6 +4668,34 @@ json_node* json_find_assert(json_node* node, const char* name, json_node_kind ki
     return (res);
 }
 
+bool wa_is_nan_canonical_f32(f32 f)
+{
+    u32 u = 0;
+    memcpy(&u, &f, sizeof(u32));
+    return (u == 0x7fc00000 || u == 0xffc00000);
+}
+
+bool wa_is_nan_arithmetic_f32(f32 f)
+{
+    u32 u = 0;
+    memcpy(&u, &f, sizeof(u32));
+    return ((u & 0x7fc00000) == 0x7fc00000);
+}
+
+bool wa_is_nan_canonical_f64(f64 f)
+{
+    u64 u = 0;
+    memcpy(&u, &f, sizeof(u64));
+    return (u == 0x7ff8000000000000 || u == 0xfff8000000000000);
+}
+
+bool wa_is_nan_arithmetic_f64(f64 f)
+{
+    u64 u = 0;
+    memcpy(&u, &f, sizeof(u64));
+    return ((u & 0x7ff8000000000000) == 0x7ff8000000000000);
+}
+
 wa_typed_value test_parse_value(json_node* arg)
 {
     wa_typed_value value = { 0 };
@@ -4458,13 +4715,47 @@ wa_typed_value test_parse_value(json_node* arg)
     }
     else if(!oc_str8_cmp(argType->string, OC_STR8("f32")))
     {
-        value = parse_value_32(argVal->string);
-        OC_ASSERT(value.type == WA_TYPE_F32);
+        if(!oc_str8_cmp(argVal->string, OC_STR8("nan:canonical")))
+        {
+            value.type = WA_TYPE_F32;
+            u32 val = 0x7fc00000;
+            memcpy(&value.value.valF32, &val, sizeof(f32));
+        }
+        else if(!oc_str8_cmp(argVal->string, OC_STR8("nan:arithmetic")))
+        {
+            value.type = WA_TYPE_F32;
+            u32 val = 0x7fc00001;
+            memcpy(&value.value.valF32, &val, sizeof(f32));
+        }
+        else
+        {
+            value = parse_value_32(argVal->string);
+            OC_ASSERT(value.type == WA_TYPE_I32);
+            value.type = WA_TYPE_F32;
+            memcpy(&value.value.valF32, &value.value.valI32, sizeof(f32));
+        }
     }
     else if(!oc_str8_cmp(argType->string, OC_STR8("f64")))
     {
-        value = parse_value_64(argVal->string);
-        OC_ASSERT(value.type == WA_TYPE_F64);
+        if(!oc_str8_cmp(argVal->string, OC_STR8("nan:canonical")))
+        {
+            value.type = WA_TYPE_F64;
+            u64 val = 0x7ff8000000000000;
+            memcpy(&value.value.valF64, &val, sizeof(f64));
+        }
+        else if(!oc_str8_cmp(argVal->string, OC_STR8("nan:arithmetic")))
+        {
+            value.type = WA_TYPE_F64;
+            u64 val = 0x7ff8000000000001;
+            memcpy(&value.value.valF64, &val, sizeof(f64));
+        }
+        else
+        {
+            value = parse_value_64(argVal->string);
+            OC_ASSERT(value.type == WA_TYPE_I64);
+            value.type = WA_TYPE_F64;
+            memcpy(&value.value.valF64, &value.value.valI64, sizeof(f64));
+        }
     }
     else
     {
@@ -4631,13 +4922,19 @@ int test_main(int argc, char** argv)
 {
     if(argc < 3)
     {
-        printf("usage: warm test jsonfile");
+        printf("usage: warm test jsonfile [line]");
         return (-1);
     }
 
     oc_str8 testPath = OC_STR8(argv[2]);
     oc_str8 testName = oc_path_slice_filename(testPath);
     oc_str8 testDir = oc_path_slice_directory(testPath);
+
+    i32 filterLine = -1;
+    if(argc > 3)
+    {
+        filterLine = atoi(argv[3]);
+    }
 
     oc_arena arena = { 0 };
     oc_arena_init(&arena);
@@ -4692,7 +4989,17 @@ int test_main(int argc, char** argv)
                 continue;
             }
         }
-        else if(!oc_str8_cmp(type->string, OC_STR8("assert_return")))
+
+        if(filterLine >= 0)
+        {
+            json_node* line = json_find(command, OC_STR8("line"));
+            if(!line || line->numI64 != filterLine)
+            {
+                continue;
+            }
+        }
+
+        if(!oc_str8_cmp(type->string, OC_STR8("assert_return")))
         {
             OC_ASSERT(env.module);
             if(!oc_list_empty(env.module->errors))
@@ -4725,11 +5032,36 @@ int test_main(int argc, char** argv)
                             check = check && (result.values[retIndex].valI64 == expectVal.value.valI64);
                             break;
                         case WA_TYPE_F32:
-                            check = check && (result.values[retIndex].valF32 == expectVal.value.valF32);
-                            break;
+                        {
+                            if(wa_is_nan_canonical_f32(expectVal.value.valF32))
+                            {
+                                check = check && wa_is_nan_canonical_f32(result.values[retIndex].valF32);
+                            }
+                            else if(wa_is_nan_arithmetic_f32(expectVal.value.valF32))
+                            {
+                                check = check && wa_is_nan_arithmetic_f32(result.values[retIndex].valF32);
+                            }
+                            else
+                            {
+                                check = check && (result.values[retIndex].valF32 == expectVal.value.valF32);
+                            }
+                        }
+                        break;
                         case WA_TYPE_F64:
-                            check = check && (result.values[retIndex].valF64 == expectVal.value.valF64);
-                            break;
+                        {
+                            if(wa_is_nan_canonical_f64(expectVal.value.valF64))
+                            {
+                                check = check && wa_is_nan_canonical_f64(result.values[retIndex].valF64);
+                            }
+                            else if(wa_is_nan_arithmetic_f64(expectVal.value.valF64))
+                            {
+                                check = check && wa_is_nan_arithmetic_f64(result.values[retIndex].valF64);
+                            }
+                            else
+
+                                check = check && (result.values[retIndex].valF64 == expectVal.value.valF64);
+                        }
+                        break;
                         default:
                             oc_log_error("unexpected type %s\n", wa_value_type_string(expectVal.type));
                             OC_ASSERT(0, "unreachable");
