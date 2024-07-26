@@ -1014,6 +1014,7 @@ typedef enum wa_status
     WA_TRAP_INVALID_OP,
     WA_TRAP_DIVIDE_BY_ZERO,
     WA_TRAP_INTEGER_OVERFLOW,
+    WA_TRAP_INVALID_INTEGER_CONVERSION,
 } wa_status;
 
 typedef struct wa_module_error
@@ -5005,6 +5006,429 @@ wa_status wa_interpret_func(wa_module* module,
             }
             break;
 
+            case WA_INSTR_i32_wrap_i64:
+            {
+                locals[pc[1].valI32].valI32 = (locals[pc[0].valI32].valI64 & 0x00000000ffffffff);
+                pc += 2;
+            }
+            break;
+
+            case WA_INSTR_i32_trunc_f32_s:
+            {
+                if(isnan(locals[pc[0].valI32].valF32))
+                {
+                    return WA_TRAP_INVALID_INTEGER_CONVERSION;
+                }
+                else if(locals[pc[0].valI32].valF32 >= 2147483648.0f || locals[pc[0].valI32].valF32 < -2147483648.0f)
+                {
+                    return WA_TRAP_INTEGER_OVERFLOW;
+                }
+
+                locals[pc[1].valI32].valI32 = (i32)truncf(locals[pc[0].valI32].valF32);
+                pc += 2;
+            }
+            break;
+
+            case WA_INSTR_i32_trunc_f32_u:
+            {
+                if(isnan(locals[pc[0].valI32].valF32))
+                {
+                    return WA_TRAP_INVALID_INTEGER_CONVERSION;
+                }
+
+                if(locals[pc[0].valI32].valF32 >= 4294967296.0f || locals[pc[0].valI32].valF32 <= -1.0f)
+                {
+                    return WA_TRAP_INTEGER_OVERFLOW;
+                }
+
+                *(u32*)&locals[pc[1].valI32].valI32 = (u32)truncf(locals[pc[0].valI32].valF32);
+                pc += 2;
+            }
+            break;
+
+            case WA_INSTR_i32_trunc_f64_s:
+            {
+                if(isnan(locals[pc[0].valI32].valF64))
+                {
+                    return WA_TRAP_INVALID_INTEGER_CONVERSION;
+                }
+
+                if(locals[pc[0].valI32].valF64 >= 2147483648.0 || locals[pc[0].valI32].valF64 <= -2147483649.0)
+                {
+                    return WA_TRAP_INTEGER_OVERFLOW;
+                }
+
+                locals[pc[1].valI32].valI32 = (i32)trunc(locals[pc[0].valI32].valF64);
+                pc += 2;
+            }
+            break;
+            case WA_INSTR_i32_trunc_f64_u:
+            {
+                if(isnan(locals[pc[0].valI32].valF64))
+                {
+                    return WA_TRAP_INVALID_INTEGER_CONVERSION;
+                }
+
+                if(locals[pc[0].valI32].valF64 >= 4294967296.0 || locals[pc[0].valI32].valF64 <= -1.0)
+                {
+                    return WA_TRAP_INTEGER_OVERFLOW;
+                }
+
+                *(u32*)&locals[pc[1].valI32].valI32 = (u32)trunc(locals[pc[0].valI32].valF64);
+                pc += 2;
+            }
+            break;
+
+            case WA_INSTR_i64_trunc_f32_s:
+            {
+                if(isnan(locals[pc[0].valI32].valF32))
+                {
+                    return WA_TRAP_INVALID_INTEGER_CONVERSION;
+                }
+
+                if(locals[pc[0].valI32].valF32 >= 9223372036854775808.0f || locals[pc[0].valI32].valF32 < -9223372036854775808.0f)
+                {
+                    return WA_TRAP_INTEGER_OVERFLOW;
+                }
+
+                locals[pc[1].valI32].valI64 = (i64)truncf(locals[pc[0].valI32].valF32);
+                pc += 2;
+            }
+            break;
+
+            case WA_INSTR_i64_trunc_f32_u:
+            {
+                if(isnan(locals[pc[0].valI32].valF32))
+                {
+                    return WA_TRAP_INVALID_INTEGER_CONVERSION;
+                }
+
+                if(locals[pc[0].valI32].valF32 >= 18446744073709551616.0f || locals[pc[0].valI32].valF32 <= -1.0f)
+                {
+                    return WA_TRAP_INTEGER_OVERFLOW;
+                }
+
+                *(u64*)&locals[pc[1].valI32].valI64 = (u64)truncf(locals[pc[0].valI32].valF32);
+                pc += 2;
+            }
+            break;
+
+            case WA_INSTR_i64_trunc_f64_s:
+            {
+                if(isnan(locals[pc[0].valI32].valF64))
+                {
+                    return WA_TRAP_INVALID_INTEGER_CONVERSION;
+                }
+
+                if(locals[pc[0].valI32].valF64 >= 9223372036854775808.0 || locals[pc[0].valI32].valF64 < -9223372036854775808.0)
+                {
+                    return WA_TRAP_INTEGER_OVERFLOW;
+                }
+
+                locals[pc[1].valI32].valI64 = (i64)trunc(locals[pc[0].valI32].valF64);
+                pc += 2;
+            }
+            break;
+
+            case WA_INSTR_i64_trunc_f64_u:
+            {
+                if(isnan(locals[pc[0].valI32].valF64))
+                {
+                    return WA_TRAP_INVALID_INTEGER_CONVERSION;
+                }
+
+                if(locals[pc[0].valI32].valF64 >= 18446744073709551616.0 || locals[pc[0].valI32].valF64 <= -1.0)
+                {
+                    return WA_TRAP_INTEGER_OVERFLOW;
+                }
+
+                *(u64*)&locals[pc[1].valI32].valI64 = (u64)trunc(locals[pc[0].valI32].valF64);
+                pc += 2;
+            }
+            break;
+
+            case WA_INSTR_f32_convert_i32_s:
+            {
+                locals[pc[1].valI32].valF32 = (f32)locals[pc[0].valI32].valI32;
+                pc += 2;
+            }
+            break;
+
+            case WA_INSTR_f32_convert_i32_u:
+            {
+                locals[pc[1].valI32].valF32 = (f32) * (u32*)&locals[pc[0].valI32].valI32;
+                pc += 2;
+            }
+            break;
+
+            case WA_INSTR_f32_convert_i64_s:
+            {
+                locals[pc[1].valI32].valF32 = (f32)locals[pc[0].valI32].valI64;
+                pc += 2;
+            }
+            break;
+
+            case WA_INSTR_f32_convert_i64_u:
+            {
+                locals[pc[1].valI32].valF32 = (f32) * (u64*)&locals[pc[0].valI32].valI64;
+                pc += 2;
+            }
+            break;
+
+            case WA_INSTR_f32_demote_f64:
+            {
+                locals[pc[1].valI32].valF32 = (f32)locals[pc[0].valI32].valF64;
+                pc += 2;
+            }
+            break;
+
+            case WA_INSTR_f64_convert_i32_s:
+            {
+                locals[pc[1].valI32].valF64 = (f64)locals[pc[0].valI32].valI32;
+                pc += 2;
+            }
+            break;
+            case WA_INSTR_f64_convert_i32_u:
+            {
+                locals[pc[1].valI32].valF64 = (f64) * (u32*)&locals[pc[0].valI32].valI32;
+                pc += 2;
+            }
+            break;
+            case WA_INSTR_f64_convert_i64_s:
+            {
+                locals[pc[1].valI32].valF64 = (f64)locals[pc[0].valI32].valI64;
+                pc += 2;
+            }
+            break;
+            case WA_INSTR_f64_convert_i64_u:
+            {
+                locals[pc[1].valI32].valF64 = (f64) * (u64*)&locals[pc[0].valI32].valI64;
+                pc += 2;
+            }
+            break;
+
+            case WA_INSTR_f64_promote_f32:
+            {
+                locals[pc[1].valI32].valF64 = (f64)locals[pc[0].valI32].valF32;
+                pc += 2;
+            }
+            break;
+
+            case WA_INSTR_i32_reinterpret_f32:
+            {
+                locals[pc[1].valI32].valI32 = *(i32*)&locals[pc[0].valI32].valF32;
+                pc += 2;
+            }
+            break;
+            case WA_INSTR_i64_reinterpret_f64:
+            {
+                locals[pc[1].valI32].valI64 = *(i64*)&locals[pc[0].valI32].valF64;
+                pc += 2;
+            }
+            break;
+            case WA_INSTR_f32_reinterpret_i32:
+            {
+                locals[pc[1].valI32].valF32 = *(f32*)&locals[pc[0].valI32].valI32;
+                pc += 2;
+            }
+            break;
+            case WA_INSTR_f64_reinterpret_i64:
+            {
+                locals[pc[1].valI32].valF64 = *(f64*)&locals[pc[0].valI32].valI64;
+                pc += 2;
+            }
+            break;
+
+            case WA_INSTR_i32_trunc_sat_f32_s:
+            {
+                if(isnan(locals[pc[0].valI32].valF32))
+                {
+                    locals[pc[1].valI32].valI32 = 0;
+                }
+                else if(locals[pc[0].valI32].valF32 >= 2147483648.0f)
+                {
+                    locals[pc[1].valI32].valI32 = INT32_MAX;
+                }
+                else if(locals[pc[0].valI32].valF32 < -2147483648.0f)
+                {
+                    locals[pc[1].valI32].valI32 = INT32_MIN;
+                }
+                else
+                {
+                    locals[pc[1].valI32].valI32 = (i32)truncf(locals[pc[0].valI32].valF32);
+                }
+                pc += 2;
+            }
+            break;
+
+            case WA_INSTR_i32_trunc_sat_f32_u:
+            {
+                if(isnan(locals[pc[0].valI32].valF32))
+                {
+                    locals[pc[1].valI32].valI32 = 0;
+                }
+                else if(locals[pc[0].valI32].valF32 >= 4294967296.0f)
+                {
+                    *(u32*)&locals[pc[1].valI32].valI32 = 0xffffffff;
+                }
+                else if(locals[pc[0].valI32].valF32 <= -1.0f)
+                {
+                    locals[pc[1].valI32].valI32 = 0;
+                }
+                else
+                {
+                    *(u32*)&locals[pc[1].valI32].valI32 = (u32)truncf(locals[pc[0].valI32].valF32);
+                }
+                pc += 2;
+            }
+            break;
+
+            case WA_INSTR_i32_trunc_sat_f64_s:
+            {
+                if(isnan(locals[pc[0].valI32].valF64))
+                {
+                    locals[pc[1].valI32].valI32 = 0;
+                }
+                else if(locals[pc[0].valI32].valF64 >= 2147483648.0)
+                {
+                    locals[pc[1].valI32].valI32 = INT32_MAX;
+                }
+                else if(locals[pc[0].valI32].valF64 <= -2147483649.0)
+                {
+                    locals[pc[1].valI32].valI32 = INT32_MIN;
+                }
+                else
+                {
+                    locals[pc[1].valI32].valI32 = (i32)trunc(locals[pc[0].valI32].valF64);
+                }
+                pc += 2;
+            }
+            break;
+
+            case WA_INSTR_i32_trunc_sat_f64_u:
+            {
+                if(isnan(locals[pc[0].valI32].valF64))
+                {
+                    locals[pc[1].valI32].valI32 = 0;
+                }
+                else if(locals[pc[0].valI32].valF64 >= 4294967296.0)
+                {
+                    *(u32*)&locals[pc[1].valI32].valI32 = 0xffffffff;
+                }
+                else if(locals[pc[0].valI32].valF64 <= -1.0)
+                {
+                    locals[pc[1].valI32].valI32 = 0;
+                }
+                else
+                {
+                    *(u32*)&locals[pc[1].valI32].valI32 = (u32)trunc(locals[pc[0].valI32].valF64);
+                }
+                pc += 2;
+            }
+            break;
+
+            case WA_INSTR_i64_trunc_sat_f32_s:
+            {
+                if(isnan(locals[pc[0].valI32].valF32))
+                {
+                    locals[pc[1].valI32].valI64 = 0;
+                }
+                else if(locals[pc[0].valI32].valF32 >= 9223372036854775808.0f)
+                {
+                    locals[pc[1].valI32].valI64 = INT64_MAX;
+                }
+                else if(locals[pc[0].valI32].valF32 < -9223372036854775808.0f)
+                {
+                    locals[pc[1].valI32].valI64 = INT64_MIN;
+                }
+                else
+                {
+                    locals[pc[1].valI32].valI64 = (i64)truncf(locals[pc[0].valI32].valF32);
+                }
+                pc += 2;
+            }
+            break;
+
+            case WA_INSTR_i64_trunc_sat_f32_u:
+            {
+                if(isnan(locals[pc[0].valI32].valF32))
+                {
+                    locals[pc[1].valI32].valI64 = 0;
+                }
+                else if(locals[pc[0].valI32].valF32 >= 18446744073709551616.0f)
+                {
+                    *(u64*)&locals[pc[1].valI32].valI64 = 0xffffffffffffffffLLU;
+                }
+                else if(locals[pc[0].valI32].valF32 <= -1.0f)
+                {
+                    locals[pc[1].valI32].valI64 = 0;
+                }
+                else
+                {
+                    *(u64*)&locals[pc[1].valI32].valI64 = (u64)truncf(locals[pc[0].valI32].valF32);
+                }
+                pc += 2;
+            }
+            break;
+
+            case WA_INSTR_i64_trunc_sat_f64_s:
+            {
+                if(isnan(locals[pc[0].valI32].valF64))
+                {
+                    locals[pc[1].valI32].valI64 = 0;
+                }
+                else if(locals[pc[0].valI32].valF64 >= 9223372036854775808.0)
+                {
+                    locals[pc[1].valI32].valI64 = INT64_MAX;
+                }
+                else if(locals[pc[0].valI32].valF64 < -9223372036854775808.0)
+                {
+                    locals[pc[1].valI32].valI64 = INT64_MIN;
+                }
+                else
+                {
+                    locals[pc[1].valI32].valI64 = (i64)trunc(locals[pc[0].valI32].valF64);
+                }
+                pc += 2;
+            }
+            break;
+
+            case WA_INSTR_i64_trunc_sat_f64_u:
+            {
+                if(isnan(locals[pc[0].valI32].valF64))
+                {
+                    locals[pc[1].valI32].valI64 = 0;
+                }
+                else if(locals[pc[0].valI32].valF64 >= 18446744073709551616.0)
+                {
+                    *(u64*)&locals[pc[1].valI32].valI64 = 0xffffffffffffffffLLU;
+                }
+                else if(locals[pc[0].valI32].valF64 <= -1.0)
+                {
+                    locals[pc[1].valI32].valI64 = 0;
+                }
+                else
+                {
+                    *(u64*)&locals[pc[1].valI32].valI64 = (u64)trunc(locals[pc[0].valI32].valF64);
+                }
+                pc += 2;
+            }
+            break;
+
+            case WA_INSTR_i64_extend_i32_s:
+            {
+                locals[pc[1].valI32].valI64 = (i64)(i32)(locals[pc[0].valI32].valI32);
+                pc += 2;
+            }
+            break;
+
+            case WA_INSTR_i64_extend_i32_u:
+            {
+                locals[pc[1].valI32].valI64 = *(u32*)&(locals[pc[0].valI32].valI32);
+                pc += 2;
+            }
+            break;
+
             default:
                 oc_log_error("invalid opcode %s\n", wa_instr_strings[opcode]);
                 return WA_TRAP_INVALID_OP;
@@ -5505,7 +5929,8 @@ int test_main(int argc, char** argv)
                                 }
                                 else
                                 {
-                                    check = check && (result.values[retIndex].valF32 == expectVal.value.valF32);
+                                    //NOTE(martin): here we have to do a memcmp because we could be comparing non-canonical, non-arithmetic NaNs.
+                                    check = check && !memcmp(&result.values[retIndex].valF32, &expectVal.value.valF32, sizeof(f32));
                                 }
                             }
                             break;
@@ -5520,8 +5945,10 @@ int test_main(int argc, char** argv)
                                     check = check && wa_is_nan_arithmetic_f64(result.values[retIndex].valF64);
                                 }
                                 else
-
-                                    check = check && (result.values[retIndex].valF64 == expectVal.value.valF64);
+                                {
+                                    //NOTE(martin): here we have to do a memcmp because we could be comparing non-canonical, non-arithmetic NaNs.
+                                    check = check && !memcmp(&result.values[retIndex].valF64, &expectVal.value.valF64, sizeof(f32));
+                                }
                             }
                             break;
                             default:
@@ -5565,6 +5992,10 @@ int test_main(int argc, char** argv)
                 else if(!oc_str8_cmp(failure->string, OC_STR8("integer overflow")))
                 {
                     expected = WA_TRAP_INTEGER_OVERFLOW;
+                }
+                else if(!oc_str8_cmp(failure->string, OC_STR8("invalid conversion to integer")))
+                {
+                    expected = WA_TRAP_INVALID_INTEGER_CONVERSION;
                 }
                 else
                 {
