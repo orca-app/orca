@@ -3097,8 +3097,6 @@ void wa_block_end(wa_build_context* context, wa_block* block, wa_instr* instr)
             context->code[block->beginOffset + 1].valI64 = context->codeLen - (block->beginOffset + 1);
         }
     }
-
-    wa_control_stack_pop(context);
 }
 
 void wa_patch_jump_targets(wa_build_context* context, wa_block* block)
@@ -3318,7 +3316,7 @@ void wa_compile_code(oc_arena* arena, wa_module* module)
                 wa_emit(&context, (wa_code){ .valI32 = slot2.index });
                 wa_emit(&context, (wa_code){ .valI32 = out.index });
             }
-            else if(instr->op == WA_INSTR_block)
+            else if(instr->op == WA_INSTR_block || instr->op == WA_INSTR_loop)
             {
                 wa_move_locals_to_registers(&context);
                 wa_block_begin(&context, instr);
@@ -4182,7 +4180,7 @@ wa_status wa_interpret_func(wa_module* module,
                     index = count - 1;
                 }
 
-                pc += pc[1 + index].valI64;
+                pc += pc[2 + index].valI64;
             }
             break;
 
