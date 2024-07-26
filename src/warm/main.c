@@ -665,6 +665,24 @@ typedef struct wa_table_type
     wa_limits limits;
 } wa_table_type;
 
+typedef enum wa_element_mode
+{
+    WA_ELEMENT_PASSIVE,
+    WA_ELEMENT_ACTIVE,
+    WA_ELEMENT_DECLARATIVE,
+} wa_element_mode;
+
+typedef struct wa_element
+{
+    wa_value_type type;
+    wa_element_mode mode;
+    u32 tableIndex;
+    oc_list tableOffset;
+    u64 initCount;
+    oc_list* initInstr;
+
+} wa_element;
+
 typedef enum wa_import_kind
 {
     WA_IMPORT_FUNCTION = 0x00,
@@ -729,6 +747,7 @@ typedef enum
     WA_AST_FUNC_INDEX,
     WA_AST_LIMITS,
     WA_AST_TABLE_TYPE,
+    WA_AST_ELEMENT,
     WA_AST_IMPORT,
     WA_AST_EXPORT,
     WA_AST_FUNC,
@@ -759,6 +778,7 @@ static const char* wa_ast_kind_strings[] = {
     "func index",
     "limits",
     "table type",
+    "element",
     "import",
     "export",
     "function",
@@ -841,6 +861,9 @@ typedef struct wa_module
     u32 tableImportCount;
     u32 tableCount;
     wa_table_type* tables;
+
+    u32 elementCount;
+    wa_element* elements;
 
     u32 exportCount;
     wa_export* exports;
@@ -1950,6 +1973,158 @@ void wa_parse_exports(wa_parser* parser, wa_module* module)
                        section,
                        "Size of section does not match declared size (declared = %llu, actual = %llu)\n",
                        module->toc.exports.len,
+                       parser->offset - startOffset);
+    }
+}
+
+void wa_parse_constant_expression(wa_parser* parser, wa_ast* parent, oc_list* list)
+{
+    //TODO
+}
+
+void wa_parse_elements(wa_parser* parser, wa_module* module)
+{
+    wa_ast* section = module->toc.elements.ast;
+    if(!section)
+    {
+        return;
+    }
+
+    wa_parser_seek(parser, module->toc.elements.offset, OC_STR8("elements section"));
+    u64 startOffset = parser->offset;
+
+    wa_ast* vector = wa_ast_alloc(parser, WA_AST_VECTOR);
+    vector->loc.start = parser->offset;
+    vector->parent = section;
+    oc_list_push_back(&section->children, &vector->parentElt);
+
+    wa_ast* elementCountAst = wa_read_leb128_u32(parser, vector, OC_STR8("count"));
+    module->elementCount = elementCountAst->valU32;
+    module->elements = oc_arena_push_array(parser->arena, wa_element, module->elementCount);
+    memset(module->elements, 0, module->elementCount * sizeof(wa_element));
+
+    for(u32 eltIndex = 0; eltIndex < module->elementCount; eltIndex++)
+    {
+        wa_element* element = &module->elements[eltIndex];
+
+        wa_ast* elementAst = wa_ast_alloc(parser, WA_AST_ELEMENT);
+        elementAst->loc.start = parser->offset;
+        elementAst->parent = vector;
+        oc_list_push_back(&vector->children, &elementAst->parentElt);
+
+        wa_ast* prefixAst = wa_read_leb128_u32(parser, elementAst, OC_STR8("prefix"));
+        u32 prefix = prefixAst->valU32;
+
+        if(prefix > 7)
+        {
+            wa_parse_error(parser, prefixAst, "invalid element prefix %u\n", prefix);
+            return;
+        }
+
+        if(prefix & 0x01)
+        {
+            if(prefix & 0x02)
+            {
+                element->mode = WA_ELEMENT_DECLARATIVE;
+            }
+            else
+            {
+                element->mode = WA_ELEMENT_PASSIVE;
+            }
+        }
+        else
+        {
+            element->mode = WA_ELEMENT_ACTIVE;
+            if(prefix & 0x02)
+            {
+                //NOTE: explicit table index
+                wa_ast* tableIndexAst = wa_read_leb128_u32(parser, elementAst, OC_STR8("table index"));
+                //TODO validate index
+                element->tableIndex = tableIndexAst->valU32;
+            }
+            wa_parse_constant_expression(parser, elementAst, &element->tableOffset);
+        }
+
+        element->type = WA_TYPE_FUNC_REF;
+        if(prefix & 0x04)
+        {
+            //NOTE: reftype? vec(expr)
+            if(prefix & 0x03)
+            {
+                //NOTE ref type
+                wa_ast* refTypeAst = wa_read_byte(parser, elementAst, OC_STR8("refType"));
+                if(refTypeAst->valU8 != WA_TYPE_FUNC_REF && refTypeAst->valU8 != WA_TYPE_EXTERN_REF)
+                {
+                    wa_parse_error(parser, refTypeAst, "ref type should be externref or funcref.");
+                }
+                element->type = refTypeAst->valU8;
+            }
+
+            wa_ast* exprVec = wa_ast_alloc(parser, WA_AST_VECTOR);
+            exprVec->loc.start = parser->offset;
+            exprVec->parent = elementAst;
+            oc_list_push_back(&elementAst->children, &exprVec->parentElt);
+
+            wa_ast* exprVecCount = wa_read_leb128_u32(parser, exprVec, OC_STR8("count"));
+            element->initCount = exprVecCount->valU32;
+            element->initInstr = oc_arena_push_array(parser->arena, oc_list, element->initCount);
+
+            for(u32 i = 0; i < element->initCount; i++)
+            {
+                wa_parse_constant_expression(parser, elementAst, &element->initInstr[i]);
+            }
+        }
+        else
+        {
+            //NOTE: refkind? vec(funcIdx)
+            if(prefix & 0x03)
+            {
+                //NOTE refkind
+                wa_ast* refKindAst = wa_read_byte(parser, elementAst, OC_STR8("refKind"));
+                if(refKindAst->valU8 != 0x00)
+                {
+                    wa_parse_error(parser, refKindAst, "ref kind should be 0.");
+                }
+                element->type = refKindAst->valU8;
+            }
+
+            wa_ast* funcVec = wa_ast_alloc(parser, WA_AST_VECTOR);
+            funcVec->loc.start = parser->offset;
+            funcVec->parent = elementAst;
+            oc_list_push_back(&elementAst->children, &funcVec->parentElt);
+
+            wa_ast* funcVecCount = wa_read_leb128_u32(parser, funcVec, OC_STR8("count"));
+            element->initCount = funcVecCount->valU32;
+            element->initInstr = oc_arena_push_array(parser->arena, oc_list, element->initCount);
+
+            for(u32 i = 0; i < element->initCount; i++)
+            {
+                //TODO validate index
+                wa_ast* funcIndexAst = wa_read_leb128_u32(parser, funcVec, OC_STR8("index"));
+                funcIndexAst->kind = WA_AST_FUNC_INDEX;
+
+                wa_instr* init = oc_arena_push_type(parser->arena, wa_instr);
+                init->op = WA_INSTR_ref_func;
+                init->immCount = 1;
+                init->imm = oc_arena_push_type(parser->arena, wa_code);
+                init->imm[0].index = funcIndexAst->valU32;
+
+                oc_list_push_back(&element->initInstr[i], &init->listElt);
+            }
+        }
+
+        elementAst->loc.len = parser->offset - elementAst->loc.start;
+    }
+
+    vector->loc.len = parser->offset - vector->loc.start;
+
+    //NOTE: check section size
+    if(parser->offset - startOffset != module->toc.elements.len)
+    {
+        wa_parse_error(parser,
+                       section,
+                       "Size of section does not match declared size (declared = %llu, actual = %llu)\n",
+                       module->toc.elements.len,
                        parser->offset - startOffset);
     }
 }
@@ -3624,6 +3799,7 @@ wa_module* wa_module_create(oc_arena* arena, oc_str8 contents)
     wa_parse_functions(&parser, module);
     wa_parse_tables(&parser, module);
     wa_parse_exports(&parser, module);
+    wa_parse_elements(&parser, module);
     wa_parse_code(&parser, module);
 
     if(oc_list_empty(module->errors))
