@@ -591,6 +591,13 @@ typedef union wa_value
     //TODO v128, funcref, externref...
 } wa_value;
 
+typedef struct wa_typed_value
+{
+    wa_value_type type;
+    wa_value value;
+
+} wa_typed_value;
+
 enum
 {
     WA_INSTR_IMM_MAX_COUNT = 2,
@@ -690,6 +697,8 @@ typedef struct wa_element
     oc_list tableOffset;
     u64 initCount;
     oc_list* initInstr;
+
+    wa_code** code;
 
 } wa_element;
 
@@ -1810,23 +1819,23 @@ void wa_parse_imports(wa_parser* parser, wa_module* module)
 void wa_parse_functions(wa_parser* parser, wa_module* module)
 {
     //NOTE: parse function section
-    wa_ast* section = module->toc.functions.ast;
-    if(!section)
-    {
-        return;
-    }
-
     wa_parser_seek(parser, module->toc.functions.offset, OC_STR8("functions section"));
     u64 startOffset = parser->offset;
 
-    wa_ast* vector = wa_ast_alloc(parser, WA_AST_VECTOR);
-    vector->loc.start = parser->offset;
-    vector->parent = section;
-    oc_list_push_back(&section->children, &vector->parentElt);
+    wa_ast* section = module->toc.functions.ast;
+    wa_ast* vector = 0;
+    if(section)
+    {
+        vector = wa_ast_alloc(parser, WA_AST_VECTOR);
+        vector->loc.start = parser->offset;
+        vector->parent = section;
+        oc_list_push_back(&section->children, &vector->parentElt);
 
-    wa_ast* functionCountAst = wa_read_leb128_u32(parser, vector, OC_STR8("count"));
+        wa_ast* functionCountAst = wa_read_leb128_u32(parser, vector, OC_STR8("count"));
 
-    module->functionCount = functionCountAst->valU32;
+        module->functionCount = functionCountAst->valU32;
+    }
+
     module->functions = oc_arena_push_array(parser->arena, wa_func, module->functionImportCount + module->functionCount);
 
     //NOTE: re-read imports, because the format is kinda stupid -- they should have included imports in the function section
@@ -1845,31 +1854,33 @@ void wa_parse_functions(wa_parser* parser, wa_module* module)
     }
 
     //NOTE: read non-import functions
-    for(u32 funcIndex = 0; funcIndex < module->functionCount; funcIndex++)
+    if(section)
     {
-        wa_func* func = &module->functions[module->functionImportCount + funcIndex];
-
-        wa_ast* typeIndexAst = wa_read_leb128_u32(parser, vector, OC_STR8("type index"));
-        typeIndexAst->kind = WA_AST_FUNC_ENTRY;
-        u32 typeIndex = typeIndexAst->valU32;
-
-        if(typeIndex >= module->typeCount)
+        for(u32 funcIndex = 0; funcIndex < module->functionCount; funcIndex++)
         {
-            wa_parse_error(parser,
-                           typeIndexAst,
-                           "Invalid type index %i in function section\n",
-                           typeIndex);
+            wa_func* func = &module->functions[module->functionImportCount + funcIndex];
+
+            wa_ast* typeIndexAst = wa_read_leb128_u32(parser, vector, OC_STR8("type index"));
+            typeIndexAst->kind = WA_AST_FUNC_ENTRY;
+            u32 typeIndex = typeIndexAst->valU32;
+
+            if(typeIndex >= module->typeCount)
+            {
+                wa_parse_error(parser,
+                               typeIndexAst,
+                               "Invalid type index %i in function section\n",
+                               typeIndex);
+            }
+            else
+            {
+                func->type = &module->types[typeIndex];
+            }
         }
-        else
-        {
-            func->type = &module->types[typeIndex];
-        }
+        module->functionCount += module->functionImportCount;
+
+        vector->loc.len = parser->offset - vector->loc.start;
+        section->loc.len = parser->offset - section->loc.start;
     }
-    module->functionCount += module->functionImportCount;
-
-    vector->loc.len = parser->offset - vector->loc.start;
-    section->loc.len = parser->offset - section->loc.start;
-
     //NOTE: check section size
     if(parser->offset - startOffset != module->toc.functions.len)
     {
@@ -1886,22 +1897,22 @@ wa_ast* wa_parse_constant_expression(wa_parser* parser, wa_ast* parent, oc_list*
 void wa_parse_globals(wa_parser* parser, wa_module* module)
 {
     //NOTE: parse global section
-    wa_ast* section = module->toc.globals.ast;
-    if(!section)
-    {
-        return;
-    }
-
     wa_parser_seek(parser, module->toc.globals.offset, OC_STR8("globals section"));
     u64 startOffset = parser->offset;
 
-    wa_ast* vector = wa_ast_alloc(parser, WA_AST_VECTOR);
-    vector->loc.start = parser->offset;
-    vector->parent = section;
-    oc_list_push_back(&section->children, &vector->parentElt);
+    wa_ast* section = module->toc.globals.ast;
+    wa_ast* vector = 0;
+    if(section)
+    {
+        vector = wa_ast_alloc(parser, WA_AST_VECTOR);
+        vector->loc.start = parser->offset;
+        vector->parent = section;
+        oc_list_push_back(&section->children, &vector->parentElt);
 
-    wa_ast* globalCountAst = wa_read_leb128_u32(parser, vector, OC_STR8("count"));
-    module->globalCount = globalCountAst->valU32;
+        wa_ast* globalCountAst = wa_read_leb128_u32(parser, vector, OC_STR8("count"));
+        module->globalCount = globalCountAst->valU32;
+    }
+
     module->globals = oc_arena_push_array(parser->arena, wa_global, module->globalCount + module->globalImportCount);
 
     //NOTE: re-read imports, because the format is kinda stupid -- they should have included imports in the global section
@@ -1919,39 +1930,43 @@ void wa_parse_globals(wa_parser* parser, wa_module* module)
         }
     }
 
-    for(u32 globalIndex = 0; globalIndex < module->globalCount; globalIndex++)
+    if(section)
     {
-        wa_global* global = &module->globals[globalIndex + module->globalImportCount];
-
-        wa_ast* globalAst = wa_ast_alloc(parser, WA_AST_GLOBAL);
-        globalAst->loc.start = parser->offset;
-        globalAst->parent = vector;
-        oc_list_push_back(&vector->children, &globalAst->parentElt);
-
-        wa_ast* typeAst = wa_parse_value_type(parser, globalAst, OC_STR8("type"));
-        wa_ast* mutAst = wa_read_byte(parser, globalAst, OC_STR8("mut"));
-
-        global->type = typeAst->valueType;
-
-        if(mutAst->valU8 == 0x00)
+        for(u32 globalIndex = 0; globalIndex < module->globalCount; globalIndex++)
         {
-            global->mut = false;
-        }
-        else if(mutAst->valU8 == 0x01)
-        {
-            global->mut = true;
-        }
-        else
-        {
-            wa_parse_error(parser,
-                           mutAst,
-                           "invalid byte 0x%02hhx as global mutability.",
-                           mutAst->valU8);
-        }
+            wa_global* global = &module->globals[globalIndex + module->globalImportCount];
 
-        wa_parse_constant_expression(parser, globalAst, &global->init);
+            wa_ast* globalAst = wa_ast_alloc(parser, WA_AST_GLOBAL);
+            globalAst->loc.start = parser->offset;
+            globalAst->parent = vector;
+            oc_list_push_back(&vector->children, &globalAst->parentElt);
 
-        globalAst->loc.len = parser->offset - globalAst->loc.start;
+            wa_ast* typeAst = wa_parse_value_type(parser, globalAst, OC_STR8("type"));
+            wa_ast* mutAst = wa_read_byte(parser, globalAst, OC_STR8("mut"));
+
+            global->type = typeAst->valueType;
+
+            if(mutAst->valU8 == 0x00)
+            {
+                global->mut = false;
+            }
+            else if(mutAst->valU8 == 0x01)
+            {
+                global->mut = true;
+            }
+            else
+            {
+                wa_parse_error(parser,
+                               mutAst,
+                               "invalid byte 0x%02hhx as global mutability.",
+                               mutAst->valU8);
+            }
+
+            wa_parse_constant_expression(parser, globalAst, &global->init);
+
+            globalAst->loc.len = parser->offset - globalAst->loc.start;
+        }
+        vector->loc.len = parser->offset - vector->loc.start;
     }
     module->globalCount += module->globalImportCount;
 
@@ -4048,6 +4063,26 @@ void wa_compile_code(oc_arena* arena, wa_module* module)
         memcpy(global->code, context.code, context.codeLen * sizeof(wa_code));
     }
 
+    for(u32 eltIndex = 0; eltIndex < module->elementCount; eltIndex++)
+    {
+        wa_element* element = &module->elements[eltIndex];
+
+        element->code = oc_arena_push_array(arena, wa_code*, element->initCount);
+        for(u32 exprIndex = 0; exprIndex < element->initCount; exprIndex++)
+        {
+            wa_build_context_clear(&context);
+            context.nextRegIndex = 0;
+
+            i64 t = 0x7f - (i64)element->type + 1;
+            wa_func_type* exprType = (wa_func_type*)&WA_BLOCK_VALUE_TYPES[t];
+
+            wa_compile_expression(&context, exprType, 0, element->initInstr[exprIndex]);
+
+            element->code[exprIndex] = oc_arena_push_array(arena, wa_code, context.codeLen);
+            memcpy(element->code[exprIndex], context.code, context.codeLen * sizeof(wa_code));
+        }
+    }
+
     oc_arena_cleanup(&context.codeArena);
     oc_arena_cleanup(&context.checkArena);
 }
@@ -4305,7 +4340,7 @@ wa_instance* wa_instance_create(oc_arena* arena, wa_module* module)
     return (instance);
 }
 
-wa_status wa_instance_bind(wa_instance* instance, oc_str8 name, wa_func_type* type, wa_host_proc proc)
+wa_status wa_instance_bind_function(wa_instance* instance, oc_str8 name, wa_func_type* type, wa_host_proc proc)
 {
     wa_module* module = instance->module;
     u32 funcIndex = 0;
@@ -4344,6 +4379,35 @@ wa_status wa_instance_bind(wa_instance* instance, oc_str8 name, wa_func_type* ty
                 break;
             }
             funcIndex++;
+        }
+    }
+    return (WA_OK);
+}
+
+wa_status wa_instance_bind_global(wa_instance* instance, oc_str8 name, wa_typed_value value)
+{
+    wa_module* module = instance->module;
+    u32 globalIndex = 0;
+
+    for(u32 importIndex = 0; importIndex < module->importCount; importIndex++)
+    {
+        wa_import* import = &module->imports[importIndex];
+
+        if(import->kind == WA_IMPORT_GLOBAL)
+        {
+            if(!oc_str8_cmp(name, import->importName))
+            {
+                wa_global* globalDesc = &module->globals[globalIndex];
+
+                if(globalDesc->type != value.type)
+                {
+                    //log error to module
+                    return WA_ERROR_BIND_TYPE;
+                }
+                instance->globals[globalIndex] = value.value;
+                break;
+            }
+            globalIndex++;
         }
     }
     return (WA_OK);
@@ -4490,6 +4554,20 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
             {
                 memcpy(&instance->globals[pc[1].valI32], &locals[pc[0].valI32].valI64, sizeof(u64));
                 pc += 2;
+            }
+            break;
+
+            case WA_INSTR_select:
+            {
+                if(locals[pc[2].valI32].valI32)
+                {
+                    memcpy(&locals[pc[3].valI32], &locals[pc[0].valI32], sizeof(u64));
+                }
+                else
+                {
+                    memcpy(&locals[pc[3].valI32], &locals[pc[1].valI32], sizeof(u64));
+                }
+                pc += 4;
             }
             break;
 
@@ -5281,6 +5359,80 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
             }
             break;
 
+            case WA_INSTR_f32_eq:
+            {
+                locals[pc[2].valI32].valI32 = (locals[pc[1].valI32].valF32 == locals[pc[0].valI32].valF32) ? 1 : 0;
+                pc += 3;
+            }
+            break;
+            case WA_INSTR_f32_ne:
+            {
+                locals[pc[2].valI32].valI32 = (locals[pc[1].valI32].valF32 != locals[pc[0].valI32].valF32) ? 1 : 0;
+                pc += 3;
+            }
+            break;
+            case WA_INSTR_f32_lt:
+            {
+                locals[pc[2].valI32].valI32 = (locals[pc[1].valI32].valF32 < locals[pc[0].valI32].valF32) ? 1 : 0;
+                pc += 3;
+            }
+            break;
+            case WA_INSTR_f32_gt:
+            {
+                locals[pc[2].valI32].valI32 = (locals[pc[1].valI32].valF32 > locals[pc[0].valI32].valF32) ? 1 : 0;
+                pc += 3;
+            }
+            break;
+            case WA_INSTR_f32_le:
+            {
+                locals[pc[2].valI32].valI32 = (locals[pc[1].valI32].valF32 <= locals[pc[0].valI32].valF32) ? 1 : 0;
+                pc += 3;
+            }
+            break;
+            case WA_INSTR_f32_ge:
+            {
+                locals[pc[2].valI32].valI32 = (locals[pc[1].valI32].valF32 >= locals[pc[0].valI32].valF32) ? 1 : 0;
+                pc += 3;
+            }
+            break;
+
+            case WA_INSTR_f64_eq:
+            {
+                locals[pc[2].valI32].valI32 = (locals[pc[1].valI32].valF64 == locals[pc[0].valI32].valF64) ? 1 : 0;
+                pc += 3;
+            }
+            break;
+            case WA_INSTR_f64_ne:
+            {
+                locals[pc[2].valI32].valI32 = (locals[pc[1].valI32].valF64 != locals[pc[0].valI32].valF64) ? 1 : 0;
+                pc += 3;
+            }
+            break;
+            case WA_INSTR_f64_lt:
+            {
+                locals[pc[2].valI32].valI32 = (locals[pc[1].valI32].valF64 < locals[pc[0].valI32].valF64) ? 1 : 0;
+                pc += 3;
+            }
+            break;
+            case WA_INSTR_f64_gt:
+            {
+                locals[pc[2].valI32].valI32 = (locals[pc[1].valI32].valF64 > locals[pc[0].valI32].valF64) ? 1 : 0;
+                pc += 3;
+            }
+            break;
+            case WA_INSTR_f64_le:
+            {
+                locals[pc[2].valI32].valI32 = (locals[pc[1].valI32].valF64 <= locals[pc[0].valI32].valF64) ? 1 : 0;
+                pc += 3;
+            }
+            break;
+            case WA_INSTR_f64_ge:
+            {
+                locals[pc[2].valI32].valI32 = (locals[pc[1].valI32].valF64 >= locals[pc[0].valI32].valF64) ? 1 : 0;
+                pc += 3;
+            }
+            break;
+
             case WA_INSTR_f32_abs:
             {
                 locals[pc[1].valI32].valF32 = fabsf(locals[pc[0].valI32].valF32);
@@ -5965,13 +6117,6 @@ wa_status wa_instance_invoke(wa_instance* instance,
 //-------------------------------------------------------------------------
 #include "json.c"
 
-typedef struct wa_typed_value
-{
-    wa_value_type type;
-    wa_value value;
-
-} wa_typed_value;
-
 wa_typed_value parse_value_64(oc_str8 string)
 {
     wa_typed_value res = { 0 };
@@ -6396,8 +6541,6 @@ int test_main(int argc, char** argv)
             wa_module* module = wa_test_module_load(&arena, filePath);
             OC_ASSERT(module);
 
-            env.instance = wa_instance_create(&arena, module);
-
             if(!oc_list_empty(module->errors))
             {
                 wa_module_print_errors(module);
@@ -6406,11 +6549,18 @@ int test_main(int argc, char** argv)
                 wa_test_fail(&env, testName, command);
                 continue;
             }
-
-            if(wa_instance_link(env.instance) != WA_OK)
+            else
             {
-                wa_test_fail(&env, testName, command);
-                continue;
+                env.instance = wa_instance_create(&arena, module);
+
+                wa_instance_bind_global(env.instance, OC_STR8("global_i32"), (wa_typed_value){ .type = WA_TYPE_I32, .value.valI32 = 666 });
+                wa_instance_bind_global(env.instance, OC_STR8("global_i64"), (wa_typed_value){ .type = WA_TYPE_I64, .value.valI64 = 666 });
+
+                if(wa_instance_link(env.instance) != WA_OK)
+                {
+                    wa_test_fail(&env, testName, command);
+                    continue;
+                }
             }
         }
         else
@@ -6426,7 +6576,11 @@ int test_main(int argc, char** argv)
 
             if(!oc_str8_cmp(type->string, OC_STR8("assert_return")))
             {
-                OC_ASSERT(env.instance);
+                if(!env.instance)
+                {
+                    wa_test_fail(&env, testName, command);
+                    continue;
+                }
 
                 json_node* expected = json_find_assert(command, "expected", JSON_LIST);
                 json_node* action = json_find_assert(command, "action", JSON_OBJECT);
@@ -6515,7 +6669,11 @@ int test_main(int argc, char** argv)
             }
             else if(!oc_str8_cmp(type->string, OC_STR8("assert_trap")))
             {
-                OC_ASSERT(env.instance);
+                if(!env.instance)
+                {
+                    wa_test_fail(&env, testName, command);
+                    continue;
+                }
 
                 json_node* failure = json_find_assert(command, "text", JSON_STRING);
                 json_node* action = json_find_assert(command, "action", JSON_OBJECT);
@@ -6636,19 +6794,19 @@ int main(int argc, char** argv)
 
     wa_instance* instance = wa_instance_create(&arena, module);
 
-    wa_status status = wa_instance_bind(instance,
-                                        OC_STR8("test"),
-                                        &(wa_func_type){
-                                            .paramCount = 1,
-                                            .params = (wa_value_type[]){
-                                                WA_TYPE_I32,
-                                            },
-                                            .returnCount = 1,
-                                            .returns = (wa_value_type[]){
-                                                WA_TYPE_I32,
-                                            },
-                                        },
-                                        test_proc);
+    wa_status status = wa_instance_bind_function(instance,
+                                                 OC_STR8("test"),
+                                                 &(wa_func_type){
+                                                     .paramCount = 1,
+                                                     .params = (wa_value_type[]){
+                                                         WA_TYPE_I32,
+                                                     },
+                                                     .returnCount = 1,
+                                                     .returns = (wa_value_type[]){
+                                                         WA_TYPE_I32,
+                                                     },
+                                                 },
+                                                 test_proc);
     if(status != WA_OK)
     {
         oc_log_error("%s", wa_status_strings[status]);
