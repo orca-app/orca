@@ -645,6 +645,16 @@ typedef struct wa_func
 
 } wa_func;
 
+typedef struct wa_global
+{
+    wa_value_type type;
+    bool mut;
+    oc_list init;
+
+    u32 codeLen;
+    wa_code* code;
+} wa_global;
+
 typedef enum wa_limits_kind
 {
     WA_LIMIT_MIN = 0,
@@ -757,6 +767,7 @@ typedef enum
     WA_AST_MEM_ARG,
 
     WA_AST_VALUE_TYPE,
+    WA_AST_GLOBAL,
 } wa_ast_kind;
 
 static const char* wa_ast_kind_strings[] = {
@@ -787,9 +798,8 @@ static const char* wa_ast_kind_strings[] = {
     "instruction",
     "memArg",
     "value type",
+    "global",
 };
-
-typedef struct wa_ast wa_ast;
 
 typedef struct wa_ast
 {
@@ -812,6 +822,7 @@ typedef struct wa_ast
         i64 valI64;
         f32 valF32;
         f64 valF64;
+        wa_value_type valueType;
         oc_str8 str8;
         wa_instr* instr;
         wa_func* func;
@@ -858,6 +869,10 @@ typedef struct wa_module
     u32 functionCount;
     wa_func* functions;
 
+    u32 globalImportCount;
+    u32 globalCount;
+    wa_global* globals;
+
     u32 tableImportCount;
     u32 tableCount;
     wa_table_type* tables;
@@ -869,6 +884,20 @@ typedef struct wa_module
     wa_export* exports;
 
 } wa_module;
+
+typedef struct wa_instance
+{
+    wa_module* module;
+
+    wa_func* functions;
+    wa_value* globals;
+
+    u64 memoryCap;
+    u64 memorySize;
+    char* memory;
+
+    //TODO: tables
+} wa_instance;
 
 typedef struct wa_parser
 {
@@ -1010,12 +1039,32 @@ typedef enum wa_status
 
     WA_ERROR_INVALID_ARGS,
     WA_ERROR_BIND_TYPE,
+    WA_FAIL_MISSING_IMPORT,
 
     WA_TRAP_INVALID_OP,
     WA_TRAP_DIVIDE_BY_ZERO,
     WA_TRAP_INTEGER_OVERFLOW,
     WA_TRAP_INVALID_INTEGER_CONVERSION,
 } wa_status;
+
+static const char* wa_status_strings[] = {
+    "ok",
+    "parse error",
+    "type mismatch",
+    "invalid type index",
+    "invalid function index",
+    "invalid global index",
+    "invalid local index",
+    "invalid table index",
+    "invalid memory index",
+    "invalid arguments",
+    "binding type mismatch",
+    "missing import",
+    "invalid opcode",
+    "divide by zero",
+    "integer overflow",
+    "invalid integer conversion",
+};
 
 typedef struct wa_module_error
 {
@@ -1380,6 +1429,7 @@ wa_ast* wa_parse_value_type(wa_parser* parser, wa_ast* parent, oc_str8 label)
 {
     wa_ast* ast = wa_read_leb128_u32(parser, parent, label);
     ast->kind = WA_AST_VALUE_TYPE;
+    ast->valueType = (wa_value_type)ast->valU32;
 
     if(!wa_is_value_type(ast->valU32))
     {
@@ -1706,7 +1756,29 @@ void wa_parse_imports(wa_parser* parser, wa_module* module)
             break;
             case WA_IMPORT_GLOBAL:
             {
-                //TODO
+                //TODO: coalesce with globals section parsing
+
+                wa_ast* typeAst = wa_parse_value_type(parser, importAst, OC_STR8("type"));
+                wa_ast* mutAst = wa_read_byte(parser, importAst, OC_STR8("mut"));
+
+                import->type = typeAst->valueType;
+
+                if(mutAst->valU8 == 0x00)
+                {
+                    import->mut = false;
+                }
+                else if(mutAst->valU8 == 0x01)
+                {
+                    import->mut = true;
+                }
+                else
+                {
+                    wa_parse_error(parser,
+                                   mutAst,
+                                   "invalid byte 0x%02hhx as global mutability.",
+                                   mutAst->valU8);
+                }
+                module->globalImportCount++;
             }
             break;
             default:
@@ -1805,6 +1877,91 @@ void wa_parse_functions(wa_parser* parser, wa_module* module)
                        section,
                        "Size of section does not match declared size (declared = %llu, actual = %llu)\n",
                        module->toc.functions.len,
+                       parser->offset - startOffset);
+    }
+}
+
+wa_ast* wa_parse_constant_expression(wa_parser* parser, wa_ast* parent, oc_list* list);
+
+void wa_parse_globals(wa_parser* parser, wa_module* module)
+{
+    //NOTE: parse global section
+    wa_ast* section = module->toc.globals.ast;
+    if(!section)
+    {
+        return;
+    }
+
+    wa_parser_seek(parser, module->toc.globals.offset, OC_STR8("globals section"));
+    u64 startOffset = parser->offset;
+
+    wa_ast* vector = wa_ast_alloc(parser, WA_AST_VECTOR);
+    vector->loc.start = parser->offset;
+    vector->parent = section;
+    oc_list_push_back(&section->children, &vector->parentElt);
+
+    wa_ast* globalCountAst = wa_read_leb128_u32(parser, vector, OC_STR8("count"));
+    module->globalCount = globalCountAst->valU32;
+    module->globals = oc_arena_push_array(parser->arena, wa_global, module->globalCount + module->globalImportCount);
+
+    //NOTE: re-read imports, because the format is kinda stupid -- they should have included imports in the global section
+    memset(module->globals, 0, module->globalImportCount * sizeof(wa_global));
+    u32 globalImportIndex = 0;
+    for(u32 importIndex = 0; importIndex < module->importCount; importIndex++)
+    {
+        wa_import* import = &module->imports[importIndex];
+        if(import->kind == WA_IMPORT_GLOBAL)
+        {
+            wa_global* global = &module->globals[globalImportIndex];
+            global->type = import->type;
+            global->mut = import->mut;
+            globalImportIndex++;
+        }
+    }
+
+    for(u32 globalIndex = 0; globalIndex < module->globalCount; globalIndex++)
+    {
+        wa_global* global = &module->globals[globalIndex + module->globalImportCount];
+
+        wa_ast* globalAst = wa_ast_alloc(parser, WA_AST_GLOBAL);
+        globalAst->loc.start = parser->offset;
+        globalAst->parent = vector;
+        oc_list_push_back(&vector->children, &globalAst->parentElt);
+
+        wa_ast* typeAst = wa_parse_value_type(parser, globalAst, OC_STR8("type"));
+        wa_ast* mutAst = wa_read_byte(parser, globalAst, OC_STR8("mut"));
+
+        global->type = typeAst->valueType;
+
+        if(mutAst->valU8 == 0x00)
+        {
+            global->mut = false;
+        }
+        else if(mutAst->valU8 == 0x01)
+        {
+            global->mut = true;
+        }
+        else
+        {
+            wa_parse_error(parser,
+                           mutAst,
+                           "invalid byte 0x%02hhx as global mutability.",
+                           mutAst->valU8);
+        }
+
+        wa_parse_constant_expression(parser, globalAst, &global->init);
+
+        globalAst->loc.len = parser->offset - globalAst->loc.start;
+    }
+    module->globalCount += module->globalImportCount;
+
+    //NOTE: check section size
+    if(parser->offset - startOffset != module->toc.globals.len)
+    {
+        wa_parse_error(parser,
+                       section,
+                       "Size of section does not match declared size (declared = %llu, actual = %llu)\n",
+                       module->toc.globals.len,
                        parser->offset - startOffset);
     }
 }
@@ -1978,9 +2135,342 @@ void wa_parse_exports(wa_parser* parser, wa_module* module)
     }
 }
 
-void wa_parse_constant_expression(wa_parser* parser, wa_ast* parent, oc_list* list)
+wa_ast* wa_parse_expression(wa_parser* parser, wa_ast* parent, u32 localCount, oc_list* list, bool constant)
 {
-    //TODO
+    wa_module* module = parser->module;
+
+    wa_ast* exprAst = wa_ast_alloc(parser, WA_AST_FUNC_BODY);
+    exprAst->loc.start = parser->offset;
+    exprAst->parent = parent;
+    oc_list_push_back(&parent->children, &exprAst->parentElt);
+
+    //TODO: we should validate block nesting here?
+
+    i64 blockDepth = 0;
+
+    while(!wa_parser_end(parser) && blockDepth >= 0)
+    {
+        wa_instr* instr = oc_arena_push_type(parser->arena, wa_instr);
+        memset(instr, 0, sizeof(wa_instr));
+        oc_list_push_back(list, &instr->listElt);
+
+        wa_ast* instrAst = wa_ast_alloc(parser, WA_AST_INSTR);
+        instrAst->loc.start = parser->offset;
+        instrAst->parent = exprAst;
+        oc_list_push_back(&exprAst->children, &instrAst->parentElt);
+        instrAst->instr = instr;
+
+        instr->ast = instrAst;
+
+        wa_ast* byteAst = wa_read_byte(parser, instrAst, OC_STR8("opcode"));
+        u8 byte = byteAst->valU8;
+
+        if(byte == WA_INSTR_PREFIX_EXTENDED)
+        {
+            wa_ast* extAst = wa_read_leb128_u32(parser, instrAst, OC_STR8("extended instruction"));
+            u32 code = extAst->valU32;
+
+            if(code >= wa_instr_decode_extended_len)
+            {
+                wa_parse_error(parser,
+                               extAst,
+                               "Invalid extended instruction %i\n",
+                               code);
+                break;
+            }
+            instr->op = wa_instr_decode_extended[code];
+        }
+        else if(byte == WA_INSTR_PREFIX_VECTOR)
+        {
+            wa_ast* extAst = wa_read_leb128_u32(parser, instrAst, OC_STR8("vector instruction"));
+            u32 code = extAst->valU32;
+
+            if(code >= wa_instr_decode_vector_len)
+            {
+                wa_parse_error(parser,
+                               extAst,
+                               "Invalid vector instruction %i\n",
+                               code);
+                break;
+            }
+            instr->op = wa_instr_decode_vector[code];
+        }
+        else
+        {
+            if(byte >= wa_instr_decode_basic_len)
+            {
+                wa_parse_error(parser,
+                               byteAst,
+                               "Invalid basic instruction 0x%02x\n",
+                               byte);
+                break;
+            }
+            instr->op = wa_instr_decode_basic[byte];
+        }
+
+        const wa_instr_info* info = &wa_instr_infos[instr->op];
+
+        if(!info->defined)
+        {
+            wa_parse_error(parser, instrAst, "undefined instruction %s.\n", wa_instr_strings[instr->op]);
+            break;
+        }
+
+        if(constant)
+        {
+            if(instr->op != WA_INSTR_i32_const
+               && instr->op != WA_INSTR_i64_const
+               && instr->op != WA_INSTR_f32_const
+               && instr->op != WA_INSTR_f64_const
+               && instr->op != WA_INSTR_ref_null
+               && instr->op != WA_INSTR_ref_func
+               && instr->op != WA_INSTR_global_get
+               && instr->op != WA_INSTR_end)
+            {
+                wa_parse_error(parser,
+                               instrAst,
+                               "found non-constant instruction %s while parsing constant expression.\n",
+                               wa_instr_strings[instr->op]);
+            }
+            //TODO add constraint on global get
+        }
+
+        //NOTE: parse immediates, special cases first, then generic
+
+        if(instr->op == WA_INSTR_block
+           || instr->op == WA_INSTR_loop
+           || instr->op == WA_INSTR_if)
+        {
+            //NOTE: parse block type
+            wa_ast* blockTypeAst = wa_read_leb128_i64(parser, instrAst, OC_STR8("block type"));
+            i64 t = blockTypeAst->valI64;
+            if(t >= 0)
+            {
+                u64 typeIndex = (u64)t;
+
+                if(typeIndex >= module->typeCount)
+                {
+                    wa_parse_error(parser,
+                                   blockTypeAst,
+                                   "unexpected type index %u (type count: %u)\n",
+                                   typeIndex,
+                                   module->typeCount);
+                    break;
+                }
+                instr->blockType = &module->types[typeIndex];
+            }
+            else
+            {
+                if(t != -64 && !wa_is_value_type(t & 0x7f))
+                {
+                    wa_parse_error(parser,
+                                   blockTypeAst,
+                                   "unrecognized value type 0x%02hhx\n",
+                                   t & 0x7f);
+                    break;
+                }
+                t = (t == -64) ? 0 : -t;
+
+                instr->blockType = (wa_func_type*)&WA_BLOCK_VALUE_TYPES[t];
+            }
+            blockDepth++;
+        }
+        else if(instr->op == WA_INSTR_end)
+        {
+            blockDepth--;
+        }
+        else if(instr->op == WA_INSTR_select_t)
+        {
+            wa_ast* vector = wa_ast_alloc(parser, WA_AST_VECTOR);
+            vector->loc.start = parser->offset;
+            vector->parent = instrAst;
+            oc_list_push_back(&instrAst->children, &vector->parentElt);
+
+            wa_ast* count = wa_read_leb128_u32(parser, vector, OC_STR8("count"));
+            if(count->valU32 != 1)
+            {
+                wa_parse_error(parser,
+                               count,
+                               "select instruction can have at most one immediate\n");
+                break;
+            }
+
+            wa_ast* immAst = wa_parse_value_type(parser, vector, OC_STR8("type"));
+
+            instr->immCount = 1;
+            instr->imm = oc_arena_push_type(parser->arena, wa_code);
+            instr->imm[0].valueType = immAst->valU32;
+
+            vector->loc.len = parser->offset - vector->loc.start;
+        }
+        else if(instr->op == WA_INSTR_br_table)
+        {
+            wa_ast* vector = wa_ast_alloc(parser, WA_AST_VECTOR);
+            vector->loc.start = parser->offset;
+            vector->parent = instrAst;
+            oc_list_push_back(&instrAst->children, &vector->parentElt);
+
+            wa_ast* count = wa_read_leb128_u32(parser, vector, OC_STR8("count"));
+
+            instr->immCount = count->valU32 + 1;
+            instr->imm = oc_arena_push_array(parser->arena, wa_code, instr->immCount);
+
+            for(u32 i = 0; i < instr->immCount - 1; i++)
+            {
+                wa_ast* immAst = wa_read_leb128_u32(parser, vector, OC_STR8("label"));
+                instr->imm[i].index = immAst->valU32;
+            }
+            wa_ast* immAst = wa_read_leb128_u32(parser, vector, OC_STR8("label"));
+            instr->imm[instr->immCount - 1].index = immAst->valU32;
+
+            vector->loc.len = parser->offset - vector->loc.start;
+        }
+        else
+        {
+            //generic case
+            ////////////////////////////////////////////////////////////////////
+            //TODO validate all immediates
+            ////////////////////////////////////////////////////////////////////
+            instr->immCount = info->immCount;
+            instr->imm = oc_arena_push_array(parser->arena, wa_code, instr->immCount);
+
+            for(int immIndex = 0; immIndex < info->immCount; immIndex++)
+            {
+                switch(info->imm[immIndex])
+                {
+                    case WA_IMM_ZERO:
+                    {
+                        wa_read_byte(parser, instrAst, OC_STR8("zero"));
+                    }
+                    break;
+                    case WA_IMM_I32:
+                    {
+                        wa_ast* immAst = wa_read_leb128_i32(parser, instrAst, OC_STR8("i32"));
+                        instr->imm[immIndex].valI32 = immAst->valI32;
+                    }
+                    break;
+                    case WA_IMM_I64:
+                    {
+                        wa_ast* immAst = wa_read_leb128_i64(parser, instrAst, OC_STR8("i64"));
+                        instr->imm[immIndex].valI64 = immAst->valI64;
+                    }
+                    break;
+                    case WA_IMM_F32:
+                    {
+                        wa_ast* immAst = wa_read_f32(parser, instrAst, OC_STR8("f32"));
+                        instr->imm[immIndex].valF32 = immAst->valF32;
+                    }
+                    break;
+                    case WA_IMM_F64:
+                    {
+                        wa_ast* immAst = wa_read_f64(parser, instrAst, OC_STR8("f64"));
+                        instr->imm[immIndex].valF64 = immAst->valF64;
+                    }
+                    break;
+                    case WA_IMM_VALUE_TYPE:
+                    {
+                        wa_ast* immAst = wa_parse_value_type(parser, instrAst, OC_STR8("value type"));
+                        instr->imm[immIndex].valueType = immAst->valU32;
+                    }
+                    break;
+                    case WA_IMM_REF_TYPE:
+                    {
+                        wa_ast* immAst = wa_read_byte(parser, instrAst, OC_STR8("ref type"));
+                        instr->imm[immIndex].valueType = immAst->valU8;
+                    }
+                    break;
+
+                    case WA_IMM_LOCAL_INDEX:
+                    {
+                        wa_ast* immAst = wa_read_leb128_u32(parser, instrAst, OC_STR8("index"));
+                        instr->imm[immIndex].index = immAst->valU32;
+
+                        if(immAst->valU32 >= localCount)
+                        {
+                            wa_parse_error(parser,
+                                           immAst,
+                                           "invalid local index %u (localCount: %u)\n",
+                                           immAst->valU32,
+                                           localCount);
+                        }
+                    }
+                    break;
+
+                    case WA_IMM_FUNC_INDEX:
+                    {
+                        wa_ast* immAst = wa_read_leb128_u32(parser, instrAst, OC_STR8("function index"));
+                        instr->imm[immIndex].index = immAst->valU32;
+                        immAst->kind = WA_AST_FUNC_INDEX;
+
+                        if(immAst->valU32 >= module->functionCount)
+                        {
+                            wa_parse_error(parser,
+                                           immAst,
+                                           "invalid function index %u (function count: %u)\n",
+                                           immAst->valU32,
+                                           module->functionCount);
+                        }
+                    }
+                    break;
+
+                    case WA_IMM_GLOBAL_INDEX:
+                    case WA_IMM_TYPE_INDEX:
+                    case WA_IMM_TABLE_INDEX:
+                    case WA_IMM_ELEM_INDEX:
+                    case WA_IMM_DATA_INDEX:
+                    case WA_IMM_LABEL:
+                    {
+                        wa_ast* immAst = wa_read_leb128_u32(parser, instrAst, OC_STR8("index"));
+                        instr->imm[immIndex].index = immAst->valU32;
+                    }
+                    break;
+                    case WA_IMM_MEM_ARG:
+                    {
+                        wa_ast* memArgAst = wa_ast_alloc(parser, WA_AST_MEM_ARG);
+                        memArgAst->loc.start = parser->offset;
+                        memArgAst->parent = instrAst;
+                        oc_list_push_back(&instrAst->children, &memArgAst->parentElt);
+
+                        wa_ast* alignAst = wa_read_leb128_u32(parser, memArgAst, OC_STR8("mem arg"));
+                        wa_ast* offsetAst = wa_read_leb128_u32(parser, memArgAst, OC_STR8("mem arg"));
+
+                        instr->imm[immIndex].memArg.align = alignAst->valU32;
+                        instr->imm[immIndex].memArg.offset = offsetAst->valU32;
+
+                        memArgAst->loc.len = parser->offset - memArgAst->loc.start;
+                    }
+                    break;
+                    case WA_IMM_LANE_INDEX:
+                    {
+                        wa_ast* immAst = wa_read_byte(parser, instrAst, OC_STR8("lane index"));
+                        instr->imm[immIndex].laneIndex = immAst->valU8;
+                    }
+                    break;
+                    /*
+                    case WA_IMM_V128:
+                    {
+                        //TODO
+                    }
+                    break;
+                    */
+                    default:
+                        OC_ASSERT(0, "unsupported immediate type");
+                        break;
+                }
+            }
+        }
+
+        instrAst->loc.len = parser->offset - instrAst->loc.start;
+    }
+    //TODO check that we exited from an end instruction
+
+    exprAst->loc.len = parser->offset - exprAst->loc.start;
+    return (exprAst);
+}
+
+wa_ast* wa_parse_constant_expression(wa_parser* parser, wa_ast* parent, oc_list* list)
+{
+    return wa_parse_expression(parser, parent, 0, list, true);
 }
 
 void wa_parse_elements(wa_parser* parser, wa_module* module)
@@ -2233,304 +2723,8 @@ void wa_parse_code(wa_parser* parser, wa_module* module)
         }
 
         //NOTE: parse body
-        wa_ast* bodyAst = wa_ast_alloc(parser, WA_AST_FUNC_BODY);
-        bodyAst->loc.start = parser->offset;
-        bodyAst->parent = funcAst;
-        oc_list_push_back(&funcAst->children, &bodyAst->parentElt);
+        wa_ast* bodyAst = wa_parse_expression(parser, funcAst, func->localCount, &func->instructions, false);
 
-        //TODO: we should validate block nesting here?
-
-        while(!wa_parser_end(parser) && (parser->offset - funcStartOffset < funcLen))
-        {
-            wa_instr* instr = oc_arena_push_type(parser->arena, wa_instr);
-            memset(instr, 0, sizeof(wa_instr));
-            oc_list_push_back(&func->instructions, &instr->listElt);
-
-            wa_ast* instrAst = wa_ast_alloc(parser, WA_AST_INSTR);
-            instrAst->loc.start = parser->offset;
-            instrAst->parent = bodyAst;
-            oc_list_push_back(&bodyAst->children, &instrAst->parentElt);
-            instrAst->instr = instr;
-
-            instr->ast = instrAst;
-
-            wa_ast* byteAst = wa_read_byte(parser, instrAst, OC_STR8("opcode"));
-            u8 byte = byteAst->valU8;
-
-            if(byte == WA_INSTR_PREFIX_EXTENDED)
-            {
-                wa_ast* extAst = wa_read_leb128_u32(parser, instrAst, OC_STR8("extended instruction"));
-                u32 code = extAst->valU32;
-
-                if(code >= wa_instr_decode_extended_len)
-                {
-                    wa_parse_error(parser,
-                                   extAst,
-                                   "Invalid extended instruction %i\n",
-                                   code);
-                    goto parse_function_end;
-                }
-                instr->op = wa_instr_decode_extended[code];
-            }
-            else if(byte == WA_INSTR_PREFIX_VECTOR)
-            {
-                wa_ast* extAst = wa_read_leb128_u32(parser, instrAst, OC_STR8("vector instruction"));
-                u32 code = extAst->valU32;
-
-                if(code >= wa_instr_decode_vector_len)
-                {
-                    wa_parse_error(parser,
-                                   extAst,
-                                   "Invalid vector instruction %i\n",
-                                   code);
-                    goto parse_function_end;
-                }
-                instr->op = wa_instr_decode_vector[code];
-            }
-            else
-            {
-                if(byte >= wa_instr_decode_basic_len)
-                {
-                    wa_parse_error(parser,
-                                   byteAst,
-                                   "Invalid basic instruction 0x%02x\n",
-                                   byte);
-                    goto parse_function_end;
-                }
-                instr->op = wa_instr_decode_basic[byte];
-            }
-
-            const wa_instr_info* info = &wa_instr_infos[instr->op];
-
-            if(!info->defined)
-            {
-                wa_parse_error(parser, instrAst, "undefined instruction %s.\n", wa_instr_strings[instr->op]);
-                return;
-            }
-            //NOTE: parse immediates, special cases first, then generic
-
-            if(instr->op == WA_INSTR_select_t)
-            {
-                wa_ast* vector = wa_ast_alloc(parser, WA_AST_VECTOR);
-                vector->loc.start = parser->offset;
-                vector->parent = instrAst;
-                oc_list_push_back(&instrAst->children, &vector->parentElt);
-
-                wa_ast* count = wa_read_leb128_u32(parser, vector, OC_STR8("count"));
-                if(count->valU32 != 1)
-                {
-                    wa_parse_error(parser,
-                                   count,
-                                   "select instruction can have at most one immediate\n");
-                    goto parse_function_end;
-                }
-
-                wa_ast* immAst = wa_parse_value_type(parser, vector, OC_STR8("type"));
-
-                instr->immCount = 1;
-                instr->imm = oc_arena_push_type(parser->arena, wa_code);
-                instr->imm[0].valueType = immAst->valU32;
-
-                vector->loc.len = parser->offset - vector->loc.start;
-            }
-            else if(instr->op == WA_INSTR_br_table)
-            {
-                wa_ast* vector = wa_ast_alloc(parser, WA_AST_VECTOR);
-                vector->loc.start = parser->offset;
-                vector->parent = instrAst;
-                oc_list_push_back(&instrAst->children, &vector->parentElt);
-
-                wa_ast* count = wa_read_leb128_u32(parser, vector, OC_STR8("count"));
-
-                instr->immCount = count->valU32 + 1;
-                instr->imm = oc_arena_push_array(parser->arena, wa_code, instr->immCount);
-
-                for(u32 i = 0; i < instr->immCount - 1; i++)
-                {
-                    wa_ast* immAst = wa_read_leb128_u32(parser, vector, OC_STR8("label"));
-                    instr->imm[i].index = immAst->valU32;
-                }
-                wa_ast* immAst = wa_read_leb128_u32(parser, vector, OC_STR8("label"));
-                instr->imm[instr->immCount - 1].index = immAst->valU32;
-
-                vector->loc.len = parser->offset - vector->loc.start;
-            }
-            else
-            {
-                //generic case
-                ////////////////////////////////////////////////////////////////////
-                //TODO validate all immediates
-                ////////////////////////////////////////////////////////////////////
-                instr->immCount = info->immCount;
-                instr->imm = oc_arena_push_array(parser->arena, wa_code, instr->immCount);
-
-                for(int immIndex = 0; immIndex < info->immCount; immIndex++)
-                {
-                    switch(info->imm[immIndex])
-                    {
-                        case WA_IMM_ZERO:
-                        {
-                            wa_read_byte(parser, instrAst, OC_STR8("zero"));
-                        }
-                        break;
-                        case WA_IMM_I32:
-                        {
-                            wa_ast* immAst = wa_read_leb128_i32(parser, instrAst, OC_STR8("i32"));
-                            instr->imm[immIndex].valI32 = immAst->valI32;
-                        }
-                        break;
-                        case WA_IMM_I64:
-                        {
-                            wa_ast* immAst = wa_read_leb128_u64(parser, instrAst, OC_STR8("i64"));
-                            instr->imm[immIndex].valI64 = immAst->valI64;
-                        }
-                        break;
-                        case WA_IMM_F32:
-                        {
-                            wa_ast* immAst = wa_read_f32(parser, instrAst, OC_STR8("f32"));
-                            instr->imm[immIndex].valF32 = immAst->valF32;
-                        }
-                        break;
-                        case WA_IMM_F64:
-                        {
-                            wa_ast* immAst = wa_read_f64(parser, instrAst, OC_STR8("f64"));
-                            instr->imm[immIndex].valF64 = immAst->valF64;
-                        }
-                        break;
-                        case WA_IMM_VALUE_TYPE:
-                        {
-                            wa_ast* immAst = wa_parse_value_type(parser, instrAst, OC_STR8("value type"));
-                            instr->imm[immIndex].valueType = immAst->valU32;
-                        }
-                        break;
-                        case WA_IMM_REF_TYPE:
-                        {
-                            wa_ast* immAst = wa_read_byte(parser, instrAst, OC_STR8("ref type"));
-                            instr->imm[immIndex].valueType = immAst->valU8;
-                        }
-                        break;
-
-                        case WA_IMM_LOCAL_INDEX:
-                        {
-                            wa_ast* immAst = wa_read_leb128_u32(parser, instrAst, OC_STR8("index"));
-                            instr->imm[immIndex].index = immAst->valU32;
-
-                            if(immAst->valU32 >= func->localCount)
-                            {
-                                wa_parse_error(parser,
-                                               immAst,
-                                               "invalid local index %u (localCount: %u)\n",
-                                               immAst->valU32,
-                                               func->localCount);
-                            }
-                        }
-                        break;
-
-                        case WA_IMM_FUNC_INDEX:
-                        {
-                            wa_ast* immAst = wa_read_leb128_u32(parser, instrAst, OC_STR8("function index"));
-                            instr->imm[immIndex].index = immAst->valU32;
-                            immAst->kind = WA_AST_FUNC_INDEX;
-
-                            if(immAst->valU32 >= module->functionCount)
-                            {
-                                wa_parse_error(parser,
-                                               immAst,
-                                               "invalid function index %u (function count: %u)\n",
-                                               immAst->valU32,
-                                               module->functionCount);
-                            }
-                        }
-                        break;
-
-                        case WA_IMM_GLOBAL_INDEX:
-                        case WA_IMM_TYPE_INDEX:
-                        case WA_IMM_TABLE_INDEX:
-                        case WA_IMM_ELEM_INDEX:
-                        case WA_IMM_DATA_INDEX:
-                        case WA_IMM_LABEL:
-                        {
-                            wa_ast* immAst = wa_read_leb128_u32(parser, instrAst, OC_STR8("index"));
-                            instr->imm[immIndex].index = immAst->valU32;
-                        }
-                        break;
-                        case WA_IMM_MEM_ARG:
-                        {
-                            wa_ast* memArgAst = wa_ast_alloc(parser, WA_AST_MEM_ARG);
-                            memArgAst->loc.start = parser->offset;
-                            memArgAst->parent = instrAst;
-                            oc_list_push_back(&instrAst->children, &memArgAst->parentElt);
-
-                            wa_ast* alignAst = wa_read_leb128_u32(parser, memArgAst, OC_STR8("mem arg"));
-                            wa_ast* offsetAst = wa_read_leb128_u32(parser, memArgAst, OC_STR8("mem arg"));
-
-                            instr->imm[immIndex].memArg.align = alignAst->valU32;
-                            instr->imm[immIndex].memArg.offset = offsetAst->valU32;
-
-                            memArgAst->loc.len = parser->offset - memArgAst->loc.start;
-                        }
-                        break;
-                        case WA_IMM_LANE_INDEX:
-                        {
-                            wa_ast* immAst = wa_read_byte(parser, instrAst, OC_STR8("lane index"));
-                            instr->imm[immIndex].laneIndex = immAst->valU8;
-                        }
-                        break;
-                        /*
-                    case WA_IMM_V128:
-                    {
-                        //TODO
-                    }
-                    break;
-                    */
-                        default:
-                            OC_ASSERT(0, "unsupported immediate type");
-                            break;
-                    }
-                }
-            }
-
-            if(instr->op == WA_INSTR_block
-               || instr->op == WA_INSTR_loop
-               || instr->op == WA_INSTR_if)
-            {
-                //NOTE: parse block type
-                wa_ast* blockTypeAst = wa_read_leb128_i64(parser, instrAst, OC_STR8("block type"));
-                i64 t = blockTypeAst->valI64;
-                if(t >= 0)
-                {
-                    u64 typeIndex = (u64)t;
-
-                    if(typeIndex >= module->typeCount)
-                    {
-                        wa_parse_error(parser,
-                                       blockTypeAst,
-                                       "unexpected type index %u (type count: %u)\n",
-                                       typeIndex,
-                                       module->typeCount);
-                        goto parse_function_end;
-                    }
-                    instr->blockType = &module->types[typeIndex];
-                }
-                else
-                {
-                    if(t != -64 && !wa_is_value_type(t & 0x7f))
-                    {
-                        wa_parse_error(parser,
-                                       blockTypeAst,
-                                       "unrecognized value type 0x%02hhx\n",
-                                       t & 0x7f);
-                        goto parse_function_end;
-                    }
-                    t = (t == -64) ? 0 : -t;
-
-                    instr->blockType = (wa_func_type*)&WA_BLOCK_VALUE_TYPES[t];
-                }
-            }
-            instrAst->loc.len = parser->offset - instrAst->loc.start;
-        }
-
-        bodyAst->loc.len = parser->offset - bodyAst->loc.start;
         funcAst->loc.len = parser->offset - funcAst->loc.start;
 
         //NOTE: check entry length
@@ -3149,25 +3343,25 @@ void wa_compile_branch(wa_build_context* context, wa_instr* instr, u32 label)
     }
 }
 
-int wa_compile_return(wa_build_context* context, wa_func* func, wa_instr* instr)
+int wa_compile_return(wa_build_context* context, wa_func_type* type, wa_instr* instr)
 {
     // Check that there's the correct number / types of values on the stack
-    if(context->opdStackLen < func->type->returnCount)
+    if(context->opdStackLen < type->returnCount)
     {
         //TODO: we should also point to the ast of the return type
         wa_compile_error(context,
                          instr->ast,
                          "Not enough return values (expected: %i, stack depth: %i)\n",
-                         func->type->returnCount,
+                         type->returnCount,
                          context->opdStackLen);
         return -1;
     }
 
-    u32 retSlotStart = context->opdStackLen - func->type->returnCount;
-    for(u32 retIndex = 0; retIndex < func->type->returnCount; retIndex++)
+    u32 retSlotStart = context->opdStackLen - type->returnCount;
+    for(u32 retIndex = 0; retIndex < type->returnCount; retIndex++)
     {
         wa_operand_slot* slot = &context->opdStack[retSlotStart + retIndex];
-        wa_value_type expectedType = func->type->returns[retIndex];
+        wa_value_type expectedType = type->returns[retIndex];
         wa_value_type returnType = slot->type;
 
         if(returnType != expectedType)
@@ -3210,6 +3404,607 @@ void wa_build_context_clear(wa_build_context* context)
     context->freeRegLen = 0;
 }
 
+void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_func* func, oc_list instructions)
+{
+    wa_module* module = context->module;
+
+    oc_list_for(instructions, instr, wa_instr, listElt)
+    {
+        const wa_instr_info* info = &wa_instr_infos[instr->op];
+
+        //NOTE: immediates should have been validated when parsing instructions
+
+        if(instr->op == WA_INSTR_nop)
+        {
+            // do nothing
+        }
+        else if(instr->op == WA_INSTR_drop)
+        {
+            wa_operand_slot slot = wa_operand_stack_pop(context);
+            if(wa_operand_slot_is_nil(&slot))
+            {
+                wa_compile_error(context,
+                                 instr->ast,
+                                 "unbalanced stack\n");
+                break;
+            }
+            //TODO: possibly remove instruction that pushed this operand?
+        }
+        else if(instr->op == WA_INSTR_select || instr->op == WA_INSTR_select_t)
+        {
+            wa_operand_slot slot2 = wa_operand_stack_pop(context);
+            wa_operand_slot slot1 = wa_operand_stack_pop(context);
+            wa_operand_slot slot0 = wa_operand_stack_pop(context);
+
+            if(wa_operand_slot_is_nil(&slot2))
+            {
+                wa_compile_error(context,
+                                 instr->ast,
+                                 "unbalanced stack\n");
+                break;
+            }
+
+            if(slot0.type != slot1.type)
+            {
+                //TODO: is this true?
+                wa_compile_error(context,
+                                 instr->ast,
+                                 "select first two operands should be of the same type\n");
+                break;
+            }
+            if(slot2.type != WA_TYPE_I32)
+            {
+                wa_compile_error(context,
+                                 instr->ast,
+                                 "select last operands should be type i32\n");
+                break;
+            }
+
+            if(instr->op == WA_INSTR_select_t)
+            {
+                if(slot0.type != instr->imm[0].valueType)
+                {
+                    wa_compile_error(context,
+                                     instr->ast,
+                                     "select operands should be numeric\n");
+                    break;
+                }
+            }
+            else if(!wa_is_value_type_numeric(slot0.type))
+            {
+                wa_compile_error(context,
+                                 instr->ast,
+                                 "select operands should be numeric\n");
+                break;
+            }
+
+            u32 index = wa_allocate_register(context);
+
+            wa_operand_slot out = {
+                .kind = WA_OPERAND_SLOT_REG,
+                .type = slot0.type,
+                .index = index,
+                .originInstr = instr,
+                .originOpd = context->codeLen,
+            };
+            wa_operand_stack_push(context, out);
+
+            wa_emit(context, (wa_code){ .opcode = WA_INSTR_select });
+            wa_emit(context, (wa_code){ .valI32 = slot0.index });
+            wa_emit(context, (wa_code){ .valI32 = slot1.index });
+            wa_emit(context, (wa_code){ .valI32 = slot2.index });
+            wa_emit(context, (wa_code){ .valI32 = out.index });
+        }
+        else if(instr->op == WA_INSTR_block || instr->op == WA_INSTR_loop)
+        {
+            wa_move_locals_to_registers(context);
+            wa_block_begin(context, instr);
+        }
+        else if(instr->op == WA_INSTR_br)
+        {
+            u32 label = instr->imm[0].index;
+            wa_compile_branch(context, instr, label);
+        }
+        else if(instr->op == WA_INSTR_br_if)
+        {
+            wa_operand_slot slot = wa_operand_stack_pop(context);
+            if(wa_operand_slot_is_nil(&slot))
+            {
+                wa_compile_error(context,
+                                 instr->ast,
+                                 "unbalanced stack\n");
+                break;
+            }
+
+            if(slot.type != WA_TYPE_I32)
+            {
+                wa_compile_error(context,
+                                 instr->ast,
+                                 "operand type mismatch (expected %s, got %s)\n",
+                                 wa_value_type_string(WA_TYPE_I32),
+                                 wa_value_type_string(slot.type));
+                break;
+            }
+
+            wa_emit(context, (wa_code){ .opcode = WA_INSTR_jump_if_zero });
+            u64 jumpOffset = context->codeLen;
+            wa_emit(context, (wa_code){ .valI64 = 0 });
+            wa_emit(context, (wa_code){ .valI64 = slot.index });
+
+            u32 label = instr->imm[0].index;
+            wa_compile_branch(context, instr, label);
+
+            context->code[jumpOffset].valI64 = context->codeLen - jumpOffset;
+        }
+        else if(instr->op == WA_INSTR_br_table)
+        {
+            wa_operand_slot slot = wa_operand_stack_pop(context);
+            if(wa_operand_slot_is_nil(&slot))
+            {
+                wa_compile_error(context,
+                                 instr->ast,
+                                 "unbalanced stack\n");
+                break;
+            }
+
+            if(slot.type != WA_TYPE_I32)
+            {
+                wa_compile_error(context,
+                                 instr->ast,
+                                 "operand type mismatch (expected %s, got %s)\n",
+                                 wa_value_type_string(WA_TYPE_I32),
+                                 wa_value_type_string(slot.type));
+                break;
+            }
+
+            wa_emit(context, (wa_code){ .opcode = WA_INSTR_jump_table });
+            u64 baseOffset = context->codeLen;
+
+            wa_emit(context, (wa_code){ .valU32 = instr->immCount });
+            wa_emit(context, (wa_code){ .valU32 = slot.index });
+
+            oc_arena_scope scratch = oc_scratch_begin();
+            u64* patchOffsets = oc_arena_push_array(scratch.arena, u64, instr->immCount);
+
+            // reserve room for the table entries
+            for(u32 i = 0; i < instr->immCount; i++)
+            {
+                patchOffsets[i] = context->codeLen;
+                wa_emit(context, (wa_code){ 0 });
+            }
+
+            // each entry jumps to a block that moves the results to the correct slots
+            // and jumps to the actual destination
+            //TODO: we can avoid this trampoline for branches that don't need result values
+            for(u32 i = 0; i < instr->immCount; i++)
+            {
+                context->code[patchOffsets[i]].valI64 = context->codeLen - baseOffset;
+                u32 label = instr->imm[i].index;
+                wa_compile_branch(context, instr, label);
+            }
+
+            oc_scratch_end(scratch);
+        }
+        else if(instr->op == WA_INSTR_if)
+        {
+            wa_operand_slot slot = wa_operand_stack_pop(context);
+            if(wa_operand_slot_is_nil(&slot))
+            {
+                wa_compile_error(context,
+                                 instr->ast,
+                                 "unbalanced stack\n");
+                break;
+            }
+
+            if(slot.type != WA_TYPE_I32)
+            {
+                wa_compile_error(context,
+                                 instr->ast,
+                                 "operand type mismatch (expected %s, got %s)\n",
+                                 wa_value_type_string(WA_TYPE_I32),
+                                 wa_value_type_string(slot.type));
+                break;
+            }
+
+            wa_move_locals_to_registers(context);
+
+            wa_block_begin(context, instr);
+
+            wa_emit(context, (wa_code){ .opcode = WA_INSTR_jump_if_zero });
+            wa_emit(context, (wa_code){ 0 });
+            wa_emit(context, (wa_code){ .valI64 = slot.index });
+        }
+        else if(instr->op == WA_INSTR_else)
+        {
+            wa_block* ifBlock = wa_control_stack_top(context);
+            if(!ifBlock
+               || ifBlock->begin->op != WA_INSTR_if
+               || ifBlock->begin->elseBranch)
+            {
+                //TODO: should this be validated at parse stage?
+                wa_compile_error(context,
+                                 instr->ast,
+                                 "unexpected else block\n");
+                break;
+            }
+            wa_func_type* type = ifBlock->begin->blockType;
+
+            wa_block_move_results_to_output_slots(context, ifBlock, instr);
+            wa_operand_stack_pop_slots(context, type->returnCount);
+
+            wa_push_block_inputs(context, type->paramCount, type->returnCount);
+
+            wa_emit(context, (wa_code){ .opcode = WA_INSTR_jump });
+            wa_emit(context, (wa_code){ 0 });
+
+            ifBlock->begin->elseBranch = instr;
+            ifBlock->elseOffset = context->codeLen;
+        }
+        else if(instr->op == WA_INSTR_end)
+        {
+            wa_block block = wa_control_stack_pop(context);
+            if(wa_block_is_nil(&block))
+            {
+                //TODO: is this sufficient to elide all previous returns?
+
+                wa_instr* prev = oc_list_prev_entry(func->instructions, instr, wa_instr, listElt);
+                if(!prev || prev->op != WA_INSTR_return)
+                {
+                    if(wa_compile_return(context, type, instr))
+                    {
+                        break;
+                    }
+                }
+                break;
+            }
+            wa_block_end(context, &block, instr);
+            wa_patch_jump_targets(context, &block);
+        }
+        else if(instr->op == WA_INSTR_call)
+        {
+            wa_func* callee = &module->functions[instr->imm[0].index];
+            u32 paramCount = callee->type->paramCount;
+
+            if(context->opdStackLen < paramCount)
+            {
+                wa_compile_error(context,
+                                 instr->ast,
+                                 "Not enough arguments on stack (expected: %u, got: %u)\n",
+                                 paramCount,
+                                 context->opdStackLen);
+                break;
+            }
+            context->opdStackLen -= paramCount;
+
+            u32 maxUsedSlot = 0;
+            for(u32 stackIndex = 0; stackIndex < context->opdStackLen; stackIndex++)
+            {
+                wa_operand_slot* slot = &context->opdStack[stackIndex];
+                maxUsedSlot = oc_max(slot->index, maxUsedSlot);
+            }
+
+            //TODO: first check if we args are already in order at the end of the frame?
+            for(u32 argIndex = 0; argIndex < paramCount; argIndex++)
+            {
+                wa_operand_slot* slot = &context->opdStack[context->opdStackLen + argIndex];
+                wa_value_type paramType = callee->type->params[argIndex];
+
+                if(slot->type != paramType)
+                {
+                    wa_compile_error(context,
+                                     instr->ast,
+                                     "Type mismatch for argument %u (expected %s, got %s)\n",
+                                     argIndex,
+                                     wa_value_type_string(paramType),
+                                     wa_value_type_string(slot->type));
+                    break;
+                }
+                wa_emit(context, (wa_code){ .opcode = WA_INSTR_move });
+                wa_emit(context, (wa_code){ .valI32 = slot->index });
+                wa_emit(context, (wa_code){ .valI32 = maxUsedSlot + 1 + argIndex });
+            }
+
+            wa_emit(context, (wa_code){ .opcode = WA_INSTR_call });
+            wa_emit(context, (wa_code){ .valI64 = instr->imm[0].index });
+            wa_emit(context, (wa_code){ .valI64 = maxUsedSlot + 1 });
+
+            for(u32 retIndex = 0; retIndex < callee->type->returnCount; retIndex++)
+            {
+                wa_operand_stack_push(context,
+                                      (wa_operand_slot){
+                                          .kind = WA_OPERAND_SLOT_REG,
+                                          .type = callee->type->returns[retIndex],
+                                          .index = maxUsedSlot + 1 + retIndex,
+                                      });
+            }
+        }
+        else if(instr->op == WA_INSTR_call_indirect)
+        {
+            //TODO: coalesce with regular call
+            wa_operand_slot slot = wa_operand_stack_pop(context);
+            if(wa_operand_slot_is_nil(&slot))
+            {
+                wa_compile_error(context,
+                                 instr->ast,
+                                 "unbalanced stack\n");
+                break;
+            }
+
+            if(slot.type != WA_TYPE_I32)
+            {
+                wa_compile_error(context,
+                                 instr->ast,
+                                 "operand type mismatch (expected %s, got %s)\n",
+                                 wa_value_type_string(WA_TYPE_I32),
+                                 wa_value_type_string(slot.type));
+                break;
+            }
+
+            wa_func_type* type = &module->types[instr->imm[0].index];
+            u32 paramCount = type->paramCount;
+
+            if(context->opdStackLen < paramCount)
+            {
+                wa_compile_error(context,
+                                 instr->ast,
+                                 "Not enough arguments on stack (expected: %u, got: %u)\n",
+                                 paramCount,
+                                 context->opdStackLen);
+                break;
+            }
+            context->opdStackLen -= paramCount;
+
+            u32 maxUsedSlot = 0;
+            for(u32 stackIndex = 0; stackIndex < context->opdStackLen; stackIndex++)
+            {
+                wa_operand_slot* slot = &context->opdStack[stackIndex];
+                maxUsedSlot = oc_max(slot->index, maxUsedSlot);
+            }
+
+            //TODO: first check if we args are already in order at the end of the frame?
+            for(u32 argIndex = 0; argIndex < paramCount; argIndex++)
+            {
+                wa_operand_slot* slot = &context->opdStack[context->opdStackLen + argIndex];
+                wa_value_type paramType = type->params[argIndex];
+
+                if(slot->type != paramType)
+                {
+                    wa_compile_error(context,
+                                     instr->ast,
+                                     "Type mismatch for argument %u (expected %s, got %s)\n",
+                                     argIndex,
+                                     wa_value_type_string(paramType),
+                                     wa_value_type_string(slot->type));
+                    break;
+                }
+                wa_emit(context, (wa_code){ .opcode = WA_INSTR_move });
+                wa_emit(context, (wa_code){ .valI32 = slot->index });
+                wa_emit(context, (wa_code){ .valI32 = maxUsedSlot + 1 + argIndex });
+            }
+
+            wa_emit(context, (wa_code){ .opcode = WA_INSTR_call_indirect });
+            wa_emit(context, (wa_code){ .valI64 = instr->imm[0].index });
+            wa_emit(context, (wa_code){ .valI64 = instr->imm[1].index });
+            wa_emit(context, (wa_code){ .valI64 = maxUsedSlot + 1 });
+            wa_emit(context, (wa_code){ .valI32 = slot.index });
+
+            for(u32 retIndex = 0; retIndex < type->returnCount; retIndex++)
+            {
+                wa_operand_stack_push(context,
+                                      (wa_operand_slot){
+                                          .kind = WA_OPERAND_SLOT_REG,
+                                          .type = type->returns[retIndex],
+                                          .index = maxUsedSlot + 1 + retIndex,
+                                      });
+            }
+        }
+        else if(instr->op == WA_INSTR_return)
+        {
+            if(wa_compile_return(context, type, instr))
+            {
+                break;
+            }
+        }
+        else if(instr->op == WA_INSTR_local_get)
+        {
+            u32 localIndex = instr->imm[0].index;
+
+            wa_operand_stack_push(
+                context,
+                (wa_operand_slot){
+                    .kind = WA_OPERAND_SLOT_LOCAL,
+                    .type = func->locals[localIndex],
+                    .index = localIndex,
+                    .originInstr = instr,
+                    .originOpd = context->codeLen,
+                });
+        }
+        else if(instr->op == WA_INSTR_local_set)
+        {
+            u32 localIndex = instr->imm[0].index;
+
+            wa_operand_slot slot = wa_operand_stack_pop(context);
+            if(wa_operand_slot_is_nil(&slot))
+            {
+                wa_compile_error(context,
+                                 instr->ast,
+                                 "unbalanced stack\n");
+                break;
+            }
+
+            if(slot.type != func->locals[localIndex])
+            {
+                wa_compile_error(context,
+                                 instr->ast,
+                                 "type mismatch for local.set instruction (expected %s, got %s)\n",
+                                 wa_value_type_string(func->locals[localIndex]),
+                                 wa_value_type_string(slot.type));
+                break;
+            }
+
+            // check if the local was used in the stack and if so save it to a slot
+            wa_move_slot_if_used(context, localIndex);
+
+            //TODO: check if the local was written to since the value was pushed, and if not, change
+            //      the output operand of the value's origin instruction rather than issuing a move
+            bool shortcutSet = false;
+            /*NOTE: this can't be used after a branch, since the branch might use the original slot index
+                //      so for now, disable this optimization
+                // later we can add a "touched" bit and set it for operands used in a branch?
+                if(slot.kind == WA_OPERAND_SLOT_REG && slot.originOpd)
+                {
+                    shortcutSet = true;
+                    for(u32 instrIt = slot.originInstr; instrIt < instrIndex; instrIt++)
+                    {
+                        if(func->instructions[instrIt].op == WA_INSTR_local_set && func->instructions[instrIt].val[0].valI32 == localIndex)
+                        {
+                            shortcutSet = false;
+                            break;
+                        }
+                    }
+                }
+                */
+            if(shortcutSet)
+            {
+                OC_DEBUG_ASSERT(context->code[slot.originOpd].valU64 == slot.index);
+                context->code[slot.originOpd].valI64 = localIndex;
+            }
+            else
+            {
+                wa_emit(context, (wa_code){ .opcode = WA_INSTR_move });
+                wa_emit(context, (wa_code){ .valI32 = slot.index });
+                wa_emit(context, (wa_code){ .valI32 = localIndex });
+            }
+        }
+        else if(instr->op == WA_INSTR_local_tee)
+        {
+            u32 localIndex = instr->imm[0].index;
+
+            wa_operand_slot slot = wa_operand_stack_top(context);
+            if(wa_operand_slot_is_nil(&slot))
+            {
+                wa_compile_error(context,
+                                 instr->ast,
+                                 "unbalanced stack\n");
+                break;
+            }
+
+            if(slot.type != func->locals[localIndex])
+            {
+                wa_compile_error(context,
+                                 instr->ast,
+                                 "type mismatch for local.set instruction (expected %s, got %s)\n",
+                                 wa_value_type_string(func->locals[localIndex]),
+                                 wa_value_type_string(slot.type));
+                break;
+            }
+            wa_move_slot_if_used(context, localIndex);
+
+            wa_emit(context, (wa_code){ .opcode = WA_INSTR_move });
+            wa_emit(context, (wa_code){ .valI32 = slot.index });
+            wa_emit(context, (wa_code){ .valI32 = localIndex });
+        }
+        else if(instr->op == WA_INSTR_global_get)
+        {
+            u32 globalIndex = instr->imm[0].index;
+
+            u32 regIndex = wa_allocate_register(context);
+
+            wa_operand_stack_push(
+                context,
+                (wa_operand_slot){
+                    .kind = WA_OPERAND_SLOT_REG,
+                    .type = module->globals[globalIndex].type,
+                    .index = regIndex,
+                    .originInstr = instr,
+                    .originOpd = context->codeLen,
+                });
+
+            wa_emit(context, (wa_code){ .opcode = WA_INSTR_global_get });
+            wa_emit(context, (wa_code){ .valI32 = globalIndex });
+            wa_emit(context, (wa_code){ .valI32 = regIndex });
+        }
+        else if(instr->op == WA_INSTR_global_set)
+        {
+            u32 globalIndex = instr->imm[0].index;
+
+            wa_operand_slot slot = wa_operand_stack_top(context);
+            if(wa_operand_slot_is_nil(&slot))
+            {
+                wa_compile_error(context,
+                                 instr->ast,
+                                 "unbalanced stack\n");
+                break;
+            }
+
+            if(slot.type != module->globals[globalIndex].type)
+            {
+                wa_compile_error(context,
+                                 instr->ast,
+                                 "type mismatch for global.set instruction (expected %s, got %s)\n",
+                                 wa_value_type_string(module->globals[globalIndex].type),
+                                 wa_value_type_string(slot.type));
+                break;
+            }
+            wa_emit(context, (wa_code){ .opcode = WA_INSTR_global_set });
+            wa_emit(context, (wa_code){ .valI32 = slot.index });
+            wa_emit(context, (wa_code){ .valI32 = globalIndex });
+        }
+        else
+        {
+            //TODO validate instruction
+            //NOTE emit opcode
+            wa_emit(context, (wa_code){ .opcode = instr->op });
+
+            //emit immediates
+            for(int immIndex = 0; immIndex < info->immCount; immIndex++)
+            {
+                wa_emit(context, instr->imm[immIndex]);
+            }
+
+            // validate stack, allocate slots and emit operands
+            //TODO: could validate in order (from deeper to upper in the stack, and have the operands in the right order for binops...)
+            for(int opdIndex = 0; opdIndex < info->inCount; opdIndex++)
+            {
+                wa_operand_slot slot = wa_operand_stack_pop(context);
+                if(wa_operand_slot_is_nil(&slot))
+                {
+                    wa_compile_error(context,
+                                     instr->ast,
+                                     "unbalanced stack\n");
+                    break;
+                }
+
+                if(slot.type != info->in[opdIndex])
+                {
+                    wa_compile_error(context,
+                                     instr->ast,
+                                     "operand type mismatch\n");
+                    break;
+                }
+
+                wa_emit(context, (wa_code){ .index = slot.index });
+            }
+
+            for(int opdIndex = 0; opdIndex < info->outCount; opdIndex++)
+            {
+                u32 index = wa_allocate_register(context);
+
+                wa_operand_slot s = {
+                    .kind = WA_OPERAND_SLOT_REG,
+                    .type = info->out[opdIndex],
+                    .index = index,
+                    .originInstr = instr,
+                    .originOpd = context->codeLen,
+                };
+                wa_operand_stack_push(context, s);
+
+                wa_emit(context, (wa_code){ .index = s.index });
+            }
+        }
+    }
+}
+
 void wa_compile_code(oc_arena* arena, wa_module* module)
 {
     wa_build_context context = {
@@ -3229,534 +4024,30 @@ void wa_compile_code(oc_arena* arena, wa_module* module)
         wa_build_context_clear(&context);
         context.nextRegIndex = func->localCount;
 
-        oc_list_for(func->instructions, instr, wa_instr, listElt)
-        {
-            const wa_instr_info* info = &wa_instr_infos[instr->op];
+        wa_compile_expression(&context, func->type, func, func->instructions);
 
-            //NOTE: immediates should have been validated when parsing instructions
-
-            if(instr->op == WA_INSTR_nop)
-            {
-                // do nothing
-            }
-            else if(instr->op == WA_INSTR_drop)
-            {
-                wa_operand_slot slot = wa_operand_stack_pop(&context);
-                if(wa_operand_slot_is_nil(&slot))
-                {
-                    wa_compile_error(&context,
-                                     instr->ast,
-                                     "unbalanced stack\n");
-                    goto compile_function_end;
-                }
-                //TODO: possibly remove instruction that pushed this operand?
-            }
-            else if(instr->op == WA_INSTR_select || instr->op == WA_INSTR_select_t)
-            {
-                wa_operand_slot slot2 = wa_operand_stack_pop(&context);
-                wa_operand_slot slot1 = wa_operand_stack_pop(&context);
-                wa_operand_slot slot0 = wa_operand_stack_pop(&context);
-
-                if(wa_operand_slot_is_nil(&slot2))
-                {
-                    wa_compile_error(&context,
-                                     instr->ast,
-                                     "unbalanced stack\n");
-                    goto compile_function_end;
-                }
-
-                if(slot0.type != slot1.type)
-                {
-                    //TODO: is this true?
-                    wa_compile_error(&context,
-                                     instr->ast,
-                                     "select first two operands should be of the same type\n");
-                    goto compile_function_end;
-                }
-                if(slot2.type != WA_TYPE_I32)
-                {
-                    wa_compile_error(&context,
-                                     instr->ast,
-                                     "select last operands should be type i32\n");
-                    goto compile_function_end;
-                }
-
-                if(instr->op == WA_INSTR_select_t)
-                {
-                    if(slot0.type != instr->imm[0].valueType)
-                    {
-                        wa_compile_error(&context,
-                                         instr->ast,
-                                         "select operands should be numeric\n");
-                        goto compile_function_end;
-                    }
-                }
-                else if(!wa_is_value_type_numeric(slot0.type))
-                {
-                    wa_compile_error(&context,
-                                     instr->ast,
-                                     "select operands should be numeric\n");
-                    goto compile_function_end;
-                }
-
-                u32 index = wa_allocate_register(&context);
-
-                wa_operand_slot out = {
-                    .kind = WA_OPERAND_SLOT_REG,
-                    .type = slot0.type,
-                    .index = index,
-                    .originInstr = instr,
-                    .originOpd = context.codeLen,
-                };
-                wa_operand_stack_push(&context, out);
-
-                wa_emit(&context, (wa_code){ .opcode = WA_INSTR_select });
-                wa_emit(&context, (wa_code){ .valI32 = slot0.index });
-                wa_emit(&context, (wa_code){ .valI32 = slot1.index });
-                wa_emit(&context, (wa_code){ .valI32 = slot2.index });
-                wa_emit(&context, (wa_code){ .valI32 = out.index });
-            }
-            else if(instr->op == WA_INSTR_block || instr->op == WA_INSTR_loop)
-            {
-                wa_move_locals_to_registers(&context);
-                wa_block_begin(&context, instr);
-            }
-            else if(instr->op == WA_INSTR_br)
-            {
-                u32 label = instr->imm[0].index;
-                wa_compile_branch(&context, instr, label);
-            }
-            else if(instr->op == WA_INSTR_br_if)
-            {
-                wa_operand_slot slot = wa_operand_stack_pop(&context);
-                if(wa_operand_slot_is_nil(&slot))
-                {
-                    wa_compile_error(&context,
-                                     instr->ast,
-                                     "unbalanced stack\n");
-                    goto compile_function_end;
-                }
-
-                if(slot.type != WA_TYPE_I32)
-                {
-                    wa_compile_error(&context,
-                                     instr->ast,
-                                     "operand type mismatch (expected %s, got %s)\n",
-                                     wa_value_type_string(WA_TYPE_I32),
-                                     wa_value_type_string(slot.type));
-                    goto compile_function_end;
-                }
-
-                wa_emit(&context, (wa_code){ .opcode = WA_INSTR_jump_if_zero });
-                u64 jumpOffset = context.codeLen;
-                wa_emit(&context, (wa_code){ .valI64 = 0 });
-                wa_emit(&context, (wa_code){ .valI64 = slot.index });
-
-                u32 label = instr->imm[0].index;
-                wa_compile_branch(&context, instr, label);
-
-                context.code[jumpOffset].valI64 = context.codeLen - jumpOffset;
-            }
-            else if(instr->op == WA_INSTR_br_table)
-            {
-                wa_operand_slot slot = wa_operand_stack_pop(&context);
-                if(wa_operand_slot_is_nil(&slot))
-                {
-                    wa_compile_error(&context,
-                                     instr->ast,
-                                     "unbalanced stack\n");
-                    goto compile_function_end;
-                }
-
-                if(slot.type != WA_TYPE_I32)
-                {
-                    wa_compile_error(&context,
-                                     instr->ast,
-                                     "operand type mismatch (expected %s, got %s)\n",
-                                     wa_value_type_string(WA_TYPE_I32),
-                                     wa_value_type_string(slot.type));
-                    goto compile_function_end;
-                }
-
-                wa_emit(&context, (wa_code){ .opcode = WA_INSTR_jump_table });
-                u64 baseOffset = context.codeLen;
-
-                wa_emit(&context, (wa_code){ .valU32 = instr->immCount });
-                wa_emit(&context, (wa_code){ .valU32 = slot.index });
-
-                oc_arena_scope scratch = oc_scratch_begin();
-                u64* patchOffsets = oc_arena_push_array(scratch.arena, u64, instr->immCount);
-
-                // reserve room for the table entries
-                for(u32 i = 0; i < instr->immCount; i++)
-                {
-                    patchOffsets[i] = context.codeLen;
-                    wa_emit(&context, (wa_code){ 0 });
-                }
-
-                // each entry jumps to a block that moves the results to the correct slots
-                // and jumps to the actual destination
-                //TODO: we can avoid this trampoline for branches that don't need result values
-                for(u32 i = 0; i < instr->immCount; i++)
-                {
-                    context.code[patchOffsets[i]].valI64 = context.codeLen - baseOffset;
-                    u32 label = instr->imm[i].index;
-                    wa_compile_branch(&context, instr, label);
-                }
-
-                oc_scratch_end(scratch);
-            }
-            else if(instr->op == WA_INSTR_if)
-            {
-                wa_operand_slot slot = wa_operand_stack_pop(&context);
-                if(wa_operand_slot_is_nil(&slot))
-                {
-                    wa_compile_error(&context,
-                                     instr->ast,
-                                     "unbalanced stack\n");
-                    goto compile_function_end;
-                }
-
-                if(slot.type != WA_TYPE_I32)
-                {
-                    wa_compile_error(&context,
-                                     instr->ast,
-                                     "operand type mismatch (expected %s, got %s)\n",
-                                     wa_value_type_string(WA_TYPE_I32),
-                                     wa_value_type_string(slot.type));
-                    goto compile_function_end;
-                }
-
-                wa_move_locals_to_registers(&context);
-
-                wa_block_begin(&context, instr);
-
-                wa_emit(&context, (wa_code){ .opcode = WA_INSTR_jump_if_zero });
-                wa_emit(&context, (wa_code){ 0 });
-                wa_emit(&context, (wa_code){ .valI64 = slot.index });
-            }
-            else if(instr->op == WA_INSTR_else)
-            {
-                wa_block* ifBlock = wa_control_stack_top(&context);
-                if(!ifBlock
-                   || ifBlock->begin->op != WA_INSTR_if
-                   || ifBlock->begin->elseBranch)
-                {
-                    //TODO: should this be validated at parse stage?
-                    wa_compile_error(&context,
-                                     instr->ast,
-                                     "unexpected else block\n");
-                    goto compile_function_end;
-                }
-                wa_func_type* type = ifBlock->begin->blockType;
-
-                wa_block_move_results_to_output_slots(&context, ifBlock, instr);
-                wa_operand_stack_pop_slots(&context, type->returnCount);
-
-                wa_push_block_inputs(&context, type->paramCount, type->returnCount);
-
-                wa_emit(&context, (wa_code){ .opcode = WA_INSTR_jump });
-                wa_emit(&context, (wa_code){ 0 });
-
-                ifBlock->begin->elseBranch = instr;
-                ifBlock->elseOffset = context.codeLen;
-            }
-            else if(instr->op == WA_INSTR_end)
-            {
-                wa_block block = wa_control_stack_pop(&context);
-                if(wa_block_is_nil(&block))
-                {
-                    //TODO: is this sufficient to elide all previous returns?
-
-                    wa_instr* prev = oc_list_prev_entry(func->instructions, instr, wa_instr, listElt);
-                    if(!prev || prev->op != WA_INSTR_return)
-                    {
-                        if(wa_compile_return(&context, func, instr))
-                        {
-                            goto compile_function_end;
-                        }
-                    }
-                    break;
-                }
-                wa_block_end(&context, &block, instr);
-                wa_patch_jump_targets(&context, &block);
-            }
-            else if(instr->op == WA_INSTR_call)
-            {
-                wa_func* callee = &module->functions[instr->imm[0].index];
-                u32 paramCount = callee->type->paramCount;
-
-                if(context.opdStackLen < paramCount)
-                {
-                    wa_compile_error(&context,
-                                     instr->ast,
-                                     "Not enough arguments on stack (expected: %u, got: %u)\n",
-                                     paramCount,
-                                     context.opdStackLen);
-                    goto compile_function_end;
-                }
-                context.opdStackLen -= paramCount;
-
-                u32 maxUsedSlot = 0;
-                for(u32 stackIndex = 0; stackIndex < context.opdStackLen; stackIndex++)
-                {
-                    wa_operand_slot* slot = &context.opdStack[stackIndex];
-                    maxUsedSlot = oc_max(slot->index, maxUsedSlot);
-                }
-
-                //TODO: first check if we args are already in order at the end of the frame?
-                for(u32 argIndex = 0; argIndex < paramCount; argIndex++)
-                {
-                    wa_operand_slot* slot = &context.opdStack[context.opdStackLen + argIndex];
-                    wa_value_type paramType = callee->type->params[argIndex];
-
-                    if(slot->type != paramType)
-                    {
-                        wa_compile_error(&context,
-                                         instr->ast,
-                                         "Type mismatch for argument %u (expected %s, got %s)\n",
-                                         argIndex,
-                                         wa_value_type_string(paramType),
-                                         wa_value_type_string(slot->type));
-                        goto compile_function_end;
-                    }
-                    wa_emit(&context, (wa_code){ .opcode = WA_INSTR_move });
-                    wa_emit(&context, (wa_code){ .valI32 = slot->index });
-                    wa_emit(&context, (wa_code){ .valI32 = maxUsedSlot + 1 + argIndex });
-                }
-
-                wa_emit(&context, (wa_code){ .opcode = WA_INSTR_call });
-                wa_emit(&context, (wa_code){ .valI64 = instr->imm[0].index });
-                wa_emit(&context, (wa_code){ .valI64 = maxUsedSlot + 1 });
-
-                for(u32 retIndex = 0; retIndex < callee->type->returnCount; retIndex++)
-                {
-                    wa_operand_stack_push(&context,
-                                          (wa_operand_slot){
-                                              .kind = WA_OPERAND_SLOT_REG,
-                                              .type = callee->type->returns[retIndex],
-                                              .index = maxUsedSlot + 1 + retIndex,
-                                          });
-                }
-            }
-            else if(instr->op == WA_INSTR_call_indirect)
-            {
-                //TODO: coalesce with regular call
-                wa_operand_slot slot = wa_operand_stack_pop(&context);
-                if(wa_operand_slot_is_nil(&slot))
-                {
-                    wa_compile_error(&context,
-                                     instr->ast,
-                                     "unbalanced stack\n");
-                    goto compile_function_end;
-                }
-
-                if(slot.type != WA_TYPE_I32)
-                {
-                    wa_compile_error(&context,
-                                     instr->ast,
-                                     "operand type mismatch (expected %s, got %s)\n",
-                                     wa_value_type_string(WA_TYPE_I32),
-                                     wa_value_type_string(slot.type));
-                    goto compile_function_end;
-                }
-
-                wa_func_type* type = &module->types[instr->imm[0].index];
-                u32 paramCount = type->paramCount;
-
-                if(context.opdStackLen < paramCount)
-                {
-                    wa_compile_error(&context,
-                                     instr->ast,
-                                     "Not enough arguments on stack (expected: %u, got: %u)\n",
-                                     paramCount,
-                                     context.opdStackLen);
-                    goto compile_function_end;
-                }
-                context.opdStackLen -= paramCount;
-
-                u32 maxUsedSlot = 0;
-                for(u32 stackIndex = 0; stackIndex < context.opdStackLen; stackIndex++)
-                {
-                    wa_operand_slot* slot = &context.opdStack[stackIndex];
-                    maxUsedSlot = oc_max(slot->index, maxUsedSlot);
-                }
-
-                //TODO: first check if we args are already in order at the end of the frame?
-                for(u32 argIndex = 0; argIndex < paramCount; argIndex++)
-                {
-                    wa_operand_slot* slot = &context.opdStack[context.opdStackLen + argIndex];
-                    wa_value_type paramType = type->params[argIndex];
-
-                    if(slot->type != paramType)
-                    {
-                        wa_compile_error(&context,
-                                         instr->ast,
-                                         "Type mismatch for argument %u (expected %s, got %s)\n",
-                                         argIndex,
-                                         wa_value_type_string(paramType),
-                                         wa_value_type_string(slot->type));
-                        goto compile_function_end;
-                    }
-                    wa_emit(&context, (wa_code){ .opcode = WA_INSTR_move });
-                    wa_emit(&context, (wa_code){ .valI32 = slot->index });
-                    wa_emit(&context, (wa_code){ .valI32 = maxUsedSlot + 1 + argIndex });
-                }
-
-                wa_emit(&context, (wa_code){ .opcode = WA_INSTR_call_indirect });
-                wa_emit(&context, (wa_code){ .valI64 = instr->imm[0].index });
-                wa_emit(&context, (wa_code){ .valI64 = instr->imm[1].index });
-                wa_emit(&context, (wa_code){ .valI64 = maxUsedSlot + 1 });
-                wa_emit(&context, (wa_code){ .valI32 = slot.index });
-
-                for(u32 retIndex = 0; retIndex < type->returnCount; retIndex++)
-                {
-                    wa_operand_stack_push(&context,
-                                          (wa_operand_slot){
-                                              .kind = WA_OPERAND_SLOT_REG,
-                                              .type = type->returns[retIndex],
-                                              .index = maxUsedSlot + 1 + retIndex,
-                                          });
-                }
-            }
-            else if(instr->op == WA_INSTR_return)
-            {
-                if(wa_compile_return(&context, func, instr))
-                {
-                    goto compile_function_end;
-                }
-            }
-            else if(instr->op == WA_INSTR_local_get)
-            {
-                u32 localIndex = instr->imm[0].index;
-
-                wa_operand_stack_push(
-                    &context,
-                    (wa_operand_slot){
-                        .kind = WA_OPERAND_SLOT_LOCAL,
-                        .type = func->locals[localIndex],
-                        .index = localIndex,
-                        .originInstr = instr,
-                        .originOpd = context.codeLen,
-                    });
-            }
-            else if(instr->op == WA_INSTR_local_set)
-            {
-                u32 localIndex = instr->imm[0].index;
-
-                wa_operand_slot slot = wa_operand_stack_pop(&context);
-                if(wa_operand_slot_is_nil(&slot))
-                {
-                    wa_compile_error(&context,
-                                     instr->ast,
-                                     "unbalanced stack\n");
-                    goto compile_function_end;
-                }
-
-                if(slot.type != func->locals[localIndex])
-                {
-                    wa_compile_error(&context,
-                                     instr->ast,
-                                     "type mismatch for local.set instruction (expected %s, got %s)\n",
-                                     wa_value_type_string(func->locals[localIndex]),
-                                     wa_value_type_string(slot.type));
-                    goto compile_function_end;
-                }
-
-                // check if the local was used in the stack and if so save it to a slot
-                wa_move_slot_if_used(&context, localIndex);
-
-                //TODO: check if the local was written to since the value was pushed, and if not, change
-                //      the output operand of the value's origin instruction rather than issuing a move
-                bool shortcutSet = false;
-                /*NOTE: this can't be used after a branch, since the branch might use the original slot index
-                //      so for now, disable this optimization
-                // later we can add a "touched" bit and set it for operands used in a branch?
-                if(slot.kind == WA_OPERAND_SLOT_REG && slot.originOpd)
-                {
-                    shortcutSet = true;
-                    for(u32 instrIt = slot.originInstr; instrIt < instrIndex; instrIt++)
-                    {
-                        if(func->instructions[instrIt].op == WA_INSTR_local_set && func->instructions[instrIt].val[0].valI32 == localIndex)
-                        {
-                            shortcutSet = false;
-                            break;
-                        }
-                    }
-                }
-                */
-                if(shortcutSet)
-                {
-                    OC_DEBUG_ASSERT(context.code[slot.originOpd].valU64 == slot.index);
-                    context.code[slot.originOpd].valI64 = localIndex;
-                }
-                else
-                {
-                    wa_emit(&context, (wa_code){ .opcode = WA_INSTR_move });
-                    wa_emit(&context, (wa_code){ .valI32 = slot.index });
-                    wa_emit(&context, (wa_code){ .valI32 = localIndex });
-                }
-            }
-            else
-            {
-                //TODO validate instruction
-                //NOTE emit opcode
-                wa_emit(&context, (wa_code){ .opcode = instr->op });
-
-                //emit immediates
-                for(int immIndex = 0; immIndex < info->immCount; immIndex++)
-                {
-                    wa_emit(&context, instr->imm[immIndex]);
-                }
-
-                // validate stack, allocate slots and emit operands
-                //TODO: could validate in order (from deeper to upper in the stack, and have the operands in the right order for binops...)
-                for(int opdIndex = 0; opdIndex < info->inCount; opdIndex++)
-                {
-                    wa_operand_slot slot = wa_operand_stack_pop(&context);
-                    if(wa_operand_slot_is_nil(&slot))
-                    {
-                        wa_compile_error(&context,
-                                         instr->ast,
-                                         "unbalanced stack\n");
-                        goto compile_function_end;
-                    }
-
-                    if(slot.type != info->in[opdIndex])
-                    {
-                        wa_compile_error(&context,
-                                         instr->ast,
-                                         "operand type mismatch\n");
-                        goto compile_function_end;
-                    }
-
-                    wa_emit(&context, (wa_code){ .index = slot.index });
-                }
-
-                for(int opdIndex = 0; opdIndex < info->outCount; opdIndex++)
-                {
-                    u32 index = wa_allocate_register(&context);
-
-                    wa_operand_slot s = {
-                        .kind = WA_OPERAND_SLOT_REG,
-                        .type = info->out[opdIndex],
-                        .index = index,
-                        .originInstr = instr,
-                        .originOpd = context.codeLen,
-                    };
-                    wa_operand_stack_push(&context, s);
-
-                    wa_emit(&context, (wa_code){ .index = s.index });
-                }
-            }
-        }
         func->codeLen = context.codeLen;
         func->code = oc_arena_push_array(arena, wa_code, context.codeLen);
         memcpy(func->code, context.code, context.codeLen * sizeof(wa_code));
-
-    compile_function_end:
-        continue;
     }
+
+    for(u32 globalIndex = module->globalImportCount; globalIndex < module->globalCount; globalIndex++)
+    {
+        wa_global* global = &module->globals[globalIndex];
+
+        wa_build_context_clear(&context);
+        context.nextRegIndex = 0;
+
+        i64 t = 0x7f - (i64)global->type + 1;
+        wa_func_type* exprType = (wa_func_type*)&WA_BLOCK_VALUE_TYPES[t];
+
+        wa_compile_expression(&context, exprType, 0, global->init);
+
+        global->codeLen = context.codeLen;
+        global->code = oc_arena_push_array(arena, wa_code, context.codeLen);
+        memcpy(global->code, context.code, context.codeLen * sizeof(wa_code));
+    }
+
     oc_arena_cleanup(&context.codeArena);
     oc_arena_cleanup(&context.checkArena);
 }
@@ -3796,6 +4087,7 @@ wa_module* wa_module_create(oc_arena* arena, oc_str8 contents)
     wa_parse_types(&parser, module);
     wa_parse_imports(&parser, module);
     wa_parse_functions(&parser, module);
+    wa_parse_globals(&parser, module);
     wa_parse_tables(&parser, module);
     wa_parse_exports(&parser, module);
     wa_parse_elements(&parser, module);
@@ -3996,37 +4288,28 @@ void wa_print_code(wa_module* module)
 }
 
 //-------------------------------------------------------------------------
-// interpreter
+// instance
 //-------------------------------------------------------------------------
 
-static const char* wa_status_strings[] = {
-    "ok",
-    "invalid arguments",
-    "function type mismatch",
-    "invalid opcode",
-};
-
-bool wa_check_instance(wa_module* module)
+wa_instance* wa_instance_create(oc_arena* arena, wa_module* module)
 {
-    //TODO: for now we don't differentiate between module and instance, so we just check that
-    //      all imports are fulfilled here...
+    wa_instance* instance = oc_arena_push_type(arena, wa_instance);
+    memset(instance, 0, sizeof(wa_instance));
 
-    for(u32 funcIndex = 0; funcIndex < module->functionImportCount; funcIndex++)
-    {
-        wa_func* func = &module->functions[funcIndex];
-        if(!func->proc)
-        {
-            oc_log_error("Couldn't instance module: import %.*s not satisfied.\n",
-                         oc_str8_ip(func->import->importName));
-            return false;
-        }
-    }
-    return true;
+    instance->module = module;
+    instance->functions = oc_arena_push_array(arena, wa_func, module->functionCount);
+    memcpy(instance->functions, module->functions, module->functionCount * sizeof(wa_func));
+
+    instance->globals = oc_arena_push_array(arena, wa_value, module->globalCount);
+
+    return (instance);
 }
 
-wa_status wa_bind(wa_module* module, oc_str8 name, wa_func_type* type, wa_host_proc proc)
+wa_status wa_instance_bind(wa_instance* instance, oc_str8 name, wa_func_type* type, wa_host_proc proc)
 {
+    wa_module* module = instance->module;
     u32 funcIndex = 0;
+
     for(u32 importIndex = 0; importIndex < module->importCount; importIndex++)
     {
         wa_import* import = &module->imports[importIndex];
@@ -4035,7 +4318,7 @@ wa_status wa_bind(wa_module* module, oc_str8 name, wa_func_type* type, wa_host_p
         {
             if(!oc_str8_cmp(name, import->importName))
             {
-                wa_func* func = &module->functions[funcIndex];
+                wa_func* func = &instance->functions[funcIndex];
                 func->proc = proc;
 
                 if(type->paramCount != func->type->paramCount
@@ -4066,15 +4349,59 @@ wa_status wa_bind(wa_module* module, oc_str8 name, wa_func_type* type, wa_host_p
     return (WA_OK);
 }
 
-wa_func* wa_find_function(wa_module* module, oc_str8 name)
+wa_status wa_instance_interpret_expr(wa_instance* instance,
+                                     wa_func_type* type,
+                                     wa_code* code,
+                                     u32 argCount,
+                                     wa_value* args,
+                                     u32 retCount,
+                                     wa_value* returns);
+
+wa_status wa_instance_link(wa_instance* instance)
 {
+    wa_module* module = instance->module;
+
+    for(u32 funcIndex = 0; funcIndex < module->functionImportCount; funcIndex++)
+    {
+        wa_func* func = &instance->functions[funcIndex];
+        if(!func->proc)
+        {
+            oc_log_error("Couldn't link instance: import %.*s not satisfied.\n",
+                         oc_str8_ip(func->import->importName));
+            return WA_FAIL_MISSING_IMPORT;
+        }
+    }
+
+    for(u64 globalIndex = 0; globalIndex < module->globalCount; globalIndex++)
+    {
+        wa_global* global = &module->globals[globalIndex];
+        if(global->code)
+        {
+            i64 t = 0x7f - (i64)global->type + 1;
+            wa_func_type* exprType = (wa_func_type*)&WA_BLOCK_VALUE_TYPES[t];
+
+            wa_status status = wa_instance_interpret_expr(instance, exprType, global->code, 0, 0, 1, &instance->globals[globalIndex]);
+            if(status != WA_OK)
+            {
+                return status;
+            }
+        }
+    }
+
+    return WA_OK;
+}
+
+wa_func* wa_instance_find_function(wa_instance* instance, oc_str8 name)
+{
+    wa_module* module = instance->module;
+
     wa_func* func = 0;
     for(u32 exportIndex = 0; exportIndex < module->exportCount; exportIndex++)
     {
         wa_export* export = &module->exports[exportIndex];
         if(export->kind == WA_EXPORT_FUNCTION && !oc_str8_cmp(export->name, name))
         {
-            func = &module->functions[export->index];
+            func = &instance->functions[export->index];
             break;
         }
     }
@@ -4087,27 +4414,28 @@ typedef struct wa_control
     wa_value* returnFrame;
 } wa_control;
 
-wa_status wa_interpret_func(wa_module* module,
-                            wa_func* func,
-                            u32 argCount,
-                            wa_value* args,
-                            u32 retCount,
-                            wa_value* returns)
+wa_status wa_instance_interpret_expr(wa_instance* instance,
+                                     wa_func_type* type,
+                                     wa_code* code,
+                                     u32 argCount,
+                                     wa_value* args,
+                                     u32 retCount,
+                                     wa_value* returns)
 {
-    if(argCount != func->type->paramCount || retCount != func->type->returnCount)
-    {
-        return WA_ERROR_INVALID_ARGS;
-    }
-
     wa_control controlStack[1024] = {};
     u32 controlStackTop = 0;
 
     wa_value localsBuffer[1024];
     wa_value* locals = localsBuffer;
-    wa_code* code = func->code;
     wa_code* pc = code;
 
     memcpy(locals, args, argCount * sizeof(wa_value));
+
+    //TODO use memory in instance
+    u32 memorySize = 4096;
+    oc_base_allocator* allocator = oc_base_allocator_default();
+    char* memory = oc_base_reserve(allocator, 4 << 20);
+    oc_base_commit(allocator, memory, memorySize);
 
     while(1)
     {
@@ -4151,6 +4479,181 @@ wa_status wa_interpret_func(wa_module* module,
             }
             break;
 
+            case WA_INSTR_global_get:
+            {
+                memcpy(&locals[pc[1].valI32].valI64, &instance->globals[pc[0].valI32], sizeof(u64));
+                pc += 2;
+            }
+            break;
+
+            case WA_INSTR_global_set:
+            {
+                memcpy(&instance->globals[pc[1].valI32], &locals[pc[0].valI32].valI64, sizeof(u64));
+                pc += 2;
+            }
+            break;
+
+            case WA_INSTR_i32_load:
+            {
+                locals[pc[2].valI32].valI32 = *(i32*)&memory[pc[0].memArg.offset + locals[pc[1].valI32].valI32];
+                pc += 3;
+            }
+            break;
+
+            case WA_INSTR_i64_load:
+            {
+                locals[pc[2].valI32].valI64 = *(i64*)&memory[pc[0].memArg.offset + locals[pc[1].valI32].valI32];
+                pc += 3;
+            }
+            break;
+
+            case WA_INSTR_f32_load:
+            {
+                locals[pc[2].valI32].valF32 = *(f32*)&memory[pc[0].memArg.offset + locals[pc[1].valI32].valI32];
+                pc += 3;
+            }
+            break;
+
+            case WA_INSTR_f64_load:
+            {
+                locals[pc[2].valI32].valF64 = *(f64*)&memory[pc[0].memArg.offset + locals[pc[1].valI32].valI32];
+                pc += 3;
+            }
+            break;
+
+            case WA_INSTR_i32_load8_s:
+            {
+                locals[pc[2].valI32].valI32 = (i32) * (i8*)&memory[pc[0].memArg.offset + locals[pc[1].valI32].valI32];
+                pc += 3;
+            }
+            break;
+
+            case WA_INSTR_i32_load8_u:
+            {
+                *(u32*)&locals[pc[2].valI32].valI32 = (u32) * (u8*)&memory[pc[0].memArg.offset + locals[pc[1].valI32].valI32];
+                pc += 3;
+            }
+            break;
+
+            case WA_INSTR_i32_load16_s:
+            {
+                locals[pc[2].valI32].valI32 = (i32) * (i16*)&memory[pc[0].memArg.offset + locals[pc[1].valI32].valI32];
+                pc += 3;
+            }
+            break;
+
+            case WA_INSTR_i32_load16_u:
+            {
+                *(u32*)&locals[pc[2].valI32].valI32 = (u32) * (u16*)&memory[pc[0].memArg.offset + locals[pc[1].valI32].valI32];
+                pc += 3;
+            }
+            break;
+
+            case WA_INSTR_i64_load8_s:
+            {
+                locals[pc[2].valI32].valI64 = (i64) * (i8*)&memory[pc[0].memArg.offset + locals[pc[1].valI32].valI32];
+                pc += 3;
+            }
+            break;
+
+            case WA_INSTR_i64_load8_u:
+            {
+                *(u32*)&locals[pc[2].valI32].valI64 = (u64) * (u8*)&memory[pc[0].memArg.offset + locals[pc[1].valI32].valI32];
+                pc += 3;
+            }
+            break;
+
+            case WA_INSTR_i64_load16_s:
+            {
+                locals[pc[2].valI32].valI64 = (i64) * (i16*)&memory[pc[0].memArg.offset + locals[pc[1].valI32].valI32];
+                pc += 3;
+            }
+            break;
+
+            case WA_INSTR_i64_load16_u:
+            {
+                *(u32*)&locals[pc[2].valI32].valI64 = (u64) * (u16*)&memory[pc[0].memArg.offset + locals[pc[1].valI32].valI32];
+                pc += 3;
+            }
+            break;
+
+            case WA_INSTR_i64_load32_s:
+            {
+                locals[pc[2].valI32].valI64 = (i64) * (i32*)&memory[pc[0].memArg.offset + locals[pc[1].valI32].valI32];
+                pc += 3;
+            }
+            break;
+
+            case WA_INSTR_i64_load32_u:
+            {
+                *(u32*)&locals[pc[2].valI32].valI64 = (u64) * (u32*)&memory[pc[0].memArg.offset + locals[pc[1].valI32].valI32];
+                pc += 3;
+            }
+            break;
+
+            case WA_INSTR_i32_store:
+            {
+                *(i32*)&memory[pc[0].memArg.offset + locals[pc[2].valI32].valI32] = locals[pc[1].valI32].valI32;
+                pc += 3;
+            }
+            break;
+
+            case WA_INSTR_i64_store:
+            {
+                *(i64*)&memory[pc[0].memArg.offset + locals[pc[2].valI32].valI32] = locals[pc[1].valI32].valI64;
+                pc += 3;
+            }
+            break;
+
+            case WA_INSTR_f32_store:
+            {
+                *(f32*)&memory[pc[0].memArg.offset + locals[pc[2].valI32].valI32] = locals[pc[1].valI32].valF32;
+                pc += 3;
+            }
+            break;
+
+            case WA_INSTR_f64_store:
+            {
+                *(f64*)&memory[pc[0].memArg.offset + locals[pc[2].valI32].valI32] = locals[pc[1].valI32].valF64;
+                pc += 3;
+            }
+            break;
+
+            case WA_INSTR_i32_store8:
+            {
+                *(u8*)&memory[pc[0].memArg.offset + locals[pc[2].valI32].valI32] = *(u8*)&locals[pc[1].valI32].valI32;
+                pc += 3;
+            }
+            break;
+
+            case WA_INSTR_i32_store16:
+            {
+                *(u16*)&memory[pc[0].memArg.offset + locals[pc[2].valI32].valI32] = *(u16*)&locals[pc[1].valI32].valI32;
+                pc += 3;
+            }
+            break;
+
+            case WA_INSTR_i64_store8:
+            {
+                *(u8*)&memory[pc[0].memArg.offset + locals[pc[2].valI32].valI32] = *(u8*)&locals[pc[1].valI32].valI64;
+                pc += 3;
+            }
+            break;
+
+            case WA_INSTR_i64_store16:
+            {
+                *(u16*)&memory[pc[0].memArg.offset + locals[pc[2].valI32].valI32] = *(u16*)&locals[pc[1].valI32].valI64;
+                pc += 3;
+            }
+            break;
+
+            case WA_INSTR_i64_store32:
+            {
+                *(u32*)&memory[pc[0].memArg.offset + locals[pc[2].valI32].valI32] = *(u32*)&locals[pc[1].valI32].valI64;
+                pc += 3;
+            }
+            break;
+
             case WA_INSTR_jump:
             {
                 pc += pc[0].valI64;
@@ -4186,7 +4689,7 @@ wa_status wa_interpret_func(wa_module* module,
 
             case WA_INSTR_call:
             {
-                wa_func* callee = &module->functions[pc[0].valI64];
+                wa_func* callee = &instance->functions[pc[0].valI64];
 
                 if(callee->code)
                 {
@@ -4221,9 +4724,11 @@ wa_status wa_interpret_func(wa_module* module,
                 pc = control.returnPC;
             }
             break;
-            case WA_INSTR_end:
+
+            case WA_INSTR_ref_null:
             {
-                goto end;
+                locals[pc[1].valI32].valI64 = 0; //???
+                pc += 2;
             }
             break;
 
@@ -5441,6 +5946,20 @@ end:
     return WA_OK;
 }
 
+wa_status wa_instance_invoke(wa_instance* instance,
+                             wa_func* func,
+                             u32 argCount,
+                             wa_value* args,
+                             u32 retCount,
+                             wa_value* returns)
+{
+    if(argCount != func->type->paramCount || retCount != func->type->returnCount)
+    {
+        return WA_ERROR_INVALID_ARGS;
+    }
+    return (wa_instance_interpret_expr(instance, func->type, func->code, argCount, args, retCount, returns));
+}
+
 //-------------------------------------------------------------------------
 // test
 //-------------------------------------------------------------------------
@@ -5641,9 +6160,23 @@ wa_typed_value test_parse_value(json_node* arg)
             memcpy(&value.value.valF64, &value.value.valI64, sizeof(f64));
         }
     }
+    else if(!oc_str8_cmp(argType->string, OC_STR8("externref")))
+    {
+        value.type = WA_TYPE_EXTERN_REF;
+        if(!oc_str8_cmp(argVal->string, OC_STR8("null")))
+        {
+            value.value.valI64 = 0;
+        }
+        else
+        {
+            value = parse_value_64(argVal->string);
+            OC_ASSERT(value.type == WA_TYPE_I64);
+            value.type = WA_TYPE_EXTERN_REF;
+        }
+    }
     else
     {
-        OC_ASSERT(0, "unreachable");
+        OC_ASSERT(0, "unsupported test value type");
     }
     return (value);
 }
@@ -5651,7 +6184,7 @@ wa_typed_value test_parse_value(json_node* arg)
 typedef struct wa_test_env
 {
     oc_arena* arena;
-    wa_module* module;
+    wa_instance* instance;
 
     u32 passed;
     u32 failed;
@@ -5672,7 +6205,7 @@ wa_test_result wa_test_invoke(wa_test_env* env, json_node* action)
     json_node* funcName = json_find_assert(action, "field", JSON_STRING);
     json_node* args = json_find_assert(action, "args", JSON_LIST);
 
-    wa_func* func = wa_find_function(env->module, funcName->string);
+    wa_func* func = wa_instance_find_function(env->instance, funcName->string);
 
     u32 argCount = args->childCount;
     OC_ASSERT(argCount == func->type->paramCount);
@@ -5692,7 +6225,7 @@ wa_test_result wa_test_invoke(wa_test_env* env, json_node* action)
     res.count = func->type->returnCount;
     res.values = oc_arena_push_array(env->arena, wa_value, res.count);
 
-    res.status = wa_interpret_func(env->module, func, argCount, argVals, res.count, res.values);
+    res.status = wa_instance_invoke(env->instance, func, argCount, argVals, res.count, res.values);
 
     return res;
 }
@@ -5860,14 +6393,22 @@ int test_main(int argc, char** argv)
 
             oc_str8 filePath = oc_path_join(&arena, list);
 
-            env.module = wa_test_module_load(&arena, filePath);
-            OC_ASSERT(env.module);
+            wa_module* module = wa_test_module_load(&arena, filePath);
+            OC_ASSERT(module);
 
-            if(!oc_list_empty(env.module->errors))
+            env.instance = wa_instance_create(&arena, module);
+
+            if(!oc_list_empty(module->errors))
             {
-                wa_module_print_errors(env.module);
-                wa_module_print_errors(env.module);
+                wa_module_print_errors(module);
+                wa_module_print_errors(module);
 
+                wa_test_fail(&env, testName, command);
+                continue;
+            }
+
+            if(wa_instance_link(env.instance) != WA_OK)
+            {
                 wa_test_fail(&env, testName, command);
                 continue;
             }
@@ -5885,12 +6426,7 @@ int test_main(int argc, char** argv)
 
             if(!oc_str8_cmp(type->string, OC_STR8("assert_return")))
             {
-                OC_ASSERT(env.module);
-                if(!oc_list_empty(env.module->errors))
-                {
-                    wa_test_fail(&env, testName, command);
-                    continue;
-                }
+                OC_ASSERT(env.instance);
 
                 json_node* expected = json_find_assert(command, "expected", JSON_LIST);
                 json_node* action = json_find_assert(command, "action", JSON_OBJECT);
@@ -5949,6 +6485,13 @@ int test_main(int argc, char** argv)
                                 }
                             }
                             break;
+
+                            case WA_TYPE_EXTERN_REF:
+                            {
+                                check = check && (result.values[retIndex].valI64 == expectVal.value.valI64);
+                            }
+                            break;
+
                             default:
                                 oc_log_error("unexpected type %s\n", wa_value_type_string(expectVal.type));
                                 OC_ASSERT(0, "unreachable");
@@ -5972,12 +6515,7 @@ int test_main(int argc, char** argv)
             }
             else if(!oc_str8_cmp(type->string, OC_STR8("assert_trap")))
             {
-                OC_ASSERT(env.module);
-                if(!oc_list_empty(env.module->errors))
-                {
-                    wa_test_fail(&env, testName, command);
-                    continue;
-                }
+                OC_ASSERT(env.instance);
 
                 json_node* failure = json_find_assert(command, "text", JSON_STRING);
                 json_node* action = json_find_assert(command, "action", JSON_OBJECT);
@@ -6096,33 +6634,35 @@ int main(int argc, char** argv)
         exit(-1);
     }
 
-    wa_status status = wa_bind(module,
-                               OC_STR8("test"),
-                               &(wa_func_type){
-                                   .paramCount = 1,
-                                   .params = (wa_value_type[]){
-                                       WA_TYPE_I32,
-                                   },
-                                   .returnCount = 1,
-                                   .returns = (wa_value_type[]){
-                                       WA_TYPE_I32,
-                                   },
-                               },
-                               test_proc);
+    wa_instance* instance = wa_instance_create(&arena, module);
+
+    wa_status status = wa_instance_bind(instance,
+                                        OC_STR8("test"),
+                                        &(wa_func_type){
+                                            .paramCount = 1,
+                                            .params = (wa_value_type[]){
+                                                WA_TYPE_I32,
+                                            },
+                                            .returnCount = 1,
+                                            .returns = (wa_value_type[]){
+                                                WA_TYPE_I32,
+                                            },
+                                        },
+                                        test_proc);
     if(status != WA_OK)
     {
         oc_log_error("%s", wa_status_strings[status]);
         exit(-1);
     }
 
-    if(!wa_check_instance(module))
+    if(wa_instance_link(instance) != WA_OK)
     {
         exit(-1);
     }
     else
     {
         printf("Run:\n");
-        wa_func* func = wa_find_function(module, funcName);
+        wa_func* func = wa_instance_find_function(instance, funcName);
 
         if(!func)
         {
@@ -6170,7 +6710,7 @@ int main(int argc, char** argv)
         u32 retCount = 1;
         wa_value returns[32];
 
-        wa_interpret_func(module, func, argCount, args, retCount, returns);
+        wa_instance_invoke(instance, func, argCount, args, retCount, returns);
 
         printf("results: ");
         for(u32 retIndex = 0; retIndex < retCount; retIndex++)
