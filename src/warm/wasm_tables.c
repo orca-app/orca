@@ -1660,8 +1660,8 @@ static const wa_instr_info wa_instr_infos[] = {
     [WA_INSTR_f64_eq] = {
         .inCount = 2,
         .in = {
-            WA_TYPE_F32,
-            WA_TYPE_F32,
+            WA_TYPE_F64,
+            WA_TYPE_F64,
         },
         .outCount = 1,
         .out = { WA_TYPE_I32 },
@@ -1671,8 +1671,8 @@ static const wa_instr_info wa_instr_infos[] = {
     [WA_INSTR_f64_ne] = {
         .inCount = 2,
         .in = {
-            WA_TYPE_F32,
-            WA_TYPE_F32,
+            WA_TYPE_F64,
+            WA_TYPE_F64,
         },
         .outCount = 1,
         .out = { WA_TYPE_I32 },
@@ -1682,8 +1682,8 @@ static const wa_instr_info wa_instr_infos[] = {
     [WA_INSTR_f64_lt] = {
         .inCount = 2,
         .in = {
-            WA_TYPE_F32,
-            WA_TYPE_F32,
+            WA_TYPE_F64,
+            WA_TYPE_F64,
         },
         .outCount = 1,
         .out = { WA_TYPE_I32 },
@@ -1693,8 +1693,8 @@ static const wa_instr_info wa_instr_infos[] = {
     [WA_INSTR_f64_gt] = {
         .inCount = 2,
         .in = {
-            WA_TYPE_F32,
-            WA_TYPE_F32,
+            WA_TYPE_F64,
+            WA_TYPE_F64,
         },
         .outCount = 1,
         .out = { WA_TYPE_I32 },
@@ -1704,8 +1704,8 @@ static const wa_instr_info wa_instr_infos[] = {
     [WA_INSTR_f64_le] = {
         .inCount = 2,
         .in = {
-            WA_TYPE_F32,
-            WA_TYPE_F32,
+            WA_TYPE_F64,
+            WA_TYPE_F64,
         },
         .outCount = 1,
         .out = { WA_TYPE_I32 },
@@ -1715,8 +1715,8 @@ static const wa_instr_info wa_instr_infos[] = {
     [WA_INSTR_f64_ge] = {
         .inCount = 2,
         .in = {
-            WA_TYPE_F32,
-            WA_TYPE_F32,
+            WA_TYPE_F64,
+            WA_TYPE_F64,
         },
         .outCount = 1,
         .out = { WA_TYPE_I32 },
