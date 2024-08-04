@@ -558,7 +558,10 @@ typedef enum wa_value_type
     WA_TYPE_FUNC_REF = 0x70,
     WA_TYPE_EXTERN_REF = 0x6f,
 
-} wa_value_type;
+    WA_TYPE_UNKNOWN = 0xff,
+}
+
+wa_value_type;
 
 typedef union wa_code
 {
@@ -682,6 +685,12 @@ typedef struct wa_table_type
     wa_limits limits;
 } wa_table_type;
 
+typedef struct wa_table
+{
+    u64 size;
+    wa_value* contents;
+} wa_table;
+
 typedef enum wa_element_mode
 {
     WA_ELEMENT_PASSIVE,
@@ -698,6 +707,7 @@ typedef struct wa_element
     u64 initCount;
     oc_list* initInstr;
 
+    wa_code* tableOffsetCode;
     wa_code** code;
 
 } wa_element;
@@ -900,6 +910,7 @@ typedef struct wa_instance
 
     wa_func* functions;
     wa_value* globals;
+    wa_table* tables;
 
     u64 memoryCap;
     u64 memorySize;
@@ -979,6 +990,7 @@ bool wa_is_value_type_numeric(u64 t)
 {
     switch(t)
     {
+        case WA_TYPE_UNKNOWN:
         case WA_TYPE_I32:
         case WA_TYPE_I64:
         case WA_TYPE_F32:
@@ -1984,22 +1996,23 @@ void wa_parse_globals(wa_parser* parser, wa_module* module)
 void wa_parse_tables(wa_parser* parser, wa_module* module)
 {
     //NOTE: parse table section
-    wa_ast* section = module->toc.tables.ast;
-    if(!section)
-    {
-        return;
-    }
-
     wa_parser_seek(parser, module->toc.tables.offset, OC_STR8("tables section"));
     u64 startOffset = parser->offset;
 
-    wa_ast* vector = wa_ast_alloc(parser, WA_AST_VECTOR);
-    vector->loc.start = parser->offset;
-    vector->parent = section;
-    oc_list_push_back(&section->children, &vector->parentElt);
+    wa_ast* section = module->toc.tables.ast;
+    wa_ast* vector = 0;
 
-    wa_ast* tableCountAst = wa_read_leb128_u32(parser, vector, OC_STR8("count"));
-    module->tableCount = tableCountAst->valU32;
+    if(section)
+    {
+        vector = wa_ast_alloc(parser, WA_AST_VECTOR);
+        vector->loc.start = parser->offset;
+        vector->parent = section;
+        oc_list_push_back(&section->children, &vector->parentElt);
+
+        wa_ast* tableCountAst = wa_read_leb128_u32(parser, vector, OC_STR8("count"));
+        module->tableCount = tableCountAst->valU32;
+    }
+
     module->tables = oc_arena_push_array(parser->arena, wa_table_type, module->tableImportCount + module->tableCount);
 
     //NOTE: re-read imports, because the format is kinda stupid -- they should have included imports in the tables section
@@ -2017,35 +2030,37 @@ void wa_parse_tables(wa_parser* parser, wa_module* module)
         }
     }
 
-    //NOTE: read non-import tables
-    for(u32 tableIndex = 0; tableIndex < module->tableCount; tableIndex++)
+    if(section)
     {
-        wa_table_type* table = &module->tables[tableIndex + module->tableImportCount];
-
-        wa_ast* tableAst = wa_ast_alloc(parser, WA_AST_TABLE_TYPE);
-        tableAst->loc.start = parser->offset;
-        tableAst->parent = vector;
-        oc_list_push_back(&vector->children, &tableAst->parentElt);
-
-        //TODO coalesce with parsing of table in imports
-        wa_ast* typeAst = wa_read_byte(parser, tableAst, OC_STR8("table type"));
-        table->type = typeAst->valU8;
-
-        if(table->type != WA_TYPE_FUNC_REF && table->type != WA_TYPE_EXTERN_REF)
+        //NOTE: read non-import tables
+        for(u32 tableIndex = 0; tableIndex < module->tableCount; tableIndex++)
         {
-            wa_parse_error(parser,
-                           typeAst,
-                           "Invalid type 0x%02x in table import \n",
-                           table->type);
-        }
-        wa_ast* limitsAst = wa_parse_limits(parser, tableAst, &table->limits);
+            wa_table_type* table = &module->tables[tableIndex + module->tableImportCount];
 
-        tableAst->loc.len = parser->offset - tableAst->loc.start;
+            wa_ast* tableAst = wa_ast_alloc(parser, WA_AST_TABLE_TYPE);
+            tableAst->loc.start = parser->offset;
+            tableAst->parent = vector;
+            oc_list_push_back(&vector->children, &tableAst->parentElt);
+
+            //TODO coalesce with parsing of table in imports
+            wa_ast* typeAst = wa_read_byte(parser, tableAst, OC_STR8("table type"));
+            table->type = typeAst->valU8;
+
+            if(table->type != WA_TYPE_FUNC_REF && table->type != WA_TYPE_EXTERN_REF)
+            {
+                wa_parse_error(parser,
+                               typeAst,
+                               "Invalid type 0x%02x in table import \n",
+                               table->type);
+            }
+            wa_ast* limitsAst = wa_parse_limits(parser, tableAst, &table->limits);
+
+            tableAst->loc.len = parser->offset - tableAst->loc.start;
+        }
+        vector->loc.len = parser->offset - vector->loc.start;
+        section->loc.len = parser->offset - section->loc.start;
     }
     module->tableCount += module->tableImportCount;
-
-    vector->loc.len = parser->offset - vector->loc.start;
-    section->loc.len = parser->offset - section->loc.start;
 
     //NOTE: check section size
     if(parser->offset - startOffset != module->toc.tables.len)
@@ -2552,6 +2567,7 @@ void wa_parse_elements(wa_parser* parser, wa_module* module)
         }
 
         element->type = WA_TYPE_FUNC_REF;
+
         if(prefix & 0x04)
         {
             //NOTE: reftype? vec(expr)
@@ -2591,7 +2607,6 @@ void wa_parse_elements(wa_parser* parser, wa_module* module)
                 {
                     wa_parse_error(parser, refKindAst, "ref kind should be 0.");
                 }
-                element->type = refKindAst->valU8;
             }
 
             wa_ast* funcVec = wa_ast_alloc(parser, WA_AST_VECTOR);
@@ -2609,13 +2624,15 @@ void wa_parse_elements(wa_parser* parser, wa_module* module)
                 wa_ast* funcIndexAst = wa_read_leb128_u32(parser, funcVec, OC_STR8("index"));
                 funcIndexAst->kind = WA_AST_FUNC_INDEX;
 
-                wa_instr* init = oc_arena_push_type(parser->arena, wa_instr);
-                init->op = WA_INSTR_ref_func;
-                init->immCount = 1;
-                init->imm = oc_arena_push_type(parser->arena, wa_code);
-                init->imm[0].index = funcIndexAst->valU32;
+                wa_instr* init = oc_arena_push_array(parser->arena, wa_instr, 2);
+                init[0].op = WA_INSTR_ref_func;
+                init[0].immCount = 1;
+                init[0].imm = oc_arena_push_type(parser->arena, wa_code);
+                init[0].imm[0].index = funcIndexAst->valU32;
+                oc_list_push_back(&element->initInstr[i], &init[0].listElt);
 
-                oc_list_push_back(&element->initInstr[i], &init->listElt);
+                init[1].op = WA_INSTR_end;
+                oc_list_push_back(&element->initInstr[i], &init[1].listElt);
             }
         }
 
@@ -2812,6 +2829,8 @@ typedef struct wa_block
     u64 scopeBase;
     oc_list jumpTargets;
 
+    bool polymorphic;
+
 } wa_block;
 
 typedef struct wa_build_context
@@ -2832,6 +2851,8 @@ typedef struct wa_build_context
     u64 nextRegIndex;
     u64 freeRegLen;
     u64 freeRegs[WA_MAX_REG];
+
+    wa_func_type* exprType;
 
     u64 codeCap;
     u64 codeLen;
@@ -2974,10 +2995,8 @@ wa_operand_slot wa_operand_stack_pop(wa_build_context* context)
     wa_operand_slot slot = { 0 };
     u64 scopeBase = 0;
     wa_block* block = wa_control_stack_top(context);
-    if(block)
-    {
-        scopeBase = block->scopeBase;
-    }
+    OC_ASSERT(block);
+    scopeBase = block->scopeBase;
 
     if(context->opdStackLen > scopeBase)
     {
@@ -2988,6 +3007,36 @@ wa_operand_slot wa_operand_stack_pop(wa_build_context* context)
         {
             wa_free_slot(context, slot.index);
         }
+    }
+    else if(block->polymorphic)
+    {
+        slot = (wa_operand_slot){
+            .kind = WA_OPERAND_SLOT_REG,
+            .index = 0,
+            .type = WA_TYPE_UNKNOWN,
+        };
+    }
+    return (slot);
+}
+
+wa_operand_slot wa_operand_stack_lookup(wa_build_context* context, u32 index)
+{
+    wa_operand_slot slot = { 0 };
+    wa_block* block = wa_control_stack_top(context);
+    OC_ASSERT(block);
+    u64 scopeBase = block->scopeBase;
+
+    if(index < context->opdStackLen - scopeBase)
+    {
+        slot = context->opdStack[context->opdStackLen - index - 1];
+    }
+    else if(block->polymorphic)
+    {
+        slot = (wa_operand_slot){
+            .kind = WA_OPERAND_SLOT_REG,
+            .index = 0,
+            .type = WA_TYPE_UNKNOWN,
+        };
     }
     return (slot);
 }
@@ -3013,15 +3062,22 @@ wa_operand_slot wa_operand_stack_top(wa_build_context* context)
     wa_operand_slot slot = { 0 };
     u64 scopeBase = 0;
     wa_block* block = wa_control_stack_top(context);
-    if(block)
-    {
-        scopeBase = block->scopeBase;
-    }
+    OC_ASSERT(block);
+    scopeBase = block->scopeBase;
 
     if(context->opdStackLen > scopeBase)
     {
         slot = context->opdStack[context->opdStackLen - 1];
     }
+    else if(block->polymorphic)
+    {
+        slot = (wa_operand_slot){
+            .kind = WA_OPERAND_SLOT_REG,
+            .index = 0,
+            .type = WA_TYPE_UNKNOWN,
+        };
+    }
+
     return (slot);
 }
 
@@ -3102,15 +3158,36 @@ void wa_move_locals_to_registers(wa_build_context* context)
     }
 }
 
-void wa_push_block_inputs(wa_build_context* context, u64 inputCount, u64 outputCount)
+void wa_push_block_inputs(wa_build_context* context, wa_func_type* type)
 {
-    //NOTE copy inputs on top of the stack for else branch
+    OC_ASSERT(context->controlStackLen > 1);
+    wa_block* prevBlock = &context->controlStack[context->controlStackLen - 2];
+
     u64 paramStart = context->opdStackLen - (inputCount + outputCount);
+    u64 inputEnd = context->opdStackLen - type->returnCount;
+    u64 copyStart = type->paramCount - (inputEnd - prevBlock->scopeBase);
+
     for(u64 inIndex = 0; inIndex < inputCount; inIndex++)
     {
-        wa_operand_slot slotCopy = context->opdStack[paramStart + inIndex];
-        slotCopy.count++;
-        wa_operand_stack_push(context, slotCopy);
+        if(inIndex < copyStart)
+        {
+            //NOTE: if there wasn't enough operands on the stack,
+            //      push fake ones with the correct type for that new block.
+            //      This means this block is either unreachable, or will already have
+            //      triggered a validation error.
+            wa_operand_stack_push(context,
+                                  (wa_operand_slot){
+                                      .kind = WA_OPERAND_SLOT_REG,
+                                      .type = type->params[inIndex],
+                                  });
+        }
+        else
+        {
+            //NOTE copy block inputs on top of the stack
+            wa_operand_slot slotCopy = context->opdStack[paramStart + inIndex];
+            slotCopy.count++;
+            wa_operand_stack_push(context, slotCopy);
+        }
     }
 }
 
@@ -3119,31 +3196,28 @@ void wa_block_begin(wa_build_context* context, wa_instr* instr)
     //NOTE: check block type input
     wa_func_type* type = instr->blockType;
 
-    if(type->paramCount > context->opdStackLen)
+    for(u64 inIndex = 0; inIndex < type->paramCount; inIndex++)
     {
-        //TODO: here we should add a note pointing to the block param's AST
-        wa_compile_error(context,
-                         instr->ast,
-                         "not enough operands on stack (expected %i, got %i)\n",
-                         type->paramCount,
-                         context->opdStackLen);
-        //TODO: push fake inputs to continue validating the block correctly?
-    }
-    else
-    {
-        for(u64 inIndex = 0; inIndex < type->paramCount; inIndex++)
+        wa_operand_slot slot = wa_operand_stack_lookup(type->paramCount - inIndex - 1);
+        if(wa_operand_slot_is_nil(&slot))
         {
-            wa_value_type opdType = context->opdStack[context->opdStackLen - type->paramCount + inIndex].type;
-            wa_value_type expectedType = type->params[inIndex];
-            if(opdType != expectedType)
+            wa_compile_error(context,
+                             instr->ast,
+                             "not enough operands on stack (expected %i, got %i)\n",
+                             type->paramCount,
+                             wa_operand_stack_scope_size(context));
+        }
+        else
+        {
+            wa_value_type expected = type->params[inIndex];
+            if(!wa_check_operand_types(slot->type, expected))
             {
-                //TODO: here we should add a note pointing to the block param's AST
                 wa_compile_error(context,
                                  instr->ast,
                                  "operand type mismatch for param %i (expected %s, got %s)\n",
                                  inIndex,
-                                 wa_value_type_string(expectedType),
-                                 wa_value_type_string(opdType));
+                                 wa_value_type_string(expected),
+                                 wa_value_type_string(slot->type));
             }
         }
     }
@@ -3165,7 +3239,7 @@ void wa_block_begin(wa_build_context* context, wa_instr* instr)
     }
 
     wa_control_stack_push(context, instr);
-    wa_push_block_inputs(context, type->paramCount, type->returnCount);
+    wa_push_block_inputs(context, type);
 }
 
 void wa_block_move_results_to_input_slots(wa_build_context* context, wa_block* block, wa_instr* instr)
@@ -3173,22 +3247,22 @@ void wa_block_move_results_to_input_slots(wa_build_context* context, wa_block* b
     //NOTE validate block type output
     wa_func_type* type = block->begin->blockType;
 
-    if(type->paramCount > context->opdStackLen)
+    for(u64 paramIndex = 0; paramIndex < type->paramCount; paramIndex++)
     {
-        wa_compile_error(context,
-                         instr->ast,
-                         "not enough operands on stack (expected %i, got %i)\n",
-                         type->paramCount,
-                         context->opdStackLen);
-        return;
-    }
-    else
-    {
-        for(u64 paramIndex = 0; paramIndex < type->paramCount; paramIndex++)
+        wa_operand_slot slot = wa_operand_stack_lookup(type->paramCount - paramIndex - 1);
+        if(wa_operand_slot_is_nil(&slot))
         {
-            wa_value_type opdType = context->opdStack[context->opdStackLen - type->paramCount + paramIndex].type;
-            wa_value_type expectedType = type->params[paramIndex];
-            if(opdType != expectedType)
+            wa_compile_error(context,
+                             instr->ast,
+                             "not enough operands on stack (expected %i, got %i)\n",
+                             type->paramCount,
+                             context->opdStackLen);
+            return;
+        }
+        else
+        {
+            wa_value_type expected = type->params[paramIndex];
+            if(!wa_check_operand_types(expected, slot->type))
             {
                 //TODO: here we'd like to point to the instruction that triggered the end of the block,
                 //      _but also_ the ast of the param type...
@@ -3200,8 +3274,18 @@ void wa_block_move_results_to_input_slots(wa_build_context* context, wa_block* b
                                  wa_value_type_string(opdType));
                 return;
             }
+
+            //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+            //TODO: if there wasn't enough input operands because of a polymorphic stack, this could underflow the operand stack...
+            //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+            // just always pop and re-push those values at begining of block?
+            // or have a function to lookup within a given block?
+
+            wa_operand_slot* dst = &context->opdStack[scopeBase - type->returnCount - type->paramCount];
         }
     }
+
     //NOTE move top operands to result slots
     u64 scopeBase = block->scopeBase;
 
@@ -3224,20 +3308,22 @@ void wa_block_move_results_to_output_slots(wa_build_context* context, wa_block* 
     //NOTE validate block type output
     wa_func_type* type = block->begin->blockType;
 
-    if(type->returnCount > context->opdStackLen)
+    for(u32 returnIndex = 0; returnIndex < type->returnCount; returnIndex++)
     {
-        wa_compile_error(context,
-                         instr->ast,
-                         "not enough operands on stack (expected %i, got %i)\n",
-                         type->returnCount,
-                         context->opdStackLen);
-        return;
-    }
-    else
-    {
-        for(u64 returnIndex = 0; returnIndex < type->returnCount; returnIndex++)
+        if(context->opdStackLen - block->scopeBase < type->returnCount - returnIndex)
         {
-            wa_value_type opdType = context->opdStack[context->opdStackLen - type->returnCount + returnIndex].type;
+            if(!block->polymorphic)
+            {
+                wa_compile_error(context,
+                                 instr->ast,
+                                 "not enough operands on stack (expected %i, got %i)\n",
+                                 type->returnCount,
+                                 context->opdStackLen - block->scopeBase);
+            }
+        }
+        else
+        {
+            wa_value_type opdType = context->opdStack[context->opdStackLen + returnIndex - type->returnCount].type;
             wa_value_type expectedType = type->returns[returnIndex];
             if(opdType != expectedType)
             {
@@ -3279,6 +3365,9 @@ void wa_block_end(wa_build_context* context, wa_block* block, wa_instr* instr)
     wa_func_type* type = block->begin->blockType;
     wa_operand_stack_pop_slots(context, type->returnCount);
 
+    //------------------------------------------------------
+    //TODO: should unwind whole scope here
+
     //NOTE: pop saved params, and push result slots on top of stack
     context->opdStackLen -= type->returnCount;
     for(u64 index = 0; index < type->paramCount; index++)
@@ -3316,52 +3405,16 @@ void wa_patch_jump_targets(wa_build_context* context, wa_block* block)
     }
 }
 
-void wa_compile_branch(wa_build_context* context, wa_instr* instr, u32 label)
+bool wa_check_operand_type(wa_value_type t1, wa_value_type t2)
 {
-    wa_block* block = wa_control_stack_lookup(context, label);
-    if(!block)
-    {
-        //TODO here we should pass the ast of the _immediate_, not the instruction
-        wa_compile_error(context,
-                         instr->ast,
-                         "block level %u not found\n",
-                         label);
-        return;
-    }
-
-    if(block->begin->op == WA_INSTR_block
-       || block->begin->op == WA_INSTR_if)
-    {
-        wa_block_move_results_to_output_slots(context, block, instr);
-
-        //jump to end
-        wa_emit(context, (wa_code){ .opcode = WA_INSTR_jump });
-
-        //NOTE: emit a jump target operand for end of block
-        wa_jump_target* target = oc_arena_push_type(&context->checkArena, wa_jump_target);
-        target->offset = context->codeLen;
-        oc_list_push_back(&block->jumpTargets, &target->listElt);
-
-        wa_emit(context, (wa_code){ .valI64 = 0 });
-    }
-    else if(block->begin->op == WA_INSTR_loop)
-    {
-        wa_block_move_results_to_input_slots(context, block, instr);
-
-        //jump to begin
-        wa_emit(context, (wa_code){ .opcode = WA_INSTR_jump });
-        wa_emit(context, (wa_code){ .valI64 = block->beginOffset - context->codeLen });
-    }
-    else
-    {
-        OC_ASSERT(0, "unreachable");
-    }
+    return (t1 == t2 || t1 == WA_TYPE_UNKNOWN || t2 == WA_TYPE_UNKNOWN);
 }
 
 int wa_compile_return(wa_build_context* context, wa_func_type* type, wa_instr* instr)
 {
     // Check that there's the correct number / types of values on the stack
-    if(context->opdStackLen < type->returnCount)
+    wa_block* block = wa_control_stack_top(context);
+    if(context->opdStackLen - block->scopeBase < type->returnCount && !block->polymorphic)
     {
         //TODO: we should also point to the ast of the return type
         wa_compile_error(context,
@@ -3372,36 +3425,96 @@ int wa_compile_return(wa_build_context* context, wa_func_type* type, wa_instr* i
         return -1;
     }
 
-    u32 retSlotStart = context->opdStackLen - type->returnCount;
+    ////////////////////////////////////////////////////////
+    //TODO: handle polymorphic stack
+    ////////////////////////////////////////////////////////
+
+    i64 retSlotStart = (i64)context->opdStackLen - (i64)type->returnCount;
     for(u32 retIndex = 0; retIndex < type->returnCount; retIndex++)
     {
-        wa_operand_slot* slot = &context->opdStack[retSlotStart + retIndex];
-        wa_value_type expectedType = type->returns[retIndex];
-        wa_value_type returnType = slot->type;
-
-        if(returnType != expectedType)
+        if(retSlotStart + (i64)retIndex >= 0)
         {
-            //TODO: we should also point to the ast of the return type
-            wa_compile_error(context,
-                             instr->ast,
-                             "Return type doesn't match function signature (expected %s, got %s)\n",
-                             wa_value_type_string(expectedType),
-                             wa_value_type_string(returnType));
-            return -1;
-        }
+            wa_operand_slot* slot = &context->opdStack[retSlotStart + retIndex];
+            wa_value_type expectedType = type->returns[retIndex];
+            wa_value_type returnType = slot->type;
 
-        //NOTE store value to return slot
-        if(slot->index != retIndex)
-        {
-            wa_move_slot_if_used(context, retIndex);
+            if(!wa_check_operand_type(returnType, expectedType))
+            {
+                //TODO: we should also point to the ast of the return type
+                wa_compile_error(context,
+                                 instr->ast,
+                                 "Return type doesn't match function signature (expected %s, got %s)\n",
+                                 wa_value_type_string(expectedType),
+                                 wa_value_type_string(returnType));
+                return -1;
+            }
 
-            wa_emit(context, (wa_code){ .opcode = WA_INSTR_move });
-            wa_emit(context, (wa_code){ .valI64 = slot->index });
-            wa_emit(context, (wa_code){ .valI64 = retIndex });
+            //NOTE store value to return slot
+            if(slot->index != retIndex)
+            {
+                wa_move_slot_if_used(context, retIndex);
+
+                wa_emit(context, (wa_code){ .opcode = WA_INSTR_move });
+                wa_emit(context, (wa_code){ .valI64 = slot->index });
+                wa_emit(context, (wa_code){ .valI64 = retIndex });
+            }
         }
     }
     wa_emit(context, (wa_code){ .opcode = WA_INSTR_return });
+
+    context->opdStackLen -= type->returnCount;
+
     return 0;
+}
+
+void wa_compile_branch(wa_build_context* context, wa_instr* instr, u32 label)
+{
+    if(label == context->controlStackLen)
+    {
+        //Do a return
+        wa_compile_return(context, context->exprType, instr);
+    }
+    else
+    {
+        wa_block* block = wa_control_stack_lookup(context, label);
+        if(!block)
+        {
+            //TODO here we should pass the ast of the _immediate_, not the instruction
+            wa_compile_error(context,
+                             instr->ast,
+                             "block level %u not found\n",
+                             label);
+            return;
+        }
+
+        if(block->begin->op == WA_INSTR_block
+           || block->begin->op == WA_INSTR_if)
+        {
+            wa_block_move_results_to_output_slots(context, block, instr);
+
+            //jump to end
+            wa_emit(context, (wa_code){ .opcode = WA_INSTR_jump });
+
+            //NOTE: emit a jump target operand for end of block
+            wa_jump_target* target = oc_arena_push_type(&context->checkArena, wa_jump_target);
+            target->offset = context->codeLen;
+            oc_list_push_back(&block->jumpTargets, &target->listElt);
+
+            wa_emit(context, (wa_code){ .valI64 = 0 });
+        }
+        else if(block->begin->op == WA_INSTR_loop)
+        {
+            wa_block_move_results_to_input_slots(context, block, instr);
+
+            //jump to begin
+            wa_emit(context, (wa_code){ .opcode = WA_INSTR_jump });
+            wa_emit(context, (wa_code){ .valI64 = block->beginOffset - context->codeLen });
+        }
+        else
+        {
+            OC_ASSERT(0, "unreachable");
+        }
+    }
 }
 
 void wa_build_context_clear(wa_build_context* context)
@@ -3422,6 +3535,13 @@ void wa_build_context_clear(wa_build_context* context)
 void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_func* func, oc_list instructions)
 {
     wa_module* module = context->module;
+
+    context->exprType = type;
+
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////
+    //TODO: remove the need to pass instr -- this will break else checks if first instr is an "if"...
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////
+    wa_control_stack_push(context, oc_list_first_entry(instructions, wa_instr, listElt));
 
     oc_list_for(instructions, instr, wa_instr, listElt)
     {
@@ -3459,7 +3579,7 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
                 break;
             }
 
-            if(slot0.type != slot1.type)
+            if(!wa_check_operand_type(slot0.type, slot1.type))
             {
                 //TODO: is this true?
                 wa_compile_error(context,
@@ -3467,7 +3587,7 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
                                  "select first two operands should be of the same type\n");
                 break;
             }
-            if(slot2.type != WA_TYPE_I32)
+            if(!wa_check_operand_type(slot2.type, WA_TYPE_I32))
             {
                 wa_compile_error(context,
                                  instr->ast,
@@ -3519,6 +3639,9 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
         {
             u32 label = instr->imm[0].index;
             wa_compile_branch(context, instr, label);
+
+            wa_block* block = wa_control_stack_top(context);
+            block->polymorphic = true;
         }
         else if(instr->op == WA_INSTR_br_if)
         {
@@ -3531,7 +3654,7 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
                 break;
             }
 
-            if(slot.type != WA_TYPE_I32)
+            if(!wa_check_operand_type(slot.type, WA_TYPE_I32))
             {
                 wa_compile_error(context,
                                  instr->ast,
@@ -3562,7 +3685,7 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
                 break;
             }
 
-            if(slot.type != WA_TYPE_I32)
+            if(!wa_check_operand_type(slot.type, WA_TYPE_I32))
             {
                 wa_compile_error(context,
                                  instr->ast,
@@ -3611,7 +3734,7 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
                 break;
             }
 
-            if(slot.type != WA_TYPE_I32)
+            if(!wa_check_operand_type(slot.type, WA_TYPE_I32))
             {
                 wa_compile_error(context,
                                  instr->ast,
@@ -3647,7 +3770,7 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
             wa_block_move_results_to_output_slots(context, ifBlock, instr);
             wa_operand_stack_pop_slots(context, type->returnCount);
 
-            wa_push_block_inputs(context, type->paramCount, type->returnCount);
+            wa_push_block_inputs(context, type);
 
             wa_emit(context, (wa_code){ .opcode = WA_INSTR_jump });
             wa_emit(context, (wa_code){ 0 });
@@ -3657,8 +3780,13 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
         }
         else if(instr->op == WA_INSTR_end)
         {
-            wa_block block = wa_control_stack_pop(context);
-            if(wa_block_is_nil(&block))
+            wa_block* block = wa_control_stack_top(context);
+            if(!block)
+            {
+                wa_compile_error(context, instr->ast, "Unbalanced control stack\n");
+                break;
+            }
+            else if(context->controlStackLen == 1)
             {
                 //TODO: is this sufficient to elide all previous returns?
 
@@ -3670,10 +3798,16 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
                         break;
                     }
                 }
+                wa_patch_jump_targets(context, block);
+                wa_control_stack_pop(context);
                 break;
             }
-            wa_block_end(context, &block, instr);
-            wa_patch_jump_targets(context, &block);
+            else
+            {
+                wa_block_end(context, block, instr);
+                wa_patch_jump_targets(context, block);
+                wa_control_stack_pop(context);
+            }
         }
         else if(instr->op == WA_INSTR_call)
         {
@@ -3689,22 +3823,22 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
                                  context->opdStackLen);
                 break;
             }
-            context->opdStackLen -= paramCount;
 
-            u32 maxUsedSlot = 0;
+            i64 maxUsedSlot = -1;
             for(u32 stackIndex = 0; stackIndex < context->opdStackLen; stackIndex++)
             {
                 wa_operand_slot* slot = &context->opdStack[stackIndex];
-                maxUsedSlot = oc_max(slot->index, maxUsedSlot);
+                maxUsedSlot = oc_max((i64)slot->index, maxUsedSlot);
             }
 
+            context->opdStackLen -= paramCount;
             //TODO: first check if we args are already in order at the end of the frame?
             for(u32 argIndex = 0; argIndex < paramCount; argIndex++)
             {
                 wa_operand_slot* slot = &context->opdStack[context->opdStackLen + argIndex];
                 wa_value_type paramType = callee->type->params[argIndex];
 
-                if(slot->type != paramType)
+                if(!wa_check_operand_type(slot->type, paramType))
                 {
                     wa_compile_error(context,
                                      instr->ast,
@@ -3722,6 +3856,12 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
             wa_emit(context, (wa_code){ .opcode = WA_INSTR_call });
             wa_emit(context, (wa_code){ .valI64 = instr->imm[0].index });
             wa_emit(context, (wa_code){ .valI64 = maxUsedSlot + 1 });
+
+            /////////////////////////////////////////////////////////////////////////////////////////////////////////////
+            //TODO: we need to update next reg index so that next reg can't be allocated in the same slot...
+            //      we probably also need to put the remaining args regs not used by returns in the freelist
+            /////////////////////////////////////////////////////////////////////////////////////////////////////////////
+            context->nextRegIndex = oc_max(maxUsedSlot + 1 + callee->type->returnCount, context->nextRegIndex);
 
             for(u32 retIndex = 0; retIndex < callee->type->returnCount; retIndex++)
             {
@@ -3745,7 +3885,7 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
                 break;
             }
 
-            if(slot.type != WA_TYPE_I32)
+            if(!wa_check_operand_type(slot.type, WA_TYPE_I32))
             {
                 wa_compile_error(context,
                                  instr->ast,
@@ -3758,7 +3898,7 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
             wa_func_type* type = &module->types[instr->imm[0].index];
             u32 paramCount = type->paramCount;
 
-            if(context->opdStackLen < paramCount)
+            if(context->opdStackLen < paramCount) //TODO: check if stack is polymorphic
             {
                 wa_compile_error(context,
                                  instr->ast,
@@ -3767,14 +3907,17 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
                                  context->opdStackLen);
                 break;
             }
-            context->opdStackLen -= paramCount;
 
-            u32 maxUsedSlot = 0;
+            //TODO: we should probably be more clever here, eg in some case just move the index operand
+            //      past the arguments?
+            i64 maxUsedSlot = slot.index;
             for(u32 stackIndex = 0; stackIndex < context->opdStackLen; stackIndex++)
             {
                 wa_operand_slot* slot = &context->opdStack[stackIndex];
-                maxUsedSlot = oc_max(slot->index, maxUsedSlot);
+                maxUsedSlot = oc_max((i64)slot->index, maxUsedSlot);
             }
+
+            context->opdStackLen -= paramCount;
 
             //TODO: first check if we args are already in order at the end of the frame?
             for(u32 argIndex = 0; argIndex < paramCount; argIndex++)
@@ -3782,7 +3925,7 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
                 wa_operand_slot* slot = &context->opdStack[context->opdStackLen + argIndex];
                 wa_value_type paramType = type->params[argIndex];
 
-                if(slot->type != paramType)
+                if(!wa_check_operand_type(slot->type, paramType))
                 {
                     wa_compile_error(context,
                                      instr->ast,
@@ -3798,10 +3941,16 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
             }
 
             wa_emit(context, (wa_code){ .opcode = WA_INSTR_call_indirect });
-            wa_emit(context, (wa_code){ .valI64 = instr->imm[0].index });
-            wa_emit(context, (wa_code){ .valI64 = instr->imm[1].index });
+            wa_emit(context, (wa_code){ .valI32 = instr->imm[0].index });
+            wa_emit(context, (wa_code){ .valI32 = instr->imm[1].index });
             wa_emit(context, (wa_code){ .valI64 = maxUsedSlot + 1 });
             wa_emit(context, (wa_code){ .valI32 = slot.index });
+
+            /////////////////////////////////////////////////////////////////////////////////////////////////////////////
+            //TODO: we need to update next reg index so that next reg can't be allocated in the same slot...
+            //      we probably also need to put the remaining args regs not used by returns in the freelist
+            /////////////////////////////////////////////////////////////////////////////////////////////////////////////
+            context->nextRegIndex = oc_max(maxUsedSlot + 1 + type->returnCount, context->nextRegIndex);
 
             for(u32 retIndex = 0; retIndex < type->returnCount; retIndex++)
             {
@@ -3847,7 +3996,7 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
                 break;
             }
 
-            if(slot.type != func->locals[localIndex])
+            if(!wa_check_operand_type(slot.type, func->locals[localIndex]))
             {
                 wa_compile_error(context,
                                  instr->ast,
@@ -3904,7 +4053,7 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
                 break;
             }
 
-            if(slot.type != func->locals[localIndex])
+            if(!wa_check_operand_type(slot.type, func->locals[localIndex]))
             {
                 wa_compile_error(context,
                                  instr->ast,
@@ -3990,7 +4139,7 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
                     break;
                 }
 
-                if(slot.type != info->in[opdIndex])
+                if(!wa_check_operand_type(slot.type, info->in[opdIndex]))
                 {
                     wa_compile_error(context,
                                      instr->ast,
@@ -4067,19 +4216,37 @@ void wa_compile_code(oc_arena* arena, wa_module* module)
     {
         wa_element* element = &module->elements[eltIndex];
 
-        element->code = oc_arena_push_array(arena, wa_code*, element->initCount);
-        for(u32 exprIndex = 0; exprIndex < element->initCount; exprIndex++)
+        if(!oc_list_empty(element->tableOffset))
         {
+            ///////////////////////////////////////////////////////////////////////////
+            //TODO: this should go in wa_compile_expression to avoid forgetting it?
+            ///////////////////////////////////////////////////////////////////////////
             wa_build_context_clear(&context);
             context.nextRegIndex = 0;
 
-            i64 t = 0x7f - (i64)element->type + 1;
-            wa_func_type* exprType = (wa_func_type*)&WA_BLOCK_VALUE_TYPES[t];
+            wa_compile_expression(&context, (wa_func_type*)&WA_BLOCK_VALUE_TYPES[1], 0, element->tableOffset);
+            element->tableOffsetCode = oc_arena_push_array(arena, wa_code, context.codeLen);
+            memcpy(element->tableOffsetCode, context.code, context.codeLen * sizeof(wa_code));
+        }
 
-            wa_compile_expression(&context, exprType, 0, element->initInstr[exprIndex]);
+        if(element->initCount)
+        {
+            element->code = oc_arena_push_array(arena, wa_code*, element->initCount);
+            for(u32 exprIndex = 0; exprIndex < element->initCount; exprIndex++)
+            {
+                wa_build_context_clear(&context);
+                context.nextRegIndex = 0;
 
-            element->code[exprIndex] = oc_arena_push_array(arena, wa_code, context.codeLen);
-            memcpy(element->code[exprIndex], context.code, context.codeLen * sizeof(wa_code));
+                i64 t = 0x7f - (i64)element->type + 1;
+                wa_func_type* exprType = (wa_func_type*)&WA_BLOCK_VALUE_TYPES[t];
+
+                OC_ASSERT(!oc_list_empty(element->initInstr[exprIndex]));
+
+                wa_compile_expression(&context, exprType, 0, element->initInstr[exprIndex]);
+
+                element->code[exprIndex] = oc_arena_push_array(arena, wa_code, context.codeLen);
+                memcpy(element->code[exprIndex], context.code, context.codeLen * sizeof(wa_code));
+            }
         }
     }
 
@@ -4337,6 +4504,16 @@ wa_instance* wa_instance_create(oc_arena* arena, wa_module* module)
 
     instance->globals = oc_arena_push_array(arena, wa_value, module->globalCount);
 
+    instance->tables = oc_arena_push_array(arena, wa_table, module->tableCount);
+    for(u32 tableIndex = 0; tableIndex < module->tableCount; tableIndex++)
+    {
+        wa_table_type* desc = &module->tables[tableIndex];
+
+        instance->tables[tableIndex].size = desc->limits.min;
+        instance->tables[tableIndex].contents = oc_arena_push_array(arena, wa_value, desc->limits.min);
+        memset(instance->tables[tableIndex].contents, 0, desc->limits.min * sizeof(wa_value));
+    }
+
     return (instance);
 }
 
@@ -4452,6 +4629,49 @@ wa_status wa_instance_link(wa_instance* instance)
         }
     }
 
+    for(u64 eltIndex = 0; eltIndex < module->elementCount; eltIndex++)
+    {
+        wa_element* element = &module->elements[eltIndex];
+        if(element->mode == WA_ELEMENT_ACTIVE)
+        {
+            //TODO: check table size?
+
+            wa_table_type* desc = &module->tables[element->tableIndex];
+            wa_table* table = &instance->tables[element->tableIndex];
+
+            wa_value offset = { 0 };
+            wa_status status = wa_instance_interpret_expr(instance,
+                                                          (wa_func_type*)&WA_BLOCK_VALUE_TYPES[1],
+                                                          element->tableOffsetCode,
+                                                          0, 0,
+                                                          1, &offset);
+            if(status != WA_OK)
+            {
+                return status;
+            }
+
+            i64 t = 0x7f - (i64)element->type + 1;
+            wa_func_type* exprType = (wa_func_type*)&WA_BLOCK_VALUE_TYPES[t];
+
+            for(u32 exprIndex = 0; exprIndex < element->initCount; exprIndex++)
+            {
+                wa_value* result = &table->contents[offset.valI32 + exprIndex];
+                wa_status status = wa_instance_interpret_expr(instance, exprType, element->code[exprIndex], 0, 0, 1, result);
+                if(status != WA_OK)
+                {
+                    return status;
+                }
+            }
+        }
+    }
+
+    //TODO honor memory limits
+    oc_base_allocator* allocator = oc_base_allocator_default();
+    instance->memoryCap = 4 << 20;
+    instance->memorySize = 4096;
+    instance->memory = oc_base_reserve(allocator, instance->memoryCap);
+    oc_base_commit(allocator, instance->memory, instance->memorySize);
+
     return WA_OK;
 }
 
@@ -4495,11 +4715,7 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
 
     memcpy(locals, args, argCount * sizeof(wa_value));
 
-    //TODO use memory in instance
-    u32 memorySize = 4096;
-    oc_base_allocator* allocator = oc_base_allocator_default();
-    char* memory = oc_base_reserve(allocator, 4 << 20);
-    oc_base_commit(allocator, memory, memorySize);
+    char* memory = instance->memory;
 
     while(1)
     {
@@ -4740,7 +4956,7 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
 
             case WA_INSTR_jump_if_zero:
             {
-                if(locals[pc[1].valI32].valI64 == 0)
+                if(locals[pc[1].valI32].valI32 == 0)
                 {
                     pc += pc[0].valI64;
                 }
@@ -4790,6 +5006,43 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
                 }
             }
             break;
+
+            case WA_INSTR_call_indirect:
+            {
+                u32 typeIndex = *(u32*)&pc[0].valI32;
+                u32 tableIndex = *(u32*)&pc[1].valI32;
+                i64 maxUsedSlot = pc[2].valI64;
+                u32 index = *(u32*)&(locals[pc[3].valI32].valI32);
+
+                wa_table* table = &instance->tables[tableIndex];
+                u32 funcIndex = *(u32*)&table->contents[index].valI32;
+
+                wa_func* callee = &instance->functions[funcIndex];
+
+                //TODO check type
+
+                if(callee->code)
+                {
+                    controlStack[controlStackTop] = (wa_control){
+                        .returnPC = pc + 4,
+                        .returnFrame = locals,
+                    };
+                    controlStackTop++;
+
+                    locals += maxUsedSlot;
+                    pc = callee->code;
+                }
+                else
+                {
+                    wa_value* saveLocals = locals;
+                    locals += maxUsedSlot;
+                    callee->proc(locals, locals);
+                    pc += 4;
+                    locals = saveLocals;
+                }
+            }
+            break;
+
             case WA_INSTR_return:
             {
                 if(!controlStackTop)
@@ -4806,6 +5059,13 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
             case WA_INSTR_ref_null:
             {
                 locals[pc[1].valI32].valI64 = 0; //???
+                pc += 2;
+            }
+            break;
+
+            case WA_INSTR_ref_func:
+            {
+                locals[pc[1].valI32].valI64 = pc[0].valI64; //???
                 pc += 2;
             }
             break;
@@ -6326,10 +6586,18 @@ wa_typed_value test_parse_value(json_node* arg)
     return (value);
 }
 
+typedef struct wa_test_instance
+{
+    oc_list_elt listElt;
+    oc_str8 name;
+    wa_instance* instance;
+} wa_test_instance;
+
 typedef struct wa_test_env
 {
     oc_arena* arena;
-    wa_instance* instance;
+
+    oc_list instances;
 
     u32 passed;
     u32 failed;
@@ -6345,12 +6613,12 @@ typedef struct wa_test_result
 
 } wa_test_result;
 
-wa_test_result wa_test_invoke(wa_test_env* env, json_node* action)
+wa_test_result wa_test_invoke(wa_test_env* env, wa_instance* instance, json_node* action)
 {
     json_node* funcName = json_find_assert(action, "field", JSON_STRING);
     json_node* args = json_find_assert(action, "args", JSON_LIST);
 
-    wa_func* func = wa_instance_find_function(env->instance, funcName->string);
+    wa_func* func = wa_instance_find_function(instance, funcName->string);
 
     u32 argCount = args->childCount;
     OC_ASSERT(argCount == func->type->paramCount);
@@ -6370,12 +6638,12 @@ wa_test_result wa_test_invoke(wa_test_env* env, json_node* action)
     res.count = func->type->returnCount;
     res.values = oc_arena_push_array(env->arena, wa_value, res.count);
 
-    res.status = wa_instance_invoke(env->instance, func, argCount, argVals, res.count, res.values);
+    res.status = wa_instance_invoke(instance, func, argCount, argVals, res.count, res.values);
 
     return res;
 }
 
-wa_test_result wa_test_action(wa_test_env* env, json_node* action)
+wa_test_result wa_test_action(wa_test_env* env, wa_instance* instance, json_node* action)
 {
     wa_test_result result = { 0 };
 
@@ -6383,7 +6651,7 @@ wa_test_result wa_test_action(wa_test_env* env, json_node* action)
 
     if(!oc_str8_cmp(actionType->string, OC_STR8("invoke")))
     {
-        result = wa_test_invoke(env, action);
+        result = wa_test_invoke(env, instance, action);
     }
     /*
     else if(!oc_str8_cmp(actionType->string, OC_STR8("get"))
@@ -6480,6 +6748,33 @@ wa_module* wa_test_module_load(oc_arena* arena, oc_str8 filename)
     return (module);
 }
 
+wa_instance* wa_test_get_instance(wa_test_env* env, json_node* action)
+{
+    wa_instance* instance = 0;
+    json_node* name = json_find(action, OC_STR8("module"));
+    if(name)
+    {
+        OC_ASSERT(name->kind == JSON_STRING);
+        oc_list_for(env->instances, item, wa_test_instance, listElt)
+        {
+            if(!oc_str8_cmp(item->name, name->string))
+            {
+                instance = item->instance;
+                break;
+            }
+        }
+    }
+    else
+    {
+        wa_test_instance* item = oc_list_last_entry(env->instances, wa_test_instance, listElt);
+        if(item)
+        {
+            instance = item->instance;
+        }
+    }
+    return (instance);
+}
+
 int test_main(int argc, char** argv)
 {
     if(argc < 3)
@@ -6530,11 +6825,22 @@ int test_main(int argc, char** argv)
 
         if(!oc_str8_cmp(type->string, OC_STR8("module")))
         {
-            json_node* name = json_find_assert(command, "filename", JSON_STRING);
+            wa_test_instance* testInstance = oc_arena_push_type(&arena, wa_test_instance);
+            memset(testInstance, 0, sizeof(wa_test_instance));
+
+            json_node* name = json_find(command, OC_STR8("name"));
+            if(name)
+            {
+                OC_ASSERT(name->kind == JSON_STRING);
+                testInstance->name = oc_str8_push_copy(&arena, name->string);
+            }
+            oc_list_push_back(&env.instances, &testInstance->listElt);
+
+            json_node* filename = json_find_assert(command, "filename", JSON_STRING);
 
             oc_str8_list list = { 0 };
             oc_str8_list_push(&arena, &list, testDir);
-            oc_str8_list_push(&arena, &list, name->string);
+            oc_str8_list_push(&arena, &list, filename->string);
 
             oc_str8 filePath = oc_path_join(&arena, list);
 
@@ -6551,16 +6857,19 @@ int test_main(int argc, char** argv)
             }
             else
             {
-                env.instance = wa_instance_create(&arena, module);
+                testInstance->instance = wa_instance_create(&arena, module);
 
-                wa_instance_bind_global(env.instance, OC_STR8("global_i32"), (wa_typed_value){ .type = WA_TYPE_I32, .value.valI32 = 666 });
-                wa_instance_bind_global(env.instance, OC_STR8("global_i64"), (wa_typed_value){ .type = WA_TYPE_I64, .value.valI64 = 666 });
+                wa_instance_bind_global(testInstance->instance, OC_STR8("global_i32"), (wa_typed_value){ .type = WA_TYPE_I32, .value.valI32 = 666 });
+                wa_instance_bind_global(testInstance->instance, OC_STR8("global_i64"), (wa_typed_value){ .type = WA_TYPE_I64, .value.valI64 = 666 });
 
-                if(wa_instance_link(env.instance) != WA_OK)
+                if(wa_instance_link(testInstance->instance) != WA_OK)
                 {
+                    testInstance->instance = 0;
                     wa_test_fail(&env, testName, command);
                     continue;
                 }
+
+                wa_test_pass(&env, testName, command);
             }
         }
         else
@@ -6576,16 +6885,17 @@ int test_main(int argc, char** argv)
 
             if(!oc_str8_cmp(type->string, OC_STR8("assert_return")))
             {
-                if(!env.instance)
+                json_node* expected = json_find_assert(command, "expected", JSON_LIST);
+                json_node* action = json_find_assert(command, "action", JSON_OBJECT);
+
+                wa_instance* instance = wa_test_get_instance(&env, action);
+                if(!instance)
                 {
                     wa_test_fail(&env, testName, command);
                     continue;
                 }
 
-                json_node* expected = json_find_assert(command, "expected", JSON_LIST);
-                json_node* action = json_find_assert(command, "action", JSON_OBJECT);
-
-                wa_test_result result = wa_test_action(&env, action);
+                wa_test_result result = wa_test_action(&env, instance, action);
 
                 bool check = (result.status == WA_OK)
                           && (expected->childCount == result.count);
@@ -6655,6 +6965,7 @@ int test_main(int argc, char** argv)
                         {
                             break;
                         }
+                        retIndex++;
                     }
                 }
 
@@ -6669,14 +6980,15 @@ int test_main(int argc, char** argv)
             }
             else if(!oc_str8_cmp(type->string, OC_STR8("assert_trap")))
             {
-                if(!env.instance)
+                json_node* failure = json_find_assert(command, "text", JSON_STRING);
+                json_node* action = json_find_assert(command, "action", JSON_OBJECT);
+
+                wa_instance* instance = wa_test_get_instance(&env, action);
+                if(!instance)
                 {
                     wa_test_fail(&env, testName, command);
                     continue;
                 }
-
-                json_node* failure = json_find_assert(command, "text", JSON_STRING);
-                json_node* action = json_find_assert(command, "action", JSON_OBJECT);
 
                 wa_status expected = WA_OK;
                 if(!oc_str8_cmp(failure->string, OC_STR8("integer divide by zero")))
@@ -6697,7 +7009,7 @@ int test_main(int argc, char** argv)
                     continue;
                 }
 
-                wa_test_result result = wa_test_action(&env, action);
+                wa_test_result result = wa_test_action(&env, instance, action);
 
                 if(result.status == WA_OK || result.status != expected)
                 {

@@ -83,6 +83,11 @@ void* oc_arena_push(oc_arena* arena, u64 size)
 
 void* oc_arena_push_aligned(oc_arena* arena, u64 size, u32 alignment)
 {
+    if(!size)
+    {
+        return (0);
+    }
+
     oc_arena_chunk* chunk = arena->currentChunk;
     OC_ASSERT(chunk);
 

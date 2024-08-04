@@ -4,7 +4,7 @@ if [ ! -d bin ] ; then
 fi
 
 
-clang -std=c11 -g -I.. -I../ext -L../../build/bin -lorca -o bin/warm main.c
+clang -std=c11 -g -O0 -I.. -I../ext -L../../build/bin -lorca -o bin/warm main.c
 
 cp ../../build/bin/liborca.dylib ./bin
 
