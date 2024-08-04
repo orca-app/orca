@@ -1011,6 +1011,8 @@ static const wa_instr_info wa_instr_infos[] = {
     [WA_INSTR_ref_func] = {
         .immCount = 1,
         .imm = { WA_IMM_FUNC_INDEX },
+        .outCount = 1,
+        .out = { WA_TYPE_FUNC_REF },
         .opdCount = 2,
         .defined = true,
     },
@@ -1032,19 +1034,19 @@ static const wa_instr_info wa_instr_infos[] = {
     //NOTE: variables instructions are handled separately so we don't record their stack arity here
     [WA_INSTR_local_get] = {
         .immCount = 1,
-        .imm = { WA_IMM_I32 },
+        .imm = { WA_IMM_LOCAL_INDEX },
         .opdCount = 2,
         .defined = true,
     },
     [WA_INSTR_local_set] = {
         .immCount = 1,
-        .imm = { WA_IMM_I32 },
+        .imm = { WA_IMM_LOCAL_INDEX },
         .opdCount = 2,
         .defined = true,
     },
     [WA_INSTR_local_tee] = {
         .immCount = 1,
-        .imm = { WA_IMM_I32 },
+        .imm = { WA_IMM_LOCAL_INDEX },
         .opdCount = 2,
         .defined = true,
     },
