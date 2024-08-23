@@ -3055,9 +3055,13 @@ u32 wa_operand_stack_scope_size(wa_build_context* context)
 
 void wa_operand_stack_pop_slots(wa_build_context* context, u64 count)
 {
-    OC_DEBUG_ASSERT(count <= context->opdStackLen);
+    wa_block* block = wa_control_stack_top(context);
+    OC_ASSERT(block);
+    u64 scopeBase = block->scopeBase;
 
-    for(u64 i = 0; i < count; i++)
+    u64 slotCount = oc_min(context->opdStackLen - scopeBase, count);
+
+    for(u64 i = 0; i < slotCount; i++)
     {
         wa_operand_slot* slot = &context->opdStack[context->opdStackLen - i - 1];
         if(slot->kind == WA_OPERAND_SLOT_REG && slot->count == 0)
@@ -3066,7 +3070,7 @@ void wa_operand_stack_pop_slots(wa_build_context* context, u64 count)
         }
     }
 
-    context->opdStackLen -= count;
+    context->opdStackLen -= slotCount;
 }
 
 wa_operand_slot wa_operand_stack_top(wa_build_context* context)
@@ -3133,9 +3137,11 @@ u32 wa_allocate_register(wa_build_context* context)
 
 void wa_move_slot_if_used(wa_build_context* context, u32 slotIndex)
 {
+    wa_block* block = wa_control_stack_top(context);
     u32 newReg = UINT32_MAX;
     u64 count = 0;
-    for(u32 stackIndex = 0; stackIndex < context->opdStackLen; stackIndex++)
+
+    for(u32 stackIndex = block->scopeBase; stackIndex < context->opdStackLen; stackIndex++)
     {
         wa_operand_slot* slot = &context->opdStack[stackIndex];
         if(slot->index == slotIndex)
@@ -3347,6 +3353,8 @@ void wa_block_move_results_to_output_slots(wa_build_context* context, wa_block* 
 
 void wa_operand_stack_pop_scope(wa_build_context* context, wa_block* block)
 {
+    OC_ASSERT(context->opdStackLen >= block->scopeBase);
+
     u64 slotCount = context->opdStackLen - block->scopeBase;
     for(u64 i = 0; i < slotCount; i++)
     {
@@ -3417,57 +3425,49 @@ void wa_patch_jump_targets(wa_build_context* context, wa_block* block)
 
 int wa_compile_return(wa_build_context* context, wa_func_type* type, wa_instr* instr)
 {
-    // Check that there's the correct number / types of values on the stack
-    wa_block* block = wa_control_stack_top(context);
-    if(context->opdStackLen - block->scopeBase < type->returnCount && !block->polymorphic)
-    {
-        //TODO: we should also point to the ast of the return type
-        wa_compile_error(context,
-                         instr->ast,
-                         "Not enough return values (expected: %i, stack depth: %i)\n",
-                         type->returnCount,
-                         context->opdStackLen);
-        return -1;
-    }
-
-    ////////////////////////////////////////////////////////
-    //TODO: handle polymorphic stack
-    ////////////////////////////////////////////////////////
-
-    i64 retSlotStart = (i64)context->opdStackLen - (i64)type->returnCount;
     for(u32 retIndex = 0; retIndex < type->returnCount; retIndex++)
     {
-        if(retSlotStart + (i64)retIndex >= 0)
+        wa_operand_slot slot = wa_operand_stack_lookup(context, type->returnCount - retIndex - 1);
+        if(wa_operand_slot_is_nil(&slot))
         {
-            wa_operand_slot* slot = &context->opdStack[retSlotStart + retIndex];
-            wa_value_type expectedType = type->returns[retIndex];
-            wa_value_type returnType = slot->type;
+            //TODO: we should also point to the ast of the return type
+            wa_compile_error(context,
+                             instr->ast,
+                             "Not enough return values (expected: %i, stack depth: %i)\n",
+                             type->returnCount,
+                             wa_operand_stack_scope_size(context));
+            return -1;
+        }
 
-            if(!wa_check_operand_type(returnType, expectedType))
-            {
-                //TODO: we should also point to the ast of the return type
-                wa_compile_error(context,
-                                 instr->ast,
-                                 "Return type doesn't match function signature (expected %s, got %s)\n",
-                                 wa_value_type_string(expectedType),
-                                 wa_value_type_string(returnType));
-                return -1;
-            }
+        wa_value_type expectedType = type->returns[retIndex];
+        wa_value_type returnType = slot.type;
 
-            //NOTE store value to return slot
-            if(slot->index != retIndex)
-            {
-                wa_move_slot_if_used(context, retIndex);
+        if(!wa_check_operand_type(returnType, expectedType))
+        {
+            //TODO: we should also point to the ast of the return type
+            wa_compile_error(context,
+                             instr->ast,
+                             "Return type doesn't match function signature (expected %s, got %s)\n",
+                             wa_value_type_string(expectedType),
+                             wa_value_type_string(returnType));
+            return -1;
+        }
 
-                wa_emit(context, (wa_code){ .opcode = WA_INSTR_move });
-                wa_emit(context, (wa_code){ .valI64 = slot->index });
-                wa_emit(context, (wa_code){ .valI64 = retIndex });
-            }
+        //NOTE store value to return slot
+        if(slot.index != retIndex)
+        {
+            wa_move_slot_if_used(context, retIndex);
+
+            wa_emit(context, (wa_code){ .opcode = WA_INSTR_move });
+            wa_emit(context, (wa_code){ .valI64 = slot.index });
+            wa_emit(context, (wa_code){ .valI64 = retIndex });
         }
     }
     wa_emit(context, (wa_code){ .opcode = WA_INSTR_return });
 
-    context->opdStackLen -= type->returnCount;
+    wa_block* block = wa_control_stack_top(context);
+    block->polymorphic = true;
+    wa_operand_stack_pop_scope(context, block);
 
     return 0;
 }
@@ -3646,7 +3646,9 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
             wa_compile_branch(context, instr, label);
 
             wa_block* block = wa_control_stack_top(context);
+
             block->polymorphic = true;
+            wa_operand_stack_pop_scope(context, block);
         }
         else if(instr->op == WA_INSTR_br_if)
         {
@@ -3779,6 +3781,7 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
             wa_emit(context, (wa_code){ .opcode = WA_INSTR_jump });
             wa_emit(context, (wa_code){ 0 });
 
+            ifBlock->polymorphic = false;
             ifBlock->begin->elseBranch = instr;
             ifBlock->elseOffset = context->codeLen;
         }
@@ -3817,16 +3820,6 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
             wa_func* callee = &module->functions[instr->imm[0].index];
             u32 paramCount = callee->type->paramCount;
 
-            if(context->opdStackLen < paramCount)
-            {
-                wa_compile_error(context,
-                                 instr->ast,
-                                 "Not enough arguments on stack (expected: %u, got: %u)\n",
-                                 paramCount,
-                                 context->opdStackLen);
-                break;
-            }
-
             i64 maxUsedSlot = -1;
             for(u32 stackIndex = 0; stackIndex < context->opdStackLen; stackIndex++)
             {
@@ -3834,27 +3827,38 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
                 maxUsedSlot = oc_max((i64)slot->index, maxUsedSlot);
             }
 
-            context->opdStackLen -= paramCount;
-            //TODO: first check if we args are already in order at the end of the frame?
+            //TODO: first check if args are already in order at the end of the frame?
             for(u32 argIndex = 0; argIndex < paramCount; argIndex++)
             {
-                wa_operand_slot* slot = &context->opdStack[context->opdStackLen + argIndex];
+                wa_operand_slot slot = wa_operand_stack_lookup(context, paramCount - argIndex - 1);
+                if(wa_operand_slot_is_nil(&slot))
+                {
+                    wa_compile_error(context,
+                                     instr->ast,
+                                     "Not enough arguments on stack (expected: %u, got: %u)\n",
+                                     paramCount,
+                                     wa_operand_stack_scope_size(context));
+                    break;
+                }
+
                 wa_value_type paramType = callee->type->params[argIndex];
 
-                if(!wa_check_operand_type(slot->type, paramType))
+                if(!wa_check_operand_type(slot.type, paramType))
                 {
                     wa_compile_error(context,
                                      instr->ast,
                                      "Type mismatch for argument %u (expected %s, got %s)\n",
                                      argIndex,
                                      wa_value_type_string(paramType),
-                                     wa_value_type_string(slot->type));
+                                     wa_value_type_string(slot.type));
                     break;
                 }
                 wa_emit(context, (wa_code){ .opcode = WA_INSTR_move });
-                wa_emit(context, (wa_code){ .valI32 = slot->index });
+                wa_emit(context, (wa_code){ .valI32 = slot.index });
                 wa_emit(context, (wa_code){ .valI32 = maxUsedSlot + 1 + argIndex });
             }
+
+            wa_operand_stack_pop_slots(context, paramCount);
 
             wa_emit(context, (wa_code){ .opcode = WA_INSTR_call });
             wa_emit(context, (wa_code){ .valI64 = instr->imm[0].index });
@@ -3878,7 +3882,10 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
         }
         else if(instr->op == WA_INSTR_call_indirect)
         {
+            ////////////////////////////////////////
             //TODO: coalesce with regular call
+            ////////////////////////////////////////
+
             wa_operand_slot slot = wa_operand_stack_pop(context);
             if(wa_operand_slot_is_nil(&slot))
             {
@@ -3901,16 +3908,6 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
             wa_func_type* type = &module->types[instr->imm[0].index];
             u32 paramCount = type->paramCount;
 
-            if(context->opdStackLen < paramCount) //TODO: check if stack is polymorphic
-            {
-                wa_compile_error(context,
-                                 instr->ast,
-                                 "Not enough arguments on stack (expected: %u, got: %u)\n",
-                                 paramCount,
-                                 context->opdStackLen);
-                break;
-            }
-
             //TODO: we should probably be more clever here, eg in some case just move the index operand
             //      past the arguments?
             i64 maxUsedSlot = slot.index;
@@ -3920,28 +3917,38 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
                 maxUsedSlot = oc_max((i64)slot->index, maxUsedSlot);
             }
 
-            context->opdStackLen -= paramCount;
-
-            //TODO: first check if we args are already in order at the end of the frame?
+            //TODO: first check if args are already in order at the end of the frame?
             for(u32 argIndex = 0; argIndex < paramCount; argIndex++)
             {
-                wa_operand_slot* slot = &context->opdStack[context->opdStackLen + argIndex];
+                wa_operand_slot slot = wa_operand_stack_lookup(context, paramCount - argIndex - 1);
+                if(wa_operand_slot_is_nil(&slot))
+                {
+                    wa_compile_error(context,
+                                     instr->ast,
+                                     "Not enough arguments on stack (expected: %u, got: %u)\n",
+                                     paramCount,
+                                     wa_operand_stack_scope_size(context));
+                    break;
+                }
+
                 wa_value_type paramType = type->params[argIndex];
 
-                if(!wa_check_operand_type(slot->type, paramType))
+                if(!wa_check_operand_type(slot.type, paramType))
                 {
                     wa_compile_error(context,
                                      instr->ast,
                                      "Type mismatch for argument %u (expected %s, got %s)\n",
                                      argIndex,
                                      wa_value_type_string(paramType),
-                                     wa_value_type_string(slot->type));
+                                     wa_value_type_string(slot.type));
                     break;
                 }
                 wa_emit(context, (wa_code){ .opcode = WA_INSTR_move });
-                wa_emit(context, (wa_code){ .valI32 = slot->index });
+                wa_emit(context, (wa_code){ .valI32 = slot.index });
                 wa_emit(context, (wa_code){ .valI32 = maxUsedSlot + 1 + argIndex });
             }
+
+            wa_operand_stack_pop_slots(context, paramCount);
 
             wa_emit(context, (wa_code){ .opcode = WA_INSTR_call_indirect });
             wa_emit(context, (wa_code){ .valI32 = instr->imm[0].index });
@@ -4104,7 +4111,7 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
                 break;
             }
 
-            if(slot.type != module->globals[globalIndex].type)
+            if(!wa_check_operand_type(slot.type, module->globals[globalIndex].type))
             {
                 wa_compile_error(context,
                                  instr->ast,
