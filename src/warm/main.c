@@ -2826,10 +2826,11 @@ typedef struct wa_block
     wa_instr* begin;
     u64 beginOffset;
     u64 elseOffset;
-    u64 scopeBase;
     oc_list jumpTargets;
 
+    u64 scopeBase;
     bool polymorphic;
+    bool prevPolymorphic;
 
 } wa_block;
 
@@ -2923,6 +2924,11 @@ void wa_control_stack_push(wa_build_context* context, wa_instr* instr)
         .beginOffset = context->codeLen,
         .scopeBase = context->opdStackLen,
     };
+
+    if(context->controlStackLen && context->controlStack[context->controlStackLen - 1].polymorphic)
+    {
+        context->controlStack[context->controlStackLen].prevPolymorphic = true;
+    }
     context->controlStackLen++;
 }
 
@@ -3039,6 +3045,12 @@ wa_operand_slot wa_operand_stack_lookup(wa_build_context* context, u32 index)
         };
     }
     return (slot);
+}
+
+u32 wa_operand_stack_scope_size(wa_build_context* context)
+{
+    wa_block* block = wa_control_stack_top(context);
+    return context->opdStackLen - block->scopeBase;
 }
 
 void wa_operand_stack_pop_slots(wa_build_context* context, u64 count)
@@ -3158,16 +3170,21 @@ void wa_move_locals_to_registers(wa_build_context* context)
     }
 }
 
+bool wa_check_operand_type(wa_value_type t1, wa_value_type t2)
+{
+    return (t1 == t2 || t1 == WA_TYPE_UNKNOWN || t2 == WA_TYPE_UNKNOWN);
+}
+
 void wa_push_block_inputs(wa_build_context* context, wa_func_type* type)
 {
     OC_ASSERT(context->controlStackLen > 1);
     wa_block* prevBlock = &context->controlStack[context->controlStackLen - 2];
 
-    u64 paramStart = context->opdStackLen - (inputCount + outputCount);
+    u64 paramStart = context->opdStackLen - (type->paramCount + type->returnCount);
     u64 inputEnd = context->opdStackLen - type->returnCount;
     u64 copyStart = type->paramCount - (inputEnd - prevBlock->scopeBase);
 
-    for(u64 inIndex = 0; inIndex < inputCount; inIndex++)
+    for(u64 inIndex = 0; inIndex < type->paramCount; inIndex++)
     {
         if(inIndex < copyStart)
         {
@@ -3198,7 +3215,7 @@ void wa_block_begin(wa_build_context* context, wa_instr* instr)
 
     for(u64 inIndex = 0; inIndex < type->paramCount; inIndex++)
     {
-        wa_operand_slot slot = wa_operand_stack_lookup(type->paramCount - inIndex - 1);
+        wa_operand_slot slot = wa_operand_stack_lookup(context, type->paramCount - inIndex - 1);
         if(wa_operand_slot_is_nil(&slot))
         {
             wa_compile_error(context,
@@ -3210,14 +3227,14 @@ void wa_block_begin(wa_build_context* context, wa_instr* instr)
         else
         {
             wa_value_type expected = type->params[inIndex];
-            if(!wa_check_operand_types(slot->type, expected))
+            if(!wa_check_operand_type(slot.type, expected))
             {
                 wa_compile_error(context,
                                  instr->ast,
                                  "operand type mismatch for param %i (expected %s, got %s)\n",
                                  inIndex,
                                  wa_value_type_string(expected),
-                                 wa_value_type_string(slot->type));
+                                 wa_value_type_string(slot.type));
             }
         }
     }
@@ -3244,25 +3261,24 @@ void wa_block_begin(wa_build_context* context, wa_instr* instr)
 
 void wa_block_move_results_to_input_slots(wa_build_context* context, wa_block* block, wa_instr* instr)
 {
-    //NOTE validate block type output
     wa_func_type* type = block->begin->blockType;
 
     for(u64 paramIndex = 0; paramIndex < type->paramCount; paramIndex++)
     {
-        wa_operand_slot slot = wa_operand_stack_lookup(type->paramCount - paramIndex - 1);
+        wa_operand_slot slot = wa_operand_stack_lookup(context, type->paramCount - paramIndex - 1);
         if(wa_operand_slot_is_nil(&slot))
         {
             wa_compile_error(context,
                              instr->ast,
                              "not enough operands on stack (expected %i, got %i)\n",
                              type->paramCount,
-                             context->opdStackLen);
+                             wa_operand_stack_scope_size(context));
             return;
         }
         else
         {
             wa_value_type expected = type->params[paramIndex];
-            if(!wa_check_operand_types(expected, slot->type))
+            if(!wa_check_operand_type(expected, slot.type))
             {
                 //TODO: here we'd like to point to the instruction that triggered the end of the block,
                 //      _but also_ the ast of the param type...
@@ -3270,36 +3286,19 @@ void wa_block_move_results_to_input_slots(wa_build_context* context, wa_block* b
                                  instr->ast,
                                  "operand type mismatch for block input %i (expected %s, got %s)\n",
                                  paramIndex,
-                                 wa_value_type_string(expectedType),
-                                 wa_value_type_string(opdType));
+                                 wa_value_type_string(expected),
+                                 wa_value_type_string(slot.type));
                 return;
             }
 
-            //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-            //TODO: if there wasn't enough input operands because of a polymorphic stack, this could underflow the operand stack...
-            //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-            // just always pop and re-push those values at begining of block?
-            // or have a function to lookup within a given block?
-
-            wa_operand_slot* dst = &context->opdStack[scopeBase - type->returnCount - type->paramCount];
+            if(!block->polymorphic && !block->prevPolymorphic)
+            {
+                wa_operand_slot* dst = &context->opdStack[block->scopeBase - type->returnCount - type->paramCount + paramIndex];
+                wa_emit(context, (wa_code){ .opcode = WA_INSTR_move });
+                wa_emit(context, (wa_code){ .valI64 = slot.index });
+                wa_emit(context, (wa_code){ .valI64 = dst->index });
+            }
         }
-    }
-
-    //NOTE move top operands to result slots
-    u64 scopeBase = block->scopeBase;
-
-    u64 resultOperandStart = context->opdStackLen - type->paramCount;
-    u64 resultSlotStart = scopeBase - type->returnCount - type->paramCount;
-
-    for(u64 outIndex = 0; outIndex < type->paramCount; outIndex++)
-    {
-        wa_operand_slot* src = &context->opdStack[resultOperandStart + outIndex];
-        wa_operand_slot* dst = &context->opdStack[resultSlotStart + outIndex];
-
-        wa_emit(context, (wa_code){ .opcode = WA_INSTR_move });
-        wa_emit(context, (wa_code){ .valI64 = src->index });
-        wa_emit(context, (wa_code){ .valI64 = dst->index });
     }
 }
 
@@ -3310,73 +3309,84 @@ void wa_block_move_results_to_output_slots(wa_build_context* context, wa_block* 
 
     for(u32 returnIndex = 0; returnIndex < type->returnCount; returnIndex++)
     {
-        if(context->opdStackLen - block->scopeBase < type->returnCount - returnIndex)
+        wa_operand_slot slot = wa_operand_stack_lookup(context, type->returnCount - returnIndex - 1);
+        if(wa_operand_slot_is_nil(&slot))
         {
-            if(!block->polymorphic)
-            {
-                wa_compile_error(context,
-                                 instr->ast,
-                                 "not enough operands on stack (expected %i, got %i)\n",
-                                 type->returnCount,
-                                 context->opdStackLen - block->scopeBase);
-            }
+            wa_compile_error(context,
+                             instr->ast,
+                             "not enough operands on stack (expected %i, got %i)\n",
+                             type->returnCount,
+                             wa_operand_stack_scope_size(context));
         }
         else
         {
-            wa_value_type opdType = context->opdStack[context->opdStackLen + returnIndex - type->returnCount].type;
-            wa_value_type expectedType = type->returns[returnIndex];
-            if(opdType != expectedType)
+            wa_value_type expected = type->returns[returnIndex];
+            if(!wa_check_operand_type(expected, slot.type))
             {
-                //TODO: here we should have access to the location that triggered this end of block
-                //      but _also_ the ast of the block return
+                //TODO: here we'd like to point to the instruction that triggered the end of the block,
+                //      _but also_ the ast of the param type...
                 wa_compile_error(context,
                                  instr->ast,
                                  "operand type mismatch for block output %i (expected %s, got %s)\n",
                                  returnIndex,
-                                 wa_value_type_string(expectedType),
-                                 wa_value_type_string(opdType));
+                                 wa_value_type_string(expected),
+                                 wa_value_type_string(slot.type));
                 return;
+            }
+
+            if(!block->polymorphic && !block->prevPolymorphic)
+            {
+                wa_operand_slot* dst = &context->opdStack[block->scopeBase - type->returnCount + returnIndex];
+                wa_emit(context, (wa_code){ .opcode = WA_INSTR_move });
+                wa_emit(context, (wa_code){ .valI64 = slot.index });
+                wa_emit(context, (wa_code){ .valI64 = dst->index });
             }
         }
     }
+}
 
-    //NOTE move top operands to result slots
-    u64 scopeBase = block->scopeBase;
-
-    u64 resultOperandStart = context->opdStackLen - type->returnCount;
-    u64 resultSlotStart = scopeBase - type->returnCount;
-
-    for(u64 outIndex = 0; outIndex < type->returnCount; outIndex++)
+void wa_operand_stack_pop_scope(wa_build_context* context, wa_block* block)
+{
+    u64 slotCount = context->opdStackLen - block->scopeBase;
+    for(u64 i = 0; i < slotCount; i++)
     {
-        wa_operand_slot* src = &context->opdStack[resultOperandStart + outIndex];
-        wa_operand_slot* dst = &context->opdStack[resultSlotStart + outIndex];
-
-        wa_emit(context, (wa_code){ .opcode = WA_INSTR_move });
-        wa_emit(context, (wa_code){ .valI64 = src->index });
-        wa_emit(context, (wa_code){ .valI64 = dst->index });
+        wa_operand_stack_pop(context);
     }
+    OC_ASSERT(context->opdStackLen == block->scopeBase);
 }
 
 void wa_block_end(wa_build_context* context, wa_block* block, wa_instr* instr)
 {
     wa_block_move_results_to_output_slots(context, block, instr);
 
-    //TODO: pop result operands, or pop until scope start ?? (shouldn't this already be done?)
     wa_func_type* type = block->begin->blockType;
-    wa_operand_stack_pop_slots(context, type->returnCount);
 
-    //------------------------------------------------------
-    //TODO: should unwind whole scope here
+    //NOTE - pop slots until scope is empty,
+    //     - pop block scope
+    //     - pop reserved outputs and saved params,
+    //     - push result slots on top of stack
 
-    //NOTE: pop saved params, and push result slots on top of stack
+    wa_operand_stack_pop_scope(context, block);
+    wa_control_stack_pop(context);
+
+    //NOTE: here we keep return slots allocated by just decrementing stack len,
+    //      and then we pop (and recycle) input slots. Then we just copy return
+    //      slots to the top of the stack.
+    //WARN: If we later decide to reuse reserved return slots inside block, we
+    //      must re-mark them as allocated here too...
+
     context->opdStackLen -= type->returnCount;
+    u64 returnSlotStart = context->opdStackLen;
+
     for(u64 index = 0; index < type->paramCount; index++)
     {
         wa_operand_stack_pop(context);
     }
+
     memcpy(&context->opdStack[context->opdStackLen],
-           &context->opdStack[context->opdStackLen + type->paramCount],
+           &context->opdStack[returnSlotStart],
            type->returnCount * sizeof(wa_operand_slot));
+
     context->opdStackLen += type->returnCount;
 
     if(block->begin->op == WA_INSTR_if)
@@ -3403,11 +3413,6 @@ void wa_patch_jump_targets(wa_build_context* context, wa_block* block)
     {
         context->code[target->offset].valI64 = context->codeLen - target->offset;
     }
-}
-
-bool wa_check_operand_type(wa_value_type t1, wa_value_type t2)
-{
-    return (t1 == t2 || t1 == WA_TYPE_UNKNOWN || t2 == WA_TYPE_UNKNOWN);
 }
 
 int wa_compile_return(wa_build_context* context, wa_func_type* type, wa_instr* instr)
@@ -3768,8 +3773,7 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
             wa_func_type* type = ifBlock->begin->blockType;
 
             wa_block_move_results_to_output_slots(context, ifBlock, instr);
-            wa_operand_stack_pop_slots(context, type->returnCount);
-
+            wa_operand_stack_pop_scope(context, ifBlock);
             wa_push_block_inputs(context, type);
 
             wa_emit(context, (wa_code){ .opcode = WA_INSTR_jump });
@@ -3806,7 +3810,6 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
             {
                 wa_block_end(context, block, instr);
                 wa_patch_jump_targets(context, block);
-                wa_control_stack_pop(context);
             }
         }
         else if(instr->op == WA_INSTR_call)
