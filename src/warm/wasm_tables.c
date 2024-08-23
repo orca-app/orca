@@ -453,8 +453,8 @@ typedef enum wa_instruction_prefix
 } wa_instruction_prefix;
 
 static const wa_instr_op wa_instr_decode_basic[] = {
-    [0x00] = WA_INSTR_nop,
-    [0x01] = WA_INSTR_unreachable,
+    [0x00] = WA_INSTR_unreachable,
+    [0x01] = WA_INSTR_nop,
     [0x02] = WA_INSTR_block,
     [0x03] = WA_INSTR_loop,
     [0x04] = WA_INSTR_if,
