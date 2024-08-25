@@ -938,32 +938,32 @@ static const wa_value_type WA_BLOCK_TYPE_FUNC_REF_VAL = WA_TYPE_FUNC_REF;
 static const wa_value_type WA_BLOCK_TYPE_EXTERN_REF_VAL = WA_TYPE_EXTERN_REF;
 
 static const wa_func_type WA_BLOCK_VALUE_TYPES[] = {
-    { 0 },
-    {
+    [0] = { 0 },
+    [1] = {
         .returnCount = 1,
         .returns = (wa_value_type*)&WA_BLOCK_TYPE_I32_VAL,
     },
-    {
+    [2] = {
         .returnCount = 1,
         .returns = (wa_value_type*)&WA_BLOCK_TYPE_I64_VAL,
     },
-    {
+    [3] = {
         .returnCount = 1,
         .returns = (wa_value_type*)&WA_BLOCK_TYPE_F32_VAL,
     },
-    {
+    [4] = {
         .returnCount = 1,
         .returns = (wa_value_type*)&WA_BLOCK_TYPE_F64_VAL,
     },
-    {
+    [5] = {
         .returnCount = 1,
         .returns = (wa_value_type*)&WA_BLOCK_TYPE_V128_VAL,
     },
-    {
+    [16] = {
         .returnCount = 1,
         .returns = (wa_value_type*)&WA_BLOCK_TYPE_FUNC_REF_VAL,
     },
-    {
+    [17] = {
         .returnCount = 1,
         .returns = (wa_value_type*)&WA_BLOCK_TYPE_EXTERN_REF_VAL,
     },
@@ -3097,6 +3097,24 @@ wa_operand_slot wa_operand_stack_top(wa_build_context* context)
     return (slot);
 }
 
+void wa_operand_stack_pop_scope(wa_build_context* context, wa_block* block)
+{
+    OC_ASSERT(context->opdStackLen >= block->scopeBase);
+
+    u64 slotCount = context->opdStackLen - block->scopeBase;
+    for(u64 i = 0; i < slotCount; i++)
+    {
+        wa_operand_stack_pop(context);
+    }
+    OC_ASSERT(context->opdStackLen == block->scopeBase);
+}
+
+void wa_block_set_polymorphic(wa_build_context* context, wa_block* block)
+{
+    block->polymorphic = true;
+    wa_operand_stack_pop_scope(context, block);
+}
+
 void wa_emit(wa_build_context* context, wa_code code)
 {
     if(context->codeLen >= context->codeCap)
@@ -3352,18 +3370,6 @@ void wa_block_move_results_to_output_slots(wa_build_context* context, wa_block* 
     }
 }
 
-void wa_operand_stack_pop_scope(wa_build_context* context, wa_block* block)
-{
-    OC_ASSERT(context->opdStackLen >= block->scopeBase);
-
-    u64 slotCount = context->opdStackLen - block->scopeBase;
-    for(u64 i = 0; i < slotCount; i++)
-    {
-        wa_operand_stack_pop(context);
-    }
-    OC_ASSERT(context->opdStackLen == block->scopeBase);
-}
-
 void wa_block_end(wa_build_context* context, wa_block* block, wa_instr* instr)
 {
     if(block->begin->op == WA_INSTR_if && !block->begin->elseBranch)
@@ -3479,17 +3485,12 @@ int wa_compile_return(wa_build_context* context, wa_func_type* type, wa_instr* i
         }
     }
     wa_emit(context, (wa_code){ .opcode = WA_INSTR_return });
-
-    wa_block* block = wa_control_stack_top(context);
-    block->polymorphic = true;
-    wa_operand_stack_pop_scope(context, block);
-
     return 0;
 }
 
 void wa_compile_branch(wa_build_context* context, wa_instr* instr, u32 label)
 {
-    if(label == context->controlStackLen)
+    if(label + 1 == context->controlStackLen)
     {
         //Do a return
         wa_compile_return(context, context->exprType, instr);
@@ -3661,9 +3662,7 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
             wa_compile_branch(context, instr, label);
 
             wa_block* block = wa_control_stack_top(context);
-
-            block->polymorphic = true;
-            wa_operand_stack_pop_scope(context, block);
+            wa_block_set_polymorphic(context, block);
         }
         else if(instr->op == WA_INSTR_br_if)
         {
@@ -3744,6 +3743,9 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
             }
 
             oc_scratch_end(scratch);
+
+            wa_block* block = wa_control_stack_top(context);
+            wa_block_set_polymorphic(context, block);
         }
         else if(instr->op == WA_INSTR_if)
         {
@@ -3993,6 +3995,9 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
             {
                 break;
             }
+            wa_block* block = wa_control_stack_top(context);
+            block->polymorphic = true;
+            wa_operand_stack_pop_scope(context, block);
         }
         else if(instr->op == WA_INSTR_local_get)
         {
@@ -4474,11 +4479,14 @@ void wa_print_bytecode(u64 len, wa_code* bytecode)
 {
     for(u64 codeIndex = 0; codeIndex < len; codeIndex++)
     {
+        u64 startIndex = codeIndex;
+
         wa_code* c = &bytecode[codeIndex];
         printf("0x%08llx ", codeIndex);
         printf("%-16s0x%02x ", wa_instr_strings[c->opcode], c->opcode);
 
         const wa_instr_info* info = &wa_instr_infos[c->opcode];
+
         for(u64 i = 0; i < info->opdCount; i++)
         {
             codeIndex++;
@@ -4488,6 +4496,18 @@ void wa_print_bytecode(u64 len, wa_code* bytecode)
             }
             printf("0x%02llx ", bytecode[codeIndex].valI64);
         }
+
+        if(c->opcode == WA_INSTR_jump_table)
+        {
+            printf("\n\t");
+            u64 brCount = bytecode[startIndex + 1].valI32;
+            for(u64 i = 0; i < brCount; i++)
+            {
+                codeIndex++;
+                printf("0x%02llx ", bytecode[codeIndex].valI64);
+            }
+        }
+
         printf("\n");
     }
     printf("0x%08llx eof\n", len);
