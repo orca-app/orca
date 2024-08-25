@@ -434,6 +434,35 @@ oc_str8 json_convert_escaped_string(oc_arena* arena, oc_str8 string)
                     result.ptr[result.len] = '\\';
                     break;
 
+                case 'u':
+                {
+                    u32 codepoint = 0;
+                    offset++;
+                    for(int i = 0; i < 4; i++)
+                    {
+                        char c = string.ptr[offset + i];
+                        u32 digit = 0;
+                        if(c >= '0' && c <= '9')
+                        {
+                            digit = c - '0';
+                        }
+                        else if(c >= 'a' && c <= 'f')
+                        {
+                            digit = c - 'a' + 10;
+                        }
+                        else
+                        {
+                            OC_ASSERT(0, "unreachable");
+                        }
+                        codepoint = codepoint * 16 + digit;
+                    }
+                    offset += 3;
+
+                    oc_str8 enc = oc_utf8_encode(result.ptr + result.len, codepoint);
+                    result.len += enc.len - 1;
+                }
+                break;
+
                 default:
                     OC_ASSERT(0, "unreachable");
                     break;

@@ -1062,10 +1062,12 @@ typedef enum wa_status
     WA_ERROR_BIND_TYPE,
     WA_FAIL_MISSING_IMPORT,
 
+    WA_TRAP_UNREACHABLE,
     WA_TRAP_INVALID_OP,
     WA_TRAP_DIVIDE_BY_ZERO,
     WA_TRAP_INTEGER_OVERFLOW,
     WA_TRAP_INVALID_INTEGER_CONVERSION,
+    WA_TRAP_STACK_OVERFLOW,
 } wa_status;
 
 static const char* wa_status_strings[] = {
@@ -1081,10 +1083,13 @@ static const char* wa_status_strings[] = {
     "invalid arguments",
     "binding type mismatch",
     "missing import",
+
+    "unreachable",
     "invalid opcode",
     "divide by zero",
     "integer overflow",
     "invalid integer conversion",
+    "stack overflow",
 };
 
 typedef struct wa_module_error
@@ -1888,11 +1893,11 @@ void wa_parse_functions(wa_parser* parser, wa_module* module)
                 func->type = &module->types[typeIndex];
             }
         }
-        module->functionCount += module->functionImportCount;
-
         vector->loc.len = parser->offset - vector->loc.start;
         section->loc.len = parser->offset - section->loc.start;
     }
+    module->functionCount += module->functionImportCount;
+
     //NOTE: check section size
     if(parser->offset - startOffset != module->toc.functions.len)
     {
@@ -3485,6 +3490,10 @@ int wa_compile_return(wa_build_context* context, wa_func_type* type, wa_instr* i
         }
     }
     wa_emit(context, (wa_code){ .opcode = WA_INSTR_return });
+
+    //WARN: wa_compile_return() is also used by conditional or table branches when they target the top-level scope,
+    //      so we don't set the stack polymorphic here. Instead we do it in the callers when return is unconditional
+
     return 0;
 }
 
@@ -3570,6 +3579,12 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
 
         //NOTE: immediates should have been validated when parsing instructions
 
+        if(instr->op == WA_INSTR_unreachable)
+        {
+            wa_emit(context, (wa_code){ .opcode = WA_INSTR_unreachable });
+            wa_block* block = wa_control_stack_top(context);
+            wa_block_set_polymorphic(context, block);
+        }
         if(instr->op == WA_INSTR_nop)
         {
             // do nothing
@@ -4769,6 +4784,12 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
 
         switch(opcode)
         {
+            case WA_INSTR_unreachable:
+            {
+                return WA_TRAP_UNREACHABLE;
+            }
+            break;
+
             case WA_INSTR_i32_const:
             {
                 locals[pc[1].valI32].valI32 = pc[0].valI32;
@@ -5038,6 +5059,11 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
                     };
                     controlStackTop++;
 
+                    if(controlStackTop >= 1024)
+                    {
+                        return (WA_TRAP_STACK_OVERFLOW);
+                    }
+
                     locals += pc[1].valI64;
                     pc = callee->code;
                 }
@@ -5073,6 +5099,10 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
                         .returnFrame = locals,
                     };
                     controlStackTop++;
+                    if(controlStackTop >= 1024)
+                    {
+                        return (WA_TRAP_STACK_OVERFLOW);
+                    }
 
                     locals += maxUsedSlot;
                     pc = callee->code;
@@ -6621,7 +6651,19 @@ wa_typed_value test_parse_value(json_node* arg)
         {
             value = parse_value_64(argVal->string);
             OC_ASSERT(value.type == WA_TYPE_I64);
-            value.type = WA_TYPE_EXTERN_REF;
+        }
+    }
+    else if(!oc_str8_cmp(argType->string, OC_STR8("funcref")))
+    {
+        value.type = WA_TYPE_FUNC_REF;
+        if(!oc_str8_cmp(argVal->string, OC_STR8("null")))
+        {
+            value.value.valI64 = 0;
+        }
+        else
+        {
+            value = parse_value_64(argVal->string);
+            OC_ASSERT(value.type == WA_TYPE_I64);
         }
     }
     else
@@ -6643,6 +6685,9 @@ typedef struct wa_test_env
     oc_arena* arena;
 
     oc_list instances;
+
+    oc_str8 fileName;
+    json_node* command;
 
     u32 passed;
     u32 failed;
@@ -6686,29 +6731,6 @@ wa_test_result wa_test_invoke(wa_test_env* env, wa_instance* instance, json_node
     res.status = wa_instance_invoke(instance, func, argCount, argVals, res.count, res.values);
 
     return res;
-}
-
-wa_test_result wa_test_action(wa_test_env* env, wa_instance* instance, json_node* action)
-{
-    wa_test_result result = { 0 };
-
-    json_node* actionType = json_find_assert(action, "type", JSON_STRING);
-
-    if(!oc_str8_cmp(actionType->string, OC_STR8("invoke")))
-    {
-        result = wa_test_invoke(env, instance, action);
-    }
-    /*
-    else if(!oc_str8_cmp(actionType->string, OC_STR8("get"))
-    {
-        //TODO
-    }
-    */
-    else
-    {
-        OC_ASSERT(0, "unreachable");
-    }
-    return (result);
 }
 
 typedef enum wa_test_status
@@ -6767,6 +6789,29 @@ void wa_test_mark(wa_test_env* env, wa_test_status status, oc_str8 fileName, jso
 #define wa_test_fail(env, fileName, command) wa_test_mark(env, WA_TEST_FAIL, fileName, command)
 #define wa_test_skip(env, fileName, command) wa_test_mark(env, WA_TEST_SKIP, fileName, command)
 
+wa_test_result wa_test_action(wa_test_env* env, wa_instance* instance, json_node* action)
+{
+    wa_test_result result = { 0 };
+
+    json_node* actionType = json_find_assert(action, "type", JSON_STRING);
+
+    if(!oc_str8_cmp(actionType->string, OC_STR8("invoke")))
+    {
+        result = wa_test_invoke(env, instance, action);
+    }
+    /*
+    else if(!oc_str8_cmp(actionType->string, OC_STR8("get"))
+    {
+        //TODO
+    }
+    */
+    else
+    {
+        wa_test_skip(env, env->fileName, env->command);
+    }
+    return (result);
+}
+
 wa_module* wa_test_module_load(oc_arena* arena, oc_str8 filename)
 {
     oc_arena_scope scratch = oc_scratch_begin_next(arena);
@@ -6820,76 +6865,57 @@ wa_instance* wa_test_get_instance(wa_test_env* env, json_node* action)
     return (instance);
 }
 
-int test_main(int argc, char** argv)
+int test_file(oc_str8 testPath, oc_str8 testName, oc_str8 testDir, i32 filterLine, wa_test_env* env)
 {
-    if(argc < 3)
-    {
-        printf("usage: warm test jsonfile [line]");
-        return (-1);
-    }
-
-    oc_str8 testPath = OC_STR8(argv[2]);
-    oc_str8 testName = oc_path_slice_filename(testPath);
-    oc_str8 testDir = oc_path_slice_directory(testPath);
-
-    i32 filterLine = -1;
-    if(argc > 3)
-    {
-        filterLine = atoi(argv[3]);
-    }
-
-    oc_arena arena = { 0 };
-    oc_arena_init(&arena);
-
-    wa_test_env env = {
-        .arena = &arena,
-    };
-
     oc_str8 contents = { 0 };
     {
         oc_file file = oc_file_open(testPath, OC_FILE_ACCESS_READ, OC_FILE_OPEN_NONE);
-        if(oc_file_is_nil(file))
+        if(oc_file_last_error(file) != OC_IO_OK)
         {
             oc_log_error("Couldn't open file %.*s\n", oc_str8_ip(testPath));
             return (-1);
         }
 
         contents.len = oc_file_size(file);
-        contents.ptr = oc_arena_push(&arena, contents.len);
+        contents.ptr = oc_arena_push(env->arena, contents.len);
 
         oc_file_read(file, contents.len, contents.ptr);
         oc_file_close(file);
     }
 
-    json_node* json = json_parse_str8(&arena, contents);
+    env->fileName = testName;
+
+    json_node* json = json_parse_str8(env->arena, contents);
     json_node* commands = json_find_assert(json, "commands", JSON_LIST);
 
     oc_list_for(commands->children, command, json_node, listElt)
     {
+        env->command = command;
+
         json_node* type = json_find_assert(command, "type", JSON_STRING);
 
         if(!oc_str8_cmp(type->string, OC_STR8("module")))
         {
-            wa_test_instance* testInstance = oc_arena_push_type(&arena, wa_test_instance);
+            wa_test_instance* testInstance = oc_arena_push_type(env->arena, wa_test_instance);
             memset(testInstance, 0, sizeof(wa_test_instance));
 
             json_node* name = json_find(command, OC_STR8("name"));
             if(name)
             {
                 OC_ASSERT(name->kind == JSON_STRING);
-                testInstance->name = oc_str8_push_copy(&arena, name->string);
+                testInstance->name = oc_str8_push_copy(env->arena, name->string);
             }
-            oc_list_push_back(&env.instances, &testInstance->listElt);
+            oc_list_push_back(&env->instances, &testInstance->listElt);
 
             json_node* filename = json_find_assert(command, "filename", JSON_STRING);
 
             oc_str8_list list = { 0 };
-            oc_str8_list_push(&arena, &list, testDir);
-            oc_str8_list_push(&arena, &list, filename->string);
+            oc_str8_list_push(env->arena, &list, testDir);
+            oc_str8_list_push(env->arena, &list, filename->string);
 
-            oc_str8 filePath = oc_path_join(&arena, list);
+            oc_str8 filePath = oc_path_join(env->arena, list);
 
-            wa_module* module = wa_test_module_load(&arena, filePath);
+            wa_module* module = wa_test_module_load(env->arena, filePath);
             OC_ASSERT(module);
 
             if(!oc_list_empty(module->errors))
@@ -6897,12 +6923,12 @@ int test_main(int argc, char** argv)
                 wa_module_print_errors(module);
                 wa_module_print_errors(module);
 
-                wa_test_fail(&env, testName, command);
+                wa_test_fail(env, testName, command);
                 continue;
             }
             else
             {
-                testInstance->instance = wa_instance_create(&arena, module);
+                testInstance->instance = wa_instance_create(env->arena, module);
 
                 wa_instance_bind_global(testInstance->instance, OC_STR8("global_i32"), (wa_typed_value){ .type = WA_TYPE_I32, .value.valI32 = 666 });
                 wa_instance_bind_global(testInstance->instance, OC_STR8("global_i64"), (wa_typed_value){ .type = WA_TYPE_I64, .value.valI64 = 666 });
@@ -6910,11 +6936,11 @@ int test_main(int argc, char** argv)
                 if(wa_instance_link(testInstance->instance) != WA_OK)
                 {
                     testInstance->instance = 0;
-                    wa_test_fail(&env, testName, command);
+                    wa_test_fail(env, testName, command);
                     continue;
                 }
 
-                wa_test_pass(&env, testName, command);
+                wa_test_pass(env, testName, command);
             }
         }
         else
@@ -6933,14 +6959,14 @@ int test_main(int argc, char** argv)
                 json_node* expected = json_find_assert(command, "expected", JSON_LIST);
                 json_node* action = json_find_assert(command, "action", JSON_OBJECT);
 
-                wa_instance* instance = wa_test_get_instance(&env, action);
+                wa_instance* instance = wa_test_get_instance(env, action);
                 if(!instance)
                 {
-                    wa_test_fail(&env, testName, command);
+                    wa_test_fail(env, testName, command);
                     continue;
                 }
 
-                wa_test_result result = wa_test_action(&env, instance, action);
+                wa_test_result result = wa_test_action(env, instance, action);
 
                 bool check = (result.status == WA_OK)
                           && (expected->childCount == result.count);
@@ -6996,6 +7022,7 @@ int test_main(int argc, char** argv)
                             break;
 
                             case WA_TYPE_EXTERN_REF:
+                            case WA_TYPE_FUNC_REF:
                             {
                                 check = check && (result.values[retIndex].valI64 == expectVal.value.valI64);
                             }
@@ -7016,11 +7043,11 @@ int test_main(int argc, char** argv)
 
                 if(!check)
                 {
-                    wa_test_fail(&env, testName, command);
+                    wa_test_fail(env, testName, command);
                 }
                 else
                 {
-                    wa_test_pass(&env, testName, command);
+                    wa_test_pass(env, testName, command);
                 }
             }
             else if(!oc_str8_cmp(type->string, OC_STR8("assert_trap")))
@@ -7028,10 +7055,10 @@ int test_main(int argc, char** argv)
                 json_node* failure = json_find_assert(command, "text", JSON_STRING);
                 json_node* action = json_find_assert(command, "action", JSON_OBJECT);
 
-                wa_instance* instance = wa_test_get_instance(&env, action);
+                wa_instance* instance = wa_test_get_instance(env, action);
                 if(!instance)
                 {
-                    wa_test_fail(&env, testName, command);
+                    wa_test_fail(env, testName, command);
                     continue;
                 }
 
@@ -7050,42 +7077,101 @@ int test_main(int argc, char** argv)
                 }
                 else
                 {
-                    wa_test_skip(&env, testName, command);
+                    wa_test_skip(env, testName, command);
                     continue;
                 }
 
-                wa_test_result result = wa_test_action(&env, instance, action);
+                wa_test_result result = wa_test_action(env, instance, action);
 
                 if(result.status == WA_OK || result.status != expected)
                 {
-                    wa_test_fail(&env, testName, command);
+                    wa_test_fail(env, testName, command);
                 }
                 else
                 {
-                    wa_test_pass(&env, testName, command);
+                    wa_test_pass(env, testName, command);
                 }
             }
             else if(!oc_str8_cmp(type->string, OC_STR8("assert_invalid")))
             {
                 json_node* filename = json_find_assert(command, "filename", JSON_STRING);
-                wa_module* module = wa_test_module_load(env.arena, filename->string);
+                wa_module* module = wa_test_module_load(env->arena, filename->string);
                 OC_ASSERT(module);
 
                 //TODO: check the failure reason
                 if(oc_list_empty(module->errors))
                 {
-                    wa_test_fail(&env, testName, command);
+                    wa_test_fail(env, testName, command);
                 }
                 else
                 {
-                    wa_test_pass(&env, testName, command);
+                    wa_test_pass(env, testName, command);
                 }
             }
             else
             {
-                wa_test_skip(&env, testName, command);
+                wa_test_skip(env, testName, command);
             }
         }
+    }
+    return (0);
+}
+
+#include <sys/stat.h>
+#include <dirent.h>
+
+int test_main(int argc, char** argv)
+{
+    if(argc < 3)
+    {
+        printf("usage: warm test jsonfile [line]");
+        return (-1);
+    }
+
+    oc_str8 testPath = OC_STR8(argv[2]);
+    oc_str8 testName = oc_path_slice_filename(testPath);
+    oc_str8 testDir = oc_path_slice_directory(testPath);
+
+    i32 filterLine = -1;
+    if(argc > 3)
+    {
+        filterLine = atoi(argv[3]);
+    }
+
+    oc_arena arena = { 0 };
+    oc_arena_init(&arena);
+
+    wa_test_env env = {
+        .arena = &arena,
+    };
+
+    struct stat stbuf;
+    stat(testPath.ptr, &stbuf);
+    if(stbuf.st_mode & S_IFDIR)
+    {
+        testDir = testPath;
+
+        DIR* dir = opendir(testPath.ptr);
+        struct dirent* entry = 0;
+
+        while((entry = readdir(dir)) != NULL)
+        {
+            oc_str8 name = oc_str8_from_buffer(entry->d_namlen, entry->d_name);
+            if(name.len > 5 && !oc_str8_cmp(oc_str8_slice(name, name.len - 5, name.len), OC_STR8(".json")))
+            {
+                oc_str8_list list = { 0 };
+                oc_str8_list_push(&arena, &list, testDir);
+                oc_str8_list_push(&arena, &list, name);
+
+                oc_str8 path = oc_path_join(&arena, list);
+                test_file(path, name, testDir, -1, &env);
+            }
+        }
+        closedir(dir);
+    }
+    else
+    {
+        test_file(testPath, testName, testDir, filterLine, &env);
     }
 
     printf("\n--------------------------------------------------------------\n"
