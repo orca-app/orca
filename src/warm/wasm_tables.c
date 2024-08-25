@@ -3041,4 +3041,7 @@ static const wa_instr_info wa_instr_infos[] = {
     [WA_INSTR_jump_if_zero] = {
         .opdCount = 2,
     },
+    [WA_INSTR_jump_table] = {
+        .opdCount = 2,
+    },
 };
