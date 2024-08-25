@@ -3141,6 +3141,7 @@ void wa_move_slot_if_used(wa_build_context* context, u32 slotIndex)
     u32 newReg = UINT32_MAX;
     u64 count = 0;
 
+    //NOTE: we check only slots in current scope. This means we never clobber reserved input/return slots
     for(u32 stackIndex = block->scopeBase; stackIndex < context->opdStackLen; stackIndex++)
     {
         wa_operand_slot* slot = &context->opdStack[stackIndex];
@@ -3365,6 +3366,26 @@ void wa_operand_stack_pop_scope(wa_build_context* context, wa_block* block)
 
 void wa_block_end(wa_build_context* context, wa_block* block, wa_instr* instr)
 {
+    if(block->begin->op == WA_INSTR_if && !block->begin->elseBranch)
+    {
+        //TODO: coalesce with case WA_INSTR_else in compile proc
+
+        //NOTE: if there was no else branch, we must still generate a fake else branch to copy the block inputs to
+        //      the output.
+        wa_func_type* type = block->begin->blockType;
+
+        wa_block_move_results_to_output_slots(context, block, instr);
+        wa_operand_stack_pop_scope(context, block);
+        wa_push_block_inputs(context, type);
+
+        wa_emit(context, (wa_code){ .opcode = WA_INSTR_jump });
+        wa_emit(context, (wa_code){ 0 });
+
+        block->polymorphic = false;
+        block->begin->elseBranch = instr;
+        block->elseOffset = context->codeLen;
+    }
+
     wa_block_move_results_to_output_slots(context, block, instr);
 
     wa_func_type* type = block->begin->blockType;
@@ -3399,19 +3420,13 @@ void wa_block_end(wa_build_context* context, wa_block* block, wa_instr* instr)
 
     if(block->begin->op == WA_INSTR_if)
     {
-        if(block->begin->elseBranch)
-        {
-            //NOTE: patch conditional jump to else branch
-            context->code[block->beginOffset + 1].valI64 = block->elseOffset - (block->beginOffset + 1);
+        OC_ASSERT(block->begin->elseBranch);
 
-            //NOTE: patch jump from end of if branch to end of else branch
-            context->code[block->elseOffset - 1].valI64 = context->codeLen - (block->elseOffset - 1);
-        }
-        else
-        {
-            //NOTE patch conditional jump to end of block
-            context->code[block->beginOffset + 1].valI64 = context->codeLen - (block->beginOffset + 1);
-        }
+        //NOTE: patch conditional jump to else branch
+        context->code[block->beginOffset + 1].valI64 = block->elseOffset - (block->beginOffset + 1);
+
+        //NOTE: patch jump from end of if branch to end of else branch
+        context->code[block->elseOffset - 1].valI64 = context->codeLen - (block->elseOffset - 1);
     }
 }
 
@@ -3454,7 +3469,7 @@ int wa_compile_return(wa_build_context* context, wa_func_type* type, wa_instr* i
         }
 
         //NOTE store value to return slot
-        if(slot.index != retIndex)
+        if(slot.type != WA_TYPE_UNKNOWN && slot.index != retIndex)
         {
             wa_move_slot_if_used(context, retIndex);
 
