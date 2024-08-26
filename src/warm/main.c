@@ -1854,9 +1854,9 @@ void wa_parse_functions(wa_parser* parser, wa_module* module)
     }
 
     module->functions = oc_arena_push_array(parser->arena, wa_func, module->functionImportCount + module->functionCount);
+    memset(module->functions, 0, (module->functionImportCount + module->functionCount) * sizeof(wa_func));
 
     //NOTE: re-read imports, because the format is kinda stupid -- they should have included imports in the function section
-    memset(module->functions, 0, module->functionImportCount * sizeof(wa_func));
     u32 funcImportIndex = 0;
     for(u32 importIndex = 0; importIndex < module->importCount; importIndex++)
     {
@@ -1931,9 +1931,9 @@ void wa_parse_globals(wa_parser* parser, wa_module* module)
     }
 
     module->globals = oc_arena_push_array(parser->arena, wa_global, module->globalCount + module->globalImportCount);
+    memset(module->globals, 0, (module->globalCount + module->globalImportCount) * sizeof(wa_global));
 
     //NOTE: re-read imports, because the format is kinda stupid -- they should have included imports in the global section
-    memset(module->globals, 0, module->globalImportCount * sizeof(wa_global));
     u32 globalImportIndex = 0;
     for(u32 importIndex = 0; importIndex < module->importCount; importIndex++)
     {
@@ -2019,9 +2019,9 @@ void wa_parse_tables(wa_parser* parser, wa_module* module)
     }
 
     module->tables = oc_arena_push_array(parser->arena, wa_table_type, module->tableImportCount + module->tableCount);
+    memset(module->tables, 0, (module->tableImportCount + module->tableCount) * sizeof(wa_func));
 
     //NOTE: re-read imports, because the format is kinda stupid -- they should have included imports in the tables section
-    memset(module->tables, 0, module->tableImportCount * sizeof(wa_func));
     u32 tableImportIndex = 0;
     for(u32 importIndex = 0; importIndex < module->importCount; importIndex++)
     {
@@ -2595,6 +2595,7 @@ void wa_parse_elements(wa_parser* parser, wa_module* module)
             wa_ast* exprVecCount = wa_read_leb128_u32(parser, exprVec, OC_STR8("count"));
             element->initCount = exprVecCount->valU32;
             element->initInstr = oc_arena_push_array(parser->arena, oc_list, element->initCount);
+            memset(element->initInstr, 0, element->initCount * sizeof(oc_list));
 
             for(u32 i = 0; i < element->initCount; i++)
             {
@@ -2622,6 +2623,7 @@ void wa_parse_elements(wa_parser* parser, wa_module* module)
             wa_ast* funcVecCount = wa_read_leb128_u32(parser, funcVec, OC_STR8("count"));
             element->initCount = funcVecCount->valU32;
             element->initInstr = oc_arena_push_array(parser->arena, oc_list, element->initCount);
+            memset(element->initInstr, 0, element->initCount * sizeof(oc_list));
 
             for(u32 i = 0; i < element->initCount; i++)
             {
@@ -6693,6 +6695,12 @@ typedef struct wa_test_env
     u32 failed;
     u32 skipped;
 
+    u32 totalPassed;
+    u32 totalFailed;
+    u32 totalSkipped;
+
+    bool verbose;
+
 } wa_test_env;
 
 typedef struct wa_test_result
@@ -6769,20 +6777,23 @@ void wa_test_mark(wa_test_env* env, wa_test_status status, oc_str8 fileName, jso
             break;
     }
 
-    printf("%s", wa_test_status_color_start[status]);
-    printf("%s", wa_test_status_string[status]);
-    printf("%s", wa_test_status_color_stop);
-
-    printf(" %.*s", oc_str8_ip(fileName));
-
-    json_node* line = json_find(command, OC_STR8("line"));
-    if(line)
+    if(env->verbose || status == WA_TEST_FAIL)
     {
-        printf(":%lli", line->numI64);
-    }
+        printf("%s", wa_test_status_color_start[status]);
+        printf("%s", wa_test_status_string[status]);
+        printf("%s", wa_test_status_color_stop);
 
-    json_node* type = json_find_assert(command, "type", JSON_STRING);
-    printf(" (%.*s)\n", oc_str8_ip(type->string));
+        printf(" %.*s", oc_str8_ip(fileName));
+
+        json_node* line = json_find(command, OC_STR8("line"));
+        if(line)
+        {
+            printf(":%lli", line->numI64);
+        }
+
+        json_node* type = json_find_assert(command, "type", JSON_STRING);
+        printf(" (%.*s)\n", oc_str8_ip(type->string));
+    }
 }
 
 #define wa_test_pass(env, fileName, command) wa_test_mark(env, WA_TEST_PASS, fileName, command)
@@ -7114,6 +7125,11 @@ int test_file(oc_str8 testPath, oc_str8 testName, oc_str8 testDir, i32 filterLin
             }
         }
     }
+
+    env->totalPassed += env->passed;
+    env->totalSkipped += env->skipped;
+    env->totalFailed += env->failed;
+
     return (0);
 }
 
@@ -7156,6 +7172,12 @@ int test_main(int argc, char** argv)
 
         while((entry = readdir(dir)) != NULL)
         {
+            oc_arena_clear(env.arena);
+            env.instances = (oc_list){ 0 };
+            env.passed = 0;
+            env.skipped = 0;
+            env.failed = 0;
+
             oc_str8 name = oc_str8_from_buffer(entry->d_namlen, entry->d_name);
             if(name.len > 5 && !oc_str8_cmp(oc_str8_slice(name, name.len - 5, name.len), OC_STR8(".json")))
             {
@@ -7165,22 +7187,36 @@ int test_main(int argc, char** argv)
 
                 oc_str8 path = oc_path_join(&arena, list);
                 test_file(path, name, testDir, -1, &env);
+
+                wa_test_status status = env.failed ? WA_TEST_FAIL : WA_TEST_PASS;
+
+                printf("%s", wa_test_status_color_start[status]);
+                printf("%s", wa_test_status_string[status]);
+                printf("%s", wa_test_status_color_stop);
+
+                printf(" %.*s: passed: %i, skipped: %i, failed: %i, total: %i\n",
+                       oc_str8_ip(name),
+                       env.passed,
+                       env.skipped,
+                       env.failed,
+                       env.passed + env.skipped + env.failed);
             }
         }
         closedir(dir);
     }
     else
     {
+        env.verbose = true;
         test_file(testPath, testName, testDir, filterLine, &env);
     }
 
     printf("\n--------------------------------------------------------------\n"
            "passed: %i, skipped: %i, failed: %i, total: %i\n"
            "--------------------------------------------------------------\n",
-           env.passed,
-           env.skipped,
-           env.failed,
-           env.passed + env.skipped + env.failed);
+           env.totalPassed,
+           env.totalSkipped,
+           env.totalFailed,
+           env.totalPassed + env.totalSkipped + env.totalFailed);
 
     return (0);
 }
