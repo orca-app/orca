@@ -712,6 +712,22 @@ typedef struct wa_element
 
 } wa_element;
 
+typedef enum wa_data_mode
+{
+    WA_DATA_PASSIVE,
+    WA_DATA_ACTIVE,
+} wa_data_mode;
+
+typedef struct wa_data_segment
+{
+    wa_data_mode mode;
+    u32 memoryIndex;
+    oc_list memoryOffset;
+    wa_code* memoryOffsetCode;
+    oc_str8 init;
+
+} wa_data_segment;
+
 typedef struct wa_memory
 {
     u64 cap;
@@ -784,6 +800,7 @@ typedef enum
     WA_AST_LIMITS,
     WA_AST_TABLE_TYPE,
     WA_AST_ELEMENT,
+    WA_AST_DATA_SEGMENT,
     WA_AST_IMPORT,
     WA_AST_EXPORT,
     WA_AST_FUNC,
@@ -816,6 +833,7 @@ static const char* wa_ast_kind_strings[] = {
     "limits",
     "table type",
     "element",
+    "data segment",
     "import",
     "export",
     "function",
@@ -912,6 +930,9 @@ typedef struct wa_module
     u32 memoryImportCount;
     u32 memoryCount;
     wa_limits* memories;
+
+    u32 dataCount;
+    wa_data_segment* data;
 
 } wa_module;
 
@@ -2732,6 +2753,83 @@ void wa_parse_elements(wa_parser* parser, wa_module* module)
     }
 }
 
+void wa_parse_data(wa_parser* parser, wa_module* module)
+{
+    wa_ast* section = module->toc.data.ast;
+    if(!section)
+    {
+        return;
+    }
+
+    wa_parser_seek(parser, module->toc.data.offset, OC_STR8("data section"));
+    u64 startOffset = parser->offset;
+
+    wa_ast* vector = wa_ast_alloc(parser, WA_AST_VECTOR);
+    vector->loc.start = parser->offset;
+    vector->parent = section;
+    oc_list_push_back(&section->children, &vector->parentElt);
+
+    wa_ast* dataCountAst = wa_read_leb128_u32(parser, vector, OC_STR8("count"));
+    module->dataCount = dataCountAst->valU32;
+
+    module->data = oc_arena_push_array(parser->arena, wa_data_segment, module->dataCount);
+    memset(module->data, 0, module->dataCount * sizeof(wa_data_segment));
+
+    for(u32 segIndex = 0; segIndex < module->dataCount; segIndex++)
+    {
+        wa_data_segment* seg = &module->data[segIndex];
+
+        wa_ast* segmentAst = wa_ast_alloc(parser, WA_AST_DATA_SEGMENT);
+        segmentAst->loc.start = parser->offset;
+        segmentAst->parent = vector;
+        oc_list_push_back(&vector->children, &segmentAst->parentElt);
+
+        wa_ast* prefixAst = wa_read_leb128_u32(parser, segmentAst, OC_STR8("prefix"));
+        u32 prefix = prefixAst->valU32;
+
+        if(prefix > 2)
+        {
+            wa_parse_error(parser, prefixAst, "invalid segment prefix %u\n", prefix);
+            return;
+        }
+
+        if(prefix & 0x01)
+        {
+            seg->mode = WA_DATA_PASSIVE;
+        }
+        else
+        {
+            seg->mode = WA_DATA_ACTIVE;
+            if(prefix & 0x02)
+            {
+                //NOTE: explicit memory index
+                wa_ast* memoryIndexAst = wa_read_leb128_u32(parser, segmentAst, OC_STR8("memory index"));
+                //TODO validate index
+                seg->memoryIndex = memoryIndexAst->valU32;
+            }
+            wa_parse_constant_expression(parser, segmentAst, &seg->memoryOffset);
+        }
+
+        //NOTE: parse vec(bytes)
+        wa_ast* initVec = wa_read_name(parser, segmentAst, OC_STR8("init"));
+        seg->init = initVec->str8;
+
+        segmentAst->loc.len = parser->offset - segmentAst->loc.start;
+    }
+
+    vector->loc.len = parser->offset - vector->loc.start;
+
+    //NOTE: check section size
+    if(parser->offset - startOffset != module->toc.data.len)
+    {
+        wa_parse_error(parser,
+                       section,
+                       "Size of section does not match declared size (declared = %llu, actual = %llu)\n",
+                       module->toc.data.len,
+                       parser->offset - startOffset);
+    }
+}
+
 void wa_parse_code(wa_parser* parser, wa_module* module)
 {
     wa_ast* section = module->toc.code.ast;
@@ -4370,6 +4468,21 @@ void wa_compile_code(oc_arena* arena, wa_module* module)
         }
     }
 
+    for(u32 dataIndex = 0; dataIndex < module->dataCount; dataIndex++)
+    {
+        wa_data_segment* seg = &module->data[dataIndex];
+
+        if(!oc_list_empty(seg->memoryOffset))
+        {
+            wa_build_context_clear(&context);
+            context.nextRegIndex = 0;
+
+            wa_compile_expression(&context, (wa_func_type*)&WA_BLOCK_VALUE_TYPES[1], 0, seg->memoryOffset);
+            seg->memoryOffsetCode = oc_arena_push_array(arena, wa_code, context.codeLen);
+            memcpy(seg->memoryOffsetCode, context.code, context.codeLen * sizeof(wa_code));
+        }
+    }
+
     oc_arena_cleanup(&context.codeArena);
     oc_arena_cleanup(&context.checkArena);
 }
@@ -4415,6 +4528,7 @@ wa_module* wa_module_create(oc_arena* arena, oc_str8 contents)
     wa_parse_exports(&parser, module);
     wa_parse_elements(&parser, module);
     wa_parse_code(&parser, module);
+    wa_parse_data(&parser, module);
 
     if(oc_list_empty(module->errors))
     {
@@ -4815,6 +4929,36 @@ wa_status wa_instance_link(wa_instance* instance)
             }
         }
     }
+
+    for(u32 dataIndex = 0; dataIndex < module->dataCount; dataIndex++)
+    {
+        wa_data_segment* seg = &module->data[dataIndex];
+
+        if(seg->mode == WA_DATA_ACTIVE)
+        {
+            wa_limits* limits = &module->memories[seg->memoryIndex];
+            wa_memory* mem = &instance->memories[seg->memoryIndex];
+
+            wa_value offsetVal = { 0 };
+            wa_status status = wa_instance_interpret_expr(instance,
+                                                          (wa_func_type*)&WA_BLOCK_VALUE_TYPES[1],
+                                                          seg->memoryOffsetCode,
+                                                          0, 0,
+                                                          1, &offsetVal);
+            if(status != WA_OK)
+            {
+                return status;
+            }
+            u32 offset = *(u32*)&offsetVal.valI32;
+
+            if(offset + seg->init.len > mem->size)
+            {
+                return WA_TRAP_OUT_OF_BOUNDS;
+            }
+            memcpy(mem->ptr + offset, seg->init.ptr, seg->init.len);
+        }
+    }
+
     return WA_OK;
 }
 
@@ -6564,7 +6708,7 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
                 }
                 else
                 {
-                    memcpy(mem->ptr + d, mem->ptr + s, n);
+                    memmove(mem->ptr + d, mem->ptr + s, n);
                 }
                 pc += 5;
             }
