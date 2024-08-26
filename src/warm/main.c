@@ -1079,6 +1079,7 @@ typedef enum wa_status
     WA_TRAP_INTEGER_OVERFLOW,
     WA_TRAP_INVALID_INTEGER_CONVERSION,
     WA_TRAP_STACK_OVERFLOW,
+    WA_TRAP_OUT_OF_BOUNDS,
 } wa_status;
 
 static const char* wa_status_strings[] = {
@@ -1101,6 +1102,7 @@ static const char* wa_status_strings[] = {
     "integer overflow",
     "invalid integer conversion",
     "stack overflow",
+    "out-of-bounds memory access",
 };
 
 typedef struct wa_module_error
@@ -6530,6 +6532,44 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
             }
             break;
 
+            case WA_INSTR_memory_fill:
+            {
+                wa_memory* mem = &instance->memories[0];
+                u32 n = *(u32*)&locals[pc[1].valI32].valI32;
+                i32 val = locals[pc[2].valI32].valI32;
+                u32 d = *(u32*)&locals[pc[3].valI32].valI32;
+
+                if(d + n > mem->size)
+                {
+                    return WA_TRAP_OUT_OF_BOUNDS;
+                }
+                else
+                {
+                    memset(mem->ptr + d, val, n);
+                }
+                pc += 4;
+            }
+            break;
+
+            case WA_INSTR_memory_copy:
+            {
+                wa_memory* mem = &instance->memories[0];
+                u32 n = *(u32*)&locals[pc[2].valI32].valI32;
+                u32 s = *(u32*)&locals[pc[3].valI32].valI32;
+                u32 d = *(u32*)&locals[pc[4].valI32].valI32;
+
+                if(s + n > mem->size || d + n > mem->size)
+                {
+                    return WA_TRAP_OUT_OF_BOUNDS;
+                }
+                else
+                {
+                    memcpy(mem->ptr + d, mem->ptr + s, n);
+                }
+                pc += 5;
+            }
+            break;
+
             default:
                 oc_log_error("invalid opcode %s\n", wa_instr_strings[opcode]);
                 return WA_TRAP_INVALID_OP;
@@ -7076,7 +7116,21 @@ int test_file(oc_str8 testPath, oc_str8 testName, oc_str8 testDir, i32 filterLin
                 }
             }
 
-            if(!oc_str8_cmp(type->string, OC_STR8("assert_return")))
+            if(!oc_str8_cmp(type->string, OC_STR8("action")))
+            {
+                json_node* action = json_find_assert(command, "action", JSON_OBJECT);
+
+                wa_instance* instance = wa_test_get_instance(env, action);
+                if(!instance)
+                {
+                    wa_test_fail(env, testName, command);
+                    continue;
+                }
+
+                wa_test_action(env, instance, action);
+                wa_test_pass(env, testName, command);
+            }
+            else if(!oc_str8_cmp(type->string, OC_STR8("assert_return")))
             {
                 json_node* expected = json_find_assert(command, "expected", JSON_LIST);
                 json_node* action = json_find_assert(command, "action", JSON_OBJECT);
