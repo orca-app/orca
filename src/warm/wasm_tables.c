@@ -2731,8 +2731,27 @@ static const wa_instr_info wa_instr_infos[] = {
     [WA_INSTR_table_grow] = {},
     [WA_INSTR_table_size] = {},
     [WA_INSTR_table_fill] = {},
-    [WA_INSTR_memory_init] = {},
-    [WA_INSTR_data_drop] = {},
+    [WA_INSTR_memory_init] = {
+        .immCount = 2,
+        .imm = {
+            WA_IMM_DATA_INDEX,
+            WA_IMM_ZERO,
+        },
+        .inCount = 3,
+        .in = {
+            WA_TYPE_I32,
+            WA_TYPE_I32,
+            WA_TYPE_I32,
+        },
+        .opdCount = 5,
+        .defined = true,
+    },
+    [WA_INSTR_data_drop] = {
+        .immCount = 1,
+        .imm = { WA_IMM_DATA_INDEX },
+        .opdCount = 1,
+        .defined = true,
+    },
     [WA_INSTR_memory_copy] = {
         .immCount = 2,
         .imm = {
