@@ -712,6 +712,13 @@ typedef struct wa_element
 
 } wa_element;
 
+typedef struct wa_memory
+{
+    u64 cap;
+    u64 size;
+    char* ptr;
+} wa_memory;
+
 typedef enum wa_import_kind
 {
     WA_IMPORT_FUNCTION = 0x00,
@@ -902,6 +909,10 @@ typedef struct wa_module
     u32 exportCount;
     wa_export* exports;
 
+    u32 memoryImportCount;
+    u32 memoryCount;
+    wa_limits* memories;
+
 } wa_module;
 
 typedef struct wa_instance
@@ -911,12 +922,7 @@ typedef struct wa_instance
     wa_func* functions;
     wa_value* globals;
     wa_table* tables;
-
-    u64 memoryCap;
-    u64 memorySize;
-    char* memory;
-
-    //TODO: tables
+    wa_memory* memories;
 } wa_instance;
 
 typedef struct wa_parser
@@ -1025,6 +1031,11 @@ const char* wa_value_type_string(wa_value_type t)
 }
 
 #include "wasm_tables.c"
+
+enum
+{
+    WA_PAGE_SIZE = 64 * 1 << 10,
+};
 
 //-------------------------------------------------------------------------
 // errors
@@ -1778,6 +1789,7 @@ void wa_parse_imports(wa_parser* parser, wa_module* module)
             case WA_IMPORT_MEMORY:
             {
                 wa_ast* limitAst = wa_parse_limits(parser, importAst, &import->limits);
+                module->memoryImportCount++;
             }
             break;
             case WA_IMPORT_GLOBAL:
@@ -2019,7 +2031,7 @@ void wa_parse_tables(wa_parser* parser, wa_module* module)
     }
 
     module->tables = oc_arena_push_array(parser->arena, wa_table_type, module->tableImportCount + module->tableCount);
-    memset(module->tables, 0, (module->tableImportCount + module->tableCount) * sizeof(wa_func));
+    memset(module->tables, 0, (module->tableImportCount + module->tableCount) * sizeof(wa_table_type));
 
     //NOTE: re-read imports, because the format is kinda stupid -- they should have included imports in the tables section
     u32 tableImportIndex = 0;
@@ -2074,6 +2086,65 @@ void wa_parse_tables(wa_parser* parser, wa_module* module)
                        section,
                        "Size of section does not match declared size (declared = %llu, actual = %llu)\n",
                        module->toc.tables.len,
+                       parser->offset - startOffset);
+    }
+}
+
+void wa_parse_memories(wa_parser* parser, wa_module* module)
+{
+    //NOTE: parse table section
+    wa_parser_seek(parser, module->toc.memory.offset, OC_STR8("memory section"));
+    u64 startOffset = parser->offset;
+
+    wa_ast* section = module->toc.memory.ast;
+    wa_ast* vector = 0;
+
+    if(section)
+    {
+        vector = wa_ast_alloc(parser, WA_AST_VECTOR);
+        vector->loc.start = parser->offset;
+        vector->parent = section;
+        oc_list_push_back(&section->children, &vector->parentElt);
+
+        wa_ast* memoryCountAst = wa_read_leb128_u32(parser, vector, OC_STR8("count"));
+        module->memoryCount = memoryCountAst->valU32;
+    }
+
+    module->memories = oc_arena_push_array(parser->arena, wa_limits, module->memoryImportCount + module->memoryCount);
+    memset(module->memories, 0, (module->memoryImportCount + module->memoryCount) * sizeof(wa_limits));
+
+    //NOTE: re-read imports, because the format is kinda stupid -- they should have included imports in the memories section
+    u32 memoryImportIndex = 0;
+    for(u32 importIndex = 0; importIndex < module->importCount; importIndex++)
+    {
+        wa_import* import = &module->imports[importIndex];
+        if(import->kind == WA_IMPORT_MEMORY)
+        {
+            module->memories[memoryImportIndex] = import->limits;
+            memoryImportIndex++;
+        }
+    }
+
+    if(section)
+    {
+        //NOTE: read non-import memories
+        for(u32 memoryIndex = 0; memoryIndex < module->memoryCount; memoryIndex++)
+        {
+            wa_limits* memory = &module->memories[memoryIndex + module->memoryImportCount];
+            wa_ast* memoryAst = wa_parse_limits(parser, vector, memory);
+        }
+        vector->loc.len = parser->offset - vector->loc.start;
+        section->loc.len = parser->offset - section->loc.start;
+    }
+    module->memoryCount += module->memoryImportCount;
+
+    //NOTE: check section size
+    if(parser->offset - startOffset != module->toc.memory.len)
+    {
+        wa_parse_error(parser,
+                       section,
+                       "Size of section does not match declared size (declared = %llu, actual = %llu)\n",
+                       module->toc.memory.len,
                        parser->offset - startOffset);
     }
 }
@@ -4338,6 +4409,7 @@ wa_module* wa_module_create(oc_arena* arena, oc_str8 contents)
     wa_parse_functions(&parser, module);
     wa_parse_globals(&parser, module);
     wa_parse_tables(&parser, module);
+    wa_parse_memories(&parser, module);
     wa_parse_exports(&parser, module);
     wa_parse_elements(&parser, module);
     wa_parse_code(&parser, module);
@@ -4565,6 +4637,7 @@ wa_instance* wa_instance_create(oc_arena* arena, wa_module* module)
     memcpy(instance->functions, module->functions, module->functionCount * sizeof(wa_func));
 
     instance->globals = oc_arena_push_array(arena, wa_value, module->globalCount);
+    memset(instance->globals, 0, module->globalCount * sizeof(wa_value));
 
     instance->tables = oc_arena_push_array(arena, wa_table, module->tableCount);
     for(u32 tableIndex = 0; tableIndex < module->tableCount; tableIndex++)
@@ -4574,6 +4647,20 @@ wa_instance* wa_instance_create(oc_arena* arena, wa_module* module)
         instance->tables[tableIndex].size = desc->limits.min;
         instance->tables[tableIndex].contents = oc_arena_push_array(arena, wa_value, desc->limits.min);
         memset(instance->tables[tableIndex].contents, 0, desc->limits.min * sizeof(wa_value));
+    }
+
+    oc_base_allocator* allocator = oc_base_allocator_default();
+
+    instance->memories = oc_arena_push_array(arena, wa_memory, module->memoryCount);
+    for(u32 memIndex = 0; memIndex < module->memoryCount; memIndex++)
+    {
+        wa_limits* limits = &module->memories[memIndex];
+        wa_memory* mem = &instance->memories[memIndex];
+
+        mem->cap = 4 << 20;
+        mem->size = limits->min * WA_PAGE_SIZE;
+        mem->ptr = oc_base_reserve(allocator, mem->cap);
+        oc_base_commit(allocator, mem->ptr, mem->size);
     }
 
     return (instance);
@@ -4726,14 +4813,6 @@ wa_status wa_instance_link(wa_instance* instance)
             }
         }
     }
-
-    //TODO honor memory limits
-    oc_base_allocator* allocator = oc_base_allocator_default();
-    instance->memoryCap = 4 << 20;
-    instance->memorySize = 4096;
-    instance->memory = oc_base_reserve(allocator, instance->memoryCap);
-    oc_base_commit(allocator, instance->memory, instance->memorySize);
-
     return WA_OK;
 }
 
@@ -4768,16 +4847,16 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
                                      u32 retCount,
                                      wa_value* returns)
 {
-    wa_control controlStack[1024] = {};
+    wa_control controlStack[1024] = { 0 };
     u32 controlStackTop = 0;
 
-    wa_value localsBuffer[1024];
+    wa_value localsBuffer[1024] = { 0 };
     wa_value* locals = localsBuffer;
     wa_code* pc = code;
 
     memcpy(locals, args, argCount * sizeof(wa_value));
 
-    char* memory = instance->memory;
+    char* memPtr = instance->memories[0].ptr;
 
     while(1)
     {
@@ -4857,161 +4936,161 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
 
             case WA_INSTR_i32_load:
             {
-                locals[pc[2].valI32].valI32 = *(i32*)&memory[pc[0].memArg.offset + locals[pc[1].valI32].valI32];
+                locals[pc[2].valI32].valI32 = *(i32*)&memPtr[pc[0].memArg.offset + locals[pc[1].valI32].valI32];
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i64_load:
             {
-                locals[pc[2].valI32].valI64 = *(i64*)&memory[pc[0].memArg.offset + locals[pc[1].valI32].valI32];
+                locals[pc[2].valI32].valI64 = *(i64*)&memPtr[pc[0].memArg.offset + locals[pc[1].valI32].valI32];
                 pc += 3;
             }
             break;
 
             case WA_INSTR_f32_load:
             {
-                locals[pc[2].valI32].valF32 = *(f32*)&memory[pc[0].memArg.offset + locals[pc[1].valI32].valI32];
+                locals[pc[2].valI32].valF32 = *(f32*)&memPtr[pc[0].memArg.offset + locals[pc[1].valI32].valI32];
                 pc += 3;
             }
             break;
 
             case WA_INSTR_f64_load:
             {
-                locals[pc[2].valI32].valF64 = *(f64*)&memory[pc[0].memArg.offset + locals[pc[1].valI32].valI32];
+                locals[pc[2].valI32].valF64 = *(f64*)&memPtr[pc[0].memArg.offset + locals[pc[1].valI32].valI32];
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i32_load8_s:
             {
-                locals[pc[2].valI32].valI32 = (i32) * (i8*)&memory[pc[0].memArg.offset + locals[pc[1].valI32].valI32];
+                locals[pc[2].valI32].valI32 = (i32) * (i8*)&memPtr[pc[0].memArg.offset + locals[pc[1].valI32].valI32];
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i32_load8_u:
             {
-                *(u32*)&locals[pc[2].valI32].valI32 = (u32) * (u8*)&memory[pc[0].memArg.offset + locals[pc[1].valI32].valI32];
+                *(u32*)&locals[pc[2].valI32].valI32 = (u32) * (u8*)&memPtr[pc[0].memArg.offset + locals[pc[1].valI32].valI32];
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i32_load16_s:
             {
-                locals[pc[2].valI32].valI32 = (i32) * (i16*)&memory[pc[0].memArg.offset + locals[pc[1].valI32].valI32];
+                locals[pc[2].valI32].valI32 = (i32) * (i16*)&memPtr[pc[0].memArg.offset + locals[pc[1].valI32].valI32];
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i32_load16_u:
             {
-                *(u32*)&locals[pc[2].valI32].valI32 = (u32) * (u16*)&memory[pc[0].memArg.offset + locals[pc[1].valI32].valI32];
+                *(u32*)&locals[pc[2].valI32].valI32 = (u32) * (u16*)&memPtr[pc[0].memArg.offset + locals[pc[1].valI32].valI32];
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i64_load8_s:
             {
-                locals[pc[2].valI32].valI64 = (i64) * (i8*)&memory[pc[0].memArg.offset + locals[pc[1].valI32].valI32];
+                locals[pc[2].valI32].valI64 = (i64) * (i8*)&memPtr[pc[0].memArg.offset + locals[pc[1].valI32].valI32];
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i64_load8_u:
             {
-                *(u32*)&locals[pc[2].valI32].valI64 = (u64) * (u8*)&memory[pc[0].memArg.offset + locals[pc[1].valI32].valI32];
+                *(u32*)&locals[pc[2].valI32].valI64 = (u64) * (u8*)&memPtr[pc[0].memArg.offset + locals[pc[1].valI32].valI32];
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i64_load16_s:
             {
-                locals[pc[2].valI32].valI64 = (i64) * (i16*)&memory[pc[0].memArg.offset + locals[pc[1].valI32].valI32];
+                locals[pc[2].valI32].valI64 = (i64) * (i16*)&memPtr[pc[0].memArg.offset + locals[pc[1].valI32].valI32];
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i64_load16_u:
             {
-                *(u32*)&locals[pc[2].valI32].valI64 = (u64) * (u16*)&memory[pc[0].memArg.offset + locals[pc[1].valI32].valI32];
+                *(u32*)&locals[pc[2].valI32].valI64 = (u64) * (u16*)&memPtr[pc[0].memArg.offset + locals[pc[1].valI32].valI32];
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i64_load32_s:
             {
-                locals[pc[2].valI32].valI64 = (i64) * (i32*)&memory[pc[0].memArg.offset + locals[pc[1].valI32].valI32];
+                locals[pc[2].valI32].valI64 = (i64) * (i32*)&memPtr[pc[0].memArg.offset + locals[pc[1].valI32].valI32];
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i64_load32_u:
             {
-                *(u32*)&locals[pc[2].valI32].valI64 = (u64) * (u32*)&memory[pc[0].memArg.offset + locals[pc[1].valI32].valI32];
+                *(u32*)&locals[pc[2].valI32].valI64 = (u64) * (u32*)&memPtr[pc[0].memArg.offset + locals[pc[1].valI32].valI32];
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i32_store:
             {
-                *(i32*)&memory[pc[0].memArg.offset + locals[pc[2].valI32].valI32] = locals[pc[1].valI32].valI32;
+                *(i32*)&memPtr[pc[0].memArg.offset + locals[pc[2].valI32].valI32] = locals[pc[1].valI32].valI32;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i64_store:
             {
-                *(i64*)&memory[pc[0].memArg.offset + locals[pc[2].valI32].valI32] = locals[pc[1].valI32].valI64;
+                *(i64*)&memPtr[pc[0].memArg.offset + locals[pc[2].valI32].valI32] = locals[pc[1].valI32].valI64;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_f32_store:
             {
-                *(f32*)&memory[pc[0].memArg.offset + locals[pc[2].valI32].valI32] = locals[pc[1].valI32].valF32;
+                *(f32*)&memPtr[pc[0].memArg.offset + locals[pc[2].valI32].valI32] = locals[pc[1].valI32].valF32;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_f64_store:
             {
-                *(f64*)&memory[pc[0].memArg.offset + locals[pc[2].valI32].valI32] = locals[pc[1].valI32].valF64;
+                *(f64*)&memPtr[pc[0].memArg.offset + locals[pc[2].valI32].valI32] = locals[pc[1].valI32].valF64;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i32_store8:
             {
-                *(u8*)&memory[pc[0].memArg.offset + locals[pc[2].valI32].valI32] = *(u8*)&locals[pc[1].valI32].valI32;
+                *(u8*)&memPtr[pc[0].memArg.offset + locals[pc[2].valI32].valI32] = *(u8*)&locals[pc[1].valI32].valI32;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i32_store16:
             {
-                *(u16*)&memory[pc[0].memArg.offset + locals[pc[2].valI32].valI32] = *(u16*)&locals[pc[1].valI32].valI32;
+                *(u16*)&memPtr[pc[0].memArg.offset + locals[pc[2].valI32].valI32] = *(u16*)&locals[pc[1].valI32].valI32;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i64_store8:
             {
-                *(u8*)&memory[pc[0].memArg.offset + locals[pc[2].valI32].valI32] = *(u8*)&locals[pc[1].valI32].valI64;
+                *(u8*)&memPtr[pc[0].memArg.offset + locals[pc[2].valI32].valI32] = *(u8*)&locals[pc[1].valI32].valI64;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i64_store16:
             {
-                *(u16*)&memory[pc[0].memArg.offset + locals[pc[2].valI32].valI32] = *(u16*)&locals[pc[1].valI32].valI64;
+                *(u16*)&memPtr[pc[0].memArg.offset + locals[pc[2].valI32].valI32] = *(u16*)&locals[pc[1].valI32].valI64;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i64_store32:
             {
-                *(u32*)&memory[pc[0].memArg.offset + locals[pc[2].valI32].valI32] = *(u32*)&locals[pc[1].valI32].valI64;
+                *(u32*)&memPtr[pc[0].memArg.offset + locals[pc[2].valI32].valI32] = *(u32*)&locals[pc[1].valI32].valI64;
                 pc += 3;
             }
             break;
@@ -5093,7 +5172,6 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
                 wa_func* callee = &instance->functions[funcIndex];
 
                 //TODO check type
-
                 if(callee->code)
                 {
                     controlStack[controlStackTop] = (wa_control){
@@ -6421,6 +6499,37 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
             }
             break;
 
+            case WA_INSTR_memory_size:
+            {
+                wa_memory* mem = &instance->memories[0];
+                locals[pc[1].valI32].valI32 = (i32)(mem->size / WA_PAGE_SIZE);
+                pc += 2;
+            }
+            break;
+
+            case WA_INSTR_memory_grow:
+            {
+                wa_memory* mem = &instance->memories[0];
+                wa_limits* limits = &instance->module->memories[0];
+
+                i32 res = -1;
+                u32 n = *(u32*)&(locals[pc[1].valI32].valI32);
+                oc_base_allocator* allocator = oc_base_allocator_default();
+                u64 size = (u64)n * WA_PAGE_SIZE;
+
+                if(mem->size + size <= mem->cap
+                   && (limits->kind == WA_LIMIT_MIN || (mem->size + size) / WA_PAGE_SIZE <= limits->max))
+                {
+                    res = mem->size / WA_PAGE_SIZE;
+                    oc_base_commit(allocator, mem->ptr + mem->size, n * WA_PAGE_SIZE);
+                    mem->size += size;
+                }
+                locals[pc[2].valI32].valI32 = res;
+
+                pc += 3;
+            }
+            break;
+
             default:
                 oc_log_error("invalid opcode %s\n", wa_instr_strings[opcode]);
                 return WA_TRAP_INVALID_OP;
@@ -6777,7 +6886,7 @@ void wa_test_mark(wa_test_env* env, wa_test_status status, oc_str8 fileName, jso
             break;
     }
 
-    if(env->verbose || status == WA_TEST_FAIL)
+    if(env->verbose)
     {
         printf("%s", wa_test_status_color_start[status]);
         printf("%s", wa_test_status_string[status]);
@@ -6931,8 +7040,10 @@ int test_file(oc_str8 testPath, oc_str8 testName, oc_str8 testDir, i32 filterLin
 
             if(!oc_list_empty(module->errors))
             {
-                wa_module_print_errors(module);
-                wa_module_print_errors(module);
+                if(env->verbose)
+                {
+                    wa_module_print_errors(module);
+                }
 
                 wa_test_fail(env, testName, command);
                 continue;

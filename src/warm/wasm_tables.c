@@ -1303,7 +1303,14 @@ static const wa_instr_info wa_instr_infos[] = {
         .opdCount = 2,
         .defined = true,
     },
-    [WA_INSTR_memory_size] = {},
+    [WA_INSTR_memory_size] = {
+        .immCount = 1,
+        .imm = { WA_IMM_ZERO },
+        .outCount = 1,
+        .out = { WA_TYPE_I32 },
+        .opdCount = 2,
+        .defined = true,
+    },
     [WA_INSTR_memory_grow] = {
         .immCount = 1,
         .imm = { WA_IMM_ZERO },
@@ -1311,7 +1318,7 @@ static const wa_instr_info wa_instr_infos[] = {
         .in = { WA_TYPE_I32 },
         .outCount = 1,
         .out = { WA_TYPE_I32 },
-        .opdCount = 1,
+        .opdCount = 3,
         .defined = true,
     },
 
