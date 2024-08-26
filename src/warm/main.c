@@ -6073,14 +6073,20 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
 
             case WA_INSTR_f32_min:
             {
-                if(isnan(locals[pc[1].valI32].valF32) || isnan(locals[pc[0].valI32].valF32))
+                f32 a = locals[pc[1].valI32].valF32;
+                f32 b = locals[pc[0].valI32].valF32;
+                if(isnan(a) || isnan(b))
                 {
                     u32 u = 0x7fc00000;
                     memcpy(&locals[pc[2].valI32].valF32, &u, sizeof(f32));
                 }
+                else if(a == 0 && b == 0)
+                {
+                    locals[pc[2].valI32].valF32 = signbit(a) ? a : b;
+                }
                 else
                 {
-                    locals[pc[2].valI32].valF32 = oc_min(locals[pc[1].valI32].valF32, locals[pc[0].valI32].valF32);
+                    locals[pc[2].valI32].valF32 = oc_min(a, b);
                 }
                 pc += 3;
             }
@@ -6088,14 +6094,21 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
 
             case WA_INSTR_f32_max:
             {
-                if(isnan(locals[pc[1].valI32].valF32) || isnan(locals[pc[0].valI32].valF32))
+                f32 a = locals[pc[1].valI32].valF32;
+                f32 b = locals[pc[0].valI32].valF32;
+                if(isnan(a) || isnan(b))
                 {
                     u32 u = 0x7fc00000;
                     memcpy(&locals[pc[2].valI32].valF32, &u, sizeof(f32));
                 }
+                else if(a == 0 && b == 0)
+                {
+                    locals[pc[2].valI32].valF32 = signbit(a) ? b : a;
+                }
+
                 else
                 {
-                    locals[pc[2].valI32].valF32 = oc_max(locals[pc[1].valI32].valF32, locals[pc[0].valI32].valF32);
+                    locals[pc[2].valI32].valF32 = oc_max(a, b);
                 }
                 pc += 3;
             }
@@ -6187,14 +6200,21 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
 
             case WA_INSTR_f64_min:
             {
-                if(isnan(locals[pc[1].valI32].valF64) || isnan(locals[pc[0].valI32].valF64))
+                f64 a = locals[pc[1].valI32].valF64;
+                f64 b = locals[pc[0].valI32].valF64;
+
+                if(isnan(a) || isnan(b))
                 {
                     u64 u = 0x7ff8000000000000;
                     memcpy(&locals[pc[2].valI32].valF64, &u, sizeof(f64));
                 }
+                else if(a == 0 && b == 0)
+                {
+                    locals[pc[2].valI32].valF64 = signbit(a) ? a : b;
+                }
                 else
                 {
-                    locals[pc[2].valI32].valF64 = oc_min(locals[pc[1].valI32].valF64, locals[pc[0].valI32].valF64);
+                    locals[pc[2].valI32].valF64 = oc_min(a, b);
                 }
                 pc += 3;
             }
@@ -6202,14 +6222,21 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
 
             case WA_INSTR_f64_max:
             {
-                if(isnan(locals[pc[1].valI32].valF64) || isnan(locals[pc[0].valI32].valF64))
+                f64 a = locals[pc[1].valI32].valF64;
+                f64 b = locals[pc[0].valI32].valF64;
+
+                if(isnan(a) || isnan(b))
                 {
                     u64 u = 0x7ff8000000000000;
                     memcpy(&locals[pc[2].valI32].valF64, &u, sizeof(f64));
                 }
+                else if(a == 0 && b == 0)
+                {
+                    locals[pc[2].valI32].valF64 = signbit(a) ? b : a;
+                }
                 else
                 {
-                    locals[pc[2].valI32].valF64 = oc_max(locals[pc[1].valI32].valF64, locals[pc[0].valI32].valF64);
+                    locals[pc[2].valI32].valF64 = oc_max(a, b);
                 }
                 pc += 3;
             }
@@ -6706,11 +6733,34 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
                 {
                     return WA_TRAP_OUT_OF_BOUNDS;
                 }
-                else
-                {
-                    memmove(mem->ptr + d, mem->ptr + s, n);
-                }
+                memmove(mem->ptr + d, mem->ptr + s, n);
                 pc += 5;
+            }
+            break;
+
+            case WA_INSTR_memory_init:
+            {
+                wa_memory* mem = &instance->memories[0];
+                wa_data_segment* seg = &instance->module->data[pc[0].valI32];
+
+                u32 n = *(u32*)&locals[pc[2].valI32].valI32;
+                u32 s = *(u32*)&locals[pc[3].valI32].valI32;
+                u32 d = *(u32*)&locals[pc[4].valI32].valI32;
+
+                if(s + n > seg->init.len || d + n > mem->size)
+                {
+                    return WA_TRAP_OUT_OF_BOUNDS;
+                }
+                memmove(mem->ptr + d, seg->init.ptr + s, n);
+                pc += 5;
+            }
+            break;
+
+            case WA_INSTR_data_drop:
+            {
+                wa_data_segment* seg = &instance->module->data[pc[0].valI32];
+                //TODO: how/do we want to support that??
+                pc += 1;
             }
             break;
 
