@@ -131,7 +131,12 @@ void oc_str8_list_pushf(oc_arena* arena, oc_str8_list* list, const char* format,
 oc_str8 oc_str8_list_collate(oc_arena* arena, oc_str8_list list, oc_str8 prefix, oc_str8 separator, oc_str8 postfix)
 {
     oc_str8 str = { 0 };
-    str.len = prefix.len + list.len + list.eltCount * separator.len + postfix.len;
+    str.len = prefix.len + list.len + postfix.len;
+    if(list.eltCount && separator.len)
+    {
+        str.len += list.eltCount * separator.len - 1;
+    }
+
     str.ptr = oc_arena_push_array(arena, char, str.len + 1);
     char* dst = str.ptr;
     memcpy(dst, prefix.ptr, prefix.len);
