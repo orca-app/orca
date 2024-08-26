@@ -4657,7 +4657,7 @@ wa_instance* wa_instance_create(oc_arena* arena, wa_module* module)
         wa_limits* limits = &module->memories[memIndex];
         wa_memory* mem = &instance->memories[memIndex];
 
-        mem->cap = 4 << 20;
+        mem->cap = 4LLU << 30;
         mem->size = limits->min * WA_PAGE_SIZE;
         mem->ptr = oc_base_reserve(allocator, mem->cap);
         oc_base_commit(allocator, mem->ptr, mem->size);
