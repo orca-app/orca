@@ -927,7 +927,7 @@ typedef enum wa_immediate_type
 
 enum
 {
-    WA_INSTR_OPD_MAX_COUNT = 2,
+    WA_INSTR_OPD_MAX_COUNT = 3,
 };
 
 typedef struct wa_instr_info
@@ -2733,8 +2733,34 @@ static const wa_instr_info wa_instr_infos[] = {
     [WA_INSTR_table_fill] = {},
     [WA_INSTR_memory_init] = {},
     [WA_INSTR_data_drop] = {},
-    [WA_INSTR_memory_copy] = {},
-    [WA_INSTR_memory_fill] = {},
+    [WA_INSTR_memory_copy] = {
+        .immCount = 2,
+        .imm = {
+            WA_IMM_ZERO,
+            WA_IMM_ZERO,
+        },
+        .inCount = 3,
+        .in = {
+            WA_TYPE_I32,
+            WA_TYPE_I32,
+            WA_TYPE_I32,
+        },
+        .opdCount = 5,
+        .defined = true,
+    },
+    [WA_INSTR_memory_fill] = {
+        .immCount = 1,
+        .imm = { WA_IMM_ZERO },
+        .inCount = 3,
+        .in = {
+            WA_TYPE_I32,
+            WA_TYPE_I32,
+            WA_TYPE_I32,
+        },
+        .opdCount = 4,
+        .defined = true,
+    },
+
     [WA_INSTR_i32_trunc_sat_f32_s] = {
         .inCount = 1,
         .in = { WA_TYPE_F32 },
