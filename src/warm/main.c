@@ -4841,7 +4841,6 @@ wa_status wa_instance_bind_function_wasm(wa_instance* instance, oc_str8 name, wa
                         return WA_ERROR_BIND_TYPE;
                     }
                 }
-                break;
             }
             funcIndex++;
         }
@@ -4885,7 +4884,6 @@ wa_status wa_instance_bind_function(wa_instance* instance, oc_str8 name, wa_func
                         return WA_ERROR_BIND_TYPE;
                     }
                 }
-                break;
             }
             funcIndex++;
         }
@@ -5436,9 +5434,9 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
                     wa_status status = wa_instance_invoke(callee->extInstance,
                                                           extFunc,
                                                           callee->type->paramCount,
-                                                          locals + pc[1].valI64,
+                                                          locals + maxUsedSlot,
                                                           callee->type->returnCount,
-                                                          locals + pc[1].valI64);
+                                                          locals + maxUsedSlot);
 
                     if(status != WA_OK)
                     {
@@ -7390,6 +7388,34 @@ wa_instance* wa_test_get_instance(wa_test_env* env, json_node* action)
     return (instance);
 }
 
+void test_print(wa_value* args, wa_value* rets)
+{
+}
+
+void test_print_i32(wa_value* args, wa_value* rets)
+{
+}
+
+void test_print_i64(wa_value* args, wa_value* rets)
+{
+}
+
+void test_print_f32(wa_value* args, wa_value* rets)
+{
+}
+
+void test_print_f64(wa_value* args, wa_value* rets)
+{
+}
+
+void test_print_i32_f32(wa_value* args, wa_value* rets)
+{
+}
+
+void test_print_f64_f64(wa_value* args, wa_value* rets)
+{
+}
+
 int test_file(oc_str8 testPath, oc_str8 testName, oc_str8 testDir, i32 filterLine, wa_test_env* env)
 {
     oc_str8 contents = { 0 };
@@ -7416,6 +7442,8 @@ int test_file(oc_str8 testPath, oc_str8 testName, oc_str8 testDir, i32 filterLin
     oc_list_for(commands->children, command, json_node, listElt)
     {
         env->command = command;
+
+        json_node* line = json_find(command, OC_STR8("line"));
 
         json_node* type = json_find_assert(command, "type", JSON_STRING);
 
@@ -7459,6 +7487,73 @@ int test_file(oc_str8 testPath, oc_str8 testName, oc_str8 testDir, i32 filterLin
 
                 wa_instance_bind_global(testInstance->instance, OC_STR8("global_i32"), (wa_typed_value){ .type = WA_TYPE_I32, .value.valI32 = 666 });
                 wa_instance_bind_global(testInstance->instance, OC_STR8("global_i64"), (wa_typed_value){ .type = WA_TYPE_I64, .value.valI64 = 666 });
+
+                wa_instance_bind_function(testInstance->instance,
+                                          OC_STR8("print"),
+                                          &(wa_func_type){ 0 },
+                                          test_print);
+
+                wa_instance_bind_function(testInstance->instance,
+                                          OC_STR8("print_i32"),
+                                          &(wa_func_type){
+                                              .paramCount = 1,
+                                              .params = (wa_value_type[]){
+                                                  WA_TYPE_I32,
+                                              },
+                                          },
+                                          test_print_i32);
+
+                wa_instance_bind_function(testInstance->instance,
+                                          OC_STR8("print_i64"),
+                                          &(wa_func_type){
+                                              .paramCount = 1,
+                                              .params = (wa_value_type[]){
+                                                  WA_TYPE_I64,
+                                              },
+                                          },
+                                          test_print_i64);
+
+                wa_instance_bind_function(testInstance->instance,
+                                          OC_STR8("print_f32"),
+                                          &(wa_func_type){
+                                              .paramCount = 1,
+                                              .params = (wa_value_type[]){
+                                                  WA_TYPE_F32,
+                                              },
+                                          },
+                                          test_print_f32);
+
+                wa_instance_bind_function(testInstance->instance,
+                                          OC_STR8("print_f64"),
+                                          &(wa_func_type){
+                                              .paramCount = 1,
+                                              .params = (wa_value_type[]){
+                                                  WA_TYPE_F64,
+                                              },
+                                          },
+                                          test_print_f64);
+
+                wa_instance_bind_function(testInstance->instance,
+                                          OC_STR8("print_i32_f32"),
+                                          &(wa_func_type){
+                                              .paramCount = 2,
+                                              .params = (wa_value_type[]){
+                                                  WA_TYPE_I32,
+                                                  WA_TYPE_F32,
+                                              },
+                                          },
+                                          test_print_i32_f32);
+
+                wa_instance_bind_function(testInstance->instance,
+                                          OC_STR8("print_f64_f64"),
+                                          &(wa_func_type){
+                                              .paramCount = 2,
+                                              .params = (wa_value_type[]){
+                                                  WA_TYPE_F64,
+                                                  WA_TYPE_F64,
+                                              },
+                                          },
+                                          test_print_f64_f64);
 
                 //TODO link registered modules...
 
@@ -7515,7 +7610,6 @@ int test_file(oc_str8 testPath, oc_str8 testName, oc_str8 testDir, i32 filterLin
         }
         else
         {
-            json_node* line = json_find(command, OC_STR8("line"));
             if(filterLine >= 0)
             {
                 if(!line || line->numI64 != filterLine)
