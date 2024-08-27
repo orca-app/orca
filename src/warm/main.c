@@ -944,6 +944,7 @@ typedef struct wa_module
 
 typedef struct wa_instance
 {
+    oc_arena* arena;
     wa_module* module;
 
     wa_func* functions;
@@ -4399,6 +4400,66 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
             wa_emit(context, (wa_code){ .opcode = WA_INSTR_ref_null });
             wa_emit(context, (wa_code){ .index = s.index });
         }
+        else if(instr->op == WA_INSTR_table_grow)
+        {
+            u32 tableIndex = instr->imm[0].valueType;
+            wa_table_type* table = &module->tables[tableIndex];
+
+            wa_operand_slot size = wa_operand_stack_pop(context);
+            if(wa_operand_slot_is_nil(&size))
+            {
+                wa_compile_error(context,
+                                 instr->ast,
+                                 "unbalanced stack\n");
+                break;
+            }
+
+            if(!wa_check_operand_type(size.type, WA_TYPE_I32))
+            {
+                wa_compile_error(context,
+                                 instr->ast,
+                                 "type mismatch for table.grow instruction (expected %s, got %s)\n",
+                                 wa_value_type_string(table->type),
+                                 wa_value_type_string(WA_TYPE_I32));
+                break;
+            }
+
+            wa_operand_slot val = wa_operand_stack_pop(context);
+            if(wa_operand_slot_is_nil(&val))
+            {
+                wa_compile_error(context,
+                                 instr->ast,
+                                 "unbalanced stack\n");
+                break;
+            }
+
+            if(!wa_check_operand_type(val.type, table->type))
+            {
+                wa_compile_error(context,
+                                 instr->ast,
+                                 "type mismatch for memory.grow instruction (expected %s, got %s)\n",
+                                 wa_value_type_string(table->type),
+                                 wa_value_type_string(val.type));
+                break;
+            }
+
+            u32 index = wa_allocate_register(context);
+
+            wa_operand_slot s = {
+                .kind = WA_OPERAND_SLOT_REG,
+                .type = WA_TYPE_I32,
+                .index = index,
+                .originInstr = instr,
+                .originOpd = context->codeLen,
+            };
+            wa_operand_stack_push(context, s);
+
+            wa_emit(context, (wa_code){ .opcode = WA_INSTR_table_grow });
+            wa_emit(context, (wa_code){ .index = tableIndex });
+            wa_emit(context, (wa_code){ .valI32 = val.index });
+            wa_emit(context, (wa_code){ .valI32 = size.index });
+            wa_emit(context, (wa_code){ .valI32 = s.index });
+        }
         else
         {
             //TODO validate instruction
@@ -4814,6 +4875,8 @@ wa_instance* wa_instance_create(oc_arena* arena, wa_module* module)
 {
     wa_instance* instance = oc_arena_push_type(arena, wa_instance);
     memset(instance, 0, sizeof(wa_instance));
+
+    instance->arena = arena;
 
     instance->module = module;
     instance->functions = oc_arena_push_array(arena, wa_func, module->functionCount);
@@ -6935,8 +6998,8 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
 
             case WA_INSTR_table_init:
             {
-                wa_table* table = &instance->tables[pc[0].valI32];
-                wa_element* elt = &instance->elements[pc[1].valI32];
+                wa_element* elt = &instance->elements[pc[0].valI32];
+                wa_table* table = &instance->tables[pc[1].valI32];
 
                 u32 n = *(u32*)&locals[pc[2].valI32].valI32;
                 u32 s = *(u32*)&locals[pc[3].valI32].valI32;
@@ -6965,6 +7028,39 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
                 }
                 memmove(tx->contents + d, ty->contents + s, n * sizeof(wa_value));
                 pc += 5;
+            }
+            break;
+
+            case WA_INSTR_table_size:
+            {
+                wa_table* table = &instance->tables[pc[0].valI32];
+                locals[pc[1].valI32].valI32 = table->size;
+                pc += 2;
+            }
+            break;
+
+            case WA_INSTR_table_grow:
+            {
+                wa_limits* limits = &instance->module->tables[pc[0].valI32].limits;
+                wa_table* table = &instance->tables[pc[0].valI32];
+                wa_value val = locals[pc[1].valI32];
+                u32 size = locals[pc[2].valI32].valI32;
+
+                i32 ret = -1;
+                if(limits->kind != WA_LIMIT_MIN_MAX || table->size + size <= limits->max)
+                {
+                    wa_value* contents = oc_arena_push_array(instance->arena, wa_value, table->size + size);
+                    memcpy(contents, table->contents, table->size * sizeof(wa_value));
+                    for(u32 i = 0; i < size; i++)
+                    {
+                        contents[table->size + i] = val;
+                    }
+                    ret = table->size;
+                    table->size += size;
+                    table->contents = contents;
+                }
+                locals[pc[3].valI32].valI32 = ret;
+                pc += 4;
             }
             break;
 
