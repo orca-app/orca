@@ -710,6 +710,7 @@ typedef struct wa_element
     wa_code* tableOffsetCode;
     wa_code** code;
 
+    wa_value* refs;
 } wa_element;
 
 typedef enum wa_data_mode
@@ -944,6 +945,9 @@ typedef struct wa_instance
     wa_value* globals;
     wa_table* tables;
     wa_memory* memories;
+
+    wa_data_segment* data;
+    wa_element* elements;
 } wa_instance;
 
 typedef struct wa_parser
@@ -4765,6 +4769,15 @@ wa_instance* wa_instance_create(oc_arena* arena, wa_module* module)
         memset(instance->tables[tableIndex].contents, 0, desc->limits.min * sizeof(wa_value));
     }
 
+    instance->elements = oc_arena_push_array(arena, wa_element, module->elementCount);
+    memcpy(instance->elements, module->elements, module->elementCount * sizeof(wa_element));
+    for(u32 eltIndex = 0; eltIndex < module->elementCount; eltIndex++)
+    {
+        wa_element* elt = &instance->elements[eltIndex];
+        elt->refs = oc_arena_push_array(arena, wa_value, elt->initCount);
+        memset(elt->refs, 0, elt->initCount * sizeof(wa_element));
+    }
+
     oc_base_allocator* allocator = oc_base_allocator_default();
 
     instance->memories = oc_arena_push_array(arena, wa_memory, module->memoryCount);
@@ -4778,6 +4791,9 @@ wa_instance* wa_instance_create(oc_arena* arena, wa_module* module)
         mem->ptr = oc_base_reserve(allocator, mem->cap);
         oc_base_commit(allocator, mem->ptr, mem->size);
     }
+
+    instance->data = oc_arena_push_array(arena, wa_data_segment, module->dataCount);
+    memcpy(instance->data, module->data, module->dataCount * sizeof(wa_data_segment));
 
     return (instance);
 }
@@ -4896,11 +4912,24 @@ wa_status wa_instance_link(wa_instance* instance)
 
     for(u64 eltIndex = 0; eltIndex < module->elementCount; eltIndex++)
     {
-        wa_element* element = &module->elements[eltIndex];
+        wa_element* element = &instance->elements[eltIndex];
+
+        i64 t = 0x7f - (i64)element->type + 1;
+        wa_func_type* exprType = (wa_func_type*)&WA_BLOCK_VALUE_TYPES[t];
+
+        for(u32 exprIndex = 0; exprIndex < element->initCount; exprIndex++)
+        {
+            wa_value* result = &element->refs[exprIndex];
+            wa_status status = wa_instance_interpret_expr(instance, exprType, element->code[exprIndex], 0, 0, 1, result);
+            if(status != WA_OK)
+            {
+                return status;
+            }
+        }
+
         if(element->mode == WA_ELEMENT_ACTIVE)
         {
             //TODO: check table size?
-
             wa_table_type* desc = &module->tables[element->tableIndex];
             wa_table* table = &instance->tables[element->tableIndex];
 
@@ -4914,19 +4943,7 @@ wa_status wa_instance_link(wa_instance* instance)
             {
                 return status;
             }
-
-            i64 t = 0x7f - (i64)element->type + 1;
-            wa_func_type* exprType = (wa_func_type*)&WA_BLOCK_VALUE_TYPES[t];
-
-            for(u32 exprIndex = 0; exprIndex < element->initCount; exprIndex++)
-            {
-                wa_value* result = &table->contents[offset.valI32 + exprIndex];
-                wa_status status = wa_instance_interpret_expr(instance, exprType, element->code[exprIndex], 0, 0, 1, result);
-                if(status != WA_OK)
-                {
-                    return status;
-                }
-            }
+            memcpy(&table->contents[offset.valI32], element->refs, element->initCount * sizeof(wa_value));
         }
     }
 
@@ -6741,7 +6758,7 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
             case WA_INSTR_memory_init:
             {
                 wa_memory* mem = &instance->memories[0];
-                wa_data_segment* seg = &instance->module->data[pc[0].valI32];
+                wa_data_segment* seg = &instance->data[pc[0].valI32];
 
                 u32 n = *(u32*)&locals[pc[2].valI32].valI32;
                 u32 s = *(u32*)&locals[pc[3].valI32].valI32;
@@ -6758,8 +6775,51 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
 
             case WA_INSTR_data_drop:
             {
-                wa_data_segment* seg = &instance->module->data[pc[0].valI32];
-                //TODO: how/do we want to support that??
+                wa_data_segment* seg = &instance->data[pc[0].valI32];
+                seg->init.len = 0;
+                pc += 1;
+            }
+            break;
+
+            case WA_INSTR_table_init:
+            {
+                wa_table* table = &instance->tables[pc[0].valI32];
+                wa_element* elt = &instance->elements[pc[1].valI32];
+
+                u32 n = *(u32*)&locals[pc[2].valI32].valI32;
+                u32 s = *(u32*)&locals[pc[3].valI32].valI32;
+                u32 d = *(u32*)&locals[pc[4].valI32].valI32;
+
+                if(n + s > elt->initCount || d + n > table->size)
+                {
+                    return WA_TRAP_OUT_OF_BOUNDS;
+                }
+                memmove(table->contents + d, elt->refs + s, n * sizeof(wa_value));
+                pc += 5;
+            }
+            break;
+
+            case WA_INSTR_table_copy:
+            {
+                wa_table* tx = &instance->tables[pc[0].valI32];
+                wa_table* ty = &instance->tables[pc[1].valI32];
+                u32 n = *(u32*)&locals[pc[2].valI32].valI32;
+                u32 s = *(u32*)&locals[pc[3].valI32].valI32;
+                u32 d = *(u32*)&locals[pc[4].valI32].valI32;
+
+                if(s + n > ty->size || d + n > tx->size)
+                {
+                    return WA_TRAP_OUT_OF_BOUNDS;
+                }
+                memmove(tx->contents + d, ty->contents + s, n * sizeof(wa_value));
+                pc += 5;
+            }
+            break;
+
+            case WA_INSTR_elem_drop:
+            {
+                wa_element* elt = &instance->elements[pc[0].valI32];
+                elt->initCount = 0;
                 pc += 1;
             }
             break;
@@ -7301,9 +7361,9 @@ int test_file(oc_str8 testPath, oc_str8 testName, oc_str8 testDir, i32 filterLin
         }
         else
         {
+            json_node* line = json_find(command, OC_STR8("line"));
             if(filterLine >= 0)
             {
-                json_node* line = json_find(command, OC_STR8("line"));
                 if(!line || line->numI64 != filterLine)
                 {
                     continue;
