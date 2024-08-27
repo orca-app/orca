@@ -1111,6 +1111,7 @@ typedef enum wa_status
     WA_TRAP_INVALID_INTEGER_CONVERSION,
     WA_TRAP_STACK_OVERFLOW,
     WA_TRAP_OUT_OF_BOUNDS,
+    WA_TRAP_REF_NULL,
 } wa_status;
 
 static const char* wa_status_strings[] = {
@@ -1134,6 +1135,7 @@ static const char* wa_status_strings[] = {
     "invalid integer conversion",
     "stack overflow",
     "out-of-bounds memory access",
+    "null reference",
 };
 
 typedef struct wa_module_error
@@ -4419,8 +4421,8 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
                 wa_compile_error(context,
                                  instr->ast,
                                  "type mismatch for table.grow instruction (expected %s, got %s)\n",
-                                 wa_value_type_string(table->type),
-                                 wa_value_type_string(WA_TYPE_I32));
+                                 wa_value_type_string(WA_TYPE_I32),
+                                 wa_value_type_string(size.type));
                 break;
             }
 
@@ -4437,7 +4439,7 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
             {
                 wa_compile_error(context,
                                  instr->ast,
-                                 "type mismatch for memory.grow instruction (expected %s, got %s)\n",
+                                 "type mismatch for table.grow instruction (expected %s, got %s)\n",
                                  wa_value_type_string(table->type),
                                  wa_value_type_string(val.type));
                 break;
@@ -4458,6 +4460,194 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
             wa_emit(context, (wa_code){ .index = tableIndex });
             wa_emit(context, (wa_code){ .valI32 = val.index });
             wa_emit(context, (wa_code){ .valI32 = size.index });
+            wa_emit(context, (wa_code){ .valI32 = s.index });
+        }
+        else if(instr->op == WA_INSTR_table_get)
+        {
+            u32 tableIndex = instr->imm[0].valueType;
+            wa_table_type* table = &module->tables[tableIndex];
+
+            wa_operand_slot eltIndex = wa_operand_stack_pop(context);
+            if(wa_operand_slot_is_nil(&eltIndex))
+            {
+                wa_compile_error(context,
+                                 instr->ast,
+                                 "unbalanced stack\n");
+                break;
+            }
+
+            if(!wa_check_operand_type(eltIndex.type, WA_TYPE_I32))
+            {
+                wa_compile_error(context,
+                                 instr->ast,
+                                 "type mismatch for table.get instruction (expected %s, got %s)\n",
+                                 wa_value_type_string(WA_TYPE_I32),
+                                 wa_value_type_string(eltIndex.type));
+                break;
+            }
+
+            wa_operand_slot s = {
+                .kind = WA_OPERAND_SLOT_REG,
+                .type = table->type,
+                .index = wa_allocate_register(context),
+                .originInstr = instr,
+                .originOpd = context->codeLen,
+            };
+            wa_operand_stack_push(context, s);
+
+            wa_emit(context, (wa_code){ .opcode = WA_INSTR_table_get });
+            wa_emit(context, (wa_code){ .index = tableIndex });
+            wa_emit(context, (wa_code){ .valI32 = eltIndex.index });
+            wa_emit(context, (wa_code){ .valI32 = s.index });
+        }
+        else if(instr->op == WA_INSTR_table_set)
+        {
+            u32 tableIndex = instr->imm[0].valueType;
+            wa_table_type* table = &module->tables[tableIndex];
+
+            wa_operand_slot val = wa_operand_stack_pop(context);
+            if(wa_operand_slot_is_nil(&val))
+            {
+                wa_compile_error(context,
+                                 instr->ast,
+                                 "unbalanced stack\n");
+                break;
+            }
+
+            if(!wa_check_operand_type(val.type, table->type))
+            {
+                wa_compile_error(context,
+                                 instr->ast,
+                                 "type mismatch for table.set instruction (expected %s, got %s)\n",
+                                 wa_value_type_string(table->type),
+                                 wa_value_type_string(val.type));
+                break;
+            }
+
+            wa_operand_slot eltIndex = wa_operand_stack_pop(context);
+            if(wa_operand_slot_is_nil(&eltIndex))
+            {
+                wa_compile_error(context,
+                                 instr->ast,
+                                 "unbalanced stack\n");
+                break;
+            }
+
+            if(!wa_check_operand_type(eltIndex.type, WA_TYPE_I32))
+            {
+                wa_compile_error(context,
+                                 instr->ast,
+                                 "type mismatch for table.set instruction (expected %s, got %s)\n",
+                                 wa_value_type_string(WA_TYPE_I32),
+                                 wa_value_type_string(eltIndex.type));
+                break;
+            }
+
+            wa_emit(context, (wa_code){ .opcode = WA_INSTR_table_set });
+            wa_emit(context, (wa_code){ .index = tableIndex });
+            wa_emit(context, (wa_code){ .valI32 = eltIndex.index });
+            wa_emit(context, (wa_code){ .valI32 = val.index });
+        }
+        else if(instr->op == WA_INSTR_table_fill)
+        {
+            u32 tableIndex = instr->imm[0].valueType;
+            wa_table_type* table = &module->tables[tableIndex];
+
+            wa_operand_slot count = wa_operand_stack_pop(context);
+            if(wa_operand_slot_is_nil(&count))
+            {
+                wa_compile_error(context,
+                                 instr->ast,
+                                 "unbalanced stack\n");
+                break;
+            }
+
+            if(!wa_check_operand_type(count.type, WA_TYPE_I32))
+            {
+                wa_compile_error(context,
+                                 instr->ast,
+                                 "type mismatch for table.fill instruction (expected %s, got %s)\n",
+                                 wa_value_type_string(WA_TYPE_I32),
+                                 wa_value_type_string(count.type));
+                break;
+            }
+
+            wa_operand_slot val = wa_operand_stack_pop(context);
+            if(wa_operand_slot_is_nil(&val))
+            {
+                wa_compile_error(context,
+                                 instr->ast,
+                                 "unbalanced stack\n");
+                break;
+            }
+
+            if(!wa_check_operand_type(val.type, table->type))
+            {
+                wa_compile_error(context,
+                                 instr->ast,
+                                 "type mismatch for table.fill instruction (expected %s, got %s)\n",
+                                 wa_value_type_string(table->type),
+                                 wa_value_type_string(val.type));
+                break;
+            }
+
+            wa_operand_slot offset = wa_operand_stack_pop(context);
+            if(wa_operand_slot_is_nil(&offset))
+            {
+                wa_compile_error(context,
+                                 instr->ast,
+                                 "unbalanced stack\n");
+                break;
+            }
+
+            if(!wa_check_operand_type(offset.type, WA_TYPE_I32))
+            {
+                wa_compile_error(context,
+                                 instr->ast,
+                                 "type mismatch for table.fill instruction (expected %s, got %s)\n",
+                                 wa_value_type_string(WA_TYPE_I32),
+                                 wa_value_type_string(offset.type));
+                break;
+            }
+
+            wa_emit(context, (wa_code){ .opcode = WA_INSTR_table_fill });
+            wa_emit(context, (wa_code){ .index = tableIndex });
+            wa_emit(context, (wa_code){ .valI32 = offset.index });
+            wa_emit(context, (wa_code){ .valI32 = val.index });
+            wa_emit(context, (wa_code){ .valI32 = count.index });
+        }
+        else if(instr->op == WA_INSTR_ref_is_null)
+        {
+            wa_operand_slot ref = wa_operand_stack_pop(context);
+            if(wa_operand_slot_is_nil(&ref))
+            {
+                wa_compile_error(context,
+                                 instr->ast,
+                                 "unbalanced stack\n");
+                break;
+            }
+
+            if(!wa_check_operand_type(ref.type, WA_TYPE_FUNC_REF)
+               && !wa_check_operand_type(ref.type, WA_TYPE_EXTERN_REF))
+            {
+                wa_compile_error(context,
+                                 instr->ast,
+                                 "type mismatch for ref.is_null instruction (expected reference type, got %s)\n",
+                                 wa_value_type_string(ref.type));
+                break;
+            }
+
+            wa_operand_slot s = {
+                .kind = WA_OPERAND_SLOT_REG,
+                .type = WA_TYPE_I32,
+                .index = wa_allocate_register(context),
+                .originInstr = instr,
+                .originOpd = context->codeLen,
+            };
+            wa_operand_stack_push(context, s);
+
+            wa_emit(context, (wa_code){ .opcode = WA_INSTR_ref_is_null });
+            wa_emit(context, (wa_code){ .valI32 = ref.index });
             wa_emit(context, (wa_code){ .valI32 = s.index });
         }
         else
@@ -5528,6 +5718,12 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
                 wa_table* table = &instance->tables[tableIndex];
                 u32 funcIndex = *(u32*)&table->contents[index].valI32;
 
+                if(funcIndex == 0)
+                {
+                    return WA_TRAP_REF_NULL;
+                }
+                funcIndex--;
+
                 wa_func* callee = &instance->functions[funcIndex];
 
                 //TODO check type
@@ -5596,9 +5792,16 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
             }
             break;
 
+            case WA_INSTR_ref_is_null:
+            {
+                locals[pc[1].valI32].valI32 = (locals[pc[0].valI32].valI64 == 0) ? 1 : 0;
+                pc += 2;
+            }
+            break;
+
             case WA_INSTR_ref_func:
             {
-                locals[pc[1].valI32].valI64 = pc[0].valI64; //???
+                locals[pc[1].valI32].valI64 = pc[0].valI64 + 1; //???
                 pc += 2;
             }
             break;
@@ -7014,6 +7217,26 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
             }
             break;
 
+            case WA_INSTR_table_fill:
+            {
+                wa_table* table = &instance->tables[pc[0].valI32];
+                u32 d = *(u32*)&locals[pc[1].valI32].valI32;
+                wa_value val = locals[pc[2].valI32];
+                u32 n = *(u32*)&locals[pc[3].valI32].valI32;
+
+                if(d + n > table->size)
+                {
+                    return WA_TRAP_OUT_OF_BOUNDS;
+                }
+                for(u32 i = 0; i < n; i++)
+                {
+                    table->contents[d + i] = val;
+                }
+
+                pc += 4;
+            }
+            break;
+
             case WA_INSTR_table_copy:
             {
                 wa_table* tx = &instance->tables[pc[0].valI32];
@@ -7047,7 +7270,7 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
                 u32 size = locals[pc[2].valI32].valI32;
 
                 i32 ret = -1;
-                if(limits->kind != WA_LIMIT_MIN_MAX || table->size + size <= limits->max)
+                if((u64)table->size + (u64)size <= UINT32_MAX && (limits->kind != WA_LIMIT_MIN_MAX || table->size + size <= limits->max))
                 {
                     wa_value* contents = oc_arena_push_array(instance->arena, wa_value, table->size + size);
                     memcpy(contents, table->contents, table->size * sizeof(wa_value));
@@ -7061,6 +7284,35 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
                 }
                 locals[pc[3].valI32].valI32 = ret;
                 pc += 4;
+            }
+            break;
+
+            case WA_INSTR_table_get:
+            {
+                wa_table* table = &instance->tables[pc[0].valI32];
+                u32 eltIndex = locals[pc[1].valI32].valI32;
+
+                if(eltIndex >= table->size)
+                {
+                    return WA_TRAP_OUT_OF_BOUNDS;
+                }
+                locals[pc[2].valI32] = table->contents[eltIndex];
+                pc += 3;
+            }
+            break;
+
+            case WA_INSTR_table_set:
+            {
+                wa_table* table = &instance->tables[pc[0].valI32];
+                u32 eltIndex = locals[pc[1].valI32].valI32;
+                wa_value val = locals[pc[2].valI32];
+
+                if(eltIndex >= table->size)
+                {
+                    return WA_TRAP_OUT_OF_BOUNDS;
+                }
+                table->contents[eltIndex] = val;
+                pc += 3;
             }
             break;
 

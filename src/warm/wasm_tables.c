@@ -1007,7 +1007,11 @@ static const wa_instr_info wa_instr_infos[] = {
         .opdCount = 2,
         .defined = true,
     },
-    [WA_INSTR_ref_is_null] = {},
+    [WA_INSTR_ref_is_null] = {
+        .out = { WA_TYPE_I32 },
+        .opdCount = 1,
+        .defined = true,
+    },
     [WA_INSTR_ref_func] = {
         .immCount = 1,
         .imm = { WA_IMM_FUNC_INDEX },
@@ -1062,8 +1066,29 @@ static const wa_instr_info wa_instr_infos[] = {
         .opdCount = 2,
         .defined = true,
     },
-    [WA_INSTR_table_get] = {},
-    [WA_INSTR_table_set] = {},
+    [WA_INSTR_table_get] = {
+        // special cased
+        .immCount = 1,
+        .imm = { WA_IMM_TABLE_INDEX },
+        .inCount = 1,
+        .in = { WA_TYPE_I32 },
+        .outCount = 1,
+        .out = { WA_TYPE_FUNC_REF },
+        .opdCount = 3,
+        .defined = true,
+    },
+    [WA_INSTR_table_set] = {
+        // special cased
+        .immCount = 1,
+        .imm = { WA_IMM_TABLE_INDEX },
+        .inCount = 2,
+        .in = {
+            WA_TYPE_FUNC_REF,
+            WA_TYPE_I32,
+        },
+        .opdCount = 3,
+        .defined = true,
+    },
     [WA_INSTR_i32_load] = {
         .immCount = 1,
         .imm = { WA_IMM_MEM_ARG },
@@ -2780,7 +2805,19 @@ static const wa_instr_info wa_instr_infos[] = {
         .opdCount = 2,
         .defined = true,
     },
-    [WA_INSTR_table_fill] = {},
+    [WA_INSTR_table_fill] = {
+        //special cased
+        .immCount = 1,
+        .imm = { WA_IMM_TABLE_INDEX },
+        .inCount = 3,
+        .in = {
+            WA_TYPE_I32,
+            WA_TYPE_FUNC_REF,
+            WA_TYPE_I32,
+        },
+        .opdCount = 4,
+        .defined = true,
+    },
     [WA_INSTR_memory_init] = {
         .immCount = 2,
         .imm = {
