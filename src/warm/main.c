@@ -3633,9 +3633,21 @@ void wa_patch_jump_targets(wa_build_context* context, wa_block* block)
 
 int wa_compile_return(wa_build_context* context, wa_func_type* type, wa_instr* instr)
 {
+    /////////////////////////////////////////////////////////////////
+    //TODO: return may be used in branches of branch table, so it must
+    //      _NOT_ change the stack...
+    /////////////////////////////////////////////////////////////////
+    oc_arena_scope scratch = oc_scratch_begin();
+    wa_operand_slot* returns = oc_arena_push_array(scratch.arena, wa_operand_slot, type->returnCount);
     for(u32 retIndex = 0; retIndex < type->returnCount; retIndex++)
     {
-        wa_operand_slot slot = wa_operand_stack_lookup(context, type->returnCount - retIndex - 1);
+        returns[retIndex] = wa_operand_stack_lookup(context, type->returnCount - retIndex - 1);
+    }
+
+    for(u32 retIndex = 0; retIndex < type->returnCount; retIndex++)
+    {
+        wa_operand_slot slot = returns[retIndex];
+
         if(wa_operand_slot_is_nil(&slot))
         {
             //TODO: we should also point to the ast of the return type
@@ -3644,6 +3656,7 @@ int wa_compile_return(wa_build_context* context, wa_func_type* type, wa_instr* i
                              "Not enough return values (expected: %i, stack depth: %i)\n",
                              type->returnCount,
                              wa_operand_stack_scope_size(context));
+            oc_scratch_end(scratch);
             return -1;
         }
 
@@ -3658,13 +3671,39 @@ int wa_compile_return(wa_build_context* context, wa_func_type* type, wa_instr* i
                              "Return type doesn't match function signature (expected %s, got %s)\n",
                              wa_value_type_string(expectedType),
                              wa_value_type_string(returnType));
+            oc_scratch_end(scratch);
             return -1;
         }
 
         //NOTE store value to return slot
         if(slot.type != WA_TYPE_UNKNOWN && slot.index != retIndex)
         {
-            wa_move_slot_if_used(context, retIndex);
+            ////////////////////////////////////////////////////////////////////////////////////////////////////
+            //TODO: coalesce with move if used _BUT_ preserve the stack for futher returns in other branches
+            ////////////////////////////////////////////////////////////////////////////////////////////////////
+            u32 newReg = UINT32_MAX;
+            u32 count = 0;
+            for(u32 i = 0; i < type->returnCount; i++)
+            {
+                wa_operand_slot* r = &returns[i];
+                if(r->index == retIndex)
+                {
+                    if(newReg == UINT32_MAX)
+                    {
+                        newReg = wa_allocate_register(context);
+                    }
+                    r->kind = WA_OPERAND_SLOT_REG;
+                    r->index = newReg;
+                    r->count = count;
+                    count++;
+                }
+            }
+            if(newReg != UINT32_MAX)
+            {
+                wa_emit(context, (wa_code){ .opcode = WA_INSTR_move });
+                wa_emit(context, (wa_code){ .valI32 = retIndex });
+                wa_emit(context, (wa_code){ .valI32 = newReg });
+            }
 
             wa_emit(context, (wa_code){ .opcode = WA_INSTR_move });
             wa_emit(context, (wa_code){ .valI64 = slot.index });
@@ -3675,7 +3714,7 @@ int wa_compile_return(wa_build_context* context, wa_func_type* type, wa_instr* i
 
     //WARN: wa_compile_return() is also used by conditional or table branches when they target the top-level scope,
     //      so we don't set the stack polymorphic here. Instead we do it in the callers when return is unconditional
-
+    oc_scratch_end(scratch);
     return 0;
 }
 
@@ -3815,11 +3854,13 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
 
             if(instr->op == WA_INSTR_select_t)
             {
-                if(slot0.type != instr->imm[0].valueType)
+                if(!wa_check_operand_type(slot0.type, instr->imm[0].valueType))
                 {
                     wa_compile_error(context,
                                      instr->ast,
-                                     "select operands should be numeric\n");
+                                     "select operands type mismatch (expected %s, got %s)\n",
+                                     wa_value_type_string(instr->imm[0].valueType),
+                                     wa_value_type_string(slot0.type));
                     break;
                 }
             }
@@ -4340,6 +4381,23 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
             wa_emit(context, (wa_code){ .opcode = WA_INSTR_global_set });
             wa_emit(context, (wa_code){ .valI32 = slot.index });
             wa_emit(context, (wa_code){ .valI32 = globalIndex });
+        }
+        else if(instr->op == WA_INSTR_ref_null)
+        {
+            wa_value_type type = instr->imm[0].valueType;
+            u32 index = wa_allocate_register(context);
+
+            wa_operand_slot s = {
+                .kind = WA_OPERAND_SLOT_REG,
+                .type = type,
+                .index = index,
+                .originInstr = instr,
+                .originOpd = context->codeLen,
+            };
+            wa_operand_stack_push(context, s);
+
+            wa_emit(context, (wa_code){ .opcode = WA_INSTR_ref_null });
+            wa_emit(context, (wa_code){ .index = s.index });
         }
         else
         {
@@ -5471,7 +5529,7 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
             case WA_INSTR_ref_null:
             {
                 locals[pc[1].valI32].valI64 = 0; //???
-                pc += 2;
+                pc += 1;
             }
             break;
 
