@@ -2761,8 +2761,25 @@ static const wa_instr_info wa_instr_infos[] = {
         .opdCount = 5,
         .defined = true,
     },
-    [WA_INSTR_table_grow] = {},
-    [WA_INSTR_table_size] = {},
+    [WA_INSTR_table_grow] = {
+        //special cased
+        .immCount = 1,
+        .imm = { WA_IMM_TABLE_INDEX },
+        .inCount = 2,
+        .in = { WA_TYPE_FUNC_REF, WA_TYPE_I32 },
+        .outCount = 1,
+        .out = { WA_TYPE_I32 },
+        .opdCount = 4,
+        .defined = true,
+    },
+    [WA_INSTR_table_size] = {
+        .immCount = 1,
+        .imm = { WA_IMM_TABLE_INDEX },
+        .outCount = 1,
+        .out = { WA_TYPE_I32 },
+        .opdCount = 2,
+        .defined = true,
+    },
     [WA_INSTR_table_fill] = {},
     [WA_INSTR_memory_init] = {
         .immCount = 2,
