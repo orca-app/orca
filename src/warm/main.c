@@ -638,6 +638,8 @@ typedef void (*wa_host_proc)(wa_value* args, wa_value* returns); //TODO: complet
 
 typedef struct wa_import wa_import;
 
+typedef struct wa_instance wa_instance;
+
 typedef struct wa_func
 {
     wa_func_type* type;
@@ -652,6 +654,9 @@ typedef struct wa_func
 
     wa_import* import;
     wa_host_proc proc;
+
+    wa_instance* extInstance;
+    u32 extIndex;
 
 } wa_func;
 
@@ -4798,6 +4803,52 @@ wa_instance* wa_instance_create(oc_arena* arena, wa_module* module)
     return (instance);
 }
 
+//TODO: temporary for tests, coalesce this with normal function binding
+wa_status wa_instance_bind_function_wasm(wa_instance* instance, oc_str8 name, wa_func_type* type, wa_instance* extInstance, u32 extIndex)
+{
+    wa_module* module = instance->module;
+    u32 funcIndex = 0;
+
+    for(u32 importIndex = 0; importIndex < module->importCount; importIndex++)
+    {
+        wa_import* import = &module->imports[importIndex];
+
+        if(import->kind == WA_IMPORT_FUNCTION)
+        {
+            if(!oc_str8_cmp(name, import->importName))
+            {
+                wa_func* func = &instance->functions[funcIndex];
+                func->extInstance = extInstance;
+                func->extIndex = extIndex;
+
+                if(type->paramCount != func->type->paramCount
+                   || type->returnCount != func->type->returnCount)
+                {
+                    //log error to module
+                    return WA_ERROR_BIND_TYPE;
+                }
+                for(u32 paramIndex = 0; paramIndex < type->paramCount; paramIndex++)
+                {
+                    if(type->params[paramIndex] != func->type->params[paramIndex])
+                    {
+                        return WA_ERROR_BIND_TYPE;
+                    }
+                }
+                for(u32 returnIndex = 0; returnIndex < type->returnCount; returnIndex++)
+                {
+                    if(type->returns[returnIndex] != func->type->returns[returnIndex])
+                    {
+                        return WA_ERROR_BIND_TYPE;
+                    }
+                }
+                break;
+            }
+            funcIndex++;
+        }
+    }
+    return (WA_OK);
+}
+
 wa_status wa_instance_bind_function(wa_instance* instance, oc_str8 name, wa_func_type* type, wa_host_proc proc)
 {
     wa_module* module = instance->module;
@@ -4886,7 +4937,7 @@ wa_status wa_instance_link(wa_instance* instance)
     for(u32 funcIndex = 0; funcIndex < module->functionImportCount; funcIndex++)
     {
         wa_func* func = &instance->functions[funcIndex];
-        if(!func->proc)
+        if(!func->proc && !func->extInstance)
         {
             oc_log_error("Couldn't link instance: import %.*s not satisfied.\n",
                          oc_str8_ip(func->import->importName));
@@ -4978,6 +5029,13 @@ wa_status wa_instance_link(wa_instance* instance)
 
     return WA_OK;
 }
+
+wa_status wa_instance_invoke(wa_instance* instance,
+                             wa_func* func,
+                             u32 argCount,
+                             wa_value* args,
+                             u32 retCount,
+                             wa_value* returns);
 
 wa_func* wa_instance_find_function(wa_instance* instance, oc_str8 name)
 {
@@ -5311,6 +5369,25 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
                     locals += pc[1].valI64;
                     pc = callee->code;
                 }
+                else if(callee->extInstance)
+                {
+                    //TODO temporary for test, do it better
+
+                    wa_func* extFunc = &callee->extInstance->functions[callee->extIndex];
+
+                    wa_status status = wa_instance_invoke(callee->extInstance,
+                                                          extFunc,
+                                                          callee->type->paramCount,
+                                                          locals + pc[1].valI64,
+                                                          callee->type->returnCount,
+                                                          locals + pc[1].valI64);
+
+                    if(status != WA_OK)
+                    {
+                        return status;
+                    }
+                    pc += 2;
+                }
                 else
                 {
                     wa_value* saveLocals = locals;
@@ -5349,6 +5426,25 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
 
                     locals += maxUsedSlot;
                     pc = callee->code;
+                }
+                else if(callee->extInstance)
+                {
+                    //TODO temporary for test, do it better
+
+                    wa_func* extFunc = &callee->extInstance->functions[callee->extIndex];
+
+                    wa_status status = wa_instance_invoke(callee->extInstance,
+                                                          extFunc,
+                                                          callee->type->paramCount,
+                                                          locals + pc[1].valI64,
+                                                          callee->type->returnCount,
+                                                          locals + pc[1].valI64);
+
+                    if(status != WA_OK)
+                    {
+                        return status;
+                    }
+                    pc += 4;
                 }
                 else
                 {
@@ -6849,7 +6945,22 @@ wa_status wa_instance_invoke(wa_instance* instance,
     {
         return WA_ERROR_INVALID_ARGS;
     }
-    return (wa_instance_interpret_expr(instance, func->type, func->code, argCount, args, retCount, returns));
+
+    if(func->code)
+    {
+        return (wa_instance_interpret_expr(instance, func->type, func->code, argCount, args, retCount, returns));
+    }
+    else if(func->extInstance)
+    {
+        wa_func* extFunc = &func->extInstance->functions[func->extIndex];
+        return wa_instance_invoke(func->extInstance, extFunc, argCount, args, retCount, returns);
+    }
+    else
+    {
+        //TODO: host proc should return a status
+        func->proc(args, returns);
+        return WA_OK;
+    }
 }
 
 //-------------------------------------------------------------------------
@@ -7349,6 +7460,37 @@ int test_file(oc_str8 testPath, oc_str8 testName, oc_str8 testDir, i32 filterLin
                 wa_instance_bind_global(testInstance->instance, OC_STR8("global_i32"), (wa_typed_value){ .type = WA_TYPE_I32, .value.valI32 = 666 });
                 wa_instance_bind_global(testInstance->instance, OC_STR8("global_i64"), (wa_typed_value){ .type = WA_TYPE_I64, .value.valI64 = 666 });
 
+                //TODO link registered modules...
+
+                u32 funcIndex = 0;
+                for(u32 i = 0; i < testInstance->instance->module->importCount; i++)
+                {
+                    wa_import* import = &testInstance->instance->module->imports[i];
+                    if(import->kind == WA_IMPORT_FUNCTION)
+                    {
+                        wa_func* func = &testInstance->instance->functions[funcIndex];
+
+                        oc_list_for(env->instances, registeredInstance, wa_test_instance, listElt)
+                        {
+                            if(!oc_str8_cmp(registeredInstance->name, import->moduleName))
+                            {
+                                for(u32 exportIndex = 0; exportIndex < registeredInstance->instance->module->exportCount; exportIndex++)
+                                {
+                                    wa_export* export = &registeredInstance->instance->module->exports[exportIndex];
+                                    if(export->kind == WA_EXPORT_FUNCTION && !oc_str8_cmp(export->name, import->importName))
+                                    {
+                                        func->extInstance = registeredInstance->instance;
+                                        func->extIndex = export->index;
+                                        break;
+                                    }
+                                }
+                                break;
+                            }
+                        }
+                        funcIndex++;
+                    }
+                }
+
                 if(wa_instance_link(testInstance->instance) != WA_OK)
                 {
                     testInstance->instance = 0;
@@ -7358,6 +7500,18 @@ int test_file(oc_str8 testPath, oc_str8 testName, oc_str8 testDir, i32 filterLin
 
                 wa_test_pass(env, testName, command);
             }
+        }
+        else if(!oc_str8_cmp(type->string, OC_STR8("register")))
+        {
+            json_node* as = json_find_assert(command, "as", JSON_STRING);
+            wa_test_instance* mod = oc_list_last_entry(env->instances, wa_test_instance, listElt);
+            if(!mod)
+            {
+                wa_test_fail(env, testName, command);
+                continue;
+            }
+            mod->name = oc_str8_push_copy(env->arena, as->string);
+            wa_test_pass(env, testName, command);
         }
         else
         {
