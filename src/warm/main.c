@@ -949,7 +949,7 @@ typedef struct wa_instance
 
     wa_func* functions;
     wa_value* globals;
-    wa_table* tables;
+    wa_table** tables;
     wa_memory** memories;
 
     wa_data_segment* data;
@@ -4079,7 +4079,7 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
             wa_func* callee = &module->functions[instr->imm[0].index];
             u32 paramCount = callee->type->paramCount;
 
-            i64 maxUsedSlot = -1;
+            i64 maxUsedSlot = func->localCount;
             for(u32 stackIndex = 0; stackIndex < context->opdStackLen; stackIndex++)
             {
                 wa_operand_slot* slot = &context->opdStack[stackIndex];
@@ -5077,14 +5077,19 @@ wa_instance* wa_instance_create(oc_arena* arena, wa_module* module)
     memset(instance->globals, 0, module->globalCount * sizeof(wa_value));
 
     // tables
-    instance->tables = oc_arena_push_array(arena, wa_table, module->tableCount);
-    for(u32 tableIndex = 0; tableIndex < module->tableCount; tableIndex++)
+    instance->tables = oc_arena_push_array(arena, wa_table*, module->tableCount);
+    memset(instance->tables, 0, module->tableImportCount * sizeof(wa_table*));
+
+    for(u32 tableIndex = module->tableImportCount; tableIndex < module->tableCount; tableIndex++)
     {
         wa_table_type* desc = &module->tables[tableIndex];
+        wa_table* table = oc_arena_push_type(arena, wa_table);
 
-        instance->tables[tableIndex].size = desc->limits.min;
-        instance->tables[tableIndex].contents = oc_arena_push_array(arena, wa_value, desc->limits.min);
-        memset(instance->tables[tableIndex].contents, 0, desc->limits.min * sizeof(wa_value));
+        table->size = desc->limits.min;
+        table->contents = oc_arena_push_array(arena, wa_value, desc->limits.min);
+        memset(table->contents, 0, desc->limits.min * sizeof(wa_value));
+
+        instance->tables[tableIndex] = table;
     }
 
     // elements
@@ -5103,7 +5108,7 @@ wa_instance* wa_instance_create(oc_arena* arena, wa_module* module)
     instance->memories = oc_arena_push_array(arena, wa_memory*, module->memoryCount);
     memset(instance->memories, 0, module->memoryImportCount * sizeof(wa_memory*));
 
-    for(u32 memIndex = 0; memIndex < module->memoryCount; memIndex++)
+    for(u32 memIndex = module->memoryImportCount; memIndex < module->memoryCount; memIndex++)
     {
         wa_limits* limits = &module->memories[memIndex];
         wa_memory* mem = oc_arena_push_type(arena, wa_memory);
@@ -5261,6 +5266,28 @@ wa_status wa_instance_bind_memory(wa_instance* instance, oc_str8 name, wa_memory
     return (WA_OK);
 }
 
+wa_status wa_instance_bind_table(wa_instance* instance, oc_str8 name, wa_table* table)
+{
+    wa_module* module = instance->module;
+    u32 tableIndex = 0;
+
+    for(u32 importIndex = 0; importIndex < module->importCount; importIndex++)
+    {
+        wa_import* import = &module->imports[importIndex];
+
+        if(import->kind == WA_IMPORT_TABLE)
+        {
+            if(!oc_str8_cmp(name, import->importName))
+            {
+                instance->tables[tableIndex] = table;
+                break;
+            }
+            tableIndex++;
+        }
+    }
+    return (WA_OK);
+}
+
 wa_status wa_instance_interpret_expr(wa_instance* instance,
                                      wa_func_type* type,
                                      wa_code* code,
@@ -5301,6 +5328,15 @@ wa_status wa_instance_link(wa_instance* instance)
         }
     }
 
+    for(u32 tableIndex = 0; tableIndex < module->tableImportCount; tableIndex++)
+    {
+        if(instance->tables[tableIndex] == 0)
+        {
+            oc_log_error("Coulnd't link instance: table import is not satisfied\n");
+            return WA_FAIL_MISSING_IMPORT;
+        }
+    }
+
     for(u64 eltIndex = 0; eltIndex < module->elementCount; eltIndex++)
     {
         wa_element* element = &instance->elements[eltIndex];
@@ -5323,7 +5359,7 @@ wa_status wa_instance_link(wa_instance* instance)
         {
             //TODO: check table size?
             wa_table_type* desc = &module->tables[element->tableIndex];
-            wa_table* table = &instance->tables[element->tableIndex];
+            wa_table* table = instance->tables[element->tableIndex];
 
             wa_value offset = { 0 };
             wa_status status = wa_instance_interpret_expr(instance,
@@ -5764,7 +5800,7 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
                 i64 maxUsedSlot = pc[2].valI64;
                 u32 index = *(u32*)&(locals[pc[3].valI32].valI32);
 
-                wa_table* table = &instance->tables[tableIndex];
+                wa_table* table = instance->tables[tableIndex];
                 u32 funcIndex = *(u32*)&table->contents[index].valI32;
 
                 if(funcIndex == 0)
@@ -7251,7 +7287,7 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
             case WA_INSTR_table_init:
             {
                 wa_element* elt = &instance->elements[pc[0].valI32];
-                wa_table* table = &instance->tables[pc[1].valI32];
+                wa_table* table = instance->tables[pc[1].valI32];
 
                 u32 n = *(u32*)&locals[pc[2].valI32].valI32;
                 u32 s = *(u32*)&locals[pc[3].valI32].valI32;
@@ -7268,7 +7304,7 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
 
             case WA_INSTR_table_fill:
             {
-                wa_table* table = &instance->tables[pc[0].valI32];
+                wa_table* table = instance->tables[pc[0].valI32];
                 u32 d = *(u32*)&locals[pc[1].valI32].valI32;
                 wa_value val = locals[pc[2].valI32];
                 u32 n = *(u32*)&locals[pc[3].valI32].valI32;
@@ -7288,8 +7324,8 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
 
             case WA_INSTR_table_copy:
             {
-                wa_table* tx = &instance->tables[pc[0].valI32];
-                wa_table* ty = &instance->tables[pc[1].valI32];
+                wa_table* tx = instance->tables[pc[0].valI32];
+                wa_table* ty = instance->tables[pc[1].valI32];
                 u32 n = *(u32*)&locals[pc[2].valI32].valI32;
                 u32 s = *(u32*)&locals[pc[3].valI32].valI32;
                 u32 d = *(u32*)&locals[pc[4].valI32].valI32;
@@ -7305,7 +7341,7 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
 
             case WA_INSTR_table_size:
             {
-                wa_table* table = &instance->tables[pc[0].valI32];
+                wa_table* table = instance->tables[pc[0].valI32];
                 locals[pc[1].valI32].valI32 = table->size;
                 pc += 2;
             }
@@ -7314,7 +7350,7 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
             case WA_INSTR_table_grow:
             {
                 wa_limits* limits = &instance->module->tables[pc[0].valI32].limits;
-                wa_table* table = &instance->tables[pc[0].valI32];
+                wa_table* table = instance->tables[pc[0].valI32];
                 wa_value val = locals[pc[1].valI32];
                 u32 size = locals[pc[2].valI32].valI32;
 
@@ -7338,7 +7374,7 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
 
             case WA_INSTR_table_get:
             {
-                wa_table* table = &instance->tables[pc[0].valI32];
+                wa_table* table = instance->tables[pc[0].valI32];
                 u32 eltIndex = locals[pc[1].valI32].valI32;
 
                 if(eltIndex >= table->size)
@@ -7352,7 +7388,7 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
 
             case WA_INSTR_table_set:
             {
-                wa_table* table = &instance->tables[pc[0].valI32];
+                wa_table* table = instance->tables[pc[0].valI32];
                 u32 eltIndex = locals[pc[1].valI32].valI32;
                 wa_value val = locals[pc[2].valI32];
 
@@ -7675,9 +7711,17 @@ typedef struct wa_test_env
 
 } wa_test_env;
 
+typedef enum wa_test_status
+{
+    WA_TEST_FAIL,
+    WA_TEST_SKIP,
+    WA_TEST_PASS,
+} wa_test_status;
+
 typedef struct wa_test_result
 {
-    wa_status status;
+    wa_test_status status;
+    wa_status trap;
     u32 count;
     wa_value* values;
 
@@ -7708,17 +7752,10 @@ wa_test_result wa_test_invoke(wa_test_env* env, wa_instance* instance, json_node
     res.count = func->type->returnCount;
     res.values = oc_arena_push_array(env->arena, wa_value, res.count);
 
-    res.status = wa_instance_invoke(instance, func, argCount, argVals, res.count, res.values);
-
+    res.trap = wa_instance_invoke(instance, func, argCount, argVals, res.count, res.values);
+    res.status = (res.trap == WA_OK) ? WA_TEST_PASS : WA_TEST_FAIL;
     return res;
 }
-
-typedef enum wa_test_status
-{
-    WA_TEST_FAIL,
-    WA_TEST_SKIP,
-    WA_TEST_PASS,
-} wa_test_status;
 
 static const char* wa_test_status_string[] = {
     "[FAIL]",
@@ -7791,6 +7828,7 @@ wa_test_result wa_test_action(wa_test_env* env, wa_instance* instance, json_node
     else
     {
         wa_test_skip(env, env->fileName, env->command);
+        result.status = WA_TEST_SKIP;
     }
     return (result);
 }
@@ -7903,6 +7941,13 @@ int test_file(oc_str8 testPath, oc_str8 testName, oc_str8 testDir, i32 filterLin
     };
     oc_base_commit(allocator, memory.ptr, memory.size);
 
+    //spec test table
+    wa_table table = {
+        .size = 10,
+        .contents = oc_arena_push_array(env->arena, wa_value, 10),
+    };
+    memset(table.contents, 0, 10 * sizeof(wa_value));
+
     env->fileName = testName;
 
     json_node* json = json_parse_str8(env->arena, contents);
@@ -7955,6 +8000,7 @@ int test_file(oc_str8 testPath, oc_str8 testName, oc_str8 testDir, i32 filterLin
                 testInstance->instance = wa_instance_create(env->arena, module);
 
                 wa_instance_bind_memory(testInstance->instance, OC_STR8("memory"), &memory);
+                wa_instance_bind_table(testInstance->instance, OC_STR8("table"), &table);
 
                 wa_instance_bind_global(testInstance->instance, OC_STR8("global_i32"), (wa_typed_value){ .type = WA_TYPE_I32, .value.valI32 = 666 });
                 wa_instance_bind_global(testInstance->instance, OC_STR8("global_i64"), (wa_typed_value){ .type = WA_TYPE_I64, .value.valI64 = 666 });
@@ -8029,6 +8075,7 @@ int test_file(oc_str8 testPath, oc_str8 testName, oc_str8 testDir, i32 filterLin
                 //TODO link registered modules...
                 u32 funcIndex = 0;
                 u32 memIndex = 0;
+                u32 tableIndex = 0;
 
                 for(u32 i = 0; i < testInstance->instance->module->importCount; i++)
                 {
@@ -8053,6 +8100,10 @@ int test_file(oc_str8 testPath, oc_str8 testName, oc_str8 testDir, i32 filterLin
                                     {
                                         testInstance->instance->memories[funcIndex] = registeredInstance->instance->memories[export->index];
                                     }
+                                    else if(import->kind == WA_IMPORT_TABLE)
+                                    {
+                                        testInstance->instance->tables[tableIndex] = registeredInstance->instance->tables[export->index];
+                                    }
                                     break;
                                 }
                             }
@@ -8066,6 +8117,10 @@ int test_file(oc_str8 testPath, oc_str8 testName, oc_str8 testDir, i32 filterLin
                     else if(import->kind == WA_IMPORT_MEMORY)
                     {
                         memIndex++;
+                    }
+                    else if(import->kind == WA_IMPORT_TABLE)
+                    {
+                        tableIndex++;
                     }
                 }
 
@@ -8129,86 +8184,89 @@ int test_file(oc_str8 testPath, oc_str8 testName, oc_str8 testDir, i32 filterLin
 
                 wa_test_result result = wa_test_action(env, instance, action);
 
-                bool check = (result.status == WA_OK)
-                          && (expected->childCount == result.count);
-                if(check)
+                if(result.status != WA_TEST_SKIP)
                 {
-                    u32 retIndex = 0;
-                    oc_list_for(expected->children, expectRet, json_node, listElt)
+                    bool check = (result.status == WA_TEST_PASS)
+                              && (expected->childCount == result.count);
+                    if(check)
                     {
-                        //TODO: handle expected NaN
-
-                        wa_typed_value expectVal = test_parse_value(expectRet);
-                        switch(expectVal.type)
+                        u32 retIndex = 0;
+                        oc_list_for(expected->children, expectRet, json_node, listElt)
                         {
-                            case WA_TYPE_I32:
-                                check = check && (result.values[retIndex].valI32 == expectVal.value.valI32);
-                                break;
-                            case WA_TYPE_I64:
-                                check = check && (result.values[retIndex].valI64 == expectVal.value.valI64);
-                                break;
-                            case WA_TYPE_F32:
-                            {
-                                if(wa_is_nan_canonical_f32(expectVal.value.valF32))
-                                {
-                                    check = check && wa_is_nan_canonical_f32(result.values[retIndex].valF32);
-                                }
-                                else if(wa_is_nan_arithmetic_f32(expectVal.value.valF32))
-                                {
-                                    check = check && wa_is_nan_arithmetic_f32(result.values[retIndex].valF32);
-                                }
-                                else
-                                {
-                                    //NOTE(martin): here we have to do a memcmp because we could be comparing non-canonical, non-arithmetic NaNs.
-                                    check = check && !memcmp(&result.values[retIndex].valF32, &expectVal.value.valF32, sizeof(f32));
-                                }
-                            }
-                            break;
-                            case WA_TYPE_F64:
-                            {
-                                if(wa_is_nan_canonical_f64(expectVal.value.valF64))
-                                {
-                                    check = check && wa_is_nan_canonical_f64(result.values[retIndex].valF64);
-                                }
-                                else if(wa_is_nan_arithmetic_f64(expectVal.value.valF64))
-                                {
-                                    check = check && wa_is_nan_arithmetic_f64(result.values[retIndex].valF64);
-                                }
-                                else
-                                {
-                                    //NOTE(martin): here we have to do a memcmp because we could be comparing non-canonical, non-arithmetic NaNs.
-                                    check = check && !memcmp(&result.values[retIndex].valF64, &expectVal.value.valF64, sizeof(f32));
-                                }
-                            }
-                            break;
+                            //TODO: handle expected NaN
 
-                            case WA_TYPE_EXTERN_REF:
-                            case WA_TYPE_FUNC_REF:
+                            wa_typed_value expectVal = test_parse_value(expectRet);
+                            switch(expectVal.type)
                             {
-                                check = check && (result.values[retIndex].valI64 == expectVal.value.valI64);
-                            }
-                            break;
-
-                            default:
-                                oc_log_error("unexpected type %s\n", wa_value_type_string(expectVal.type));
-                                OC_ASSERT(0, "unreachable");
+                                case WA_TYPE_I32:
+                                    check = check && (result.values[retIndex].valI32 == expectVal.value.valI32);
+                                    break;
+                                case WA_TYPE_I64:
+                                    check = check && (result.values[retIndex].valI64 == expectVal.value.valI64);
+                                    break;
+                                case WA_TYPE_F32:
+                                {
+                                    if(wa_is_nan_canonical_f32(expectVal.value.valF32))
+                                    {
+                                        check = check && wa_is_nan_canonical_f32(result.values[retIndex].valF32);
+                                    }
+                                    else if(wa_is_nan_arithmetic_f32(expectVal.value.valF32))
+                                    {
+                                        check = check && wa_is_nan_arithmetic_f32(result.values[retIndex].valF32);
+                                    }
+                                    else
+                                    {
+                                        //NOTE(martin): here we have to do a memcmp because we could be comparing non-canonical, non-arithmetic NaNs.
+                                        check = check && !memcmp(&result.values[retIndex].valF32, &expectVal.value.valF32, sizeof(f32));
+                                    }
+                                }
                                 break;
+                                case WA_TYPE_F64:
+                                {
+                                    if(wa_is_nan_canonical_f64(expectVal.value.valF64))
+                                    {
+                                        check = check && wa_is_nan_canonical_f64(result.values[retIndex].valF64);
+                                    }
+                                    else if(wa_is_nan_arithmetic_f64(expectVal.value.valF64))
+                                    {
+                                        check = check && wa_is_nan_arithmetic_f64(result.values[retIndex].valF64);
+                                    }
+                                    else
+                                    {
+                                        //NOTE(martin): here we have to do a memcmp because we could be comparing non-canonical, non-arithmetic NaNs.
+                                        check = check && !memcmp(&result.values[retIndex].valF64, &expectVal.value.valF64, sizeof(f32));
+                                    }
+                                }
+                                break;
+
+                                case WA_TYPE_EXTERN_REF:
+                                case WA_TYPE_FUNC_REF:
+                                {
+                                    check = check && (result.values[retIndex].valI64 == expectVal.value.valI64);
+                                }
+                                break;
+
+                                default:
+                                    oc_log_error("unexpected type %s\n", wa_value_type_string(expectVal.type));
+                                    OC_ASSERT(0, "unreachable");
+                                    break;
+                            }
+                            if(!check)
+                            {
+                                break;
+                            }
+                            retIndex++;
                         }
-                        if(!check)
-                        {
-                            break;
-                        }
-                        retIndex++;
                     }
-                }
 
-                if(!check)
-                {
-                    wa_test_fail(env, testName, command);
-                }
-                else
-                {
-                    wa_test_pass(env, testName, command);
+                    if(!check)
+                    {
+                        wa_test_fail(env, testName, command);
+                    }
+                    else
+                    {
+                        wa_test_pass(env, testName, command);
+                    }
                 }
             }
             else if(!oc_str8_cmp(type->string, OC_STR8("assert_trap")))
@@ -8244,7 +8302,7 @@ int test_file(oc_str8 testPath, oc_str8 testName, oc_str8 testDir, i32 filterLin
 
                 wa_test_result result = wa_test_action(env, instance, action);
 
-                if(result.status == WA_OK || result.status != expected)
+                if(result.status == WA_TEST_PASS || result.trap != expected)
                 {
                     wa_test_fail(env, testName, command);
                 }
