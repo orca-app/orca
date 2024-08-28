@@ -1217,6 +1217,11 @@ wa_ast* wa_ast_begin(wa_parser* parser, wa_ast* parent, wa_ast_kind kind)
     return ast;
 }
 
+void wa_ast_end(wa_parser* parser, wa_ast* ast)
+{
+    ast->loc.len = parser->offset - ast->loc.start;
+}
+
 char* wa_parser_head(wa_parser* parser)
 {
     return (parser->contents + parser->offset);
@@ -1250,8 +1255,7 @@ wa_ast* wa_read_byte(wa_parser* parser, wa_ast* parent, oc_str8 label)
         parser->offset += sizeof(u8);
     }
 
-    ast->loc.len = parser->offset - ast->loc.start;
-
+    wa_ast_end(parser, ast);
     return (ast);
 }
 
@@ -1273,8 +1277,7 @@ wa_ast* wa_read_raw_u32(wa_parser* parser, wa_ast* parent, oc_str8 label)
         parser->offset += sizeof(u32);
     }
 
-    ast->loc.len = parser->offset - ast->loc.start;
-
+    wa_ast_end(parser, ast);
     return (ast);
 }
 
@@ -1318,7 +1321,7 @@ wa_ast* wa_read_leb128_u64(wa_parser* parser, wa_ast* parent, oc_str8 label)
     while(byte & 0x80);
 
     ast->valU64 = res;
-    ast->loc.len = parser->offset - ast->loc.start;
+    wa_ast_end(parser, ast);
 
     return (ast);
 }
@@ -1370,8 +1373,7 @@ wa_ast* wa_read_leb128_i64(wa_parser* parser, wa_ast* parent, oc_str8 label)
 
     ast->valI64 = res;
 
-    ast->loc.len = parser->offset - ast->loc.start;
-
+    wa_ast_end(parser, ast);
     return (ast);
 }
 
@@ -1441,8 +1443,7 @@ wa_ast* wa_read_f32(wa_parser* parser, wa_ast* parent, oc_str8 label)
         parser->offset += sizeof(f32);
     }
 
-    ast->loc.len = parser->offset - ast->loc.start;
-
+    wa_ast_end(parser, ast);
     return ast;
 }
 
@@ -1464,8 +1465,7 @@ wa_ast* wa_read_f64(wa_parser* parser, wa_ast* parent, oc_str8 label)
         parser->offset += sizeof(f64);
     }
 
-    ast->loc.len = parser->offset - ast->loc.start;
-
+    wa_ast_end(parser, ast);
     return ast;
 }
 
@@ -1492,8 +1492,7 @@ wa_ast* wa_read_name(wa_parser* parser, wa_ast* parent, oc_str8 label)
             parser->offset += len;
         }
     }
-    ast->loc.len = parser->offset - ast->loc.start;
-
+    wa_ast_end(parser, ast);
     return (ast);
 }
 
@@ -1615,11 +1614,25 @@ void wa_parse_sections(wa_parser* parser, wa_module* module)
             entry->len = sectionLen->valU32;
             entry->ast = section;
         }
-
         wa_parser_seek(parser, contentOffset + sectionLen->valU32, OC_STR8("next section"));
-
-        section->loc.len = parser->offset - section->loc.start;
+        wa_ast_end(parser, section);
     }
+}
+
+wa_ast* wa_ast_begin_vector(wa_parser* parser, wa_ast* parent, u32* count)
+{
+    wa_ast* vectorAst = wa_ast_begin(parser, parent, WA_AST_VECTOR);
+    wa_ast* countAst = wa_read_leb128_u32(parser, vectorAst, OC_STR8("count"));
+
+    if(wa_ast_has_errors(countAst))
+    {
+        *count = 0;
+    }
+    else
+    {
+        *count = countAst->valU32;
+    }
+    return vectorAst;
 }
 
 void wa_parse_types(wa_parser* parser, wa_module* module)
@@ -1634,14 +1647,8 @@ void wa_parse_types(wa_parser* parser, wa_module* module)
     wa_parser_seek(parser, module->toc.types.offset, OC_STR8("types section"));
     u64 startOffset = parser->offset;
 
-    wa_ast* vector = wa_ast_begin(parser, section, WA_AST_VECTOR);
-    wa_ast* typeCountAst = wa_read_leb128_u32(parser, vector, OC_STR8("count"));
-    if(wa_ast_has_errors(typeCountAst))
-    {
-        return;
-    }
+    wa_ast* vector = wa_ast_begin_vector(parser, section, &module->typeCount);
 
-    module->typeCount = typeCountAst->valU32;
     module->types = oc_arena_push_array(parser->arena, wa_func_type, module->typeCount);
 
     for(u32 typeIndex = 0; typeIndex < module->typeCount; typeIndex++)
@@ -1682,11 +1689,9 @@ void wa_parse_types(wa_parser* parser, wa_module* module)
             type->returns[typeIndex] = returnAst->valU32;
         }
 
-        typeAst->loc.len = parser->offset - typeAst->loc.start;
+        wa_ast_end(parser, typeAst);
     }
-
-    vector->loc.len = parser->offset - vector->loc.start;
-    section->loc.len = parser->offset - section->loc.start;
+    wa_ast_end(parser, vector);
 
     //NOTE: check section size
     if(parser->offset - startOffset != module->toc.types.len)
@@ -1725,8 +1730,7 @@ wa_ast* wa_parse_limits(wa_parser* parser, wa_ast* parent, wa_limits* limits)
             limits->max = maxAst->valU32;
         }
     }
-
-    limitsAst->loc.len = parser->offset - limitsAst->loc.start;
+    wa_ast_end(parser, limitsAst);
     return limitsAst;
 }
 
@@ -1742,10 +1746,8 @@ void wa_parse_imports(wa_parser* parser, wa_module* module)
     wa_parser_seek(parser, module->toc.imports.offset, OC_STR8("import section"));
     u64 startOffset = parser->offset;
 
-    wa_ast* vector = wa_ast_begin(parser, section, WA_AST_VECTOR);
-    wa_ast* importCountAst = wa_read_leb128_u32(parser, vector, OC_STR8("count"));
+    wa_ast* vector = wa_ast_begin_vector(parser, section, &module->importCount);
 
-    module->importCount = importCountAst->valU32;
     module->imports = oc_arena_push_array(parser->arena, wa_import, module->importCount);
 
     for(u32 importIndex = 0; importIndex < module->importCount; importIndex++)
@@ -1840,11 +1842,9 @@ void wa_parse_imports(wa_parser* parser, wa_module* module)
                 return;
             }
         }
-        importAst->loc.len = parser->offset - importAst->loc.start;
+        wa_ast_end(parser, importAst);
     }
-
-    vector->loc.len = parser->offset - vector->loc.start;
-    section->loc.len = parser->offset - section->loc.start;
+    wa_ast_end(parser, vector);
 
     //NOTE: check section size
     if(parser->offset - startOffset != module->toc.imports.len)
@@ -1867,10 +1867,7 @@ void wa_parse_functions(wa_parser* parser, wa_module* module)
     wa_ast* vector = 0;
     if(section)
     {
-        vector = wa_ast_begin(parser, section, WA_AST_VECTOR);
-        wa_ast* functionCountAst = wa_read_leb128_u32(parser, vector, OC_STR8("count"));
-
-        module->functionCount = functionCountAst->valU32;
+        vector = wa_ast_begin_vector(parser, section, &module->functionCount);
     }
 
     module->functions = oc_arena_push_array(parser->arena, wa_func, module->functionImportCount + module->functionCount);
@@ -1913,8 +1910,7 @@ void wa_parse_functions(wa_parser* parser, wa_module* module)
                 func->type = &module->types[typeIndex];
             }
         }
-        vector->loc.len = parser->offset - vector->loc.start;
-        section->loc.len = parser->offset - section->loc.start;
+        wa_ast_end(parser, vector);
     }
     module->functionCount += module->functionImportCount;
 
@@ -1941,9 +1937,7 @@ void wa_parse_globals(wa_parser* parser, wa_module* module)
     wa_ast* vector = 0;
     if(section)
     {
-        vector = wa_ast_begin(parser, section, WA_AST_VECTOR);
-        wa_ast* globalCountAst = wa_read_leb128_u32(parser, vector, OC_STR8("count"));
-        module->globalCount = globalCountAst->valU32;
+        vector = wa_ast_begin_vector(parser, section, &module->globalCount);
     }
 
     module->globals = oc_arena_push_array(parser->arena, wa_global, module->globalCount + module->globalImportCount);
@@ -1990,12 +1984,11 @@ void wa_parse_globals(wa_parser* parser, wa_module* module)
                                "invalid byte 0x%02hhx as global mutability.",
                                mutAst->valU8);
             }
-
             wa_parse_constant_expression(parser, globalAst, &global->init);
 
-            globalAst->loc.len = parser->offset - globalAst->loc.start;
+            wa_ast_end(parser, globalAst);
         }
-        vector->loc.len = parser->offset - vector->loc.start;
+        wa_ast_end(parser, vector);
     }
     module->globalCount += module->globalImportCount;
 
@@ -2021,9 +2014,7 @@ void wa_parse_tables(wa_parser* parser, wa_module* module)
 
     if(section)
     {
-        vector = wa_ast_begin(parser, section, WA_AST_VECTOR);
-        wa_ast* tableCountAst = wa_read_leb128_u32(parser, vector, OC_STR8("count"));
-        module->tableCount = tableCountAst->valU32;
+        vector = wa_ast_begin_vector(parser, section, &module->tableCount);
     }
 
     module->tables = oc_arena_push_array(parser->arena, wa_table_type, module->tableImportCount + module->tableCount);
@@ -2065,10 +2056,9 @@ void wa_parse_tables(wa_parser* parser, wa_module* module)
             }
             wa_ast* limitsAst = wa_parse_limits(parser, tableAst, &table->limits);
 
-            tableAst->loc.len = parser->offset - tableAst->loc.start;
+            wa_ast_end(parser, tableAst);
         }
-        vector->loc.len = parser->offset - vector->loc.start;
-        section->loc.len = parser->offset - section->loc.start;
+        wa_ast_end(parser, vector);
     }
     module->tableCount += module->tableImportCount;
 
@@ -2094,9 +2084,7 @@ void wa_parse_memories(wa_parser* parser, wa_module* module)
 
     if(section)
     {
-        vector = wa_ast_begin(parser, section, WA_AST_VECTOR);
-        wa_ast* memoryCountAst = wa_read_leb128_u32(parser, vector, OC_STR8("count"));
-        module->memoryCount = memoryCountAst->valU32;
+        vector = wa_ast_begin_vector(parser, section, &module->memoryCount);
     }
 
     module->memories = oc_arena_push_array(parser->arena, wa_limits, module->memoryImportCount + module->memoryCount);
@@ -2122,8 +2110,7 @@ void wa_parse_memories(wa_parser* parser, wa_module* module)
             wa_limits* memory = &module->memories[memoryIndex + module->memoryImportCount];
             wa_ast* memoryAst = wa_parse_limits(parser, vector, memory);
         }
-        vector->loc.len = parser->offset - vector->loc.start;
-        section->loc.len = parser->offset - section->loc.start;
+        wa_ast_end(parser, vector);
     }
     module->memoryCount += module->memoryImportCount;
 
@@ -2150,9 +2137,8 @@ void wa_parse_exports(wa_parser* parser, wa_module* module)
     wa_parser_seek(parser, module->toc.exports.offset, OC_STR8("exports section"));
     u64 startOffset = parser->offset;
 
-    wa_ast* vector = wa_ast_begin(parser, section, WA_AST_VECTOR);
-    wa_ast* exportCountAst = wa_read_leb128_u32(parser, vector, OC_STR8("count"));
-    module->exportCount = exportCountAst->valU32;
+    wa_ast* vector = wa_ast_begin_vector(parser, section, &module->exportCount);
+
     module->exports = oc_arena_push_array(parser->arena, wa_export, module->exportCount);
 
     for(u32 exportIndex = 0; exportIndex < module->exportCount; exportIndex++)
@@ -2206,10 +2192,9 @@ void wa_parse_exports(wa_parser* parser, wa_module* module)
                 //TODO end parsing section?
             }
         }
-        exportAst->loc.len = parser->offset - exportAst->loc.start;
+        wa_ast_end(parser, exportAst);
     }
-    vector->loc.len = parser->offset - vector->loc.start;
-    section->loc.len = parser->offset - section->loc.start;
+    wa_ast_end(parser, vector);
 
     //NOTE: check section size
     if(parser->offset - startOffset != module->toc.exports.len)
@@ -2362,30 +2347,29 @@ wa_ast* wa_parse_expression(wa_parser* parser, wa_ast* parent, u32 localCount, o
         }
         else if(instr->op == WA_INSTR_select_t)
         {
-            wa_ast* vector = wa_ast_begin(parser, instrAst, WA_AST_VECTOR);
-            wa_ast* count = wa_read_leb128_u32(parser, vector, OC_STR8("count"));
-            if(count->valU32 != 1)
+            wa_ast* vector = wa_ast_begin_vector(parser, instrAst, &instr->immCount);
+
+            if(instr->immCount != 1)
             {
+                //TODO: should set the error on the count rather than the vector?
                 wa_parse_error(parser,
-                               count,
+                               vector,
                                "select instruction can have at most one immediate\n");
                 break;
             }
 
             wa_ast* immAst = wa_parse_value_type(parser, vector, OC_STR8("type"));
 
-            instr->immCount = 1;
             instr->imm = oc_arena_push_type(parser->arena, wa_code);
             instr->imm[0].valueType = immAst->valU32;
 
-            vector->loc.len = parser->offset - vector->loc.start;
+            wa_ast_end(parser, vector);
         }
         else if(instr->op == WA_INSTR_br_table)
         {
-            wa_ast* vector = wa_ast_begin(parser, instrAst, WA_AST_VECTOR);
-            wa_ast* count = wa_read_leb128_u32(parser, vector, OC_STR8("count"));
+            wa_ast* vector = wa_ast_begin_vector(parser, instrAst, &instr->immCount);
 
-            instr->immCount = count->valU32 + 1;
+            instr->immCount += 1;
             instr->imm = oc_arena_push_array(parser->arena, wa_code, instr->immCount);
 
             for(u32 i = 0; i < instr->immCount - 1; i++)
@@ -2396,7 +2380,7 @@ wa_ast* wa_parse_expression(wa_parser* parser, wa_ast* parent, u32 localCount, o
             wa_ast* immAst = wa_read_leb128_u32(parser, vector, OC_STR8("label"));
             instr->imm[instr->immCount - 1].index = immAst->valU32;
 
-            vector->loc.len = parser->offset - vector->loc.start;
+            wa_ast_end(parser, vector);
         }
         else
         {
@@ -2506,7 +2490,7 @@ wa_ast* wa_parse_expression(wa_parser* parser, wa_ast* parent, u32 localCount, o
                         instr->imm[immIndex].memArg.align = alignAst->valU32;
                         instr->imm[immIndex].memArg.offset = offsetAst->valU32;
 
-                        memArgAst->loc.len = parser->offset - memArgAst->loc.start;
+                        wa_ast_end(parser, memArgAst);
                     }
                     break;
                     case WA_IMM_LANE_INDEX:
@@ -2528,12 +2512,11 @@ wa_ast* wa_parse_expression(wa_parser* parser, wa_ast* parent, u32 localCount, o
                 }
             }
         }
-
-        instrAst->loc.len = parser->offset - instrAst->loc.start;
+        wa_ast_end(parser, instrAst);
     }
     //TODO check that we exited from an end instruction
 
-    exprAst->loc.len = parser->offset - exprAst->loc.start;
+    wa_ast_end(parser, exprAst);
     return (exprAst);
 }
 
@@ -2553,9 +2536,8 @@ void wa_parse_elements(wa_parser* parser, wa_module* module)
     wa_parser_seek(parser, module->toc.elements.offset, OC_STR8("elements section"));
     u64 startOffset = parser->offset;
 
-    wa_ast* vector = wa_ast_begin(parser, section, WA_AST_VECTOR);
-    wa_ast* elementCountAst = wa_read_leb128_u32(parser, vector, OC_STR8("count"));
-    module->elementCount = elementCountAst->valU32;
+    wa_ast* vector = wa_ast_begin_vector(parser, section, &module->elementCount);
+
     module->elements = oc_arena_push_array(parser->arena, wa_element, module->elementCount);
     memset(module->elements, 0, module->elementCount * sizeof(wa_element));
 
@@ -2660,11 +2642,9 @@ void wa_parse_elements(wa_parser* parser, wa_module* module)
                 oc_list_push_back(&element->initInstr[i], &init[1].listElt);
             }
         }
-
-        elementAst->loc.len = parser->offset - elementAst->loc.start;
+        wa_ast_end(parser, elementAst);
     }
-
-    vector->loc.len = parser->offset - vector->loc.start;
+    wa_ast_end(parser, vector);
 
     //NOTE: check section size
     if(parser->offset - startOffset != module->toc.elements.len)
@@ -2688,9 +2668,7 @@ void wa_parse_data(wa_parser* parser, wa_module* module)
     wa_parser_seek(parser, module->toc.data.offset, OC_STR8("data section"));
     u64 startOffset = parser->offset;
 
-    wa_ast* vector = wa_ast_begin(parser, section, WA_AST_VECTOR);
-    wa_ast* dataCountAst = wa_read_leb128_u32(parser, vector, OC_STR8("count"));
-    module->dataCount = dataCountAst->valU32;
+    wa_ast* vector = wa_ast_begin_vector(parser, section, &module->dataCount);
 
     module->data = oc_arena_push_array(parser->arena, wa_data_segment, module->dataCount);
     memset(module->data, 0, module->dataCount * sizeof(wa_data_segment));
@@ -2730,10 +2708,9 @@ void wa_parse_data(wa_parser* parser, wa_module* module)
         wa_ast* initVec = wa_read_name(parser, segmentAst, OC_STR8("init"));
         seg->init = initVec->str8;
 
-        segmentAst->loc.len = parser->offset - segmentAst->loc.start;
+        wa_ast_end(parser, segmentAst);
     }
-
-    vector->loc.len = parser->offset - vector->loc.start;
+    wa_ast_end(parser, vector);
 
     //NOTE: check section size
     if(parser->offset - startOffset != module->toc.data.len)
@@ -2757,14 +2734,14 @@ void wa_parse_code(wa_parser* parser, wa_module* module)
     wa_parser_seek(parser, module->toc.code.offset, OC_STR8("code section"));
     u64 startOffset = parser->offset;
 
-    wa_ast* vector = wa_ast_begin(parser, section, WA_AST_VECTOR);
-    wa_ast* functionCountAst = wa_read_leb128_u32(parser, vector, OC_STR8("count"));
-    u32 functionCount = functionCountAst->valU32;
+    u32 functionCount = 0;
+    wa_ast* vector = wa_ast_begin_vector(parser, section, &functionCount);
 
     if(functionCount != module->functionCount - module->functionImportCount)
     {
+        //TODO should set the error on the count, not the vector?
         wa_parse_error(parser,
-                       functionCountAst,
+                       vector,
                        "Function count mismatch (function section: %i, code section: %i\n",
                        module->functionCount - module->functionImportCount,
                        functionCount);
@@ -2786,10 +2763,8 @@ void wa_parse_code(wa_parser* parser, wa_module* module)
         u32 funcStartOffset = parser->offset;
 
         //NOTE: parse locals
-        wa_ast* localsVector = wa_ast_begin(parser, funcAst, WA_AST_VECTOR);
-        wa_ast* localEntryCountAst = wa_read_leb128_u32(parser, localsVector, OC_STR8("local type entries count"));
-
-        u32 localEntryCount = localEntryCountAst->valU32;
+        u32 localEntryCount = 0;
+        wa_ast* localsVector = wa_ast_begin_vector(parser, funcAst, &localEntryCount);
 
         u32* counts = oc_arena_push_array(scratch.arena, u32, localEntryCount);
         wa_value_type* types = oc_arena_push_array(scratch.arena, wa_value_type, localEntryCount);
@@ -2806,10 +2781,10 @@ void wa_parse_code(wa_parser* parser, wa_module* module)
             types[localEntryIndex] = typeAst->valU8;
             func->localCount += counts[localEntryIndex];
 
-            localEntryAst->loc.len = parser->offset - localEntryAst->loc.start;
+            wa_ast_end(parser, localEntryAst);
             //TODO: validate types? or validate later?
         }
-        localsVector->loc.len = parser->offset - localsVector->loc.start;
+        wa_ast_end(parser, localsVector);
 
         //NOTE: expand locals
         func->locals = oc_arena_push_array(parser->arena, wa_value_type, func->localCount);
@@ -2835,7 +2810,7 @@ void wa_parse_code(wa_parser* parser, wa_module* module)
         //NOTE: parse body
         wa_ast* bodyAst = wa_parse_expression(parser, funcAst, func->localCount, &func->instructions, false);
 
-        funcAst->loc.len = parser->offset - funcAst->loc.start;
+        wa_ast_end(parser, funcAst);
 
         //NOTE: check entry length
         if(parser->offset - funcStartOffset != funcLen)
