@@ -3300,6 +3300,23 @@ void wa_push_block_inputs(wa_build_context* context, wa_func_type* type)
     }
 }
 
+void wa_block_begin_no_check(wa_build_context* context, wa_instr* instr)
+{
+    //NOTE: check block type input
+    wa_func_type* type = instr->blockType;
+
+    //NOTE allocate block results and push them on the stack
+    for(u64 outIndex = 0; outIndex < type->returnCount; outIndex++)
+    {
+        wa_operand_stack_push_reg(context, type->returns[outIndex], instr);
+        //TODO immediately put them in the freelist so they can be used in the branches (this might complicate copying results a bit...)
+        // wa_free_slot(context, index);
+    }
+
+    wa_control_stack_push(context, instr);
+    wa_push_block_inputs(context, type);
+}
+
 void wa_block_begin(wa_build_context* context, wa_instr* instr)
 {
     //NOTE: check block type input
@@ -3692,7 +3709,7 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
                                  "unbalanced stack\n");
                 break;
             }
-            //TODO: possibly remove instruction that pushed this operand?
+            //TODO: possibly remove instruction that pushed this operand if it had no other side effect?
         }
         else if(instr->op == WA_INSTR_select || instr->op == WA_INSTR_select_t)
         {
@@ -3752,10 +3769,68 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
             wa_emit(context, (wa_code){ .valI32 = slot2.index });
             wa_emit(context, (wa_code){ .valI32 = outIndex });
         }
+        /*
         else if(instr->op == WA_INSTR_block || instr->op == WA_INSTR_loop)
         {
             wa_move_locals_to_registers(context);
             wa_block_begin(context, instr);
+        }
+
+        else if(instr->op == WA_INSTR_if)
+        {
+            wa_move_locals_to_registers(context);
+
+            wa_operand_slot slot = wa_operand_stack_pop(context);
+            if(wa_operand_slot_is_nil(&slot))
+            {
+                wa_compile_error(context,
+                                 instr->ast,
+                                 "unbalanced stack\n");
+                break;
+            }
+
+            if(!wa_check_operand_type(slot.type, WA_TYPE_I32))
+            {
+                wa_compile_error(context,
+                                 instr->ast,
+                                 "operand type mismatch (expected %s, got %s)\n",
+                                 wa_value_type_string(WA_TYPE_I32),
+                                 wa_value_type_string(slot.type));
+                break;
+            }
+
+            wa_block_begin(context, instr);
+
+            wa_emit(context, (wa_code){ .opcode = WA_INSTR_jump_if_zero });
+            wa_emit(context, (wa_code){ 0 });
+            wa_emit(context, (wa_code){ .valI64 = slot.index });
+        }
+        */
+        else if(instr->op == WA_INSTR_else)
+        {
+            wa_block* ifBlock = wa_control_stack_top(context);
+            if(!ifBlock
+               || ifBlock->begin->op != WA_INSTR_if
+               || ifBlock->begin->elseBranch)
+            {
+                //TODO: should this be validated at parse stage?
+                wa_compile_error(context,
+                                 instr->ast,
+                                 "unexpected else block\n");
+                break;
+            }
+            wa_func_type* type = ifBlock->begin->blockType;
+
+            wa_block_move_results_to_output_slots(context, ifBlock, instr);
+            wa_operand_stack_pop_scope(context, ifBlock);
+            wa_push_block_inputs(context, type);
+
+            wa_emit(context, (wa_code){ .opcode = WA_INSTR_jump });
+            wa_emit(context, (wa_code){ 0 });
+
+            ifBlock->polymorphic = false;
+            ifBlock->begin->elseBranch = instr;
+            ifBlock->elseOffset = context->codeLen;
         }
         else if(instr->op == WA_INSTR_br)
         {
@@ -3847,61 +3922,6 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
 
             wa_block* block = wa_control_stack_top(context);
             wa_block_set_polymorphic(context, block);
-        }
-        else if(instr->op == WA_INSTR_if)
-        {
-            wa_operand_slot slot = wa_operand_stack_pop(context);
-            if(wa_operand_slot_is_nil(&slot))
-            {
-                wa_compile_error(context,
-                                 instr->ast,
-                                 "unbalanced stack\n");
-                break;
-            }
-
-            if(!wa_check_operand_type(slot.type, WA_TYPE_I32))
-            {
-                wa_compile_error(context,
-                                 instr->ast,
-                                 "operand type mismatch (expected %s, got %s)\n",
-                                 wa_value_type_string(WA_TYPE_I32),
-                                 wa_value_type_string(slot.type));
-                break;
-            }
-
-            wa_move_locals_to_registers(context);
-
-            wa_block_begin(context, instr);
-
-            wa_emit(context, (wa_code){ .opcode = WA_INSTR_jump_if_zero });
-            wa_emit(context, (wa_code){ 0 });
-            wa_emit(context, (wa_code){ .valI64 = slot.index });
-        }
-        else if(instr->op == WA_INSTR_else)
-        {
-            wa_block* ifBlock = wa_control_stack_top(context);
-            if(!ifBlock
-               || ifBlock->begin->op != WA_INSTR_if
-               || ifBlock->begin->elseBranch)
-            {
-                //TODO: should this be validated at parse stage?
-                wa_compile_error(context,
-                                 instr->ast,
-                                 "unexpected else block\n");
-                break;
-            }
-            wa_func_type* type = ifBlock->begin->blockType;
-
-            wa_block_move_results_to_output_slots(context, ifBlock, instr);
-            wa_operand_stack_pop_scope(context, ifBlock);
-            wa_push_block_inputs(context, type);
-
-            wa_emit(context, (wa_code){ .opcode = WA_INSTR_jump });
-            wa_emit(context, (wa_code){ 0 });
-
-            ifBlock->polymorphic = false;
-            ifBlock->begin->elseBranch = instr;
-            ifBlock->elseOffset = context->codeLen;
         }
         else if(instr->op == WA_INSTR_end)
         {
@@ -4143,6 +4163,27 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
             //NOTE: inputs types derived from immediates
             switch(instr->op)
             {
+                case WA_INSTR_block:
+                case WA_INSTR_loop:
+                {
+                    inCount = instr->blockType->paramCount;
+                    in = instr->blockType->params;
+
+                    wa_move_locals_to_registers(context);
+                }
+                break;
+
+                case WA_INSTR_if:
+                {
+                    inCount = instr->blockType->paramCount + 1;
+                    in = oc_arena_push_array(scratch.arena, wa_value_type, inCount);
+                    memcpy(in, instr->blockType->params, instr->blockType->paramCount * sizeof(wa_value_type));
+                    in[inCount - 1] = WA_TYPE_I32;
+
+                    wa_move_locals_to_registers(context);
+                }
+                break;
+
                 case WA_INSTR_local_get:
                 {
                     out = oc_arena_push_array(scratch.arena, wa_value_type, outCount);
@@ -4155,6 +4196,11 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
                     u32 localIndex = imm[0].valU32;
                     in = oc_arena_push_array(scratch.arena, wa_value_type, inCount);
                     in[0] = func->locals[localIndex];
+
+                    //NOTE: check if the local was used in the stack and if so save it to a slot
+                    //      this must be done before popping the stack to avoid saving the local
+                    //      to the same reg as the operand (same for local_tee below).
+                    wa_move_slot_if_used(context, localIndex);
                 }
                 break;
                 case WA_INSTR_local_tee:
@@ -4164,6 +4210,8 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
                     in[0] = func->locals[localIndex];
                     out = oc_arena_push_array(scratch.arena, wa_value_type, outCount);
                     out[0] = func->locals[localIndex];
+
+                    wa_move_slot_if_used(context, localIndex);
                 }
                 break;
                 case WA_INSTR_global_get:
@@ -4224,22 +4272,20 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
                     break;
             }
 
-            if(instr->op == WA_INSTR_local_set
-               || instr->op == WA_INSTR_local_tee)
-            {
-                //NOTE: check if the local was used in the stack and if so save it to a slot
-                //      this must be done before popping the stack to avoid saving the local
-                //      to the same reg as the operand.
-                u32 localIndex = instr->imm[0].valU32;
-                wa_move_slot_if_used(context, localIndex);
-            }
-
             //NOTE: get inputs
             wa_operand_slot* inSlots = oc_arena_push_array(scratch.arena, wa_operand_slot, inCount);
             for(u32 i = 0; i < inCount; i++)
             {
                 u32 opdIndex = inCount - 1 - i;
-                inSlots[opdIndex] = wa_operand_stack_pop(context);
+
+                if(instr->op == WA_INSTR_block || instr->op == WA_INSTR_loop || instr->op == WA_INSTR_if)
+                {
+                    inSlots[opdIndex] = wa_operand_stack_lookup(context, i);
+                }
+                else
+                {
+                    inSlots[opdIndex] = wa_operand_stack_pop(context);
+                }
 
                 if(wa_operand_slot_is_nil(&inSlots[opdIndex])
                    || !wa_check_operand_type(inSlots[opdIndex].type, in[opdIndex]))
@@ -4254,7 +4300,23 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
             //TODO special case validation of input operands / special case emit
             //...
 
-            if(instr->op == WA_INSTR_local_get)
+            if(instr->op == WA_INSTR_block
+               || instr->op == WA_INSTR_loop)
+            {
+                wa_block_begin_no_check(context, instr);
+            }
+            else if(instr->op == WA_INSTR_if)
+            {
+                //NOTE: pop condition (the rest of the inputs is left on the stack)
+                wa_operand_stack_pop(context);
+
+                wa_block_begin_no_check(context, instr);
+
+                wa_emit(context, (wa_code){ .opcode = WA_INSTR_jump_if_zero });
+                wa_emit(context, (wa_code){ 0 });
+                wa_emit(context, (wa_code){ .valI64 = inSlots[inCount - 1].index });
+            }
+            else if(instr->op == WA_INSTR_local_get)
             {
                 u32 localIndex = instr->imm[0].index;
 
