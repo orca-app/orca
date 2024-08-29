@@ -3024,6 +3024,30 @@ wa_block wa_control_stack_top_value(wa_build_context* context)
     }
 }
 
+u32 wa_allocate_register(wa_build_context* context)
+{
+    u32 index = 0;
+    if(context->freeRegLen)
+    {
+        context->freeRegLen--;
+        index = context->freeRegs[context->freeRegLen];
+    }
+    else
+    {
+        //TODO: prevent overflow
+        index = context->nextRegIndex;
+        context->nextRegIndex++;
+    }
+    return (index);
+}
+
+void wa_free_slot(wa_build_context* context, u64 index)
+{
+    OC_DEBUG_ASSERT(context->freeRegLen >= WA_MAX_REG);
+    context->freeRegs[context->freeRegLen] = index;
+    context->freeRegLen++;
+}
+
 void wa_operand_stack_push(wa_build_context* context, wa_operand_slot s)
 {
     if(context->opdStack == 0 || context->opdStackLen >= context->opdStackCap)
@@ -3042,11 +3066,18 @@ void wa_operand_stack_push(wa_build_context* context, wa_operand_slot s)
     context->opdStackLen++;
 }
 
-void wa_free_slot(wa_build_context* context, u64 index)
+u32 wa_operand_stack_push_reg(wa_build_context* context, wa_value_type type, wa_instr* instr)
 {
-    OC_DEBUG_ASSERT(context->freeRegLen >= WA_MAX_REG);
-    context->freeRegs[context->freeRegLen] = index;
-    context->freeRegLen++;
+    wa_operand_slot s = {
+        .kind = WA_OPERAND_SLOT_REG,
+        .type = type,
+        .index = wa_allocate_register(context),
+        .originInstr = instr,
+        .originOpd = context->codeLen,
+    };
+    wa_operand_stack_push(context, s);
+
+    return s.index;
 }
 
 wa_operand_slot wa_operand_stack_pop(wa_build_context* context)
@@ -3189,23 +3220,6 @@ void wa_emit(wa_build_context* context, wa_code code)
     context->codeLen++;
 }
 
-u32 wa_allocate_register(wa_build_context* context)
-{
-    u32 index = 0;
-    if(context->freeRegLen)
-    {
-        context->freeRegLen--;
-        index = context->freeRegs[context->freeRegLen];
-    }
-    else
-    {
-        //TODO: prevent overflow
-        index = context->nextRegIndex;
-        context->nextRegIndex++;
-    }
-    return (index);
-}
-
 void wa_move_slot_if_used(wa_build_context* context, u32 slotIndex)
 {
     wa_block* block = wa_control_stack_top(context);
@@ -3320,15 +3334,7 @@ void wa_block_begin(wa_build_context* context, wa_instr* instr)
     //NOTE allocate block results and push them on the stack
     for(u64 outIndex = 0; outIndex < type->returnCount; outIndex++)
     {
-        u32 index = wa_allocate_register(context);
-
-        wa_operand_slot s = {
-            .kind = WA_OPERAND_SLOT_REG,
-            .index = index,
-            .type = type->returns[outIndex],
-        };
-        wa_operand_stack_push(context, s);
-
+        wa_operand_stack_push_reg(context, type->returns[outIndex], instr);
         //TODO immediately put them in the freelist so they can be used in the branches (this might complicate copying results a bit...)
         // wa_free_slot(context, index);
     }
@@ -3664,7 +3670,7 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
     {
         const wa_instr_info* info = &wa_instr_infos[instr->op];
 
-        //NOTE: immediates should have been validated when parsing instructions
+        //TODO: validate immediates here
 
         if(instr->op == WA_INSTR_unreachable)
         {
@@ -3672,7 +3678,7 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
             wa_block* block = wa_control_stack_top(context);
             wa_block_set_polymorphic(context, block);
         }
-        if(instr->op == WA_INSTR_nop)
+        else if(instr->op == WA_INSTR_nop)
         {
             // do nothing
         }
@@ -3738,22 +3744,13 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
                 break;
             }
 
-            u32 index = wa_allocate_register(context);
-
-            wa_operand_slot out = {
-                .kind = WA_OPERAND_SLOT_REG,
-                .type = slot0.type,
-                .index = index,
-                .originInstr = instr,
-                .originOpd = context->codeLen,
-            };
-            wa_operand_stack_push(context, out);
+            u32 outIndex = wa_operand_stack_push_reg(context, slot0.type, instr);
 
             wa_emit(context, (wa_code){ .opcode = WA_INSTR_select });
             wa_emit(context, (wa_code){ .valI32 = slot0.index });
             wa_emit(context, (wa_code){ .valI32 = slot1.index });
             wa_emit(context, (wa_code){ .valI32 = slot2.index });
-            wa_emit(context, (wa_code){ .valI32 = out.index });
+            wa_emit(context, (wa_code){ .valI32 = outIndex });
         }
         else if(instr->op == WA_INSTR_block || instr->op == WA_INSTR_loop)
         {
@@ -4103,382 +4100,6 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
             block->polymorphic = true;
             wa_operand_stack_pop_scope(context, block);
         }
-        else if(instr->op == WA_INSTR_local_get)
-        {
-            u32 localIndex = instr->imm[0].index;
-
-            wa_operand_stack_push(
-                context,
-                (wa_operand_slot){
-                    .kind = WA_OPERAND_SLOT_LOCAL,
-                    .type = func->locals[localIndex],
-                    .index = localIndex,
-                    .originInstr = instr,
-                    .originOpd = context->codeLen,
-                });
-        }
-        else if(instr->op == WA_INSTR_local_set)
-        {
-            u32 localIndex = instr->imm[0].index;
-
-            wa_operand_slot slot = wa_operand_stack_pop(context);
-            if(wa_operand_slot_is_nil(&slot))
-            {
-                wa_compile_error(context,
-                                 instr->ast,
-                                 "unbalanced stack\n");
-                break;
-            }
-
-            if(!wa_check_operand_type(slot.type, func->locals[localIndex]))
-            {
-                wa_compile_error(context,
-                                 instr->ast,
-                                 "type mismatch for local.set instruction (expected %s, got %s)\n",
-                                 wa_value_type_string(func->locals[localIndex]),
-                                 wa_value_type_string(slot.type));
-                break;
-            }
-
-            // check if the local was used in the stack and if so save it to a slot
-            wa_move_slot_if_used(context, localIndex);
-
-            //TODO: check if the local was written to since the value was pushed, and if not, change
-            //      the output operand of the value's origin instruction rather than issuing a move
-            bool shortcutSet = false;
-            /*NOTE: this can't be used after a branch, since the branch might use the original slot index
-                //      so for now, disable this optimization
-                // later we can add a "touched" bit and set it for operands used in a branch?
-                if(slot.kind == WA_OPERAND_SLOT_REG && slot.originOpd)
-                {
-                    shortcutSet = true;
-                    for(u32 instrIt = slot.originInstr; instrIt < instrIndex; instrIt++)
-                    {
-                        if(func->instructions[instrIt].op == WA_INSTR_local_set && func->instructions[instrIt].val[0].valI32 == localIndex)
-                        {
-                            shortcutSet = false;
-                            break;
-                        }
-                    }
-                }
-                */
-            if(shortcutSet)
-            {
-                OC_DEBUG_ASSERT(context->code[slot.originOpd].valU64 == slot.index);
-                context->code[slot.originOpd].valI64 = localIndex;
-            }
-            else
-            {
-                wa_emit(context, (wa_code){ .opcode = WA_INSTR_move });
-                wa_emit(context, (wa_code){ .valI32 = slot.index });
-                wa_emit(context, (wa_code){ .valI32 = localIndex });
-            }
-        }
-        else if(instr->op == WA_INSTR_local_tee)
-        {
-            u32 localIndex = instr->imm[0].index;
-
-            wa_operand_slot slot = wa_operand_stack_top(context);
-            if(wa_operand_slot_is_nil(&slot))
-            {
-                wa_compile_error(context,
-                                 instr->ast,
-                                 "unbalanced stack\n");
-                break;
-            }
-
-            if(!wa_check_operand_type(slot.type, func->locals[localIndex]))
-            {
-                wa_compile_error(context,
-                                 instr->ast,
-                                 "type mismatch for local.set instruction (expected %s, got %s)\n",
-                                 wa_value_type_string(func->locals[localIndex]),
-                                 wa_value_type_string(slot.type));
-                break;
-            }
-            wa_move_slot_if_used(context, localIndex);
-
-            wa_emit(context, (wa_code){ .opcode = WA_INSTR_move });
-            wa_emit(context, (wa_code){ .valI32 = slot.index });
-            wa_emit(context, (wa_code){ .valI32 = localIndex });
-        }
-        else if(instr->op == WA_INSTR_global_get)
-        {
-            u32 globalIndex = instr->imm[0].index;
-
-            u32 regIndex = wa_allocate_register(context);
-
-            wa_operand_stack_push(
-                context,
-                (wa_operand_slot){
-                    .kind = WA_OPERAND_SLOT_REG,
-                    .type = module->globals[globalIndex].type,
-                    .index = regIndex,
-                    .originInstr = instr,
-                    .originOpd = context->codeLen,
-                });
-
-            wa_emit(context, (wa_code){ .opcode = WA_INSTR_global_get });
-            wa_emit(context, (wa_code){ .valI32 = globalIndex });
-            wa_emit(context, (wa_code){ .valI32 = regIndex });
-        }
-        else if(instr->op == WA_INSTR_global_set)
-        {
-            u32 globalIndex = instr->imm[0].index;
-
-            wa_operand_slot slot = wa_operand_stack_top(context);
-            if(wa_operand_slot_is_nil(&slot))
-            {
-                wa_compile_error(context,
-                                 instr->ast,
-                                 "unbalanced stack\n");
-                break;
-            }
-
-            if(!wa_check_operand_type(slot.type, module->globals[globalIndex].type))
-            {
-                wa_compile_error(context,
-                                 instr->ast,
-                                 "type mismatch for global.set instruction (expected %s, got %s)\n",
-                                 wa_value_type_string(module->globals[globalIndex].type),
-                                 wa_value_type_string(slot.type));
-                break;
-            }
-            wa_emit(context, (wa_code){ .opcode = WA_INSTR_global_set });
-            wa_emit(context, (wa_code){ .valI32 = slot.index });
-            wa_emit(context, (wa_code){ .valI32 = globalIndex });
-        }
-        else if(instr->op == WA_INSTR_ref_null)
-        {
-            wa_value_type type = instr->imm[0].valueType;
-            u32 index = wa_allocate_register(context);
-
-            wa_operand_slot s = {
-                .kind = WA_OPERAND_SLOT_REG,
-                .type = type,
-                .index = index,
-                .originInstr = instr,
-                .originOpd = context->codeLen,
-            };
-            wa_operand_stack_push(context, s);
-
-            wa_emit(context, (wa_code){ .opcode = WA_INSTR_ref_null });
-            wa_emit(context, (wa_code){ .index = s.index });
-        }
-        else if(instr->op == WA_INSTR_table_grow)
-        {
-            u32 tableIndex = instr->imm[0].valueType;
-            wa_table_type* table = &module->tables[tableIndex];
-
-            wa_operand_slot size = wa_operand_stack_pop(context);
-            if(wa_operand_slot_is_nil(&size))
-            {
-                wa_compile_error(context,
-                                 instr->ast,
-                                 "unbalanced stack\n");
-                break;
-            }
-
-            if(!wa_check_operand_type(size.type, WA_TYPE_I32))
-            {
-                wa_compile_error(context,
-                                 instr->ast,
-                                 "type mismatch for table.grow instruction (expected %s, got %s)\n",
-                                 wa_value_type_string(WA_TYPE_I32),
-                                 wa_value_type_string(size.type));
-                break;
-            }
-
-            wa_operand_slot val = wa_operand_stack_pop(context);
-            if(wa_operand_slot_is_nil(&val))
-            {
-                wa_compile_error(context,
-                                 instr->ast,
-                                 "unbalanced stack\n");
-                break;
-            }
-
-            if(!wa_check_operand_type(val.type, table->type))
-            {
-                wa_compile_error(context,
-                                 instr->ast,
-                                 "type mismatch for table.grow instruction (expected %s, got %s)\n",
-                                 wa_value_type_string(table->type),
-                                 wa_value_type_string(val.type));
-                break;
-            }
-
-            u32 index = wa_allocate_register(context);
-
-            wa_operand_slot s = {
-                .kind = WA_OPERAND_SLOT_REG,
-                .type = WA_TYPE_I32,
-                .index = index,
-                .originInstr = instr,
-                .originOpd = context->codeLen,
-            };
-            wa_operand_stack_push(context, s);
-
-            wa_emit(context, (wa_code){ .opcode = WA_INSTR_table_grow });
-            wa_emit(context, (wa_code){ .index = tableIndex });
-            wa_emit(context, (wa_code){ .valI32 = val.index });
-            wa_emit(context, (wa_code){ .valI32 = size.index });
-            wa_emit(context, (wa_code){ .valI32 = s.index });
-        }
-        else if(instr->op == WA_INSTR_table_get)
-        {
-            u32 tableIndex = instr->imm[0].valueType;
-            wa_table_type* table = &module->tables[tableIndex];
-
-            wa_operand_slot eltIndex = wa_operand_stack_pop(context);
-            if(wa_operand_slot_is_nil(&eltIndex))
-            {
-                wa_compile_error(context,
-                                 instr->ast,
-                                 "unbalanced stack\n");
-                break;
-            }
-
-            if(!wa_check_operand_type(eltIndex.type, WA_TYPE_I32))
-            {
-                wa_compile_error(context,
-                                 instr->ast,
-                                 "type mismatch for table.get instruction (expected %s, got %s)\n",
-                                 wa_value_type_string(WA_TYPE_I32),
-                                 wa_value_type_string(eltIndex.type));
-                break;
-            }
-
-            wa_operand_slot s = {
-                .kind = WA_OPERAND_SLOT_REG,
-                .type = table->type,
-                .index = wa_allocate_register(context),
-                .originInstr = instr,
-                .originOpd = context->codeLen,
-            };
-            wa_operand_stack_push(context, s);
-
-            wa_emit(context, (wa_code){ .opcode = WA_INSTR_table_get });
-            wa_emit(context, (wa_code){ .index = tableIndex });
-            wa_emit(context, (wa_code){ .valI32 = eltIndex.index });
-            wa_emit(context, (wa_code){ .valI32 = s.index });
-        }
-        else if(instr->op == WA_INSTR_table_set)
-        {
-            u32 tableIndex = instr->imm[0].valueType;
-            wa_table_type* table = &module->tables[tableIndex];
-
-            wa_operand_slot val = wa_operand_stack_pop(context);
-            if(wa_operand_slot_is_nil(&val))
-            {
-                wa_compile_error(context,
-                                 instr->ast,
-                                 "unbalanced stack\n");
-                break;
-            }
-
-            if(!wa_check_operand_type(val.type, table->type))
-            {
-                wa_compile_error(context,
-                                 instr->ast,
-                                 "type mismatch for table.set instruction (expected %s, got %s)\n",
-                                 wa_value_type_string(table->type),
-                                 wa_value_type_string(val.type));
-                break;
-            }
-
-            wa_operand_slot eltIndex = wa_operand_stack_pop(context);
-            if(wa_operand_slot_is_nil(&eltIndex))
-            {
-                wa_compile_error(context,
-                                 instr->ast,
-                                 "unbalanced stack\n");
-                break;
-            }
-
-            if(!wa_check_operand_type(eltIndex.type, WA_TYPE_I32))
-            {
-                wa_compile_error(context,
-                                 instr->ast,
-                                 "type mismatch for table.set instruction (expected %s, got %s)\n",
-                                 wa_value_type_string(WA_TYPE_I32),
-                                 wa_value_type_string(eltIndex.type));
-                break;
-            }
-
-            wa_emit(context, (wa_code){ .opcode = WA_INSTR_table_set });
-            wa_emit(context, (wa_code){ .index = tableIndex });
-            wa_emit(context, (wa_code){ .valI32 = eltIndex.index });
-            wa_emit(context, (wa_code){ .valI32 = val.index });
-        }
-        else if(instr->op == WA_INSTR_table_fill)
-        {
-            u32 tableIndex = instr->imm[0].valueType;
-            wa_table_type* table = &module->tables[tableIndex];
-
-            wa_operand_slot count = wa_operand_stack_pop(context);
-            if(wa_operand_slot_is_nil(&count))
-            {
-                wa_compile_error(context,
-                                 instr->ast,
-                                 "unbalanced stack\n");
-                break;
-            }
-
-            if(!wa_check_operand_type(count.type, WA_TYPE_I32))
-            {
-                wa_compile_error(context,
-                                 instr->ast,
-                                 "type mismatch for table.fill instruction (expected %s, got %s)\n",
-                                 wa_value_type_string(WA_TYPE_I32),
-                                 wa_value_type_string(count.type));
-                break;
-            }
-
-            wa_operand_slot val = wa_operand_stack_pop(context);
-            if(wa_operand_slot_is_nil(&val))
-            {
-                wa_compile_error(context,
-                                 instr->ast,
-                                 "unbalanced stack\n");
-                break;
-            }
-
-            if(!wa_check_operand_type(val.type, table->type))
-            {
-                wa_compile_error(context,
-                                 instr->ast,
-                                 "type mismatch for table.fill instruction (expected %s, got %s)\n",
-                                 wa_value_type_string(table->type),
-                                 wa_value_type_string(val.type));
-                break;
-            }
-
-            wa_operand_slot offset = wa_operand_stack_pop(context);
-            if(wa_operand_slot_is_nil(&offset))
-            {
-                wa_compile_error(context,
-                                 instr->ast,
-                                 "unbalanced stack\n");
-                break;
-            }
-
-            if(!wa_check_operand_type(offset.type, WA_TYPE_I32))
-            {
-                wa_compile_error(context,
-                                 instr->ast,
-                                 "type mismatch for table.fill instruction (expected %s, got %s)\n",
-                                 wa_value_type_string(WA_TYPE_I32),
-                                 wa_value_type_string(offset.type));
-                break;
-            }
-
-            wa_emit(context, (wa_code){ .opcode = WA_INSTR_table_fill });
-            wa_emit(context, (wa_code){ .index = tableIndex });
-            wa_emit(context, (wa_code){ .valI32 = offset.index });
-            wa_emit(context, (wa_code){ .valI32 = val.index });
-            wa_emit(context, (wa_code){ .valI32 = count.index });
-        }
         else if(instr->op == WA_INSTR_ref_is_null)
         {
             wa_operand_slot ref = wa_operand_stack_pop(context);
@@ -4500,70 +4121,231 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
                 break;
             }
 
-            wa_operand_slot s = {
-                .kind = WA_OPERAND_SLOT_REG,
-                .type = WA_TYPE_I32,
-                .index = wa_allocate_register(context),
-                .originInstr = instr,
-                .originOpd = context->codeLen,
-            };
-            wa_operand_stack_push(context, s);
+            u32 outIndex = wa_operand_stack_push_reg(context, WA_TYPE_I32, instr);
 
             wa_emit(context, (wa_code){ .opcode = WA_INSTR_ref_is_null });
             wa_emit(context, (wa_code){ .valI32 = ref.index });
-            wa_emit(context, (wa_code){ .valI32 = s.index });
+            wa_emit(context, (wa_code){ .valI32 = outIndex });
         }
         else
         {
-            //TODO validate instruction
-            //NOTE emit opcode
-            wa_emit(context, (wa_code){ .opcode = instr->op });
+            u32 immCount = instr->immCount;
+            wa_code* imm = instr->imm;
 
-            //emit immediates
-            for(int immIndex = 0; immIndex < info->immCount; immIndex++)
+            u32 inCount = info->inCount;
+            wa_value_type* in = (wa_value_type*)info->in;
+
+            u32 outCount = info->outCount;
+            wa_value_type* out = (wa_value_type*)info->out;
+
+            oc_arena_scope scratch = oc_scratch_begin();
+
+            //NOTE: inputs types derived from immediates
+            switch(instr->op)
             {
-                wa_emit(context, instr->imm[immIndex]);
+                case WA_INSTR_local_get:
+                {
+                    out = oc_arena_push_array(scratch.arena, wa_value_type, outCount);
+                    u32 localIndex = imm[0].valU32;
+                    out[0] = func->locals[localIndex];
+                }
+                break;
+                case WA_INSTR_local_set:
+                {
+                    u32 localIndex = imm[0].valU32;
+                    in = oc_arena_push_array(scratch.arena, wa_value_type, inCount);
+                    in[0] = func->locals[localIndex];
+                }
+                break;
+                case WA_INSTR_local_tee:
+                {
+                    u32 localIndex = imm[0].valU32;
+                    in = oc_arena_push_array(scratch.arena, wa_value_type, inCount);
+                    in[0] = func->locals[localIndex];
+                    out = oc_arena_push_array(scratch.arena, wa_value_type, outCount);
+                    out[0] = func->locals[localIndex];
+                }
+                break;
+                case WA_INSTR_global_get:
+                {
+                    out = oc_arena_push_array(scratch.arena, wa_value_type, outCount);
+                    u32 globalIndex = imm[0].valU32;
+                    out[0] = module->globals[globalIndex].type;
+                }
+                break;
+                case WA_INSTR_global_set:
+                {
+                    in = oc_arena_push_array(scratch.arena, wa_value_type, inCount);
+                    u32 globalIndex = imm[0].valU32;
+                    in[0] = module->globals[globalIndex].type;
+                }
+                break;
+                case WA_INSTR_ref_null:
+                {
+                    immCount = 0;
+                    out = oc_arena_push_array(scratch.arena, wa_value_type, outCount);
+                    out[0] = imm[0].valueType;
+                }
+                break;
+                case WA_INSTR_table_grow:
+                {
+                    u32 tableIndex = imm[0].valU32;
+                    in = oc_arena_push_array(scratch.arena, wa_value_type, inCount);
+                    in[0] = module->tables[tableIndex].type;
+                    in[1] = WA_TYPE_I32;
+                }
+                break;
+                case WA_INSTR_table_get:
+                {
+                    u32 tableIndex = imm[0].valU32;
+                    out = oc_arena_push_array(scratch.arena, wa_value_type, outCount);
+                    out[0] = module->tables[tableIndex].type;
+                }
+                break;
+                case WA_INSTR_table_set:
+                {
+                    u32 tableIndex = imm[0].valU32;
+                    in = oc_arena_push_array(scratch.arena, wa_value_type, inCount);
+                    in[0] = WA_TYPE_I32;
+                    in[1] = module->tables[tableIndex].type;
+                }
+                break;
+                case WA_INSTR_table_fill:
+                {
+                    u32 tableIndex = imm[0].valU32;
+                    in = oc_arena_push_array(scratch.arena, wa_value_type, outCount);
+                    in[0] = WA_TYPE_I32;
+                    in[1] = module->tables[tableIndex].type;
+                    in[2] = WA_TYPE_I32;
+                }
+                break;
+
+                default:
+                    break;
             }
 
-            // validate stack, allocate slots and emit operands
-            //TODO: could validate in order (from deeper to upper in the stack, and have the operands in the right order for binops...)
-            for(int opdIndex = 0; opdIndex < info->inCount; opdIndex++)
+            if(instr->op == WA_INSTR_local_set
+               || instr->op == WA_INSTR_local_tee)
             {
-                wa_operand_slot slot = wa_operand_stack_pop(context);
-                if(wa_operand_slot_is_nil(&slot))
+                //NOTE: check if the local was used in the stack and if so save it to a slot
+                //      this must be done before popping the stack to avoid saving the local
+                //      to the same reg as the operand.
+                u32 localIndex = instr->imm[0].valU32;
+                wa_move_slot_if_used(context, localIndex);
+            }
+
+            //NOTE: get inputs
+            wa_operand_slot* inSlots = oc_arena_push_array(scratch.arena, wa_operand_slot, inCount);
+            for(u32 i = 0; i < inCount; i++)
+            {
+                u32 opdIndex = inCount - 1 - i;
+                inSlots[opdIndex] = wa_operand_stack_pop(context);
+
+                if(wa_operand_slot_is_nil(&inSlots[opdIndex])
+                   || !wa_check_operand_type(inSlots[opdIndex].type, in[opdIndex]))
                 {
-                    wa_compile_error(context,
-                                     instr->ast,
-                                     "unbalanced stack\n");
+                    wa_compile_error(context, instr->ast, "unbalanced stack\n");
+                    //TODO: here we can give a better error message since we have all the operands popped so far
                     break;
                 }
+            }
 
-                if(!wa_check_operand_type(slot.type, info->in[opdIndex]))
+            //-----------------------------------------------------
+            //TODO special case validation of input operands / special case emit
+            //...
+
+            if(instr->op == WA_INSTR_local_get)
+            {
+                u32 localIndex = instr->imm[0].index;
+
+                wa_operand_stack_push(
+                    context,
+                    (wa_operand_slot){
+                        .kind = WA_OPERAND_SLOT_LOCAL,
+                        .type = func->locals[localIndex],
+                        .index = localIndex,
+                        .originInstr = instr,
+                        .originOpd = context->codeLen,
+                    });
+            }
+            else if(instr->op == WA_INSTR_local_set)
+            {
+                u32 localIndex = instr->imm[0].valU32;
+
+                //TODO: check if the local was written to since the value was pushed, and if not, change
+                //      the output operand of the value's origin instruction rather than issuing a move.
+                //WARN:  this can't be used after a branch, since the branch might use the original slot index
+                //      so we'd need to add a "touched" bit and set it for operands used in a branch?
+
+                //TODO when we put result first, we can collapse this path into the general one
+                wa_emit(context, (wa_code){ .opcode = WA_INSTR_move });
+                wa_emit(context, (wa_code){ .valI32 = inSlots[0].index });
+                wa_emit(context, (wa_code){ .valI32 = localIndex });
+            }
+            else if(instr->op == WA_INSTR_local_tee)
+            {
+                u32 localIndex = instr->imm[0].valU32;
+
+                //TODO when we put result first, we can collapse this path into the general one?
+                wa_emit(context, (wa_code){ .opcode = WA_INSTR_move });
+                wa_emit(context, (wa_code){ .valI32 = inSlots[0].index });
+                wa_emit(context, (wa_code){ .valI32 = localIndex });
+
+                wa_operand_stack_push(
+                    context,
+                    (wa_operand_slot){
+                        .kind = WA_OPERAND_SLOT_LOCAL,
+                        .type = func->locals[localIndex],
+                        .index = localIndex,
+                        .originInstr = instr,
+                        .originOpd = context->codeLen,
+                    });
+            }
+            else if(instr->op == WA_INSTR_global_get)
+            {
+                u32 globalIndex = instr->imm[0].valU32;
+
+                u32 regIndex = wa_operand_stack_push_reg(context,
+                                                         module->globals[globalIndex].type,
+                                                         instr);
+
+                wa_emit(context, (wa_code){ .opcode = WA_INSTR_global_get });
+                wa_emit(context, (wa_code){ .valI32 = globalIndex });
+                wa_emit(context, (wa_code){ .valI32 = regIndex });
+            }
+            else if(instr->op == WA_INSTR_global_set)
+            {
+                u32 globalIndex = instr->imm[0].valU32;
+                wa_emit(context, (wa_code){ .opcode = WA_INSTR_global_set });
+                wa_emit(context, (wa_code){ .valI32 = inSlots[0].index });
+                wa_emit(context, (wa_code){ .valI32 = globalIndex });
+            }
+            else
+            {
+                //-----------------------------------------------------
+                //NOTE emit opcode
+                wa_emit(context, (wa_code){ .opcode = instr->op });
+
+                //emit immediates
+                for(int immIndex = 0; immIndex < immCount; immIndex++)
                 {
-                    wa_compile_error(context,
-                                     instr->ast,
-                                     "operand type mismatch\n");
-                    break;
+                    wa_emit(context, instr->imm[immIndex]);
                 }
 
-                wa_emit(context, (wa_code){ .index = slot.index });
+                //emit inputs
+                for(u32 i = 0; i < inCount; i++)
+                {
+                    wa_emit(context, (wa_code){ .index = inSlots[i].index });
+                }
+
+                // allocate and emit outputs
+                for(int opdIndex = 0; opdIndex < outCount; opdIndex++)
+                {
+                    u32 outIndex = wa_operand_stack_push_reg(context, out[opdIndex], instr);
+                    wa_emit(context, (wa_code){ .index = outIndex });
+                }
             }
-
-            for(int opdIndex = 0; opdIndex < info->outCount; opdIndex++)
-            {
-                u32 index = wa_allocate_register(context);
-
-                wa_operand_slot s = {
-                    .kind = WA_OPERAND_SLOT_REG,
-                    .type = info->out[opdIndex],
-                    .index = index,
-                    .originInstr = instr,
-                    .originOpd = context->codeLen,
-                };
-                wa_operand_stack_push(context, s);
-
-                wa_emit(context, (wa_code){ .index = s.index });
-            }
+            oc_scratch_end(scratch);
         }
     }
 }
@@ -5511,63 +5293,63 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
 
             case WA_INSTR_i32_store:
             {
-                *(i32*)&memPtr[pc[0].memArg.offset + locals[pc[2].valI32].valI32] = locals[pc[1].valI32].valI32;
+                *(i32*)&memPtr[pc[0].memArg.offset + locals[pc[1].valI32].valI32] = locals[pc[2].valI32].valI32;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i64_store:
             {
-                *(i64*)&memPtr[pc[0].memArg.offset + locals[pc[2].valI32].valI32] = locals[pc[1].valI32].valI64;
+                *(i64*)&memPtr[pc[0].memArg.offset + locals[pc[1].valI32].valI32] = locals[pc[2].valI32].valI64;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_f32_store:
             {
-                *(f32*)&memPtr[pc[0].memArg.offset + locals[pc[2].valI32].valI32] = locals[pc[1].valI32].valF32;
+                *(f32*)&memPtr[pc[0].memArg.offset + locals[pc[1].valI32].valI32] = locals[pc[2].valI32].valF32;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_f64_store:
             {
-                *(f64*)&memPtr[pc[0].memArg.offset + locals[pc[2].valI32].valI32] = locals[pc[1].valI32].valF64;
+                *(f64*)&memPtr[pc[0].memArg.offset + locals[pc[1].valI32].valI32] = locals[pc[2].valI32].valF64;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i32_store8:
             {
-                *(u8*)&memPtr[pc[0].memArg.offset + locals[pc[2].valI32].valI32] = *(u8*)&locals[pc[1].valI32].valI32;
+                *(u8*)&memPtr[pc[0].memArg.offset + locals[pc[1].valI32].valI32] = *(u8*)&locals[pc[2].valI32].valI32;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i32_store16:
             {
-                *(u16*)&memPtr[pc[0].memArg.offset + locals[pc[2].valI32].valI32] = *(u16*)&locals[pc[1].valI32].valI32;
+                *(u16*)&memPtr[pc[0].memArg.offset + locals[pc[1].valI32].valI32] = *(u16*)&locals[pc[2].valI32].valI32;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i64_store8:
             {
-                *(u8*)&memPtr[pc[0].memArg.offset + locals[pc[2].valI32].valI32] = *(u8*)&locals[pc[1].valI32].valI64;
+                *(u8*)&memPtr[pc[0].memArg.offset + locals[pc[1].valI32].valI32] = *(u8*)&locals[pc[2].valI32].valI64;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i64_store16:
             {
-                *(u16*)&memPtr[pc[0].memArg.offset + locals[pc[2].valI32].valI32] = *(u16*)&locals[pc[1].valI32].valI64;
+                *(u16*)&memPtr[pc[0].memArg.offset + locals[pc[1].valI32].valI32] = *(u16*)&locals[pc[2].valI32].valI64;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i64_store32:
             {
-                *(u32*)&memPtr[pc[0].memArg.offset + locals[pc[2].valI32].valI32] = *(u32*)&locals[pc[1].valI32].valI64;
+                *(u32*)&memPtr[pc[0].memArg.offset + locals[pc[1].valI32].valI32] = *(u32*)&locals[pc[2].valI32].valI64;
                 pc += 3;
             }
             break;
@@ -5734,7 +5516,7 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
 
             case WA_INSTR_ref_null:
             {
-                locals[pc[1].valI32].valI64 = 0; //???
+                locals[pc[0].valI32].valI64 = 0; //???
                 pc += 1;
             }
             break;
@@ -5755,38 +5537,38 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
 
             case WA_INSTR_i32_add:
             {
-                locals[pc[2].valI32].valI32 = locals[pc[1].valI32].valI32 + locals[pc[0].valI32].valI32;
+                locals[pc[2].valI32].valI32 = locals[pc[0].valI32].valI32 + locals[pc[1].valI32].valI32;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i32_sub:
             {
-                locals[pc[2].valI32].valI32 = locals[pc[1].valI32].valI32 - locals[pc[0].valI32].valI32;
+                locals[pc[2].valI32].valI32 = locals[pc[0].valI32].valI32 - locals[pc[1].valI32].valI32;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i32_mul:
             {
-                locals[pc[2].valI32].valI32 = locals[pc[1].valI32].valI32 * locals[pc[0].valI32].valI32;
+                locals[pc[2].valI32].valI32 = locals[pc[0].valI32].valI32 * locals[pc[1].valI32].valI32;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i32_div_s:
             {
-                if(locals[pc[0].valI32].valI32 == 0)
+                if(locals[pc[1].valI32].valI32 == 0)
                 {
                     return WA_TRAP_DIVIDE_BY_ZERO;
                 }
-                else if(locals[pc[0].valI32].valI32 == -1 && locals[pc[1].valI32].valI32 == INT32_MIN)
+                else if(locals[pc[0].valI32].valI32 == INT32_MIN && locals[pc[1].valI32].valI32 == -1)
                 {
                     return WA_TRAP_INTEGER_OVERFLOW;
                 }
                 else
                 {
-                    locals[pc[2].valI32].valI32 = locals[pc[1].valI32].valI32 / locals[pc[0].valI32].valI32;
+                    locals[pc[2].valI32].valI32 = locals[pc[0].valI32].valI32 / locals[pc[1].valI32].valI32;
                 }
                 pc += 3;
             }
@@ -5794,13 +5576,13 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
 
             case WA_INSTR_i32_div_u:
             {
-                if(locals[pc[0].valI32].valI32 == 0)
+                if(locals[pc[1].valI32].valI32 == 0)
                 {
                     return WA_TRAP_DIVIDE_BY_ZERO;
                 }
                 else
                 {
-                    *(u32*)&locals[pc[2].valI32].valI32 = *(u32*)&locals[pc[1].valI32].valI32 / *(u32*)&locals[pc[0].valI32].valI32;
+                    *(u32*)&locals[pc[2].valI32].valI32 = *(u32*)&locals[pc[0].valI32].valI32 / *(u32*)&locals[pc[1].valI32].valI32;
                 }
                 pc += 3;
             }
@@ -5808,17 +5590,17 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
 
             case WA_INSTR_i32_rem_s:
             {
-                if(locals[pc[0].valI32].valI32 == 0)
+                if(locals[pc[1].valI32].valI32 == 0)
                 {
                     return WA_TRAP_DIVIDE_BY_ZERO;
                 }
-                else if(locals[pc[0].valI32].valI32 == -1 && locals[pc[1].valI32].valI32 == INT32_MIN)
+                else if(locals[pc[0].valI32].valI32 == INT32_MIN && locals[pc[1].valI32].valI32 == -1)
                 {
                     locals[pc[2].valI32].valI32 = 0;
                 }
                 else
                 {
-                    locals[pc[2].valI32].valI32 = locals[pc[1].valI32].valI32 % locals[pc[0].valI32].valI32;
+                    locals[pc[2].valI32].valI32 = locals[pc[0].valI32].valI32 % locals[pc[1].valI32].valI32;
                 }
                 pc += 3;
             }
@@ -5826,13 +5608,13 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
 
             case WA_INSTR_i32_rem_u:
             {
-                if(locals[pc[0].valI32].valI32 == 0)
+                if(locals[pc[1].valI32].valI32 == 0)
                 {
                     return WA_TRAP_DIVIDE_BY_ZERO;
                 }
                 else
                 {
-                    *(u32*)&locals[pc[2].valI32].valI32 = *(u32*)&locals[pc[1].valI32].valI32 % *(u32*)&locals[pc[0].valI32].valI32;
+                    *(u32*)&locals[pc[2].valI32].valI32 = *(u32*)&locals[pc[0].valI32].valI32 % *(u32*)&locals[pc[1].valI32].valI32;
                 }
                 pc += 3;
             }
@@ -5840,50 +5622,50 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
 
             case WA_INSTR_i32_and:
             {
-                locals[pc[2].valI32].valI32 = locals[pc[1].valI32].valI32 & locals[pc[0].valI32].valI32;
+                locals[pc[2].valI32].valI32 = locals[pc[0].valI32].valI32 & locals[pc[1].valI32].valI32;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i32_or:
             {
-                locals[pc[2].valI32].valI32 = locals[pc[1].valI32].valI32 | locals[pc[0].valI32].valI32;
+                locals[pc[2].valI32].valI32 = locals[pc[0].valI32].valI32 | locals[pc[1].valI32].valI32;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i32_xor:
             {
-                locals[pc[2].valI32].valI32 = locals[pc[1].valI32].valI32 ^ locals[pc[0].valI32].valI32;
+                locals[pc[2].valI32].valI32 = locals[pc[0].valI32].valI32 ^ locals[pc[1].valI32].valI32;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i32_shl:
             {
-                locals[pc[2].valI32].valI32 = locals[pc[1].valI32].valI32 << locals[pc[0].valI32].valI32;
+                locals[pc[2].valI32].valI32 = locals[pc[0].valI32].valI32 << locals[pc[1].valI32].valI32;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i32_shr_s:
             {
-                locals[pc[2].valI32].valI32 = locals[pc[1].valI32].valI32 >> locals[pc[0].valI32].valI32;
+                locals[pc[2].valI32].valI32 = locals[pc[0].valI32].valI32 >> locals[pc[1].valI32].valI32;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i32_shr_u:
             {
-                *(u32*)&locals[pc[2].valI32].valI32 = *(u32*)&locals[pc[1].valI32].valI32 >> *(u32*)&locals[pc[0].valI32].valI32;
+                *(u32*)&locals[pc[2].valI32].valI32 = *(u32*)&locals[pc[0].valI32].valI32 >> *(u32*)&locals[pc[1].valI32].valI32;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i32_rotr:
             {
-                u32 n = *(u32*)&locals[pc[1].valI32].valI32;
-                u32 r = *(u32*)&locals[pc[0].valI32].valI32;
+                u32 n = *(u32*)&locals[pc[0].valI32].valI32;
+                u32 r = *(u32*)&locals[pc[1].valI32].valI32;
                 *(u32*)&locals[pc[2].valI32].valI32 = (n >> r) | (n << (32 - r));
                 pc += 3;
             }
@@ -5891,8 +5673,8 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
 
             case WA_INSTR_i32_rotl:
             {
-                u32 n = *(u32*)&locals[pc[1].valI32].valI32;
-                u32 r = *(u32*)&locals[pc[0].valI32].valI32;
+                u32 n = *(u32*)&locals[pc[0].valI32].valI32;
+                u32 r = *(u32*)&locals[pc[1].valI32].valI32;
                 *(u32*)&locals[pc[2].valI32].valI32 = (n << r) | (n >> (32 - r));
                 pc += 3;
             }
@@ -5956,108 +5738,108 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
 
             case WA_INSTR_i32_eq:
             {
-                locals[pc[2].valI32].valI32 = (locals[pc[1].valI32].valI32 == locals[pc[0].valI32].valI32) ? 1 : 0;
+                locals[pc[2].valI32].valI32 = (locals[pc[0].valI32].valI32 == locals[pc[1].valI32].valI32) ? 1 : 0;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i32_ne:
             {
-                locals[pc[2].valI32].valI32 = (locals[pc[1].valI32].valI32 != locals[pc[0].valI32].valI32) ? 1 : 0;
+                locals[pc[2].valI32].valI32 = (locals[pc[0].valI32].valI32 != locals[pc[1].valI32].valI32) ? 1 : 0;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i32_lt_s:
             {
-                locals[pc[2].valI32].valI32 = (locals[pc[1].valI32].valI32 < locals[pc[0].valI32].valI32) ? 1 : 0;
+                locals[pc[2].valI32].valI32 = (locals[pc[0].valI32].valI32 < locals[pc[1].valI32].valI32) ? 1 : 0;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i32_lt_u:
             {
-                locals[pc[2].valI32].valI32 = (*(u32*)&locals[pc[1].valI32].valI32 < *(u32*)&locals[pc[0].valI32].valI32) ? 1 : 0;
+                locals[pc[2].valI32].valI32 = (*(u32*)&locals[pc[0].valI32].valI32 < *(u32*)&locals[pc[1].valI32].valI32) ? 1 : 0;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i32_le_s:
             {
-                locals[pc[2].valI32].valI32 = (locals[pc[1].valI32].valI32 <= locals[pc[0].valI32].valI32) ? 1 : 0;
+                locals[pc[2].valI32].valI32 = (locals[pc[0].valI32].valI32 <= locals[pc[1].valI32].valI32) ? 1 : 0;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i32_le_u:
             {
-                locals[pc[2].valI32].valI32 = (*(u32*)&locals[pc[1].valI32].valI32 <= *(u32*)&locals[pc[0].valI32].valI32) ? 1 : 0;
+                locals[pc[2].valI32].valI32 = (*(u32*)&locals[pc[0].valI32].valI32 <= *(u32*)&locals[pc[1].valI32].valI32) ? 1 : 0;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i32_gt_s:
             {
-                locals[pc[2].valI32].valI32 = (locals[pc[1].valI32].valI32 > locals[pc[0].valI32].valI32) ? 1 : 0;
+                locals[pc[2].valI32].valI32 = (locals[pc[0].valI32].valI32 > locals[pc[1].valI32].valI32) ? 1 : 0;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i32_gt_u:
             {
-                locals[pc[2].valI32].valI32 = (*(u32*)&locals[pc[1].valI32].valI32 > *(u32*)&locals[pc[0].valI32].valI32) ? 1 : 0;
+                locals[pc[2].valI32].valI32 = (*(u32*)&locals[pc[0].valI32].valI32 > *(u32*)&locals[pc[1].valI32].valI32) ? 1 : 0;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i32_ge_s:
             {
-                locals[pc[2].valI32].valI32 = (locals[pc[1].valI32].valI32 >= locals[pc[0].valI32].valI32) ? 1 : 0;
+                locals[pc[2].valI32].valI32 = (locals[pc[0].valI32].valI32 >= locals[pc[1].valI32].valI32) ? 1 : 0;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i32_ge_u:
             {
-                locals[pc[2].valI32].valI32 = (*(u32*)&locals[pc[1].valI32].valI32 >= *(u32*)&locals[pc[0].valI32].valI32) ? 1 : 0;
+                locals[pc[2].valI32].valI32 = (*(u32*)&locals[pc[0].valI32].valI32 >= *(u32*)&locals[pc[1].valI32].valI32) ? 1 : 0;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i64_add:
             {
-                locals[pc[2].valI32].valI64 = locals[pc[1].valI32].valI64 + locals[pc[0].valI32].valI64;
+                locals[pc[2].valI32].valI64 = locals[pc[0].valI32].valI64 + locals[pc[1].valI32].valI64;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i64_sub:
             {
-                locals[pc[2].valI32].valI64 = locals[pc[1].valI32].valI64 - locals[pc[0].valI32].valI64;
+                locals[pc[2].valI32].valI64 = locals[pc[0].valI32].valI64 - locals[pc[1].valI32].valI64;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i64_mul:
             {
-                locals[pc[2].valI32].valI64 = locals[pc[1].valI32].valI64 * locals[pc[0].valI32].valI64;
+                locals[pc[2].valI32].valI64 = locals[pc[0].valI32].valI64 * locals[pc[1].valI32].valI64;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i64_div_s:
             {
-                if(locals[pc[0].valI32].valI64 == 0)
+                if(locals[pc[1].valI32].valI64 == 0)
                 {
                     return WA_TRAP_DIVIDE_BY_ZERO;
                 }
-                else if(locals[pc[0].valI32].valI64 == -1 && locals[pc[1].valI32].valI64 == INT64_MIN)
+                else if(locals[pc[0].valI32].valI64 == INT64_MIN && locals[pc[1].valI32].valI64 == -1)
                 {
                     return WA_TRAP_INTEGER_OVERFLOW;
                 }
                 else
                 {
-                    locals[pc[2].valI32].valI64 = locals[pc[1].valI32].valI64 / locals[pc[0].valI32].valI64;
+                    locals[pc[2].valI32].valI64 = locals[pc[0].valI32].valI64 / locals[pc[1].valI32].valI64;
                 }
                 pc += 3;
             }
@@ -6065,13 +5847,13 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
 
             case WA_INSTR_i64_div_u:
             {
-                if(locals[pc[0].valI32].valI64 == 0)
+                if(locals[pc[1].valI32].valI64 == 0)
                 {
                     return WA_TRAP_DIVIDE_BY_ZERO;
                 }
                 else
                 {
-                    *(u64*)&locals[pc[2].valI32].valI64 = *(u64*)&locals[pc[1].valI32].valI64 / *(u64*)&locals[pc[0].valI32].valI64;
+                    *(u64*)&locals[pc[2].valI32].valI64 = *(u64*)&locals[pc[0].valI32].valI64 / *(u64*)&locals[pc[1].valI32].valI64;
                 }
                 pc += 3;
             }
@@ -6079,17 +5861,17 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
 
             case WA_INSTR_i64_rem_s:
             {
-                if(locals[pc[0].valI32].valI64 == 0)
+                if(locals[pc[1].valI32].valI64 == 0)
                 {
                     return WA_TRAP_DIVIDE_BY_ZERO;
                 }
-                else if(locals[pc[0].valI32].valI64 == -1 && locals[pc[1].valI32].valI64 == INT64_MIN)
+                else if(locals[pc[0].valI32].valI64 == INT64_MIN && locals[pc[1].valI32].valI64 == -1)
                 {
                     locals[pc[2].valI32].valI64 = 0;
                 }
                 else
                 {
-                    locals[pc[2].valI32].valI64 = locals[pc[1].valI32].valI64 % locals[pc[0].valI32].valI64;
+                    locals[pc[2].valI32].valI64 = locals[pc[0].valI32].valI64 % locals[pc[1].valI32].valI64;
                 }
                 pc += 3;
             }
@@ -6097,13 +5879,13 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
 
             case WA_INSTR_i64_rem_u:
             {
-                if(locals[pc[0].valI32].valI64 == 0)
+                if(locals[pc[1].valI32].valI64 == 0)
                 {
                     return WA_TRAP_DIVIDE_BY_ZERO;
                 }
                 else
                 {
-                    *(u64*)&locals[pc[2].valI32].valI64 = *(u64*)&locals[pc[1].valI32].valI64 % *(u64*)&locals[pc[0].valI32].valI64;
+                    *(u64*)&locals[pc[2].valI32].valI64 = *(u64*)&locals[pc[0].valI32].valI64 % *(u64*)&locals[pc[1].valI32].valI64;
                 }
                 pc += 3;
             }
@@ -6111,50 +5893,50 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
 
             case WA_INSTR_i64_and:
             {
-                locals[pc[2].valI32].valI64 = locals[pc[1].valI32].valI64 & locals[pc[0].valI32].valI64;
+                locals[pc[2].valI32].valI64 = locals[pc[0].valI32].valI64 & locals[pc[1].valI32].valI64;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i64_or:
             {
-                locals[pc[2].valI32].valI64 = locals[pc[1].valI32].valI64 | locals[pc[0].valI32].valI64;
+                locals[pc[2].valI32].valI64 = locals[pc[0].valI32].valI64 | locals[pc[1].valI32].valI64;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i64_xor:
             {
-                locals[pc[2].valI32].valI64 = locals[pc[1].valI32].valI64 ^ locals[pc[0].valI32].valI64;
+                locals[pc[2].valI32].valI64 = locals[pc[0].valI32].valI64 ^ locals[pc[1].valI32].valI64;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i64_shl:
             {
-                locals[pc[2].valI32].valI64 = locals[pc[1].valI32].valI64 << locals[pc[0].valI32].valI64;
+                locals[pc[2].valI32].valI64 = locals[pc[0].valI32].valI64 << locals[pc[1].valI32].valI64;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i64_shr_s:
             {
-                locals[pc[2].valI32].valI64 = locals[pc[1].valI32].valI64 >> locals[pc[0].valI32].valI64;
+                locals[pc[2].valI32].valI64 = locals[pc[0].valI32].valI64 >> locals[pc[1].valI32].valI64;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i64_shr_u:
             {
-                *(u64*)&locals[pc[2].valI32].valI64 = *(u64*)&locals[pc[1].valI32].valI64 >> *(u64*)&locals[pc[0].valI32].valI64;
+                *(u64*)&locals[pc[2].valI32].valI64 = *(u64*)&locals[pc[0].valI32].valI64 >> *(u64*)&locals[pc[1].valI32].valI64;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i64_rotr:
             {
-                u64 n = *(u64*)&locals[pc[1].valI32].valI64;
-                u64 r = *(u64*)&locals[pc[0].valI32].valI64;
+                u64 n = *(u64*)&locals[pc[0].valI32].valI64;
+                u64 r = *(u64*)&locals[pc[1].valI32].valI64;
                 *(u64*)&locals[pc[2].valI32].valI64 = (n >> r) | (n << (64 - r));
                 pc += 3;
             }
@@ -6162,8 +5944,8 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
 
             case WA_INSTR_i64_rotl:
             {
-                u64 n = *(u64*)&locals[pc[1].valI32].valI64;
-                u64 r = *(u64*)&locals[pc[0].valI32].valI64;
+                u64 n = *(u64*)&locals[pc[0].valI32].valI64;
+                u64 r = *(u64*)&locals[pc[1].valI32].valI64;
                 *(u64*)&locals[pc[2].valI32].valI64 = (n << r) | (n >> (64 - r));
                 pc += 3;
             }
@@ -6234,144 +6016,144 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
 
             case WA_INSTR_i64_eq:
             {
-                locals[pc[2].valI32].valI32 = (locals[pc[1].valI32].valI64 == locals[pc[0].valI32].valI64) ? 1 : 0;
+                locals[pc[2].valI32].valI32 = (locals[pc[0].valI32].valI64 == locals[pc[1].valI32].valI64) ? 1 : 0;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i64_ne:
             {
-                locals[pc[2].valI32].valI32 = (locals[pc[1].valI32].valI64 != locals[pc[0].valI32].valI64) ? 1 : 0;
+                locals[pc[2].valI32].valI32 = (locals[pc[0].valI32].valI64 != locals[pc[1].valI32].valI64) ? 1 : 0;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i64_lt_s:
             {
-                locals[pc[2].valI32].valI32 = (locals[pc[1].valI32].valI64 < locals[pc[0].valI32].valI64) ? 1 : 0;
+                locals[pc[2].valI32].valI32 = (locals[pc[0].valI32].valI64 < locals[pc[1].valI32].valI64) ? 1 : 0;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i64_lt_u:
             {
-                locals[pc[2].valI32].valI32 = (*(u64*)&locals[pc[1].valI32].valI64 < *(u64*)&locals[pc[0].valI32].valI64) ? 1 : 0;
+                locals[pc[2].valI32].valI32 = (*(u64*)&locals[pc[0].valI32].valI64 < *(u64*)&locals[pc[1].valI32].valI64) ? 1 : 0;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i64_le_s:
             {
-                locals[pc[2].valI32].valI32 = (locals[pc[1].valI32].valI64 <= locals[pc[0].valI32].valI64) ? 1 : 0;
+                locals[pc[2].valI32].valI32 = (locals[pc[0].valI32].valI64 <= locals[pc[1].valI32].valI64) ? 1 : 0;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i64_le_u:
             {
-                locals[pc[2].valI32].valI32 = (*(u64*)&locals[pc[1].valI32].valI64 <= *(u64*)&locals[pc[0].valI32].valI64) ? 1 : 0;
+                locals[pc[2].valI32].valI32 = (*(u64*)&locals[pc[0].valI32].valI64 <= *(u64*)&locals[pc[1].valI32].valI64) ? 1 : 0;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i64_gt_s:
             {
-                locals[pc[2].valI32].valI32 = (locals[pc[1].valI32].valI64 > locals[pc[0].valI32].valI64) ? 1 : 0;
+                locals[pc[2].valI32].valI32 = (locals[pc[0].valI32].valI64 > locals[pc[1].valI32].valI64) ? 1 : 0;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i64_gt_u:
             {
-                locals[pc[2].valI32].valI32 = (*(u64*)&locals[pc[1].valI32].valI64 > *(u64*)&locals[pc[0].valI32].valI64) ? 1 : 0;
+                locals[pc[2].valI32].valI32 = (*(u64*)&locals[pc[0].valI32].valI64 > *(u64*)&locals[pc[1].valI32].valI64) ? 1 : 0;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i64_ge_s:
             {
-                locals[pc[2].valI32].valI32 = (locals[pc[1].valI32].valI64 >= locals[pc[0].valI32].valI64) ? 1 : 0;
+                locals[pc[2].valI32].valI32 = (locals[pc[0].valI32].valI64 >= locals[pc[1].valI32].valI64) ? 1 : 0;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i64_ge_u:
             {
-                locals[pc[2].valI32].valI32 = (*(u64*)&locals[pc[1].valI32].valI64 >= *(u64*)&locals[pc[0].valI32].valI64) ? 1 : 0;
+                locals[pc[2].valI32].valI32 = (*(u64*)&locals[pc[0].valI32].valI64 >= *(u64*)&locals[pc[1].valI32].valI64) ? 1 : 0;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_f32_eq:
             {
-                locals[pc[2].valI32].valI32 = (locals[pc[1].valI32].valF32 == locals[pc[0].valI32].valF32) ? 1 : 0;
+                locals[pc[2].valI32].valI32 = (locals[pc[0].valI32].valF32 == locals[pc[1].valI32].valF32) ? 1 : 0;
                 pc += 3;
             }
             break;
             case WA_INSTR_f32_ne:
             {
-                locals[pc[2].valI32].valI32 = (locals[pc[1].valI32].valF32 != locals[pc[0].valI32].valF32) ? 1 : 0;
+                locals[pc[2].valI32].valI32 = (locals[pc[0].valI32].valF32 != locals[pc[1].valI32].valF32) ? 1 : 0;
                 pc += 3;
             }
             break;
             case WA_INSTR_f32_lt:
             {
-                locals[pc[2].valI32].valI32 = (locals[pc[1].valI32].valF32 < locals[pc[0].valI32].valF32) ? 1 : 0;
+                locals[pc[2].valI32].valI32 = (locals[pc[0].valI32].valF32 < locals[pc[1].valI32].valF32) ? 1 : 0;
                 pc += 3;
             }
             break;
             case WA_INSTR_f32_gt:
             {
-                locals[pc[2].valI32].valI32 = (locals[pc[1].valI32].valF32 > locals[pc[0].valI32].valF32) ? 1 : 0;
+                locals[pc[2].valI32].valI32 = (locals[pc[0].valI32].valF32 > locals[pc[1].valI32].valF32) ? 1 : 0;
                 pc += 3;
             }
             break;
             case WA_INSTR_f32_le:
             {
-                locals[pc[2].valI32].valI32 = (locals[pc[1].valI32].valF32 <= locals[pc[0].valI32].valF32) ? 1 : 0;
+                locals[pc[2].valI32].valI32 = (locals[pc[0].valI32].valF32 <= locals[pc[1].valI32].valF32) ? 1 : 0;
                 pc += 3;
             }
             break;
             case WA_INSTR_f32_ge:
             {
-                locals[pc[2].valI32].valI32 = (locals[pc[1].valI32].valF32 >= locals[pc[0].valI32].valF32) ? 1 : 0;
+                locals[pc[2].valI32].valI32 = (locals[pc[0].valI32].valF32 >= locals[pc[1].valI32].valF32) ? 1 : 0;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_f64_eq:
             {
-                locals[pc[2].valI32].valI32 = (locals[pc[1].valI32].valF64 == locals[pc[0].valI32].valF64) ? 1 : 0;
+                locals[pc[2].valI32].valI32 = (locals[pc[0].valI32].valF64 == locals[pc[1].valI32].valF64) ? 1 : 0;
                 pc += 3;
             }
             break;
             case WA_INSTR_f64_ne:
             {
-                locals[pc[2].valI32].valI32 = (locals[pc[1].valI32].valF64 != locals[pc[0].valI32].valF64) ? 1 : 0;
+                locals[pc[2].valI32].valI32 = (locals[pc[0].valI32].valF64 != locals[pc[1].valI32].valF64) ? 1 : 0;
                 pc += 3;
             }
             break;
             case WA_INSTR_f64_lt:
             {
-                locals[pc[2].valI32].valI32 = (locals[pc[1].valI32].valF64 < locals[pc[0].valI32].valF64) ? 1 : 0;
+                locals[pc[2].valI32].valI32 = (locals[pc[0].valI32].valF64 < locals[pc[1].valI32].valF64) ? 1 : 0;
                 pc += 3;
             }
             break;
             case WA_INSTR_f64_gt:
             {
-                locals[pc[2].valI32].valI32 = (locals[pc[1].valI32].valF64 > locals[pc[0].valI32].valF64) ? 1 : 0;
+                locals[pc[2].valI32].valI32 = (locals[pc[0].valI32].valF64 > locals[pc[1].valI32].valF64) ? 1 : 0;
                 pc += 3;
             }
             break;
             case WA_INSTR_f64_le:
             {
-                locals[pc[2].valI32].valI32 = (locals[pc[1].valI32].valF64 <= locals[pc[0].valI32].valF64) ? 1 : 0;
+                locals[pc[2].valI32].valI32 = (locals[pc[0].valI32].valF64 <= locals[pc[1].valI32].valF64) ? 1 : 0;
                 pc += 3;
             }
             break;
             case WA_INSTR_f64_ge:
             {
-                locals[pc[2].valI32].valI32 = (locals[pc[1].valI32].valF64 >= locals[pc[0].valI32].valF64) ? 1 : 0;
+                locals[pc[2].valI32].valI32 = (locals[pc[0].valI32].valF64 >= locals[pc[1].valI32].valF64) ? 1 : 0;
                 pc += 3;
             }
             break;
@@ -6427,36 +6209,36 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
 
             case WA_INSTR_f32_add:
             {
-                locals[pc[2].valI32].valF32 = locals[pc[1].valI32].valF32 + locals[pc[0].valI32].valF32;
+                locals[pc[2].valI32].valF32 = locals[pc[0].valI32].valF32 + locals[pc[1].valI32].valF32;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_f32_sub:
             {
-                locals[pc[2].valI32].valF32 = locals[pc[1].valI32].valF32 - locals[pc[0].valI32].valF32;
+                locals[pc[2].valI32].valF32 = locals[pc[0].valI32].valF32 - locals[pc[1].valI32].valF32;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_f32_mul:
             {
-                locals[pc[2].valI32].valF32 = locals[pc[1].valI32].valF32 * locals[pc[0].valI32].valF32;
+                locals[pc[2].valI32].valF32 = locals[pc[0].valI32].valF32 * locals[pc[1].valI32].valF32;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_f32_div:
             {
-                locals[pc[2].valI32].valF32 = locals[pc[1].valI32].valF32 / locals[pc[0].valI32].valF32;
+                locals[pc[2].valI32].valF32 = locals[pc[0].valI32].valF32 / locals[pc[1].valI32].valF32;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_f32_min:
             {
-                f32 a = locals[pc[1].valI32].valF32;
-                f32 b = locals[pc[0].valI32].valF32;
+                f32 a = locals[pc[0].valI32].valF32;
+                f32 b = locals[pc[1].valI32].valF32;
                 if(isnan(a) || isnan(b))
                 {
                     u32 u = 0x7fc00000;
@@ -6476,8 +6258,8 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
 
             case WA_INSTR_f32_max:
             {
-                f32 a = locals[pc[1].valI32].valF32;
-                f32 b = locals[pc[0].valI32].valF32;
+                f32 a = locals[pc[0].valI32].valF32;
+                f32 b = locals[pc[1].valI32].valF32;
                 if(isnan(a) || isnan(b))
                 {
                     u32 u = 0x7fc00000;
@@ -6498,7 +6280,7 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
 
             case WA_INSTR_f32_copysign:
             {
-                locals[pc[2].valI32].valF32 = copysignf(locals[pc[1].valI32].valF32, locals[pc[0].valI32].valF32);
+                locals[pc[2].valI32].valF32 = copysignf(locals[pc[0].valI32].valF32, locals[pc[1].valI32].valF32);
                 pc += 3;
             }
             break;
@@ -6554,36 +6336,36 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
 
             case WA_INSTR_f64_add:
             {
-                locals[pc[2].valI32].valF64 = locals[pc[1].valI32].valF64 + locals[pc[0].valI32].valF64;
+                locals[pc[2].valI32].valF64 = locals[pc[0].valI32].valF64 + locals[pc[1].valI32].valF64;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_f64_sub:
             {
-                locals[pc[2].valI32].valF64 = locals[pc[1].valI32].valF64 - locals[pc[0].valI32].valF64;
+                locals[pc[2].valI32].valF64 = locals[pc[0].valI32].valF64 - locals[pc[1].valI32].valF64;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_f64_mul:
             {
-                locals[pc[2].valI32].valF64 = locals[pc[1].valI32].valF64 * locals[pc[0].valI32].valF64;
+                locals[pc[2].valI32].valF64 = locals[pc[0].valI32].valF64 * locals[pc[1].valI32].valF64;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_f64_div:
             {
-                locals[pc[2].valI32].valF64 = locals[pc[1].valI32].valF64 / locals[pc[0].valI32].valF64;
+                locals[pc[2].valI32].valF64 = locals[pc[0].valI32].valF64 / locals[pc[1].valI32].valF64;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_f64_min:
             {
-                f64 a = locals[pc[1].valI32].valF64;
-                f64 b = locals[pc[0].valI32].valF64;
+                f64 a = locals[pc[0].valI32].valF64;
+                f64 b = locals[pc[1].valI32].valF64;
 
                 if(isnan(a) || isnan(b))
                 {
@@ -6604,8 +6386,8 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
 
             case WA_INSTR_f64_max:
             {
-                f64 a = locals[pc[1].valI32].valF64;
-                f64 b = locals[pc[0].valI32].valF64;
+                f64 a = locals[pc[0].valI32].valF64;
+                f64 b = locals[pc[1].valI32].valF64;
 
                 if(isnan(a) || isnan(b))
                 {
@@ -6626,7 +6408,7 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
 
             case WA_INSTR_f64_copysign:
             {
-                locals[pc[2].valI32].valF64 = copysign(locals[pc[1].valI32].valF64, locals[pc[0].valI32].valF64);
+                locals[pc[2].valI32].valF64 = copysign(locals[pc[0].valI32].valF64, locals[pc[1].valI32].valF64);
                 pc += 3;
             }
             break;
@@ -7088,9 +6870,10 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
             case WA_INSTR_memory_fill:
             {
                 wa_memory* mem = instance->memories[0];
-                u32 n = *(u32*)&locals[pc[1].valI32].valI32;
+
+                u32 d = *(u32*)&locals[pc[1].valI32].valI32;
                 i32 val = locals[pc[2].valI32].valI32;
-                u32 d = *(u32*)&locals[pc[3].valI32].valI32;
+                u32 n = *(u32*)&locals[pc[3].valI32].valI32;
 
                 if(d + n > mem->size)
                 {
@@ -7107,9 +6890,9 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
             case WA_INSTR_memory_copy:
             {
                 wa_memory* mem = instance->memories[0];
-                u32 n = *(u32*)&locals[pc[2].valI32].valI32;
+                u32 d = *(u32*)&locals[pc[2].valI32].valI32;
                 u32 s = *(u32*)&locals[pc[3].valI32].valI32;
-                u32 d = *(u32*)&locals[pc[4].valI32].valI32;
+                u32 n = *(u32*)&locals[pc[4].valI32].valI32;
 
                 if(s + n > mem->size || d + n > mem->size)
                 {
@@ -7125,9 +6908,9 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
                 wa_memory* mem = instance->memories[0];
                 wa_data_segment* seg = &instance->data[pc[0].valI32];
 
-                u32 n = *(u32*)&locals[pc[2].valI32].valI32;
+                u32 d = *(u32*)&locals[pc[2].valI32].valI32;
                 u32 s = *(u32*)&locals[pc[3].valI32].valI32;
-                u32 d = *(u32*)&locals[pc[4].valI32].valI32;
+                u32 n = *(u32*)&locals[pc[4].valI32].valI32;
 
                 if(s + n > seg->init.len || d + n > mem->size)
                 {
@@ -7151,9 +6934,9 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
                 wa_element* elt = &instance->elements[pc[0].valI32];
                 wa_table* table = instance->tables[pc[1].valI32];
 
-                u32 n = *(u32*)&locals[pc[2].valI32].valI32;
+                u32 d = *(u32*)&locals[pc[2].valI32].valI32;
                 u32 s = *(u32*)&locals[pc[3].valI32].valI32;
-                u32 d = *(u32*)&locals[pc[4].valI32].valI32;
+                u32 n = *(u32*)&locals[pc[4].valI32].valI32;
 
                 if(n + s > elt->initCount || d + n > table->size)
                 {
@@ -7167,6 +6950,7 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
             case WA_INSTR_table_fill:
             {
                 wa_table* table = instance->tables[pc[0].valI32];
+
                 u32 d = *(u32*)&locals[pc[1].valI32].valI32;
                 wa_value val = locals[pc[2].valI32];
                 u32 n = *(u32*)&locals[pc[3].valI32].valI32;
@@ -7188,9 +6972,10 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
             {
                 wa_table* tx = instance->tables[pc[0].valI32];
                 wa_table* ty = instance->tables[pc[1].valI32];
-                u32 n = *(u32*)&locals[pc[2].valI32].valI32;
+
+                u32 d = *(u32*)&locals[pc[2].valI32].valI32;
                 u32 s = *(u32*)&locals[pc[3].valI32].valI32;
-                u32 d = *(u32*)&locals[pc[4].valI32].valI32;
+                u32 n = *(u32*)&locals[pc[4].valI32].valI32;
 
                 if(s + n > ty->size || d + n > tx->size)
                 {
@@ -8000,7 +7785,7 @@ int test_file(oc_str8 testPath, oc_str8 testName, oc_str8 testDir, i32 filterLin
         {
             json_node* as = json_find_assert(command, "as", JSON_STRING);
             wa_test_instance* mod = oc_list_last_entry(env->instances, wa_test_instance, listElt);
-            if(!mod)
+            if(!mod || !mod->instance)
             {
                 wa_test_fail(env, testName, command);
                 continue;
