@@ -558,7 +558,10 @@ typedef enum wa_value_type
     WA_TYPE_FUNC_REF = 0x70,
     WA_TYPE_EXTERN_REF = 0x6f,
 
-    WA_TYPE_UNKNOWN = 0xff,
+    WA_TYPE_UNKNOWN = 0x100,
+    WA_TYPE_ANY = 0x101,
+    WA_TYPE_REF = 0x102,
+    WA_TYPE_NUM_OR_VEC = 0x103,
 }
 
 wa_value_type;
@@ -3264,7 +3267,15 @@ void wa_move_locals_to_registers(wa_build_context* context)
 
 bool wa_check_operand_type(wa_value_type t1, wa_value_type t2)
 {
-    return (t1 == t2 || t1 == WA_TYPE_UNKNOWN || t2 == WA_TYPE_UNKNOWN);
+    return (t1 == t2
+            || t1 == WA_TYPE_UNKNOWN
+            || t2 == WA_TYPE_UNKNOWN
+            || t1 == WA_TYPE_ANY
+            || t2 == WA_TYPE_ANY
+            || (t1 == WA_TYPE_REF && (t2 == WA_TYPE_FUNC_REF || t2 == WA_TYPE_EXTERN_REF))
+            || (t2 == WA_TYPE_REF && (t1 == WA_TYPE_FUNC_REF || t1 == WA_TYPE_EXTERN_REF))
+            || (t1 == WA_TYPE_NUM_OR_VEC && (wa_is_value_type_numeric(t2) || t2 == WA_TYPE_V128))
+            || (t2 == WA_TYPE_NUM_OR_VEC && (wa_is_value_type_numeric(t1) || t1 == WA_TYPE_V128)));
 }
 
 void wa_push_block_inputs(wa_build_context* context, wa_func_type* type)
@@ -3689,86 +3700,6 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
 
         //TODO: validate immediates here
 
-        if(instr->op == WA_INSTR_unreachable)
-        {
-            wa_emit(context, (wa_code){ .opcode = WA_INSTR_unreachable });
-            wa_block* block = wa_control_stack_top(context);
-            wa_block_set_polymorphic(context, block);
-        }
-        else if(instr->op == WA_INSTR_nop)
-        {
-            // do nothing
-        }
-        else if(instr->op == WA_INSTR_drop)
-        {
-            wa_operand_slot slot = wa_operand_stack_pop(context);
-            if(wa_operand_slot_is_nil(&slot))
-            {
-                wa_compile_error(context,
-                                 instr->ast,
-                                 "unbalanced stack\n");
-                break;
-            }
-            //TODO: possibly remove instruction that pushed this operand if it had no other side effect?
-        }
-        else if(instr->op == WA_INSTR_select || instr->op == WA_INSTR_select_t)
-        {
-            wa_operand_slot slot2 = wa_operand_stack_pop(context);
-            wa_operand_slot slot1 = wa_operand_stack_pop(context);
-            wa_operand_slot slot0 = wa_operand_stack_pop(context);
-
-            if(wa_operand_slot_is_nil(&slot2))
-            {
-                wa_compile_error(context,
-                                 instr->ast,
-                                 "unbalanced stack\n");
-                break;
-            }
-
-            if(!wa_check_operand_type(slot0.type, slot1.type))
-            {
-                //TODO: is this true?
-                wa_compile_error(context,
-                                 instr->ast,
-                                 "select first two operands should be of the same type\n");
-                break;
-            }
-            if(!wa_check_operand_type(slot2.type, WA_TYPE_I32))
-            {
-                wa_compile_error(context,
-                                 instr->ast,
-                                 "select last operands should be type i32\n");
-                break;
-            }
-
-            if(instr->op == WA_INSTR_select_t)
-            {
-                if(!wa_check_operand_type(slot0.type, instr->imm[0].valueType))
-                {
-                    wa_compile_error(context,
-                                     instr->ast,
-                                     "select operands type mismatch (expected %s, got %s)\n",
-                                     wa_value_type_string(instr->imm[0].valueType),
-                                     wa_value_type_string(slot0.type));
-                    break;
-                }
-            }
-            else if(!wa_is_value_type_numeric(slot0.type))
-            {
-                wa_compile_error(context,
-                                 instr->ast,
-                                 "select operands should be numeric\n");
-                break;
-            }
-
-            u32 outIndex = wa_operand_stack_push_reg(context, slot0.type, instr);
-
-            wa_emit(context, (wa_code){ .opcode = WA_INSTR_select });
-            wa_emit(context, (wa_code){ .valI32 = slot0.index });
-            wa_emit(context, (wa_code){ .valI32 = slot1.index });
-            wa_emit(context, (wa_code){ .valI32 = slot2.index });
-            wa_emit(context, (wa_code){ .valI32 = outIndex });
-        }
         /*
         else if(instr->op == WA_INSTR_block || instr->op == WA_INSTR_loop)
         {
@@ -3805,8 +3736,9 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
             wa_emit(context, (wa_code){ 0 });
             wa_emit(context, (wa_code){ .valI64 = slot.index });
         }
+        else
         */
-        else if(instr->op == WA_INSTR_else)
+        if(instr->op == WA_INSTR_else)
         {
             wa_block* ifBlock = wa_control_stack_top(context);
             if(!ifBlock
@@ -3926,12 +3858,9 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
         else if(instr->op == WA_INSTR_end)
         {
             wa_block* block = wa_control_stack_top(context);
-            if(!block)
-            {
-                wa_compile_error(context, instr->ast, "Unbalanced control stack\n");
-                break;
-            }
-            else if(context->controlStackLen == 1)
+            OC_ASSERT(block, "Unbalanced control stack.");
+
+            if(context->controlStackLen == 1)
             {
                 //TODO: is this sufficient to elide all previous returns?
 
@@ -4002,10 +3931,9 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
             wa_emit(context, (wa_code){ .valI64 = instr->imm[0].index });
             wa_emit(context, (wa_code){ .valI64 = maxUsedSlot + 1 });
 
-            /////////////////////////////////////////////////////////////////////////////////////////////////////////////
-            //TODO: we need to update next reg index so that next reg can't be allocated in the same slot...
-            //      we probably also need to put the remaining args regs not used by returns in the freelist
-            /////////////////////////////////////////////////////////////////////////////////////////////////////////////
+            //NOTE: we need to update next reg index so that next reg can't be allocated in the same slot...
+            //TODO: we probably also need to put the remaining args regs not used by returns in the freelist
+
             context->nextRegIndex = oc_max(maxUsedSlot + 1 + callee->type->returnCount, context->nextRegIndex);
 
             for(u32 retIndex = 0; retIndex < callee->type->returnCount; retIndex++)
@@ -4160,9 +4088,18 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
 
             oc_arena_scope scratch = oc_scratch_begin();
 
-            //NOTE: inputs types derived from immediates
+            //NOTE: inputs/outputs types derived from immediates
             switch(instr->op)
             {
+                case WA_INSTR_select_t:
+                {
+                    in = oc_arena_push_array(scratch.arena, wa_value_type, inCount);
+                    in[0] = instr->imm[0].valueType;
+                    in[1] = instr->imm[0].valueType;
+                    in[2] = WA_TYPE_I32;
+                }
+                break;
+
                 case WA_INSTR_block:
                 case WA_INSTR_loop:
                 {
@@ -4296,12 +4233,38 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
                 }
             }
 
-            //-----------------------------------------------------
-            //TODO special case validation of input operands / special case emit
-            //...
+            //NOTE: additional checks and emit
+            if(instr->op == WA_INSTR_unreachable)
+            {
+                wa_emit(context, (wa_code){ .opcode = WA_INSTR_unreachable });
+                wa_block* block = wa_control_stack_top(context);
+                wa_block_set_polymorphic(context, block);
+            }
+            else if(instr->op == WA_INSTR_drop
+                    || instr->op == WA_INSTR_nop)
+            {
+                // do nothing
+            }
+            else if(instr->op == WA_INSTR_select
+                    || instr->op == WA_INSTR_select_t)
+            {
+                if(!wa_check_operand_type(inSlots[0].type, inSlots[1].type))
+                {
+                    wa_compile_error(context, instr->ast, "select operands must be of same type\n");
+                }
+                out = oc_arena_push_array(scratch.arena, wa_value_type, outCount);
+                out[0] = inSlots[0].type;
 
-            if(instr->op == WA_INSTR_block
-               || instr->op == WA_INSTR_loop)
+                u32 outIndex = wa_operand_stack_push_reg(context, out[0], instr);
+
+                wa_emit(context, (wa_code){ .opcode = WA_INSTR_select });
+                wa_emit(context, (wa_code){ .valI32 = inSlots[0].index });
+                wa_emit(context, (wa_code){ .valI32 = inSlots[1].index });
+                wa_emit(context, (wa_code){ .valI32 = inSlots[2].index });
+                wa_emit(context, (wa_code){ .valI32 = outIndex });
+            }
+            else if(instr->op == WA_INSTR_block
+                    || instr->op == WA_INSTR_loop)
             {
                 wa_block_begin_no_check(context, instr);
             }

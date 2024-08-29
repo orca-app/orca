@@ -1026,15 +1026,39 @@ static const wa_instr_info wa_instr_infos[] = {
 
     // parametric instructions
     [WA_INSTR_drop] = {
+        .inCount = 1,
+        .in = { WA_TYPE_ANY },
+        .opdCount = 1,
         .defined = true,
     },
     [WA_INSTR_select] = {
+        .inCount = 3,
+        .in = {
+            WA_TYPE_NUM_OR_VEC,
+            WA_TYPE_NUM_OR_VEC,
+            WA_TYPE_I32,
+        },
+        .outCount = 1,
+        .out = {
+            WA_TYPE_ANY,
+        },
         .opdCount = 4,
         .defined = true,
     },
     [WA_INSTR_select_t] = {
         .immCount = 1,
         .imm = { WA_IMM_VALUE_TYPE },
+        .inCount = 3,
+        .in = {
+            WA_TYPE_ANY,
+            WA_TYPE_ANY,
+            WA_TYPE_I32,
+        },
+        .outCount = 1,
+        .out = {
+            WA_TYPE_ANY,
+        },
+        .opdCount = 5,
         .defined = true,
     },
 
