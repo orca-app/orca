@@ -1004,12 +1004,15 @@ static const wa_instr_info wa_instr_infos[] = {
         .imm = { WA_IMM_REF_TYPE },
         .outCount = 1,
         .out = { WA_TYPE_FUNC_REF },
-        .opdCount = 2,
+        .opdCount = 1,
         .defined = true,
     },
     [WA_INSTR_ref_is_null] = {
+        .inCount = 1,
+        .in = { WA_TYPE_FUNC_REF },
+        .outCount = 1,
         .out = { WA_TYPE_I32 },
-        .opdCount = 1,
+        .opdCount = 2,
         .defined = true,
     },
     [WA_INSTR_ref_func] = {
@@ -1045,24 +1048,29 @@ static const wa_instr_info wa_instr_infos[] = {
     [WA_INSTR_local_set] = {
         .immCount = 1,
         .imm = { WA_IMM_LOCAL_INDEX },
+        .inCount = 1,
         .opdCount = 2,
         .defined = true,
     },
     [WA_INSTR_local_tee] = {
         .immCount = 1,
         .imm = { WA_IMM_LOCAL_INDEX },
+        .inCount = 1,
+        .outCount = 1,
         .opdCount = 2,
         .defined = true,
     },
     [WA_INSTR_global_get] = {
         .immCount = 1,
         .imm = { WA_IMM_GLOBAL_INDEX },
+        .outCount = 1,
         .opdCount = 2,
         .defined = true,
     },
     [WA_INSTR_global_set] = {
         .immCount = 1,
         .imm = { WA_IMM_GLOBAL_INDEX },
+        .inCount = 1,
         .opdCount = 2,
         .defined = true,
     },
@@ -1245,8 +1253,8 @@ static const wa_instr_info wa_instr_infos[] = {
         .imm = { WA_IMM_MEM_ARG },
         .inCount = 2,
         .in = {
-            WA_TYPE_I64,
             WA_TYPE_I32,
+            WA_TYPE_I64,
         },
         .opdCount = 2,
         .defined = true,
@@ -1256,8 +1264,9 @@ static const wa_instr_info wa_instr_infos[] = {
         .imm = { WA_IMM_MEM_ARG },
         .inCount = 2,
         .in = {
-            WA_TYPE_F32,
             WA_TYPE_I32,
+            WA_TYPE_F32,
+
         },
         .opdCount = 2,
         .defined = true,
@@ -1267,8 +1276,9 @@ static const wa_instr_info wa_instr_infos[] = {
         .imm = { WA_IMM_MEM_ARG },
         .inCount = 2,
         .in = {
-            WA_TYPE_F64,
             WA_TYPE_I32,
+            WA_TYPE_F64,
+
         },
         .opdCount = 2,
         .defined = true,
@@ -1300,8 +1310,9 @@ static const wa_instr_info wa_instr_infos[] = {
         .imm = { WA_IMM_MEM_ARG },
         .inCount = 2,
         .in = {
-            WA_TYPE_I64,
             WA_TYPE_I32,
+            WA_TYPE_I64,
+
         },
         .opdCount = 2,
         .defined = true,
@@ -1311,8 +1322,9 @@ static const wa_instr_info wa_instr_infos[] = {
         .imm = { WA_IMM_MEM_ARG },
         .inCount = 2,
         .in = {
-            WA_TYPE_I64,
             WA_TYPE_I32,
+            WA_TYPE_I64,
+
         },
         .opdCount = 2,
         .defined = true,
@@ -1322,8 +1334,9 @@ static const wa_instr_info wa_instr_infos[] = {
         .imm = { WA_IMM_MEM_ARG },
         .inCount = 2,
         .in = {
-            WA_TYPE_I64,
             WA_TYPE_I32,
+            WA_TYPE_I64,
+
         },
         .opdCount = 2,
         .defined = true,
