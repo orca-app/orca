@@ -3294,8 +3294,8 @@ void wa_move_slot_if_used(wa_build_context* context, u32 slotIndex)
     if(newReg != UINT32_MAX)
     {
         wa_emit(context, (wa_code){ .opcode = WA_INSTR_move });
-        wa_emit(context, (wa_code){ .valI32 = slotIndex });
         wa_emit(context, (wa_code){ .valI32 = newReg });
+        wa_emit(context, (wa_code){ .valI32 = slotIndex });
     }
 }
 
@@ -3389,8 +3389,8 @@ void wa_block_move_results_to_input_slots(wa_build_context* context, wa_block* b
         {
             wa_operand_slot* dst = &context->opdStack[block->scopeBase - type->returnCount - type->paramCount + paramIndex];
             wa_emit(context, (wa_code){ .opcode = WA_INSTR_move });
-            wa_emit(context, (wa_code){ .valI64 = slots[paramIndex].index });
             wa_emit(context, (wa_code){ .valI64 = dst->index });
+            wa_emit(context, (wa_code){ .valI64 = slots[paramIndex].index });
         }
     }
     oc_scratch_end(scratch);
@@ -3414,8 +3414,8 @@ void wa_block_move_results_to_output_slots(wa_build_context* context, wa_block* 
         {
             wa_operand_slot* dst = &context->opdStack[block->scopeBase - type->returnCount + returnIndex];
             wa_emit(context, (wa_code){ .opcode = WA_INSTR_move });
-            wa_emit(context, (wa_code){ .valI64 = slots[returnIndex].index });
             wa_emit(context, (wa_code){ .valI64 = dst->index });
+            wa_emit(context, (wa_code){ .valI64 = slots[returnIndex].index });
         }
     }
 }
@@ -3538,13 +3538,13 @@ int wa_compile_return(wa_build_context* context, wa_func_type* type, wa_instr* i
             if(newReg != UINT32_MAX)
             {
                 wa_emit(context, (wa_code){ .opcode = WA_INSTR_move });
-                wa_emit(context, (wa_code){ .valI32 = retIndex });
                 wa_emit(context, (wa_code){ .valI32 = newReg });
+                wa_emit(context, (wa_code){ .valI32 = retIndex });
             }
 
             wa_emit(context, (wa_code){ .opcode = WA_INSTR_move });
-            wa_emit(context, (wa_code){ .valI64 = slot.index });
             wa_emit(context, (wa_code){ .valI64 = retIndex });
+            wa_emit(context, (wa_code){ .valI64 = slot.index });
         }
     }
     wa_emit(context, (wa_code){ .opcode = WA_INSTR_return });
@@ -3824,8 +3824,8 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
             for(u32 argIndex = 0; argIndex < paramCount; argIndex++)
             {
                 wa_emit(context, (wa_code){ .opcode = WA_INSTR_move });
-                wa_emit(context, (wa_code){ .valI32 = argSlots[argIndex].index });
                 wa_emit(context, (wa_code){ .valI32 = maxUsedSlot + 1 + argIndex });
+                wa_emit(context, (wa_code){ .valI32 = argSlots[argIndex].index });
             }
 
             if(instr->op == WA_INSTR_call)
@@ -3986,6 +3986,21 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
                 }
                 break;
 
+                case WA_INSTR_memory_size:
+                case WA_INSTR_memory_grow:
+                case WA_INSTR_memory_copy:
+                case WA_INSTR_memory_fill:
+                {
+                    immCount = 0;
+                }
+                break;
+
+                case WA_INSTR_memory_init:
+                {
+                    immCount = 1;
+                }
+                break;
+
                 default:
                     break;
             }
@@ -4021,10 +4036,10 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
                 u32 outIndex = wa_operand_stack_push_reg(context, out[0], instr);
 
                 wa_emit(context, (wa_code){ .opcode = WA_INSTR_select });
+                wa_emit(context, (wa_code){ .valI32 = outIndex });
                 wa_emit(context, (wa_code){ .valI32 = inSlots[0].index });
                 wa_emit(context, (wa_code){ .valI32 = inSlots[1].index });
                 wa_emit(context, (wa_code){ .valI32 = inSlots[2].index });
-                wa_emit(context, (wa_code){ .valI32 = outIndex });
             }
             else if(instr->op == WA_INSTR_local_get)
             {
@@ -4051,8 +4066,8 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
 
                 //TODO when we put result first, we can collapse this path into the general one
                 wa_emit(context, (wa_code){ .opcode = WA_INSTR_move });
-                wa_emit(context, (wa_code){ .valI32 = inSlots[0].index });
                 wa_emit(context, (wa_code){ .valI32 = localIndex });
+                wa_emit(context, (wa_code){ .valI32 = inSlots[0].index });
             }
             else if(instr->op == WA_INSTR_local_tee)
             {
@@ -4060,8 +4075,8 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
 
                 //TODO when we put result first, we can collapse this path into the general one?
                 wa_emit(context, (wa_code){ .opcode = WA_INSTR_move });
-                wa_emit(context, (wa_code){ .valI32 = inSlots[0].index });
                 wa_emit(context, (wa_code){ .valI32 = localIndex });
+                wa_emit(context, (wa_code){ .valI32 = inSlots[0].index });
 
                 wa_operand_stack_push(
                     context,
@@ -4082,20 +4097,26 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
                                                          instr);
 
                 wa_emit(context, (wa_code){ .opcode = WA_INSTR_global_get });
-                wa_emit(context, (wa_code){ .valI32 = globalIndex });
                 wa_emit(context, (wa_code){ .valI32 = regIndex });
+                wa_emit(context, (wa_code){ .valI32 = globalIndex });
             }
             else if(instr->op == WA_INSTR_global_set)
             {
                 u32 globalIndex = instr->imm[0].valU32;
                 wa_emit(context, (wa_code){ .opcode = WA_INSTR_global_set });
-                wa_emit(context, (wa_code){ .valI32 = inSlots[0].index });
                 wa_emit(context, (wa_code){ .valI32 = globalIndex });
+                wa_emit(context, (wa_code){ .valI32 = inSlots[0].index });
             }
             else
             {
                 //NOTE generic emit code
                 wa_emit(context, (wa_code){ .opcode = instr->op });
+
+                for(int opdIndex = 0; opdIndex < outCount; opdIndex++)
+                {
+                    u32 outIndex = wa_operand_stack_push_reg(context, out[opdIndex], instr);
+                    wa_emit(context, (wa_code){ .index = outIndex });
+                }
 
                 for(int immIndex = 0; immIndex < immCount; immIndex++)
                 {
@@ -4105,12 +4126,6 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
                 for(u32 i = 0; i < inCount; i++)
                 {
                     wa_emit(context, (wa_code){ .index = inSlots[i].index });
-                }
-
-                for(int opdIndex = 0; opdIndex < outCount; opdIndex++)
-                {
-                    u32 outIndex = wa_operand_stack_push_reg(context, out[opdIndex], instr);
-                    wa_emit(context, (wa_code){ .index = outIndex });
                 }
             }
         }
@@ -4908,6 +4923,10 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
 #define G0 instance->globals[pc[0].valI32]
 #define G1 instance->globals[pc[1].valI32]
 
+#define RES L0
+#define OPD1 L1
+#define OPD2 L2
+
             case WA_INSTR_unreachable:
             {
                 return WA_TRAP_UNREACHABLE;
@@ -4916,62 +4935,62 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
 
             case WA_INSTR_i32_const:
             {
-                L1.valI32 = I0.valI32;
+                L0.valI32 = I1.valI32;
                 pc += 2;
             }
             break;
 
             case WA_INSTR_i64_const:
             {
-                L1.valI64 = I0.valI64;
+                L0.valI64 = I1.valI64;
                 pc += 2;
             }
             break;
 
             case WA_INSTR_f32_const:
             {
-                L1.valF32 = I0.valF32;
+                L0.valF32 = I1.valF32;
                 pc += 2;
             }
             break;
 
             case WA_INSTR_f64_const:
             {
-                L1.valF64 = I0.valF64;
+                L0.valF64 = I1.valF64;
                 pc += 2;
             }
             break;
 
             case WA_INSTR_move:
             {
-                L1.valI64 = L0.valI64;
+                memcpy(&L0, &L1, sizeof(wa_value));
                 pc += 2;
             }
             break;
 
             case WA_INSTR_global_get:
             {
-                memcpy(&L1, &G0, sizeof(u64));
+                memcpy(&L0, &G1, sizeof(wa_value));
                 pc += 2;
             }
             break;
 
             case WA_INSTR_global_set:
             {
-                memcpy(&G1, &L0, sizeof(u64));
+                memcpy(&G0, &L1, sizeof(wa_value));
                 pc += 2;
             }
             break;
 
             case WA_INSTR_select:
             {
-                if(L2.valI32)
+                if(L3.valI32)
                 {
-                    memcpy(&L3, &L0, sizeof(u64));
+                    memcpy(&L0, &L1, sizeof(u64));
                 }
                 else
                 {
-                    memcpy(&L3, &L1, sizeof(u64));
+                    memcpy(&L0, &L2, sizeof(u64));
                 }
                 pc += 4;
             }
@@ -4979,98 +4998,98 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
 
             case WA_INSTR_i32_load:
             {
-                L2.valI32 = *(i32*)&memPtr[I0.memArg.offset + L1.valI32];
+                L0.valI32 = *(i32*)&memPtr[I1.memArg.offset + L2.valI32];
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i64_load:
             {
-                L2.valI64 = *(i64*)&memPtr[I0.memArg.offset + L1.valI32];
+                L0.valI64 = *(i64*)&memPtr[I1.memArg.offset + L2.valI32];
                 pc += 3;
             }
             break;
 
             case WA_INSTR_f32_load:
             {
-                L2.valF32 = *(f32*)&memPtr[I0.memArg.offset + L1.valI32];
+                L0.valF32 = *(f32*)&memPtr[I1.memArg.offset + L2.valI32];
                 pc += 3;
             }
             break;
 
             case WA_INSTR_f64_load:
             {
-                L2.valF64 = *(f64*)&memPtr[I0.memArg.offset + L1.valI32];
+                L0.valF64 = *(f64*)&memPtr[I1.memArg.offset + L2.valI32];
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i32_load8_s:
             {
-                L2.valI32 = (i32) * (i8*)&memPtr[I0.memArg.offset + L1.valI32];
+                L0.valI32 = (i32) * (i8*)&memPtr[I1.memArg.offset + L2.valI32];
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i32_load8_u:
             {
-                *(u32*)&L2.valI32 = (u32) * (u8*)&memPtr[I0.memArg.offset + L1.valI32];
+                *(u32*)&L0.valI32 = (u32) * (u8*)&memPtr[I1.memArg.offset + L2.valI32];
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i32_load16_s:
             {
-                L2.valI32 = (i32) * (i16*)&memPtr[I0.memArg.offset + L1.valI32];
+                L0.valI32 = (i32) * (i16*)&memPtr[I1.memArg.offset + L2.valI32];
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i32_load16_u:
             {
-                *(u32*)&L2.valI32 = (u32) * (u16*)&memPtr[I0.memArg.offset + L1.valI32];
+                *(u32*)&L0.valI32 = (u32) * (u16*)&memPtr[I1.memArg.offset + L2.valI32];
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i64_load8_s:
             {
-                L2.valI64 = (i64) * (i8*)&memPtr[I0.memArg.offset + L1.valI32];
+                L0.valI64 = (i64) * (i8*)&memPtr[I1.memArg.offset + L2.valI32];
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i64_load8_u:
             {
-                *(u32*)&L2.valI64 = (u64) * (u8*)&memPtr[I0.memArg.offset + L1.valI32];
+                *(u32*)&L0.valI64 = (u64) * (u8*)&memPtr[I1.memArg.offset + L2.valI32];
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i64_load16_s:
             {
-                L2.valI64 = (i64) * (i16*)&memPtr[I0.memArg.offset + L1.valI32];
+                L0.valI64 = (i64) * (i16*)&memPtr[I1.memArg.offset + L2.valI32];
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i64_load16_u:
             {
-                *(u32*)&L2.valI64 = (u64) * (u16*)&memPtr[I0.memArg.offset + L1.valI32];
+                *(u32*)&L0.valI64 = (u64) * (u16*)&memPtr[I1.memArg.offset + L2.valI32];
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i64_load32_s:
             {
-                L2.valI64 = (i64) * (i32*)&memPtr[I0.memArg.offset + L1.valI32];
+                L0.valI64 = (i64) * (i32*)&memPtr[I1.memArg.offset + L2.valI32];
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i64_load32_u:
             {
-                *(u32*)&L2.valI64 = (u64) * (u32*)&memPtr[I0.memArg.offset + L1.valI32];
+                *(u32*)&L0.valI64 = (u64) * (u32*)&memPtr[I1.memArg.offset + L2.valI32];
                 pc += 3;
             }
             break;
@@ -5307,52 +5326,52 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
 
             case WA_INSTR_ref_is_null:
             {
-                L1.valI32 = (L0.valI64 == 0) ? 1 : 0;
+                L0.valI32 = (L1.valI64 == 0) ? 1 : 0;
                 pc += 2;
             }
             break;
 
             case WA_INSTR_ref_func:
             {
-                L1.valI64 = I0.valI64 + 1; //???
+                L0.valI64 = I1.valI64 + 1; //???
                 pc += 2;
             }
             break;
 
             case WA_INSTR_i32_add:
             {
-                L2.valI32 = L0.valI32 + L1.valI32;
+                RES.valI32 = OPD1.valI32 + OPD2.valI32;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i32_sub:
             {
-                L2.valI32 = L0.valI32 - L1.valI32;
+                RES.valI32 = OPD1.valI32 - OPD2.valI32;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i32_mul:
             {
-                L2.valI32 = L0.valI32 * L1.valI32;
+                RES.valI32 = OPD1.valI32 * OPD2.valI32;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i32_div_s:
             {
-                if(L1.valI32 == 0)
+                if(OPD2.valI32 == 0)
                 {
                     return WA_TRAP_DIVIDE_BY_ZERO;
                 }
-                else if(L0.valI32 == INT32_MIN && L1.valI32 == -1)
+                else if(OPD1.valI32 == INT32_MIN && OPD2.valI32 == -1)
                 {
                     return WA_TRAP_INTEGER_OVERFLOW;
                 }
                 else
                 {
-                    L2.valI32 = L0.valI32 / L1.valI32;
+                    RES.valI32 = OPD1.valI32 / OPD2.valI32;
                 }
                 pc += 3;
             }
@@ -5360,13 +5379,13 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
 
             case WA_INSTR_i32_div_u:
             {
-                if(L1.valI32 == 0)
+                if(OPD2.valI32 == 0)
                 {
                     return WA_TRAP_DIVIDE_BY_ZERO;
                 }
                 else
                 {
-                    *(u32*)&L2.valI32 = *(u32*)&L0.valI32 / *(u32*)&L1.valI32;
+                    *(u32*)&RES.valI32 = *(u32*)&OPD1.valI32 / *(u32*)&OPD2.valI32;
                 }
                 pc += 3;
             }
@@ -5374,17 +5393,17 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
 
             case WA_INSTR_i32_rem_s:
             {
-                if(L1.valI32 == 0)
+                if(OPD2.valI32 == 0)
                 {
                     return WA_TRAP_DIVIDE_BY_ZERO;
                 }
-                else if(L0.valI32 == INT32_MIN && L1.valI32 == -1)
+                else if(OPD1.valI32 == INT32_MIN && OPD2.valI32 == -1)
                 {
-                    L2.valI32 = 0;
+                    RES.valI32 = 0;
                 }
                 else
                 {
-                    L2.valI32 = L0.valI32 % L1.valI32;
+                    RES.valI32 = OPD1.valI32 % OPD2.valI32;
                 }
                 pc += 3;
             }
@@ -5392,13 +5411,13 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
 
             case WA_INSTR_i32_rem_u:
             {
-                if(L1.valI32 == 0)
+                if(OPD2.valI32 == 0)
                 {
                     return WA_TRAP_DIVIDE_BY_ZERO;
                 }
                 else
                 {
-                    *(u32*)&L2.valI32 = *(u32*)&L0.valI32 % *(u32*)&L1.valI32;
+                    *(u32*)&RES.valI32 = *(u32*)&OPD1.valI32 % *(u32*)&OPD2.valI32;
                 }
                 pc += 3;
             }
@@ -5406,73 +5425,73 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
 
             case WA_INSTR_i32_and:
             {
-                L2.valI32 = L0.valI32 & L1.valI32;
+                RES.valI32 = OPD1.valI32 & OPD2.valI32;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i32_or:
             {
-                L2.valI32 = L0.valI32 | L1.valI32;
+                RES.valI32 = OPD1.valI32 | OPD2.valI32;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i32_xor:
             {
-                L2.valI32 = L0.valI32 ^ L1.valI32;
+                RES.valI32 = OPD1.valI32 ^ OPD2.valI32;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i32_shl:
             {
-                L2.valI32 = L0.valI32 << L1.valI32;
+                RES.valI32 = OPD1.valI32 << OPD2.valI32;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i32_shr_s:
             {
-                L2.valI32 = L0.valI32 >> L1.valI32;
+                RES.valI32 = OPD1.valI32 >> OPD2.valI32;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i32_shr_u:
             {
-                *(u32*)&L2.valI32 = *(u32*)&L0.valI32 >> *(u32*)&L1.valI32;
+                *(u32*)&RES.valI32 = *(u32*)&OPD1.valI32 >> *(u32*)&OPD2.valI32;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i32_rotr:
             {
-                u32 n = *(u32*)&L0.valI32;
-                u32 r = *(u32*)&L1.valI32;
-                *(u32*)&L2.valI32 = (n >> r) | (n << (32 - r));
+                u32 n = *(u32*)&OPD1.valI32;
+                u32 r = *(u32*)&OPD2.valI32;
+                *(u32*)&RES.valI32 = (n >> r) | (n << (32 - r));
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i32_rotl:
             {
-                u32 n = *(u32*)&L0.valI32;
-                u32 r = *(u32*)&L1.valI32;
-                *(u32*)&L2.valI32 = (n << r) | (n >> (32 - r));
+                u32 n = *(u32*)&OPD1.valI32;
+                u32 r = *(u32*)&OPD2.valI32;
+                *(u32*)&RES.valI32 = (n << r) | (n >> (32 - r));
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i32_clz:
             {
-                if(L0.valI32 == 0)
+                if(OPD1.valI32 == 0)
                 {
-                    L1.valI32 = 32;
+                    RES.valI32 = 32;
                 }
                 else
                 {
-                    L1.valI32 = __builtin_clz(*(u32*)&L0.valI32);
+                    RES.valI32 = __builtin_clz(*(u32*)&OPD1.valI32);
                 }
                 pc += 2;
             }
@@ -5480,13 +5499,13 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
 
             case WA_INSTR_i32_ctz:
             {
-                if(L0.valI32 == 0)
+                if(OPD1.valI32 == 0)
                 {
-                    L1.valI32 = 32;
+                    RES.valI32 = 32;
                 }
                 else
                 {
-                    L1.valI32 = __builtin_ctz(*(u32*)&L0.valI32);
+                    RES.valI32 = __builtin_ctz(*(u32*)&OPD1.valI32);
                 }
                 pc += 2;
             }
@@ -5494,136 +5513,136 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
 
             case WA_INSTR_i32_popcnt:
             {
-                L1.valI32 = __builtin_popcount(*(u32*)&L0.valI32);
+                RES.valI32 = __builtin_popcount(*(u32*)&OPD1.valI32);
                 pc += 2;
             }
             break;
 
             case WA_INSTR_i32_extend8_s:
             {
-                L1.valI32 = (i32)(i8)(L0.valI32 & 0xff);
+                RES.valI32 = (i32)(i8)(OPD1.valI32 & 0xff);
                 pc += 2;
             }
             break;
 
             case WA_INSTR_i32_extend16_s:
             {
-                L1.valI32 = (i32)(i16)(L0.valI32 & 0xffff);
+                RES.valI32 = (i32)(i16)(OPD1.valI32 & 0xffff);
                 pc += 2;
             }
             break;
 
             case WA_INSTR_i32_eqz:
             {
-                L1.valI32 = (L0.valI32 == 0) ? 1 : 0;
+                RES.valI32 = (OPD1.valI32 == 0) ? 1 : 0;
                 pc += 2;
             }
             break;
 
             case WA_INSTR_i32_eq:
             {
-                L2.valI32 = (L0.valI32 == L1.valI32) ? 1 : 0;
+                RES.valI32 = (OPD1.valI32 == OPD2.valI32) ? 1 : 0;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i32_ne:
             {
-                L2.valI32 = (L0.valI32 != L1.valI32) ? 1 : 0;
+                RES.valI32 = (OPD1.valI32 != OPD2.valI32) ? 1 : 0;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i32_lt_s:
             {
-                L2.valI32 = (L0.valI32 < L1.valI32) ? 1 : 0;
+                RES.valI32 = (OPD1.valI32 < OPD2.valI32) ? 1 : 0;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i32_lt_u:
             {
-                L2.valI32 = (*(u32*)&L0.valI32 < *(u32*)&L1.valI32) ? 1 : 0;
+                RES.valI32 = (*(u32*)&OPD1.valI32 < *(u32*)&OPD2.valI32) ? 1 : 0;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i32_le_s:
             {
-                L2.valI32 = (L0.valI32 <= L1.valI32) ? 1 : 0;
+                RES.valI32 = (OPD1.valI32 <= OPD2.valI32) ? 1 : 0;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i32_le_u:
             {
-                L2.valI32 = (*(u32*)&L0.valI32 <= *(u32*)&L1.valI32) ? 1 : 0;
+                RES.valI32 = (*(u32*)&OPD1.valI32 <= *(u32*)&OPD2.valI32) ? 1 : 0;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i32_gt_s:
             {
-                L2.valI32 = (L0.valI32 > L1.valI32) ? 1 : 0;
+                RES.valI32 = (OPD1.valI32 > OPD2.valI32) ? 1 : 0;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i32_gt_u:
             {
-                L2.valI32 = (*(u32*)&L0.valI32 > *(u32*)&L1.valI32) ? 1 : 0;
+                RES.valI32 = (*(u32*)&OPD1.valI32 > *(u32*)&OPD2.valI32) ? 1 : 0;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i32_ge_s:
             {
-                L2.valI32 = (L0.valI32 >= L1.valI32) ? 1 : 0;
+                RES.valI32 = (OPD1.valI32 >= OPD2.valI32) ? 1 : 0;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i32_ge_u:
             {
-                L2.valI32 = (*(u32*)&L0.valI32 >= *(u32*)&L1.valI32) ? 1 : 0;
+                RES.valI32 = (*(u32*)&OPD1.valI32 >= *(u32*)&OPD2.valI32) ? 1 : 0;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i64_add:
             {
-                L2.valI64 = L0.valI64 + L1.valI64;
+                RES.valI64 = OPD1.valI64 + OPD2.valI64;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i64_sub:
             {
-                L2.valI64 = L0.valI64 - L1.valI64;
+                RES.valI64 = OPD1.valI64 - OPD2.valI64;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i64_mul:
             {
-                L2.valI64 = L0.valI64 * L1.valI64;
+                RES.valI64 = OPD1.valI64 * OPD2.valI64;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i64_div_s:
             {
-                if(L1.valI64 == 0)
+                if(OPD2.valI64 == 0)
                 {
                     return WA_TRAP_DIVIDE_BY_ZERO;
                 }
-                else if(L0.valI64 == INT64_MIN && L1.valI64 == -1)
+                else if(OPD1.valI64 == INT64_MIN && OPD2.valI64 == -1)
                 {
                     return WA_TRAP_INTEGER_OVERFLOW;
                 }
                 else
                 {
-                    L2.valI64 = L0.valI64 / L1.valI64;
+                    RES.valI64 = OPD1.valI64 / OPD2.valI64;
                 }
                 pc += 3;
             }
@@ -5631,13 +5650,13 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
 
             case WA_INSTR_i64_div_u:
             {
-                if(L1.valI64 == 0)
+                if(OPD2.valI64 == 0)
                 {
                     return WA_TRAP_DIVIDE_BY_ZERO;
                 }
                 else
                 {
-                    *(u64*)&L2.valI64 = *(u64*)&L0.valI64 / *(u64*)&L1.valI64;
+                    *(u64*)&RES.valI64 = *(u64*)&OPD1.valI64 / *(u64*)&OPD2.valI64;
                 }
                 pc += 3;
             }
@@ -5645,17 +5664,17 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
 
             case WA_INSTR_i64_rem_s:
             {
-                if(L1.valI64 == 0)
+                if(OPD2.valI64 == 0)
                 {
                     return WA_TRAP_DIVIDE_BY_ZERO;
                 }
-                else if(L0.valI64 == INT64_MIN && L1.valI64 == -1)
+                else if(OPD1.valI64 == INT64_MIN && OPD2.valI64 == -1)
                 {
-                    L2.valI64 = 0;
+                    RES.valI64 = 0;
                 }
                 else
                 {
-                    L2.valI64 = L0.valI64 % L1.valI64;
+                    RES.valI64 = OPD1.valI64 % OPD2.valI64;
                 }
                 pc += 3;
             }
@@ -5663,13 +5682,13 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
 
             case WA_INSTR_i64_rem_u:
             {
-                if(L1.valI64 == 0)
+                if(OPD2.valI64 == 0)
                 {
                     return WA_TRAP_DIVIDE_BY_ZERO;
                 }
                 else
                 {
-                    *(u64*)&L2.valI64 = *(u64*)&L0.valI64 % *(u64*)&L1.valI64;
+                    *(u64*)&RES.valI64 = *(u64*)&OPD1.valI64 % *(u64*)&OPD2.valI64;
                 }
                 pc += 3;
             }
@@ -5677,73 +5696,73 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
 
             case WA_INSTR_i64_and:
             {
-                L2.valI64 = L0.valI64 & L1.valI64;
+                RES.valI64 = OPD1.valI64 & OPD2.valI64;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i64_or:
             {
-                L2.valI64 = L0.valI64 | L1.valI64;
+                RES.valI64 = OPD1.valI64 | OPD2.valI64;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i64_xor:
             {
-                L2.valI64 = L0.valI64 ^ L1.valI64;
+                RES.valI64 = OPD1.valI64 ^ OPD2.valI64;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i64_shl:
             {
-                L2.valI64 = L0.valI64 << L1.valI64;
+                RES.valI64 = OPD1.valI64 << OPD2.valI64;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i64_shr_s:
             {
-                L2.valI64 = L0.valI64 >> L1.valI64;
+                RES.valI64 = OPD1.valI64 >> OPD2.valI64;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i64_shr_u:
             {
-                *(u64*)&L2.valI64 = *(u64*)&L0.valI64 >> *(u64*)&L1.valI64;
+                *(u64*)&RES.valI64 = *(u64*)&OPD1.valI64 >> *(u64*)&OPD2.valI64;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i64_rotr:
             {
-                u64 n = *(u64*)&L0.valI64;
-                u64 r = *(u64*)&L1.valI64;
-                *(u64*)&L2.valI64 = (n >> r) | (n << (64 - r));
+                u64 n = *(u64*)&OPD1.valI64;
+                u64 r = *(u64*)&OPD2.valI64;
+                *(u64*)&RES.valI64 = (n >> r) | (n << (64 - r));
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i64_rotl:
             {
-                u64 n = *(u64*)&L0.valI64;
-                u64 r = *(u64*)&L1.valI64;
-                *(u64*)&L2.valI64 = (n << r) | (n >> (64 - r));
+                u64 n = *(u64*)&OPD1.valI64;
+                u64 r = *(u64*)&OPD2.valI64;
+                *(u64*)&RES.valI64 = (n << r) | (n >> (64 - r));
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i64_clz:
             {
-                if(L0.valI64 == 0)
+                if(OPD1.valI64 == 0)
                 {
-                    L1.valI64 = 64;
+                    RES.valI64 = 64;
                 }
                 else
                 {
-                    L1.valI64 = __builtin_clzl(*(u64*)&L0.valI64);
+                    RES.valI64 = __builtin_clzl(*(u64*)&OPD1.valI64);
                 }
                 pc += 2;
             }
@@ -5751,13 +5770,13 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
 
             case WA_INSTR_i64_ctz:
             {
-                if(L0.valI64 == 0)
+                if(OPD1.valI64 == 0)
                 {
-                    L1.valI64 = 64;
+                    RES.valI64 = 64;
                 }
                 else
                 {
-                    L1.valI64 = __builtin_ctzl(*(u64*)&L0.valI64);
+                    RES.valI64 = __builtin_ctzl(*(u64*)&OPD1.valI64);
                 }
                 pc += 2;
             }
@@ -5765,276 +5784,276 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
 
             case WA_INSTR_i64_popcnt:
             {
-                L1.valI64 = __builtin_popcountl(*(u64*)&L0.valI64);
+                RES.valI64 = __builtin_popcountl(*(u64*)&OPD1.valI64);
                 pc += 2;
             }
             break;
 
             case WA_INSTR_i64_extend8_s:
             {
-                L1.valI64 = (i64)(i8)(L0.valI64 & 0xff);
+                RES.valI64 = (i64)(i8)(OPD1.valI64 & 0xff);
                 pc += 2;
             }
             break;
 
             case WA_INSTR_i64_extend16_s:
             {
-                L1.valI64 = (i64)(i16)(L0.valI64 & 0xffff);
+                RES.valI64 = (i64)(i16)(OPD1.valI64 & 0xffff);
                 pc += 2;
             }
             break;
 
             case WA_INSTR_i64_extend32_s:
             {
-                L1.valI64 = (i64)(i32)(L0.valI64 & 0xffffffff);
+                RES.valI64 = (i64)(i32)(OPD1.valI64 & 0xffffffff);
                 pc += 2;
             }
             break;
 
             case WA_INSTR_i64_eqz:
             {
-                L1.valI32 = (L0.valI64 == 0) ? 1 : 0;
+                RES.valI32 = (OPD1.valI64 == 0) ? 1 : 0;
                 pc += 2;
             }
             break;
 
             case WA_INSTR_i64_eq:
             {
-                L2.valI32 = (L0.valI64 == L1.valI64) ? 1 : 0;
+                RES.valI32 = (OPD1.valI64 == OPD2.valI64) ? 1 : 0;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i64_ne:
             {
-                L2.valI32 = (L0.valI64 != L1.valI64) ? 1 : 0;
+                RES.valI32 = (OPD1.valI64 != OPD2.valI64) ? 1 : 0;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i64_lt_s:
             {
-                L2.valI32 = (L0.valI64 < L1.valI64) ? 1 : 0;
+                RES.valI32 = (OPD1.valI64 < OPD2.valI64) ? 1 : 0;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i64_lt_u:
             {
-                L2.valI32 = (*(u64*)&L0.valI64 < *(u64*)&L1.valI64) ? 1 : 0;
+                RES.valI32 = (*(u64*)&OPD1.valI64 < *(u64*)&OPD2.valI64) ? 1 : 0;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i64_le_s:
             {
-                L2.valI32 = (L0.valI64 <= L1.valI64) ? 1 : 0;
+                RES.valI32 = (OPD1.valI64 <= OPD2.valI64) ? 1 : 0;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i64_le_u:
             {
-                L2.valI32 = (*(u64*)&L0.valI64 <= *(u64*)&L1.valI64) ? 1 : 0;
+                RES.valI32 = (*(u64*)&OPD1.valI64 <= *(u64*)&OPD2.valI64) ? 1 : 0;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i64_gt_s:
             {
-                L2.valI32 = (L0.valI64 > L1.valI64) ? 1 : 0;
+                RES.valI32 = (OPD1.valI64 > OPD2.valI64) ? 1 : 0;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i64_gt_u:
             {
-                L2.valI32 = (*(u64*)&L0.valI64 > *(u64*)&L1.valI64) ? 1 : 0;
+                RES.valI32 = (*(u64*)&OPD1.valI64 > *(u64*)&OPD2.valI64) ? 1 : 0;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i64_ge_s:
             {
-                L2.valI32 = (L0.valI64 >= L1.valI64) ? 1 : 0;
+                RES.valI32 = (OPD1.valI64 >= OPD2.valI64) ? 1 : 0;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i64_ge_u:
             {
-                L2.valI32 = (*(u64*)&L0.valI64 >= *(u64*)&L1.valI64) ? 1 : 0;
+                RES.valI32 = (*(u64*)&OPD1.valI64 >= *(u64*)&OPD2.valI64) ? 1 : 0;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_f32_eq:
             {
-                L2.valI32 = (L0.valF32 == L1.valF32) ? 1 : 0;
+                RES.valI32 = (OPD1.valF32 == OPD2.valF32) ? 1 : 0;
                 pc += 3;
             }
             break;
             case WA_INSTR_f32_ne:
             {
-                L2.valI32 = (L0.valF32 != L1.valF32) ? 1 : 0;
+                RES.valI32 = (OPD1.valF32 != OPD2.valF32) ? 1 : 0;
                 pc += 3;
             }
             break;
             case WA_INSTR_f32_lt:
             {
-                L2.valI32 = (L0.valF32 < L1.valF32) ? 1 : 0;
+                RES.valI32 = (OPD1.valF32 < OPD2.valF32) ? 1 : 0;
                 pc += 3;
             }
             break;
             case WA_INSTR_f32_gt:
             {
-                L2.valI32 = (L0.valF32 > L1.valF32) ? 1 : 0;
+                RES.valI32 = (OPD1.valF32 > OPD2.valF32) ? 1 : 0;
                 pc += 3;
             }
             break;
             case WA_INSTR_f32_le:
             {
-                L2.valI32 = (L0.valF32 <= L1.valF32) ? 1 : 0;
+                RES.valI32 = (OPD1.valF32 <= OPD2.valF32) ? 1 : 0;
                 pc += 3;
             }
             break;
             case WA_INSTR_f32_ge:
             {
-                L2.valI32 = (L0.valF32 >= L1.valF32) ? 1 : 0;
+                RES.valI32 = (OPD1.valF32 >= OPD2.valF32) ? 1 : 0;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_f64_eq:
             {
-                L2.valI32 = (L0.valF64 == L1.valF64) ? 1 : 0;
+                RES.valI32 = (OPD1.valF64 == OPD2.valF64) ? 1 : 0;
                 pc += 3;
             }
             break;
             case WA_INSTR_f64_ne:
             {
-                L2.valI32 = (L0.valF64 != L1.valF64) ? 1 : 0;
+                RES.valI32 = (OPD1.valF64 != OPD2.valF64) ? 1 : 0;
                 pc += 3;
             }
             break;
             case WA_INSTR_f64_lt:
             {
-                L2.valI32 = (L0.valF64 < L1.valF64) ? 1 : 0;
+                RES.valI32 = (OPD1.valF64 < OPD2.valF64) ? 1 : 0;
                 pc += 3;
             }
             break;
             case WA_INSTR_f64_gt:
             {
-                L2.valI32 = (L0.valF64 > L1.valF64) ? 1 : 0;
+                RES.valI32 = (OPD1.valF64 > OPD2.valF64) ? 1 : 0;
                 pc += 3;
             }
             break;
             case WA_INSTR_f64_le:
             {
-                L2.valI32 = (L0.valF64 <= L1.valF64) ? 1 : 0;
+                RES.valI32 = (OPD1.valF64 <= OPD2.valF64) ? 1 : 0;
                 pc += 3;
             }
             break;
             case WA_INSTR_f64_ge:
             {
-                L2.valI32 = (L0.valF64 >= L1.valF64) ? 1 : 0;
+                RES.valI32 = (OPD1.valF64 >= OPD2.valF64) ? 1 : 0;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_f32_abs:
             {
-                L1.valF32 = fabsf(L0.valF32);
+                RES.valF32 = fabsf(OPD1.valF32);
                 pc += 2;
             }
             break;
 
             case WA_INSTR_f32_neg:
             {
-                L1.valF32 = -L0.valF32;
+                RES.valF32 = -OPD1.valF32;
                 pc += 2;
             }
             break;
 
             case WA_INSTR_f32_ceil:
             {
-                L1.valF32 = ceilf(L0.valF32);
+                RES.valF32 = ceilf(OPD1.valF32);
                 pc += 2;
             }
             break;
 
             case WA_INSTR_f32_floor:
             {
-                L1.valF32 = floorf(L0.valF32);
+                RES.valF32 = floorf(OPD1.valF32);
                 pc += 2;
             }
             break;
 
             case WA_INSTR_f32_trunc:
             {
-                L1.valF32 = truncf(L0.valF32);
+                RES.valF32 = truncf(OPD1.valF32);
                 pc += 2;
             }
             break;
 
             case WA_INSTR_f32_nearest:
             {
-                L1.valF32 = rintf(L0.valF32);
+                RES.valF32 = rintf(OPD1.valF32);
                 pc += 2;
             }
             break;
 
             case WA_INSTR_f32_sqrt:
             {
-                L1.valF32 = sqrtf(L0.valF32);
+                RES.valF32 = sqrtf(OPD1.valF32);
                 pc += 2;
             }
             break;
 
             case WA_INSTR_f32_add:
             {
-                L2.valF32 = L0.valF32 + L1.valF32;
+                RES.valF32 = OPD1.valF32 + OPD2.valF32;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_f32_sub:
             {
-                L2.valF32 = L0.valF32 - L1.valF32;
+                RES.valF32 = OPD1.valF32 - OPD2.valF32;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_f32_mul:
             {
-                L2.valF32 = L0.valF32 * L1.valF32;
+                RES.valF32 = OPD1.valF32 * OPD2.valF32;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_f32_div:
             {
-                L2.valF32 = L0.valF32 / L1.valF32;
+                RES.valF32 = OPD1.valF32 / OPD2.valF32;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_f32_min:
             {
-                f32 a = L0.valF32;
-                f32 b = L1.valF32;
+                f32 a = OPD1.valF32;
+                f32 b = OPD2.valF32;
                 if(isnan(a) || isnan(b))
                 {
                     u32 u = 0x7fc00000;
-                    memcpy(&L2.valF32, &u, sizeof(f32));
+                    memcpy(&RES.valF32, &u, sizeof(f32));
                 }
                 else if(a == 0 && b == 0)
                 {
-                    L2.valF32 = signbit(a) ? a : b;
+                    RES.valF32 = signbit(a) ? a : b;
                 }
                 else
                 {
-                    L2.valF32 = oc_min(a, b);
+                    RES.valF32 = oc_min(a, b);
                 }
                 pc += 3;
             }
@@ -6042,21 +6061,21 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
 
             case WA_INSTR_f32_max:
             {
-                f32 a = L0.valF32;
-                f32 b = L1.valF32;
+                f32 a = OPD1.valF32;
+                f32 b = OPD2.valF32;
                 if(isnan(a) || isnan(b))
                 {
                     u32 u = 0x7fc00000;
-                    memcpy(&L2.valF32, &u, sizeof(f32));
+                    memcpy(&RES.valF32, &u, sizeof(f32));
                 }
                 else if(a == 0 && b == 0)
                 {
-                    L2.valF32 = signbit(a) ? b : a;
+                    RES.valF32 = signbit(a) ? b : a;
                 }
 
                 else
                 {
-                    L2.valF32 = oc_max(a, b);
+                    RES.valF32 = oc_max(a, b);
                 }
                 pc += 3;
             }
@@ -6064,105 +6083,105 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
 
             case WA_INSTR_f32_copysign:
             {
-                L2.valF32 = copysignf(L0.valF32, L1.valF32);
+                RES.valF32 = copysignf(OPD1.valF32, OPD2.valF32);
                 pc += 3;
             }
             break;
 
             case WA_INSTR_f64_abs:
             {
-                L1.valF64 = fabs(L0.valF64);
+                RES.valF64 = fabs(OPD1.valF64);
                 pc += 2;
             }
             break;
 
             case WA_INSTR_f64_neg:
             {
-                L1.valF64 = -L0.valF64;
+                RES.valF64 = -OPD1.valF64;
                 pc += 2;
             }
             break;
 
             case WA_INSTR_f64_ceil:
             {
-                L1.valF64 = ceil(L0.valF64);
+                RES.valF64 = ceil(OPD1.valF64);
                 pc += 2;
             }
             break;
 
             case WA_INSTR_f64_floor:
             {
-                L1.valF64 = floor(L0.valF64);
+                RES.valF64 = floor(OPD1.valF64);
                 pc += 2;
             }
             break;
 
             case WA_INSTR_f64_trunc:
             {
-                L1.valF64 = trunc(L0.valF64);
+                RES.valF64 = trunc(OPD1.valF64);
                 pc += 2;
             }
             break;
 
             case WA_INSTR_f64_nearest:
             {
-                L1.valF64 = rint(L0.valF64);
+                RES.valF64 = rint(OPD1.valF64);
                 pc += 2;
             }
             break;
 
             case WA_INSTR_f64_sqrt:
             {
-                L1.valF64 = sqrt(L0.valF64);
+                RES.valF64 = sqrt(OPD1.valF64);
                 pc += 2;
             }
             break;
 
             case WA_INSTR_f64_add:
             {
-                L2.valF64 = L0.valF64 + L1.valF64;
+                RES.valF64 = OPD1.valF64 + OPD2.valF64;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_f64_sub:
             {
-                L2.valF64 = L0.valF64 - L1.valF64;
+                RES.valF64 = OPD1.valF64 - OPD2.valF64;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_f64_mul:
             {
-                L2.valF64 = L0.valF64 * L1.valF64;
+                RES.valF64 = OPD1.valF64 * OPD2.valF64;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_f64_div:
             {
-                L2.valF64 = L0.valF64 / L1.valF64;
+                RES.valF64 = OPD1.valF64 / OPD2.valF64;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_f64_min:
             {
-                f64 a = L0.valF64;
-                f64 b = L1.valF64;
+                f64 a = OPD1.valF64;
+                f64 b = OPD2.valF64;
 
                 if(isnan(a) || isnan(b))
                 {
                     u64 u = 0x7ff8000000000000;
-                    memcpy(&L2.valF64, &u, sizeof(f64));
+                    memcpy(&RES.valF64, &u, sizeof(f64));
                 }
                 else if(a == 0 && b == 0)
                 {
-                    L2.valF64 = signbit(a) ? a : b;
+                    RES.valF64 = signbit(a) ? a : b;
                 }
                 else
                 {
-                    L2.valF64 = oc_min(a, b);
+                    RES.valF64 = oc_min(a, b);
                 }
                 pc += 3;
             }
@@ -6170,21 +6189,21 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
 
             case WA_INSTR_f64_max:
             {
-                f64 a = L0.valF64;
-                f64 b = L1.valF64;
+                f64 a = OPD1.valF64;
+                f64 b = OPD2.valF64;
 
                 if(isnan(a) || isnan(b))
                 {
                     u64 u = 0x7ff8000000000000;
-                    memcpy(&L2.valF64, &u, sizeof(f64));
+                    memcpy(&RES.valF64, &u, sizeof(f64));
                 }
                 else if(a == 0 && b == 0)
                 {
-                    L2.valF64 = signbit(a) ? b : a;
+                    RES.valF64 = signbit(a) ? b : a;
                 }
                 else
                 {
-                    L2.valF64 = oc_max(a, b);
+                    RES.valF64 = oc_max(a, b);
                 }
                 pc += 3;
             }
@@ -6192,261 +6211,261 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
 
             case WA_INSTR_f64_copysign:
             {
-                L2.valF64 = copysign(L0.valF64, L1.valF64);
+                RES.valF64 = copysign(OPD1.valF64, OPD2.valF64);
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i32_wrap_i64:
             {
-                L1.valI32 = (L0.valI64 & 0x00000000ffffffff);
+                RES.valI32 = (OPD1.valI64 & 0x00000000ffffffff);
                 pc += 2;
             }
             break;
 
             case WA_INSTR_i32_trunc_f32_s:
             {
-                if(isnan(L0.valF32))
+                if(isnan(OPD1.valF32))
                 {
                     return WA_TRAP_INVALID_INTEGER_CONVERSION;
                 }
-                else if(L0.valF32 >= 2147483648.0f || L0.valF32 < -2147483648.0f)
+                else if(OPD1.valF32 >= 2147483648.0f || OPD1.valF32 < -2147483648.0f)
                 {
                     return WA_TRAP_INTEGER_OVERFLOW;
                 }
 
-                L1.valI32 = (i32)truncf(L0.valF32);
+                RES.valI32 = (i32)truncf(OPD1.valF32);
                 pc += 2;
             }
             break;
 
             case WA_INSTR_i32_trunc_f32_u:
             {
-                if(isnan(L0.valF32))
+                if(isnan(OPD1.valF32))
                 {
                     return WA_TRAP_INVALID_INTEGER_CONVERSION;
                 }
 
-                if(L0.valF32 >= 4294967296.0f || L0.valF32 <= -1.0f)
+                if(OPD1.valF32 >= 4294967296.0f || OPD1.valF32 <= -1.0f)
                 {
                     return WA_TRAP_INTEGER_OVERFLOW;
                 }
 
-                *(u32*)&L1.valI32 = (u32)truncf(L0.valF32);
+                *(u32*)&RES.valI32 = (u32)truncf(OPD1.valF32);
                 pc += 2;
             }
             break;
 
             case WA_INSTR_i32_trunc_f64_s:
             {
-                if(isnan(L0.valF64))
+                if(isnan(OPD1.valF64))
                 {
                     return WA_TRAP_INVALID_INTEGER_CONVERSION;
                 }
 
-                if(L0.valF64 >= 2147483648.0 || L0.valF64 <= -2147483649.0)
+                if(OPD1.valF64 >= 2147483648.0 || OPD1.valF64 <= -2147483649.0)
                 {
                     return WA_TRAP_INTEGER_OVERFLOW;
                 }
 
-                L1.valI32 = (i32)trunc(L0.valF64);
+                RES.valI32 = (i32)trunc(OPD1.valF64);
                 pc += 2;
             }
             break;
             case WA_INSTR_i32_trunc_f64_u:
             {
-                if(isnan(L0.valF64))
+                if(isnan(OPD1.valF64))
                 {
                     return WA_TRAP_INVALID_INTEGER_CONVERSION;
                 }
 
-                if(L0.valF64 >= 4294967296.0 || L0.valF64 <= -1.0)
+                if(OPD1.valF64 >= 4294967296.0 || OPD1.valF64 <= -1.0)
                 {
                     return WA_TRAP_INTEGER_OVERFLOW;
                 }
 
-                *(u32*)&L1.valI32 = (u32)trunc(L0.valF64);
+                *(u32*)&RES.valI32 = (u32)trunc(OPD1.valF64);
                 pc += 2;
             }
             break;
 
             case WA_INSTR_i64_trunc_f32_s:
             {
-                if(isnan(L0.valF32))
+                if(isnan(OPD1.valF32))
                 {
                     return WA_TRAP_INVALID_INTEGER_CONVERSION;
                 }
 
-                if(L0.valF32 >= 9223372036854775808.0f || L0.valF32 < -9223372036854775808.0f)
+                if(OPD1.valF32 >= 9223372036854775808.0f || OPD1.valF32 < -9223372036854775808.0f)
                 {
                     return WA_TRAP_INTEGER_OVERFLOW;
                 }
 
-                L1.valI64 = (i64)truncf(L0.valF32);
+                RES.valI64 = (i64)truncf(OPD1.valF32);
                 pc += 2;
             }
             break;
 
             case WA_INSTR_i64_trunc_f32_u:
             {
-                if(isnan(L0.valF32))
+                if(isnan(OPD1.valF32))
                 {
                     return WA_TRAP_INVALID_INTEGER_CONVERSION;
                 }
 
-                if(L0.valF32 >= 18446744073709551616.0f || L0.valF32 <= -1.0f)
+                if(OPD1.valF32 >= 18446744073709551616.0f || OPD1.valF32 <= -1.0f)
                 {
                     return WA_TRAP_INTEGER_OVERFLOW;
                 }
 
-                *(u64*)&L1.valI64 = (u64)truncf(L0.valF32);
+                *(u64*)&RES.valI64 = (u64)truncf(OPD1.valF32);
                 pc += 2;
             }
             break;
 
             case WA_INSTR_i64_trunc_f64_s:
             {
-                if(isnan(L0.valF64))
+                if(isnan(OPD1.valF64))
                 {
                     return WA_TRAP_INVALID_INTEGER_CONVERSION;
                 }
 
-                if(L0.valF64 >= 9223372036854775808.0 || L0.valF64 < -9223372036854775808.0)
+                if(OPD1.valF64 >= 9223372036854775808.0 || OPD1.valF64 < -9223372036854775808.0)
                 {
                     return WA_TRAP_INTEGER_OVERFLOW;
                 }
 
-                L1.valI64 = (i64)trunc(L0.valF64);
+                RES.valI64 = (i64)trunc(OPD1.valF64);
                 pc += 2;
             }
             break;
 
             case WA_INSTR_i64_trunc_f64_u:
             {
-                if(isnan(L0.valF64))
+                if(isnan(OPD1.valF64))
                 {
                     return WA_TRAP_INVALID_INTEGER_CONVERSION;
                 }
 
-                if(L0.valF64 >= 18446744073709551616.0 || L0.valF64 <= -1.0)
+                if(OPD1.valF64 >= 18446744073709551616.0 || OPD1.valF64 <= -1.0)
                 {
                     return WA_TRAP_INTEGER_OVERFLOW;
                 }
 
-                *(u64*)&L1.valI64 = (u64)trunc(L0.valF64);
+                *(u64*)&RES.valI64 = (u64)trunc(OPD1.valF64);
                 pc += 2;
             }
             break;
 
             case WA_INSTR_f32_convert_i32_s:
             {
-                L1.valF32 = (f32)L0.valI32;
+                RES.valF32 = (f32)OPD1.valI32;
                 pc += 2;
             }
             break;
 
             case WA_INSTR_f32_convert_i32_u:
             {
-                L1.valF32 = (f32) * (u32*)&L0.valI32;
+                RES.valF32 = (f32) * (u32*)&OPD1.valI32;
                 pc += 2;
             }
             break;
 
             case WA_INSTR_f32_convert_i64_s:
             {
-                L1.valF32 = (f32)L0.valI64;
+                RES.valF32 = (f32)OPD1.valI64;
                 pc += 2;
             }
             break;
 
             case WA_INSTR_f32_convert_i64_u:
             {
-                L1.valF32 = (f32) * (u64*)&L0.valI64;
+                RES.valF32 = (f32) * (u64*)&OPD1.valI64;
                 pc += 2;
             }
             break;
 
             case WA_INSTR_f32_demote_f64:
             {
-                L1.valF32 = (f32)L0.valF64;
+                RES.valF32 = (f32)OPD1.valF64;
                 pc += 2;
             }
             break;
 
             case WA_INSTR_f64_convert_i32_s:
             {
-                L1.valF64 = (f64)L0.valI32;
+                RES.valF64 = (f64)OPD1.valI32;
                 pc += 2;
             }
             break;
             case WA_INSTR_f64_convert_i32_u:
             {
-                L1.valF64 = (f64) * (u32*)&L0.valI32;
+                RES.valF64 = (f64) * (u32*)&OPD1.valI32;
                 pc += 2;
             }
             break;
             case WA_INSTR_f64_convert_i64_s:
             {
-                L1.valF64 = (f64)L0.valI64;
+                RES.valF64 = (f64)OPD1.valI64;
                 pc += 2;
             }
             break;
             case WA_INSTR_f64_convert_i64_u:
             {
-                L1.valF64 = (f64) * (u64*)&L0.valI64;
+                RES.valF64 = (f64) * (u64*)&OPD1.valI64;
                 pc += 2;
             }
             break;
 
             case WA_INSTR_f64_promote_f32:
             {
-                L1.valF64 = (f64)L0.valF32;
+                RES.valF64 = (f64)OPD1.valF32;
                 pc += 2;
             }
             break;
 
             case WA_INSTR_i32_reinterpret_f32:
             {
-                L1.valI32 = *(i32*)&L0.valF32;
+                RES.valI32 = *(i32*)&OPD1.valF32;
                 pc += 2;
             }
             break;
             case WA_INSTR_i64_reinterpret_f64:
             {
-                L1.valI64 = *(i64*)&L0.valF64;
+                RES.valI64 = *(i64*)&OPD1.valF64;
                 pc += 2;
             }
             break;
             case WA_INSTR_f32_reinterpret_i32:
             {
-                L1.valF32 = *(f32*)&L0.valI32;
+                RES.valF32 = *(f32*)&OPD1.valI32;
                 pc += 2;
             }
             break;
             case WA_INSTR_f64_reinterpret_i64:
             {
-                L1.valF64 = *(f64*)&L0.valI64;
+                RES.valF64 = *(f64*)&OPD1.valI64;
                 pc += 2;
             }
             break;
 
             case WA_INSTR_i32_trunc_sat_f32_s:
             {
-                if(isnan(L0.valF32))
+                if(isnan(OPD1.valF32))
                 {
-                    L1.valI32 = 0;
+                    RES.valI32 = 0;
                 }
-                else if(L0.valF32 >= 2147483648.0f)
+                else if(OPD1.valF32 >= 2147483648.0f)
                 {
-                    L1.valI32 = INT32_MAX;
+                    RES.valI32 = INT32_MAX;
                 }
-                else if(L0.valF32 < -2147483648.0f)
+                else if(OPD1.valF32 < -2147483648.0f)
                 {
-                    L1.valI32 = INT32_MIN;
+                    RES.valI32 = INT32_MIN;
                 }
                 else
                 {
-                    L1.valI32 = (i32)truncf(L0.valF32);
+                    RES.valI32 = (i32)truncf(OPD1.valF32);
                 }
                 pc += 2;
             }
@@ -6454,21 +6473,21 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
 
             case WA_INSTR_i32_trunc_sat_f32_u:
             {
-                if(isnan(L0.valF32))
+                if(isnan(OPD1.valF32))
                 {
-                    L1.valI32 = 0;
+                    RES.valI32 = 0;
                 }
-                else if(L0.valF32 >= 4294967296.0f)
+                else if(OPD1.valF32 >= 4294967296.0f)
                 {
-                    *(u32*)&L1.valI32 = 0xffffffff;
+                    *(u32*)&RES.valI32 = 0xffffffff;
                 }
-                else if(L0.valF32 <= -1.0f)
+                else if(OPD1.valF32 <= -1.0f)
                 {
-                    L1.valI32 = 0;
+                    RES.valI32 = 0;
                 }
                 else
                 {
-                    *(u32*)&L1.valI32 = (u32)truncf(L0.valF32);
+                    *(u32*)&RES.valI32 = (u32)truncf(OPD1.valF32);
                 }
                 pc += 2;
             }
@@ -6476,21 +6495,21 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
 
             case WA_INSTR_i32_trunc_sat_f64_s:
             {
-                if(isnan(L0.valF64))
+                if(isnan(OPD1.valF64))
                 {
-                    L1.valI32 = 0;
+                    RES.valI32 = 0;
                 }
-                else if(L0.valF64 >= 2147483648.0)
+                else if(OPD1.valF64 >= 2147483648.0)
                 {
-                    L1.valI32 = INT32_MAX;
+                    RES.valI32 = INT32_MAX;
                 }
-                else if(L0.valF64 <= -2147483649.0)
+                else if(OPD1.valF64 <= -2147483649.0)
                 {
-                    L1.valI32 = INT32_MIN;
+                    RES.valI32 = INT32_MIN;
                 }
                 else
                 {
-                    L1.valI32 = (i32)trunc(L0.valF64);
+                    RES.valI32 = (i32)trunc(OPD1.valF64);
                 }
                 pc += 2;
             }
@@ -6498,21 +6517,21 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
 
             case WA_INSTR_i32_trunc_sat_f64_u:
             {
-                if(isnan(L0.valF64))
+                if(isnan(OPD1.valF64))
                 {
-                    L1.valI32 = 0;
+                    RES.valI32 = 0;
                 }
-                else if(L0.valF64 >= 4294967296.0)
+                else if(OPD1.valF64 >= 4294967296.0)
                 {
-                    *(u32*)&L1.valI32 = 0xffffffff;
+                    *(u32*)&RES.valI32 = 0xffffffff;
                 }
-                else if(L0.valF64 <= -1.0)
+                else if(OPD1.valF64 <= -1.0)
                 {
-                    L1.valI32 = 0;
+                    RES.valI32 = 0;
                 }
                 else
                 {
-                    *(u32*)&L1.valI32 = (u32)trunc(L0.valF64);
+                    *(u32*)&RES.valI32 = (u32)trunc(OPD1.valF64);
                 }
                 pc += 2;
             }
@@ -6520,21 +6539,21 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
 
             case WA_INSTR_i64_trunc_sat_f32_s:
             {
-                if(isnan(L0.valF32))
+                if(isnan(OPD1.valF32))
                 {
-                    L1.valI64 = 0;
+                    RES.valI64 = 0;
                 }
-                else if(L0.valF32 >= 9223372036854775808.0f)
+                else if(OPD1.valF32 >= 9223372036854775808.0f)
                 {
-                    L1.valI64 = INT64_MAX;
+                    RES.valI64 = INT64_MAX;
                 }
-                else if(L0.valF32 < -9223372036854775808.0f)
+                else if(OPD1.valF32 < -9223372036854775808.0f)
                 {
-                    L1.valI64 = INT64_MIN;
+                    RES.valI64 = INT64_MIN;
                 }
                 else
                 {
-                    L1.valI64 = (i64)truncf(L0.valF32);
+                    RES.valI64 = (i64)truncf(OPD1.valF32);
                 }
                 pc += 2;
             }
@@ -6542,21 +6561,21 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
 
             case WA_INSTR_i64_trunc_sat_f32_u:
             {
-                if(isnan(L0.valF32))
+                if(isnan(OPD1.valF32))
                 {
-                    L1.valI64 = 0;
+                    RES.valI64 = 0;
                 }
-                else if(L0.valF32 >= 18446744073709551616.0f)
+                else if(OPD1.valF32 >= 18446744073709551616.0f)
                 {
-                    *(u64*)&L1.valI64 = 0xffffffffffffffffLLU;
+                    *(u64*)&RES.valI64 = 0xffffffffffffffffLLU;
                 }
-                else if(L0.valF32 <= -1.0f)
+                else if(OPD1.valF32 <= -1.0f)
                 {
-                    L1.valI64 = 0;
+                    RES.valI64 = 0;
                 }
                 else
                 {
-                    *(u64*)&L1.valI64 = (u64)truncf(L0.valF32);
+                    *(u64*)&RES.valI64 = (u64)truncf(OPD1.valF32);
                 }
                 pc += 2;
             }
@@ -6564,21 +6583,21 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
 
             case WA_INSTR_i64_trunc_sat_f64_s:
             {
-                if(isnan(L0.valF64))
+                if(isnan(OPD1.valF64))
                 {
-                    L1.valI64 = 0;
+                    RES.valI64 = 0;
                 }
-                else if(L0.valF64 >= 9223372036854775808.0)
+                else if(OPD1.valF64 >= 9223372036854775808.0)
                 {
-                    L1.valI64 = INT64_MAX;
+                    RES.valI64 = INT64_MAX;
                 }
-                else if(L0.valF64 < -9223372036854775808.0)
+                else if(OPD1.valF64 < -9223372036854775808.0)
                 {
-                    L1.valI64 = INT64_MIN;
+                    RES.valI64 = INT64_MIN;
                 }
                 else
                 {
-                    L1.valI64 = (i64)trunc(L0.valF64);
+                    RES.valI64 = (i64)trunc(OPD1.valF64);
                 }
                 pc += 2;
             }
@@ -6586,21 +6605,21 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
 
             case WA_INSTR_i64_trunc_sat_f64_u:
             {
-                if(isnan(L0.valF64))
+                if(isnan(OPD1.valF64))
                 {
-                    L1.valI64 = 0;
+                    RES.valI64 = 0;
                 }
-                else if(L0.valF64 >= 18446744073709551616.0)
+                else if(OPD1.valF64 >= 18446744073709551616.0)
                 {
-                    *(u64*)&L1.valI64 = 0xffffffffffffffffLLU;
+                    *(u64*)&RES.valI64 = 0xffffffffffffffffLLU;
                 }
-                else if(L0.valF64 <= -1.0)
+                else if(OPD1.valF64 <= -1.0)
                 {
-                    L1.valI64 = 0;
+                    RES.valI64 = 0;
                 }
                 else
                 {
-                    *(u64*)&L1.valI64 = (u64)trunc(L0.valF64);
+                    *(u64*)&RES.valI64 = (u64)trunc(OPD1.valF64);
                 }
                 pc += 2;
             }
@@ -6608,14 +6627,14 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
 
             case WA_INSTR_i64_extend_i32_s:
             {
-                L1.valI64 = (i64)(i32)(L0.valI32);
+                RES.valI64 = (i64)(i32)(OPD1.valI32);
                 pc += 2;
             }
             break;
 
             case WA_INSTR_i64_extend_i32_u:
             {
-                L1.valI64 = *(u32*)&(L0.valI32);
+                RES.valI64 = *(u32*)&(OPD1.valI32);
                 pc += 2;
             }
             break;
@@ -6623,8 +6642,8 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
             case WA_INSTR_memory_size:
             {
                 wa_memory* mem = instance->memories[0];
-                L1.valI32 = (i32)(mem->size / WA_PAGE_SIZE);
-                pc += 2;
+                RES.valI32 = (i32)(mem->size / WA_PAGE_SIZE);
+                pc += 1;
             }
             break;
 
@@ -6645,9 +6664,10 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
                     oc_base_commit(allocator, mem->ptr + mem->size, n * WA_PAGE_SIZE);
                     mem->size += size;
                 }
-                L2.valI32 = res;
 
-                pc += 3;
+                L0.valI32 = res;
+
+                pc += 2;
             }
             break;
 
@@ -6655,9 +6675,9 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
             {
                 wa_memory* mem = instance->memories[0];
 
-                u32 d = *(u32*)&L1.valI32;
-                i32 val = L2.valI32;
-                u32 n = *(u32*)&L3.valI32;
+                u32 d = *(u32*)&L0.valI32;
+                i32 val = L1.valI32;
+                u32 n = *(u32*)&L2.valI32;
 
                 if(d + n > mem->size)
                 {
@@ -6667,23 +6687,23 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
                 {
                     memset(mem->ptr + d, val, n);
                 }
-                pc += 4;
+                pc += 3;
             }
             break;
 
             case WA_INSTR_memory_copy:
             {
                 wa_memory* mem = instance->memories[0];
-                u32 d = *(u32*)&L2.valI32;
-                u32 s = *(u32*)&L3.valI32;
-                u32 n = *(u32*)&L4.valI32;
+                u32 d = *(u32*)&L0.valI32;
+                u32 s = *(u32*)&L1.valI32;
+                u32 n = *(u32*)&L2.valI32;
 
                 if(s + n > mem->size || d + n > mem->size)
                 {
                     return WA_TRAP_OUT_OF_BOUNDS;
                 }
                 memmove(mem->ptr + d, mem->ptr + s, n);
-                pc += 5;
+                pc += 3;
             }
             break;
 
@@ -6692,16 +6712,16 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
                 wa_memory* mem = instance->memories[0];
                 wa_data_segment* seg = &instance->data[I0.valI32];
 
-                u32 d = *(u32*)&L2.valI32;
-                u32 s = *(u32*)&L3.valI32;
-                u32 n = *(u32*)&L4.valI32;
+                u32 d = *(u32*)&L1.valI32;
+                u32 s = *(u32*)&L2.valI32;
+                u32 n = *(u32*)&L3.valI32;
 
                 if(s + n > seg->init.len || d + n > mem->size)
                 {
                     return WA_TRAP_OUT_OF_BOUNDS;
                 }
                 memmove(mem->ptr + d, seg->init.ptr + s, n);
-                pc += 5;
+                pc += 4;
             }
             break;
 
@@ -6772,18 +6792,18 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
 
             case WA_INSTR_table_size:
             {
-                wa_table* table = instance->tables[I0.valI32];
-                L1.valI32 = table->size;
+                wa_table* table = instance->tables[I1.valI32];
+                L0.valI32 = table->size;
                 pc += 2;
             }
             break;
 
             case WA_INSTR_table_grow:
             {
-                wa_limits* limits = &instance->module->tables[I0.valI32].limits;
-                wa_table* table = instance->tables[I0.valI32];
-                wa_value val = L1;
-                u32 size = L2.valI32;
+                wa_limits* limits = &instance->module->tables[I1.valI32].limits;
+                wa_table* table = instance->tables[I1.valI32];
+                wa_value val = L2;
+                u32 size = L3.valI32;
 
                 i32 ret = -1;
                 if((u64)table->size + (u64)size <= UINT32_MAX && (limits->kind != WA_LIMIT_MIN_MAX || table->size + size <= limits->max))
@@ -6798,21 +6818,21 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
                     table->size += size;
                     table->contents = contents;
                 }
-                L3.valI32 = ret;
+                L0.valI32 = ret;
                 pc += 4;
             }
             break;
 
             case WA_INSTR_table_get:
             {
-                wa_table* table = instance->tables[I0.valI32];
-                u32 eltIndex = L1.valI32;
+                wa_table* table = instance->tables[I1.valI32];
+                u32 eltIndex = L2.valI32;
 
                 if(eltIndex >= table->size)
                 {
                     return WA_TRAP_OUT_OF_BOUNDS;
                 }
-                L2 = table->contents[eltIndex];
+                L0 = table->contents[eltIndex];
                 pc += 3;
             }
             break;
