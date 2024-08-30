@@ -591,13 +591,21 @@ typedef union wa_code
 
 } wa_code;
 
+typedef struct wa_instance wa_instance;
+
 typedef union wa_value
 {
     i32 valI32;
     i64 valI64;
     f32 valF32;
     f64 valF64;
+
     //TODO v128, funcref, externref...
+    struct
+    {
+        wa_instance* refInstance;
+        u32 refIndex;
+    };
 } wa_value;
 
 typedef struct wa_typed_value
@@ -947,20 +955,6 @@ typedef struct wa_module
     wa_data_segment* data;
 
 } wa_module;
-
-typedef struct wa_instance
-{
-    oc_arena* arena;
-    wa_module* module;
-
-    wa_func* functions;
-    wa_value* globals;
-    wa_table** tables;
-    wa_memory** memories;
-
-    wa_data_segment* data;
-    wa_element* elements;
-} wa_instance;
 
 typedef struct wa_parser
 {
@@ -4679,6 +4673,20 @@ void wa_print_code(wa_module* module)
 // instance
 //-------------------------------------------------------------------------
 
+typedef struct wa_instance
+{
+    oc_arena* arena;
+    wa_module* module;
+
+    wa_func* functions;
+    wa_value* globals;
+    wa_table** tables;
+    wa_memory** memories;
+
+    wa_data_segment* data;
+    wa_element* elements;
+} wa_instance;
+
 wa_instance* wa_instance_create(oc_arena* arena, wa_module* module)
 {
     wa_instance* instance = oc_arena_push_type(arena, wa_instance);
@@ -5036,6 +5044,10 @@ wa_status wa_instance_link(wa_instance* instance)
 
     return WA_OK;
 }
+
+//-------------------------------------------------------------------------
+// instance
+//-------------------------------------------------------------------------
 
 wa_status wa_instance_invoke(wa_instance* instance,
                              wa_func* func,
@@ -5437,40 +5449,71 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
                 u32 index = *(u32*)&(L3.valI32);
 
                 wa_table* table = instance->tables[tableIndex];
-                u32 funcIndex = *(u32*)&table->contents[index].valI32;
 
-                if(funcIndex == 0)
+                //TODO: check table size
+                wa_instance* refInstance = table->contents[index].refInstance;
+                u32 funcIndex = table->contents[index].refIndex;
+
+                if(refInstance == 0)
                 {
                     return WA_TRAP_REF_NULL;
                 }
-                funcIndex--;
 
-                wa_func* callee = &instance->functions[funcIndex];
+                wa_func* callee = &refInstance->functions[funcIndex];
 
-                //TODO check type
-                if(callee->code)
+                //////////////////////////////
+                //TODO runtime check type
+                //////////////////////////////
+
+                if(refInstance == instance)
                 {
-                    controlStack[controlStackTop] = (wa_control){
-                        .returnPC = pc + 4,
-                        .returnFrame = locals,
-                    };
-                    controlStackTop++;
-                    if(controlStackTop >= 1024)
+                    if(callee->code)
                     {
-                        return (WA_TRAP_STACK_OVERFLOW);
+                        controlStack[controlStackTop] = (wa_control){
+                            .returnPC = pc + 4,
+                            .returnFrame = locals,
+                        };
+                        controlStackTop++;
+                        if(controlStackTop >= 1024)
+                        {
+                            return (WA_TRAP_STACK_OVERFLOW);
+                        }
+
+                        locals += maxUsedSlot;
+                        pc = callee->code;
                     }
+                    else if(callee->extInstance)
+                    {
+                        //TODO temporary for test, do it better
 
-                    locals += maxUsedSlot;
-                    pc = callee->code;
+                        wa_func* extFunc = &callee->extInstance->functions[callee->extIndex];
+
+                        wa_status status = wa_instance_invoke(callee->extInstance,
+                                                              extFunc,
+                                                              callee->type->paramCount,
+                                                              locals + maxUsedSlot,
+                                                              callee->type->returnCount,
+                                                              locals + maxUsedSlot);
+
+                        if(status != WA_OK)
+                        {
+                            return status;
+                        }
+                        pc += 4;
+                    }
+                    else
+                    {
+                        wa_value* saveLocals = locals;
+                        locals += maxUsedSlot;
+                        callee->proc(locals, locals);
+                        pc += 4;
+                        locals = saveLocals;
+                    }
                 }
-                else if(callee->extInstance)
+                else
                 {
-                    //TODO temporary for test, do it better
-
-                    wa_func* extFunc = &callee->extInstance->functions[callee->extIndex];
-
-                    wa_status status = wa_instance_invoke(callee->extInstance,
-                                                          extFunc,
+                    wa_status status = wa_instance_invoke(refInstance,
+                                                          callee,
                                                           callee->type->paramCount,
                                                           locals + maxUsedSlot,
                                                           callee->type->returnCount,
@@ -5481,14 +5524,6 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
                         return status;
                     }
                     pc += 4;
-                }
-                else
-                {
-                    wa_value* saveLocals = locals;
-                    locals += maxUsedSlot;
-                    callee->proc(locals, locals);
-                    pc += 4;
-                    locals = saveLocals;
                 }
             }
             break;
@@ -5508,21 +5543,23 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
 
             case WA_INSTR_ref_null:
             {
-                L0.valI64 = 0; //???
+                L0.refInstance = 0;
+                L0.refIndex = 0;
                 pc += 1;
             }
             break;
 
             case WA_INSTR_ref_is_null:
             {
-                L0.valI32 = (L1.valI64 == 0) ? 1 : 0;
+                L0.valI32 = (L1.refInstance == 0) ? 1 : 0;
                 pc += 2;
             }
             break;
 
             case WA_INSTR_ref_func:
             {
-                L0.valI64 = I1.valI64 + 1; //???
+                L0.refInstance = instance,
+                L0.refIndex = I1.valI64;
                 pc += 2;
             }
             break;
