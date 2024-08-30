@@ -4048,33 +4048,6 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
             block->polymorphic = true;
             wa_operand_stack_pop_scope(context, block);
         }
-        else if(instr->op == WA_INSTR_ref_is_null)
-        {
-            wa_operand_slot ref = wa_operand_stack_pop(context);
-            if(wa_operand_slot_is_nil(&ref))
-            {
-                wa_compile_error(context,
-                                 instr->ast,
-                                 "unbalanced stack\n");
-                break;
-            }
-
-            if(!wa_check_operand_type(ref.type, WA_TYPE_FUNC_REF)
-               && !wa_check_operand_type(ref.type, WA_TYPE_EXTERN_REF))
-            {
-                wa_compile_error(context,
-                                 instr->ast,
-                                 "type mismatch for ref.is_null instruction (expected reference type, got %s)\n",
-                                 wa_value_type_string(ref.type));
-                break;
-            }
-
-            u32 outIndex = wa_operand_stack_push_reg(context, WA_TYPE_I32, instr);
-
-            wa_emit(context, (wa_code){ .opcode = WA_INSTR_ref_is_null });
-            wa_emit(context, (wa_code){ .valI32 = ref.index });
-            wa_emit(context, (wa_code){ .valI32 = outIndex });
-        }
         else
         {
             u32 immCount = instr->immCount;
