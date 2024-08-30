@@ -568,13 +568,16 @@ wa_value_type;
 
 typedef union wa_code
 {
-    wa_instr_op opcode;
-    i32 valU32;
-    i32 valI32;
     u64 valU64;
     i64 valI64;
+    i32 valU32;
+    i32 valI32;
+
     f32 valF32;
     f64 valF64;
+
+    wa_instr_op opcode;
+
     u32 index;
     wa_value_type valueType;
 
@@ -2388,9 +2391,7 @@ wa_ast* wa_parse_expression(wa_parser* parser, wa_ast* parent, u32 localCount, o
         else
         {
             //generic case
-            ////////////////////////////////////////////////////////////////////
-            //TODO validate all immediates
-            ////////////////////////////////////////////////////////////////////
+
             instr->immCount = info->immCount;
             instr->imm = oc_arena_push_array(parser->arena, wa_code, instr->immCount);
 
@@ -2444,15 +2445,6 @@ wa_ast* wa_parse_expression(wa_parser* parser, wa_ast* parent, u32 localCount, o
                     {
                         wa_ast* immAst = wa_read_leb128_u32(parser, instrAst, OC_STR8("index"));
                         instr->imm[immIndex].index = immAst->valU32;
-
-                        if(immAst->valU32 >= localCount)
-                        {
-                            wa_parse_error(parser,
-                                           immAst,
-                                           "invalid local index %u (localCount: %u)\n",
-                                           immAst->valU32,
-                                           localCount);
-                        }
                     }
                     break;
 
@@ -2461,15 +2453,6 @@ wa_ast* wa_parse_expression(wa_parser* parser, wa_ast* parent, u32 localCount, o
                         wa_ast* immAst = wa_read_leb128_u32(parser, instrAst, OC_STR8("function index"));
                         instr->imm[immIndex].index = immAst->valU32;
                         immAst->kind = WA_AST_FUNC_INDEX;
-
-                        if(immAst->valU32 >= module->functionCount)
-                        {
-                            wa_parse_error(parser,
-                                           immAst,
-                                           "invalid function index %u (function count: %u)\n",
-                                           immAst->valU32,
-                                           module->functionCount);
-                        }
                     }
                     break;
 
@@ -2635,6 +2618,8 @@ void wa_parse_elements(wa_parser* parser, wa_module* module)
                 funcIndexAst->kind = WA_AST_FUNC_INDEX;
 
                 wa_instr* init = oc_arena_push_array(parser->arena, wa_instr, 2);
+                memset(init, 0, 2 * sizeof(wa_instr));
+
                 init[0].op = WA_INSTR_ref_func;
                 init[0].immCount = 1;
                 init[0].imm = oc_arena_push_type(parser->arena, wa_code);
@@ -3248,7 +3233,7 @@ void wa_block_set_polymorphic(wa_build_context* context)
     wa_operand_stack_pop_scope(context, block);
 }
 
-void wa_emit(wa_build_context* context, wa_code code)
+void wa_emit(wa_build_context* context, wa_code* code)
 {
     if(context->codeLen >= context->codeCap)
     {
@@ -3265,8 +3250,49 @@ void wa_emit(wa_build_context* context, wa_code code)
 
         oc_scratch_end(scratch);
     }
-    context->code[context->codeLen] = code;
+    memcpy(&context->code[context->codeLen], code, sizeof(wa_code));
     context->codeLen++;
+}
+
+wa_code* wa_push_code(wa_build_context* context)
+{
+    if(context->codeLen >= context->codeCap)
+    {
+        //TODO: better handle realloc
+        oc_arena_scope scratch = oc_scratch_begin();
+        wa_code* tmp = oc_arena_push_array(scratch.arena, wa_code, context->codeLen);
+        memcpy(tmp, context->code, context->codeLen * sizeof(wa_code));
+
+        context->codeCap = (context->codeCap + 1) * 1.5;
+
+        oc_arena_clear(&context->codeArena);
+        context->code = oc_arena_push_array(&context->codeArena, wa_code, context->codeCap);
+        memcpy(context->code, tmp, context->codeLen * sizeof(wa_code));
+
+        oc_scratch_end(scratch);
+    }
+    wa_code* code = &context->code[context->codeLen];
+    memset(code, 0, sizeof(wa_code));
+    context->codeLen++;
+    return (code);
+}
+
+void wa_emit_opcode(wa_build_context* context, wa_instr_op op)
+{
+    wa_code* code = wa_push_code(context);
+    code->opcode = op;
+}
+
+void wa_emit_index(wa_build_context* context, u32 index)
+{
+    wa_code* code = wa_push_code(context);
+    code->index = index;
+}
+
+void wa_emit_i64(wa_build_context* context, i64 val)
+{
+    wa_code* code = wa_push_code(context);
+    code->valI64 = val;
 }
 
 void wa_move_slot_if_used(wa_build_context* context, u32 slotIndex)
@@ -3293,9 +3319,9 @@ void wa_move_slot_if_used(wa_build_context* context, u32 slotIndex)
     }
     if(newReg != UINT32_MAX)
     {
-        wa_emit(context, (wa_code){ .opcode = WA_INSTR_move });
-        wa_emit(context, (wa_code){ .valI32 = newReg });
-        wa_emit(context, (wa_code){ .valI32 = slotIndex });
+        wa_emit_opcode(context, WA_INSTR_move);
+        wa_emit_index(context, newReg);
+        wa_emit_index(context, slotIndex);
     }
 }
 
@@ -3388,9 +3414,9 @@ void wa_block_move_results_to_input_slots(wa_build_context* context, wa_block* b
         for(u64 paramIndex = 0; paramIndex < type->paramCount; paramIndex++)
         {
             wa_operand_slot* dst = &context->opdStack[block->scopeBase - type->returnCount - type->paramCount + paramIndex];
-            wa_emit(context, (wa_code){ .opcode = WA_INSTR_move });
-            wa_emit(context, (wa_code){ .valI64 = dst->index });
-            wa_emit(context, (wa_code){ .valI64 = slots[paramIndex].index });
+            wa_emit_opcode(context, WA_INSTR_move);
+            wa_emit_index(context, dst->index);
+            wa_emit_index(context, slots[paramIndex].index);
         }
     }
     oc_scratch_end(scratch);
@@ -3413,9 +3439,9 @@ void wa_block_move_results_to_output_slots(wa_build_context* context, wa_block* 
         for(u32 returnIndex = 0; returnIndex < type->returnCount; returnIndex++)
         {
             wa_operand_slot* dst = &context->opdStack[block->scopeBase - type->returnCount + returnIndex];
-            wa_emit(context, (wa_code){ .opcode = WA_INSTR_move });
-            wa_emit(context, (wa_code){ .valI64 = dst->index });
-            wa_emit(context, (wa_code){ .valI64 = slots[returnIndex].index });
+            wa_emit_opcode(context, WA_INSTR_move);
+            wa_emit_index(context, dst->index);
+            wa_emit_index(context, slots[returnIndex].index);
         }
     }
 }
@@ -3434,8 +3460,8 @@ void wa_block_end(wa_build_context* context, wa_block* block, wa_instr* instr)
         wa_operand_stack_pop_scope(context, block);
         wa_push_block_inputs(context, type);
 
-        wa_emit(context, (wa_code){ .opcode = WA_INSTR_jump });
-        wa_emit(context, (wa_code){ 0 });
+        wa_emit_opcode(context, WA_INSTR_jump);
+        wa_emit_i64(context, 0);
 
         block->polymorphic = false;
         block->begin->elseBranch = instr;
@@ -3537,17 +3563,17 @@ int wa_compile_return(wa_build_context* context, wa_func_type* type, wa_instr* i
             }
             if(newReg != UINT32_MAX)
             {
-                wa_emit(context, (wa_code){ .opcode = WA_INSTR_move });
-                wa_emit(context, (wa_code){ .valI32 = newReg });
-                wa_emit(context, (wa_code){ .valI32 = retIndex });
+                wa_emit_opcode(context, WA_INSTR_move);
+                wa_emit_index(context, newReg);
+                wa_emit_index(context, retIndex);
             }
 
-            wa_emit(context, (wa_code){ .opcode = WA_INSTR_move });
-            wa_emit(context, (wa_code){ .valI64 = retIndex });
-            wa_emit(context, (wa_code){ .valI64 = slot.index });
+            wa_emit_opcode(context, WA_INSTR_move);
+            wa_emit_index(context, retIndex);
+            wa_emit_index(context, slot.index);
         }
     }
-    wa_emit(context, (wa_code){ .opcode = WA_INSTR_return });
+    wa_emit_opcode(context, WA_INSTR_return);
 
     //WARN: wa_compile_return() is also used by conditional or table branches when they target the top-level scope,
     //      so we don't set the stack polymorphic here. Instead we do it in the callers when return is unconditional
@@ -3581,22 +3607,22 @@ void wa_compile_branch(wa_build_context* context, wa_instr* instr, u32 label)
             wa_block_move_results_to_output_slots(context, block, instr);
 
             //jump to end
-            wa_emit(context, (wa_code){ .opcode = WA_INSTR_jump });
+            wa_emit_opcode(context, WA_INSTR_jump);
 
             //NOTE: emit a jump target operand for end of block
             wa_jump_target* target = oc_arena_push_type(&context->checkArena, wa_jump_target);
             target->offset = context->codeLen;
             oc_list_push_back(&block->jumpTargets, &target->listElt);
 
-            wa_emit(context, (wa_code){ .valI64 = 0 });
+            wa_emit_i64(context, 0);
         }
         else if(block->begin->op == WA_INSTR_loop)
         {
             wa_block_move_results_to_input_slots(context, block, instr);
 
             //jump to begin
-            wa_emit(context, (wa_code){ .opcode = WA_INSTR_jump });
-            wa_emit(context, (wa_code){ .valI64 = block->beginOffset - context->codeLen });
+            wa_emit_opcode(context, WA_INSTR_jump);
+            wa_emit_i64(context, block->beginOffset - context->codeLen);
         }
         else
         {
@@ -3620,6 +3646,156 @@ void wa_build_context_clear(wa_build_context* context)
     context->freeRegLen = 0;
 }
 
+bool wa_validate_immediates(wa_build_context* context, wa_func* func, wa_instr* instr, const wa_instr_info* info)
+{
+    wa_module* module = context->module;
+
+    bool check = true;
+    //NOTE: validate immediates
+    for(u32 immIndex = 0; immIndex < instr->immCount; immIndex++)
+    {
+        wa_immediate_type type;
+
+        if(instr->op == WA_INSTR_select_t)
+        {
+            type = WA_IMM_VALUE_TYPE;
+        }
+        if(instr->op == WA_INSTR_br_table)
+        {
+            type = WA_IMM_LABEL;
+        }
+        else
+        {
+            type = info->imm[immIndex];
+        }
+
+        wa_code* imm = &instr->imm[immIndex];
+        switch(type)
+        {
+            case WA_IMM_VALUE_TYPE:
+            {
+                if(!wa_is_value_type(imm->valueType))
+                {
+                    wa_compile_error(context,
+                                     instr->ast,
+                                     "invalid value type 0x%x\n",
+                                     (u32)imm->valueType);
+                    check = false;
+                }
+            }
+            break;
+            case WA_IMM_REF_TYPE:
+            {
+                if(imm->valueType != WA_TYPE_FUNC_REF && imm->valueType != WA_TYPE_EXTERN_REF)
+                {
+                    wa_compile_error(context,
+                                     instr->ast,
+                                     "invalid reference type %x\n",
+                                     (u32)imm->valueType);
+                    check = false;
+                }
+            }
+            break;
+            case WA_IMM_LOCAL_INDEX:
+            {
+                if(imm->index >= func->localCount)
+                {
+                    wa_compile_error(context,
+                                     instr->ast,
+                                     "invalid local index %u (localCount: %u)\n",
+                                     imm->index,
+                                     func->localCount);
+                    check = false;
+                }
+            }
+            break;
+            case WA_IMM_FUNC_INDEX:
+            {
+                if(imm->index >= module->functionCount)
+                {
+                    wa_compile_error(context,
+                                     instr->ast,
+                                     "invalid function index %u (function count: %u)\n",
+                                     imm->index,
+                                     module->functionCount);
+                    check = false;
+                }
+            }
+            break;
+            case WA_IMM_GLOBAL_INDEX:
+            {
+                if(imm->index >= module->globalCount)
+                {
+                    wa_compile_error(context,
+                                     instr->ast,
+                                     "invalid global index %u (global count: %u)\n",
+                                     imm->index,
+                                     module->globalCount);
+                    check = false;
+                }
+            }
+            break;
+            case WA_IMM_TYPE_INDEX:
+            {
+                if(imm->index >= module->typeCount)
+                {
+                    wa_compile_error(context,
+                                     instr->ast,
+                                     "invalid type index %u (type count: %u)\n",
+                                     imm->index,
+                                     module->typeCount);
+                    check = false;
+                }
+            }
+            break;
+
+            case WA_IMM_TABLE_INDEX:
+            {
+                if(imm->index >= module->tableCount)
+                {
+                    wa_compile_error(context,
+                                     instr->ast,
+                                     "invalid table index %u (table count: %u)\n",
+                                     imm->index,
+                                     module->tableCount);
+                    check = false;
+                }
+            }
+            break;
+            case WA_IMM_ELEM_INDEX:
+            {
+                if(imm->index >= module->elementCount)
+                {
+                    wa_compile_error(context,
+                                     instr->ast,
+                                     "invalid element index %u (element count: %u)\n",
+                                     imm->index,
+                                     module->elementCount);
+                    check = false;
+                }
+            }
+            break;
+            case WA_IMM_DATA_INDEX:
+            {
+                if(imm->index >= module->dataCount)
+                {
+                    wa_compile_error(context,
+                                     instr->ast,
+                                     "invalid data index %u (data count: %u)\n",
+                                     imm->index,
+                                     module->dataCount);
+                    check = false;
+                }
+            }
+            break;
+
+            default:
+                break;
+        }
+    }
+    return check;
+}
+
 void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_func* func, oc_list instructions)
 {
     wa_module* module = context->module;
@@ -3639,8 +3815,14 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
 
         const wa_instr_info* info = &wa_instr_infos[instr->op];
 
-        //TODO: validate immediates here
+        if(!wa_validate_immediates(context, func, instr, info))
+        {
+            //NOTE: skip validating the rest of the instruction to avoid using
+            //      invalid indices.
+            continue;
+        }
 
+        //NOTE: special case handling of control instructions
         if(instr->op == WA_INSTR_block || instr->op == WA_INSTR_loop)
         {
             wa_move_locals_to_registers(context);
@@ -3658,9 +3840,9 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
                                                                true);
             wa_block_begin(context, instr);
 
-            wa_emit(context, (wa_code){ .opcode = WA_INSTR_jump_if_zero });
-            wa_emit(context, (wa_code){ 0 });
-            wa_emit(context, (wa_code){ .valI64 = slot->index });
+            wa_emit_opcode(context, WA_INSTR_jump_if_zero);
+            wa_emit_i64(context, 0);
+            wa_emit_index(context, slot->index);
         }
         else if(instr->op == WA_INSTR_else)
         {
@@ -3683,8 +3865,8 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
                 wa_operand_stack_pop_scope(context, ifBlock);
                 wa_push_block_inputs(context, type);
 
-                wa_emit(context, (wa_code){ .opcode = WA_INSTR_jump });
-                wa_emit(context, (wa_code){ 0 });
+                wa_emit_opcode(context, WA_INSTR_jump);
+                wa_emit_i64(context, 0);
 
                 ifBlock->polymorphic = false;
                 ifBlock->begin->elseBranch = instr;
@@ -3706,10 +3888,10 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
                                                                (wa_value_type[]){ WA_TYPE_I32 },
                                                                true);
 
-            wa_emit(context, (wa_code){ .opcode = WA_INSTR_jump_if_zero });
+            wa_emit_opcode(context, WA_INSTR_jump_if_zero);
             u64 jumpOffset = context->codeLen;
-            wa_emit(context, (wa_code){ .valI64 = 0 });
-            wa_emit(context, (wa_code){ .valI64 = slot->index });
+            wa_emit_i64(context, 0);
+            wa_emit_index(context, slot->index);
 
             u32 label = instr->imm[0].index;
             wa_compile_branch(context, instr, label);
@@ -3725,11 +3907,11 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
                                                                (wa_value_type[]){ WA_TYPE_I32 },
                                                                true);
 
-            wa_emit(context, (wa_code){ .opcode = WA_INSTR_jump_table });
+            wa_emit_opcode(context, WA_INSTR_jump_table);
             u64 baseOffset = context->codeLen;
 
-            wa_emit(context, (wa_code){ .valU32 = instr->immCount });
-            wa_emit(context, (wa_code){ .valU32 = slot->index });
+            wa_emit_index(context, instr->immCount);
+            wa_emit_index(context, slot->index);
 
             u64* patchOffsets = oc_arena_push_array(scratch.arena, u64, instr->immCount);
 
@@ -3737,7 +3919,7 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
             for(u32 i = 0; i < instr->immCount; i++)
             {
                 patchOffsets[i] = context->codeLen;
-                wa_emit(context, (wa_code){ 0 });
+                wa_emit_i64(context, 0);
             }
 
             // each entry jumps to a block that moves the results to the correct slots
@@ -3823,24 +4005,24 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
 
             for(u32 argIndex = 0; argIndex < paramCount; argIndex++)
             {
-                wa_emit(context, (wa_code){ .opcode = WA_INSTR_move });
-                wa_emit(context, (wa_code){ .valI32 = maxUsedSlot + 1 + argIndex });
-                wa_emit(context, (wa_code){ .valI32 = argSlots[argIndex].index });
+                wa_emit_opcode(context, WA_INSTR_move);
+                wa_emit_index(context, maxUsedSlot + 1 + argIndex);
+                wa_emit_index(context, argSlots[argIndex].index);
             }
 
             if(instr->op == WA_INSTR_call)
             {
-                wa_emit(context, (wa_code){ .opcode = WA_INSTR_call });
-                wa_emit(context, (wa_code){ .valI64 = instr->imm[0].index });
-                wa_emit(context, (wa_code){ .valI64 = maxUsedSlot + 1 });
+                wa_emit_opcode(context, WA_INSTR_call);
+                wa_emit_index(context, instr->imm[0].index);
+                wa_emit_i64(context, maxUsedSlot + 1);
             }
             else
             {
-                wa_emit(context, (wa_code){ .opcode = WA_INSTR_call_indirect });
-                wa_emit(context, (wa_code){ .valI32 = instr->imm[0].index });
-                wa_emit(context, (wa_code){ .valI32 = instr->imm[1].index });
-                wa_emit(context, (wa_code){ .valI64 = maxUsedSlot + 1 });
-                wa_emit(context, (wa_code){ .valI32 = indirectSlot->index });
+                wa_emit_opcode(context, WA_INSTR_call_indirect);
+                wa_emit_index(context, instr->imm[0].index);
+                wa_emit_index(context, instr->imm[1].index);
+                wa_emit_i64(context, maxUsedSlot + 1);
+                wa_emit_index(context, indirectSlot->index);
             }
             /////////////////////////////////////////////////////////////////////////////////////////////////////////////
             //TODO: we need to update next reg index so that next reg can't be allocated in the same slot...
@@ -4012,10 +4194,25 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
                                                                   inCount,
                                                                   in,
                                                                   true);
-            //NOTE: additional checks and emit
+
+            //NOTE: additional input checks
+            if((instr->op >= WA_INSTR_i32_load && instr->op <= WA_INSTR_memory_grow)
+               || instr->op == WA_INSTR_memory_init
+               || instr->op == WA_INSTR_memory_copy
+               || instr->op == WA_INSTR_memory_fill)
+            {
+                if(module->memoryCount == 0)
+                {
+                    wa_compile_error(context,
+                                     instr->ast,
+                                     "found memory instruction, but the module has no declared memory.\n");
+                }
+            }
+
+            //NOTE: custom checks and emit
             if(instr->op == WA_INSTR_unreachable)
             {
-                wa_emit(context, (wa_code){ .opcode = WA_INSTR_unreachable });
+                wa_emit_opcode(context, WA_INSTR_unreachable);
                 wa_block_set_polymorphic(context);
             }
             else if(instr->op == WA_INSTR_drop
@@ -4035,11 +4232,11 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
 
                 u32 outIndex = wa_operand_stack_push_reg(context, out[0], instr);
 
-                wa_emit(context, (wa_code){ .opcode = WA_INSTR_select });
-                wa_emit(context, (wa_code){ .valI32 = outIndex });
-                wa_emit(context, (wa_code){ .valI32 = inSlots[0].index });
-                wa_emit(context, (wa_code){ .valI32 = inSlots[1].index });
-                wa_emit(context, (wa_code){ .valI32 = inSlots[2].index });
+                wa_emit_opcode(context, WA_INSTR_select);
+                wa_emit_index(context, outIndex);
+                wa_emit_index(context, inSlots[0].index);
+                wa_emit_index(context, inSlots[1].index);
+                wa_emit_index(context, inSlots[2].index);
             }
             else if(instr->op == WA_INSTR_local_get)
             {
@@ -4055,7 +4252,7 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
                         .originOpd = context->codeLen,
                     });
             }
-            else if(instr->op == WA_INSTR_local_set)
+            else if(instr->op == WA_INSTR_local_set || instr->op == WA_INSTR_local_tee)
             {
                 u32 localIndex = instr->imm[0].valU32;
 
@@ -4063,30 +4260,22 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
                 //      the output operand of the value's origin instruction rather than issuing a move.
                 //WARN:  this can't be used after a branch, since the branch might use the original slot index
                 //      so we'd need to add a "touched" bit and set it for operands used in a branch?
+                wa_emit_opcode(context, WA_INSTR_move);
+                wa_emit_index(context, localIndex);
+                wa_emit_index(context, inSlots[0].index);
 
-                //TODO when we put result first, we can collapse this path into the general one
-                wa_emit(context, (wa_code){ .opcode = WA_INSTR_move });
-                wa_emit(context, (wa_code){ .valI32 = localIndex });
-                wa_emit(context, (wa_code){ .valI32 = inSlots[0].index });
-            }
-            else if(instr->op == WA_INSTR_local_tee)
-            {
-                u32 localIndex = instr->imm[0].valU32;
-
-                //TODO when we put result first, we can collapse this path into the general one?
-                wa_emit(context, (wa_code){ .opcode = WA_INSTR_move });
-                wa_emit(context, (wa_code){ .valI32 = localIndex });
-                wa_emit(context, (wa_code){ .valI32 = inSlots[0].index });
-
-                wa_operand_stack_push(
-                    context,
-                    (wa_operand_slot){
-                        .kind = WA_OPERAND_SLOT_LOCAL,
-                        .type = func->locals[localIndex],
-                        .index = localIndex,
-                        .originInstr = instr,
-                        .originOpd = context->codeLen,
-                    });
+                if(instr->op == WA_INSTR_local_tee)
+                {
+                    wa_operand_stack_push(
+                        context,
+                        (wa_operand_slot){
+                            .kind = WA_OPERAND_SLOT_LOCAL,
+                            .type = func->locals[localIndex],
+                            .index = localIndex,
+                            .originInstr = instr,
+                            .originOpd = context->codeLen,
+                        });
+                }
             }
             else if(instr->op == WA_INSTR_global_get)
             {
@@ -4096,36 +4285,36 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
                                                          module->globals[globalIndex].type,
                                                          instr);
 
-                wa_emit(context, (wa_code){ .opcode = WA_INSTR_global_get });
-                wa_emit(context, (wa_code){ .valI32 = regIndex });
-                wa_emit(context, (wa_code){ .valI32 = globalIndex });
+                wa_emit_opcode(context, WA_INSTR_global_get);
+                wa_emit_index(context, regIndex);
+                wa_emit_index(context, globalIndex);
             }
             else if(instr->op == WA_INSTR_global_set)
             {
                 u32 globalIndex = instr->imm[0].valU32;
-                wa_emit(context, (wa_code){ .opcode = WA_INSTR_global_set });
-                wa_emit(context, (wa_code){ .valI32 = globalIndex });
-                wa_emit(context, (wa_code){ .valI32 = inSlots[0].index });
+                wa_emit_opcode(context, WA_INSTR_global_set);
+                wa_emit_index(context, globalIndex);
+                wa_emit_index(context, inSlots[0].index);
             }
             else
             {
                 //NOTE generic emit code
-                wa_emit(context, (wa_code){ .opcode = instr->op });
+                wa_emit_opcode(context, instr->op);
 
                 for(int opdIndex = 0; opdIndex < outCount; opdIndex++)
                 {
                     u32 outIndex = wa_operand_stack_push_reg(context, out[opdIndex], instr);
-                    wa_emit(context, (wa_code){ .index = outIndex });
+                    wa_emit_index(context, outIndex);
                 }
 
                 for(int immIndex = 0; immIndex < immCount; immIndex++)
                 {
-                    wa_emit(context, instr->imm[immIndex]);
+                    wa_emit(context, &instr->imm[immIndex]);
                 }
 
                 for(u32 i = 0; i < inCount; i++)
                 {
-                    wa_emit(context, (wa_code){ .index = inSlots[i].index });
+                    wa_emit_index(context, inSlots[i].index);
                 }
             }
         }
