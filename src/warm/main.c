@@ -3196,6 +3196,51 @@ void wa_operand_stack_pop_scope(wa_build_context* context, wa_block* block)
     OC_ASSERT(context->opdStackLen == block->scopeBase);
 }
 
+bool wa_check_operand_type(wa_value_type t1, wa_value_type t2)
+{
+    return (t1 == t2
+            || t1 == WA_TYPE_UNKNOWN
+            || t2 == WA_TYPE_UNKNOWN
+            || t1 == WA_TYPE_ANY
+            || t2 == WA_TYPE_ANY
+            || (t1 == WA_TYPE_REF && (t2 == WA_TYPE_FUNC_REF || t2 == WA_TYPE_EXTERN_REF))
+            || (t2 == WA_TYPE_REF && (t1 == WA_TYPE_FUNC_REF || t1 == WA_TYPE_EXTERN_REF))
+            || (t1 == WA_TYPE_NUM_OR_VEC && (wa_is_value_type_numeric(t2) || t2 == WA_TYPE_V128))
+            || (t2 == WA_TYPE_NUM_OR_VEC && (wa_is_value_type_numeric(t1) || t1 == WA_TYPE_V128)));
+}
+
+wa_operand_slot* wa_operand_stack_get_slots(oc_arena* arena,
+                                            wa_build_context* context,
+                                            wa_instr* instr,
+                                            u32 count,
+                                            wa_value_type* types,
+                                            bool popSlots)
+{
+    wa_operand_slot* inSlots = oc_arena_push_array(arena, wa_operand_slot, count);
+    for(u32 i = 0; i < count; i++)
+    {
+        u32 opdIndex = count - 1 - i;
+
+        if(popSlots)
+        {
+            inSlots[opdIndex] = wa_operand_stack_pop(context);
+        }
+        else
+        {
+            inSlots[opdIndex] = wa_operand_stack_lookup(context, i);
+        }
+
+        if(wa_operand_slot_is_nil(&inSlots[opdIndex])
+           || !wa_check_operand_type(inSlots[opdIndex].type, types[opdIndex]))
+        {
+            wa_compile_error(context, instr->ast, "unbalanced stack\n");
+            //TODO: here we can give a better error message since we have all the operands popped so far
+            break;
+        }
+    }
+    return (inSlots);
+}
+
 void wa_block_set_polymorphic(wa_build_context* context, wa_block* block)
 {
     block->polymorphic = true;
@@ -3265,19 +3310,6 @@ void wa_move_locals_to_registers(wa_build_context* context)
     }
 }
 
-bool wa_check_operand_type(wa_value_type t1, wa_value_type t2)
-{
-    return (t1 == t2
-            || t1 == WA_TYPE_UNKNOWN
-            || t2 == WA_TYPE_UNKNOWN
-            || t1 == WA_TYPE_ANY
-            || t2 == WA_TYPE_ANY
-            || (t1 == WA_TYPE_REF && (t2 == WA_TYPE_FUNC_REF || t2 == WA_TYPE_EXTERN_REF))
-            || (t2 == WA_TYPE_REF && (t1 == WA_TYPE_FUNC_REF || t1 == WA_TYPE_EXTERN_REF))
-            || (t1 == WA_TYPE_NUM_OR_VEC && (wa_is_value_type_numeric(t2) || t2 == WA_TYPE_V128))
-            || (t2 == WA_TYPE_NUM_OR_VEC && (wa_is_value_type_numeric(t1) || t1 == WA_TYPE_V128)));
-}
-
 void wa_push_block_inputs(wa_build_context* context, wa_func_type* type)
 {
     OC_ASSERT(context->controlStackLen > 1);
@@ -3311,53 +3343,18 @@ void wa_push_block_inputs(wa_build_context* context, wa_func_type* type)
     }
 }
 
-void wa_block_begin_no_check(wa_build_context* context, wa_instr* instr)
-{
-    //NOTE: check block type input
-    wa_func_type* type = instr->blockType;
-
-    //NOTE allocate block results and push them on the stack
-    for(u64 outIndex = 0; outIndex < type->returnCount; outIndex++)
-    {
-        wa_operand_stack_push_reg(context, type->returns[outIndex], instr);
-        //TODO immediately put them in the freelist so they can be used in the branches (this might complicate copying results a bit...)
-        // wa_free_slot(context, index);
-    }
-
-    wa_control_stack_push(context, instr);
-    wa_push_block_inputs(context, type);
-}
-
 void wa_block_begin(wa_build_context* context, wa_instr* instr)
 {
-    //NOTE: check block type input
+    oc_arena_scope scratch = oc_scratch_begin();
     wa_func_type* type = instr->blockType;
 
-    for(u64 inIndex = 0; inIndex < type->paramCount; inIndex++)
-    {
-        wa_operand_slot slot = wa_operand_stack_lookup(context, type->paramCount - inIndex - 1);
-        if(wa_operand_slot_is_nil(&slot))
-        {
-            wa_compile_error(context,
-                             instr->ast,
-                             "not enough operands on stack (expected %i, got %i)\n",
-                             type->paramCount,
-                             wa_operand_stack_scope_size(context));
-        }
-        else
-        {
-            wa_value_type expected = type->params[inIndex];
-            if(!wa_check_operand_type(slot.type, expected))
-            {
-                wa_compile_error(context,
-                                 instr->ast,
-                                 "operand type mismatch for param %i (expected %s, got %s)\n",
-                                 inIndex,
-                                 wa_value_type_string(expected),
-                                 wa_value_type_string(slot.type));
-            }
-        }
-    }
+    //NOTE: check block type input (but we don't pop or use them here)
+    wa_operand_stack_get_slots(scratch.arena,
+                               context,
+                               instr,
+                               type->paramCount,
+                               type->params,
+                               false);
 
     //NOTE allocate block results and push them on the stack
     for(u64 outIndex = 0; outIndex < type->returnCount; outIndex++)
@@ -3369,90 +3366,55 @@ void wa_block_begin(wa_build_context* context, wa_instr* instr)
 
     wa_control_stack_push(context, instr);
     wa_push_block_inputs(context, type);
+
+    oc_scratch_end(scratch);
 }
 
 void wa_block_move_results_to_input_slots(wa_build_context* context, wa_block* block, wa_instr* instr)
 {
+    oc_arena_scope scratch = oc_scratch_begin();
     wa_func_type* type = block->begin->blockType;
 
-    for(u64 paramIndex = 0; paramIndex < type->paramCount; paramIndex++)
-    {
-        wa_operand_slot slot = wa_operand_stack_lookup(context, type->paramCount - paramIndex - 1);
-        if(wa_operand_slot_is_nil(&slot))
-        {
-            wa_compile_error(context,
-                             instr->ast,
-                             "not enough operands on stack (expected %i, got %i)\n",
-                             type->paramCount,
-                             wa_operand_stack_scope_size(context));
-            return;
-        }
-        else
-        {
-            wa_value_type expected = type->params[paramIndex];
-            if(!wa_check_operand_type(expected, slot.type))
-            {
-                //TODO: here we'd like to point to the instruction that triggered the end of the block,
-                //      _but also_ the ast of the param type...
-                wa_compile_error(context,
-                                 instr->ast,
-                                 "operand type mismatch for block input %i (expected %s, got %s)\n",
-                                 paramIndex,
-                                 wa_value_type_string(expected),
-                                 wa_value_type_string(slot.type));
-                return;
-            }
+    wa_operand_slot* slots = wa_operand_stack_get_slots(scratch.arena,
+                                                        context,
+                                                        instr,
+                                                        type->paramCount,
+                                                        type->params,
+                                                        false);
 
-            if(!block->polymorphic && !block->prevPolymorphic)
-            {
-                wa_operand_slot* dst = &context->opdStack[block->scopeBase - type->returnCount - type->paramCount + paramIndex];
-                wa_emit(context, (wa_code){ .opcode = WA_INSTR_move });
-                wa_emit(context, (wa_code){ .valI64 = slot.index });
-                wa_emit(context, (wa_code){ .valI64 = dst->index });
-            }
+    if(!block->polymorphic && !block->prevPolymorphic)
+    {
+        for(u64 paramIndex = 0; paramIndex < type->paramCount; paramIndex++)
+        {
+            wa_operand_slot* dst = &context->opdStack[block->scopeBase - type->returnCount - type->paramCount + paramIndex];
+            wa_emit(context, (wa_code){ .opcode = WA_INSTR_move });
+            wa_emit(context, (wa_code){ .valI64 = slots[paramIndex].index });
+            wa_emit(context, (wa_code){ .valI64 = dst->index });
         }
     }
+    oc_scratch_end(scratch);
 }
 
 void wa_block_move_results_to_output_slots(wa_build_context* context, wa_block* block, wa_instr* instr)
 {
-    //NOTE validate block type output
+    oc_arena_scope scratch = oc_scratch_begin();
     wa_func_type* type = block->begin->blockType;
 
-    for(u32 returnIndex = 0; returnIndex < type->returnCount; returnIndex++)
-    {
-        wa_operand_slot slot = wa_operand_stack_lookup(context, type->returnCount - returnIndex - 1);
-        if(wa_operand_slot_is_nil(&slot))
-        {
-            wa_compile_error(context,
-                             instr->ast,
-                             "not enough operands on stack (expected %i, got %i)\n",
-                             type->returnCount,
-                             wa_operand_stack_scope_size(context));
-        }
-        else
-        {
-            wa_value_type expected = type->returns[returnIndex];
-            if(!wa_check_operand_type(expected, slot.type))
-            {
-                //TODO: here we'd like to point to the instruction that triggered the end of the block,
-                //      _but also_ the ast of the param type...
-                wa_compile_error(context,
-                                 instr->ast,
-                                 "operand type mismatch for block output %i (expected %s, got %s)\n",
-                                 returnIndex,
-                                 wa_value_type_string(expected),
-                                 wa_value_type_string(slot.type));
-                return;
-            }
+    wa_operand_slot* slots = wa_operand_stack_get_slots(scratch.arena,
+                                                        context,
+                                                        instr,
+                                                        type->returnCount,
+                                                        type->returns,
+                                                        false);
 
-            if(!block->polymorphic && !block->prevPolymorphic)
-            {
-                wa_operand_slot* dst = &context->opdStack[block->scopeBase - type->returnCount + returnIndex];
-                wa_emit(context, (wa_code){ .opcode = WA_INSTR_move });
-                wa_emit(context, (wa_code){ .valI64 = slot.index });
-                wa_emit(context, (wa_code){ .valI64 = dst->index });
-            }
+    if(!block->polymorphic && !block->prevPolymorphic)
+    {
+        for(u32 returnIndex = 0; returnIndex < type->returnCount; returnIndex++)
+        {
+            wa_operand_slot* dst = &context->opdStack[block->scopeBase - type->returnCount + returnIndex];
+            wa_emit(context, (wa_code){ .opcode = WA_INSTR_move });
+            wa_emit(context, (wa_code){ .valI64 = slots[returnIndex].index });
+            wa_emit(context, (wa_code){ .valI64 = dst->index });
         }
     }
 }
@@ -3538,42 +3500,16 @@ int wa_compile_return(wa_build_context* context, wa_func_type* type, wa_instr* i
     //      _NOT_ change the stack...
     /////////////////////////////////////////////////////////////////
     oc_arena_scope scratch = oc_scratch_begin();
-    wa_operand_slot* returns = oc_arena_push_array(scratch.arena, wa_operand_slot, type->returnCount);
-    for(u32 retIndex = 0; retIndex < type->returnCount; retIndex++)
-    {
-        returns[retIndex] = wa_operand_stack_lookup(context, type->returnCount - retIndex - 1);
-    }
+    wa_operand_slot* returns = wa_operand_stack_get_slots(scratch.arena,
+                                                          context,
+                                                          instr,
+                                                          type->returnCount,
+                                                          type->returns,
+                                                          false);
 
     for(u32 retIndex = 0; retIndex < type->returnCount; retIndex++)
     {
         wa_operand_slot slot = returns[retIndex];
-
-        if(wa_operand_slot_is_nil(&slot))
-        {
-            //TODO: we should also point to the ast of the return type
-            wa_compile_error(context,
-                             instr->ast,
-                             "Not enough return values (expected: %i, stack depth: %i)\n",
-                             type->returnCount,
-                             wa_operand_stack_scope_size(context));
-            oc_scratch_end(scratch);
-            return -1;
-        }
-
-        wa_value_type expectedType = type->returns[retIndex];
-        wa_value_type returnType = slot.type;
-
-        if(!wa_check_operand_type(returnType, expectedType))
-        {
-            //TODO: we should also point to the ast of the return type
-            wa_compile_error(context,
-                             instr->ast,
-                             "Return type doesn't match function signature (expected %s, got %s)\n",
-                             wa_value_type_string(expectedType),
-                             wa_value_type_string(returnType));
-            oc_scratch_end(scratch);
-            return -1;
-        }
 
         //NOTE store value to return slot
         if(slot.type != WA_TYPE_UNKNOWN && slot.index != retIndex)
@@ -3694,75 +3630,65 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
     /////////////////////////////////////////////////////////////////////////////////////////////////////////
     wa_control_stack_push(context, oc_list_first_entry(instructions, wa_instr, listElt));
 
+    oc_arena_scope scratch = oc_scratch_begin();
+
     oc_list_for(instructions, instr, wa_instr, listElt)
     {
+        oc_scratch_end(scratch);
+
         const wa_instr_info* info = &wa_instr_infos[instr->op];
 
         //TODO: validate immediates here
 
-        /*
-        else if(instr->op == WA_INSTR_block || instr->op == WA_INSTR_loop)
+        if(instr->op == WA_INSTR_block || instr->op == WA_INSTR_loop)
         {
             wa_move_locals_to_registers(context);
             wa_block_begin(context, instr);
         }
-
         else if(instr->op == WA_INSTR_if)
         {
             wa_move_locals_to_registers(context);
 
-            wa_operand_slot slot = wa_operand_stack_pop(context);
-            if(wa_operand_slot_is_nil(&slot))
-            {
-                wa_compile_error(context,
-                                 instr->ast,
-                                 "unbalanced stack\n");
-                break;
-            }
-
-            if(!wa_check_operand_type(slot.type, WA_TYPE_I32))
-            {
-                wa_compile_error(context,
-                                 instr->ast,
-                                 "operand type mismatch (expected %s, got %s)\n",
-                                 wa_value_type_string(WA_TYPE_I32),
-                                 wa_value_type_string(slot.type));
-                break;
-            }
-
+            wa_operand_slot* slot = wa_operand_stack_get_slots(scratch.arena,
+                                                               context,
+                                                               instr,
+                                                               1,
+                                                               (wa_value_type[]){ WA_TYPE_I32 },
+                                                               true);
             wa_block_begin(context, instr);
 
             wa_emit(context, (wa_code){ .opcode = WA_INSTR_jump_if_zero });
             wa_emit(context, (wa_code){ 0 });
-            wa_emit(context, (wa_code){ .valI64 = slot.index });
+            wa_emit(context, (wa_code){ .valI64 = slot->index });
         }
-        else
-        */
-        if(instr->op == WA_INSTR_else)
+        else if(instr->op == WA_INSTR_else)
         {
             wa_block* ifBlock = wa_control_stack_top(context);
-            if(!ifBlock
-               || ifBlock->begin->op != WA_INSTR_if
+            OC_ASSERT(ifBlock);
+
+            if(ifBlock->begin->op != WA_INSTR_if
                || ifBlock->begin->elseBranch)
             {
                 //TODO: should this be validated at parse stage?
                 wa_compile_error(context,
                                  instr->ast,
                                  "unexpected else block\n");
-                break;
             }
-            wa_func_type* type = ifBlock->begin->blockType;
+            else
+            {
+                wa_func_type* type = ifBlock->begin->blockType;
 
-            wa_block_move_results_to_output_slots(context, ifBlock, instr);
-            wa_operand_stack_pop_scope(context, ifBlock);
-            wa_push_block_inputs(context, type);
+                wa_block_move_results_to_output_slots(context, ifBlock, instr);
+                wa_operand_stack_pop_scope(context, ifBlock);
+                wa_push_block_inputs(context, type);
 
-            wa_emit(context, (wa_code){ .opcode = WA_INSTR_jump });
-            wa_emit(context, (wa_code){ 0 });
+                wa_emit(context, (wa_code){ .opcode = WA_INSTR_jump });
+                wa_emit(context, (wa_code){ 0 });
 
-            ifBlock->polymorphic = false;
-            ifBlock->begin->elseBranch = instr;
-            ifBlock->elseOffset = context->codeLen;
+                ifBlock->polymorphic = false;
+                ifBlock->begin->elseBranch = instr;
+                ifBlock->elseOffset = context->codeLen;
+            }
         }
         else if(instr->op == WA_INSTR_br)
         {
@@ -3774,29 +3700,17 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
         }
         else if(instr->op == WA_INSTR_br_if)
         {
-            wa_operand_slot slot = wa_operand_stack_pop(context);
-            if(wa_operand_slot_is_nil(&slot))
-            {
-                wa_compile_error(context,
-                                 instr->ast,
-                                 "unbalanced stack\n");
-                break;
-            }
-
-            if(!wa_check_operand_type(slot.type, WA_TYPE_I32))
-            {
-                wa_compile_error(context,
-                                 instr->ast,
-                                 "operand type mismatch (expected %s, got %s)\n",
-                                 wa_value_type_string(WA_TYPE_I32),
-                                 wa_value_type_string(slot.type));
-                break;
-            }
+            wa_operand_slot* slot = wa_operand_stack_get_slots(scratch.arena,
+                                                               context,
+                                                               instr,
+                                                               1,
+                                                               (wa_value_type[]){ WA_TYPE_I32 },
+                                                               true);
 
             wa_emit(context, (wa_code){ .opcode = WA_INSTR_jump_if_zero });
             u64 jumpOffset = context->codeLen;
             wa_emit(context, (wa_code){ .valI64 = 0 });
-            wa_emit(context, (wa_code){ .valI64 = slot.index });
+            wa_emit(context, (wa_code){ .valI64 = slot->index });
 
             u32 label = instr->imm[0].index;
             wa_compile_branch(context, instr, label);
@@ -3805,32 +3719,19 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
         }
         else if(instr->op == WA_INSTR_br_table)
         {
-            wa_operand_slot slot = wa_operand_stack_pop(context);
-            if(wa_operand_slot_is_nil(&slot))
-            {
-                wa_compile_error(context,
-                                 instr->ast,
-                                 "unbalanced stack\n");
-                break;
-            }
-
-            if(!wa_check_operand_type(slot.type, WA_TYPE_I32))
-            {
-                wa_compile_error(context,
-                                 instr->ast,
-                                 "operand type mismatch (expected %s, got %s)\n",
-                                 wa_value_type_string(WA_TYPE_I32),
-                                 wa_value_type_string(slot.type));
-                break;
-            }
+            wa_operand_slot* slot = wa_operand_stack_get_slots(scratch.arena,
+                                                               context,
+                                                               instr,
+                                                               1,
+                                                               (wa_value_type[]){ WA_TYPE_I32 },
+                                                               true);
 
             wa_emit(context, (wa_code){ .opcode = WA_INSTR_jump_table });
             u64 baseOffset = context->codeLen;
 
             wa_emit(context, (wa_code){ .valU32 = instr->immCount });
-            wa_emit(context, (wa_code){ .valU32 = slot.index });
+            wa_emit(context, (wa_code){ .valU32 = slot->index });
 
-            oc_arena_scope scratch = oc_scratch_begin();
             u64* patchOffsets = oc_arena_push_array(scratch.arena, u64, instr->immCount);
 
             // reserve room for the table entries
@@ -3850,8 +3751,6 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
                 wa_compile_branch(context, instr, label);
             }
 
-            oc_scratch_end(scratch);
-
             wa_block* block = wa_control_stack_top(context);
             wa_block_set_polymorphic(context, block);
         }
@@ -3863,18 +3762,15 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
             if(context->controlStackLen == 1)
             {
                 //TODO: is this sufficient to elide all previous returns?
-
-                wa_instr* prev = oc_list_prev_entry(func->instructions, instr, wa_instr, listElt);
+                wa_instr* prev = oc_list_prev_entry(instructions, instr, wa_instr, listElt);
                 if(!prev || prev->op != WA_INSTR_return)
                 {
-                    if(wa_compile_return(context, type, instr))
-                    {
-                        break;
-                    }
+                    wa_compile_return(context, type, instr);
                 }
                 wa_patch_jump_targets(context, block);
                 wa_control_stack_pop(context);
-                break;
+
+                OC_ASSERT(oc_list_last(instructions) == &instr->listElt);
             }
             else
             {
@@ -3882,146 +3778,73 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
                 wa_patch_jump_targets(context, block);
             }
         }
-        else if(instr->op == WA_INSTR_call)
+        else if(instr->op == WA_INSTR_call || instr->op == WA_INSTR_call_indirect)
         {
-            wa_func* callee = &module->functions[instr->imm[0].index];
-            u32 paramCount = callee->type->paramCount;
-
+            //NOTE: compute max used slot
+            //TODO: we could probably be more clever here, eg in some case just move the index operand
+            //      past the arguments?
             i64 maxUsedSlot = func->localCount;
+
             for(u32 stackIndex = 0; stackIndex < context->opdStackLen; stackIndex++)
             {
                 wa_operand_slot* slot = &context->opdStack[stackIndex];
                 maxUsedSlot = oc_max((i64)slot->index, maxUsedSlot);
             }
 
-            //TODO: first check if args are already in order at the end of the frame?
-            for(u32 argIndex = 0; argIndex < paramCount; argIndex++)
+            //NOTE: get callee type, and indirect index for call indirect
+            wa_operand_slot* indirectSlot = 0;
+            wa_func* callee = 0;
+            wa_func_type* type = 0;
+
+            if(instr->op == WA_INSTR_call)
             {
-                wa_operand_slot slot = wa_operand_stack_lookup(context, paramCount - argIndex - 1);
-                if(wa_operand_slot_is_nil(&slot))
-                {
-                    wa_compile_error(context,
-                                     instr->ast,
-                                     "Not enough arguments on stack (expected: %u, got: %u)\n",
-                                     paramCount,
-                                     wa_operand_stack_scope_size(context));
-                    break;
-                }
-
-                wa_value_type paramType = callee->type->params[argIndex];
-
-                if(!wa_check_operand_type(slot.type, paramType))
-                {
-                    wa_compile_error(context,
-                                     instr->ast,
-                                     "Type mismatch for argument %u (expected %s, got %s)\n",
-                                     argIndex,
-                                     wa_value_type_string(paramType),
-                                     wa_value_type_string(slot.type));
-                    break;
-                }
-                wa_emit(context, (wa_code){ .opcode = WA_INSTR_move });
-                wa_emit(context, (wa_code){ .valI32 = slot.index });
-                wa_emit(context, (wa_code){ .valI32 = maxUsedSlot + 1 + argIndex });
+                callee = &module->functions[instr->imm[0].index];
+                type = callee->type;
             }
-
-            wa_operand_stack_pop_slots(context, paramCount);
-
-            wa_emit(context, (wa_code){ .opcode = WA_INSTR_call });
-            wa_emit(context, (wa_code){ .valI64 = instr->imm[0].index });
-            wa_emit(context, (wa_code){ .valI64 = maxUsedSlot + 1 });
-
-            //NOTE: we need to update next reg index so that next reg can't be allocated in the same slot...
-            //TODO: we probably also need to put the remaining args regs not used by returns in the freelist
-
-            context->nextRegIndex = oc_max(maxUsedSlot + 1 + callee->type->returnCount, context->nextRegIndex);
-
-            for(u32 retIndex = 0; retIndex < callee->type->returnCount; retIndex++)
+            else
             {
-                wa_operand_stack_push(context,
-                                      (wa_operand_slot){
-                                          .kind = WA_OPERAND_SLOT_REG,
-                                          .type = callee->type->returns[retIndex],
-                                          .index = maxUsedSlot + 1 + retIndex,
-                                      });
-            }
-        }
-        else if(instr->op == WA_INSTR_call_indirect)
-        {
-            ////////////////////////////////////////
-            //TODO: coalesce with regular call
-            ////////////////////////////////////////
+                indirectSlot = wa_operand_stack_get_slots(scratch.arena,
+                                                          context,
+                                                          instr,
+                                                          1,
+                                                          (wa_value_type[]){ WA_TYPE_I32 },
+                                                          true);
 
-            wa_operand_slot slot = wa_operand_stack_pop(context);
-            if(wa_operand_slot_is_nil(&slot))
-            {
-                wa_compile_error(context,
-                                 instr->ast,
-                                 "unbalanced stack\n");
-                break;
+                type = &module->types[instr->imm[0].index];
             }
-
-            if(!wa_check_operand_type(slot.type, WA_TYPE_I32))
-            {
-                wa_compile_error(context,
-                                 instr->ast,
-                                 "operand type mismatch (expected %s, got %s)\n",
-                                 wa_value_type_string(WA_TYPE_I32),
-                                 wa_value_type_string(slot.type));
-                break;
-            }
-
-            wa_func_type* type = &module->types[instr->imm[0].index];
             u32 paramCount = type->paramCount;
 
-            //TODO: we should probably be more clever here, eg in some case just move the index operand
-            //      past the arguments?
-            i64 maxUsedSlot = slot.index;
-            for(u32 stackIndex = 0; stackIndex < context->opdStackLen; stackIndex++)
-            {
-                wa_operand_slot* slot = &context->opdStack[stackIndex];
-                maxUsedSlot = oc_max((i64)slot->index, maxUsedSlot);
-            }
-
+            //NOTE: put call args at the end of the stack
             //TODO: first check if args are already in order at the end of the frame?
+
+            wa_operand_slot* argSlots = wa_operand_stack_get_slots(scratch.arena,
+                                                                   context,
+                                                                   instr,
+                                                                   type->paramCount,
+                                                                   type->params,
+                                                                   true);
+
             for(u32 argIndex = 0; argIndex < paramCount; argIndex++)
             {
-                wa_operand_slot slot = wa_operand_stack_lookup(context, paramCount - argIndex - 1);
-                if(wa_operand_slot_is_nil(&slot))
-                {
-                    wa_compile_error(context,
-                                     instr->ast,
-                                     "Not enough arguments on stack (expected: %u, got: %u)\n",
-                                     paramCount,
-                                     wa_operand_stack_scope_size(context));
-                    break;
-                }
-
-                wa_value_type paramType = type->params[argIndex];
-
-                if(!wa_check_operand_type(slot.type, paramType))
-                {
-                    wa_compile_error(context,
-                                     instr->ast,
-                                     "Type mismatch for argument %u (expected %s, got %s)\n",
-                                     argIndex,
-                                     wa_value_type_string(paramType),
-                                     wa_value_type_string(slot.type));
-                    break;
-                }
                 wa_emit(context, (wa_code){ .opcode = WA_INSTR_move });
-                wa_emit(context, (wa_code){ .valI32 = slot.index });
+                wa_emit(context, (wa_code){ .valI32 = argSlots[argIndex].index });
                 wa_emit(context, (wa_code){ .valI32 = maxUsedSlot + 1 + argIndex });
             }
 
-            wa_operand_stack_pop_slots(context, paramCount);
-
-            wa_emit(context, (wa_code){ .opcode = WA_INSTR_call_indirect });
-            wa_emit(context, (wa_code){ .valI32 = instr->imm[0].index });
-            wa_emit(context, (wa_code){ .valI32 = instr->imm[1].index });
-            wa_emit(context, (wa_code){ .valI64 = maxUsedSlot + 1 });
-            wa_emit(context, (wa_code){ .valI32 = slot.index });
-
+            if(instr->op == WA_INSTR_call)
+            {
+                wa_emit(context, (wa_code){ .opcode = WA_INSTR_call });
+                wa_emit(context, (wa_code){ .valI64 = instr->imm[0].index });
+                wa_emit(context, (wa_code){ .valI64 = maxUsedSlot + 1 });
+            }
+            else
+            {
+                wa_emit(context, (wa_code){ .opcode = WA_INSTR_call_indirect });
+                wa_emit(context, (wa_code){ .valI32 = instr->imm[0].index });
+                wa_emit(context, (wa_code){ .valI32 = instr->imm[1].index });
+                wa_emit(context, (wa_code){ .valI64 = maxUsedSlot + 1 });
+                wa_emit(context, (wa_code){ .valI32 = indirectSlot->index });
+            }
             /////////////////////////////////////////////////////////////////////////////////////////////////////////////
             //TODO: we need to update next reg index so that next reg can't be allocated in the same slot...
             //      we probably also need to put the remaining args regs not used by returns in the freelist
@@ -4040,16 +3863,16 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
         }
         else if(instr->op == WA_INSTR_return)
         {
-            if(wa_compile_return(context, type, instr))
-            {
-                break;
-            }
+            wa_compile_return(context, type, instr);
+
             wa_block* block = wa_control_stack_top(context);
             block->polymorphic = true;
             wa_operand_stack_pop_scope(context, block);
         }
         else
         {
+            //NOTE: common codepath for all other instructions
+
             u32 immCount = instr->immCount;
             wa_code* imm = instr->imm;
 
@@ -4058,8 +3881,6 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
 
             u32 outCount = info->outCount;
             wa_value_type* out = (wa_value_type*)info->out;
-
-            oc_arena_scope scratch = oc_scratch_begin();
 
             //NOTE: inputs/outputs types derived from immediates
             switch(instr->op)
@@ -4070,16 +3891,6 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
                     in[0] = instr->imm[0].valueType;
                     in[1] = instr->imm[0].valueType;
                     in[2] = WA_TYPE_I32;
-                }
-                break;
-
-                case WA_INSTR_block:
-                case WA_INSTR_loop:
-                {
-                    inCount = instr->blockType->paramCount;
-                    in = instr->blockType->params;
-
-                    wa_move_locals_to_registers(context);
                 }
                 break;
 
@@ -4183,29 +3994,12 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
             }
 
             //NOTE: get inputs
-            wa_operand_slot* inSlots = oc_arena_push_array(scratch.arena, wa_operand_slot, inCount);
-            for(u32 i = 0; i < inCount; i++)
-            {
-                u32 opdIndex = inCount - 1 - i;
-
-                if(instr->op == WA_INSTR_block || instr->op == WA_INSTR_loop || instr->op == WA_INSTR_if)
-                {
-                    inSlots[opdIndex] = wa_operand_stack_lookup(context, i);
-                }
-                else
-                {
-                    inSlots[opdIndex] = wa_operand_stack_pop(context);
-                }
-
-                if(wa_operand_slot_is_nil(&inSlots[opdIndex])
-                   || !wa_check_operand_type(inSlots[opdIndex].type, in[opdIndex]))
-                {
-                    wa_compile_error(context, instr->ast, "unbalanced stack\n");
-                    //TODO: here we can give a better error message since we have all the operands popped so far
-                    break;
-                }
-            }
-
+            wa_operand_slot* inSlots = wa_operand_stack_get_slots(scratch.arena,
+                                                                  context,
+                                                                  instr,
+                                                                  inCount,
+                                                                  in,
+                                                                  true);
             //NOTE: additional checks and emit
             if(instr->op == WA_INSTR_unreachable)
             {
@@ -4235,22 +4029,6 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
                 wa_emit(context, (wa_code){ .valI32 = inSlots[1].index });
                 wa_emit(context, (wa_code){ .valI32 = inSlots[2].index });
                 wa_emit(context, (wa_code){ .valI32 = outIndex });
-            }
-            else if(instr->op == WA_INSTR_block
-                    || instr->op == WA_INSTR_loop)
-            {
-                wa_block_begin_no_check(context, instr);
-            }
-            else if(instr->op == WA_INSTR_if)
-            {
-                //NOTE: pop condition (the rest of the inputs is left on the stack)
-                wa_operand_stack_pop(context);
-
-                wa_block_begin_no_check(context, instr);
-
-                wa_emit(context, (wa_code){ .opcode = WA_INSTR_jump_if_zero });
-                wa_emit(context, (wa_code){ 0 });
-                wa_emit(context, (wa_code){ .valI64 = inSlots[inCount - 1].index });
             }
             else if(instr->op == WA_INSTR_local_get)
             {
@@ -4320,32 +4098,29 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
             }
             else
             {
-                //-----------------------------------------------------
-                //NOTE emit opcode
+                //NOTE generic emit code
                 wa_emit(context, (wa_code){ .opcode = instr->op });
 
-                //emit immediates
                 for(int immIndex = 0; immIndex < immCount; immIndex++)
                 {
                     wa_emit(context, instr->imm[immIndex]);
                 }
 
-                //emit inputs
                 for(u32 i = 0; i < inCount; i++)
                 {
                     wa_emit(context, (wa_code){ .index = inSlots[i].index });
                 }
 
-                // allocate and emit outputs
                 for(int opdIndex = 0; opdIndex < outCount; opdIndex++)
                 {
                     u32 outIndex = wa_operand_stack_push_reg(context, out[opdIndex], instr);
                     wa_emit(context, (wa_code){ .index = outIndex });
                 }
             }
-            oc_scratch_end(scratch);
         }
     }
+    //NOTE: clear remaining tmp data if we exited the loop early
+    oc_scratch_end(scratch);
 }
 
 void wa_compile_code(oc_arena* arena, wa_module* module)
