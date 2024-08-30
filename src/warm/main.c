@@ -3241,8 +3241,9 @@ wa_operand_slot* wa_operand_stack_get_slots(oc_arena* arena,
     return (inSlots);
 }
 
-void wa_block_set_polymorphic(wa_build_context* context, wa_block* block)
+void wa_block_set_polymorphic(wa_build_context* context)
 {
+    wa_block* block = wa_control_stack_top(context);
     block->polymorphic = true;
     wa_operand_stack_pop_scope(context, block);
 }
@@ -3694,9 +3695,7 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
         {
             u32 label = instr->imm[0].index;
             wa_compile_branch(context, instr, label);
-
-            wa_block* block = wa_control_stack_top(context);
-            wa_block_set_polymorphic(context, block);
+            wa_block_set_polymorphic(context);
         }
         else if(instr->op == WA_INSTR_br_if)
         {
@@ -3750,9 +3749,7 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
                 u32 label = instr->imm[i].index;
                 wa_compile_branch(context, instr, label);
             }
-
-            wa_block* block = wa_control_stack_top(context);
-            wa_block_set_polymorphic(context, block);
+            wa_block_set_polymorphic(context);
         }
         else if(instr->op == WA_INSTR_end)
         {
@@ -4004,8 +4001,7 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
             if(instr->op == WA_INSTR_unreachable)
             {
                 wa_emit(context, (wa_code){ .opcode = WA_INSTR_unreachable });
-                wa_block* block = wa_control_stack_top(context);
-                wa_block_set_polymorphic(context, block);
+                wa_block_set_polymorphic(context);
             }
             else if(instr->op == WA_INSTR_drop
                     || instr->op == WA_INSTR_nop)
