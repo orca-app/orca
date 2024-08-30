@@ -4893,6 +4893,21 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
 
         switch(opcode)
         {
+
+#define I0 pc[0]
+#define I1 pc[1]
+#define I2 pc[2]
+#define I3 pc[3]
+
+#define L0 locals[pc[0].valI32]
+#define L1 locals[pc[1].valI32]
+#define L2 locals[pc[2].valI32]
+#define L3 locals[pc[3].valI32]
+#define L4 locals[pc[4].valI32]
+
+#define G0 instance->globals[pc[0].valI32]
+#define G1 instance->globals[pc[1].valI32]
+
             case WA_INSTR_unreachable:
             {
                 return WA_TRAP_UNREACHABLE;
@@ -4901,62 +4916,62 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
 
             case WA_INSTR_i32_const:
             {
-                locals[pc[1].valI32].valI32 = pc[0].valI32;
+                L1.valI32 = I0.valI32;
                 pc += 2;
             }
             break;
 
             case WA_INSTR_i64_const:
             {
-                locals[pc[1].valI32].valI64 = pc[0].valI64;
+                L1.valI64 = I0.valI64;
                 pc += 2;
             }
             break;
 
             case WA_INSTR_f32_const:
             {
-                locals[pc[1].valI32].valF32 = pc[0].valF32;
+                L1.valF32 = I0.valF32;
                 pc += 2;
             }
             break;
 
             case WA_INSTR_f64_const:
             {
-                locals[pc[1].valI32].valF64 = pc[0].valF64;
+                L1.valF64 = I0.valF64;
                 pc += 2;
             }
             break;
 
             case WA_INSTR_move:
             {
-                locals[pc[1].valI32].valI64 = locals[pc[0].valI32].valI64;
+                L1.valI64 = L0.valI64;
                 pc += 2;
             }
             break;
 
             case WA_INSTR_global_get:
             {
-                memcpy(&locals[pc[1].valI32].valI64, &instance->globals[pc[0].valI32], sizeof(u64));
+                memcpy(&L1, &G0, sizeof(u64));
                 pc += 2;
             }
             break;
 
             case WA_INSTR_global_set:
             {
-                memcpy(&instance->globals[pc[1].valI32], &locals[pc[0].valI32].valI64, sizeof(u64));
+                memcpy(&G1, &L0, sizeof(u64));
                 pc += 2;
             }
             break;
 
             case WA_INSTR_select:
             {
-                if(locals[pc[2].valI32].valI32)
+                if(L2.valI32)
                 {
-                    memcpy(&locals[pc[3].valI32], &locals[pc[0].valI32], sizeof(u64));
+                    memcpy(&L3, &L0, sizeof(u64));
                 }
                 else
                 {
-                    memcpy(&locals[pc[3].valI32], &locals[pc[1].valI32], sizeof(u64));
+                    memcpy(&L3, &L1, sizeof(u64));
                 }
                 pc += 4;
             }
@@ -4964,176 +4979,176 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
 
             case WA_INSTR_i32_load:
             {
-                locals[pc[2].valI32].valI32 = *(i32*)&memPtr[pc[0].memArg.offset + locals[pc[1].valI32].valI32];
+                L2.valI32 = *(i32*)&memPtr[I0.memArg.offset + L1.valI32];
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i64_load:
             {
-                locals[pc[2].valI32].valI64 = *(i64*)&memPtr[pc[0].memArg.offset + locals[pc[1].valI32].valI32];
+                L2.valI64 = *(i64*)&memPtr[I0.memArg.offset + L1.valI32];
                 pc += 3;
             }
             break;
 
             case WA_INSTR_f32_load:
             {
-                locals[pc[2].valI32].valF32 = *(f32*)&memPtr[pc[0].memArg.offset + locals[pc[1].valI32].valI32];
+                L2.valF32 = *(f32*)&memPtr[I0.memArg.offset + L1.valI32];
                 pc += 3;
             }
             break;
 
             case WA_INSTR_f64_load:
             {
-                locals[pc[2].valI32].valF64 = *(f64*)&memPtr[pc[0].memArg.offset + locals[pc[1].valI32].valI32];
+                L2.valF64 = *(f64*)&memPtr[I0.memArg.offset + L1.valI32];
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i32_load8_s:
             {
-                locals[pc[2].valI32].valI32 = (i32) * (i8*)&memPtr[pc[0].memArg.offset + locals[pc[1].valI32].valI32];
+                L2.valI32 = (i32) * (i8*)&memPtr[I0.memArg.offset + L1.valI32];
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i32_load8_u:
             {
-                *(u32*)&locals[pc[2].valI32].valI32 = (u32) * (u8*)&memPtr[pc[0].memArg.offset + locals[pc[1].valI32].valI32];
+                *(u32*)&L2.valI32 = (u32) * (u8*)&memPtr[I0.memArg.offset + L1.valI32];
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i32_load16_s:
             {
-                locals[pc[2].valI32].valI32 = (i32) * (i16*)&memPtr[pc[0].memArg.offset + locals[pc[1].valI32].valI32];
+                L2.valI32 = (i32) * (i16*)&memPtr[I0.memArg.offset + L1.valI32];
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i32_load16_u:
             {
-                *(u32*)&locals[pc[2].valI32].valI32 = (u32) * (u16*)&memPtr[pc[0].memArg.offset + locals[pc[1].valI32].valI32];
+                *(u32*)&L2.valI32 = (u32) * (u16*)&memPtr[I0.memArg.offset + L1.valI32];
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i64_load8_s:
             {
-                locals[pc[2].valI32].valI64 = (i64) * (i8*)&memPtr[pc[0].memArg.offset + locals[pc[1].valI32].valI32];
+                L2.valI64 = (i64) * (i8*)&memPtr[I0.memArg.offset + L1.valI32];
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i64_load8_u:
             {
-                *(u32*)&locals[pc[2].valI32].valI64 = (u64) * (u8*)&memPtr[pc[0].memArg.offset + locals[pc[1].valI32].valI32];
+                *(u32*)&L2.valI64 = (u64) * (u8*)&memPtr[I0.memArg.offset + L1.valI32];
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i64_load16_s:
             {
-                locals[pc[2].valI32].valI64 = (i64) * (i16*)&memPtr[pc[0].memArg.offset + locals[pc[1].valI32].valI32];
+                L2.valI64 = (i64) * (i16*)&memPtr[I0.memArg.offset + L1.valI32];
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i64_load16_u:
             {
-                *(u32*)&locals[pc[2].valI32].valI64 = (u64) * (u16*)&memPtr[pc[0].memArg.offset + locals[pc[1].valI32].valI32];
+                *(u32*)&L2.valI64 = (u64) * (u16*)&memPtr[I0.memArg.offset + L1.valI32];
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i64_load32_s:
             {
-                locals[pc[2].valI32].valI64 = (i64) * (i32*)&memPtr[pc[0].memArg.offset + locals[pc[1].valI32].valI32];
+                L2.valI64 = (i64) * (i32*)&memPtr[I0.memArg.offset + L1.valI32];
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i64_load32_u:
             {
-                *(u32*)&locals[pc[2].valI32].valI64 = (u64) * (u32*)&memPtr[pc[0].memArg.offset + locals[pc[1].valI32].valI32];
+                *(u32*)&L2.valI64 = (u64) * (u32*)&memPtr[I0.memArg.offset + L1.valI32];
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i32_store:
             {
-                *(i32*)&memPtr[pc[0].memArg.offset + locals[pc[1].valI32].valI32] = locals[pc[2].valI32].valI32;
+                *(i32*)&memPtr[I0.memArg.offset + L1.valI32] = L2.valI32;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i64_store:
             {
-                *(i64*)&memPtr[pc[0].memArg.offset + locals[pc[1].valI32].valI32] = locals[pc[2].valI32].valI64;
+                *(i64*)&memPtr[I0.memArg.offset + L1.valI32] = L2.valI64;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_f32_store:
             {
-                *(f32*)&memPtr[pc[0].memArg.offset + locals[pc[1].valI32].valI32] = locals[pc[2].valI32].valF32;
+                *(f32*)&memPtr[I0.memArg.offset + L1.valI32] = L2.valF32;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_f64_store:
             {
-                *(f64*)&memPtr[pc[0].memArg.offset + locals[pc[1].valI32].valI32] = locals[pc[2].valI32].valF64;
+                *(f64*)&memPtr[I0.memArg.offset + L1.valI32] = L2.valF64;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i32_store8:
             {
-                *(u8*)&memPtr[pc[0].memArg.offset + locals[pc[1].valI32].valI32] = *(u8*)&locals[pc[2].valI32].valI32;
+                *(u8*)&memPtr[I0.memArg.offset + L1.valI32] = *(u8*)&L2.valI32;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i32_store16:
             {
-                *(u16*)&memPtr[pc[0].memArg.offset + locals[pc[1].valI32].valI32] = *(u16*)&locals[pc[2].valI32].valI32;
+                *(u16*)&memPtr[I0.memArg.offset + L1.valI32] = *(u16*)&L2.valI32;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i64_store8:
             {
-                *(u8*)&memPtr[pc[0].memArg.offset + locals[pc[1].valI32].valI32] = *(u8*)&locals[pc[2].valI32].valI64;
+                *(u8*)&memPtr[I0.memArg.offset + L1.valI32] = *(u8*)&L2.valI64;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i64_store16:
             {
-                *(u16*)&memPtr[pc[0].memArg.offset + locals[pc[1].valI32].valI32] = *(u16*)&locals[pc[2].valI32].valI64;
+                *(u16*)&memPtr[I0.memArg.offset + L1.valI32] = *(u16*)&L2.valI64;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i64_store32:
             {
-                *(u32*)&memPtr[pc[0].memArg.offset + locals[pc[1].valI32].valI32] = *(u32*)&locals[pc[2].valI32].valI64;
+                *(u32*)&memPtr[I0.memArg.offset + L1.valI32] = *(u32*)&L2.valI64;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_jump:
             {
-                pc += pc[0].valI64;
+                pc += I0.valI64;
             }
             break;
 
             case WA_INSTR_jump_if_zero:
             {
-                if(locals[pc[1].valI32].valI32 == 0)
+                if(L1.valI32 == 0)
                 {
-                    pc += pc[0].valI64;
+                    pc += I0.valI64;
                 }
                 else
                 {
@@ -5144,8 +5159,8 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
 
             case WA_INSTR_jump_table:
             {
-                u32 count = pc[0].valU32;
-                u32 index = locals[pc[1].valI32].valI32;
+                u32 count = I0.valU32;
+                u32 index = L1.valI32;
 
                 if(index >= count)
                 {
@@ -5158,7 +5173,7 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
 
             case WA_INSTR_call:
             {
-                wa_func* callee = &instance->functions[pc[0].valI64];
+                wa_func* callee = &instance->functions[I0.valI64];
 
                 if(callee->code)
                 {
@@ -5173,7 +5188,7 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
                         return (WA_TRAP_STACK_OVERFLOW);
                     }
 
-                    locals += pc[1].valI64;
+                    locals += I1.valI64;
                     pc = callee->code;
                 }
                 else if(callee->extInstance)
@@ -5185,9 +5200,9 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
                     wa_status status = wa_instance_invoke(callee->extInstance,
                                                           extFunc,
                                                           callee->type->paramCount,
-                                                          locals + pc[1].valI64,
+                                                          locals + I1.valI64,
                                                           callee->type->returnCount,
-                                                          locals + pc[1].valI64);
+                                                          locals + I1.valI64);
 
                     if(status != WA_OK)
                     {
@@ -5198,7 +5213,7 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
                 else
                 {
                     wa_value* saveLocals = locals;
-                    locals += pc[1].valI64;
+                    locals += I1.valI64;
                     callee->proc(locals, locals);
                     pc += 2;
                     locals = saveLocals;
@@ -5208,10 +5223,10 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
 
             case WA_INSTR_call_indirect:
             {
-                u32 typeIndex = *(u32*)&pc[0].valI32;
-                u32 tableIndex = *(u32*)&pc[1].valI32;
-                i64 maxUsedSlot = pc[2].valI64;
-                u32 index = *(u32*)&(locals[pc[3].valI32].valI32);
+                u32 typeIndex = *(u32*)&I0.valI32;
+                u32 tableIndex = *(u32*)&I1.valI32;
+                i64 maxUsedSlot = I2.valI64;
+                u32 index = *(u32*)&(L3.valI32);
 
                 wa_table* table = instance->tables[tableIndex];
                 u32 funcIndex = *(u32*)&table->contents[index].valI32;
@@ -5285,59 +5300,59 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
 
             case WA_INSTR_ref_null:
             {
-                locals[pc[0].valI32].valI64 = 0; //???
+                L0.valI64 = 0; //???
                 pc += 1;
             }
             break;
 
             case WA_INSTR_ref_is_null:
             {
-                locals[pc[1].valI32].valI32 = (locals[pc[0].valI32].valI64 == 0) ? 1 : 0;
+                L1.valI32 = (L0.valI64 == 0) ? 1 : 0;
                 pc += 2;
             }
             break;
 
             case WA_INSTR_ref_func:
             {
-                locals[pc[1].valI32].valI64 = pc[0].valI64 + 1; //???
+                L1.valI64 = I0.valI64 + 1; //???
                 pc += 2;
             }
             break;
 
             case WA_INSTR_i32_add:
             {
-                locals[pc[2].valI32].valI32 = locals[pc[0].valI32].valI32 + locals[pc[1].valI32].valI32;
+                L2.valI32 = L0.valI32 + L1.valI32;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i32_sub:
             {
-                locals[pc[2].valI32].valI32 = locals[pc[0].valI32].valI32 - locals[pc[1].valI32].valI32;
+                L2.valI32 = L0.valI32 - L1.valI32;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i32_mul:
             {
-                locals[pc[2].valI32].valI32 = locals[pc[0].valI32].valI32 * locals[pc[1].valI32].valI32;
+                L2.valI32 = L0.valI32 * L1.valI32;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i32_div_s:
             {
-                if(locals[pc[1].valI32].valI32 == 0)
+                if(L1.valI32 == 0)
                 {
                     return WA_TRAP_DIVIDE_BY_ZERO;
                 }
-                else if(locals[pc[0].valI32].valI32 == INT32_MIN && locals[pc[1].valI32].valI32 == -1)
+                else if(L0.valI32 == INT32_MIN && L1.valI32 == -1)
                 {
                     return WA_TRAP_INTEGER_OVERFLOW;
                 }
                 else
                 {
-                    locals[pc[2].valI32].valI32 = locals[pc[0].valI32].valI32 / locals[pc[1].valI32].valI32;
+                    L2.valI32 = L0.valI32 / L1.valI32;
                 }
                 pc += 3;
             }
@@ -5345,13 +5360,13 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
 
             case WA_INSTR_i32_div_u:
             {
-                if(locals[pc[1].valI32].valI32 == 0)
+                if(L1.valI32 == 0)
                 {
                     return WA_TRAP_DIVIDE_BY_ZERO;
                 }
                 else
                 {
-                    *(u32*)&locals[pc[2].valI32].valI32 = *(u32*)&locals[pc[0].valI32].valI32 / *(u32*)&locals[pc[1].valI32].valI32;
+                    *(u32*)&L2.valI32 = *(u32*)&L0.valI32 / *(u32*)&L1.valI32;
                 }
                 pc += 3;
             }
@@ -5359,17 +5374,17 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
 
             case WA_INSTR_i32_rem_s:
             {
-                if(locals[pc[1].valI32].valI32 == 0)
+                if(L1.valI32 == 0)
                 {
                     return WA_TRAP_DIVIDE_BY_ZERO;
                 }
-                else if(locals[pc[0].valI32].valI32 == INT32_MIN && locals[pc[1].valI32].valI32 == -1)
+                else if(L0.valI32 == INT32_MIN && L1.valI32 == -1)
                 {
-                    locals[pc[2].valI32].valI32 = 0;
+                    L2.valI32 = 0;
                 }
                 else
                 {
-                    locals[pc[2].valI32].valI32 = locals[pc[0].valI32].valI32 % locals[pc[1].valI32].valI32;
+                    L2.valI32 = L0.valI32 % L1.valI32;
                 }
                 pc += 3;
             }
@@ -5377,13 +5392,13 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
 
             case WA_INSTR_i32_rem_u:
             {
-                if(locals[pc[1].valI32].valI32 == 0)
+                if(L1.valI32 == 0)
                 {
                     return WA_TRAP_DIVIDE_BY_ZERO;
                 }
                 else
                 {
-                    *(u32*)&locals[pc[2].valI32].valI32 = *(u32*)&locals[pc[0].valI32].valI32 % *(u32*)&locals[pc[1].valI32].valI32;
+                    *(u32*)&L2.valI32 = *(u32*)&L0.valI32 % *(u32*)&L1.valI32;
                 }
                 pc += 3;
             }
@@ -5391,73 +5406,73 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
 
             case WA_INSTR_i32_and:
             {
-                locals[pc[2].valI32].valI32 = locals[pc[0].valI32].valI32 & locals[pc[1].valI32].valI32;
+                L2.valI32 = L0.valI32 & L1.valI32;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i32_or:
             {
-                locals[pc[2].valI32].valI32 = locals[pc[0].valI32].valI32 | locals[pc[1].valI32].valI32;
+                L2.valI32 = L0.valI32 | L1.valI32;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i32_xor:
             {
-                locals[pc[2].valI32].valI32 = locals[pc[0].valI32].valI32 ^ locals[pc[1].valI32].valI32;
+                L2.valI32 = L0.valI32 ^ L1.valI32;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i32_shl:
             {
-                locals[pc[2].valI32].valI32 = locals[pc[0].valI32].valI32 << locals[pc[1].valI32].valI32;
+                L2.valI32 = L0.valI32 << L1.valI32;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i32_shr_s:
             {
-                locals[pc[2].valI32].valI32 = locals[pc[0].valI32].valI32 >> locals[pc[1].valI32].valI32;
+                L2.valI32 = L0.valI32 >> L1.valI32;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i32_shr_u:
             {
-                *(u32*)&locals[pc[2].valI32].valI32 = *(u32*)&locals[pc[0].valI32].valI32 >> *(u32*)&locals[pc[1].valI32].valI32;
+                *(u32*)&L2.valI32 = *(u32*)&L0.valI32 >> *(u32*)&L1.valI32;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i32_rotr:
             {
-                u32 n = *(u32*)&locals[pc[0].valI32].valI32;
-                u32 r = *(u32*)&locals[pc[1].valI32].valI32;
-                *(u32*)&locals[pc[2].valI32].valI32 = (n >> r) | (n << (32 - r));
+                u32 n = *(u32*)&L0.valI32;
+                u32 r = *(u32*)&L1.valI32;
+                *(u32*)&L2.valI32 = (n >> r) | (n << (32 - r));
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i32_rotl:
             {
-                u32 n = *(u32*)&locals[pc[0].valI32].valI32;
-                u32 r = *(u32*)&locals[pc[1].valI32].valI32;
-                *(u32*)&locals[pc[2].valI32].valI32 = (n << r) | (n >> (32 - r));
+                u32 n = *(u32*)&L0.valI32;
+                u32 r = *(u32*)&L1.valI32;
+                *(u32*)&L2.valI32 = (n << r) | (n >> (32 - r));
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i32_clz:
             {
-                if(locals[pc[0].valI32].valI32 == 0)
+                if(L0.valI32 == 0)
                 {
-                    locals[pc[1].valI32].valI32 = 32;
+                    L1.valI32 = 32;
                 }
                 else
                 {
-                    locals[pc[1].valI32].valI32 = __builtin_clz(*(u32*)&locals[pc[0].valI32].valI32);
+                    L1.valI32 = __builtin_clz(*(u32*)&L0.valI32);
                 }
                 pc += 2;
             }
@@ -5465,13 +5480,13 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
 
             case WA_INSTR_i32_ctz:
             {
-                if(locals[pc[0].valI32].valI32 == 0)
+                if(L0.valI32 == 0)
                 {
-                    locals[pc[1].valI32].valI32 = 32;
+                    L1.valI32 = 32;
                 }
                 else
                 {
-                    locals[pc[1].valI32].valI32 = __builtin_ctz(*(u32*)&locals[pc[0].valI32].valI32);
+                    L1.valI32 = __builtin_ctz(*(u32*)&L0.valI32);
                 }
                 pc += 2;
             }
@@ -5479,136 +5494,136 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
 
             case WA_INSTR_i32_popcnt:
             {
-                locals[pc[1].valI32].valI32 = __builtin_popcount(*(u32*)&locals[pc[0].valI32].valI32);
+                L1.valI32 = __builtin_popcount(*(u32*)&L0.valI32);
                 pc += 2;
             }
             break;
 
             case WA_INSTR_i32_extend8_s:
             {
-                locals[pc[1].valI32].valI32 = (i32)(i8)(locals[pc[0].valI32].valI32 & 0xff);
+                L1.valI32 = (i32)(i8)(L0.valI32 & 0xff);
                 pc += 2;
             }
             break;
 
             case WA_INSTR_i32_extend16_s:
             {
-                locals[pc[1].valI32].valI32 = (i32)(i16)(locals[pc[0].valI32].valI32 & 0xffff);
+                L1.valI32 = (i32)(i16)(L0.valI32 & 0xffff);
                 pc += 2;
             }
             break;
 
             case WA_INSTR_i32_eqz:
             {
-                locals[pc[1].valI32].valI32 = (locals[pc[0].valI32].valI32 == 0) ? 1 : 0;
+                L1.valI32 = (L0.valI32 == 0) ? 1 : 0;
                 pc += 2;
             }
             break;
 
             case WA_INSTR_i32_eq:
             {
-                locals[pc[2].valI32].valI32 = (locals[pc[0].valI32].valI32 == locals[pc[1].valI32].valI32) ? 1 : 0;
+                L2.valI32 = (L0.valI32 == L1.valI32) ? 1 : 0;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i32_ne:
             {
-                locals[pc[2].valI32].valI32 = (locals[pc[0].valI32].valI32 != locals[pc[1].valI32].valI32) ? 1 : 0;
+                L2.valI32 = (L0.valI32 != L1.valI32) ? 1 : 0;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i32_lt_s:
             {
-                locals[pc[2].valI32].valI32 = (locals[pc[0].valI32].valI32 < locals[pc[1].valI32].valI32) ? 1 : 0;
+                L2.valI32 = (L0.valI32 < L1.valI32) ? 1 : 0;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i32_lt_u:
             {
-                locals[pc[2].valI32].valI32 = (*(u32*)&locals[pc[0].valI32].valI32 < *(u32*)&locals[pc[1].valI32].valI32) ? 1 : 0;
+                L2.valI32 = (*(u32*)&L0.valI32 < *(u32*)&L1.valI32) ? 1 : 0;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i32_le_s:
             {
-                locals[pc[2].valI32].valI32 = (locals[pc[0].valI32].valI32 <= locals[pc[1].valI32].valI32) ? 1 : 0;
+                L2.valI32 = (L0.valI32 <= L1.valI32) ? 1 : 0;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i32_le_u:
             {
-                locals[pc[2].valI32].valI32 = (*(u32*)&locals[pc[0].valI32].valI32 <= *(u32*)&locals[pc[1].valI32].valI32) ? 1 : 0;
+                L2.valI32 = (*(u32*)&L0.valI32 <= *(u32*)&L1.valI32) ? 1 : 0;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i32_gt_s:
             {
-                locals[pc[2].valI32].valI32 = (locals[pc[0].valI32].valI32 > locals[pc[1].valI32].valI32) ? 1 : 0;
+                L2.valI32 = (L0.valI32 > L1.valI32) ? 1 : 0;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i32_gt_u:
             {
-                locals[pc[2].valI32].valI32 = (*(u32*)&locals[pc[0].valI32].valI32 > *(u32*)&locals[pc[1].valI32].valI32) ? 1 : 0;
+                L2.valI32 = (*(u32*)&L0.valI32 > *(u32*)&L1.valI32) ? 1 : 0;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i32_ge_s:
             {
-                locals[pc[2].valI32].valI32 = (locals[pc[0].valI32].valI32 >= locals[pc[1].valI32].valI32) ? 1 : 0;
+                L2.valI32 = (L0.valI32 >= L1.valI32) ? 1 : 0;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i32_ge_u:
             {
-                locals[pc[2].valI32].valI32 = (*(u32*)&locals[pc[0].valI32].valI32 >= *(u32*)&locals[pc[1].valI32].valI32) ? 1 : 0;
+                L2.valI32 = (*(u32*)&L0.valI32 >= *(u32*)&L1.valI32) ? 1 : 0;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i64_add:
             {
-                locals[pc[2].valI32].valI64 = locals[pc[0].valI32].valI64 + locals[pc[1].valI32].valI64;
+                L2.valI64 = L0.valI64 + L1.valI64;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i64_sub:
             {
-                locals[pc[2].valI32].valI64 = locals[pc[0].valI32].valI64 - locals[pc[1].valI32].valI64;
+                L2.valI64 = L0.valI64 - L1.valI64;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i64_mul:
             {
-                locals[pc[2].valI32].valI64 = locals[pc[0].valI32].valI64 * locals[pc[1].valI32].valI64;
+                L2.valI64 = L0.valI64 * L1.valI64;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i64_div_s:
             {
-                if(locals[pc[1].valI32].valI64 == 0)
+                if(L1.valI64 == 0)
                 {
                     return WA_TRAP_DIVIDE_BY_ZERO;
                 }
-                else if(locals[pc[0].valI32].valI64 == INT64_MIN && locals[pc[1].valI32].valI64 == -1)
+                else if(L0.valI64 == INT64_MIN && L1.valI64 == -1)
                 {
                     return WA_TRAP_INTEGER_OVERFLOW;
                 }
                 else
                 {
-                    locals[pc[2].valI32].valI64 = locals[pc[0].valI32].valI64 / locals[pc[1].valI32].valI64;
+                    L2.valI64 = L0.valI64 / L1.valI64;
                 }
                 pc += 3;
             }
@@ -5616,13 +5631,13 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
 
             case WA_INSTR_i64_div_u:
             {
-                if(locals[pc[1].valI32].valI64 == 0)
+                if(L1.valI64 == 0)
                 {
                     return WA_TRAP_DIVIDE_BY_ZERO;
                 }
                 else
                 {
-                    *(u64*)&locals[pc[2].valI32].valI64 = *(u64*)&locals[pc[0].valI32].valI64 / *(u64*)&locals[pc[1].valI32].valI64;
+                    *(u64*)&L2.valI64 = *(u64*)&L0.valI64 / *(u64*)&L1.valI64;
                 }
                 pc += 3;
             }
@@ -5630,17 +5645,17 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
 
             case WA_INSTR_i64_rem_s:
             {
-                if(locals[pc[1].valI32].valI64 == 0)
+                if(L1.valI64 == 0)
                 {
                     return WA_TRAP_DIVIDE_BY_ZERO;
                 }
-                else if(locals[pc[0].valI32].valI64 == INT64_MIN && locals[pc[1].valI32].valI64 == -1)
+                else if(L0.valI64 == INT64_MIN && L1.valI64 == -1)
                 {
-                    locals[pc[2].valI32].valI64 = 0;
+                    L2.valI64 = 0;
                 }
                 else
                 {
-                    locals[pc[2].valI32].valI64 = locals[pc[0].valI32].valI64 % locals[pc[1].valI32].valI64;
+                    L2.valI64 = L0.valI64 % L1.valI64;
                 }
                 pc += 3;
             }
@@ -5648,13 +5663,13 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
 
             case WA_INSTR_i64_rem_u:
             {
-                if(locals[pc[1].valI32].valI64 == 0)
+                if(L1.valI64 == 0)
                 {
                     return WA_TRAP_DIVIDE_BY_ZERO;
                 }
                 else
                 {
-                    *(u64*)&locals[pc[2].valI32].valI64 = *(u64*)&locals[pc[0].valI32].valI64 % *(u64*)&locals[pc[1].valI32].valI64;
+                    *(u64*)&L2.valI64 = *(u64*)&L0.valI64 % *(u64*)&L1.valI64;
                 }
                 pc += 3;
             }
@@ -5662,73 +5677,73 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
 
             case WA_INSTR_i64_and:
             {
-                locals[pc[2].valI32].valI64 = locals[pc[0].valI32].valI64 & locals[pc[1].valI32].valI64;
+                L2.valI64 = L0.valI64 & L1.valI64;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i64_or:
             {
-                locals[pc[2].valI32].valI64 = locals[pc[0].valI32].valI64 | locals[pc[1].valI32].valI64;
+                L2.valI64 = L0.valI64 | L1.valI64;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i64_xor:
             {
-                locals[pc[2].valI32].valI64 = locals[pc[0].valI32].valI64 ^ locals[pc[1].valI32].valI64;
+                L2.valI64 = L0.valI64 ^ L1.valI64;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i64_shl:
             {
-                locals[pc[2].valI32].valI64 = locals[pc[0].valI32].valI64 << locals[pc[1].valI32].valI64;
+                L2.valI64 = L0.valI64 << L1.valI64;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i64_shr_s:
             {
-                locals[pc[2].valI32].valI64 = locals[pc[0].valI32].valI64 >> locals[pc[1].valI32].valI64;
+                L2.valI64 = L0.valI64 >> L1.valI64;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i64_shr_u:
             {
-                *(u64*)&locals[pc[2].valI32].valI64 = *(u64*)&locals[pc[0].valI32].valI64 >> *(u64*)&locals[pc[1].valI32].valI64;
+                *(u64*)&L2.valI64 = *(u64*)&L0.valI64 >> *(u64*)&L1.valI64;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i64_rotr:
             {
-                u64 n = *(u64*)&locals[pc[0].valI32].valI64;
-                u64 r = *(u64*)&locals[pc[1].valI32].valI64;
-                *(u64*)&locals[pc[2].valI32].valI64 = (n >> r) | (n << (64 - r));
+                u64 n = *(u64*)&L0.valI64;
+                u64 r = *(u64*)&L1.valI64;
+                *(u64*)&L2.valI64 = (n >> r) | (n << (64 - r));
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i64_rotl:
             {
-                u64 n = *(u64*)&locals[pc[0].valI32].valI64;
-                u64 r = *(u64*)&locals[pc[1].valI32].valI64;
-                *(u64*)&locals[pc[2].valI32].valI64 = (n << r) | (n >> (64 - r));
+                u64 n = *(u64*)&L0.valI64;
+                u64 r = *(u64*)&L1.valI64;
+                *(u64*)&L2.valI64 = (n << r) | (n >> (64 - r));
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i64_clz:
             {
-                if(locals[pc[0].valI32].valI64 == 0)
+                if(L0.valI64 == 0)
                 {
-                    locals[pc[1].valI32].valI64 = 64;
+                    L1.valI64 = 64;
                 }
                 else
                 {
-                    locals[pc[1].valI32].valI64 = __builtin_clzl(*(u64*)&locals[pc[0].valI32].valI64);
+                    L1.valI64 = __builtin_clzl(*(u64*)&L0.valI64);
                 }
                 pc += 2;
             }
@@ -5736,13 +5751,13 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
 
             case WA_INSTR_i64_ctz:
             {
-                if(locals[pc[0].valI32].valI64 == 0)
+                if(L0.valI64 == 0)
                 {
-                    locals[pc[1].valI32].valI64 = 64;
+                    L1.valI64 = 64;
                 }
                 else
                 {
-                    locals[pc[1].valI32].valI64 = __builtin_ctzl(*(u64*)&locals[pc[0].valI32].valI64);
+                    L1.valI64 = __builtin_ctzl(*(u64*)&L0.valI64);
                 }
                 pc += 2;
             }
@@ -5750,276 +5765,276 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
 
             case WA_INSTR_i64_popcnt:
             {
-                locals[pc[1].valI32].valI64 = __builtin_popcountl(*(u64*)&locals[pc[0].valI32].valI64);
+                L1.valI64 = __builtin_popcountl(*(u64*)&L0.valI64);
                 pc += 2;
             }
             break;
 
             case WA_INSTR_i64_extend8_s:
             {
-                locals[pc[1].valI32].valI64 = (i64)(i8)(locals[pc[0].valI32].valI64 & 0xff);
+                L1.valI64 = (i64)(i8)(L0.valI64 & 0xff);
                 pc += 2;
             }
             break;
 
             case WA_INSTR_i64_extend16_s:
             {
-                locals[pc[1].valI32].valI64 = (i64)(i16)(locals[pc[0].valI32].valI64 & 0xffff);
+                L1.valI64 = (i64)(i16)(L0.valI64 & 0xffff);
                 pc += 2;
             }
             break;
 
             case WA_INSTR_i64_extend32_s:
             {
-                locals[pc[1].valI32].valI64 = (i64)(i32)(locals[pc[0].valI32].valI64 & 0xffffffff);
+                L1.valI64 = (i64)(i32)(L0.valI64 & 0xffffffff);
                 pc += 2;
             }
             break;
 
             case WA_INSTR_i64_eqz:
             {
-                locals[pc[1].valI32].valI32 = (locals[pc[0].valI32].valI64 == 0) ? 1 : 0;
+                L1.valI32 = (L0.valI64 == 0) ? 1 : 0;
                 pc += 2;
             }
             break;
 
             case WA_INSTR_i64_eq:
             {
-                locals[pc[2].valI32].valI32 = (locals[pc[0].valI32].valI64 == locals[pc[1].valI32].valI64) ? 1 : 0;
+                L2.valI32 = (L0.valI64 == L1.valI64) ? 1 : 0;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i64_ne:
             {
-                locals[pc[2].valI32].valI32 = (locals[pc[0].valI32].valI64 != locals[pc[1].valI32].valI64) ? 1 : 0;
+                L2.valI32 = (L0.valI64 != L1.valI64) ? 1 : 0;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i64_lt_s:
             {
-                locals[pc[2].valI32].valI32 = (locals[pc[0].valI32].valI64 < locals[pc[1].valI32].valI64) ? 1 : 0;
+                L2.valI32 = (L0.valI64 < L1.valI64) ? 1 : 0;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i64_lt_u:
             {
-                locals[pc[2].valI32].valI32 = (*(u64*)&locals[pc[0].valI32].valI64 < *(u64*)&locals[pc[1].valI32].valI64) ? 1 : 0;
+                L2.valI32 = (*(u64*)&L0.valI64 < *(u64*)&L1.valI64) ? 1 : 0;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i64_le_s:
             {
-                locals[pc[2].valI32].valI32 = (locals[pc[0].valI32].valI64 <= locals[pc[1].valI32].valI64) ? 1 : 0;
+                L2.valI32 = (L0.valI64 <= L1.valI64) ? 1 : 0;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i64_le_u:
             {
-                locals[pc[2].valI32].valI32 = (*(u64*)&locals[pc[0].valI32].valI64 <= *(u64*)&locals[pc[1].valI32].valI64) ? 1 : 0;
+                L2.valI32 = (*(u64*)&L0.valI64 <= *(u64*)&L1.valI64) ? 1 : 0;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i64_gt_s:
             {
-                locals[pc[2].valI32].valI32 = (locals[pc[0].valI32].valI64 > locals[pc[1].valI32].valI64) ? 1 : 0;
+                L2.valI32 = (L0.valI64 > L1.valI64) ? 1 : 0;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i64_gt_u:
             {
-                locals[pc[2].valI32].valI32 = (*(u64*)&locals[pc[0].valI32].valI64 > *(u64*)&locals[pc[1].valI32].valI64) ? 1 : 0;
+                L2.valI32 = (*(u64*)&L0.valI64 > *(u64*)&L1.valI64) ? 1 : 0;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i64_ge_s:
             {
-                locals[pc[2].valI32].valI32 = (locals[pc[0].valI32].valI64 >= locals[pc[1].valI32].valI64) ? 1 : 0;
+                L2.valI32 = (L0.valI64 >= L1.valI64) ? 1 : 0;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i64_ge_u:
             {
-                locals[pc[2].valI32].valI32 = (*(u64*)&locals[pc[0].valI32].valI64 >= *(u64*)&locals[pc[1].valI32].valI64) ? 1 : 0;
+                L2.valI32 = (*(u64*)&L0.valI64 >= *(u64*)&L1.valI64) ? 1 : 0;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_f32_eq:
             {
-                locals[pc[2].valI32].valI32 = (locals[pc[0].valI32].valF32 == locals[pc[1].valI32].valF32) ? 1 : 0;
+                L2.valI32 = (L0.valF32 == L1.valF32) ? 1 : 0;
                 pc += 3;
             }
             break;
             case WA_INSTR_f32_ne:
             {
-                locals[pc[2].valI32].valI32 = (locals[pc[0].valI32].valF32 != locals[pc[1].valI32].valF32) ? 1 : 0;
+                L2.valI32 = (L0.valF32 != L1.valF32) ? 1 : 0;
                 pc += 3;
             }
             break;
             case WA_INSTR_f32_lt:
             {
-                locals[pc[2].valI32].valI32 = (locals[pc[0].valI32].valF32 < locals[pc[1].valI32].valF32) ? 1 : 0;
+                L2.valI32 = (L0.valF32 < L1.valF32) ? 1 : 0;
                 pc += 3;
             }
             break;
             case WA_INSTR_f32_gt:
             {
-                locals[pc[2].valI32].valI32 = (locals[pc[0].valI32].valF32 > locals[pc[1].valI32].valF32) ? 1 : 0;
+                L2.valI32 = (L0.valF32 > L1.valF32) ? 1 : 0;
                 pc += 3;
             }
             break;
             case WA_INSTR_f32_le:
             {
-                locals[pc[2].valI32].valI32 = (locals[pc[0].valI32].valF32 <= locals[pc[1].valI32].valF32) ? 1 : 0;
+                L2.valI32 = (L0.valF32 <= L1.valF32) ? 1 : 0;
                 pc += 3;
             }
             break;
             case WA_INSTR_f32_ge:
             {
-                locals[pc[2].valI32].valI32 = (locals[pc[0].valI32].valF32 >= locals[pc[1].valI32].valF32) ? 1 : 0;
+                L2.valI32 = (L0.valF32 >= L1.valF32) ? 1 : 0;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_f64_eq:
             {
-                locals[pc[2].valI32].valI32 = (locals[pc[0].valI32].valF64 == locals[pc[1].valI32].valF64) ? 1 : 0;
+                L2.valI32 = (L0.valF64 == L1.valF64) ? 1 : 0;
                 pc += 3;
             }
             break;
             case WA_INSTR_f64_ne:
             {
-                locals[pc[2].valI32].valI32 = (locals[pc[0].valI32].valF64 != locals[pc[1].valI32].valF64) ? 1 : 0;
+                L2.valI32 = (L0.valF64 != L1.valF64) ? 1 : 0;
                 pc += 3;
             }
             break;
             case WA_INSTR_f64_lt:
             {
-                locals[pc[2].valI32].valI32 = (locals[pc[0].valI32].valF64 < locals[pc[1].valI32].valF64) ? 1 : 0;
+                L2.valI32 = (L0.valF64 < L1.valF64) ? 1 : 0;
                 pc += 3;
             }
             break;
             case WA_INSTR_f64_gt:
             {
-                locals[pc[2].valI32].valI32 = (locals[pc[0].valI32].valF64 > locals[pc[1].valI32].valF64) ? 1 : 0;
+                L2.valI32 = (L0.valF64 > L1.valF64) ? 1 : 0;
                 pc += 3;
             }
             break;
             case WA_INSTR_f64_le:
             {
-                locals[pc[2].valI32].valI32 = (locals[pc[0].valI32].valF64 <= locals[pc[1].valI32].valF64) ? 1 : 0;
+                L2.valI32 = (L0.valF64 <= L1.valF64) ? 1 : 0;
                 pc += 3;
             }
             break;
             case WA_INSTR_f64_ge:
             {
-                locals[pc[2].valI32].valI32 = (locals[pc[0].valI32].valF64 >= locals[pc[1].valI32].valF64) ? 1 : 0;
+                L2.valI32 = (L0.valF64 >= L1.valF64) ? 1 : 0;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_f32_abs:
             {
-                locals[pc[1].valI32].valF32 = fabsf(locals[pc[0].valI32].valF32);
+                L1.valF32 = fabsf(L0.valF32);
                 pc += 2;
             }
             break;
 
             case WA_INSTR_f32_neg:
             {
-                locals[pc[1].valI32].valF32 = -locals[pc[0].valI32].valF32;
+                L1.valF32 = -L0.valF32;
                 pc += 2;
             }
             break;
 
             case WA_INSTR_f32_ceil:
             {
-                locals[pc[1].valI32].valF32 = ceilf(locals[pc[0].valI32].valF32);
+                L1.valF32 = ceilf(L0.valF32);
                 pc += 2;
             }
             break;
 
             case WA_INSTR_f32_floor:
             {
-                locals[pc[1].valI32].valF32 = floorf(locals[pc[0].valI32].valF32);
+                L1.valF32 = floorf(L0.valF32);
                 pc += 2;
             }
             break;
 
             case WA_INSTR_f32_trunc:
             {
-                locals[pc[1].valI32].valF32 = truncf(locals[pc[0].valI32].valF32);
+                L1.valF32 = truncf(L0.valF32);
                 pc += 2;
             }
             break;
 
             case WA_INSTR_f32_nearest:
             {
-                locals[pc[1].valI32].valF32 = rintf(locals[pc[0].valI32].valF32);
+                L1.valF32 = rintf(L0.valF32);
                 pc += 2;
             }
             break;
 
             case WA_INSTR_f32_sqrt:
             {
-                locals[pc[1].valI32].valF32 = sqrtf(locals[pc[0].valI32].valF32);
+                L1.valF32 = sqrtf(L0.valF32);
                 pc += 2;
             }
             break;
 
             case WA_INSTR_f32_add:
             {
-                locals[pc[2].valI32].valF32 = locals[pc[0].valI32].valF32 + locals[pc[1].valI32].valF32;
+                L2.valF32 = L0.valF32 + L1.valF32;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_f32_sub:
             {
-                locals[pc[2].valI32].valF32 = locals[pc[0].valI32].valF32 - locals[pc[1].valI32].valF32;
+                L2.valF32 = L0.valF32 - L1.valF32;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_f32_mul:
             {
-                locals[pc[2].valI32].valF32 = locals[pc[0].valI32].valF32 * locals[pc[1].valI32].valF32;
+                L2.valF32 = L0.valF32 * L1.valF32;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_f32_div:
             {
-                locals[pc[2].valI32].valF32 = locals[pc[0].valI32].valF32 / locals[pc[1].valI32].valF32;
+                L2.valF32 = L0.valF32 / L1.valF32;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_f32_min:
             {
-                f32 a = locals[pc[0].valI32].valF32;
-                f32 b = locals[pc[1].valI32].valF32;
+                f32 a = L0.valF32;
+                f32 b = L1.valF32;
                 if(isnan(a) || isnan(b))
                 {
                     u32 u = 0x7fc00000;
-                    memcpy(&locals[pc[2].valI32].valF32, &u, sizeof(f32));
+                    memcpy(&L2.valF32, &u, sizeof(f32));
                 }
                 else if(a == 0 && b == 0)
                 {
-                    locals[pc[2].valI32].valF32 = signbit(a) ? a : b;
+                    L2.valF32 = signbit(a) ? a : b;
                 }
                 else
                 {
-                    locals[pc[2].valI32].valF32 = oc_min(a, b);
+                    L2.valF32 = oc_min(a, b);
                 }
                 pc += 3;
             }
@@ -6027,21 +6042,21 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
 
             case WA_INSTR_f32_max:
             {
-                f32 a = locals[pc[0].valI32].valF32;
-                f32 b = locals[pc[1].valI32].valF32;
+                f32 a = L0.valF32;
+                f32 b = L1.valF32;
                 if(isnan(a) || isnan(b))
                 {
                     u32 u = 0x7fc00000;
-                    memcpy(&locals[pc[2].valI32].valF32, &u, sizeof(f32));
+                    memcpy(&L2.valF32, &u, sizeof(f32));
                 }
                 else if(a == 0 && b == 0)
                 {
-                    locals[pc[2].valI32].valF32 = signbit(a) ? b : a;
+                    L2.valF32 = signbit(a) ? b : a;
                 }
 
                 else
                 {
-                    locals[pc[2].valI32].valF32 = oc_max(a, b);
+                    L2.valF32 = oc_max(a, b);
                 }
                 pc += 3;
             }
@@ -6049,105 +6064,105 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
 
             case WA_INSTR_f32_copysign:
             {
-                locals[pc[2].valI32].valF32 = copysignf(locals[pc[0].valI32].valF32, locals[pc[1].valI32].valF32);
+                L2.valF32 = copysignf(L0.valF32, L1.valF32);
                 pc += 3;
             }
             break;
 
             case WA_INSTR_f64_abs:
             {
-                locals[pc[1].valI32].valF64 = fabs(locals[pc[0].valI32].valF64);
+                L1.valF64 = fabs(L0.valF64);
                 pc += 2;
             }
             break;
 
             case WA_INSTR_f64_neg:
             {
-                locals[pc[1].valI32].valF64 = -locals[pc[0].valI32].valF64;
+                L1.valF64 = -L0.valF64;
                 pc += 2;
             }
             break;
 
             case WA_INSTR_f64_ceil:
             {
-                locals[pc[1].valI32].valF64 = ceil(locals[pc[0].valI32].valF64);
+                L1.valF64 = ceil(L0.valF64);
                 pc += 2;
             }
             break;
 
             case WA_INSTR_f64_floor:
             {
-                locals[pc[1].valI32].valF64 = floor(locals[pc[0].valI32].valF64);
+                L1.valF64 = floor(L0.valF64);
                 pc += 2;
             }
             break;
 
             case WA_INSTR_f64_trunc:
             {
-                locals[pc[1].valI32].valF64 = trunc(locals[pc[0].valI32].valF64);
+                L1.valF64 = trunc(L0.valF64);
                 pc += 2;
             }
             break;
 
             case WA_INSTR_f64_nearest:
             {
-                locals[pc[1].valI32].valF64 = rint(locals[pc[0].valI32].valF64);
+                L1.valF64 = rint(L0.valF64);
                 pc += 2;
             }
             break;
 
             case WA_INSTR_f64_sqrt:
             {
-                locals[pc[1].valI32].valF64 = sqrt(locals[pc[0].valI32].valF64);
+                L1.valF64 = sqrt(L0.valF64);
                 pc += 2;
             }
             break;
 
             case WA_INSTR_f64_add:
             {
-                locals[pc[2].valI32].valF64 = locals[pc[0].valI32].valF64 + locals[pc[1].valI32].valF64;
+                L2.valF64 = L0.valF64 + L1.valF64;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_f64_sub:
             {
-                locals[pc[2].valI32].valF64 = locals[pc[0].valI32].valF64 - locals[pc[1].valI32].valF64;
+                L2.valF64 = L0.valF64 - L1.valF64;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_f64_mul:
             {
-                locals[pc[2].valI32].valF64 = locals[pc[0].valI32].valF64 * locals[pc[1].valI32].valF64;
+                L2.valF64 = L0.valF64 * L1.valF64;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_f64_div:
             {
-                locals[pc[2].valI32].valF64 = locals[pc[0].valI32].valF64 / locals[pc[1].valI32].valF64;
+                L2.valF64 = L0.valF64 / L1.valF64;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_f64_min:
             {
-                f64 a = locals[pc[0].valI32].valF64;
-                f64 b = locals[pc[1].valI32].valF64;
+                f64 a = L0.valF64;
+                f64 b = L1.valF64;
 
                 if(isnan(a) || isnan(b))
                 {
                     u64 u = 0x7ff8000000000000;
-                    memcpy(&locals[pc[2].valI32].valF64, &u, sizeof(f64));
+                    memcpy(&L2.valF64, &u, sizeof(f64));
                 }
                 else if(a == 0 && b == 0)
                 {
-                    locals[pc[2].valI32].valF64 = signbit(a) ? a : b;
+                    L2.valF64 = signbit(a) ? a : b;
                 }
                 else
                 {
-                    locals[pc[2].valI32].valF64 = oc_min(a, b);
+                    L2.valF64 = oc_min(a, b);
                 }
                 pc += 3;
             }
@@ -6155,21 +6170,21 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
 
             case WA_INSTR_f64_max:
             {
-                f64 a = locals[pc[0].valI32].valF64;
-                f64 b = locals[pc[1].valI32].valF64;
+                f64 a = L0.valF64;
+                f64 b = L1.valF64;
 
                 if(isnan(a) || isnan(b))
                 {
                     u64 u = 0x7ff8000000000000;
-                    memcpy(&locals[pc[2].valI32].valF64, &u, sizeof(f64));
+                    memcpy(&L2.valF64, &u, sizeof(f64));
                 }
                 else if(a == 0 && b == 0)
                 {
-                    locals[pc[2].valI32].valF64 = signbit(a) ? b : a;
+                    L2.valF64 = signbit(a) ? b : a;
                 }
                 else
                 {
-                    locals[pc[2].valI32].valF64 = oc_max(a, b);
+                    L2.valF64 = oc_max(a, b);
                 }
                 pc += 3;
             }
@@ -6177,261 +6192,261 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
 
             case WA_INSTR_f64_copysign:
             {
-                locals[pc[2].valI32].valF64 = copysign(locals[pc[0].valI32].valF64, locals[pc[1].valI32].valF64);
+                L2.valF64 = copysign(L0.valF64, L1.valF64);
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i32_wrap_i64:
             {
-                locals[pc[1].valI32].valI32 = (locals[pc[0].valI32].valI64 & 0x00000000ffffffff);
+                L1.valI32 = (L0.valI64 & 0x00000000ffffffff);
                 pc += 2;
             }
             break;
 
             case WA_INSTR_i32_trunc_f32_s:
             {
-                if(isnan(locals[pc[0].valI32].valF32))
+                if(isnan(L0.valF32))
                 {
                     return WA_TRAP_INVALID_INTEGER_CONVERSION;
                 }
-                else if(locals[pc[0].valI32].valF32 >= 2147483648.0f || locals[pc[0].valI32].valF32 < -2147483648.0f)
+                else if(L0.valF32 >= 2147483648.0f || L0.valF32 < -2147483648.0f)
                 {
                     return WA_TRAP_INTEGER_OVERFLOW;
                 }
 
-                locals[pc[1].valI32].valI32 = (i32)truncf(locals[pc[0].valI32].valF32);
+                L1.valI32 = (i32)truncf(L0.valF32);
                 pc += 2;
             }
             break;
 
             case WA_INSTR_i32_trunc_f32_u:
             {
-                if(isnan(locals[pc[0].valI32].valF32))
+                if(isnan(L0.valF32))
                 {
                     return WA_TRAP_INVALID_INTEGER_CONVERSION;
                 }
 
-                if(locals[pc[0].valI32].valF32 >= 4294967296.0f || locals[pc[0].valI32].valF32 <= -1.0f)
+                if(L0.valF32 >= 4294967296.0f || L0.valF32 <= -1.0f)
                 {
                     return WA_TRAP_INTEGER_OVERFLOW;
                 }
 
-                *(u32*)&locals[pc[1].valI32].valI32 = (u32)truncf(locals[pc[0].valI32].valF32);
+                *(u32*)&L1.valI32 = (u32)truncf(L0.valF32);
                 pc += 2;
             }
             break;
 
             case WA_INSTR_i32_trunc_f64_s:
             {
-                if(isnan(locals[pc[0].valI32].valF64))
+                if(isnan(L0.valF64))
                 {
                     return WA_TRAP_INVALID_INTEGER_CONVERSION;
                 }
 
-                if(locals[pc[0].valI32].valF64 >= 2147483648.0 || locals[pc[0].valI32].valF64 <= -2147483649.0)
+                if(L0.valF64 >= 2147483648.0 || L0.valF64 <= -2147483649.0)
                 {
                     return WA_TRAP_INTEGER_OVERFLOW;
                 }
 
-                locals[pc[1].valI32].valI32 = (i32)trunc(locals[pc[0].valI32].valF64);
+                L1.valI32 = (i32)trunc(L0.valF64);
                 pc += 2;
             }
             break;
             case WA_INSTR_i32_trunc_f64_u:
             {
-                if(isnan(locals[pc[0].valI32].valF64))
+                if(isnan(L0.valF64))
                 {
                     return WA_TRAP_INVALID_INTEGER_CONVERSION;
                 }
 
-                if(locals[pc[0].valI32].valF64 >= 4294967296.0 || locals[pc[0].valI32].valF64 <= -1.0)
+                if(L0.valF64 >= 4294967296.0 || L0.valF64 <= -1.0)
                 {
                     return WA_TRAP_INTEGER_OVERFLOW;
                 }
 
-                *(u32*)&locals[pc[1].valI32].valI32 = (u32)trunc(locals[pc[0].valI32].valF64);
+                *(u32*)&L1.valI32 = (u32)trunc(L0.valF64);
                 pc += 2;
             }
             break;
 
             case WA_INSTR_i64_trunc_f32_s:
             {
-                if(isnan(locals[pc[0].valI32].valF32))
+                if(isnan(L0.valF32))
                 {
                     return WA_TRAP_INVALID_INTEGER_CONVERSION;
                 }
 
-                if(locals[pc[0].valI32].valF32 >= 9223372036854775808.0f || locals[pc[0].valI32].valF32 < -9223372036854775808.0f)
+                if(L0.valF32 >= 9223372036854775808.0f || L0.valF32 < -9223372036854775808.0f)
                 {
                     return WA_TRAP_INTEGER_OVERFLOW;
                 }
 
-                locals[pc[1].valI32].valI64 = (i64)truncf(locals[pc[0].valI32].valF32);
+                L1.valI64 = (i64)truncf(L0.valF32);
                 pc += 2;
             }
             break;
 
             case WA_INSTR_i64_trunc_f32_u:
             {
-                if(isnan(locals[pc[0].valI32].valF32))
+                if(isnan(L0.valF32))
                 {
                     return WA_TRAP_INVALID_INTEGER_CONVERSION;
                 }
 
-                if(locals[pc[0].valI32].valF32 >= 18446744073709551616.0f || locals[pc[0].valI32].valF32 <= -1.0f)
+                if(L0.valF32 >= 18446744073709551616.0f || L0.valF32 <= -1.0f)
                 {
                     return WA_TRAP_INTEGER_OVERFLOW;
                 }
 
-                *(u64*)&locals[pc[1].valI32].valI64 = (u64)truncf(locals[pc[0].valI32].valF32);
+                *(u64*)&L1.valI64 = (u64)truncf(L0.valF32);
                 pc += 2;
             }
             break;
 
             case WA_INSTR_i64_trunc_f64_s:
             {
-                if(isnan(locals[pc[0].valI32].valF64))
+                if(isnan(L0.valF64))
                 {
                     return WA_TRAP_INVALID_INTEGER_CONVERSION;
                 }
 
-                if(locals[pc[0].valI32].valF64 >= 9223372036854775808.0 || locals[pc[0].valI32].valF64 < -9223372036854775808.0)
+                if(L0.valF64 >= 9223372036854775808.0 || L0.valF64 < -9223372036854775808.0)
                 {
                     return WA_TRAP_INTEGER_OVERFLOW;
                 }
 
-                locals[pc[1].valI32].valI64 = (i64)trunc(locals[pc[0].valI32].valF64);
+                L1.valI64 = (i64)trunc(L0.valF64);
                 pc += 2;
             }
             break;
 
             case WA_INSTR_i64_trunc_f64_u:
             {
-                if(isnan(locals[pc[0].valI32].valF64))
+                if(isnan(L0.valF64))
                 {
                     return WA_TRAP_INVALID_INTEGER_CONVERSION;
                 }
 
-                if(locals[pc[0].valI32].valF64 >= 18446744073709551616.0 || locals[pc[0].valI32].valF64 <= -1.0)
+                if(L0.valF64 >= 18446744073709551616.0 || L0.valF64 <= -1.0)
                 {
                     return WA_TRAP_INTEGER_OVERFLOW;
                 }
 
-                *(u64*)&locals[pc[1].valI32].valI64 = (u64)trunc(locals[pc[0].valI32].valF64);
+                *(u64*)&L1.valI64 = (u64)trunc(L0.valF64);
                 pc += 2;
             }
             break;
 
             case WA_INSTR_f32_convert_i32_s:
             {
-                locals[pc[1].valI32].valF32 = (f32)locals[pc[0].valI32].valI32;
+                L1.valF32 = (f32)L0.valI32;
                 pc += 2;
             }
             break;
 
             case WA_INSTR_f32_convert_i32_u:
             {
-                locals[pc[1].valI32].valF32 = (f32) * (u32*)&locals[pc[0].valI32].valI32;
+                L1.valF32 = (f32) * (u32*)&L0.valI32;
                 pc += 2;
             }
             break;
 
             case WA_INSTR_f32_convert_i64_s:
             {
-                locals[pc[1].valI32].valF32 = (f32)locals[pc[0].valI32].valI64;
+                L1.valF32 = (f32)L0.valI64;
                 pc += 2;
             }
             break;
 
             case WA_INSTR_f32_convert_i64_u:
             {
-                locals[pc[1].valI32].valF32 = (f32) * (u64*)&locals[pc[0].valI32].valI64;
+                L1.valF32 = (f32) * (u64*)&L0.valI64;
                 pc += 2;
             }
             break;
 
             case WA_INSTR_f32_demote_f64:
             {
-                locals[pc[1].valI32].valF32 = (f32)locals[pc[0].valI32].valF64;
+                L1.valF32 = (f32)L0.valF64;
                 pc += 2;
             }
             break;
 
             case WA_INSTR_f64_convert_i32_s:
             {
-                locals[pc[1].valI32].valF64 = (f64)locals[pc[0].valI32].valI32;
+                L1.valF64 = (f64)L0.valI32;
                 pc += 2;
             }
             break;
             case WA_INSTR_f64_convert_i32_u:
             {
-                locals[pc[1].valI32].valF64 = (f64) * (u32*)&locals[pc[0].valI32].valI32;
+                L1.valF64 = (f64) * (u32*)&L0.valI32;
                 pc += 2;
             }
             break;
             case WA_INSTR_f64_convert_i64_s:
             {
-                locals[pc[1].valI32].valF64 = (f64)locals[pc[0].valI32].valI64;
+                L1.valF64 = (f64)L0.valI64;
                 pc += 2;
             }
             break;
             case WA_INSTR_f64_convert_i64_u:
             {
-                locals[pc[1].valI32].valF64 = (f64) * (u64*)&locals[pc[0].valI32].valI64;
+                L1.valF64 = (f64) * (u64*)&L0.valI64;
                 pc += 2;
             }
             break;
 
             case WA_INSTR_f64_promote_f32:
             {
-                locals[pc[1].valI32].valF64 = (f64)locals[pc[0].valI32].valF32;
+                L1.valF64 = (f64)L0.valF32;
                 pc += 2;
             }
             break;
 
             case WA_INSTR_i32_reinterpret_f32:
             {
-                locals[pc[1].valI32].valI32 = *(i32*)&locals[pc[0].valI32].valF32;
+                L1.valI32 = *(i32*)&L0.valF32;
                 pc += 2;
             }
             break;
             case WA_INSTR_i64_reinterpret_f64:
             {
-                locals[pc[1].valI32].valI64 = *(i64*)&locals[pc[0].valI32].valF64;
+                L1.valI64 = *(i64*)&L0.valF64;
                 pc += 2;
             }
             break;
             case WA_INSTR_f32_reinterpret_i32:
             {
-                locals[pc[1].valI32].valF32 = *(f32*)&locals[pc[0].valI32].valI32;
+                L1.valF32 = *(f32*)&L0.valI32;
                 pc += 2;
             }
             break;
             case WA_INSTR_f64_reinterpret_i64:
             {
-                locals[pc[1].valI32].valF64 = *(f64*)&locals[pc[0].valI32].valI64;
+                L1.valF64 = *(f64*)&L0.valI64;
                 pc += 2;
             }
             break;
 
             case WA_INSTR_i32_trunc_sat_f32_s:
             {
-                if(isnan(locals[pc[0].valI32].valF32))
+                if(isnan(L0.valF32))
                 {
-                    locals[pc[1].valI32].valI32 = 0;
+                    L1.valI32 = 0;
                 }
-                else if(locals[pc[0].valI32].valF32 >= 2147483648.0f)
+                else if(L0.valF32 >= 2147483648.0f)
                 {
-                    locals[pc[1].valI32].valI32 = INT32_MAX;
+                    L1.valI32 = INT32_MAX;
                 }
-                else if(locals[pc[0].valI32].valF32 < -2147483648.0f)
+                else if(L0.valF32 < -2147483648.0f)
                 {
-                    locals[pc[1].valI32].valI32 = INT32_MIN;
+                    L1.valI32 = INT32_MIN;
                 }
                 else
                 {
-                    locals[pc[1].valI32].valI32 = (i32)truncf(locals[pc[0].valI32].valF32);
+                    L1.valI32 = (i32)truncf(L0.valF32);
                 }
                 pc += 2;
             }
@@ -6439,21 +6454,21 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
 
             case WA_INSTR_i32_trunc_sat_f32_u:
             {
-                if(isnan(locals[pc[0].valI32].valF32))
+                if(isnan(L0.valF32))
                 {
-                    locals[pc[1].valI32].valI32 = 0;
+                    L1.valI32 = 0;
                 }
-                else if(locals[pc[0].valI32].valF32 >= 4294967296.0f)
+                else if(L0.valF32 >= 4294967296.0f)
                 {
-                    *(u32*)&locals[pc[1].valI32].valI32 = 0xffffffff;
+                    *(u32*)&L1.valI32 = 0xffffffff;
                 }
-                else if(locals[pc[0].valI32].valF32 <= -1.0f)
+                else if(L0.valF32 <= -1.0f)
                 {
-                    locals[pc[1].valI32].valI32 = 0;
+                    L1.valI32 = 0;
                 }
                 else
                 {
-                    *(u32*)&locals[pc[1].valI32].valI32 = (u32)truncf(locals[pc[0].valI32].valF32);
+                    *(u32*)&L1.valI32 = (u32)truncf(L0.valF32);
                 }
                 pc += 2;
             }
@@ -6461,21 +6476,21 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
 
             case WA_INSTR_i32_trunc_sat_f64_s:
             {
-                if(isnan(locals[pc[0].valI32].valF64))
+                if(isnan(L0.valF64))
                 {
-                    locals[pc[1].valI32].valI32 = 0;
+                    L1.valI32 = 0;
                 }
-                else if(locals[pc[0].valI32].valF64 >= 2147483648.0)
+                else if(L0.valF64 >= 2147483648.0)
                 {
-                    locals[pc[1].valI32].valI32 = INT32_MAX;
+                    L1.valI32 = INT32_MAX;
                 }
-                else if(locals[pc[0].valI32].valF64 <= -2147483649.0)
+                else if(L0.valF64 <= -2147483649.0)
                 {
-                    locals[pc[1].valI32].valI32 = INT32_MIN;
+                    L1.valI32 = INT32_MIN;
                 }
                 else
                 {
-                    locals[pc[1].valI32].valI32 = (i32)trunc(locals[pc[0].valI32].valF64);
+                    L1.valI32 = (i32)trunc(L0.valF64);
                 }
                 pc += 2;
             }
@@ -6483,21 +6498,21 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
 
             case WA_INSTR_i32_trunc_sat_f64_u:
             {
-                if(isnan(locals[pc[0].valI32].valF64))
+                if(isnan(L0.valF64))
                 {
-                    locals[pc[1].valI32].valI32 = 0;
+                    L1.valI32 = 0;
                 }
-                else if(locals[pc[0].valI32].valF64 >= 4294967296.0)
+                else if(L0.valF64 >= 4294967296.0)
                 {
-                    *(u32*)&locals[pc[1].valI32].valI32 = 0xffffffff;
+                    *(u32*)&L1.valI32 = 0xffffffff;
                 }
-                else if(locals[pc[0].valI32].valF64 <= -1.0)
+                else if(L0.valF64 <= -1.0)
                 {
-                    locals[pc[1].valI32].valI32 = 0;
+                    L1.valI32 = 0;
                 }
                 else
                 {
-                    *(u32*)&locals[pc[1].valI32].valI32 = (u32)trunc(locals[pc[0].valI32].valF64);
+                    *(u32*)&L1.valI32 = (u32)trunc(L0.valF64);
                 }
                 pc += 2;
             }
@@ -6505,21 +6520,21 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
 
             case WA_INSTR_i64_trunc_sat_f32_s:
             {
-                if(isnan(locals[pc[0].valI32].valF32))
+                if(isnan(L0.valF32))
                 {
-                    locals[pc[1].valI32].valI64 = 0;
+                    L1.valI64 = 0;
                 }
-                else if(locals[pc[0].valI32].valF32 >= 9223372036854775808.0f)
+                else if(L0.valF32 >= 9223372036854775808.0f)
                 {
-                    locals[pc[1].valI32].valI64 = INT64_MAX;
+                    L1.valI64 = INT64_MAX;
                 }
-                else if(locals[pc[0].valI32].valF32 < -9223372036854775808.0f)
+                else if(L0.valF32 < -9223372036854775808.0f)
                 {
-                    locals[pc[1].valI32].valI64 = INT64_MIN;
+                    L1.valI64 = INT64_MIN;
                 }
                 else
                 {
-                    locals[pc[1].valI32].valI64 = (i64)truncf(locals[pc[0].valI32].valF32);
+                    L1.valI64 = (i64)truncf(L0.valF32);
                 }
                 pc += 2;
             }
@@ -6527,21 +6542,21 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
 
             case WA_INSTR_i64_trunc_sat_f32_u:
             {
-                if(isnan(locals[pc[0].valI32].valF32))
+                if(isnan(L0.valF32))
                 {
-                    locals[pc[1].valI32].valI64 = 0;
+                    L1.valI64 = 0;
                 }
-                else if(locals[pc[0].valI32].valF32 >= 18446744073709551616.0f)
+                else if(L0.valF32 >= 18446744073709551616.0f)
                 {
-                    *(u64*)&locals[pc[1].valI32].valI64 = 0xffffffffffffffffLLU;
+                    *(u64*)&L1.valI64 = 0xffffffffffffffffLLU;
                 }
-                else if(locals[pc[0].valI32].valF32 <= -1.0f)
+                else if(L0.valF32 <= -1.0f)
                 {
-                    locals[pc[1].valI32].valI64 = 0;
+                    L1.valI64 = 0;
                 }
                 else
                 {
-                    *(u64*)&locals[pc[1].valI32].valI64 = (u64)truncf(locals[pc[0].valI32].valF32);
+                    *(u64*)&L1.valI64 = (u64)truncf(L0.valF32);
                 }
                 pc += 2;
             }
@@ -6549,21 +6564,21 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
 
             case WA_INSTR_i64_trunc_sat_f64_s:
             {
-                if(isnan(locals[pc[0].valI32].valF64))
+                if(isnan(L0.valF64))
                 {
-                    locals[pc[1].valI32].valI64 = 0;
+                    L1.valI64 = 0;
                 }
-                else if(locals[pc[0].valI32].valF64 >= 9223372036854775808.0)
+                else if(L0.valF64 >= 9223372036854775808.0)
                 {
-                    locals[pc[1].valI32].valI64 = INT64_MAX;
+                    L1.valI64 = INT64_MAX;
                 }
-                else if(locals[pc[0].valI32].valF64 < -9223372036854775808.0)
+                else if(L0.valF64 < -9223372036854775808.0)
                 {
-                    locals[pc[1].valI32].valI64 = INT64_MIN;
+                    L1.valI64 = INT64_MIN;
                 }
                 else
                 {
-                    locals[pc[1].valI32].valI64 = (i64)trunc(locals[pc[0].valI32].valF64);
+                    L1.valI64 = (i64)trunc(L0.valF64);
                 }
                 pc += 2;
             }
@@ -6571,21 +6586,21 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
 
             case WA_INSTR_i64_trunc_sat_f64_u:
             {
-                if(isnan(locals[pc[0].valI32].valF64))
+                if(isnan(L0.valF64))
                 {
-                    locals[pc[1].valI32].valI64 = 0;
+                    L1.valI64 = 0;
                 }
-                else if(locals[pc[0].valI32].valF64 >= 18446744073709551616.0)
+                else if(L0.valF64 >= 18446744073709551616.0)
                 {
-                    *(u64*)&locals[pc[1].valI32].valI64 = 0xffffffffffffffffLLU;
+                    *(u64*)&L1.valI64 = 0xffffffffffffffffLLU;
                 }
-                else if(locals[pc[0].valI32].valF64 <= -1.0)
+                else if(L0.valF64 <= -1.0)
                 {
-                    locals[pc[1].valI32].valI64 = 0;
+                    L1.valI64 = 0;
                 }
                 else
                 {
-                    *(u64*)&locals[pc[1].valI32].valI64 = (u64)trunc(locals[pc[0].valI32].valF64);
+                    *(u64*)&L1.valI64 = (u64)trunc(L0.valF64);
                 }
                 pc += 2;
             }
@@ -6593,14 +6608,14 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
 
             case WA_INSTR_i64_extend_i32_s:
             {
-                locals[pc[1].valI32].valI64 = (i64)(i32)(locals[pc[0].valI32].valI32);
+                L1.valI64 = (i64)(i32)(L0.valI32);
                 pc += 2;
             }
             break;
 
             case WA_INSTR_i64_extend_i32_u:
             {
-                locals[pc[1].valI32].valI64 = *(u32*)&(locals[pc[0].valI32].valI32);
+                L1.valI64 = *(u32*)&(L0.valI32);
                 pc += 2;
             }
             break;
@@ -6608,7 +6623,7 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
             case WA_INSTR_memory_size:
             {
                 wa_memory* mem = instance->memories[0];
-                locals[pc[1].valI32].valI32 = (i32)(mem->size / WA_PAGE_SIZE);
+                L1.valI32 = (i32)(mem->size / WA_PAGE_SIZE);
                 pc += 2;
             }
             break;
@@ -6619,7 +6634,7 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
                 wa_limits* limits = &instance->module->memories[0];
 
                 i32 res = -1;
-                u32 n = *(u32*)&(locals[pc[1].valI32].valI32);
+                u32 n = *(u32*)&(L1.valI32);
                 oc_base_allocator* allocator = oc_base_allocator_default();
                 u64 size = (u64)n * WA_PAGE_SIZE;
 
@@ -6630,7 +6645,7 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
                     oc_base_commit(allocator, mem->ptr + mem->size, n * WA_PAGE_SIZE);
                     mem->size += size;
                 }
-                locals[pc[2].valI32].valI32 = res;
+                L2.valI32 = res;
 
                 pc += 3;
             }
@@ -6640,9 +6655,9 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
             {
                 wa_memory* mem = instance->memories[0];
 
-                u32 d = *(u32*)&locals[pc[1].valI32].valI32;
-                i32 val = locals[pc[2].valI32].valI32;
-                u32 n = *(u32*)&locals[pc[3].valI32].valI32;
+                u32 d = *(u32*)&L1.valI32;
+                i32 val = L2.valI32;
+                u32 n = *(u32*)&L3.valI32;
 
                 if(d + n > mem->size)
                 {
@@ -6659,9 +6674,9 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
             case WA_INSTR_memory_copy:
             {
                 wa_memory* mem = instance->memories[0];
-                u32 d = *(u32*)&locals[pc[2].valI32].valI32;
-                u32 s = *(u32*)&locals[pc[3].valI32].valI32;
-                u32 n = *(u32*)&locals[pc[4].valI32].valI32;
+                u32 d = *(u32*)&L2.valI32;
+                u32 s = *(u32*)&L3.valI32;
+                u32 n = *(u32*)&L4.valI32;
 
                 if(s + n > mem->size || d + n > mem->size)
                 {
@@ -6675,11 +6690,11 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
             case WA_INSTR_memory_init:
             {
                 wa_memory* mem = instance->memories[0];
-                wa_data_segment* seg = &instance->data[pc[0].valI32];
+                wa_data_segment* seg = &instance->data[I0.valI32];
 
-                u32 d = *(u32*)&locals[pc[2].valI32].valI32;
-                u32 s = *(u32*)&locals[pc[3].valI32].valI32;
-                u32 n = *(u32*)&locals[pc[4].valI32].valI32;
+                u32 d = *(u32*)&L2.valI32;
+                u32 s = *(u32*)&L3.valI32;
+                u32 n = *(u32*)&L4.valI32;
 
                 if(s + n > seg->init.len || d + n > mem->size)
                 {
@@ -6692,7 +6707,7 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
 
             case WA_INSTR_data_drop:
             {
-                wa_data_segment* seg = &instance->data[pc[0].valI32];
+                wa_data_segment* seg = &instance->data[I0.valI32];
                 seg->init.len = 0;
                 pc += 1;
             }
@@ -6700,12 +6715,12 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
 
             case WA_INSTR_table_init:
             {
-                wa_element* elt = &instance->elements[pc[0].valI32];
-                wa_table* table = instance->tables[pc[1].valI32];
+                wa_element* elt = &instance->elements[I0.valI32];
+                wa_table* table = instance->tables[I1.valI32];
 
-                u32 d = *(u32*)&locals[pc[2].valI32].valI32;
-                u32 s = *(u32*)&locals[pc[3].valI32].valI32;
-                u32 n = *(u32*)&locals[pc[4].valI32].valI32;
+                u32 d = *(u32*)&L2.valI32;
+                u32 s = *(u32*)&L3.valI32;
+                u32 n = *(u32*)&L4.valI32;
 
                 if(n + s > elt->initCount || d + n > table->size)
                 {
@@ -6718,11 +6733,11 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
 
             case WA_INSTR_table_fill:
             {
-                wa_table* table = instance->tables[pc[0].valI32];
+                wa_table* table = instance->tables[I0.valI32];
 
-                u32 d = *(u32*)&locals[pc[1].valI32].valI32;
-                wa_value val = locals[pc[2].valI32];
-                u32 n = *(u32*)&locals[pc[3].valI32].valI32;
+                u32 d = *(u32*)&L1.valI32;
+                wa_value val = L2;
+                u32 n = *(u32*)&L3.valI32;
 
                 if(d + n > table->size)
                 {
@@ -6739,12 +6754,12 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
 
             case WA_INSTR_table_copy:
             {
-                wa_table* tx = instance->tables[pc[0].valI32];
-                wa_table* ty = instance->tables[pc[1].valI32];
+                wa_table* tx = instance->tables[I0.valI32];
+                wa_table* ty = instance->tables[I1.valI32];
 
-                u32 d = *(u32*)&locals[pc[2].valI32].valI32;
-                u32 s = *(u32*)&locals[pc[3].valI32].valI32;
-                u32 n = *(u32*)&locals[pc[4].valI32].valI32;
+                u32 d = *(u32*)&L2.valI32;
+                u32 s = *(u32*)&L3.valI32;
+                u32 n = *(u32*)&L4.valI32;
 
                 if(s + n > ty->size || d + n > tx->size)
                 {
@@ -6757,18 +6772,18 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
 
             case WA_INSTR_table_size:
             {
-                wa_table* table = instance->tables[pc[0].valI32];
-                locals[pc[1].valI32].valI32 = table->size;
+                wa_table* table = instance->tables[I0.valI32];
+                L1.valI32 = table->size;
                 pc += 2;
             }
             break;
 
             case WA_INSTR_table_grow:
             {
-                wa_limits* limits = &instance->module->tables[pc[0].valI32].limits;
-                wa_table* table = instance->tables[pc[0].valI32];
-                wa_value val = locals[pc[1].valI32];
-                u32 size = locals[pc[2].valI32].valI32;
+                wa_limits* limits = &instance->module->tables[I0.valI32].limits;
+                wa_table* table = instance->tables[I0.valI32];
+                wa_value val = L1;
+                u32 size = L2.valI32;
 
                 i32 ret = -1;
                 if((u64)table->size + (u64)size <= UINT32_MAX && (limits->kind != WA_LIMIT_MIN_MAX || table->size + size <= limits->max))
@@ -6783,30 +6798,30 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
                     table->size += size;
                     table->contents = contents;
                 }
-                locals[pc[3].valI32].valI32 = ret;
+                L3.valI32 = ret;
                 pc += 4;
             }
             break;
 
             case WA_INSTR_table_get:
             {
-                wa_table* table = instance->tables[pc[0].valI32];
-                u32 eltIndex = locals[pc[1].valI32].valI32;
+                wa_table* table = instance->tables[I0.valI32];
+                u32 eltIndex = L1.valI32;
 
                 if(eltIndex >= table->size)
                 {
                     return WA_TRAP_OUT_OF_BOUNDS;
                 }
-                locals[pc[2].valI32] = table->contents[eltIndex];
+                L2 = table->contents[eltIndex];
                 pc += 3;
             }
             break;
 
             case WA_INSTR_table_set:
             {
-                wa_table* table = instance->tables[pc[0].valI32];
-                u32 eltIndex = locals[pc[1].valI32].valI32;
-                wa_value val = locals[pc[2].valI32];
+                wa_table* table = instance->tables[I0.valI32];
+                u32 eltIndex = L1.valI32;
+                wa_value val = L2;
 
                 if(eltIndex >= table->size)
                 {
@@ -6819,7 +6834,7 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
 
             case WA_INSTR_elem_drop:
             {
-                wa_element* elt = &instance->elements[pc[0].valI32];
+                wa_element* elt = &instance->elements[I0.valI32];
                 elt->initCount = 0;
                 pc += 1;
             }
