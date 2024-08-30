@@ -1009,7 +1009,7 @@ static const wa_instr_info wa_instr_infos[] = {
     },
     [WA_INSTR_ref_is_null] = {
         .inCount = 1,
-        .in = { WA_TYPE_FUNC_REF },
+        .in = { WA_TYPE_REF },
         .outCount = 1,
         .out = { WA_TYPE_I32 },
         .opdCount = 2,
