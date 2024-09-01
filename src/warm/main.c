@@ -5152,9 +5152,11 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
     memcpy(locals, args, argCount * sizeof(wa_value));
 
     char* memPtr = 0;
+    wa_memory* memory = 0;
     if(instance->module->memoryCount)
     {
-        memPtr = instance->memories[0]->ptr;
+        memory = instance->memories[0];
+        memPtr = memory->ptr;
     }
 
     while(1)
@@ -5252,163 +5254,202 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
             }
             break;
 
+#define WA_CHECK_READ_ACCESS(t)                                             \
+    u32 offset = I1.memArg.offset + (u32)L2.valI32;                         \
+    if(offset < I1.memArg.offset                                            \
+       || offset + sizeof(t) > memory->size || offset + sizeof(t) < offset) \
+    {                                                                       \
+        return WA_TRAP_OUT_OF_BOUNDS;                                       \
+    }
+
             case WA_INSTR_i32_load:
             {
-                L0.valI32 = *(i32*)&memPtr[I1.memArg.offset + L2.valI32];
+                WA_CHECK_READ_ACCESS(i32);
+                L0.valI32 = *(i32*)&memPtr[I1.memArg.offset + (u32)L2.valI32];
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i64_load:
             {
-                L0.valI64 = *(i64*)&memPtr[I1.memArg.offset + L2.valI32];
+                WA_CHECK_READ_ACCESS(i64);
+                L0.valI64 = *(i64*)&memPtr[I1.memArg.offset + (u32)L2.valI32];
                 pc += 3;
             }
             break;
 
             case WA_INSTR_f32_load:
             {
-                L0.valF32 = *(f32*)&memPtr[I1.memArg.offset + L2.valI32];
+                WA_CHECK_READ_ACCESS(f32);
+                L0.valF32 = *(f32*)&memPtr[I1.memArg.offset + (u32)L2.valI32];
                 pc += 3;
             }
             break;
 
             case WA_INSTR_f64_load:
             {
-                L0.valF64 = *(f64*)&memPtr[I1.memArg.offset + L2.valI32];
+                WA_CHECK_READ_ACCESS(f64);
+                L0.valF64 = *(f64*)&memPtr[I1.memArg.offset + (u32)L2.valI32];
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i32_load8_s:
             {
-                L0.valI32 = (i32) * (i8*)&memPtr[I1.memArg.offset + L2.valI32];
+                WA_CHECK_READ_ACCESS(u8);
+                L0.valI32 = (i32) * (i8*)&memPtr[I1.memArg.offset + (u32)L2.valI32];
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i32_load8_u:
             {
-                *(u32*)&L0.valI32 = (u32) * (u8*)&memPtr[I1.memArg.offset + L2.valI32];
+                WA_CHECK_READ_ACCESS(u8);
+                *(u32*)&L0.valI32 = (u32) * (u8*)&memPtr[I1.memArg.offset + (u32)L2.valI32];
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i32_load16_s:
             {
-                L0.valI32 = (i32) * (i16*)&memPtr[I1.memArg.offset + L2.valI32];
+                WA_CHECK_READ_ACCESS(u16);
+                L0.valI32 = (i32) * (i16*)&memPtr[I1.memArg.offset + (u32)L2.valI32];
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i32_load16_u:
             {
-                *(u32*)&L0.valI32 = (u32) * (u16*)&memPtr[I1.memArg.offset + L2.valI32];
+                WA_CHECK_READ_ACCESS(u16);
+                *(u32*)&L0.valI32 = (u32) * (u16*)&memPtr[I1.memArg.offset + (u32)L2.valI32];
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i64_load8_s:
             {
-                L0.valI64 = (i64) * (i8*)&memPtr[I1.memArg.offset + L2.valI32];
+                WA_CHECK_READ_ACCESS(u8);
+                L0.valI64 = (i64) * (i8*)&memPtr[I1.memArg.offset + (u32)L2.valI32];
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i64_load8_u:
             {
-                *(u32*)&L0.valI64 = (u64) * (u8*)&memPtr[I1.memArg.offset + L2.valI32];
+                WA_CHECK_READ_ACCESS(u8);
+                *(u32*)&L0.valI64 = (u64) * (u8*)&memPtr[I1.memArg.offset + (u32)L2.valI32];
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i64_load16_s:
             {
-                L0.valI64 = (i64) * (i16*)&memPtr[I1.memArg.offset + L2.valI32];
+                WA_CHECK_READ_ACCESS(u16);
+                L0.valI64 = (i64) * (i16*)&memPtr[I1.memArg.offset + (u32)L2.valI32];
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i64_load16_u:
             {
-                *(u32*)&L0.valI64 = (u64) * (u16*)&memPtr[I1.memArg.offset + L2.valI32];
+                WA_CHECK_READ_ACCESS(u16);
+                *(u32*)&L0.valI64 = (u64) * (u16*)&memPtr[I1.memArg.offset + (u32)L2.valI32];
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i64_load32_s:
             {
-                L0.valI64 = (i64) * (i32*)&memPtr[I1.memArg.offset + L2.valI32];
+                WA_CHECK_READ_ACCESS(u32);
+                L0.valI64 = (i64) * (i32*)&memPtr[I1.memArg.offset + (u32)L2.valI32];
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i64_load32_u:
             {
-                *(u32*)&L0.valI64 = (u64) * (u32*)&memPtr[I1.memArg.offset + L2.valI32];
+                WA_CHECK_READ_ACCESS(u32);
+                *(u32*)&L0.valI64 = (u64) * (u32*)&memPtr[I1.memArg.offset + (u32)L2.valI32];
                 pc += 3;
             }
             break;
 
+#define WA_CHECK_WRITE_ACCESS(t)                                            \
+    u32 offset = I0.memArg.offset + (u32)L1.valI32;                         \
+    if(offset < I0.memArg.offset                                            \
+       || offset + sizeof(t) > memory->size || offset + sizeof(t) < offset) \
+    {                                                                       \
+        return WA_TRAP_OUT_OF_BOUNDS;                                       \
+    }
+
             case WA_INSTR_i32_store:
             {
-                *(i32*)&memPtr[I0.memArg.offset + L1.valI32] = L2.valI32;
+                WA_CHECK_WRITE_ACCESS(u32);
+                *(i32*)&memPtr[I0.memArg.offset + (u32)L1.valI32] = L2.valI32;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i64_store:
             {
-                *(i64*)&memPtr[I0.memArg.offset + L1.valI32] = L2.valI64;
+                WA_CHECK_WRITE_ACCESS(u64);
+                *(i64*)&memPtr[I0.memArg.offset + (u32)L1.valI32] = L2.valI64;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_f32_store:
             {
-                *(f32*)&memPtr[I0.memArg.offset + L1.valI32] = L2.valF32;
+                WA_CHECK_WRITE_ACCESS(f32);
+                *(f32*)&memPtr[I0.memArg.offset + (u32)L1.valI32] = L2.valF32;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_f64_store:
             {
-                *(f64*)&memPtr[I0.memArg.offset + L1.valI32] = L2.valF64;
+                WA_CHECK_WRITE_ACCESS(f64);
+                *(f64*)&memPtr[I0.memArg.offset + (u32)L1.valI32] = L2.valF64;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i32_store8:
             {
-                *(u8*)&memPtr[I0.memArg.offset + L1.valI32] = *(u8*)&L2.valI32;
+                WA_CHECK_WRITE_ACCESS(u8);
+                *(u8*)&memPtr[I0.memArg.offset + (u32)L1.valI32] = *(u8*)&L2.valI32;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i32_store16:
             {
-                *(u16*)&memPtr[I0.memArg.offset + L1.valI32] = *(u16*)&L2.valI32;
+                WA_CHECK_WRITE_ACCESS(u16);
+                *(u16*)&memPtr[I0.memArg.offset + (u32)L1.valI32] = *(u16*)&L2.valI32;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i64_store8:
             {
-                *(u8*)&memPtr[I0.memArg.offset + L1.valI32] = *(u8*)&L2.valI64;
+                WA_CHECK_WRITE_ACCESS(u8);
+                *(u8*)&memPtr[I0.memArg.offset + (u32)L1.valI32] = *(u8*)&L2.valI64;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i64_store16:
             {
-                *(u16*)&memPtr[I0.memArg.offset + L1.valI32] = *(u16*)&L2.valI64;
+                WA_CHECK_WRITE_ACCESS(u16);
+                *(u16*)&memPtr[I0.memArg.offset + (u32)L1.valI32] = *(u16*)&L2.valI64;
                 pc += 3;
             }
             break;
 
             case WA_INSTR_i64_store32:
             {
-                *(u32*)&memPtr[I0.memArg.offset + L1.valI32] = *(u32*)&L2.valI64;
+                WA_CHECK_WRITE_ACCESS(u32);
+                *(u32*)&memPtr[I0.memArg.offset + (u32)L1.valI32] = *(u32*)&L2.valI64;
                 pc += 3;
             }
             break;
@@ -6959,7 +7000,7 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
                 i32 val = L1.valI32;
                 u32 n = *(u32*)&L2.valI32;
 
-                if(d + n > mem->size)
+                if(d + n > mem->size || d + n < d)
                 {
                     return WA_TRAP_OUT_OF_BOUNDS;
                 }
@@ -6978,7 +7019,8 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
                 u32 s = *(u32*)&L1.valI32;
                 u32 n = *(u32*)&L2.valI32;
 
-                if(s + n > mem->size || d + n > mem->size)
+                if(s + n > mem->size || s + n < s
+                   || d + n > mem->size || d + n < d)
                 {
                     return WA_TRAP_OUT_OF_BOUNDS;
                 }
@@ -6996,7 +7038,8 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
                 u32 s = *(u32*)&L2.valI32;
                 u32 n = *(u32*)&L3.valI32;
 
-                if(s + n > seg->init.len || d + n > mem->size)
+                if(s + n > seg->init.len || s + n < s
+                   || d + n > mem->size || d + n < d)
                 {
                     return WA_TRAP_OUT_OF_BOUNDS;
                 }
@@ -7145,6 +7188,7 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
                 return WA_TRAP_INVALID_OP;
         }
     }
+
 end:
     for(u32 retIndex = 0; retIndex < retCount; retIndex++)
     {
@@ -8066,9 +8110,14 @@ int test_file(oc_str8 testPath, oc_str8 testName, oc_str8 testDir, i32 filterLin
                 {
                     expected = WA_TRAP_INVALID_INTEGER_CONVERSION;
                 }
+                else if(!oc_str8_cmp(failure->string, OC_STR8("out of bounds memory access")))
+                {
+                    expected = WA_TRAP_OUT_OF_BOUNDS;
+                }
                 else
                 {
                     wa_test_skip(env, testName, command);
+                    //wa_test_fail(env, testName, command);
                     continue;
                 }
 
