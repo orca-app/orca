@@ -1116,6 +1116,7 @@ typedef enum wa_status
     WA_TRAP_MEMORY_OUT_OF_BOUNDS,
     WA_TRAP_TABLE_OUT_OF_BOUNDS,
     WA_TRAP_REF_NULL,
+    WA_TRAP_INDIRECT_CALL_TYPE_MISMATCH,
 } wa_status;
 
 static const char* wa_status_strings[] = {
@@ -5557,7 +5558,11 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
 
                 wa_table* table = instance->tables[tableIndex];
 
-                //TODO: check table size
+                if(index >= table->size)
+                {
+                    return WA_TRAP_TABLE_OUT_OF_BOUNDS;
+                }
+
                 wa_instance* refInstance = table->contents[index].refInstance;
                 u32 funcIndex = table->contents[index].refIndex;
 
@@ -5567,6 +5572,28 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
                 }
 
                 wa_func* callee = &refInstance->functions[funcIndex];
+
+                wa_func_type* t1 = callee->type;
+                wa_func_type* t2 = &instance->module->types[typeIndex];
+
+                if(t1->paramCount != t2->paramCount || t1->returnCount != t2->returnCount)
+                {
+                    return (WA_TRAP_INDIRECT_CALL_TYPE_MISMATCH);
+                }
+                for(u32 i = 0; i < t1->paramCount; i++)
+                {
+                    if(t1->params[i] != t2->params[i])
+                    {
+                        return (WA_TRAP_INDIRECT_CALL_TYPE_MISMATCH);
+                    }
+                }
+                for(u32 i = 0; i < t1->returnCount; i++)
+                {
+                    if(t1->returns[i] != t2->returns[i])
+                    {
+                        return (WA_TRAP_INDIRECT_CALL_TYPE_MISMATCH);
+                    }
+                }
 
                 //////////////////////////////
                 //TODO runtime check type
@@ -8135,10 +8162,22 @@ int test_file(oc_str8 testPath, oc_str8 testName, oc_str8 testDir, i32 filterLin
                 {
                     expected = WA_TRAP_REF_NULL;
                 }
+                else if(!oc_str8_cmp(failure->string, OC_STR8("undefined element")))
+                {
+                    expected = WA_TRAP_TABLE_OUT_OF_BOUNDS;
+                }
+                else if(!oc_str8_cmp(failure->string, OC_STR8("unreachable")))
+                {
+                    expected = WA_TRAP_UNREACHABLE;
+                }
+                else if(!oc_str8_cmp(failure->string, OC_STR8("indirect call type mismatch")))
+                {
+                    expected = WA_TRAP_INDIRECT_CALL_TYPE_MISMATCH;
+                }
                 else
                 {
-                    wa_test_skip(env, testName, command);
-                    //wa_test_fail(env, testName, command);
+                    //wa_test_skip(env, testName, command);
+                    wa_test_fail(env, testName, command);
                     continue;
                 }
 
