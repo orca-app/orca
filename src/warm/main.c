@@ -2572,6 +2572,7 @@ void wa_parse_elements(wa_parser* parser, wa_module* module)
             if(prefix & 0x02)
             {
                 element->mode = WA_ELEMENT_DECLARATIVE;
+                //NOTE(martin): what the f* are they used for??
             }
             else
             {
@@ -5036,6 +5037,10 @@ wa_status wa_instance_link(wa_instance* instance)
                 return status;
             }
             //TODO: check oob
+            if(offset.valI32 + element->initCount > table->size || offset.valI32 + element->initCount < offset.valI32)
+            {
+                return WA_TRAP_TABLE_OUT_OF_BOUNDS;
+            }
             memcpy(&table->contents[offset.valI32], element->refs, element->initCount * sizeof(wa_value));
         }
         if(element->mode == WA_ELEMENT_ACTIVE || element->mode == WA_ELEMENT_DECLARATIVE)
@@ -8125,6 +8130,10 @@ int test_file(oc_str8 testPath, oc_str8 testName, oc_str8 testDir, i32 filterLin
                 else if(!oc_str8_cmp(failure->string, OC_STR8("out of bounds table access")))
                 {
                     expected = WA_TRAP_TABLE_OUT_OF_BOUNDS;
+                }
+                else if(!oc_str8_cmp(oc_str8_slice(failure->string, 0, oc_min(failure->string.len, OC_STR8("uninitialized element").len)), OC_STR8("uninitialized element")))
+                {
+                    expected = WA_TRAP_REF_NULL;
                 }
                 else
                 {
