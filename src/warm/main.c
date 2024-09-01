@@ -1104,8 +1104,8 @@ typedef enum wa_status
     /*...*/
 
     WA_ERROR_INVALID_ARGS,
-    WA_ERROR_BIND_TYPE,
     WA_FAIL_MISSING_IMPORT,
+    WA_FAIL_IMPORT_TYPE_MISMATCH,
 
     WA_TRAP_UNREACHABLE,
     WA_TRAP_INVALID_OP,
@@ -4793,6 +4793,29 @@ wa_instance* wa_instance_create(oc_arena* arena, wa_module* module)
     return (instance);
 }
 
+bool wa_check_function_type(wa_func_type* t1, wa_func_type* t2)
+{
+    if(t1->paramCount != t2->paramCount || t1->returnCount != t2->returnCount)
+    {
+        return (false);
+    }
+    for(u32 i = 0; i < t1->paramCount; i++)
+    {
+        if(t1->params[i] != t2->params[i])
+        {
+            return (false);
+        }
+    }
+    for(u32 i = 0; i < t1->returnCount; i++)
+    {
+        if(t1->returns[i] != t2->returns[i])
+        {
+            return (false);
+        }
+    }
+    return true;
+}
+
 //TODO: temporary for tests, coalesce this with normal function binding
 wa_status wa_instance_bind_function_wasm(wa_instance* instance, oc_str8 name, wa_func_type* type, wa_instance* extInstance, u32 extIndex)
 {
@@ -4811,25 +4834,9 @@ wa_status wa_instance_bind_function_wasm(wa_instance* instance, oc_str8 name, wa
                 func->extInstance = extInstance;
                 func->extIndex = extIndex;
 
-                if(type->paramCount != func->type->paramCount
-                   || type->returnCount != func->type->returnCount)
+                if(!wa_check_function_type(type, func->type))
                 {
-                    //log error to module
-                    return WA_ERROR_BIND_TYPE;
-                }
-                for(u32 paramIndex = 0; paramIndex < type->paramCount; paramIndex++)
-                {
-                    if(type->params[paramIndex] != func->type->params[paramIndex])
-                    {
-                        return WA_ERROR_BIND_TYPE;
-                    }
-                }
-                for(u32 returnIndex = 0; returnIndex < type->returnCount; returnIndex++)
-                {
-                    if(type->returns[returnIndex] != func->type->returns[returnIndex])
-                    {
-                        return WA_ERROR_BIND_TYPE;
-                    }
+                    return WA_FAIL_IMPORT_TYPE_MISMATCH;
                 }
             }
             funcIndex++;
@@ -4858,20 +4865,20 @@ wa_status wa_instance_bind_function(wa_instance* instance, oc_str8 name, wa_func
                    || type->returnCount != func->type->returnCount)
                 {
                     //log error to module
-                    return WA_ERROR_BIND_TYPE;
+                    return WA_FAIL_IMPORT_TYPE_MISMATCH;
                 }
                 for(u32 paramIndex = 0; paramIndex < type->paramCount; paramIndex++)
                 {
                     if(type->params[paramIndex] != func->type->params[paramIndex])
                     {
-                        return WA_ERROR_BIND_TYPE;
+                        return WA_FAIL_IMPORT_TYPE_MISMATCH;
                     }
                 }
                 for(u32 returnIndex = 0; returnIndex < type->returnCount; returnIndex++)
                 {
                     if(type->returns[returnIndex] != func->type->returns[returnIndex])
                     {
-                        return WA_ERROR_BIND_TYPE;
+                        return WA_FAIL_IMPORT_TYPE_MISMATCH;
                     }
                 }
             }
@@ -4883,7 +4890,10 @@ wa_status wa_instance_bind_function(wa_instance* instance, oc_str8 name, wa_func
 
 wa_status wa_instance_bind_global(wa_instance* instance, oc_str8 name, wa_value* value)
 {
+    ///////////////////////////
     //TODO typecheck
+    ///////////////////////////
+
     wa_module* module = instance->module;
     u32 globalIndex = 0;
 
@@ -4927,6 +4937,10 @@ wa_status wa_instance_bind_memory(wa_instance* instance, oc_str8 name, wa_memory
 
 wa_status wa_instance_bind_table(wa_instance* instance, oc_str8 name, wa_table* table)
 {
+    ///////////////////////////
+    //TODO typecheck
+    ///////////////////////////
+
     wa_module* module = instance->module;
     u32 tableIndex = 0;
 
@@ -4970,8 +4984,7 @@ wa_status wa_instance_link(wa_instance* instance)
         wa_func* func = &instance->functions[funcIndex];
         if(!func->proc && !func->extInstance)
         {
-            oc_log_error("Couldn't link instance: import %.*s not satisfied.\n",
-                         oc_str8_ip(func->import->importName));
+            //oc_log_error("Couldn't link instance: import %.*s not satisfied.\n", oc_str8_ip(func->import->importName));
             return WA_FAIL_MISSING_IMPORT;
         }
     }
@@ -4987,7 +5000,7 @@ wa_status wa_instance_link(wa_instance* instance)
             wa_status status = wa_instance_interpret_expr(instance, exprType, global->code, 0, 0, 1, instance->globals[globalIndex]);
             if(status != WA_OK)
             {
-                oc_log_error("Couldn't link instance: couldn't execute global initialization expression.\n");
+                //oc_log_error("Couldn't link instance: couldn't execute global initialization expression.\n");
                 return status;
             }
         }
@@ -4997,7 +5010,7 @@ wa_status wa_instance_link(wa_instance* instance)
     {
         if(instance->tables[tableIndex] == 0)
         {
-            oc_log_error("Coulnd't link instance: table import is not satisfied\n");
+            //oc_log_error("Coulnd't link instance: table import is not satisfied\n");
             return WA_FAIL_MISSING_IMPORT;
         }
     }
@@ -5015,7 +5028,7 @@ wa_status wa_instance_link(wa_instance* instance)
             wa_status status = wa_instance_interpret_expr(instance, exprType, element->code[exprIndex], 0, 0, 1, result);
             if(status != WA_OK)
             {
-                oc_log_error("Couldn't link instance: couldn't execute element initialization expression.\n");
+                //oc_log_error("Couldn't link instance: couldn't execute element initialization expression.\n");
                 return status;
             }
         }
@@ -5034,7 +5047,7 @@ wa_status wa_instance_link(wa_instance* instance)
                                                           1, &offset);
             if(status != WA_OK)
             {
-                oc_log_error("Couldn't link instance: couldn't execute element offset expression.\n");
+                //oc_log_error("Couldn't link instance: couldn't execute element offset expression.\n");
                 return status;
             }
             //TODO: check oob
@@ -5055,7 +5068,7 @@ wa_status wa_instance_link(wa_instance* instance)
     {
         if(instance->memories[memIndex] == 0)
         {
-            oc_log_error("Coulnd't link instance: memory import is not satisfied\n");
+            //oc_log_error("Coulnd't link instance: memory import is not satisfied\n");
             return WA_FAIL_MISSING_IMPORT;
         }
     }
@@ -5077,14 +5090,14 @@ wa_status wa_instance_link(wa_instance* instance)
                                                           1, &offsetVal);
             if(status != WA_OK)
             {
-                oc_log_error("Couldn't link instance: couldn't execute data offset expression.\n");
+                //oc_log_error("Couldn't link instance: couldn't execute data offset expression.\n");
                 return status;
             }
             u32 offset = *(u32*)&offsetVal.valI32;
 
             if(offset + seg->init.len > mem->size)
             {
-                oc_log_error("Couldn't link instance: data offset out of bounds.\n");
+                //oc_log_error("Couldn't link instance: data offset out of bounds.\n");
                 return WA_TRAP_MEMORY_OUT_OF_BOUNDS;
             }
             memcpy(mem->ptr + offset, seg->init.ptr, seg->init.len);
@@ -5572,27 +5585,12 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
                 }
 
                 wa_func* callee = &refInstance->functions[funcIndex];
-
                 wa_func_type* t1 = callee->type;
                 wa_func_type* t2 = &instance->module->types[typeIndex];
 
-                if(t1->paramCount != t2->paramCount || t1->returnCount != t2->returnCount)
+                if(!wa_check_function_type(t1, t2))
                 {
                     return (WA_TRAP_INDIRECT_CALL_TYPE_MISMATCH);
-                }
-                for(u32 i = 0; i < t1->paramCount; i++)
-                {
-                    if(t1->params[i] != t2->params[i])
-                    {
-                        return (WA_TRAP_INDIRECT_CALL_TYPE_MISMATCH);
-                    }
-                }
-                for(u32 i = 0; i < t1->returnCount; i++)
-                {
-                    if(t1->returns[i] != t2->returns[i])
-                    {
-                        return (WA_TRAP_INDIRECT_CALL_TYPE_MISMATCH);
-                    }
                 }
 
                 //////////////////////////////
@@ -7553,6 +7551,10 @@ wa_test_result wa_test_invoke(wa_test_env* env, wa_instance* instance, json_node
     json_node* args = json_find_assert(action, "args", JSON_LIST);
 
     wa_func* func = wa_instance_find_function(instance, funcName->string);
+    if(!func)
+    {
+        return (wa_test_result){ .status = WA_TEST_FAIL };
+    }
 
     u32 argCount = args->childCount;
     OC_ASSERT(argCount == func->type->paramCount);
@@ -7734,159 +7736,233 @@ void test_print_f64_f64(wa_value* args, wa_value* rets)
 {
 }
 
-wa_status wa_test_module(wa_test_env* env, wa_test_instance* testInstance, oc_str8 path)
+wa_status wa_test_instantiate(wa_test_env* env, wa_test_instance* testInstance, wa_module* module)
 {
-    wa_module* module = wa_test_module_load(env->arena, path);
-    OC_ASSERT(module);
+    testInstance->instance = wa_instance_create(env->arena, module);
 
-    if(!oc_list_empty(module->errors))
+    wa_instance_bind_memory(testInstance->instance, OC_STR8("memory"), &env->testspecMemory);
+    wa_instance_bind_table(testInstance->instance, OC_STR8("table"), &env->testspecTable);
+
+    wa_instance_bind_global(testInstance->instance, OC_STR8("global_i32"), &env->testspecGlobal_i32);
+    wa_instance_bind_global(testInstance->instance, OC_STR8("global_i64"), &env->testspecGlobal_i64);
+
+    wa_status status = wa_instance_bind_function(testInstance->instance,
+                                                 OC_STR8("print"),
+                                                 &(wa_func_type){ 0 },
+                                                 test_print);
+    if(status != WA_OK)
     {
-        if(env->verbose)
+        return status;
+    }
+
+    status = wa_instance_bind_function(testInstance->instance,
+                                       OC_STR8("print_i32"),
+                                       &(wa_func_type){
+                                           .paramCount = 1,
+                                           .params = (wa_value_type[]){
+                                               WA_TYPE_I32,
+                                           },
+                                       },
+                                       test_print_i32);
+    if(status != WA_OK)
+    {
+        return status;
+    }
+
+    status = wa_instance_bind_function(testInstance->instance,
+                                       OC_STR8("print_i64"),
+                                       &(wa_func_type){
+                                           .paramCount = 1,
+                                           .params = (wa_value_type[]){
+                                               WA_TYPE_I64,
+                                           },
+                                       },
+                                       test_print_i64);
+    if(status != WA_OK)
+    {
+        return status;
+    }
+
+    status = wa_instance_bind_function(testInstance->instance,
+                                       OC_STR8("print_f32"),
+                                       &(wa_func_type){
+                                           .paramCount = 1,
+                                           .params = (wa_value_type[]){
+                                               WA_TYPE_F32,
+                                           },
+                                       },
+                                       test_print_f32);
+    if(status != WA_OK)
+    {
+        return status;
+    }
+
+    status = wa_instance_bind_function(testInstance->instance,
+                                       OC_STR8("print_f64"),
+                                       &(wa_func_type){
+                                           .paramCount = 1,
+                                           .params = (wa_value_type[]){
+                                               WA_TYPE_F64,
+                                           },
+                                       },
+                                       test_print_f64);
+    if(status != WA_OK)
+    {
+        return status;
+    }
+
+    status = wa_instance_bind_function(testInstance->instance,
+                                       OC_STR8("print_i32_f32"),
+                                       &(wa_func_type){
+                                           .paramCount = 2,
+                                           .params = (wa_value_type[]){
+                                               WA_TYPE_I32,
+                                               WA_TYPE_F32,
+                                           },
+                                       },
+                                       test_print_i32_f32);
+    if(status != WA_OK)
+    {
+        return status;
+    }
+
+    status = wa_instance_bind_function(testInstance->instance,
+                                       OC_STR8("print_f64_f64"),
+                                       &(wa_func_type){
+                                           .paramCount = 2,
+                                           .params = (wa_value_type[]){
+                                               WA_TYPE_F64,
+                                               WA_TYPE_F64,
+                                           },
+                                       },
+                                       test_print_f64_f64);
+    if(status != WA_OK)
+    {
+        return status;
+    }
+
+    //TODO link registered modules...
+    u32 funcIndex = 0;
+    u32 memIndex = 0;
+    u32 tableIndex = 0;
+    u32 globalIndex = 0;
+
+    for(u32 i = 0; i < testInstance->instance->module->importCount; i++)
+    {
+        wa_import* import = &testInstance->instance->module->imports[i];
+
+        oc_list_for(env->instances, registeredInstance, wa_test_instance, listElt)
         {
-            wa_module_print_errors(module);
+            if(!oc_str8_cmp(registeredInstance->registeredName, import->moduleName))
+            {
+                for(u32 exportIndex = 0; exportIndex < registeredInstance->instance->module->exportCount; exportIndex++)
+                {
+                    wa_export* export = &registeredInstance->instance->module->exports[exportIndex];
+                    if((i32) export->kind == (i32)import->kind && !oc_str8_cmp(export->name, import->importName))
+                    {
+                        if(import->kind == WA_IMPORT_FUNCTION)
+                        {
+                            wa_func* func = &testInstance->instance->functions[funcIndex];
+                            wa_func* extFunc = &registeredInstance->instance->functions[export->index];
+
+                            if(!wa_check_function_type(func->type, extFunc->type))
+                            {
+                                return WA_FAIL_IMPORT_TYPE_MISMATCH;
+                            }
+
+                            func->extInstance = registeredInstance->instance;
+                            func->extIndex = export->index;
+                        }
+                        else if(import->kind == WA_IMPORT_MEMORY)
+                        {
+                            testInstance->instance->memories[funcIndex] = registeredInstance->instance->memories[export->index];
+                        }
+                        else if(import->kind == WA_IMPORT_TABLE)
+                        {
+                            testInstance->instance->tables[tableIndex] = registeredInstance->instance->tables[export->index];
+                        }
+                        else if(import->kind == WA_IMPORT_GLOBAL)
+                        {
+                            testInstance->instance->globals[globalIndex] = registeredInstance->instance->globals[globalIndex];
+                        }
+                        break;
+                    }
+                }
+                break;
+            }
         }
-        wa_module_error* error = oc_list_first_entry(module->errors, wa_module_error, moduleElt);
-        return error->status;
+        if(import->kind == WA_IMPORT_FUNCTION)
+        {
+            funcIndex++;
+        }
+        else if(import->kind == WA_IMPORT_MEMORY)
+        {
+            memIndex++;
+        }
+        else if(import->kind == WA_IMPORT_TABLE)
+        {
+            tableIndex++;
+        }
+        else if(import->kind == WA_IMPORT_GLOBAL)
+        {
+            globalIndex++;
+        }
+    }
+    return wa_instance_link(testInstance->instance);
+}
+
+wa_status wa_test_failure_string_to_status(oc_str8 failure)
+{
+    wa_status expected = WA_OK;
+    if(!oc_str8_cmp(failure, OC_STR8("integer divide by zero")))
+    {
+        expected = WA_TRAP_DIVIDE_BY_ZERO;
+    }
+    else if(!oc_str8_cmp(failure, OC_STR8("integer overflow")))
+    {
+        expected = WA_TRAP_INTEGER_OVERFLOW;
+    }
+    else if(!oc_str8_cmp(failure, OC_STR8("invalid conversion to integer")))
+    {
+        expected = WA_TRAP_INVALID_INTEGER_CONVERSION;
+    }
+    else if(!oc_str8_cmp(failure, OC_STR8("out of bounds memory access")))
+    {
+        expected = WA_TRAP_MEMORY_OUT_OF_BOUNDS;
+    }
+    else if(!oc_str8_cmp(failure, OC_STR8("out of bounds table access")))
+    {
+        expected = WA_TRAP_TABLE_OUT_OF_BOUNDS;
+    }
+    else if(!oc_str8_cmp(oc_str8_slice(failure, 0, oc_min(failure.len, OC_STR8("uninitialized element").len)), OC_STR8("uninitialized element")))
+    {
+        expected = WA_TRAP_REF_NULL;
+    }
+    else if(!oc_str8_cmp(failure, OC_STR8("undefined element")))
+    {
+        expected = WA_TRAP_TABLE_OUT_OF_BOUNDS;
+    }
+    else if(!oc_str8_cmp(failure, OC_STR8("unreachable")))
+    {
+        expected = WA_TRAP_UNREACHABLE;
+    }
+    else if(!oc_str8_cmp(failure, OC_STR8("indirect call type mismatch")))
+    {
+        expected = WA_TRAP_INDIRECT_CALL_TYPE_MISMATCH;
+    }
+    else if(!oc_str8_cmp(failure, OC_STR8("unknown import")))
+    {
+        expected = WA_FAIL_MISSING_IMPORT;
+    }
+    else if(!oc_str8_cmp(failure, OC_STR8("incompatible import type")))
+    {
+        expected = WA_FAIL_IMPORT_TYPE_MISMATCH;
     }
     else
     {
-        testInstance->instance = wa_instance_create(env->arena, module);
-
-        wa_instance_bind_memory(testInstance->instance, OC_STR8("memory"), &env->testspecMemory);
-        wa_instance_bind_table(testInstance->instance, OC_STR8("table"), &env->testspecTable);
-
-        wa_instance_bind_global(testInstance->instance, OC_STR8("global_i32"), &env->testspecGlobal_i32);
-        wa_instance_bind_global(testInstance->instance, OC_STR8("global_i64"), &env->testspecGlobal_i64);
-
-        wa_instance_bind_function(testInstance->instance,
-                                  OC_STR8("print"),
-                                  &(wa_func_type){ 0 },
-                                  test_print);
-
-        wa_instance_bind_function(testInstance->instance,
-                                  OC_STR8("print_i32"),
-                                  &(wa_func_type){
-                                      .paramCount = 1,
-                                      .params = (wa_value_type[]){
-                                          WA_TYPE_I32,
-                                      },
-                                  },
-                                  test_print_i32);
-
-        wa_instance_bind_function(testInstance->instance,
-                                  OC_STR8("print_i64"),
-                                  &(wa_func_type){
-                                      .paramCount = 1,
-                                      .params = (wa_value_type[]){
-                                          WA_TYPE_I64,
-                                      },
-                                  },
-                                  test_print_i64);
-
-        wa_instance_bind_function(testInstance->instance,
-                                  OC_STR8("print_f32"),
-                                  &(wa_func_type){
-                                      .paramCount = 1,
-                                      .params = (wa_value_type[]){
-                                          WA_TYPE_F32,
-                                      },
-                                  },
-                                  test_print_f32);
-
-        wa_instance_bind_function(testInstance->instance,
-                                  OC_STR8("print_f64"),
-                                  &(wa_func_type){
-                                      .paramCount = 1,
-                                      .params = (wa_value_type[]){
-                                          WA_TYPE_F64,
-                                      },
-                                  },
-                                  test_print_f64);
-
-        wa_instance_bind_function(testInstance->instance,
-                                  OC_STR8("print_i32_f32"),
-                                  &(wa_func_type){
-                                      .paramCount = 2,
-                                      .params = (wa_value_type[]){
-                                          WA_TYPE_I32,
-                                          WA_TYPE_F32,
-                                      },
-                                  },
-                                  test_print_i32_f32);
-
-        wa_instance_bind_function(testInstance->instance,
-                                  OC_STR8("print_f64_f64"),
-                                  &(wa_func_type){
-                                      .paramCount = 2,
-                                      .params = (wa_value_type[]){
-                                          WA_TYPE_F64,
-                                          WA_TYPE_F64,
-                                      },
-                                  },
-                                  test_print_f64_f64);
-
-        //TODO link registered modules...
-        u32 funcIndex = 0;
-        u32 memIndex = 0;
-        u32 tableIndex = 0;
-        u32 globalIndex = 0;
-
-        for(u32 i = 0; i < testInstance->instance->module->importCount; i++)
-        {
-            wa_import* import = &testInstance->instance->module->imports[i];
-
-            oc_list_for(env->instances, registeredInstance, wa_test_instance, listElt)
-            {
-                if(!oc_str8_cmp(registeredInstance->registeredName, import->moduleName))
-                {
-                    for(u32 exportIndex = 0; exportIndex < registeredInstance->instance->module->exportCount; exportIndex++)
-                    {
-                        wa_export* export = &registeredInstance->instance->module->exports[exportIndex];
-                        if((i32) export->kind == (i32)import->kind && !oc_str8_cmp(export->name, import->importName))
-                        {
-                            if(import->kind == WA_IMPORT_FUNCTION)
-                            {
-                                wa_func* func = &testInstance->instance->functions[funcIndex];
-                                func->extInstance = registeredInstance->instance;
-                                func->extIndex = export->index;
-                            }
-                            else if(import->kind == WA_IMPORT_MEMORY)
-                            {
-                                testInstance->instance->memories[funcIndex] = registeredInstance->instance->memories[export->index];
-                            }
-                            else if(import->kind == WA_IMPORT_TABLE)
-                            {
-                                testInstance->instance->tables[tableIndex] = registeredInstance->instance->tables[export->index];
-                            }
-                            else if(import->kind == WA_IMPORT_GLOBAL)
-                            {
-                                testInstance->instance->globals[globalIndex] = registeredInstance->instance->globals[globalIndex];
-                            }
-                            break;
-                        }
-                    }
-                    break;
-                }
-            }
-            if(import->kind == WA_IMPORT_FUNCTION)
-            {
-                funcIndex++;
-            }
-            else if(import->kind == WA_IMPORT_MEMORY)
-            {
-                memIndex++;
-            }
-            else if(import->kind == WA_IMPORT_TABLE)
-            {
-                tableIndex++;
-            }
-            else if(import->kind == WA_IMPORT_GLOBAL)
-            {
-                globalIndex++;
-            }
-        }
-        return (wa_instance_link(testInstance->instance) != WA_OK);
+        oc_log_error("unhandled assert_trap failure string %.*s\n", oc_str8_ip(failure));
     }
+    return expected;
 }
 
 int test_file(oc_str8 testPath, oc_str8 testName, oc_str8 testDir, i32 filterLine, wa_test_env* env)
@@ -7959,15 +8035,28 @@ int test_file(oc_str8 testPath, oc_str8 testName, oc_str8 testDir, i32 filterLin
 
             oc_str8 filePath = oc_path_join(env->arena, list);
 
-            wa_status status = wa_test_module(env, testInstance, filePath);
-            if(status != WA_OK)
+            wa_module* module = wa_test_module_load(env->arena, filePath);
+
+            if(!oc_list_empty(module->errors))
             {
+                if(env->verbose)
+                {
+                    wa_module_print_errors(module);
+                }
                 wa_test_fail(env, testName, command);
             }
             else
             {
-                wa_test_pass(env, testName, command);
-                oc_list_push_back(&env->instances, &testInstance->listElt);
+                wa_status status = wa_test_instantiate(env, testInstance, module);
+                if(status != WA_OK)
+                {
+                    wa_test_fail(env, testName, command);
+                }
+                else
+                {
+                    wa_test_pass(env, testName, command);
+                    oc_list_push_back(&env->instances, &testInstance->listElt);
+                }
             }
         }
         else if(!oc_str8_cmp(type->string, OC_STR8("register")))
@@ -8105,10 +8194,19 @@ int test_file(oc_str8 testPath, oc_str8 testName, oc_str8 testDir, i32 filterLin
                     }
                 }
             }
-            else if(!oc_str8_cmp(type->string, OC_STR8("assert_uninstantiable")))
+            else if(!oc_str8_cmp(type->string, OC_STR8("assert_uninstantiable"))
+                    || !oc_str8_cmp(type->string, OC_STR8("assert_unlinkable")))
             {
                 json_node* failure = json_find_assert(command, "text", JSON_STRING);
                 json_node* filename = json_find_assert(command, "filename", JSON_STRING);
+
+                wa_status expected = wa_test_failure_string_to_status(failure->string);
+                if(expected == WA_OK)
+                {
+                    // wa_test_skip(env, testName, command);
+                    wa_test_fail(env, testName, command);
+                    continue;
+                }
 
                 wa_test_instance testInstance = { 0 };
 
@@ -8118,12 +8216,26 @@ int test_file(oc_str8 testPath, oc_str8 testName, oc_str8 testDir, i32 filterLin
 
                 oc_str8 filePath = oc_path_join(env->arena, list);
 
-                wa_status status = wa_test_module(env, &testInstance, filePath);
+                wa_module* module = wa_test_module_load(env->arena, filePath);
 
-                ///////////////////
-                //TODO
-                ///////////////////
-                wa_test_skip(env, testName, command);
+                if(!oc_list_empty(module->errors))
+                {
+                    if(env->verbose)
+                    {
+                        wa_module_print_errors(module);
+                    }
+                    wa_test_fail(env, testName, command);
+                }
+
+                wa_status status = wa_test_instantiate(env, &testInstance, module);
+                if(status != expected)
+                {
+                    wa_test_fail(env, testName, command);
+                }
+                else
+                {
+                    wa_test_pass(env, testName, command);
+                }
             }
             else if(!oc_str8_cmp(type->string, OC_STR8("assert_trap")))
             {
@@ -8137,46 +8249,9 @@ int test_file(oc_str8 testPath, oc_str8 testName, oc_str8 testDir, i32 filterLin
                     continue;
                 }
 
-                wa_status expected = WA_OK;
-                if(!oc_str8_cmp(failure->string, OC_STR8("integer divide by zero")))
+                wa_status expected = wa_test_failure_string_to_status(failure->string);
+                if(expected == WA_OK)
                 {
-                    expected = WA_TRAP_DIVIDE_BY_ZERO;
-                }
-                else if(!oc_str8_cmp(failure->string, OC_STR8("integer overflow")))
-                {
-                    expected = WA_TRAP_INTEGER_OVERFLOW;
-                }
-                else if(!oc_str8_cmp(failure->string, OC_STR8("invalid conversion to integer")))
-                {
-                    expected = WA_TRAP_INVALID_INTEGER_CONVERSION;
-                }
-                else if(!oc_str8_cmp(failure->string, OC_STR8("out of bounds memory access")))
-                {
-                    expected = WA_TRAP_MEMORY_OUT_OF_BOUNDS;
-                }
-                else if(!oc_str8_cmp(failure->string, OC_STR8("out of bounds table access")))
-                {
-                    expected = WA_TRAP_TABLE_OUT_OF_BOUNDS;
-                }
-                else if(!oc_str8_cmp(oc_str8_slice(failure->string, 0, oc_min(failure->string.len, OC_STR8("uninitialized element").len)), OC_STR8("uninitialized element")))
-                {
-                    expected = WA_TRAP_REF_NULL;
-                }
-                else if(!oc_str8_cmp(failure->string, OC_STR8("undefined element")))
-                {
-                    expected = WA_TRAP_TABLE_OUT_OF_BOUNDS;
-                }
-                else if(!oc_str8_cmp(failure->string, OC_STR8("unreachable")))
-                {
-                    expected = WA_TRAP_UNREACHABLE;
-                }
-                else if(!oc_str8_cmp(failure->string, OC_STR8("indirect call type mismatch")))
-                {
-                    expected = WA_TRAP_INDIRECT_CALL_TYPE_MISMATCH;
-                }
-                else
-                {
-                    //wa_test_skip(env, testName, command);
                     wa_test_fail(env, testName, command);
                     continue;
                 }
@@ -8208,8 +8283,13 @@ int test_file(oc_str8 testPath, oc_str8 testName, oc_str8 testDir, i32 filterLin
                     wa_test_pass(env, testName, command);
                 }
             }
+            else if(!oc_str8_cmp(type->string, OC_STR8("assert_malformed")))
+            {
+                wa_test_skip(env, testName, command);
+            }
             else
             {
+                oc_log_error("unsupported command %.*s\n", oc_str8_ip(type->string));
                 wa_test_skip(env, testName, command);
             }
         }
