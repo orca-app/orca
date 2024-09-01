@@ -1113,7 +1113,8 @@ typedef enum wa_status
     WA_TRAP_INTEGER_OVERFLOW,
     WA_TRAP_INVALID_INTEGER_CONVERSION,
     WA_TRAP_STACK_OVERFLOW,
-    WA_TRAP_OUT_OF_BOUNDS,
+    WA_TRAP_MEMORY_OUT_OF_BOUNDS,
+    WA_TRAP_TABLE_OUT_OF_BOUNDS,
     WA_TRAP_REF_NULL,
 } wa_status;
 
@@ -5037,6 +5038,11 @@ wa_status wa_instance_link(wa_instance* instance)
             //TODO: check oob
             memcpy(&table->contents[offset.valI32], element->refs, element->initCount * sizeof(wa_value));
         }
+        if(element->mode == WA_ELEMENT_ACTIVE || element->mode == WA_ELEMENT_DECLARATIVE)
+        {
+            //NOTE: drop the element
+            element->initCount = 0;
+        }
     }
 
     for(u32 memIndex = 0; memIndex < module->memoryImportCount; memIndex++)
@@ -5073,7 +5079,7 @@ wa_status wa_instance_link(wa_instance* instance)
             if(offset + seg->init.len > mem->size)
             {
                 oc_log_error("Couldn't link instance: data offset out of bounds.\n");
-                return WA_TRAP_OUT_OF_BOUNDS;
+                return WA_TRAP_MEMORY_OUT_OF_BOUNDS;
             }
             memcpy(mem->ptr + offset, seg->init.ptr, seg->init.len);
         }
@@ -5259,7 +5265,7 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
     if(offset < I1.memArg.offset                                            \
        || offset + sizeof(t) > memory->size || offset + sizeof(t) < offset) \
     {                                                                       \
-        return WA_TRAP_OUT_OF_BOUNDS;                                       \
+        return WA_TRAP_MEMORY_OUT_OF_BOUNDS;                                \
     }
 
             case WA_INSTR_i32_load:
@@ -5379,7 +5385,7 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
     if(offset < I0.memArg.offset                                            \
        || offset + sizeof(t) > memory->size || offset + sizeof(t) < offset) \
     {                                                                       \
-        return WA_TRAP_OUT_OF_BOUNDS;                                       \
+        return WA_TRAP_MEMORY_OUT_OF_BOUNDS;                                \
     }
 
             case WA_INSTR_i32_store:
@@ -7002,7 +7008,7 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
 
                 if(d + n > mem->size || d + n < d)
                 {
-                    return WA_TRAP_OUT_OF_BOUNDS;
+                    return WA_TRAP_MEMORY_OUT_OF_BOUNDS;
                 }
                 else
                 {
@@ -7022,7 +7028,7 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
                 if(s + n > mem->size || s + n < s
                    || d + n > mem->size || d + n < d)
                 {
-                    return WA_TRAP_OUT_OF_BOUNDS;
+                    return WA_TRAP_MEMORY_OUT_OF_BOUNDS;
                 }
                 memmove(mem->ptr + d, mem->ptr + s, n);
                 pc += 3;
@@ -7041,7 +7047,7 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
                 if(s + n > seg->init.len || s + n < s
                    || d + n > mem->size || d + n < d)
                 {
-                    return WA_TRAP_OUT_OF_BOUNDS;
+                    return WA_TRAP_MEMORY_OUT_OF_BOUNDS;
                 }
                 memmove(mem->ptr + d, seg->init.ptr + s, n);
                 pc += 4;
@@ -7065,9 +7071,10 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
                 u32 s = *(u32*)&L3.valI32;
                 u32 n = *(u32*)&L4.valI32;
 
-                if(n + s > elt->initCount || d + n > table->size)
+                if(n + s > elt->initCount || n + s < n
+                   || d + n > table->size || d + n < d)
                 {
-                    return WA_TRAP_OUT_OF_BOUNDS;
+                    return WA_TRAP_TABLE_OUT_OF_BOUNDS;
                 }
                 memmove(table->contents + d, elt->refs + s, n * sizeof(wa_value));
                 pc += 5;
@@ -7082,9 +7089,9 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
                 wa_value val = L2;
                 u32 n = *(u32*)&L3.valI32;
 
-                if(d + n > table->size)
+                if(d + n > table->size || d + n < d)
                 {
-                    return WA_TRAP_OUT_OF_BOUNDS;
+                    return WA_TRAP_TABLE_OUT_OF_BOUNDS;
                 }
                 for(u32 i = 0; i < n; i++)
                 {
@@ -7104,9 +7111,10 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
                 u32 s = *(u32*)&L3.valI32;
                 u32 n = *(u32*)&L4.valI32;
 
-                if(s + n > ty->size || d + n > tx->size)
+                if(s + n > ty->size || s + n < s
+                   || d + n > tx->size || d + n < d)
                 {
-                    return WA_TRAP_OUT_OF_BOUNDS;
+                    return WA_TRAP_TABLE_OUT_OF_BOUNDS;
                 }
                 memmove(tx->contents + d, ty->contents + s, n * sizeof(wa_value));
                 pc += 5;
@@ -7153,7 +7161,7 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
 
                 if(eltIndex >= table->size)
                 {
-                    return WA_TRAP_OUT_OF_BOUNDS;
+                    return WA_TRAP_TABLE_OUT_OF_BOUNDS;
                 }
                 L0 = table->contents[eltIndex];
                 pc += 3;
@@ -7168,7 +7176,7 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
 
                 if(eltIndex >= table->size)
                 {
-                    return WA_TRAP_OUT_OF_BOUNDS;
+                    return WA_TRAP_TABLE_OUT_OF_BOUNDS;
                 }
                 table->contents[eltIndex] = val;
                 pc += 3;
@@ -8112,7 +8120,11 @@ int test_file(oc_str8 testPath, oc_str8 testName, oc_str8 testDir, i32 filterLin
                 }
                 else if(!oc_str8_cmp(failure->string, OC_STR8("out of bounds memory access")))
                 {
-                    expected = WA_TRAP_OUT_OF_BOUNDS;
+                    expected = WA_TRAP_MEMORY_OUT_OF_BOUNDS;
+                }
+                else if(!oc_str8_cmp(failure->string, OC_STR8("out of bounds table access")))
+                {
+                    expected = WA_TRAP_TABLE_OUT_OF_BOUNDS;
                 }
                 else
                 {
