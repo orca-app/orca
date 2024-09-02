@@ -5203,6 +5203,12 @@ typedef struct wa_control
     wa_value* returnFrame;
 } wa_control;
 
+enum
+{
+    WA_CONTROL_STACK_SIZE = 1024,
+    WA_LOCALS_BUFFER_SIZE = 1024,
+};
+
 wa_status wa_instance_interpret_expr(wa_instance* instance,
                                      wa_func_type* type,
                                      wa_code* code,
@@ -5211,10 +5217,10 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
                                      u32 retCount,
                                      wa_value* returns)
 {
-    wa_control controlStack[1024] = { 0 };
+    wa_control controlStack[WA_CONTROL_STACK_SIZE] = { 0 };
     u32 controlStackTop = 0;
 
-    wa_value localsBuffer[1024] = { 0 };
+    wa_value localsBuffer[WA_LOCALS_BUFFER_SIZE] = { 0 };
     wa_value* locals = localsBuffer;
     wa_code* pc = code;
 
@@ -5567,13 +5573,13 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
                         .returnFrame = locals,
                     };
                     controlStackTop++;
+                    locals += I1.valI64;
 
-                    if(controlStackTop >= 1024)
+                    if(controlStackTop >= WA_CONTROL_STACK_SIZE || locals - localsBuffer > WA_LOCALS_BUFFER_SIZE)
                     {
                         return (WA_TRAP_STACK_OVERFLOW);
                     }
 
-                    locals += I1.valI64;
                     pc = callee->code;
                 }
                 else if(callee->extInstance)
@@ -8070,9 +8076,13 @@ wa_status wa_test_failure_string_to_status(oc_str8 failure)
     {
         expected = WA_FAIL_IMPORT_TYPE_MISMATCH;
     }
+    else if(!oc_str8_cmp(failure, OC_STR8("call stack exhausted")))
+    {
+        expected = WA_TRAP_STACK_OVERFLOW;
+    }
     else
     {
-        oc_log_error("unhandled assert_trap failure string %.*s\n", oc_str8_ip(failure));
+        oc_log_error("unhandled failure string %.*s\n", oc_str8_ip(failure));
     }
     return expected;
 }
@@ -8391,6 +8401,36 @@ int test_file(oc_str8 testPath, oc_str8 testName, oc_str8 testDir, i32 filterLin
 
                 //TODO: check the failure reason
                 if(oc_list_empty(module->errors))
+                {
+                    wa_test_fail(env, testName, command);
+                }
+                else
+                {
+                    wa_test_pass(env, testName, command);
+                }
+            }
+            else if(!oc_str8_cmp(type->string, OC_STR8("assert_exhaustion")))
+            {
+                json_node* action = json_find_assert(command, "action", JSON_OBJECT);
+                json_node* failure = json_find_assert(command, "text", JSON_STRING);
+
+                wa_status expected = wa_test_failure_string_to_status(failure->string);
+                if(expected == WA_OK)
+                {
+                    wa_test_fail(env, testName, command);
+                    continue;
+                }
+
+                wa_instance* instance = wa_test_get_instance(env, action);
+                if(!instance)
+                {
+                    wa_test_fail(env, testName, command);
+                    continue;
+                }
+
+                wa_test_result result = wa_test_action(env, instance, action);
+
+                if(result.trap != expected)
                 {
                     wa_test_fail(env, testName, command);
                 }
