@@ -1287,7 +1287,7 @@ wa_ast* wa_read_raw_u32(wa_parser* parser, wa_ast* parent, oc_str8 label)
     return (ast);
 }
 
-wa_ast* wa_read_leb128_u64(wa_parser* parser, wa_ast* parent, oc_str8 label)
+wa_ast* wa_read_leb128(wa_parser* parser, wa_ast* parent, oc_str8 label, u32 bitWidth, bool isSigned)
 {
     wa_ast* ast = wa_ast_begin(parser, parent, WA_AST_U64);
     ast->label = label;
@@ -1295,6 +1295,8 @@ wa_ast* wa_read_leb128_u64(wa_parser* parser, wa_ast* parent, oc_str8 label)
     char byte = 0;
     u64 shift = 0;
     u64 res = 0;
+    u32 count = 0;
+    u32 maxCount = (u32)ceil(bitWidth / 7.);
 
     do
     {
@@ -1308,23 +1310,72 @@ wa_ast* wa_read_leb128_u64(wa_parser* parser, wa_ast* parent, oc_str8 label)
             break;
         }
 
-        byte = parser->contents[parser->offset];
-        parser->offset++;
-
-        if(shift >= 64)
+        if(count >= maxCount)
         {
             wa_parse_error(parser,
                            ast,
-                           "Couldn't read %.*s: leb128 overflow.\n",
+                           "Couldn't read %.*s: leb128 u64 representation too long.\n",
                            oc_str8_ip(label));
             res = 0;
             break;
         }
 
+        byte = parser->contents[parser->offset];
+        parser->offset++;
+
         res |= ((u64)byte & 0x7f) << shift;
         shift += 7;
+        count++;
     }
     while(byte & 0x80);
+
+    if(isSigned)
+    {
+        if(count == maxCount)
+        {
+            //NOTE: the spec mandates that unused bits must match the sign bit,
+            // so we construct a mask to select the sign bit and the unused bits,
+            // and we check that they're either all 1 or all 0
+            u8 bitsInLastByte = (bitWidth - (maxCount - 1) * 7);
+            u8 lastByteMask = (0xff << (bitsInLastByte - 1)) & 0x7f;
+            u8 bits = byte & lastByteMask;
+
+            if(bits != 0 && bits != lastByteMask)
+            {
+                wa_parse_error(parser,
+                               ast,
+                               "Couldn't read %.*s: leb128 overflow.\n",
+                               oc_str8_ip(label));
+                res = 0;
+            }
+        }
+
+        if(shift < 64 && (byte & 0x40))
+        {
+            res |= (~0ULL << shift);
+        }
+    }
+    else
+    {
+        if(count == maxCount)
+        {
+            //NOTE: for signed the spec mandates that unused bits must be zero,
+            // so we construct a mask to select only unused bits,
+            // and we check that they're all 0
+            u8 bitsInLastByte = (bitWidth - (maxCount - 1) * 7);
+            u8 lastByteMask = (0xff << (bitsInLastByte)) & 0x7f;
+            u8 bits = byte & lastByteMask;
+
+            if(bits != 0)
+            {
+                wa_parse_error(parser,
+                               ast,
+                               "Couldn't read %.*s: leb128 overflow.\n",
+                               oc_str8_ip(label));
+                res = 0;
+            }
+        }
+    }
 
     ast->valU64 = res;
     wa_ast_end(parser, ast);
@@ -1332,7 +1383,13 @@ wa_ast* wa_read_leb128_u64(wa_parser* parser, wa_ast* parent, oc_str8 label)
     return (ast);
 }
 
-wa_ast* wa_read_leb128_i64(wa_parser* parser, wa_ast* parent, oc_str8 label)
+wa_ast* wa_read_leb128_u64(wa_parser* parser, wa_ast* parent, oc_str8 label)
+{
+    return (wa_read_leb128(parser, parent, label, 64, false));
+}
+
+/*
+wa_ast* wa_read_sleb128(wa_parser* parser, wa_ast* parent, oc_str8 label, u32 bitWidth)
 {
     wa_ast* ast = wa_ast_begin(parser, parent, WA_AST_I64);
     ast->label = label;
@@ -1341,6 +1398,7 @@ wa_ast* wa_read_leb128_i64(wa_parser* parser, wa_ast* parent, oc_str8 label)
     u64 shift = 0;
     i64 res = 0;
 
+    u32 maxShift = 7 * (u32)ceil(bitWidth / 7.);
     do
     {
         if(parser->offset + sizeof(char) > parser->len)
@@ -1353,8 +1411,30 @@ wa_ast* wa_read_leb128_i64(wa_parser* parser, wa_ast* parent, oc_str8 label)
             res = 0;
             break;
         }
+
+        if(shift >= maxShift)
+        {
+            wa_parse_error(parser,
+                           ast,
+                           "Couldn't read %.*s: leb128 i64 representation too long.\n",
+                           oc_str8_ip(label));
+            res = 0;
+            break;
+        }
+
         byte = parser->contents[parser->offset];
         parser->offset++;
+
+        if(shift == maxShift && (byte & 0x7e))
+        {
+            wa_parse_error(parser,
+                           ast,
+                           "Couldn't read %.*s: leb128 overflow.\n",
+                           oc_str8_ip(label));
+            res = 0;
+            byte = 0;
+            break;
+        }
 
         if(shift >= 64)
         {
@@ -1382,10 +1462,16 @@ wa_ast* wa_read_leb128_i64(wa_parser* parser, wa_ast* parent, oc_str8 label)
     wa_ast_end(parser, ast);
     return (ast);
 }
+*/
+
+wa_ast* wa_read_leb128_i64(wa_parser* parser, wa_ast* parent, oc_str8 label)
+{
+    return (wa_read_leb128(parser, parent, label, 64, true));
+}
 
 wa_ast* wa_read_leb128_u32(wa_parser* parser, wa_ast* parent, oc_str8 label)
 {
-    wa_ast* ast = wa_read_leb128_u64(parser, parent, label);
+    wa_ast* ast = wa_read_leb128(parser, parent, label, 32, false);
     ast->kind = WA_AST_U32;
     ast->label = label;
 
@@ -1409,7 +1495,7 @@ wa_ast* wa_read_leb128_u32(wa_parser* parser, wa_ast* parent, oc_str8 label)
 
 wa_ast* wa_read_leb128_i32(wa_parser* parser, wa_ast* parent, oc_str8 label)
 {
-    wa_ast* ast = wa_read_leb128_i64(parser, parent, label);
+    wa_ast* ast = wa_read_leb128(parser, parent, label, 32, true);
     ast->kind = WA_AST_I32;
     ast->label = label;
 
@@ -2796,6 +2882,17 @@ void wa_parse_code(wa_parser* parser, wa_module* module)
 
             counts[localEntryIndex] = countAst->valU32;
             types[localEntryIndex] = typeAst->valU8;
+
+            if(func->localCount + counts[localEntryIndex] < func->localCount)
+            {
+                //NOTE: overflow
+                wa_parse_error(parser,
+                               funcAst,
+                               "Too many locals for function %i\n",
+                               funcIndex);
+                goto parse_function_end;
+            }
+
             func->localCount += counts[localEntryIndex];
 
             wa_ast_end(parser, localEntryAst);
@@ -8409,6 +8506,42 @@ int test_file(oc_str8 testPath, oc_str8 testName, oc_str8 testDir, i32 filterLin
                     wa_test_pass(env, testName, command);
                 }
             }
+            else if(!oc_str8_cmp(type->string, OC_STR8("assert_malformed")))
+            {
+                json_node* moduleType = json_find_assert(command, "module_type", JSON_STRING);
+
+                if(!oc_str8_cmp(moduleType->string, OC_STR8("binary")))
+                {
+                    json_node* filename = json_find_assert(command, "filename", JSON_STRING);
+
+                    oc_str8_list list = { 0 };
+                    oc_str8_list_push(env->arena, &list, testDir);
+                    oc_str8_list_push(env->arena, &list, filename->string);
+
+                    oc_str8 filePath = oc_path_join(env->arena, list);
+
+                    wa_module* module = wa_test_module_load(env->arena, filePath);
+
+                    //TODO: check the failure reason
+                    if(oc_list_empty(module->errors))
+                    {
+                        wa_test_fail(env, testName, command);
+                    }
+                    else
+                    {
+                        wa_test_pass(env, testName, command);
+                    }
+                }
+                else if(!oc_str8_cmp(moduleType->string, OC_STR8("text")))
+                {
+                    wa_test_skip(env, testName, command);
+                }
+                else
+                {
+                    oc_log_error("unsupported module type %.*s\n", oc_str8_ip(moduleType->string));
+                    wa_test_fail(env, testName, command);
+                }
+            }
             else if(!oc_str8_cmp(type->string, OC_STR8("assert_exhaustion")))
             {
                 json_node* action = json_find_assert(command, "action", JSON_OBJECT);
@@ -8438,10 +8571,6 @@ int test_file(oc_str8 testPath, oc_str8 testName, oc_str8 testDir, i32 filterLin
                 {
                     wa_test_pass(env, testName, command);
                 }
-            }
-            else if(!oc_str8_cmp(type->string, OC_STR8("assert_malformed")))
-            {
-                wa_test_skip(env, testName, command);
             }
             else
             {
