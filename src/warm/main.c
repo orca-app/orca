@@ -750,6 +750,7 @@ typedef struct wa_data_segment
 
 typedef struct wa_memory
 {
+    wa_limits limits;
     u64 cap;
     u64 size;
     char* ptr;
@@ -2033,7 +2034,7 @@ void wa_parse_tables(wa_parser* parser, wa_module* module)
         if(import->kind == WA_IMPORT_TABLE)
         {
             wa_table_type* table = &module->tables[tableImportIndex];
-            table->type = import->index;
+            table->type = import->type;
             table->limits = import->limits;
             tableImportIndex++;
         }
@@ -4779,6 +4780,7 @@ wa_instance* wa_instance_create(oc_arena* arena, wa_module* module)
         wa_limits* limits = &module->memories[memIndex];
         wa_memory* mem = oc_arena_push_type(arena, wa_memory);
 
+        mem->limits = *limits;
         mem->cap = (limits->kind == WA_LIMIT_MIN) ? 4LLU << 30 : limits->max * WA_PAGE_SIZE;
         mem->size = limits->min * WA_PAGE_SIZE;
         mem->ptr = oc_base_reserve(allocator, mem->cap);
@@ -4816,6 +4818,13 @@ bool wa_check_function_type(wa_func_type* t1, wa_func_type* t2)
     return true;
 }
 
+bool wa_check_limits_match(wa_limits* l1, wa_limits* l2)
+{
+    return ((l1->min >= l2->min)
+            && (l2->kind == WA_LIMIT_MIN
+                || (l1->kind == WA_LIMIT_MIN_MAX && l1->max <= l2->max)));
+}
+
 //TODO: temporary for tests, coalesce this with normal function binding
 wa_status wa_instance_bind_function_wasm(wa_instance* instance, oc_str8 name, wa_func_type* type, wa_instance* extInstance, u32 extIndex)
 {
@@ -4826,21 +4835,23 @@ wa_status wa_instance_bind_function_wasm(wa_instance* instance, oc_str8 name, wa
     {
         wa_import* import = &module->imports[importIndex];
 
-        if(import->kind == WA_IMPORT_FUNCTION)
+        if(!oc_str8_cmp(name, import->importName))
         {
-            if(!oc_str8_cmp(name, import->importName))
+            if(import->kind != WA_IMPORT_FUNCTION)
             {
-                wa_func* func = &instance->functions[funcIndex];
-                func->extInstance = extInstance;
-                func->extIndex = extIndex;
-
-                if(!wa_check_function_type(type, func->type))
-                {
-                    return WA_FAIL_IMPORT_TYPE_MISMATCH;
-                }
+                return WA_FAIL_IMPORT_TYPE_MISMATCH;
             }
-            funcIndex++;
+
+            wa_func* func = &instance->functions[funcIndex];
+            func->extInstance = extInstance;
+            func->extIndex = extIndex;
+
+            if(!wa_check_function_type(type, func->type))
+            {
+                return WA_FAIL_IMPORT_TYPE_MISMATCH;
+            }
         }
+        funcIndex++;
     }
     return (WA_OK);
 }
@@ -4854,46 +4865,46 @@ wa_status wa_instance_bind_function(wa_instance* instance, oc_str8 name, wa_func
     {
         wa_import* import = &module->imports[importIndex];
 
-        if(import->kind == WA_IMPORT_FUNCTION)
+        if(!oc_str8_cmp(name, import->importName))
         {
-            if(!oc_str8_cmp(name, import->importName))
+            if(import->kind != WA_IMPORT_FUNCTION)
             {
-                wa_func* func = &instance->functions[funcIndex];
-                func->proc = proc;
+                return WA_FAIL_IMPORT_TYPE_MISMATCH;
+            }
+            wa_func* func = &instance->functions[funcIndex];
+            func->proc = proc;
 
-                if(type->paramCount != func->type->paramCount
-                   || type->returnCount != func->type->returnCount)
+            if(type->paramCount != func->type->paramCount
+               || type->returnCount != func->type->returnCount)
+            {
+                //log error to module
+                return WA_FAIL_IMPORT_TYPE_MISMATCH;
+            }
+            for(u32 paramIndex = 0; paramIndex < type->paramCount; paramIndex++)
+            {
+                if(type->params[paramIndex] != func->type->params[paramIndex])
                 {
-                    //log error to module
                     return WA_FAIL_IMPORT_TYPE_MISMATCH;
                 }
-                for(u32 paramIndex = 0; paramIndex < type->paramCount; paramIndex++)
+            }
+            for(u32 returnIndex = 0; returnIndex < type->returnCount; returnIndex++)
+            {
+                if(type->returns[returnIndex] != func->type->returns[returnIndex])
                 {
-                    if(type->params[paramIndex] != func->type->params[paramIndex])
-                    {
-                        return WA_FAIL_IMPORT_TYPE_MISMATCH;
-                    }
-                }
-                for(u32 returnIndex = 0; returnIndex < type->returnCount; returnIndex++)
-                {
-                    if(type->returns[returnIndex] != func->type->returns[returnIndex])
-                    {
-                        return WA_FAIL_IMPORT_TYPE_MISMATCH;
-                    }
+                    return WA_FAIL_IMPORT_TYPE_MISMATCH;
                 }
             }
+        }
+        if(import->kind == WA_IMPORT_FUNCTION)
+        {
             funcIndex++;
         }
     }
     return (WA_OK);
 }
 
-wa_status wa_instance_bind_global(wa_instance* instance, oc_str8 name, wa_value* value)
+wa_status wa_instance_bind_global(wa_instance* instance, oc_str8 name, wa_value_type type, bool mutable, wa_value* value)
 {
-    ///////////////////////////
-    //TODO typecheck
-    ///////////////////////////
-
     wa_module* module = instance->module;
     u32 globalIndex = 0;
 
@@ -4901,20 +4912,29 @@ wa_status wa_instance_bind_global(wa_instance* instance, oc_str8 name, wa_value*
     {
         wa_import* import = &module->imports[importIndex];
 
+        if(!oc_str8_cmp(name, import->importName))
+        {
+            if(import->kind != WA_IMPORT_GLOBAL)
+            {
+                return WA_FAIL_IMPORT_TYPE_MISMATCH;
+            }
+
+            wa_global* globalDesc = &module->globals[globalIndex];
+            if(globalDesc->type != type || globalDesc->mut != mutable)
+            {
+                return WA_FAIL_IMPORT_TYPE_MISMATCH;
+            }
+            instance->globals[globalIndex] = value;
+        }
         if(import->kind == WA_IMPORT_GLOBAL)
         {
-            if(!oc_str8_cmp(name, import->importName))
-            {
-                wa_global* globalDesc = &module->globals[globalIndex];
-                instance->globals[globalIndex] = value;
-            }
             globalIndex++;
         }
     }
     return (WA_OK);
 }
 
-wa_status wa_instance_bind_memory(wa_instance* instance, oc_str8 name, wa_memory* memory)
+wa_status wa_instance_bind_memory(wa_instance* instance, oc_str8 moduleName, oc_str8 name, wa_memory* memory)
 {
     wa_module* module = instance->module;
     u32 memIndex = 0;
@@ -4923,24 +4943,29 @@ wa_status wa_instance_bind_memory(wa_instance* instance, oc_str8 name, wa_memory
     {
         wa_import* import = &module->imports[importIndex];
 
+        if(!oc_str8_cmp(name, import->importName) && !oc_str8_cmp(moduleName, import->moduleName))
+        {
+            if(import->kind != WA_IMPORT_MEMORY)
+            {
+                return WA_FAIL_IMPORT_TYPE_MISMATCH;
+            }
+            if(!wa_check_limits_match(&memory->limits, &module->memories[memIndex]))
+            {
+                return WA_FAIL_IMPORT_TYPE_MISMATCH;
+            }
+
+            instance->memories[memIndex] = memory;
+        }
         if(import->kind == WA_IMPORT_MEMORY)
         {
-            if(!oc_str8_cmp(name, import->importName))
-            {
-                instance->memories[memIndex] = memory;
-            }
             memIndex++;
         }
     }
     return (WA_OK);
 }
 
-wa_status wa_instance_bind_table(wa_instance* instance, oc_str8 name, wa_table* table)
+wa_status wa_instance_bind_table(wa_instance* instance, oc_str8 moduleName, oc_str8 name, wa_table_type desc, wa_table* table)
 {
-    ///////////////////////////
-    //TODO typecheck
-    ///////////////////////////
-
     wa_module* module = instance->module;
     u32 tableIndex = 0;
 
@@ -4948,12 +4973,23 @@ wa_status wa_instance_bind_table(wa_instance* instance, oc_str8 name, wa_table* 
     {
         wa_import* import = &module->imports[importIndex];
 
+        if(!oc_str8_cmp(name, import->importName) && !oc_str8_cmp(moduleName, import->moduleName))
+        {
+            if(import->kind != WA_IMPORT_TABLE)
+            {
+                return WA_FAIL_IMPORT_TYPE_MISMATCH;
+            }
+
+            if(module->tables[tableIndex].type != desc.type
+               || !wa_check_limits_match(&desc.limits, &module->tables[tableIndex].limits))
+            {
+                return WA_FAIL_IMPORT_TYPE_MISMATCH;
+            }
+
+            instance->tables[tableIndex] = table;
+        }
         if(import->kind == WA_IMPORT_TABLE)
         {
-            if(!oc_str8_cmp(name, import->importName))
-            {
-                instance->tables[tableIndex] = table;
-            }
             tableIndex++;
         }
     }
@@ -4989,7 +5025,33 @@ wa_status wa_instance_link(wa_instance* instance)
         }
     }
 
-    for(u64 globalIndex = 0; globalIndex < module->globalCount; globalIndex++)
+    for(u32 globalIndex = 0; globalIndex < module->globalImportCount; globalIndex++)
+    {
+        if(instance->globals[globalIndex] == 0)
+        {
+            return WA_FAIL_MISSING_IMPORT;
+        }
+    }
+
+    for(u32 tableIndex = 0; tableIndex < module->tableImportCount; tableIndex++)
+    {
+        if(instance->tables[tableIndex] == 0)
+        {
+            //oc_log_error("Coulnd't link instance: table import is not satisfied\n");
+            return WA_FAIL_MISSING_IMPORT;
+        }
+    }
+
+    for(u32 memIndex = 0; memIndex < module->memoryImportCount; memIndex++)
+    {
+        if(instance->memories[memIndex] == 0)
+        {
+            //oc_log_error("Coulnd't link instance: memory import is not satisfied\n");
+            return WA_FAIL_MISSING_IMPORT;
+        }
+    }
+
+    for(u64 globalIndex = module->globalImportCount; globalIndex < module->globalCount; globalIndex++)
     {
         wa_global* global = &module->globals[globalIndex];
         if(global->code)
@@ -5003,15 +5065,6 @@ wa_status wa_instance_link(wa_instance* instance)
                 //oc_log_error("Couldn't link instance: couldn't execute global initialization expression.\n");
                 return status;
             }
-        }
-    }
-
-    for(u32 tableIndex = 0; tableIndex < module->tableImportCount; tableIndex++)
-    {
-        if(instance->tables[tableIndex] == 0)
-        {
-            //oc_log_error("Coulnd't link instance: table import is not satisfied\n");
-            return WA_FAIL_MISSING_IMPORT;
         }
     }
 
@@ -5061,15 +5114,6 @@ wa_status wa_instance_link(wa_instance* instance)
         {
             //NOTE: drop the element
             element->initCount = 0;
-        }
-    }
-
-    for(u32 memIndex = 0; memIndex < module->memoryImportCount; memIndex++)
-    {
-        if(instance->memories[memIndex] == 0)
-        {
-            //oc_log_error("Coulnd't link instance: memory import is not satisfied\n");
-            return WA_FAIL_MISSING_IMPORT;
         }
     }
 
@@ -7020,6 +7064,7 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
                     res = mem->size / WA_PAGE_SIZE;
                     oc_base_commit(allocator, mem->ptr + mem->size, n * WA_PAGE_SIZE);
                     mem->size += size;
+                    mem->limits.min = mem->size / WA_PAGE_SIZE;
                 }
 
                 L0.valI32 = res;
@@ -7526,6 +7571,8 @@ typedef struct wa_test_env
     wa_table testspecTable;
     wa_value testspecGlobal_i32;
     wa_value testspecGlobal_i64;
+    wa_value testspecGlobal_f32;
+    wa_value testspecGlobal_f64;
 
 } wa_test_env;
 
@@ -7740,16 +7787,59 @@ wa_status wa_test_instantiate(wa_test_env* env, wa_test_instance* testInstance, 
 {
     testInstance->instance = wa_instance_create(env->arena, module);
 
-    wa_instance_bind_memory(testInstance->instance, OC_STR8("memory"), &env->testspecMemory);
-    wa_instance_bind_table(testInstance->instance, OC_STR8("table"), &env->testspecTable);
+    wa_status status = wa_instance_bind_memory(testInstance->instance,
+                                               OC_STR8("spectest"),
+                                               OC_STR8("memory"),
+                                               &env->testspecMemory);
+    if(status != WA_OK)
+    {
+        return status;
+    }
 
-    wa_instance_bind_global(testInstance->instance, OC_STR8("global_i32"), &env->testspecGlobal_i32);
-    wa_instance_bind_global(testInstance->instance, OC_STR8("global_i64"), &env->testspecGlobal_i64);
+    status = wa_instance_bind_table(testInstance->instance,
+                                    OC_STR8("spectest"),
+                                    OC_STR8("table"), (wa_table_type){
+                                                          .type = WA_TYPE_FUNC_REF,
+                                                          .limits = {
+                                                              .kind = WA_LIMIT_MIN_MAX,
+                                                              .min = 10,
+                                                              .max = 20,
+                                                          },
+                                                      },
+                                    &env->testspecTable);
+    if(status != WA_OK)
+    {
+        return status;
+    }
 
-    wa_status status = wa_instance_bind_function(testInstance->instance,
-                                                 OC_STR8("print"),
-                                                 &(wa_func_type){ 0 },
-                                                 test_print);
+    status = wa_instance_bind_global(testInstance->instance, OC_STR8("global_i32"), WA_TYPE_I32, false, &env->testspecGlobal_i32);
+    if(status != WA_OK)
+    {
+        return status;
+    }
+
+    status = wa_instance_bind_global(testInstance->instance, OC_STR8("global_i64"), WA_TYPE_I64, false, &env->testspecGlobal_i64);
+    if(status != WA_OK)
+    {
+        return status;
+    }
+
+    status = wa_instance_bind_global(testInstance->instance, OC_STR8("global_f32"), WA_TYPE_F32, false, &env->testspecGlobal_i32);
+    if(status != WA_OK)
+    {
+        return status;
+    }
+
+    status = wa_instance_bind_global(testInstance->instance, OC_STR8("global_f64"), WA_TYPE_F64, false, &env->testspecGlobal_i64);
+    if(status != WA_OK)
+    {
+        return status;
+    }
+
+    status = wa_instance_bind_function(testInstance->instance,
+                                       OC_STR8("print"),
+                                       &(wa_func_type){ 0 },
+                                       test_print);
     if(status != WA_OK)
     {
         return status;
@@ -7847,19 +7937,25 @@ wa_status wa_test_instantiate(wa_test_env* env, wa_test_instance* testInstance, 
     u32 tableIndex = 0;
     u32 globalIndex = 0;
 
-    for(u32 i = 0; i < testInstance->instance->module->importCount; i++)
+    for(u32 i = 0; i < module->importCount; i++)
     {
-        wa_import* import = &testInstance->instance->module->imports[i];
+        wa_import* import = &module->imports[i];
 
         oc_list_for(env->instances, registeredInstance, wa_test_instance, listElt)
         {
+            wa_module* registeredModule = registeredInstance->instance->module;
+
             if(!oc_str8_cmp(registeredInstance->registeredName, import->moduleName))
             {
-                for(u32 exportIndex = 0; exportIndex < registeredInstance->instance->module->exportCount; exportIndex++)
+                for(u32 exportIndex = 0; exportIndex < registeredModule->exportCount; exportIndex++)
                 {
-                    wa_export* export = &registeredInstance->instance->module->exports[exportIndex];
-                    if((i32) export->kind == (i32)import->kind && !oc_str8_cmp(export->name, import->importName))
+                    wa_export* export = &registeredModule->exports[exportIndex];
+                    if(!oc_str8_cmp(export->name, import->importName))
                     {
+                        if((u32)import->kind != (u32) export->kind)
+                        {
+                            return WA_FAIL_IMPORT_TYPE_MISMATCH;
+                        }
                         if(import->kind == WA_IMPORT_FUNCTION)
                         {
                             wa_func* func = &testInstance->instance->functions[funcIndex];
@@ -7875,15 +7971,31 @@ wa_status wa_test_instantiate(wa_test_env* env, wa_test_instance* testInstance, 
                         }
                         else if(import->kind == WA_IMPORT_MEMORY)
                         {
-                            testInstance->instance->memories[funcIndex] = registeredInstance->instance->memories[export->index];
+                            if(!wa_check_limits_match(&registeredInstance->instance->memories[export->index]->limits, &module->memories[memIndex]))
+                            {
+                                return WA_FAIL_IMPORT_TYPE_MISMATCH;
+                            }
+                            testInstance->instance->memories[memIndex] = registeredInstance->instance->memories[export->index];
                         }
                         else if(import->kind == WA_IMPORT_TABLE)
                         {
+                            if(module->tables[tableIndex].type != registeredModule->tables[export->index].type
+                               || !wa_check_limits_match(&registeredModule->tables[export->index].limits, &module->tables[tableIndex].limits))
+                            {
+                                return WA_FAIL_IMPORT_TYPE_MISMATCH;
+                            }
+
                             testInstance->instance->tables[tableIndex] = registeredInstance->instance->tables[export->index];
                         }
                         else if(import->kind == WA_IMPORT_GLOBAL)
                         {
-                            testInstance->instance->globals[globalIndex] = registeredInstance->instance->globals[globalIndex];
+                            if(module->globals[globalIndex].type != registeredModule->globals[export->index].type
+                               || module->globals[globalIndex].mut != registeredModule->globals[export->index].mut)
+                            {
+                                return WA_FAIL_IMPORT_TYPE_MISMATCH;
+                            }
+
+                            testInstance->instance->globals[globalIndex] = registeredInstance->instance->globals[export->index];
                         }
                         break;
                     }
@@ -7986,6 +8098,11 @@ int test_file(oc_str8 testPath, oc_str8 testName, oc_str8 testDir, i32 filterLin
     //spec test memory
     oc_base_allocator* allocator = oc_base_allocator_default();
     env->testspecMemory = (wa_memory){
+        .limits = {
+            .kind = WA_LIMIT_MIN_MAX,
+            .min = 1,
+            .max = 2,
+        },
         .cap = 2 * WA_PAGE_SIZE,
         .size = WA_PAGE_SIZE,
         .ptr = oc_base_reserve(allocator, 2 * WA_PAGE_SIZE),
@@ -8203,7 +8320,6 @@ int test_file(oc_str8 testPath, oc_str8 testName, oc_str8 testDir, i32 filterLin
                 wa_status expected = wa_test_failure_string_to_status(failure->string);
                 if(expected == WA_OK)
                 {
-                    // wa_test_skip(env, testName, command);
                     wa_test_fail(env, testName, command);
                     continue;
                 }
