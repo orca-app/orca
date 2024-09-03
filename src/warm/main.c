@@ -896,12 +896,16 @@ typedef struct wa_ast
 
 } wa_ast;
 
-typedef struct wa_module_toc_entry
+typedef struct wa_section
 {
+    oc_list_elt listElt;
+    u64 id;
     u64 len;
     u64 offset;
     wa_ast* ast;
-} wa_module_toc_entry;
+    oc_str8 name;
+
+} wa_section;
 
 typedef struct wa_module
 {
@@ -910,18 +914,20 @@ typedef struct wa_module
 
     struct
     {
-        wa_module_toc_entry types;
-        wa_module_toc_entry imports;
-        wa_module_toc_entry functions;
-        wa_module_toc_entry tables;
-        wa_module_toc_entry memory;
-        wa_module_toc_entry globals;
-        wa_module_toc_entry exports;
-        wa_module_toc_entry start;
-        wa_module_toc_entry elements;
-        wa_module_toc_entry dataCount;
-        wa_module_toc_entry code;
-        wa_module_toc_entry data;
+        wa_section types;
+        wa_section imports;
+        wa_section functions;
+        wa_section tables;
+        wa_section memory;
+        wa_section globals;
+        wa_section exports;
+        wa_section start;
+        wa_section elements;
+        wa_section dataCount;
+        wa_section code;
+        wa_section data;
+
+        oc_list customSections;
     } toc;
 
     u32 typeCount;
@@ -1622,6 +1628,11 @@ wa_ast* wa_read_name(wa_parser* parser, wa_ast* parent, oc_str8 label)
                                    ast,
                                    "Invalid UTF8 encoding: invalid codepoint.\n");
                     break;
+                case OC_UTF8_OVERLONG_ENCODING:
+                    wa_parse_error(parser,
+                                   ast,
+                                   "Invalid UTF8 encoding: overlong encoding.\n");
+                    break;
             }
         }
     }
@@ -1676,14 +1687,14 @@ void wa_parse_sections(wa_parser* parser, wa_module* module)
 {
     while(!wa_parser_end(parser))
     {
-        wa_ast* section = wa_ast_begin(parser, module->root, WA_AST_SECTION);
-        wa_ast* sectionID = wa_read_byte(parser, section, OC_STR8("section ID"));
+        wa_ast* ast = wa_ast_begin(parser, module->root, WA_AST_SECTION);
+        wa_ast* sectionID = wa_read_byte(parser, ast, OC_STR8("section ID"));
         if(wa_ast_has_errors(sectionID))
         {
             return;
         }
 
-        wa_ast* sectionLen = wa_read_leb128_u32(parser, section, OC_STR8("section length"));
+        wa_ast* sectionLen = wa_read_leb128_u32(parser, ast, OC_STR8("section length"));
         if(wa_ast_has_errors(sectionLen))
         {
             return;
@@ -1691,77 +1702,94 @@ void wa_parse_sections(wa_parser* parser, wa_module* module)
 
         u64 contentOffset = parser->offset;
 
-        wa_module_toc_entry* entry = 0;
+        //TODO: check if section was already defined...
+
+        wa_section* entry = 0;
         switch(sectionID->valU8)
         {
             case 0:
-                break;
-                //TODO: check if section was already defined...
+            {
+                entry = oc_arena_push_type(parser->arena, wa_section);
+                memset(entry, 0, sizeof(wa_section));
+                ast->label = OC_STR8("Custom section");
+
+                wa_ast* name = wa_read_name(parser, ast, OC_STR8("section name"));
+                entry->name = name->str8;
+
+                if(parser->offset - contentOffset > sectionLen->valU32)
+                {
+                    wa_parse_error(parser,
+                                   ast,
+                                   "Unexpected end of custom section.\n",
+                                   sectionID);
+                }
+            }
+            break;
 
             case 1:
                 entry = &module->toc.types;
-                section->label = OC_STR8("Types section");
+                ast->label = OC_STR8("Types section");
                 break;
 
             case 2:
                 entry = &module->toc.imports;
-                section->label = OC_STR8("Imports section");
+                ast->label = OC_STR8("Imports section");
                 break;
 
             case 3:
                 entry = &module->toc.functions;
-                section->label = OC_STR8("Functions section");
+                ast->label = OC_STR8("Functions section");
                 break;
 
             case 4:
                 entry = &module->toc.tables;
-                section->label = OC_STR8("Tables section");
+                ast->label = OC_STR8("Tables section");
                 break;
 
             case 5:
                 entry = &module->toc.memory;
-                section->label = OC_STR8("Memory section");
+                ast->label = OC_STR8("Memory section");
                 break;
 
             case 6:
                 entry = &module->toc.globals;
-                section->label = OC_STR8("Globals section");
+                ast->label = OC_STR8("Globals section");
                 break;
 
             case 7:
                 entry = &module->toc.exports;
-                section->label = OC_STR8("Exports section");
+                ast->label = OC_STR8("Exports section");
                 break;
 
             case 8:
                 entry = &module->toc.start;
-                section->label = OC_STR8("Start section");
+                ast->label = OC_STR8("Start section");
                 break;
 
             case 9:
                 entry = &module->toc.elements;
-                section->label = OC_STR8("Elements section");
+                ast->label = OC_STR8("Elements section");
                 break;
 
             case 10:
                 entry = &module->toc.code;
-                section->label = OC_STR8("Code section");
+                ast->label = OC_STR8("Code section");
                 break;
 
             case 11:
                 entry = &module->toc.data;
-                section->label = OC_STR8("Data section");
+                ast->label = OC_STR8("Data section");
                 break;
 
             case 12:
                 entry = &module->toc.dataCount;
-                section->label = OC_STR8("Data count section");
+                ast->label = OC_STR8("Data count section");
                 break;
 
             default:
             {
                 wa_parse_error(parser,
-                               section,
+                               ast,
                                "Unknown section identifier %i.\n",
                                sectionID);
             }
@@ -1770,12 +1798,30 @@ void wa_parse_sections(wa_parser* parser, wa_module* module)
 
         if(entry)
         {
+            if(entry->ast)
+            {
+                wa_parse_error(parser, ast, "Redeclaration of %.*s.\n", oc_str8_ip(ast->label));
+            }
+            entry->id = sectionID->valU8;
             entry->offset = parser->offset;
             entry->len = sectionLen->valU32;
-            entry->ast = section;
+            entry->ast = ast;
+
+            if(entry->id == 0)
+            {
+                entry->len = sectionLen->valU32 - (parser->offset - contentOffset);
+                oc_list_push_back(&module->toc.customSections, &entry->listElt);
+            }
+        }
+        if(contentOffset + sectionLen->valU32 > parser->len || contentOffset + sectionLen->valU32 < contentOffset)
+        {
+            wa_parse_error(parser,
+                           ast,
+                           "Length of section out of bounds.\n",
+                           sectionID);
         }
         wa_parser_seek(parser, contentOffset + sectionLen->valU32, OC_STR8("next section"));
-        wa_ast_end(parser, section);
+        wa_ast_end(parser, ast);
     }
 }
 
@@ -2404,10 +2450,11 @@ wa_ast* wa_parse_expression(wa_parser* parser, wa_ast* parent, u32 localCount, o
     //TODO: we should validate block nesting here?
 
     i64 blockDepth = 0;
+    wa_instr* instr = 0;
 
     while(!wa_parser_end(parser) && blockDepth >= 0)
     {
-        wa_instr* instr = oc_arena_push_type(parser->arena, wa_instr);
+        instr = oc_arena_push_type(parser->arena, wa_instr);
         memset(instr, 0, sizeof(wa_instr));
         oc_list_push_back(list, &instr->listElt);
 
@@ -2489,8 +2536,14 @@ wa_ast* wa_parse_expression(wa_parser* parser, wa_ast* parent, u32 localCount, o
             //TODO add constraint on global get
         }
 
-        //NOTE: parse immediates, special cases first, then generic
+        //NOTE: memory.init and data.drop need a data count section
+        if((instr->op == WA_INSTR_memory_init || instr->op == WA_INSTR_data_drop)
+           && !module->toc.dataCount.ast)
+        {
+            wa_parse_error(parser, instrAst, "%s requires a data count section.\n", wa_instr_strings[instr->op]);
+        }
 
+        //NOTE: parse immediates, special cases first, then generic
         if(instr->op == WA_INSTR_block
            || instr->op == WA_INSTR_loop
            || instr->op == WA_INSTR_if)
@@ -2583,7 +2636,8 @@ wa_ast* wa_parse_expression(wa_parser* parser, wa_ast* parent, u32 localCount, o
                 {
                     case WA_IMM_ZERO:
                     {
-                        wa_read_byte(parser, instrAst, OC_STR8("zero"));
+                        wa_ast* immAst = wa_read_byte(parser, instrAst, OC_STR8("zero"));
+                        instr->imm[immIndex].valI32 = immAst->valU8;
                     }
                     break;
                     case WA_IMM_I32:
@@ -2682,6 +2736,12 @@ wa_ast* wa_parse_expression(wa_parser* parser, wa_ast* parent, u32 localCount, o
         }
         wa_ast_end(parser, instrAst);
     }
+
+    if(!instr || instr->op != WA_INSTR_end)
+    {
+        wa_parse_error(parser, exprAst, "unexpected end of expression\n");
+    }
+
     //TODO check that we exited from an end instruction
 
     wa_ast_end(parser, exprAst);
@@ -2828,6 +2888,31 @@ void wa_parse_elements(wa_parser* parser, wa_module* module)
     }
 }
 
+void wa_parse_data_count(wa_parser* parser, wa_module* module)
+{
+    wa_ast* section = module->toc.dataCount.ast;
+    if(!section)
+    {
+        return;
+    }
+
+    wa_parser_seek(parser, module->toc.dataCount.offset, OC_STR8("data count section"));
+    u64 startOffset = parser->offset;
+
+    wa_ast* dataCount = wa_read_leb128_u32(parser, section, OC_STR8("data count"));
+    module->dataCount = dataCount->valU32;
+
+    //NOTE: check section size
+    if(parser->offset - startOffset != module->toc.dataCount.len)
+    {
+        wa_parse_error(parser,
+                       section,
+                       "Size of section does not match declared size (declared = %llu, actual = %llu)\n",
+                       module->toc.dataCount.len,
+                       parser->offset - startOffset);
+    }
+}
+
 void wa_parse_data(wa_parser* parser, wa_module* module)
 {
     wa_ast* section = module->toc.data.ast;
@@ -2839,7 +2924,18 @@ void wa_parse_data(wa_parser* parser, wa_module* module)
     wa_parser_seek(parser, module->toc.data.offset, OC_STR8("data section"));
     u64 startOffset = parser->offset;
 
-    wa_ast* vector = wa_ast_begin_vector(parser, section, &module->dataCount);
+    u32 dataCount = 0;
+    wa_ast* vector = wa_ast_begin_vector(parser, section, &dataCount);
+
+    if(module->toc.dataCount.ast && dataCount != module->dataCount)
+    {
+        wa_parse_error(parser,
+                       vector,
+                       "Number of data segments does not match data count section (expected %u, got %u).\n",
+                       module->dataCount,
+                       dataCount);
+    }
+    module->dataCount = dataCount;
 
     module->data = oc_arena_push_array(parser->arena, wa_data_segment, module->dataCount);
     memset(module->data, 0, module->dataCount * sizeof(wa_data_segment));
@@ -2899,6 +2995,13 @@ void wa_parse_code(wa_parser* parser, wa_module* module)
     wa_ast* section = module->toc.code.ast;
     if(!section)
     {
+        if(module->functionCount - module->functionImportCount)
+        {
+            wa_parse_error(parser,
+                           module->toc.functions.ast,
+                           "Function section declares %i functions, but code section is absent",
+                           module->functionCount - module->functionImportCount);
+        }
         return;
     }
 
@@ -3866,6 +3969,19 @@ bool wa_validate_immediates(wa_build_context* context, wa_func* func, wa_instr* 
         wa_code* imm = &instr->imm[immIndex];
         switch(type)
         {
+            case WA_IMM_ZERO:
+            {
+                if(imm->valI32 != 0)
+                {
+                    wa_compile_error(context,
+                                     instr->ast,
+                                     "non zero value in 0x%x in zero immediate\n",
+                                     (u32)imm->valI32);
+                    check = false;
+                }
+            }
+            break;
+
             case WA_IMM_VALUE_TYPE:
             {
                 if(!wa_is_value_type(imm->valueType))
@@ -4658,6 +4774,7 @@ wa_module* wa_module_create(oc_arena* arena, oc_str8 contents)
     wa_parse_exports(&parser, module);
     wa_parse_start(&parser, module);
     wa_parse_elements(&parser, module);
+    wa_parse_data_count(&parser, module);
     wa_parse_code(&parser, module);
     wa_parse_data(&parser, module);
 
@@ -8643,7 +8760,7 @@ int test_file(oc_str8 testPath, oc_str8 testName, oc_str8 testDir, i32 filterLin
             else
             {
                 oc_log_error("unsupported command %.*s\n", oc_str8_ip(type->string));
-                wa_test_skip(env, testName, command);
+                wa_test_fail(env, testName, command);
             }
         }
     }
