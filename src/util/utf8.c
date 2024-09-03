@@ -154,6 +154,11 @@ oc_utf8_dec oc_utf8_decode_at(oc_str8 string, u64 offset)
         int expectedSize = oc_utf8_size_from_leading_char(string.ptr[offset]);
         do
         {
+            if(offset >= string.len)
+            {
+                res.status = OC_UTF8_OUT_OF_BOUNDS;
+                break;
+            }
             /*NOTE(martin):
 				we shift 6 bits and add the next byte at each round.
 				at the end we have our oc_utf8 codepoint, added to the shifted versions
@@ -178,24 +183,27 @@ oc_utf8_dec oc_utf8_decode_at(oc_str8 string, u64 offset)
                 break;
             }
         }
-        while(offset < string.len
-              && res.size < expectedSize);
+        while(res.size < expectedSize);
+
+        if(res.status == OC_UTF8_OK)
+        {
+            res.codepoint -= offsetsFromUTF8[res.size - 1];
+
+            //NOTE(martin): check for invalid codepoints
+            if((res.size == 3 && res.codepoint < 0x800) || (res.size == 4 && res.codepoint < 0x10000))
+            {
+                res.status = OC_UTF8_OVERLONG_ENCODING;
+            }
+            else if(res.codepoint > 0x10ffff || (res.codepoint >= 0xd800 && res.codepoint <= 0xdfff))
+            {
+                res.status = OC_UTF8_INVALID_CODEPOINT;
+            }
+        }
 
         if(res.status != OC_UTF8_OK)
         {
             //NOTE(martin): if we encountered an error, we return the replacement codepoint U+FFFD
             res.codepoint = 0xfffd;
-        }
-        else
-        {
-            res.codepoint -= offsetsFromUTF8[res.size - 1];
-
-            //NOTE(martin): check for invalid codepoints
-            if(res.codepoint > 0x10ffff || (res.codepoint >= 0xd800 && res.codepoint <= 0xdfff))
-            {
-                res.status = OC_UTF8_INVALID_CODEPOINT;
-                res.codepoint = 0xfffd;
-            }
         }
     }
     return (res);

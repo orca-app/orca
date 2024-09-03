@@ -44,6 +44,7 @@ typedef enum oc_utf8_status
     OC_UTF8_UNEXPECTED_LEADING_BYTE,
     OC_UTF8_INVALID_BYTE,
     OC_UTF8_INVALID_CODEPOINT,
+    OC_UTF8_OVERLONG_ENCODING,
 } oc_utf8_status;
 
 typedef struct oc_utf8_dec
