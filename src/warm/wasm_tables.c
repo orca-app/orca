@@ -1062,10 +1062,10 @@ static const wa_instr_info wa_instr_infos[] = {
         .defined = true,
     },
 
-    //NOTE: variables instructions are handled separately so we don't record their stack arity here
     [WA_INSTR_local_get] = {
         .immCount = 1,
         .imm = { WA_IMM_LOCAL_INDEX },
+        .outCount = 1,
         .opdCount = 2,
         .defined = true,
     },

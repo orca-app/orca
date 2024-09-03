@@ -1582,6 +1582,74 @@ wa_ast* wa_read_name(wa_parser* parser, wa_ast* parent, oc_str8 label)
         {
             ast->str8 = oc_str8_push_buffer(parser->arena, len, &parser->contents[parser->offset]);
             parser->offset += len;
+
+            oc_utf8_dec dec = {};
+            for(u64 i = 0; i < ast->str8.len; i += dec.size)
+            {
+                dec = oc_utf8_decode_at(ast->str8, i);
+                if(dec.status != OC_UTF8_OK)
+                {
+                    break;
+                }
+            }
+
+            switch(dec.status)
+            {
+                case OC_UTF8_OK:
+                    break;
+                case OC_UTF8_OUT_OF_BOUNDS:
+                    wa_parse_error(parser,
+                                   ast,
+                                   "Invalid UTF8 encoding: out of bounds.\n");
+                    break;
+                case OC_UTF8_UNEXPECTED_CONTINUATION_BYTE:
+                    wa_parse_error(parser,
+                                   ast,
+                                   "Invalid UTF8 encoding: unexpected continuation byte.\n");
+                    break;
+                case OC_UTF8_UNEXPECTED_LEADING_BYTE:
+                    wa_parse_error(parser,
+                                   ast,
+                                   "Invalid UTF8 encoding: unexpected leading byte.\n");
+                    break;
+                case OC_UTF8_INVALID_BYTE:
+                    wa_parse_error(parser,
+                                   ast,
+                                   "Invalid UTF8 encoding: invalid byte.\n");
+                    break;
+                case OC_UTF8_INVALID_CODEPOINT:
+                    wa_parse_error(parser,
+                                   ast,
+                                   "Invalid UTF8 encoding: invalid codepoint.\n");
+                    break;
+            }
+        }
+    }
+    wa_ast_end(parser, ast);
+    return (ast);
+}
+
+wa_ast* wa_read_bytes_vector(wa_parser* parser, wa_ast* parent, oc_str8 label)
+{
+    wa_ast* ast = wa_ast_begin(parser, parent, WA_AST_VECTOR);
+    ast->label = label;
+
+    wa_ast* lenAst = wa_read_leb128_u32(parser, ast, label);
+    if(!wa_ast_has_errors(lenAst))
+    {
+        u32 len = lenAst->valU32;
+
+        if(parser->offset + len > parser->len)
+        {
+            wa_parse_error(parser,
+                           ast,
+                           "Couldn't read %.*s: unexpected end of parser.\n",
+                           oc_str8_ip(label));
+        }
+        else
+        {
+            ast->str8 = oc_str8_push_buffer(parser->arena, len, &parser->contents[parser->offset]);
+            parser->offset += len;
         }
     }
     wa_ast_end(parser, ast);
@@ -2808,7 +2876,7 @@ void wa_parse_data(wa_parser* parser, wa_module* module)
         }
 
         //NOTE: parse vec(bytes)
-        wa_ast* initVec = wa_read_name(parser, segmentAst, OC_STR8("init"));
+        wa_ast* initVec = wa_read_bytes_vector(parser, segmentAst, OC_STR8("init"));
         seg->init = initVec->str8;
 
         wa_ast_end(parser, segmentAst);
@@ -4287,7 +4355,7 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
                 case WA_INSTR_table_fill:
                 {
                     u32 tableIndex = imm[0].valU32;
-                    in = oc_arena_push_array(scratch.arena, wa_value_type, outCount);
+                    in = oc_arena_push_array(scratch.arena, wa_value_type, inCount);
                     in[0] = WA_TYPE_I32;
                     in[1] = module->tables[tableIndex].type;
                     in[2] = WA_TYPE_I32;

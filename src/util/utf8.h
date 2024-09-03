@@ -21,6 +21,8 @@ typedef u32 oc_utf32;
 //-----------------------------------------------------------------
 //NOTE: getting sizes / offsets / indices
 //-----------------------------------------------------------------
+#define oc_utf8_is_start_byte(c) (((c)&0xc0) != 0x80)
+
 ORCA_API u32 oc_utf8_size_from_leading_char(char leadingChar);
 ORCA_API u32 oc_utf8_codepoint_size(oc_utf32 codePoint);
 
@@ -33,8 +35,20 @@ ORCA_API u64 oc_utf8_prev_offset(oc_str8 string, u64 byteOffset);
 //-----------------------------------------------------------------
 //NOTE: encoding / decoding
 //-----------------------------------------------------------------
+
+typedef enum oc_utf8_status
+{
+    OC_UTF8_OK,
+    OC_UTF8_OUT_OF_BOUNDS,
+    OC_UTF8_UNEXPECTED_CONTINUATION_BYTE,
+    OC_UTF8_UNEXPECTED_LEADING_BYTE,
+    OC_UTF8_INVALID_BYTE,
+    OC_UTF8_INVALID_CODEPOINT,
+} oc_utf8_status;
+
 typedef struct oc_utf8_dec
 {
+    oc_utf8_status status;
     oc_utf32 codepoint; //NOTE: decoded codepoint
     u32 size;           //NOTE: size of corresponding oc_utf8 sequence
 } oc_utf8_dec;

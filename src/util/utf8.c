@@ -27,8 +27,6 @@ static const char trailingBytesForUTF8[256] = {
     2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3, 4, 4, 4, 4, 5, 5, 5, 5
 };
 
-#define oc_utf8_is_start_byte(c) (((c)&0xc0) != 0x80)
-
 //-----------------------------------------------------------------
 //NOTE: getting sizes / offsets / indices
 //-----------------------------------------------------------------
@@ -129,19 +127,27 @@ oc_utf8_dec oc_utf8_decode_at(oc_str8 string, u64 offset)
     //NOTE(martin): get the first codepoint in str, and advance index to the
     //              next oc_utf8 character
     //TODO(martin): check for utf-16 surrogate pairs
-    oc_utf32 cp = 0;
-    u64 sz = 0;
+    oc_utf8_dec res = { .status = OC_UTF8_OK };
 
-    if(offset >= string.len || !string.ptr[offset])
+    if(offset >= string.len)
     {
-        cp = 0;
-        sz = 1;
+        res.status = OC_UTF8_OUT_OF_BOUNDS;
+        res.size = 1;
     }
     else if(!oc_utf8_is_start_byte(string.ptr[offset]))
     {
         //NOTE(martin): unexpected continuation or invalid character.
-        cp = 0xfffd;
-        sz = 1;
+        if((string.ptr[offset] & 0xc0) == 0x80)
+        {
+            res.status = OC_UTF8_UNEXPECTED_CONTINUATION_BYTE;
+        }
+        else
+        {
+            res.status = OC_UTF8_INVALID_BYTE;
+        }
+
+        res.codepoint = 0xfffd;
+        res.size = 1;
     }
     else
     {
@@ -155,39 +161,43 @@ oc_utf8_dec oc_utf8_decode_at(oc_str8 string, u64 offset)
 				precomputed in offsetsFromUTF8.
 			*/
             unsigned char b = string.ptr[offset];
-            cp <<= 6;
-            cp += b;
+            res.codepoint <<= 6;
+            res.codepoint += b;
             offset += 1;
-            sz++;
+            res.size++;
 
-            if(b == 0xc0 || b == 0xc1 || b >= 0xc5)
+            if(b == 0xc0 || b == 0xc1 || b >= 0xf5)
             {
                 //NOTE(martin): invalid byte encountered
+                res.status = OC_UTF8_INVALID_BYTE;
+                break;
+            }
+            if(res.size > 1 && oc_utf8_is_start_byte(b))
+            {
+                res.status = OC_UTF8_UNEXPECTED_LEADING_BYTE;
                 break;
             }
         }
         while(offset < string.len
-              && string.ptr[offset]
-              && !oc_utf8_is_start_byte(string.ptr[offset])
-              && sz < expectedSize);
+              && res.size < expectedSize);
 
-        if(sz != expectedSize)
+        if(res.status != OC_UTF8_OK)
         {
             //NOTE(martin): if we encountered an error, we return the replacement codepoint U+FFFD
-            cp = 0xfffd;
+            res.codepoint = 0xfffd;
         }
         else
         {
-            cp -= offsetsFromUTF8[sz - 1];
+            res.codepoint -= offsetsFromUTF8[res.size - 1];
 
             //NOTE(martin): check for invalid codepoints
-            if(cp > 0x10ffff || (cp >= 0xd800 && cp <= 0xdfff))
+            if(res.codepoint > 0x10ffff || (res.codepoint >= 0xd800 && res.codepoint <= 0xdfff))
             {
-                cp = 0xfffd;
+                res.status = OC_UTF8_INVALID_CODEPOINT;
+                res.codepoint = 0xfffd;
             }
         }
     }
-    oc_utf8_dec res = { .codepoint = cp, .size = sz };
     return (res);
 }
 
@@ -225,7 +235,7 @@ oc_str8 oc_utf8_encode(char* dest, oc_utf32 codePoint)
         dest[3] = (codePoint & 0x3F) | 0x80;
         sz = 4;
     }
-    oc_str8 res = {.ptr = dest , .len = sz};
+    oc_str8 res = { .ptr = dest, .len = sz };
     return (res);
 }
 
@@ -239,7 +249,7 @@ oc_str32 oc_utf8_to_codepoints(u64 maxCount, oc_utf32* backing, oc_str8 string)
         backing[codePointIndex] = decode.codepoint;
         byteOffset += decode.size;
     }
-    oc_str32 res = {.ptr = backing , .len = codePointIndex};
+    oc_str32 res = { .ptr = backing, .len = codePointIndex };
     return (res);
 }
 
@@ -257,7 +267,7 @@ oc_str8 oc_utf8_from_codepoints(u64 maxBytes, char* backing, oc_str32 codePoints
         oc_utf8_encode(backing + byteOffset, codePoint);
         byteOffset += byteCount;
     }
-    oc_str8 res = {.ptr = backing , .len = byteOffset};
+    oc_str8 res = { .ptr = backing, .len = byteOffset };
     return (res);
 }
 
