@@ -706,7 +706,8 @@ typedef struct wa_table_type
 
 typedef struct wa_table
 {
-    u64 size;
+    wa_value_type type;
+    wa_limits limits;
     wa_value* contents;
 } wa_table;
 
@@ -751,8 +752,6 @@ typedef struct wa_data_segment
 typedef struct wa_memory
 {
     wa_limits limits;
-    u64 cap;
-    u64 size;
     char* ptr;
 } wa_memory;
 
@@ -1082,19 +1081,6 @@ enum
 // errors
 //-------------------------------------------------------------------------
 
-/*
-examples of assert_invalid strings:
-
-type mismatch
-unknown global
-unknown local
-unknown function
-unknown label
-unknown elem segment ...
-unknown table ...
-
-*/
-
 typedef enum wa_status
 {
     WA_OK = 0,
@@ -1136,9 +1122,10 @@ static const char* wa_status_strings[] = {
     "invalid local index",
     "invalid table index",
     "invalid memory index",
+
     "invalid arguments",
-    "binding type mismatch",
     "missing import",
+    "binding type mismatch",
 
     "unreachable",
     "invalid opcode",
@@ -1147,7 +1134,9 @@ static const char* wa_status_strings[] = {
     "invalid integer conversion",
     "stack overflow",
     "out-of-bounds memory access",
+    "out-of-bounds table access",
     "null reference",
+    "indirect call type mismatch",
 };
 
 typedef struct wa_module_error
@@ -5034,9 +5023,9 @@ wa_instance* wa_instance_create(oc_arena* arena, wa_module* module)
         wa_table_type* desc = &module->tables[tableIndex];
         wa_table* table = oc_arena_push_type(arena, wa_table);
 
-        table->size = desc->limits.min;
-        table->contents = oc_arena_push_array(arena, wa_value, desc->limits.min);
-        memset(table->contents, 0, desc->limits.min * sizeof(wa_value));
+        table->limits = desc->limits;
+        table->contents = oc_arena_push_array(arena, wa_value, table->limits.min);
+        memset(table->contents, 0, table->limits.min * sizeof(wa_value));
 
         instance->tables[tableIndex] = table;
     }
@@ -5062,11 +5051,17 @@ wa_instance* wa_instance_create(oc_arena* arena, wa_module* module)
         wa_limits* limits = &module->memories[memIndex];
         wa_memory* mem = oc_arena_push_type(arena, wa_memory);
 
-        mem->limits = *limits;
-        mem->cap = (limits->kind == WA_LIMIT_MIN) ? 4LLU << 30 : limits->max * WA_PAGE_SIZE;
-        mem->size = limits->min * WA_PAGE_SIZE;
-        mem->ptr = oc_base_reserve(allocator, mem->cap);
-        oc_base_commit(allocator, mem->ptr, mem->size);
+        ////////////////////////////////////////////////////////
+        //TODO: validate limit before that
+        ////////////////////////////////////////////////////////
+        mem->limits.kind = limits->kind;
+        mem->limits.min = limits->min;
+        mem->limits.max = (limits->kind == WA_LIMIT_MIN)
+                            ? UINT32_MAX / WA_PAGE_SIZE
+                            : limits->max;
+
+        mem->ptr = oc_base_reserve(allocator, mem->limits.max * WA_PAGE_SIZE);
+        oc_base_commit(allocator, mem->ptr, mem->limits.min * WA_PAGE_SIZE);
 
         instance->memories[memIndex] = mem;
     }
@@ -5385,8 +5380,7 @@ wa_status wa_instance_link(wa_instance* instance)
                 //oc_log_error("Couldn't link instance: couldn't execute element offset expression.\n");
                 return status;
             }
-            //TODO: check oob
-            if(offset.valI32 + element->initCount > table->size || offset.valI32 + element->initCount < offset.valI32)
+            if(offset.valI32 + element->initCount > table->limits.min || offset.valI32 + element->initCount < offset.valI32)
             {
                 return WA_TRAP_TABLE_OUT_OF_BOUNDS;
             }
@@ -5421,7 +5415,7 @@ wa_status wa_instance_link(wa_instance* instance)
             }
             u32 offset = *(u32*)&offsetVal.valI32;
 
-            if(offset + seg->init.len > mem->size)
+            if(offset + seg->init.len > mem->limits.min * WA_PAGE_SIZE || offset + seg->init.len < offset)
             {
                 //oc_log_error("Couldn't link instance: data offset out of bounds.\n");
                 return WA_TRAP_MEMORY_OUT_OF_BOUNDS;
@@ -5611,12 +5605,12 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
             }
             break;
 
-#define WA_CHECK_READ_ACCESS(t)                                             \
-    u32 offset = I1.memArg.offset + (u32)L2.valI32;                         \
-    if(offset < I1.memArg.offset                                            \
-       || offset + sizeof(t) > memory->size || offset + sizeof(t) < offset) \
-    {                                                                       \
-        return WA_TRAP_MEMORY_OUT_OF_BOUNDS;                                \
+#define WA_CHECK_READ_ACCESS(t)                                                                  \
+    u32 offset = I1.memArg.offset + (u32)L2.valI32;                                              \
+    if(offset < I1.memArg.offset                                                                 \
+       || offset + sizeof(t) > memory->limits.min * WA_PAGE_SIZE || offset + sizeof(t) < offset) \
+    {                                                                                            \
+        return WA_TRAP_MEMORY_OUT_OF_BOUNDS;                                                     \
     }
 
             case WA_INSTR_i32_load:
@@ -5731,12 +5725,12 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
             }
             break;
 
-#define WA_CHECK_WRITE_ACCESS(t)                                            \
-    u32 offset = I0.memArg.offset + (u32)L1.valI32;                         \
-    if(offset < I0.memArg.offset                                            \
-       || offset + sizeof(t) > memory->size || offset + sizeof(t) < offset) \
-    {                                                                       \
-        return WA_TRAP_MEMORY_OUT_OF_BOUNDS;                                \
+#define WA_CHECK_WRITE_ACCESS(t)                                                                 \
+    u32 offset = I0.memArg.offset + (u32)L1.valI32;                                              \
+    if(offset < I0.memArg.offset                                                                 \
+       || offset + sizeof(t) > memory->limits.min * WA_PAGE_SIZE || offset + sizeof(t) < offset) \
+    {                                                                                            \
+        return WA_TRAP_MEMORY_OUT_OF_BOUNDS;                                                     \
     }
 
             case WA_INSTR_i32_store:
@@ -5903,7 +5897,7 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
 
                 wa_table* table = instance->tables[tableIndex];
 
-                if(index >= table->size)
+                if(index >= table->limits.min)
                 {
                     return WA_TRAP_TABLE_OUT_OF_BOUNDS;
                 }
@@ -7332,7 +7326,7 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
             case WA_INSTR_memory_size:
             {
                 wa_memory* mem = instance->memories[0];
-                RES.valI32 = (i32)(mem->size / WA_PAGE_SIZE);
+                RES.valI32 = (i32)(mem->limits.min);
                 pc += 1;
             }
             break;
@@ -7344,15 +7338,13 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
                 i32 res = -1;
                 u32 n = *(u32*)&(L1.valI32);
                 oc_base_allocator* allocator = oc_base_allocator_default();
-                u64 size = (u64)n * WA_PAGE_SIZE;
 
-                if(mem->size + size <= mem->cap
-                   && ((mem->size + size) / WA_PAGE_SIZE <= mem->cap))
+                if(mem->limits.min + n <= mem->limits.max
+                   && (mem->limits.min + n >= mem->limits.min))
                 {
-                    res = mem->size / WA_PAGE_SIZE;
-                    oc_base_commit(allocator, mem->ptr + mem->size, n * WA_PAGE_SIZE);
-                    mem->size += size;
-                    mem->limits.min = mem->size / WA_PAGE_SIZE;
+                    res = mem->limits.min;
+                    oc_base_commit(allocator, mem->ptr + mem->limits.min * WA_PAGE_SIZE, n * WA_PAGE_SIZE);
+                    mem->limits.min += n;
                 }
 
                 L0.valI32 = res;
@@ -7369,7 +7361,7 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
                 i32 val = L1.valI32;
                 u32 n = *(u32*)&L2.valI32;
 
-                if(d + n > mem->size || d + n < d)
+                if(d + n > mem->limits.min * WA_PAGE_SIZE || d + n < d)
                 {
                     return WA_TRAP_MEMORY_OUT_OF_BOUNDS;
                 }
@@ -7388,8 +7380,8 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
                 u32 s = *(u32*)&L1.valI32;
                 u32 n = *(u32*)&L2.valI32;
 
-                if(s + n > mem->size || s + n < s
-                   || d + n > mem->size || d + n < d)
+                if(s + n > mem->limits.min * WA_PAGE_SIZE || s + n < s
+                   || d + n > mem->limits.min * WA_PAGE_SIZE || d + n < d)
                 {
                     return WA_TRAP_MEMORY_OUT_OF_BOUNDS;
                 }
@@ -7408,7 +7400,7 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
                 u32 n = *(u32*)&L3.valI32;
 
                 if(s + n > seg->init.len || s + n < s
-                   || d + n > mem->size || d + n < d)
+                   || d + n > mem->limits.min * WA_PAGE_SIZE || d + n < d)
                 {
                     return WA_TRAP_MEMORY_OUT_OF_BOUNDS;
                 }
@@ -7435,7 +7427,7 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
                 u32 n = *(u32*)&L4.valI32;
 
                 if(n + s > elt->initCount || n + s < n
-                   || d + n > table->size || d + n < d)
+                   || d + n > table->limits.min || d + n < d)
                 {
                     return WA_TRAP_TABLE_OUT_OF_BOUNDS;
                 }
@@ -7452,7 +7444,7 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
                 wa_value val = L2;
                 u32 n = *(u32*)&L3.valI32;
 
-                if(d + n > table->size || d + n < d)
+                if(d + n > table->limits.min || d + n < d)
                 {
                     return WA_TRAP_TABLE_OUT_OF_BOUNDS;
                 }
@@ -7474,8 +7466,8 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
                 u32 s = *(u32*)&L3.valI32;
                 u32 n = *(u32*)&L4.valI32;
 
-                if(s + n > ty->size || s + n < s
-                   || d + n > tx->size || d + n < d)
+                if(s + n > ty->limits.min || s + n < s
+                   || d + n > tx->limits.min || d + n < d)
                 {
                     return WA_TRAP_TABLE_OUT_OF_BOUNDS;
                 }
@@ -7487,29 +7479,30 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
             case WA_INSTR_table_size:
             {
                 wa_table* table = instance->tables[I1.valI32];
-                L0.valI32 = table->size;
+                L0.valI32 = table->limits.min;
                 pc += 2;
             }
             break;
 
             case WA_INSTR_table_grow:
             {
-                wa_limits* limits = &instance->module->tables[I1.valI32].limits;
                 wa_table* table = instance->tables[I1.valI32];
+                wa_limits limits = table->limits;
                 wa_value val = L2;
                 u32 size = L3.valI32;
 
                 i32 ret = -1;
-                if((u64)table->size + (u64)size <= UINT32_MAX && (limits->kind != WA_LIMIT_MIN_MAX || table->size + size <= limits->max))
+                if((u64)limits.min + (u64)size <= UINT32_MAX
+                   && (limits.kind != WA_LIMIT_MIN_MAX || limits.min + size <= limits.max))
                 {
-                    wa_value* contents = oc_arena_push_array(instance->arena, wa_value, table->size + size);
-                    memcpy(contents, table->contents, table->size * sizeof(wa_value));
+                    wa_value* contents = oc_arena_push_array(instance->arena, wa_value, limits.min + size);
+                    memcpy(contents, table->contents, limits.min * sizeof(wa_value));
                     for(u32 i = 0; i < size; i++)
                     {
-                        contents[table->size + i] = val;
+                        contents[limits.min + i] = val;
                     }
-                    ret = table->size;
-                    table->size += size;
+                    ret = limits.min;
+                    table->limits.min += size;
                     table->contents = contents;
                 }
                 L0.valI32 = ret;
@@ -7522,7 +7515,7 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
                 wa_table* table = instance->tables[I1.valI32];
                 u32 eltIndex = L2.valI32;
 
-                if(eltIndex >= table->size)
+                if(eltIndex >= table->limits.min)
                 {
                     return WA_TRAP_TABLE_OUT_OF_BOUNDS;
                 }
@@ -7537,7 +7530,7 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
                 u32 eltIndex = L1.valI32;
                 wa_value val = L2;
 
-                if(eltIndex >= table->size)
+                if(eltIndex >= table->limits.min)
                 {
                     return WA_TRAP_TABLE_OUT_OF_BOUNDS;
                 }
@@ -8395,15 +8388,17 @@ int test_file(oc_str8 testPath, oc_str8 testName, oc_str8 testDir, i32 filterLin
             .min = 1,
             .max = 2,
         },
-        .cap = 2 * WA_PAGE_SIZE,
-        .size = WA_PAGE_SIZE,
         .ptr = oc_base_reserve(allocator, 2 * WA_PAGE_SIZE),
     };
-    oc_base_commit(allocator, env->testspecMemory.ptr, env->testspecMemory.size);
+    oc_base_commit(allocator, env->testspecMemory.ptr, env->testspecMemory.limits.min * WA_PAGE_SIZE);
 
     //spec test table
     env->testspecTable = (wa_table){
-        .size = 10,
+        .limits = {
+            .kind = WA_LIMIT_MIN_MAX,
+            .min = 10,
+            .max = 20,
+        },
         .contents = oc_arena_push_array(env->arena, wa_value, 10),
     };
     memset(env->testspecTable.contents, 0, 10 * sizeof(wa_value));
@@ -8459,6 +8454,7 @@ int test_file(oc_str8 testPath, oc_str8 testName, oc_str8 testDir, i32 filterLin
                 wa_status status = wa_test_instantiate(env, testInstance, module);
                 if(status != WA_OK)
                 {
+                    oc_log_error("couldn't link module: %s\n", wa_status_strings[status]);
                     wa_test_fail(env, testName, command);
                 }
                 else
@@ -8769,7 +8765,7 @@ int test_file(oc_str8 testPath, oc_str8 testName, oc_str8 testDir, i32 filterLin
     env->totalSkipped += env->skipped;
     env->totalFailed += env->failed;
 
-    oc_base_release(allocator, env->testspecMemory.ptr, env->testspecMemory.size);
+    oc_base_release(allocator, env->testspecMemory.ptr, env->testspecMemory.limits.max * WA_PAGE_SIZE);
 
     return (0);
 }
