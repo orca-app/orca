@@ -5452,6 +5452,8 @@ wa_func* wa_instance_find_function(wa_instance* instance, oc_str8 name)
 
 typedef struct wa_control
 {
+    wa_instance* instance;
+    wa_func* func;
     wa_code* returnPC;
     wa_value* returnFrame;
 } wa_control;
@@ -5461,6 +5463,50 @@ enum
     WA_CONTROL_STACK_SIZE = 1024,
     WA_LOCALS_BUFFER_SIZE = 1024,
 };
+
+typedef struct wa_interpreter
+{
+    wa_instance* instance;
+    wa_code* code;
+
+    u32 argCount;
+    wa_value* args;
+    u32 retCount;
+    wa_value* returns;
+
+    wa_control controlStack[WA_CONTROL_STACK_SIZE];
+    u32 controlStackTop;
+
+    wa_value localsBuffer[WA_LOCALS_BUFFER_SIZE];
+    wa_value* locals;
+    wa_code* pc;
+
+    bool terminated;
+} wa_interpreter;
+
+wa_status wa_interpreter_init(wa_interpreter* interpreter,
+                              wa_instance* instance,
+                              wa_func_type* type,
+                              wa_code* code,
+                              u32 argCount,
+                              wa_value* args,
+                              u32 retCount,
+                              wa_value* returns)
+{
+    *interpreter = (wa_interpreter){
+        .instance = instance,
+        .code = code,
+        .argCount = argCount,
+        .args = args,
+        .retCount = retCount,
+        .returns = returns,
+        .pc = interpreter->code,
+        .locals = interpreter->localsBuffer,
+    };
+
+    memcpy(interpreter->locals, args, argCount * sizeof(wa_value));
+    return WA_OK;
+}
 
 wa_status wa_instance_interpret_expr(wa_instance* instance,
                                      wa_func_type* type,
@@ -5472,6 +5518,11 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
 {
     wa_control controlStack[WA_CONTROL_STACK_SIZE] = { 0 };
     u32 controlStackTop = 0;
+
+    controlStack[0] = (wa_control){
+        .instance = instance,
+        .func = 0, //TODO: later init this
+    };
 
     wa_value localsBuffer[WA_LOCALS_BUFFER_SIZE] = { 0 };
     wa_value* locals = localsBuffer;
@@ -5814,41 +5865,41 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
             case WA_INSTR_call:
             {
                 wa_func* callee = &instance->functions[I0.valI64];
+                wa_instance* calleeInstance = instance;
+
+                while(callee->extInstance)
+                {
+                    calleeInstance = callee->extInstance;
+                    callee = &calleeInstance->functions[callee->extIndex];
+                }
 
                 if(callee->code)
                 {
-                    controlStack[controlStackTop] = (wa_control){
-                        .returnPC = pc + 2,
-                        .returnFrame = locals,
-                    };
                     controlStackTop++;
-                    locals += I1.valI64;
-
                     if(controlStackTop >= WA_CONTROL_STACK_SIZE || locals - localsBuffer > WA_LOCALS_BUFFER_SIZE)
                     {
                         return (WA_TRAP_STACK_OVERFLOW);
                     }
 
+                    controlStack[controlStackTop] = (wa_control){
+                        .instance = calleeInstance,
+                        .func = callee,
+                        .returnPC = pc + 2,
+                        .returnFrame = locals,
+                    };
+
+                    locals += I1.valI64;
                     pc = callee->code;
-                }
-                else if(callee->extInstance)
-                {
-                    //TODO temporary for test, do it better
+                    instance = calleeInstance;
 
-                    wa_func* extFunc = &callee->extInstance->functions[callee->extIndex];
-
-                    wa_status status = wa_instance_invoke(callee->extInstance,
-                                                          extFunc,
-                                                          callee->type->paramCount,
-                                                          locals + I1.valI64,
-                                                          callee->type->returnCount,
-                                                          locals + I1.valI64);
-
-                    if(status != WA_OK)
+                    if(instance->memories)
                     {
-                        return status;
+                        memory = instance->memories[0];
+                        if(memory)
+                        {
+                            memPtr = memory->ptr;
+                        }
                     }
-                    pc += 2;
                 }
                 else
                 {
@@ -5875,15 +5926,15 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
                     return WA_TRAP_TABLE_OUT_OF_BOUNDS;
                 }
 
-                wa_instance* refInstance = table->contents[index].refInstance;
+                wa_instance* calleeInstance = table->contents[index].refInstance;
                 u32 funcIndex = table->contents[index].refIndex;
 
-                if(refInstance == 0)
+                if(calleeInstance == 0)
                 {
                     return WA_TRAP_REF_NULL;
                 }
 
-                wa_func* callee = &refInstance->functions[funcIndex];
+                wa_func* callee = &calleeInstance->functions[funcIndex];
                 wa_func_type* t1 = callee->type;
                 wa_func_type* t2 = &instance->module->types[typeIndex];
 
@@ -5892,69 +5943,47 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
                     return (WA_TRAP_INDIRECT_CALL_TYPE_MISMATCH);
                 }
 
-                //////////////////////////////
-                //TODO runtime check type
-                //////////////////////////////
-
-                if(refInstance == instance)
+                while(callee->extInstance)
                 {
-                    if(callee->code)
-                    {
-                        controlStack[controlStackTop] = (wa_control){
-                            .returnPC = pc + 4,
-                            .returnFrame = locals,
-                        };
-                        controlStackTop++;
-                        if(controlStackTop >= 1024)
-                        {
-                            return (WA_TRAP_STACK_OVERFLOW);
-                        }
+                    calleeInstance = callee->extInstance;
+                    callee = &calleeInstance->functions[callee->extIndex];
+                }
 
-                        locals += maxUsedSlot;
-                        pc = callee->code;
+                if(callee->code)
+                {
+                    controlStackTop++;
+                    if(controlStackTop >= WA_CONTROL_STACK_SIZE || locals - localsBuffer > WA_LOCALS_BUFFER_SIZE)
+                    {
+                        return (WA_TRAP_STACK_OVERFLOW);
                     }
-                    else if(callee->extInstance)
+
+                    controlStack[controlStackTop] = (wa_control){
+                        .instance = calleeInstance,
+                        .func = callee,
+                        .returnPC = pc + 4,
+                        .returnFrame = locals,
+                    };
+
+                    locals += maxUsedSlot;
+                    pc = callee->code;
+                    instance = calleeInstance;
+
+                    if(instance->memories)
                     {
-                        //TODO temporary for test, do it better
-
-                        wa_func* extFunc = &callee->extInstance->functions[callee->extIndex];
-
-                        wa_status status = wa_instance_invoke(callee->extInstance,
-                                                              extFunc,
-                                                              callee->type->paramCount,
-                                                              locals + maxUsedSlot,
-                                                              callee->type->returnCount,
-                                                              locals + maxUsedSlot);
-
-                        if(status != WA_OK)
+                        memory = instance->memories[0];
+                        if(memory)
                         {
-                            return status;
+                            memPtr = memory->ptr;
                         }
-                        pc += 4;
-                    }
-                    else
-                    {
-                        wa_value* saveLocals = locals;
-                        locals += maxUsedSlot;
-                        callee->proc(locals, locals);
-                        pc += 4;
-                        locals = saveLocals;
                     }
                 }
                 else
                 {
-                    wa_status status = wa_instance_invoke(refInstance,
-                                                          callee,
-                                                          callee->type->paramCount,
-                                                          locals + maxUsedSlot,
-                                                          callee->type->returnCount,
-                                                          locals + maxUsedSlot);
-
-                    if(status != WA_OK)
-                    {
-                        return status;
-                    }
+                    wa_value* saveLocals = locals;
+                    locals += maxUsedSlot;
+                    callee->proc(locals, locals);
                     pc += 4;
+                    locals = saveLocals;
                 }
             }
             break;
@@ -5965,10 +5994,22 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
                 {
                     goto end;
                 }
-                controlStackTop--;
+
                 wa_control control = controlStack[controlStackTop];
                 locals = control.returnFrame;
                 pc = control.returnPC;
+
+                controlStackTop--;
+
+                instance = controlStack[controlStackTop].instance;
+                if(instance->memories)
+                {
+                    memory = instance->memories[0];
+                    if(memory)
+                    {
+                        memPtr = memory->ptr;
+                    }
+                }
             }
             break;
 
