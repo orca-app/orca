@@ -1407,8 +1407,8 @@ static const wa_instr_info wa_instr_infos[] = {
         },
         .opdCount = 2,
         .opd = {
-            WA_OPD_LOCAL_INDEX,
             WA_OPD_CONST_I32,
+            WA_OPD_LOCAL_INDEX,
         },
         .defined = true,
     },
@@ -1421,8 +1421,8 @@ static const wa_instr_info wa_instr_infos[] = {
         },
         .opdCount = 2,
         .opd = {
-            WA_OPD_LOCAL_INDEX,
             WA_OPD_CONST_I64,
+            WA_OPD_LOCAL_INDEX,
         },
         .defined = true,
     },
@@ -1435,8 +1435,8 @@ static const wa_instr_info wa_instr_infos[] = {
         },
         .opdCount = 2,
         .opd = {
-            WA_OPD_LOCAL_INDEX,
             WA_OPD_CONST_F32,
+            WA_OPD_LOCAL_INDEX,
         },
         .defined = true,
     },
@@ -1449,8 +1449,8 @@ static const wa_instr_info wa_instr_infos[] = {
         },
         .opdCount = 2,
         .opd = {
-            WA_OPD_LOCAL_INDEX,
             WA_OPD_CONST_F64,
+            WA_OPD_LOCAL_INDEX,
         },
         .defined = true,
     },
