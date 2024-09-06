@@ -616,6 +616,7 @@ typedef struct wa_func
     wa_instance* extInstance;
     u32 extIndex;
 
+    u32 maxSlotCount;
 } wa_func;
 
 wa_func_type* wa_function_get_type(wa_func* func)
@@ -4543,6 +4544,8 @@ void wa_compile_code(oc_arena* arena, wa_module* module)
         func->codeLen = context.codeLen;
         func->code = oc_arena_push_array(arena, wa_code, context.codeLen);
         memcpy(func->code, context.code, context.codeLen * sizeof(wa_code));
+
+        func->maxSlotCount = context.nextRegIndex;
     }
 
     for(u32 globalIndex = module->globalImportCount; globalIndex < module->globalCount; globalIndex++)
@@ -5150,6 +5153,7 @@ wa_status wa_instance_link_imports(wa_instance* instance, wa_instance_options* o
 }
 
 wa_status wa_instance_interpret_expr(wa_instance* instance,
+                                     wa_func* func,
                                      wa_func_type* type,
                                      wa_code* code,
                                      u32 argCount,
@@ -5176,7 +5180,7 @@ wa_status wa_instance_initialize(wa_instance* instance)
             i64 t = 0x7f - (i64)global->type + 1;
             wa_func_type* exprType = (wa_func_type*)&WA_BLOCK_VALUE_TYPES[t];
 
-            wa_status status = wa_instance_interpret_expr(instance, exprType, global->code, 0, 0, 1, &instance->globals[globalIndex]->value);
+            wa_status status = wa_instance_interpret_expr(instance, 0, exprType, global->code, 0, 0, 1, &instance->globals[globalIndex]->value);
             if(status != WA_OK)
             {
                 //oc_log_error("Couldn't link instance: couldn't execute global initialization expression.\n");
@@ -5195,7 +5199,7 @@ wa_status wa_instance_initialize(wa_instance* instance)
         for(u32 exprIndex = 0; exprIndex < element->initCount; exprIndex++)
         {
             wa_value* result = &element->refs[exprIndex];
-            wa_status status = wa_instance_interpret_expr(instance, exprType, element->code[exprIndex], 0, 0, 1, result);
+            wa_status status = wa_instance_interpret_expr(instance, 0, exprType, element->code[exprIndex], 0, 0, 1, result);
             if(status != WA_OK)
             {
                 //oc_log_error("Couldn't link instance: couldn't execute element initialization expression.\n");
@@ -5211,6 +5215,7 @@ wa_status wa_instance_initialize(wa_instance* instance)
 
             wa_value offset = { 0 };
             wa_status status = wa_instance_interpret_expr(instance,
+                                                          0,
                                                           (wa_func_type*)&WA_BLOCK_VALUE_TYPES[1],
                                                           element->tableOffsetCode,
                                                           0, 0,
@@ -5244,6 +5249,7 @@ wa_status wa_instance_initialize(wa_instance* instance)
 
             wa_value offsetVal = { 0 };
             wa_status status = wa_instance_interpret_expr(instance,
+                                                          0,
                                                           (wa_func_type*)&WA_BLOCK_VALUE_TYPES[1],
                                                           seg->memoryOffsetCode,
                                                           0, 0,
@@ -5486,6 +5492,7 @@ typedef struct wa_interpreter
 
 wa_status wa_interpreter_init(wa_interpreter* interpreter,
                               wa_instance* instance,
+                              wa_func* func,
                               wa_func_type* type,
                               wa_code* code,
                               u32 argCount,
@@ -5500,65 +5507,71 @@ wa_status wa_interpreter_init(wa_interpreter* interpreter,
         .args = args,
         .retCount = retCount,
         .returns = returns,
-        .pc = interpreter->code,
-        .locals = interpreter->localsBuffer,
+        .pc = code,
+        .controlStack = {
+            [0] = {
+                .instance = instance,
+                .func = func,
+            } },
     };
+
+    interpreter->locals = interpreter->localsBuffer;
 
     memcpy(interpreter->locals, args, argCount * sizeof(wa_value));
     return WA_OK;
 }
 
-wa_status wa_instance_interpret_expr(wa_instance* instance,
-                                     wa_func_type* type,
-                                     wa_code* code,
-                                     u32 argCount,
-                                     wa_value* args,
-                                     u32 retCount,
-                                     wa_value* returns)
+wa_status wa_interpreter_run(wa_interpreter* interpreter)
 {
-    wa_control controlStack[WA_CONTROL_STACK_SIZE] = { 0 };
-    u32 controlStackTop = 0;
-
-    controlStack[0] = (wa_control){
-        .instance = instance,
-        .func = 0, //TODO: later init this
-    };
-
-    wa_value localsBuffer[WA_LOCALS_BUFFER_SIZE] = { 0 };
-    wa_value* locals = localsBuffer;
-    wa_code* pc = code;
-
-    memcpy(locals, args, argCount * sizeof(wa_value));
-
-    char* memPtr = 0;
+    wa_instance* instance = interpreter->instance;
     wa_memory* memory = 0;
-    if(instance->module->memoryCount)
+    char* memPtr = 0;
+    if(instance->memories)
     {
         memory = instance->memories[0];
-        memPtr = memory->ptr;
+        if(memory)
+        {
+            memPtr = memory->ptr;
+        }
+    }
+
+    {
+        wa_func* func = interpreter->controlStack[interpreter->controlStackTop].func;
+        while(func && func->extInstance)
+        {
+            func = &func->extInstance->functions[func->extIndex];
+        }
+        if(func)
+        {
+            u32 remLocals = interpreter->locals - interpreter->localsBuffer;
+            if(remLocals + func->maxSlotCount >= WA_LOCALS_BUFFER_SIZE)
+            {
+                return (WA_TRAP_STACK_OVERFLOW);
+            }
+        }
     }
 
     while(1)
     {
-        wa_instr_op opcode = pc->opcode;
-        pc++;
+        wa_instr_op opcode = interpreter->pc->opcode;
+        interpreter->pc++;
 
         switch(opcode)
         {
 
-#define I0 pc[0]
-#define I1 pc[1]
-#define I2 pc[2]
-#define I3 pc[3]
+#define I0 interpreter->pc[0]
+#define I1 interpreter->pc[1]
+#define I2 interpreter->pc[2]
+#define I3 interpreter->pc[3]
 
-#define L0 locals[pc[0].valI32]
-#define L1 locals[pc[1].valI32]
-#define L2 locals[pc[2].valI32]
-#define L3 locals[pc[3].valI32]
-#define L4 locals[pc[4].valI32]
+#define L0 interpreter->locals[interpreter->pc[0].valI32]
+#define L1 interpreter->locals[interpreter->pc[1].valI32]
+#define L2 interpreter->locals[interpreter->pc[2].valI32]
+#define L3 interpreter->locals[interpreter->pc[3].valI32]
+#define L4 interpreter->locals[interpreter->pc[4].valI32]
 
-#define G0 instance->globals[pc[0].valI32]->value
-#define G1 instance->globals[pc[1].valI32]->value
+#define G0 interpreter->instance->globals[interpreter->pc[0].valI32]->value
+#define G1 interpreter->instance->globals[interpreter->pc[1].valI32]->value
 
             case WA_INSTR_unreachable:
             {
@@ -5569,49 +5582,49 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
             case WA_INSTR_i32_const:
             {
                 L1.valI32 = I0.valI32;
-                pc += 2;
+                interpreter->pc += 2;
             }
             break;
 
             case WA_INSTR_i64_const:
             {
                 L1.valI64 = I0.valI64;
-                pc += 2;
+                interpreter->pc += 2;
             }
             break;
 
             case WA_INSTR_f32_const:
             {
                 L1.valF32 = I0.valF32;
-                pc += 2;
+                interpreter->pc += 2;
             }
             break;
 
             case WA_INSTR_f64_const:
             {
                 L1.valF64 = I0.valF64;
-                pc += 2;
+                interpreter->pc += 2;
             }
             break;
 
             case WA_INSTR_move:
             {
                 memcpy(&L1, &L0, sizeof(wa_value));
-                pc += 2;
+                interpreter->pc += 2;
             }
             break;
 
             case WA_INSTR_global_get:
             {
                 memcpy(&L1, &G0, sizeof(wa_value));
-                pc += 2;
+                interpreter->pc += 2;
             }
             break;
 
             case WA_INSTR_global_set:
             {
                 memcpy(&G0, &L1, sizeof(wa_value));
-                pc += 2;
+                interpreter->pc += 2;
             }
             break;
 
@@ -5625,7 +5638,7 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
                 {
                     memcpy(&L3, &L1, sizeof(u64));
                 }
-                pc += 4;
+                interpreter->pc += 4;
             }
             break;
 
@@ -5641,7 +5654,7 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
             {
                 WA_CHECK_READ_ACCESS(i32);
                 L2.valI32 = *(i32*)&memPtr[I0.memArg.offset + (u32)L1.valI32];
-                pc += 3;
+                interpreter->pc += 3;
             }
             break;
 
@@ -5649,7 +5662,7 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
             {
                 WA_CHECK_READ_ACCESS(i64);
                 L2.valI64 = *(i64*)&memPtr[I0.memArg.offset + (u32)L1.valI32];
-                pc += 3;
+                interpreter->pc += 3;
             }
             break;
 
@@ -5657,7 +5670,7 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
             {
                 WA_CHECK_READ_ACCESS(f32);
                 L2.valF32 = *(f32*)&memPtr[I0.memArg.offset + (u32)L1.valI32];
-                pc += 3;
+                interpreter->pc += 3;
             }
             break;
 
@@ -5665,7 +5678,7 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
             {
                 WA_CHECK_READ_ACCESS(f64);
                 L2.valF64 = *(f64*)&memPtr[I0.memArg.offset + (u32)L1.valI32];
-                pc += 3;
+                interpreter->pc += 3;
             }
             break;
 
@@ -5673,7 +5686,7 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
             {
                 WA_CHECK_READ_ACCESS(u8);
                 L2.valI32 = (i32) * (i8*)&memPtr[I0.memArg.offset + (u32)L1.valI32];
-                pc += 3;
+                interpreter->pc += 3;
             }
             break;
 
@@ -5681,7 +5694,7 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
             {
                 WA_CHECK_READ_ACCESS(u8);
                 *(u32*)&L2.valI32 = (u32) * (u8*)&memPtr[I0.memArg.offset + (u32)L1.valI32];
-                pc += 3;
+                interpreter->pc += 3;
             }
             break;
 
@@ -5689,7 +5702,7 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
             {
                 WA_CHECK_READ_ACCESS(u16);
                 L2.valI32 = (i32) * (i16*)&memPtr[I0.memArg.offset + (u32)L1.valI32];
-                pc += 3;
+                interpreter->pc += 3;
             }
             break;
 
@@ -5697,7 +5710,7 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
             {
                 WA_CHECK_READ_ACCESS(u16);
                 *(u32*)&L2.valI32 = (u32) * (u16*)&memPtr[I0.memArg.offset + (u32)L1.valI32];
-                pc += 3;
+                interpreter->pc += 3;
             }
             break;
 
@@ -5705,7 +5718,7 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
             {
                 WA_CHECK_READ_ACCESS(u8);
                 L2.valI64 = (i64) * (i8*)&memPtr[I0.memArg.offset + (u32)L1.valI32];
-                pc += 3;
+                interpreter->pc += 3;
             }
             break;
 
@@ -5713,7 +5726,7 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
             {
                 WA_CHECK_READ_ACCESS(u8);
                 *(u32*)&L2.valI64 = (u64) * (u8*)&memPtr[I0.memArg.offset + (u32)L1.valI32];
-                pc += 3;
+                interpreter->pc += 3;
             }
             break;
 
@@ -5721,7 +5734,7 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
             {
                 WA_CHECK_READ_ACCESS(u16);
                 L2.valI64 = (i64) * (i16*)&memPtr[I0.memArg.offset + (u32)L1.valI32];
-                pc += 3;
+                interpreter->pc += 3;
             }
             break;
 
@@ -5729,7 +5742,7 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
             {
                 WA_CHECK_READ_ACCESS(u16);
                 *(u32*)&L2.valI64 = (u64) * (u16*)&memPtr[I0.memArg.offset + (u32)L1.valI32];
-                pc += 3;
+                interpreter->pc += 3;
             }
             break;
 
@@ -5737,7 +5750,7 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
             {
                 WA_CHECK_READ_ACCESS(u32);
                 L2.valI64 = (i64) * (i32*)&memPtr[I0.memArg.offset + (u32)L1.valI32];
-                pc += 3;
+                interpreter->pc += 3;
             }
             break;
 
@@ -5745,7 +5758,7 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
             {
                 WA_CHECK_READ_ACCESS(u32);
                 *(u32*)&L2.valI64 = (u64) * (u32*)&memPtr[I0.memArg.offset + (u32)L1.valI32];
-                pc += 3;
+                interpreter->pc += 3;
             }
             break;
 
@@ -5761,7 +5774,7 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
             {
                 WA_CHECK_WRITE_ACCESS(u32);
                 *(i32*)&memPtr[I0.memArg.offset + (u32)L1.valI32] = L2.valI32;
-                pc += 3;
+                interpreter->pc += 3;
             }
             break;
 
@@ -5769,7 +5782,7 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
             {
                 WA_CHECK_WRITE_ACCESS(u64);
                 *(i64*)&memPtr[I0.memArg.offset + (u32)L1.valI32] = L2.valI64;
-                pc += 3;
+                interpreter->pc += 3;
             }
             break;
 
@@ -5777,7 +5790,7 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
             {
                 WA_CHECK_WRITE_ACCESS(f32);
                 *(f32*)&memPtr[I0.memArg.offset + (u32)L1.valI32] = L2.valF32;
-                pc += 3;
+                interpreter->pc += 3;
             }
             break;
 
@@ -5785,7 +5798,7 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
             {
                 WA_CHECK_WRITE_ACCESS(f64);
                 *(f64*)&memPtr[I0.memArg.offset + (u32)L1.valI32] = L2.valF64;
-                pc += 3;
+                interpreter->pc += 3;
             }
             break;
 
@@ -5793,7 +5806,7 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
             {
                 WA_CHECK_WRITE_ACCESS(u8);
                 *(u8*)&memPtr[I0.memArg.offset + (u32)L1.valI32] = *(u8*)&L2.valI32;
-                pc += 3;
+                interpreter->pc += 3;
             }
             break;
 
@@ -5801,7 +5814,7 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
             {
                 WA_CHECK_WRITE_ACCESS(u16);
                 *(u16*)&memPtr[I0.memArg.offset + (u32)L1.valI32] = *(u16*)&L2.valI32;
-                pc += 3;
+                interpreter->pc += 3;
             }
             break;
 
@@ -5809,7 +5822,7 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
             {
                 WA_CHECK_WRITE_ACCESS(u8);
                 *(u8*)&memPtr[I0.memArg.offset + (u32)L1.valI32] = *(u8*)&L2.valI64;
-                pc += 3;
+                interpreter->pc += 3;
             }
             break;
 
@@ -5817,7 +5830,7 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
             {
                 WA_CHECK_WRITE_ACCESS(u16);
                 *(u16*)&memPtr[I0.memArg.offset + (u32)L1.valI32] = *(u16*)&L2.valI64;
-                pc += 3;
+                interpreter->pc += 3;
             }
             break;
 
@@ -5825,13 +5838,13 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
             {
                 WA_CHECK_WRITE_ACCESS(u32);
                 *(u32*)&memPtr[I0.memArg.offset + (u32)L1.valI32] = *(u32*)&L2.valI64;
-                pc += 3;
+                interpreter->pc += 3;
             }
             break;
 
             case WA_INSTR_jump:
             {
-                pc += I0.valI64;
+                interpreter->pc += I0.valI64;
             }
             break;
 
@@ -5839,11 +5852,11 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
             {
                 if(L1.valI32 == 0)
                 {
-                    pc += I0.valI64;
+                    interpreter->pc += I0.valI64;
                 }
                 else
                 {
-                    pc += 2;
+                    interpreter->pc += 2;
                 }
             }
             break;
@@ -5858,13 +5871,15 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
                     index = count - 1;
                 }
 
-                pc += pc[2 + index].valI64;
+                interpreter->pc += interpreter->pc[2 + index].valI64;
             }
             break;
 
             case WA_INSTR_call:
             {
                 wa_func* callee = &instance->functions[I0.valI64];
+                i64 maxUsedSlot = I1.valI64;
+
                 wa_instance* calleeInstance = instance;
 
                 while(callee->extInstance)
@@ -5875,21 +5890,22 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
 
                 if(callee->code)
                 {
-                    controlStackTop++;
-                    if(controlStackTop >= WA_CONTROL_STACK_SIZE || locals - localsBuffer > WA_LOCALS_BUFFER_SIZE)
+                    interpreter->controlStackTop++;
+                    if(interpreter->controlStackTop >= WA_CONTROL_STACK_SIZE
+                       || interpreter->locals - interpreter->localsBuffer + maxUsedSlot + callee->maxSlotCount >= WA_LOCALS_BUFFER_SIZE)
                     {
                         return (WA_TRAP_STACK_OVERFLOW);
                     }
 
-                    controlStack[controlStackTop] = (wa_control){
+                    interpreter->controlStack[interpreter->controlStackTop] = (wa_control){
                         .instance = calleeInstance,
                         .func = callee,
-                        .returnPC = pc + 2,
-                        .returnFrame = locals,
+                        .returnPC = interpreter->pc + 2,
+                        .returnFrame = interpreter->locals,
                     };
 
-                    locals += I1.valI64;
-                    pc = callee->code;
+                    interpreter->locals += maxUsedSlot;
+                    interpreter->pc = callee->code;
                     instance = calleeInstance;
 
                     if(instance->memories)
@@ -5903,11 +5919,11 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
                 }
                 else
                 {
-                    wa_value* saveLocals = locals;
-                    locals += I1.valI64;
-                    callee->proc(locals, locals);
-                    pc += 2;
-                    locals = saveLocals;
+                    wa_value* saveLocals = interpreter->locals;
+                    interpreter->locals += I1.valI64;
+                    callee->proc(interpreter->locals, interpreter->locals);
+                    interpreter->pc += 2;
+                    interpreter->locals = saveLocals;
                 }
             }
             break;
@@ -5951,21 +5967,22 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
 
                 if(callee->code)
                 {
-                    controlStackTop++;
-                    if(controlStackTop >= WA_CONTROL_STACK_SIZE || locals - localsBuffer > WA_LOCALS_BUFFER_SIZE)
+                    interpreter->controlStackTop++;
+                    if(interpreter->controlStackTop >= WA_CONTROL_STACK_SIZE
+                       || interpreter->locals - interpreter->localsBuffer + maxUsedSlot + callee->maxSlotCount >= WA_LOCALS_BUFFER_SIZE)
                     {
                         return (WA_TRAP_STACK_OVERFLOW);
                     }
 
-                    controlStack[controlStackTop] = (wa_control){
+                    interpreter->controlStack[interpreter->controlStackTop] = (wa_control){
                         .instance = calleeInstance,
                         .func = callee,
-                        .returnPC = pc + 4,
-                        .returnFrame = locals,
+                        .returnPC = interpreter->pc + 4,
+                        .returnFrame = interpreter->locals,
                     };
 
-                    locals += maxUsedSlot;
-                    pc = callee->code;
+                    interpreter->locals += maxUsedSlot;
+                    interpreter->pc = callee->code;
                     instance = calleeInstance;
 
                     if(instance->memories)
@@ -5979,29 +5996,29 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
                 }
                 else
                 {
-                    wa_value* saveLocals = locals;
-                    locals += maxUsedSlot;
-                    callee->proc(locals, locals);
-                    pc += 4;
-                    locals = saveLocals;
+                    wa_value* saveLocals = interpreter->locals;
+                    interpreter->locals += maxUsedSlot;
+                    callee->proc(interpreter->locals, interpreter->locals);
+                    interpreter->pc += 4;
+                    interpreter->locals = saveLocals;
                 }
             }
             break;
 
             case WA_INSTR_return:
             {
-                if(!controlStackTop)
+                if(!interpreter->controlStackTop)
                 {
                     goto end;
                 }
 
-                wa_control control = controlStack[controlStackTop];
-                locals = control.returnFrame;
-                pc = control.returnPC;
+                wa_control control = interpreter->controlStack[interpreter->controlStackTop];
+                interpreter->locals = control.returnFrame;
+                interpreter->pc = control.returnPC;
 
-                controlStackTop--;
+                interpreter->controlStackTop--;
 
-                instance = controlStack[controlStackTop].instance;
+                instance = interpreter->controlStack[interpreter->controlStackTop].instance;
                 if(instance->memories)
                 {
                     memory = instance->memories[0];
@@ -6017,14 +6034,14 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
             {
                 L0.refInstance = 0;
                 L0.refIndex = 0;
-                pc += 1;
+                interpreter->pc += 1;
             }
             break;
 
             case WA_INSTR_ref_is_null:
             {
                 L1.valI32 = (L0.refInstance == 0) ? 1 : 0;
-                pc += 2;
+                interpreter->pc += 2;
             }
             break;
 
@@ -6032,7 +6049,7 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
             {
                 L1.refInstance = instance,
                 L1.refIndex = I0.valI64;
-                pc += 2;
+                interpreter->pc += 2;
             }
             break;
 
@@ -6044,21 +6061,21 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
             case WA_INSTR_i32_add:
             {
                 BRES.valI32 = OPD1.valI32 + OPD2.valI32;
-                pc += 3;
+                interpreter->pc += 3;
             }
             break;
 
             case WA_INSTR_i32_sub:
             {
                 BRES.valI32 = OPD1.valI32 - OPD2.valI32;
-                pc += 3;
+                interpreter->pc += 3;
             }
             break;
 
             case WA_INSTR_i32_mul:
             {
                 BRES.valI32 = OPD1.valI32 * OPD2.valI32;
-                pc += 3;
+                interpreter->pc += 3;
             }
             break;
 
@@ -6076,7 +6093,7 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
                 {
                     BRES.valI32 = OPD1.valI32 / OPD2.valI32;
                 }
-                pc += 3;
+                interpreter->pc += 3;
             }
             break;
 
@@ -6090,7 +6107,7 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
                 {
                     *(u32*)&BRES.valI32 = *(u32*)&OPD1.valI32 / *(u32*)&OPD2.valI32;
                 }
-                pc += 3;
+                interpreter->pc += 3;
             }
             break;
 
@@ -6108,7 +6125,7 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
                 {
                     BRES.valI32 = OPD1.valI32 % OPD2.valI32;
                 }
-                pc += 3;
+                interpreter->pc += 3;
             }
             break;
 
@@ -6122,49 +6139,49 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
                 {
                     *(u32*)&BRES.valI32 = *(u32*)&OPD1.valI32 % *(u32*)&OPD2.valI32;
                 }
-                pc += 3;
+                interpreter->pc += 3;
             }
             break;
 
             case WA_INSTR_i32_and:
             {
                 BRES.valI32 = OPD1.valI32 & OPD2.valI32;
-                pc += 3;
+                interpreter->pc += 3;
             }
             break;
 
             case WA_INSTR_i32_or:
             {
                 BRES.valI32 = OPD1.valI32 | OPD2.valI32;
-                pc += 3;
+                interpreter->pc += 3;
             }
             break;
 
             case WA_INSTR_i32_xor:
             {
                 BRES.valI32 = OPD1.valI32 ^ OPD2.valI32;
-                pc += 3;
+                interpreter->pc += 3;
             }
             break;
 
             case WA_INSTR_i32_shl:
             {
                 BRES.valI32 = OPD1.valI32 << OPD2.valI32;
-                pc += 3;
+                interpreter->pc += 3;
             }
             break;
 
             case WA_INSTR_i32_shr_s:
             {
                 BRES.valI32 = OPD1.valI32 >> OPD2.valI32;
-                pc += 3;
+                interpreter->pc += 3;
             }
             break;
 
             case WA_INSTR_i32_shr_u:
             {
                 *(u32*)&BRES.valI32 = *(u32*)&OPD1.valI32 >> *(u32*)&OPD2.valI32;
-                pc += 3;
+                interpreter->pc += 3;
             }
             break;
 
@@ -6173,7 +6190,7 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
                 u32 n = *(u32*)&OPD1.valI32;
                 u32 r = *(u32*)&OPD2.valI32;
                 *(u32*)&BRES.valI32 = (n >> r) | (n << (32 - r));
-                pc += 3;
+                interpreter->pc += 3;
             }
             break;
 
@@ -6182,7 +6199,7 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
                 u32 n = *(u32*)&OPD1.valI32;
                 u32 r = *(u32*)&OPD2.valI32;
                 *(u32*)&BRES.valI32 = (n << r) | (n >> (32 - r));
-                pc += 3;
+                interpreter->pc += 3;
             }
             break;
 
@@ -6196,7 +6213,7 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
                 {
                     URES.valI32 = __builtin_clz(*(u32*)&OPD1.valI32);
                 }
-                pc += 2;
+                interpreter->pc += 2;
             }
             break;
 
@@ -6210,126 +6227,126 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
                 {
                     URES.valI32 = __builtin_ctz(*(u32*)&OPD1.valI32);
                 }
-                pc += 2;
+                interpreter->pc += 2;
             }
             break;
 
             case WA_INSTR_i32_popcnt:
             {
                 URES.valI32 = __builtin_popcount(*(u32*)&OPD1.valI32);
-                pc += 2;
+                interpreter->pc += 2;
             }
             break;
 
             case WA_INSTR_i32_extend8_s:
             {
                 URES.valI32 = (i32)(i8)(OPD1.valI32 & 0xff);
-                pc += 2;
+                interpreter->pc += 2;
             }
             break;
 
             case WA_INSTR_i32_extend16_s:
             {
                 URES.valI32 = (i32)(i16)(OPD1.valI32 & 0xffff);
-                pc += 2;
+                interpreter->pc += 2;
             }
             break;
 
             case WA_INSTR_i32_eqz:
             {
                 URES.valI32 = (OPD1.valI32 == 0) ? 1 : 0;
-                pc += 2;
+                interpreter->pc += 2;
             }
             break;
 
             case WA_INSTR_i32_eq:
             {
                 BRES.valI32 = (OPD1.valI32 == OPD2.valI32) ? 1 : 0;
-                pc += 3;
+                interpreter->pc += 3;
             }
             break;
 
             case WA_INSTR_i32_ne:
             {
                 BRES.valI32 = (OPD1.valI32 != OPD2.valI32) ? 1 : 0;
-                pc += 3;
+                interpreter->pc += 3;
             }
             break;
 
             case WA_INSTR_i32_lt_s:
             {
                 BRES.valI32 = (OPD1.valI32 < OPD2.valI32) ? 1 : 0;
-                pc += 3;
+                interpreter->pc += 3;
             }
             break;
 
             case WA_INSTR_i32_lt_u:
             {
                 BRES.valI32 = (*(u32*)&OPD1.valI32 < *(u32*)&OPD2.valI32) ? 1 : 0;
-                pc += 3;
+                interpreter->pc += 3;
             }
             break;
 
             case WA_INSTR_i32_le_s:
             {
                 BRES.valI32 = (OPD1.valI32 <= OPD2.valI32) ? 1 : 0;
-                pc += 3;
+                interpreter->pc += 3;
             }
             break;
 
             case WA_INSTR_i32_le_u:
             {
                 BRES.valI32 = (*(u32*)&OPD1.valI32 <= *(u32*)&OPD2.valI32) ? 1 : 0;
-                pc += 3;
+                interpreter->pc += 3;
             }
             break;
 
             case WA_INSTR_i32_gt_s:
             {
                 BRES.valI32 = (OPD1.valI32 > OPD2.valI32) ? 1 : 0;
-                pc += 3;
+                interpreter->pc += 3;
             }
             break;
 
             case WA_INSTR_i32_gt_u:
             {
                 BRES.valI32 = (*(u32*)&OPD1.valI32 > *(u32*)&OPD2.valI32) ? 1 : 0;
-                pc += 3;
+                interpreter->pc += 3;
             }
             break;
 
             case WA_INSTR_i32_ge_s:
             {
                 BRES.valI32 = (OPD1.valI32 >= OPD2.valI32) ? 1 : 0;
-                pc += 3;
+                interpreter->pc += 3;
             }
             break;
 
             case WA_INSTR_i32_ge_u:
             {
                 BRES.valI32 = (*(u32*)&OPD1.valI32 >= *(u32*)&OPD2.valI32) ? 1 : 0;
-                pc += 3;
+                interpreter->pc += 3;
             }
             break;
 
             case WA_INSTR_i64_add:
             {
                 BRES.valI64 = OPD1.valI64 + OPD2.valI64;
-                pc += 3;
+                interpreter->pc += 3;
             }
             break;
 
             case WA_INSTR_i64_sub:
             {
                 BRES.valI64 = OPD1.valI64 - OPD2.valI64;
-                pc += 3;
+                interpreter->pc += 3;
             }
             break;
 
             case WA_INSTR_i64_mul:
             {
                 BRES.valI64 = OPD1.valI64 * OPD2.valI64;
-                pc += 3;
+                interpreter->pc += 3;
             }
             break;
 
@@ -6347,7 +6364,7 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
                 {
                     BRES.valI64 = OPD1.valI64 / OPD2.valI64;
                 }
-                pc += 3;
+                interpreter->pc += 3;
             }
             break;
 
@@ -6361,7 +6378,7 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
                 {
                     *(u64*)&BRES.valI64 = *(u64*)&OPD1.valI64 / *(u64*)&OPD2.valI64;
                 }
-                pc += 3;
+                interpreter->pc += 3;
             }
             break;
 
@@ -6379,7 +6396,7 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
                 {
                     BRES.valI64 = OPD1.valI64 % OPD2.valI64;
                 }
-                pc += 3;
+                interpreter->pc += 3;
             }
             break;
 
@@ -6393,49 +6410,49 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
                 {
                     *(u64*)&BRES.valI64 = *(u64*)&OPD1.valI64 % *(u64*)&OPD2.valI64;
                 }
-                pc += 3;
+                interpreter->pc += 3;
             }
             break;
 
             case WA_INSTR_i64_and:
             {
                 BRES.valI64 = OPD1.valI64 & OPD2.valI64;
-                pc += 3;
+                interpreter->pc += 3;
             }
             break;
 
             case WA_INSTR_i64_or:
             {
                 BRES.valI64 = OPD1.valI64 | OPD2.valI64;
-                pc += 3;
+                interpreter->pc += 3;
             }
             break;
 
             case WA_INSTR_i64_xor:
             {
                 BRES.valI64 = OPD1.valI64 ^ OPD2.valI64;
-                pc += 3;
+                interpreter->pc += 3;
             }
             break;
 
             case WA_INSTR_i64_shl:
             {
                 BRES.valI64 = OPD1.valI64 << OPD2.valI64;
-                pc += 3;
+                interpreter->pc += 3;
             }
             break;
 
             case WA_INSTR_i64_shr_s:
             {
                 BRES.valI64 = OPD1.valI64 >> OPD2.valI64;
-                pc += 3;
+                interpreter->pc += 3;
             }
             break;
 
             case WA_INSTR_i64_shr_u:
             {
                 *(u64*)&BRES.valI64 = *(u64*)&OPD1.valI64 >> *(u64*)&OPD2.valI64;
-                pc += 3;
+                interpreter->pc += 3;
             }
             break;
 
@@ -6444,7 +6461,7 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
                 u64 n = *(u64*)&OPD1.valI64;
                 u64 r = *(u64*)&OPD2.valI64;
                 *(u64*)&BRES.valI64 = (n >> r) | (n << (64 - r));
-                pc += 3;
+                interpreter->pc += 3;
             }
             break;
 
@@ -6453,7 +6470,7 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
                 u64 n = *(u64*)&OPD1.valI64;
                 u64 r = *(u64*)&OPD2.valI64;
                 *(u64*)&BRES.valI64 = (n << r) | (n >> (64 - r));
-                pc += 3;
+                interpreter->pc += 3;
             }
             break;
 
@@ -6467,7 +6484,7 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
                 {
                     URES.valI64 = __builtin_clzl(*(u64*)&OPD1.valI64);
                 }
-                pc += 2;
+                interpreter->pc += 2;
             }
             break;
 
@@ -6481,263 +6498,263 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
                 {
                     URES.valI64 = __builtin_ctzl(*(u64*)&OPD1.valI64);
                 }
-                pc += 2;
+                interpreter->pc += 2;
             }
             break;
 
             case WA_INSTR_i64_popcnt:
             {
                 URES.valI64 = __builtin_popcountl(*(u64*)&OPD1.valI64);
-                pc += 2;
+                interpreter->pc += 2;
             }
             break;
 
             case WA_INSTR_i64_extend8_s:
             {
                 URES.valI64 = (i64)(i8)(OPD1.valI64 & 0xff);
-                pc += 2;
+                interpreter->pc += 2;
             }
             break;
 
             case WA_INSTR_i64_extend16_s:
             {
                 URES.valI64 = (i64)(i16)(OPD1.valI64 & 0xffff);
-                pc += 2;
+                interpreter->pc += 2;
             }
             break;
 
             case WA_INSTR_i64_extend32_s:
             {
                 URES.valI64 = (i64)(i32)(OPD1.valI64 & 0xffffffff);
-                pc += 2;
+                interpreter->pc += 2;
             }
             break;
 
             case WA_INSTR_i64_eqz:
             {
                 URES.valI32 = (OPD1.valI64 == 0) ? 1 : 0;
-                pc += 2;
+                interpreter->pc += 2;
             }
             break;
 
             case WA_INSTR_i64_eq:
             {
                 BRES.valI32 = (OPD1.valI64 == OPD2.valI64) ? 1 : 0;
-                pc += 3;
+                interpreter->pc += 3;
             }
             break;
 
             case WA_INSTR_i64_ne:
             {
                 BRES.valI32 = (OPD1.valI64 != OPD2.valI64) ? 1 : 0;
-                pc += 3;
+                interpreter->pc += 3;
             }
             break;
 
             case WA_INSTR_i64_lt_s:
             {
                 BRES.valI32 = (OPD1.valI64 < OPD2.valI64) ? 1 : 0;
-                pc += 3;
+                interpreter->pc += 3;
             }
             break;
 
             case WA_INSTR_i64_lt_u:
             {
                 BRES.valI32 = (*(u64*)&OPD1.valI64 < *(u64*)&OPD2.valI64) ? 1 : 0;
-                pc += 3;
+                interpreter->pc += 3;
             }
             break;
 
             case WA_INSTR_i64_le_s:
             {
                 BRES.valI32 = (OPD1.valI64 <= OPD2.valI64) ? 1 : 0;
-                pc += 3;
+                interpreter->pc += 3;
             }
             break;
 
             case WA_INSTR_i64_le_u:
             {
                 BRES.valI32 = (*(u64*)&OPD1.valI64 <= *(u64*)&OPD2.valI64) ? 1 : 0;
-                pc += 3;
+                interpreter->pc += 3;
             }
             break;
 
             case WA_INSTR_i64_gt_s:
             {
                 BRES.valI32 = (OPD1.valI64 > OPD2.valI64) ? 1 : 0;
-                pc += 3;
+                interpreter->pc += 3;
             }
             break;
 
             case WA_INSTR_i64_gt_u:
             {
                 BRES.valI32 = (*(u64*)&OPD1.valI64 > *(u64*)&OPD2.valI64) ? 1 : 0;
-                pc += 3;
+                interpreter->pc += 3;
             }
             break;
 
             case WA_INSTR_i64_ge_s:
             {
                 BRES.valI32 = (OPD1.valI64 >= OPD2.valI64) ? 1 : 0;
-                pc += 3;
+                interpreter->pc += 3;
             }
             break;
 
             case WA_INSTR_i64_ge_u:
             {
                 BRES.valI32 = (*(u64*)&OPD1.valI64 >= *(u64*)&OPD2.valI64) ? 1 : 0;
-                pc += 3;
+                interpreter->pc += 3;
             }
             break;
 
             case WA_INSTR_f32_eq:
             {
                 BRES.valI32 = (OPD1.valF32 == OPD2.valF32) ? 1 : 0;
-                pc += 3;
+                interpreter->pc += 3;
             }
             break;
             case WA_INSTR_f32_ne:
             {
                 BRES.valI32 = (OPD1.valF32 != OPD2.valF32) ? 1 : 0;
-                pc += 3;
+                interpreter->pc += 3;
             }
             break;
             case WA_INSTR_f32_lt:
             {
                 BRES.valI32 = (OPD1.valF32 < OPD2.valF32) ? 1 : 0;
-                pc += 3;
+                interpreter->pc += 3;
             }
             break;
             case WA_INSTR_f32_gt:
             {
                 BRES.valI32 = (OPD1.valF32 > OPD2.valF32) ? 1 : 0;
-                pc += 3;
+                interpreter->pc += 3;
             }
             break;
             case WA_INSTR_f32_le:
             {
                 BRES.valI32 = (OPD1.valF32 <= OPD2.valF32) ? 1 : 0;
-                pc += 3;
+                interpreter->pc += 3;
             }
             break;
             case WA_INSTR_f32_ge:
             {
                 BRES.valI32 = (OPD1.valF32 >= OPD2.valF32) ? 1 : 0;
-                pc += 3;
+                interpreter->pc += 3;
             }
             break;
 
             case WA_INSTR_f64_eq:
             {
                 BRES.valI32 = (OPD1.valF64 == OPD2.valF64) ? 1 : 0;
-                pc += 3;
+                interpreter->pc += 3;
             }
             break;
             case WA_INSTR_f64_ne:
             {
                 BRES.valI32 = (OPD1.valF64 != OPD2.valF64) ? 1 : 0;
-                pc += 3;
+                interpreter->pc += 3;
             }
             break;
             case WA_INSTR_f64_lt:
             {
                 BRES.valI32 = (OPD1.valF64 < OPD2.valF64) ? 1 : 0;
-                pc += 3;
+                interpreter->pc += 3;
             }
             break;
             case WA_INSTR_f64_gt:
             {
                 BRES.valI32 = (OPD1.valF64 > OPD2.valF64) ? 1 : 0;
-                pc += 3;
+                interpreter->pc += 3;
             }
             break;
             case WA_INSTR_f64_le:
             {
                 BRES.valI32 = (OPD1.valF64 <= OPD2.valF64) ? 1 : 0;
-                pc += 3;
+                interpreter->pc += 3;
             }
             break;
             case WA_INSTR_f64_ge:
             {
                 BRES.valI32 = (OPD1.valF64 >= OPD2.valF64) ? 1 : 0;
-                pc += 3;
+                interpreter->pc += 3;
             }
             break;
 
             case WA_INSTR_f32_abs:
             {
                 URES.valF32 = fabsf(OPD1.valF32);
-                pc += 2;
+                interpreter->pc += 2;
             }
             break;
 
             case WA_INSTR_f32_neg:
             {
                 URES.valF32 = -OPD1.valF32;
-                pc += 2;
+                interpreter->pc += 2;
             }
             break;
 
             case WA_INSTR_f32_ceil:
             {
                 URES.valF32 = ceilf(OPD1.valF32);
-                pc += 2;
+                interpreter->pc += 2;
             }
             break;
 
             case WA_INSTR_f32_floor:
             {
                 URES.valF32 = floorf(OPD1.valF32);
-                pc += 2;
+                interpreter->pc += 2;
             }
             break;
 
             case WA_INSTR_f32_trunc:
             {
                 URES.valF32 = truncf(OPD1.valF32);
-                pc += 2;
+                interpreter->pc += 2;
             }
             break;
 
             case WA_INSTR_f32_nearest:
             {
                 URES.valF32 = rintf(OPD1.valF32);
-                pc += 2;
+                interpreter->pc += 2;
             }
             break;
 
             case WA_INSTR_f32_sqrt:
             {
                 URES.valF32 = sqrtf(OPD1.valF32);
-                pc += 2;
+                interpreter->pc += 2;
             }
             break;
 
             case WA_INSTR_f32_add:
             {
                 BRES.valF32 = OPD1.valF32 + OPD2.valF32;
-                pc += 3;
+                interpreter->pc += 3;
             }
             break;
 
             case WA_INSTR_f32_sub:
             {
                 BRES.valF32 = OPD1.valF32 - OPD2.valF32;
-                pc += 3;
+                interpreter->pc += 3;
             }
             break;
 
             case WA_INSTR_f32_mul:
             {
                 BRES.valF32 = OPD1.valF32 * OPD2.valF32;
-                pc += 3;
+                interpreter->pc += 3;
             }
             break;
 
             case WA_INSTR_f32_div:
             {
                 BRES.valF32 = OPD1.valF32 / OPD2.valF32;
-                pc += 3;
+                interpreter->pc += 3;
             }
             break;
 
@@ -6758,7 +6775,7 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
                 {
                     BRES.valF32 = oc_min(a, b);
                 }
-                pc += 3;
+                interpreter->pc += 3;
             }
             break;
 
@@ -6780,91 +6797,91 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
                 {
                     BRES.valF32 = oc_max(a, b);
                 }
-                pc += 3;
+                interpreter->pc += 3;
             }
             break;
 
             case WA_INSTR_f32_copysign:
             {
                 BRES.valF32 = copysignf(OPD1.valF32, OPD2.valF32);
-                pc += 3;
+                interpreter->pc += 3;
             }
             break;
 
             case WA_INSTR_f64_abs:
             {
                 URES.valF64 = fabs(OPD1.valF64);
-                pc += 2;
+                interpreter->pc += 2;
             }
             break;
 
             case WA_INSTR_f64_neg:
             {
                 URES.valF64 = -OPD1.valF64;
-                pc += 2;
+                interpreter->pc += 2;
             }
             break;
 
             case WA_INSTR_f64_ceil:
             {
                 URES.valF64 = ceil(OPD1.valF64);
-                pc += 2;
+                interpreter->pc += 2;
             }
             break;
 
             case WA_INSTR_f64_floor:
             {
                 URES.valF64 = floor(OPD1.valF64);
-                pc += 2;
+                interpreter->pc += 2;
             }
             break;
 
             case WA_INSTR_f64_trunc:
             {
                 URES.valF64 = trunc(OPD1.valF64);
-                pc += 2;
+                interpreter->pc += 2;
             }
             break;
 
             case WA_INSTR_f64_nearest:
             {
                 URES.valF64 = rint(OPD1.valF64);
-                pc += 2;
+                interpreter->pc += 2;
             }
             break;
 
             case WA_INSTR_f64_sqrt:
             {
                 URES.valF64 = sqrt(OPD1.valF64);
-                pc += 2;
+                interpreter->pc += 2;
             }
             break;
 
             case WA_INSTR_f64_add:
             {
                 BRES.valF64 = OPD1.valF64 + OPD2.valF64;
-                pc += 3;
+                interpreter->pc += 3;
             }
             break;
 
             case WA_INSTR_f64_sub:
             {
                 BRES.valF64 = OPD1.valF64 - OPD2.valF64;
-                pc += 3;
+                interpreter->pc += 3;
             }
             break;
 
             case WA_INSTR_f64_mul:
             {
                 BRES.valF64 = OPD1.valF64 * OPD2.valF64;
-                pc += 3;
+                interpreter->pc += 3;
             }
             break;
 
             case WA_INSTR_f64_div:
             {
                 BRES.valF64 = OPD1.valF64 / OPD2.valF64;
-                pc += 3;
+                interpreter->pc += 3;
             }
             break;
 
@@ -6886,7 +6903,7 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
                 {
                     BRES.valF64 = oc_min(a, b);
                 }
-                pc += 3;
+                interpreter->pc += 3;
             }
             break;
 
@@ -6908,21 +6925,21 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
                 {
                     BRES.valF64 = oc_max(a, b);
                 }
-                pc += 3;
+                interpreter->pc += 3;
             }
             break;
 
             case WA_INSTR_f64_copysign:
             {
                 BRES.valF64 = copysign(OPD1.valF64, OPD2.valF64);
-                pc += 3;
+                interpreter->pc += 3;
             }
             break;
 
             case WA_INSTR_i32_wrap_i64:
             {
                 URES.valI32 = (OPD1.valI64 & 0x00000000ffffffff);
-                pc += 2;
+                interpreter->pc += 2;
             }
             break;
 
@@ -6938,7 +6955,7 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
                 }
 
                 URES.valI32 = (i32)truncf(OPD1.valF32);
-                pc += 2;
+                interpreter->pc += 2;
             }
             break;
 
@@ -6955,7 +6972,7 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
                 }
 
                 *(u32*)&URES.valI32 = (u32)truncf(OPD1.valF32);
-                pc += 2;
+                interpreter->pc += 2;
             }
             break;
 
@@ -6972,7 +6989,7 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
                 }
 
                 URES.valI32 = (i32)trunc(OPD1.valF64);
-                pc += 2;
+                interpreter->pc += 2;
             }
             break;
             case WA_INSTR_i32_trunc_f64_u:
@@ -6988,7 +7005,7 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
                 }
 
                 *(u32*)&URES.valI32 = (u32)trunc(OPD1.valF64);
-                pc += 2;
+                interpreter->pc += 2;
             }
             break;
 
@@ -7005,7 +7022,7 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
                 }
 
                 URES.valI64 = (i64)truncf(OPD1.valF32);
-                pc += 2;
+                interpreter->pc += 2;
             }
             break;
 
@@ -7022,7 +7039,7 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
                 }
 
                 *(u64*)&URES.valI64 = (u64)truncf(OPD1.valF32);
-                pc += 2;
+                interpreter->pc += 2;
             }
             break;
 
@@ -7039,7 +7056,7 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
                 }
 
                 URES.valI64 = (i64)trunc(OPD1.valF64);
-                pc += 2;
+                interpreter->pc += 2;
             }
             break;
 
@@ -7056,99 +7073,99 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
                 }
 
                 *(u64*)&URES.valI64 = (u64)trunc(OPD1.valF64);
-                pc += 2;
+                interpreter->pc += 2;
             }
             break;
 
             case WA_INSTR_f32_convert_i32_s:
             {
                 URES.valF32 = (f32)OPD1.valI32;
-                pc += 2;
+                interpreter->pc += 2;
             }
             break;
 
             case WA_INSTR_f32_convert_i32_u:
             {
                 URES.valF32 = (f32) * (u32*)&OPD1.valI32;
-                pc += 2;
+                interpreter->pc += 2;
             }
             break;
 
             case WA_INSTR_f32_convert_i64_s:
             {
                 URES.valF32 = (f32)OPD1.valI64;
-                pc += 2;
+                interpreter->pc += 2;
             }
             break;
 
             case WA_INSTR_f32_convert_i64_u:
             {
                 URES.valF32 = (f32) * (u64*)&OPD1.valI64;
-                pc += 2;
+                interpreter->pc += 2;
             }
             break;
 
             case WA_INSTR_f32_demote_f64:
             {
                 URES.valF32 = (f32)OPD1.valF64;
-                pc += 2;
+                interpreter->pc += 2;
             }
             break;
 
             case WA_INSTR_f64_convert_i32_s:
             {
                 URES.valF64 = (f64)OPD1.valI32;
-                pc += 2;
+                interpreter->pc += 2;
             }
             break;
             case WA_INSTR_f64_convert_i32_u:
             {
                 URES.valF64 = (f64) * (u32*)&OPD1.valI32;
-                pc += 2;
+                interpreter->pc += 2;
             }
             break;
             case WA_INSTR_f64_convert_i64_s:
             {
                 URES.valF64 = (f64)OPD1.valI64;
-                pc += 2;
+                interpreter->pc += 2;
             }
             break;
             case WA_INSTR_f64_convert_i64_u:
             {
                 URES.valF64 = (f64) * (u64*)&OPD1.valI64;
-                pc += 2;
+                interpreter->pc += 2;
             }
             break;
 
             case WA_INSTR_f64_promote_f32:
             {
                 URES.valF64 = (f64)OPD1.valF32;
-                pc += 2;
+                interpreter->pc += 2;
             }
             break;
 
             case WA_INSTR_i32_reinterpret_f32:
             {
                 URES.valI32 = *(i32*)&OPD1.valF32;
-                pc += 2;
+                interpreter->pc += 2;
             }
             break;
             case WA_INSTR_i64_reinterpret_f64:
             {
                 URES.valI64 = *(i64*)&OPD1.valF64;
-                pc += 2;
+                interpreter->pc += 2;
             }
             break;
             case WA_INSTR_f32_reinterpret_i32:
             {
                 URES.valF32 = *(f32*)&OPD1.valI32;
-                pc += 2;
+                interpreter->pc += 2;
             }
             break;
             case WA_INSTR_f64_reinterpret_i64:
             {
                 URES.valF64 = *(f64*)&OPD1.valI64;
-                pc += 2;
+                interpreter->pc += 2;
             }
             break;
 
@@ -7170,7 +7187,7 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
                 {
                     URES.valI32 = (i32)truncf(OPD1.valF32);
                 }
-                pc += 2;
+                interpreter->pc += 2;
             }
             break;
 
@@ -7192,7 +7209,7 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
                 {
                     *(u32*)&URES.valI32 = (u32)truncf(OPD1.valF32);
                 }
-                pc += 2;
+                interpreter->pc += 2;
             }
             break;
 
@@ -7214,7 +7231,7 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
                 {
                     URES.valI32 = (i32)trunc(OPD1.valF64);
                 }
-                pc += 2;
+                interpreter->pc += 2;
             }
             break;
 
@@ -7236,7 +7253,7 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
                 {
                     *(u32*)&URES.valI32 = (u32)trunc(OPD1.valF64);
                 }
-                pc += 2;
+                interpreter->pc += 2;
             }
             break;
 
@@ -7258,7 +7275,7 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
                 {
                     URES.valI64 = (i64)truncf(OPD1.valF32);
                 }
-                pc += 2;
+                interpreter->pc += 2;
             }
             break;
 
@@ -7280,7 +7297,7 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
                 {
                     *(u64*)&URES.valI64 = (u64)truncf(OPD1.valF32);
                 }
-                pc += 2;
+                interpreter->pc += 2;
             }
             break;
 
@@ -7302,7 +7319,7 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
                 {
                     URES.valI64 = (i64)trunc(OPD1.valF64);
                 }
-                pc += 2;
+                interpreter->pc += 2;
             }
             break;
 
@@ -7324,21 +7341,21 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
                 {
                     *(u64*)&URES.valI64 = (u64)trunc(OPD1.valF64);
                 }
-                pc += 2;
+                interpreter->pc += 2;
             }
             break;
 
             case WA_INSTR_i64_extend_i32_s:
             {
                 URES.valI64 = (i64)(i32)(OPD1.valI32);
-                pc += 2;
+                interpreter->pc += 2;
             }
             break;
 
             case WA_INSTR_i64_extend_i32_u:
             {
                 URES.valI64 = *(u32*)&(OPD1.valI32);
-                pc += 2;
+                interpreter->pc += 2;
             }
             break;
 
@@ -7346,7 +7363,7 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
             {
                 wa_memory* mem = instance->memories[0];
                 L0.valI32 = (i32)(mem->limits.min);
-                pc += 1;
+                interpreter->pc += 1;
             }
             break;
 
@@ -7368,7 +7385,7 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
 
                 L1.valI32 = res;
 
-                pc += 2;
+                interpreter->pc += 2;
             }
             break;
 
@@ -7388,7 +7405,7 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
                 {
                     memset(mem->ptr + d, val, n);
                 }
-                pc += 3;
+                interpreter->pc += 3;
             }
             break;
 
@@ -7405,7 +7422,7 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
                     return WA_TRAP_MEMORY_OUT_OF_BOUNDS;
                 }
                 memmove(mem->ptr + d, mem->ptr + s, n);
-                pc += 3;
+                interpreter->pc += 3;
             }
             break;
 
@@ -7424,7 +7441,7 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
                     return WA_TRAP_MEMORY_OUT_OF_BOUNDS;
                 }
                 memmove(mem->ptr + d, seg->init.ptr + s, n);
-                pc += 4;
+                interpreter->pc += 4;
             }
             break;
 
@@ -7432,7 +7449,7 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
             {
                 wa_data_segment* seg = &instance->data[I0.valI32];
                 seg->init.len = 0;
-                pc += 1;
+                interpreter->pc += 1;
             }
             break;
 
@@ -7451,7 +7468,7 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
                     return WA_TRAP_TABLE_OUT_OF_BOUNDS;
                 }
                 memmove(table->contents + d, elt->refs + s, n * sizeof(wa_value));
-                pc += 5;
+                interpreter->pc += 5;
             }
             break;
 
@@ -7472,7 +7489,7 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
                     table->contents[d + i] = val;
                 }
 
-                pc += 4;
+                interpreter->pc += 4;
             }
             break;
 
@@ -7491,7 +7508,7 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
                     return WA_TRAP_TABLE_OUT_OF_BOUNDS;
                 }
                 memmove(tx->contents + d, ty->contents + s, n * sizeof(wa_value));
-                pc += 5;
+                interpreter->pc += 5;
             }
             break;
 
@@ -7499,7 +7516,7 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
             {
                 wa_table* table = instance->tables[I0.valI32];
                 L1.valI32 = table->limits.min;
-                pc += 2;
+                interpreter->pc += 2;
             }
             break;
 
@@ -7525,7 +7542,7 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
                     table->contents = contents;
                 }
                 L3.valI32 = ret;
-                pc += 4;
+                interpreter->pc += 4;
             }
             break;
 
@@ -7539,7 +7556,7 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
                     return WA_TRAP_TABLE_OUT_OF_BOUNDS;
                 }
                 L2 = table->contents[eltIndex];
-                pc += 3;
+                interpreter->pc += 3;
             }
             break;
 
@@ -7554,7 +7571,7 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
                     return WA_TRAP_TABLE_OUT_OF_BOUNDS;
                 }
                 table->contents[eltIndex] = val;
-                pc += 3;
+                interpreter->pc += 3;
             }
             break;
 
@@ -7562,7 +7579,7 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
             {
                 wa_element* elt = &instance->elements[I0.valI32];
                 elt->initCount = 0;
-                pc += 1;
+                interpreter->pc += 1;
             }
             break;
 
@@ -7573,12 +7590,26 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
     }
 
 end:
-    for(u32 retIndex = 0; retIndex < retCount; retIndex++)
+    for(u32 retIndex = 0; retIndex < interpreter->retCount; retIndex++)
     {
-        returns[retIndex] = locals[retIndex];
+        interpreter->returns[retIndex] = interpreter->locals[retIndex];
     }
 
     return WA_OK;
+}
+
+wa_status wa_instance_interpret_expr(wa_instance* instance,
+                                     wa_func* func,
+                                     wa_func_type* type,
+                                     wa_code* code,
+                                     u32 argCount,
+                                     wa_value* args,
+                                     u32 retCount,
+                                     wa_value* returns)
+{
+    wa_interpreter interpreter = { 0 };
+    wa_interpreter_init(&interpreter, instance, func, type, code, argCount, args, retCount, returns);
+    return (wa_interpreter_run(&interpreter));
 }
 
 wa_status wa_instance_invoke(wa_instance* instance,
@@ -7595,7 +7626,7 @@ wa_status wa_instance_invoke(wa_instance* instance,
 
     if(func->code)
     {
-        return (wa_instance_interpret_expr(instance, func->type, func->code, argCount, args, retCount, returns));
+        return (wa_instance_interpret_expr(instance, func, func->type, func->code, argCount, args, retCount, returns));
     }
     else if(func->extInstance)
     {
