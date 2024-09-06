@@ -925,9 +925,22 @@ typedef enum wa_immediate_type
 
 } wa_immediate_type;
 
+typedef enum wa_opd_kind
+{
+    WA_OPD_UNKNOWN = 0,
+    WA_OPD_CONST_I32,
+    WA_OPD_CONST_I64,
+    WA_OPD_CONST_F32,
+    WA_OPD_CONST_F64,
+    WA_OPD_LOCAL_INDEX,
+    WA_OPD_JUMP_TARGET,
+} wa_opd_kind;
+
 enum
 {
-    WA_INSTR_OPD_MAX_COUNT = 3,
+    WA_INSTR_IN_MAX_COUNT = 3,
+    WA_INSTR_OUT_MAX_COUNT = 3,
+    WA_INSTR_OPD_MAX_COUNT = 4,
 };
 
 typedef struct wa_instr_info
@@ -936,12 +949,13 @@ typedef struct wa_instr_info
     wa_immediate_type imm[WA_INSTR_IMM_MAX_COUNT];
 
     u32 inCount;
-    wa_value_type in[WA_INSTR_OPD_MAX_COUNT];
+    wa_value_type in[WA_INSTR_IN_MAX_COUNT];
 
     u32 outCount;
-    wa_value_type out[WA_INSTR_OPD_MAX_COUNT];
+    wa_value_type out[WA_INSTR_OUT_MAX_COUNT];
 
     u32 opdCount;
+    wa_opd_kind opd[WA_INSTR_OPD_MAX_COUNT];
 
     bool defined;
 } wa_instr_info;
@@ -1392,6 +1406,10 @@ static const wa_instr_info wa_instr_infos[] = {
             WA_TYPE_I32,
         },
         .opdCount = 2,
+        .opd = {
+            WA_OPD_LOCAL_INDEX,
+            WA_OPD_CONST_I32,
+        },
         .defined = true,
     },
     [WA_INSTR_i64_const] = {
@@ -1402,6 +1420,10 @@ static const wa_instr_info wa_instr_infos[] = {
             WA_TYPE_I64,
         },
         .opdCount = 2,
+        .opd = {
+            WA_OPD_LOCAL_INDEX,
+            WA_OPD_CONST_I64,
+        },
         .defined = true,
     },
     [WA_INSTR_f32_const] = {
@@ -1412,6 +1434,10 @@ static const wa_instr_info wa_instr_infos[] = {
             WA_TYPE_F32,
         },
         .opdCount = 2,
+        .opd = {
+            WA_OPD_LOCAL_INDEX,
+            WA_OPD_CONST_F32,
+        },
         .defined = true,
     },
     [WA_INSTR_f64_const] = {
@@ -1422,6 +1448,10 @@ static const wa_instr_info wa_instr_infos[] = {
             WA_TYPE_F64,
         },
         .opdCount = 2,
+        .opd = {
+            WA_OPD_LOCAL_INDEX,
+            WA_OPD_CONST_F64,
+        },
         .defined = true,
     },
     [WA_INSTR_i32_eqz] = {
@@ -3207,15 +3237,28 @@ static const wa_instr_info wa_instr_infos[] = {
 
     [WA_INSTR_move] = {
         .opdCount = 2,
+        .opd = {
+            WA_OPD_LOCAL_INDEX,
+            WA_OPD_LOCAL_INDEX,
+        },
     },
     [WA_INSTR_jump] = {
         .opdCount = 1,
+        .opd = { WA_OPD_JUMP_TARGET },
     },
     [WA_INSTR_jump_if] = {
         .opdCount = 2,
+        .opd = {
+            WA_OPD_JUMP_TARGET,
+            WA_OPD_LOCAL_INDEX,
+        },
     },
     [WA_INSTR_jump_if_zero] = {
         .opdCount = 2,
+        .opd = {
+            WA_OPD_JUMP_TARGET,
+            WA_OPD_LOCAL_INDEX,
+        },
     },
     [WA_INSTR_jump_table] = {
         .opdCount = 2,
