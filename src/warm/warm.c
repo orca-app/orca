@@ -615,8 +615,6 @@ typedef struct wa_func
 
     wa_instance* extInstance;
     u32 extIndex;
-
-    u32 maxSlotCount;
 } wa_func;
 
 wa_func_type* wa_function_get_type(wa_func* func)
@@ -3097,7 +3095,10 @@ void wa_compile_error(wa_build_context* context, wa_ast* ast, const char* fmt, .
     va_end(ap);
 
     error->ast = ast;
-    oc_list_push_back(&ast->errors, &error->astElt);
+    if(ast)
+    {
+        oc_list_push_back(&ast->errors, &error->astElt);
+    }
 
     oc_list_push_back(&context->module->errors, &error->moduleElt);
 }
@@ -3195,6 +3196,11 @@ wa_block wa_control_stack_top_value(wa_build_context* context)
         return ((wa_block){ 0 });
     }
 }
+
+enum
+{
+    WA_MAX_SLOT_COUNT = 4096,
+};
 
 u32 wa_allocate_register(wa_build_context* context)
 {
@@ -4516,6 +4522,7 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
             }
         }
     }
+
     //NOTE: clear remaining tmp data if we exited the loop early
     oc_scratch_end(scratch);
 }
@@ -4545,7 +4552,10 @@ void wa_compile_code(oc_arena* arena, wa_module* module)
         func->code = oc_arena_push_array(arena, wa_code, context.codeLen);
         memcpy(func->code, context.code, context.codeLen * sizeof(wa_code));
 
-        func->maxSlotCount = context.nextRegIndex;
+        if(context.nextRegIndex >= WA_MAX_SLOT_COUNT)
+        {
+            wa_compile_error(&context, 0, "too many register slots (%i, max is %i).", context.nextRegIndex, WA_MAX_SLOT_COUNT);
+        }
     }
 
     for(u32 globalIndex = module->globalImportCount; globalIndex < module->globalCount; globalIndex++)
@@ -5466,8 +5476,8 @@ typedef struct wa_control
 
 enum
 {
-    WA_CONTROL_STACK_SIZE = 1024,
-    WA_LOCALS_BUFFER_SIZE = 1024,
+    WA_CONTROL_STACK_SIZE = 256,
+    WA_LOCALS_BUFFER_SIZE = WA_MAX_SLOT_COUNT * 256,
 };
 
 typedef struct wa_interpreter
@@ -5483,7 +5493,7 @@ typedef struct wa_interpreter
     wa_control controlStack[WA_CONTROL_STACK_SIZE];
     u32 controlStackTop;
 
-    wa_value localsBuffer[WA_LOCALS_BUFFER_SIZE];
+    wa_value* localsBuffer;
     wa_value* locals;
     wa_code* pc;
 
@@ -5515,10 +5525,21 @@ wa_status wa_interpreter_init(wa_interpreter* interpreter,
             } },
     };
 
+    oc_base_allocator* alloc = oc_base_allocator_default();
+
+    interpreter->localsBuffer = oc_base_reserve(alloc, WA_LOCALS_BUFFER_SIZE * sizeof(wa_value));
+    oc_base_commit(alloc, interpreter->localsBuffer, WA_LOCALS_BUFFER_SIZE * sizeof(wa_value));
+
     interpreter->locals = interpreter->localsBuffer;
 
     memcpy(interpreter->locals, args, argCount * sizeof(wa_value));
     return WA_OK;
+}
+
+void wa_interpreter_cleanup(wa_interpreter* interpreter)
+{
+    oc_base_allocator* alloc = oc_base_allocator_default();
+    oc_base_release(alloc, interpreter->localsBuffer, WA_LOCALS_BUFFER_SIZE * sizeof(wa_value));
 }
 
 wa_status wa_interpreter_run(wa_interpreter* interpreter)
@@ -5535,20 +5556,10 @@ wa_status wa_interpreter_run(wa_interpreter* interpreter)
         }
     }
 
+    u32 localsIndex = interpreter->locals - interpreter->localsBuffer;
+    if(localsIndex + WA_MAX_SLOT_COUNT >= WA_LOCALS_BUFFER_SIZE)
     {
-        wa_func* func = interpreter->controlStack[interpreter->controlStackTop].func;
-        while(func && func->extInstance)
-        {
-            func = &func->extInstance->functions[func->extIndex];
-        }
-        if(func)
-        {
-            u32 remLocals = interpreter->locals - interpreter->localsBuffer;
-            if(remLocals + func->maxSlotCount >= WA_LOCALS_BUFFER_SIZE)
-            {
-                return (WA_TRAP_STACK_OVERFLOW);
-            }
-        }
+        return (WA_TRAP_STACK_OVERFLOW);
     }
 
     while(1)
@@ -5891,8 +5902,7 @@ wa_status wa_interpreter_run(wa_interpreter* interpreter)
                 if(callee->code)
                 {
                     interpreter->controlStackTop++;
-                    if(interpreter->controlStackTop >= WA_CONTROL_STACK_SIZE
-                       || interpreter->locals - interpreter->localsBuffer + maxUsedSlot + callee->maxSlotCount >= WA_LOCALS_BUFFER_SIZE)
+                    if(interpreter->controlStackTop >= WA_CONTROL_STACK_SIZE)
                     {
                         return (WA_TRAP_STACK_OVERFLOW);
                     }
@@ -5907,6 +5917,11 @@ wa_status wa_interpreter_run(wa_interpreter* interpreter)
                     interpreter->locals += maxUsedSlot;
                     interpreter->pc = callee->code;
                     instance = calleeInstance;
+
+                    if(interpreter->locals - interpreter->localsBuffer + WA_MAX_SLOT_COUNT >= WA_LOCALS_BUFFER_SIZE)
+                    {
+                        return (WA_TRAP_STACK_OVERFLOW);
+                    }
 
                     if(instance->memories)
                     {
@@ -5968,8 +5983,7 @@ wa_status wa_interpreter_run(wa_interpreter* interpreter)
                 if(callee->code)
                 {
                     interpreter->controlStackTop++;
-                    if(interpreter->controlStackTop >= WA_CONTROL_STACK_SIZE
-                       || interpreter->locals - interpreter->localsBuffer + maxUsedSlot + callee->maxSlotCount >= WA_LOCALS_BUFFER_SIZE)
+                    if(interpreter->controlStackTop >= WA_CONTROL_STACK_SIZE)
                     {
                         return (WA_TRAP_STACK_OVERFLOW);
                     }
@@ -5984,6 +5998,11 @@ wa_status wa_interpreter_run(wa_interpreter* interpreter)
                     interpreter->locals += maxUsedSlot;
                     interpreter->pc = callee->code;
                     instance = calleeInstance;
+
+                    if(interpreter->locals - interpreter->localsBuffer + WA_MAX_SLOT_COUNT >= WA_LOCALS_BUFFER_SIZE)
+                    {
+                        return (WA_TRAP_STACK_OVERFLOW);
+                    }
 
                     if(instance->memories)
                     {
@@ -7609,7 +7628,12 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
 {
     wa_interpreter interpreter = { 0 };
     wa_interpreter_init(&interpreter, instance, func, type, code, argCount, args, retCount, returns);
-    return (wa_interpreter_run(&interpreter));
+
+    wa_status status = wa_interpreter_run(&interpreter);
+
+    wa_interpreter_cleanup(&interpreter);
+
+    return status;
 }
 
 wa_status wa_instance_invoke(wa_instance* instance,
