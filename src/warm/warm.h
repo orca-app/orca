@@ -119,6 +119,9 @@ typedef enum wa_status
     WA_TRAP_TABLE_OUT_OF_BOUNDS,
     WA_TRAP_REF_NULL,
     WA_TRAP_INDIRECT_CALL_TYPE_MISMATCH,
+
+    WA_TRAP_STEP,
+    WA_TRAP_TERMINATED,
 } wa_status;
 
 typedef enum wa_binding_kind

@@ -5542,8 +5542,13 @@ void wa_interpreter_cleanup(wa_interpreter* interpreter)
     oc_base_release(alloc, interpreter->localsBuffer, WA_LOCALS_BUFFER_SIZE * sizeof(wa_value));
 }
 
-wa_status wa_interpreter_run(wa_interpreter* interpreter)
+wa_status wa_interpreter_run(wa_interpreter* interpreter, bool step)
 {
+    if(interpreter->terminated)
+    {
+        return WA_TRAP_TERMINATED;
+    }
+
     wa_instance* instance = interpreter->instance;
     wa_memory* memory = 0;
     char* memPtr = 0;
@@ -5562,7 +5567,7 @@ wa_status wa_interpreter_run(wa_interpreter* interpreter)
         return (WA_TRAP_STACK_OVERFLOW);
     }
 
-    while(1)
+    do
     {
         wa_instr_op opcode = interpreter->pc->opcode;
         interpreter->pc++;
@@ -7607,8 +7612,12 @@ wa_status wa_interpreter_run(wa_interpreter* interpreter)
                 return WA_TRAP_INVALID_OP;
         }
     }
+    while(!step);
+
+    return WA_TRAP_STEP;
 
 end:
+    interpreter->terminated = true;
     for(u32 retIndex = 0; retIndex < interpreter->retCount; retIndex++)
     {
         interpreter->returns[retIndex] = interpreter->locals[retIndex];
@@ -7629,7 +7638,7 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
     wa_interpreter interpreter = { 0 };
     wa_interpreter_init(&interpreter, instance, func, type, code, argCount, args, retCount, returns);
 
-    wa_status status = wa_interpreter_run(&interpreter);
+    wa_status status = wa_interpreter_run(&interpreter, false);
 
     wa_interpreter_cleanup(&interpreter);
 

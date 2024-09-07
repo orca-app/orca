@@ -61,6 +61,7 @@ typedef struct app_data
     oc_arena* moduleArena;
     wa_module* module;
     wa_instance* instance;
+    wa_interpreter interpreter;
 } app_data;
 
 static const f32 BOX_MARGIN_W = 2,
@@ -145,6 +146,19 @@ void build_bytecode_ui(app_data* app)
 
         oc_ui_container_str8(key, 0)
         {
+            if(app->instance)
+            {
+                wa_func* func = app->interpreter.controlStack[app->interpreter.controlStackTop].func;
+                u32 index = app->interpreter.pc - func->code;
+                if(index == codeIndex)
+                {
+                    oc_ui_style_next(&(oc_ui_style){
+                                         .color = { 1, 0, 0, 1 },
+                                     },
+                                     OC_UI_STYLE_COLOR);
+                }
+            }
+
             // address
             oc_ui_label_str8(key);
 
@@ -302,6 +316,12 @@ void update_ui(app_data* app)
 void load_module(app_data* app, oc_str8 modulePath)
 {
     //NOTE: unload previous module
+
+    if(app->instance)
+    {
+        wa_interpreter_cleanup(&app->interpreter);
+    }
+
     app->module = 0;
     app->instance = 0;
     app->contents = (oc_str8){ 0 };
@@ -338,6 +358,22 @@ void load_module(app_data* app, oc_str8 modulePath)
             printf("Couldn't instantiate module: %s.\n", wa_status_string(wa_instance_status(app->instance)));
             app->instance = 0;
             oc_arena_clear(app->moduleArena);
+        }
+        else
+        {
+            printf("Run:\n");
+            wa_func* func = wa_instance_find_function(app->instance, OC_STR8("start"));
+
+            if(!func)
+            {
+                oc_log_error("Couldn't find function start.\n");
+                app->instance = 0;
+                oc_arena_clear(app->moduleArena);
+            }
+            else
+            {
+                wa_interpreter_init(&app->interpreter, app->instance, func, func->type, func->code, 0, 0, 0, 0);
+            }
         }
     }
 }
@@ -402,6 +438,35 @@ int main(int argc, char** argv)
                 {
                     oc_str8 path = oc_str8_list_first(event->paths);
                     load_module(&app, path);
+                }
+                break;
+
+                case OC_EVENT_KEYBOARD_KEY:
+                {
+                    if(event->key.action == OC_KEY_PRESS
+                       && event->key.keyCode == OC_KEY_SPACE
+                       && app.instance)
+                    {
+                        // single step
+
+                        wa_status status = wa_interpreter_run(&app.interpreter, true);
+                        if(status == WA_TRAP_STEP)
+                        {
+                            printf("single step\n");
+                        }
+                        else if(status == WA_TRAP_TERMINATED)
+                        {
+                            printf("process already terminated\n");
+                        }
+                        else if(status == WA_OK)
+                        {
+                            printf("process returned\n");
+                        }
+                        else
+                        {
+                            oc_log_error("unexpected status after single step.\n");
+                        }
+                    }
                 }
                 break;
 
