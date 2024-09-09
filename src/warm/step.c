@@ -54,6 +54,9 @@ typedef struct app_data
     oc_font font;
     oc_ui_context ui;
 
+    bool autoScroll;
+    f32 lastScroll;
+
     f32 fontSize;
     f32 indentW;
 
@@ -177,7 +180,7 @@ void draw_exec_cursor_proc(oc_ui_box* box, void* data)
     oc_stroke();
 }
 
-void build_bytecode_ui(app_data* app)
+void build_bytecode_ui(app_data* app, oc_ui_box* scrollPanel)
 {
     oc_arena_scope scratch = oc_scratch_begin();
 
@@ -255,7 +258,7 @@ void build_bytecode_ui(app_data* app)
                             }
 
                             // address
-                            oc_ui_label_str8(key);
+                            oc_ui_box* label = oc_ui_label_str8(key).box;
 
                             // spacer or exec cursor
                             oc_ui_style_next(&(oc_ui_style){
@@ -268,6 +271,44 @@ void build_bytecode_ui(app_data* app)
                             {
                                 oc_ui_box* box = oc_ui_box_make("cursor", OC_UI_FLAG_DRAW_PROC);
                                 oc_ui_box_set_draw_proc(box, draw_exec_cursor_proc, 0);
+
+                                //NOTE: we compute auto-scroll on label box instead of cursor box, because the cursor box is not permanent,
+                                //      so its rect might not be set every frame, resulting in brief jumps.
+                                //      Maybe the cursor box shouldnt be parented to the function UI namespace and be floating to begin with...
+
+                                //WARN: scroll is adjusted during layout, which can result in a slightly different
+                                //      computation from lastScroll, so compare with a 1 pixel threshold
+                                if(app->lastScroll - scrollPanel->scroll.y > 1)
+                                {
+                                    //NOTE: if user has adjusted scroll manually, deactivate auto-scroll
+                                    app->autoScroll = false;
+                                }
+                                if(app->autoScroll)
+                                {
+                                    f32 targetScroll = scrollPanel->scroll.y;
+
+                                    f32 scrollMargin = 60;
+
+                                    if(label->rect.y < scrollPanel->rect.y + scrollMargin)
+                                    {
+                                        targetScroll = scrollPanel->scroll.y
+                                                     - scrollPanel->rect.y
+                                                     + label->rect.y
+                                                     - scrollMargin;
+                                    }
+                                    else if(label->rect.y + label->rect.h + scrollMargin > scrollPanel->rect.y + scrollPanel->rect.h)
+                                    {
+                                        targetScroll = scrollPanel->scroll.y
+                                                     + label->rect.y
+                                                     + label->rect.h
+                                                     + scrollMargin
+                                                     - scrollPanel->rect.y
+                                                     - scrollPanel->rect.h;
+                                    }
+                                    targetScroll = oc_clamp(targetScroll, 0, scrollPanel->childrenSum[1] - scrollPanel->rect.h);
+
+                                    scrollPanel->scroll.y += 0.1 * (targetScroll - scrollPanel->scroll.y);
+                                }
                             }
                             else
                             {
@@ -367,6 +408,7 @@ void build_bytecode_ui(app_data* app)
             }
         }
     }
+    app->lastScroll = scrollPanel->scroll.y;
     oc_scratch_end(scratch);
 }
 
@@ -395,6 +437,8 @@ void update_ui(app_data* app)
         {
             oc_ui_panel("boxtree", 0)
             {
+                oc_ui_box* scrollPanel = oc_ui_box_top()->parent;
+                OC_ASSERT(scrollPanel);
 
                 oc_ui_style_next(&(oc_ui_style){
                                      .size = {
@@ -406,7 +450,7 @@ void update_ui(app_data* app)
 
                 oc_ui_container("contents", 0)
                 {
-                    build_bytecode_ui(app);
+                    build_bytecode_ui(app, scrollPanel);
                 }
             }
         }
@@ -516,7 +560,7 @@ int main(int argc, char** argv)
         .moduleArena = &arena,
     };
 
-    oc_rect windowRect = { .x = 100, .y = 100, .w = 810, .h = 610 };
+    oc_rect windowRect = { .x = 100, .y = 100, .w = 800, .h = 600 };
     app.window = oc_window_create(windowRect, OC_STR8("wastep"), 0);
 
     app.renderer = oc_canvas_renderer_create();
@@ -592,6 +636,8 @@ int main(int argc, char** argv)
                         {
                             oc_log_error("unexpected status after single step.\n");
                         }
+
+                        app.autoScroll = true;
                     }
                 }
                 break;
