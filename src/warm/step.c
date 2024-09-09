@@ -118,6 +118,65 @@ oc_str8 push_func_type_str8(oc_arena* arena, wa_func_type* type)
     return (str);
 }
 
+void draw_exec_cursor_path(oc_rect rect)
+{
+    oc_vec2 center = { rect.x + rect.w / 2, rect.y + rect.h / 2 };
+    f32 dx = 12;
+    f32 dy = 7;
+    f32 r = 3;
+
+    f32 h = sqrt(dy * dy + dx * dx / 4);
+    f32 px = dx * (1 - (h - r) / (2 * h));
+    f32 py = dy * (h - r) / h;
+
+    // top left corner
+    oc_move_to(center.x - dx, center.y - dy + r);
+    oc_quadratic_to(center.x - dx, center.y - dy, center.x - dx + r, center.y - dy);
+
+    //top
+    oc_line_to(center.x + dx / 2 - r, center.y - dy);
+
+    // tip top corner
+    oc_quadratic_to(center.x + dx / 2, center.y - dy, center.x + px, center.y - py);
+
+    // arrow tip
+    f32 tx = dx * (1 - r / (2 * h));
+    f32 ty = dy * r / h;
+
+    oc_line_to(center.x + tx, center.y - ty);
+    oc_quadratic_to(center.x + dx, center.y, center.x + tx, center.y + ty);
+    oc_line_to(center.x + px, center.y + py);
+
+    // tip bottom corner
+    oc_quadratic_to(center.x + dx / 2, center.y + dy, center.x + dx / 2 - r, center.y + dy);
+
+    // bottom
+    oc_line_to(center.x - dx + r, center.y + dy);
+
+    // bottom left corner
+    oc_quadratic_to(center.x - dx, center.y + dy, center.x - dx, center.y + dy - r);
+
+    oc_close_path();
+}
+
+void draw_exec_cursor_proc(oc_ui_box* box, void* data)
+{
+    /*
+    oc_set_color_rgba(1, 0, 0, 1);
+    oc_set_width(2);
+    oc_rectangle_stroke(box->rect.x, box->rect.y, box->rect.w, box->rect.h);
+    */
+
+    draw_exec_cursor_path(box->rect);
+    oc_set_color_rgba(1, 0.2, 0.2, 1);
+    oc_fill();
+
+    draw_exec_cursor_path(box->rect);
+    oc_set_color_rgba(1, 0, 0, 1);
+    oc_set_width(2);
+    oc_stroke();
+}
+
 void build_bytecode_ui(app_data* app)
 {
     oc_arena_scope scratch = oc_scratch_begin();
@@ -183,6 +242,7 @@ void build_bytecode_ui(app_data* app)
 
                         oc_ui_container_str8(key, 0)
                         {
+                            bool makeExecCursor = false;
                             if(app->instance)
                             {
                                 u32 index = app->interpreter.pc - func->code;
@@ -190,20 +250,29 @@ void build_bytecode_ui(app_data* app)
 
                                 if(func == execFunc && index == codeIndex)
                                 {
-                                    oc_ui_style_next(&(oc_ui_style){
-                                                         .color = { 1, 0, 0, 1 },
-                                                     },
-                                                     OC_UI_STYLE_COLOR);
+                                    makeExecCursor = true;
                                 }
                             }
 
                             // address
                             oc_ui_label_str8(key);
 
-                            // spacer
-                            oc_ui_style_next(&(oc_ui_style){ .size.width = { OC_UI_SIZE_PIXELS, 10 * BOX_MARGIN_W } },
-                                             OC_UI_STYLE_SIZE_WIDTH);
-                            oc_ui_box_make("spacer", 0);
+                            // spacer or exec cursor
+                            oc_ui_style_next(&(oc_ui_style){
+                                                 .size.width = { OC_UI_SIZE_PIXELS, 10 * BOX_MARGIN_W },
+                                                 .size.height = { OC_UI_SIZE_PARENT, 1 },
+                                             },
+                                             OC_UI_STYLE_SIZE);
+
+                            if(makeExecCursor)
+                            {
+                                oc_ui_box* box = oc_ui_box_make("cursor", OC_UI_FLAG_DRAW_PROC);
+                                oc_ui_box_set_draw_proc(box, draw_exec_cursor_proc, 0);
+                            }
+                            else
+                            {
+                                oc_ui_box_make("spacer", 0);
+                            }
 
                             // opcode
                             oc_ui_label(wa_instr_strings[c->opcode]);
