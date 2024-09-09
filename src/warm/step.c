@@ -351,7 +351,11 @@ void build_bytecode_ui(app_data* app, oc_ui_box* scrollPanel)
                                             break;
 
                                         case WA_OPD_FUNC_INDEX:
-                                            s = oc_str8_pushf(scratch.arena, "%u", opd->valU32);
+                                            s = find_function_export_name(app, funcIndex);
+                                            if(s.len == 0)
+                                            {
+                                                s = oc_str8_pushf(scratch.arena, "%u", opd->valU32);
+                                            }
                                             break;
 
                                         case WA_OPD_JUMP_TARGET:
