@@ -1,10 +1,10 @@
 
 int foo(int x)
 {
-    return 42;
+    return x * 6;
 }
 
 int start()
 {
-    return foo(3);
+    return foo(3 + 2);
 }

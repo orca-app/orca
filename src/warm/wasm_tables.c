@@ -933,7 +933,10 @@ typedef enum wa_opd_kind
     WA_OPD_CONST_F32,
     WA_OPD_CONST_F64,
     WA_OPD_LOCAL_INDEX,
+    WA_OPD_GLOBAL_INDEX,
     WA_OPD_JUMP_TARGET,
+    WA_OPD_MEM_ARG,
+    WA_OPD_FUNC_INDEX,
 } wa_opd_kind;
 
 enum
@@ -1002,6 +1005,10 @@ static const wa_instr_info wa_instr_infos[] = {
         .immCount = 1,
         .imm = { WA_IMM_FUNC_INDEX },
         .opdCount = 2,
+        .opd = {
+            WA_OPD_FUNC_INDEX,
+            WA_OPD_CONST_I32,
+        },
         .defined = true,
     },
     [WA_INSTR_call_indirect] = {
@@ -1103,6 +1110,10 @@ static const wa_instr_info wa_instr_infos[] = {
         .imm = { WA_IMM_GLOBAL_INDEX },
         .outCount = 1,
         .opdCount = 2,
+        .opd = {
+            WA_OPD_GLOBAL_INDEX,
+            WA_OPD_LOCAL_INDEX,
+        },
         .defined = true,
     },
     [WA_INSTR_global_set] = {
@@ -1110,6 +1121,10 @@ static const wa_instr_info wa_instr_infos[] = {
         .imm = { WA_IMM_GLOBAL_INDEX },
         .inCount = 1,
         .opdCount = 2,
+        .opd = {
+            WA_OPD_GLOBAL_INDEX,
+            WA_OPD_LOCAL_INDEX,
+        },
         .defined = true,
     },
     [WA_INSTR_table_get] = {
@@ -1142,7 +1157,13 @@ static const wa_instr_info wa_instr_infos[] = {
         .in = { WA_TYPE_I32 },
         .outCount = 1,
         .out = { WA_TYPE_I32 },
-        .opdCount = 2,
+        .opdCount = 3,
+        .opd = {
+            WA_OPD_MEM_ARG,
+            WA_OPD_LOCAL_INDEX,
+            WA_OPD_LOCAL_INDEX,
+        },
+
         .defined = true,
     },
     [WA_INSTR_i64_load] = {
@@ -1152,7 +1173,13 @@ static const wa_instr_info wa_instr_infos[] = {
         .in = { WA_TYPE_I32 },
         .outCount = 1,
         .out = { WA_TYPE_I64 },
-        .opdCount = 2,
+        .opdCount = 3,
+        .opd = {
+            WA_OPD_MEM_ARG,
+            WA_OPD_LOCAL_INDEX,
+            WA_OPD_LOCAL_INDEX,
+        },
+
         .defined = true,
     },
     [WA_INSTR_f32_load] = {
@@ -1283,7 +1310,12 @@ static const wa_instr_info wa_instr_infos[] = {
             WA_TYPE_I32,
             WA_TYPE_I32,
         },
-        .opdCount = 2,
+        .opdCount = 3,
+        .opd = {
+            WA_OPD_MEM_ARG,
+            WA_OPD_LOCAL_INDEX,
+            WA_OPD_LOCAL_INDEX,
+        },
         .defined = true,
     },
     [WA_INSTR_i64_store] = {
@@ -1294,7 +1326,12 @@ static const wa_instr_info wa_instr_infos[] = {
             WA_TYPE_I32,
             WA_TYPE_I64,
         },
-        .opdCount = 2,
+        .opdCount = 3,
+        .opd = {
+            WA_OPD_MEM_ARG,
+            WA_OPD_LOCAL_INDEX,
+            WA_OPD_LOCAL_INDEX,
+        },
         .defined = true,
     },
     [WA_INSTR_f32_store] = {
@@ -1872,6 +1909,11 @@ static const wa_instr_info wa_instr_infos[] = {
             WA_TYPE_I32,
         },
         .opdCount = 3,
+        .opd = {
+            WA_OPD_LOCAL_INDEX,
+            WA_OPD_LOCAL_INDEX,
+            WA_OPD_LOCAL_INDEX,
+        },
         .defined = true,
     },
     [WA_INSTR_i32_sub] = {
@@ -1885,6 +1927,11 @@ static const wa_instr_info wa_instr_infos[] = {
             WA_TYPE_I32,
         },
         .opdCount = 3,
+        .opd = {
+            WA_OPD_LOCAL_INDEX,
+            WA_OPD_LOCAL_INDEX,
+            WA_OPD_LOCAL_INDEX,
+        },
         .defined = true,
     },
     [WA_INSTR_i32_mul] = {
@@ -1898,6 +1945,11 @@ static const wa_instr_info wa_instr_infos[] = {
             WA_TYPE_I32,
         },
         .opdCount = 3,
+        .opd = {
+            WA_OPD_LOCAL_INDEX,
+            WA_OPD_LOCAL_INDEX,
+            WA_OPD_LOCAL_INDEX,
+        },
         .defined = true,
     },
     [WA_INSTR_i32_div_s] = {
@@ -1911,6 +1963,11 @@ static const wa_instr_info wa_instr_infos[] = {
             WA_TYPE_I32,
         },
         .opdCount = 3,
+        .opd = {
+            WA_OPD_LOCAL_INDEX,
+            WA_OPD_LOCAL_INDEX,
+            WA_OPD_LOCAL_INDEX,
+        },
         .defined = true,
     },
     [WA_INSTR_i32_div_u] = {
@@ -1924,6 +1981,11 @@ static const wa_instr_info wa_instr_infos[] = {
             WA_TYPE_I32,
         },
         .opdCount = 3,
+        .opd = {
+            WA_OPD_LOCAL_INDEX,
+            WA_OPD_LOCAL_INDEX,
+            WA_OPD_LOCAL_INDEX,
+        },
         .defined = true,
     },
     [WA_INSTR_i32_rem_s] = {
@@ -1937,6 +1999,11 @@ static const wa_instr_info wa_instr_infos[] = {
             WA_TYPE_I32,
         },
         .opdCount = 3,
+        .opd = {
+            WA_OPD_LOCAL_INDEX,
+            WA_OPD_LOCAL_INDEX,
+            WA_OPD_LOCAL_INDEX,
+        },
         .defined = true,
     },
     [WA_INSTR_i32_rem_u] = {
