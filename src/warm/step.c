@@ -667,6 +667,58 @@ void load_module(app_data* app, oc_str8 modulePath)
     }
 }
 
+void single_step(app_data* app)
+{
+    wa_func* func = app->interpreter.controlStack[app->interpreter.controlStackTop].func;
+    app->lastFunc = func;
+    memcpy(app->cachedRegs, app->interpreter.locals, func->maxRegCount * sizeof(wa_value));
+
+    // single step
+    wa_status status = wa_interpreter_run(&app->interpreter, true);
+    if(status == WA_TRAP_STEP)
+    {
+        printf("single step\n");
+    }
+    else if(status == WA_TRAP_TERMINATED)
+    {
+        printf("process already terminated\n");
+    }
+    else if(status == WA_OK)
+    {
+        printf("process returned\n");
+    }
+    else
+    {
+        oc_log_error("unexpected status after single step.\n");
+    }
+
+    app->autoScroll = true;
+}
+
+void continue_to_breakpoint(app_data* app)
+{
+    while(wa_interpreter_run(&app->interpreter, true) == WA_TRAP_STEP)
+    {
+        wa_func* func = app->interpreter.controlStack[app->interpreter.controlStackTop].func;
+        u32 codeIndex = app->interpreter.pc - func->code;
+
+        bool found = false;
+        oc_list_for(app->breakpoints, bp, wa_breakpoint, listElt)
+        {
+            if(bp->func == func && bp->index == codeIndex)
+            {
+                found = true;
+                break;
+            }
+        }
+        if(found)
+        {
+            break;
+        }
+    }
+    app->autoScroll = true;
+}
+
 int main(int argc, char** argv)
 {
     oc_arena arena = { 0 };
@@ -736,35 +788,11 @@ int main(int argc, char** argv)
                     {
                         if(event->key.keyCode == OC_KEY_SPACE)
                         {
-                            wa_func* func = app.interpreter.controlStack[app.interpreter.controlStackTop].func;
-                            app.lastFunc = func;
-                            memcpy(app.cachedRegs, app.interpreter.locals, func->maxRegCount * sizeof(wa_value));
-
-                            // single step
-
-                            wa_status status = wa_interpreter_run(&app.interpreter, true);
-                            if(status == WA_TRAP_STEP)
-                            {
-                                printf("single step\n");
-                            }
-                            else if(status == WA_TRAP_TERMINATED)
-                            {
-                                printf("process already terminated\n");
-                            }
-                            else if(status == WA_OK)
-                            {
-                                printf("process returned\n");
-                            }
-                            else
-                            {
-                                oc_log_error("unexpected status after single step.\n");
-                            }
-
-                            app.autoScroll = true;
+                            single_step(&app);
                         }
                         else if(event->key.keyCode == OC_KEY_C)
                         {
-                            //TODO: continue until breakpoint?
+                            continue_to_breakpoint(&app);
                         }
                     }
                 }
