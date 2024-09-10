@@ -111,7 +111,7 @@ typedef union oc_ui_box_floating
 //      in order to play well with axis agnostic functions
 typedef u64 oc_ui_style_mask;
 
-enum
+enum oc_ui_style_mask_enum
 {
     OC_UI_STYLE_NONE = 0,
     OC_UI_STYLE_SIZE_WIDTH = 1 << 1,

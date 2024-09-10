@@ -65,6 +65,9 @@ typedef struct app_data
     wa_module* module;
     wa_instance* instance;
     wa_interpreter interpreter;
+
+    wa_func* lastFunc;
+    wa_value cachedRegs[WA_MAX_SLOT_COUNT];
 } app_data;
 
 static const f32 BOX_MARGIN_W = 2,
@@ -377,33 +380,17 @@ void build_bytecode_ui(app_data* app, oc_ui_box* scrollPanel)
 
                         codeIndex += info->opdCount;
                         /*
-            printf("0x%08llx ", codeIndex);
-        printf("%-16s0x%02x ", wa_instr_strings[c->opcode], c->opcode);
-
-        const wa_instr_info* info = &wa_instr_infos[c->opcode];
-
-        for(u64 i = 0; i < info->opdCount; i++)
-        {
-            codeIndex++;
-            if(codeIndex >= len)
-            {
-                break;
-            }
-            printf("0x%02llx ", bytecode[codeIndex].valI64);
-        }
-
-        if(c->opcode == WA_INSTR_jump_table)
-        {
-            printf("\n\t");
-            u64 brCount = bytecode[startIndex + 1].valI32;
-            for(u64 i = 0; i < brCount; i++)
-            {
-                codeIndex++;
-                printf("0x%02llx ", bytecode[codeIndex].valI64);
-            }
-        }
-        printf("\n");
-        */
+                        if(c->opcode == WA_INSTR_jump_table)
+                        {
+                            printf("\n\t");
+                            u64 brCount = bytecode[startIndex + 1].valI32;
+                            for(u64 i = 0; i < brCount; i++)
+                            {
+                                codeIndex++;
+                                printf("0x%02llx ", bytecode[codeIndex].valI64);
+                            }
+                        }
+                        */
                     }
                     oc_ui_style_next(&(oc_ui_style){ .size.height = { OC_UI_SIZE_PIXELS, 10 * BOX_MARGIN_H } },
                                      OC_UI_STYLE_SIZE_HEIGHT);
@@ -413,6 +400,33 @@ void build_bytecode_ui(app_data* app, oc_ui_box* scrollPanel)
         }
     }
     app->lastScroll = scrollPanel->scroll.y;
+    oc_scratch_end(scratch);
+}
+
+void build_register_ui(app_data* app)
+{
+    oc_arena_scope scratch = oc_scratch_begin();
+
+    if(app->instance)
+    {
+        wa_func* func = app->interpreter.controlStack[app->interpreter.controlStackTop].func;
+        u32 regCount = func->maxRegCount;
+
+        for(u32 regIndex = 0; regIndex < regCount; regIndex++)
+        {
+            wa_value* reg = &app->interpreter.locals[regIndex];
+            oc_str8 key = oc_str8_pushf(scratch.arena, "r%u: 0x%08llx", regIndex, reg->valI64);
+
+            if(app->lastFunc == func && reg->valI64 != app->cachedRegs[regIndex].valI64)
+            {
+                oc_ui_style_next(&(oc_ui_style){
+                                     .color = { 1, 0, 0, 1 },
+                                 },
+                                 OC_UI_STYLE_COLOR);
+            }
+            oc_ui_label_str8(key);
+        }
+    }
     oc_scratch_end(scratch);
 }
 
@@ -439,22 +453,64 @@ void update_ui(app_data* app)
     {
         if(app->instance)
         {
-            oc_ui_panel("boxtree", 0)
+
+            oc_ui_style_next(&(oc_ui_style){
+                                 .size = {
+                                     .width = { OC_UI_SIZE_PARENT, 1 },
+                                     .height = { OC_UI_SIZE_PARENT, 1 },
+                                 },
+                                 .layout = {
+                                     .axis = OC_UI_AXIS_Y,
+                                     .spacing = 20,
+                                     .margin.x = 20,
+                                     .margin.y = 20,
+                                 },
+
+                                 .bgColor = { 0.5, 0.5, 0.5, 1 },
+                             },
+                             OC_UI_STYLE_LAYOUT | OC_UI_STYLE_SIZE | OC_UI_STYLE_BG_COLOR);
+
+            oc_ui_container("frame", OC_UI_FLAG_DRAW_BACKGROUND)
             {
-                oc_ui_box* scrollPanel = oc_ui_box_top()->parent;
-                OC_ASSERT(scrollPanel);
+                //TODO: oc_ui_panel internally calls oc_ui_style_next to set itself to full parent size,
+                //      so we have to create an outer container to properly size it.
+                //      Fix that later...
 
                 oc_ui_style_next(&(oc_ui_style){
                                      .size = {
                                          .width = { OC_UI_SIZE_PARENT, 1 },
-                                         .height = { OC_UI_SIZE_PARENT, 1 },
+                                         .height = { OC_UI_SIZE_PARENT, 0.7 },
                                      },
+                                     .bgColor = { 1, 1, 1, 1 },
                                  },
-                                 OC_UI_STYLE_SIZE);
+                                 OC_UI_STYLE_SIZE | OC_UI_STYLE_BG_COLOR);
 
-                oc_ui_container("contents", 0)
+                oc_ui_container("bytecode_outer", OC_UI_FLAG_DRAW_BACKGROUND)
                 {
-                    build_bytecode_ui(app, scrollPanel);
+                    oc_ui_panel("bytecode", 0)
+                    {
+                        oc_ui_box* scrollPanel = oc_ui_box_top()->parent;
+                        OC_ASSERT(scrollPanel);
+
+                        build_bytecode_ui(app, scrollPanel);
+                    }
+                }
+
+                oc_ui_style_next(&(oc_ui_style){
+                                     .size = {
+                                         .width = { OC_UI_SIZE_PARENT, 1 },
+                                         .height = { OC_UI_SIZE_PARENT, 0.3 },
+                                     },
+                                     .bgColor = { 1, 1, 1, 1 },
+                                 },
+                                 OC_UI_STYLE_SIZE | OC_UI_STYLE_BG_COLOR);
+
+                oc_ui_container("registers_outer", OC_UI_FLAG_DRAW_BACKGROUND)
+                {
+                    oc_ui_panel("registers", 0)
+                    {
+                        build_register_ui(app);
+                    }
                 }
             }
         }
@@ -547,6 +603,7 @@ void load_module(app_data* app, oc_str8 modulePath)
             else
             {
                 wa_interpreter_init(&app->interpreter, app->instance, func, func->type, func->code, 0, 0, 0, 0);
+                app->autoScroll = true;
             }
         }
     }
@@ -621,6 +678,10 @@ int main(int argc, char** argv)
                        && event->key.keyCode == OC_KEY_SPACE
                        && app.instance)
                     {
+                        wa_func* func = app.interpreter.controlStack[app.interpreter.controlStackTop].func;
+                        app.lastFunc = func;
+                        memcpy(app.cachedRegs, app.interpreter.locals, func->maxRegCount * sizeof(wa_value));
+
                         // single step
 
                         wa_status status = wa_interpreter_run(&app.interpreter, true);
