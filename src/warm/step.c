@@ -45,6 +45,15 @@ oc_font font_create(const char* resourcePath)
     return (font);
 }
 
+typedef struct wa_breakpoint
+{
+    oc_list_elt listElt;
+
+    wa_func* func;
+    u32 index;
+
+} wa_breakpoint;
+
 typedef struct app_data
 {
     oc_window window;
@@ -68,6 +77,10 @@ typedef struct app_data
 
     wa_func* lastFunc;
     wa_value cachedRegs[WA_MAX_SLOT_COUNT];
+
+    oc_list breakpoints;
+    oc_list breakpointFreeList;
+
 } app_data;
 
 static const f32 BOX_MARGIN_W = 2,
@@ -124,7 +137,7 @@ oc_str8 push_func_type_str8(oc_arena* arena, wa_func_type* type)
     return (str);
 }
 
-void draw_exec_cursor_path(oc_rect rect)
+void draw_breakpoint_cursor_path(oc_rect rect)
 {
     oc_vec2 center = { rect.x + rect.w / 2, rect.y + rect.h / 2 };
     f32 dx = 12;
@@ -165,7 +178,7 @@ void draw_exec_cursor_path(oc_rect rect)
     oc_close_path();
 }
 
-void draw_exec_cursor_proc(oc_ui_box* box, void* data)
+void draw_breakpoint_cursor_proc(oc_ui_box* box, void* data)
 {
     /*
     oc_set_color_rgba(1, 0, 0, 1);
@@ -173,11 +186,11 @@ void draw_exec_cursor_proc(oc_ui_box* box, void* data)
     oc_rectangle_stroke(box->rect.x, box->rect.y, box->rect.w, box->rect.h);
     */
 
-    draw_exec_cursor_path(box->rect);
+    draw_breakpoint_cursor_path(box->rect);
     oc_set_color_rgba(1, 0.2, 0.2, 1);
     oc_fill();
 
-    draw_exec_cursor_path(box->rect);
+    draw_breakpoint_cursor_path(box->rect);
     oc_set_color_rgba(1, 0, 0, 1);
     oc_set_width(2);
     oc_stroke();
@@ -186,6 +199,11 @@ void draw_exec_cursor_proc(oc_ui_box* box, void* data)
 void build_bytecode_ui(app_data* app, oc_ui_box* scrollPanel)
 {
     oc_arena_scope scratch = oc_scratch_begin();
+
+    oc_ui_style_next(&(oc_ui_style){
+                         .size.width = { OC_UI_SIZE_PARENT, 1 },
+                     },
+                     OC_UI_STYLE_SIZE_WIDTH);
 
     oc_ui_container("bytecode-view", 0)
     {
@@ -213,6 +231,7 @@ void build_bytecode_ui(app_data* app, oc_ui_box* scrollPanel)
                 oc_str8 funcText = oc_str8_list_join(scratch.arena, list);
 
                 oc_ui_style_next(&(oc_ui_style){
+                                     .size.width = { OC_UI_SIZE_PARENT, 1 },
                                      .layout = {
                                          .axis = OC_UI_AXIS_Y,
                                          .spacing = BOX_MARGIN_H,
@@ -221,7 +240,7 @@ void build_bytecode_ui(app_data* app, oc_ui_box* scrollPanel)
                                          .align = OC_UI_ALIGN_START,
                                      },
                                  },
-                                 OC_UI_STYLE_LAYOUT);
+                                 OC_UI_STYLE_SIZE_WIDTH | OC_UI_STYLE_LAYOUT);
 
                 oc_ui_container_str8(funcText, 0)
                 {
@@ -237,6 +256,7 @@ void build_bytecode_ui(app_data* app, oc_ui_box* scrollPanel)
                         oc_str8 key = oc_str8_pushf(scratch.arena, "0x%08llx", codeIndex);
 
                         oc_ui_style_next(&(oc_ui_style){
+                                             .size.width = { OC_UI_SIZE_PARENT, 1 },
                                              .layout = {
                                                  .axis = OC_UI_AXIS_X,
                                                  .spacing = BOX_MARGIN_W * 5,
@@ -244,37 +264,35 @@ void build_bytecode_ui(app_data* app, oc_ui_box* scrollPanel)
                                                  .align = OC_UI_ALIGN_START,
                                              },
                                          },
-                                         OC_UI_STYLE_LAYOUT);
+                                         OC_UI_STYLE_SIZE_WIDTH | OC_UI_STYLE_LAYOUT);
 
-                        oc_ui_container_str8(key, 0)
+                        bool makeExecCursor = false;
+                        if(app->instance)
                         {
-                            bool makeExecCursor = false;
-                            if(app->instance)
+                            u32 index = app->interpreter.pc - func->code;
+                            wa_func* execFunc = app->interpreter.controlStack[app->interpreter.controlStackTop].func;
+
+                            if(func == execFunc && index == codeIndex)
                             {
-                                u32 index = app->interpreter.pc - func->code;
-                                wa_func* execFunc = app->interpreter.controlStack[app->interpreter.controlStackTop].func;
-
-                                if(func == execFunc && index == codeIndex)
-                                {
-                                    makeExecCursor = true;
-                                }
+                                makeExecCursor = true;
                             }
+                        }
 
+                        if(makeExecCursor)
+                        {
+                            oc_ui_style_next(&(oc_ui_style){
+                                                 .bgColor = { 0.4, 1, 0.4, 1 },
+                                             },
+                                             OC_UI_STYLE_BG_COLOR);
+                        }
+
+                        oc_ui_container_str8(key, OC_UI_FLAG_DRAW_BACKGROUND)
+                        {
                             // address
                             oc_ui_box* label = oc_ui_label_str8(key).box;
 
-                            // spacer or exec cursor
-                            oc_ui_style_next(&(oc_ui_style){
-                                                 .size.width = { OC_UI_SIZE_PIXELS, 10 * BOX_MARGIN_W },
-                                                 .size.height = { OC_UI_SIZE_PARENT, 1 },
-                                             },
-                                             OC_UI_STYLE_SIZE);
-
                             if(makeExecCursor)
                             {
-                                oc_ui_box* box = oc_ui_box_make("cursor", OC_UI_FLAG_DRAW_PROC);
-                                oc_ui_box_set_draw_proc(box, draw_exec_cursor_proc, 0);
-
                                 //NOTE: we compute auto-scroll on label box instead of cursor box, because the cursor box is not permanent,
                                 //      so its rect might not be set every frame, resulting in brief jumps.
                                 //      Maybe the cursor box shouldnt be parented to the function UI namespace and be floating to begin with...
@@ -286,6 +304,7 @@ void build_bytecode_ui(app_data* app, oc_ui_box* scrollPanel)
                                     //NOTE: if user has adjusted scroll manually, deactivate auto-scroll
                                     app->autoScroll = false;
                                 }
+
                                 if(app->autoScroll)
                                 {
                                     f32 targetScroll = scrollPanel->scroll.y;
@@ -313,11 +332,50 @@ void build_bytecode_ui(app_data* app, oc_ui_box* scrollPanel)
                                     scrollPanel->scroll.y += 0.1 * (targetScroll - scrollPanel->scroll.y);
                                 }
                             }
-                            else
+
+                            // spacer or exec cursor
+                            oc_ui_style_next(&(oc_ui_style){
+                                                 .size.width = { OC_UI_SIZE_PIXELS, 10 * BOX_MARGIN_W },
+                                                 .size.height = { OC_UI_SIZE_PARENT, 1 },
+                                             },
+                                             OC_UI_STYLE_SIZE);
+
+                            wa_breakpoint* breakpoint = 0;
+                            oc_list_for(app->breakpoints, bp, wa_breakpoint, listElt)
                             {
-                                oc_ui_box_make("spacer", 0);
+                                if(bp->func == func && bp->index == codeIndex)
+                                {
+                                    breakpoint = bp;
+                                    break;
+                                }
                             }
 
+                            if(breakpoint)
+                            {
+                                oc_ui_box* box = oc_ui_box_make("bp", OC_UI_FLAG_DRAW_PROC | OC_UI_FLAG_CLICKABLE);
+                                oc_ui_box_set_draw_proc(box, draw_breakpoint_cursor_proc, 0);
+
+                                if(oc_ui_box_sig(box).clicked)
+                                {
+                                    oc_list_remove(&app->breakpoints, &breakpoint->listElt);
+                                    oc_list_push_back(&app->breakpointFreeList, &breakpoint->listElt);
+                                }
+                            }
+                            else
+                            {
+                                oc_ui_box* box = oc_ui_box_make("spacer", OC_UI_FLAG_CLICKABLE);
+                                if(oc_ui_box_sig(box).clicked)
+                                {
+                                    breakpoint = oc_list_pop_front_entry(&app->breakpointFreeList, wa_breakpoint, listElt);
+                                    if(!breakpoint)
+                                    {
+                                        breakpoint = oc_arena_push_type(app->moduleArena, wa_breakpoint);
+                                    }
+                                    breakpoint->func = func;
+                                    breakpoint->index = codeIndex;
+                                    oc_list_push_back(&app->breakpoints, &breakpoint->listElt);
+                                }
+                            }
                             // opcode
                             oc_ui_label(wa_instr_strings[c->opcode]);
 
@@ -674,35 +732,40 @@ int main(int argc, char** argv)
 
                 case OC_EVENT_KEYBOARD_KEY:
                 {
-                    if(event->key.action == OC_KEY_PRESS
-                       && event->key.keyCode == OC_KEY_SPACE
-                       && app.instance)
+                    if(event->key.action == OC_KEY_PRESS && app.instance)
                     {
-                        wa_func* func = app.interpreter.controlStack[app.interpreter.controlStackTop].func;
-                        app.lastFunc = func;
-                        memcpy(app.cachedRegs, app.interpreter.locals, func->maxRegCount * sizeof(wa_value));
+                        if(event->key.keyCode == OC_KEY_SPACE)
+                        {
+                            wa_func* func = app.interpreter.controlStack[app.interpreter.controlStackTop].func;
+                            app.lastFunc = func;
+                            memcpy(app.cachedRegs, app.interpreter.locals, func->maxRegCount * sizeof(wa_value));
 
-                        // single step
+                            // single step
 
-                        wa_status status = wa_interpreter_run(&app.interpreter, true);
-                        if(status == WA_TRAP_STEP)
-                        {
-                            printf("single step\n");
-                        }
-                        else if(status == WA_TRAP_TERMINATED)
-                        {
-                            printf("process already terminated\n");
-                        }
-                        else if(status == WA_OK)
-                        {
-                            printf("process returned\n");
-                        }
-                        else
-                        {
-                            oc_log_error("unexpected status after single step.\n");
-                        }
+                            wa_status status = wa_interpreter_run(&app.interpreter, true);
+                            if(status == WA_TRAP_STEP)
+                            {
+                                printf("single step\n");
+                            }
+                            else if(status == WA_TRAP_TERMINATED)
+                            {
+                                printf("process already terminated\n");
+                            }
+                            else if(status == WA_OK)
+                            {
+                                printf("process returned\n");
+                            }
+                            else
+                            {
+                                oc_log_error("unexpected status after single step.\n");
+                            }
 
-                        app.autoScroll = true;
+                            app.autoScroll = true;
+                        }
+                        else if(event->key.keyCode == OC_KEY_C)
+                        {
+                            //TODO: continue until breakpoint?
+                        }
                     }
                 }
                 break;
