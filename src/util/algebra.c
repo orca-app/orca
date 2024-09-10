@@ -74,3 +74,71 @@ oc_mat2x3 oc_mat2x3_translate(f32 x, f32 y)
     };
     return translate;
 }
+
+oc_mat3x3 oc_mat3x3_mul_m(oc_mat3x3 lhs, oc_mat3x3 rhs)
+{
+    oc_mat3x3 res;
+    res.m[0] = lhs.m[0] * rhs.m[0] + lhs.m[1] * rhs.m[3] + lhs.m[2] * rhs.m[6];
+    res.m[1] = lhs.m[0] * rhs.m[1] + lhs.m[1] * rhs.m[4] + lhs.m[2] * rhs.m[7];
+    res.m[2] = lhs.m[0] * rhs.m[2] + lhs.m[1] * rhs.m[5] + lhs.m[2] * rhs.m[8];
+    res.m[3] = lhs.m[3] * rhs.m[0] + lhs.m[4] * rhs.m[3] + lhs.m[5] * rhs.m[6];
+    res.m[4] = lhs.m[3] * rhs.m[1] + lhs.m[4] * rhs.m[4] + lhs.m[5] * rhs.m[7];
+    res.m[5] = lhs.m[3] * rhs.m[2] + lhs.m[4] * rhs.m[5] + lhs.m[5] * rhs.m[8];
+    res.m[6] = lhs.m[6] * rhs.m[0] + lhs.m[7] * rhs.m[3] + lhs.m[8] * rhs.m[6];
+    res.m[7] = lhs.m[6] * rhs.m[1] + lhs.m[7] * rhs.m[4] + lhs.m[8] * rhs.m[7];
+    res.m[8] = lhs.m[6] * rhs.m[2] + lhs.m[7] * rhs.m[5] + lhs.m[8] * rhs.m[8];
+
+    return (res);
+}
+
+oc_mat3x3 oc_mat3x3_inv(oc_mat3x3 x)
+{
+    oc_mat3x3 res;
+
+    f32 det = x.m[0] * (x.m[4] * x.m[8] - x.m[5] * x.m[7])
+            - x.m[1] * (x.m[3] * x.m[8] - x.m[5] * x.m[6])
+            - x.m[2] * (x.m[3] * x.m[7] - x.m[4] * x.m[6]);
+
+    res.m[0] = (x.m[4] * x.m[8] - x.m[5] * x.m[7]) / det;
+    res.m[1] = (x.m[2] * x.m[7] - x.m[1] * x.m[8]) / det;
+    res.m[2] = (x.m[1] * x.m[5] - x.m[2] * x.m[4]) / det;
+    res.m[3] = (x.m[5] * x.m[6] - x.m[3] * x.m[8]) / det;
+    res.m[4] = (x.m[0] * x.m[8] - x.m[2] * x.m[6]) / det;
+    res.m[5] = (x.m[2] * x.m[3] - x.m[0] * x.m[5]) / det;
+    res.m[6] = (x.m[3] * x.m[7] - x.m[4] * x.m[6]) / det;
+    res.m[7] = (x.m[1] * x.m[6] - x.m[0] * x.m[7]) / det;
+    res.m[8] = (x.m[0] * x.m[4] - x.m[1] * x.m[3]) / det;
+
+    return (res);
+}
+
+oc_vec2 oc_mat3x3_mul(oc_mat3x3 m, oc_vec2 p)
+{
+    f32 x = p.x * m.m[0] + p.y * m.m[1] + m.m[2];
+    f32 y = p.x * m.m[3] + p.y * m.m[4] + m.m[5];
+    f32 w = p.x * m.m[6] + p.y * m.m[7] + m.m[8];
+
+    return ((oc_vec2){ x / w, y / w });
+}
+
+oc_mat3x3 oc_mat3x3_rotate(f32 radians)
+{
+    const f32 sinRot = sinf(radians);
+    const f32 cosRot = cosf(radians);
+    oc_mat3x3 rot = {
+        cosRot, -sinRot, 0,
+        sinRot, cosRot, 0,
+        0, 0, 1
+    };
+    return rot;
+}
+
+oc_mat3x3 oc_mat3x3_translate(f32 x, f32 y)
+{
+    oc_mat3x3 translate = {
+        1, 0, x,
+        0, 1, y,
+        0, 0, 1
+    };
+    return translate;
+}

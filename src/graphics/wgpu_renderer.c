@@ -1496,7 +1496,7 @@ static void oc_wgpu_canvas_encode_element(oc_wgpu_canvas_encoding_context* conte
         {
             oc_update_box_extents(&context->pathUserExtents, p[i]);
 
-            oc_vec2 screenP = oc_mat2x3_mul(context->primitive->attributes.transform, p[i]);
+            oc_vec2 screenP = oc_mat3x3_mul(context->primitive->attributes.transform, p[i]);
 
             elt->p[i] = (oc_vec2){ screenP.x * context->scale.x, screenP.y * context->scale.y };
 
@@ -1571,32 +1571,36 @@ void oc_wgpu_canvas_encode_path(oc_wgpu_canvas_encoding_context* context, oc_pri
                 (context->pathUserExtents.w - context->pathUserExtents.y),
             };
 
-            oc_mat2x3 srcRegionToImage = {
+            oc_mat3x3 srcRegionToImage = {
                 1 / texSize.x, 0, srcRegion.x / texSize.x,
-                0, 1 / texSize.y, srcRegion.y / texSize.y
+                0, 1 / texSize.y, srcRegion.y / texSize.y,
+                0, 0, 1
             };
 
-            oc_mat2x3 destRegionToSrcRegion = {
+            oc_mat3x3 destRegionToSrcRegion = {
                 srcRegion.w / destRegion.w, 0, 0,
-                0, srcRegion.h / destRegion.h, 0
+                0, srcRegion.h / destRegion.h, 0,
+                0, 0, 1
             };
 
-            oc_mat2x3 userToDestRegion = {
+            oc_mat3x3 userToDestRegion = {
                 1, 0, -destRegion.x,
-                0, 1, -destRegion.y
+                0, 1, -destRegion.y,
+                0, 0, 1
             };
 
-            oc_mat2x3 scaleM = {
+            oc_mat3x3 scaleM = {
                 context->scale.x, 0, 0,
-                0, context->scale.y, 0
+                0, context->scale.y, 0,
+                0, 0, 1
             };
-            oc_mat2x3 userToScreen = oc_mat2x3_mul_m(scaleM, primitive->attributes.transform);
-            oc_mat2x3 screenToUser = oc_mat2x3_inv(userToScreen); //TODO should have scale here
+            oc_mat3x3 userToScreen = oc_mat3x3_mul_m(scaleM, primitive->attributes.transform);
+            oc_mat3x3 screenToUser = oc_mat3x3_inv(userToScreen); //TODO should have scale here
 
-            oc_mat2x3 uvTransform = srcRegionToImage;
-            uvTransform = oc_mat2x3_mul_m(uvTransform, destRegionToSrcRegion);
-            uvTransform = oc_mat2x3_mul_m(uvTransform, userToDestRegion);
-            uvTransform = oc_mat2x3_mul_m(uvTransform, screenToUser);
+            oc_mat3x3 uvTransform = srcRegionToImage;
+            uvTransform = oc_mat3x3_mul_m(uvTransform, destRegionToSrcRegion);
+            uvTransform = oc_mat3x3_mul_m(uvTransform, userToDestRegion);
+            uvTransform = oc_mat3x3_mul_m(uvTransform, screenToUser);
 
             //NOTE: mat3 layout is an array of oc_vec3, which are padded to _oc_vec4_ alignment
             path->uvTransform[0] = uvTransform.m[0];

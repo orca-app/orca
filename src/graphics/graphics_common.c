@@ -119,7 +119,7 @@ typedef struct oc_canvas_context_data
     oc_vec2 subPathStartPoint;
     oc_vec2 subPathLastPoint;
 
-    oc_mat2x3 matrixStack[OC_MATRIX_STACK_MAX_DEPTH];
+    oc_mat3x3 matrixStack[OC_MATRIX_STACK_MAX_DEPTH];
     u32 matrixStackSize;
 
     oc_rect clipStack[OC_CLIP_STACK_MAX_DEPTH];
@@ -269,12 +269,13 @@ bool oc_vec2_close(oc_vec2 p0, oc_vec2 p1, f32 tolerance)
     return (fabs(norm2) < tolerance);
 }
 
-oc_mat2x3 oc_matrix_stack_top(oc_canvas_context_data* context)
+oc_mat3x3 oc_matrix_stack_top(oc_canvas_context_data* context)
 {
     if(context->matrixStackSize == 0)
     {
-        return ((oc_mat2x3){ 1, 0, 0,
-                             0, 1, 0 });
+        return ((oc_mat3x3){ 1, 0, 0,
+                             0, 1, 0,
+                             0, 0, 1 });
     }
     else
     {
@@ -282,7 +283,7 @@ oc_mat2x3 oc_matrix_stack_top(oc_canvas_context_data* context)
     }
 }
 
-void oc_matrix_stack_push(oc_canvas_context_data* context, oc_mat2x3 transform)
+void oc_matrix_stack_push(oc_canvas_context_data* context, oc_mat3x3 transform)
 {
     if(context->matrixStackSize >= OC_MATRIX_STACK_MAX_DEPTH)
     {
@@ -1044,7 +1045,7 @@ void oc_canvas_render(oc_canvas_renderer rendererHandle, oc_canvas_context conte
 //NOTE(martin): transform, viewport and clipping
 //------------------------------------------------------------------------------------------
 
-void oc_matrix_push(oc_mat2x3 matrix)
+void oc_matrix_push(oc_mat3x3 matrix)
 {
     oc_canvas_context_data* context = oc_currentCanvasContext;
     if(context)
@@ -1053,13 +1054,13 @@ void oc_matrix_push(oc_mat2x3 matrix)
     }
 }
 
-void oc_matrix_multiply_push(oc_mat2x3 matrix)
+void oc_matrix_multiply_push(oc_mat3x3 matrix)
 {
     oc_canvas_context_data* context = oc_currentCanvasContext;
     if(context)
     {
-        oc_mat2x3 transform = oc_matrix_stack_top(context);
-        oc_matrix_stack_push(context, oc_mat2x3_mul_m(transform, matrix));
+        oc_mat3x3 transform = oc_matrix_stack_top(context);
+        oc_matrix_stack_push(context, oc_mat3x3_mul_m(transform, matrix));
     }
 }
 
@@ -1072,11 +1073,12 @@ void oc_matrix_pop()
     }
 }
 
-oc_mat2x3 oc_matrix_top()
+oc_mat3x3 oc_matrix_top()
 {
-    oc_mat2x3 mat = {
+    oc_mat3x3 mat = {
         1, 0, 0,
-        0, 1, 0
+        0, 1, 0,
+        0, 0, 1
     };
     oc_canvas_context_data* context = oc_currentCanvasContext;
     if(context)
@@ -1095,11 +1097,11 @@ void oc_clip_push(f32 x, f32 y, f32 w, f32 h)
         oc_rect clip = { x, y, w, h };
 
         //NOTE(martin): transform clip
-        oc_mat2x3 transform = oc_matrix_stack_top(context);
-        oc_vec2 p0 = oc_mat2x3_mul(transform, (oc_vec2){ clip.x, clip.y });
-        oc_vec2 p1 = oc_mat2x3_mul(transform, (oc_vec2){ clip.x + clip.w, clip.y });
-        oc_vec2 p2 = oc_mat2x3_mul(transform, (oc_vec2){ clip.x + clip.w, clip.y + clip.h });
-        oc_vec2 p3 = oc_mat2x3_mul(transform, (oc_vec2){ clip.x, clip.y + clip.h });
+        oc_mat3x3 transform = oc_matrix_stack_top(context);
+        oc_vec2 p0 = oc_mat3x3_mul(transform, (oc_vec2){ clip.x, clip.y });
+        oc_vec2 p1 = oc_mat3x3_mul(transform, (oc_vec2){ clip.x + clip.w, clip.y });
+        oc_vec2 p2 = oc_mat3x3_mul(transform, (oc_vec2){ clip.x + clip.w, clip.y + clip.h });
+        oc_vec2 p3 = oc_mat3x3_mul(transform, (oc_vec2){ clip.x, clip.y + clip.h });
 
         f32 x0 = oc_min(p0.x, oc_min(p1.x, oc_min(p2.x, p3.x)));
         f32 y0 = oc_min(p0.y, oc_min(p1.y, oc_min(p2.y, p3.y)));
@@ -1831,13 +1833,13 @@ void oc_arc(f32 x, f32 y, f32 r, f32 arcAngle, f32 startAngle)
         f32 rotCos = cos(rotAngle);
         f32 rotSin = sin(rotAngle);
 
-        oc_mat2x3 t = { r * rotCos, -r * rotSin, x,
+        oc_mat3x3 t = { r * rotCos, -r * rotSin, x,
                         r * rotSin, r * rotCos, y };
 
-        v0 = oc_mat2x3_mul(t, v0);
-        v1 = oc_mat2x3_mul(t, v1);
-        v2 = oc_mat2x3_mul(t, v2);
-        v3 = oc_mat2x3_mul(t, v3);
+        v0 = oc_mat3x3_mul(t, v0);
+        v1 = oc_mat3x3_mul(t, v1);
+        v2 = oc_mat3x3_mul(t, v2);
+        v3 = oc_mat3x3_mul(t, v3);
 
         oc_move_to(v0.x, v0.y);
         oc_cubic_to(v1.x, v1.y, v2.x, v2.y, v3.x, v3.y);

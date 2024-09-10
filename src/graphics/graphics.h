@@ -238,10 +238,10 @@ ORCA_API void oc_image_atlas_recycle(oc_rect_atlas* atlas, oc_image_region image
 //------------------------------------------------------------------------------------------
 //SECTION: transform, viewport and clipping
 //------------------------------------------------------------------------------------------
-ORCA_API void oc_matrix_push(oc_mat2x3 matrix);
-ORCA_API void oc_matrix_multiply_push(oc_mat2x3 matrix);
+ORCA_API void oc_matrix_push(oc_mat3x3 matrix);
+ORCA_API void oc_matrix_multiply_push(oc_mat3x3 matrix);
 ORCA_API void oc_matrix_pop(void);
-ORCA_API oc_mat2x3 oc_matrix_top(void);
+ORCA_API oc_mat3x3 oc_matrix_top(void);
 
 ORCA_API void oc_clip_push(f32 x, f32 y, f32 w, f32 h);
 ORCA_API void oc_clip_pop(void);

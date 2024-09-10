@@ -53,7 +53,7 @@ typedef struct oc_attributes
     oc_image image;
     oc_rect srcRegion;
 
-    oc_mat2x3 transform;
+    oc_mat3x3 transform;
     oc_rect clip;
 
 } oc_attributes;

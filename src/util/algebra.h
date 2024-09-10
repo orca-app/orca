@@ -26,6 +26,13 @@ ORCA_API oc_mat2x3 oc_mat2x3_inv(oc_mat2x3 x);
 ORCA_API oc_mat2x3 oc_mat2x3_rotate(f32 radians);
 ORCA_API oc_mat2x3 oc_mat2x3_translate(f32 x, f32 y);
 
+ORCA_API oc_vec2 oc_mat3x3_mul(oc_mat3x3 m, oc_vec2 p);
+ORCA_API oc_mat3x3 oc_mat3x3_mul_m(oc_mat3x3 lhs, oc_mat3x3 rhs);
+ORCA_API oc_mat3x3 oc_mat3x3_inv(oc_mat3x3 x);
+
+ORCA_API oc_mat3x3 oc_mat3x3_rotate(f32 radians);
+ORCA_API oc_mat3x3 oc_mat3x3_translate(f32 x, f32 y);
+
 //TODO: complete
 
 #ifdef __cplusplus

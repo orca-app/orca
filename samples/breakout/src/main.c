@@ -56,19 +56,21 @@ f32 lerp(f32 a, f32 b, f32 t)
     return (1 - t) * a + t * b;
 }
 
-oc_mat2x3 flip_y(oc_rect r)
+oc_mat3x3 flip_y(oc_rect r)
 {
-    return (oc_mat2x3){
+    return (oc_mat3x3){
         1, 0, 0,
-        0, -1, 2 * r.y + r.h
+        0, -1, 2 * r.y + r.h,
+        0, 0, 1
     };
 }
 
-oc_mat2x3 flip_y_at(oc_vec2 pos)
+oc_mat3x3 flip_y_at(oc_vec2 pos)
 {
-    return (oc_mat2x3){
+    return (oc_mat3x3){
         1, 0, 0,
-        0, -1, 2 * pos.y
+        0, -1, 2 * pos.y,
+        0, 0, 1
     };
 }
 
@@ -399,9 +401,10 @@ ORCA_EXPORT void oc_on_frame_refresh(void)
 
     oc_image_draw(waterImage, (oc_rect){ 0, 0, frameSize.x, frameSize.y });
 
-    oc_mat2x3 yUp = {
+    oc_mat3x3 yUp = {
         1, 0, 0,
-        0, -1, frameSize.y
+        0, -1, frameSize.y,
+        0, 0, 1
     };
 
     oc_matrix_multiply_push(yUp);

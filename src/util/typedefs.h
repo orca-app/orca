@@ -83,6 +83,11 @@ typedef struct oc_mat2x3
     f32 m[6];
 } oc_mat2x3;
 
+typedef struct oc_mat3x3
+{
+    f32 m[9];
+} oc_mat3x3;
+
 typedef union
 {
     struct

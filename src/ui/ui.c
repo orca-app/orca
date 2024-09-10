@@ -1849,9 +1849,10 @@ oc_ui_sig oc_ui_button(const char* label)
 
 void oc_ui_checkbox_draw(oc_ui_box* box, void* data)
 {
-    oc_mat2x3 matrix = {
+    oc_mat3x3 matrix = {
         box->rect.w, 0, box->rect.x,
-        0, box->rect.h, box->rect.y
+        0, box->rect.h, box->rect.y,
+        0, 0, 1
     };
     oc_matrix_multiply_push(matrix);
 
@@ -2412,7 +2413,7 @@ void oc_ui_panel_end(void)
 
 void oc_ui_tooltip_arrow_draw(oc_ui_box* box, void* data)
 {
-    oc_mat2x3 matrix = {
+    oc_mat3x3 matrix = {
         -box->rect.w, 0, box->rect.x + box->rect.w + 1,
         0, box->rect.h, box->rect.y
     };
@@ -2678,9 +2679,10 @@ oc_ui_sig oc_ui_menu_button(const char* label)
 
 void oc_ui_select_popup_draw_arrow(oc_ui_box* box, void* data)
 {
-    oc_mat2x3 matrix = {
+    oc_mat3x3 matrix = {
         box->rect.w / 2, 0, box->rect.x + box->rect.w / 4,
-        0, box->rect.h / 2, box->rect.y + box->rect.h / 4
+        0, box->rect.h / 2, box->rect.y + box->rect.h / 4,
+        0, 0, 1
     };
     oc_matrix_multiply_push(matrix);
 
@@ -2704,9 +2706,10 @@ void oc_ui_select_popup_draw_arrow(oc_ui_box* box, void* data)
 
 void oc_ui_select_popup_draw_checkmark(oc_ui_box* box, void* data)
 {
-    oc_mat2x3 matrix = {
+    oc_mat3x3 matrix = {
         box->rect.w, 0, box->rect.x,
-        0, box->rect.h, box->rect.y
+        0, box->rect.h, box->rect.y,
+        0, 0, 1
     };
     oc_matrix_multiply_push(matrix);
 
@@ -2959,9 +2962,10 @@ oc_ui_select_popup_info oc_ui_select_popup(const char* name, oc_ui_select_popup_
 
 void oc_ui_radio_indicator_draw(oc_ui_box* box, void* data)
 {
-    oc_mat2x3 matrix = {
+    oc_mat3x3 matrix = {
         box->rect.w, 0, box->rect.x,
-        0, box->rect.h, box->rect.y
+        0, box->rect.h, box->rect.y,
+        0, 0, 1
     };
     oc_matrix_multiply_push(matrix);
 
