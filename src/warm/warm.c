@@ -615,6 +615,8 @@ typedef struct wa_func
 
     wa_instance* extInstance;
     u32 extIndex;
+
+    u32 maxRegCount;
 } wa_func;
 
 wa_func_type* wa_function_get_type(wa_func* func)
@@ -4556,6 +4558,7 @@ void wa_compile_code(oc_arena* arena, wa_module* module)
         {
             wa_compile_error(&context, 0, "too many register slots (%i, max is %i).", context.nextRegIndex, WA_MAX_SLOT_COUNT);
         }
+        func->maxRegCount = context.nextRegIndex;
     }
 
     for(u32 globalIndex = module->globalImportCount; globalIndex < module->globalCount; globalIndex++)
