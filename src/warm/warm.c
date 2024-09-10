@@ -543,6 +543,8 @@ typedef enum wa_instr_op
     WA_INSTR_jump_if_zero,
     WA_INSTR_jump_table,
 
+    WA_INSTR_breakpoint,
+
     WA_INSTR_COUNT,
 
 } wa_instr_op;
@@ -1025,6 +1027,10 @@ static const char* wa_status_strings[] = {
     "out-of-bounds table access",
     "null reference",
     "indirect call type mismatch",
+
+    "breakpoint",
+    "step",
+    "terminated",
 };
 
 const char* wa_status_string(wa_status status)
@@ -5591,6 +5597,13 @@ wa_status wa_interpreter_run(wa_interpreter* interpreter, bool step)
 
 #define G0 interpreter->instance->globals[interpreter->pc[0].valI32]->value
 #define G1 interpreter->instance->globals[interpreter->pc[1].valI32]->value
+
+            case WA_INSTR_breakpoint:
+            {
+                interpreter->pc--;
+                return WA_TRAP_BREAKPOINT;
+            }
+            break;
 
             case WA_INSTR_unreachable:
             {

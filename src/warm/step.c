@@ -51,6 +51,7 @@ typedef struct wa_breakpoint
 
     wa_func* func;
     u32 index;
+    wa_code savedOpcode;
 
 } wa_breakpoint;
 
@@ -251,7 +252,27 @@ void build_bytecode_ui(app_data* app, oc_ui_box* scrollPanel)
                         u64 startIndex = codeIndex;
 
                         wa_code* c = &func->code[codeIndex];
-                        const wa_instr_info* info = &wa_instr_infos[c->opcode];
+                        wa_instr_op opcode = c->opcode;
+
+                        wa_breakpoint* breakpoint = 0;
+                        if(c->opcode == WA_INSTR_breakpoint)
+                        {
+                            oc_list_for(app->breakpoints, bp, wa_breakpoint, listElt)
+                            {
+                                if(bp->func == func && bp->index == codeIndex)
+                                {
+                                    breakpoint = bp;
+                                    break;
+                                }
+                            }
+                            OC_ASSERT(breakpoint);
+                        }
+                        if(breakpoint)
+                        {
+                            opcode = breakpoint->savedOpcode.opcode;
+                        }
+
+                        const wa_instr_info* info = &wa_instr_infos[opcode];
 
                         oc_str8 key = oc_str8_pushf(scratch.arena, "0x%08llx", codeIndex);
 
@@ -340,16 +361,6 @@ void build_bytecode_ui(app_data* app, oc_ui_box* scrollPanel)
                                              },
                                              OC_UI_STYLE_SIZE);
 
-                            wa_breakpoint* breakpoint = 0;
-                            oc_list_for(app->breakpoints, bp, wa_breakpoint, listElt)
-                            {
-                                if(bp->func == func && bp->index == codeIndex)
-                                {
-                                    breakpoint = bp;
-                                    break;
-                                }
-                            }
-
                             if(breakpoint)
                             {
                                 oc_ui_box* box = oc_ui_box_make("bp", OC_UI_FLAG_DRAW_PROC | OC_UI_FLAG_CLICKABLE);
@@ -358,6 +369,9 @@ void build_bytecode_ui(app_data* app, oc_ui_box* scrollPanel)
                                 if(oc_ui_box_sig(box).clicked)
                                 {
                                     oc_list_remove(&app->breakpoints, &breakpoint->listElt);
+
+                                    breakpoint->func->code[breakpoint->index] = breakpoint->savedOpcode;
+
                                     oc_list_push_back(&app->breakpointFreeList, &breakpoint->listElt);
                                 }
                             }
@@ -373,11 +387,15 @@ void build_bytecode_ui(app_data* app, oc_ui_box* scrollPanel)
                                     }
                                     breakpoint->func = func;
                                     breakpoint->index = codeIndex;
+
+                                    breakpoint->savedOpcode = func->code[codeIndex];
+                                    func->code[codeIndex].opcode = WA_INSTR_breakpoint;
+
                                     oc_list_push_back(&app->breakpoints, &breakpoint->listElt);
                                 }
                             }
                             // opcode
-                            oc_ui_label(wa_instr_strings[c->opcode]);
+                            oc_ui_label(wa_instr_strings[opcode]);
 
                             // operands
                             for(u32 opdIndex = 0; opdIndex < info->opdCount; opdIndex++)
@@ -670,8 +688,25 @@ void load_module(app_data* app, oc_str8 modulePath)
 void single_step(app_data* app)
 {
     wa_func* func = app->interpreter.controlStack[app->interpreter.controlStackTop].func;
+    u32 codeIndex = app->interpreter.pc - func->code;
+
     app->lastFunc = func;
     memcpy(app->cachedRegs, app->interpreter.locals, func->maxRegCount * sizeof(wa_value));
+
+    //NOTE: if we start on a breakpoint, deactivate it.
+    wa_breakpoint* breakpoint = 0;
+    oc_list_for(app->breakpoints, bp, wa_breakpoint, listElt)
+    {
+        if(bp->func == func && bp->index == codeIndex)
+        {
+            breakpoint = bp;
+            break;
+        }
+    }
+    if(breakpoint)
+    {
+        breakpoint->func->code[breakpoint->index] = breakpoint->savedOpcode;
+    }
 
     // single step
     wa_status status = wa_interpreter_run(&app->interpreter, true);
@@ -692,30 +727,40 @@ void single_step(app_data* app)
         oc_log_error("unexpected status after single step.\n");
     }
 
+    //NOTE: re-enable breakpoint
+    if(breakpoint)
+    {
+        breakpoint->func->code[breakpoint->index].opcode = WA_INSTR_breakpoint;
+    }
+
     app->autoScroll = true;
 }
 
 void continue_to_breakpoint(app_data* app)
 {
-    while(wa_interpreter_run(&app->interpreter, true) == WA_TRAP_STEP)
-    {
-        wa_func* func = app->interpreter.controlStack[app->interpreter.controlStackTop].func;
-        u32 codeIndex = app->interpreter.pc - func->code;
+    wa_func* func = app->interpreter.controlStack[app->interpreter.controlStackTop].func;
+    u32 codeIndex = app->interpreter.pc - func->code;
 
-        bool found = false;
-        oc_list_for(app->breakpoints, bp, wa_breakpoint, listElt)
+    app->lastFunc = func;
+    memcpy(app->cachedRegs, app->interpreter.locals, func->maxRegCount * sizeof(wa_value));
+
+    //NOTE: if we start on a breakpoint, step over it (step takes care of disabling/reenabling breakpoint)s
+    wa_breakpoint* breakpoint = 0;
+    oc_list_for(app->breakpoints, bp, wa_breakpoint, listElt)
+    {
+        if(bp->func == func && bp->index == codeIndex)
         {
-            if(bp->func == func && bp->index == codeIndex)
-            {
-                found = true;
-                break;
-            }
-        }
-        if(found)
-        {
+            breakpoint = bp;
             break;
         }
     }
+    if(breakpoint)
+    {
+        single_step(app);
+    }
+
+    wa_status status = wa_interpreter_run(&app->interpreter, false);
+
     app->autoScroll = true;
 }
 
