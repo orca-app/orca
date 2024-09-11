@@ -66,6 +66,8 @@ typedef struct wa_debugger
     oc_list breakpoints;
     oc_list breakpointFreeList;
 
+    wa_instr* nextInstr;
+
 } wa_debugger;
 
 typedef struct app_data
@@ -164,6 +166,9 @@ void wa_debugger_init(wa_debugger* debugger, wa_interpreter* interpreter)
     debugger->lastFunc = interpreter->controlStack[interpreter->controlStackTop].func;
     u32 regCount = debugger->lastFunc->maxRegCount;
     memcpy(&debugger->cachedRegs, interpreter->locals, regCount * sizeof(wa_value));
+
+    u32 funcIndex = debugger->lastFunc - interpreter->instance->functions;
+    debugger->nextInstr = wa_bytecode_to_instr(interpreter->instance->module, funcIndex, 0);
 }
 
 wa_breakpoint* wa_debugger_find_breakpoint(wa_debugger* debugger, wa_func* func, u32 index)
@@ -206,6 +211,63 @@ wa_status wa_debugger_single_step(wa_debugger* debugger)
     {
         breakpoint->func->code[breakpoint->index].opcode = WA_INSTR_breakpoint;
     }
+
+    //NOTE: store next instruction
+    wa_func* nextFunc = interpreter->controlStack[interpreter->controlStackTop].func;
+    u32 nextFuncIndex = nextFunc - interpreter->instance->functions;
+    u32 nextCodeIndex = interpreter->pc - nextFunc->code;
+    debugger->nextInstr = wa_bytecode_to_instr(interpreter->instance->module, nextFuncIndex, nextCodeIndex);
+
+    return status;
+}
+
+wa_status wa_debugger_single_step_wasm(wa_debugger* debugger)
+{
+    /*
+        Some wasm instr generate multiple bytecode instr, so we need to step through the bytecode
+        until we hit a _new_ instruction.
+
+        However, some wasm instructions are "silent", ie they don't generate bytecode at all, and
+        simply bytecode-stepping skips those. This is the case of `nop` and `local.get`.
+
+        When bytecode-stepping skips those instructions, it is always in a chain with no jumps or calls,
+        that ends on a real (bytecode-emitting) instr. So when we are finished stepping, we can just walk
+        back until encounter a real instruction, and set the debugger current wasm instruction to the last
+        silent one.
+
+        Then when we start wasm-stepping on silent instruction, we just update to the next instruction and
+        return.
+    */
+
+    wa_instr* nextInstr = debugger->nextInstr;
+
+    if(nextInstr->op == WA_INSTR_nop || nextInstr->op == WA_INSTR_local_get)
+    {
+        debugger->nextInstr = oc_list_next_entry(debugger->nextInstr, wa_instr, listElt);
+        return WA_TRAP_STEP;
+    }
+
+    wa_status status = WA_OK;
+    while((status = wa_debugger_single_step(debugger)) == WA_TRAP_STEP)
+    {
+        if(debugger->nextInstr != nextInstr)
+        {
+            break;
+        }
+    }
+
+    wa_instr* instr = debugger->nextInstr;
+    wa_instr* prev = 0;
+    while(instr->prev)
+    {
+        prev = oc_list_entry(instr->prev, wa_instr, listElt);
+        if(prev != WA_INSTR_nop && prev->op != WA_INSTR_local_get)
+        {
+            break;
+        }
+        instr = prev;
+    }
+    debugger->nextInstr = instr;
 
     return status;
 }
@@ -383,14 +445,10 @@ void build_wasm_ui(app_data* app, oc_ui_box* scrollPanel)
                                          },
                                          OC_UI_STYLE_SIZE_WIDTH | OC_UI_STYLE_LAYOUT);
 
-                        /*TODO: map exec offset back to wasm instr
                         bool makeExecCursor = false;
                         if(app->instance)
                         {
-                            u32 index = app->interpreter.pc - func->code;
-                            wa_func* execFunc = app->interpreter.controlStack[app->interpreter.controlStackTop].func;
-
-                            if(func == execFunc && index == codeIndex)
+                            if(instr == app->debugger.nextInstr)
                             {
                                 makeExecCursor = true;
                             }
@@ -403,13 +461,12 @@ void build_wasm_ui(app_data* app, oc_ui_box* scrollPanel)
                                              },
                                              OC_UI_STYLE_BG_COLOR);
                         }
-                        */
+
                         oc_ui_container_str8(key, OC_UI_FLAG_DRAW_BACKGROUND)
                         {
                             // address
                             oc_ui_box* label = oc_ui_label_str8(key).box;
 
-                            /*TODO: reintroduce
                             if(makeExecCursor)
                             {
                                 //NOTE: we compute auto-scroll on label box instead of cursor box, because the cursor box is not permanent,
@@ -451,7 +508,6 @@ void build_wasm_ui(app_data* app, oc_ui_box* scrollPanel)
                                     scrollPanel->scroll.y += 0.1 * (targetScroll - scrollPanel->scroll.y);
                                 }
                             }
-                            */
 
                             // spacer or exec cursor
                             oc_ui_style_next(&(oc_ui_style){
@@ -1102,7 +1158,14 @@ int main(int argc, char** argv)
                     {
                         if(event->key.keyCode == OC_KEY_SPACE)
                         {
-                            wa_debugger_single_step(&app.debugger);
+                            if(app.showWasm)
+                            {
+                                wa_debugger_single_step_wasm(&app.debugger);
+                            }
+                            else
+                            {
+                                wa_debugger_single_step(&app.debugger);
+                            }
                         }
                         else if(event->key.keyCode == OC_KEY_C)
                         {
@@ -1111,6 +1174,7 @@ int main(int argc, char** argv)
                         else if(event->key.keyCode == OC_KEY_TAB)
                         {
                             app.showWasm = !app.showWasm;
+                            app.autoScroll = true;
                         }
                     }
                 }
