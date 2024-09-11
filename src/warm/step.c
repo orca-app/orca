@@ -55,6 +55,19 @@ typedef struct wa_breakpoint
 
 } wa_breakpoint;
 
+typedef struct wa_debugger
+{
+    wa_interpreter* interpreter;
+
+    wa_func* lastFunc;
+    wa_value cachedRegs[WA_MAX_SLOT_COUNT];
+
+    oc_arena arena;
+    oc_list breakpoints;
+    oc_list breakpointFreeList;
+
+} wa_debugger;
+
 typedef struct app_data
 {
     oc_window window;
@@ -76,11 +89,9 @@ typedef struct app_data
     wa_instance* instance;
     wa_interpreter interpreter;
 
-    wa_func* lastFunc;
-    wa_value cachedRegs[WA_MAX_SLOT_COUNT];
+    wa_debugger debugger;
 
-    oc_list breakpoints;
-    oc_list breakpointFreeList;
+    bool showWasm;
 
 } app_data;
 
@@ -137,6 +148,114 @@ oc_str8 push_func_type_str8(oc_arena* arena, wa_func_type* type)
 
     return (str);
 }
+
+//------------------------------------------------------------------------------------
+// Debugger Control
+//------------------------------------------------------------------------------------
+
+void wa_debugger_init(wa_debugger* debugger, wa_interpreter* interpreter)
+{
+    debugger->interpreter = interpreter;
+    oc_arena_init(&debugger->arena);
+    debugger->breakpoints = (oc_list){ 0 };
+    debugger->breakpointFreeList = (oc_list){ 0 };
+
+    //TODO: maybe extract and pull same code from single step etc.
+    debugger->lastFunc = interpreter->controlStack[interpreter->controlStackTop].func;
+    u32 regCount = debugger->lastFunc->maxRegCount;
+    memcpy(&debugger->cachedRegs, interpreter->locals, regCount * sizeof(wa_value));
+}
+
+wa_breakpoint* wa_debugger_find_breakpoint(wa_debugger* debugger, wa_func* func, u32 index)
+{
+    wa_breakpoint* breakpoint = 0;
+    oc_list_for(debugger->breakpoints, bp, wa_breakpoint, listElt)
+    {
+        if(bp->func == func && bp->index == index)
+        {
+            breakpoint = bp;
+            break;
+        }
+    }
+    return breakpoint;
+}
+
+wa_status wa_debugger_single_step(wa_debugger* debugger)
+{
+    wa_interpreter* interpreter = debugger->interpreter;
+    wa_func* func = interpreter->controlStack[interpreter->controlStackTop].func;
+    u32 codeIndex = interpreter->pc - func->code;
+
+    debugger->lastFunc = func;
+    memcpy(debugger->cachedRegs, interpreter->locals, func->maxRegCount * sizeof(wa_value));
+
+    //NOTE: if we start on a breakpoint, deactivate it.
+    wa_breakpoint* breakpoint = wa_debugger_find_breakpoint(debugger, func, codeIndex);
+    if(breakpoint)
+    {
+        breakpoint->func->code[breakpoint->index] = breakpoint->savedOpcode;
+    }
+
+    // single step
+    wa_status status = wa_interpreter_run(interpreter, true);
+
+    //TODO check if program terminated?
+
+    //NOTE: re-enable breakpoint
+    if(breakpoint)
+    {
+        breakpoint->func->code[breakpoint->index].opcode = WA_INSTR_breakpoint;
+    }
+
+    return status;
+}
+
+wa_status wa_debugger_continue(wa_debugger* debugger)
+{
+    wa_interpreter* interpreter = debugger->interpreter;
+    wa_func* func = interpreter->controlStack[interpreter->controlStackTop].func;
+    u32 codeIndex = interpreter->pc - func->code;
+
+    debugger->lastFunc = func;
+    memcpy(debugger->cachedRegs, interpreter->locals, func->maxRegCount * sizeof(wa_value));
+
+    //NOTE: if we start on a breakpoint, step over it (step takes care of disabling/reenabling breakpoints)
+    wa_breakpoint* breakpoint = wa_debugger_find_breakpoint(debugger, func, codeIndex);
+    if(breakpoint)
+    {
+        wa_debugger_single_step(debugger);
+    }
+
+    return (wa_interpreter_run(interpreter, false));
+}
+
+void wa_debugger_remove_breakpoint(wa_debugger* debugger, wa_breakpoint* breakpoint)
+{
+    breakpoint->func->code[breakpoint->index] = breakpoint->savedOpcode;
+
+    oc_list_remove(&debugger->breakpoints, &breakpoint->listElt);
+    oc_list_push_back(&debugger->breakpointFreeList, &breakpoint->listElt);
+}
+
+void wa_debugger_add_breakpoint(wa_debugger* debugger, wa_func* func, u32 index)
+{
+    wa_breakpoint* breakpoint = oc_list_pop_front_entry(&debugger->breakpointFreeList, wa_breakpoint, listElt);
+    if(!breakpoint)
+    {
+        breakpoint = oc_arena_push_type(&debugger->arena, wa_breakpoint);
+    }
+    breakpoint->func = func;
+    breakpoint->index = index;
+    breakpoint->savedOpcode = func->code[index];
+
+    func->code[index].opcode = WA_INSTR_breakpoint;
+
+    oc_list_push_back(&debugger->breakpoints, &breakpoint->listElt);
+}
+
+//------------------------------------------------------------------------------------
+// Debugger UI
+//------------------------------------------------------------------------------------
 
 void draw_breakpoint_cursor_path(oc_rect rect)
 {
@@ -195,6 +314,249 @@ void draw_breakpoint_cursor_proc(oc_ui_box* box, void* data)
     oc_set_color_rgba(1, 0, 0, 1);
     oc_set_width(2);
     oc_stroke();
+}
+
+void build_wasm_ui(app_data* app, oc_ui_box* scrollPanel)
+{
+    oc_arena_scope scratch = oc_scratch_begin();
+
+    oc_ui_style_next(&(oc_ui_style){
+                         .size.width = { OC_UI_SIZE_PARENT, 1 },
+                     },
+                     OC_UI_STYLE_SIZE_WIDTH);
+
+    oc_ui_container("wasm-view", 0)
+    {
+        for(u32 funcIndex = 0; funcIndex < app->instance->module->functionCount; funcIndex++)
+        {
+            wa_func* func = &app->instance->functions[funcIndex];
+            if(func->code)
+            {
+                oc_str8_list list = { 0 };
+                oc_str8_list_push(scratch.arena, &list, OC_STR8("func "));
+
+                u32 funcIndex = func - app->instance->functions;
+                oc_str8 funcName = find_function_export_name(app, funcIndex);
+                if(funcName.len)
+                {
+                    oc_str8_list_push(scratch.arena, &list, funcName);
+                }
+                else
+                {
+                    oc_str8_list_pushf(scratch.arena, &list, "%i", funcIndex);
+                }
+                oc_str8_list_push(scratch.arena, &list, OC_STR8(" "));
+                push_func_type_str8_list(scratch.arena, &list, func->type);
+
+                oc_str8 funcText = oc_str8_list_join(scratch.arena, list);
+
+                oc_ui_style_next(&(oc_ui_style){
+                                     .size.width = { OC_UI_SIZE_PARENT, 1 },
+                                     .layout = {
+                                         .axis = OC_UI_AXIS_Y,
+                                         .spacing = BOX_MARGIN_H,
+                                         .margin.x = BOX_MARGIN_W,
+                                         .margin.y = BOX_MARGIN_H,
+                                         .align = OC_UI_ALIGN_START,
+                                     },
+                                 },
+                                 OC_UI_STYLE_SIZE_WIDTH | OC_UI_STYLE_LAYOUT);
+
+                oc_ui_container_str8(funcText, 0)
+                {
+                    oc_ui_label_str8(funcText);
+
+                    oc_list_for(func->instructions, instr, wa_instr, listElt)
+                    {
+                        const wa_instr_info* info = &wa_instr_infos[instr->op];
+
+                        oc_str8 key = oc_str8_pushf(scratch.arena, "0x%08llx", instr->ast->loc.start);
+
+                        oc_ui_style_next(&(oc_ui_style){
+                                             .size.width = { OC_UI_SIZE_PARENT, 1 },
+                                             .layout = {
+                                                 .axis = OC_UI_AXIS_X,
+                                                 .spacing = BOX_MARGIN_W * 5,
+                                                 .margin.y = BOX_MARGIN_H,
+                                                 .align = OC_UI_ALIGN_START,
+                                             },
+                                         },
+                                         OC_UI_STYLE_SIZE_WIDTH | OC_UI_STYLE_LAYOUT);
+
+                        /*TODO: map exec offset back to wasm instr
+                        bool makeExecCursor = false;
+                        if(app->instance)
+                        {
+                            u32 index = app->interpreter.pc - func->code;
+                            wa_func* execFunc = app->interpreter.controlStack[app->interpreter.controlStackTop].func;
+
+                            if(func == execFunc && index == codeIndex)
+                            {
+                                makeExecCursor = true;
+                            }
+                        }
+
+                        if(makeExecCursor)
+                        {
+                            oc_ui_style_next(&(oc_ui_style){
+                                                 .bgColor = { 0.4, 1, 0.4, 1 },
+                                             },
+                                             OC_UI_STYLE_BG_COLOR);
+                        }
+                        */
+                        oc_ui_container_str8(key, OC_UI_FLAG_DRAW_BACKGROUND)
+                        {
+                            // address
+                            oc_ui_box* label = oc_ui_label_str8(key).box;
+
+                            /*TODO: reintroduce
+                            if(makeExecCursor)
+                            {
+                                //NOTE: we compute auto-scroll on label box instead of cursor box, because the cursor box is not permanent,
+                                //      so its rect might not be set every frame, resulting in brief jumps.
+                                //      Maybe the cursor box shouldnt be parented to the function UI namespace and be floating to begin with...
+
+                                //WARN: scroll is adjusted during layout, which can result in a slightly different
+                                //      computation from lastScroll, so compare with a 1 pixel threshold
+                                if(app->lastScroll - scrollPanel->scroll.y > 1)
+                                {
+                                    //NOTE: if user has adjusted scroll manually, deactivate auto-scroll
+                                    app->autoScroll = false;
+                                }
+
+                                if(app->autoScroll)
+                                {
+                                    f32 targetScroll = scrollPanel->scroll.y;
+
+                                    f32 scrollMargin = 60;
+
+                                    if(label->rect.y < scrollPanel->rect.y + scrollMargin)
+                                    {
+                                        targetScroll = scrollPanel->scroll.y
+                                                     - scrollPanel->rect.y
+                                                     + label->rect.y
+                                                     - scrollMargin;
+                                    }
+                                    else if(label->rect.y + label->rect.h + scrollMargin > scrollPanel->rect.y + scrollPanel->rect.h)
+                                    {
+                                        targetScroll = scrollPanel->scroll.y
+                                                     + label->rect.y
+                                                     + label->rect.h
+                                                     + scrollMargin
+                                                     - scrollPanel->rect.y
+                                                     - scrollPanel->rect.h;
+                                    }
+                                    targetScroll = oc_clamp(targetScroll, 0, scrollPanel->childrenSum[1] - scrollPanel->rect.h);
+
+                                    scrollPanel->scroll.y += 0.1 * (targetScroll - scrollPanel->scroll.y);
+                                }
+                            }
+                            */
+
+                            // spacer or exec cursor
+                            oc_ui_style_next(&(oc_ui_style){
+                                                 .size.width = { OC_UI_SIZE_PIXELS, 10 * BOX_MARGIN_W },
+                                                 .size.height = { OC_UI_SIZE_PARENT, 1 },
+                                             },
+                                             OC_UI_STYLE_SIZE);
+                            /*
+                            if(breakpoint)
+                            {
+                                oc_ui_box* box = oc_ui_box_make("bp", OC_UI_FLAG_DRAW_PROC | OC_UI_FLAG_CLICKABLE);
+                                oc_ui_box_set_draw_proc(box, draw_breakpoint_cursor_proc, 0);
+
+                                if(oc_ui_box_sig(box).clicked)
+                                {
+                                    wa_debugger_remove_breakpoint(&app->debugger, breakpoint);
+                                }
+                            }
+                            else
+                            */
+                            {
+                                oc_ui_box* box = oc_ui_box_make("spacer", OC_UI_FLAG_CLICKABLE);
+                                /*
+                                if(oc_ui_box_sig(box).clicked)
+                                {
+                                    wa_debugger_add_breakpoint(&app->debugger, func, codeIndex);
+                                }
+                                */
+                            }
+
+                            // opcode
+                            oc_ui_label(wa_instr_strings[instr->op]);
+
+                            // operands
+                            for(u32 immIndex = 0; immIndex < instr->immCount; immIndex++)
+                            {
+
+                                wa_code* imm = &instr->imm[immIndex];
+                                oc_str8 immKey = oc_str8_pushf(scratch.arena, "imm%u", immIndex);
+
+                                oc_ui_container_str8(immKey, 0)
+                                {
+                                    oc_str8 s = { 0 };
+
+                                    switch(info->imm[immIndex])
+                                    {
+                                        case WA_IMM_ZERO:
+                                            break;
+                                        case WA_IMM_I32:
+                                            s = oc_str8_pushf(scratch.arena, "%i", imm->valI32);
+
+                                            break;
+                                        case WA_IMM_I64:
+                                            s = oc_str8_pushf(scratch.arena, "%lli", imm->valI64);
+
+                                            break;
+                                        case WA_IMM_F32:
+                                            s = oc_str8_pushf(scratch.arena, "%f", imm->valF32);
+                                            break;
+                                        case WA_IMM_F64:
+                                            s = oc_str8_pushf(scratch.arena, "%f", imm->valF64);
+                                            break;
+                                        case WA_IMM_VALUE_TYPE:
+                                            break;
+                                        case WA_IMM_REF_TYPE:
+                                            break;
+                                        case WA_IMM_FUNC_INDEX:
+                                            s = find_function_export_name(app, imm->valU32);
+                                            if(s.len == 0)
+                                            {
+                                                s = oc_str8_pushf(scratch.arena, "%u", imm->valU32);
+                                            }
+                                            break;
+                                        case WA_IMM_LOCAL_INDEX:
+                                        case WA_IMM_GLOBAL_INDEX:
+                                        case WA_IMM_TYPE_INDEX:
+                                        case WA_IMM_TABLE_INDEX:
+                                        case WA_IMM_ELEM_INDEX:
+                                        case WA_IMM_DATA_INDEX:
+                                        case WA_IMM_LABEL:
+                                            s = oc_str8_pushf(scratch.arena, "%u", imm->valU32);
+                                            break;
+
+                                        case WA_IMM_MEM_ARG:
+                                            s = oc_str8_pushf(scratch.arena, "a%u:+%u", imm->memArg.align, imm->memArg.offset);
+                                            break;
+
+                                        default:
+                                            s = oc_str8_pushf(scratch.arena, "0x%08llx", imm->valU64);
+                                            break;
+                                    }
+                                    oc_ui_label_str8(s);
+                                }
+                            }
+                        }
+                    }
+                    oc_ui_style_next(&(oc_ui_style){ .size.height = { OC_UI_SIZE_PIXELS, 10 * BOX_MARGIN_H } },
+                                     OC_UI_STYLE_SIZE_HEIGHT);
+                    oc_ui_box_make("vspacer", 0);
+                }
+            }
+        }
+    }
+    app->lastScroll = scrollPanel->scroll.y;
+    oc_scratch_end(scratch);
 }
 
 void build_bytecode_ui(app_data* app, oc_ui_box* scrollPanel)
@@ -257,14 +619,7 @@ void build_bytecode_ui(app_data* app, oc_ui_box* scrollPanel)
                         wa_breakpoint* breakpoint = 0;
                         if(c->opcode == WA_INSTR_breakpoint)
                         {
-                            oc_list_for(app->breakpoints, bp, wa_breakpoint, listElt)
-                            {
-                                if(bp->func == func && bp->index == codeIndex)
-                                {
-                                    breakpoint = bp;
-                                    break;
-                                }
-                            }
+                            breakpoint = wa_debugger_find_breakpoint(&app->debugger, func, codeIndex);
                             OC_ASSERT(breakpoint);
                         }
                         if(breakpoint)
@@ -368,11 +723,7 @@ void build_bytecode_ui(app_data* app, oc_ui_box* scrollPanel)
 
                                 if(oc_ui_box_sig(box).clicked)
                                 {
-                                    oc_list_remove(&app->breakpoints, &breakpoint->listElt);
-
-                                    breakpoint->func->code[breakpoint->index] = breakpoint->savedOpcode;
-
-                                    oc_list_push_back(&app->breakpointFreeList, &breakpoint->listElt);
+                                    wa_debugger_remove_breakpoint(&app->debugger, breakpoint);
                                 }
                             }
                             else
@@ -380,18 +731,7 @@ void build_bytecode_ui(app_data* app, oc_ui_box* scrollPanel)
                                 oc_ui_box* box = oc_ui_box_make("spacer", OC_UI_FLAG_CLICKABLE);
                                 if(oc_ui_box_sig(box).clicked)
                                 {
-                                    breakpoint = oc_list_pop_front_entry(&app->breakpointFreeList, wa_breakpoint, listElt);
-                                    if(!breakpoint)
-                                    {
-                                        breakpoint = oc_arena_push_type(app->moduleArena, wa_breakpoint);
-                                    }
-                                    breakpoint->func = func;
-                                    breakpoint->index = codeIndex;
-
-                                    breakpoint->savedOpcode = func->code[codeIndex];
-                                    func->code[codeIndex].opcode = WA_INSTR_breakpoint;
-
-                                    oc_list_push_back(&app->breakpoints, &breakpoint->listElt);
+                                    wa_debugger_add_breakpoint(&app->debugger, func, codeIndex);
                                 }
                             }
                             // opcode
@@ -430,7 +770,7 @@ void build_bytecode_ui(app_data* app, oc_ui_box* scrollPanel)
                                             break;
 
                                         case WA_OPD_FUNC_INDEX:
-                                            s = find_function_export_name(app, funcIndex);
+                                            s = find_function_export_name(app, opd->valU32);
                                             if(s.len == 0)
                                             {
                                                 s = oc_str8_pushf(scratch.arena, "%u", opd->valU32);
@@ -493,7 +833,7 @@ void build_register_ui(app_data* app)
             wa_value* reg = &app->interpreter.locals[regIndex];
             oc_str8 key = oc_str8_pushf(scratch.arena, "r%u: 0x%08llx", regIndex, reg->valI64);
 
-            if(app->lastFunc == func && reg->valI64 != app->cachedRegs[regIndex].valI64)
+            if(app->debugger.lastFunc == func && reg->valI64 != app->debugger.cachedRegs[regIndex].valI64)
             {
                 oc_ui_style_next(&(oc_ui_style){
                                      .color = { 1, 0, 0, 1 },
@@ -568,7 +908,14 @@ void update_ui(app_data* app)
                         oc_ui_box* scrollPanel = oc_ui_box_top()->parent;
                         OC_ASSERT(scrollPanel);
 
-                        build_bytecode_ui(app, scrollPanel);
+                        if(app->showWasm)
+                        {
+                            build_wasm_ui(app, scrollPanel);
+                        }
+                        else
+                        {
+                            build_bytecode_ui(app, scrollPanel);
+                        }
                     }
                 }
 
@@ -679,89 +1026,11 @@ void load_module(app_data* app, oc_str8 modulePath)
             else
             {
                 wa_interpreter_init(&app->interpreter, app->instance, func, func->type, func->code, 0, 0, 0, 0);
+                wa_debugger_init(&app->debugger, &app->interpreter);
                 app->autoScroll = true;
             }
         }
     }
-}
-
-void single_step(app_data* app)
-{
-    wa_func* func = app->interpreter.controlStack[app->interpreter.controlStackTop].func;
-    u32 codeIndex = app->interpreter.pc - func->code;
-
-    app->lastFunc = func;
-    memcpy(app->cachedRegs, app->interpreter.locals, func->maxRegCount * sizeof(wa_value));
-
-    //NOTE: if we start on a breakpoint, deactivate it.
-    wa_breakpoint* breakpoint = 0;
-    oc_list_for(app->breakpoints, bp, wa_breakpoint, listElt)
-    {
-        if(bp->func == func && bp->index == codeIndex)
-        {
-            breakpoint = bp;
-            break;
-        }
-    }
-    if(breakpoint)
-    {
-        breakpoint->func->code[breakpoint->index] = breakpoint->savedOpcode;
-    }
-
-    // single step
-    wa_status status = wa_interpreter_run(&app->interpreter, true);
-    if(status == WA_TRAP_STEP)
-    {
-        printf("single step\n");
-    }
-    else if(status == WA_TRAP_TERMINATED)
-    {
-        printf("process already terminated\n");
-    }
-    else if(status == WA_OK)
-    {
-        printf("process returned\n");
-    }
-    else
-    {
-        oc_log_error("unexpected status after single step.\n");
-    }
-
-    //NOTE: re-enable breakpoint
-    if(breakpoint)
-    {
-        breakpoint->func->code[breakpoint->index].opcode = WA_INSTR_breakpoint;
-    }
-
-    app->autoScroll = true;
-}
-
-void continue_to_breakpoint(app_data* app)
-{
-    wa_func* func = app->interpreter.controlStack[app->interpreter.controlStackTop].func;
-    u32 codeIndex = app->interpreter.pc - func->code;
-
-    app->lastFunc = func;
-    memcpy(app->cachedRegs, app->interpreter.locals, func->maxRegCount * sizeof(wa_value));
-
-    //NOTE: if we start on a breakpoint, step over it (step takes care of disabling/reenabling breakpoint)s
-    wa_breakpoint* breakpoint = 0;
-    oc_list_for(app->breakpoints, bp, wa_breakpoint, listElt)
-    {
-        if(bp->func == func && bp->index == codeIndex)
-        {
-            breakpoint = bp;
-            break;
-        }
-    }
-    if(breakpoint)
-    {
-        single_step(app);
-    }
-
-    wa_status status = wa_interpreter_run(&app->interpreter, false);
-
-    app->autoScroll = true;
 }
 
 int main(int argc, char** argv)
@@ -833,11 +1102,15 @@ int main(int argc, char** argv)
                     {
                         if(event->key.keyCode == OC_KEY_SPACE)
                         {
-                            single_step(&app);
+                            wa_debugger_single_step(&app.debugger);
                         }
                         else if(event->key.keyCode == OC_KEY_C)
                         {
-                            continue_to_breakpoint(&app);
+                            wa_debugger_continue(&app.debugger);
+                        }
+                        else if(event->key.keyCode == OC_KEY_TAB)
+                        {
+                            app.showWasm = !app.showWasm;
                         }
                     }
                 }

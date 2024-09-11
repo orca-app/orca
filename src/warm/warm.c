@@ -889,6 +889,9 @@ typedef struct wa_module
     u32 dataCount;
     wa_data_segment* data;
 
+    u32 bytecodeToInstrMapLen;
+    oc_list* bytecodeToInstrMap;
+
 } wa_module;
 
 typedef struct wa_parser
@@ -3019,6 +3022,52 @@ void wa_parse_code(wa_parser* parser, wa_module* module)
 }
 
 //-------------------------------------------------------------------------
+// bytecode -> instr map
+//-------------------------------------------------------------------------
+
+typedef struct wa_bytecode_mapping
+{
+    oc_list_elt listElt;
+
+    u32 funcIndex;
+    u32 codeIndex;
+    wa_instr* instr;
+
+} wa_bytecode_mapping;
+
+void wa_bytecode_to_instr_push(wa_module* module, u32 funcIndex, u32 codeIndex, wa_instr* instr)
+{
+    wa_bytecode_mapping* mapping = oc_arena_push_type(module->arena, wa_bytecode_mapping);
+    mapping->funcIndex = funcIndex;
+    mapping->codeIndex = codeIndex;
+    mapping->instr = instr;
+
+    u64 id = (u64)funcIndex << 32 | (u64)codeIndex;
+    u64 hash = oc_hash_xx64_string((oc_str8){ .ptr = (char*)&id, .len = 8 });
+    u64 index = hash % module->bytecodeToInstrMapLen;
+
+    oc_list_push_back(&module->bytecodeToInstrMap[index], &mapping->listElt);
+}
+
+wa_instr* wa_bytecode_to_instr(wa_module* module, u32 funcIndex, u32 codeIndex)
+{
+    u64 id = (u64)funcIndex << 32 | (u64)codeIndex;
+    u64 hash = oc_hash_xx64_string((oc_str8){ .ptr = (char*)&id, .len = 8 });
+    u64 index = hash % module->bytecodeToInstrMapLen;
+
+    wa_instr* instr = 0;
+    oc_list_for(module->bytecodeToInstrMap[index], mapping, wa_bytecode_mapping, listElt)
+    {
+        if(mapping->funcIndex == funcIndex && mapping->codeIndex == codeIndex)
+        {
+            instr = mapping->instr;
+            break;
+        }
+    }
+    return (instr);
+}
+
+//-------------------------------------------------------------------------
 // Compile
 //-------------------------------------------------------------------------
 
@@ -3084,6 +3133,8 @@ typedef struct wa_build_context
     u64 freeRegLen;
     u64 freeRegs[WA_MAX_REG];
 
+    wa_func* currentFunction;
+    wa_instr* currentInstr;
     wa_func_type* exprType;
 
     u64 codeCap;
@@ -3477,8 +3528,15 @@ wa_code* wa_push_code(wa_build_context* context)
 
 void wa_emit_opcode(wa_build_context* context, wa_instr_op op)
 {
+    u32 index = context->codeLen;
     wa_code* code = wa_push_code(context);
     code->opcode = op;
+
+    if(context->currentFunction)
+    {
+        wa_module* module = context->module;
+        wa_bytecode_to_instr_push(module, context->currentFunction - module->functions, index, context->currentInstr);
+    }
 }
 
 void wa_emit_index(wa_build_context* context, u32 index)
@@ -3842,6 +3900,8 @@ void wa_build_context_clear(wa_build_context* context)
 
     context->nextRegIndex = 0;
     context->freeRegLen = 0;
+
+    context->currentFunction = 0;
 }
 
 bool wa_validate_immediates(wa_build_context* context, wa_func* func, wa_instr* instr, const wa_instr_info* info)
@@ -4022,6 +4082,8 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
 
     oc_list_for(instructions, instr, wa_instr, listElt)
     {
+        context->currentInstr = instr;
+
         oc_scratch_end(scratch);
 
         const wa_instr_info* info = &wa_instr_infos[instr->op];
@@ -4553,6 +4615,7 @@ void wa_compile_code(oc_arena* arena, wa_module* module)
 
         wa_build_context_clear(&context);
         context.nextRegIndex = func->localCount;
+        context.currentFunction = func;
 
         wa_compile_expression(&context, func->type, func, func->instructions);
 
@@ -4646,6 +4709,8 @@ wa_module* wa_module_create(oc_arena* arena, oc_str8 contents)
     wa_module* module = oc_arena_push_type(arena, wa_module);
     memset(module, 0, sizeof(wa_module));
 
+    module->arena = arena;
+
     wa_parser parser = {
         .module = module,
         .arena = arena,
@@ -4688,6 +4753,11 @@ wa_module* wa_module_create(oc_arena* arena, oc_str8 contents)
 
     if(oc_list_empty(module->errors))
     {
+        //TODO: tune this
+        module->bytecodeToInstrMapLen = 4096;
+        module->bytecodeToInstrMap = oc_arena_push_array(arena, oc_list, 4096);
+        memset(module->bytecodeToInstrMap, 0, 4096 * sizeof(oc_list));
+
         wa_compile_code(arena, module);
     }
 
