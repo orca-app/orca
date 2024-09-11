@@ -147,10 +147,10 @@ oc_str8 oc_str8_list_collate(oc_arena* arena, oc_str8_list list, oc_str8 prefix,
     {
         memcpy(dst, elt->string.ptr, elt->string.len);
         dst += elt->string.len;
-        elt = oc_list_next_entry(list.list, elt, oc_str8_elt, listElt);
+        elt = oc_list_next_entry(elt, oc_str8_elt, listElt);
     }
 
-    for(; elt != 0; elt = oc_list_next_entry(list.list, elt, oc_str8_elt, listElt))
+    for(; elt != 0; elt = oc_list_next_entry(elt, oc_str8_elt, listElt))
     {
         memcpy(dst, separator.ptr, separator.len);
         dst += separator.len;
@@ -280,10 +280,10 @@ oc_str16 oc_str16_list_collate(oc_arena* arena, oc_str16_list list, oc_str16 pre
     {
         memcpy(dst, elt->string.ptr, elt->string.len * sizeof(u16));
         dst += elt->string.len * sizeof(u16);
-        elt = oc_list_next_entry(list.list, elt, oc_str16_elt, listElt);
+        elt = oc_list_next_entry(elt, oc_str16_elt, listElt);
     }
 
-    for(; elt != 0; elt = oc_list_next_entry(list.list, elt, oc_str16_elt, listElt))
+    for(; elt != 0; elt = oc_list_next_entry(elt, oc_str16_elt, listElt))
     {
         memcpy(dst, separator.ptr, separator.len * sizeof(u16));
         dst += separator.len * sizeof(u16);
@@ -366,10 +366,10 @@ oc_str32 oc_str32_list_collate(oc_arena* arena, oc_str32_list list, oc_str32 pre
     {
         memcpy(dst, elt->string.ptr, elt->string.len * sizeof(u32));
         dst += elt->string.len * sizeof(u32);
-        elt = oc_list_next_entry(list.list, elt, oc_str32_elt, listElt);
+        elt = oc_list_next_entry(elt, oc_str32_elt, listElt);
     }
 
-    for(; elt != 0; elt = oc_list_next_entry(list.list, elt, oc_str32_elt, listElt))
+    for(; elt != 0; elt = oc_list_next_entry(elt, oc_str32_elt, listElt))
     {
         memcpy(dst, separator.ptr, separator.len * sizeof(u32));
         dst += separator.len * sizeof(u32);

@@ -895,11 +895,11 @@ void oc_ui_style_rule_match(oc_ui_context* ui, oc_ui_box* box, oc_ui_style_rule*
     oc_ui_selector* selector = oc_list_first_entry(rule->pattern.l, oc_ui_selector, listElt);
     bool match = oc_ui_style_selector_match(box, rule, selector);
 
-    selector = oc_list_next_entry(rule->pattern.l, selector, oc_ui_selector, listElt);
+    selector = oc_list_next_entry(selector, oc_ui_selector, listElt);
     while(match && selector && selector->op == OC_UI_SEL_AND)
     {
         match = match && oc_ui_style_selector_match(box, rule, selector);
-        selector = oc_list_next_entry(rule->pattern.l, selector, oc_ui_selector, listElt);
+        selector = oc_list_next_entry(selector, oc_ui_selector, listElt);
     }
 
     if(match)

@@ -957,10 +957,6 @@
                     "doc": "Get the next entry in a list.",
                     "params": [
                         {
-                            "name": "list",
-                            "doc": "An `oc_list` object."
-                        },
-                        {
                             "name": "elt",
                             "doc": "A pointer to an `oc_list_elt` element in that list."
                         },
@@ -982,10 +978,6 @@
                     "name": "oc_list_prev_entry",
                     "doc": "Get the previous entry in a list.",
                     "params": [
-                        {
-                            "name": "list",
-                            "doc": "An `oc_list` object."
-                        },
                         {
                             "name": "elt",
                             "doc": "A pointer to an `oc_list_elt` element in that list."

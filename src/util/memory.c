@@ -91,7 +91,7 @@ void* oc_arena_push_aligned(oc_arena* arena, u64 size, u32 alignment)
     u64 lastCap = chunk->cap;
     while(nextOffset > chunk->cap)
     {
-        chunk = oc_list_next_entry(arena->chunks, chunk, oc_arena_chunk, listElt);
+        chunk = oc_list_next_entry(chunk, oc_arena_chunk, listElt);
         if(chunk)
         {
             alignedOffset = oc_align_up_pow2(chunk->offset, alignment);
