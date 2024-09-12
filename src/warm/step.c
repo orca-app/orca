@@ -53,6 +53,7 @@ typedef struct wa_breakpoint
     u32 index;
     wa_code savedOpcode;
 
+    wa_instr* instr;
 } wa_breakpoint;
 
 typedef struct wa_debugger
@@ -171,18 +172,34 @@ void wa_debugger_init(wa_debugger* debugger, wa_interpreter* interpreter)
     debugger->nextInstr = wa_bytecode_to_instr(interpreter->instance->module, funcIndex, 0);
 }
 
-wa_breakpoint* wa_debugger_find_breakpoint(wa_debugger* debugger, wa_func* func, u32 index)
+wa_breakpoint* wa_debugger_find_breakpoint(wa_debugger* debugger, wa_func* func, u32 index, wa_instr* instr)
 {
     wa_breakpoint* breakpoint = 0;
     oc_list_for(debugger->breakpoints, bp, wa_breakpoint, listElt)
     {
-        if(bp->func == func && bp->index == index)
+        if(bp->func == func && bp->index == index && (!instr || bp->instr == instr))
         {
             breakpoint = bp;
             break;
         }
     }
     return breakpoint;
+}
+
+oc_list wa_debugger_find_all_breakpoints_at_offset(oc_arena* arena, wa_debugger* debugger, wa_func* func, u32 index)
+{
+    oc_list result = { 0 };
+
+    oc_list_for(debugger->breakpoints, bp, wa_breakpoint, listElt)
+    {
+        if(bp->func == func && bp->index == index)
+        {
+            wa_breakpoint* copy = oc_arena_push_type(arena, wa_breakpoint);
+            *copy = *bp;
+            oc_list_push_back(&result, &copy->listElt);
+        }
+    }
+    return (result);
 }
 
 wa_status wa_debugger_single_step(wa_debugger* debugger)
@@ -195,7 +212,7 @@ wa_status wa_debugger_single_step(wa_debugger* debugger)
     memcpy(debugger->cachedRegs, interpreter->locals, func->maxRegCount * sizeof(wa_value));
 
     //NOTE: if we start on a breakpoint, deactivate it.
-    wa_breakpoint* breakpoint = wa_debugger_find_breakpoint(debugger, func, codeIndex);
+    wa_breakpoint* breakpoint = wa_debugger_find_breakpoint(debugger, func, codeIndex, debugger->nextInstr);
     if(breakpoint)
     {
         breakpoint->func->code[breakpoint->index] = breakpoint->savedOpcode;
@@ -241,6 +258,11 @@ wa_status wa_debugger_single_step_wasm(wa_debugger* debugger)
 
     wa_instr* nextInstr = debugger->nextInstr;
 
+    if(!nextInstr)
+    {
+        return WA_TRAP_TERMINATED;
+    }
+
     if(nextInstr->op == WA_INSTR_nop || nextInstr->op == WA_INSTR_local_get)
     {
         debugger->nextInstr = oc_list_next_entry(debugger->nextInstr, wa_instr, listElt);
@@ -256,12 +278,17 @@ wa_status wa_debugger_single_step_wasm(wa_debugger* debugger)
         }
     }
 
+    if(status == WA_TRAP_TERMINATED || status == WA_OK)
+    {
+        return status;
+    }
+
     wa_instr* instr = debugger->nextInstr;
     wa_instr* prev = 0;
-    while(instr->prev)
+    while((prev = oc_list_prev_entry(instr, wa_instr, listElt)) != 0)
     {
-        prev = oc_list_entry(instr->prev, wa_instr, listElt);
-        if(prev != WA_INSTR_nop && prev->op != WA_INSTR_local_get)
+        if(prev->op != WA_INSTR_nop
+           && prev->op != WA_INSTR_local_get)
         {
             break;
         }
@@ -281,25 +308,65 @@ wa_status wa_debugger_continue(wa_debugger* debugger)
     debugger->lastFunc = func;
     memcpy(debugger->cachedRegs, interpreter->locals, func->maxRegCount * sizeof(wa_value));
 
-    //NOTE: if we start on a breakpoint, step over it (step takes care of disabling/reenabling breakpoints)
-    wa_breakpoint* breakpoint = wa_debugger_find_breakpoint(debugger, func, codeIndex);
-    if(breakpoint)
+    //NOTE: if we start on a "real" breakpoint, step over it (step takes care of disabling/reenabling breakpoints)
+    wa_breakpoint* breakpoint = wa_debugger_find_breakpoint(debugger, func, codeIndex, debugger->nextInstr);
+    if(breakpoint && debugger->nextInstr->op != WA_INSTR_nop && debugger->nextInstr->op != WA_INSTR_local_get)
     {
         wa_debugger_single_step(debugger);
     }
 
-    return (wa_interpreter_run(interpreter, false));
+    wa_status status = wa_interpreter_run(interpreter, false);
+
+    wa_func* nextFunc = interpreter->controlStack[interpreter->controlStackTop].func;
+    u32 nextFuncIndex = nextFunc - interpreter->instance->functions;
+    u32 nextCodeIndex = interpreter->pc - nextFunc->code;
+    wa_instr* nextInstr = wa_bytecode_to_instr(interpreter->instance->module, nextFuncIndex, nextCodeIndex);
+
+    if(status == WA_TRAP_BREAKPOINT)
+    {
+        oc_arena_scope scratch = oc_scratch_begin();
+        oc_list breakpoints = wa_debugger_find_all_breakpoints_at_offset(scratch.arena, debugger, nextFunc, nextCodeIndex);
+
+        for(wa_instr* prev = oc_list_prev_entry(nextInstr, wa_instr, listElt);
+            prev != 0;
+            prev = oc_list_prev_entry(prev, wa_instr, listElt))
+        {
+            if(prev == debugger->nextInstr || (prev->op != WA_INSTR_nop && prev->op != WA_INSTR_local_get))
+            {
+                break;
+            }
+            oc_list_for(breakpoints, bp, wa_breakpoint, listElt)
+            {
+                if(bp->instr == prev)
+                {
+                    nextInstr = prev;
+                }
+            }
+        }
+        oc_scratch_end(scratch);
+    }
+    debugger->nextInstr = nextInstr;
+    return (status);
 }
 
 void wa_debugger_remove_breakpoint(wa_debugger* debugger, wa_breakpoint* breakpoint)
 {
-    breakpoint->func->code[breakpoint->index] = breakpoint->savedOpcode;
-
     oc_list_remove(&debugger->breakpoints, &breakpoint->listElt);
     oc_list_push_back(&debugger->breakpointFreeList, &breakpoint->listElt);
+
+    // if there are no other breakpoints at that location, restore cached opcode
+
+    oc_arena_scope scratch = oc_scratch_begin();
+    oc_list bplist = wa_debugger_find_all_breakpoints_at_offset(scratch.arena, debugger, breakpoint->func, breakpoint->index);
+
+    if(oc_list_empty(bplist))
+    {
+        breakpoint->func->code[breakpoint->index] = breakpoint->savedOpcode;
+    }
+    oc_scratch_end(scratch);
 }
 
-void wa_debugger_add_breakpoint(wa_debugger* debugger, wa_func* func, u32 index)
+void wa_debugger_add_breakpoint(wa_debugger* debugger, wa_func* func, u32 index, wa_instr* instr)
 {
     wa_breakpoint* breakpoint = oc_list_pop_front_entry(&debugger->breakpointFreeList, wa_breakpoint, listElt);
     if(!breakpoint)
@@ -308,7 +375,21 @@ void wa_debugger_add_breakpoint(wa_debugger* debugger, wa_func* func, u32 index)
     }
     breakpoint->func = func;
     breakpoint->index = index;
-    breakpoint->savedOpcode = func->code[index];
+    breakpoint->instr = instr;
+
+    oc_arena_scope scratch = oc_scratch_begin();
+    oc_list bplist = wa_debugger_find_all_breakpoints_at_offset(scratch.arena, debugger, breakpoint->func, breakpoint->index);
+
+    if(oc_list_empty(bplist))
+    {
+        breakpoint->savedOpcode = func->code[index];
+    }
+    else
+    {
+        wa_breakpoint* bp = oc_list_first_entry(bplist, wa_breakpoint, listElt);
+        breakpoint->savedOpcode = bp->savedOpcode;
+    }
+    oc_scratch_end(scratch);
 
     func->code[index].opcode = WA_INSTR_breakpoint;
 
@@ -380,6 +461,14 @@ void draw_breakpoint_cursor_proc(oc_ui_box* box, void* data)
 
 void build_wasm_ui(app_data* app, oc_ui_box* scrollPanel)
 {
+    //WARN: scroll is adjusted during layout, which can result in a slightly different
+    //      computation from lastScroll, so compare with a 1 pixel threshold
+    if(fabs(app->lastScroll - scrollPanel->scroll.y) > 1)
+    {
+        //NOTE: if user has adjusted scroll manually, deactivate auto-scroll
+        app->autoScroll = false;
+    }
+
     oc_arena_scope scratch = oc_scratch_begin();
 
     oc_ui_style_next(&(oc_ui_style){
@@ -462,6 +551,22 @@ void build_wasm_ui(app_data* app, oc_ui_box* scrollPanel)
                                              OC_UI_STYLE_BG_COLOR);
                         }
 
+                        //TODO: find if there's a breakpoint on that instruction
+                        u32 codeIndex = instr->codeIndex;
+                        if(instr->op == WA_INSTR_nop || instr->op == WA_INSTR_local_get)
+                        {
+                            //NOTE: this is a silent instruction, so find next non-silent instruction index
+                            wa_instr* nextInstr = oc_list_next_entry(instr, wa_instr, listElt);
+                            while(nextInstr && (nextInstr->op == WA_INSTR_nop || nextInstr->op == WA_INSTR_local_get))
+                            {
+                                nextInstr = oc_list_next_entry(nextInstr, wa_instr, listElt);
+                            }
+                            OC_ASSERT(nextInstr, "silent instruction chains should always end before one non silent instruction");
+                            codeIndex = nextInstr->codeIndex;
+                        }
+
+                        wa_breakpoint* breakpoint = wa_debugger_find_breakpoint(&app->debugger, func, codeIndex, instr);
+
                         oc_ui_container_str8(key, OC_UI_FLAG_DRAW_BACKGROUND)
                         {
                             // address
@@ -472,14 +577,6 @@ void build_wasm_ui(app_data* app, oc_ui_box* scrollPanel)
                                 //NOTE: we compute auto-scroll on label box instead of cursor box, because the cursor box is not permanent,
                                 //      so its rect might not be set every frame, resulting in brief jumps.
                                 //      Maybe the cursor box shouldnt be parented to the function UI namespace and be floating to begin with...
-
-                                //WARN: scroll is adjusted during layout, which can result in a slightly different
-                                //      computation from lastScroll, so compare with a 1 pixel threshold
-                                if(app->lastScroll - scrollPanel->scroll.y > 1)
-                                {
-                                    //NOTE: if user has adjusted scroll manually, deactivate auto-scroll
-                                    app->autoScroll = false;
-                                }
 
                                 if(app->autoScroll)
                                 {
@@ -515,7 +612,6 @@ void build_wasm_ui(app_data* app, oc_ui_box* scrollPanel)
                                                  .size.height = { OC_UI_SIZE_PARENT, 1 },
                                              },
                                              OC_UI_STYLE_SIZE);
-                            /*
                             if(breakpoint)
                             {
                                 oc_ui_box* box = oc_ui_box_make("bp", OC_UI_FLAG_DRAW_PROC | OC_UI_FLAG_CLICKABLE);
@@ -527,15 +623,13 @@ void build_wasm_ui(app_data* app, oc_ui_box* scrollPanel)
                                 }
                             }
                             else
-                            */
                             {
                                 oc_ui_box* box = oc_ui_box_make("spacer", OC_UI_FLAG_CLICKABLE);
-                                /*
+
                                 if(oc_ui_box_sig(box).clicked)
                                 {
-                                    wa_debugger_add_breakpoint(&app->debugger, func, codeIndex);
+                                    wa_debugger_add_breakpoint(&app->debugger, func, codeIndex, instr);
                                 }
-                                */
                             }
 
                             // opcode
@@ -617,6 +711,14 @@ void build_wasm_ui(app_data* app, oc_ui_box* scrollPanel)
 
 void build_bytecode_ui(app_data* app, oc_ui_box* scrollPanel)
 {
+    //WARN: scroll is adjusted during layout, which can result in a slightly different
+    //      computation from lastScroll, so compare with a 1 pixel threshold
+    if(fabsf(app->lastScroll - scrollPanel->scroll.y) > 1)
+    {
+        //NOTE: if user has adjusted scroll manually, deactivate auto-scroll
+        app->autoScroll = false;
+    }
+
     oc_arena_scope scratch = oc_scratch_begin();
 
     oc_ui_style_next(&(oc_ui_style){
@@ -675,7 +777,7 @@ void build_bytecode_ui(app_data* app, oc_ui_box* scrollPanel)
                         wa_breakpoint* breakpoint = 0;
                         if(c->opcode == WA_INSTR_breakpoint)
                         {
-                            breakpoint = wa_debugger_find_breakpoint(&app->debugger, func, codeIndex);
+                            breakpoint = wa_debugger_find_breakpoint(&app->debugger, func, codeIndex, 0);
                             OC_ASSERT(breakpoint);
                         }
                         if(breakpoint)
@@ -729,14 +831,6 @@ void build_bytecode_ui(app_data* app, oc_ui_box* scrollPanel)
                                 //      so its rect might not be set every frame, resulting in brief jumps.
                                 //      Maybe the cursor box shouldnt be parented to the function UI namespace and be floating to begin with...
 
-                                //WARN: scroll is adjusted during layout, which can result in a slightly different
-                                //      computation from lastScroll, so compare with a 1 pixel threshold
-                                if(app->lastScroll - scrollPanel->scroll.y > 1)
-                                {
-                                    //NOTE: if user has adjusted scroll manually, deactivate auto-scroll
-                                    app->autoScroll = false;
-                                }
-
                                 if(app->autoScroll)
                                 {
                                     f32 targetScroll = scrollPanel->scroll.y;
@@ -787,7 +881,7 @@ void build_bytecode_ui(app_data* app, oc_ui_box* scrollPanel)
                                 oc_ui_box* box = oc_ui_box_make("spacer", OC_UI_FLAG_CLICKABLE);
                                 if(oc_ui_box_sig(box).clicked)
                                 {
-                                    wa_debugger_add_breakpoint(&app->debugger, func, codeIndex);
+                                    wa_debugger_add_breakpoint(&app->debugger, func, codeIndex, 0);
                                 }
                             }
                             // opcode
@@ -1166,15 +1260,21 @@ int main(int argc, char** argv)
                             {
                                 wa_debugger_single_step(&app.debugger);
                             }
+                            app.autoScroll = true;
                         }
                         else if(event->key.keyCode == OC_KEY_C)
                         {
                             wa_debugger_continue(&app.debugger);
+                            app.autoScroll = true;
                         }
                         else if(event->key.keyCode == OC_KEY_TAB)
                         {
                             app.showWasm = !app.showWasm;
                             app.autoScroll = true;
+                        }
+                        else if(event->key.keyCode == OC_KEY_ENTER)
+                        {
+                            printf("!\n");
                         }
                     }
                 }

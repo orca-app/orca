@@ -595,6 +595,7 @@ typedef struct wa_instr
     wa_instr* end;
 
     wa_ast* ast;
+    u32 codeIndex;
 } wa_instr;
 
 typedef struct wa_import wa_import;
@@ -3537,6 +3538,7 @@ void wa_emit_opcode(wa_build_context* context, wa_instr_op op)
         wa_module* module = context->module;
         wa_bytecode_to_instr_push(module, context->currentFunction - module->functions, index, context->currentInstr);
     }
+    context->currentInstr->codeIndex = index;
 }
 
 void wa_emit_index(wa_build_context* context, u32 index)
@@ -4214,7 +4216,7 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
             if(context->controlStackLen == 1)
             {
                 //TODO: is this sufficient to elide all previous returns?
-                wa_instr* prev = oc_list_prev_entry(instructions, instr, wa_instr, listElt);
+                wa_instr* prev = oc_list_prev_entry(instr, wa_instr, listElt);
                 if(!prev || prev->op != WA_INSTR_return)
                 {
                     wa_compile_return(context, type, instr);
@@ -4882,8 +4884,8 @@ void wa_ast_print(wa_ast* ast, oc_str8 contents)
 
     for(;
         eltA != 0 && eltB != 0;
-        eltA = oc_list_next_entry(listing.list, eltA, oc_str8_elt, listElt),
-        eltB = oc_list_next_entry(raw.list, eltB, oc_str8_elt, listElt))
+        eltA = oc_list_next_entry(eltA, oc_str8_elt, listElt),
+        eltB = oc_list_next_entry(eltB, oc_str8_elt, listElt))
     {
         oc_str8_list line = { 0 };
         oc_str8_list_push(scratch.arena, &line, eltA->string);
