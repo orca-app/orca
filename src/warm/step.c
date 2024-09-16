@@ -3,6 +3,7 @@
 
 #include "orca.h"
 #include "warm.c"
+#include "dwarf.c"
 
 //-------------------------------------------------------------------------
 // main
@@ -982,6 +983,8 @@ void source_draw_proc(oc_ui_box* box, void* data)
                 }
             }
         }
+
+        line++;
         oc_str8 str = oc_str8_list_join(scratch.arena, list);
 
         oc_text_metrics textMetrics = oc_font_text_metrics(app->font, 16, str);
@@ -998,7 +1001,7 @@ void source_draw_proc(oc_ui_box* box, void* data)
     oc_fill();
 
     //////////////////////////////////////////////////////////////
-    // This is a gross hack
+    // This is a gross hack, don't do that
     //////////////////////////////////////////////////////////////
     box->rect.w = maxWidth;
     box->rect.h = y;
@@ -1223,6 +1226,16 @@ void load_module(app_data* app, oc_str8 modulePath)
     {
         wa_ast_print(app->module->root, app->contents);
         wa_print_code(app->module);
+
+        //NOTE: dump dwarf abbrev table if it exists
+        oc_list_for(app->module->toc.customSections, section, wa_section, listElt)
+        {
+            if(!oc_str8_cmp(section->name, OC_STR8(".debug_abbrev")))
+            {
+                oc_str8 abbrev = oc_str8_slice(app->contents, section->offset, section->offset + section->len);
+                dw_dump_abbrev_table(abbrev);
+            }
+        }
 
         app->instance = wa_instance_create(app->moduleArena, app->module, &(wa_instance_options){ 0 });
         if(wa_instance_status(app->instance) != WA_OK)
