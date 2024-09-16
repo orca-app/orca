@@ -45,15 +45,19 @@ oc_font font_create(const char* resourcePath)
     return (font);
 }
 
+typedef struct wa_bytecode_loc
+{
+    wa_instance* instance;
+    wa_func* func;
+    u32 index;
+} wa_bytecode_loc;
+
 typedef struct wa_breakpoint
 {
     oc_list_elt listElt;
-
-    wa_func* func;
-    u32 index;
+    wa_bytecode_loc loc;
     wa_code savedOpcode;
 
-    wa_instr* instr;
 } wa_breakpoint;
 
 typedef struct wa_debugger
@@ -64,11 +68,11 @@ typedef struct wa_debugger
     wa_value cachedRegs[WA_MAX_SLOT_COUNT];
 
     oc_arena arena;
+
     oc_list breakpoints;
     oc_list breakpointFreeList;
 
-    wa_instr* nextInstr;
-
+    wa_bytecode_loc nextLoc;
 } wa_debugger;
 
 typedef struct app_data
@@ -169,37 +173,56 @@ void wa_debugger_init(wa_debugger* debugger, wa_interpreter* interpreter)
     memcpy(&debugger->cachedRegs, interpreter->locals, regCount * sizeof(wa_value));
 
     u32 funcIndex = debugger->lastFunc - interpreter->instance->functions;
-    debugger->nextInstr = wa_bytecode_to_instr(interpreter->instance->module, funcIndex, 0);
+    debugger->nextLoc = (wa_bytecode_loc){
+        .instance = interpreter->instance,
+        .func = debugger->lastFunc,
+        .index = 0,
+    };
 }
 
-wa_breakpoint* wa_debugger_find_breakpoint(wa_debugger* debugger, wa_func* func, u32 index, wa_instr* instr)
+wa_breakpoint* wa_debugger_find_breakpoint(wa_debugger* debugger, wa_bytecode_loc* loc)
 {
-    wa_breakpoint* breakpoint = 0;
+    wa_breakpoint* result = 0;
+
     oc_list_for(debugger->breakpoints, bp, wa_breakpoint, listElt)
     {
-        if(bp->func == func && bp->index == index && (!instr || bp->instr == instr))
+        if(bp->loc.instance == loc->instance
+           && bp->loc.func == loc->func
+           && bp->loc.index == loc->index)
         {
-            breakpoint = bp;
+            result = bp;
             break;
         }
     }
-    return breakpoint;
+
+    return result;
 }
 
-oc_list wa_debugger_find_all_breakpoints_at_offset(oc_arena* arena, wa_debugger* debugger, wa_func* func, u32 index)
+wa_breakpoint* wa_debugger_add_breakpoint(wa_debugger* debugger, wa_bytecode_loc* loc)
 {
-    oc_list result = { 0 };
-
-    oc_list_for(debugger->breakpoints, bp, wa_breakpoint, listElt)
+    wa_breakpoint* bp = wa_debugger_find_breakpoint(debugger, loc);
+    if(bp == 0)
     {
-        if(bp->func == func && bp->index == index)
+        bp = oc_list_pop_front_entry(&debugger->breakpointFreeList, wa_breakpoint, listElt);
+        if(!bp)
         {
-            wa_breakpoint* copy = oc_arena_push_type(arena, wa_breakpoint);
-            *copy = *bp;
-            oc_list_push_back(&result, &copy->listElt);
+            bp = oc_arena_push_type(&debugger->arena, wa_breakpoint);
         }
+        bp->loc = *loc;
+        oc_list_push_back(&debugger->breakpoints, &bp->listElt);
+
+        bp->savedOpcode = bp->loc.func->code[bp->loc.index];
+        bp->loc.func->code[bp->loc.index].opcode = WA_INSTR_breakpoint;
     }
-    return (result);
+    return bp;
+}
+
+void wa_debugger_remove_breakpoint(wa_debugger* debugger, wa_breakpoint* bp)
+{
+    bp->loc.func->code[bp->loc.index] = bp->savedOpcode;
+
+    oc_list_remove(&debugger->breakpoints, &bp->listElt);
+    oc_list_push_back(&debugger->breakpointFreeList, &bp->listElt);
 }
 
 wa_status wa_debugger_single_step(wa_debugger* debugger)
@@ -211,11 +234,11 @@ wa_status wa_debugger_single_step(wa_debugger* debugger)
     debugger->lastFunc = func;
     memcpy(debugger->cachedRegs, interpreter->locals, func->maxRegCount * sizeof(wa_value));
 
-    //NOTE: if we start on a breakpoint, deactivate it.
-    wa_breakpoint* breakpoint = wa_debugger_find_breakpoint(debugger, func, codeIndex, debugger->nextInstr);
-    if(breakpoint)
+    //NOTE: if we start on a breakpoint, temporarily deactivate it.
+    wa_breakpoint* bp = wa_debugger_find_breakpoint(debugger, &debugger->nextLoc);
+    if(bp)
     {
-        breakpoint->func->code[breakpoint->index] = breakpoint->savedOpcode;
+        bp->loc.func->code[bp->loc.index] = bp->savedOpcode;
     }
 
     // single step
@@ -224,18 +247,27 @@ wa_status wa_debugger_single_step(wa_debugger* debugger)
     //TODO check if program terminated?
 
     //NOTE: re-enable breakpoint
-    if(breakpoint)
+    if(bp)
     {
-        breakpoint->func->code[breakpoint->index].opcode = WA_INSTR_breakpoint;
+        bp->loc.func->code[bp->loc.index].opcode = WA_INSTR_breakpoint;
     }
 
-    //NOTE: store next instruction
+    //NOTE: store next location
     wa_func* nextFunc = interpreter->controlStack[interpreter->controlStackTop].func;
-    u32 nextFuncIndex = nextFunc - interpreter->instance->functions;
     u32 nextCodeIndex = interpreter->pc - nextFunc->code;
-    debugger->nextInstr = wa_bytecode_to_instr(interpreter->instance->module, nextFuncIndex, nextCodeIndex);
+
+    debugger->nextLoc = (wa_bytecode_loc){
+        .instance = interpreter->controlStack[interpreter->controlStackTop].instance,
+        .func = nextFunc,
+        .index = nextCodeIndex,
+    };
 
     return status;
+}
+
+bool wa_instr_is_silent(wa_instr* instr)
+{
+    return (instr->op == WA_INSTR_nop || instr->op == WA_INSTR_local_get);
 }
 
 wa_status wa_debugger_single_step_wasm(wa_debugger* debugger)
@@ -244,58 +276,30 @@ wa_status wa_debugger_single_step_wasm(wa_debugger* debugger)
         Some wasm instr generate multiple bytecode instr, so we need to step through the bytecode
         until we hit a _new_ instruction.
 
-        However, some wasm instructions are "silent", ie they don't generate bytecode at all, and
-        simply bytecode-stepping skips those. This is the case of `nop` and `local.get`.
+        Some wasm instructions are "silent", ie they don't generate bytecode at all, and bytecode-stepping
+        skips those. This is the case of `nop` and `local.get`.
 
-        When bytecode-stepping skips those instructions, it is always in a chain with no jumps or calls,
-        that ends on a real (bytecode-emitting) instr. So when we are finished stepping, we can just walk
-        back until encounter a real instruction, and set the debugger current wasm instruction to the last
-        silent one.
-
-        Then when we start wasm-stepping on silent instruction, we just update to the next instruction and
-        return.
+        We could "fake" stepping through these instructions, but this could be confusing (e.g. register contents
+        wouldn't change), and complicates stepping code a fair bit. So for now, we only allow stepping or setting
+        breakpoints at real bytecode locations.
     */
-
-    wa_instr* nextInstr = debugger->nextInstr;
-
-    if(!nextInstr)
-    {
-        return WA_TRAP_TERMINATED;
-    }
-
-    if(nextInstr->op == WA_INSTR_nop || nextInstr->op == WA_INSTR_local_get)
-    {
-        debugger->nextInstr = oc_list_next_entry(debugger->nextInstr, wa_instr, listElt);
-        return WA_TRAP_STEP;
-    }
+    wa_bytecode_loc startLoc = debugger->nextLoc;
+    wa_instr* startInstr = wa_bytecode_to_instr(startLoc.instance->module,
+                                                startLoc.func - startLoc.instance->functions,
+                                                startLoc.index);
 
     wa_status status = WA_OK;
     while((status = wa_debugger_single_step(debugger)) == WA_TRAP_STEP)
     {
-        if(debugger->nextInstr != nextInstr)
+        wa_bytecode_loc nextLoc = debugger->nextLoc;
+        wa_instr* instr = wa_bytecode_to_instr(nextLoc.instance->module,
+                                               nextLoc.func - nextLoc.instance->functions,
+                                               nextLoc.index);
+        if(instr != startInstr)
         {
             break;
         }
     }
-
-    if(status == WA_TRAP_TERMINATED || status == WA_OK)
-    {
-        return status;
-    }
-
-    wa_instr* instr = debugger->nextInstr;
-    wa_instr* prev = 0;
-    while((prev = oc_list_prev_entry(instr, wa_instr, listElt)) != 0)
-    {
-        if(prev->op != WA_INSTR_nop
-           && prev->op != WA_INSTR_local_get)
-        {
-            break;
-        }
-        instr = prev;
-    }
-    debugger->nextInstr = instr;
-
     return status;
 }
 
@@ -309,8 +313,8 @@ wa_status wa_debugger_continue(wa_debugger* debugger)
     memcpy(debugger->cachedRegs, interpreter->locals, func->maxRegCount * sizeof(wa_value));
 
     //NOTE: if we start on a "real" breakpoint, step over it (step takes care of disabling/reenabling breakpoints)
-    wa_breakpoint* breakpoint = wa_debugger_find_breakpoint(debugger, func, codeIndex, debugger->nextInstr);
-    if(breakpoint && debugger->nextInstr->op != WA_INSTR_nop && debugger->nextInstr->op != WA_INSTR_local_get)
+    wa_breakpoint* breakpoint = wa_debugger_find_breakpoint(debugger, &debugger->nextLoc);
+    if(breakpoint)
     {
         wa_debugger_single_step(debugger);
     }
@@ -318,82 +322,14 @@ wa_status wa_debugger_continue(wa_debugger* debugger)
     wa_status status = wa_interpreter_run(interpreter, false);
 
     wa_func* nextFunc = interpreter->controlStack[interpreter->controlStackTop].func;
-    u32 nextFuncIndex = nextFunc - interpreter->instance->functions;
     u32 nextCodeIndex = interpreter->pc - nextFunc->code;
-    wa_instr* nextInstr = wa_bytecode_to_instr(interpreter->instance->module, nextFuncIndex, nextCodeIndex);
 
-    if(status == WA_TRAP_BREAKPOINT)
-    {
-        oc_arena_scope scratch = oc_scratch_begin();
-        oc_list breakpoints = wa_debugger_find_all_breakpoints_at_offset(scratch.arena, debugger, nextFunc, nextCodeIndex);
-
-        for(wa_instr* prev = oc_list_prev_entry(nextInstr, wa_instr, listElt);
-            prev != 0;
-            prev = oc_list_prev_entry(prev, wa_instr, listElt))
-        {
-            if(prev == debugger->nextInstr || (prev->op != WA_INSTR_nop && prev->op != WA_INSTR_local_get))
-            {
-                break;
-            }
-            oc_list_for(breakpoints, bp, wa_breakpoint, listElt)
-            {
-                if(bp->instr == prev)
-                {
-                    nextInstr = prev;
-                }
-            }
-        }
-        oc_scratch_end(scratch);
-    }
-    debugger->nextInstr = nextInstr;
+    debugger->nextLoc = (wa_bytecode_loc){
+        .instance = interpreter->controlStack[interpreter->controlStackTop].instance,
+        .func = nextFunc,
+        .index = nextCodeIndex,
+    };
     return (status);
-}
-
-void wa_debugger_remove_breakpoint(wa_debugger* debugger, wa_breakpoint* breakpoint)
-{
-    oc_list_remove(&debugger->breakpoints, &breakpoint->listElt);
-    oc_list_push_back(&debugger->breakpointFreeList, &breakpoint->listElt);
-
-    // if there are no other breakpoints at that location, restore cached opcode
-
-    oc_arena_scope scratch = oc_scratch_begin();
-    oc_list bplist = wa_debugger_find_all_breakpoints_at_offset(scratch.arena, debugger, breakpoint->func, breakpoint->index);
-
-    if(oc_list_empty(bplist))
-    {
-        breakpoint->func->code[breakpoint->index] = breakpoint->savedOpcode;
-    }
-    oc_scratch_end(scratch);
-}
-
-void wa_debugger_add_breakpoint(wa_debugger* debugger, wa_func* func, u32 index, wa_instr* instr)
-{
-    wa_breakpoint* breakpoint = oc_list_pop_front_entry(&debugger->breakpointFreeList, wa_breakpoint, listElt);
-    if(!breakpoint)
-    {
-        breakpoint = oc_arena_push_type(&debugger->arena, wa_breakpoint);
-    }
-    breakpoint->func = func;
-    breakpoint->index = index;
-    breakpoint->instr = instr;
-
-    oc_arena_scope scratch = oc_scratch_begin();
-    oc_list bplist = wa_debugger_find_all_breakpoints_at_offset(scratch.arena, debugger, breakpoint->func, breakpoint->index);
-
-    if(oc_list_empty(bplist))
-    {
-        breakpoint->savedOpcode = func->code[index];
-    }
-    else
-    {
-        wa_breakpoint* bp = oc_list_first_entry(bplist, wa_breakpoint, listElt);
-        breakpoint->savedOpcode = bp->savedOpcode;
-    }
-    oc_scratch_end(scratch);
-
-    func->code[index].opcode = WA_INSTR_breakpoint;
-
-    oc_list_push_back(&debugger->breakpoints, &breakpoint->listElt);
 }
 
 //------------------------------------------------------------------------------------
@@ -537,7 +473,11 @@ void build_wasm_ui(app_data* app, oc_ui_box* scrollPanel)
                         bool makeExecCursor = false;
                         if(app->instance)
                         {
-                            if(instr == app->debugger.nextInstr)
+                            wa_bytecode_loc nextLoc = app->debugger.nextLoc;
+                            wa_instr* nextInstr = wa_bytecode_to_instr(nextLoc.instance->module,
+                                                                       nextLoc.func - nextLoc.instance->functions,
+                                                                       nextLoc.index);
+                            if(instr == nextInstr)
                             {
                                 makeExecCursor = true;
                             }
@@ -551,21 +491,21 @@ void build_wasm_ui(app_data* app, oc_ui_box* scrollPanel)
                                              OC_UI_STYLE_BG_COLOR);
                         }
 
-                        //TODO: find if there's a breakpoint on that instruction
-                        u32 codeIndex = instr->codeIndex;
-                        if(instr->op == WA_INSTR_nop || instr->op == WA_INSTR_local_get)
-                        {
-                            //NOTE: this is a silent instruction, so find next non-silent instruction index
-                            wa_instr* nextInstr = oc_list_next_entry(instr, wa_instr, listElt);
-                            while(nextInstr && (nextInstr->op == WA_INSTR_nop || nextInstr->op == WA_INSTR_local_get))
-                            {
-                                nextInstr = oc_list_next_entry(nextInstr, wa_instr, listElt);
-                            }
-                            OC_ASSERT(nextInstr, "silent instruction chains should always end before one non silent instruction");
-                            codeIndex = nextInstr->codeIndex;
-                        }
+                        ///////////////////////////////////////////////////////////////////////////////////
+                        //TODO: display breakpoints at the same instr but different bytecode offset, if any
+                        ///////////////////////////////////////////////////////////////////////////////////
 
-                        wa_breakpoint* breakpoint = wa_debugger_find_breakpoint(&app->debugger, func, codeIndex, instr);
+                        wa_breakpoint* breakpoint = 0;
+
+                        if(!wa_instr_is_silent(instr))
+                        {
+                            breakpoint = wa_debugger_find_breakpoint(&app->debugger,
+                                                                     &(wa_bytecode_loc){
+                                                                         .instance = app->debugger.interpreter->instance,
+                                                                         .func = func,
+                                                                         .index = instr->codeIndex,
+                                                                     });
+                        }
 
                         oc_ui_container_str8(key, OC_UI_FLAG_DRAW_BACKGROUND)
                         {
@@ -628,7 +568,23 @@ void build_wasm_ui(app_data* app, oc_ui_box* scrollPanel)
 
                                 if(oc_ui_box_sig(box).clicked)
                                 {
-                                    wa_debugger_add_breakpoint(&app->debugger, func, codeIndex, instr);
+                                    //TODO: find next instruction that is not silent
+                                    wa_instr* nextInstr = instr;
+                                    for(;
+                                        nextInstr != 0;
+                                        nextInstr = oc_list_next_entry(nextInstr, wa_instr, listElt))
+                                    {
+                                        if(!wa_instr_is_silent(nextInstr))
+                                        {
+                                            break;
+                                        }
+                                    }
+                                    wa_debugger_add_breakpoint(&app->debugger,
+                                                               &(wa_bytecode_loc){
+                                                                   .instance = app->debugger.interpreter->instance,
+                                                                   .func = func,
+                                                                   .index = nextInstr->codeIndex,
+                                                               });
                                 }
                             }
 
@@ -774,12 +730,12 @@ void build_bytecode_ui(app_data* app, oc_ui_box* scrollPanel)
                         wa_code* c = &func->code[codeIndex];
                         wa_instr_op opcode = c->opcode;
 
-                        wa_breakpoint* breakpoint = 0;
-                        if(c->opcode == WA_INSTR_breakpoint)
-                        {
-                            breakpoint = wa_debugger_find_breakpoint(&app->debugger, func, codeIndex, 0);
-                            OC_ASSERT(breakpoint);
-                        }
+                        wa_breakpoint* breakpoint = wa_debugger_find_breakpoint(&app->debugger,
+                                                                                &(wa_bytecode_loc){
+                                                                                    .instance = app->debugger.interpreter->instance,
+                                                                                    .func = func,
+                                                                                    .index = codeIndex,
+                                                                                });
                         if(breakpoint)
                         {
                             opcode = breakpoint->savedOpcode.opcode;
@@ -881,7 +837,12 @@ void build_bytecode_ui(app_data* app, oc_ui_box* scrollPanel)
                                 oc_ui_box* box = oc_ui_box_make("spacer", OC_UI_FLAG_CLICKABLE);
                                 if(oc_ui_box_sig(box).clicked)
                                 {
-                                    wa_debugger_add_breakpoint(&app->debugger, func, codeIndex, 0);
+                                    wa_debugger_add_breakpoint(&app->debugger,
+                                                               &(wa_bytecode_loc){
+                                                                   .instance = app->debugger.interpreter->instance,
+                                                                   .func = func,
+                                                                   .index = codeIndex,
+                                                               });
                                 }
                             }
                             // opcode
@@ -965,6 +926,7 @@ void build_bytecode_ui(app_data* app, oc_ui_box* scrollPanel)
             }
         }
     }
+
     app->lastScroll = scrollPanel->scroll.y;
     oc_scratch_end(scratch);
 }

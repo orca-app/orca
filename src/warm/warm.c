@@ -4231,6 +4231,8 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
                 wa_block_end(context, block, instr);
                 wa_patch_jump_targets(context, block);
             }
+
+            instr->codeIndex = context->codeLen;
         }
         else if(instr->op == WA_INSTR_call || instr->op == WA_INSTR_call_indirect)
         {
@@ -4493,6 +4495,7 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
             else if(instr->op == WA_INSTR_drop
                     || instr->op == WA_INSTR_nop)
             {
+                instr->codeIndex = context->codeLen;
                 // do nothing
             }
             else if(instr->op == WA_INSTR_select
@@ -4526,6 +4529,8 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
                         .originInstr = instr,
                         .originOpd = context->codeLen,
                     });
+
+                instr->codeIndex = context->codeLen;
             }
             else if(instr->op == WA_INSTR_local_set || instr->op == WA_INSTR_local_tee)
             {
