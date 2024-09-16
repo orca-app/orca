@@ -75,6 +75,13 @@ typedef struct wa_debugger
     wa_bytecode_loc nextLoc;
 } wa_debugger;
 
+typedef enum view_kind
+{
+    VIEW_BYTECODE,
+    VIEW_WASM,
+    VIEW_SOURCE,
+} view_kind;
+
 typedef struct app_data
 {
     oc_window window;
@@ -98,7 +105,9 @@ typedef struct app_data
 
     wa_debugger debugger;
 
-    bool showWasm;
+    view_kind viewKind;
+
+    oc_str8 source;
 
 } app_data;
 
@@ -931,6 +940,98 @@ void build_bytecode_ui(app_data* app, oc_ui_box* scrollPanel)
     oc_scratch_end(scratch);
 }
 
+void source_draw_proc(oc_ui_box* box, void* data)
+{
+    app_data* app = (app_data*)data;
+
+    oc_str8 source = app->source;
+
+    u32 start = 0;
+    u32 end = 0;
+
+    f32 x = 20;
+    f32 y = 20;
+    f32 maxWidth = 0;
+
+    oc_font_metrics metrics = oc_font_get_metrics(app->font, 16);
+    f32 lineHeight = metrics.ascent + metrics.descent + metrics.lineGap;
+
+    u32 line = 0;
+    while(start < source.len)
+    {
+        oc_arena_scope scratch = oc_scratch_begin();
+        oc_str8_list list = { 0 };
+        oc_utf8_dec dec = { 0 };
+
+        while(end < source.len)
+        {
+            dec = oc_utf8_decode_at(source, end);
+            end += dec.size;
+
+            if(dec.codepoint == '\t' || dec.codepoint == '\n' || dec.codepoint == '\0')
+            {
+                oc_str8_list_push(scratch.arena, &list, oc_str8_slice(source, start, end));
+                start = end;
+                if(dec.codepoint == '\t')
+                {
+                    oc_str8_list_push(scratch.arena, &list, OC_STR8("    "));
+                }
+                else
+                {
+                    break;
+                }
+            }
+        }
+        oc_str8 str = oc_str8_list_join(scratch.arena, list);
+
+        oc_text_metrics textMetrics = oc_font_text_metrics(app->font, 16, str);
+        maxWidth = oc_max(maxWidth, textMetrics.advance.x);
+
+        oc_move_to(x, y);
+        oc_text_outlines(str);
+        x = 20;
+        y += lineHeight;
+        oc_scratch_end(scratch);
+    }
+    oc_set_font(app->font);
+    oc_set_color_rgba(0, 0, 0, 1);
+    oc_fill();
+
+    //////////////////////////////////////////////////////////////
+    // This is a gross hack
+    //////////////////////////////////////////////////////////////
+    box->rect.w = maxWidth;
+    box->rect.h = y;
+}
+
+void build_source_ui(app_data* app, oc_ui_box* scrollPanel)
+{
+    oc_ui_box* box = oc_ui_box_lookup("source");
+    if(box)
+    {
+        oc_ui_style_next(&(oc_ui_style){
+                             .size = {
+                                 .width = { OC_UI_SIZE_PIXELS, box->rect.w },
+                                 .height = { OC_UI_SIZE_PIXELS, box->rect.h },
+                             },
+                         },
+                         OC_UI_STYLE_SIZE);
+    }
+    else
+    {
+        oc_ui_style_next(&(oc_ui_style){
+                             .size = {
+                                 .width = { OC_UI_SIZE_PARENT, 1 },
+                                 .height = { OC_UI_SIZE_PARENT, 1 },
+                             },
+                         },
+                         OC_UI_STYLE_SIZE);
+    }
+
+    box = oc_ui_box_make("source", OC_UI_FLAG_DRAW_PROC);
+    oc_ui_box_set_draw_proc(box, source_draw_proc, app);
+}
+
 void build_register_ui(app_data* app)
 {
     oc_arena_scope scratch = oc_scratch_begin();
@@ -1020,13 +1121,19 @@ void update_ui(app_data* app)
                         oc_ui_box* scrollPanel = oc_ui_box_top()->parent;
                         OC_ASSERT(scrollPanel);
 
-                        if(app->showWasm)
+                        switch(app->viewKind)
                         {
-                            build_wasm_ui(app, scrollPanel);
-                        }
-                        else
-                        {
-                            build_bytecode_ui(app, scrollPanel);
+                            case VIEW_BYTECODE:
+                                build_bytecode_ui(app, scrollPanel);
+                                break;
+
+                            case VIEW_WASM:
+                                build_wasm_ui(app, scrollPanel);
+                                break;
+
+                            case VIEW_SOURCE:
+                                build_source_ui(app, scrollPanel);
+                                break;
                         }
                     }
                 }
@@ -1176,6 +1283,15 @@ int main(int argc, char** argv)
         load_module(&app, OC_STR8(argv[1]));
     }
 
+    ///////////////////////////////////////////////////////////////////////
+    //TODO: this is hardcoded for a quick draft
+    ///////////////////////////////////////////////////////////////////////
+
+    oc_file sourceFile = oc_file_open(OC_STR8("test/wasm_test.c"), OC_FILE_ACCESS_READ, OC_FILE_OPEN_NONE);
+    app.source.len = oc_file_size(sourceFile);
+    app.source.ptr = oc_arena_push(&arena, app.source.len);
+    oc_file_read(sourceFile, app.source.len, app.source.ptr);
+
     oc_window_bring_to_front(app.window);
     oc_window_focus(app.window);
     oc_window_center(app.window);
@@ -1184,7 +1300,6 @@ int main(int argc, char** argv)
     {
 
         oc_pump_events(0);
-        //TODO: what to do with mem scratch here?
 
         oc_arena_scope scratch = oc_scratch_begin();
         oc_event* event = 0;
@@ -1214,7 +1329,7 @@ int main(int argc, char** argv)
                     {
                         if(event->key.keyCode == OC_KEY_SPACE)
                         {
-                            if(app.showWasm)
+                            if(app.viewKind == VIEW_WASM)
                             {
                                 wa_debugger_single_step_wasm(&app.debugger);
                             }
@@ -1231,7 +1346,7 @@ int main(int argc, char** argv)
                         }
                         else if(event->key.keyCode == OC_KEY_TAB)
                         {
-                            app.showWasm = !app.showWasm;
+                            app.viewKind = (app.viewKind + 1) % 3;
                             app.autoScroll = true;
                         }
                         else if(event->key.keyCode == OC_KEY_ENTER)

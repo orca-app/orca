@@ -1,10 +1,12 @@
 
 int foo(int x)
 {
-    return x * 6;
+    int y = x * 6;
+    return y;
 }
 
 int start()
 {
-    return foo(3 + 2);
+    int x = 3 + 2;
+    return foo(x);
 }
