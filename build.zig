@@ -19,9 +19,9 @@ const CSources = struct {
     }
 
     fn collect(sources: *CSources, path: []const u8) !void {
-        const cwd = sources.b.build_root;
-        const dir = try cwd.handle.openDir(path, .{ .iterate = true });
-        var iter = dir.iterate();
+        const cwd: std.fs.Dir = sources.b.build_root.handle;
+        const dir: std.fs.Dir = try cwd.openDir(path, .{ .iterate = true });
+        var iter: std.fs.Dir.Iterator = dir.iterate();
         while (try iter.next()) |entry| {
             if (entry.kind == .file and std.mem.endsWith(u8, entry.name, ".c")) {
                 const filepath = try std.fs.path.join(sources.b.allocator, &.{ path, entry.name });
@@ -40,13 +40,13 @@ const CSources = struct {
 
 var stringpool_data: std.ArrayList([]const u8) = undefined;
 fn printf(comptime fmt: []const u8, args: anytype) ![]const u8 {
-    const str = try std.fmt.allocPrint(stringpool_data.allocator, fmt, args);
+    const str: []const u8 = try std.fmt.allocPrint(stringpool_data.allocator, fmt, args);
     try stringpool_data.append(str);
     return str;
 }
 
 fn basenameNoExtension(path: []const u8) []const u8 {
-    const filename = std.fs.path.basename(path);
+    const filename: []const u8 = std.fs.path.basename(path);
     if (std.mem.lastIndexOf(u8, filename, ".")) |index| {
         return filename[0..index];
     }
@@ -57,9 +57,9 @@ fn generateFileForStrings(b: *Build, comptime path: []const u8, prefix: []const 
     var concat = std.ArrayList(u8).init(b.allocator);
     defer concat.deinit();
 
-    const filename = std.fs.path.basename(path);
-    const filename_no_ext = basenameNoExtension(filename);
-    const uppercase_filename = try b.allocator.dupe(u8, filename_no_ext);
+    const filename: []const u8 = std.fs.path.basename(path);
+    const filename_no_ext: []const u8 = basenameNoExtension(filename);
+    const uppercase_filename: []u8 = try b.allocator.dupe(u8, filename_no_ext);
     for (uppercase_filename) |*c| {
         c.* = std.ascii.toUpper(c.*);
     }
@@ -93,6 +93,73 @@ fn generateFileForStrings(b: *Build, comptime path: []const u8, prefix: []const 
 
     return b.addWriteFile(path, concat.items);
 }
+
+const Sort = struct {
+    fn lessThanString(_: void, lhs: []const u8, rhs: []const u8) bool {
+        return std.mem.lessThan(u8, lhs, rhs);
+    }
+};
+
+const Checksum = struct {
+    const Sha256 = std.crypto.hash.sha2.Sha256;
+    const MAX_FILE_SIZE = 1024 * 1024 * 128;
+
+    fn file(b: *Build, path: []const u8) ![]const u8 {
+        const cwd: std.fs.Dir = b.build_root.handle;
+        const file_contents: []const u8 = try cwd.readFileAlloc(b.allocator, path, MAX_FILE_SIZE);
+        defer b.allocator.free(file_contents);
+
+        var h = Sha256.init(.{});
+        const out: []u8 = b.allocator.alloc(u8, 32);
+        h.hash(file_contents, out, .{});
+
+        try stringpool_data.append(out);
+        return out;
+    }
+
+    fn dir(b: *Build, path: []const u8, exclude_paths: []const []const u8) ![]const u8 {
+        const cwd: std.fs.Dir = b.build_root.handle;
+        const root_dir: std.fs.Dir = cwd.openDir(path, .{ .iterate = true, .no_follow = true });
+        defer root_dir.close();
+
+        var dir_iter: std.fs.Dir.Walker = root_dir.walk(b.allocator);
+        defer dir_iter.deinit();
+
+        var files_to_hash = std.ArrayList([]const u8).init(b.allocator);
+        defer {
+            for (files_to_hash) |file_path| {
+                b.allocator.free(file_path);
+            }
+            files_to_hash.deinit();
+        }
+
+        while (try dir_iter.next()) |entry| {
+            if (entry.kind == .file) {
+                for (exclude_paths) |exclusion| {
+                    if (!std.mem.startsWith(entry.path, exclusion) and !std.mem.eq(u8, entry.basename, exclusion)) {
+                        try files_to_hash.append(b.allocator.dupe(entry.path));
+                    }
+                }
+            }
+        }
+
+        std.mem.sort([]const u8, files_to_hash, {}, Sort.lessThanString);
+
+        var hash = Sha256.init(.{});
+        for (files_to_hash) |file_path| {
+            const file_contents: []const u8 = try root_dir.readFileAlloc(b.allocator, file_path, MAX_FILE_SIZE);
+            defer b.allocator.free(file_contents);
+
+            hash.update(file_contents);
+        }
+
+        const out: []u8 = b.allocator.alloc(u8, 32);
+        hash.final(out);
+
+        try stringpool_data.append(out);
+        return out;
+    }
+};
 
 pub fn build(b: *Build) !void {
     stringpool_data = std.ArrayList([]const u8).init(b.allocator);
@@ -128,9 +195,14 @@ pub fn build(b: *Build) !void {
 
     // b.install_prefix = "build/zig-out";
 
-    const python_build_runtime = b.addSystemCommand(&[_][]const u8{ "python", "orcadev", "build-runtime" });
-    const python_build_libc = b.addSystemCommand(&[_][]const u8{ "python", "orcadev", "build-orca-libc" });
-    const python_build_sdk = b.addSystemCommand(&[_][]const u8{ "python", "orcadev", "build-wasm-sdk" });
+    // const python_build_libc = b.addSystemCommand(&[_][]const u8{ "python", "orcadev", "build-orca-libc" });
+    // const python_build_sdk = b.addSystemCommand(&[_][]const u8{ "python", "orcadev", "build-wasm-sdk" });
+
+    /////////////////////////////////////////////////////////
+    // TODO angle
+
+    /////////////////////////////////////////////////////////
+    // TODO dawn
 
     /////////////////////////////////////////////////////////
     // Orca runtime and dependencies
@@ -171,17 +243,8 @@ pub fn build(b: *Build) !void {
         "src/graphics/wgsl_shaders/final_blit.wgsl",
     });
 
-    var orca_platform_sources = CSources.init(b);
-    defer orca_platform_sources.deinit();
-
     var orca_platform_compile_flags = std.ArrayList([]const u8).init(b.allocator);
     defer orca_platform_compile_flags.deinit();
-    // try orca_tool_compile_flags.append("-DFLAG_IMPLEMENTATION");
-    // try orca_tool_compile_flags.append("-DOC_NO_APP_LAYER");
-    // try orca_tool_compile_flags.append("-DOC_BUILD_DLL");
-    // try orca_tool_compile_flags.append("-DCURL_STATICLIB");
-    // try orca_tool_compile_flags.append(try printf("-DORCA_TOOL_VERSION={s}", .{version}));
-
     try orca_platform_compile_flags.append("-DOC_BUILD_DLL");
     if (optimize == .Debug) {
         try orca_platform_compile_flags.append("-DOC_DEBUG");
@@ -224,8 +287,8 @@ pub fn build(b: *Build) !void {
     orca_platform_lib.linkSystemLibrary("shell32");
     orca_platform_lib.linkSystemLibrary("shlwapi");
 
-    orca_platform_lib.linkSystemLibrary("libEGL.dll"); // todo DELAYLOAD
-    orca_platform_lib.linkSystemLibrary("libGLESv2.dll"); // todo DELAYLOAD
+    orca_platform_lib.linkSystemLibrary("libEGL.dll"); // todo DELAYLOAD?
+    orca_platform_lib.linkSystemLibrary("libGLESv2.dll"); // todo DELAYLOAD?
     orca_platform_lib.linkSystemLibrary("webgpu");
 
     orca_platform_lib.step.dependOn(&wgpu_shaders_file.step);
@@ -266,6 +329,10 @@ pub fn build(b: *Build) !void {
     orca_runtime_exe.linkLibC();
 
     b.installArtifact(orca_runtime_exe);
+
+    // TODO write checksum file
+    // with open("build/orcaruntime.sum", "w") as f:
+    //     f.write(runtime_checksum())
 
     /////////////////////////////////////////////////////////
     // Orca CLI tool and dependencies
@@ -336,27 +403,7 @@ pub fn build(b: *Build) !void {
     });
     z_lib.linkLibC();
 
-    /////////////////////////////////////////////////////////////////
     // orca cli tool
-
-    // curl_lib.addWin32ResourceFile();
-
-    // pub const AddCSourceFilesOptions = struct {
-    //     /// When provided, `files` are relative to `root` rather than the
-    //     /// package that owns the `Compile` step.
-    //     root: ?LazyPath = null,
-    //     files: []const []const u8,
-    //     flags: []const []const u8 = &.{},
-    // };
-
-    // with pushd("src/ext/curl/winbuild"):
-    //     subprocess.run("nmake /f Makefile.vc mode=static MACHINE=x64", check=True)
-    // shutil.copytree(
-    //     "src/ext/curl/builds/libcurl-vc-x64-release-static-ipv6-sspi-schannel/",
-    //     "src/ext/curl/builds/static",
-    //     dirs_exist_ok=True)
-
-    // res = subprocess.run(["git", "rev-parse", "--short", "HEAD"], check=True, capture_output=True, text=True)
 
     const version: []const u8 = blk: {
         if (git_version_opt) |git_version| {
@@ -368,9 +415,6 @@ pub fn build(b: *Build) !void {
         }
     };
     defer b.allocator.free(version);
-
-    // var orca_tool_sources = CSources.init(b);
-    // try orca_tool_sources.collect("src/tool");
 
     var orca_tool_compile_flags = std.ArrayList([]const u8).init(b.allocator);
     defer orca_tool_compile_flags.deinit();
@@ -413,17 +457,13 @@ pub fn build(b: *Build) !void {
     orca_tool_exe.step.dependOn(&z_lib.step);
     orca_tool_exe.linkLibC();
 
-    // const orca_tool_step = b.step("tool", "Build the Orca CLI tool from source.");
-    // orca_tool_step.dependOn(&orca_tool_exe.step);
-
     b.installArtifact(orca_tool_exe);
 
-    // const python_build_tool = b.addSystemCommand(&[_][]const u8{ "python", "orcadev", "build-tool" });
+    /////////////////////////////////////////////////////////////////
+    // TODO bundle
 
-    // const python_build_all =  //b.addSystemCommand(&[_][]const u8{ "python", "orcadev", "build" });
-
-    python_build_libc.step.dependOn(&python_build_runtime.step);
-    python_build_sdk.step.dependOn(&python_build_libc.step);
+    // python_build_libc.step.dependOn(&orca_runtime_exe.step);
+    // python_build_sdk.step.dependOn(&python_build_libc.step);
     // orca_tool_exe.step.dependOn(&python_build_sdk.step);
     // python_build_tool.step.dependOn(&python_build_sdk.step);
 
@@ -436,26 +476,33 @@ pub fn build(b: *Build) !void {
     // build_sdk_internal(args.release)
     // build_tool(args)
 
-    // with open("build/orcaruntime.sum", "w") as f:
-    //     f.write(runtime_checksum())
-
     // const python_install =
 
     // b.getInstallStep().dependOn(&python_install.step);
 
+    /////////////////////////////////////////////////////////////////
     // zig build clean
+
+    // TODO consider making a standalone step different from the default uninstall
     {
         var uninstall_step = b.getUninstallStep();
-        const paths = [_][]const u8{ "build", "scripts/files", "scripts/__pycache", ".zig-cache" };
+        const paths = [_][]const u8{
+            ".zig-cache",
+            "build",
+            "src/ext/angle",
+            "src/ext/dawn",
+            "scripts/files",
+            "scripts/__pycache",
+            // TODO generated wasm bindings?
+        };
         for (paths) |path| {
             var remove_dir = b.addRemoveDirTree(path);
             uninstall_step.dependOn(&remove_dir.step);
         }
-        // var cwd = std.fs.cwd();
-        // for (paths) |path| {
-        //     try cwd.deleteTree(path);
-        // }
     }
+
+    /////////////////////////////////////////////////////////////////
+    // tests
 
     // print("Removing build artifacts...")
     // yeetdir("build")
