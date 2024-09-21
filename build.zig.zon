@@ -35,6 +35,10 @@
             .url = "https://dawn.googlesource.com/dawn.git/+archive/08035d488d9b94c2ec4a9e8f0d9d58a4a915431c.tar.gz",
             .hash = "1220c7233b6391482bfff4b92ecc108f88aafaa4827319ad8b2f351740734e3d3051",
         },
+        .@"python3-win64" = .{
+            .url = "https://www.python.org/ftp/python/3.12.5/python-3.12.5-embed-amd64.zip",
+            .hash = "1220f762a97c1e1613f7259ae688806289485fc5145e9453e7b6611a3f8afa0c0749",
+        },
     },
     .paths = .{
         "build.zig",
