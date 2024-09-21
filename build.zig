@@ -199,6 +199,7 @@ const AngleDawnHelpers = struct {
     }
 
     fn generateCheckfileContents(b: *Build, comptime lib: Lib) ![]const u8 {
+        // TODO read this from build.zig.zon somehow
         const commit_stamp_path = if (lib == .Angle) "deps/angle-commit.txt" else "deps/dawn-commit.txt";
         const artifact_dir = if (lib == .Angle) "build/angle.out" else "build/dawn.out";
 
@@ -259,16 +260,102 @@ pub fn build(b: *Build) !void {
     // const python_build_sdk = b.addSystemCommand(&[_][]const u8{ "python", "orcadev", "build-wasm-sdk" });
 
     /////////////////////////////////////////////////////////
-    // TODO angle
+    // depot tools
 
     var depot_tools_dep = b.dependency("depot_tools", .{});
+
+    // Dependency.path() returns a LazyPath, but the angle/dawn build tools require the
+    // depot_tools to be in the PATH, which requires a path known when creating the build
+    // graph. So we ensure the depot_tools will be staged in the build directory so we can
+    // have a known good path to give to the other tools.
+    var stage_depot_tools: *Build.Step.WriteFile = b.addWriteFiles();
+    _ = stage_depot_tools.addCopyDirectory(depot_tools_dep.path(""), "build/depot_tools", .{});
+    stage_depot_tools.step.dependOn(&depot_tools_dep.step);
+
+    const depot_tools_dir: []const u8 = b.pathFromRoot("build/depot_tools"); // you can't stop me
+
+    /////////////////////////////////////////////////////////
+    // angle build
+
     var angle_dep = b.dependency("angle", .{});
 
+    var stage_angle_repo: *Build.Step.WriteFile = b.addWriteFiles();
+    _ = stage_angle_repo.addCopyDirectory(angle_dep.path(""), "build/angle", .{});
+    stage_angle_repo.step.dependOn(&angle_dep.step);
+
+    const angle_build_dir = b.path("build/angle");
+
+    const angle_bootstrap = Step.Run.create(b, "run python");
+
+    if (target.result.os == .windows) {
+        var python3_dep = b.dependency("python3-win64", .{});
+        depot_tools_dep.dependOn(&python3_dep.step);
+
+        angle_bootstrap.setEnvironmentVariable("DEPOT_TOOLS_WIN_TOOLCHAIN", "0");
+        angle_bootstrap.addFileArg(python3_dep.path("python.exe"));
+    } else {
+        return error.UnhandledOS; // TODO handle macOS
+        // angle_bootstrap.addArgs(.{"python"});
+    }
+
+    angle_bootstrap.setCwd(angle_build_dir);
+    angle_bootstrap.addFileArg(b.path("scripts/bootstrap.py"));
+    angle_bootstrap.addPathDir(depot_tools_dir);
+    angle_bootstrap.step.dependOn(&stage_angle_repo.step);
+
+    const angle_gclient_sync = b.addSystemCommand(.{ "gclient", "sync" });
+    angle_gclient_sync.setCwd(angle_build_dir);
+    if (target.result.os == .windows) {
+        angle_gclient_sync.setEnvironmentVariable("DEPOT_TOOLS_WIN_TOOLCHAIN", "0");
+    }
+    angle_gclient_sync.addPathDir(depot_tools_dir);
+    angle_gclient_sync.step.dependOn(&angle_bootstrap.step);
+
+    const angle_optimize_str = "Release"; // TODO provide build option -Dangle-debug
+    const angle_is_debug_str = "False";
+    const angle_out_dir = b.fmt("out/{s}", angle_optimize_str);
+
+    const angle_gn_args = std.ArrayList([]const u8).init(b.allocator);
+    defer angle_gn_args.deinit();
+    try angle_gn_args.append("angle_build_all=false");
+    try angle_gn_args.append("angle_build_tests=false");
+    try angle_gn_args.append(b.fmt("is_debug={s}", .{angle_is_debug_str}));
+    try angle_gn_args.append("is_component_build=false");
+
+    if (target.result.os == .windows) {
+        try angle_gn_args.append("angle_enable_d3d9=false");
+        try angle_gn_args.append("angle_enable_gl=false");
+        try angle_gn_args.append("angle_enable_vulkan=false");
+        try angle_gn_args.append("angle_enable_null=false");
+        try angle_gn_args.append("angle_has_frame_capture=false");
+    } else {
+        //NOTE(martin): oddly enough, this is needed to avoid deprecation errors when _not_ using OpenGL,
+        //              because angle uses some CGL APIs to detect GPUs.
+        try angle_gn_args.append("treat_warnings_as_errors=false");
+        try angle_gn_args.append("angle_enable_metal=true");
+        try angle_gn_args.append("angle_enable_gl=false");
+        try angle_gn_args.append("angle_enable_vulkan=false");
+        try angle_gn_args.append("angle_enable_null=false");
+    }
+    const angle_gn_args_str = try std.mem.join(b.allocator, " ", angle_gn_args.items);
+    defer b.allocator.free(angle_gn_args_str);
+    const angle_gn = b.addSystemCommand(.{ "gn", "gen", angle_out_dir, b.fmt("--args={s}", .{angle_gn_args_str}) });
+    angle_gn.setCwd(angle_build_dir);
+    angle_gn.addPathDir(depot_tools_dir);
+    angle_gn.step.dependOn(&angle_gclient_sync.step);
+
+    const angle_autoninja = b.addSystemCommand(.{ "autoninja", "-C", angle_out_dir, "libEGL", "libGLESv2" });
+    angle_autoninja.addPathDir(depot_tools_dir);
+    angle_autoninja.step.dependOn(&angle_gn.step);
+
     const build_angle_step = b.step("angle", "Build Angle libs");
-    // build_angle_step.dependOn(cmake_build_angle);
+    build_angle_step.dependOn(&angle_autoninja.step);
 
     /////////////////////////////////////////////////////////
     // TODO dawn
+
+    var depot_tools_dep = b.dependency("depot_tools", .{});
+    var dawn_dep = b.dependency("dawn", .{});
 
     /////////////////////////////////////////////////////////
     // Orca runtime and dependencies
