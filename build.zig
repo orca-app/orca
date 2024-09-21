@@ -104,30 +104,43 @@ const Checksum = struct {
     const Sha256 = std.crypto.hash.sha2.Sha256;
     const MAX_FILE_SIZE = 1024 * 1024 * 128;
 
+    fn strings(b: *Build, _strings: []const []const u8) ![]const u8 {
+        var hasher = Checksum.Sha256.init(.{});
+        for (_strings) |str| {
+            hasher.update(str);
+        }
+
+        const out: []u8 = try b.allocator.alloc(u8, Sha256.digest_length);
+        hasher.final(out[0..Sha256.digest_length]);
+
+        try stringpool_data.append(out);
+        return out;
+    }
+
     fn file(b: *Build, path: []const u8) ![]const u8 {
         const cwd: std.fs.Dir = b.build_root.handle;
         const file_contents: []const u8 = try cwd.readFileAlloc(b.allocator, path, MAX_FILE_SIZE);
         defer b.allocator.free(file_contents);
 
         var h = Sha256.init(.{});
-        const out: []u8 = b.allocator.alloc(u8, 32);
-        h.hash(file_contents, out, .{});
+        const out: []u8 = try b.allocator.alloc(u8, Sha256.digest_length);
+        h.hash(file_contents, out[0..Sha256.digest_length], .{});
 
         try stringpool_data.append(out);
         return out;
     }
 
     fn dir(b: *Build, path: []const u8, exclude_paths: []const []const u8) ![]const u8 {
-        const cwd: std.fs.Dir = b.build_root.handle;
-        const root_dir: std.fs.Dir = cwd.openDir(path, .{ .iterate = true, .no_follow = true });
+        var cwd: std.fs.Dir = b.build_root.handle;
+        var root_dir: std.fs.Dir = try cwd.openDir(path, .{ .iterate = true, .no_follow = true });
         defer root_dir.close();
 
-        var dir_iter: std.fs.Dir.Walker = root_dir.walk(b.allocator);
+        var dir_iter: std.fs.Dir.Walker = try root_dir.walk(b.allocator);
         defer dir_iter.deinit();
 
         var files_to_hash = std.ArrayList([]const u8).init(b.allocator);
         defer {
-            for (files_to_hash) |file_path| {
+            for (files_to_hash.items) |file_path| {
                 b.allocator.free(file_path);
             }
             files_to_hash.deinit();
@@ -136,28 +149,75 @@ const Checksum = struct {
         while (try dir_iter.next()) |entry| {
             if (entry.kind == .file) {
                 for (exclude_paths) |exclusion| {
-                    if (!std.mem.startsWith(entry.path, exclusion) and !std.mem.eq(u8, entry.basename, exclusion)) {
-                        try files_to_hash.append(b.allocator.dupe(entry.path));
+                    if (!std.mem.startsWith(u8, entry.path, exclusion) and !std.mem.eql(u8, entry.basename, exclusion)) {
+                        try files_to_hash.append(try b.allocator.dupe(u8, entry.path));
                     }
                 }
             }
         }
 
-        std.mem.sort([]const u8, files_to_hash, {}, Sort.lessThanString);
+        std.mem.sort([]const u8, files_to_hash.items, {}, Sort.lessThanString);
 
         var hash = Sha256.init(.{});
-        for (files_to_hash) |file_path| {
+        for (files_to_hash.items) |file_path| {
             const file_contents: []const u8 = try root_dir.readFileAlloc(b.allocator, file_path, MAX_FILE_SIZE);
             defer b.allocator.free(file_contents);
 
             hash.update(file_contents);
         }
 
-        const out: []u8 = b.allocator.alloc(u8, 32);
-        hash.final(out);
+        const out: []u8 = try b.allocator.alloc(u8, Sha256.digest_length);
+        hash.final(out[0..Sha256.digest_length]);
 
         try stringpool_data.append(out);
         return out;
+    }
+};
+
+const AngleDawnHelpers = struct {
+    const Lib = enum {
+        Angle,
+        Dawn,
+
+        fn str(comptime lib: Lib) []const u8 {
+            return switch (lib) {
+                .Angle => "Angle",
+                .Dawn => "Dawn",
+            };
+        }
+    };
+
+    // expects file contents to be a single hash blob like "8a8c8fc280d74b34731e0e417b19bff7c967388a"
+    fn readStampFile(b: *Build, path: []const u8) ![]const u8 {
+        const file_contents: []const u8 = try b.build_root.handle.readFileAlloc(b.allocator, path, 1024 * 4);
+        try stringpool_data.append(file_contents);
+
+        var stamp: []const u8 = file_contents;
+        stamp = std.mem.trimRight(u8, stamp, "\n");
+        stamp = std.mem.trimRight(u8, stamp, "\r");
+        return stamp;
+    }
+
+    fn generateCheckfileContents(b: *Build, comptime lib: Lib) ![]const u8 {
+        const commit_stamp_path = if (lib == .Angle) "deps/angle-commit.txt" else "deps/dawn-commit.txt";
+        const artifact_dir = if (lib == .Angle) "build/angle.out" else "build/dawn.out";
+
+        const commit_stamp = try readStampFile(b, commit_stamp_path);
+        const artifacts_hash = try Checksum.dir(b, artifact_dir, &.{ ".DS_Store", "hash.txt" });
+
+        const checkfile_contents = try Checksum.strings(b, &.{ commit_stamp, artifacts_hash });
+        return checkfile_contents;
+    }
+
+    fn checkUpToDate(b: *Build, comptime lib: Lib) !*Build.Step.CheckFile {
+        const checkfile_path = if (lib == .Angle) "build/angle.out/hash.txt" else "build/dawn.out/hash.txt";
+        const checkfile_contents = try generateCheckfileContents(b, lib);
+        var checkfile = b.addCheckFile(b.path(checkfile_path), .{ .expected_exact = checkfile_contents });
+
+        const name = if (lib == .Angle) "Angle up-to-date check" else "Dawn up-to-date check";
+        checkfile.setName(name);
+
+        return checkfile;
     }
 };
 
@@ -201,6 +261,12 @@ pub fn build(b: *Build) !void {
     /////////////////////////////////////////////////////////
     // TODO angle
 
+    var depot_tools_dep = b.dependency("depot_tools", .{});
+    var angle_dep = b.dependency("angle", .{});
+
+    const build_angle_step = b.step("angle", "Build Angle libs");
+    // build_angle_step.dependOn(cmake_build_angle);
+
     /////////////////////////////////////////////////////////
     // TODO dawn
 
@@ -228,7 +294,28 @@ pub fn build(b: *Build) !void {
 
     // platform lib
 
-    // TODO check angle/dawn
+    var angle_uptodate_check: *Build.Step.CheckFile = try AngleDawnHelpers.checkUpToDate(b, .Angle);
+    var dawn_uptodate_check: *Build.Step.CheckFile = try AngleDawnHelpers.checkUpToDate(b, .Dawn);
+
+    var copy_angle_files: *Build.Step.WriteFile = b.addWriteFiles();
+    _ = copy_angle_files.addCopyDirectory(b.path("build/angle.out/include/"), "src/ext/angle/include", .{});
+    _ = copy_angle_files.addCopyDirectory(b.path("build/angle.out/bin/"), "build/bin", .{});
+    copy_angle_files.step.dependOn(&angle_uptodate_check.step);
+
+    var copy_dawn_files: *Build.Step.WriteFile = b.addWriteFiles();
+    _ = copy_dawn_files.addCopyDirectory(b.path("build/dawn.out/include/"), "src/ext/dawn/include", .{});
+    _ = copy_dawn_files.addCopyDirectory(b.path("build/dawn.out/bin/"), "build/bin", .{});
+    copy_dawn_files.step.dependOn(&dawn_uptodate_check.step);
+
+    // var install_dawn_artifacts: *Build.Step.installDirectory(.{
+    //     .source_dir = b.paht
+    //     })
+
+    // os.makedirs("src/ext/dawn/include", exist_ok=True)
+    // shutil.copytree("build/dawn.out/include", "src/ext/dawn/include/", dirs_exist_ok=True)
+
+    // os.makedirs("build/bin", exist_ok=True)
+    // shutil.copytree("build/dawn.out/bin", "build/bin", dirs_exist_ok=True)
 
     const wgpu_shaders_file = try generateFileForStrings(b, "src/graphics/wgpu_renderer_shaders.h", "oc_wgsl_", &.{
         "src/graphics/wgsl_shaders/common.wgsl",
@@ -291,6 +378,8 @@ pub fn build(b: *Build) !void {
     orca_platform_lib.linkSystemLibrary("libGLESv2.dll"); // todo DELAYLOAD?
     orca_platform_lib.linkSystemLibrary("webgpu");
 
+    orca_platform_lib.step.dependOn(&copy_dawn_files.step);
+    orca_platform_lib.step.dependOn(&copy_angle_files.step);
     orca_platform_lib.step.dependOn(&wgpu_shaders_file.step);
 
     b.installArtifact(orca_platform_lib);
