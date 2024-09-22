@@ -37,7 +37,11 @@ fn sampleFromTexture(texture : texture_2d<f32>, uv : vec2f) -> vec4f
     }
     else
     {
-        let p : vec2f = uv * vec2f(textureDimensions(texture));
+        let p : vec2f = clamp(uv * vec2f(textureDimensions(texture)) - vec2f(0.5, 0.5),
+                              vec2f(0, 0),
+                              vec2f(textureDimensions(texture)) - vec2f(1, 1));
+        let r = fract(p);
+
         let tl = vec2i(p);
         let bl = tl + vec2i(0, 1);
         let tr = tl + vec2i(1, 0);
@@ -48,9 +52,9 @@ fn sampleFromTexture(texture : texture_2d<f32>, uv : vec2f) -> vec4f
         let trColor : vec4f = textureLoad(texture, tr, 0);
         let brColor : vec4f = textureLoad(texture, br, 0);
 
-        let lColor : vec4f = 0.5*(tlColor + blColor);
-        let rColor : vec4f = 0.5*(trColor + brColor);
-        color = 0.5*(lColor + rColor);
+        let lColor : vec4f = (1-r.y) * tlColor + r.y * blColor;
+        let rColor : vec4f = (1-r.y) * trColor + r.y * brColor;
+        color = (1-r.x) * lColor + r.x * rColor;
     }
     return(color);
 }
@@ -154,6 +158,97 @@ fn get_next_color(pathIndex : u32,
     }
     return(nextColor);
 }
+/*
+fn get_next_color(pathIndex : u32, sampleCoord : vec2f) -> vec4f
+{
+    var nextColor : vec4f;
+
+    if(pathBuffer[pathIndex].hasGradient == 0)
+    {
+        nextColor = pathBuffer[pathIndex].colors[0];
+    }
+    else
+    {
+        var sampleColor = vec4f(0, 0, 0, 0);
+
+        var bl = pathBuffer[pathIndex].colors[0];
+        var br = pathBuffer[pathIndex].colors[1];
+        var tr = pathBuffer[pathIndex].colors[2];
+        var tl = pathBuffer[pathIndex].colors[3];
+
+        if(pathBuffer[pathIndex].blendSpace == 1)
+        {
+            bl = pow(bl, vec4f(0.454545, 0.454545, 0.454545, 1));
+            br = pow(br, vec4f(0.454545, 0.454545, 0.454545, 1));
+            tr = pow(tr, vec4f(0.454545, 0.454545, 0.454545, 1));
+            tl = pow(tl, vec4f(0.454545, 0.454545, 0.454545, 1));
+        }
+
+        let sampleCoord3 = vec3f(sampleCoord, 1);
+        let uv : vec2f = (pathBuffer[pathIndex].uvTransform * sampleCoord3).xy;
+
+        let bottomColor : vec4f = (1. - uv.x) * bl + uv.x * br;
+        let topColor : vec4f = (1. - uv.x) * tl + uv.x * tr;
+        sampleColor += uv.y * bottomColor + (1 - uv.y) * topColor;
+
+        nextColor = sampleColor;
+
+        if(pathBuffer[pathIndex].blendSpace == 1)
+        {
+            nextColor = pow(nextColor, vec4f(2.2, 2.2, 2.2, 1));
+        }
+    }
+
+    nextColor = vec4f(nextColor.rgb * nextColor.a, nextColor.a);
+
+    let textureID : i32 = pathBuffer[pathIndex].textureID;
+    if(  textureID >= 0
+      && debugDisplayOptions.textureOff == 0)
+    {
+        var texColor = vec4f(0, 0, 0, 0);
+
+        let sampleCoord3 = vec3f(sampleCoord, 1);
+        let uv : vec2f = (pathBuffer[pathIndex].uvTransform * sampleCoord3).xy;
+
+        if(textureID == 0)
+        {
+            texColor += sampleFromTexture(srcTexture0, uv);
+        }
+        else if(textureID == 1)
+        {
+            texColor += sampleFromTexture(srcTexture1, uv);
+        }
+        else if(textureID == 2)
+        {
+            texColor += sampleFromTexture(srcTexture2, uv);
+        }
+        else if(textureID == 3)
+        {
+            texColor += sampleFromTexture(srcTexture3, uv);
+        }
+        else if(textureID == 4)
+        {
+            texColor += sampleFromTexture(srcTexture4, uv);
+        }
+        else if(textureID == 5)
+        {
+            texColor += sampleFromTexture(srcTexture5, uv);
+        }
+        else if(textureID == 6)
+        {
+            texColor += sampleFromTexture(srcTexture6, uv);
+        }
+        else if(textureID == 7)
+        {
+            texColor += sampleFromTexture(srcTexture7, uv);
+        }
+
+        texColor = vec4f(texColor.rgb*texColor.a, texColor.a);
+        nextColor *= texColor;
+    }
+    return(nextColor);
+}
+*/
 
 @compute @workgroup_size(16, 16) fn raster(@builtin(num_workgroups) workGroupCount : vec3u,
                                            @builtin(workgroup_id) workGroupID : vec3u,
@@ -247,6 +342,7 @@ fn get_next_color(pathIndex : u32,
         else
         {
             let pathIndex : u32 = op.index;
+//          let nextColor : vec4f = get_next_color(pathIndex, centerCoord);
             let nextColor : vec4f = get_next_color(pathIndex, sourceSampleCoords);
 
             if(op.kind == OC_OP_FILL)
