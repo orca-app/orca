@@ -809,7 +809,7 @@ int dw_read_file_entries(oc_arena* arena,
                                 section = sections->debug_line_str;
                                 sectionSize = sections->debug_line_str_size;
                             }
-                            else if(form == DW_FORM_line_strp)
+                            else if(form == DW_FORM_line_strp) //TODO: mistake here?
                             {
                                 section = sections->debug_str;
                                 sectionSize = sections->debug_str_size;
