@@ -10,10 +10,10 @@ LIBS="-L$LIBDIR -lorca"
 FLAGS="-mmacos-version-min=10.15.4 -DOC_DEBUG -DLOG_COMPILE_DEBUG"
 
 mkdir -p $BINDIR
-clang -g $FLAGS $LIBS $INCLUDES -o $BINDIR/example_image main.c
+clang -g $FLAGS $LIBS $INCLUDES -o $BINDIR/test_bleeding main.c
 
 cp $LIBDIR/liborca.dylib $BINDIR/
 cp $LIBDIR/libwebgpu.dylib $BINDIR/
 
 
-install_name_tool -add_rpath "@executable_path" $BINDIR/example_image
+install_name_tool -add_rpath "@executable_path" $BINDIR/test_bleeding
