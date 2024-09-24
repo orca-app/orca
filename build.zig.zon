@@ -38,6 +38,7 @@
         .@"python3-win64" = .{
             .url = "https://www.python.org/ftp/python/3.12.5/python-3.12.5-embed-amd64.zip",
             .hash = "1220f762a97c1e1613f7259ae688806289485fc5145e9453e7b6611a3f8afa0c0749",
+            .lazy = true,
         },
     },
     .paths = .{

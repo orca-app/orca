@@ -38,13 +38,6 @@ const CSources = struct {
     }
 };
 
-var stringpool_data: std.ArrayList([]const u8) = undefined;
-fn printf(comptime fmt: []const u8, args: anytype) ![]const u8 {
-    const str: []const u8 = try std.fmt.allocPrint(stringpool_data.allocator, fmt, args);
-    try stringpool_data.append(str);
-    return str;
-}
-
 fn basenameNoExtension(path: []const u8) []const u8 {
     const filename: []const u8 = std.fs.path.basename(path);
     if (std.mem.lastIndexOf(u8, filename, ".")) |index| {
@@ -104,6 +97,12 @@ const Checksum = struct {
     const Sha256 = std.crypto.hash.sha2.Sha256;
     const MAX_FILE_SIZE = 1024 * 1024 * 128;
 
+    fn empty(b: *Build) ![]const u8 {
+        const out: []u8 = try b.allocator.alloc(u8, Sha256.digest_length);
+        @memset(out, 0);
+        return out;
+    }
+
     fn strings(b: *Build, _strings: []const []const u8) ![]const u8 {
         var hasher = Checksum.Sha256.init(.{});
         for (_strings) |str| {
@@ -112,8 +111,6 @@ const Checksum = struct {
 
         const out: []u8 = try b.allocator.alloc(u8, Sha256.digest_length);
         hasher.final(out[0..Sha256.digest_length]);
-
-        try stringpool_data.append(out);
         return out;
     }
 
@@ -125,14 +122,17 @@ const Checksum = struct {
         var h = Sha256.init(.{});
         const out: []u8 = try b.allocator.alloc(u8, Sha256.digest_length);
         h.hash(file_contents, out[0..Sha256.digest_length], .{});
-
-        try stringpool_data.append(out);
         return out;
     }
 
     fn dir(b: *Build, path: []const u8, exclude_paths: []const []const u8) ![]const u8 {
         var cwd: std.fs.Dir = b.build_root.handle;
-        var root_dir: std.fs.Dir = try cwd.openDir(path, .{ .iterate = true, .no_follow = true });
+        var root_dir: std.fs.Dir = cwd.openDir(path, .{ .iterate = true, .no_follow = true }) catch |e| {
+            if (e == error.FileNotFound) {
+                return empty(b);
+            }
+            return e;
+        };
         defer root_dir.close();
 
         var dir_iter: std.fs.Dir.Walker = try root_dir.walk(b.allocator);
@@ -150,7 +150,8 @@ const Checksum = struct {
             if (entry.kind == .file) {
                 for (exclude_paths) |exclusion| {
                     if (!std.mem.startsWith(u8, entry.path, exclusion) and !std.mem.eql(u8, entry.basename, exclusion)) {
-                        try files_to_hash.append(try b.allocator.dupe(u8, entry.path));
+                        const file_path = b.allocator.dupe(u8, entry.path) catch @panic("OOM");
+                        files_to_hash.append(file_path) catch @panic("OOM");
                     }
                 }
             }
@@ -168,8 +169,6 @@ const Checksum = struct {
 
         const out: []u8 = try b.allocator.alloc(u8, Sha256.digest_length);
         hash.final(out[0..Sha256.digest_length]);
-
-        try stringpool_data.append(out);
         return out;
     }
 };
@@ -179,7 +178,7 @@ const AngleDawnHelpers = struct {
         Angle,
         Dawn,
 
-        fn str(comptime lib: Lib) []const u8 {
+        fn str(lib: Lib) []const u8 {
             return switch (lib) {
                 .Angle => "Angle",
                 .Dawn => "Dawn",
@@ -187,50 +186,133 @@ const AngleDawnHelpers = struct {
         }
     };
 
+    const FILE_EXCLUSIONS: []const []const u8 = &[_][]const u8{ ".DS_Store", "hash.txt" };
+
     // expects file contents to be a single hash blob like "8a8c8fc280d74b34731e0e417b19bff7c967388a"
-    fn readStampFile(b: *Build, path: []const u8) ![]const u8 {
-        const file_contents: []const u8 = try b.build_root.handle.readFileAlloc(b.allocator, path, 1024 * 4);
-        try stringpool_data.append(file_contents);
+    // fn readStampFile(b: *Build, path: []const u8) ![]const u8 {
+    //     const file_contents: []const u8 = try b.build_root.handle.readFileAlloc(b.allocator, path, 1024 * 4);
 
-        var stamp: []const u8 = file_contents;
-        stamp = std.mem.trimRight(u8, stamp, "\n");
-        stamp = std.mem.trimRight(u8, stamp, "\r");
-        return stamp;
-    }
+    //     var stamp: []const u8 = file_contents;
+    //     stamp = std.mem.trimRight(u8, stamp, "\n");
+    //     stamp = std.mem.trimRight(u8, stamp, "\r");
+    //     return stamp;
+    // }
 
-    fn generateCheckfileContents(b: *Build, comptime lib: Lib) ![]const u8 {
-        // TODO read this from build.zig.zon somehow
-        const commit_stamp_path = if (lib == .Angle) "deps/angle-commit.txt" else "deps/dawn-commit.txt";
-        const artifact_dir = if (lib == .Angle) "build/angle.out" else "build/dawn.out";
+    // fn generateCheckfileContents(b: *Build, comptime lib: Lib) ![]const u8 {
+    //     // const dep = b.dependency(if (lib == .Angle) "build/angle" else "build/dawn", .{});
 
-        const commit_stamp = try readStampFile(b, commit_stamp_path);
-        const artifacts_hash = try Checksum.dir(b, artifact_dir, &.{ ".DS_Store", "hash.txt" });
+    //     // TODO read this from build.zig.zon somehow?
+    //     const commit_stamp_path = if (lib == .Angle) "deps/angle-commit.txt" else "deps/dawn-commit.txt";
+    //     const artifact_dir = if (lib == .Angle) "build/angle.out" else "build/dawn.out";
 
-        const checkfile_contents = try Checksum.strings(b, &.{ commit_stamp, artifacts_hash });
-        return checkfile_contents;
-    }
+    //     const commit_stamp = try readStampFile(b, commit_stamp_path);
+    //     const artifacts_hash = try Checksum.dir(b, dep.path(), &FILE_EXCLUSIONS);
 
-    fn checkUpToDate(b: *Build, comptime lib: Lib) !*Build.Step.CheckFile {
-        const checkfile_path = if (lib == .Angle) "build/angle.out/hash.txt" else "build/dawn.out/hash.txt";
-        const checkfile_contents = try generateCheckfileContents(b, lib);
-        var checkfile = b.addCheckFile(b.path(checkfile_path), .{ .expected_exact = checkfile_contents });
+    //     const checkfile_contents = try Checksum.strings(b, &.{ commit_stamp, artifacts_hash });
+    //     return checkfile_contents;
+    // }
 
-        const name = if (lib == .Angle) "Angle up-to-date check" else "Dawn up-to-date check";
-        checkfile.setName(name);
+    // fn checkUpToDate(b: *Build, comptime lib: Lib) !*Build.Step.CheckFile {
+    //     // TODO rewrite this using a custom step
+    //     const checkfile_path = if (lib == .Angle) "build/angle.out/hash.txt" else "build/dawn.out/hash.txt";
+    //     const checkfile_contents = try generateCheckfileContents(b, lib);
+    //     var checkfile = b.addCheckFile(b.path(checkfile_path), .{ .expected_exact = checkfile_contents });
 
-        return checkfile;
-    }
+    //     const name = if (lib == .Angle) "Angle up-to-date check" else "Dawn up-to-date check";
+    //     checkfile.setName(name);
+
+    //     return checkfile;
+    // }
+
+    const CheckBuildSentinel = struct {
+        step: Build.Step,
+        lib: AngleDawnHelpers.Lib,
+
+        fn create(owner: *Build, comptime lib: AngleDawnHelpers.Lib) *CheckBuildSentinel {
+            const name = if (lib == .Angle) "CheckAngleBuildSentinel" else "CheckDawnBuildSentinel";
+
+            var check_sentinel = owner.allocator.create(CheckBuildSentinel) catch @panic("OOM");
+            check_sentinel.step = Build.Step.init(.{
+                .id = .custom,
+                .name = name,
+                .owner = owner,
+                .makeFn = make,
+            });
+            check_sentinel.lib = lib;
+
+            return check_sentinel;
+        }
+
+        fn make(step: *Step, prog_node: std.Progress.Node) !void {
+            _ = prog_node;
+
+            const check_sentinel: *CheckBuildSentinel = @fieldParentPtr("step", step);
+            const b: *Build = step.owner;
+
+            const build_dir = if (check_sentinel.lib == .Angle) "build/angle.out/" else "build/dawn.out";
+            const sentinel_path = try std.fs.path.join(b.allocator, &.{ build_dir, "hash.txt" });
+            const sum = try Checksum.dir(b, build_dir, FILE_EXCLUSIONS);
+
+            const sentinel = b.build_root.handle.readFileAlloc(
+                b.allocator,
+                sentinel_path,
+                Checksum.MAX_FILE_SIZE,
+            ) catch |err| {
+                return step.fail("unable to read build sentinel file '{}{s}': {s}", .{
+                    b.build_root, sentinel_path, @errorName(err),
+                });
+            };
+
+            if (std.mem.eql(u8, sum, sentinel) == false) {
+                return step.fail("Calculated checksum ({s}) does not match sentinel at {s} ({s}). {s} is out of date and must be manually rebuilt.", .{
+                    sum,
+                    sentinel_path,
+                    sentinel,
+                    check_sentinel.lib.str(),
+                });
+            }
+        }
+    };
+
+    const WriteBuildSentinel = struct {
+        step: Build.Step,
+        lib: Lib,
+
+        fn create(owner: *Build, comptime lib: Lib) *WriteBuildSentinel {
+            const name = if (lib == .Angle) "WriteAngleBuildSentinel" else "WriteDawnBuildSentinel";
+
+            var write_sentinel = owner.allocator.create(WriteBuildSentinel) catch @panic("OOM");
+            write_sentinel.step = Build.Step.init(.{
+                .id = .custom,
+                .name = name,
+                .owner = owner,
+                .makeFn = make,
+            });
+            write_sentinel.lib = lib;
+
+            return write_sentinel;
+        }
+
+        fn make(step: *Step, prog_node: std.Progress.Node) !void {
+            _ = prog_node;
+
+            const write_sentinel: *WriteBuildSentinel = @fieldParentPtr("step", step);
+            const b: *Build = step.owner;
+
+            const build_dir = if (write_sentinel.lib == .Angle) "build/angle.out/" else "build/dawn.out";
+            const sentinel_path = try std.fs.path.join(b.allocator, &.{ build_dir, "hash.txt" });
+            const sum = try Checksum.dir(b, build_dir, FILE_EXCLUSIONS);
+
+            b.build_root.handle.writeFile(.{ .sub_path = sentinel_path, .data = sum }) catch |err| {
+                return step.fail("unable to write build sentinel file '{}{s}': {s}", .{
+                    b.build_root, sentinel_path, @errorName(err),
+                });
+            };
+        }
+    };
 };
 
 pub fn build(b: *Build) !void {
-    stringpool_data = std.ArrayList([]const u8).init(b.allocator);
-    defer {
-        for (stringpool_data.items) |s| {
-            b.allocator.free(s);
-        }
-        stringpool_data.deinit();
-    }
-
     const git_version_opt: ?[]const u8 = b.option([]const u8, "version", "Specify the specific git version you want to package") orelse null;
 
     const target = b.standardTargetOptions(.{});
@@ -270,7 +352,6 @@ pub fn build(b: *Build) !void {
     // have a known good path to give to the other tools.
     var stage_depot_tools: *Build.Step.WriteFile = b.addWriteFiles();
     _ = stage_depot_tools.addCopyDirectory(depot_tools_dep.path(""), "build/depot_tools", .{});
-    stage_depot_tools.step.dependOn(&depot_tools_dep.step);
 
     const depot_tools_dir: []const u8 = b.pathFromRoot("build/depot_tools"); // you can't stop me
 
@@ -281,48 +362,46 @@ pub fn build(b: *Build) !void {
 
     var stage_angle_repo: *Build.Step.WriteFile = b.addWriteFiles();
     _ = stage_angle_repo.addCopyDirectory(angle_dep.path(""), "build/angle", .{});
-    stage_angle_repo.step.dependOn(&angle_dep.step);
 
     const angle_build_dir = b.path("build/angle");
 
     const angle_bootstrap = Step.Run.create(b, "run python");
 
-    if (target.result.os == .windows) {
-        var python3_dep = b.dependency("python3-win64", .{});
-        depot_tools_dep.dependOn(&python3_dep.step);
-
-        angle_bootstrap.setEnvironmentVariable("DEPOT_TOOLS_WIN_TOOLCHAIN", "0");
-        angle_bootstrap.addFileArg(python3_dep.path("python.exe"));
+    if (target.result.os.tag == .windows) {
+        if (b.lazyDependency("python3-win64", .{})) |python3_dep| {
+            angle_bootstrap.setEnvironmentVariable("DEPOT_TOOLS_WIN_TOOLCHAIN", "0");
+            angle_bootstrap.addFileArg(python3_dep.path("python.exe"));
+        }
     } else {
         return error.UnhandledOS; // TODO handle macOS
         // angle_bootstrap.addArgs(.{"python"});
     }
 
     angle_bootstrap.setCwd(angle_build_dir);
-    angle_bootstrap.addFileArg(b.path("scripts/bootstrap.py"));
     angle_bootstrap.addPathDir(depot_tools_dir);
+    angle_bootstrap.addFileArg(b.path("scripts/bootstrap.py"));
     angle_bootstrap.step.dependOn(&stage_angle_repo.step);
 
-    const angle_gclient_sync = b.addSystemCommand(.{ "gclient", "sync" });
+    const angle_gclient_sync = b.addSystemCommand(&.{ "gclient", "sync" });
     angle_gclient_sync.setCwd(angle_build_dir);
-    if (target.result.os == .windows) {
+    angle_gclient_sync.addPathDir(depot_tools_dir);
+    if (target.result.os.tag == .windows) {
         angle_gclient_sync.setEnvironmentVariable("DEPOT_TOOLS_WIN_TOOLCHAIN", "0");
     }
-    angle_gclient_sync.addPathDir(depot_tools_dir);
     angle_gclient_sync.step.dependOn(&angle_bootstrap.step);
 
     const angle_optimize_str = "Release"; // TODO provide build option -Dangle-debug
     const angle_is_debug_str = "False";
-    const angle_out_dir = b.fmt("out/{s}", angle_optimize_str);
+    const angle_out_dir = b.fmt("out/{s}", .{angle_optimize_str});
 
-    const angle_gn_args = std.ArrayList([]const u8).init(b.allocator);
+    var angle_gn_args = std.ArrayList([]const u8).init(b.allocator);
     defer angle_gn_args.deinit();
     try angle_gn_args.append("angle_build_all=false");
     try angle_gn_args.append("angle_build_tests=false");
     try angle_gn_args.append(b.fmt("is_debug={s}", .{angle_is_debug_str}));
     try angle_gn_args.append("is_component_build=false");
 
-    if (target.result.os == .windows) {
+    if (target.result.os.tag == .windows) {
         try angle_gn_args.append("angle_enable_d3d9=false");
         try angle_gn_args.append("angle_enable_gl=false");
         try angle_gn_args.append("angle_enable_vulkan=false");
@@ -339,23 +418,26 @@ pub fn build(b: *Build) !void {
     }
     const angle_gn_args_str = try std.mem.join(b.allocator, " ", angle_gn_args.items);
     defer b.allocator.free(angle_gn_args_str);
-    const angle_gn = b.addSystemCommand(.{ "gn", "gen", angle_out_dir, b.fmt("--args={s}", .{angle_gn_args_str}) });
+    const angle_gn = b.addSystemCommand(&.{ "gn", "gen", angle_out_dir, b.fmt("--args={s}", .{angle_gn_args_str}) });
     angle_gn.setCwd(angle_build_dir);
     angle_gn.addPathDir(depot_tools_dir);
     angle_gn.step.dependOn(&angle_gclient_sync.step);
 
-    const angle_autoninja = b.addSystemCommand(.{ "autoninja", "-C", angle_out_dir, "libEGL", "libGLESv2" });
+    const angle_autoninja = b.addSystemCommand(&.{ "autoninja", "-C", angle_out_dir, "libEGL", "libGLESv2" });
+    angle_autoninja.setCwd(angle_build_dir);
     angle_autoninja.addPathDir(depot_tools_dir);
     angle_autoninja.step.dependOn(&angle_gn.step);
 
+    const angle_sentinel = AngleDawnHelpers.WriteBuildSentinel.create(b, .Angle);
+    angle_sentinel.step.dependOn(&angle_autoninja.step);
+
     const build_angle_step = b.step("angle", "Build Angle libs");
-    build_angle_step.dependOn(&angle_autoninja.step);
+    build_angle_step.dependOn(&angle_sentinel.step);
 
     /////////////////////////////////////////////////////////
     // TODO dawn
 
-    var depot_tools_dep = b.dependency("depot_tools", .{});
-    var dawn_dep = b.dependency("dawn", .{});
+    // var dawn_dep = b.dependency("dawn", .{});
 
     /////////////////////////////////////////////////////////
     // Orca runtime and dependencies
@@ -381,8 +463,8 @@ pub fn build(b: *Build) !void {
 
     // platform lib
 
-    var angle_uptodate_check: *Build.Step.CheckFile = try AngleDawnHelpers.checkUpToDate(b, .Angle);
-    var dawn_uptodate_check: *Build.Step.CheckFile = try AngleDawnHelpers.checkUpToDate(b, .Dawn);
+    var angle_uptodate_check = AngleDawnHelpers.CheckBuildSentinel.create(b, .Angle);
+    var dawn_uptodate_check = AngleDawnHelpers.CheckBuildSentinel.create(b, .Dawn);
 
     var copy_angle_files: *Build.Step.WriteFile = b.addWriteFiles();
     _ = copy_angle_files.addCopyDirectory(b.path("build/angle.out/include/"), "src/ext/angle/include", .{});
@@ -586,7 +668,6 @@ pub fn build(b: *Build) !void {
             break :blk try b.allocator.dupe(u8, git_version);
         } else {
             const git_version = b.run(&.{ "git", "rev-parse", "--short", "HEAD" });
-            try stringpool_data.append(git_version);
             break :blk std.mem.trimRight(u8, git_version, "\n");
         }
     };
@@ -598,7 +679,7 @@ pub fn build(b: *Build) !void {
     try orca_tool_compile_flags.append("-DOC_NO_APP_LAYER");
     try orca_tool_compile_flags.append("-DOC_BUILD_DLL");
     try orca_tool_compile_flags.append("-DCURL_STATICLIB");
-    try orca_tool_compile_flags.append(try printf("-DORCA_TOOL_VERSION={s}", .{version}));
+    try orca_tool_compile_flags.append(b.fmt("-DORCA_TOOL_VERSION={s}", .{version}));
 
     if (optimize == .Debug) {
         try orca_tool_compile_flags.append("-DOC_DEBUG");
