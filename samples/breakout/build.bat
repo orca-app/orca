@@ -1,7 +1,7 @@
 @echo off
 setlocal enabledelayedexpansion
 
-for /f %%i in ('orca sdk-path') do set ORCA_DIR=%%i
+for /f "delims=" %%i in ('"orca sdk-path"') do set ORCA_DIR="%%i"
 
 :: common flags to build wasm modules
 set wasmFlags=--target=wasm32^
