@@ -358,7 +358,7 @@ def check_angle():
                     messages.append(f"build/angle.out doesn't match the required angle commit.\n  note: expected {ANGLE_COMMIT}, got {sums['commit']}")
                     up_to_date = False
                 else:
-                    s = checksum.dirsum('.', excluded_files=["angle.json", ".DS_Store"])
+                    s = checksum.dirsum('.', excluded_files=["angle.json"], ignore_hidden=True)
                     if s != sums['sum']:
                         messages.append(f"build/angle.out doesn't match checksum.\n  note: expected {sums['sum']}, got {s}")
                         up_to_date = False
@@ -501,7 +501,7 @@ def build_angle_internal(release, force):
     # - sums
     sums = {
         "commit": ANGLE_COMMIT,
-        "sum": checksum.dirsum("build/angle.out")
+        "sum": checksum.dirsum("build/angle.out", ignore_hidden=True)
     }
 
     # save artifacts checksums
@@ -747,7 +747,7 @@ def build_platform_layer_internal(release):
         msg.more("  * For macOS, go to https://github.com/orca-app/orca/actions/workflows/build-angle-mac.yaml")
         msg.more("  * Click on \"Run workflow\" to tigger a new run, or download artifacts from a previous run")
         msg.more("  * Put the contents of the artifacts folder in './build/angle.out'")
-        exit()
+        exit(1)
 
     dawn_ok, dawn_messages = check_dawn()
     if not dawn_ok:
@@ -765,7 +765,7 @@ def build_platform_layer_internal(release):
         msg.more("  * For macOS, go to https://github.com/orca-app/orca/actions/workflows/build-dawn-mac.yaml")
         msg.more("  * Click on \"Run workflow\" to tigger a new run, or download artifacts from a previous run")
         msg.more("  * Put the contents of the artifacts folder in './build/dawn.out'")
-        exit()
+        exit(1)
 
     os.makedirs("build/bin", exist_ok=True)
     os.makedirs("build/lib", exist_ok=True)

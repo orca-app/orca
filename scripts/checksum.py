@@ -1,6 +1,7 @@
 import hashlib
 import json
 import os
+import re
 
 from .log import *
 
@@ -119,4 +120,3 @@ def _reduce_hash(hashlist, hashfunc):
     for hashvalue in sorted(hashlist):
         hasher.update(hashvalue.encode("utf-8"))
     return hasher.hexdigest()
-

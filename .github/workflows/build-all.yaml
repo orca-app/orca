@@ -102,7 +102,7 @@ jobs:
 
       - name: Package
         run: |
-          if [ ${{ inputs.version }} != '' ] ; then
+          if [ "${{ inputs.version }}" != '' ] ; then
             ./orcadev install --version ${{ inputs.version }} orca
           else
             ./orcadev install orca
@@ -144,7 +144,7 @@ jobs:
 
       - name: Package
         run: |
-          if [ ${{ inputs.version }} != '' ] ; then
+          if [ "${{ inputs.version }}" != '' ] ; then
             ./orcadev install --version ${{ inputs.version }} orca
           else
             ./orcadev install orca
