@@ -283,7 +283,7 @@ target_sources(webgpu PRIVATE ${WEBGPU_DAWN_NATIVE_PROC_GEN})"""
         else:
             shutil.copy("dawn.build/src/dawn/native/libwebgpu.dylib", "dawn.out/bin/")
 
-    # save artifacts checksums
+    # save artifact commit
     with open('build/dawn.out/dawn.json', 'w') as f:
         json.dump(sums, f)
 
@@ -308,10 +308,6 @@ def dawn_required_files():
 
     return artifacts
 
-#############################################################################
-#TODO: coalesce with check_angle
-# use a checksum for the whole output directory
-#############################################################################
 def check_angle():
 
     ANGLE_COMMIT = angle_required_commit()
@@ -329,11 +325,6 @@ def check_angle():
                 elif sums['commit'] != ANGLE_COMMIT:
                     messages.append(f"build/angle.out doesn't match the required angle commit.\n  note: expected {ANGLE_COMMIT}, got {sums['commit']}")
                     up_to_date = False
-                else:
-                    s = checksum.dirsum('.', excluded_files=["angle.json"], ignore_hidden=True)
-                    if s != sums['sum']:
-                        messages.append(f"build/angle.out doesn't match checksum.\n  note: expected {sums['sum']}, got {s}")
-                        up_to_date = False
     else:
         messages = [["build/angle.out/angle.json not found"]]
         up_to_date = False
@@ -473,7 +464,6 @@ def build_angle_internal(release, force):
     # - sums
     sums = {
         "commit": ANGLE_COMMIT,
-        "sum": checksum.dirsum("build/angle.out", ignore_hidden=True)
     }
 
     # save artifacts checksums
@@ -1357,7 +1347,7 @@ def install(args):
 
     if runtime_checksum() != runtime_checksum_last():
         print("Your build of the Orca runtime is out of date. We recommend that you")
-        print("rebuild the runtime first with `orcadev build-runtime`.")
+        print("rebuild the runtime first with `orcadev build`.")
         if not prompt("Do you wish to install the runtime anyway?"):
             return
         print()
