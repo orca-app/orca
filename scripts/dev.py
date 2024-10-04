@@ -123,29 +123,18 @@ def check_dawn():
 
 
     if os.path.exists("build/dawn.out/dawn.json"):
-        with pushd("build/dawn.out"):
-            with open("dawn.json", "r") as f:
-                sums = json.loads(f.read())
+        with open("build/dawn.out/dawn.json", "r") as f:
+            sums = json.loads(f.read())
 
-                up_to_date = True
+            up_to_date = True
 
-                for artifact in artifacts:
-                    if artifact in sums:
-                        if os.path.isfile(artifact):
-                            s = checksum.filesum(artifact)
-                            if sums[artifact]['commit'] != DAWN_COMMIT:
-                                messages.append(f"build/dawn.out/{artifact} doesn't match dawn commit.\n  note: expected {DAWN_COMMIT}, got {sums[artifact]['commit']}")
-                                up_to_date = False
-                            elif s != sums[artifact]['sum']:
-                                messages.append(f"build/dawn.out/{artifact} doesn't match checksum.\n  note: expected {sums[artifact]['sum']}, got {s}")
-                                up_to_date = False
-                        else:
-                            messages.append(f"build/dawn.out/{artifact} not found")
-                            up_to_date = False
-                            break
-                    else:
-                        messages.append(f"build/dawn.out/{artifact} is not listed in checksum file")
-                        up_to_date = False
+            if 'commit' not in sums:
+                messages.append(f"build/dawn.out/dawn.json doesn't contain dawn commit.")
+                up_to_date = False
+
+            elif sums['commit'] != DAWN_COMMIT:
+                messages.append(f"build/dawn.out/dawn.json doesn't match dawn commit.\n  note: expected {DAWN_COMMIT}, got {sums['commit']}")
+                up_to_date = False
     else:
         messages = ["build/dawn.out/dawn.json not found"]
 
@@ -279,37 +268,20 @@ target_sources(webgpu PRIVATE ${WEBGPU_DAWN_NATIVE_PROC_GEN})"""
 
         # package result
         print("  * copying build artifacts...")
-        sums = dict()
+        sums = {
+            "commit": DAWN_COMMIT
+        }
 
         os.makedirs("dawn.out/include", exist_ok=True)
         os.makedirs("dawn.out/bin", exist_ok=True)
 
         shutil.copy("dawn.build/gen/include/dawn/webgpu.h", "dawn.out/include/")
 
-        sums['include/webgpu.h'] = {
-            "commit": DAWN_COMMIT,
-            "sum": checksum.filesum('dawn.out/include/webgpu.h')
-        }
-
         if platform.system() == "Windows":
             shutil.copy(f"dawn.build/{mode}/webgpu.dll", "dawn.out/bin/")
             shutil.copy(f"dawn.build/src/dawn/native/{mode}/webgpu.lib", "dawn.out/bin/")
-
-            sums['bin/webgpu.dll'] = {
-                "commit": DAWN_COMMIT,
-                "sum": checksum.filesum('dawn.out/bin/webgpu.dll')
-            }
-            sums['bin/webgpu.lib'] = {
-                "commit": DAWN_COMMIT,
-                "sum": checksum.filesum('dawn.out/bin/webgpu.lib')
-            }
         else:
             shutil.copy("dawn.build/src/dawn/native/libwebgpu.dylib", "dawn.out/bin/")
-
-            sums['bin/libwebgpu.dylib'] = {
-                "commit": DAWN_COMMIT,
-                "sum": checksum.filesum('dawn.out/bin/libwebgpu.dylib')
-            }
 
     # save artifacts checksums
     with open('build/dawn.out/dawn.json', 'w') as f:
