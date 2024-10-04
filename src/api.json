@@ -3770,6 +3770,61 @@
                     }
                 },
                 {
+                    "kind": "typename",
+                    "name": "oc_utf8_status",
+                    "doc": "This enum declares the possible return status of UTF8 decoding/encoding operations.",
+                    "type": {
+                        "kind": "enum",
+                        "type": {
+                            "kind": "u32"
+                        },
+                        "constants": [
+                            {
+                                "kind": "enum-constant",
+                                "name": "OC_UTF8_OK",
+                                "doc": "The operation was successful.",
+                                "value": 0
+                            },
+                            {
+                                "kind": "enum-constant",
+                                "name": "OC_UTF8_OUT_OF_BOUNDS",
+                                "doc": "The operation unexpectedly encountered the end of the utf8 sequence.",
+                                "value": 1
+                            },
+                            {
+                                "kind": "enum-constant",
+                                "name": "OC_UTF8_UNEXPECTED_CONTINUATION_BYTE",
+                                "doc": "A continuation byte was encountered where a leading byte was expected.",
+                                "value": 3
+                            },
+                            {
+                                "kind": "enum-constant",
+                                "name": "OC_UTF8_UNEXPECTED_LEADING_BYTE",
+                                "doc": "A leading byte was encountered in the middle of the encoding of utf8 codepoint.",
+                                "value": 4
+                            },
+                            {
+                                "kind": "enum-constant",
+                                "name": "OC_UTF8_INVALID_BYTE",
+                                "doc": "The utf8 sequence contains an invalid byte.",
+                                "value": 5
+                            },
+                            {
+                                "kind": "enum-constant",
+                                "name": "OC_UTF8_INVALID_CODEPOINT",
+                                "doc": "The operation encountered an invalid utf8 codepoint.",
+                                "value": 6
+                            },
+                            {
+                                "kind": "enum-constant",
+                                "name": "OC_UTF8_OVERLONG_ENCODING",
+                                "doc": "The utf8 sequence contains an overlong encoding of a utf8 codepoint.",
+                                "value": 7
+                            }
+                        ]
+                    }
+                },
+                {
                     "kind": "proc",
                     "name": "oc_utf8_size_from_leading_char",
                     "doc": "Get the size of a utf8-encoded codepoint for the first byte of the encoded sequence.",
@@ -3902,6 +3957,14 @@
                     "type": {
                         "kind": "struct",
                         "fields": [
+                            {
+                                "name": "status",
+                                "doc": "The status of the decoding operation. If not `OC_UTF8_OK`, it describes the error that was encountered during decoding.",
+                                "type": {
+                                    "kind": "namedType",
+                                    "name": "oc_utf8_status"
+                                }
+                            },
                             {
                                 "name": "codepoint",
                                 "doc": "The decoded codepoint.",
