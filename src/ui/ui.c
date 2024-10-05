@@ -399,6 +399,9 @@ oc_ui_box* oc_ui_box_make_str8(oc_str8 string, oc_ui_flags flags)
         box->fresh = false;
     }
 
+    box->flags = flags;
+    box->string = oc_str8_push_copy(&ui->frameArena, string);
+
     //NOTE: setup hierarchy
     if(box->frameCounter != ui->frameCounter)
     {
@@ -421,10 +424,7 @@ oc_ui_box* oc_ui_box_make_str8(oc_str8 string, oc_ui_flags flags)
         oc_log_warning("trying to make ui box '%.*s' multiple times in the same frame\n", (int)box->string.len, box->string.ptr);
     }
 
-    //NOTE: setup per-frame state
     box->frameCounter = ui->frameCounter;
-    box->string = oc_str8_push_copy(&ui->frameArena, string);
-    box->flags = flags;
 
     //NOTE: create style and setup non-inherited attributes to default values
     box->targetStyle = oc_arena_push_type(&ui->frameArena, oc_ui_style);
@@ -1204,6 +1204,8 @@ void oc_ui_layout_upward_dependent_size(oc_ui_context* ui, oc_ui_box* box, int a
             }
         }
     }
+    box->rect.c[2 + axis] = oc_max(box->minSize[axis], box->rect.c[2 + axis]);
+
     f32 sum = 0;
 
     //NOTE: recurse in children and recompute children sum
@@ -2442,7 +2444,7 @@ void oc_ui_tooltip_str8(oc_str8 label)
     oc_ui_style containerStyle = { .floating.x = true,
                                    .floating.y = true,
                                    .floatTarget.x = p.x,
-                                   .floatTarget.y = p.y };
+                                   .floatTarget.y = p.y - 10 }; //TODO: quick fix for aliging single line tooltips arrow to mouse, fix that!
     oc_ui_style_next(&containerStyle, OC_UI_STYLE_FLOAT);
     oc_ui_container_str8(label, OC_UI_FLAG_OVERLAY)
     {
