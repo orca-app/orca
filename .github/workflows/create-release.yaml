@@ -16,6 +16,8 @@ jobs:
       contents: write
     needs: [build-all]
     steps:
+      - uses: actions/checkout@v4
+
       - uses: actions/download-artifact@v4
         with:
           # when name is not specified, all artifacts from this run will be downloaded
@@ -28,6 +30,7 @@ jobs:
           cp artifacts/orca-windows.tar.gz releases
           cp artifacts/orca-mac-x64.tar.gz releases
           cp artifacts/orca-mac-arm64.tar.gz releases
+          cp -r samples releases
 
       - uses: ncipollo/release-action@v1
         with:
