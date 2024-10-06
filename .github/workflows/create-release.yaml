@@ -24,13 +24,17 @@ jobs:
           path: artifacts
           merge-multiple: true
 
+      - name: Compress samples
+        run: |
+          tar --format=ustar -czf samples.tar.gz samples
+
       - name: Copy
         run: |
           mkdir releases
           cp artifacts/orca-windows.tar.gz releases
           cp artifacts/orca-mac-x64.tar.gz releases
           cp artifacts/orca-mac-arm64.tar.gz releases
-          cp -r samples releases
+          cp samples.tar.gz releases
 
       - uses: ncipollo/release-action@v1
         with:
