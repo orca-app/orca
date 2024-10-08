@@ -3355,6 +3355,7 @@ void oc_wgpu_canvas_submit(oc_canvas_renderer_base* rendererBase,
                     wgpuRenderPassEncoderSetViewport(pass, 0.f, 0.f, screenSize.x, screenSize.y, 0.f, 1.f);
                 }
                 wgpuRenderPassEncoderEnd(pass);
+                wgpuRenderPassEncoderRelease(pass);
             }
 
             //----------------------------------------------------------------------------------------
@@ -3378,6 +3379,7 @@ void oc_wgpu_canvas_submit(oc_canvas_renderer_base* rendererBase,
                     wgpuRenderPassEncoderSetViewport(pass, 0.f, 0.f, screenSize.x, screenSize.y, 0.f, 1.f);
                 }
                 wgpuRenderPassEncoderEnd(pass);
+                wgpuRenderPassEncoderRelease(pass);
             }
 
             /*NOTE(martin): On dispatch limits.
@@ -3433,6 +3435,7 @@ void oc_wgpu_canvas_submit(oc_canvas_renderer_base* rendererBase,
                     wgpuComputePassEncoderDispatchWorkgroups(pass, workGroupCountX, workGroupCountY, 1);
                 }
                 wgpuComputePassEncoderEnd(pass);
+                wgpuComputePassEncoderRelease(pass);
             }
 
             //----------------------------------------------------------------------------------------
@@ -3457,6 +3460,7 @@ void oc_wgpu_canvas_submit(oc_canvas_renderer_base* rendererBase,
                     wgpuComputePassEncoderDispatchWorkgroups(pass, workGroupCountX, 1, 1);
                 }
                 wgpuComputePassEncoderEnd(pass);
+                wgpuComputePassEncoderRelease(pass);
             }
 
             //----------------------------------------------------------------------------------------
@@ -3478,6 +3482,7 @@ void oc_wgpu_canvas_submit(oc_canvas_renderer_base* rendererBase,
                     wgpuComputePassEncoderDispatchWorkgroups(pass, workGroupCountX, workGroupCountY, 1);
                 }
                 wgpuComputePassEncoderEnd(pass);
+                wgpuComputePassEncoderRelease(pass);
             }
 
             //----------------------------------------------------------------------------------------
@@ -3498,6 +3503,7 @@ void oc_wgpu_canvas_submit(oc_canvas_renderer_base* rendererBase,
                     wgpuComputePassEncoderDispatchWorkgroups(pass, workGroupCountX, workGroupCountY, 1);
                 }
                 wgpuComputePassEncoderEnd(pass);
+                wgpuComputePassEncoderRelease(pass);
             }
 
             //----------------------------------------------------------------------------------------
@@ -3517,6 +3523,7 @@ void oc_wgpu_canvas_submit(oc_canvas_renderer_base* rendererBase,
                     wgpuComputePassEncoderDispatchWorkgroups(pass, workGroupCountX, workGroupCountY, 1);
                 }
                 wgpuComputePassEncoderEnd(pass);
+                wgpuComputePassEncoderRelease(pass);
             }
 
             //----------------------------------------------------------------------------------------
@@ -3533,6 +3540,7 @@ void oc_wgpu_canvas_submit(oc_canvas_renderer_base* rendererBase,
                     wgpuComputePassEncoderDispatchWorkgroups(pass, 1, 1, 1);
                 }
                 wgpuComputePassEncoderEnd(pass);
+                wgpuComputePassEncoderRelease(pass);
             }
 
             //----------------------------------------------------------------------------------------
@@ -3571,6 +3579,7 @@ void oc_wgpu_canvas_submit(oc_canvas_renderer_base* rendererBase,
                     wgpuComputePassEncoderDispatchWorkgroupsIndirect(pass, renderer->tileQueueCountBuffer, 0);
                 }
                 wgpuComputePassEncoderEnd(pass);
+                wgpuComputePassEncoderRelease(pass);
             }
 
             //----------------------------------------------------------------------------------------
@@ -3598,6 +3607,7 @@ void oc_wgpu_canvas_submit(oc_canvas_renderer_base* rendererBase,
                     wgpuRenderPassEncoderDraw(pass, 4, 1, 0, 0);
                 }
                 wgpuRenderPassEncoderEnd(pass);
+                wgpuRenderPassEncoderRelease(pass);
             }
 
             // submit to queue
@@ -3644,6 +3654,7 @@ void oc_wgpu_canvas_submit(oc_canvas_renderer_base* rendererBase,
                 }
             }
             wgpuRenderPassEncoderEnd(pass);
+            wgpuRenderPassEncoderRelease(pass);
         }
 
         //NOTE: resolve frame timestamps
@@ -3808,7 +3819,10 @@ void oc_wgpu_canvas_destroy(oc_canvas_renderer_base* base)
 #undef release_buffer_if_needed
 
     // release query set
-    wgpuQuerySetRelease(renderer->timestampsQuerySet);
+    if(renderer->timestampsQuerySet)
+    {
+        wgpuQuerySetRelease(renderer->timestampsQuerySet);
+    }
 
     // release texture views and sample
     if(renderer->batchTextureView)
