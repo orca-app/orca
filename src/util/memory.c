@@ -153,6 +153,12 @@ oc_arena_scope oc_arena_scope_begin(oc_arena* arena)
 
 void oc_arena_scope_end(oc_arena_scope scope)
 {
+    for(oc_arena_chunk* chunk = scope.arena->currentChunk;
+        chunk != 0 && chunk != scope.chunk;
+        chunk = oc_list_prev_entry(chunk, oc_arena_chunk, listElt))
+    {
+        chunk->offset = sizeof(oc_arena_chunk);
+    }
     scope.arena->currentChunk = scope.chunk;
     scope.arena->currentChunk->offset = scope.offset;
 }
