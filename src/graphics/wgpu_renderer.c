@@ -2094,7 +2094,7 @@ void oc_wgpu_encode_stroke_element(oc_wgpu_canvas_encoding_context* context,
     }
     *endPoint = controlPoints[endPointIndex];
 
-    for(int i = endPointIndex - 1; i >= 0; i++)
+    for(int i = endPointIndex - 1; i >= 0; i--)
     {
         if(controlPoints[i].x != endPoint->x
            || controlPoints[i].y != endPoint->y)
