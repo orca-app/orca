@@ -74,6 +74,7 @@ typedef struct wa_debugger
     oc_list breakpointFreeList;
 
     wa_bytecode_loc nextLoc;
+
 } wa_debugger;
 
 typedef enum view_kind
@@ -1227,15 +1228,60 @@ void load_module(app_data* app, oc_str8 modulePath)
         wa_ast_print(app->module->root, app->contents);
         wa_print_code(app->module);
 
-        //NOTE: dump dwarf abbrev table if it exists
+        /////////////////////////////////////////////////////////////////////////
+        //WIP: Dwarf stuff
+
+        //NOTE: load dwarf sections
+
+        dw_sections dwarfSections = { 0 };
+
         oc_list_for(app->module->toc.customSections, section, wa_section, listElt)
         {
+            oc_str8 sectionContents = oc_str8_slice(app->contents, section->offset, section->offset + section->len);
+
             if(!oc_str8_cmp(section->name, OC_STR8(".debug_abbrev")))
             {
-                oc_str8 abbrev = oc_str8_slice(app->contents, section->offset, section->offset + section->len);
-                dw_dump_abbrev_table(abbrev);
+                dwarfSections.abbrev = sectionContents;
+            }
+            else if(!oc_str8_cmp(section->name, OC_STR8(".debug_info")))
+            {
+                dwarfSections.info = sectionContents;
+            }
+            else if(!oc_str8_cmp(section->name, OC_STR8(".debug_str_offsets")))
+            {
+                dwarfSections.strOffsets = sectionContents;
+            }
+            else if(!oc_str8_cmp(section->name, OC_STR8(".debug_str")))
+            {
+                dwarfSections.str = sectionContents;
+            }
+            else if(!oc_str8_cmp(section->name, OC_STR8(".debug_addr")))
+            {
+                dwarfSections.addr = sectionContents;
+            }
+            else if(!oc_str8_cmp(section->name, OC_STR8(".debug_line")))
+            {
+                dwarfSections.line = sectionContents;
+            }
+            else if(!oc_str8_cmp(section->name, OC_STR8(".debug_line_str")))
+            {
+                dwarfSections.lineStr = sectionContents;
             }
         }
+
+        //NOTE: dump dwarf abbrev table if it exists
+        if(dwarfSections.abbrev.len)
+        {
+            dw_dump_abbrev_table(dwarfSections.abbrev);
+        }
+
+        if(dwarfSections.line.len)
+        {
+            dw_line_info lineInfo = dw_load_line_info(app->moduleArena, &dwarfSections);
+            dw_print_line_info(&lineInfo);
+        }
+        //END dwarf stuff
+        /////////////////////////////////////////////////////////////////////////
 
         app->instance = wa_instance_create(app->moduleArena, app->module, &(wa_instance_options){ 0 });
         if(wa_instance_status(app->instance) != WA_OK)
