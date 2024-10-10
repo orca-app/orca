@@ -8,17 +8,23 @@ const MAX_FILE_SIZE = 1024 * 1024 * 128;
 const Lib = enum {
     Angle,
     Dawn,
+
+    fn toStr(lib: Lib) []const u8 {
+        return switch (lib) {
+            .Angle => "angle",
+            .Dawn => "dawn",
+        };
+    }
 };
 
 const Options = struct {
     arena: std.mem.Allocator,
     lib: Lib,
     commit_sha: []const u8,
-    check_only: bool = false,
-    optimize: std.builtin.OptimizeMode = .ReleaseFast,
+    check_only: bool,
+    optimize: std.builtin.OptimizeMode,
     paths: struct {
         python: []const u8,
-        depot_tools: []const u8,
         src_dir: []const u8,
         intermediate_dir: []const u8,
         output_dir: []const u8,
@@ -31,19 +37,21 @@ const Options = struct {
         var optimize: std.builtin.OptimizeMode = .ReleaseFast;
 
         var python: ?[]const u8 = null;
-        var depot_tools: ?[]const u8 = null;
         var src_dir: ?[]const u8 = null;
         var intermediate_dir: ?[]const u8 = null;
-        var output_dir: ?[]const u8 = null;
 
-        for (args) |raw_arg| {
+        for (args, 0..) |raw_arg, i| {
+            if (i == 0) {
+                continue;
+            }
+
             var splitIter = std.mem.splitScalar(u8, raw_arg, '=');
-            const arg = splitIter.next();
+            const arg: []const u8 = splitIter.next().?;
             if (std.mem.eql(u8, arg, "--lib")) {
                 if (splitIter.next()) |lib_str| {
-                    if (std.mem.eql(lib_str, "angle")) {
+                    if (std.mem.eql(u8, lib_str, "angle")) {
                         lib = .Angle;
-                    } else if (std.mem.eql(lib_str, "dawn")) {
+                    } else if (std.mem.eql(u8, lib_str, "dawn")) {
                         lib = .Dawn;
                     } else {
                         return error.InvalidArgument;
@@ -55,29 +63,54 @@ const Options = struct {
                 commit_sha = splitIter.next();
             } else if (std.mem.eql(u8, arg, "--check")) {
                 check_only = true;
-            } else if (std.mem.eql(arg, "--debug")) {
+            } else if (std.mem.eql(u8, arg, "--debug")) {
                 optimize = .Debug;
-            } else if (std.mem.eql(arg, "--python")) {
+            } else if (std.mem.eql(u8, arg, "--python")) {
                 python = splitIter.next();
-            } else if (std.mem.eql(arg, "--depot_tools")) {
-                depot_tools = splitIter.next();
-            } else if (std.mem.eql(arg, "--src")) {
+            } else if (std.mem.eql(u8, arg, "--src")) {
                 src_dir = splitIter.next();
-            } else if (std.mem.eql(arg, "--intermediate")) {
+            } else if (std.mem.eql(u8, arg, "--intermediate")) {
                 intermediate_dir = splitIter.next();
-            } else if (std.mem.eql(arg, "--output")) {
-                output_dir = splitIter.next();
             }
 
             // logic above should have consumed all tokens, if any are left it's an error
-            if (splitIter.next() != null) {
+            if (splitIter.next()) |last| {
+                std.log.err("Unexpected part of arg: {s}", .{last});
                 return error.InvalidArgument;
             }
         }
 
-        if (lib == null or commit_sha == null or python == null or depot_tools == null or src_dir == null or intermediate_dir == null or output_dir == null) {
+        var missing_arg: ?[]const u8 = null;
+        if (lib == null) {
+            missing_arg = "lib";
+        } else if (commit_sha == null) {
+            missing_arg = "sha";
+        } else if (python == null) {
+            missing_arg = "python";
+        } else if (src_dir == null) {
+            missing_arg = "src";
+        } else if (intermediate_dir == null) {
+            missing_arg = "intermediate";
+        }
+
+        if (missing_arg) |arg| {
+            std.log.err("Missing required arg: {s}\n", .{arg});
             return error.MissingRequiredArgument;
         }
+
+        var bad_absolute_path: ?[]const u8 = null;
+        if (std.fs.path.isAbsolute(src_dir.?) == false) {
+            bad_absolute_path = src_dir;
+        } else if (std.fs.path.isAbsolute(intermediate_dir.?) == false) {
+            bad_absolute_path = intermediate_dir;
+        }
+
+        if (bad_absolute_path) |path| {
+            std.log.err("Path {s} must be absolute", .{path});
+        }
+
+        const output_folder: []const u8 = try std.fmt.allocPrint(arena, "{s}.out", .{lib.?.toStr()});
+        const output_dir: []const u8 = try std.fs.path.join(arena, &.{ intermediate_dir.?, output_folder });
 
         return .{
             .arena = arena,
@@ -87,10 +120,9 @@ const Options = struct {
             .optimize = optimize,
             .paths = .{
                 .python = python.?,
-                .depot_tools = depot_tools.?,
                 .src_dir = src_dir.?,
                 .intermediate_dir = intermediate_dir.?,
-                .output_dir = output_dir.?,
+                .output_dir = output_dir,
             },
         };
     }
@@ -103,30 +135,95 @@ const Sort = struct {
 };
 
 fn exec(arena: std.mem.Allocator, argv: []const []const u8, cwd: []const u8, env: *std.process.EnvMap) !void {
-    std.debug.print("running: ", .{});
+    var log_msg = std.ArrayList(u8).init(arena);
+    var log_writer = log_msg.writer();
+    try log_writer.print("running: ", .{});
     for (argv) |arg| {
-        std.debug.print("{s}", .{arg});
+        try log_writer.print("{s} ", .{arg});
     }
-    std.debug.print("\n", .{});
+    std.log.info("{s}", .{log_msg.items});
 
-    const result = try std.process.Child.run(.{
+    const result: std.process.Child.RunResult = try std.process.Child.run(.{
         .allocator = arena,
         .argv = argv,
         .cwd = cwd,
         .env_map = env,
     });
+
+    if (result.stdout.len > 0) {
+        std.log.info("\n{s}", .{result.stdout});
+    }
+
+    if (result.stderr.len > 0) {
+        std.log.info("\n{s}", .{result.stderr});
+    }
+
     switch (result.term) {
         .Exited => |v| {
             if (v != 0) {
-                std.log.err("process {s} exited with nonzero exit code {}", .{ argv[0], v });
+                std.log.err("process {s} exited with nonzero exit code {}.", .{ argv[0], v });
                 return error.NonZeroExitCode;
             }
         },
         else => {
-            std.log.err("process {s} exited abnormally", .{argv[0]});
+            std.log.err("process {s} exited abnormally.", .{argv[0]});
             return error.AbnormalExit;
         },
     }
+}
+
+fn execShell(arena: std.mem.Allocator, argv: []const []const u8, cwd: []const u8, env: *std.process.EnvMap) !void {
+    var final_args = std.ArrayList([]const u8).init(arena);
+    if (builtin.os.tag == .windows) {
+        try final_args.append("cmd.exe");
+        try final_args.append("/k");
+        try final_args.append(try std.mem.join(arena, "", &.{ argv[0], ".bat" }));
+        try final_args.appendSlice(argv[1..]);
+    } else {
+        try final_args.appendSlice(argv);
+    }
+    try exec(arena, final_args.items, cwd, env);
+}
+
+fn pathExists(dir: std.fs.Dir, path: []const u8) std.fs.Dir.AccessError!bool {
+    dir.access(path, .{}) catch |e| {
+        if (e == std.fs.Dir.AccessError.FileNotFound) {
+            return false;
+        } else {
+            return e;
+        }
+    };
+
+    return true;
+}
+
+fn makeDir(path: []const u8) !void {
+    const cwd = std.fs.cwd();
+    cwd.makeDir(path) catch |e| {
+        if (e != error.PathAlreadyExists) {
+            return e;
+        }
+    };
+}
+
+fn copySrcToIntermediate(opts: *const Options) ![]const u8 {
+    const final_src_path = try std.fs.path.join(opts.arena, &.{ opts.paths.intermediate_dir, opts.lib.toStr() });
+    try makeDir(final_src_path);
+
+    std.log.info("copying src '{s}' to intermediate '{s}'", .{ opts.paths.src_dir, final_src_path });
+
+    const cwd = std.fs.cwd();
+    const src_dir: std.fs.Dir = try cwd.openDir(opts.paths.src_dir, .{ .iterate = true });
+    const dest_dir: std.fs.Dir = try cwd.openDir(final_src_path, .{ .iterate = true });
+
+    var src_walker = try src_dir.walk(opts.arena);
+    while (try src_walker.next()) |src_entry| {
+        if (src_entry.kind == .file) {
+            _ = try src_dir.updateFile(src_entry.path, dest_dir, src_entry.path, .{});
+        }
+    }
+
+    return final_src_path;
 }
 
 // Algorithm ported from checksumdir package on pypy, which is MIT licensed.
@@ -257,7 +354,12 @@ fn checksumAngle(opts: *const Options) ![]const u8 {
     } });
 }
 
-fn isAngleUpToDate(opts: *const Options) bool {
+const ShouldLogError = enum {
+    LogError,
+    NoError,
+};
+
+fn isAngleUpToDate(opts: *const Options, log_error: ShouldLogError) bool {
     const sum = checksumAngle(opts) catch |e| {
         std.log.err("Failed checksum dir '{s}': {}\n", .{ opts.paths.output_dir, e });
         return false;
@@ -265,33 +367,41 @@ fn isAngleUpToDate(opts: *const Options) bool {
 
     const checksum_path = std.fs.path.join(opts.arena, &.{ opts.paths.output_dir, ANGLE_CHECKSUM_FILENAME }) catch @panic("OOM");
     const json_data: []const u8 = std.fs.cwd().readFileAlloc(opts.arena, checksum_path, MAX_FILE_SIZE) catch |e| {
-        std.log.err("Failed to read checksum file from location '{s}': {}", .{ checksum_path, e });
+        if (log_error == .LogError) {
+            std.log.err("Failed to read checksum file from location '{s}': {}", .{ checksum_path, e });
+        }
         return false;
     };
 
     const loaded_checksum = std.json.parseFromSliceLeaky(CommitChecksum, opts.arena, json_data, .{}) catch |e| {
-        std.log.err("Failed to parse file '{s}' json: {}. Raw json data:\n{s}\n", .{
-            checksum_path,
-            e,
-            json_data,
-        });
+        if (log_error == .LogError) {
+            std.log.err("Failed to parse file '{s}' json: {}. Raw json data:\n{s}\n", .{
+                checksum_path,
+                e,
+                json_data,
+            });
+        }
         return false;
     };
     if (std.mem.eql(u8, loaded_checksum.commit, opts.commit_sha) == false) {
-        std.log.err("{s} doesn't match the required angle commit. expected {s}, got {s}", .{
-            checksum_path,
-            opts.commit_sha,
-            loaded_checksum.commit,
-        });
+        if (log_error == .LogError) {
+            std.log.err("{s} doesn't match the required angle commit. expected {s}, got {s}", .{
+                checksum_path,
+                opts.commit_sha,
+                loaded_checksum.commit,
+            });
+        }
         return false;
     }
 
     if (std.mem.eql(u8, loaded_checksum.sum, sum) == false) {
-        std.log.err("{s} doesn't match checksum. expected {s}, got {s}", .{
-            checksum_path,
-            loaded_checksum.commit,
-            sum,
-        });
+        if (log_error == .LogError) {
+            std.log.err("{s} doesn't match checksum. expected {s}, got {s}", .{
+                checksum_path,
+                loaded_checksum.commit,
+                sum,
+            });
+        }
         return false;
     }
 
@@ -299,30 +409,59 @@ fn isAngleUpToDate(opts: *const Options) bool {
 }
 
 fn checkAngle(opts: *const Options) !void {
-    if (isAngleUpToDate(opts) == false) {
+    if (isAngleUpToDate(opts, .LogError) == false) {
         return error.AngleOutOfDate;
     }
 }
 
 fn buildAngle(opts: *const Options) !void {
-    if (isAngleUpToDate(opts)) {
+    if (isAngleUpToDate(opts, .NoError)) {
         std.debug.print("angle is up to date - no rebuild needed.\n", .{});
         return;
     } else if (opts.check_only) {
         return error.AngleOutOfDate;
     }
 
+    try makeDir(opts.paths.intermediate_dir);
+
+    std.log.info("angle is out of date - rebuilding", .{});
+
     var env: std.process.EnvMap = try std.process.getEnvMap(opts.arena);
     defer env.deinit();
     if (builtin.os.tag == .windows) {
         try env.put("DEPOT_TOOLS_WIN_TOOLCHAIN", "0");
     }
-    // TODO add depot_tools to PATH
 
-    const bootstrap_path = try std.fs.path.join(opts.arena, &.{ opts.paths.src_dir, "scripts/bootstrap.py" });
-    try exec(opts.arena, &.{ opts.paths.python, bootstrap_path }, opts.paths.intermediate_dir, &env);
+    const depot_tools_path = try std.fs.path.join(opts.arena, &.{ opts.paths.intermediate_dir, "depot_tools" });
+    if (try pathExists(std.fs.cwd(), depot_tools_path) == false) {
+        std.log.info("cloning depot_tools to intermediate '{s}'...", .{opts.paths.intermediate_dir});
+        try exec(opts.arena, &.{ "git", "clone", "https://chromium.googlesource.com/chromium/tools/depot_tools.git" }, opts.paths.intermediate_dir, &env);
+    } else {
+        std.log.info("depot_tools already exists, skipping clone", .{});
+    }
 
-    try exec(opts.arena, &.{ "gclient", "sync" }, opts.paths.intermediate_dir, &env);
+    const key = "PATH";
+    if (env.get(key)) |env_path| {
+        const new_path = try std.fmt.allocPrint(opts.arena, "{s}" ++ [1]u8{std.fs.path.delimiter} ++ "{s}", .{ env_path, depot_tools_path });
+        try env.put(key, new_path);
+    } else {
+        try env.put(key, depot_tools_path);
+    }
+
+    {
+        std.debug.print(">>> env:\n", .{});
+        var iter = env.iterator();
+        while (iter.next()) |entry| {
+            std.debug.print("\t{s}: {s}\n", .{ entry.key_ptr.*, entry.value_ptr.* });
+        }
+    }
+
+    const src_dir = try copySrcToIntermediate(opts);
+
+    const bootstrap_path = try std.fs.path.join(opts.arena, &.{ src_dir, "scripts/bootstrap.py" });
+    try exec(opts.arena, &.{ opts.paths.python, bootstrap_path }, src_dir, &env);
+
+    try execShell(opts.arena, &.{ "gclient", "sync" }, src_dir, &env);
 
     // const angle_bootstrap = Step.Run.create(b, "run python");
 
@@ -352,7 +491,7 @@ fn buildAngle(opts: *const Options) !void {
     // angle_gclient_sync.step.dependOn(&angle_bootstrap.step);
 
     const optimize_str = if (opts.optimize == .Debug) "Debug" else "Release";
-    const is_debug_str = if (opts.optimize == .Debug) "is_debug=True" else "is+_debug=False";
+    const is_debug_str = if (opts.optimize == .Debug) "is_debug=True" else "is_debug=False";
     // const out_dir = try std.fmt.allocPrint("out/{s}", .{angle_optimize_str});
     // const out_dir = try std.fmt.allocPrint("out/{s}", .{angle_optimize_str});
 
@@ -387,10 +526,11 @@ fn buildAngle(opts: *const Options) !void {
     const gn_args: []const u8 = try std.fmt.allocPrint(opts.arena, "--args={s}", .{gn_all_args});
 
     const optimize_output_dir = try std.fs.path.join(opts.arena, &.{ opts.paths.output_dir, optimize_str });
+    try makeDir(optimize_output_dir);
 
-    try exec(opts.arena, &.{ "gn", "gen", optimize_output_dir, gn_args }, opts.paths.intermediate_dir, &env);
+    try execShell(opts.arena, &.{ "gn", "gen", optimize_output_dir, gn_args }, src_dir, &env);
 
-    try exec(opts.arena, &.{ "autoninja", "-C", optimize_output_dir, "libEGL", "libGLESv2" }, opts.paths.intermediate_dir, &env);
+    try execShell(opts.arena, &.{ "autoninja", "-C", optimize_output_dir, "libEGL", "libGLESv2" }, src_dir, &env);
 
     // write stamp file
     {
@@ -400,6 +540,7 @@ fn buildAngle(opts: *const Options) !void {
         };
         var json = std.ArrayList(u8).init(opts.arena);
         try std.json.stringify(commit_checksum, .{}, json.writer());
+        try makeDir(opts.paths.output_dir);
         const checksum_path = std.fs.path.join(opts.arena, &.{ opts.paths.output_dir, ANGLE_CHECKSUM_FILENAME }) catch @panic("OOM");
         try std.fs.cwd().writeFile(.{
             .sub_path = checksum_path,
@@ -434,8 +575,8 @@ pub fn main() !void {
 
     const opts = try Options.parse(args, allocator);
     switch (opts.lib) {
-        .Angle => try buildAngle(opts),
-        .Dawn => try buildDawn(opts),
+        .Angle => try buildAngle(&opts),
+        .Dawn => try buildDawn(&opts),
     }
 }
 
@@ -464,13 +605,13 @@ test "build angle" {
     var opts = Options{
         .arena = arena.allocator(),
         .lib = .Angle,
+        .check_only = false,
+        .optimize = .ReleaseFast,
         .commit_sha = "8a8c8fc280d74b34731e0e417b19bff7c967388a",
         .paths = .{
             .python = "C:/Users/Reuben/AppData/Local/zig/p/1220f762a97c1e1613f7259ae688806289485fc5145e9453e7b6611a3f8afa0c0749/python.exe",
-            .depot_tools = "C:/Users/Reuben/AppData/Local/zig/p/122080075bb2fa27f94ac19d5fb2051f90b07027d305feb3e9073d501c7312704d09",
             .src_dir = "C:/Users/Reuben/AppData/Local/zig/p/1220df877ce2ab2f8775207778ed97f1df3123447150066d5704cbf4678e8871e982",
-            .intermediate_dir = "E:/dev/handmade/orca/build.bak/",
-            .output_dir = "E:/dev/handmade/orca/build.bak/angle.out",
+            .intermediate_dir = "E:/dev/handmade/orca/build/",
         },
     };
     try buildAngle(&opts);

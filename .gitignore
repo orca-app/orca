@@ -35,6 +35,8 @@ src/orca_surface.c
 src/graphics/orca_gl31.h
 *bind_gen.c
 *_stubs.c
+.zig-cache
+zig-out
 src/ext/bytebox/zig-cache
 src/ext/bytebox/zig-out
 
@@ -61,3 +63,6 @@ src/ext/zlib/build/
 
 doc/mkdocs/docs/api
 doc/mkdocs/mkdocs.yml
+
+# build folder exclusion is a little too aggressive
+!src/build
