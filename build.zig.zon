@@ -23,10 +23,6 @@
     // Once all dependencies are fetched, `zig build` no longer requires
     // internet connectivity.
     .dependencies = .{
-        .depot_tools = .{
-            .url = "https://chromium.googlesource.com/chromium/tools/depot_tools.git/+archive/4d24c262e77c32d009071f5d9a6603f4991433c5.tar.gz",
-            .hash = "122080075bb2fa27f94ac19d5fb2051f90b07027d305feb3e9073d501c7312704d09",
-        },
         .angle = .{
             .url = "https://chromium.googlesource.com/angle/angle.git/+archive/8a8c8fc280d74b34731e0e417b19bff7c967388a.tar.gz",
             .hash = "1220df877ce2ab2f8775207778ed97f1df3123447150066d5704cbf4678e8871e982",
