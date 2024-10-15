@@ -156,6 +156,7 @@ fn exec(arena: std.mem.Allocator, argv: []const []const u8, cwd: []const u8, env
 
     if (result.stderr.len > 0) {
         std.log.info("\n{s}", .{result.stderr});
+        return error.StderrLogsEmitted;
     }
 
     switch (result.term) {
@@ -197,33 +198,21 @@ fn pathExists(dir: std.fs.Dir, path: []const u8) std.fs.Dir.AccessError!bool {
     return true;
 }
 
-fn makeDir(path: []const u8) !void {
-    const cwd = std.fs.cwd();
-    cwd.makeDir(path) catch |e| {
-        if (e != error.PathAlreadyExists) {
-            return e;
-        }
-    };
-}
-
-fn copySrcToIntermediate(opts: *const Options) ![]const u8 {
-    const final_src_path = try std.fs.path.join(opts.arena, &.{ opts.paths.intermediate_dir, opts.lib.toStr() });
-    try makeDir(final_src_path);
-
-    std.log.info("copying src '{s}' to intermediate '{s}'", .{ opts.paths.src_dir, final_src_path });
+fn copyFolder(allocator: std.mem.Allocator, dest: []const u8, src: []const u8) !void {
+    std.log.info("copying '{s}' to '{s}'", .{ src, dest });
 
     const cwd = std.fs.cwd();
-    const src_dir: std.fs.Dir = try cwd.openDir(opts.paths.src_dir, .{ .iterate = true });
-    const dest_dir: std.fs.Dir = try cwd.openDir(final_src_path, .{ .iterate = true });
+    try cwd.makePath(dest);
 
-    var src_walker = try src_dir.walk(opts.arena);
+    const src_dir: std.fs.Dir = try cwd.openDir(src, .{ .iterate = true });
+    const dest_dir: std.fs.Dir = try cwd.openDir(dest, .{ .iterate = true });
+
+    var src_walker = try src_dir.walk(allocator);
     while (try src_walker.next()) |src_entry| {
         if (src_entry.kind == .file) {
             _ = try src_dir.updateFile(src_entry.path, dest_dir, src_entry.path, .{});
         }
     }
-
-    return final_src_path;
 }
 
 // Algorithm ported from checksumdir package on pypy, which is MIT licensed.
@@ -359,49 +348,46 @@ const ShouldLogError = enum {
     NoError,
 };
 
-fn isAngleUpToDate(opts: *const Options, log_error: ShouldLogError) bool {
+fn isAngleUpToDate(opts: *const Options, comptime log_error: ShouldLogError) bool {
+    const NoopLog = struct {
+        pub fn err(comptime _: []const u8, _: anytype) void {}
+    };
+    const logfn = if (log_error == .LogError) &std.log.err else &NoopLog.err;
+
     const sum = checksumAngle(opts) catch |e| {
-        std.log.err("Failed checksum dir '{s}': {}\n", .{ opts.paths.output_dir, e });
+        logfn("Failed checksum dir '{s}': {}\n", .{ opts.paths.output_dir, e });
         return false;
     };
 
     const checksum_path = std.fs.path.join(opts.arena, &.{ opts.paths.output_dir, ANGLE_CHECKSUM_FILENAME }) catch @panic("OOM");
     const json_data: []const u8 = std.fs.cwd().readFileAlloc(opts.arena, checksum_path, MAX_FILE_SIZE) catch |e| {
-        if (log_error == .LogError) {
-            std.log.err("Failed to read checksum file from location '{s}': {}", .{ checksum_path, e });
-        }
+        logfn("Failed to read checksum file from location '{s}': {}", .{ checksum_path, e });
         return false;
     };
 
     const loaded_checksum = std.json.parseFromSliceLeaky(CommitChecksum, opts.arena, json_data, .{}) catch |e| {
-        if (log_error == .LogError) {
-            std.log.err("Failed to parse file '{s}' json: {}. Raw json data:\n{s}\n", .{
-                checksum_path,
-                e,
-                json_data,
-            });
-        }
+        logfn("Failed to parse file '{s}' json: {}. Raw json data:\n{s}\n", .{
+            checksum_path,
+            e,
+            json_data,
+        });
         return false;
     };
     if (std.mem.eql(u8, loaded_checksum.commit, opts.commit_sha) == false) {
-        if (log_error == .LogError) {
-            std.log.err("{s} doesn't match the required angle commit. expected {s}, got {s}", .{
-                checksum_path,
-                opts.commit_sha,
-                loaded_checksum.commit,
-            });
-        }
+        logfn("{s} doesn't match the required angle commit. expected {s}, got {s}", .{
+            checksum_path,
+            opts.commit_sha,
+            loaded_checksum.commit,
+        });
         return false;
     }
 
     if (std.mem.eql(u8, loaded_checksum.sum, sum) == false) {
-        if (log_error == .LogError) {
-            std.log.err("{s} doesn't match checksum. expected {s}, got {s}", .{
-                checksum_path,
-                loaded_checksum.commit,
-                sum,
-            });
-        }
+        logfn("{s} doesn't match checksum. expected {s}, got {s}", .{
+            checksum_path,
+            loaded_checksum.commit,
+            sum,
+        });
         return false;
     }
 
@@ -422,7 +408,8 @@ fn buildAngle(opts: *const Options) !void {
         return error.AngleOutOfDate;
     }
 
-    try makeDir(opts.paths.intermediate_dir);
+    const cwd = std.fs.cwd();
+    try cwd.makePath(opts.paths.intermediate_dir);
 
     std.log.info("angle is out of date - rebuilding", .{});
 
@@ -448,15 +435,16 @@ fn buildAngle(opts: *const Options) !void {
         try env.put(key, depot_tools_path);
     }
 
-    {
-        std.debug.print(">>> env:\n", .{});
-        var iter = env.iterator();
-        while (iter.next()) |entry| {
-            std.debug.print("\t{s}: {s}\n", .{ entry.key_ptr.*, entry.value_ptr.* });
-        }
-    }
+    // {
+    //     std.debug.print(">>> env:\n", .{});
+    //     var iter = env.iterator();
+    //     while (iter.next()) |entry| {
+    //         std.debug.print("\t{s}: {s}\n", .{ entry.key_ptr.*, entry.value_ptr.* });
+    //     }
+    // }
 
-    const src_dir = try copySrcToIntermediate(opts);
+    const src_dir = try std.fs.path.join(opts.arena, &.{ opts.paths.intermediate_dir, opts.lib.toStr() });
+    try copyFolder(opts.arena, src_dir, opts.paths.src_dir);
 
     const bootstrap_path = try std.fs.path.join(opts.arena, &.{ src_dir, "scripts/bootstrap.py" });
     try exec(opts.arena, &.{ opts.paths.python, bootstrap_path }, src_dir, &env);
@@ -491,7 +479,7 @@ fn buildAngle(opts: *const Options) !void {
     // angle_gclient_sync.step.dependOn(&angle_bootstrap.step);
 
     const optimize_str = if (opts.optimize == .Debug) "Debug" else "Release";
-    const is_debug_str = if (opts.optimize == .Debug) "is_debug=True" else "is_debug=False";
+    const is_debug_str = if (opts.optimize == .Debug) "is_debug=true" else "is_debug=false";
     // const out_dir = try std.fmt.allocPrint("out/{s}", .{angle_optimize_str});
     // const out_dir = try std.fmt.allocPrint("out/{s}", .{angle_optimize_str});
 
@@ -525,12 +513,66 @@ fn buildAngle(opts: *const Options) !void {
 
     const gn_args: []const u8 = try std.fmt.allocPrint(opts.arena, "--args={s}", .{gn_all_args});
 
-    const optimize_output_dir = try std.fs.path.join(opts.arena, &.{ opts.paths.output_dir, optimize_str });
-    try makeDir(optimize_output_dir);
+    const optimize_output_path = try std.fs.path.join(opts.arena, &.{ src_dir, "out", optimize_str });
+    try cwd.makePath(optimize_output_path);
 
-    try execShell(opts.arena, &.{ "gn", "gen", optimize_output_dir, gn_args }, src_dir, &env);
+    try execShell(opts.arena, &.{ "gn", "gen", optimize_output_path, gn_args }, src_dir, &env);
 
-    try execShell(opts.arena, &.{ "autoninja", "-C", optimize_output_dir, "libEGL", "libGLESv2" }, src_dir, &env);
+    try execShell(opts.arena, &.{ "autoninja", "-C", optimize_output_path, "libEGL", "libGLESv2" }, src_dir, &env);
+
+    // copy artifacts to output dir
+    {
+        const join = std.fs.path.join;
+        const a = opts.arena;
+        const output_dir = opts.paths.output_dir;
+
+        const inc_path = try join(a, &.{ src_dir, "include" });
+        const bin_path = try join(a, &.{ output_dir, "bin" });
+
+        try cwd.deleteTree(inc_path);
+        try cwd.deleteTree(bin_path);
+
+        const inc_folders: []const []const u8 = &.{
+            "include/KHR",
+            "include/EGL",
+            "include/GLES",
+            "include/GLES2",
+            "include/GLES3",
+        };
+
+        for (inc_folders) |folder| {
+            const src_path = try join(a, &.{ src_dir, folder });
+            const dest_path = try join(a, &.{ output_dir, folder });
+            _ = try copyFolder(a, dest_path, src_path);
+        }
+
+        var libs = std.ArrayList([]const u8).init(a);
+        if (builtin.os.tag == .windows) {
+            try libs.append("libEGL.dll");
+            try libs.append("libEGL.dll.lib");
+            try libs.append("libGLESv2.dll");
+            try libs.append("libGLESv2.dll.lib");
+        } else {
+            try libs.append("libEGL.dylib");
+            try libs.append("libGLESv2.dylib");
+        }
+
+        var bin_src_dir: std.fs.Dir = try cwd.openDir(optimize_output_path, .{});
+        const bin_dest_dir: std.fs.Dir = try cwd.openDir(bin_path, .{});
+        for (libs.items) |filename| {
+            _ = bin_src_dir.updateFile(filename, bin_dest_dir, filename, .{}) catch |e| {
+                if (e == error.FileNotFound) {
+                    const source_path = try std.fs.path.join(opts.arena, &.{ optimize_output_path, filename });
+                    std.log.err("Failed to copy {s} - not found.", .{source_path});
+                    return e;
+                }
+            };
+        }
+
+        if (builtin.os.tag == .windows) {
+            try execShell(opts.arena, &.{ "copy", "/y", "%ProgramFiles(x86)%\\Windows Kits\\10\\Redist\\D3D\\x64\\d3dcompiler_47.dll" }, src_dir, &env);
+        }
+    }
 
     // write stamp file
     {
@@ -540,7 +582,7 @@ fn buildAngle(opts: *const Options) !void {
         };
         var json = std.ArrayList(u8).init(opts.arena);
         try std.json.stringify(commit_checksum, .{}, json.writer());
-        try makeDir(opts.paths.output_dir);
+        try cwd.makePath(opts.paths.output_dir);
         const checksum_path = std.fs.path.join(opts.arena, &.{ opts.paths.output_dir, ANGLE_CHECKSUM_FILENAME }) catch @panic("OOM");
         try std.fs.cwd().writeFile(.{
             .sub_path = checksum_path,
@@ -548,17 +590,6 @@ fn buildAngle(opts: *const Options) !void {
             .flags = .{},
         });
     }
-
-    // stringify
-
-    // const angle_autoninja = b.addSystemCommand(&.{ "autoninja", "-C", angle_out_dir, "libEGL", "libGLESv2" });
-    // angle_autoninja.setCwd(angle_build_dir);
-    // angle_autoninja.addPathDir(depot_tools_dir);
-    // angle_autoninja.step.dependOn(&angle_gn.step);
-
-    // const angle_sentinel = AngleDawnHelpers.WriteBuildSentinel.create(b, .Angle);
-    // angle_sentinel.step.dependOn(&angle_autoninja.step);
-    // angle_sentinel.step.dependOn(&angle_bootstrap.step);
 }
 
 fn buildDawn(opts: *const Options) !void {
