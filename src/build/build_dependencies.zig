@@ -177,7 +177,7 @@ fn execShell(arena: std.mem.Allocator, argv: []const []const u8, cwd: []const u8
     var final_args = std.ArrayList([]const u8).init(arena);
     if (builtin.os.tag == .windows) {
         try final_args.append("cmd.exe");
-        try final_args.append("/k");
+        try final_args.append("/c");
         try final_args.append(try std.mem.join(arena, "", &.{ argv[0], ".bat" }));
         try final_args.appendSlice(argv[1..]);
     } else {
@@ -209,9 +209,11 @@ fn copyFolder(allocator: std.mem.Allocator, dest: []const u8, src: []const u8) !
 
     var src_walker = try src_dir.walk(allocator);
     while (try src_walker.next()) |src_entry| {
-        if (src_entry.kind == .file) {
-            _ = try src_dir.updateFile(src_entry.path, dest_dir, src_entry.path, .{});
-        }
+        _ = switch (src_entry.kind) {
+            .directory => try dest_dir.makePath(src_entry.path),
+            .file => try src_dir.updateFile(src_entry.path, dest_dir, src_entry.path, .{}),
+            else => {},
+        };
     }
 }
 
@@ -402,7 +404,7 @@ fn checkAngle(opts: *const Options) !void {
 
 fn buildAngle(opts: *const Options) !void {
     if (isAngleUpToDate(opts, .NoError)) {
-        std.debug.print("angle is up to date - no rebuild needed.\n", .{});
+        std.log.info("angle is up to date - no rebuild needed.\n", .{});
         return;
     } else if (opts.check_only) {
         return error.AngleOutOfDate;
@@ -451,37 +453,8 @@ fn buildAngle(opts: *const Options) !void {
 
     try execShell(opts.arena, &.{ "gclient", "sync" }, src_dir, &env);
 
-    // const angle_bootstrap = Step.Run.create(b, "run python");
-
-    // if (target.result.os.tag == .windows) {
-    //     angle_bootstrap.setEnvironmentVariable("DEPOT_TOOLS_WIN_TOOLCHAIN", "0");
-    //     if (b.lazyDependency("python3-win64", .{})) |python3_dep| {
-    //         _ = python3_dep;
-    //         // angle_bootstrap.addFileArg(python3_dep.path("python.exe"));
-    //     }
-    // } else {
-    //     return error.UnhandledOS; // TODO handle macOS
-    //     // angle_bootstrap.addArgs(.{"python"});
-    // }
-    // angle_bootstrap.addArgs(&.{"python"});
-
-    // angle_bootstrap.setCwd(angle_build_dir);
-    // angle_bootstrap.addPathDir(depot_tools_dir);
-    // angle_bootstrap.addFileArg(b.path("scripts/bootstrap.py"));
-    // angle_bootstrap.step.dependOn(&stage_angle_repo.step);
-
-    // const angle_gclient_sync = b.addSystemCommand(&.{ "gclient", "sync" });
-    // angle_gclient_sync.setCwd(angle_build_dir);
-    // angle_gclient_sync.addPathDir(depot_tools_dir);
-    // if (target.result.os.tag == .windows) {
-    //     angle_gclient_sync.setEnvironmentVariable("DEPOT_TOOLS_WIN_TOOLCHAIN", "0");
-    // }
-    // angle_gclient_sync.step.dependOn(&angle_bootstrap.step);
-
     const optimize_str = if (opts.optimize == .Debug) "Debug" else "Release";
     const is_debug_str = if (opts.optimize == .Debug) "is_debug=true" else "is_debug=false";
-    // const out_dir = try std.fmt.allocPrint("out/{s}", .{angle_optimize_str});
-    // const out_dir = try std.fmt.allocPrint("out/{s}", .{angle_optimize_str});
 
     var gn_args_list = std.ArrayList([]const u8).init(opts.arena);
     try gn_args_list.append("angle_build_all=false");
@@ -506,11 +479,6 @@ fn buildAngle(opts: *const Options) !void {
     }
     const gn_all_args = try std.mem.join(opts.arena, " ", gn_args_list.items);
 
-    // const angle_gn = b.addSystemCommand(&.{ "gn", "gen", angle_out_dir, b.fmt("--args={s}", .{gn_args_str}) });
-    // angle_gn.setCwd(angle_build_dir);
-    // angle_gn.addPathDir(depot_tools_dir);
-    // angle_gn.step.dependOn(&angle_gclient_sync.step);
-
     const gn_args: []const u8 = try std.fmt.allocPrint(opts.arena, "--args={s}", .{gn_all_args});
 
     const optimize_output_path = try std.fs.path.join(opts.arena, &.{ src_dir, "out", optimize_str });
@@ -526,11 +494,7 @@ fn buildAngle(opts: *const Options) !void {
         const a = opts.arena;
         const output_dir = opts.paths.output_dir;
 
-        const inc_path = try join(a, &.{ src_dir, "include" });
         const bin_path = try join(a, &.{ output_dir, "bin" });
-
-        try cwd.deleteTree(inc_path);
-        try cwd.deleteTree(bin_path);
 
         const inc_folders: []const []const u8 = &.{
             "include/KHR",
@@ -543,6 +507,8 @@ fn buildAngle(opts: *const Options) !void {
         for (inc_folders) |folder| {
             const src_path = try join(a, &.{ src_dir, folder });
             const dest_path = try join(a, &.{ output_dir, folder });
+            try cwd.deleteTree(dest_path);
+            try cwd.makePath(dest_path);
             _ = try copyFolder(a, dest_path, src_path);
         }
 
@@ -558,6 +524,10 @@ fn buildAngle(opts: *const Options) !void {
         }
 
         var bin_src_dir: std.fs.Dir = try cwd.openDir(optimize_output_path, .{});
+
+        try cwd.deleteTree(bin_path);
+        try cwd.makePath(bin_path);
+
         const bin_dest_dir: std.fs.Dir = try cwd.openDir(bin_path, .{});
         for (libs.items) |filename| {
             _ = bin_src_dir.updateFile(filename, bin_dest_dir, filename, .{}) catch |e| {
@@ -570,7 +540,29 @@ fn buildAngle(opts: *const Options) !void {
         }
 
         if (builtin.os.tag == .windows) {
-            try execShell(opts.arena, &.{ "copy", "/y", "%ProgramFiles(x86)%\\Windows Kits\\10\\Redist\\D3D\\x64\\d3dcompiler_47.dll" }, src_dir, &env);
+            const windows_sdk = std.zig.WindowsSdk.find(opts.arena) catch |e| {
+                std.log.err("Failed to find Windows SDK. Do you have the Windows 10 SDK installed?", .{});
+                return e;
+            };
+
+            var windows_sdk_path: []const u8 = "";
+            if (windows_sdk.windows10sdk) |install| {
+                windows_sdk_path = install.path;
+            } else if (windows_sdk.windows81sdk) |install| {
+                windows_sdk_path = install.path;
+            } else {
+                std.log.err("Failed to find Windows SDK. Do you have the Windows 10 SDK installed?", .{});
+                return error.FailedToFindWindowsSdk;
+            }
+
+            const src_d3dcompiler_path = try std.fs.path.join(opts.arena, &.{
+                windows_sdk_path,
+                "Redist",
+                "D3D",
+                "x64",
+            });
+            var src_d3dcompiler_dir: std.fs.Dir = try cwd.openDir(src_d3dcompiler_path, .{});
+            _ = try src_d3dcompiler_dir.updateFile("d3dcompiler_47.dll", bin_dest_dir, "d3dcompiler_47.dll", .{});
         }
     }
 
