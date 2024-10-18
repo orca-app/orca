@@ -5,12 +5,11 @@
 *  See LICENSE.txt for licensing information
 *
 **************************************************************************/
+#include <GL/wglext.h>
+#include "util/macros.h"
 #include "app/win32_app.h"
 #include "gl_loader.h"
-#include "graphics_surface.h"
-
-#include "util/macros.h"
-#include <GL/wglext.h>
+#include "gl_surface.h"
 
 #define OC_WGL_PROC_LIST                                                \
     OC_WGL_PROC(WGLCHOOSEPIXELFORMATARB, wglChoosePixelFormatARB)       \
@@ -110,7 +109,7 @@ quit:;
 
 typedef struct oc_wgl_surface
 {
-    oc_surface_data interface;
+    oc_surface_base base;
 
     HDC hDC;
     HGLRC glContext;
@@ -120,9 +119,9 @@ typedef struct oc_wgl_surface
     oc_gl_api api;
 } oc_wgl_surface;
 
-void oc_wgl_surface_destroy(oc_surface_data* interface)
+void oc_wgl_surface_destroy(oc_surface_base* base)
 {
-    oc_wgl_surface* surface = (oc_wgl_surface*)interface;
+    oc_wgl_surface* surface = (oc_wgl_surface*)base;
 
     if(surface->glContext == wglGetCurrentContext())
     {
@@ -130,36 +129,9 @@ void oc_wgl_surface_destroy(oc_surface_data* interface)
     }
     wglDeleteContext(surface->glContext);
 
-    oc_surface_cleanup(interface);
+    oc_surface_base_cleanup(base);
 
     free(surface);
-}
-
-void oc_wgl_surface_prepare(oc_surface_data* interface)
-{
-    oc_wgl_surface* surface = (oc_wgl_surface*)interface;
-
-    wglMakeCurrent(surface->hDC, surface->glContext);
-    oc_gl_select_api(&surface->api);
-}
-
-void oc_wgl_surface_present(oc_surface_data* interface)
-{
-    oc_wgl_surface* surface = (oc_wgl_surface*)interface;
-
-    SwapBuffers(surface->hDC);
-}
-
-void oc_wgl_surface_deselect(oc_surface_data* interface)
-{
-    wglMakeCurrent(NULL, NULL);
-    oc_gl_deselect_api();
-}
-
-void oc_wgl_surface_swap_interval(oc_surface_data* interface, int swap)
-{
-    oc_wgl_surface* surface = (oc_wgl_surface*)interface;
-    wglSwapIntervalEXT(swap);
 }
 
 void* oc_wgl_get_proc(const char* name)
@@ -178,7 +150,7 @@ void* oc_wgl_get_proc(const char* name)
     return (p);
 }
 
-oc_surface_data* oc_wgl_surface_create_for_window(oc_window window)
+oc_surface oc_gl_surface_create_for_window(oc_window window)
 {
     oc_wgl_surface* surface = 0;
 
@@ -192,16 +164,12 @@ oc_surface_data* oc_wgl_surface_create_for_window(oc_window window)
         if(surface)
         {
             memset(surface, 0, sizeof(oc_wgl_surface));
-            oc_surface_init_for_window((oc_surface_data*)surface, windowData);
+            oc_surface_base_init_for_window((oc_surface_base*)surface, windowData);
 
-            surface->interface.api = OC_GL;
-            surface->interface.destroy = oc_wgl_surface_destroy;
-            surface->interface.prepare = oc_wgl_surface_prepare;
-            surface->interface.present = oc_wgl_surface_present;
-            surface->interface.swapInterval = oc_wgl_surface_swap_interval;
-            surface->interface.deselect = oc_wgl_surface_deselect;
+            surface->base.api = OC_SURFACE_GL;
+            surface->base.destroy = oc_wgl_surface_destroy;
 
-            surface->hDC = GetDC(surface->interface.layer.hWnd);
+            surface->hDC = GetDC(surface->base.view.hWnd);
 
             //NOTE(martin): create the pixel format and gl context
             PIXELFORMATDESCRIPTOR pixelFormatDesc = {
@@ -272,5 +240,50 @@ oc_surface_data* oc_wgl_surface_create_for_window(oc_window window)
             oc_gl_load_gl44(&surface->api, oc_wgl_get_proc);
         }
     }
-    return ((oc_surface_data*)surface);
+    oc_surface handle = oc_surface_nil();
+    if(surface)
+    {
+        handle = oc_surface_handle_alloc((oc_surface_base*)surface);
+    }
+    return (handle);
+}
+
+void oc_gl_surface_make_current(oc_surface handle)
+{
+    if(oc_surface_is_nil(handle))
+    {
+        wglMakeCurrent(NULL, NULL);
+        oc_gl_deselect_api();
+    }
+    else
+    {
+        oc_surface_base* base = oc_surface_from_handle(handle);
+        if(base && base->api == OC_SURFACE_GL)
+        {
+            oc_wgl_surface* surface = (oc_wgl_surface*)base;
+
+            wglMakeCurrent(surface->hDC, surface->glContext);
+            oc_gl_select_api(&surface->api);
+        }
+    }
+}
+
+void oc_gl_surface_swap_buffers(oc_surface handle)
+{
+    oc_surface_base* base = oc_surface_from_handle(handle);
+    if(base && base->api == OC_SURFACE_GL)
+    {
+        oc_wgl_surface* surface = (oc_wgl_surface*)base;
+        SwapBuffers(surface->hDC);
+    }
+}
+
+void oc_gl_surface_swap_interval(oc_surface handle, int swap)
+{
+    oc_surface_base* base = oc_surface_from_handle(handle);
+    if(base && base->api == OC_SURFACE_GL)
+    {
+        oc_wgl_surface* surface = (oc_wgl_surface*)base;
+        wglSwapIntervalEXT(swap);
+    }
 }

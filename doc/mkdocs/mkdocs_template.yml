@@ -1,0 +1,21 @@
+site_name: Orca Documentation
+site_url: https://docs.orca-app.dev
+site_description: Official Orca Documentation
+
+copyright: Copyright &copy; 2024 Martin Fouilleul and the Orca project contributors
+
+extra_css:
+  - css/extra.css
+theme: readthedocs
+
+nav:
+  - Home: 'index.md'
+  - Getting Started:
+    - Installation: 'install.md'
+    - Quick Start: 'QuickStart.md'
+  - User Guide:
+    {{API_NAV}}
+  - Developper Guide:
+    - Building: 'building.md'
+    - Editing the Documentation: 'documentation.md'
+  - FAQ: 'faq.md'

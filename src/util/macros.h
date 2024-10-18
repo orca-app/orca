@@ -22,14 +22,20 @@
 #define OC_EXPAND_NIL(...)
 
 //----------------------------------------------------------------------------------------
-// Variadic macros helpers and replacement for __VA_OPT__ extension
+// Variadic macros helpers and portable replacement for __VA_OPT__ extension
 //----------------------------------------------------------------------------------------
 #define OC_ARG1_UTIL(a, ...) a
 #define OC_ARG1(...) OC_ARG1_UTIL(__VA_ARGS__)
 #define OC_VA_COMMA_TAIL(a, ...) , ##__VA_ARGS__
 
 //NOTE: this expands to opt if __VA_ARGS__ is empty, and to , va1, va2, ... opt otherwise
-#define OC_VA_NOPT_UTIL(opt, ...) , ##__VA_ARGS__ opt
+#if OC_COMPILER_CLANG
+    // on clang we use __VA_OPT__ because ##__VA_ARGS__ does not swallow the previous token if there is _no_ arguments
+    #define OC_VA_NOPT_UTIL(opt, ...) __VA_OPT__(, ) __VA_ARGS__ opt
+#else
+    // on msvc __VA_OPT__ does not exist in C mode, but ##__VA_ARGS__ works even when there is no arguments
+    #define OC_VA_NOPT_UTIL(opt, ...) , ##__VA_ARGS__ opt
+#endif
 
 //NOTE: this expands to opt if __VA_ARGS__ is empty, and to nothing otherwise
 #define OC_VA_NOPT(opt, ...) OC_PASS(OC_ARG1, OC_VA_NOPT_UTIL(opt, ##__VA_ARGS__))
@@ -86,6 +92,19 @@
   })
 #define oc_swap(a, b) oc_swap_((a), (b), OC_UNIQUE_NAME(oc_swap))
 
+//-----------------------------------------------------------------
+// endianness
+//-----------------------------------------------------------------
+
+union oc_endianness_test_detail
+{
+    uint32_t num;
+    uint8_t bytes[4];
+};
+
+#define oc_is_little_endian() (((union oc_endianness_test_detail){ .num = 0x01020304 }).bytes[0] == 0x4)
+#define oc_is_big_endian() (!OC_IS_LITTLE_ENDIAN())
+
 //----------------------------------------------------------------------------------------
 //NOTE(martin): bit-twiddling & arithmetic helpers
 //----------------------------------------------------------------------------------------
@@ -105,93 +124,16 @@ static inline u64 oc_next_pow2(u64 x)
     return (x);
 }
 
-//NOTE(martin): 'hygienic' max/min/square/cube macros.
-#ifdef __cplusplus
-//NOTE(martin): in C++ we use templates and decltype/declval
-//              (overloaded functions would be ambiguous because of the
-//              overload resolution and conversion/promotion rules)
-//    #include <utility>
-
-template <typename Ta, typename Tb>
-inline decltype(Ta() + Tb()) oc_min(Ta a, Tb b)
-{
-    return (a < b ? a : b);
-}
-
-template <typename Ta, typename Tb>
-inline decltype(Ta() + Tb()) oc_max(Ta a, Tb b)
-{
-    return (a > b ? a : b);
-}
-
-template <typename T>
-inline T oc_square(T a)
-{
-    return (a * a);
-}
-
-template <typename T>
-inline T oc_cube(T a)
-{
-    return (a * a * a);
-}
-#else
-    //NOTE(martin): this macros helps generate variants of a generic 'template' for all arithmetic types.
-    // the def parameter must be a macro that takes a type, and optional arguments
-
-    #if __SIZEOF_SIZE_T__ != __SIZEOF_LONG_LONG__
-        //NOTE: size_t is distinct from u64 on wasm target
-        #define oc_tga_variants(def, ...)                                                                       \
-            def(u8, ##__VA_ARGS__) def(i8, ##__VA_ARGS__) def(u16, ##__VA_ARGS__) def(i16, ##__VA_ARGS__)       \
-                def(u32, ##__VA_ARGS__) def(i32, ##__VA_ARGS__) def(u64, ##__VA_ARGS__) def(i64, ##__VA_ARGS__) \
-                    def(size_t, ##__VA_ARGS__)                                                                  \
-                        def(f32, ##__VA_ARGS__) def(f64, ##__VA_ARGS__)
-    #else
-        #define oc_tga_variants(def, ...)                                                                       \
-            def(u8, ##__VA_ARGS__) def(i8, ##__VA_ARGS__) def(u16, ##__VA_ARGS__) def(i16, ##__VA_ARGS__)       \
-                def(u32, ##__VA_ARGS__) def(i32, ##__VA_ARGS__) def(u64, ##__VA_ARGS__) def(i64, ##__VA_ARGS__) \
-                    def(f32, ##__VA_ARGS__) def(f64, ##__VA_ARGS__)
-    #endif
-
-    // This macro generates one _Generic association between a type and its variant
-    #define oc_tga_association(type, name) , type : OC_CAT3(name, _, type)
-
-    // This macros selects the appropriate variant for a 2 parameters functions
-    #define oc_tga_select_binary(name, a, b) \
-        _Generic((a + b) oc_tga_variants(oc_tga_association, name))(a, b)
-
-    // This macros selects the appropriate variant for a 1 parameters functions
-    #define oc_tga_select_unary(name, a) \
-        _Generic((a)oc_tga_variants(oc_tga_association, name))(a)
-
-    //NOTE(martin): type generic templates
-    #define oc_min_def(type) \
-        static inline type OC_CAT3(oc_min, _, type)(type a, type b) { return (a < b ? a : b); }
-    #define oc_max_def(type) \
-        static inline type OC_CAT3(oc_max, _, type)(type a, type b) { return (a > b ? a : b); }
-    #define oc_square_def(type) \
-        static inline type OC_CAT3(oc_square, _, type)(type a) { return (a * a); }
-    #define oc_cube_def(type) \
-        static inline type OC_CAT3(oc_cube, _, type)(type a) { return (a * a * a); }
-
-//NOTE(martin): instantiante our templates for all arithmetic types
-oc_tga_variants(oc_min_def)
-    oc_tga_variants(oc_max_def)
-        oc_tga_variants(oc_square_def)
-            oc_tga_variants(oc_cube_def)
-
-    //NOTE(martin): generate the _Generic associations between each type and its associated variant
-    #define oc_min(a, b) oc_tga_select_binary(oc_min, a, b)
-    #define oc_max(a, b) oc_tga_select_binary(oc_max, a, b)
-    #define oc_square(a) oc_tga_select_unary(oc_square, a)
-    #define oc_cube(a) oc_tga_select_unary(oc_cube, a)
-
-#endif // __cplusplus else branch
+#define oc_min(a, b) (((a) < (b)) ? (a) : (b))
+#define oc_max(a, b) (((a) > (b)) ? (a) : (b))
 
 #define oc_clamp_low(a, low) (oc_max((a), (low)))
 #define oc_clamp_high(a, high) (oc_min((a), (high)))
 #define oc_clamp(a, low, high) (oc_clamp_low(oc_clamp_high((a), (high)), (low)))
 
 #define UNUSED  __attribute__((unused))
+
+#define oc_square(a) ((a) * (a))
+#define oc_cube(a) ((a) * (a) * (a))
 
 #endif //__MACROS_H_

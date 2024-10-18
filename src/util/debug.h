@@ -47,7 +47,8 @@ extern "C" {
 // Abort/Assert
 //----------------------------------------------------------------
 
-#define OC_ABORT(fmt, ...) oc_abort_ext(__FILE__, __FUNCTION__, __LINE__, fmt, ##__VA_ARGS__)
+#define _OC_ABORT_(fmt, ...) oc_abort_ext(__FILE__, __FUNCTION__, __LINE__, fmt, ##__VA_ARGS__)
+#define OC_ABORT(...) _OC_ABORT_(OC_VA_NOPT("", ##__VA_ARGS__) OC_ARG1(__VA_ARGS__) OC_VA_COMMA_TAIL(__VA_ARGS__))
 
 #ifdef OC_NO_ASSERT
     #define OC_ASSERT(x, ...)

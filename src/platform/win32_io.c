@@ -153,7 +153,7 @@ oc_file_desc oc_io_raw_open_at(oc_file_desc dirFd, oc_str8 path, oc_file_access 
     }
     if(accessRights & OC_FILE_ACCESS_WRITE)
     {
-        if(accessRights & OC_FILE_OPEN_APPEND)
+        if(openFlags & OC_FILE_OPEN_APPEND)
         {
             win32AccessFlags |= FILE_APPEND_DATA;
         }

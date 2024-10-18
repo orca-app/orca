@@ -7,12 +7,12 @@ SRCDIR=../../src
 
 INCLUDES="-I$SRCDIR -I$SRCDIR/util -I$SRCDIR/platform -I$SRCDIR/app"
 LIBS="-L$LIBDIR -lorca"
-FLAGS="-mmacos-version-min=10.15.4 -DOC_DEBUG -DLOG_COMPILE_DEBUG"
+FLAGS="-mmacos-version-min=13.0.0 -DOC_DEBUG -DLOG_COMPILE_DEBUG"
 
 mkdir -p $BINDIR
 clang -g $FLAGS $LIBS $INCLUDES -o $BINDIR/example_tiger main.c
 
 cp $LIBDIR/liborca.dylib $BINDIR/
-cp $LIBDIR/mtl_renderer.metallib $BINDIR/
+cp $LIBDIR/libwebgpu.dylib $BINDIR/
 
 install_name_tool -add_rpath "@executable_path" $BINDIR/example_tiger

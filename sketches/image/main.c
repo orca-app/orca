@@ -24,18 +24,22 @@ int main()
 
     oc_rect contentRect = oc_window_get_content_rect(window);
 
-    //NOTE: create surface
-    oc_surface surface = oc_surface_create_for_window(window, OC_CANVAS);
-    if(oc_surface_is_nil(surface))
+    oc_canvas_renderer renderer = oc_canvas_renderer_create();
+    if(oc_canvas_renderer_is_nil(renderer))
     {
-        oc_log_error("couldn't create surface\n");
+        oc_log_error("Error: couldn't create renderer\n");
         return (-1);
     }
-    oc_surface_swap_interval(surface, 0);
 
-    //NOTE: create canvas
-    oc_canvas canvas = oc_canvas_create();
-    if(oc_canvas_is_nil(canvas))
+    oc_surface surface = oc_canvas_surface_create_for_window(renderer, window);
+    if(oc_surface_is_nil(surface))
+    {
+        oc_log_error("Error: couldn't create surface\n");
+        return (-1);
+    }
+
+    oc_canvas_context context = oc_canvas_context_create();
+    if(oc_canvas_context_is_nil(context))
     {
         oc_log_error("Error: couldn't create canvas\n");
         return (-1);
@@ -45,11 +49,11 @@ int main()
     oc_arena_scope scratch = oc_scratch_begin();
 
     oc_str8 imagePath = oc_path_executable_relative(scratch.arena, OC_STR8("../../resources/triceratops.png"));
-    oc_image image = oc_image_create_from_file(surface, imagePath, false);
+    oc_image image = oc_image_create_from_path(renderer, imagePath, false);
     oc_vec2 imageSize = oc_image_size(image);
 
     oc_str8 imagePath2 = oc_path_executable_relative(scratch.arena, OC_STR8("../../resources/Top512.png"));
-    oc_image image2 = oc_image_create_from_file(surface, imagePath2, false);
+    oc_image image2 = oc_image_create_from_path(renderer, imagePath2, false);
     oc_vec2 imageSize2 = oc_image_size(image2);
 
     oc_scratch_end(scratch);
@@ -78,8 +82,6 @@ int main()
             }
         }
 
-        oc_surface_select(surface);
-
         oc_set_color_rgba(0, 1, 1, 1);
         oc_clear();
 
@@ -103,17 +105,17 @@ int main()
 
 			oc_image_draw(image2, (oc_rect){300, 200, 300, 300});
 */
-        oc_image_draw(image, (oc_rect){ 100, 100, 300, 300 });
+        oc_image_draw(image, (oc_rect){ 100, 100, 362, 256 });
         oc_image_draw(image2, (oc_rect){ 300, 200, 300, 300 });
 
-        oc_render(canvas);
-        oc_surface_present(surface);
+        oc_canvas_render(renderer, context, surface);
+        oc_canvas_present(renderer, surface);
 
         oc_scratch_end(scratch);
     }
 
     oc_image_destroy(image);
-    oc_canvas_destroy(canvas);
+    //    oc_canvas_renderer_destroy(renderer);
     oc_surface_destroy(surface);
     oc_window_destroy(window);
 

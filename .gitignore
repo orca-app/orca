@@ -16,7 +16,11 @@ build
 *.app
 *.dylib
 *.a
+*.o
+*.d
 *.swp
+
+src/ext/dawn
 
 Debug/*
 
@@ -26,11 +30,14 @@ src/wasmbind/gles_api.json
 src/bindgen_core_api.c
 src/bindgen_gles_api.c
 src/graphics/glsl_shaders.h
+src/graphics/wgpu_renderer_shaders.h
 src/io_stubs.c
 src/orca_surface.c
 src/graphics/orca_gl31.h
 *bind_gen.c
 *_stubs.c
+src/ext/bytebox/zig-cache
+src/ext/bytebox/zig-out
 
 .vscode/launch.json
 .vscode/settings.json
@@ -45,3 +52,13 @@ src/ext/angle
 sketches/*/bin
 
 .cache
+
+tags
+
+src/ext/curl/builds/
+src/ext/curl/winbuild/*.inc
+src/ext/curl/winbuild/*.idb
+src/ext/zlib/build/
+
+doc/mkdocs/docs/api
+doc/mkdocs/mkdocs.yml

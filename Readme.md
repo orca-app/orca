@@ -1,5 +1,5 @@
 ------
-**DISCLAIMER: This project is very much a Work In Progress. We are making it accessible in this very early state so that participants in the [2023 Wheel Reinvention Jam](https://handmade.network/jam/2023) can try it out and possibly use it as their jamming platform. Expect bugs, missing and/or incomplete features, unstable APIs, and sparse documentation. Some current issues might be a show stopper for you, so make sure you can build and run the sample apps before jumping in.**
+**DISCLAIMER: This project is very much a Work In Progress. Expect bugs, missing and/or incomplete features, unstable APIs, and sparse documentation. Some current issues might be a show stopper for you, so make sure you can build and run the sample apps before jumping in.**
 
 **If you do choose to try out Orca anyway, thank you! We'll do our best to answer your questions, and we'd really appreciate your feedback!**
 
@@ -9,11 +9,11 @@
 
 ![Example Orca apps](doc/images/orca-apps-lg.webp)
 
-Orca is a development platform and runtime environment for cross-platform, sandboxed graphical WebAssembly applications. In this early MVP you can:
+Orca is a development platform and runtime environment for cross-platform, sandboxed graphical applications. In this early MVP you can:
 
 - Receive mouse and keyboard input.
 - Draw paths, images and text using a 2D vector graphics API.
-- Draw 2D/3D graphics using OpenGL ES 3.1 (minus a few features)
+- Draw 2D/3D graphics using OpenGL ES 3.1 (minus a few features like mapped buffers)
 - Build user interfaces using our UI API and default widgets.
 - Read and write files using a capability-based API.
 
@@ -23,45 +23,36 @@ To learn more about the project and its goals, read the [announcement post](http
 
 The Orca command-line tools must be installed to your system in order to use them in your own projects.
 
-**At this early stage, you must build Orca yourself - in the future, there will be fewer dependencies and this installation process will be streamlined.**
-
 ### Requirements
 
-- Windows or Mac (Linux is not yet supported)
-- [Python 3.8](https://www.python.org/) or newer (for command line tools)
-- Clang (version 11.0 or newer)
+- Windows 10 or later, or Mac 13 or later (Linux is not yet supported)
+- Clang version 11.0 or newer
 	- **Windows users:** `clang` can be installed via the Visual Studio installer. Search for "C++ Clang Compiler".
 	- **Mac users:** Apple's built-in `clang` does not support WebAssembly. We recommend installing `clang` via [Homebrew](https://brew.sh/) with `brew install llvm`.
-- MSVC (Visual Studio 2022 17.5 or newer) (Windows only)
-	- This can be installed through the [Visual Studio Community](https://visualstudio.microsoft.com/) installer. Ensure that your Visual Studio installation includes "Desktop development with C++".
-	- Please note the version requirement! Orca requires C11 atomics, which were only added to MSVC in late 2022.
-- Xcode command-line tools (Mac only)
-	- These can be installed with `xcode-select --install`.
+- **Clang runtime builtins.** When targeting WebAssembly, `clang` relies on builtins found in `libclang_rt.builtins-wasm32`, but most distributions of `clang` don't ship with this file. To know where `clang` expects to find this file, you can run `clang --target=wasm32 -print-libgcc-file-name`. If this file doesn't exist you will need to download it from [https://github.com/WebAssembly/wasi-sdk/releases](https://github.com/WebAssembly/wasi-sdk/releases). 
 
-### Installation instructions
+### Installation Instructions
 
-**Windows users:** You must perform all the following actions from a 64-bit Visual Studio command prompt. We recommend searching for "x64 Native Tools Command Prompt".
+Download the orca tool and SDK from https://github.com/orca-app/orca/releases/latest, and put the orca folder where you want orca to be installed.
 
-Clone the repo, then `cd` into the `orca` directory:
+- **Windows:**  
+	- Download `orca-windows.tar.gz`  
+	- Extract: `tar -xzf orca-windows.tar.gz`
 
-```
-git clone https://git.handmade.network/hmn/orca.git
-cd orca
-```
+- **ARM Mac:**  
+	- Download `orca-mac-arm64.tar.gz`  
+	- Extract: `tar -xzf orca-mac-arm64.tar.gz`
 
-Build the Orca runtime:
+- **Intel Mac:**  
+	- Download `orca-mac-x64.tar.gz`  
+	- Extract: `tar -xzf orca-mac-x64.tar.gz`
 
-```
-python orca dev build-runtime
-```
+Add the orca directory to your PATH environment variable:  
 
-Install the Orca dev tools. If on Windows, the tool can automatically add `orca` to your PATH. Otherwise, you must manually add the Orca install directory to your PATH, e.g. by updating `.zshrc` or `.bashrc`.
+- **Windows Instructions:** [https://learn.microsoft.com/en-us/previous-versions/office/developer/sharepoint-2010/ee537574(v=office.14)](https://learn.microsoft.com/en-us/previous-versions/office/developer/sharepoint-2010/ee537574(v=office.14))  
+- **Mac Instructions:** [https://support.apple.com/guide/terminal/use-environment-variables-apd382cc5fa-4f58-4449-b20a-41c53c006f8f/mac](https://learn.microsoft.com/en-us/previous-versions/office/developer/sharepoint-2010/ee537574(v=office.14))
 
-```
-python orca dev install
-```
-
-Finally, verify that Orca is successfully installed by running the `orca version` command. Note the lack of `./`!
+Finally, verify that Orca is successfully installed by running the `orca version` command.
 
 ```
 orca version
@@ -104,17 +95,20 @@ The following additional resources may also help you familiarize yourself with O
 	- [`ui`](./samples/ui) showcases the UI API and Orca's default UI widgets.
 - The [API Cheatsheets](./doc/cheatsheets) provide a list of Orca API functions, grouped by topic.
 
+## Building Orca from source
+
+See [./doc/building.md](./doc/building.md).
+
+
 ## FAQ
 
 **What platforms does Orca support?**
 
-We currently support Windows 10 and up, and macOS 10.15 and up. We plan to expand to more platforms in the future.
+We currently support Windows 10 and up, and macOS 13 and up. We plan to expand to more platforms in the future.
 
 **What languages can I use with Orca?**
 
-In principle, you can use any language and toolchain that can produce a WebAssembly module and bind to the Orca APIs. However, several important parts of Orca, such as the UI, are provided as part of the core library, which must be compiled to WebAssembly with your app, and is written in C. Therefore, at this early stage, it may be difficult to use any language other than C.
-
-C-style C++ is possible but requires compiling the core library in C as a separate object file, and then adding that object to your compile command when building your app.
+In principle, you can use any language and toolchain that can produce a WebAssembly module and bind to the Orca APIs. However, several important parts of Orca, such as the UI, are provided as part of the core library and are written in C. Therefore, at this early stage, it may be difficult to use any language other than C or C-style C++.
 
 We're currently working with contributors to add support for Odin and Zig, and we look forward to expanding the number of officially-supported languages in the future.
 
@@ -122,19 +116,14 @@ We're currently working with contributors to add support for Odin and Zig, and w
 
 We currently use [wasm3](https://github.com/wasm3/wasm3) for our interpreter. We therefore support whatever features wasm3 supports. In practice this means all WebAssembly 1.0 features, bulk memory operations, and a couple other small features.
 
-**I am getting "unsupported OS" errors when building on Windows.**
-
-You are likely running from the wrong kind of Visual Studio command prompt. Search for "x64 Native Tools Command Prompt" or run `vcvarsall.bat` with `x64` for the architecture.
-
-To verify that you are in the correct type of command prompt, simply run `cl` with no arguments, and verify that you are building for x64.
-
-**I am getting errors about atomics when building the runtime on Windows.**
-
-Please ensure that you have the latest version of Visual Studio and MSVC installed. The Orca runtime requires the use of C11 atomics, which were not added to MSVC until late 2022.
 
 **I am getting errors saying that `orca` is not found.**
 
-Please ensure that you have installed Orca to your system per the installation instructions above. Please also ensure that the Orca install directory is on your PATH. The installation path is printed when running `./orca dev install`.
+Please ensure that you have installed Orca to your system per the installation instructions above. Please also ensure that the Orca install directory is on your PATH.
+
+**I am getting errors from wasm-ld saying libclang_rt.builtins-wasm32.a is not found.**
+
+Please ensure that you downloaded and installed `libclang_rt.builtins-wasm32.a` into clang's library directory as per the requirements instructions above.
 
 ## License
 

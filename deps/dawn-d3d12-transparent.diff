@@ -1,0 +1,192 @@
+diff --git a/src/dawn/native/CMakeLists.txt b/src/dawn/native/CMakeLists.txt
+index ec833eb3c9..afcc4235c0 100644
+--- a/src/dawn/native/CMakeLists.txt
++++ b/src/dawn/native/CMakeLists.txt
+@@ -338,6 +338,7 @@ if (DAWN_ENABLE_D3D11 OR DAWN_ENABLE_D3D12)
+         "d3d/UtilsD3D.h"
+         "d3d/d3d_platform.h"
+     )
++    target_link_libraries(dawn_native PRIVATE dcomp.lib)
+ endif()
+ 
+ if (DAWN_ENABLE_D3D11)
+diff --git a/src/dawn/native/d3d/SwapChainD3D.cpp b/src/dawn/native/d3d/SwapChainD3D.cpp
+index 43a575ccea..a280e1fe60 100644
+--- a/src/dawn/native/d3d/SwapChainD3D.cpp
++++ b/src/dawn/native/d3d/SwapChainD3D.cpp
+@@ -92,6 +92,24 @@ DXGI_USAGE ToDXGIUsage(wgpu::TextureUsage usage) {
+     return dxgiUsage;
+ }
+ 
++DXGI_ALPHA_MODE ToDXGIAlphaMode(wgpu::CompositeAlphaMode mode) {
++    switch (mode) {
++        case wgpu::CompositeAlphaMode::Auto:
++            break;
++        case wgpu::CompositeAlphaMode::Opaque:
++            return DXGI_ALPHA_MODE_IGNORE;
++        case wgpu::CompositeAlphaMode::Premultiplied:
++            return DXGI_ALPHA_MODE_PREMULTIPLIED;
++        case wgpu::CompositeAlphaMode::Unpremultiplied:
++            break;
++        case wgpu::CompositeAlphaMode::Inherit:
++            return DXGI_ALPHA_MODE_UNSPECIFIED;
++        default:
++            break;
++    }
++    DAWN_UNREACHABLE();
++}
++
+ }  // namespace
+ 
+ SwapChain::~SwapChain() = default;
+@@ -112,6 +130,7 @@ MaybeError SwapChain::Initialize(SwapChainBase* previousSwapChain) {
+     mConfig.format = d3d::DXGITextureFormat(GetDevice(), GetFormat());
+     mConfig.swapChainFlags = PresentModeToSwapChainFlags(GetPresentMode());
+     mConfig.usage = ToDXGIUsage(GetUsage());
++    mConfig.alphaMode = ToDXGIAlphaMode(GetAlphaMode());
+ 
+     // There is no previous swapchain so we can create one directly and don't have anything else
+     // to do.
+@@ -138,8 +157,9 @@ MaybeError SwapChain::Initialize(SwapChainBase* previousSwapChain) {
+     // always possible. Because DXGI requires that a new swapchain be created if the
+     // DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING flag is changed.
+     bool canReuseSwapChain =
+-        ((mConfig.swapChainFlags ^ previousD3DSwapChain->mConfig.swapChainFlags) &
+-         DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING) == 0;
++        (mConfig.alphaMode == previousD3DSwapChain->mConfig.alphaMode) &&
++        (((mConfig.swapChainFlags ^ previousD3DSwapChain->mConfig.swapChainFlags) &
++          DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING) == 0);
+ 
+     // We can't reuse the previous swapchain, so we destroy it and wait for all of its reference
+     // to be forgotten (otherwise DXGI complains that there are outstanding references).
+@@ -151,6 +171,8 @@ MaybeError SwapChain::Initialize(SwapChainBase* previousSwapChain) {
+     // After all this we know we can reuse the swapchain, see if it is possible to also reuse
+     // the buffers.
+     mDXGISwapChain = std::move(previousD3DSwapChain->mDXGISwapChain);
++    mDCompositionTarget = std::move(previousD3DSwapChain->mDCompositionTarget);
++    mDCompositionVisual = std::move(previousD3DSwapChain->mDCompositionVisual);
+ 
+     bool canReuseBuffers = GetWidth() == previousSwapChain->GetWidth() &&
+                            GetHeight() == previousSwapChain->GetHeight() &&
+@@ -193,8 +215,8 @@ MaybeError SwapChain::InitializeSwapChainFromScratch() {
+     swapChainDesc.BufferUsage = mConfig.usage;
+     swapChainDesc.BufferCount = mConfig.bufferCount;
+     swapChainDesc.Scaling = DXGI_SCALING_STRETCH;
+-    swapChainDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
+-    swapChainDesc.AlphaMode = DXGI_ALPHA_MODE_IGNORE;
++    swapChainDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL;
++    swapChainDesc.AlphaMode = mConfig.alphaMode;
+     swapChainDesc.Flags = mConfig.swapChainFlags;
+ 
+     ComPtr<IDXGIFactory2> factory2 = nullptr;
+@@ -205,10 +227,31 @@ MaybeError SwapChain::InitializeSwapChainFromScratch() {
+     switch (GetSurface()->GetType()) {
+         case Surface::Type::WindowsHWND: {
+             DAWN_TRY(CheckHRESULT(
+-                factory2->CreateSwapChainForHwnd(GetD3DDeviceForCreatingSwapChain(),
+-                                                 static_cast<HWND>(GetSurface()->GetHWND()),
+-                                                 &swapChainDesc, nullptr, nullptr, &swapChain1),
++                factory2->CreateSwapChainForComposition(GetD3DDeviceForCreatingSwapChain(),
++                                                        &swapChainDesc, nullptr, &swapChain1),
+                 "Creating the IDXGISwapChain1"));
++
++            // Create composition
++            ComPtr<IDCompositionDevice> compositionDevice = nullptr;
++            DAWN_TRY(CheckHRESULT(DCompositionCreateDevice(NULL, IID_PPV_ARGS(&compositionDevice)),
++                                  "Creating DCompositionDevice"));
++
++            DAWN_TRY(CheckHRESULT(
++                compositionDevice->CreateTargetForHwnd(static_cast<HWND>(GetSurface()->GetHWND()),
++                                                       TRUE, &mDCompositionTarget),
++                "Creating composition target"));
++
++            DAWN_TRY(CheckHRESULT(compositionDevice->CreateVisual(&mDCompositionVisual),
++                                  "Creating composition visual"));
++
++            DAWN_TRY(CheckHRESULT(mDCompositionVisual->SetContent(swapChain1.Get()),
++                                  "Setting content of composition visual"));
++
++            DAWN_TRY(CheckHRESULT(mDCompositionTarget->SetRoot(mDCompositionVisual.Get()),
++                                  "Setting root visual of composition target"));
++
++            DAWN_TRY(CheckHRESULT(compositionDevice->Commit(), "Committing composition"));
++
+             break;
+         }
+         case Surface::Type::WindowsCoreWindow: {
+@@ -254,8 +297,10 @@ MaybeError SwapChain::PresentDXGISwapChain() {
+     return {};
+ }
+ 
+-void SwapChain::ReleaseDXGISwapChain() {
++void SwapChain::ReleaseDXGIResources() {
+     mDXGISwapChain = nullptr;
++    mDCompositionTarget = nullptr;
++    mDCompositionVisual = nullptr;
+ }
+ 
+ IDXGISwapChain3* SwapChain::GetDXGISwapChain() const {
+diff --git a/src/dawn/native/d3d/SwapChainD3D.h b/src/dawn/native/d3d/SwapChainD3D.h
+index a4d078c01f..7c2a3bd7b5 100644
+--- a/src/dawn/native/d3d/SwapChainD3D.h
++++ b/src/dawn/native/d3d/SwapChainD3D.h
+@@ -32,6 +32,7 @@
+ 
+ #include "dawn/native/SwapChain.h"
+ 
++#include <dcomp.h>
+ #include "dawn/native/IntegerTypes.h"
+ #include "dawn/native/d3d/d3d_platform.h"
+ 
+@@ -63,7 +64,7 @@ class SwapChain : public SwapChainBase {
+     virtual MaybeError DetachAndWaitForDeallocation() = 0;
+ 
+     MaybeError PresentDXGISwapChain();
+-    void ReleaseDXGISwapChain();
++    void ReleaseDXGIResources();
+ 
+     IDXGISwapChain3* GetDXGISwapChain() const;
+ 
+@@ -73,6 +74,7 @@ class SwapChain : public SwapChainBase {
+         UINT swapChainFlags;
+         DXGI_FORMAT format;
+         DXGI_USAGE usage;
++        DXGI_ALPHA_MODE alphaMode;
+     };
+     const Config& GetConfig() const;
+ 
+@@ -82,6 +84,8 @@ class SwapChain : public SwapChainBase {
+ 
+     Config mConfig;
+     ComPtr<IDXGISwapChain3> mDXGISwapChain;
++    ComPtr<IDCompositionTarget> mDCompositionTarget;
++    ComPtr<IDCompositionVisual> mDCompositionVisual;
+ };
+ 
+ }  // namespace dawn::native::d3d
+diff --git a/src/dawn/native/d3d11/SwapChainD3D11.cpp b/src/dawn/native/d3d11/SwapChainD3D11.cpp
+index 6d2d621d48..ba1af416a6 100644
+--- a/src/dawn/native/d3d11/SwapChainD3D11.cpp
++++ b/src/dawn/native/d3d11/SwapChainD3D11.cpp
+@@ -109,7 +109,7 @@ void SwapChain::DetachFromSurfaceImpl() {
+     }
+ 
+     mBuffer = nullptr;
+-    ReleaseDXGISwapChain();
++    ReleaseDXGIResources();
+ }
+ 
+ }  // namespace dawn::native::d3d11
+diff --git a/src/dawn/native/d3d12/SwapChainD3D12.cpp b/src/dawn/native/d3d12/SwapChainD3D12.cpp
+index 1e98730205..f8a7c24301 100644
+--- a/src/dawn/native/d3d12/SwapChainD3D12.cpp
++++ b/src/dawn/native/d3d12/SwapChainD3D12.cpp
+@@ -148,7 +148,7 @@ void SwapChain::DetachFromSurfaceImpl() {
+     }
+     mBuffers.clear();
+ 
+-    ReleaseDXGISwapChain();
++    ReleaseDXGIResources();
+ }
+ 
+ }  // namespace dawn::native::d3d12

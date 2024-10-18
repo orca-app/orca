@@ -14,9 +14,6 @@
 #include "util/hash.h"
 #include "util/memory.h"
 
-//NOTE(ilia): Design system by semi.design: https://semi.design/en-US/start/overview
-//            New widgets should support dark and light theme
-
 oc_thread_local oc_ui_context oc_uiThreadContext = { 0 };
 oc_thread_local oc_ui_context* oc_uiCurrentContext = 0;
 
@@ -152,7 +149,7 @@ void oc_ui_tag_box_str8(oc_ui_box* box, oc_str8 string)
     oc_ui_context* ui = oc_ui_get_context();
     oc_ui_tag_elt* elt = oc_arena_push_type(&ui->frameArena, oc_ui_tag_elt);
     elt->tag = oc_ui_tag_make_str8(string);
-    oc_list_append(&box->tags, &elt->listElt);
+    oc_list_push_back(&box->tags, &elt->listElt);
 }
 
 void oc_ui_tag_next_str8(oc_str8 string)
@@ -160,7 +157,7 @@ void oc_ui_tag_next_str8(oc_str8 string)
     oc_ui_context* ui = oc_ui_get_context();
     oc_ui_tag_elt* elt = oc_arena_push_type(&ui->frameArena, oc_ui_tag_elt);
     elt->tag = oc_ui_tag_make_str8(string);
-    oc_list_append(&ui->nextBoxTags, &elt->listElt);
+    oc_list_push_back(&ui->nextBoxTags, &elt->listElt);
 }
 
 //-----------------------------------------------------------------------------
@@ -206,7 +203,7 @@ bool oc_ui_key_equal(oc_ui_key a, oc_ui_key b)
 void oc_ui_box_cache(oc_ui_context* ui, oc_ui_box* box)
 {
     u64 index = box->key.hash & (OC_UI_BOX_MAP_BUCKET_COUNT - 1);
-    oc_list_append(&(ui->boxMap[index]), &box->bucketElt);
+    oc_list_push_back(&(ui->boxMap[index]), &box->bucketElt);
 }
 
 oc_ui_box* oc_ui_box_lookup_key(oc_ui_key key)
@@ -238,7 +235,7 @@ void oc_ui_pattern_push(oc_arena* arena, oc_ui_pattern* pattern, oc_ui_selector 
 {
     oc_ui_selector* copy = oc_arena_push_type(arena, oc_ui_selector);
     *copy = selector;
-    oc_list_append(&pattern->l, &copy->listElt);
+    oc_list_push_back(&pattern->l, &copy->listElt);
 }
 
 oc_ui_pattern oc_ui_pattern_all(void)
@@ -268,7 +265,7 @@ void oc_ui_style_match_before(oc_ui_pattern pattern, oc_ui_style* style, oc_ui_s
         rule->style = oc_arena_push_type(&ui->frameArena, oc_ui_style);
         *rule->style = *style;
 
-        oc_list_append(&ui->nextBoxBeforeRules, &rule->boxElt);
+        oc_list_push_back(&ui->nextBoxBeforeRules, &rule->boxElt);
     }
 }
 
@@ -283,7 +280,7 @@ void oc_ui_style_match_after(oc_ui_pattern pattern, oc_ui_style* style, oc_ui_st
         rule->style = oc_arena_push_type(&ui->frameArena, oc_ui_style);
         *rule->style = *style;
 
-        oc_list_append(&ui->nextBoxAfterRules, &rule->boxElt);
+        oc_list_push_back(&ui->nextBoxAfterRules, &rule->boxElt);
     }
 }
 
@@ -303,7 +300,7 @@ void oc_ui_style_box_before(oc_ui_box* box, oc_ui_pattern pattern, oc_ui_style* 
         rule->style = oc_arena_push_type(&ui->frameArena, oc_ui_style);
         *rule->style = *style;
 
-        oc_list_append(&box->beforeRules, &rule->boxElt);
+        oc_list_push_back(&box->beforeRules, &rule->boxElt);
         rule->owner = box;
     }
 }
@@ -319,7 +316,7 @@ void oc_ui_style_box_after(oc_ui_box* box, oc_ui_pattern pattern, oc_ui_style* s
         rule->style = oc_arena_push_type(&ui->frameArena, oc_ui_style);
         *rule->style = *style;
 
-        oc_list_append(&box->afterRules, &rule->boxElt);
+        oc_list_push_back(&box->afterRules, &rule->boxElt);
         rule->owner = box;
     }
 }
@@ -399,6 +396,9 @@ oc_ui_box* oc_ui_box_make_str8(oc_str8 string, oc_ui_flags flags)
         box->fresh = false;
     }
 
+    box->flags = flags;
+    box->string = oc_str8_push_copy(&ui->frameArena, string);
+
     //NOTE: setup hierarchy
     if(box->frameCounter != ui->frameCounter)
     {
@@ -406,13 +406,13 @@ oc_ui_box* oc_ui_box_make_str8(oc_str8 string, oc_ui_flags flags)
         box->parent = oc_ui_box_top();
         if(box->parent)
         {
-            oc_list_append(&box->parent->children, &box->listElt);
+            oc_list_push_back(&box->parent->children, &box->listElt);
             box->parentClosed = box->parent->closed || box->parent->parentClosed;
         }
 
         if(box->flags & OC_UI_FLAG_OVERLAY)
         {
-            oc_list_append(&ui->overlayList, &box->overlayElt);
+            oc_list_push_back(&ui->overlayList, &box->overlayElt);
         }
     }
     else
@@ -421,10 +421,7 @@ oc_ui_box* oc_ui_box_make_str8(oc_str8 string, oc_ui_flags flags)
         oc_log_warning("trying to make ui box '%.*s' multiple times in the same frame\n", (int)box->string.len, box->string.ptr);
     }
 
-    //NOTE: setup per-frame state
     box->frameCounter = ui->frameCounter;
-    box->string = oc_str8_push_copy(&ui->frameArena, string);
-    box->flags = flags;
 
     //NOTE: create style and setup non-inherited attributes to default values
     box->targetStyle = oc_arena_push_type(&ui->frameArena, oc_ui_style);
@@ -895,11 +892,11 @@ void oc_ui_style_rule_match(oc_ui_context* ui, oc_ui_box* box, oc_ui_style_rule*
     oc_ui_selector* selector = oc_list_first_entry(rule->pattern.l, oc_ui_selector, listElt);
     bool match = oc_ui_style_selector_match(box, rule, selector);
 
-    selector = oc_list_next_entry(rule->pattern.l, selector, oc_ui_selector, listElt);
+    selector = oc_list_next_entry(selector, oc_ui_selector, listElt);
     while(match && selector && selector->op == OC_UI_SEL_AND)
     {
         match = match && oc_ui_style_selector_match(box, rule, selector);
-        selector = oc_list_next_entry(rule->pattern.l, selector, oc_ui_selector, listElt);
+        selector = oc_list_next_entry(selector, oc_ui_selector, listElt);
     }
 
     if(match)
@@ -916,8 +913,8 @@ void oc_ui_style_rule_match(oc_ui_context* ui, oc_ui_box* box, oc_ui_style_rule*
             derived->style = rule->style;
             derived->pattern.l = (oc_list){ &selector->listElt, rule->pattern.l.last };
 
-            oc_list_append(buildList, &derived->buildElt);
-            oc_list_append(tmpList, &derived->tmpElt);
+            oc_list_push_back(buildList, &derived->buildElt);
+            oc_list_push_back(tmpList, &derived->tmpElt);
         }
     }
 }
@@ -936,8 +933,8 @@ void oc_ui_styling_prepass(oc_ui_context* ui, oc_ui_box* box, oc_list* before, o
     oc_list tmpBefore = { 0 };
     oc_list_for(box->beforeRules, rule, oc_ui_style_rule, boxElt)
     {
-        oc_list_append(before, &rule->buildElt);
-        oc_list_append(&tmpBefore, &rule->tmpElt);
+        oc_list_push_back(before, &rule->buildElt);
+        oc_list_push_back(&tmpBefore, &rule->tmpElt);
     }
     //NOTE: match before rules
     oc_list_for(*before, rule, oc_ui_style_rule, buildElt)
@@ -949,8 +946,8 @@ void oc_ui_styling_prepass(oc_ui_context* ui, oc_ui_box* box, oc_list* before, o
     oc_list tmpAfter = { 0 };
     oc_list_for_reverse(box->afterRules, rule, oc_ui_style_rule, boxElt)
     {
-        oc_list_push(after, &rule->buildElt);
-        oc_list_append(&tmpAfter, &rule->tmpElt);
+        oc_list_push_front(after, &rule->buildElt);
+        oc_list_push_back(&tmpAfter, &rule->tmpElt);
     }
 
     //NOTE: match after rules
@@ -1204,6 +1201,8 @@ void oc_ui_layout_upward_dependent_size(oc_ui_context* ui, oc_ui_box* box, int a
             }
         }
     }
+    box->rect.c[2 + axis] = oc_max(box->minSize[axis], box->rect.c[2 + axis]);
+
     f32 sum = 0;
 
     //NOTE: recurse in children and recompute children sum
@@ -1444,7 +1443,7 @@ void oc_ui_solve_layout(oc_ui_context* ui)
         if(box->parent)
         {
             oc_list_remove(&box->parent->children, &box->listElt);
-            oc_list_append(&ui->overlay->children, &box->listElt);
+            oc_list_push_back(&ui->overlay->children, &box->listElt);
         }
     }
 
@@ -2442,7 +2441,7 @@ void oc_ui_tooltip_str8(oc_str8 label)
     oc_ui_style containerStyle = { .floating.x = true,
                                    .floating.y = true,
                                    .floatTarget.x = p.x,
-                                   .floatTarget.y = p.y };
+                                   .floatTarget.y = p.y - 10 }; //TODO: quick fix for aliging single line tooltips arrow to mouse, fix that!
     oc_ui_style_next(&containerStyle, OC_UI_STYLE_FLOAT);
     oc_ui_container_str8(label, OC_UI_FLAG_OVERLAY)
     {
@@ -4084,8 +4083,9 @@ oc_ui_text_box_result oc_ui_text_box_str8(oc_str8 name, oc_arena* arena, oc_str8
     {
         oc_str32 oldCodepoints = oc_utf8_push_to_codepoints(&ui->frameArena, text);
         oc_str32 codepoints = oldCodepoints;
-        ui->editCursor = oc_clamp(ui->editCursor, 0, codepoints.len);
-        ui->editMark = oc_clamp(ui->editMark, 0, codepoints.len);
+        //TODO(martin): check conversion here. Is there a way for editCursor or editMark to be negative at this point?
+        ui->editCursor = oc_clamp(ui->editCursor, 0, (i32)codepoints.len);
+        ui->editMark = oc_clamp(ui->editMark, 0, (i32)codepoints.len);
 
         //NOTE replace selection with input codepoints
         oc_str32 input = oc_input_text_utf32(&ui->frameArena, &ui->input);
@@ -4204,191 +4204,196 @@ oc_ui_text_box_result oc_ui_text_box(const char* name, oc_arena* arena, oc_str8 
 // doc/UIColors.md has them visualized
 //------------------------------------------------------------------------------
 
+//NOTE(ilia): Design system by semi.design: https://semi.design/en-US/start/overview
+//            New widgets should support dark and light theme
+//NOTE(martin): alpha have been modified, because we do alpha blending in linear space,
+//              whereas web browsers do it (wrongly, dare I say) in sRGB space.
+
 oc_ui_palette OC_UI_DARK_PALETTE = {
-    .red0 = { 0.424, 0.035, 0.043, 1 },
-    .red1 = { 0.565, 0.067, 0.063, 1 },
-    .red2 = { 0.706, 0.125, 0.098, 1 },
-    .red3 = { 0.843, 0.200, 0.141, 1 },
-    .red4 = { 0.984, 0.286, 0.196, 1 },
-    .red5 = { 0.988, 0.447, 0.353, 1 },
-    .red6 = { 0.992, 0.600, 0.514, 1 },
-    .red7 = { 0.992, 0.745, 0.675, 1 },
-    .red8 = { 0.996, 0.878, 0.835, 1 },
-    .red9 = { 1.000, 0.953, 0.937, 1 },
-    .orange0 = { 0.333, 0.122, 0.012, 1 },
-    .orange1 = { 0.502, 0.208, 0.024, 1 },
-    .orange2 = { 0.667, 0.314, 0.039, 1 },
-    .orange3 = { 0.835, 0.435, 0.059, 1 },
-    .orange4 = { 1.000, 0.573, 0.078, 1 },
-    .orange5 = { 1.000, 0.682, 0.263, 1 },
-    .orange6 = { 1.000, 0.780, 0.447, 1 },
-    .orange7 = { 1.000, 0.867, 0.631, 1 },
-    .orange8 = { 1.000, 0.937, 0.816, 1 },
-    .orange9 = { 1.000, 0.976, 0.929, 1 },
-    .amber0 = { 0.318, 0.180, 0.035, 1 },
-    .amber1 = { 0.475, 0.294, 0.059, 1 },
-    .amber2 = { 0.631, 0.420, 0.086, 1 },
-    .amber3 = { 0.792, 0.561, 0.118, 1 },
-    .amber4 = { 0.949, 0.718, 0.149, 1 },
-    .amber5 = { 0.961, 0.792, 0.314, 1 },
-    .amber6 = { 0.969, 0.859, 0.478, 1 },
-    .amber7 = { 0.980, 0.918, 0.651, 1 },
-    .amber8 = { 0.988, 0.965, 0.824, 1 },
-    .amber9 = { 0.996, 0.984, 0.929, 1 },
-    .yellow0 = { 0.329, 0.286, 0.012, 1 },
-    .yellow1 = { 0.494, 0.424, 0.024, 1 },
-    .yellow2 = { 0.659, 0.557, 0.039, 1 },
-    .yellow3 = { 0.824, 0.686, 0.059, 1 },
-    .yellow4 = { 0.988, 0.808, 0.078, 1 },
-    .yellow5 = { 0.992, 0.871, 0.263, 1 },
-    .yellow6 = { 0.992, 0.922, 0.443, 1 },
-    .yellow7 = { 0.996, 0.961, 0.627, 1 },
-    .yellow8 = { 0.996, 0.984, 0.816, 1 },
-    .yellow9 = { 1.000, 0.996, 0.925, 1 },
-    .lime0 = { 0.192, 0.275, 0.012, 1 },
-    .lime1 = { 0.294, 0.412, 0.020, 1 },
-    .lime2 = { 0.404, 0.553, 0.035, 1 },
-    .lime3 = { 0.518, 0.690, 0.047, 1 },
-    .lime4 = { 0.635, 0.827, 0.067, 1 },
-    .lime5 = { 0.682, 0.863, 0.227, 1 },
-    .lime6 = { 0.741, 0.898, 0.400, 1 },
-    .lime7 = { 0.812, 0.929, 0.588, 1 },
-    .lime8 = { 0.898, 0.965, 0.788, 1 },
-    .lime9 = { 0.953, 0.984, 0.914, 1 },
-    .lightGreen0 = { 0.149, 0.239, 0.075, 1 },
-    .lightGreen1 = { 0.231, 0.361, 0.114, 1 },
-    .lightGreen2 = { 0.318, 0.482, 0.157, 1 },
-    .lightGreen3 = { 0.404, 0.600, 0.204, 1 },
-    .lightGreen4 = { 0.498, 0.722, 0.251, 1 },
-    .lightGreen5 = { 0.592, 0.776, 0.373, 1 },
-    .lightGreen6 = { 0.690, 0.831, 0.506, 1 },
-    .lightGreen7 = { 0.788, 0.890, 0.655, 1 },
-    .lightGreen8 = { 0.894, 0.945, 0.820, 1 },
-    .lightGreen9 = { 0.953, 0.973, 0.929, 1 },
-    .green0 = { 0.071, 0.235, 0.098, 1 },
-    .green1 = { 0.110, 0.353, 0.145, 1 },
-    .green2 = { 0.153, 0.467, 0.192, 1 },
-    .green3 = { 0.196, 0.584, 0.239, 1 },
-    .green4 = { 0.243, 0.702, 0.286, 1 },
-    .green5 = { 0.365, 0.761, 0.392, 1 },
-    .green6 = { 0.498, 0.820, 0.518, 1 },
-    .green7 = { 0.651, 0.882, 0.659, 1 },
-    .green8 = { 0.816, 0.941, 0.820, 1 },
-    .green9 = { 0.925, 0.969, 0.925, 1 },
-    .teal0 = { 0.008, 0.235, 0.224, 1 },
-    .teal1 = { 0.016, 0.353, 0.333, 1 },
-    .teal2 = { 0.027, 0.467, 0.435, 1 },
-    .teal3 = { 0.039, 0.584, 0.533, 1 },
-    .teal4 = { 0.055, 0.702, 0.631, 1 },
-    .teal5 = { 0.200, 0.761, 0.690, 1 },
-    .teal6 = { 0.369, 0.820, 0.757, 1 },
-    .teal7 = { 0.557, 0.882, 0.827, 1 },
-    .teal8 = { 0.769, 0.941, 0.910, 1 },
-    .teal9 = { 0.902, 0.969, 0.957, 1 },
-    .cyan0 = { 0.016, 0.204, 0.239, 1 },
-    .cyan1 = { 0.027, 0.310, 0.361, 1 },
-    .cyan2 = { 0.039, 0.424, 0.482, 1 },
-    .cyan3 = { 0.055, 0.537, 0.600, 1 },
-    .cyan4 = { 0.075, 0.659, 0.722, 1 },
-    .cyan5 = { 0.220, 0.733, 0.776, 1 },
-    .cyan6 = { 0.384, 0.804, 0.831, 1 },
-    .cyan7 = { 0.569, 0.875, 0.890, 1 },
-    .cyan8 = { 0.776, 0.937, 0.945, 1 },
-    .cyan9 = { 0.906, 0.969, 0.973, 1 },
-    .lightBlue0 = { 0.000, 0.216, 0.380, 1 },
-    .lightBlue1 = { 0.000, 0.302, 0.522, 1 },
-    .lightBlue2 = { 0.012, 0.400, 0.663, 1 },
-    .lightBlue3 = { 0.039, 0.506, 0.800, 1 },
-    .lightBlue4 = { 0.075, 0.624, 0.941, 1 },
-    .lightBlue5 = { 0.251, 0.706, 0.953, 1 },
-    .lightBlue6 = { 0.431, 0.784, 0.965, 1 },
-    .lightBlue7 = { 0.616, 0.863, 0.976, 1 },
-    .lightBlue8 = { 0.808, 0.933, 0.988, 1 },
-    .lightBlue9 = { 0.922, 0.973, 0.996, 1 },
-    .blue0 = { 0.020, 0.192, 0.439, 1 },
-    .blue1 = { 0.039, 0.275, 0.580, 1 },
-    .blue2 = { 0.074, 0.361, 0.722, 1 },
-    .blue3 = { 0.114, 0.459, 0.859, 1 },
-    .blue4 = { 0.161, 0.565, 1.000, 1 },
-    .blue5 = { 0.33, 0.66, 1, 1 },
-    .blue6 = { 0.5, 0.757, 1, 1 },
-    .blue7 = { 0.66, 0.84, 1, 1 },
-    .blue8 = { 0.831, 0.925, 1.000, 1 },
-    .blue9 = { 0.937, 0.973, 1.000, 1 },
-    .indigo0 = { 0.090, 0.118, 0.396, 1 },
-    .indigo1 = { 0.125, 0.161, 0.478, 1 },
-    .indigo2 = { 0.161, 0.212, 0.557, 1 },
-    .indigo3 = { 0.204, 0.267, 0.639, 1 },
-    .indigo4 = { 0.251, 0.325, 0.718, 1 },
-    .indigo5 = { 0.373, 0.443, 0.773, 1 },
-    .indigo6 = { 0.506, 0.569, 0.831, 1 },
-    .indigo7 = { 0.655, 0.706, 0.886, 1 },
-    .indigo8 = { 0.820, 0.847, 0.945, 1 },
-    .indigo9 = { 0.929, 0.937, 0.973, 1 },
-    .violet0 = { 0.251, 0.106, 0.467, 1 },
-    .violet1 = { 0.298, 0.141, 0.549, 1 },
-    .violet2 = { 0.345, 0.180, 0.627, 1 },
-    .violet3 = { 0.392, 0.224, 0.710, 1 },
-    .violet4 = { 0.447, 0.275, 0.788, 1 },
-    .violet5 = { 0.533, 0.396, 0.831, 1 },
-    .violet6 = { 0.635, 0.533, 0.875, 1 },
-    .violet7 = { 0.745, 0.678, 0.914, 1 },
-    .violet8 = { 0.867, 0.831, 0.957, 1 },
-    .violet9 = { 0.945, 0.933, 0.980, 1 },
-    .purple0 = { 0.290, 0.063, 0.380, 1 },
-    .purple1 = { 0.369, 0.090, 0.463, 1 },
-    .purple2 = { 0.451, 0.122, 0.541, 1 },
-    .purple3 = { 0.537, 0.157, 0.624, 1 },
-    .purple4 = { 0.627, 0.200, 0.702, 1 },
-    .purple5 = { 0.710, 0.325, 0.761, 1 },
-    .purple6 = { 0.792, 0.471, 0.820, 1 },
-    .purple7 = { 0.867, 0.627, 0.882, 1 },
-    .purple8 = { 0.937, 0.808, 0.941, 1 },
-    .purple9 = { 0.969, 0.922, 0.969, 1 },
-    .pink0 = { 0.361, 0.027, 0.188, 1 },
-    .pink1 = { 0.502, 0.055, 0.255, 1 },
-    .pink2 = { 0.643, 0.090, 0.318, 1 },
-    .pink3 = { 0.780, 0.133, 0.380, 1 },
-    .pink4 = { 0.922, 0.184, 0.443, 1 },
-    .pink5 = { 0.937, 0.337, 0.525, 1 },
-    .pink6 = { 0.953, 0.494, 0.624, 1 },
-    .pink7 = { 0.969, 0.659, 0.737, 1 },
-    .pink8 = { 0.984, 0.827, 0.863, 1 },
-    .pink9 = { 0.992, 0.933, 0.945, 1 },
-    .grey0 = { 0.110, 0.122, 0.137, 1 },
-    .grey1 = { 0.180, 0.196, 0.220, 1 },
-    .grey2 = { 0.255, 0.275, 0.298, 1 },
-    .grey3 = { 0.333, 0.357, 0.380, 1 },
-    .grey4 = { 0.420, 0.439, 0.459, 1 },
-    .grey5 = { 0.533, 0.553, 0.573, 1 },
-    .grey6 = { 0.655, 0.671, 0.690, 1 },
-    .grey7 = { 0.786, 0.792, 0.804, 1 },
-    .grey8 = { 0.902, 0.910, 0.918, 1 },
-    .grey9 = { 0.976, 0.976, 0.976, 1 },
-    .black = { 0, 0, 0, 1 },
-    .white = { 1, 1, 1, 1 }
+    .red0 = { 0.424, 0.035, 0.043, 1, OC_COLOR_SPACE_SRGB },
+    .red1 = { 0.565, 0.067, 0.063, 1, OC_COLOR_SPACE_SRGB },
+    .red2 = { 0.706, 0.125, 0.098, 1, OC_COLOR_SPACE_SRGB },
+    .red3 = { 0.843, 0.200, 0.141, 1, OC_COLOR_SPACE_SRGB },
+    .red4 = { 0.984, 0.286, 0.196, 1, OC_COLOR_SPACE_SRGB },
+    .red5 = { 0.988, 0.447, 0.353, 1, OC_COLOR_SPACE_SRGB },
+    .red6 = { 0.992, 0.600, 0.514, 1, OC_COLOR_SPACE_SRGB },
+    .red7 = { 0.992, 0.745, 0.675, 1, OC_COLOR_SPACE_SRGB },
+    .red8 = { 0.996, 0.878, 0.835, 1, OC_COLOR_SPACE_SRGB },
+    .red9 = { 1.000, 0.953, 0.937, 1, OC_COLOR_SPACE_SRGB },
+    .orange0 = { 0.333, 0.122, 0.012, 1, OC_COLOR_SPACE_SRGB },
+    .orange1 = { 0.502, 0.208, 0.024, 1, OC_COLOR_SPACE_SRGB },
+    .orange2 = { 0.667, 0.314, 0.039, 1, OC_COLOR_SPACE_SRGB },
+    .orange3 = { 0.835, 0.435, 0.059, 1, OC_COLOR_SPACE_SRGB },
+    .orange4 = { 1.000, 0.573, 0.078, 1, OC_COLOR_SPACE_SRGB },
+    .orange5 = { 1.000, 0.682, 0.263, 1, OC_COLOR_SPACE_SRGB },
+    .orange6 = { 1.000, 0.780, 0.447, 1, OC_COLOR_SPACE_SRGB },
+    .orange7 = { 1.000, 0.867, 0.631, 1, OC_COLOR_SPACE_SRGB },
+    .orange8 = { 1.000, 0.937, 0.816, 1, OC_COLOR_SPACE_SRGB },
+    .orange9 = { 1.000, 0.976, 0.929, 1, OC_COLOR_SPACE_SRGB },
+    .amber0 = { 0.318, 0.180, 0.035, 1, OC_COLOR_SPACE_SRGB },
+    .amber1 = { 0.475, 0.294, 0.059, 1, OC_COLOR_SPACE_SRGB },
+    .amber2 = { 0.631, 0.420, 0.086, 1, OC_COLOR_SPACE_SRGB },
+    .amber3 = { 0.792, 0.561, 0.118, 1, OC_COLOR_SPACE_SRGB },
+    .amber4 = { 0.949, 0.718, 0.149, 1, OC_COLOR_SPACE_SRGB },
+    .amber5 = { 0.961, 0.792, 0.314, 1, OC_COLOR_SPACE_SRGB },
+    .amber6 = { 0.969, 0.859, 0.478, 1, OC_COLOR_SPACE_SRGB },
+    .amber7 = { 0.980, 0.918, 0.651, 1, OC_COLOR_SPACE_SRGB },
+    .amber8 = { 0.988, 0.965, 0.824, 1, OC_COLOR_SPACE_SRGB },
+    .amber9 = { 0.996, 0.984, 0.929, 1, OC_COLOR_SPACE_SRGB },
+    .yellow0 = { 0.329, 0.286, 0.012, 1, OC_COLOR_SPACE_SRGB },
+    .yellow1 = { 0.494, 0.424, 0.024, 1, OC_COLOR_SPACE_SRGB },
+    .yellow2 = { 0.659, 0.557, 0.039, 1, OC_COLOR_SPACE_SRGB },
+    .yellow3 = { 0.824, 0.686, 0.059, 1, OC_COLOR_SPACE_SRGB },
+    .yellow4 = { 0.988, 0.808, 0.078, 1, OC_COLOR_SPACE_SRGB },
+    .yellow5 = { 0.992, 0.871, 0.263, 1, OC_COLOR_SPACE_SRGB },
+    .yellow6 = { 0.992, 0.922, 0.443, 1, OC_COLOR_SPACE_SRGB },
+    .yellow7 = { 0.996, 0.961, 0.627, 1, OC_COLOR_SPACE_SRGB },
+    .yellow8 = { 0.996, 0.984, 0.816, 1, OC_COLOR_SPACE_SRGB },
+    .yellow9 = { 1.000, 0.996, 0.925, 1, OC_COLOR_SPACE_SRGB },
+    .lime0 = { 0.192, 0.275, 0.012, 1, OC_COLOR_SPACE_SRGB },
+    .lime1 = { 0.294, 0.412, 0.020, 1, OC_COLOR_SPACE_SRGB },
+    .lime2 = { 0.404, 0.553, 0.035, 1, OC_COLOR_SPACE_SRGB },
+    .lime3 = { 0.518, 0.690, 0.047, 1, OC_COLOR_SPACE_SRGB },
+    .lime4 = { 0.635, 0.827, 0.067, 1, OC_COLOR_SPACE_SRGB },
+    .lime5 = { 0.682, 0.863, 0.227, 1, OC_COLOR_SPACE_SRGB },
+    .lime6 = { 0.741, 0.898, 0.400, 1, OC_COLOR_SPACE_SRGB },
+    .lime7 = { 0.812, 0.929, 0.588, 1, OC_COLOR_SPACE_SRGB },
+    .lime8 = { 0.898, 0.965, 0.788, 1, OC_COLOR_SPACE_SRGB },
+    .lime9 = { 0.953, 0.984, 0.914, 1, OC_COLOR_SPACE_SRGB },
+    .lightGreen0 = { 0.149, 0.239, 0.075, 1, OC_COLOR_SPACE_SRGB },
+    .lightGreen1 = { 0.231, 0.361, 0.114, 1, OC_COLOR_SPACE_SRGB },
+    .lightGreen2 = { 0.318, 0.482, 0.157, 1, OC_COLOR_SPACE_SRGB },
+    .lightGreen3 = { 0.404, 0.600, 0.204, 1, OC_COLOR_SPACE_SRGB },
+    .lightGreen4 = { 0.498, 0.722, 0.251, 1, OC_COLOR_SPACE_SRGB },
+    .lightGreen5 = { 0.592, 0.776, 0.373, 1, OC_COLOR_SPACE_SRGB },
+    .lightGreen6 = { 0.690, 0.831, 0.506, 1, OC_COLOR_SPACE_SRGB },
+    .lightGreen7 = { 0.788, 0.890, 0.655, 1, OC_COLOR_SPACE_SRGB },
+    .lightGreen8 = { 0.894, 0.945, 0.820, 1, OC_COLOR_SPACE_SRGB },
+    .lightGreen9 = { 0.953, 0.973, 0.929, 1, OC_COLOR_SPACE_SRGB },
+    .green0 = { 0.071, 0.235, 0.098, 1, OC_COLOR_SPACE_SRGB },
+    .green1 = { 0.110, 0.353, 0.145, 1, OC_COLOR_SPACE_SRGB },
+    .green2 = { 0.153, 0.467, 0.192, 1, OC_COLOR_SPACE_SRGB },
+    .green3 = { 0.196, 0.584, 0.239, 1, OC_COLOR_SPACE_SRGB },
+    .green4 = { 0.243, 0.702, 0.286, 1, OC_COLOR_SPACE_SRGB },
+    .green5 = { 0.365, 0.761, 0.392, 1, OC_COLOR_SPACE_SRGB },
+    .green6 = { 0.498, 0.820, 0.518, 1, OC_COLOR_SPACE_SRGB },
+    .green7 = { 0.651, 0.882, 0.659, 1, OC_COLOR_SPACE_SRGB },
+    .green8 = { 0.816, 0.941, 0.820, 1, OC_COLOR_SPACE_SRGB },
+    .green9 = { 0.925, 0.969, 0.925, 1, OC_COLOR_SPACE_SRGB },
+    .teal0 = { 0.008, 0.235, 0.224, 1, OC_COLOR_SPACE_SRGB },
+    .teal1 = { 0.016, 0.353, 0.333, 1, OC_COLOR_SPACE_SRGB },
+    .teal2 = { 0.027, 0.467, 0.435, 1, OC_COLOR_SPACE_SRGB },
+    .teal3 = { 0.039, 0.584, 0.533, 1, OC_COLOR_SPACE_SRGB },
+    .teal4 = { 0.055, 0.702, 0.631, 1, OC_COLOR_SPACE_SRGB },
+    .teal5 = { 0.200, 0.761, 0.690, 1, OC_COLOR_SPACE_SRGB },
+    .teal6 = { 0.369, 0.820, 0.757, 1, OC_COLOR_SPACE_SRGB },
+    .teal7 = { 0.557, 0.882, 0.827, 1, OC_COLOR_SPACE_SRGB },
+    .teal8 = { 0.769, 0.941, 0.910, 1, OC_COLOR_SPACE_SRGB },
+    .teal9 = { 0.902, 0.969, 0.957, 1, OC_COLOR_SPACE_SRGB },
+    .cyan0 = { 0.016, 0.204, 0.239, 1, OC_COLOR_SPACE_SRGB },
+    .cyan1 = { 0.027, 0.310, 0.361, 1, OC_COLOR_SPACE_SRGB },
+    .cyan2 = { 0.039, 0.424, 0.482, 1, OC_COLOR_SPACE_SRGB },
+    .cyan3 = { 0.055, 0.537, 0.600, 1, OC_COLOR_SPACE_SRGB },
+    .cyan4 = { 0.075, 0.659, 0.722, 1, OC_COLOR_SPACE_SRGB },
+    .cyan5 = { 0.220, 0.733, 0.776, 1, OC_COLOR_SPACE_SRGB },
+    .cyan6 = { 0.384, 0.804, 0.831, 1, OC_COLOR_SPACE_SRGB },
+    .cyan7 = { 0.569, 0.875, 0.890, 1, OC_COLOR_SPACE_SRGB },
+    .cyan8 = { 0.776, 0.937, 0.945, 1, OC_COLOR_SPACE_SRGB },
+    .cyan9 = { 0.906, 0.969, 0.973, 1, OC_COLOR_SPACE_SRGB },
+    .lightBlue0 = { 0.000, 0.216, 0.380, 1, OC_COLOR_SPACE_SRGB },
+    .lightBlue1 = { 0.000, 0.302, 0.522, 1, OC_COLOR_SPACE_SRGB },
+    .lightBlue2 = { 0.012, 0.400, 0.663, 1, OC_COLOR_SPACE_SRGB },
+    .lightBlue3 = { 0.039, 0.506, 0.800, 1, OC_COLOR_SPACE_SRGB },
+    .lightBlue4 = { 0.075, 0.624, 0.941, 1, OC_COLOR_SPACE_SRGB },
+    .lightBlue5 = { 0.251, 0.706, 0.953, 1, OC_COLOR_SPACE_SRGB },
+    .lightBlue6 = { 0.431, 0.784, 0.965, 1, OC_COLOR_SPACE_SRGB },
+    .lightBlue7 = { 0.616, 0.863, 0.976, 1, OC_COLOR_SPACE_SRGB },
+    .lightBlue8 = { 0.808, 0.933, 0.988, 1, OC_COLOR_SPACE_SRGB },
+    .lightBlue9 = { 0.922, 0.973, 0.996, 1, OC_COLOR_SPACE_SRGB },
+    .blue0 = { 0.020, 0.192, 0.439, 1, OC_COLOR_SPACE_SRGB },
+    .blue1 = { 0.039, 0.275, 0.580, 1, OC_COLOR_SPACE_SRGB },
+    .blue2 = { 0.074, 0.361, 0.722, 1, OC_COLOR_SPACE_SRGB },
+    .blue3 = { 0.114, 0.459, 0.859, 1, OC_COLOR_SPACE_SRGB },
+    .blue4 = { 0.161, 0.565, 1.000, 1, OC_COLOR_SPACE_SRGB },
+    .blue5 = { 0.33, 0.66, 1, 1, OC_COLOR_SPACE_SRGB },
+    .blue6 = { 0.5, 0.757, 1, 1, OC_COLOR_SPACE_SRGB },
+    .blue7 = { 0.66, 0.84, 1, 1, OC_COLOR_SPACE_SRGB },
+    .blue8 = { 0.831, 0.925, 1.000, 1, OC_COLOR_SPACE_SRGB },
+    .blue9 = { 0.937, 0.973, 1.000, 1, OC_COLOR_SPACE_SRGB },
+    .indigo0 = { 0.090, 0.118, 0.396, 1, OC_COLOR_SPACE_SRGB },
+    .indigo1 = { 0.125, 0.161, 0.478, 1, OC_COLOR_SPACE_SRGB },
+    .indigo2 = { 0.161, 0.212, 0.557, 1, OC_COLOR_SPACE_SRGB },
+    .indigo3 = { 0.204, 0.267, 0.639, 1, OC_COLOR_SPACE_SRGB },
+    .indigo4 = { 0.251, 0.325, 0.718, 1, OC_COLOR_SPACE_SRGB },
+    .indigo5 = { 0.373, 0.443, 0.773, 1, OC_COLOR_SPACE_SRGB },
+    .indigo6 = { 0.506, 0.569, 0.831, 1, OC_COLOR_SPACE_SRGB },
+    .indigo7 = { 0.655, 0.706, 0.886, 1, OC_COLOR_SPACE_SRGB },
+    .indigo8 = { 0.820, 0.847, 0.945, 1, OC_COLOR_SPACE_SRGB },
+    .indigo9 = { 0.929, 0.937, 0.973, 1, OC_COLOR_SPACE_SRGB },
+    .violet0 = { 0.251, 0.106, 0.467, 1, OC_COLOR_SPACE_SRGB },
+    .violet1 = { 0.298, 0.141, 0.549, 1, OC_COLOR_SPACE_SRGB },
+    .violet2 = { 0.345, 0.180, 0.627, 1, OC_COLOR_SPACE_SRGB },
+    .violet3 = { 0.392, 0.224, 0.710, 1, OC_COLOR_SPACE_SRGB },
+    .violet4 = { 0.447, 0.275, 0.788, 1, OC_COLOR_SPACE_SRGB },
+    .violet5 = { 0.533, 0.396, 0.831, 1, OC_COLOR_SPACE_SRGB },
+    .violet6 = { 0.635, 0.533, 0.875, 1, OC_COLOR_SPACE_SRGB },
+    .violet7 = { 0.745, 0.678, 0.914, 1, OC_COLOR_SPACE_SRGB },
+    .violet8 = { 0.867, 0.831, 0.957, 1, OC_COLOR_SPACE_SRGB },
+    .violet9 = { 0.945, 0.933, 0.980, 1, OC_COLOR_SPACE_SRGB },
+    .purple0 = { 0.290, 0.063, 0.380, 1, OC_COLOR_SPACE_SRGB },
+    .purple1 = { 0.369, 0.090, 0.463, 1, OC_COLOR_SPACE_SRGB },
+    .purple2 = { 0.451, 0.122, 0.541, 1, OC_COLOR_SPACE_SRGB },
+    .purple3 = { 0.537, 0.157, 0.624, 1, OC_COLOR_SPACE_SRGB },
+    .purple4 = { 0.627, 0.200, 0.702, 1, OC_COLOR_SPACE_SRGB },
+    .purple5 = { 0.710, 0.325, 0.761, 1, OC_COLOR_SPACE_SRGB },
+    .purple6 = { 0.792, 0.471, 0.820, 1, OC_COLOR_SPACE_SRGB },
+    .purple7 = { 0.867, 0.627, 0.882, 1, OC_COLOR_SPACE_SRGB },
+    .purple8 = { 0.937, 0.808, 0.941, 1, OC_COLOR_SPACE_SRGB },
+    .purple9 = { 0.969, 0.922, 0.969, 1, OC_COLOR_SPACE_SRGB },
+    .pink0 = { 0.361, 0.027, 0.188, 1, OC_COLOR_SPACE_SRGB },
+    .pink1 = { 0.502, 0.055, 0.255, 1, OC_COLOR_SPACE_SRGB },
+    .pink2 = { 0.643, 0.090, 0.318, 1, OC_COLOR_SPACE_SRGB },
+    .pink3 = { 0.780, 0.133, 0.380, 1, OC_COLOR_SPACE_SRGB },
+    .pink4 = { 0.922, 0.184, 0.443, 1, OC_COLOR_SPACE_SRGB },
+    .pink5 = { 0.937, 0.337, 0.525, 1, OC_COLOR_SPACE_SRGB },
+    .pink6 = { 0.953, 0.494, 0.624, 1, OC_COLOR_SPACE_SRGB },
+    .pink7 = { 0.969, 0.659, 0.737, 1, OC_COLOR_SPACE_SRGB },
+    .pink8 = { 0.984, 0.827, 0.863, 1, OC_COLOR_SPACE_SRGB },
+    .pink9 = { 0.992, 0.933, 0.945, 1, OC_COLOR_SPACE_SRGB },
+    .grey0 = { 0.110, 0.122, 0.137, 1, OC_COLOR_SPACE_SRGB },
+    .grey1 = { 0.180, 0.196, 0.220, 1, OC_COLOR_SPACE_SRGB },
+    .grey2 = { 0.255, 0.275, 0.298, 1, OC_COLOR_SPACE_SRGB },
+    .grey3 = { 0.333, 0.357, 0.380, 1, OC_COLOR_SPACE_SRGB },
+    .grey4 = { 0.420, 0.439, 0.459, 1, OC_COLOR_SPACE_SRGB },
+    .grey5 = { 0.533, 0.553, 0.573, 1, OC_COLOR_SPACE_SRGB },
+    .grey6 = { 0.655, 0.671, 0.690, 1, OC_COLOR_SPACE_SRGB },
+    .grey7 = { 0.786, 0.792, 0.804, 1, OC_COLOR_SPACE_SRGB },
+    .grey8 = { 0.902, 0.910, 0.918, 1, OC_COLOR_SPACE_SRGB },
+    .grey9 = { 0.976, 0.976, 0.976, 1, OC_COLOR_SPACE_SRGB },
+    .black = { 0, 0, 0, 1, OC_COLOR_SPACE_SRGB },
+    .white = { 1, 1, 1, 1, OC_COLOR_SPACE_SRGB }
 };
 
 oc_ui_theme OC_UI_DARK_THEME = {
-    .white = { 0.894, 0.906, 0.961, 1 },
-    .primary = { 0.33, 0.66, 1, 1 },       // blue5
-    .primaryHover = { 0.5, 0.757, 1, 1 },  // blue6
-    .primaryActive = { 0.66, 0.84, 1, 1 }, // blue7
-    .border = { 1, 1, 1, 0.08 },
-    .fill0 = { 1, 1, 1, 0.12 },
-    .fill1 = { 1, 1, 1, 0.16 },
-    .fill2 = { 1, 1, 1, 0.2 },
-    .bg0 = { 0.086, 0.086, 0.102, 1 },
-    .bg1 = { 0.137, 0.141, 0.161, 1 },
-    .bg2 = { 0.208, 0.212, 0.235, 1 },
-    .bg3 = { 0.263, 0.267, 0.29, 1 },
-    .bg4 = { 0.31, 0.318, 0.349, 1 },
-    .text0 = { 0.976, 0.976, 0.976, 1 },    // grey9
-    .text1 = { 0.976, 0.976, 0.976, 0.8 },  // grey9
-    .text2 = { 0.976, 0.976, 0.976, 0.6 },  // grey9
-    .text3 = { 0.976, 0.976, 0.976, 0.35 }, // grey9
-    .sliderThumbBorder = { 0, 0, 0, 0.075 },
-    .elevatedBorder = { 1, 1, 1, 0.1 },
+    .white = { 0.894, 0.906, 0.961, 1, OC_COLOR_SPACE_SRGB },
+    .primary = { 0.33, 0.66, 1, 1, OC_COLOR_SPACE_SRGB },       // blue5
+    .primaryHover = { 0.5, 0.757, 1, 1, OC_COLOR_SPACE_SRGB },  // blue6
+    .primaryActive = { 0.66, 0.84, 1, 1, OC_COLOR_SPACE_SRGB }, // blue7
+    .border = { 1, 1, 1, 0.018, OC_COLOR_SPACE_SRGB },
+    .fill0 = { 1, 1, 1, 0.033, OC_COLOR_SPACE_SRGB },
+    .fill1 = { 1, 1, 1, 0.045, OC_COLOR_SPACE_SRGB },
+    .fill2 = { 1, 1, 1, 0.063, OC_COLOR_SPACE_SRGB },
+    .bg0 = { 0.086, 0.086, 0.102, 1, OC_COLOR_SPACE_SRGB },
+    .bg1 = { 0.137, 0.141, 0.165, 1, OC_COLOR_SPACE_SRGB },
+    .bg2 = { 0.208, 0.212, 0.231, 1, OC_COLOR_SPACE_SRGB },
+    .bg3 = { 0.263, 0.267, 0.29, 1, OC_COLOR_SPACE_SRGB },
+    .bg4 = { 0.31, 0.318, 0.349, 1, OC_COLOR_SPACE_SRGB },
+    .text0 = { 0.976, 0.976, 0.976, 1, OC_COLOR_SPACE_SRGB },    // grey9
+    .text1 = { 0.976, 0.976, 0.976, 0.64, OC_COLOR_SPACE_SRGB }, // grey9
+    .text2 = { 0.976, 0.976, 0.976, 0.38, OC_COLOR_SPACE_SRGB }, // grey9
+    .text3 = { 0.976, 0.976, 0.976, 0.15, OC_COLOR_SPACE_SRGB }, // grey9
+    .sliderThumbBorder = { 0, 0, 0, 0.17, OC_COLOR_SPACE_SRGB },
+    .elevatedBorder = { 1, 1, 1, 0.1, OC_COLOR_SPACE_SRGB },
 
     .roundnessSmall = 3,
     .roundnessMedium = 6,
@@ -4396,190 +4401,190 @@ oc_ui_theme OC_UI_DARK_THEME = {
 };
 
 oc_ui_palette OC_UI_LIGHT_PALETTE = {
-    .red0 = { 0.996, 0.949, 0.929, 1 },
-    .red1 = { 0.996, 0.867, 0.824, 1 },
-    .red2 = { 0.992, 0.718, 0.647, 1 },
-    .red3 = { 0.984, 0.565, 0.471, 1 },
-    .red4 = { 0.980, 0.400, 0.298, 1 },
-    .red5 = { 0.976, 0.224, 0.125, 1 },
-    .red6 = { 0.835, 0.145, 0.082, 1 },
-    .red7 = { 0.698, 0.078, 0.047, 1 },
-    .red8 = { 0.557, 0.031, 0.020, 1 },
-    .red9 = { 0.416, 0.004, 0.012, 1 },
-    .orange0 = { 1.000, 0.973, 0.918, 1 },
-    .orange1 = { 0.996, 0.933, 0.800, 1 },
-    .orange2 = { 0.996, 0.851, 0.596, 1 },
-    .orange3 = { 0.992, 0.757, 0.396, 1 },
-    .orange4 = { 0.992, 0.651, 0.200, 1 },
-    .orange5 = { 0.988, 0.533, 0.000, 1 },
-    .orange6 = { 0.824, 0.404, 0.000, 1 },
-    .orange7 = { 0.659, 0.290, 0.000, 1 },
-    .orange8 = { 0.494, 0.192, 0.000, 1 },
-    .orange9 = { 0.329, 0.114, 0.000, 1 },
-    .amber0 = { 0.996, 0.984, 0.922, 1 },
-    .amber1 = { 0.988, 0.961, 0.808, 1 },
-    .amber2 = { 0.976, 0.910, 0.620, 1 },
-    .amber3 = { 0.965, 0.847, 0.435, 1 },
-    .amber4 = { 0.953, 0.776, 0.255, 1 },
-    .amber5 = { 0.941, 0.694, 0.078, 1 },
-    .amber6 = { 0.784, 0.541, 0.059, 1 },
-    .amber7 = { 0.627, 0.400, 0.039, 1 },
-    .amber8 = { 0.471, 0.275, 0.024, 1 },
-    .amber9 = { 0.314, 0.169, 0.012, 1 },
-    .yellow0 = { 1.000, 0.992, 0.918, 1 },
-    .yellow1 = { 0.996, 0.984, 0.796, 1 },
-    .yellow2 = { 0.992, 0.953, 0.596, 1 },
-    .yellow3 = { 0.988, 0.910, 0.396, 1 },
-    .yellow4 = { 0.984, 0.855, 0.196, 1 },
-    .yellow5 = { 0.980, 0.784, 0.000, 1 },
-    .yellow6 = { 0.816, 0.667, 0.000, 1 },
-    .yellow7 = { 0.655, 0.545, 0.000, 1 },
-    .yellow8 = { 0.490, 0.416, 0.000, 1 },
-    .yellow9 = { 0.325, 0.282, 0.000, 1 },
-    .lime0 = { 0.949, 0.980, 0.902, 1 },
-    .lime1 = { 0.890, 0.965, 0.773, 1 },
-    .lime2 = { 0.796, 0.929, 0.557, 1 },
-    .lime3 = { 0.718, 0.890, 0.357, 1 },
-    .lime4 = { 0.655, 0.855, 0.173, 1 },
-    .lime5 = { 0.608, 0.820, 0.000, 1 },
-    .lime6 = { 0.494, 0.682, 0.000, 1 },
-    .lime7 = { 0.388, 0.545, 0.000, 1 },
-    .lime8 = { 0.282, 0.408, 0.000, 1 },
-    .lime9 = { 0.184, 0.275, 0.000, 1 },
-    .lightGreen0 = { 0.953, 0.973, 0.925, 1 },
-    .lightGreen1 = { 0.890, 0.941, 0.816, 1 },
-    .lightGreen2 = { 0.784, 0.886, 0.647, 1 },
-    .lightGreen3 = { 0.678, 0.827, 0.494, 1 },
-    .lightGreen4 = { 0.576, 0.773, 0.357, 1 },
-    .lightGreen5 = { 0.482, 0.714, 0.235, 1 },
-    .lightGreen6 = { 0.392, 0.596, 0.188, 1 },
-    .lightGreen7 = { 0.306, 0.475, 0.149, 1 },
-    .lightGreen8 = { 0.224, 0.357, 0.106, 1 },
-    .lightGreen9 = { 0.145, 0.239, 0.071, 1 },
-    .green0 = { 0.925, 0.969, 0.925, 1 },
-    .green1 = { 0.816, 0.941, 0.820, 1 },
-    .green2 = { 0.643, 0.878, 0.655, 1 },
-    .green3 = { 0.490, 0.820, 0.510, 1 },
-    .green4 = { 0.353, 0.761, 0.384, 1 },
-    .green5 = { 0.231, 0.702, 0.275, 1 },
-    .green6 = { 0.188, 0.584, 0.231, 1 },
-    .green7 = { 0.145, 0.467, 0.184, 1 },
-    .green8 = { 0.106, 0.349, 0.141, 1 },
-    .green9 = { 0.067, 0.235, 0.094, 1 },
-    .teal0 = { 0.894, 0.969, 0.957, 1 },
-    .teal1 = { 0.753, 0.941, 0.910, 1 },
-    .teal2 = { 0.529, 0.878, 0.827, 1 },
-    .teal3 = { 0.329, 0.820, 0.757, 1 },
-    .teal4 = { 0.153, 0.761, 0.690, 1 },
-    .teal5 = { 0.000, 0.702, 0.631, 1 },
-    .teal6 = { 0.000, 0.584, 0.537, 1 },
-    .teal7 = { 0.000, 0.467, 0.435, 1 },
-    .teal8 = { 0.000, 0.349, 0.333, 1 },
-    .teal9 = { 0.000, 0.235, 0.227, 1 },
-    .cyan0 = { 0.898, 0.969, 0.973, 1 },
-    .cyan1 = { 0.761, 0.937, 0.941, 1 },
-    .cyan2 = { 0.541, 0.867, 0.886, 1 },
-    .cyan3 = { 0.345, 0.796, 0.827, 1 },
-    .cyan4 = { 0.173, 0.722, 0.773, 1 },
-    .cyan5 = { 0.020, 0.643, 0.714, 1 },
-    .cyan6 = { 0.012, 0.525, 0.596, 1 },
-    .cyan7 = { 0.004, 0.412, 0.475, 1 },
-    .cyan8 = { 0.000, 0.302, 0.357, 1 },
-    .cyan9 = { 0.000, 0.196, 0.239, 1 },
-    .lightBlue0 = { 0.914, 0.969, 0.992, 1 },
-    .lightBlue1 = { 0.788, 0.925, 0.988, 1 },
-    .lightBlue2 = { 0.584, 0.847, 0.973, 1 },
-    .lightBlue3 = { 0.384, 0.765, 0.961, 1 },
-    .lightBlue4 = { 0.188, 0.675, 0.945, 1 },
-    .lightBlue5 = { 0.000, 0.584, 0.933, 1 },
-    .lightBlue6 = { 0.000, 0.482, 0.792, 1 },
-    .lightBlue7 = { 0.000, 0.388, 0.655, 1 },
-    .lightBlue8 = { 0.000, 0.294, 0.514, 1 },
-    .lightBlue9 = { 0.000, 0.208, 0.373, 1 },
-    .blue0 = { 0.918, 0.961, 1.000, 1 },
-    .blue1 = { 0.796, 0.906, 0.996, 1 },
-    .blue2 = { 0.596, 0.804, 0.992, 1 },
-    .blue3 = { 0.396, 0.698, 0.988, 1 },
-    .blue4 = { 0.196, 0.584, 0.984, 1 },
-    .blue5 = { 0.000, 0.392, 0.980, 1 },
-    .blue6 = { 0.000, 0.384, 0.839, 1 },
-    .blue7 = { 0.000, 0.310, 0.702, 1 },
-    .blue8 = { 0.000, 0.239, 0.561, 1 },
-    .blue9 = { 0.000, 0.173, 0.420, 1 },
-    .indigo0 = { 0.925, 0.937, 0.973, 1 },
-    .indigo1 = { 0.820, 0.847, 0.941, 1 },
-    .indigo2 = { 0.655, 0.702, 0.882, 1 },
-    .indigo3 = { 0.502, 0.565, 0.827, 1 },
-    .indigo4 = { 0.369, 0.435, 0.769, 1 },
-    .indigo5 = { 0.247, 0.318, 0.710, 1 },
-    .indigo6 = { 0.200, 0.259, 0.631, 1 },
-    .indigo7 = { 0.157, 0.204, 0.549, 1 },
-    .indigo8 = { 0.122, 0.157, 0.471, 1 },
-    .indigo9 = { 0.090, 0.114, 0.388, 1 },
-    .violet0 = { 0.953, 0.929, 0.976, 1 },
-    .violet1 = { 0.886, 0.820, 0.957, 1 },
-    .violet2 = { 0.769, 0.655, 0.914, 1 },
-    .violet3 = { 0.651, 0.498, 0.867, 1 },
-    .violet4 = { 0.533, 0.357, 0.824, 1 },
-    .violet5 = { 0.416, 0.227, 0.780, 1 },
-    .violet6 = { 0.341, 0.184, 0.702, 1 },
-    .violet7 = { 0.275, 0.145, 0.620, 1 },
-    .violet8 = { 0.212, 0.110, 0.541, 1 },
-    .violet9 = { 0.157, 0.078, 0.459, 1 },
-    .purple0 = { 0.969, 0.914, 0.969, 1 },
-    .purple1 = { 0.937, 0.792, 0.941, 1 },
-    .purple2 = { 0.867, 0.608, 0.878, 1 },
-    .purple3 = { 0.788, 0.435, 0.820, 1 },
-    .purple4 = { 0.706, 0.286, 0.761, 1 },
-    .purple5 = { 0.620, 0.157, 0.702, 1 },
-    .purple6 = { 0.529, 0.118, 0.620, 1 },
-    .purple7 = { 0.443, 0.086, 0.541, 1 },
-    .purple8 = { 0.361, 0.059, 0.459, 1 },
-    .purple9 = { 0.286, 0.039, 0.380, 1 },
-    .pink0 = { 0.992, 0.925, 0.937, 1 },
-    .pink1 = { 0.984, 0.812, 0.847, 1 },
-    .pink2 = { 0.965, 0.627, 0.710, 1 },
-    .pink3 = { 0.949, 0.451, 0.588, 1 },
-    .pink4 = { 0.929, 0.282, 0.482, 1 },
-    .pink5 = { 0.914, 0.118, 0.388, 1 },
-    .pink6 = { 0.773, 0.075, 0.337, 1 },
-    .pink7 = { 0.635, 0.043, 0.282, 1 },
-    .pink8 = { 0.494, 0.020, 0.227, 1 },
-    .pink9 = { 0.353, 0.004, 0.169, 1 },
-    .grey0 = { 0.976, 0.976, 0.976, 1 },
-    .grey1 = { 0.902, 0.910, 0.918, 1 },
-    .grey2 = { 0.776, 0.792, 0.804, 1 },
-    .grey3 = { 0.655, 0.671, 0.690, 1 },
-    .grey4 = { 0.533, 0.553, 0.573, 1 },
-    .grey5 = { 0.420, 0.439, 0.459, 1 },
-    .grey6 = { 0.333, 0.357, 0.380, 1 },
-    .grey7 = { 0.255, 0.275, 0.298, 1 },
-    .grey8 = { 0.180, 0.196, 0.220, 1 },
-    .grey9 = { 0.110, 0.122, 0.137, 1 },
-    .black = { 0, 0, 0, 1 },
-    .white = { 1, 1, 1, 1 }
+    .red0 = { 0.996, 0.949, 0.929, 1, OC_COLOR_SPACE_SRGB },
+    .red1 = { 0.996, 0.867, 0.824, 1, OC_COLOR_SPACE_SRGB },
+    .red2 = { 0.992, 0.718, 0.647, 1, OC_COLOR_SPACE_SRGB },
+    .red3 = { 0.984, 0.565, 0.471, 1, OC_COLOR_SPACE_SRGB },
+    .red4 = { 0.980, 0.400, 0.298, 1, OC_COLOR_SPACE_SRGB },
+    .red5 = { 0.976, 0.224, 0.125, 1, OC_COLOR_SPACE_SRGB },
+    .red6 = { 0.835, 0.145, 0.082, 1, OC_COLOR_SPACE_SRGB },
+    .red7 = { 0.698, 0.078, 0.047, 1, OC_COLOR_SPACE_SRGB },
+    .red8 = { 0.557, 0.031, 0.020, 1, OC_COLOR_SPACE_SRGB },
+    .red9 = { 0.416, 0.004, 0.012, 1, OC_COLOR_SPACE_SRGB },
+    .orange0 = { 1.000, 0.973, 0.918, 1, OC_COLOR_SPACE_SRGB },
+    .orange1 = { 0.996, 0.933, 0.800, 1, OC_COLOR_SPACE_SRGB },
+    .orange2 = { 0.996, 0.851, 0.596, 1, OC_COLOR_SPACE_SRGB },
+    .orange3 = { 0.992, 0.757, 0.396, 1, OC_COLOR_SPACE_SRGB },
+    .orange4 = { 0.992, 0.651, 0.200, 1, OC_COLOR_SPACE_SRGB },
+    .orange5 = { 0.988, 0.533, 0.000, 1, OC_COLOR_SPACE_SRGB },
+    .orange6 = { 0.824, 0.404, 0.000, 1, OC_COLOR_SPACE_SRGB },
+    .orange7 = { 0.659, 0.290, 0.000, 1, OC_COLOR_SPACE_SRGB },
+    .orange8 = { 0.494, 0.192, 0.000, 1, OC_COLOR_SPACE_SRGB },
+    .orange9 = { 0.329, 0.114, 0.000, 1, OC_COLOR_SPACE_SRGB },
+    .amber0 = { 0.996, 0.984, 0.922, 1, OC_COLOR_SPACE_SRGB },
+    .amber1 = { 0.988, 0.961, 0.808, 1, OC_COLOR_SPACE_SRGB },
+    .amber2 = { 0.976, 0.910, 0.620, 1, OC_COLOR_SPACE_SRGB },
+    .amber3 = { 0.965, 0.847, 0.435, 1, OC_COLOR_SPACE_SRGB },
+    .amber4 = { 0.953, 0.776, 0.255, 1, OC_COLOR_SPACE_SRGB },
+    .amber5 = { 0.941, 0.694, 0.078, 1, OC_COLOR_SPACE_SRGB },
+    .amber6 = { 0.784, 0.541, 0.059, 1, OC_COLOR_SPACE_SRGB },
+    .amber7 = { 0.627, 0.400, 0.039, 1, OC_COLOR_SPACE_SRGB },
+    .amber8 = { 0.471, 0.275, 0.024, 1, OC_COLOR_SPACE_SRGB },
+    .amber9 = { 0.314, 0.169, 0.012, 1, OC_COLOR_SPACE_SRGB },
+    .yellow0 = { 1.000, 0.992, 0.918, 1, OC_COLOR_SPACE_SRGB },
+    .yellow1 = { 0.996, 0.984, 0.796, 1, OC_COLOR_SPACE_SRGB },
+    .yellow2 = { 0.992, 0.953, 0.596, 1, OC_COLOR_SPACE_SRGB },
+    .yellow3 = { 0.988, 0.910, 0.396, 1, OC_COLOR_SPACE_SRGB },
+    .yellow4 = { 0.984, 0.855, 0.196, 1, OC_COLOR_SPACE_SRGB },
+    .yellow5 = { 0.980, 0.784, 0.000, 1, OC_COLOR_SPACE_SRGB },
+    .yellow6 = { 0.816, 0.667, 0.000, 1, OC_COLOR_SPACE_SRGB },
+    .yellow7 = { 0.655, 0.545, 0.000, 1, OC_COLOR_SPACE_SRGB },
+    .yellow8 = { 0.490, 0.416, 0.000, 1, OC_COLOR_SPACE_SRGB },
+    .yellow9 = { 0.325, 0.282, 0.000, 1, OC_COLOR_SPACE_SRGB },
+    .lime0 = { 0.949, 0.980, 0.902, 1, OC_COLOR_SPACE_SRGB },
+    .lime1 = { 0.890, 0.965, 0.773, 1, OC_COLOR_SPACE_SRGB },
+    .lime2 = { 0.796, 0.929, 0.557, 1, OC_COLOR_SPACE_SRGB },
+    .lime3 = { 0.718, 0.890, 0.357, 1, OC_COLOR_SPACE_SRGB },
+    .lime4 = { 0.655, 0.855, 0.173, 1, OC_COLOR_SPACE_SRGB },
+    .lime5 = { 0.608, 0.820, 0.000, 1, OC_COLOR_SPACE_SRGB },
+    .lime6 = { 0.494, 0.682, 0.000, 1, OC_COLOR_SPACE_SRGB },
+    .lime7 = { 0.388, 0.545, 0.000, 1, OC_COLOR_SPACE_SRGB },
+    .lime8 = { 0.282, 0.408, 0.000, 1, OC_COLOR_SPACE_SRGB },
+    .lime9 = { 0.184, 0.275, 0.000, 1, OC_COLOR_SPACE_SRGB },
+    .lightGreen0 = { 0.953, 0.973, 0.925, 1, OC_COLOR_SPACE_SRGB },
+    .lightGreen1 = { 0.890, 0.941, 0.816, 1, OC_COLOR_SPACE_SRGB },
+    .lightGreen2 = { 0.784, 0.886, 0.647, 1, OC_COLOR_SPACE_SRGB },
+    .lightGreen3 = { 0.678, 0.827, 0.494, 1, OC_COLOR_SPACE_SRGB },
+    .lightGreen4 = { 0.576, 0.773, 0.357, 1, OC_COLOR_SPACE_SRGB },
+    .lightGreen5 = { 0.482, 0.714, 0.235, 1, OC_COLOR_SPACE_SRGB },
+    .lightGreen6 = { 0.392, 0.596, 0.188, 1, OC_COLOR_SPACE_SRGB },
+    .lightGreen7 = { 0.306, 0.475, 0.149, 1, OC_COLOR_SPACE_SRGB },
+    .lightGreen8 = { 0.224, 0.357, 0.106, 1, OC_COLOR_SPACE_SRGB },
+    .lightGreen9 = { 0.145, 0.239, 0.071, 1, OC_COLOR_SPACE_SRGB },
+    .green0 = { 0.925, 0.969, 0.925, 1, OC_COLOR_SPACE_SRGB },
+    .green1 = { 0.816, 0.941, 0.820, 1, OC_COLOR_SPACE_SRGB },
+    .green2 = { 0.643, 0.878, 0.655, 1, OC_COLOR_SPACE_SRGB },
+    .green3 = { 0.490, 0.820, 0.510, 1, OC_COLOR_SPACE_SRGB },
+    .green4 = { 0.353, 0.761, 0.384, 1, OC_COLOR_SPACE_SRGB },
+    .green5 = { 0.231, 0.702, 0.275, 1, OC_COLOR_SPACE_SRGB },
+    .green6 = { 0.188, 0.584, 0.231, 1, OC_COLOR_SPACE_SRGB },
+    .green7 = { 0.145, 0.467, 0.184, 1, OC_COLOR_SPACE_SRGB },
+    .green8 = { 0.106, 0.349, 0.141, 1, OC_COLOR_SPACE_SRGB },
+    .green9 = { 0.067, 0.235, 0.094, 1, OC_COLOR_SPACE_SRGB },
+    .teal0 = { 0.894, 0.969, 0.957, 1, OC_COLOR_SPACE_SRGB },
+    .teal1 = { 0.753, 0.941, 0.910, 1, OC_COLOR_SPACE_SRGB },
+    .teal2 = { 0.529, 0.878, 0.827, 1, OC_COLOR_SPACE_SRGB },
+    .teal3 = { 0.329, 0.820, 0.757, 1, OC_COLOR_SPACE_SRGB },
+    .teal4 = { 0.153, 0.761, 0.690, 1, OC_COLOR_SPACE_SRGB },
+    .teal5 = { 0.000, 0.702, 0.631, 1, OC_COLOR_SPACE_SRGB },
+    .teal6 = { 0.000, 0.584, 0.537, 1, OC_COLOR_SPACE_SRGB },
+    .teal7 = { 0.000, 0.467, 0.435, 1, OC_COLOR_SPACE_SRGB },
+    .teal8 = { 0.000, 0.349, 0.333, 1, OC_COLOR_SPACE_SRGB },
+    .teal9 = { 0.000, 0.235, 0.227, 1, OC_COLOR_SPACE_SRGB },
+    .cyan0 = { 0.898, 0.969, 0.973, 1, OC_COLOR_SPACE_SRGB },
+    .cyan1 = { 0.761, 0.937, 0.941, 1, OC_COLOR_SPACE_SRGB },
+    .cyan2 = { 0.541, 0.867, 0.886, 1, OC_COLOR_SPACE_SRGB },
+    .cyan3 = { 0.345, 0.796, 0.827, 1, OC_COLOR_SPACE_SRGB },
+    .cyan4 = { 0.173, 0.722, 0.773, 1, OC_COLOR_SPACE_SRGB },
+    .cyan5 = { 0.020, 0.643, 0.714, 1, OC_COLOR_SPACE_SRGB },
+    .cyan6 = { 0.012, 0.525, 0.596, 1, OC_COLOR_SPACE_SRGB },
+    .cyan7 = { 0.004, 0.412, 0.475, 1, OC_COLOR_SPACE_SRGB },
+    .cyan8 = { 0.000, 0.302, 0.357, 1, OC_COLOR_SPACE_SRGB },
+    .cyan9 = { 0.000, 0.196, 0.239, 1, OC_COLOR_SPACE_SRGB },
+    .lightBlue0 = { 0.914, 0.969, 0.992, 1, OC_COLOR_SPACE_SRGB },
+    .lightBlue1 = { 0.788, 0.925, 0.988, 1, OC_COLOR_SPACE_SRGB },
+    .lightBlue2 = { 0.584, 0.847, 0.973, 1, OC_COLOR_SPACE_SRGB },
+    .lightBlue3 = { 0.384, 0.765, 0.961, 1, OC_COLOR_SPACE_SRGB },
+    .lightBlue4 = { 0.188, 0.675, 0.945, 1, OC_COLOR_SPACE_SRGB },
+    .lightBlue5 = { 0.000, 0.584, 0.933, 1, OC_COLOR_SPACE_SRGB },
+    .lightBlue6 = { 0.000, 0.482, 0.792, 1, OC_COLOR_SPACE_SRGB },
+    .lightBlue7 = { 0.000, 0.388, 0.655, 1, OC_COLOR_SPACE_SRGB },
+    .lightBlue8 = { 0.000, 0.294, 0.514, 1, OC_COLOR_SPACE_SRGB },
+    .lightBlue9 = { 0.000, 0.208, 0.373, 1, OC_COLOR_SPACE_SRGB },
+    .blue0 = { 0.918, 0.961, 1.000, 1, OC_COLOR_SPACE_SRGB },
+    .blue1 = { 0.796, 0.906, 0.996, 1, OC_COLOR_SPACE_SRGB },
+    .blue2 = { 0.596, 0.804, 0.992, 1, OC_COLOR_SPACE_SRGB },
+    .blue3 = { 0.396, 0.698, 0.988, 1, OC_COLOR_SPACE_SRGB },
+    .blue4 = { 0.196, 0.584, 0.984, 1, OC_COLOR_SPACE_SRGB },
+    .blue5 = { 0.000, 0.392, 0.980, 1, OC_COLOR_SPACE_SRGB },
+    .blue6 = { 0.000, 0.384, 0.839, 1, OC_COLOR_SPACE_SRGB },
+    .blue7 = { 0.000, 0.310, 0.702, 1, OC_COLOR_SPACE_SRGB },
+    .blue8 = { 0.000, 0.239, 0.561, 1, OC_COLOR_SPACE_SRGB },
+    .blue9 = { 0.000, 0.173, 0.420, 1, OC_COLOR_SPACE_SRGB },
+    .indigo0 = { 0.925, 0.937, 0.973, 1, OC_COLOR_SPACE_SRGB },
+    .indigo1 = { 0.820, 0.847, 0.941, 1, OC_COLOR_SPACE_SRGB },
+    .indigo2 = { 0.655, 0.702, 0.882, 1, OC_COLOR_SPACE_SRGB },
+    .indigo3 = { 0.502, 0.565, 0.827, 1, OC_COLOR_SPACE_SRGB },
+    .indigo4 = { 0.369, 0.435, 0.769, 1, OC_COLOR_SPACE_SRGB },
+    .indigo5 = { 0.247, 0.318, 0.710, 1, OC_COLOR_SPACE_SRGB },
+    .indigo6 = { 0.200, 0.259, 0.631, 1, OC_COLOR_SPACE_SRGB },
+    .indigo7 = { 0.157, 0.204, 0.549, 1, OC_COLOR_SPACE_SRGB },
+    .indigo8 = { 0.122, 0.157, 0.471, 1, OC_COLOR_SPACE_SRGB },
+    .indigo9 = { 0.090, 0.114, 0.388, 1, OC_COLOR_SPACE_SRGB },
+    .violet0 = { 0.953, 0.929, 0.976, 1, OC_COLOR_SPACE_SRGB },
+    .violet1 = { 0.886, 0.820, 0.957, 1, OC_COLOR_SPACE_SRGB },
+    .violet2 = { 0.769, 0.655, 0.914, 1, OC_COLOR_SPACE_SRGB },
+    .violet3 = { 0.651, 0.498, 0.867, 1, OC_COLOR_SPACE_SRGB },
+    .violet4 = { 0.533, 0.357, 0.824, 1, OC_COLOR_SPACE_SRGB },
+    .violet5 = { 0.416, 0.227, 0.780, 1, OC_COLOR_SPACE_SRGB },
+    .violet6 = { 0.341, 0.184, 0.702, 1, OC_COLOR_SPACE_SRGB },
+    .violet7 = { 0.275, 0.145, 0.620, 1, OC_COLOR_SPACE_SRGB },
+    .violet8 = { 0.212, 0.110, 0.541, 1, OC_COLOR_SPACE_SRGB },
+    .violet9 = { 0.157, 0.078, 0.459, 1, OC_COLOR_SPACE_SRGB },
+    .purple0 = { 0.969, 0.914, 0.969, 1, OC_COLOR_SPACE_SRGB },
+    .purple1 = { 0.937, 0.792, 0.941, 1, OC_COLOR_SPACE_SRGB },
+    .purple2 = { 0.867, 0.608, 0.878, 1, OC_COLOR_SPACE_SRGB },
+    .purple3 = { 0.788, 0.435, 0.820, 1, OC_COLOR_SPACE_SRGB },
+    .purple4 = { 0.706, 0.286, 0.761, 1, OC_COLOR_SPACE_SRGB },
+    .purple5 = { 0.620, 0.157, 0.702, 1, OC_COLOR_SPACE_SRGB },
+    .purple6 = { 0.529, 0.118, 0.620, 1, OC_COLOR_SPACE_SRGB },
+    .purple7 = { 0.443, 0.086, 0.541, 1, OC_COLOR_SPACE_SRGB },
+    .purple8 = { 0.361, 0.059, 0.459, 1, OC_COLOR_SPACE_SRGB },
+    .purple9 = { 0.286, 0.039, 0.380, 1, OC_COLOR_SPACE_SRGB },
+    .pink0 = { 0.992, 0.925, 0.937, 1, OC_COLOR_SPACE_SRGB },
+    .pink1 = { 0.984, 0.812, 0.847, 1, OC_COLOR_SPACE_SRGB },
+    .pink2 = { 0.965, 0.627, 0.710, 1, OC_COLOR_SPACE_SRGB },
+    .pink3 = { 0.949, 0.451, 0.588, 1, OC_COLOR_SPACE_SRGB },
+    .pink4 = { 0.929, 0.282, 0.482, 1, OC_COLOR_SPACE_SRGB },
+    .pink5 = { 0.914, 0.118, 0.388, 1, OC_COLOR_SPACE_SRGB },
+    .pink6 = { 0.773, 0.075, 0.337, 1, OC_COLOR_SPACE_SRGB },
+    .pink7 = { 0.635, 0.043, 0.282, 1, OC_COLOR_SPACE_SRGB },
+    .pink8 = { 0.494, 0.020, 0.227, 1, OC_COLOR_SPACE_SRGB },
+    .pink9 = { 0.353, 0.004, 0.169, 1, OC_COLOR_SPACE_SRGB },
+    .grey0 = { 0.976, 0.976, 0.976, 1, OC_COLOR_SPACE_SRGB },
+    .grey1 = { 0.902, 0.910, 0.918, 1, OC_COLOR_SPACE_SRGB },
+    .grey2 = { 0.776, 0.792, 0.804, 1, OC_COLOR_SPACE_SRGB },
+    .grey3 = { 0.655, 0.671, 0.690, 1, OC_COLOR_SPACE_SRGB },
+    .grey4 = { 0.533, 0.553, 0.573, 1, OC_COLOR_SPACE_SRGB },
+    .grey5 = { 0.420, 0.439, 0.459, 1, OC_COLOR_SPACE_SRGB },
+    .grey6 = { 0.333, 0.357, 0.380, 1, OC_COLOR_SPACE_SRGB },
+    .grey7 = { 0.255, 0.275, 0.298, 1, OC_COLOR_SPACE_SRGB },
+    .grey8 = { 0.180, 0.196, 0.220, 1, OC_COLOR_SPACE_SRGB },
+    .grey9 = { 0.110, 0.122, 0.137, 1, OC_COLOR_SPACE_SRGB },
+    .black = { 0, 0, 0, 1, OC_COLOR_SPACE_SRGB },
+    .white = { 1, 1, 1, 1, OC_COLOR_SPACE_SRGB }
 };
 
 oc_ui_theme OC_UI_LIGHT_THEME = {
-    .white = { 1, 1, 1, 1 },
-    .primary = { 0.000, 0.392, 0.980, 1 },       // blue5
-    .primaryHover = { 0.000, 0.384, 0.839, 1 },  // blue6
-    .primaryActive = { 0.000, 0.310, 0.702, 1 }, // blue7
-    .border = { 0.110, 0.122, 0.137, 0.08 },     // grey9
-    .fill0 = { 0.180, 0.196, 0.220, 0.05 },      // grey8
-    .fill1 = { 0.180, 0.196, 0.220, 0.09 },      // grey8
-    .fill2 = { 0.180, 0.196, 0.220, 0.13 },      // grey8
-    .bg0 = { 1, 1, 1, 1 },
-    .bg1 = { 1, 1, 1, 1 },
-    .bg2 = { 1, 1, 1, 1 },
-    .bg3 = { 1, 1, 1, 1 },
-    .bg4 = { 1, 1, 1, 1 },
-    .text0 = { 0.110, 0.122, 0.137, 1 },    // grey9
-    .text1 = { 0.110, 0.122, 0.137, 0.8 },  // grey9
-    .text2 = { 0.110, 0.122, 0.137, 0.62 }, // grey9
-    .text3 = { 0.110, 0.122, 0.137, 0.35 }, // grey9
-    .sliderThumbBorder = { 0, 0, 0, 0.125 },
-    .elevatedBorder = { 0, 0, 0, 0.075 },
+    .white = { 1, 1, 1, 1, OC_COLOR_SPACE_SRGB },
+    .primary = { 0.000, 0.392, 0.980, 1, OC_COLOR_SPACE_SRGB },       // blue5
+    .primaryHover = { 0.000, 0.384, 0.839, 1, OC_COLOR_SPACE_SRGB },  // blue6
+    .primaryActive = { 0.000, 0.310, 0.702, 1, OC_COLOR_SPACE_SRGB }, // blue7
+    .border = { 0.110, 0.122, 0.137, 0.16, OC_COLOR_SPACE_SRGB },     // grey9
+    .fill0 = { 0.180, 0.196, 0.220, 0.1, OC_COLOR_SPACE_SRGB },       // grey8
+    .fill1 = { 0.180, 0.196, 0.220, 0.17, OC_COLOR_SPACE_SRGB },      // grey8
+    .fill2 = { 0.180, 0.196, 0.220, 0.23, OC_COLOR_SPACE_SRGB },      // grey8
+    .bg0 = { 1, 1, 1, 1, OC_COLOR_SPACE_SRGB },
+    .bg1 = { 1, 1, 1, 1, OC_COLOR_SPACE_SRGB },
+    .bg2 = { 1, 1, 1, 1, OC_COLOR_SPACE_SRGB },
+    .bg3 = { 1, 1, 1, 1, OC_COLOR_SPACE_SRGB },
+    .bg4 = { 1, 1, 1, 1, OC_COLOR_SPACE_SRGB },
+    .text0 = { 0.110, 0.122, 0.137, 1, OC_COLOR_SPACE_SRGB },     // grey9
+    .text1 = { 0.110, 0.122, 0.137, 0.942, OC_COLOR_SPACE_SRGB }, // grey9
+    .text2 = { 0.110, 0.122, 0.137, 0.834, OC_COLOR_SPACE_SRGB }, // grey9
+    .text3 = { 0.110, 0.122, 0.137, 0.57, OC_COLOR_SPACE_SRGB },  // grey9
+    .sliderThumbBorder = { 0, 0, 0, 0.26, OC_COLOR_SPACE_SRGB },
+    .elevatedBorder = { 0, 0, 0, 0.16, OC_COLOR_SPACE_SRGB },
 
     .roundnessSmall = 3,
     .roundnessMedium = 6,

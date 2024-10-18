@@ -16,6 +16,17 @@ def printError(str):
     # See this link for an explanation of console escape codes: https://stackabuse.com/how-to-print-colored-text-in-python/
     print("\x1b[38;5;196m" + "error: " + str + "\033[0;0m")
 
+def tag_to_valtype(tag, binding_name):
+    if tag == 'i':
+        return 'OC_WASM_VALTYPE_I32'
+    elif tag == 'I':
+        return 'OC_WASM_VALTYPE_I64'
+    elif tag == 'f':
+        return 'OC_WASM_VALTYPE_F32'
+    elif tag == 'F':
+        return 'OC_WASM_VALTYPE_F64'
+    printError('Unknown tag ' + tag + ' for binding ' + binding_name)
+    return 'OC_WASM_VALTYPE_I32'
 
 def bindgen(apiName, spec, **kwargs):
     guest_stubs_path = kwargs.get("guest_stubs")
@@ -113,7 +124,7 @@ def bindgen(apiName, spec, **kwargs):
             print(s, file=guest_bindings)
 
         # host-side stub
-        s = 'const void* ' + cname + '_stub(IM3Runtime runtime, IM3ImportContext _ctx, uint64_t* _sp, void* _mem)'
+        s = 'void ' + cname + '_stub(const i64* restrict _params, i64* restrict _returns, u8* _mem, oc_wasm* wasm)'
 
         gen_stub = decl.get('gen_stub', True)
         if gen_stub == False:
@@ -126,18 +137,16 @@ def bindgen(apiName, spec, **kwargs):
             retTag = decl['ret']['tag']
 
             firstArgIndex = 0
-            if retTag != 'v':
+            if retTag == 'S':
                 firstArgIndex = 1
+                retTypeName = decl['ret']['name']
+                retTypeCName = decl['ret'].get('cname', retTypeName)
+                s += '\t' + retTypeCName + '* __retPtr = (' + retTypeCName + '*)((char*)_mem + *(i32*)&_params[0]);\n'
 
-                if retTag == 'S':
-                    retTypeName = decl['ret']['name']
-                    retTypeCName = decl['ret'].get('cname', retTypeName)
-                    s += retTypeCName + '* __retPtr = (' + retTypeCName + '*)((char*)_mem + *(i32*)&_sp[0]);\n'
-
-                    s += '\t{\n'
-                    s += '\t\tOC_ASSERT_DIALOG(((char*)__retPtr >= (char*)_mem) && (((char*)__retPtr - (char*)_mem) < m3_GetMemorySize(runtime)), "return pointer is out of bounds");\n'
-                    s += '\t\tOC_ASSERT_DIALOG((char*)__retPtr + sizeof(' + retTypeCName + ') <= ((char*)_mem + m3_GetMemorySize(runtime)), "return pointer is out of bounds");\n'
-                    s += '\t}\n'
+                s += '\t{\n'
+                s += '\t\tOC_ASSERT_DIALOG(((char*)__retPtr >= (char*)_mem) && (((char*)__retPtr - (char*)_mem) < oc_wasm_mem_size(wasm)), "return pointer is out of bounds");\n'
+                s += '\t\tOC_ASSERT_DIALOG((char*)__retPtr + sizeof(' + retTypeCName + ') <= ((char*)_mem + oc_wasm_mem_size(wasm)), "return pointer is out of bounds");\n'
+                s += '\t}\n'
 
             for argIndex, arg in enumerate(decl['args']):
 
@@ -149,17 +158,17 @@ def bindgen(apiName, spec, **kwargs):
                 s += '\t'
 
                 if argTag == 'i':
-                    s += typeCName + ' ' + argName + ' = ('+typeCName+')*(i32*)&_sp[' + str(firstArgIndex + argIndex) + '];\n'
+                    s += typeCName + ' ' + argName + ' = ('+typeCName+')*(i32*)&_params[' + str(firstArgIndex + argIndex) + '];\n'
                 elif argTag == 'I':
-                    s += typeCName + ' ' + argName + ' = ('+typeCName+')*(i64*)&_sp[' + str(firstArgIndex + argIndex) + '];\n'
+                    s += typeCName + ' ' + argName + ' = ('+typeCName+')*(i64*)&_params[' + str(firstArgIndex + argIndex) + '];\n'
                 elif argTag == 'f':
-                    s += typeCName + ' ' + argName + ' = ('+typeCName+')*(f32*)&_sp[' + str(firstArgIndex + argIndex) + '];\n'
+                    s += typeCName + ' ' + argName + ' = ('+typeCName+')*(f32*)&_params[' + str(firstArgIndex + argIndex) + '];\n'
                 elif argTag == 'F':
-                    s += typeCName + ' ' + argName + ' = ('+typeCName+')*(f64*)&_sp[' + str(firstArgIndex + argIndex) + '];\n'
+                    s += typeCName + ' ' + argName + ' = ('+typeCName+')*(f64*)&_params[' + str(firstArgIndex + argIndex) + '];\n'
                 elif argTag == 'p':
-                    s += typeCName + ' ' + argName + ' = ('+ typeCName +')((char*)_mem + *(u32*)&_sp[' + str(firstArgIndex + argIndex) + ']);\n'
+                    s += typeCName + ' ' + argName + ' = ('+ typeCName +')((char*)_mem + *(u32*)&_params[' + str(firstArgIndex + argIndex) + ']);\n'
                 elif argTag == 'S':
-                    s += typeCName + ' ' + argName + ' = *('+ typeCName +'*)((char*)_mem + *(u32*)&_sp[' + str(firstArgIndex + argIndex) + ']);\n'
+                    s += typeCName + ' ' + argName + ' = *('+ typeCName +'*)((char*)_mem + *(u32*)&_params[' + str(firstArgIndex + argIndex) + ']);\n'
                 else:
                     print('unrecognized type ' + c + ' in procedure signature\n')
                     break
@@ -178,12 +187,12 @@ def bindgen(apiName, spec, **kwargs):
                         printError("binding '" + name + "' missing pointer length decoration for param '" + argName + "'")
                     else:
                         s += '\t{\n'
-                        s += '\t\tOC_ASSERT_DIALOG(((char*)'+ argName + ' >= (char*)_mem) && (((char*)'+ argName +' - (char*)_mem) < m3_GetMemorySize(runtime)), "parameter \''+argName+'\' is out of bounds");\n'
+                        s += '\t\tOC_ASSERT_DIALOG(((char*)'+ argName + ' >= (char*)_mem) && (((char*)'+ argName +' - (char*)_mem) < oc_wasm_mem_size(wasm)), "parameter \''+argName+'\' is out of bounds");\n'
                         s += '\t\tOC_ASSERT_DIALOG((char*)' + argName + ' + '
 
                         proc = argLen.get('proc')
                         if proc != None:
-                            s += proc + '(runtime, '
+                            s += proc + '(wasm, '
                             lenProcArgs = argLen['args']
                             for i, lenProcArg in enumerate(lenProcArgs):
                                 s += lenProcArg
@@ -204,23 +213,23 @@ def bindgen(apiName, spec, **kwargs):
                         if typeCName.endswith('**') or (typeCName.startswith('void') == False and typeCName.startswith('const void') == False):
                             s += '*sizeof('+typeCName[:-1]+')'
 
-                        s += ' <= ((char*)_mem + m3_GetMemorySize(runtime)), "parameter \''+argName+'\' is out of bounds");\n'
+                        s += ' <= ((char*)_mem + oc_wasm_mem_size(wasm)), "parameter \''+argName+'\' is out of bounds");\n'
                         s += '\t}\n'
 
             s += '\t'
 
             if retTag == 'i':
-                s += '*((i32*)&_sp[0]) = (i32)'
+                s += '*((i32*)&_returns[0]) = (i32)'
             elif retTag == 'I':
-                s += '*((i64*)&_sp[0]) = (i64)'
+                s += '*((i64*)&_returns[0]) = (i64)'
             elif retTag == 'f':
-                s += '*((f32*)&_sp[0]) = (f32)'
+                s += '*((f32*)&_returns[0]) = (f32)'
             elif retTag == 'F':
-                s += '*((f64*)&_sp[0]) = (f64)'
+                s += '*((f64*)&_returns[0]) = (f64)'
             elif retTag == 'S':
                 s += '*__retPtr = '
             elif retTag == 'p':
-                print("Warning: " + name + ": pointer return type not supported yet")
+                printError(name + ": pointer return type not supported yet")
 
             s += cname + '('
 
@@ -230,14 +239,14 @@ def bindgen(apiName, spec, **kwargs):
                 if i+1 < len(decl['args']):
                     s += ', '
 
-            s += ');\n\treturn(0);\n}\n\n'
+            s += ');\n\n}\n'
 
         print(s, file=host_bindings)
 
     # link function
-    s = 'int bindgen_link_' + apiName + '_api(IM3Module module)\n{\n'
-    s += '  M3Result res;\n'
-    s += '  int ret = 0;\n'
+    s = 'int bindgen_link_' + apiName + '_api(oc_wasm* wasm)\n{\n'
+    s += '\toc_wasm_status status;\n'
+    s += '\tint ret = 0;\n\n'
 
     for decl in data:
         name = decl['name']
@@ -246,29 +255,58 @@ def bindgen(apiName, spec, **kwargs):
         if needs_arg_ptr_stub(decl):
             name = name + '_argptr_stub'
 
-        m3Sig = ''
+        num_args = len(decl['args'])
+        num_returns = 1
+
         if decl['ret']['tag'] == 'S':
-            m3Sig += 'v'
+            num_args += 1
+            num_returns = 0
+        if decl['ret']['tag'] == 'v':
+            num_returns = 0;
+        # num_returns = 0 if decl['ret']['tag'] == 'S' or decl['ret']['tag'] == 'v' else 1
+
+        param_types = ''
+        if num_args == 0:
+            param_types = '\t\toc_wasm_valtype paramTypes[1];\n'
         else:
-            m3Sig += decl['ret']['tag']
+            param_types = '\t\toc_wasm_valtype paramTypes[] = {'
 
-        m3Sig += '('
-        if decl['ret']['tag'] == 'S':
-            m3Sig += 'i'
-        for arg in decl['args']:
-            tag = arg['type']['tag']
-            if tag == 'p' or tag == 'S':
-                tag = 'i'
-            m3Sig += tag
-        m3Sig += ')'
+            if decl['ret']['tag'] == 'S':
+                param_types += 'OC_WASM_VALTYPE_I32, '
+            for arg in decl['args']:
+                tag = arg['type']['tag']
+                if tag == 'p' or tag == 'S':
+                    tag = 'i'
+                param_types += tag_to_valtype(tag, name) + ', '
 
+            param_types += '};\n'
 
-        s += '  res = m3_LinkRawFunction(module, "*", "' + name + '", "' + m3Sig + '", ' + cname + '_stub);\n'
-        s += '  if(res != m3Err_none && res != m3Err_functionLookupFailed)\n'
-        s += '  {\n'
-        s += '      oc_log_error("Couldn\'t link function ' + name + ' (%s)\\n", res);\n'
-        s += '      ret = -1;\n'
-        s += '  }\n\n'
+        return_types = ''
+        if num_returns == 0:
+            return_types = '\t\toc_wasm_valtype returnTypes[1];\n\n'
+        else:
+            return_types = '\t\toc_wasm_valtype returnTypes[] = {'
+            return_types += tag_to_valtype(decl['ret']['tag'], name)
+            return_types += '};\n\n'
+
+        s += '\t{\n'
+        s += param_types
+        s += return_types;
+        s += '\t\toc_wasm_binding binding = ' + '{0' + '};\n' #need to split this up so python doesn't think it's a format specifier :/
+        s += '\t\tbinding.importName = OC_STR8("' + name + '");\n';
+        s += '\t\tbinding.proc = ' + cname + '_stub;\n';
+        s += '\t\tbinding.countParams = ' + str(num_args) + ';\n';
+        s += '\t\tbinding.countReturns = ' + str(num_returns) + ';\n';
+        s += '\t\tbinding.params = paramTypes;\n'
+        s += '\t\tbinding.returns = returnTypes;\n'
+        s += '\t\tstatus = oc_wasm_add_binding(wasm, &binding);\n'
+        s += '\t\tif(oc_wasm_status_is_fail(status))\n'
+        s += '\t\t{\n'
+        s += '\t\t\toc_log_error("Couldn\'t link function ' + name + ' (%s)\\n", oc_wasm_status_str8(status).ptr);\n'
+        s += '\t\t\tret = -1;\n'
+        s += '\t\t}\n'
+        s += '\t}\n\n'
+
 
     s += '\treturn(ret);\n}\n'
 
@@ -287,6 +325,7 @@ if __name__ == "__main__":
 
     apiName = args.api
     spec = args.spec
+
     guest_stubs_path = args.guest_stubs
     if guest_stubs_path == None:
         guest_stubs_path = 'bindgen_' + apiName + '_guest_stubs.c'

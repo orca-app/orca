@@ -87,8 +87,7 @@ oc_str8 oc_path_append(oc_arena* arena, oc_str8 parent, oc_str8 relPath)
 
         oc_str8_list list = { 0 };
         oc_str8_list_push(tmp.arena, &list, parent);
-        if((parent.ptr[parent.len - 1] != '/')
-           && (relPath.ptr[relPath.len - 1] != '/'))
+        if((parent.ptr[parent.len - 1] != '/') && (relPath.ptr[0] != '/'))
         {
             oc_str8_list_push(tmp.arena, &list, OC_STR8("/"));
         }

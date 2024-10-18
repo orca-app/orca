@@ -407,51 +407,51 @@ u64 orca_glGet_data_length(GLenum pname)
     return (count);
 }
 
-u64 orca_glDrawElements_indices_length(IM3Runtime runtime, GLsizei count, GLenum type)
+u64 orca_glDrawElements_indices_length(oc_wasm* wasm, GLsizei count, GLenum type)
 {
     return (orca_gl_type_size(type) * count);
 }
 
-u64 orca_glGetBooleanv_data_length(IM3Runtime runtime, GLenum pname)
+u64 orca_glGetBooleanv_data_length(oc_wasm* wasm, GLenum pname)
 {
     return (orca_glGet_data_length(pname));
 }
 
-u64 orca_glGetBufferParameteriv_params_length(IM3Runtime runtime, GLenum pname)
+u64 orca_glGetBufferParameteriv_params_length(oc_wasm* wasm, GLenum pname)
 {
     //NOTE: all pnames return a single value in 3.1
     return (1);
 }
 
-u64 orca_glGetFloatv_data_length(IM3Runtime runtime, GLenum pname)
+u64 orca_glGetFloatv_data_length(oc_wasm* wasm, GLenum pname)
 {
     return (orca_glGet_data_length(pname));
 }
 
-u64 orca_glGetFramebufferAttachmentParameteriv_params_length(IM3Runtime runtime, GLenum pname)
+u64 orca_glGetFramebufferAttachmentParameteriv_params_length(oc_wasm* wasm, GLenum pname)
 {
     //NOTE: all pnames return a single value in 3.1
     return (1);
 }
 
-u64 orca_glGetIntegerv_data_length(IM3Runtime runtime, GLenum pname)
+u64 orca_glGetIntegerv_data_length(oc_wasm* wasm, GLenum pname)
 {
     return (orca_glGet_data_length(pname));
 }
 
-u64 orca_glGetProgramiv_params_length(IM3Runtime runtime, GLenum pname)
+u64 orca_glGetProgramiv_params_length(oc_wasm* wasm, GLenum pname)
 {
     //NOTE: all pnames return a single value in 3.1
     return (1);
 }
 
-u64 orca_glGetRenderbufferParameteriv_params_length(IM3Runtime runtime, GLenum pname)
+u64 orca_glGetRenderbufferParameteriv_params_length(oc_wasm* wasm, GLenum pname)
 {
     //NOTE: all pnames return a single value in 3.1
     return (1);
 }
 
-u64 orca_glGetShaderiv_params_length(IM3Runtime runtime, GLenum pname)
+u64 orca_glGetShaderiv_params_length(oc_wasm* wasm, GLenum pname)
 {
     //NOTE: all pnames return a single value in 3.1
     return (1);
@@ -471,79 +471,79 @@ u64 orca_glTexParameter_params_length_generic(GLenum pname)
     return (count);
 }
 
-u64 orca_glGetTexParameterfv_params_length(IM3Runtime runtime, GLenum pname)
+u64 orca_glGetTexParameterfv_params_length(oc_wasm* wasm, GLenum pname)
 {
     return (orca_glTexParameter_params_length_generic(pname));
 }
 
-u64 orca_glGetTexParameteriv_params_length(IM3Runtime runtime, GLenum pname)
+u64 orca_glGetTexParameteriv_params_length(oc_wasm* wasm, GLenum pname)
 {
     return (orca_glTexParameter_params_length_generic(pname));
 }
 
-u64 orca_glReadPixels_pixels_length(IM3Runtime runtime, GLenum format, GLenum type, GLsizei width, GLsizei height)
+u64 orca_glReadPixels_pixels_length(oc_wasm* wasm, GLenum format, GLenum type, GLsizei width, GLsizei height)
 {
     u64 count = width * height * orca_gl_type_size(type) * orca_gl_format_count(format);
     return (count);
 }
 
-u64 orca_glTexImage2D_pixels_length(IM3Runtime runtime, GLenum format, GLenum type, GLsizei width, GLsizei height)
+u64 orca_glTexImage2D_pixels_length(oc_wasm* wasm, GLenum format, GLenum type, GLsizei width, GLsizei height)
 {
     u64 count = width * height * orca_gl_type_size(type) * orca_gl_format_count(format);
     return (count);
 }
 
-u64 orca_glTexParameterfv_params_length(IM3Runtime runtime, GLenum pname)
+u64 orca_glTexParameterfv_params_length(oc_wasm* wasm, GLenum pname)
 {
     return (orca_glTexParameter_params_length_generic(pname));
 }
 
-u64 orca_glTexParameteriv_params_length(IM3Runtime runtime, GLenum pname)
+u64 orca_glTexParameteriv_params_length(oc_wasm* wasm, GLenum pname)
 {
     return (orca_glTexParameter_params_length_generic(pname));
 }
 
-u64 orca_glTexSubImage2D_pixels_length(IM3Runtime runtime, GLenum format, GLenum type, GLsizei width, GLsizei height)
+u64 orca_glTexSubImage2D_pixels_length(oc_wasm* wasm, GLenum format, GLenum type, GLsizei width, GLsizei height)
 {
     u64 count = width * height * orca_gl_type_size(type) * orca_gl_format_count(format);
     return (count);
 }
 
-u64 orca_glDrawRangeElements_indices_length(IM3Runtime runtime, GLsizei count, GLenum type)
+u64 orca_glDrawRangeElements_indices_length(oc_wasm* wasm, GLsizei count, GLenum type)
 {
     return (count * orca_gl_type_size(type));
 }
 
-u64 orca_glTexImage3D_pixels_length(IM3Runtime runtime, GLenum format, GLenum type, GLsizei width, GLsizei height, GLsizei depth)
+u64 orca_glTexImage3D_pixels_length(oc_wasm* wasm, GLenum format, GLenum type, GLsizei width, GLsizei height, GLsizei depth)
 {
     u64 count = width * height * depth * orca_gl_type_size(type) * orca_gl_format_count(format);
     return (count);
 }
 
-u64 orca_glTexSubImage3D_pixels_length(IM3Runtime runtime, GLenum format, GLenum type, GLsizei width, GLsizei height, GLsizei depth)
+u64 orca_glTexSubImage3D_pixels_length(oc_wasm* wasm, GLenum format, GLenum type, GLsizei width, GLsizei height, GLsizei depth)
 {
     u64 count = width * height * depth * orca_gl_type_size(type) * orca_gl_format_count(format);
     return (count);
 }
 
-u64 orca_glGetQueryiv_params_length(IM3Runtime runtime, GLenum pname)
+u64 orca_glGetQueryiv_params_length(oc_wasm* wasm, GLenum pname)
 {
     //NOTE: all pnames return a single value in 3.1
     return (1);
 }
 
-u64 orca_glGetQueryObjectuiv_params_length(IM3Runtime runtime, GLenum pname)
+u64 orca_glGetQueryObjectuiv_params_length(oc_wasm* wasm, GLenum pname)
 {
     //NOTE: all pnames return a single value in 3.1
     return (1);
 }
 
-u64 orca_glGetIntegeri_v_data_length(IM3Runtime runtime, GLenum target)
+u64 orca_glGetIntegeri_v_data_length(oc_wasm* wasm, GLenum target)
 {
     return (orca_glGet_data_length(target));
 }
 
-u64 orca_glVertexAttribIPointer_pointer_length(IM3Runtime runtime, GLint size, GLenum type, GLsizei stride)
+u64 orca_glVertexAttribIPointer_pointer_length(oc_wasm* wasm, GLint size, GLenum type, GLsizei stride)
 {
     //WARN: pointer param of glVertexAttribPointer is actually treated as an offset,
     //      so, we don't need to check if this points to valid memory ??
@@ -570,32 +570,32 @@ u64 orca_glClearBuffer_value_length_generic(GLenum buffer)
     return (count);
 }
 
-u64 orca_glClearBufferiv_value_length(IM3Runtime runtime, GLenum buffer)
+u64 orca_glClearBufferiv_value_length(oc_wasm* wasm, GLenum buffer)
 {
     return (orca_glClearBuffer_value_length_generic(buffer));
 }
 
-u64 orca_glClearBufferuiv_value_length(IM3Runtime runtime, GLenum buffer)
+u64 orca_glClearBufferuiv_value_length(oc_wasm* wasm, GLenum buffer)
 {
     return (orca_glClearBuffer_value_length_generic(buffer));
 }
 
-u64 orca_glClearBufferfv_value_length(IM3Runtime runtime, GLenum buffer)
+u64 orca_glClearBufferfv_value_length(oc_wasm* wasm, GLenum buffer)
 {
     return (orca_glClearBuffer_value_length_generic(buffer));
 }
 
-u64 orca_glGetUniformIndices_uniformIndices_length(IM3Runtime runtime, GLsizei uniformCount)
+u64 orca_glGetUniformIndices_uniformIndices_length(oc_wasm* wasm, GLsizei uniformCount)
 {
     return (uniformCount);
 }
 
-u64 orca_glGetActiveUniformsiv_params_length(IM3Runtime runtime, GLsizei uniformCount, GLenum pname)
+u64 orca_glGetActiveUniformsiv_params_length(oc_wasm* wasm, GLsizei uniformCount, GLenum pname)
 {
     return (uniformCount);
 }
 
-u64 orca_glGetActiveUniformBlockiv_params_length(IM3Runtime runtime, GLuint program, GLuint uniformBlockIndex, GLenum pname)
+u64 orca_glGetActiveUniformBlockiv_params_length(oc_wasm* wasm, GLuint program, GLuint uniformBlockIndex, GLenum pname)
 {
     u64 count;
     if(pname == GL_UNIFORM_BLOCK_ACTIVE_UNIFORM_INDICES)
@@ -611,22 +611,22 @@ u64 orca_glGetActiveUniformBlockiv_params_length(IM3Runtime runtime, GLuint prog
     return (count);
 }
 
-u64 orca_glDrawElementsInstanced_indices_length(IM3Runtime runtime, GLsizei count, GLenum type)
+u64 orca_glDrawElementsInstanced_indices_length(oc_wasm* wasm, GLsizei count, GLenum type)
 {
     return (count * orca_gl_type_size(type));
 }
 
-u64 orca_glGetInteger64v_data_length(IM3Runtime runtime, GLenum pname)
+u64 orca_glGetInteger64v_data_length(oc_wasm* wasm, GLenum pname)
 {
     return (orca_glGet_data_length(pname));
 }
 
-u64 orca_glGetInteger64i_v_data_length(IM3Runtime runtime, GLenum target)
+u64 orca_glGetInteger64i_v_data_length(oc_wasm* wasm, GLenum target)
 {
     return (orca_glGet_data_length(target));
 }
 
-u64 orca_glGetBufferParameteri64v_params_length(IM3Runtime runtime, GLenum pname)
+u64 orca_glGetBufferParameteri64v_params_length(oc_wasm* wasm, GLenum pname)
 {
     //NOTE: all pnames return a single value in 3.1
     return (1);
@@ -638,61 +638,61 @@ u64 orca_glSamplerParameter_param_length_generic(GLenum pname)
     return (orca_glTexParameter_params_length_generic(pname));
 }
 
-u64 orca_glSamplerParameteriv_param_length(IM3Runtime runtime, GLenum pname)
+u64 orca_glSamplerParameteriv_param_length(oc_wasm* wasm, GLenum pname)
 {
     return (orca_glSamplerParameter_param_length_generic(pname));
 }
 
-u64 orca_glSamplerParameterfv_param_length(IM3Runtime runtime, GLenum pname)
+u64 orca_glSamplerParameterfv_param_length(oc_wasm* wasm, GLenum pname)
 {
     return (orca_glSamplerParameter_param_length_generic(pname));
 }
 
-u64 orca_glGetSamplerParameteriv_params_length(IM3Runtime runtime, GLenum pname)
+u64 orca_glGetSamplerParameteriv_params_length(oc_wasm* wasm, GLenum pname)
 {
     return (orca_glSamplerParameter_param_length_generic(pname));
 }
 
-u64 orca_glGetSamplerParameterfv_params_length(IM3Runtime runtime, GLenum pname)
+u64 orca_glGetSamplerParameterfv_params_length(oc_wasm* wasm, GLenum pname)
 {
     return (orca_glSamplerParameter_param_length_generic(pname));
 }
 
-u64 orca_glGetFramebufferParameteriv_params_length(IM3Runtime runtime, GLenum pname)
+u64 orca_glGetFramebufferParameteriv_params_length(oc_wasm* wasm, GLenum pname)
 {
     //NOTE: all pnames return a single value in 3.1
     return (1);
 }
 
-u64 orca_glGetProgramInterfaceiv_params_length(IM3Runtime runtime, GLenum pname)
+u64 orca_glGetProgramInterfaceiv_params_length(oc_wasm* wasm, GLenum pname)
 {
     //NOTE: all pnames return a single value in 3.1
     return (1);
 }
 
-u64 orca_glGetProgramPipelineiv_params_length(IM3Runtime runtime, GLenum pname)
+u64 orca_glGetProgramPipelineiv_params_length(oc_wasm* wasm, GLenum pname)
 {
     //NOTE: all pnames return a single value in 3.1
     return (1);
 }
 
-u64 orca_glGetBooleani_v_data_length(IM3Runtime runtime, GLenum target)
+u64 orca_glGetBooleani_v_data_length(oc_wasm* wasm, GLenum target)
 {
     return (orca_glSamplerParameter_param_length_generic(target));
 }
 
-u64 orca_glGetMultisamplefv_val_length(IM3Runtime runtime, GLenum pname)
+u64 orca_glGetMultisamplefv_val_length(oc_wasm* wasm, GLenum pname)
 {
     return (2);
 }
 
-u64 orca_glGetTexLevelParameteriv_params_length(IM3Runtime runtime, GLenum pname)
+u64 orca_glGetTexLevelParameteriv_params_length(oc_wasm* wasm, GLenum pname)
 {
     //NOTE: all pnames return a single value in 3.1
     return (1);
 }
 
-u64 orca_glGetTexLevelParameterfv_params_length(IM3Runtime runtime, GLenum pname)
+u64 orca_glGetTexLevelParameterfv_params_length(oc_wasm* wasm, GLenum pname)
 {
     //NOTE: all pnames return a single value in 3.1
     return (1);
@@ -739,17 +739,17 @@ u64 orca_glGetUniform_params_length_generic(GLuint program, GLint location)
     return (count);
 }
 
-u64 orca_glGetUniformfv_params_length(IM3Runtime runtime, GLuint program, GLint location)
+u64 orca_glGetUniformfv_params_length(oc_wasm* wasm, GLuint program, GLint location)
 {
     return (orca_glGetUniform_params_length_generic(program, location));
 }
 
-u64 orca_glGetUniformiv_params_length(IM3Runtime runtime, GLuint program, GLint location)
+u64 orca_glGetUniformiv_params_length(oc_wasm* wasm, GLuint program, GLint location)
 {
     return (orca_glGetUniform_params_length_generic(program, location));
 }
 
-u64 orca_glGetUniformuiv_params_length(IM3Runtime runtime, GLuint program, GLint location)
+u64 orca_glGetUniformuiv_params_length(oc_wasm* wasm, GLuint program, GLint location)
 {
     return (orca_glGetUniform_params_length_generic(program, location));
 }
@@ -758,39 +758,39 @@ u64 orca_glGetUniformuiv_params_length(IM3Runtime runtime, GLuint program, GLint
 // Null-terminated parameters checking
 //------------------------------------------------------------------------
 
-u64 orca_glGetFragDataLocation_name_length(IM3Runtime runtime, const GLchar* name)
+u64 orca_glGetFragDataLocation_name_length(oc_wasm* wasm, const GLchar* name)
 {
-    return (orca_check_cstring(runtime, name));
+    return (orca_check_cstring(wasm, name));
 }
 
-u64 orca_glGetUniformBlockIndex_uniformBlockName_length(IM3Runtime runtime, const GLchar* uniformBlockName)
+u64 orca_glGetUniformBlockIndex_uniformBlockName_length(oc_wasm* wasm, const GLchar* uniformBlockName)
 {
-    return (orca_check_cstring(runtime, uniformBlockName));
+    return (orca_check_cstring(wasm, uniformBlockName));
 }
 
-u64 orca_glGetProgramResourceIndex_name_length(IM3Runtime runtime, const GLchar* name)
+u64 orca_glGetProgramResourceIndex_name_length(oc_wasm* wasm, const GLchar* name)
 {
-    return (orca_check_cstring(runtime, name));
+    return (orca_check_cstring(wasm, name));
 }
 
-u64 orca_glGetProgramResourceLocation_name_length(IM3Runtime runtime, const GLchar* name)
+u64 orca_glGetProgramResourceLocation_name_length(oc_wasm* wasm, const GLchar* name)
 {
-    return (orca_check_cstring(runtime, name));
+    return (orca_check_cstring(wasm, name));
 }
 
-u64 orca_glBindAttribLocation_name_length(IM3Runtime runtime, const GLchar* name)
+u64 orca_glBindAttribLocation_name_length(oc_wasm* wasm, const GLchar* name)
 {
-    return (orca_check_cstring(runtime, name));
+    return (orca_check_cstring(wasm, name));
 }
 
-u64 orca_glGetAttribLocation_name_length(IM3Runtime runtime, const GLchar* name)
+u64 orca_glGetAttribLocation_name_length(oc_wasm* wasm, const GLchar* name)
 {
-    return (orca_check_cstring(runtime, name));
+    return (orca_check_cstring(wasm, name));
 }
 
-u64 orca_glGetUniformLocation_name_length(IM3Runtime runtime, const GLchar* name)
+u64 orca_glGetUniformLocation_name_length(oc_wasm* wasm, const GLchar* name)
 {
-    return (orca_check_cstring(runtime, name));
+    return (orca_check_cstring(wasm, name));
 }
 
 //------------------------------------------------------------------------
@@ -805,7 +805,7 @@ typedef struct
     u32 reserved;
 } DrawArraysIndirectCommand;
 
-u64 orca_glDrawArraysIndirect_indirect_length(IM3Runtime runtime, const void* indirect)
+u64 orca_glDrawArraysIndirect_indirect_length(oc_wasm* wasm, const void* indirect)
 {
     return (sizeof(DrawArraysIndirectCommand));
 }
@@ -819,7 +819,7 @@ typedef struct
     u32 reservedMustBeZero;
 } DrawElementsIndirectCommand;
 
-u64 orca_glDrawElementsIndirect_indirect_length(IM3Runtime runtime, const void* indirect)
+u64 orca_glDrawElementsIndirect_indirect_length(oc_wasm* wasm, const void* indirect)
 {
     return (sizeof(DrawElementsIndirectCommand));
 }
@@ -828,12 +828,12 @@ u64 orca_glDrawElementsIndirect_indirect_length(IM3Runtime runtime, const void* 
 // Fully manual bindings
 //------------------------------------------------------------------------
 
-const void* glShaderSource_stub(IM3Runtime runtime, IM3ImportContext _ctx, uint64_t* _sp, void* _mem)
+void glShaderSource_stub(const i64* restrict _params, i64* restrict _returns, u8* _mem, oc_wasm* _wasm)
 {
-    i32 shader = *(i32*)&_sp[0];
-    i32 count = *(i32*)&_sp[1];
-    i32 stringArrayOffset = *(i32*)&_sp[2];
-    i32 lengthArrayOffset = *(i32*)&_sp[3];
+    i32 shader = *(i32*)&_params[0];
+    i32 count = *(i32*)&_params[1];
+    i32 stringArrayOffset = *(i32*)&_params[2];
+    i32 lengthArrayOffset = *(i32*)&_params[3];
 
     int* stringOffsetArray = (int*)((char*)_mem + stringArrayOffset);
 
@@ -849,18 +849,17 @@ const void* glShaderSource_stub(IM3Runtime runtime, IM3ImportContext _ctx, uint6
     glShaderSource(shader, count, stringArray, lengthArray);
 
     oc_scratch_end(scratch);
-    return (0);
 }
 
-const void* glGetVertexAttribPointerv_stub(IM3Runtime runtime, IM3ImportContext _ctx, uint64_t* _sp, void* _mem)
+void glGetVertexAttribPointerv_stub(const i64* restrict _params, i64* restrict _returns, u8* _mem, oc_wasm* _wasm)
 {
-    GLuint index = *(i32*)&_sp[0];
-    GLenum pname = *(i32*)&_sp[1];
-    i32* pointer = (i32*)((char*)_mem + *(u32*)&_sp[2]);
+    GLuint index = *(i32*)&_params[0];
+    GLenum pname = *(i32*)&_params[1];
+    i32* pointer = (i32*)((char*)_mem + *(u32*)&_params[2]);
     {
-        OC_ASSERT(((char*)pointer >= (char*)_mem) && (((char*)pointer - (char*)_mem) < m3_GetMemorySize(runtime)),
+        OC_ASSERT(((char*)pointer >= (char*)_mem) && (((char*)pointer - (char*)_mem) < oc_wasm_mem_size(_wasm)),
                   "parameter 'pointer' is out of bounds");
-        OC_ASSERT((char*)pointer + sizeof(i32) <= ((char*)_mem + m3_GetMemorySize(runtime)),
+        OC_ASSERT((char*)pointer + sizeof(i32) <= ((char*)_mem + oc_wasm_mem_size(_wasm)),
                   "parameter 'pointer' overflows wasm memory");
     }
     void* rawPointer = 0;
@@ -870,16 +869,15 @@ const void* glGetVertexAttribPointerv_stub(IM3Runtime runtime, IM3ImportContext 
     //      but we need to truncate it to u32 size...
     //WARN: can OpenGL return a byte offset > UINT_MAX ?
     *pointer = (i32)(intptr_t)rawPointer;
-    return (0);
 }
 
-const void* glVertexAttribPointer_stub(IM3Runtime runtime, IM3ImportContext _ctx, uint64_t* _sp, void* _mem)
+void glVertexAttribPointer_stub(const i64* restrict _params, i64* restrict _returns, u8* _mem, oc_wasm* _wasm)
 {
-    GLuint index = *(u32*)&_sp[0];
-    GLint size = *(i32*)&_sp[1];
-    GLenum type = *(i32*)&_sp[2];
-    GLboolean normalized = (GLboolean) * (i32*)&_sp[3];
-    GLsizei stride = *(i32*)&_sp[4];
+    GLuint index = *(u32*)&_params[0];
+    GLint size = *(i32*)&_params[1];
+    GLenum type = *(i32*)&_params[2];
+    GLboolean normalized = (GLboolean) * (i32*)&_params[3];
+    GLsizei stride = *(i32*)&_params[4];
 
     //NOTE: pointer is interpreted as an offset if there's a non-null buffer bound to GL_ARRAY_BUFFER,
     //      or as a pointer otherwise. Since there's no way of checking the length of client vertex arrays,
@@ -891,7 +889,7 @@ const void* glVertexAttribPointer_stub(IM3Runtime runtime, IM3ImportContext _ctx
     if(boundBuffer != 0)
     {
         //NOTE: don't do bounds checking since pointer is really an offset in a GPU buffer
-        const void* pointer = (void*)(intptr_t) * (u32*)&_sp[5];
+        const void* pointer = (void*)(intptr_t) * (u32*)&_params[5];
 
         glVertexAttribPointer(index, size, type, normalized, stride, pointer);
     }
@@ -900,15 +898,14 @@ const void* glVertexAttribPointer_stub(IM3Runtime runtime, IM3ImportContext _ctx
         //NOTE: we crash here before letting ANGLE crash because vertex attrib pointer is not set
         OC_ASSERT("Calling glVertexAttribPointer with a GL_ARRAY_BUFFER binding of 0 is unsafe and disabled in Orca.");
     }
-    return (0);
 }
 
-const void* glVertexAttribIPointer_stub(IM3Runtime runtime, IM3ImportContext _ctx, uint64_t* _sp, void* _mem)
+void glVertexAttribIPointer_stub(const i64* restrict _params, i64* restrict _returns, u8* _mem, oc_wasm* _wasm)
 {
-    GLuint index = *(u32*)&_sp[0];
-    GLint size = *(i32*)&_sp[1];
-    GLenum type = *(i32*)&_sp[2];
-    GLsizei stride = *(i32*)&_sp[3];
+    GLuint index = *(u32*)&_params[0];
+    GLint size = *(i32*)&_params[1];
+    GLenum type = *(i32*)&_params[2];
+    GLsizei stride = *(i32*)&_params[3];
 
     //NOTE: pointer is interpreted as an offset if there's a non-null buffer bound to GL_ARRAY_BUFFER,
     //      or as a pointer otherwise. Since there's no way of checking the length of client vertex arrays,
@@ -920,7 +917,7 @@ const void* glVertexAttribIPointer_stub(IM3Runtime runtime, IM3ImportContext _ct
     if(boundBuffer != 0)
     {
         //NOTE: don't do bounds checking since pointer is really an offset in a GPU buffer
-        const void* pointer = (void*)(intptr_t) * (u32*)&_sp[4];
+        const void* pointer = (void*)(intptr_t) * (u32*)&_params[4];
 
         glVertexAttribIPointer(index, size, type, stride, pointer);
     }
@@ -928,17 +925,16 @@ const void* glVertexAttribIPointer_stub(IM3Runtime runtime, IM3ImportContext _ct
     {
         OC_ASSERT(0, "Calling glVertexAttribIPointer with a GL_ARRAY_BUFFER binding of 0 is unsafe and disabled in Orca.");
     }
-    return (0);
 }
 
-const void* glGetUniformIndices_stub(IM3Runtime runtime, IM3ImportContext _ctx, uint64_t* _sp, void* _mem)
+void glGetUniformIndices_stub(const i64* restrict _params, i64* restrict _returns, u8* _mem, oc_wasm* _wasm)
 {
-    GLuint program = (GLuint) * (i32*)&_sp[0];
-    GLsizei uniformCount = (GLsizei) * (i32*)&_sp[1];
-    u32* uniformNames = (u32*)((char*)_mem + *(u32*)&_sp[2]);
-    GLuint* uniformIndices = (GLuint*)((char*)_mem + *(u32*)&_sp[3]);
+    GLuint program = (GLuint) * (i32*)&_params[0];
+    GLsizei uniformCount = (GLsizei) * (i32*)&_params[1];
+    u32* uniformNames = (u32*)((char*)_mem + *(u32*)&_params[2]);
+    GLuint* uniformIndices = (GLuint*)((char*)_mem + *(u32*)&_params[3]);
 
-    u64 memorySize = m3_GetMemorySize(runtime);
+    u64 memorySize = oc_wasm_mem_size(_wasm);
     //NOTE: check size of uniformNames
     {
         OC_ASSERT(((char*)uniformNames >= (char*)_mem) && (((char*)uniformNames - (char*)_mem) < memorySize),
@@ -955,7 +951,7 @@ const void* glGetUniformIndices_stub(IM3Runtime runtime, IM3ImportContext _ctx, 
         char* raw = ((char*)_mem + uniformNames[i]);
         OC_ASSERT(raw >= (char*)_mem && (raw - (char*)_mem) < memorySize, "uniformName[%i] is out of bounds", i);
 
-        u64 len = orca_check_cstring(runtime, raw);
+        u64 len = orca_check_cstring(_wasm, raw);
 
         OC_ASSERT(raw + len <= ((char*)_mem + memorySize), "uniformName[%i] overflows wasm memory", i);
 
@@ -973,7 +969,6 @@ const void* glGetUniformIndices_stub(IM3Runtime runtime, IM3ImportContext _ctx, 
     glGetUniformIndices(program, uniformCount, (const GLchar* const*)uniformNamesRaw, uniformIndices);
 
     oc_scratch_end(scratch);
-    return (0);
 }
 
 typedef struct orca_gl_getstring_entry
@@ -1068,89 +1063,119 @@ void orca_gl_getstring_init(orca_gl_getstring_info* info, char* memory)
     info->init = true;
 }
 
-const void* glGetString_stub(IM3Runtime runtime, IM3ImportContext _ctx, uint64_t* _sp, void* _mem)
+void glGetString_stub(const i64* restrict _params, i64* restrict _returns, u8* _mem, oc_wasm* _wasm)
 {
     if(!__orcaGLGetStringInfo.init)
     {
-        uint32_t memorySize = 0;
-        char* memory = (char*)m3_GetMemory(runtime, &memorySize, 0);
-        orca_gl_getstring_init(&__orcaGLGetStringInfo, memory);
+        oc_str8 memory = oc_wasm_mem_get(_wasm);
+        orca_gl_getstring_init(&__orcaGLGetStringInfo, (char*)memory.ptr);
     }
 
-    GLenum name = (GLenum) * (i32*)&_sp[1];
-    *(u32*)&_sp[0] = 0;
+    GLenum name = (GLenum) * (i32*)&_params[1];
+    *(u32*)&_returns[0] = 0;
 
     for(int i = 0; i < ORCA_GL_GETSTRING_ENTRY_COUNT; i++)
     {
         if(name == ORCA_GL_GETSTRING_NAMES[i])
         {
-            *(u32*)&_sp[0] = __orcaGLGetStringInfo.entries[i].offset;
+            *(u32*)&_returns[0] = __orcaGLGetStringInfo.entries[i].offset;
             break;
         }
     }
     //NOTE: we still call glGetString so that it can set errors if name is incorrect
     glGetString(name);
-    return (0);
 }
 
-const void* glGetStringi_stub(IM3Runtime runtime, IM3ImportContext _ctx, uint64_t* _sp, void* _mem)
+void glGetStringi_stub(const i64* restrict _params, i64* restrict _returns, u8* _mem, oc_wasm* _wasm)
 {
     if(!__orcaGLGetStringInfo.init)
     {
-        uint32_t memorySize = 0;
-        char* memory = (char*)m3_GetMemory(runtime, &memorySize, 0);
-        orca_gl_getstring_init(&__orcaGLGetStringInfo, memory);
+        oc_str8 memory = oc_wasm_mem_get(_wasm);
+        orca_gl_getstring_init(&__orcaGLGetStringInfo, (char*)memory.ptr);
     }
 
-    GLenum name = (GLenum) * (i32*)&_sp[1];
-    GLuint index = (GLuint) * (i32*)&_sp[2];
+    GLenum name = (GLenum) * (i32*)&_params[1];
+    GLuint index = (GLuint) * (i32*)&_params[2];
 
-    *(u32*)&_sp[0] = 0;
+    *(u32*)&_returns[0] = 0;
     if(name == GL_EXTENSIONS && index < __orcaGLGetStringInfo.indexedEntryCount)
     {
-        *(u32*)&_sp[0] = __orcaGLGetStringInfo.indexedEntries[index].offset;
+        *(u32*)&_returns[0] = __orcaGLGetStringInfo.indexedEntries[index].offset;
     }
 
     //NOTE: we still call glGetString so that it can set errors if name is incorrect
     glGetStringi(name, index);
-
-    return (0);
 }
 
-int manual_link_gles_api(IM3Module module)
+int manual_link_gles_api(oc_wasm* wasm)
 {
-#define M3_LINK_ERROR_HANDLING(name)                                  \
-    if(res != m3Err_none && res != m3Err_functionLookupFailed)        \
-    {                                                                 \
-        oc_log_error("Couldn't link function " #name " (%s)\n", res); \
-        ret = -1;                                                     \
+#define BINDING_ERROR_HANDLING(name)                                                                        \
+    if(oc_wasm_status_is_fail(status))                                                                      \
+    {                                                                                                       \
+        oc_log_error("Couldn't link function " #name " (%.*s)\n", oc_str8_ip(oc_wasm_status_str8(status))); \
+        ret = -1;                                                                                           \
     }
 
-    M3Result res;
+    oc_wasm_status status;
     int ret = 0;
 
-    res = m3_LinkRawFunction(module, "*", "glShaderSource", "v(iiii)", glShaderSource_stub);
-    M3_LINK_ERROR_HANDLING(glShaderSource)
+    static_assert(OC_WASM_VALTYPE_I32 == 0, "wasm i32 valtype should be 0");
+    oc_wasm_valtype int_types[10] = { 0 };
 
-    res = m3_LinkRawFunction(module, "*", "glGetUniformIndices", "v(iiii)", glGetUniformIndices_stub);
-    M3_LINK_ERROR_HANDLING(glGetUniformIndices)
+    oc_wasm_binding binding = { 0 };
+    binding.params = int_types;
+    binding.returns = int_types;
 
-    res = m3_LinkRawFunction(module, "*", "glGetVertexAttribPointerv", "v(iii)", glGetVertexAttribPointerv_stub);
-    M3_LINK_ERROR_HANDLING(glGetVertexAttribPointerv)
+    binding.importName = OC_STR8("glShaderSource");
+    binding.proc = glShaderSource_stub;
+    binding.countParams = 4;
+    binding.countReturns = 0;
+    status = oc_wasm_add_binding(wasm, &binding);
+    BINDING_ERROR_HANDLING(glShaderSource)
 
-    res = m3_LinkRawFunction(module, "*", "glGetString", "i(i)", glGetString_stub);
-    M3_LINK_ERROR_HANDLING(glGetGetString)
+    binding.importName = OC_STR8("glGetUniformIndices");
+    binding.proc = glGetUniformIndices_stub;
+    binding.countParams = 4;
+    binding.countReturns = 0;
+    status = oc_wasm_add_binding(wasm, &binding);
+    BINDING_ERROR_HANDLING(glGetUniformIndices)
 
-    res = m3_LinkRawFunction(module, "*", "glGetStringi", "i(ii)", glGetStringi_stub);
-    M3_LINK_ERROR_HANDLING(glGetStringi)
+    binding.importName = OC_STR8("glGetVertexAttribPointerv");
+    binding.proc = glGetVertexAttribPointerv_stub;
+    binding.countParams = 4;
+    binding.countReturns = 0;
+    status = oc_wasm_add_binding(wasm, &binding);
+    BINDING_ERROR_HANDLING(glGetVertexAttribPointerv)
 
-    res = m3_LinkRawFunction(module, "*", "glVertexAttribPointer", "v(iiiiii)", glVertexAttribPointer_stub);
-    M3_LINK_ERROR_HANDLING(glVertexAttribPointer)
+    binding.importName = OC_STR8("glGetString");
+    binding.proc = glGetString_stub;
+    binding.countParams = 1;
+    binding.countReturns = 1;
+    status = oc_wasm_add_binding(wasm, &binding);
+    BINDING_ERROR_HANDLING(glGetGetString)
 
-    res = m3_LinkRawFunction(module, "*", "glVertexAttribIPointer", "v(iiiii)", glVertexAttribIPointer_stub);
-    M3_LINK_ERROR_HANDLING(glVertexAttribIPointer)
+    binding.importName = OC_STR8("glGetStringi");
+    binding.proc = glGetStringi_stub;
+    binding.countParams = 2;
+    binding.countReturns = 1;
+    status = oc_wasm_add_binding(wasm, &binding);
+    BINDING_ERROR_HANDLING(glGetStringi)
 
-#undef M3_LINK_ERROR_HANDLING
+    binding.importName = OC_STR8("glVertexAttribPointer");
+    binding.proc = glVertexAttribPointer_stub;
+    binding.countParams = 6;
+    binding.countReturns = 0;
+    status = oc_wasm_add_binding(wasm, &binding);
+    BINDING_ERROR_HANDLING(glVertexAttribPointer)
+
+    binding.importName = OC_STR8("glVertexAttribIPointer");
+    binding.proc = glVertexAttribIPointer_stub;
+    binding.countParams = 5;
+    binding.countReturns = 0;
+    status = oc_wasm_add_binding(wasm, &binding);
+    BINDING_ERROR_HANDLING(glVertexAttribIPointer)
+
+#undef BINDING_ERROR_HANDLING
 
     return (ret);
 }

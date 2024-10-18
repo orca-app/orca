@@ -8,18 +8,25 @@
 
 #include "app/osx_app.m"
 #include "graphics/graphics_common.c"
-#include "graphics/graphics_surface.c"
-#include "platform/osx_path.m"
+#include "graphics/canvas_renderer.c"
+#include "graphics/surface.c"
+#include "graphics/osx_surface.m"
 
-#if OC_COMPILE_METAL
+#include "graphics/backends.h"
+
+#if OC_GRAPHICS_ENABLE_METAL
     #include "graphics/mtl_surface.m"
 #endif
 
-#if OC_COMPILE_CANVAS
-    #include "graphics/mtl_renderer.m"
+#if OC_GRAPHICS_ENABLE_GLES
+    #include "graphics/gl_loader.c"
+    #include "graphics/gles_surface.c"
 #endif
 
-#if OC_COMPILE_GLES
-    #include "graphics/gl_loader.c"
-    #include "graphics/egl_surface.c"
+#if OC_GRAPHICS_ENABLE_WEBGPU
+    #include "graphics/wgpu_surface_osx.m"
+#endif
+
+#if OC_GRAPHICS_ENABLE_CANVAS
+    #include "graphics/wgpu_renderer.c"
 #endif

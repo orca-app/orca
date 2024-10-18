@@ -735,6 +735,7 @@ ORCA_API oc_ui_sig oc_ui_button(const char* label);
 ORCA_API oc_ui_sig oc_ui_checkbox(const char* name, bool* checked);
 ORCA_API oc_ui_box* oc_ui_slider(const char* name, f32* value);
 ORCA_API oc_ui_box* oc_ui_scrollbar(const char* name, f32 thumbRatio, f32* scrollValue);
+ORCA_API void oc_ui_tooltip_str8(oc_str8 label);
 ORCA_API void oc_ui_tooltip(const char* label);
 
 ORCA_API void oc_ui_panel_begin(const char* name, oc_ui_flags flags);

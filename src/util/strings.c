@@ -5,6 +5,7 @@
 *  See LICENSE.txt for licensing information
 *
 **************************************************************************/
+#include <stdio.h>
 #include "strings.h"
 #include "platform/platform_debug.h"
 
@@ -113,7 +114,7 @@ void oc_str8_list_push(oc_arena* arena, oc_str8_list* list, oc_str8 str)
 {
     oc_str8_elt* elt = oc_arena_push_type(arena, oc_str8_elt);
     elt->string = str;
-    oc_list_append(&list->list, &elt->listElt);
+    oc_list_push_back(&list->list, &elt->listElt);
     list->eltCount++;
     list->len += str.len;
 }
@@ -130,7 +131,12 @@ void oc_str8_list_pushf(oc_arena* arena, oc_str8_list* list, const char* format,
 oc_str8 oc_str8_list_collate(oc_arena* arena, oc_str8_list list, oc_str8 prefix, oc_str8 separator, oc_str8 postfix)
 {
     oc_str8 str = { 0 };
-    str.len = prefix.len + list.len + list.eltCount * separator.len + postfix.len;
+    str.len = prefix.len + list.len + postfix.len;
+    if(list.eltCount && separator.len)
+    {
+        str.len += list.eltCount * separator.len - 1;
+    }
+
     str.ptr = oc_arena_push_array(arena, char, str.len + 1);
     char* dst = str.ptr;
     memcpy(dst, prefix.ptr, prefix.len);
@@ -141,10 +147,10 @@ oc_str8 oc_str8_list_collate(oc_arena* arena, oc_str8_list list, oc_str8 prefix,
     {
         memcpy(dst, elt->string.ptr, elt->string.len);
         dst += elt->string.len;
-        elt = oc_list_next_entry(list.list, elt, oc_str8_elt, listElt);
+        elt = oc_list_next_entry(elt, oc_str8_elt, listElt);
     }
 
-    for(; elt != 0; elt = oc_list_next_entry(list.list, elt, oc_str8_elt, listElt))
+    for(; elt != 0; elt = oc_list_next_entry(elt, oc_str8_elt, listElt))
     {
         memcpy(dst, separator.ptr, separator.len);
         dst += separator.len;
@@ -255,7 +261,7 @@ void oc_str16_list_push(oc_arena* arena, oc_str16_list* list, oc_str16 str)
 {
     oc_str16_elt* elt = oc_arena_push_type(arena, oc_str16_elt);
     elt->string = str;
-    oc_list_append(&list->list, &elt->listElt);
+    oc_list_push_back(&list->list, &elt->listElt);
     list->eltCount++;
     list->len += str.len;
 }
@@ -274,10 +280,10 @@ oc_str16 oc_str16_list_collate(oc_arena* arena, oc_str16_list list, oc_str16 pre
     {
         memcpy(dst, elt->string.ptr, elt->string.len * sizeof(u16));
         dst += elt->string.len * sizeof(u16);
-        elt = oc_list_next_entry(list.list, elt, oc_str16_elt, listElt);
+        elt = oc_list_next_entry(elt, oc_str16_elt, listElt);
     }
 
-    for(; elt != 0; elt = oc_list_next_entry(list.list, elt, oc_str16_elt, listElt))
+    for(; elt != 0; elt = oc_list_next_entry(elt, oc_str16_elt, listElt))
     {
         memcpy(dst, separator.ptr, separator.len * sizeof(u16));
         dst += separator.len * sizeof(u16);
@@ -341,7 +347,7 @@ void oc_str32_list_push(oc_arena* arena, oc_str32_list* list, oc_str32 str)
 {
     oc_str32_elt* elt = oc_arena_push_type(arena, oc_str32_elt);
     elt->string = str;
-    oc_list_append(&list->list, &elt->listElt);
+    oc_list_push_back(&list->list, &elt->listElt);
     list->eltCount++;
     list->len += str.len;
 }
@@ -360,10 +366,10 @@ oc_str32 oc_str32_list_collate(oc_arena* arena, oc_str32_list list, oc_str32 pre
     {
         memcpy(dst, elt->string.ptr, elt->string.len * sizeof(u32));
         dst += elt->string.len * sizeof(u32);
-        elt = oc_list_next_entry(list.list, elt, oc_str32_elt, listElt);
+        elt = oc_list_next_entry(elt, oc_str32_elt, listElt);
     }
 
-    for(; elt != 0; elt = oc_list_next_entry(list.list, elt, oc_str32_elt, listElt))
+    for(; elt != 0; elt = oc_list_next_entry(elt, oc_str32_elt, listElt))
     {
         memcpy(dst, separator.ptr, separator.len * sizeof(u32));
         dst += separator.len * sizeof(u32);

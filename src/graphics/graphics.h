@@ -9,78 +9,10 @@
 #define __GRAPHICS_H_
 
 #include "app/app.h"
-#include "platform/platform.h"
-#include "util/typedefs.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-//------------------------------------------------------------------------------------------
-//SECTION: backends selection
-//------------------------------------------------------------------------------------------
-
-typedef enum
-{
-    OC_NONE,
-    OC_METAL,
-    OC_GL,
-    OC_GLES,
-    OC_CANVAS,
-    OC_HOST
-} oc_surface_api;
-
-//NOTE: these macros are used to select which backend to include when building milepost
-//      they can be overridden by passing them to the compiler command line
-#if OC_PLATFORM_MACOS
-    #ifndef OC_COMPILE_METAL
-        #define OC_COMPILE_METAL 1
-    #endif
-
-    #ifndef OC_COMPILE_GLES
-        #define OC_COMPILE_GLES 1
-    #endif
-
-    #ifndef OC_COMPILE_CANVAS
-        #if !OC_COMPILE_METAL
-            #error "Canvas surface requires a Metal backend on macOS. Make sure you define OC_COMPILE_METAL to 1."
-        #endif
-        #define OC_COMPILE_CANVAS 1
-    #endif
-
-    #define OC_COMPILE_GL 0
-
-#elif OC_PLATFORM_WINDOWS
-    #ifndef OC_COMPILE_GL
-        #define OC_COMPILE_GL 1
-    #endif
-
-    #ifndef OC_COMPILE_GLES
-        #define OC_COMPILE_GLES 1
-    #endif
-
-    #ifndef OC_COMPILE_CANVAS
-        #if !OC_COMPILE_GL
-            #error "Canvas surface requires an OpenGL backend on Windows. Make sure you define OC_COMPILE_GL to 1."
-        #endif
-        #define OC_COMPILE_CANVAS 1
-    #endif
-
-#elif OC_PLATFORM_LINUX
-    #define OC_COMPILE_GL 0
-    #define OC_COMPILE_GLES 1
-    #define OC_COMPILE_CANVAS 1
-#endif
-
-//NOTE: these macros are used to select backend-specific APIs to include when using milepost
-#ifdef OC_EXPOSE_SURFACE_METAL
-    #include "mtl_surface.h"
-#endif
-
-#ifdef OC_EXPOSE_SURFACE_WGL
-    #include "wgl_surface.h"
-#endif
-
-ORCA_API bool oc_is_surface_api_available(oc_surface_api api);
 
 //------------------------------------------------------------------------------------------
 //SECTION: graphics surface
@@ -90,54 +22,31 @@ typedef struct oc_surface
     u64 h;
 } oc_surface;
 
-ORCA_API oc_surface oc_surface_nil(void);            //DOC: returns a nil surface
-ORCA_API bool oc_surface_is_nil(oc_surface surface); //DOC: true if surface is nil
+ORCA_API oc_surface oc_surface_nil(void);
+ORCA_API bool oc_surface_is_nil(oc_surface surface);
 
-#if !defined(OC_PLATFORM_ORCA) || !OC_PLATFORM_ORCA
+ORCA_API void oc_surface_destroy(oc_surface surface);
 
-ORCA_API oc_surface oc_surface_create_for_window(oc_window window, oc_surface_api api);
-
-ORCA_API void oc_surface_swap_interval(oc_surface surface, int swap);
+ORCA_API oc_vec2 oc_surface_get_size(oc_surface surface);
+ORCA_API oc_vec2 oc_surface_contents_scaling(oc_surface surface);
+ORCA_API void oc_surface_bring_to_front(oc_surface surface);
+ORCA_API void oc_surface_send_to_back(oc_surface surface);
 ORCA_API bool oc_surface_get_hidden(oc_surface surface);
 ORCA_API void oc_surface_set_hidden(oc_surface surface, bool hidden);
 
-#else
-
-ORCA_API oc_surface oc_surface_canvas(void); //DOC: creates a surface for use with the canvas API
-ORCA_API oc_surface oc_surface_gles(void);   //DOC: create a surface for use with GLES API
-
-#endif
-
-ORCA_API void oc_surface_destroy(oc_surface surface); //DOC: destroys the surface
-
-ORCA_API void oc_surface_select(oc_surface surface); //DOC: selects the surface in the current thread before drawing
-ORCA_API void oc_surface_deselect(void);             //DOC: deselects the current thread's previously selected surface
-ORCA_API oc_surface oc_surface_get_selected();
-
-ORCA_API void oc_surface_present(oc_surface surface); //DOC: presents the surface to its window
-
-ORCA_API oc_vec2 oc_surface_get_size(oc_surface surface);
-ORCA_API oc_vec2 oc_surface_contents_scaling(oc_surface surface); //DOC: returns the scaling of the surface (pixels = points * scale)
-
-ORCA_API void oc_surface_bring_to_front(oc_surface surface); //DOC: puts surface on top of the surface stack
-ORCA_API void oc_surface_send_to_back(oc_surface surface);   //DOC: puts surface at the bottom of the surface stack
-
-//------------------------------------------------------------------------------------------
-//SECTION: vsync
-//------------------------------------------------------------------------------------------
-#if !defined(OC_PLATFORM_ORCA) || !OC_PLATFORM_ORCA
-
-ORCA_API void oc_vsync_init(void);
-ORCA_API void oc_vsync_wait(oc_window window);
-
-#endif
 //------------------------------------------------------------------------------------------
 //SECTION: graphics canvas structs
 //------------------------------------------------------------------------------------------
-typedef struct oc_canvas
+
+typedef struct oc_canvas_renderer
 {
     u64 h;
-} oc_canvas;
+} oc_canvas_renderer;
+
+typedef struct oc_canvas_context
+{
+    u64 h;
+} oc_canvas_context;
 
 typedef struct oc_font
 {
@@ -148,6 +57,19 @@ typedef struct oc_image
 {
     u64 h;
 } oc_image;
+
+typedef enum oc_gradient_blend_space
+{
+    OC_GRADIENT_BLEND_LINEAR,
+    OC_GRADIENT_BLEND_SRGB,
+} oc_gradient_blend_space;
+
+typedef enum oc_color_space
+{
+    OC_COLOR_SPACE_RGB,
+    OC_COLOR_SPACE_SRGB,
+    //... HSV, HSL
+} oc_color_space;
 
 typedef struct oc_color
 {
@@ -163,6 +85,8 @@ typedef struct oc_color
 
         f32 c[4];
     };
+
+    oc_color_space colorSpace;
 } oc_color;
 
 typedef enum
@@ -204,16 +128,48 @@ typedef struct oc_text_metrics
 } oc_text_metrics;
 
 //------------------------------------------------------------------------------------------
-//SECTION: graphics canvas
+//SECTION: color helpers
 //------------------------------------------------------------------------------------------
-ORCA_API oc_canvas oc_canvas_nil(void);           //DOC: returns a nil canvas
-ORCA_API bool oc_canvas_is_nil(oc_canvas canvas); //DOC: true if canvas is nil
+oc_color oc_color_rgba(f32 r, f32 g, f32 b, f32 a);
+oc_color oc_color_srgba(f32 r, f32 g, f32 b, f32 a);
+//TODO: hsv/hsl, conversions, ...
 
-ORCA_API oc_canvas oc_canvas_create(void);             //DOC: create a new canvas
-ORCA_API void oc_canvas_destroy(oc_canvas canvas);     //DOC: destroys canvas
-ORCA_API oc_canvas oc_canvas_select(oc_canvas canvas); //DOC: selects canvas in the current thread
-ORCA_API void oc_render(oc_canvas canvas);             //DOC: renders all canvas commands onto surface
+oc_color oc_color_convert(oc_color color, oc_color_space colorSpace);
 
+//------------------------------------------------------------------------------------------
+//SECTION: canvas renderer
+//------------------------------------------------------------------------------------------
+ORCA_API oc_canvas_renderer oc_canvas_renderer_nil(void);
+ORCA_API bool oc_canvas_renderer_is_nil(oc_canvas_renderer renderer);
+
+ORCA_API oc_canvas_renderer oc_canvas_renderer_create(void);
+ORCA_API void oc_canvas_renderer_destroy(oc_canvas_renderer renderer);
+
+ORCA_API void oc_canvas_render(oc_canvas_renderer renderer, oc_canvas_context context, oc_surface surface);
+ORCA_API void oc_canvas_present(oc_canvas_renderer renderer, oc_surface surface);
+
+//------------------------------------------------------------------------------------------
+//SECTION: canvas surface
+//------------------------------------------------------------------------------------------
+#if OC_PLATFORM_ORCA
+ORCA_API oc_surface oc_canvas_surface_create(oc_canvas_renderer renderer);
+#else
+ORCA_API oc_surface oc_canvas_surface_create_for_window(oc_canvas_renderer renderer, oc_window window);
+#endif
+
+ORCA_API void oc_canvas_surface_swap_interval(oc_surface surface, int swap);
+
+//------------------------------------------------------------------------------------------
+//SECTION: canvas context
+//------------------------------------------------------------------------------------------
+ORCA_API oc_canvas_context oc_canvas_context_nil(void);
+ORCA_API bool oc_canvas_context_is_nil(oc_canvas_context context);
+
+ORCA_API oc_canvas_context oc_canvas_context_create(void);
+ORCA_API void oc_canvas_context_destroy(oc_canvas_context context);
+ORCA_API oc_canvas_context oc_canvas_context_select(oc_canvas_context context);
+
+ORCA_API void oc_canvas_context_set_msaa_sample_count(oc_canvas_context context, u32 sampleCount);
 //------------------------------------------------------------------------------------------
 //SECTION: fonts
 //------------------------------------------------------------------------------------------
@@ -244,11 +200,11 @@ ORCA_API oc_text_metrics oc_font_text_metrics(oc_font font, f32 fontSize, oc_str
 ORCA_API oc_image oc_image_nil(void);
 ORCA_API bool oc_image_is_nil(oc_image a);
 
-ORCA_API oc_image oc_image_create(oc_surface surface, u32 width, u32 height);
-ORCA_API oc_image oc_image_create_from_rgba8(oc_surface surface, u32 width, u32 height, u8* pixels);
-ORCA_API oc_image oc_image_create_from_memory(oc_surface surface, oc_str8 mem, bool flip);
-ORCA_API oc_image oc_image_create_from_file(oc_surface surface, oc_file file, bool flip);
-ORCA_API oc_image oc_image_create_from_path(oc_surface surface, oc_str8 path, bool flip);
+ORCA_API oc_image oc_image_create(oc_canvas_renderer renderer, u32 width, u32 height);
+ORCA_API oc_image oc_image_create_from_rgba8(oc_canvas_renderer renderer, u32 width, u32 height, u8* pixels);
+ORCA_API oc_image oc_image_create_from_memory(oc_canvas_renderer renderer, oc_str8 mem, bool flip);
+ORCA_API oc_image oc_image_create_from_file(oc_canvas_renderer renderer, oc_file file, bool flip);
+ORCA_API oc_image oc_image_create_from_path(oc_canvas_renderer renderer, oc_str8 path, bool flip);
 
 ORCA_API void oc_image_destroy(oc_image image);
 
@@ -285,17 +241,20 @@ ORCA_API void oc_image_atlas_recycle(oc_rect_atlas* atlas, oc_image_region image
 ORCA_API void oc_matrix_push(oc_mat2x3 matrix);
 ORCA_API void oc_matrix_multiply_push(oc_mat2x3 matrix);
 ORCA_API void oc_matrix_pop(void);
-ORCA_API oc_mat2x3 oc_matrix_top();
+ORCA_API oc_mat2x3 oc_matrix_top(void);
 
 ORCA_API void oc_clip_push(f32 x, f32 y, f32 w, f32 h);
 ORCA_API void oc_clip_pop(void);
-ORCA_API oc_rect oc_clip_top();
+ORCA_API oc_rect oc_clip_top(void);
 
 //------------------------------------------------------------------------------------------
 //SECTION: graphics attributes setting/getting
 //------------------------------------------------------------------------------------------
 ORCA_API void oc_set_color(oc_color color);
 ORCA_API void oc_set_color_rgba(f32 r, f32 g, f32 b, f32 a);
+ORCA_API void oc_set_color_srgba(f32 r, f32 g, f32 b, f32 a);
+
+ORCA_API void oc_set_gradient(oc_gradient_blend_space blendSpace, oc_color bottomLeft, oc_color bottomRight, oc_color topRight, oc_color topLeft);
 ORCA_API void oc_set_width(f32 width);
 ORCA_API void oc_set_tolerance(f32 tolerance);
 ORCA_API void oc_set_joint(oc_joint_type joint);
@@ -316,8 +275,8 @@ ORCA_API oc_cap_type oc_get_cap(void);
 ORCA_API oc_font oc_get_font(void);
 ORCA_API f32 oc_get_font_size(void);
 ORCA_API bool oc_get_text_flip(void);
-ORCA_API oc_image oc_get_image();
-ORCA_API oc_rect oc_get_image_source_region();
+ORCA_API oc_image oc_get_image(void);
+ORCA_API oc_rect oc_get_image_source_region(void);
 
 //------------------------------------------------------------------------------------------
 //SECTION: path construction

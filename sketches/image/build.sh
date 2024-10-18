@@ -13,6 +13,7 @@ mkdir -p $BINDIR
 clang -g $FLAGS $LIBS $INCLUDES -o $BINDIR/example_image main.c
 
 cp $LIBDIR/liborca.dylib $BINDIR/
-cp $LIBDIR/mtl_renderer.metallib $BINDIR/
+cp $LIBDIR/libwebgpu.dylib $BINDIR/
+
 
 install_name_tool -add_rpath "@executable_path" $BINDIR/example_image

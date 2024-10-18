@@ -83,6 +83,11 @@ void* oc_arena_push(oc_arena* arena, u64 size)
 
 void* oc_arena_push_aligned(oc_arena* arena, u64 size, u32 alignment)
 {
+    if(!size)
+    {
+        return (0);
+    }
+
     oc_arena_chunk* chunk = arena->currentChunk;
     OC_ASSERT(chunk);
 
@@ -91,7 +96,7 @@ void* oc_arena_push_aligned(oc_arena* arena, u64 size, u32 alignment)
     u64 lastCap = chunk->cap;
     while(nextOffset > chunk->cap)
     {
-        chunk = oc_list_next_entry(arena->chunks, chunk, oc_arena_chunk, listElt);
+        chunk = oc_list_next_entry(chunk, oc_arena_chunk, listElt);
         if(chunk)
         {
             alignedOffset = oc_align_up_pow2(chunk->offset, alignment);
@@ -148,6 +153,12 @@ oc_arena_scope oc_arena_scope_begin(oc_arena* arena)
 
 void oc_arena_scope_end(oc_arena_scope scope)
 {
+    for(oc_arena_chunk* chunk = scope.arena->currentChunk;
+        chunk != 0 && chunk != scope.chunk;
+        chunk = oc_list_prev_entry(chunk, oc_arena_chunk, listElt))
+    {
+        chunk->offset = sizeof(oc_arena_chunk);
+    }
     scope.arena->currentChunk = scope.chunk;
     scope.arena->currentChunk->offset = scope.offset;
 }
@@ -181,13 +192,13 @@ void* oc_pool_alloc(oc_pool* pool)
     }
     else
     {
-        return (oc_list_pop(&pool->freeList));
+        return (oc_list_pop_front(&pool->freeList));
     }
 }
 
 void oc_pool_recycle(oc_pool* pool, void* ptr)
 {
-    oc_list_push(&pool->freeList, (oc_list_elt*)ptr);
+    oc_list_push_front(&pool->freeList, (oc_list_elt*)ptr);
 }
 
 void oc_pool_clear(oc_pool* pool)

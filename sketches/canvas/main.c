@@ -22,20 +22,24 @@ int main()
 
     oc_rect contentRect = oc_window_get_content_rect(window);
 
-    //NOTE: create surface
-    oc_surface surface = oc_surface_create_for_window(window, OC_CANVAS);
-    oc_surface_swap_interval(surface, 1);
+    //NOTE: create renderer, surface, and context
 
+    oc_canvas_renderer renderer = oc_canvas_renderer_create();
+    if(oc_canvas_renderer_is_nil(renderer))
+    {
+        oc_log_error("Error: couldn't create renderer\n");
+        return (-1);
+    }
+
+    oc_surface surface = oc_canvas_surface_create_for_window(renderer, window);
     if(oc_surface_is_nil(surface))
     {
         oc_log_error("Error: couldn't create surface\n");
         return (-1);
     }
 
-    //TODO: create canvas
-    oc_canvas canvas = oc_canvas_create();
-
-    if(oc_canvas_is_nil(canvas))
+    oc_canvas_context context = oc_canvas_context_create();
+    if(oc_canvas_context_is_nil(context))
     {
         oc_log_error("Error: couldn't create canvas\n");
         return (-1);
@@ -93,8 +97,6 @@ int main()
                     break;
             }
         }
-
-        oc_surface_select(surface);
 
         // background
         oc_set_color_rgba(0, 1, 1, 1);
@@ -175,21 +177,22 @@ int main()
         oc_set_width(1);
         oc_set_color_rgba(1, 0, 0, 1);
         oc_rounded_rectangle_stroke(400, 400, 160, 160, 80);
-
+        /*
         oc_log_info("Orca vector graphics test program (frame time = %fs, fps = %f)...\n",
                     frameTime,
                     1. / frameTime);
-
-        oc_render(canvas);
-        oc_surface_present(surface);
+*/
+        oc_canvas_render(renderer, context, surface);
+        oc_canvas_present(renderer, surface);
 
         oc_scratch_end(scratch);
 
         frameTime = oc_clock_time(OC_CLOCK_MONOTONIC) - startTime;
     }
 
-    oc_canvas_destroy(canvas);
+    oc_canvas_context_destroy(context);
     oc_surface_destroy(surface);
+    oc_canvas_renderer_destroy(renderer);
     oc_window_destroy(window);
 
     oc_terminate();

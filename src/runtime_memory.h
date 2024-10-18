@@ -8,8 +8,7 @@
 #ifndef __RUNTIME_MEMORY_H_
 #define __RUNTIME_MEMORY_H_
 
-typedef u32 oc_wasm_addr;
-typedef u32 oc_wasm_size;
+#include "wasm/wasm.h"
 
 void* oc_wasm_address_to_ptr(oc_wasm_addr addr, oc_wasm_size size);
 oc_wasm_addr oc_wasm_address_from_ptr(void* ptr, oc_wasm_size size);

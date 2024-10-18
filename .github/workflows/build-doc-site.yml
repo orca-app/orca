@@ -1,0 +1,49 @@
+name: build-doc-site
+on:
+  push:
+    branches:
+      - main
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure Git Credentials
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: 3.x
+      - name: buid api doc
+        run: |
+          pip install libclang
+          python scripts/gen_doc.py src/api.json doc/mkdocs
+      - name: build site
+        run: |
+          pip install mkdocs
+          cd ./doc/mkdocs
+          mkdocs build
+      - name: Upload Artifact
+        uses: actions/upload-pages-artifact@v1
+        with:
+          # location of the coverage artifacts
+          path: "./doc/mkdocs/site"
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build
+
+    permissions:
+      pages: write
+      id-token: write
+
+    environment:
+      # environment created automatically by GitHub
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v2

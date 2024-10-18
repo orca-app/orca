@@ -9,14 +9,28 @@
 #include <math.h>
 #include <stdio.h>
 
-#define OC_INCLUDE_GL_API
+#define OC_GRAPHICS_INCLUDE_GL_API 1
 #include "graphics/graphics_common.h"
 #include "orca.h"
+
+//TODO: wgpu-renderer: figure out graphics backends include selection
+#include "graphics/gles_surface.h"
 
 #include "runtime.h"
 #include "runtime_clipboard.c"
 #include "runtime_io.c"
 #include "runtime_memory.c"
+
+#include "wasm/wasm.c"
+#if OC_WASM_BACKEND_WASM3
+    #include "wasm/backend_wasm3.c"
+#elif OC_WASM_BACKEND_BYTEBOX
+    #include "wasm/backend_bytebox.c"
+#else
+    #error "Unknown wasm backend"
+#endif
+
+static const char* s_test_wasm_module_path = NULL;
 
 oc_font orca_font_create(const char* resourcePath)
 {
@@ -71,19 +85,17 @@ oc_str8 oc_runtime_get_wasm_memory()
 {
     oc_str8 mem = { 0 };
     u32 size = 0;
-    mem.ptr = (char*)m3_GetMemory(__orcaApp.env.m3Runtime, &size, 0);
-    mem.len = size;
+    mem = oc_wasm_mem_get(__orcaApp.env.wasm);
     return (mem);
 }
 
-u64 orca_check_cstring(IM3Runtime runtime, const char* ptr)
+u64 orca_check_cstring(oc_wasm* wasm, const char* ptr)
 {
-    uint32_t memorySize = 0;
-    char* memory = (char*)m3_GetMemory(runtime, &memorySize, 0);
+    oc_str8 memory = oc_wasm_mem_get(wasm);
 
     //NOTE: Here we are guaranteed that ptr is in [ memory ; memory + memorySize [
     //      hence (memory + memorySize) - ptr is representable by size_t and <= memorySize
-    size_t maxLen = (memory + memorySize) - ptr;
+    size_t maxLen = (memory.ptr + memory.len) - ptr;
 
     u64 len = strnlen(ptr, maxLen);
 
@@ -179,20 +191,6 @@ void oc_abort_ext_dialog(const char* file, const char* function, int line, const
     oc_scratch_end(scratch);
 }
 
-void oc_wasm3_trap(IM3Runtime runtime, M3Result res, const char* file, const char* function, int line, const char* msg)
-{
-    M3ErrorInfo errInfo = { 0 };
-    m3_GetErrorInfo(runtime, &errInfo);
-    if(errInfo.message && res == errInfo.result)
-    {
-        oc_abort_ext_dialog(file, function, line, "%s: %s (%s)", msg, res, errInfo.message);
-    }
-    else
-    {
-        oc_abort_ext_dialog(file, function, line, "%s: %s", msg, res);
-    }
-}
-
 void oc_bridge_log(oc_log_level level,
                    int functionLen,
                    char* function,
@@ -208,10 +206,10 @@ void oc_bridge_log(oc_log_level level,
     debug->entryCount++;
     if(debug->entryCount > debug->maxEntries)
     {
-        log_entry* e = oc_list_pop_entry(&debug->logEntries, log_entry, listElt);
+        log_entry* e = oc_list_pop_front_entry(&debug->logEntries, log_entry, listElt);
         if(e)
         {
-            oc_list_push(&debug->logFreeList, &e->listElt);
+            oc_list_push_front(&debug->logFreeList, &e->listElt);
             debug->entryCount--;
         }
     }
@@ -271,6 +269,14 @@ void oc_bridge_log(oc_log_level level,
                msg);
 }
 
+void oc_bridge_exit(int ec)
+{
+    //TODO: send a trap exit to oc_wasm to stop interpreter,
+    // then when we return from the trap, quit app
+    // temporarily, we just exit here
+    exit(ec);
+}
+
 void oc_bridge_request_quit(void)
 {
     __orcaApp.quit = true;
@@ -287,53 +293,75 @@ typedef struct orca_surface_create_data
 i32 orca_surface_callback(void* user)
 {
     orca_surface_create_data* data = (orca_surface_create_data*)user;
-    data->surface = oc_surface_create_for_window(data->window, data->api);
 
+    switch(data->api)
+    {
+        case OC_SURFACE_CANVAS:
+            data->surface = oc_canvas_surface_create_for_window(__orcaApp.canvasRenderer, data->window);
+            break;
+        case OC_SURFACE_GLES:
+        default:
+            data->surface = oc_gles_surface_create_for_window(data->window);
+            break;
+    }
+
+    if(data->api == OC_SURFACE_GLES)
+    {
 #if OC_PLATFORM_WINDOWS
-    //NOTE(martin): on windows we set all surfaces to non-synced, and do a single "manual" wait here.
-    //              on macOS each surface is individually synced to the monitor refresh rate but don't block each other
-    oc_surface_swap_interval(data->surface, 0);
+        //NOTE(martin): on windows we set all surfaces to non-synced, and do a single "manual" wait here.
+        //              on macOS each surface is individually synced to the monitor refresh rate but don't block each other
+        oc_gles_surface_swap_interval(data->surface, 0);
 #endif
 
-    //NOTE: this will be called on main thread, so we need to deselect the surface here,
-    //      and reselect it on the orca thread
-    oc_surface_deselect();
+        //NOTE: this will be called on main thread, so we need to deselect the surface here,
+        //      and reselect it on the orca thread
+        oc_gles_surface_make_current(oc_surface_nil());
+    }
+    //TODO: wgpu-renderer: set canvas surface swap?
 
     return (0);
 }
 
-oc_surface orca_surface_canvas(void)
+oc_surface oc_bridge_gles_surface_create(void)
 {
     orca_surface_create_data data = {
         .surface = oc_surface_nil(),
         .window = __orcaApp.window,
-        .api = OC_CANVAS
+        .api = OC_SURFACE_GLES
     };
 
     oc_dispatch_on_main_thread_sync(__orcaApp.window, orca_surface_callback, (void*)&data);
-    oc_surface_select(data.surface);
+    oc_gles_surface_make_current(data.surface);
     return (data.surface);
 }
 
-oc_surface orca_surface_gles(void)
+oc_canvas_renderer oc_bridge_canvas_renderer_create(void)
+{
+    return (__orcaApp.canvasRenderer);
+}
+
+oc_surface oc_bridge_canvas_surface_create(oc_canvas_renderer renderer)
 {
     orca_surface_create_data data = {
         .surface = oc_surface_nil(),
         .window = __orcaApp.window,
-        .api = OC_GLES
+        .api = OC_SURFACE_CANVAS
     };
+    //TODO: check renderer
 
     oc_dispatch_on_main_thread_sync(__orcaApp.window, orca_surface_callback, (void*)&data);
-    oc_surface_select(data.surface);
     return (data.surface);
 }
 
-void orca_surface_render_commands(oc_surface surface,
-                                  oc_color clearColor,
-                                  u32 primitiveCount,
-                                  oc_primitive* primitives,
-                                  u32 eltCount,
-                                  oc_path_elt* elements)
+void oc_bridge_canvas_renderer_submit(oc_canvas_renderer renderer,
+                                      oc_surface surface,
+                                      u32 msaaSampleCount,
+                                      bool clear,
+                                      oc_color clearColor,
+                                      u32 primitiveCount,
+                                      oc_primitive* primitives,
+                                      u32 eltCount,
+                                      oc_path_elt* elements)
 {
     oc_runtime* app = &__orcaApp;
 
@@ -349,12 +377,15 @@ void orca_surface_render_commands(oc_surface surface,
        && window_content_rect.h > 0
        && oc_window_is_minimized(app->window) == false)
     {
-        oc_surface_render_commands(surface,
-                                   clearColor,
-                                   primitiveCount,
-                                   primitives,
-                                   eltCount,
-                                   elements);
+        oc_canvas_renderer_submit(renderer,
+                                  surface,
+                                  msaaSampleCount,
+                                  clear,
+                                  clearColor,
+                                  primitiveCount,
+                                  primitives,
+                                  eltCount,
+                                  elements);
     }
 }
 
@@ -426,25 +457,21 @@ void log_entry_ui(oc_debug_overlay* overlay, log_entry* entry)
     oc_scratch_end(scratch);
 }
 
-char m3_type_to_tag(M3ValueType type)
+char valtype_to_tag(oc_wasm_valtype type)
 {
     switch(type)
     {
-        case c_m3Type_none:
-            return ('v');
-        case c_m3Type_i32:
+        case OC_WASM_VALTYPE_I32:
             return ('i');
-        case c_m3Type_i64:
+        case OC_WASM_VALTYPE_I64:
             return ('I');
-        case c_m3Type_f32:
+        case OC_WASM_VALTYPE_F32:
             return ('f');
-        case c_m3Type_f64:
-            return ('d');
-
-        case c_m3Type_unknown:
-        default:
-            return ('!');
+        case OC_WASM_VALTYPE_F64:
+            return ('F');
     }
+
+    return ('!');
 }
 
 void oc_wasm_env_init(oc_wasm_env* runtime)
@@ -471,132 +498,130 @@ i32 orca_runloop(void* user)
     oc_wasm_env_init(&app->env);
 
     //NOTE: loads wasm module
-    oc_arena_scope scratch = oc_scratch_begin();
-
-    const char* bundleNameCString = "module";
-    oc_str8 modulePath = oc_path_executable_relative(scratch.arena, OC_STR8("../app/wasm/module.wasm"));
-
-    FILE* file = fopen(modulePath.ptr, "rb");
-    if(!file)
     {
-        OC_ABORT("The application couldn't load: web assembly module not found");
+        oc_arena_scope scratch = oc_scratch_begin();
+
+        oc_str8 modulePath = oc_path_executable_relative(scratch.arena, OC_STR8("../app/wasm/module.wasm"));
+        if(s_test_wasm_module_path)
+        {
+            modulePath = oc_str8_push_copy(scratch.arena, OC_STR8(s_test_wasm_module_path));
+        }
+
+        FILE* file = fopen(modulePath.ptr, "rb");
+        if(!file)
+        {
+            OC_ABORT("The application couldn't load: web assembly module '%s' not found", modulePath.ptr);
+        }
+        oc_scratch_end(scratch);
+
+        fseek(file, 0, SEEK_END);
+        u64 wasmSize = ftell(file);
+        rewind(file);
+
+        app->env.wasmBytecode.len = wasmSize;
+        app->env.wasmBytecode.ptr = oc_malloc_array(char, wasmSize);
+        fread(app->env.wasmBytecode.ptr, 1, app->env.wasmBytecode.len, file);
+        fclose(file);
     }
 
-    fseek(file, 0, SEEK_END);
-    u64 wasmSize = ftell(file);
-    rewind(file);
+    app->env.wasm = oc_wasm_create();
 
-    app->env.wasmBytecode.len = wasmSize;
-    app->env.wasmBytecode.ptr = oc_malloc_array(char, wasmSize);
-    fread(app->env.wasmBytecode.ptr, 1, app->env.wasmBytecode.len, file);
-    fclose(file);
-
-    u32 stackSize = 65536;
-    app->env.m3Env = m3_NewEnvironment();
-
-    app->env.m3Runtime = m3_NewRuntime(app->env.m3Env, stackSize, NULL);
     //NOTE: host memory will be freed when runtime is freed.
-    m3_RuntimeSetMemoryCallbacks(app->env.m3Runtime, oc_wasm_memory_resize_callback, oc_wasm_memory_free_callback, &app->env.wasmMemory);
 
-    M3Result res = m3_ParseModule(app->env.m3Env, &app->env.m3Module, (u8*)app->env.wasmBytecode.ptr, app->env.wasmBytecode.len);
-    if(res)
-    {
-        OC_WASM3_TRAP(app->env.m3Runtime, res, "The application couldn't parse its web assembly module");
-    }
-
-    res = m3_LoadModule(app->env.m3Runtime, app->env.m3Module);
-    if(res)
-    {
-        OC_WASM3_TRAP(app->env.m3Runtime, res, "The application couldn't load its web assembly module into the runtime");
-    }
-    m3_SetModuleName(app->env.m3Module, bundleNameCString);
-
-    oc_scratch_end(scratch);
+    OC_WASM_TRAP(oc_wasm_decode(app->env.wasm, app->env.wasmBytecode));
 
     //NOTE: bind orca APIs
     {
         int err = 0;
-        err |= bindgen_link_core_api(app->env.m3Module);
-        err |= bindgen_link_surface_api(app->env.m3Module);
-        err |= bindgen_link_clock_api(app->env.m3Module);
-        err |= bindgen_link_io_api(app->env.m3Module);
-        err |= bindgen_link_gles_api(app->env.m3Module);
-        err |= manual_link_gles_api(app->env.m3Module);
+        err |= bindgen_link_core_api(app->env.wasm);
+        err |= bindgen_link_surface_api(app->env.wasm);
+        err |= bindgen_link_clock_api(app->env.wasm);
+        err |= bindgen_link_io_api(app->env.wasm);
+        err |= bindgen_link_gles_api(app->env.wasm);
+        err |= manual_link_gles_api(app->env.wasm);
 
         if(err)
         {
             OC_ABORT("The application couldn't link one or more functions to its web assembly module (see console log for more information)");
         }
     }
-    //NOTE: compile
-    res = m3_CompileModule(app->env.m3Module);
-    if(res)
+
     {
-        OC_WASM3_TRAP(app->env.m3Runtime, res, "The application couldn't compile its web assembly module");
+        oc_wasm_mem_callbacks wasm_mem_callbacks = {
+            .resizeProc = oc_runtime_wasm_memory_resize_callback,
+            .freeProc = oc_runtime_wasm_memory_free_callback,
+            .userdata = &app->env.wasmMemory,
+        };
+
+        OC_WASM_TRAP(oc_wasm_instantiate(app->env.wasm, OC_STR8("module"), wasm_mem_callbacks));
     }
 
     //NOTE: Find and type check event handlers.
-    for(int i = 0; i < OC_EXPORT_COUNT; i++)
     {
-        const oc_export_desc* desc = &OC_EXPORT_DESC[i];
-        IM3Function handler = 0;
-        m3_FindFunction(&handler, app->env.m3Runtime, desc->name.ptr);
+        oc_arena_scope scratch = oc_scratch_begin();
 
-        if(handler)
+        for(int i = 0; i < OC_EXPORT_COUNT; i++)
         {
-            bool checked = false;
+            const oc_export_desc* desc = &OC_EXPORT_DESC[i];
 
-            //NOTE: check function signature
-            int retCount = m3_GetRetCount(handler);
-            int argCount = m3_GetArgCount(handler);
-            if(retCount == desc->retTags.len && argCount == desc->argTags.len)
+            oc_wasm_function_handle* handle = oc_wasm_function_find(app->env.wasm, desc->name);
+            if(handle)
             {
-                checked = true;
-                for(int retIndex = 0; retIndex < retCount; retIndex++)
-                {
-                    M3ValueType m3Type = m3_GetRetType(handler, retIndex);
-                    char tag = m3_type_to_tag(m3Type);
+                oc_wasm_function_info info = oc_wasm_function_get_info(scratch.arena, app->env.wasm, handle);
 
-                    if(tag != desc->retTags.ptr[retIndex])
+                bool checked = false;
+
+                //NOTE: check function signature
+                if(info.countReturns == desc->retTags.len && info.countParams == desc->argTags.len)
+                {
+                    checked = true;
+
+                    for(int retIndex = 0; retIndex < info.countReturns && checked; retIndex++)
                     {
-                        checked = false;
-                        break;
+                        char tag = valtype_to_tag(info.returns[retIndex]);
+                        if(tag != desc->retTags.ptr[retIndex])
+                        {
+                            checked = false;
+                        }
                     }
-                }
-                if(checked)
-                {
-                    for(int argIndex = 0; argIndex < argCount; argIndex++)
-                    {
-                        M3ValueType m3Type = m3_GetArgType(handler, argIndex);
-                        char tag = m3_type_to_tag(m3Type);
 
+                    for(int argIndex = 0; argIndex < info.countParams && checked; argIndex++)
+                    {
+                        char tag = valtype_to_tag(info.params[argIndex]);
                         if(tag != desc->argTags.ptr[argIndex])
                         {
                             checked = false;
-                            break;
                         }
                     }
                 }
-            }
 
-            if(checked)
-            {
-                app->env.exports[i] = handler;
-            }
-            else
-            {
-                oc_log_error("type mismatch for event handler %.*s\n", (int)desc->name.len, desc->name.ptr);
+                if(checked)
+                {
+                    app->env.exports[i] = handle;
+                }
+                else
+                {
+                    oc_log_error("type mismatch for event handler %.*s\n", (int)desc->name.len, desc->name.ptr);
+                }
             }
         }
+
+        oc_scratch_end(scratch);
     }
 
     //NOTE: get location of the raw event slot
-    IM3Global rawEventGlobal = m3_FindGlobal(app->env.m3Module, "oc_rawEvent");
-    app->env.rawEventOffset = (u32)rawEventGlobal->intValue;
+    {
+        oc_wasm_global_pointer pointer = oc_wasm_global_pointer_find(app->env.wasm, OC_STR8("oc_rawEvent"));
+        if(pointer.handle == NULL)
+        {
+            oc_abort_ext_dialog(__FILE__, __FUNCTION__, __LINE__, "Failed to find raw event global - was this module linked with the Orca wasm runtime?");
+        }
+        app->env.rawEventOffset = pointer.address;
+    }
 
     //NOTE: preopen the app local root dir
     {
-        scratch = oc_scratch_begin();
+        oc_arena_scope scratch = oc_scratch_begin();
 
         oc_str8 localRootPath = oc_path_executable_relative(scratch.arena, OC_STR8("../app/data"));
 
@@ -610,36 +635,54 @@ i32 orca_runloop(void* user)
         oc_scratch_end(scratch);
     }
 
-    IM3Function* exports = app->env.exports;
+    oc_wasm_function_handle** exports = app->env.exports;
+
+    if(s_test_wasm_module_path)
+    {
+        oc_wasm_val returnCode = { 0 };
+        if(exports[OC_EXPORT_ON_TEST])
+        {
+            oc_wasm_status status = oc_wasm_function_call(app->env.wasm, exports[OC_EXPORT_ON_TEST], NULL, 0, &returnCode, 1);
+            OC_WASM_TRAP(status);
+
+            if(returnCode.I32 != 0)
+            {
+                oc_log_error("Tests failed. Exit code: %d\n", returnCode.I32);
+            }
+        }
+        else
+        {
+            returnCode.I32 = 1;
+            oc_log_error("Failed to find oc_on_test() hook - unable to run tests.\n");
+        }
+        oc_request_quit();
+        return returnCode.I32;
+    }
 
     //NOTE: call init handler
     if(exports[OC_EXPORT_ON_INIT])
     {
-        M3Result res = m3_Call(exports[OC_EXPORT_ON_INIT], 0, 0);
-        if(res)
-        {
-            OC_WASM3_TRAP(app->env.m3Runtime, res, "Runtime error");
-        }
+        oc_wasm_status status = oc_wasm_function_call(app->env.wasm, exports[OC_EXPORT_ON_INIT], NULL, 0, NULL, 0);
+        OC_WASM_TRAP(status);
     }
 
     if(exports[OC_EXPORT_FRAME_RESIZE])
     {
         oc_rect content = oc_window_get_content_rect(app->window);
-        u32 width = (u32)content.w;
-        u32 height = (u32)content.h;
-        const void* args[2] = { &width, &height };
-        M3Result res = m3_Call(exports[OC_EXPORT_FRAME_RESIZE], 2, args);
-        if(res)
-        {
-            OC_WASM3_TRAP(app->env.m3Runtime, res, "Runtime error");
-        }
+
+        oc_wasm_val params[2];
+        params[0].I32 = (i32)content.w;
+        params[1].I32 = (i32)content.h;
+
+        oc_wasm_status status = oc_wasm_function_call(app->env.wasm, exports[OC_EXPORT_FRAME_RESIZE], params, oc_array_size(params), NULL, 0);
+        OC_WASM_TRAP(status);
     }
 
     oc_ui_set_context(&app->debugOverlay.ui);
 
     while(!app->quit)
     {
-        scratch = oc_scratch_begin();
+        oc_arena_scope scratch = oc_scratch_begin();
         oc_event* event = 0;
 
         while((event = oc_next_event(scratch.arena)) != 0)
@@ -668,19 +711,19 @@ i32 orca_runloop(void* user)
 
                 for(int i = 0; i < eventsCount; i++)
                 {
-#ifndef M3_BIG_ENDIAN
-                    oc_event* eventPtr = (oc_event*)oc_wasm_address_to_ptr(app->env.rawEventOffset, sizeof(oc_event));
-                    memcpy(eventPtr, events[i], sizeof(*events[i]));
-
-                    const void* args[1] = { &app->env.rawEventOffset };
-                    M3Result res = m3_Call(exports[OC_EXPORT_RAW_EVENT], 1, args);
-                    if(res)
+                    if(oc_is_little_endian())
                     {
-                        OC_WASM3_TRAP(app->env.m3Runtime, res, "Runtime error");
+                        oc_event* eventPtr = (oc_event*)oc_wasm_address_to_ptr(app->env.rawEventOffset, sizeof(oc_event));
+                        memcpy(eventPtr, events[i], sizeof(*events[i]));
+
+                        oc_wasm_val eventOffset = { .I32 = (i32)app->env.rawEventOffset };
+                        oc_wasm_status status = oc_wasm_function_call(app->env.wasm, exports[OC_EXPORT_RAW_EVENT], &eventOffset, 1, NULL, 0);
+                        OC_WASM_TRAP(status);
                     }
-#else
-                    oc_log_error("oc_on_raw_event() is not supported on big endian platforms");
-#endif
+                    else
+                    {
+                        oc_log_error("oc_on_raw_event() is not supported on big endian platforms");
+                    }
                 }
 
                 oc_runtime_clipboard_process_event_end(&__orcaApp.clipboard);
@@ -701,14 +744,12 @@ i32 orca_runloop(void* user)
 
                     if(exports[OC_EXPORT_FRAME_RESIZE])
                     {
-                        u32 width = (u32)event->move.content.w;
-                        u32 height = (u32)event->move.content.h;
-                        const void* args[2] = { &width, &height };
-                        M3Result res = m3_Call(exports[OC_EXPORT_FRAME_RESIZE], 2, args);
-                        if(res)
-                        {
-                            OC_WASM3_TRAP(app->env.m3Runtime, res, "Runtime error");
-                        }
+                        oc_wasm_val params[2];
+                        params[0].I32 = (i32)event->move.content.w;
+                        params[1].I32 = (i32)event->move.content.h;
+
+                        oc_wasm_status status = oc_wasm_function_call(app->env.wasm, exports[OC_EXPORT_FRAME_RESIZE], params, oc_array_size(params), NULL, 0);
+                        OC_WASM_TRAP(status);
                     }
                 }
                 break;
@@ -719,26 +760,20 @@ i32 orca_runloop(void* user)
                     {
                         if(exports[OC_EXPORT_MOUSE_DOWN])
                         {
-                            oc_mouse_button button = event->key.button;
-                            const void* args[1] = { &button };
-                            M3Result res = m3_Call(exports[OC_EXPORT_MOUSE_DOWN], 1, args);
-                            if(res)
-                            {
-                                OC_WASM3_TRAP(app->env.m3Runtime, res, "Runtime error");
-                            }
+                            oc_wasm_val button = { .I32 = event->key.button };
+
+                            oc_wasm_status status = oc_wasm_function_call(app->env.wasm, exports[OC_EXPORT_MOUSE_DOWN], &button, 1, NULL, 0);
+                            OC_WASM_TRAP(status);
                         }
                     }
                     else
                     {
                         if(exports[OC_EXPORT_MOUSE_UP])
                         {
-                            oc_mouse_button button = event->key.button;
-                            const void* args[1] = { &button };
-                            M3Result res = m3_Call(exports[OC_EXPORT_MOUSE_UP], 1, args);
-                            if(res)
-                            {
-                                OC_WASM3_TRAP(app->env.m3Runtime, res, "Runtime error");
-                            }
+                            oc_wasm_val button = { .I32 = event->key.button };
+
+                            oc_wasm_status status = oc_wasm_function_call(app->env.wasm, exports[OC_EXPORT_MOUSE_UP], &button, 1, NULL, 0);
+                            OC_WASM_TRAP(status);
                         }
                     }
                 }
@@ -748,12 +783,12 @@ i32 orca_runloop(void* user)
                 {
                     if(exports[OC_EXPORT_MOUSE_WHEEL])
                     {
-                        const void* args[2] = { &event->mouse.deltaX, &event->mouse.deltaY };
-                        M3Result res = m3_Call(exports[OC_EXPORT_MOUSE_WHEEL], 2, args);
-                        if(res)
-                        {
-                            OC_WASM3_TRAP(app->env.m3Runtime, res, "Runtime error");
-                        }
+                        oc_wasm_val params[2];
+                        params[0].F32 = event->mouse.deltaX;
+                        params[1].F32 = event->mouse.deltaY;
+
+                        oc_wasm_status status = oc_wasm_function_call(app->env.wasm, exports[OC_EXPORT_MOUSE_WHEEL], params, oc_array_size(params), NULL, 0);
+                        OC_WASM_TRAP(status);
                     }
                 }
                 break;
@@ -762,12 +797,14 @@ i32 orca_runloop(void* user)
                 {
                     if(exports[OC_EXPORT_MOUSE_MOVE])
                     {
-                        const void* args[4] = { &event->mouse.x, &event->mouse.y, &event->mouse.deltaX, &event->mouse.deltaY };
-                        M3Result res = m3_Call(exports[OC_EXPORT_MOUSE_MOVE], 4, args);
-                        if(res)
-                        {
-                            OC_WASM3_TRAP(app->env.m3Runtime, res, "Runtime error");
-                        }
+                        oc_wasm_val params[4];
+                        params[0].F32 = event->mouse.x;
+                        params[1].F32 = event->mouse.y;
+                        params[2].F32 = event->mouse.deltaX;
+                        params[3].F32 = event->mouse.deltaY;
+
+                        oc_wasm_status status = oc_wasm_function_call(app->env.wasm, exports[OC_EXPORT_MOUSE_MOVE], params, oc_array_size(params), NULL, 0);
+                        OC_WASM_TRAP(status);
                     }
                 }
                 break;
@@ -785,24 +822,24 @@ i32 orca_runloop(void* user)
 
                         if(exports[OC_EXPORT_KEY_DOWN])
                         {
-                            const void* args[2] = { &event->key.scanCode, &event->key.keyCode };
-                            M3Result res = m3_Call(exports[OC_EXPORT_KEY_DOWN], 2, args);
-                            if(res)
-                            {
-                                OC_WASM3_TRAP(app->env.m3Runtime, res, "Runtime error");
-                            }
+                            oc_wasm_val params[2];
+                            params[0].I32 = event->key.scanCode;
+                            params[1].I32 = event->key.keyCode;
+
+                            oc_wasm_status status = oc_wasm_function_call(app->env.wasm, exports[OC_EXPORT_KEY_DOWN], params, oc_array_size(params), NULL, 0);
+                            OC_WASM_TRAP(status);
                         }
                     }
                     else if(event->key.action == OC_KEY_RELEASE)
                     {
                         if(exports[OC_EXPORT_KEY_UP])
                         {
-                            const void* args[2] = { &event->key.scanCode, &event->key.keyCode };
-                            M3Result res = m3_Call(exports[OC_EXPORT_KEY_UP], 2, args);
-                            if(res)
-                            {
-                                OC_WASM3_TRAP(app->env.m3Runtime, res, "Runtime error");
-                            }
+                            oc_wasm_val params[2];
+                            params[0].I32 = event->key.scanCode;
+                            params[1].I32 = event->key.keyCode;
+
+                            oc_wasm_status status = oc_wasm_function_call(app->env.wasm, exports[OC_EXPORT_KEY_UP], params, oc_array_size(params), NULL, 0);
+                            OC_WASM_TRAP(status);
                         }
                     }
                 }
@@ -813,22 +850,17 @@ i32 orca_runloop(void* user)
             }
         }
 
-        oc_surface_deselect();
-
         if(exports[OC_EXPORT_FRAME_REFRESH])
         {
-            M3Result res = m3_Call(exports[OC_EXPORT_FRAME_REFRESH], 0, 0);
-            if(res)
-            {
-                OC_WASM3_TRAP(app->env.m3Runtime, res, "Runtime error");
-            }
+            oc_wasm_status status = oc_wasm_function_call(app->env.wasm, exports[OC_EXPORT_FRAME_REFRESH], NULL, 0, NULL, 0);
+            OC_WASM_TRAP(status);
         }
 
-        oc_surface_select(app->debugOverlay.surface);
-        oc_canvas_select(app->debugOverlay.canvas);
+        oc_canvas_context_select(app->debugOverlay.context);
 
         if(app->debugOverlay.show)
         {
+            //TODO: only move if it's not already on the front?
             oc_surface_bring_to_front(app->debugOverlay.surface);
 
             oc_ui_style debugUIDefaultStyle = { .bgColor = { 0 },
@@ -896,7 +928,7 @@ i32 orca_runloop(void* user)
                             oc_list_for_safe(app->debugOverlay.logEntries, entry, log_entry, listElt)
                             {
                                 oc_list_remove(&app->debugOverlay.logEntries, &entry->listElt);
-                                oc_list_push(&app->debugOverlay.logFreeList, &entry->listElt);
+                                oc_list_push_front(&app->debugOverlay.logFreeList, &entry->listElt);
                                 app->debugOverlay.entryCount--;
                             }
                         }
@@ -962,12 +994,14 @@ i32 orca_runloop(void* user)
         }
         else
         {
+            //TODO: only move if it's not already on the back?
+            oc_surface_send_to_back(app->debugOverlay.surface);
             oc_set_color_rgba(0, 0, 0, 0);
             oc_clear();
         }
 
-        oc_render(app->debugOverlay.canvas);
-        oc_surface_present(app->debugOverlay.surface);
+        oc_canvas_render(app->canvasRenderer, app->debugOverlay.context, app->debugOverlay.surface);
+        oc_canvas_present(app->canvasRenderer, app->debugOverlay.surface);
 
         oc_scratch_end(scratch);
 
@@ -980,11 +1014,8 @@ i32 orca_runloop(void* user)
 
     if(exports[OC_EXPORT_TERMINATE])
     {
-        M3Result res = m3_Call(exports[OC_EXPORT_TERMINATE], 0, 0);
-        if(res)
-        {
-            OC_WASM3_TRAP(app->env.m3Runtime, res, "Runtime error");
-        }
+        oc_wasm_status status = oc_wasm_function_call(app->env.wasm, exports[OC_EXPORT_TERMINATE], NULL, 0, NULL, 0);
+        OC_WASM_TRAP(status);
     }
 
     oc_request_quit();
@@ -994,6 +1025,14 @@ i32 orca_runloop(void* user)
 
 int main(int argc, char** argv)
 {
+    if(argc > 1)
+    {
+        if(strstr(argv[1], "--test="))
+        {
+            s_test_wasm_module_path = argv[1] + sizeof("--test=") - 1;
+        }
+    }
+
     oc_log_set_level(OC_LOG_LEVEL_INFO);
 
     oc_init();
@@ -1001,34 +1040,40 @@ int main(int argc, char** argv)
 
     oc_runtime* app = &__orcaApp;
 
-    //NOTE: create window and surfaces
-    oc_rect windowRect = { .x = 100, .y = 100, .w = 810, .h = 610 };
-    app->window = oc_window_create(windowRect, OC_STR8("orca"), 0);
-
-    app->debugOverlay.show = false;
-    app->debugOverlay.surface = oc_surface_create_for_window(app->window, OC_CANVAS);
-    app->debugOverlay.canvas = oc_canvas_create();
-    app->debugOverlay.fontReg = orca_font_create("../resources/Menlo.ttf");
-    app->debugOverlay.fontBold = orca_font_create("../resources/Menlo Bold.ttf");
     app->debugOverlay.maxEntries = 200;
     oc_arena_init(&app->debugOverlay.logArena);
 
+    if(s_test_wasm_module_path == NULL)
+    {
+        //NOTE: create window and surfaces
+        oc_rect windowRect = { .x = 100, .y = 100, .w = 810, .h = 610 };
+        app->window = oc_window_create(windowRect, OC_STR8("orca"), 0);
+
+        app->canvasRenderer = oc_canvas_renderer_create();
+
+        app->debugOverlay.show = false;
+        app->debugOverlay.surface = oc_canvas_surface_create_for_window(app->canvasRenderer, app->window);
+        app->debugOverlay.context = oc_canvas_context_create();
+        app->debugOverlay.fontReg = orca_font_create("../resources/Menlo.ttf");
+        app->debugOverlay.fontBold = orca_font_create("../resources/Menlo Bold.ttf");
+
+        /*TODO: wgpu-renderer: set swap interval?
+
 #if OC_PLATFORM_WINDOWS
-    //NOTE(martin): on windows we set all surfaces to non-synced, and do a single "manual" wait here.
-    //              on macOS each surface is individually synced to the monitor refresh rate but don't block each other
-    oc_surface_swap_interval(app->debugOverlay.surface, 0);
+        //NOTE(martin): on windows we set all surfaces to non-synced, and do a single "manual" wait here.
+        //              on macOS each surface is individually synced to the monitor refresh rate but don't block each other
+        oc_surface_swap_interval(app->debugOverlay.surface, 0);
 #else
-    oc_surface_swap_interval(app->debugOverlay.surface, 1);
+        oc_surface_swap_interval(app->debugOverlay.surface, 1);
 #endif
+    */
+        oc_ui_init(&app->debugOverlay.ui);
 
-    oc_surface_deselect();
-
-    oc_ui_init(&app->debugOverlay.ui);
-
-    //NOTE: show window and start runloop
-    oc_window_bring_to_front(app->window);
-    oc_window_focus(app->window);
-    oc_window_center(app->window);
+        //NOTE: show window and start runloop
+        oc_window_bring_to_front(app->window);
+        oc_window_focus(app->window);
+        oc_window_center(app->window);
+    }
 
     oc_thread* runloopThread = oc_thread_create(orca_runloop, 0);
 
@@ -1038,12 +1083,17 @@ int main(int argc, char** argv)
         //TODO: what to do with mem scratch here?
     }
 
-    oc_thread_join(runloopThread, NULL);
+    i64 exitCode = 0;
+    oc_thread_join(runloopThread, &exitCode);
 
-    oc_canvas_destroy(app->debugOverlay.canvas);
-    oc_surface_destroy(app->debugOverlay.surface);
-    oc_window_destroy(app->window);
+    if(s_test_wasm_module_path == NULL)
+    {
+        oc_canvas_context_destroy(app->debugOverlay.context);
+        oc_surface_destroy(app->debugOverlay.surface);
+        oc_canvas_renderer_destroy(app->canvasRenderer);
+        oc_window_destroy(app->window);
+    }
 
     oc_terminate();
-    return (0);
+    return (int)(exitCode);
 }

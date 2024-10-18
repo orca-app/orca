@@ -1,6 +1,7 @@
 import hashlib
 import json
 import os
+import re
 
 from .log import *
 
@@ -40,6 +41,7 @@ def dirsum(
     dirname,
     hash_func=hashlib.sha1,
     excluded_files=None,
+    excluded_dirs=None,
     ignore_hidden=False,
     followlinks=False,
     excluded_extensions=None,
@@ -47,6 +49,9 @@ def dirsum(
 ):
     if not excluded_files:
         excluded_files = []
+
+    if not excluded_dirs:
+        excluded_dirs = []
 
     if not excluded_extensions:
         excluded_extensions = []
@@ -59,7 +64,16 @@ def dirsum(
         if ignore_hidden and re.search(r"/\.", root):
             continue
 
-        dirs.sort()
+        skip_dir = False
+        parent_dir = root
+        while parent_dir:
+            if parent_dir in excluded_dirs:
+                skip_dir = True
+                break
+            parent_dir = os.path.dirname(parent_dir)
+        if skip_dir:
+            continue
+
         files.sort()
 
         for fname in files:

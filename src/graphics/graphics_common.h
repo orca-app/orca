@@ -40,7 +40,9 @@ typedef struct oc_attributes
 {
     f32 width;
     f32 tolerance;
-    oc_color color;
+    bool hasGradient;
+    oc_gradient_blend_space blendSpace;
+    oc_color colors[4];
     oc_joint_type joint;
     f32 maxJointExcursion;
     oc_cap_type cap;
@@ -58,7 +60,7 @@ typedef struct oc_attributes
 
 typedef enum
 {
-    OC_CMD_FILL,
+    OC_CMD_FILL = 0,
     OC_CMD_STROKE,
     OC_CMD_JUMP
 } oc_primitive_cmd;
@@ -77,11 +79,14 @@ typedef struct oc_primitive
 
 } oc_primitive;
 
-ORCA_API void oc_surface_render_commands(oc_surface surface,
-                                         oc_color clearColor,
-                                         u32 primitiveCount,
-                                         oc_primitive* primitives,
-                                         u32 eltCount,
-                                         oc_path_elt* elements);
+ORCA_API void oc_canvas_renderer_submit(oc_canvas_renderer renderer,
+                                        oc_surface surface,
+                                        u32 msaaSampleCount,
+                                        bool clear,
+                                        oc_color clearColor,
+                                        u32 primitiveCount,
+                                        oc_primitive* primitives,
+                                        u32 eltCount,
+                                        oc_path_elt* elements);
 
 #endif //__GRAPHICS_COMMON_H_

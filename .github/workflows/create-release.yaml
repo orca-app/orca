@@ -1,0 +1,41 @@
+name: create-release
+
+on:
+  push:
+    tags: [ "v[0-9]+.[0-9]+.[0-9]+", "test-release**" ]
+
+jobs:
+  build-all:
+    uses: ./.github/workflows/build-all.yaml
+    with:
+      version: ${{ github.ref_name }}
+
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    needs: [build-all]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          # when name is not specified, all artifacts from this run will be downloaded
+          path: artifacts
+          merge-multiple: true
+
+      - name: Compress samples
+        run: |
+          tar --format=ustar -czf samples.tar.gz samples
+
+      - name: Copy
+        run: |
+          mkdir releases
+          cp artifacts/orca-windows.tar.gz releases
+          cp artifacts/orca-mac-x64.tar.gz releases
+          cp artifacts/orca-mac-arm64.tar.gz releases
+          cp samples.tar.gz releases
+
+      - uses: ncipollo/release-action@v1
+        with:
+          artifacts: "releases/*"

@@ -46,7 +46,7 @@ enum
     OC_MATRIX_STACK_MAX_DEPTH = 64,
     OC_CLIP_STACK_MAX_DEPTH = 64,
     OC_MAX_PATH_ELEMENT_COUNT = 2 << 20,
-    OC_MAX_PRIMITIVE_COUNT = 8 << 10
+    OC_MAX_PRIMITIVE_COUNT = 8 << 14
 };
 
 typedef struct oc_font_data
@@ -65,13 +65,14 @@ typedef struct oc_font_data
 
 } oc_font_data;
 
-typedef struct oc_canvas_data oc_canvas_data;
+typedef struct oc_canvas_context_data oc_canvas_context_data;
 
 typedef enum oc_graphics_handle_kind
 {
     OC_GRAPHICS_HANDLE_NONE = 0,
     OC_GRAPHICS_HANDLE_SURFACE,
-    OC_GRAPHICS_HANDLE_CANVAS,
+    OC_GRAPHICS_HANDLE_CANVAS_RENDERER,
+    OC_GRAPHICS_HANDLE_CANVAS_CONTEXT,
     OC_GRAPHICS_HANDLE_FONT,
     OC_GRAPHICS_HANDLE_IMAGE,
     OC_GRAPHICS_HANDLE_SURFACE_SERVER,
@@ -106,7 +107,7 @@ typedef struct oc_graphics_data
 
 } oc_graphics_data;
 
-typedef struct oc_canvas_data
+typedef struct oc_canvas_context_data
 {
     oc_list_elt freeListElt;
 
@@ -128,12 +129,15 @@ typedef struct oc_canvas_data
     oc_primitive primitives[OC_MAX_PRIMITIVE_COUNT];
 
     //NOTE: these are used at render time
+    i32 msaaSampleCount;
+
+    bool clear;
     oc_color clearColor;
 
     oc_vec4 shapeExtents;
     oc_vec4 shapeScreenExtents;
 
-} oc_canvas_data;
+} oc_canvas_context_data;
 
 static oc_graphics_data oc_graphicsData = { 0 };
 
@@ -155,7 +159,7 @@ u64 oc_graphics_handle_alloc(oc_graphics_handle_kind kind, void* data)
         oc_graphics_init();
     }
 
-    oc_graphics_handle_slot* slot = oc_list_pop_entry(&oc_graphicsData.handleFreeList, oc_graphics_handle_slot, freeListElt);
+    oc_graphics_handle_slot* slot = oc_list_pop_front_entry(&oc_graphicsData.handleFreeList, oc_graphics_handle_slot, freeListElt);
     if(!slot && oc_graphicsData.handleNextIndex < OC_GRAPHICS_HANDLES_MAX_COUNT)
     {
         slot = &oc_graphicsData.handleArray[oc_graphicsData.handleNextIndex];
@@ -189,7 +193,7 @@ void oc_graphics_handle_recycle(u64 h)
         {
             OC_DEBUG_ASSERT(slot->generation != UINT32_MAX, "surface slot generation wrap around\n");
             slot->generation++;
-            oc_list_push(&oc_graphicsData.handleFreeList, &slot->freeListElt);
+            oc_list_push_front(&oc_graphicsData.handleFreeList, &slot->freeListElt);
         }
     }
 }
@@ -216,19 +220,45 @@ void* oc_graphics_data_from_handle(oc_graphics_handle_kind kind, u64 h)
 }
 
 //------------------------------------------------------------------------------------------
-//NOTE(martin): surface nil and is nil
+//NOTE(martin): nil handles
 //------------------------------------------------------------------------------------------
 
-oc_surface oc_surface_nil() { return ((oc_surface){ .h = 0 }); }
+oc_canvas_renderer oc_canvas_renderer_nil(void)
+{
+    return ((oc_canvas_renderer){ .h = 0 });
+}
 
-bool oc_surface_is_nil(oc_surface surface) { return (surface.h == 0); }
+bool oc_canvas_renderer_is_nil(oc_canvas_renderer renderer)
+{
+    return (renderer.h == 0);
+}
+
+oc_surface oc_surface_nil(void)
+{
+    return ((oc_surface){ .h = 0 });
+}
+
+bool oc_surface_is_nil(oc_surface surface)
+{
+    return (surface.h == 0);
+}
+
+oc_canvas_context oc_canvas_context_nil()
+{
+    return ((oc_canvas_context){ .h = 0 });
+}
+
+bool oc_canvas_context_is_nil(oc_canvas_context context)
+{
+    return (context.h == 0);
+}
 
 //------------------------------------------------------------------------------------------
-//NOTE(martin): graphics canvas internal
+//NOTE(martin): canvas context internal
 //------------------------------------------------------------------------------------------
 
-oc_thread_local oc_canvas_data* __mgCurrentCanvas = 0;
-oc_thread_local oc_canvas __mgCurrentCanvasHandle = { 0 };
+oc_thread_local oc_canvas_context_data* oc_currentCanvasContext = 0;
+oc_thread_local oc_canvas_context oc_currentCanvasContextHandle = { 0 };
 
 bool oc_vec2_close(oc_vec2 p0, oc_vec2 p1, f32 tolerance)
 {
@@ -236,114 +266,114 @@ bool oc_vec2_close(oc_vec2 p0, oc_vec2 p1, f32 tolerance)
     return (fabs(norm2) < tolerance);
 }
 
-oc_mat2x3 oc_matrix_stack_top(oc_canvas_data* canvas)
+oc_mat2x3 oc_matrix_stack_top(oc_canvas_context_data* context)
 {
-    if(canvas->matrixStackSize == 0)
+    if(context->matrixStackSize == 0)
     {
         return ((oc_mat2x3){ 1, 0, 0,
                              0, 1, 0 });
     }
     else
     {
-        return (canvas->matrixStack[canvas->matrixStackSize - 1]);
+        return (context->matrixStack[context->matrixStackSize - 1]);
     }
 }
 
-void oc_matrix_stack_push(oc_canvas_data* canvas, oc_mat2x3 transform)
+void oc_matrix_stack_push(oc_canvas_context_data* context, oc_mat2x3 transform)
 {
-    if(canvas->matrixStackSize >= OC_MATRIX_STACK_MAX_DEPTH)
+    if(context->matrixStackSize >= OC_MATRIX_STACK_MAX_DEPTH)
     {
         oc_log_error("matrix stack overflow\n");
     }
     else
     {
-        canvas->matrixStack[canvas->matrixStackSize] = transform;
-        canvas->matrixStackSize++;
+        context->matrixStack[context->matrixStackSize] = transform;
+        context->matrixStackSize++;
     }
 }
 
-void oc_matrix_stack_pop(oc_canvas_data* canvas)
+void oc_matrix_stack_pop(oc_canvas_context_data* context)
 {
-    if(canvas->matrixStackSize == 0)
+    if(context->matrixStackSize == 0)
     {
         oc_log_error("matrix stack underflow\n");
     }
     else
     {
-        canvas->matrixStackSize--;
-        oc_matrix_stack_top(canvas);
+        context->matrixStackSize--;
+        oc_matrix_stack_top(context);
     }
 }
 
-oc_rect oc_clip_stack_top(oc_canvas_data* canvas)
+oc_rect oc_clip_stack_top(oc_canvas_context_data* context)
 {
-    if(canvas->clipStackSize == 0)
+    if(context->clipStackSize == 0)
     {
         return ((oc_rect){ -FLT_MAX / 2, -FLT_MAX / 2, FLT_MAX, FLT_MAX });
     }
     else
     {
-        return (canvas->clipStack[canvas->clipStackSize - 1]);
+        return (context->clipStack[context->clipStackSize - 1]);
     }
 }
 
-void oc_clip_stack_push(oc_canvas_data* canvas, oc_rect clip)
+void oc_clip_stack_push(oc_canvas_context_data* context, oc_rect clip)
 {
-    if(canvas->clipStackSize >= OC_CLIP_STACK_MAX_DEPTH)
+    if(context->clipStackSize >= OC_CLIP_STACK_MAX_DEPTH)
     {
         oc_log_error("clip stack overflow\n");
     }
     else
     {
-        canvas->clipStack[canvas->clipStackSize] = clip;
-        canvas->clipStackSize++;
+        context->clipStack[context->clipStackSize] = clip;
+        context->clipStackSize++;
     }
 }
 
-void oc_clip_stack_pop(oc_canvas_data* canvas)
+void oc_clip_stack_pop(oc_canvas_context_data* context)
 {
-    if(canvas->clipStackSize == 0)
+    if(context->clipStackSize == 0)
     {
         oc_log_error("clip stack underflow\n");
     }
     else
     {
-        canvas->clipStackSize--;
+        context->clipStackSize--;
     }
 }
 
-void oc_push_command(oc_canvas_data* canvas, oc_primitive primitive)
+void oc_push_command(oc_canvas_context_data* context, oc_primitive primitive)
 {
     //NOTE(martin): push primitive and updates current stream, eventually patching a pending jump.
-    OC_ASSERT(canvas->primitiveCount < OC_MAX_PRIMITIVE_COUNT);
+    OC_ASSERT(context->primitiveCount < OC_MAX_PRIMITIVE_COUNT);
 
-    canvas->primitives[canvas->primitiveCount] = primitive;
-    canvas->primitives[canvas->primitiveCount].attributes = canvas->attributes;
-    canvas->primitives[canvas->primitiveCount].attributes.transform = oc_matrix_stack_top(canvas);
-    canvas->primitives[canvas->primitiveCount].attributes.clip = oc_clip_stack_top(canvas);
-    canvas->primitiveCount++;
+    context->primitives[context->primitiveCount] = primitive;
+    context->primitives[context->primitiveCount].attributes = context->attributes;
+    context->primitives[context->primitiveCount].attributes.transform = oc_matrix_stack_top(context);
+    context->primitives[context->primitiveCount].attributes.clip = oc_clip_stack_top(context);
+    context->primitiveCount++;
 }
 
-void oc_new_path(oc_canvas_data* canvas)
+void oc_new_path(oc_canvas_context_data* context)
 {
-    canvas->path.startIndex += canvas->path.count;
-    canvas->path.count = 0;
-    canvas->subPathStartPoint = canvas->subPathLastPoint;
-    canvas->path.startPoint = canvas->subPathStartPoint;
+    context->path.startIndex += context->path.count;
+    context->path.count = 0;
+    context->subPathStartPoint = context->subPathLastPoint;
+    context->path.startPoint = context->subPathStartPoint;
 }
 
-void oc_path_push_elements(oc_canvas_data* canvas, u32 count, oc_path_elt* elements)
+void oc_path_push_elements(oc_canvas_context_data* context, u32 count, oc_path_elt* elements)
 {
-    OC_ASSERT(canvas->path.count + canvas->path.startIndex + count < OC_MAX_PATH_ELEMENT_COUNT);
-    memcpy(canvas->pathElements + canvas->path.startIndex + canvas->path.count, elements, count * sizeof(oc_path_elt));
-    canvas->path.count += count;
+    OC_ASSERT(context->path.count + context->path.startIndex + count < OC_MAX_PATH_ELEMENT_COUNT);
+    memcpy(context->pathElements + context->path.startIndex + context->path.count, elements, count * sizeof(oc_path_elt));
+    context->path.count += count;
 
-    OC_ASSERT(canvas->path.count < OC_MAX_PATH_ELEMENT_COUNT);
+    OC_ASSERT(context->path.count < OC_MAX_PATH_ELEMENT_COUNT);
 }
 
-void oc_path_push_element(oc_canvas_data* canvas, oc_path_elt elt)
+void oc_path_push_element(oc_canvas_context_data* context, oc_path_elt elt)
 {
-    oc_path_push_elements(canvas, 1, &elt);
+    oc_path_push_elements(context, 1, &elt);
 }
 
 //------------------------------------------------------------------------------------------
@@ -374,7 +404,7 @@ oc_font oc_font_create_from_memory(oc_str8 mem, u32 rangeCount, oc_unicode_range
     }
     oc_font fontHandle = oc_font_nil();
 
-    oc_font_data* font = oc_list_pop_entry(&oc_graphicsData.fontFreeList, oc_font_data, freeListElt);
+    oc_font_data* font = oc_list_pop_front_entry(&oc_graphicsData.fontFreeList, oc_font_data, freeListElt);
     if(!font)
     {
         font = oc_arena_push_type(&oc_graphicsData.resourceArena, oc_font_data);
@@ -598,7 +628,7 @@ void oc_font_destroy(oc_font fontHandle)
         free(fontData->glyphs);
         free(fontData->outlines);
 
-        oc_list_push(&oc_graphicsData.fontFreeList, &fontData->freeListElt);
+        oc_list_push_front(&oc_graphicsData.fontFreeList, &fontData->freeListElt);
         oc_graphics_handle_recycle(fontHandle.h);
     }
 }
@@ -755,6 +785,7 @@ int oc_font_get_codepoint_metrics(oc_font font, oc_utf32 codePoint, oc_text_metr
     return (0);
 }
 */
+
 /////////////////////////////////////////////////
 
 oc_text_metrics oc_font_text_metrics_utf32(oc_font font, f32 fontSize, oc_str32 codePoints)
@@ -897,100 +928,112 @@ oc_text_metrics oc_font_text_metrics(oc_font font, f32 fontSize, oc_str8 text)
 }
 
 //------------------------------------------------------------------------------------------
-//NOTE(martin): graphics canvas API
+//NOTE(martin): canvas context API
 //------------------------------------------------------------------------------------------
 
-oc_canvas oc_canvas_nil() { return ((oc_canvas){ .h = 0 }); }
-
-bool oc_canvas_is_nil(oc_canvas canvas) { return (canvas.h == 0); }
-
-oc_canvas oc_canvas_handle_alloc(oc_canvas_data* canvas)
+oc_canvas_context oc_canvas_context_handle_alloc(oc_canvas_context_data* context)
 {
-    oc_canvas handle = { .h = oc_graphics_handle_alloc(OC_GRAPHICS_HANDLE_CANVAS, (void*)canvas) };
+    oc_canvas_context handle = { .h = oc_graphics_handle_alloc(OC_GRAPHICS_HANDLE_CANVAS_CONTEXT, (void*)context) };
     return (handle);
 }
 
-oc_canvas_data* oc_canvas_data_from_handle(oc_canvas handle)
+oc_canvas_context_data* oc_canvas_context_from_handle(oc_canvas_context handle)
 {
-    oc_canvas_data* data = oc_graphics_data_from_handle(OC_GRAPHICS_HANDLE_CANVAS, handle.h);
-    return (data);
+    oc_canvas_context_data* context = oc_graphics_data_from_handle(OC_GRAPHICS_HANDLE_CANVAS_CONTEXT, handle.h);
+    return (context);
 }
 
-oc_canvas oc_canvas_create()
+oc_canvas_context oc_canvas_context_create()
 {
     if(!oc_graphicsData.init)
     {
         oc_graphics_init();
     }
 
-    oc_canvas canvasHandle = oc_canvas_nil();
-    oc_canvas_data* canvas = oc_list_pop_entry(&oc_graphicsData.canvasFreeList, oc_canvas_data, freeListElt);
-    if(!canvas)
+    oc_canvas_context contextHandle = oc_canvas_context_nil();
+    oc_canvas_context_data* context = oc_list_pop_front_entry(&oc_graphicsData.canvasFreeList, oc_canvas_context_data, freeListElt);
+    if(!context)
     {
-        canvas = oc_arena_push_type(&oc_graphicsData.resourceArena, oc_canvas_data);
+        context = oc_arena_push_type(&oc_graphicsData.resourceArena, oc_canvas_context_data);
     }
-    if(canvas)
+    if(context)
     {
-        canvas->textFlip = false;
-        canvas->path = (oc_path_descriptor){ 0 };
-        canvas->matrixStackSize = 0;
-        canvas->clipStackSize = 0;
-        canvas->primitiveCount = 0;
-        canvas->clearColor = (oc_color){ 0, 0, 0, 0 };
+        context->textFlip = false;
+        context->path = (oc_path_descriptor){ 0 };
+        context->matrixStackSize = 0;
+        context->clipStackSize = 0;
+        context->primitiveCount = 0;
+        context->clearColor = (oc_color){ 0, 0, 0, 0 };
+        context->msaaSampleCount = 8;
 
-        canvas->attributes = (oc_attributes){ 0 };
-        canvas->attributes.color = (oc_color){ 0, 0, 0, 1 };
-        canvas->attributes.tolerance = 1;
-        canvas->attributes.width = 10;
-        canvas->attributes.clip = (oc_rect){ -FLT_MAX / 2, -FLT_MAX / 2, FLT_MAX, FLT_MAX };
+        context->attributes = (oc_attributes){ 0 };
+        context->attributes.hasGradient = false;
+        context->attributes.colors[0] = (oc_color){ 0, 0, 0, 1 };
+        context->attributes.tolerance = 1;
+        context->attributes.width = 10;
+        context->attributes.clip = (oc_rect){ -FLT_MAX / 2, -FLT_MAX / 2, FLT_MAX, FLT_MAX };
 
-        canvasHandle = oc_canvas_handle_alloc(canvas);
+        contextHandle = oc_canvas_context_handle_alloc(context);
 
-        oc_canvas_select(canvasHandle);
+        oc_canvas_context_select(contextHandle);
     }
-    return (canvasHandle);
+    return (contextHandle);
 }
 
-void oc_canvas_destroy(oc_canvas handle)
+void oc_canvas_context_destroy(oc_canvas_context handle)
 {
-    oc_canvas_data* canvas = oc_canvas_data_from_handle(handle);
-    if(canvas)
+    oc_canvas_context_data* context = oc_canvas_context_from_handle(handle);
+    if(context)
     {
-        if(__mgCurrentCanvas == canvas)
+        if(oc_currentCanvasContext == context)
         {
-            __mgCurrentCanvas = 0;
-            __mgCurrentCanvasHandle = oc_canvas_nil();
+            oc_currentCanvasContext = 0;
+            oc_currentCanvasContextHandle = oc_canvas_context_nil();
         }
-        oc_list_push(&oc_graphicsData.canvasFreeList, &canvas->freeListElt);
+        oc_list_push_front(&oc_graphicsData.canvasFreeList, &context->freeListElt);
         oc_graphics_handle_recycle(handle.h);
     }
 }
 
-oc_canvas oc_canvas_select(oc_canvas canvas)
+oc_canvas_context oc_canvas_context_select(oc_canvas_context handle)
 {
-    oc_canvas old = __mgCurrentCanvasHandle;
-    __mgCurrentCanvasHandle = canvas;
-    __mgCurrentCanvas = oc_canvas_data_from_handle(canvas);
+    oc_canvas_context old = oc_currentCanvasContextHandle;
+    oc_currentCanvasContextHandle = handle;
+    oc_currentCanvasContext = oc_canvas_context_from_handle(handle);
     return (old);
 }
 
-void oc_render(oc_canvas canvas)
+void oc_canvas_context_set_msaa_sample_count(oc_canvas_context handle, u32 sampleCount)
 {
-    oc_surface selectedSurface = oc_surface_get_selected();
-    oc_canvas_data* canvasData = oc_canvas_data_from_handle(canvas);
-    if(canvasData && !oc_surface_is_nil(selectedSurface))
+    oc_canvas_context_data* context = oc_canvas_context_from_handle(handle);
+    if(context)
     {
-        int eltCount = canvasData->path.startIndex + canvasData->path.count;
-        oc_surface_render_commands(selectedSurface,
-                                   canvasData->clearColor,
-                                   canvasData->primitiveCount,
-                                   canvasData->primitives,
-                                   eltCount,
-                                   canvasData->pathElements);
+        context->msaaSampleCount = sampleCount;
+    }
+}
 
-        canvasData->primitiveCount = 0;
-        canvasData->path.startIndex = 0;
-        canvasData->path.count = 0;
+void oc_canvas_render(oc_canvas_renderer rendererHandle, oc_canvas_context contextHandle, oc_surface surfaceHandle)
+{
+    oc_canvas_context_data* context = oc_canvas_context_from_handle(contextHandle);
+
+    if(context && !oc_canvas_renderer_is_nil(rendererHandle) && !oc_surface_is_nil(surfaceHandle))
+    {
+        int eltCount = context->path.startIndex + context->path.count;
+
+        oc_canvas_renderer_submit(rendererHandle,
+                                  surfaceHandle,
+                                  context->msaaSampleCount,
+                                  context->clear,
+                                  context->clearColor,
+                                  context->primitiveCount,
+                                  context->primitives,
+                                  eltCount,
+                                  context->pathElements);
+
+        context->primitiveCount = 0;
+        context->path.startIndex = 0;
+        context->path.count = 0;
+        context->clear = false;
     }
 }
 
@@ -1000,29 +1043,29 @@ void oc_render(oc_canvas canvas)
 
 void oc_matrix_push(oc_mat2x3 matrix)
 {
-    oc_canvas_data* canvas = __mgCurrentCanvas;
-    if(canvas)
+    oc_canvas_context_data* context = oc_currentCanvasContext;
+    if(context)
     {
-        oc_matrix_stack_push(canvas, matrix);
+        oc_matrix_stack_push(context, matrix);
     }
 }
 
 void oc_matrix_multiply_push(oc_mat2x3 matrix)
 {
-    oc_canvas_data* canvas = __mgCurrentCanvas;
-    if(canvas)
+    oc_canvas_context_data* context = oc_currentCanvasContext;
+    if(context)
     {
-        oc_mat2x3 transform = oc_matrix_stack_top(canvas);
-        oc_matrix_stack_push(canvas, oc_mat2x3_mul_m(transform, matrix));
+        oc_mat2x3 transform = oc_matrix_stack_top(context);
+        oc_matrix_stack_push(context, oc_mat2x3_mul_m(transform, matrix));
     }
 }
 
 void oc_matrix_pop()
 {
-    oc_canvas_data* canvas = __mgCurrentCanvas;
-    if(canvas)
+    oc_canvas_context_data* context = oc_currentCanvasContext;
+    if(context)
     {
-        oc_matrix_stack_pop(canvas);
+        oc_matrix_stack_pop(context);
     }
 }
 
@@ -1032,10 +1075,10 @@ oc_mat2x3 oc_matrix_top()
         1, 0, 0,
         0, 1, 0
     };
-    oc_canvas_data* canvas = __mgCurrentCanvas;
-    if(canvas)
+    oc_canvas_context_data* context = oc_currentCanvasContext;
+    if(context)
     {
-        mat = oc_matrix_stack_top(canvas);
+        mat = oc_matrix_stack_top(context);
     }
 
     return (mat);
@@ -1043,13 +1086,13 @@ oc_mat2x3 oc_matrix_top()
 
 void oc_clip_push(f32 x, f32 y, f32 w, f32 h)
 {
-    oc_canvas_data* canvas = __mgCurrentCanvas;
-    if(canvas)
+    oc_canvas_context_data* context = oc_currentCanvasContext;
+    if(context)
     {
         oc_rect clip = { x, y, w, h };
 
         //NOTE(martin): transform clip
-        oc_mat2x3 transform = oc_matrix_stack_top(canvas);
+        oc_mat2x3 transform = oc_matrix_stack_top(context);
         oc_vec2 p0 = oc_mat2x3_mul(transform, (oc_vec2){ clip.x, clip.y });
         oc_vec2 p1 = oc_mat2x3_mul(transform, (oc_vec2){ clip.x + clip.w, clip.y });
         oc_vec2 p2 = oc_mat2x3_mul(transform, (oc_vec2){ clip.x + clip.w, clip.y + clip.h });
@@ -1060,7 +1103,7 @@ void oc_clip_push(f32 x, f32 y, f32 w, f32 h)
         f32 x1 = oc_max(p0.x, oc_max(p1.x, oc_max(p2.x, p3.x)));
         f32 y1 = oc_max(p0.y, oc_max(p1.y, oc_max(p2.y, p3.y)));
 
-        oc_rect current = oc_clip_stack_top(canvas);
+        oc_rect current = oc_clip_stack_top(context);
 
         //NOTE(martin): intersect with current clip
         x0 = oc_max(current.x, x0);
@@ -1069,19 +1112,19 @@ void oc_clip_push(f32 x, f32 y, f32 w, f32 h)
         y1 = oc_min(current.y + current.h, y1);
 
         oc_rect r = { x0, y0, oc_max(0, x1 - x0), oc_max(0, y1 - y0) };
-        oc_clip_stack_push(canvas, r);
+        oc_clip_stack_push(context, r);
 
-        canvas->attributes.clip = r;
+        context->attributes.clip = r;
     }
 }
 
 void oc_clip_pop()
 {
-    oc_canvas_data* canvas = __mgCurrentCanvas;
-    if(canvas)
+    oc_canvas_context_data* context = oc_currentCanvasContext;
+    if(context)
     {
-        oc_clip_stack_pop(canvas);
-        canvas->attributes.clip = oc_clip_stack_top(canvas);
+        oc_clip_stack_pop(context);
+        context->attributes.clip = oc_clip_stack_top(context);
     }
 }
 
@@ -1089,13 +1132,90 @@ oc_rect oc_clip_top()
 {
     oc_rect clip = { -FLT_MAX / 2, -FLT_MAX / 2, FLT_MAX, FLT_MAX };
 
-    oc_canvas_data* canvas = __mgCurrentCanvas;
-    if(canvas)
+    oc_canvas_context_data* context = oc_currentCanvasContext;
+    if(context)
     {
-        clip = oc_clip_stack_top(canvas);
+        clip = oc_clip_stack_top(context);
     }
 
     return (clip);
+}
+
+//------------------------------------------------------------------------------------------
+//NOTE(martin): color helpers
+//------------------------------------------------------------------------------------------
+
+oc_color oc_color_rgba(f32 r, f32 g, f32 b, f32 a)
+{
+    return ((oc_color){ r, g, b, a, OC_COLOR_SPACE_RGB });
+}
+
+oc_color oc_color_srgba(f32 r, f32 g, f32 b, f32 a)
+{
+    return ((oc_color){ r, g, b, a, OC_COLOR_SPACE_SRGB });
+}
+
+oc_color oc_color_convert(oc_color color, oc_color_space colorSpace)
+{
+    switch(colorSpace)
+    {
+        case OC_COLOR_SPACE_RGB:
+        {
+            switch(color.colorSpace)
+            {
+                case OC_COLOR_SPACE_RGB:
+                    // No conversion
+                    break;
+
+                case OC_COLOR_SPACE_SRGB:
+                {
+                    for(int i = 0; i < 3; i++)
+                    {
+                        if(color.c[i] <= 0.04045)
+                        {
+                            color.c[i] = color.c[i] / 12.92;
+                        }
+                        else
+                        {
+                            color.c[i] = powf((color.c[i] + 0.055) / 1.055, 2.4);
+                        }
+                    }
+                }
+                break;
+            }
+        }
+        break;
+
+        case OC_COLOR_SPACE_SRGB:
+        {
+            switch(color.colorSpace)
+            {
+                case OC_COLOR_SPACE_RGB:
+                {
+                    // RGBA to SRGBA
+                    for(int i = 0; i < 3; i++)
+                    {
+                        if(color.c[i] <= 0.0031308)
+                        {
+                            color.c[i] = color.c[i] * 12.92;
+                        }
+                        else
+                        {
+                            color.c[i] = 1.055 * powf(color.c[i], 1.0 / 2.4) - 0.055;
+                        }
+                    }
+                }
+                break;
+
+                case OC_COLOR_SPACE_SRGB:
+                    // No conversion
+                    break;
+            }
+        }
+        break;
+    }
+    color.colorSpace = colorSpace;
+    return (color);
 }
 
 //------------------------------------------------------------------------------------------
@@ -1103,117 +1223,137 @@ oc_rect oc_clip_top()
 //------------------------------------------------------------------------------------------
 void oc_set_color(oc_color color)
 {
-    oc_canvas_data* canvas = __mgCurrentCanvas;
-    if(canvas)
+    oc_canvas_context_data* context = oc_currentCanvasContext;
+    if(context)
     {
-        canvas->attributes.color = color;
+        context->attributes.hasGradient = false;
+        context->attributes.colors[0] = color;
     }
 }
 
 void oc_set_color_rgba(f32 r, f32 g, f32 b, f32 a)
 {
-    oc_set_color((oc_color){ r, g, b, a });
+    oc_set_color((oc_color){ r, g, b, a, .colorSpace = OC_COLOR_SPACE_RGB });
+}
+
+void oc_set_color_srgba(f32 r, f32 g, f32 b, f32 a)
+{
+    oc_set_color((oc_color){ r, g, b, a, .colorSpace = OC_COLOR_SPACE_SRGB });
+}
+
+void oc_set_gradient(oc_gradient_blend_space blendSpace, oc_color bottomLeft, oc_color bottomRight, oc_color topRight, oc_color topLeft)
+{
+    oc_canvas_context_data* context = oc_currentCanvasContext;
+    if(context)
+    {
+        context->attributes.hasGradient = true;
+        context->attributes.blendSpace = blendSpace;
+        context->attributes.colors[0] = bottomLeft;
+        context->attributes.colors[1] = bottomRight;
+        context->attributes.colors[2] = topRight;
+        context->attributes.colors[3] = topLeft;
+    }
 }
 
 void oc_set_width(f32 width)
 {
-    oc_canvas_data* canvas = __mgCurrentCanvas;
-    if(canvas)
+    oc_canvas_context_data* context = oc_currentCanvasContext;
+    if(context)
     {
-        canvas->attributes.width = width;
+        context->attributes.width = width;
     }
 }
 
 void oc_set_tolerance(f32 tolerance)
 {
-    oc_canvas_data* canvas = __mgCurrentCanvas;
-    if(canvas)
+    oc_canvas_context_data* context = oc_currentCanvasContext;
+    if(context)
     {
-        canvas->attributes.tolerance = tolerance;
+        context->attributes.tolerance = tolerance;
     }
 }
 
 void oc_set_joint(oc_joint_type joint)
 {
-    oc_canvas_data* canvas = __mgCurrentCanvas;
-    if(canvas)
+    oc_canvas_context_data* context = oc_currentCanvasContext;
+    if(context)
     {
-        canvas->attributes.joint = joint;
+        context->attributes.joint = joint;
     }
 }
 
 void oc_set_max_joint_excursion(f32 maxJointExcursion)
 {
-    oc_canvas_data* canvas = __mgCurrentCanvas;
-    if(canvas)
+    oc_canvas_context_data* context = oc_currentCanvasContext;
+    if(context)
     {
-        canvas->attributes.maxJointExcursion = maxJointExcursion;
+        context->attributes.maxJointExcursion = maxJointExcursion;
     }
 }
 
 void oc_set_cap(oc_cap_type cap)
 {
-    oc_canvas_data* canvas = __mgCurrentCanvas;
-    if(canvas)
+    oc_canvas_context_data* context = oc_currentCanvasContext;
+    if(context)
     {
-        canvas->attributes.cap = cap;
+        context->attributes.cap = cap;
     }
 }
 
 void oc_set_font(oc_font font)
 {
-    oc_canvas_data* canvas = __mgCurrentCanvas;
-    if(canvas)
+    oc_canvas_context_data* context = oc_currentCanvasContext;
+    if(context)
     {
-        canvas->attributes.font = font;
+        context->attributes.font = font;
     }
 }
 
 void oc_set_font_size(f32 fontSize)
 {
-    oc_canvas_data* canvas = __mgCurrentCanvas;
-    if(canvas)
+    oc_canvas_context_data* context = oc_currentCanvasContext;
+    if(context)
     {
-        canvas->attributes.fontSize = fontSize;
+        context->attributes.fontSize = fontSize;
     }
 }
 
 void oc_set_text_flip(bool flip)
 {
-    oc_canvas_data* canvas = __mgCurrentCanvas;
-    if(canvas)
+    oc_canvas_context_data* context = oc_currentCanvasContext;
+    if(context)
     {
-        canvas->textFlip = flip;
+        context->textFlip = flip;
     }
 }
 
 void oc_set_image(oc_image image)
 {
-    oc_canvas_data* canvas = __mgCurrentCanvas;
-    if(canvas)
+    oc_canvas_context_data* context = oc_currentCanvasContext;
+    if(context)
     {
-        canvas->attributes.image = image;
+        context->attributes.image = image;
         oc_vec2 size = oc_image_size(image);
-        canvas->attributes.srcRegion = (oc_rect){ 0, 0, size.x, size.y };
+        context->attributes.srcRegion = (oc_rect){ 0, 0, size.x, size.y };
     }
 }
 
 void oc_set_image_source_region(oc_rect region)
 {
-    oc_canvas_data* canvas = __mgCurrentCanvas;
-    if(canvas)
+    oc_canvas_context_data* context = oc_currentCanvasContext;
+    if(context)
     {
-        canvas->attributes.srcRegion = region;
+        context->attributes.srcRegion = region;
     }
 }
 
 oc_color oc_get_color()
 {
     oc_color color = { 0 };
-    oc_canvas_data* canvas = __mgCurrentCanvas;
-    if(canvas)
+    oc_canvas_context_data* context = oc_currentCanvasContext;
+    if(context)
     {
-        color = canvas->attributes.color;
+        color = context->attributes.colors[0];
     }
     return (color);
 }
@@ -1221,10 +1361,10 @@ oc_color oc_get_color()
 f32 oc_get_width()
 {
     f32 width = 0;
-    oc_canvas_data* canvas = __mgCurrentCanvas;
-    if(canvas)
+    oc_canvas_context_data* context = oc_currentCanvasContext;
+    if(context)
     {
-        width = canvas->attributes.width;
+        width = context->attributes.width;
     }
     return (width);
 }
@@ -1232,10 +1372,10 @@ f32 oc_get_width()
 f32 oc_get_tolerance()
 {
     f32 tolerance = 0;
-    oc_canvas_data* canvas = __mgCurrentCanvas;
-    if(canvas)
+    oc_canvas_context_data* context = oc_currentCanvasContext;
+    if(context)
     {
-        tolerance = canvas->attributes.tolerance;
+        tolerance = context->attributes.tolerance;
     }
     return (tolerance);
 }
@@ -1243,10 +1383,10 @@ f32 oc_get_tolerance()
 oc_joint_type oc_get_joint()
 {
     oc_joint_type joint = 0;
-    oc_canvas_data* canvas = __mgCurrentCanvas;
-    if(canvas)
+    oc_canvas_context_data* context = oc_currentCanvasContext;
+    if(context)
     {
-        joint = canvas->attributes.joint;
+        joint = context->attributes.joint;
     }
     return (joint);
 }
@@ -1254,10 +1394,10 @@ oc_joint_type oc_get_joint()
 f32 oc_get_max_joint_excursion()
 {
     f32 maxJointExcursion = 0;
-    oc_canvas_data* canvas = __mgCurrentCanvas;
-    if(canvas)
+    oc_canvas_context_data* context = oc_currentCanvasContext;
+    if(context)
     {
-        maxJointExcursion = canvas->attributes.maxJointExcursion;
+        maxJointExcursion = context->attributes.maxJointExcursion;
     }
     return (maxJointExcursion);
 }
@@ -1265,10 +1405,10 @@ f32 oc_get_max_joint_excursion()
 oc_cap_type oc_get_cap()
 {
     oc_cap_type cap = 0;
-    oc_canvas_data* canvas = __mgCurrentCanvas;
-    if(canvas)
+    oc_canvas_context_data* context = oc_currentCanvasContext;
+    if(context)
     {
-        cap = canvas->attributes.cap;
+        cap = context->attributes.cap;
     }
     return (cap);
 }
@@ -1276,10 +1416,10 @@ oc_cap_type oc_get_cap()
 oc_font oc_get_font()
 {
     oc_font font = oc_font_nil();
-    oc_canvas_data* canvas = __mgCurrentCanvas;
-    if(canvas)
+    oc_canvas_context_data* context = oc_currentCanvasContext;
+    if(context)
     {
-        font = canvas->attributes.font;
+        font = context->attributes.font;
     }
     return (font);
 }
@@ -1287,10 +1427,10 @@ oc_font oc_get_font()
 f32 oc_get_font_size()
 {
     f32 fontSize = 0;
-    oc_canvas_data* canvas = __mgCurrentCanvas;
-    if(canvas)
+    oc_canvas_context_data* context = oc_currentCanvasContext;
+    if(context)
     {
-        fontSize = canvas->attributes.fontSize;
+        fontSize = context->attributes.fontSize;
     }
     return (fontSize);
 }
@@ -1298,10 +1438,10 @@ f32 oc_get_font_size()
 bool oc_get_text_flip()
 {
     bool flip = false;
-    oc_canvas_data* canvas = __mgCurrentCanvas;
-    if(canvas)
+    oc_canvas_context_data* context = oc_currentCanvasContext;
+    if(context)
     {
-        flip = canvas->textFlip;
+        flip = context->textFlip;
     }
     return (flip);
 }
@@ -1309,10 +1449,10 @@ bool oc_get_text_flip()
 oc_image oc_get_image()
 {
     oc_image image = oc_image_nil();
-    oc_canvas_data* canvas = __mgCurrentCanvas;
-    if(canvas)
+    oc_canvas_context_data* context = oc_currentCanvasContext;
+    if(context)
     {
-        image = canvas->attributes.image;
+        image = context->attributes.image;
     }
     return (image);
 }
@@ -1320,10 +1460,10 @@ oc_image oc_get_image()
 oc_rect oc_get_image_source_region()
 {
     oc_rect rect = { 0 };
-    oc_canvas_data* canvas = __mgCurrentCanvas;
-    if(canvas)
+    oc_canvas_context_data* context = oc_currentCanvasContext;
+    if(context)
     {
-        rect = canvas->attributes.srcRegion;
+        rect = context->attributes.srcRegion;
     }
     return (rect);
 }
@@ -1333,91 +1473,91 @@ oc_rect oc_get_image_source_region()
 //------------------------------------------------------------------------------------------
 oc_vec2 oc_get_position()
 {
-    oc_canvas_data* canvas = __mgCurrentCanvas;
-    if(!canvas)
+    oc_canvas_context_data* context = oc_currentCanvasContext;
+    if(!context)
     {
         return ((oc_vec2){ 0, 0 });
     }
-    return (canvas->subPathLastPoint);
+    return (context->subPathLastPoint);
 }
 
 void oc_move_to(f32 x, f32 y)
 {
-    oc_canvas_data* canvas = __mgCurrentCanvas;
-    if(!canvas)
+    oc_canvas_context_data* context = oc_currentCanvasContext;
+    if(!context)
     {
         return;
     }
-    oc_path_push_element(canvas, ((oc_path_elt){ .type = OC_PATH_MOVE, .p[0] = { x, y } }));
-    canvas->subPathStartPoint = (oc_vec2){ x, y };
-    canvas->subPathLastPoint = (oc_vec2){ x, y };
+    oc_path_push_element(context, ((oc_path_elt){ .type = OC_PATH_MOVE, .p[0] = { x, y } }));
+    context->subPathStartPoint = (oc_vec2){ x, y };
+    context->subPathLastPoint = (oc_vec2){ x, y };
 }
 
 void oc_line_to(f32 x, f32 y)
 {
-    oc_canvas_data* canvas = __mgCurrentCanvas;
-    if(!canvas)
+    oc_canvas_context_data* context = oc_currentCanvasContext;
+    if(!context)
     {
         return;
     }
-    oc_path_push_element(canvas, ((oc_path_elt){ .type = OC_PATH_LINE, .p[0] = { x, y } }));
-    canvas->subPathLastPoint = (oc_vec2){ x, y };
+    oc_path_push_element(context, ((oc_path_elt){ .type = OC_PATH_LINE, .p[0] = { x, y } }));
+    context->subPathLastPoint = (oc_vec2){ x, y };
 }
 
 void oc_quadratic_to(f32 x1, f32 y1, f32 x2, f32 y2)
 {
-    oc_canvas_data* canvas = __mgCurrentCanvas;
-    if(!canvas)
+    oc_canvas_context_data* context = oc_currentCanvasContext;
+    if(!context)
     {
         return;
     }
-    oc_path_push_element(canvas, ((oc_path_elt){ .type = OC_PATH_QUADRATIC, .p = { { x1, y1 }, { x2, y2 } } }));
-    canvas->subPathLastPoint = (oc_vec2){ x2, y2 };
+    oc_path_push_element(context, ((oc_path_elt){ .type = OC_PATH_QUADRATIC, .p = { { x1, y1 }, { x2, y2 } } }));
+    context->subPathLastPoint = (oc_vec2){ x2, y2 };
 }
 
 void oc_cubic_to(f32 x1, f32 y1, f32 x2, f32 y2, f32 x3, f32 y3)
 {
-    oc_canvas_data* canvas = __mgCurrentCanvas;
-    if(!canvas)
+    oc_canvas_context_data* context = oc_currentCanvasContext;
+    if(!context)
     {
         return;
     }
-    oc_path_push_element(canvas, ((oc_path_elt){ .type = OC_PATH_CUBIC, .p = { { x1, y1 }, { x2, y2 }, { x3, y3 } } }));
-    canvas->subPathLastPoint = (oc_vec2){ x3, y3 };
+    oc_path_push_element(context, ((oc_path_elt){ .type = OC_PATH_CUBIC, .p = { { x1, y1 }, { x2, y2 }, { x3, y3 } } }));
+    context->subPathLastPoint = (oc_vec2){ x3, y3 };
 }
 
 void oc_close_path()
 {
-    oc_canvas_data* canvas = __mgCurrentCanvas;
-    if(!canvas)
+    oc_canvas_context_data* context = oc_currentCanvasContext;
+    if(!context)
     {
         return;
     }
-    if(canvas->subPathStartPoint.x != canvas->subPathLastPoint.x
-       || canvas->subPathStartPoint.y != canvas->subPathLastPoint.y)
+    if(context->subPathStartPoint.x != context->subPathLastPoint.x
+       || context->subPathStartPoint.y != context->subPathLastPoint.y)
     {
-        oc_line_to(canvas->subPathStartPoint.x, canvas->subPathStartPoint.y);
+        oc_line_to(context->subPathStartPoint.x, context->subPathStartPoint.y);
     }
-    canvas->subPathStartPoint = canvas->subPathLastPoint;
+    context->subPathStartPoint = context->subPathLastPoint;
 }
 
 oc_rect oc_glyph_outlines_from_font_data(oc_font_data* fontData, oc_str32 glyphIndices)
 {
-    oc_canvas_data* canvas = __mgCurrentCanvas;
+    oc_canvas_context_data* context = oc_currentCanvasContext;
 
-    f32 startX = canvas->subPathLastPoint.x;
-    f32 startY = canvas->subPathLastPoint.y;
+    f32 startX = context->subPathLastPoint.x;
+    f32 startY = context->subPathLastPoint.y;
     f32 maxWidth = 0;
 
-    f32 scale = canvas->attributes.fontSize / fontData->unitsPerEm;
+    f32 scale = context->attributes.fontSize / fontData->unitsPerEm;
 
     for(int i = 0; i < glyphIndices.len; i++)
     {
         u32 glyphIndex = glyphIndices.ptr[i];
 
-        f32 xOffset = canvas->subPathLastPoint.x;
-        f32 yOffset = canvas->subPathLastPoint.y;
-        f32 flip = canvas->textFlip ? 1 : -1;
+        f32 xOffset = context->subPathLastPoint.x;
+        f32 yOffset = context->subPathLastPoint.y;
+        f32 flip = context->textFlip ? 1 : -1;
 
         if(!glyphIndex || glyphIndex >= fontData->glyphCount)
         {
@@ -1449,7 +1589,7 @@ oc_rect oc_glyph_outlines_from_font_data(oc_font_data* fontData, oc_str32 glyphI
                     };
                 }
 
-                f32 oldStrokeWidth = canvas->attributes.width;
+                f32 oldStrokeWidth = context->attributes.width;
 
                 oc_set_width(missingGlyphMetrics.ink.w * 0.005);
                 oc_rectangle_stroke(xOffset + missingGlyphMetrics.ink.x * scale,
@@ -1466,9 +1606,9 @@ oc_rect oc_glyph_outlines_from_font_data(oc_font_data* fontData, oc_str32 glyphI
 
         oc_glyph_data* glyph = oc_font_get_glyph_data(fontData, glyphIndex);
 
-        oc_path_push_elements(canvas, glyph->pathDescriptor.count, fontData->outlines + glyph->pathDescriptor.startIndex);
+        oc_path_push_elements(context, glyph->pathDescriptor.count, fontData->outlines + glyph->pathDescriptor.startIndex);
 
-        oc_path_elt* elements = canvas->pathElements + canvas->path.count + canvas->path.startIndex - glyph->pathDescriptor.count;
+        oc_path_elt* elements = context->pathElements + context->path.count + context->path.startIndex - glyph->pathDescriptor.count;
         for(int eltIndex = 0; eltIndex < glyph->pathDescriptor.count; eltIndex++)
         {
             for(int pIndex = 0; pIndex < 3; pIndex++)
@@ -1482,18 +1622,18 @@ oc_rect oc_glyph_outlines_from_font_data(oc_font_data* fontData, oc_str32 glyphI
         maxWidth = oc_max(maxWidth, xOffset + scale * glyph->metrics.advance.x - startX);
     }
     f32 lineHeight = (fontData->metrics.ascent + fontData->metrics.descent) * scale;
-    oc_rect box = { startX, startY, maxWidth, canvas->subPathLastPoint.y - startY + lineHeight };
+    oc_rect box = { startX, startY, maxWidth, context->subPathLastPoint.y - startY + lineHeight };
     return (box);
 }
 
 oc_rect oc_glyph_outlines(oc_str32 glyphIndices)
 {
-    oc_canvas_data* canvas = __mgCurrentCanvas;
-    if(!canvas)
+    oc_canvas_context_data* context = oc_currentCanvasContext;
+    if(!context)
     {
         return ((oc_rect){ 0 });
     }
-    oc_font_data* fontData = oc_font_data_from_handle(canvas->attributes.font);
+    oc_font_data* fontData = oc_font_data_from_handle(context->attributes.font);
     if(!fontData)
     {
         return ((oc_rect){ 0 });
@@ -1503,12 +1643,12 @@ oc_rect oc_glyph_outlines(oc_str32 glyphIndices)
 
 void oc_codepoints_outlines(oc_str32 codePoints)
 {
-    oc_canvas_data* canvas = __mgCurrentCanvas;
-    if(!canvas)
+    oc_canvas_context_data* context = oc_currentCanvasContext;
+    if(!context)
     {
         return;
     }
-    oc_font_data* fontData = oc_font_data_from_handle(canvas->attributes.font);
+    oc_font_data* fontData = oc_font_data_from_handle(context->attributes.font);
     if(!fontData)
     {
         return;
@@ -1516,7 +1656,7 @@ void oc_codepoints_outlines(oc_str32 codePoints)
 
     oc_arena_scope scratch = oc_scratch_begin();
 
-    oc_str32 glyphIndices = oc_font_push_glyph_indices(scratch.arena, canvas->attributes.font, codePoints);
+    oc_str32 glyphIndices = oc_font_push_glyph_indices(scratch.arena, context->attributes.font, codePoints);
     oc_glyph_outlines_from_font_data(fontData, glyphIndices);
 
     oc_scratch_end(scratch);
@@ -1524,12 +1664,12 @@ void oc_codepoints_outlines(oc_str32 codePoints)
 
 void oc_text_outlines(oc_str8 text)
 {
-    oc_canvas_data* canvas = __mgCurrentCanvas;
-    if(!canvas)
+    oc_canvas_context_data* context = oc_currentCanvasContext;
+    if(!context)
     {
         return;
     }
-    oc_font_data* fontData = oc_font_data_from_handle(canvas->attributes.font);
+    oc_font_data* fontData = oc_font_data_from_handle(context->attributes.font);
     if(!fontData)
     {
         return;
@@ -1537,7 +1677,7 @@ void oc_text_outlines(oc_str8 text)
 
     oc_arena_scope scratch = oc_scratch_begin();
     oc_str32 codePoints = oc_utf8_push_to_codepoints(scratch.arena, text);
-    oc_str32 glyphIndices = oc_font_push_glyph_indices(scratch.arena, canvas->attributes.font, codePoints);
+    oc_str32 glyphIndices = oc_font_push_glyph_indices(scratch.arena, context->attributes.font, codePoints);
 
     oc_glyph_outlines_from_font_data(fontData, glyphIndices);
 
@@ -1550,31 +1690,32 @@ void oc_text_outlines(oc_str8 text)
 
 void oc_clear()
 {
-    oc_canvas_data* canvas = __mgCurrentCanvas;
-    if(canvas)
+    oc_canvas_context_data* context = oc_currentCanvasContext;
+    if(context)
     {
-        canvas->primitiveCount = 0;
-        canvas->clearColor = canvas->attributes.color;
+        context->primitiveCount = 0;
+        context->clearColor = context->attributes.colors[0];
+        context->clear = true;
     }
 }
 
 void oc_fill()
 {
-    oc_canvas_data* canvas = __mgCurrentCanvas;
-    if(canvas && canvas->path.count)
+    oc_canvas_context_data* context = oc_currentCanvasContext;
+    if(context && context->path.count)
     {
-        oc_push_command(canvas, (oc_primitive){ .cmd = OC_CMD_FILL, .path = canvas->path });
-        oc_new_path(canvas);
+        oc_push_command(context, (oc_primitive){ .cmd = OC_CMD_FILL, .path = context->path });
+        oc_new_path(context);
     }
 }
 
 void oc_stroke()
 {
-    oc_canvas_data* canvas = __mgCurrentCanvas;
-    if(canvas && canvas->path.count)
+    oc_canvas_context_data* context = oc_currentCanvasContext;
+    if(context && context->path.count)
     {
-        oc_push_command(canvas, (oc_primitive){ .cmd = OC_CMD_STROKE, .path = canvas->path });
-        oc_new_path(canvas);
+        oc_push_command(context, (oc_primitive){ .cmd = OC_CMD_STROKE, .path = context->path });
+        oc_new_path(context);
     }
 }
 
@@ -1713,13 +1854,19 @@ void oc_text_fill(f32 x, f32 y, oc_str8 text)
 //NOTE(martin): images
 //------------------------------------------------------------------------------------------
 
-oc_image oc_image_nil() { return ((oc_image){ .h = 0 }); }
-
-bool oc_image_is_nil(oc_image image) { return (image.h == 0); }
-
-oc_image oc_image_create_from_rgba8(oc_surface surface, u32 width, u32 height, u8* pixels)
+oc_image oc_image_nil()
 {
-    oc_image image = oc_image_create(surface, width, height);
+    return ((oc_image){ .h = 0 });
+}
+
+bool oc_image_is_nil(oc_image image)
+{
+    return (image.h == 0);
+}
+
+oc_image oc_image_create_from_rgba8(oc_canvas_renderer renderer, u32 width, u32 height, u8* pixels)
+{
+    oc_image image = oc_image_create(renderer, width, height);
     if(!oc_image_is_nil(image))
     {
         oc_image_upload_region_rgba8(image, (oc_rect){ 0, 0, width, height }, pixels);
@@ -1727,7 +1874,7 @@ oc_image oc_image_create_from_rgba8(oc_surface surface, u32 width, u32 height, u
     return (image);
 }
 
-oc_image oc_image_create_from_memory(oc_surface surface, oc_str8 mem, bool flip)
+oc_image oc_image_create_from_memory(oc_canvas_renderer renderer, oc_str8 mem, bool flip)
 {
     oc_image image = oc_image_nil();
     int width, height, channels;
@@ -1737,7 +1884,7 @@ oc_image oc_image_create_from_memory(oc_surface surface, oc_str8 mem, bool flip)
 
     if(pixels)
     {
-        image = oc_image_create_from_rgba8(surface, width, height, pixels);
+        image = oc_image_create_from_rgba8(renderer, width, height, pixels);
         free(pixels);
     }
     else
@@ -1747,7 +1894,7 @@ oc_image oc_image_create_from_memory(oc_surface surface, oc_str8 mem, bool flip)
     return (image);
 }
 
-oc_image oc_image_create_from_file(oc_surface surface, oc_file file, bool flip)
+oc_image oc_image_create_from_file(oc_canvas_renderer renderer, oc_file file, bool flip)
 {
     oc_image image = oc_image_nil();
     oc_arena_scope scratch = oc_scratch_begin();
@@ -1762,14 +1909,14 @@ oc_image oc_image_create_from_file(oc_surface surface, oc_file file, bool flip)
     }
     else
     {
-        image = oc_image_create_from_memory(surface, oc_str8_from_buffer(size, buffer), flip);
+        image = oc_image_create_from_memory(renderer, oc_str8_from_buffer(size, buffer), flip);
     }
 
     oc_scratch_end(scratch);
     return (image);
 }
 
-oc_image oc_image_create_from_path(oc_surface surface, oc_str8 path, bool flip)
+oc_image oc_image_create_from_path(oc_canvas_renderer renderer, oc_str8 path, bool flip)
 {
     oc_image image = oc_image_nil();
 
@@ -1780,7 +1927,7 @@ oc_image oc_image_create_from_path(oc_surface surface, oc_str8 path, bool flip)
     }
     else
     {
-        image = oc_image_create_from_file(surface, file, flip);
+        image = oc_image_create_from_file(renderer, file, flip);
     }
     oc_file_close(file);
     return (image);
@@ -1788,16 +1935,19 @@ oc_image oc_image_create_from_path(oc_surface surface, oc_str8 path, bool flip)
 
 void oc_image_draw_region(oc_image image, oc_rect srcRegion, oc_rect dstRegion)
 {
-    oc_canvas_data* canvas = __mgCurrentCanvas;
-    if(canvas)
+    oc_canvas_context_data* context = oc_currentCanvasContext;
+    if(context)
     {
-        oc_image oldImage = canvas->attributes.image;
-        oc_rect oldSrcRegion = canvas->attributes.srcRegion;
-        oc_color oldColor = canvas->attributes.color;
+        oc_image oldImage = context->attributes.image;
+        oc_rect oldSrcRegion = context->attributes.srcRegion;
+        oc_color oldColors[4];
+        memcpy(oldColors, context->attributes.colors, 4 * sizeof(oc_color));
+        bool oldHasGradient = context->attributes.hasGradient;
 
-        canvas->attributes.image = image;
-        canvas->attributes.srcRegion = srcRegion;
-        canvas->attributes.color = (oc_color){ 1, 1, 1, 1 };
+        context->attributes.image = image;
+        context->attributes.srcRegion = srcRegion;
+        context->attributes.colors[0] = (oc_color){ 1, 1, 1, 1 };
+        context->attributes.hasGradient = false;
 
         oc_move_to(dstRegion.x, dstRegion.y);
         oc_line_to(dstRegion.x + dstRegion.w, dstRegion.y);
@@ -1807,9 +1957,10 @@ void oc_image_draw_region(oc_image image, oc_rect srcRegion, oc_rect dstRegion)
 
         oc_fill();
 
-        canvas->attributes.image = oldImage;
-        canvas->attributes.srcRegion = oldSrcRegion;
-        canvas->attributes.color = oldColor;
+        context->attributes.image = oldImage;
+        context->attributes.srcRegion = oldSrcRegion;
+        memcpy(context->attributes.colors, oldColors, 4 * sizeof(oc_color));
+        context->attributes.hasGradient = oldHasGradient;
     }
 }
 

@@ -45,7 +45,7 @@
     #define _DEFAULT_SOURCE 1
     #define _XOPEN_SOURCE 500
     #define _GNU_SOURCE 1
-#elif defined(__ORCA__)
+#elif defined(__wasm__)
     #define OC_PLATFORM_ORCA 1
 #else
     #error "Can't identify platform"
@@ -75,7 +75,7 @@
         #define OC_ARCH_ARM32 1
     #elif defined(__aarch64__)
         #define OC_ARCH_ARM64 1
-    #elif defined(__ORCA__)
+    #elif defined(__wasm32__)
         #define OC_ARCH_WASM32 1
     #else
         #error "Can't identify architecture"
