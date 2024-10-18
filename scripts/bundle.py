@@ -36,6 +36,8 @@ def make_app(args):
 		macos_make_app(args)
 	elif platformName == 'Windows':
 		windows_make_app(args)
+	elif platformName == 'Linux':
+		linux_make_app(args)
 	else:
 		log_error("Platform '" +  platformName + "' is not supported for now...")
 		exit(1)
@@ -251,6 +253,45 @@ def windows_make_app(args):
 	#NOTE make icon
 	#-----------------------------------------------------------
 	#TODO
+
+def linux_make_app(args):
+       app_name = args.name
+       bundle_name = app_name
+       bundle_dir = os.path.join(args.out_dir, bundle_name)
+       exe_dir = os.path.join(bundle_dir, 'bin')
+       lib_dir = os.path.join(bundle_dir, 'lib')
+       res_dir = os.path.join(bundle_dir, 'resources')
+       guest_dir = os.path.join(bundle_dir, 'app')
+       wasm_dir = os.path.join(guest_dir, 'wasm')
+       data_dir = os.path.join(guest_dir, 'data')
+
+       if os.path.exists(bundle_dir):
+               shutil.rmtree(bundle_dir)
+       os.mkdir(bundle_dir)
+       os.mkdir(exe_dir)
+       os.mkdir(res_dir)
+       os.mkdir(guest_dir)
+       os.mkdir(wasm_dir)
+       os.mkdir(data_dir)
+
+       orca_exe = os.path.join(args.orca_dir, 'build/bin/orca_runtime')
+
+       shutil.copy(orca_exe, os.path.join(exe_dir, app_name))
+       shutil.copy(args.module, os.path.join(wasm_dir, 'module.wasm'))
+
+       if args.resource_files != None:
+               for resource in args.resource_files:
+                       shutil.copytree(resource, os.path.join(data_dir, os.path.basename(resource)), dirs_exist_ok=True)
+       if args.resource_dirs != None:
+               for resource_dir in args.resource_dirs:
+                       for resource in os.listdir(resource_dir):
+                               src = os.path.join(resource_dir, resource)
+                               if os.path.isdir(src):
+                                       shutil.copytree(src, os.path.join(data_dir, os.path.basename(resource)), dirs_exist_ok=True)
+                               else:
+                                       shutil.copy(src, data_dir)
+       shutil.copy(os.path.join(args.orca_dir, 'resources/Menlo.ttf'), res_dir)
+       shutil.copy(os.path.join(args.orca_dir, 'resources/Menlo Bold.ttf'), res_dir)
 
 
 if __name__ == "__main__":

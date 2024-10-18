@@ -75,7 +75,7 @@
 #define I32_MAX __INT32_MAX__
 #define I64_MAX __INT64_MAX__
 
-#define I8_MIN  (-I8_MAX - 1)
+#define I8_MIN (-I8_MAX - 1)
 #define I16_MIN (-I16_MAX - 1)
 #define I32_MIN (-I32_MAX - 1)
 #define I64_MIN (-I64_MAX - 1)
@@ -131,7 +131,7 @@ static inline u64 oc_next_pow2(u64 x)
 #define oc_clamp_high(a, high) (oc_min((a), (high)))
 #define oc_clamp(a, low, high) (oc_clamp_low(oc_clamp_high((a), (high)), (low)))
 
-#define UNUSED  __attribute__((unused))
+#define UNUSED __attribute__((unused))
 
 #define oc_square(a) ((a) * (a))
 #define oc_cube(a) ((a) * (a) * (a))

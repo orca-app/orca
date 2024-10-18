@@ -94,6 +94,9 @@ def build_all(args):
     with open("build/orcaruntime.sum", "w") as f:
         f.write(runtime_checksum())
 
+def unsupported_platform():
+    log_error(f"Unsupported platform '{platform.system()}'")
+    exit(1)
 
 #------------------------------------------------------
 # build dawn
@@ -233,7 +236,7 @@ target_sources(webgpu PRIVATE ${WEBGPU_DAWN_NATIVE_PROC_GEN})"""
                 "-D", "DAWN_ENABLE_OPENGLES=OFF",
                 "-D", "DAWN_ENABLE_VULKAN=OFF"
             ]
-        else:
+        elif platform.system() == "Darwin":
             backends = [
                 "-D", "DAWN_ENABLE_METAL=ON",
                 "-D", "DAWN_ENABLE_NULL=OFF",
@@ -241,6 +244,15 @@ target_sources(webgpu PRIVATE ${WEBGPU_DAWN_NATIVE_PROC_GEN})"""
                 "-D", "DAWN_ENABLE_OPENGLES=OFF",
                 "-D", "DAWN_ENABLE_VULKAN=OFF"
             ]
+        elif platform.system() == "Linux":
+            backends = [
+                "-D", "DAWN_ENABLE_NULL=OFF",
+                "-D", "DAWN_ENABLE_DESKTOP_GL=ON",
+                "-D", "DAWN_ENABLE_OPENGLES=ON",
+                "-D", "DAWN_ENABLE_VULKAN=ON"
+            ]
+        else:
+            unsupported_platform()
 
         subprocess.run([
             "cmake",
@@ -280,8 +292,12 @@ target_sources(webgpu PRIVATE ${WEBGPU_DAWN_NATIVE_PROC_GEN})"""
         if platform.system() == "Windows":
             shutil.copy(f"dawn.build/{mode}/webgpu.dll", "dawn.out/bin/")
             shutil.copy(f"dawn.build/src/dawn/native/{mode}/webgpu.lib", "dawn.out/bin/")
-        else:
+        elif platform.system() == "Darwin":
             shutil.copy("dawn.build/src/dawn/native/libwebgpu.dylib", "dawn.out/bin/")
+        elif platform.system() == "Linux":
+            shutil.copy("dawn.build/src/dawn/native/libwebgpu.so", "dawn.out/bin/")
+        else:
+            unsupported_platform()
 
     # save artifact commit
     with open('build/dawn.out/dawn.json', 'w') as f:
@@ -319,7 +335,7 @@ def check_angle():
         with pushd("build/angle.out"):
             with open("angle.json", "r") as f:
                 sums = json.loads(f.read())
-                if 'commit' not in sums or 'sum' not in sums:
+                if 'commit' not in sums:
                     messages = ["malformed build/angle.out/angle.json"]
                     up_to_date = False
                 elif sums['commit'] != ANGLE_COMMIT:
@@ -414,7 +430,7 @@ def build_angle_internal(release, force):
                     "angle_enable_null=false",
                     "angle_has_frame_capture=false"
                 ]
-            else:
+            elif platform.system() == "Darwin":
                 gnargs += [
                     #NOTE(martin): oddly enough, this is needed to avoid deprecation errors when _not_ using OpenGL,
                     #              because angle uses some CGL APIs to detect GPUs.
@@ -424,6 +440,14 @@ def build_angle_internal(release, force):
                     "angle_enable_vulkan=false",
                     "angle_enable_null=false"
                 ]
+            elif platform.system() == "Linux":
+                gnargs += [
+                    "angle_enable_gl=true",
+                    "angle_enable_vulkan=true",
+                    "angle_enable_null=false"
+                ]
+            else:
+                unsupported_platform()
 
             gnargString = ' '.join(gnargs)
 
@@ -457,9 +481,14 @@ def build_angle_internal(release, force):
             subprocess.run(["copy", "/y",
                             "%ProgramFiles(x86)%\\Windows Kits\\10\\Redist\\D3D\\x64\\d3dcompiler_47.dll",
                             "angle.out\\bin"], shell=True, check=True)
-        else:
+        elif platform.system() == "Darwin":
             shutil.copy(f"angle/out/{mode}/libEGL.dylib", "angle.out/bin")
             shutil.copy(f"angle/out/{mode}/libGLESv2.dylib", "angle.out/bin")
+        elif platform.system() == "Linux":
+            shutil.copy(f"angle/out/{mode}/libEGL.so", "angle.out/bin")
+            shutil.copy(f"angle/out/{mode}/libGLESv2.so", "angle.out/bin")
+        else:
+            unsupported_platform()
 
     # - sums
     sums = {
@@ -491,8 +520,7 @@ def build_wasm3(release):
     elif platform.system() == "Linux":
         build_wasm3_lib_linux(release)
     else:
-        log_error(f"can't build wasm3 for unknown platform '{platform.system()}'")
-        exit(1)
+        unsupported_platform()
 
 
 def build_wasm3_lib_win(release):
@@ -535,6 +563,26 @@ def build_wasm3_lib_mac(release):
     subprocess.run(["libtool", "-static", "-o", "build/lib/libwasm3.a", "-no_warning_for_no_symbols", *glob.glob("build/obj/*.o")], check=True)
     subprocess.run(["rm", "-rf", "build/obj"], check=True)
 
+def build_wasm3_lib_linux(release):
+    includes = ["-Isrc/ext/wasm3/source"]
+    debug_flags = ["-g", "-O2"] if release else ["-g", "-O1"]
+    flags = [
+        *debug_flags,
+        "-foptimize-sibling-calls",
+        "-Wno-extern-initializer",
+        "-Dd_m3VerboseErrorMessages",
+    ]
+
+    for f in glob.iglob("src/ext/wasm3/source/*.c"):
+        name = os.path.splitext(os.path.basename(f))[0] + ".o"
+        subprocess.run([
+            "clang", "-c", *flags, *includes,
+            "-o", f"build/obj/{name}",
+            f,
+        ], check=True)
+    subprocess.run(["ar", "rcs", "build/lib/libwasm3.a", *glob.glob("build/obj/*.o")], check=True)
+    subprocess.run(["rm", "-rf", "build/obj"], check=True)
+
 def build_bytebox(release):
     print("Building bytebox...")
     args = ["zig", "build", "-Doptimize=ReleaseFast"]
@@ -542,11 +590,10 @@ def build_bytebox(release):
 
     if platform.system() == "Windows":
         shutil.copy("src/ext/bytebox/zig-out/lib/bytebox.lib", "build/bin")
-    elif platform.system() == "Darwin":
+    elif platform.system() == "Darwin" or platform.system() == "Linux":
         shutil.copy("src/ext/bytebox/zig-out/lib/libbytebox.a", "build/bin")
     else:
-        log_error(f"can't build bytebox for unknown platform '{platform.system()}'")
-        exit(1)
+        unsupported_platform()
 
 
 def build_runtime(args):
@@ -570,9 +617,10 @@ def build_runtime_internal(release, wasm_backend):
         build_runtime_win(release, wasm_backend)
     elif platform.system() == "Darwin":
         build_runtime_mac(release, wasm_backend)
+    elif platform.system() == "Linux":
+        build_runtime_linux(release, wasm_backend)
     else:
-        log_error(f"can't build Orca for unknown platform '{platform.system()}'")
-        exit(1)
+        unsupported_platform()
 
 def build_runtime_win(release, wasm_backend):
 
@@ -668,6 +716,42 @@ def build_runtime_mac(release, wasm_backend):
         "build/bin/orca_runtime",
     ], check=True)
 
+def build_runtime_linux(release, wasm_backend):
+
+    includes = [
+        "-Isrc",
+        "-Isrc/ext",
+        "-Isrc/ext/angle/include",
+    ]
+
+    defines = []
+
+    libs = ["-Lbuild/bin", "-Lbuild/lib", "-lorca"]
+
+    if wasm_backend == "bytebox":
+        includes += ["-Isrc/ext/bytebox/zig-out/include"]
+        defines += ["-DOC_WASM_BACKEND_WASM3=0", "-DOC_WASM_BACKEND_BYTEBOX=1"]
+        libs += ["-lbytebox"]
+    else:
+        includes += ["-Isrc/ext/wasm3/source"]
+        defines += ["-DOC_WASM_BACKEND_WASM3=1", "-DOC_WASM_BACKEND_BYTEBOX=0"]
+        libs += ["-lwasm3"]
+
+    debug_flags = ["-O2"] if release else ["-g", "-DOC_DEBUG -DOC_LOG_COMPILE_DEBUG"]
+    flags = [
+        *debug_flags,
+        "--std=c11",
+    ]
+
+    gen_all_bindings()
+
+    # compile orca
+    subprocess.run([
+        "clang", *flags, *defines, *includes, *libs,
+        "-o", "build/bin/orca_runtime",
+        "src/runtime.c",
+    ], check=True)
+
 def runtime_checksum_last():
     try:
         with open("build/orcaruntime.sum", "r") as f:
@@ -678,11 +762,10 @@ def runtime_checksum_last():
 def runtime_checksum():
     if platform.system() == "Windows":
         excluded_dirs = ["src\\tool", "src\\ext\\curl", "src\\ext\\zlib", "src\\ext\\microtar"]
-    elif platform.system() == "Darwin":
+    elif platform.system() == "Darwin" or platform.system() == "Linux":
         excluded_dirs = ["src/tool", "src/ext/curl", "src/ext/zlib", "src/ext/microtar"]
     else:
-        log_error(f"can't generate runtime_checksum for unknown platform '{platform.system()}'")
-        exit(1)
+        unsupported_platform()
     return dirsum("src", excluded_dirs=excluded_dirs)
 
 #------------------------------------------------------
@@ -695,19 +778,21 @@ def build_platform_layer(args):
 def build_platform_layer_internal(release):
     print("Building Orca platform layer...")
 
+    cmd = "orcadev.bat" if platform.system() == "Windows" else "./orcadev"
+
     angle_ok, angle_messages = check_angle()
     if not angle_ok:
         msg = log_error("Angle files are not present or don't match required commit.")
         msg.more(f"Angle commit: {angle_required_commit()}")
         for entry in angle_messages:
             msg.more(f"  * {entry}")
-        cmd = "./orcadev" if platform.system() == "Darwin" else "orcadev.bat"
         msg.more("")
         msg.more(f"You can build the required files by running '{cmd} build-angle'")
         msg.more("")
         msg.more("Alternatively you can trigger a CI run to build the binaries on github:")
         msg.more("  * For Windows, go to https://github.com/orca-app/orca/actions/workflows/build-angle-win.yaml")
         msg.more("  * For macOS, go to https://github.com/orca-app/orca/actions/workflows/build-angle-mac.yaml")
+        # TODO(pld): instructions for linux
         msg.more("  * Click on \"Run workflow\" to tigger a new run, or download artifacts from a previous run")
         msg.more("  * Put the contents of the artifacts folder in './build/angle.out'")
         exit(1)
@@ -719,13 +804,13 @@ def build_platform_layer_internal(release):
         msg.more("Dawn required files:")
         for entry in dawn_messages:
             msg.more(f"  * {entry}")
-        cmd = "./orcadev" if platform.system() == "Darwin" else "orcadev.bat"
         msg.more("")
         msg.more(f"You can build the required files by running '{cmd} build-dawn'")
         msg.more("")
         msg.more("Alternatively you can trigger a CI run to build the binaries on github:")
         msg.more("  * For Windows, go to https://github.com/orca-app/orca/actions/workflows/build-dawn-win.yaml")
         msg.more("  * For macOS, go to https://github.com/orca-app/orca/actions/workflows/build-dawn-mac.yaml")
+        # TODO(pld): instructions for linux
         msg.more("  * Click on \"Run workflow\" to tigger a new run, or download artifacts from a previous run")
         msg.more("  * Put the contents of the artifacts folder in './build/dawn.out'")
         exit(1)
@@ -737,10 +822,10 @@ def build_platform_layer_internal(release):
         build_platform_layer_lib_win(release)
     elif platform.system() == "Darwin":
         build_platform_layer_lib_mac(release)
+    elif platform.system() == "Linux":
+        build_platform_layer_lib_linux(release)
     else:
-        log_error(f"can't build platform layer for unknown platform '{platform.system()}'")
-        exit(1)
-
+        unsupported_platform()
 
 def build_platform_layer_lib_win(release):
     embed_text_files("src/graphics/wgpu_renderer_shaders.h", "oc_wgsl_", [
@@ -875,6 +960,39 @@ def build_platform_layer_lib_mac(release):
         "install_name_tool",
         "-id", "@rpath/liborca.dylib",
         "build/bin/liborca.dylib",
+    ], check=True)
+
+def build_platform_layer_lib_linux(release):
+
+    embed_text_files("src/graphics/wgpu_renderer_shaders.h", "oc_wgsl_", [
+        "src/graphics/wgsl_shaders/common.wgsl",
+        "src/graphics/wgsl_shaders/path_setup.wgsl",
+        "src/graphics/wgsl_shaders/segment_setup.wgsl",
+        "src/graphics/wgsl_shaders/backprop.wgsl",
+        "src/graphics/wgsl_shaders/chunk.wgsl",
+        "src/graphics/wgsl_shaders/merge.wgsl",
+        "src/graphics/wgsl_shaders/balance_workgroups.wgsl",
+        "src/graphics/wgsl_shaders/raster.wgsl",
+        "src/graphics/wgsl_shaders/blit.wgsl",
+        "src/graphics/wgsl_shaders/final_blit.wgsl",
+    ])
+
+    flags = []
+    cflags = ["-std=c11"]
+    debug_flags = ["-O3"] if release else ["-g", "-DOC_DEBUG", "-DOC_LOG_COMPILE_DEBUG"]
+    ldflags = []
+    includes = ["-Isrc", "-Isrc/ext", "-Isrc/ext/angle/include", "-Isrc/ext/dawn/include"]
+
+    subprocess.run([
+        "clang",
+        *debug_flags, "-c",
+        "-o", "build/orca_c.o",
+        *cflags, *flags, *includes,
+        "src/orca.c"
+    ], check=True)
+    # TODO(pld): build dynamic library? And force rpath to local one?
+    subprocess.run([
+        "ar", "rcs", "build/lib/liborca.a", "build/orca_c.o"
     ], check=True)
 
 def gen_all_bindings():
@@ -1070,9 +1188,10 @@ def build_tool(args):
         build_tool_win(args.release, version)
     elif platform.system() == "Darwin":
         build_tool_mac(args.release, version)
+    elif platform.system() == "Linux":
+        build_tool_linux(args.release, version)
     else:
-        log_error(f"can't build cli tool for unknown platform '{platform.system()}'")
-        exit(1)
+        unsupported_platform()
 
     with open("build/orcatool.sum", "w") as f:
         f.write(tool_checksum())
@@ -1089,7 +1208,7 @@ def build_libcurl():
                 "src/ext/curl/builds/static",
                 dirs_exist_ok=True)
 
-    elif platform.system() == "Darwin":
+    elif platform.system() == "Darwin" or platform.system() == "Linux":
         if not os.path.exists("src/ext/curl/builds/static/"):
             print("Building libcurl...")
             os.makedirs("src/ext/curl/builds", exist_ok=True)
@@ -1111,8 +1230,7 @@ def build_libcurl():
                 subprocess.run(["make", "install"], check=True)
 
     else:
-        log_error(f"can't build libcurl for unknown platform '{platform.system()}'")
-        exit(1)
+        unsupported_platform()
 
 
 def build_zlib():
@@ -1123,7 +1241,7 @@ def build_zlib():
             with pushd("src/ext/zlib/build"):
                 subprocess.run("nmake /f ../win32/Makefile.msc TOP=.. zlib.lib", check=True)
 
-    elif platform.system() == "Darwin":
+    elif platform.system() == "Darwin" or platform.system() == "Linux":
         if not os.path.exists("src/ext/zlib/build/libz.a"):
             print("Building zlib...")
             os.makedirs("src/ext/zlib/build", exist_ok=True)
@@ -1132,8 +1250,7 @@ def build_zlib():
                 subprocess.run(["make", "libz.a"], check=True)
 
     else:
-        log_error(f"can't build zlib for unknown platform '{platform.system()}'")
-        exit(1)
+        unsupported_platform()
 
 
 def build_tool_win(release, version):
@@ -1212,6 +1329,43 @@ def build_tool_mac(release, version):
     subprocess.run([
         "clang",
         f"-mmacos-version-min={MACOS_VERSION_MIN}",
+        "-std=c11",
+        *debug_flags,
+        *includes,
+        "-D", "FLAG_IMPLEMENTATION",
+        "-D", "OC_NO_APP_LAYER",
+        "-D", "OC_BUILD_DLL",
+        "-D", "CURL_STATICLIB",
+        "-D", f"ORCA_TOOL_VERSION={version}",
+        *libs,
+        "-MJ", "build/main.json",
+        "-o", f"build/bin/orca",
+        "src/tool/main.c",
+    ], check=True)
+
+    with open("build/compile_commands.json", "w") as f:
+        f.write("[\n")
+        with open("build/main.json") as m:
+            f.write(m.read())
+        f.write("]")
+
+def build_tool_linux(release, version):
+    includes = [
+        "-I", "src",
+        "-I", "src/ext/curl/builds/static/include",
+        "-I", "src/ext/zlib",
+        "-I", "src/ext/microtar"
+    ]
+
+    debug_flags = ["-O2"] if release else ["-g", "-DOC_DEBUG", "-DOC_LOG_COMPILE_DEBUG"]
+
+    libs = [
+        "-Lsrc/ext/curl/builds/static/lib", "-lcurl",
+        "-Lsrc/ext/zlib/build", "-lz",
+    ]
+
+    subprocess.run([
+        "clang",
         "-std=c11",
         *debug_flags,
         *includes,
@@ -1474,7 +1628,7 @@ def ensure_programs():
         except FileNotFoundError:
             missing.append(["git", "You can install git for Windows from https://gitforwindows.org/"])
 
-    if platform.system() == "Darwin":
+    elif platform.system() == "Darwin":
 
         try:
             subprocess.run(["clang", "-v"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -1494,11 +1648,33 @@ def ensure_programs():
         except FileNotFoundError:
             missing.append(["git", "To install it, run: xcode-select --install"])
 
+    elif platform.system() == "Linux":
+
+        try:
+            subprocess.run(["clang", "-v"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except FileNotFoundError:
+            missing.append(["clang"])
+
+        try:
+            subprocess.run(["cmake", "--version"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except FileNotFoundError:
+            missing.append(["cmake"])
+
+        try:
+            subprocess.run(["git", "-v"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except FileNotFoundError:
+            missing.append(["git"])
+
+    else:
+
+        unsupported_platform()
+
+
     if len(missing):
         msg = log_error("The following required tools were not found on your system")
         for entry in missing:
             msg.more(f"* {entry[0]}")
-            if len(note) > 1:
+            if len(entry) > 1:
                 msg.more(f" note: {entry[1]}")
         exit(1)
 
