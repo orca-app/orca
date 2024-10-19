@@ -965,7 +965,7 @@ def build_sdk_internal(release):
 #------------------------------------------------------
 def build_libc(args):
     ensure_programs()
-    build_lib_internal(args.release)
+    build_libc_internal(args.release)
 
 def build_libc_internal(release):
     print("Building orca-libc...")
