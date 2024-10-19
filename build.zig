@@ -455,6 +455,30 @@ pub fn build(b: *Build) !void {
     });
     wasm3_lib.linkLibC();
 
+    // stage angle + dawn libs
+
+    var stage_angle_libs: *Build.Step.WriteFile = b.addWriteFiles();
+    const angle_include_path = stage_angle_libs.addCopyDirectory(b.path("build/angle.out/include"), "include", .{});
+    const angle_lib_path = stage_angle_libs.addCopyDirectory(b.path("build/angle.out/include"), "lib", .{});
+    // if (target.result.os.tag == .windows) {
+    //     stage_angle_libs.addCopyFile(b.path("build/angle.out/bin/libEGL.dll"), "lib");
+    //     stage_angle_libs.addCopyFile(b.path("build/angle.out/bin/libEGL.dll.lib"), "lib");
+    //     stage_angle_libs.addCopyFile(b.path("build/angle.out/bin/libGLESv2.dll"), "lib");
+    //     stage_angle_libs.addCopyFile(b.path("build/angle.out/bin/libGLESv2.dll.lib"), "lib");
+    //     stage_angle_libs.addCopyFile(b.path("build/angle.out/bin/d3dcompiler_47.dll"), "lib");
+    // }
+    stage_angle_libs.step.dependOn(&run_angle_uptodate.step);
+
+    var stage_dawn_libs: *Build.Step.WriteFile = b.addWriteFiles();
+    const dawn_include_path = stage_dawn_libs.addCopyDirectory(b.path("build/dawn.out/include"), "include", .{});
+    const dawn_lib_path = stage_dawn_libs.addCopyDirectory(b.path("build/dawn.out/bin"), "lib", .{});
+
+    // if (target.result.os.tag == .windows) {
+    //     stage_dawn_libs.addCopyFile(b.path("build/dawn.out/bin/webgpu.dll"), "lib");
+    //     stage_dawn_libs.addCopyFile(b.path("build/dawn.out/bin/webgpu.lib"), "lib");
+    // }
+    stage_dawn_libs.step.dependOn(&run_dawn_uptodate.step);
+
     // platform lib
 
     // var angle_uptodate_check = AngleDawnHelpers.CheckBuildSentinel.create(b, .Angle);
@@ -513,14 +537,19 @@ pub fn build(b: *Build) !void {
     orca_platform_lib.addIncludePath(b.path("src"));
     orca_platform_lib.addIncludePath(b.path("src/ext"));
     orca_platform_lib.addIncludePath(b.path("src/ext/angle/include"));
+    orca_platform_lib.addIncludePath(angle_include_path);
+    orca_platform_lib.addIncludePath(dawn_include_path);
 
     orca_platform_lib.addCSourceFiles(.{
         .files = &.{"src/orca.c"},
         .flags = orca_platform_compile_flags.items,
     });
 
-    orca_platform_lib.addLibraryPath(b.path("build/lib"));
-    orca_platform_lib.addLibraryPath(b.path("build/bin"));
+    orca_platform_lib.addLibraryPath(angle_lib_path);
+    orca_platform_lib.addLibraryPath(dawn_lib_path);
+
+    // orca_platform_lib.addLibraryPath(b.path("build/lib"));
+    // orca_platform_lib.addLibraryPath(b.path("build/bin"));
 
     orca_platform_lib.linkSystemLibrary("user32");
     orca_platform_lib.linkSystemLibrary("opengl32");
@@ -541,7 +570,8 @@ pub fn build(b: *Build) !void {
     orca_platform_lib.linkSystemLibrary("libGLESv2.dll"); // todo DELAYLOAD?
     orca_platform_lib.linkSystemLibrary("webgpu");
 
-    orca_platform_lib.step.dependOn(&run_angle_uptodate.step);
+    orca_platform_lib.step.dependOn(&stage_angle_libs.step);
+    orca_platform_lib.step.dependOn(&stage_dawn_libs.step);
     // orca_platform_lib.step.dependOn(&copy_dawn_files.step);
     orca_platform_lib.step.dependOn(&wgpu_shaders_file.step); // TODO move this into a run command
 
