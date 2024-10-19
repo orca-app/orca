@@ -114,6 +114,14 @@ void* oc_gles_surface_native_pointer(oc_gles_surface* surface)
     return ((void*)surface->base.view.hWnd);
 }
 
+#elif OC_PLATFORM_LINUX
+
+void* oc_gles_surface_native_pointer(oc_gles_surface* surface)
+{
+    oc_unimplemented();
+    return NULL;
+}
+
 #else
     #error "unsupported platform"
 #endif

@@ -17,6 +17,7 @@
 #define _TOSTRING(x) #x
 #define TOSTRING(x) _TOSTRING(x)
 
+#include "platform/platform.h"
 #include <stdio.h>
 
 #include "flag.h"

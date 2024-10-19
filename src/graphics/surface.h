@@ -16,6 +16,8 @@
     #include "win32_surface.h"
 #elif OC_PLATFORM_MACOS
     #include "osx_surface.h"
+#elif OC_PLATFORM_LINUX
+    #include "linux_surface.h"
 #else
     #error "unsupported platform"
 #endif

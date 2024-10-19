@@ -5,6 +5,9 @@
 *  See LICENSE.txt for licensing information
 *
 **************************************************************************/
+// TODO(pld): reorganize includes so that we don't need to oddly include this
+// here
+#include "platform/platform.h"
 #include <errno.h>
 #include <math.h>
 #include <stdio.h>

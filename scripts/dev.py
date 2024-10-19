@@ -94,10 +94,6 @@ def build_all(args):
     with open("build/orcaruntime.sum", "w") as f:
         f.write(runtime_checksum())
 
-def unsupported_platform():
-    log_error(f"Unsupported platform '{platform.system()}'")
-    exit(1)
-
 #------------------------------------------------------
 # build dawn
 #------------------------------------------------------
@@ -726,7 +722,11 @@ def build_runtime_linux(release, wasm_backend):
 
     defines = []
 
-    libs = ["-Lbuild/bin", "-Lbuild/lib", "-lorca"]
+    libs = [
+        "-Lbuild/bin", "-Lbuild/lib", "-lorca",
+        "-lX11", "-lxcb",
+        "-lc", "-lm", "-lpthread",
+    ]
 
     if wasm_backend == "bytebox":
         includes += ["-Isrc/ext/bytebox/zig-out/include"]
@@ -741,6 +741,7 @@ def build_runtime_linux(release, wasm_backend):
     flags = [
         *debug_flags,
         "--std=c11",
+        "-fuse-ld=lld",
     ]
 
     gen_all_bindings()
@@ -977,22 +978,22 @@ def build_platform_layer_lib_linux(release):
         "src/graphics/wgsl_shaders/final_blit.wgsl",
     ])
 
-    flags = []
+    flags = ["-fPIC"]
     cflags = ["-std=c11"]
     debug_flags = ["-O3"] if release else ["-g", "-DOC_DEBUG", "-DOC_LOG_COMPILE_DEBUG"]
-    ldflags = []
+    ldflags = [
+        "-shared", "-fuse-ld=lld",
+        "-lc", "-lm", "-lpthread",
+        "-Lbuild/bin", "-lEGL", "-lGLESv2", "-lwebgpu",
+    ]
     includes = ["-Isrc", "-Isrc/ext", "-Isrc/ext/angle/include", "-Isrc/ext/dawn/include"]
 
     subprocess.run([
         "clang",
-        *debug_flags, "-c",
-        "-o", "build/orca_c.o",
-        *cflags, *flags, *includes,
+        *debug_flags,
+        "-o", "build/bin/liborca.so",
+        *cflags, *flags, *includes, *ldflags,
         "src/orca.c"
-    ], check=True)
-    # TODO(pld): build dynamic library? And force rpath to local one?
-    subprocess.run([
-        "ar", "rcs", "build/lib/liborca.a", "build/orca_c.o"
     ], check=True)
 
 def gen_all_bindings():
@@ -1084,7 +1085,7 @@ def build_sdk_internal(release):
 #------------------------------------------------------
 def build_libc(args):
     ensure_programs()
-    build_lib_internal(args.release)
+    build_libc_internal(args.release)
 
 def build_libc_internal(release):
     print("Building orca-libc...")
@@ -1145,6 +1146,10 @@ def build_libc_internal(release):
             brew_llvm = subprocess.check_output(["brew", "--prefix", "llvm", "--installed"]).decode().strip()
         clang = os.path.join(brew_llvm, 'bin', 'clang')
         llvm_ar = os.path.join(brew_llvm, 'bin', 'llvm-ar')
+    elif platform.system() == "Linux":
+        # TODO(pld): Is a generic llvm-ar supposed to be present? My setup
+        # doesn't have any :/.
+        llvm_ar = "llvm-ar-19"
 
     # compile dummy CRT
     subprocess.run([
@@ -1214,9 +1219,12 @@ def build_libcurl():
             os.makedirs("src/ext/curl/builds", exist_ok=True)
             with pushd("src/ext/curl/builds"):
                 prefix = os.path.join(os.getcwd(), "static")
+                conf_with_ssl = "--with-secure-transport"
+                if platform.system() == "Linux":
+                    conf_with_ssl = "--with-openssl"
                 subprocess.run([
                     "../configure",
-                    "--with-secure-transport",
+                    conf_with_ssl,
                     "--disable-shared",
                     "--disable-ldap", "--disable-ldaps", "--disable-aws",
                     "--disable-manual", "--disable-debug",
@@ -1226,7 +1234,7 @@ def build_libcurl():
                     "--without-libidn2",
                     f"--prefix={prefix}",
                 ] , check=True)
-                subprocess.run("make", check=True)
+                subprocess.run(["make", "-j8"], check=True)
                 subprocess.run(["make", "install"], check=True)
 
     else:
@@ -1247,7 +1255,7 @@ def build_zlib():
             os.makedirs("src/ext/zlib/build", exist_ok=True)
             with pushd("src/ext/zlib/build"):
                 subprocess.run(["../configure", "--static"], check=True)
-                subprocess.run(["make", "libz.a"], check=True)
+                subprocess.run(["make", "-j8", "libz.a"], check=True)
 
     else:
         unsupported_platform()
@@ -1360,8 +1368,9 @@ def build_tool_linux(release, version):
     debug_flags = ["-O2"] if release else ["-g", "-DOC_DEBUG", "-DOC_LOG_COMPILE_DEBUG"]
 
     libs = [
-        "-Lsrc/ext/curl/builds/static/lib", "-lcurl",
+        "-Lsrc/ext/curl/builds/static/lib", "-lcurl",  "-lssl", "-lcrypto",
         "-Lsrc/ext/zlib/build", "-lz",
+        "-lc", "-lm", "-lpthread",
     ]
 
     subprocess.run([
@@ -1374,6 +1383,7 @@ def build_tool_linux(release, version):
         "-D", "OC_BUILD_DLL",
         "-D", "CURL_STATICLIB",
         "-D", f"ORCA_TOOL_VERSION={version}",
+        "-fuse-ld=lld",
         *libs,
         "-MJ", "build/main.json",
         "-o", f"build/bin/orca",
@@ -1432,7 +1442,7 @@ def package_sdk_internal(dest, target):
         shutil.copy(os.path.join("build", "bin", "libEGL.dll"), bin_dir)
         shutil.copy(os.path.join("build", "bin", "libGLESv2.dll"), bin_dir)
         shutil.copy(os.path.join("build", "bin", "webgpu.dll"), bin_dir)
-    else:
+    elif target == "Darwin":
         shutil.copy(os.path.join("build", "bin", "orca"), bin_dir)
         shutil.copy(os.path.join("build", "bin", "orca_runtime"), bin_dir)
         shutil.copy(os.path.join("build", "bin", "liborca.dylib"), bin_dir)
@@ -1440,6 +1450,16 @@ def package_sdk_internal(dest, target):
         shutil.copy(os.path.join("build", "bin", "libEGL.dylib"), bin_dir)
         shutil.copy(os.path.join("build", "bin", "libGLESv2.dylib"), bin_dir)
         shutil.copy(os.path.join("build", "bin", "libwebgpu.dylib"), bin_dir)
+    elif target == "Linux":
+        shutil.copy(os.path.join("build", "bin", "orca"), bin_dir)
+        shutil.copy(os.path.join("build", "bin", "orca_runtime"), bin_dir)
+        shutil.copy(os.path.join("build", "bin", "liborca.so"), bin_dir)
+        shutil.copy(os.path.join("build", "bin", "liborca_wasm.a"), bin_dir)
+        shutil.copy(os.path.join("build", "bin", "libEGL.so"), bin_dir)
+        shutil.copy(os.path.join("build", "bin", "libGLESv2.so"), bin_dir)
+        shutil.copy(os.path.join("build", "bin", "libwebgpu.so"), bin_dir)
+    else:
+        unsupported_platform()
 
 
     shutil.copytree(os.path.join("build", "orca-libc"), libc_dir, dirs_exist_ok=True)
@@ -1796,3 +1816,7 @@ def orca_commit():
 def yeet(path):
     os.makedirs(path, exist_ok=True)
     shutil.rmtree(path)
+
+def unsupported_platform():
+    log_error(f"Unsupported platform '{platform.system()}'")
+    exit(1)

@@ -41,6 +41,17 @@ int macBundle(
     oc_str8 module,
     bool mtlEnableCapture);
 
+int linuxBundle(
+    oc_arena* a,
+    oc_str8 name,
+    oc_str8 icon,
+    oc_str8 version,
+    oc_str8_list resource_files,
+    oc_str8_list resource_dirs,
+    oc_str8 app_version,
+    oc_str8 outDir,
+    oc_str8 module);
+
 int bundle(int argc, char** argv)
 {
     oc_arena a;
@@ -103,6 +114,17 @@ int bundle(int argc, char** argv)
         OC_STR8(*outDir),
         OC_STR8(*module),
         *mtlEnableCapture);
+#elif OC_PLATFORM_LINUX
+    return linuxBundle(
+        &a,
+        OC_STR8(*name),
+        OC_STR8(*icon),
+        OC_STR8(*version),
+        *resource_files,
+        *resource_dirs,
+        OC_STR8(*app_version),
+        OC_STR8(*outDir),
+        OC_STR8(*module));
 #else
     #error Can't build the bundle script on this platform!
 #endif
@@ -449,6 +471,22 @@ int macBundle(
     oc_file_close(plist_file);
 
     return 0;
+}
+
+#elif OC_PLATFORM_LINUX
+
+int linuxBundle(
+    oc_arena* a,
+    oc_str8 name,
+    oc_str8 icon,
+    oc_str8 version,
+    oc_str8_list resource_files,
+    oc_str8_list resource_dirs,
+    oc_str8 app_version,
+    oc_str8 outDir,
+    oc_str8 module)
+{
+    oc_unimplemented();
 }
 
 #endif

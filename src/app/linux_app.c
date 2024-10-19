@@ -802,8 +802,7 @@ int oc_directory_create(oc_str8 path)
     return (-1);
 }
 
-#include "graphics/graphics_surface.h"
-
+/*
 void oc_surface_cleanup(oc_surface_data* surface)
 {
     OC_ASSERT(0 && "Unimplemented");
@@ -863,3 +862,5 @@ void oc_surface_init_for_window(oc_surface_data* surface, oc_window_data* window
 
     surface->layer.x11WinId = window->linux.x11Id;
 }
+
+*/

@@ -34,7 +34,6 @@
     #include "platform/linux_clock.c"
     #include "platform/linux_path.c"
     #include "platform/posix_io.c"
-    #include "platform/platform_io_dialog.c"
     #include "platform/posix_thread.c"
     #include "platform/linux_platform.c"
 /*
@@ -103,18 +102,28 @@
         #include "platform/platform_io_dialog.c"
     //NOTE: macos application layer and graphics backends are defined in orca.m
     #elif OC_PLATFORM_LINUX
+        #include "platform/platform_io_dialog.c"
         #include "app/linux_app.c"
         #include "graphics/graphics_common.c"
-        #include "graphics/graphics_surface.c"
-        #if OC_COMPILE_GL || OC_COMPILE_GLES
+        #include "graphics/canvas_renderer.c"
+        #include "graphics/surface.c"
+        #include "graphics/linux_surface.c"
+
+        #include "graphics/backends.h"
+
+        #if OC_GRAPHICS_ENABLE_GLES
             #include "graphics/gl_loader.c"
+            #include "graphics/gles_surface.c"
         #endif
-        #if OC_COMPILE_CANVAS && 0
-            #include "graphics/gl_canvas.c"
+
+        #if OC_GRAPHICS_ENABLE_WEBGPU
+            #include "graphics/wgpu_surface_linux.c"
         #endif
-        #if OC_COMPILE_GLES
-            #include "graphics/egl_surface.c"
+
+        #if OC_GRAPHICS_ENABLE_CANVAS
+            #include "graphics/wgpu_renderer.c"
         #endif
+
     #elif OC_PLATFORM_ORCA
         #include "app/orca_app.c"
         #include "wasmbind/core_api_stubs.c"

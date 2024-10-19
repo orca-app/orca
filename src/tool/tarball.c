@@ -9,7 +9,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <errno.h>
-#if OC_PLATFORM_MACOS
+#if OC_PLATFORM_MACOS || OC_PLATFORM_LINUX
     #include <fcntl.h>
     #include <sys/stat.h>
     #include <unistd.h>
@@ -59,7 +59,7 @@ static bool write_file_from_tar(oc_str8 path, mtar_header_t* header, char* buf, 
     }
     return true;
 }
-#elif OC_PLATFORM_MACOS
+#elif OC_PLATFORM_MACOS || OC_PLATFORM_LINUX
 // NOTE(shaw): open() is used here because some files extracted from an archive
 // need execute permissions which is not possible with oc_file_open or fopen
 static bool write_file_from_tar(oc_str8 path, mtar_header_t* header, char* buf, u64 size)

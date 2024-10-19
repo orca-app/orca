@@ -25,6 +25,9 @@
         #define RELEASE_FILENAME OC_STR8("orca-mac-x64")
         #define TOOL_NAME OC_STR8("orca")
     #endif
+#elif OC_PLATFORM_LINUX
+    #define RELEASE_FILENAME OC_STR8("orca-linux")
+    #define TOOL_NAME OC_STR8("orca")
 #else
     #error Unsupported platform
 #endif

@@ -10,6 +10,8 @@
     #include "win32_system.c"
 #elif OC_PLATFORM_MACOS
     #include "osx_system.c"
+#elif OC_PLATFORM_LINUX
+    #include "linux_system.c"
 #else
     #error Unsupported platform
 #endif

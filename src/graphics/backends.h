@@ -66,6 +66,32 @@
     #if OC_GRAPHICS_ENABLE_METAL
         #error "Metal backend is not supported on Windows. Make sure you let OC_GRAPHICS_ENABLE_METAL undefined or set to 0"
     #endif
+
+#elif OC_PLATFORM_LINUX
+    #ifndef OC_GRAPHICS_ENABLE_GLES
+        #define OC_GRAPHICS_ENABLE_GLES 1
+    #endif
+
+    #ifndef OC_GRAPHICS_ENABLE_WEBGPU
+        #define OC_GRAPHICS_ENABLE_WEBGPU 1
+    #endif
+
+    #ifndef OC_GRAPHICS_ENABLE_CANVAS
+        #if !OC_GRAPHICS_ENABLE_WEBGPU
+            #error "Canvas surface requires a WebGPU backend. Make sure you define OC_GRAPHICS_ENABLE_WEBGPU to 1."
+        #endif
+        #define OC_GRAPHICS_ENABLE_CANVAS 1
+    #endif
+
+    //NOTE: surface backends available but disabled by default on Linux are: OpenGL
+    #ifndef OC_GRAPHICS_ENABLE_GL
+        #define OC_GRAPHICS_ENABLE_GL 0
+    #endif
+
+    #if OC_GRAPHICS_ENABLE_METAL
+        #error "Metal backend is not supported on Linux. Make sure you let OC_GRAPHICS_ENABLE_METAL undefined or set to 0"
+    #endif
+
 #elif OC_PLATFORM_ORCA
     //NOTE: surface backends enabled by default on Orca are: GLES, WebGPU
     #ifndef OC_GRAPHICS_ENABLE_GLES
