@@ -338,9 +338,11 @@ const CommitChecksum = struct {
 const ANGLE_CHECKSUM_FILENAME = "angle.json";
 const DAWN_CHECKSUM_FILENAME = "dawn.json";
 
-fn checksumAngle(opts: *const Options) ![]const u8 {
+fn checksumLib(opts: *const Options) ![]const u8 {
+    const checksum_file = if (opts.lib == .Angle) ANGLE_CHECKSUM_FILENAME else DAWN_CHECKSUM_FILENAME;
+
     return try Checksum.dir(opts.arena, opts.paths.output_dir, .{ .exclude_files = &.{
-        ANGLE_CHECKSUM_FILENAME,
+        checksum_file,
         ".DS_Store",
     } });
 }
@@ -348,15 +350,21 @@ fn checksumAngle(opts: *const Options) ![]const u8 {
 const ShouldLogError = enum {
     LogError,
     NoError,
+
+    fn logfn(comptime self: ShouldLogError) *fn (comptime _: []const u8, _: anytype) void {
+        return switch (self) {
+            .LogError => &std.log.err,
+            .NoError => &noopLog,
+        };
+    }
+
+    fn noopLog(comptime _: []const u8, _: anytype) void {}
 };
 
 fn isAngleUpToDate(opts: *const Options, comptime log_error: ShouldLogError) bool {
-    const NoopLog = struct {
-        pub fn err(comptime _: []const u8, _: anytype) void {}
-    };
-    const logfn = if (log_error == .LogError) &std.log.err else &NoopLog.err;
+    const logfn = log_error.logfn();
 
-    const sum = checksumAngle(opts) catch |e| {
+    const sum = checksumLib(opts) catch |e| {
         logfn("Failed checksum dir '{s}': {}\n", .{ opts.paths.output_dir, e });
         return false;
     };
@@ -391,6 +399,80 @@ fn isAngleUpToDate(opts: *const Options, comptime log_error: ShouldLogError) boo
             sum,
         });
         return false;
+    }
+
+    return true;
+}
+
+fn isDawnUpToDate(opts: *const Options, comptime log_error: ShouldLogError) bool {
+    const logfn = log_error.logfn();
+
+    const checksum_path = std.fs.path.join(opts.arena, &.{ opts.paths.output_dir, DAWN_CHECKSUM_FILENAME }) catch @panic("OOM");
+    const json_string: []const u8 = std.fs.cwd().readFileAlloc(opts.arena, checksum_path, MAX_FILE_SIZE) catch |e| {
+        logfn("Failed to read checksum file from location '{s}': {}", .{ checksum_path, e });
+        return false;
+    };
+
+    const json = std.json.parseFromSliceLeaky(std.json.Value, opts.arena, json_string, .{}) catch |e| {
+        logfn("Failed to parse file '{s}' json: {}. Raw json data:\n{s}\n", .{
+            checksum_path,
+            e,
+            json_string,
+        });
+        return false;
+    };
+
+    var dawn_required_files = std.ArrayList([]const u8).init(opts.arena);
+    dawn_required_files.append("include/webgpu.h");
+    if (builtin.os.tag == .windows) {
+        try dawn_required_files.append("bin/webgpu.lib");
+        try dawn_required_files.append("bin/webgpu.dll");
+    } else {
+        try dawn_required_files.append("bin/webgpu.dylib");
+    }
+
+    // var path_to_sum = std.StringHashMap(CommitChecksum).init(opts.arena);
+    for (dawn_required_files.items) |path| {
+        var commit: ?[]const u8 = null;
+        var sum: ?[]const u8 = null;
+
+        if (json.value.object.get(path)) |commit_sum_value| {
+            if (std.meta.tag(commit_sum_value) != .object) {
+                logfn("Unexpected json structure", .{});
+                return false;
+            }
+            if (commit_sum_value.object.get("commit")) |commit_value| {
+                commit = switch (commit_value) {
+                    .string => |v| v,
+                    else => null,
+                };
+            }
+            if (commit_sum_value.object.get("sum")) |sum_value| {
+                sum = switch (sum_value) {
+                    .string => |v| v,
+                    else => null,
+                };
+            }
+        }
+
+        if (commit == null or sum == null) {
+            logfn("Failed to find data for {s}", .{path});
+            return false;
+        }
+
+        if (std.mem.eql(u8, commit.?, opts.sha) == false) {
+            logfn("Commit for {s} is out of date - expected {s} but got {s}", .{
+                path, opts.sha, commit.?,
+            });
+        }
+
+        const path_absolute = try std.fs.path.join(opts.arena, &.{ opts.output_dir, path });
+        const expected_sum = try Checksum.file(opts.arena, path_absolute);
+        if (std.mem.eql(u8, sum, expected_sum)) {
+            logfn("Checksum for {s} is out of date - expected {s} but got {s}", .{
+                path, expected_sum, sum.?,
+            });
+        }
     }
 
     return true;
@@ -569,7 +651,7 @@ fn buildAngle(opts: *const Options) !void {
     // write stamp file
     {
         const commit_checksum = CommitChecksum{
-            .sum = try checksumAngle(opts),
+            .sum = try checksumLib(opts),
             .commit = opts.commit_sha,
         };
         var json = std.ArrayList(u8).init(opts.arena);
@@ -585,7 +667,14 @@ fn buildAngle(opts: *const Options) !void {
 }
 
 fn buildDawn(opts: *const Options) !void {
-    _ = opts;
+    if (isDawnUpToDate(opts, .NoError)) {
+        std.log.info("dawn is up to date - no rebuild needed.\n", .{});
+        return;
+    } else if (opts.check_only) {
+        return error.DawnOutOfDate;
+    }
+
+    return error.Unimplemented;
 }
 
 pub fn main() !void {
