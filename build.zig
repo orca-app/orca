@@ -411,7 +411,7 @@ pub fn build(b: *Build) !void {
     build_angle_step.dependOn(&run_angle_build.step);
 
     /////////////////////////////////////////////////////////
-    // dawn
+    // dawn build + check
 
     var dawn_dep: *Build.Dependency = b.dependency("dawn", .{});
 
