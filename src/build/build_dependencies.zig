@@ -347,22 +347,15 @@ fn checksumLib(opts: *const Options) ![]const u8 {
     } });
 }
 
+fn noopLog(comptime _: []const u8, _: anytype) void {}
+
 const ShouldLogError = enum {
     LogError,
     NoError,
-
-    fn logfn(comptime self: ShouldLogError) *fn (comptime _: []const u8, _: anytype) void {
-        return switch (self) {
-            .LogError => &std.log.err,
-            .NoError => &noopLog,
-        };
-    }
-
-    fn noopLog(comptime _: []const u8, _: anytype) void {}
 };
 
 fn isAngleUpToDate(opts: *const Options, comptime log_error: ShouldLogError) bool {
-    const logfn = log_error.logfn();
+    const logfn = if (log_error == .LogError) &std.log.err else &noopLog;
 
     const sum = checksumLib(opts) catch |e| {
         logfn("Failed checksum dir '{s}': {}\n", .{ opts.paths.output_dir, e });
@@ -404,8 +397,8 @@ fn isAngleUpToDate(opts: *const Options, comptime log_error: ShouldLogError) boo
     return true;
 }
 
-fn isDawnUpToDate(opts: *const Options, comptime log_error: ShouldLogError) bool {
-    const logfn = log_error.logfn();
+fn isDawnUpToDate(opts: *const Options, comptime log_error: ShouldLogError) !bool {
+    const logfn = if (log_error == .LogError) &std.log.err else &noopLog;
 
     const checksum_path = std.fs.path.join(opts.arena, &.{ opts.paths.output_dir, DAWN_CHECKSUM_FILENAME }) catch @panic("OOM");
     const json_string: []const u8 = std.fs.cwd().readFileAlloc(opts.arena, checksum_path, MAX_FILE_SIZE) catch |e| {
@@ -423,7 +416,7 @@ fn isDawnUpToDate(opts: *const Options, comptime log_error: ShouldLogError) bool
     };
 
     var dawn_required_files = std.ArrayList([]const u8).init(opts.arena);
-    dawn_required_files.append("include/webgpu.h");
+    try dawn_required_files.append("include/webgpu.h");
     if (builtin.os.tag == .windows) {
         try dawn_required_files.append("bin/webgpu.lib");
         try dawn_required_files.append("bin/webgpu.dll");
@@ -431,15 +424,17 @@ fn isDawnUpToDate(opts: *const Options, comptime log_error: ShouldLogError) bool
         try dawn_required_files.append("bin/webgpu.dylib");
     }
 
-    // var path_to_sum = std.StringHashMap(CommitChecksum).init(opts.arena);
     for (dawn_required_files.items) |path| {
         var commit: ?[]const u8 = null;
         var sum: ?[]const u8 = null;
 
-        if (json.value.object.get(path)) |commit_sum_value| {
-            if (std.meta.tag(commit_sum_value) != .object) {
-                logfn("Unexpected json structure", .{});
-                return false;
+        if (json.object.get(path)) |commit_sum_value| {
+            switch (commit_sum_value) {
+                .object => {},
+                else => {
+                    logfn("Unexpected json structure", .{});
+                    return false;
+                },
             }
             if (commit_sum_value.object.get("commit")) |commit_value| {
                 commit = switch (commit_value) {
@@ -460,15 +455,15 @@ fn isDawnUpToDate(opts: *const Options, comptime log_error: ShouldLogError) bool
             return false;
         }
 
-        if (std.mem.eql(u8, commit.?, opts.sha) == false) {
+        if (std.mem.eql(u8, commit.?, opts.commit_sha) == false) {
             logfn("Commit for {s} is out of date - expected {s} but got {s}", .{
-                path, opts.sha, commit.?,
+                path, opts.commit_sha, commit.?,
             });
         }
 
-        const path_absolute = try std.fs.path.join(opts.arena, &.{ opts.output_dir, path });
+        const path_absolute = try std.fs.path.join(opts.arena, &.{ opts.paths.output_dir, path });
         const expected_sum = try Checksum.file(opts.arena, path_absolute);
-        if (std.mem.eql(u8, sum, expected_sum)) {
+        if (std.mem.eql(u8, sum.?, expected_sum)) {
             logfn("Checksum for {s} is out of date - expected {s} but got {s}", .{
                 path, expected_sum, sum.?,
             });
@@ -667,7 +662,7 @@ fn buildAngle(opts: *const Options) !void {
 }
 
 fn buildDawn(opts: *const Options) !void {
-    if (isDawnUpToDate(opts, .NoError)) {
+    if (try isDawnUpToDate(opts, .NoError)) {
         std.log.info("dawn is up to date - no rebuild needed.\n", .{});
         return;
     } else if (opts.check_only) {
