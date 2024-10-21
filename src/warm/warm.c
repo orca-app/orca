@@ -832,6 +832,8 @@ typedef struct wa_section
 
 } wa_section;
 
+typedef struct dw_info dw_info;
+
 typedef struct wa_module
 {
     oc_arena* arena;
@@ -892,6 +894,8 @@ typedef struct wa_module
 
     u32 bytecodeToInstrMapLen;
     oc_list* bytecodeToInstrMap;
+
+    dw_info* debugInfo;
 
 } wa_module;
 

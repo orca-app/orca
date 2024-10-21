@@ -5,47 +5,6 @@
 #include "warm.c"
 #include "dwarf.c"
 
-//-------------------------------------------------------------------------
-// main
-//-------------------------------------------------------------------------
-
-oc_font font_create(const char* resourcePath)
-{
-    //NOTE(martin): create default fonts
-    oc_arena_scope scratch = oc_scratch_begin();
-    oc_str8 fontPath = oc_path_executable_relative(scratch.arena, OC_STR8(resourcePath));
-
-    oc_font font = oc_font_nil();
-
-    FILE* fontFile = fopen(fontPath.ptr, "r");
-    if(!fontFile)
-    {
-        oc_log_error("Could not load font file '%s': %s\n", fontPath.ptr, strerror(errno));
-    }
-    else
-    {
-        char* fontData = 0;
-        fseek(fontFile, 0, SEEK_END);
-        u32 fontDataSize = ftell(fontFile);
-        rewind(fontFile);
-        fontData = malloc(fontDataSize);
-        fread(fontData, 1, fontDataSize, fontFile);
-        fclose(fontFile);
-
-        oc_unicode_range ranges[5] = { OC_UNICODE_BASIC_LATIN,
-                                       OC_UNICODE_C1_CONTROLS_AND_LATIN_1_SUPPLEMENT,
-                                       OC_UNICODE_LATIN_EXTENDED_A,
-                                       OC_UNICODE_LATIN_EXTENDED_B,
-                                       OC_UNICODE_SPECIALS };
-
-        font = oc_font_create_from_memory(oc_str8_from_buffer(fontDataSize, fontData), 5, ranges);
-
-        free(fontData);
-    }
-    oc_scratch_end(scratch);
-    return (font);
-}
-
 typedef struct wa_bytecode_loc
 {
     wa_instance* instance;
@@ -1232,6 +1191,8 @@ void load_module(app_data* app, oc_str8 modulePath)
         //WIP: Dwarf stuff
 
         //NOTE: load dwarf sections
+        //TODO: - put all that in its own wa_load_debug_info function
+        //      ? split dw_xxx struct (for parsing dwarf specific stuff) from wa_debug_xxx (for internal representation)
 
         dw_sections dwarfSections = { 0 };
 
@@ -1269,12 +1230,17 @@ void load_module(app_data* app, oc_str8 modulePath)
             }
         }
 
+        app->module->debugInfo = oc_arena_push_type(app->module->arena, dw_info);
+        memset(app->module->debugInfo, 0, sizeof(dw_info));
+
         //NOTE: dump dwarf abbrev table if it exists
         if(dwarfSections.abbrev.len)
         {
             dw_dump_abbrev_table(dwarfSections.abbrev);
         }
 
+        //NOTE: load line info if it exists
+        //TODO: put that in dw_info
         if(dwarfSections.line.len)
         {
             dw_line_info lineInfo = dw_load_line_info(app->moduleArena, &dwarfSections);
@@ -1309,6 +1275,47 @@ void load_module(app_data* app, oc_str8 modulePath)
             }
         }
     }
+}
+
+//-------------------------------------------------------------------------
+// main
+//-------------------------------------------------------------------------
+
+oc_font font_create(const char* resourcePath)
+{
+    //NOTE(martin): create default fonts
+    oc_arena_scope scratch = oc_scratch_begin();
+    oc_str8 fontPath = oc_path_executable_relative(scratch.arena, OC_STR8(resourcePath));
+
+    oc_font font = oc_font_nil();
+
+    FILE* fontFile = fopen(fontPath.ptr, "r");
+    if(!fontFile)
+    {
+        oc_log_error("Could not load font file '%s': %s\n", fontPath.ptr, strerror(errno));
+    }
+    else
+    {
+        char* fontData = 0;
+        fseek(fontFile, 0, SEEK_END);
+        u32 fontDataSize = ftell(fontFile);
+        rewind(fontFile);
+        fontData = malloc(fontDataSize);
+        fread(fontData, 1, fontDataSize, fontFile);
+        fclose(fontFile);
+
+        oc_unicode_range ranges[5] = { OC_UNICODE_BASIC_LATIN,
+                                       OC_UNICODE_C1_CONTROLS_AND_LATIN_1_SUPPLEMENT,
+                                       OC_UNICODE_LATIN_EXTENDED_A,
+                                       OC_UNICODE_LATIN_EXTENDED_B,
+                                       OC_UNICODE_SPECIALS };
+
+        font = oc_font_create_from_memory(oc_str8_from_buffer(fontDataSize, fontData), 5, ranges);
+
+        free(fontData);
+    }
+    oc_scratch_end(scratch);
+    return (font);
 }
 
 int main(int argc, char** argv)

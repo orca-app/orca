@@ -737,6 +737,11 @@ typedef struct dw_line_info
     dw_line_table* tables;
 } dw_line_info;
 
+typedef struct dw_info
+{
+    dw_line_info* line;
+} dw_info;
+
 int dw_read_file_entries(oc_arena* arena,
                          u64* entryCount,
                          dw_file_entry** entries,
