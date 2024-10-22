@@ -853,7 +853,7 @@ def build_platform_layer_lib_mac(release):
         "build/orca_c.o", "build/orca_objc.o",
         "-Lbuild/bin", "-lc",
         "-framework", "Carbon", "-framework", "Cocoa", "-framework", "Metal", "-framework", "QuartzCore",
-        "-weak-lEGL", "-weak-lGLESv2", "-weak-lwebgpu"
+        "-weak-lEGL", "-weak-lGLESv2", "-weak-lwebgpu", "-weak-lharfbuzz"
     ], check=True)
 
     # change dependent libs path to @rpath

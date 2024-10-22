@@ -20,6 +20,8 @@
 #define STB_TRUETYPE_IMPLEMENTATION
 #include "stb/stb_truetype.h"
 
+#include "ext/harfbuzz/include/hb.h"
+
 #include "graphics_common.h"
 #include "platform/platform_debug.h"
 #include "util/algebra.h"
@@ -53,6 +55,7 @@ typedef struct oc_font_data
 {
     oc_list_elt freeListElt;
 
+    //TODO: deprecate
     u32 rangeCount;
     u32 glyphCount;
     u32 outlineCount;
@@ -62,6 +65,10 @@ typedef struct oc_font_data
 
     f32 unitsPerEm;
     oc_font_metrics metrics;
+
+    /////
+    hb_face_t* hbFace;
+    hb_font_t* hbFont;
 
 } oc_font_data;
 
@@ -417,6 +424,9 @@ oc_font oc_font_create_from_memory(oc_str8 mem, u32 rangeCount, oc_unicode_range
         memset(font, 0, sizeof(oc_font_data));
         fontHandle = oc_font_handle_alloc(font);
 
+        //----------------------------------------------------
+        //TODO: remove
+
         stbtt_fontinfo stbttFontInfo;
         stbtt_InitFont(&stbttFontInfo, (byte*)mem.ptr, 0);
 
@@ -578,7 +588,13 @@ oc_font oc_font_create_from_memory(oc_str8 mem, u32 rangeCount, oc_unicode_range
                 codePoint++;
             }
         }
+        //----------------------------------------------------
+        //NOTE: create harfbuzz face and font
+        hb_blob_t* blob = hb_blob_create(mem.ptr, mem.len, HB_MEMORY_MODE_DUPLICATE, 0, 0);
+        font->hbFace = hb_face_create(blob, 0);
+        font->hbFont = hb_font_create(font->hbFace);
     }
+
     return (fontHandle);
 }
 
@@ -1683,6 +1699,132 @@ void oc_text_outlines(oc_str8 text)
     oc_str32 glyphIndices = oc_font_push_glyph_indices(scratch.arena, context->attributes.font, codePoints);
 
     oc_glyph_outlines_from_font_data(fontData, glyphIndices);
+
+    oc_scratch_end(scratch);
+}
+
+typedef struct oc_hb_draw_data
+{
+    f32 scale;
+    oc_vec2 offset;
+} oc_hb_draw_data;
+
+void oc_hb_move_to_func(hb_draw_funcs_t* dfuncs,
+                        void* draw_data,
+                        hb_draw_state_t* st,
+                        float to_x,
+                        float to_y,
+                        void* user_data)
+{
+    oc_hb_draw_data* data = (oc_hb_draw_data*)draw_data;
+    oc_move_to(data->offset.x + to_x * data->scale,
+               data->offset.y - to_y * data->scale);
+}
+
+void oc_hb_line_to_func(hb_draw_funcs_t* dfuncs,
+                        void* draw_data,
+                        hb_draw_state_t* st,
+                        float to_x,
+                        float to_y,
+                        void* user_data)
+{
+    oc_hb_draw_data* data = (oc_hb_draw_data*)draw_data;
+    oc_line_to(data->offset.x + to_x * data->scale,
+               data->offset.y - to_y * data->scale);
+}
+
+void oc_hb_quadratic_to_func(hb_draw_funcs_t* dfuncs,
+                             void* draw_data,
+                             hb_draw_state_t* st,
+                             float control_x,
+                             float control_y,
+                             float to_x,
+                             float to_y,
+                             void* user_data)
+{
+    oc_hb_draw_data* data = (oc_hb_draw_data*)draw_data;
+    oc_quadratic_to(data->offset.x + control_x * data->scale,
+                    data->offset.y - control_y * data->scale,
+                    data->offset.x + to_x * data->scale,
+                    data->offset.y - to_y * data->scale);
+}
+
+void oc_hb_cubic_to_func(hb_draw_funcs_t* dfuncs,
+                         void* draw_data,
+                         hb_draw_state_t* st,
+                         float control1_x,
+                         float control1_y,
+                         float control2_x,
+                         float control2_y,
+                         float to_x,
+                         float to_y,
+                         void* user_data)
+{
+    oc_hb_draw_data* data = (oc_hb_draw_data*)draw_data;
+    oc_cubic_to(data->offset.x + control1_x * data->scale,
+                data->offset.y - control1_y * data->scale,
+                data->offset.x + control2_x * data->scale,
+                data->offset.y - control2_y * data->scale,
+                data->offset.x + to_x * data->scale,
+                data->offset.y - to_y * data->scale);
+}
+
+void oc_text_draw_utf8(oc_str8 text, oc_font font, f32 fontSize)
+{
+    oc_canvas_context_data* context = oc_currentCanvasContext;
+    if(!context)
+    {
+        return;
+    }
+    oc_font_data* fontData = oc_font_data_from_handle(context->attributes.font);
+    if(!fontData)
+    {
+        return;
+    }
+
+    oc_arena_scope scratch = oc_scratch_begin();
+    oc_str32 codePoints = oc_utf8_push_to_codepoints(scratch.arena, text);
+
+    hb_buffer_t* buffer = hb_buffer_create();
+    hb_buffer_add_utf8(buffer, text.ptr, text.len, 0, text.len);
+    hb_buffer_guess_segment_properties(buffer);
+
+    hb_shape(fontData->hbFont, buffer, NULL, 0);
+
+    u32 glyphCount = 0;
+    hb_glyph_info_t* glyphInfo = hb_buffer_get_glyph_infos(buffer, &glyphCount);
+    hb_glyph_position_t* glyphPos = hb_buffer_get_glyph_positions(buffer, &glyphCount);
+
+    f32 scale = oc_font_get_scale_for_em_pixels(font, fontSize);
+    oc_vec2 pos = context->subPathLastPoint;
+
+    //TODO: move this in context creation
+    hb_draw_funcs_t* drawFuncs = hb_draw_funcs_create();
+
+    hb_draw_funcs_set_move_to_func(drawFuncs, oc_hb_move_to_func, 0, 0);
+    hb_draw_funcs_set_line_to_func(drawFuncs, oc_hb_line_to_func, 0, 0);
+    hb_draw_funcs_set_quadratic_to_func(drawFuncs, oc_hb_quadratic_to_func, 0, 0);
+    hb_draw_funcs_set_cubic_to_func(drawFuncs, oc_hb_cubic_to_func, 0, 0);
+
+    for(unsigned int i = 0; i < glyphCount; i++)
+    {
+        hb_codepoint_t glyphIndex = glyphInfo[i].codepoint;
+
+        oc_vec2 offset = { glyphPos[i].x_offset * scale, glyphPos[i].y_offset * scale };
+        oc_vec2 advance = { glyphPos[i].x_advance * scale, glyphPos[i].y_advance * scale };
+
+        oc_hb_draw_data data = {
+            .scale = scale,
+            .offset = { pos.x + offset.x, pos.y - offset.y },
+        };
+
+        hb_font_draw_glyph(fontData->hbFont, glyphIndex, drawFuncs, &data);
+
+        pos = oc_vec2_add(pos, advance);
+    }
+
+    hb_draw_funcs_destroy(drawFuncs);
+    hb_buffer_destroy(buffer);
 
     oc_scratch_end(scratch);
 }
