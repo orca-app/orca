@@ -102,6 +102,9 @@ typedef enum
     OC_CAP_SQUARE
 } oc_cap_type;
 
+//------------------------------------------------------------------------------------------
+// text structs
+//------------------------------------------------------------------------------------------
 typedef struct oc_font_metrics
 {
     f32 ascent;    // the extent above the baseline (by convention a positive value extends above the baseline)
@@ -113,6 +116,7 @@ typedef struct oc_font_metrics
 
 } oc_font_metrics;
 
+//TODO: deprecate?
 typedef struct oc_glyph_metrics
 {
     oc_rect ink;
@@ -126,6 +130,39 @@ typedef struct oc_text_metrics
     oc_vec2 advance;
 
 } oc_text_metrics;
+
+typedef enum
+{
+    OC_TEXT_DIRECTION_UNKNOWN = 0,
+    OC_TEXT_DIRECTION_LTR,
+    OC_TEXT_DIRECTION_RTL,
+    OC_TEXT_DIRECTION_TTB,
+    OC_TEXT_DIRECTION_BTT,
+
+} oc_text_direction;
+
+typedef struct oc_text_shape_settings
+{
+    oc_str8 script; //TODO: replace with anonymous struct and have a helper to get it from string?
+    oc_str8 lang;
+    oc_text_direction direction;
+
+} oc_text_shape_settings;
+
+typedef struct oc_glyph_run
+{
+    oc_font font;
+
+    u32 glyphCount;
+    u32* glyphs;
+    u32* clusters;
+
+    oc_vec2 positions; // offset + advance, or position?
+    oc_vec2 offsets;   //? different from positions?
+
+    oc_text_metrics metrics;
+
+} oc_glyph_run;
 
 //------------------------------------------------------------------------------------------
 //SECTION: color helpers
@@ -182,6 +219,7 @@ ORCA_API oc_font oc_font_create_from_path(oc_str8 path, u32 rangeCount, oc_unico
 
 ORCA_API void oc_font_destroy(oc_font font);
 
+//TODO deprecate, use shaping instead
 ORCA_API oc_str32 oc_font_get_glyph_indices(oc_font font, oc_str32 codePoints, oc_str32 backing);
 ORCA_API oc_str32 oc_font_push_glyph_indices(oc_arena* arena, oc_font font, oc_str32 codePoints);
 ORCA_API u32 oc_font_get_glyph_index(oc_font font, oc_utf32 codePoint);
@@ -189,8 +227,9 @@ ORCA_API u32 oc_font_get_glyph_index(oc_font font, oc_utf32 codePoint);
 // metrics
 ORCA_API oc_font_metrics oc_font_get_metrics(oc_font font, f32 emSize);
 ORCA_API oc_font_metrics oc_font_get_metrics_unscaled(oc_font font);
-ORCA_API f32 oc_font_get_scale_for_em_pixels(oc_font font, f32 emSize);
+ORCA_API f32 oc_font_get_scale_for_em_pixels(oc_font font, f32 emSize); //TODO: change to for_em_size
 
+//TODO: deprecate, use shaping instead
 ORCA_API oc_text_metrics oc_font_text_metrics_utf32(oc_font font, f32 fontSize, oc_str32 codepoints);
 ORCA_API oc_text_metrics oc_font_text_metrics(oc_font font, f32 fontSize, oc_str8 text);
 
@@ -260,9 +299,12 @@ ORCA_API void oc_set_tolerance(f32 tolerance);
 ORCA_API void oc_set_joint(oc_joint_type joint);
 ORCA_API void oc_set_max_joint_excursion(f32 maxJointExcursion);
 ORCA_API void oc_set_cap(oc_cap_type cap);
+
+//TODO deprecate, use shaping instead
 ORCA_API void oc_set_font(oc_font font);
 ORCA_API void oc_set_font_size(f32 size);
 ORCA_API void oc_set_text_flip(bool flip);
+
 ORCA_API void oc_set_image(oc_image image);
 ORCA_API void oc_set_image_source_region(oc_rect region);
 
@@ -272,9 +314,12 @@ ORCA_API f32 oc_get_tolerance(void);
 ORCA_API oc_joint_type oc_get_joint(void);
 ORCA_API f32 oc_get_max_joint_excursion(void);
 ORCA_API oc_cap_type oc_get_cap(void);
+
+//TODO deprecate, use shaping instead
 ORCA_API oc_font oc_get_font(void);
 ORCA_API f32 oc_get_font_size(void);
 ORCA_API bool oc_get_text_flip(void);
+
 ORCA_API oc_image oc_get_image(void);
 ORCA_API oc_rect oc_get_image_source_region(void);
 
@@ -288,9 +333,26 @@ ORCA_API void oc_quadratic_to(f32 x1, f32 y1, f32 x2, f32 y2);
 ORCA_API void oc_cubic_to(f32 x1, f32 y1, f32 x2, f32 y2, f32 x3, f32 y3);
 ORCA_API void oc_close_path(void);
 
+//------------------------------------------------------------------------------------------
+//SECTION: text
+//------------------------------------------------------------------------------------------
+//TODO: deprecate
 ORCA_API oc_rect oc_glyph_outlines(oc_str32 glyphIndices);
 ORCA_API void oc_codepoints_outlines(oc_str32 string);
 ORCA_API void oc_text_outlines(oc_str8 string);
+
+oc_glyph_run* oc_text_shape(oc_arena* arena,
+                            oc_font font,
+                            oc_text_shape_settings* settings,
+                            oc_str32 codepoints,
+                            u64 begin,
+                            u64 end);
+
+u64 oc_glyph_run_points_to_cursor(oc_glyph_run* run, f32 size, f32 points);
+f32 oc_glyph_run_cursor_to_points(oc_glyph_run* run, f32 size, u64 cursor);
+
+void oc_text_draw_run(oc_glyph_run* run, f32 fontSize);
+void oc_text_draw_utf8(oc_str8 text, oc_font font, f32 fontSize);
 
 //------------------------------------------------------------------------------------------
 //SECTION: clear/fill/stroke
