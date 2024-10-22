@@ -144,6 +144,8 @@ typedef struct oc_canvas_context_data
     oc_vec4 shapeExtents;
     oc_vec4 shapeScreenExtents;
 
+    hb_draw_funcs_t* hbDrawFuncs;
+
 } oc_canvas_context_data;
 
 static oc_graphics_data oc_graphicsData = { 0 };
@@ -962,6 +964,41 @@ oc_canvas_context_data* oc_canvas_context_from_handle(oc_canvas_context handle)
     return (context);
 }
 
+typedef struct oc_hb_draw_data oc_hb_draw_data;
+
+void oc_hb_move_to_func(hb_draw_funcs_t* dfuncs,
+                        void* draw_data,
+                        hb_draw_state_t* st,
+                        float to_x,
+                        float to_y,
+                        void* user_data);
+
+void oc_hb_line_to_func(hb_draw_funcs_t* dfuncs,
+                        void* draw_data,
+                        hb_draw_state_t* st,
+                        float to_x,
+                        float to_y,
+                        void* user_data);
+
+void oc_hb_quadratic_to_func(hb_draw_funcs_t* dfuncs,
+                             void* draw_data,
+                             hb_draw_state_t* st,
+                             float control_x,
+                             float control_y,
+                             float to_x,
+                             float to_y,
+                             void* user_data);
+void oc_hb_cubic_to_func(hb_draw_funcs_t* dfuncs,
+                         void* draw_data,
+                         hb_draw_state_t* st,
+                         float control1_x,
+                         float control1_y,
+                         float control2_x,
+                         float control2_y,
+                         float to_x,
+                         float to_y,
+                         void* user_data);
+
 oc_canvas_context oc_canvas_context_create()
 {
     if(!oc_graphicsData.init)
@@ -992,6 +1029,13 @@ oc_canvas_context oc_canvas_context_create()
         context->attributes.width = 10;
         context->attributes.clip = (oc_rect){ -FLT_MAX / 2, -FLT_MAX / 2, FLT_MAX, FLT_MAX };
 
+        context->hbDrawFuncs = hb_draw_funcs_create();
+
+        hb_draw_funcs_set_move_to_func(context->hbDrawFuncs, oc_hb_move_to_func, 0, 0);
+        hb_draw_funcs_set_line_to_func(context->hbDrawFuncs, oc_hb_line_to_func, 0, 0);
+        hb_draw_funcs_set_quadratic_to_func(context->hbDrawFuncs, oc_hb_quadratic_to_func, 0, 0);
+        hb_draw_funcs_set_cubic_to_func(context->hbDrawFuncs, oc_hb_cubic_to_func, 0, 0);
+
         contextHandle = oc_canvas_context_handle_alloc(context);
 
         oc_canvas_context_select(contextHandle);
@@ -1009,6 +1053,9 @@ void oc_canvas_context_destroy(oc_canvas_context handle)
             oc_currentCanvasContext = 0;
             oc_currentCanvasContextHandle = oc_canvas_context_nil();
         }
+
+        hb_draw_funcs_destroy(context->hbDrawFuncs);
+
         oc_list_push_front(&oc_graphicsData.canvasFreeList, &context->freeListElt);
         oc_graphics_handle_recycle(handle.h);
     }
@@ -1878,14 +1925,6 @@ void oc_text_draw_run(oc_glyph_run* run, f32 fontSize)
         return;
     }
 
-    //TODO: move this in context creation
-    hb_draw_funcs_t* drawFuncs = hb_draw_funcs_create();
-
-    hb_draw_funcs_set_move_to_func(drawFuncs, oc_hb_move_to_func, 0, 0);
-    hb_draw_funcs_set_line_to_func(drawFuncs, oc_hb_line_to_func, 0, 0);
-    hb_draw_funcs_set_quadratic_to_func(drawFuncs, oc_hb_quadratic_to_func, 0, 0);
-    hb_draw_funcs_set_cubic_to_func(drawFuncs, oc_hb_cubic_to_func, 0, 0);
-
     f32 scale = oc_font_get_scale_for_em_pixels(run->font, fontSize);
     oc_vec2 origin = context->subPathLastPoint;
 
@@ -1898,10 +1937,8 @@ void oc_text_draw_run(oc_glyph_run* run, f32 fontSize)
                 origin.y - run->positions[i].y * scale - run->offsets[i].y * scale },
         };
 
-        hb_font_draw_glyph(fontData->hbFont, run->glyphs[i], drawFuncs, &data);
+        hb_font_draw_glyph(fontData->hbFont, run->glyphs[i], context->hbDrawFuncs, &data);
     }
-
-    hb_draw_funcs_destroy(drawFuncs);
 }
 
 void oc_text_draw_utf8(oc_str8 text, oc_font font, f32 fontSize)
