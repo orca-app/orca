@@ -46,6 +46,7 @@ typedef struct oc_attributes
     oc_joint_type joint;
     f32 maxJointExcursion;
     oc_cap_type cap;
+    oc_fill_rule fillRule;
 
     oc_font font;
     f32 fontSize;

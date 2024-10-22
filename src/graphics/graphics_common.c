@@ -1366,6 +1366,15 @@ void oc_set_cap(oc_cap_type cap)
     }
 }
 
+void oc_set_fill_rule(oc_fill_rule rule)
+{
+    oc_canvas_context_data* context = oc_currentCanvasContext;
+    if(context)
+    {
+        context->attributes.fillRule = rule;
+    }
+}
+
 void oc_set_font(oc_font font)
 {
     oc_canvas_context_data* context = oc_currentCanvasContext;
@@ -1477,6 +1486,17 @@ oc_cap_type oc_get_cap()
         cap = context->attributes.cap;
     }
     return (cap);
+}
+
+oc_fill_rule oc_get_fill_rule()
+{
+    oc_fill_rule rule = 0;
+    oc_canvas_context_data* context = oc_currentCanvasContext;
+    if(context)
+    {
+        rule = context->attributes.fillRule;
+    }
+    return (rule);
 }
 
 oc_font oc_get_font()
@@ -1753,8 +1773,11 @@ void oc_text_outlines(oc_str8 text)
 typedef struct oc_hb_draw_data
 {
     f32 scale;
-    oc_vec2 offset;
+    f32 flipY;
+    oc_vec2 origin;
 } oc_hb_draw_data;
+
+//WARN: font curves are passed by Harfbuzz with y-up
 
 void oc_hb_move_to_func(hb_draw_funcs_t* dfuncs,
                         void* draw_data,
@@ -1764,8 +1787,8 @@ void oc_hb_move_to_func(hb_draw_funcs_t* dfuncs,
                         void* user_data)
 {
     oc_hb_draw_data* data = (oc_hb_draw_data*)draw_data;
-    oc_move_to(data->offset.x + to_x * data->scale,
-               data->offset.y - to_y * data->scale);
+    oc_move_to(data->origin.x + to_x * data->scale,
+               data->origin.y - to_y * data->scale * data->flipY);
 }
 
 void oc_hb_line_to_func(hb_draw_funcs_t* dfuncs,
@@ -1776,8 +1799,8 @@ void oc_hb_line_to_func(hb_draw_funcs_t* dfuncs,
                         void* user_data)
 {
     oc_hb_draw_data* data = (oc_hb_draw_data*)draw_data;
-    oc_line_to(data->offset.x + to_x * data->scale,
-               data->offset.y - to_y * data->scale);
+    oc_line_to(data->origin.x + to_x * data->scale,
+               data->origin.y - to_y * data->scale * data->flipY);
 }
 
 void oc_hb_quadratic_to_func(hb_draw_funcs_t* dfuncs,
@@ -1790,10 +1813,10 @@ void oc_hb_quadratic_to_func(hb_draw_funcs_t* dfuncs,
                              void* user_data)
 {
     oc_hb_draw_data* data = (oc_hb_draw_data*)draw_data;
-    oc_quadratic_to(data->offset.x + control_x * data->scale,
-                    data->offset.y - control_y * data->scale,
-                    data->offset.x + to_x * data->scale,
-                    data->offset.y - to_y * data->scale);
+    oc_quadratic_to(data->origin.x + control_x * data->scale,
+                    data->origin.y - control_y * data->scale * data->flipY,
+                    data->origin.x + to_x * data->scale,
+                    data->origin.y - to_y * data->scale * data->flipY);
 }
 
 void oc_hb_cubic_to_func(hb_draw_funcs_t* dfuncs,
@@ -1808,12 +1831,12 @@ void oc_hb_cubic_to_func(hb_draw_funcs_t* dfuncs,
                          void* user_data)
 {
     oc_hb_draw_data* data = (oc_hb_draw_data*)draw_data;
-    oc_cubic_to(data->offset.x + control1_x * data->scale,
-                data->offset.y - control1_y * data->scale,
-                data->offset.x + control2_x * data->scale,
-                data->offset.y - control2_y * data->scale,
-                data->offset.x + to_x * data->scale,
-                data->offset.y - to_y * data->scale);
+    oc_cubic_to(data->origin.x + control1_x * data->scale,
+                data->origin.y - control1_y * data->scale * data->flipY,
+                data->origin.x + control2_x * data->scale,
+                data->origin.y - control2_y * data->scale * data->flipY,
+                data->origin.x + to_x * data->scale,
+                data->origin.y - to_y * data->scale * data->flipY);
 }
 
 oc_glyph_run* oc_text_shape(oc_arena* arena,
@@ -1833,7 +1856,7 @@ oc_glyph_run* oc_text_shape(oc_arena* arena,
     {
         return (run);
     }
-    oc_font_data* fontData = oc_font_data_from_handle(context->attributes.font);
+    oc_font_data* fontData = oc_font_data_from_handle(run->font);
     if(!fontData)
     {
         return (run);
@@ -1898,11 +1921,12 @@ oc_glyph_run* oc_text_shape(oc_arena* arena,
         run->glyphs[i] = glyphInfo[i].codepoint;
         run->clusters[i] = glyphInfo[i].cluster;
 
+        //WARN: Harfbuzz uses y-up so we negate advances and offsets
         run->positions[i] = pos;
-        run->offsets[i] = (oc_vec2){ glyphPos[i].x_offset, glyphPos[i].y_offset };
+        run->offsets[i] = (oc_vec2){ glyphPos[i].x_offset, -glyphPos[i].y_offset };
 
         pos.x += glyphPos[i].x_advance;
-        pos.y += glyphPos[i].y_advance;
+        pos.y -= glyphPos[i].y_advance;
 
         //TODO compute run metrics
     }
@@ -1919,7 +1943,7 @@ void oc_text_draw_run(oc_glyph_run* run, f32 fontSize)
     {
         return;
     }
-    oc_font_data* fontData = oc_font_data_from_handle(context->attributes.font);
+    oc_font_data* fontData = oc_font_data_from_handle(run->font);
     if(!fontData)
     {
         return;
@@ -1928,17 +1952,25 @@ void oc_text_draw_run(oc_glyph_run* run, f32 fontSize)
     f32 scale = oc_font_get_scale_for_em_pixels(run->font, fontSize);
     oc_vec2 origin = context->subPathLastPoint;
 
+    f32 flipY = (context->textFlip) ? -1 : 1;
+
     for(u64 i = 0; i < run->glyphCount; i++)
     {
         oc_hb_draw_data data = {
             .scale = scale,
-            .offset = {
-                origin.x + run->positions[i].x * scale + run->offsets[i].y * scale,
-                origin.y - run->positions[i].y * scale - run->offsets[i].y * scale },
+            .flipY = flipY,
+            .origin = {
+                origin.x + (run->positions[i].x + run->offsets[i].y) * scale,
+                origin.y + (run->positions[i].y + run->offsets[i].y) * scale * flipY },
         };
 
         hb_font_draw_glyph(fontData->hbFont, run->glyphs[i], context->hbDrawFuncs, &data);
     }
+
+    oc_fill_rule oldRule = context->attributes.fillRule;
+    context->attributes.fillRule = OC_FILL_NON_ZERO;
+    oc_fill();
+    context->attributes.fillRule = oldRule;
 }
 
 void oc_text_draw_utf8(oc_str8 text, oc_font font, f32 fontSize)
@@ -1948,7 +1980,7 @@ void oc_text_draw_utf8(oc_str8 text, oc_font font, f32 fontSize)
     {
         return;
     }
-    oc_font_data* fontData = oc_font_data_from_handle(context->attributes.font);
+    oc_font_data* fontData = oc_font_data_from_handle(font);
     if(!fontData)
     {
         return;

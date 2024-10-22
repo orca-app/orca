@@ -102,6 +102,12 @@ typedef enum
     OC_CAP_SQUARE
 } oc_cap_type;
 
+typedef enum
+{
+    OC_FILL_EVEN_ODD = 0,
+    OC_FILL_NON_ZERO,
+} oc_fill_rule;
+
 //------------------------------------------------------------------------------------------
 // text structs
 //------------------------------------------------------------------------------------------
@@ -300,6 +306,8 @@ ORCA_API void oc_set_joint(oc_joint_type joint);
 ORCA_API void oc_set_max_joint_excursion(f32 maxJointExcursion);
 ORCA_API void oc_set_cap(oc_cap_type cap);
 
+ORCA_API void oc_set_fill_rule(oc_fill_rule rule);
+
 //TODO deprecate, use shaping instead
 ORCA_API void oc_set_font(oc_font font);
 ORCA_API void oc_set_font_size(f32 size);
@@ -314,6 +322,8 @@ ORCA_API f32 oc_get_tolerance(void);
 ORCA_API oc_joint_type oc_get_joint(void);
 ORCA_API f32 oc_get_max_joint_excursion(void);
 ORCA_API oc_cap_type oc_get_cap(void);
+
+ORCA_API oc_fill_rule oc_get_fill_rule();
 
 //TODO deprecate, use shaping instead
 ORCA_API oc_font oc_get_font(void);
