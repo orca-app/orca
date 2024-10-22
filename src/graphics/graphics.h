@@ -157,8 +157,8 @@ typedef struct oc_glyph_run
     u32* glyphs;
     u32* clusters;
 
-    oc_vec2 positions; // offset + advance, or position?
-    oc_vec2 offsets;   //? different from positions?
+    oc_vec2* positions; // offset + advance, or position?
+    oc_vec2* offsets;   //? different from positions?
 
     oc_text_metrics metrics;
 

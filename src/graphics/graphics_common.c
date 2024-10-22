@@ -1769,6 +1769,141 @@ void oc_hb_cubic_to_func(hb_draw_funcs_t* dfuncs,
                 data->offset.y - to_y * data->scale);
 }
 
+oc_glyph_run* oc_text_shape(oc_arena* arena,
+                            oc_font font,
+                            oc_text_shape_settings* settings,
+                            oc_str32 codepoints,
+                            u64 begin,
+                            u64 end)
+{
+    oc_glyph_run* run = oc_arena_push_type(arena, oc_glyph_run);
+    memset(run, 0, sizeof(oc_glyph_run));
+
+    run->font = font;
+
+    oc_canvas_context_data* context = oc_currentCanvasContext;
+    if(!context)
+    {
+        return (run);
+    }
+    oc_font_data* fontData = oc_font_data_from_handle(context->attributes.font);
+    if(!fontData)
+    {
+        return (run);
+    }
+
+    hb_buffer_t* buffer = hb_buffer_create();
+    u32 len = end >= begin ? end - begin : 0;
+    hb_buffer_add_codepoints(buffer, codepoints.ptr, codepoints.len, begin, len);
+
+    if(!settings
+       || settings->script.len == 0
+       || settings->lang.len == 0
+       || settings->direction == OC_TEXT_DIRECTION_UNKNOWN)
+    {
+        hb_buffer_guess_segment_properties(buffer);
+    }
+
+    if(settings)
+    {
+        if(settings->script.len)
+        {
+            hb_script_t script = hb_script_from_string(settings->script.ptr, settings->script.len);
+            hb_buffer_set_script(buffer, script);
+        }
+        if(settings->lang.len)
+        {
+            hb_language_t lang = hb_language_from_string(settings->lang.ptr, settings->lang.len);
+            hb_buffer_set_language(buffer, lang);
+        }
+        switch(settings->direction)
+        {
+            case OC_TEXT_DIRECTION_LTR:
+                hb_buffer_set_direction(buffer, HB_DIRECTION_LTR);
+                break;
+            case OC_TEXT_DIRECTION_RTL:
+                hb_buffer_set_direction(buffer, HB_DIRECTION_RTL);
+                break;
+            case OC_TEXT_DIRECTION_TTB:
+                hb_buffer_set_direction(buffer, HB_DIRECTION_TTB);
+                break;
+            case OC_TEXT_DIRECTION_BTT:
+                hb_buffer_set_direction(buffer, HB_DIRECTION_BTT);
+                break;
+            default:
+                break;
+        }
+    }
+
+    hb_shape(fontData->hbFont, buffer, NULL, 0);
+
+    hb_glyph_info_t* glyphInfo = hb_buffer_get_glyph_infos(buffer, &run->glyphCount);
+    hb_glyph_position_t* glyphPos = hb_buffer_get_glyph_positions(buffer, &run->glyphCount);
+
+    run->glyphs = oc_arena_push_array(arena, u32, run->glyphCount);
+    run->clusters = oc_arena_push_array(arena, u32, run->glyphCount);
+    run->positions = oc_arena_push_array(arena, oc_vec2, run->glyphCount);
+    run->offsets = oc_arena_push_array(arena, oc_vec2, run->glyphCount);
+
+    oc_vec2 pos = { 0 };
+    for(u64 i = 0; i < run->glyphCount; i++)
+    {
+        run->glyphs[i] = glyphInfo[i].codepoint;
+        run->clusters[i] = glyphInfo[i].cluster;
+
+        run->positions[i] = pos;
+        run->offsets[i] = (oc_vec2){ glyphPos[i].x_offset, glyphPos[i].y_offset };
+
+        pos.x += glyphPos[i].x_advance;
+        pos.y += glyphPos[i].y_advance;
+
+        //TODO compute run metrics
+    }
+
+    hb_buffer_destroy(buffer);
+
+    return (run);
+}
+
+void oc_text_draw_run(oc_glyph_run* run, f32 fontSize)
+{
+    oc_canvas_context_data* context = oc_currentCanvasContext;
+    if(!context)
+    {
+        return;
+    }
+    oc_font_data* fontData = oc_font_data_from_handle(context->attributes.font);
+    if(!fontData)
+    {
+        return;
+    }
+
+    //TODO: move this in context creation
+    hb_draw_funcs_t* drawFuncs = hb_draw_funcs_create();
+
+    hb_draw_funcs_set_move_to_func(drawFuncs, oc_hb_move_to_func, 0, 0);
+    hb_draw_funcs_set_line_to_func(drawFuncs, oc_hb_line_to_func, 0, 0);
+    hb_draw_funcs_set_quadratic_to_func(drawFuncs, oc_hb_quadratic_to_func, 0, 0);
+    hb_draw_funcs_set_cubic_to_func(drawFuncs, oc_hb_cubic_to_func, 0, 0);
+
+    f32 scale = oc_font_get_scale_for_em_pixels(run->font, fontSize);
+    oc_vec2 origin = context->subPathLastPoint;
+
+    for(u64 i = 0; i < run->glyphCount; i++)
+    {
+        oc_hb_draw_data data = {
+            .scale = scale,
+            .offset = {
+                origin.x + run->positions[i].x * scale + run->offsets[i].y * scale,
+                origin.y - run->positions[i].y * scale - run->offsets[i].y * scale },
+        };
+
+        hb_font_draw_glyph(fontData->hbFont, run->glyphs[i], drawFuncs, &data);
+    }
+
+    hb_draw_funcs_destroy(drawFuncs);
+}
+
 void oc_text_draw_utf8(oc_str8 text, oc_font font, f32 fontSize)
 {
     oc_canvas_context_data* context = oc_currentCanvasContext;
@@ -1783,48 +1918,10 @@ void oc_text_draw_utf8(oc_str8 text, oc_font font, f32 fontSize)
     }
 
     oc_arena_scope scratch = oc_scratch_begin();
-    oc_str32 codePoints = oc_utf8_push_to_codepoints(scratch.arena, text);
 
-    hb_buffer_t* buffer = hb_buffer_create();
-    hb_buffer_add_utf8(buffer, text.ptr, text.len, 0, text.len);
-    hb_buffer_guess_segment_properties(buffer);
-
-    hb_shape(fontData->hbFont, buffer, NULL, 0);
-
-    u32 glyphCount = 0;
-    hb_glyph_info_t* glyphInfo = hb_buffer_get_glyph_infos(buffer, &glyphCount);
-    hb_glyph_position_t* glyphPos = hb_buffer_get_glyph_positions(buffer, &glyphCount);
-
-    f32 scale = oc_font_get_scale_for_em_pixels(font, fontSize);
-    oc_vec2 pos = context->subPathLastPoint;
-
-    //TODO: move this in context creation
-    hb_draw_funcs_t* drawFuncs = hb_draw_funcs_create();
-
-    hb_draw_funcs_set_move_to_func(drawFuncs, oc_hb_move_to_func, 0, 0);
-    hb_draw_funcs_set_line_to_func(drawFuncs, oc_hb_line_to_func, 0, 0);
-    hb_draw_funcs_set_quadratic_to_func(drawFuncs, oc_hb_quadratic_to_func, 0, 0);
-    hb_draw_funcs_set_cubic_to_func(drawFuncs, oc_hb_cubic_to_func, 0, 0);
-
-    for(unsigned int i = 0; i < glyphCount; i++)
-    {
-        hb_codepoint_t glyphIndex = glyphInfo[i].codepoint;
-
-        oc_vec2 offset = { glyphPos[i].x_offset * scale, glyphPos[i].y_offset * scale };
-        oc_vec2 advance = { glyphPos[i].x_advance * scale, glyphPos[i].y_advance * scale };
-
-        oc_hb_draw_data data = {
-            .scale = scale,
-            .offset = { pos.x + offset.x, pos.y - offset.y },
-        };
-
-        hb_font_draw_glyph(fontData->hbFont, glyphIndex, drawFuncs, &data);
-
-        pos = oc_vec2_add(pos, advance);
-    }
-
-    hb_draw_funcs_destroy(drawFuncs);
-    hb_buffer_destroy(buffer);
+    oc_str32 codepoints = oc_utf8_push_to_codepoints(scratch.arena, text);
+    oc_glyph_run* run = oc_text_shape(scratch.arena, font, 0, codepoints, 0, codepoints.len);
+    oc_text_draw_run(run, fontSize);
 
     oc_scratch_end(scratch);
 }

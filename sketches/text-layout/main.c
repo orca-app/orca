@@ -150,6 +150,11 @@ int main()
 
         oc_move_to(cursor.x, cursor.y);
 
+        /*
+        oc_str32 codepoints = oc_utf8_push_to_codepoints(scratch.arena, text);
+        oc_glyph_run* run = oc_text_shape(scratch.arena, font, 0, codepoints, 0, codepoints.len);
+        oc_text_draw_run(run, fontSize);
+        */
         oc_text_draw_utf8(text, font, fontSize);
 
         oc_set_color_rgba(0, 0, 0, 1);
