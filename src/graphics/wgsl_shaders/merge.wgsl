@@ -81,8 +81,8 @@
             else if(firstOpIndex == -1)
             {
                 //NOTE: This bin queue has no ops. This means the tile is fully inside or fully outside the path
-                if( ((pathBuffer[pathIndex].cmd == OC_CMD_FILL) && ((windingOffset & 1) != 0))
-                  ||((pathBuffer[pathIndex].cmd == OC_CMD_STROKE) && (windingOffset != 0)))
+                if( ((pathBuffer[pathIndex].fillRule == OC_FILL_EVEN_ODD) && ((windingOffset & 1) != 0))
+                  ||((pathBuffer[pathIndex].fillRule == OC_FILL_NON_ZERO) && (windingOffset != 0)))
                 {
                     //NOTE: tile is full covered. Add fill op (with winding offset).
                     //      Additionally if color is opaque and tile is fully inside clip, trim tile list.

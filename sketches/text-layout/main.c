@@ -15,11 +15,11 @@
 
 #include "orca.h"
 
-oc_font create_font()
+oc_font create_font(oc_str8 relPath)
 {
     //NOTE(martin): create font
     oc_arena_scope scratch = oc_scratch_begin();
-    oc_str8 fontPath = oc_path_executable_relative(scratch.arena, OC_STR8("../../resources/Zapfino.ttf"));
+    oc_str8 fontPath = oc_path_executable_relative(scratch.arena, relPath);
     char* fontPathCString = oc_str8_to_cstring(scratch.arena, fontPath);
 
     FILE* fontFile = fopen(fontPathCString, "r");
@@ -53,7 +53,7 @@ int main()
 {
     oc_init();
 
-    oc_rect windowRect = { .x = 100, .y = 100, .w = 810, .h = 610 };
+    oc_rect windowRect = { .x = 100, .y = 100, .w = 800, .h = 600 };
     oc_window window = oc_window_create(windowRect, OC_STR8("test"), 0);
 
     oc_rect contentRect = oc_window_get_content_rect(window);
@@ -81,7 +81,9 @@ int main()
         return (-1);
     }
 
-    oc_font font = create_font();
+    oc_font romanFont = create_font(OC_STR8("../../resources/Zapfino.ttf"));
+    oc_font japaneseFont = create_font(OC_STR8("../../resources/NotoSansJP-Light.ttf"));
+    oc_font arabicFont = create_font(OC_STR8("../../resources/NotoNaskhArabic-Regular.ttf"));
 
     oc_str8 text = OC_STR8("Hello Harfbuzz! Zapfino Test");
     f32 fontSize = 32;
@@ -123,10 +125,10 @@ int main()
         oc_set_color_rgba(0, 1, 1, 1);
         oc_clear();
 
-        oc_set_font(font);
+        oc_set_font(romanFont);
         oc_set_font_size(fontSize);
 
-        oc_font_metrics metrics = oc_font_get_metrics(font, fontSize);
+        oc_font_metrics metrics = oc_font_get_metrics(romanFont, fontSize);
 
         oc_vec2 cursor = { 200, 200 };
 
@@ -148,17 +150,98 @@ int main()
         oc_set_width(1);
         oc_stroke();
 
-        oc_move_to(cursor.x, cursor.y);
+        {
+            oc_move_to(cursor.x, cursor.y);
+            oc_set_color_rgba(0, 0, 0, 1);
 
-        /*
-        oc_str32 codepoints = oc_utf8_push_to_codepoints(scratch.arena, text);
-        oc_glyph_run* run = oc_text_shape(scratch.arena, font, 0, codepoints, 0, codepoints.len);
-        oc_text_draw_run(run, fontSize);
-        */
-        oc_text_draw_utf8(text, font, fontSize);
+            oc_str32 codepoints = oc_utf8_push_to_codepoints(scratch.arena, text);
+            oc_glyph_run* run = oc_text_shape(scratch.arena, romanFont, 0, codepoints, 0, codepoints.len);
+            oc_text_draw_run(run, fontSize);
 
-        oc_set_color_rgba(0, 0, 0, 1);
-        oc_fill();
+            //oc_text_draw_utf8(text, font, fontSize);
+        }
+
+        {
+            oc_move_to(200, 300);
+            oc_line_to(300, 300);
+
+            oc_set_width(1);
+            oc_set_color_rgba(1, 0, 0, 1);
+            oc_stroke();
+
+            oc_move_to(200, 300);
+
+            oc_set_color_rgba(0, 0, 0, 1);
+
+            oc_str32 codepoints = oc_utf8_push_to_codepoints(scratch.arena, OC_STR8("以呂波耳本部止"));
+
+            oc_glyph_run* run = oc_text_shape(scratch.arena,
+                                              japaneseFont,
+                                              &(oc_text_shape_settings){
+                                                  .direction = OC_TEXT_DIRECTION_TTB,
+                                              },
+                                              codepoints,
+                                              0,
+                                              codepoints.len);
+            oc_text_draw_run(run, fontSize);
+        }
+
+        {
+            //NOTE: same TTB japanese text but withing a y-up coord system
+            oc_rect client = oc_window_get_content_rect(window);
+            oc_matrix_push((oc_mat2x3){ 1, 0, 0,
+                                        0, -1, client.h });
+
+            oc_set_text_flip(true);
+            oc_move_to(300, 300);
+            oc_line_to(400, 300);
+
+            oc_set_width(1);
+            oc_set_color_rgba(1, 0, 0, 1);
+            oc_stroke();
+
+            oc_move_to(300, 300);
+            oc_set_color_rgba(0, 0, 0, 1);
+
+            oc_str32 codepoints = oc_utf8_push_to_codepoints(scratch.arena, OC_STR8("以呂波耳本部止"));
+
+            oc_glyph_run* run = oc_text_shape(scratch.arena,
+                                              japaneseFont,
+                                              &(oc_text_shape_settings){
+                                                  .direction = OC_TEXT_DIRECTION_TTB,
+                                              },
+                                              codepoints,
+                                              0,
+                                              codepoints.len);
+            oc_text_draw_run(run, fontSize);
+
+            oc_set_text_flip(false);
+            oc_matrix_pop();
+        }
+
+        {
+            oc_move_to(500, 400);
+            oc_line_to(700, 400);
+
+            oc_set_width(1);
+            oc_set_color_rgba(1, 0, 0, 1);
+            oc_stroke();
+
+            oc_move_to(500, 400);
+            oc_set_color_rgba(0, 0, 0, 1);
+
+            oc_str32 codepoints = oc_utf8_push_to_codepoints(scratch.arena, OC_STR8("مرحبا"));
+
+            oc_glyph_run* run = oc_text_shape(scratch.arena,
+                                              arabicFont,
+                                              &(oc_text_shape_settings){
+                                                  .direction = OC_TEXT_DIRECTION_RTL,
+                                              },
+                                              codepoints,
+                                              0,
+                                              codepoints.len);
+            oc_text_draw_run(run, fontSize);
+        }
 
         oc_canvas_render(renderer, context, surface);
         oc_canvas_present(renderer, surface);

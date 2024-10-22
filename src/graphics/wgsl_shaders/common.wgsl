@@ -5,7 +5,7 @@ struct oc_path
     colors : array<vec4f, 4>,
     box: vec4f,
     clip: vec4f,
-    cmd : u32,
+    fillRule : u32,
     textureID : i32,
     hasGradient : i32,
     blendSpace : i32,
@@ -86,8 +86,8 @@ struct oc_debug_display_options
     debugTileQueues : u32,
 };
 
-const OC_CMD_FILL : u32 = 0;
-const OC_CMD_STROKE : u32 = 1;
+const OC_FILL_EVEN_ODD : u32 = 0;
+const OC_FILL_NON_ZERO : u32 = 1;
 
 const OC_SEG_BL : i32 = 0; // curve on bottom left
 const OC_SEG_BR : i32 = 1; // curve on bottom right
