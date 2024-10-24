@@ -17,31 +17,12 @@
 #endif
 #include "stb/stb_image.h"
 
-#define STB_TRUETYPE_IMPLEMENTATION
-#include "stb/stb_truetype.h"
-
 #include "ext/harfbuzz/include/hb.h"
+#include "ext/harfbuzz/include/hb-ot.h"
 
 #include "graphics_common.h"
 #include "platform/platform_debug.h"
 #include "util/algebra.h"
-
-typedef struct oc_glyph_map_entry
-{
-    oc_unicode_range range;
-    u32 firstGlyphIndex;
-
-} oc_glyph_map_entry;
-
-typedef struct oc_glyph_data
-{
-    bool exists;
-    oc_utf32 codePoint;
-    oc_path_descriptor pathDescriptor;
-    oc_glyph_metrics metrics;
-    //...
-
-} oc_glyph_data;
 
 enum
 {
@@ -55,18 +36,9 @@ typedef struct oc_font_data
 {
     oc_list_elt freeListElt;
 
-    //TODO: deprecate
-    u32 rangeCount;
-    u32 glyphCount;
-    u32 outlineCount;
-    oc_glyph_map_entry* glyphMap;
-    oc_glyph_data* glyphs;
-    oc_path_elt* outlines;
-
     f32 unitsPerEm;
     oc_font_metrics metrics;
 
-    /////
     hb_face_t* hbFace;
     hb_font_t* hbFont;
 
@@ -426,175 +398,41 @@ oc_font oc_font_create_from_memory(oc_str8 mem, u32 rangeCount, oc_unicode_range
         memset(font, 0, sizeof(oc_font_data));
         fontHandle = oc_font_handle_alloc(font);
 
-        //----------------------------------------------------
-        //TODO: remove
-
-        stbtt_fontinfo stbttFontInfo;
-        stbtt_InitFont(&stbttFontInfo, (byte*)mem.ptr, 0);
-
-        //NOTE(martin): load font metrics data
-        font->unitsPerEm = 1. / stbtt_ScaleForMappingEmToPixels(&stbttFontInfo, 1);
-
-        int ascent, descent, lineGap, x0, x1, y0, y1;
-        stbtt_GetFontVMetrics(&stbttFontInfo, &ascent, &descent, &lineGap);
-        stbtt_GetFontBoundingBox(&stbttFontInfo, &x0, &y0, &x1, &y1);
-
-        font->metrics.ascent = ascent;
-        font->metrics.descent = -descent;
-        font->metrics.lineGap = lineGap;
-        font->metrics.width = x1 - x0;
-
-        stbtt_GetCodepointBox(&stbttFontInfo, 'x', &x0, &y0, &x1, &y1);
-        font->metrics.xHeight = y1 - y0;
-
-        stbtt_GetCodepointBox(&stbttFontInfo, 'M', &x0, &y0, &x1, &y1);
-        font->metrics.capHeight = y1 - y0;
-
-        //NOTE(martin): load codepoint ranges
-        font->rangeCount = rangeCount;
-        font->glyphMap = oc_malloc_array(oc_glyph_map_entry, rangeCount);
-        font->glyphCount = 0;
-
-        for(int i = 0; i < rangeCount; i++)
-        {
-            //NOTE(martin): initialize the map entry.
-            //              The glyph indices are offseted by 1, to reserve 0 as an invalid glyph index.
-            font->glyphMap[i].range = ranges[i];
-            font->glyphMap[i].firstGlyphIndex = font->glyphCount + 1;
-            font->glyphCount += ranges[i].count;
-        }
-
-        font->glyphs = oc_malloc_array(oc_glyph_data, font->glyphCount);
-
-        //NOTE(martin): first do a count of outlines
-        int outlineCount = 0;
-        for(int rangeIndex = 0; rangeIndex < rangeCount; rangeIndex++)
-        {
-            oc_utf32 codePoint = font->glyphMap[rangeIndex].range.firstCodePoint;
-            u32 firstGlyphIndex = font->glyphMap[rangeIndex].firstGlyphIndex;
-            u32 endGlyphIndex = firstGlyphIndex + font->glyphMap[rangeIndex].range.count;
-
-            for(int glyphIndex = firstGlyphIndex;
-                glyphIndex < endGlyphIndex; glyphIndex++)
-            {
-                int stbttGlyphIndex = stbtt_FindGlyphIndex(&stbttFontInfo, codePoint);
-                if(stbttGlyphIndex == 0)
-                {
-                    //NOTE(martin): the codepoint is not found in the font
-                    codePoint++;
-                    continue;
-                }
-                //NOTE(martin): load glyph outlines
-                stbtt_vertex* vertices = 0;
-                outlineCount += stbtt_GetGlyphShape(&stbttFontInfo, stbttGlyphIndex, &vertices);
-                stbtt_FreeShape(&stbttFontInfo, vertices);
-                codePoint++;
-            }
-        }
-        //NOTE(martin): allocate outlines
-        font->outlines = oc_malloc_array(oc_path_elt, outlineCount);
-        font->outlineCount = 0;
-
-        //NOTE(martin): load metrics and outlines
-        for(int rangeIndex = 0; rangeIndex < rangeCount; rangeIndex++)
-        {
-            oc_utf32 codePoint = font->glyphMap[rangeIndex].range.firstCodePoint;
-            u32 firstGlyphIndex = font->glyphMap[rangeIndex].firstGlyphIndex;
-            u32 endGlyphIndex = firstGlyphIndex + font->glyphMap[rangeIndex].range.count;
-
-            for(int glyphIndex = firstGlyphIndex;
-                glyphIndex < endGlyphIndex; glyphIndex++)
-            {
-                oc_glyph_data* glyph = &(font->glyphs[glyphIndex - 1]);
-
-                int stbttGlyphIndex = stbtt_FindGlyphIndex(&stbttFontInfo, codePoint);
-                if(stbttGlyphIndex == 0)
-                {
-                    //NOTE(martin): the codepoint is not found in the font, we zero the glyph info
-                    memset(glyph, 0, sizeof(*glyph));
-                    codePoint++;
-                    continue;
-                }
-
-                glyph->exists = true;
-                glyph->codePoint = codePoint;
-
-                //NOTE(martin): load glyph metric
-                int xAdvance, xBearing, x0, y0, x1, y1;
-                stbtt_GetGlyphHMetrics(&stbttFontInfo, stbttGlyphIndex, &xAdvance, &xBearing);
-                stbtt_GetGlyphBox(&stbttFontInfo, stbttGlyphIndex, &x0, &y0, &x1, &y1);
-
-                //NOTE(martin): stb stbtt_GetGlyphBox returns bottom left and top right corners, with y up,
-                //              so we have to set .y = -y1
-                glyph->metrics.ink = (oc_rect){
-                    .x = x0,
-                    .y = -y1,
-                    .w = x1 - x0,
-                    .h = y1 - y0
-                };
-
-                glyph->metrics.advance = (oc_vec2){ xAdvance, 0 };
-
-                //NOTE(martin): load glyph outlines
-
-                stbtt_vertex* vertices = 0;
-                int vertexCount = stbtt_GetGlyphShape(&stbttFontInfo, stbttGlyphIndex, &vertices);
-
-                glyph->pathDescriptor = (oc_path_descriptor){ .startIndex = font->outlineCount,
-                                                              .count = vertexCount,
-                                                              .startPoint = { 0, 0 } };
-
-                oc_path_elt* elements = font->outlines + font->outlineCount;
-                font->outlineCount += vertexCount;
-                oc_vec2 currentPos = { 0, 0 };
-
-                for(int vertIndex = 0; vertIndex < vertexCount; vertIndex++)
-                {
-                    f32 x = vertices[vertIndex].x;
-                    f32 y = vertices[vertIndex].y;
-                    f32 cx = vertices[vertIndex].cx;
-                    f32 cy = vertices[vertIndex].cy;
-                    f32 cx1 = vertices[vertIndex].cx1;
-                    f32 cy1 = vertices[vertIndex].cy1;
-
-                    switch(vertices[vertIndex].type)
-                    {
-                        case STBTT_vmove:
-                            elements[vertIndex].type = OC_PATH_MOVE;
-                            elements[vertIndex].p[0] = (oc_vec2){ x, y };
-                            break;
-
-                        case STBTT_vline:
-                            elements[vertIndex].type = OC_PATH_LINE;
-                            elements[vertIndex].p[0] = (oc_vec2){ x, y };
-                            break;
-
-                        case STBTT_vcurve:
-                        {
-                            elements[vertIndex].type = OC_PATH_QUADRATIC;
-                            elements[vertIndex].p[0] = (oc_vec2){ cx, cy };
-                            elements[vertIndex].p[1] = (oc_vec2){ x, y };
-                        }
-                        break;
-
-                        case STBTT_vcubic:
-                            elements[vertIndex].type = OC_PATH_CUBIC;
-                            elements[vertIndex].p[0] = (oc_vec2){ cx, cy };
-                            elements[vertIndex].p[1] = (oc_vec2){ cx1, cy1 };
-                            elements[vertIndex].p[2] = (oc_vec2){ x, y };
-                            break;
-                    }
-                    currentPos = (oc_vec2){ x, y };
-                }
-                stbtt_FreeShape(&stbttFontInfo, vertices);
-                codePoint++;
-            }
-        }
-        //----------------------------------------------------
         //NOTE: create harfbuzz face and font
         hb_blob_t* blob = hb_blob_create(mem.ptr, mem.len, HB_MEMORY_MODE_DUPLICATE, 0, 0);
         font->hbFace = hb_face_create(blob, 0);
         font->hbFont = hb_font_create(font->hbFace);
+
+        //NOTE: get metrics
+        font->unitsPerEm = hb_face_get_upem(font->hbFace);
+
+        //TODO: this assumes only horizontal layout
+        hb_font_extents_t hbExtents;
+        hb_font_get_h_extents(font->hbFont, &hbExtents);
+
+        hb_codepoint_t xGlyph = 0;
+        hb_glyph_extents_t xExtents = { 0 };
+        hb_font_get_nominal_glyph(font->hbFont, 'x', &xGlyph);
+        hb_font_get_glyph_extents(font->hbFont, xGlyph, &xExtents);
+
+        hb_codepoint_t MGlyph = 0;
+        hb_glyph_extents_t MExtents = { 0 };
+        hb_position_t MAdvanceX = 0;
+        hb_position_t MAdvanceY = 0;
+        hb_font_get_nominal_glyph(font->hbFont, 'M', &MGlyph);
+        hb_font_get_glyph_extents(font->hbFont, MGlyph, &MExtents);
+        hb_font_get_glyph_advance_for_direction(font->hbFont,
+                                                MGlyph,
+                                                HB_DIRECTION_LTR,
+                                                &MAdvanceX,
+                                                &MAdvanceY);
+
+        font->metrics.ascent = hbExtents.ascender;
+        font->metrics.descent = -hbExtents.descender;
+        font->metrics.lineGap = hbExtents.line_gap;
+        font->metrics.xHeight = xExtents.height;
+        font->metrics.capHeight = MExtents.height;
+        font->metrics.width = MAdvanceX;
     }
 
     return (fontHandle);
@@ -645,82 +483,9 @@ void oc_font_destroy(oc_font fontHandle)
     oc_font_data* fontData = oc_font_data_from_handle(fontHandle);
     if(fontData)
     {
-        free(fontData->glyphMap);
-        free(fontData->glyphs);
-        free(fontData->outlines);
-
         oc_list_push_front(&oc_graphicsData.fontFreeList, &fontData->freeListElt);
         oc_graphics_handle_recycle(fontHandle.h);
     }
-}
-
-oc_str32 oc_font_get_glyph_indices_from_font_data(oc_font_data* fontData, oc_str32 codePoints, oc_str32 backing)
-{
-    u64 count = oc_min(codePoints.len, backing.len);
-
-    for(int i = 0; i < count; i++)
-    {
-        u32 glyphIndex = 0;
-        for(int rangeIndex = 0; rangeIndex < fontData->rangeCount; rangeIndex++)
-        {
-            if(codePoints.ptr[i] >= fontData->glyphMap[rangeIndex].range.firstCodePoint
-               && codePoints.ptr[i] < (fontData->glyphMap[rangeIndex].range.firstCodePoint + fontData->glyphMap[rangeIndex].range.count))
-            {
-                u32 rangeOffset = codePoints.ptr[i] - fontData->glyphMap[rangeIndex].range.firstCodePoint;
-                glyphIndex = fontData->glyphMap[rangeIndex].firstGlyphIndex + rangeOffset;
-                break;
-            }
-        }
-        if(glyphIndex && !fontData->glyphs[glyphIndex].exists)
-        {
-            backing.ptr[i] = 0;
-        }
-        backing.ptr[i] = glyphIndex;
-    }
-    oc_str32 res = { .ptr = backing.ptr, .len = count };
-    return (res);
-}
-
-u32 oc_font_get_glyph_index_from_font_data(oc_font_data* fontData, oc_utf32 codePoint)
-{
-    u32 glyphIndex = 0;
-    oc_str32 codePoints = { .ptr = &codePoint, .len = 1 };
-    oc_str32 backing = { .ptr = &glyphIndex, 1 };
-    oc_font_get_glyph_indices_from_font_data(fontData, codePoints, backing);
-    return (glyphIndex);
-}
-
-oc_str32 oc_font_get_glyph_indices(oc_font font, oc_str32 codePoints, oc_str32 backing)
-{
-    oc_font_data* fontData = oc_font_data_from_handle(font);
-    if(!fontData)
-    {
-        return ((oc_str32){ 0 });
-    }
-    return (oc_font_get_glyph_indices_from_font_data(fontData, codePoints, backing));
-}
-
-oc_str32 oc_font_push_glyph_indices(oc_arena* arena, oc_font font, oc_str32 codePoints)
-{
-    u32* buffer = oc_arena_push_array(arena, u32, codePoints.len);
-    oc_str32 backing = { .ptr = buffer, .len = codePoints.len };
-    return (oc_font_get_glyph_indices(font, codePoints, backing));
-}
-
-u32 oc_font_get_glyph_index(oc_font font, oc_utf32 codePoint)
-{
-    u32 glyphIndex = 0;
-    oc_str32 codePoints = { .ptr = &codePoint, .len = 1 };
-    oc_str32 backing = { .ptr = &glyphIndex, .len = 1 };
-    oc_font_get_glyph_indices(font, codePoints, backing);
-    return (glyphIndex);
-}
-
-oc_glyph_data* oc_font_get_glyph_data(oc_font_data* fontData, u32 glyphIndex)
-{
-    OC_DEBUG_ASSERT(glyphIndex);
-    OC_DEBUG_ASSERT(glyphIndex < fontData->glyphCount);
-    return (&(fontData->glyphs[glyphIndex - 1]));
 }
 
 oc_font_metrics oc_font_get_metrics_unscaled(oc_font font)
@@ -763,54 +528,12 @@ f32 oc_font_get_scale_for_em_pixels(oc_font font, f32 emSize)
     return (emSize / fontData->unitsPerEm);
 }
 
-////////////////////////////////////////////////////////////////////////////////////////////::
-void oc_font_get_glyph_metrics_from_font_data(oc_font_data* fontData,
-                                              oc_str32 glyphIndices,
-                                              oc_glyph_metrics* outMetrics)
-{
-    for(int i = 0; i < glyphIndices.len; i++)
-    {
-        if(!glyphIndices.ptr[i] || glyphIndices.ptr[i] >= fontData->glyphCount)
-        {
-            continue;
-        }
-        oc_glyph_data* glyph = oc_font_get_glyph_data(fontData, glyphIndices.ptr[i]);
-        outMetrics[i] = glyph->metrics;
-    }
-}
-
-/*
-int oc_font_get_glyph_metrics(oc_font font, oc_str32 glyphIndices, oc_text_metrics* outMetrics)
-{
-    oc_font_data* fontData = oc_font_data_from_handle(font);
-    if(!fontData)
-    {
-        return (-1);
-    }
-    oc_font_get_glyph_metrics_from_font_data(fontData, glyphIndices, outMetrics);
-    return (0);
-}
-
-int oc_font_get_codepoint_metrics(oc_font font, oc_utf32 codePoint, oc_text_metrics* outMetrics)
-{
-    oc_font_data* fontData = oc_font_data_from_handle(font);
-    if(!fontData)
-    {
-        return (-1);
-    }
-    u32 glyphIndex = 0;
-    oc_str32 codePoints = { 1, &codePoint };
-    oc_str32 backing = { 1, &glyphIndex };
-    oc_str32 glyphs = oc_font_get_glyph_indices_from_font_data(fontData, codePoints, backing);
-    oc_font_get_glyph_metrics_from_font_data(fontData, glyphs, outMetrics);
-    return (0);
-}
-*/
-
-/////////////////////////////////////////////////
-
 oc_text_metrics oc_font_text_metrics_utf32(oc_font font, f32 fontSize, oc_str32 codePoints)
 {
+    //////////////////////////////////////////////////////
+    //TODO: remove that API in favor of shaped text
+    //////////////////////////////////////////////////////
+
     if(!codePoints.len || !codePoints.ptr)
     {
         return ((oc_text_metrics){ 0 });
@@ -823,99 +546,9 @@ oc_text_metrics oc_font_text_metrics_utf32(oc_font font, f32 fontSize, oc_str32 
     }
 
     oc_arena_scope scratch = oc_scratch_begin();
-    oc_str32 glyphIndices = oc_font_push_glyph_indices(scratch.arena, font, codePoints);
 
-    //NOTE(martin): find width of missing character
-    //TODO(martin): should cache that at font creation...
-    oc_glyph_metrics missingGlyphMetrics = { 0 };
-    u32 missingGlyphIndex = oc_font_get_glyph_index_from_font_data(fontData, 0xfffd);
-
-    if(missingGlyphIndex)
-    {
-        oc_font_get_glyph_metrics_from_font_data(fontData, (oc_str32){ .ptr = &missingGlyphIndex, .len = 1 }, &missingGlyphMetrics);
-    }
-    else
-    {
-        //NOTE(martin): could not find replacement glyph, try to get an 'X' to get a somewhat correct dimensions
-        //              to render an empty rectangle. Otherwise just render with the max font width
-
-        missingGlyphIndex = oc_font_get_glyph_index_from_font_data(fontData, 'X');
-        if(missingGlyphIndex)
-        {
-            oc_font_get_glyph_metrics_from_font_data(fontData, (oc_str32){ .ptr = &missingGlyphIndex, .len = 1 }, &missingGlyphMetrics);
-        }
-        else
-        {
-            missingGlyphMetrics = (oc_glyph_metrics){
-                .ink = {
-                    .x = fontData->metrics.width * 0.1,
-                    .y = -fontData->metrics.ascent,
-                    .w = fontData->metrics.width * 0.8,
-                    .h = fontData->metrics.ascent,
-                },
-                .advance = { .x = fontData->metrics.width, .y = 0 },
-            };
-        }
-    }
-
-    //NOTE(martin): accumulate text extents
-    oc_text_metrics metrics = { 0 };
-    f32 lineHeight = fontData->metrics.descent + fontData->metrics.ascent + fontData->metrics.lineGap;
-
-    if(glyphIndices.len)
-    {
-        metrics.logical.y = -(fontData->metrics.ascent + fontData->metrics.lineGap);
-        metrics.logical.h += lineHeight + fontData->metrics.lineGap;
-    }
-
-    f32 inkX0 = 0, inkX1 = 0, inkY0 = 0, inkY1 = 0;
-
-    for(int i = 0; i < glyphIndices.len; i++)
-    {
-        //TODO(martin): make it failsafe for fonts that don't have a glyph for the line-feed codepoint ?
-
-        oc_glyph_data* glyph = 0;
-        oc_glyph_metrics glyphMetrics;
-        if(!glyphIndices.ptr[i] || glyphIndices.ptr[i] >= fontData->glyphCount)
-        {
-            glyphMetrics = missingGlyphMetrics;
-        }
-        else
-        {
-            glyph = oc_font_get_glyph_data(fontData, glyphIndices.ptr[i]);
-            glyphMetrics = glyph->metrics;
-        }
-
-        inkX0 = oc_min(inkX0, metrics.advance.x + glyphMetrics.ink.x);
-        inkX1 = oc_max(inkX1, metrics.advance.x + glyphMetrics.ink.x + glyphMetrics.ink.w);
-
-        inkY0 = oc_min(inkY0, metrics.advance.y + glyphMetrics.ink.y);
-        inkY1 = oc_max(inkY1, metrics.advance.y + glyphMetrics.ink.y + glyphMetrics.ink.h);
-
-        metrics.advance.x += glyphMetrics.advance.x;
-        metrics.advance.y += glyphMetrics.advance.y;
-
-        metrics.logical.w = oc_max(metrics.logical.w, metrics.advance.x);
-
-        if(glyph && glyph->codePoint == '\n')
-        {
-            metrics.advance.y += lineHeight;
-            metrics.advance.x = 0;
-
-            if(i < glyphIndices.len - 1)
-            {
-                metrics.logical.h += lineHeight;
-            }
-        }
-    }
-    metrics.ink = (oc_rect){
-        inkX0,
-        inkY0,
-        inkX1 - inkX0,
-        inkY1 - inkY0
-    };
-
-    OC_ASSERT(metrics.ink.y <= 0);
+    oc_glyph_run* run = oc_text_shape(scratch.arena, font, 0, codePoints, 0, codePoints.len);
+    oc_text_metrics metrics = run->metrics;
 
     f32 fontScale = oc_font_get_scale_for_em_pixels(font, fontSize);
 
@@ -930,7 +563,7 @@ oc_text_metrics oc_font_text_metrics_utf32(oc_font font, f32 fontSize, oc_str32 
     metrics.advance.x *= fontScale;
     metrics.advance.y *= fontScale;
 
-    oc_scratch_end(scratch);
+    //oc_scratch_end(scratch);
     return (metrics);
 }
 
@@ -1627,6 +1260,7 @@ void oc_close_path()
     context->subPathStartPoint = context->subPathLastPoint;
 }
 
+/*
 oc_rect oc_glyph_outlines_from_font_data(oc_font_data* fontData, oc_str32 glyphIndices)
 {
     oc_canvas_context_data* context = oc_currentCanvasContext;
@@ -1769,7 +1403,7 @@ void oc_text_outlines(oc_str8 text)
 
     oc_scratch_end(scratch);
 }
-
+*/
 typedef struct oc_hb_draw_data
 {
     f32 scale;
@@ -1863,8 +1497,8 @@ oc_glyph_run* oc_text_shape(oc_arena* arena,
     }
 
     hb_buffer_t* buffer = hb_buffer_create();
-    u32 len = end >= begin ? end - begin : 0;
-    hb_buffer_add_codepoints(buffer, codepoints.ptr, codepoints.len, begin, len);
+    u32 segmentLen = end >= begin ? end - begin : 0;
+    hb_buffer_add_codepoints(buffer, codepoints.ptr, codepoints.len, begin, segmentLen);
 
     if(!settings
        || settings->script.len == 0
@@ -1910,30 +1544,201 @@ oc_glyph_run* oc_text_shape(oc_arena* arena,
     hb_glyph_info_t* glyphInfo = hb_buffer_get_glyph_infos(buffer, &run->glyphCount);
     hb_glyph_position_t* glyphPos = hb_buffer_get_glyph_positions(buffer, &run->glyphCount);
 
-    run->glyphs = oc_arena_push_array(arena, u32, run->glyphCount);
-    run->clusters = oc_arena_push_array(arena, u32, run->glyphCount);
-    run->positions = oc_arena_push_array(arena, oc_vec2, run->glyphCount);
-    run->offsets = oc_arena_push_array(arena, oc_vec2, run->glyphCount);
+    run->glyphs = oc_arena_push_array(arena, oc_glyph_info, run->glyphCount);
 
-    oc_vec2 pos = { 0 };
+    //TODO: compute font metrics from hb data
+    f32 lineHeight = fontData->metrics.descent + fontData->metrics.ascent + fontData->metrics.lineGap;
+    if(run->glyphCount)
+    {
+        run->metrics.logical.y = -(fontData->metrics.ascent + fontData->metrics.lineGap); //TODO: should we really have line gap here?
+        run->metrics.logical.h += lineHeight + fontData->metrics.lineGap;
+    }
+
     for(u64 i = 0; i < run->glyphCount; i++)
     {
-        run->glyphs[i] = glyphInfo[i].codepoint;
-        run->clusters[i] = glyphInfo[i].cluster;
+        oc_glyph_info* glyph = &run->glyphs[i];
+        glyph->index = glyphInfo[i].codepoint;
 
         //WARN: Harfbuzz uses y-up so we negate advances and offsets
-        run->positions[i] = pos;
-        run->offsets[i] = (oc_vec2){ glyphPos[i].x_offset, -glyphPos[i].y_offset };
-
-        pos.x += glyphPos[i].x_advance;
-        pos.y -= glyphPos[i].y_advance;
+        glyph->offset = (oc_vec2){ glyphPos[i].x_offset, -glyphPos[i].y_offset };
+        glyph->advance = (oc_vec2){ glyphPos[i].x_advance, -glyphPos[i].y_advance };
 
         //TODO compute run metrics
+        //TODO this assumes LTR
+        run->metrics.advance = oc_vec2_add(run->metrics.advance, glyph->advance);
+        run->metrics.logical.w = oc_max(run->metrics.logical.w, run->metrics.advance.x);
+
+        /*TODO ink part of font metrics
+        inkX0 = oc_min(inkX0, metrics.advance.x + glyphMetrics.ink.x);
+        inkX1 = oc_max(inkX1, metrics.advance.x + glyphMetrics.ink.x + glyphMetrics.ink.w);
+
+        inkY0 = oc_min(inkY0, metrics.advance.y + glyphMetrics.ink.y);
+        inkY1 = oc_max(inkY1, metrics.advance.y + glyphMetrics.ink.y + glyphMetrics.ink.h);
+        */
+    }
+
+    //------------------------------------------------------------------------------
+    //NOTE compute graphemes info
+    oc_arena_scope scratch = oc_scratch_begin_next(arena);
+
+    //TODO: detect grapheme boundaries. For now just consider all codepoints
+    run->graphemeCount = segmentLen + 1;
+    run->graphemes = oc_arena_push_array(scratch.arena, oc_grapheme_info, run->graphemeCount);
+    for(u64 i = 0; i < run->graphemeCount; i++)
+    {
+        run->graphemes[i].offset = begin + i;
+        run->graphemes[i].count = 1;
+        run->graphemes[i].position = (oc_vec2){ 0 };
+    }
+
+    if(run->glyphCount)
+    {
+        //NOTE: collate clusters and cluster widths
+        u64* clusters = oc_arena_push_array(scratch.arena, u64, run->glyphCount);
+        u64* clusterFirstGlyphs = oc_arena_push_array(scratch.arena, u64, run->glyphCount);
+        oc_vec2* clusterSizes = oc_arena_push_array(scratch.arena, oc_vec2, run->glyphCount);
+
+        u64 clusterCount = 0;
+        u64 currentClusterValue = 0;
+
+        currentClusterValue = glyphInfo[0].cluster;
+        clusters[clusterCount] = currentClusterValue;
+        clusterFirstGlyphs[clusterCount] = 0;
+        clusterSizes[clusterCount] = run->glyphs[0].advance;
+        clusterCount++;
+
+        for(u64 glyphIndex = 1; glyphIndex < run->glyphCount; glyphIndex++)
+        {
+            if(glyphInfo[glyphIndex].cluster != currentClusterValue)
+            {
+                currentClusterValue = glyphInfo[glyphIndex].cluster;
+                clusters[clusterCount] = currentClusterValue;
+                clusterFirstGlyphs[clusterCount] = glyphIndex;
+                clusterSizes[clusterCount] = (oc_vec2){ 0 };
+                clusterCount++;
+            }
+            clusterSizes[clusterCount - 1] = oc_vec2_add(clusterSizes[clusterCount - 1],
+                                                         run->glyphs[glyphIndex].advance);
+        }
+
+        //NOTE: bucket graphemes into clusters
+        u64* clusterFirstGrapheme = oc_arena_push_array(scratch.arena, u64, clusterCount);
+        u64* clusterGraphemeCount = oc_arena_push_array(scratch.arena, u64, clusterCount);
+        u64 nextGrapheme = 0;
+
+        for(u64 clusterIndex = 0; clusterIndex < clusterCount; clusterIndex++)
+        {
+            clusterFirstGrapheme[clusterIndex] = nextGrapheme;
+            clusterGraphemeCount[clusterIndex] = 0;
+            for(u64 graphemeIndex = nextGrapheme; graphemeIndex < run->graphemeCount - 1; graphemeIndex++)
+            {
+                if((clusterIndex < clusterCount - 1)
+                   && run->graphemes[graphemeIndex].offset >= clusters[clusterIndex + 1])
+                {
+                    //NOTE: End of current cluster.
+                    //      Cluster contains clusterGraphemeCount graphemes starting at clusterFirstGrapheme
+                    nextGrapheme += clusterGraphemeCount[clusterIndex];
+                    break;
+                }
+                else
+                {
+                    // add graphemes to current cluster
+                    clusterGraphemeCount[clusterIndex]++;
+                }
+            }
+        }
+
+        //NOTE: compute grapheme positions
+        oc_vec2 clusterOrigin = { 0 };
+
+        for(u64 clusterIndex = 0; clusterIndex < clusterCount; clusterIndex++)
+        {
+            u64 firstGrapheme = clusterFirstGrapheme[clusterIndex];
+            u64 graphemeCount = clusterGraphemeCount[clusterIndex];
+
+            //TODO: we should try to use ligature caret position if they exist, using
+            // hb_ot_layout_get_ligature_carets(). However, all latin fonts with ligatures
+            // I've tested don't even define them. Arabic fonts make more use of them,
+            // but I don't know what result to expect as I don't know arabic, so I should
+            // check with someone who does.
+
+            //NOTE: Fall back to evenly subdividing the cluster size.
+            oc_vec2 advance = oc_vec2_mul(1. / graphemeCount, clusterSizes[clusterIndex]);
+
+            for(u64 graphemeIndex = 0; graphemeIndex < graphemeCount; graphemeIndex++)
+            {
+                oc_vec2 offset = oc_vec2_mul(graphemeIndex, advance);
+                run->graphemes[firstGrapheme + graphemeIndex].position = oc_vec2_add(clusterOrigin, offset);
+            }
+            clusterOrigin = oc_vec2_add(clusterOrigin, clusterSizes[clusterIndex]);
+        }
+        //Set 'end' grapheme
+        run->graphemes[run->graphemeCount - 1].position = clusterOrigin;
+
+        oc_scratch_end(scratch);
     }
 
     hb_buffer_destroy(buffer);
 
     return (run);
+}
+
+u64 oc_glyph_run_point_to_cursor(oc_glyph_run* run, f32 fontSize, oc_vec2 point)
+{
+    ////////////////////////////////////////////////////
+    //TODO: depends on vertical or horizontal layout
+    // for now we assume LTR
+    ////////////////////////////////////////////////////
+    //TODO: better search
+
+    f32 scale = oc_font_get_scale_for_em_pixels(run->font, fontSize);
+
+    u64 graphemeIndex = 0;
+    for(; graphemeIndex < run->graphemeCount; graphemeIndex++)
+    {
+        if(run->graphemes[graphemeIndex].position.x * scale > point.x)
+        {
+            break;
+        }
+    }
+    if(graphemeIndex > 0)
+    {
+        graphemeIndex--;
+    }
+
+    if(graphemeIndex < run->graphemeCount - 1)
+    {
+        f32 width = scale * (run->graphemes[graphemeIndex + 1].position.x - run->graphemes[graphemeIndex].position.x);
+        f32 offset = point.x - scale * run->graphemes[graphemeIndex].position.x;
+        if(offset > width / 2)
+        {
+            graphemeIndex++;
+        }
+    }
+    u64 codepointIndex = run->graphemes[graphemeIndex].offset;
+    return (codepointIndex);
+}
+
+oc_vec2 oc_glyph_run_cursor_to_point(oc_glyph_run* run, f32 fontSize, u64 cursor)
+{
+    //NOTE: find closest grapheme boundary for cursor
+    //TODO: better search
+    u64 graphemeIndex = 0;
+    for(; graphemeIndex < run->graphemeCount; graphemeIndex++)
+    {
+        if(run->graphemes[graphemeIndex].offset > cursor)
+        {
+            break;
+        }
+    }
+    if(graphemeIndex > 0)
+    {
+        graphemeIndex--;
+    }
+    //NOTE: return scaled position of grapheme
+    f32 scale = oc_font_get_scale_for_em_pixels(run->font, fontSize);
+    oc_vec2 pos = oc_vec2_mul(scale, run->graphemes[graphemeIndex].position);
+    return (pos);
 }
 
 void oc_text_draw_run(oc_glyph_run* run, f32 fontSize)
@@ -1950,22 +1755,28 @@ void oc_text_draw_run(oc_glyph_run* run, f32 fontSize)
     }
 
     f32 scale = oc_font_get_scale_for_em_pixels(run->font, fontSize);
-    oc_vec2 origin = context->subPathLastPoint;
+    oc_vec2 pos = context->subPathLastPoint;
 
     f32 flipY = (context->textFlip) ? -1 : 1;
 
     for(u64 i = 0; i < run->glyphCount; i++)
     {
+        oc_glyph_info* glyph = &run->glyphs[i];
+
         oc_hb_draw_data data = {
             .scale = scale,
             .flipY = flipY,
             .origin = {
-                origin.x + (run->positions[i].x + run->offsets[i].y) * scale,
-                origin.y + (run->positions[i].y + run->offsets[i].y) * scale * flipY },
+                pos.x + glyph->offset.x * scale,
+                pos.y + glyph->offset.y * scale * flipY },
         };
 
-        hb_font_draw_glyph(fontData->hbFont, run->glyphs[i], context->hbDrawFuncs, &data);
+        hb_font_draw_glyph(fontData->hbFont, glyph->index, context->hbDrawFuncs, &data);
+
+        pos.x += glyph->advance.x * scale;
+        pos.y += glyph->advance.y * scale * flipY;
     }
+    oc_move_to(pos.x, pos.y);
 
     oc_fill_rule oldRule = context->attributes.fillRule;
     context->attributes.fillRule = OC_FILL_NON_ZERO;
@@ -1973,19 +1784,18 @@ void oc_text_draw_run(oc_glyph_run* run, f32 fontSize)
     context->attributes.fillRule = oldRule;
 }
 
+void oc_text_draw_utf32(oc_str32 codepoints, oc_font font, f32 fontSize)
+{
+    oc_arena_scope scratch = oc_scratch_begin();
+
+    oc_glyph_run* run = oc_text_shape(scratch.arena, font, 0, codepoints, 0, codepoints.len);
+    oc_text_draw_run(run, fontSize);
+
+    oc_scratch_end(scratch);
+}
+
 void oc_text_draw_utf8(oc_str8 text, oc_font font, f32 fontSize)
 {
-    oc_canvas_context_data* context = oc_currentCanvasContext;
-    if(!context)
-    {
-        return;
-    }
-    oc_font_data* fontData = oc_font_data_from_handle(font);
-    if(!fontData)
-    {
-        return;
-    }
-
     oc_arena_scope scratch = oc_scratch_begin();
 
     oc_str32 codepoints = oc_utf8_push_to_codepoints(scratch.arena, text);
@@ -2093,6 +1903,7 @@ void oc_ellipse_path(f32 x, f32 y, f32 rx, f32 ry)
     oc_cubic_to(x + cx, y + ry, x + rx, y + cy, x + rx, y);
     oc_cubic_to(x + rx, y - cy, x + cx, y - ry, x, y - ry);
     oc_cubic_to(x - cx, y - ry, x - rx, y - cy, x - rx, y);
+    oc_close_path();
 }
 
 void oc_ellipse_fill(f32 x, f32 y, f32 rx, f32 ry)
@@ -2152,13 +1963,6 @@ void oc_arc(f32 x, f32 y, f32 r, f32 arcAngle, f32 startAngle)
 
         startAngle += smallAngle;
     }
-}
-
-void oc_text_fill(f32 x, f32 y, oc_str8 text)
-{
-    oc_move_to(x, y);
-    oc_text_outlines(text);
-    oc_fill();
 }
 
 //------------------------------------------------------------------------------------------

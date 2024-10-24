@@ -86,7 +86,10 @@ int main()
     oc_font arabicFont = create_font(OC_STR8("../../resources/NotoNaskhArabic-Regular.ttf"));
 
     oc_str8 text = OC_STR8("Hello Harfbuzz! Zapfino Test");
+    //    oc_str8 text = OC_STR8("ll");
     f32 fontSize = 32;
+
+    u32 cursor = 0;
 
     // start app
     oc_window_bring_to_front(window);
@@ -94,8 +97,13 @@ int main()
 
     f64 frameTime = 0;
 
+    oc_vec2 mousePoint = { 0 };
+
     while(!oc_should_quit())
     {
+        i32 moveCursor = 0;
+        bool mouseClicked = 0;
+
         f64 startTime = oc_clock_time(OC_CLOCK_MONOTONIC);
         oc_arena_scope scratch = oc_scratch_begin();
 
@@ -113,6 +121,35 @@ int main()
 
                 case OC_EVENT_KEYBOARD_KEY:
                 {
+                    if(event->key.action == OC_KEY_PRESS || event->key.action == OC_KEY_REPEAT)
+                    {
+                        if(event->key.keyCode == OC_KEY_LEFT)
+                        {
+                            moveCursor = -1;
+                        }
+                        else if(event->key.keyCode == OC_KEY_RIGHT)
+                        {
+                            moveCursor = 1;
+                        }
+                    }
+                }
+                break;
+
+                case OC_EVENT_MOUSE_MOVE:
+                {
+                    mousePoint = (oc_vec2){ event->mouse.x, event->mouse.y };
+                }
+                break;
+
+                case OC_EVENT_MOUSE_BUTTON:
+                {
+                    if(event->key.action == OC_KEY_PRESS)
+                    {
+                        if(event->key.button == OC_MOUSE_LEFT)
+                        {
+                            mouseClicked = true;
+                        }
+                    }
                 }
                 break;
 
@@ -130,33 +167,57 @@ int main()
 
         oc_font_metrics metrics = oc_font_get_metrics(romanFont, fontSize);
 
-        oc_vec2 cursor = { 200, 200 };
+        oc_vec2 origin = { 100, 100 };
 
-        oc_move_to(cursor.x, cursor.y);
-        oc_line_to(cursor.x + 600, cursor.y);
+        oc_move_to(origin.x, origin.y);
+        oc_line_to(origin.x + 600, origin.y);
         oc_set_color_rgba(1, 0, 0, 1);
         oc_set_width(1);
         oc_stroke();
 
-        oc_move_to(cursor.x, cursor.y - metrics.ascent);
-        oc_line_to(cursor.x + 600, cursor.y - metrics.ascent);
+        oc_move_to(origin.x, origin.y - metrics.ascent);
+        oc_line_to(origin.x + 600, origin.y - metrics.ascent);
         oc_set_color_rgba(0, 1, 0, 1);
         oc_set_width(1);
         oc_stroke();
 
-        oc_move_to(cursor.x, cursor.y + metrics.descent);
-        oc_line_to(cursor.x + 600, cursor.y + metrics.descent);
+        oc_move_to(origin.x, origin.y + metrics.descent);
+        oc_line_to(origin.x + 600, origin.y + metrics.descent);
         oc_set_color_rgba(0, 0, 1, 1);
         oc_set_width(1);
         oc_stroke();
 
         {
-            oc_move_to(cursor.x, cursor.y);
+            oc_move_to(origin.x, origin.y);
             oc_set_color_rgba(0, 0, 0, 1);
 
             oc_str32 codepoints = oc_utf8_push_to_codepoints(scratch.arena, text);
             oc_glyph_run* run = oc_text_shape(scratch.arena, romanFont, 0, codepoints, 0, codepoints.len);
             oc_text_draw_run(run, fontSize);
+
+            if(mouseClicked)
+            {
+                cursor = oc_glyph_run_point_to_cursor(run, fontSize, oc_vec2_sub(mousePoint, origin));
+            }
+
+            //TODO: move to next/prev utf8 char.
+            //TODO: when we do grapheme segmentation, move to next grapheme
+            if(moveCursor == 1 && cursor <= text.len)
+            {
+                cursor = oc_min(cursor + 1, text.len);
+            }
+            else if(moveCursor == -1 && cursor > 0)
+            {
+                cursor--;
+            }
+            printf("cursor = %u\n", cursor);
+
+            oc_vec2 pos = oc_glyph_run_cursor_to_point(run, fontSize, cursor);
+            oc_move_to(origin.x + pos.x, origin.y + pos.y + metrics.descent);
+            oc_line_to(origin.x + pos.x, origin.y + pos.y - metrics.ascent);
+            oc_set_color_rgba(0, 0, 0, 1);
+            oc_set_width(1);
+            oc_stroke();
 
             //oc_text_draw_utf8(text, font, fontSize);
         }
@@ -193,14 +254,14 @@ int main()
                                         0, -1, client.h });
 
             oc_set_text_flip(true);
-            oc_move_to(300, 300);
-            oc_line_to(400, 300);
+            oc_move_to(300, client.h - 300);
+            oc_line_to(400, client.h - 300);
 
             oc_set_width(1);
             oc_set_color_rgba(1, 0, 0, 1);
             oc_stroke();
 
-            oc_move_to(300, 300);
+            oc_move_to(300, client.h - 300);
             oc_set_color_rgba(0, 0, 0, 1);
 
             oc_str32 codepoints = oc_utf8_push_to_codepoints(scratch.arena, OC_STR8("以呂波耳本部止"));

@@ -13,6 +13,35 @@
 //------------------------------------------------------------------------
 // canvas structs
 //------------------------------------------------------------------------
+
+typedef struct oc_glyph_info
+{
+    u32 index;
+    oc_vec2 offset;
+    oc_vec2 advance;
+} oc_glyph_info;
+
+typedef struct oc_grapheme_info
+{
+    u64 offset;
+    u64 count;
+    oc_vec2 position;
+} oc_grapheme_info;
+
+typedef struct oc_glyph_run
+{
+    oc_font font;
+
+    u32 glyphCount;
+    oc_glyph_info* glyphs;
+
+    u32 graphemeCount;
+    oc_grapheme_info* graphemes;
+
+    oc_text_metrics metrics;
+
+} oc_glyph_run;
+
 typedef enum
 {
     OC_PATH_MOVE,
