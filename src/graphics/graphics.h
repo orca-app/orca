@@ -199,17 +199,18 @@ ORCA_API void oc_canvas_context_set_msaa_sample_count(oc_canvas_context context,
 ORCA_API oc_font oc_font_nil(void);
 ORCA_API bool oc_font_is_nil(oc_font font);
 
-ORCA_API oc_font oc_font_create_from_memory(oc_str8 mem, u32 rangeCount, oc_unicode_range* ranges);
-ORCA_API oc_font oc_font_create_from_file(oc_file file, u32 rangeCount, oc_unicode_range* ranges);
-ORCA_API oc_font oc_font_create_from_path(oc_str8 path, u32 rangeCount, oc_unicode_range* ranges);
+ORCA_API oc_font oc_font_create_from_memory(oc_str8 mem);
+ORCA_API oc_font oc_font_create_from_file(oc_file file);
+ORCA_API oc_font oc_font_create_from_path(oc_str8 path);
 
 ORCA_API void oc_font_destroy(oc_font font);
-// metrics
+
+//font metrics
 ORCA_API oc_font_metrics oc_font_get_metrics(oc_font font, f32 emSize);
 ORCA_API oc_font_metrics oc_font_get_metrics_unscaled(oc_font font);
 ORCA_API f32 oc_font_get_scale_for_em_pixels(oc_font font, f32 emSize); //TODO: change to for_em_size?
 
-//TODO: deprecate, use shaping instead
+//TODO: deprecate, use shaping API instead
 ORCA_API oc_text_metrics oc_font_text_metrics_utf32(oc_font font, f32 fontSize, oc_str32 codepoints);
 ORCA_API oc_text_metrics oc_font_text_metrics(oc_font font, f32 fontSize, oc_str8 text);
 
@@ -320,6 +321,7 @@ ORCA_API void oc_close_path(void);
 //------------------------------------------------------------------------------------------
 //SECTION: text
 //------------------------------------------------------------------------------------------
+// shaping
 oc_glyph_run* oc_text_shape(oc_arena* arena,
                             oc_font font,
                             oc_text_shape_settings* settings,
@@ -327,9 +329,13 @@ oc_glyph_run* oc_text_shape(oc_arena* arena,
                             u64 begin,
                             u64 end);
 
+// measuring
 u64 oc_glyph_run_point_to_cursor(oc_glyph_run* run, f32 size, oc_vec2 point);
 oc_vec2 oc_glyph_run_cursor_to_point(oc_glyph_run* run, f32 size, u64 cursor);
 
+oc_text_metrics oc_glyph_run_range_metrics(oc_glyph_run* run, f32 fontSize, u64 begin, u64 end);
+
+// drawing
 void oc_text_draw_run(oc_glyph_run* run, f32 fontSize);
 void oc_text_draw_utf8(oc_str8 text, oc_font font, f32 fontSize);
 void oc_text_draw_utf32(oc_str32 codepoints, oc_font font, f32 fontSize);

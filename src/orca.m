@@ -8,6 +8,7 @@
 
 #include "app/osx_app.m"
 #include "graphics/graphics_common.c"
+#include "graphics/graphics_text_native.c"
 #include "graphics/canvas_renderer.c"
 #include "graphics/surface.c"
 #include "graphics/osx_surface.m"

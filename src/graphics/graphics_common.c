@@ -17,9 +17,6 @@
 #endif
 #include "stb/stb_image.h"
 
-#include "ext/harfbuzz/include/hb.h"
-#include "ext/harfbuzz/include/hb-ot.h"
-
 #include "graphics_common.h"
 #include "platform/platform_debug.h"
 #include "util/algebra.h"
@@ -31,18 +28,6 @@ enum
     OC_MAX_PATH_ELEMENT_COUNT = 2 << 20,
     OC_MAX_PRIMITIVE_COUNT = 8 << 14
 };
-
-typedef struct oc_font_data
-{
-    oc_list_elt freeListElt;
-
-    f32 unitsPerEm;
-    oc_font_metrics metrics;
-
-    hb_face_t* hbFace;
-    hb_font_t* hbFont;
-
-} oc_font_data;
 
 typedef struct oc_canvas_context_data oc_canvas_context_data;
 
@@ -115,8 +100,6 @@ typedef struct oc_canvas_context_data
 
     oc_vec4 shapeExtents;
     oc_vec4 shapeScreenExtents;
-
-    hb_draw_funcs_t* hbDrawFuncs;
 
 } oc_canvas_context_data;
 
@@ -368,77 +351,7 @@ oc_font oc_font_nil() { return ((oc_font){ .h = 0 }); }
 
 bool oc_font_is_nil(oc_font font) { return (font.h == 0); }
 
-oc_font oc_font_handle_alloc(oc_font_data* font)
-{
-    oc_font handle = { .h = oc_graphics_handle_alloc(OC_GRAPHICS_HANDLE_FONT, (void*)font) };
-    return (handle);
-}
-
-oc_font_data* oc_font_data_from_handle(oc_font handle)
-{
-    oc_font_data* data = oc_graphics_data_from_handle(OC_GRAPHICS_HANDLE_FONT, handle.h);
-    return (data);
-}
-
-oc_font oc_font_create_from_memory(oc_str8 mem, u32 rangeCount, oc_unicode_range* ranges)
-{
-    if(!oc_graphicsData.init)
-    {
-        oc_graphics_init();
-    }
-    oc_font fontHandle = oc_font_nil();
-
-    oc_font_data* font = oc_list_pop_front_entry(&oc_graphicsData.fontFreeList, oc_font_data, freeListElt);
-    if(!font)
-    {
-        font = oc_arena_push_type(&oc_graphicsData.resourceArena, oc_font_data);
-    }
-    if(font)
-    {
-        memset(font, 0, sizeof(oc_font_data));
-        fontHandle = oc_font_handle_alloc(font);
-
-        //NOTE: create harfbuzz face and font
-        hb_blob_t* blob = hb_blob_create(mem.ptr, mem.len, HB_MEMORY_MODE_DUPLICATE, 0, 0);
-        font->hbFace = hb_face_create(blob, 0);
-        font->hbFont = hb_font_create(font->hbFace);
-
-        //NOTE: get metrics
-        font->unitsPerEm = hb_face_get_upem(font->hbFace);
-
-        //TODO: this assumes only horizontal layout
-        hb_font_extents_t hbExtents;
-        hb_font_get_h_extents(font->hbFont, &hbExtents);
-
-        hb_codepoint_t xGlyph = 0;
-        hb_glyph_extents_t xExtents = { 0 };
-        hb_font_get_nominal_glyph(font->hbFont, 'x', &xGlyph);
-        hb_font_get_glyph_extents(font->hbFont, xGlyph, &xExtents);
-
-        hb_codepoint_t MGlyph = 0;
-        hb_glyph_extents_t MExtents = { 0 };
-        hb_position_t MAdvanceX = 0;
-        hb_position_t MAdvanceY = 0;
-        hb_font_get_nominal_glyph(font->hbFont, 'M', &MGlyph);
-        hb_font_get_glyph_extents(font->hbFont, MGlyph, &MExtents);
-        hb_font_get_glyph_advance_for_direction(font->hbFont,
-                                                MGlyph,
-                                                HB_DIRECTION_LTR,
-                                                &MAdvanceX,
-                                                &MAdvanceY);
-
-        font->metrics.ascent = hbExtents.ascender;
-        font->metrics.descent = -hbExtents.descender;
-        font->metrics.lineGap = hbExtents.line_gap;
-        font->metrics.xHeight = xExtents.height;
-        font->metrics.capHeight = MExtents.height;
-        font->metrics.width = MAdvanceX;
-    }
-
-    return (fontHandle);
-}
-
-oc_font oc_font_create_from_file(oc_file file, u32 rangeCount, oc_unicode_range* ranges)
+oc_font oc_font_create_from_file(oc_file file)
 {
     oc_font font = oc_font_nil();
     oc_arena_scope scratch = oc_scratch_begin();
@@ -453,14 +366,14 @@ oc_font oc_font_create_from_file(oc_file file, u32 rangeCount, oc_unicode_range*
     }
     else
     {
-        font = oc_font_create_from_memory(oc_str8_from_buffer(size, buffer), rangeCount, ranges);
+        font = oc_font_create_from_memory(oc_str8_from_buffer(size, buffer));
     }
 
     oc_scratch_end(scratch);
     return (font);
 }
 
-oc_font oc_font_create_from_path(oc_str8 path, u32 rangeCount, oc_unicode_range* ranges)
+oc_font oc_font_create_from_path(oc_str8 path)
 {
     oc_font font = oc_font_nil();
 
@@ -471,42 +384,17 @@ oc_font oc_font_create_from_path(oc_str8 path, u32 rangeCount, oc_unicode_range*
     }
     else
     {
-        font = oc_font_create_from_file(file, rangeCount, ranges);
+        font = oc_font_create_from_file(file);
     }
     oc_file_close(file);
 
     return (font);
 }
 
-void oc_font_destroy(oc_font fontHandle)
-{
-    oc_font_data* fontData = oc_font_data_from_handle(fontHandle);
-    if(fontData)
-    {
-        oc_list_push_front(&oc_graphicsData.fontFreeList, &fontData->freeListElt);
-        oc_graphics_handle_recycle(fontHandle.h);
-    }
-}
-
-oc_font_metrics oc_font_get_metrics_unscaled(oc_font font)
-{
-    oc_font_data* fontData = oc_font_data_from_handle(font);
-    if(!fontData)
-    {
-        return ((oc_font_metrics){ 0 });
-    }
-    return (fontData->metrics);
-}
-
 oc_font_metrics oc_font_get_metrics(oc_font font, f32 emSize)
 {
-    oc_font_data* fontData = oc_font_data_from_handle(font);
-    if(!fontData)
-    {
-        return ((oc_font_metrics){ 0 });
-    }
-    f32 scale = emSize / fontData->unitsPerEm;
-    oc_font_metrics metrics = fontData->metrics;
+    oc_font_metrics metrics = oc_font_get_metrics_unscaled(font);
+    f32 scale = oc_font_get_scale_for_em_pixels(font, emSize);
 
     metrics.ascent *= scale;
     metrics.descent *= scale;
@@ -518,16 +406,6 @@ oc_font_metrics oc_font_get_metrics(oc_font font, f32 emSize)
     return (metrics);
 }
 
-f32 oc_font_get_scale_for_em_pixels(oc_font font, f32 emSize)
-{
-    oc_font_data* fontData = oc_font_data_from_handle(font);
-    if(!fontData)
-    {
-        return (0);
-    }
-    return (emSize / fontData->unitsPerEm);
-}
-
 oc_text_metrics oc_font_text_metrics_utf32(oc_font font, f32 fontSize, oc_str32 codePoints)
 {
     //////////////////////////////////////////////////////
@@ -535,12 +413,6 @@ oc_text_metrics oc_font_text_metrics_utf32(oc_font font, f32 fontSize, oc_str32 
     //////////////////////////////////////////////////////
 
     if(!codePoints.len || !codePoints.ptr)
-    {
-        return ((oc_text_metrics){ 0 });
-    }
-
-    oc_font_data* fontData = oc_font_data_from_handle(font);
-    if(!fontData)
     {
         return ((oc_text_metrics){ 0 });
     }
@@ -597,41 +469,6 @@ oc_canvas_context_data* oc_canvas_context_from_handle(oc_canvas_context handle)
     return (context);
 }
 
-typedef struct oc_hb_draw_data oc_hb_draw_data;
-
-void oc_hb_move_to_func(hb_draw_funcs_t* dfuncs,
-                        void* draw_data,
-                        hb_draw_state_t* st,
-                        float to_x,
-                        float to_y,
-                        void* user_data);
-
-void oc_hb_line_to_func(hb_draw_funcs_t* dfuncs,
-                        void* draw_data,
-                        hb_draw_state_t* st,
-                        float to_x,
-                        float to_y,
-                        void* user_data);
-
-void oc_hb_quadratic_to_func(hb_draw_funcs_t* dfuncs,
-                             void* draw_data,
-                             hb_draw_state_t* st,
-                             float control_x,
-                             float control_y,
-                             float to_x,
-                             float to_y,
-                             void* user_data);
-void oc_hb_cubic_to_func(hb_draw_funcs_t* dfuncs,
-                         void* draw_data,
-                         hb_draw_state_t* st,
-                         float control1_x,
-                         float control1_y,
-                         float control2_x,
-                         float control2_y,
-                         float to_x,
-                         float to_y,
-                         void* user_data);
-
 oc_canvas_context oc_canvas_context_create()
 {
     if(!oc_graphicsData.init)
@@ -662,13 +499,6 @@ oc_canvas_context oc_canvas_context_create()
         context->attributes.width = 10;
         context->attributes.clip = (oc_rect){ -FLT_MAX / 2, -FLT_MAX / 2, FLT_MAX, FLT_MAX };
 
-        context->hbDrawFuncs = hb_draw_funcs_create();
-
-        hb_draw_funcs_set_move_to_func(context->hbDrawFuncs, oc_hb_move_to_func, 0, 0);
-        hb_draw_funcs_set_line_to_func(context->hbDrawFuncs, oc_hb_line_to_func, 0, 0);
-        hb_draw_funcs_set_quadratic_to_func(context->hbDrawFuncs, oc_hb_quadratic_to_func, 0, 0);
-        hb_draw_funcs_set_cubic_to_func(context->hbDrawFuncs, oc_hb_cubic_to_func, 0, 0);
-
         contextHandle = oc_canvas_context_handle_alloc(context);
 
         oc_canvas_context_select(contextHandle);
@@ -686,8 +516,6 @@ void oc_canvas_context_destroy(oc_canvas_context handle)
             oc_currentCanvasContext = 0;
             oc_currentCanvasContextHandle = oc_canvas_context_nil();
         }
-
-        hb_draw_funcs_destroy(context->hbDrawFuncs);
 
         oc_list_push_front(&oc_graphicsData.canvasFreeList, &context->freeListElt);
         oc_graphics_handle_recycle(handle.h);
@@ -1404,283 +1232,71 @@ void oc_text_outlines(oc_str8 text)
     oc_scratch_end(scratch);
 }
 */
-typedef struct oc_hb_draw_data
-{
-    f32 scale;
-    f32 flipY;
-    oc_vec2 origin;
-} oc_hb_draw_data;
 
-//WARN: font curves are passed by Harfbuzz with y-up
-
-void oc_hb_move_to_func(hb_draw_funcs_t* dfuncs,
-                        void* draw_data,
-                        hb_draw_state_t* st,
-                        float to_x,
-                        float to_y,
-                        void* user_data)
+u64 oc_glyph_run_find_grapheme_index_less_or_equal(oc_glyph_run* run, u64 codePointIndex)
 {
-    oc_hb_draw_data* data = (oc_hb_draw_data*)draw_data;
-    oc_move_to(data->origin.x + to_x * data->scale,
-               data->origin.y - to_y * data->scale * data->flipY);
+    //NOTE: find highest grapheme boundary less or equal to codePointIndex
+    //TODO: better search
+    u64 graphemeIndex = 0;
+    for(; graphemeIndex < run->graphemeCount; graphemeIndex++)
+    {
+        if(run->graphemes[graphemeIndex].offset > codePointIndex)
+        {
+            break;
+        }
+    }
+    if(graphemeIndex > 0)
+    {
+        graphemeIndex--;
+    }
+    return (graphemeIndex);
 }
 
-void oc_hb_line_to_func(hb_draw_funcs_t* dfuncs,
-                        void* draw_data,
-                        hb_draw_state_t* st,
-                        float to_x,
-                        float to_y,
-                        void* user_data)
+u64 oc_glyph_run_find_grapheme_index_greater_or_equal(oc_glyph_run* run, u64 codePointIndex)
 {
-    oc_hb_draw_data* data = (oc_hb_draw_data*)draw_data;
-    oc_line_to(data->origin.x + to_x * data->scale,
-               data->origin.y - to_y * data->scale * data->flipY);
+    //NOTE: find lowest grapheme boundary greater or equal to codePointIndex
+    //TODO: better search
+    u64 graphemeIndex = 0;
+    for(; graphemeIndex < run->graphemeCount; graphemeIndex++)
+    {
+        if(run->graphemes[graphemeIndex].offset >= codePointIndex)
+        {
+            break;
+        }
+    }
+    return (graphemeIndex);
 }
 
-void oc_hb_quadratic_to_func(hb_draw_funcs_t* dfuncs,
-                             void* draw_data,
-                             hb_draw_state_t* st,
-                             float control_x,
-                             float control_y,
-                             float to_x,
-                             float to_y,
-                             void* user_data)
+oc_text_metrics oc_glyph_run_range_metrics(oc_glyph_run* run, f32 fontSize, u64 begin, u64 end)
 {
-    oc_hb_draw_data* data = (oc_hb_draw_data*)draw_data;
-    oc_quadratic_to(data->origin.x + control_x * data->scale,
-                    data->origin.y - control_y * data->scale * data->flipY,
-                    data->origin.x + to_x * data->scale,
-                    data->origin.y - to_y * data->scale * data->flipY);
-}
+    end = oc_max(begin, end);
 
-void oc_hb_cubic_to_func(hb_draw_funcs_t* dfuncs,
-                         void* draw_data,
-                         hb_draw_state_t* st,
-                         float control1_x,
-                         float control1_y,
-                         float control2_x,
-                         float control2_y,
-                         float to_x,
-                         float to_y,
-                         void* user_data)
-{
-    oc_hb_draw_data* data = (oc_hb_draw_data*)draw_data;
-    oc_cubic_to(data->origin.x + control1_x * data->scale,
-                data->origin.y - control1_y * data->scale * data->flipY,
-                data->origin.x + control2_x * data->scale,
-                data->origin.y - control2_y * data->scale * data->flipY,
-                data->origin.x + to_x * data->scale,
-                data->origin.y - to_y * data->scale * data->flipY);
-}
+    u64 beginGraphemeIndex = oc_glyph_run_find_grapheme_index_less_or_equal(run, begin);
+    u64 endGraphemeIndex = oc_glyph_run_find_grapheme_index_greater_or_equal(run, end);
 
-oc_glyph_run* oc_text_shape(oc_arena* arena,
-                            oc_font font,
-                            oc_text_shape_settings* settings,
-                            oc_str32 codepoints,
-                            u64 begin,
-                            u64 end)
-{
-    oc_glyph_run* run = oc_arena_push_type(arena, oc_glyph_run);
-    memset(run, 0, sizeof(oc_glyph_run));
+    //TODO: this assumes LTR layout
+    oc_text_metrics metrics = { 0 };
 
-    run->font = font;
+    oc_font_metrics fontMetrics = oc_font_get_metrics_unscaled(run->font);
+    f32 lineHeight = fontMetrics.descent + fontMetrics.ascent + fontMetrics.lineGap;
+    metrics.logical.y = -(fontMetrics.ascent + fontMetrics.lineGap); //TODO: should we really have line gap here?
+    metrics.logical.h += lineHeight + fontMetrics.lineGap;
 
-    oc_canvas_context_data* context = oc_currentCanvasContext;
-    if(!context)
+    if(run->graphemeCount)
     {
-        return (run);
+        //TODO: should we have full grapheme metrics here?
+        metrics.logical.x = run->graphemes[beginGraphemeIndex].position.x;
+        metrics.logical.w = run->graphemes[endGraphemeIndex].position.x - metrics.logical.x;
     }
-    oc_font_data* fontData = oc_font_data_from_handle(run->font);
-    if(!fontData)
-    {
-        return (run);
-    }
+    //TODO: ink
 
-    hb_buffer_t* buffer = hb_buffer_create();
-    u32 segmentLen = end >= begin ? end - begin : 0;
-    hb_buffer_add_codepoints(buffer, codepoints.ptr, codepoints.len, begin, segmentLen);
+    f32 scale = oc_font_get_scale_for_em_pixels(run->font, fontSize);
+    metrics.logical.x *= scale;
+    metrics.logical.y *= scale;
+    metrics.logical.w *= scale;
+    metrics.logical.h *= scale;
 
-    if(!settings
-       || settings->script.len == 0
-       || settings->lang.len == 0
-       || settings->direction == OC_TEXT_DIRECTION_UNKNOWN)
-    {
-        hb_buffer_guess_segment_properties(buffer);
-    }
-
-    if(settings)
-    {
-        if(settings->script.len)
-        {
-            hb_script_t script = hb_script_from_string(settings->script.ptr, settings->script.len);
-            hb_buffer_set_script(buffer, script);
-        }
-        if(settings->lang.len)
-        {
-            hb_language_t lang = hb_language_from_string(settings->lang.ptr, settings->lang.len);
-            hb_buffer_set_language(buffer, lang);
-        }
-        switch(settings->direction)
-        {
-            case OC_TEXT_DIRECTION_LTR:
-                hb_buffer_set_direction(buffer, HB_DIRECTION_LTR);
-                break;
-            case OC_TEXT_DIRECTION_RTL:
-                hb_buffer_set_direction(buffer, HB_DIRECTION_RTL);
-                break;
-            case OC_TEXT_DIRECTION_TTB:
-                hb_buffer_set_direction(buffer, HB_DIRECTION_TTB);
-                break;
-            case OC_TEXT_DIRECTION_BTT:
-                hb_buffer_set_direction(buffer, HB_DIRECTION_BTT);
-                break;
-            default:
-                break;
-        }
-    }
-
-    hb_shape(fontData->hbFont, buffer, NULL, 0);
-
-    hb_glyph_info_t* glyphInfo = hb_buffer_get_glyph_infos(buffer, &run->glyphCount);
-    hb_glyph_position_t* glyphPos = hb_buffer_get_glyph_positions(buffer, &run->glyphCount);
-
-    run->glyphs = oc_arena_push_array(arena, oc_glyph_info, run->glyphCount);
-
-    //TODO: compute font metrics from hb data
-    f32 lineHeight = fontData->metrics.descent + fontData->metrics.ascent + fontData->metrics.lineGap;
-    if(run->glyphCount)
-    {
-        run->metrics.logical.y = -(fontData->metrics.ascent + fontData->metrics.lineGap); //TODO: should we really have line gap here?
-        run->metrics.logical.h += lineHeight + fontData->metrics.lineGap;
-    }
-
-    for(u64 i = 0; i < run->glyphCount; i++)
-    {
-        oc_glyph_info* glyph = &run->glyphs[i];
-        glyph->index = glyphInfo[i].codepoint;
-
-        //WARN: Harfbuzz uses y-up so we negate advances and offsets
-        glyph->offset = (oc_vec2){ glyphPos[i].x_offset, -glyphPos[i].y_offset };
-        glyph->advance = (oc_vec2){ glyphPos[i].x_advance, -glyphPos[i].y_advance };
-
-        //TODO compute run metrics
-        //TODO this assumes LTR
-        run->metrics.advance = oc_vec2_add(run->metrics.advance, glyph->advance);
-        run->metrics.logical.w = oc_max(run->metrics.logical.w, run->metrics.advance.x);
-
-        /*TODO ink part of font metrics
-        inkX0 = oc_min(inkX0, metrics.advance.x + glyphMetrics.ink.x);
-        inkX1 = oc_max(inkX1, metrics.advance.x + glyphMetrics.ink.x + glyphMetrics.ink.w);
-
-        inkY0 = oc_min(inkY0, metrics.advance.y + glyphMetrics.ink.y);
-        inkY1 = oc_max(inkY1, metrics.advance.y + glyphMetrics.ink.y + glyphMetrics.ink.h);
-        */
-    }
-
-    //------------------------------------------------------------------------------
-    //NOTE compute graphemes info
-    oc_arena_scope scratch = oc_scratch_begin_next(arena);
-
-    //TODO: detect grapheme boundaries. For now just consider all codepoints
-    run->graphemeCount = segmentLen + 1;
-    run->graphemes = oc_arena_push_array(scratch.arena, oc_grapheme_info, run->graphemeCount);
-    for(u64 i = 0; i < run->graphemeCount; i++)
-    {
-        run->graphemes[i].offset = begin + i;
-        run->graphemes[i].count = 1;
-        run->graphemes[i].position = (oc_vec2){ 0 };
-    }
-
-    if(run->glyphCount)
-    {
-        //NOTE: collate clusters and cluster widths
-        u64* clusters = oc_arena_push_array(scratch.arena, u64, run->glyphCount);
-        u64* clusterFirstGlyphs = oc_arena_push_array(scratch.arena, u64, run->glyphCount);
-        oc_vec2* clusterSizes = oc_arena_push_array(scratch.arena, oc_vec2, run->glyphCount);
-
-        u64 clusterCount = 0;
-        u64 currentClusterValue = 0;
-
-        currentClusterValue = glyphInfo[0].cluster;
-        clusters[clusterCount] = currentClusterValue;
-        clusterFirstGlyphs[clusterCount] = 0;
-        clusterSizes[clusterCount] = run->glyphs[0].advance;
-        clusterCount++;
-
-        for(u64 glyphIndex = 1; glyphIndex < run->glyphCount; glyphIndex++)
-        {
-            if(glyphInfo[glyphIndex].cluster != currentClusterValue)
-            {
-                currentClusterValue = glyphInfo[glyphIndex].cluster;
-                clusters[clusterCount] = currentClusterValue;
-                clusterFirstGlyphs[clusterCount] = glyphIndex;
-                clusterSizes[clusterCount] = (oc_vec2){ 0 };
-                clusterCount++;
-            }
-            clusterSizes[clusterCount - 1] = oc_vec2_add(clusterSizes[clusterCount - 1],
-                                                         run->glyphs[glyphIndex].advance);
-        }
-
-        //NOTE: bucket graphemes into clusters
-        u64* clusterFirstGrapheme = oc_arena_push_array(scratch.arena, u64, clusterCount);
-        u64* clusterGraphemeCount = oc_arena_push_array(scratch.arena, u64, clusterCount);
-        u64 nextGrapheme = 0;
-
-        for(u64 clusterIndex = 0; clusterIndex < clusterCount; clusterIndex++)
-        {
-            clusterFirstGrapheme[clusterIndex] = nextGrapheme;
-            clusterGraphemeCount[clusterIndex] = 0;
-            for(u64 graphemeIndex = nextGrapheme; graphemeIndex < run->graphemeCount - 1; graphemeIndex++)
-            {
-                if((clusterIndex < clusterCount - 1)
-                   && run->graphemes[graphemeIndex].offset >= clusters[clusterIndex + 1])
-                {
-                    //NOTE: End of current cluster.
-                    //      Cluster contains clusterGraphemeCount graphemes starting at clusterFirstGrapheme
-                    nextGrapheme += clusterGraphemeCount[clusterIndex];
-                    break;
-                }
-                else
-                {
-                    // add graphemes to current cluster
-                    clusterGraphemeCount[clusterIndex]++;
-                }
-            }
-        }
-
-        //NOTE: compute grapheme positions
-        oc_vec2 clusterOrigin = { 0 };
-
-        for(u64 clusterIndex = 0; clusterIndex < clusterCount; clusterIndex++)
-        {
-            u64 firstGrapheme = clusterFirstGrapheme[clusterIndex];
-            u64 graphemeCount = clusterGraphemeCount[clusterIndex];
-
-            //TODO: we should try to use ligature caret position if they exist, using
-            // hb_ot_layout_get_ligature_carets(). However, all latin fonts with ligatures
-            // I've tested don't even define them. Arabic fonts make more use of them,
-            // but I don't know what result to expect as I don't know arabic, so I should
-            // check with someone who does.
-
-            //NOTE: Fall back to evenly subdividing the cluster size.
-            oc_vec2 advance = oc_vec2_mul(1. / graphemeCount, clusterSizes[clusterIndex]);
-
-            for(u64 graphemeIndex = 0; graphemeIndex < graphemeCount; graphemeIndex++)
-            {
-                oc_vec2 offset = oc_vec2_mul(graphemeIndex, advance);
-                run->graphemes[firstGrapheme + graphemeIndex].position = oc_vec2_add(clusterOrigin, offset);
-            }
-            clusterOrigin = oc_vec2_add(clusterOrigin, clusterSizes[clusterIndex]);
-        }
-        //Set 'end' grapheme
-        run->graphemes[run->graphemeCount - 1].position = clusterOrigin;
-
-        oc_scratch_end(scratch);
-    }
-
-    hb_buffer_destroy(buffer);
-
-    return (run);
+    return metrics;
 }
 
 u64 oc_glyph_run_point_to_cursor(oc_glyph_run* run, f32 fontSize, oc_vec2 point)
@@ -1739,49 +1355,6 @@ oc_vec2 oc_glyph_run_cursor_to_point(oc_glyph_run* run, f32 fontSize, u64 cursor
     f32 scale = oc_font_get_scale_for_em_pixels(run->font, fontSize);
     oc_vec2 pos = oc_vec2_mul(scale, run->graphemes[graphemeIndex].position);
     return (pos);
-}
-
-void oc_text_draw_run(oc_glyph_run* run, f32 fontSize)
-{
-    oc_canvas_context_data* context = oc_currentCanvasContext;
-    if(!context)
-    {
-        return;
-    }
-    oc_font_data* fontData = oc_font_data_from_handle(run->font);
-    if(!fontData)
-    {
-        return;
-    }
-
-    f32 scale = oc_font_get_scale_for_em_pixels(run->font, fontSize);
-    oc_vec2 pos = context->subPathLastPoint;
-
-    f32 flipY = (context->textFlip) ? -1 : 1;
-
-    for(u64 i = 0; i < run->glyphCount; i++)
-    {
-        oc_glyph_info* glyph = &run->glyphs[i];
-
-        oc_hb_draw_data data = {
-            .scale = scale,
-            .flipY = flipY,
-            .origin = {
-                pos.x + glyph->offset.x * scale,
-                pos.y + glyph->offset.y * scale * flipY },
-        };
-
-        hb_font_draw_glyph(fontData->hbFont, glyph->index, context->hbDrawFuncs, &data);
-
-        pos.x += glyph->advance.x * scale;
-        pos.y += glyph->advance.y * scale * flipY;
-    }
-    oc_move_to(pos.x, pos.y);
-
-    oc_fill_rule oldRule = context->attributes.fillRule;
-    context->attributes.fillRule = OC_FILL_NON_ZERO;
-    oc_fill();
-    context->attributes.fillRule = oldRule;
 }
 
 void oc_text_draw_utf32(oc_str32 codepoints, oc_font font, f32 fontSize)

@@ -514,6 +514,9 @@ struct oc_ui_box
     oc_ui_box_draw_proc drawProc;
     void* drawData;
 
+    // text shaping
+    oc_glyph_run* glyphRun;
+
     // styling
     oc_list beforeRules;
     oc_list afterRules;
