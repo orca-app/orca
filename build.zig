@@ -459,6 +459,18 @@ pub fn build(b: *Build) !void {
     /////////////////////////////////////////////////////////
     // Orca runtime and dependencies
 
+    // stage angle + dawn libs
+
+    var stage_angle_libs: *Build.Step.WriteFile = b.addWriteFiles();
+    const angle_include_path = stage_angle_libs.addCopyDirectory(b.path("build/angle.out/include"), "include", .{});
+    const angle_lib_path = stage_angle_libs.addCopyDirectory(b.path("build/angle.out/bin"), "lib", .{});
+    stage_angle_libs.step.dependOn(&run_angle_uptodate.step);
+
+    var stage_dawn_libs: *Build.Step.WriteFile = b.addWriteFiles();
+    const dawn_include_path = stage_dawn_libs.addCopyDirectory(b.path("build/dawn.out/include"), "include", .{});
+    const dawn_lib_path = stage_dawn_libs.addCopyDirectory(b.path("build/dawn.out/bin"), "lib", .{});
+    stage_dawn_libs.step.dependOn(&run_dawn_uptodate.step);
+
     // wasm3
 
     var wasm3_sources = CSources.init(b);
@@ -478,54 +490,7 @@ pub fn build(b: *Build) !void {
     });
     wasm3_lib.linkLibC();
 
-    // stage angle + dawn libs
-
-    var stage_angle_libs: *Build.Step.WriteFile = b.addWriteFiles();
-    const angle_include_path = stage_angle_libs.addCopyDirectory(b.path("build/angle.out/include"), "include", .{});
-    const angle_lib_path = stage_angle_libs.addCopyDirectory(b.path("build/angle.out/include"), "lib", .{});
-    // if (target.result.os.tag == .windows) {
-    //     stage_angle_libs.addCopyFile(b.path("build/angle.out/bin/libEGL.dll"), "lib");
-    //     stage_angle_libs.addCopyFile(b.path("build/angle.out/bin/libEGL.dll.lib"), "lib");
-    //     stage_angle_libs.addCopyFile(b.path("build/angle.out/bin/libGLESv2.dll"), "lib");
-    //     stage_angle_libs.addCopyFile(b.path("build/angle.out/bin/libGLESv2.dll.lib"), "lib");
-    //     stage_angle_libs.addCopyFile(b.path("build/angle.out/bin/d3dcompiler_47.dll"), "lib");
-    // }
-    stage_angle_libs.step.dependOn(&run_angle_uptodate.step);
-
-    var stage_dawn_libs: *Build.Step.WriteFile = b.addWriteFiles();
-    const dawn_include_path = stage_dawn_libs.addCopyDirectory(b.path("build/dawn.out/include"), "include", .{});
-    const dawn_lib_path = stage_dawn_libs.addCopyDirectory(b.path("build/dawn.out/bin"), "lib", .{});
-
-    // if (target.result.os.tag == .windows) {
-    //     stage_dawn_libs.addCopyFile(b.path("build/dawn.out/bin/webgpu.dll"), "lib");
-    //     stage_dawn_libs.addCopyFile(b.path("build/dawn.out/bin/webgpu.lib"), "lib");
-    // }
-    stage_dawn_libs.step.dependOn(&run_dawn_uptodate.step);
-
     // platform lib
-
-    // var angle_uptodate_check = AngleDawnHelpers.CheckBuildSentinel.create(b, .Angle);
-    // var dawn_uptodate_check = AngleDawnHelpers.CheckBuildSentinel.create(b, .Dawn);
-
-    // var copy_angle_files: *Build.Step.WriteFile = b.addWriteFiles();
-    // _ = copy_angle_files.addCopyDirectory(b.path("build/angle.out/include/"), "src/ext/angle/include", .{});
-    // _ = copy_angle_files.addCopyDirectory(b.path("build/angle.out/bin/"), "build/bin", .{});
-    // copy_angle_files.step.dependOn(&angle_uptodate_check.step);
-
-    // var copy_dawn_files: *Build.Step.WriteFile = b.addWriteFiles();
-    // _ = copy_dawn_files.addCopyDirectory(b.path("build/dawn.out/include/"), "src/ext/dawn/include", .{});
-    // _ = copy_dawn_files.addCopyDirectory(b.path("build/dawn.out/bin/"), "build/bin", .{});
-    // copy_dawn_files.step.dependOn(&dawn_uptodate_check.step);
-
-    // var install_dawn_artifacts: *Build.Step.installDirectory(.{
-    //     .source_dir = b.paht
-    //     })
-
-    // os.makedirs("src/ext/dawn/include", exist_ok=True)
-    // shutil.copytree("build/dawn.out/include", "src/ext/dawn/include/", dirs_exist_ok=True)
-
-    // os.makedirs("build/bin", exist_ok=True)
-    // shutil.copytree("build/dawn.out/bin", "build/bin", dirs_exist_ok=True)
 
     const wgpu_shaders_file = try generateFileForStrings(b, "src/graphics/wgpu_renderer_shaders.h", "oc_wgsl_", &.{
         "src/graphics/wgsl_shaders/common.wgsl",
@@ -638,6 +603,127 @@ pub fn build(b: *Build) !void {
     // TODO write checksum file
     // with open("build/orcaruntime.sum", "w") as f:
     //     f.write(runtime_checksum())
+
+    /////////////////////////////////////////////////////////
+    // orca wasm libc
+
+    var stage_libc_includes: *Build.Step.WriteFile = b.addWriteFiles();
+    _ = stage_libc_includes.addCopyDirectory(b.path("src/orca-libc/include"), "build/orca-libc/include", .{});
+
+    var libc_target_query: std.Target.Query = .{
+        .cpu_arch = std.Target.Cpu.Arch.wasm32,
+        .os_tag = std.Target.Os.Tag.freestanding,
+    };
+    libc_target_query.cpu_features_add.addFeature(@intFromEnum(std.Target.wasm.Feature.bulk_memory));
+    libc_target_query.cpu_features_add.addFeature(@intFromEnum(std.Target.wasm.Feature.nontrapping_fptoint));
+
+    const libc_target: Build.ResolvedTarget = b.resolveTargetQuery(libc_target_query);
+
+    // target_query.cpu_features_add.addFeature(@intFromEnum(std.Target.wasm.Feature.multivalue));
+    // target_query.cpu_features_add.addFeature(@intFromEnum(std.Target.wasm.Feature.mutable_globals));
+    // target_query.cpu_features_add.addFeature(@intFromEnum(std.Target.wasm.Feature.reference_types));
+    // target_query.cpu_features_add.addFeature(@intFromEnum(std.Target.wasm.Feature.sign_ext));
+    // target_query.cpu_features_add.addFeature(@intFromEnum(std.Target.wasm.Feature.simd128));
+
+    // var exe = b.addExecutable(.{
+    //     .name = filename_no_extension,
+    //     .root_source_file = b.path(filepath),
+    //     .target = b.resolveTargetQuery(target_query),
+    //     .optimize = .ReleaseSmall,
+    // });
+
+    // zig fmt: off
+    const libc_flags: []const []const u8 = &.{
+        // includes
+        "-Isrc",
+        "-isystem", "src/orca-libc/include",
+        "-isystem", "src/orca-libc/include/private",
+        "-Isrc/orca-libc/src/arch",
+        "-Isrc/orca-libc/src/internal",
+
+        // warnings
+        "-Wall", 
+        "-Wextra", 
+        "-Werror", 
+        "-Wno-null-pointer-arithmetic", 
+        "-Wno-unused-parameter", 
+        "-Wno-sign-compare", 
+        "-Wno-unused-variable", 
+        "-Wno-unused-function", 
+        "-Wno-ignored-attributes", 
+        "-Wno-missing-braces", 
+        "-Wno-ignored-pragmas", 
+        "-Wno-unused-but-set-variable", 
+        "-Wno-unknown-warning-option",
+        "-Wno-parentheses", 
+        "-Wno-shift-op-parentheses",
+        "-Wno-bitwise-op-parentheses",
+        "-Wno-logical-op-parentheses",
+        "-Wno-string-plus-int",
+        "-Wno-dangling-else",
+        "-Wno-unknown-pragmas",
+
+        // defines
+        "-D__ORCA__",
+        "-DBULK_MEMORY_THRESHOLD=32",
+
+        // other flags
+        "--std=c11",
+        "-mthread-model", "single",
+    };
+    // zig fmt: on
+
+    var dummy_crt_obj = b.addObject(.{
+        .name = "crt1",
+        .target = libc_target,
+        .optimize = optimize,
+    });
+    dummy_crt_obj.addCSourceFiles(.{
+        .files = &.{"src/orca-libc/src/crt/crt1.c"},
+        .flags = libc_flags,
+    });
+    // b.installArtifact(dummy_crt_obj);
+
+    var wasm_libc_sources = CSources.init(b);
+    defer wasm_libc_sources.deinit();
+    try wasm_libc_sources.collect("src/orca-libc/src/complex");
+    try wasm_libc_sources.collect("src/orca-libc/src/crt");
+    try wasm_libc_sources.collect("src/orca-libc/src/ctype");
+    try wasm_libc_sources.collect("src/orca-libc/src/errno");
+    try wasm_libc_sources.collect("src/orca-libc/src/exit");
+    try wasm_libc_sources.collect("src/orca-libc/src/fenv");
+    try wasm_libc_sources.collect("src/orca-libc/src/internal");
+    try wasm_libc_sources.collect("src/orca-libc/src/malloc");
+    try wasm_libc_sources.collect("src/orca-libc/src/math");
+    try wasm_libc_sources.collect("src/orca-libc/src/multibyte");
+    try wasm_libc_sources.collect("src/orca-libc/src/prng");
+    try wasm_libc_sources.collect("src/orca-libc/src/stdio");
+    try wasm_libc_sources.collect("src/orca-libc/src/stdlib");
+    try wasm_libc_sources.collect("src/orca-libc/src/string");
+
+    var wasm_libc_obj = b.addObject(.{
+        .name = "libc",
+        .target = libc_target,
+        .optimize = optimize,
+    });
+    wasm_libc_obj.addCSourceFiles(.{
+        .files = wasm_libc_sources.files.items,
+        .flags = libc_flags,
+    });
+    // b.installArtifact(wasm_libc_obj);
+
+    var wasm_libc_lib = b.addExecutable(.{
+        .name = "libc",
+        .target = libc_target,
+        .optimize = optimize,
+    });
+    wasm_libc_lib.addObject(wasm_libc_obj);
+    wasm_libc_lib.rdynamic = true;
+    wasm_libc_lib.entry = .disabled;
+
+    b.installArtifact(wasm_libc_lib);
+
+    // TODO need to manually install the .o crt1 and libc files - zig doesn't do this by default
 
     /////////////////////////////////////////////////////////
     // Orca CLI tool and dependencies
@@ -764,7 +850,7 @@ pub fn build(b: *Build) !void {
     b.installArtifact(orca_tool_exe);
 
     /////////////////////////////////////////////////////////////////
-    // TODO bundle
+    // TODO bundle command ?
 
     // python_build_libc.step.dependOn(&orca_runtime_exe.step);
     // python_build_sdk.step.dependOn(&python_build_libc.step);
