@@ -17,6 +17,14 @@ const Lib = enum {
     }
 };
 
+const DAWN_REQUIRED_FILES: []const []const u8 = blk: {
+    if (builtin.os.tag == .windows) {
+        break :blk &.{ "include/webgpu.h", "bin/webgpu.lib", "bin/webgpu.dll" };
+    } else {
+        break :blk &.{ "include/webgpu.h", "bin/webgpu.dylib" };
+    }
+};
+
 const Options = struct {
     arena: std.mem.Allocator,
     lib: Lib,
@@ -161,22 +169,6 @@ fn exec(arena: std.mem.Allocator, argv: []const []const u8, cwd: []const u8, env
     try process.spawn();
 
     const term = try process.wait();
-
-    // const result: std.process.Child.RunResult = try std.process.Child.run(.{
-    //     .allocator = arena,
-    //     .argv = argv,
-    //     .cwd = cwd,
-    //     .env_map = env,
-    // });
-
-    // if (result.stdout.len > 0) {
-    //     std.log.info("\n{s}", .{result.stdout});
-    // }
-
-    // if (result.stderr.len > 0) {
-    //     std.log.info("\n{s}", .{result.stderr});
-    //     return error.StderrLogsEmitted;
-    // }
 
     switch (term) {
         .Exited => |v| {
@@ -477,16 +469,7 @@ fn isDawnUpToDate(opts: *const Options, comptime log_error: ShouldLogError) !boo
         return false;
     };
 
-    var dawn_required_files = std.ArrayList([]const u8).init(opts.arena);
-    try dawn_required_files.append("include/webgpu.h");
-    if (builtin.os.tag == .windows) {
-        try dawn_required_files.append("bin/webgpu.lib");
-        try dawn_required_files.append("bin/webgpu.dll");
-    } else {
-        try dawn_required_files.append("bin/webgpu.dylib");
-    }
-
-    for (dawn_required_files.items) |path| {
+    for (DAWN_REQUIRED_FILES) |path| {
         var commit: ?[]const u8 = null;
         var sum: ?[]const u8 = null;
 
@@ -546,6 +529,19 @@ fn buildAngle(opts: *const Options) !void {
         std.log.info("angle is up to date - no rebuild needed.\n", .{});
         return;
     } else if (opts.check_only) {
+        const msg =
+            \\Angle files are not present or don't match required commit.
+            \\Angle commit: {s}
+            \\
+            \\You can build the required files by running 'zig build angle'
+            \\
+            \\Alternatively you can trigger a CI run to build the binaries on github:
+            \\  * For Windows, go to https://github.com/orca-app/orca/actions/workflows/build-angle-win.yaml
+            \\  * For macOS, go to https://github.com/orca-app/orca/actions/workflows/build-angle-mac.yaml
+            \\  * Click on \"Run workflow\" to tigger a new run, or download artifacts from a previous run
+            \\  * Put the contents of the artifacts folder in './build/angle.out'
+        ;
+        std.log.err(msg, .{opts.commit_sha});
         return error.AngleOutOfDate;
     }
 
@@ -556,14 +552,6 @@ fn buildAngle(opts: *const Options) !void {
 
     var env: std.process.EnvMap = try ensureDepotTools(opts);
     defer env.deinit();
-
-    // {
-    //     std.debug.print(">>> env:\n", .{});
-    //     var iter = env.iterator();
-    //     while (iter.next()) |entry| {
-    //         std.debug.print("\t{s}: {s}\n", .{ entry.key_ptr.*, entry.value_ptr.* });
-    //     }
-    // }
 
     const src_path = try std.fs.path.join(opts.arena, &.{ opts.paths.intermediate_dir, opts.lib.toStr() });
     try copyFolder(opts.arena, src_path, opts.paths.src_dir);
@@ -714,6 +702,22 @@ fn buildDawn(opts: *const Options) !void {
         std.log.info("dawn is up to date - no rebuild needed.\n", .{});
         return;
     } else if (opts.check_only) {
+        const dawn_required_files_str = try std.mem.join(opts.arena, "\n", DAWN_REQUIRED_FILES);
+        const msg =
+            \\Dawn files are not present or don't match required commit.
+            \\Dawn commit: {s}
+            \\Dawn Required files:
+            \\{s}
+            \\You can build the required files by running 'zig build dawn'
+            \\
+            \\Alternatively you can trigger a CI run to build the binaries on github:
+            \\  * For Windows, go to https://github.com/orca-app/orca/actions/workflows/build-dawn-win.yaml
+            \\  * For macOS, go to https://github.com/orca-app/orca/actions/workflows/build-dawn-mac.yaml
+            \\  * Click on "Run workflow" to tigger a new run, or download artifacts from a previous run
+            \\  * Put the contents of the artifacts folder in './build/dawn.out'
+        ;
+        std.log.err(msg, .{ opts.commit_sha, dawn_required_files_str });
+
         return error.DawnOutOfDate;
     }
 
@@ -886,41 +890,4 @@ pub fn main() !void {
         .Angle => try buildAngle(&opts),
         .Dawn => try buildDawn(&opts),
     }
-}
-
-// test "check angle" {
-//     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
-//     defer arena.deinit();
-
-//     var opts = Options{ .arena = arena.allocator(), .lib = .Angle, .commit_sha = "8a8c8fc280d74b34731e0e417b19bff7c967388a", .paths = .{
-//         .python = "C:/Users/Reuben/AppData/Local/zig/p/1220f762a97c1e1613f7259ae688806289485fc5145e9453e7b6611a3f8afa0c0749/python.exe",
-//         .depot_tools = "C:/Users/Reuben/AppData/Local/zig/p/122080075bb2fa27f94ac19d5fb2051f90b07027d305feb3e9073d501c7312704d09",
-//         .src_dir = "C:/Users/Reuben/AppData/Local/zig/p/1220df877ce2ab2f8775207778ed97f1df3123447150066d5704cbf4678e8871e982",
-//         .intermediate_dir = "E:/dev/handmade/orca/build.bak/",
-//         .output_dir = "E:/dev/handmade/orca/build.bak/angle.out",
-//     } };
-
-//     try checkAngle(&opts);
-
-//     opts.paths.output_dir = "E:/dev/handmade/orca/build.bak/angle.out/does_not_exist";
-//     try std.testing.expectError(error.AngleOutOfDate, checkAngle(&opts));
-// }
-
-test "build angle" {
-    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
-    defer arena.deinit();
-
-    var opts = Options{
-        .arena = arena.allocator(),
-        .lib = .Angle,
-        .check_only = false,
-        .optimize = .ReleaseFast,
-        .commit_sha = "8a8c8fc280d74b34731e0e417b19bff7c967388a",
-        .paths = .{
-            .python = "C:/Users/Reuben/AppData/Local/zig/p/1220f762a97c1e1613f7259ae688806289485fc5145e9453e7b6611a3f8afa0c0749/python.exe",
-            .src_dir = "C:/Users/Reuben/AppData/Local/zig/p/1220df877ce2ab2f8775207778ed97f1df3123447150066d5704cbf4678e8871e982",
-            .intermediate_dir = "E:/dev/handmade/orca/build/",
-        },
-    };
-    try buildAngle(&opts);
 }
