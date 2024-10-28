@@ -25,6 +25,7 @@ const Options = struct {
     optimize: std.builtin.OptimizeMode,
     paths: struct {
         python: []const u8,
+        cmake: []const u8,
         src_dir: []const u8,
         intermediate_dir: []const u8,
         output_dir: []const u8,
@@ -37,6 +38,7 @@ const Options = struct {
         var optimize: std.builtin.OptimizeMode = .ReleaseFast;
 
         var python: ?[]const u8 = null;
+        var cmake: ?[]const u8 = null;
         var src_dir: ?[]const u8 = null;
         var intermediate_dir: ?[]const u8 = null;
 
@@ -67,6 +69,8 @@ const Options = struct {
                 optimize = .Debug;
             } else if (std.mem.eql(u8, arg, "--python")) {
                 python = splitIter.next();
+            } else if (std.mem.eql(u8, arg, "--cmake")) {
+                cmake = splitIter.next();
             } else if (std.mem.eql(u8, arg, "--src")) {
                 src_dir = splitIter.next();
             } else if (std.mem.eql(u8, arg, "--intermediate")) {
@@ -87,6 +91,8 @@ const Options = struct {
             missing_arg = "sha";
         } else if (python == null) {
             missing_arg = "python";
+        } else if (cmake == null) {
+            missing_arg = "cmake";
         } else if (src_dir == null) {
             missing_arg = "src";
         } else if (intermediate_dir == null) {
@@ -120,6 +126,7 @@ const Options = struct {
             .optimize = optimize,
             .paths = .{
                 .python = python.?,
+                .cmake = cmake.?,
                 .src_dir = src_dir.?,
                 .intermediate_dir = intermediate_dir.?,
                 .output_dir = output_dir,
@@ -134,32 +141,44 @@ const Sort = struct {
     }
 };
 
-fn exec(arena: std.mem.Allocator, argv: []const []const u8, cwd: []const u8, env: *std.process.EnvMap) !void {
+fn exec(arena: std.mem.Allocator, argv: []const []const u8, cwd: []const u8, env: *const std.process.EnvMap) !void {
     var log_msg = std.ArrayList(u8).init(arena);
     var log_writer = log_msg.writer();
     try log_writer.print("running: ", .{});
     for (argv) |arg| {
         try log_writer.print("{s} ", .{arg});
     }
-    std.log.info("{s}", .{log_msg.items});
+    try log_writer.print(" in dir {s}", .{cwd});
+    std.log.info("{s}\n", .{log_msg.items});
 
-    const result: std.process.Child.RunResult = try std.process.Child.run(.{
-        .allocator = arena,
-        .argv = argv,
-        .cwd = cwd,
-        .env_map = env,
-    });
+    var process = std.process.Child.init(argv, arena);
+    process.stdin_behavior = .Ignore;
+    process.cwd = cwd;
+    process.env_map = env;
+    process.stdout_behavior = .Inherit;
+    process.stderr_behavior = .Inherit;
 
-    if (result.stdout.len > 0) {
-        std.log.info("\n{s}", .{result.stdout});
-    }
+    try process.spawn();
 
-    if (result.stderr.len > 0) {
-        std.log.info("\n{s}", .{result.stderr});
-        return error.StderrLogsEmitted;
-    }
+    const term = try process.wait();
 
-    switch (result.term) {
+    // const result: std.process.Child.RunResult = try std.process.Child.run(.{
+    //     .allocator = arena,
+    //     .argv = argv,
+    //     .cwd = cwd,
+    //     .env_map = env,
+    // });
+
+    // if (result.stdout.len > 0) {
+    //     std.log.info("\n{s}", .{result.stdout});
+    // }
+
+    // if (result.stderr.len > 0) {
+    //     std.log.info("\n{s}", .{result.stderr});
+    //     return error.StderrLogsEmitted;
+    // }
+
+    switch (term) {
         .Exited => |v| {
             if (v != 0) {
                 std.log.err("process {s} exited with nonzero exit code {}.", .{ argv[0], v });
@@ -171,9 +190,11 @@ fn exec(arena: std.mem.Allocator, argv: []const []const u8, cwd: []const u8, env
             return error.AbnormalExit;
         },
     }
+
+    std.debug.print("\n", .{});
 }
 
-fn execShell(arena: std.mem.Allocator, argv: []const []const u8, cwd: []const u8, env: *std.process.EnvMap) !void {
+fn execShell(arena: std.mem.Allocator, argv: []const []const u8, cwd: []const u8, env: *const std.process.EnvMap) !void {
     var final_args = std.ArrayList([]const u8).init(arena);
     if (builtin.os.tag == .windows) {
         try final_args.append("cmd.exe");
@@ -209,6 +230,7 @@ fn copyFolder(allocator: std.mem.Allocator, dest: []const u8, src: []const u8) !
 
     var src_walker = try src_dir.walk(allocator);
     while (try src_walker.next()) |src_entry| {
+        // std.debug.print("\t{s}\n", .{src_entry.path});
         _ = switch (src_entry.kind) {
             .directory => try dest_dir.makePath(src_entry.path),
             .file => try src_dir.updateFile(src_entry.path, dest_dir, src_entry.path, .{}),
@@ -239,8 +261,11 @@ const Checksum = struct {
 
     fn file(allocator: std.mem.Allocator, path: []const u8) ![]const u8 {
         const cwd: std.fs.Dir = std.fs.cwd();
+        return fileWithDir(allocator, cwd, path);
+    }
 
-        const file_contents: []const u8 = try cwd.readFileAlloc(allocator, path, MAX_FILE_SIZE);
+    fn fileWithDir(allocator: std.mem.Allocator, fsdir: std.fs.Dir, path: []const u8) ![]const u8 {
+        const file_contents: []const u8 = try fsdir.readFileAlloc(allocator, path, MAX_FILE_SIZE);
         defer allocator.free(file_contents);
 
         var digest: [Sha256.digest_length]u8 = undefined;
@@ -333,6 +358,18 @@ const Checksum = struct {
 const CommitChecksum = struct {
     commit: []const u8,
     sum: []const u8,
+
+    fn writeJson(self: *const CommitChecksum, writer: anytype, object_name: []const u8) !void {
+        try writer.objectField(object_name);
+        try writer.beginObject();
+        {
+            try writer.objectField("commit");
+            try writer.write(self.commit);
+            try writer.objectField("sum");
+            try writer.write(self.sum);
+        }
+        try writer.endObject();
+    }
 };
 
 const ANGLE_CHECKSUM_FILENAME = "angle.json";
@@ -345,6 +382,31 @@ fn checksumLib(opts: *const Options) ![]const u8 {
         checksum_file,
         ".DS_Store",
     } });
+}
+
+fn ensureDepotTools(opts: *const Options) !std.process.EnvMap {
+    var env: std.process.EnvMap = try std.process.getEnvMap(opts.arena);
+    if (builtin.os.tag == .windows) {
+        try env.put("DEPOT_TOOLS_WIN_TOOLCHAIN", "0");
+    }
+
+    const depot_tools_path = try std.fs.path.join(opts.arena, &.{ opts.paths.intermediate_dir, "depot_tools" });
+    if (try pathExists(std.fs.cwd(), depot_tools_path) == false) {
+        std.log.info("cloning depot_tools to intermediate '{s}'...", .{opts.paths.intermediate_dir});
+        try exec(opts.arena, &.{ "git", "clone", "https://chromium.googlesource.com/chromium/tools/depot_tools.git" }, opts.paths.intermediate_dir, &env);
+    } else {
+        std.log.info("depot_tools already exists, skipping clone", .{});
+    }
+
+    const key = "PATH";
+    if (env.get(key)) |env_path| {
+        const new_path = try std.fmt.allocPrint(opts.arena, "{s}" ++ [1]u8{std.fs.path.delimiter} ++ "{s}", .{ env_path, depot_tools_path });
+        try env.put(key, new_path);
+    } else {
+        try env.put(key, depot_tools_path);
+    }
+
+    return env;
 }
 
 fn noopLog(comptime _: []const u8, _: anytype) void {}
@@ -492,27 +554,8 @@ fn buildAngle(opts: *const Options) !void {
 
     std.log.info("angle is out of date - rebuilding", .{});
 
-    var env: std.process.EnvMap = try std.process.getEnvMap(opts.arena);
+    var env: std.process.EnvMap = try ensureDepotTools(opts);
     defer env.deinit();
-    if (builtin.os.tag == .windows) {
-        try env.put("DEPOT_TOOLS_WIN_TOOLCHAIN", "0");
-    }
-
-    const depot_tools_path = try std.fs.path.join(opts.arena, &.{ opts.paths.intermediate_dir, "depot_tools" });
-    if (try pathExists(std.fs.cwd(), depot_tools_path) == false) {
-        std.log.info("cloning depot_tools to intermediate '{s}'...", .{opts.paths.intermediate_dir});
-        try exec(opts.arena, &.{ "git", "clone", "https://chromium.googlesource.com/chromium/tools/depot_tools.git" }, opts.paths.intermediate_dir, &env);
-    } else {
-        std.log.info("depot_tools already exists, skipping clone", .{});
-    }
-
-    const key = "PATH";
-    if (env.get(key)) |env_path| {
-        const new_path = try std.fmt.allocPrint(opts.arena, "{s}" ++ [1]u8{std.fs.path.delimiter} ++ "{s}", .{ env_path, depot_tools_path });
-        try env.put(key, new_path);
-    } else {
-        try env.put(key, depot_tools_path);
-    }
 
     // {
     //     std.debug.print(">>> env:\n", .{});
@@ -522,13 +565,13 @@ fn buildAngle(opts: *const Options) !void {
     //     }
     // }
 
-    const src_dir = try std.fs.path.join(opts.arena, &.{ opts.paths.intermediate_dir, opts.lib.toStr() });
-    try copyFolder(opts.arena, src_dir, opts.paths.src_dir);
+    const src_path = try std.fs.path.join(opts.arena, &.{ opts.paths.intermediate_dir, opts.lib.toStr() });
+    try copyFolder(opts.arena, src_path, opts.paths.src_dir);
 
-    const bootstrap_path = try std.fs.path.join(opts.arena, &.{ src_dir, "scripts/bootstrap.py" });
-    try exec(opts.arena, &.{ opts.paths.python, bootstrap_path }, src_dir, &env);
+    const bootstrap_path = try std.fs.path.join(opts.arena, &.{ src_path, "scripts/bootstrap.py" });
+    try exec(opts.arena, &.{ opts.paths.python, bootstrap_path }, src_path, &env);
 
-    try execShell(opts.arena, &.{ "gclient", "sync" }, src_dir, &env);
+    try execShell(opts.arena, &.{ "gclient", "sync" }, src_path, &env);
 
     const optimize_str = if (opts.optimize == .Debug) "Debug" else "Release";
     const is_debug_str = if (opts.optimize == .Debug) "is_debug=true" else "is_debug=false";
@@ -558,12 +601,12 @@ fn buildAngle(opts: *const Options) !void {
 
     const gn_args: []const u8 = try std.fmt.allocPrint(opts.arena, "--args={s}", .{gn_all_args});
 
-    const optimize_output_path = try std.fs.path.join(opts.arena, &.{ src_dir, "out", optimize_str });
+    const optimize_output_path = try std.fs.path.join(opts.arena, &.{ src_path, "out", optimize_str });
     try cwd.makePath(optimize_output_path);
 
-    try execShell(opts.arena, &.{ "gn", "gen", optimize_output_path, gn_args }, src_dir, &env);
+    try execShell(opts.arena, &.{ "gn", "gen", optimize_output_path, gn_args }, src_path, &env);
 
-    try execShell(opts.arena, &.{ "autoninja", "-C", optimize_output_path, "libEGL", "libGLESv2" }, src_dir, &env);
+    try execShell(opts.arena, &.{ "autoninja", "-C", optimize_output_path, "libEGL", "libGLESv2" }, src_path, &env);
 
     // copy artifacts to output dir
     {
@@ -582,11 +625,11 @@ fn buildAngle(opts: *const Options) !void {
         };
 
         for (inc_folders) |folder| {
-            const src_path = try join(a, &.{ src_dir, folder });
-            const dest_path = try join(a, &.{ output_dir, folder });
-            try cwd.deleteTree(dest_path);
-            try cwd.makePath(dest_path);
-            _ = try copyFolder(a, dest_path, src_path);
+            const src_include_path = try join(a, &.{ src_path, folder });
+            const dest_include_path = try join(a, &.{ output_dir, folder });
+            try cwd.deleteTree(dest_include_path);
+            try cwd.makePath(dest_include_path);
+            _ = try copyFolder(a, dest_include_path, src_include_path);
         }
 
         var libs = std.ArrayList([]const u8).init(a);
@@ -645,20 +688,25 @@ fn buildAngle(opts: *const Options) !void {
 
     // write stamp file
     {
+        try cwd.makePath(opts.paths.output_dir);
+        const checksum_path = std.fs.path.join(opts.arena, &.{ opts.paths.output_dir, ANGLE_CHECKSUM_FILENAME }) catch @panic("OOM");
+
+        std.log.info("writing checksum file to {s}", .{checksum_path});
+
         const commit_checksum = CommitChecksum{
             .sum = try checksumLib(opts),
             .commit = opts.commit_sha,
         };
         var json = std.ArrayList(u8).init(opts.arena);
         try std.json.stringify(commit_checksum, .{}, json.writer());
-        try cwd.makePath(opts.paths.output_dir);
-        const checksum_path = std.fs.path.join(opts.arena, &.{ opts.paths.output_dir, ANGLE_CHECKSUM_FILENAME }) catch @panic("OOM");
         try std.fs.cwd().writeFile(.{
             .sub_path = checksum_path,
             .data = json.items,
             .flags = .{},
         });
     }
+
+    std.log.info("angle build successful", .{});
 }
 
 fn buildDawn(opts: *const Options) !void {
@@ -669,7 +717,160 @@ fn buildDawn(opts: *const Options) !void {
         return error.DawnOutOfDate;
     }
 
-    return error.Unimplemented;
+    std.log.info("dawn is out of date - rebuilding", .{});
+
+    var env: std.process.EnvMap = try ensureDepotTools(opts);
+    defer env.deinit();
+
+    const cwd = std.fs.cwd();
+
+    const src_path = try std.fs.path.join(opts.arena, &.{ opts.paths.intermediate_dir, opts.lib.toStr() });
+    try copyFolder(opts.arena, src_path, opts.paths.src_dir);
+
+    const src_dir = try cwd.openDir(src_path, .{});
+    _ = try src_dir.updateFile("scripts/standalone.gclient", src_dir, ".gclient", .{});
+
+    try execShell(opts.arena, &.{ "gclient", "sync" }, src_path, &env);
+
+    {
+        const cmake_patch =
+            \\add_library(webgpu SHARED ${DAWN_PLACEHOLDER_FILE})
+            \\common_compile_options(webgpu)
+            \\target_link_libraries(webgpu PRIVATE dawn_native)
+            \\target_link_libraries(webgpu PUBLIC dawn_headers)
+            \\target_compile_definitions(webgpu PRIVATE WGPU_IMPLEMENTATION WGPU_SHARED_LIBRARY)
+            \\target_sources(webgpu PRIVATE ${WEBGPU_DAWN_NATIVE_PROC_GEN})
+            \\
+        ;
+        const cmake_list_path = try std.fs.path.join(opts.arena, &.{ src_path, "src/dawn/native/CMakeLists.txt" });
+        const cmake_list_file = try cwd.createFile(cmake_list_path, .{
+            .read = false,
+            .truncate = false,
+        });
+        defer cmake_list_file.close();
+
+        try cmake_list_file.seekFromEnd(0);
+        try cmake_list_file.writeAll(cmake_patch);
+    }
+
+    const diff_file_path = try std.fs.path.join(opts.arena, &.{ src_path, "../../deps/dawn-d3d12-transparent.diff" });
+    try exec(opts.arena, &.{ "git", "apply", "-v", diff_file_path }, src_path, &env); // TODO maybe use --unsafe-paths ?
+
+    const optimize_str = if (opts.optimize == .Debug) "Debug" else "Release";
+    const cmake_build_type = try std.fmt.allocPrint(opts.arena, "CMAKE_BUILD_TYPE={s}", .{optimize_str});
+
+    var cmake_args = std.ArrayList([]const u8).init(opts.arena);
+    // zig fmt: off
+    try cmake_args.appendSlice(&.{
+            opts.paths.cmake,
+            "-S", "dawn",
+            "-B", "dawn.build",
+            "-D", cmake_build_type,
+            "-D", "CMAKE_POLICY_DEFAULT_CMP0091=NEW",
+            "-D", "BUILD_SHARED_LIBS=OFF",
+            "-D", "BUILD_SAMPLES=ON",
+            "-D", "DAWN_BUILD_SAMPLES=ON",
+            "-D", "TINT_BUILD_SAMPLES=OFF",
+            "-D", "TINT_BUILD_DOCS=OFF",
+            "-D", "TINT_BUILD_TESTS=OFF",
+    });
+    // zig fmt: on
+
+    // zig fmt: off
+    if (builtin.os.tag == .windows) {
+        try cmake_args.appendSlice(&.{
+            "-D", "DAWN_ENABLE_D3D12=ON",
+            "-D", "DAWN_ENABLE_D3D11=OFF",
+            "-D", "DAWN_ENABLE_METAL=OFF",
+            "-D", "DAWN_ENABLE_NULL=OFF",
+            "-D", "DAWN_ENABLE_DESKTOP_GL=OFF",
+            "-D", "DAWN_ENABLE_OPENGLES=OFF",
+            "-D", "DAWN_ENABLE_VULKAN=OFF"
+        });
+    } else {
+        try cmake_args.appendSlice(&.{
+            "-D", "DAWN_ENABLE_METAL=ON",
+            "-D", "DAWN_ENABLE_NULL=OFF",
+            "-D", "DAWN_ENABLE_DESKTOP_GL=OFF",
+            "-D", "DAWN_ENABLE_OPENGLES=OFF",
+            "-D", "DAWN_ENABLE_VULKAN=OFF"
+        });
+    }
+    // zig fmt: on
+
+    try exec(opts.arena, cmake_args.items, opts.paths.intermediate_dir, &env);
+
+    // TODO allow user customization of number of parallel jobs
+    // zig fmt: off
+    const cmake_build_args = &.{
+        opts.paths.cmake,
+        "--build", "dawn.build",
+        "--config", optimize_str,
+        "--target", "webgpu",
+        "--parallel",
+    };
+    // zig fmt: on
+    try exec(opts.arena, cmake_build_args, opts.paths.intermediate_dir, &env);
+
+    const output_path = opts.paths.output_dir;
+    try cwd.makePath(output_path);
+    const output_dir = try cwd.openDir(opts.paths.output_dir, .{});
+
+    {
+        const checksum_path = try std.fs.path.join(opts.arena, &.{ output_path, DAWN_CHECKSUM_FILENAME });
+        std.log.info("writing checksum file to {s}", .{checksum_path});
+
+        var json_buffer = std.ArrayList(u8).init(opts.arena);
+        var json_writer = std.json.writeStream(json_buffer.writer(), .{ .whitespace = .indent_4 });
+        defer json_writer.deinit();
+
+        try json_writer.beginObject();
+
+        const intermediate_dir = try cwd.openDir(opts.paths.intermediate_dir, .{});
+        _ = try intermediate_dir.updateFile("dawn.build/gen/include/dawn/webgpu.h", output_dir, "include/webgpu.h", .{});
+
+        const header_sum = CommitChecksum{
+            .commit = opts.commit_sha,
+            .sum = try Checksum.fileWithDir(opts.arena, output_dir, "include/webgpu.h"),
+        };
+        try header_sum.writeJson(&json_writer, "include/webgpu.h");
+
+        if (builtin.os.tag == .windows) {
+            const dll_path = try std.fs.path.join(opts.arena, &.{ "dawn.build", optimize_str, "webgpu.dll" });
+            _ = try intermediate_dir.updateFile(dll_path, output_dir, "bin/webgpu.dll", .{});
+
+            const lib_path = try std.fs.path.join(opts.arena, &.{ "dawn.build/src/dawn/native/", optimize_str, "webgpu.lib" });
+            _ = try intermediate_dir.updateFile(lib_path, output_dir, "bin/webgpu.lib", .{});
+
+            const dll_checksum = CommitChecksum{
+                .commit = opts.commit_sha,
+                .sum = try Checksum.fileWithDir(opts.arena, output_dir, "bin/webgpu.dll"),
+            };
+            try dll_checksum.writeJson(&json_writer, "bin/webgpu.dll");
+
+            const lib_checksum = CommitChecksum{
+                .commit = opts.commit_sha,
+                .sum = try Checksum.fileWithDir(opts.arena, output_dir, "bin/webgpu.lib"),
+            };
+            try lib_checksum.writeJson(&json_writer, "bin/webgpu.lib");
+        } else {
+            _ = try intermediate_dir.updateFile("dawn.build/src/dawn/native/libwebgpu.dylib", output_dir, "bin/webgpu.dylib", .{});
+
+            const lib_checksum = CommitChecksum{
+                .commit = opts.commit_sha,
+                .sum = try Checksum.fileWithDir(opts.arena, output_dir, "bin/webgpu.dylib"),
+            };
+            try lib_checksum.writeJson(&json_writer, "bin/webgpu.lib");
+        }
+
+        try json_writer.endObject();
+
+        try output_dir.writeFile(.{
+            .sub_path = checksum_path,
+            .data = json_buffer.items,
+            .flags = .{},
+        });
+    }
 }
 
 pub fn main() !void {
