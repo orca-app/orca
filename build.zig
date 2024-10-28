@@ -327,6 +327,25 @@ const RunHelpers = struct {
             run.addArg("--python=python");
         }
     }
+
+    fn addCmakeArg(run: *Build.Step.Run, target: Build.ResolvedTarget, b: *Build) void {
+        var lazy_cmake_dep: ?*Build.Dependency = undefined;
+        var binary_name: []const u8 = undefined;
+
+        if (target.result.os.tag == .windows) {
+            lazy_cmake_dep = b.lazyDependency("cmake-win64", .{});
+            binary_name = "cmake.exe";
+        } else {
+            lazy_cmake_dep = b.lazyDependency("cmake-linux64", .{});
+            binary_name = "cmake";
+        }
+
+        if (lazy_cmake_dep) |cmake_dep| {
+            const subpath = std.fs.path.join(b.allocator, &.{ "bin", binary_name }) catch @panic("OOM");
+            const cmake_path = cmake_dep.path(subpath);
+            run.addPrefixedFileArg("--cmake=", cmake_path);
+        }
+    }
 };
 
 pub fn build(b: *Build) !void {
@@ -398,6 +417,7 @@ pub fn build(b: *Build) !void {
     run_angle_build.addArg(b.fmt("--intermediate={s}", .{deps_intermediate_path}));
     run_angle_build.addPrefixedFileArg("--src=", angle_dep.path(""));
     RunHelpers.addPythonArg(run_angle_build, target, b);
+    RunHelpers.addCmakeArg(run_angle_build, target, b);
 
     var run_angle_uptodate: *Build.Step.Run = b.addRunArtifact(build_deps_exe);
     run_angle_uptodate.addArg("--check");
@@ -406,6 +426,7 @@ pub fn build(b: *Build) !void {
     run_angle_uptodate.addArg(b.fmt("--intermediate={s}", .{deps_intermediate_path}));
     run_angle_uptodate.addPrefixedFileArg("--src=", angle_dep.path(""));
     RunHelpers.addPythonArg(run_angle_uptodate, target, b);
+    RunHelpers.addCmakeArg(run_angle_uptodate, target, b);
 
     const build_angle_step = b.step("angle", "Build Angle libs");
     build_angle_step.dependOn(&run_angle_build.step);
@@ -421,6 +442,7 @@ pub fn build(b: *Build) !void {
     run_dawn_build.addArg(b.fmt("--intermediate={s}", .{deps_intermediate_path}));
     run_dawn_build.addPrefixedFileArg("--src=", dawn_dep.path(""));
     RunHelpers.addPythonArg(run_dawn_build, target, b);
+    RunHelpers.addCmakeArg(run_dawn_build, target, b);
 
     var run_dawn_uptodate: *Build.Step.Run = b.addRunArtifact(build_deps_exe);
     run_dawn_uptodate.addArg("--check");
@@ -429,6 +451,7 @@ pub fn build(b: *Build) !void {
     run_dawn_uptodate.addArg(b.fmt("--intermediate={s}", .{deps_intermediate_path}));
     run_dawn_uptodate.addPrefixedFileArg("--src=", dawn_dep.path(""));
     RunHelpers.addPythonArg(run_dawn_uptodate, target, b);
+    RunHelpers.addCmakeArg(run_dawn_uptodate, target, b);
 
     const build_dawn_step = b.step("dawn", "Build Dawn libs");
     build_dawn_step.dependOn(&run_dawn_build.step);
