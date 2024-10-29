@@ -29,6 +29,17 @@ enum
     OC_MAX_PRIMITIVE_COUNT = 8 << 14
 };
 
+typedef struct oc_font_data
+{
+    oc_list_elt freeListElt;
+
+    f32 unitsPerEm;
+    oc_font_metrics metrics;
+
+    oc_harfbuzz_handle harfbuzzHandle;
+
+} oc_font_data;
+
 typedef struct oc_canvas_context_data oc_canvas_context_data;
 
 typedef enum oc_graphics_handle_kind
@@ -38,6 +49,7 @@ typedef enum oc_graphics_handle_kind
     OC_GRAPHICS_HANDLE_CANVAS_RENDERER,
     OC_GRAPHICS_HANDLE_CANVAS_CONTEXT,
     OC_GRAPHICS_HANDLE_FONT,
+    OC_GRAPHICS_HANDLE_HARFBUZZ,
     OC_GRAPHICS_HANDLE_IMAGE,
     OC_GRAPHICS_HANDLE_SURFACE_SERVER,
 } oc_graphics_handle_kind;
@@ -68,6 +80,7 @@ typedef struct oc_graphics_data
     oc_arena resourceArena;
     oc_list canvasFreeList;
     oc_list fontFreeList;
+    oc_list harfbuzzFreeList;
 
 } oc_graphics_data;
 
@@ -351,6 +364,57 @@ oc_font oc_font_nil() { return ((oc_font){ .h = 0 }); }
 
 bool oc_font_is_nil(oc_font font) { return (font.h == 0); }
 
+oc_font oc_font_handle_alloc(oc_font_data* font)
+{
+    oc_font handle = { .h = oc_graphics_handle_alloc(OC_GRAPHICS_HANDLE_FONT, (void*)font) };
+    return (handle);
+}
+
+oc_font_data* oc_font_data_from_handle(oc_font handle)
+{
+    oc_font_data* data = oc_graphics_data_from_handle(OC_GRAPHICS_HANDLE_FONT, handle.h);
+    return (data);
+}
+
+oc_harfbuzz_handle oc_harfbuzz_font_create(oc_str8 mem);
+void oc_harfbuzz_font_destroy(oc_harfbuzz_handle handle);
+f32 oc_harfbuzz_font_get_upem(oc_harfbuzz_handle handle);
+oc_font_metrics oc_harfbuzz_font_get_metrics(oc_harfbuzz_handle handle);
+
+oc_glyph_run* oc_harfbuzz_font_shape(oc_arena* arena,
+                                     oc_harfbuzz_handle handle,
+                                     oc_text_shape_settings* settings,
+                                     oc_str32 codepoints,
+                                     u64 begin,
+                                     u64 end);
+
+oc_font oc_font_create_from_memory(oc_str8 mem)
+{
+    if(!oc_graphicsData.init)
+    {
+        oc_graphics_init();
+    }
+    oc_font fontHandle = oc_font_nil();
+
+    oc_font_data* font = oc_list_pop_front_entry(&oc_graphicsData.fontFreeList, oc_font_data, freeListElt);
+    if(!font)
+    {
+        font = oc_arena_push_type(&oc_graphicsData.resourceArena, oc_font_data);
+    }
+    if(font)
+    {
+        memset(font, 0, sizeof(oc_font_data));
+        fontHandle = oc_font_handle_alloc(font);
+
+        font->harfbuzzHandle = oc_harfbuzz_font_create(mem);
+        //TODO: check handle
+        font->unitsPerEm = oc_harfbuzz_font_get_upem(font->harfbuzzHandle);
+        font->metrics = oc_harfbuzz_font_get_metrics(font->harfbuzzHandle);
+    }
+
+    return (fontHandle);
+}
+
 oc_font oc_font_create_from_file(oc_file file)
 {
     oc_font font = oc_font_nil();
@@ -389,6 +453,37 @@ oc_font oc_font_create_from_path(oc_str8 path)
     oc_file_close(file);
 
     return (font);
+}
+
+void oc_font_destroy(oc_font fontHandle)
+{
+    oc_font_data* fontData = oc_font_data_from_handle(fontHandle);
+    if(fontData)
+    {
+        oc_harfbuzz_font_destroy(fontData->harfbuzzHandle);
+        oc_list_push_front(&oc_graphicsData.fontFreeList, &fontData->freeListElt);
+        oc_graphics_handle_recycle(fontHandle.h);
+    }
+}
+
+f32 oc_font_get_scale_for_em_pixels(oc_font font, f32 emSize)
+{
+    oc_font_data* fontData = oc_font_data_from_handle(font);
+    if(!fontData)
+    {
+        return (0);
+    }
+    return (emSize / fontData->unitsPerEm);
+}
+
+oc_font_metrics oc_font_get_metrics_unscaled(oc_font font)
+{
+    oc_font_data* fontData = oc_font_data_from_handle(font);
+    if(!fontData)
+    {
+        return ((oc_font_metrics){ 0 });
+    }
+    return (fontData->metrics);
 }
 
 oc_font_metrics oc_font_get_metrics(oc_font font, f32 emSize)
@@ -1088,150 +1183,33 @@ void oc_close_path()
     context->subPathStartPoint = context->subPathLastPoint;
 }
 
-/*
-oc_rect oc_glyph_outlines_from_font_data(oc_font_data* fontData, oc_str32 glyphIndices)
+oc_glyph_run* oc_text_shape(oc_arena* arena,
+                            oc_font font,
+                            oc_text_shape_settings* settings,
+                            oc_str32 codepoints,
+                            u64 begin,
+                            u64 end)
 {
-    oc_canvas_context_data* context = oc_currentCanvasContext;
+    oc_glyph_run* run = oc_arena_push_type(arena, oc_glyph_run);
+    memset(run, 0, sizeof(oc_glyph_run));
 
-    f32 startX = context->subPathLastPoint.x;
-    f32 startY = context->subPathLastPoint.y;
-    f32 maxWidth = 0;
+    run->font = font;
 
-    f32 scale = context->attributes.fontSize / fontData->unitsPerEm;
-
-    for(int i = 0; i < glyphIndices.len; i++)
-    {
-        u32 glyphIndex = glyphIndices.ptr[i];
-
-        f32 xOffset = context->subPathLastPoint.x;
-        f32 yOffset = context->subPathLastPoint.y;
-        f32 flip = context->textFlip ? 1 : -1;
-
-        if(!glyphIndex || glyphIndex >= fontData->glyphCount)
-        {
-            oc_log_warning("code point is not present in font ranges\n");
-            //NOTE(martin): try to find the replacement character
-            glyphIndex = oc_font_get_glyph_index_from_font_data(fontData, 0xfffd);
-            if(!glyphIndex)
-            {
-                //NOTE(martin): could not find replacement glyph, try to get an 'X' to get a somewhat correct dimensions
-                //              to render an empty rectangle. Otherwise just render with the max font width
-
-                oc_glyph_metrics missingGlyphMetrics = { 0 };
-                u32 missingGlyphIndex = oc_font_get_glyph_index_from_font_data(fontData, 'X');
-
-                if(missingGlyphIndex)
-                {
-                    oc_font_get_glyph_metrics_from_font_data(fontData, (oc_str32){ .ptr = &missingGlyphIndex, .len = 1 }, &missingGlyphMetrics);
-                }
-                else
-                {
-                    missingGlyphMetrics = (oc_glyph_metrics){
-                        .ink = {
-                            .x = fontData->metrics.width * 0.1,
-                            .y = -fontData->metrics.ascent,
-                            .w = fontData->metrics.width * 0.8,
-                            .h = fontData->metrics.ascent,
-                        },
-                        .advance = { .x = fontData->metrics.width, .y = 0 },
-                    };
-                }
-
-                f32 oldStrokeWidth = context->attributes.width;
-
-                oc_set_width(missingGlyphMetrics.ink.w * 0.005);
-                oc_rectangle_stroke(xOffset + missingGlyphMetrics.ink.x * scale,
-                                    yOffset + missingGlyphMetrics.ink.y * scale,
-                                    missingGlyphMetrics.ink.w * scale * flip,
-                                    missingGlyphMetrics.ink.h * scale);
-
-                oc_set_width(oldStrokeWidth);
-                oc_move_to(xOffset + missingGlyphMetrics.advance.x * scale, yOffset);
-                maxWidth = oc_max(maxWidth, xOffset + missingGlyphMetrics.advance.x * scale - startX);
-                continue;
-            }
-        }
-
-        oc_glyph_data* glyph = oc_font_get_glyph_data(fontData, glyphIndex);
-
-        oc_path_push_elements(context, glyph->pathDescriptor.count, fontData->outlines + glyph->pathDescriptor.startIndex);
-
-        oc_path_elt* elements = context->pathElements + context->path.count + context->path.startIndex - glyph->pathDescriptor.count;
-        for(int eltIndex = 0; eltIndex < glyph->pathDescriptor.count; eltIndex++)
-        {
-            for(int pIndex = 0; pIndex < 3; pIndex++)
-            {
-                elements[eltIndex].p[pIndex].x = elements[eltIndex].p[pIndex].x * scale + xOffset;
-                elements[eltIndex].p[pIndex].y = elements[eltIndex].p[pIndex].y * scale * flip + yOffset;
-            }
-        }
-        oc_move_to(xOffset + scale * glyph->metrics.advance.x, yOffset);
-
-        maxWidth = oc_max(maxWidth, xOffset + scale * glyph->metrics.advance.x - startX);
-    }
-    f32 lineHeight = (fontData->metrics.ascent + fontData->metrics.descent) * scale;
-    oc_rect box = { startX, startY, maxWidth, context->subPathLastPoint.y - startY + lineHeight };
-    return (box);
-}
-
-oc_rect oc_glyph_outlines(oc_str32 glyphIndices)
-{
     oc_canvas_context_data* context = oc_currentCanvasContext;
     if(!context)
     {
-        return ((oc_rect){ 0 });
+        return (run);
     }
-    oc_font_data* fontData = oc_font_data_from_handle(context->attributes.font);
+    oc_font_data* fontData = oc_font_data_from_handle(run->font);
     if(!fontData)
     {
-        return ((oc_rect){ 0 });
+        return (run);
     }
-    return (oc_glyph_outlines_from_font_data(fontData, glyphIndices));
+
+    run = oc_harfbuzz_font_shape(arena, fontData->harfbuzzHandle, settings, codepoints, begin, end);
+    run->font = font;
+    return (run);
 }
-
-void oc_codepoints_outlines(oc_str32 codePoints)
-{
-    oc_canvas_context_data* context = oc_currentCanvasContext;
-    if(!context)
-    {
-        return;
-    }
-    oc_font_data* fontData = oc_font_data_from_handle(context->attributes.font);
-    if(!fontData)
-    {
-        return;
-    }
-
-    oc_arena_scope scratch = oc_scratch_begin();
-
-    oc_str32 glyphIndices = oc_font_push_glyph_indices(scratch.arena, context->attributes.font, codePoints);
-    oc_glyph_outlines_from_font_data(fontData, glyphIndices);
-
-    oc_scratch_end(scratch);
-}
-
-void oc_text_outlines(oc_str8 text)
-{
-    oc_canvas_context_data* context = oc_currentCanvasContext;
-    if(!context)
-    {
-        return;
-    }
-    oc_font_data* fontData = oc_font_data_from_handle(context->attributes.font);
-    if(!fontData)
-    {
-        return;
-    }
-
-    oc_arena_scope scratch = oc_scratch_begin();
-    oc_str32 codePoints = oc_utf8_push_to_codepoints(scratch.arena, text);
-    oc_str32 glyphIndices = oc_font_push_glyph_indices(scratch.arena, context->attributes.font, codePoints);
-
-    oc_glyph_outlines_from_font_data(fontData, glyphIndices);
-
-    oc_scratch_end(scratch);
-}
-*/
 
 u64 oc_glyph_run_find_grapheme_index_less_or_equal(oc_glyph_run* run, u64 codePointIndex)
 {

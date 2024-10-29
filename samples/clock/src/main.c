@@ -46,15 +46,7 @@ ORCA_EXPORT void oc_on_init(void)
     surface = oc_canvas_surface_create(renderer);
     context = oc_canvas_context_create();
 
-    oc_unicode_range ranges[5] = {
-        OC_UNICODE_BASIC_LATIN,
-        OC_UNICODE_C1_CONTROLS_AND_LATIN_1_SUPPLEMENT,
-        OC_UNICODE_LATIN_EXTENDED_A,
-        OC_UNICODE_LATIN_EXTENDED_B,
-        OC_UNICODE_SPECIALS
-    };
-
-    font = oc_font_create_from_path(OC_STR8("/segoeui.ttf"), 5, ranges);
+    font = oc_font_create_from_path(OC_STR8("/segoeui.ttf"));
 }
 
 ORCA_EXPORT void oc_on_resize(u32 width, u32 height)
@@ -113,7 +105,8 @@ ORCA_EXPORT void oc_on_frame_refresh(void)
         oc_vec2 pos = oc_mat2x3_mul(transform, (oc_vec2){ clockRadius * 0.8f, 0 });
 
         oc_set_color_srgba(0.2, 0.2, 0.2, 1);
-        oc_text_fill(pos.x, pos.y, clockNumberStrings[i]);
+        oc_move_to(pos.x, pos.y);
+        oc_text_draw_utf8(clockNumberStrings[i], font, fontSize);
     }
 
     // hours hand

@@ -42,6 +42,11 @@ typedef struct oc_glyph_run
 
 } oc_glyph_run;
 
+typedef struct oc_harfbuzz_handle
+{
+    u64 h;
+} oc_harfbuzz_handle;
+
 typedef enum
 {
     OC_PATH_MOVE,
@@ -108,6 +113,26 @@ typedef struct oc_primitive
     };
 
 } oc_primitive;
+
+oc_harfbuzz_handle oc_harfbuzz_font_create(oc_str8 mem);
+void oc_harfbuzz_font_destroy(oc_harfbuzz_handle handle);
+f32 oc_harfbuzz_font_get_upem(oc_harfbuzz_handle handle);
+oc_font_metrics oc_harfbuzz_font_get_metrics(oc_harfbuzz_handle handle);
+
+oc_glyph_run* oc_harfbuzz_font_shape(oc_arena* arena,
+                                     oc_harfbuzz_handle handle,
+                                     oc_text_shape_settings* settings,
+                                     oc_str32 codepoints,
+                                     u64 begin,
+                                     u64 end);
+
+oc_path_elt* oc_harfbuzz_get_curves(oc_arena* arena,
+                                    oc_harfbuzz_handle handle,
+                                    oc_glyph_run* run,
+                                    oc_vec2 start,
+                                    f32 scale,
+                                    bool flipY,
+                                    u32* eltCount);
 
 ORCA_API void oc_canvas_renderer_submit(oc_canvas_renderer renderer,
                                         oc_surface surface,

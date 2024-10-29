@@ -37,13 +37,7 @@ oc_font create_font(oc_str8 relPath)
     fread(fontData, 1, fontDataSize, fontFile);
     fclose(fontFile);
 
-    oc_unicode_range ranges[5] = { OC_UNICODE_BASIC_LATIN,
-                                   OC_UNICODE_C1_CONTROLS_AND_LATIN_1_SUPPLEMENT,
-                                   OC_UNICODE_LATIN_EXTENDED_A,
-                                   OC_UNICODE_LATIN_EXTENDED_B,
-                                   OC_UNICODE_SPECIALS };
-
-    oc_font font = oc_font_create_from_memory(oc_str8_from_buffer(fontDataSize, (char*)fontData), 5, ranges);
+    oc_font font = oc_font_create_from_memory(oc_str8_from_buffer(fontDataSize, (char*)fontData));
     free(fontData);
     oc_scratch_end(scratch);
     return (font);

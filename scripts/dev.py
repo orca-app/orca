@@ -908,6 +908,11 @@ def gen_all_bindings():
         wasm3_bindings="src/wasmbind/io_api_bind_gen.c",
     )
 
+    bindgen("harfbuzz", "src/wasmbind/harfbuzz_api.json",
+        guest_stubs="src/wasmbind/harfbuzz_api_stubs.c",
+        wasm3_bindings="src/wasmbind/harfbuzz_api_bind_gen.c",
+    )
+
 #------------------------------------------------------
 # build wasm SDK
 #------------------------------------------------------

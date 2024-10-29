@@ -97,15 +97,7 @@ ORCA_EXPORT void oc_on_init(void)
         oc_log_error("couldn't load ball image\n");
     }
 
-    oc_unicode_range ranges[5] = {
-        OC_UNICODE_BASIC_LATIN,
-        OC_UNICODE_C1_CONTROLS_AND_LATIN_1_SUPPLEMENT,
-        OC_UNICODE_LATIN_EXTENDED_A,
-        OC_UNICODE_LATIN_EXTENDED_B,
-        OC_UNICODE_SPECIALS
-    };
-
-    font = oc_font_create_from_path(OC_STR8("/Literata-SemiBoldItalic.ttf"), 5, ranges);
+    font = oc_font_create_from_path(OC_STR8("/Literata-SemiBoldItalic.ttf"));
 }
 
 ORCA_EXPORT void oc_on_terminate(void)
@@ -437,13 +429,11 @@ ORCA_EXPORT void oc_on_frame_refresh(void)
             oc_circle_fill(r.x + r.w / 2, r.y + r.h / 2, r.h / 2.5);
 
             oc_set_color_rgba(0, 0, 0, 1);
-            oc_set_font(font);
-            oc_set_font_size(18);
+
             oc_move_to(textPos.x, textPos.y);
             oc_matrix_multiply_push(flip_y_at(textPos));
             {
-                oc_text_outlines(text);
-                oc_fill();
+                oc_text_draw_utf8(text, font, 18);
             }
             oc_matrix_pop();
         }
@@ -465,8 +455,7 @@ ORCA_EXPORT void oc_on_frame_refresh(void)
             oc_matrix_multiply_push(flip_y_at(textPos));
             {
                 oc_set_color_rgba(0.9, 0.9, 0.9, 1);
-                oc_text_outlines(text);
-                oc_fill();
+                oc_text_draw_utf8(text, font, 18);
             }
             oc_matrix_pop();
         }

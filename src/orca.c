@@ -105,6 +105,8 @@
         #include "wasmbind/core_api_stubs.c"
         #include "graphics/graphics_common.c"
         #include "graphics/orca_surface_stubs.c"
+        #include "graphics/graphics_text_wasm.c"
+        #include "wasmbind/harfbuzz_api_stubs.c"
     #else
         #error "Unsupported platform"
     #endif
