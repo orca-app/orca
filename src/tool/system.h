@@ -40,7 +40,7 @@ bool oc_sys_move(oc_str8 src, oc_str8 dst);
 oc_list oc_sys_read_dir(oc_arena *a, oc_str8 path);
 
 #define TRY(cmd)                                                            \
-    {                                                                       \
+    do {                                                                    \
         bool __result = cmd;                                                \
         if(!__result)                                                       \
         {                                                                   \
@@ -52,6 +52,6 @@ oc_list oc_sys_read_dir(oc_arena *a, oc_str8 path);
             fprintf(stderr, "ERROR (code %d): %s\n", code, oc_sys_err.msg); \
             return code;                                                    \
         }                                                                   \
-    }
+    } while(0)
 
 #endif // __SYSTEM_H_

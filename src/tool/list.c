@@ -54,7 +54,7 @@ int list(int argc, char** argv)
     {
         if(!candidate_entry->is_dir) continue;
 
-        oc_sdk_requirement requirements[] = 
+        oc_sdk_requirement requirements[] =
         {
             {.dir_name = OC_STR8("bin"),       .found = false},
             {.dir_name = OC_STR8("orca-libc"), .found = false},

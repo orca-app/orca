@@ -486,7 +486,94 @@ int linuxBundle(
     oc_str8 outDir,
     oc_str8 module)
 {
-    oc_unimplemented();
+    //-----------------------------------------------------------
+    //NOTE: make bundle directory structure
+    //-----------------------------------------------------------
+    oc_str8 bundleDir = oc_path_append(a, outDir, name);
+    oc_str8 exeDir = oc_path_append(a, bundleDir, OC_STR8("bin"));
+    oc_str8 resDir = oc_path_append(a, bundleDir, OC_STR8("resources"));
+    oc_str8 guestDir = oc_path_append(a, bundleDir, OC_STR8("app"));
+    oc_str8 wasmDir = oc_path_append(a, guestDir, OC_STR8("wasm"));
+    oc_str8 dataDir = oc_path_append(a, guestDir, OC_STR8("data"));
+
+    if(oc_sys_exists(bundleDir))
+    {
+        TRY(oc_sys_rmdir(bundleDir));
+    }
+    TRY(oc_sys_mkdirs(bundleDir));
+    TRY(oc_sys_mkdirs(exeDir));
+    TRY(oc_sys_mkdirs(resDir));
+    TRY(oc_sys_mkdirs(guestDir));
+    TRY(oc_sys_mkdirs(wasmDir));
+    TRY(oc_sys_mkdirs(dataDir));
+
+    oc_str8 sdkDir = version.len > 0
+                       ? get_version_dir(a, version, true)
+                       : current_version_dir(a, true);
+
+    //-----------------------------------------------------------
+    //NOTE: copy exe into directory
+    //-----------------------------------------------------------
+    {
+        oc_str8 exe_in = oc_path_append(a, sdkDir, OC_STR8("bin/orca_runtime"));
+        oc_str8 exe_out = oc_path_append(a, exeDir, name);
+        TRY(oc_sys_copy(exe_in, exe_out));
+        //TODO(pld): icon, desktop file
+    }
+
+    //-----------------------------------------------------------
+    //NOTE: copy orca libraries
+    //-----------------------------------------------------------
+    oc_str8 orcaLib = oc_path_append(a, sdkDir, OC_STR8("bin/liborca.so"));
+    oc_str8 glesLib = oc_path_append(a, sdkDir, OC_STR8("bin/libGLESv2.so"));
+    oc_str8 eglLib = oc_path_append(a, sdkDir, OC_STR8("bin/libEGL.so"));
+    oc_str8 wgpuLib = oc_path_append(a, sdkDir, OC_STR8("bin/libwebgpu.so"));
+
+    TRY(oc_sys_copy(orcaLib, exeDir));
+    TRY(oc_sys_copy(glesLib, exeDir));
+    TRY(oc_sys_copy(eglLib, exeDir));
+    TRY(oc_sys_copy(wgpuLib, exeDir));
+
+    //-----------------------------------------------------------
+    //NOTE: copy wasm module and data
+    //-----------------------------------------------------------
+    TRY(oc_sys_copy(module, oc_path_append(a, wasmDir, OC_STR8("/module.wasm"))));
+
+    oc_str8_list_for(resource_files, it)
+    {
+        oc_str8 resource_file = it->string;
+        if(oc_sys_isdir(resource_file))
+        {
+            printf("Error: Got %.*s as a resource file, but it is a directory. Ignoring.",
+                   oc_str8_ip(resource_file));
+        }
+        else
+        {
+            TRY(oc_sys_copy(resource_file, dataDir));
+        }
+    }
+
+    oc_str8_list_for(resource_dirs, it)
+    {
+        oc_str8 resource_dir = it->string;
+        if(oc_sys_isdir(resource_dir))
+        {
+            TRY(oc_sys_copytree(resource_dir, dataDir));
+        }
+        else
+        {
+            printf("Error: Got %.*s as a resource dir, but it is not a directory. Ignoring.",
+                   oc_str8_ip(resource_dir));
+        }
+    }
+
+    //-----------------------------------------------------------
+    //NOTE: copy runtime resources
+    //-----------------------------------------------------------
+    TRY(oc_sys_copy(oc_path_append(a, sdkDir, OC_STR8("resources/Menlo.ttf")), resDir));
+    TRY(oc_sys_copy(oc_path_append(a, sdkDir, OC_STR8("resources/Menlo Bold.ttf")), resDir));
+
+    return 0;
 }
 
 #endif

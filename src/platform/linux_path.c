@@ -18,6 +18,8 @@ bool oc_path_is_absolute(oc_str8 path)
 oc_str8 oc_path_executable(oc_arena* arena)
 {
     const char* pathname = (const char*)getauxval(AT_EXECFN);
+    //TODO(pld): Can this assert trigger? i.e. are auxvals always guaranteed to
+    //be there?
     OC_ASSERT(pathname);
     return oc_str8_push_cstring(arena, pathname);
 }
