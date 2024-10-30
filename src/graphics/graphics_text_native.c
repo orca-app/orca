@@ -190,28 +190,35 @@ oc_glyph_run* oc_harfbuzz_font_shape(oc_arena* arena,
         run->metrics.logical.h += lineHeight + harfbuzzFont->metrics.lineGap;
     }
 
+    f32 inkX0 = 0;
+    f32 inkY0 = 0;
+    f32 inkX1 = 0;
+    f32 inkY1 = 0;
+
     for(u64 i = 0; i < run->glyphCount; i++)
     {
         oc_glyph_info* glyph = &run->glyphs[i];
         glyph->index = glyphInfo[i].codepoint;
 
-        //WARN: Harfbuzz uses y-up so we negate advances and offsets
+        //WARN: Harfbuzz uses y-up so we negate Y advances and offsets
         glyph->offset = (oc_vec2){ glyphPos[i].x_offset, -glyphPos[i].y_offset };
         glyph->advance = (oc_vec2){ glyphPos[i].x_advance, -glyphPos[i].y_advance };
 
-        //TODO compute run metrics
         //TODO this assumes LTR
+        hb_glyph_extents_t glyphExtents = { 0 };
+        hb_font_get_glyph_extents(harfbuzzFont->hbFont, glyph->index, &glyphExtents);
+
+        //WARN: Harfbuzz uses y-up, y_bearing is the top of the bbox wrt origin, and height is the _signed_
+        //      distance from the top to the bottom (i.e. it is _negative_).
+        inkX0 = oc_min(inkX0, run->metrics.advance.x + glyphExtents.x_bearing);
+        inkX1 = oc_max(inkX1, run->metrics.advance.x + glyphExtents.x_bearing + glyphExtents.width);
+        inkY0 = oc_min(inkY0, run->metrics.advance.y - glyphExtents.y_bearing);
+        inkY1 = oc_max(inkY1, run->metrics.advance.y - glyphExtents.y_bearing - glyphExtents.height);
+
         run->metrics.advance = oc_vec2_add(run->metrics.advance, glyph->advance);
         run->metrics.logical.w = oc_max(run->metrics.logical.w, run->metrics.advance.x);
-
-        /*TODO ink part of font metrics
-        inkX0 = oc_min(inkX0, metrics.advance.x + glyphMetrics.ink.x);
-        inkX1 = oc_max(inkX1, metrics.advance.x + glyphMetrics.ink.x + glyphMetrics.ink.w);
-
-        inkY0 = oc_min(inkY0, metrics.advance.y + glyphMetrics.ink.y);
-        inkY1 = oc_max(inkY1, metrics.advance.y + glyphMetrics.ink.y + glyphMetrics.ink.h);
-        */
     }
+    run->metrics.ink = (oc_rect){ inkX0, inkY0, inkX1 - inkX0, inkY1 - inkY0 };
 
     //------------------------------------------------------------------------------
     //NOTE compute graphemes info
