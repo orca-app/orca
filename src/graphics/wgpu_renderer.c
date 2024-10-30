@@ -2082,7 +2082,7 @@ void oc_wgpu_encode_stroke_element(oc_wgpu_canvas_encoding_context* context,
     //NOTE: ensure tangents are properly computed even in presence of coincident points
     //TODO: see if we can do this in a less hacky way
 
-    for(int i = 1; i < 4; i++)
+    for(int i = 1; i <= endPointIndex; i++)
     {
         if(controlPoints[i].x != controlPoints[0].x
            || controlPoints[i].y != controlPoints[0].y)
@@ -2207,6 +2207,45 @@ void oc_wgpu_stroke_joint(oc_wgpu_canvas_encoding_context* context,
     }
 }
 
+bool oc_wgpu_is_stroke_element_null(oc_vec2 currentPoint, oc_path_elt* element)
+{
+    i32 count = 0;
+    switch(element->type)
+    {
+        case OC_PATH_MOVE:
+            count = 0;
+            break;
+
+        case OC_PATH_LINE:
+            count = 1;
+            break;
+
+        case OC_PATH_QUADRATIC:
+            count = 2;
+            break;
+
+        case OC_PATH_CUBIC:
+            count = 3;
+            break;
+    }
+    bool allCoincidents = (currentPoint.x == element->p[0].x)
+                       && (currentPoint.y == element->p[0].y);
+
+    if(allCoincidents)
+    {
+        for(i32 i = 0; i < count - 1; i++)
+        {
+            if(element->p[i].x != element->p[i + 1].x
+               || element->p[i].y != element->p[i + 1].y)
+            {
+                allCoincidents = false;
+                break;
+            }
+        }
+    }
+    return allCoincidents;
+}
+
 u32 oc_wgpu_encode_stroke_subpath(oc_wgpu_canvas_encoding_context* context,
                                   oc_path_elt* elements,
                                   oc_path_descriptor* path,
@@ -2223,22 +2262,49 @@ u32 oc_wgpu_encode_stroke_subpath(oc_wgpu_canvas_encoding_context* context,
     oc_vec2 startTangent = { 0, 0 };
     oc_vec2 endTangent = { 0, 0 };
 
-    //NOTE(martin): encode first element and compute first tangent
-    oc_wgpu_encode_stroke_element(context, elements + startIndex, currentPoint, &startTangent, &endTangent, &endPoint);
+    ////////////////////////////////////////////////////////////////////////////////////////////////
+    //TODO: review this code, see if we can gracefully handle coincident points / zero-length elements
+    //      or skip them less verbosely.
+    ////////////////////////////////////////////////////////////////////////////////////////////////
+
+    //NOTE skip elements that produce null tangents (these are degenerate zero length elements).
+    u32 eltIndex = startIndex;
+    while(eltIndex < eltCount
+          && elements[eltIndex].type != OC_PATH_MOVE
+          && oc_wgpu_is_stroke_element_null(currentPoint, elements + eltIndex))
+    {
+        eltIndex++;
+    }
+    if(eltIndex >= eltCount || elements[eltIndex].type == OC_PATH_MOVE)
+    {
+        return eltIndex;
+    }
+
+    //NOTE(martin): encode first element and compute first tangent.
+    oc_wgpu_encode_stroke_element(context, elements + eltIndex, currentPoint, &startTangent, &endTangent, &endPoint);
+    eltIndex++;
 
     firstTangent = startTangent;
     previousEndTangent = endTangent;
     currentPoint = endPoint;
 
     //NOTE(martin): encode subsequent elements along with their joints
-
     oc_attributes* attributes = &context->primitive->attributes;
 
-    u32 eltIndex = startIndex + 1;
-    for(;
-        eltIndex < eltCount && elements[eltIndex].type != OC_PATH_MOVE;
-        eltIndex++)
+    while(eltIndex < eltCount && elements[eltIndex].type != OC_PATH_MOVE)
     {
+        //NOTE skip elements that produce null tangents (these are degenerate zero length elements).
+        while(eltIndex < eltCount
+              && elements[eltIndex].type != OC_PATH_MOVE
+              && oc_wgpu_is_stroke_element_null(currentPoint, elements + eltIndex))
+        {
+            eltIndex++;
+        }
+        if(eltIndex >= eltCount || elements[eltIndex].type == OC_PATH_MOVE)
+        {
+            break;
+        }
+
         oc_wgpu_encode_stroke_element(context, elements + eltIndex, currentPoint, &startTangent, &endTangent, &endPoint);
 
         if(attributes->joint != OC_JOINT_NONE)
@@ -2247,6 +2313,8 @@ u32 oc_wgpu_encode_stroke_subpath(oc_wgpu_canvas_encoding_context* context,
         }
         previousEndTangent = endTangent;
         currentPoint = endPoint;
+
+        eltIndex++;
     }
     u32 subPathEltCount = eltIndex - startIndex;
 
