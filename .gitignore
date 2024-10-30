@@ -47,6 +47,7 @@ scripts/files
 # explicitly abandon old ext dir
 /ext
 src/ext/angle
+src/ext/harfbuzz
 
 sketches/*/bin
 

@@ -194,11 +194,13 @@ int winBundle(
     oc_str8 glesLib = oc_path_append(a, sdkDir, OC_STR8("bin/libGLESv2.dll"));
     oc_str8 eglLib = oc_path_append(a, sdkDir, OC_STR8("bin/libEGL.dll"));
     oc_str8 wgpuLib = oc_path_append(a, sdkDir, OC_STR8("bin/webgpu.dll"));
+    oc_str8 harfbuzzLib = oc_path_append(a, sdkDir, OC_STR8("bin/libharfbuzz.dll"));
 
     TRY(oc_sys_copy(orcaLib, exeDir));
     TRY(oc_sys_copy(glesLib, exeDir));
     TRY(oc_sys_copy(eglLib, exeDir));
     TRY(oc_sys_copy(wgpuLib, exeDir));
+    TRY(oc_sys_copy(harfbuzzLib, exeDir));
 
     //-----------------------------------------------------------
     //NOTE: copy wasm module and data
@@ -294,12 +296,14 @@ int macBundle(
     oc_str8 glesLib = oc_path_append(a, sdkDir, OC_STR8("bin/libGLESv2.dylib"));
     oc_str8 eglLib = oc_path_append(a, sdkDir, OC_STR8("bin/libEGL.dylib"));
     oc_str8 wgpu_lib = oc_path_append(a, sdkDir, OC_STR8("bin/libwebgpu.dylib"));
+    oc_str8 harfbuzz_lib = oc_path_append(a, sdkDir, OC_STR8("bin/libharfbuzz.dylib"));
 
     TRY(oc_sys_copy(orcaExe, exeDir));
     TRY(oc_sys_copy(orcaLib, exeDir));
     TRY(oc_sys_copy(glesLib, exeDir));
     TRY(oc_sys_copy(eglLib, exeDir));
     TRY(oc_sys_copy(wgpu_lib, exeDir));
+    TRY(oc_sys_copy(harfbuzz_lib, exeDir));
 
     //-----------------------------------------------------------
     //NOTE: copy wasm module and data

@@ -472,6 +472,46 @@ def build_angle_internal(release, force):
 
     print("Done")
 
+#------------------------------------------------------
+# build harfbuzz
+#------------------------------------------------------
+
+def build_harfbuzz():
+    print("Building harfbuzz...")
+
+    libname = "libharfbuzz.dylib" if platform.system() == "Darwin" else "libarfbuzz.dll"
+
+    with open("deps/harfbuzz-commit.txt", "r") as f:
+        HARFBUZZ_COMMIT = f.read().strip()
+
+    # check harfbuzz repo
+    with pushd("build"):
+        if not os.path.exists("harfbuzz"):
+            subprocess.run([
+                "git", "clone", "--no-tags", "--single-branch",
+                "https://github.com/harfbuzz/harfbuzz.git"
+            ], check=True)
+
+        with pushd("harfbuzz"):
+            subprocess.run([
+                "git", "fetch", "--no-tags"
+            ], check=True)
+
+            subprocess.run([
+                "git", "reset", "--hard", HARFBUZZ_COMMIT
+            ], check=True)
+
+            # build
+            subprocess.run([
+                "clang", "-shared", "-std=c++20", "-o", libname, "-lc++", "src/harfbuzz.cc"
+            ], check=True)
+
+    # copying artifacts
+    shutil.copy(f"build/harfbuzz/{libname}", "build/bin")
+    os.makedirs("src/ext/harfbuzz/include", exist_ok=True)
+    for f in glob.iglob("build/harfbuzz/src/*.h"):
+        shutil.copy(f, "src/ext/harfbuzz/include")
+
 
 #------------------------------------------------------
 # build runtime
@@ -689,6 +729,11 @@ def runtime_checksum():
 #------------------------------------------------------
 def build_platform_layer(args):
     ensure_programs()
+
+    # build harfbuzz
+    #TODO: skip if already built
+    build_harfbuzz()
+
     build_platform_layer_internal(args.release)
 
 def build_platform_layer_internal(release):
@@ -851,7 +896,7 @@ def build_platform_layer_lib_mac(release):
         *ldflags, "-dylib",
         "-o", "build/bin/liborca.dylib",
         "build/orca_c.o", "build/orca_objc.o",
-        "-Lbuild/bin", "-lc",
+        "-Lbuild/bin", "-lc", "-lc++",
         "-framework", "Carbon", "-framework", "Cocoa", "-framework", "Metal", "-framework", "QuartzCore",
         "-weak-lEGL", "-weak-lGLESv2", "-weak-lwebgpu", "-weak-lharfbuzz"
     ], check=True)
@@ -865,6 +910,12 @@ def build_platform_layer_lib_mac(release):
     subprocess.run([
         "install_name_tool",
         "-change", "./libGLESv2.dylib", "@rpath/libGLESv2.dylib",
+        "build/bin/liborca.dylib",
+    ], check=True)
+
+    subprocess.run([
+        "install_name_tool",
+        "-change", "libharfbuzz.dylib", "@rpath/libharfbuzz.dylib",
         "build/bin/liborca.dylib",
     ], check=True)
 
@@ -1282,6 +1333,7 @@ def package_sdk_internal(dest, target):
         shutil.copy(os.path.join("build", "bin", "libEGL.dll"), bin_dir)
         shutil.copy(os.path.join("build", "bin", "libGLESv2.dll"), bin_dir)
         shutil.copy(os.path.join("build", "bin", "webgpu.dll"), bin_dir)
+        shutil.copy(os.path.join("build", "bin", "libharfbuzz.dll"), bin_dir)
     else:
         shutil.copy(os.path.join("build", "bin", "orca"), bin_dir)
         shutil.copy(os.path.join("build", "bin", "orca_runtime"), bin_dir)
@@ -1290,7 +1342,7 @@ def package_sdk_internal(dest, target):
         shutil.copy(os.path.join("build", "bin", "libEGL.dylib"), bin_dir)
         shutil.copy(os.path.join("build", "bin", "libGLESv2.dylib"), bin_dir)
         shutil.copy(os.path.join("build", "bin", "libwebgpu.dylib"), bin_dir)
-
+        shutil.copy(os.path.join("build", "bin", "libharfbuzz.dylib"), bin_dir)
 
     shutil.copytree(os.path.join("build", "orca-libc"), libc_dir, dirs_exist_ok=True)
     shutil.copytree("resources", res_dir, dirs_exist_ok=True)
