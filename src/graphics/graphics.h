@@ -322,23 +322,23 @@ ORCA_API void oc_close_path(void);
 //SECTION: text
 //------------------------------------------------------------------------------------------
 // shaping
-oc_glyph_run* oc_text_shape(oc_arena* arena,
-                            oc_font font,
-                            oc_text_shape_settings* settings,
-                            oc_str32 codepoints,
-                            u64 begin,
-                            u64 end);
+ORCA_API oc_glyph_run* oc_text_shape(oc_arena* arena,
+                                     oc_font font,
+                                     oc_text_shape_settings* settings,
+                                     oc_str32 codepoints,
+                                     u64 begin,
+                                     u64 end);
 
 // measuring
-u64 oc_glyph_run_point_to_cursor(oc_glyph_run* run, f32 size, oc_vec2 point);
-oc_vec2 oc_glyph_run_cursor_to_point(oc_glyph_run* run, f32 size, u64 cursor);
+ORCA_API u64 oc_glyph_run_point_to_cursor(oc_glyph_run* run, f32 size, oc_vec2 point);
+ORCA_API oc_vec2 oc_glyph_run_cursor_to_point(oc_glyph_run* run, f32 size, u64 cursor);
 
-oc_text_metrics oc_glyph_run_range_metrics(oc_glyph_run* run, f32 fontSize, u64 begin, u64 end);
+ORCA_API oc_text_metrics oc_glyph_run_range_metrics(oc_glyph_run* run, f32 fontSize, u64 begin, u64 end);
 
 // drawing
-void oc_text_draw_run(oc_glyph_run* run, f32 fontSize);
-void oc_text_draw_utf8(oc_str8 text, oc_font font, f32 fontSize);
-void oc_text_draw_utf32(oc_str32 codepoints, oc_font font, f32 fontSize);
+ORCA_API void oc_text_draw_run(oc_glyph_run* run, f32 fontSize);
+ORCA_API void oc_text_draw_utf8(oc_str8 text, oc_font font, f32 fontSize);
+ORCA_API void oc_text_draw_utf32(oc_str32 codepoints, oc_font font, f32 fontSize);
 
 //------------------------------------------------------------------------------------------
 //SECTION: clear/fill/stroke

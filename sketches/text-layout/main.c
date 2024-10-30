@@ -204,7 +204,6 @@ int main()
             {
                 cursor--;
             }
-            printf("cursor = %u\n", cursor);
 
             oc_vec2 pos = oc_glyph_run_cursor_to_point(run, fontSize, cursor);
             oc_move_to(origin.x + pos.x, origin.y + pos.y + metrics.descent);

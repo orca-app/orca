@@ -376,18 +376,6 @@ oc_font_data* oc_font_data_from_handle(oc_font handle)
     return (data);
 }
 
-oc_harfbuzz_handle oc_harfbuzz_font_create(oc_str8 mem);
-void oc_harfbuzz_font_destroy(oc_harfbuzz_handle handle);
-f32 oc_harfbuzz_font_get_upem(oc_harfbuzz_handle handle);
-oc_font_metrics oc_harfbuzz_font_get_metrics(oc_harfbuzz_handle handle);
-
-oc_glyph_run* oc_harfbuzz_font_shape(oc_arena* arena,
-                                     oc_harfbuzz_handle handle,
-                                     oc_text_shape_settings* settings,
-                                     oc_str32 codepoints,
-                                     u64 begin,
-                                     u64 end);
-
 oc_font oc_font_create_from_memory(oc_str8 mem)
 {
     if(!oc_graphicsData.init)

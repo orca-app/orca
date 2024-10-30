@@ -479,7 +479,7 @@ def build_angle_internal(release, force):
 def build_harfbuzz():
     print("Building harfbuzz...")
 
-    libname = "libharfbuzz.dylib" if platform.system() == "Darwin" else "libarfbuzz.dll"
+    libname = "libharfbuzz.dylib" if platform.system() == "Darwin" else "libharfbuzz.dll"
 
     with open("deps/harfbuzz-commit.txt", "r") as f:
         HARFBUZZ_COMMIT = f.read().strip()
@@ -502,12 +502,27 @@ def build_harfbuzz():
             ], check=True)
 
             # build
-            subprocess.run([
-                "clang", "-shared", "-std=c++20", "-o", libname, "-lc++", "src/harfbuzz.cc"
-            ], check=True)
+            if platform.system() == "Darwin":
+                subprocess.run([
+                    "clang", "-shared", "-std=c++20", "-o", libname, "-lc++", "src/harfbuzz.cc"
+                ], check=True)
+            else:
+                subprocess.run([
+                    "cl", "/nologo",
+                     "/std:c++20",
+                     "-DHB_DLL_EXPORT",
+                     "src/harfbuzz.cc",
+                     "/LD", "/link",
+                     "/OUT:libharfbuzz.dll", "/IMPLIB:libharfbuzz.dll.lib"
+                ], check=True)
+
 
     # copying artifacts
     shutil.copy(f"build/harfbuzz/{libname}", "build/bin")
+
+    if platform.system() == "Windows":
+        shutil.copy("build/harfbuzz/libharfbuzz.dll.lib", "build/bin")
+
     os.makedirs("src/ext/harfbuzz/include", exist_ok=True)
     for f in glob.iglob("build/harfbuzz/src/*.h"):
         shutil.copy(f, "src/ext/harfbuzz/include")
@@ -729,14 +744,14 @@ def runtime_checksum():
 #------------------------------------------------------
 def build_platform_layer(args):
     ensure_programs()
+    build_platform_layer_internal(args.release)
+
+def build_platform_layer_internal(release):
 
     # build harfbuzz
     #TODO: skip if already built
     build_harfbuzz()
 
-    build_platform_layer_internal(args.release)
-
-def build_platform_layer_internal(release):
     print("Building Orca platform layer...")
 
     angle_ok, angle_messages = check_angle()
@@ -827,7 +842,9 @@ def build_platform_layer_lib_win(release):
         "/DELAYLOAD:libEGL.dll",
         "/DELAYLOAD:libGLESv2.dll",
         "webgpu.lib",
-        "/DELAYLOAD:webgpu.dll"
+        "/DELAYLOAD:webgpu.dll",
+        "libharfbuzz.dll.lib",
+        "/DELAYLOAD:libharfbuzz.dll",
     ]
 
     debug_flags = ["/O2", "/Zi"] if release else ["/Zi", "/DOC_DEBUG", "/DOC_LOG_COMPILE_DEBUG"]

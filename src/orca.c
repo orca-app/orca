@@ -71,6 +71,7 @@
         #include "app/win32_app.c"
         #include "graphics/win32_vsync.c"
         #include "graphics/graphics_common.c"
+        #include "graphics/graphics_text_native.c"
         #include "graphics/canvas_renderer.c"
         #include "graphics/surface.c"
         #include "graphics/win32_surface.c"
