@@ -1223,7 +1223,7 @@ u64 oc_glyph_run_find_grapheme_index_greater_or_equal(oc_glyph_run* run, u64 cod
     //NOTE: find lowest grapheme boundary greater or equal to codePointIndex
     //TODO: better search
     u64 graphemeIndex = 0;
-    for(; graphemeIndex < run->graphemeCount; graphemeIndex++)
+    for(; graphemeIndex + 1 < run->graphemeCount; graphemeIndex++)
     {
         if(run->graphemes[graphemeIndex].offset >= codePointIndex)
         {

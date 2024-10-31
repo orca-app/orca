@@ -62,3 +62,5 @@ src/ext/zlib/build/
 
 doc/mkdocs/docs/api
 doc/mkdocs/mkdocs.yml
+
+.clocignore

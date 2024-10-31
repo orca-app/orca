@@ -839,7 +839,7 @@ int main()
                                        OC_UNICODE_LATIN_EXTENDED_B,
                                        OC_UNICODE_SPECIALS };
 
-        *fonts[i] = oc_font_create_from_memory(oc_str8_from_buffer(size, buffer), 5, ranges);
+        *fonts[i] = oc_font_create_from_memory(oc_str8_from_buffer(size, buffer));
     }
     oc_scratch_end(scratch);
 

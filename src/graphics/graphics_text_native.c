@@ -226,7 +226,7 @@ oc_glyph_run* oc_harfbuzz_font_shape(oc_arena* arena,
 
     //TODO: detect grapheme boundaries. For now just consider all codepoints
     run->graphemeCount = segmentLen + 1;
-    run->graphemes = oc_arena_push_array(scratch.arena, oc_grapheme_info, run->graphemeCount);
+    run->graphemes = oc_arena_push_array(arena, oc_grapheme_info, run->graphemeCount);
     for(u64 i = 0; i < run->graphemeCount; i++)
     {
         run->graphemes[i].offset = begin + i;
