@@ -10287,7 +10287,14 @@
                 {
                     "kind": "proc",
                     "name": "oc_text_shape",
+                    "doc": [
+                        "Shapes a segment of unicode codepoints and returns a shaped glyph run. The glyph run can the be used to draw the glyphs, measure portions of the shaped text, or compute caret positions.",
+                        "",
+                        "The segment being shaped is comprised between `begin` (inclusive) and `end` (exclusive), but the shaper may look at codepoints before and after those bounds if available. This means that if you want to shape a subset of a bigger text, giving `oc_text_shape` the full text and setting `begin` and `end` appropriately may give better results than passing only the subset you want to shape."
+                        ],
+
                     "return": {
+                        "doc": "The shaped glyph run, allocated on the given `arena`.",
                         "kind": "pointer",
                         "type": {
                             "kind": "namedType",
@@ -10297,6 +10304,7 @@
                     "params": [
                         {
                             "name": "arena",
+                            "doc": "An arena on which to allocate all data for the resulting shaped run.",
                             "type": {
                                 "kind": "pointer",
                                 "type": {
@@ -10307,6 +10315,7 @@
                         },
                         {
                             "name": "font",
+                            "doc": "The font to use for shaping.",
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_font"
@@ -10314,6 +10323,7 @@
                         },
                         {
                             "name": "settings",
+                            "doc": "Settings to use for shaping the text. If some fields of the struct are set to zero, the shaper will try to guess their values from the input codepoints. You can also pass `null` to guess all settings.",
                             "type": {
                                 "kind": "pointer",
                                 "type": {
@@ -10324,6 +10334,7 @@
                         },
                         {
                             "name": "codepoints",
+                            "doc": "The full string of unicode codepoints that the shaper may look at for shaping.",
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_str32"
@@ -10331,12 +10342,14 @@
                         },
                         {
                             "name": "begin",
+                            "doc": "The begining index (inclusive) of the sub-segment of `codepoints` that should be shaped.",
                             "type": {
                                 "kind": "u64"
                             }
                         },
                         {
                             "name": "end",
+                            "doc": "The end index (exclusive) of the sub-segment of `codepoints` that should be shaped.",
                             "type": {
                                 "kind": "u64"
                             }
@@ -10346,6 +10359,7 @@
                 {
                     "kind": "proc",
                     "name": "oc_glyph_run_point_to_cursor",
+                    "doc": "Converts a geometric position in a glyph run to a codepoint index.",
                     "return": {
                         "kind": "u64"
                     },
@@ -10379,6 +10393,7 @@
                 {
                     "kind": "proc",
                     "name": "oc_glyph_run_cursor_to_point",
+                    "doc": "Converts a codepoint index to a geometric position in the shaped glyph run.",
                     "return": {
                         "kind": "namedType",
                         "name": "oc_vec2"
@@ -10411,6 +10426,7 @@
                 {
                     "kind": "proc",
                     "name": "oc_glyph_run_range_metrics",
+                    "doc": "Computes text metrics for a sub-range of a glyph run.",
                     "return": {
                         "kind": "namedType",
                         "name": "oc_text_metrics"
@@ -10449,6 +10465,7 @@
                 {
                     "kind": "proc",
                     "name": "oc_text_draw_run",
+                    "doc": "Draws a shaped glyph run at a given size, starting at the current position.",
                     "return": {
                         "kind": "void"
                     },
@@ -10474,6 +10491,7 @@
                 {
                     "kind": "proc",
                     "name": "oc_text_draw_utf8",
+                    "doc": "Helper to draw a UTF8 encoded string at the current position.",
                     "return": {
                         "kind": "void"
                     },
@@ -10503,6 +10521,7 @@
                 {
                     "kind": "proc",
                     "name": "oc_text_draw_utf32",
+                    "doc": "Helper to draw a string of unicode codepoints at the current position.",
                     "return": {
                         "kind": "void"
                     },
