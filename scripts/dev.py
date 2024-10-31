@@ -319,7 +319,7 @@ def check_angle():
         with pushd("build/angle.out"):
             with open("angle.json", "r") as f:
                 sums = json.loads(f.read())
-                if 'commit' not in sums or 'sum' not in sums:
+                if 'commit' not in sums:
                     messages = ["malformed build/angle.out/angle.json"]
                     up_to_date = False
                 elif sums['commit'] != ANGLE_COMMIT:
