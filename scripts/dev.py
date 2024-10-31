@@ -484,6 +484,8 @@ def build_harfbuzz():
     with open("deps/harfbuzz-commit.txt", "r") as f:
         HARFBUZZ_COMMIT = f.read().strip()
 
+    os.makedirs("build/bin", exist_ok=True)
+
     # check harfbuzz repo
     with pushd("build"):
         if not os.path.exists("harfbuzz"):
