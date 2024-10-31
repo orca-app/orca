@@ -85,8 +85,6 @@ ORCA_EXPORT void oc_on_frame_refresh(void)
     const f32 uiScale = clockRadius / DEFAULT_CLOCK_RADIUS;
 
     const f32 fontSize = 26 * uiScale;
-    oc_set_font(font);
-    oc_set_font_size(fontSize);
 
     // clock backing
     oc_set_color_rgba(1, 1, 1, 1);

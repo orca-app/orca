@@ -9918,39 +9918,6 @@
                 },
                 {
                     "kind": "proc",
-                    "name": "oc_set_font",
-                    "doc": "The the current font.",
-                    "return": {
-                        "kind": "void"
-                    },
-                    "params": [
-                        {
-                            "name": "font",
-                            "type": {
-                                "kind": "namedType",
-                                "name": "oc_font"
-                            }
-                        }
-                    ]
-                },
-                {
-                    "kind": "proc",
-                    "name": "oc_set_font_size",
-                    "doc": "Set the current font size.",
-                    "return": {
-                        "kind": "void"
-                    },
-                    "params": [
-                        {
-                            "name": "size",
-                            "type": {
-                                "kind": "f32"
-                            }
-                        }
-                    ]
-                },
-                {
-                    "kind": "proc",
                     "name": "oc_set_text_flip",
                     "doc": "Set the current text flip value. `true` flips the y-axis of text rendering commands.",
                     "return": {
@@ -10063,25 +10030,6 @@
                     "return": {
                         "kind": "namedType",
                         "name": "oc_fill_rule"
-                    },
-                    "params": []
-                },
-                {
-                    "kind": "proc",
-                    "name": "oc_get_font",
-                    "doc": "Get the current font.",
-                    "return": {
-                        "kind": "namedType",
-                        "name": "oc_font"
-                    },
-                    "params": []
-                },
-                {
-                    "kind": "proc",
-                    "name": "oc_get_font_size",
-                    "doc": "Get the current font size.",
-                    "return": {
-                        "kind": "f32"
                     },
                     "params": []
                 },

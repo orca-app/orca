@@ -919,24 +919,6 @@ void oc_set_fill_rule(oc_fill_rule rule)
     }
 }
 
-void oc_set_font(oc_font font)
-{
-    oc_canvas_context_data* context = oc_currentCanvasContext;
-    if(context)
-    {
-        context->attributes.font = font;
-    }
-}
-
-void oc_set_font_size(f32 fontSize)
-{
-    oc_canvas_context_data* context = oc_currentCanvasContext;
-    if(context)
-    {
-        context->attributes.fontSize = fontSize;
-    }
-}
-
 void oc_set_text_flip(bool flip)
 {
     oc_canvas_context_data* context = oc_currentCanvasContext;
@@ -1041,28 +1023,6 @@ oc_fill_rule oc_get_fill_rule()
         rule = context->attributes.fillRule;
     }
     return (rule);
-}
-
-oc_font oc_get_font()
-{
-    oc_font font = oc_font_nil();
-    oc_canvas_context_data* context = oc_currentCanvasContext;
-    if(context)
-    {
-        font = context->attributes.font;
-    }
-    return (font);
-}
-
-f32 oc_get_font_size()
-{
-    f32 fontSize = 0;
-    oc_canvas_context_data* context = oc_currentCanvasContext;
-    if(context)
-    {
-        fontSize = context->attributes.fontSize;
-    }
-    return (fontSize);
 }
 
 bool oc_get_text_flip()
