@@ -319,6 +319,13 @@ ORCA_API void oc_cubic_to(f32 x1, f32 y1, f32 x2, f32 y2, f32 x3, f32 y3);
 ORCA_API void oc_close_path(void);
 
 //------------------------------------------------------------------------------------------
+//SECTION: clear/fill/stroke
+//------------------------------------------------------------------------------------------
+ORCA_API void oc_clear(void);
+ORCA_API void oc_fill(void);
+ORCA_API void oc_stroke(void);
+
+//------------------------------------------------------------------------------------------
 //SECTION: text
 //------------------------------------------------------------------------------------------
 // shaping
@@ -339,13 +346,6 @@ ORCA_API oc_text_metrics oc_glyph_run_range_metrics(oc_glyph_run* run, f32 fontS
 ORCA_API void oc_text_draw_run(oc_glyph_run* run, f32 fontSize);
 ORCA_API void oc_text_draw_utf8(oc_str8 text, oc_font font, f32 fontSize);
 ORCA_API void oc_text_draw_utf32(oc_str32 codepoints, oc_font font, f32 fontSize);
-
-//------------------------------------------------------------------------------------------
-//SECTION: clear/fill/stroke
-//------------------------------------------------------------------------------------------
-ORCA_API void oc_clear(void);
-ORCA_API void oc_fill(void);
-ORCA_API void oc_stroke(void);
 
 //------------------------------------------------------------------------------------------
 //SECTION: shapes helpers

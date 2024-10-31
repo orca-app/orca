@@ -8157,6 +8157,31 @@
                 },
                 {
                     "kind": "typename",
+                    "name": "oc_fill_rule",
+                    "doc": "Fill rules.",
+                    "type": {
+                        "kind": "enum",
+                        "type": {
+                            "kind": "u32"
+                        },
+                        "constants": [
+                            {
+                                "kind": "enum-constant",
+                                "name": "OC_FILL_EVEN_ODD",
+                                "doc": "Even-odd fill rule: a point is considered inside a path if its winding number is odd, and outside otherwise.",
+                                "value": 0
+                            },
+                            {
+                                "kind": "enum-constant",
+                                "name": "OC_FILL_NON_ZERO",
+                                "doc": "Non-zero fill rule: a point is considered inside a path if its winding number is non zero, and outside otherwise.",
+                                "value": 1
+                            }
+                        ]
+                    }
+                },
+                {
+                    "kind": "typename",
                     "name": "oc_font_metrics",
                     "doc": "A struct describing the metrics of a font.",
                     "type": {
@@ -8209,32 +8234,6 @@
                 },
                 {
                     "kind": "typename",
-                    "name": "oc_glyph_metrics",
-                    "doc": "A struct describing the metrics of a single glyph.",
-                    "type": {
-                        "kind": "struct",
-                        "fields": [
-                            {
-                                "name": "ink",
-                                "type": {
-                                    "kind": "namedType",
-                                    "doc": "The bounding box of the inked portion of the glyph.",
-                                    "name": "oc_rect"
-                                }
-                            },
-                            {
-                                "name": "advance",
-                                "doc": "The default amount from which to advance the cursor after drawing this glyph.",
-                                "type": {
-                                    "kind": "namedType",
-                                    "name": "oc_vec2"
-                                }
-                            }
-                        ]
-                    }
-                },
-                {
-                    "kind": "typename",
                     "name": "oc_text_metrics",
                     "doc": "A struct describing the metrics of a run of glyphs.",
                     "type": {
@@ -8265,6 +8264,100 @@
                                 }
                             }
                         ]
+                    }
+                },
+                {
+                    "kind": "typename",
+                    "name": "oc_text_direction",
+                    "doc": "An enum describing the direction of text layout.",
+                    "type": {
+                        "kind": "enum",
+                        "type": {
+                            "kind": "u32"
+                        },
+                        "constants": [
+                            {
+                                "kind": "enum-constant",
+                                "name": "OC_TEXT_DIRECTION_UNKNOWN",
+                                "doc": "Direction is unset or unknown.",
+                                "value": 0
+                            },
+                            {
+                                "kind": "enum-constant",
+                                "name": "OC_TEXT_DIRECTION_LTR",
+                                "doc": "Text is laid out left to right.",
+                                "value": 1
+                            },
+                            {
+                                "kind": "enum-constant",
+                                "name": "OC_TEXT_DIRECTION_RTL",
+                                "doc": "Text is laid out right to left.",
+                                "value": 2
+                            },
+                            {
+                                "kind": "enum-constant",
+                                "name": "OC_TEXT_DIRECTION_TTB",
+                                "doc": "Text is laid out top to bottom.",
+                                "value": 3
+                            },
+                            {
+                                "kind": "enum-constant",
+                                "name": "OC_TEXT_DIRECTION_BTT",
+                                "doc": "Text is laid out bottom to top.",
+                                "value": 4
+                            }
+                        ]
+                    }
+                },
+                {
+                    "kind": "typename",
+                    "name": "oc_text_shape_settings",
+                    "doc": "Settings used with `oc_text_shape()`.",
+                    "type": {
+                        "kind": "struct",
+                        "fields": [
+                            {
+                                "name": "script",
+                                "doc": [
+                                    "An ISO 15924 script tag specifying the script of the text being shaped. ",
+                                    "An empty string indicates that `oc_text_shape()` should try to guess the input text's script."
+                                    ],
+                                "type": {
+                                    "kind": "namedType",
+                                    "name": "oc_str8"
+                                }
+                            },
+                            {
+                                "name": "lang",
+                                "doc": [
+                                    "An BCP 47 language tag specifying the language of the text being shaped. ",
+                                    "An empty string indicates that `oc_text_shape()` should try to guess the input text's language."
+                                    ],
+                                "type": {
+                                    "kind": "namedType",
+                                    "name": "oc_str8"
+                                }
+                            },
+                            {
+                                "name": "direction",
+                                "doc": [
+                                    "The direction of the text being shaped. ",
+                                    "`OC_TEXT_DIRECTION_UNKNOWN` indicates that `oc_text_shape()` should use the default direction for the text's script."
+                                    ],
+                                "type": {
+                                    "kind": "namedType",
+                                    "name": "oc_text_direction"
+                                }
+                            }
+                        ]
+                    }
+                },
+                {
+                    "kind": "typename",
+                    "name": "oc_glyph_run",
+                    "doc": "An opaque struct representing a shaped glyph run.",
+                    "type": {
+                        "kind": "struct"
                     }
                 },
                 {
@@ -8642,24 +8735,6 @@
                                 "kind": "namedType",
                                 "name": "oc_str8"
                             }
-                        },
-                        {
-                            "name": "rangeCount",
-                            "doc": "The number of unicode ranges to load.",
-                            "type": {
-                                "kind": "u32"
-                            }
-                        },
-                        {
-                            "name": "ranges",
-                            "doc": "An array of unicode ranges to load.",
-                            "type": {
-                                "kind": "pointer",
-                                "type": {
-                                    "kind": "namedType",
-                                    "name": "oc_unicode_range"
-                                }
-                            }
                         }
                     ]
                 },
@@ -8679,24 +8754,6 @@
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_file"
-                            }
-                        },
-                        {
-                            "name": "rangeCount",
-                            "doc": "The number of unicode ranges to load.",
-                            "type": {
-                                "kind": "u32"
-                            }
-                        },
-                        {
-                            "name": "ranges",
-                            "doc": "An array of unicode ranges to load.",
-                            "type": {
-                                "kind": "pointer",
-                                "type": {
-                                    "kind": "namedType",
-                                    "name": "oc_unicode_range"
-                                }
                             }
                         }
                     ]
@@ -8718,24 +8775,6 @@
                                 "kind": "namedType",
                                 "name": "oc_str8"
                             }
-                        },
-                        {
-                            "name": "rangeCount",
-                            "doc": "The number of unicode ranges to load.",
-                            "type": {
-                                "kind": "u32"
-                            }
-                        },
-                        {
-                            "name": "ranges",
-                            "doc": "An array of unicode ranges to load.",
-                            "type": {
-                                "kind": "pointer",
-                                "type": {
-                                    "kind": "namedType",
-                                    "name": "oc_unicode_range"
-                                }
-                            }
                         }
                     ]
                 },
@@ -8752,108 +8791,6 @@
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_font"
-                            }
-                        }
-                    ]
-                },
-                {
-                    "kind": "proc",
-                    "name": "oc_font_get_glyph_indices",
-                    "doc": "Get the glyph indices of a run of unicode code points in a given font.",
-                    "return": {
-                        "kind": "namedType",
-                        "name": "oc_str32",
-                        "doc": "A slice of glyph indices."
-                    },
-                    "params": [
-                        {
-                            "name": "font",
-                            "doc": "The font handle.",
-                            "type": {
-                                "kind": "namedType",
-                                "name": "oc_font"
-                            }
-                        },
-                        {
-                            "name": "codePoints",
-                            "doc": "A slice of unicode code points.",
-                            "type": {
-                                "kind": "namedType",
-                                "name": "oc_str32"
-                            }
-                        },
-                        {
-                            "name": "backing",
-                            "doc": "Backing memory for the result indices.",
-                            "type": {
-                                "kind": "namedType",
-                                "name": "oc_str32"
-                            }
-                        }
-                    ]
-                },
-                {
-                    "kind": "proc",
-                    "name": "oc_font_push_glyph_indices",
-                    "doc": "Get the glyph indices of a run of unicode code points in a given font and push them on an arena.",
-                    "return": {
-                        "kind": "namedType",
-                        "name": "oc_str32",
-                        "doc": "A slice of glyph indices, allocated on `arena`."
-                    },
-                    "params": [
-                        {
-                            "name": "arena",
-                            "doc": "A memory arena on which to allocate the result indices.",
-                            "type": {
-                                "kind": "pointer",
-                                "type": {
-                                    "kind": "namedType",
-                                    "name": "oc_arena"
-                                }
-                            }
-                        },
-                        {
-                            "name": "font",
-                            "doc": "The font handle",
-                            "type": {
-                                "kind": "namedType",
-                                "name": "oc_font"
-                            }
-                        },
-                        {
-                            "name": "codePoints",
-                            "doc": "A slice of unicode code points.",
-                            "type": {
-                                "kind": "namedType",
-                                "name": "oc_str32"
-                            }
-                        }
-                    ]
-                },
-                {
-                    "kind": "proc",
-                    "name": "oc_font_get_glyph_index",
-                    "doc": "Get the glyp index of a single codepoint in a given font.",
-                    "return": {
-                        "kind": "u32",
-                        "doc": "The glyph index for that codepoint."
-                    },
-                    "params": [
-                        {
-                            "name": "font",
-                            "doc": "The font handle.",
-                            "type": {
-                                "kind": "namedType",
-                                "name": "oc_font"
-                            }
-                        },
-                        {
-                            "name": "codePoint",
-                            "doc": "A unicode codepoint.",
-                            "type": {
-                                "kind": "namedType",
-                                "name": "oc_utf32"
                             }
                         }
                     ]
@@ -9964,6 +9901,23 @@
                 },
                 {
                     "kind": "proc",
+                    "name": "oc_set_fill_rule",
+                    "doc": "Set the current fill rule. Fill rules are use to determine if a point is inside or outside a path, and differ in how the handle shapes with holes and self-intersecting paths.",
+                    "return": {
+                        "kind": "void"
+                    },
+                    "params": [
+                        {
+                            "name": "rule",
+                            "type": {
+                                "kind": "namedType",
+                                "name": "oc_fill_rule"
+                            }
+                        }
+                    ]
+                },
+                {
+                    "kind": "proc",
                     "name": "oc_set_font",
                     "doc": "The the current font.",
                     "return": {
@@ -10099,6 +10053,16 @@
                     "return": {
                         "kind": "namedType",
                         "name": "oc_cap_type"
+                    },
+                    "params": []
+                },
+                {
+                    "kind": "proc",
+                    "name": "oc_get_fill_rule",
+                    "doc": "Get the current fill rule.",
+                    "return": {
+                        "kind": "namedType",
+                        "name": "oc_fill_rule"
                     },
                     "params": []
                 },
@@ -10295,61 +10259,6 @@
                 },
                 {
                     "kind": "proc",
-                    "name": "oc_glyph_outlines",
-                    "doc": "Add the outlines of a glyph run to the path, using glyph indices.",
-                    "return": {
-                        "kind": "namedType",
-                        "name": "oc_rect"
-                    },
-                    "params": [
-                        {
-                            "name": "glyphIndices",
-                            "doc": "A slice of glyph indices.",
-                            "type": {
-                                "kind": "namedType",
-                                "name": "oc_str32"
-                            }
-                        }
-                    ]
-                },
-                {
-                    "kind": "proc",
-                    "name": "oc_codepoints_outlines",
-                    "doc": "Add the outlines of a glyph run to the path, using unicode codepoints.",
-                    "return": {
-                        "kind": "void"
-                    },
-                    "params": [
-                        {
-                            "name": "string",
-                            "doc": "A slice of unicode code points.",
-                            "type": {
-                                "kind": "namedType",
-                                "name": "oc_str32"
-                            }
-                        }
-                    ]
-                },
-                {
-                    "kind": "proc",
-                    "name": "oc_text_outlines",
-                    "doc": "Add the outlines of a glyph run to the path, using a utf8 string.",
-                    "return": {
-                        "kind": "void"
-                    },
-                    "params": [
-                        {
-                            "name": "string",
-                            "doc": "A utf8 string.",
-                            "type": {
-                                "kind": "namedType",
-                                "name": "oc_str8"
-                            }
-                        }
-                    ]
-                },
-                {
-                    "kind": "proc",
                     "name": "oc_clear",
                     "doc": "Clear the canvas to the current color.",
                     "return": {
@@ -10374,6 +10283,251 @@
                         "kind": "void"
                     },
                     "params": []
+                },
+                {
+                    "kind": "proc",
+                    "name": "oc_text_shape",
+                    "return": {
+                        "kind": "pointer",
+                        "type": {
+                            "kind": "namedType",
+                            "name": "oc_glyph_run"
+                        }
+                    },
+                    "params": [
+                        {
+                            "name": "arena",
+                            "type": {
+                                "kind": "pointer",
+                                "type": {
+                                    "kind": "namedType",
+                                    "name": "oc_arena"
+                                }
+                            }
+                        },
+                        {
+                            "name": "font",
+                            "type": {
+                                "kind": "namedType",
+                                "name": "oc_font"
+                            }
+                        },
+                        {
+                            "name": "settings",
+                            "type": {
+                                "kind": "pointer",
+                                "type": {
+                                    "kind": "namedType",
+                                    "name": "oc_text_shape_settings"
+                                }
+                            }
+                        },
+                        {
+                            "name": "codepoints",
+                            "type": {
+                                "kind": "namedType",
+                                "name": "oc_str32"
+                            }
+                        },
+                        {
+                            "name": "begin",
+                            "type": {
+                                "kind": "u64"
+                            }
+                        },
+                        {
+                            "name": "end",
+                            "type": {
+                                "kind": "u64"
+                            }
+                        }
+                    ]
+                },
+                {
+                    "kind": "proc",
+                    "name": "oc_glyph_run_point_to_cursor",
+                    "return": {
+                        "kind": "u64"
+                    },
+                    "params": [
+                        {
+                            "name": "run",
+                            "type": {
+                                "kind": "pointer",
+                                "type": {
+                                    "kind": "namedType",
+                                    "name": "oc_glyph_run"
+                                }
+                            }
+                        },
+                        {
+                            "name": "fontSize",
+                            "type": {
+                                "kind": "f32"
+                            }
+                        },
+                        {
+                            "name": "point",
+                            "type": {
+                                "kind": "namedType",
+                                "name": "oc_vec2"
+
+                            }
+                        }
+                    ]
+                },
+                {
+                    "kind": "proc",
+                    "name": "oc_glyph_run_cursor_to_point",
+                    "return": {
+                        "kind": "namedType",
+                        "name": "oc_vec2"
+                    },
+                    "params": [
+                        {
+                            "name": "run",
+                            "type": {
+                                "kind": "pointer",
+                                "type": {
+                                    "kind": "namedType",
+                                    "name": "oc_glyph_run"
+                                }
+                            }
+                        },
+                        {
+                            "name": "fontSize",
+                            "type": {
+                                "kind": "f32"
+                            }
+                        },
+                        {
+                            "name": "cursor",
+                            "type": {
+                                "kind": "u64"
+                            }
+                        }
+                    ]
+                },
+                {
+                    "kind": "proc",
+                    "name": "oc_glyph_run_range_metrics",
+                    "return": {
+                        "kind": "namedType",
+                        "name": "oc_text_metrics"
+                    },
+                    "params": [
+                        {
+                            "name": "run",
+                            "type": {
+                                "kind": "pointer",
+                                "type": {
+                                    "kind": "namedType",
+                                    "name": "oc_glyph_run"
+                                }
+                            }
+                        },
+                        {
+                            "name": "fontSize",
+                            "type": {
+                                "kind": "f32"
+                            }
+                        },
+                        {
+                            "name": "begin",
+                            "type": {
+                                "kind": "u64"
+                            }
+                        },
+                        {
+                            "name": "end",
+                            "type": {
+                                "kind": "u64"
+                            }
+                        }
+                    ]
+                },
+                {
+                    "kind": "proc",
+                    "name": "oc_text_draw_run",
+                    "return": {
+                        "kind": "void"
+                    },
+                    "params": [
+                        {
+                            "name": "run",
+                            "type": {
+                                "kind": "pointer",
+                                "type": {
+                                    "kind": "namedType",
+                                    "name": "oc_glyph_run"
+                                }
+                            }
+                        },
+                        {
+                            "name": "fontSize",
+                            "type": {
+                                "kind": "f32"
+                            }
+                        }
+                    ]
+                },
+                {
+                    "kind": "proc",
+                    "name": "oc_text_draw_utf8",
+                    "return": {
+                        "kind": "void"
+                    },
+                    "params": [
+                        {
+                            "name": "text",
+                            "type": {
+                                "kind": "namedType",
+                                "name": "oc_str8"
+                            }
+                        },
+                        {
+                            "name": "font",
+                            "type": {
+                                "kind": "namedType",
+                                "name": "oc_font"
+                            }
+                        },
+                        {
+                            "name": "fontSize",
+                            "type": {
+                                "kind": "f32"
+                            }
+                        }
+                    ]
+                },
+                {
+                    "kind": "proc",
+                    "name": "oc_text_draw_utf32",
+                    "return": {
+                        "kind": "void"
+                    },
+                    "params": [
+                        {
+                            "name": "text",
+                            "type": {
+                                "kind": "namedType",
+                                "name": "oc_str32"
+                            }
+                        },
+                        {
+                            "name": "font",
+                            "type": {
+                                "kind": "namedType",
+                                "name": "oc_font"
+                            }
+                        },
+                        {
+                            "name": "fontSize",
+                            "type": {
+                                "kind": "f32"
+                            }
+                        }
+                    ]
                 },
                 {
                     "kind": "proc",
@@ -10683,35 +10837,6 @@
                             "name": "startAngle",
                             "type": {
                                 "kind": "f32"
-                            }
-                        }
-                    ]
-                },
-                {
-                    "kind": "proc",
-                    "name": "oc_text_fill",
-                    "doc": "Draw a text line.",
-                    "return": {
-                        "kind": "void"
-                    },
-                    "params": [
-                        {
-                            "name": "x",
-                            "type": {
-                                "kind": "f32"
-                            }
-                        },
-                        {
-                            "name": "y",
-                            "type": {
-                                "kind": "f32"
-                            }
-                        },
-                        {
-                            "name": "text",
-                            "type": {
-                                "kind": "namedType",
-                                "name": "oc_str8"
                             }
                         }
                     ]
