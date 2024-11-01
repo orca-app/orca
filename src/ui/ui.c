@@ -3818,7 +3818,6 @@ void oc_ui_text_box_render(oc_ui_box* box, void* data)
         u32 selectStart = oc_min(ui->editCursor, ui->editMark);
         u32 selectEnd = oc_max(ui->editCursor, ui->editMark);
 
-        oc_str32 beforeSelect = oc_str32_slice(codepoints, 0, selectStart);
         oc_rect beforeSelectBox = oc_glyph_run_range_metrics(info->glyphRun, style->fontSize, 0, selectStart).logical;
 
         beforeSelectBox.x += textX;
@@ -3826,10 +3825,6 @@ void oc_ui_text_box_render(oc_ui_box* box, void* data)
 
         if(selectStart != selectEnd)
         {
-            //TODO: remove, paint subrange of shaped text?
-            oc_str32 select = oc_str32_slice(codepoints, selectStart, selectEnd);
-            oc_str32 afterSelect = oc_str32_slice(codepoints, selectEnd, codepoints.len);
-
             oc_rect selectBox = oc_glyph_run_range_metrics(info->glyphRun, style->fontSize, selectStart, selectEnd).logical;
             oc_rect afterSelectBox = oc_glyph_run_range_metrics(info->glyphRun, style->fontSize, selectEnd, codepoints.len).logical;
 
@@ -3842,13 +3837,7 @@ void oc_ui_text_box_render(oc_ui_box* box, void* data)
             oc_set_color(style->color);
 
             oc_move_to(textX, textY);
-            oc_text_draw_utf32(beforeSelect, style->font, style->fontSize);
-
-            oc_set_color(box->style.color);
-            oc_text_draw_utf32(select, style->font, style->fontSize);
-
-            oc_set_color(style->color);
-            oc_text_draw_utf32(afterSelect, style->font, style->fontSize);
+            oc_text_draw_run(info->glyphRun, style->fontSize);
         }
         else
         {
