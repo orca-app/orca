@@ -75,7 +75,8 @@ int main()
         return (-1);
     }
 
-    oc_font romanFont = create_font(OC_STR8("../../resources/Zapfino.ttf"));
+    oc_font zapFont = create_font(OC_STR8("../../resources/Zapfino.ttf"));
+    oc_font romanFont = create_font(OC_STR8("../../resources/NotoSans-Light.ttf"));
     oc_font japaneseFont = create_font(OC_STR8("../../resources/NotoSansJP-Light.ttf"));
     oc_font arabicFont = create_font(OC_STR8("../../resources/NotoNaskhArabic-Regular.ttf"));
 
@@ -156,7 +157,7 @@ int main()
         oc_set_color_rgba(0, 1, 1, 1);
         oc_clear();
 
-        oc_font_metrics metrics = oc_font_get_metrics(romanFont, fontSize);
+        oc_font_metrics metrics = oc_font_get_metrics(zapFont, fontSize);
 
         oc_vec2 origin = { 100, 100 };
 
@@ -183,7 +184,7 @@ int main()
             oc_set_color_rgba(0, 0, 0, 1);
 
             oc_str32 codepoints = oc_utf8_push_to_codepoints(scratch.arena, text);
-            oc_glyph_run* run = oc_text_shape(scratch.arena, romanFont, 0, codepoints, 0, codepoints.len);
+            oc_glyph_run* run = oc_text_shape(scratch.arena, zapFont, 0, codepoints, 0, codepoints.len);
             oc_text_draw_run(run, fontSize);
 
             if(mouseClicked)
@@ -295,12 +296,26 @@ int main()
         }
 
         {
-            oc_move_to(500, 500);
+            oc_move_to(400, 500);
 
             oc_text_line* line = oc_text_line_from_utf8(scratch.arena,
-                                                        OC_STR8("bahrain مصر kuwait"),
+                                                        OC_STR8("Hello مرحبا Bonjour"),
                                                         &(oc_text_attributes){
                                                             .font = arabicFont,
+                                                            .fontSize = fontSize,
+                                                            .color = { 0, 0, 0, 1 },
+                                                        });
+
+            oc_text_line_draw(line);
+        }
+
+        {
+            oc_move_to(400, 550);
+
+            oc_text_line* line = oc_text_line_from_utf8(scratch.arena,
+                                                        OC_STR8("Hello こんにちは Bonjour"),
+                                                        &(oc_text_attributes){
+                                                            .font = japaneseFont,
                                                             .fontSize = fontSize,
                                                             .color = { 0, 0, 0, 1 },
                                                         });

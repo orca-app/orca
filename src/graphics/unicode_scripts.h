@@ -14,440 +14,176 @@
 #include "util/macros.h"
 
 #define OC_UNICODE_SCRIPTS(_) \
-    _(COMMON, 0x0, 0x40, Zyyy) \
-    _(LATIN, 0x41, 0x5a, Latn) \
-    _(COMMON, 0x5b, 0x60, Zyyy) \
-    _(LATIN, 0x61, 0x7a, Latn) \
-    _(COMMON, 0x7b, 0xa9, Zyyy) \
-    _(LATIN, 0xaa, 0xaa, Latn) \
-    _(COMMON, 0xab, 0xb9, Zyyy) \
-    _(LATIN, 0xba, 0xba, Latn) \
-    _(COMMON, 0xbb, 0xbf, Zyyy) \
-    _(LATIN, 0xc0, 0xd6, Latn) \
-    _(COMMON, 0xd7, 0xd7, Zyyy) \
-    _(LATIN, 0xd8, 0xf6, Latn) \
-    _(COMMON, 0xf7, 0xf7, Zyyy) \
-    _(LATIN, 0xf8, 0x2b8, Latn) \
-    _(COMMON, 0x2b9, 0x2df, Zyyy) \
-    _(LATIN, 0x2e0, 0x2e4, Latn) \
-    _(COMMON, 0x2e5, 0x2e9, Zyyy) \
-    _(BOPOMOFO, 0x2ea, 0x2eb, Bopo) \
-    _(COMMON, 0x2ec, 0x2ff, Zyyy) \
-    _(INHERITED, 0x300, 0x36f, Zinh) \
-    _(GREEK, 0x370, 0x373, Grek) \
-    _(COMMON, 0x374, 0x374, Zyyy) \
-    _(GREEK, 0x375, 0x37d, Grek) \
-    _(COMMON, 0x37e, 0x37e, Zyyy) \
-    _(GREEK, 0x37f, 0x384, Grek) \
-    _(COMMON, 0x385, 0x385, Zyyy) \
-    _(GREEK, 0x386, 0x386, Grek) \
-    _(COMMON, 0x387, 0x387, Zyyy) \
-    _(GREEK, 0x388, 0x3e1, Grek) \
-    _(COPTIC, 0x3e2, 0x3ef, Copt) \
-    _(GREEK, 0x3f0, 0x3ff, Grek) \
-    _(CYRILLIC, 0x400, 0x484, Cyrl) \
-    _(INHERITED, 0x485, 0x486, Zinh) \
-    _(CYRILLIC, 0x487, 0x530, Cyrl) \
-    _(ARMENIAN, 0x531, 0x590, Armn) \
-    _(HEBREW, 0x591, 0x5ff, Hebr) \
-    _(ARABIC, 0x600, 0x604, Arab) \
-    _(COMMON, 0x605, 0x605, Zyyy) \
-    _(ARABIC, 0x606, 0x60b, Arab) \
-    _(COMMON, 0x60c, 0x60c, Zyyy) \
-    _(ARABIC, 0x60d, 0x61a, Arab) \
-    _(COMMON, 0x61b, 0x61b, Zyyy) \
-    _(ARABIC, 0x61c, 0x61e, Arab) \
-    _(COMMON, 0x61f, 0x61f, Zyyy) \
-    _(ARABIC, 0x620, 0x63f, Arab) \
-    _(COMMON, 0x640, 0x640, Zyyy) \
-    _(ARABIC, 0x641, 0x64a, Arab) \
-    _(INHERITED, 0x64b, 0x655, Zinh) \
-    _(ARABIC, 0x656, 0x66f, Arab) \
-    _(INHERITED, 0x670, 0x670, Zinh) \
-    _(ARABIC, 0x671, 0x6dc, Arab) \
-    _(COMMON, 0x6dd, 0x6dd, Zyyy) \
-    _(ARABIC, 0x6de, 0x6ff, Arab) \
-    _(SYRIAC, 0x700, 0x74f, Syrc) \
-    _(ARABIC, 0x750, 0x77f, Arab) \
-    _(THAANA, 0x780, 0x7bf, Thaa) \
-    _(NKO, 0x7c0, 0x7ff, Nkoo) \
-    _(SAMARITAN, 0x800, 0x83f, Samr) \
-    _(MANDAIC, 0x840, 0x85f, Mand) \
-    _(SYRIAC, 0x860, 0x86f, Syrc) \
-    _(ARABIC, 0x870, 0x8e1, Arab) \
-    _(COMMON, 0x8e2, 0x8e2, Zyyy) \
-    _(ARABIC, 0x8e3, 0x8ff, Arab) \
-    _(DEVANAGARI, 0x900, 0x950, Deva) \
-    _(INHERITED, 0x951, 0x954, Zinh) \
-    _(DEVANAGARI, 0x955, 0x963, Deva) \
-    _(COMMON, 0x964, 0x965, Zyyy) \
-    _(DEVANAGARI, 0x966, 0x97f, Deva) \
-    _(BENGALI, 0x980, 0xa00, Beng) \
-    _(GURMUKHI, 0xa01, 0xa80, Guru) \
-    _(GUJARATI, 0xa81, 0xb00, Gujr) \
-    _(ORIYA, 0xb01, 0xb81, Orya) \
-    _(TAMIL, 0xb82, 0xbff, Taml) \
-    _(TELUGU, 0xc00, 0xc7f, Telu) \
-    _(KANNADA, 0xc80, 0xcff, Knda) \
-    _(MALAYALAM, 0xd00, 0xd80, Mlym) \
-    _(SINHALA, 0xd81, 0xe00, Sinh) \
-    _(THAI, 0xe01, 0xe3e, Thai) \
-    _(COMMON, 0xe3f, 0xe3f, Zyyy) \
-    _(THAI, 0xe40, 0xe80, Thai) \
-    _(LAO, 0xe81, 0xeff, Laoo) \
-    _(TIBETAN, 0xf00, 0xfd4, Tibt) \
-    _(COMMON, 0xfd5, 0xfd8, Zyyy) \
-    _(TIBETAN, 0xfd9, 0xfff, Tibt) \
-    _(MYANMAR, 0x1000, 0x109f, Mymr) \
-    _(GEORGIAN, 0x10a0, 0x10fa, Geor) \
-    _(COMMON, 0x10fb, 0x10fb, Zyyy) \
-    _(GEORGIAN, 0x10fc, 0x10ff, Geor) \
-    _(HANGUL, 0x1100, 0x11ff, Hang) \
-    _(ETHIOPIC, 0x1200, 0x139f, Ethi) \
-    _(CHEROKEE, 0x13a0, 0x13ff, Cher) \
-    _(CANADIAN_ABORIGINAL, 0x1400, 0x167f, Cans) \
-    _(OGHAM, 0x1680, 0x169f, Ogam) \
-    _(RUNIC, 0x16a0, 0x16ea, Runr) \
-    _(COMMON, 0x16eb, 0x16ed, Zyyy) \
-    _(RUNIC, 0x16ee, 0x16ff, Runr) \
-    _(TAGALOG, 0x1700, 0x171f, Tglg) \
-    _(HANUNOO, 0x1720, 0x1734, Hano) \
-    _(COMMON, 0x1735, 0x173f, Zyyy) \
-    _(BUHID, 0x1740, 0x175f, Buhd) \
-    _(TAGBANWA, 0x1760, 0x177f, Tagb) \
-    _(KHMER, 0x1780, 0x17ff, Khmr) \
-    _(MONGOLIAN, 0x1800, 0x1801, Mong) \
-    _(COMMON, 0x1802, 0x1803, Zyyy) \
-    _(MONGOLIAN, 0x1804, 0x1804, Mong) \
-    _(COMMON, 0x1805, 0x1805, Zyyy) \
-    _(MONGOLIAN, 0x1806, 0x18af, Mong) \
-    _(CANADIAN_ABORIGINAL, 0x18b0, 0x18ff, Cans) \
-    _(LIMBU, 0x1900, 0x194f, Limb) \
-    _(TAI_LE, 0x1950, 0x197f, Tale) \
-    _(NEW_TAI_LUE, 0x1980, 0x19df, Talu) \
-    _(KHMER, 0x19e0, 0x19ff, Khmr) \
-    _(BUGINESE, 0x1a00, 0x1a1f, Bugi) \
-    _(TAI_THAM, 0x1a20, 0x1aaf, Lana) \
-    _(INHERITED, 0x1ab0, 0x1aff, Zinh) \
-    _(BALINESE, 0x1b00, 0x1b7f, Bali) \
-    _(SUNDANESE, 0x1b80, 0x1bbf, Sund) \
-    _(BATAK, 0x1bc0, 0x1bff, Batk) \
-    _(LEPCHA, 0x1c00, 0x1c4f, Lepc) \
-    _(OL_CHIKI, 0x1c50, 0x1c7f, Olck) \
-    _(CYRILLIC, 0x1c80, 0x1c8f, Cyrl) \
-    _(GEORGIAN, 0x1c90, 0x1cbf, Geor) \
-    _(SUNDANESE, 0x1cc0, 0x1ccf, Sund) \
-    _(INHERITED, 0x1cd0, 0x1cd2, Zinh) \
-    _(COMMON, 0x1cd3, 0x1cd3, Zyyy) \
-    _(INHERITED, 0x1cd4, 0x1ce0, Zinh) \
-    _(COMMON, 0x1ce1, 0x1ce1, Zyyy) \
-    _(INHERITED, 0x1ce2, 0x1ce8, Zinh) \
-    _(COMMON, 0x1ce9, 0x1cec, Zyyy) \
-    _(INHERITED, 0x1ced, 0x1ced, Zinh) \
-    _(COMMON, 0x1cee, 0x1cf3, Zyyy) \
-    _(INHERITED, 0x1cf4, 0x1cf4, Zinh) \
-    _(COMMON, 0x1cf5, 0x1cf7, Zyyy) \
-    _(INHERITED, 0x1cf8, 0x1cf9, Zinh) \
-    _(COMMON, 0x1cfa, 0x1cff, Zyyy) \
-    _(LATIN, 0x1d00, 0x1d25, Latn) \
-    _(GREEK, 0x1d26, 0x1d2a, Grek) \
-    _(CYRILLIC, 0x1d2b, 0x1d2b, Cyrl) \
-    _(LATIN, 0x1d2c, 0x1d5c, Latn) \
-    _(GREEK, 0x1d5d, 0x1d61, Grek) \
-    _(LATIN, 0x1d62, 0x1d65, Latn) \
-    _(GREEK, 0x1d66, 0x1d6a, Grek) \
-    _(LATIN, 0x1d6b, 0x1d77, Latn) \
-    _(CYRILLIC, 0x1d78, 0x1d78, Cyrl) \
-    _(LATIN, 0x1d79, 0x1dbe, Latn) \
-    _(GREEK, 0x1dbf, 0x1dbf, Grek) \
-    _(INHERITED, 0x1dc0, 0x1dff, Zinh) \
-    _(LATIN, 0x1e00, 0x1eff, Latn) \
-    _(GREEK, 0x1f00, 0x1fff, Grek) \
-    _(COMMON, 0x2000, 0x200b, Zyyy) \
-    _(INHERITED, 0x200c, 0x200d, Zinh) \
-    _(COMMON, 0x200e, 0x2070, Zyyy) \
-    _(LATIN, 0x2071, 0x2073, Latn) \
-    _(COMMON, 0x2074, 0x207e, Zyyy) \
-    _(LATIN, 0x207f, 0x207f, Latn) \
-    _(COMMON, 0x2080, 0x208f, Zyyy) \
-    _(LATIN, 0x2090, 0x209f, Latn) \
-    _(COMMON, 0x20a0, 0x20cf, Zyyy) \
-    _(INHERITED, 0x20d0, 0x20ff, Zinh) \
-    _(COMMON, 0x2100, 0x2125, Zyyy) \
-    _(GREEK, 0x2126, 0x2126, Grek) \
-    _(COMMON, 0x2127, 0x2129, Zyyy) \
-    _(LATIN, 0x212a, 0x212b, Latn) \
-    _(COMMON, 0x212c, 0x2131, Zyyy) \
-    _(LATIN, 0x2132, 0x2132, Latn) \
-    _(COMMON, 0x2133, 0x214d, Zyyy) \
-    _(LATIN, 0x214e, 0x214e, Latn) \
-    _(COMMON, 0x214f, 0x215f, Zyyy) \
-    _(LATIN, 0x2160, 0x2188, Latn) \
-    _(COMMON, 0x2189, 0x27ff, Zyyy) \
-    _(BRAILLE, 0x2800, 0x28ff, Brai) \
-    _(COMMON, 0x2900, 0x2bff, Zyyy) \
-    _(GLAGOLITIC, 0x2c00, 0x2c5f, Glag) \
-    _(LATIN, 0x2c60, 0x2c7f, Latn) \
-    _(COPTIC, 0x2c80, 0x2cff, Copt) \
-    _(GEORGIAN, 0x2d00, 0x2d2f, Geor) \
-    _(TIFINAGH, 0x2d30, 0x2d7f, Tfng) \
-    _(ETHIOPIC, 0x2d80, 0x2ddf, Ethi) \
-    _(CYRILLIC, 0x2de0, 0x2dff, Cyrl) \
-    _(COMMON, 0x2e00, 0x2e7f, Zyyy) \
-    _(HAN, 0x2e80, 0x2fef, Hani) \
-    _(COMMON, 0x2ff0, 0x3004, Zyyy) \
-    _(HAN, 0x3005, 0x3005, Hani) \
-    _(COMMON, 0x3006, 0x3006, Zyyy) \
-    _(HAN, 0x3007, 0x3007, Hani) \
-    _(COMMON, 0x3008, 0x3020, Zyyy) \
-    _(HAN, 0x3021, 0x3029, Hani) \
-    _(INHERITED, 0x302a, 0x302d, Zinh) \
-    _(HANGUL, 0x302e, 0x302f, Hang) \
-    _(COMMON, 0x3030, 0x3037, Zyyy) \
-    _(HAN, 0x3038, 0x303b, Hani) \
-    _(COMMON, 0x303c, 0x3040, Zyyy) \
-    _(HIRAGANA, 0x3041, 0x3098, Hira) \
-    _(INHERITED, 0x3099, 0x309a, Zinh) \
-    _(COMMON, 0x309b, 0x309c, Zyyy) \
-    _(HIRAGANA, 0x309d, 0x309f, Hira) \
-    _(COMMON, 0x30a0, 0x30a0, Zyyy) \
-    _(KATAKANA, 0x30a1, 0x30fa, Kana) \
-    _(COMMON, 0x30fb, 0x30fc, Zyyy) \
-    _(KATAKANA, 0x30fd, 0x3104, Kana) \
-    _(BOPOMOFO, 0x3105, 0x3130, Bopo) \
-    _(HANGUL, 0x3131, 0x318f, Hang) \
-    _(COMMON, 0x3190, 0x319f, Zyyy) \
-    _(BOPOMOFO, 0x31a0, 0x31bf, Bopo) \
-    _(COMMON, 0x31c0, 0x31ef, Zyyy) \
-    _(KATAKANA, 0x31f0, 0x31ff, Kana) \
-    _(HANGUL, 0x3200, 0x321f, Hang) \
-    _(COMMON, 0x3220, 0x325f, Zyyy) \
-    _(HANGUL, 0x3260, 0x327e, Hang) \
-    _(COMMON, 0x327f, 0x32cf, Zyyy) \
-    _(KATAKANA, 0x32d0, 0x32fe, Kana) \
-    _(COMMON, 0x32ff, 0x32ff, Zyyy) \
-    _(KATAKANA, 0x3300, 0x3357, Kana) \
-    _(COMMON, 0x3358, 0x33ff, Zyyy) \
-    _(HAN, 0x3400, 0x4dbf, Hani) \
-    _(COMMON, 0x4dc0, 0x4dff, Zyyy) \
-    _(HAN, 0x4e00, 0x9fff, Hani) \
-    _(YI, 0xa000, 0xa4cf, Yiii) \
-    _(LISU, 0xa4d0, 0xa4ff, Lisu) \
-    _(VAI, 0xa500, 0xa63f, Vaii) \
-    _(CYRILLIC, 0xa640, 0xa69f, Cyrl) \
-    _(BAMUM, 0xa6a0, 0xa6ff, Bamu) \
-    _(COMMON, 0xa700, 0xa721, Zyyy) \
-    _(LATIN, 0xa722, 0xa787, Latn) \
-    _(COMMON, 0xa788, 0xa78a, Zyyy) \
-    _(LATIN, 0xa78b, 0xa7ff, Latn) \
-    _(SYLOTI_NAGRI, 0xa800, 0xa82f, Sylo) \
-    _(COMMON, 0xa830, 0xa83f, Zyyy) \
-    _(PHAGS_PA, 0xa840, 0xa87f, Phag) \
-    _(SAURASHTRA, 0xa880, 0xa8df, Saur) \
-    _(DEVANAGARI, 0xa8e0, 0xa8ff, Deva) \
-    _(KAYAH_LI, 0xa900, 0xa92d, Kali) \
-    _(COMMON, 0xa92e, 0xa92e, Zyyy) \
-    _(KAYAH_LI, 0xa92f, 0xa92f, Kali) \
-    _(REJANG, 0xa930, 0xa95f, Rjng) \
-    _(HANGUL, 0xa960, 0xa97f, Hang) \
-    _(JAVANESE, 0xa980, 0xa9ce, Java) \
-    _(COMMON, 0xa9cf, 0xa9cf, Zyyy) \
-    _(JAVANESE, 0xa9d0, 0xa9df, Java) \
-    _(MYANMAR, 0xa9e0, 0xa9ff, Mymr) \
-    _(CHAM, 0xaa00, 0xaa5f, Cham) \
-    _(MYANMAR, 0xaa60, 0xaa7f, Mymr) \
-    _(TAI_VIET, 0xaa80, 0xaadf, Tavt) \
-    _(MEETEI_MAYEK, 0xaae0, 0xab00, Mtei) \
-    _(ETHIOPIC, 0xab01, 0xab2f, Ethi) \
-    _(LATIN, 0xab30, 0xab5a, Latn) \
-    _(COMMON, 0xab5b, 0xab5b, Zyyy) \
-    _(LATIN, 0xab5c, 0xab64, Latn) \
-    _(GREEK, 0xab65, 0xab65, Grek) \
-    _(LATIN, 0xab66, 0xab69, Latn) \
-    _(COMMON, 0xab6a, 0xab6f, Zyyy) \
-    _(CHEROKEE, 0xab70, 0xabbf, Cher) \
-    _(MEETEI_MAYEK, 0xabc0, 0xabff, Mtei) \
-    _(HANGUL, 0xac00, 0xf8ff, Hang) \
-    _(HAN, 0xf900, 0xfaff, Hani) \
-    _(LATIN, 0xfb00, 0xfb12, Latn) \
-    _(ARMENIAN, 0xfb13, 0xfb1c, Armn) \
-    _(HEBREW, 0xfb1d, 0xfb4f, Hebr) \
-    _(ARABIC, 0xfb50, 0xfd3d, Arab) \
-    _(COMMON, 0xfd3e, 0xfd3f, Zyyy) \
-    _(ARABIC, 0xfd40, 0xfdff, Arab) \
-    _(INHERITED, 0xfe00, 0xfe0f, Zinh) \
-    _(COMMON, 0xfe10, 0xfe1f, Zyyy) \
-    _(INHERITED, 0xfe20, 0xfe2d, Zinh) \
-    _(CYRILLIC, 0xfe2e, 0xfe2f, Cyrl) \
-    _(COMMON, 0xfe30, 0xfe6f, Zyyy) \
-    _(ARABIC, 0xfe70, 0xfefe, Arab) \
-    _(COMMON, 0xfeff, 0xff20, Zyyy) \
-    _(LATIN, 0xff21, 0xff3a, Latn) \
-    _(COMMON, 0xff3b, 0xff40, Zyyy) \
-    _(LATIN, 0xff41, 0xff5a, Latn) \
-    _(COMMON, 0xff5b, 0xff65, Zyyy) \
-    _(KATAKANA, 0xff66, 0xff6f, Kana) \
-    _(COMMON, 0xff70, 0xff70, Zyyy) \
-    _(KATAKANA, 0xff71, 0xff9d, Kana) \
-    _(COMMON, 0xff9e, 0xff9f, Zyyy) \
-    _(HANGUL, 0xffa0, 0xffdf, Hang) \
-    _(COMMON, 0xffe0, 0xffff, Zyyy) \
-    _(LINEAR_B, 0x10000, 0x100ff, Linb) \
-    _(COMMON, 0x10100, 0x1013f, Zyyy) \
-    _(GREEK, 0x10140, 0x1018f, Grek) \
-    _(COMMON, 0x10190, 0x1019f, Zyyy) \
-    _(GREEK, 0x101a0, 0x101cf, Grek) \
-    _(COMMON, 0x101d0, 0x101fc, Zyyy) \
-    _(INHERITED, 0x101fd, 0x1027f, Zinh) \
-    _(LYCIAN, 0x10280, 0x1029f, Lyci) \
-    _(CARIAN, 0x102a0, 0x102df, Cari) \
-    _(INHERITED, 0x102e0, 0x102e0, Zinh) \
-    _(COMMON, 0x102e1, 0x102ff, Zyyy) \
-    _(OLD_ITALIC, 0x10300, 0x1032f, Ital) \
-    _(GOTHIC, 0x10330, 0x1034f, Goth) \
-    _(OLD_PERMIC, 0x10350, 0x1037f, Perm) \
-    _(UGARITIC, 0x10380, 0x1039f, Ugar) \
-    _(OLD_PERSIAN, 0x103a0, 0x103ff, Xpeo) \
-    _(DESERET, 0x10400, 0x1044f, Dsrt) \
-    _(SHAVIAN, 0x10450, 0x1047f, Shaw) \
-    _(OSMANYA, 0x10480, 0x104af, Osma) \
-    _(OSAGE, 0x104b0, 0x104ff, Osge) \
-    _(ELBASAN, 0x10500, 0x1052f, Elba) \
-    _(CAUCASIAN_ALBANIAN, 0x10530, 0x1056f, Aghb) \
-    _(VITHKUQI, 0x10570, 0x105bf, Vith) \
-    _(TODHRI, 0x105c0, 0x105ff, Todr) \
-    _(LINEAR_A, 0x10600, 0x1077f, Lina) \
-    _(LATIN, 0x10780, 0x107ff, Latn) \
-    _(CYPRIOT, 0x10800, 0x1083f, Cprt) \
-    _(IMPERIAL_ARAMAIC, 0x10840, 0x1085f, Armi) \
-    _(PALMYRENE, 0x10860, 0x1087f, Palm) \
-    _(NABATAEAN, 0x10880, 0x108df, Nbat) \
-    _(HATRAN, 0x108e0, 0x108ff, Hatr) \
-    _(PHOENICIAN, 0x10900, 0x1091f, Phnx) \
-    _(LYDIAN, 0x10920, 0x1097f, Lydi) \
-    _(MEROITIC_HIEROGLYPHS, 0x10980, 0x1099f, Mero) \
-    _(MEROITIC_CURSIVE, 0x109a0, 0x109ff, Merc) \
-    _(KHAROSHTHI, 0x10a00, 0x10a5f, Khar) \
-    _(OLD_SOUTH_ARABIAN, 0x10a60, 0x10a7f, Sarb) \
-    _(OLD_NORTH_ARABIAN, 0x10a80, 0x10abf, Narb) \
-    _(MANICHAEAN, 0x10ac0, 0x10aff, Mani) \
-    _(AVESTAN, 0x10b00, 0x10b3f, Avst) \
-    _(INSCRIPTIONAL_PARTHIAN, 0x10b40, 0x10b5f, Prti) \
-    _(INSCRIPTIONAL_PAHLAVI, 0x10b60, 0x10b7f, Phli) \
-    _(PSALTER_PAHLAVI, 0x10b80, 0x10bff, Phlp) \
-    _(OLD_TURKIC, 0x10c00, 0x10c7f, Orkh) \
-    _(OLD_HUNGARIAN, 0x10c80, 0x10cff, Hung) \
-    _(HANIFI_ROHINGYA, 0x10d00, 0x10d3f, Rohg) \
-    _(GARAY, 0x10d40, 0x10e5f, Gara) \
-    _(ARABIC, 0x10e60, 0x10e7f, Arab) \
-    _(YEZIDI, 0x10e80, 0x10ec1, Yezi) \
-    _(ARABIC, 0x10ec2, 0x10eff, Arab) \
-    _(OLD_SOGDIAN, 0x10f00, 0x10f2f, Sogo) \
-    _(SOGDIAN, 0x10f30, 0x10f6f, Sogd) \
-    _(OLD_UYGHUR, 0x10f70, 0x10faf, Ougr) \
-    _(CHORASMIAN, 0x10fb0, 0x10fdf, Chrs) \
-    _(ELYMAIC, 0x10fe0, 0x10fff, Elym) \
-    _(BRAHMI, 0x11000, 0x1107f, Brah) \
-    _(KAITHI, 0x11080, 0x110cf, Kthi) \
-    _(SORA_SOMPENG, 0x110d0, 0x110ff, Sora) \
-    _(CHAKMA, 0x11100, 0x1114f, Cakm) \
-    _(MAHAJANI, 0x11150, 0x1117f, Mahj) \
-    _(SHARADA, 0x11180, 0x111e0, Shrd) \
-    _(SINHALA, 0x111e1, 0x111ff, Sinh) \
-    _(KHOJKI, 0x11200, 0x1127f, Khoj) \
-    _(MULTANI, 0x11280, 0x112af, Mult) \
-    _(KHUDAWADI, 0x112b0, 0x112ff, Sind) \
-    _(GRANTHA, 0x11300, 0x1133a, Gran) \
-    _(INHERITED, 0x1133b, 0x1133b, Zinh) \
-    _(GRANTHA, 0x1133c, 0x1137f, Gran) \
-    _(TULU_TIGALARI, 0x11380, 0x113ff, Tutg) \
-    _(NEWA, 0x11400, 0x1147f, Newa) \
-    _(TIRHUTA, 0x11480, 0x1157f, Tirh) \
-    _(SIDDHAM, 0x11580, 0x115ff, Sidd) \
-    _(MODI, 0x11600, 0x1165f, Modi) \
-    _(MONGOLIAN, 0x11660, 0x1167f, Mong) \
-    _(TAKRI, 0x11680, 0x116cf, Takr) \
-    _(MYANMAR, 0x116d0, 0x116ff, Mymr) \
-    _(AHOM, 0x11700, 0x117ff, Ahom) \
-    _(DOGRA, 0x11800, 0x1189f, Dogr) \
-    _(WARANG_CITI, 0x118a0, 0x118ff, Wara) \
-    _(DIVES_AKURU, 0x11900, 0x1199f, Diak) \
-    _(NANDINAGARI, 0x119a0, 0x119ff, Nand) \
-    _(ZANABAZAR_SQUARE, 0x11a00, 0x11a4f, Zanb) \
-    _(SOYOMBO, 0x11a50, 0x11aaf, Soyo) \
-    _(CANADIAN_ABORIGINAL, 0x11ab0, 0x11abf, Cans) \
-    _(PAU_CIN_HAU, 0x11ac0, 0x11aff, Pauc) \
-    _(DEVANAGARI, 0x11b00, 0x11bbf, Deva) \
-    _(SUNUWAR, 0x11bc0, 0x11bff, Sunu) \
-    _(BHAIKSUKI, 0x11c00, 0x11c6f, Bhks) \
-    _(MARCHEN, 0x11c70, 0x11cff, Marc) \
-    _(MASARAM_GONDI, 0x11d00, 0x11d5f, Gonm) \
-    _(GUNJALA_GONDI, 0x11d60, 0x11edf, Gong) \
-    _(MAKASAR, 0x11ee0, 0x11eff, Maka) \
-    _(KAWI, 0x11f00, 0x11faf, Kawi) \
-    _(LISU, 0x11fb0, 0x11fbf, Lisu) \
-    _(TAMIL, 0x11fc0, 0x11fff, Taml) \
-    _(CUNEIFORM, 0x12000, 0x12f8f, Xsux) \
-    _(CYPRO_MINOAN, 0x12f90, 0x12fff, Cpmn) \
-    _(EGYPTIAN_HIEROGLYPHS, 0x13000, 0x143ff, Egyp) \
-    _(ANATOLIAN_HIEROGLYPHS, 0x14400, 0x160ff, Hluw) \
-    _(GURUNG_KHEMA, 0x16100, 0x167ff, Gukh) \
-    _(BAMUM, 0x16800, 0x16a3f, Bamu) \
-    _(MRO, 0x16a40, 0x16a6f, Mroo) \
-    _(TANGSA, 0x16a70, 0x16acf, Tnsa) \
-    _(BASSA_VAH, 0x16ad0, 0x16aff, Bass) \
-    _(PAHAWH_HMONG, 0x16b00, 0x16d3f, Hmng) \
-    _(KIRAT_RAI, 0x16d40, 0x16e3f, Krai) \
-    _(MEDEFAIDRIN, 0x16e40, 0x16eff, Medf) \
-    _(MIAO, 0x16f00, 0x16fdf, Plrd) \
-    _(TANGUT, 0x16fe0, 0x16fe0, Tang) \
-    _(NUSHU, 0x16fe1, 0x16fe1, Nshu) \
-    _(HAN, 0x16fe2, 0x16fe3, Hani) \
-    _(KHITAN_SMALL_SCRIPT, 0x16fe4, 0x16fef, Kits) \
-    _(HAN, 0x16ff0, 0x16fff, Hani) \
-    _(TANGUT, 0x17000, 0x18aff, Tang) \
-    _(KHITAN_SMALL_SCRIPT, 0x18b00, 0x18cff, Kits) \
-    _(TANGUT, 0x18d00, 0x1afef, Tang) \
-    _(KATAKANA, 0x1aff0, 0x1b000, Kana) \
-    _(HIRAGANA, 0x1b001, 0x1b11f, Hira) \
-    _(KATAKANA, 0x1b120, 0x1b131, Kana) \
-    _(HIRAGANA, 0x1b132, 0x1b154, Hira) \
-    _(KATAKANA, 0x1b155, 0x1b16f, Kana) \
-    _(NUSHU, 0x1b170, 0x1bbff, Nshu) \
-    _(DUPLOYAN, 0x1bc00, 0x1bc9f, Dupl) \
-    _(COMMON, 0x1bca0, 0x1ceff, Zyyy) \
-    _(INHERITED, 0x1cf00, 0x1cf4f, Zinh) \
-    _(COMMON, 0x1cf50, 0x1d166, Zyyy) \
-    _(INHERITED, 0x1d167, 0x1d169, Zinh) \
-    _(COMMON, 0x1d16a, 0x1d17a, Zyyy) \
-    _(INHERITED, 0x1d17b, 0x1d182, Zinh) \
-    _(COMMON, 0x1d183, 0x1d184, Zyyy) \
-    _(INHERITED, 0x1d185, 0x1d18b, Zinh) \
-    _(COMMON, 0x1d18c, 0x1d1a9, Zyyy) \
-    _(INHERITED, 0x1d1aa, 0x1d1ad, Zinh) \
-    _(COMMON, 0x1d1ae, 0x1d1ff, Zyyy) \
-    _(GREEK, 0x1d200, 0x1d2bf, Grek) \
-    _(COMMON, 0x1d2c0, 0x1d7ff, Zyyy) \
-    _(SIGNWRITING, 0x1d800, 0x1deff, Sgnw) \
-    _(LATIN, 0x1df00, 0x1dfff, Latn) \
-    _(GLAGOLITIC, 0x1e000, 0x1e02f, Glag) \
-    _(CYRILLIC, 0x1e030, 0x1e0ff, Cyrl) \
-    _(NYIAKENG_PUACHUE_HMONG, 0x1e100, 0x1e28f, Hmnp) \
-    _(TOTO, 0x1e290, 0x1e2bf, Toto) \
-    _(WANCHO, 0x1e2c0, 0x1e4cf, Wcho) \
-    _(NAG_MUNDARI, 0x1e4d0, 0x1e5cf, Nagm) \
-    _(OL_ONAL, 0x1e5d0, 0x1e7df, Onao) \
-    _(ETHIOPIC, 0x1e7e0, 0x1e7ff, Ethi) \
-    _(MENDE_KIKAKUI, 0x1e800, 0x1e8ff, Mend) \
-    _(ADLAM, 0x1e900, 0x1ec70, Adlm) \
-    _(COMMON, 0x1ec71, 0x1edff, Zyyy) \
-    _(ARABIC, 0x1ee00, 0x1efff, Arab) \
-    _(COMMON, 0x1f000, 0x1f1ff, Zyyy) \
-    _(HIRAGANA, 0x1f200, 0x1f200, Hira) \
-    _(COMMON, 0x1f201, 0x1ffff, Zyyy) \
-    _(HAN, 0x20000, 0xe0000, Hani) \
-    _(COMMON, 0xe0001, 0xe00ff, Zyyy) \
-    _(INHERITED, 0xe0100, 0xe01ef, Zinh) \
+    _(COMMON, Zyyy) \
+    _(LATIN, Latn) \
+    _(GREEK, Grek) \
+    _(CYRILLIC, Cyrl) \
+    _(ARMENIAN, Armn) \
+    _(HEBREW, Hebr) \
+    _(ARABIC, Arab) \
+    _(SYRIAC, Syrc) \
+    _(THAANA, Thaa) \
+    _(DEVANAGARI, Deva) \
+    _(BENGALI, Beng) \
+    _(GURMUKHI, Guru) \
+    _(GUJARATI, Gujr) \
+    _(ORIYA, Orya) \
+    _(TAMIL, Taml) \
+    _(TELUGU, Telu) \
+    _(KANNADA, Knda) \
+    _(MALAYALAM, Mlym) \
+    _(SINHALA, Sinh) \
+    _(THAI, Thai) \
+    _(LAO, Laoo) \
+    _(TIBETAN, Tibt) \
+    _(MYANMAR, Mymr) \
+    _(GEORGIAN, Geor) \
+    _(HANGUL, Hang) \
+    _(ETHIOPIC, Ethi) \
+    _(CHEROKEE, Cher) \
+    _(CANADIAN_ABORIGINAL, Cans) \
+    _(OGHAM, Ogam) \
+    _(RUNIC, Runr) \
+    _(KHMER, Khmr) \
+    _(MONGOLIAN, Mong) \
+    _(HIRAGANA, Hira) \
+    _(KATAKANA, Kana) \
+    _(BOPOMOFO, Bopo) \
+    _(HAN, Hani) \
+    _(YI, Yiii) \
+    _(OLD_ITALIC, Ital) \
+    _(GOTHIC, Goth) \
+    _(DESERET, Dsrt) \
+    _(INHERITED, Zinh) \
+    _(TAGALOG, Tglg) \
+    _(HANUNOO, Hano) \
+    _(BUHID, Buhd) \
+    _(TAGBANWA, Tagb) \
+    _(LIMBU, Limb) \
+    _(TAI_LE, Tale) \
+    _(LINEAR_B, Linb) \
+    _(UGARITIC, Ugar) \
+    _(SHAVIAN, Shaw) \
+    _(OSMANYA, Osma) \
+    _(CYPRIOT, Cprt) \
+    _(BRAILLE, Brai) \
+    _(BUGINESE, Bugi) \
+    _(COPTIC, Copt) \
+    _(NEW_TAI_LUE, Talu) \
+    _(GLAGOLITIC, Glag) \
+    _(TIFINAGH, Tfng) \
+    _(SYLOTI_NAGRI, Sylo) \
+    _(OLD_PERSIAN, Xpeo) \
+    _(KHAROSHTHI, Khar) \
+    _(BALINESE, Bali) \
+    _(CUNEIFORM, Xsux) \
+    _(PHOENICIAN, Phnx) \
+    _(PHAGS_PA, Phag) \
+    _(NKO, Nkoo) \
+    _(SUNDANESE, Sund) \
+    _(LEPCHA, Lepc) \
+    _(OL_CHIKI, Olck) \
+    _(VAI, Vaii) \
+    _(SAURASHTRA, Saur) \
+    _(KAYAH_LI, Kali) \
+    _(REJANG, Rjng) \
+    _(LYCIAN, Lyci) \
+    _(CARIAN, Cari) \
+    _(LYDIAN, Lydi) \
+    _(CHAM, Cham) \
+    _(TAI_THAM, Lana) \
+    _(TAI_VIET, Tavt) \
+    _(AVESTAN, Avst) \
+    _(EGYPTIAN_HIEROGLYPHS, Egyp) \
+    _(SAMARITAN, Samr) \
+    _(LISU, Lisu) \
+    _(BAMUM, Bamu) \
+    _(JAVANESE, Java) \
+    _(MEETEI_MAYEK, Mtei) \
+    _(IMPERIAL_ARAMAIC, Armi) \
+    _(OLD_SOUTH_ARABIAN, Sarb) \
+    _(INSCRIPTIONAL_PARTHIAN, Prti) \
+    _(INSCRIPTIONAL_PAHLAVI, Phli) \
+    _(OLD_TURKIC, Orkh) \
+    _(KAITHI, Kthi) \
+    _(BATAK, Batk) \
+    _(BRAHMI, Brah) \
+    _(MANDAIC, Mand) \
+    _(CHAKMA, Cakm) \
+    _(MEROITIC_CURSIVE, Merc) \
+    _(MEROITIC_HIEROGLYPHS, Mero) \
+    _(MIAO, Plrd) \
+    _(SHARADA, Shrd) \
+    _(SORA_SOMPENG, Sora) \
+    _(TAKRI, Takr) \
+    _(CAUCASIAN_ALBANIAN, Aghb) \
+    _(BASSA_VAH, Bass) \
+    _(DUPLOYAN, Dupl) \
+    _(ELBASAN, Elba) \
+    _(GRANTHA, Gran) \
+    _(PAHAWH_HMONG, Hmng) \
+    _(KHOJKI, Khoj) \
+    _(LINEAR_A, Lina) \
+    _(MAHAJANI, Mahj) \
+    _(MANICHAEAN, Mani) \
+    _(MENDE_KIKAKUI, Mend) \
+    _(MODI, Modi) \
+    _(MRO, Mroo) \
+    _(OLD_NORTH_ARABIAN, Narb) \
+    _(NABATAEAN, Nbat) \
+    _(PALMYRENE, Palm) \
+    _(PAU_CIN_HAU, Pauc) \
+    _(OLD_PERMIC, Perm) \
+    _(PSALTER_PAHLAVI, Phlp) \
+    _(SIDDHAM, Sidd) \
+    _(KHUDAWADI, Sind) \
+    _(TIRHUTA, Tirh) \
+    _(WARANG_CITI, Wara) \
+    _(AHOM, Ahom) \
+    _(ANATOLIAN_HIEROGLYPHS, Hluw) \
+    _(HATRAN, Hatr) \
+    _(MULTANI, Mult) \
+    _(OLD_HUNGARIAN, Hung) \
+    _(SIGNWRITING, Sgnw) \
+    _(ADLAM, Adlm) \
+    _(BHAIKSUKI, Bhks) \
+    _(MARCHEN, Marc) \
+    _(NEWA, Newa) \
+    _(OSAGE, Osge) \
+    _(TANGUT, Tang) \
+    _(MASARAM_GONDI, Gonm) \
+    _(NUSHU, Nshu) \
+    _(SOYOMBO, Soyo) \
+    _(ZANABAZAR_SQUARE, Zanb) \
+    _(DOGRA, Dogr) \
+    _(GUNJALA_GONDI, Gong) \
+    _(MAKASAR, Maka) \
+    _(MEDEFAIDRIN, Medf) \
+    _(HANIFI_ROHINGYA, Rohg) \
+    _(SOGDIAN, Sogd) \
+    _(OLD_SOGDIAN, Sogo) \
+    _(ELYMAIC, Elym) \
+    _(NANDINAGARI, Nand) \
+    _(NYIAKENG_PUACHUE_HMONG, Hmnp) \
+    _(WANCHO, Wcho) \
+    _(CHORASMIAN, Chrs) \
+    _(DIVES_AKURU, Diak) \
+    _(KHITAN_SMALL_SCRIPT, Kits) \
+    _(YEZIDI, Yezi) \
+    _(CYPRO_MINOAN, Cpmn) \
+    _(OLD_UYGHUR, Ougr) \
+    _(TANGSA, Tnsa) \
+    _(TOTO, Toto) \
+    _(VITHKUQI, Vith) \
+    _(KAWI, Kawi) \
+    _(NAG_MUNDARI, Nagm) \
+    _(GARAY, Gara) \
+    _(GURUNG_KHEMA, Gukh) \
+    _(KIRAT_RAI, Krai) \
+    _(OL_ONAL, Onao) \
+    _(SUNUWAR, Sunu) \
+    _(TODHRI, Todr) \
+    _(TULU_TIGALARI, Tutg) \
 
 typedef enum {
 #define X(name, ...) OC_CAT2(OC_UNICODE_SCRIPT_, name),

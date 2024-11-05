@@ -18,6 +18,7 @@
 #include "stb/stb_image.h"
 
 #include "ext/fribidi/include/fribidi.h"
+#include "unicode_scripts.h"
 
 #include "graphics_common.h"
 #include "platform/platform_debug.h"
@@ -1316,14 +1317,27 @@ typedef struct oc_text_line
     oc_vec2* offsets;
 } oc_text_line;
 
-typedef struct oc_text_direction_run
+typedef struct oc_text_item
 {
     oc_list_elt listElt;
     u64 start;
     u64 end;
     oc_text_direction direction;
 
-} oc_text_direction_run;
+} oc_text_item;
+
+oc_unicode_script oc_unicode_script_for_codepoint(oc_utf32 codepoint)
+{
+    for(u64 i = 0; i < OC_UNICODE_SCRIPT_RANGE_COUNT; i++)
+    {
+        const oc_unicode_script_range* range = &OC_UNICODE_SCRIPT_RANGES[i];
+        if(codepoint >= range->start && codepoint <= range->end)
+        {
+            return range->script;
+        }
+    }
+    return (OC_UNICODE_SCRIPT_COMMON);
+}
 
 oc_text_line* oc_text_line_from_utf32(oc_arena* arena, oc_str32 codepoints, oc_text_attributes* attributes)
 {
@@ -1357,7 +1371,7 @@ oc_text_line* oc_text_line_from_utf32(oc_arena* arena, oc_str32 codepoints, oc_t
     {
         if((levels[i] != currentLevel))
         {
-            oc_text_direction_run* run = oc_arena_push_type(scratch.arena, oc_text_direction_run);
+            oc_text_item* run = oc_arena_push_type(scratch.arena, oc_text_item);
             run->start = runStart;
             run->end = i;
             run->direction = (currentLevel & 1) ? OC_TEXT_DIRECTION_RTL : OC_TEXT_DIRECTION_LTR;
@@ -1369,14 +1383,20 @@ oc_text_line* oc_text_line_from_utf32(oc_arena* arena, oc_str32 codepoints, oc_t
         }
     }
     //NOTE: push last run
-    oc_text_direction_run* run = oc_arena_push_type(scratch.arena, oc_text_direction_run);
+    oc_text_item* run = oc_arena_push_type(scratch.arena, oc_text_item);
     run->start = runStart;
     run->end = codepoints.len;
     run->direction = (currentLevel & 1) ? OC_TEXT_DIRECTION_RTL : OC_TEXT_DIRECTION_LTR;
     oc_list_push_back(&dirRuns, &run->listElt);
     runCount++;
 
-    //TODO: further split based on language / script, reversing RTL and BTT runs
+    //TODO: further split based on language / script,
+    oc_list_for(dirRuns, dirRun, oc_text_item, listElt)
+    {
+        oc_unicode_script script = oc_unicode_script_for_codepoint(codepoints.ptr[dirRun->start]);
+    }
+
+    //TODO: reverse sequences of RTL runs that were split
 
     //NOTE: allocate runs
     line->runCount = runCount;
@@ -1392,7 +1412,7 @@ oc_text_line* oc_text_line_from_utf32(oc_arena* arena, oc_str32 codepoints, oc_t
     //NOTE: Shape runs and compute offsets
     u64 runIndex = 0;
     oc_vec2 offset = { 0 };
-    oc_list_for(dirRuns, dirRun, oc_text_direction_run, listElt)
+    oc_list_for(dirRuns, dirRun, oc_text_item, listElt)
     {
         line->offsets[runIndex] = offset;
         line->attributes[runIndex] = *attributes;

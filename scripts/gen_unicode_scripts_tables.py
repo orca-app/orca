@@ -24,6 +24,7 @@ with open(args.scripts, "r") as f:
 entries = re.findall(r'^([0-9A-Fa-f]{3,5})(\.\.([0-9A-Fa-f]{3,5}))?[ ]*; ([^ ]*) \#.*', data, re.MULTILINE)
 
 table = []
+script_to_tag = {}
 
 for entry in entries:
     s = entry[0]
@@ -42,6 +43,9 @@ for entry in entries:
         exit(-1)
 
     table.append((int(s, 16), int(e, 16), name, tag))
+
+    if name not in script_to_tag:
+        script_to_tag[name] = tag
 
 # sort the table by range start and collate ranges
 table.sort()
@@ -83,8 +87,8 @@ with open(args.out, "w") as f:
     print("", file=f)
 
     print("#define OC_UNICODE_SCRIPTS(_) \\", file=f)
-    for line in table:
-        print(f"    _({line[2].upper()}, {hex(line[0])}, {hex(line[1])}, {line[3]}) \\", file=f)
+    for script, tag in script_to_tag.items():
+        print(f"    _({script.upper()}, {tag}) \\", file=f)
     print("", file=f)
 
     print("typedef enum {", file=f)
