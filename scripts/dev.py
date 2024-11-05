@@ -579,6 +579,15 @@ def build_fribidi(release=False):
                 "make"
             ], check=True)
 
+            # fix install name for macOS
+            if platform.system() == "Darwin":
+                subprocess.run([
+                    "install_name_tool",
+                    "-id", "libfribidi.dylib",
+                    "lib/.libs/libfribidi.dylib",
+                ], check=True)
+
+
             # build wasm
             source_files = glob.glob("lib/*.c");
 
@@ -1105,6 +1114,8 @@ def build_platform_layer_lib_win(release):
         "/DELAYLOAD:webgpu.dll",
         "libharfbuzz.dll.lib",
         "/DELAYLOAD:libharfbuzz.dll",
+        "libfribidi.dll.lib",
+        "/DELAYLOAD:libfribidi.dll",
     ]
 
     debug_flags = ["/O2", "/Zi"] if release else ["/Zi", "/DOC_DEBUG", "/DOC_LOG_COMPILE_DEBUG"]
@@ -1175,7 +1186,7 @@ def build_platform_layer_lib_mac(release):
         "build/orca_c.o", "build/orca_objc.o",
         "-Lbuild/bin", "-lc", "-lc++",
         "-framework", "Carbon", "-framework", "Cocoa", "-framework", "Metal", "-framework", "QuartzCore",
-        "-weak-lEGL", "-weak-lGLESv2", "-weak-lwebgpu", "-weak-lharfbuzz"
+        "-weak-lEGL", "-weak-lGLESv2", "-weak-lwebgpu", "-weak-lharfbuzz", "-weak-lfribidi",
     ], check=True)
 
     # change dependent libs path to @rpath
@@ -1193,6 +1204,12 @@ def build_platform_layer_lib_mac(release):
     subprocess.run([
         "install_name_tool",
         "-change", "libharfbuzz.dylib", "@rpath/libharfbuzz.dylib",
+        "build/bin/liborca.dylib",
+    ], check=True)
+
+    subprocess.run([
+        "install_name_tool",
+        "-change", "libfribidi.dylib", "@rpath/libfribidi.dylib",
         "build/bin/liborca.dylib",
     ], check=True)
 
@@ -1611,6 +1628,7 @@ def package_sdk_internal(dest, target):
         shutil.copy(os.path.join("build", "bin", "libGLESv2.dll"), bin_dir)
         shutil.copy(os.path.join("build", "bin", "webgpu.dll"), bin_dir)
         shutil.copy(os.path.join("build", "bin", "libharfbuzz.dll"), bin_dir)
+        shutil.copy(os.path.join("build", "bin", "libfribidi.dll"), bin_dir)
     else:
         shutil.copy(os.path.join("build", "bin", "orca"), bin_dir)
         shutil.copy(os.path.join("build", "bin", "orca_runtime"), bin_dir)
@@ -1620,6 +1638,7 @@ def package_sdk_internal(dest, target):
         shutil.copy(os.path.join("build", "bin", "libGLESv2.dylib"), bin_dir)
         shutil.copy(os.path.join("build", "bin", "libwebgpu.dylib"), bin_dir)
         shutil.copy(os.path.join("build", "bin", "libharfbuzz.dylib"), bin_dir)
+        shutil.copy(os.path.join("build", "bin", "libfribidi.dylib"), bin_dir)
 
     shutil.copytree(os.path.join("build", "orca-libc"), libc_dir, dirs_exist_ok=True)
     shutil.copytree("resources", res_dir, dirs_exist_ok=True)
