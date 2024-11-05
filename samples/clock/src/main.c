@@ -7,6 +7,7 @@
 **************************************************************************/
 #include <math.h>
 #include <orca.h>
+#include <fribidi/include/fribidi.h>
 
 const oc_str8 clockNumberStrings[] = {
     OC_STR8_LIT("12"),
@@ -47,6 +48,28 @@ ORCA_EXPORT void oc_on_init(void)
     context = oc_canvas_context_create();
 
     font = oc_font_create_from_path(OC_STR8("/segoeui.ttf"));
+
+    ////////////////////////////////
+    const char* text = "bahrain مصر kuwait";
+
+    oc_arena_scope scratch = oc_scratch_begin();
+    oc_str32 codepoints = oc_utf8_push_to_codepoints(scratch.arena, OC_STR8(text));
+
+    FriBidiParType baseDir = FRIBIDI_TYPE_LTR_VAL;
+    FriBidiLevel levels[256];
+
+    fribidi_log2vis(codepoints.ptr,
+                    codepoints.len,
+                    &baseDir,
+                    0, 0, 0,
+                    levels);
+
+    for(u64 i = 0; i < codepoints.len; i++)
+    {
+        oc_log_info("%i\n", levels[i]);
+    }
+
+    oc_scratch_end(scratch);
 }
 
 ORCA_EXPORT void oc_on_resize(u32 width, u32 height)

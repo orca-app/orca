@@ -1304,6 +1304,52 @@ void oc_text_draw_utf8(oc_str8 text, oc_font font, f32 fontSize)
     oc_scratch_end(scratch);
 }
 
+/////////////////////
+
+typedef struct oc_text_line
+{
+    u64 runCount;
+    oc_glyph_run* runs;
+    oc_text_attributes* attributes;
+    oc_vec2* offsets;
+} oc_text_line;
+
+oc_text_line* oc_text_line_from_utf32(oc_arena* arena, oc_str32 codepoints, oc_text_attributes* attributes)
+{
+    oc_arena_scope scratch = oc_scratch_begin_next(arena);
+
+    //TODO: split codepoints into directional runs
+    oc_str32_list list = { 0 };
+    for(u64 i = 0; i < codepoints.len; i++)
+    {
+    }
+
+    //TODO: further split based on language / script, reversing RTL and BTT runs
+
+    //TODO: Shape runs
+
+    //TODO: compute runs offsets
+
+    oc_scratch_end(scratch);
+}
+
+oc_text_line* oc_text_line_from_utf8(oc_arena* arena, oc_str8 string, oc_text_attributes* attributes)
+{
+    oc_arena_scope scratch = oc_scratch_begin_next(arena);
+    oc_str32 codepoints = oc_utf8_push_to_codepoints(scratch.arena, string);
+    oc_text_line* line = oc_text_line_from_utf32(arena, codepoints, attributes);
+    oc_scratch_end(scratch);
+    return (line);
+}
+
+/*
+oc_text_metrics oc_text_line_get_metrics(oc_text_line* line);
+u64 oc_text_line_codepoint_index_for_position(oc_text_line* line, oc_vec2 position);
+oc_vec2 oc_text_line_position_for_codepoint_index(oc_text_line* line, u64 index);
+
+void oc_text_line_draw(oc_text_line* line);
+*/
+
 //------------------------------------------------------------------------------------------
 //NOTE(martin): clear/fill/stroke
 //------------------------------------------------------------------------------------------

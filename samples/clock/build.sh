@@ -15,7 +15,7 @@ wasmFlags=(--target=wasm32 \
   -I "$ORCA_DIR"/src/ext)
 
 # build sample as wasm module and link it with the orca module
-clang "${wasmFlags[@]}" -L "$ORCA_DIR"/bin -lorca_wasm -o module.wasm src/main.c
+clang -v "${wasmFlags[@]}" -L "$ORCA_DIR"/bin -lorca_wasm -o module.wasm src/main.c
 
 # create app directory and copy files into it
 orca bundle --name Clock --icon icon.png --resource-dir data module.wasm

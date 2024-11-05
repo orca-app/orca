@@ -57,6 +57,10 @@ def attach_dev_commands(subparsers):
     sdk_cmd.add_argument("--release", action="store_true", help="compile in release mode (default is debug)")
     sdk_cmd.set_defaults(func=dev_shellish(build_sdk))
 
+    fribidi_cmd = subparsers.add_parser("build-fribidi", help="Build Fribidi.")
+    fribidi_cmd.add_argument("--release", action="store_true", help="compile in release mode (default is debug)")
+    fribidi_cmd.set_defaults(func=dev_shellish(build_fribidi))
+
     tool_cmd = subparsers.add_parser("build-tool", help="Build the Orca CLI tool from source.")
     tool_cmd.add_argument("--version", help="embed a version string in the Orca CLI tool (default is git commit hash)")
     tool_cmd.add_argument("--release", action="store_true", help="compile Orca CLI tool in release mode (default is debug)")
@@ -473,8 +477,236 @@ def build_angle_internal(release, force):
     print("Done")
 
 #------------------------------------------------------
+# build fribidi
+#------------------------------------------------------
+
+def check_fribidi():
+    print("Checking fribidi cache...", end="")
+
+    with open("deps/fribidi-commit.txt", "r") as f:
+        FRIBIDI_COMMIT = f.read().strip()
+
+    fribidi_ok = True
+
+    if not os.path.exists("build/fribidi.out/checksums.json"):
+        print("checksums.json not found")
+        fribidi_ok = False
+    else:
+        with pushd("build/fribidi.out"):
+            with open("checksums.json", "r") as f:
+                sums = json.load(f)
+
+            if "commit" not in sums:
+                print("commit not found in checksums.json")
+                fribidi_ok = False
+            elif sums["commit"] != FRIBIDI_COMMIT:
+                found = sums["commit"]
+                print(f"Cache does not match commit (expected {FRIBIDI_COMMIT}, found {found})")
+                fribidi_ok = False
+            elif "sums" not in sums:
+                print("sums not found in checksums.json")
+                fribidi_ok = False
+            else:
+                for entry in sums["sums"]:
+                    if "file" not in entry or "sum" not in entry:
+                        print("file or sum not found in cache entry")
+                        print(entry)
+                        fribidi_ok = False
+                        break
+
+                    if not os.path.exists(entry["file"]):
+                        f = entry["file"]
+                        print(f"file {f} does not exist in cache")
+                        fribidi_ok = False
+                        break
+
+                    fileSum = checksum.filesum(entry["file"])
+                    if fileSum != entry["sum"]:
+                        f = entry["file"]
+                        s = entry["sum"]
+                        print(f"file {f} does not match checksum (expected {s}, got {fileSum})")
+                        fribidi_ok = False
+                        break
+
+    if not fribidi_ok:
+        build_fribidi()
+    else:
+        print("ok")
+
+    # copy fribidi bin/includes
+    os.makedirs("src/ext/fribidi/include", exist_ok=True)
+    shutil.copytree("build/fribidi.out/include", "src/ext/fribidi/include", dirs_exist_ok=True)
+
+    for f in glob.glob("build/fribidi.out/bin/*"):
+        shutil.copy(f, "build/bin")
+
+
+def build_fribidi(release=False):
+    print("Building fribidi...")
+
+    with open("deps/fribidi-commit.txt", "r") as f:
+        FRIBIDI_COMMIT = f.read().strip()
+
+    os.makedirs("build/bin", exist_ok=True)
+
+    # check fribidi repo
+    with pushd("build"):
+        if not os.path.exists("fribidi"):
+            subprocess.run([
+                "git", "clone", "--no-tags", "--single-branch",
+                "https://github.com/fribidi/fribidi.git"
+            ], check=True)
+
+        with pushd("fribidi"):
+            subprocess.run([
+                "git", "fetch", "--no-tags"
+            ], check=True)
+
+            subprocess.run([
+                "git", "reset", "--hard", FRIBIDI_COMMIT
+            ], check=True)
+
+            # build native
+            subprocess.run([
+                "./autogen.sh"
+            ], check=True)
+
+            subprocess.run([
+                "./configure"
+            ], check=True)
+
+            subprocess.run([
+                "make"
+            ], check=True)
+
+            # build wasm
+            source_files = glob.glob("lib/*.c");
+
+            subprocess.run([
+                "clang",
+                "--target=wasm32",
+                "--no-standard-libraries",
+                "-mbulk-memory",
+                "-Wl,--no-entry",
+                "-Wl,--export-dynamic",
+                "-Wl,--relocatable",
+                "-DHAVE_CONFIG_H",
+                "-I.",
+                "-Ilib",
+                "-I../../src/orca-libc/include",
+                *source_files,
+                "-o", "libfribidi_wasm.a",
+            ], check=True)
+
+    # copying artifacts
+    os.makedirs("build/fribidi.out/bin", exist_ok=True)
+    os.makedirs("build/fribidi.out/include", exist_ok=True)
+
+    sums = []
+
+    if platform.system() == "Windows":
+        shutil.copy("build/fribidi/lib/.libs/libfribidi.dll", "build/fribidi.out/bin")
+        sums.append({
+            "file": "bin/libfribidi.dll",
+            "sum": checksum.filesum("build/fribidi.out/bin/libfribidi.dll")
+        })
+        shutil.copy("build/fribidi/lib/.libs/libfribidi.dll.lib", "build/fribidi.out/bin")
+        sums.append({
+            "file": "bin/libfribidi.dll.lib",
+            "sum": checksum.filesum("build/fribidi.out/bin/libfribidi.dll.lib")
+        })
+    else:
+        shutil.copy("build/fribidi/lib/.libs/libfribidi.dylib", "build/fribidi.out/bin")
+        sums.append({
+            "file": "bin/libfribidi.dylib",
+            "sum": checksum.filesum("build/fribidi.out/bin/libfribidi.dylib")
+        })
+
+    shutil.copy("build/fribidi/libfribidi_wasm.a", "build/fribidi.out/bin")
+    sums.append({
+        "file": "bin/libfribidi_wasm.a",
+        "sum": checksum.filesum("build/fribidi.out/bin/libfribidi_wasm.a")
+    })
+
+    for f in glob.iglob("build/fribidi/lib/*.h"):
+        shutil.copy(f, "build/fribidi.out/include")
+        sums.append({
+            "file": f"include/{os.path.basename(f)}",
+            "sum": checksum.filesum(f"build/fribidi.out/include/{os.path.basename(f)}")
+        })
+
+    # write checksums
+    with open("build/fribidi.out/checksums.json", "w") as f:
+        d = {
+            "commit" : FRIBIDI_COMMIT,
+            "sums": sums
+        }
+        json.dump(d, f)
+
+
+#------------------------------------------------------
 # build harfbuzz
 #------------------------------------------------------
+
+def check_harfbuzz():
+    print("Checking harfbuzz cache...", end="")
+
+    with open("deps/harfbuzz-commit.txt", "r") as f:
+        HARFBUZZ_COMMIT = f.read().strip()
+
+    harfbuzz_ok = True
+
+    if not os.path.exists("build/harfbuzz.out/checksums.json"):
+        print("checksums.json not found")
+        harfbuzz_ok = False
+    else:
+        with pushd("build/harfbuzz.out"):
+            with open("checksums.json", "r") as f:
+                sums = json.load(f)
+
+            if "commit" not in sums:
+                print("commit not found in checksums.json")
+                harfbuzz_ok = False
+            elif sums["commit"] != HARFBUZZ_COMMIT:
+                found = sums["commit"]
+                print(f"Cache does not match commit (expected {HARFBUZZ_COMMIT}, found {found})")
+                harfbuzz_ok = False
+            elif "sums" not in sums:
+                print("sums not found in checksums.json")
+                harfbuzz_ok = False
+            else:
+                for entry in sums["sums"]:
+                    if "file" not in entry or "sum" not in entry:
+                        print("file or sum not found in cache entry")
+                        print(entry)
+                        harfbuzz_ok = False
+                        break
+
+                    if not os.path.exists(entry["file"]):
+                        f = entry["file"]
+                        print(f"file {f} does not exist in cache")
+                        harfbuzz_ok = False
+                        break
+
+                    fileSum = checksum.filesum(entry["file"])
+                    if fileSum != entry["sum"]:
+                        f = entry["file"]
+                        s = entry["sum"]
+                        print(f"file {f} does not match checksum (expected {s}, got {fileSum})")
+                        harfbuzz_ok = False
+                        break
+
+    if not harfbuzz_ok:
+        build_harfbuzz()
+    else:
+        print("ok")
+
+    # copy harfbuzz bin/includes
+    os.makedirs("src/ext/harfbuzz/include", exist_ok=True)
+    shutil.copytree("build/harfbuzz.out/include", "src/ext/harfbuzz/include", dirs_exist_ok=True)
+
+    for f in glob.glob("build/harfbuzz.out/bin/*"):
+        shutil.copy(f, "build/bin")
 
 def build_harfbuzz():
     print("Building harfbuzz...")
@@ -519,15 +751,40 @@ def build_harfbuzz():
                 ], check=True)
 
 
-    # copying artifacts
-    shutil.copy(f"build/harfbuzz/{libname}", "build/bin")
+    # copying artifacts and computing checksums
+    sums = []
+
+    os.makedirs("build/harfbuzz.out/bin", exist_ok=True)
+    os.makedirs("build/harfbuzz.out/include", exist_ok=True)
+
+    shutil.copy(f"build/harfbuzz/{libname}", "build/harfbuzz.out/bin")
+    sums.append({
+        "file": f"bin/{libname}",
+        "sum": checksum.filesum(f"build/harfbuzz.out/bin/{libname}")
+    })
 
     if platform.system() == "Windows":
-        shutil.copy("build/harfbuzz/libharfbuzz.dll.lib", "build/bin")
+        shutil.copy("build/harfbuzz/libharfbuzz.dll.lib", "build/harfbuzz.out/bin")
+        sums.append({
+            "file": f"bin/libharfbuzz.dll.lib",
+            "sum": checskum.filesum(f"build/harfbuzz.out/bin/libharfbuzz.dll.lib")
+        })
 
-    os.makedirs("src/ext/harfbuzz/include", exist_ok=True)
     for f in glob.iglob("build/harfbuzz/src/*.h"):
-        shutil.copy(f, "src/ext/harfbuzz/include")
+        shutil.copy(f, "build/harfbuzz.out/include")
+        sums.append({
+            "file": f"include/{os.path.basename(f)}",
+            "sum": checksum.filesum(f"build/harfbuzz.out/include/{os.path.basename(f)}")
+        })
+
+    # write checksums
+    with open("build/harfbuzz.out/checksums.json", "w") as f:
+        d = {
+            "commit" : HARFBUZZ_COMMIT,
+            "sums": sums
+        }
+
+        json.dump(d, f)
 
 
 #------------------------------------------------------
@@ -752,7 +1009,8 @@ def build_platform_layer_internal(release):
 
     # build harfbuzz
     #TODO: skip if already built
-    build_harfbuzz()
+    check_harfbuzz()
+    check_fribidi()
 
     print("Building Orca platform layer...")
 
@@ -1032,7 +1290,7 @@ def build_sdk_internal(release):
     subprocess.run([
         clang, *flags, *includes,
          "-o", "build/bin/liborca_wasm.a",
-         "src/orca.c"
+         "src/orca.c", "build/bin/libfribidi_wasm.a"
     ], check=True)
 
 #------------------------------------------------------
