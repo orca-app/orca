@@ -17,6 +17,8 @@
 #endif
 #include "stb/stb_image.h"
 
+#include "ext/fribidi/include/fribidi.h"
+
 #include "graphics_common.h"
 #include "platform/platform_debug.h"
 #include "util/algebra.h"
@@ -1309,28 +1311,102 @@ void oc_text_draw_utf8(oc_str8 text, oc_font font, f32 fontSize)
 typedef struct oc_text_line
 {
     u64 runCount;
-    oc_glyph_run* runs;
+    oc_glyph_run** runs; //TODO: could be just an array of glyph_runs if we change glyph run creation to take a run struct to init..
     oc_text_attributes* attributes;
     oc_vec2* offsets;
 } oc_text_line;
 
+typedef struct oc_text_direction_run
+{
+    oc_list_elt listElt;
+    u64 start;
+    u64 end;
+    oc_text_direction direction;
+
+} oc_text_direction_run;
+
 oc_text_line* oc_text_line_from_utf32(oc_arena* arena, oc_str32 codepoints, oc_text_attributes* attributes)
 {
+    oc_text_line* line = oc_arena_push_type(arena, oc_text_line);
+    memset(line, 0, sizeof(oc_text_line));
+
+    if(codepoints.len == 0)
+    {
+        return (line);
+    }
+
     oc_arena_scope scratch = oc_scratch_begin_next(arena);
 
-    //TODO: split codepoints into directional runs
-    oc_str32_list list = { 0 };
+    //NOTE: use fribidi to get bidi embedding levels
+    FriBidiParType baseDir = FRIBIDI_TYPE_LTR_VAL;
+    FriBidiLevel* levels = oc_arena_push_array(scratch.arena, FriBidiLevel, codepoints.len);
+
+    fribidi_log2vis(codepoints.ptr,
+                    codepoints.len,
+                    &baseDir,
+                    0, 0, 0,
+                    levels);
+
+    //NOTE: push runs of contiguous embedding level
+    oc_list dirRuns = { 0 };
+    u64 runCount = 0;
+    FriBidiLevel currentLevel = levels[0];
+    u64 runStart = 0;
+
     for(u64 i = 0; i < codepoints.len; i++)
     {
+        if((levels[i] != currentLevel))
+        {
+            oc_text_direction_run* run = oc_arena_push_type(scratch.arena, oc_text_direction_run);
+            run->start = runStart;
+            run->end = i;
+            run->direction = (currentLevel & 1) ? OC_TEXT_DIRECTION_RTL : OC_TEXT_DIRECTION_LTR;
+            oc_list_push_back(&dirRuns, &run->listElt);
+            runCount++;
+
+            runStart = i;
+            currentLevel = levels[i];
+        }
     }
+    //NOTE: push last run
+    oc_text_direction_run* run = oc_arena_push_type(scratch.arena, oc_text_direction_run);
+    run->start = runStart;
+    run->end = codepoints.len;
+    run->direction = (currentLevel & 1) ? OC_TEXT_DIRECTION_RTL : OC_TEXT_DIRECTION_LTR;
+    oc_list_push_back(&dirRuns, &run->listElt);
+    runCount++;
 
     //TODO: further split based on language / script, reversing RTL and BTT runs
 
-    //TODO: Shape runs
+    //NOTE: allocate runs
+    line->runCount = runCount;
+    line->runs = oc_arena_push_array(arena, oc_glyph_run*, runCount);
+    memset(line->runs, 0, sizeof(oc_glyph_run*) * runCount);
 
-    //TODO: compute runs offsets
+    line->offsets = oc_arena_push_array(arena, oc_vec2, runCount);
+    memset(line->offsets, 0, sizeof(oc_vec2) * runCount);
+
+    line->attributes = oc_arena_push_array(arena, oc_text_attributes, runCount);
+    memset(line->attributes, 0, sizeof(oc_text_attributes) * runCount);
+
+    //NOTE: Shape runs and compute offsets
+    u64 runIndex = 0;
+    oc_vec2 offset = { 0 };
+    oc_list_for(dirRuns, dirRun, oc_text_direction_run, listElt)
+    {
+        line->offsets[runIndex] = offset;
+        line->attributes[runIndex] = *attributes;
+        line->runs[runIndex] = oc_text_shape(arena, attributes->font, 0, codepoints, dirRun->start, dirRun->end);
+
+        f32 scale = oc_font_get_scale_for_em_pixels(attributes->font, attributes->fontSize);
+        oc_vec2 advance = oc_vec2_mul(scale, line->runs[runIndex]->metrics.advance);
+        offset = oc_vec2_add(offset, advance);
+        runIndex++;
+    }
 
     oc_scratch_end(scratch);
+
+    return (line);
 }
 
 oc_text_line* oc_text_line_from_utf8(oc_arena* arena, oc_str8 string, oc_text_attributes* attributes)
@@ -1347,8 +1423,19 @@ oc_text_metrics oc_text_line_get_metrics(oc_text_line* line);
 u64 oc_text_line_codepoint_index_for_position(oc_text_line* line, oc_vec2 position);
 oc_vec2 oc_text_line_position_for_codepoint_index(oc_text_line* line, u64 index);
 
-void oc_text_line_draw(oc_text_line* line);
 */
+
+void oc_text_line_draw(oc_text_line* line)
+{
+    for(u64 i = 0; i < line->runCount; i++)
+    {
+        oc_glyph_run* run = line->runs[i];
+        oc_text_attributes* attributes = &line->attributes[i];
+
+        oc_set_color(attributes->color);
+        oc_text_draw_run(run, line->attributes[i].fontSize);
+    }
+}
 
 //------------------------------------------------------------------------------------------
 //NOTE(martin): clear/fill/stroke

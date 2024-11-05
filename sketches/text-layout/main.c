@@ -156,9 +156,6 @@ int main()
         oc_set_color_rgba(0, 1, 1, 1);
         oc_clear();
 
-        oc_set_font(romanFont);
-        oc_set_font_size(fontSize);
-
         oc_font_metrics metrics = oc_font_get_metrics(romanFont, fontSize);
 
         oc_vec2 origin = { 100, 100 };
@@ -295,6 +292,20 @@ int main()
                                               0,
                                               codepoints.len);
             oc_text_draw_run(run, fontSize);
+        }
+
+        {
+            oc_move_to(500, 500);
+
+            oc_text_line* line = oc_text_line_from_utf8(scratch.arena,
+                                                        OC_STR8("bahrain مصر kuwait"),
+                                                        &(oc_text_attributes){
+                                                            .font = arabicFont,
+                                                            .fontSize = fontSize,
+                                                            .color = { 0, 0, 0, 1 },
+                                                        });
+
+            oc_text_line_draw(line);
         }
 
         oc_canvas_render(renderer, context, surface);

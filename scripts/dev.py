@@ -567,6 +567,9 @@ def build_fribidi(release=False):
             ], check=True)
 
             # build native
+            ############################################################
+            #TODO: sort out what we should do on Windows
+            ############################################################
             subprocess.run([
                 "./autogen.sh"
             ], check=True)

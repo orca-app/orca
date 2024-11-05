@@ -14,5 +14,6 @@ clang -g $FLAGS $LIBS $INCLUDES -o $BINDIR/text_layout main.c
 
 cp $LIBDIR/liborca.dylib $BINDIR/
 cp $LIBDIR/libwebgpu.dylib $BINDIR/
+cp $LIBDIR/libfribidi.dylib $BINDIR/
 
 install_name_tool -add_rpath "@executable_path" $BINDIR/text_layout
