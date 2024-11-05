@@ -128,9 +128,7 @@ jobs:
 
       - name: install autotools
         run: |
-          which clang
           brew install autoconf automake libtool
-          which clang
 
       - uses: actions/checkout@v4
 
