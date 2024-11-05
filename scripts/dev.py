@@ -790,7 +790,7 @@ def build_harfbuzz():
         shutil.copy("build/harfbuzz/libharfbuzz.dll.lib", "build/harfbuzz.out/bin")
         sums.append({
             "file": f"bin/libharfbuzz.dll.lib",
-            "sum": checskum.filesum(f"build/harfbuzz.out/bin/libharfbuzz.dll.lib")
+            "sum": checksum.filesum(f"build/harfbuzz.out/bin/libharfbuzz.dll.lib")
         })
 
     for f in glob.iglob("build/harfbuzz/src/*.h"):
