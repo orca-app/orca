@@ -195,7 +195,7 @@ int winBundle(
     oc_str8 eglLib = oc_path_append(a, sdkDir, OC_STR8("bin/libEGL.dll"));
     oc_str8 wgpuLib = oc_path_append(a, sdkDir, OC_STR8("bin/webgpu.dll"));
     oc_str8 harfbuzzLib = oc_path_append(a, sdkDir, OC_STR8("bin/libharfbuzz.dll"));
-    oc_str8 fribidiLib = oc_path_append(a, sdkDir, OC_STR8("bin/libhfribidi.dll"));
+    oc_str8 fribidiLib = oc_path_append(a, sdkDir, OC_STR8("bin/fribidi-0.dll"));
 
     TRY(oc_sys_copy(orcaLib, exeDir));
     TRY(oc_sys_copy(glesLib, exeDir));
