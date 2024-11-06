@@ -1,6 +1,7 @@
 import glob
 import os
 import sys
+import sysconfig
 import platform
 import re
 import urllib.request
@@ -570,25 +571,68 @@ def build_fribidi(release=False):
             ############################################################
             #TODO: sort out what we should do on Windows
             ############################################################
-            subprocess.run([
-                "./autogen.sh"
-            ], check=True)
+            if platform.system() == "Windows":
+                pythonScriptsPath = sysconfig.get_path('scripts', f'{os.name}_user')
 
-            subprocess.run([
-                "./configure"
-            ], check=True)
+                meson = "meson"
 
-            subprocess.run([
-                "make"
-            ], check=True)
+                try:
+                    subprocess.run(["meson"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                except FileNotFoundError:
+                    print("meson not found, installing...")
+                    subprocess.run([
+                        "python", "-m", "pip", "install", "meson"
+                    ], check=True)
 
-            # fix install name for macOS
-            if platform.system() == "Darwin":
+                try:
+                    subprocess.run(["meson"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                except FileNotFoundError:
+                    meson = os.path.join(pythonScriptsPath, "meson.exe")
+
+
+                yeetdir("build")
+
                 subprocess.run([
-                    "install_name_tool",
-                    "-id", "libfribidi.dylib",
-                    "lib/.libs/libfribidi.dylib",
+                    meson, "setup", "build", "-Ddocs=false"
                 ], check=True)
+
+                subprocess.run([
+                    meson, "compile", "-C", "build"
+                ], check=True)
+
+                # meson puts stuff in build/lib, copy it over to the same place as its put on mac
+                os.makedirs("lib/.libs", exist_ok=True)
+
+                shutil.copy("build/lib/fribidi-0.dll", "lib/.libs/")
+                shutil.copy("build/lib/fribidi.lib", "lib/.libs/")
+                shutil.copy("build/config.h", ".")
+                shutil.copy("build/lib/fribidi-config.h", "lib")
+
+                for f in glob.glob("build/gen.tab/*.i"):
+                    shutil.copy(f, ".")
+
+                shutil.copy("build/gen.tab/fribidi-unicode-version.h", "lib")
+
+            else:
+                subprocess.run([
+                    "./autogen.sh"
+                ], check=True)
+
+                subprocess.run([
+                    "./configure"
+                ], check=True)
+
+                subprocess.run([
+                    "make"
+                ], check=True)
+
+                # fix install name for macOS
+                if platform.system() == "Darwin":
+                    subprocess.run([
+                        "install_name_tool",
+                        "-id", "libfribidi.dylib",
+                        "lib/.libs/libfribidi.dylib",
+                    ], check=True)
 
 
             # build wasm
@@ -611,15 +655,20 @@ def build_fribidi(release=False):
             subprocess.run([
                 clang,
                 "--target=wasm32",
-                "--no-standard-libraries",
+                "--no-standard-libraries", "-I../../src/orca-libc/include",
                 "-mbulk-memory",
                 "-Wl,--no-entry",
                 "-Wl,--export-dynamic",
                 "-Wl,--relocatable",
-                "-DHAVE_CONFIG_H",
+                "-DHAVE_STRINGIZE=1",
+                "-DHAVE_STRING_H=1",
+                "-DHAVE_STRINGS_H=1",
+                "-DHAVE_MEMMOVE",
+                "-DHAVE_MEMSET",
+                "-DHAVE_STDLIB_H=1",
+                "-DHAVE_STRDUP",
                 "-I.",
                 "-Ilib",
-                "-I../../src/orca-libc/include",
                 *source_files,
                 "-o", "libfribidi_wasm.a",
             ], check=True)
@@ -631,15 +680,15 @@ def build_fribidi(release=False):
     sums = []
 
     if platform.system() == "Windows":
-        shutil.copy("build/fribidi/lib/.libs/libfribidi.dll", "build/fribidi.out/bin")
+        shutil.copy("build/fribidi/lib/.libs/fribidi-0.dll", "build/fribidi.out/bin")
         sums.append({
-            "file": "bin/libfribidi.dll",
-            "sum": checksum.filesum("build/fribidi.out/bin/libfribidi.dll")
+            "file": "bin/fribidi-0.dll",
+            "sum": checksum.filesum("build/fribidi.out/bin/fribidi-0.dll")
         })
-        shutil.copy("build/fribidi/lib/.libs/libfribidi.dll.lib", "build/fribidi.out/bin")
+        shutil.copy("build/fribidi/lib/.libs/fribidi.lib", "build/fribidi.out/bin")
         sums.append({
-            "file": "bin/libfribidi.dll.lib",
-            "sum": checksum.filesum("build/fribidi.out/bin/libfribidi.dll.lib")
+            "file": "bin/fribidi.lib",
+            "sum": checksum.filesum("build/fribidi.out/bin/fribidi.lib")
         })
     else:
         shutil.copy("build/fribidi/lib/.libs/libfribidi.dylib", "build/fribidi.out/bin")
@@ -1131,8 +1180,8 @@ def build_platform_layer_lib_win(release):
         "/DELAYLOAD:webgpu.dll",
         "libharfbuzz.dll.lib",
         "/DELAYLOAD:libharfbuzz.dll",
-        "libfribidi.dll.lib",
-        "/DELAYLOAD:libfribidi.dll",
+        "fribidi.lib",
+        "/DELAYLOAD:fribidi-0.dll",
     ]
 
     debug_flags = ["/O2", "/Zi"] if release else ["/Zi", "/DOC_DEBUG", "/DOC_LOG_COMPILE_DEBUG"]
@@ -1645,7 +1694,7 @@ def package_sdk_internal(dest, target):
         shutil.copy(os.path.join("build", "bin", "libGLESv2.dll"), bin_dir)
         shutil.copy(os.path.join("build", "bin", "webgpu.dll"), bin_dir)
         shutil.copy(os.path.join("build", "bin", "libharfbuzz.dll"), bin_dir)
-        shutil.copy(os.path.join("build", "bin", "libfribidi.dll"), bin_dir)
+        shutil.copy(os.path.join("build", "bin", "fribidi-0.dll"), bin_dir)
     else:
         shutil.copy(os.path.join("build", "bin", "orca"), bin_dir)
         shutil.copy(os.path.join("build", "bin", "orca_runtime"), bin_dir)

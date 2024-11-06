@@ -38,7 +38,7 @@ cmd command = CMD_NONE;
 
 void log_push(const char* line)
 {
-    oc_str8_list_push(&logArena, &logLines, (oc_str8)OC_STR8(line));
+    oc_str8_list_push(&logArena, &logLines, OC_STR8(line));
 }
 
 void log_pushf(const char* format, ...)

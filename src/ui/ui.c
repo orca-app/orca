@@ -4386,7 +4386,7 @@ oc_ui_palette OC_UI_DARK_PALETTE = {
     .white = { 1, 1, 1, 1, OC_COLOR_SPACE_SRGB }
 };
 
-oc_ui_theme OC_UI_DARK_THEME = {
+ORCA_API oc_ui_theme OC_UI_DARK_THEME = {
     .white = { 0.894, 0.906, 0.961, 1, OC_COLOR_SPACE_SRGB },
     .primary = { 0.33, 0.66, 1, 1, OC_COLOR_SPACE_SRGB },       // blue5
     .primaryHover = { 0.5, 0.757, 1, 1, OC_COLOR_SPACE_SRGB },  // blue6
@@ -4577,7 +4577,7 @@ oc_ui_palette OC_UI_LIGHT_PALETTE = {
     .white = { 1, 1, 1, 1, OC_COLOR_SPACE_SRGB }
 };
 
-oc_ui_theme OC_UI_LIGHT_THEME = {
+ORCA_API oc_ui_theme OC_UI_LIGHT_THEME = {
     .white = { 1, 1, 1, 1, OC_COLOR_SPACE_SRGB },
     .primary = { 0.000, 0.392, 0.980, 1, OC_COLOR_SPACE_SRGB },       // blue5
     .primaryHover = { 0.000, 0.384, 0.839, 1, OC_COLOR_SPACE_SRGB },  // blue6

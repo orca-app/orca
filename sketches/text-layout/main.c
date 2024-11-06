@@ -210,38 +210,7 @@ int main()
 
         {
             oc_move_to(origin.x, origin.y);
-            oc_set_color_rgba(0, 0, 0, 1);
 
-            /*
-            oc_str32 codepoints = oc_utf8_push_to_codepoints(scratch.arena, text);
-            oc_glyph_run* run = oc_text_shape(scratch.arena, zapFont, 0, codepoints, 0, codepoints.len);
-            oc_text_draw_run(run, fontSize);
-
-            if(mouseClicked)
-            {
-                cursor = oc_glyph_run_point_to_cursor(run, fontSize, oc_vec2_sub(mousePoint, origin));
-            }
-
-            //TODO: move to next/prev utf8 char.
-            //TODO: when we do grapheme segmentation, move to next grapheme
-            if(moveCursor == 1 && cursor <= text.len)
-            {
-                cursor = oc_min(cursor + 1, text.len);
-            }
-            else if(moveCursor == -1 && cursor > 0)
-            {
-                cursor--;
-            }
-
-            oc_vec2 pos = oc_glyph_run_cursor_to_point(run, fontSize, cursor);
-            oc_move_to(origin.x + pos.x, origin.y + pos.y + metrics.descent);
-            oc_line_to(origin.x + pos.x, origin.y + pos.y - metrics.ascent);
-            oc_set_color_rgba(0, 0, 0, 1);
-            oc_set_width(1);
-            oc_stroke();
-
-            //oc_text_draw_utf8(text, font, fontSize);
-            */
             oc_text_line* line = oc_text_line_from_utf8(scratch.arena,
                                                         text,
                                                         &(oc_text_attributes){
@@ -276,6 +245,7 @@ int main()
             oc_stroke();
         }
 
+        /*
         {
             oc_move_to(200, 300);
             oc_line_to(300, 300);
@@ -290,7 +260,7 @@ int main()
 
             oc_str32 codepoints = oc_utf8_push_to_codepoints(scratch.arena, OC_STR8("以呂波耳本部止"));
 
-            oc_glyph_run* run = oc_text_shape(scratch.arena,
+            oc_text_run* run = oc_text_shape(scratch.arena,
                                               japaneseFont,
                                               &(oc_text_shape_settings){
                                                   .direction = OC_TEXT_DIRECTION_TTB,
@@ -333,6 +303,7 @@ int main()
             oc_set_text_flip(false);
             oc_matrix_pop();
         }
+        */
 
         {
             oc_move_to(500, 400);
@@ -347,15 +318,14 @@ int main()
 
             oc_str32 codepoints = oc_utf8_push_to_codepoints(scratch.arena, OC_STR8("مرحبا"));
 
-            oc_glyph_run* run = oc_text_shape(scratch.arena,
-                                              arabicFont,
-                                              &(oc_text_shape_settings){
-                                                  .direction = OC_TEXT_DIRECTION_RTL,
-                                              },
-                                              codepoints,
-                                              0,
-                                              codepoints.len);
-            oc_text_draw_run(run, fontSize);
+            oc_text_line* line = oc_text_line_from_utf32(scratch.arena,
+                                                         codepoints,
+                                                         &(oc_text_attributes){
+                                                             .font = arabicFont,
+                                                             .fontSize = fontSize,
+                                                             .color = { 0, 0, 0, 1 },
+                                                         });
+            oc_text_line_draw(line);
         }
 
         {
