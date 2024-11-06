@@ -1214,8 +1214,8 @@ oc_text_metrics oc_glyph_run_range_metrics(oc_glyph_run* run, f32 fontSize, u64 
     if(run->graphemeCount)
     {
         //TODO: should we have full grapheme metrics here?
-        metrics.logical.x = run->graphemes[beginGraphemeIndex].position.x;
-        metrics.logical.w = run->graphemes[endGraphemeIndex].position.x - metrics.logical.x;
+        metrics.logical.x = run->graphemes[beginGraphemeIndex].metrics.logical.x;
+        metrics.logical.w = run->graphemes[endGraphemeIndex].metrics.logical.x - metrics.logical.x;
     }
     //TODO: ink
 
@@ -1241,7 +1241,7 @@ u64 oc_glyph_run_point_to_cursor(oc_glyph_run* run, f32 fontSize, oc_vec2 point)
     u64 graphemeIndex = 0;
     for(; graphemeIndex < run->graphemeCount; graphemeIndex++)
     {
-        if(run->graphemes[graphemeIndex].position.x * scale > point.x)
+        if(run->graphemes[graphemeIndex].metrics.logical.x * scale > point.x)
         {
             break;
         }
@@ -1253,8 +1253,8 @@ u64 oc_glyph_run_point_to_cursor(oc_glyph_run* run, f32 fontSize, oc_vec2 point)
 
     if(graphemeIndex < run->graphemeCount - 1)
     {
-        f32 width = scale * (run->graphemes[graphemeIndex + 1].position.x - run->graphemes[graphemeIndex].position.x);
-        f32 offset = point.x - scale * run->graphemes[graphemeIndex].position.x;
+        f32 width = scale * (run->graphemes[graphemeIndex + 1].metrics.logical.x - run->graphemes[graphemeIndex].metrics.logical.x);
+        f32 offset = point.x - scale * run->graphemes[graphemeIndex].metrics.logical.x;
         if(offset > width / 2)
         {
             graphemeIndex++;
@@ -1268,21 +1268,19 @@ oc_vec2 oc_glyph_run_cursor_to_point(oc_glyph_run* run, f32 fontSize, u64 cursor
 {
     //NOTE: find closest grapheme boundary for cursor
     //TODO: better search
-    u64 graphemeIndex = 0;
-    for(; graphemeIndex < run->graphemeCount; graphemeIndex++)
+
+    oc_vec2 pos = { 0 };
+    for(u64 graphemeIndex = 0; graphemeIndex < run->graphemeCount; graphemeIndex++)
     {
-        if(run->graphemes[graphemeIndex].offset > cursor)
+        if(run->graphemes[graphemeIndex].offset >= cursor)
         {
             break;
         }
+        pos = oc_vec2_add(pos, run->graphemes[graphemeIndex].metrics.advance);
     }
-    if(graphemeIndex > 0)
-    {
-        graphemeIndex--;
-    }
-    //NOTE: return scaled position of grapheme
+
     f32 scale = oc_font_get_scale_for_em_pixels(run->font, fontSize);
-    oc_vec2 pos = oc_vec2_mul(scale, run->graphemes[graphemeIndex].position);
+    pos = oc_vec2_mul(scale, pos);
     return (pos);
 }
 
@@ -1315,6 +1313,8 @@ typedef struct oc_text_line
     oc_glyph_run** runs; //TODO: could be just an array of glyph_runs if we change glyph run creation to take a run struct to init..
     oc_text_attributes* attributes;
     oc_vec2* offsets;
+
+    oc_text_metrics metrics;
 } oc_text_line;
 
 typedef struct oc_text_item
@@ -1323,6 +1323,7 @@ typedef struct oc_text_item
     u64 start;
     u64 end;
     oc_text_direction direction;
+    oc_unicode_script script;
 
 } oc_text_item;
 
@@ -1390,13 +1391,50 @@ oc_text_line* oc_text_line_from_utf32(oc_arena* arena, oc_str32 codepoints, oc_t
     oc_list_push_back(&dirRuns, &run->listElt);
     runCount++;
 
-    //TODO: further split based on language / script,
+    //NOTE: further split based on script
+    //TODO: also split based on style
+
+    oc_list scriptRuns = { 0 };
+    runCount = 0;
     oc_list_for(dirRuns, dirRun, oc_text_item, listElt)
     {
-        oc_unicode_script script = oc_unicode_script_for_codepoint(codepoints.ptr[dirRun->start]);
-    }
+        oc_unicode_script currentScript = oc_unicode_script_for_codepoint(codepoints.ptr[dirRun->start]);
+        u64 runStart = dirRun->start;
+        for(u64 i = dirRun->start; i < dirRun->end; i++)
+        {
+            oc_unicode_script script = oc_unicode_script_for_codepoint(codepoints.ptr[i]);
+            if(currentScript == OC_UNICODE_SCRIPT_COMMON || currentScript == OC_UNICODE_SCRIPT_INHERITED)
+            {
+                currentScript = script;
+            }
 
-    //TODO: reverse sequences of RTL runs that were split
+            if(script != currentScript
+               && script != OC_UNICODE_SCRIPT_COMMON
+               && script != OC_UNICODE_SCRIPT_INHERITED)
+            {
+                oc_text_item* item = oc_arena_push_type(scratch.arena, oc_text_item);
+                item->start = runStart;
+                item->end = i;
+                item->direction = dirRun->direction;
+                item->script = currentScript;
+                oc_list_push_back(&scriptRuns, &item->listElt);
+                runCount++;
+
+                runStart = i;
+                currentScript = script;
+            }
+        }
+        //NOTE: push last script run
+        oc_text_item* item = oc_arena_push_type(scratch.arena, oc_text_item);
+        item->start = runStart;
+        item->end = dirRun->end;
+        item->direction = dirRun->direction;
+        item->script = currentScript;
+        oc_list_push_back(&scriptRuns, &item->listElt);
+        runCount++;
+
+        //TODO: reverse sequences of RTL runs that were split
+    }
 
     //NOTE: allocate runs
     line->runCount = runCount;
@@ -1409,20 +1447,59 @@ oc_text_line* oc_text_line_from_utf32(oc_arena* arena, oc_str32 codepoints, oc_t
     line->attributes = oc_arena_push_array(arena, oc_text_attributes, runCount);
     memset(line->attributes, 0, sizeof(oc_text_attributes) * runCount);
 
-    //NOTE: Shape runs and compute offsets
+    //NOTE: Shape runs and compute offsets and metrics
+    f32 inkX0 = 0;
+    f32 inkY0 = 0;
+    f32 inkX1 = 0;
+    f32 inkY1 = 0;
+
+    f32 logicalX0 = 0;
+    f32 logicalY0 = 0;
+    f32 logicalX1 = 0;
+    f32 logicalY1 = 0;
+
     u64 runIndex = 0;
     oc_vec2 offset = { 0 };
-    oc_list_for(dirRuns, dirRun, oc_text_item, listElt)
+    oc_list_for(scriptRuns, item, oc_text_item, listElt)
     {
         line->offsets[runIndex] = offset;
         line->attributes[runIndex] = *attributes;
-        line->runs[runIndex] = oc_text_shape(arena, attributes->font, 0, codepoints, dirRun->start, dirRun->end);
+        line->runs[runIndex] = oc_text_shape(arena, attributes->font, 0, codepoints, item->start, item->end);
 
         f32 scale = oc_font_get_scale_for_em_pixels(attributes->font, attributes->fontSize);
+        oc_text_metrics runMetrics = line->runs[runIndex]->metrics;
+
         oc_vec2 advance = oc_vec2_mul(scale, line->runs[runIndex]->metrics.advance);
         offset = oc_vec2_add(offset, advance);
+
+        inkX0 = oc_min(inkX0, offset.x + runMetrics.ink.x * scale);
+        inkY0 = oc_min(inkY0, offset.y + runMetrics.ink.y * scale);
+        inkX1 = oc_max(inkX1, offset.x + (runMetrics.ink.x + runMetrics.ink.w) * scale);
+        inkY1 = oc_max(inkY1, offset.y + (runMetrics.ink.y + runMetrics.ink.h) * scale);
+
+        logicalX0 = oc_min(logicalX0, offset.x + runMetrics.logical.x * scale);
+        logicalY0 = oc_min(logicalY0, offset.y + runMetrics.logical.y * scale);
+        logicalX1 = oc_max(logicalX1, offset.x + (runMetrics.logical.x + runMetrics.logical.w) * scale);
+        logicalY1 = oc_max(logicalY1, offset.y + (runMetrics.logical.y + runMetrics.logical.h) * scale);
+
         runIndex++;
     }
+
+    line->metrics.ink = (oc_rect){
+        inkX0,
+        inkY0,
+        inkX1 - inkX0,
+        inkY1 - inkY0,
+    };
+
+    line->metrics.logical = (oc_rect){
+        logicalX0,
+        logicalY0,
+        logicalX1 - logicalX0,
+        logicalY1 - logicalY0,
+    };
+
+    line->metrics.advance = offset;
 
     oc_scratch_end(scratch);
 
@@ -1438,8 +1515,106 @@ oc_text_line* oc_text_line_from_utf8(oc_arena* arena, oc_str8 string, oc_text_at
     return (line);
 }
 
+oc_text_metrics oc_text_line_get_metrics(oc_text_line* line)
+{
+    return (line->metrics);
+}
+
+typedef struct oc_text_line_grapheme_loc
+{
+    u64 runIndex;
+    u64 codepointOffset;
+} oc_text_line_grapheme_loc;
+
 /*
-oc_text_metrics oc_text_line_get_metrics(oc_text_line* line);
+oc_text_line_grapheme_loc oc_text_line_find_grapheme_index_less_or_equal(oc_text_line* line, u64 codePointIndex)
+{
+    //NOTE: find highest grapheme boundary less or equal to codePointIndex
+    //TODO: better search
+    oc_text_line_grapheme_loc result = { 0 };
+
+    for(; result.runIndex < line->runCount; result.runIndex++)
+    {
+        oc_glyph_run* run = &line->runs[result.runIndex];
+        result.codepointOffset = 0;
+        for(; result.codepointOffset < run->graphemeCount; result.graphemeIndex++)
+        {
+            if(run->graphemes[result.codepointOffset].offset > codePointIndex)
+            {
+                break;
+            }
+        }
+    }
+    if(result.codepointOffset > 0)
+    {
+        codepointOffset--;
+    }
+    return result;
+}
+
+oc_text_line_grapheme_loc oc_text_line_find_grapheme_index_greater_or_equal(oc_text_line* line, u64 codePointIndex)
+{
+    //NOTE: find lowest grapheme boundary greater or equal to codePointIndex
+    //TODO: better search
+    oc_text_line_grapheme_loc result = { 0 };
+
+    for(; result.runIndex < line->runCount; result.runIndex++)
+    {
+        oc_glyph_run* run = &line->runs[result.runIndex];
+        result.codepointOffset = 0;
+
+        for(; result.codepointOffset + 1 < run->graphemeCount; result.codepointOffset++)
+        {
+            if(run->graphemes[result.codepointOffset].offset >= codePointIndex)
+            {
+                break;
+            }
+        }
+    }
+
+    return (graphemeIndex);
+}
+
+oc_text_metrics oc_text_line_get_metrics_for_range(oc_text_line* line, u64 start, u64 end)
+{
+    end = oc_max(begin, end);
+
+    oc_text_line_grapheme_loc startLoc = oc_text_line_find_grapheme_index_less_or_equal(line, start);
+    oc_text_line_grapheme_loc endLoc = oc_text_line_find_grapheme_index_greater_or_equal(line, end);
+
+    //TODO: compute metrics in first run
+    //TODO: if startLoc and endLoc aren't in same run, accumulate metrics in intermediate runs
+    //TODO: accumulate metrics in last run
+
+    /*
+    //TODO: this assumes LTR layout
+    oc_text_metrics metrics = { 0 };
+
+    oc_font_metrics fontMetrics = oc_font_get_metrics_unscaled(run->font);
+    f32 lineHeight = fontMetrics.descent + fontMetrics.ascent + fontMetrics.lineGap;
+    metrics.logical.y = -(fontMetrics.ascent + fontMetrics.lineGap); //TODO: should we really have line gap here?
+    metrics.logical.h += lineHeight + fontMetrics.lineGap;
+
+    if(run->graphemeCount)
+    {
+        //TODO: should we have full grapheme metrics here?
+        metrics.logical.x = run->graphemes[beginGraphemeIndex].position.x;
+        metrics.logical.w = run->graphemes[endGraphemeIndex].position.x - metrics.logical.x;
+    }
+    //TODO: ink
+
+    f32 scale = oc_font_get_scale_for_em_pixels(run->font, fontSize);
+    metrics.logical.x *= scale;
+    metrics.logical.y *= scale;
+    metrics.logical.w *= scale;
+    metrics.logical.h *= scale;
+    */
+/*
+    return metrics;
+}
+*/
+
+/*
 u64 oc_text_line_codepoint_index_for_position(oc_text_line* line, oc_vec2 position);
 oc_vec2 oc_text_line_position_for_codepoint_index(oc_text_line* line, u64 index);
 

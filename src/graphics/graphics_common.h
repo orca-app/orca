@@ -18,14 +18,14 @@ typedef struct oc_glyph_info
 {
     u32 index;
     oc_vec2 offset;
-    oc_vec2 advance;
+    oc_text_metrics metrics;
 } oc_glyph_info;
 
 typedef struct oc_grapheme_info
 {
     u64 offset;
     u64 count;
-    oc_vec2 position;
+    oc_text_metrics metrics;
 } oc_grapheme_info;
 
 typedef struct oc_glyph_run

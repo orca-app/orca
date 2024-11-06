@@ -116,6 +116,27 @@ oc_font_metrics oc_harfbuzz_font_get_metrics(oc_harfbuzz_handle handle)
     return (metrics);
 }
 
+oc_rect oc_rect_combine(oc_rect a, oc_rect b)
+{
+    f32 x0 = oc_min(a.x, b.x);
+    f32 x1 = oc_max(a.x + a.w, b.x + b.w);
+    f32 y0 = oc_min(a.y, b.y);
+    f32 y1 = oc_max(a.y + a.h, b.y + b.h);
+
+    oc_rect r = { x0, y0, x1 - x0, y1 - y0 };
+    return r;
+}
+
+oc_text_metrics oc_text_metrics_combine(oc_text_metrics a, oc_text_metrics b)
+{
+    oc_text_metrics r = {
+        .ink = oc_rect_combine(a.ink, b.ink),
+        .logical = oc_rect_combine(a.logical, b.logical),
+        .advance = oc_vec2_add(a.advance, b.advance),
+    };
+    return r;
+}
+
 oc_glyph_run* oc_harfbuzz_font_shape(oc_arena* arena,
                                      oc_harfbuzz_handle handle,
                                      oc_text_shape_settings* settings,
@@ -182,18 +203,12 @@ oc_glyph_run* oc_harfbuzz_font_shape(oc_arena* arena,
 
     run->glyphs = oc_arena_push_array(arena, oc_glyph_info, run->glyphCount);
 
-    //TODO: compute font metrics from hb data
     f32 lineHeight = harfbuzzFont->metrics.descent + harfbuzzFont->metrics.ascent + harfbuzzFont->metrics.lineGap;
     if(run->glyphCount)
     {
         run->metrics.logical.y = -(harfbuzzFont->metrics.ascent + harfbuzzFont->metrics.lineGap); //TODO: should we really have line gap here?
         run->metrics.logical.h += lineHeight + harfbuzzFont->metrics.lineGap;
     }
-
-    f32 inkX0 = 0;
-    f32 inkY0 = 0;
-    f32 inkX1 = 0;
-    f32 inkY1 = 0;
 
     for(u64 i = 0; i < run->glyphCount; i++)
     {
@@ -202,7 +217,6 @@ oc_glyph_run* oc_harfbuzz_font_shape(oc_arena* arena,
 
         //WARN: Harfbuzz uses y-up so we negate Y advances and offsets
         glyph->offset = (oc_vec2){ glyphPos[i].x_offset, -glyphPos[i].y_offset };
-        glyph->advance = (oc_vec2){ glyphPos[i].x_advance, -glyphPos[i].y_advance };
 
         //TODO this assumes LTR
         hb_glyph_extents_t glyphExtents = { 0 };
@@ -210,28 +224,39 @@ oc_glyph_run* oc_harfbuzz_font_shape(oc_arena* arena,
 
         //WARN: Harfbuzz uses y-up, y_bearing is the top of the bbox wrt origin, and height is the _signed_
         //      distance from the top to the bottom (i.e. it is _negative_).
-        inkX0 = oc_min(inkX0, run->metrics.advance.x + glyphExtents.x_bearing);
-        inkX1 = oc_max(inkX1, run->metrics.advance.x + glyphExtents.x_bearing + glyphExtents.width);
-        inkY0 = oc_min(inkY0, run->metrics.advance.y - glyphExtents.y_bearing);
-        inkY1 = oc_max(inkY1, run->metrics.advance.y - glyphExtents.y_bearing - glyphExtents.height);
+        glyph->metrics.ink = (oc_rect){
+            run->metrics.advance.x + glyphExtents.x_bearing,
+            run->metrics.advance.y - glyphExtents.y_bearing,
+            glyphExtents.width,
+            -glyphExtents.height,
+        };
 
-        run->metrics.advance = oc_vec2_add(run->metrics.advance, glyph->advance);
+        glyph->metrics.logical = (oc_rect){
+            run->metrics.logical.x + run->metrics.advance.x,
+            run->metrics.logical.y + run->metrics.advance.y,
+            glyphPos[i].x_advance,
+            lineHeight,
+        };
+
+        glyph->metrics.advance = (oc_vec2){ glyphPos[i].x_advance, -glyphPos[i].y_advance };
+
+        run->metrics.ink = oc_rect_combine(run->metrics.ink, glyph->metrics.ink);
         run->metrics.logical.w = oc_max(run->metrics.logical.w, run->metrics.advance.x);
+        run->metrics.advance = oc_vec2_add(run->metrics.advance, glyph->metrics.advance);
     }
-    run->metrics.ink = (oc_rect){ inkX0, inkY0, inkX1 - inkX0, inkY1 - inkY0 };
 
     //------------------------------------------------------------------------------
     //NOTE compute graphemes info
     oc_arena_scope scratch = oc_scratch_begin_next(arena);
 
     //TODO: detect grapheme boundaries. For now just consider all codepoints
-    run->graphemeCount = segmentLen + 1;
+    run->graphemeCount = segmentLen;
     run->graphemes = oc_arena_push_array(arena, oc_grapheme_info, run->graphemeCount);
     for(u64 i = 0; i < run->graphemeCount; i++)
     {
         run->graphemes[i].offset = begin + i;
         run->graphemes[i].count = 1;
-        run->graphemes[i].position = (oc_vec2){ 0 };
+        run->graphemes[i].metrics = (oc_text_metrics){ 0 };
     }
 
     if(run->glyphCount)
@@ -239,7 +264,7 @@ oc_glyph_run* oc_harfbuzz_font_shape(oc_arena* arena,
         //NOTE: collate clusters and cluster widths
         u64* clusters = oc_arena_push_array(scratch.arena, u64, run->glyphCount);
         u64* clusterFirstGlyphs = oc_arena_push_array(scratch.arena, u64, run->glyphCount);
-        oc_vec2* clusterSizes = oc_arena_push_array(scratch.arena, oc_vec2, run->glyphCount);
+        oc_text_metrics* clusterMetrics = oc_arena_push_array(scratch.arena, oc_text_metrics, run->glyphCount);
 
         u64 clusterCount = 0;
         u64 currentClusterValue = 0;
@@ -247,7 +272,7 @@ oc_glyph_run* oc_harfbuzz_font_shape(oc_arena* arena,
         currentClusterValue = glyphInfo[0].cluster;
         clusters[clusterCount] = currentClusterValue;
         clusterFirstGlyphs[clusterCount] = 0;
-        clusterSizes[clusterCount] = run->glyphs[0].advance;
+        clusterMetrics[clusterCount] = run->glyphs[0].metrics;
         clusterCount++;
 
         for(u64 glyphIndex = 1; glyphIndex < run->glyphCount; glyphIndex++)
@@ -257,11 +282,11 @@ oc_glyph_run* oc_harfbuzz_font_shape(oc_arena* arena,
                 currentClusterValue = glyphInfo[glyphIndex].cluster;
                 clusters[clusterCount] = currentClusterValue;
                 clusterFirstGlyphs[clusterCount] = glyphIndex;
-                clusterSizes[clusterCount] = (oc_vec2){ 0 };
+                clusterMetrics[clusterCount] = run->glyphs[glyphIndex].metrics;
                 clusterCount++;
             }
-            clusterSizes[clusterCount - 1] = oc_vec2_add(clusterSizes[clusterCount - 1],
-                                                         run->glyphs[glyphIndex].advance);
+            clusterMetrics[clusterCount] = oc_text_metrics_combine(clusterMetrics[clusterCount],
+                                                                   run->glyphs[glyphIndex].metrics);
         }
 
         //NOTE: bucket graphemes into clusters
@@ -273,7 +298,7 @@ oc_glyph_run* oc_harfbuzz_font_shape(oc_arena* arena,
         {
             clusterFirstGrapheme[clusterIndex] = nextGrapheme;
             clusterGraphemeCount[clusterIndex] = 0;
-            for(u64 graphemeIndex = nextGrapheme; graphemeIndex < run->graphemeCount - 1; graphemeIndex++)
+            for(u64 graphemeIndex = nextGrapheme; graphemeIndex < run->graphemeCount; graphemeIndex++)
             {
                 if((clusterIndex < clusterCount - 1)
                    && run->graphemes[graphemeIndex].offset >= clusters[clusterIndex + 1])
@@ -292,8 +317,6 @@ oc_glyph_run* oc_harfbuzz_font_shape(oc_arena* arena,
         }
 
         //NOTE: compute grapheme positions
-        oc_vec2 clusterOrigin = { 0 };
-
         for(u64 clusterIndex = 0; clusterIndex < clusterCount; clusterIndex++)
         {
             u64 firstGrapheme = clusterFirstGrapheme[clusterIndex];
@@ -306,18 +329,36 @@ oc_glyph_run* oc_harfbuzz_font_shape(oc_arena* arena,
             // check with someone who does.
 
             //NOTE: Fall back to evenly subdividing the cluster size.
-            oc_vec2 advance = oc_vec2_mul(1. / graphemeCount, clusterSizes[clusterIndex]);
+            //////////////////////////////////////////////////////////////////////////////////////////////
+            //TODO: this works only for LTR
+            //////////////////////////////////////////////////////////////////////////////////////////////
+
+            oc_text_metrics metrics = clusterMetrics[clusterIndex];
+            oc_vec2 advance = oc_vec2_mul(1. / graphemeCount, metrics.advance);
 
             for(u64 graphemeIndex = 0; graphemeIndex < graphemeCount; graphemeIndex++)
             {
                 oc_vec2 offset = oc_vec2_mul(graphemeIndex, advance);
-                run->graphemes[firstGrapheme + graphemeIndex].position = oc_vec2_add(clusterOrigin, offset);
-            }
-            clusterOrigin = oc_vec2_add(clusterOrigin, clusterSizes[clusterIndex]);
-        }
-        //Set 'end' grapheme
-        run->graphemes[run->graphemeCount - 1].position = clusterOrigin;
 
+                oc_text_metrics* graphemeMetrics = &run->graphemes[firstGrapheme + graphemeIndex].metrics;
+
+                graphemeMetrics->ink = (oc_rect){
+                    metrics.ink.x + graphemeIndex * advance.x,
+                    metrics.ink.y,
+                    metrics.ink.w / graphemeCount,
+                    metrics.ink.h,
+                };
+
+                graphemeMetrics->logical = (oc_rect){
+                    metrics.logical.x + graphemeIndex * advance.x,
+                    metrics.logical.y,
+                    metrics.logical.w / graphemeCount,
+                    metrics.logical.h,
+                };
+
+                graphemeMetrics->advance = advance;
+            }
+        }
         oc_scratch_end(scratch);
     }
 
@@ -442,9 +483,10 @@ void oc_text_draw_run(oc_glyph_run* run, f32 fontSize)
 
         hb_font_draw_glyph(harfbuzzFont->hbFont, glyph->index, oc_hbDrawFuncs, &data);
 
-        pos.x += glyph->advance.x * scale;
-        pos.y += glyph->advance.y * scale * flipY;
+        pos.x += glyph->metrics.advance.x * scale;
+        pos.y += glyph->metrics.advance.y * scale * flipY;
     }
+
     oc_move_to(pos.x, pos.y);
 
     oc_fill_rule oldRule = context->attributes.fillRule;
@@ -606,8 +648,8 @@ oc_path_elt* oc_harfbuzz_get_curves(oc_arena* arena,
 
         hb_font_draw_glyph(harfbuzzFont->hbFont, glyph->index, oc_hbDumpFuncs, &data);
 
-        pos.x += glyph->advance.x * scale;
-        pos.y += glyph->advance.y * scale * flipY;
+        pos.x += glyph->metrics.advance.x * scale;
+        pos.y += glyph->metrics.advance.y * scale * flipY;
     }
 
     oc_path_elt* elements = oc_arena_push_array(arena, oc_path_elt, data.eltCount);
