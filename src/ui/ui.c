@@ -398,7 +398,7 @@ oc_ui_box* oc_ui_box_make_str8(oc_str8 string, oc_ui_flags flags)
 
     box->flags = flags;
     box->string = oc_str8_push_copy(&ui->frameArena, string);
-    box->glyphRun = 0;
+    box->textLine = 0;
 
     //NOTE: setup hierarchy
     if(box->frameCounter != ui->frameCounter)
@@ -975,8 +975,14 @@ void oc_ui_styling_prepass(oc_ui_context* ui, oc_ui_box* box, oc_list* before, o
        || desiredSize[OC_UI_AXIS_Y].kind == OC_UI_SIZE_TEXT)
     {
         oc_str32 codepoints = oc_utf8_push_to_codepoints(&ui->frameArena, box->string);
-        box->glyphRun = oc_text_shape(&ui->frameArena, style->font, 0, codepoints, 0, codepoints.len);
-        textBox = oc_glyph_run_range_metrics(box->glyphRun, style->fontSize, 0, codepoints.len).logical;
+        box->textLine = oc_text_line_from_utf32(&ui->frameArena,
+                                                codepoints,
+                                                &(oc_text_attributes){
+                                                    .font = style->font,
+                                                    .fontSize = style->fontSize,
+                                                    .color = style->color,
+                                                });
+        textBox = oc_text_line_get_metrics_for_range(box->textLine, 0, codepoints.len).logical;
     }
 
     for(int i = 0; i < OC_UI_AXIS_COUNT; i++)
@@ -1549,11 +1555,17 @@ void oc_ui_draw_box(oc_ui_box* box)
         //TODO: might not want to recompute codepoints each time?
         oc_ui_context* ui = oc_ui_get_context();
         oc_str32 codepoints = oc_utf8_push_to_codepoints(&ui->frameArena, box->string);
-        if(!box->glyphRun)
+        if(!box->textLine)
         {
-            box->glyphRun = oc_text_shape(&ui->frameArena, style->font, 0, codepoints, 0, codepoints.len);
+            box->textLine = oc_text_line_from_utf32(&ui->frameArena,
+                                                    codepoints,
+                                                    &(oc_text_attributes){
+                                                        .font = style->font,
+                                                        .fontSize = style->fontSize,
+                                                        .color = style->color,
+                                                    });
         }
-        oc_rect textBox = oc_glyph_run_range_metrics(box->glyphRun, style->fontSize, 0, codepoints.len).logical;
+        oc_rect textBox = oc_text_line_get_metrics_for_range(box->textLine, 0, codepoints.len).logical;
 
         f32 x = 0;
         f32 y = 0;
@@ -1590,7 +1602,7 @@ void oc_ui_draw_box(oc_ui_box* box)
         oc_set_color(style->color);
 
         oc_move_to(x, y);
-        oc_text_draw_run(box->glyphRun, style->fontSize);
+        oc_text_line_draw(box->textLine);
     }
 
     if(box->flags & OC_UI_FLAG_CLIP)
@@ -3786,7 +3798,7 @@ i32 oc_ui_edit_find_word_end(oc_ui_context* ui, oc_str32 codepoints, i32 startCh
 typedef struct oc_ui_text_box_render_info
 {
     oc_str32 codepoints;
-    oc_glyph_run* glyphRun;
+    oc_text_line* textLine;
 
 } oc_ui_text_box_render_info;
 
@@ -3807,7 +3819,7 @@ void oc_ui_text_box_render(oc_ui_box* box, void* data)
     oc_font_metrics extents = oc_font_get_metrics(style->font, style->fontSize);
     f32 lineHeight = extents.ascent + extents.descent;
 
-    oc_rect beforeBox = oc_glyph_run_range_metrics(info->glyphRun, style->fontSize, 0, firstDisplayedChar).logical;
+    oc_rect beforeBox = oc_text_line_get_metrics_for_range(info->textLine, 0, firstDisplayedChar).logical;
 
     f32 textX = box->rect.x - beforeBox.w;
     f32 textTop = box->rect.y + 0.5 * (box->rect.h - lineHeight);
@@ -3818,15 +3830,15 @@ void oc_ui_text_box_render(oc_ui_box* box, void* data)
         u32 selectStart = oc_min(ui->editCursor, ui->editMark);
         u32 selectEnd = oc_max(ui->editCursor, ui->editMark);
 
-        oc_rect beforeSelectBox = oc_glyph_run_range_metrics(info->glyphRun, style->fontSize, 0, selectStart).logical;
+        oc_rect beforeSelectBox = oc_text_line_get_metrics_for_range(info->textLine, 0, selectStart).logical;
 
         beforeSelectBox.x += textX;
         beforeSelectBox.y += textY;
 
         if(selectStart != selectEnd)
         {
-            oc_rect selectBox = oc_glyph_run_range_metrics(info->glyphRun, style->fontSize, selectStart, selectEnd).logical;
-            oc_rect afterSelectBox = oc_glyph_run_range_metrics(info->glyphRun, style->fontSize, selectEnd, codepoints.len).logical;
+            oc_rect selectBox = oc_text_line_get_metrics_for_range(info->textLine, selectStart, selectEnd).logical;
+            oc_rect afterSelectBox = oc_text_line_get_metrics_for_range(info->textLine, selectEnd, codepoints.len).logical;
 
             selectBox.x += textX;
             selectBox.y += textY;
@@ -3837,7 +3849,7 @@ void oc_ui_text_box_render(oc_ui_box* box, void* data)
             oc_set_color(style->color);
 
             oc_move_to(textX, textY);
-            oc_text_draw_run(info->glyphRun, style->fontSize);
+            oc_text_line_draw(info->textLine);
         }
         else
         {
@@ -3850,14 +3862,14 @@ void oc_ui_text_box_render(oc_ui_box* box, void* data)
             }
             oc_set_color(style->color);
             oc_move_to(textX, textY);
-            oc_text_draw_run(info->glyphRun, style->fontSize);
+            oc_text_line_draw(info->textLine);
         }
     }
     else
     {
         oc_set_color(style->color);
         oc_move_to(textX, textY);
-        oc_text_draw_run(info->glyphRun, style->fontSize);
+        oc_text_line_draw(info->textLine);
     }
 }
 
@@ -3912,7 +3924,13 @@ oc_ui_text_box_result oc_ui_text_box_str8(oc_str8 name, oc_arena* arena, oc_str8
     oc_font_metrics extents = oc_font_get_metrics(font, fontSize);
 
     oc_str32 codepoints = oc_utf8_push_to_codepoints(&ui->frameArena, text);
-    oc_glyph_run* run = oc_text_shape(&ui->frameArena, font, 0, codepoints, 0, codepoints.len);
+    oc_text_line* line = oc_text_line_from_utf32(&ui->frameArena,
+                                                 codepoints,
+                                                 &(oc_text_attributes){
+                                                     .font = font,
+                                                     .fontSize = fontSize,
+                                                     .color = textBox->style.color,
+                                                 });
 
     oc_ui_sig sig = oc_ui_box_sig(frame);
 
@@ -3945,7 +3963,7 @@ oc_ui_text_box_result oc_ui_text_box_str8(oc_str8 name, oc_arena* arena, oc_str8
         //TODO: update text API: use point to cursor on shaped text?
         for(int i = ui->editFirstDisplayedChar; i < codepoints.len; i++)
         {
-            oc_rect bbox = oc_glyph_run_range_metrics(run, fontSize, i, i + 1).logical;
+            oc_rect bbox = oc_text_line_get_metrics_for_range(line, i, i + 1).logical;
             if(x < cursorX)
             {
                 hoveredChar = i;
@@ -4001,7 +4019,7 @@ oc_ui_text_box_result oc_ui_text_box_str8(oc_str8 name, oc_arena* arena, oc_str8
         }
         else if(ui->editSelectionMode == OC_UI_EDIT_MOVE_LINE)
         {
-            oc_rect bbox = oc_glyph_run_range_metrics(run, fontSize, 0, codepoints.len).logical;
+            oc_rect bbox = oc_text_line_get_metrics_for_range(line, 0, codepoints.len).logical;
             if(fabsf(bbox.w - cursorX) < fabsf(cursorX))
             {
                 ui->editCursor = codepoints.len;
@@ -4018,8 +4036,8 @@ oc_ui_text_box_result oc_ui_text_box_str8(oc_str8 name, oc_arena* arena, oc_str8
             if(oc_min(ui->editCursor, ui->editMark) == oc_min(ui->editWordSelectionInitialCursor, ui->editWordSelectionInitialMark)
                && oc_max(ui->editCursor, ui->editMark) == oc_max(ui->editWordSelectionInitialCursor, ui->editWordSelectionInitialMark))
             {
-                oc_rect editCursorPrefixBbox = oc_glyph_run_range_metrics(run, fontSize, 0, ui->editCursor).logical;
-                oc_rect editMarkPrefixBbox = oc_glyph_run_range_metrics(run, fontSize, 0, ui->editMark).logical;
+                oc_rect editCursorPrefixBbox = oc_text_line_get_metrics_for_range(line, 0, ui->editCursor).logical;
+                oc_rect editMarkPrefixBbox = oc_text_line_get_metrics_for_range(line, 0, ui->editMark).logical;
 
                 f32 editCursorX = editCursorPrefixBbox.w;
                 f32 editMarkX = editMarkPrefixBbox.w;
@@ -4154,12 +4172,12 @@ oc_ui_text_box_result oc_ui_text_box_str8(oc_str8 name, oc_arena* arena, oc_str8
             else
             {
                 i32 firstDisplayedChar = ui->editFirstDisplayedChar;
-                oc_rect firstToCursorBox = oc_glyph_run_range_metrics(run, fontSize, firstDisplayedChar, ui->editCursor).logical;
+                oc_rect firstToCursorBox = oc_text_line_get_metrics_for_range(line, firstDisplayedChar, ui->editCursor).logical;
 
                 while(firstToCursorBox.w > textBox->rect.w)
                 {
                     firstDisplayedChar++;
-                    firstToCursorBox = oc_glyph_run_range_metrics(run, fontSize, firstDisplayedChar, ui->editCursor).logical;
+                    firstToCursorBox = oc_text_line_get_metrics_for_range(line, firstDisplayedChar, ui->editCursor).logical;
                 }
 
                 ui->editFirstDisplayedChar = firstDisplayedChar;
@@ -4169,7 +4187,7 @@ oc_ui_text_box_result oc_ui_text_box_str8(oc_str8 name, oc_arena* arena, oc_str8
         //NOTE: set renderer
         oc_ui_text_box_render_info* info = oc_arena_push_type(&ui->frameArena, oc_ui_text_box_render_info);
         info->codepoints = codepoints;
-        info->glyphRun = run;
+        info->textLine = line;
 
         oc_ui_box_set_draw_proc(textBox, oc_ui_text_box_render, info);
     }
@@ -4178,7 +4196,7 @@ oc_ui_text_box_result oc_ui_text_box_str8(oc_str8 name, oc_arena* arena, oc_str8
         //NOTE: set renderer
         oc_ui_text_box_render_info* info = oc_arena_push_type(&ui->frameArena, oc_ui_text_box_render_info);
         info->codepoints = codepoints;
-        info->glyphRun = run;
+        info->textLine = line;
 
         oc_ui_box_set_draw_proc(textBox, oc_ui_text_box_render, info);
     }

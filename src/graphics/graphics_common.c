@@ -1288,9 +1288,14 @@ void oc_text_draw_utf32(oc_str32 codepoints, oc_font font, f32 fontSize)
 {
     oc_arena_scope scratch = oc_scratch_begin();
 
-    oc_glyph_run* run = oc_text_shape(scratch.arena, font, 0, codepoints, 0, codepoints.len);
-    oc_text_draw_run(run, fontSize);
-
+    oc_text_line* line = oc_text_line_from_utf32(scratch.arena,
+                                                 codepoints,
+                                                 &(oc_text_attributes){
+                                                     .font = font,
+                                                     .fontSize = fontSize,
+                                                     .color = oc_get_color(),
+                                                 });
+    oc_text_line_draw(line);
     oc_scratch_end(scratch);
 }
 
@@ -1299,8 +1304,7 @@ void oc_text_draw_utf8(oc_str8 text, oc_font font, f32 fontSize)
     oc_arena_scope scratch = oc_scratch_begin();
 
     oc_str32 codepoints = oc_utf8_push_to_codepoints(scratch.arena, text);
-    oc_glyph_run* run = oc_text_shape(scratch.arena, font, 0, codepoints, 0, codepoints.len);
-    oc_text_draw_run(run, fontSize);
+    oc_text_draw_utf32(codepoints, font, fontSize);
 
     oc_scratch_end(scratch);
 }

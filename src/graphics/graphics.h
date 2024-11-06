@@ -140,16 +140,6 @@ typedef enum
 
 } oc_text_direction;
 
-typedef struct oc_text_shape_settings
-{
-    oc_str8 script; //TODO: replace with anonymous struct and have a helper to get it from string?
-    oc_str8 lang;
-    oc_text_direction direction;
-
-} oc_text_shape_settings;
-
-typedef struct oc_glyph_run oc_glyph_run;
-
 typedef struct oc_text_attributes
 {
     oc_font font;
@@ -331,36 +321,19 @@ ORCA_API void oc_stroke(void);
 //------------------------------------------------------------------------------------------
 //SECTION: text
 //------------------------------------------------------------------------------------------
-// shaping
-ORCA_API oc_glyph_run* oc_text_shape(oc_arena* arena,
-                                     oc_font font,
-                                     oc_text_shape_settings* settings,
-                                     oc_str32 codepoints,
-                                     u64 begin,
-                                     u64 end);
-
-// measuring
-ORCA_API u64 oc_glyph_run_point_to_cursor(oc_glyph_run* run, f32 size, oc_vec2 point);
-ORCA_API oc_vec2 oc_glyph_run_cursor_to_point(oc_glyph_run* run, f32 size, u64 cursor);
-
-ORCA_API oc_text_metrics oc_glyph_run_range_metrics(oc_glyph_run* run, f32 fontSize, u64 begin, u64 end);
-
-// drawing
-ORCA_API void oc_text_draw_run(oc_glyph_run* run, f32 fontSize);
-ORCA_API void oc_text_draw_utf8(oc_str8 text, oc_font font, f32 fontSize);
-ORCA_API void oc_text_draw_utf32(oc_str32 codepoints, oc_font font, f32 fontSize);
 
 // text lines
-oc_text_line* oc_text_line_from_utf8(oc_arena* arena, oc_str8 string, oc_text_attributes* attributes);
-oc_text_line* oc_text_line_from_utf32(oc_arena* arena, oc_str32 string, oc_text_attributes* attributes);
+ORCA_API oc_text_line* oc_text_line_from_utf8(oc_arena* arena, oc_str8 string, oc_text_attributes* attributes);
+ORCA_API oc_text_line* oc_text_line_from_utf32(oc_arena* arena, oc_str32 string, oc_text_attributes* attributes);
 
-oc_text_metrics oc_text_line_get_metrics(oc_text_line* line);
-oc_text_metrics oc_text_line_get_metrics_for_range(oc_text_line* line, u64 start, u64 end);
+ORCA_API oc_text_metrics oc_text_line_get_metrics(oc_text_line* line);
+ORCA_API oc_text_metrics oc_text_line_get_metrics_for_range(oc_text_line* line, u64 start, u64 end);
+ORCA_API u64 oc_text_line_codepoint_index_for_position(oc_text_line* line, oc_vec2 position);
+ORCA_API oc_vec2 oc_text_line_position_for_codepoint_index(oc_text_line* line, u64 index);
 
-u64 oc_text_line_codepoint_index_for_position(oc_text_line* line, oc_vec2 position);
-oc_vec2 oc_text_line_position_for_codepoint_index(oc_text_line* line, u64 index);
-
-void oc_text_line_draw(oc_text_line* line);
+ORCA_API void oc_text_line_draw(oc_text_line* line);
+ORCA_API void oc_text_draw_utf8(oc_str8 text, oc_font font, f32 fontSize);
+ORCA_API void oc_text_draw_utf32(oc_str32 codepoints, oc_font font, f32 fontSize);
 
 //------------------------------------------------------------------------------------------
 //SECTION: shapes helpers

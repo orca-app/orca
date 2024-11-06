@@ -44,6 +44,23 @@ typedef struct oc_glyph_run
 
 } oc_glyph_run;
 
+typedef struct oc_text_shape_settings
+{
+    oc_str8 script; //TODO: replace with anonymous struct and have a helper to get it from string?
+    oc_str8 lang;
+    oc_text_direction direction;
+
+} oc_text_shape_settings;
+
+oc_glyph_run* oc_text_shape(oc_arena* arena,
+                            oc_font font,
+                            oc_text_shape_settings* settings,
+                            oc_str32 codepoints,
+                            u64 begin,
+                            u64 end);
+
+void oc_text_draw_run(oc_glyph_run* run, f32 fontSize);
+
 typedef struct oc_harfbuzz_handle
 {
     u64 h;

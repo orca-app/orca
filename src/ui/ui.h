@@ -515,7 +515,7 @@ struct oc_ui_box
     void* drawData;
 
     // text shaping
-    oc_glyph_run* glyphRun;
+    oc_text_line* textLine;
 
     // styling
     oc_list beforeRules;
