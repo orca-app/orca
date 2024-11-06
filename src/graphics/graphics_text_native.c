@@ -147,6 +147,8 @@ oc_glyph_run* oc_harfbuzz_font_shape(oc_arena* arena,
     oc_glyph_run* run = oc_arena_push_type(arena, oc_glyph_run);
     memset(run, 0, sizeof(oc_glyph_run));
 
+    run->codepointCount = codepoints.len;
+
     oc_harfbuzz_font* harfbuzzFont = oc_harfbuzz_font_from_handle(handle);
     if(!harfbuzzFont)
     {

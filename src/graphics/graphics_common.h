@@ -32,6 +32,8 @@ typedef struct oc_glyph_run
 {
     oc_font font;
 
+    u32 codepointCount;
+
     u32 glyphCount;
     oc_glyph_info* glyphs;
 

@@ -1237,30 +1237,30 @@ u64 oc_glyph_run_point_to_cursor(oc_glyph_run* run, f32 fontSize, oc_vec2 point)
     //TODO: better search
 
     f32 scale = oc_font_get_scale_for_em_pixels(run->font, fontSize);
-
+    oc_vec2 graphemePos = { 0 };
     u64 graphemeIndex = 0;
     for(; graphemeIndex < run->graphemeCount; graphemeIndex++)
     {
-        if(run->graphemes[graphemeIndex].metrics.logical.x * scale > point.x)
+        oc_vec2 graphemeAdvance = oc_vec2_mul(scale, run->graphemes[graphemeIndex].metrics.advance);
+        if(point.x < graphemePos.x + graphemeAdvance.x)
         {
+            if(point.x > graphemePos.x + graphemeAdvance.x / 2)
+            {
+                graphemeIndex++;
+            }
             break;
         }
+        graphemePos = oc_vec2_add(graphemePos, graphemeAdvance);
     }
-    if(graphemeIndex > 0)
+    u64 codepointIndex = 0;
+    if(graphemeIndex >= run->graphemeCount)
     {
-        graphemeIndex--;
+        codepointIndex = run->codepointCount;
     }
-
-    if(graphemeIndex < run->graphemeCount - 1)
+    else
     {
-        f32 width = scale * (run->graphemes[graphemeIndex + 1].metrics.logical.x - run->graphemes[graphemeIndex].metrics.logical.x);
-        f32 offset = point.x - scale * run->graphemes[graphemeIndex].metrics.logical.x;
-        if(offset > width / 2)
-        {
-            graphemeIndex++;
-        }
+        codepointIndex = run->graphemes[graphemeIndex].offset;
     }
-    u64 codepointIndex = run->graphemes[graphemeIndex].offset;
     return (codepointIndex);
 }
 
