@@ -8311,42 +8311,29 @@
                 },
                 {
                     "kind": "typename",
-                    "name": "oc_text_shape_settings",
-                    "doc": "Settings used with `oc_text_shape()`.",
+                    "name": "oc_text_attributes",
+                    "doc": "A struct describing graphical attributes to apply to a range of text.",
                     "type": {
                         "kind": "struct",
                         "fields": [
                             {
-                                "name": "script",
-                                "doc": [
-                                    "An ISO 15924 script tag specifying the script of the text being shaped. ",
-                                    "An empty string indicates that `oc_text_shape()` should try to guess the input text's script."
-                                    ],
+                                "name": "font",
                                 "type": {
                                     "kind": "namedType",
-                                    "name": "oc_str8"
+                                    "name": "oc_font"
                                 }
                             },
                             {
-                                "name": "lang",
-                                "doc": [
-                                    "An BCP 47 language tag specifying the language of the text being shaped. ",
-                                    "An empty string indicates that `oc_text_shape()` should try to guess the input text's language."
-                                    ],
+                                "name": "fontSize",
                                 "type": {
-                                    "kind": "namedType",
-                                    "name": "oc_str8"
+                                    "kind": "f32"
                                 }
                             },
                             {
-                                "name": "direction",
-                                "doc": [
-                                    "The direction of the text being shaped. ",
-                                    "`OC_TEXT_DIRECTION_UNKNOWN` indicates that `oc_text_shape()` should use the default direction for the text's script."
-                                    ],
+                                "name": "color",
                                 "type": {
                                     "kind": "namedType",
-                                    "name": "oc_text_direction"
+                                    "name": "oc_color"
                                 }
                             }
                         ]
@@ -8354,8 +8341,8 @@
                 },
                 {
                     "kind": "typename",
-                    "name": "oc_glyph_run",
-                    "doc": "An opaque struct representing a shaped glyph run.",
+                    "name": "oc_text_line",
+                    "doc": "An opaque struct representing a line of shaped glyphs.",
                     "type": {
                         "kind": "struct"
                     }
@@ -10234,19 +10221,14 @@
                 },
                 {
                     "kind": "proc",
-                    "name": "oc_text_shape",
-                    "doc": [
-                        "Shapes a segment of unicode codepoints and returns a shaped glyph run. The glyph run can the be used to draw the glyphs, measure portions of the shaped text, or compute caret positions.",
-                        "",
-                        "The segment being shaped is comprised between `begin` (inclusive) and `end` (exclusive), but the shaper may look at codepoints before and after those bounds if available. This means that if you want to shape a subset of a bigger text, giving `oc_text_shape` the full text and setting `begin` and `end` appropriately may give better results than passing only the subset you want to shape."
-                        ],
-
+                    "name": "oc_text_line_from_utf32",
+                    "doc": "Shapes a line of unicode codepoints. The line can the be used to draw the shaped glyphs, measure portions of the shaped text, or compute caret positions.",
                     "return": {
-                        "doc": "The shaped glyph run, allocated on the given `arena`.",
+                        "doc": "The shaped line of text, allocated on the given `arena`.",
                         "kind": "pointer",
                         "type": {
                             "kind": "namedType",
-                            "name": "oc_glyph_run"
+                            "name": "oc_text_line"
                         }
                     },
                     "params": [
@@ -10262,74 +10244,91 @@
                             }
                         },
                         {
-                            "name": "font",
-                            "doc": "The font to use for shaping.",
-                            "type": {
-                                "kind": "namedType",
-                                "name": "oc_font"
-                            }
-                        },
-                        {
-                            "name": "settings",
-                            "doc": "Settings to use for shaping the text. If some fields of the struct are set to zero, the shaper will try to guess their values from the input codepoints. You can also pass `null` to guess all settings.",
-                            "type": {
-                                "kind": "pointer",
-                                "type": {
-                                    "kind": "namedType",
-                                    "name": "oc_text_shape_settings"
-                                }
-                            }
-                        },
-                        {
                             "name": "codepoints",
-                            "doc": "The full string of unicode codepoints that the shaper may look at for shaping.",
+                            "doc": "The string of unicode codepoints to shape.",
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_str32"
                             }
                         },
                         {
-                            "name": "begin",
-                            "doc": "The begining index (inclusive) of the sub-segment of `codepoints` that should be shaped.",
+                            "name": "attributes",
+                            "doc": "The text attributes to use when shaping the text.",
                             "type": {
-                                "kind": "u64"
-                            }
-                        },
-                        {
-                            "name": "end",
-                            "doc": "The end index (exclusive) of the sub-segment of `codepoints` that should be shaped.",
-                            "type": {
-                                "kind": "u64"
+                                "kind": "pointer",
+                                "type": {
+                                    "kind": "namedType",
+                                    "name": "oc_text_attributes"
+                                }
                             }
                         }
                     ]
                 },
                 {
                     "kind": "proc",
-                    "name": "oc_glyph_run_point_to_cursor",
-                    "doc": "Converts a geometric position in a glyph run to a codepoint index.",
+                    "name": "oc_text_line_from_utf8",
+                    "doc": "Shapes a line of utf8 encoded text. This is a wrapper around `oc_text_line_from_utf32()`",
+                    "return": {
+                        "doc": "The shaped line of text, allocated on the given `arena`.",
+                        "kind": "pointer",
+                        "type": {
+                            "kind": "namedType",
+                            "name": "oc_text_line"
+                        }
+                    },
+                    "params": [
+                        {
+                            "name": "arena",
+                            "doc": "An arena on which to allocate all data for the resulting shaped run.",
+                            "type": {
+                                "kind": "pointer",
+                                "type": {
+                                    "kind": "namedType",
+                                    "name": "oc_arena"
+                                }
+                            }
+                        },
+                        {
+                            "name": "string",
+                            "doc": "The string of utf8 encoded text to shape.",
+                            "type": {
+                                "kind": "namedType",
+                                "name": "oc_str8"
+                            }
+                        },
+                        {
+                            "name": "attributes",
+                            "doc": "The text attributes to use when shaping the text.",
+                            "type": {
+                                "kind": "pointer",
+                                "type": {
+                                    "kind": "namedType",
+                                    "name": "oc_text_attributes"
+                                }
+                            }
+                        }
+                    ]
+                },
+                {
+                    "kind": "proc",
+                    "name": "oc_text_line_codepoint_index_for_position",
+                    "doc": "Converts a geometric position in a text line to a codepoint index.",
                     "return": {
                         "kind": "u64"
                     },
                     "params": [
                         {
-                            "name": "run",
+                            "name": "line",
                             "type": {
                                 "kind": "pointer",
                                 "type": {
                                     "kind": "namedType",
-                                    "name": "oc_glyph_run"
+                                    "name": "oc_text_line"
                                 }
                             }
                         },
                         {
-                            "name": "fontSize",
-                            "type": {
-                                "kind": "f32"
-                            }
-                        },
-                        {
-                            "name": "point",
+                            "name": "position",
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_vec2"
@@ -10340,31 +10339,25 @@
                 },
                 {
                     "kind": "proc",
-                    "name": "oc_glyph_run_cursor_to_point",
-                    "doc": "Converts a codepoint index to a geometric position in the shaped glyph run.",
+                    "name": "oc_text_line_position_for_codepoint_index",
+                    "doc": "Converts a codepoint index to a geometric position in a shaped line of text.",
                     "return": {
                         "kind": "namedType",
                         "name": "oc_vec2"
                     },
                     "params": [
                         {
-                            "name": "run",
+                            "name": "line",
                             "type": {
                                 "kind": "pointer",
                                 "type": {
                                     "kind": "namedType",
-                                    "name": "oc_glyph_run"
+                                    "name": "oc_text_line"
                                 }
                             }
                         },
                         {
-                            "name": "fontSize",
-                            "type": {
-                                "kind": "f32"
-                            }
-                        },
-                        {
-                            "name": "cursor",
+                            "name": "index",
                             "type": {
                                 "kind": "u64"
                             }
@@ -10373,27 +10366,42 @@
                 },
                 {
                     "kind": "proc",
-                    "name": "oc_glyph_run_range_metrics",
-                    "doc": "Computes text metrics for a sub-range of a glyph run.",
+                    "name": "oc_text_line_get_metrics",
+                    "doc": "Returns the metrics of a line of text.",
                     "return": {
                         "kind": "namedType",
                         "name": "oc_text_metrics"
                     },
                     "params": [
                         {
-                            "name": "run",
+                            "name": "line",
                             "type": {
                                 "kind": "pointer",
                                 "type": {
                                     "kind": "namedType",
-                                    "name": "oc_glyph_run"
+                                    "name": "oc_text_line"
                                 }
                             }
-                        },
+                        }
+                    ]
+                },
+                {
+                    "kind": "proc",
+                    "name": "oc_text_line_get_metrics_for_range",
+                    "doc": "Computes text metrics for a sub-range of a line of text.",
+                    "return": {
+                        "kind": "namedType",
+                        "name": "oc_text_metrics"
+                    },
+                    "params": [
                         {
-                            "name": "fontSize",
+                            "name": "line",
                             "type": {
-                                "kind": "f32"
+                                "kind": "pointer",
+                                "type": {
+                                    "kind": "namedType",
+                                    "name": "oc_text_line"
+                                }
                             }
                         },
                         {
@@ -10412,26 +10420,20 @@
                 },
                 {
                     "kind": "proc",
-                    "name": "oc_text_draw_run",
-                    "doc": "Draws a shaped glyph run at a given size, starting at the current position.",
+                    "name": "oc_text_line_draw",
+                    "doc": "Draws a shaped line of text, starting at the current position.",
                     "return": {
                         "kind": "void"
                     },
                     "params": [
                         {
-                            "name": "run",
+                            "name": "line",
                             "type": {
                                 "kind": "pointer",
                                 "type": {
                                     "kind": "namedType",
-                                    "name": "oc_glyph_run"
+                                    "name": "oc_text_line"
                                 }
-                            }
-                        },
-                        {
-                            "name": "fontSize",
-                            "type": {
-                                "kind": "f32"
                             }
                         }
                     ]

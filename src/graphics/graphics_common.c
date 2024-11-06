@@ -1162,155 +1162,6 @@ oc_glyph_run* oc_text_shape(oc_arena* arena,
     return (run);
 }
 
-u64 oc_glyph_run_find_grapheme_index_less_or_equal(oc_glyph_run* run, u64 codePointIndex)
-{
-    //NOTE: find highest grapheme boundary less or equal to codePointIndex
-    //TODO: better search
-    u64 graphemeIndex = 0;
-    for(; graphemeIndex < run->graphemeCount; graphemeIndex++)
-    {
-        if(run->graphemes[graphemeIndex].offset > codePointIndex)
-        {
-            break;
-        }
-    }
-    if(graphemeIndex > 0)
-    {
-        graphemeIndex--;
-    }
-    return (graphemeIndex);
-}
-
-u64 oc_glyph_run_find_grapheme_index_greater_or_equal(oc_glyph_run* run, u64 codePointIndex)
-{
-    //NOTE: find lowest grapheme boundary greater or equal to codePointIndex
-    //TODO: better search
-    u64 graphemeIndex = 0;
-    for(; graphemeIndex + 1 < run->graphemeCount; graphemeIndex++)
-    {
-        if(run->graphemes[graphemeIndex].offset >= codePointIndex)
-        {
-            break;
-        }
-    }
-    return (graphemeIndex);
-}
-
-oc_text_metrics oc_glyph_run_range_metrics(oc_glyph_run* run, f32 fontSize, u64 begin, u64 end)
-{
-    end = oc_max(begin, end);
-
-    u64 beginGraphemeIndex = oc_glyph_run_find_grapheme_index_less_or_equal(run, begin);
-    u64 endGraphemeIndex = oc_glyph_run_find_grapheme_index_greater_or_equal(run, end);
-
-    //TODO: this assumes LTR layout
-    oc_text_metrics metrics = { 0 };
-
-    oc_font_metrics fontMetrics = oc_font_get_metrics_unscaled(run->font);
-    f32 lineHeight = fontMetrics.descent + fontMetrics.ascent + fontMetrics.lineGap;
-    metrics.logical.y = -(fontMetrics.ascent + fontMetrics.lineGap); //TODO: should we really have line gap here?
-    metrics.logical.h += lineHeight + fontMetrics.lineGap;
-
-    if(run->graphemeCount)
-    {
-        //TODO: should we have full grapheme metrics here?
-        metrics.logical.x = run->graphemes[beginGraphemeIndex].metrics.logical.x;
-        metrics.logical.w = run->graphemes[endGraphemeIndex].metrics.logical.x - metrics.logical.x;
-    }
-    //TODO: ink
-
-    f32 scale = oc_font_get_scale_for_em_pixels(run->font, fontSize);
-    metrics.logical.x *= scale;
-    metrics.logical.y *= scale;
-    metrics.logical.w *= scale;
-    metrics.logical.h *= scale;
-
-    return metrics;
-}
-
-u64 oc_glyph_run_point_to_cursor(oc_glyph_run* run, f32 fontSize, oc_vec2 point)
-{
-    ////////////////////////////////////////////////////
-    //TODO: depends on vertical or horizontal layout
-    // for now we assume LTR
-    ////////////////////////////////////////////////////
-    //TODO: better search
-
-    f32 scale = oc_font_get_scale_for_em_pixels(run->font, fontSize);
-    oc_vec2 graphemePos = { 0 };
-    u64 graphemeIndex = 0;
-    for(; graphemeIndex < run->graphemeCount; graphemeIndex++)
-    {
-        oc_vec2 graphemeAdvance = oc_vec2_mul(scale, run->graphemes[graphemeIndex].metrics.advance);
-        if(point.x < graphemePos.x + graphemeAdvance.x)
-        {
-            if(point.x > graphemePos.x + graphemeAdvance.x / 2)
-            {
-                graphemeIndex++;
-            }
-            break;
-        }
-        graphemePos = oc_vec2_add(graphemePos, graphemeAdvance);
-    }
-    u64 codepointIndex = 0;
-    if(graphemeIndex >= run->graphemeCount)
-    {
-        codepointIndex = run->codepointCount;
-    }
-    else
-    {
-        codepointIndex = run->graphemes[graphemeIndex].offset;
-    }
-    return (codepointIndex);
-}
-
-oc_vec2 oc_glyph_run_cursor_to_point(oc_glyph_run* run, f32 fontSize, u64 cursor)
-{
-    //NOTE: find closest grapheme boundary for cursor
-    //TODO: better search
-
-    oc_vec2 pos = { 0 };
-    for(u64 graphemeIndex = 0; graphemeIndex < run->graphemeCount; graphemeIndex++)
-    {
-        if(run->graphemes[graphemeIndex].offset >= cursor)
-        {
-            break;
-        }
-        pos = oc_vec2_add(pos, run->graphemes[graphemeIndex].metrics.advance);
-    }
-
-    f32 scale = oc_font_get_scale_for_em_pixels(run->font, fontSize);
-    pos = oc_vec2_mul(scale, pos);
-    return (pos);
-}
-
-void oc_text_draw_utf32(oc_str32 codepoints, oc_font font, f32 fontSize)
-{
-    oc_arena_scope scratch = oc_scratch_begin();
-
-    oc_text_line* line = oc_text_line_from_utf32(scratch.arena,
-                                                 codepoints,
-                                                 &(oc_text_attributes){
-                                                     .font = font,
-                                                     .fontSize = fontSize,
-                                                     .color = oc_get_color(),
-                                                 });
-    oc_text_line_draw(line);
-    oc_scratch_end(scratch);
-}
-
-void oc_text_draw_utf8(oc_str8 text, oc_font font, f32 fontSize)
-{
-    oc_arena_scope scratch = oc_scratch_begin();
-
-    oc_str32 codepoints = oc_utf8_push_to_codepoints(scratch.arena, text);
-    oc_text_draw_utf32(codepoints, font, fontSize);
-
-    oc_scratch_end(scratch);
-}
-
-/////////////////////
-
 typedef struct oc_text_line
 {
     u64 codepointCount;
@@ -1687,6 +1538,31 @@ void oc_text_line_draw(oc_text_line* line)
         oc_set_color(attributes->color);
         oc_text_draw_run(run, line->attributes[i].fontSize);
     }
+}
+
+void oc_text_draw_utf32(oc_str32 codepoints, oc_font font, f32 fontSize)
+{
+    oc_arena_scope scratch = oc_scratch_begin();
+
+    oc_text_line* line = oc_text_line_from_utf32(scratch.arena,
+                                                 codepoints,
+                                                 &(oc_text_attributes){
+                                                     .font = font,
+                                                     .fontSize = fontSize,
+                                                     .color = oc_get_color(),
+                                                 });
+    oc_text_line_draw(line);
+    oc_scratch_end(scratch);
+}
+
+void oc_text_draw_utf8(oc_str8 text, oc_font font, f32 fontSize)
+{
+    oc_arena_scope scratch = oc_scratch_begin();
+
+    oc_str32 codepoints = oc_utf8_push_to_codepoints(scratch.arena, text);
+    oc_text_draw_utf32(codepoints, font, fontSize);
+
+    oc_scratch_end(scratch);
 }
 
 //------------------------------------------------------------------------------------------
