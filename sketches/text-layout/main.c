@@ -93,6 +93,8 @@ int main()
     f64 frameTime = 0;
 
     oc_vec2 mousePoint = { 0 };
+    u32 rangeStart = 0;
+    u32 rangeEnd = 1;
 
     while(!oc_should_quit())
     {
@@ -121,10 +123,37 @@ int main()
                         if(event->key.keyCode == OC_KEY_LEFT)
                         {
                             moveCursor = -1;
+
+                            if(event->key.mods & OC_KEYMOD_SHIFT)
+                            {
+                                if(rangeStart)
+                                {
+                                    rangeStart--;
+                                }
+                            }
+                            else
+                            {
+                                if(rangeEnd > rangeStart)
+                                {
+                                    rangeEnd--;
+                                }
+                            }
                         }
                         else if(event->key.keyCode == OC_KEY_RIGHT)
                         {
                             moveCursor = 1;
+
+                            if(event->key.mods & OC_KEYMOD_SHIFT)
+                            {
+                                if(rangeStart < rangeEnd)
+                                {
+                                    rangeStart++;
+                                }
+                            }
+                            else
+                            {
+                                rangeEnd++;
+                            }
                         }
                     }
                 }
@@ -183,6 +212,7 @@ int main()
             oc_move_to(origin.x, origin.y);
             oc_set_color_rgba(0, 0, 0, 1);
 
+            /*
             oc_str32 codepoints = oc_utf8_push_to_codepoints(scratch.arena, text);
             oc_glyph_run* run = oc_text_shape(scratch.arena, zapFont, 0, codepoints, 0, codepoints.len);
             oc_text_draw_run(run, fontSize);
@@ -211,6 +241,39 @@ int main()
             oc_stroke();
 
             //oc_text_draw_utf8(text, font, fontSize);
+            */
+            oc_text_line* line = oc_text_line_from_utf8(scratch.arena,
+                                                        text,
+                                                        &(oc_text_attributes){
+                                                            .font = zapFont,
+                                                            .fontSize = fontSize,
+                                                            .color = { 0, 0, 0, 1 },
+                                                        });
+
+            oc_text_line_draw(line);
+
+            if(mouseClicked)
+            {
+                cursor = oc_text_line_codepoint_index_for_position(line, oc_vec2_sub(mousePoint, origin));
+            }
+
+            //TODO: move to next/prev utf8 char.
+            //TODO: when we do grapheme segmentation, move to next grapheme
+            if(moveCursor == 1 && cursor <= text.len)
+            {
+                cursor = oc_min(cursor + 1, text.len);
+            }
+            else if(moveCursor == -1 && cursor > 0)
+            {
+                cursor--;
+            }
+
+            oc_vec2 pos = oc_text_line_position_for_codepoint_index(line, cursor);
+            oc_move_to(origin.x + pos.x, origin.y + pos.y + metrics.descent);
+            oc_line_to(origin.x + pos.x, origin.y + pos.y - metrics.ascent);
+            oc_set_color_rgba(0, 0, 0, 1);
+            oc_set_width(1);
+            oc_stroke();
         }
 
         {
@@ -321,6 +384,14 @@ int main()
                                                         });
 
             oc_text_line_draw(line);
+
+            oc_text_metrics metrics = oc_text_line_get_metrics_for_range(line, rangeStart, rangeEnd);
+            oc_set_width(1);
+            oc_set_color_rgba(1, 0, 0, 1);
+            oc_rectangle_stroke(400 + metrics.logical.x,
+                                550 + metrics.logical.y,
+                                metrics.logical.w,
+                                metrics.logical.h);
         }
 
         oc_canvas_render(renderer, context, surface);

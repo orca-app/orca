@@ -116,27 +116,6 @@ oc_font_metrics oc_harfbuzz_font_get_metrics(oc_harfbuzz_handle handle)
     return (metrics);
 }
 
-oc_rect oc_rect_combine(oc_rect a, oc_rect b)
-{
-    f32 x0 = oc_min(a.x, b.x);
-    f32 x1 = oc_max(a.x + a.w, b.x + b.w);
-    f32 y0 = oc_min(a.y, b.y);
-    f32 y1 = oc_max(a.y + a.h, b.y + b.h);
-
-    oc_rect r = { x0, y0, x1 - x0, y1 - y0 };
-    return r;
-}
-
-oc_text_metrics oc_text_metrics_combine(oc_text_metrics a, oc_text_metrics b)
-{
-    oc_text_metrics r = {
-        .ink = oc_rect_combine(a.ink, b.ink),
-        .logical = oc_rect_combine(a.logical, b.logical),
-        .advance = oc_vec2_add(a.advance, b.advance),
-    };
-    return r;
-}
-
 oc_glyph_run* oc_harfbuzz_font_shape(oc_arena* arena,
                                      oc_harfbuzz_handle handle,
                                      oc_text_shape_settings* settings,

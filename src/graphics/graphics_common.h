@@ -49,6 +49,9 @@ typedef struct oc_harfbuzz_handle
     u64 h;
 } oc_harfbuzz_handle;
 
+oc_rect oc_rect_combine(oc_rect a, oc_rect b);
+oc_text_metrics oc_text_metrics_combine(oc_text_metrics a, oc_text_metrics b);
+
 typedef enum
 {
     OC_PATH_MOVE,

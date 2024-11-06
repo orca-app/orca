@@ -355,6 +355,8 @@ oc_text_line* oc_text_line_from_utf8(oc_arena* arena, oc_str8 string, oc_text_at
 oc_text_line* oc_text_line_from_utf32(oc_arena* arena, oc_str32 string, oc_text_attributes* attributes);
 
 oc_text_metrics oc_text_line_get_metrics(oc_text_line* line);
+oc_text_metrics oc_text_line_get_metrics_for_range(oc_text_line* line, u64 start, u64 end);
+
 u64 oc_text_line_codepoint_index_for_position(oc_text_line* line, oc_vec2 position);
 oc_vec2 oc_text_line_position_for_codepoint_index(oc_text_line* line, u64 index);
 
