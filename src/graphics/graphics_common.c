@@ -498,7 +498,7 @@ oc_text_metrics oc_font_text_metrics_utf32(oc_font font, f32 fontSize, oc_str32 
     //TODO: remove that API in favor of shaped text
     //////////////////////////////////////////////////////
 
-    if(!codePoints.len || !codePoints.ptr)
+    if(!codePoints.len || !codePoints.ptr || oc_font_is_nil(font))
     {
         return ((oc_text_metrics){ 0 });
     }
@@ -521,7 +521,8 @@ oc_text_metrics oc_font_text_metrics_utf32(oc_font font, f32 fontSize, oc_str32 
     metrics.advance.x *= fontScale;
     metrics.advance.y *= fontScale;
 
-    //oc_scratch_end(scratch);
+    OC_ASSERT(metrics.ink.h > 1);
+    oc_scratch_end(scratch);
     return (metrics);
 }
 

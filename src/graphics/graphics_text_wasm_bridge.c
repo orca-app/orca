@@ -7,6 +7,8 @@ typedef struct oc_wasm_glyph_run
 {
     oc_font font;
 
+    u32 codepointCount;
+
     u32 glyphCount;
     oc_wasm_addr glyphs;
 
@@ -43,6 +45,8 @@ oc_wasm_addr oc_harfbuzz_font_shape_bridge(oc_wasm_addr arena,
 
     oc_wasm_addr wasmRunAddr = oc_wasm_arena_push(arena, sizeof(oc_wasm_glyph_run));
     oc_wasm_glyph_run* wasmRun = oc_wasm_address_to_ptr(wasmRunAddr, sizeof(oc_wasm_glyph_run));
+
+    wasmRun->codepointCount = nativeRun->codepointCount;
 
     wasmRun->glyphCount = nativeRun->glyphCount;
     wasmRun->glyphs = oc_wasm_arena_push(arena, sizeof(oc_glyph_info) * wasmRun->glyphCount);
