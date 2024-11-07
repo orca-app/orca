@@ -1259,6 +1259,9 @@ oc_text_line* oc_text_line_from_utf32(oc_arena* arena, oc_str32 codepoints, oc_t
     {
         oc_unicode_script currentScript = oc_unicode_script_for_codepoint(codepoints.ptr[dirRun->start]);
         u64 runStart = dirRun->start;
+
+        oc_list_elt* prevLastRun = oc_list_last(scriptRuns);
+
         for(u64 i = dirRun->start; i < dirRun->end; i++)
         {
             oc_unicode_script script = oc_unicode_script_for_codepoint(codepoints.ptr[i]);
@@ -1292,7 +1295,19 @@ oc_text_line* oc_text_line_from_utf32(oc_arena* arena, oc_str32 codepoints, oc_t
         oc_list_push_back(&scriptRuns, &item->listElt);
         runCount++;
 
-        //TODO: reverse sequences of RTL runs that were split
+        //NOTE: reverse sequences of RTL runs that were split
+        if(dirRun->direction == OC_TEXT_DIRECTION_RTL)
+        {
+            oc_list_elt* firstElt = prevLastRun ? oc_list_next(prevLastRun) : oc_list_begin(scriptRuns);
+
+            for(oc_list_elt* lastElt = oc_list_last(scriptRuns);
+                lastElt != firstElt;
+                lastElt = oc_list_last(scriptRuns))
+            {
+                oc_list_remove(&scriptRuns, lastElt);
+                oc_list_insert_before(&scriptRuns, firstElt, lastElt);
+            }
+        }
     }
 
     //NOTE: allocate runs

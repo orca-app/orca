@@ -78,7 +78,7 @@ int main()
     oc_font zapFont = create_font(OC_STR8("../../resources/Zapfino.ttf"));
     oc_font romanFont = create_font(OC_STR8("../../resources/NotoSans-Light.ttf"));
     oc_font japaneseFont = create_font(OC_STR8("../../resources/NotoSansJP-Light.ttf"));
-    oc_font arabicFont = create_font(OC_STR8("../../resources/NotoNaskhArabic-Regular.ttf"));
+    oc_font arabicFont = create_font(OC_STR8("../../resources/NotoNaskhArabic-Hebrew-Combined-Regular.ttf"));
 
     oc_str8 text = OC_STR8("Hello Harfbuzz! Zapfino Test");
     //    oc_str8 text = OC_STR8("ll");
@@ -332,7 +332,7 @@ int main()
             oc_move_to(400, 500);
 
             oc_text_line* line = oc_text_line_from_utf8(scratch.arena,
-                                                        OC_STR8("Hello مرحبا Bonjour"),
+                                                        OC_STR8("Hello مرحبا שלום Bonjour"),
                                                         &(oc_text_attributes){
                                                             .font = arabicFont,
                                                             .fontSize = fontSize,
