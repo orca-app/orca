@@ -573,9 +573,9 @@ pub fn build(b: *Build) !void {
 
     // TODO write checksum file
     // with open("build/orcaruntime.sum", "w") as f:
-    //     f.write(runtime_checksum())
+    // f.write(runtime_checksum())
 
-    /////////////////////////////////////////////////////////
+    ///////////////////////////////////////////////////////
     // orca wasm libc
 
     var stage_libc_includes: *Build.Step.WriteFile = b.addWriteFiles();
@@ -595,13 +595,6 @@ pub fn build(b: *Build) !void {
     // target_query.cpu_features_add.addFeature(@intFromEnum(std.Target.wasm.Feature.reference_types));
     // target_query.cpu_features_add.addFeature(@intFromEnum(std.Target.wasm.Feature.sign_ext));
     // target_query.cpu_features_add.addFeature(@intFromEnum(std.Target.wasm.Feature.simd128));
-
-    // var exe = b.addExecutable(.{
-    //     .name = filename_no_extension,
-    //     .root_source_file = b.path(filepath),
-    //     .target = b.resolveTargetQuery(target_query),
-    //     .optimize = .ReleaseSmall,
-    // });
 
     // zig fmt: off
     const libc_flags: []const []const u8 = &.{
@@ -639,56 +632,82 @@ pub fn build(b: *Build) !void {
         "-DBULK_MEMORY_THRESHOLD=32",
 
         // other flags
+        // "-nostdlibinc",
+        // "-nobuiltininc",
+        "-nostdinc",
+        "-nostdlib",
         "--std=c11",
-        "-mthread-model", "single",
+        // "--preprocess",
+        // "-nobuiltininc",
+        // "--no-standard-includes",
+        // "-mthread-model", "single",
     };
     // zig fmt: on
 
-    var dummy_crt_obj = b.addObject(.{
-        .name = "crt1",
-        .target = libc_target,
-        .optimize = optimize,
-    });
-    dummy_crt_obj.addCSourceFiles(.{
-        .files = &.{"src/orca-libc/src/crt/crt1.c"},
-        .flags = libc_flags,
-    });
+    // var dummy_crt_obj = b.addObject(.{
+    //     .name = "crt1",
+    //     .target = libc_target,
+    //     .optimize = optimize,
+    //     .link_libc = false,
+    // });
+    // dummy_crt_obj.addCSourceFiles(.{
+    //     .files = &.{"src/orca-libc/src/crt/crt1.c"},
+    //     .flags = libc_flags,
+    // });
+
     // b.installArtifact(dummy_crt_obj);
+
+    const wasm_libc_source_paths: []const []const u8 = &.{
+        "src/orca-libc/src/complex",
+        "src/orca-libc/src/crt",
+        "src/orca-libc/src/ctype",
+        "src/orca-libc/src/errno",
+        "src/orca-libc/src/exit",
+        "src/orca-libc/src/fenv",
+        "src/orca-libc/src/internal",
+        "src/orca-libc/src/malloc",
+        "src/orca-libc/src/math",
+        "src/orca-libc/src/multibyte",
+        "src/orca-libc/src/prng",
+        "src/orca-libc/src/stdio",
+        "src/orca-libc/src/stdlib",
+        "src/orca-libc/src/string",
+    };
 
     var wasm_libc_sources = CSources.init(b);
     defer wasm_libc_sources.deinit();
-    try wasm_libc_sources.collect("src/orca-libc/src/complex");
-    try wasm_libc_sources.collect("src/orca-libc/src/crt");
-    try wasm_libc_sources.collect("src/orca-libc/src/ctype");
-    try wasm_libc_sources.collect("src/orca-libc/src/errno");
-    try wasm_libc_sources.collect("src/orca-libc/src/exit");
-    try wasm_libc_sources.collect("src/orca-libc/src/fenv");
-    try wasm_libc_sources.collect("src/orca-libc/src/internal");
-    try wasm_libc_sources.collect("src/orca-libc/src/malloc");
-    try wasm_libc_sources.collect("src/orca-libc/src/math");
-    try wasm_libc_sources.collect("src/orca-libc/src/multibyte");
-    try wasm_libc_sources.collect("src/orca-libc/src/prng");
-    try wasm_libc_sources.collect("src/orca-libc/src/stdio");
-    try wasm_libc_sources.collect("src/orca-libc/src/stdlib");
-    try wasm_libc_sources.collect("src/orca-libc/src/string");
 
-    var wasm_libc_obj = b.addObject(.{
-        .name = "libc",
-        .target = libc_target,
-        .optimize = optimize,
-    });
-    wasm_libc_obj.addCSourceFiles(.{
-        .files = wasm_libc_sources.files.items,
-        .flags = libc_flags,
-    });
-    // b.installArtifact(wasm_libc_obj);
+    var wasm_libc_objs = std.ArrayList(*Build.Step.Compile).init(b.allocator);
+    for (wasm_libc_source_paths) |path| {
+        const basename: []const u8 = std.fs.path.basename(path);
+        const obj_name: []const u8 = try std.mem.join(b.allocator, "", &.{ "libc_", basename });
+        var obj = b.addStaticLibrary(.{
+            .name = obj_name,
+            .target = libc_target,
+            .optimize = optimize,
+            .zig_lib_dir = b.path("src/orca-libc"), // ensures c stdlib headers bundled with zig are ignored
+        });
+        wasm_libc_sources.files.shrinkRetainingCapacity(0);
+        try wasm_libc_sources.collect(path);
+
+        obj.addCSourceFiles(.{
+            .files = wasm_libc_sources.files.items,
+            .flags = libc_flags,
+        });
+        try wasm_libc_objs.append(obj);
+    }
 
     var wasm_libc_lib = b.addExecutable(.{
         .name = "libc",
         .target = libc_target,
         .optimize = optimize,
+        .link_libc = false,
+        .single_threaded = true,
     });
-    wasm_libc_lib.addObject(wasm_libc_obj);
+    for (wasm_libc_objs.items) |obj| {
+        wasm_libc_lib.linkLibrary(obj);
+    }
+
     wasm_libc_lib.rdynamic = true;
     wasm_libc_lib.entry = .disabled;
 
@@ -820,7 +839,7 @@ pub fn build(b: *Build) !void {
 
     b.installArtifact(orca_tool_exe);
 
-    /////////////////////////////////////////////////////////////////
+    ///////////////////////////////////////////////////////////////
     // TODO bundle command ?
 
     // python_build_libc.step.dependOn(&orca_runtime_exe.step);
