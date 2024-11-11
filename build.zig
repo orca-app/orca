@@ -687,11 +687,11 @@ pub fn build(b: *Build) !void {
     var wasm_libc_sources = CSources.init(b);
     defer wasm_libc_sources.deinit();
 
-    var wasm_libc_objs = std.ArrayList(*Build.Step.Compile).init(b.allocator);
+    var wasm_libc_libs = std.ArrayList(*Build.Step.Compile).init(b.allocator);
     for (wasm_libc_source_paths) |path| {
         const basename: []const u8 = std.fs.path.basename(path);
         const obj_name: []const u8 = try std.mem.join(b.allocator, "", &.{ "libc_", basename });
-        var obj = b.addStaticLibrary(.{
+        var lib = b.addStaticLibrary(.{
             .name = obj_name,
             .target = libc_target,
             .optimize = optimize,
@@ -700,11 +700,11 @@ pub fn build(b: *Build) !void {
         wasm_libc_sources.files.shrinkRetainingCapacity(0);
         try wasm_libc_sources.collect(path);
 
-        obj.addCSourceFiles(.{
+        lib.addCSourceFiles(.{
             .files = wasm_libc_sources.files.items,
             .flags = libc_flags,
         });
-        try wasm_libc_objs.append(obj);
+        try wasm_libc_libs.append(lib);
     }
 
     var wasm_libc_lib = b.addExecutable(.{
@@ -714,8 +714,8 @@ pub fn build(b: *Build) !void {
         .link_libc = false,
         .single_threaded = true,
     });
-    for (wasm_libc_objs.items) |obj| {
-        wasm_libc_lib.linkLibrary(obj);
+    for (wasm_libc_libs.items) |lib| {
+        wasm_libc_lib.linkLibrary(lib);
     }
 
     wasm_libc_lib.rdynamic = true;
