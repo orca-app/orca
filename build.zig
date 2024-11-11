@@ -301,6 +301,18 @@ const RunHelpers = struct {
 pub fn build(b: *Build) !void {
     const git_version_opt: ?[]const u8 = b.option([]const u8, "version", "Specify the specific git version you want to package") orelse null;
 
+    const cwd = b.build_root.handle;
+
+    // override default output directory
+    {
+        const default_install_dirs = Build.DirList{
+            .lib_dir = "bin",
+            .exe_dir = "bin",
+        };
+        const output_dir = try cwd.realpathAlloc(b.allocator, "build");
+        b.resolveInstallPrefix(output_dir, default_install_dirs);
+    }
+
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
@@ -338,8 +350,6 @@ pub fn build(b: *Build) !void {
     // have a known good path to give to the other tools.
     // var stage_depot_tools: *Build.Step.WriteFile = b.addWriteFiles();
     // const depot_tools_dir = stage_depot_tools.addCopyDirectory(depot_tools_dep.path(""), "build/depot_tools", .{});
-
-    const cwd = b.build_root.handle;
 
     const shas = try LibShas.find(cwd, b.allocator);
 
