@@ -1170,6 +1170,7 @@ typedef struct oc_text_line
     oc_glyph_run** runs; //TODO: could be just an array of glyph_runs if we change glyph run creation to take a run struct to init..
     oc_text_attributes* attributes;
     oc_vec2* offsets;
+    u64* logicalToGraphicalRuns;
 
     oc_text_metrics metrics;
 } oc_text_line;
@@ -1177,6 +1178,7 @@ typedef struct oc_text_line
 typedef struct oc_text_item
 {
     oc_list_elt listElt;
+    u64 logicalIndex;
     u64 start;
     u64 end;
     oc_text_direction direction;
@@ -1275,6 +1277,7 @@ oc_text_line* oc_text_line_from_utf32(oc_arena* arena, oc_str32 codepoints, oc_t
                && script != OC_UNICODE_SCRIPT_INHERITED)
             {
                 oc_text_item* item = oc_arena_push_type(scratch.arena, oc_text_item);
+                item->logicalIndex = runCount;
                 item->start = runStart;
                 item->end = i;
                 item->direction = dirRun->direction;
@@ -1288,6 +1291,7 @@ oc_text_line* oc_text_line_from_utf32(oc_arena* arena, oc_str32 codepoints, oc_t
         }
         //NOTE: push last script run
         oc_text_item* item = oc_arena_push_type(scratch.arena, oc_text_item);
+        item->logicalIndex = runCount;
         item->start = runStart;
         item->end = dirRun->end;
         item->direction = dirRun->direction;
@@ -1308,6 +1312,16 @@ oc_text_line* oc_text_line_from_utf32(oc_arena* arena, oc_str32 codepoints, oc_t
                 oc_list_insert_before(&scriptRuns, firstElt, lastElt);
             }
         }
+    }
+    //NOTE: compute map of logical to graphical runs
+    line->logicalToGraphicalRuns = oc_arena_push_array(arena, u64, runCount);
+    memset(line->logicalToGraphicalRuns, 0, runCount * sizeof(u64));
+
+    u64 graphicalIndex = 0;
+    oc_list_for(scriptRuns, run, oc_text_item, listElt)
+    {
+        line->logicalToGraphicalRuns[run->logicalIndex] = graphicalIndex;
+        graphicalIndex++;
     }
 
     //NOTE: allocate runs

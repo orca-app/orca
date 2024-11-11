@@ -221,9 +221,10 @@ oc_glyph_run* oc_harfbuzz_font_shape(oc_arena* arena,
 
         glyph->metrics.advance = (oc_vec2){ glyphPos[i].x_advance, -glyphPos[i].y_advance };
 
+        //TODO: we should compute run metrics with the general range-based function at the end
         run->metrics.ink = oc_rect_combine(run->metrics.ink, glyph->metrics.ink);
-        run->metrics.logical.w = oc_max(run->metrics.logical.w, run->metrics.advance.x);
         run->metrics.advance = oc_vec2_add(run->metrics.advance, glyph->metrics.advance);
+        run->metrics.logical.w = oc_max(run->metrics.logical.w, run->metrics.advance.x);
     }
 
     //------------------------------------------------------------------------------
@@ -244,7 +245,6 @@ oc_glyph_run* oc_harfbuzz_font_shape(oc_arena* arena,
     {
         //NOTE: collate clusters and cluster widths
         u64* clusters = oc_arena_push_array(scratch.arena, u64, run->glyphCount);
-        u64* clusterFirstGlyphs = oc_arena_push_array(scratch.arena, u64, run->glyphCount);
         oc_text_metrics* clusterMetrics = oc_arena_push_array(scratch.arena, oc_text_metrics, run->glyphCount);
 
         u64 clusterCount = 0;
@@ -252,7 +252,6 @@ oc_glyph_run* oc_harfbuzz_font_shape(oc_arena* arena,
 
         currentClusterValue = glyphInfo[0].cluster;
         clusters[clusterCount] = currentClusterValue;
-        clusterFirstGlyphs[clusterCount] = 0;
         clusterMetrics[clusterCount] = run->glyphs[0].metrics;
         clusterCount++;
 
@@ -260,48 +259,76 @@ oc_glyph_run* oc_harfbuzz_font_shape(oc_arena* arena,
         {
             if(glyphInfo[glyphIndex].cluster != currentClusterValue)
             {
+                //open a new cluster
                 currentClusterValue = glyphInfo[glyphIndex].cluster;
                 clusters[clusterCount] = currentClusterValue;
-                clusterFirstGlyphs[clusterCount] = glyphIndex;
                 clusterMetrics[clusterCount] = run->glyphs[glyphIndex].metrics;
                 clusterCount++;
             }
-            clusterMetrics[clusterCount] = oc_text_metrics_combine(clusterMetrics[clusterCount],
-                                                                   run->glyphs[glyphIndex].metrics);
+            else
+            {
+                //accumulate metrics in the current cluster
+                clusterMetrics[clusterCount - 1] = oc_text_metrics_combine(clusterMetrics[clusterCount - 1],
+                                                                           run->glyphs[glyphIndex].metrics);
+            }
         }
 
         //NOTE: bucket graphemes into clusters
-        u64* clusterFirstGrapheme = oc_arena_push_array(scratch.arena, u64, clusterCount);
-        u64* clusterGraphemeCount = oc_arena_push_array(scratch.arena, u64, clusterCount);
+        u64* clusterFirstGraphemes = oc_arena_push_array(scratch.arena, u64, clusterCount);
+        u64* clusterGraphemeCounts = oc_arena_push_array(scratch.arena, u64, clusterCount);
         u64 nextGrapheme = 0;
 
-        for(u64 clusterIndex = 0; clusterIndex < clusterCount; clusterIndex++)
+        hb_direction_t bufferDirection = hb_buffer_get_direction(buffer);
+        oc_text_direction direction = OC_TEXT_DIRECTION_LTR;
+        if(bufferDirection == HB_DIRECTION_RTL || bufferDirection == HB_DIRECTION_BTT)
         {
-            clusterFirstGrapheme[clusterIndex] = nextGrapheme;
-            clusterGraphemeCount[clusterIndex] = 0;
+            direction = OC_TEXT_DIRECTION_RTL;
+        }
+
+        for(i64 clusterIndex = (direction == OC_TEXT_DIRECTION_LTR) ? (0) : (clusterCount - 1);
+            clusterIndex < clusterCount && clusterIndex >= 0;
+            (direction == OC_TEXT_DIRECTION_LTR) ? (clusterIndex++) : (clusterIndex--))
+        {
+            //NOTE: graphemes potentially straddle several subsequent clusters. We advance to the next grapheme only if all codepoints
+            //      of the current grapheme are before the current cluster
+            if(run->graphemes[nextGrapheme].offset + run->graphemes[nextGrapheme].count <= clusters[clusterIndex])
+            {
+                nextGrapheme++;
+            }
+
+            clusterFirstGraphemes[clusterIndex] = nextGrapheme;
+            clusterGraphemeCounts[clusterIndex] = 0;
+
             for(u64 graphemeIndex = nextGrapheme; graphemeIndex < run->graphemeCount; graphemeIndex++)
             {
-                if((clusterIndex < clusterCount - 1)
-                   && run->graphemes[graphemeIndex].offset >= clusters[clusterIndex + 1])
+                bool hasNextCluster = (direction == OC_TEXT_DIRECTION_LTR) ? (clusterIndex < clusterCount - 1) : (clusterIndex > 0);
+                u64 nextClusterIndex = (direction == OC_TEXT_DIRECTION_LTR) ? (clusterIndex + 1) : (clusterIndex - 1);
+
+                if(hasNextCluster
+                   && run->graphemes[graphemeIndex].offset >= clusters[nextClusterIndex])
                 {
                     //NOTE: End of current cluster.
                     //      Cluster contains clusterGraphemeCount graphemes starting at clusterFirstGrapheme
-                    nextGrapheme += clusterGraphemeCount[clusterIndex];
+                    //      We advance to the last grapheme of the current cluster, which could straddle into the next cluster
+                    OC_DEBUG_ASSERT(clusterGraphemeCounts[clusterIndex]);
+                    nextGrapheme += clusterGraphemeCounts[clusterIndex] - 1;
                     break;
                 }
                 else
                 {
-                    // add graphemes to current cluster
-                    clusterGraphemeCount[clusterIndex]++;
+                    // add grapheme to current cluster
+                    clusterGraphemeCounts[clusterIndex]++;
                 }
             }
         }
+        bool* graphemeInit = oc_arena_push_array(scratch.arena, bool, run->graphemeCount);
+        memset(graphemeInit, 0, sizeof(bool) * run->graphemeCount);
 
         //NOTE: compute grapheme positions
         for(u64 clusterIndex = 0; clusterIndex < clusterCount; clusterIndex++)
         {
-            u64 firstGrapheme = clusterFirstGrapheme[clusterIndex];
-            u64 graphemeCount = clusterGraphemeCount[clusterIndex];
+            u64 clusterFirstGrapheme = clusterFirstGraphemes[clusterIndex];
+            u64 clusterGraphemeCount = clusterGraphemeCounts[clusterIndex];
 
             //TODO: we should try to use ligature caret position if they exist, using
             // hb_ot_layout_get_ligature_carets(). However, all latin fonts with ligatures
@@ -310,34 +337,45 @@ oc_glyph_run* oc_harfbuzz_font_shape(oc_arena* arena,
             // check with someone who does.
 
             //NOTE: Fall back to evenly subdividing the cluster size.
-            //////////////////////////////////////////////////////////////////////////////////////////////
-            //TODO: this works only for LTR
-            //////////////////////////////////////////////////////////////////////////////////////////////
-
             oc_text_metrics metrics = clusterMetrics[clusterIndex];
-            oc_vec2 advance = oc_vec2_mul(1. / graphemeCount, metrics.advance);
+            oc_vec2 advance = oc_vec2_mul(1. / clusterGraphemeCount, metrics.advance);
 
-            for(u64 graphemeIndex = 0; graphemeIndex < graphemeCount; graphemeIndex++)
+            for(u64 clusterGraphemeIndex = 0; clusterGraphemeIndex < clusterGraphemeCount; clusterGraphemeIndex++)
             {
-                oc_vec2 offset = oc_vec2_mul(graphemeIndex, advance);
+                u64 graphemeIndex = clusterFirstGrapheme + clusterGraphemeIndex;
 
-                oc_text_metrics* graphemeMetrics = &run->graphemes[firstGrapheme + graphemeIndex].metrics;
+                oc_text_metrics* graphemeMetrics = &run->graphemes[graphemeIndex].metrics;
 
-                graphemeMetrics->ink = (oc_rect){
-                    metrics.ink.x + graphemeIndex * advance.x,
-                    metrics.ink.y,
-                    metrics.ink.w / graphemeCount,
-                    metrics.ink.h,
+                //TODO: this works only for horizontal (LTR or RTL)layout, revise when we actually support vertical layout!
+                oc_text_metrics localMetrics = {
+                    .ink = {
+                        metrics.ink.x + clusterGraphemeIndex * advance.x,
+                        metrics.ink.y,
+                        metrics.ink.w / clusterGraphemeCount,
+                        metrics.ink.h,
+                    },
+                    .logical = {
+                        metrics.logical.x + clusterGraphemeIndex * advance.x,
+                        metrics.logical.y,
+                        metrics.logical.w / clusterGraphemeCount,
+                        metrics.logical.h,
+                    },
+                    .advance = advance,
                 };
 
-                graphemeMetrics->logical = (oc_rect){
-                    metrics.logical.x + graphemeIndex * advance.x,
-                    metrics.logical.y,
-                    metrics.logical.w / graphemeCount,
-                    metrics.logical.h,
-                };
+                bool isInit = graphemeInit[graphemeIndex];
 
-                graphemeMetrics->advance = advance;
+                if(!isInit)
+                {
+                    *graphemeMetrics = localMetrics;
+                    graphemeInit[graphemeIndex] = true;
+                }
+                else
+                {
+                    //NOTE: if a grapheme has already been encountered (i.e. it straddles several clusters),
+                    //      we expand its metrics rather than reset them
+                    *graphemeMetrics = oc_text_metrics_combine(*graphemeMetrics, localMetrics);
+                }
             }
         }
         oc_scratch_end(scratch);
@@ -450,6 +488,33 @@ void oc_text_draw_run(oc_glyph_run* run, f32 fontSize)
 
     f32 flipY = (context->textFlip) ? -1 : 1;
 
+    oc_vec2 origin = pos;
+
+    oc_set_width(2);
+    oc_set_color_rgba(1, 0, 0, 1);
+    for(u64 i = 0; i < run->graphemeCount; i++)
+    {
+        oc_grapheme_info* grapheme = &run->graphemes[i];
+        oc_rectangle_stroke(origin.x + grapheme->metrics.logical.x * scale,
+                            origin.y + grapheme->metrics.logical.y * scale,
+                            grapheme->metrics.logical.w * scale,
+                            grapheme->metrics.logical.h * scale);
+    }
+    /*
+    oc_set_color_rgba(0, 0, 1, 1);
+    oc_rectangle_stroke(origin.x + run->metrics.logical.x * scale,
+                        origin.y + run->metrics.logical.y * scale,
+                        run->metrics.logical.w * scale,
+                        run->metrics.logical.h * scale);
+
+    oc_set_color_rgba(0, 1, 0, 1);
+    oc_rectangle_stroke(origin.x + run->metrics.ink.x * scale,
+                        origin.y + run->metrics.ink.y * scale,
+                        run->metrics.ink.w * scale,
+                        run->metrics.ink.h * scale);
+    */
+    oc_set_color_rgba(0, 0, 0, 1);
+
     for(u64 i = 0; i < run->glyphCount; i++)
     {
         oc_glyph_info* glyph = &run->glyphs[i];
@@ -464,6 +529,13 @@ void oc_text_draw_run(oc_glyph_run* run, f32 fontSize)
 
         hb_font_draw_glyph(harfbuzzFont->hbFont, glyph->index, oc_hbDrawFuncs, &data);
 
+        /*
+        oc_set_width(1);
+        oc_rectangle_stroke(origin.x + glyph->metrics.logical.x * scale,
+                            origin.y + glyph->metrics.logical.y * scale,
+                            glyph->metrics.logical.w * scale,
+                            glyph->metrics.logical.h * scale);
+        */
         pos.x += glyph->metrics.advance.x * scale;
         pos.y += glyph->metrics.advance.y * scale * flipY;
     }

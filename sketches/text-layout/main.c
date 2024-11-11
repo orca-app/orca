@@ -329,21 +329,27 @@ int main()
         }
 
         {
-            oc_move_to(400, 500);
+            oc_move_to(300, 450);
 
-            oc_text_line* line = oc_text_line_from_utf8(scratch.arena,
-                                                        OC_STR8("Hello مرحبا שלום Bonjour"),
-                                                        &(oc_text_attributes){
-                                                            .font = arabicFont,
-                                                            .fontSize = fontSize,
-                                                            .color = { 0, 0, 0, 1 },
-                                                        });
+            oc_str32 codepoints = oc_utf8_push_to_codepoints(scratch.arena, OC_STR8("Hello مرحبا שלום Bonjour"));
+            oc_text_line* line = oc_text_line_from_utf32(scratch.arena,
+                                                         codepoints,
+                                                         &(oc_text_attributes){
+                                                             .font = arabicFont,
+                                                             .fontSize = fontSize,
+                                                             .color = { 0, 0, 0, 1 },
+                                                         });
 
             oc_text_line_draw(line);
+
+            oc_rect box = oc_text_line_get_metrics_for_range(line, 0, codepoints.len).logical;
+            oc_set_width(1);
+            oc_set_color_rgba(1, 0, 0, 1);
+            //            oc_rectangle_stroke(300 + box.x, 450 + box.y, box.w, box.h);
         }
 
         {
-            oc_move_to(400, 550);
+            oc_move_to(300, 550);
 
             oc_text_line* line = oc_text_line_from_utf8(scratch.arena,
                                                         OC_STR8("Hello こんにちは Bonjour"),
@@ -358,7 +364,7 @@ int main()
             oc_text_metrics metrics = oc_text_line_get_metrics_for_range(line, rangeStart, rangeEnd);
             oc_set_width(1);
             oc_set_color_rgba(1, 0, 0, 1);
-            oc_rectangle_stroke(400 + metrics.logical.x,
+            oc_rectangle_stroke(300 + metrics.logical.x,
                                 550 + metrics.logical.y,
                                 metrics.logical.w,
                                 metrics.logical.h);
