@@ -121,151 +121,6 @@ const LibShas = struct {
     }
 };
 
-const AngleDawnHelpers = struct {
-    const Lib = enum {
-        Angle,
-        Dawn,
-
-        fn str(lib: Lib) []const u8 {
-            return switch (lib) {
-                .Angle => "Angle",
-                .Dawn => "Dawn",
-            };
-        }
-    };
-
-    // const FILE_EXCLUSIONS: []const []const u8 = &[_][]const u8{ ".DS_Store", "hash.txt" };
-
-    // fn parseLibSha(b: *Build, comptime lib: Lib) []const u8 {}
-
-    // expects file contents to be a single hash blob like "8a8c8fc280d74b34731e0e417b19bff7c967388a"
-    // fn readStampFile(b: *Build, path: []const u8) ![]const u8 {
-    //     const file_contents: []const u8 = try b.build_root.handle.readFileAlloc(b.allocator, path, 1024 * 4);
-
-    //     var stamp: []const u8 = file_contents;
-    //     stamp = std.mem.trimRight(u8, stamp, "\n");
-    //     stamp = std.mem.trimRight(u8, stamp, "\r");
-    //     return stamp;
-    // }
-
-    // fn generateCheckfileContents(b: *Build, comptime lib: Lib) ![]const u8 {
-    //     // const dep = b.dependency(if (lib == .Angle) "build/angle" else "build/dawn", .{});
-
-    //     // TODO read this from build.zig.zon somehow?
-    //     const commit_stamp_path = if (lib == .Angle) "deps/angle-commit.txt" else "deps/dawn-commit.txt";
-    //     const artifact_dir = if (lib == .Angle) "build/angle.out" else "build/dawn.out";
-
-    //     const commit_stamp = try readStampFile(b, commit_stamp_path);
-    //     const artifacts_hash = try Checksum.dir(b, dep.path(), &FILE_EXCLUSIONS);
-
-    //     const checkfile_contents = try Checksum.strings(b, &.{ commit_stamp, artifacts_hash });
-    //     return checkfile_contents;
-    // }
-
-    // fn checkUpToDate(b: *Build, comptime lib: Lib) !*Build.Step.CheckFile {
-    //     // TODO rewrite this using a custom step
-    //     const checkfile_path = if (lib == .Angle) "build/angle.out/hash.txt" else "build/dawn.out/hash.txt";
-    //     const checkfile_contents = try generateCheckfileContents(b, lib);
-    //     var checkfile = b.addCheckFile(b.path(checkfile_path), .{ .expected_exact = checkfile_contents });
-
-    //     const name = if (lib == .Angle) "Angle up-to-date check" else "Dawn up-to-date check";
-    //     checkfile.setName(name);
-
-    //     return checkfile;
-    // }
-
-    //     const CheckBuildSentinel = struct {
-    //         step: Build.Step,
-    //         lib: AngleDawnHelpers.Lib,
-
-    //         fn create(owner: *Build, comptime lib: AngleDawnHelpers.Lib) *CheckBuildSentinel {
-    //             const name = if (lib == .Angle) "CheckAngleBuildSentinel" else "CheckDawnBuildSentinel";
-
-    //             var check_sentinel = owner.allocator.create(CheckBuildSentinel) catch @panic("OOM");
-    //             check_sentinel.step = Build.Step.init(.{
-    //                 .id = .custom,
-    //                 .name = name,
-    //                 .owner = owner,
-    //                 .makeFn = make,
-    //             });
-    //             check_sentinel.lib = lib;
-
-    //             return check_sentinel;
-    //         }
-
-    //         fn make(step: *Step, prog_node: std.Progress.Node) !void {
-    //             _ = prog_node;
-
-    //             std.debug.print(">>>>>>> CheckBuildSentinel\n", .{});
-
-    //             const check_sentinel: *CheckBuildSentinel = @fieldParentPtr("step", step);
-    //             const b: *Build = step.owner;
-
-    //             const build_dir = if (check_sentinel.lib == .Angle) "build/angle.out/" else "build/dawn.out";
-    //             const sentinel_path = try std.fs.path.join(b.allocator, &.{ build_dir, "hash.txt" });
-    //             const sum = try Checksum.dir(b, build_dir, FILE_EXCLUSIONS);
-
-    //             const sentinel = b.build_root.handle.readFileAlloc(
-    //                 b.allocator,
-    //                 sentinel_path,
-    //                 Checksum.MAX_FILE_SIZE,
-    //             ) catch |err| {
-    //                 return step.fail("unable to read build sentinel file '{}{s}': {s}", .{
-    //                     b.build_root, sentinel_path, @errorName(err),
-    //                 });
-    //             };
-
-    //             if (std.mem.eql(u8, sum, sentinel) == false) {
-    //                 return step.fail("Calculated checksum ({s}) does not match sentinel at {s} ({s}). {s} is out of date and must be manually rebuilt.", .{
-    //                     sum,
-    //                     sentinel_path,
-    //                     sentinel,
-    //                     check_sentinel.lib.str(),
-    //                 });
-    //             }
-    //         }
-    //     };
-
-    //     const WriteBuildSentinel = struct {
-    //         step: Build.Step,
-    //         lib: Lib,
-
-    //         fn create(owner: *Build, comptime lib: Lib) *WriteBuildSentinel {
-    //             const name = if (lib == .Angle) "WriteAngleBuildSentinel" else "WriteDawnBuildSentinel";
-
-    //             var write_sentinel = owner.allocator.create(WriteBuildSentinel) catch @panic("OOM");
-    //             write_sentinel.step = Build.Step.init(.{
-    //                 .id = .custom,
-    //                 .name = name,
-    //                 .owner = owner,
-    //                 .makeFn = make,
-    //             });
-    //             write_sentinel.lib = lib;
-
-    //             return write_sentinel;
-    //         }
-
-    //         fn make(step: *Step, prog_node: std.Progress.Node) !void {
-    //             _ = prog_node;
-
-    //             std.debug.print(">>>>>>> WriteBuildSentinel\n", .{});
-
-    //             const write_sentinel: *WriteBuildSentinel = @fieldParentPtr("step", step);
-    //             const b: *Build = step.owner;
-
-    //             const build_dir = if (write_sentinel.lib == .Angle) "build/angle.out/" else "build/dawn.out";
-    //             const sentinel_path = try std.fs.path.join(b.allocator, &.{ build_dir, "hash.txt" });
-    //             const sum = try Checksum.dir(b, build_dir, FILE_EXCLUSIONS);
-
-    //             b.build_root.handle.writeFile(.{ .sub_path = sentinel_path, .data = sum }) catch |err| {
-    //                 return step.fail("unable to write build sentinel file '{}{s}': {s}", .{
-    //                     b.build_root, sentinel_path, @errorName(err),
-    //                 });
-    //             };
-    //         }
-    //     };
-};
-
 const RunHelpers = struct {
     fn addPythonArg(run: *Build.Step.Run, target: Build.ResolvedTarget, b: *Build) void {
         if (target.result.os.tag == .windows) {
@@ -303,15 +158,23 @@ pub fn build(b: *Build) !void {
 
     const cwd = b.build_root.handle;
 
-    // override default output directory
+    // set artifact output directory - a bit of a hack since we're directly overriding
+    // the prefix, including whatever the user may have specified with -p, but in Orca's
+    // case we always want everything going into build/
     {
         const default_install_dirs = Build.DirList{
-            .lib_dir = "bin",
             .exe_dir = "bin",
+            // orca just simplifies everything by having both exes and libs go to the bin directory
+            .lib_dir = "bin",
+            // by default headers go into <prefix>/headers, but we want to be able to parent the libc
+            // headers to orca-libc/, so by default the header lib is the root of the prefix
+            .include_dir = "",
         };
         const output_dir = try cwd.realpathAlloc(b.allocator, "build");
         b.resolveInstallPrefix(output_dir, default_install_dirs);
     }
+
+    var install_step: *Build.Step = b.getInstallStep();
 
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
@@ -333,23 +196,6 @@ pub fn build(b: *Build) !void {
         uninstall_step.description = "Delete all build artifacts and start fresh.";
         try b.top_level_steps.put(b.allocator, uninstall_step.step.name, uninstall_step);
     }
-
-    // b.install_prefix = "build/zig-out";
-
-    // const python_build_libc = b.addSystemCommand(&[_][]const u8{ "python", "orcadev", "build-orca-libc" });
-    // const python_build_sdk = b.addSystemCommand(&[_][]const u8{ "python", "orcadev", "build-wasm-sdk" });
-
-    /////////////////////////////////////////////////////////
-    // depot tools
-
-    // var depot_tools_dep = b.dependency("depot_tools", .{});
-
-    // Dependency.path() returns a LazyPath, but the angle/dawn build tools require the
-    // depot_tools to be in the PATH, which requires a path known when creating the build
-    // graph. So we ensure the depot_tools will be staged in the build directory so we can
-    // have a known good path to give to the other tools.
-    // var stage_depot_tools: *Build.Step.WriteFile = b.addWriteFiles();
-    // const depot_tools_dir = stage_depot_tools.addCopyDirectory(depot_tools_dep.path(""), "build/depot_tools", .{});
 
     const shas = try LibShas.find(cwd, b.allocator);
 
@@ -379,6 +225,9 @@ pub fn build(b: *Build) !void {
     RunHelpers.addPythonArg(run_angle_build, target, b);
     RunHelpers.addCmakeArg(run_angle_build, target, b);
 
+    const build_angle_step = b.step("angle", "Build Angle libs");
+    build_angle_step.dependOn(&run_angle_build.step);
+
     var run_angle_uptodate: *Build.Step.Run = b.addRunArtifact(build_deps_exe);
     run_angle_uptodate.addArg("--check");
     run_angle_uptodate.addArg("--lib=angle");
@@ -387,9 +236,6 @@ pub fn build(b: *Build) !void {
     run_angle_uptodate.addPrefixedFileArg("--src=", angle_dep.path(""));
     RunHelpers.addPythonArg(run_angle_uptodate, target, b);
     RunHelpers.addCmakeArg(run_angle_uptodate, target, b);
-
-    const build_angle_step = b.step("angle", "Build Angle libs");
-    build_angle_step.dependOn(&run_angle_build.step);
 
     /////////////////////////////////////////////////////////
     // dawn build + check
@@ -404,6 +250,9 @@ pub fn build(b: *Build) !void {
     RunHelpers.addPythonArg(run_dawn_build, target, b);
     RunHelpers.addCmakeArg(run_dawn_build, target, b);
 
+    const build_dawn_step = b.step("dawn", "Build Dawn libs");
+    build_dawn_step.dependOn(&run_dawn_build.step);
+
     var run_dawn_uptodate: *Build.Step.Run = b.addRunArtifact(build_deps_exe);
     run_dawn_uptodate.addArg("--check");
     run_dawn_uptodate.addArg("--lib=dawn");
@@ -413,23 +262,23 @@ pub fn build(b: *Build) !void {
     RunHelpers.addPythonArg(run_dawn_uptodate, target, b);
     RunHelpers.addCmakeArg(run_dawn_uptodate, target, b);
 
-    const build_dawn_step = b.step("dawn", "Build Dawn libs");
-    build_dawn_step.dependOn(&run_dawn_build.step);
-
     /////////////////////////////////////////////////////////
     // Orca runtime and dependencies
 
-    // stage angle + dawn libs
+    // copy angle + dawn libs to output directory
+    var install_angle = b.addInstallDirectory(.{
+        .source_dir = b.path("build/angle.out/bin"),
+        .install_dir = .bin,
+        .install_subdir = "",
+    });
+    install_angle.step.dependOn(&run_angle_uptodate.step);
 
-    var stage_angle_libs: *Build.Step.WriteFile = b.addWriteFiles();
-    const angle_include_path = stage_angle_libs.addCopyDirectory(b.path("build/angle.out/include"), "include", .{});
-    const angle_lib_path = stage_angle_libs.addCopyDirectory(b.path("build/angle.out/bin"), "lib", .{});
-    stage_angle_libs.step.dependOn(&run_angle_uptodate.step);
-
-    var stage_dawn_libs: *Build.Step.WriteFile = b.addWriteFiles();
-    const dawn_include_path = stage_dawn_libs.addCopyDirectory(b.path("build/dawn.out/include"), "include", .{});
-    const dawn_lib_path = stage_dawn_libs.addCopyDirectory(b.path("build/dawn.out/bin"), "lib", .{});
-    stage_dawn_libs.step.dependOn(&run_dawn_uptodate.step);
+    var install_dawn = b.addInstallDirectory(.{
+        .source_dir = b.path("build/dawn.out/bin"),
+        .install_dir = .bin,
+        .install_subdir = "",
+    });
+    install_dawn.step.dependOn(&run_dawn_uptodate.step);
 
     // wgpu shaders header
 
@@ -485,23 +334,22 @@ pub fn build(b: *Build) !void {
     });
 
     // stage_angle_libs.step.dependOn(&orca_platform_lib.step); ////////////////////////////////////
-    orca_platform_lib.step.dependOn(&stage_angle_libs.step);
-    orca_platform_lib.step.dependOn(&stage_dawn_libs.step);
+    orca_platform_lib.step.dependOn(&install_angle.step);
+    orca_platform_lib.step.dependOn(&install_dawn.step);
     orca_platform_lib.step.dependOn(&update_wgpu_header.step);
 
     orca_platform_lib.addIncludePath(b.path("src"));
     orca_platform_lib.addIncludePath(b.path("src/ext"));
-    orca_platform_lib.addIncludePath(b.path("src/ext/angle/include"));
-    orca_platform_lib.addIncludePath(angle_include_path);
-    orca_platform_lib.addIncludePath(dawn_include_path);
+    orca_platform_lib.addIncludePath(b.path("build/angle.out/include"));
+    orca_platform_lib.addIncludePath(b.path("build/dawn.out/include"));
 
     orca_platform_lib.addCSourceFiles(.{
         .files = &.{"src/orca.c"},
         .flags = orca_platform_compile_flags.items,
     });
 
-    orca_platform_lib.addLibraryPath(angle_lib_path);
-    orca_platform_lib.addLibraryPath(dawn_lib_path);
+    orca_platform_lib.addLibraryPath(b.path("build/angle.out/bin"));
+    orca_platform_lib.addLibraryPath(b.path("build/dawn.out/bin"));
 
     // orca_platform_lib.addLibraryPath(b.path("build/lib"));
     // orca_platform_lib.addLibraryPath(b.path("build/bin"));
@@ -524,8 +372,6 @@ pub fn build(b: *Build) !void {
     orca_platform_lib.linkSystemLibrary("libEGL.dll"); // todo DELAYLOAD?
     orca_platform_lib.linkSystemLibrary("libGLESv2.dll"); // todo DELAYLOAD?
     orca_platform_lib.linkSystemLibrary("webgpu");
-
-    b.installArtifact(orca_platform_lib);
 
     // wasm3
 
@@ -579,7 +425,14 @@ pub fn build(b: *Build) !void {
     orca_runtime_exe.linkLibrary(orca_platform_lib);
     orca_runtime_exe.linkLibC();
 
-    b.installArtifact(orca_runtime_exe);
+    orca_runtime_exe.step.dependOn(&install_angle.step);
+    orca_runtime_exe.step.dependOn(&install_dawn.step);
+
+    const install_runtime_exe: *Build.Step.InstallArtifact = b.addInstallArtifact(orca_runtime_exe, .{});
+    install_step.dependOn(&install_runtime_exe.step);
+
+    const build_runtime_step = b.step("runtime", "Build the Orca runtime from source.");
+    build_runtime_step.dependOn(&install_runtime_exe.step);
 
     // TODO write checksum file
     // with open("build/orcaruntime.sum", "w") as f:
@@ -588,17 +441,14 @@ pub fn build(b: *Build) !void {
     ///////////////////////////////////////////////////////
     // orca wasm libc
 
-    var stage_libc_includes: *Build.Step.WriteFile = b.addWriteFiles();
-    _ = stage_libc_includes.addCopyDirectory(b.path("src/orca-libc/include"), "build/orca-libc/include", .{});
-
-    var libc_target_query: std.Target.Query = .{
+    var wasm_target_query: std.Target.Query = .{
         .cpu_arch = std.Target.Cpu.Arch.wasm32,
         .os_tag = std.Target.Os.Tag.freestanding,
     };
-    libc_target_query.cpu_features_add.addFeature(@intFromEnum(std.Target.wasm.Feature.bulk_memory));
-    libc_target_query.cpu_features_add.addFeature(@intFromEnum(std.Target.wasm.Feature.nontrapping_fptoint));
+    wasm_target_query.cpu_features_add.addFeature(@intFromEnum(std.Target.wasm.Feature.bulk_memory));
+    wasm_target_query.cpu_features_add.addFeature(@intFromEnum(std.Target.wasm.Feature.nontrapping_fptoint));
 
-    const libc_target: Build.ResolvedTarget = b.resolveTargetQuery(libc_target_query);
+    const wasm_target: Build.ResolvedTarget = b.resolveTargetQuery(wasm_target_query);
 
     // target_query.cpu_features_add.addFeature(@intFromEnum(std.Target.wasm.Feature.multivalue));
     // target_query.cpu_features_add.addFeature(@intFromEnum(std.Target.wasm.Feature.mutable_globals));
@@ -644,8 +494,8 @@ pub fn build(b: *Build) !void {
         // other flags
         // "-nostdlibinc",
         // "-nobuiltininc",
-        "-nostdinc",
-        "-nostdlib",
+        // "-nostdinc",
+        // "-nostdlib",
         "--std=c11",
         // "--preprocess",
         // "-nobuiltininc",
@@ -654,18 +504,27 @@ pub fn build(b: *Build) !void {
     };
     // zig fmt: on
 
-    // var dummy_crt_obj = b.addObject(.{
-    //     .name = "crt1",
-    //     .target = libc_target,
-    //     .optimize = optimize,
-    //     .link_libc = false,
-    // });
-    // dummy_crt_obj.addCSourceFiles(.{
-    //     .files = &.{"src/orca-libc/src/crt/crt1.c"},
-    //     .flags = libc_flags,
-    // });
+    // dummy crt1 object for sysroot folder
 
-    // b.installArtifact(dummy_crt_obj);
+    var dummy_crt_obj = b.addObject(.{
+        .name = "crt1",
+        .target = wasm_target,
+        .optimize = optimize,
+        .link_libc = false,
+    });
+    dummy_crt_obj.addCSourceFiles(.{
+        .files = &.{"src/orca-libc/src/crt/crt1.c"},
+        .flags = libc_flags,
+    });
+
+    const libc_install_opts = Build.Step.InstallArtifact.Options{
+        .dest_dir = .{ .override = .{ .custom = "orca-libc/lib" } },
+    };
+
+    const dummy_crt_install: *Build.Step.InstallArtifact = b.addInstallArtifact(dummy_crt_obj, libc_install_opts);
+    install_step.dependOn(&dummy_crt_install.step);
+
+    // wasm libc with orca platform implementation
 
     const wasm_libc_source_paths: []const []const u8 = &.{
         "src/orca-libc/src/complex",
@@ -687,43 +546,96 @@ pub fn build(b: *Build) !void {
     var wasm_libc_sources = CSources.init(b);
     defer wasm_libc_sources.deinit();
 
-    var wasm_libc_libs = std.ArrayList(*Build.Step.Compile).init(b.allocator);
+    var wasm_libc_objs = std.ArrayList(*Build.Step.Compile).init(b.allocator);
     for (wasm_libc_source_paths) |path| {
         const basename: []const u8 = std.fs.path.basename(path);
         const obj_name: []const u8 = try std.mem.join(b.allocator, "", &.{ "libc_", basename });
-        var lib = b.addStaticLibrary(.{
+        var obj = b.addObject(.{
             .name = obj_name,
-            .target = libc_target,
+            .target = wasm_target,
             .optimize = optimize,
+            .single_threaded = true,
+            .link_libc = false,
             .zig_lib_dir = b.path("src/orca-libc"), // ensures c stdlib headers bundled with zig are ignored
         });
         wasm_libc_sources.files.shrinkRetainingCapacity(0);
         try wasm_libc_sources.collect(path);
 
-        lib.addCSourceFiles(.{
+        obj.addCSourceFiles(.{
             .files = wasm_libc_sources.files.items,
             .flags = libc_flags,
         });
-        try wasm_libc_libs.append(lib);
+        try wasm_libc_objs.append(obj);
     }
 
-    var wasm_libc_lib = b.addExecutable(.{
-        .name = "libc",
-        .target = libc_target,
+    var wasm_libc_lib = b.addStaticLibrary(.{
+        .name = "c",
+        .target = wasm_target,
         .optimize = optimize,
         .link_libc = false,
         .single_threaded = true,
     });
-    for (wasm_libc_libs.items) |lib| {
-        wasm_libc_lib.linkLibrary(lib);
+    for (wasm_libc_objs.items) |obj| {
+        wasm_libc_lib.addObject(obj);
     }
 
-    wasm_libc_lib.rdynamic = true;
-    wasm_libc_lib.entry = .disabled;
+    // wasm_libc_lib.rdynamic = true;
+    // wasm_libc_lib.entry = .disabled;
 
-    b.installArtifact(wasm_libc_lib);
+    wasm_libc_lib.installHeadersDirectory(b.path("src/orca-libc/include"), "orca-libc/include", .{});
 
-    // TODO need to manually install the .o crt1 and libc files - zig doesn't do this by default
+    const libc_install: *Build.Step.InstallArtifact = b.addInstallArtifact(wasm_libc_lib, libc_install_opts);
+    install_step.dependOn(&libc_install.step);
+
+    const build_libc_step = b.step("libc", "Build the Orca libC from source.");
+    build_libc_step.dependOn(&libc_install.step);
+    build_libc_step.dependOn(&dummy_crt_install.step);
+
+    /////////////////////////////////////////////////////////
+    // Orca wasm SDK
+
+    const wasm_sdk_flags: []const []const u8 = &.{
+        "-Isrc",
+        "-Isrc/ext",
+        "-Isrc/orca-libc/include",
+        "--no-standard-libraries",
+        "-D__ORCA__",
+        // "-Wl,--no-entry",
+        // "-Wl,--export-dynamic",
+        // "-Wl,--relocatable"
+    };
+
+    var wasm_sdk_obj = b.addObject(.{
+        .name = "orca_wasm",
+        .target = wasm_target,
+        .optimize = optimize,
+        .link_libc = false,
+        .single_threaded = true,
+        .zig_lib_dir = b.path("src/orca-libc"),
+    });
+    wasm_sdk_obj.addCSourceFiles(.{
+        .flags = wasm_sdk_flags,
+        .files = &.{"src/orca.c"},
+    });
+
+    var wasm_sdk_lib = b.addExecutable(.{
+        .name = "liborca",
+        .target = wasm_target,
+        .optimize = optimize,
+        .link_libc = false,
+        .single_threaded = true,
+    });
+    wasm_sdk_lib.addObject(wasm_sdk_obj);
+    wasm_sdk_lib.rdynamic = true;
+    wasm_sdk_lib.entry = .disabled;
+
+    // wasm_sdk_lib.step.dependOn(&libc_install.step); // TODO probably needs to depend on the libc artifacts being installed to the build dir
+
+    const wasm_sdk_install: *Build.Step.InstallArtifact = b.addInstallArtifact(wasm_sdk_lib, .{});
+    install_step.dependOn(&wasm_sdk_install.step);
+
+    const build_wasm_sdk_step = b.step("wasm-sdk", "Build the Orca wasm sdk from source.");
+    build_wasm_sdk_step.dependOn(&wasm_sdk_install.step);
 
     /////////////////////////////////////////////////////////
     // Orca CLI tool and dependencies
@@ -847,7 +759,11 @@ pub fn build(b: *Build) !void {
     orca_tool_exe.step.dependOn(&z_lib.step);
     orca_tool_exe.linkLibC();
 
-    b.installArtifact(orca_tool_exe);
+    const orca_tool_install: *Build.Step.InstallArtifact = b.addInstallArtifact(orca_tool_exe, .{});
+    install_step.dependOn(&orca_tool_install.step);
+
+    const build_tool_step = b.step("tool", "Build the Orca CLI tool from source.");
+    build_tool_step.dependOn(&orca_tool_install.step);
 
     ///////////////////////////////////////////////////////////////
     // TODO bundle command ?
@@ -857,7 +773,7 @@ pub fn build(b: *Build) !void {
     // orca_tool_exe.step.dependOn(&python_build_sdk.step);
     // python_build_tool.step.dependOn(&python_build_sdk.step);
 
-    // b.getInstallStep().dependOn(&orca_tool_exe.step);
+    // install_step.dependOn(&orca_tool_exe.step);
 
     // ensure_programs()
 
@@ -868,7 +784,7 @@ pub fn build(b: *Build) !void {
 
     // const python_install =
 
-    // b.getInstallStep().dependOn(&python_install.step);
+    // install_step.dependOn(&python_install.step);
 
     /////////////////////////////////////////////////////////////////
     // zig build clean
@@ -929,7 +845,7 @@ pub fn build(b: *Build) !void {
     // // installation directory rather than directly from within the cache directory.
     // // This is not necessary, however, if the application depends on other installed
     // // files, this ensures they will be present and in the expected location.
-    // run_cmd.step.dependOn(b.getInstallStep());
+    // run_cmd.step.dependOn(install_step);
 
     // // This allows the user to pass arguments to the application in the build
     // // command itself, like this: `zig build run -- arg1 arg2 etc`
