@@ -179,24 +179,6 @@ pub fn build(b: *Build) !void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    // NOTE - can use this to remove the default install/uninstall steps to fully customize the build menu
-    // b.top_level_steps.clearRetainingCapacity();
-
-    // Modify the default top-level build steps to reflect Orca's dev workflow
-    {
-        // b.top_level_steps.get("install").?.description = "Install a dev build of the Orca tools into the system Orca directory.";
-
-        // var uninstall_step = b.top_level_steps.fetchSwapRemove("install").?.value;
-        // uninstall_step.step.name = "all";
-        // uninstall_step.description = "Delete all build artifacts and start fresh.";
-        // try b.top_level_steps.put(b.allocator, uninstall_step.step.name, uninstall_step);
-
-        var uninstall_step = b.top_level_steps.fetchSwapRemove("uninstall").?.value;
-        uninstall_step.step.name = "clean";
-        uninstall_step.description = "Delete all build artifacts and start fresh.";
-        try b.top_level_steps.put(b.allocator, uninstall_step.step.name, uninstall_step);
-    }
-
     const shas = try LibShas.find(cwd, b.allocator);
 
     /////////////////////////////////////////////////////////
@@ -333,9 +315,9 @@ pub fn build(b: *Build) !void {
         .optimize = optimize,
     });
 
-    // stage_angle_libs.step.dependOn(&orca_platform_lib.step); ////////////////////////////////////
     orca_platform_lib.step.dependOn(&install_angle.step);
     orca_platform_lib.step.dependOn(&install_dawn.step);
+    // orca_platform_lib.step.dependOn(&stage_angle_dawn_headers.step);
     orca_platform_lib.step.dependOn(&update_wgpu_header.step);
 
     orca_platform_lib.addIncludePath(b.path("src"));
@@ -350,9 +332,6 @@ pub fn build(b: *Build) !void {
 
     orca_platform_lib.addLibraryPath(b.path("build/angle.out/bin"));
     orca_platform_lib.addLibraryPath(b.path("build/dawn.out/bin"));
-
-    // orca_platform_lib.addLibraryPath(b.path("build/lib"));
-    // orca_platform_lib.addLibraryPath(b.path("build/bin"));
 
     orca_platform_lib.linkSystemLibrary("user32");
     orca_platform_lib.linkSystemLibrary("opengl32");
@@ -413,7 +392,7 @@ pub fn build(b: *Build) !void {
 
     orca_runtime_exe.addIncludePath(b.path("src"));
     orca_runtime_exe.addIncludePath(b.path("src/ext"));
-    orca_runtime_exe.addIncludePath(b.path("src/ext/angle/include"));
+    orca_runtime_exe.addIncludePath(b.path("build/angle.out/include"));
     orca_runtime_exe.addIncludePath(b.path("src/ext/wasm3/source"));
 
     orca_runtime_exe.addCSourceFiles(.{
@@ -434,10 +413,6 @@ pub fn build(b: *Build) !void {
     const build_runtime_step = b.step("runtime", "Build the Orca runtime from source.");
     build_runtime_step.dependOn(&install_runtime_exe.step);
 
-    // TODO write checksum file
-    // with open("build/orcaruntime.sum", "w") as f:
-    // f.write(runtime_checksum())
-
     ///////////////////////////////////////////////////////
     // orca wasm libc
 
@@ -449,12 +424,6 @@ pub fn build(b: *Build) !void {
     wasm_target_query.cpu_features_add.addFeature(@intFromEnum(std.Target.wasm.Feature.nontrapping_fptoint));
 
     const wasm_target: Build.ResolvedTarget = b.resolveTargetQuery(wasm_target_query);
-
-    // target_query.cpu_features_add.addFeature(@intFromEnum(std.Target.wasm.Feature.multivalue));
-    // target_query.cpu_features_add.addFeature(@intFromEnum(std.Target.wasm.Feature.mutable_globals));
-    // target_query.cpu_features_add.addFeature(@intFromEnum(std.Target.wasm.Feature.reference_types));
-    // target_query.cpu_features_add.addFeature(@intFromEnum(std.Target.wasm.Feature.sign_ext));
-    // target_query.cpu_features_add.addFeature(@intFromEnum(std.Target.wasm.Feature.simd128));
 
     // zig fmt: off
     const libc_flags: []const []const u8 = &.{
@@ -492,15 +461,7 @@ pub fn build(b: *Build) !void {
         "-DBULK_MEMORY_THRESHOLD=32",
 
         // other flags
-        // "-nostdlibinc",
-        // "-nobuiltininc",
-        // "-nostdinc",
-        // "-nostdlib",
         "--std=c11",
-        // "--preprocess",
-        // "-nobuiltininc",
-        // "--no-standard-includes",
-        // "-mthread-model", "single",
     };
     // zig fmt: on
 
@@ -766,6 +727,11 @@ pub fn build(b: *Build) !void {
     build_tool_step.dependOn(&orca_tool_install.step);
 
     ///////////////////////////////////////////////////////////////
+    // install-sys command
+
+    // copy
+
+    ///////////////////////////////////////////////////////////////
     // TODO bundle command ?
 
     // python_build_libc.step.dependOn(&orca_runtime_exe.step);
@@ -791,7 +757,8 @@ pub fn build(b: *Build) !void {
 
     // TODO consider making a standalone step different from the default uninstall
     {
-        var uninstall_step = b.getUninstallStep();
+        const clean_step: *Build.Step = b.step("clean", "Delete all build artifacts and start fresh.");
+
         const paths = [_][]const u8{
             ".zig-cache",
             "build",
@@ -803,8 +770,10 @@ pub fn build(b: *Build) !void {
         };
         for (paths) |path| {
             var remove_dir = b.addRemoveDirTree(b.path(path));
-            uninstall_step.dependOn(&remove_dir.step);
+            clean_step.dependOn(&remove_dir.step);
         }
+
+        b.getUninstallStep().dependOn(clean_step);
     }
 
     /////////////////////////////////////////////////////////////////
