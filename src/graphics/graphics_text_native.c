@@ -488,6 +488,7 @@ void oc_text_draw_run(oc_glyph_run* run, f32 fontSize)
 
     f32 flipY = (context->textFlip) ? -1 : 1;
 
+    /*
     oc_vec2 origin = pos;
 
     oc_set_width(2);
@@ -500,6 +501,7 @@ void oc_text_draw_run(oc_glyph_run* run, f32 fontSize)
                             grapheme->metrics.logical.w * scale,
                             grapheme->metrics.logical.h * scale);
     }
+    */
     /*
     oc_set_color_rgba(0, 0, 1, 1);
     oc_rectangle_stroke(origin.x + run->metrics.logical.x * scale,

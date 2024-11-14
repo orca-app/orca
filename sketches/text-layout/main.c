@@ -183,7 +183,7 @@ int main()
         }
 
         // background
-        oc_set_color_rgba(0, 1, 1, 1);
+        oc_set_color_rgba(1, 1, 1, 1);
         oc_clear();
 
         oc_font_metrics metrics = oc_font_get_metrics(zapFont, fontSize);
@@ -304,7 +304,7 @@ int main()
             oc_matrix_pop();
         }
         */
-
+        /*
         {
             oc_move_to(500, 400);
             oc_line_to(700, 400);
@@ -327,6 +327,7 @@ int main()
                                                          });
             oc_text_line_draw(line);
         }
+        */
 
         {
             oc_move_to(300, 450);
@@ -342,10 +343,10 @@ int main()
 
             oc_text_line_draw(line);
 
-            oc_rect box = oc_text_line_get_metrics_for_range(line, 0, codepoints.len).logical;
+            oc_rect box = oc_text_line_get_metrics_for_range(line, 9, 15).logical;
             oc_set_width(1);
             oc_set_color_rgba(1, 0, 0, 1);
-            //            oc_rectangle_stroke(300 + box.x, 450 + box.y, box.w, box.h);
+            oc_rectangle_stroke(300 + box.x, 450 + box.y, box.w, box.h);
         }
 
         {
