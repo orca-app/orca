@@ -373,8 +373,8 @@ typedef struct oc_ui_theme
     oc_ui_palette* palette;
 } oc_ui_theme;
 
-extern oc_ui_theme OC_UI_DARK_THEME;
-extern oc_ui_theme OC_UI_LIGHT_THEME;
+ORCA_API extern oc_ui_theme OC_UI_DARK_THEME;
+ORCA_API extern oc_ui_theme OC_UI_LIGHT_THEME;
 
 typedef struct oc_ui_tag
 {
@@ -513,6 +513,9 @@ struct oc_ui_box
 
     oc_ui_box_draw_proc drawProc;
     void* drawData;
+
+    // text shaping
+    oc_text_line* textLine;
 
     // styling
     oc_list beforeRules;

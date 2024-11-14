@@ -16,7 +16,7 @@ typedef struct oc_wgpu_path
     oc_vec4 colors[4];
     oc_vec4 box;
     oc_vec4 clip;
-    i32 cmd;
+    i32 fillRule;
     i32 textureID;
     i32 hasGradient;
     i32 blendSpace;
@@ -1525,7 +1525,7 @@ void oc_wgpu_canvas_encode_path(oc_wgpu_canvas_encoding_context* context, oc_pri
 
     if(path)
     {
-        path->cmd = primitive->cmd;
+        path->fillRule = primitive->attributes.fillRule;
 
         path->box = (oc_vec4){
             context->pathScreenExtents.x * context->scale.x,
@@ -3083,6 +3083,7 @@ bool oc_wgpu_canvas_encode_batch(oc_wgpu_canvas_encoding_context* context)
 
                 if(primitive->cmd == OC_CMD_STROKE)
                 {
+                    primitive->attributes.fillRule = OC_FILL_NON_ZERO;
                     oc_wgpu_encode_stroke(context, context->inputElements + primitive->path.startIndex, &primitive->path);
                 }
                 else

@@ -102,22 +102,25 @@ typedef enum
     OC_CAP_SQUARE
 } oc_cap_type;
 
+typedef enum
+{
+    OC_FILL_EVEN_ODD = 0,
+    OC_FILL_NON_ZERO,
+} oc_fill_rule;
+
+//------------------------------------------------------------------------------------------
+// text structs
+//------------------------------------------------------------------------------------------
 typedef struct oc_font_metrics
 {
     f32 ascent;    // the extent above the baseline (by convention a positive value extends above the baseline)
     f32 descent;   // the extent below the baseline (by convention, positive value extends below the baseline)
     f32 lineGap;   // spacing between one row's descent and the next row's ascent
-    f32 xHeight;   // height of the lower case letter 'x'
-    f32 capHeight; // height of the upper case letter 'M'
-    f32 width;     // maximum width of the font
+    f32 xHeight;   // height of the lower case letter 'x' //TODO: remove? does not always make sense (ie for non latin)
+    f32 capHeight; // height of the upper case letter 'M' //TODO: remove? does not always make sense (ie for non latin)
+    f32 width;     // maximum width of the font //TODO: remove? pretty useless
 
 } oc_font_metrics;
-
-typedef struct oc_glyph_metrics
-{
-    oc_rect ink;
-    oc_vec2 advance;
-} oc_glyph_metrics;
 
 typedef struct oc_text_metrics
 {
@@ -126,6 +129,25 @@ typedef struct oc_text_metrics
     oc_vec2 advance;
 
 } oc_text_metrics;
+
+typedef enum
+{
+    OC_TEXT_DIRECTION_UNKNOWN = 0,
+    OC_TEXT_DIRECTION_LTR,
+    OC_TEXT_DIRECTION_RTL,
+    OC_TEXT_DIRECTION_TTB,
+    OC_TEXT_DIRECTION_BTT,
+
+} oc_text_direction;
+
+typedef struct oc_text_attributes
+{
+    oc_font font;
+    f32 fontSize;
+    oc_color color;
+} oc_text_attributes;
+
+typedef struct oc_text_line oc_text_line;
 
 //------------------------------------------------------------------------------------------
 //SECTION: color helpers
@@ -176,21 +198,18 @@ ORCA_API void oc_canvas_context_set_msaa_sample_count(oc_canvas_context context,
 ORCA_API oc_font oc_font_nil(void);
 ORCA_API bool oc_font_is_nil(oc_font font);
 
-ORCA_API oc_font oc_font_create_from_memory(oc_str8 mem, u32 rangeCount, oc_unicode_range* ranges);
-ORCA_API oc_font oc_font_create_from_file(oc_file file, u32 rangeCount, oc_unicode_range* ranges);
-ORCA_API oc_font oc_font_create_from_path(oc_str8 path, u32 rangeCount, oc_unicode_range* ranges);
+ORCA_API oc_font oc_font_create_from_memory(oc_str8 mem);
+ORCA_API oc_font oc_font_create_from_file(oc_file file);
+ORCA_API oc_font oc_font_create_from_path(oc_str8 path);
 
 ORCA_API void oc_font_destroy(oc_font font);
 
-ORCA_API oc_str32 oc_font_get_glyph_indices(oc_font font, oc_str32 codePoints, oc_str32 backing);
-ORCA_API oc_str32 oc_font_push_glyph_indices(oc_arena* arena, oc_font font, oc_str32 codePoints);
-ORCA_API u32 oc_font_get_glyph_index(oc_font font, oc_utf32 codePoint);
-
-// metrics
+//font metrics
 ORCA_API oc_font_metrics oc_font_get_metrics(oc_font font, f32 emSize);
 ORCA_API oc_font_metrics oc_font_get_metrics_unscaled(oc_font font);
-ORCA_API f32 oc_font_get_scale_for_em_pixels(oc_font font, f32 emSize);
+ORCA_API f32 oc_font_get_scale_for_em_pixels(oc_font font, f32 emSize); //TODO: change to for_em_size?
 
+//TODO: deprecate, use shaping API instead
 ORCA_API oc_text_metrics oc_font_text_metrics_utf32(oc_font font, f32 fontSize, oc_str32 codepoints);
 ORCA_API oc_text_metrics oc_font_text_metrics(oc_font font, f32 fontSize, oc_str8 text);
 
@@ -260,9 +279,11 @@ ORCA_API void oc_set_tolerance(f32 tolerance);
 ORCA_API void oc_set_joint(oc_joint_type joint);
 ORCA_API void oc_set_max_joint_excursion(f32 maxJointExcursion);
 ORCA_API void oc_set_cap(oc_cap_type cap);
-ORCA_API void oc_set_font(oc_font font);
-ORCA_API void oc_set_font_size(f32 size);
+
+ORCA_API void oc_set_fill_rule(oc_fill_rule rule);
+
 ORCA_API void oc_set_text_flip(bool flip);
+
 ORCA_API void oc_set_image(oc_image image);
 ORCA_API void oc_set_image_source_region(oc_rect region);
 
@@ -272,9 +293,11 @@ ORCA_API f32 oc_get_tolerance(void);
 ORCA_API oc_joint_type oc_get_joint(void);
 ORCA_API f32 oc_get_max_joint_excursion(void);
 ORCA_API oc_cap_type oc_get_cap(void);
-ORCA_API oc_font oc_get_font(void);
-ORCA_API f32 oc_get_font_size(void);
+
+ORCA_API oc_fill_rule oc_get_fill_rule();
+
 ORCA_API bool oc_get_text_flip(void);
+
 ORCA_API oc_image oc_get_image(void);
 ORCA_API oc_rect oc_get_image_source_region(void);
 
@@ -288,16 +311,29 @@ ORCA_API void oc_quadratic_to(f32 x1, f32 y1, f32 x2, f32 y2);
 ORCA_API void oc_cubic_to(f32 x1, f32 y1, f32 x2, f32 y2, f32 x3, f32 y3);
 ORCA_API void oc_close_path(void);
 
-ORCA_API oc_rect oc_glyph_outlines(oc_str32 glyphIndices);
-ORCA_API void oc_codepoints_outlines(oc_str32 string);
-ORCA_API void oc_text_outlines(oc_str8 string);
-
 //------------------------------------------------------------------------------------------
 //SECTION: clear/fill/stroke
 //------------------------------------------------------------------------------------------
 ORCA_API void oc_clear(void);
 ORCA_API void oc_fill(void);
 ORCA_API void oc_stroke(void);
+
+//------------------------------------------------------------------------------------------
+//SECTION: text
+//------------------------------------------------------------------------------------------
+
+// text lines
+ORCA_API oc_text_line* oc_text_line_from_utf8(oc_arena* arena, oc_str8 string, oc_text_attributes* attributes);
+ORCA_API oc_text_line* oc_text_line_from_utf32(oc_arena* arena, oc_str32 string, oc_text_attributes* attributes);
+
+ORCA_API oc_text_metrics oc_text_line_get_metrics(oc_text_line* line);
+ORCA_API oc_text_metrics oc_text_line_get_metrics_for_range(oc_text_line* line, u64 start, u64 end);
+ORCA_API u64 oc_text_line_codepoint_index_for_position(oc_text_line* line, oc_vec2 position);
+ORCA_API oc_vec2 oc_text_line_position_for_codepoint_index(oc_text_line* line, u64 index);
+
+ORCA_API void oc_text_line_draw(oc_text_line* line);
+ORCA_API void oc_text_draw_utf8(oc_str8 text, oc_font font, f32 fontSize);
+ORCA_API void oc_text_draw_utf32(oc_str32 codepoints, oc_font font, f32 fontSize);
 
 //------------------------------------------------------------------------------------------
 //SECTION: shapes helpers
@@ -312,7 +348,7 @@ ORCA_API void oc_circle_fill(f32 x, f32 y, f32 r);
 ORCA_API void oc_circle_stroke(f32 x, f32 y, f32 r);
 ORCA_API void oc_arc(f32 x, f32 y, f32 r, f32 arcAngle, f32 startAngle);
 
-ORCA_API void oc_text_fill(f32 x, f32 y, oc_str8 text);
+//ORCA_API void oc_text_fill(f32 x, f32 y, oc_str8 text);
 
 //NOTE: image helpers
 ORCA_API void oc_image_draw(oc_image image, oc_rect rect);

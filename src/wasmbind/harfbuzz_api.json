@@ -1,0 +1,117 @@
+[
+{
+    "name": "oc_harfbuzz_font_create",
+    "cname": "oc_harfbuzz_font_create_bridge",
+    "ret": {"name": "oc_harfbuzz_handle", "tag": "S"},
+    "args": [
+        {
+            "name": "mem",
+            "type": {"name": "oc_str8", "cname": "oc_wasm_str8", "tag": "S"}
+        }
+    ]
+},
+{
+    "name": "oc_harfbuzz_font_destroy",
+    "cname": "oc_harfbuzz_font_destroy",
+    "ret": {"name": "void", "tag": "v"},
+    "args": [
+        {
+            "name": "font",
+            "type": {"name": "oc_harfbuzz_handle", "tag": "S"}
+        }
+    ]
+},
+{
+    "name": "oc_harfbuzz_font_get_upem",
+    "cname": "oc_harfbuzz_font_get_upem",
+    "ret": {"name": "f32", "tag": "f"},
+    "args": [
+        {
+            "name": "handle",
+            "type": {"name": "oc_harfbuzz_handle", "tag": "S"}
+        }
+    ]
+},
+{
+    "name": "oc_harfbuzz_font_get_metrics",
+    "cname": "oc_harfbuzz_font_get_metrics",
+    "ret": {"name": "oc_font_metrics", "tag": "S"},
+    "args": [
+        {
+            "name": "handle",
+            "type": {"name": "oc_harfbuzz_handle", "tag": "S"}
+        }
+    ]
+},
+{
+    "name": "oc_harfbuzz_font_shape",
+    "cname": "oc_harfbuzz_font_shape_bridge",
+    "ret": {"name": "oc_glyph_run*", "cname": "oc_wasm_glyph_run*", "tag": "p"},
+    "args": [
+        {
+            "name": "arena",
+            "type": {"name": "oc_arena*", "cname": "oc_wasm_addr", "tag": "i"}
+        },
+        {
+            "name": "font",
+            "type": {"name": "oc_harfbuzz_handle", "tag": "S"}
+        },
+        {
+            "name": "settings",
+            "type": {"name": "oc_text_shape_settings*", "tag": "p"},
+            "len": {"count": "1"}
+        },
+        {
+            "name": "codepoints",
+            "type": {"name": "oc_str32", "cname": "oc_wasm_str32", "tag": "S"}
+        },
+        {
+            "name": "begin",
+            "type": {"name": "u64", "tag": "I"}
+        },
+        {
+            "name": "end",
+            "type": {"name": "u64", "tag": "I"}
+        }
+    ]
+},
+{
+    "name": "oc_harfbuzz_get_curves",
+    "cname": "oc_harfbuzz_get_curves_bridge",
+    "ret": {"name": "oc_path_elt*", "cname": "oc_wasm_addr", "tag": "i"},
+    "args": [
+        {
+            "name": "arena",
+            "type": {"name": "oc_arena*", "cname": "oc_wasm_addr", "tag": "i"},
+            "len": {"count": "1"}
+
+        },
+        {
+            "name": "handle",
+            "type": {"name": "oc_harfbuzz_handle", "tag": "S"}
+        },
+        {
+            "name": "run",
+            "type": {"name": "oc_glyph_run*", "cname": "oc_wasm_glyph_run*", "tag": "p"},
+            "len": {"count": "1"}
+        },
+        {
+            "name": "start",
+            "type": {"name": "oc_vec2", "tag": "S"}
+        },
+        {
+            "name": "scale",
+            "type": {"name": "f32", "tag": "f"}
+        },
+        {
+            "name": "flipY",
+            "type": {"name": "bool", "tag": "i"}
+        },
+        {
+            "name": "eltCount",
+            "type": {"name": "u32*", "tag": "p"},
+            "len": {"count": "1"}
+        }
+    ]
+}
+]

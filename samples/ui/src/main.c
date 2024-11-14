@@ -56,13 +56,8 @@ ORCA_EXPORT void oc_on_init(void)
         char* buffer = (char*)oc_arena_push(scratch.arena, size);
         oc_file_read(file, size, buffer);
         oc_file_close(file);
-        oc_unicode_range ranges[5] = { OC_UNICODE_BASIC_LATIN,
-                                       OC_UNICODE_C1_CONTROLS_AND_LATIN_1_SUPPLEMENT,
-                                       OC_UNICODE_LATIN_EXTENDED_A,
-                                       OC_UNICODE_LATIN_EXTENDED_B,
-                                       OC_UNICODE_SPECIALS };
 
-        *fonts[i] = oc_font_create_from_memory(oc_str8_from_buffer(size, buffer), 5, ranges);
+        *fonts[i] = oc_font_create_from_memory(oc_str8_from_buffer(size, buffer));
 
         oc_scratch_end(scratch);
     }

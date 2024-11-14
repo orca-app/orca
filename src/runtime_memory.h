@@ -89,6 +89,12 @@ typedef struct oc_wasm_str8_list
 
 #define oc_wasm_str8_to_native(wasmString) ((oc_str8){ .ptr = oc_wasm_address_to_ptr(wasmString.ptr, wasmString.len), .len = wasmString.len })
 
+typedef struct oc_wasm_str32
+{
+    u32 ptr;
+    u32 len;
+} oc_wasm_str32;
+
 //------------------------------------------------------------------------------------
 // Wasm arenas helpers
 //------------------------------------------------------------------------------------

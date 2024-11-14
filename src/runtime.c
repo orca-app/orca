@@ -20,6 +20,7 @@
 #include "runtime_clipboard.c"
 #include "runtime_io.c"
 #include "runtime_memory.c"
+#include "graphics/graphics_text_wasm_bridge.c"
 
 #include "wasm/wasm.c"
 #if OC_WASM_BACKEND_WASM3
@@ -55,13 +56,7 @@ oc_font orca_font_create(const char* resourcePath)
         fread(fontData, 1, fontDataSize, fontFile);
         fclose(fontFile);
 
-        oc_unicode_range ranges[5] = { OC_UNICODE_BASIC_LATIN,
-                                       OC_UNICODE_C1_CONTROLS_AND_LATIN_1_SUPPLEMENT,
-                                       OC_UNICODE_LATIN_EXTENDED_A,
-                                       OC_UNICODE_LATIN_EXTENDED_B,
-                                       OC_UNICODE_SPECIALS };
-
-        font = oc_font_create_from_memory(oc_str8_from_buffer(fontDataSize, fontData), 5, ranges);
+        font = oc_font_create_from_memory(oc_str8_from_buffer(fontDataSize, fontData));
 
         free(fontData);
     }
@@ -490,6 +485,7 @@ void oc_wasm_env_init(oc_wasm_env* runtime)
 #include "wasmbind/io_api_bind_gen.c"
 #include "wasmbind/surface_api_bind_manual.c"
 #include "wasmbind/surface_api_bind_gen.c"
+#include "wasmbind/harfbuzz_api_bind_gen.c"
 
 i32 orca_runloop(void* user)
 {
@@ -539,6 +535,7 @@ i32 orca_runloop(void* user)
         err |= bindgen_link_io_api(app->env.wasm);
         err |= bindgen_link_gles_api(app->env.wasm);
         err |= manual_link_gles_api(app->env.wasm);
+        err |= bindgen_link_harfbuzz_api(app->env.wasm);
 
         if(err)
         {
