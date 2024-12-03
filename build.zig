@@ -669,7 +669,7 @@ pub fn build(b: *Build) !void {
 
     // orca cli tool
 
-    const version: []const u8 = blk: {
+    const git_version: []const u8 = blk: {
         if (git_version_opt) |git_version| {
             break :blk try b.allocator.dupe(u8, git_version);
         } else {
@@ -677,7 +677,6 @@ pub fn build(b: *Build) !void {
             break :blk std.mem.trimRight(u8, git_version, "\n");
         }
     };
-    defer b.allocator.free(version);
 
     var orca_tool_compile_flags = std.ArrayList([]const u8).init(b.allocator);
     defer orca_tool_compile_flags.deinit();
@@ -685,7 +684,7 @@ pub fn build(b: *Build) !void {
     try orca_tool_compile_flags.append("-DOC_NO_APP_LAYER");
     try orca_tool_compile_flags.append("-DOC_BUILD_DLL");
     try orca_tool_compile_flags.append("-DCURL_STATICLIB");
-    try orca_tool_compile_flags.append(b.fmt("-DORCA_TOOL_VERSION={s}", .{version}));
+    try orca_tool_compile_flags.append(b.fmt("-DORCA_TOOL_VERSION={s}", .{git_version}));
 
     if (optimize == .Debug) {
         try orca_tool_compile_flags.append("-DOC_DEBUG");
@@ -727,9 +726,110 @@ pub fn build(b: *Build) !void {
     build_tool_step.dependOn(&orca_tool_install.step);
 
     ///////////////////////////////////////////////////////////////
-    // install-sys command
+    // package-sdk and install-sdk commands
 
-    // copy
+    const package_sdk_exe: *Build.Step.Compile = b.addExecutable(.{
+        .name = "package_sdk",
+        .root_source_file = b.path("src/build/package_sdk.zig"),
+        .target = target,
+        .optimize = .Debug,
+    });
+
+    var package_sdk_to_dir = b.addRunArtifact(package_sdk_exe);
+    package_sdk_to_dir.addPrefixedFileArg("--artifacts-path=", b.path("build"));
+    package_sdk_to_dir.addPrefixedFileArg("--resources-path=", b.path("resources"));
+    package_sdk_to_dir.addPrefixedFileArg("--src-path=", b.path("src"));
+
+    const opt_sdk_install_dir = b.option([]const u8, "sdk-dir", "Specify absolute path for package-sdk and install-sdk files.");
+    if (opt_sdk_install_dir) |sdk_install_dir| {
+        if (std.fs.path.isAbsolute(sdk_install_dir)) {
+            const install_path = try std.mem.join(b.allocator, "", &.{ "--install-path=", sdk_install_dir });
+            package_sdk_to_dir.addArg(install_path);
+        } else {
+            const fail_absolute_sdk_dir = b.addFail("sdk-dir must be an absolute path");
+            package_sdk_to_dir.step.dependOn(&fail_absolute_sdk_dir.step);
+        }
+    } else {
+        const fail_missing_sdk_dir = b.addFail("Specifying -Dsdk-dir=<path> is required for package-sdk.");
+        package_sdk_to_dir.step.dependOn(&fail_missing_sdk_dir.step);
+    }
+
+    const opt_sdk_version = b.option([]const u8, "sdk-version", "Override current git version for sdk packaging.");
+    if (opt_sdk_version) |sdk_version| {
+        const version = try std.mem.join(b.allocator, "", &.{ "--version=", sdk_version });
+        package_sdk_to_dir.addArg(version);
+    }
+
+    // const opt_sdk_git_version = b.option([]const u8, "git-version", "Specify the git version used for package-sdk and install-sdk.");
+
+    // package command
+    const package_sdk_step = b.step("package-sdk", "Packages the Orca SDK for a release.");
+    package_sdk_step.dependOn(&package_sdk_to_dir.step);
+
+    // if (opt_sdk_install_dir) |sdk_install_dir| {
+    //     if (std.fs.path.isAbsolute(sdk_install_dir)) {
+    //         const sdk_install_dir_lazypath = Build.LazyPath{ .cwd_relative = sdk_install_dir };
+    //         const package_sdk_clean_dir = b.addRemoveDirTree(sdk_install_dir_lazypath);
+
+    //         var files = std.ArrayList([]const u8).init(b.allocator);
+    //         if (target.result.os.tag == .windows) {
+    //             try files.append("orca.exe");
+    //             try files.append("orca.dll");
+    //             try files.append("orca_runtime.exe");
+    //             try files.append("liborca_wasm.a");
+    //             try files.append("libEGL.dll");
+    //             try files.append("libGLESv2.dll");
+    //             try files.append("webgpu.dll");
+    //         } else {
+    //             try files.append("orca");
+    //             try files.append("orca_runtime");
+    //             try files.append("liborca.dylib");
+    //             try files.append("liborca_wasm.a");
+    //             try files.append("libEGL.dylib");
+    //             try files.append("libGLESv2.dylib");
+    //             try files.append("libwebgpu.dylib");
+    //         }
+
+    //         var package_sdk_stage_files = b.addUpdateSourceFiles();
+    //         const artifacts_dir = b.path("build/bin");
+    //         for (files.items) |filename| {
+    //             const source = artifacts_dir.path(b, filename);
+    //             const dest = b.pathJoin(&.{ sdk_install_dir, filename });
+    //             package_sdk_stage_files.addCopyFileToSource(source, dest);
+    //         }
+
+    //         package_sdk_stage_files.step.dependOn(&package_sdk_clean_dir.step);
+
+    //         package_sdk_step.dependOn(&package_sdk_stage_files.step);
+    //     } else {
+    //         const fail_absolute_sdk_dir = b.addFail("sdk-dir must be an absolute path");
+    //         package_sdk_step.dependOn(&fail_absolute_sdk_dir.step);
+    //     }
+    // } else {
+    //     const fail_missing_sdk_dir = b.addFail("Specifying -Dsdk-dir=<path> is required for package-sdk.");
+    //     package_sdk_step.dependOn(&fail_missing_sdk_dir.step);
+    // }
+
+    // install-sdk command
+
+    // var orca_system_path: Build.LazyPath = undefined;
+    // if (opt_install_dir) |install_dir| {
+    //     orca_system_path = b.path(install_dir);
+    // } else {
+    //     var run_find_orca_install_path: *Build.Step.Run = b.addRunArtifact(orca_tool_exe);
+    //     run_angle_build.addArg("install-path");
+    //     run_find_orca_install_path.captureStdOut();
+    // }
+
+    // var current_commit: Build.LazyPath = undefined;
+    // if (opt_git_version) |git_version| {
+    //     current_commit = b.path(git_version);
+    // } else {
+    //     var run_find_orca_commit: *Build.Step.Run = b.addSystemCommand(&.{ "git", "rev-parse", "--short", "HEAD" });
+    //     current_commit = run_find_orca_commit.captureStdOut();
+    // }
+
+    // const install_sdk_step = b.step("install-sdk", "Install a dev build of the Orca tools into the system Orca directory.")
 
     ///////////////////////////////////////////////////////////////
     // TODO bundle command ?
@@ -755,26 +855,23 @@ pub fn build(b: *Build) !void {
     /////////////////////////////////////////////////////////////////
     // zig build clean
 
-    // TODO consider making a standalone step different from the default uninstall
-    {
-        const clean_step: *Build.Step = b.step("clean", "Delete all build artifacts and start fresh.");
+    const clean_step: *Build.Step = b.step("clean", "Delete all build artifacts and start fresh.");
 
-        const paths = [_][]const u8{
-            ".zig-cache",
-            "build",
-            "src/ext/angle",
-            "src/ext/dawn",
-            "scripts/files",
-            "scripts/__pycache",
-            // TODO generated wasm bindings?
-        };
-        for (paths) |path| {
-            var remove_dir = b.addRemoveDirTree(b.path(path));
-            clean_step.dependOn(&remove_dir.step);
-        }
-
-        b.getUninstallStep().dependOn(clean_step);
+    const paths = [_][]const u8{
+        ".zig-cache",
+        "build",
+        "src/ext/angle",
+        "src/ext/dawn",
+        "scripts/files",
+        "scripts/__pycache",
+        // TODO generated wasm bindings?
+    };
+    for (paths) |path| {
+        var remove_dir = b.addRemoveDirTree(b.path(path));
+        clean_step.dependOn(&remove_dir.step);
     }
+
+    b.getUninstallStep().dependOn(clean_step);
 
     /////////////////////////////////////////////////////////////////
     // tests
