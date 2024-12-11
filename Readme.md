@@ -29,7 +29,7 @@ The Orca command-line tools must be installed to your system in order to use the
 - Clang version 11.0 or newer
 	- **Windows users:** `clang` can be installed via the Visual Studio installer. Search for "C++ Clang Compiler".
 	- **Mac users:** Apple's built-in `clang` does not support WebAssembly. We recommend installing `clang` via [Homebrew](https://brew.sh/) with `brew install llvm`.
-- **Clang runtime builtins.** When targeting WebAssembly, `clang` relies on builtins found in `libclang_rt.builtins-wasm32`, but most distributions of `clang` don't ship with this file. To know where `clang` expects to find this file, you can run `clang --target=wasm32 -print-libgcc-file-name`. If this file doesn't exist you will need to download it from [https://github.com/WebAssembly/wasi-sdk/releases](https://github.com/WebAssembly/wasi-sdk/releases). 
+- **Clang runtime builtins.** When targeting WebAssembly, `clang` relies on builtins found in `libclang_rt.builtins-wasm32`, but most distributions of `clang` don't ship with this file. To know where `clang` expects to find this file, you can run `clang --target=wasm32 -print-libgcc-file-name`. If this file doesn't exist you will need to download it from https://github.com/WebAssembly/wasi-sdk/releases. 
 
 ### Installation Instructions
 
@@ -49,8 +49,8 @@ Download the orca tool and SDK from https://github.com/orca-app/orca/releases/la
 
 Add the orca directory to your PATH environment variable:  
 
-- **Windows Instructions:** [https://learn.microsoft.com/en-us/previous-versions/office/developer/sharepoint-2010/ee537574(v=office.14)](https://learn.microsoft.com/en-us/previous-versions/office/developer/sharepoint-2010/ee537574(v=office.14))  
-- **Mac Instructions:** [https://support.apple.com/guide/terminal/use-environment-variables-apd382cc5fa-4f58-4449-b20a-41c53c006f8f/mac](https://learn.microsoft.com/en-us/previous-versions/office/developer/sharepoint-2010/ee537574(v=office.14))
+- **Windows Instructions:** https://learn.microsoft.com/en-us/previous-versions/office/developer/sharepoint-2010/ee537574(v=office.14)
+- **Mac Instructions:** https://support.apple.com/guide/terminal/use-environment-variables-apd382cc5fa-4f58-4449-b20a-41c53c006f8f/mac
 
 Finally, verify that Orca is successfully installed by running the `orca version` command.
 
