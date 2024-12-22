@@ -1,3 +1,7 @@
+// This is a zig program run as part of the orca build process to copy all appropriate
+// build artifacts to an output location. Optionally the user can package the SDK
+// for installation to the system orca path.
+
 const std = @import("std");
 
 fn trimWhitespace(str0: []const u8) []const u8 {
