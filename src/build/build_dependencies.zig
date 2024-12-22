@@ -1,5 +1,7 @@
+// This is a zig program run as part of the orca build process to build angle and dawn
+// libraries from source.
+
 const std = @import("std");
-// const OptimizeMode = std.builtin.OptimizeMode;
 
 const builtin = @import("builtin");
 
