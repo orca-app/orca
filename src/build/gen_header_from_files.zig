@@ -1,3 +1,6 @@
+// This is a zig program run as part of the orca build process to generate a header file
+// embedding strings of passed-along text files.
+
 const std = @import("std");
 
 const Options = struct {
