@@ -153,6 +153,29 @@ const RunHelpers = struct {
     }
 };
 
+const GenerateWasmBindingsParams = struct {
+    exe: *Build.Step.Compile,
+    api: []const u8,
+    spec_path: []const u8,
+    host_bindings_path: []const u8,
+    guest_bindings_path: ?[]const u8 = null,
+    guest_include_path: ?[]const u8 = null,
+};
+
+fn generateWasmBindings(b: *Build, params: GenerateWasmBindingsParams) *Build.Step.Run {
+    var run = b.addRunArtifact(params.exe);
+    run.addArg(std.mem.join(b.allocator, "", &.{ "--api-name=", params.api }) catch @panic("OOM"));
+    run.addPrefixedFileArg("--spec-path=", b.path(params.spec_path));
+    run.addPrefixedFileArg("--bindings-path=", b.path(params.host_bindings_path));
+    if (params.guest_bindings_path) |path| {
+        run.addPrefixedFileArg("--guest-stubs-path=", b.path(path));
+    }
+    if (params.guest_include_path) |path| {
+        run.addPrefixedFileArg("--guest-include-path=", b.path(path));
+    }
+    return run;
+}
+
 pub fn build(b: *Build) !void {
     const git_version_opt: ?[]const u8 = b.option([]const u8, "version", "Specify the specific git version you want to package") orelse null;
 
@@ -243,6 +266,26 @@ pub fn build(b: *Build) !void {
     run_dawn_uptodate.addPrefixedFileArg("--src=", dawn_dep.path(""));
     RunHelpers.addPythonArg(run_dawn_uptodate, target, b);
     RunHelpers.addCmakeArg(run_dawn_uptodate, target, b);
+
+    /////////////////////////////////////////////////////////
+    // binding generator
+
+    const bindgen_exe: *Build.Step.Compile = b.addExecutable(.{
+        .name = "bindgen",
+        .root_source_file = b.path("src/build/bindgen.zig"),
+        .target = target,
+        .optimize = .Debug,
+    });
+
+    const bindgen_run: *Build.Step.Run = b.addRunArtifact(bindgen_exe);
+    bindgen_run.step.dependOn(install_step);
+
+    if (b.args) |args| {
+        bindgen_run.addArgs(args);
+    }
+
+    const bindgen_step = b.step("run-bindgen", "Generate wasm bindings from a json spec file");
+    bindgen_step.dependOn(&bindgen_run.step);
 
     /////////////////////////////////////////////////////////
     // Orca runtime and dependencies
@@ -371,9 +414,52 @@ pub fn build(b: *Build) !void {
     });
     wasm3_lib.linkLibC();
 
-    // orca runtime exe
+    // generate wasm bindings
 
-    // TODO generate all wasm bindings
+    const orca_runtime_bindgen_core = generateWasmBindings(b, .{
+        .exe = bindgen_exe,
+        .api = "core",
+        .spec_path = "src/wasmbind/core_api.json",
+        .host_bindings_path = "src/wasmbind/core_api_bind_gen.c",
+        .guest_bindings_path = "src/wasmbind/core_api_stubs.c",
+    });
+
+    const orca_runtime_bindgen_surface = generateWasmBindings(b, .{
+        .exe = bindgen_exe,
+        .api = "surface",
+        .spec_path = "src/wasmbind/surface_api.json",
+        .host_bindings_path = "src/wasmbind/surface_api_bind_gen.c",
+        .guest_bindings_path = "src/wasmbind/orca_surface_stubs.c",
+        .guest_include_path = "src/graphics/graphics.h",
+    });
+
+    const orca_runtime_bindgen_clock = generateWasmBindings(b, .{
+        .exe = bindgen_exe,
+        .api = "clock",
+        .spec_path = "src/wasmbind/clock_api.json",
+        .host_bindings_path = "src/wasmbind/clock_api_bind_gen.c",
+        .guest_include_path = "src/platform/platform_clock.h",
+    });
+
+    const orca_runtime_bindgen_io = generateWasmBindings(b, .{
+        .exe = bindgen_exe,
+        .api = "io",
+        .spec_path = "src/wasmbind/io_api.json",
+        .host_bindings_path = "src/wasmbind/io_api_bind_gen.c",
+        .guest_bindings_path = "src/wasmbind/orca_io_stubs.c",
+        .guest_include_path = "src/platform/platform_io_dialog.h",
+    });
+
+    const orca_runtime_bindgen_gles = generateWasmBindings(b, .{
+        .exe = bindgen_exe,
+        .api = "gles",
+        .spec_path = "src/wasmbind/gles_api.json",
+        .host_bindings_path = "src/wasmbind/gles_api_bind_gen.c",
+    });
+
+    // TODO generate GL bindings
+
+    // orca runtime exe
 
     var orca_runtime_compile_flags = std.ArrayList([]const u8).init(b.allocator);
     defer orca_runtime_compile_flags.deinit();
@@ -406,6 +492,12 @@ pub fn build(b: *Build) !void {
 
     orca_runtime_exe.step.dependOn(&install_angle.step);
     orca_runtime_exe.step.dependOn(&install_dawn.step);
+
+    orca_runtime_exe.step.dependOn(&orca_runtime_bindgen_core.step);
+    orca_runtime_exe.step.dependOn(&orca_runtime_bindgen_surface.step);
+    orca_runtime_exe.step.dependOn(&orca_runtime_bindgen_clock.step);
+    orca_runtime_exe.step.dependOn(&orca_runtime_bindgen_io.step);
+    orca_runtime_exe.step.dependOn(&orca_runtime_bindgen_gles.step);
 
     const install_runtime_exe: *Build.Step.InstallArtifact = b.addInstallArtifact(orca_runtime_exe, .{});
     install_step.dependOn(&install_runtime_exe.step);
