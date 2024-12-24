@@ -68,7 +68,7 @@ const Options = struct {
 const BindingUntyped = struct {
     const CType = struct {
         name: []const u8,
-        cname: ?[]const u8,
+        cname: ?[]const u8 = null,
         tag: []const u8,
     };
 
@@ -76,19 +76,19 @@ const BindingUntyped = struct {
         // Basically a union
         const Length = struct {
             // call a function with these args to determine the length
-            proc: ?[]const u8,
-            args: ?[]const []const u8,
+            proc: ?[]const u8 = null,
+            args: ?[]const []const u8 = null,
 
             // length specified by another argument
-            count: ?[]const u8,
+            count: ?[]const u8 = null,
 
             // hardcoded length
-            components: ?u32,
+            components: ?u32 = null,
         };
 
         name: []const u8,
         type: CType,
-        len: ?Length,
+        len: ?Length = null,
     };
 
     name: []const u8,
@@ -132,10 +132,10 @@ const Binding = struct {
             std.debug.assert(tag != .Struct);
 
             return switch (tag) {
-                .Int32 => "i",
-                .Int64 => "I",
-                .Float32 => "f",
-                .Float64 => "F",
+                .Int32 => "OC_WASM_VALTYPE_I32",
+                .Int64 => "OC_WASM_VALTYPE_I64",
+                .Float32 => "OC_WASM_VALTYPE_F32",
+                .Float64 => "OC_WASM_VALTYPE_F64",
                 else => {
                     std.log.err("Cannot convert {} tag to valtype in binding {s}", .{ tag, binding_name });
                     return error.StructToValtype;
@@ -402,7 +402,7 @@ fn generateBindings(opts: Options, bindings: []const Binding) !GeneratedBindings
             try host.writeAll("\t{\n");
             try host.writeAll("\t\tOC_ASSERT_DIALOG(((char*)__retPtr >= (char*)_mem) && (((char*)__retPtr - (char*)_mem) < oc_wasm_mem_size(wasm)), \"return pointer is out of bounds\");\n");
             try host.print(
-                "\t\tOC_ASSERT_DIALOG((char*)__retPtr + sizeof(' + {s} + ') <= ((char*)_mem + oc_wasm_mem_size(wasm)), \"return pointer is out of bounds\");\n",
+                "\t\tOC_ASSERT_DIALOG((char*)__retPtr + sizeof({s}) <= ((char*)_mem + oc_wasm_mem_size(wasm)), \"return pointer is out of bounds\");\n",
                 .{binding.ret.cname},
             );
             try host.writeAll("\t}\n");
@@ -437,9 +437,9 @@ fn generateBindings(opts: Options, bindings: []const Binding) !GeneratedBindings
                     // s += '\t\tOC_ASSERT_DIALOG(((char*)'+ argName + ' >= (char*)_mem) && (((char*)'+ argName +' - (char*)_mem) < oc_wasm_mem_size(wasm)), "parameter \''+argName+'\' is out of bounds");\n'
                     // s += '\t\tOC_ASSERT_DIALOG((char*)' + argName + ' + '
 
-                    try host.writeAll("\t\n");
+                    try host.writeAll("\t{\n");
                     try host.print(
-                        "\t\tOC_ASSERT_DIALOG(((char*){s} >= (char*)_mem) && (((char*){s} - (char*)_mem) < oc_wasm_mem_size(wasm)), \"parameter {s} is out of bounds\");\n",
+                        "\t\tOC_ASSERT_DIALOG(((char*){s} >= (char*)_mem) && (((char*){s} - (char*)_mem) < oc_wasm_mem_size(wasm)), \"parameter '{s}' is out of bounds\");\n",
                         .{ arg.name, arg.name, arg.name },
                     );
                     try host.print("\t\tOC_ASSERT_DIALOG((char*){s} + ", .{arg.name});
@@ -491,19 +491,69 @@ fn generateBindings(opts: Options, bindings: []const Binding) !GeneratedBindings
 
                     const cname = arg.type.cname;
                     if (std.mem.endsWith(u8, cname, "**") or (std.mem.startsWith(u8, cname, "void") == false and std.mem.startsWith(u8, cname, "const void") == false)) {
-                        try host.print("*sizeof({s})", .{cname[(cname.len - 2)..]});
+                        try host.print("*sizeof({s})", .{cname[0 .. cname.len - 1]});
                     }
 
                     // s += ' <= ((char*)_mem + oc_wasm_mem_size(wasm)), "parameter \''+argName+'\' is out of bounds");\n'
                     // s += '\t}\n'
 
                     try host.print(" <= ((char*)_mem + oc_wasm_mem_size(wasm)), \"parameter '{s}' is out of bounds\");\n", .{arg.name});
+                    try host.writeAll("\t}\n");
                 } else {
                     std.log.err("Binding {s} missing pointer length decoration for param '{s}'", .{ binding.name, arg.name });
                     return error.MissingRequiredPointerLength;
                 }
             }
         }
+
+        // s += '\t'
+
+        // if retTag == 'i':
+        //     s += '*((i32*)&_returns[0]) = (i32)'
+        // elif retTag == 'I':
+        //     s += '*((i64*)&_returns[0]) = (i64)'
+        // elif retTag == 'f':
+        //     s += '*((f32*)&_returns[0]) = (f32)'
+        // elif retTag == 'F':
+        //     s += '*((f64*)&_returns[0]) = (f64)'
+        // elif retTag == 'S':
+        //     s += '*__retPtr = '
+        // elif retTag == 'p':
+        //     printError(name + ": pointer return type not supported yet")
+
+        // s += cname + '('
+
+        // for i, arg in enumerate(decl['args']):
+        //     s += arg['name']
+
+        //     if i+1 < len(decl['args']):
+        //         s += ', '
+
+        // s += ');\n\n}\n'
+
+        try host.writeAll("\t");
+        switch (binding.ret.tag) {
+            .Void => {},
+            .Int32 => try host.writeAll("*((i32*)&_returns[0]) = (i32)"),
+            .Int64 => try host.writeAll("*((i64*)&_returns[0]) = (i64)"),
+            .Float32 => try host.writeAll("*((f32*)&_returns[0]) = (f32)"),
+            .Float64 => try host.writeAll("*((f64*)&_returns[0]) = (f64)"),
+            .Struct => try host.writeAll("*__retPtr = "),
+            .Pointer => {
+                std.log.err("Binding {s} has pointer return type, but this isn't supported yet.", .{binding.name});
+                return error.UnsupportedPointerReturn;
+            },
+        }
+
+        try host.print("{s}(", .{binding.cname});
+
+        for (binding.args, 0..) |arg, i| {
+            try host.writeAll(arg.name);
+            if (i + 1 < binding.args.len) {
+                try host.writeAll(", ");
+            }
+        }
+        try host.writeAll(");\n}\n\n");
     }
 
     // s = 'int bindgen_link_' + apiName + '_api(oc_wasm* wasm)\n{\n'
@@ -592,7 +642,7 @@ fn generateBindings(opts: Options, bindings: []const Binding) !GeneratedBindings
 
         const return_types: []const u8 = blk: {
             if (num_returns == 0) {
-                break :blk "t\toc_wasm_valtype returnTypes[1];\n\n";
+                break :blk "\t\toc_wasm_valtype returnTypes[1];\n\n";
             } else {
                 const return_str = try binding.ret.tag.toValtype(name);
                 break :blk try std.fmt.allocPrint(opts.arena, "\t\toc_wasm_valtype returnTypes[] = {{ {s} }};\n\n", .{return_str});
@@ -639,6 +689,9 @@ fn generateBindings(opts: Options, bindings: []const Binding) !GeneratedBindings
         try host.writeAll("\t}\n\n");
     }
 
+    // s += '\treturn(ret);\n}\n'
+    try host.writeAll("\treturn(ret);\n}\n");
+
     return GeneratedBindings{
         .host = bindings_host_array.items,
         .guest = bindings_guest_array.items,
@@ -646,7 +699,17 @@ fn generateBindings(opts: Options, bindings: []const Binding) !GeneratedBindings
 }
 
 fn writeBindings(path: []const u8, data: []const u8) !void {
-    const file: std.fs.File = try std.fs.cwd().openFile(path, .{ .mode = .write_only });
+    const cwd = std.fs.cwd();
+
+    if (std.fs.path.dirname(path)) |dir_path| {
+        cwd.makeDir(dir_path) catch |e| {
+            if (e != error.PathAlreadyExists) {
+                return e;
+            }
+        };
+    }
+
+    const file: std.fs.File = try cwd.createFile(path, .{ .read = false, .truncate = true });
     defer file.close();
     try file.writeAll(data);
 }
@@ -661,14 +724,16 @@ pub fn main() !void {
 
     const opts = try Options.parse(args, allocator);
 
+    std.debug.print(">>>>>>>>> running bindgen for api: {s}\n", .{opts.api_name});
+
     const bindings_json: []const u8 = std.fs.cwd().readFileAlloc(opts.arena, opts.spec_path, MAX_FILE_SIZE) catch |e| {
         std.log.err("Failed to read bindings spec file from path {s}: {}", .{ opts.spec_path, e });
-        return error.FailedToReadSpecFile;
+        return e;
     };
 
     const bindings_untyped = std.json.parseFromSliceLeaky([]BindingUntyped, opts.arena, bindings_json, .{}) catch |e| {
         std.log.err("Failed to parse json. Was the json malformed, or does the binding generator need to be updated? Error: {}", .{e});
-        return error.FailedToParseJson;
+        return e;
     };
 
     const bindings: []const Binding = try Binding.fromUntyped(opts, bindings_untyped);
@@ -680,4 +745,34 @@ pub fn main() !void {
     if (generated.guest.len > 0) {
         try writeBindings(opts.guest_stubs_path.?, generated.guest);
     }
+}
+
+test "serialization with nulls works" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const allocator: std.mem.Allocator = arena.allocator();
+
+    const Test1 = struct {
+        foo: u32 = 0,
+        bar: ?u32 = null,
+    };
+
+    const json =
+        \\[
+        \\    {
+        \\        "foo": 1,
+        \\        "bar": 2
+        \\    },
+        \\    {
+        \\        "foo": 3
+        \\    }
+        \\]
+    ;
+    const results = try std.json.parseFromSliceLeaky([]Test1, allocator, json, .{});
+    try std.testing.expect(results.len == 2);
+    try std.testing.expect(results[0].foo == 1);
+    try std.testing.expect(results[0].bar != null);
+    try std.testing.expect(results[0].bar == 2);
+    try std.testing.expect(results[1].foo == 3);
+    try std.testing.expect(results[1].bar == null);
 }
