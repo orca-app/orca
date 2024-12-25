@@ -297,23 +297,33 @@ pub fn build(b: *Build) !void {
     // Orca runtime and dependencies
 
     // copy angle + dawn libs to output directory
-    var install_angle = b.addInstallDirectory(.{
-        .source_dir = b.path("build/angle.out/bin"),
-        .install_dir = .bin,
-        .install_subdir = "",
-    });
-    install_angle.step.dependOn(&run_angle_uptodate.step);
+    var stage_angle_headers = b.addUpdateSourceFiles();
+    stage_angle_headers.addCopyFileToSource(b.path("build/angle.out/include/EGL/egl.h"), "src/ext/angle/include/EGL/egl.h");
+    stage_angle_headers.addCopyFileToSource(b.path("build/angle.out/include/EGL/eglext.h"), "src/ext/angle/include/EGL/eglext.h");
+    stage_angle_headers.addCopyFileToSource(b.path("build/angle.out/include/EGL/eglext_angle.h"), "src/ext/angle/include/EGL/eglext_angle.h");
+    stage_angle_headers.addCopyFileToSource(b.path("build/angle.out/include/EGL/eglplatform.h"), "src/ext/angle/include/EGL/eglplatform.h");
+    stage_angle_headers.addCopyFileToSource(b.path("build/angle.out/include/GLES/egl.h"), "src/ext/angle/include/GLES/egl.h");
+    stage_angle_headers.addCopyFileToSource(b.path("build/angle.out/include/GLES/gl.h"), "src/ext/angle/include/GLES/gl.h");
+    stage_angle_headers.addCopyFileToSource(b.path("build/angle.out/include/GLES/glext.h"), "src/ext/angle/include/GLES/glext.h");
+    stage_angle_headers.addCopyFileToSource(b.path("build/angle.out/include/GLES/glplatform.h"), "src/ext/angle/include/GLES/glplatform.h");
+    stage_angle_headers.addCopyFileToSource(b.path("build/angle.out/include/GLES2/gl2.h"), "src/ext/angle/include/GLES2/gl2.h");
+    stage_angle_headers.addCopyFileToSource(b.path("build/angle.out/include/GLES2/gl2ext.h"), "src/ext/angle/include/GLES2/gl2ext.h");
+    stage_angle_headers.addCopyFileToSource(b.path("build/angle.out/include/GLES2/gl2ext_angle.h"), "src/ext/angle/include/GLES2/gl2ext_angle.h");
+    stage_angle_headers.addCopyFileToSource(b.path("build/angle.out/include/GLES2/gl2platform.h"), "src/ext/angle/include/GLES2/gl2platform.h");
+    stage_angle_headers.addCopyFileToSource(b.path("build/angle.out/include/GLES3/gl3.h"), "src/ext/angle/include/GLES3/gl3.h");
+    stage_angle_headers.addCopyFileToSource(b.path("build/angle.out/include/GLES3/gl31.h"), "src/ext/angle/include/GLES3/gl31.h");
+    stage_angle_headers.addCopyFileToSource(b.path("build/angle.out/include/GLES3/gl32.h"), "src/ext/angle/include/GLES3/gl32.h");
+    stage_angle_headers.addCopyFileToSource(b.path("build/angle.out/include/GLES3/gl3platform.h"), "src/ext/angle/include/GLES3/gl3platform.h");
+    stage_angle_headers.addCopyFileToSource(b.path("build/angle.out/include/KHR/khrplatform.h"), "src/ext/angle/include/KHR/khrplatform.h");
+    stage_angle_headers.step.dependOn(&run_angle_uptodate.step);
 
-    var install_dawn = b.addInstallDirectory(.{
-        .source_dir = b.path("build/dawn.out/bin"),
-        .install_dir = .bin,
-        .install_subdir = "",
-    });
-    install_dawn.step.dependOn(&run_dawn_uptodate.step);
+    var stage_dawn_headers = b.addUpdateSourceFiles();
+    stage_dawn_headers.addCopyFileToSource(b.path("build/dawn.out/include/webgpu.h"), "src/ext/dawn/include/webgpu.h");
+    stage_dawn_headers.step.dependOn(&run_dawn_uptodate.step);
 
     // generate wasm bindings
 
-    const orca_runtime_bindgen_core = generateWasmBindings(b, .{
+    const orca_runtime_bindgen_core: *Build.Step.UpdateSourceFiles = generateWasmBindings(b, .{
         .exe = bindgen_exe,
         .api = "core",
         .spec_path = "src/wasmbind/core_api.json",
@@ -321,7 +331,7 @@ pub fn build(b: *Build) !void {
         .guest_bindings_path = "src/wasmbind/core_api_stubs.c",
     });
 
-    const orca_runtime_bindgen_surface = generateWasmBindings(b, .{
+    const orca_runtime_bindgen_surface: *Build.Step.UpdateSourceFiles = generateWasmBindings(b, .{
         .exe = bindgen_exe,
         .api = "surface",
         .spec_path = "src/wasmbind/surface_api.json",
@@ -330,7 +340,7 @@ pub fn build(b: *Build) !void {
         .guest_include_path = "graphics/graphics.h",
     });
 
-    const orca_runtime_bindgen_clock = generateWasmBindings(b, .{
+    const orca_runtime_bindgen_clock: *Build.Step.UpdateSourceFiles = generateWasmBindings(b, .{
         .exe = bindgen_exe,
         .api = "clock",
         .spec_path = "src/wasmbind/clock_api.json",
@@ -338,7 +348,7 @@ pub fn build(b: *Build) !void {
         .guest_include_path = "platform/platform_clock.h",
     });
 
-    const orca_runtime_bindgen_io = generateWasmBindings(b, .{
+    const orca_runtime_bindgen_io: *Build.Step.UpdateSourceFiles = generateWasmBindings(b, .{
         .exe = bindgen_exe,
         .api = "io",
         .spec_path = "src/wasmbind/io_api.json",
@@ -348,7 +358,7 @@ pub fn build(b: *Build) !void {
     });
 
     // TODO port this to zig
-    const python_gen_gles_spec = b.addSystemCommand(&.{
+    const python_gen_gles_spec: *Build.Step.Run = b.addSystemCommand(&.{
         "python.exe",
         "scripts/gles_gen.py",
         "--spec",
@@ -361,7 +371,7 @@ pub fn build(b: *Build) !void {
         "build/gles_gen.log",
     });
 
-    const orca_runtime_bindgen_gles = generateWasmBindings(b, .{
+    const orca_runtime_bindgen_gles: *Build.Step.UpdateSourceFiles = generateWasmBindings(b, .{
         .exe = bindgen_exe,
         .api = "gles",
         .spec_path = "src/wasmbind/gles_api.json",
@@ -422,8 +432,8 @@ pub fn build(b: *Build) !void {
         .optimize = optimize,
     });
 
-    orca_platform_lib.step.dependOn(&install_angle.step);
-    orca_platform_lib.step.dependOn(&install_dawn.step);
+    orca_platform_lib.step.dependOn(&stage_angle_headers.step);
+    orca_platform_lib.step.dependOn(&stage_dawn_headers.step);
     // orca_platform_lib.step.dependOn(&stage_angle_dawn_headers.step);
     orca_platform_lib.step.dependOn(&update_wgpu_header.step);
 
@@ -515,8 +525,8 @@ pub fn build(b: *Build) !void {
     orca_runtime_exe.linkLibrary(orca_platform_lib);
     orca_runtime_exe.linkLibC();
 
-    orca_runtime_exe.step.dependOn(&install_angle.step);
-    orca_runtime_exe.step.dependOn(&install_dawn.step);
+    orca_runtime_exe.step.dependOn(&stage_angle_headers.step);
+    orca_runtime_exe.step.dependOn(&stage_dawn_headers.step);
 
     orca_runtime_exe.step.dependOn(&orca_runtime_bindgen_core.step);
     orca_runtime_exe.step.dependOn(&orca_runtime_bindgen_surface.step);
@@ -703,6 +713,9 @@ pub fn build(b: *Build) !void {
     wasm_sdk_lib.addObject(wasm_sdk_obj);
     wasm_sdk_lib.rdynamic = true;
     wasm_sdk_lib.entry = .disabled;
+
+    wasm_sdk_lib.step.dependOn(&stage_angle_headers.step);
+    wasm_sdk_lib.step.dependOn(&stage_dawn_headers.step);
 
     wasm_sdk_lib.step.dependOn(&orca_runtime_bindgen_core.step);
     wasm_sdk_lib.step.dependOn(&orca_runtime_bindgen_surface.step);
@@ -920,7 +933,7 @@ pub fn build(b: *Build) !void {
 
     const clean_paths = [_][]const u8{
         // folders
-        "build",
+        // "build",
         "src/ext/angle",
         "src/ext/dawn",
         "scripts/files",
