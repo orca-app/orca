@@ -724,8 +724,6 @@ pub fn main() !void {
 
     const opts = try Options.parse(args, allocator);
 
-    std.debug.print(">>>>>>>>> running bindgen for api: {s}\n", .{opts.api_name});
-
     const bindings_json: []const u8 = std.fs.cwd().readFileAlloc(opts.arena, opts.spec_path, MAX_FILE_SIZE) catch |e| {
         std.log.err("Failed to read bindings spec file from path {s}: {}", .{ opts.spec_path, e });
         return e;
