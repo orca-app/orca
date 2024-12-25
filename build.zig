@@ -990,16 +990,27 @@ pub fn build(b: *Build) !void {
 
     const clean_step: *Build.Step = b.step("clean", "Delete all build artifacts and start fresh.");
 
-    const paths = [_][]const u8{
-        ".zig-cache",
-        "build",
+    const clean_paths = [_][]const u8{
+        // folders
+        // ".zig-cache",
+        // "build",
         "src/ext/angle",
         "src/ext/dawn",
         "scripts/files",
         "scripts/__pycache",
-        // TODO generated wasm bindings?
+
+        // files
+        "src/wasmbind/clock_api_bind_gen.c",
+        "src/wasmbind/core_api_bind_gen.c",
+        "src/wasmbind/core_api_stubs.c",
+        "src/wasmbind/gles_api.json",
+        "src/wasmbind/gles_api_bind_gen.c",
+        "src/wasmbind/io_api_bind_gen.c",
+        "src/wasmbind/orca_io_stubs.c",
+        "src/wasmbind/orca_surface_stubs.c",
+        "src/wasmbind/surface_api_bind_gen.c",
     };
-    for (paths) |path| {
+    for (clean_paths) |path| {
         var remove_dir = b.addRemoveDirTree(b.path(path));
         clean_step.dependOn(&remove_dir.step);
     }
