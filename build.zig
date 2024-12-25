@@ -175,7 +175,7 @@ fn generateWasmBindings(b: *Build, params: GenerateWasmBindingsParams) *Build.St
         copy_outputs_to_src.addCopyFileToSource(guest_bindings_path, path);
     }
     if (params.guest_include_path) |path| {
-        run.addPrefixedFileArg("--guest-include-path=", b.path(path));
+        run.addArg(std.mem.join(b.allocator, "", &.{ "--guest-include-path=", path }) catch @panic("OOM"));
     }
 
     copy_outputs_to_src.step.dependOn(&run.step);
@@ -326,8 +326,8 @@ pub fn build(b: *Build) !void {
         .api = "surface",
         .spec_path = "src/wasmbind/surface_api.json",
         .host_bindings_path = "src/wasmbind/surface_api_bind_gen.c",
-        .guest_bindings_path = "src/wasmbind/orca_surface_stubs.c",
-        .guest_include_path = "src/graphics/graphics.h",
+        .guest_bindings_path = "src/graphics/orca_surface_stubs.c",
+        .guest_include_path = "graphics/graphics.h",
     });
 
     const orca_runtime_bindgen_clock = generateWasmBindings(b, .{
@@ -335,7 +335,7 @@ pub fn build(b: *Build) !void {
         .api = "clock",
         .spec_path = "src/wasmbind/clock_api.json",
         .host_bindings_path = "src/wasmbind/clock_api_bind_gen.c",
-        .guest_include_path = "src/platform/platform_clock.h",
+        .guest_include_path = "platform/platform_clock.h",
     });
 
     const orca_runtime_bindgen_io = generateWasmBindings(b, .{
@@ -343,8 +343,8 @@ pub fn build(b: *Build) !void {
         .api = "io",
         .spec_path = "src/wasmbind/io_api.json",
         .host_bindings_path = "src/wasmbind/io_api_bind_gen.c",
-        .guest_bindings_path = "src/wasmbind/orca_io_stubs.c",
-        .guest_include_path = "src/platform/platform_io_dialog.h",
+        .guest_bindings_path = "src/platform/orca_io_stubs.c",
+        .guest_include_path = "platform/platform_io_dialog.h",
     });
 
     // TODO port this to zig
@@ -525,7 +525,6 @@ pub fn build(b: *Build) !void {
     orca_runtime_exe.step.dependOn(&orca_runtime_bindgen_gles.step);
 
     const install_runtime_exe: *Build.Step.InstallArtifact = b.addInstallArtifact(orca_runtime_exe, .{});
-    // install_step.dependOn(&install_runtime_exe.step);
 
     const build_runtime_step = b.step("orca-runtime", "Build the Orca runtime from source.");
     build_runtime_step.dependOn(&install_runtime_exe.step);
@@ -600,7 +599,6 @@ pub fn build(b: *Build) !void {
     };
 
     const dummy_crt_install: *Build.Step.InstallArtifact = b.addInstallArtifact(dummy_crt_obj, libc_install_opts);
-    // install_step.dependOn(&dummy_crt_install.step);
 
     // wasm libc with orca platform implementation
 
@@ -663,7 +661,6 @@ pub fn build(b: *Build) !void {
     wasm_libc_lib.installHeadersDirectory(b.path("src/orca-libc/include"), "orca-libc/include", .{});
 
     const libc_install: *Build.Step.InstallArtifact = b.addInstallArtifact(wasm_libc_lib, libc_install_opts);
-    // install_step.dependOn(&libc_install.step);
 
     const build_libc_step = b.step("orca-libc", "Build the Orca libC from source.");
     build_libc_step.dependOn(&libc_install.step);
@@ -716,7 +713,6 @@ pub fn build(b: *Build) !void {
     // wasm_sdk_lib.step.dependOn(&libc_install.step); // TODO probably needs to depend on the libc artifacts being installed to the build dir
 
     const wasm_sdk_install: *Build.Step.InstallArtifact = b.addInstallArtifact(wasm_sdk_lib, .{});
-    // install_step.dependOn(&wasm_sdk_install.step);
 
     const build_wasm_sdk_step = b.step("orca-wasm-sdk", "Build the Orca wasm sdk from source.");
     build_wasm_sdk_step.dependOn(&wasm_sdk_install.step);
@@ -843,7 +839,6 @@ pub fn build(b: *Build) !void {
     orca_tool_exe.linkLibC();
 
     const orca_tool_install: *Build.Step.InstallArtifact = b.addInstallArtifact(orca_tool_exe, .{});
-    // install_step.dependOn(&orca_tool_install.step);
 
     const build_tool_step = b.step("orca-tool", "Build the Orca CLI tool from source.");
     build_tool_step.dependOn(&orca_tool_install.step);
@@ -893,76 +888,9 @@ pub fn build(b: *Build) !void {
         package_sdk_to_dir.addArg(version);
     }
 
-    // const opt_sdk_git_version = b.option([]const u8, "git-version", "Specify the git version used for package-sdk and install-sdk.");
-
     // package command
     const package_sdk_step = b.step("package-sdk", "Packages the Orca SDK for a release.");
     package_sdk_step.dependOn(&package_sdk_to_dir.step);
-
-    // if (opt_sdk_install_dir) |sdk_install_dir| {
-    //     if (std.fs.path.isAbsolute(sdk_install_dir)) {
-    //         const sdk_install_dir_lazypath = Build.LazyPath{ .cwd_relative = sdk_install_dir };
-    //         const package_sdk_clean_dir = b.addRemoveDirTree(sdk_install_dir_lazypath);
-
-    //         var files = std.ArrayList([]const u8).init(b.allocator);
-    //         if (target.result.os.tag == .windows) {
-    //             try files.append("orca.exe");
-    //             try files.append("orca.dll");
-    //             try files.append("orca_runtime.exe");
-    //             try files.append("liborca_wasm.a");
-    //             try files.append("libEGL.dll");
-    //             try files.append("libGLESv2.dll");
-    //             try files.append("webgpu.dll");
-    //         } else {
-    //             try files.append("orca");
-    //             try files.append("orca_runtime");
-    //             try files.append("liborca.dylib");
-    //             try files.append("liborca_wasm.a");
-    //             try files.append("libEGL.dylib");
-    //             try files.append("libGLESv2.dylib");
-    //             try files.append("libwebgpu.dylib");
-    //         }
-
-    //         var package_sdk_stage_files = b.addUpdateSourceFiles();
-    //         const artifacts_dir = b.path("build/bin");
-    //         for (files.items) |filename| {
-    //             const source = artifacts_dir.path(b, filename);
-    //             const dest = b.pathJoin(&.{ sdk_install_dir, filename });
-    //             package_sdk_stage_files.addCopyFileToSource(source, dest);
-    //         }
-
-    //         package_sdk_stage_files.step.dependOn(&package_sdk_clean_dir.step);
-
-    //         package_sdk_step.dependOn(&package_sdk_stage_files.step);
-    //     } else {
-    //         const fail_absolute_sdk_dir = b.addFail("sdk-dir must be an absolute path");
-    //         package_sdk_step.dependOn(&fail_absolute_sdk_dir.step);
-    //     }
-    // } else {
-    //     const fail_missing_sdk_dir = b.addFail("Specifying -Dsdk-dir=<path> is required for package-sdk.");
-    //     package_sdk_step.dependOn(&fail_missing_sdk_dir.step);
-    // }
-
-    // install-sdk command
-
-    // var orca_system_path: Build.LazyPath = undefined;
-    // if (opt_install_dir) |install_dir| {
-    //     orca_system_path = b.path(install_dir);
-    // } else {
-    //     var run_find_orca_install_path: *Build.Step.Run = b.addRunArtifact(orca_tool_exe);
-    //     run_angle_build.addArg("install-path");
-    //     run_find_orca_install_path.captureStdOut();
-    // }
-
-    // var current_commit: Build.LazyPath = undefined;
-    // if (opt_git_version) |git_version| {
-    //     current_commit = b.path(git_version);
-    // } else {
-    //     var run_find_orca_commit: *Build.Step.Run = b.addSystemCommand(&.{ "git", "rev-parse", "--short", "HEAD" });
-    //     current_commit = run_find_orca_commit.captureStdOut();
-    // }
-
-    // const install_sdk_step = b.step("install-sdk", "Install a dev build of the Orca tools into the system Orca directory.")
 
     ///////////////////////////////////////////////////////////////
     // TODO bundle command ?
@@ -992,22 +920,21 @@ pub fn build(b: *Build) !void {
 
     const clean_paths = [_][]const u8{
         // folders
-        // ".zig-cache",
-        // "build",
+        "build",
         "src/ext/angle",
         "src/ext/dawn",
         "scripts/files",
         "scripts/__pycache",
 
         // files
+        "src/graphics/orca_surface_stubs.c",
+        "src/platform/orca_io_stubs.c",
         "src/wasmbind/clock_api_bind_gen.c",
         "src/wasmbind/core_api_bind_gen.c",
         "src/wasmbind/core_api_stubs.c",
         "src/wasmbind/gles_api.json",
         "src/wasmbind/gles_api_bind_gen.c",
         "src/wasmbind/io_api_bind_gen.c",
-        "src/wasmbind/orca_io_stubs.c",
-        "src/wasmbind/orca_surface_stubs.c",
         "src/wasmbind/surface_api_bind_gen.c",
     };
     for (clean_paths) |path| {
