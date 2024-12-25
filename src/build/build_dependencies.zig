@@ -528,7 +528,7 @@ fn checkAngle(opts: *const Options) !void {
 
 fn buildAngle(opts: *const Options) !void {
     if (isAngleUpToDate(opts, .NoError)) {
-        std.log.info("angle is up to date - no rebuild needed.\n", .{});
+        // std.log.info("angle is up to date - no rebuild needed.\n", .{});
         return;
     } else if (opts.check_only) {
         const msg =
@@ -701,7 +701,7 @@ fn buildAngle(opts: *const Options) !void {
 
 fn buildDawn(opts: *const Options) !void {
     if (try isDawnUpToDate(opts, .NoError)) {
-        std.log.info("dawn is up to date - no rebuild needed.\n", .{});
+        // std.log.info("dawn is up to date - no rebuild needed.\n", .{});
         return;
     } else if (opts.check_only) {
         const dawn_required_files_str = try std.mem.join(opts.arena, "\n", DAWN_REQUIRED_FILES);
