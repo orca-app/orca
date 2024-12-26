@@ -438,15 +438,12 @@ pub fn build(b: *Build) !void {
 
     orca_platform_lib.step.dependOn(&stage_angle_artifacts.step);
     orca_platform_lib.step.dependOn(&stage_dawn_artifacts.step);
-    // orca_platform_lib.step.dependOn(&stage_angle_dawn_headers.step);
     orca_platform_lib.step.dependOn(&update_wgpu_header.step);
 
     orca_platform_lib.addIncludePath(b.path("src"));
     orca_platform_lib.addIncludePath(b.path("src/ext"));
-    orca_platform_lib.addIncludePath(b.path("src/ext/angle"));
-    orca_platform_lib.addIncludePath(b.path("src/ext/dawn"));
-    // orca_platform_lib.addIncludePath(b.path("build/angle.out/include"));
-    // orca_platform_lib.addIncludePath(b.path("build/dawn.out/include"));
+    orca_platform_lib.addIncludePath(b.path("src/ext/angle/include"));
+    orca_platform_lib.addIncludePath(b.path("src/ext/dawn/include"));
 
     orca_platform_lib.addCSourceFiles(.{
         .files = &.{"src/orca.c"},
@@ -454,8 +451,6 @@ pub fn build(b: *Build) !void {
     });
 
     orca_platform_lib.addLibraryPath(b.path("build/bin"));
-    // orca_platform_lib.addLibraryPath(b.path("build/angle.out/bin"));
-    // orca_platform_lib.addLibraryPath(b.path("build/dawn.out/bin"));
 
     orca_platform_lib.linkSystemLibrary("user32");
     orca_platform_lib.linkSystemLibrary("opengl32");
