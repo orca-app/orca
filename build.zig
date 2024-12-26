@@ -1,17 +1,5 @@
 const std = @import("std");
 
-// I'm currently working on porting the [Orca](https://github.com/orca-app/orca) build process to zig. Currently we use a python script that does multiple things:
-// * Downloads 3rd party dependencies such as [depot_tools](https://chromium.googlesource.com/chromium/tools/depot_tools), [angle](https://chromium.googlesource.com/angle/angle), and [dawn](https://dawn.googlesource.com/dawn)
-// * Builds angle and dawn using the depot_tools python scripts
-// * Determines if build outputs are out of date by hashing build outputs and comparing the result to a stamp file. The benenfit of this is we have the option to build libs in CI and download the temporarily-stored build artifacts without having to build them locally.
-// * Generates code according to .json spec files that are then included in the main orca build.
-// I'm worried that removing custom build steps will make it
-
-// make separate zig executables that:
-// 1. build angle
-// 2. build dawn
-// 3. generate C code according to bindings
-
 const Build = std.Build;
 const Step = Build.Step;
 const Module = Build.Module;
@@ -297,29 +285,45 @@ pub fn build(b: *Build) !void {
     // Orca runtime and dependencies
 
     // copy angle + dawn libs to output directory
-    var stage_angle_headers = b.addUpdateSourceFiles();
-    stage_angle_headers.addCopyFileToSource(b.path("build/angle.out/include/EGL/egl.h"), "src/ext/angle/include/EGL/egl.h");
-    stage_angle_headers.addCopyFileToSource(b.path("build/angle.out/include/EGL/eglext.h"), "src/ext/angle/include/EGL/eglext.h");
-    stage_angle_headers.addCopyFileToSource(b.path("build/angle.out/include/EGL/eglext_angle.h"), "src/ext/angle/include/EGL/eglext_angle.h");
-    stage_angle_headers.addCopyFileToSource(b.path("build/angle.out/include/EGL/eglplatform.h"), "src/ext/angle/include/EGL/eglplatform.h");
-    stage_angle_headers.addCopyFileToSource(b.path("build/angle.out/include/GLES/egl.h"), "src/ext/angle/include/GLES/egl.h");
-    stage_angle_headers.addCopyFileToSource(b.path("build/angle.out/include/GLES/gl.h"), "src/ext/angle/include/GLES/gl.h");
-    stage_angle_headers.addCopyFileToSource(b.path("build/angle.out/include/GLES/glext.h"), "src/ext/angle/include/GLES/glext.h");
-    stage_angle_headers.addCopyFileToSource(b.path("build/angle.out/include/GLES/glplatform.h"), "src/ext/angle/include/GLES/glplatform.h");
-    stage_angle_headers.addCopyFileToSource(b.path("build/angle.out/include/GLES2/gl2.h"), "src/ext/angle/include/GLES2/gl2.h");
-    stage_angle_headers.addCopyFileToSource(b.path("build/angle.out/include/GLES2/gl2ext.h"), "src/ext/angle/include/GLES2/gl2ext.h");
-    stage_angle_headers.addCopyFileToSource(b.path("build/angle.out/include/GLES2/gl2ext_angle.h"), "src/ext/angle/include/GLES2/gl2ext_angle.h");
-    stage_angle_headers.addCopyFileToSource(b.path("build/angle.out/include/GLES2/gl2platform.h"), "src/ext/angle/include/GLES2/gl2platform.h");
-    stage_angle_headers.addCopyFileToSource(b.path("build/angle.out/include/GLES3/gl3.h"), "src/ext/angle/include/GLES3/gl3.h");
-    stage_angle_headers.addCopyFileToSource(b.path("build/angle.out/include/GLES3/gl31.h"), "src/ext/angle/include/GLES3/gl31.h");
-    stage_angle_headers.addCopyFileToSource(b.path("build/angle.out/include/GLES3/gl32.h"), "src/ext/angle/include/GLES3/gl32.h");
-    stage_angle_headers.addCopyFileToSource(b.path("build/angle.out/include/GLES3/gl3platform.h"), "src/ext/angle/include/GLES3/gl3platform.h");
-    stage_angle_headers.addCopyFileToSource(b.path("build/angle.out/include/KHR/khrplatform.h"), "src/ext/angle/include/KHR/khrplatform.h");
-    stage_angle_headers.step.dependOn(&run_angle_uptodate.step);
+    var stage_angle_artifacts = b.addUpdateSourceFiles();
+    stage_angle_artifacts.addCopyFileToSource(b.path("build/angle.out/include/EGL/egl.h"), "src/ext/angle/include/EGL/egl.h");
+    stage_angle_artifacts.addCopyFileToSource(b.path("build/angle.out/include/EGL/eglext.h"), "src/ext/angle/include/EGL/eglext.h");
+    stage_angle_artifacts.addCopyFileToSource(b.path("build/angle.out/include/EGL/eglext_angle.h"), "src/ext/angle/include/EGL/eglext_angle.h");
+    stage_angle_artifacts.addCopyFileToSource(b.path("build/angle.out/include/EGL/eglplatform.h"), "src/ext/angle/include/EGL/eglplatform.h");
+    stage_angle_artifacts.addCopyFileToSource(b.path("build/angle.out/include/GLES/egl.h"), "src/ext/angle/include/GLES/egl.h");
+    stage_angle_artifacts.addCopyFileToSource(b.path("build/angle.out/include/GLES/gl.h"), "src/ext/angle/include/GLES/gl.h");
+    stage_angle_artifacts.addCopyFileToSource(b.path("build/angle.out/include/GLES/glext.h"), "src/ext/angle/include/GLES/glext.h");
+    stage_angle_artifacts.addCopyFileToSource(b.path("build/angle.out/include/GLES/glplatform.h"), "src/ext/angle/include/GLES/glplatform.h");
+    stage_angle_artifacts.addCopyFileToSource(b.path("build/angle.out/include/GLES2/gl2.h"), "src/ext/angle/include/GLES2/gl2.h");
+    stage_angle_artifacts.addCopyFileToSource(b.path("build/angle.out/include/GLES2/gl2ext.h"), "src/ext/angle/include/GLES2/gl2ext.h");
+    stage_angle_artifacts.addCopyFileToSource(b.path("build/angle.out/include/GLES2/gl2ext_angle.h"), "src/ext/angle/include/GLES2/gl2ext_angle.h");
+    stage_angle_artifacts.addCopyFileToSource(b.path("build/angle.out/include/GLES2/gl2platform.h"), "src/ext/angle/include/GLES2/gl2platform.h");
+    stage_angle_artifacts.addCopyFileToSource(b.path("build/angle.out/include/GLES3/gl3.h"), "src/ext/angle/include/GLES3/gl3.h");
+    stage_angle_artifacts.addCopyFileToSource(b.path("build/angle.out/include/GLES3/gl31.h"), "src/ext/angle/include/GLES3/gl31.h");
+    stage_angle_artifacts.addCopyFileToSource(b.path("build/angle.out/include/GLES3/gl32.h"), "src/ext/angle/include/GLES3/gl32.h");
+    stage_angle_artifacts.addCopyFileToSource(b.path("build/angle.out/include/GLES3/gl3platform.h"), "src/ext/angle/include/GLES3/gl3platform.h");
+    stage_angle_artifacts.addCopyFileToSource(b.path("build/angle.out/include/KHR/khrplatform.h"), "src/ext/angle/include/KHR/khrplatform.h");
+    if (target.result.os.tag == .windows) {
+        stage_angle_artifacts.addCopyFileToSource(b.path("build/angle.out/bin/d3dcompiler_47.dll"), "build/bin/d3dcompiler_47.dll");
+        stage_angle_artifacts.addCopyFileToSource(b.path("build/angle.out/bin/libEGL.dll"), "build/bin/libEGL.dll");
+        stage_angle_artifacts.addCopyFileToSource(b.path("build/angle.out/bin/libEGL.dll.lib"), "build/bin/libEGL.dll.lib");
+        stage_angle_artifacts.addCopyFileToSource(b.path("build/angle.out/bin/libGLESv2.dll"), "build/bin/libGLESv2.dll");
+        stage_angle_artifacts.addCopyFileToSource(b.path("build/angle.out/bin/libGLESv2.dll.lib"), "build/bin/libGLESv2.dll.lib");
+    } else {
+        stage_angle_artifacts.addCopyFileToSource(b.path("build/angle.out/bin/libEGL.dylib"), "build/bin/libEGL.dylib");
+        stage_angle_artifacts.addCopyFileToSource(b.path("build/angle.out/bin/libGLESv2.dylib"), "build/bin/libGLESv2.dylib");
+    }
+    stage_angle_artifacts.step.dependOn(&run_angle_uptodate.step);
 
-    var stage_dawn_headers = b.addUpdateSourceFiles();
-    stage_dawn_headers.addCopyFileToSource(b.path("build/dawn.out/include/webgpu.h"), "src/ext/dawn/include/webgpu.h");
-    stage_dawn_headers.step.dependOn(&run_dawn_uptodate.step);
+    var stage_dawn_artifacts = b.addUpdateSourceFiles();
+    stage_dawn_artifacts.addCopyFileToSource(b.path("build/dawn.out/include/webgpu.h"), "src/ext/dawn/include/webgpu.h");
+    if (target.result.os.tag == .windows) {
+        stage_angle_artifacts.addCopyFileToSource(b.path("build/dawn.out/bin/webgpu.dll"), "build/bin/webgpu.dll");
+        stage_angle_artifacts.addCopyFileToSource(b.path("build/dawn.out/bin/webgpu.lib"), "build/bin/webgpu.lib");
+    } else {
+        stage_angle_artifacts.addCopyFileToSource(b.path("build/dawn.out/bin/libwebgpu.dylib"), "build/bin/libwebgpu.dll");
+    }
+    stage_dawn_artifacts.step.dependOn(&run_dawn_uptodate.step);
 
     // generate wasm bindings
 
@@ -432,23 +436,26 @@ pub fn build(b: *Build) !void {
         .optimize = optimize,
     });
 
-    orca_platform_lib.step.dependOn(&stage_angle_headers.step);
-    orca_platform_lib.step.dependOn(&stage_dawn_headers.step);
+    orca_platform_lib.step.dependOn(&stage_angle_artifacts.step);
+    orca_platform_lib.step.dependOn(&stage_dawn_artifacts.step);
     // orca_platform_lib.step.dependOn(&stage_angle_dawn_headers.step);
     orca_platform_lib.step.dependOn(&update_wgpu_header.step);
 
     orca_platform_lib.addIncludePath(b.path("src"));
     orca_platform_lib.addIncludePath(b.path("src/ext"));
-    orca_platform_lib.addIncludePath(b.path("build/angle.out/include"));
-    orca_platform_lib.addIncludePath(b.path("build/dawn.out/include"));
+    orca_platform_lib.addIncludePath(b.path("src/ext/angle"));
+    orca_platform_lib.addIncludePath(b.path("src/ext/dawn"));
+    // orca_platform_lib.addIncludePath(b.path("build/angle.out/include"));
+    // orca_platform_lib.addIncludePath(b.path("build/dawn.out/include"));
 
     orca_platform_lib.addCSourceFiles(.{
         .files = &.{"src/orca.c"},
         .flags = orca_platform_compile_flags.items,
     });
 
-    orca_platform_lib.addLibraryPath(b.path("build/angle.out/bin"));
-    orca_platform_lib.addLibraryPath(b.path("build/dawn.out/bin"));
+    orca_platform_lib.addLibraryPath(b.path("build/bin"));
+    // orca_platform_lib.addLibraryPath(b.path("build/angle.out/bin"));
+    // orca_platform_lib.addLibraryPath(b.path("build/dawn.out/bin"));
 
     orca_platform_lib.linkSystemLibrary("user32");
     orca_platform_lib.linkSystemLibrary("opengl32");
@@ -525,8 +532,8 @@ pub fn build(b: *Build) !void {
     orca_runtime_exe.linkLibrary(orca_platform_lib);
     orca_runtime_exe.linkLibC();
 
-    orca_runtime_exe.step.dependOn(&stage_angle_headers.step);
-    orca_runtime_exe.step.dependOn(&stage_dawn_headers.step);
+    orca_runtime_exe.step.dependOn(&stage_angle_artifacts.step);
+    orca_runtime_exe.step.dependOn(&stage_dawn_artifacts.step);
 
     orca_runtime_exe.step.dependOn(&orca_runtime_bindgen_core.step);
     orca_runtime_exe.step.dependOn(&orca_runtime_bindgen_surface.step);
@@ -703,6 +710,15 @@ pub fn build(b: *Build) !void {
         .files = &.{"src/orca.c"},
     });
 
+    wasm_sdk_obj.step.dependOn(&stage_angle_artifacts.step);
+    wasm_sdk_obj.step.dependOn(&stage_dawn_artifacts.step);
+
+    wasm_sdk_obj.step.dependOn(&orca_runtime_bindgen_core.step);
+    wasm_sdk_obj.step.dependOn(&orca_runtime_bindgen_surface.step);
+    wasm_sdk_obj.step.dependOn(&orca_runtime_bindgen_clock.step);
+    wasm_sdk_obj.step.dependOn(&orca_runtime_bindgen_io.step);
+    wasm_sdk_obj.step.dependOn(&orca_runtime_bindgen_gles.step);
+
     var wasm_sdk_lib = b.addExecutable(.{
         .name = "liborca",
         .target = wasm_target,
@@ -713,15 +729,6 @@ pub fn build(b: *Build) !void {
     wasm_sdk_lib.addObject(wasm_sdk_obj);
     wasm_sdk_lib.rdynamic = true;
     wasm_sdk_lib.entry = .disabled;
-
-    wasm_sdk_lib.step.dependOn(&stage_angle_headers.step);
-    wasm_sdk_lib.step.dependOn(&stage_dawn_headers.step);
-
-    wasm_sdk_lib.step.dependOn(&orca_runtime_bindgen_core.step);
-    wasm_sdk_lib.step.dependOn(&orca_runtime_bindgen_surface.step);
-    wasm_sdk_lib.step.dependOn(&orca_runtime_bindgen_clock.step);
-    wasm_sdk_lib.step.dependOn(&orca_runtime_bindgen_io.step);
-    wasm_sdk_lib.step.dependOn(&orca_runtime_bindgen_gles.step);
 
     // wasm_sdk_lib.step.dependOn(&libc_install.step); // TODO probably needs to depend on the libc artifacts being installed to the build dir
 
@@ -860,11 +867,16 @@ pub fn build(b: *Build) !void {
     // zig build orca
 
     const build_orca = b.step("orca", "Build all orca binaries");
-    build_orca.dependOn(&install_runtime_exe.step);
-    build_orca.dependOn(&dummy_crt_install.step);
-    build_orca.dependOn(&libc_install.step);
-    build_orca.dependOn(&wasm_sdk_install.step);
-    build_orca.dependOn(&orca_tool_install.step);
+    build_orca.dependOn(build_runtime_step);
+    build_orca.dependOn(build_libc_step);
+    build_orca.dependOn(build_wasm_sdk_step);
+    build_orca.dependOn(build_tool_step);
+
+    // build_orca.dependOn(&install_runtime_exe.step);
+    // build_orca.dependOn(&dummy_crt_install.step);
+    // build_orca.dependOn(&libc_install.step);
+    // build_orca.dependOn(&wasm_sdk_install.step);
+    // build_orca.dependOn(&orca_tool_install.step);
 
     ///////////////////////////////////////////////////////////////
     // package-sdk and install-sdk commands
@@ -875,6 +887,26 @@ pub fn build(b: *Build) !void {
         .target = target,
         .optimize = .Debug,
     });
+
+    // zig build orca-install
+
+    var orca_install = b.addRunArtifact(package_sdk_exe);
+    orca_install.addArg("--dev-install");
+    orca_install.addPrefixedFileArg("--artifacts-path=", b.path("build"));
+    orca_install.addPrefixedFileArg("--resources-path=", b.path("resources"));
+    orca_install.addPrefixedFileArg("--src-path=", b.path("src"));
+    orca_install.step.dependOn(build_orca);
+
+    const opt_sdk_version = b.option([]const u8, "sdk-version", "Override current git version for sdk packaging.");
+    if (opt_sdk_version) |sdk_version| {
+        const version = try std.mem.join(b.allocator, "", &.{ "--version=", sdk_version });
+        orca_install.addArg(version);
+    }
+
+    const orca_install_step = b.step("orca-install", "Build and install orca in orca system path as a dev build");
+    orca_install_step.dependOn(&orca_install.step);
+
+    // zig build package-sdk
 
     var package_sdk_to_dir = b.addRunArtifact(package_sdk_exe);
     package_sdk_to_dir.addPrefixedFileArg("--artifacts-path=", b.path("build"));
@@ -893,12 +925,6 @@ pub fn build(b: *Build) !void {
     } else {
         const fail_missing_sdk_dir = b.addFail("Specifying -Dsdk-dir=<path> is required for package-sdk.");
         package_sdk_to_dir.step.dependOn(&fail_missing_sdk_dir.step);
-    }
-
-    const opt_sdk_version = b.option([]const u8, "sdk-version", "Override current git version for sdk packaging.");
-    if (opt_sdk_version) |sdk_version| {
-        const version = try std.mem.join(b.allocator, "", &.{ "--version=", sdk_version });
-        package_sdk_to_dir.addArg(version);
     }
 
     // package command

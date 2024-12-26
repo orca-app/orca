@@ -3,6 +3,7 @@
 // for installation to the system orca path.
 
 const std = @import("std");
+const builtin = @import("builtin");
 
 fn trimWhitespace(str0: []const u8) []const u8 {
     const trim = std.mem.trim;
@@ -92,20 +93,50 @@ fn copyFolder(
     }
 }
 
+fn findSystemOrcaDir(allocator: std.mem.Allocator) ![]const u8 {
+    const result: std.process.Child.RunResult = try std.process.Child.run(.{
+        .allocator = allocator,
+        .argv = &.{ "orca", "install-path" },
+        .cwd_dir = std.fs.cwd(),
+    });
+
+    switch (result.term) {
+        .Exited => |exit_code| {
+            if (exit_code != 0) {
+                std.log.err("orca install-path failed with nonzero exit code {}", .{exit_code});
+                return error.OrcaInstallPathFailed;
+            }
+        },
+        else => {
+            std.log.err("orca install-path failed. stderr: {s}", .{result.stderr});
+            return error.OrcaInstallPathFailed;
+        },
+    }
+
+    const output = trimWhitespace(result.stdout);
+    if (output.len == 0) {
+        std.log.err("orca install-path output was empty", .{});
+        return error.OrcaInstallPathUnexpectedOutput;
+    }
+
+    return output;
+}
+
 const Options = struct {
     arena: std.mem.Allocator,
     install_path: []const u8,
     artifacts_path: []const u8,
     resources_path: []const u8,
     src_path: []const u8,
-    git_version: []const u8,
+    version: []const u8,
+    is_dev_install: bool,
 
     fn parse(args: []const [:0]const u8, arena: std.mem.Allocator) !Options {
         var install_path: ?[]const u8 = null;
         var artifacts_path: ?[]const u8 = null;
         var resources_path: ?[]const u8 = null;
         var src_path: ?[]const u8 = null;
-        var git_version: ?[]const u8 = null;
+        var version: ?[]const u8 = null;
         var is_dev_install: bool = false;
 
         for (args, 0..) |raw_arg, i| {
@@ -124,14 +155,14 @@ const Options = struct {
             } else if (std.mem.eql(u8, arg, "--src-path")) {
                 src_path = splitIter.next();
             } else if (std.mem.eql(u8, arg, "--version")) {
-                git_version = splitIter.next();
-            } else if (std.mem.eql(u8, arg, "--dev")) {
+                version = splitIter.next();
+            } else if (std.mem.eql(u8, arg, "--dev-install")) {
                 is_dev_install = true;
             }
         }
 
         var missing_arg: ?[]const u8 = null;
-        if (install_path == null) {
+        if (install_path == null and is_dev_install == false) {
             missing_arg = "install-path";
         } else if (artifacts_path == null) {
             missing_arg = "artifacts-path";
@@ -146,8 +177,27 @@ const Options = struct {
             return error.MissingRequiredArgument;
         }
 
-        if (git_version == null) {
-            git_version = try findGitVersion(arena);
+        if (install_path != null and is_dev_install) {
+            std.log.err("When installing to the system orca dev directory, --install-path is ignored.", .{});
+            return error.ConflictingArguments;
+        }
+
+        if (version == null) {
+            version = try findGitVersion(arena);
+        }
+
+        if (is_dev_install) {
+            const orca_dir: []const u8 = findSystemOrcaDir(arena) catch |e| {
+                std.log.err(
+                    \\You must install the Orca cli tool and add the directory where you
+                    \\installed it to your PATH before the dev tooling can determine the
+                    \\system Orca directory. You can download the cli tool from:
+                    \\https://github.com/orca-app/orca/releases/latest
+                , .{});
+                return e;
+            };
+            version = try std.mem.join(arena, "", &.{ "dev-", version.? });
+            install_path = try std.fs.path.join(arena, &.{ orca_dir, version.? });
         }
 
         return Options{
@@ -156,7 +206,8 @@ const Options = struct {
             .artifacts_path = artifacts_path.?,
             .resources_path = resources_path.?,
             .src_path = src_path.?,
-            .git_version = git_version.?,
+            .version = version.?,
+            .is_dev_install = is_dev_install,
         };
     }
 };
@@ -218,4 +269,27 @@ pub fn main() !void {
         const wasm3_dest_path = try std.fs.path.join(opts.arena, &.{ opts.install_path, "src/ext/wasm3/source" });
         try copyFolder(opts.arena, wasm3_dest_path, wasm3_src_path, header_extensions, &.{});
     }
+
+    // dev installs need to overwrite the orca tool in case there were any changes
+    if (opts.is_dev_install) {
+        const orca_dir_path: []const u8 = try findSystemOrcaDir(opts.arena);
+
+        const src_orca_exe_name: []const u8 = if (builtin.os.tag == .windows) "orca_tool.exe" else "orca_tool";
+        const src_tool_path: []const u8 = try std.fs.path.join(opts.arena, &.{ opts.artifacts_path, "bin", src_orca_exe_name });
+
+        const dest_orca_exe_name: []const u8 = if (builtin.os.tag == .windows) "orca.exe" else "orca";
+        const dest_tool_path: []const u8 = try std.fs.path.join(opts.arena, &.{ orca_dir_path, dest_orca_exe_name });
+
+        std.log.info("copying '{s}' to '{s}'", .{ src_tool_path, dest_tool_path });
+        const cwd = std.fs.cwd();
+        const orca_dir: std.fs.Dir = try cwd.openDir(orca_dir_path, .{ .iterate = true });
+        _ = try cwd.updateFile(src_tool_path, orca_dir, dest_tool_path, .{});
+
+        try orca_dir.writeFile(.{
+            .sub_path = "current_version",
+            .data = opts.version,
+        });
+    }
+
+    std.log.info("Packaged Orca SDK to {s}", .{opts.install_path});
 }
