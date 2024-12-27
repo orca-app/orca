@@ -23,6 +23,11 @@ oc_vec2 oc_vec2_add(oc_vec2 v0, oc_vec2 v1)
     return ((oc_vec2){ v0.x + v1.x, v0.y + v1.y });
 }
 
+oc_vec2 oc_vec2_sub(oc_vec2 v0, oc_vec2 v1)
+{
+    return ((oc_vec2){ v0.x - v1.x, v0.y - v1.y });
+}
+
 oc_mat2x3 oc_mat2x3_mul_m(oc_mat2x3 lhs, oc_mat2x3 rhs)
 {
     oc_mat2x3 res;

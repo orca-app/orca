@@ -1,6 +1,7 @@
 import glob
 import os
 import sys
+import sysconfig
 import platform
 import re
 import urllib.request
@@ -56,6 +57,10 @@ def attach_dev_commands(subparsers):
     sdk_cmd = subparsers.add_parser("build-wasm-sdk", help="Build the Orca wasm sdk from source.")
     sdk_cmd.add_argument("--release", action="store_true", help="compile in release mode (default is debug)")
     sdk_cmd.set_defaults(func=dev_shellish(build_sdk))
+
+    fribidi_cmd = subparsers.add_parser("build-fribidi", help="Build Fribidi.")
+    fribidi_cmd.add_argument("--release", action="store_true", help="compile in release mode (default is debug)")
+    fribidi_cmd.set_defaults(func=dev_shellish(build_fribidi))
 
     tool_cmd = subparsers.add_parser("build-tool", help="Build the Orca CLI tool from source.")
     tool_cmd.add_argument("--version", help="embed a version string in the Orca CLI tool (default is git commit hash)")
@@ -472,6 +477,390 @@ def build_angle_internal(release, force):
 
     print("Done")
 
+#------------------------------------------------------
+# build fribidi
+#------------------------------------------------------
+
+def check_fribidi():
+    print("Checking fribidi cache...", end="")
+
+    with open("deps/fribidi-commit.txt", "r") as f:
+        FRIBIDI_COMMIT = f.read().strip()
+
+    fribidi_ok = True
+
+    if not os.path.exists("build/fribidi.out/checksums.json"):
+        print("checksums.json not found")
+        fribidi_ok = False
+    else:
+        with pushd("build/fribidi.out"):
+            with open("checksums.json", "r") as f:
+                sums = json.load(f)
+
+            if "commit" not in sums:
+                print("commit not found in checksums.json")
+                fribidi_ok = False
+            elif sums["commit"] != FRIBIDI_COMMIT:
+                found = sums["commit"]
+                print(f"Cache does not match commit (expected {FRIBIDI_COMMIT}, found {found})")
+                fribidi_ok = False
+            elif "sums" not in sums:
+                print("sums not found in checksums.json")
+                fribidi_ok = False
+            else:
+                for entry in sums["sums"]:
+                    if "file" not in entry or "sum" not in entry:
+                        print("file or sum not found in cache entry")
+                        print(entry)
+                        fribidi_ok = False
+                        break
+
+                    if not os.path.exists(entry["file"]):
+                        f = entry["file"]
+                        print(f"file {f} does not exist in cache")
+                        fribidi_ok = False
+                        break
+
+                    fileSum = checksum.filesum(entry["file"])
+                    if fileSum != entry["sum"]:
+                        f = entry["file"]
+                        s = entry["sum"]
+                        print(f"file {f} does not match checksum (expected {s}, got {fileSum})")
+                        fribidi_ok = False
+                        break
+
+    if not fribidi_ok:
+        build_fribidi()
+    else:
+        print("ok")
+
+    # copy fribidi bin/includes
+    os.makedirs("src/ext/fribidi/include", exist_ok=True)
+    shutil.copytree("build/fribidi.out/include", "src/ext/fribidi/include", dirs_exist_ok=True)
+
+    for f in glob.glob("build/fribidi.out/bin/*"):
+        shutil.copy(f, "build/bin")
+
+
+def build_fribidi(release=False):
+    print("Building fribidi...")
+
+    with open("deps/fribidi-commit.txt", "r") as f:
+        FRIBIDI_COMMIT = f.read().strip()
+
+    os.makedirs("build/bin", exist_ok=True)
+
+    # check fribidi repo
+    with pushd("build"):
+        if not os.path.exists("fribidi"):
+            subprocess.run([
+                "git", "clone", "--no-tags", "--single-branch",
+                "https://github.com/fribidi/fribidi.git"
+            ], check=True)
+
+        with pushd("fribidi"):
+            subprocess.run([
+                "git", "fetch", "--no-tags"
+            ], check=True)
+
+            subprocess.run([
+                "git", "reset", "--hard", FRIBIDI_COMMIT
+            ], check=True)
+
+            # build native
+            ############################################################
+            #TODO: sort out what we should do on Windows
+            ############################################################
+            if platform.system() == "Windows":
+                pythonScriptsPath = sysconfig.get_path('scripts', f'{os.name}_user')
+
+                meson = "meson"
+
+                try:
+                    subprocess.run(["meson"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                except FileNotFoundError:
+                    print("meson not found, installing...")
+                    subprocess.run([
+                        "python", "-m", "pip", "install", "meson"
+                    ], check=True)
+
+                try:
+                    subprocess.run(["meson"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                except FileNotFoundError:
+                    meson = os.path.join(pythonScriptsPath, "meson.exe")
+
+
+                yeetdir("build")
+
+                subprocess.run([
+                    meson, "setup", "build", "-Ddocs=false"
+                ], check=True)
+
+                subprocess.run([
+                    meson, "compile", "-C", "build"
+                ], check=True)
+
+                # meson puts stuff in build/lib, copy it over to the same place as its put on mac
+                os.makedirs("lib/.libs", exist_ok=True)
+
+                shutil.copy("build/lib/fribidi-0.dll", "lib/.libs/")
+                shutil.copy("build/lib/fribidi.lib", "lib/.libs/")
+                shutil.copy("build/config.h", ".")
+                shutil.copy("build/lib/fribidi-config.h", "lib")
+
+                for f in glob.glob("build/gen.tab/*.i"):
+                    shutil.copy(f, ".")
+
+                shutil.copy("build/gen.tab/fribidi-unicode-version.h", "lib")
+
+            else:
+                subprocess.run([
+                    "./autogen.sh"
+                ], check=True)
+
+                subprocess.run([
+                    "./configure"
+                ], check=True)
+
+                subprocess.run([
+                    "make"
+                ], check=True)
+
+                # fix install name for macOS
+                if platform.system() == "Darwin":
+                    subprocess.run([
+                        "install_name_tool",
+                        "-id", "libfribidi.dylib",
+                        "lib/.libs/libfribidi.dylib",
+                    ], check=True)
+
+
+            # build wasm
+            clang = 'clang'
+
+            #NOTE(martin): this is an extremely stupid workaround to play well with github CI runners, which
+            # have llvm clang only accessible through $(brew --prefix llvm@15), whereas locally we could want to
+            # use another version.
+            # TODO: we should probably pass a flag to inform the script it's running in CI. This would avoid picking
+            # llvm 15 when a later version is available locally?
+            if platform.system() == "Darwin":
+                try:
+                    brew_llvm = subprocess.check_output(["brew", "--prefix", "llvm@15", "--installed"], stderr=subprocess.DEVNULL).decode().strip()
+                except subprocess.CalledProcessError:
+                    brew_llvm = subprocess.check_output(["brew", "--prefix", "llvm", "--installed"]).decode().strip()
+                clang = os.path.join(brew_llvm, 'bin', 'clang')
+
+            source_files = glob.glob("lib/*.c");
+
+            subprocess.run([
+                clang,
+                "--target=wasm32",
+                "--no-standard-libraries", "-I../../src/orca-libc/include",
+                "-mbulk-memory",
+                "-Wl,--no-entry",
+                "-Wl,--export-dynamic",
+                "-Wl,--relocatable",
+                "-DHAVE_STRINGIZE=1",
+                "-DHAVE_STRING_H=1",
+                "-DHAVE_STRINGS_H=1",
+                "-DHAVE_MEMMOVE",
+                "-DHAVE_MEMSET",
+                "-DHAVE_STDLIB_H=1",
+                "-DHAVE_STRDUP",
+                "-I.",
+                "-Ilib",
+                *source_files,
+                "-o", "libfribidi_wasm.a",
+            ], check=True)
+
+    # copying artifacts
+    os.makedirs("build/fribidi.out/bin", exist_ok=True)
+    os.makedirs("build/fribidi.out/include", exist_ok=True)
+
+    sums = []
+
+    if platform.system() == "Windows":
+        shutil.copy("build/fribidi/lib/.libs/fribidi-0.dll", "build/fribidi.out/bin")
+        sums.append({
+            "file": "bin/fribidi-0.dll",
+            "sum": checksum.filesum("build/fribidi.out/bin/fribidi-0.dll")
+        })
+        shutil.copy("build/fribidi/lib/.libs/fribidi.lib", "build/fribidi.out/bin")
+        sums.append({
+            "file": "bin/fribidi.lib",
+            "sum": checksum.filesum("build/fribidi.out/bin/fribidi.lib")
+        })
+    else:
+        shutil.copy("build/fribidi/lib/.libs/libfribidi.dylib", "build/fribidi.out/bin")
+        sums.append({
+            "file": "bin/libfribidi.dylib",
+            "sum": checksum.filesum("build/fribidi.out/bin/libfribidi.dylib")
+        })
+
+    shutil.copy("build/fribidi/libfribidi_wasm.a", "build/fribidi.out/bin")
+    sums.append({
+        "file": "bin/libfribidi_wasm.a",
+        "sum": checksum.filesum("build/fribidi.out/bin/libfribidi_wasm.a")
+    })
+
+    for f in glob.iglob("build/fribidi/lib/*.h"):
+        shutil.copy(f, "build/fribidi.out/include")
+        sums.append({
+            "file": f"include/{os.path.basename(f)}",
+            "sum": checksum.filesum(f"build/fribidi.out/include/{os.path.basename(f)}")
+        })
+
+    # write checksums
+    with open("build/fribidi.out/checksums.json", "w") as f:
+        d = {
+            "commit" : FRIBIDI_COMMIT,
+            "sums": sums
+        }
+        json.dump(d, f)
+
+
+#------------------------------------------------------
+# build harfbuzz
+#------------------------------------------------------
+
+def check_harfbuzz():
+    print("Checking harfbuzz cache...", end="")
+
+    with open("deps/harfbuzz-commit.txt", "r") as f:
+        HARFBUZZ_COMMIT = f.read().strip()
+
+    harfbuzz_ok = True
+
+    if not os.path.exists("build/harfbuzz.out/checksums.json"):
+        print("checksums.json not found")
+        harfbuzz_ok = False
+    else:
+        with pushd("build/harfbuzz.out"):
+            with open("checksums.json", "r") as f:
+                sums = json.load(f)
+
+            if "commit" not in sums:
+                print("commit not found in checksums.json")
+                harfbuzz_ok = False
+            elif sums["commit"] != HARFBUZZ_COMMIT:
+                found = sums["commit"]
+                print(f"Cache does not match commit (expected {HARFBUZZ_COMMIT}, found {found})")
+                harfbuzz_ok = False
+            elif "sums" not in sums:
+                print("sums not found in checksums.json")
+                harfbuzz_ok = False
+            else:
+                for entry in sums["sums"]:
+                    if "file" not in entry or "sum" not in entry:
+                        print("file or sum not found in cache entry")
+                        print(entry)
+                        harfbuzz_ok = False
+                        break
+
+                    if not os.path.exists(entry["file"]):
+                        f = entry["file"]
+                        print(f"file {f} does not exist in cache")
+                        harfbuzz_ok = False
+                        break
+
+                    fileSum = checksum.filesum(entry["file"])
+                    if fileSum != entry["sum"]:
+                        f = entry["file"]
+                        s = entry["sum"]
+                        print(f"file {f} does not match checksum (expected {s}, got {fileSum})")
+                        harfbuzz_ok = False
+                        break
+
+    if not harfbuzz_ok:
+        build_harfbuzz()
+    else:
+        print("ok")
+
+    # copy harfbuzz bin/includes
+    os.makedirs("src/ext/harfbuzz/include", exist_ok=True)
+    shutil.copytree("build/harfbuzz.out/include", "src/ext/harfbuzz/include", dirs_exist_ok=True)
+
+    for f in glob.glob("build/harfbuzz.out/bin/*"):
+        shutil.copy(f, "build/bin")
+
+def build_harfbuzz():
+    print("Building harfbuzz...")
+
+    libname = "libharfbuzz.dylib" if platform.system() == "Darwin" else "libharfbuzz.dll"
+
+    with open("deps/harfbuzz-commit.txt", "r") as f:
+        HARFBUZZ_COMMIT = f.read().strip()
+
+    os.makedirs("build/bin", exist_ok=True)
+
+    # check harfbuzz repo
+    with pushd("build"):
+        if not os.path.exists("harfbuzz"):
+            subprocess.run([
+                "git", "clone", "--no-tags", "--single-branch",
+                "https://github.com/harfbuzz/harfbuzz.git"
+            ], check=True)
+
+        with pushd("harfbuzz"):
+            subprocess.run([
+                "git", "fetch", "--no-tags"
+            ], check=True)
+
+            subprocess.run([
+                "git", "reset", "--hard", HARFBUZZ_COMMIT
+            ], check=True)
+
+            # build
+            if platform.system() == "Darwin":
+                subprocess.run([
+                    "clang", "-shared", "-std=c++20", "-o", libname, "-lc++", "src/harfbuzz.cc"
+                ], check=True)
+            else:
+                subprocess.run([
+                    "cl", "/nologo",
+                     "/std:c++20",
+                     "-DHB_DLL_EXPORT",
+                     "src/harfbuzz.cc",
+                     "/LD", "/link",
+                     "/OUT:libharfbuzz.dll", "/IMPLIB:libharfbuzz.dll.lib"
+                ], check=True)
+
+
+    # copying artifacts and computing checksums
+    sums = []
+
+    os.makedirs("build/harfbuzz.out/bin", exist_ok=True)
+    os.makedirs("build/harfbuzz.out/include", exist_ok=True)
+
+    shutil.copy(f"build/harfbuzz/{libname}", "build/harfbuzz.out/bin")
+    sums.append({
+        "file": f"bin/{libname}",
+        "sum": checksum.filesum(f"build/harfbuzz.out/bin/{libname}")
+    })
+
+    if platform.system() == "Windows":
+        shutil.copy("build/harfbuzz/libharfbuzz.dll.lib", "build/harfbuzz.out/bin")
+        sums.append({
+            "file": f"bin/libharfbuzz.dll.lib",
+            "sum": checksum.filesum(f"build/harfbuzz.out/bin/libharfbuzz.dll.lib")
+        })
+
+    for f in glob.iglob("build/harfbuzz/src/*.h"):
+        shutil.copy(f, "build/harfbuzz.out/include")
+        sums.append({
+            "file": f"include/{os.path.basename(f)}",
+            "sum": checksum.filesum(f"build/harfbuzz.out/include/{os.path.basename(f)}")
+        })
+
+    # write checksums
+    with open("build/harfbuzz.out/checksums.json", "w") as f:
+        d = {
+            "commit" : HARFBUZZ_COMMIT,
+            "sums": sums
+        }
+
+        json.dump(d, f)
+
 
 #------------------------------------------------------
 # build runtime
@@ -692,6 +1081,12 @@ def build_platform_layer(args):
     build_platform_layer_internal(args.release)
 
 def build_platform_layer_internal(release):
+
+    # build harfbuzz
+    #TODO: skip if already built
+    check_harfbuzz()
+    check_fribidi()
+
     print("Building Orca platform layer...")
 
     angle_ok, angle_messages = check_angle()
@@ -782,7 +1177,11 @@ def build_platform_layer_lib_win(release):
         "/DELAYLOAD:libEGL.dll",
         "/DELAYLOAD:libGLESv2.dll",
         "webgpu.lib",
-        "/DELAYLOAD:webgpu.dll"
+        "/DELAYLOAD:webgpu.dll",
+        "libharfbuzz.dll.lib",
+        "/DELAYLOAD:libharfbuzz.dll",
+        "fribidi.lib",
+        "/DELAYLOAD:fribidi-0.dll",
     ]
 
     debug_flags = ["/O2", "/Zi"] if release else ["/Zi", "/DOC_DEBUG", "/DOC_LOG_COMPILE_DEBUG"]
@@ -851,9 +1250,9 @@ def build_platform_layer_lib_mac(release):
         *ldflags, "-dylib",
         "-o", "build/bin/liborca.dylib",
         "build/orca_c.o", "build/orca_objc.o",
-        "-Lbuild/bin", "-lc",
+        "-Lbuild/bin", "-lc", "-lc++",
         "-framework", "Carbon", "-framework", "Cocoa", "-framework", "Metal", "-framework", "QuartzCore",
-        "-weak-lEGL", "-weak-lGLESv2", "-weak-lwebgpu"
+        "-weak-lEGL", "-weak-lGLESv2", "-weak-lwebgpu", "-weak-lharfbuzz", "-weak-lfribidi",
     ], check=True)
 
     # change dependent libs path to @rpath
@@ -865,6 +1264,18 @@ def build_platform_layer_lib_mac(release):
     subprocess.run([
         "install_name_tool",
         "-change", "./libGLESv2.dylib", "@rpath/libGLESv2.dylib",
+        "build/bin/liborca.dylib",
+    ], check=True)
+
+    subprocess.run([
+        "install_name_tool",
+        "-change", "libharfbuzz.dylib", "@rpath/libharfbuzz.dylib",
+        "build/bin/liborca.dylib",
+    ], check=True)
+
+    subprocess.run([
+        "install_name_tool",
+        "-change", "libfribidi.dylib", "@rpath/libfribidi.dylib",
         "build/bin/liborca.dylib",
     ], check=True)
 
@@ -906,6 +1317,11 @@ def gen_all_bindings():
         guest_include="platform/platform_io_dialog.h",
         guest_stubs="src/platform/orca_io_stubs.c",
         wasm3_bindings="src/wasmbind/io_api_bind_gen.c",
+    )
+
+    bindgen("harfbuzz", "src/wasmbind/harfbuzz_api.json",
+        guest_stubs="src/wasmbind/harfbuzz_api_stubs.c",
+        wasm3_bindings="src/wasmbind/harfbuzz_api_bind_gen.c",
     )
 
 #------------------------------------------------------
@@ -957,7 +1373,7 @@ def build_sdk_internal(release):
     subprocess.run([
         clang, *flags, *includes,
          "-o", "build/bin/liborca_wasm.a",
-         "src/orca.c"
+         "src/orca.c", "build/bin/libfribidi_wasm.a"
     ], check=True)
 
 #------------------------------------------------------
@@ -1277,6 +1693,8 @@ def package_sdk_internal(dest, target):
         shutil.copy(os.path.join("build", "bin", "libEGL.dll"), bin_dir)
         shutil.copy(os.path.join("build", "bin", "libGLESv2.dll"), bin_dir)
         shutil.copy(os.path.join("build", "bin", "webgpu.dll"), bin_dir)
+        shutil.copy(os.path.join("build", "bin", "libharfbuzz.dll"), bin_dir)
+        shutil.copy(os.path.join("build", "bin", "fribidi-0.dll"), bin_dir)
     else:
         shutil.copy(os.path.join("build", "bin", "orca"), bin_dir)
         shutil.copy(os.path.join("build", "bin", "orca_runtime"), bin_dir)
@@ -1285,7 +1703,8 @@ def package_sdk_internal(dest, target):
         shutil.copy(os.path.join("build", "bin", "libEGL.dylib"), bin_dir)
         shutil.copy(os.path.join("build", "bin", "libGLESv2.dylib"), bin_dir)
         shutil.copy(os.path.join("build", "bin", "libwebgpu.dylib"), bin_dir)
-
+        shutil.copy(os.path.join("build", "bin", "libharfbuzz.dylib"), bin_dir)
+        shutil.copy(os.path.join("build", "bin", "libfribidi.dylib"), bin_dir)
 
     shutil.copytree(os.path.join("build", "orca-libc"), libc_dir, dirs_exist_ok=True)
     shutil.copytree("resources", res_dir, dirs_exist_ok=True)

@@ -80,6 +80,10 @@ jobs:
         with:
           python-version: '3.10'
 
+      - name: install autotools
+        run: |
+          brew install autoconf automake libtool
+
       - uses: actions/checkout@v4
 
       - uses: actions/download-artifact@v4
@@ -121,6 +125,10 @@ jobs:
       - uses: actions/setup-python@v4
         with:
           python-version: '3.10'
+
+      - name: install autotools
+        run: |
+          brew install autoconf automake libtool
 
       - uses: actions/checkout@v4
 

@@ -229,7 +229,7 @@ def bindgen(apiName, spec, **kwargs):
             elif retTag == 'S':
                 s += '*__retPtr = '
             elif retTag == 'p':
-                printError(name + ": pointer return type not supported yet")
+                s += '*((oc_wasm_addr*)&_returns[0]) = '
 
             s += cname + '('
 
@@ -286,7 +286,10 @@ def bindgen(apiName, spec, **kwargs):
             return_types = '\t\toc_wasm_valtype returnTypes[1];\n\n'
         else:
             return_types = '\t\toc_wasm_valtype returnTypes[] = {'
-            return_types += tag_to_valtype(decl['ret']['tag'], name)
+            tag = decl['ret']['tag']
+            if tag == 'p':
+                tag = 'i'
+            return_types += tag_to_valtype(tag, name)
             return_types += '};\n\n'
 
         s += '\t{\n'

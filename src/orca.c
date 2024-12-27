@@ -71,6 +71,7 @@
         #include "app/win32_app.c"
         #include "graphics/win32_vsync.c"
         #include "graphics/graphics_common.c"
+        #include "graphics/graphics_text_native.c"
         #include "graphics/canvas_renderer.c"
         #include "graphics/surface.c"
         #include "graphics/win32_surface.c"
@@ -105,6 +106,8 @@
         #include "wasmbind/core_api_stubs.c"
         #include "graphics/graphics_common.c"
         #include "graphics/orca_surface_stubs.c"
+        #include "graphics/graphics_text_wasm.c"
+        #include "wasmbind/harfbuzz_api_stubs.c"
     #else
         #error "Unsupported platform"
     #endif

@@ -7,6 +7,7 @@
 **************************************************************************/
 #include <math.h>
 #include <orca.h>
+#include <fribidi/include/fribidi.h>
 
 const oc_str8 clockNumberStrings[] = {
     OC_STR8_LIT("12"),
@@ -46,15 +47,29 @@ ORCA_EXPORT void oc_on_init(void)
     surface = oc_canvas_surface_create(renderer);
     context = oc_canvas_context_create();
 
-    oc_unicode_range ranges[5] = {
-        OC_UNICODE_BASIC_LATIN,
-        OC_UNICODE_C1_CONTROLS_AND_LATIN_1_SUPPLEMENT,
-        OC_UNICODE_LATIN_EXTENDED_A,
-        OC_UNICODE_LATIN_EXTENDED_B,
-        OC_UNICODE_SPECIALS
-    };
+    font = oc_font_create_from_path(OC_STR8("/segoeui.ttf"));
 
-    font = oc_font_create_from_path(OC_STR8("/segoeui.ttf"), 5, ranges);
+    ////////////////////////////////
+    const char* text = "bahrain مصر kuwait";
+
+    oc_arena_scope scratch = oc_scratch_begin();
+    oc_str32 codepoints = oc_utf8_push_to_codepoints(scratch.arena, OC_STR8(text));
+
+    FriBidiParType baseDir = FRIBIDI_TYPE_LTR_VAL;
+    FriBidiLevel levels[256];
+
+    fribidi_log2vis(codepoints.ptr,
+                    codepoints.len,
+                    &baseDir,
+                    0, 0, 0,
+                    levels);
+
+    for(u64 i = 0; i < codepoints.len; i++)
+    {
+        oc_log_info("%i\n", levels[i]);
+    }
+
+    oc_scratch_end(scratch);
 }
 
 ORCA_EXPORT void oc_on_resize(u32 width, u32 height)
@@ -93,8 +108,6 @@ ORCA_EXPORT void oc_on_frame_refresh(void)
     const f32 uiScale = clockRadius / DEFAULT_CLOCK_RADIUS;
 
     const f32 fontSize = 26 * uiScale;
-    oc_set_font(font);
-    oc_set_font_size(fontSize);
 
     // clock backing
     oc_set_color_rgba(1, 1, 1, 1);
@@ -113,7 +126,8 @@ ORCA_EXPORT void oc_on_frame_refresh(void)
         oc_vec2 pos = oc_mat2x3_mul(transform, (oc_vec2){ clockRadius * 0.8f, 0 });
 
         oc_set_color_srgba(0.2, 0.2, 0.2, 1);
-        oc_text_fill(pos.x, pos.y, clockNumberStrings[i]);
+        oc_move_to(pos.x, pos.y);
+        oc_text_draw_utf8(clockNumberStrings[i], font, fontSize);
     }
 
     // hours hand

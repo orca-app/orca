@@ -358,9 +358,9 @@ fn get_next_color(pathIndex : u32, sampleCoord : vec2f) -> vec4f
                       && sampleCoord.y < clip.w)
                     {
                         var filled : bool = (op.kind == OC_OP_CLIP_FILL)
-                                          || (pathBuffer[pathIndex].cmd == OC_CMD_FILL
+                                          || (pathBuffer[pathIndex].fillRule == OC_FILL_EVEN_ODD
                                               && ((winding[sampleIndex] & 1) != 0))
-                                          || (pathBuffer[pathIndex].cmd == OC_CMD_STROKE
+                                          || (pathBuffer[pathIndex].fillRule == OC_FILL_NON_ZERO
                                               && (winding[sampleIndex] != 0));
                         if(filled)
                         {

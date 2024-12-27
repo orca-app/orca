@@ -38,7 +38,7 @@ cmd command = CMD_NONE;
 
 void log_push(const char* line)
 {
-    oc_str8_list_push(&logArena, &logLines, (oc_str8)OC_STR8(line));
+    oc_str8_list_push(&logArena, &logLines, OC_STR8(line));
 }
 
 void log_pushf(const char* format, ...)
@@ -839,7 +839,7 @@ int main()
                                        OC_UNICODE_LATIN_EXTENDED_B,
                                        OC_UNICODE_SPECIALS };
 
-        *fonts[i] = oc_font_create_from_memory(oc_str8_from_buffer(size, buffer), 5, ranges);
+        *fonts[i] = oc_font_create_from_memory(oc_str8_from_buffer(size, buffer));
     }
     oc_scratch_end(scratch);
 

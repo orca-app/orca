@@ -8,7 +8,10 @@ extern "C" {
 #include <features.h>
 #include <stdint.h>
 
+#ifndef __cplusplus
 #define __NEED_wchar_t
+#endif
+
 #include <bits/alltypes.h>
 
 typedef struct { intmax_t quot, rem; } imaxdiv_t;
@@ -226,4 +229,3 @@ uintmax_t wcstoumax(const wchar_t *__restrict, wchar_t **__restrict, int);
 #endif
 
 #endif
-
