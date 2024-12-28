@@ -19,14 +19,6 @@ const Lib = enum {
     }
 };
 
-const DAWN_REQUIRED_FILES: []const []const u8 = blk: {
-    if (builtin.os.tag == .windows) {
-        break :blk &.{ "include/webgpu.h", "bin/webgpu.lib", "bin/webgpu.dll" };
-    } else {
-        break :blk &.{ "include/webgpu.h", "bin/webgpu.dylib" };
-    }
-};
-
 const Options = struct {
     arena: std.mem.Allocator,
     lib: Lib,
@@ -233,150 +225,37 @@ fn copyFolder(allocator: std.mem.Allocator, dest: []const u8, src: []const u8) !
     }
 }
 
-// Algorithm ported from checksumdir package on pypy, which is MIT licensed.
-const Checksum = struct {
-    const Sha256 = std.crypto.hash.sha2.Sha256;
-    const Sha1 = std.crypto.hash.Sha1;
-
-    fn empty(allocator: std.mem.Allocator) ![]const u8 {
-        const out: []u8 = try allocator.alloc(u8, Sha256.digest_length);
-        @memset(out, 0);
-        return out;
-    }
-
-    fn hexdigest(digest: []const u8, allocator: std.mem.Allocator) ![]const u8 {
-        const out = try allocator.alloc(u8, digest.len * 2);
-        return std.fmt.bufPrint(
-            out,
-            "{s}",
-            .{std.fmt.fmtSliceHexLower(digest)},
-        ) catch unreachable;
-    }
-
-    fn file(allocator: std.mem.Allocator, path: []const u8) ![]const u8 {
-        const cwd: std.fs.Dir = std.fs.cwd();
-        return fileWithDir(allocator, cwd, path);
-    }
-
-    fn fileWithDir(allocator: std.mem.Allocator, fsdir: std.fs.Dir, path: []const u8) ![]const u8 {
-        const file_contents: []const u8 = try fsdir.readFileAlloc(allocator, path, MAX_FILE_SIZE);
-        defer allocator.free(file_contents);
-
-        var digest: [Sha256.digest_length]u8 = undefined;
-        Sha256.hash(file_contents, &digest, .{});
-
-        return try hexdigest(&digest, allocator);
-    }
-
-    fn dir(allocator: std.mem.Allocator, path: []const u8, opts: struct {
-        exclude_files: []const []const u8 = &.{},
-        exclude_dirs: []const []const u8 = &.{},
-    }) ![]const u8 {
-        const cwd: std.fs.Dir = std.fs.cwd();
-        var root_dir: std.fs.Dir = cwd.openDir(path, .{ .iterate = true, .no_follow = true }) catch |e| {
-            if (e == error.FileNotFound) {
-                return empty(allocator);
-            }
-            return e;
-        };
-        defer root_dir.close();
-
-        var dir_iter: std.fs.Dir.Walker = try root_dir.walk(allocator);
-        defer dir_iter.deinit();
-
-        var files_to_hash = std.ArrayList([]const u8).init(allocator);
-        defer {
-            for (files_to_hash.items) |p| allocator.free(p);
-            files_to_hash.deinit();
-        }
-
-        while (try dir_iter.next()) |entry| {
-            if (entry.kind == .file) {
-                var exclude: bool = false;
-
-                for (opts.exclude_files) |exclusion| {
-                    exclude = exclude or std.mem.eql(u8, entry.basename, exclusion);
-                }
-
-                for (opts.exclude_dirs) |exclusion| {
-                    exclude = exclude or std.mem.startsWith(u8, entry.path, exclusion);
-                }
-
-                if (!exclude) {
-                    const file_path = allocator.dupe(u8, entry.path) catch @panic("OOM");
-                    files_to_hash.append(file_path) catch @panic("OOM");
-                }
-            }
-        }
-
-        std.mem.sort([]const u8, files_to_hash.items, {}, Sort.lessThanString);
-
-        var hashes = std.ArrayList([]const u8).init(allocator);
-        defer {
-            for (hashes.items) |h| allocator.free(h);
-            hashes.deinit();
-        }
-
-        for (files_to_hash.items) |file_path| {
-            const file_contents: []const u8 = try root_dir.readFileAlloc(allocator, file_path, MAX_FILE_SIZE);
-            defer allocator.free(file_contents);
-
-            const BLOCKSIZE = 64 * 1024;
-            var blocks = std.mem.window(u8, file_contents, BLOCKSIZE, BLOCKSIZE);
-
-            var hash = Sha1.init(.{});
-            while (blocks.next()) |block| {
-                hash.update(block);
-            }
-
-            const digest: []u8 = try allocator.alloc(u8, Sha1.digest_length);
-            hash.final(digest[0..Sha1.digest_length]);
-            try hashes.append(digest);
-        }
-
-        std.mem.sort([]const u8, hashes.items, {}, Sort.lessThanString);
-
-        var hash = Sha1.init(.{});
-        for (hashes.items) |h| {
-            const hex = try hexdigest(h, allocator);
-            hash.update(hex);
-            allocator.free(hex);
-        }
-
-        var digest: [Sha1.digest_length]u8 = undefined;
-        hash.final(&digest);
-        return try hexdigest(&digest, allocator);
-    }
-};
-
-const CommitChecksum = struct {
+const CommitStamp = struct {
     commit: []const u8,
-    sum: []const u8,
 
-    fn writeJson(self: *const CommitChecksum, writer: anytype, object_name: []const u8) !void {
-        try writer.objectField(object_name);
+    fn write(opts: *const Options, path: []const u8) !void {
+        std.log.info("writing commit file to {s}", .{path});
+
+        const cwd = std.fs.cwd();
+
+        try cwd.makePath(opts.paths.output_dir);
+
+        var json_buffer = std.ArrayList(u8).init(opts.arena);
+        var writer = std.json.writeStream(json_buffer.writer(), .{ .whitespace = .indent_4 });
+        defer writer.deinit();
+
         try writer.beginObject();
         {
             try writer.objectField("commit");
-            try writer.write(self.commit);
-            try writer.objectField("sum");
-            try writer.write(self.sum);
+            try writer.write(opts.commit_sha);
         }
         try writer.endObject();
+
+        try cwd.writeFile(.{
+            .sub_path = path,
+            .data = json_buffer.items,
+            .flags = .{},
+        });
     }
 };
 
-const ANGLE_CHECKSUM_FILENAME = "angle.json";
-const DAWN_CHECKSUM_FILENAME = "dawn.json";
-
-fn checksumLib(opts: *const Options) ![]const u8 {
-    const checksum_file = if (opts.lib == .Angle) ANGLE_CHECKSUM_FILENAME else DAWN_CHECKSUM_FILENAME;
-
-    return try Checksum.dir(opts.arena, opts.paths.output_dir, .{ .exclude_files = &.{
-        checksum_file,
-        ".DS_Store",
-    } });
-}
+const ANGLE_COMMIT_FILENAME = "angle.json";
+const DAWN_COMMIT_FILENAME = "dawn.json";
 
 fn ensureDepotTools(opts: *const Options) !std.process.EnvMap {
     var env: std.process.EnvMap = try std.process.getEnvMap(opts.arena);
@@ -410,124 +289,48 @@ const ShouldLogError = enum {
     NoError,
 };
 
-fn isAngleUpToDate(opts: *const Options, comptime log_error: ShouldLogError) bool {
+fn isLibUpToDate(opts: *const Options, comptime log_error: ShouldLogError) bool {
     const logfn = if (log_error == .LogError) &std.log.err else &noopLog;
 
-    const sum = checksumLib(opts) catch |e| {
-        logfn("Failed checksum dir '{s}': {}\n", .{ opts.paths.output_dir, e });
+    const commit_filename: []const u8 = switch (opts.lib) {
+        .Angle => ANGLE_COMMIT_FILENAME,
+        .Dawn => DAWN_COMMIT_FILENAME,
+    };
+
+    const commit_stamp_path = std.fs.path.join(opts.arena, &.{ opts.paths.output_dir, commit_filename }) catch @panic("OOM");
+    const json_data: []const u8 = std.fs.cwd().readFileAlloc(opts.arena, commit_stamp_path, MAX_FILE_SIZE) catch |e| {
+        logfn("Failed to read commit file from location '{s}': {}", .{ commit_stamp_path, e });
         return false;
     };
 
-    const checksum_path = std.fs.path.join(opts.arena, &.{ opts.paths.output_dir, ANGLE_CHECKSUM_FILENAME }) catch @panic("OOM");
-    const json_data: []const u8 = std.fs.cwd().readFileAlloc(opts.arena, checksum_path, MAX_FILE_SIZE) catch |e| {
-        logfn("Failed to read checksum file from location '{s}': {}", .{ checksum_path, e });
-        return false;
-    };
-
-    const loaded_checksum = std.json.parseFromSliceLeaky(CommitChecksum, opts.arena, json_data, .{}) catch |e| {
+    const loaded_stamp = std.json.parseFromSliceLeaky(CommitStamp, opts.arena, json_data, .{}) catch |e| {
         logfn("Failed to parse file '{s}' json: {}. Raw json data:\n{s}\n", .{
-            checksum_path,
+            commit_stamp_path,
             e,
             json_data,
         });
         return false;
     };
-    if (std.mem.eql(u8, loaded_checksum.commit, opts.commit_sha) == false) {
+    if (std.mem.eql(u8, loaded_stamp.commit, opts.commit_sha) == false) {
         logfn("{s} doesn't match the required angle commit. expected {s}, got {s}", .{
-            checksum_path,
+            commit_stamp_path,
             opts.commit_sha,
-            loaded_checksum.commit,
+            loaded_stamp.commit,
         });
         return false;
-    }
-
-    if (std.mem.eql(u8, loaded_checksum.sum, sum) == false) {
-        logfn("{s} doesn't match checksum. expected {s}, got {s}", .{
-            checksum_path,
-            loaded_checksum.commit,
-            sum,
-        });
-        return false;
-    }
-
-    return true;
-}
-
-fn isDawnUpToDate(opts: *const Options, comptime log_error: ShouldLogError) !bool {
-    const logfn = if (log_error == .LogError) &std.log.err else &noopLog;
-
-    const checksum_path = std.fs.path.join(opts.arena, &.{ opts.paths.output_dir, DAWN_CHECKSUM_FILENAME }) catch @panic("OOM");
-    const json_string: []const u8 = std.fs.cwd().readFileAlloc(opts.arena, checksum_path, MAX_FILE_SIZE) catch |e| {
-        logfn("Failed to read checksum file from location '{s}': {}", .{ checksum_path, e });
-        return false;
-    };
-
-    const json = std.json.parseFromSliceLeaky(std.json.Value, opts.arena, json_string, .{}) catch |e| {
-        logfn("Failed to parse file '{s}' json: {}. Raw json data:\n{s}\n", .{
-            checksum_path,
-            e,
-            json_string,
-        });
-        return false;
-    };
-
-    for (DAWN_REQUIRED_FILES) |path| {
-        var commit: ?[]const u8 = null;
-        var sum: ?[]const u8 = null;
-
-        if (json.object.get(path)) |commit_sum_value| {
-            switch (commit_sum_value) {
-                .object => {},
-                else => {
-                    logfn("Unexpected json structure", .{});
-                    return false;
-                },
-            }
-            if (commit_sum_value.object.get("commit")) |commit_value| {
-                commit = switch (commit_value) {
-                    .string => |v| v,
-                    else => null,
-                };
-            }
-            if (commit_sum_value.object.get("sum")) |sum_value| {
-                sum = switch (sum_value) {
-                    .string => |v| v,
-                    else => null,
-                };
-            }
-        }
-
-        if (commit == null or sum == null) {
-            logfn("Failed to find data for {s}", .{path});
-            return false;
-        }
-
-        if (std.mem.eql(u8, commit.?, opts.commit_sha) == false) {
-            logfn("Commit for {s} is out of date - expected {s} but got {s}", .{
-                path, opts.commit_sha, commit.?,
-            });
-        }
-
-        const path_absolute = try std.fs.path.join(opts.arena, &.{ opts.paths.output_dir, path });
-        const expected_sum = try Checksum.file(opts.arena, path_absolute);
-        if (std.mem.eql(u8, sum.?, expected_sum)) {
-            logfn("Checksum for {s} is out of date - expected {s} but got {s}", .{
-                path, expected_sum, sum.?,
-            });
-        }
     }
 
     return true;
 }
 
 fn checkAngle(opts: *const Options) !void {
-    if (isAngleUpToDate(opts, .LogError) == false) {
+    if (isLibUpToDate(opts, .LogError) == false) {
         return error.AngleOutOfDate;
     }
 }
 
 fn buildAngle(opts: *const Options) !void {
-    if (isAngleUpToDate(opts, .NoError)) {
+    if (isLibUpToDate(opts, .NoError)) {
         // std.log.info("angle is up to date - no rebuild needed.\n", .{});
         return;
     } else if (opts.check_only) {
@@ -676,40 +479,21 @@ fn buildAngle(opts: *const Options) !void {
         }
     }
 
-    // write stamp file
-    {
-        try cwd.makePath(opts.paths.output_dir);
-        const checksum_path = std.fs.path.join(opts.arena, &.{ opts.paths.output_dir, ANGLE_CHECKSUM_FILENAME }) catch @panic("OOM");
-
-        std.log.info("writing checksum file to {s}", .{checksum_path});
-
-        const commit_checksum = CommitChecksum{
-            .sum = try checksumLib(opts),
-            .commit = opts.commit_sha,
-        };
-        var json = std.ArrayList(u8).init(opts.arena);
-        try std.json.stringify(commit_checksum, .{}, json.writer());
-        try std.fs.cwd().writeFile(.{
-            .sub_path = checksum_path,
-            .data = json.items,
-            .flags = .{},
-        });
-    }
+    // write commit stamp file
+    const commit_stamp_path = try std.fs.path.join(opts.arena, &.{ opts.paths.output_dir, ANGLE_COMMIT_FILENAME });
+    try CommitStamp.write(opts, commit_stamp_path);
 
     std.log.info("angle build successful", .{});
 }
 
 fn buildDawn(opts: *const Options) !void {
-    if (try isDawnUpToDate(opts, .NoError)) {
+    if (isLibUpToDate(opts, .NoError)) {
         // std.log.info("dawn is up to date - no rebuild needed.\n", .{});
         return;
     } else if (opts.check_only) {
-        const dawn_required_files_str = try std.mem.join(opts.arena, "\n", DAWN_REQUIRED_FILES);
         const msg =
             \\Dawn files are not present or don't match required commit.
             \\Dawn commit: {s}
-            \\Dawn Required files:
-            \\{s}
             \\You can build the required files by running 'zig build dawn'
             \\
             \\Alternatively you can trigger a CI run to build the binaries on github:
@@ -718,7 +502,7 @@ fn buildDawn(opts: *const Options) !void {
             \\  * Click on "Run workflow" to tigger a new run, or download artifacts from a previous run
             \\  * Put the contents of the artifacts folder in './build/dawn.out'
         ;
-        std.log.err(msg, .{ opts.commit_sha, dawn_required_files_str });
+        std.log.err(msg, .{opts.commit_sha});
 
         return error.DawnOutOfDate;
     }
@@ -818,65 +602,8 @@ fn buildDawn(opts: *const Options) !void {
     // zig fmt: on
     try exec(opts.arena, cmake_build_args, opts.paths.intermediate_dir, &env);
 
-    const output_path = opts.paths.output_dir;
-    try cwd.makePath(output_path);
-    const output_dir = try cwd.openDir(opts.paths.output_dir, .{});
-
-    {
-        const checksum_path = try std.fs.path.join(opts.arena, &.{ output_path, DAWN_CHECKSUM_FILENAME });
-        std.log.info("writing checksum file to {s}", .{checksum_path});
-
-        var json_buffer = std.ArrayList(u8).init(opts.arena);
-        var json_writer = std.json.writeStream(json_buffer.writer(), .{ .whitespace = .indent_4 });
-        defer json_writer.deinit();
-
-        try json_writer.beginObject();
-
-        const intermediate_dir = try cwd.openDir(opts.paths.intermediate_dir, .{});
-        _ = try intermediate_dir.updateFile("dawn.build/gen/include/dawn/webgpu.h", output_dir, "include/webgpu.h", .{});
-
-        const header_sum = CommitChecksum{
-            .commit = opts.commit_sha,
-            .sum = try Checksum.fileWithDir(opts.arena, output_dir, "include/webgpu.h"),
-        };
-        try header_sum.writeJson(&json_writer, "include/webgpu.h");
-
-        if (builtin.os.tag == .windows) {
-            const dll_path = try std.fs.path.join(opts.arena, &.{ "dawn.build", optimize_str, "webgpu.dll" });
-            _ = try intermediate_dir.updateFile(dll_path, output_dir, "bin/webgpu.dll", .{});
-
-            const lib_path = try std.fs.path.join(opts.arena, &.{ "dawn.build/src/dawn/native/", optimize_str, "webgpu.lib" });
-            _ = try intermediate_dir.updateFile(lib_path, output_dir, "bin/webgpu.lib", .{});
-
-            const dll_checksum = CommitChecksum{
-                .commit = opts.commit_sha,
-                .sum = try Checksum.fileWithDir(opts.arena, output_dir, "bin/webgpu.dll"),
-            };
-            try dll_checksum.writeJson(&json_writer, "bin/webgpu.dll");
-
-            const lib_checksum = CommitChecksum{
-                .commit = opts.commit_sha,
-                .sum = try Checksum.fileWithDir(opts.arena, output_dir, "bin/webgpu.lib"),
-            };
-            try lib_checksum.writeJson(&json_writer, "bin/webgpu.lib");
-        } else {
-            _ = try intermediate_dir.updateFile("dawn.build/src/dawn/native/libwebgpu.dylib", output_dir, "bin/webgpu.dylib", .{});
-
-            const lib_checksum = CommitChecksum{
-                .commit = opts.commit_sha,
-                .sum = try Checksum.fileWithDir(opts.arena, output_dir, "bin/webgpu.dylib"),
-            };
-            try lib_checksum.writeJson(&json_writer, "bin/webgpu.lib");
-        }
-
-        try json_writer.endObject();
-
-        try output_dir.writeFile(.{
-            .sub_path = checksum_path,
-            .data = json_buffer.items,
-            .flags = .{},
-        });
-    }
+    const commit_stamp_path = try std.fs.path.join(opts.arena, &.{ opts.paths.output_dir, DAWN_COMMIT_FILENAME });
+    try CommitStamp.write(opts, commit_stamp_path);
 }
 
 pub fn main() !void {
