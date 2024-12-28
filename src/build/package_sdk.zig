@@ -259,14 +259,15 @@ pub fn main() !void {
     }
 
     {
-        const curl_src_path = try std.fs.path.join(opts.arena, &.{ opts.src_path, "ext/curl/include" });
-        const curl_dest_path = try std.fs.path.join(opts.arena, &.{ opts.install_path, "src/ext/curl/include" });
+        const curl_src_path = try std.fs.path.resolve(opts.arena, &.{ opts.src_path, "ext/curl/include" });
+        const curl_dest_path = try std.fs.path.resolve(opts.arena, &.{ opts.install_path, "src/ext/curl/include" });
+
         try copyFolder(opts.arena, curl_dest_path, curl_src_path, header_extensions, &.{});
     }
 
     {
-        const wasm3_src_path = try std.fs.path.join(opts.arena, &.{ opts.src_path, "ext/wasm3/source" });
-        const wasm3_dest_path = try std.fs.path.join(opts.arena, &.{ opts.install_path, "src/ext/wasm3/source" });
+        const wasm3_src_path = try std.fs.path.resolve(opts.arena, &.{ opts.src_path, "ext/wasm3/source" });
+        const wasm3_dest_path = try std.fs.path.resolve(opts.arena, &.{ opts.install_path, "src/ext/wasm3/source" });
         try copyFolder(opts.arena, wasm3_dest_path, wasm3_src_path, header_extensions, &.{});
     }
 

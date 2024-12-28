@@ -325,6 +325,20 @@ pub fn build(b: *Build) !void {
     }
     stage_dawn_artifacts.step.dependOn(&run_dawn_uptodate.step);
 
+    // generate GLES API spec from OpenGL XML registry
+    // TODO port this to C or Zig
+    var python_gen_gles_spec_run: *Build.Step.Run = b.addSystemCommand(&.{"python.exe"});
+    python_gen_gles_spec_run.addArg("scripts/gles_gen.py");
+    python_gen_gles_spec_run.addPrefixedFileArg("--spec=", b.path("src/ext/gl.xml"));
+    python_gen_gles_spec_run.addPrefixedFileArg("--header=", b.path("src/graphics/orca_gl31.h"));
+    const gles_api_json = python_gen_gles_spec_run.addPrefixedOutputFileArg("--json=", "gles_api.json");
+    const gles_api_log = python_gen_gles_spec_run.addPrefixedOutputFileArg("--log=", "gles_gen.log");
+
+    var stage_gles_api_spec_artifacts = b.addUpdateSourceFiles();
+    stage_gles_api_spec_artifacts.step.dependOn(&python_gen_gles_spec_run.step);
+    stage_gles_api_spec_artifacts.addCopyFileToSource(gles_api_json, "src/wasmbind/gles_api.json");
+    stage_gles_api_spec_artifacts.addCopyFileToSource(gles_api_log, "build/gles_gen.log");
+
     // generate wasm bindings
 
     const orca_runtime_bindgen_core: *Build.Step.UpdateSourceFiles = generateWasmBindings(b, .{
@@ -361,27 +375,13 @@ pub fn build(b: *Build) !void {
         .guest_include_path = "platform/platform_io_dialog.h",
     });
 
-    // TODO port this to zig
-    const python_gen_gles_spec: *Build.Step.Run = b.addSystemCommand(&.{
-        "python.exe",
-        "scripts/gles_gen.py",
-        "--spec",
-        "src/ext/gl.xml",
-        "--json",
-        "src/wasmbind/gles_api.json",
-        "--header",
-        "src/graphics/orca_gl31.h",
-        "--log",
-        "build/gles_gen.log",
-    });
-
     const orca_runtime_bindgen_gles: *Build.Step.UpdateSourceFiles = generateWasmBindings(b, .{
         .exe = bindgen_exe,
         .api = "gles",
         .spec_path = "src/wasmbind/gles_api.json",
         .host_bindings_path = "src/wasmbind/gles_api_bind_gen.c",
     });
-    orca_runtime_bindgen_gles.step.dependOn(&python_gen_gles_spec.step);
+    orca_runtime_bindgen_gles.step.dependOn(&stage_gles_api_spec_artifacts.step);
 
     // wgpu shaders header
 
@@ -477,6 +477,11 @@ pub fn build(b: *Build) !void {
     orca_platform_lib.step.dependOn(&orca_runtime_bindgen_io.step);
     orca_platform_lib.step.dependOn(&orca_runtime_bindgen_gles.step);
 
+    const orca_platform_install: *Build.Step.InstallArtifact = b.addInstallArtifact(orca_platform_lib, .{});
+
+    const build_orca_platform_step = b.step("orca-platform", "Build the Orca platform layer from source.");
+    build_orca_platform_step.dependOn(&orca_platform_install.step);
+
     // wasm3
 
     var wasm3_sources = CSources.init(b);
@@ -555,12 +560,12 @@ pub fn build(b: *Build) !void {
 
     // zig fmt: off
     const libc_flags: []const []const u8 = &.{
-        // includes
-        "-Isrc",
-        "-isystem", "src/orca-libc/include",
-        "-isystem", "src/orca-libc/include/private",
-        "-Isrc/orca-libc/src/arch",
-        "-Isrc/orca-libc/src/internal",
+        // includes are relative to src/orca-libc because the zig lib-dir is overriden
+        "-I../../src",
+        "-isystem", "../../src/orca-libc/include",
+        "-isystem", "../../src/orca-libc/include/private",
+        "-I../../src/orca-libc/src/arch",
+        "-I../../src/orca-libc/src/internal",
 
         // warnings
         "-Wall", 
@@ -682,9 +687,10 @@ pub fn build(b: *Build) !void {
     // Orca wasm SDK
 
     const wasm_sdk_flags: []const []const u8 = &.{
-        "-Isrc",
-        "-Isrc/ext",
-        "-Isrc/orca-libc/include",
+        // includes are relative to src/orca-libc because the zig lib-dir is overriden
+        "-I../../src",
+        "-I../../src/ext",
+        "-I../../src/orca-libc/include",
         "--no-standard-libraries",
         "-D__ORCA__",
         // "-Wl,--no-entry",
@@ -714,16 +720,14 @@ pub fn build(b: *Build) !void {
     wasm_sdk_obj.step.dependOn(&orca_runtime_bindgen_io.step);
     wasm_sdk_obj.step.dependOn(&orca_runtime_bindgen_gles.step);
 
-    var wasm_sdk_lib = b.addExecutable(.{
-        .name = "liborca",
+    var wasm_sdk_lib = b.addStaticLibrary(.{
+        .name = "orca_wasm",
         .target = wasm_target,
         .optimize = optimize,
         .link_libc = false,
         .single_threaded = true,
     });
     wasm_sdk_lib.addObject(wasm_sdk_obj);
-    wasm_sdk_lib.rdynamic = true;
-    wasm_sdk_lib.entry = .disabled;
 
     // wasm_sdk_lib.step.dependOn(&libc_install.step); // TODO probably needs to depend on the libc artifacts being installed to the build dir
 
@@ -862,6 +866,7 @@ pub fn build(b: *Build) !void {
     // zig build orca
 
     const build_orca = b.step("orca", "Build all orca binaries");
+    build_orca.dependOn(build_orca_platform_step);
     build_orca.dependOn(build_runtime_step);
     build_orca.dependOn(build_libc_step);
     build_orca.dependOn(build_wasm_sdk_step);
