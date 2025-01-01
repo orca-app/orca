@@ -560,12 +560,11 @@ pub fn build(b: *Build) !void {
 
     // zig fmt: off
     const libc_flags: []const []const u8 = &.{
-        // includes are relative to src/orca-libc because the zig lib-dir is overriden
-        "-I../../src",
-        "-isystem", "../../src/orca-libc/include",
-        "-isystem", "../../src/orca-libc/include/private",
-        "-I../../src/orca-libc/src/arch",
-        "-I../../src/orca-libc/src/internal",
+        "-Isrc",
+        "-isystem", "src/orca-libc/include",
+        "-isystem", "src/orca-libc/include/private",
+        "-Isrc/orca-libc/src/arch",
+        "-Isrc/orca-libc/src/internal",
 
         // warnings
         "-Wall", 
@@ -687,10 +686,9 @@ pub fn build(b: *Build) !void {
     // Orca wasm SDK
 
     const wasm_sdk_flags: []const []const u8 = &.{
-        // includes are relative to src/orca-libc because the zig lib-dir is overriden
-        "-I../../src",
-        "-I../../src/ext",
-        "-I../../src/orca-libc/include",
+        "-Isrc",
+        "-Isrc/ext",
+        "-Isrc/orca-libc/include",
         "--no-standard-libraries",
         "-D__ORCA__",
         // "-Wl,--no-entry",
@@ -728,8 +726,6 @@ pub fn build(b: *Build) !void {
         .single_threaded = true,
     });
     wasm_sdk_lib.addObject(wasm_sdk_obj);
-
-    // wasm_sdk_lib.step.dependOn(&libc_install.step); // TODO probably needs to depend on the libc artifacts being installed to the build dir
 
     const wasm_sdk_install: *Build.Step.InstallArtifact = b.addInstallArtifact(wasm_sdk_lib, .{});
 
@@ -871,12 +867,6 @@ pub fn build(b: *Build) !void {
     build_orca.dependOn(build_libc_step);
     build_orca.dependOn(build_wasm_sdk_step);
     build_orca.dependOn(build_tool_step);
-
-    // build_orca.dependOn(&install_runtime_exe.step);
-    // build_orca.dependOn(&dummy_crt_install.step);
-    // build_orca.dependOn(&libc_install.step);
-    // build_orca.dependOn(&wasm_sdk_install.step);
-    // build_orca.dependOn(&orca_tool_install.step);
 
     ///////////////////////////////////////////////////////////////
     // package-sdk and install-sdk commands
