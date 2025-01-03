@@ -437,10 +437,6 @@ pub fn build(b: *Build) !void {
         .optimize = optimize,
     });
 
-    orca_platform_lib.step.dependOn(&stage_angle_artifacts.step);
-    orca_platform_lib.step.dependOn(&stage_dawn_artifacts.step);
-    orca_platform_lib.step.dependOn(&update_wgpu_header.step);
-
     orca_platform_lib.addIncludePath(b.path("src"));
     orca_platform_lib.addIncludePath(b.path("src/ext"));
     orca_platform_lib.addIncludePath(b.path("src/ext/angle/include"));
@@ -472,6 +468,10 @@ pub fn build(b: *Build) !void {
     orca_platform_lib.linkSystemLibrary("libGLESv2.dll"); // todo DELAYLOAD?
     orca_platform_lib.linkSystemLibrary("webgpu");
 
+    orca_platform_lib.step.dependOn(&stage_angle_artifacts.step);
+    orca_platform_lib.step.dependOn(&stage_dawn_artifacts.step);
+    orca_platform_lib.step.dependOn(&update_wgpu_header.step);
+
     orca_platform_lib.step.dependOn(&orca_runtime_bindgen_core.step);
     orca_platform_lib.step.dependOn(&orca_runtime_bindgen_surface.step);
     orca_platform_lib.step.dependOn(&orca_runtime_bindgen_clock.step);
@@ -498,7 +498,7 @@ pub fn build(b: *Build) !void {
     wasm3_lib.addIncludePath(b.path("src/ext/wasm3/source"));
     wasm3_lib.addCSourceFiles(.{
         .files = wasm3_sources.files.items,
-        .flags = &.{},
+        .flags = &.{"-fno-sanitize=undefined"},
     });
     wasm3_lib.linkLibC();
 
@@ -836,6 +836,7 @@ pub fn build(b: *Build) !void {
 
     var orca_tool_compile_flags = std.ArrayList([]const u8).init(b.allocator);
     defer orca_tool_compile_flags.deinit();
+    try orca_tool_compile_flags.append("-fno-sanitize=undefined"); // stb_image appears to invoke undefined behavior :(
     try orca_tool_compile_flags.append("-DFLAG_IMPLEMENTATION");
     try orca_tool_compile_flags.append("-DOC_NO_APP_LAYER");
     try orca_tool_compile_flags.append("-DOC_BUILD_DLL");
