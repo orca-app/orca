@@ -286,6 +286,14 @@ pub fn main() !void {
         const orca_dir: std.fs.Dir = try cwd.openDir(orca_dir_path, .{ .iterate = true });
         _ = try cwd.updateFile(src_tool_path, orca_dir, dest_tool_path, .{});
 
+        // copy pdb file as well since windows debuggers have a hard time finding the debug symbols otherwise
+        if (builtin.os.tag == .windows) {
+            const src_pdb_path: []const u8 = try std.fs.path.join(opts.arena, &.{ opts.artifacts_path, "bin", "orca_tool.pdb" });
+            const dest_pdb_path: []const u8 = try std.fs.path.join(opts.arena, &.{ orca_dir_path, "orca.pdb" });
+            std.log.info("copying '{s}' to '{s}'", .{ src_pdb_path, dest_pdb_path });
+            _ = try cwd.updateFile(src_pdb_path, orca_dir, dest_pdb_path, .{});
+        }
+
         try orca_dir.writeFile(.{
             .sub_path = "current_version",
             .data = opts.version,
