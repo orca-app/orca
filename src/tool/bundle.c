@@ -190,7 +190,7 @@ int winBundle(
     //-----------------------------------------------------------
     //NOTE: copy orca libraries
     //-----------------------------------------------------------
-    oc_str8 orcaLib = oc_path_append(a, sdkDir, OC_STR8("bin/orca.dll"));
+    oc_str8 orcaLib = oc_path_append(a, sdkDir, OC_STR8("bin/orca_platform.dll"));
     oc_str8 glesLib = oc_path_append(a, sdkDir, OC_STR8("bin/libGLESv2.dll"));
     oc_str8 eglLib = oc_path_append(a, sdkDir, OC_STR8("bin/libEGL.dll"));
     oc_str8 wgpuLib = oc_path_append(a, sdkDir, OC_STR8("bin/webgpu.dll"));
