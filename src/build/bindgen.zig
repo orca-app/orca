@@ -230,14 +230,14 @@ const Binding = struct {
                         }
                     }
                 }
+            }
 
-                binding.needs_stub = binding.ret.tag == .Struct;
-                if (binding.needs_stub == false) {
-                    for (binding.args) |arg| {
-                        if (arg.type.tag == .Struct) {
-                            binding.needs_stub = true;
-                            break;
-                        }
+            binding.needs_stub = binding.ret.tag == .Struct;
+            if (binding.needs_stub == false) {
+                for (binding.args) |arg| {
+                    if (arg.type.tag == .Struct) {
+                        binding.needs_stub = true;
+                        break;
                     }
                 }
             }
