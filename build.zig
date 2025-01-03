@@ -1,6 +1,7 @@
 const std = @import("std");
 
 const Build = std.Build;
+const LazyPath = Build.LazyPath;
 const Step = Build.Step;
 const Module = Build.Module;
 const ModuleImport = Module.Import;
@@ -24,7 +25,7 @@ const CSources = struct {
         var iter: std.fs.Dir.Iterator = dir.iterate();
         while (try iter.next()) |entry| {
             if (entry.kind == .file and std.mem.endsWith(u8, entry.name, ".c")) {
-                const filepath = try std.fs.path.join(sources.b.allocator, &.{ path, entry.name });
+                const filepath = try std.fs.path.resolve(sources.b.allocator, &.{ path, entry.name });
                 try sources.files.append(filepath);
             }
         }
@@ -558,13 +559,16 @@ pub fn build(b: *Build) !void {
 
     const wasm_target: Build.ResolvedTarget = b.resolveTargetQuery(wasm_target_query);
 
+    const wasm_optimize: std.builtin.OptimizeMode = .ReleaseSmall;
+
     // zig fmt: off
     const libc_flags: []const []const u8 = &.{
-        "-Isrc",
-        "-isystem", "src/orca-libc/include",
-        "-isystem", "src/orca-libc/include/private",
-        "-Isrc/orca-libc/src/arch",
-        "-Isrc/orca-libc/src/internal",
+        // need to provide absolute paths to these since we're overriding the default zig lib dir
+        b.fmt("-I{s}", .{b.pathFromRoot("src")}),
+        "-isystem", b.pathFromRoot("src/orca-libc/src/include"),
+        "-isystem", b.pathFromRoot("src/orca-libc/src/include/private"),
+        b.fmt("-I{s}", .{b.pathFromRoot("src/orca-libc/src/arch")}),
+        b.fmt("-I{s}", .{b.pathFromRoot("src/orca-libc/src/internal")}),
 
         // warnings
         "-Wall", 
@@ -602,7 +606,7 @@ pub fn build(b: *Build) !void {
     var dummy_crt_obj = b.addObject(.{
         .name = "crt1",
         .target = wasm_target,
-        .optimize = optimize,
+        .optimize = wasm_optimize,
         .link_libc = false,
     });
     dummy_crt_obj.addCSourceFiles(.{
@@ -616,7 +620,16 @@ pub fn build(b: *Build) !void {
 
     const dummy_crt_install: *Build.Step.InstallArtifact = b.addInstallArtifact(dummy_crt_obj, libc_install_opts);
 
-    // wasm libc with orca platform implementation
+    // wasm libc
+    //
+    // NOTE - libc must be built in a 2-stage pass by compiling all the c files into .objs individually and then linking them
+    // all together at the end into a static lib. There are a couple reasons for this:
+    // 1. The build runner invokes zig.exe with commandline args corresponding to its inputs, and the commandline gets too
+    //    long if all the C files are added directly to the static lib. :(
+    // 2. Generating a unity build file doesn't work because the .c files have been written assuming individual compilation
+    //    and there are lots of constants with conflicting names in different files. For example, see "huge" in csinh.c
+    //    and csinhf.c
+    // 3. Only one .c file is allowed to correspond to an obj file. We can't combine multiple C files into one obj.
 
     const wasm_libc_source_paths: []const []const u8 = &.{
         "src/orca-libc/src/complex",
@@ -639,31 +652,37 @@ pub fn build(b: *Build) !void {
     defer wasm_libc_sources.deinit();
 
     var wasm_libc_objs = std.ArrayList(*Build.Step.Compile).init(b.allocator);
+    try wasm_libc_objs.ensureUnusedCapacity(1024); // there are 496 .c files in the libc so this should be enough
+
     for (wasm_libc_source_paths) |path| {
-        const basename: []const u8 = std.fs.path.basename(path);
-        const obj_name: []const u8 = try std.mem.join(b.allocator, "", &.{ "libc_", basename });
-        var obj = b.addObject(.{
-            .name = obj_name,
-            .target = wasm_target,
-            .optimize = optimize,
-            .single_threaded = true,
-            .link_libc = false,
-            .zig_lib_dir = b.path("src/orca-libc"), // ensures c stdlib headers bundled with zig are ignored
-        });
         wasm_libc_sources.files.shrinkRetainingCapacity(0);
         try wasm_libc_sources.collect(path);
 
-        obj.addCSourceFiles(.{
-            .files = wasm_libc_sources.files.items,
-            .flags = libc_flags,
-        });
-        try wasm_libc_objs.append(obj);
+        const libc_group: []const u8 = std.fs.path.basename(path);
+
+        for (wasm_libc_sources.files.items) |filepath| {
+            const filename: []const u8 = std.fs.path.basename(filepath);
+            const obj_name: []const u8 = try std.mem.join(b.allocator, "_", &.{ "libc", libc_group, filename });
+            var obj = b.addObject(.{
+                .name = obj_name,
+                .target = wasm_target,
+                .optimize = wasm_optimize,
+                .single_threaded = true,
+                .link_libc = false,
+                .zig_lib_dir = b.path("src/orca-libc"), // ensures c stdlib headers bundled with zig are ignored
+            });
+            obj.addCSourceFiles(.{
+                .files = &.{filepath},
+                .flags = libc_flags,
+            });
+            try wasm_libc_objs.append(obj);
+        }
     }
 
     var wasm_libc_lib = b.addStaticLibrary(.{
         .name = "c",
         .target = wasm_target,
-        .optimize = optimize,
+        .optimize = wasm_optimize,
         .link_libc = false,
         .single_threaded = true,
     });
@@ -686,9 +705,12 @@ pub fn build(b: *Build) !void {
     // Orca wasm SDK
 
     const wasm_sdk_flags: []const []const u8 = &.{
-        "-Isrc",
-        "-Isrc/ext",
-        "-Isrc/orca-libc/include",
+        // "-Isrc",
+        // "-Isrc/ext",
+        // "-Isrc/orca-libc/include",
+        b.fmt("-I{s}", .{b.pathFromRoot("src")}),
+        b.fmt("-I{s}", .{b.pathFromRoot("src/ext")}),
+        b.fmt("-I{s}", .{b.pathFromRoot("src/orca-libc/include")}),
         "--no-standard-libraries",
         "-D__ORCA__",
         // "-Wl,--no-entry",
@@ -699,14 +721,14 @@ pub fn build(b: *Build) !void {
     var wasm_sdk_obj = b.addObject(.{
         .name = "orca_wasm",
         .target = wasm_target,
-        .optimize = optimize,
+        .optimize = wasm_optimize,
         .link_libc = false,
         .single_threaded = true,
         .zig_lib_dir = b.path("src/orca-libc"),
     });
-    wasm_sdk_obj.addCSourceFiles(.{
+    wasm_sdk_obj.addCSourceFile(.{
+        .file = b.path("src/orca.c"),
         .flags = wasm_sdk_flags,
-        .files = &.{"src/orca.c"},
     });
 
     wasm_sdk_obj.step.dependOn(&stage_angle_artifacts.step);
@@ -721,7 +743,7 @@ pub fn build(b: *Build) !void {
     var wasm_sdk_lib = b.addStaticLibrary(.{
         .name = "orca_wasm",
         .target = wasm_target,
-        .optimize = optimize,
+        .optimize = wasm_optimize,
         .link_libc = false,
         .single_threaded = true,
     });
