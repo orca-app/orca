@@ -15,146 +15,11 @@
 
 #include "orca.h"
 
-/*
-void debug_print_indent(int indent)
-{
-    for(int i = 0; i < indent; i++)
-    {
-        oc_log_info("  ");
-    }
-}
-
-void debug_print_rule(oc_ui_style_rule* rule)
-{
-    oc_list_for(&rule->pattern.l, selector, oc_ui_selector, listElt)
-    {
-        switch(selector->kind)
-        {
-            case OC_UI_SEL_ANY:
-                oc_log_info("any: ");
-                break;
-
-            case OC_UI_SEL_OWNER:
-                oc_log_info("owner: ");
-                break;
-
-            case OC_UI_SEL_TEXT:
-                oc_log_info("text='%.*s': ", (int)selector->text.len, selector->text.ptr);
-                break;
-
-            case OC_UI_SEL_TAG:
-                oc_log_info("tag=0x%llx: ", selector->tag.hash);
-                break;
-
-            case OC_UI_SEL_STATUS:
-            {
-                if(selector->status & OC_UI_HOVER)
-                {
-                    oc_log_info("hover: ");
-                }
-                if(selector->status & OC_UI_ACTIVE)
-                {
-                    oc_log_info("active: ");
-                }
-                if(selector->status & OC_UI_DRAGGING)
-                {
-                    oc_log_info("dragging: ");
-                }
-            }
-            break;
-
-            case OC_UI_SEL_KEY:
-                oc_log_info("key=0x%llx: ", selector->key.hash);
-                break;
-
-            default:
-                oc_log_info("unknown: ");
-                break;
-        }
-    }
-    oc_log_info("=> font size = %f\n", rule->style->fontSize);
-}
-
-void debug_print_size(oc_ui_box* box, oc_ui_axis axis, int indent)
-{
-    debug_print_indent(indent);
-    oc_log_info("size %s: ", axis == OC_UI_AXIS_X ? "x" : "y");
-    f32 value = box->targetStyle->size.c[axis].value;
-    switch(box->targetStyle->size.c[axis].kind)
-    {
-        case OC_UI_SIZE_TEXT:
-            oc_log_info("text\n");
-            break;
-
-        case OC_UI_SIZE_CHILDREN:
-            oc_log_info("children\n");
-            break;
-
-        case OC_UI_SIZE_PARENT:
-            oc_log_info("parent: %f\n", value);
-            break;
-
-        case OC_UI_SIZE_PARENT_MINUS_PIXELS:
-            oc_log_info("parent minus pixels: %f\n", value);
-            break;
-
-        case OC_UI_SIZE_PIXELS:
-            oc_log_info("pixels: %f\n", value);
-            break;
-    }
-}
-
-void debug_print_styles(oc_ui_box* box, int indent)
-{
-    debug_print_indent(indent);
-    oc_log_info("### box '%.*s'\n", (int)box->string.len, box->string.ptr);
-    indent++;
-
-    debug_print_indent(indent);
-    oc_log_info("font size: %f\n", box->targetStyle->fontSize);
-
-    debug_print_size(box, OC_UI_AXIS_X, indent);
-    debug_print_size(box, OC_UI_AXIS_Y, indent);
-
-    if(!oc_list_empty(&box->beforeRules))
-    {
-        debug_print_indent(indent);
-        oc_log_info("before rules:\n");
-        oc_list_for(&box->beforeRules, rule, oc_ui_style_rule, boxElt)
-        {
-            debug_print_indent(indent + 1);
-            debug_print_rule(rule);
-        }
-    }
-
-    if(!oc_list_empty(&box->afterRules))
-    {
-        debug_print_indent(indent);
-        oc_log_info("after rules:\n");
-        oc_list_for(&box->afterRules, rule, oc_ui_style_rule, boxElt)
-        {
-            debug_print_indent(indent + 1);
-            debug_print_rule(rule);
-        }
-    }
-
-    if(!oc_list_empty(&box->children))
-    {
-        debug_print_indent(indent);
-        oc_log_info("children:\n");
-        indent++;
-        oc_list_for(&box->children, child, oc_ui_box, listElt)
-        {
-            debug_print_styles(child, indent);
-        }
-    }
-}
-*/
-
 oc_vec2 frameSize = { 1200, 838 };
 
 oc_surface surface;
-oc_canvas canvas;
+oc_canvas_renderer renderer;
+oc_canvas_context context;
 oc_font fontRegular;
 oc_font fontBold;
 oc_ui_context ui;
@@ -258,7 +123,8 @@ void labeled_slider(const char* label, f32* value)
 
 i32 ui_runloop(void* user)
 {
-    canvas = oc_canvas_create();
+    context = oc_canvas_context_create();
+
     oc_ui_init(&ui);
 
     while(!oc_should_quit())
@@ -924,11 +790,9 @@ i32 ui_runloop(void* user)
             }
         }
 
-        oc_canvas_select(canvas);
-        oc_surface_select(surface);
         oc_ui_draw();
-        oc_render(canvas);
-        oc_surface_present(surface);
+        oc_canvas_render(renderer, context, surface);
+        oc_canvas_present(renderer, surface);
 
         oc_scratch_end(scratch);
     }
@@ -947,8 +811,8 @@ int main()
 
     oc_window_set_title(window, OC_STR8("Orca UI Demo"));
 
-    surface = oc_surface_create_for_window(window, OC_CANVAS);
-    oc_surface_deselect();
+    renderer = oc_canvas_renderer_create();
+    surface = oc_canvas_surface_create_for_window(renderer, window);
 
     oc_arena_scope scratch = oc_scratch_begin();
 

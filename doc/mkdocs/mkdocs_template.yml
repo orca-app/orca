@@ -15,7 +15,7 @@ nav:
     - Quick Start: 'QuickStart.md'
   - User Guide:
     {{API_NAV}}
-  - Developper Guide:
+  - Developer Guide:
     - Building: 'building.md'
     - Editing the Documentation: 'documentation.md'
   - FAQ: 'faq.md'
