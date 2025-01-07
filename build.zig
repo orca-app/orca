@@ -423,18 +423,22 @@ pub fn build(b: *Build) !void {
     var orca_platform_compile_flags = std.ArrayList([]const u8).init(b.allocator);
     defer orca_platform_compile_flags.deinit();
     try orca_platform_compile_flags.append("-DOC_BUILD_DLL");
+    try orca_platform_compile_flags.append("-fno-sanitize=undefined");
     if (optimize == .Debug) {
         try orca_platform_compile_flags.append("-DOC_DEBUG");
         try orca_platform_compile_flags.append("-DOC_LOG_COMPILE_DEBUG");
     }
-
-    // TODO add manifest file
-    // "/MANIFEST:EMBED", "/MANIFESTINPUT:src/app/win32_manifest.xml",
+    // if (target.result.os.tag == .windows) {
+    //     try orca_platform_compile_flags.append("-Wl,--delayload=libEGL.dll");
+    //     try orca_platform_compile_flags.append("-Wl,--delayload=libGLESv2.dll");
+    //     try orca_platform_compile_flags.append("-Wl,--delayload=webgpu.dll");
+    // }
 
     var orca_platform_lib = b.addSharedLibrary(.{
         .name = "orca_platform",
         .target = target,
         .optimize = optimize,
+        .win32_manifest = b.path("src/app/win32_manifest.manifest"),
     });
 
     orca_platform_lib.addIncludePath(b.path("src"));
@@ -449,24 +453,26 @@ pub fn build(b: *Build) !void {
 
     orca_platform_lib.addLibraryPath(b.path("build/bin"));
 
-    orca_platform_lib.linkSystemLibrary("user32");
-    orca_platform_lib.linkSystemLibrary("opengl32");
-    orca_platform_lib.linkSystemLibrary("gdi32");
-    orca_platform_lib.linkSystemLibrary("dxgi");
-    orca_platform_lib.linkSystemLibrary("dxguid");
-    orca_platform_lib.linkSystemLibrary("d3d11");
-    orca_platform_lib.linkSystemLibrary("dcomp");
-    orca_platform_lib.linkSystemLibrary("shcore");
-    // orca_platform_lib.linkSystemLibrary("delayimp");
-    orca_platform_lib.linkSystemLibrary("dwmapi");
-    orca_platform_lib.linkSystemLibrary("comctl32");
-    orca_platform_lib.linkSystemLibrary("ole32");
-    orca_platform_lib.linkSystemLibrary("shell32");
-    orca_platform_lib.linkSystemLibrary("shlwapi");
+    if (target.result.os.tag == .windows) {
+        orca_platform_lib.linkSystemLibrary("user32");
+        orca_platform_lib.linkSystemLibrary("opengl32");
+        orca_platform_lib.linkSystemLibrary("gdi32");
+        orca_platform_lib.linkSystemLibrary("dxgi");
+        orca_platform_lib.linkSystemLibrary("dxguid");
+        orca_platform_lib.linkSystemLibrary("d3d11");
+        orca_platform_lib.linkSystemLibrary("dcomp");
+        orca_platform_lib.linkSystemLibrary("shcore");
+        // orca_platform_lib.linkSystemLibrary("delayimp");
+        orca_platform_lib.linkSystemLibrary("dwmapi");
+        orca_platform_lib.linkSystemLibrary2("comctl32", .{ .preferred_link_mode = .static });
+        orca_platform_lib.linkSystemLibrary("ole32");
+        orca_platform_lib.linkSystemLibrary("shell32");
+        orca_platform_lib.linkSystemLibrary("shlwapi");
 
-    orca_platform_lib.linkSystemLibrary("libEGL.dll"); // todo DELAYLOAD?
-    orca_platform_lib.linkSystemLibrary("libGLESv2.dll"); // todo DELAYLOAD?
-    orca_platform_lib.linkSystemLibrary("webgpu");
+        orca_platform_lib.linkSystemLibrary("libEGL.dll"); // todo DELAYLOAD?
+        orca_platform_lib.linkSystemLibrary("libGLESv2.dll"); // todo DELAYLOAD?
+        orca_platform_lib.linkSystemLibrary("webgpu"); // todo DELAYLOAD?
+    }
 
     orca_platform_lib.step.dependOn(&stage_angle_artifacts.step);
     orca_platform_lib.step.dependOn(&stage_dawn_artifacts.step);
@@ -508,6 +514,7 @@ pub fn build(b: *Build) !void {
     defer orca_runtime_compile_flags.deinit();
     try orca_runtime_compile_flags.append("-DOC_WASM_BACKEND_WASM3=1");
     try orca_runtime_compile_flags.append("-DOC_WASM_BACKEND_BYTEBOX=0");
+    try orca_runtime_compile_flags.append("-fno-sanitize=undefined");
     if (optimize == .Debug) {
         try orca_runtime_compile_flags.append("-DOC_DEBUG");
         try orca_runtime_compile_flags.append("-DOC_LOG_COMPILE_DEBUG");
@@ -789,7 +796,7 @@ pub fn build(b: *Build) !void {
         .flags = curl_compile_flags.items,
     });
 
-    // TOOD figure out if we need to include the RC file
+    curl_lib.addWin32ResourceFile(.{ .file = b.path("src/ext/curl/lib/libcurl.rc") });
 
     curl_lib.linkSystemLibrary("ws2_32");
     curl_lib.linkSystemLibrary("wldap32");
