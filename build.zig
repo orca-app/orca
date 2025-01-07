@@ -979,7 +979,9 @@ pub fn build(b: *Build) !void {
 
     const clean_paths = [_][]const u8{
         // folders
-        // "build",
+        "build/bin",
+        "build/orca-libc",
+        "build/gles_gen.log",
         "src/ext/angle",
         "src/ext/dawn",
         "scripts/files",
