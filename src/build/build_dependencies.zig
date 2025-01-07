@@ -2,7 +2,6 @@
 // libraries from source.
 
 const std = @import("std");
-
 const builtin = @import("builtin");
 
 const MAX_FILE_SIZE = 1024 * 1024 * 128;
@@ -453,7 +452,7 @@ fn buildAngle(opts: *const Options) !void {
         }
 
         if (builtin.os.tag == .windows) {
-            const windows_sdk = std.zig.WindowsSdk.find(opts.arena) catch |e| {
+            const windows_sdk = std.zig.WindowsSdk.find(opts.arena, builtin.cpu.arch) catch |e| {
                 std.log.err("Failed to find Windows SDK. Do you have the Windows 10 SDK installed?", .{});
                 return e;
             };
