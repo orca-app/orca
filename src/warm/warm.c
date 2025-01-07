@@ -615,6 +615,7 @@ typedef struct wa_func
 
     wa_import* import;
     wa_host_proc proc;
+    void* user;
 
     wa_instance* extInstance;
     u32 extIndex;
@@ -3285,9 +3286,20 @@ u32 wa_allocate_register(wa_build_context* context)
 
 void wa_free_slot(wa_build_context* context, u64 index)
 {
-    OC_DEBUG_ASSERT(context->freeRegLen >= WA_MAX_REG);
+    OC_DEBUG_ASSERT(context->freeRegLen < WA_MAX_REG);
     context->freeRegs[context->freeRegLen] = index;
     context->freeRegLen++;
+
+    ////////////////////////////////////////
+    //DEBUG
+    for(u32 i = 0; i < context->freeRegLen; i++)
+    {
+        for(u32 j = i + 1; j < context->freeRegLen; j++)
+        {
+            OC_ASSERT(context->freeRegs[i] != context->freeRegs[j]);
+        }
+    }
+    ////////////////////////////////////////
 }
 
 void wa_operand_stack_push(wa_build_context* context, wa_operand_slot s)
@@ -3337,6 +3349,14 @@ wa_operand_slot wa_operand_stack_pop(wa_build_context* context)
 
         if(slot.kind == WA_OPERAND_SLOT_REG && slot.count == 0)
         {
+            ///////////////////////////////////////
+            //DEBUG
+            for(u32 i = 0; i < context->opdStackLen; i++)
+            {
+                wa_operand_slot* check = &context->opdStack[i];
+                OC_ASSERT(check->kind != WA_OPERAND_SLOT_REG || check->index != slot.index);
+            }
+            ///////////////////////////////////////
             wa_free_slot(context, slot.index);
         }
     }
@@ -3392,6 +3412,15 @@ void wa_operand_stack_pop_slots(wa_build_context* context, u64 count)
         wa_operand_slot* slot = &context->opdStack[context->opdStackLen - i - 1];
         if(slot->kind == WA_OPERAND_SLOT_REG && slot->count == 0)
         {
+            ///////////////////////////////////////
+            //DEBUG
+            for(u32 i = 0; i < context->opdStackLen; i++)
+            {
+                wa_operand_slot* check = &context->opdStack[i];
+                OC_ASSERT(check->kind != WA_OPERAND_SLOT_REG || check->index != slot->index);
+            }
+            ///////////////////////////////////////
+
             wa_free_slot(context, slot->index);
         }
     }
@@ -4305,19 +4334,36 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
                 wa_emit_i64(context, maxUsedSlot + 1);
                 wa_emit_index(context, indirectSlot->index);
             }
-            /////////////////////////////////////////////////////////////////////////////////////////////////////////////
-            //TODO: we need to update next reg index so that next reg can't be allocated in the same slot...
-            //      we probably also need to put the remaining args regs not used by returns in the freelist
-            /////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+            //NOTE: we update next reg index so that next reg can't be allocated in the same slot...
             context->nextRegIndex = oc_max(maxUsedSlot + 1 + type->returnCount, context->nextRegIndex);
 
             for(u32 retIndex = 0; retIndex < type->returnCount; retIndex++)
             {
+                u64 returnSlotIndex = maxUsedSlot + 1 + retIndex;
+
+                //NOTE: if a return slot was in the free list, we remove it so that it can't be wrongly allocated
+                //      after the return
+                bool shift = false;
+                for(u64 freeRegIndex = 0; freeRegIndex < context->freeRegLen; freeRegIndex++)
+                {
+                    if(!shift && context->freeRegs[freeRegIndex] == returnSlotIndex)
+                    {
+                        context->freeRegLen--;
+                        shift = true;
+                    }
+
+                    if(shift)
+                    {
+                        context->freeRegs[freeRegIndex] = context->freeRegs[freeRegIndex + 1];
+                    }
+                }
+
                 wa_operand_stack_push(context,
                                       (wa_operand_slot){
                                           .kind = WA_OPERAND_SLOT_REG,
                                           .type = type->returns[retIndex],
-                                          .index = maxUsedSlot + 1 + retIndex,
+                                          .index = returnSlotIndex,
                                       });
             }
         }
@@ -4924,6 +4970,8 @@ void wa_print_bytecode(u64 len, wa_code* bytecode)
         u64 startIndex = codeIndex;
 
         wa_code* c = &bytecode[codeIndex];
+        OC_ASSERT(c->opcode < WA_INSTR_COUNT);
+
         printf("0x%08llx ", codeIndex);
         printf("%-16s0x%02x ", wa_instr_strings[c->opcode], c->opcode);
 
@@ -5134,6 +5182,7 @@ wa_status wa_instance_link_imports(wa_instance* instance, wa_instance_options* o
                                 else
                                 {
                                     importFunc->proc = binding->hostFunction.proc;
+                                    importFunc->user = binding->hostFunction.userData;
                                 }
                             }
                             break;
@@ -5556,6 +5605,23 @@ wa_func* wa_instance_find_function(wa_instance* instance, oc_str8 name)
     return (func);
 }
 
+wa_global* wa_instance_find_global(wa_instance* instance, oc_str8 name)
+{
+    wa_module* module = instance->module;
+
+    wa_global* global = 0;
+    for(u32 exportIndex = 0; exportIndex < module->exportCount; exportIndex++)
+    {
+        wa_export* export = &module->exports[exportIndex];
+        if(export->kind == WA_EXPORT_GLOBAL && !oc_str8_cmp(export->name, name))
+        {
+            global = instance->globals[export->index];
+            break;
+        }
+    }
+    return (global);
+}
+
 typedef struct wa_control
 {
     wa_instance* instance;
@@ -5760,6 +5826,7 @@ wa_status wa_interpreter_run(wa_interpreter* interpreter, bool step)
     if(offset < I0.memArg.offset                                                                 \
        || offset + sizeof(t) > memory->limits.min * WA_PAGE_SIZE || offset + sizeof(t) < offset) \
     {                                                                                            \
+        /*OC_ASSERT(0, "read out of bounds");*/                                                  \
         return WA_TRAP_MEMORY_OUT_OF_BOUNDS;                                                     \
     }
 
@@ -5880,6 +5947,7 @@ wa_status wa_interpreter_run(wa_interpreter* interpreter, bool step)
     if(offset < I0.memArg.offset                                                                 \
        || offset + sizeof(t) > memory->limits.min * WA_PAGE_SIZE || offset + sizeof(t) < offset) \
     {                                                                                            \
+        /*OC_ASSERT(0, "write out of bounds");*/                                                 \
         return WA_TRAP_MEMORY_OUT_OF_BOUNDS;                                                     \
     }
 
@@ -5995,6 +6063,16 @@ wa_status wa_interpreter_run(wa_interpreter* interpreter, bool step)
 
                 wa_instance* calleeInstance = instance;
 
+                ///////////////////////
+                //DEBUG
+                /*
+                if(callee - instance->functions == 9)
+                {
+                    wa_print_bytecode(callee->codeLen, callee->code);
+                }
+                */
+                ///
+
                 while(callee->extInstance)
                 {
                     calleeInstance = callee->extInstance;
@@ -6038,7 +6116,7 @@ wa_status wa_interpreter_run(wa_interpreter* interpreter, bool step)
                 {
                     wa_value* saveLocals = interpreter->locals;
                     interpreter->locals += I1.valI64;
-                    callee->proc(interpreter->locals, interpreter->locals);
+                    callee->proc(interpreter->instance, interpreter->locals, interpreter->locals, callee->user);
                     interpreter->pc += 2;
                     interpreter->locals = saveLocals;
                 }
@@ -6119,7 +6197,7 @@ wa_status wa_interpreter_run(wa_interpreter* interpreter, bool step)
                 {
                     wa_value* saveLocals = interpreter->locals;
                     interpreter->locals += maxUsedSlot;
-                    callee->proc(interpreter->locals, interpreter->locals);
+                    callee->proc(interpreter->instance, interpreter->locals, interpreter->locals, callee->user);
                     interpreter->pc += 4;
                     interpreter->locals = saveLocals;
                 }
@@ -6134,6 +6212,7 @@ wa_status wa_interpreter_run(wa_interpreter* interpreter, bool step)
                 }
 
                 wa_control control = interpreter->controlStack[interpreter->controlStackTop];
+
                 interpreter->locals = control.returnFrame;
                 interpreter->pc = control.returnPC;
 
@@ -7520,6 +7599,7 @@ wa_status wa_interpreter_run(wa_interpreter* interpreter, bool step)
 
                 if(d + n > mem->limits.min * WA_PAGE_SIZE || d + n < d)
                 {
+                    //OC_ASSERT(0, "fill out of bounds");
                     return WA_TRAP_MEMORY_OUT_OF_BOUNDS;
                 }
                 else
@@ -7540,6 +7620,7 @@ wa_status wa_interpreter_run(wa_interpreter* interpreter, bool step)
                 if(s + n > mem->limits.min * WA_PAGE_SIZE || s + n < s
                    || d + n > mem->limits.min * WA_PAGE_SIZE || d + n < d)
                 {
+                    //OC_ASSERT(0, "copy out of bounds");
                     return WA_TRAP_MEMORY_OUT_OF_BOUNDS;
                 }
                 memmove(mem->ptr + d, mem->ptr + s, n);
@@ -7559,6 +7640,7 @@ wa_status wa_interpreter_run(wa_interpreter* interpreter, bool step)
                 if(s + n > seg->init.len || s + n < s
                    || d + n > mem->limits.min * WA_PAGE_SIZE || d + n < d)
                 {
+                    //OC_ASSERT(0, "memory init out of bounds");
                     return WA_TRAP_MEMORY_OUT_OF_BOUNDS;
                 }
                 memmove(mem->ptr + d, seg->init.ptr + s, n);
@@ -7766,7 +7848,7 @@ wa_status wa_instance_invoke(wa_instance* instance,
     else
     {
         //TODO: host proc should return a status
-        func->proc(args, returns);
+        func->proc(instance, args, returns, func->user);
         return WA_OK;
     }
 }

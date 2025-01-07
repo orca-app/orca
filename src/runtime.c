@@ -26,6 +26,8 @@
     #include "wasm/backend_wasm3.c"
 #elif OC_WASM_BACKEND_BYTEBOX
     #include "wasm/backend_bytebox.c"
+#elif OC_WASM_BACKEND_WARM
+    #include "warm/warm_adapter.c"
 #else
     #error "Unknown wasm backend"
 #endif

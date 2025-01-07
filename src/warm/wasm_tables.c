@@ -442,8 +442,10 @@ static const char* wa_instr_strings[] = {
 
     [WA_INSTR_move] = "move",
     [WA_INSTR_jump] = "jump",
+    [WA_INSTR_jump_if] = "jump_if",
     [WA_INSTR_jump_if_zero] = "jump_if_zero",
     [WA_INSTR_jump_table] = "jump_table",
+    [WA_INSTR_breakpoint] = "debug_break",
 };
 
 typedef enum wa_instruction_prefix
@@ -1189,7 +1191,12 @@ static const wa_instr_info wa_instr_infos[] = {
         .in = { WA_TYPE_I32 },
         .outCount = 1,
         .out = { WA_TYPE_F32 },
-        .opdCount = 2,
+        .opdCount = 3,
+        .opd = {
+            WA_OPD_MEM_ARG,
+            WA_OPD_LOCAL_INDEX,
+            WA_OPD_LOCAL_INDEX,
+        },
         .defined = true,
     },
     [WA_INSTR_f64_load] = {
@@ -1199,7 +1206,12 @@ static const wa_instr_info wa_instr_infos[] = {
         .in = { WA_TYPE_I32 },
         .outCount = 1,
         .out = { WA_TYPE_F64 },
-        .opdCount = 2,
+        .opdCount = 3,
+        .opd = {
+            WA_OPD_MEM_ARG,
+            WA_OPD_LOCAL_INDEX,
+            WA_OPD_LOCAL_INDEX,
+        },
         .defined = true,
     },
     [WA_INSTR_i32_load8_s] = {
@@ -1209,7 +1221,12 @@ static const wa_instr_info wa_instr_infos[] = {
         .in = { WA_TYPE_I32 },
         .outCount = 1,
         .out = { WA_TYPE_I32 },
-        .opdCount = 2,
+        .opdCount = 3,
+        .opd = {
+            WA_OPD_MEM_ARG,
+            WA_OPD_LOCAL_INDEX,
+            WA_OPD_LOCAL_INDEX,
+        },
         .defined = true,
     },
     [WA_INSTR_i32_load8_u] = {
@@ -1219,7 +1236,12 @@ static const wa_instr_info wa_instr_infos[] = {
         .in = { WA_TYPE_I32 },
         .outCount = 1,
         .out = { WA_TYPE_I32 },
-        .opdCount = 2,
+        .opdCount = 3,
+        .opd = {
+            WA_OPD_MEM_ARG,
+            WA_OPD_LOCAL_INDEX,
+            WA_OPD_LOCAL_INDEX,
+        },
         .defined = true,
     },
     [WA_INSTR_i32_load16_s] = {
@@ -1229,7 +1251,12 @@ static const wa_instr_info wa_instr_infos[] = {
         .in = { WA_TYPE_I32 },
         .outCount = 1,
         .out = { WA_TYPE_I32 },
-        .opdCount = 2,
+        .opdCount = 3,
+        .opd = {
+            WA_OPD_MEM_ARG,
+            WA_OPD_LOCAL_INDEX,
+            WA_OPD_LOCAL_INDEX,
+        },
         .defined = true,
     },
     [WA_INSTR_i32_load16_u] = {
@@ -1239,7 +1266,12 @@ static const wa_instr_info wa_instr_infos[] = {
         .in = { WA_TYPE_I32 },
         .outCount = 1,
         .out = { WA_TYPE_I32 },
-        .opdCount = 2,
+        .opdCount = 3,
+        .opd = {
+            WA_OPD_MEM_ARG,
+            WA_OPD_LOCAL_INDEX,
+            WA_OPD_LOCAL_INDEX,
+        },
         .defined = true,
     },
     [WA_INSTR_i64_load8_s] = {
@@ -1249,7 +1281,12 @@ static const wa_instr_info wa_instr_infos[] = {
         .in = { WA_TYPE_I32 },
         .outCount = 1,
         .out = { WA_TYPE_I64 },
-        .opdCount = 2,
+        .opdCount = 3,
+        .opd = {
+            WA_OPD_MEM_ARG,
+            WA_OPD_LOCAL_INDEX,
+            WA_OPD_LOCAL_INDEX,
+        },
         .defined = true,
     },
     [WA_INSTR_i64_load8_u] = {
@@ -1259,7 +1296,12 @@ static const wa_instr_info wa_instr_infos[] = {
         .in = { WA_TYPE_I32 },
         .outCount = 1,
         .out = { WA_TYPE_I64 },
-        .opdCount = 2,
+        .opdCount = 3,
+        .opd = {
+            WA_OPD_MEM_ARG,
+            WA_OPD_LOCAL_INDEX,
+            WA_OPD_LOCAL_INDEX,
+        },
         .defined = true,
     },
     [WA_INSTR_i64_load16_s] = {
@@ -1269,7 +1311,12 @@ static const wa_instr_info wa_instr_infos[] = {
         .in = { WA_TYPE_I32 },
         .outCount = 1,
         .out = { WA_TYPE_I64 },
-        .opdCount = 2,
+        .opdCount = 3,
+        .opd = {
+            WA_OPD_MEM_ARG,
+            WA_OPD_LOCAL_INDEX,
+            WA_OPD_LOCAL_INDEX,
+        },
         .defined = true,
     },
     [WA_INSTR_i64_load16_u] = {
@@ -1279,7 +1326,12 @@ static const wa_instr_info wa_instr_infos[] = {
         .in = { WA_TYPE_I32 },
         .outCount = 1,
         .out = { WA_TYPE_I64 },
-        .opdCount = 2,
+        .opdCount = 3,
+        .opd = {
+            WA_OPD_MEM_ARG,
+            WA_OPD_LOCAL_INDEX,
+            WA_OPD_LOCAL_INDEX,
+        },
         .defined = true,
     },
     [WA_INSTR_i64_load32_s] = {
@@ -1289,7 +1341,12 @@ static const wa_instr_info wa_instr_infos[] = {
         .in = { WA_TYPE_I32 },
         .outCount = 1,
         .out = { WA_TYPE_I64 },
-        .opdCount = 2,
+        .opdCount = 3,
+        .opd = {
+            WA_OPD_MEM_ARG,
+            WA_OPD_LOCAL_INDEX,
+            WA_OPD_LOCAL_INDEX,
+        },
         .defined = true,
     },
     [WA_INSTR_i64_load32_u] = {
@@ -1299,7 +1356,12 @@ static const wa_instr_info wa_instr_infos[] = {
         .in = { WA_TYPE_I32 },
         .outCount = 1,
         .out = { WA_TYPE_I64 },
-        .opdCount = 2,
+        .opdCount = 3,
+        .opd = {
+            WA_OPD_MEM_ARG,
+            WA_OPD_LOCAL_INDEX,
+            WA_OPD_LOCAL_INDEX,
+        },
         .defined = true,
     },
     [WA_INSTR_i32_store] = {
@@ -1343,7 +1405,12 @@ static const wa_instr_info wa_instr_infos[] = {
             WA_TYPE_F32,
 
         },
-        .opdCount = 2,
+        .opdCount = 3,
+        .opd = {
+            WA_OPD_MEM_ARG,
+            WA_OPD_LOCAL_INDEX,
+            WA_OPD_LOCAL_INDEX,
+        },
         .defined = true,
     },
     [WA_INSTR_f64_store] = {
@@ -1355,7 +1422,12 @@ static const wa_instr_info wa_instr_infos[] = {
             WA_TYPE_F64,
 
         },
-        .opdCount = 2,
+        .opdCount = 3,
+        .opd = {
+            WA_OPD_MEM_ARG,
+            WA_OPD_LOCAL_INDEX,
+            WA_OPD_LOCAL_INDEX,
+        },
         .defined = true,
     },
     [WA_INSTR_i32_store8] = {
@@ -1366,7 +1438,12 @@ static const wa_instr_info wa_instr_infos[] = {
             WA_TYPE_I32,
             WA_TYPE_I32,
         },
-        .opdCount = 2,
+        .opdCount = 3,
+        .opd = {
+            WA_OPD_MEM_ARG,
+            WA_OPD_LOCAL_INDEX,
+            WA_OPD_LOCAL_INDEX,
+        },
         .defined = true,
     },
     [WA_INSTR_i32_store16] = {
@@ -1377,7 +1454,12 @@ static const wa_instr_info wa_instr_infos[] = {
             WA_TYPE_I32,
             WA_TYPE_I32,
         },
-        .opdCount = 2,
+        .opdCount = 3,
+        .opd = {
+            WA_OPD_MEM_ARG,
+            WA_OPD_LOCAL_INDEX,
+            WA_OPD_LOCAL_INDEX,
+        },
         .defined = true,
     },
     [WA_INSTR_i64_store8] = {
@@ -1389,7 +1471,12 @@ static const wa_instr_info wa_instr_infos[] = {
             WA_TYPE_I64,
 
         },
-        .opdCount = 2,
+        .opdCount = 3,
+        .opd = {
+            WA_OPD_MEM_ARG,
+            WA_OPD_LOCAL_INDEX,
+            WA_OPD_LOCAL_INDEX,
+        },
         .defined = true,
     },
     [WA_INSTR_i64_store16] = {
@@ -1401,7 +1488,12 @@ static const wa_instr_info wa_instr_infos[] = {
             WA_TYPE_I64,
 
         },
-        .opdCount = 2,
+        .opdCount = 3,
+        .opd = {
+            WA_OPD_MEM_ARG,
+            WA_OPD_LOCAL_INDEX,
+            WA_OPD_LOCAL_INDEX,
+        },
         .defined = true,
     },
     [WA_INSTR_i64_store32] = {
@@ -1413,7 +1505,12 @@ static const wa_instr_info wa_instr_infos[] = {
             WA_TYPE_I64,
 
         },
-        .opdCount = 2,
+        .opdCount = 3,
+        .opd = {
+            WA_OPD_MEM_ARG,
+            WA_OPD_LOCAL_INDEX,
+            WA_OPD_LOCAL_INDEX,
+        },
         .defined = true,
     },
     [WA_INSTR_memory_size] = {
@@ -3332,4 +3429,5 @@ static const wa_instr_info wa_instr_infos[] = {
     },
 
     [WA_INSTR_breakpoint] = {},
+
 };

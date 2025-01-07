@@ -7,6 +7,7 @@ int main(int argc, char** argv)
     if(argc < 3)
     {
         printf("usage: warm module funcName [args...]\n");
+        printf("       warm test jsonfile [line]\n");
         exit(-1);
     }
     if(!strcmp(argv[1], "test"))

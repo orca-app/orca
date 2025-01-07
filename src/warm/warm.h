@@ -44,7 +44,7 @@ typedef struct wa_typed_value
 
 } wa_typed_value;
 
-typedef void (*wa_host_proc)(wa_value* args, wa_value* returns); //TODO: complete with memory, return status / etc
+typedef void (*wa_host_proc)(wa_instance* instance, wa_value* args, wa_value* returns, void* user); //TODO: complete with memory, return status / etc
 
 typedef struct wa_import wa_import;
 typedef struct wa_module wa_module;
@@ -201,6 +201,7 @@ wa_module* wa_module_create(oc_arena* arena, oc_str8 contents);
 wa_instance* wa_instance_create(oc_arena* arena, wa_module* module, wa_instance_options* options);
 wa_import_package wa_instance_exports(oc_arena* arena, wa_instance* instance, oc_str8 name);
 wa_func* wa_instance_find_function(wa_instance* instance, oc_str8 name);
+wa_global* wa_instance_find_global(wa_instance* instance, oc_str8 name);
 
 wa_status wa_instance_invoke(wa_instance* instance,
                              wa_func* func,

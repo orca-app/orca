@@ -10,11 +10,15 @@
 #define __WASM_H_
 
 #ifndef OC_WASM_BACKEND_WASM3
-    #error OC_WASM_BACKEND_WASM3 must be defined to 0 or 1
+    #define OC_WASM_BACKEND_WASM3 0
 #endif
 
 #ifndef OC_WASM_BACKEND_BYTEBOX
-    #error OC_WASM_BACKEND_BYTEBOX must be defined to 0 or 1
+    #define OC_WASM_BACKEND_BYTEBOX 0
+#endif
+
+#ifndef OC_WASM_BACKEND_WARM
+    #define OC_WASM_BACKEND_WARM 0
 #endif
 
 typedef enum oc_wasm_status

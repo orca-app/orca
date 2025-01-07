@@ -53,7 +53,6 @@ ORCA_EXPORT void oc_on_init(void)
         OC_UNICODE_LATIN_EXTENDED_B,
         OC_UNICODE_SPECIALS
     };
-
     font = oc_font_create_from_path(OC_STR8("/segoeui.ttf"), 5, ranges);
 }
 
@@ -69,18 +68,19 @@ ORCA_EXPORT void oc_on_frame_refresh(void)
     oc_set_color_rgba(.05, .05, .05, 1);
     oc_clear();
 
-    const f64 timestampSecs = oc_clock_time(OC_CLOCK_DATE);
-    const f64 secs = fmod(timestampSecs, 60);
-    const f64 minutes = fmod(timestampSecs, 60 * 60) / 60;
-    const f64 hours = fmod(timestampSecs, 60 * 60 * 24) / (60 * 60);
-    const f64 hoursAs12Format = fmod(hours, 12.0);
+    f64 timestampSecs = oc_clock_time(OC_CLOCK_DATE);
+    f64 secs = fmod(timestampSecs, 60);
+    f64 minutes = fmod(timestampSecs, 60 * 60) / 60;
+    f64 hours = fmod(timestampSecs, 60 * 60 * 24) / (60 * 60);
+    f64 hoursAs12Format = fmod(hours, 12.0);
 
     if(lastSeconds != floor(secs))
     {
         lastSeconds = floor(secs);
         oc_log_info("current time: %.0f:%.0f:%.0f", floor(hours), floor(minutes), floor(secs));
+        //oc_log_info("current time: %.0f:%.0f:%.0f", (f64)3.0, (f64)4.0, (f64)5.0);
     }
-
+    /*
     const f32 secondsRotation = (M_PI * 2) * (secs / 60.0) - (M_PI / 2);
     const f32 minutesRotation = (M_PI * 2) * (minutes / 60.0) - (M_PI / 2);
     const f32 hoursRotation = (M_PI * 2) * (hoursAs12Format / 12.0) - (M_PI / 2);
@@ -145,4 +145,5 @@ ORCA_EXPORT void oc_on_frame_refresh(void)
 
     oc_canvas_render(renderer, context, surface);
     oc_canvas_present(renderer, surface);
+    */
 }

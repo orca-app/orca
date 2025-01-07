@@ -446,31 +446,31 @@ wa_instance* wa_test_get_instance(wa_test_env* env, json_node* action)
     return (instance);
 }
 
-void test_print(wa_value* args, wa_value* rets)
+void test_print(wa_instance* instance, wa_value* args, wa_value* rets, void* user)
 {
 }
 
-void test_print_i32(wa_value* args, wa_value* rets)
+void test_print_i32(wa_instance* instance, wa_value* args, wa_value* rets, void* user)
 {
 }
 
-void test_print_i64(wa_value* args, wa_value* rets)
+void test_print_i64(wa_instance* instance, wa_value* args, wa_value* rets, void* user)
 {
 }
 
-void test_print_f32(wa_value* args, wa_value* rets)
+void test_print_f32(wa_instance* instance, wa_value* args, wa_value* rets, void* user)
 {
 }
 
-void test_print_f64(wa_value* args, wa_value* rets)
+void test_print_f64(wa_instance* instance, wa_value* args, wa_value* rets, void* user)
 {
 }
 
-void test_print_i32_f32(wa_value* args, wa_value* rets)
+void test_print_i32_f32(wa_instance* instance, wa_value* args, wa_value* rets, void* user)
 {
 }
 
-void test_print_f64_f64(wa_value* args, wa_value* rets)
+void test_print_f64_f64(wa_instance* instance, wa_value* args, wa_value* rets, void* user)
 {
 }
 
@@ -1116,7 +1116,7 @@ int test_main(int argc, char** argv)
 {
     if(argc < 3)
     {
-        printf("usage: warm test jsonfile [line]");
+        printf("usage: warm test [jsonfile|dir] [line]");
         return (-1);
     }
 
