@@ -797,7 +797,7 @@ def build_platform_layer_lib_win(release):
         *includes,
         "src/orca.c", "/Fo:build/bin/orca.o",
         "/LD", "/link",
-        "/MANIFEST:EMBED", "/MANIFESTINPUT:src/app/win32_manifest.xml",
+        "/MANIFEST:EMBED", "/MANIFESTINPUT:src/app/win32_manifest.manifest",
         *libs,
         "/OUT:build/bin/orca.dll",
         "/IMPLIB:build/bin/orca.dll.lib",
