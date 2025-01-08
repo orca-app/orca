@@ -37,6 +37,8 @@ oc_mat2x3 mat_transform(f32 x, f32 y, f32 radians)
     return oc_mat2x3_mul_m(translation, rotation);
 }
 
+char* buff = 0;
+
 ORCA_EXPORT void oc_on_init(void)
 {
     oc_window_set_title(OC_STR8("clock"));
@@ -60,10 +62,13 @@ ORCA_EXPORT void oc_on_resize(u32 width, u32 height)
 {
     frameSize.x = width;
     frameSize.y = height;
+
+    oc_log_info("size %f %f", frameSize.x, frameSize.y);
 }
 
 ORCA_EXPORT void oc_on_frame_refresh(void)
 {
+
     oc_canvas_context_select(context);
     oc_set_color_rgba(.05, .05, .05, 1);
     oc_clear();
@@ -78,9 +83,7 @@ ORCA_EXPORT void oc_on_frame_refresh(void)
     {
         lastSeconds = floor(secs);
         oc_log_info("current time: %.0f:%.0f:%.0f", floor(hours), floor(minutes), floor(secs));
-        //oc_log_info("current time: %.0f:%.0f:%.0f", (f64)3.0, (f64)4.0, (f64)5.0);
     }
-    /*
     const f32 secondsRotation = (M_PI * 2) * (secs / 60.0) - (M_PI / 2);
     const f32 minutesRotation = (M_PI * 2) * (minutes / 60.0) - (M_PI / 2);
     const f32 hoursRotation = (M_PI * 2) * (hoursAs12Format / 12.0) - (M_PI / 2);
@@ -145,5 +148,4 @@ ORCA_EXPORT void oc_on_frame_refresh(void)
 
     oc_canvas_render(renderer, context, surface);
     oc_canvas_present(renderer, surface);
-    */
 }

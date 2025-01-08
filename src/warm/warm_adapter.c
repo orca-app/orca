@@ -101,6 +101,24 @@ wa_value_type oc_wasm_valtype_to_wa_value_type(oc_wasm_valtype type)
     }
 }
 
+oc_wasm_valtype oc_wa_value_type_to_wasm_valtype(wa_value_type type)
+{
+    switch(type)
+    {
+        case WA_TYPE_I32:
+            return OC_WASM_VALTYPE_I32;
+        case WA_TYPE_I64:
+            return OC_WASM_VALTYPE_I64;
+        case WA_TYPE_F32:
+            return OC_WASM_VALTYPE_F32;
+        case WA_TYPE_F64:
+            return OC_WASM_VALTYPE_F64;
+
+        default:
+            return OC_WASM_VALTYPE_I32;
+    }
+}
+
 oc_wasm_status oc_wasm_add_binding(oc_wasm* wasm, oc_wasm_binding* binding)
 {
     wa_import_binding_elt* elt = oc_arena_push_type(&wasm->arena, wa_import_binding_elt);
@@ -194,12 +212,12 @@ oc_wasm_status oc_wasm_mem_resize(oc_wasm* wasm, u32 n)
 {
     wa_memory* mem = wasm->instance->memories[0];
 
-    if(mem->limits.min + n <= mem->limits.max
-       && (mem->limits.min + n >= mem->limits.min))
+    if(n <= mem->limits.max
+       && (n >= mem->limits.min))
     {
         oc_base_allocator* allocator = oc_base_allocator_default();
-        oc_base_commit(allocator, mem->ptr + mem->limits.min * WA_PAGE_SIZE, n * WA_PAGE_SIZE);
-        mem->limits.min += n;
+        oc_base_commit(allocator, mem->ptr, n * WA_PAGE_SIZE);
+        mem->limits.min = n;
         return OC_WASM_STATUS_SUCCESS;
     }
     return OC_WASM_STATUS_FAIL_MEMALLOC;
@@ -236,6 +254,14 @@ oc_wasm_function_info oc_wasm_function_get_info(oc_arena* scratch, oc_wasm* wasm
             .countParams = type->paramCount,
             .countReturns = type->returnCount,
         };
+        for(u32 i = 0; i < type->paramCount; i++)
+        {
+            res.params[i] = oc_wa_value_type_to_wasm_valtype(type->params[i]);
+        }
+        for(u32 i = 0; i < type->returnCount; i++)
+        {
+            res.returns[i] = oc_wa_value_type_to_wasm_valtype(type->returns[i]);
+        }
     }
     return (res);
 }
@@ -247,15 +273,31 @@ oc_wasm_status oc_wasm_function_call(oc_wasm* wasm,
                                      oc_wasm_val* returns,
                                      size_t countReturns)
 {
-    ///////////////////////////////////////////////////////////////////////////////////
-    //TODO: typecheck?
-    ///////////////////////////////////////////////////////////////////////////////////
+    //////////////////////////////////////////////////////
+    //TODO: avoid having to do this marshalling
+    //////////////////////////////////////////////////////
+    oc_arena_scope scratch = oc_scratch_begin();
+    wa_value* waParams = oc_arena_push_array(scratch.arena, wa_value, countParams);
+    wa_value* waReturns = oc_arena_push_array(scratch.arena, wa_value, countReturns);
+
+    for(u32 i = 0; i < countParams; i++)
+    {
+        waParams[i].valI64 = params[i].I64;
+    }
+
     wa_status status = wa_instance_invoke(wasm->instance,
                                           (wa_func*)handle,
                                           countParams,
-                                          (wa_value*)params,
+                                          waParams,
                                           countReturns,
-                                          (wa_value*)returns);
+                                          waReturns);
+
+    for(u32 i = 0; i < countReturns; i++)
+    {
+        params[i].I64 = waReturns[i].valI64;
+    }
+
+    oc_scratch_end(scratch);
 
     if(status == WA_OK)
     {

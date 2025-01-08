@@ -367,8 +367,9 @@ void oc_bridge_canvas_renderer_submit(oc_canvas_renderer renderer,
 {
     oc_runtime* app = &__orcaApp;
 
-    char* memBase = app->env.wasmMemory.ptr;
-    u32 memSize = app->env.wasmMemory.committed;
+    char* memBase = oc_wasm_mem_get(app->env.wasm).ptr;
+    u32 memSize = oc_wasm_mem_size(app->env.wasm);
+
     oc_rect window_content_rect = oc_window_get_content_rect(app->window);
 
     if(((char*)primitives > memBase)
