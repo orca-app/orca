@@ -26,6 +26,7 @@ int main(int argc, char** argv)
     };
 
     oc_str8_list_push(scratch.arena, &desc.filters, OC_STR8("txt"));
+    oc_str8_list_push(scratch.arena, &desc.filters, OC_STR8("sh"));
 
     oc_file_dialog_result res = oc_file_dialog(scratch.arena, &desc);
 

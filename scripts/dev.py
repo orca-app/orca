@@ -852,7 +852,7 @@ def build_platform_layer_lib_mac(release):
         "-o", "build/bin/liborca.dylib",
         "build/orca_c.o", "build/orca_objc.o",
         "-Lbuild/bin", "-lc",
-        "-framework", "Carbon", "-framework", "Cocoa", "-framework", "Metal", "-framework", "QuartzCore",
+        "-framework", "Carbon", "-framework", "Cocoa", "-framework", "Metal", "-framework", "QuartzCore", "-framework", "UniformTypeIdentifiers",
         "-weak-lEGL", "-weak-lGLESv2", "-weak-lwebgpu"
     ], check=True)
 
