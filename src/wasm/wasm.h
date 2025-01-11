@@ -82,19 +82,22 @@ typedef enum wa_value_type
     WA_TYPE_NUM_OR_VEC = 0x103,
 } wa_value_type;
 
-typedef union oc_wasm_val
-{
-    i32 I32;
-    i64 I64;
-    f32 F32;
-    f64 F64;
-} oc_wasm_val;
+typedef struct wa_instance wa_instance;
 
-typedef struct oc_wasm_val_tagged
+typedef union wa_value
 {
-    oc_wasm_val value;
-    wa_value_type type;
-} oc_wasm_val_tagged;
+    i32 valI32;
+    i64 valI64;
+    f32 valF32;
+    f64 valF64;
+
+    //TODO v128, funcref, externref...
+    struct
+    {
+        wa_instance* refInstance;
+        u32 refIndex;
+    };
+} wa_value;
 
 struct oc_wasm;
 typedef struct oc_wasm oc_wasm;
@@ -166,11 +169,11 @@ wa_status oc_wasm_mem_resize(oc_wasm* wasm, u32 countPages);
 
 oc_wasm_function_handle* oc_wasm_function_find(oc_wasm* wasm, oc_str8 exportName);
 oc_wasm_function_info oc_wasm_function_get_info(oc_arena* scratch, oc_wasm* wasm, oc_wasm_function_handle* handle);
-wa_status oc_wasm_function_call(oc_wasm* wasm, oc_wasm_function_handle* handle, oc_wasm_val* params, size_t countParams, oc_wasm_val* returns, size_t countReturns);
+wa_status oc_wasm_function_call(oc_wasm* wasm, oc_wasm_function_handle* handle, wa_value* params, size_t countParams, wa_value* returns, size_t countReturns);
 
 oc_wasm_global_handle* oc_wasm_global_find(oc_wasm* wasm, oc_str8 exportName, wa_value_type expectedType);
-oc_wasm_val oc_wasm_global_get_value(oc_wasm_global_handle* global);
-void oc_wasm_global_set_value(oc_wasm_global_handle* global, oc_wasm_val value);
+wa_value oc_wasm_global_get_value(oc_wasm_global_handle* global);
+void oc_wasm_global_set_value(oc_wasm_global_handle* global, wa_value value);
 oc_wasm_global_pointer oc_wasm_global_pointer_find(oc_wasm* wasm, oc_str8 exportName);
 
 oc_str8 wa_value_type_str8(wa_value_type type);

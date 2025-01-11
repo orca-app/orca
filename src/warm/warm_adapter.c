@@ -68,7 +68,9 @@ void oc_wasm_binding_warm_thunk(wa_instance* instance, wa_value* args, wa_value*
     oc_wasm_binding_warm* binding = (oc_wasm_binding_warm*)user;
     oc_arena_scope scratch = oc_scratch_begin();
 
+    /////////////////////////////////////////////////////////////////////////
     //TODO: remove the need for this marshalling
+    /////////////////////////////////////////////////////////////////////////
     i64* args64 = oc_arena_push_array(scratch.arena, i64, binding->countParams);
     i64* returns64 = oc_arena_push_array(scratch.arena, i64, binding->countReturns);
 
@@ -215,41 +217,22 @@ oc_wasm_function_info oc_wasm_function_get_info(oc_arena* scratch, oc_wasm* wasm
 
 wa_status oc_wasm_function_call(oc_wasm* wasm,
                                 oc_wasm_function_handle* handle,
-                                oc_wasm_val* params,
+                                wa_value* params,
                                 size_t countParams,
-                                oc_wasm_val* returns,
+                                wa_value* returns,
                                 size_t countReturns)
 {
-    //////////////////////////////////////////////////////
-    //TODO: avoid having to do this marshalling
-    //////////////////////////////////////////////////////
-    oc_arena_scope scratch = oc_scratch_begin();
-    wa_value* waParams = oc_arena_push_array(scratch.arena, wa_value, countParams);
-    wa_value* waReturns = oc_arena_push_array(scratch.arena, wa_value, countReturns);
-
-    for(u32 i = 0; i < countParams; i++)
-    {
-        waParams[i].valI64 = params[i].I64;
-    }
-
     wa_status status = wa_instance_invoke(wasm->instance,
                                           (wa_func*)handle,
                                           countParams,
-                                          waParams,
+                                          params,
                                           countReturns,
-                                          waReturns);
-
-    for(u32 i = 0; i < countReturns; i++)
-    {
-        params[i].I64 = waReturns[i].valI64;
-    }
-
-    oc_scratch_end(scratch);
+                                          returns);
     return status;
 }
 
 oc_wasm_global_handle* oc_wasm_global_find(oc_wasm* wasm, oc_str8 exportName, wa_value_type expectedType);
 
-oc_wasm_val oc_wasm_global_get_value(oc_wasm_global_handle* global);
-void oc_wasm_global_set_value(oc_wasm_global_handle* global, oc_wasm_val value);
+wa_value oc_wasm_global_get_value(oc_wasm_global_handle* global);
+void oc_wasm_global_set_value(oc_wasm_global_handle* global, wa_value value);
 oc_wasm_global_pointer oc_wasm_global_pointer_find(oc_wasm* wasm, oc_str8 exportName);

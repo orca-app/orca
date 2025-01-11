@@ -636,24 +636,24 @@ i32 orca_runloop(void* user)
 
     if(s_test_wasm_module_path)
     {
-        oc_wasm_val returnCode = { 0 };
+        wa_value returnCode = { 0 };
         if(exports[OC_EXPORT_ON_TEST])
         {
             wa_status status = oc_wasm_function_call(app->env.wasm, exports[OC_EXPORT_ON_TEST], NULL, 0, &returnCode, 1);
             OC_WASM_TRAP(status);
 
-            if(returnCode.I32 != 0)
+            if(returnCode.valI32 != 0)
             {
-                oc_log_error("Tests failed. Exit code: %d\n", returnCode.I32);
+                oc_log_error("Tests failed. Exit code: %d\n", returnCode.valI32);
             }
         }
         else
         {
-            returnCode.I32 = 1;
+            returnCode.valI32 = 1;
             oc_log_error("Failed to find oc_on_test() hook - unable to run tests.\n");
         }
         oc_request_quit();
-        return returnCode.I32;
+        return returnCode.valI32;
     }
 
     //NOTE: call init handler
@@ -667,9 +667,9 @@ i32 orca_runloop(void* user)
     {
         oc_rect content = oc_window_get_content_rect(app->window);
 
-        oc_wasm_val params[2];
-        params[0].I32 = (i32)content.w;
-        params[1].I32 = (i32)content.h;
+        wa_value params[2];
+        params[0].valI32 = (i32)content.w;
+        params[1].valI32 = (i32)content.h;
 
         wa_status status = oc_wasm_function_call(app->env.wasm, exports[OC_EXPORT_FRAME_RESIZE], params, oc_array_size(params), NULL, 0);
         OC_WASM_TRAP(status);
@@ -713,7 +713,7 @@ i32 orca_runloop(void* user)
                         oc_event* eventPtr = (oc_event*)oc_wasm_address_to_ptr(app->env.rawEventOffset, sizeof(oc_event));
                         memcpy(eventPtr, events[i], sizeof(*events[i]));
 
-                        oc_wasm_val eventOffset = { .I32 = (i32)app->env.rawEventOffset };
+                        wa_value eventOffset = { .valI32 = (i32)app->env.rawEventOffset };
                         wa_status status = oc_wasm_function_call(app->env.wasm, exports[OC_EXPORT_RAW_EVENT], &eventOffset, 1, NULL, 0);
                         OC_WASM_TRAP(status);
                     }
@@ -741,9 +741,9 @@ i32 orca_runloop(void* user)
 
                     if(exports[OC_EXPORT_FRAME_RESIZE])
                     {
-                        oc_wasm_val params[2];
-                        params[0].I32 = (i32)event->move.content.w;
-                        params[1].I32 = (i32)event->move.content.h;
+                        wa_value params[2];
+                        params[0].valI32 = (i32)event->move.content.w;
+                        params[1].valI32 = (i32)event->move.content.h;
 
                         wa_status status = oc_wasm_function_call(app->env.wasm, exports[OC_EXPORT_FRAME_RESIZE], params, oc_array_size(params), NULL, 0);
                         OC_WASM_TRAP(status);
@@ -757,7 +757,7 @@ i32 orca_runloop(void* user)
                     {
                         if(exports[OC_EXPORT_MOUSE_DOWN])
                         {
-                            oc_wasm_val button = { .I32 = event->key.button };
+                            wa_value button = { .valI32 = event->key.button };
 
                             wa_status status = oc_wasm_function_call(app->env.wasm, exports[OC_EXPORT_MOUSE_DOWN], &button, 1, NULL, 0);
                             OC_WASM_TRAP(status);
@@ -767,7 +767,7 @@ i32 orca_runloop(void* user)
                     {
                         if(exports[OC_EXPORT_MOUSE_UP])
                         {
-                            oc_wasm_val button = { .I32 = event->key.button };
+                            wa_value button = { .valI32 = event->key.button };
 
                             wa_status status = oc_wasm_function_call(app->env.wasm, exports[OC_EXPORT_MOUSE_UP], &button, 1, NULL, 0);
                             OC_WASM_TRAP(status);
@@ -780,9 +780,9 @@ i32 orca_runloop(void* user)
                 {
                     if(exports[OC_EXPORT_MOUSE_WHEEL])
                     {
-                        oc_wasm_val params[2];
-                        params[0].F32 = event->mouse.deltaX;
-                        params[1].F32 = event->mouse.deltaY;
+                        wa_value params[2];
+                        params[0].valF32 = event->mouse.deltaX;
+                        params[1].valF32 = event->mouse.deltaY;
 
                         wa_status status = oc_wasm_function_call(app->env.wasm, exports[OC_EXPORT_MOUSE_WHEEL], params, oc_array_size(params), NULL, 0);
                         OC_WASM_TRAP(status);
@@ -794,11 +794,11 @@ i32 orca_runloop(void* user)
                 {
                     if(exports[OC_EXPORT_MOUSE_MOVE])
                     {
-                        oc_wasm_val params[4];
-                        params[0].F32 = event->mouse.x;
-                        params[1].F32 = event->mouse.y;
-                        params[2].F32 = event->mouse.deltaX;
-                        params[3].F32 = event->mouse.deltaY;
+                        wa_value params[4];
+                        params[0].valF32 = event->mouse.x;
+                        params[1].valF32 = event->mouse.y;
+                        params[2].valF32 = event->mouse.deltaX;
+                        params[3].valF32 = event->mouse.deltaY;
 
                         wa_status status = oc_wasm_function_call(app->env.wasm, exports[OC_EXPORT_MOUSE_MOVE], params, oc_array_size(params), NULL, 0);
                         OC_WASM_TRAP(status);
@@ -819,9 +819,9 @@ i32 orca_runloop(void* user)
 
                         if(exports[OC_EXPORT_KEY_DOWN])
                         {
-                            oc_wasm_val params[2];
-                            params[0].I32 = event->key.scanCode;
-                            params[1].I32 = event->key.keyCode;
+                            wa_value params[2];
+                            params[0].valI32 = event->key.scanCode;
+                            params[1].valI32 = event->key.keyCode;
 
                             wa_status status = oc_wasm_function_call(app->env.wasm, exports[OC_EXPORT_KEY_DOWN], params, oc_array_size(params), NULL, 0);
                             OC_WASM_TRAP(status);
@@ -831,9 +831,9 @@ i32 orca_runloop(void* user)
                     {
                         if(exports[OC_EXPORT_KEY_UP])
                         {
-                            oc_wasm_val params[2];
-                            params[0].I32 = event->key.scanCode;
-                            params[1].I32 = event->key.keyCode;
+                            wa_value params[2];
+                            params[0].valI32 = event->key.scanCode;
+                            params[1].valI32 = event->key.keyCode;
 
                             wa_status status = oc_wasm_function_call(app->env.wasm, exports[OC_EXPORT_KEY_UP], params, oc_array_size(params), NULL, 0);
                             OC_WASM_TRAP(status);

@@ -7,21 +7,6 @@
 
 typedef struct wa_instance wa_instance;
 
-typedef union wa_value
-{
-    i32 valI32;
-    i64 valI64;
-    f32 valF32;
-    f64 valF64;
-
-    //TODO v128, funcref, externref...
-    struct
-    {
-        wa_instance* refInstance;
-        u32 refIndex;
-    };
-} wa_value;
-
 typedef struct wa_typed_value
 {
     wa_value_type type;
