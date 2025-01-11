@@ -28,37 +28,12 @@ typedef struct wa_global
     wa_value value;
 } wa_global;
 
-typedef enum wa_limits_kind
-{
-    WA_LIMIT_MIN = 0,
-    WA_LIMIT_MIN_MAX = 1,
-} wa_limits_kind;
-
-typedef struct wa_limits
-{
-    wa_limits_kind kind;
-    u32 min;
-    u32 max;
-
-} wa_limits;
-
 typedef struct wa_table
 {
     wa_value_type type;
     wa_limits limits;
     wa_value* contents;
 } wa_table;
-
-typedef struct wa_memory
-{
-    wa_limits limits;
-    char* ptr;
-} wa_memory;
-
-enum
-{
-    WA_PAGE_SIZE = 64 * 1 << 10,
-};
 
 typedef enum wa_binding_kind
 {

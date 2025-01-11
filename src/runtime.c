@@ -480,10 +480,6 @@ char valtype_to_tag(wa_value_type type)
 void oc_wasm_env_init(oc_wasm_env* runtime)
 {
     memset(runtime, 0, sizeof(oc_wasm_env));
-    oc_base_allocator* allocator = oc_base_allocator_default();
-    runtime->wasmMemory.committed = 0;
-    runtime->wasmMemory.reserved = 4ULL << 30;
-    runtime->wasmMemory.ptr = oc_base_reserve(allocator, runtime->wasmMemory.reserved);
 }
 
 #include "wasmbind/clock_api_bind_gen.c"
@@ -550,7 +546,7 @@ i32 orca_runloop(void* user)
     }
 
     {
-        OC_WASM_TRAP(oc_wasm_instantiate(app->env.wasm, OC_STR8("module"), &app->env.wasmMemory));
+        OC_WASM_TRAP(oc_wasm_instantiate(app->env.wasm, OC_STR8("module")));
     }
 
     //NOTE: Find and type check event handlers.

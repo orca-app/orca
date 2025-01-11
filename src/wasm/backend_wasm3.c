@@ -30,6 +30,8 @@ typedef struct oc_wasm
     oc_arena arena;
     oc_list bindings;
 
+    wa_memory memory;
+
     IM3Environment m3Env;
     IM3Runtime m3Runtime;
     IM3Module m3Module;
@@ -271,13 +273,17 @@ wa_status oc_wasm_add_binding(oc_wasm* wasm, oc_wasm_binding* binding)
     return WA_OK;
 }
 
-wa_status oc_wasm_instantiate(oc_wasm* wasm, oc_str8 moduleDebugName, oc_wasm_memory* memory)
+wa_status oc_wasm_instantiate(oc_wasm* wasm, oc_str8 moduleDebugName)
 {
+    oc_base_allocator* allocator = oc_base_allocator_default();
+    wasm->memory.limits.min = 0;
+    wasm->memory.limits.max = (4ULL << 30) / WA_PAGE_SIZE;
+    wasm->memory.ptr = oc_base_reserve(allocator, (4ULL << 30));
+
     m3_RuntimeSetMemoryCallbacks(wasm->m3Runtime,
                                  oc_runtime_wasm_memory_resize_callback,
                                  oc_runtime_wasm_memory_free_callback,
-                                 (void*)memory);
-
+                                 (void*)&wasm->memory);
     {
         M3Result res = m3_LoadModule(wasm->m3Runtime, wasm->m3Module);
         if(res)

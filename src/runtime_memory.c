@@ -17,23 +17,23 @@ void* oc_runtime_wasm_memory_resize_callback(void* p, unsigned long newSize, voi
     //      For the wasm3 backend, the size passed includes the wasm3 memory header.
     //      We first align it on 4K page size.
 
-    newSize = oc_align_up_pow2(newSize, 4 << 10);
+    newSize = oc_align_up_pow2(newSize, WA_PAGE_SIZE);
 
-    oc_wasm_memory* memory = (oc_wasm_memory*)userData;
+    wa_memory* memory = (wa_memory*)userData;
+    u64 committed = (u64)memory->limits.min * WA_PAGE_SIZE;
+    u64 reserved = (u64)memory->limits.max * WA_PAGE_SIZE;
 
-    if(memory->committed >= newSize)
+    if(committed >= newSize)
     {
         return (memory->ptr);
     }
-    else if(newSize <= memory->reserved)
+    else if(newSize <= reserved)
     {
-        u32 commitSize = newSize - memory->committed;
+        u32 commitSize = newSize - committed;
 
         oc_base_allocator* allocator = oc_base_allocator_default();
-        oc_base_commit(allocator, memory->ptr + memory->committed, commitSize);
-        memory->committed += commitSize;
-
-        OC_DEBUG_ASSERT((memory->committed & 0xfff) == 0, "Committed pointer is not aligned on page size");
+        oc_base_commit(allocator, memory->ptr + committed, commitSize);
+        memory->limits.min += commitSize / WA_PAGE_SIZE;
 
         return (memory->ptr);
     }
@@ -46,17 +46,16 @@ void* oc_runtime_wasm_memory_resize_callback(void* p, unsigned long newSize, voi
 
 void oc_runtime_wasm_memory_free_callback(void* p, void* userData)
 {
-    oc_wasm_memory* memory = (oc_wasm_memory*)userData;
+    wa_memory* memory = (wa_memory*)userData;
 
     oc_base_allocator* allocator = oc_base_allocator_default();
-    oc_base_release(allocator, memory->ptr, memory->reserved);
-    memset(memory, 0, sizeof(oc_wasm_memory));
+    oc_base_release(allocator, memory->ptr, memory->limits.max * WA_PAGE_SIZE);
+    memset(memory, 0, sizeof(wa_memory));
 }
 
 extern u32 oc_mem_grow(u64 size)
 {
     oc_wasm_env* env = oc_runtime_get_env();
-    oc_wasm_memory* memory = &env->wasmMemory;
 
     u64 oldMemSize = oc_wasm_mem_size(env->wasm);
 

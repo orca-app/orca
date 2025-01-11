@@ -122,7 +122,7 @@ wa_status oc_wasm_add_binding(oc_wasm* wasm, oc_wasm_binding* binding)
     return (WA_OK);
 }
 
-wa_status oc_wasm_instantiate(oc_wasm* wasm, oc_str8 moduleDebugName, oc_wasm_memory* memory)
+wa_status oc_wasm_instantiate(oc_wasm* wasm, oc_str8 moduleDebugName)
 {
     oc_arena_scope scratch = oc_scratch_begin();
 

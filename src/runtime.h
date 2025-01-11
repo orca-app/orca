@@ -57,7 +57,6 @@ const oc_export_desc OC_EXPORT_DESC[] = {
 typedef struct oc_wasm_env
 {
     oc_str8 wasmBytecode;
-    oc_wasm_memory wasmMemory;
 
     oc_wasm* wasm;
     oc_wasm_function_handle* exports[OC_EXPORT_COUNT];

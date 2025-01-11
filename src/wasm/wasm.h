@@ -109,6 +109,31 @@ typedef struct wa_func_type
 
 } wa_func_type;
 
+typedef enum wa_limits_kind
+{
+    WA_LIMIT_MIN = 0,
+    WA_LIMIT_MIN_MAX = 1,
+} wa_limits_kind;
+
+typedef struct wa_limits
+{
+    wa_limits_kind kind;
+    u32 min;
+    u32 max;
+
+} wa_limits;
+
+typedef struct wa_memory
+{
+    wa_limits limits;
+    char* ptr;
+} wa_memory;
+
+enum
+{
+    WA_PAGE_SIZE = 64 * 1 << 10,
+};
+
 struct oc_wasm;
 typedef struct oc_wasm oc_wasm;
 
@@ -131,14 +156,6 @@ enum
 {
     OC_WASM_MEM_PAGE_SIZE = 1024 * 64, // 64KB
 };
-
-typedef struct oc_wasm_memory
-{
-    char* ptr;
-    u64 reserved;
-    u64 committed;
-
-} oc_wasm_memory;
 
 typedef u32 oc_wasm_addr;
 typedef u32 oc_wasm_size;
@@ -163,7 +180,7 @@ void oc_wasm_destroy(oc_wasm* wasm);
 
 wa_status oc_wasm_decode(oc_wasm* wasm, oc_str8 wasmBlob);
 wa_status oc_wasm_add_binding(oc_wasm* wasm, oc_wasm_binding* binding);
-wa_status oc_wasm_instantiate(oc_wasm* wasm, oc_str8 moduleDebugName, oc_wasm_memory* memory);
+wa_status oc_wasm_instantiate(oc_wasm* wasm, oc_str8 moduleDebugName);
 
 u64 oc_wasm_mem_size(oc_wasm* wasm);
 oc_str8 oc_wasm_mem_get(oc_wasm* wasm);
