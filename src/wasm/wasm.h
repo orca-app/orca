@@ -21,25 +21,45 @@
     #define OC_WASM_BACKEND_WARM 0
 #endif
 
-typedef enum oc_wasm_status
+#define WA_STATUS(_)                                                              \
+    _(WA_OK, "success")                                                           \
+    /* parse/validation errors */                                                 \
+    _(WA_PARSE_ERROR, "parsing error")                                            \
+    _(WA_VALIDATION_TYPE_MISMATCH, "validation error: type mismatch")             \
+    _(WA_VALIDATION_INVALID_TYPE, "validation error: invalid type index")         \
+    _(WA_VALIDATION_INVALID_FUNCTION, "validation error: invalid function index") \
+    _(WA_VALIDATION_INVALID_GLOBAL, "validation error: invalid global index")     \
+    _(WA_VALIDATION_INVALID_LOCAL, "validation error: invalid local index")       \
+    _(WA_VALIDATION_INVALID_TABLE, "validation error: invalid table index")       \
+    _(WA_VALIDATION_INVALID_MEMORY, "validation error: invalid memory index")     \
+    /* instantiation / invocation errors*/                                        \
+    _(WA_FAIL_INVALID_ARGS, "invocation error: invalid arguments")                \
+    _(WA_FAIL_MISSING_IMPORT, "instantiation error: missing import")              \
+    _(WA_FAIL_IMPORT_TYPE_MISMATCH, "instantiation error: import type mismatch")  \
+    /* runtime traps */                                                           \
+    _(WA_TRAP_UNREACHABLE, "trap: unreachable")                                   \
+    _(WA_TRAP_INVALID_OP, "trap: invalid opcode")                                 \
+    _(WA_TRAP_DIVIDE_BY_ZERO, "trap: divide by zero")                             \
+    _(WA_TRAP_INTEGER_OVERFLOW, "trap: integer overflow")                         \
+    _(WA_TRAP_INVALID_INTEGER_CONVERSION, "trap: invalid integer conversion")     \
+    _(WA_TRAP_STACK_OVERFLOW, "trap: stack overflow")                             \
+    _(WA_TRAP_MEMORY_OUT_OF_BOUNDS, "trap: out of bounds memory access")          \
+    _(WA_TRAP_TABLE_OUT_OF_BOUNDS, "trap: out of bounds table access")            \
+    _(WA_TRAP_REF_NULL, "trap: ref null")                                         \
+    _(WA_TRAP_INDIRECT_CALL_TYPE_MISMATCH, "trap: indirect call type mismatch")   \
+    /* debug traps */                                                             \
+    _(WA_TRAP_BREAKPOINT, "debug trap: breakpoint")                               \
+    _(WA_TRAP_STEP, "debug trap: step")                                           \
+    _(WA_TRAP_TERMINATED, "debug trap: terminated")
+
+typedef enum wa_status
 {
-    OC_WASM_STATUS_SUCCESS,
-    OC_WASM_STATUS_FAIL_UNKNOWN,
-    OC_WASM_STATUS_FAIL_MEMALLOC,
-    OC_WASM_STATUS_FAIL_DECODE,
-    OC_WASM_STATUS_FAIL_INSTANTIATE,
-    OC_WASM_STATUS_FAIL_TRAP_OUTOFBOUNDSMEMORYACCESS,
-    OC_WASM_STATUS_FAIL_TRAP_DIVISIONBYZERO,
-    OC_WASM_STATUS_FAIL_TRAP_INTEGEROVERFLOW,
-    OC_WASM_STATUS_FAIL_TRAP_INTEGERCONVERSION,
-    OC_WASM_STATUS_FAIL_TRAP_INDIRECTCALLTYPEMISMATCH,
-    OC_WASM_STATUS_FAIL_TRAP_TABLEINDEXOUTOFRANGE,
-    OC_WASM_STATUS_FAIL_TRAP_TABLEELEMENTISNULL,
-    OC_WASM_STATUS_FAIL_TRAP_EXIT,
-    OC_WASM_STATUS_FAIL_TRAP_ABORT,
-    OC_WASM_STATUS_FAIL_TRAP_UNREACHABLE,
-    OC_WASM_STATUS_FAIL_TRAP_STACKOVERFLOW,
-} oc_wasm_status;
+
+#define X(n, s) n,
+    WA_STATUS(X)
+#undef X
+        WA_STATUS_COUNT,
+} wa_status;
 
 typedef enum oc_wasm_valtype
 {
@@ -94,17 +114,6 @@ enum
     OC_WASM_MEM_PAGE_SIZE = 1024 * 64, // 64KB
 };
 
-typedef void* (*oc_wasm_mem_resize_proc)(void* p, unsigned long newSize, void* userdata);
-typedef void (*oc_wasm_memory_free_proc)(void* p, void* userdata);
-
-/*
-typedef struct oc_wasm_mem_callbacks
-{
-    oc_wasm_mem_resize_proc resizeProc;
-    oc_wasm_memory_free_proc freeProc;
-    void* userdata;
-} oc_wasm_mem_callbacks;
-*/
 typedef struct oc_wasm_memory
 {
     char* ptr;
@@ -128,8 +137,8 @@ typedef struct oc_wasm_global_pointer
 
 typedef struct oc_wasm oc_wasm;
 
-bool oc_wasm_status_is_fail(oc_wasm_status status);
-oc_str8 oc_wasm_status_str8(oc_wasm_status status);
+bool wa_status_is_fail(wa_status status);
+oc_str8 wa_status_str8(wa_status status);
 
 size_t oc_wasm_valtype_size(oc_wasm_valtype valtype);
 oc_str8 oc_wasm_valtype_str8(oc_wasm_valtype valtype);
@@ -137,17 +146,17 @@ oc_str8 oc_wasm_valtype_str8(oc_wasm_valtype valtype);
 oc_wasm* oc_wasm_create(void);
 void oc_wasm_destroy(oc_wasm* wasm);
 
-oc_wasm_status oc_wasm_decode(oc_wasm* wasm, oc_str8 wasmBlob);
-oc_wasm_status oc_wasm_add_binding(oc_wasm* wasm, oc_wasm_binding* binding);
-oc_wasm_status oc_wasm_instantiate(oc_wasm* wasm, oc_str8 moduleDebugName, oc_wasm_memory* memory);
+wa_status oc_wasm_decode(oc_wasm* wasm, oc_str8 wasmBlob);
+wa_status oc_wasm_add_binding(oc_wasm* wasm, oc_wasm_binding* binding);
+wa_status oc_wasm_instantiate(oc_wasm* wasm, oc_str8 moduleDebugName, oc_wasm_memory* memory);
 
 u64 oc_wasm_mem_size(oc_wasm* wasm);
 oc_str8 oc_wasm_mem_get(oc_wasm* wasm);
-oc_wasm_status oc_wasm_mem_resize(oc_wasm* wasm, u32 countPages);
+wa_status oc_wasm_mem_resize(oc_wasm* wasm, u32 countPages);
 
 oc_wasm_function_handle* oc_wasm_function_find(oc_wasm* wasm, oc_str8 exportName);
 oc_wasm_function_info oc_wasm_function_get_info(oc_arena* scratch, oc_wasm* wasm, oc_wasm_function_handle* handle);
-oc_wasm_status oc_wasm_function_call(oc_wasm* wasm, oc_wasm_function_handle* handle, oc_wasm_val* params, size_t countParams, oc_wasm_val* returns, size_t countReturns);
+wa_status oc_wasm_function_call(oc_wasm* wasm, oc_wasm_function_handle* handle, oc_wasm_val* params, size_t countParams, oc_wasm_val* returns, size_t countReturns);
 
 oc_wasm_global_handle* oc_wasm_global_find(oc_wasm* wasm, oc_str8 exportName, oc_wasm_valtype expectedType);
 oc_wasm_val oc_wasm_global_get_value(oc_wasm_global_handle* global);
@@ -157,9 +166,9 @@ oc_wasm_global_pointer oc_wasm_global_pointer_find(oc_wasm* wasm, oc_str8 export
 //////////////////////////////////////////////////////////////////
 // Inline implementation
 
-inline bool oc_wasm_status_is_fail(oc_wasm_status status)
+inline bool wa_status_is_fail(wa_status status)
 {
-    return status != OC_WASM_STATUS_SUCCESS;
+    return status != WA_OK;
 }
 
 #endif // __WASM_H_

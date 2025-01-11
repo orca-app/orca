@@ -7,6 +7,7 @@
 **************************************************************************/
 
 #include "wasm.h"
+#include "util/strings.h"
 
 size_t oc_wasm_valtype_size(oc_wasm_valtype valtype)
 {
@@ -46,45 +47,21 @@ oc_str8 oc_wasm_valtype_str(oc_wasm_valtype valtype)
     return OC_STR8("unknown");
 }
 
-oc_str8 oc_wasm_status_str8(oc_wasm_status status)
+static oc_str8 WA_STATUS_STRINGS[] = {
+#define X(n, s) OC_STR8_LIT(s),
+    WA_STATUS(X)
+#undef X
+};
+
+oc_str8 wa_status_str8(wa_status status)
 {
-    switch(status)
+    if(status < WA_STATUS_COUNT)
     {
-        case OC_WASM_STATUS_SUCCESS:
-            return OC_STR8("success");
-        case OC_WASM_STATUS_FAIL_UNKNOWN:
-            return OC_STR8("unknown");
-        case OC_WASM_STATUS_FAIL_MEMALLOC:
-            return OC_STR8("memalloc failure");
-        case OC_WASM_STATUS_FAIL_DECODE:
-            return OC_STR8("decode failure");
-        case OC_WASM_STATUS_FAIL_INSTANTIATE:
-            return OC_STR8("instantiate failure");
-        case OC_WASM_STATUS_FAIL_TRAP_OUTOFBOUNDSMEMORYACCESS:
-            return OC_STR8("trap: outofboundsmemoryaccess");
-        case OC_WASM_STATUS_FAIL_TRAP_DIVISIONBYZERO:
-            return OC_STR8("trap: division by zero");
-        case OC_WASM_STATUS_FAIL_TRAP_INTEGEROVERFLOW:
-            return OC_STR8("trap: integer overflow");
-        case OC_WASM_STATUS_FAIL_TRAP_INTEGERCONVERSION:
-            return OC_STR8("trap: integer conversion");
-        case OC_WASM_STATUS_FAIL_TRAP_INDIRECTCALLTYPEMISMATCH:
-            return OC_STR8("trap: indirect call type mismatch");
-        case OC_WASM_STATUS_FAIL_TRAP_TABLEINDEXOUTOFRANGE:
-            return OC_STR8("trap: table index out of range");
-        case OC_WASM_STATUS_FAIL_TRAP_TABLEELEMENTISNULL:
-            return OC_STR8("trap: table element is null");
-        case OC_WASM_STATUS_FAIL_TRAP_EXIT:
-            return OC_STR8("trap: exit");
-        case OC_WASM_STATUS_FAIL_TRAP_ABORT:
-            return OC_STR8("trap: abort");
-        case OC_WASM_STATUS_FAIL_TRAP_UNREACHABLE:
-            return OC_STR8("trap: unreachable");
-        case OC_WASM_STATUS_FAIL_TRAP_STACKOVERFLOW:
-            return OC_STR8("trap: stack overflow");
+        return (WA_STATUS_STRINGS[status]);
     }
-
-    OC_ASSERT(false, "unhandled case %d", status);
-
-    return OC_STR8("unknown");
+    else
+    {
+        OC_ASSERT(0, "unhandled wasm status %d", status);
+        return (OC_STR8("error: unknown"));
+    }
 }

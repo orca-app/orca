@@ -7833,7 +7833,7 @@ wa_status wa_instance_invoke(wa_instance* instance,
 {
     if(argCount != func->type->paramCount || retCount != func->type->returnCount)
     {
-        return WA_ERROR_INVALID_ARGS;
+        return WA_FAIL_INVALID_ARGS;
     }
 
     if(func->code)

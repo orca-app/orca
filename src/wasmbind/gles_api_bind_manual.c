@@ -1109,14 +1109,14 @@ void glGetStringi_stub(const i64* restrict _params, i64* restrict _returns, u8* 
 
 int manual_link_gles_api(oc_wasm* wasm)
 {
-#define BINDING_ERROR_HANDLING(name)                                                                        \
-    if(oc_wasm_status_is_fail(status))                                                                      \
-    {                                                                                                       \
-        oc_log_error("Couldn't link function " #name " (%.*s)\n", oc_str8_ip(oc_wasm_status_str8(status))); \
-        ret = -1;                                                                                           \
+#define BINDING_ERROR_HANDLING(name)                                                                   \
+    if(wa_status_is_fail(status))                                                                      \
+    {                                                                                                  \
+        oc_log_error("Couldn't link function " #name " (%.*s)\n", oc_str8_ip(wa_status_str8(status))); \
+        ret = -1;                                                                                      \
     }
 
-    oc_wasm_status status;
+    wa_status status;
     int ret = 0;
 
     static_assert(OC_WASM_VALTYPE_I32 == 0, "wasm i32 valtype should be 0");

@@ -36,16 +36,17 @@ void oc_wasm_destroy(oc_wasm* wasm)
     free(wasm);
 }
 
-oc_wasm_status oc_wasm_decode(oc_wasm* wasm, oc_str8 wasmBlob)
+wa_status oc_wasm_decode(oc_wasm* wasm, oc_str8 wasmBlob)
 {
     wasm->module = wa_module_create(&wasm->arena, wasmBlob);
 
     if(wa_module_has_errors(wasm->module))
     {
         wa_module_print_errors(wasm->module);
-        return (OC_WASM_STATUS_FAIL_DECODE);
+
+        return (WA_PARSE_ERROR); ////TODO: this is only temporary, later change the API for module creation to allow retrieving more errors
     }
-    return OC_WASM_STATUS_SUCCESS;
+    return WA_OK;
 }
 
 typedef struct wa_import_binding_elt
@@ -119,7 +120,7 @@ oc_wasm_valtype oc_wa_value_type_to_wasm_valtype(wa_value_type type)
     }
 }
 
-oc_wasm_status oc_wasm_add_binding(oc_wasm* wasm, oc_wasm_binding* binding)
+wa_status oc_wasm_add_binding(oc_wasm* wasm, oc_wasm_binding* binding)
 {
     wa_import_binding_elt* elt = oc_arena_push_type(&wasm->arena, wa_import_binding_elt);
 
@@ -157,10 +158,10 @@ oc_wasm_status oc_wasm_add_binding(oc_wasm* wasm, oc_wasm_binding* binding)
     oc_list_push_back(&wasm->bindings, &elt->listElt);
     wasm->bindingCount++;
 
-    return (OC_WASM_STATUS_SUCCESS);
+    return (WA_OK);
 }
 
-oc_wasm_status oc_wasm_instantiate(oc_wasm* wasm, oc_str8 moduleDebugName, oc_wasm_memory* memory)
+wa_status oc_wasm_instantiate(oc_wasm* wasm, oc_str8 moduleDebugName, oc_wasm_memory* memory)
 {
     oc_arena_scope scratch = oc_scratch_begin();
 
@@ -185,14 +186,7 @@ oc_wasm_status oc_wasm_instantiate(oc_wasm* wasm, oc_str8 moduleDebugName, oc_wa
 
     oc_scratch_end(scratch);
 
-    if(wasm->instance->status == WA_OK)
-    {
-        return OC_WASM_STATUS_SUCCESS;
-    }
-    else
-    {
-        return OC_WASM_STATUS_FAIL_INSTANTIATE;
-    }
+    return (wasm->instance->status);
 }
 
 u64 oc_wasm_mem_size(oc_wasm* wasm)
@@ -208,7 +202,7 @@ oc_str8 oc_wasm_mem_get(oc_wasm* wasm)
     };
 }
 
-oc_wasm_status oc_wasm_mem_resize(oc_wasm* wasm, u32 n)
+wa_status oc_wasm_mem_resize(oc_wasm* wasm, u32 n)
 {
     wa_memory* mem = wasm->instance->memories[0];
 
@@ -218,9 +212,9 @@ oc_wasm_status oc_wasm_mem_resize(oc_wasm* wasm, u32 n)
         oc_base_allocator* allocator = oc_base_allocator_default();
         oc_base_commit(allocator, mem->ptr, n * WA_PAGE_SIZE);
         mem->limits.min = n;
-        return OC_WASM_STATUS_SUCCESS;
+        return WA_OK;
     }
-    return OC_WASM_STATUS_FAIL_MEMALLOC;
+    return WA_TRAP_MEMORY_OUT_OF_BOUNDS;
 }
 
 oc_wasm_function_handle* oc_wasm_function_find(oc_wasm* wasm, oc_str8 exportName)
@@ -266,12 +260,12 @@ oc_wasm_function_info oc_wasm_function_get_info(oc_arena* scratch, oc_wasm* wasm
     return (res);
 }
 
-oc_wasm_status oc_wasm_function_call(oc_wasm* wasm,
-                                     oc_wasm_function_handle* handle,
-                                     oc_wasm_val* params,
-                                     size_t countParams,
-                                     oc_wasm_val* returns,
-                                     size_t countReturns)
+wa_status oc_wasm_function_call(oc_wasm* wasm,
+                                oc_wasm_function_handle* handle,
+                                oc_wasm_val* params,
+                                size_t countParams,
+                                oc_wasm_val* returns,
+                                size_t countReturns)
 {
     //////////////////////////////////////////////////////
     //TODO: avoid having to do this marshalling
@@ -298,16 +292,7 @@ oc_wasm_status oc_wasm_function_call(oc_wasm* wasm,
     }
 
     oc_scratch_end(scratch);
-
-    if(status == WA_OK)
-    {
-        return OC_WASM_STATUS_SUCCESS;
-    }
-    else
-    {
-        //TODO: translate errors
-        return OC_WASM_STATUS_FAIL_UNKNOWN;
-    }
+    return status;
 }
 
 oc_wasm_global_handle* oc_wasm_global_find(oc_wasm* wasm, oc_str8 exportName, oc_wasm_valtype expectedType);
