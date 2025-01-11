@@ -550,13 +550,7 @@ i32 orca_runloop(void* user)
     }
 
     {
-        oc_wasm_mem_callbacks wasm_mem_callbacks = {
-            .resizeProc = oc_runtime_wasm_memory_resize_callback,
-            .freeProc = oc_runtime_wasm_memory_free_callback,
-            .userdata = &app->env.wasmMemory,
-        };
-
-        OC_WASM_TRAP(oc_wasm_instantiate(app->env.wasm, OC_STR8("module"), wasm_mem_callbacks));
+        OC_WASM_TRAP(oc_wasm_instantiate(app->env.wasm, OC_STR8("module"), &app->env.wasmMemory));
     }
 
     //NOTE: Find and type check event handlers.

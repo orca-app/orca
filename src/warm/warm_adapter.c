@@ -160,7 +160,7 @@ oc_wasm_status oc_wasm_add_binding(oc_wasm* wasm, oc_wasm_binding* binding)
     return (OC_WASM_STATUS_SUCCESS);
 }
 
-oc_wasm_status oc_wasm_instantiate(oc_wasm* wasm, oc_str8 moduleDebugName, oc_wasm_mem_callbacks memCallbacks)
+oc_wasm_status oc_wasm_instantiate(oc_wasm* wasm, oc_str8 moduleDebugName, oc_wasm_memory* memory)
 {
     oc_arena_scope scratch = oc_scratch_begin();
 

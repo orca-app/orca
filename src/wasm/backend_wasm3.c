@@ -267,12 +267,12 @@ oc_wasm_status oc_wasm_add_binding(oc_wasm* wasm, oc_wasm_binding* binding)
     return OC_WASM_STATUS_SUCCESS;
 }
 
-oc_wasm_status oc_wasm_instantiate(oc_wasm* wasm, oc_str8 moduleDebugName, oc_wasm_mem_callbacks memCallbacks)
+oc_wasm_status oc_wasm_instantiate(oc_wasm* wasm, oc_str8 moduleDebugName, oc_wasm_memory* memory)
 {
-    OC_ASSERT(memCallbacks.resizeProc);
-    OC_ASSERT(memCallbacks.freeProc);
-
-    m3_RuntimeSetMemoryCallbacks(wasm->m3Runtime, memCallbacks.resizeProc, memCallbacks.freeProc, memCallbacks.userdata);
+    m3_RuntimeSetMemoryCallbacks(wasm->m3Runtime,
+                                 oc_runtime_wasm_memory_resize_callback,
+                                 oc_runtime_wasm_memory_free_callback,
+                                 (void*)memory);
 
     {
         M3Result res = m3_LoadModule(wasm->m3Runtime, wasm->m3Module);

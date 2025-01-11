@@ -46,7 +46,7 @@ def attach_dev_commands(subparsers):
 
     runtime_cmd = subparsers.add_parser("build-runtime", help="Build the Orca runtime from source.")
     runtime_cmd.add_argument("--release", action="store_true", help="compile in release mode (default is debug)")
-    runtime_cmd.add_argument("--wasm-backend", help="specify a wasm backend. Options: wasm3 (default), bytebox")
+    runtime_cmd.add_argument("--wasm-backend", default="wasm3", help="specify a wasm backend. Options: wasm3 (default), bytebox")
     runtime_cmd.set_defaults(func=dev_shellish(build_runtime))
 
     libc_cmd = subparsers.add_parser("build-orca-libc", help="Build the Orca libC from source.")

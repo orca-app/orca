@@ -28,7 +28,6 @@ typedef struct oc_wasm
 {
     oc_arena arena;
     oc_list bindings;
-    oc_wasm_mem_callbacks memCallbacks;
 
     bb_import_package* imports;
     bb_module_definition* definition;
@@ -130,18 +129,18 @@ static void oc_wasm_binding_bytebox_thunk(void* userdata, bb_module_instance* mo
 
 static void* oc_wasm_mem_resize_bytebox(void* mem, size_t new_size_bytes, size_t old_size_bytes, void* userdata)
 {
-    oc_wasm_mem_callbacks* memCallbacks = (oc_wasm_mem_callbacks*)userdata;
-    return memCallbacks->resizeProc(mem, new_size_bytes, memCallbacks->userdata);
+    oc_wasm_memory* memory = (oc_wasm_memory*)userdata;
+    return oc_runtime_wasm_memory_resize_callback(mem, new_size_bytes, memory);
 }
 
 static void oc_wasm_mem_free_bytebox(void* mem, size_t size_bytes, void* userdata)
 {
-    oc_wasm_mem_callbacks* memCallbacks = (oc_wasm_mem_callbacks*)userdata;
-    memCallbacks->freeProc(mem, memCallbacks->userdata);
+    oc_wasm_memory* memory = (oc_wasm_memory*)userdata;
+    oc_runtime_wasm_memory_free_callback(mem, memory);
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
-// Wasm3 implementation of interface functions
+// bytebox implementation of interface functions
 
 oc_wasm_status oc_wasm_decode(oc_wasm* wasm, oc_str8 wasmBlob)
 {
@@ -164,7 +163,7 @@ oc_wasm_status oc_wasm_add_binding(oc_wasm* wasm, oc_wasm_binding* binding)
     }
 
     oc_wasm_binding_elt_bytebox* elt = oc_arena_push_type(&wasm->arena, oc_wasm_binding_elt_bytebox);
-    oc_list_push(&wasm->bindings, &elt->listElt);
+    oc_list_push_back(&wasm->bindings, &elt->listElt);
 
     elt->binding.proc = binding->proc;
     elt->binding.countParams = binding->countParams;
@@ -203,18 +202,14 @@ oc_wasm_status oc_wasm_add_binding(oc_wasm* wasm, oc_wasm_binding* binding)
 }
 
 // TODO move moduleDebugName to oc_wasm_decode()
-oc_wasm_status oc_wasm_instantiate(oc_wasm* wasm, oc_str8 moduleDebugName, oc_wasm_mem_callbacks memCallbacks)
+oc_wasm_status oc_wasm_instantiate(oc_wasm* wasm, oc_str8 moduleDebugName, oc_wasm_memory* memory)
 {
-    OC_ASSERT(memCallbacks.resizeProc);
-    OC_ASSERT(memCallbacks.freeProc);
-
     wasm->instance = bb_module_instance_create(wasm->definition);
-    wasm->memCallbacks = memCallbacks;
 
     bb_wasm_memory_config memconfig = {
         .resize_callback = oc_wasm_mem_resize_bytebox,
         .free_callback = oc_wasm_mem_free_bytebox,
-        .userdata = &wasm->memCallbacks,
+        .userdata = memory,
     };
 
     bb_module_instance_instantiate_opts opts = {

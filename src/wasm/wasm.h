@@ -97,12 +97,21 @@ enum
 typedef void* (*oc_wasm_mem_resize_proc)(void* p, unsigned long newSize, void* userdata);
 typedef void (*oc_wasm_memory_free_proc)(void* p, void* userdata);
 
+/*
 typedef struct oc_wasm_mem_callbacks
 {
     oc_wasm_mem_resize_proc resizeProc;
     oc_wasm_memory_free_proc freeProc;
     void* userdata;
 } oc_wasm_mem_callbacks;
+*/
+typedef struct oc_wasm_memory
+{
+    char* ptr;
+    u64 reserved;
+    u64 committed;
+
+} oc_wasm_memory;
 
 typedef u32 oc_wasm_addr;
 typedef u32 oc_wasm_size;
@@ -130,7 +139,7 @@ void oc_wasm_destroy(oc_wasm* wasm);
 
 oc_wasm_status oc_wasm_decode(oc_wasm* wasm, oc_str8 wasmBlob);
 oc_wasm_status oc_wasm_add_binding(oc_wasm* wasm, oc_wasm_binding* binding);
-oc_wasm_status oc_wasm_instantiate(oc_wasm* wasm, oc_str8 moduleDebugName, oc_wasm_mem_callbacks memCallbacks);
+oc_wasm_status oc_wasm_instantiate(oc_wasm* wasm, oc_str8 moduleDebugName, oc_wasm_memory* memory);
 
 u64 oc_wasm_mem_size(oc_wasm* wasm);
 oc_str8 oc_wasm_mem_get(oc_wasm* wasm);

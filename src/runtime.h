@@ -55,14 +55,6 @@ const oc_export_desc OC_EXPORT_DESC[] = {
 #undef OC_STR8_LIT
 };
 
-typedef struct oc_wasm_memory
-{
-    char* ptr;
-    u64 reserved;
-    u64 committed;
-
-} oc_wasm_memory;
-
 typedef struct oc_wasm_env
 {
     oc_str8 wasmBytecode;
