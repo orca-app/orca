@@ -48,6 +48,13 @@ fn makeDir(path: []const u8) !void {
     };
 }
 
+fn pathExists(dir: std.fs.Dir, path: []const u8) bool {
+    dir.access(path, .{}) catch {
+        return false;
+    };
+    return true;
+}
+
 const LibShas = struct {
     angle: []const u8,
     dawn: []const u8,
@@ -464,7 +471,7 @@ pub fn build(b: *Build) !void {
         orca_platform_lib.linkSystemLibrary("shcore");
         // orca_platform_lib.linkSystemLibrary("delayimp");
         orca_platform_lib.linkSystemLibrary("dwmapi");
-        orca_platform_lib.linkSystemLibrary2("comctl32", .{ .preferred_link_mode = .static });
+        orca_platform_lib.linkSystemLibrary("comctl32");
         orca_platform_lib.linkSystemLibrary("ole32");
         orca_platform_lib.linkSystemLibrary("shell32");
         orca_platform_lib.linkSystemLibrary("shlwapi");
@@ -513,7 +520,7 @@ pub fn build(b: *Build) !void {
     var orca_runtime_compile_flags = std.ArrayList([]const u8).init(b.allocator);
     defer orca_runtime_compile_flags.deinit();
     try orca_runtime_compile_flags.append("-DOC_WASM_BACKEND_WASM3=1");
-    try orca_runtime_compile_flags.append("-DOC_WASM_BACKEND_BYTEBOX=0");
+    try orca_runtime_compile_flags.append("-DOC_WASM_BACKEND_BYTEBOX=0"); // TODO remove bytebox support
     try orca_runtime_compile_flags.append("-fno-sanitize=undefined");
     if (optimize == .Debug) {
         try orca_runtime_compile_flags.append("-DOC_DEBUG");
@@ -1004,6 +1011,108 @@ pub fn build(b: *Build) !void {
     }
 
     b.getUninstallStep().dependOn(clean_step);
+
+    /////////////////////////////////////////////////////////////////
+    // sketches
+
+    var sketches = b.step("sketches", "Build all sketches into build/sketches");
+
+    const sketches_folders: []const []const u8 = &.{
+        //"atlas", // bitrotted
+        "canvas",
+        "canvas_test",
+        "canvas_triangle_stress",
+        "check-bleeding",
+        "colorspace",
+        "image",
+        "keyboard",
+        "minimalD3D12",
+        "minimalDawnWebGPU",
+        // "multi_surface", // bitrotted
+        "perf_text",
+        // "render_thread", // bitrotted
+        "simpleWindow",
+        "smiley",
+        //"smooth_resize", // bitrotted
+        // "test-clear", // wasm bundle test - probably should be in samples?
+        "tiger",
+        //"triangleGL", // openGL API no longer supported
+        "triangleGLES",
+        "triangleMetal",
+        // "triangleWGPU", // bitrotted
+        "ui",
+    };
+
+    const sketches_install_opts = Build.Step.InstallArtifact.Options{
+        .dest_dir = .{ .override = .{ .custom = "sketches" } },
+    };
+
+    const orca_platform_sketches_install: *Build.Step.InstallArtifact = b.addInstallArtifact(orca_platform_lib, sketches_install_opts);
+    sketches.dependOn(&orca_platform_sketches_install.step);
+
+    var stage_sketch_dependency_artifacts = b.addUpdateSourceFiles();
+    stage_sketch_dependency_artifacts.step.dependOn(&run_angle_uptodate.step);
+    stage_sketch_dependency_artifacts.addCopyFileToSource(b.path("sketches/resources/CMUSerif-Roman.ttf"), "build/sketches/resources/CMUSerif-Roman.ttf");
+    stage_sketch_dependency_artifacts.addCopyFileToSource(b.path("sketches/resources/Courier.ttf"), "build/sketches/resources/Courier.ttf");
+    stage_sketch_dependency_artifacts.addCopyFileToSource(b.path("sketches/resources/gamma-1.0-or-2.2.png"), "build/sketches/resources/gamma-1.0-or-2.2.png");
+    stage_sketch_dependency_artifacts.addCopyFileToSource(b.path("sketches/resources/gamma_dalai_lama_gray.png"), "build/sketches/resources/gamma_dalai_lama_gray.png");
+    stage_sketch_dependency_artifacts.addCopyFileToSource(b.path("sketches/resources/gradient_srgb.png"), "build/sketches/resources/gradient_srgb.png");
+    stage_sketch_dependency_artifacts.addCopyFileToSource(b.path("sketches/resources/OpenSansLatinSubset.ttf"), "build/sketches/resources/OpenSansLatinSubset.ttf");
+    stage_sketch_dependency_artifacts.addCopyFileToSource(b.path("sketches/resources/OpenSans-Regular.ttf"), "build/sketches/resources/OpenSans-Regular.ttf");
+    stage_sketch_dependency_artifacts.addCopyFileToSource(b.path("sketches/resources/OpenSans-Bold.ttf"), "build/sketches/resources/OpenSans-Bold.ttf");
+    stage_sketch_dependency_artifacts.addCopyFileToSource(b.path("sketches/resources/Top512.png"), "build/sketches/resources/Top512.png");
+    stage_sketch_dependency_artifacts.addCopyFileToSource(b.path("sketches/resources/triceratops.png"), "build/sketches/resources/triceratops.png");
+    if (target.result.os.tag == .windows) {
+        stage_sketch_dependency_artifacts.addCopyFileToSource(b.path("build/angle.out/bin/d3dcompiler_47.dll"), "build/sketches/d3dcompiler_47.dll");
+        stage_sketch_dependency_artifacts.addCopyFileToSource(b.path("build/angle.out/bin/libEGL.dll"), "build/sketches/libEGL.dll");
+        stage_sketch_dependency_artifacts.addCopyFileToSource(b.path("build/angle.out/bin/libEGL.dll.lib"), "build/sketches/libEGL.dll.lib");
+        stage_sketch_dependency_artifacts.addCopyFileToSource(b.path("build/angle.out/bin/libGLESv2.dll"), "build/sketches/libGLESv2.dll");
+        stage_sketch_dependency_artifacts.addCopyFileToSource(b.path("build/angle.out/bin/libGLESv2.dll.lib"), "build/sketches/libGLESv2.dll.lib");
+        stage_sketch_dependency_artifacts.addCopyFileToSource(b.path("build/dawn.out/bin/webgpu.dll"), "build/sketches/webgpu.dll");
+        stage_sketch_dependency_artifacts.addCopyFileToSource(b.path("build/dawn.out/bin/webgpu.lib"), "build/sketches/webgpu.lib");
+    } else {
+        stage_sketch_dependency_artifacts.addCopyFileToSource(b.path("build/angle.out/bin/libEGL.dylib"), "build/sketches/libEGL.dylib");
+        stage_sketch_dependency_artifacts.addCopyFileToSource(b.path("build/angle.out/bin/libGLESv2.dylib"), "build/sketches/libGLESv2.dylib");
+        stage_sketch_dependency_artifacts.addCopyFileToSource(b.path("build/dawn.out/bin/libwebgpu.dylib"), "build/sketches/libwebgpu.dll");
+    }
+    stage_sketch_dependency_artifacts.step.dependOn(&run_angle_uptodate.step);
+    stage_sketch_dependency_artifacts.step.dependOn(&run_dawn_uptodate.step);
+    sketches.dependOn(&stage_sketch_dependency_artifacts.step);
+
+    for (sketches_folders) |sketch| {
+        const sketch_source: []const u8 = b.pathJoin(&.{ "sketches", sketch, "main.c" });
+        if (pathExists(cwd, sketch_source) == false) {
+            continue;
+        }
+
+        if (std.mem.eql(u8, "triangleMetal", sketch) and target.result.os.tag.isDarwin() == false) {
+            continue;
+        }
+
+        const flags: []const []const u8 = &.{
+            "-Isrc",
+            "-Isrc/ext",
+            "-Isrc/ext/angle/include",
+            "-Isrc/ext/dawn/include",
+            "-Isrc/util",
+            "-Isrc/platform",
+        };
+
+        var sketch_exe: *Build.Step.Compile = b.addExecutable(.{
+            .name = sketch,
+            .target = target,
+            .optimize = optimize,
+        });
+        sketch_exe.addCSourceFiles(.{
+            .files = &.{sketch_source},
+            .flags = flags,
+        });
+        sketch_exe.linkLibC();
+        sketch_exe.linkLibrary(orca_platform_lib);
+
+        const install: *Build.Step.InstallArtifact = b.addInstallArtifact(sketch_exe, sketches_install_opts);
+        sketches.dependOn(&install.step);
+    }
 
     /////////////////////////////////////////////////////////////////
     // tests
