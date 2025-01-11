@@ -564,16 +564,16 @@ i32 orca_runloop(void* user)
             oc_wasm_function_handle* handle = oc_wasm_function_find(app->env.wasm, desc->name);
             if(handle)
             {
-                oc_wasm_function_info info = oc_wasm_function_get_info(scratch.arena, app->env.wasm, handle);
+                wa_func_type info = oc_wasm_function_get_info(scratch.arena, app->env.wasm, handle);
 
                 bool checked = false;
 
                 //NOTE: check function signature
-                if(info.countReturns == desc->retTags.len && info.countParams == desc->argTags.len)
+                if(info.returnCount == desc->retTags.len && info.paramCount == desc->argTags.len)
                 {
                     checked = true;
 
-                    for(int retIndex = 0; retIndex < info.countReturns && checked; retIndex++)
+                    for(int retIndex = 0; retIndex < info.returnCount && checked; retIndex++)
                     {
                         char tag = valtype_to_tag(info.returns[retIndex]);
                         if(tag != desc->retTags.ptr[retIndex])
@@ -582,7 +582,7 @@ i32 orca_runloop(void* user)
                         }
                     }
 
-                    for(int argIndex = 0; argIndex < info.countParams && checked; argIndex++)
+                    for(int argIndex = 0; argIndex < info.paramCount && checked; argIndex++)
                     {
                         char tag = valtype_to_tag(info.params[argIndex]);
                         if(tag != desc->argTags.ptr[argIndex])

@@ -196,18 +196,18 @@ oc_wasm_global_pointer oc_wasm_global_pointer_find(oc_wasm* wasm, oc_str8 export
     return (res);
 }
 
-oc_wasm_function_info oc_wasm_function_get_info(oc_arena* scratch, oc_wasm* wasm, oc_wasm_function_handle* handle)
+wa_func_type oc_wasm_function_get_info(oc_arena* scratch, oc_wasm* wasm, oc_wasm_function_handle* handle)
 {
-    oc_wasm_function_info res = { 0 };
+    wa_func_type res = { 0 };
 
     wa_func_type* type = wa_function_get_type((wa_func*)handle);
     if(type)
     {
-        res = (oc_wasm_function_info){
+        res = (wa_func_type){
             .params = oc_arena_push_array(scratch, wa_value_type, type->paramCount),
             .returns = oc_arena_push_array(scratch, wa_value_type, type->returnCount),
-            .countParams = type->paramCount,
-            .countReturns = type->returnCount,
+            .paramCount = type->paramCount,
+            .returnCount = type->returnCount,
         };
         memcpy(res.params, type->params, type->paramCount * sizeof(wa_value_type));
         memcpy(res.returns, type->returns, type->returnCount * sizeof(wa_value_type));

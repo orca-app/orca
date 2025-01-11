@@ -99,6 +99,16 @@ typedef union wa_value
     };
 } wa_value;
 
+typedef struct wa_func_type
+{
+    u32 paramCount;
+    wa_value_type* params;
+
+    u32 returnCount;
+    wa_value_type* returns;
+
+} wa_func_type;
+
 struct oc_wasm;
 typedef struct oc_wasm oc_wasm;
 
@@ -116,14 +126,6 @@ typedef struct oc_wasm_binding
 
 struct oc_wasm_function_handle;
 typedef struct oc_wasm_function_handle oc_wasm_function_handle;
-
-typedef struct oc_wasm_function_info
-{
-    wa_value_type* params;
-    wa_value_type* returns;
-    u32 countParams;
-    u32 countReturns;
-} oc_wasm_function_info;
 
 enum
 {
@@ -168,7 +170,7 @@ oc_str8 oc_wasm_mem_get(oc_wasm* wasm);
 wa_status oc_wasm_mem_resize(oc_wasm* wasm, u32 countPages);
 
 oc_wasm_function_handle* oc_wasm_function_find(oc_wasm* wasm, oc_str8 exportName);
-oc_wasm_function_info oc_wasm_function_get_info(oc_arena* scratch, oc_wasm* wasm, oc_wasm_function_handle* handle);
+wa_func_type oc_wasm_function_get_info(oc_arena* scratch, oc_wasm* wasm, oc_wasm_function_handle* handle);
 wa_status oc_wasm_function_call(oc_wasm* wasm, oc_wasm_function_handle* handle, wa_value* params, size_t countParams, wa_value* returns, size_t countReturns);
 
 oc_wasm_global_handle* oc_wasm_global_find(oc_wasm* wasm, oc_str8 exportName, wa_value_type expectedType);

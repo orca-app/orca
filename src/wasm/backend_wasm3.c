@@ -384,34 +384,34 @@ oc_wasm_function_handle* oc_wasm_function_find(oc_wasm* wasm, oc_str8 exportName
     return (oc_wasm_function_handle*)m3Func;
 }
 
-oc_wasm_function_info oc_wasm_function_get_info(oc_arena* scratch, oc_wasm* wasm, oc_wasm_function_handle* handle)
+wa_func_type oc_wasm_function_get_info(oc_arena* scratch, oc_wasm* wasm, oc_wasm_function_handle* handle)
 {
     if(handle == NULL)
     {
-        return (oc_wasm_function_info){ 0 };
+        return (wa_func_type){ 0 };
     }
 
     IM3Function m3Func = (IM3Function)handle;
 
-    u32 countParams = m3_GetArgCount(m3Func);
-    u32 countReturns = m3_GetRetCount(m3Func);
-    u32 totalTypes = countParams + countReturns;
+    u32 paramCount = m3_GetArgCount(m3Func);
+    u32 returnCount = m3_GetRetCount(m3Func);
+    u32 totalTypes = paramCount + returnCount;
 
     wa_value_type* types = (totalTypes > 0) ? oc_arena_push_array(scratch, wa_value_type, totalTypes) : NULL;
 
-    oc_wasm_function_info info;
-    info.countParams = countParams;
-    info.countReturns = countReturns;
+    wa_func_type info;
+    info.paramCount = paramCount;
+    info.returnCount = returnCount;
     info.params = types;
-    info.returns = types + info.countParams;
+    info.returns = types + info.paramCount;
 
-    for(u32 i = 0; i < info.countParams; ++i)
+    for(u32 i = 0; i < info.paramCount; ++i)
     {
         M3ValueType m3Type = m3_GetArgType(m3Func, i);
         info.params[i] = wasm3_valuetype_to_valtype(m3Type);
     }
 
-    for(u32 i = 0; i < info.countReturns; ++i)
+    for(u32 i = 0; i < info.returnCount; ++i)
     {
         M3ValueType m3Type = m3_GetRetType(m3Func, i);
         info.returns[i] = wasm3_valuetype_to_valtype(m3Type);
@@ -420,7 +420,7 @@ oc_wasm_function_info oc_wasm_function_get_info(oc_arena* scratch, oc_wasm* wasm
     return info;
 }
 
-wa_status oc_wasm_function_call(oc_wasm* wasm, oc_wasm_function_handle* handle, wa_value* params, size_t countParams, wa_value* returns, size_t countReturns)
+wa_status oc_wasm_function_call(oc_wasm* wasm, oc_wasm_function_handle* handle, wa_value* params, size_t paramCount, wa_value* returns, size_t returnCount)
 {
     if(handle == NULL)
     {
@@ -430,29 +430,29 @@ wa_status oc_wasm_function_call(oc_wasm* wasm, oc_wasm_function_handle* handle, 
     IM3Function m3Func = (IM3Function)handle;
 
     const void* valuePtrs[128];
-    OC_ASSERT(countParams < oc_array_size(valuePtrs), "Need more static storage for params");
+    OC_ASSERT(paramCount < oc_array_size(valuePtrs), "Need more static storage for params");
 
-    for(size_t i = 0; i < countParams; ++i)
+    for(size_t i = 0; i < paramCount; ++i)
     {
         valuePtrs[i] = &params[i];
     }
 
-    M3Result res = m3_Call(m3Func, countParams, valuePtrs);
+    M3Result res = m3_Call(m3Func, paramCount, valuePtrs);
     if(res)
     {
         return oc_wasm_handle_wasm3_result(wasm, res, "Function call failed");
     }
 
-    if(countReturns > 0)
+    if(returnCount > 0)
     {
-        OC_ASSERT(countReturns < oc_array_size(valuePtrs), "Need more static storage for returns");
+        OC_ASSERT(returnCount < oc_array_size(valuePtrs), "Need more static storage for returns");
 
-        for(size_t i = 0; i < countReturns; ++i)
+        for(size_t i = 0; i < returnCount; ++i)
         {
             valuePtrs[i] = &returns[i];
         }
 
-        res = m3_GetResults(m3Func, (uint32_t)countReturns, valuePtrs);
+        res = m3_GetResults(m3Func, (uint32_t)returnCount, valuePtrs);
         if(res)
         {
             return oc_wasm_handle_wasm3_result(wasm, res, "Failed to get results from function call");

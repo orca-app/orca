@@ -74,16 +74,6 @@ typedef enum wa_binding_kind
 
 } wa_binding_kind;
 
-typedef struct wa_func_type
-{
-    u32 paramCount;
-    wa_value_type* params;
-
-    u32 returnCount;
-    wa_value_type* returns;
-
-} wa_func_type;
-
 typedef struct wa_host_function
 {
     wa_func_type type;
