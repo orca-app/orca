@@ -420,7 +420,7 @@ oc_wasm_function_info oc_wasm_function_get_info(oc_arena* scratch, oc_wasm* wasm
     return info;
 }
 
-wa_status oc_wasm_function_call(oc_wasm* wasm, oc_wasm_function_handle* handle, oc_wasm_val* params, size_t countParams, oc_wasm_val* returns, size_t countReturns)
+wa_status oc_wasm_function_call(oc_wasm* wasm, oc_wasm_function_handle* handle, wa_value* params, size_t countParams, wa_value* returns, size_t countReturns)
 {
     if(handle == NULL)
     {
@@ -475,25 +475,25 @@ oc_wasm_global_handle* oc_wasm_global_find(oc_wasm* wasm, oc_str8 exportName, wa
     return (oc_wasm_global_handle*)m3Global;
 }
 
-oc_wasm_val oc_wasm_global_get_value(oc_wasm_global_handle* global)
+wa_value oc_wasm_global_get_value(oc_wasm_global_handle* global)
 {
     if(global == NULL)
     {
-        return (oc_wasm_val){ 0 };
+        return (wa_value){ 0 };
     }
 
     IM3Global m3Global = (IM3Global)global;
-    oc_wasm_val v;
-    v.I64 = m3Global->intValue; // doesn't really matter what the actual value is since we just need the bits
+    wa_value v;
+    v.valI64 = m3Global->intValue; // doesn't really matter what the actual value is since we just need the bits
     return v;
 }
 
-void oc_wasm_global_set_value(oc_wasm_global_handle* global, oc_wasm_val value)
+void oc_wasm_global_set_value(oc_wasm_global_handle* global, wa_value value)
 {
     if(global)
     {
         IM3Global m3Global = (IM3Global)global;
-        m3Global->intValue = value.I64;
+        m3Global->intValue = value.valI64;
     }
 }
 
