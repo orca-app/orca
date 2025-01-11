@@ -5,22 +5,6 @@
 #include "orca.h"
 #include "wasm/wasm.h"
 
-typedef enum wa_value_type
-{
-    WA_TYPE_I32 = 0x7f,
-    WA_TYPE_I64 = 0x7e,
-    WA_TYPE_F32 = 0x7d,
-    WA_TYPE_F64 = 0x7c,
-    WA_TYPE_V128 = 0x7b,
-    WA_TYPE_FUNC_REF = 0x70,
-    WA_TYPE_EXTERN_REF = 0x6f,
-
-    WA_TYPE_UNKNOWN = 0x100,
-    WA_TYPE_ANY = 0x101,
-    WA_TYPE_REF = 0x102,
-    WA_TYPE_NUM_OR_VEC = 0x103,
-} wa_value_type;
-
 typedef struct wa_instance wa_instance;
 
 typedef union wa_value

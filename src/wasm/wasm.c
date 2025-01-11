@@ -9,49 +9,34 @@
 #include "wasm.h"
 #include "util/strings.h"
 
-size_t oc_wasm_valtype_size(oc_wasm_valtype valtype)
-{
-    switch(valtype)
-    {
-        case OC_WASM_VALTYPE_I32:
-            return sizeof(i32);
-        case OC_WASM_VALTYPE_I64:
-            return sizeof(i64);
-        case OC_WASM_VALTYPE_F32:
-            return sizeof(f32);
-        case OC_WASM_VALTYPE_F64:
-            return sizeof(f64);
-    }
-
-    OC_ASSERT(false, "unhandled case %d", valtype);
-
-    return sizeof(i64);
-}
-
-oc_str8 oc_wasm_valtype_str(oc_wasm_valtype valtype)
-{
-    switch(valtype)
-    {
-        case OC_WASM_VALTYPE_I32:
-            return OC_STR8("i32");
-        case OC_WASM_VALTYPE_I64:
-            return OC_STR8("i64");
-        case OC_WASM_VALTYPE_F32:
-            return OC_STR8("f32");
-        case OC_WASM_VALTYPE_F64:
-            return OC_STR8("f64");
-    }
-
-    OC_ASSERT(false, "unhandled case %d", valtype);
-
-    return OC_STR8("unknown");
-}
-
 static oc_str8 WA_STATUS_STRINGS[] = {
 #define X(n, s) OC_STR8_LIT(s),
     WA_STATUS(X)
 #undef X
 };
+
+oc_str8 wa_value_type_str8(wa_value_type t)
+{
+    switch(t)
+    {
+        case WA_TYPE_I32:
+            return OC_STR8("i32");
+        case WA_TYPE_I64:
+            return OC_STR8("i64");
+        case WA_TYPE_F32:
+            return OC_STR8("f32");
+        case WA_TYPE_F64:
+            return OC_STR8("f64");
+        case WA_TYPE_V128:
+            return OC_STR8("vec128");
+        case WA_TYPE_FUNC_REF:
+            return OC_STR8("funcref");
+        case WA_TYPE_EXTERN_REF:
+            return OC_STR8("externref");
+        default:
+            return OC_STR8("invalid type");
+    }
+}
 
 oc_str8 wa_status_str8(wa_status status)
 {

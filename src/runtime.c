@@ -460,21 +460,21 @@ void log_entry_ui(oc_debug_overlay* overlay, log_entry* entry)
     oc_scratch_end(scratch);
 }
 
-char valtype_to_tag(oc_wasm_valtype type)
+char valtype_to_tag(wa_value_type type)
 {
     switch(type)
     {
-        case OC_WASM_VALTYPE_I32:
+        case WA_TYPE_I32:
             return ('i');
-        case OC_WASM_VALTYPE_I64:
+        case WA_TYPE_I64:
             return ('I');
-        case OC_WASM_VALTYPE_F32:
+        case WA_TYPE_F32:
             return ('f');
-        case OC_WASM_VALTYPE_F64:
+        case WA_TYPE_F64:
             return ('F');
+        default:
+            return ('!');
     }
-
-    return ('!');
 }
 
 void oc_wasm_env_init(oc_wasm_env* runtime)

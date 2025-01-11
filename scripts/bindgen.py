@@ -18,15 +18,15 @@ def printError(str):
 
 def tag_to_valtype(tag, binding_name):
     if tag == 'i':
-        return 'OC_WASM_VALTYPE_I32'
+        return 'WA_TYPE_I32'
     elif tag == 'I':
-        return 'OC_WASM_VALTYPE_I64'
+        return 'WA_TYPE_I64'
     elif tag == 'f':
-        return 'OC_WASM_VALTYPE_F32'
+        return 'WA_TYPE_F32'
     elif tag == 'F':
-        return 'OC_WASM_VALTYPE_F64'
+        return 'WA_TYPE_F64'
     printError('Unknown tag ' + tag + ' for binding ' + binding_name)
-    return 'OC_WASM_VALTYPE_I32'
+    return 'WA_TYPE_I32'
 
 def bindgen(apiName, spec, **kwargs):
     guest_stubs_path = kwargs.get("guest_stubs")
@@ -267,12 +267,12 @@ def bindgen(apiName, spec, **kwargs):
 
         param_types = ''
         if num_args == 0:
-            param_types = '\t\toc_wasm_valtype paramTypes[1];\n'
+            param_types = '\t\twa_value_type paramTypes[1];\n'
         else:
-            param_types = '\t\toc_wasm_valtype paramTypes[] = {'
+            param_types = '\t\twa_value_type paramTypes[] = {'
 
             if decl['ret']['tag'] == 'S':
-                param_types += 'OC_WASM_VALTYPE_I32, '
+                param_types += 'WA_TYPE_I32, '
             for arg in decl['args']:
                 tag = arg['type']['tag']
                 if tag == 'p' or tag == 'S':
@@ -283,9 +283,9 @@ def bindgen(apiName, spec, **kwargs):
 
         return_types = ''
         if num_returns == 0:
-            return_types = '\t\toc_wasm_valtype returnTypes[1];\n\n'
+            return_types = '\t\twa_value_type returnTypes[1];\n\n'
         else:
-            return_types = '\t\toc_wasm_valtype returnTypes[] = {'
+            return_types = '\t\twa_value_type returnTypes[] = {'
             return_types += tag_to_valtype(decl['ret']['tag'], name)
             return_types += '};\n\n'
 

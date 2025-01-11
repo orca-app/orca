@@ -36,6 +36,8 @@
     _(WA_FAIL_INVALID_ARGS, "invocation error: invalid arguments")                \
     _(WA_FAIL_MISSING_IMPORT, "instantiation error: missing import")              \
     _(WA_FAIL_IMPORT_TYPE_MISMATCH, "instantiation error: import type mismatch")  \
+    _(WA_FAIL_MEMORY_ALLOC, "runtime error: memory allocation failed")            \
+    _(WA_FAIL_INSTANTIATE, "instantiation error")                                 \
     /* runtime traps */                                                           \
     _(WA_TRAP_UNREACHABLE, "trap: unreachable")                                   \
     _(WA_TRAP_INVALID_OP, "trap: invalid opcode")                                 \
@@ -47,10 +49,13 @@
     _(WA_TRAP_TABLE_OUT_OF_BOUNDS, "trap: out of bounds table access")            \
     _(WA_TRAP_REF_NULL, "trap: ref null")                                         \
     _(WA_TRAP_INDIRECT_CALL_TYPE_MISMATCH, "trap: indirect call type mismatch")   \
+    _(WA_TRAP_UNKNOWN, "trap: unknown")                                           \
     /* debug traps */                                                             \
     _(WA_TRAP_BREAKPOINT, "debug trap: breakpoint")                               \
     _(WA_TRAP_STEP, "debug trap: step")                                           \
-    _(WA_TRAP_TERMINATED, "debug trap: terminated")
+    _(WA_TRAP_TERMINATED, "debug trap: terminated")                               \
+    /* unknown*/                                                                  \
+    _(WA_FAIL_UNKNOWN, "unknown error")
 
 typedef enum wa_status
 {
@@ -61,13 +66,21 @@ typedef enum wa_status
         WA_STATUS_COUNT,
 } wa_status;
 
-typedef enum oc_wasm_valtype
+typedef enum wa_value_type
 {
-    OC_WASM_VALTYPE_I32,
-    OC_WASM_VALTYPE_I64,
-    OC_WASM_VALTYPE_F32,
-    OC_WASM_VALTYPE_F64,
-} oc_wasm_valtype;
+    WA_TYPE_I32 = 0x7f,
+    WA_TYPE_I64 = 0x7e,
+    WA_TYPE_F32 = 0x7d,
+    WA_TYPE_F64 = 0x7c,
+    WA_TYPE_V128 = 0x7b,
+    WA_TYPE_FUNC_REF = 0x70,
+    WA_TYPE_EXTERN_REF = 0x6f,
+
+    WA_TYPE_UNKNOWN = 0x100,
+    WA_TYPE_ANY = 0x101,
+    WA_TYPE_REF = 0x102,
+    WA_TYPE_NUM_OR_VEC = 0x103,
+} wa_value_type;
 
 typedef union oc_wasm_val
 {
@@ -80,7 +93,7 @@ typedef union oc_wasm_val
 typedef struct oc_wasm_val_tagged
 {
     oc_wasm_val value;
-    oc_wasm_valtype type;
+    wa_value_type type;
 } oc_wasm_val_tagged;
 
 struct oc_wasm;
@@ -92,8 +105,8 @@ typedef struct oc_wasm_binding
 {
     oc_str8 importName;
     oc_wasm_host_proc proc;
-    oc_wasm_valtype* params;
-    oc_wasm_valtype* returns;
+    wa_value_type* params;
+    wa_value_type* returns;
     u32 countParams;
     u32 countReturns;
 } oc_wasm_binding;
@@ -103,8 +116,8 @@ typedef struct oc_wasm_function_handle oc_wasm_function_handle;
 
 typedef struct oc_wasm_function_info
 {
-    oc_wasm_valtype* params;
-    oc_wasm_valtype* returns;
+    wa_value_type* params;
+    wa_value_type* returns;
     u32 countParams;
     u32 countReturns;
 } oc_wasm_function_info;
@@ -140,9 +153,6 @@ typedef struct oc_wasm oc_wasm;
 bool wa_status_is_fail(wa_status status);
 oc_str8 wa_status_str8(wa_status status);
 
-size_t oc_wasm_valtype_size(oc_wasm_valtype valtype);
-oc_str8 oc_wasm_valtype_str8(oc_wasm_valtype valtype);
-
 oc_wasm* oc_wasm_create(void);
 void oc_wasm_destroy(oc_wasm* wasm);
 
@@ -158,10 +168,12 @@ oc_wasm_function_handle* oc_wasm_function_find(oc_wasm* wasm, oc_str8 exportName
 oc_wasm_function_info oc_wasm_function_get_info(oc_arena* scratch, oc_wasm* wasm, oc_wasm_function_handle* handle);
 wa_status oc_wasm_function_call(oc_wasm* wasm, oc_wasm_function_handle* handle, oc_wasm_val* params, size_t countParams, oc_wasm_val* returns, size_t countReturns);
 
-oc_wasm_global_handle* oc_wasm_global_find(oc_wasm* wasm, oc_str8 exportName, oc_wasm_valtype expectedType);
+oc_wasm_global_handle* oc_wasm_global_find(oc_wasm* wasm, oc_str8 exportName, wa_value_type expectedType);
 oc_wasm_val oc_wasm_global_get_value(oc_wasm_global_handle* global);
 void oc_wasm_global_set_value(oc_wasm_global_handle* global, oc_wasm_val value);
 oc_wasm_global_pointer oc_wasm_global_pointer_find(oc_wasm* wasm, oc_str8 exportName);
+
+oc_str8 wa_value_type_str8(wa_value_type type);
 
 //////////////////////////////////////////////////////////////////
 // Inline implementation

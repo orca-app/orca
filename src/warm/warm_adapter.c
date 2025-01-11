@@ -87,39 +87,6 @@ void oc_wasm_binding_warm_thunk(wa_instance* instance, wa_value* args, wa_value*
     oc_scratch_end(scratch);
 }
 
-wa_value_type oc_wasm_valtype_to_wa_value_type(oc_wasm_valtype type)
-{
-    switch(type)
-    {
-        case OC_WASM_VALTYPE_I32:
-            return WA_TYPE_I32;
-        case OC_WASM_VALTYPE_I64:
-            return WA_TYPE_I64;
-        case OC_WASM_VALTYPE_F32:
-            return WA_TYPE_F32;
-        case OC_WASM_VALTYPE_F64:
-            return WA_TYPE_F64;
-    }
-}
-
-oc_wasm_valtype oc_wa_value_type_to_wasm_valtype(wa_value_type type)
-{
-    switch(type)
-    {
-        case WA_TYPE_I32:
-            return OC_WASM_VALTYPE_I32;
-        case WA_TYPE_I64:
-            return OC_WASM_VALTYPE_I64;
-        case WA_TYPE_F32:
-            return OC_WASM_VALTYPE_F32;
-        case WA_TYPE_F64:
-            return OC_WASM_VALTYPE_F64;
-
-        default:
-            return OC_WASM_VALTYPE_I32;
-    }
-}
-
 wa_status oc_wasm_add_binding(oc_wasm* wasm, oc_wasm_binding* binding)
 {
     wa_import_binding_elt* elt = oc_arena_push_type(&wasm->arena, wa_import_binding_elt);
@@ -144,16 +111,8 @@ wa_status oc_wasm_add_binding(oc_wasm* wasm, oc_wasm_binding* binding)
             .userData = (void*)userData,
         },
     };
-    for(u32 paramIndex = 0; paramIndex < binding->countParams; paramIndex++)
-    {
-        wa_value_type type = oc_wasm_valtype_to_wa_value_type(binding->params[paramIndex]);
-        elt->binding.hostFunction.type.params[paramIndex] = type;
-    }
-    for(u32 returnIndex = 0; returnIndex < binding->countReturns; returnIndex++)
-    {
-        wa_value_type type = oc_wasm_valtype_to_wa_value_type(binding->returns[returnIndex]);
-        elt->binding.hostFunction.type.returns[returnIndex] = type;
-    }
+    memcpy(elt->binding.hostFunction.type.params, binding->params, binding->countParams * sizeof(wa_value_type));
+    memcpy(elt->binding.hostFunction.type.returns, binding->returns, binding->countReturns * sizeof(wa_value_type));
 
     oc_list_push_back(&wasm->bindings, &elt->listElt);
     wasm->bindingCount++;
@@ -243,19 +202,13 @@ oc_wasm_function_info oc_wasm_function_get_info(oc_arena* scratch, oc_wasm* wasm
     if(type)
     {
         res = (oc_wasm_function_info){
-            .params = oc_arena_push_array(scratch, oc_wasm_valtype, type->paramCount),
-            .returns = oc_arena_push_array(scratch, oc_wasm_valtype, type->returnCount),
+            .params = oc_arena_push_array(scratch, wa_value_type, type->paramCount),
+            .returns = oc_arena_push_array(scratch, wa_value_type, type->returnCount),
             .countParams = type->paramCount,
             .countReturns = type->returnCount,
         };
-        for(u32 i = 0; i < type->paramCount; i++)
-        {
-            res.params[i] = oc_wa_value_type_to_wasm_valtype(type->params[i]);
-        }
-        for(u32 i = 0; i < type->returnCount; i++)
-        {
-            res.returns[i] = oc_wa_value_type_to_wasm_valtype(type->returns[i]);
-        }
+        memcpy(res.params, type->params, type->paramCount * sizeof(wa_value_type));
+        memcpy(res.returns, type->returns, type->returnCount * sizeof(wa_value_type));
     }
     return (res);
 }
@@ -295,7 +248,7 @@ wa_status oc_wasm_function_call(oc_wasm* wasm,
     return status;
 }
 
-oc_wasm_global_handle* oc_wasm_global_find(oc_wasm* wasm, oc_str8 exportName, oc_wasm_valtype expectedType);
+oc_wasm_global_handle* oc_wasm_global_find(oc_wasm* wasm, oc_str8 exportName, wa_value_type expectedType);
 
 oc_wasm_val oc_wasm_global_get_value(oc_wasm_global_handle* global);
 void oc_wasm_global_set_value(oc_wasm_global_handle* global, oc_wasm_val value);

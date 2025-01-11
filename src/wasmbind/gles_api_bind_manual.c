@@ -1119,8 +1119,18 @@ int manual_link_gles_api(oc_wasm* wasm)
     wa_status status;
     int ret = 0;
 
-    static_assert(OC_WASM_VALTYPE_I32 == 0, "wasm i32 valtype should be 0");
-    oc_wasm_valtype int_types[10] = { 0 };
+    wa_value_type int_types[10] = {
+        WA_TYPE_I32,
+        WA_TYPE_I32,
+        WA_TYPE_I32,
+        WA_TYPE_I32,
+        WA_TYPE_I32,
+        WA_TYPE_I32,
+        WA_TYPE_I32,
+        WA_TYPE_I32,
+        WA_TYPE_I32,
+        WA_TYPE_I32,
+    };
 
     oc_wasm_binding binding = { 0 };
     binding.params = int_types;

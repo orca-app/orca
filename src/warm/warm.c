@@ -982,6 +982,9 @@ bool wa_is_value_type_numeric(u64 t)
     }
 }
 
+///////////////////////////////////////////////////////////
+//TODO: replace with wa_value_type_str8 (returning oc_str8)
+///////////////////////////////////////////////////////////
 const char* wa_value_type_string(wa_value_type t)
 {
     switch(t)
