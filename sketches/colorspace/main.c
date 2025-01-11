@@ -36,10 +36,10 @@ int main()
 
     oc_arena_scope scratch = oc_scratch_begin();
 
-    oc_str8 dalaiPath = oc_path_executable_relative(scratch.arena, OC_STR8("../../resources/gamma_dalai_lama_gray.png"));
+    oc_str8 dalaiPath = oc_path_executable_relative(scratch.arena, OC_STR8("resources/gamma_dalai_lama_gray.png"));
     oc_image dalai = oc_image_create_from_path(renderer, dalaiPath, false);
 
-    oc_str8 offensivePath = oc_path_executable_relative(scratch.arena, OC_STR8("../../resources/gamma-1.0-or-2.2.png"));
+    oc_str8 offensivePath = oc_path_executable_relative(scratch.arena, OC_STR8("resources/gamma-1.0-or-2.2.png"));
     oc_image offensive = oc_image_create_from_path(renderer, offensivePath, false);
 
     oc_wgpu_canvas_debug_set_record_options(renderer,
