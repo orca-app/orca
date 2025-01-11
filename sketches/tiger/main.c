@@ -21,7 +21,7 @@ oc_font create_font()
 {
     //NOTE(martin): create font
     oc_arena_scope scratch = oc_scratch_begin();
-    oc_str8 fontPath = oc_path_executable_relative(scratch.arena, OC_STR8("../../resources/OpenSansLatinSubset.ttf"));
+    oc_str8 fontPath = oc_path_executable_relative(scratch.arena, OC_STR8("resources/OpenSansLatinSubset.ttf"));
     char* fontPathCString = oc_str8_to_cstring(scratch.arena, fontPath);
 
     FILE* fontFile = fopen(fontPathCString, "r");
