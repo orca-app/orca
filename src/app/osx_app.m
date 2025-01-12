@@ -1948,11 +1948,11 @@ ORCA_API oc_file_dialog_result oc_file_dialog_for_table(oc_arena* arena, oc_file
                   [fileTypesArray addObject:type];
               }
               [dialog setAllowedContentTypes:fileTypesArray];
-          }
 
-          //NOTE: set delegate. This is needed for filters to actually work as expected.
-          OCOpenSavePanelDelegate* delegate = [[OCOpenSavePanelDelegate alloc] init];
-          [dialog setDelegate:delegate];
+              //NOTE: set delegate. This is needed for filters to actually work as expected.
+              OCOpenSavePanelDelegate* delegate = [[OCOpenSavePanelDelegate alloc] init];
+              [dialog setDelegate:delegate];
+          }
 
           // Display the dialog box. If the OK pressed,
           // process the files.
