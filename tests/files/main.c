@@ -9,14 +9,13 @@
 #define OC_NO_APP_LAYER
 #include "orca.c"
 
-int test_write()
+oc_str8 TEST_DIR;
+
+int test_write(oc_arena* arena)
 {
     oc_log_info("writing\n");
 
-    oc_arena_scope scratch = oc_scratch_begin();
-    oc_arena* arena = scratch.arena;
-
-    oc_str8 path = OC_STR8("./data/write_test.txt");
+    oc_str8 path = oc_path_append(arena, TEST_DIR, OC_STR8("data/write_test.txt"));
     oc_str8 test_string = OC_STR8("Hello from write_test.txt");
 
     oc_file f = oc_file_open(path, OC_FILE_ACCESS_WRITE, OC_FILE_OPEN_CREATE | OC_FILE_OPEN_TRUNCATE);
@@ -51,6 +50,8 @@ int test_write()
     }
     fclose(file);
 
+    remove(path.ptr);
+
     return (0);
 }
 
@@ -72,11 +73,11 @@ int check_string(oc_file f, oc_str8 test_string)
     return (0);
 }
 
-int test_read()
+int test_read(oc_arena* arena)
 {
     oc_log_info("reading\n");
 
-    oc_str8 path = OC_STR8("./data/regular.txt");
+    oc_str8 path = oc_path_append(arena, TEST_DIR, OC_STR8("data/regular.txt"));
     oc_str8 test_string = OC_STR8("Hello from regular.txt");
 
     oc_file f = oc_file_open(path, OC_FILE_ACCESS_READ, 0);
@@ -96,11 +97,11 @@ int test_read()
     return (0);
 }
 
-int test_stat_size()
+int test_stat_size(oc_arena* arena)
 {
     oc_log_info("stat size\n");
 
-    oc_str8 path = OC_STR8("./data/regular.txt");
+    oc_str8 path = oc_path_append(arena, TEST_DIR, OC_STR8("data/regular.txt"));
     oc_str8 test_string = OC_STR8("Hello from regular.txt");
     u64 size = test_string.len;
 
@@ -128,11 +129,11 @@ int test_stat_size()
     return (0);
 }
 
-int test_stat_type()
+int test_stat_type(oc_arena* arena)
 {
-    oc_str8 regular = OC_STR8("./data/regular.txt");
-    oc_str8 dir = OC_STR8("./data/directory");
-    oc_str8 link = OC_STR8("./data/symlink");
+    oc_str8 regular = oc_path_append(arena, TEST_DIR, OC_STR8("data/regular.txt"));
+    oc_str8 dir = oc_path_append(arena, TEST_DIR, OC_STR8("data/directory"));
+    oc_str8 link = oc_path_append(arena, TEST_DIR, OC_STR8("data/symlink"));
 
     oc_log_info("stat type, regular\n");
 
@@ -203,14 +204,16 @@ int test_stat_type()
     return (0);
 }
 
-int test_symlinks()
+int test_symlinks(oc_arena* arena)
 {
+    oc_str8 path = oc_path_append(arena, TEST_DIR, OC_STR8("data/symlink"));
+
     // open symlink target
     oc_log_info("open symlink target\n");
-    oc_file f = oc_file_open_at(oc_file_nil(), OC_STR8("./data/symlink"), OC_FILE_ACCESS_READ, 0);
+    oc_file f = oc_file_open_at(oc_file_nil(), path, OC_FILE_ACCESS_READ, 0);
     if(oc_file_last_error(f))
     {
-        oc_log_error("failed to open ./data/symlink\n");
+        oc_log_error("failed to open %s\n", path.ptr);
         return (-1);
     }
     if(check_string(f, OC_STR8("Hello from regular.txt")))
@@ -222,10 +225,10 @@ int test_symlinks()
 
     // open symlink file
     oc_log_info("open symlink file\n");
-    f = oc_file_open_at(oc_file_nil(), OC_STR8("./data/symlink"), OC_FILE_ACCESS_READ, OC_FILE_OPEN_SYMLINK);
+    f = oc_file_open_at(oc_file_nil(), path, OC_FILE_ACCESS_READ, OC_FILE_OPEN_SYMLINK);
     if(oc_file_last_error(f))
     {
-        oc_log_error("failed to open ./data/symlink\n");
+        oc_log_error("failed to open %s\n", path.ptr);
         return (-1);
     }
     oc_file_status status = oc_file_get_status(f);
@@ -254,11 +257,13 @@ int test_symlinks()
     return (0);
 }
 
-int test_args()
+int test_args(oc_arena* arena)
 {
+    oc_str8 path = oc_path_append(arena, TEST_DIR, OC_STR8("data/regular.txt"));
+
     //NOTE: nil handle
     oc_log_info("check open_at with nil handle\n");
-    oc_file f = oc_file_open_at(oc_file_nil(), OC_STR8("./data/regular.txt"), OC_FILE_ACCESS_READ, 0);
+    oc_file f = oc_file_open_at(oc_file_nil(), path, OC_FILE_ACCESS_READ, 0);
     if(oc_file_last_error(f))
     {
         oc_log_error("oc_file_open_at() with nil handle failed\n");
@@ -275,7 +280,7 @@ int test_args()
     oc_log_info("check open_at with nil handle\n");
     oc_file wrongHandle = { .h = 123456789 };
 
-    f = oc_file_open_at(wrongHandle, OC_STR8("./data/regular.txt"), OC_FILE_ACCESS_READ, 0);
+    f = oc_file_open_at(wrongHandle, path, OC_FILE_ACCESS_READ, 0);
     if(oc_file_last_error(f) != OC_IO_ERR_HANDLE)
     {
         oc_log_error("oc_file_open_at() with non-nil invalid handle should return OC_IO_ERR_HANDLE\n");
@@ -286,7 +291,7 @@ int test_args()
     //NOTE: nil/wrong handle and OC_FILE_OPEN_RESTRICT
     oc_log_info("check open_at with nil handle and OC_FILE_OPEN_RESTRICT\n");
 
-    f = oc_file_open_at(oc_file_nil(), OC_STR8("./data/regular.txt"), OC_FILE_ACCESS_READ, OC_FILE_OPEN_RESTRICT);
+    f = oc_file_open_at(oc_file_nil(), path, OC_FILE_ACCESS_READ, OC_FILE_OPEN_RESTRICT);
     if(oc_file_last_error(f) != OC_IO_ERR_HANDLE)
     {
         oc_log_error("oc_file_open_at() with nil handle and OC_FILE_OPEN_RESTRICT should return OC_IO_ERR_HANDLE\n");
@@ -294,7 +299,7 @@ int test_args()
     }
     oc_file_close(f);
 
-    f = oc_file_open_at(wrongHandle, OC_STR8("./data/regular.txt"), OC_FILE_ACCESS_READ, OC_FILE_OPEN_RESTRICT);
+    f = oc_file_open_at(wrongHandle, path, OC_FILE_ACCESS_READ, OC_FILE_OPEN_RESTRICT);
     if(oc_file_last_error(f) != OC_IO_ERR_HANDLE)
     {
         oc_log_error("oc_file_open_at() with invalid handle and OC_FILE_OPEN_RESTRICT should return OC_IO_ERR_HANDLE\n");
@@ -316,11 +321,13 @@ int test_args()
     return (0);
 }
 
-int test_jail()
+int test_jail(oc_arena* arena)
 {
     oc_log_info("test jail\n");
 
-    oc_file jail = oc_file_open(OC_STR8("./data/jail"), OC_FILE_ACCESS_READ, 0);
+    oc_str8 jailPath = oc_path_append(arena, TEST_DIR, OC_STR8("data/jail"));
+
+    oc_file jail = oc_file_open(jailPath, OC_FILE_ACCESS_READ, 0);
     if(oc_file_last_error(jail))
     {
         oc_log_error("Can't open jail directory\n");
@@ -388,7 +395,8 @@ int test_jail()
 
     //NOTE: escape with bad root handle
     oc_file wrong_handle = { 0 };
-    f = oc_file_open_at(wrong_handle, OC_STR8("./data/regular.txt"), OC_FILE_ACCESS_READ, OC_FILE_OPEN_RESTRICT);
+    oc_str8 regularPath = oc_path_append(arena, TEST_DIR, OC_STR8("data/regular.txt"));
+    f = oc_file_open_at(wrong_handle, regularPath, OC_FILE_ACCESS_READ, OC_FILE_OPEN_RESTRICT);
     if(oc_file_last_error(f) == OC_IO_OK)
     {
         oc_log_error("Escaped jail with nil root handle\n");
@@ -470,11 +478,12 @@ int test_jail()
     return (0);
 }
 
-int test_rights()
+int test_rights(oc_arena* arena)
 {
     oc_log_info("test rights\n");
 
-    oc_str8 dirPath = OC_STR8("./data");
+    oc_str8 dirPath = oc_path_append(arena, TEST_DIR, OC_STR8("data"));
+    oc_str8 regularPath = oc_path_append(arena, TEST_DIR, OC_STR8("regular.txt"));
 
     //--------------------------------------------------------------------------------------
     // base dir with no access
@@ -483,11 +492,11 @@ int test_rights()
         oc_file dir = oc_file_open(dirPath, OC_FILE_ACCESS_NONE, 0);
         if(oc_file_last_error(dir))
         {
-            oc_log_error("Couldn't open ./data with no access rights\n");
+            oc_log_error("Couldn't open data with no access rights\n");
             return (-1);
         }
 
-        oc_file f = oc_file_open_at(dir, OC_STR8("./regular.txt"), OC_FILE_ACCESS_READ, 0);
+        oc_file f = oc_file_open_at(dir, regularPath, OC_FILE_ACCESS_READ, 0);
         if(oc_file_last_error(f) != OC_IO_ERR_PERM)
         {
             oc_log_error("Incorrect check when opening file with read access in dir with no access\n");
@@ -508,7 +517,7 @@ int test_rights()
         }
 
         // check that we _can't_ open a file with write access
-        oc_file f = oc_file_open_at(dir, OC_STR8("./regular.txt"), OC_FILE_ACCESS_WRITE, 0);
+        oc_file f = oc_file_open_at(dir, regularPath, OC_FILE_ACCESS_WRITE, 0);
         if(oc_file_last_error(f) != OC_IO_ERR_PERM)
         {
             oc_log_error("Incorrect check when opening file with write access in dir with read access\n");
@@ -517,7 +526,7 @@ int test_rights()
         oc_file_close(f);
 
         // check that we _can_ open a file with read access
-        f = oc_file_open_at(dir, OC_STR8("./regular.txt"), OC_FILE_ACCESS_READ, 0);
+        f = oc_file_open_at(dir, regularPath, OC_FILE_ACCESS_READ, 0);
         if(oc_file_last_error(f))
         {
             oc_log_error("Couldn't open file with read access in dir with read access\n");
@@ -547,12 +556,12 @@ int test_rights()
         oc_file dir = oc_file_open(dirPath, OC_FILE_ACCESS_WRITE, 0);
         if(oc_file_last_error(dir))
         {
-            oc_log_error("Couldn't open ./data with write rights\n");
+            oc_log_error("Couldn't open %s with write rights\n", dirPath.ptr);
             return (-1);
         }
 
         // check that we _can't_ open a file with read access
-        oc_file f = oc_file_open_at(dir, OC_STR8("./regular.txt"), OC_FILE_ACCESS_READ, 0);
+        oc_file f = oc_file_open_at(dir, regularPath, OC_FILE_ACCESS_READ, 0);
         if(oc_file_last_error(f) != OC_IO_ERR_PERM)
         {
             oc_log_error("Incorrect check when opening file with read access in dir with write access\n");
@@ -561,7 +570,7 @@ int test_rights()
         oc_file_close(f);
 
         // check that we _can_ open a file with write access
-        f = oc_file_open_at(dir, OC_STR8("./regular.txt"), OC_FILE_ACCESS_WRITE, 0);
+        f = oc_file_open_at(dir, regularPath, OC_FILE_ACCESS_WRITE, 0);
         if(oc_file_last_error(f))
         {
             oc_log_error("Couldn't open file with write access in dir with write access\n");
@@ -596,7 +605,7 @@ int test_rights()
         }
 
         // check that we can open file with read access
-        oc_file f = oc_file_open_at(dir, OC_STR8("./regular.txt"), OC_FILE_ACCESS_READ, 0);
+        oc_file f = oc_file_open_at(dir, regularPath, OC_FILE_ACCESS_READ, 0);
         if(oc_file_last_error(f))
         {
             oc_log_error("Incorrect check when opening file with read access in dir with read/write access\n");
@@ -605,7 +614,7 @@ int test_rights()
         oc_file_close(f);
 
         // check that we can open file with write access
-        f = oc_file_open_at(dir, OC_STR8("./regular.txt"), OC_FILE_ACCESS_WRITE, 0);
+        f = oc_file_open_at(dir, regularPath, OC_FILE_ACCESS_WRITE, 0);
         if(oc_file_last_error(f))
         {
             oc_log_error("Couldn't open file with write access in dir with read/write access\n");
@@ -618,45 +627,63 @@ int test_rights()
     return (0);
 }
 
-int main(int argc, char** argv)
+oc_str8 parseTestDir(int argc, const char** argv, oc_arena* arena)
+{
+    const char* test_dir_arg_prefix = "--test-dir=";
+    for (int i = 1; i < argc; ++i)
+    {
+        const char* arg = argv[i];
+        const size_t arglen = strlen(arg);
+
+        if (strstr(arg, test_dir_arg_prefix) == arg)
+        {
+            const char* slice = arg + strlen(test_dir_arg_prefix);
+            return OC_STR8(slice);
+        }
+    }
+
+    return OC_STR8("");
+}
+
+int main(int argc, const char** argv)
 {
     oc_arena_scope scratch = oc_scratch_begin();
     oc_arena* arena = scratch.arena;
 
-    if(test_write())
-    {
-        return (-1);
-    }
-    if(test_read())
-    {
-        return (-1);
-    }
-    if(test_stat_size())
-    {
-        return (-1);
-    }
-    if(test_stat_type())
-    {
-        return (-1);
-    }
-    if(test_args())
-    {
-        return (-1);
-    }
-    if(test_symlinks())
-    {
-        return (-1);
-    }
-    if(test_rights())
-    {
-        return (-1);
-    }
-    if(test_jail())
-    {
-        return (-1);
-    }
+    TEST_DIR = parseTestDir(argc, argv, arena);
 
-    remove("./data/write_test.txt");
+    if(test_write(arena))
+    {
+        return (-1);
+    }
+    if(test_read(arena))
+    {
+        return (-1);
+    }
+    if(test_stat_size(arena))
+    {
+        return (-1);
+    }
+    if(test_stat_type(arena))
+    {
+        return (-1);
+    }
+    if(test_args(arena))
+    {
+        return (-1);
+    }
+    if(test_symlinks(arena))
+    {
+        return (-1);
+    }
+    if(test_rights(arena))
+    {
+        return (-1);
+    }
+    if(test_jail(arena))
+    {
+        return (-1);
+    }
 
     oc_log_info("OK\n");
 
