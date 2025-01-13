@@ -124,7 +124,7 @@ def bindgen(apiName, spec, **kwargs):
             print(s, file=guest_bindings)
 
         # host-side stub
-        s = 'void ' + cname + '_stub(const i64* restrict _params, i64* restrict _returns, u8* _mem, oc_wasm* wasm)'
+        s = 'void ' + cname + '_stub(wa_instance* instance, wa_value* _params, wa_value* _returns, void* user)'
 
         gen_stub = decl.get('gen_stub', True)
         if gen_stub == False:
@@ -132,6 +132,8 @@ def bindgen(apiName, spec, **kwargs):
         else:
             s += '\n{\n'
 
+            s += "\toc_wasm* wasm = (oc_wasm*)user;\n"
+            s += "\tchar* _mem = oc_wasm_mem_get(wasm).ptr;\n "
 
             # NOTE: check and cast arguments
             retTag = decl['ret']['tag']
@@ -292,13 +294,14 @@ def bindgen(apiName, spec, **kwargs):
         s += '\t{\n'
         s += param_types
         s += return_types;
-        s += '\t\toc_wasm_binding binding = ' + '{0' + '};\n' #need to split this up so python doesn't think it's a format specifier :/
-        s += '\t\tbinding.importName = OC_STR8("' + name + '");\n';
-        s += '\t\tbinding.proc = ' + cname + '_stub;\n';
-        s += '\t\tbinding.countParams = ' + str(num_args) + ';\n';
-        s += '\t\tbinding.countReturns = ' + str(num_returns) + ';\n';
-        s += '\t\tbinding.params = paramTypes;\n'
-        s += '\t\tbinding.returns = returnTypes;\n'
+        s += '\t\twa_import_binding binding = ' + '{0' + '};\n' #need to split this up so python doesn't think it's a format specifier :/
+        s += '\t\tbinding.name = OC_STR8("' + name + '");\n';
+        s += '\t\tbinding.kind = WA_BINDING_HOST_FUNCTION;\n';
+        s += '\t\tbinding.hostFunction.proc = ' + cname + '_stub;\n';
+        s += '\t\tbinding.hostFunction.type.paramCount = ' + str(num_args) + ';\n';
+        s += '\t\tbinding.hostFunction.type.returnCount = ' + str(num_returns) + ';\n';
+        s += '\t\tbinding.hostFunction.type.params = paramTypes;\n'
+        s += '\t\tbinding.hostFunction.type.returns = returnTypes;\n'
         s += '\t\tstatus = oc_wasm_add_binding(wasm, &binding);\n'
         s += '\t\tif(wa_status_is_fail(status))\n'
         s += '\t\t{\n'

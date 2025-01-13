@@ -14,67 +14,10 @@ typedef struct wa_typed_value
 
 } wa_typed_value;
 
-typedef void (*wa_host_proc)(wa_instance* instance, wa_value* args, wa_value* returns, void* user); //TODO: complete with memory, return status / etc
-
 typedef struct wa_import wa_import;
 typedef struct wa_module wa_module;
 typedef struct wa_instance wa_instance;
 typedef struct wa_func wa_func;
-
-typedef struct wa_global
-{
-    wa_value_type type;
-    bool mut;
-    wa_value value;
-} wa_global;
-
-typedef struct wa_table
-{
-    wa_value_type type;
-    wa_limits limits;
-    wa_value* contents;
-} wa_table;
-
-typedef enum wa_binding_kind
-{
-    WA_BINDING_WASM_GLOBAL,
-    WA_BINDING_WASM_FUNCTION,
-    WA_BINDING_WASM_MEMORY,
-    WA_BINDING_WASM_TABLE,
-
-    WA_BINDING_HOST_GLOBAL,
-    WA_BINDING_HOST_FUNCTION,
-    WA_BINDING_HOST_MEMORY,
-    WA_BINDING_HOST_TABLE,
-
-} wa_binding_kind;
-
-typedef struct wa_host_function
-{
-    wa_func_type type;
-    wa_host_proc proc;
-    void* userData;
-} wa_host_function;
-
-typedef struct wa_import_binding
-{
-    oc_str8 name;
-    wa_binding_kind kind;
-    wa_instance* instance;
-
-    union
-    {
-        u32 wasmGlobal;
-        u32 wasmMemory;
-        u32 wasmTable;
-        u32 wasmFunction;
-
-        wa_global* hostGlobal;
-        wa_memory* hostMemory;
-        wa_table* hostTable;
-        wa_host_function hostFunction;
-    };
-} wa_import_binding;
 
 typedef struct wa_import_package
 {

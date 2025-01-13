@@ -828,8 +828,11 @@ u64 orca_glDrawElementsIndirect_indirect_length(oc_wasm* wasm, const void* indir
 // Fully manual bindings
 //------------------------------------------------------------------------
 
-void glShaderSource_stub(const i64* restrict _params, i64* restrict _returns, u8* _mem, oc_wasm* _wasm)
+void glShaderSource_stub(wa_instance* instance, wa_value* _params, wa_value* _returns, void* user)
 {
+    oc_wasm* _wasm = (oc_wasm*)user;
+    char* _mem = oc_wasm_mem_get(_wasm).ptr;
+
     i32 shader = *(i32*)&_params[0];
     i32 count = *(i32*)&_params[1];
     i32 stringArrayOffset = *(i32*)&_params[2];
@@ -851,8 +854,11 @@ void glShaderSource_stub(const i64* restrict _params, i64* restrict _returns, u8
     oc_scratch_end(scratch);
 }
 
-void glGetVertexAttribPointerv_stub(const i64* restrict _params, i64* restrict _returns, u8* _mem, oc_wasm* _wasm)
+void glGetVertexAttribPointerv_stub(wa_instance* instance, wa_value* _params, wa_value* _returns, void* user)
 {
+    oc_wasm* _wasm = (oc_wasm*)user;
+    char* _mem = oc_wasm_mem_get(_wasm).ptr;
+
     GLuint index = *(i32*)&_params[0];
     GLenum pname = *(i32*)&_params[1];
     i32* pointer = (i32*)((char*)_mem + *(u32*)&_params[2]);
@@ -871,8 +877,11 @@ void glGetVertexAttribPointerv_stub(const i64* restrict _params, i64* restrict _
     *pointer = (i32)(intptr_t)rawPointer;
 }
 
-void glVertexAttribPointer_stub(const i64* restrict _params, i64* restrict _returns, u8* _mem, oc_wasm* _wasm)
+void glVertexAttribPointer_stub(wa_instance* instance, wa_value* _params, wa_value* _returns, void* user)
 {
+    oc_wasm* _wasm = (oc_wasm*)user;
+    char* _mem = oc_wasm_mem_get(_wasm).ptr;
+
     GLuint index = *(u32*)&_params[0];
     GLint size = *(i32*)&_params[1];
     GLenum type = *(i32*)&_params[2];
@@ -900,8 +909,11 @@ void glVertexAttribPointer_stub(const i64* restrict _params, i64* restrict _retu
     }
 }
 
-void glVertexAttribIPointer_stub(const i64* restrict _params, i64* restrict _returns, u8* _mem, oc_wasm* _wasm)
+void glVertexAttribIPointer_stub(wa_instance* instance, wa_value* _params, wa_value* _returns, void* user)
 {
+    oc_wasm* _wasm = (oc_wasm*)user;
+    char* _mem = oc_wasm_mem_get(_wasm).ptr;
+
     GLuint index = *(u32*)&_params[0];
     GLint size = *(i32*)&_params[1];
     GLenum type = *(i32*)&_params[2];
@@ -927,8 +939,11 @@ void glVertexAttribIPointer_stub(const i64* restrict _params, i64* restrict _ret
     }
 }
 
-void glGetUniformIndices_stub(const i64* restrict _params, i64* restrict _returns, u8* _mem, oc_wasm* _wasm)
+void glGetUniformIndices_stub(wa_instance* instance, wa_value* _params, wa_value* _returns, void* user)
 {
+    oc_wasm* _wasm = (oc_wasm*)user;
+    char* _mem = oc_wasm_mem_get(_wasm).ptr;
+
     GLuint program = (GLuint) * (i32*)&_params[0];
     GLsizei uniformCount = (GLsizei) * (i32*)&_params[1];
     u32* uniformNames = (u32*)((char*)_mem + *(u32*)&_params[2]);
@@ -1063,8 +1078,11 @@ void orca_gl_getstring_init(orca_gl_getstring_info* info, char* memory)
     info->init = true;
 }
 
-void glGetString_stub(const i64* restrict _params, i64* restrict _returns, u8* _mem, oc_wasm* _wasm)
+void glGetString_stub(wa_instance* instance, wa_value* _params, wa_value* _returns, void* user)
 {
+    oc_wasm* _wasm = (oc_wasm*)user;
+    char* _mem = oc_wasm_mem_get(_wasm).ptr;
+
     if(!__orcaGLGetStringInfo.init)
     {
         oc_str8 memory = oc_wasm_mem_get(_wasm);
@@ -1086,8 +1104,11 @@ void glGetString_stub(const i64* restrict _params, i64* restrict _returns, u8* _
     glGetString(name);
 }
 
-void glGetStringi_stub(const i64* restrict _params, i64* restrict _returns, u8* _mem, oc_wasm* _wasm)
+void glGetStringi_stub(wa_instance* instance, wa_value* _params, wa_value* _returns, void* user)
 {
+    oc_wasm* _wasm = (oc_wasm*)user;
+    char* _mem = oc_wasm_mem_get(_wasm).ptr;
+
     if(!__orcaGLGetStringInfo.init)
     {
         oc_str8 memory = oc_wasm_mem_get(_wasm);
@@ -1132,56 +1153,57 @@ int manual_link_gles_api(oc_wasm* wasm)
         WA_TYPE_I32,
     };
 
-    oc_wasm_binding binding = { 0 };
-    binding.params = int_types;
-    binding.returns = int_types;
+    wa_import_binding binding = { 0 };
+    binding.hostFunction.type.params = int_types;
+    binding.hostFunction.type.returns = int_types;
+    binding.kind = WA_BINDING_HOST_FUNCTION;
 
-    binding.importName = OC_STR8("glShaderSource");
-    binding.proc = glShaderSource_stub;
-    binding.countParams = 4;
-    binding.countReturns = 0;
+    binding.name = OC_STR8("glShaderSource");
+    binding.hostFunction.proc = glShaderSource_stub;
+    binding.hostFunction.type.paramCount = 4;
+    binding.hostFunction.type.returnCount = 0;
     status = oc_wasm_add_binding(wasm, &binding);
     BINDING_ERROR_HANDLING(glShaderSource)
 
-    binding.importName = OC_STR8("glGetUniformIndices");
-    binding.proc = glGetUniformIndices_stub;
-    binding.countParams = 4;
-    binding.countReturns = 0;
+    binding.name = OC_STR8("glGetUniformIndices");
+    binding.hostFunction.proc = glGetUniformIndices_stub;
+    binding.hostFunction.type.paramCount = 4;
+    binding.hostFunction.type.returnCount = 0;
     status = oc_wasm_add_binding(wasm, &binding);
     BINDING_ERROR_HANDLING(glGetUniformIndices)
 
-    binding.importName = OC_STR8("glGetVertexAttribPointerv");
-    binding.proc = glGetVertexAttribPointerv_stub;
-    binding.countParams = 4;
-    binding.countReturns = 0;
+    binding.name = OC_STR8("glGetVertexAttribPointerv");
+    binding.hostFunction.proc = glGetVertexAttribPointerv_stub;
+    binding.hostFunction.type.paramCount = 4;
+    binding.hostFunction.type.returnCount = 0;
     status = oc_wasm_add_binding(wasm, &binding);
     BINDING_ERROR_HANDLING(glGetVertexAttribPointerv)
 
-    binding.importName = OC_STR8("glGetString");
-    binding.proc = glGetString_stub;
-    binding.countParams = 1;
-    binding.countReturns = 1;
+    binding.name = OC_STR8("glGetString");
+    binding.hostFunction.proc = glGetString_stub;
+    binding.hostFunction.type.paramCount = 1;
+    binding.hostFunction.type.returnCount = 1;
     status = oc_wasm_add_binding(wasm, &binding);
     BINDING_ERROR_HANDLING(glGetGetString)
 
-    binding.importName = OC_STR8("glGetStringi");
-    binding.proc = glGetStringi_stub;
-    binding.countParams = 2;
-    binding.countReturns = 1;
+    binding.name = OC_STR8("glGetStringi");
+    binding.hostFunction.proc = glGetStringi_stub;
+    binding.hostFunction.type.paramCount = 2;
+    binding.hostFunction.type.returnCount = 1;
     status = oc_wasm_add_binding(wasm, &binding);
     BINDING_ERROR_HANDLING(glGetStringi)
 
-    binding.importName = OC_STR8("glVertexAttribPointer");
-    binding.proc = glVertexAttribPointer_stub;
-    binding.countParams = 6;
-    binding.countReturns = 0;
+    binding.name = OC_STR8("glVertexAttribPointer");
+    binding.hostFunction.proc = glVertexAttribPointer_stub;
+    binding.hostFunction.type.paramCount = 6;
+    binding.hostFunction.type.returnCount = 0;
     status = oc_wasm_add_binding(wasm, &binding);
     BINDING_ERROR_HANDLING(glVertexAttribPointer)
 
-    binding.importName = OC_STR8("glVertexAttribIPointer");
-    binding.proc = glVertexAttribIPointer_stub;
-    binding.countParams = 5;
-    binding.countReturns = 0;
+    binding.name = OC_STR8("glVertexAttribIPointer");
+    binding.hostFunction.proc = glVertexAttribIPointer_stub;
+    binding.hostFunction.type.paramCount = 5;
+    binding.hostFunction.type.returnCount = 0;
     status = oc_wasm_add_binding(wasm, &binding);
     BINDING_ERROR_HANDLING(glVertexAttribIPointer)
 

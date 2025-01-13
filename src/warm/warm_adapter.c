@@ -55,6 +55,7 @@ typedef struct wa_import_binding_elt
     wa_import_binding binding;
 } wa_import_binding_elt;
 
+/*
 typedef struct oc_wasm_binding_warm
 {
     oc_wasm_host_proc proc;
@@ -88,33 +89,30 @@ void oc_wasm_binding_warm_thunk(wa_instance* instance, wa_value* args, wa_value*
 
     oc_scratch_end(scratch);
 }
+*/
 
-wa_status oc_wasm_add_binding(oc_wasm* wasm, oc_wasm_binding* binding)
+wa_status oc_wasm_add_binding(oc_wasm* wasm, wa_import_binding* binding)
 {
     wa_import_binding_elt* elt = oc_arena_push_type(&wasm->arena, wa_import_binding_elt);
 
-    oc_wasm_binding_warm* userData = oc_arena_push_type(&wasm->arena, oc_wasm_binding_warm);
-    userData->proc = binding->proc;
-    userData->wasm = wasm;
-    userData->countParams = binding->countParams;
-    userData->countReturns = binding->countReturns;
+    //TODO: do other types of bindings next...
 
     elt->binding = (wa_import_binding){
-        .name = oc_str8_push_copy(&wasm->arena, binding->importName),
-        .kind = WA_BINDING_HOST_FUNCTION,
+        .name = oc_str8_push_copy(&wasm->arena, binding->name),
+        .kind = binding->kind,
         .hostFunction = {
             .type = {
-                .paramCount = binding->countParams,
-                .params = oc_arena_push_array(&wasm->arena, wa_value_type, binding->countParams),
-                .returnCount = binding->countReturns,
-                .returns = oc_arena_push_array(&wasm->arena, wa_value_type, binding->countReturns),
+                .paramCount = binding->hostFunction.type.paramCount,
+                .params = oc_arena_push_array(&wasm->arena, wa_value_type, binding->hostFunction.type.paramCount),
+                .returnCount = binding->hostFunction.type.returnCount,
+                .returns = oc_arena_push_array(&wasm->arena, wa_value_type, binding->hostFunction.type.returnCount),
             },
-            .proc = oc_wasm_binding_warm_thunk,
-            .userData = (void*)userData,
+            .proc = binding->hostFunction.proc,
+            .userData = wasm,
         },
     };
-    memcpy(elt->binding.hostFunction.type.params, binding->params, binding->countParams * sizeof(wa_value_type));
-    memcpy(elt->binding.hostFunction.type.returns, binding->returns, binding->countReturns * sizeof(wa_value_type));
+    memcpy(elt->binding.hostFunction.type.params, binding->hostFunction.type.params, binding->hostFunction.type.paramCount * sizeof(wa_value_type));
+    memcpy(elt->binding.hostFunction.type.returns, binding->hostFunction.type.returns, binding->hostFunction.type.returnCount * sizeof(wa_value_type));
 
     oc_list_push_back(&wasm->bindings, &elt->listElt);
     wasm->bindingCount++;
