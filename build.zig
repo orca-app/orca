@@ -196,6 +196,7 @@ pub fn build(b: *Build) !void {
             // headers to orca-libc/, so by default the header lib is the root of the prefix
             .include_dir = "",
         };
+        try makeDir("build");
         const output_dir = try cwd.realpathAlloc(b.allocator, "build");
         b.resolveInstallPrefix(output_dir, default_install_dirs);
     }
@@ -338,12 +339,13 @@ pub fn build(b: *Build) !void {
     var python_gen_gles_spec_run: *Build.Step.Run = b.addSystemCommand(&.{"python.exe"});
     python_gen_gles_spec_run.addArg("scripts/gles_gen.py");
     python_gen_gles_spec_run.addPrefixedFileArg("--spec=", b.path("src/ext/gl.xml"));
-    python_gen_gles_spec_run.addPrefixedFileArg("--header=", b.path("src/graphics/orca_gl31.h"));
+    const gles_api_header = python_gen_gles_spec_run.addPrefixedOutputFileArg("--header=", "orca_gl31.h");
     const gles_api_json = python_gen_gles_spec_run.addPrefixedOutputFileArg("--json=", "gles_api.json");
     const gles_api_log = python_gen_gles_spec_run.addPrefixedOutputFileArg("--log=", "gles_gen.log");
 
     var stage_gles_api_spec_artifacts = b.addUpdateSourceFiles();
     stage_gles_api_spec_artifacts.step.dependOn(&python_gen_gles_spec_run.step);
+    stage_gles_api_spec_artifacts.addCopyFileToSource(gles_api_header, "src/graphics/orca_gl31.h");
     stage_gles_api_spec_artifacts.addCopyFileToSource(gles_api_json, "src/wasmbind/gles_api.json");
     stage_gles_api_spec_artifacts.addCopyFileToSource(gles_api_log, "build/gles_gen.log");
 
