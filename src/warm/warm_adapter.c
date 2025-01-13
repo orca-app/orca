@@ -17,8 +17,6 @@ typedef struct oc_wasm
     oc_arena arena;
     wa_module* module;
     wa_instance* instance;
-
-    wa_import_package importPackage;
 } oc_wasm;
 
 oc_wasm* oc_wasm_create(void)
@@ -48,29 +46,13 @@ wa_status oc_wasm_decode(oc_wasm* wasm, oc_str8 wasmBlob)
     return WA_OK;
 }
 
-wa_status oc_wasm_add_binding(oc_wasm* wasm, wa_import_binding* binding)
-{
-    ////////////////////////////////////////////////////////////////////////
-    //TODO: temporary, remove this
-    ////////////////////////////////////////////////////////////////////////
-    if(binding->kind == WA_BINDING_HOST_FUNCTION)
-    {
-        binding->hostFunction.userData = wasm;
-    }
-
-    wa_import_package_push_binding(&wasm->arena, &wasm->importPackage, binding);
-    return (WA_OK);
-}
-
-wa_status oc_wasm_instantiate(oc_wasm* wasm, oc_str8 moduleDebugName)
+wa_status oc_wasm_instantiate(oc_wasm* wasm, oc_str8 moduleDebugName, wa_import_package* package)
 {
     oc_arena_scope scratch = oc_scratch_begin();
 
-    wasm->importPackage.name = OC_STR8("env");
-
     wa_instance_options options = {
         .packageCount = 1,
-        .importPackages = &wasm->importPackage,
+        .importPackages = package,
     };
 
     wasm->instance = wa_instance_create(&wasm->arena, wasm->module, &options);

@@ -5446,26 +5446,6 @@ wa_status wa_instance_initialize(wa_instance* instance)
     return WA_OK;
 }
 
-void wa_import_package_push_binding(oc_arena* arena, wa_import_package* package, wa_import_binding* binding)
-{
-    wa_import_package_elt* elt = oc_arena_push_type(arena, wa_import_package_elt);
-    elt->binding = *binding;
-    elt->binding.name = oc_str8_push_copy(arena, binding->name);
-
-    if(binding->kind == WA_BINDING_HOST_FUNCTION)
-    {
-        wa_func_type* type = &binding->hostFunction.type;
-        elt->binding.hostFunction.type.params = oc_arena_push_array(arena, wa_value_type, type->paramCount);
-        elt->binding.hostFunction.type.returns = oc_arena_push_array(arena, wa_value_type, type->returnCount);
-
-        memcpy(elt->binding.hostFunction.type.params, type->params, type->paramCount * sizeof(wa_value_type));
-        memcpy(elt->binding.hostFunction.type.returns, type->returns, type->returnCount * sizeof(wa_value_type));
-    }
-
-    oc_list_push_back(&package->bindings, &elt->listElt);
-    package->bindingCount++;
-}
-
 wa_instance* wa_instance_create(oc_arena* arena, wa_module* module, wa_instance_options* options)
 {
     wa_instance* instance = oc_arena_push_type(arena, wa_instance);

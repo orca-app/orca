@@ -530,14 +530,22 @@ i32 orca_runloop(void* user)
     OC_WASM_TRAP(oc_wasm_decode(app->env.wasm, app->env.wasmBytecode));
 
     //NOTE: bind orca APIs
+    wa_import_package package = {
+        .name = OC_STR8("env"),
+    };
+
     {
+        oc_arena_scope scratch = oc_scratch_begin();
+
         int err = 0;
-        err |= bindgen_link_core_api(app->env.wasm);
-        err |= bindgen_link_surface_api(app->env.wasm);
-        err |= bindgen_link_clock_api(app->env.wasm);
-        err |= bindgen_link_io_api(app->env.wasm);
-        err |= bindgen_link_gles_api(app->env.wasm);
-        err |= manual_link_gles_api(app->env.wasm);
+        err |= bindgen_link_core_api(scratch.arena, &package);
+        err |= bindgen_link_surface_api(scratch.arena, &package);
+        err |= bindgen_link_clock_api(scratch.arena, &package);
+        err |= bindgen_link_io_api(scratch.arena, &package);
+        err |= bindgen_link_gles_api(scratch.arena, &package);
+        err |= manual_link_gles_api(scratch.arena, &package);
+
+        oc_scratch_end(scratch);
 
         if(err)
         {
@@ -546,7 +554,7 @@ i32 orca_runloop(void* user)
     }
 
     {
-        OC_WASM_TRAP(oc_wasm_instantiate(app->env.wasm, OC_STR8("module")));
+        OC_WASM_TRAP(oc_wasm_instantiate(app->env.wasm, OC_STR8("module"), &package));
     }
 
     //NOTE: Find and type check event handlers.

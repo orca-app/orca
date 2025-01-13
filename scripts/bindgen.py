@@ -246,7 +246,7 @@ def bindgen(apiName, spec, **kwargs):
         print(s, file=host_bindings)
 
     # link function
-    s = 'int bindgen_link_' + apiName + '_api(oc_wasm* wasm)\n{\n'
+    s = 'int bindgen_link_' + apiName + '_api(oc_arena* arena, wa_import_package* package)\n{\n'
     s += '\twa_status status;\n'
     s += '\tint ret = 0;\n\n'
 
@@ -302,12 +302,7 @@ def bindgen(apiName, spec, **kwargs):
         s += '\t\tbinding.hostFunction.type.returnCount = ' + str(num_returns) + ';\n';
         s += '\t\tbinding.hostFunction.type.params = paramTypes;\n'
         s += '\t\tbinding.hostFunction.type.returns = returnTypes;\n'
-        s += '\t\tstatus = oc_wasm_add_binding(wasm, &binding);\n'
-        s += '\t\tif(wa_status_is_fail(status))\n'
-        s += '\t\t{\n'
-        s += '\t\t\toc_log_error("Couldn\'t link function ' + name + ' (%s)\\n", wa_status_str8(status).ptr);\n'
-        s += '\t\t\tret = -1;\n'
-        s += '\t\t}\n'
+        s += '\t\twa_import_package_push_binding(arena, package, &binding);\n'
         s += '\t}\n\n'
 
 

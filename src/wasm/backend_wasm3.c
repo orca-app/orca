@@ -14,22 +14,16 @@
 
 typedef struct oc_wasm_binding_wasm3
 {
-    wa_import_binding info;
+    u32 paramCount;
+    u32 returnCount;
     u32 paramsStackOffset;
+    wa_host_proc proc;
     oc_wasm* wasm;
 } oc_wasm_binding_wasm3;
-
-typedef struct oc_wasm_binding_elt_wasm3
-{
-    oc_list_elt listElt;
-    oc_wasm_binding_wasm3 binding;
-} oc_wasm_binding_elt_wasm3;
 
 typedef struct oc_wasm
 {
     oc_arena arena;
-    oc_list bindings;
-
     wa_memory memory;
 
     IM3Environment m3Env;
@@ -236,16 +230,16 @@ static const void* oc_wasm_binding_wasm3_thunk(IM3Runtime runtime, IM3ImportCont
     void* returns = stack;
 
     oc_arena_scope scratch = oc_scratch_begin();
-    wa_value* paramVals = oc_arena_push_array(scratch.arena, wa_value, binding->info.hostFunction.type.paramCount);
-    wa_value* returnVals = oc_arena_push_array(scratch.arena, wa_value, binding->info.hostFunction.type.returnCount);
+    wa_value* paramVals = oc_arena_push_array(scratch.arena, wa_value, binding->paramCount);
+    wa_value* returnVals = oc_arena_push_array(scratch.arena, wa_value, binding->returnCount);
 
-    for(u32 i = 0; i < binding->info.hostFunction.type.paramCount; i++)
+    for(u32 i = 0; i < binding->paramCount; i++)
     {
         paramVals[i].valI64 = ((i64*)params)[i];
     }
-    binding->info.hostFunction.proc(0, paramVals, returnVals, binding->wasm);
+    binding->proc(0, paramVals, returnVals, binding->wasm);
 
-    for(u32 i = 0; i < binding->info.hostFunction.type.returnCount; i++)
+    for(u32 i = 0; i < binding->returnCount; i++)
     {
         ((i64*)returns)[i] = returnVals[i].valI64;
     }
@@ -263,34 +257,7 @@ wa_status oc_wasm_decode(oc_wasm* wasm, oc_str8 wasmBlob)
     return oc_wasm_handle_wasm3_result(wasm, res, "The application couldn't parse its web assembly module");
 }
 
-wa_status oc_wasm_add_binding(oc_wasm* wasm, wa_import_binding* binding)
-{
-    OC_ASSERT(binding->kind == WA_BINDING_HOST_FUNCTION);
-
-    size_t allocSize = 0;
-    allocSize += sizeof(oc_wasm_binding_elt_wasm3);
-    allocSize += binding->hostFunction.type.paramCount * sizeof(wa_value_type);
-    allocSize += binding->hostFunction.type.returnCount * sizeof(wa_value_type);
-
-    oc_wasm_binding_elt_wasm3* elt = (oc_wasm_binding_elt_wasm3*)oc_arena_push_aligned(&wasm->arena, allocSize, _Alignof(oc_wasm_binding_elt_wasm3));
-    oc_list_push_front(&wasm->bindings, &elt->listElt);
-
-    elt->binding.info.name = oc_str8_push_copy(&wasm->arena, binding->name);
-    elt->binding.info.kind = WA_BINDING_HOST_FUNCTION;
-    elt->binding.info.hostFunction = binding->hostFunction;
-
-    elt->binding.info.hostFunction.type.params = (wa_value_type*)(((char*)elt) + sizeof(oc_wasm_binding_elt_wasm3));
-    elt->binding.info.hostFunction.type.returns = elt->binding.info.hostFunction.type.params + elt->binding.info.hostFunction.type.paramCount;
-    memcpy(elt->binding.info.hostFunction.type.params, binding->hostFunction.type.params, binding->hostFunction.type.paramCount * sizeof(wa_value_type));
-    memcpy(elt->binding.info.hostFunction.type.returns, binding->hostFunction.type.returns, binding->hostFunction.type.returnCount * sizeof(wa_value_type));
-
-    elt->binding.paramsStackOffset = sizeof(i64) * binding->hostFunction.type.returnCount;
-    elt->binding.wasm = wasm;
-
-    return WA_OK;
-}
-
-wa_status oc_wasm_instantiate(oc_wasm* wasm, oc_str8 moduleDebugName)
+wa_status oc_wasm_instantiate(oc_wasm* wasm, oc_str8 moduleDebugName, wa_import_package* package)
 {
     oc_base_allocator* allocator = oc_base_allocator_default();
     wasm->memory.limits.min = 0;
@@ -311,16 +278,17 @@ wa_status oc_wasm_instantiate(oc_wasm* wasm, oc_str8 moduleDebugName)
     }
 
     bool wasLinkSuccessful = true;
-    oc_list_for(wasm->bindings, elt, oc_wasm_binding_elt_wasm3, listElt)
+    oc_list_for(package->bindings, elt, wa_import_package_elt, listElt)
     {
-        const oc_wasm_binding_wasm3* binding = &elt->binding;
-        const size_t totalTypes = binding->info.hostFunction.type.paramCount + binding->info.hostFunction.type.returnCount;
+        wa_import_binding* binding = &elt->binding;
+
+        const size_t totalTypes = binding->hostFunction.type.paramCount + binding->hostFunction.type.returnCount;
 
         char signature[128];
         {
             if((sizeof(signature) - 3) < totalTypes) // -3 accounts for null and open/close parens
             {
-                oc_log_error("Couldn't link function %s (too many params+returns, max %d but need %d)\n", elt->binding.info.name.ptr, (int)sizeof(signature), (int)totalTypes);
+                oc_log_error("Couldn't link function %s (too many params+returns, max %d but need %d)\n", binding->name.ptr, (int)sizeof(signature), (int)totalTypes);
                 wasLinkSuccessful = false;
                 continue;
             }
@@ -328,9 +296,9 @@ wa_status oc_wasm_instantiate(oc_wasm* wasm, oc_str8 moduleDebugName)
             size_t signature_index = 0;
             signature[signature_index] = 'v'; // default to void in case there are no returns
             ++signature_index;
-            for(size_t i = 0; i < binding->info.hostFunction.type.returnCount; ++i, ++signature_index)
+            for(size_t i = 0; i < binding->hostFunction.type.returnCount; ++i, ++signature_index)
             {
-                char type = wa_value_type_to_wasm3_char(binding->info.hostFunction.type.returns[i]);
+                char type = wa_value_type_to_wasm3_char(binding->hostFunction.type.returns[i]);
                 signature[signature_index] = type;
             }
 
@@ -338,9 +306,9 @@ wa_status oc_wasm_instantiate(oc_wasm* wasm, oc_str8 moduleDebugName)
             ++signature_index;
             signature[signature_index] = 'v';
 
-            for(size_t i = 0; i < binding->info.hostFunction.type.paramCount; ++i, ++signature_index)
+            for(size_t i = 0; i < binding->hostFunction.type.paramCount; ++i, ++signature_index)
             {
-                char type = wa_value_type_to_wasm3_char(binding->info.hostFunction.type.params[i]);
+                char type = wa_value_type_to_wasm3_char(binding->hostFunction.type.params[i]);
                 signature[signature_index] = type;
             }
 
@@ -348,8 +316,14 @@ wa_status oc_wasm_instantiate(oc_wasm* wasm, oc_str8 moduleDebugName)
             ++signature_index;
             signature[signature_index] = '\0';
         }
+        oc_wasm_binding_wasm3* user = oc_arena_push_type(&wasm->arena, oc_wasm_binding_wasm3);
+        user->proc = binding->hostFunction.proc;
+        user->paramCount = binding->hostFunction.type.paramCount;
+        user->returnCount = binding->hostFunction.type.returnCount;
+        user->paramsStackOffset = sizeof(i64) * binding->hostFunction.type.returnCount;
+        user->wasm = wasm;
 
-        M3Result res = m3_LinkRawFunctionEx(wasm->m3Module, "*", binding->info.name.ptr, signature, oc_wasm_binding_wasm3_thunk, binding);
+        M3Result res = m3_LinkRawFunctionEx(wasm->m3Module, "*", binding->name.ptr, signature, oc_wasm_binding_wasm3_thunk, user);
         if(res != m3Err_none && res != m3Err_functionLookupFailed)
         {
             oc_wasm_handle_wasm3_result(wasm, res, "link failure");
@@ -546,7 +520,6 @@ oc_wasm* oc_wasm_create(void)
     memset(wasm, 0, sizeof(oc_wasm));
 
     wasm->arena = arena;
-    oc_list_init(&wasm->bindings);
 
     u32 stackSize = 1 << 20;
     wasm->m3Env = m3_NewEnvironment();

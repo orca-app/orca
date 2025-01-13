@@ -239,8 +239,7 @@ oc_wasm* oc_wasm_create(void);
 void oc_wasm_destroy(oc_wasm* wasm);
 
 wa_status oc_wasm_decode(oc_wasm* wasm, oc_str8 wasmBlob);
-wa_status oc_wasm_add_binding(oc_wasm* wasm, wa_import_binding* binding);
-wa_status oc_wasm_instantiate(oc_wasm* wasm, oc_str8 moduleDebugName);
+wa_status oc_wasm_instantiate(oc_wasm* wasm, oc_str8 moduleDebugName, wa_import_package* package);
 
 u64 oc_wasm_mem_size(oc_wasm* wasm);
 oc_str8 oc_wasm_mem_get(oc_wasm* wasm);

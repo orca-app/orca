@@ -1128,15 +1128,8 @@ void glGetStringi_stub(wa_instance* instance, wa_value* _params, wa_value* _retu
     glGetStringi(name, index);
 }
 
-int manual_link_gles_api(oc_wasm* wasm)
+int manual_link_gles_api(oc_arena* arena, wa_import_package* package)
 {
-#define BINDING_ERROR_HANDLING(name)                                                                   \
-    if(wa_status_is_fail(status))                                                                      \
-    {                                                                                                  \
-        oc_log_error("Couldn't link function " #name " (%.*s)\n", oc_str8_ip(wa_status_str8(status))); \
-        ret = -1;                                                                                      \
-    }
-
     wa_status status;
     int ret = 0;
 
@@ -1162,52 +1155,43 @@ int manual_link_gles_api(oc_wasm* wasm)
     binding.hostFunction.proc = glShaderSource_stub;
     binding.hostFunction.type.paramCount = 4;
     binding.hostFunction.type.returnCount = 0;
-    status = oc_wasm_add_binding(wasm, &binding);
-    BINDING_ERROR_HANDLING(glShaderSource)
+    wa_import_package_push_binding(arena, package, &binding);
 
     binding.name = OC_STR8("glGetUniformIndices");
     binding.hostFunction.proc = glGetUniformIndices_stub;
     binding.hostFunction.type.paramCount = 4;
     binding.hostFunction.type.returnCount = 0;
-    status = oc_wasm_add_binding(wasm, &binding);
-    BINDING_ERROR_HANDLING(glGetUniformIndices)
+    wa_import_package_push_binding(arena, package, &binding);
 
     binding.name = OC_STR8("glGetVertexAttribPointerv");
     binding.hostFunction.proc = glGetVertexAttribPointerv_stub;
     binding.hostFunction.type.paramCount = 4;
     binding.hostFunction.type.returnCount = 0;
-    status = oc_wasm_add_binding(wasm, &binding);
-    BINDING_ERROR_HANDLING(glGetVertexAttribPointerv)
+    wa_import_package_push_binding(arena, package, &binding);
 
     binding.name = OC_STR8("glGetString");
     binding.hostFunction.proc = glGetString_stub;
     binding.hostFunction.type.paramCount = 1;
     binding.hostFunction.type.returnCount = 1;
-    status = oc_wasm_add_binding(wasm, &binding);
-    BINDING_ERROR_HANDLING(glGetGetString)
+    wa_import_package_push_binding(arena, package, &binding);
 
     binding.name = OC_STR8("glGetStringi");
     binding.hostFunction.proc = glGetStringi_stub;
     binding.hostFunction.type.paramCount = 2;
     binding.hostFunction.type.returnCount = 1;
-    status = oc_wasm_add_binding(wasm, &binding);
-    BINDING_ERROR_HANDLING(glGetStringi)
+    wa_import_package_push_binding(arena, package, &binding);
 
     binding.name = OC_STR8("glVertexAttribPointer");
     binding.hostFunction.proc = glVertexAttribPointer_stub;
     binding.hostFunction.type.paramCount = 6;
     binding.hostFunction.type.returnCount = 0;
-    status = oc_wasm_add_binding(wasm, &binding);
-    BINDING_ERROR_HANDLING(glVertexAttribPointer)
+    wa_import_package_push_binding(arena, package, &binding);
 
     binding.name = OC_STR8("glVertexAttribIPointer");
     binding.hostFunction.proc = glVertexAttribIPointer_stub;
     binding.hostFunction.type.paramCount = 5;
     binding.hostFunction.type.returnCount = 0;
-    status = oc_wasm_add_binding(wasm, &binding);
-    BINDING_ERROR_HANDLING(glVertexAttribIPointer)
-
-#undef BINDING_ERROR_HANDLING
+    wa_import_package_push_binding(arena, package, &binding);
 
     return (ret);
 }
