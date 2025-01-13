@@ -881,10 +881,12 @@ pub fn build(b: *Build) !void {
 
     orca_tool_exe.linkLibrary(curl_lib);
     orca_tool_exe.linkLibrary(z_lib);
-    orca_tool_exe.linkSystemLibrary("shlwapi");
-    orca_tool_exe.linkSystemLibrary("shell32");
-    orca_tool_exe.linkSystemLibrary("ole32");
-    orca_tool_exe.linkSystemLibrary("kernel32");
+    if (target.result.os.tag == .windows) {
+        orca_tool_exe.linkSystemLibrary("shlwapi");
+        orca_tool_exe.linkSystemLibrary("shell32");
+        orca_tool_exe.linkSystemLibrary("ole32");
+        orca_tool_exe.linkSystemLibrary("kernel32");
+    }
 
     orca_tool_exe.step.dependOn(&curl_lib.step);
     orca_tool_exe.step.dependOn(&z_lib.step);
@@ -989,6 +991,8 @@ pub fn build(b: *Build) !void {
         "build/bin",
         "build/orca-libc",
         "build/gles_gen.log",
+        "build/sketches",
+        "build/tests",
         "src/ext/angle",
         "src/ext/dawn",
         "scripts/files",
@@ -1117,77 +1121,109 @@ pub fn build(b: *Build) !void {
     /////////////////////////////////////////////////////////////////
     // tests
 
-    // print("Removing build artifacts...")
-    // yeetdir("build")
-    // yeetdir("src/ext/angle")
-    // yeetdir("src/ext/dawn")
-    // yeetdir("scripts/files")
-    // yeetdir("scripts/__pycache__")
+    var tests = b.step("test", "Build and run all tests");
 
-    // build_all_step.dependOn(&python_build_all.step);
+    const TestConfig = struct {
+        name: []const u8,
+        testfile: []const u8 = "main.c",
+        run: bool = false,
+        wasm: bool = false,
+    };
 
-    // test_step.dependOn(&run_lib_unit_tests.step);
-    // test_step.dependOn(&run_exe_unit_tests.step);
+    // several tests require UI interactions so we won't run them all automatically, but configure
+    // only some of them to be run
+    const test_configs: []const TestConfig = &.{
+        .{
+            .name = "bulkmem",
+            .wasm = true,
+        },
+        .{
+            .name = "file_dialog",
+        },
+        .{
+            .name = "file_open_request",
+        },
+        .{
+            .name = "files",
+            .run = true,
+        },
+        .{
+            .name = "perf",
+            .testfile = "driver.c",
+        },
+        .{
+            .name = "wasm_tests",
+            .wasm = true,
+        },
+    };
 
-    // const run_lib_unit_tests = b.addRunArtifact(lib_unit_tests);
+    const tests_install_opts = Build.Step.InstallArtifact.Options{
+        .dest_dir = .{ .override = .{ .custom = "tests" } },
+    };
 
-    // const exe = b.addExecutable(.{
-    //     .name = "zig_init",
-    //     .root_source_file = b.path("src/main.zig"),
-    //     .target = target,
-    //     .optimize = optimize,
-    // });
+    const orca_platform_tests_install: *Build.Step.InstallArtifact = b.addInstallArtifact(orca_platform_lib, tests_install_opts);
+    tests.dependOn(&orca_platform_tests_install.step);
 
-    // // This declares intent for the executable to be installed into the
-    // // standard location when the user invokes the "install" step (the default
-    // // step when running `zig build`).
-    // b.installArtifact(exe);
+    var stage_test_dependency_artifacts = b.addUpdateSourceFiles();
+    if (target.result.os.tag == .windows) {
+        stage_test_dependency_artifacts.addCopyFileToSource(b.path("build/angle.out/bin/d3dcompiler_47.dll"), "build/tests/d3dcompiler_47.dll");
+        stage_test_dependency_artifacts.addCopyFileToSource(b.path("build/angle.out/bin/libEGL.dll"), "build/tests/libEGL.dll");
+        stage_test_dependency_artifacts.addCopyFileToSource(b.path("build/angle.out/bin/libEGL.dll.lib"), "build/tests/libEGL.dll.lib");
+        stage_test_dependency_artifacts.addCopyFileToSource(b.path("build/angle.out/bin/libGLESv2.dll"), "build/tests/libGLESv2.dll");
+        stage_test_dependency_artifacts.addCopyFileToSource(b.path("build/angle.out/bin/libGLESv2.dll.lib"), "build/tests/libGLESv2.dll.lib");
+        stage_test_dependency_artifacts.addCopyFileToSource(b.path("build/dawn.out/bin/webgpu.dll"), "build/tests/webgpu.dll");
+        stage_test_dependency_artifacts.addCopyFileToSource(b.path("build/dawn.out/bin/webgpu.lib"), "build/tests/webgpu.lib");
+    } else {
+        stage_test_dependency_artifacts.addCopyFileToSource(b.path("build/angle.out/bin/libEGL.dylib"), "build/tests/libEGL.dylib");
+        stage_test_dependency_artifacts.addCopyFileToSource(b.path("build/angle.out/bin/libGLESv2.dylib"), "build/tests/libGLESv2.dylib");
+        stage_test_dependency_artifacts.addCopyFileToSource(b.path("build/dawn.out/bin/libwebgpu.dylib"), "build/tests/libwebgpu.dll");
+    }
+    stage_test_dependency_artifacts.step.dependOn(&run_angle_uptodate.step);
+    stage_test_dependency_artifacts.step.dependOn(&run_dawn_uptodate.step);
+    tests.dependOn(&stage_test_dependency_artifacts.step);
 
-    // // This *creates* a Run step in the build graph, to be executed when another
-    // // step is evaluated that depends on it. The next line below will establish
-    // // such a dependency.
-    // const run_cmd = b.addRunArtifact(exe);
+    for (test_configs) |config| {
+        // TODO add support for building wasm samples
+        if (config.wasm) {
+            continue;
+        }
 
-    // // By making the run step depend on the install step, it will be run from the
-    // // installation directory rather than directly from within the cache directory.
-    // // This is not necessary, however, if the application depends on other installed
-    // // files, this ensures they will be present and in the expected location.
-    // run_cmd.step.dependOn(install_step);
+        const test_source: []const u8 = b.pathJoin(&.{ "tests", config.name, "main.c" });
 
-    // // This allows the user to pass arguments to the application in the build
-    // // command itself, like this: `zig build run -- arg1 arg2 etc`
-    // if (b.args) |args| {
-    //     run_cmd.addArgs(args);
-    // }
+        var test_exe: *Build.Step.Compile = b.addExecutable(.{
+            .name = config.name,
+            .target = target,
+            .optimize = optimize,
+        });
+        test_exe.addCSourceFiles(.{
+            .files = &.{test_source},
+            .flags = &.{b.fmt("-I{s}", .{b.pathFromRoot("src")})},
+        });
+        test_exe.linkLibC();
+        test_exe.linkLibrary(orca_platform_lib);
 
-    // This creates a build step. It will be visible in the `zig build --help` menu,
-    // and can be selected like this: `zig build run`
-    // This will evaluate the `run` step rather than the default, which is "install".
-    // const run_step = b.step("run", "Run the app");
-    // run_step.dependOn(&run_cmd.step);
+        if (target.result.os.tag == .windows) {
+            test_exe.linkSystemLibrary("shlwapi");
+        }
 
-    // // Creates a step for unit testing. This only builds the test executable
-    // // but does not run it.
-    // const lib_unit_tests = b.addTest(.{
-    //     .root_source_file = b.path("src/root.zig"),
-    //     .target = target,
-    //     .optimize = optimize,
-    // });
+        const install: *Build.Step.InstallArtifact = b.addInstallArtifact(test_exe, tests_install_opts);
+        tests.dependOn(&install.step);
 
-    // const run_lib_unit_tests = b.addRunArtifact(lib_unit_tests);
+        if (config.run) {
+            if (config.wasm) {
+                // TODO add support for running wasm tests
+                const fail = b.addFail("Running is currently not supported for wasm tests.");
+                tests.dependOn(&fail.step);
+            } else {
+                const test_dir_path = b.path(b.pathJoin(&.{ "tests", config.name }));
 
-    // const exe_unit_tests = b.addTest(.{
-    //     .root_source_file = b.path("src/main.zig"),
-    //     .target = target,
-    //     .optimize = optimize,
-    // });
+                const run_test = b.addRunArtifact(test_exe);
+                run_test.addPrefixedFileArg("--test-dir=", test_dir_path); // allows tests to access their data files
+                run_test.step.dependOn(&stage_test_dependency_artifacts.step);
+                run_test.step.dependOn(&install.step); // causes test exe working dir to be build\tests\ instead of zig-cache
 
-    // const run_exe_unit_tests = b.addRunArtifact(exe_unit_tests);
-
-    // // Similar to creating the run step earlier, this exposes a `test` step to
-    // // the `zig build --help` menu, providing a way for the user to request
-    // // running the unit tests.
-    // const test_step = b.step("test", "Run unit tests");
-    // test_step.dependOn(&run_lib_unit_tests.step);
-    // test_step.dependOn(&run_exe_unit_tests.step);
+                tests.dependOn(&run_test.step);
+            }
+        }
+    }
 }
