@@ -5100,9 +5100,9 @@ wa_status wa_instance_link_imports(wa_instance* instance, wa_instance_options* o
             wa_import_package* package = &options->importPackages[packageIndex];
             if(!oc_str8_cmp(package->name, import->moduleName))
             {
-                for(u32 bindingIndex = 0; bindingIndex < package->bindingCount; bindingIndex++)
+                oc_list_for(package->bindings, elt, wa_import_package_elt, listElt)
                 {
-                    wa_import_binding* binding = &package->bindings[bindingIndex];
+                    wa_import_binding* binding = &elt->binding;
                     if(!oc_str8_cmp(binding->name, import->importName))
                     {
                         switch(import->kind)
@@ -5446,6 +5446,26 @@ wa_status wa_instance_initialize(wa_instance* instance)
     return WA_OK;
 }
 
+void wa_import_package_push_binding(oc_arena* arena, wa_import_package* package, wa_import_binding* binding)
+{
+    wa_import_package_elt* elt = oc_arena_push_type(arena, wa_import_package_elt);
+    elt->binding = *binding;
+    elt->binding.name = oc_str8_push_copy(arena, binding->name);
+
+    if(binding->kind == WA_BINDING_HOST_FUNCTION)
+    {
+        wa_func_type* type = &binding->hostFunction.type;
+        elt->binding.hostFunction.type.params = oc_arena_push_array(arena, wa_value_type, type->paramCount);
+        elt->binding.hostFunction.type.returns = oc_arena_push_array(arena, wa_value_type, type->returnCount);
+
+        memcpy(elt->binding.hostFunction.type.params, type->params, type->paramCount * sizeof(wa_value_type));
+        memcpy(elt->binding.hostFunction.type.returns, type->returns, type->returnCount * sizeof(wa_value_type));
+    }
+
+    oc_list_push_back(&package->bindings, &elt->listElt);
+    package->bindingCount++;
+}
+
 wa_instance* wa_instance_create(oc_arena* arena, wa_module* module, wa_instance_options* options)
 {
     wa_instance* instance = oc_arena_push_type(arena, wa_instance);
@@ -5548,44 +5568,45 @@ wa_import_package wa_instance_exports(oc_arena* arena, wa_instance* instance, oc
     wa_import_package package = {
         .name = oc_str8_push_copy(arena, name),
         .bindingCount = module->exportCount,
-        .bindings = oc_arena_push_array(arena, wa_import_binding, module->exportCount),
     };
 
     for(u32 exportIndex = 0; exportIndex < module->exportCount; exportIndex++)
     {
         wa_export* export = &module->exports[exportIndex];
-        wa_import_binding* binding = &package.bindings[exportIndex];
+        wa_import_binding binding = { 0 };
 
-        binding->name = export->name;
-        binding->instance = instance;
+        binding.name = export->name;
+        binding.instance = instance;
 
         switch(export->kind)
         {
             case WA_EXPORT_GLOBAL:
             {
-                binding->kind = WA_BINDING_WASM_GLOBAL;
-                binding->wasmGlobal = export->index;
+                binding.kind = WA_BINDING_WASM_GLOBAL;
+                binding.wasmGlobal = export->index;
             }
             break;
             case WA_EXPORT_FUNCTION:
             {
-                binding->kind = WA_BINDING_WASM_FUNCTION;
-                binding->wasmFunction = export->index;
+                binding.kind = WA_BINDING_WASM_FUNCTION;
+                binding.wasmFunction = export->index;
             }
             break;
             case WA_EXPORT_TABLE:
             {
-                binding->kind = WA_BINDING_WASM_TABLE;
-                binding->wasmTable = export->index;
+                binding.kind = WA_BINDING_WASM_TABLE;
+                binding.wasmTable = export->index;
             }
             break;
             case WA_EXPORT_MEMORY:
             {
-                binding->kind = WA_BINDING_WASM_MEMORY;
-                binding->wasmMemory = export->index;
+                binding.kind = WA_BINDING_WASM_MEMORY;
+                binding.wasmMemory = export->index;
             }
             break;
         }
+
+        wa_import_package_push_binding(arena, &package, &binding);
     }
 
     return (package);

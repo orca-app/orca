@@ -18,8 +18,7 @@ typedef struct oc_wasm
     wa_module* module;
     wa_instance* instance;
 
-    u32 bindingCount;
-    oc_list bindings;
+    wa_import_package importPackage;
 } oc_wasm;
 
 oc_wasm* oc_wasm_create(void)
@@ -49,74 +48,17 @@ wa_status oc_wasm_decode(oc_wasm* wasm, oc_str8 wasmBlob)
     return WA_OK;
 }
 
-typedef struct wa_import_binding_elt
-{
-    oc_list_elt listElt;
-    wa_import_binding binding;
-} wa_import_binding_elt;
-
-/*
-typedef struct oc_wasm_binding_warm
-{
-    oc_wasm_host_proc proc;
-    oc_wasm* wasm;
-    i16 countParams;
-    i16 countReturns;
-} oc_wasm_binding_warm;
-
-void oc_wasm_binding_warm_thunk(wa_instance* instance, wa_value* args, wa_value* returns, void* user)
-{
-    oc_wasm_binding_warm* binding = (oc_wasm_binding_warm*)user;
-    oc_arena_scope scratch = oc_scratch_begin();
-
-    /////////////////////////////////////////////////////////////////////////
-    //TODO: remove the need for this marshalling
-    /////////////////////////////////////////////////////////////////////////
-    i64* args64 = oc_arena_push_array(scratch.arena, i64, binding->countParams);
-    i64* returns64 = oc_arena_push_array(scratch.arena, i64, binding->countReturns);
-
-    for(u32 i = 0; i < binding->countParams; i++)
-    {
-        args64[i] = args[i].valI64;
-    }
-
-    binding->proc(args64, returns64, (u8*)instance->memories[0]->ptr, binding->wasm);
-
-    for(u32 i = 0; i < binding->countReturns; i++)
-    {
-        returns[i].valI64 = returns64[i];
-    }
-
-    oc_scratch_end(scratch);
-}
-*/
-
 wa_status oc_wasm_add_binding(oc_wasm* wasm, wa_import_binding* binding)
 {
-    wa_import_binding_elt* elt = oc_arena_push_type(&wasm->arena, wa_import_binding_elt);
+    ////////////////////////////////////////////////////////////////////////
+    //TODO: temporary, remove this
+    ////////////////////////////////////////////////////////////////////////
+    if(binding->kind == WA_BINDING_HOST_FUNCTION)
+    {
+        binding->hostFunction.userData = wasm;
+    }
 
-    //TODO: do other types of bindings next...
-
-    elt->binding = (wa_import_binding){
-        .name = oc_str8_push_copy(&wasm->arena, binding->name),
-        .kind = binding->kind,
-        .hostFunction = {
-            .type = {
-                .paramCount = binding->hostFunction.type.paramCount,
-                .params = oc_arena_push_array(&wasm->arena, wa_value_type, binding->hostFunction.type.paramCount),
-                .returnCount = binding->hostFunction.type.returnCount,
-                .returns = oc_arena_push_array(&wasm->arena, wa_value_type, binding->hostFunction.type.returnCount),
-            },
-            .proc = binding->hostFunction.proc,
-            .userData = wasm,
-        },
-    };
-    memcpy(elt->binding.hostFunction.type.params, binding->hostFunction.type.params, binding->hostFunction.type.paramCount * sizeof(wa_value_type));
-    memcpy(elt->binding.hostFunction.type.returns, binding->hostFunction.type.returns, binding->hostFunction.type.returnCount * sizeof(wa_value_type));
-
-    oc_list_push_back(&wasm->bindings, &elt->listElt);
-    wasm->bindingCount++;
-
+    wa_import_package_push_binding(&wasm->arena, &wasm->importPackage, binding);
     return (WA_OK);
 }
 
@@ -124,21 +66,11 @@ wa_status oc_wasm_instantiate(oc_wasm* wasm, oc_str8 moduleDebugName)
 {
     oc_arena_scope scratch = oc_scratch_begin();
 
-    wa_import_package package = {
-        .name = OC_STR8("env"),
-        .bindingCount = wasm->bindingCount,
-        .bindings = oc_arena_push_array(scratch.arena, wa_import_binding, wasm->bindingCount),
-    };
-    u32 i = 0;
-    oc_list_for(wasm->bindings, elt, wa_import_binding_elt, listElt)
-    {
-        wa_import_binding* binding = &package.bindings[i];
-        *binding = elt->binding;
-        i++;
-    }
+    wasm->importPackage.name = OC_STR8("env");
+
     wa_instance_options options = {
         .packageCount = 1,
-        .importPackages = &package,
+        .importPackages = &wasm->importPackage,
     };
 
     wasm->instance = wa_instance_create(&wasm->arena, wasm->module, &options);

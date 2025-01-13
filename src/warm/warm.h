@@ -19,13 +19,6 @@ typedef struct wa_module wa_module;
 typedef struct wa_instance wa_instance;
 typedef struct wa_func wa_func;
 
-typedef struct wa_import_package
-{
-    oc_str8 name;
-    u32 bindingCount;
-    wa_import_binding* bindings;
-} wa_import_package;
-
 typedef struct wa_instance_options
 {
     u32 packageCount;

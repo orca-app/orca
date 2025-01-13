@@ -194,6 +194,21 @@ typedef struct wa_import_binding
     };
 } wa_import_binding;
 
+typedef struct wa_import_package_elt
+{
+    oc_list_elt listElt;
+    wa_import_binding binding;
+} wa_import_package_elt;
+
+typedef struct wa_import_package
+{
+    oc_str8 name;
+    u32 bindingCount;
+    oc_list bindings;
+} wa_import_package;
+
+void wa_import_package_push_binding(oc_arena* arena, wa_import_package* package, wa_import_binding* binding);
+
 struct oc_wasm_function_handle;
 typedef struct oc_wasm_function_handle oc_wasm_function_handle;
 
