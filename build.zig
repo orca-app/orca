@@ -1190,7 +1190,7 @@ pub fn build(b: *Build) !void {
             continue;
         }
 
-        const test_source: []const u8 = b.pathJoin(&.{ "tests", config.name, "main.c" });
+        const test_source: []const u8 = b.pathJoin(&.{ "tests", config.name, config.testfile });
 
         var test_exe: *Build.Step.Compile = b.addExecutable(.{
             .name = config.name,
