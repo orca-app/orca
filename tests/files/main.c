@@ -483,7 +483,6 @@ int test_rights(oc_arena* arena)
     oc_log_info("test rights\n");
 
     oc_str8 dirPath = oc_path_append(arena, TEST_DIR, OC_STR8("data"));
-    oc_str8 regularPath = oc_path_append(arena, TEST_DIR, OC_STR8("regular.txt"));
 
     //--------------------------------------------------------------------------------------
     // base dir with no access
@@ -496,7 +495,7 @@ int test_rights(oc_arena* arena)
             return (-1);
         }
 
-        oc_file f = oc_file_open_at(dir, regularPath, OC_FILE_ACCESS_READ, 0);
+        oc_file f = oc_file_open_at(dir, OC_STR8("./regular.txt"), OC_FILE_ACCESS_READ, 0);
         if(oc_file_last_error(f) != OC_IO_ERR_PERM)
         {
             oc_log_error("Incorrect check when opening file with read access in dir with no access\n");
@@ -517,7 +516,7 @@ int test_rights(oc_arena* arena)
         }
 
         // check that we _can't_ open a file with write access
-        oc_file f = oc_file_open_at(dir, regularPath, OC_FILE_ACCESS_WRITE, 0);
+        oc_file f = oc_file_open_at(dir, OC_STR8("./regular.txt"), OC_FILE_ACCESS_WRITE, 0);
         if(oc_file_last_error(f) != OC_IO_ERR_PERM)
         {
             oc_log_error("Incorrect check when opening file with write access in dir with read access\n");
@@ -526,7 +525,7 @@ int test_rights(oc_arena* arena)
         oc_file_close(f);
 
         // check that we _can_ open a file with read access
-        f = oc_file_open_at(dir, regularPath, OC_FILE_ACCESS_READ, 0);
+        f = oc_file_open_at(dir, OC_STR8("./regular.txt"), OC_FILE_ACCESS_READ, 0);
         if(oc_file_last_error(f))
         {
             oc_log_error("Couldn't open file with read access in dir with read access\n");
@@ -561,7 +560,7 @@ int test_rights(oc_arena* arena)
         }
 
         // check that we _can't_ open a file with read access
-        oc_file f = oc_file_open_at(dir, regularPath, OC_FILE_ACCESS_READ, 0);
+        oc_file f = oc_file_open_at(dir, OC_STR8("./regular.txt"), OC_FILE_ACCESS_READ, 0);
         if(oc_file_last_error(f) != OC_IO_ERR_PERM)
         {
             oc_log_error("Incorrect check when opening file with read access in dir with write access\n");
@@ -570,7 +569,7 @@ int test_rights(oc_arena* arena)
         oc_file_close(f);
 
         // check that we _can_ open a file with write access
-        f = oc_file_open_at(dir, regularPath, OC_FILE_ACCESS_WRITE, 0);
+        f = oc_file_open_at(dir, OC_STR8("./regular.txt"), OC_FILE_ACCESS_WRITE, 0);
         if(oc_file_last_error(f))
         {
             oc_log_error("Couldn't open file with write access in dir with write access\n");
@@ -605,7 +604,7 @@ int test_rights(oc_arena* arena)
         }
 
         // check that we can open file with read access
-        oc_file f = oc_file_open_at(dir, regularPath, OC_FILE_ACCESS_READ, 0);
+        oc_file f = oc_file_open_at(dir, OC_STR8("./regular.txt"), OC_FILE_ACCESS_READ, 0);
         if(oc_file_last_error(f))
         {
             oc_log_error("Incorrect check when opening file with read access in dir with read/write access\n");
@@ -614,7 +613,7 @@ int test_rights(oc_arena* arena)
         oc_file_close(f);
 
         // check that we can open file with write access
-        f = oc_file_open_at(dir, regularPath, OC_FILE_ACCESS_WRITE, 0);
+        f = oc_file_open_at(dir, OC_STR8("./regular.txt"), OC_FILE_ACCESS_WRITE, 0);
         if(oc_file_last_error(f))
         {
             oc_log_error("Couldn't open file with write access in dir with read/write access\n");
