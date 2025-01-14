@@ -57,7 +57,7 @@ extern u32 oc_mem_grow(u64 size)
 {
     oc_wasm_env* env = oc_runtime_get_env();
 
-    u64 oldMemSize = oc_wasm_mem_size(env->wasm);
+    u64 oldMemSize = oc_wasm_mem_size(env->instance);
 
     //NOTE: compute total size and align on wasm memory page size
     OC_ASSERT(oldMemSize <= UINT_MAX - size, "Memory size overflow");
@@ -67,10 +67,10 @@ extern u32 oc_mem_grow(u64 size)
 
     //NOTE: call resize memory, which will call our custom resize callback... this is a bit involved because
     //      wasm3 doesn't allow resizing the memory directly
-    wa_status status = oc_wasm_mem_resize(env->wasm, desiredMemSize / OC_WASM_MEM_PAGE_SIZE);
+    wa_status status = oc_wasm_mem_resize(env->instance, desiredMemSize / OC_WASM_MEM_PAGE_SIZE);
     OC_WASM_TRAP(status);
 
-    u64 newMemSize = oc_wasm_mem_size(env->wasm);
+    u64 newMemSize = oc_wasm_mem_size(env->instance);
     OC_DEBUG_ASSERT(oldMemSize + size <= newMemSize, "Memory returned by oc_mem_grow overflows wasm memory");
 
     return (oldMemSize);
@@ -154,7 +154,7 @@ oc_wasm_addr oc_wasm_arena_push(oc_wasm_addr arena, u64 size)
 
     wa_value returns[1];
 
-    wa_status status = oc_wasm_function_call(env->wasm, env->exports[OC_EXPORT_ARENA_PUSH], params, 2, returns, 1);
+    wa_status status = oc_wasm_function_call(env->instance, env->exports[OC_EXPORT_ARENA_PUSH], params, 2, returns, 1);
     OC_WASM_TRAP(status);
 
     static_assert(sizeof(oc_wasm_addr) == sizeof(i32), "wasm addres should be 32 bits");

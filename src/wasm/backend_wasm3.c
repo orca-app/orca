@@ -18,18 +18,23 @@ typedef struct oc_wasm_binding_wasm3
     u32 returnCount;
     u32 paramsStackOffset;
     wa_host_proc proc;
-    oc_wasm* wasm;
+    wa_instance* instance;
 } oc_wasm_binding_wasm3;
 
-typedef struct oc_wasm
+typedef struct wa_module
 {
-    oc_arena arena;
-    wa_memory memory;
-
+    wa_status status;
     IM3Environment m3Env;
-    IM3Runtime m3Runtime;
     IM3Module m3Module;
-} oc_wasm;
+} wa_module;
+
+typedef struct wa_instance
+{
+    wa_module* module;
+    wa_status status;
+    wa_memory memory;
+    IM3Runtime m3Runtime;
+} wa_instance;
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 // Helpers
@@ -202,11 +207,12 @@ static wa_status oc_wasm3_result_to_status(M3Result result)
     return WA_FAIL_UNKNOWN;
 }
 
-static wa_status oc_wasm_handle_wasm3_result(oc_wasm* wasm, M3Result result, const char* msg)
+static wa_status oc_wasm_handle_wasm3_result(M3Result result, const char* msg)
 {
     wa_status status = oc_wasm3_result_to_status(result);
     if(wa_status_is_fail(status))
     {
+        /*
         M3ErrorInfo errInfo = { 0 };
         m3_GetErrorInfo(wasm->m3Runtime, &errInfo);
         if(errInfo.message && result == errInfo.result)
@@ -214,6 +220,7 @@ static wa_status oc_wasm_handle_wasm3_result(oc_wasm* wasm, M3Result result, con
             oc_log_error("%s Underlying wasm3 error: %s", msg, errInfo.message);
         }
         else
+        */
         {
             oc_log_error("%s Wasm3 error.", msg);
         }
@@ -237,7 +244,7 @@ static const void* oc_wasm_binding_wasm3_thunk(IM3Runtime runtime, IM3ImportCont
     {
         paramVals[i].valI64 = ((i64*)params)[i];
     }
-    binding->proc(0, paramVals, returnVals, binding->wasm);
+    binding->proc(binding->instance, paramVals, returnVals, 0);
 
     for(u32 i = 0; i < binding->returnCount; i++)
     {
@@ -251,137 +258,154 @@ static const void* oc_wasm_binding_wasm3_thunk(IM3Runtime runtime, IM3ImportCont
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 // Wasm3 implementation of interface functions
 
-wa_status oc_wasm_decode(oc_wasm* wasm, oc_str8 wasmBlob)
+wa_module* wa_module_create(oc_arena* arena, oc_str8 contents)
 {
-    M3Result res = m3_ParseModule(wasm->m3Env, &wasm->m3Module, (u8*)wasmBlob.ptr, wasmBlob.len);
-    return oc_wasm_handle_wasm3_result(wasm, res, "The application couldn't parse its web assembly module");
+    wa_module* module = oc_arena_push_type(arena, wa_module);
+    module->m3Env = m3_NewEnvironment();
+    M3Result res = m3_ParseModule(module->m3Env, &module->m3Module, (u8*)contents.ptr, contents.len);
+
+    module->status = oc_wasm_handle_wasm3_result(res, "The application couldn't parse its web assembly module");
+    return module;
 }
 
-wa_status oc_wasm_instantiate(oc_wasm* wasm, oc_str8 moduleDebugName, wa_import_package* package)
+wa_instance* wa_instance_create(oc_arena* arena, wa_module* module, wa_instance_options* options)
 {
-    oc_base_allocator* allocator = oc_base_allocator_default();
-    wasm->memory.limits.min = 0;
-    wasm->memory.limits.max = (4ULL << 30) / WA_PAGE_SIZE;
-    wasm->memory.ptr = oc_base_reserve(allocator, (4ULL << 30));
+    wa_instance* instance = oc_arena_push_type(arena, wa_instance);
+    instance->module = module;
+    u32 stackSize = 1 << 20;
+    instance->m3Runtime = m3_NewRuntime(module->m3Env, stackSize, NULL);
 
-    m3_RuntimeSetMemoryCallbacks(wasm->m3Runtime,
+    oc_base_allocator* allocator = oc_base_allocator_default();
+    instance->memory.limits.min = 0;
+    instance->memory.limits.max = (4ULL << 30) / WA_PAGE_SIZE;
+    instance->memory.ptr = oc_base_reserve(allocator, (4ULL << 30));
+
+    m3_RuntimeSetMemoryCallbacks(instance->m3Runtime,
                                  oc_runtime_wasm_memory_resize_callback,
                                  oc_runtime_wasm_memory_free_callback,
-                                 (void*)&wasm->memory);
+                                 (void*)&instance->memory);
     {
-        M3Result res = m3_LoadModule(wasm->m3Runtime, wasm->m3Module);
+        M3Result res = m3_LoadModule(instance->m3Runtime, module->m3Module);
         if(res)
         {
-            return oc_wasm_handle_wasm3_result(wasm, res, "The application couldn't load its web assembly module");
+            instance->status = oc_wasm_handle_wasm3_result(res, "The application couldn't load its web assembly module");
+            return instance;
         }
-        m3_SetModuleName(wasm->m3Module, moduleDebugName.ptr);
+        m3_SetModuleName(module->m3Module, "module");
     }
 
     bool wasLinkSuccessful = true;
-    oc_list_for(package->bindings, elt, wa_import_package_elt, listElt)
+
+    for(u32 i = 0; i < options->packageCount; i++)
     {
-        wa_import_binding* binding = &elt->binding;
+        wa_import_package* package = &options->importPackages[i];
 
-        const size_t totalTypes = binding->hostFunction.type.paramCount + binding->hostFunction.type.returnCount;
-
-        char signature[128];
+        oc_list_for(package->bindings, elt, wa_import_package_elt, listElt)
         {
-            if((sizeof(signature) - 3) < totalTypes) // -3 accounts for null and open/close parens
+            wa_import_binding* binding = &elt->binding;
+
+            const size_t totalTypes = binding->hostFunction.type.paramCount + binding->hostFunction.type.returnCount;
+
+            char signature[128];
             {
-                oc_log_error("Couldn't link function %s (too many params+returns, max %d but need %d)\n", binding->name.ptr, (int)sizeof(signature), (int)totalTypes);
+                if((sizeof(signature) - 3) < totalTypes) // -3 accounts for null and open/close parens
+                {
+                    oc_log_error("Couldn't link function %s (too many params+returns, max %d but need %d)\n", binding->name.ptr, (int)sizeof(signature), (int)totalTypes);
+                    wasLinkSuccessful = false;
+                    continue;
+                }
+
+                size_t signature_index = 0;
+                signature[signature_index] = 'v'; // default to void in case there are no returns
+                ++signature_index;
+                for(size_t i = 0; i < binding->hostFunction.type.returnCount; ++i, ++signature_index)
+                {
+                    char type = wa_value_type_to_wasm3_char(binding->hostFunction.type.returns[i]);
+                    signature[signature_index] = type;
+                }
+
+                signature[signature_index] = '(';
+                ++signature_index;
+                signature[signature_index] = 'v';
+
+                for(size_t i = 0; i < binding->hostFunction.type.paramCount; ++i, ++signature_index)
+                {
+                    char type = wa_value_type_to_wasm3_char(binding->hostFunction.type.params[i]);
+                    signature[signature_index] = type;
+                }
+
+                signature[signature_index] = ')';
+                ++signature_index;
+                signature[signature_index] = '\0';
+            }
+            oc_wasm_binding_wasm3* user = oc_arena_push_type(arena, oc_wasm_binding_wasm3);
+            user->proc = binding->hostFunction.proc;
+            user->paramCount = binding->hostFunction.type.paramCount;
+            user->returnCount = binding->hostFunction.type.returnCount;
+            user->paramsStackOffset = sizeof(i64) * binding->hostFunction.type.returnCount;
+            user->instance = instance;
+
+            M3Result res = m3_LinkRawFunctionEx(module->m3Module, "*", binding->name.ptr, signature, oc_wasm_binding_wasm3_thunk, user);
+            if(res != m3Err_none && res != m3Err_functionLookupFailed)
+            {
+                oc_wasm_handle_wasm3_result(res, "link failure");
                 wasLinkSuccessful = false;
                 continue;
             }
-
-            size_t signature_index = 0;
-            signature[signature_index] = 'v'; // default to void in case there are no returns
-            ++signature_index;
-            for(size_t i = 0; i < binding->hostFunction.type.returnCount; ++i, ++signature_index)
-            {
-                char type = wa_value_type_to_wasm3_char(binding->hostFunction.type.returns[i]);
-                signature[signature_index] = type;
-            }
-
-            signature[signature_index] = '(';
-            ++signature_index;
-            signature[signature_index] = 'v';
-
-            for(size_t i = 0; i < binding->hostFunction.type.paramCount; ++i, ++signature_index)
-            {
-                char type = wa_value_type_to_wasm3_char(binding->hostFunction.type.params[i]);
-                signature[signature_index] = type;
-            }
-
-            signature[signature_index] = ')';
-            ++signature_index;
-            signature[signature_index] = '\0';
-        }
-        oc_wasm_binding_wasm3* user = oc_arena_push_type(&wasm->arena, oc_wasm_binding_wasm3);
-        user->proc = binding->hostFunction.proc;
-        user->paramCount = binding->hostFunction.type.paramCount;
-        user->returnCount = binding->hostFunction.type.returnCount;
-        user->paramsStackOffset = sizeof(i64) * binding->hostFunction.type.returnCount;
-        user->wasm = wasm;
-
-        M3Result res = m3_LinkRawFunctionEx(wasm->m3Module, "*", binding->name.ptr, signature, oc_wasm_binding_wasm3_thunk, user);
-        if(res != m3Err_none && res != m3Err_functionLookupFailed)
-        {
-            oc_wasm_handle_wasm3_result(wasm, res, "link failure");
-            wasLinkSuccessful = false;
-            continue;
         }
     }
 
+    instance->status = WA_OK;
     {
-        M3Result res = m3_CompileModule(wasm->m3Module);
+        M3Result res = m3_CompileModule(module->m3Module);
         if(res)
         {
-            return oc_wasm_handle_wasm3_result(wasm, res, "The application couldn't compile its web assembly module");
+            instance->status = oc_wasm_handle_wasm3_result(res, "The application couldn't compile its web assembly module");
         }
     }
 
     if(wasLinkSuccessful == false)
     {
-        return WA_FAIL_INSTANTIATE;
+        instance->status = WA_FAIL_INSTANTIATE;
     }
 
-    return WA_OK;
+    return instance;
 }
 
-u64 oc_wasm_mem_size(oc_wasm* wasm)
+u64 oc_wasm_mem_size(wa_instance* instance)
 {
-    return m3_GetMemorySize(wasm->m3Runtime);
+    return m3_GetMemorySize(instance->m3Runtime);
 }
 
-oc_str8 oc_wasm_mem_get(oc_wasm* wasm)
+oc_str8 oc_wasm_mem_get(wa_instance* instance)
 {
     uint32_t memSize = 0;
     uint32_t memIndex = 0;
-    u8* memory = (u8*)m3_GetMemory(wasm->m3Runtime, &memSize, memIndex);
+    u8* memory = (u8*)m3_GetMemory(instance->m3Runtime, &memSize, memIndex);
 
     return (oc_str8){ .ptr = (char*)memory, .len = memSize };
 }
 
-wa_status oc_wasm_mem_resize(oc_wasm* wasm, u32 countPages)
+wa_status oc_wasm_mem_resize(wa_instance* instance, u32 countPages)
 {
-    M3Result res = ResizeMemory(wasm->m3Runtime, countPages);
+    M3Result res = ResizeMemory(instance->m3Runtime, countPages);
     if(res)
     {
-        return oc_wasm_handle_wasm3_result(wasm, res, "Failed to resize wasm memory");
+        return oc_wasm_handle_wasm3_result(res, "Failed to resize wasm memory");
     }
 
     return WA_OK;
 }
 
-oc_wasm_function_handle* oc_wasm_function_find(oc_wasm* wasm, oc_str8 exportName)
+oc_wasm_function_handle* oc_wasm_function_find(wa_instance* instance, oc_str8 exportName)
 {
     IM3Function m3Func = NULL;
-    m3_FindFunction(&m3Func, wasm->m3Runtime, exportName.ptr);
+    m3_FindFunction(&m3Func, instance->m3Runtime, exportName.ptr);
 
     return (oc_wasm_function_handle*)m3Func;
 }
 
-wa_func_type oc_wasm_function_get_info(oc_arena* scratch, oc_wasm* wasm, oc_wasm_function_handle* handle)
+wa_func_type oc_wasm_function_get_info(oc_arena* scratch, wa_instance* instance, oc_wasm_function_handle* handle)
 {
     if(handle == NULL)
     {
@@ -417,7 +441,7 @@ wa_func_type oc_wasm_function_get_info(oc_arena* scratch, oc_wasm* wasm, oc_wasm
     return info;
 }
 
-wa_status oc_wasm_function_call(oc_wasm* wasm, oc_wasm_function_handle* handle, wa_value* params, size_t paramCount, wa_value* returns, size_t returnCount)
+wa_status oc_wasm_function_call(wa_instance* instance, oc_wasm_function_handle* handle, wa_value* params, size_t paramCount, wa_value* returns, size_t returnCount)
 {
     if(handle == NULL)
     {
@@ -437,7 +461,7 @@ wa_status oc_wasm_function_call(oc_wasm* wasm, oc_wasm_function_handle* handle, 
     M3Result res = m3_Call(m3Func, paramCount, valuePtrs);
     if(res)
     {
-        return oc_wasm_handle_wasm3_result(wasm, res, "Function call failed");
+        return oc_wasm_handle_wasm3_result(res, "Function call failed");
     }
 
     if(returnCount > 0)
@@ -452,16 +476,16 @@ wa_status oc_wasm_function_call(oc_wasm* wasm, oc_wasm_function_handle* handle, 
         res = m3_GetResults(m3Func, (uint32_t)returnCount, valuePtrs);
         if(res)
         {
-            return oc_wasm_handle_wasm3_result(wasm, res, "Failed to get results from function call");
+            return oc_wasm_handle_wasm3_result(res, "Failed to get results from function call");
         }
     }
 
     return WA_OK;
 }
 
-oc_wasm_global_handle* oc_wasm_global_find(oc_wasm* wasm, oc_str8 exportName, wa_value_type expectedType)
+oc_wasm_global_handle* oc_wasm_global_find(wa_instance* instance, oc_str8 exportName, wa_value_type expectedType)
 {
-    IM3Global m3Global = m3_FindGlobal(wasm->m3Module, exportName.ptr);
+    IM3Global m3Global = m3_FindGlobal(instance->module->m3Module, exportName.ptr);
     M3ValueType m3Type = wa_value_type_to_wasm3_valtype(expectedType);
     if(m3Global && m3Global->type == m3Type)
     {
@@ -494,36 +518,10 @@ void oc_wasm_global_set_value(oc_wasm_global_handle* global, wa_value value)
     }
 }
 
-oc_wasm_global_pointer oc_wasm_global_pointer_find(oc_wasm* wasm, oc_str8 exportName)
+oc_wasm_global_pointer oc_wasm_global_pointer_find(wa_instance* instance, oc_str8 exportName)
 {
-    oc_wasm_global_handle* global = oc_wasm_global_find(wasm, exportName, WA_TYPE_I32);
+    oc_wasm_global_handle* global = oc_wasm_global_find(instance, exportName, WA_TYPE_I32);
     IM3Global m3Global = (IM3Global)global;
 
     return (oc_wasm_global_pointer){ .handle = global, .address = (u32)m3Global->intValue };
-}
-
-///////////////////////////////////////////////////////////////////////////////////////////////////
-// implementation creation / destruction
-
-void oc_wasm_destroy(oc_wasm* wasm)
-{
-    oc_arena arena = wasm->arena;
-    oc_arena_cleanup(&arena);
-}
-
-oc_wasm* oc_wasm_create(void)
-{
-    oc_arena arena;
-    oc_arena_init(&arena);
-
-    oc_wasm* wasm = oc_arena_push_type(&arena, oc_wasm);
-    memset(wasm, 0, sizeof(oc_wasm));
-
-    wasm->arena = arena;
-
-    u32 stackSize = 1 << 20;
-    wasm->m3Env = m3_NewEnvironment();
-    wasm->m3Runtime = m3_NewRuntime(wasm->m3Env, stackSize, NULL);
-
-    return wasm;
 }

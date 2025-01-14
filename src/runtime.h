@@ -58,7 +58,10 @@ typedef struct oc_wasm_env
 {
     oc_str8 wasmBytecode;
 
-    oc_wasm* wasm;
+    oc_arena arena;
+    wa_module* module;
+    wa_instance* instance;
+
     oc_wasm_function_handle* exports[OC_EXPORT_COUNT];
     u32 rawEventOffset;
 } oc_wasm_env;

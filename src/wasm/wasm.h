@@ -82,6 +82,7 @@ typedef enum wa_value_type
     WA_TYPE_NUM_OR_VEC = 0x103,
 } wa_value_type;
 
+typedef struct wa_module wa_module;
 typedef struct wa_instance wa_instance;
 
 typedef union wa_value
@@ -133,9 +134,6 @@ enum
 {
     WA_PAGE_SIZE = 64 * 1 << 10,
 };
-
-struct oc_wasm;
-typedef struct oc_wasm oc_wasm;
 
 typedef struct wa_global
 {
@@ -207,6 +205,14 @@ typedef struct wa_import_package
     oc_list bindings;
 } wa_import_package;
 
+typedef struct wa_instance_options
+{
+    u32 packageCount;
+    wa_import_package* importPackages;
+
+    //...
+} wa_instance_options;
+
 void wa_import_package_push_binding(oc_arena* arena, wa_import_package* package, wa_import_binding* binding);
 
 struct oc_wasm_function_handle;
@@ -230,29 +236,27 @@ typedef struct oc_wasm_global_pointer
     oc_wasm_addr address;
 } oc_wasm_global_pointer;
 
-typedef struct oc_wasm oc_wasm;
-
 bool wa_status_is_fail(wa_status status);
 oc_str8 wa_status_str8(wa_status status);
 
-oc_wasm* oc_wasm_create(void);
-void oc_wasm_destroy(oc_wasm* wasm);
+wa_module* wa_module_create(oc_arena* arena, oc_str8 contents);
+void wa_module_destroy(wa_module* module);
 
-wa_status oc_wasm_decode(oc_wasm* wasm, oc_str8 wasmBlob);
-wa_status oc_wasm_instantiate(oc_wasm* wasm, oc_str8 moduleDebugName, wa_import_package* package);
+wa_instance* wa_instance_create(oc_arena* arena, wa_module* module, wa_instance_options* options);
+void wa_instance_destroy(wa_instance* instance);
 
-u64 oc_wasm_mem_size(oc_wasm* wasm);
-oc_str8 oc_wasm_mem_get(oc_wasm* wasm);
-wa_status oc_wasm_mem_resize(oc_wasm* wasm, u32 countPages);
+u64 oc_wasm_mem_size(wa_instance* instance);
+oc_str8 oc_wasm_mem_get(wa_instance* instance);
+wa_status oc_wasm_mem_resize(wa_instance* instance, u32 countPages);
 
-oc_wasm_function_handle* oc_wasm_function_find(oc_wasm* wasm, oc_str8 exportName);
-wa_func_type oc_wasm_function_get_info(oc_arena* scratch, oc_wasm* wasm, oc_wasm_function_handle* handle);
-wa_status oc_wasm_function_call(oc_wasm* wasm, oc_wasm_function_handle* handle, wa_value* params, size_t countParams, wa_value* returns, size_t countReturns);
+oc_wasm_function_handle* oc_wasm_function_find(wa_instance* instance, oc_str8 exportName);
+wa_func_type oc_wasm_function_get_info(oc_arena* scratch, wa_instance* instance, oc_wasm_function_handle* handle);
+wa_status oc_wasm_function_call(wa_instance* instance, oc_wasm_function_handle* handle, wa_value* params, size_t countParams, wa_value* returns, size_t countReturns);
 
-oc_wasm_global_handle* oc_wasm_global_find(oc_wasm* wasm, oc_str8 exportName, wa_value_type expectedType);
+oc_wasm_global_handle* oc_wasm_global_find(wa_instance* instance, oc_str8 exportName, wa_value_type expectedType);
 wa_value oc_wasm_global_get_value(oc_wasm_global_handle* global);
 void oc_wasm_global_set_value(oc_wasm_global_handle* global, wa_value value);
-oc_wasm_global_pointer oc_wasm_global_pointer_find(oc_wasm* wasm, oc_str8 exportName);
+oc_wasm_global_pointer oc_wasm_global_pointer_find(wa_instance* instance, oc_str8 exportName);
 
 oc_str8 wa_value_type_str8(wa_value_type type);
 

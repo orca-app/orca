@@ -19,14 +19,6 @@ typedef struct wa_module wa_module;
 typedef struct wa_instance wa_instance;
 typedef struct wa_func wa_func;
 
-typedef struct wa_instance_options
-{
-    u32 packageCount;
-    wa_import_package* importPackages;
-
-    //...
-} wa_instance_options;
-
 const char* wa_value_type_string(wa_value_type t);
 const char* wa_status_string(wa_status status);
 
