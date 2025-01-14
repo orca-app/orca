@@ -623,9 +623,20 @@ typedef struct wa_func
     u32 maxRegCount;
 } wa_func;
 
-wa_func_type* wa_function_get_type(wa_func* func)
+wa_func_type wa_function_get_type(oc_arena* arena, wa_instance* instance, wa_func* func)
 {
-    return (func->type);
+    wa_func_type* type = func->type;
+
+    wa_func_type res = (wa_func_type){
+        .params = oc_arena_push_array(arena, wa_value_type, type->paramCount),
+        .returns = oc_arena_push_array(arena, wa_value_type, type->returnCount),
+        .paramCount = type->paramCount,
+        .returnCount = type->returnCount,
+    };
+    memcpy(res.params, type->params, type->paramCount * sizeof(wa_value_type));
+    memcpy(res.returns, type->returns, type->returnCount * sizeof(wa_value_type));
+
+    return (res);
 }
 
 typedef struct wa_global_desc

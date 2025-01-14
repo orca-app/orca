@@ -39,6 +39,5 @@ wa_status wa_instance_invoke(wa_instance* instance,
                              wa_value* returns);
 
 //wip...
-wa_func_type* wa_function_get_type(wa_func* func);
 wa_status wa_instance_status(wa_instance* instance);
 #endif // __WARM_H_

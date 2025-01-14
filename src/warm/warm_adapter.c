@@ -38,12 +38,6 @@ wa_status oc_wasm_mem_resize(wa_instance* instance, u32 n)
     return WA_TRAP_MEMORY_OUT_OF_BOUNDS;
 }
 
-oc_wasm_function_handle* oc_wasm_function_find(wa_instance* instance, oc_str8 exportName)
-{
-    wa_func* func = wa_instance_find_function(instance, exportName);
-    return (oc_wasm_function_handle*)func;
-}
-
 oc_wasm_global_pointer oc_wasm_global_pointer_find(wa_instance* instance, oc_str8 exportName)
 {
     oc_wasm_global_pointer res = { 0 };
@@ -54,41 +48,6 @@ oc_wasm_global_pointer oc_wasm_global_pointer_find(wa_instance* instance, oc_str
         res.address = global->value.valI32;
     }
     return (res);
-}
-
-wa_func_type oc_wasm_function_get_info(oc_arena* scratch, wa_instance* instance, oc_wasm_function_handle* handle)
-{
-    wa_func_type res = { 0 };
-
-    wa_func_type* type = wa_function_get_type((wa_func*)handle);
-    if(type)
-    {
-        res = (wa_func_type){
-            .params = oc_arena_push_array(scratch, wa_value_type, type->paramCount),
-            .returns = oc_arena_push_array(scratch, wa_value_type, type->returnCount),
-            .paramCount = type->paramCount,
-            .returnCount = type->returnCount,
-        };
-        memcpy(res.params, type->params, type->paramCount * sizeof(wa_value_type));
-        memcpy(res.returns, type->returns, type->returnCount * sizeof(wa_value_type));
-    }
-    return (res);
-}
-
-wa_status oc_wasm_function_call(wa_instance* instance,
-                                oc_wasm_function_handle* handle,
-                                wa_value* params,
-                                size_t countParams,
-                                wa_value* returns,
-                                size_t countReturns)
-{
-    wa_status status = wa_instance_invoke(instance,
-                                          (wa_func*)handle,
-                                          countParams,
-                                          params,
-                                          countReturns,
-                                          returns);
-    return status;
 }
 
 oc_wasm_global_handle* oc_wasm_global_find(wa_instance* instance, oc_str8 exportName, wa_value_type expectedType);

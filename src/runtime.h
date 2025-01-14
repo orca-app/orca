@@ -62,7 +62,7 @@ typedef struct oc_wasm_env
     wa_module* module;
     wa_instance* instance;
 
-    oc_wasm_function_handle* exports[OC_EXPORT_COUNT];
+    wa_func* exports[OC_EXPORT_COUNT];
     u32 rawEventOffset;
 } oc_wasm_env;
 

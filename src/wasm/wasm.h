@@ -84,6 +84,7 @@ typedef enum wa_value_type
 
 typedef struct wa_module wa_module;
 typedef struct wa_instance wa_instance;
+typedef struct wa_func wa_func;
 
 typedef union wa_value
 {
@@ -215,9 +216,6 @@ typedef struct wa_instance_options
 
 void wa_import_package_push_binding(oc_arena* arena, wa_import_package* package, wa_import_binding* binding);
 
-struct oc_wasm_function_handle;
-typedef struct oc_wasm_function_handle oc_wasm_function_handle;
-
 enum
 {
     OC_WASM_MEM_PAGE_SIZE = 1024 * 64, // 64KB
@@ -245,13 +243,25 @@ void wa_module_destroy(wa_module* module);
 wa_instance* wa_instance_create(oc_arena* arena, wa_module* module, wa_instance_options* options);
 void wa_instance_destroy(wa_instance* instance);
 
+wa_func* wa_instance_find_function(wa_instance* instance, oc_str8 name);
+wa_func_type wa_func_get_type(oc_arena* arena, wa_instance* instance, wa_func* func);
+
+wa_status wa_instance_invoke(wa_instance* instance,
+                             wa_func* func,
+                             u32 argCount,
+                             wa_value* args,
+                             u32 retCount,
+                             wa_value* returns);
+
 u64 oc_wasm_mem_size(wa_instance* instance);
 oc_str8 oc_wasm_mem_get(wa_instance* instance);
 wa_status oc_wasm_mem_resize(wa_instance* instance, u32 countPages);
 
+/*
 oc_wasm_function_handle* oc_wasm_function_find(wa_instance* instance, oc_str8 exportName);
 wa_func_type oc_wasm_function_get_info(oc_arena* scratch, wa_instance* instance, oc_wasm_function_handle* handle);
 wa_status oc_wasm_function_call(wa_instance* instance, oc_wasm_function_handle* handle, wa_value* params, size_t countParams, wa_value* returns, size_t countReturns);
+*/
 
 oc_wasm_global_handle* oc_wasm_global_find(wa_instance* instance, oc_str8 exportName, wa_value_type expectedType);
 wa_value oc_wasm_global_get_value(oc_wasm_global_handle* global);

@@ -154,7 +154,7 @@ oc_wasm_addr oc_wasm_arena_push(oc_wasm_addr arena, u64 size)
 
     wa_value returns[1];
 
-    wa_status status = oc_wasm_function_call(env->instance, env->exports[OC_EXPORT_ARENA_PUSH], params, 2, returns, 1);
+    wa_status status = wa_instance_invoke(env->instance, env->exports[OC_EXPORT_ARENA_PUSH], 2, params, 1, returns);
     OC_WASM_TRAP(status);
 
     static_assert(sizeof(oc_wasm_addr) == sizeof(i32), "wasm addres should be 32 bits");
