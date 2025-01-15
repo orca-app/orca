@@ -5,9 +5,7 @@
 *  See LICENSE.txt for licensing information
 *
 **************************************************************************/
-
-#ifndef __UTIL_H_
-#define __UTIL_H_
+#pragma once
 
 #include "orca.h"
 
@@ -16,5 +14,3 @@ oc_str8 system_orca_dir(oc_arena* a);
 oc_str8 current_sdk_version(oc_arena* a, bool fail_if_not_found);
 oc_str8 current_version_dir(oc_arena* a, bool fail_if_not_found);
 oc_str8 get_version_dir(oc_arena* a, oc_str8 version, bool fail_if_not_found);
-
-#endif // __UTIL_H_

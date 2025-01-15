@@ -5,8 +5,7 @@
 *  See LICENSE.txt for licensing information
 *
 **************************************************************************/
-#ifndef __PLATFORM_PATH_H_
-#define __PLATFORM_PATH_H_
+#pragma once
 
 #include "platform.h"
 #include "util/strings.h"
@@ -42,5 +41,3 @@ ORCA_API oc_str8 oc_path_executable_relative(oc_arena* arena, oc_str8 relPath);
 #ifdef __cplusplus
 }
 #endif
-
-#endif //__PLATFORM_PATH_H_

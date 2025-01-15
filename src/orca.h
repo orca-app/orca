@@ -5,8 +5,7 @@
 *  See LICENSE.txt for licensing information
 *
 **************************************************************************/
-#ifndef __ORCA_H_
-#define __ORCA_H_
+#pragma once
 
 #include "util/algebra.h"
 #include "util/debug.h"
@@ -73,5 +72,3 @@
     #include "ui/ui.h"
 
 #endif // defined(OC_NO_APP_LAYER)
-
-#endif //__ORCA_H_

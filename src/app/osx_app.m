@@ -6,7 +6,8 @@
 *
 **************************************************************************/
 
-#import <QuartzCore/QuartzCore.h> //CATransaction
+#import <QuartzCore/QuartzCore.h>                         //CATransaction
+#import <UniformTypeIdentifiers/UniformTypeIdentifiers.h> // for file dialog
 
 #include <stdlib.h> // malloc/free
 
@@ -1829,6 +1830,28 @@ i32 oc_dispatch_on_main_thread_sync(oc_window main_window, oc_dispatch_proc proc
 // system dialogs windows
 //--------------------------------------------------------------------
 
+@interface OCOpenSavePanelDelegate : NSObject <NSOpenSavePanelDelegate>
+{
+}
+@end
+
+@implementation OCOpenSavePanelDelegate
+
+- (BOOL)panel:(id)sender shouldEnableURL:(NSURL*)url
+{
+    UTType* fileType = [UTType typeWithFilenameExtension:[url pathExtension]];
+    if(!fileType)
+    {
+        return YES;
+    }
+    else
+    {
+        return [[sender allowedContentTypes] containsObject:fileType];
+    }
+}
+
+@end
+
 ORCA_API oc_file_dialog_result oc_file_dialog_for_table(oc_arena* arena, oc_file_dialog_desc* desc, oc_file_table* table)
 {
     __block oc_file_dialog_result result = { 0 };
@@ -1921,9 +1944,14 @@ ORCA_API oc_file_dialog_result oc_file_dialog_for_table(oc_arena* arena, oc_file
               {
                   oc_str8 string = elt->string;
                   NSString* filter = [[NSString alloc] initWithBytes:string.ptr length:string.len encoding:NSUTF8StringEncoding];
-                  [fileTypesArray addObject:filter];
+                  UTType* type = [UTType typeWithFilenameExtension:filter];
+                  [fileTypesArray addObject:type];
               }
               [dialog setAllowedContentTypes:fileTypesArray];
+
+              //NOTE: set delegate. This is needed for filters to actually work as expected.
+              OCOpenSavePanelDelegate* delegate = [[OCOpenSavePanelDelegate alloc] init];
+              [dialog setDelegate:delegate];
           }
 
           // Display the dialog box. If the OK pressed,

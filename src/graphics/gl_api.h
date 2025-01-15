@@ -5,8 +5,7 @@
 *  See LICENSE.txt for licensing information
 *
 *********************************************************/
-#ifndef __GL_API_H__
-#define __GL_API_H__
+#pragma once
 
 #include "GL/glcorearb.h"
 #include "GLES3/gl32.h"
@@ -1120,4 +1119,3 @@ ORCA_API oc_gl_api* oc_gl_get_api(void);
 #define glBindImageTexture oc_gl_get_api()->BindImageTexture
 #define glUniformMatrix4x3dv oc_gl_get_api()->UniformMatrix4x3dv
 #define glGenRenderbuffers oc_gl_get_api()->GenRenderbuffers
-#endif // __GL_API_H__

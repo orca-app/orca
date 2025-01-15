@@ -5,8 +5,7 @@
 *  See LICENSE.txt for licensing information
 *
 **************************************************************************/
-#ifndef __STRINGS_H_
-#define __STRINGS_H_
+#pragma once
 
 #include "debug.h"
 #include "lists.h"
@@ -174,5 +173,3 @@ ORCA_API oc_str32_list oc_str32_split(oc_arena* arena, oc_str32 str, oc_str32_li
 #ifdef __cplusplus
 } // extern "C"
 #endif
-
-#endif //__STRINGS_H_

@@ -5,9 +5,7 @@
 *  See LICENSE.txt for licensing information
 *
 **************************************************************************/
-
-#ifndef __SYSTEM_H_
-#define __SYSTEM_H_
+#pragma once
 
 #include "orca.h"
 
@@ -37,7 +35,7 @@ bool oc_sys_rmdir(oc_str8 path);
 bool oc_sys_copy(oc_str8 src, oc_str8 dst);
 bool oc_sys_copytree(oc_str8 src, oc_str8 dst);
 bool oc_sys_move(oc_str8 src, oc_str8 dst);
-oc_list oc_sys_read_dir(oc_arena *a, oc_str8 path);
+oc_list oc_sys_read_dir(oc_arena* a, oc_str8 path);
 
 #define TRY(cmd)                                                            \
     {                                                                       \
@@ -53,5 +51,3 @@ oc_list oc_sys_read_dir(oc_arena *a, oc_str8 path);
             return code;                                                    \
         }                                                                   \
     }
-
-#endif // __SYSTEM_H_

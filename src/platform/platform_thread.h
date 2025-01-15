@@ -5,8 +5,7 @@
 *  See LICENSE.txt for licensing information
 *
 **************************************************************************/
-#ifndef __PLATFORM_THREAD_H_
-#define __PLATFORM_THREAD_H_
+#pragma once
 
 #include "util/strings.h"
 
@@ -89,5 +88,3 @@ ORCA_API void oc_sleep_nano(u64 nanoseconds); // sleep for a given number of nan
 #ifdef __cplusplus
 } // extern "C"
 #endif // __cplusplus
-
-#endif //__PLATFORM_THREAD_H_

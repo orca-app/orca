@@ -5,8 +5,7 @@
 *  See LICENSE.txt for licensing information
 *
 **************************************************************************/
-#ifndef __OSX_VIEW_H_
-#define __OSX_VIEW_H_
+#pragma once
 
 #ifdef __OBJC__
     #import <Cocoa/Cocoa.h>
@@ -24,5 +23,3 @@ typedef struct oc_view
     oc_window_data* window;
     CALayer* layer;
 } oc_view;
-
-#endif //__OSX_VIEW_H_

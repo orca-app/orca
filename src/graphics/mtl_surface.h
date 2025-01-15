@@ -5,8 +5,7 @@
 *  See LICENSE.txt for licensing information
 *
 **************************************************************************/
-#ifndef __MTL_SURFACE_H_
-#define __MTL_SURFACE_H_
+#pragma once
 
 #include "surface.h"
 
@@ -16,5 +15,3 @@
 
 oc_surface oc_mtl_surface_create_for_window(oc_window window);
 void* oc_mtl_surface_layer(oc_surface surface);
-
-#endif //__MTL_SURFACE_H_

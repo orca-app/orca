@@ -5,8 +5,7 @@
 *  See LICENSE.txt for licensing information
 *
 **************************************************************************/
-#ifndef __ALGEBRA_H_
-#define __ALGEBRA_H_
+#pragma once
 
 #include "platform/platform.h"
 #include "typedefs.h"
@@ -31,5 +30,3 @@ ORCA_API oc_mat2x3 oc_mat2x3_translate(f32 x, f32 y);
 #ifdef __cplusplus
 }
 #endif
-
-#endif //__ALGEBRA_H_

@@ -5,8 +5,7 @@
 *  See LICENSE.txt for licensing information
 *
 **************************************************************************/
-#ifndef __WIN32_SURFACE_H_
-#define __WIN32_SURFACE_H_
+#pragma once
 
 #include "util/lists.h"
 
@@ -20,5 +19,3 @@ typedef struct oc_view
     HWND hWnd;
 
 } oc_view;
-
-#endif //__WIN32_SURFACE_H_

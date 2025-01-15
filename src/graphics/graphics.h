@@ -5,8 +5,7 @@
 *  See LICENSE.txt for licensing information
 *
 **************************************************************************/
-#ifndef __GRAPHICS_H_
-#define __GRAPHICS_H_
+#pragma once
 
 #include "app/app.h"
 
@@ -321,5 +320,3 @@ ORCA_API void oc_image_draw_region(oc_image image, oc_rect srcRegion, oc_rect ds
 #ifdef __cplusplus
 }
 #endif
-
-#endif //__GRAPHICS_H_

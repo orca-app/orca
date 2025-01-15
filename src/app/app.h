@@ -5,8 +5,7 @@
 *  See LICENSE.txt for licensing information
 *
 **************************************************************************/
-#ifndef __APP_H_
-#define __APP_H_
+#pragma once
 
 #include "util/lists.h"
 #include "util/memory.h"
@@ -485,5 +484,3 @@ void oc_clipboard_set_string(oc_str8 string);
 #ifdef __cplusplus
 } // extern "C"
 #endif
-
-#endif //__APP_H_

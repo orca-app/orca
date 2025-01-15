@@ -5,8 +5,7 @@
 *  See LICENSE.txt for licensing information
 *
 **************************************************************************/
-#ifndef __GRAPHICS_COMMON_H_
-#define __GRAPHICS_COMMON_H_
+#pragma once
 
 #include "graphics.h"
 
@@ -88,5 +87,3 @@ ORCA_API void oc_canvas_renderer_submit(oc_canvas_renderer renderer,
                                         oc_primitive* primitives,
                                         u32 eltCount,
                                         oc_path_elt* elements);
-
-#endif //__GRAPHICS_COMMON_H_

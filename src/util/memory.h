@@ -5,8 +5,7 @@
 *  See LICENSE.txt for licensing information
 *
 **************************************************************************/
-#ifndef __MEMORY_H_
-#define __MEMORY_H_
+#pragma once
 
 #include "platform/platform_memory.h"
 #include "util/lists.h"
@@ -105,5 +104,3 @@ ORCA_API oc_arena_scope oc_scratch_begin_next(oc_arena* used);
 #ifdef __cplusplus
 } // extern "C"
 #endif
-
-#endif //__MEMORY_H_

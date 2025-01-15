@@ -5,8 +5,7 @@
 *  See LICENSE.txt for licensing information
 *
 **************************************************************************/
-#ifndef __APP_INTERNAL_H_
-#define __APP_INTERNAL_H_
+#pragma once
 
 #include "app.h"
 
@@ -73,12 +72,10 @@ typedef struct oc_app
     oc_window_data windowPool[OC_APP_MAX_WINDOWS];
     oc_list windowFreeList;
 
-    oc_scan_code scanCodes[OC_SCANCODE_COUNT]; // native virtual key code to oc_scan_code
-    oc_key_code keyMap[OC_SCANCODE_COUNT];     // oc_scan_code to oc_key_code, as per current keyboard layout
+    oc_scan_code scanCodes[512];           // native virtual key code to oc_scan_code
+    oc_key_code keyMap[OC_SCANCODE_COUNT]; // oc_scan_code to oc_key_code, as per current keyboard layout
 
     OC_PLATFORM_APP_DATA
 } oc_app;
 
 extern oc_key_code oc_defaultKeyMap[OC_SCANCODE_COUNT];
-
-#endif // __APP_INTERNAL_H_

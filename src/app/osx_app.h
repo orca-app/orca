@@ -5,8 +5,7 @@
 *  See LICENSE.txt for licensing information
 *
 **************************************************************************/
-#ifndef __OSX_APP_H_
-#define __OSX_APP_H_
+#pragma once
 
 #include "app.h"
 #include "graphics/graphics.h"
@@ -37,5 +36,3 @@ typedef struct oc_osx_app_data
 } oc_osx_app_data;
 
 #define OC_PLATFORM_APP_DATA oc_osx_app_data osx;
-
-#endif //__OSX_APP_H_

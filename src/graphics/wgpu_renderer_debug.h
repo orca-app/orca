@@ -5,8 +5,7 @@
 *  See LICENSE.txt for licensing information
 *
 **************************************************************************/
-#ifndef __WGPU_RENDERER_DEBUG_H_
-#define __WGPU_RENDERER_DEBUG_H_
+#pragma once
 
 #include "graphics.h"
 
@@ -128,5 +127,3 @@ ORCA_API int oc_wgpu_canvas_stats_sample_count_for_95_confidence(oc_wgpu_canvas_
 
 ORCA_API void oc_wgpu_canvas_debug_set_display_options(oc_canvas_renderer handle, oc_wgpu_canvas_debug_display_options* options);
 ORCA_API oc_wgpu_canvas_debug_display_options oc_wgpu_canvas_debug_get_display_options(oc_canvas_renderer handle);
-
-#endif //__WGPU_RENDERER_DEBUG_H_

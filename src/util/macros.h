@@ -5,8 +5,7 @@
 *  See LICENSE.txt for licensing information
 *
 **************************************************************************/
-#ifndef __MACROS_H_
-#define __MACROS_H_
+#pragma once
 
 #include "platform/platform.h"
 #include "util/typedefs.h"
@@ -102,5 +101,3 @@ static inline u64 oc_next_pow2(u64 x)
 
 #define oc_square(a) ((a) * (a))
 #define oc_cube(a) ((a) * (a) * (a))
-
-#endif //__MACROS_H_
