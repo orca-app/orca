@@ -4773,6 +4773,19 @@ wa_module* wa_module_create(oc_arena* arena, oc_str8 contents)
     return (module);
 }
 
+wa_status wa_module_status(wa_module* module)
+{
+    if(oc_list_empty(module->errors))
+    {
+        return WA_OK;
+    }
+    else
+    {
+        wa_module_error* error = oc_list_last_entry(module->errors, wa_module_error, moduleElt);
+        return error->status;
+    }
+}
+
 //-------------------------------------------------------------------------
 // debug print
 //-------------------------------------------------------------------------

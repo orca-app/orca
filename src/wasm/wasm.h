@@ -224,9 +224,11 @@ oc_str8 wa_value_type_string(wa_value_type type);
 
 wa_module* wa_module_create(oc_arena* arena, oc_str8 contents);
 void wa_module_destroy(wa_module* module);
+wa_status wa_module_status(wa_module* module);
 
 wa_instance* wa_instance_create(oc_arena* arena, wa_module* module, wa_instance_options* options);
 void wa_instance_destroy(wa_instance* instance);
+wa_status wa_instance_status(wa_instance* instance);
 
 wa_func* wa_instance_find_function(wa_instance* instance, oc_str8 name);
 wa_func_type wa_func_get_type(oc_arena* arena, wa_instance* instance, wa_func* func);

@@ -268,6 +268,11 @@ wa_module* wa_module_create(oc_arena* arena, oc_str8 contents)
     return module;
 }
 
+wa_status wa_module_status(wa_module* module)
+{
+    return module->status;
+}
+
 wa_instance* wa_instance_create(oc_arena* arena, wa_module* module, wa_instance_options* options)
 {
     wa_instance* instance = oc_arena_push_type(arena, wa_instance);
@@ -370,6 +375,11 @@ wa_instance* wa_instance_create(oc_arena* arena, wa_module* module, wa_instance_
     }
 
     return instance;
+}
+
+wa_status wa_instance_status(wa_instance* instance)
+{
+    return instance->status;
 }
 
 wa_memory wa_instance_get_memory(wa_instance* instance)

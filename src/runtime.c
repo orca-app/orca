@@ -524,10 +524,7 @@ i32 orca_runloop(void* user)
     oc_arena_init(&app->env.arena);
     app->env.module = wa_module_create(&app->env.arena, app->env.wasmBytecode);
 
-    ///////////////////////////////////////////////////////////////////////
-    //TODO: check module's status
-    // OC_WASM_TRAP(oc_wasm_decode(app->env.wasm, app->env.wasmBytecode));
-    ///////////////////////////////////////////////////////////////////////
+    OC_WASM_TRAP(wa_module_status(app->env.module));
 
     //NOTE: bind orca APIs
     wa_import_package package = {
@@ -559,10 +556,8 @@ i32 orca_runloop(void* user)
             .importPackages = &package,
         };
         app->env.instance = wa_instance_create(&app->env.arena, app->env.module, &options);
-        ///////////////////////////////////////////////////////////////////////
-        //TODO: check module's status
-        //    OC_WASM_TRAP(oc_wasm_instantiate(app->env.wasm, OC_STR8("module"), &package));
-        ///////////////////////////////////////////////////////////////////////
+
+        OC_WASM_TRAP(wa_instance_status(app->env.instance));
     }
 
     //NOTE: Find and type check event handlers.
