@@ -769,6 +769,9 @@ typedef enum
 
     WA_AST_VALUE_TYPE,
     WA_AST_GLOBAL,
+
+    WA_AST_NAME_SUBSECTION,
+    WA_AST_NAME_ENTRY,
 } wa_ast_kind;
 
 static const char* wa_ast_kind_strings[] = {
@@ -801,6 +804,8 @@ static const char* wa_ast_kind_strings[] = {
     "memArg",
     "value type",
     "global",
+    "name subsection",
+    "name entry",
 };
 
 typedef struct wa_ast
@@ -846,6 +851,12 @@ typedef struct wa_section
 
 typedef struct dw_info dw_info;
 
+typedef struct wa_name_entry
+{
+    u32 index;
+    oc_str8 name;
+} wa_name_entry;
+
 typedef struct wa_module
 {
     oc_arena* arena;
@@ -867,8 +878,12 @@ typedef struct wa_module
         wa_section code;
         wa_section data;
 
+        wa_section names;
         oc_list customSections;
     } toc;
+
+    u32 functionNameCount;
+    wa_name_entry* functionNames;
 
     u32 typeCount;
     wa_func_type* types;
@@ -1563,11 +1578,19 @@ void wa_parse_sections(wa_parser* parser, wa_module* module)
         {
             case 0:
             {
-                entry = oc_arena_push_type(parser->arena, wa_section);
-                memset(entry, 0, sizeof(wa_section));
-                ast->label = OC_STR8("Custom section");
-
                 wa_ast* name = wa_read_name(parser, ast, OC_STR8("section name"));
+
+                if(!oc_str8_cmp(name->str8, OC_STR8("name")))
+                {
+                    entry = &module->toc.names;
+                    ast->label = OC_STR8("Names section");
+                }
+                else
+                {
+                    entry = oc_arena_push_type(parser->arena, wa_section);
+                    memset(entry, 0, sizeof(wa_section));
+                    ast->label = OC_STR8("Custom section");
+                }
                 entry->name = name->str8;
 
                 if(parser->offset - contentOffset > sectionLen->valU32)
@@ -1693,6 +1716,83 @@ wa_ast* wa_ast_begin_vector(wa_parser* parser, wa_ast* parent, u32* count)
         *count = countAst->valU32;
     }
     return vectorAst;
+}
+
+void wa_parse_names(wa_parser* parser, wa_module* module)
+{
+    wa_ast* section = module->toc.names.ast;
+    if(!section)
+    {
+        return;
+    }
+
+    wa_parser_seek(parser, module->toc.names.offset, OC_STR8("names section"));
+    u64 startOffset = parser->offset;
+
+    while(parser->offset - startOffset < module->toc.names.len)
+    {
+        wa_ast* subsection = wa_ast_begin(parser, section, WA_AST_NAME_SUBSECTION);
+        wa_ast* id = wa_read_byte(parser, subsection, OC_STR8("subsection id"));
+        wa_ast* size = wa_read_leb128_u32(parser, subsection, OC_STR8("subsection size"));
+        u32 subStartOffset = parser->offset;
+
+        switch(id->valU8)
+        {
+            case 0:
+            {
+                //NOTE: module name
+            }
+            break;
+            case 1:
+            {
+                //NOTE: function names
+                wa_ast* vector = wa_ast_begin_vector(parser, subsection, &module->functionNameCount);
+                module->functionNames = oc_arena_push_array(module->arena, wa_name_entry, module->functionNameCount);
+
+                for(u32 entryIndex = 0; entryIndex < module->functionNameCount; entryIndex++)
+                {
+                    wa_ast* entry = wa_ast_begin(parser, vector, WA_AST_NAME_ENTRY);
+                    wa_ast* index = wa_read_leb128_u32(parser, entry, OC_STR8("index"));
+                    wa_ast* name = wa_read_name(parser, entry, OC_STR8("name"));
+
+                    module->functionNames[entryIndex] = (wa_name_entry){
+                        .index = index->valU32,
+                        .name = name->str8,
+                    };
+
+                    wa_ast_end(parser, entry);
+                }
+                wa_ast_end(parser, vector);
+            }
+            break;
+            case 2:
+            {
+                //NOTE: local names
+            }
+            break;
+            case 0x07:
+            {
+                //NOTE: unstandardized global names
+            }
+            break;
+            default:
+            {
+                oc_log_warning("Unexpected subsection id %hhi at offset 0x%02x.\n", id->valU8, parser->offset);
+            }
+            break;
+        }
+        wa_ast_end(parser, subsection);
+        wa_parser_seek(parser, subStartOffset + size->valU32, OC_STR8("next subsection"));
+    }
+    //NOTE: check section size
+    if(parser->offset - startOffset != module->toc.names.len)
+    {
+        wa_parse_error(parser,
+                       section,
+                       "Size of section does not match declared size (declared = %llu, actual = %llu)\n",
+                       module->toc.names.len,
+                       parser->offset - startOffset);
+    }
 }
 
 void wa_parse_types(wa_parser* parser, wa_module* module)
@@ -4760,6 +4860,8 @@ wa_module* wa_module_create(oc_arena* arena, oc_str8 contents)
     wa_parse_code(&parser, module);
     wa_parse_data(&parser, module);
 
+    wa_parse_names(&parser, module);
+
     if(oc_list_empty(module->errors))
     {
         //TODO: tune this
@@ -6028,16 +6130,6 @@ wa_status wa_interpreter_run(wa_interpreter* interpreter, bool step)
                 i64 maxUsedSlot = I1.valI64;
 
                 wa_instance* calleeInstance = instance;
-
-                ///////////////////////
-                //DEBUG
-                /*
-                if(callee - instance->functions == 9)
-                {
-                    wa_print_bytecode(callee->codeLen, callee->code);
-                }
-                */
-                ///
 
                 while(callee->extInstance)
                 {
@@ -7816,5 +7908,44 @@ wa_status wa_instance_invoke(wa_instance* instance,
         //TODO: host proc should return a status
         func->proc(instance, args, returns, func->user);
         return WA_OK;
+    }
+}
+
+//-------------------------------------------------------------------------
+// debug helpers
+//-------------------------------------------------------------------------
+
+oc_str8 wa_module_get_function_name(wa_module* module, u32 index)
+{
+    oc_str8 res = { 0 };
+    for(u32 entryIndex = 0; entryIndex < module->functionNameCount; entryIndex++)
+    {
+        wa_name_entry* entry = &module->functionNames[entryIndex];
+        if(entry->index == index)
+        {
+            res = entry->name;
+        }
+    }
+    return res;
+}
+
+void wa_print_stack_trace(wa_interpreter* interpreter)
+{
+    for(u32 level = 0; level <= interpreter->controlStackTop; level++)
+    {
+        wa_func* func = interpreter->controlStack[level].func;
+        u64 addr = 0;
+        if(level == interpreter->controlStackTop)
+        {
+            addr = interpreter->pc - func->code;
+        }
+        else
+        {
+            addr = interpreter->controlStack[level + 1].returnPC - 2 - func->code;
+        }
+        u32 functionIndex = func - interpreter->instance->functions;
+        oc_str8 name = wa_module_get_function_name(interpreter->instance->module, functionIndex);
+
+        printf("[%i] %.*s + 0x%08llx\n", level, oc_str8_ip(name), addr);
     }
 }
