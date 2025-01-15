@@ -1,5 +1,11 @@
-#ifndef __WA_TYPES_H_
-#define __WA_TYPES_H_
+/*************************************************************************
+*
+*  Orca
+*  Copyright 2024 Martin Fouilleul and the Orca project contributors
+*  See LICENSE.txt for licensing information
+*
+**************************************************************************/
+#pragma once
 
 #include "../util/typedefs.h"
 
@@ -726,5 +732,3 @@ typedef struct wa_module
 
     oc_list errors;
 } wa_module;
-
-#endif // __WA_TYPES_H_

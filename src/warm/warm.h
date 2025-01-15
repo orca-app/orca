@@ -1,5 +1,11 @@
-#ifndef __WARM_H_
-#define __WARM_H_
+/*************************************************************************
+*
+*  Orca
+*  Copyright 2024 Martin Fouilleul and the Orca project contributors
+*  See LICENSE.txt for licensing information
+*
+**************************************************************************/
+#pragma once
 
 #define OC_NO_APP_LAYER 1
 #include "orca.h"
@@ -33,4 +39,3 @@ wa_import_package wa_instance_exports(oc_arena* arena, wa_instance* instance, oc
 
 //wip...
 wa_status wa_instance_status(wa_instance* instance);
-#endif // __WARM_H_
