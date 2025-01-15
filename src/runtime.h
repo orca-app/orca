@@ -128,14 +128,14 @@ void oc_assert_fail_dialog(const char* file, const char* function, int line, con
 #define OC_ASSERT_DIALOG(test, ...) \
     _OC_ASSERT_DIALOG_(test, OC_VA_NOPT("", ##__VA_ARGS__) OC_ARG1(__VA_ARGS__) OC_VA_COMMA_TAIL(__VA_ARGS__))
 
-#define OC_WASM_TRAP(status)                                                                                   \
-    do                                                                                                         \
-    {                                                                                                          \
-        if(wa_status_is_fail(status))                                                                          \
-        {                                                                                                      \
-            oc_abort_ext_dialog(__FILE__, __FUNCTION__, __LINE__, "%.*s", oc_str8_ip(wa_status_str8(status))); \
-        }                                                                                                      \
-    }                                                                                                          \
+#define OC_WASM_TRAP(status)                                                                                     \
+    do                                                                                                           \
+    {                                                                                                            \
+        if(wa_status_is_fail(status))                                                                            \
+        {                                                                                                        \
+            oc_abort_ext_dialog(__FILE__, __FUNCTION__, __LINE__, "%.*s", oc_str8_ip(wa_status_string(status))); \
+        }                                                                                                        \
+    }                                                                                                            \
     while(0)
 
 #endif //__RUNTIME_H_

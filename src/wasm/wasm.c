@@ -38,7 +38,7 @@ oc_str8 wa_value_type_string(wa_value_type t)
     }
 }
 
-oc_str8 wa_status_str8(wa_status status)
+oc_str8 wa_status_string(wa_status status)
 {
     if(status < WA_STATUS_COUNT)
     {

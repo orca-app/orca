@@ -999,42 +999,6 @@ bool wa_is_value_type_numeric(u64 t)
 // errors
 //-------------------------------------------------------------------------
 
-static const char* wa_status_strings[] = {
-    "ok",
-    "parse error",
-    "type mismatch",
-    "invalid type index",
-    "invalid function index",
-    "invalid global index",
-    "invalid local index",
-    "invalid table index",
-    "invalid memory index",
-
-    "invalid arguments",
-    "missing import",
-    "binding type mismatch",
-
-    "unreachable",
-    "invalid opcode",
-    "divide by zero",
-    "integer overflow",
-    "invalid integer conversion",
-    "stack overflow",
-    "out-of-bounds memory access",
-    "out-of-bounds table access",
-    "null reference",
-    "indirect call type mismatch",
-
-    "breakpoint",
-    "step",
-    "terminated",
-};
-
-const char* wa_status_string(wa_status status)
-{
-    return (wa_status_strings[status]);
-}
-
 typedef struct wa_module_error
 {
     oc_list_elt moduleElt;

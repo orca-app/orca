@@ -219,7 +219,8 @@ typedef u32 oc_wasm_addr;
 typedef u32 oc_wasm_size;
 
 bool wa_status_is_fail(wa_status status);
-oc_str8 wa_status_str8(wa_status status);
+oc_str8 wa_status_string(wa_status status);
+oc_str8 wa_value_type_string(wa_value_type type);
 
 wa_module* wa_module_create(oc_arena* arena, oc_str8 contents);
 void wa_module_destroy(wa_module* module);
@@ -244,8 +245,6 @@ void wa_global_set(wa_instance* instance, wa_global* global, wa_value value);
 wa_memory wa_instance_get_memory(wa_instance* instance);
 oc_str8 wa_instance_get_memory_str8(wa_instance* instance);
 wa_status wa_instance_resize_memory(wa_instance* instance, u32 countPages);
-
-oc_str8 wa_value_type_string(wa_value_type type);
 
 //////////////////////////////////////////////////////////////////
 // Inline implementation
