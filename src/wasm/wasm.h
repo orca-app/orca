@@ -85,6 +85,7 @@ typedef enum wa_value_type
 typedef struct wa_module wa_module;
 typedef struct wa_instance wa_instance;
 typedef struct wa_func wa_func;
+typedef struct wa_global wa_global;
 
 typedef union wa_value
 {
@@ -135,13 +136,6 @@ enum
 {
     WA_PAGE_SIZE = 64 * 1 << 10,
 };
-
-typedef struct wa_global
-{
-    wa_value_type type;
-    bool mut;
-    wa_value value;
-} wa_global;
 
 typedef struct wa_table
 {
@@ -224,16 +218,6 @@ enum
 typedef u32 oc_wasm_addr;
 typedef u32 oc_wasm_size;
 
-struct oc_wasm_global_handle;
-typedef struct oc_wasm_global_handle oc_wasm_global_handle;
-
-// Convenience for wasm globals that are known to be pointers to static memory
-typedef struct oc_wasm_global_pointer
-{
-    oc_wasm_global_handle* handle;
-    oc_wasm_addr address;
-} oc_wasm_global_pointer;
-
 bool wa_status_is_fail(wa_status status);
 oc_str8 wa_status_str8(wa_status status);
 
@@ -253,20 +237,13 @@ wa_status wa_instance_invoke(wa_instance* instance,
                              u32 retCount,
                              wa_value* returns);
 
+wa_global* wa_instance_find_global(wa_instance* instance, oc_str8 name);
+wa_value wa_global_get(wa_instance* instance, wa_global* global);
+void wa_global_set(wa_instance* instance, wa_global* global, wa_value value);
+
 u64 oc_wasm_mem_size(wa_instance* instance);
 oc_str8 oc_wasm_mem_get(wa_instance* instance);
 wa_status oc_wasm_mem_resize(wa_instance* instance, u32 countPages);
-
-/*
-oc_wasm_function_handle* oc_wasm_function_find(wa_instance* instance, oc_str8 exportName);
-wa_func_type oc_wasm_function_get_info(oc_arena* scratch, wa_instance* instance, oc_wasm_function_handle* handle);
-wa_status oc_wasm_function_call(wa_instance* instance, oc_wasm_function_handle* handle, wa_value* params, size_t countParams, wa_value* returns, size_t countReturns);
-*/
-
-oc_wasm_global_handle* oc_wasm_global_find(wa_instance* instance, oc_str8 exportName, wa_value_type expectedType);
-wa_value oc_wasm_global_get_value(oc_wasm_global_handle* global);
-void oc_wasm_global_set_value(oc_wasm_global_handle* global, wa_value value);
-oc_wasm_global_pointer oc_wasm_global_pointer_find(wa_instance* instance, oc_str8 exportName);
 
 oc_str8 wa_value_type_str8(wa_value_type type);
 

@@ -483,20 +483,21 @@ wa_status wa_instance_invoke(wa_instance* instance, wa_func* func, u32 argCount,
     return WA_OK;
 }
 
-oc_wasm_global_handle* oc_wasm_global_find(wa_instance* instance, oc_str8 exportName, wa_value_type expectedType)
+wa_global* wa_instance_find_global(wa_instance* instance, oc_str8 exportName)
 {
     IM3Global m3Global = m3_FindGlobal(instance->module->m3Module, exportName.ptr);
+    /*
     M3ValueType m3Type = wa_value_type_to_wasm3_valtype(expectedType);
     if(m3Global && m3Global->type == m3Type)
     {
         oc_log_error("Found global %s, expected type %s but actual type was %s", exportName.ptr, wa_value_type_str8(expectedType).ptr, c_waTypes[m3Global->type]);
         return NULL;
     }
-
-    return (oc_wasm_global_handle*)m3Global;
+    */
+    return (wa_global*)m3Global;
 }
 
-wa_value oc_wasm_global_get_value(oc_wasm_global_handle* global)
+wa_value wa_global_get(wa_instance* instance, wa_global* global)
 {
     if(global == NULL)
     {
@@ -509,19 +510,11 @@ wa_value oc_wasm_global_get_value(oc_wasm_global_handle* global)
     return v;
 }
 
-void oc_wasm_global_set_value(oc_wasm_global_handle* global, wa_value value)
+void wa_global_set(wa_instance* instance, wa_global* global, wa_value value)
 {
     if(global)
     {
         IM3Global m3Global = (IM3Global)global;
         m3Global->intValue = value.valI64;
     }
-}
-
-oc_wasm_global_pointer oc_wasm_global_pointer_find(wa_instance* instance, oc_str8 exportName)
-{
-    oc_wasm_global_handle* global = oc_wasm_global_find(instance, exportName, WA_TYPE_I32);
-    IM3Global m3Global = (IM3Global)global;
-
-    return (oc_wasm_global_pointer){ .handle = global, .address = (u32)m3Global->intValue };
 }

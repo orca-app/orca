@@ -622,12 +622,12 @@ i32 orca_runloop(void* user)
 
     //NOTE: get location of the raw event slot
     {
-        oc_wasm_global_pointer pointer = oc_wasm_global_pointer_find(app->env.instance, OC_STR8("oc_rawEvent"));
-        if(pointer.handle == NULL)
+        wa_global* global = wa_instance_find_global(app->env.instance, OC_STR8("oc_rawEvent"));
+        if(!global)
         {
             oc_abort_ext_dialog(__FILE__, __FUNCTION__, __LINE__, "Failed to find raw event global - was this module linked with the Orca wasm runtime?");
         }
-        app->env.rawEventOffset = pointer.address;
+        app->env.rawEventOffset = wa_global_get(app->env.instance, global).valI32;
     }
 
     //NOTE: preopen the app local root dir

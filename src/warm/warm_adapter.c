@@ -38,7 +38,26 @@ wa_status oc_wasm_mem_resize(wa_instance* instance, u32 n)
     return WA_TRAP_MEMORY_OUT_OF_BOUNDS;
 }
 
-oc_wasm_global_pointer oc_wasm_global_pointer_find(wa_instance* instance, oc_str8 exportName)
+wa_value wa_global_get(wa_instance* instance, wa_global* global)
+{
+    wa_value value = { 0 };
+    if(global)
+    {
+        value = global->value;
+    }
+    return value;
+}
+
+void wa_global_set(wa_instance* instance, wa_global* global, wa_value value)
+{
+    if(global)
+    {
+        global->value = value;
+    }
+}
+
+/*
+wa_global* wa_instance_find_global(wa_instance* instance, oc_str8 exportName)
 {
     oc_wasm_global_pointer res = { 0 };
     wa_global* global = wa_instance_find_global(instance, exportName);
@@ -49,9 +68,4 @@ oc_wasm_global_pointer oc_wasm_global_pointer_find(wa_instance* instance, oc_str
     }
     return (res);
 }
-
-oc_wasm_global_handle* oc_wasm_global_find(wa_instance* instance, oc_str8 exportName, wa_value_type expectedType);
-
-wa_value oc_wasm_global_get_value(oc_wasm_global_handle* global);
-void oc_wasm_global_set_value(oc_wasm_global_handle* global, wa_value value);
-oc_wasm_global_pointer oc_wasm_global_pointer_find(wa_instance* instance, oc_str8 exportName);
+*/

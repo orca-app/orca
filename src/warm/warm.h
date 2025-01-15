@@ -14,6 +14,13 @@ typedef struct wa_typed_value
 
 } wa_typed_value;
 
+typedef struct wa_global
+{
+    wa_value_type type;
+    bool mut;
+    wa_value value;
+} wa_global;
+
 typedef struct wa_import wa_import;
 typedef struct wa_module wa_module;
 typedef struct wa_instance wa_instance;
@@ -25,18 +32,7 @@ const char* wa_status_string(wa_status status);
 bool wa_module_has_errors(wa_module* module);
 void wa_module_print_errors(wa_module* module);
 
-wa_module* wa_module_create(oc_arena* arena, oc_str8 contents);
-wa_instance* wa_instance_create(oc_arena* arena, wa_module* module, wa_instance_options* options);
 wa_import_package wa_instance_exports(oc_arena* arena, wa_instance* instance, oc_str8 name);
-wa_func* wa_instance_find_function(wa_instance* instance, oc_str8 name);
-wa_global* wa_instance_find_global(wa_instance* instance, oc_str8 name);
-
-wa_status wa_instance_invoke(wa_instance* instance,
-                             wa_func* func,
-                             u32 argCount,
-                             wa_value* args,
-                             u32 retCount,
-                             wa_value* returns);
 
 //wip...
 wa_status wa_instance_status(wa_instance* instance);
