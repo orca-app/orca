@@ -830,7 +830,7 @@ u64 orca_glDrawElementsIndirect_indirect_length(wa_instance* instance, const voi
 
 void glShaderSource_stub(wa_instance* instance, wa_value* _params, wa_value* _returns, void* user)
 {
-    char* _mem = oc_wasm_mem_get(instance).ptr;
+    char* _mem = wa_instance_get_memory_str8(instance).ptr;
 
     i32 shader = *(i32*)&_params[0];
     i32 count = *(i32*)&_params[1];
@@ -855,15 +855,17 @@ void glShaderSource_stub(wa_instance* instance, wa_value* _params, wa_value* _re
 
 void glGetVertexAttribPointerv_stub(wa_instance* instance, wa_value* _params, wa_value* _returns, void* user)
 {
-    char* _mem = oc_wasm_mem_get(instance).ptr;
+    oc_str8 memStr8 = wa_instance_get_memory_str8(instance);
+    char* _mem = memStr8.ptr;
+    u32 _memSize = memStr8.len;
 
     GLuint index = *(i32*)&_params[0];
     GLenum pname = *(i32*)&_params[1];
     i32* pointer = (i32*)((char*)_mem + *(u32*)&_params[2]);
     {
-        OC_ASSERT(((char*)pointer >= (char*)_mem) && (((char*)pointer - (char*)_mem) < oc_wasm_mem_size(instance)),
+        OC_ASSERT(((char*)pointer >= (char*)_mem) && (((char*)pointer - (char*)_mem) < _memSize),
                   "parameter 'pointer' is out of bounds");
-        OC_ASSERT((char*)pointer + sizeof(i32) <= ((char*)_mem + oc_wasm_mem_size(instance)),
+        OC_ASSERT((char*)pointer + sizeof(i32) <= ((char*)_mem + _memSize),
                   "parameter 'pointer' overflows wasm memory");
     }
     void* rawPointer = 0;
@@ -877,7 +879,7 @@ void glGetVertexAttribPointerv_stub(wa_instance* instance, wa_value* _params, wa
 
 void glVertexAttribPointer_stub(wa_instance* instance, wa_value* _params, wa_value* _returns, void* user)
 {
-    char* _mem = oc_wasm_mem_get(instance).ptr;
+    char* _mem = wa_instance_get_memory_str8(instance).ptr;
 
     GLuint index = *(u32*)&_params[0];
     GLint size = *(i32*)&_params[1];
@@ -908,7 +910,7 @@ void glVertexAttribPointer_stub(wa_instance* instance, wa_value* _params, wa_val
 
 void glVertexAttribIPointer_stub(wa_instance* instance, wa_value* _params, wa_value* _returns, void* user)
 {
-    char* _mem = oc_wasm_mem_get(instance).ptr;
+    char* _mem = wa_instance_get_memory_str8(instance).ptr;
 
     GLuint index = *(u32*)&_params[0];
     GLint size = *(i32*)&_params[1];
@@ -937,14 +939,15 @@ void glVertexAttribIPointer_stub(wa_instance* instance, wa_value* _params, wa_va
 
 void glGetUniformIndices_stub(wa_instance* instance, wa_value* _params, wa_value* _returns, void* user)
 {
-    char* _mem = oc_wasm_mem_get(instance).ptr;
+    oc_str8 memStr8 = wa_instance_get_memory_str8(instance);
+    char* _mem = memStr8.ptr;
+    u64 memorySize = memStr8.len;
 
     GLuint program = (GLuint) * (i32*)&_params[0];
     GLsizei uniformCount = (GLsizei) * (i32*)&_params[1];
     u32* uniformNames = (u32*)((char*)_mem + *(u32*)&_params[2]);
     GLuint* uniformIndices = (GLuint*)((char*)_mem + *(u32*)&_params[3]);
 
-    u64 memorySize = oc_wasm_mem_size(instance);
     //NOTE: check size of uniformNames
     {
         OC_ASSERT(((char*)uniformNames >= (char*)_mem) && (((char*)uniformNames - (char*)_mem) < memorySize),
@@ -1075,11 +1078,11 @@ void orca_gl_getstring_init(orca_gl_getstring_info* info, char* memory)
 
 void glGetString_stub(wa_instance* instance, wa_value* _params, wa_value* _returns, void* user)
 {
-    char* _mem = oc_wasm_mem_get(instance).ptr;
+    char* _mem = wa_instance_get_memory_str8(instance).ptr;
 
     if(!__orcaGLGetStringInfo.init)
     {
-        oc_str8 memory = oc_wasm_mem_get(instance);
+        oc_str8 memory = wa_instance_get_memory_str8(instance);
         orca_gl_getstring_init(&__orcaGLGetStringInfo, (char*)memory.ptr);
     }
 
@@ -1100,11 +1103,11 @@ void glGetString_stub(wa_instance* instance, wa_value* _params, wa_value* _retur
 
 void glGetStringi_stub(wa_instance* instance, wa_value* _params, wa_value* _returns, void* user)
 {
-    char* _mem = oc_wasm_mem_get(instance).ptr;
+    char* _mem = wa_instance_get_memory_str8(instance).ptr;
 
     if(!__orcaGLGetStringInfo.init)
     {
-        oc_str8 memory = oc_wasm_mem_get(instance);
+        oc_str8 memory = wa_instance_get_memory_str8(instance);
         orca_gl_getstring_init(&__orcaGLGetStringInfo, (char*)memory.ptr);
     }
 

@@ -241,11 +241,11 @@ wa_global* wa_instance_find_global(wa_instance* instance, oc_str8 name);
 wa_value wa_global_get(wa_instance* instance, wa_global* global);
 void wa_global_set(wa_instance* instance, wa_global* global, wa_value value);
 
-u64 oc_wasm_mem_size(wa_instance* instance);
-oc_str8 oc_wasm_mem_get(wa_instance* instance);
-wa_status oc_wasm_mem_resize(wa_instance* instance, u32 countPages);
+wa_memory wa_instance_get_memory(wa_instance* instance);
+oc_str8 wa_instance_get_memory_str8(wa_instance* instance);
+wa_status wa_instance_resize_memory(wa_instance* instance, u32 countPages);
 
-oc_str8 wa_value_type_str8(wa_value_type type);
+oc_str8 wa_value_type_string(wa_value_type type);
 
 //////////////////////////////////////////////////////////////////
 // Inline implementation

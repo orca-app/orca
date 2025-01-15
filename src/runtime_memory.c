@@ -57,7 +57,7 @@ extern u32 oc_mem_grow(u64 size)
 {
     oc_wasm_env* env = oc_runtime_get_env();
 
-    u64 oldMemSize = oc_wasm_mem_size(env->instance);
+    u64 oldMemSize = wa_instance_get_memory_str8(env->instance).len;
 
     //NOTE: compute total size and align on wasm memory page size
     OC_ASSERT(oldMemSize <= UINT_MAX - size, "Memory size overflow");
@@ -67,10 +67,10 @@ extern u32 oc_mem_grow(u64 size)
 
     //NOTE: call resize memory, which will call our custom resize callback... this is a bit involved because
     //      wasm3 doesn't allow resizing the memory directly
-    wa_status status = oc_wasm_mem_resize(env->instance, desiredMemSize / OC_WASM_MEM_PAGE_SIZE);
+    wa_status status = wa_instance_resize_memory(env->instance, desiredMemSize / OC_WASM_MEM_PAGE_SIZE);
     OC_WASM_TRAP(status);
 
-    u64 newMemSize = oc_wasm_mem_size(env->instance);
+    u64 newMemSize = wa_instance_get_memory_str8(env->instance).len;
     OC_DEBUG_ASSERT(oldMemSize + size <= newMemSize, "Memory returned by oc_mem_grow overflows wasm memory");
 
     return (oldMemSize);

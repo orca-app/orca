@@ -85,15 +85,12 @@ oc_wasm_env* oc_runtime_get_env()
 
 oc_str8 oc_runtime_get_wasm_memory()
 {
-    oc_str8 mem = { 0 };
-    u32 size = 0;
-    mem = oc_wasm_mem_get(__orcaApp.env.instance);
-    return (mem);
+    return wa_instance_get_memory_str8(__orcaApp.env.instance);
 }
 
 u64 orca_check_cstring(wa_instance* instance, const char* ptr)
 {
-    oc_str8 memory = oc_wasm_mem_get(instance);
+    oc_str8 memory = wa_instance_get_memory_str8(instance);
 
     //NOTE: Here we are guaranteed that ptr is in [ memory ; memory + memorySize [
     //      hence (memory + memorySize) - ptr is representable by size_t and <= memorySize
@@ -367,8 +364,9 @@ void oc_bridge_canvas_renderer_submit(oc_canvas_renderer renderer,
 {
     oc_runtime* app = &__orcaApp;
 
-    char* memBase = oc_wasm_mem_get(app->env.instance).ptr;
-    u32 memSize = oc_wasm_mem_size(app->env.instance);
+    oc_str8 mem = wa_instance_get_memory_str8(app->env.instance);
+    char* memBase = mem.ptr;
+    u32 memSize = mem.len;
 
     oc_rect window_content_rect = oc_window_get_content_rect(app->window);
 

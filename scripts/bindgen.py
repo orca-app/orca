@@ -132,7 +132,9 @@ def bindgen(apiName, spec, **kwargs):
         else:
             s += '\n{\n'
 
-            s += "\tchar* _mem = oc_wasm_mem_get(instance).ptr;\n "
+            s += "\toc_str8 memStr8 = wa_instance_get_memory_str8(instance);\n "
+            s += "\tchar* _mem = memStr8.ptr;\n "
+            s += "\tu32 _memSize = memStr8.len;\n"
 
             # NOTE: check and cast arguments
             retTag = decl['ret']['tag']
@@ -145,8 +147,8 @@ def bindgen(apiName, spec, **kwargs):
                 s += '\t' + retTypeCName + '* __retPtr = (' + retTypeCName + '*)((char*)_mem + *(i32*)&_params[0]);\n'
 
                 s += '\t{\n'
-                s += '\t\tOC_ASSERT_DIALOG(((char*)__retPtr >= (char*)_mem) && (((char*)__retPtr - (char*)_mem) < oc_wasm_mem_size(instance)), "return pointer is out of bounds");\n'
-                s += '\t\tOC_ASSERT_DIALOG((char*)__retPtr + sizeof(' + retTypeCName + ') <= ((char*)_mem + oc_wasm_mem_size(instance)), "return pointer is out of bounds");\n'
+                s += '\t\tOC_ASSERT_DIALOG(((char*)__retPtr >= (char*)_mem) && (((char*)__retPtr - (char*)_mem) < _memSize), "return pointer is out of bounds");\n'
+                s += '\t\tOC_ASSERT_DIALOG((char*)__retPtr + sizeof(' + retTypeCName + ') <= ((char*)_mem + _memSize), "return pointer is out of bounds");\n'
                 s += '\t}\n'
 
             for argIndex, arg in enumerate(decl['args']):
@@ -188,7 +190,7 @@ def bindgen(apiName, spec, **kwargs):
                         printError("binding '" + name + "' missing pointer length decoration for param '" + argName + "'")
                     else:
                         s += '\t{\n'
-                        s += '\t\tOC_ASSERT_DIALOG(((char*)'+ argName + ' >= (char*)_mem) && (((char*)'+ argName +' - (char*)_mem) < oc_wasm_mem_size(instance)), "parameter \''+argName+'\' is out of bounds");\n'
+                        s += '\t\tOC_ASSERT_DIALOG(((char*)'+ argName + ' >= (char*)_mem) && (((char*)'+ argName +' - (char*)_mem) < _memSize), "parameter \''+argName+'\' is out of bounds");\n'
                         s += '\t\tOC_ASSERT_DIALOG((char*)' + argName + ' + '
 
                         proc = argLen.get('proc')
@@ -214,7 +216,7 @@ def bindgen(apiName, spec, **kwargs):
                         if typeCName.endswith('**') or (typeCName.startswith('void') == False and typeCName.startswith('const void') == False):
                             s += '*sizeof('+typeCName[:-1]+')'
 
-                        s += ' <= ((char*)_mem + oc_wasm_mem_size(instance)), "parameter \''+argName+'\' is out of bounds");\n'
+                        s += ' <= ((char*)_mem + _memSize), "parameter \''+argName+'\' is out of bounds");\n'
                         s += '\t}\n'
 
             s += '\t'

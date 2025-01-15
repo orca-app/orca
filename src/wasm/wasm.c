@@ -15,7 +15,7 @@ static oc_str8 WA_STATUS_STRINGS[] = {
 #undef X
 };
 
-oc_str8 wa_value_type_str8(wa_value_type t)
+oc_str8 wa_value_type_string(wa_value_type t)
 {
     switch(t)
     {
@@ -69,4 +69,13 @@ void wa_import_package_push_binding(oc_arena* arena, wa_import_package* package,
 
     oc_list_push_back(&package->bindings, &elt->listElt);
     package->bindingCount++;
+}
+
+oc_str8 wa_instance_get_memory_str8(wa_instance* instance)
+{
+    wa_memory mem = wa_instance_get_memory(instance);
+    return ((oc_str8){
+        .ptr = mem.ptr,
+        .len = mem.limits.min * WA_PAGE_SIZE,
+    });
 }

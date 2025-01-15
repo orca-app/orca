@@ -15,15 +15,12 @@ u64 oc_wasm_mem_size(wa_instance* instance)
     return (instance->memories[0]->limits.min * WA_PAGE_SIZE);
 }
 
-oc_str8 oc_wasm_mem_get(wa_instance* instance)
+wa_memory wa_instance_get_memory(wa_instance* instance)
 {
-    return (oc_str8){
-        .ptr = instance->memories[0]->ptr,
-        .len = instance->memories[0]->limits.min * WA_PAGE_SIZE,
-    };
+    return *instance->memories[0];
 }
 
-wa_status oc_wasm_mem_resize(wa_instance* instance, u32 n)
+wa_status wa_instance_resize_memory(wa_instance* instance, u32 n)
 {
     wa_memory* mem = instance->memories[0];
 

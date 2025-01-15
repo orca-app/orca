@@ -993,32 +993,6 @@ bool wa_is_value_type_numeric(u64 t)
     }
 }
 
-///////////////////////////////////////////////////////////
-//TODO: replace with wa_value_type_str8 (returning oc_str8)
-///////////////////////////////////////////////////////////
-const char* wa_value_type_string(wa_value_type t)
-{
-    switch(t)
-    {
-        case WA_TYPE_I32:
-            return "i32";
-        case WA_TYPE_I64:
-            return "i64";
-        case WA_TYPE_F32:
-            return "f32";
-        case WA_TYPE_F64:
-            return "f64";
-        case WA_TYPE_V128:
-            return "vec128";
-        case WA_TYPE_FUNC_REF:
-            return "funcref";
-        case WA_TYPE_EXTERN_REF:
-            return "externref";
-        default:
-            return "invalid type";
-    }
-}
-
 #include "wasm_tables.c"
 
 //-------------------------------------------------------------------------

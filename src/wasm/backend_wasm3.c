@@ -372,21 +372,27 @@ wa_instance* wa_instance_create(oc_arena* arena, wa_module* module, wa_instance_
     return instance;
 }
 
-u64 oc_wasm_mem_size(wa_instance* instance)
-{
-    return m3_GetMemorySize(instance->m3Runtime);
-}
-
-oc_str8 oc_wasm_mem_get(wa_instance* instance)
+wa_memory wa_instance_get_memory(wa_instance* instance)
 {
     uint32_t memSize = 0;
     uint32_t memIndex = 0;
     u8* memory = (u8*)m3_GetMemory(instance->m3Runtime, &memSize, memIndex);
 
-    return (oc_str8){ .ptr = (char*)memory, .len = memSize };
+    /////////////////////////////////////////////////////////////////////////////////////////////////
+    //WARN: wasm3 has this annoying thing of storing a header at the start of memory. So the actual
+    //      wasm memory starts some offset after instance->memory.ptr...
+    /////////////////////////////////////////////////////////////////////////////////////////////////
+
+    return (wa_memory){
+        .ptr = (char*)memory,
+        .limits = {
+            .min = memSize / WA_PAGE_SIZE,
+            .max = instance->memory.limits.max,
+        },
+    };
 }
 
-wa_status oc_wasm_mem_resize(wa_instance* instance, u32 countPages)
+wa_status wa_instance_resize_memory(wa_instance* instance, u32 countPages)
 {
     M3Result res = ResizeMemory(instance->m3Runtime, countPages);
     if(res)
