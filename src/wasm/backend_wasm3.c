@@ -524,3 +524,14 @@ void wa_global_set(wa_instance* instance, wa_global* global, wa_value value)
         m3Global->intValue = value.valI64;
     }
 }
+
+void wa_module_destroy(wa_module* module)
+{
+    //NOTE: no need to free module, since it's done by m3_FreeRuntime
+    m3_FreeEnvironment(module->m3Env);
+}
+
+void wa_instance_destroy(wa_instance* instance)
+{
+    m3_FreeRuntime(instance->m3Runtime);
+}

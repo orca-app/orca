@@ -1027,6 +1027,9 @@ i32 orca_runloop(void* user)
         OC_WASM_TRAP(status);
     }
 
+    wa_instance_destroy(app->env.instance);
+    wa_module_destroy(app->env.module);
+
     oc_request_quit();
 
     return (0);

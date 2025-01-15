@@ -10,9 +10,14 @@
 #include "wasm/wasm.h"
 #include "warm.c"
 
-u64 oc_wasm_mem_size(wa_instance* instance)
+void wa_module_destroy(wa_module* module)
 {
-    return (instance->memories[0]->limits.min * WA_PAGE_SIZE);
+    //NOTE: do nothing, everything is done when arena is cleared
+}
+
+void wa_instance_destroy(wa_instance* instance)
+{
+    //NOTE: do nothing, everything is done when arena is cleared
 }
 
 wa_memory wa_instance_get_memory(wa_instance* instance)
@@ -52,17 +57,3 @@ void wa_global_set(wa_instance* instance, wa_global* global, wa_value value)
         global->value = value;
     }
 }
-
-/*
-wa_global* wa_instance_find_global(wa_instance* instance, oc_str8 exportName)
-{
-    oc_wasm_global_pointer res = { 0 };
-    wa_global* global = wa_instance_find_global(instance, exportName);
-    if(global && global->type == WA_TYPE_I32)
-    {
-        res.handle = (oc_wasm_global_handle*)global;
-        res.address = global->value.valI32;
-    }
-    return (res);
-}
-*/
