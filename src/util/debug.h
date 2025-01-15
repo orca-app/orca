@@ -5,8 +5,7 @@
 *  See LICENSE.txt for licensing information
 *
 **************************************************************************/
-#ifndef __DEBUG_H_
-#define __DEBUG_H_
+#pragma once
 
 #include "platform/platform_debug.h"
 #include "util/macros.h"
@@ -67,5 +66,3 @@ extern "C" {
 #ifdef __cplusplus
 }
 #endif
-
-#endif //__DEBUG_H_

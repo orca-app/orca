@@ -5,8 +5,7 @@
 *  See LICENSE.txt for licensing information
 *
 **************************************************************************/
-#ifndef __PLATFORM_IO_DIALOG_H_
-#define __PLATFORM_IO_DIALOG_H_
+#pragma once
 
 #include "platform_io.h"
 #include "app/app.h"
@@ -33,5 +32,3 @@ ORCA_API oc_file_open_with_dialog_result oc_file_open_with_dialog(oc_arena* aren
 #ifdef __cplusplus
 }
 #endif
-
-#endif //__PLATFORM_IO_DIALOG_H_

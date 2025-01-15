@@ -5,8 +5,7 @@
 *  See LICENSE.txt for licensing information
 *
 **************************************************************************/
-#ifndef __UI_H_
-#define __UI_H_
+#pragma once
 
 #include "graphics/graphics.h"
 #include "input_state.h"
@@ -786,5 +785,3 @@ ORCA_API oc_ui_radio_group_info oc_ui_radio_group(const char* name, oc_ui_radio_
 #ifdef __cplusplus
 } // extern "C"
 #endif
-
-#endif //__UI_H_

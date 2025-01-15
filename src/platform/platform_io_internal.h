@@ -5,8 +5,7 @@
 *  See LICENSE.txt for licensing information
 *
 **************************************************************************/
-#ifndef __PLATFORM_IO_INTERNAL_H_
-#define __PLATFORM_IO_INTERNAL_H_
+#pragma once
 
 #include "platform.h"
 #include "platform_io.h"
@@ -96,5 +95,3 @@ typedef struct oc_io_raw_read_link_result
 } oc_io_raw_read_link_result;
 
 oc_io_raw_read_link_result oc_io_raw_read_link_at(oc_arena* arena, oc_file_desc dirFd, oc_str8 path);
-
-#endif //__PLATFORM_IO_INTERNAL_H_

@@ -5,8 +5,7 @@
 *  See LICENSE.txt for licensing information
 *
 **************************************************************************/
-#ifndef __CANVAS_RENDERER_H_
-#define __CANVAS_RENDERER_H_
+#pragma once
 
 #include "graphics.h"
 #include "surface.h"
@@ -56,5 +55,3 @@ typedef struct oc_canvas_renderer_base
     oc_canvas_renderer_present_proc present;
 
 } oc_canvas_renderer_base;
-
-#endif //__CANVAS_RENDERER_H_

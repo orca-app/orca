@@ -5,11 +5,7 @@
 *  See LICENSE.txt for licensing information
 *
 **************************************************************************/
-
-#ifndef __TARBALL_H_
-#define __TARBALL_H_
+#pragma once
 
 #include "orca.h"
 bool tarball_extract(oc_str8 filepath, oc_str8 out_dir);
-
-#endif // __TARBALL_H_

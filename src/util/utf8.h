@@ -5,9 +5,7 @@
 *  See LICENSE.txt for licensing information
 *
 **************************************************************************/
-
-#ifndef __UTF8_H_
-#define __UTF8_H_
+#pragma once
 
 #include "strings.h"
 #include "typedefs.h"
@@ -210,5 +208,3 @@ OC_UNICODE_RANGES
 #ifdef __cplusplus
 } // extern "C"
 #endif
-
-#endif //__UTF8_H_

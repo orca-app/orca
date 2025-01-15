@@ -5,8 +5,7 @@
 *  See LICENSE.txt for licensing information
 *
 **************************************************************************/
-#ifndef __APP_INTERNAL_H_
-#define __APP_INTERNAL_H_
+#pragma once
 
 #include "app.h"
 
@@ -80,5 +79,3 @@ typedef struct oc_app
 } oc_app;
 
 extern oc_key_code oc_defaultKeyMap[OC_SCANCODE_COUNT];
-
-#endif // __APP_INTERNAL_H_

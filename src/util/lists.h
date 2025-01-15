@@ -6,8 +6,7 @@
 *	@brief: Implements generic intrusive linked list and dynamic array
 *
 ****************************************************************/
-#ifndef __CONTAINERS_H_
-#define __CONTAINERS_H_
+#pragma once
 
 #include "platform/platform_debug.h"
 #include "util/macros.h"
@@ -93,5 +92,3 @@ ORCA_API oc_list_elt* oc_list_pop_back(oc_list* list);
 #ifdef __cplusplus
 } // extern "C"
 #endif
-
-#endif //__CONTAINERS_H_

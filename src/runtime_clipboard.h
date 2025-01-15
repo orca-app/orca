@@ -5,9 +5,7 @@
 *  See LICENSE.txt for licensing information
 *
 **************************************************************************/
-
-#ifndef __RUNTIME_CLIPBOARD_H_
-#define __RUNTIME_CLIPBOARD_H_
+#pragma once
 
 #include "runtime_memory.h"
 
@@ -27,5 +25,3 @@ void oc_runtime_clipboard_process_event_end(oc_runtime_clipboard* clipboard);
 #else
     #error Default clipboard handling is not supported on this platform"
 #endif
-
-#endif //__RUNTIME_CLIPBOARD_H_

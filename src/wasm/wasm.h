@@ -5,9 +5,7 @@
 *  See LICENSE.txt for licensing information
 *
 **************************************************************************/
-
-#ifndef __WASM_H_
-#define __WASM_H_
+#pragma once
 
 #ifndef OC_WASM_BACKEND_WASM3
     #error OC_WASM_BACKEND_WASM3 must be defined to 0 or 1
@@ -148,5 +146,3 @@ inline bool oc_wasm_status_is_fail(oc_wasm_status status)
 {
     return status != OC_WASM_STATUS_SUCCESS;
 }
-
-#endif // __WASM_H_

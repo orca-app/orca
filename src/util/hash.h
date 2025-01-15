@@ -5,8 +5,7 @@
 *  See LICENSE.txt for licensing information
 *
 **************************************************************************/
-#ifndef __HASH_H_
-#define __HASH_H_
+#pragma once
 
 #include "strings.h"
 #include "typedefs.h"
@@ -21,5 +20,3 @@ ORCA_API u64 oc_hash_xx64_string(oc_str8 string);
 #ifdef __cplusplus
 } // extern "C"
 #endif
-
-#endif //__HASH_H_

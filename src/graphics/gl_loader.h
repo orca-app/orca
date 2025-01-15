@@ -5,8 +5,7 @@
 *  See LICENSE.txt for licensing information
 *
 *********************************************************/
-#ifndef __GL_LOADER_H__
-#define __GL_LOADER_H__
+#pragma once
 
 #include "gl_api.h"
 
@@ -19,5 +18,3 @@ void oc_gl_load_gles30(oc_gl_api* api, oc_gl_load_proc loadProc);
 void oc_gl_load_gles31(oc_gl_api* api, oc_gl_load_proc loadProc);
 
 void oc_gl_select_api(oc_gl_api* api);
-
-#endif // __GL_LOADER_H__

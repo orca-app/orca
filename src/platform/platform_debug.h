@@ -5,8 +5,7 @@
 *  See LICENSE.txt for licensing information
 *
 **************************************************************************/
-#ifndef __PLATFORM_DEBUG_H_
-#define __PLATFORM_DEBUG_H_
+#pragma once
 
 #include "platform.h"
 
@@ -49,5 +48,3 @@ ORCA_API void oc_log_ext(oc_log_level level,
 #ifdef __cplusplus
 }
 #endif
-
-#endif //__PLATFORM_DEBUG_H_

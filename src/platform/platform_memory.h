@@ -5,8 +5,7 @@
 *  See LICENSE.txt for licensing information
 *
 **************************************************************************/
-#ifndef __PLATFORM_MEMORY_H_
-#define __PLATFORM_MEMORY_H_
+#pragma once
 
 #include "platform.h"
 #include "util/typedefs.h"
@@ -56,5 +55,3 @@ ORCA_API oc_base_allocator* oc_base_allocator_default(void);
 #ifdef __cplusplus
 } // extern "C"
 #endif
-
-#endif //__PLATFORM_MEMORY_H_

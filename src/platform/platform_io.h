@@ -5,8 +5,7 @@
 *  See LICENSE.txt for licensing information
 *
 **************************************************************************/
-#ifndef __PLATFORM_IO_H_
-#define __PLATFORM_IO_H_
+#pragma once
 
 #include "util/strings.h"
 #include "util/typedefs.h"
@@ -244,5 +243,3 @@ ORCA_API oc_file oc_file_open_with_request(oc_str8 path, oc_file_access rights, 
 #ifdef __cplusplus
 }
 #endif
-
-#endif //__PLATFORM_IO_H_
