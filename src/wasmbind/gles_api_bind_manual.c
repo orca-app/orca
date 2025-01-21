@@ -828,8 +828,9 @@ u64 orca_glDrawElementsIndirect_indirect_length(wa_instance* instance, const voi
 // Fully manual bindings
 //------------------------------------------------------------------------
 
-void glShaderSource_stub(wa_instance* instance, wa_value* _params, wa_value* _returns, void* user)
+void glShaderSource_stub(wa_interpreter* interpreter, wa_value* _params, wa_value* _returns, void* user)
 {
+    wa_instance* instance = wa_interpreter_current_instance(interpreter);
     char* _mem = wa_instance_get_memory_str8(instance).ptr;
 
     i32 shader = *(i32*)&_params[0];
@@ -853,8 +854,9 @@ void glShaderSource_stub(wa_instance* instance, wa_value* _params, wa_value* _re
     oc_scratch_end(scratch);
 }
 
-void glGetVertexAttribPointerv_stub(wa_instance* instance, wa_value* _params, wa_value* _returns, void* user)
+void glGetVertexAttribPointerv_stub(wa_interpreter* interpreter, wa_value* _params, wa_value* _returns, void* user)
 {
+    wa_instance* instance = wa_interpreter_current_instance(interpreter);
     oc_str8 memStr8 = wa_instance_get_memory_str8(instance);
     char* _mem = memStr8.ptr;
     u32 _memSize = memStr8.len;
@@ -877,8 +879,9 @@ void glGetVertexAttribPointerv_stub(wa_instance* instance, wa_value* _params, wa
     *pointer = (i32)(intptr_t)rawPointer;
 }
 
-void glVertexAttribPointer_stub(wa_instance* instance, wa_value* _params, wa_value* _returns, void* user)
+void glVertexAttribPointer_stub(wa_interpreter* interpreter, wa_value* _params, wa_value* _returns, void* user)
 {
+    wa_instance* instance = wa_interpreter_current_instance(interpreter);
     char* _mem = wa_instance_get_memory_str8(instance).ptr;
 
     GLuint index = *(u32*)&_params[0];
@@ -908,8 +911,9 @@ void glVertexAttribPointer_stub(wa_instance* instance, wa_value* _params, wa_val
     }
 }
 
-void glVertexAttribIPointer_stub(wa_instance* instance, wa_value* _params, wa_value* _returns, void* user)
+void glVertexAttribIPointer_stub(wa_interpreter* interpreter, wa_value* _params, wa_value* _returns, void* user)
 {
+    wa_instance* instance = wa_interpreter_current_instance(interpreter);
     char* _mem = wa_instance_get_memory_str8(instance).ptr;
 
     GLuint index = *(u32*)&_params[0];
@@ -937,8 +941,9 @@ void glVertexAttribIPointer_stub(wa_instance* instance, wa_value* _params, wa_va
     }
 }
 
-void glGetUniformIndices_stub(wa_instance* instance, wa_value* _params, wa_value* _returns, void* user)
+void glGetUniformIndices_stub(wa_interpreter* interpreter, wa_value* _params, wa_value* _returns, void* user)
 {
+    wa_instance* instance = wa_interpreter_current_instance(interpreter);
     oc_str8 memStr8 = wa_instance_get_memory_str8(instance);
     char* _mem = memStr8.ptr;
     u64 memorySize = memStr8.len;
@@ -1076,8 +1081,9 @@ void orca_gl_getstring_init(orca_gl_getstring_info* info, char* memory)
     info->init = true;
 }
 
-void glGetString_stub(wa_instance* instance, wa_value* _params, wa_value* _returns, void* user)
+void glGetString_stub(wa_interpreter* interpreter, wa_value* _params, wa_value* _returns, void* user)
 {
+    wa_instance* instance = wa_interpreter_current_instance(interpreter);
     char* _mem = wa_instance_get_memory_str8(instance).ptr;
 
     if(!__orcaGLGetStringInfo.init)
@@ -1101,8 +1107,9 @@ void glGetString_stub(wa_instance* instance, wa_value* _params, wa_value* _retur
     glGetString(name);
 }
 
-void glGetStringi_stub(wa_instance* instance, wa_value* _params, wa_value* _returns, void* user)
+void glGetStringi_stub(wa_interpreter* interpreter, wa_value* _params, wa_value* _returns, void* user)
 {
+    wa_instance* instance = wa_interpreter_current_instance(interpreter);
     char* _mem = wa_instance_get_memory_str8(instance).ptr;
 
     if(!__orcaGLGetStringInfo.init)

@@ -5109,6 +5109,9 @@ typedef struct wa_instance
 
     wa_data_segment* data;
     wa_element* elements;
+
+    //TODO: debug, move to interpreter
+    _Atomic(bool) suspend;
 } wa_instance;
 
 wa_status wa_instance_status(wa_instance* instance)
@@ -5377,12 +5380,14 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
                                      u32 retCount,
                                      wa_value* returns);
 
+/*
 wa_status wa_instance_invoke(wa_instance* instance,
                              wa_func* func,
                              u32 argCount,
                              wa_value* args,
                              u32 retCount,
                              wa_value* returns);
+*/
 
 wa_status wa_instance_initialize(wa_instance* instance)
 {
@@ -5501,7 +5506,12 @@ wa_status wa_instance_initialize(wa_instance* instance)
             return WA_FAIL_MISSING_IMPORT; //TODO: change this
         }
 
-        wa_status status = wa_instance_invoke(instance, func, 0, 0, 0, 0);
+        //TODO: later take an interpreter as input of instantiate?
+        oc_arena_scope scratch = oc_scratch_begin();
+        wa_interpreter* interpreter = wa_interpreter_create(scratch.arena);
+        wa_status status = wa_interpreter_invoke(interpreter, instance, func, 0, 0, 0, 0);
+        oc_scratch_end(scratch);
+
         if(status != WA_OK)
         {
             return status;
@@ -6174,7 +6184,7 @@ wa_status wa_interpreter_run(wa_interpreter* interpreter, bool step)
                 {
                     wa_value* saveLocals = interpreter->locals;
                     interpreter->locals += I1.valI64;
-                    callee->proc(interpreter->instance, interpreter->locals, interpreter->locals, callee->user);
+                    callee->proc(interpreter, interpreter->locals, interpreter->locals, callee->user);
                     interpreter->pc += 2;
                     interpreter->locals = saveLocals;
                 }
@@ -6255,7 +6265,7 @@ wa_status wa_interpreter_run(wa_interpreter* interpreter, bool step)
                 {
                     wa_value* saveLocals = interpreter->locals;
                     interpreter->locals += maxUsedSlot;
-                    callee->proc(interpreter->instance, interpreter->locals, interpreter->locals, callee->user);
+                    callee->proc(interpreter, interpreter->locals, interpreter->locals, callee->user);
                     interpreter->pc += 4;
                     interpreter->locals = saveLocals;
                 }
@@ -7849,9 +7859,16 @@ wa_status wa_interpreter_run(wa_interpreter* interpreter, bool step)
                 return WA_TRAP_INVALID_OP;
         }
     }
-    while(!step);
+    while(!step && !interpreter->instance->suspend);
 
-    return WA_TRAP_STEP;
+    if(step)
+    {
+        return WA_TRAP_STEP;
+    }
+    else
+    {
+        return WA_TRAP_SUSPENDED;
+    }
 
 end:
     interpreter->terminated = true;
@@ -7882,6 +7899,7 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
     return status;
 }
 
+/*
 wa_status wa_instance_invoke(wa_instance* instance,
                              wa_func* func,
                              u32 argCount,
@@ -7905,11 +7923,81 @@ wa_status wa_instance_invoke(wa_instance* instance,
     }
     else
     {
+        /////////////////////////////////////////////////////
+        //TODO: temporary
+        /////////////////////////////////////////////////////
+
+        wa_interpreter interpreter = {
+            .instance = instance,
+        };
+
         //TODO: host proc should return a status
-        func->proc(instance, args, returns, func->user);
+        func->proc(&interpreter, args, returns, func->user);
         return WA_OK;
     }
 }
+*/
+
+//-------------------------------------------------------------------------
+// interpreter API
+//-------------------------------------------------------------------------
+
+wa_interpreter* wa_interpreter_create(oc_arena* arena)
+{
+    wa_interpreter* interpreter = oc_arena_push_type(arena, wa_interpreter);
+    memset(interpreter, 0, sizeof(wa_interpreter));
+    //TODO: init?
+
+    return (interpreter);
+}
+
+void wa_interpreter_destroy(wa_interpreter* interpreter)
+{
+    //release locasl if held?
+}
+
+wa_instance* wa_interpreter_current_instance(wa_interpreter* interpreter)
+{
+    return (interpreter->instance);
+}
+
+//TODO
+wa_status wa_interpreter_invoke(wa_interpreter* interpreter,
+                                wa_instance* instance,
+                                wa_func* function,
+                                u32 argCount,
+                                wa_value* args,
+                                u32 retCount,
+                                wa_value* returns)
+{
+    if(argCount != function->type->paramCount || retCount != function->type->returnCount)
+    {
+        return WA_FAIL_INVALID_ARGS;
+    }
+
+    if(function->code)
+    {
+        wa_interpreter_init(interpreter, instance, function, function->type, function->code, argCount, args, retCount, returns);
+        wa_status status = wa_interpreter_run(interpreter, false);
+        wa_interpreter_cleanup(interpreter);
+        return status;
+    }
+    else if(function->extInstance)
+    {
+        wa_func* extFunc = &function->extInstance->functions[function->extIndex];
+        return wa_interpreter_invoke(interpreter, function->extInstance, extFunc, argCount, args, retCount, returns);
+    }
+    else
+    {
+        //TODO: host proc should take interpreter
+        //TODO: host proc should return a status
+        function->proc(interpreter, args, returns, function->user);
+        return WA_OK;
+    }
+}
+
+//TODO
+wa_status wa_interpreter_continue(wa_interpreter* interpreter);
 
 //-------------------------------------------------------------------------
 // debug helpers

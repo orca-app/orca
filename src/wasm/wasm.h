@@ -51,6 +51,7 @@
     /* debug traps */                                                             \
     _(WA_TRAP_BREAKPOINT, "debug trap: breakpoint")                               \
     _(WA_TRAP_STEP, "debug trap: step")                                           \
+    _(WA_TRAP_SUSPENDED, "debug trap: suspended")                                 \
     _(WA_TRAP_TERMINATED, "debug trap: terminated")                               \
     /* unknown*/                                                                  \
     _(WA_FAIL_UNKNOWN, "unknown error")
@@ -82,6 +83,7 @@ typedef enum wa_value_type
 
 typedef struct wa_module wa_module;
 typedef struct wa_instance wa_instance;
+typedef struct wa_interpreter wa_interpreter;
 typedef struct wa_func wa_func;
 typedef struct wa_global wa_global;
 
@@ -156,7 +158,7 @@ typedef enum wa_binding_kind
 
 } wa_binding_kind;
 
-typedef void (*wa_host_proc)(wa_instance* instance, wa_value* args, wa_value* returns, void* user); //TODO: complete with memory, return status / etc
+typedef void (*wa_host_proc)(wa_interpreter* interpreter, wa_value* args, wa_value* returns, void* user); //TODO: complete with memory, return status / etc
 
 typedef struct wa_host_function
 {
@@ -231,12 +233,14 @@ wa_status wa_instance_status(wa_instance* instance);
 wa_func* wa_instance_find_function(wa_instance* instance, oc_str8 name);
 wa_func_type wa_func_get_type(oc_arena* arena, wa_instance* instance, wa_func* func);
 
+/*
 wa_status wa_instance_invoke(wa_instance* instance,
                              wa_func* func,
                              u32 argCount,
                              wa_value* args,
                              u32 retCount,
                              wa_value* returns);
+*/
 
 wa_global* wa_instance_find_global(wa_instance* instance, oc_str8 name);
 wa_value wa_global_get(wa_instance* instance, wa_global* global);
@@ -245,6 +249,21 @@ void wa_global_set(wa_instance* instance, wa_global* global, wa_value value);
 wa_memory wa_instance_get_memory(wa_instance* instance);
 oc_str8 wa_instance_get_memory_str8(wa_instance* instance);
 wa_status wa_instance_resize_memory(wa_instance* instance, u32 countPages);
+
+wa_interpreter* wa_interpreter_create(oc_arena* arena);
+void wa_interpreter_destroy(wa_interpreter* interpreter);
+
+wa_status wa_interpreter_invoke(wa_interpreter* interpreter,
+                                wa_instance* instance,
+                                wa_func* function,
+                                u32 argCount,
+                                wa_value* args,
+                                u32 retCount,
+                                wa_value* returns);
+
+wa_status wa_interpreter_continue(wa_interpreter* interpreter);
+
+wa_instance* wa_interpreter_current_instance(wa_interpreter* interpreter);
 
 //////////////////////////////////////////////////////////////////
 // Inline implementation

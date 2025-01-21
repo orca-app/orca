@@ -60,9 +60,12 @@ typedef struct oc_wasm_env
     oc_arena arena;
     wa_module* module;
     wa_instance* instance;
+    wa_interpreter* interpreter;
 
     wa_func* exports[OC_EXPORT_COUNT];
     u32 rawEventOffset;
+
+    bool pause;
 } oc_wasm_env;
 
 typedef struct log_entry
@@ -113,6 +116,8 @@ typedef struct oc_runtime
     oc_wasm_env env;
 
     oc_runtime_clipboard clipboard;
+
+    oc_ringbuffer eventBuffer;
 } oc_runtime;
 
 oc_runtime* oc_runtime_get(void);

@@ -34,7 +34,16 @@ typedef struct wa_instance
     wa_status status;
     wa_memory memory;
     IM3Runtime m3Runtime;
+
+    //NOTE(martin): kind of hacky, but wasm3 API doesn't really allow use to
+    // pass interpreter to host functions any other way...
+    wa_interpreter* interpreter;
 } wa_instance;
+
+typedef struct wa_interpreter
+{
+    wa_instance* instance;
+} wa_interpreter;
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 // Helpers
@@ -244,7 +253,7 @@ static const void* oc_wasm_binding_wasm3_thunk(IM3Runtime runtime, IM3ImportCont
     {
         paramVals[i].valI64 = ((i64*)params)[i];
     }
-    binding->proc(binding->instance, paramVals, returnVals, 0);
+    binding->proc(binding->instance->interpreter, paramVals, returnVals, 0);
 
     for(u32 i = 0; i < binding->returnCount; i++)
     {
@@ -457,48 +466,6 @@ wa_func_type wa_function_get_type(oc_arena* scratch, wa_instance* instance, wa_f
     return info;
 }
 
-wa_status wa_instance_invoke(wa_instance* instance, wa_func* func, u32 argCount, wa_value* args, u32 retCount, wa_value* returns)
-{
-    if(func == NULL)
-    {
-        return WA_OK;
-    }
-
-    IM3Function m3Func = (IM3Function)func;
-
-    const void* valuePtrs[128];
-    OC_ASSERT(argCount < oc_array_size(valuePtrs), "Need more static storage for args");
-
-    for(size_t i = 0; i < argCount; ++i)
-    {
-        valuePtrs[i] = &args[i];
-    }
-
-    M3Result res = m3_Call(m3Func, argCount, valuePtrs);
-    if(res)
-    {
-        return oc_wasm_handle_wasm3_result(res, "Function call failed");
-    }
-
-    if(retCount > 0)
-    {
-        OC_ASSERT(retCount < oc_array_size(valuePtrs), "Need more static storage for returns");
-
-        for(size_t i = 0; i < retCount; ++i)
-        {
-            valuePtrs[i] = &returns[i];
-        }
-
-        res = m3_GetResults(m3Func, (uint32_t)retCount, valuePtrs);
-        if(res)
-        {
-            return oc_wasm_handle_wasm3_result(res, "Failed to get results from function call");
-        }
-    }
-
-    return WA_OK;
-}
-
 wa_global* wa_instance_find_global(wa_instance* instance, oc_str8 exportName)
 {
     IM3Global m3Global = m3_FindGlobal(instance->module->m3Module, exportName.ptr);
@@ -544,4 +511,61 @@ void wa_module_destroy(wa_module* module)
 void wa_instance_destroy(wa_instance* instance)
 {
     m3_FreeRuntime(instance->m3Runtime);
+}
+
+wa_interpreter* wa_interpreter_create(oc_arena* arena)
+{
+    wa_interpreter* interpreter = oc_arena_push_type(arena, wa_interpreter);
+    memset(interpreter, 0, sizeof(wa_interpreter));
+    return (interpreter);
+}
+
+wa_instance* wa_interpreter_current_instance(wa_interpreter* interpreter)
+{
+    return interpreter->instance;
+}
+
+wa_status wa_interpreter_invoke(wa_interpreter* interpreter, wa_instance* instance, wa_func* func, u32 argCount, wa_value* args, u32 retCount, wa_value* returns)
+{
+    interpreter->instance = instance;
+    instance->interpreter = interpreter;
+
+    if(func == NULL)
+    {
+        return WA_OK;
+    }
+
+    IM3Function m3Func = (IM3Function)func;
+
+    const void* valuePtrs[128];
+    OC_ASSERT(argCount < oc_array_size(valuePtrs), "Need more static storage for args");
+
+    for(size_t i = 0; i < argCount; ++i)
+    {
+        valuePtrs[i] = &args[i];
+    }
+
+    M3Result res = m3_Call(m3Func, argCount, valuePtrs);
+    if(res)
+    {
+        return oc_wasm_handle_wasm3_result(res, "Function call failed");
+    }
+
+    if(retCount > 0)
+    {
+        OC_ASSERT(retCount < oc_array_size(valuePtrs), "Need more static storage for returns");
+
+        for(size_t i = 0; i < retCount; ++i)
+        {
+            valuePtrs[i] = &returns[i];
+        }
+
+        res = m3_GetResults(m3Func, (uint32_t)retCount, valuePtrs);
+        if(res)
+        {
+            return oc_wasm_handle_wasm3_result(res, "Failed to get results from function call");
+        }
+    }
+
+    return WA_OK;
 }

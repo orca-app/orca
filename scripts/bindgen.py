@@ -124,7 +124,7 @@ def bindgen(apiName, spec, **kwargs):
             print(s, file=guest_bindings)
 
         # host-side stub
-        s = 'void ' + cname + '_stub(wa_instance* instance, wa_value* _params, wa_value* _returns, void* user)'
+        s = 'void ' + cname + '_stub(wa_interpreter* interpreter, wa_value* _params, wa_value* _returns, void* user)'
 
         gen_stub = decl.get('gen_stub', True)
         if gen_stub == False:
@@ -132,6 +132,7 @@ def bindgen(apiName, spec, **kwargs):
         else:
             s += '\n{\n'
 
+            s += "\twa_instance* instance = wa_interpreter_current_instance(interpreter);\n"
             s += "\toc_str8 memStr8 = wa_instance_get_memory_str8(instance);\n "
             s += "\tchar* _mem = memStr8.ptr;\n "
             s += "\tu32 _memSize = memStr8.len;\n"
