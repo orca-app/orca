@@ -65,6 +65,9 @@ typedef struct oc_wasm_env
     wa_func* exports[OC_EXPORT_COUNT];
     u32 rawEventOffset;
 
+    oc_condition* suspendCond;
+    oc_mutex* suspendMutex;
+
     bool pause;
 } oc_wasm_env;
 

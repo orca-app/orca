@@ -5109,9 +5109,6 @@ typedef struct wa_instance
 
     wa_data_segment* data;
     wa_element* elements;
-
-    //TODO: debug, move to interpreter
-    _Atomic(bool) suspend;
 } wa_instance;
 
 wa_status wa_instance_status(wa_instance* instance)
@@ -5731,6 +5728,7 @@ typedef struct wa_interpreter
     wa_value* locals;
     wa_code* pc;
 
+    _Atomic(bool) suspend;
     bool terminated;
 } wa_interpreter;
 
@@ -5744,36 +5742,24 @@ wa_status wa_interpreter_init(wa_interpreter* interpreter,
                               u32 retCount,
                               wa_value* returns)
 {
-    *interpreter = (wa_interpreter){
+    interpreter->instance = instance;
+    interpreter->code = code;
+    interpreter->argCount = argCount;
+    interpreter->args = args;
+    interpreter->retCount = retCount;
+    interpreter->returns = returns;
+    interpreter->pc = code;
+    interpreter->controlStack[0] = (wa_control){
         .instance = instance,
-        .code = code,
-        .argCount = argCount,
-        .args = args,
-        .retCount = retCount,
-        .returns = returns,
-        .pc = code,
-        .controlStack = {
-            [0] = {
-                .instance = instance,
-                .func = func,
-            } },
+        .func = func,
     };
+    interpreter->controlStackTop = 0;
 
-    oc_base_allocator* alloc = oc_base_allocator_default();
-
-    interpreter->localsBuffer = oc_base_reserve(alloc, WA_LOCALS_BUFFER_SIZE * sizeof(wa_value));
-    oc_base_commit(alloc, interpreter->localsBuffer, WA_LOCALS_BUFFER_SIZE * sizeof(wa_value));
+    interpreter->terminated = false;
 
     interpreter->locals = interpreter->localsBuffer;
-
     memcpy(interpreter->locals, args, argCount * sizeof(wa_value));
     return WA_OK;
-}
-
-void wa_interpreter_cleanup(wa_interpreter* interpreter)
-{
-    oc_base_allocator* alloc = oc_base_allocator_default();
-    oc_base_release(alloc, interpreter->localsBuffer, WA_LOCALS_BUFFER_SIZE * sizeof(wa_value));
 }
 
 wa_status wa_interpreter_run(wa_interpreter* interpreter, bool step)
@@ -5801,7 +5787,7 @@ wa_status wa_interpreter_run(wa_interpreter* interpreter, bool step)
         return (WA_TRAP_STACK_OVERFLOW);
     }
 
-    do
+    while(!interpreter->suspend)
     {
         wa_instr_op opcode = interpreter->pc->opcode;
         interpreter->pc++;
@@ -7859,7 +7845,6 @@ wa_status wa_interpreter_run(wa_interpreter* interpreter, bool step)
                 return WA_TRAP_INVALID_OP;
         }
     }
-    while(!step && !interpreter->instance->suspend);
 
     if(step)
     {
@@ -7867,6 +7852,8 @@ wa_status wa_interpreter_run(wa_interpreter* interpreter, bool step)
     }
     else
     {
+        //NOTE: reset suspend for next call
+        interpreter->suspend = false;
         return WA_TRAP_SUSPENDED;
     }
 
@@ -7889,12 +7876,13 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
                                      u32 retCount,
                                      wa_value* returns)
 {
-    wa_interpreter interpreter = { 0 };
-    wa_interpreter_init(&interpreter, instance, func, type, code, argCount, args, retCount, returns);
+    oc_arena_scope scratch = oc_scratch_begin();
+    wa_interpreter* interpreter = wa_interpreter_create(scratch.arena);
+    wa_interpreter_init(interpreter, instance, func, type, code, argCount, args, retCount, returns);
+    wa_status status = wa_interpreter_run(interpreter, false);
 
-    wa_status status = wa_interpreter_run(&interpreter, false);
-
-    wa_interpreter_cleanup(&interpreter);
+    wa_interpreter_destroy(interpreter);
+    oc_scratch_end(scratch);
 
     return status;
 }
@@ -7946,14 +7934,20 @@ wa_interpreter* wa_interpreter_create(oc_arena* arena)
 {
     wa_interpreter* interpreter = oc_arena_push_type(arena, wa_interpreter);
     memset(interpreter, 0, sizeof(wa_interpreter));
-    //TODO: init?
+
+    oc_base_allocator* alloc = oc_base_allocator_default();
+
+    //TODO: should we rather allocate it in arena?
+    interpreter->localsBuffer = oc_base_reserve(alloc, WA_LOCALS_BUFFER_SIZE * sizeof(wa_value));
+    oc_base_commit(alloc, interpreter->localsBuffer, WA_LOCALS_BUFFER_SIZE * sizeof(wa_value));
 
     return (interpreter);
 }
 
 void wa_interpreter_destroy(wa_interpreter* interpreter)
 {
-    //release locasl if held?
+    oc_base_allocator* alloc = oc_base_allocator_default();
+    oc_base_release(alloc, interpreter->localsBuffer, WA_LOCALS_BUFFER_SIZE * sizeof(wa_value));
 }
 
 wa_instance* wa_interpreter_current_instance(wa_interpreter* interpreter)
@@ -7979,7 +7973,7 @@ wa_status wa_interpreter_invoke(wa_interpreter* interpreter,
     {
         wa_interpreter_init(interpreter, instance, function, function->type, function->code, argCount, args, retCount, returns);
         wa_status status = wa_interpreter_run(interpreter, false);
-        wa_interpreter_cleanup(interpreter);
+
         return status;
     }
     else if(function->extInstance)
@@ -7989,7 +7983,6 @@ wa_status wa_interpreter_invoke(wa_interpreter* interpreter,
     }
     else
     {
-        //TODO: host proc should take interpreter
         //TODO: host proc should return a status
         function->proc(interpreter, args, returns, function->user);
         return WA_OK;
@@ -7997,7 +7990,15 @@ wa_status wa_interpreter_invoke(wa_interpreter* interpreter,
 }
 
 //TODO
-wa_status wa_interpreter_continue(wa_interpreter* interpreter);
+wa_status wa_interpreter_continue(wa_interpreter* interpreter)
+{
+    return wa_interpreter_run(interpreter, false);
+}
+
+void wa_interpreter_suspend(wa_interpreter* interpreter)
+{
+    interpreter->suspend = true;
+}
 
 //-------------------------------------------------------------------------
 // debug helpers

@@ -579,16 +579,18 @@ oc_event* queue_next_event(oc_arena* arena, oc_ringbuffer* queue)
 
 wa_status orca_invoke(wa_interpreter* interpreter, wa_instance* instance, wa_func* function, u32 argCount, wa_value* args, u32 retCount, wa_value* returns)
 {
+    oc_wasm_env* env = oc_runtime_get_env();
+
     wa_status status = wa_interpreter_invoke(interpreter, instance, function, argCount, args, retCount, returns);
 
-    /*
     while(status == WA_TRAP_SUSPENDED)
     {
-        //TODO block
-        instance->suspend = false;
+        oc_mutex_lock(env->suspendMutex);
+        oc_condition_wait(env->suspendCond, env->suspendMutex);
+        oc_mutex_unlock(env->suspendMutex);
+
         status = wa_interpreter_continue(interpreter);
     }
-    */
 
     return status;
 }
@@ -600,8 +602,6 @@ wa_status orca_invoke(wa_interpreter* interpreter, wa_instance* instance, wa_fun
 i32 vm_runloop(void* user)
 {
     oc_runtime* app = &__orcaApp;
-
-    oc_wasm_env_init(&app->env);
 
     //NOTE: loads wasm module
     {
@@ -807,161 +807,158 @@ i32 vm_runloop(void* user)
                 oc_ui_process_event(event);
             }
 
-            if(!app->env.pause)
+            if(exports[OC_EXPORT_RAW_EVENT])
             {
-                if(exports[OC_EXPORT_RAW_EVENT])
+                oc_event* clipboardEvent = oc_runtime_clipboard_process_event_begin(scratch.arena, &__orcaApp.clipboard, event);
+                oc_event* events[2];
+                u64 eventsCount;
+                if(clipboardEvent != 0)
                 {
-                    oc_event* clipboardEvent = oc_runtime_clipboard_process_event_begin(scratch.arena, &__orcaApp.clipboard, event);
-                    oc_event* events[2];
-                    u64 eventsCount;
-                    if(clipboardEvent != 0)
+                    events[0] = clipboardEvent;
+                    events[1] = event;
+                    eventsCount = 2;
+                }
+                else
+                {
+                    events[0] = event;
+                    eventsCount = 1;
+                }
+
+                for(int i = 0; i < eventsCount; i++)
+                {
+                    if(oc_is_little_endian())
                     {
-                        events[0] = clipboardEvent;
-                        events[1] = event;
-                        eventsCount = 2;
+                        oc_event* eventPtr = (oc_event*)oc_wasm_address_to_ptr(app->env.rawEventOffset, sizeof(oc_event));
+                        memcpy(eventPtr, events[i], sizeof(*events[i]));
+
+                        wa_value eventOffset = { .valI32 = (i32)app->env.rawEventOffset };
+                        wa_status status = orca_invoke(app->env.interpreter, app->env.instance, exports[OC_EXPORT_RAW_EVENT], 1, &eventOffset, 0, NULL);
+                        OC_WASM_TRAP(status);
                     }
                     else
                     {
-                        events[0] = event;
-                        eventsCount = 1;
+                        oc_log_error("oc_on_raw_event() is not supported on big endian platforms");
                     }
-
-                    for(int i = 0; i < eventsCount; i++)
-                    {
-                        if(oc_is_little_endian())
-                        {
-                            oc_event* eventPtr = (oc_event*)oc_wasm_address_to_ptr(app->env.rawEventOffset, sizeof(oc_event));
-                            memcpy(eventPtr, events[i], sizeof(*events[i]));
-
-                            wa_value eventOffset = { .valI32 = (i32)app->env.rawEventOffset };
-                            wa_status status = orca_invoke(app->env.interpreter, app->env.instance, exports[OC_EXPORT_RAW_EVENT], 1, &eventOffset, 0, NULL);
-                            OC_WASM_TRAP(status);
-                        }
-                        else
-                        {
-                            oc_log_error("oc_on_raw_event() is not supported on big endian platforms");
-                        }
-                    }
-
-                    oc_runtime_clipboard_process_event_end(&__orcaApp.clipboard);
                 }
 
-                switch(event->type)
+                oc_runtime_clipboard_process_event_end(&__orcaApp.clipboard);
+            }
+
+            switch(event->type)
+            {
+                case OC_EVENT_WINDOW_RESIZE:
                 {
-                    case OC_EVENT_WINDOW_RESIZE:
+                    oc_rect frame = { 0, 0, event->move.frame.w, event->move.frame.h };
+
+                    if(exports[OC_EXPORT_FRAME_RESIZE])
                     {
-                        oc_rect frame = { 0, 0, event->move.frame.w, event->move.frame.h };
+                        wa_value params[2];
+                        params[0].valI32 = (i32)event->move.content.w;
+                        params[1].valI32 = (i32)event->move.content.h;
 
-                        if(exports[OC_EXPORT_FRAME_RESIZE])
-                        {
-                            wa_value params[2];
-                            params[0].valI32 = (i32)event->move.content.w;
-                            params[1].valI32 = (i32)event->move.content.h;
-
-                            wa_status status = orca_invoke(app->env.interpreter, app->env.instance, exports[OC_EXPORT_FRAME_RESIZE], oc_array_size(params), params, 0, NULL);
-                            OC_WASM_TRAP(status);
-                        }
+                        wa_status status = orca_invoke(app->env.interpreter, app->env.instance, exports[OC_EXPORT_FRAME_RESIZE], oc_array_size(params), params, 0, NULL);
+                        OC_WASM_TRAP(status);
                     }
-                    break;
-
-                    case OC_EVENT_MOUSE_BUTTON:
-                    {
-                        if(event->key.action == OC_KEY_PRESS)
-                        {
-                            if(exports[OC_EXPORT_MOUSE_DOWN])
-                            {
-                                wa_value button = { .valI32 = event->key.button };
-
-                                wa_status status = orca_invoke(app->env.interpreter, app->env.instance, exports[OC_EXPORT_MOUSE_DOWN], 1, &button, 0, NULL);
-                                OC_WASM_TRAP(status);
-                            }
-                        }
-                        else
-                        {
-                            if(exports[OC_EXPORT_MOUSE_UP])
-                            {
-                                wa_value button = { .valI32 = event->key.button };
-
-                                wa_status status = orca_invoke(app->env.interpreter, app->env.instance, exports[OC_EXPORT_MOUSE_UP], 1, &button, 0, NULL);
-                                OC_WASM_TRAP(status);
-                            }
-                        }
-                    }
-                    break;
-
-                    case OC_EVENT_MOUSE_WHEEL:
-                    {
-                        if(exports[OC_EXPORT_MOUSE_WHEEL])
-                        {
-                            wa_value params[2];
-                            params[0].valF32 = event->mouse.deltaX;
-                            params[1].valF32 = event->mouse.deltaY;
-
-                            wa_status status = orca_invoke(app->env.interpreter, app->env.instance, exports[OC_EXPORT_MOUSE_WHEEL], oc_array_size(params), params, 0, NULL);
-                            OC_WASM_TRAP(status);
-                        }
-                    }
-                    break;
-
-                    case OC_EVENT_MOUSE_MOVE:
-                    {
-                        if(exports[OC_EXPORT_MOUSE_MOVE])
-                        {
-                            wa_value params[4];
-                            params[0].valF32 = event->mouse.x;
-                            params[1].valF32 = event->mouse.y;
-                            params[2].valF32 = event->mouse.deltaX;
-                            params[3].valF32 = event->mouse.deltaY;
-
-                            wa_status status = orca_invoke(app->env.interpreter, app->env.instance, exports[OC_EXPORT_MOUSE_MOVE], oc_array_size(params), params, 0, NULL);
-                            OC_WASM_TRAP(status);
-                        }
-                    }
-                    break;
-
-                    case OC_EVENT_KEYBOARD_KEY:
-                    {
-                        if(event->key.action == OC_KEY_PRESS)
-                        {
-                            if(event->key.keyCode == OC_KEY_D
-                               && (event->key.mods & OC_KEYMOD_SHIFT)
-                               && (event->key.mods & OC_KEYMOD_MAIN_MODIFIER))
-                            {
-                                debug_overlay_toggle(&app->debugOverlay);
-                            }
-
-                            if(exports[OC_EXPORT_KEY_DOWN])
-                            {
-                                wa_value params[2];
-                                params[0].valI32 = event->key.scanCode;
-                                params[1].valI32 = event->key.keyCode;
-
-                                wa_status status = orca_invoke(app->env.interpreter, app->env.instance, exports[OC_EXPORT_KEY_DOWN], oc_array_size(params), params, 0, NULL);
-                                OC_WASM_TRAP(status);
-                            }
-                        }
-                        else if(event->key.action == OC_KEY_RELEASE)
-                        {
-                            if(exports[OC_EXPORT_KEY_UP])
-                            {
-                                wa_value params[2];
-                                params[0].valI32 = event->key.scanCode;
-                                params[1].valI32 = event->key.keyCode;
-
-                                wa_status status = orca_invoke(app->env.interpreter, app->env.instance, exports[OC_EXPORT_KEY_UP], oc_array_size(params), params, 0, NULL);
-                                OC_WASM_TRAP(status);
-                            }
-                        }
-                    }
-                    break;
-
-                    default:
-                        break;
                 }
+                break;
+
+                case OC_EVENT_MOUSE_BUTTON:
+                {
+                    if(event->key.action == OC_KEY_PRESS)
+                    {
+                        if(exports[OC_EXPORT_MOUSE_DOWN])
+                        {
+                            wa_value button = { .valI32 = event->key.button };
+
+                            wa_status status = orca_invoke(app->env.interpreter, app->env.instance, exports[OC_EXPORT_MOUSE_DOWN], 1, &button, 0, NULL);
+                            OC_WASM_TRAP(status);
+                        }
+                    }
+                    else
+                    {
+                        if(exports[OC_EXPORT_MOUSE_UP])
+                        {
+                            wa_value button = { .valI32 = event->key.button };
+
+                            wa_status status = orca_invoke(app->env.interpreter, app->env.instance, exports[OC_EXPORT_MOUSE_UP], 1, &button, 0, NULL);
+                            OC_WASM_TRAP(status);
+                        }
+                    }
+                }
+                break;
+
+                case OC_EVENT_MOUSE_WHEEL:
+                {
+                    if(exports[OC_EXPORT_MOUSE_WHEEL])
+                    {
+                        wa_value params[2];
+                        params[0].valF32 = event->mouse.deltaX;
+                        params[1].valF32 = event->mouse.deltaY;
+
+                        wa_status status = orca_invoke(app->env.interpreter, app->env.instance, exports[OC_EXPORT_MOUSE_WHEEL], oc_array_size(params), params, 0, NULL);
+                        OC_WASM_TRAP(status);
+                    }
+                }
+                break;
+
+                case OC_EVENT_MOUSE_MOVE:
+                {
+                    if(exports[OC_EXPORT_MOUSE_MOVE])
+                    {
+                        wa_value params[4];
+                        params[0].valF32 = event->mouse.x;
+                        params[1].valF32 = event->mouse.y;
+                        params[2].valF32 = event->mouse.deltaX;
+                        params[3].valF32 = event->mouse.deltaY;
+
+                        wa_status status = orca_invoke(app->env.interpreter, app->env.instance, exports[OC_EXPORT_MOUSE_MOVE], oc_array_size(params), params, 0, NULL);
+                        OC_WASM_TRAP(status);
+                    }
+                }
+                break;
+
+                case OC_EVENT_KEYBOARD_KEY:
+                {
+                    if(event->key.action == OC_KEY_PRESS)
+                    {
+                        if(event->key.keyCode == OC_KEY_D
+                           && (event->key.mods & OC_KEYMOD_SHIFT)
+                           && (event->key.mods & OC_KEYMOD_MAIN_MODIFIER))
+                        {
+                            debug_overlay_toggle(&app->debugOverlay);
+                        }
+
+                        if(exports[OC_EXPORT_KEY_DOWN])
+                        {
+                            wa_value params[2];
+                            params[0].valI32 = event->key.scanCode;
+                            params[1].valI32 = event->key.keyCode;
+
+                            wa_status status = orca_invoke(app->env.interpreter, app->env.instance, exports[OC_EXPORT_KEY_DOWN], oc_array_size(params), params, 0, NULL);
+                            OC_WASM_TRAP(status);
+                        }
+                    }
+                    else if(event->key.action == OC_KEY_RELEASE)
+                    {
+                        if(exports[OC_EXPORT_KEY_UP])
+                        {
+                            wa_value params[2];
+                            params[0].valI32 = event->key.scanCode;
+                            params[1].valI32 = event->key.keyCode;
+
+                            wa_status status = orca_invoke(app->env.interpreter, app->env.instance, exports[OC_EXPORT_KEY_UP], oc_array_size(params), params, 0, NULL);
+                            OC_WASM_TRAP(status);
+                        }
+                    }
+                }
+                break;
+
+                default:
+                    break;
             }
         }
 
-        if(!app->env.pause && exports[OC_EXPORT_FRAME_REFRESH])
+        if(exports[OC_EXPORT_FRAME_REFRESH])
         {
             wa_status status = orca_invoke(app->env.interpreter, app->env.instance, exports[OC_EXPORT_FRAME_REFRESH], 0, NULL, 0, NULL);
             OC_WASM_TRAP(status);
@@ -1143,6 +1140,11 @@ i32 control_runloop(void* user)
 
     oc_ringbuffer_init(&app->eventBuffer, 16);
 
+    oc_wasm_env_init(&app->env);
+
+    app->env.suspendCond = oc_condition_create();
+    app->env.suspendMutex = oc_mutex_create();
+
     oc_thread* vmThread = oc_thread_create(vm_runloop, app);
 
     while(!app->quit)
@@ -1163,17 +1165,19 @@ i32 control_runloop(void* user)
 
                 case OC_EVENT_KEYBOARD_KEY:
                 {
-                    /*
                     if(event->key.action == OC_KEY_PRESS && event->key.keyCode == OC_KEY_P)
                     {
                         app->env.pause = !app->env.pause;
 
                         if(app->env.pause)
                         {
-                            app->env.instance->suspend = true;
+                            wa_interpreter_suspend(app->env.interpreter);
+                        }
+                        else
+                        {
+                            oc_condition_signal(app->env.suspendCond);
                         }
                     }
-                    */
                 }
                 break;
 

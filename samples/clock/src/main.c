@@ -56,12 +56,6 @@ ORCA_EXPORT void oc_on_init(void)
         OC_UNICODE_SPECIALS
     };
     font = oc_font_create_from_path(OC_STR8("/segoeui.ttf"), 5, ranges);
-
-    /*
-    while(true)
-    {
-    }
-    */
 }
 
 ORCA_EXPORT void oc_on_resize(u32 width, u32 height)
