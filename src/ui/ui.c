@@ -1726,12 +1726,17 @@ void oc_ui_init(oc_ui_context* ui)
     ui->editSelectionMode = OC_UI_EDIT_MOVE_CHAR;
 }
 
-void oc_ui_cleanup(void)
+void oc_ui_cleanup(oc_ui_context* ui)
 {
-    oc_ui_context* ui = oc_ui_get_context();
+    if(ui == oc_uiCurrentContext)
+    {
+        oc_ui_set_context(0);
+    }
+
     oc_arena_cleanup(&ui->frameArena);
     oc_pool_cleanup(&ui->boxPool);
-    ui->init = false;
+
+    ui->init = 0;
 }
 
 //-----------------------------------------------------------------------------

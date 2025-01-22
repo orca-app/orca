@@ -89,6 +89,7 @@ typedef struct log_entry
 typedef struct oc_debug_overlay
 {
     bool show;
+    oc_canvas_renderer renderer;
     oc_surface surface;
     oc_canvas_context context;
 
@@ -106,11 +107,24 @@ typedef struct oc_debug_overlay
 
 } oc_debug_overlay;
 
+typedef struct oc_debugger_ui
+{
+    bool init;
+    oc_window window;
+    oc_canvas_renderer renderer;
+    oc_surface surface;
+    oc_canvas_context canvas;
+    oc_ui_context ui;
+
+} oc_debugger_ui;
+
 typedef struct oc_runtime
 {
     bool quit;
     oc_window window;
     oc_canvas_renderer canvasRenderer;
+
+    oc_debugger_ui debuggerUI;
     oc_debug_overlay debugOverlay;
 
     oc_file_table fileTable;

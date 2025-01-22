@@ -637,6 +637,7 @@ typedef struct oc_ui_context
 // UI context initialization and frame cycle
 //-------------------------------------------------------------------------------------
 ORCA_API void oc_ui_init(oc_ui_context* context);
+ORCA_API void oc_ui_cleanup(oc_ui_context* context);
 ORCA_API oc_ui_context* oc_ui_get_context(void);
 ORCA_API void oc_ui_set_context(oc_ui_context* context);
 

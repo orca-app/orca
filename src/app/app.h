@@ -325,8 +325,8 @@ ORCA_API oc_key_code oc_scancode_to_keycode(oc_scan_code scanCode);
 // window management
 //--------------------------------------------------------------------
 
-ORCA_API bool oc_window_handle_is_null(oc_window window);
-ORCA_API oc_window oc_window_null_handle(void);
+ORCA_API bool oc_window_is_nil(oc_window window);
+ORCA_API oc_window oc_window_nil(void);
 
 ORCA_API oc_window oc_window_create(oc_rect contentRect, oc_str8 title, oc_window_style style);
 ORCA_API void oc_window_destroy(oc_window window);
