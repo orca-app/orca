@@ -731,25 +731,33 @@ ORCA_API oc_ui_sig oc_ui_label(const char* label);
 ORCA_API oc_ui_sig oc_ui_label_str8(oc_str8 label);
 
 ORCA_API oc_ui_sig oc_ui_button(const char* label);
+ORCA_API oc_ui_sig oc_ui_button_str8(oc_str8 label);
 ORCA_API oc_ui_sig oc_ui_checkbox(const char* name, bool* checked);
+ORCA_API oc_ui_sig oc_ui_checkbox_str8(oc_str8 name, bool* checked);
 ORCA_API oc_ui_box* oc_ui_slider(const char* name, f32* value);
+ORCA_API oc_ui_box* oc_ui_slider_str8(oc_str8 name, f32* value);
 ORCA_API oc_ui_box* oc_ui_scrollbar(const char* name, f32 thumbRatio, f32* scrollValue);
+ORCA_API oc_ui_box* oc_ui_scrollbar_str8(oc_str8 name, f32 thumbRatio, f32* scrollValue);
 ORCA_API void oc_ui_tooltip_str8(oc_str8 label);
 ORCA_API void oc_ui_tooltip(const char* label);
 
 ORCA_API void oc_ui_panel_begin(const char* name, oc_ui_flags flags);
+ORCA_API void oc_ui_panel_begin_str8(oc_str8 name, oc_ui_flags flags);
 ORCA_API void oc_ui_panel_end(void);
 #define oc_ui_panel(s, f) oc_defer_loop(oc_ui_panel_begin(s, f), oc_ui_panel_end())
 
 ORCA_API void oc_ui_menu_bar_begin(const char* name);
+ORCA_API void oc_ui_menu_bar_begin_str8(oc_str8 name);
 ORCA_API void oc_ui_menu_bar_end(void);
 #define oc_ui_menu_bar(name) oc_defer_loop(oc_ui_menu_bar_begin(name), oc_ui_menu_bar_end())
 
 ORCA_API void oc_ui_menu_begin(const char* label);
+ORCA_API void oc_ui_menu_begin_str8(oc_str8 label);
 ORCA_API void oc_ui_menu_end(void);
 #define oc_ui_menu(label) oc_defer_loop(oc_ui_menu_begin(label), oc_ui_menu_end())
 
 ORCA_API oc_ui_sig oc_ui_menu_button(const char* label);
+ORCA_API oc_ui_sig oc_ui_menu_button_str8(oc_str8 label);
 
 typedef struct oc_ui_text_box_result
 {
@@ -761,6 +769,7 @@ typedef struct oc_ui_text_box_result
 } oc_ui_text_box_result;
 
 ORCA_API oc_ui_text_box_result oc_ui_text_box(const char* name, oc_arena* arena, oc_str8 text);
+ORCA_API oc_ui_text_box_result oc_ui_text_box_str8(oc_str8 name, oc_arena* arena, oc_str8 text);
 
 typedef struct oc_ui_select_popup_info
 {
@@ -772,6 +781,7 @@ typedef struct oc_ui_select_popup_info
 } oc_ui_select_popup_info;
 
 ORCA_API oc_ui_select_popup_info oc_ui_select_popup(const char* name, oc_ui_select_popup_info* info);
+ORCA_API oc_ui_select_popup_info oc_ui_select_popup_str8(oc_str8 name, oc_ui_select_popup_info* info);
 
 typedef struct oc_ui_radio_group_info
 {
@@ -782,6 +792,7 @@ typedef struct oc_ui_radio_group_info
 } oc_ui_radio_group_info;
 
 ORCA_API oc_ui_radio_group_info oc_ui_radio_group(const char* name, oc_ui_radio_group_info* info);
+ORCA_API oc_ui_radio_group_info oc_ui_radio_group_str8(oc_str8 name, oc_ui_radio_group_info* info);
 
 #ifdef __cplusplus
 } // extern "C"
