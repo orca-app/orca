@@ -3903,6 +3903,7 @@ oc_ui_text_box_result oc_ui_text_box_str8(oc_str8 name, oc_arena* arena, oc_str8
                            | OC_UI_FLAG_DRAW_BACKGROUND
                            | OC_UI_FLAG_DRAW_BORDER;
     oc_ui_box* frame = oc_ui_box_begin_str8(name, frameFlags);
+    result.frame = frame;
     oc_ui_tag_box(frame, "frame");
     oc_font font = frame->style.font;
     f32 fontSize = frame->style.fontSize;
@@ -3912,6 +3913,7 @@ oc_ui_text_box_result oc_ui_text_box_str8(oc_str8 name, oc_arena* arena, oc_str8
     oc_ui_style_next(&textStyle, OC_UI_STYLE_SIZE);
 
     oc_ui_box* textBox = oc_ui_box_make("text", OC_UI_FLAG_CLIP | OC_UI_FLAG_DRAW_PROC);
+    result.textBox = textBox;
     oc_ui_tag_box(textBox, "text");
 
     oc_font_metrics extents = oc_font_get_metrics(font, fontSize);

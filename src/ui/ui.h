@@ -756,7 +756,8 @@ typedef struct oc_ui_text_box_result
     bool changed;
     bool accepted;
     oc_str8 text;
-
+    oc_ui_box* frame;
+    oc_ui_box* textBox;
 } oc_ui_text_box_result;
 
 ORCA_API oc_ui_text_box_result oc_ui_text_box(const char* name, oc_arena* arena, oc_str8 text);
