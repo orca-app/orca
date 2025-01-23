@@ -38,7 +38,7 @@ nav:
         - GLES Surface: 'api/Graphics/GLES Surface.md'
       - UI: 'api/UI.md'
 
-  - Developper Guide:
+  - Developer Guide:
     - Building: 'building.md'
     - Editing the Documentation: 'documentation.md'
   - FAQ: 'faq.md'
