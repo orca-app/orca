@@ -140,6 +140,9 @@ enum oc_ui_style_mask_enum
     OC_UI_STYLE_LAYOUT_MARGINS = OC_UI_STYLE_LAYOUT_MARGIN_X
                                | OC_UI_STYLE_LAYOUT_MARGIN_Y,
 
+    OC_UI_STYLE_LAYOUT_ALIGN = OC_UI_STYLE_LAYOUT_ALIGN_X
+                             | OC_UI_STYLE_LAYOUT_ALIGN_Y,
+
     OC_UI_STYLE_LAYOUT = OC_UI_STYLE_LAYOUT_AXIS
                        | OC_UI_STYLE_LAYOUT_ALIGN_X
                        | OC_UI_STYLE_LAYOUT_ALIGN_Y

@@ -1197,6 +1197,8 @@ void oc_debugger_ui_close(oc_runtime* app)
 
 void debugger_ui_update(oc_runtime* app)
 {
+    oc_arena_scope scratch = oc_scratch_begin();
+
     oc_ui_set_context(&app->debuggerUI.ui);
     oc_canvas_context_select(app->debuggerUI.canvas);
 
@@ -1218,10 +1220,12 @@ void debugger_ui_update(oc_runtime* app)
 
     oc_ui_frame(frameSize, &debugUIDefaultStyle, debugUIDefaultMask)
     {
+        f32 functionPanelSize = 300;
+
         oc_ui_style_next(
             &(oc_ui_style){
                 .size = {
-                    .width = { OC_UI_SIZE_PIXELS, 300 },
+                    .width = { OC_UI_SIZE_PIXELS, functionPanelSize },
                     .height = { OC_UI_SIZE_PARENT, 1 },
                 },
                 .bgColor = OC_UI_DARK_THEME.bg1,
@@ -1236,33 +1240,83 @@ void debugger_ui_update(oc_runtime* app)
             {
                 oc_ui_style_next(
                     &(oc_ui_style){
+                        .size.width = { OC_UI_SIZE_PIXELS, functionPanelSize },
                         .layout = {
                             .axis = OC_UI_AXIS_Y,
-                            .spacing = 10,
-                            .margin = { 10, 10 },
                             .align = OC_UI_ALIGN_START,
                         },
                     },
-                    OC_UI_STYLE_LAYOUT);
+                    OC_UI_STYLE_LAYOUT | OC_UI_STYLE_SIZE_WIDTH);
 
                 oc_ui_container("contents", 0)
                 {
+                    static i64 selectedFunction = -1;
+
                     for(u32 funcIndex = 0; funcIndex < app->env.module->functionCount; funcIndex++)
                     {
                         oc_str8 name = wa_module_get_function_name(app->env.module, funcIndex);
-                        oc_ui_label_str8(name);
-                    }
 
-                    /*
-                if(oc_ui_button("Click me! A").clicked)
-                {
-                    oc_log_info("Clicked A\n");
-                }
-                if(oc_ui_button("Click me! B").clicked)
-                {
-                    oc_log_info("Clicked B\n");
-                }
-                */
+                        oc_ui_style_next(
+                            &(oc_ui_style){
+                                .layout = {
+                                    .axis = OC_UI_AXIS_Y,
+                                    .spacing = 10,
+                                    .margin = { 10, 10 },
+                                    .align = OC_UI_ALIGN_START,
+                                },
+                            },
+                            OC_UI_STYLE_LAYOUT);
+
+                        oc_ui_style_next(
+                            &(oc_ui_style){
+                                .size = {
+                                    .width = { OC_UI_SIZE_PARENT, 1 },
+                                    .height = { OC_UI_SIZE_TEXT },
+                                },
+                                .layout = {
+                                    .spacing = 5,
+                                    .margin = { 5, 5 },
+                                    .align = { OC_UI_ALIGN_START, OC_UI_ALIGN_CENTER },
+                                },
+                            },
+                            OC_UI_STYLE_SIZE | OC_UI_STYLE_LAYOUT_SPACING | OC_UI_STYLE_LAYOUT_MARGINS | OC_UI_STYLE_LAYOUT_ALIGN);
+
+                        if(selectedFunction == funcIndex)
+                        {
+                            oc_ui_style_next(
+                                &(oc_ui_style){
+                                    .bgColor = OC_UI_DARK_THEME.bg3,
+                                },
+                                OC_UI_STYLE_BG_COLOR);
+                        }
+
+                        oc_ui_pattern hover = { 0 };
+                        oc_ui_pattern_push(
+                            scratch.arena,
+                            &hover,
+                            (oc_ui_selector){
+                                .kind = OC_UI_SEL_STATUS,
+                                .status = OC_UI_HOVER,
+                            });
+
+                        oc_ui_style_match_before(
+                            hover,
+                            &(oc_ui_style){
+                                .bgColor = { 0, 0, 1, 1 },
+                            },
+                            OC_UI_STYLE_BG_COLOR);
+
+                        oc_ui_box* box = oc_ui_box_make_str8(
+                            name,
+                            OC_UI_FLAG_DRAW_BACKGROUND | OC_UI_FLAG_DRAW_TEXT | OC_UI_FLAG_CLICKABLE);
+
+                        oc_ui_sig sig = oc_ui_box_sig(box);
+                        if(sig.pressed)
+                        {
+                            selectedFunction = funcIndex;
+                            oc_log_info("Select function %.*s\n", oc_str8_ip(name));
+                        }
+                    }
                 }
             }
         }
@@ -1272,6 +1326,8 @@ void debugger_ui_update(oc_runtime* app)
 
     oc_canvas_render(app->debuggerUI.renderer, app->debuggerUI.canvas, app->debuggerUI.surface);
     oc_canvas_present(app->debuggerUI.renderer, app->debuggerUI.surface);
+
+    oc_scratch_end(scratch);
 }
 
 i32 control_runloop(void* user)
