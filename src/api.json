@@ -15754,6 +15754,26 @@
                             "kind": "namedType",
                             "name": "oc_str8"
                         }
+                    },
+                    {
+                        "name": "frame",
+                        "type": {
+                            "kind": "pointer",
+                            "type": {
+                                "kind": "namedType",
+                                "name": "oc_ui_box"
+                            }
+                        }
+                    },
+                    {
+                        "name": "textBox",
+                        "type": {
+                            "kind": "pointer",
+                            "type": {
+                                "kind": "namedType",
+                                "name": "oc_ui_box"
+                            }
+                        }
                     }
                 ]
             }
