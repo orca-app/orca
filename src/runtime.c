@@ -1220,101 +1220,385 @@ void debugger_ui_update(oc_runtime* app)
 
     oc_ui_frame(frameSize, &debugUIDefaultStyle, debugUIDefaultMask)
     {
-        f32 functionPanelSize = 300;
-
         oc_ui_style_next(
             &(oc_ui_style){
                 .size = {
-                    .width = { OC_UI_SIZE_PIXELS, functionPanelSize },
+                    .width = { OC_UI_SIZE_PARENT, 1 },
                     .height = { OC_UI_SIZE_PARENT, 1 },
                 },
-                .bgColor = OC_UI_DARK_THEME.bg1,
-                .borderColor = { 1, 0, 0, 1 },
-                .borderSize = 4,
+                .layout = {
+                    .axis = OC_UI_AXIS_X,
+                },
             },
-            OC_UI_STYLE_SIZE | OC_UI_STYLE_BG_COLOR | OC_UI_STYLE_BORDER_COLOR | OC_UI_STYLE_BORDER_SIZE);
+            OC_UI_STYLE_SIZE | OC_UI_STYLE_LAYOUT);
 
-        oc_ui_container("function list frame", 0)
+        oc_ui_container("backpanel", 0)
         {
-            oc_ui_panel("function list", OC_UI_FLAG_DRAW_BACKGROUND | OC_UI_FLAG_DRAW_BORDER | OC_UI_FLAG_SCROLL_WHEEL_Y)
-            {
-                oc_ui_style_next(
-                    &(oc_ui_style){
-                        .size.width = { OC_UI_SIZE_PIXELS, functionPanelSize },
-                        .layout = {
-                            .axis = OC_UI_AXIS_Y,
-                            .align = OC_UI_ALIGN_START,
-                        },
+            static i64 selectedFunction = -1;
+
+            f32 functionPanelSize = 300;
+
+            oc_ui_style_next(
+                &(oc_ui_style){
+                    .size = {
+                        .width = { OC_UI_SIZE_PIXELS, functionPanelSize },
+                        .height = { OC_UI_SIZE_PARENT, 1 },
                     },
-                    OC_UI_STYLE_LAYOUT | OC_UI_STYLE_SIZE_WIDTH);
+                    .bgColor = OC_UI_DARK_THEME.bg1,
+                    .borderColor = { 1, 0, 0, 1 },
+                    .borderSize = 4,
+                },
+                OC_UI_STYLE_SIZE | OC_UI_STYLE_BG_COLOR | OC_UI_STYLE_BORDER_COLOR | OC_UI_STYLE_BORDER_SIZE);
 
-                oc_ui_container("contents", 0)
+            oc_ui_container("function list frame", 0)
+            {
+                oc_ui_panel("function list", OC_UI_FLAG_DRAW_BACKGROUND | OC_UI_FLAG_DRAW_BORDER | OC_UI_FLAG_SCROLL_WHEEL_Y)
                 {
-                    static i64 selectedFunction = -1;
+                    oc_ui_style_next(
+                        &(oc_ui_style){
+                            .size.width = { OC_UI_SIZE_PIXELS, functionPanelSize },
+                            .layout = {
+                                .axis = OC_UI_AXIS_Y,
+                                .align = OC_UI_ALIGN_START,
+                            },
+                        },
+                        OC_UI_STYLE_LAYOUT | OC_UI_STYLE_SIZE_WIDTH);
 
-                    for(u32 funcIndex = 0; funcIndex < app->env.module->functionCount; funcIndex++)
+                    oc_ui_container("contents", 0)
                     {
-                        oc_str8 name = wa_module_get_function_name(app->env.module, funcIndex);
-
-                        oc_ui_style_next(
-                            &(oc_ui_style){
-                                .layout = {
-                                    .axis = OC_UI_AXIS_Y,
-                                    .spacing = 10,
-                                    .margin = { 10, 10 },
-                                    .align = OC_UI_ALIGN_START,
-                                },
-                            },
-                            OC_UI_STYLE_LAYOUT);
-
-                        oc_ui_style_next(
-                            &(oc_ui_style){
-                                .size = {
-                                    .width = { OC_UI_SIZE_PARENT, 1 },
-                                    .height = { OC_UI_SIZE_TEXT },
-                                },
-                                .layout = {
-                                    .spacing = 5,
-                                    .margin = { 5, 5 },
-                                    .align = { OC_UI_ALIGN_START, OC_UI_ALIGN_CENTER },
-                                },
-                            },
-                            OC_UI_STYLE_SIZE | OC_UI_STYLE_LAYOUT_SPACING | OC_UI_STYLE_LAYOUT_MARGINS | OC_UI_STYLE_LAYOUT_ALIGN);
-
-                        if(selectedFunction == funcIndex)
+                        for(u32 funcIndex = 0; funcIndex < app->env.module->functionCount; funcIndex++)
                         {
+                            oc_str8 name = wa_module_get_function_name(app->env.module, funcIndex);
+
                             oc_ui_style_next(
                                 &(oc_ui_style){
-                                    .bgColor = OC_UI_DARK_THEME.bg3,
+                                    .layout = {
+                                        .axis = OC_UI_AXIS_Y,
+                                        .spacing = 10,
+                                        .margin = { 10, 10 },
+                                        .align = OC_UI_ALIGN_START,
+                                    },
+                                },
+                                OC_UI_STYLE_LAYOUT);
+
+                            oc_ui_style_next(
+                                &(oc_ui_style){
+                                    .size = {
+                                        .width = { OC_UI_SIZE_PARENT, 1 },
+                                        .height = { OC_UI_SIZE_TEXT },
+                                    },
+                                    .layout = {
+                                        .spacing = 5,
+                                        .margin = { 5, 5 },
+                                        .align = { OC_UI_ALIGN_START, OC_UI_ALIGN_CENTER },
+                                    },
+                                },
+                                OC_UI_STYLE_SIZE | OC_UI_STYLE_LAYOUT_SPACING | OC_UI_STYLE_LAYOUT_MARGINS | OC_UI_STYLE_LAYOUT_ALIGN);
+
+                            if(selectedFunction == funcIndex)
+                            {
+                                oc_ui_style_next(
+                                    &(oc_ui_style){
+                                        .bgColor = OC_UI_DARK_THEME.bg3,
+                                    },
+                                    OC_UI_STYLE_BG_COLOR);
+                            }
+
+                            oc_ui_pattern hover = { 0 };
+                            oc_ui_pattern_push(
+                                scratch.arena,
+                                &hover,
+                                (oc_ui_selector){
+                                    .kind = OC_UI_SEL_STATUS,
+                                    .status = OC_UI_HOVER,
+                                });
+
+                            oc_ui_style_match_before(
+                                hover,
+                                &(oc_ui_style){
+                                    .bgColor = { 0, 0, 1, 1 },
                                 },
                                 OC_UI_STYLE_BG_COLOR);
+
+                            oc_ui_box* box = oc_ui_box_make_str8(
+                                name,
+                                OC_UI_FLAG_DRAW_BACKGROUND | OC_UI_FLAG_DRAW_TEXT | OC_UI_FLAG_CLICKABLE);
+
+                            oc_ui_sig sig = oc_ui_box_sig(box);
+                            if(sig.pressed)
+                            {
+                                selectedFunction = funcIndex;
+                                oc_log_info("Select function %.*s\n", oc_str8_ip(name));
+                            }
                         }
+                    }
+                }
+            }
 
-                        oc_ui_pattern hover = { 0 };
-                        oc_ui_pattern_push(
-                            scratch.arena,
-                            &hover,
-                            (oc_ui_selector){
-                                .kind = OC_UI_SEL_STATUS,
-                                .status = OC_UI_HOVER,
-                            });
+            oc_ui_style_next(
+                &(oc_ui_style){
+                    .size = {
+                        .width = { OC_UI_SIZE_PARENT_MINUS_PIXELS, functionPanelSize },
+                        .height = { OC_UI_SIZE_PARENT, 1 },
+                    },
+                    .bgColor = OC_UI_DARK_THEME.bg2,
+                },
+                OC_UI_STYLE_SIZE | OC_UI_STYLE_BG_COLOR);
 
-                        oc_ui_style_match_before(
-                            hover,
-                            &(oc_ui_style){
-                                .bgColor = { 0, 0, 1, 1 },
-                            },
-                            OC_UI_STYLE_BG_COLOR);
+            oc_ui_container("code panel", OC_UI_FLAG_DRAW_BACKGROUND)
+            {
+                const i32 BOX_MARGIN_H = 2;
+                const i32 BOX_MARGIN_W = 2;
 
-                        oc_ui_box* box = oc_ui_box_make_str8(
-                            name,
-                            OC_UI_FLAG_DRAW_BACKGROUND | OC_UI_FLAG_DRAW_TEXT | OC_UI_FLAG_CLICKABLE);
+                if(selectedFunction >= 0)
+                {
+                    oc_ui_style_next(&(oc_ui_style){
+                                         .size.width = { OC_UI_SIZE_PARENT, 1 },
+                                     },
+                                     OC_UI_STYLE_SIZE_WIDTH);
 
-                        oc_ui_sig sig = oc_ui_box_sig(box);
-                        if(sig.pressed)
+                    oc_ui_container("bytecode-view", 0)
+                    {
+
+                        wa_func* func = &app->env.instance->functions[selectedFunction];
+                        oc_str8 funcName = wa_module_get_function_name(app->env.module, selectedFunction);
+                        /*
+                    if(funcName.len)
+                    {
+                        oc_str8_list_push(scratch.arena, &list, funcName);
+                    }
+                    else
+                    {
+                        oc_str8_list_pushf(scratch.arena, &list, "%i", selectedFunction);
+                    }
+
+                    oc_str8_list_push(scratch.arena, &list, OC_STR8(" "));
+                    push_func_type_str8_list(scratch.arena, &list, func->type);
+
+
+                    oc_str8 funcText = oc_str8_list_join(scratch.arena, list);
+                    */
+                        oc_ui_style_next(&(oc_ui_style){
+                                             .size.width = { OC_UI_SIZE_PARENT, 1 },
+                                             .layout = {
+                                                 .axis = OC_UI_AXIS_Y,
+                                                 .spacing = BOX_MARGIN_H,
+                                                 .margin.x = BOX_MARGIN_W,
+                                                 .margin.y = BOX_MARGIN_H,
+                                                 .align = OC_UI_ALIGN_START,
+                                             },
+                                         },
+                                         OC_UI_STYLE_SIZE_WIDTH | OC_UI_STYLE_LAYOUT);
+
+                        oc_ui_container_str8(funcName, 0)
                         {
-                            selectedFunction = funcIndex;
-                            oc_log_info("Select function %.*s\n", oc_str8_ip(name));
+                            oc_ui_label_str8(funcName);
+
+                            for(u64 codeIndex = 0; codeIndex < func->codeLen; codeIndex++)
+                            {
+                                u64 startIndex = codeIndex;
+
+                                wa_code* c = &func->code[codeIndex];
+                                wa_instr_op opcode = c->opcode;
+
+                                /*
+                        wa_breakpoint* breakpoint = wa_debugger_find_breakpoint(&app->debugger,
+                                                                                &(wa_bytecode_loc){
+                                                                                    .instance = app->debugger.interpreter->instance,
+                                                                                    .func = func,
+                                                                                    .index = codeIndex,
+                                                                                });
+                        if(breakpoint)
+                        {
+                            opcode = breakpoint->savedOpcode.opcode;
+                        }
+                        */
+
+                                const wa_instr_info* info = &wa_instr_infos[opcode];
+
+                                oc_str8 key = oc_str8_pushf(scratch.arena, "0x%08llx", codeIndex);
+
+                                oc_ui_style_next(&(oc_ui_style){
+                                                     .size.width = { OC_UI_SIZE_PARENT, 1 },
+                                                     .layout = {
+                                                         .axis = OC_UI_AXIS_X,
+                                                         .spacing = BOX_MARGIN_W * 5,
+                                                         .margin.y = BOX_MARGIN_H,
+                                                         .align = OC_UI_ALIGN_START,
+                                                     },
+                                                 },
+                                                 OC_UI_STYLE_SIZE_WIDTH | OC_UI_STYLE_LAYOUT);
+
+                                bool makeExecCursor = false;
+                                if(app->env.instance)
+                                {
+                                    u32 index = app->env.interpreter->pc - func->code;
+                                    wa_func* execFunc = app->env.interpreter->controlStack[app->env.interpreter->controlStackTop].func;
+
+                                    if(func == execFunc && index == codeIndex)
+                                    {
+                                        makeExecCursor = true;
+                                    }
+                                }
+
+                                if(makeExecCursor)
+                                {
+                                    oc_ui_style_next(&(oc_ui_style){
+                                                         .bgColor = { 0.4, 1, 0.4, 1 },
+                                                     },
+                                                     OC_UI_STYLE_BG_COLOR);
+                                }
+
+                                oc_ui_container_str8(key, 0)
+                                {
+                                    // address
+                                    oc_ui_box* label = oc_ui_label_str8(key).box;
+
+                                    if(makeExecCursor)
+                                    {
+                                        //NOTE: we compute auto-scroll on label box instead of cursor box, because the cursor box is not permanent,
+                                        //      so its rect might not be set every frame, resulting in brief jumps.
+                                        //      Maybe the cursor box shouldnt be parented to the function UI namespace and be floating to begin with...
+                                        /*
+                                    if(app->autoScroll)
+                                    {
+                                        f32 targetScroll = scrollPanel->scroll.y;
+
+                                        f32 scrollMargin = 60;
+
+                                        if(label->rect.y < scrollPanel->rect.y + scrollMargin)
+                                        {
+                                            targetScroll = scrollPanel->scroll.y
+                                                         - scrollPanel->rect.y
+                                                         + label->rect.y
+                                                         - scrollMargin;
+                                        }
+                                        else if(label->rect.y + label->rect.h + scrollMargin > scrollPanel->rect.y + scrollPanel->rect.h)
+                                        {
+                                            targetScroll = scrollPanel->scroll.y
+                                                         + label->rect.y
+                                                         + label->rect.h
+                                                         + scrollMargin
+                                                         - scrollPanel->rect.y
+                                                         - scrollPanel->rect.h;
+                                        }
+                                        targetScroll = oc_clamp(targetScroll, 0, scrollPanel->childrenSum[1] - scrollPanel->rect.h);
+
+                                        scrollPanel->scroll.y += 0.1 * (targetScroll - scrollPanel->scroll.y);
+                                    }
+                                    */
+                                    }
+
+                                    // spacer or exec cursor
+                                    oc_ui_style_next(&(oc_ui_style){
+                                                         .size.width = { OC_UI_SIZE_PIXELS, 10 * BOX_MARGIN_W },
+                                                         .size.height = { OC_UI_SIZE_PARENT, 1 },
+                                                     },
+                                                     OC_UI_STYLE_SIZE);
+
+                                    /*
+                            if(breakpoint)
+                            {
+                                oc_ui_box* box = oc_ui_box_make("bp", OC_UI_FLAG_DRAW_PROC | OC_UI_FLAG_CLICKABLE);
+                                oc_ui_box_set_draw_proc(box, draw_breakpoint_cursor_proc, 0);
+
+                                if(oc_ui_box_sig(box).clicked)
+                                {
+                                    wa_debugger_remove_breakpoint(&app->debugger, breakpoint);
+                                }
+                            }
+                            else*/
+                                    {
+                                        oc_ui_box* box = oc_ui_box_make("spacer", OC_UI_FLAG_CLICKABLE);
+                                        /*
+                                    if(oc_ui_box_sig(box).clicked)
+                                    {
+                                        wa_debugger_add_breakpoint(&app->debugger,
+                                                                   &(wa_bytecode_loc){
+                                                                       .instance = app->debugger.interpreter->instance,
+                                                                       .func = func,
+                                                                       .index = codeIndex,
+                                                                   });
+                                    }
+                                    */
+                                    }
+                                    // opcode
+                                    oc_ui_label(wa_instr_strings[opcode]);
+
+                                    // operands
+                                    for(u32 opdIndex = 0; opdIndex < info->opdCount; opdIndex++)
+                                    {
+                                        wa_code* opd = &func->code[codeIndex + opdIndex + 1];
+                                        oc_str8 opdKey = oc_str8_pushf(scratch.arena, "opd%u", opdIndex);
+
+                                        oc_ui_container_str8(opdKey, 0)
+                                        {
+                                            oc_str8 s = { 0 };
+
+                                            switch(info->opd[opdIndex])
+                                            {
+                                                case WA_OPD_CONST_I32:
+                                                    s = oc_str8_pushf(scratch.arena, "%i", opd->valI32);
+                                                    break;
+                                                case WA_OPD_CONST_I64:
+                                                    s = oc_str8_pushf(scratch.arena, "%lli", opd->valI64);
+                                                    break;
+                                                case WA_OPD_CONST_F32:
+                                                    s = oc_str8_pushf(scratch.arena, "%f", opd->valF32);
+                                                    break;
+                                                case WA_OPD_CONST_F64:
+                                                    s = oc_str8_pushf(scratch.arena, "%f", opd->valF64);
+                                                    break;
+
+                                                case WA_OPD_LOCAL_INDEX:
+                                                    s = oc_str8_pushf(scratch.arena, "r%u", opd->valU32);
+                                                    break;
+                                                case WA_OPD_GLOBAL_INDEX:
+                                                    s = oc_str8_pushf(scratch.arena, "g%u", opd->valU32);
+                                                    break;
+
+                                                case WA_OPD_FUNC_INDEX:
+                                                    s = wa_module_get_function_name(app->env.module, opd->valU32);
+                                                    if(s.len == 0)
+                                                    {
+                                                        s = oc_str8_pushf(scratch.arena, "%u", opd->valU32);
+                                                    }
+                                                    break;
+
+                                                case WA_OPD_JUMP_TARGET:
+                                                    s = oc_str8_pushf(scratch.arena, "%+lli", opd->valI64);
+                                                    break;
+
+                                                case WA_OPD_MEM_ARG:
+                                                    s = oc_str8_pushf(scratch.arena, "a%u:+%u", opd->memArg.align, opd->memArg.offset);
+                                                    break;
+
+                                                default:
+                                                    s = oc_str8_pushf(scratch.arena, "0x%08llx", opd->valU64);
+                                                    break;
+                                            }
+                                            oc_ui_label_str8(s);
+                                        }
+                                    }
+                                }
+
+                                codeIndex += info->opdCount;
+                                /*
+                        if(c->opcode == WA_INSTR_jump_table)
+                        {
+                            printf("\n\t");
+                            u64 brCount = bytecode[startIndex + 1].valI32;
+                            for(u64 i = 0; i < brCount; i++)
+                            {
+                                codeIndex++;
+                                printf("0x%02llx ", bytecode[codeIndex].valI64);
+                            }
+                        }
+                        */
+                            }
+                            oc_ui_style_next(&(oc_ui_style){ .size.height = { OC_UI_SIZE_PIXELS, 10 * BOX_MARGIN_H } },
+                                             OC_UI_STYLE_SIZE_HEIGHT);
+                            oc_ui_box_make("vspacer", 0);
                         }
                     }
                 }
