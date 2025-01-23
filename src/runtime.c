@@ -1142,8 +1142,8 @@ i32 create_debug_window_callback(void* user)
     oc_rect rect = oc_window_get_frame_rect(app->window);
     rect.x += 100;
     rect.y += 100;
-    rect.w = 800;
-    rect.h = 600;
+    rect.w = 1000;
+    rect.h = 800;
 
     app->debuggerUI.window = oc_window_create(rect, OC_STR8("Orca Debugger"), 0);
     oc_window_bring_to_front(app->debuggerUI.window);
@@ -1200,10 +1200,10 @@ void debugger_ui_update(oc_runtime* app)
     oc_ui_set_context(&app->debuggerUI.ui);
     oc_canvas_context_select(app->debuggerUI.canvas);
 
-    oc_ui_style debugUIDefaultStyle = { .bgColor = { 1, 0, 1, 1 },
+    oc_ui_style debugUIDefaultStyle = { .bgColor = OC_UI_DARK_THEME.bg0,
                                         .color = { 1, 1, 1, 1 },
                                         .font = app->debugOverlay.fontReg,
-                                        .fontSize = 16,
+                                        .fontSize = 12,
                                         .borderColor = { 1, 0, 0, 1 },
                                         .borderSize = 2 };
 
@@ -1218,9 +1218,53 @@ void debugger_ui_update(oc_runtime* app)
 
     oc_ui_frame(frameSize, &debugUIDefaultStyle, debugUIDefaultMask)
     {
-        if(oc_ui_button("Click me!").clicked)
+        oc_ui_style_next(
+            &(oc_ui_style){
+                .size = {
+                    .width = { OC_UI_SIZE_PIXELS, 300 },
+                    .height = { OC_UI_SIZE_PARENT, 1 },
+                },
+                .bgColor = OC_UI_DARK_THEME.bg1,
+                .borderColor = { 1, 0, 0, 1 },
+                .borderSize = 4,
+            },
+            OC_UI_STYLE_SIZE | OC_UI_STYLE_BG_COLOR | OC_UI_STYLE_BORDER_COLOR | OC_UI_STYLE_BORDER_SIZE);
+
+        oc_ui_container("function list frame", 0)
         {
-            oc_log_info("Clicked\n");
+            oc_ui_panel("function list", OC_UI_FLAG_DRAW_BACKGROUND | OC_UI_FLAG_DRAW_BORDER | OC_UI_FLAG_SCROLL_WHEEL_Y)
+            {
+                oc_ui_style_next(
+                    &(oc_ui_style){
+                        .layout = {
+                            .axis = OC_UI_AXIS_Y,
+                            .spacing = 10,
+                            .margin = { 10, 10 },
+                            .align = OC_UI_ALIGN_START,
+                        },
+                    },
+                    OC_UI_STYLE_LAYOUT);
+
+                oc_ui_container("contents", 0)
+                {
+                    for(u32 funcIndex = 0; funcIndex < app->env.module->functionCount; funcIndex++)
+                    {
+                        oc_str8 name = wa_module_get_function_name(app->env.module, funcIndex);
+                        oc_ui_label_str8(name);
+                    }
+
+                    /*
+                if(oc_ui_button("Click me! A").clicked)
+                {
+                    oc_log_info("Clicked A\n");
+                }
+                if(oc_ui_button("Click me! B").clicked)
+                {
+                    oc_log_info("Clicked B\n");
+                }
+                */
+                }
+            }
         }
     }
 
