@@ -429,7 +429,7 @@ void log_entry_ui(oc_debug_overlay* overlay, log_entry* entry)
 
     oc_str8 key = oc_str8_pushf(scratch.arena, "%ull", entry->recordIndex);
 
-    oc_ui_container_str8(key, OC_UI_FLAG_DRAW_BACKGROUND)
+    oc_ui_container_str8(key, OC_UI_FLAG_NONE)
     {
         oc_ui_style_next(&(oc_ui_style){ .size.width = { OC_UI_SIZE_PARENT, 1 },
                                          .size.height = { OC_UI_SIZE_CHILDREN },
@@ -898,7 +898,7 @@ i32 orca_runloop(void* user)
                                      | OC_UI_STYLE_LAYOUT_AXIS
                                      | OC_UI_STYLE_BG_COLOR);
 
-                oc_ui_container("log console", OC_UI_FLAG_DRAW_BACKGROUND)
+                oc_ui_container("log console", OC_UI_FLAG_NONE)
                 {
                     oc_ui_style_next(&(oc_ui_style){ .size.width = { OC_UI_SIZE_PARENT, 1 },
                                                      .size.height = { OC_UI_SIZE_CHILDREN },

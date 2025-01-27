@@ -116,7 +116,7 @@ void column_begin(const char* header, f32 widthFraction)
                          | OC_UI_STYLE_BORDER_COLOR
                          | OC_UI_STYLE_BORDER_SIZE
                          | OC_UI_STYLE_ROUNDNESS);
-    oc_ui_box_begin(header, OC_UI_FLAG_DRAW_BACKGROUND | OC_UI_FLAG_DRAW_BORDER);
+    oc_ui_box_begin(header, OC_UI_FLAG_NONE);
 
     oc_ui_style_next(&(oc_ui_style){ .size.width = { OC_UI_SIZE_PARENT, 1 },
                                      .layout.align.x = OC_UI_ALIGN_CENTER },
@@ -230,7 +230,7 @@ ORCA_EXPORT void oc_on_frame_refresh(void)
                                  | OC_UI_STYLE_LAYOUT_MARGINS
                                  | OC_UI_STYLE_LAYOUT_SPACING);
 
-            oc_ui_container("background", OC_UI_FLAG_DRAW_BACKGROUND)
+            oc_ui_container("background", OC_UI_FLAG_NONE)
             {
                 column("Widgets", 1.0 / 3)
                 {
@@ -410,7 +410,7 @@ ORCA_EXPORT void oc_on_frame_refresh(void)
                                          | OC_UI_STYLE_BORDER_SIZE
                                          | OC_UI_STYLE_ROUNDNESS);
 
-                    oc_ui_panel("log", OC_UI_FLAG_DRAW_BACKGROUND | OC_UI_FLAG_DRAW_BORDER)
+                    oc_ui_panel("log", OC_UI_FLAG_NONE)
                     {
                         oc_ui_style_next(&(oc_ui_style){ .layout.margin.x = 16,
                                                          .layout.margin.y = 16 },
@@ -481,7 +481,7 @@ ORCA_EXPORT void oc_on_frame_refresh(void)
                                          | OC_UI_STYLE_LAYOUT_MARGINS
                                          | OC_UI_STYLE_BG_COLOR
                                          | OC_UI_STYLE_ROUNDNESS);
-                    oc_ui_container("styled_radios", OC_UI_FLAG_DRAW_BACKGROUND | OC_UI_FLAG_DRAW_BORDER)
+                    oc_ui_container("styled_radios", OC_UI_FLAG_NONE)
                     {
                         reset_next_radio_group_to_dark_theme(scratch.arena);
 

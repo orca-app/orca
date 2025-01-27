@@ -321,6 +321,210 @@ void oc_ui_style_box_after(oc_ui_box* box, oc_ui_pattern pattern, oc_ui_style* s
     }
 }
 
+//[WIP] ///////////////////////////////////////////////////////////
+
+/*
+
+typedef struct oc_ui_style
+{
+    oc_ui_box_size size;
+    oc_ui_layout layout;
+    oc_ui_box_floating floating;
+    oc_vec2 floatTarget;
+    oc_color color;
+    oc_color bgColor;
+    oc_color borderColor;
+    oc_font font;
+    f32 fontSize;
+    f32 borderSize;
+    f32 roundness;
+    f32 animationTime;
+    oc_ui_style_mask animationMask;
+} oc_ui_style;
+
+
+typedef enum
+{
+    OC_UI_SIZE_X,
+    OC_UI_AXIS,
+    OC_UI_MARGIN_X,
+    OC_UI_MARGIN_Y,
+    OC_UI_SPACING,
+    OC_UI_ALIGN,
+    OC_UI_FLOATING_X,
+    OC_UI_FLOATING_Y,
+    OC_UI_FLOAT_TARGET,
+    OC_UI_COLOR,
+    OC_UI_BG_COLOR,
+    OC_UI_BORDER_COLOR,
+    OC_UI_FONT,
+    OC_UI_TEXT_SIZE,
+    OC_UI_BORDER_SIZE,
+    OC_UI_ROUNDNESS,
+    OC_UI_ANIMATION_TIME,
+    OC_UI_ANIMATION_MASK,
+} oc_ui_style_attribute;
+*/
+
+void oc_ui_style_set_i32(oc_ui_style_attribute attr, i32 i)
+{
+    oc_ui_box* box = oc_ui_box_top();
+    if(!box)
+    {
+        //TODO: better error
+        oc_log_error("error trying to set style attribute: no box.");
+        return;
+    }
+    switch(attr)
+    {
+        case OC_UI_AXIS:
+            box->targetStyle->layout.axis = i;
+            break;
+
+        case OC_UI_FLOATING_X:
+            box->targetStyle->floating.x = i;
+            break;
+
+        case OC_UI_FLOATING_Y:
+            box->targetStyle->floating.y = i;
+            break;
+
+        case OC_UI_ANIMATION_MASK:
+            box->targetStyle->animationMask = i;
+            break;
+
+        default:
+            //TODO: better error
+            oc_log_error("error trying to set attribute: type mismatch.");
+    }
+}
+
+void oc_ui_style_set_f32(oc_ui_style_attribute attr, f32 f)
+{
+    oc_ui_box* box = oc_ui_box_top();
+    if(!box)
+    {
+        //TODO: better error
+        oc_log_error("error trying to set style attribute: no box.");
+        return;
+    }
+    switch(attr)
+    {
+        case OC_UI_MARGIN_X:
+            box->targetStyle->layout.margin.x = f;
+            break;
+
+        case OC_UI_MARGIN_Y:
+            box->targetStyle->layout.margin.y = f;
+            break;
+
+        case OC_UI_SPACING:
+            box->targetStyle->layout.spacing = f;
+            break;
+
+        case OC_UI_FLOAT_TARGET_X:
+            box->targetStyle->floatTarget.x = f;
+            break;
+
+        case OC_UI_FLOAT_TARGET_Y:
+            box->targetStyle->floatTarget.y = f;
+            break;
+
+        case OC_UI_TEXT_SIZE:
+            box->targetStyle->fontSize = f;
+            break;
+
+        case OC_UI_BORDER_SIZE:
+            box->targetStyle->borderSize = f;
+            break;
+
+        case OC_UI_ROUNDNESS:
+            box->targetStyle->roundness = f;
+            break;
+
+        case OC_UI_ANIMATION_TIME:
+            box->targetStyle->animationTime = f;
+            break;
+
+        default:
+            //TODO: better error
+            oc_log_error("error trying to set attribute: type mismatch.");
+    }
+}
+
+void oc_ui_style_set_color(oc_ui_style_attribute attr, oc_color color)
+{
+    oc_ui_box* box = oc_ui_box_top();
+    if(!box)
+    {
+        //TODO: better error
+        oc_log_error("error trying to set style attribute: no box.");
+        return;
+    }
+    switch(attr)
+    {
+        case OC_UI_COLOR:
+            box->targetStyle->color = color;
+            break;
+
+        case OC_UI_BG_COLOR:
+            box->targetStyle->bgColor = color;
+            break;
+
+        case OC_UI_BORDER_COLOR:
+            box->targetStyle->bgColor = color;
+            break;
+
+        default:
+            //TODO: better error
+            oc_log_error("error trying to set attribute: type mismatch.");
+    }
+}
+
+void oc_ui_style_set_font(oc_ui_style_attribute attr, oc_font font)
+{
+    oc_ui_box* box = oc_ui_box_top();
+    if(!box)
+    {
+        //TODO: better error
+        oc_log_error("error trying to set style attribute: no box.");
+        return;
+    }
+    if(attr == OC_UI_FONT)
+    {
+        box->targetStyle->font = font;
+    }
+    else
+    { //TODO: better error
+        oc_log_error("error trying to set attribute: type mismatch.");
+    }
+}
+
+void oc_ui_style_set_size(oc_ui_style_attribute attr, oc_ui_size size)
+{
+    oc_ui_box* box = oc_ui_box_top();
+    if(!box)
+    {
+        //TODO: better error
+        oc_log_error("error trying to set style attribute: no box.");
+        return;
+    }
+    switch(attr)
+    {
+        case OC_UI_SIZE_X:
+            box->targetStyle->size.width = size;
+            break;
+
+        case OC_UI_SIZE_Y:
+            box->targetStyle->size.height = size;
+            break;
+
+        default:
+            //TODO: better error
+            oc_log_error("error trying to set attribute: type mismatch.");
+    }
+}
+
 //-----------------------------------------------------------------------------
 // input
 //-----------------------------------------------------------------------------
@@ -423,24 +627,9 @@ oc_ui_box* oc_ui_box_make_str8(oc_str8 string, oc_ui_flags flags)
 
     box->frameCounter = ui->frameCounter;
 
-    //NOTE: create style and setup non-inherited attributes to default values
+    //NOTE: create style
     box->targetStyle = oc_arena_push_type(&ui->frameArena, oc_ui_style);
-    oc_ui_style defaultStyle = {
-        .size.width = { .kind = OC_UI_SIZE_CHILDREN,
-                        .value = 0,
-                        .relax = 0 },
-        .size.height = { .kind = OC_UI_SIZE_CHILDREN,
-                         .value = 0,
-                         .relax = 0 },
-
-        .layout = { .axis = OC_UI_AXIS_Y,
-                    .align = { OC_UI_ALIGN_START,
-                               OC_UI_ALIGN_START } },
-        .bgColor = ui->theme->bg0,
-        .color = ui->theme->text0,
-        .fontSize = 14,
-    };
-    oc_ui_apply_style_with_mask(box->targetStyle, &defaultStyle, ~0ULL);
+    memset(box->targetStyle, 0, sizeof(oc_ui_style));
 
     //NOTE: set tags, before rules and last box
     box->tags = ui->nextBoxTags;
@@ -921,14 +1110,6 @@ void oc_ui_style_rule_match(oc_ui_context* ui, oc_ui_box* box, oc_ui_style_rule*
 
 void oc_ui_styling_prepass(oc_ui_context* ui, oc_ui_box* box, oc_list* before, oc_list* after)
 {
-    //NOTE: inherit style from parent
-    if(box->parent)
-    {
-        oc_ui_apply_style_with_mask(box->targetStyle,
-                                    box->parent->targetStyle,
-                                    OC_UI_STYLE_MASK_INHERITED);
-    }
-
     //NOTE: append box before rules to before and tmp
     oc_list tmpBefore = { 0 };
     oc_list_for(box->beforeRules, rule, oc_ui_style_rule, boxElt)
@@ -1523,14 +1704,13 @@ void oc_ui_draw_box(oc_ui_box* box)
         oc_clip_push(box->rect.x, box->rect.y, box->rect.w, box->rect.h);
     }
 
-    if(draw && (box->flags & OC_UI_FLAG_DRAW_BACKGROUND))
+    if(draw && style->bgColor.a != 0)
     {
         oc_set_color(style->bgColor);
         oc_ui_rectangle_fill(box->rect, style->roundness);
     }
 
     if(draw
-       && (box->flags & OC_UI_FLAG_DRAW_PROC)
        && box->drawProc)
     {
         box->drawProc(box, box->drawData);
@@ -1591,7 +1771,7 @@ void oc_ui_draw_box(oc_ui_box* box)
         oc_clip_pop();
     }
 
-    if(draw && (box->flags & OC_UI_FLAG_DRAW_BORDER))
+    if(draw && style->borderSize != 0 && style->borderColor.a != 0)
     {
         oc_set_width(style->borderSize);
         oc_set_color(style->borderColor);
@@ -1740,9 +1920,13 @@ void oc_ui_cleanup(void)
 
 oc_ui_sig oc_ui_label_str8(oc_str8 label)
 {
+    oc_ui_context* ui = oc_ui_get_context();
+
     oc_ui_style_next(&(oc_ui_style){ .size.width = { OC_UI_SIZE_TEXT, 0, 0 },
-                                     .size.height = { OC_UI_SIZE_TEXT, 0, 0 } },
-                     OC_UI_STYLE_SIZE_WIDTH | OC_UI_STYLE_SIZE_HEIGHT);
+                                     .size.height = { OC_UI_SIZE_TEXT, 0, 0 },
+                                     .color = ui->theme->text0 },
+
+                     OC_UI_STYLE_SIZE_WIDTH | OC_UI_STYLE_SIZE_HEIGHT | OC_UI_STYLE_COLOR);
 
     oc_ui_flags flags = OC_UI_FLAG_CLIP
                       | OC_UI_FLAG_DRAW_TEXT;
@@ -1829,7 +2013,6 @@ oc_ui_sig oc_ui_button_str8(oc_str8 label)
 
     oc_ui_flags flags = OC_UI_FLAG_CLICKABLE
                       | OC_UI_FLAG_CLIP
-                      | OC_UI_FLAG_DRAW_BACKGROUND
                       | OC_UI_FLAG_DRAW_TEXT
                       | OC_UI_FLAG_HOT_ANIMATION
                       | OC_UI_FLAG_ACTIVE_ANIMATION;
@@ -1912,8 +2095,6 @@ oc_ui_sig oc_ui_checkbox_str8(oc_str8 name, bool* checked)
 
         oc_ui_flags flags = OC_UI_FLAG_CLICKABLE
                           | OC_UI_FLAG_CLIP
-                          | OC_UI_FLAG_DRAW_BACKGROUND
-                          | OC_UI_FLAG_DRAW_PROC
                           | OC_UI_FLAG_HOT_ANIMATION
                           | OC_UI_FLAG_ACTIVE_ANIMATION;
 
@@ -1962,8 +2143,6 @@ oc_ui_sig oc_ui_checkbox_str8(oc_str8 name, bool* checked)
 
         oc_ui_flags flags = OC_UI_FLAG_CLICKABLE
                           | OC_UI_FLAG_CLIP
-                          | OC_UI_FLAG_DRAW_BACKGROUND
-                          | OC_UI_FLAG_DRAW_BORDER
                           | OC_UI_FLAG_HOT_ANIMATION
                           | OC_UI_FLAG_ACTIVE_ANIMATION;
 
@@ -2044,7 +2223,7 @@ oc_ui_box* oc_ui_slider_str8(oc_str8 name, f32* value)
         oc_ui_style_mask styleFloatMask = styleMask | OC_UI_STYLE_FLOAT;
 
         oc_ui_style_next(&trackStyle, styleFloatMask);
-        oc_ui_box* track = oc_ui_box_make("track", OC_UI_FLAG_DRAW_BACKGROUND);
+        oc_ui_box* track = oc_ui_box_make("track", OC_UI_FLAG_NONE);
         oc_ui_tag_box(track, "track");
 
         if(trackAxis == OC_UI_AXIS_X)
@@ -2058,7 +2237,7 @@ oc_ui_box* oc_ui_slider_str8(oc_str8 name, f32* value)
                                            .bgColor = theme->primary,
                                            .roundness = trackThickness / 2 };
             oc_ui_style_next(&trackFillStyle, styleFloatMask);
-            oc_ui_box* trackFill = oc_ui_box_make("track_fill", OC_UI_FLAG_DRAW_BACKGROUND);
+            oc_ui_box* trackFill = oc_ui_box_make("track_fill", OC_UI_FLAG_NONE);
             oc_ui_tag_box(trackFill, "track_fill");
         }
         else
@@ -2072,7 +2251,7 @@ oc_ui_box* oc_ui_slider_str8(oc_str8 name, f32* value)
                                            .bgColor = theme->primary,
                                            .roundness = trackThickness / 2 };
             oc_ui_style_next(&trackFillStyle, styleFloatMask);
-            oc_ui_box* trackFill = oc_ui_box_make("track_fill", OC_UI_FLAG_DRAW_BACKGROUND);
+            oc_ui_box* trackFill = oc_ui_box_make("track_fill", OC_UI_FLAG_NONE);
             oc_ui_tag_box(trackFill, "track_fill");
         }
 
@@ -2103,9 +2282,7 @@ oc_ui_box* oc_ui_slider_str8(oc_str8 name, f32* value)
                                              .status = OC_UI_ACTIVE });
         oc_ui_style_match_after(thumbActivePattern, &thumbActiveStyle, OC_UI_STYLE_BORDER_COLOR | OC_UI_STYLE_BORDER_SIZE);
 
-        oc_ui_flags thumbFlags = OC_UI_FLAG_CLICKABLE
-                               | OC_UI_FLAG_DRAW_BACKGROUND
-                               | OC_UI_FLAG_DRAW_BORDER;
+        oc_ui_flags thumbFlags = OC_UI_FLAG_CLICKABLE;
         oc_ui_box* thumb = oc_ui_box_make("thumb", thumbFlags);
         oc_ui_tag_box(thumb, "thumb");
 
@@ -2209,7 +2386,6 @@ oc_ui_box* oc_ui_scrollbar_str8(oc_str8 name, f32 thumbRatio, f32* scrollValue)
                                         | OC_UI_STYLE_ROUNDNESS;
 
         oc_ui_flags trackFlags = OC_UI_FLAG_CLIP
-                               | OC_UI_FLAG_DRAW_BACKGROUND
                                | OC_UI_FLAG_HOT_ANIMATION
                                | OC_UI_FLAG_ACTIVE_ANIMATION;
 
@@ -2241,7 +2417,6 @@ oc_ui_box* oc_ui_scrollbar_str8(oc_str8 name, f32 thumbRatio, f32* scrollValue)
                                         | OC_UI_STYLE_ROUNDNESS;
 
         oc_ui_flags thumbFlags = OC_UI_FLAG_CLICKABLE
-                               | OC_UI_FLAG_DRAW_BACKGROUND
                                | OC_UI_FLAG_HOT_ANIMATION
                                | OC_UI_FLAG_ACTIVE_ANIMATION;
 
@@ -2456,7 +2631,7 @@ void oc_ui_tooltip_str8(oc_str8 label)
                                    | OC_UI_STYLE_BG_COLOR;
         oc_ui_style_next(&arrowStyle, arrowMask);
 
-        oc_ui_box* arrow = oc_ui_box_make("arrow", OC_UI_FLAG_DRAW_PROC);
+        oc_ui_box* arrow = oc_ui_box_make("arrow", OC_UI_FLAG_NONE);
         oc_ui_box_set_draw_proc(arrow, oc_ui_tooltip_arrow_draw, 0);
 
         oc_ui_style contentsStyle = { .size.width = { OC_UI_SIZE_CHILDREN },
@@ -2477,7 +2652,7 @@ void oc_ui_tooltip_str8(oc_str8 label)
                                       | OC_UI_STYLE_ROUNDNESS;
         oc_ui_style_next(&contentsStyle, contentsMask);
 
-        oc_ui_box* contents = oc_ui_box_begin("contents", OC_UI_FLAG_DRAW_BACKGROUND);
+        oc_ui_box* contents = oc_ui_box_begin("contents", OC_UI_FLAG_NONE);
 
         oc_ui_label_str8(label);
 
@@ -2505,7 +2680,7 @@ void oc_ui_menu_bar_begin_str8(oc_str8 name)
                           | OC_UI_STYLE_LAYOUT_AXIS;
 
     oc_ui_style_next(&style, mask);
-    oc_ui_box* bar = oc_ui_box_begin_str8(name, OC_UI_FLAG_DRAW_BACKGROUND);
+    oc_ui_box* bar = oc_ui_box_begin_str8(name, OC_UI_FLAG_NONE);
 
     oc_ui_sig sig = oc_ui_box_sig(bar);
     oc_ui_context* ui = oc_ui_get_context();
@@ -2549,7 +2724,7 @@ void oc_ui_menu_begin_str8(oc_str8 label)
     oc_ui_style activeStyle = { .bgColor = theme->fill2 };
     oc_ui_style_match_before(activePattern, &activeStyle, OC_UI_STYLE_BG_COLOR);
 
-    oc_ui_box* button = oc_ui_box_begin("button", OC_UI_FLAG_CLICKABLE | OC_UI_FLAG_DRAW_BACKGROUND);
+    oc_ui_box* button = oc_ui_box_begin("button", OC_UI_FLAG_CLICKABLE);
 
     oc_ui_style_next(&(oc_ui_style){ .size.width = { OC_UI_SIZE_TEXT },
                                      .size.height = { OC_UI_SIZE_TEXT } },
@@ -2583,9 +2758,7 @@ void oc_ui_menu_begin_str8(oc_str8 label)
                           | OC_UI_STYLE_BORDER_COLOR
                           | OC_UI_STYLE_BORDER_SIZE;
 
-    oc_ui_flags flags = OC_UI_FLAG_OVERLAY
-                      | OC_UI_FLAG_DRAW_BACKGROUND
-                      | OC_UI_FLAG_DRAW_BORDER;
+    oc_ui_flags flags = OC_UI_FLAG_OVERLAY;
 
     oc_ui_style_next(&style, mask);
     oc_ui_box* menu = oc_ui_box_make("panel", flags);
@@ -2658,8 +2831,7 @@ oc_ui_sig oc_ui_menu_button_str8(oc_str8 label)
 
     oc_ui_flags flags = OC_UI_FLAG_CLICKABLE
                       | OC_UI_FLAG_CLIP
-                      | OC_UI_FLAG_DRAW_TEXT
-                      | OC_UI_FLAG_DRAW_BACKGROUND;
+                      | OC_UI_FLAG_DRAW_TEXT;
 
     oc_ui_box* box = oc_ui_box_make_str8(label, flags);
     oc_ui_sig sig = oc_ui_box_sig(box);
@@ -2758,8 +2930,6 @@ oc_ui_select_popup_info oc_ui_select_popup_str8(oc_str8 name, oc_ui_select_popup
 
         oc_ui_box* button = oc_ui_box_make("button",
                                            OC_UI_FLAG_CLICKABLE
-                                               | OC_UI_FLAG_DRAW_BACKGROUND
-                                               | OC_UI_FLAG_DRAW_BORDER
                                                | OC_UI_FLAG_OVERFLOW_ALLOW_X
                                                | OC_UI_FLAG_CLIP);
 
@@ -2813,16 +2983,14 @@ oc_ui_select_popup_info oc_ui_select_popup_str8(oc_str8 name, oc_ui_select_popup
                                  | OC_UI_STYLE_FLOAT
                                  | OC_UI_STYLE_COLOR);
 
-            oc_ui_box* arrow = oc_ui_box_make("arrow", OC_UI_FLAG_DRAW_PROC);
+            oc_ui_box* arrow = oc_ui_box_make("arrow", OC_UI_FLAG_NONE);
             oc_ui_box_set_draw_proc(arrow, oc_ui_select_popup_draw_arrow, 0);
         }
         oc_ui_box_pop();
 
         //panel
         oc_ui_box* panel = oc_ui_box_make("panel",
-                                          OC_UI_FLAG_DRAW_BACKGROUND
-                                              | OC_UI_FLAG_DRAW_BORDER
-                                              | OC_UI_FLAG_BLOCK_MOUSE
+                                          OC_UI_FLAG_BLOCK_MOUSE
                                               | OC_UI_FLAG_OVERLAY);
 
         f32 checkmarkSize = 16;
@@ -2886,14 +3054,14 @@ oc_ui_select_popup_info oc_ui_select_popup_str8(oc_str8 name, oc_ui_select_popup
                 oc_ui_style_match_before(activePattern, &(oc_ui_style){ .bgColor = theme->fill2 }, OC_UI_STYLE_BG_COLOR);
 
                 oc_ui_box* wrapper = oc_ui_box_begin_str8(info->options[i],
-                                                          OC_UI_FLAG_CLICKABLE | OC_UI_FLAG_DRAW_BACKGROUND);
+                                                          OC_UI_FLAG_CLICKABLE);
                 if(i == info->selectedIndex)
                 {
                     oc_ui_style_next(&(oc_ui_style){ .size.width = { OC_UI_SIZE_PIXELS, checkmarkSize },
                                                      .size.height = { OC_UI_SIZE_PIXELS, checkmarkSize },
                                                      .color = theme->text2 },
                                      OC_UI_STYLE_SIZE | OC_UI_STYLE_COLOR);
-                    oc_ui_box* checkmark = oc_ui_box_make("checkmark", OC_UI_FLAG_DRAW_PROC);
+                    oc_ui_box* checkmark = oc_ui_box_make("checkmark", OC_UI_FLAG_NONE);
                     oc_ui_box_set_draw_proc(checkmark, oc_ui_select_popup_draw_checkmark, 0);
                 }
                 else
@@ -2992,7 +3160,7 @@ oc_ui_radio_group_info oc_ui_radio_group_str8(oc_str8 name, oc_ui_radio_group_in
                                  | OC_UI_STYLE_LAYOUT_SPACING
                                  | OC_UI_STYLE_LAYOUT_ALIGN_Y);
             oc_ui_box* row = oc_ui_box_begin_str8(info->options[i], OC_UI_FLAG_CLICKABLE);
-            oc_ui_flags flags = OC_UI_FLAG_DRAW_BACKGROUND | OC_UI_FLAG_DRAW_BORDER | OC_UI_FLAG_DRAW_PROC;
+            oc_ui_flags flags = OC_UI_FLAG_NONE;
             oc_ui_box* radio = oc_ui_box_make("radio", flags);
             oc_ui_box_set_draw_proc(radio, oc_ui_radio_indicator_draw, 0);
 
@@ -3899,9 +4067,7 @@ oc_ui_text_box_result oc_ui_text_box_str8(oc_str8 name, oc_arena* arena, oc_str8
     oc_ui_style draggingStyle = { .bgColor = theme->fill2 };
     oc_ui_style_match_after(draggingPattern, &draggingStyle, OC_UI_STYLE_BG_COLOR);
 
-    oc_ui_flags frameFlags = OC_UI_FLAG_CLICKABLE
-                           | OC_UI_FLAG_DRAW_BACKGROUND
-                           | OC_UI_FLAG_DRAW_BORDER;
+    oc_ui_flags frameFlags = OC_UI_FLAG_CLICKABLE;
     oc_ui_box* frame = oc_ui_box_begin_str8(name, frameFlags);
     result.frame = frame;
     oc_ui_tag_box(frame, "frame");
@@ -3912,7 +4078,7 @@ oc_ui_text_box_result oc_ui_text_box_str8(oc_str8 name, oc_arena* arena, oc_str8
                               .size.height = (oc_ui_size){ OC_UI_SIZE_PARENT, 1 } };
     oc_ui_style_next(&textStyle, OC_UI_STYLE_SIZE);
 
-    oc_ui_box* textBox = oc_ui_box_make("text", OC_UI_FLAG_CLIP | OC_UI_FLAG_DRAW_PROC);
+    oc_ui_box* textBox = oc_ui_box_make("text", OC_UI_FLAG_CLIP);
     result.textBox = textBox;
     oc_ui_tag_box(textBox, "text");
 

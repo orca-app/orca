@@ -479,14 +479,11 @@ typedef enum
     OC_UI_FLAG_ACTIVE_ANIMATION = (1 << 5),
     //WARN: these two following flags need to be kept as consecutive bits to
     //      play well with axis-agnostic functions
-    OC_UI_FLAG_OVERFLOW_ALLOW_X = (1 << 6),
-    OC_UI_FLAG_OVERFLOW_ALLOW_Y = (1 << 7),
-    OC_UI_FLAG_CLIP = (1 << 8),
-    OC_UI_FLAG_DRAW_BACKGROUND = (1 << 9),
-    OC_UI_FLAG_DRAW_FOREGROUND = (1 << 10),
-    OC_UI_FLAG_DRAW_BORDER = (1 << 11),
+    OC_UI_FLAG_OVERFLOW_ALLOW_X = (1 << 6), // this should be in layout style?
+    OC_UI_FLAG_OVERFLOW_ALLOW_Y = (1 << 7), // this should be in layout style?
+    OC_UI_FLAG_CLIP = (1 << 8),             // this should be in layout style?
+
     OC_UI_FLAG_DRAW_TEXT = (1 << 12),
-    OC_UI_FLAG_DRAW_PROC = (1 << 13),
 
     OC_UI_FLAG_OVERLAY = (1 << 16),
 } oc_ui_flags;
@@ -723,6 +720,40 @@ ORCA_API oc_ui_pattern oc_ui_pattern_owner(void);
 ORCA_API void oc_ui_style_next(oc_ui_style* style, oc_ui_style_mask mask);
 ORCA_API void oc_ui_style_match_before(oc_ui_pattern pattern, oc_ui_style* style, oc_ui_style_mask mask);
 ORCA_API void oc_ui_style_match_after(oc_ui_pattern pattern, oc_ui_style* style, oc_ui_style_mask mask);
+
+//[WIP] ///////////////////////////////////////////////////////////
+
+typedef enum
+{
+    OC_UI_SIZE_X, // WIDTH?
+    OC_UI_SIZE_Y, // HEIGHT?
+    OC_UI_AXIS,
+    OC_UI_MARGIN_X,
+    OC_UI_MARGIN_Y,
+    OC_UI_SPACING,
+    OC_UI_ALIGN,
+    OC_UI_FLOATING_X,
+    OC_UI_FLOATING_Y,
+    OC_UI_FLOAT_TARGET_X,
+    OC_UI_FLOAT_TARGET_Y,
+    OC_UI_COLOR,
+    OC_UI_BG_COLOR,
+    OC_UI_BORDER_COLOR,
+    OC_UI_FONT,
+    OC_UI_TEXT_SIZE,
+    OC_UI_BORDER_SIZE,
+    OC_UI_ROUNDNESS,
+    OC_UI_ANIMATION_TIME,
+    OC_UI_ANIMATION_MASK,
+} oc_ui_style_attribute;
+
+ORCA_API void oc_ui_style_set_i32(oc_ui_style_attribute attr, i32 i);
+ORCA_API void oc_ui_style_set_f32(oc_ui_style_attribute attr, f32 f);
+ORCA_API void oc_ui_style_set_color(oc_ui_style_attribute attr, oc_color color);
+ORCA_API void oc_ui_style_set_font(oc_ui_style_attribute attr, oc_font font);
+ORCA_API void oc_ui_style_set_size(oc_ui_style_attribute attr, oc_ui_size size);
+
+///////////////////////////////////////////////////////////////////
 
 //-------------------------------------------------------------------------
 // Basic widget helpers
