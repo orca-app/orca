@@ -106,55 +106,84 @@ typedef union oc_ui_box_floating
     bool c[OC_UI_AXIS_COUNT];
 } oc_ui_box_floating;
 
+typedef enum
+{
+    OC_UI_SIZE_WIDTH,  // WIDTH?
+    OC_UI_SIZE_HEIGHT, // HEIGHT?
+    OC_UI_AXIS,
+    OC_UI_MARGIN_X,
+    OC_UI_MARGIN_Y,
+    OC_UI_SPACING,
+    OC_UI_ALIGN_X,
+    OC_UI_ALIGN_Y,
+    OC_UI_FLOATING_X,
+    OC_UI_FLOATING_Y,
+    OC_UI_FLOAT_TARGET_X,
+    OC_UI_FLOAT_TARGET_Y,
+    OC_UI_COLOR,
+    OC_UI_BG_COLOR,
+    OC_UI_BORDER_COLOR,
+    OC_UI_FONT,
+    OC_UI_TEXT_SIZE,
+    OC_UI_BORDER_SIZE,
+    OC_UI_ROUNDNESS,
+    OC_UI_ANIMATION_TIME,
+    OC_UI_ANIMATION_MASK,
+} oc_ui_style_attribute;
+
 //NOTE: flags for axis-dependent properties (e.g. OC_UI_STYLE_FLOAT_X/Y) need to be consecutive bits
 //      in order to play well with axis agnostic functions
 typedef u64 oc_ui_style_mask;
 
 enum
 {
-    OC_UI_STYLE_NONE = 0,
-    OC_UI_STYLE_SIZE_WIDTH = 1 << 1,
-    OC_UI_STYLE_SIZE_HEIGHT = 1 << 2,
-    OC_UI_STYLE_LAYOUT_AXIS = 1 << 3,
-    OC_UI_STYLE_LAYOUT_ALIGN_X = 1 << 4,
-    OC_UI_STYLE_LAYOUT_ALIGN_Y = 1 << 5,
-    OC_UI_STYLE_LAYOUT_SPACING = 1 << 6,
-    OC_UI_STYLE_LAYOUT_MARGIN_X = 1 << 7,
-    OC_UI_STYLE_LAYOUT_MARGIN_Y = 1 << 8,
-    OC_UI_STYLE_FLOAT_X = 1 << 9,
-    OC_UI_STYLE_FLOAT_Y = 1 << 10,
-    OC_UI_STYLE_COLOR = 1 << 11,
-    OC_UI_STYLE_BG_COLOR = 1 << 12,
-    OC_UI_STYLE_BORDER_COLOR = 1 << 13,
-    OC_UI_STYLE_BORDER_SIZE = 1 << 14,
-    OC_UI_STYLE_ROUNDNESS = 1 << 15,
-    OC_UI_STYLE_FONT = 1 << 16,
-    OC_UI_STYLE_FONT_SIZE = 1 << 17,
-    OC_UI_STYLE_ANIMATION_TIME = 1 << 18,
-    OC_UI_STYLE_ANIMATION_MASK = 1 << 19,
+    OC_UI_MASK_NONE = 0,
+    OC_UI_MASK_SIZE_WIDTH = 1 << OC_UI_SIZE_WIDTH,
+    OC_UI_MASK_SIZE_HEIGHT = 1 << OC_UI_SIZE_HEIGHT,
+    OC_UI_MASK_LAYOUT_AXIS = 1 << OC_UI_AXIS,
+    OC_UI_MASK_LAYOUT_ALIGN_X = 1 << OC_UI_ALIGN_X,
+    OC_UI_MASK_LAYOUT_ALIGN_Y = 1 << OC_UI_ALIGN_Y,
+    OC_UI_MASK_LAYOUT_SPACING = 1 << OC_UI_SPACING,
+    OC_UI_MASK_LAYOUT_MARGIN_X = 1 << OC_UI_MARGIN_X,
+    OC_UI_MASK_LAYOUT_MARGIN_Y = 1 << OC_UI_MARGIN_Y,
+    OC_UI_MASK_FLOATING_X = 1 << OC_UI_FLOATING_X,
+    OC_UI_MASK_FLOATING_Y = 1 << OC_UI_FLOATING_Y,
+    OC_UI_MASK_FLOAT_TARGET_X = 1 << OC_UI_FLOAT_TARGET_X,
+    OC_UI_MASK_FLOAT_TARGET_Y = 1 << OC_UI_FLOAT_TARGET_Y,
+    OC_UI_MASK_COLOR = 1 << OC_UI_COLOR,
+    OC_UI_MASK_BG_COLOR = 1 << OC_UI_BG_COLOR,
+    OC_UI_MASK_BORDER_COLOR = 1 << OC_UI_BORDER_COLOR,
+    OC_UI_MASK_BORDER_SIZE = 1 << OC_UI_BORDER_SIZE,
+    OC_UI_MASK_ROUNDNESS = 1 << OC_UI_ROUNDNESS,
+    OC_UI_MASK_FONT = 1 << OC_UI_FONT,
+    OC_UI_MASK_FONT_SIZE = 1 << OC_UI_TEXT_SIZE,
+    OC_UI_MASK_ANIMATION_TIME = 1 << OC_UI_ANIMATION_TIME,
+    OC_UI_MASK_ANIMATION_MASK = 1 << OC_UI_ANIMATION_MASK,
 
     //masks
-    OC_UI_STYLE_SIZE = OC_UI_STYLE_SIZE_WIDTH
-                     | OC_UI_STYLE_SIZE_HEIGHT,
+    OC_UI_MASK_SIZE = OC_UI_MASK_SIZE_WIDTH
+                    | OC_UI_MASK_SIZE_HEIGHT,
 
-    OC_UI_STYLE_LAYOUT_MARGINS = OC_UI_STYLE_LAYOUT_MARGIN_X
-                               | OC_UI_STYLE_LAYOUT_MARGIN_Y,
+    OC_UI_MASK_LAYOUT_MARGINS = OC_UI_MASK_LAYOUT_MARGIN_X
+                              | OC_UI_MASK_LAYOUT_MARGIN_Y,
 
-    OC_UI_STYLE_LAYOUT = OC_UI_STYLE_LAYOUT_AXIS
-                       | OC_UI_STYLE_LAYOUT_ALIGN_X
-                       | OC_UI_STYLE_LAYOUT_ALIGN_Y
-                       | OC_UI_STYLE_LAYOUT_SPACING
-                       | OC_UI_STYLE_LAYOUT_MARGIN_X
-                       | OC_UI_STYLE_LAYOUT_MARGIN_Y,
+    OC_UI_MASK_LAYOUT = OC_UI_MASK_LAYOUT_AXIS
+                      | OC_UI_MASK_LAYOUT_ALIGN_X
+                      | OC_UI_MASK_LAYOUT_ALIGN_Y
+                      | OC_UI_MASK_LAYOUT_SPACING
+                      | OC_UI_MASK_LAYOUT_MARGIN_X
+                      | OC_UI_MASK_LAYOUT_MARGIN_Y,
 
-    OC_UI_STYLE_FLOAT = OC_UI_STYLE_FLOAT_X
-                      | OC_UI_STYLE_FLOAT_Y,
+    OC_UI_MASK_FLOAT = OC_UI_MASK_FLOATING_X
+                     | OC_UI_MASK_FLOATING_Y
+                     | OC_UI_MASK_FLOAT_TARGET_X
+                     | OC_UI_MASK_FLOAT_TARGET_Y,
 
-    OC_UI_STYLE_MASK_INHERITED = OC_UI_STYLE_COLOR
-                               | OC_UI_STYLE_FONT
-                               | OC_UI_STYLE_FONT_SIZE
-                               | OC_UI_STYLE_ANIMATION_TIME
-                               | OC_UI_STYLE_ANIMATION_MASK,
+    OC_UI_MASK_MASK_INHERITED = OC_UI_MASK_COLOR
+                              | OC_UI_MASK_FONT
+                              | OC_UI_MASK_FONT_SIZE
+                              | OC_UI_MASK_ANIMATION_TIME
+                              | OC_UI_MASK_ANIMATION_MASK,
 };
 
 typedef struct oc_ui_style
@@ -420,7 +449,7 @@ typedef struct oc_ui_style_rule
     oc_ui_box* owner;
     oc_ui_pattern pattern;
     oc_ui_style_mask mask;
-    oc_ui_style* style;
+    oc_ui_style style;
 } oc_ui_style_rule;
 
 typedef struct oc_ui_sig
@@ -490,8 +519,7 @@ struct oc_ui_box
     void* drawData;
 
     // styling
-    oc_list beforeRules;
-    oc_list afterRules;
+    oc_list rules;
 
     oc_ui_style* targetStyle;
     oc_ui_style style;
@@ -590,8 +618,6 @@ typedef struct oc_ui_context
     oc_ui_stack_elt* boxStack;
     oc_ui_stack_elt* clipStack;
 
-    oc_list nextBoxBeforeRules;
-    oc_list nextBoxAfterRules;
     oc_list nextBoxTags;
 
     u32 z;
@@ -607,6 +633,9 @@ typedef struct oc_ui_context
     i32 editWordSelectionInitialMark;
 
     oc_ui_theme* theme;
+
+    //TODO: reorganize
+    oc_ui_style_rule* workingRule;
 
     //TODO: put that in theme
     oc_font defaultFont;
@@ -713,30 +742,10 @@ ORCA_API void oc_ui_style_match_after(oc_ui_pattern pattern, oc_ui_style* style,
 
 //[WIP] ///////////////////////////////////////////////////////////
 
-typedef enum
-{
-    OC_UI_SIZE_WIDTH,  // WIDTH?
-    OC_UI_SIZE_HEIGHT, // HEIGHT?
-    OC_UI_AXIS,
-    OC_UI_MARGIN_X,
-    OC_UI_MARGIN_Y,
-    OC_UI_SPACING,
-    OC_UI_ALIGN_X,
-    OC_UI_ALIGN_Y,
-    OC_UI_FLOATING_X,
-    OC_UI_FLOATING_Y,
-    OC_UI_FLOAT_TARGET_X,
-    OC_UI_FLOAT_TARGET_Y,
-    OC_UI_COLOR,
-    OC_UI_BG_COLOR,
-    OC_UI_BORDER_COLOR,
-    OC_UI_FONT,
-    OC_UI_TEXT_SIZE,
-    OC_UI_BORDER_SIZE,
-    OC_UI_ROUNDNESS,
-    OC_UI_ANIMATION_TIME,
-    OC_UI_ANIMATION_MASK,
-} oc_ui_style_attribute;
+ORCA_API void oc_ui_style_rule_begin(oc_ui_pattern pattern);
+ORCA_API void oc_ui_style_rule_end();
+
+#define oc_ui_style_rule(p) oc_defer_loop(oc_ui_style_rule_begin(p), oc_ui_style_rule_end())
 
 ORCA_API void oc_ui_style_set_i32(oc_ui_style_attribute attr, i32 i);
 ORCA_API void oc_ui_style_set_f32(oc_ui_style_attribute attr, f32 f);
