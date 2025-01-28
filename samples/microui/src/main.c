@@ -139,6 +139,7 @@ ORCA_EXPORT void oc_on_frame_refresh(void)
                 break;
         }
     }
+    
     if (doClip) {
         oc_clip_pop();
     }
