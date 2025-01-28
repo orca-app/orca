@@ -382,25 +382,10 @@ typedef struct oc_ui_tag
 
 typedef enum
 {
-    OC_UI_SEL_ANY,
-    OC_UI_SEL_OWNER,
-    OC_UI_SEL_TEXT,
+    OC_UI_SEL_ID,
     OC_UI_SEL_TAG,
-    OC_UI_SEL_STATUS,
-    OC_UI_SEL_KEY,
-    //...
+
 } oc_ui_selector_kind;
-
-typedef u8 oc_ui_status;
-
-enum oc_ui_status_enum
-{
-    OC_UI_NONE = 0,
-    OC_UI_HOVER = 1 << 1,
-    OC_UI_HOT = 1 << 2,
-    OC_UI_ACTIVE = 1 << 3,
-    OC_UI_DRAGGING = 1 << 4,
-};
 
 typedef enum
 {
@@ -415,14 +400,8 @@ typedef struct oc_ui_selector
     oc_ui_selector_kind kind;
     oc_ui_selector_op op;
 
-    union
-    {
-        oc_str8 text;
-        oc_ui_key key;
-        oc_ui_tag tag;
-        oc_ui_status status;
-        //...
-    };
+    u64 hash;
+
 } oc_ui_selector;
 
 typedef struct oc_ui_pattern
@@ -628,6 +607,9 @@ typedef struct oc_ui_context
     i32 editWordSelectionInitialMark;
 
     oc_ui_theme* theme;
+
+    //TODO: put that in theme
+    oc_font defaultFont;
 } oc_ui_context;
 
 //-------------------------------------------------------------------------------------
@@ -663,6 +645,10 @@ ORCA_API oc_ui_box* oc_ui_box_begin_str8(oc_str8 string, oc_ui_flags flags);
 ORCA_API oc_ui_box* oc_ui_box_end(void);
 #define oc_ui_container(name, flags) oc_defer_loop(oc_ui_box_begin(name, flags), oc_ui_box_end())
 #define oc_ui_container_str8(name, flags) oc_defer_loop(oc_ui_box_begin_str8(name, flags), oc_ui_box_end())
+
+#define oc_ui_box_str8(name, flags)    \
+    oc_ui_box_begin_str8(name, flags); \
+    oc_defer_loop(, oc_ui_box_end())
 
 ORCA_API void oc_ui_box_push(oc_ui_box* box);
 ORCA_API void oc_ui_box_pop(void);
@@ -700,6 +686,10 @@ ORCA_API oc_ui_tag oc_ui_tag_make_str8(oc_str8 string);
 ORCA_API void oc_ui_tag_box_str8(oc_ui_box* box, oc_str8 string);
 ORCA_API void oc_ui_tag_next_str8(oc_str8 string);
 
+ORCA_API void oc_ui_tag_str8(oc_str8 string);
+
+#define oc_ui_tag(s) oc_ui_tag_str8(OC_STR8(s));
+
 // C-string helpers
 #define oc_ui_tag_make(s) oc_ui_tag_make_str8(OC_STR8(s))
 #define oc_ui_tag_box(b, s) oc_ui_tag_box_str8(b, OC_STR8(s))
@@ -725,13 +715,14 @@ ORCA_API void oc_ui_style_match_after(oc_ui_pattern pattern, oc_ui_style* style,
 
 typedef enum
 {
-    OC_UI_SIZE_X, // WIDTH?
-    OC_UI_SIZE_Y, // HEIGHT?
+    OC_UI_SIZE_WIDTH,  // WIDTH?
+    OC_UI_SIZE_HEIGHT, // HEIGHT?
     OC_UI_AXIS,
     OC_UI_MARGIN_X,
     OC_UI_MARGIN_Y,
     OC_UI_SPACING,
-    OC_UI_ALIGN,
+    OC_UI_ALIGN_X,
+    OC_UI_ALIGN_Y,
     OC_UI_FLOATING_X,
     OC_UI_FLOATING_Y,
     OC_UI_FLOAT_TARGET_X,
