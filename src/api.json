@@ -15514,6 +15514,23 @@
         },
         {
             "kind": "proc",
+            "name": "oc_ui_button_str8",
+            "return": {
+                "kind": "namedType",
+                "name": "oc_ui_sig"
+            },
+            "params": [
+                {
+                    "name": "label",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_str8"
+                    }
+                }
+            ]
+        },
+        {
+            "kind": "proc",
             "name": "oc_ui_checkbox",
             "return": {
                 "kind": "namedType",
@@ -15527,6 +15544,32 @@
                         "type": {
                             "kind": "char"
                         }
+                    }
+                },
+                {
+                    "name": "checked",
+                    "type": {
+                        "kind": "pointer",
+                        "type": {
+                            "kind": "bool"
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "kind": "proc",
+            "name": "oc_ui_checkbox_str8",
+            "return": {
+                "kind": "namedType",
+                "name": "oc_ui_sig"
+            },
+            "params": [
+                {
+                    "name": "name",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_str8"
                     }
                 },
                 {
@@ -15573,6 +15616,35 @@
         },
         {
             "kind": "proc",
+            "name": "oc_ui_slider_str8",
+            "return": {
+                "kind": "pointer",
+                "type": {
+                    "kind": "namedType",
+                    "name": "oc_ui_box"
+                }
+            },
+            "params": [
+                {
+                    "name": "name",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_str8"
+                    }
+                },
+                {
+                    "name": "value",
+                    "type": {
+                        "kind": "pointer",
+                        "type": {
+                            "kind": "f32"
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "kind": "proc",
             "name": "oc_ui_scrollbar",
             "return": {
                 "kind": "pointer",
@@ -15589,6 +15661,41 @@
                         "type": {
                             "kind": "char"
                         }
+                    }
+                },
+                {
+                    "name": "thumbRatio",
+                    "type": {
+                        "kind": "f32"
+                    }
+                },
+                {
+                    "name": "scrollValue",
+                    "type": {
+                        "kind": "pointer",
+                        "type": {
+                            "kind": "f32"
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "kind": "proc",
+            "name": "oc_ui_scrollbar_str8",
+            "return": {
+                "kind": "pointer",
+                "type": {
+                    "kind": "namedType",
+                    "name": "oc_ui_box"
+                }
+            },
+            "params": [
+                {
+                    "name": "name",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_str8"
                     }
                 },
                 {
@@ -15653,6 +15760,29 @@
         },
         {
             "kind": "proc",
+            "name": "oc_ui_panel_begin_str8",
+            "return": {
+                "kind": "void"
+            },
+            "params": [
+                {
+                    "name": "name",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_str8"
+                    }
+                },
+                {
+                    "name": "flags",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_ui_flags"
+                    }
+                }
+            ]
+        },
+        {
+            "kind": "proc",
             "name": "oc_ui_panel_end",
             "return": {
                 "kind": "void"
@@ -15673,6 +15803,22 @@
                         "type": {
                             "kind": "char"
                         }
+                    }
+                }
+            ]
+        },
+        {
+            "kind": "proc",
+            "name": "oc_ui_menu_bar_begin_str8",
+            "return": {
+                "kind": "void"
+            },
+            "params": [
+                {
+                    "name": "name",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_str8"
                     }
                 }
             ]
@@ -15705,6 +15851,22 @@
         },
         {
             "kind": "proc",
+            "name": "oc_ui_menu_begin_str8",
+            "return": {
+                "kind": "void"
+            },
+            "params": [
+                {
+                    "name": "label",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_str8"
+                    }
+                }
+            ]
+        },
+        {
+            "kind": "proc",
             "name": "oc_ui_menu_end",
             "return": {
                 "kind": "void"
@@ -15726,6 +15888,23 @@
                         "type": {
                             "kind": "char"
                         }
+                    }
+                }
+            ]
+        },
+        {
+            "kind": "proc",
+            "name": "oc_ui_menu_button_str8",
+            "return": {
+                "kind": "namedType",
+                "name": "oc_ui_sig"
+            },
+            "params": [
+                {
+                    "name": "label",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_str8"
                     }
                 }
             ]
@@ -15754,6 +15933,26 @@
                             "kind": "namedType",
                             "name": "oc_str8"
                         }
+                    },
+                    {
+                        "name": "frame",
+                        "type": {
+                            "kind": "pointer",
+                            "type": {
+                                "kind": "namedType",
+                                "name": "oc_ui_box"
+                            }
+                        }
+                    },
+                    {
+                        "name": "textBox",
+                        "type": {
+                            "kind": "pointer",
+                            "type": {
+                                "kind": "namedType",
+                                "name": "oc_ui_box"
+                            }
+                        }
                     }
                 ]
             }
@@ -15773,6 +15972,40 @@
                         "type": {
                             "kind": "char"
                         }
+                    }
+                },
+                {
+                    "name": "arena",
+                    "type": {
+                        "kind": "pointer",
+                        "type": {
+                            "kind": "namedType",
+                            "name": "oc_arena"
+                        }
+                    }
+                },
+                {
+                    "name": "text",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_str8"
+                    }
+                }
+            ]
+        },
+        {
+            "kind": "proc",
+            "name": "oc_ui_text_box_str8",
+            "return": {
+                "kind": "namedType",
+                "name": "oc_ui_text_box_result"
+            },
+            "params": [
+                {
+                    "name": "name",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_str8"
                     }
                 },
                 {
@@ -15868,6 +16101,33 @@
             ]
         },
         {
+            "kind": "proc",
+            "name": "oc_ui_select_popup_str8",
+            "return": {
+                "kind": "namedType",
+                "name": "oc_ui_select_popup_info"
+            },
+            "params": [
+                {
+                    "name": "name",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_str8"
+                    }
+                },
+                {
+                    "name": "info",
+                    "type": {
+                        "kind": "pointer",
+                        "type": {
+                            "kind": "namedType",
+                            "name": "oc_ui_select_popup_info"
+                        }
+                    }
+                }
+            ]
+        },
+        {
             "kind": "typename",
             "name": "oc_ui_radio_group_info",
             "type": {
@@ -15919,6 +16179,33 @@
                         "type": {
                             "kind": "char"
                         }
+                    }
+                },
+                {
+                    "name": "info",
+                    "type": {
+                        "kind": "pointer",
+                        "type": {
+                            "kind": "namedType",
+                            "name": "oc_ui_radio_group_info"
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "kind": "proc",
+            "name": "oc_ui_radio_group_str8",
+            "return": {
+                "kind": "namedType",
+                "name": "oc_ui_radio_group_info"
+            },
+            "params": [
+                {
+                    "name": "name",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_str8"
                     }
                 },
                 {
