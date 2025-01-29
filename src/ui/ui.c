@@ -750,6 +750,65 @@ bool oc_ui_box_hovering(oc_ui_box* box, oc_vec2 p)
     return (result);
 }
 
+oc_ui_sig oc_ui_box_compute_signals(oc_ui_box* box)
+{
+    //NOTE: compute input signals
+    oc_ui_sig sig = { 0 };
+
+    oc_ui_context* ui = oc_ui_get_context();
+    oc_input_state* input = &ui->input;
+
+    sig.box = box;
+
+    if(!box->closed && !box->parentClosed)
+    {
+        oc_vec2 mousePos = oc_ui_mouse_position();
+
+        sig.mouse = (oc_vec2){ mousePos.x - box->rect.x, mousePos.y - box->rect.y };
+        sig.delta = oc_ui_mouse_delta();
+        sig.wheel = oc_ui_mouse_wheel();
+        sig.hovering = oc_ui_box_hovering(box, mousePos);
+
+        if(box->flags & OC_UI_FLAG_CLICKABLE)
+        {
+            if(sig.hovering)
+            {
+                sig.pressed = oc_mouse_pressed(input, OC_MOUSE_LEFT);
+                if(sig.pressed)
+                {
+                    if(!box->dragging)
+                    {
+                        box->pressedMouse = sig.mouse;
+                    }
+                    box->dragging = true;
+                }
+                sig.doubleClicked = oc_mouse_double_clicked(input, OC_MOUSE_LEFT);
+                sig.tripleClicked = oc_mouse_triple_clicked(input, OC_MOUSE_LEFT);
+                sig.rightPressed = oc_mouse_pressed(input, OC_MOUSE_RIGHT);
+            }
+
+            sig.released = oc_mouse_released(input, OC_MOUSE_LEFT);
+            if(sig.released)
+            {
+                if(box->dragging && sig.hovering)
+                {
+                    sig.clicked = true;
+                }
+            }
+
+            if(!oc_mouse_down(input, OC_MOUSE_LEFT))
+            {
+                box->dragging = false;
+            }
+
+            sig.dragging = box->dragging;
+        }
+
+        sig.pasted = oc_clipboard_pasted(input);
+    }
+    return (sig);
+}
+
 oc_ui_box* oc_ui_box_make_str8(oc_str8 string, oc_ui_flags flags)
 {
     oc_ui_context* ui = oc_ui_get_context();
@@ -821,6 +880,13 @@ oc_ui_box* oc_ui_box_make_str8(oc_str8 string, oc_ui_flags flags)
             box->scroll.y += wheel.y;
         }
     }
+
+    box->sig = oc_ui_box_compute_signals(box);
+    if(box->sig.hovering)
+    {
+        oc_ui_tag_box_str8(box, OC_STR8_LIT("hover"));
+    }
+
     return (box);
 }
 
@@ -862,6 +928,7 @@ bool oc_ui_box_closed(oc_ui_box* box)
 void oc_ui_box_activate(oc_ui_box* box)
 {
     box->active = true;
+    oc_ui_tag_box_str8(box, OC_STR8_LIT("active"));
 }
 
 void oc_ui_box_deactivate(oc_ui_box* box)
@@ -872,6 +939,10 @@ void oc_ui_box_deactivate(oc_ui_box* box)
 void oc_ui_box_set_active(oc_ui_box* box, bool active)
 {
     box->active = active;
+    if(active)
+    {
+        oc_ui_tag_box_str8(box, OC_STR8_LIT("active"));
+    }
 }
 
 bool oc_ui_box_active(oc_ui_box* box)
@@ -891,61 +962,7 @@ bool oc_ui_box_hot(oc_ui_box* box)
 
 oc_ui_sig oc_ui_box_sig(oc_ui_box* box)
 {
-    //NOTE: compute input signals
-    oc_ui_sig sig = { 0 };
-
-    oc_ui_context* ui = oc_ui_get_context();
-    oc_input_state* input = &ui->input;
-
-    sig.box = box;
-
-    if(!box->closed && !box->parentClosed)
-    {
-        oc_vec2 mousePos = oc_ui_mouse_position();
-
-        sig.mouse = (oc_vec2){ mousePos.x - box->rect.x, mousePos.y - box->rect.y };
-        sig.delta = oc_ui_mouse_delta();
-        sig.wheel = oc_ui_mouse_wheel();
-        sig.hovering = oc_ui_box_hovering(box, mousePos);
-
-        if(box->flags & OC_UI_FLAG_CLICKABLE)
-        {
-            if(sig.hovering)
-            {
-                sig.pressed = oc_mouse_pressed(input, OC_MOUSE_LEFT);
-                if(sig.pressed)
-                {
-                    if(!box->dragging)
-                    {
-                        box->pressedMouse = sig.mouse;
-                    }
-                    box->dragging = true;
-                }
-                sig.doubleClicked = oc_mouse_double_clicked(input, OC_MOUSE_LEFT);
-                sig.tripleClicked = oc_mouse_triple_clicked(input, OC_MOUSE_LEFT);
-                sig.rightPressed = oc_mouse_pressed(input, OC_MOUSE_RIGHT);
-            }
-
-            sig.released = oc_mouse_released(input, OC_MOUSE_LEFT);
-            if(sig.released)
-            {
-                if(box->dragging && sig.hovering)
-                {
-                    sig.clicked = true;
-                }
-            }
-
-            if(!oc_mouse_down(input, OC_MOUSE_LEFT))
-            {
-                box->dragging = false;
-            }
-
-            sig.dragging = box->dragging;
-        }
-
-        sig.pasted = oc_clipboard_pasted(input);
-    }
-    return (sig);
+    return box->sig;
 }
 
 bool oc_ui_box_hidden(oc_ui_box* box)
@@ -2234,6 +2251,15 @@ oc_ui_sig oc_ui_button_str8(oc_str8 key, oc_str8 text)
         oc_ui_style_set_f32(OC_UI_TEXT_SIZE, 12);
         oc_ui_style_set_color(OC_UI_BG_COLOR, ui->theme->fill0);
         oc_ui_style_set_f32(OC_UI_ROUNDNESS, theme->roundnessSmall);
+
+        oc_ui_style_rule(".hover")
+        {
+            oc_ui_style_set_color(OC_UI_BG_COLOR, ui->theme->fill1);
+        }
+        oc_ui_style_rule(".hover.active")
+        {
+            oc_ui_style_set_color(OC_UI_BG_COLOR, ui->theme->fill2);
+        }
     }
 
     oc_ui_sig sig = oc_ui_button_behavior(box);

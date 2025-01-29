@@ -88,6 +88,11 @@ i32 ui_runloop(void* user)
                 oc_ui_style_set_f32(OC_UI_MARGIN_Y, 10);
                 oc_ui_style_set_f32(OC_UI_SPACING, 10);
 
+                oc_ui_style_rule(".label.hover")
+                {
+                    oc_ui_style_set_color(OC_UI_BG_COLOR, (oc_color){ 1, 0, 1, 1 });
+                }
+
                 oc_ui_label("la", "Label A");
                 oc_ui_label("lb", "Label B");
                 oc_ui_label("lc", "Label C");

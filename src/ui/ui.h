@@ -547,7 +547,7 @@ struct oc_ui_box
     oc_rect rect;
 
     // signals
-    oc_ui_sig* sig;
+    oc_ui_sig sig;
 
     // stateful behaviour
     bool fresh;
