@@ -429,11 +429,8 @@ typedef struct oc_ui_selector
     oc_ui_selector_kind kind;
     oc_ui_selector_op op;
 
-    union
-    {
-        oc_str8 string;
-        u64 hash;
-    };
+    oc_str8 string;
+    u64 hash;
 
 } oc_ui_selector;
 
@@ -515,7 +512,8 @@ struct oc_ui_box
 
     // builder-provided info
     oc_ui_flags flags;
-    oc_str8 string;
+    oc_str8 keyString;
+    oc_str8 text;
     oc_list tags;
 
     oc_ui_box_draw_proc drawProc;
@@ -696,6 +694,9 @@ ORCA_API void oc_ui_box_set_draw_proc(oc_ui_box* box, oc_ui_box_draw_proc proc, 
 #define oc_ui_box_make(s, flags) oc_ui_box_make_str8(OC_STR8(s), flags)
 #define oc_ui_box_begin(s, flags) oc_ui_box_begin_str8(OC_STR8(s), flags)
 
+//TODO: find its place
+ORCA_API void oc_ui_set_text(oc_str8 text);
+
 //-------------------------------------------------------------------------------------
 // Box status and signals
 //-------------------------------------------------------------------------------------
@@ -745,10 +746,11 @@ ORCA_API void oc_ui_style_match_after(oc_ui_pattern pattern, oc_ui_style* style,
 
 //[WIP] ///////////////////////////////////////////////////////////
 
-ORCA_API void oc_ui_style_rule_begin(oc_ui_pattern pattern);
+ORCA_API void oc_ui_style_rule_begin(oc_str8 pattern);
 ORCA_API void oc_ui_style_rule_end();
 
-#define oc_ui_style_rule(p) oc_defer_loop(oc_ui_style_rule_begin(p), oc_ui_style_rule_end())
+#define oc_ui_style_rule(p) oc_defer_loop(oc_ui_style_rule_begin(OC_STR8(p)), oc_ui_style_rule_end())
+#define oc_ui_style_rule_str8(p) oc_defer_loop(oc_ui_style_rule_begin(p), oc_ui_style_rule_end())
 
 ORCA_API void oc_ui_style_set_i32(oc_ui_style_attribute attr, i32 i);
 ORCA_API void oc_ui_style_set_f32(oc_ui_style_attribute attr, f32 f);
@@ -761,10 +763,11 @@ ORCA_API void oc_ui_style_set_size(oc_ui_style_attribute attr, oc_ui_size size);
 //-------------------------------------------------------------------------
 // Basic widget helpers
 //-------------------------------------------------------------------------
-ORCA_API oc_ui_sig oc_ui_label(const char* label);
-ORCA_API oc_ui_sig oc_ui_label_str8(oc_str8 label);
+ORCA_API oc_ui_sig oc_ui_label(const char* key, const char* label);
+ORCA_API oc_ui_sig oc_ui_label_str8(oc_str8 key, oc_str8 label);
 
-ORCA_API oc_ui_sig oc_ui_button(const char* label);
+ORCA_API oc_ui_sig oc_ui_button(const char* key, const char* text);
+
 ORCA_API oc_ui_sig oc_ui_checkbox(const char* name, bool* checked);
 ORCA_API oc_ui_box* oc_ui_slider(const char* name, f32* value);
 ORCA_API oc_ui_box* oc_ui_scrollbar(const char* name, f32 thumbRatio, f32* scrollValue);

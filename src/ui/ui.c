@@ -253,6 +253,7 @@ void oc_ui_pattern_push(oc_arena* arena, oc_ui_pattern* pattern, oc_ui_selector 
 {
     oc_ui_selector* copy = oc_arena_push_type(arena, oc_ui_selector);
     *copy = selector;
+    copy->hash = oc_hash_xx64_string(copy->string);
     oc_list_push_back(&pattern->l, &copy->listElt);
 }
 
@@ -303,7 +304,7 @@ void oc_ui_style_match_after(oc_ui_pattern pattern, oc_ui_style* style, oc_ui_st
 }
 */
 
-void oc_ui_style_rule_begin(oc_ui_pattern pattern)
+void oc_ui_style_rule_begin(oc_str8 patternString)
 {
     oc_ui_context* ui = oc_ui_get_context();
     if(ui)
@@ -315,6 +316,89 @@ void oc_ui_style_rule_begin(oc_ui_pattern pattern)
         }
         else
         {
+            //NOTE: parse pattern from patternString
+            oc_ui_pattern pattern = { 0 };
+            u32 selectorStart = 0;
+            oc_ui_selector_op nextOp = OC_UI_SEL_DESCENDANT;
+            oc_ui_selector_kind nextKind = OC_UI_SEL_ID;
+
+            for(u32 index = 0; index < patternString.len; index++)
+            {
+                switch(patternString.ptr[index])
+                {
+                    case ' ':
+                    {
+                        //NOTE: emit the current selector and start a new descendant selector
+                        if(index - selectorStart)
+                        {
+                            oc_str8 string = oc_str8_slice(patternString, selectorStart, index);
+                            oc_ui_pattern_push(
+                                &ui->frameArena,
+                                &pattern,
+                                (oc_ui_selector){
+                                    .op = nextOp,
+                                    .kind = nextKind,
+                                    .string = string,
+                                });
+                        }
+                        nextOp = OC_UI_SEL_DESCENDANT;
+                        nextKind = OC_UI_SEL_ID;
+
+                        //NOTE: skip remaining whitespace
+                        while(index + 1 < patternString.len && patternString.ptr[index + 1] == ' ')
+                        {
+                            index++;
+                        }
+                        selectorStart = index + 1;
+                    }
+                    break;
+
+                    case '.':
+                    {
+                        //NOTE: emit the current selector and start new tag selector
+                        if(index - selectorStart)
+                        {
+                            oc_str8 string = oc_str8_slice(patternString, selectorStart, index);
+                            oc_ui_pattern_push(
+                                &ui->frameArena,
+                                &pattern,
+                                (oc_ui_selector){
+                                    .op = nextOp,
+                                    .kind = nextKind,
+                                    .string = string,
+                                });
+
+                            //NOTE: set next op to AND only if there was a selector before. Otherwise we're either
+                            // after a ' ' or an (ignored) empty tag, and in both case we must keep the next op as it is.
+                            nextOp = OC_UI_SEL_AND;
+                        }
+                        nextKind = OC_UI_SEL_TAG;
+                        selectorStart = index + 1;
+                    }
+                    break;
+
+                    default:
+                        //NOTE: just append character to current selector
+                        break;
+                }
+            }
+
+            //NOTE: emit last selector
+            if(patternString.len - selectorStart)
+            {
+                oc_str8 string = oc_str8_slice(patternString, selectorStart, patternString.len);
+
+                oc_ui_pattern_push(
+                    &ui->frameArena,
+                    &pattern,
+                    (oc_ui_selector){
+                        .op = nextOp,
+                        .kind = nextKind,
+                        .string = string,
+                    });
+            }
+
+            //NOTE: create the rule and put it on the workbench
             oc_ui_style_rule* rule = oc_arena_push_type(&ui->frameArena, oc_ui_style_rule);
             memset(rule, 0, sizeof(oc_ui_style_rule));
             rule->pattern = pattern;
@@ -685,7 +769,8 @@ oc_ui_box* oc_ui_box_make_str8(oc_str8 string, oc_ui_flags flags)
     }
 
     box->flags = flags;
-    box->string = oc_str8_push_copy(&ui->frameArena, string);
+    box->keyString = oc_str8_push_copy(&ui->frameArena, string);
+    box->text = (oc_str8){ 0 };
 
     //NOTE: setup hierarchy
     if(box->frameCounter != ui->frameCounter)
@@ -706,7 +791,7 @@ oc_ui_box* oc_ui_box_make_str8(oc_str8 string, oc_ui_flags flags)
     else
     {
         //maybe this should be a warning that we're trying to make the box twice in the same frame?
-        oc_log_warning("trying to make ui box '%.*s' multiple times in the same frame\n", (int)box->string.len, box->string.ptr);
+        oc_log_warning("trying to make ui box '%.*s' multiple times in the same frame\n", (int)string.len, string.ptr);
     }
 
     box->frameCounter = ui->frameCounter;
@@ -863,6 +948,17 @@ oc_ui_sig oc_ui_box_sig(oc_ui_box* box)
 bool oc_ui_box_hidden(oc_ui_box* box)
 {
     return (box->closed || box->parentClosed);
+}
+
+void oc_ui_set_text(oc_str8 text)
+{
+    oc_ui_context* ui = oc_ui_get_context();
+    oc_ui_box* box = oc_ui_box_top();
+    if(box)
+    {
+        box->text = oc_str8_push_copy(&ui->frameArena, text);
+    }
+    //TODO: else error?
 }
 
 //-----------------------------------------------------------------------------
@@ -1100,7 +1196,7 @@ bool oc_ui_style_selector_match(oc_ui_box* box, oc_ui_style_rule* rule, oc_ui_se
 
     if(selector->kind == OC_UI_SEL_ID)
     {
-        res = !oc_str8_cmp(box->string, selector->string);
+        res = !oc_str8_cmp(box->keyString, selector->string);
     }
     else
     {
@@ -1264,7 +1360,7 @@ void oc_ui_styling_prepass(oc_ui_context* ui, oc_ui_box* box, oc_list* ruleset)
     if(desiredSize[OC_UI_AXIS_X].kind == OC_UI_SIZE_TEXT
        || desiredSize[OC_UI_AXIS_Y].kind == OC_UI_SIZE_TEXT)
     {
-        textBox = oc_font_text_metrics(style->font, style->fontSize, box->string).logical;
+        textBox = oc_font_text_metrics(style->font, style->fontSize, box->text).logical;
     }
 
     for(int i = 0; i < OC_UI_AXIS_COUNT; i++)
@@ -1500,9 +1596,9 @@ void oc_ui_layout_upward_dependent_size(oc_ui_context* ui, oc_ui_box* box, int a
     }
     box->childrenSum[axis] = sum;
 
-    OC_ASSERT(box->rect.c[2 + axis] >= box->minSize[axis], "parent->string = %.*s, box->string = %.*s, axis = %i, box->size[axis].kind = %i, box->rect.c[2+axis] = %f, box->minSize[axis] = %f",
-              oc_str8_ip(box->parent->string),
-              oc_str8_ip(box->string),
+    OC_ASSERT(box->rect.c[2 + axis] >= box->minSize[axis], "parent->keyString = %.*s, box->keyStrig = %.*s, axis = %i, box->size[axis].kind = %i, box->rect.c[2+axis] = %f, box->minSize[axis] = %f",
+              oc_str8_ip(box->parent->keyString),
+              oc_str8_ip(box->keyString),
               axis,
               box->style.size.c[axis].kind,
               box->rect.c[2 + axis],
@@ -1672,7 +1768,7 @@ void oc_ui_layout_compute_rect(oc_ui_context* ui, oc_ui_box* box, oc_vec2 pos)
     }
     if(isnan(box->rect.w) || isnan(box->rect.h))
     {
-        oc_log_error("error in box %.*s\n", oc_str8_ip(box->string));
+        oc_log_error("error in box %.*s\n", oc_str8_ip(box->keyString));
         OC_ASSERT(0);
     }
 }
@@ -1815,7 +1911,7 @@ void oc_ui_draw_box(oc_ui_box* box)
 
     if(draw && (box->flags & OC_UI_FLAG_DRAW_TEXT))
     {
-        oc_rect textBox = oc_font_text_metrics(style->font, style->fontSize, box->string).logical;
+        oc_rect textBox = oc_font_text_metrics(style->font, style->fontSize, box->text).logical;
 
         f32 x = 0;
         f32 y = 0;
@@ -1854,7 +1950,7 @@ void oc_ui_draw_box(oc_ui_box* box)
         oc_set_color(style->color);
 
         oc_move_to(x, y);
-        oc_text_outlines(box->string);
+        oc_text_outlines(box->text);
         oc_fill();
     }
 
@@ -2008,15 +2104,18 @@ void oc_ui_cleanup(void)
 // label
 //-----------------------------------------------------------------------------
 
-oc_ui_sig oc_ui_label_str8(oc_str8 label)
+oc_ui_sig oc_ui_label_str8(oc_str8 key, oc_str8 label)
 {
     oc_ui_context* ui = oc_ui_get_context();
 
     oc_ui_flags flags = OC_UI_FLAG_CLIP
                       | OC_UI_FLAG_DRAW_TEXT;
 
-    oc_ui_box* box = oc_ui_box_str8(label, flags)
+    oc_ui_box* box = oc_ui_box_str8(key, flags)
     {
+        oc_ui_tag("label");
+        oc_ui_set_text(label);
+
         oc_ui_style_set_size(OC_UI_SIZE_WIDTH, (oc_ui_size){ OC_UI_SIZE_TEXT, 0, 0 });
         oc_ui_style_set_size(OC_UI_SIZE_HEIGHT, (oc_ui_size){ OC_UI_SIZE_TEXT, 0, 0 });
         oc_ui_style_set_color(OC_UI_COLOR, ui->theme->text0);
@@ -2028,9 +2127,9 @@ oc_ui_sig oc_ui_label_str8(oc_str8 label)
     return (sig);
 }
 
-oc_ui_sig oc_ui_label(const char* label)
+oc_ui_sig oc_ui_label(const char* key, const char* label)
 {
-    return (oc_ui_label_str8(OC_STR8((char*)label)));
+    return (oc_ui_label_str8(OC_STR8((char*)key), OC_STR8((char*)label)));
 }
 
 //------------------------------------------------------------------------------
@@ -2060,34 +2159,11 @@ oc_ui_sig oc_ui_button_behavior(oc_ui_box* box)
     return (sig);
 }
 
-oc_ui_sig oc_ui_button_str8(oc_str8 label)
+oc_ui_sig oc_ui_button_str8(oc_str8 key, oc_str8 text)
 {
     oc_ui_context* ui = oc_ui_get_context();
     oc_ui_theme* theme = ui->theme;
 
-    /*
-    oc_ui_style defaultStyle = { .size.width = { OC_UI_SIZE_TEXT },
-                                 .size.height = { OC_UI_SIZE_TEXT },
-                                 .layout.align.x = OC_UI_ALIGN_CENTER,
-                                 .layout.align.y = OC_UI_ALIGN_CENTER,
-                                 .layout.margin.x = 12,
-                                 .layout.margin.y = 6,
-                                 .color = theme->primary,
-                                 .bgColor = theme->fill0,
-                                 .roundness = theme->roundnessSmall };
-
-    oc_ui_style_mask defaultMask = OC_UI_MASK_SIZE_WIDTH
-                                 | OC_UI_MASK_SIZE_HEIGHT
-                                 | OC_UI_MASK_LAYOUT_MARGIN_X
-                                 | OC_UI_MASK_LAYOUT_MARGIN_Y
-                                 | OC_UI_MASK_LAYOUT_ALIGN_X
-                                 | OC_UI_MASK_LAYOUT_ALIGN_Y
-                                 | OC_UI_MASK_COLOR
-                                 | OC_UI_MASK_BG_COLOR
-                                 | OC_UI_MASK_ROUNDNESS;
-
-    oc_ui_style_next(&defaultStyle, defaultMask);
-*/
     /*
     oc_ui_pattern hoverPattern = { 0 };
     oc_ui_pattern_push(&ui->frameArena, &hoverPattern, (oc_ui_selector){ .kind = OC_UI_SEL_STATUS, .status = OC_UI_HOVER });
@@ -2107,8 +2183,9 @@ oc_ui_sig oc_ui_button_str8(oc_str8 label)
                       | OC_UI_FLAG_HOT_ANIMATION
                       | OC_UI_FLAG_ACTIVE_ANIMATION;
 
-    oc_ui_box* box = oc_ui_box_str8(label, flags)
+    oc_ui_box* box = oc_ui_box_str8(key, flags)
     {
+        oc_ui_set_text(text);
         oc_ui_tag("button");
 
         oc_ui_style_set_size(OC_UI_SIZE_WIDTH, (oc_ui_size){ OC_UI_SIZE_TEXT });
@@ -2128,9 +2205,9 @@ oc_ui_sig oc_ui_button_str8(oc_str8 label)
     return (sig);
 }
 
-oc_ui_sig oc_ui_button(const char* label)
+oc_ui_sig oc_ui_button(const char* key, const char* text)
 {
-    return (oc_ui_button_str8(OC_STR8((char*)label)));
+    return (oc_ui_button_str8(OC_STR8((char*)key), OC_STR8((char*)text)));
 }
 
 #if 0
