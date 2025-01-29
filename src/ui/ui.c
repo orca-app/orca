@@ -255,6 +255,9 @@ void oc_ui_pattern_push(oc_arena* arena, oc_ui_pattern* pattern, oc_ui_selector 
     *copy = selector;
     copy->hash = oc_hash_xx64_string(copy->string);
     oc_list_push_back(&pattern->l, &copy->listElt);
+
+    OC_DEBUG_ASSERT(selector.kind < 2);
+    pattern->specificity.s[selector.kind]++;
 }
 
 /*
@@ -1101,90 +1104,109 @@ void oc_ui_box_animate_style(oc_ui_context* ui, oc_ui_box* box)
     }
 }
 
-void oc_ui_apply_style_with_mask(oc_ui_style* dst, oc_ui_style* src, oc_ui_style_mask mask)
+bool oc_ui_style_apply_check(oc_ui_style_attribute attr,
+                             oc_ui_style_mask mask,
+                             oc_ui_pattern_specificity specificity,
+                             oc_ui_pattern_specificity* specArray)
 {
-    if(mask & OC_UI_MASK_SIZE_WIDTH)
+    bool result = (mask & oc_ui_style_attr_to_mask(attr))
+               && (specificity.id >= specArray[attr].id
+                   || (specificity.id == specArray[attr].id && specificity.tag >= specArray[attr].tag));
+    if(result)
+    {
+        specArray[attr] = specificity;
+    }
+    return result;
+}
+
+void oc_ui_style_apply(oc_ui_style* dst,
+                       oc_ui_style* src,
+                       oc_ui_style_mask mask,
+                       oc_ui_pattern_specificity specificity,
+                       oc_ui_pattern_specificity* specArray)
+{
+    if(oc_ui_style_apply_check(OC_UI_SIZE_WIDTH, mask, specificity, specArray))
     {
         dst->size.c[OC_UI_AXIS_X] = src->size.c[OC_UI_AXIS_X];
     }
-    if(mask & OC_UI_MASK_SIZE_HEIGHT)
+    if(oc_ui_style_apply_check(OC_UI_SIZE_HEIGHT, mask, specificity, specArray))
     {
         dst->size.c[OC_UI_AXIS_Y] = src->size.c[OC_UI_AXIS_Y];
     }
-    if(mask & OC_UI_MASK_LAYOUT_AXIS)
+    if(oc_ui_style_apply_check(OC_UI_AXIS, mask, specificity, specArray))
     {
         dst->layout.axis = src->layout.axis;
     }
-    if(mask & OC_UI_MASK_LAYOUT_ALIGN_X)
+    if(oc_ui_style_apply_check(OC_UI_ALIGN_X, mask, specificity, specArray))
     {
         dst->layout.align.x = src->layout.align.x;
     }
-    if(mask & OC_UI_MASK_LAYOUT_ALIGN_Y)
+    if(oc_ui_style_apply_check(OC_UI_ALIGN_Y, mask, specificity, specArray))
     {
         dst->layout.align.y = src->layout.align.y;
     }
-    if(mask & OC_UI_MASK_LAYOUT_SPACING)
+    if(oc_ui_style_apply_check(OC_UI_SPACING, mask, specificity, specArray))
     {
         dst->layout.spacing = src->layout.spacing;
     }
-    if(mask & OC_UI_MASK_LAYOUT_MARGIN_X)
+    if(oc_ui_style_apply_check(OC_UI_MARGIN_X, mask, specificity, specArray))
     {
         dst->layout.margin.x = src->layout.margin.x;
     }
-    if(mask & OC_UI_MASK_LAYOUT_MARGIN_Y)
+    if(oc_ui_style_apply_check(OC_UI_MARGIN_Y, mask, specificity, specArray))
     {
         dst->layout.margin.y = src->layout.margin.y;
     }
-    if(mask & OC_UI_MASK_FLOATING_X)
+    if(oc_ui_style_apply_check(OC_UI_FLOATING_X, mask, specificity, specArray))
     {
         dst->floating.c[OC_UI_AXIS_X] = src->floating.c[OC_UI_AXIS_X];
     }
-    if(mask & OC_UI_MASK_FLOATING_Y)
+    if(oc_ui_style_apply_check(OC_UI_FLOATING_Y, mask, specificity, specArray))
     {
         dst->floating.c[OC_UI_AXIS_Y] = src->floating.c[OC_UI_AXIS_Y];
     }
-    if(mask & OC_UI_MASK_FLOAT_TARGET_X)
+    if(oc_ui_style_apply_check(OC_UI_FLOAT_TARGET_X, mask, specificity, specArray))
     {
         dst->floatTarget.x = src->floatTarget.x;
     }
-    if(mask & OC_UI_MASK_FLOAT_TARGET_Y)
+    if(oc_ui_style_apply_check(OC_UI_FLOAT_TARGET_Y, mask, specificity, specArray))
     {
         dst->floatTarget.y = src->floatTarget.y;
     }
 
-    if(mask & OC_UI_MASK_COLOR)
+    if(oc_ui_style_apply_check(OC_UI_COLOR, mask, specificity, specArray))
     {
         dst->color = src->color;
     }
-    if(mask & OC_UI_MASK_BG_COLOR)
+    if(oc_ui_style_apply_check(OC_UI_BG_COLOR, mask, specificity, specArray))
     {
         dst->bgColor = src->bgColor;
     }
-    if(mask & OC_UI_MASK_BORDER_COLOR)
+    if(oc_ui_style_apply_check(OC_UI_BORDER_COLOR, mask, specificity, specArray))
     {
         dst->borderColor = src->borderColor;
     }
-    if(mask & OC_UI_MASK_BORDER_SIZE)
+    if(oc_ui_style_apply_check(OC_UI_BORDER_SIZE, mask, specificity, specArray))
     {
         dst->borderSize = src->borderSize;
     }
-    if(mask & OC_UI_MASK_ROUNDNESS)
+    if(oc_ui_style_apply_check(OC_UI_ROUNDNESS, mask, specificity, specArray))
     {
         dst->roundness = src->roundness;
     }
-    if(mask & OC_UI_MASK_FONT)
+    if(oc_ui_style_apply_check(OC_UI_FONT, mask, specificity, specArray))
     {
         dst->font = src->font;
     }
-    if(mask & OC_UI_MASK_FONT_SIZE)
+    if(oc_ui_style_apply_check(OC_UI_TEXT_SIZE, mask, specificity, specArray))
     {
         dst->fontSize = src->fontSize;
     }
-    if(mask & OC_UI_MASK_ANIMATION_TIME)
+    if(oc_ui_style_apply_check(OC_UI_ANIMATION_TIME, mask, specificity, specArray))
     {
         dst->animationTime = src->animationTime;
     }
-    if(mask & OC_UI_MASK_ANIMATION_MASK)
+    if(oc_ui_style_apply_check(OC_UI_ANIMATION_MASK, mask, specificity, specArray))
     {
         dst->animationMask = src->animationMask;
     }
@@ -1213,7 +1235,7 @@ bool oc_ui_style_selector_match(oc_ui_box* box, oc_ui_style_rule* rule, oc_ui_se
     return (res);
 }
 
-oc_ui_style_rule* oc_ui_style_rule_match(oc_ui_context* ui, oc_ui_box* box, oc_ui_style_rule* rule)
+oc_ui_style_rule* oc_ui_style_rule_match(oc_ui_context* ui, oc_ui_box* box, oc_ui_style_rule* rule, oc_ui_pattern_specificity* specArray)
 {
     oc_ui_selector* selector = oc_list_first_entry(rule->pattern.l, oc_ui_selector, listElt);
     bool match = oc_ui_style_selector_match(box, rule, selector);
@@ -1230,7 +1252,11 @@ oc_ui_style_rule* oc_ui_style_rule_match(oc_ui_context* ui, oc_ui_box* box, oc_u
     {
         if(!selector)
         {
-            oc_ui_apply_style_with_mask(box->targetStyle, &rule->style, rule->mask);
+            oc_ui_style_apply(box->targetStyle,
+                              &rule->style,
+                              rule->mask,
+                              rule->pattern.specificity,
+                              specArray);
         }
         else
         {
@@ -1239,6 +1265,7 @@ oc_ui_style_rule* oc_ui_style_rule_match(oc_ui_context* ui, oc_ui_box* box, oc_u
             derived->mask = rule->mask;
             derived->style = rule->style;
             derived->pattern.l = (oc_list){ &selector->listElt, rule->pattern.l.last };
+            derived->pattern.specificity = rule->pattern.specificity;
         }
     }
     return derived;
@@ -1307,15 +1334,23 @@ void oc_ui_styling_prepass(oc_ui_context* ui, oc_ui_box* box, oc_list* ruleset)
     }
 
     //NOTE(martin): match ruleset against box, which may produce derived rules
+
+    oc_arena_scope scratch = oc_scratch_begin();
+
+    oc_ui_pattern_specificity* specArray = oc_arena_push_array(scratch.arena, oc_ui_pattern_specificity, OC_UI_STYLE_ATTR_COUNT);
+    memset(specArray, 0, sizeof(oc_ui_pattern_specificity) * OC_UI_STYLE_ATTR_COUNT);
+
     oc_list derivedRules = { 0 };
     oc_list_for(*ruleset, rule, oc_ui_style_rule, rulesetElt)
     {
-        oc_ui_style_rule* derived = oc_ui_style_rule_match(ui, box, rule);
+        oc_ui_style_rule* derived = oc_ui_style_rule_match(ui, box, rule, specArray);
         if(derived)
         {
             oc_list_push_back(&derivedRules, &derived->rulesetElt);
         }
     }
+
+    oc_scratch_end(scratch);
 
     //NOTE(martin): add derived rules to ruleset and recurse in children
     if(ruleset->last)

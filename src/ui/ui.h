@@ -129,6 +129,8 @@ typedef enum
     OC_UI_ROUNDNESS,
     OC_UI_ANIMATION_TIME,
     OC_UI_ANIMATION_MASK,
+
+    OC_UI_STYLE_ATTR_COUNT,
 } oc_ui_style_attribute;
 
 //NOTE: flags for axis-dependent properties (e.g. OC_UI_STYLE_FLOAT_X/Y) need to be consecutive bits
@@ -411,7 +413,7 @@ typedef struct oc_ui_tag
 
 typedef enum
 {
-    OC_UI_SEL_ID,
+    OC_UI_SEL_ID = 0,
     OC_UI_SEL_TAG,
 
 } oc_ui_selector_kind;
@@ -434,9 +436,21 @@ typedef struct oc_ui_selector
 
 } oc_ui_selector;
 
+typedef union oc_ui_pattern_specificity
+{
+    struct
+    {
+        u32 id;
+        u32 tag;
+    };
+
+    u32 s[2];
+} oc_ui_pattern_specificity;
+
 typedef struct oc_ui_pattern
 {
     oc_list l;
+    oc_ui_pattern_specificity specificity;
 } oc_ui_pattern;
 
 typedef struct oc_ui_box oc_ui_box;
