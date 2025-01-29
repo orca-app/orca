@@ -401,6 +401,9 @@ typedef struct oc_ui_theme
     f32 roundnessLarge;
 
     oc_ui_palette* palette;
+
+    oc_font font;
+
 } oc_ui_theme;
 
 extern oc_ui_theme OC_UI_DARK_THEME;
@@ -504,8 +507,6 @@ typedef enum
     OC_UI_FLAG_OVERFLOW_ALLOW_X = (1 << 6), // this should be in layout style?
     OC_UI_FLAG_OVERFLOW_ALLOW_Y = (1 << 7), // this should be in layout style?
     OC_UI_FLAG_CLIP = (1 << 8),             // this should be in layout style?
-
-    OC_UI_FLAG_DRAW_TEXT = (1 << 12),
 
     OC_UI_FLAG_OVERLAY = (1 << 16),
 } oc_ui_flags;
@@ -647,13 +648,11 @@ typedef struct oc_ui_context
     i32 editWordSelectionInitialCursor;
     i32 editWordSelectionInitialMark;
 
-    oc_ui_theme* theme;
+    oc_list themeStack;
 
     //TODO: reorganize
     oc_ui_style_rule* workingRule;
 
-    //TODO: put that in theme
-    oc_font defaultFont;
 } oc_ui_context;
 
 //-------------------------------------------------------------------------------------
@@ -667,7 +666,10 @@ ORCA_API void oc_ui_process_event(oc_event* event);
 ORCA_API void oc_ui_begin_frame(oc_vec2 size, oc_ui_style* defaultStyle, oc_ui_style_mask mask);
 ORCA_API void oc_ui_end_frame(void);
 ORCA_API void oc_ui_draw(void);
-ORCA_API void oc_ui_set_theme(oc_ui_theme* theme);
+
+ORCA_API void oc_ui_theme_push(oc_ui_theme* theme);
+ORCA_API void oc_ui_theme_pop();
+ORCA_API oc_ui_theme* oc_ui_get_theme();
 
 #define oc_ui_frame(size, style, mask) oc_defer_loop(oc_ui_begin_frame((size), (style), (mask)), oc_ui_end_frame())
 

@@ -27,17 +27,36 @@ void oc_ui_set_context(oc_ui_context* context)
     oc_uiCurrentContext = context;
 }
 
-void oc_ui_set_theme(oc_ui_theme* theme)
+typedef struct oc_ui_theme_stack_elt
 {
-    oc_ui_get_context()->theme = theme;
-    if(theme == &OC_UI_DARK_THEME)
+    oc_list_elt listElt;
+    oc_ui_theme* theme;
+} oc_ui_theme_stack_elt;
+
+void oc_ui_theme_push(oc_ui_theme* theme)
+{
+    oc_ui_context* ui = oc_ui_get_context();
+    oc_ui_theme_stack_elt* elt = oc_arena_push_type(&ui->frameArena, oc_ui_theme_stack_elt);
+    elt->theme = theme;
+    oc_list_push_front(&ui->themeStack, &elt->listElt);
+}
+
+void oc_ui_theme_pop()
+{
+    oc_ui_context* ui = oc_ui_get_context();
+    oc_list_pop_front(&ui->themeStack);
+}
+
+oc_ui_theme* oc_ui_get_theme()
+{
+    oc_ui_theme* theme = 0;
+    oc_ui_context* ui = oc_ui_get_context();
+    oc_ui_theme_stack_elt* elt = oc_list_first_entry(ui->themeStack, oc_ui_theme_stack_elt, listElt);
+    if(elt)
     {
-        theme->palette = &OC_UI_DARK_PALETTE;
+        theme = elt->theme;
     }
-    if(theme == &OC_UI_LIGHT_THEME)
-    {
-        theme->palette = &OC_UI_LIGHT_PALETTE;
-    }
+    return theme;
 }
 
 //-----------------------------------------------------------------------------
@@ -1961,7 +1980,10 @@ void oc_ui_draw_box(oc_ui_box* box)
         oc_ui_draw_box(child);
     }
 
-    if(draw && (box->flags & OC_UI_FLAG_DRAW_TEXT))
+    if(draw
+       && box->text.len
+       && !oc_font_is_nil(style->font)
+       && style->fontSize > 0)
     {
         oc_rect textBox = oc_font_text_metrics(style->font, style->fontSize, box->text).logical;
 
@@ -2050,7 +2072,8 @@ void oc_ui_begin_frame(oc_vec2 size, oc_ui_style* defaultStyle, oc_ui_style_mask
     oc_ui_context* ui = oc_ui_get_context();
 
     //TODO: debug, remove
-    ui->defaultFont = defaultStyle->font;
+    OC_UI_DARK_THEME.font = defaultStyle->font;
+    oc_ui_theme_push(&OC_UI_DARK_THEME);
 
     ui->frameCounter++;
     f64 time = oc_clock_time(OC_CLOCK_MONOTONIC);
@@ -2122,6 +2145,8 @@ void oc_ui_end_frame(void)
         }
     }
 
+    oc_ui_theme_pop();
+
     oc_arena_clear(&ui->frameArena);
     oc_input_next_frame(&ui->input);
 }
@@ -2139,7 +2164,7 @@ void oc_ui_init(oc_ui_context* ui)
     ui->init = true;
 
     oc_ui_set_context(ui);
-    oc_ui_set_theme(&OC_UI_DARK_THEME);
+    oc_ui_theme_push(&OC_UI_DARK_THEME);
 
     ui->editSelectionMode = OC_UI_EDIT_MOVE_CHAR;
 }
@@ -2158,10 +2183,9 @@ void oc_ui_cleanup(void)
 
 oc_ui_sig oc_ui_label_str8(oc_str8 key, oc_str8 label)
 {
-    oc_ui_context* ui = oc_ui_get_context();
+    oc_ui_theme* theme = oc_ui_get_theme();
 
-    oc_ui_flags flags = OC_UI_FLAG_CLIP
-                      | OC_UI_FLAG_DRAW_TEXT;
+    oc_ui_flags flags = OC_UI_FLAG_CLIP;
 
     oc_ui_box* box = oc_ui_box_str8(key, flags)
     {
@@ -2170,9 +2194,9 @@ oc_ui_sig oc_ui_label_str8(oc_str8 key, oc_str8 label)
 
         oc_ui_style_set_size(OC_UI_SIZE_WIDTH, (oc_ui_size){ OC_UI_SIZE_TEXT, 0, 0 });
         oc_ui_style_set_size(OC_UI_SIZE_HEIGHT, (oc_ui_size){ OC_UI_SIZE_TEXT, 0, 0 });
-        oc_ui_style_set_color(OC_UI_COLOR, ui->theme->text0);
-        oc_ui_style_set_font(OC_UI_FONT, ui->defaultFont); //TODO: should have font in theme
-        oc_ui_style_set_f32(OC_UI_TEXT_SIZE, 12);          //TODO: should have text sizes theme
+        oc_ui_style_set_color(OC_UI_COLOR, theme->text0);
+        oc_ui_style_set_font(OC_UI_FONT, theme->font); //TODO: should have font in theme
+        oc_ui_style_set_f32(OC_UI_TEXT_SIZE, 12);      //TODO: should have text sizes theme
     }
 
     oc_ui_sig sig = oc_ui_box_sig(box);
@@ -2213,25 +2237,10 @@ oc_ui_sig oc_ui_button_behavior(oc_ui_box* box)
 
 oc_ui_sig oc_ui_button_str8(oc_str8 key, oc_str8 text)
 {
-    oc_ui_context* ui = oc_ui_get_context();
-    oc_ui_theme* theme = ui->theme;
-
-    /*
-    oc_ui_pattern hoverPattern = { 0 };
-    oc_ui_pattern_push(&ui->frameArena, &hoverPattern, (oc_ui_selector){ .kind = OC_UI_SEL_STATUS, .status = OC_UI_HOVER });
-    oc_ui_style hoverStyle = { .bgColor = theme->fill1 };
-    oc_ui_style_match_before(hoverPattern, &hoverStyle, OC_UI_MASK_BG_COLOR);
-
-    oc_ui_pattern activeAndHoverPattern = { 0 };
-    oc_ui_pattern_push(&ui->frameArena, &activeAndHoverPattern, (oc_ui_selector){ .kind = OC_UI_SEL_STATUS, .status = OC_UI_ACTIVE });
-    oc_ui_pattern_push(&ui->frameArena, &activeAndHoverPattern, (oc_ui_selector){ .op = OC_UI_SEL_AND, .kind = OC_UI_SEL_STATUS, .status = OC_UI_HOVER });
-    oc_ui_style activeAndHoverStyle = { .bgColor = theme->fill2 };
-    oc_ui_style_match_before(activeAndHoverPattern, &activeAndHoverStyle, OC_UI_MASK_BG_COLOR);
-    */
+    oc_ui_theme* theme = oc_ui_get_theme();
 
     oc_ui_flags flags = OC_UI_FLAG_CLICKABLE
                       | OC_UI_FLAG_CLIP
-                      | OC_UI_FLAG_DRAW_TEXT
                       | OC_UI_FLAG_HOT_ANIMATION
                       | OC_UI_FLAG_ACTIVE_ANIMATION;
 
@@ -2246,19 +2255,19 @@ oc_ui_sig oc_ui_button_str8(oc_str8 key, oc_str8 text)
         oc_ui_style_set_i32(OC_UI_ALIGN_Y, OC_UI_ALIGN_CENTER);
         oc_ui_style_set_f32(OC_UI_MARGIN_X, 12);
         oc_ui_style_set_f32(OC_UI_MARGIN_X, 6);
-        oc_ui_style_set_color(OC_UI_COLOR, ui->theme->primary);
-        oc_ui_style_set_font(OC_UI_FONT, ui->defaultFont);
+        oc_ui_style_set_color(OC_UI_COLOR, theme->primary);
+        oc_ui_style_set_font(OC_UI_FONT, theme->font);
         oc_ui_style_set_f32(OC_UI_TEXT_SIZE, 12);
-        oc_ui_style_set_color(OC_UI_BG_COLOR, ui->theme->fill0);
+        oc_ui_style_set_color(OC_UI_BG_COLOR, theme->fill0);
         oc_ui_style_set_f32(OC_UI_ROUNDNESS, theme->roundnessSmall);
 
         oc_ui_style_rule(".hover")
         {
-            oc_ui_style_set_color(OC_UI_BG_COLOR, ui->theme->fill1);
+            oc_ui_style_set_color(OC_UI_BG_COLOR, theme->fill1);
         }
         oc_ui_style_rule(".hover.active")
         {
-            oc_ui_style_set_color(OC_UI_BG_COLOR, ui->theme->fill2);
+            oc_ui_style_set_color(OC_UI_BG_COLOR, theme->fill2);
         }
     }
 
@@ -2973,7 +2982,7 @@ void oc_ui_menu_begin_str8(oc_str8 label)
     oc_ui_style_next(&(oc_ui_style){ .size.width = { OC_UI_SIZE_TEXT },
                                      .size.height = { OC_UI_SIZE_TEXT } },
                      OC_UI_MASK_SIZE);
-    oc_ui_box* buttonLabel = oc_ui_box_make_str8(label, OC_UI_FLAG_DRAW_TEXT);
+    oc_ui_box* buttonLabel = oc_ui_box_make_str8(label);
 
     oc_ui_box_end(); // button
 
@@ -3074,8 +3083,7 @@ oc_ui_sig oc_ui_menu_button_str8(oc_str8 label)
     oc_ui_style_match_before(activePattern, &activeStyle, OC_UI_MASK_BG_COLOR);
 
     oc_ui_flags flags = OC_UI_FLAG_CLICKABLE
-                      | OC_UI_FLAG_CLIP
-                      | OC_UI_FLAG_DRAW_TEXT;
+                      | OC_UI_FLAG_CLIP;
 
     oc_ui_box* box = oc_ui_box_make_str8(label, flags);
     oc_ui_sig sig = oc_ui_box_sig(box);
@@ -3321,7 +3329,7 @@ oc_ui_select_popup_info oc_ui_select_popup_str8(oc_str8 name, oc_ui_select_popup
                     oc_ui_style_next(&(oc_ui_style){ .size.width = { OC_UI_SIZE_PIXELS, maxOptionWidth },
                                                      .size.height = { OC_UI_SIZE_TEXT } },
                                      OC_UI_MASK_SIZE);
-                    oc_ui_box* label = oc_ui_box_make_str8(info->options[i], OC_UI_FLAG_DRAW_TEXT);
+                    oc_ui_box* label = oc_ui_box_make_str8(info->options[i], OC_UI_FLAG_NONE);
                 }
 
                 oc_ui_sig sig = oc_ui_box_sig(wrapper);
