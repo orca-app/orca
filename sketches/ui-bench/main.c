@@ -177,6 +177,9 @@ int main()
         //TODO: what to do with mem scratch here?
     }
 
+    i64 exitCode = 0;
+    oc_thread_join(runloopThread, &exitCode);
+
     oc_surface_destroy(surface);
     oc_terminate();
 
