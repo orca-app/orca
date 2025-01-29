@@ -1,6 +1,6 @@
 #include <stdio.h>
 #include <orca.h>
-#include "microui.h"
+#include "microui/microui.h"
 
 static  char logbuf[64000];
 static   int logbuf_updated = 0;
