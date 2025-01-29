@@ -6,7 +6,7 @@
 *
 **************************************************************************/
 #include <orca.h>
-#include "microui.h"
+#include "microui/microui.h"
 #include "demo.c"
 
 oc_surface surface = { 0 };
