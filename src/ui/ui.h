@@ -429,7 +429,11 @@ typedef struct oc_ui_selector
     oc_ui_selector_kind kind;
     oc_ui_selector_op op;
 
-    u64 hash;
+    union
+    {
+        oc_str8 string;
+        u64 hash;
+    };
 
 } oc_ui_selector;
 
@@ -443,8 +447,7 @@ typedef struct oc_ui_box oc_ui_box;
 typedef struct oc_ui_style_rule
 {
     oc_list_elt boxElt;
-    oc_list_elt buildElt;
-    oc_list_elt tmpElt;
+    oc_list_elt rulesetElt;
 
     oc_ui_box* owner;
     oc_ui_pattern pattern;

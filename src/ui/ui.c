@@ -318,6 +318,8 @@ void oc_ui_style_rule_begin(oc_ui_pattern pattern)
             oc_ui_style_rule* rule = oc_arena_push_type(&ui->frameArena, oc_ui_style_rule);
             memset(rule, 0, sizeof(oc_ui_style_rule));
             rule->pattern = pattern;
+
+            ui->workingRule = rule;
         }
     }
 }
@@ -713,7 +715,8 @@ oc_ui_box* oc_ui_box_make_str8(oc_str8 string, oc_ui_flags flags)
     box->targetStyle = oc_arena_push_type(&ui->frameArena, oc_ui_style);
     memset(box->targetStyle, 0, sizeof(oc_ui_style));
 
-    //NOTE: set tags, before rules and last box
+    //NOTE: set tags, rules and last box
+    box->rules = (oc_list){ 0 };
     box->tags = ui->nextBoxTags;
     ui->nextBoxTags = (oc_list){ 0 };
 
@@ -1097,7 +1100,7 @@ bool oc_ui_style_selector_match(oc_ui_box* box, oc_ui_style_rule* rule, oc_ui_se
 
     if(selector->kind == OC_UI_SEL_ID)
     {
-        res = (box->key.hash == selector->hash);
+        res = !oc_str8_cmp(box->string, selector->string);
     }
     else
     {
@@ -1114,7 +1117,7 @@ bool oc_ui_style_selector_match(oc_ui_box* box, oc_ui_style_rule* rule, oc_ui_se
     return (res);
 }
 
-void oc_ui_style_rule_match(oc_ui_context* ui, oc_ui_box* box, oc_ui_style_rule* rule, oc_list* buildList, oc_list* tmpList)
+oc_ui_style_rule* oc_ui_style_rule_match(oc_ui_context* ui, oc_ui_box* box, oc_ui_style_rule* rule)
 {
     oc_ui_selector* selector = oc_list_first_entry(rule->pattern.l, oc_ui_selector, listElt);
     bool match = oc_ui_style_selector_match(box, rule, selector);
@@ -1126,6 +1129,7 @@ void oc_ui_style_rule_match(oc_ui_context* ui, oc_ui_box* box, oc_ui_style_rule*
         selector = oc_list_next_entry(selector, oc_ui_selector, listElt);
     }
 
+    oc_ui_style_rule* derived = 0;
     if(match)
     {
         if(!selector)
@@ -1135,51 +1139,113 @@ void oc_ui_style_rule_match(oc_ui_context* ui, oc_ui_box* box, oc_ui_style_rule*
         else
         {
             //NOTE create derived rule if there's more than one selector
-            oc_ui_style_rule* derived = oc_arena_push_type(&ui->frameArena, oc_ui_style_rule);
+            derived = oc_arena_push_type(&ui->frameArena, oc_ui_style_rule);
             derived->mask = rule->mask;
             derived->style = rule->style;
             derived->pattern.l = (oc_list){ &selector->listElt, rule->pattern.l.last };
-
-            oc_list_push_back(buildList, &derived->buildElt);
-            oc_list_push_back(tmpList, &derived->tmpElt);
         }
     }
+    return derived;
 }
 
-void oc_ui_styling_prepass(oc_ui_context* ui, oc_ui_box* box, oc_list* before, oc_list* after)
+/*
+void oc_ui_styling_prepass(oc_ui_context* ui,
+                           oc_ui_box* box,
+                           u32 rulesetCount,
+                           oc_ui_style_rule** ruleset,
+                           u32 derivedCount,
+                           oc_ui_style_rule** derivedRules)
 {
-    /*TODO: remove
-    //NOTE: append box before rules to before and tmp
-    oc_list tmpBefore = { 0 };
-    oc_list_for(box->beforeRules, rule, oc_ui_style_rule, boxElt)
+    oc_arena_scope scratch = oc_scratch_begin();
+
+    //NOTE: form local ruleset from parent ruleset, derivedRules, and box rules
+    u32 localRuleCount = rulesetCount + derivedCount + box->ruleCount;
+    oc_ui_style_rule** localRules = oc_arena_push_array(scratch.arena, oc_ui_style_rule*, localRuleCount);
+
+    memcpy(localRules, ruleset, rulesetCount * sizeof(oc_ui_style_rule*));
+    memcpy(localRules + rulesetCount * sizeof(oc_ui_style_rule*), derivedRules, derivedCount * sizeof(oc_ui_style_rule*));
+
+    u32 index = rulesetCount + derivedCount;
+    oc_list_for(box->rules, rule, oc_ui_style_rule, boxElt)
     {
-        oc_list_push_back(before, &rule->buildElt);
-        oc_list_push_back(&tmpBefore, &rule->tmpElt);
-    }
-    //NOTE: match before rules
-    oc_list_for(*before, rule, oc_ui_style_rule, buildElt)
-    {
-        oc_ui_style_rule_match(ui, box, rule, before, &tmpBefore);
+        localRules[index] = rule;
+        index++;
     }
 
-    //NOTE: prepend box after rules to after and append them to tmp
-    oc_list tmpAfter = { 0 };
-    oc_list_for_reverse(box->afterRules, rule, oc_ui_style_rule, boxElt)
+    //NOTE: match ruleset, applying style and producing at most as many derived rules
+    oc_ui_style_rule** localDerived = oc_arena_push_array(scratch.arena, oc_ui_style_rule*, localRuleCount);
+    u32 localDerivedCount = 0;
+    for(u32 i = 0; i < localRuleCount; i++)
     {
-        oc_list_push_front(after, &rule->buildElt);
-        oc_list_push_back(&tmpAfter, &rule->tmpElt);
+        oc_ui_style_rule* derived = oc_ui_style_match(scratch.arena, box, rule);
+        if(derived)
+        {
+            localDerived[localDerivedCount] = derived;
+            localDerivedCount++;
+        }
     }
 
-    //NOTE: match after rules
-    oc_list_for(*after, rule, oc_ui_style_rule, buildElt)
+    //NOTE: recurse in children
+    oc_list_for(box->children, child, oc_ui_box, parentElt)
     {
-        oc_ui_style_rule_match(ui, box, rule, after, &tmpAfter);
+        oc_ui_styling_prepass(ui,
+                              child,
+                              localRuleCount,
+                              localRuleset,
+                              localDerivedCount,
+                              localRerived);
     }
-    */
 
-    ////////////////////////////////////////////////////////////////////////////
-    //TODO: match rules
-    ////////////////////////////////////////////////////////////////////////////
+    oc_scratch_end();
+}
+*/
+
+void oc_ui_styling_prepass(oc_ui_context* ui, oc_ui_box* box, oc_list* ruleset)
+{
+    oc_list saveParent = *ruleset;
+
+    //NOTE(martin): add box rules to the ruleset
+    oc_list_for(box->rules, rule, oc_ui_style_rule, boxElt)
+    {
+        oc_list_push_back(ruleset, &rule->rulesetElt);
+    }
+
+    //NOTE(martin): match ruleset against box, which may produce derived rules
+    oc_list derivedRules = { 0 };
+    oc_list_for(*ruleset, rule, oc_ui_style_rule, rulesetElt)
+    {
+        oc_ui_style_rule* derived = oc_ui_style_rule_match(ui, box, rule);
+        if(derived)
+        {
+            oc_list_push_back(&derivedRules, &derived->rulesetElt);
+        }
+    }
+
+    //NOTE(martin): add derived rules to ruleset and recurse in children
+    if(ruleset->last)
+    {
+        ruleset->last->next = derivedRules.first;
+    }
+    if(derivedRules.first)
+    {
+        derivedRules.first->prev = ruleset->last;
+    }
+    if(derivedRules.last)
+    {
+        ruleset->last = derivedRules.last;
+    }
+
+    oc_list_for(box->children, child, oc_ui_box, listElt)
+    {
+        oc_ui_styling_prepass(ui, child, ruleset);
+    }
+
+    //NOTE(martin): restore ruleset to its previous state
+    *ruleset = saveParent;
+    if(ruleset->last)
+    {
+        ruleset->last->next = 0;
+    }
 
     //NOTE: compute static sizes
     oc_ui_box_animate_style(ui, box);
@@ -1215,24 +1281,6 @@ void oc_ui_styling_prepass(oc_ui_context* ui, oc_ui_box* box, oc_list* before, o
             box->rect.c[2 + i] = size.value;
         }
     }
-
-    //NOTE: descend in children
-    oc_list_for(box->children, child, oc_ui_box, listElt)
-    {
-        oc_ui_styling_prepass(ui, child, before, after);
-    }
-
-    /*TODO: remove
-    //NOTE: remove temporary rules
-    oc_list_for(tmpBefore, rule, oc_ui_style_rule, tmpElt)
-    {
-        oc_list_remove(before, &rule->buildElt);
-    }
-    oc_list_for(tmpAfter, rule, oc_ui_style_rule, tmpElt)
-    {
-        oc_list_remove(after, &rule->buildElt);
-    }
-    */
 }
 
 bool oc_ui_layout_downward_dependency(oc_ui_box* child, int axis)
@@ -1658,11 +1706,9 @@ void oc_ui_layout_find_next_hovered(oc_ui_context* ui, oc_vec2 p)
 
 void oc_ui_solve_layout(oc_ui_context* ui)
 {
-    oc_list beforeRules = { 0 };
-    oc_list afterRules = { 0 };
-
     //NOTE: style and compute static sizes
-    oc_ui_styling_prepass(ui, ui->root, &beforeRules, &afterRules);
+    oc_list rules = { 0 };
+    oc_ui_styling_prepass(ui, ui->root, &rules);
 
     //NOTE: reparent overlay boxes
     oc_list_for(ui->overlayList, box, oc_ui_box, overlayElt)
@@ -2063,6 +2109,8 @@ oc_ui_sig oc_ui_button_str8(oc_str8 label)
 
     oc_ui_box* box = oc_ui_box_str8(label, flags)
     {
+        oc_ui_tag("button");
+
         oc_ui_style_set_size(OC_UI_SIZE_WIDTH, (oc_ui_size){ OC_UI_SIZE_TEXT });
         oc_ui_style_set_size(OC_UI_SIZE_HEIGHT, (oc_ui_size){ OC_UI_SIZE_TEXT });
         oc_ui_style_set_i32(OC_UI_ALIGN_X, OC_UI_ALIGN_CENTER);
@@ -2075,7 +2123,6 @@ oc_ui_sig oc_ui_button_str8(oc_str8 label)
         oc_ui_style_set_color(OC_UI_BG_COLOR, ui->theme->fill0);
         oc_ui_style_set_f32(OC_UI_ROUNDNESS, theme->roundnessSmall);
     }
-    oc_ui_tag_box(box, "button");
 
     oc_ui_sig sig = oc_ui_button_behavior(box);
     return (sig);
