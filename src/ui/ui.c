@@ -137,6 +137,7 @@ void oc_ui_box_push(oc_ui_box* box)
     {
         oc_ui_clip_push(box->rect);
     }
+    box->styleVariables = (oc_list){ 0 };
 }
 
 void oc_ui_box_pop(void)
@@ -150,6 +151,11 @@ void oc_ui_box_pop(void)
             oc_ui_clip_pop();
         }
         oc_ui_stack_pop(&ui->boxStack);
+
+        oc_list_for(box->styleVariables, var, oc_ui_style_var, boxElt)
+        {
+            oc_list_remove(&var->stack->vars, &var->stackElt);
+        }
     }
 }
 
@@ -714,6 +720,275 @@ void oc_ui_style_set_size(oc_ui_style_attribute attr, oc_ui_size size)
         ui->workingRule->mask |= oc_ui_style_attr_to_mask(attr);
     }
 }
+
+////////////////////////////////////////////////////////
+// style vars
+
+//TODO: - each frame, clear vars map
+//      - at end of each object, pop variables
+
+void oc_ui_style_var_push(oc_str8 name, oc_ui_style_value value, bool alwaysSet)
+{
+    oc_ui_context* ui = oc_ui_get_context();
+    oc_ui_box* box = oc_ui_box_top();
+    OC_DEBUG_ASSERT(box);
+
+    oc_ui_style_var* var = oc_arena_push_type(&ui->frameArena, oc_ui_style_var);
+
+    u64 hash = oc_hash_xx64_string(name);
+    u64 index = hash & ui->styleVariables.mask;
+    oc_list* bucket = &ui->styleVariables.buckets[index];
+    oc_ui_style_var_stack* stack = 0;
+
+    oc_list_for(*bucket, elt, oc_ui_style_var_stack, bucketElt)
+    {
+        if(elt->hash == hash)
+        {
+            stack = elt;
+            break;
+        }
+    }
+    if(!stack)
+    {
+        stack = oc_arena_push_type(&ui->frameArena, oc_ui_style_var_stack);
+        memset(stack, 0, sizeof(oc_ui_style_var_stack));
+
+        stack->name = oc_str8_push_copy(&ui->frameArena, name);
+        stack->hash = hash;
+        oc_list_push_back(bucket, &stack->bucketElt);
+    }
+
+    var->stack = stack;
+    oc_list_push_front(&stack->vars, &var->stackElt);
+    oc_list_push_front(&box->styleVariables, &var->boxElt);
+
+    oc_ui_style_var* prev = oc_list_next_entry(var, oc_ui_style_var, stackElt);
+
+    if(!alwaysSet && prev && prev->value.kind == value.kind)
+    {
+        var->value = prev->value;
+    }
+    else
+    {
+        var->value = value;
+    }
+}
+
+void oc_ui_style_var_i32_str8(oc_str8 name, i32 i)
+{
+    oc_ui_style_var_push(
+        name,
+        (oc_ui_style_value){
+            .kind = OC_UI_STYLE_VAR_I32,
+            .i = i,
+        },
+        false);
+}
+
+void oc_ui_style_var_f32_str8(oc_str8 name, f32 f)
+{
+    oc_ui_style_var_push(
+        name,
+        (oc_ui_style_value){
+            .kind = OC_UI_STYLE_VAR_F32,
+            .f = f,
+        },
+        false);
+}
+
+void oc_ui_style_var_size_str8(oc_str8 name, oc_ui_size size)
+{
+    oc_ui_style_var_push(
+        name,
+        (oc_ui_style_value){
+            .kind = OC_UI_STYLE_VAR_SIZE,
+            .size = size,
+        },
+        false);
+}
+
+void oc_ui_style_var_color_str8(oc_str8 name, oc_color color)
+{
+    oc_ui_style_var_push(
+        name,
+        (oc_ui_style_value){
+            .kind = OC_UI_STYLE_VAR_COLOR,
+            .color = color,
+        },
+        false);
+}
+
+void oc_ui_style_var_font_str8(oc_str8 name, oc_font font)
+{
+    oc_ui_style_var_push(
+        name,
+        (oc_ui_style_value){
+            .kind = OC_UI_STYLE_VAR_FONT,
+            .font = font,
+        },
+        false);
+}
+
+//TODO
+//void oc_ui_style_var(oc_str8 name, oc_str8 defaultVar);
+
+void oc_ui_style_var_set_i32_str8(oc_str8 name, i32 i)
+{
+    oc_ui_style_var_push(
+        name,
+        (oc_ui_style_value){
+            .kind = OC_UI_STYLE_VAR_I32,
+            .i = i,
+        },
+        true);
+}
+
+void oc_ui_style_var_set_f32_str8(oc_str8 name, f32 f)
+{
+    oc_ui_style_var_push(
+        name,
+        (oc_ui_style_value){
+            .kind = OC_UI_STYLE_VAR_F32,
+            .f = f,
+        },
+        true);
+}
+
+void oc_ui_style_var_set_size_str8(oc_str8 name, oc_ui_size size)
+{
+    oc_ui_style_var_push(
+        name,
+        (oc_ui_style_value){
+            .kind = OC_UI_STYLE_VAR_SIZE,
+            .size = size,
+        },
+        true);
+}
+
+void oc_ui_style_var_set_color_str8(oc_str8 name, oc_color color)
+{
+    oc_ui_style_var_push(
+        name,
+        (oc_ui_style_value){
+            .kind = OC_UI_STYLE_VAR_COLOR,
+            .color = color,
+        },
+        true);
+}
+
+void oc_ui_style_var_set_font_str8(oc_str8 name, oc_font font)
+{
+    oc_ui_style_var_push(
+        name,
+        (oc_ui_style_value){
+            .kind = OC_UI_STYLE_VAR_FONT,
+            .font = font,
+        },
+        true);
+}
+
+//TODO
+//void oc_ui_style_var_set_str8(oc_str8 name, oc_str8 defaultVar);
+
+void oc_ui_style_set_str8(oc_ui_style_attribute attr, oc_str8 name)
+{
+    oc_ui_context* ui = oc_ui_get_context();
+
+    u64 hash = oc_hash_xx64_string(name);
+    u64 index = hash & ui->styleVariables.mask;
+    oc_list bucket = ui->styleVariables.buckets[index];
+    oc_ui_style_var_stack* stack = 0;
+
+    oc_list_for(bucket, elt, oc_ui_style_var_stack, bucketElt)
+    {
+        if(elt->hash == hash)
+        {
+            stack = elt;
+            break;
+        }
+    }
+
+    oc_ui_style_var* var = 0;
+    if(stack)
+    {
+        var = oc_list_first_entry(stack->vars, oc_ui_style_var, stackElt);
+    }
+
+    oc_ui_style_value value = { 0 };
+    if(var)
+    {
+        value = var->value;
+    }
+    else
+    {
+        switch(attr)
+        {
+            case OC_UI_SIZE_WIDTH:
+            case OC_UI_SIZE_HEIGHT:
+                value.kind = OC_UI_STYLE_VAR_SIZE;
+                break;
+
+            case OC_UI_AXIS:
+            case OC_UI_ALIGN_X:
+            case OC_UI_ALIGN_Y:
+            case OC_UI_FLOATING_X:
+            case OC_UI_FLOATING_Y:
+            case OC_UI_ANIMATION_MASK:
+                value.kind = OC_UI_STYLE_VAR_I32;
+                break;
+
+            case OC_UI_MARGIN_X:
+            case OC_UI_MARGIN_Y:
+            case OC_UI_SPACING:
+            case OC_UI_FLOAT_TARGET_X:
+            case OC_UI_FLOAT_TARGET_Y:
+            case OC_UI_TEXT_SIZE:
+            case OC_UI_BORDER_SIZE:
+            case OC_UI_ROUNDNESS:
+            case OC_UI_ANIMATION_TIME:
+                value.kind = OC_UI_STYLE_VAR_F32;
+                break;
+
+            case OC_UI_COLOR:
+            case OC_UI_BG_COLOR:
+            case OC_UI_BORDER_COLOR:
+                value.kind = OC_UI_STYLE_VAR_COLOR;
+                break;
+
+            case OC_UI_FONT:
+                value.kind = OC_UI_STYLE_VAR_FONT;
+                break;
+
+            case OC_UI_STYLE_ATTR_COUNT:
+                OC_ASSERT(0, "unreachable");
+                break;
+        }
+    }
+    switch(value.kind)
+    {
+        case OC_UI_STYLE_VAR_I32:
+            oc_ui_style_set_i32(attr, value.i);
+            break;
+        case OC_UI_STYLE_VAR_F32:
+            oc_ui_style_set_f32(attr, value.f);
+            break;
+        case OC_UI_STYLE_VAR_SIZE:
+            oc_ui_style_set_size(attr, value.size);
+            break;
+        case OC_UI_STYLE_VAR_COLOR:
+            oc_ui_style_set_color(attr, value.color);
+            break;
+        case OC_UI_STYLE_VAR_FONT:
+            oc_ui_style_set_font(attr, value.font);
+            break;
+    }
+}
+
+i32 oc_ui_style_var_get_i32_str8(oc_str8 name);
+f32 oc_ui_style_var_get_f32_str8(oc_str8 name);
+oc_ui_size oc_ui_style_var_get_size_str8(oc_str8 name);
+oc_color oc_ui_style_var_get_color_str8(oc_str8 name);
+oc_font oc_ui_style_var_get_font_str8(oc_str8 name);
 
 //-----------------------------------------------------------------------------
 // input
@@ -2082,6 +2357,11 @@ void oc_ui_begin_frame(oc_vec2 size, oc_ui_style* defaultStyle, oc_ui_style_mask
 
     ui->clipStack = 0;
     ui->z = 0;
+
+    ui->styleVariables.mask = (4 << 10) - 1;
+    ui->styleVariables.buckets = oc_arena_push_array(&ui->frameArena, oc_list, 4 << 10);
+    //TODO: we could avoid this with a framecounter for each bucket
+    memset(ui->styleVariables.buckets, 0, sizeof(oc_list) * (4 << 10));
 
     ui->root = oc_ui_box_begin("_root_", 0);
 

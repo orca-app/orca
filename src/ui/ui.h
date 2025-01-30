@@ -547,6 +547,8 @@ struct oc_ui_box
     f32 minSize[2];
     oc_rect rect;
 
+    oc_list styleVariables;
+
     // signals
     oc_ui_sig sig;
 
@@ -614,6 +616,56 @@ typedef enum
     OC_UI_EDIT_MOVE_LINE
 } oc_ui_edit_move;
 
+//TODO: WIP /////////////////////////////////////////////////////
+
+typedef struct oc_ui_style_var_stack
+{
+    oc_list_elt bucketElt;
+    oc_str8 name;
+    u64 hash;
+    oc_list vars;
+} oc_ui_style_var_stack;
+
+typedef enum oc_ui_style_var_kind
+{
+    OC_UI_STYLE_VAR_I32,
+    OC_UI_STYLE_VAR_F32,
+    OC_UI_STYLE_VAR_SIZE,
+    OC_UI_STYLE_VAR_COLOR,
+    OC_UI_STYLE_VAR_FONT,
+} oc_ui_style_var_kind;
+
+typedef struct oc_ui_style_value
+{
+    oc_ui_style_var_kind kind;
+
+    union
+    {
+        oc_ui_size size;
+        oc_color color;
+        oc_font font;
+        f32 f;
+        i32 i;
+    };
+} oc_ui_style_value;
+
+typedef struct oc_ui_style_var
+{
+    oc_list_elt boxElt;
+    oc_list_elt stackElt;
+    oc_ui_style_var_stack* stack;
+    oc_ui_style_value value;
+
+} oc_ui_style_var;
+
+typedef struct oc_ui_style_var_map
+{
+    u64 mask;
+    oc_list* buckets;
+} oc_ui_style_var_map;
+
+///////////////////////////////////////////////////////
+
 typedef struct oc_ui_context
 {
     bool init;
@@ -651,6 +703,7 @@ typedef struct oc_ui_context
     oc_list themeStack;
 
     //TODO: reorganize
+    oc_ui_style_var_map styleVariables;
     oc_ui_style_rule* workingRule;
 
 } oc_ui_context;
@@ -773,6 +826,54 @@ ORCA_API void oc_ui_style_set_f32(oc_ui_style_attribute attr, f32 f);
 ORCA_API void oc_ui_style_set_color(oc_ui_style_attribute attr, oc_color color);
 ORCA_API void oc_ui_style_set_font(oc_ui_style_attribute attr, oc_font font);
 ORCA_API void oc_ui_style_set_size(oc_ui_style_attribute attr, oc_ui_size size);
+
+///////////////////////////////////////////////////////////////////
+// style varibles
+
+//TODO: rename oc_ui_syle_var_default_xxx?
+
+ORCA_API void oc_ui_style_var_i32_str8(oc_str8 name, i32 i);
+ORCA_API void oc_ui_style_var_f32_str8(oc_str8 name, f32 f);
+ORCA_API void oc_ui_style_var_size_str8(oc_str8 name, oc_ui_size size);
+ORCA_API void oc_ui_style_var_color_str8(oc_str8 name, oc_color color);
+ORCA_API void oc_ui_style_var_font_str8(oc_str8 name, oc_font font);
+
+#define oc_ui_style_var_i32(n, i) oc_ui_style_var_i32_str8(OC_STR8(n), i)
+#define oc_ui_style_var_f32(n, f) oc_ui_style_var_f32_str8(OC_STR8(n), f)
+#define oc_ui_style_var_size(n, s) oc_ui_style_var_size_str8(OC_STR8(n), s)
+#define oc_ui_style_var_color(n, c) oc_ui_style_var_color_str8(OC_STR8(n), c)
+#define oc_ui_style_var_font(n, f) oc_ui_style_var_font_str8(OC_STR8(n), f)
+//#define oc_ui_style_var(n, d) oc_ui_style_var_i32_str8(OC_STR8(n), OC_STR8(d))
+
+ORCA_API void oc_ui_style_var_set_i32_str8(oc_str8 name, i32 i);
+ORCA_API void oc_ui_style_var_set_f32_str8(oc_str8 name, f32 f);
+ORCA_API void oc_ui_style_var_set_size_str8(oc_str8 name, oc_ui_size size);
+ORCA_API void oc_ui_style_var_set_color_str8(oc_str8 name, oc_color color);
+ORCA_API void oc_ui_style_var_set_font_str8(oc_str8 name, oc_font font);
+ORCA_API void oc_ui_style_var_set(oc_str8 name, oc_str8 defaultVar);
+
+#define oc_ui_style_var_set_i32(n, i) oc_ui_style_var_set_i32_str8(OC_STR8(n), i)
+#define oc_ui_style_var_set_f32(n, f) oc_ui_style_var_set_f32_str8(OC_STR8(n), f)
+#define oc_ui_style_var_set_size(n, s) oc_ui_style_var_set_size_str8(OC_STR8(n), s)
+#define oc_ui_style_var_set_color(n, c) oc_ui_style_var_set_color_str8(OC_STR8(n), c)
+#define oc_ui_style_var_set_font(n, f) oc_ui_style_var_set_font_str8(OC_STR8(n), f)
+#define oc_ui_style_var_set(n, d) oc_ui_style_var_set_i32_str8(OC_STR8(n), OC_STR8(d))
+
+ORCA_API void oc_ui_style_set_str8(oc_ui_style_attribute attr, oc_str8 var);
+#define oc_ui_style_set(a, v) oc_ui_style_set_str8(a, OC_STR8(v))
+
+ORCA_API i32 oc_ui_style_var_get_i32_str8(oc_str8 name);
+ORCA_API f32 oc_ui_style_var_get_f32_str8(oc_str8 name);
+ORCA_API oc_ui_size oc_ui_style_var_get_size_str8(oc_str8 name);
+ORCA_API oc_color oc_ui_style_var_get_color_str8(oc_str8 name);
+ORCA_API oc_font oc_ui_style_var_get_font_str8(oc_str8 name);
+
+#define oc_ui_style_var_get_i32(n) oc_ui_style_var_get_i32_str8(OC_STR8(n))
+#define oc_ui_style_var_get_f32(n) oc_ui_style_var_get_i32_str8(OC_STR8(n))
+#define oc_ui_style_var_get_size(n) oc_ui_style_var_get_i32_str8(OC_STR8(n))
+#define oc_ui_style_var_get_color(n) oc_ui_style_var_get_i32_str8(OC_STR8(n))
+#define oc_ui_style_var_get_font(n) oc_ui_style_var_get_i32_str8(OC_STR8(n))
+#define oc_ui_style_var_get_font(n) oc_ui_style_var_get_i32_str8(OC_STR8(n))
 
 ///////////////////////////////////////////////////////////////////
 
