@@ -374,7 +374,9 @@ typedef struct oc_ui_palette
 extern oc_ui_palette OC_UI_DARK_PALETTE;
 extern oc_ui_palette OC_UI_LIGHT_PALETTE;
 
-typedef struct oc_ui_theme
+typedef struct oc_ui_theme oc_ui_theme;
+
+/*
 {
     oc_color white;
     oc_color primary;
@@ -408,6 +410,7 @@ typedef struct oc_ui_theme
 
 extern oc_ui_theme OC_UI_DARK_THEME;
 extern oc_ui_theme OC_UI_LIGHT_THEME;
+*/
 
 typedef struct oc_ui_tag
 {
@@ -700,12 +703,14 @@ typedef struct oc_ui_context
     i32 editWordSelectionInitialCursor;
     i32 editWordSelectionInitialMark;
 
-    oc_list themeStack;
-
     //TODO: reorganize
     oc_ui_style_var_map styleVariables;
     oc_ui_style_rule* workingRule;
+    oc_ui_theme* workingTheme;
+    oc_list themeStack;
 
+    oc_ui_theme* darkTheme;
+    oc_arena persistentArena;
 } oc_ui_context;
 
 //-------------------------------------------------------------------------------------
@@ -719,10 +724,6 @@ ORCA_API void oc_ui_process_event(oc_event* event);
 ORCA_API void oc_ui_begin_frame(oc_vec2 size, oc_ui_style* defaultStyle, oc_ui_style_mask mask);
 ORCA_API void oc_ui_end_frame(void);
 ORCA_API void oc_ui_draw(void);
-
-ORCA_API void oc_ui_theme_push(oc_ui_theme* theme);
-ORCA_API void oc_ui_theme_pop();
-ORCA_API oc_ui_theme* oc_ui_get_theme();
 
 #define oc_ui_frame(size, style, mask) oc_defer_loop(oc_ui_begin_frame((size), (style), (mask)), oc_ui_end_frame())
 
@@ -832,48 +833,78 @@ ORCA_API void oc_ui_style_set_size(oc_ui_style_attribute attr, oc_ui_size size);
 
 //TODO: rename oc_ui_syle_var_default_xxx?
 
-ORCA_API void oc_ui_style_var_i32_str8(oc_str8 name, i32 i);
-ORCA_API void oc_ui_style_var_f32_str8(oc_str8 name, f32 f);
-ORCA_API void oc_ui_style_var_size_str8(oc_str8 name, oc_ui_size size);
-ORCA_API void oc_ui_style_var_color_str8(oc_str8 name, oc_color color);
-ORCA_API void oc_ui_style_var_font_str8(oc_str8 name, oc_font font);
+//NOTE: declaring variable with default value
+ORCA_API void oc_ui_style_var_default_i32_str8(oc_str8 name, i32 i);
+ORCA_API void oc_ui_style_var_default_f32_str8(oc_str8 name, f32 f);
+ORCA_API void oc_ui_style_var_default_size_str8(oc_str8 name, oc_ui_size size);
+ORCA_API void oc_ui_style_var_default_color_str8(oc_str8 name, oc_color color);
+ORCA_API void oc_ui_style_var_default_font_str8(oc_str8 name, oc_font font);
+ORCA_API void oc_ui_style_var_default_str8(oc_str8 name, oc_str8 src);
 
-#define oc_ui_style_var_i32(n, i) oc_ui_style_var_i32_str8(OC_STR8(n), i)
-#define oc_ui_style_var_f32(n, f) oc_ui_style_var_f32_str8(OC_STR8(n), f)
-#define oc_ui_style_var_size(n, s) oc_ui_style_var_size_str8(OC_STR8(n), s)
-#define oc_ui_style_var_color(n, c) oc_ui_style_var_color_str8(OC_STR8(n), c)
-#define oc_ui_style_var_font(n, f) oc_ui_style_var_font_str8(OC_STR8(n), f)
-//#define oc_ui_style_var(n, d) oc_ui_style_var_i32_str8(OC_STR8(n), OC_STR8(d))
+//C-string versions
+ORCA_API void oc_ui_style_var_default_i32(const char* name, i32 i);
+ORCA_API void oc_ui_style_var_default_f32(const char* name, f32 f);
+ORCA_API void oc_ui_style_var_default_size(const char* name, oc_ui_size size);
+ORCA_API void oc_ui_style_var_default_color(const char* name, oc_color color);
+ORCA_API void oc_ui_style_var_default_font(const char* name, oc_font font);
+ORCA_API void oc_ui_style_var_default(const char* name, const char* src);
 
+//NOTE: setting variable value
 ORCA_API void oc_ui_style_var_set_i32_str8(oc_str8 name, i32 i);
 ORCA_API void oc_ui_style_var_set_f32_str8(oc_str8 name, f32 f);
 ORCA_API void oc_ui_style_var_set_size_str8(oc_str8 name, oc_ui_size size);
 ORCA_API void oc_ui_style_var_set_color_str8(oc_str8 name, oc_color color);
 ORCA_API void oc_ui_style_var_set_font_str8(oc_str8 name, oc_font font);
-ORCA_API void oc_ui_style_var_set(oc_str8 name, oc_str8 defaultVar);
+ORCA_API void oc_ui_style_var_set_str8(oc_str8 name, oc_str8 src);
 
-#define oc_ui_style_var_set_i32(n, i) oc_ui_style_var_set_i32_str8(OC_STR8(n), i)
-#define oc_ui_style_var_set_f32(n, f) oc_ui_style_var_set_f32_str8(OC_STR8(n), f)
-#define oc_ui_style_var_set_size(n, s) oc_ui_style_var_set_size_str8(OC_STR8(n), s)
-#define oc_ui_style_var_set_color(n, c) oc_ui_style_var_set_color_str8(OC_STR8(n), c)
-#define oc_ui_style_var_set_font(n, f) oc_ui_style_var_set_font_str8(OC_STR8(n), f)
-#define oc_ui_style_var_set(n, d) oc_ui_style_var_set_i32_str8(OC_STR8(n), OC_STR8(d))
+//C-string versions
+ORCA_API void oc_ui_style_var_set_i32(const char* name, i32 i);
+ORCA_API void oc_ui_style_var_set_f32(const char* name, f32 f);
+ORCA_API void oc_ui_style_var_set_size(const char* name, oc_ui_size size);
+ORCA_API void oc_ui_style_var_set_color(const char* name, oc_color color);
+ORCA_API void oc_ui_style_var_set_font(const char* name, oc_font font);
+ORCA_API void oc_ui_style_var_set(const char* name, const char* src);
 
-ORCA_API void oc_ui_style_set_str8(oc_ui_style_attribute attr, oc_str8 var);
-#define oc_ui_style_set(a, v) oc_ui_style_set_str8(a, OC_STR8(v))
-
+//NOTE: getting variable value
 ORCA_API i32 oc_ui_style_var_get_i32_str8(oc_str8 name);
 ORCA_API f32 oc_ui_style_var_get_f32_str8(oc_str8 name);
 ORCA_API oc_ui_size oc_ui_style_var_get_size_str8(oc_str8 name);
 ORCA_API oc_color oc_ui_style_var_get_color_str8(oc_str8 name);
 ORCA_API oc_font oc_ui_style_var_get_font_str8(oc_str8 name);
 
-#define oc_ui_style_var_get_i32(n) oc_ui_style_var_get_i32_str8(OC_STR8(n))
-#define oc_ui_style_var_get_f32(n) oc_ui_style_var_get_i32_str8(OC_STR8(n))
-#define oc_ui_style_var_get_size(n) oc_ui_style_var_get_i32_str8(OC_STR8(n))
-#define oc_ui_style_var_get_color(n) oc_ui_style_var_get_i32_str8(OC_STR8(n))
-#define oc_ui_style_var_get_font(n) oc_ui_style_var_get_i32_str8(OC_STR8(n))
-#define oc_ui_style_var_get_font(n) oc_ui_style_var_get_i32_str8(OC_STR8(n))
+//C-string versions
+ORCA_API i32 oc_ui_style_var_get_i32(const char* name);
+ORCA_API f32 oc_ui_style_var_get_f32(const char* name);
+ORCA_API oc_ui_size oc_ui_style_var_get_size(const char* name);
+ORCA_API oc_color oc_ui_style_var_get_color(const char* name);
+ORCA_API oc_font oc_ui_style_var_get_font(const char* name);
+
+//NOTE: setting a style attribute from a variable
+ORCA_API void oc_ui_style_set_str8(oc_ui_style_attribute attr, oc_str8 var);
+ORCA_API void oc_ui_style_set(oc_ui_style_attribute attr, const char* var);
+
+//Themes
+
+typedef struct oc_ui_theme_entry
+{
+    oc_list_elt listElt;
+    oc_str8 name;
+    oc_ui_style_value value;
+} oc_ui_theme_entry;
+
+typedef struct oc_ui_theme
+{
+    oc_arena* arena;
+    oc_list defs;
+} oc_ui_theme;
+
+ORCA_API oc_ui_theme* oc_ui_theme_def_begin(oc_arena* arena);
+ORCA_API void oc_ui_theme_def_end();
+#define oc_ui_theme_def(arena) oc_defer_loop(oc_ui_theme_def_begin(arena), oc_ui_theme_def_end)
+
+ORCA_API void oc_ui_theme_push(oc_ui_theme* theme);
+ORCA_API void oc_ui_theme_pop();
+#define oc_ui_theme(t) oc_defer_loop(oc_ui_theme_push(t), oc_ui_theme_pop())
 
 ///////////////////////////////////////////////////////////////////
 

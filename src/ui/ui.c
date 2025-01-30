@@ -27,38 +27,6 @@ void oc_ui_set_context(oc_ui_context* context)
     oc_uiCurrentContext = context;
 }
 
-typedef struct oc_ui_theme_stack_elt
-{
-    oc_list_elt listElt;
-    oc_ui_theme* theme;
-} oc_ui_theme_stack_elt;
-
-void oc_ui_theme_push(oc_ui_theme* theme)
-{
-    oc_ui_context* ui = oc_ui_get_context();
-    oc_ui_theme_stack_elt* elt = oc_arena_push_type(&ui->frameArena, oc_ui_theme_stack_elt);
-    elt->theme = theme;
-    oc_list_push_front(&ui->themeStack, &elt->listElt);
-}
-
-void oc_ui_theme_pop()
-{
-    oc_ui_context* ui = oc_ui_get_context();
-    oc_list_pop_front(&ui->themeStack);
-}
-
-oc_ui_theme* oc_ui_get_theme()
-{
-    oc_ui_theme* theme = 0;
-    oc_ui_context* ui = oc_ui_get_context();
-    oc_ui_theme_stack_elt* elt = oc_list_first_entry(ui->themeStack, oc_ui_theme_stack_elt, listElt);
-    if(elt)
-    {
-        theme = elt->theme;
-    }
-    return theme;
-}
-
 //-----------------------------------------------------------------------------
 // stacks
 //-----------------------------------------------------------------------------
@@ -727,170 +695,7 @@ void oc_ui_style_set_size(oc_ui_style_attribute attr, oc_ui_size size)
 //TODO: - each frame, clear vars map
 //      - at end of each object, pop variables
 
-void oc_ui_style_var_push(oc_str8 name, oc_ui_style_value value, bool alwaysSet)
-{
-    oc_ui_context* ui = oc_ui_get_context();
-    oc_ui_box* box = oc_ui_box_top();
-    OC_DEBUG_ASSERT(box);
-
-    oc_ui_style_var* var = oc_arena_push_type(&ui->frameArena, oc_ui_style_var);
-
-    u64 hash = oc_hash_xx64_string(name);
-    u64 index = hash & ui->styleVariables.mask;
-    oc_list* bucket = &ui->styleVariables.buckets[index];
-    oc_ui_style_var_stack* stack = 0;
-
-    oc_list_for(*bucket, elt, oc_ui_style_var_stack, bucketElt)
-    {
-        if(elt->hash == hash)
-        {
-            stack = elt;
-            break;
-        }
-    }
-    if(!stack)
-    {
-        stack = oc_arena_push_type(&ui->frameArena, oc_ui_style_var_stack);
-        memset(stack, 0, sizeof(oc_ui_style_var_stack));
-
-        stack->name = oc_str8_push_copy(&ui->frameArena, name);
-        stack->hash = hash;
-        oc_list_push_back(bucket, &stack->bucketElt);
-    }
-
-    var->stack = stack;
-    oc_list_push_front(&stack->vars, &var->stackElt);
-    oc_list_push_front(&box->styleVariables, &var->boxElt);
-
-    oc_ui_style_var* prev = oc_list_next_entry(var, oc_ui_style_var, stackElt);
-
-    if(!alwaysSet && prev && prev->value.kind == value.kind)
-    {
-        var->value = prev->value;
-    }
-    else
-    {
-        var->value = value;
-    }
-}
-
-void oc_ui_style_var_i32_str8(oc_str8 name, i32 i)
-{
-    oc_ui_style_var_push(
-        name,
-        (oc_ui_style_value){
-            .kind = OC_UI_STYLE_VAR_I32,
-            .i = i,
-        },
-        false);
-}
-
-void oc_ui_style_var_f32_str8(oc_str8 name, f32 f)
-{
-    oc_ui_style_var_push(
-        name,
-        (oc_ui_style_value){
-            .kind = OC_UI_STYLE_VAR_F32,
-            .f = f,
-        },
-        false);
-}
-
-void oc_ui_style_var_size_str8(oc_str8 name, oc_ui_size size)
-{
-    oc_ui_style_var_push(
-        name,
-        (oc_ui_style_value){
-            .kind = OC_UI_STYLE_VAR_SIZE,
-            .size = size,
-        },
-        false);
-}
-
-void oc_ui_style_var_color_str8(oc_str8 name, oc_color color)
-{
-    oc_ui_style_var_push(
-        name,
-        (oc_ui_style_value){
-            .kind = OC_UI_STYLE_VAR_COLOR,
-            .color = color,
-        },
-        false);
-}
-
-void oc_ui_style_var_font_str8(oc_str8 name, oc_font font)
-{
-    oc_ui_style_var_push(
-        name,
-        (oc_ui_style_value){
-            .kind = OC_UI_STYLE_VAR_FONT,
-            .font = font,
-        },
-        false);
-}
-
-//TODO
-//void oc_ui_style_var(oc_str8 name, oc_str8 defaultVar);
-
-void oc_ui_style_var_set_i32_str8(oc_str8 name, i32 i)
-{
-    oc_ui_style_var_push(
-        name,
-        (oc_ui_style_value){
-            .kind = OC_UI_STYLE_VAR_I32,
-            .i = i,
-        },
-        true);
-}
-
-void oc_ui_style_var_set_f32_str8(oc_str8 name, f32 f)
-{
-    oc_ui_style_var_push(
-        name,
-        (oc_ui_style_value){
-            .kind = OC_UI_STYLE_VAR_F32,
-            .f = f,
-        },
-        true);
-}
-
-void oc_ui_style_var_set_size_str8(oc_str8 name, oc_ui_size size)
-{
-    oc_ui_style_var_push(
-        name,
-        (oc_ui_style_value){
-            .kind = OC_UI_STYLE_VAR_SIZE,
-            .size = size,
-        },
-        true);
-}
-
-void oc_ui_style_var_set_color_str8(oc_str8 name, oc_color color)
-{
-    oc_ui_style_var_push(
-        name,
-        (oc_ui_style_value){
-            .kind = OC_UI_STYLE_VAR_COLOR,
-            .color = color,
-        },
-        true);
-}
-
-void oc_ui_style_var_set_font_str8(oc_str8 name, oc_font font)
-{
-    oc_ui_style_var_push(
-        name,
-        (oc_ui_style_value){
-            .kind = OC_UI_STYLE_VAR_FONT,
-            .font = font,
-        },
-        true);
-}
-
-//TODO
-//void oc_ui_style_var_set_str8(oc_str8 name, oc_str8 defaultVar);
-
-void oc_ui_style_set_str8(oc_ui_style_attribute attr, oc_str8 name)
+oc_ui_style_var* oc_ui_style_var_find(oc_str8 name)
 {
     oc_ui_context* ui = oc_ui_get_context();
 
@@ -914,7 +719,387 @@ void oc_ui_style_set_str8(oc_ui_style_attribute attr, oc_str8 name)
         var = oc_list_first_entry(stack->vars, oc_ui_style_var, stackElt);
     }
 
+    return var;
+}
+
+void oc_ui_style_var_push(oc_str8 name, oc_ui_style_value value, bool alwaysSet, oc_list* scopeList)
+{
+    oc_ui_context* ui = oc_ui_get_context();
+
+    if(ui->workingTheme)
+    {
+        //NOTE: we're pushing a variable definition to the currently defined theme
+        oc_ui_theme* theme = ui->workingTheme;
+        oc_ui_theme_entry* def = oc_arena_push_type(theme->arena, oc_ui_theme_entry);
+
+        def->name = oc_str8_push_copy(theme->arena, name);
+
+        //TODO: should we allow setting value from existing var?
+        def->value = value;
+
+        oc_list_push_back(&theme->defs, &def->listElt);
+    }
+    else
+    {
+        oc_ui_style_var* var = oc_arena_push_type(&ui->frameArena, oc_ui_style_var);
+
+        u64 hash = oc_hash_xx64_string(name);
+        u64 index = hash & ui->styleVariables.mask;
+        oc_list* bucket = &ui->styleVariables.buckets[index];
+        oc_ui_style_var_stack* stack = 0;
+
+        oc_list_for(*bucket, elt, oc_ui_style_var_stack, bucketElt)
+        {
+            if(elt->hash == hash)
+            {
+                stack = elt;
+                break;
+            }
+        }
+        if(!stack)
+        {
+            stack = oc_arena_push_type(&ui->frameArena, oc_ui_style_var_stack);
+            memset(stack, 0, sizeof(oc_ui_style_var_stack));
+
+            stack->name = oc_str8_push_copy(&ui->frameArena, name);
+            stack->hash = hash;
+            oc_list_push_back(bucket, &stack->bucketElt);
+        }
+
+        var->stack = stack;
+        oc_list_push_front(&stack->vars, &var->stackElt);
+
+        if(!scopeList)
+        {
+            //NOTE: we're pushing a variable in the current object's scope
+            oc_ui_box* box = oc_ui_box_top();
+            OC_DEBUG_ASSERT(box);
+
+            scopeList = &box->styleVariables;
+        }
+
+        oc_list_push_front(scopeList, &var->boxElt);
+
+        oc_ui_style_var* prev = oc_list_next_entry(var, oc_ui_style_var, stackElt);
+
+        if(!alwaysSet && prev && prev->value.kind == value.kind)
+        {
+            var->value = prev->value;
+        }
+        else
+        {
+            var->value = value;
+        }
+    }
+}
+
+void oc_ui_style_var_default_i32_str8(oc_str8 name, i32 i)
+{
+    oc_ui_style_var_push(
+        name,
+        (oc_ui_style_value){
+            .kind = OC_UI_STYLE_VAR_I32,
+            .i = i,
+        },
+        false,
+        0);
+}
+
+void oc_ui_style_var_default_f32_str8(oc_str8 name, f32 f)
+{
+    oc_ui_style_var_push(
+        name,
+        (oc_ui_style_value){
+            .kind = OC_UI_STYLE_VAR_F32,
+            .f = f,
+        },
+        false,
+        0);
+}
+
+void oc_ui_style_var_default_size_str8(oc_str8 name, oc_ui_size size)
+{
+    oc_ui_style_var_push(
+        name,
+        (oc_ui_style_value){
+            .kind = OC_UI_STYLE_VAR_SIZE,
+            .size = size,
+        },
+        false,
+        0);
+}
+
+void oc_ui_style_var_default_color_str8(oc_str8 name, oc_color color)
+{
+    oc_ui_style_var_push(
+        name,
+        (oc_ui_style_value){
+            .kind = OC_UI_STYLE_VAR_COLOR,
+            .color = color,
+        },
+        false,
+        0);
+}
+
+void oc_ui_style_var_default_font_str8(oc_str8 name, oc_font font)
+{
+    oc_ui_style_var_push(
+        name,
+        (oc_ui_style_value){
+            .kind = OC_UI_STYLE_VAR_FONT,
+            .font = font,
+        },
+        false,
+        0);
+}
+
+void oc_ui_style_var_default_str8(oc_str8 name, oc_str8 defaultName)
+{
+    oc_ui_style_var* var = oc_ui_style_var_find(name);
+    if(!var)
+    {
+        oc_ui_style_value value = {
+            .kind = OC_UI_STYLE_VAR_I32,
+            .i = 0,
+        };
+        oc_ui_style_var* defaultVar = oc_ui_style_var_find(defaultName);
+        if(defaultVar)
+        {
+            value = defaultVar->value;
+        }
+        else
+        {
+            //TODO: signal error
+        }
+        oc_ui_style_var_push(
+            name,
+            value,
+            false,
+            0);
+    }
+}
+
+//C-string versions
+void oc_ui_style_var_default_i32(const char* name, i32 i)
+{
+    oc_ui_style_var_default_i32_str8(OC_STR8(name), i);
+}
+
+void oc_ui_style_var_default_f32(const char* name, f32 f)
+{
+    oc_ui_style_var_default_f32_str8(OC_STR8(name), f);
+}
+
+void oc_ui_style_var_default_size(const char* name, oc_ui_size size)
+{
+    oc_ui_style_var_default_size_str8(OC_STR8(name), size);
+}
+
+void oc_ui_style_var_default_color(const char* name, oc_color color)
+{
+    oc_ui_style_var_default_color_str8(OC_STR8(name), color);
+}
+
+void oc_ui_style_var_default_font(const char* name, oc_font font)
+{
+    oc_ui_style_var_default_font_str8(OC_STR8(name), font);
+}
+
+void oc_ui_style_var_default(const char* name, const char* src)
+{
+    oc_ui_style_var_default_str8(OC_STR8(name), OC_STR8(src));
+}
+
+//NOTE: setting variable value
+void oc_ui_style_var_set_i32_str8(oc_str8 name, i32 i)
+{
+    oc_ui_style_var_push(
+        name,
+        (oc_ui_style_value){
+            .kind = OC_UI_STYLE_VAR_I32,
+            .i = i,
+        },
+        true,
+        0);
+}
+
+void oc_ui_style_var_set_f32_str8(oc_str8 name, f32 f)
+{
+    oc_ui_style_var_push(
+        name,
+        (oc_ui_style_value){
+            .kind = OC_UI_STYLE_VAR_F32,
+            .f = f,
+        },
+        true,
+        0);
+}
+
+void oc_ui_style_var_set_size_str8(oc_str8 name, oc_ui_size size)
+{
+    oc_ui_style_var_push(
+        name,
+        (oc_ui_style_value){
+            .kind = OC_UI_STYLE_VAR_SIZE,
+            .size = size,
+        },
+        true,
+        0);
+}
+
+void oc_ui_style_var_set_color_str8(oc_str8 name, oc_color color)
+{
+    oc_ui_style_var_push(
+        name,
+        (oc_ui_style_value){
+            .kind = OC_UI_STYLE_VAR_COLOR,
+            .color = color,
+        },
+        true,
+        0);
+}
+
+void oc_ui_style_var_set_font_str8(oc_str8 name, oc_font font)
+{
+    oc_ui_style_var_push(
+        name,
+        (oc_ui_style_value){
+            .kind = OC_UI_STYLE_VAR_FONT,
+            .font = font,
+        },
+        true,
+        0);
+}
+
+void oc_ui_style_var_set_str8(oc_str8 name, oc_str8 defaultName)
+{
+    oc_ui_style_value value = {
+        .kind = OC_UI_STYLE_VAR_I32,
+        .i = 0,
+    };
+    oc_ui_style_var* defaultVar = oc_ui_style_var_find(defaultName);
+    if(defaultVar)
+    {
+        value = defaultVar->value;
+    }
+    else
+    {
+        //TODO: signal error
+    }
+    oc_ui_style_var_push(name, value, true, 0);
+}
+
+//C-string versions
+void oc_ui_style_var_set_i32(const char* name, i32 i)
+{
+    oc_ui_style_var_set_i32_str8(OC_STR8(name), i);
+}
+
+void oc_ui_style_var_set_f32(const char* name, f32 f)
+{
+    oc_ui_style_var_set_f32_str8(OC_STR8(name), f);
+}
+
+void oc_ui_style_var_set_size(const char* name, oc_ui_size size)
+{
+    oc_ui_style_var_set_size_str8(OC_STR8(name), size);
+}
+
+void oc_ui_style_var_set_color(const char* name, oc_color color)
+{
+    oc_ui_style_var_set_color_str8(OC_STR8(name), color);
+}
+
+void oc_ui_style_var_set_font(const char* name, oc_font font)
+{
+    oc_ui_style_var_set_font_str8(OC_STR8(name), font);
+}
+
+void oc_ui_style_var_set(const char* name, const char* src)
+{
+    oc_ui_style_var_set_str8(OC_STR8(name), OC_STR8(src));
+}
+
+//NOTE: getting variable value
+oc_ui_style_value oc_ui_style_var_get_typed(oc_str8 name, oc_ui_style_var_kind kind)
+{
+    oc_ui_style_value value;
+
+    oc_ui_style_var* var = oc_ui_style_var_find(name);
+    if(var && var->value.kind == kind)
+    {
+        value = var->value;
+    }
+    else
+    {
+        //NOTE memset because designated initializer could wrongly init the union if we change fields in the future
+        memset(&value, 0, sizeof(oc_ui_style_value));
+        value.kind = kind;
+    }
+    return value;
+}
+
+i32 oc_ui_style_var_get_i32_str8(oc_str8 name)
+{
+    oc_ui_style_value val = oc_ui_style_var_get_typed(name, OC_UI_STYLE_VAR_I32);
+    return val.i;
+}
+
+f32 oc_ui_style_var_get_f32_str8(oc_str8 name)
+{
+    oc_ui_style_value val = oc_ui_style_var_get_typed(name, OC_UI_STYLE_VAR_F32);
+    return val.f;
+}
+
+oc_ui_size oc_ui_style_var_get_size_str8(oc_str8 name)
+{
+    oc_ui_style_value val = oc_ui_style_var_get_typed(name, OC_UI_STYLE_VAR_SIZE);
+    return val.size;
+}
+
+oc_color oc_ui_style_var_get_color_str8(oc_str8 name)
+{
+    oc_ui_style_value val = oc_ui_style_var_get_typed(name, OC_UI_STYLE_VAR_COLOR);
+    return val.color;
+}
+
+oc_font oc_ui_style_var_get_font_str8(oc_str8 name)
+{
+    oc_ui_style_value val = oc_ui_style_var_get_typed(name, OC_UI_STYLE_VAR_FONT);
+    return val.font;
+}
+
+//C-string versions
+i32 oc_ui_style_var_get_i32(const char* name)
+{
+    return oc_ui_style_var_get_i32_str8(OC_STR8(name));
+}
+
+f32 oc_ui_style_var_get_f32(const char* name)
+{
+    return oc_ui_style_var_get_f32_str8(OC_STR8(name));
+}
+
+oc_ui_size oc_ui_style_var_get_size(const char* name)
+{
+    return oc_ui_style_var_get_size_str8(OC_STR8(name));
+}
+
+oc_color oc_ui_style_var_get_color(const char* name)
+{
+    return oc_ui_style_var_get_color_str8(OC_STR8(name));
+}
+
+oc_font oc_ui_style_var_get_font(const char* name)
+{
+    return oc_ui_style_var_get_font_str8(OC_STR8(name));
+}
+
+//NOTE: setting a style attribute from a variable
+void oc_ui_style_set_str8(oc_ui_style_attribute attr, oc_str8 name)
+{
     oc_ui_style_value value = { 0 };
+    oc_ui_style_var* var = oc_ui_style_var_find(name);
     if(var)
     {
         value = var->value;
@@ -984,11 +1169,69 @@ void oc_ui_style_set_str8(oc_ui_style_attribute attr, oc_str8 name)
     }
 }
 
-i32 oc_ui_style_var_get_i32_str8(oc_str8 name);
-f32 oc_ui_style_var_get_f32_str8(oc_str8 name);
-oc_ui_size oc_ui_style_var_get_size_str8(oc_str8 name);
-oc_color oc_ui_style_var_get_color_str8(oc_str8 name);
-oc_font oc_ui_style_var_get_font_str8(oc_str8 name);
+void oc_ui_style_set(oc_ui_style_attribute attr, const char* name)
+{
+    oc_ui_style_set_str8(attr, OC_STR8(name));
+}
+
+//Theme stuff
+
+oc_ui_theme* oc_ui_theme_def_begin(oc_arena* arena)
+{
+    oc_ui_context* ui = oc_ui_get_context();
+    OC_ASSERT(ui);
+    OC_ASSERT(!ui->workingTheme, "Nested theme definitions are not allowed");
+
+    oc_ui_theme* theme = oc_arena_push_type(arena, oc_ui_theme);
+    memset(theme, 0, sizeof(oc_ui_theme));
+
+    theme->arena = arena;
+
+    ui->workingTheme = theme;
+    return theme;
+}
+
+void oc_ui_theme_def_end()
+{
+    oc_ui_context* ui = oc_ui_get_context();
+    OC_ASSERT(ui->workingTheme, "unbalanced theme definition end");
+
+    ui->workingTheme = 0;
+}
+
+typedef struct oc_ui_theme_stack_elt
+{
+    oc_list_elt listElt;
+    oc_ui_theme* theme;
+    oc_list variables;
+} oc_ui_theme_stack_elt;
+
+void oc_ui_theme_push(oc_ui_theme* theme)
+{
+    oc_ui_context* ui = oc_ui_get_context();
+    oc_ui_theme_stack_elt* elt = oc_arena_push_type(&ui->frameArena, oc_ui_theme_stack_elt);
+    elt->theme = theme;
+    elt->variables = (oc_list){ 0 };
+    oc_list_push_front(&ui->themeStack, &elt->listElt);
+
+    //NOTE: push defs as variables in scope
+    oc_list_for(theme->defs, def, oc_ui_theme_entry, listElt)
+    {
+        oc_ui_style_var_push(def->name, def->value, true, &elt->variables);
+    }
+}
+
+void oc_ui_theme_pop()
+{
+    oc_ui_context* ui = oc_ui_get_context();
+    oc_ui_theme_stack_elt* elt = oc_list_pop_front_entry(&ui->themeStack, oc_ui_theme_stack_elt, listElt);
+
+    //NOTE: pop variables
+    oc_list_for(elt->variables, var, oc_ui_style_var, boxElt)
+    {
+        oc_list_remove(&var->stack->vars, &var->stackElt);
+    }
+}
 
 //-----------------------------------------------------------------------------
 // input
@@ -2346,10 +2589,6 @@ void oc_ui_begin_frame(oc_vec2 size, oc_ui_style* defaultStyle, oc_ui_style_mask
 {
     oc_ui_context* ui = oc_ui_get_context();
 
-    //TODO: debug, remove
-    OC_UI_DARK_THEME.font = defaultStyle->font;
-    oc_ui_theme_push(&OC_UI_DARK_THEME);
-
     ui->frameCounter++;
     f64 time = oc_clock_time(OC_CLOCK_MONOTONIC);
     ui->lastFrameDuration = time - ui->frameTime;
@@ -2363,7 +2602,11 @@ void oc_ui_begin_frame(oc_vec2 size, oc_ui_style* defaultStyle, oc_ui_style_mask
     //TODO: we could avoid this with a framecounter for each bucket
     memset(ui->styleVariables.buckets, 0, sizeof(oc_list) * (4 << 10));
 
+    oc_ui_theme_push(ui->darkTheme);
+
     ui->root = oc_ui_box_begin("_root_", 0);
+
+    oc_ui_style_var_set_font("font-regular", defaultStyle->font);
 
     oc_ui_style_set_color(OC_UI_BG_COLOR, defaultStyle->bgColor);
     oc_ui_style_set_size(OC_UI_SIZE_WIDTH, (oc_ui_size){ OC_UI_SIZE_PIXELS, size.x });
@@ -2444,15 +2687,36 @@ void oc_ui_init(oc_ui_context* ui)
     ui->init = true;
 
     oc_ui_set_context(ui);
-    oc_ui_theme_push(&OC_UI_DARK_THEME);
 
     ui->editSelectionMode = OC_UI_EDIT_MOVE_CHAR;
+
+    oc_arena_init(&ui->persistentArena);
+
+    ui->darkTheme = oc_ui_theme_def(&ui->persistentArena)
+    {
+        oc_ui_style_var_set_color("bg0", (oc_color){ 0.086, 0.086, 0.102, 1, OC_COLOR_SPACE_SRGB });
+        oc_ui_style_var_set_color("bg1", (oc_color){ 0.137, 0.141, 0.165, 1, OC_COLOR_SPACE_SRGB });
+        oc_ui_style_var_set_color("bg2", (oc_color){ 0.208, 0.212, 0.231, 1, OC_COLOR_SPACE_SRGB });
+        oc_ui_style_var_set_color("bg3", (oc_color){ 0.263, 0.267, 0.29, 1, OC_COLOR_SPACE_SRGB });
+        oc_ui_style_var_set_color("bg4", (oc_color){ 0.31, 0.318, 0.349, 1, OC_COLOR_SPACE_SRGB });
+        oc_ui_style_var_set_color("fill0", (oc_color){ 1, 1, 1, 0.033, OC_COLOR_SPACE_SRGB });
+        oc_ui_style_var_set_color("fill1", (oc_color){ 1, 1, 1, 0.045, OC_COLOR_SPACE_SRGB });
+        oc_ui_style_var_set_color("fill2", (oc_color){ 1, 1, 1, 0.063, OC_COLOR_SPACE_SRGB });
+        oc_ui_style_var_set_color("text0", (oc_color){ 0.976, 0.976, 0.976, 1, OC_COLOR_SPACE_SRGB });
+
+        oc_ui_style_var_set_f32("text-size0", 12);
+
+        oc_ui_style_var_set_f32("roundness0", 3);
+    }
+
+    oc_ui_theme_def_end();
 }
 
 void oc_ui_cleanup(void)
 {
     oc_ui_context* ui = oc_ui_get_context();
     oc_arena_cleanup(&ui->frameArena);
+    oc_arena_cleanup(&ui->persistentArena);
     oc_pool_cleanup(&ui->boxPool);
     ui->init = false;
 }
@@ -2463,8 +2727,6 @@ void oc_ui_cleanup(void)
 
 oc_ui_sig oc_ui_label_str8(oc_str8 key, oc_str8 label)
 {
-    oc_ui_theme* theme = oc_ui_get_theme();
-
     oc_ui_flags flags = OC_UI_FLAG_CLIP;
 
     oc_ui_box* box = oc_ui_box_str8(key, flags)
@@ -2474,9 +2736,9 @@ oc_ui_sig oc_ui_label_str8(oc_str8 key, oc_str8 label)
 
         oc_ui_style_set_size(OC_UI_SIZE_WIDTH, (oc_ui_size){ OC_UI_SIZE_TEXT, 0, 0 });
         oc_ui_style_set_size(OC_UI_SIZE_HEIGHT, (oc_ui_size){ OC_UI_SIZE_TEXT, 0, 0 });
-        oc_ui_style_set_color(OC_UI_COLOR, theme->text0);
-        oc_ui_style_set_font(OC_UI_FONT, theme->font); //TODO: should have font in theme
-        oc_ui_style_set_f32(OC_UI_TEXT_SIZE, 12);      //TODO: should have text sizes theme
+        oc_ui_style_set(OC_UI_COLOR, "text0");
+        oc_ui_style_set(OC_UI_FONT, "font-regular");
+        oc_ui_style_set(OC_UI_TEXT_SIZE, "text-size0");
     }
 
     oc_ui_sig sig = oc_ui_box_sig(box);
@@ -2517,8 +2779,6 @@ oc_ui_sig oc_ui_button_behavior(oc_ui_box* box)
 
 oc_ui_sig oc_ui_button_str8(oc_str8 key, oc_str8 text)
 {
-    oc_ui_theme* theme = oc_ui_get_theme();
-
     oc_ui_flags flags = OC_UI_FLAG_CLICKABLE
                       | OC_UI_FLAG_CLIP
                       | OC_UI_FLAG_HOT_ANIMATION
@@ -2535,19 +2795,21 @@ oc_ui_sig oc_ui_button_str8(oc_str8 key, oc_str8 text)
         oc_ui_style_set_i32(OC_UI_ALIGN_Y, OC_UI_ALIGN_CENTER);
         oc_ui_style_set_f32(OC_UI_MARGIN_X, 12);
         oc_ui_style_set_f32(OC_UI_MARGIN_X, 6);
-        oc_ui_style_set_color(OC_UI_COLOR, theme->primary);
-        oc_ui_style_set_font(OC_UI_FONT, theme->font);
-        oc_ui_style_set_f32(OC_UI_TEXT_SIZE, 12);
-        oc_ui_style_set_color(OC_UI_BG_COLOR, theme->fill0);
-        oc_ui_style_set_f32(OC_UI_ROUNDNESS, theme->roundnessSmall);
+
+        oc_ui_style_set(OC_UI_COLOR, "text0");
+        oc_ui_style_set(OC_UI_FONT, "font-regular");
+        oc_ui_style_set(OC_UI_TEXT_SIZE, "text-size0");
+
+        oc_ui_style_set(OC_UI_BG_COLOR, "fill0");
+        oc_ui_style_set(OC_UI_ROUNDNESS, "roundness0");
 
         oc_ui_style_rule(".hover")
         {
-            oc_ui_style_set_color(OC_UI_BG_COLOR, theme->fill1);
+            oc_ui_style_set(OC_UI_BG_COLOR, "fill1");
         }
         oc_ui_style_rule(".hover.active")
         {
-            oc_ui_style_set_color(OC_UI_BG_COLOR, theme->fill2);
+            oc_ui_style_set(OC_UI_BG_COLOR, "fill2");
         }
     }
 
@@ -4898,6 +5160,7 @@ oc_ui_text_box_result oc_ui_text_box(const char* name, oc_arena* arena, oc_str8 
 // doc/UIColors.md has them visualized
 //------------------------------------------------------------------------------
 
+/*
 //NOTE(ilia): Design system by semi.design: https://semi.design/en-US/start/overview
 //            New widgets should support dark and light theme
 //NOTE(martin): alpha have been modified, because we do alpha blending in linear space,
@@ -5284,3 +5547,5 @@ oc_ui_theme OC_UI_LIGHT_THEME = {
     .roundnessMedium = 6,
     .roundnessLarge = 9
 };
+
+*/

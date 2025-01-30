@@ -63,8 +63,6 @@ i32 ui_runloop(void* user)
 
         oc_ui_frame(frameSize, &defaultStyle, defaultMask)
         {
-            oc_ui_style_var_color("my-background", ((oc_color){ 1, 0, 1, 1 }));
-
             oc_ui_style_rule("inner lb")
             {
                 oc_ui_style_set_color(OC_UI_BG_COLOR, (oc_color){ 0, 1, 0, 1 });
@@ -77,8 +75,6 @@ i32 ui_runloop(void* user)
 
             oc_ui_container("container", 0)
             {
-                oc_ui_style_var_color("my-background", ((oc_color){ 1, 1, 0, 1 })); // should not have effect, since it's already defined
-
                 oc_ui_style_set_size(OC_UI_SIZE_WIDTH, (oc_ui_size){ OC_UI_SIZE_CHILDREN });
                 oc_ui_style_set_size(OC_UI_SIZE_HEIGHT, (oc_ui_size){ OC_UI_SIZE_CHILDREN });
                 oc_ui_style_set_color(OC_UI_BG_COLOR, (oc_color){ 0, 0, 0.1, 1 });
@@ -86,8 +82,6 @@ i32 ui_runloop(void* user)
                 oc_ui_style_set_f32(OC_UI_MARGIN_X, 10);
                 oc_ui_style_set_f32(OC_UI_MARGIN_Y, 10);
                 oc_ui_style_set_f32(OC_UI_SPACING, 10);
-
-                oc_ui_style_set(OC_UI_BG_COLOR, "my-background");
 
                 oc_ui_style_rule(".label.hover")
                 {
@@ -104,9 +98,6 @@ i32 ui_runloop(void* user)
 
                 oc_ui_container("inner", 0)
                 {
-                    //  oc_ui_style_var_set_color("my-background", ((oc_color){ 0, 1, 1, 1 })); // should overwrite previous value
-                    //  oc_ui_style_set(OC_UI_BG_COLOR, "my-background");
-
                     oc_ui_style_set_color(OC_UI_BG_COLOR, (oc_color){ 0, 0, 1, 1 });
 
                     oc_ui_style_set_size(OC_UI_SIZE_WIDTH, (oc_ui_size){ OC_UI_SIZE_CHILDREN });
