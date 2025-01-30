@@ -91,7 +91,11 @@ const Options = struct {
         } else if (commit_sha == null) {
             missing_arg = "sha";
         } else if (python == null) {
-            missing_arg = "python";
+            if (builtin.os.tag == .windows) {
+                missing_arg = "python";
+            } else {
+                missing_arg = "python3";
+            }
         } else if (cmake == null) {
             missing_arg = "cmake";
         } else if (src_dir == null) {
@@ -258,9 +262,9 @@ const DAWN_COMMIT_FILENAME = "dawn.json";
 
 fn ensureDepotTools(opts: *const Options) !std.process.EnvMap {
     var env: std.process.EnvMap = try std.process.getEnvMap(opts.arena);
-    if (builtin.os.tag == .windows) {
-        try env.put("DEPOT_TOOLS_WIN_TOOLCHAIN", "0");
-    }
+    // if (builtin.os.tag == .windows) {
+    try env.put("DEPOT_TOOLS_WIN_TOOLCHAIN", "0");
+    // }
 
     const depot_tools_path = try std.fs.path.join(opts.arena, &.{ opts.paths.intermediate_dir, "depot_tools" });
     if (try pathExists(std.fs.cwd(), depot_tools_path) == false) {
@@ -274,8 +278,20 @@ fn ensureDepotTools(opts: *const Options) !std.process.EnvMap {
     if (env.get(key)) |env_path| {
         const new_path = try std.fmt.allocPrint(opts.arena, "{s}" ++ [1]u8{std.fs.path.delimiter} ++ "{s}", .{ env_path, depot_tools_path });
         try env.put(key, new_path);
+        // std.debug.print(">>>>> old path: {s}\n", .{env_path});
+        // std.debug.print(">>>>> new path: {s}\n", .{new_path});
     } else {
         try env.put(key, depot_tools_path);
+    }
+
+    // macos build needs some extra help installing needed packages for gclient. First try using the python3
+    // pip directly - if that doesn't work, the user is likely using brew to manage python3 packages, so try
+    // that approach.
+    if (builtin.os.tag.isDarwin()) {
+        std.log.info("installing python-setuptools to python environment...", .{});
+        _ = execShell(opts.arena, &.{ opts.paths.python, "-m", "pip", "install", "python-setuptools" }, depot_tools_path, &env) catch {
+            execShell(opts.arena, &.{ "brew", "install", "python-setuptools" }, depot_tools_path, &env) catch {};
+        };
     }
 
     return env;
@@ -357,13 +373,39 @@ fn buildAngle(opts: *const Options) !void {
     var env: std.process.EnvMap = try ensureDepotTools(opts);
     defer env.deinit();
 
+    // try exec(opts.arena, &.{ "which", "python3" }, opts.paths.intermediate_dir, &env);
+
     const src_path = try std.fs.path.join(opts.arena, &.{ opts.paths.intermediate_dir, opts.lib.toStr() });
-    try copyFolder(opts.arena, src_path, opts.paths.src_dir);
+    // try copyFolder(opts.arena, src_path, opts.paths.src_dir);
+
+    if (try pathExists(std.fs.cwd(), src_path) == false) {
+        try execShell(
+            opts.arena,
+            &.{
+                "git",
+                "clone",
+                "--no-tags",
+                "--single-branch",
+                "https://chromium.googlesource.com/angle/angle",
+                src_path,
+            },
+            opts.paths.intermediate_dir,
+            &env,
+        );
+    }
+
+    try execShell(opts.arena, &.{ "git", "fetch", "--no-tags" }, src_path, &env);
+    try execShell(opts.arena, &.{ "git", "reset", "--hard", opts.commit_sha }, src_path, &env);
+    try execShell(opts.arena, &.{ opts.paths.python, "scripts/bootstrap.py" }, src_path, &env);
 
     const bootstrap_path = try std.fs.path.join(opts.arena, &.{ src_path, "scripts/bootstrap.py" });
-    try exec(opts.arena, &.{ opts.paths.python, bootstrap_path }, src_path, &env);
+    try exec(opts.arena, &.{bootstrap_path}, src_path, &env);
 
-    try execShell(opts.arena, &.{ "gclient", "sync" }, src_path, &env);
+    const depot_tools_path = try std.fs.path.join(opts.arena, &.{ opts.paths.intermediate_dir, "depot_tools" });
+
+    const gclient_entrypoint = if (builtin.os.tag == .windows) "gclient.bat" else "gclient";
+    const gclient_path = try std.fs.path.join(opts.arena, &.{ depot_tools_path, gclient_entrypoint });
+    try execShell(opts.arena, &.{ gclient_path, "sync" }, src_path, &env);
 
     const optimize_str = if (opts.optimize == .Debug) "Debug" else "Release";
     const is_debug_str = if (opts.optimize == .Debug) "is_debug=true" else "is_debug=false";
@@ -396,9 +438,13 @@ fn buildAngle(opts: *const Options) !void {
     const optimize_output_path = try std.fs.path.join(opts.arena, &.{ src_path, "out", optimize_str });
     try cwd.makePath(optimize_output_path);
 
-    try execShell(opts.arena, &.{ "gn", "gen", optimize_output_path, gn_args }, src_path, &env);
+    const gn_name = if (builtin.os.tag == .windows) "gn.bat" else "gn";
+    const gn_path = try std.fs.path.join(opts.arena, &.{ depot_tools_path, gn_name });
+    try execShell(opts.arena, &.{ gn_path, "gen", optimize_output_path, gn_args }, src_path, &env);
 
-    try execShell(opts.arena, &.{ "autoninja", "-C", optimize_output_path, "libEGL", "libGLESv2" }, src_path, &env);
+    const autoninja_name = if (builtin.os.tag == .windows) "autoninja.bat" else "autoninja";
+    const autoninja_path = try std.fs.path.join(opts.arena, &.{ depot_tools_path, autoninja_name });
+    try execShell(opts.arena, &.{ autoninja_path, "-C", optimize_output_path, "libEGL", "libGLESv2" }, src_path, &env);
 
     // copy artifacts to output dir
     {
@@ -514,12 +560,30 @@ fn buildDawn(opts: *const Options) !void {
     const cwd = std.fs.cwd();
 
     const src_path = try std.fs.path.join(opts.arena, &.{ opts.paths.intermediate_dir, opts.lib.toStr() });
-    try copyFolder(opts.arena, src_path, opts.paths.src_dir);
+
+    if (try pathExists(std.fs.cwd(), src_path) == false) {
+        try execShell(opts.arena, &.{
+            "git",
+            "clone",
+            "--no-tags",
+            "--single-branch",
+            "https://dawn.googlesource.com/dawn",
+            src_path,
+        }, opts.paths.intermediate_dir, &env);
+    }
+    try execShell(opts.arena, &.{ "git", "restore", "." }, src_path, &env);
+    try execShell(opts.arena, &.{ "git", "pull", "--force", "--no-tags" }, src_path, &env);
+    try execShell(opts.arena, &.{ "git", "checkout", "--force", opts.commit_sha }, src_path, &env);
+
+    // try copyFolder(opts.arena, src_path, opts.paths.src_dir);
 
     const src_dir = try cwd.openDir(src_path, .{});
     _ = try src_dir.updateFile("scripts/standalone.gclient", src_dir, ".gclient", .{});
 
-    try execShell(opts.arena, &.{ "gclient", "sync" }, src_path, &env);
+    const depot_tools_path = try std.fs.path.join(opts.arena, &.{ opts.paths.intermediate_dir, "depot_tools" });
+    const gclient_entrypoint = if (builtin.os.tag == .windows) "gclient.bat" else "gclient";
+    const gclient_path = try std.fs.path.join(opts.arena, &.{ depot_tools_path, gclient_entrypoint });
+    try execShell(opts.arena, &.{ gclient_path, "sync" }, src_path, &env);
 
     {
         const cmake_patch =
@@ -544,6 +608,10 @@ fn buildDawn(opts: *const Options) !void {
 
     const diff_file_path = try std.fs.path.join(opts.arena, &.{ src_path, "../../deps/dawn-d3d12-transparent.diff" });
     try exec(opts.arena, &.{ "git", "apply", "-v", diff_file_path }, src_path, &env); // TODO maybe use --unsafe-paths ?
+
+    if (builtin.os.tag != .windows) {
+        try exec(opts.arena, &.{ "chmod", "+x", opts.paths.cmake }, src_path, &env);
+    }
 
     const optimize_str = if (opts.optimize == .Debug) "Debug" else "Release";
     const cmake_build_type = try std.fmt.allocPrint(opts.arena, "CMAKE_BUILD_TYPE={s}", .{optimize_str});

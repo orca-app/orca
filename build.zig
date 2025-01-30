@@ -8,6 +8,8 @@ const ModuleImport = Module.Import;
 const CrossTarget = std.zig.CrossTarget;
 const CompileStep = std.Build.Step.Compile;
 
+const MACOS_VERSION_MIN = "13.0.0";
+
 const CSources = struct {
     files: std.ArrayList([]const u8),
     b: *Build,
@@ -125,26 +127,25 @@ const RunHelpers = struct {
                 run.addPrefixedFileArg("--python=", python_path);
             }
         } else {
-            run.addArg("--python=python");
+            // run.addArg("--python=python3");
+            // run.addArg("--python=/usr/local/bin/python3");
+            run.addArg("--python=/usr/bin/python3");
         }
     }
 
     fn addCmakeArg(run: *Build.Step.Run, target: Build.ResolvedTarget, b: *Build) void {
-        var lazy_cmake_dep: ?*Build.Dependency = undefined;
-        var binary_name: []const u8 = undefined;
-
         if (target.result.os.tag == .windows) {
-            lazy_cmake_dep = b.lazyDependency("cmake-win64", .{});
-            binary_name = "cmake.exe";
-        } else {
-            lazy_cmake_dep = b.lazyDependency("cmake-linux64", .{});
-            binary_name = "cmake";
-        }
-
-        if (lazy_cmake_dep) |cmake_dep| {
-            const subpath = std.fs.path.join(b.allocator, &.{ "bin", binary_name }) catch @panic("OOM");
-            const cmake_path = cmake_dep.path(subpath);
-            run.addPrefixedFileArg("--cmake=", cmake_path);
+            if (b.lazyDependency("cmake-win64", .{})) |dep| {
+                const subpath = std.fs.path.join(b.allocator, &.{ "bin", "cmake.exe" }) catch @panic("OOM");
+                const cmake_path = dep.path(subpath);
+                run.addPrefixedFileArg("--cmake=", cmake_path);
+            }
+        } else if (target.result.os.tag.isDarwin()) {
+            if (b.lazyDependency("cmake-macos", .{})) |dep| {
+                const subpath = std.fs.path.join(b.allocator, &.{ "CMake.app", "Contents", "bin", "cmake" }) catch @panic("OOM");
+                const cmake_path = dep.path(subpath);
+                run.addPrefixedFileArg("--cmake=", cmake_path);
+            }
         }
     }
 };
@@ -203,6 +204,8 @@ pub fn build(b: *Build) !void {
 
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
+
+    const compile_flag_min_macos_version = b.fmt("-mmacos-version-min={s}", .{MACOS_VERSION_MIN});
 
     const shas = try LibShas.find(cwd, b.allocator);
 
@@ -330,13 +333,15 @@ pub fn build(b: *Build) !void {
         stage_angle_artifacts.addCopyFileToSource(b.path("build/dawn.out/bin/webgpu.dll"), "build/bin/webgpu.dll");
         stage_angle_artifacts.addCopyFileToSource(b.path("build/dawn.out/bin/webgpu.lib"), "build/bin/webgpu.lib");
     } else {
-        stage_angle_artifacts.addCopyFileToSource(b.path("build/dawn.out/bin/libwebgpu.dylib"), "build/bin/libwebgpu.dll");
+        stage_angle_artifacts.addCopyFileToSource(b.path("build/dawn.out/bin/libwebgpu.dylib"), "build/bin/libwebgpu.dylib");
     }
     stage_dawn_artifacts.step.dependOn(&run_dawn_uptodate.step);
 
     // generate GLES API spec from OpenGL XML registry
     // TODO port this to C or Zig
-    var python_gen_gles_spec_run: *Build.Step.Run = b.addSystemCommand(&.{"python.exe"});
+    // TODO use python package dependency to avoid system dependency
+    const python_exe_name = if (target.result.os.tag == .windows) "python.exe" else "python3";
+    var python_gen_gles_spec_run: *Build.Step.Run = b.addSystemCommand(&.{python_exe_name});
     python_gen_gles_spec_run.addArg("scripts/gles_gen.py");
     python_gen_gles_spec_run.addPrefixedFileArg("--spec=", b.path("src/ext/gl.xml"));
     const gles_api_header = python_gen_gles_spec_run.addPrefixedOutputFileArg("--header=", "orca_gl31.h");
@@ -437,11 +442,15 @@ pub fn build(b: *Build) !void {
         try orca_platform_compile_flags.append("-DOC_DEBUG");
         try orca_platform_compile_flags.append("-DOC_LOG_COMPILE_DEBUG");
     }
+    if (target.result.os.tag.isDarwin()) {
+        try orca_platform_compile_flags.append(compile_flag_min_macos_version);
+    }
     // if (target.result.os.tag == .windows) {
     //     try orca_platform_compile_flags.append("-Wl,--delayload=libEGL.dll");
     //     try orca_platform_compile_flags.append("-Wl,--delayload=libGLESv2.dll");
     //     try orca_platform_compile_flags.append("-Wl,--delayload=webgpu.dll");
     // }
+    // if (target.result.os.tag.isDarwin()) {}
 
     var orca_platform_lib = b.addSharedLibrary(.{
         .name = "orca_platform",
@@ -481,6 +490,18 @@ pub fn build(b: *Build) !void {
         orca_platform_lib.linkSystemLibrary("libEGL.dll"); // todo DELAYLOAD?
         orca_platform_lib.linkSystemLibrary("libGLESv2.dll"); // todo DELAYLOAD?
         orca_platform_lib.linkSystemLibrary("webgpu"); // todo DELAYLOAD?
+    } else if (target.result.os.tag.isDarwin()) {
+        orca_platform_lib.linkFramework("Carbon");
+        orca_platform_lib.linkFramework("Cocoa");
+        orca_platform_lib.linkFramework("Metal");
+        orca_platform_lib.linkFramework("QuartzCore");
+        orca_platform_lib.linkFramework("UniformTypeIdentifiers");
+
+        // TODO add @rpath stuff?
+        // orca_platform_lib.addRPath("@rpath");
+        orca_platform_lib.linkSystemLibrary2("EGL", .{ .weak = true });
+        orca_platform_lib.linkSystemLibrary2("GLESv2", .{ .weak = true });
+        orca_platform_lib.linkSystemLibrary2("webgpu", .{ .weak = true });
     }
 
     orca_platform_lib.step.dependOn(&stage_angle_artifacts.step);
@@ -510,10 +531,19 @@ pub fn build(b: *Build) !void {
         .optimize = optimize,
     });
 
+    var wasm3_compile_flags = std.ArrayList([]const u8).init(b.allocator);
+    try wasm3_compile_flags.append("-fno-sanitize=undefined");
+    if (target.result.os.tag.isDarwin()) {
+        try wasm3_compile_flags.append("-foptimize-sibling-calls");
+        try wasm3_compile_flags.append("-Wno-extern-initializer");
+        try wasm3_compile_flags.append("-Dd_m3VerboseErrorMessages");
+        try wasm3_compile_flags.append(compile_flag_min_macos_version);
+    }
+
     wasm3_lib.addIncludePath(b.path("src/ext/wasm3/source"));
     wasm3_lib.addCSourceFiles(.{
         .files = wasm3_sources.files.items,
-        .flags = &.{"-fno-sanitize=undefined"},
+        .flags = wasm3_compile_flags.items,
     });
     wasm3_lib.linkLibC();
 
@@ -807,13 +837,20 @@ pub fn build(b: *Build) !void {
 
     curl_lib.addWin32ResourceFile(.{ .file = b.path("src/ext/curl/lib/libcurl.rc") });
 
-    curl_lib.linkSystemLibrary("ws2_32");
-    curl_lib.linkSystemLibrary("wldap32");
-    curl_lib.linkSystemLibrary("advapi32");
-    curl_lib.linkSystemLibrary("crypt32");
-    curl_lib.linkSystemLibrary("gdi32");
-    curl_lib.linkSystemLibrary("user32");
-    curl_lib.linkSystemLibrary("bcrypt");
+    if (target.result.os.tag == .windows) {
+        curl_lib.linkSystemLibrary("ws2_32");
+        curl_lib.linkSystemLibrary("wldap32");
+        curl_lib.linkSystemLibrary("advapi32");
+        curl_lib.linkSystemLibrary("crypt32");
+        curl_lib.linkSystemLibrary("gdi32");
+        curl_lib.linkSystemLibrary("user32");
+        curl_lib.linkSystemLibrary("bcrypt");
+    } else if (target.result.os.tag.isDarwin()) {
+        curl_lib.linkFramework("CoreFoundation");
+        curl_lib.linkFramework("CoreServices");
+        curl_lib.linkFramework("SystemConfiguration");
+        curl_lib.linkFramework("Security");
+    }
     curl_lib.linkLibC();
 
     // zlib
@@ -888,6 +925,13 @@ pub fn build(b: *Build) !void {
         orca_tool_exe.linkSystemLibrary("shell32");
         orca_tool_exe.linkSystemLibrary("ole32");
         orca_tool_exe.linkSystemLibrary("kernel32");
+    } else if (target.result.os.tag.isDarwin()) {
+        orca_tool_exe.linkFramework("Cocoa");
+        orca_tool_exe.linkFramework("SystemConfiguration");
+        orca_tool_exe.linkFramework("CoreFoundation");
+        orca_tool_exe.linkFramework("CoreServices");
+        orca_tool_exe.linkFramework("SystemConfiguration");
+        orca_tool_exe.linkFramework("Security");
     }
 
     orca_tool_exe.step.dependOn(&curl_lib.step);
@@ -1076,10 +1120,10 @@ pub fn build(b: *Build) !void {
         stage_sketch_dependency_artifacts.addCopyFileToSource(b.path("build/angle.out/bin/libGLESv2.dll.lib"), "build/sketches/libGLESv2.dll.lib");
         stage_sketch_dependency_artifacts.addCopyFileToSource(b.path("build/dawn.out/bin/webgpu.dll"), "build/sketches/webgpu.dll");
         stage_sketch_dependency_artifacts.addCopyFileToSource(b.path("build/dawn.out/bin/webgpu.lib"), "build/sketches/webgpu.lib");
-    } else {
+    } else if (target.result.os.tag.isDarwin()) {
         stage_sketch_dependency_artifacts.addCopyFileToSource(b.path("build/angle.out/bin/libEGL.dylib"), "build/sketches/libEGL.dylib");
         stage_sketch_dependency_artifacts.addCopyFileToSource(b.path("build/angle.out/bin/libGLESv2.dylib"), "build/sketches/libGLESv2.dylib");
-        stage_sketch_dependency_artifacts.addCopyFileToSource(b.path("build/dawn.out/bin/libwebgpu.dylib"), "build/sketches/libwebgpu.dll");
+        stage_sketch_dependency_artifacts.addCopyFileToSource(b.path("build/dawn.out/bin/libwebgpu.dylib"), "build/sketches/libwebgpu.dylib");
     }
     stage_sketch_dependency_artifacts.step.dependOn(&run_angle_uptodate.step);
     stage_sketch_dependency_artifacts.step.dependOn(&run_dawn_uptodate.step);
@@ -1178,7 +1222,7 @@ pub fn build(b: *Build) !void {
     } else {
         stage_test_dependency_artifacts.addCopyFileToSource(b.path("build/angle.out/bin/libEGL.dylib"), "build/tests/libEGL.dylib");
         stage_test_dependency_artifacts.addCopyFileToSource(b.path("build/angle.out/bin/libGLESv2.dylib"), "build/tests/libGLESv2.dylib");
-        stage_test_dependency_artifacts.addCopyFileToSource(b.path("build/dawn.out/bin/libwebgpu.dylib"), "build/tests/libwebgpu.dll");
+        stage_test_dependency_artifacts.addCopyFileToSource(b.path("build/dawn.out/bin/libwebgpu.dylib"), "build/tests/libwebgpu.dylib");
     }
     stage_test_dependency_artifacts.step.dependOn(&run_angle_uptodate.step);
     stage_test_dependency_artifacts.step.dependOn(&run_dawn_uptodate.step);
