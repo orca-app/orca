@@ -436,6 +436,7 @@ pub fn build(b: *Build) !void {
 
     var orca_platform_compile_flags = std.ArrayList([]const u8).init(b.allocator);
     defer orca_platform_compile_flags.deinit();
+    try orca_platform_compile_flags.append("-std=c11");
     try orca_platform_compile_flags.append("-DOC_BUILD_DLL");
     try orca_platform_compile_flags.append("-fno-sanitize=undefined");
     if (optimize == .Debug) {
@@ -464,10 +465,8 @@ pub fn build(b: *Build) !void {
     orca_platform_lib.addIncludePath(b.path("src/ext/angle/include"));
     orca_platform_lib.addIncludePath(b.path("src/ext/dawn/include"));
 
-    orca_platform_lib.addCSourceFiles(.{
-        .files = &.{"src/orca.c"},
-        .flags = orca_platform_compile_flags.items,
-    });
+    var orca_platform_files = std.ArrayList([]const u8).init(b.allocator);
+    try orca_platform_files.append("src/orca.c");
 
     orca_platform_lib.addLibraryPath(b.path("build/bin"));
 
@@ -502,7 +501,14 @@ pub fn build(b: *Build) !void {
         orca_platform_lib.linkSystemLibrary2("EGL", .{ .weak = true });
         orca_platform_lib.linkSystemLibrary2("GLESv2", .{ .weak = true });
         orca_platform_lib.linkSystemLibrary2("webgpu", .{ .weak = true });
+
+        try orca_platform_files.append("src/orca.m");
     }
+
+    orca_platform_lib.addCSourceFiles(.{
+        .files = orca_platform_files.items,
+        .flags = orca_platform_compile_flags.items,
+    });
 
     orca_platform_lib.step.dependOn(&stage_angle_artifacts.step);
     orca_platform_lib.step.dependOn(&stage_dawn_artifacts.step);
