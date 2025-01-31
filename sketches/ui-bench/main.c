@@ -70,7 +70,7 @@ i32 ui_runloop(void* user)
                 oc_ui_style_set_color(OC_UI_BG_COLOR, (oc_color){ 1, 0, 0, 1 });
             }
 
-            oc_ui_box("container", 0)
+            oc_ui_box("container")
             {
                 oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_CHILDREN });
                 oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_CHILDREN });
@@ -94,7 +94,7 @@ i32 ui_runloop(void* user)
                 oc_ui_button("bb", "Button B");
                 oc_ui_button("bc", "Button C");
 
-                oc_ui_box("inner", 0)
+                oc_ui_box("inner")
                 {
                     oc_ui_style_set_color(OC_UI_BG_COLOR, (oc_color){ 0, 0, 1, 1 });
 
@@ -109,7 +109,7 @@ i32 ui_runloop(void* user)
                 }
             }
 
-            oc_ui_box("panel", 0)
+            oc_ui_box("panel")
             {
                 oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PIXELS, 300 });
                 oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PIXELS, 200 });
@@ -125,7 +125,7 @@ i32 ui_runloop(void* user)
                 oc_ui_style_set_f32(OC_UI_MARGIN_X, 20);
                 oc_ui_style_set_f32(OC_UI_MARGIN_Y, 20);
 
-                oc_ui_box("box", 0)
+                oc_ui_box("box")
                 {
                     //                    oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
                     oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PIXELS, 250 });
@@ -136,7 +136,7 @@ i32 ui_runloop(void* user)
                 oc_ui_button("mybutton", "clickMe");
             }
 
-            oc_ui_box("note", 0)
+            oc_ui_box("note")
             {
                 oc_ui_set_overlay(true);
                 oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PIXELS, 100 });

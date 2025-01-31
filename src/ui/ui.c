@@ -1418,7 +1418,7 @@ oc_ui_sig oc_ui_box_compute_signals(oc_ui_box* box)
     return (sig);
 }
 
-oc_ui_box* oc_ui_box_make_str8(oc_str8 string, oc_ui_flags flags)
+oc_ui_box* oc_ui_box_make_str8(oc_str8 string)
 {
     oc_ui_context* ui = oc_ui_get_context();
 
@@ -1439,7 +1439,6 @@ oc_ui_box* oc_ui_box_make_str8(oc_str8 string, oc_ui_flags flags)
         box->fresh = false;
     }
 
-    box->flags = flags;
     box->keyString = oc_str8_push_copy(&ui->frameArena, string);
     box->text = (oc_str8){ 0 };
 
@@ -1483,10 +1482,10 @@ oc_ui_box* oc_ui_box_make_str8(oc_str8 string, oc_ui_flags flags)
     return (box);
 }
 
-oc_ui_box* oc_ui_box_begin_str8(oc_str8 string, oc_ui_flags flags)
+oc_ui_box* oc_ui_box_begin_str8(oc_str8 string)
 {
     oc_ui_context* ui = oc_ui_get_context();
-    oc_ui_box* box = oc_ui_box_make_str8(string, flags);
+    oc_ui_box* box = oc_ui_box_make_str8(string);
     oc_ui_box_push(box);
     return (box);
 }
@@ -2322,13 +2321,6 @@ void oc_ui_layout_upward_dependent_size(oc_ui_context* ui, oc_ui_box* box, int a
               box->style.size.c[axis].kind,
               box->rect.c[2 + axis],
               box->minSize[axis]);
-    /*
-    if(!(box->flags & overflowFlag) && !oc_list_empty(box->children))
-    {
-        f32 minSize = sum + 2 * box->style.layout.margin.c[axis] + box->spacing[axis];
-        box->rect.c[2 + axis] = oc_max(minSize, box->rect.c[2 + axis]);
-    }
-    */
 }
 
 void oc_ui_layout_upward_dependent_fixup(oc_ui_context* ui, oc_ui_box* box, int axis)
@@ -2742,7 +2734,7 @@ void oc_ui_begin_frame(oc_vec2 size)
     //TODO: we could avoid this with a framecounter for each bucket
     memset(ui->styleVariables.buckets, 0, sizeof(oc_list) * (4 << 10));
 
-    ui->root = oc_ui_box_begin("_root_", 0);
+    ui->root = oc_ui_box_begin("_root_");
 
     oc_ui_style_theme_dark();
 
@@ -2750,7 +2742,7 @@ void oc_ui_begin_frame(oc_vec2 size)
     oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PIXELS, size.x });
     oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PIXELS, size.y });
 
-    oc_ui_box* contents = oc_ui_box_begin("_contents_", 0);
+    oc_ui_box* contents = oc_ui_box_begin("_contents_");
 
     oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
     oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
@@ -2767,7 +2759,7 @@ void oc_ui_end_frame(void)
 {
     oc_ui_context* ui = oc_ui_get_context();
 
-    ui->overlay = oc_ui_box_make("_overlay_", 0);
+    ui->overlay = oc_ui_box_make("_overlay_");
     oc_ui_box_push(ui->overlay);
     {
         oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
@@ -2841,7 +2833,7 @@ void oc_ui_cleanup(void)
 
 oc_ui_sig oc_ui_label_str8(oc_str8 key, oc_str8 label)
 {
-    oc_ui_box* box = oc_ui_box_str8(key, OC_UI_FLAG_NONE)
+    oc_ui_box* box = oc_ui_box_str8(key)
     {
         oc_ui_tag("label");
         oc_ui_set_text(label);
@@ -2891,10 +2883,7 @@ oc_ui_sig oc_ui_button_behavior(oc_ui_box* box)
 
 oc_ui_sig oc_ui_button_str8(oc_str8 key, oc_str8 text)
 {
-    oc_ui_flags flags = OC_UI_FLAG_HOT_ANIMATION
-                      | OC_UI_FLAG_ACTIVE_ANIMATION;
-
-    oc_ui_box* box = oc_ui_box_str8(key, flags)
+    oc_ui_box* box = oc_ui_box_str8(key)
     {
         oc_ui_set_text(text);
         oc_ui_tag("button");
@@ -2938,7 +2927,7 @@ oc_ui_sig oc_ui_button(const char* key, const char* text)
 
 oc_ui_box* oc_ui_scrollbar_str8(oc_str8 name, oc_rect rect, f32 thumbRatio, f32* scrollValue, bool horizontal)
 {
-    oc_ui_box* track = oc_ui_box_str8(name, 0)
+    oc_ui_box* track = oc_ui_box_str8(name)
     {
         oc_ui_style_set_i32(OC_UI_FLOATING_X, 1);
         oc_ui_style_set_i32(OC_UI_FLOATING_Y, 1);
@@ -2963,13 +2952,13 @@ oc_ui_box* oc_ui_scrollbar_str8(oc_str8 name, oc_rect rect, f32 thumbRatio, f32*
         f32 beforeRatio = (*scrollValue) * (1. - thumbRatio);
         f32 afterRatio = (1. - *scrollValue) * (1. - thumbRatio);
 
-        oc_ui_box("before-spacer", 0)
+        oc_ui_box("before-spacer")
         {
             oc_ui_style_set_size(OC_UI_WIDTH + trackAxis, (oc_ui_size){ OC_UI_SIZE_PARENT, beforeRatio });
             oc_ui_style_set_size(OC_UI_WIDTH + secondAxis, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
         }
 
-        oc_ui_box* thumb = oc_ui_box("thumb", OC_UI_FLAG_HOT_ANIMATION | OC_UI_FLAG_ACTIVE_ANIMATION)
+        oc_ui_box* thumb = oc_ui_box("thumb")
         {
             oc_ui_style_set_size(OC_UI_WIDTH + trackAxis, (oc_ui_size){ OC_UI_SIZE_PARENT, thumbRatio });
             oc_ui_style_set_size(OC_UI_WIDTH + secondAxis, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
@@ -2989,7 +2978,7 @@ oc_ui_box* oc_ui_scrollbar_str8(oc_str8 name, oc_rect rect, f32 thumbRatio, f32*
             }
         }
 
-        oc_ui_box("after-spacer", 0)
+        oc_ui_box("after-spacer")
         {
             oc_ui_style_set_size(OC_UI_WIDTH + trackAxis, (oc_ui_size){ OC_UI_SIZE_PARENT, afterRatio });
             oc_ui_style_set_size(OC_UI_WIDTH + secondAxis, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });

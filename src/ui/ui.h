@@ -170,9 +170,8 @@ typedef enum
 
 //NOTE: flags for axis-dependent properties (e.g. OC_UI_STYLE_FLOAT_X/Y) need to be consecutive bits
 //      in order to play well with axis agnostic functions
-typedef u64 oc_ui_style_mask;
 
-enum
+typedef enum oc_ui_style_mask
 {
     OC_UI_MASK_NONE = 0,
     OC_UI_MASK_SIZE_WIDTH = 1 << OC_UI_WIDTH,
@@ -226,7 +225,7 @@ enum
                               | OC_UI_MASK_FONT_SIZE
                               | OC_UI_MASK_ANIMATION_TIME
                               | OC_UI_MASK_ANIMATION_MASK,
-};
+} oc_ui_style_mask;
 
 typedef struct oc_ui_style
 {
@@ -331,14 +330,6 @@ typedef struct oc_ui_sig
 
 typedef void (*oc_ui_box_draw_proc)(oc_ui_box* box, void* data);
 
-typedef enum
-{
-    OC_UI_FLAG_NONE = 0,
-
-    OC_UI_FLAG_HOT_ANIMATION = (1 << 4),
-    OC_UI_FLAG_ACTIVE_ANIMATION = (1 << 5),
-} oc_ui_flags;
-
 struct oc_ui_box
 {
     // hierarchy
@@ -355,7 +346,6 @@ struct oc_ui_box
     u64 frameCounter;
 
     // builder-provided info
-    oc_ui_flags flags;
     oc_str8 keyString;
     oc_str8 text;
     oc_list tags;
@@ -562,16 +552,16 @@ ORCA_API oc_ui_key oc_ui_key_make_path(oc_str8_list path);
 //-------------------------------------------------------------------------------------
 // Box hierarchy building
 //-------------------------------------------------------------------------------------
-ORCA_API oc_ui_box* oc_ui_box_make_str8(oc_str8 string, oc_ui_flags flags);
-ORCA_API oc_ui_box* oc_ui_box_begin_str8(oc_str8 string, oc_ui_flags flags);
+ORCA_API oc_ui_box* oc_ui_box_make_str8(oc_str8 string);
+ORCA_API oc_ui_box* oc_ui_box_begin_str8(oc_str8 string);
 
 ORCA_API oc_ui_box* oc_ui_box_end(void);
 
-#define oc_ui_box_str8(name, flags)    \
-    oc_ui_box_begin_str8(name, flags); \
+#define oc_ui_box_str8(name)    \
+    oc_ui_box_begin_str8(name); \
     oc_defer_loop(, oc_ui_box_end())
 
-#define oc_ui_box(name, flags) oc_ui_box_str8(OC_STR8(name), flags)
+#define oc_ui_box(name) oc_ui_box_str8(OC_STR8(name))
 
 ORCA_API void oc_ui_box_push(oc_ui_box* box);
 ORCA_API void oc_ui_box_pop(void);
@@ -584,8 +574,8 @@ ORCA_API void oc_ui_box_set_draw_proc(oc_ui_box* box, oc_ui_box_draw_proc proc, 
 
 // C-string helpers
 #define oc_ui_box_lookup(s) oc_ui_box_lookup_str8(OC_STR8(s))
-#define oc_ui_box_make(s, flags) oc_ui_box_make_str8(OC_STR8(s), flags)
-#define oc_ui_box_begin(s, flags) oc_ui_box_begin_str8(OC_STR8(s), flags)
+#define oc_ui_box_make(s) oc_ui_box_make_str8(OC_STR8(s))
+#define oc_ui_box_begin(s) oc_ui_box_begin_str8(OC_STR8(s))
 
 //TODO: find its place
 ORCA_API void oc_ui_set_text(oc_str8 text);
