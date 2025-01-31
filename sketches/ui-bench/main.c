@@ -135,6 +135,13 @@ i32 ui_runloop(void* user)
                 }
                 oc_ui_button("mybutton", "clickMe");
             }
+
+            oc_ui_box("note", OC_UI_FLAG_OVERLAY)
+            {
+                oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PIXELS, 100 });
+                oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PIXELS, 50 });
+                oc_ui_style_set_color(OC_UI_BG_COLOR, (oc_color){ 1, 0, 0, 1 });
+            }
         }
 
         oc_ui_draw();

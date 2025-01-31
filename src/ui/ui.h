@@ -163,6 +163,8 @@ typedef enum
     OC_UI_ANIMATION_TIME,
     OC_UI_ANIMATION_MASK,
 
+    OC_UI_CLICK_THROUGH,
+
     OC_UI_STYLE_ATTR_COUNT,
 } oc_ui_style_attribute;
 
@@ -198,6 +200,7 @@ enum
     OC_UI_MASK_FONT_SIZE = 1 << OC_UI_TEXT_SIZE,
     OC_UI_MASK_ANIMATION_TIME = 1 << OC_UI_ANIMATION_TIME,
     OC_UI_MASK_ANIMATION_MASK = 1 << OC_UI_ANIMATION_MASK,
+    OC_UI_MASK_CLICK_THROUGH = 1 << OC_UI_CLICK_THROUGH,
 
     //masks
     OC_UI_MASK_SIZE = OC_UI_MASK_SIZE_WIDTH
@@ -240,6 +243,8 @@ typedef struct oc_ui_style
     f32 roundness;
     f32 animationTime;
     oc_ui_style_mask animationMask;
+
+    bool clickThrough;
 } oc_ui_style;
 
 typedef struct oc_ui_tag
@@ -329,8 +334,7 @@ typedef void (*oc_ui_box_draw_proc)(oc_ui_box* box, void* data);
 typedef enum
 {
     OC_UI_FLAG_NONE = 0,
-    OC_UI_FLAG_CLICKABLE = (1 << 0),
-    OC_UI_FLAG_BLOCK_MOUSE = (1 << 3),
+
     OC_UI_FLAG_HOT_ANIMATION = (1 << 4),
     OC_UI_FLAG_ACTIVE_ANIMATION = (1 << 5),
     OC_UI_FLAG_OVERLAY = (1 << 16),

@@ -516,6 +516,10 @@ void oc_ui_style_set_i32(oc_ui_style_attribute attr, i32 i)
             style->animationMask = i;
             break;
 
+        case OC_UI_CLICK_THROUGH:
+            style->clickThrough = i;
+            break;
+
         default:
             //TODO: better error
             oc_log_error("error trying to set attribute: type mismatch.");
@@ -1137,6 +1141,7 @@ void oc_ui_style_set_str8(oc_ui_style_attribute attr, oc_str8 name)
             case OC_UI_CONSTRAIN_X:
             case OC_UI_CONSTRAIN_Y:
             case OC_UI_ANIMATION_MASK:
+            case OC_UI_CLICK_THROUGH:
                 value.kind = OC_UI_STYLE_VAR_I32;
                 break;
 
@@ -1375,40 +1380,38 @@ oc_ui_sig oc_ui_box_compute_signals(oc_ui_box* box)
         sig.wheel = oc_ui_mouse_wheel();
         sig.hovering = oc_ui_box_hovering(box, mousePos);
 
-        if(box->flags & OC_UI_FLAG_CLICKABLE)
+        //TODO: we might want to restrict that only to clickable boxes?
+        if(sig.hovering)
         {
-            if(sig.hovering)
+            sig.pressed = oc_mouse_pressed(input, OC_MOUSE_LEFT);
+            if(sig.pressed)
             {
-                sig.pressed = oc_mouse_pressed(input, OC_MOUSE_LEFT);
-                if(sig.pressed)
+                if(!box->dragging)
                 {
-                    if(!box->dragging)
-                    {
-                        box->pressedMouse = sig.mouse;
-                    }
-                    box->dragging = true;
+                    box->pressedMouse = sig.mouse;
                 }
-                sig.doubleClicked = oc_mouse_double_clicked(input, OC_MOUSE_LEFT);
-                sig.tripleClicked = oc_mouse_triple_clicked(input, OC_MOUSE_LEFT);
-                sig.rightPressed = oc_mouse_pressed(input, OC_MOUSE_RIGHT);
+                box->dragging = true;
             }
-
-            sig.released = oc_mouse_released(input, OC_MOUSE_LEFT);
-            if(sig.released)
-            {
-                if(box->dragging && sig.hovering)
-                {
-                    sig.clicked = true;
-                }
-            }
-
-            if(!oc_mouse_down(input, OC_MOUSE_LEFT))
-            {
-                box->dragging = false;
-            }
-
-            sig.dragging = box->dragging;
+            sig.doubleClicked = oc_mouse_double_clicked(input, OC_MOUSE_LEFT);
+            sig.tripleClicked = oc_mouse_triple_clicked(input, OC_MOUSE_LEFT);
+            sig.rightPressed = oc_mouse_pressed(input, OC_MOUSE_RIGHT);
         }
+
+        sig.released = oc_mouse_released(input, OC_MOUSE_LEFT);
+        if(sig.released)
+        {
+            if(box->dragging && sig.hovering)
+            {
+                sig.clicked = true;
+            }
+        }
+
+        if(!oc_mouse_down(input, OC_MOUSE_LEFT))
+        {
+            box->dragging = false;
+        }
+
+        sig.dragging = box->dragging;
 
         sig.pasted = oc_clipboard_pasted(input);
     }
@@ -1451,10 +1454,7 @@ oc_ui_box* oc_ui_box_make_str8(oc_str8 string, oc_ui_flags flags)
             box->parentClosed = box->parent->closed || box->parent->parentClosed;
         }
 
-        if(box->flags & OC_UI_FLAG_OVERLAY)
-        {
-            oc_list_push_back(&ui->overlayList, &box->overlayElt);
-        }
+        box->overlayElt = (oc_list_elt){ 0 };
     }
     else
     {
@@ -1495,6 +1495,11 @@ oc_ui_box* oc_ui_box_end(void)
     oc_ui_context* ui = oc_ui_get_context();
     oc_ui_box* box = oc_ui_box_top();
     OC_DEBUG_ASSERT(box, "box stack underflow");
+
+    if(box->flags & OC_UI_FLAG_OVERLAY)
+    {
+        oc_list_push_back(&ui->overlayList, &box->overlayElt);
+    }
 
     oc_ui_sig sig = oc_ui_box_sig(box);
 
@@ -2482,11 +2487,12 @@ void oc_ui_layout_find_next_hovered_recursive(oc_ui_context* ui, oc_ui_box* box,
     }
 
     bool hit = oc_ui_rect_hit(box->rect, p);
-    if(hit && (box->flags & OC_UI_FLAG_BLOCK_MOUSE))
+
+    if(hit && !box->style.clickThrough)
     {
         ui->hovered = box;
     }
-    if(hit || !(box->flags & OC_UI_FLAG_CLIP))
+    if(hit || oc_ui_rect_hit(oc_ui_box_clip_rect(box), p))
     {
         oc_list_for(box->children, child, oc_ui_box, listElt)
         {
@@ -2715,6 +2721,9 @@ void oc_ui_begin_frame(oc_vec2 size)
     ui->clipStack = 0;
     ui->z = 0;
 
+    ui->nextBoxTags = (oc_list){ 0 };
+    ui->overlayList = (oc_list){ 0 };
+
     ui->styleVariables.mask = (4 << 10) - 1;
     ui->styleVariables.buckets = oc_arena_push_array(&ui->frameArena, oc_list, 4 << 10);
     //TODO: we could avoid this with a framecounter for each bucket
@@ -2727,23 +2736,6 @@ void oc_ui_begin_frame(oc_vec2 size)
     oc_ui_style_set_str8(OC_UI_BG_COLOR, OC_UI_THEME_BG_0);
     oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PIXELS, size.x });
     oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PIXELS, size.y });
-
-    ui->overlay = oc_ui_box_make("_overlay_", 0);
-    oc_ui_box_push(ui->overlay);
-    {
-        oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_Y);
-        oc_ui_style_set_i32(OC_UI_ALIGN_X, OC_UI_ALIGN_START);
-        oc_ui_style_set_i32(OC_UI_ALIGN_Y, OC_UI_ALIGN_START);
-        oc_ui_style_set_i32(OC_UI_FLOATING_X, 1);
-        oc_ui_style_set_i32(OC_UI_FLOATING_Y, 1);
-        oc_ui_style_set_f32(OC_UI_FLOAT_TARGET_X, 0);
-        oc_ui_style_set_f32(OC_UI_FLOAT_TARGET_Y, 0);
-    }
-    oc_ui_box_pop();
-
-    ui->overlayList = (oc_list){ 0 };
-
-    ui->nextBoxTags = (oc_list){ 0 };
 
     oc_ui_box* contents = oc_ui_box_begin("_contents_", 0);
 
@@ -2761,6 +2753,21 @@ void oc_ui_begin_frame(oc_vec2 size)
 void oc_ui_end_frame(void)
 {
     oc_ui_context* ui = oc_ui_get_context();
+
+    ui->overlay = oc_ui_box_make("_overlay_", 0);
+    oc_ui_box_push(ui->overlay);
+    {
+        oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
+        oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
+        oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_Y);
+        oc_ui_style_set_i32(OC_UI_ALIGN_X, OC_UI_ALIGN_START);
+        oc_ui_style_set_i32(OC_UI_ALIGN_Y, OC_UI_ALIGN_START);
+        oc_ui_style_set_i32(OC_UI_FLOATING_X, 1);
+        oc_ui_style_set_i32(OC_UI_FLOATING_Y, 1);
+        oc_ui_style_set_f32(OC_UI_FLOAT_TARGET_X, 0);
+        oc_ui_style_set_f32(OC_UI_FLOAT_TARGET_Y, 0);
+    }
+    oc_ui_box_pop();
 
     oc_ui_box_pop();
 
@@ -2821,9 +2828,7 @@ void oc_ui_cleanup(void)
 
 oc_ui_sig oc_ui_label_str8(oc_str8 key, oc_str8 label)
 {
-    oc_ui_flags flags = OC_UI_FLAG_CLIP;
-
-    oc_ui_box* box = oc_ui_box_str8(key, flags)
+    oc_ui_box* box = oc_ui_box_str8(key, OC_UI_FLAG_NONE)
     {
         oc_ui_tag("label");
         oc_ui_set_text(label);
@@ -2873,9 +2878,7 @@ oc_ui_sig oc_ui_button_behavior(oc_ui_box* box)
 
 oc_ui_sig oc_ui_button_str8(oc_str8 key, oc_str8 text)
 {
-    oc_ui_flags flags = OC_UI_FLAG_CLICKABLE
-                      | OC_UI_FLAG_CLIP
-                      | OC_UI_FLAG_HOT_ANIMATION
+    oc_ui_flags flags = OC_UI_FLAG_HOT_ANIMATION
                       | OC_UI_FLAG_ACTIVE_ANIMATION;
 
     oc_ui_box* box = oc_ui_box_str8(key, flags)
@@ -2953,7 +2956,7 @@ oc_ui_box* oc_ui_scrollbar_str8(oc_str8 name, oc_rect rect, f32 thumbRatio, f32*
             oc_ui_style_set_size(OC_UI_WIDTH + secondAxis, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
         }
 
-        oc_ui_box* thumb = oc_ui_box("thumb", OC_UI_FLAG_CLICKABLE | OC_UI_FLAG_HOT_ANIMATION | OC_UI_FLAG_ACTIVE_ANIMATION)
+        oc_ui_box* thumb = oc_ui_box("thumb", OC_UI_FLAG_HOT_ANIMATION | OC_UI_FLAG_ACTIVE_ANIMATION)
         {
             oc_ui_style_set_size(OC_UI_WIDTH + trackAxis, (oc_ui_size){ OC_UI_SIZE_PARENT, thumbRatio });
             oc_ui_style_set_size(OC_UI_WIDTH + secondAxis, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
