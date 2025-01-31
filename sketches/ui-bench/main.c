@@ -28,7 +28,7 @@ i32 ui_runloop(void* user)
 {
     context = oc_canvas_context_create();
 
-    oc_ui_init(&ui);
+    oc_ui_init(&ui, fontRegular);
 
     while(!oc_should_quit())
     {
@@ -58,10 +58,7 @@ i32 ui_runloop(void* user)
             }
         }
 
-        oc_ui_style defaultStyle = { .font = fontRegular, .bgColor = { 0.01, 0.01, 0.01, 1 } };
-        oc_ui_style_mask defaultMask = OC_UI_MASK_FONT | OC_UI_MASK_BG_COLOR;
-
-        oc_ui_frame(frameSize, &defaultStyle, defaultMask)
+        oc_ui_frame(frameSize)
         {
             oc_ui_style_rule("inner lb")
             {
@@ -73,11 +70,11 @@ i32 ui_runloop(void* user)
                 oc_ui_style_set_color(OC_UI_BG_COLOR, (oc_color){ 1, 0, 0, 1 });
             }
 
-            oc_ui_container("container", 0)
+            oc_ui_box("container", 0)
             {
                 oc_ui_style_set_size(OC_UI_SIZE_WIDTH, (oc_ui_size){ OC_UI_SIZE_CHILDREN });
                 oc_ui_style_set_size(OC_UI_SIZE_HEIGHT, (oc_ui_size){ OC_UI_SIZE_CHILDREN });
-                oc_ui_style_set_color(OC_UI_BG_COLOR, (oc_color){ 0, 0, 0.1, 1 });
+                oc_ui_style_set(OC_UI_BG_COLOR, "bg-1");
 
                 oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_Y);
                 oc_ui_style_set_f32(OC_UI_MARGIN_X, 10);
@@ -97,7 +94,7 @@ i32 ui_runloop(void* user)
                 oc_ui_button("bb", "Button B");
                 oc_ui_button("bc", "Button C");
 
-                oc_ui_container("inner", 0)
+                oc_ui_box("inner", 0)
                 {
                     oc_ui_style_set_color(OC_UI_BG_COLOR, (oc_color){ 0, 0, 1, 1 });
 
@@ -109,6 +106,28 @@ i32 ui_runloop(void* user)
 
                     oc_ui_label("la", "label A");
                     oc_ui_label("lb", "label B");
+                }
+            }
+
+            oc_ui_panel("panel")
+            {
+                oc_ui_style_set_size(OC_UI_SIZE_WIDTH, (oc_ui_size){ OC_UI_SIZE_PIXELS, 300 });
+                oc_ui_style_set_size(OC_UI_SIZE_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PIXELS, 200 });
+
+                /*
+                oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_Y);
+                oc_ui_style_set_f32(OC_UI_SPACING, 10);
+                */
+                oc_ui_style_set_f32(OC_UI_MARGIN_X, 20);
+                oc_ui_style_set_f32(OC_UI_MARGIN_Y, 20);
+
+                oc_ui_box("box", 0)
+                {
+                    //                    oc_ui_style_set_size(OC_UI_SIZE_WIDTH, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
+                    oc_ui_style_set_size(OC_UI_SIZE_WIDTH, (oc_ui_size){ OC_UI_SIZE_PIXELS, 400 });
+                    oc_ui_style_set_size(OC_UI_SIZE_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PIXELS, 400 });
+
+                    oc_ui_style_set_color(OC_UI_BG_COLOR, (oc_color){ 0, 0, 0, 1 });
                 }
             }
         }

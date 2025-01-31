@@ -1177,10 +1177,9 @@ void oc_ui_style_set(oc_ui_style_attribute attr, const char* name)
     _(OC_UI_THEME_FILL_1, "fill-1")                                 \
     _(OC_UI_THEME_FILL_2, "fill-2")                                 \
     _(OC_UI_THEME_BORDER, "border")                                 \
-    _(OC_UI_THEME_ROUNDNESS_0, "roundness-0")                       \
-    _(OC_UI_THEME_ROUNDNESS_1, "roundness-1")                       \
-    _(OC_UI_THEME_ROUNDNESS_2, "roundness-2")                       \
-    _(OC_UI_THEME_ROUNDNESS_3, "roundness-3")                       \
+    _(OC_UI_THEME_ROUNDNESS_SMALL, "roundness-small")               \
+    _(OC_UI_THEME_ROUNDNESS_REGULAR, "roundness-regular")           \
+    _(OC_UI_THEME_ROUNDNESS_LARGE, "roundness-large")               \
     _(OC_UI_THEME_TEXT_SIZE_SMALL, "text-size-small")               \
     _(OC_UI_THEME_TEXT_SIZE_REGULAR, "text-size-regular")           \
     _(OC_UI_THEME_TEXT_SIZE_HEADER_0, "text-size-header-0")         \
@@ -1192,10 +1191,13 @@ void oc_ui_style_set(oc_ui_style_attribute attr, const char* name)
     _(OC_UI_THEME_CONTROL_HEIGHT_SMALL, "control-height-small")     \
     _(OC_UI_THEME_CONTROL_HEIGHT_DEFAULT, "control-height-default") \
     _(OC_UI_THEME_CONTROL_HEIGHT_LARGE, "control-height-large")     \
-    _(OC_UI_THEME_SPACING_0, "spacing-0")                           \
-    _(OC_UI_THEME_SPACING_1, "spacing-1")                           \
-    _(OC_UI_THEME_SPACING_2, "spacing-2")                           \
-    _(OC_UI_THEME_SPACING_3, "spacing-3")
+    _(OC_UI_THEME_SPACING_EXTRA_TIGHT, "spacing-extra-tight")       \
+    _(OC_UI_THEME_SPACING_TIGHT, "spacing-tight")                   \
+    _(OC_UI_THEME_SPACING_REGULAR_TIGHT, "spacing-regular-tight")   \
+    _(OC_UI_THEME_SPACING_REGULAR, "spacing-regular")               \
+    _(OC_UI_THEME_SPACING_REGULAR_LOOSE, "spacing-regular-loose")   \
+    _(OC_UI_THEME_SPACING_LOOSE, "spacing-loose")                   \
+    _(OC_UI_THEME_SPACING_EXTRA_LOOSE, "spacing-extra-loose")
 
 #define OC_UI_THEME_NAME(n, s) static const oc_str8 n = OC_STR8_LIT(s);
 OC_UI_DEFAULT_THEME_DATA(OC_UI_THEME_NAME)
@@ -1229,17 +1231,22 @@ void oc_ui_style_theme_light()
 
     oc_ui_style_var_set_color_str8(OC_UI_THEME_BORDER, (oc_color){ 0.110, 0.122, 0.137, .16, OC_COLOR_SPACE_SRGB });
 
-    oc_ui_style_var_set_f32_str8(OC_UI_THEME_ROUNDNESS_0, 3);
-    oc_ui_style_var_set_f32_str8(OC_UI_THEME_ROUNDNESS_1, 6);
-    oc_ui_style_var_set_f32_str8(OC_UI_THEME_ROUNDNESS_2, 12);
-    oc_ui_style_var_set_f32_str8(OC_UI_THEME_ROUNDNESS_3, 18);
+    oc_ui_style_var_set_f32_str8(OC_UI_THEME_ROUNDNESS_SMALL, 3);
+    oc_ui_style_var_set_f32_str8(OC_UI_THEME_ROUNDNESS_REGULAR, 6);
+    oc_ui_style_var_set_f32_str8(OC_UI_THEME_ROUNDNESS_LARGE, 12);
+
     oc_ui_style_var_set_f32_str8(OC_UI_THEME_CONTROL_HEIGHT_SMALL, 24);
     oc_ui_style_var_set_f32_str8(OC_UI_THEME_CONTROL_HEIGHT_DEFAULT, 32);
     oc_ui_style_var_set_f32_str8(OC_UI_THEME_CONTROL_HEIGHT_LARGE, 40);
-    oc_ui_style_var_set_f32_str8(OC_UI_THEME_SPACING_0, 0);
-    oc_ui_style_var_set_f32_str8(OC_UI_THEME_SPACING_1, 8);
-    oc_ui_style_var_set_f32_str8(OC_UI_THEME_SPACING_2, 16);
-    oc_ui_style_var_set_f32_str8(OC_UI_THEME_SPACING_3, 24);
+
+    oc_ui_style_var_set_f32_str8(OC_UI_THEME_SPACING_EXTRA_TIGHT, 4);
+    oc_ui_style_var_set_f32_str8(OC_UI_THEME_SPACING_TIGHT, 8);
+    oc_ui_style_var_set_f32_str8(OC_UI_THEME_SPACING_REGULAR_TIGHT, 12);
+    oc_ui_style_var_set_f32_str8(OC_UI_THEME_SPACING_REGULAR, 16);
+    oc_ui_style_var_set_f32_str8(OC_UI_THEME_SPACING_REGULAR_LOOSE, 20);
+    oc_ui_style_var_set_f32_str8(OC_UI_THEME_SPACING_LOOSE, 24);
+    oc_ui_style_var_set_f32_str8(OC_UI_THEME_SPACING_EXTRA_LOOSE, 32);
+
     oc_ui_style_var_set_f32_str8(OC_UI_THEME_TEXT_SIZE_SMALL, 12);
     oc_ui_style_var_set_f32_str8(OC_UI_THEME_TEXT_SIZE_REGULAR, 14);
     oc_ui_style_var_set_f32_str8(OC_UI_THEME_TEXT_SIZE_HEADER_0, 32);
@@ -1247,7 +1254,9 @@ void oc_ui_style_theme_light()
     oc_ui_style_var_set_f32_str8(OC_UI_THEME_TEXT_SIZE_HEADER_2, 24);
     oc_ui_style_var_set_f32_str8(OC_UI_THEME_TEXT_SIZE_HEADER_3, 20);
     oc_ui_style_var_set_f32_str8(OC_UI_THEME_TEXT_SIZE_HEADER_4, 18);
-    //TODO: oc_ui_style_var_set_font_str8(OC_UI_THEME_FONT);
+
+    oc_ui_context* ui = oc_ui_get_context();
+    oc_ui_style_var_set_font_str8(OC_UI_THEME_FONT_REGULAR, ui->defaultFont);
 }
 
 void oc_ui_style_theme_dark()
@@ -1274,17 +1283,22 @@ void oc_ui_style_theme_dark()
 
     oc_ui_style_var_set_color_str8(OC_UI_THEME_BORDER, (oc_color){ 1, 1, 1, 0.018, OC_COLOR_SPACE_SRGB });
 
-    oc_ui_style_var_set_f32_str8(OC_UI_THEME_ROUNDNESS_0, 3);
-    oc_ui_style_var_set_f32_str8(OC_UI_THEME_ROUNDNESS_1, 6);
-    oc_ui_style_var_set_f32_str8(OC_UI_THEME_ROUNDNESS_2, 12);
-    oc_ui_style_var_set_f32_str8(OC_UI_THEME_ROUNDNESS_3, 18);
+    oc_ui_style_var_set_f32_str8(OC_UI_THEME_ROUNDNESS_SMALL, 3);
+    oc_ui_style_var_set_f32_str8(OC_UI_THEME_ROUNDNESS_REGULAR, 6);
+    oc_ui_style_var_set_f32_str8(OC_UI_THEME_ROUNDNESS_LARGE, 12);
+
     oc_ui_style_var_set_f32_str8(OC_UI_THEME_CONTROL_HEIGHT_SMALL, 24);
     oc_ui_style_var_set_f32_str8(OC_UI_THEME_CONTROL_HEIGHT_DEFAULT, 32);
     oc_ui_style_var_set_f32_str8(OC_UI_THEME_CONTROL_HEIGHT_LARGE, 40);
-    oc_ui_style_var_set_f32_str8(OC_UI_THEME_SPACING_0, 0);
-    oc_ui_style_var_set_f32_str8(OC_UI_THEME_SPACING_1, 8);
-    oc_ui_style_var_set_f32_str8(OC_UI_THEME_SPACING_2, 16);
-    oc_ui_style_var_set_f32_str8(OC_UI_THEME_SPACING_3, 24);
+
+    oc_ui_style_var_set_f32_str8(OC_UI_THEME_SPACING_EXTRA_TIGHT, 4);
+    oc_ui_style_var_set_f32_str8(OC_UI_THEME_SPACING_TIGHT, 8);
+    oc_ui_style_var_set_f32_str8(OC_UI_THEME_SPACING_REGULAR_TIGHT, 12);
+    oc_ui_style_var_set_f32_str8(OC_UI_THEME_SPACING_REGULAR, 16);
+    oc_ui_style_var_set_f32_str8(OC_UI_THEME_SPACING_REGULAR_LOOSE, 20);
+    oc_ui_style_var_set_f32_str8(OC_UI_THEME_SPACING_LOOSE, 24);
+    oc_ui_style_var_set_f32_str8(OC_UI_THEME_SPACING_EXTRA_LOOSE, 32);
+
     oc_ui_style_var_set_f32_str8(OC_UI_THEME_TEXT_SIZE_SMALL, 12);
     oc_ui_style_var_set_f32_str8(OC_UI_THEME_TEXT_SIZE_REGULAR, 14);
     oc_ui_style_var_set_f32_str8(OC_UI_THEME_TEXT_SIZE_HEADER_0, 32);
@@ -1292,7 +1306,9 @@ void oc_ui_style_theme_dark()
     oc_ui_style_var_set_f32_str8(OC_UI_THEME_TEXT_SIZE_HEADER_2, 24);
     oc_ui_style_var_set_f32_str8(OC_UI_THEME_TEXT_SIZE_HEADER_3, 20);
     oc_ui_style_var_set_f32_str8(OC_UI_THEME_TEXT_SIZE_HEADER_4, 18);
-    //TODO: oc_ui_style_var_set_font_str8(OC_UI_THEME_FONT);
+
+    oc_ui_context* ui = oc_ui_get_context();
+    oc_ui_style_var_set_font_str8(OC_UI_THEME_FONT_REGULAR, ui->defaultFont);
 }
 
 //-----------------------------------------------------------------------------
@@ -2647,7 +2663,7 @@ void oc_ui_draw()
 // frame begin/end
 //-----------------------------------------------------------------------------
 
-void oc_ui_begin_frame(oc_vec2 size, oc_ui_style* defaultStyle, oc_ui_style_mask defaultMask)
+void oc_ui_begin_frame(oc_vec2 size)
 {
     oc_ui_context* ui = oc_ui_get_context();
 
@@ -2668,9 +2684,7 @@ void oc_ui_begin_frame(oc_vec2 size, oc_ui_style* defaultStyle, oc_ui_style_mask
 
     oc_ui_style_theme_dark();
 
-    oc_ui_style_var_set_font("font-regular", defaultStyle->font);
-
-    oc_ui_style_set_color(OC_UI_BG_COLOR, defaultStyle->bgColor);
+    oc_ui_style_set_str8(OC_UI_BG_COLOR, OC_UI_THEME_BG_0);
     oc_ui_style_set_size(OC_UI_SIZE_WIDTH, (oc_ui_size){ OC_UI_SIZE_PIXELS, size.x });
     oc_ui_style_set_size(OC_UI_SIZE_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PIXELS, size.y });
 
@@ -2738,13 +2752,14 @@ void oc_ui_end_frame(void)
 // Init / cleanup
 //-----------------------------------------------------------------------------
 
-void oc_ui_init(oc_ui_context* ui)
+void oc_ui_init(oc_ui_context* ui, oc_font defaultFont)
 {
     oc_uiCurrentContext = &oc_uiThreadContext;
 
     memset(ui, 0, sizeof(oc_ui_context));
     oc_arena_init(&ui->frameArena);
     oc_pool_init(&ui->boxPool, sizeof(oc_ui_box));
+    ui->defaultFont = defaultFont;
     ui->init = true;
 
     oc_ui_set_context(ui);
@@ -2832,15 +2847,15 @@ oc_ui_sig oc_ui_button_str8(oc_str8 key, oc_str8 text)
         oc_ui_style_set_size(OC_UI_SIZE_HEIGHT, (oc_ui_size){ OC_UI_SIZE_TEXT });
         oc_ui_style_set_i32(OC_UI_ALIGN_X, OC_UI_ALIGN_CENTER);
         oc_ui_style_set_i32(OC_UI_ALIGN_Y, OC_UI_ALIGN_CENTER);
-        oc_ui_style_set_f32(OC_UI_MARGIN_X, 12);
-        oc_ui_style_set_f32(OC_UI_MARGIN_X, 6);
+        oc_ui_style_set_str8(OC_UI_MARGIN_X, OC_UI_THEME_SPACING_TIGHT);
+        oc_ui_style_set_str8(OC_UI_MARGIN_Y, OC_UI_THEME_SPACING_EXTRA_TIGHT);
 
-        oc_ui_style_set_str8(OC_UI_COLOR, OC_UI_THEME_TEXT_0);
+        oc_ui_style_set_str8(OC_UI_COLOR, OC_UI_THEME_PRIMARY);
         oc_ui_style_set_str8(OC_UI_FONT, OC_UI_THEME_FONT_REGULAR);
         oc_ui_style_set_str8(OC_UI_TEXT_SIZE, OC_UI_THEME_TEXT_SIZE_REGULAR);
 
         oc_ui_style_set_str8(OC_UI_BG_COLOR, OC_UI_THEME_FILL_0);
-        oc_ui_style_set_str8(OC_UI_ROUNDNESS, OC_UI_THEME_ROUNDNESS_0);
+        oc_ui_style_set_str8(OC_UI_ROUNDNESS, OC_UI_THEME_ROUNDNESS_SMALL);
 
         oc_ui_style_rule(".hover")
         {
@@ -2859,6 +2874,197 @@ oc_ui_sig oc_ui_button_str8(oc_str8 key, oc_str8 text)
 oc_ui_sig oc_ui_button(const char* key, const char* text)
 {
     return (oc_ui_button_str8(OC_STR8((char*)key), OC_STR8((char*)text)));
+}
+
+//------------------------------------------------------------------------------
+// panels
+//------------------------------------------------------------------------------
+
+oc_ui_box* oc_ui_scrollbar_str8(oc_str8 name, oc_rect rect, f32 thumbRatio, f32* scrollValue, bool horizontal)
+{
+    oc_ui_box* track = oc_ui_box_str8(name, 0)
+    {
+        oc_ui_style_set_i32(OC_UI_FLOATING_X, 1);
+        oc_ui_style_set_i32(OC_UI_FLOATING_Y, 1);
+        oc_ui_style_set_f32(OC_UI_FLOAT_TARGET_X, rect.x);
+        oc_ui_style_set_f32(OC_UI_FLOAT_TARGET_Y, rect.y);
+        oc_ui_style_set_size(OC_UI_SIZE_WIDTH, (oc_ui_size){ OC_UI_SIZE_PIXELS, rect.w });
+        oc_ui_style_set_size(OC_UI_SIZE_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PIXELS, rect.h });
+
+        if(horizontal)
+        {
+            oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_X);
+        }
+        else
+        {
+            oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_Y);
+        }
+        oc_ui_axis trackAxis = horizontal ? OC_UI_AXIS_X : OC_UI_AXIS_Y;
+        oc_ui_axis secondAxis = (trackAxis == OC_UI_AXIS_Y) ? OC_UI_AXIS_X : OC_UI_AXIS_Y;
+
+        f32 minThumbRatio = 17. / oc_max(rect.w, rect.h);
+        thumbRatio = oc_min(oc_max(thumbRatio, minThumbRatio), 1.);
+        f32 beforeRatio = (*scrollValue) * (1. - thumbRatio);
+        f32 afterRatio = (1. - *scrollValue) * (1. - thumbRatio);
+
+        oc_ui_box("before-spacer", 0)
+        {
+            oc_ui_style_set_size(OC_UI_SIZE_WIDTH + trackAxis, (oc_ui_size){ OC_UI_SIZE_PARENT, beforeRatio });
+            oc_ui_style_set_size(OC_UI_SIZE_WIDTH + secondAxis, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
+        }
+
+        oc_ui_box* thumb = oc_ui_box("thumb", OC_UI_FLAG_CLICKABLE | OC_UI_FLAG_HOT_ANIMATION | OC_UI_FLAG_ACTIVE_ANIMATION)
+        {
+            oc_ui_style_set_size(OC_UI_SIZE_WIDTH + trackAxis, (oc_ui_size){ OC_UI_SIZE_PARENT, thumbRatio });
+            oc_ui_style_set_size(OC_UI_SIZE_WIDTH + secondAxis, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
+
+            f32 roundness = 0.5 * rect.c[2 + secondAxis];
+            oc_ui_style_set_f32(OC_UI_ROUNDNESS, roundness);
+
+            oc_ui_style_set_str8(OC_UI_BG_COLOR, OC_UI_THEME_FILL_2);
+
+            oc_ui_style_rule(".hover")
+            {
+                oc_ui_style_set_str8(OC_UI_BG_COLOR, OC_UI_THEME_FILL_1);
+            }
+            oc_ui_style_rule(".active")
+            {
+                oc_ui_style_set_str8(OC_UI_BG_COLOR, OC_UI_THEME_FILL_1);
+            }
+        }
+
+        oc_ui_box("after-spacer", 0)
+        {
+            oc_ui_style_set_size(OC_UI_SIZE_WIDTH + trackAxis, (oc_ui_size){ OC_UI_SIZE_PARENT, afterRatio });
+            oc_ui_style_set_size(OC_UI_SIZE_WIDTH + secondAxis, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
+        }
+
+        //NOTE: interaction
+        oc_ui_sig thumbSig = oc_ui_box_sig(thumb);
+        oc_ui_sig trackSig = oc_ui_box_sig(track);
+
+        if(thumbSig.dragging)
+        {
+            f32 trackExtents = rect.c[2 + trackAxis] * (1. - thumbRatio);
+            *scrollValue = (trackSig.mouse.c[trackAxis] - thumb->pressedMouse.c[trackAxis]) / trackExtents;
+            *scrollValue = oc_clamp(*scrollValue, 0, 1);
+        }
+
+        if(oc_ui_box_active(track))
+        {
+            //NOTE: activated from outside
+            oc_ui_box_set_hot(track, true);
+            oc_ui_box_set_hot(thumb, true);
+            oc_ui_box_activate(track);
+            oc_ui_box_activate(thumb);
+        }
+
+        if(trackSig.hovering)
+        {
+            oc_ui_box_set_hot(track, true);
+            oc_ui_box_set_hot(thumb, true);
+        }
+        else if(thumbSig.wheel.c[trackAxis] == 0)
+        {
+            oc_ui_box_set_hot(track, false);
+            oc_ui_box_set_hot(thumb, false);
+        }
+
+        if(thumbSig.dragging)
+        {
+            oc_ui_box_activate(track);
+            oc_ui_box_activate(thumb);
+        }
+        else if(thumbSig.wheel.c[trackAxis] == 0)
+        {
+            oc_ui_box_deactivate(track);
+            oc_ui_box_deactivate(thumb);
+        }
+    }
+    return (track);
+}
+
+oc_ui_box* oc_ui_scrollbar(const char* name, oc_rect rect, f32 thumbRatio, f32* scrollValue, bool horizontal)
+{
+    return oc_ui_scrollbar_str8(OC_STR8(name), rect, thumbRatio, scrollValue, horizontal);
+}
+
+void oc_ui_panel_begin_str8(oc_str8 str)
+{
+    oc_ui_flags flags = OC_UI_FLAG_CLIP
+                      | OC_UI_FLAG_BLOCK_MOUSE
+                      | OC_UI_FLAG_OVERFLOW_ALLOW_X
+                      | OC_UI_FLAG_OVERFLOW_ALLOW_Y
+                      | OC_UI_FLAG_SCROLL_WHEEL_X
+                      | OC_UI_FLAG_SCROLL_WHEEL_Y;
+
+    oc_ui_box_begin_str8(str, flags);
+
+    //TODO: set other style attr for panel here:
+    oc_ui_style_set_size(OC_UI_SIZE_WIDTH, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
+    oc_ui_style_set_size(OC_UI_SIZE_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
+
+    oc_ui_style_set_str8(OC_UI_BG_COLOR, OC_UI_THEME_BG_1);
+}
+
+void oc_ui_panel_begin(const char* str)
+{
+    oc_ui_panel_begin_str8(OC_STR8(str));
+}
+
+void oc_ui_panel_end(void)
+{
+    oc_ui_box* panel = oc_ui_box_top();
+    oc_ui_sig sig = oc_ui_box_sig(panel);
+
+    f32 contentsW = oc_clamp_low(panel->childrenSum[0] + 2 * panel->style.layout.margin.x, panel->rect.w);
+    f32 contentsH = oc_clamp_low(panel->childrenSum[1] + 2 * panel->style.layout.margin.y, panel->rect.h);
+
+    contentsW = oc_clamp_low(contentsW, 1);
+    contentsH = oc_clamp_low(contentsH, 1);
+
+    oc_ui_box* scrollBarX = 0;
+    oc_ui_box* scrollBarY = 0;
+
+    bool needsScrollX = contentsW > panel->rect.w;
+    bool needsScrollY = contentsH > panel->rect.h;
+
+    if(needsScrollX)
+    {
+        f32 thumbRatioX = panel->rect.w / contentsW;
+        f32 scrollValueX = panel->scroll.x / (contentsW - panel->rect.w);
+
+        scrollBarX = oc_ui_scrollbar("scrollerX",
+                                     (oc_rect){ 0, panel->rect.h - 8, panel->rect.w, 8 },
+                                     thumbRatioX,
+                                     &scrollValueX,
+                                     true);
+
+        panel->scroll.x = scrollValueX * (contentsW - panel->rect.w);
+        if(sig.hovering)
+        {
+            oc_ui_box_activate(scrollBarX);
+        }
+    }
+
+    if(needsScrollY)
+    {
+        f32 thumbRatioY = panel->rect.h / contentsH;
+        f32 scrollValueY = panel->scroll.y / (contentsH - panel->rect.h);
+        f32 spacerSize = needsScrollX ? 10 : 0;
+
+        scrollBarY = oc_ui_scrollbar("scrollerY",
+                                     (oc_rect){ panel->rect.w - 8, 0, 8, panel->rect.h - spacerSize },
+                                     thumbRatioY,
+                                     &scrollValueY,
+                                     false);
+
+        panel->scroll.y = scrollValueY * (contentsH - panel->rect.h);
+    }
+    panel->scroll.x = oc_clamp(panel->scroll.x, 0, contentsW - panel->rect.w);
+    panel->scroll.y = oc_clamp(panel->scroll.y, 0, contentsH - panel->rect.h);
+
+    oc_ui_box_end(); // panel
 }
 
 #if 0
@@ -3179,239 +3385,6 @@ oc_ui_box* oc_ui_slider_str8(oc_str8 name, f32* value)
 oc_ui_box* oc_ui_slider(const char* name, f32* value)
 {
     return oc_ui_slider_str8(OC_STR8(name), value);
-}
-
-oc_ui_box* oc_ui_scrollbar_str8(oc_str8 name, f32 thumbRatio, f32* scrollValue)
-{
-    oc_ui_context* ui = oc_ui_get_context();
-    oc_ui_theme* theme = ui->theme;
-    oc_ui_style_match_before(oc_ui_pattern_all(), &(oc_ui_style){ 0 }, OC_UI_MASK_LAYOUT);
-    oc_ui_box* frame = oc_ui_box_begin_str8(name, 0);
-    {
-        f32 minThumbRatio = 17. / oc_max(frame->rect.w, frame->rect.h);
-        thumbRatio = oc_min(oc_max(thumbRatio, minThumbRatio), 1.);
-        f32 beforeRatio = (*scrollValue) * (1. - thumbRatio);
-        f32 afterRatio = (1. - *scrollValue) * (1. - thumbRatio);
-
-        oc_ui_axis trackAxis = (frame->rect.w > frame->rect.h) ? OC_UI_AXIS_X : OC_UI_AXIS_Y;
-        oc_ui_axis secondAxis = (trackAxis == OC_UI_AXIS_Y) ? OC_UI_AXIS_X : OC_UI_AXIS_Y;
-        f32 roundness = 0.5 * frame->rect.c[2 + secondAxis];
-
-        oc_ui_style trackStyle = { .size.width = { OC_UI_SIZE_PARENT, 1 },
-                                   .size.height = { OC_UI_SIZE_PARENT, 1 },
-                                   .layout.axis = trackAxis,
-                                   .layout.align.x = OC_UI_ALIGN_START,
-                                   .layout.align.y = OC_UI_ALIGN_START,
-                                   .roundness = roundness };
-
-        oc_ui_style beforeSpacerStyle = trackStyle;
-        beforeSpacerStyle.size.c[trackAxis] = (oc_ui_size){ OC_UI_SIZE_PARENT, beforeRatio };
-
-        oc_ui_style afterSpacerStyle = trackStyle;
-        afterSpacerStyle.size.c[trackAxis] = (oc_ui_size){ OC_UI_SIZE_PARENT, afterRatio };
-
-        oc_ui_style thumbStyle = trackStyle;
-        thumbStyle.size.c[trackAxis] = (oc_ui_size){ OC_UI_SIZE_PARENT, thumbRatio };
-        thumbStyle.bgColor = theme->fill2;
-
-        oc_ui_style_mask trackStyleMask = OC_UI_MASK_SIZE_WIDTH
-                                        | OC_UI_MASK_SIZE_HEIGHT
-                                        | OC_UI_MASK_LAYOUT
-                                        | OC_UI_MASK_ROUNDNESS;
-
-        oc_ui_flags trackFlags = OC_UI_FLAG_CLIP
-                               | OC_UI_FLAG_HOT_ANIMATION
-                               | OC_UI_FLAG_ACTIVE_ANIMATION;
-
-        oc_ui_style_next(&trackStyle, trackStyleMask);
-        oc_ui_box* track = oc_ui_box_begin("track", trackFlags);
-        oc_ui_tag_box(track, "track");
-
-        oc_ui_style_next(&beforeSpacerStyle, OC_UI_MASK_SIZE);
-        oc_ui_box* beforeSpacer = oc_ui_box_make("before_spacer", 0);
-
-        oc_ui_style thumbHoverActiveStyle = { .bgColor = theme->fill1 };
-        oc_ui_pattern thumbHoverPattern = { 0 };
-        oc_ui_pattern_push(&ui->frameArena,
-                           &thumbHoverPattern,
-                           (oc_ui_selector){ .kind = OC_UI_SEL_STATUS,
-                                             .status = OC_UI_HOVER });
-        oc_ui_style_match_after(thumbHoverPattern, &thumbHoverActiveStyle, OC_UI_MASK_BG_COLOR);
-        oc_ui_pattern thumbActivePattern = { 0 };
-        oc_ui_pattern_push(&ui->frameArena,
-                           &thumbActivePattern,
-                           (oc_ui_selector){ .kind = OC_UI_SEL_STATUS,
-                                             .status = OC_UI_ACTIVE });
-        oc_ui_style_match_after(thumbActivePattern, &thumbHoverActiveStyle, OC_UI_MASK_BG_COLOR);
-
-        oc_ui_style_mask thumbStyleMask = OC_UI_MASK_SIZE_WIDTH
-                                        | OC_UI_MASK_SIZE_HEIGHT
-                                        | OC_UI_MASK_LAYOUT
-                                        | OC_UI_MASK_BG_COLOR
-                                        | OC_UI_MASK_ROUNDNESS;
-
-        oc_ui_flags thumbFlags = OC_UI_FLAG_CLICKABLE
-                               | OC_UI_FLAG_HOT_ANIMATION
-                               | OC_UI_FLAG_ACTIVE_ANIMATION;
-
-        oc_ui_style_next(&thumbStyle, thumbStyleMask);
-        oc_ui_box* thumb = oc_ui_box_make("thumb", thumbFlags);
-        oc_ui_tag_box(thumb, "thumb");
-
-        oc_ui_style_next(&afterSpacerStyle, OC_UI_MASK_SIZE);
-        oc_ui_box* afterSpacer = oc_ui_box_make("after_spacer", 0);
-
-        oc_ui_box_end();
-
-        //NOTE: interaction
-        oc_ui_sig thumbSig = oc_ui_box_sig(thumb);
-        oc_ui_sig trackSig = oc_ui_box_sig(track);
-        if(thumbSig.dragging)
-        {
-            f32 trackExtents = track->rect.c[2 + trackAxis] - thumb->rect.c[2 + trackAxis];
-            *scrollValue = (trackSig.mouse.c[trackAxis] - thumb->pressedMouse.c[trackAxis]) / trackExtents;
-            *scrollValue = oc_clamp(*scrollValue, 0, 1);
-        }
-
-        if(oc_ui_box_active(frame))
-        {
-            //NOTE: activated from outside
-            oc_ui_box_set_hot(track, true);
-            oc_ui_box_set_hot(thumb, true);
-            oc_ui_box_activate(track);
-            oc_ui_box_activate(thumb);
-        }
-
-        if(trackSig.hovering)
-        {
-            oc_ui_box_set_hot(track, true);
-            oc_ui_box_set_hot(thumb, true);
-        }
-        else if(thumbSig.wheel.c[trackAxis] == 0)
-        {
-            oc_ui_box_set_hot(track, false);
-            oc_ui_box_set_hot(thumb, false);
-        }
-
-        if(thumbSig.dragging)
-        {
-            oc_ui_box_activate(track);
-            oc_ui_box_activate(thumb);
-        }
-        else if(thumbSig.wheel.c[trackAxis] == 0)
-        {
-            oc_ui_box_deactivate(track);
-            oc_ui_box_deactivate(thumb);
-            oc_ui_box_deactivate(frame);
-        }
-    }
-    oc_ui_box_end();
-
-    return (frame);
-}
-
-oc_ui_box* oc_ui_scrollbar(const char* name, f32 thumbRatio, f32* scrollValue)
-{
-    return oc_ui_scrollbar_str8(OC_STR8(name), thumbRatio, scrollValue);
-}
-
-//------------------------------------------------------------------------------
-// panels
-//------------------------------------------------------------------------------
-void oc_ui_panel_begin_str8(oc_str8 str, oc_ui_flags flags)
-{
-    flags = flags
-          | OC_UI_FLAG_CLIP
-          | OC_UI_FLAG_BLOCK_MOUSE
-          | OC_UI_FLAG_OVERFLOW_ALLOW_X
-          | OC_UI_FLAG_OVERFLOW_ALLOW_Y
-          | OC_UI_FLAG_SCROLL_WHEEL_X
-          | OC_UI_FLAG_SCROLL_WHEEL_Y;
-
-    oc_ui_style_next(&(oc_ui_style){ .size.width = { OC_UI_SIZE_PARENT, 1, 1 },
-                                     .size.height = { OC_UI_SIZE_PARENT, 1, 1 },
-                                     .layout.margin.x = 0,
-                                     .layout.margin.y = 0 },
-                     OC_UI_MASK_SIZE
-                         | OC_UI_MASK_LAYOUT_MARGINS);
-    oc_ui_box_begin_str8(str, flags);
-
-    oc_ui_style_next(&(oc_ui_style){ .size.width = { OC_UI_SIZE_PARENT, 1 },
-                                     .size.height = { OC_UI_SIZE_PARENT, 1 } },
-                     OC_UI_MASK_SIZE);
-
-    oc_ui_box_begin("contents", 0);
-}
-
-void oc_ui_panel_begin(const char* str, oc_ui_flags flags)
-{
-    oc_ui_panel_begin_str8(OC_STR8(str), flags);
-}
-
-void oc_ui_panel_end(void)
-{
-    oc_ui_box_end(); // contents
-
-    oc_ui_box* panel = oc_ui_box_top();
-    oc_ui_sig sig = oc_ui_box_sig(panel);
-
-    f32 contentsW = oc_clamp_low(panel->childrenSum[0], panel->rect.w);
-    f32 contentsH = oc_clamp_low(panel->childrenSum[1], panel->rect.h);
-
-    contentsW = oc_clamp_low(contentsW, 1);
-    contentsH = oc_clamp_low(contentsH, 1);
-
-    oc_ui_box* scrollBarX = 0;
-    oc_ui_box* scrollBarY = 0;
-
-    bool needsScrollX = contentsW > panel->rect.w;
-    bool needsScrollY = contentsH > panel->rect.h;
-
-    if(needsScrollX)
-    {
-        f32 thumbRatioX = panel->rect.w / contentsW;
-        f32 scrollValueX = panel->scroll.x / (contentsW - panel->rect.w);
-
-        oc_ui_style_next(&(oc_ui_style){ .size.width = { OC_UI_SIZE_PARENT, 1., 0 },
-                                         .size.height = { OC_UI_SIZE_PIXELS, 10, 0 },
-                                         .floating.x = true,
-                                         .floating.y = true,
-                                         .floatTarget = { 0, panel->rect.h - 10 } },
-                         OC_UI_MASK_SIZE
-                             | OC_UI_MASK_FLOAT);
-
-        scrollBarX = oc_ui_scrollbar("scrollerX", thumbRatioX, &scrollValueX);
-
-        panel->scroll.x = scrollValueX * (contentsW - panel->rect.w);
-        if(sig.hovering)
-        {
-            oc_ui_box_activate(scrollBarX);
-        }
-    }
-
-    if(needsScrollY)
-    {
-        f32 thumbRatioY = panel->rect.h / contentsH;
-        f32 scrollValueY = panel->scroll.y / (contentsH - panel->rect.h);
-
-        f32 spacerSize = needsScrollX ? 10 : 0;
-
-        oc_ui_style_next(&(oc_ui_style){ .size.width = { OC_UI_SIZE_PIXELS, 10, 0 },
-                                         .size.height = { OC_UI_SIZE_PARENT_MINUS_PIXELS, spacerSize, 0 },
-                                         .floating.x = true,
-                                         .floating.y = true,
-                                         .floatTarget = { panel->rect.w - 10, 0 } },
-                         OC_UI_MASK_SIZE
-                             | OC_UI_MASK_FLOAT);
-
-        scrollBarY = oc_ui_scrollbar("scrollerY", thumbRatioY, &scrollValueY);
-
-        panel->scroll.y = scrollValueY * (contentsH - panel->rect.h);
-    }
-    panel->scroll.x = oc_clamp(panel->scroll.x, 0, contentsW - panel->rect.w);
-    panel->scroll.y = oc_clamp(panel->scroll.y, 0, contentsH - panel->rect.h);
-
-    oc_ui_box_end(); // panel
 }
 
 //------------------------------------------------------------------------------
