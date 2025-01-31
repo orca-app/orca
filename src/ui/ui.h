@@ -337,7 +337,6 @@ typedef enum
 
     OC_UI_FLAG_HOT_ANIMATION = (1 << 4),
     OC_UI_FLAG_ACTIVE_ANIMATION = (1 << 5),
-    OC_UI_FLAG_OVERLAY = (1 << 16),
 } oc_ui_flags;
 
 struct oc_ui_box
@@ -348,6 +347,7 @@ struct oc_ui_box
     oc_ui_box* parent;
 
     oc_list_elt overlayElt;
+    bool overlay;
 
     // keying and caching
     oc_list_elt bucketElt;
@@ -589,7 +589,7 @@ ORCA_API void oc_ui_box_set_draw_proc(oc_ui_box* box, oc_ui_box_draw_proc proc, 
 
 //TODO: find its place
 ORCA_API void oc_ui_set_text(oc_str8 text);
-
+ORCA_API void oc_ui_set_overlay(bool overlay);
 //-------------------------------------------------------------------------------------
 // Box status and signals
 //-------------------------------------------------------------------------------------

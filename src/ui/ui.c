@@ -1455,6 +1455,7 @@ oc_ui_box* oc_ui_box_make_str8(oc_str8 string, oc_ui_flags flags)
         }
 
         box->overlayElt = (oc_list_elt){ 0 };
+        box->overlay = false;
     }
     else
     {
@@ -1490,16 +1491,28 @@ oc_ui_box* oc_ui_box_begin_str8(oc_str8 string, oc_ui_flags flags)
     return (box);
 }
 
+void oc_ui_set_overlay(bool overlay)
+{
+    oc_ui_context* ui = oc_ui_get_context();
+    oc_ui_box* box = oc_ui_box_top();
+
+    if(overlay && !box->overlay)
+    {
+        oc_list_push_back(&ui->overlayList, &box->overlayElt);
+        box->overlay = true;
+    }
+    else if(!overlay && box->overlay)
+    {
+        oc_list_remove(&ui->overlayList, &box->overlayElt);
+        box->overlay = false;
+    }
+}
+
 oc_ui_box* oc_ui_box_end(void)
 {
     oc_ui_context* ui = oc_ui_get_context();
     oc_ui_box* box = oc_ui_box_top();
     OC_DEBUG_ASSERT(box, "box stack underflow");
-
-    if(box->flags & OC_UI_FLAG_OVERLAY)
-    {
-        oc_list_push_back(&ui->overlayList, &box->overlayElt);
-    }
 
     oc_ui_sig sig = oc_ui_box_sig(box);
 
