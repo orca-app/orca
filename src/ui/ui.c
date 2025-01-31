@@ -88,6 +88,23 @@ void oc_ui_clip_pop(void)
     oc_ui_stack_pop(&ui->clipStack);
 }
 
+oc_rect oc_ui_box_clip_rect(oc_ui_box* box)
+{
+    oc_rect clipRect = { -FLT_MAX / 2., -FLT_MAX / 2., FLT_MAX, FLT_MAX };
+
+    if(box->style.layout.overflow.x != OC_UI_OVERFLOW_ALLOW)
+    {
+        clipRect.x = box->rect.x;
+        clipRect.w = box->rect.w;
+    }
+    if(box->style.layout.overflow.y != OC_UI_OVERFLOW_ALLOW)
+    {
+        clipRect.y = box->rect.y;
+        clipRect.h = box->rect.h;
+    }
+    return clipRect;
+}
+
 oc_ui_box* oc_ui_box_top(void)
 {
     oc_ui_context* ui = oc_ui_get_context();
@@ -101,10 +118,10 @@ void oc_ui_box_push(oc_ui_box* box)
     oc_ui_context* ui = oc_ui_get_context();
     oc_ui_stack_elt* elt = oc_ui_stack_push(ui, &ui->boxStack);
     elt->box = box;
-    if(box->flags & OC_UI_FLAG_CLIP)
-    {
-        oc_ui_clip_push(box->rect);
-    }
+
+    oc_rect clipRect = oc_ui_box_clip_rect(box);
+    oc_ui_clip_push(clipRect);
+
     box->styleVariables = (oc_list){ 0 };
 }
 
@@ -114,10 +131,7 @@ void oc_ui_box_pop(void)
     oc_ui_box* box = oc_ui_box_top();
     if(box)
     {
-        if(box->flags & OC_UI_FLAG_CLIP)
-        {
-            oc_ui_clip_pop();
-        }
+        oc_ui_clip_pop();
         oc_ui_stack_pop(&ui->boxStack);
 
         oc_list_for(box->styleVariables, var, oc_ui_style_var, boxElt)
@@ -482,6 +496,22 @@ void oc_ui_style_set_i32(oc_ui_style_attribute attr, i32 i)
             style->floating.y = i;
             break;
 
+        case OC_UI_OVERFLOW_X:
+            style->layout.overflow.x = i;
+            break;
+
+        case OC_UI_OVERFLOW_Y:
+            style->layout.overflow.y = i;
+            break;
+
+        case OC_UI_CONSTRAIN_X:
+            style->layout.constrain.x = i;
+            break;
+
+        case OC_UI_CONSTRAIN_Y:
+            style->layout.constrain.y = i;
+            break;
+
         case OC_UI_ANIMATION_MASK:
             style->animationMask = i;
             break;
@@ -669,11 +699,11 @@ void oc_ui_style_set_size(oc_ui_style_attribute attr, oc_ui_size size)
     }
     switch(attr)
     {
-        case OC_UI_SIZE_WIDTH:
+        case OC_UI_WIDTH:
             style->size.width = size;
             break;
 
-        case OC_UI_SIZE_HEIGHT:
+        case OC_UI_HEIGHT:
             style->size.height = size;
             break;
 
@@ -1092,8 +1122,8 @@ void oc_ui_style_set_str8(oc_ui_style_attribute attr, oc_str8 name)
     {
         switch(attr)
         {
-            case OC_UI_SIZE_WIDTH:
-            case OC_UI_SIZE_HEIGHT:
+            case OC_UI_WIDTH:
+            case OC_UI_HEIGHT:
                 value.kind = OC_UI_STYLE_VAR_SIZE;
                 break;
 
@@ -1102,6 +1132,10 @@ void oc_ui_style_set_str8(oc_ui_style_attribute attr, oc_str8 name)
             case OC_UI_ALIGN_Y:
             case OC_UI_FLOATING_X:
             case OC_UI_FLOATING_Y:
+            case OC_UI_OVERFLOW_X:
+            case OC_UI_OVERFLOW_Y:
+            case OC_UI_CONSTRAIN_X:
+            case OC_UI_CONSTRAIN_Y:
             case OC_UI_ANIMATION_MASK:
                 value.kind = OC_UI_STYLE_VAR_I32;
                 break;
@@ -1159,51 +1193,8 @@ void oc_ui_style_set(oc_ui_style_attribute attr, const char* name)
 }
 
 // Themes
-#define OC_UI_DEFAULT_THEME_DATA(_)                                 \
-    _(OC_UI_THEME_PRIMARY, "primary")                               \
-    _(OC_UI_THEME_PRIMARY_HOVER, "primary-hover")                   \
-    _(OC_UI_THEME_PRIMARY_ACTIVE, "primary-active")                 \
-    _(OC_UI_THEME_PRIMARY_DISABLED, "primary-disabled")             \
-    _(OC_UI_THEME_TEXT_0, "text-0")                                 \
-    _(OC_UI_THEME_TEXT_1, "text-1")                                 \
-    _(OC_UI_THEME_TEXT_2, "text-2")                                 \
-    _(OC_UI_THEME_TEXT_3, "text-3")                                 \
-    _(OC_UI_THEME_BG_0, "bg-0")                                     \
-    _(OC_UI_THEME_BG_1, "bg-1")                                     \
-    _(OC_UI_THEME_BG_2, "bg-2")                                     \
-    _(OC_UI_THEME_BG_3, "bg-3")                                     \
-    _(OC_UI_THEME_BG_4, "bg-4")                                     \
-    _(OC_UI_THEME_FILL_0, "fill-0")                                 \
-    _(OC_UI_THEME_FILL_1, "fill-1")                                 \
-    _(OC_UI_THEME_FILL_2, "fill-2")                                 \
-    _(OC_UI_THEME_BORDER, "border")                                 \
-    _(OC_UI_THEME_ROUNDNESS_SMALL, "roundness-small")               \
-    _(OC_UI_THEME_ROUNDNESS_REGULAR, "roundness-regular")           \
-    _(OC_UI_THEME_ROUNDNESS_LARGE, "roundness-large")               \
-    _(OC_UI_THEME_TEXT_SIZE_SMALL, "text-size-small")               \
-    _(OC_UI_THEME_TEXT_SIZE_REGULAR, "text-size-regular")           \
-    _(OC_UI_THEME_TEXT_SIZE_HEADER_0, "text-size-header-0")         \
-    _(OC_UI_THEME_TEXT_SIZE_HEADER_1, "text-size-header-1")         \
-    _(OC_UI_THEME_TEXT_SIZE_HEADER_2, "text-size-header-2")         \
-    _(OC_UI_THEME_TEXT_SIZE_HEADER_3, "text-size-header-3")         \
-    _(OC_UI_THEME_TEXT_SIZE_HEADER_4, "text-size-header-4")         \
-    _(OC_UI_THEME_FONT_REGULAR, "font-regular")                     \
-    _(OC_UI_THEME_CONTROL_HEIGHT_SMALL, "control-height-small")     \
-    _(OC_UI_THEME_CONTROL_HEIGHT_DEFAULT, "control-height-default") \
-    _(OC_UI_THEME_CONTROL_HEIGHT_LARGE, "control-height-large")     \
-    _(OC_UI_THEME_SPACING_EXTRA_TIGHT, "spacing-extra-tight")       \
-    _(OC_UI_THEME_SPACING_TIGHT, "spacing-tight")                   \
-    _(OC_UI_THEME_SPACING_REGULAR_TIGHT, "spacing-regular-tight")   \
-    _(OC_UI_THEME_SPACING_REGULAR, "spacing-regular")               \
-    _(OC_UI_THEME_SPACING_REGULAR_LOOSE, "spacing-regular-loose")   \
-    _(OC_UI_THEME_SPACING_LOOSE, "spacing-loose")                   \
-    _(OC_UI_THEME_SPACING_EXTRA_LOOSE, "spacing-extra-loose")
 
-#define OC_UI_THEME_NAME(n, s) static const oc_str8 n = OC_STR8_LIT(s);
-OC_UI_DEFAULT_THEME_DATA(OC_UI_THEME_NAME)
-#undef OC_UI_THEME_NAME
-
-//TODO: define pre-computed hashes
+//TODO: define pre-computed theme name hashes
 
 void oc_ui_style_theme_light()
 {
@@ -1482,20 +1473,6 @@ oc_ui_box* oc_ui_box_make_str8(oc_str8 string, oc_ui_flags flags)
     box->tags = ui->nextBoxTags;
     ui->nextBoxTags = (oc_list){ 0 };
 
-    //NOTE: set scroll
-    if(oc_ui_box_hovering(box, oc_ui_mouse_position()))
-    {
-        oc_vec2 wheel = oc_ui_mouse_wheel();
-        if(box->flags & OC_UI_FLAG_SCROLL_WHEEL_X)
-        {
-            box->scroll.x += wheel.x;
-        }
-        if(box->flags & OC_UI_FLAG_SCROLL_WHEEL_Y)
-        {
-            box->scroll.y += wheel.y;
-        }
-    }
-
     box->sig = oc_ui_box_compute_signals(box);
     if(box->sig.hovering)
     {
@@ -1518,6 +1495,65 @@ oc_ui_box* oc_ui_box_end(void)
     oc_ui_context* ui = oc_ui_get_context();
     oc_ui_box* box = oc_ui_box_top();
     OC_DEBUG_ASSERT(box, "box stack underflow");
+
+    oc_ui_sig sig = oc_ui_box_sig(box);
+
+    f32 contentsW = oc_clamp_low(box->childrenSum[0] + 2 * box->style.layout.margin.x, box->rect.w);
+    contentsW = oc_clamp_low(contentsW, 1);
+    bool needsScrollX = contentsW > box->rect.w;
+
+    f32 contentsH = oc_clamp_low(box->childrenSum[1] + 2 * box->style.layout.margin.y, box->rect.h);
+    contentsH = oc_clamp_low(contentsH, 1);
+    bool needsScrollY = contentsH > box->rect.h;
+
+    if(needsScrollX && box->style.layout.overflow.x == OC_UI_OVERFLOW_SCROLL)
+    {
+        f32 thumbRatioX = box->rect.w / contentsW;
+        f32 scrollValueX = box->scroll.x / (contentsW - box->rect.w);
+
+        oc_ui_box* scrollBarX = oc_ui_scrollbar("scrollerX",
+                                                (oc_rect){ 0, box->rect.h - 8, box->rect.w, 8 },
+                                                thumbRatioX,
+                                                &scrollValueX,
+                                                true);
+
+        box->scroll.x = scrollValueX * (contentsW - box->rect.w);
+
+        //wheel
+        if(oc_ui_box_hovering(box, oc_ui_mouse_position()))
+        {
+            oc_vec2 wheel = oc_ui_mouse_wheel();
+            box->scroll.x += wheel.x;
+            box->scroll.x = oc_clamp(box->scroll.x, 0, contentsW - box->rect.w);
+        }
+
+        box->scroll.x = oc_clamp(box->scroll.x, 0, contentsW - box->rect.w);
+    }
+
+    if(needsScrollY && box->style.layout.overflow.y == OC_UI_OVERFLOW_SCROLL)
+    {
+        f32 thumbRatioY = box->rect.h / contentsH;
+        f32 scrollValueY = box->scroll.y / (contentsH - box->rect.h);
+        f32 spacerSize = needsScrollX ? 10 : 0;
+
+        oc_ui_box* scrollBarY = oc_ui_scrollbar("scrollerY",
+                                                (oc_rect){ box->rect.w - 8, 0, 8, box->rect.h - spacerSize },
+                                                thumbRatioY,
+                                                &scrollValueY,
+                                                false);
+
+        box->scroll.y = scrollValueY * (contentsH - box->rect.h);
+
+        //wheel
+        if(oc_ui_box_hovering(box, oc_ui_mouse_position()))
+        {
+            oc_vec2 wheel = oc_ui_mouse_wheel();
+            box->scroll.y += wheel.y;
+            box->scroll.y = oc_clamp(box->scroll.y, 0, contentsH - box->rect.h);
+        }
+
+        box->scroll.y = oc_clamp(box->scroll.y, 0, contentsH - box->rect.h);
+    }
 
     oc_ui_box_pop();
 
@@ -1757,11 +1793,11 @@ void oc_ui_style_apply(oc_ui_style* dst,
                        oc_ui_pattern_specificity specificity,
                        oc_ui_pattern_specificity* specArray)
 {
-    if(oc_ui_style_apply_check(OC_UI_SIZE_WIDTH, mask, specificity, specArray))
+    if(oc_ui_style_apply_check(OC_UI_WIDTH, mask, specificity, specArray))
     {
         dst->size.c[OC_UI_AXIS_X] = src->size.c[OC_UI_AXIS_X];
     }
-    if(oc_ui_style_apply_check(OC_UI_SIZE_HEIGHT, mask, specificity, specArray))
+    if(oc_ui_style_apply_check(OC_UI_HEIGHT, mask, specificity, specArray))
     {
         dst->size.c[OC_UI_AXIS_Y] = src->size.c[OC_UI_AXIS_Y];
     }
@@ -2093,9 +2129,8 @@ void oc_ui_layout_downward_dependent_size(oc_ui_context* ui, oc_ui_box* box, int
         case OC_UI_SIZE_PARENT:
         case OC_UI_SIZE_PARENT_MINUS_PIXELS:
         {
-            int overflowFlag = (OC_UI_FLAG_OVERFLOW_ALLOW_X << axis);
-
-            if(!(box->flags & overflowFlag))
+            bool constrain = box->style.layout.constrain.c[axis];
+            if(constrain)
             {
                 box->minSize[axis] = minSum + box->spacing[axis] + 2 * box->style.layout.margin.c[axis];
             }
@@ -2157,9 +2192,8 @@ void oc_ui_layout_upward_dependent_size(oc_ui_context* ui, oc_ui_box* box, int a
     }
 
     //NOTE: solve downward conflicts
-    int overflowFlag = (OC_UI_FLAG_OVERFLOW_ALLOW_X << axis);
-
-    if(!(box->flags & overflowFlag))
+    bool constrain = box->style.layout.constrain.c[axis];
+    if(constrain)
     {
         if(box->style.layout.axis == axis)
         {
@@ -2537,7 +2571,7 @@ void oc_ui_draw_box(oc_ui_box* box)
     bool draw = true;
 
     {
-        oc_rect clip = oc_clip_top();
+        oc_rect clipRect = oc_clip_top();
         oc_rect expRect = {
             box->rect.x - 0.5 * style->borderSize,
             box->rect.y - 0.5 * style->borderSize,
@@ -2545,18 +2579,23 @@ void oc_ui_draw_box(oc_ui_box* box)
             box->rect.h + style->borderSize
         };
 
-        if((expRect.x + expRect.w < clip.x)
-           || (expRect.y + expRect.h < clip.y)
-           || (expRect.x > clip.x + clip.w)
-           || (expRect.y > clip.y + clip.h))
+        if((expRect.x + expRect.w < clipRect.x)
+           || (expRect.y + expRect.h < clipRect.y)
+           || (expRect.x > clipRect.x + clipRect.w)
+           || (expRect.y > clipRect.y + clipRect.h))
         {
             draw = false;
         }
     }
 
-    if(box->flags & OC_UI_FLAG_CLIP)
     {
-        oc_clip_push(box->rect.x, box->rect.y, box->rect.w, box->rect.h);
+        oc_rect clipRect = oc_ui_box_clip_rect(box);
+
+        if(box->style.layout.overflow.x != OC_UI_OVERFLOW_ALLOW
+           || box->style.layout.overflow.y != OC_UI_OVERFLOW_ALLOW)
+        {
+            oc_clip_push(clipRect.x, clipRect.y, clipRect.w, clipRect.h);
+        }
     }
 
     if(draw && style->bgColor.a != 0)
@@ -2624,7 +2663,8 @@ void oc_ui_draw_box(oc_ui_box* box)
         oc_fill();
     }
 
-    if(box->flags & OC_UI_FLAG_CLIP)
+    if(box->style.layout.overflow.x != OC_UI_OVERFLOW_ALLOW
+       || box->style.layout.overflow.y != OC_UI_OVERFLOW_ALLOW)
     {
         oc_clip_pop();
     }
@@ -2685,8 +2725,8 @@ void oc_ui_begin_frame(oc_vec2 size)
     oc_ui_style_theme_dark();
 
     oc_ui_style_set_str8(OC_UI_BG_COLOR, OC_UI_THEME_BG_0);
-    oc_ui_style_set_size(OC_UI_SIZE_WIDTH, (oc_ui_size){ OC_UI_SIZE_PIXELS, size.x });
-    oc_ui_style_set_size(OC_UI_SIZE_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PIXELS, size.y });
+    oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PIXELS, size.x });
+    oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PIXELS, size.y });
 
     ui->overlay = oc_ui_box_make("_overlay_", 0);
     oc_ui_box_push(ui->overlay);
@@ -2707,8 +2747,8 @@ void oc_ui_begin_frame(oc_vec2 size)
 
     oc_ui_box* contents = oc_ui_box_begin("_contents_", 0);
 
-    oc_ui_style_set_size(OC_UI_SIZE_WIDTH, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
-    oc_ui_style_set_size(OC_UI_SIZE_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
+    oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
+    oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
     oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_Y);
     oc_ui_style_set_i32(OC_UI_ALIGN_X, OC_UI_ALIGN_START);
     oc_ui_style_set_i32(OC_UI_ALIGN_Y, OC_UI_ALIGN_START);
@@ -2788,8 +2828,8 @@ oc_ui_sig oc_ui_label_str8(oc_str8 key, oc_str8 label)
         oc_ui_tag("label");
         oc_ui_set_text(label);
 
-        oc_ui_style_set_size(OC_UI_SIZE_WIDTH, (oc_ui_size){ OC_UI_SIZE_TEXT, 0, 0 });
-        oc_ui_style_set_size(OC_UI_SIZE_HEIGHT, (oc_ui_size){ OC_UI_SIZE_TEXT, 0, 0 });
+        oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_TEXT, 0, 0 });
+        oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_TEXT, 0, 0 });
         oc_ui_style_set_str8(OC_UI_COLOR, OC_UI_THEME_TEXT_0);
         oc_ui_style_set_str8(OC_UI_FONT, OC_UI_THEME_FONT_REGULAR);
         oc_ui_style_set_str8(OC_UI_TEXT_SIZE, OC_UI_THEME_TEXT_SIZE_REGULAR);
@@ -2843,8 +2883,8 @@ oc_ui_sig oc_ui_button_str8(oc_str8 key, oc_str8 text)
         oc_ui_set_text(text);
         oc_ui_tag("button");
 
-        oc_ui_style_set_size(OC_UI_SIZE_WIDTH, (oc_ui_size){ OC_UI_SIZE_TEXT });
-        oc_ui_style_set_size(OC_UI_SIZE_HEIGHT, (oc_ui_size){ OC_UI_SIZE_TEXT });
+        oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_TEXT });
+        oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_TEXT });
         oc_ui_style_set_i32(OC_UI_ALIGN_X, OC_UI_ALIGN_CENTER);
         oc_ui_style_set_i32(OC_UI_ALIGN_Y, OC_UI_ALIGN_CENTER);
         oc_ui_style_set_str8(OC_UI_MARGIN_X, OC_UI_THEME_SPACING_TIGHT);
@@ -2888,8 +2928,8 @@ oc_ui_box* oc_ui_scrollbar_str8(oc_str8 name, oc_rect rect, f32 thumbRatio, f32*
         oc_ui_style_set_i32(OC_UI_FLOATING_Y, 1);
         oc_ui_style_set_f32(OC_UI_FLOAT_TARGET_X, rect.x);
         oc_ui_style_set_f32(OC_UI_FLOAT_TARGET_Y, rect.y);
-        oc_ui_style_set_size(OC_UI_SIZE_WIDTH, (oc_ui_size){ OC_UI_SIZE_PIXELS, rect.w });
-        oc_ui_style_set_size(OC_UI_SIZE_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PIXELS, rect.h });
+        oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PIXELS, rect.w });
+        oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PIXELS, rect.h });
 
         if(horizontal)
         {
@@ -2909,14 +2949,14 @@ oc_ui_box* oc_ui_scrollbar_str8(oc_str8 name, oc_rect rect, f32 thumbRatio, f32*
 
         oc_ui_box("before-spacer", 0)
         {
-            oc_ui_style_set_size(OC_UI_SIZE_WIDTH + trackAxis, (oc_ui_size){ OC_UI_SIZE_PARENT, beforeRatio });
-            oc_ui_style_set_size(OC_UI_SIZE_WIDTH + secondAxis, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
+            oc_ui_style_set_size(OC_UI_WIDTH + trackAxis, (oc_ui_size){ OC_UI_SIZE_PARENT, beforeRatio });
+            oc_ui_style_set_size(OC_UI_WIDTH + secondAxis, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
         }
 
         oc_ui_box* thumb = oc_ui_box("thumb", OC_UI_FLAG_CLICKABLE | OC_UI_FLAG_HOT_ANIMATION | OC_UI_FLAG_ACTIVE_ANIMATION)
         {
-            oc_ui_style_set_size(OC_UI_SIZE_WIDTH + trackAxis, (oc_ui_size){ OC_UI_SIZE_PARENT, thumbRatio });
-            oc_ui_style_set_size(OC_UI_SIZE_WIDTH + secondAxis, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
+            oc_ui_style_set_size(OC_UI_WIDTH + trackAxis, (oc_ui_size){ OC_UI_SIZE_PARENT, thumbRatio });
+            oc_ui_style_set_size(OC_UI_WIDTH + secondAxis, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
 
             f32 roundness = 0.5 * rect.c[2 + secondAxis];
             oc_ui_style_set_f32(OC_UI_ROUNDNESS, roundness);
@@ -2935,8 +2975,8 @@ oc_ui_box* oc_ui_scrollbar_str8(oc_str8 name, oc_rect rect, f32 thumbRatio, f32*
 
         oc_ui_box("after-spacer", 0)
         {
-            oc_ui_style_set_size(OC_UI_SIZE_WIDTH + trackAxis, (oc_ui_size){ OC_UI_SIZE_PARENT, afterRatio });
-            oc_ui_style_set_size(OC_UI_SIZE_WIDTH + secondAxis, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
+            oc_ui_style_set_size(OC_UI_WIDTH + trackAxis, (oc_ui_size){ OC_UI_SIZE_PARENT, afterRatio });
+            oc_ui_style_set_size(OC_UI_WIDTH + secondAxis, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
         }
 
         //NOTE: interaction
@@ -2987,84 +3027,6 @@ oc_ui_box* oc_ui_scrollbar_str8(oc_str8 name, oc_rect rect, f32 thumbRatio, f32*
 oc_ui_box* oc_ui_scrollbar(const char* name, oc_rect rect, f32 thumbRatio, f32* scrollValue, bool horizontal)
 {
     return oc_ui_scrollbar_str8(OC_STR8(name), rect, thumbRatio, scrollValue, horizontal);
-}
-
-void oc_ui_panel_begin_str8(oc_str8 str)
-{
-    oc_ui_flags flags = OC_UI_FLAG_CLIP
-                      | OC_UI_FLAG_BLOCK_MOUSE
-                      | OC_UI_FLAG_OVERFLOW_ALLOW_X
-                      | OC_UI_FLAG_OVERFLOW_ALLOW_Y
-                      | OC_UI_FLAG_SCROLL_WHEEL_X
-                      | OC_UI_FLAG_SCROLL_WHEEL_Y;
-
-    oc_ui_box_begin_str8(str, flags);
-
-    //TODO: set other style attr for panel here:
-    oc_ui_style_set_size(OC_UI_SIZE_WIDTH, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
-    oc_ui_style_set_size(OC_UI_SIZE_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
-
-    oc_ui_style_set_str8(OC_UI_BG_COLOR, OC_UI_THEME_BG_1);
-}
-
-void oc_ui_panel_begin(const char* str)
-{
-    oc_ui_panel_begin_str8(OC_STR8(str));
-}
-
-void oc_ui_panel_end(void)
-{
-    oc_ui_box* panel = oc_ui_box_top();
-    oc_ui_sig sig = oc_ui_box_sig(panel);
-
-    f32 contentsW = oc_clamp_low(panel->childrenSum[0] + 2 * panel->style.layout.margin.x, panel->rect.w);
-    f32 contentsH = oc_clamp_low(panel->childrenSum[1] + 2 * panel->style.layout.margin.y, panel->rect.h);
-
-    contentsW = oc_clamp_low(contentsW, 1);
-    contentsH = oc_clamp_low(contentsH, 1);
-
-    oc_ui_box* scrollBarX = 0;
-    oc_ui_box* scrollBarY = 0;
-
-    bool needsScrollX = contentsW > panel->rect.w;
-    bool needsScrollY = contentsH > panel->rect.h;
-
-    if(needsScrollX)
-    {
-        f32 thumbRatioX = panel->rect.w / contentsW;
-        f32 scrollValueX = panel->scroll.x / (contentsW - panel->rect.w);
-
-        scrollBarX = oc_ui_scrollbar("scrollerX",
-                                     (oc_rect){ 0, panel->rect.h - 8, panel->rect.w, 8 },
-                                     thumbRatioX,
-                                     &scrollValueX,
-                                     true);
-
-        panel->scroll.x = scrollValueX * (contentsW - panel->rect.w);
-        if(sig.hovering)
-        {
-            oc_ui_box_activate(scrollBarX);
-        }
-    }
-
-    if(needsScrollY)
-    {
-        f32 thumbRatioY = panel->rect.h / contentsH;
-        f32 scrollValueY = panel->scroll.y / (contentsH - panel->rect.h);
-        f32 spacerSize = needsScrollX ? 10 : 0;
-
-        scrollBarY = oc_ui_scrollbar("scrollerY",
-                                     (oc_rect){ panel->rect.w - 8, 0, 8, panel->rect.h - spacerSize },
-                                     thumbRatioY,
-                                     &scrollValueY,
-                                     false);
-
-        panel->scroll.y = scrollValueY * (contentsH - panel->rect.h);
-    }
-    panel->scroll.x = oc_clamp(panel->scroll.x, 0, contentsW - panel->rect.w);
-    panel->scroll.y = oc_clamp(panel->scroll.y, 0, contentsH - panel->rect.h);
-
-    oc_ui_box_end(); // panel
 }
 
 #if 0

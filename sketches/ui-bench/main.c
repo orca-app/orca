@@ -72,8 +72,8 @@ i32 ui_runloop(void* user)
 
             oc_ui_box("container", 0)
             {
-                oc_ui_style_set_size(OC_UI_SIZE_WIDTH, (oc_ui_size){ OC_UI_SIZE_CHILDREN });
-                oc_ui_style_set_size(OC_UI_SIZE_HEIGHT, (oc_ui_size){ OC_UI_SIZE_CHILDREN });
+                oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_CHILDREN });
+                oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_CHILDREN });
                 oc_ui_style_set(OC_UI_BG_COLOR, "bg-1");
 
                 oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_Y);
@@ -98,8 +98,8 @@ i32 ui_runloop(void* user)
                 {
                     oc_ui_style_set_color(OC_UI_BG_COLOR, (oc_color){ 0, 0, 1, 1 });
 
-                    oc_ui_style_set_size(OC_UI_SIZE_WIDTH, (oc_ui_size){ OC_UI_SIZE_CHILDREN });
-                    oc_ui_style_set_size(OC_UI_SIZE_HEIGHT, (oc_ui_size){ OC_UI_SIZE_CHILDREN });
+                    oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_CHILDREN });
+                    oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_CHILDREN });
                     oc_ui_style_set_f32(OC_UI_MARGIN_X, 10);
                     oc_ui_style_set_f32(OC_UI_MARGIN_Y, 10);
                     oc_ui_style_set_f32(OC_UI_SPACING, 10);
@@ -109,10 +109,14 @@ i32 ui_runloop(void* user)
                 }
             }
 
-            oc_ui_panel("panel")
+            oc_ui_box("panel", 0)
             {
-                oc_ui_style_set_size(OC_UI_SIZE_WIDTH, (oc_ui_size){ OC_UI_SIZE_PIXELS, 300 });
-                oc_ui_style_set_size(OC_UI_SIZE_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PIXELS, 200 });
+                oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PIXELS, 300 });
+                oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PIXELS, 200 });
+                oc_ui_style_set_str8(OC_UI_BG_COLOR, OC_UI_THEME_BG_1);
+
+                oc_ui_style_set_i32(OC_UI_OVERFLOW_X, OC_UI_OVERFLOW_CLIP);
+                oc_ui_style_set_i32(OC_UI_OVERFLOW_Y, OC_UI_OVERFLOW_ALLOW);
 
                 /*
                 oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_Y);
@@ -123,12 +127,13 @@ i32 ui_runloop(void* user)
 
                 oc_ui_box("box", 0)
                 {
-                    //                    oc_ui_style_set_size(OC_UI_SIZE_WIDTH, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
-                    oc_ui_style_set_size(OC_UI_SIZE_WIDTH, (oc_ui_size){ OC_UI_SIZE_PIXELS, 400 });
-                    oc_ui_style_set_size(OC_UI_SIZE_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PIXELS, 400 });
+                    //                    oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
+                    oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PIXELS, 250 });
+                    oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PIXELS, 400 });
 
                     oc_ui_style_set_color(OC_UI_BG_COLOR, (oc_color){ 0, 0, 0, 1 });
                 }
+                oc_ui_button("mybutton", "clickMe");
             }
         }
 

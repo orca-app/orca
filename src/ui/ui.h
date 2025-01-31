@@ -46,6 +46,13 @@ typedef union oc_ui_layout_align
     oc_ui_align c[OC_UI_AXIS_COUNT];
 } oc_ui_layout_align;
 
+typedef enum oc_ui_overflow
+{
+    OC_UI_OVERFLOW_CLIP,
+    OC_UI_OVERFLOW_ALLOW,
+    OC_UI_OVERFLOW_SCROLL,
+} oc_ui_overflow;
+
 typedef struct oc_ui_layout
 {
     oc_ui_axis axis;
@@ -63,6 +70,28 @@ typedef struct oc_ui_layout
     } margin;
 
     oc_ui_layout_align align;
+
+    union
+    {
+        struct
+        {
+            oc_ui_overflow x;
+            oc_ui_overflow y;
+        };
+
+        oc_ui_overflow c[OC_UI_AXIS_COUNT];
+    } overflow;
+
+    union
+    {
+        struct
+        {
+            bool x;
+            bool y;
+        };
+
+        bool c[OC_UI_AXIS_COUNT];
+    } constrain;
 
 } oc_ui_layout;
 
@@ -108,8 +137,8 @@ typedef union oc_ui_box_floating
 
 typedef enum
 {
-    OC_UI_SIZE_WIDTH,  // WIDTH?
-    OC_UI_SIZE_HEIGHT, // HEIGHT?
+    OC_UI_WIDTH,  // WIDTH?
+    OC_UI_HEIGHT, // HEIGHT?
     OC_UI_AXIS,
     OC_UI_MARGIN_X,
     OC_UI_MARGIN_Y,
@@ -120,6 +149,10 @@ typedef enum
     OC_UI_FLOATING_Y,
     OC_UI_FLOAT_TARGET_X,
     OC_UI_FLOAT_TARGET_Y,
+    OC_UI_OVERFLOW_X,
+    OC_UI_OVERFLOW_Y,
+    OC_UI_CONSTRAIN_X,
+    OC_UI_CONSTRAIN_Y,
     OC_UI_COLOR,
     OC_UI_BG_COLOR,
     OC_UI_BORDER_COLOR,
@@ -140,8 +173,8 @@ typedef u64 oc_ui_style_mask;
 enum
 {
     OC_UI_MASK_NONE = 0,
-    OC_UI_MASK_SIZE_WIDTH = 1 << OC_UI_SIZE_WIDTH,
-    OC_UI_MASK_SIZE_HEIGHT = 1 << OC_UI_SIZE_HEIGHT,
+    OC_UI_MASK_SIZE_WIDTH = 1 << OC_UI_WIDTH,
+    OC_UI_MASK_SIZE_HEIGHT = 1 << OC_UI_HEIGHT,
     OC_UI_MASK_LAYOUT_AXIS = 1 << OC_UI_AXIS,
     OC_UI_MASK_LAYOUT_ALIGN_X = 1 << OC_UI_ALIGN_X,
     OC_UI_MASK_LAYOUT_ALIGN_Y = 1 << OC_UI_ALIGN_Y,
@@ -152,6 +185,10 @@ enum
     OC_UI_MASK_FLOATING_Y = 1 << OC_UI_FLOATING_Y,
     OC_UI_MASK_FLOAT_TARGET_X = 1 << OC_UI_FLOAT_TARGET_X,
     OC_UI_MASK_FLOAT_TARGET_Y = 1 << OC_UI_FLOAT_TARGET_Y,
+    OC_UI_MASK_OVERFLOW_X = 1 << OC_UI_OVERFLOW_X,
+    OC_UI_MASK_OVERFLOW_Y = 1 << OC_UI_OVERFLOW_Y,
+    OC_UI_MASK_CONSTRAIN_X = 1 << OC_UI_CONSTRAIN_X,
+    OC_UI_MASK_CONSTRAIN_Y = 1 << OC_UI_CONSTRAIN_Y,
     OC_UI_MASK_COLOR = 1 << OC_UI_COLOR,
     OC_UI_MASK_BG_COLOR = 1 << OC_UI_BG_COLOR,
     OC_UI_MASK_BORDER_COLOR = 1 << OC_UI_BORDER_COLOR,
@@ -293,17 +330,9 @@ typedef enum
 {
     OC_UI_FLAG_NONE = 0,
     OC_UI_FLAG_CLICKABLE = (1 << 0),
-    OC_UI_FLAG_SCROLL_WHEEL_X = (1 << 1),
-    OC_UI_FLAG_SCROLL_WHEEL_Y = (1 << 2),
     OC_UI_FLAG_BLOCK_MOUSE = (1 << 3),
     OC_UI_FLAG_HOT_ANIMATION = (1 << 4),
     OC_UI_FLAG_ACTIVE_ANIMATION = (1 << 5),
-    //WARN: these two following flags need to be kept as consecutive bits to
-    //      play well with axis-agnostic functions
-    OC_UI_FLAG_OVERFLOW_ALLOW_X = (1 << 6), // this should be in layout style?
-    OC_UI_FLAG_OVERFLOW_ALLOW_Y = (1 << 7), // this should be in layout style?
-    OC_UI_FLAG_CLIP = (1 << 8),             // this should be in layout style?
-
     OC_UI_FLAG_OVERLAY = (1 << 16),
 } oc_ui_flags;
 
@@ -674,6 +703,49 @@ ORCA_API void oc_ui_style_set_str8(oc_ui_style_attribute attr, oc_str8 var);
 ORCA_API void oc_ui_style_set(oc_ui_style_attribute attr, const char* var);
 
 //NOTE: default themes
+#define OC_UI_DEFAULT_THEME_DATA(_)                                 \
+    _(OC_UI_THEME_PRIMARY, "primary")                               \
+    _(OC_UI_THEME_PRIMARY_HOVER, "primary-hover")                   \
+    _(OC_UI_THEME_PRIMARY_ACTIVE, "primary-active")                 \
+    _(OC_UI_THEME_PRIMARY_DISABLED, "primary-disabled")             \
+    _(OC_UI_THEME_TEXT_0, "text-0")                                 \
+    _(OC_UI_THEME_TEXT_1, "text-1")                                 \
+    _(OC_UI_THEME_TEXT_2, "text-2")                                 \
+    _(OC_UI_THEME_TEXT_3, "text-3")                                 \
+    _(OC_UI_THEME_BG_0, "bg-0")                                     \
+    _(OC_UI_THEME_BG_1, "bg-1")                                     \
+    _(OC_UI_THEME_BG_2, "bg-2")                                     \
+    _(OC_UI_THEME_BG_3, "bg-3")                                     \
+    _(OC_UI_THEME_BG_4, "bg-4")                                     \
+    _(OC_UI_THEME_FILL_0, "fill-0")                                 \
+    _(OC_UI_THEME_FILL_1, "fill-1")                                 \
+    _(OC_UI_THEME_FILL_2, "fill-2")                                 \
+    _(OC_UI_THEME_BORDER, "border")                                 \
+    _(OC_UI_THEME_ROUNDNESS_SMALL, "roundness-small")               \
+    _(OC_UI_THEME_ROUNDNESS_REGULAR, "roundness-regular")           \
+    _(OC_UI_THEME_ROUNDNESS_LARGE, "roundness-large")               \
+    _(OC_UI_THEME_TEXT_SIZE_SMALL, "text-size-small")               \
+    _(OC_UI_THEME_TEXT_SIZE_REGULAR, "text-size-regular")           \
+    _(OC_UI_THEME_TEXT_SIZE_HEADER_0, "text-size-header-0")         \
+    _(OC_UI_THEME_TEXT_SIZE_HEADER_1, "text-size-header-1")         \
+    _(OC_UI_THEME_TEXT_SIZE_HEADER_2, "text-size-header-2")         \
+    _(OC_UI_THEME_TEXT_SIZE_HEADER_3, "text-size-header-3")         \
+    _(OC_UI_THEME_TEXT_SIZE_HEADER_4, "text-size-header-4")         \
+    _(OC_UI_THEME_FONT_REGULAR, "font-regular")                     \
+    _(OC_UI_THEME_CONTROL_HEIGHT_SMALL, "control-height-small")     \
+    _(OC_UI_THEME_CONTROL_HEIGHT_DEFAULT, "control-height-default") \
+    _(OC_UI_THEME_CONTROL_HEIGHT_LARGE, "control-height-large")     \
+    _(OC_UI_THEME_SPACING_EXTRA_TIGHT, "spacing-extra-tight")       \
+    _(OC_UI_THEME_SPACING_TIGHT, "spacing-tight")                   \
+    _(OC_UI_THEME_SPACING_REGULAR_TIGHT, "spacing-regular-tight")   \
+    _(OC_UI_THEME_SPACING_REGULAR, "spacing-regular")               \
+    _(OC_UI_THEME_SPACING_REGULAR_LOOSE, "spacing-regular-loose")   \
+    _(OC_UI_THEME_SPACING_LOOSE, "spacing-loose")                   \
+    _(OC_UI_THEME_SPACING_EXTRA_LOOSE, "spacing-extra-loose")
+
+#define OC_UI_THEME_NAME(n, s) static const oc_str8 n = OC_STR8_LIT(s);
+OC_UI_DEFAULT_THEME_DATA(OC_UI_THEME_NAME)
+#undef OC_UI_THEME_NAME
 
 ORCA_API void oc_ui_style_theme_dark();
 ORCA_API void oc_ui_style_theme_light();
@@ -694,10 +766,6 @@ ORCA_API oc_ui_box* oc_ui_scrollbar(const char* name, oc_rect rect, f32 thumbRat
 
 ORCA_API void oc_ui_tooltip_str8(oc_str8 label);
 ORCA_API void oc_ui_tooltip(const char* label);
-
-ORCA_API void oc_ui_panel_begin(const char* name);
-ORCA_API void oc_ui_panel_end(void);
-#define oc_ui_panel(s) oc_defer_loop(oc_ui_panel_begin(s), oc_ui_panel_end())
 
 ORCA_API void oc_ui_menu_bar_begin(const char* name);
 ORCA_API void oc_ui_menu_bar_end(void);
