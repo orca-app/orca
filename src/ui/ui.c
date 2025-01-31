@@ -726,70 +726,54 @@ void oc_ui_style_var_push(oc_str8 name, oc_ui_style_value value, bool alwaysSet,
 {
     oc_ui_context* ui = oc_ui_get_context();
 
-    if(ui->workingTheme)
+    oc_ui_style_var* var = oc_arena_push_type(&ui->frameArena, oc_ui_style_var);
+
+    u64 hash = oc_hash_xx64_string(name);
+    u64 index = hash & ui->styleVariables.mask;
+    oc_list* bucket = &ui->styleVariables.buckets[index];
+    oc_ui_style_var_stack* stack = 0;
+
+    oc_list_for(*bucket, elt, oc_ui_style_var_stack, bucketElt)
     {
-        //NOTE: we're pushing a variable definition to the currently defined theme
-        oc_ui_theme* theme = ui->workingTheme;
-        oc_ui_theme_entry* def = oc_arena_push_type(theme->arena, oc_ui_theme_entry);
+        if(elt->hash == hash)
+        {
+            stack = elt;
+            break;
+        }
+    }
+    if(!stack)
+    {
+        stack = oc_arena_push_type(&ui->frameArena, oc_ui_style_var_stack);
+        memset(stack, 0, sizeof(oc_ui_style_var_stack));
 
-        def->name = oc_str8_push_copy(theme->arena, name);
+        stack->name = oc_str8_push_copy(&ui->frameArena, name);
+        stack->hash = hash;
+        oc_list_push_back(bucket, &stack->bucketElt);
+    }
 
-        //TODO: should we allow setting value from existing var?
-        def->value = value;
+    var->stack = stack;
+    oc_list_push_front(&stack->vars, &var->stackElt);
 
-        oc_list_push_back(&theme->defs, &def->listElt);
+    if(!scopeList)
+    {
+        //NOTE: we're pushing a variable in the current object's scope
+        oc_ui_box* box = oc_ui_box_top();
+        OC_DEBUG_ASSERT(box);
+
+        scopeList = &box->styleVariables;
+    }
+
+    oc_list_push_front(scopeList, &var->boxElt);
+
+    oc_ui_style_var* prev = oc_list_next_entry(var, oc_ui_style_var, stackElt);
+
+    if(!alwaysSet && prev && prev->value.kind == value.kind)
+    {
+        var->value = prev->value;
     }
     else
     {
-        oc_ui_style_var* var = oc_arena_push_type(&ui->frameArena, oc_ui_style_var);
-
-        u64 hash = oc_hash_xx64_string(name);
-        u64 index = hash & ui->styleVariables.mask;
-        oc_list* bucket = &ui->styleVariables.buckets[index];
-        oc_ui_style_var_stack* stack = 0;
-
-        oc_list_for(*bucket, elt, oc_ui_style_var_stack, bucketElt)
-        {
-            if(elt->hash == hash)
-            {
-                stack = elt;
-                break;
-            }
-        }
-        if(!stack)
-        {
-            stack = oc_arena_push_type(&ui->frameArena, oc_ui_style_var_stack);
-            memset(stack, 0, sizeof(oc_ui_style_var_stack));
-
-            stack->name = oc_str8_push_copy(&ui->frameArena, name);
-            stack->hash = hash;
-            oc_list_push_back(bucket, &stack->bucketElt);
-        }
-
-        var->stack = stack;
-        oc_list_push_front(&stack->vars, &var->stackElt);
-
-        if(!scopeList)
-        {
-            //NOTE: we're pushing a variable in the current object's scope
-            oc_ui_box* box = oc_ui_box_top();
-            OC_DEBUG_ASSERT(box);
-
-            scopeList = &box->styleVariables;
-        }
-
-        oc_list_push_front(scopeList, &var->boxElt);
-
-        oc_ui_style_var* prev = oc_list_next_entry(var, oc_ui_style_var, stackElt);
-
-        if(!alwaysSet && prev && prev->value.kind == value.kind)
-        {
-            var->value = prev->value;
-        }
-        else
-        {
-            var->value = value;
-        }
+        var->value = value;
     }
 }
 
@@ -1174,63 +1158,141 @@ void oc_ui_style_set(oc_ui_style_attribute attr, const char* name)
     oc_ui_style_set_str8(attr, OC_STR8(name));
 }
 
-//Theme stuff
+// Themes
+#define OC_UI_DEFAULT_THEME_DATA(_)                                 \
+    _(OC_UI_THEME_PRIMARY, "primary")                               \
+    _(OC_UI_THEME_PRIMARY_HOVER, "primary-hover")                   \
+    _(OC_UI_THEME_PRIMARY_ACTIVE, "primary-active")                 \
+    _(OC_UI_THEME_PRIMARY_DISABLED, "primary-disabled")             \
+    _(OC_UI_THEME_TEXT_0, "text-0")                                 \
+    _(OC_UI_THEME_TEXT_1, "text-1")                                 \
+    _(OC_UI_THEME_TEXT_2, "text-2")                                 \
+    _(OC_UI_THEME_TEXT_3, "text-3")                                 \
+    _(OC_UI_THEME_BG_0, "bg-0")                                     \
+    _(OC_UI_THEME_BG_1, "bg-1")                                     \
+    _(OC_UI_THEME_BG_2, "bg-2")                                     \
+    _(OC_UI_THEME_BG_3, "bg-3")                                     \
+    _(OC_UI_THEME_BG_4, "bg-4")                                     \
+    _(OC_UI_THEME_FILL_0, "fill-0")                                 \
+    _(OC_UI_THEME_FILL_1, "fill-1")                                 \
+    _(OC_UI_THEME_FILL_2, "fill-2")                                 \
+    _(OC_UI_THEME_BORDER, "border")                                 \
+    _(OC_UI_THEME_ROUNDNESS_0, "roundness-0")                       \
+    _(OC_UI_THEME_ROUNDNESS_1, "roundness-1")                       \
+    _(OC_UI_THEME_ROUNDNESS_2, "roundness-2")                       \
+    _(OC_UI_THEME_ROUNDNESS_3, "roundness-3")                       \
+    _(OC_UI_THEME_TEXT_SIZE_SMALL, "text-size-small")               \
+    _(OC_UI_THEME_TEXT_SIZE_REGULAR, "text-size-regular")           \
+    _(OC_UI_THEME_TEXT_SIZE_HEADER_0, "text-size-header-0")         \
+    _(OC_UI_THEME_TEXT_SIZE_HEADER_1, "text-size-header-1")         \
+    _(OC_UI_THEME_TEXT_SIZE_HEADER_2, "text-size-header-2")         \
+    _(OC_UI_THEME_TEXT_SIZE_HEADER_3, "text-size-header-3")         \
+    _(OC_UI_THEME_TEXT_SIZE_HEADER_4, "text-size-header-4")         \
+    _(OC_UI_THEME_FONT_REGULAR, "font-regular")                     \
+    _(OC_UI_THEME_CONTROL_HEIGHT_SMALL, "control-height-small")     \
+    _(OC_UI_THEME_CONTROL_HEIGHT_DEFAULT, "control-height-default") \
+    _(OC_UI_THEME_CONTROL_HEIGHT_LARGE, "control-height-large")     \
+    _(OC_UI_THEME_SPACING_0, "spacing-0")                           \
+    _(OC_UI_THEME_SPACING_1, "spacing-1")                           \
+    _(OC_UI_THEME_SPACING_2, "spacing-2")                           \
+    _(OC_UI_THEME_SPACING_3, "spacing-3")
 
-oc_ui_theme* oc_ui_theme_def_begin(oc_arena* arena)
+#define OC_UI_THEME_NAME(n, s) static const oc_str8 n = OC_STR8_LIT(s);
+OC_UI_DEFAULT_THEME_DATA(OC_UI_THEME_NAME)
+#undef OC_UI_THEME_NAME
+
+//TODO: define pre-computed hashes
+
+void oc_ui_style_theme_light()
 {
-    oc_ui_context* ui = oc_ui_get_context();
-    OC_ASSERT(ui);
-    OC_ASSERT(!ui->workingTheme, "Nested theme definitions are not allowed");
+    //TODO: push these vars using precomputed name hashes
 
-    oc_ui_theme* theme = oc_arena_push_type(arena, oc_ui_theme);
-    memset(theme, 0, sizeof(oc_ui_theme));
+    oc_ui_style_var_set_color_str8(OC_UI_THEME_PRIMARY, (oc_color){ 0.000, 0.392, 0.980, 1, OC_COLOR_SPACE_SRGB });
+    oc_ui_style_var_set_color_str8(OC_UI_THEME_PRIMARY_HOVER, (oc_color){ 0.000, 0.384, 0.839, 1, OC_COLOR_SPACE_SRGB });
+    oc_ui_style_var_set_color_str8(OC_UI_THEME_PRIMARY_ACTIVE, (oc_color){ 0.000, 0.310, 0.702, 1, OC_COLOR_SPACE_SRGB });
+    oc_ui_style_var_set_color_str8(OC_UI_THEME_PRIMARY_DISABLED, (oc_color){ 0.596, 0.804, 0.992, 1, OC_COLOR_SPACE_SRGB });
 
-    theme->arena = arena;
+    oc_ui_style_var_set_color_str8(OC_UI_THEME_TEXT_0, (oc_color){ 0.110, 0.122, 0.137, 1, OC_COLOR_SPACE_SRGB });
+    oc_ui_style_var_set_color_str8(OC_UI_THEME_TEXT_1, (oc_color){ 0.110, 0.122, 0.137, .942, OC_COLOR_SPACE_SRGB });
+    oc_ui_style_var_set_color_str8(OC_UI_THEME_TEXT_2, (oc_color){ 0.110, 0.122, 0.137, .834, OC_COLOR_SPACE_SRGB });
+    oc_ui_style_var_set_color_str8(OC_UI_THEME_TEXT_3, (oc_color){ 0.110, 0.122, 0.137, .57, OC_COLOR_SPACE_SRGB });
 
-    ui->workingTheme = theme;
-    return theme;
+    oc_ui_style_var_set_color_str8(OC_UI_THEME_BG_0, (oc_color){ 1, 1, 1, 1, OC_COLOR_SPACE_SRGB });
+    oc_ui_style_var_set_color_str8(OC_UI_THEME_BG_1, (oc_color){ 1, 1, 1, 1, OC_COLOR_SPACE_SRGB });
+    oc_ui_style_var_set_color_str8(OC_UI_THEME_BG_2, (oc_color){ 1, 1, 1, 1, OC_COLOR_SPACE_SRGB });
+    oc_ui_style_var_set_color_str8(OC_UI_THEME_BG_3, (oc_color){ 1, 1, 1, 1, OC_COLOR_SPACE_SRGB });
+    oc_ui_style_var_set_color_str8(OC_UI_THEME_BG_4, (oc_color){ 1, 1, 1, 1, OC_COLOR_SPACE_SRGB });
+
+    oc_ui_style_var_set_color_str8(OC_UI_THEME_FILL_0, (oc_color){ 0.180, 0.196, 0.220, .1, OC_COLOR_SPACE_SRGB });
+    oc_ui_style_var_set_color_str8(OC_UI_THEME_FILL_1, (oc_color){ 0.180, 0.196, 0.220, .17, OC_COLOR_SPACE_SRGB });
+    oc_ui_style_var_set_color_str8(OC_UI_THEME_FILL_2, (oc_color){ 0.180, 0.196, 0.220, .23, OC_COLOR_SPACE_SRGB });
+
+    oc_ui_style_var_set_color_str8(OC_UI_THEME_BORDER, (oc_color){ 0.110, 0.122, 0.137, .16, OC_COLOR_SPACE_SRGB });
+
+    oc_ui_style_var_set_f32_str8(OC_UI_THEME_ROUNDNESS_0, 3);
+    oc_ui_style_var_set_f32_str8(OC_UI_THEME_ROUNDNESS_1, 6);
+    oc_ui_style_var_set_f32_str8(OC_UI_THEME_ROUNDNESS_2, 12);
+    oc_ui_style_var_set_f32_str8(OC_UI_THEME_ROUNDNESS_3, 18);
+    oc_ui_style_var_set_f32_str8(OC_UI_THEME_CONTROL_HEIGHT_SMALL, 24);
+    oc_ui_style_var_set_f32_str8(OC_UI_THEME_CONTROL_HEIGHT_DEFAULT, 32);
+    oc_ui_style_var_set_f32_str8(OC_UI_THEME_CONTROL_HEIGHT_LARGE, 40);
+    oc_ui_style_var_set_f32_str8(OC_UI_THEME_SPACING_0, 0);
+    oc_ui_style_var_set_f32_str8(OC_UI_THEME_SPACING_1, 8);
+    oc_ui_style_var_set_f32_str8(OC_UI_THEME_SPACING_2, 16);
+    oc_ui_style_var_set_f32_str8(OC_UI_THEME_SPACING_3, 24);
+    oc_ui_style_var_set_f32_str8(OC_UI_THEME_TEXT_SIZE_SMALL, 12);
+    oc_ui_style_var_set_f32_str8(OC_UI_THEME_TEXT_SIZE_REGULAR, 14);
+    oc_ui_style_var_set_f32_str8(OC_UI_THEME_TEXT_SIZE_HEADER_0, 32);
+    oc_ui_style_var_set_f32_str8(OC_UI_THEME_TEXT_SIZE_HEADER_1, 28);
+    oc_ui_style_var_set_f32_str8(OC_UI_THEME_TEXT_SIZE_HEADER_2, 24);
+    oc_ui_style_var_set_f32_str8(OC_UI_THEME_TEXT_SIZE_HEADER_3, 20);
+    oc_ui_style_var_set_f32_str8(OC_UI_THEME_TEXT_SIZE_HEADER_4, 18);
+    //TODO: oc_ui_style_var_set_font_str8(OC_UI_THEME_FONT);
 }
 
-void oc_ui_theme_def_end()
+void oc_ui_style_theme_dark()
 {
-    oc_ui_context* ui = oc_ui_get_context();
-    OC_ASSERT(ui->workingTheme, "unbalanced theme definition end");
+    oc_ui_style_var_set_color_str8(OC_UI_THEME_PRIMARY, (oc_color){ 0.33, 0.66, 1, 1, OC_COLOR_SPACE_SRGB });
+    oc_ui_style_var_set_color_str8(OC_UI_THEME_PRIMARY_HOVER, (oc_color){ 0.5, 0.757, 1, 1, OC_COLOR_SPACE_SRGB });
+    oc_ui_style_var_set_color_str8(OC_UI_THEME_PRIMARY_ACTIVE, (oc_color){ 0.66, 0.84, 1, 1, OC_COLOR_SPACE_SRGB });
+    oc_ui_style_var_set_color_str8(OC_UI_THEME_PRIMARY_DISABLED, (oc_color){ 0.074, 0.361, 0.722, 1, OC_COLOR_SPACE_SRGB });
 
-    ui->workingTheme = 0;
-}
+    oc_ui_style_var_set_color_str8(OC_UI_THEME_TEXT_0, (oc_color){ 0.976, 0.976, 0.976, 1, OC_COLOR_SPACE_SRGB });
+    oc_ui_style_var_set_color_str8(OC_UI_THEME_TEXT_1, (oc_color){ 0.976, 0.976, 0.976, .64, OC_COLOR_SPACE_SRGB });
+    oc_ui_style_var_set_color_str8(OC_UI_THEME_TEXT_2, (oc_color){ 0.976, 0.976, 0.976, .38, OC_COLOR_SPACE_SRGB });
+    oc_ui_style_var_set_color_str8(OC_UI_THEME_TEXT_3, (oc_color){ 0.976, 0.976, 0.976, .15, OC_COLOR_SPACE_SRGB });
 
-typedef struct oc_ui_theme_stack_elt
-{
-    oc_list_elt listElt;
-    oc_ui_theme* theme;
-    oc_list variables;
-} oc_ui_theme_stack_elt;
+    oc_ui_style_var_set_color_str8(OC_UI_THEME_BG_0, (oc_color){ 0.086, 0.086, 0.102, 1, OC_COLOR_SPACE_SRGB });
+    oc_ui_style_var_set_color_str8(OC_UI_THEME_BG_1, (oc_color){ 0.137, 0.141, 0.165, 1, OC_COLOR_SPACE_SRGB });
+    oc_ui_style_var_set_color_str8(OC_UI_THEME_BG_2, (oc_color){ 0.208, 0.212, 0.231, 1, OC_COLOR_SPACE_SRGB });
+    oc_ui_style_var_set_color_str8(OC_UI_THEME_BG_3, (oc_color){ 0.263, 0.267, 0.29, 1, OC_COLOR_SPACE_SRGB });
+    oc_ui_style_var_set_color_str8(OC_UI_THEME_BG_4, (oc_color){ 0.31, 0.318, 0.349, 1, OC_COLOR_SPACE_SRGB });
 
-void oc_ui_theme_push(oc_ui_theme* theme)
-{
-    oc_ui_context* ui = oc_ui_get_context();
-    oc_ui_theme_stack_elt* elt = oc_arena_push_type(&ui->frameArena, oc_ui_theme_stack_elt);
-    elt->theme = theme;
-    elt->variables = (oc_list){ 0 };
-    oc_list_push_front(&ui->themeStack, &elt->listElt);
+    oc_ui_style_var_set_color_str8(OC_UI_THEME_FILL_0, (oc_color){ 1, 1, 1, .033, OC_COLOR_SPACE_SRGB });
+    oc_ui_style_var_set_color_str8(OC_UI_THEME_FILL_1, (oc_color){ 1, 1, 1, .045, OC_COLOR_SPACE_SRGB });
+    oc_ui_style_var_set_color_str8(OC_UI_THEME_FILL_2, (oc_color){ 1, 1, 1, 0.063, OC_COLOR_SPACE_SRGB });
 
-    //NOTE: push defs as variables in scope
-    oc_list_for(theme->defs, def, oc_ui_theme_entry, listElt)
-    {
-        oc_ui_style_var_push(def->name, def->value, true, &elt->variables);
-    }
-}
+    oc_ui_style_var_set_color_str8(OC_UI_THEME_BORDER, (oc_color){ 1, 1, 1, 0.018, OC_COLOR_SPACE_SRGB });
 
-void oc_ui_theme_pop()
-{
-    oc_ui_context* ui = oc_ui_get_context();
-    oc_ui_theme_stack_elt* elt = oc_list_pop_front_entry(&ui->themeStack, oc_ui_theme_stack_elt, listElt);
-
-    //NOTE: pop variables
-    oc_list_for(elt->variables, var, oc_ui_style_var, boxElt)
-    {
-        oc_list_remove(&var->stack->vars, &var->stackElt);
-    }
+    oc_ui_style_var_set_f32_str8(OC_UI_THEME_ROUNDNESS_0, 3);
+    oc_ui_style_var_set_f32_str8(OC_UI_THEME_ROUNDNESS_1, 6);
+    oc_ui_style_var_set_f32_str8(OC_UI_THEME_ROUNDNESS_2, 12);
+    oc_ui_style_var_set_f32_str8(OC_UI_THEME_ROUNDNESS_3, 18);
+    oc_ui_style_var_set_f32_str8(OC_UI_THEME_CONTROL_HEIGHT_SMALL, 24);
+    oc_ui_style_var_set_f32_str8(OC_UI_THEME_CONTROL_HEIGHT_DEFAULT, 32);
+    oc_ui_style_var_set_f32_str8(OC_UI_THEME_CONTROL_HEIGHT_LARGE, 40);
+    oc_ui_style_var_set_f32_str8(OC_UI_THEME_SPACING_0, 0);
+    oc_ui_style_var_set_f32_str8(OC_UI_THEME_SPACING_1, 8);
+    oc_ui_style_var_set_f32_str8(OC_UI_THEME_SPACING_2, 16);
+    oc_ui_style_var_set_f32_str8(OC_UI_THEME_SPACING_3, 24);
+    oc_ui_style_var_set_f32_str8(OC_UI_THEME_TEXT_SIZE_SMALL, 12);
+    oc_ui_style_var_set_f32_str8(OC_UI_THEME_TEXT_SIZE_REGULAR, 14);
+    oc_ui_style_var_set_f32_str8(OC_UI_THEME_TEXT_SIZE_HEADER_0, 32);
+    oc_ui_style_var_set_f32_str8(OC_UI_THEME_TEXT_SIZE_HEADER_1, 28);
+    oc_ui_style_var_set_f32_str8(OC_UI_THEME_TEXT_SIZE_HEADER_2, 24);
+    oc_ui_style_var_set_f32_str8(OC_UI_THEME_TEXT_SIZE_HEADER_3, 20);
+    oc_ui_style_var_set_f32_str8(OC_UI_THEME_TEXT_SIZE_HEADER_4, 18);
+    //TODO: oc_ui_style_var_set_font_str8(OC_UI_THEME_FONT);
 }
 
 //-----------------------------------------------------------------------------
@@ -2602,9 +2664,9 @@ void oc_ui_begin_frame(oc_vec2 size, oc_ui_style* defaultStyle, oc_ui_style_mask
     //TODO: we could avoid this with a framecounter for each bucket
     memset(ui->styleVariables.buckets, 0, sizeof(oc_list) * (4 << 10));
 
-    oc_ui_theme_push(ui->darkTheme);
-
     ui->root = oc_ui_box_begin("_root_", 0);
+
+    oc_ui_style_theme_dark();
 
     oc_ui_style_var_set_font("font-regular", defaultStyle->font);
 
@@ -2668,8 +2730,6 @@ void oc_ui_end_frame(void)
         }
     }
 
-    oc_ui_theme_pop();
-
     oc_arena_clear(&ui->frameArena);
     oc_input_next_frame(&ui->input);
 }
@@ -2677,6 +2737,7 @@ void oc_ui_end_frame(void)
 //-----------------------------------------------------------------------------
 // Init / cleanup
 //-----------------------------------------------------------------------------
+
 void oc_ui_init(oc_ui_context* ui)
 {
     oc_uiCurrentContext = &oc_uiThreadContext;
@@ -2689,34 +2750,12 @@ void oc_ui_init(oc_ui_context* ui)
     oc_ui_set_context(ui);
 
     ui->editSelectionMode = OC_UI_EDIT_MOVE_CHAR;
-
-    oc_arena_init(&ui->persistentArena);
-
-    ui->darkTheme = oc_ui_theme_def(&ui->persistentArena)
-    {
-        oc_ui_style_var_set_color("bg0", (oc_color){ 0.086, 0.086, 0.102, 1, OC_COLOR_SPACE_SRGB });
-        oc_ui_style_var_set_color("bg1", (oc_color){ 0.137, 0.141, 0.165, 1, OC_COLOR_SPACE_SRGB });
-        oc_ui_style_var_set_color("bg2", (oc_color){ 0.208, 0.212, 0.231, 1, OC_COLOR_SPACE_SRGB });
-        oc_ui_style_var_set_color("bg3", (oc_color){ 0.263, 0.267, 0.29, 1, OC_COLOR_SPACE_SRGB });
-        oc_ui_style_var_set_color("bg4", (oc_color){ 0.31, 0.318, 0.349, 1, OC_COLOR_SPACE_SRGB });
-        oc_ui_style_var_set_color("fill0", (oc_color){ 1, 1, 1, 0.033, OC_COLOR_SPACE_SRGB });
-        oc_ui_style_var_set_color("fill1", (oc_color){ 1, 1, 1, 0.045, OC_COLOR_SPACE_SRGB });
-        oc_ui_style_var_set_color("fill2", (oc_color){ 1, 1, 1, 0.063, OC_COLOR_SPACE_SRGB });
-        oc_ui_style_var_set_color("text0", (oc_color){ 0.976, 0.976, 0.976, 1, OC_COLOR_SPACE_SRGB });
-
-        oc_ui_style_var_set_f32("text-size0", 12);
-
-        oc_ui_style_var_set_f32("roundness0", 3);
-    }
-
-    oc_ui_theme_def_end();
 }
 
 void oc_ui_cleanup(void)
 {
     oc_ui_context* ui = oc_ui_get_context();
     oc_arena_cleanup(&ui->frameArena);
-    oc_arena_cleanup(&ui->persistentArena);
     oc_pool_cleanup(&ui->boxPool);
     ui->init = false;
 }
@@ -2736,9 +2775,9 @@ oc_ui_sig oc_ui_label_str8(oc_str8 key, oc_str8 label)
 
         oc_ui_style_set_size(OC_UI_SIZE_WIDTH, (oc_ui_size){ OC_UI_SIZE_TEXT, 0, 0 });
         oc_ui_style_set_size(OC_UI_SIZE_HEIGHT, (oc_ui_size){ OC_UI_SIZE_TEXT, 0, 0 });
-        oc_ui_style_set(OC_UI_COLOR, "text0");
-        oc_ui_style_set(OC_UI_FONT, "font-regular");
-        oc_ui_style_set(OC_UI_TEXT_SIZE, "text-size0");
+        oc_ui_style_set_str8(OC_UI_COLOR, OC_UI_THEME_TEXT_0);
+        oc_ui_style_set_str8(OC_UI_FONT, OC_UI_THEME_FONT_REGULAR);
+        oc_ui_style_set_str8(OC_UI_TEXT_SIZE, OC_UI_THEME_TEXT_SIZE_REGULAR);
     }
 
     oc_ui_sig sig = oc_ui_box_sig(box);
@@ -2796,20 +2835,20 @@ oc_ui_sig oc_ui_button_str8(oc_str8 key, oc_str8 text)
         oc_ui_style_set_f32(OC_UI_MARGIN_X, 12);
         oc_ui_style_set_f32(OC_UI_MARGIN_X, 6);
 
-        oc_ui_style_set(OC_UI_COLOR, "text0");
-        oc_ui_style_set(OC_UI_FONT, "font-regular");
-        oc_ui_style_set(OC_UI_TEXT_SIZE, "text-size0");
+        oc_ui_style_set_str8(OC_UI_COLOR, OC_UI_THEME_TEXT_0);
+        oc_ui_style_set_str8(OC_UI_FONT, OC_UI_THEME_FONT_REGULAR);
+        oc_ui_style_set_str8(OC_UI_TEXT_SIZE, OC_UI_THEME_TEXT_SIZE_REGULAR);
 
-        oc_ui_style_set(OC_UI_BG_COLOR, "fill0");
-        oc_ui_style_set(OC_UI_ROUNDNESS, "roundness0");
+        oc_ui_style_set_str8(OC_UI_BG_COLOR, OC_UI_THEME_FILL_0);
+        oc_ui_style_set_str8(OC_UI_ROUNDNESS, OC_UI_THEME_ROUNDNESS_0);
 
         oc_ui_style_rule(".hover")
         {
-            oc_ui_style_set(OC_UI_BG_COLOR, "fill1");
+            oc_ui_style_set_str8(OC_UI_BG_COLOR, OC_UI_THEME_FILL_1);
         }
         oc_ui_style_rule(".hover.active")
         {
-            oc_ui_style_set(OC_UI_BG_COLOR, "fill2");
+            oc_ui_style_set_str8(OC_UI_BG_COLOR, OC_UI_THEME_FILL_2);
         }
     }
 
@@ -5162,365 +5201,12 @@ oc_ui_text_box_result oc_ui_text_box(const char* name, oc_arena* arena, oc_str8 
 
 /*
 //NOTE(ilia): Design system by semi.design: https://semi.design/en-US/start/overview
+                https://semi.design/en-US/basic/tokens?token=--semi-color-text-0
+
 //            New widgets should support dark and light theme
 //NOTE(martin): alpha have been modified, because we do alpha blending in linear space,
 //              whereas web browsers do it (wrongly, dare I say) in sRGB space.
 
-oc_ui_palette OC_UI_DARK_PALETTE = {
-    .red0 = { 0.424, 0.035, 0.043, 1, OC_COLOR_SPACE_SRGB },
-    .red1 = { 0.565, 0.067, 0.063, 1, OC_COLOR_SPACE_SRGB },
-    .red2 = { 0.706, 0.125, 0.098, 1, OC_COLOR_SPACE_SRGB },
-    .red3 = { 0.843, 0.200, 0.141, 1, OC_COLOR_SPACE_SRGB },
-    .red4 = { 0.984, 0.286, 0.196, 1, OC_COLOR_SPACE_SRGB },
-    .red5 = { 0.988, 0.447, 0.353, 1, OC_COLOR_SPACE_SRGB },
-    .red6 = { 0.992, 0.600, 0.514, 1, OC_COLOR_SPACE_SRGB },
-    .red7 = { 0.992, 0.745, 0.675, 1, OC_COLOR_SPACE_SRGB },
-    .red8 = { 0.996, 0.878, 0.835, 1, OC_COLOR_SPACE_SRGB },
-    .red9 = { 1.000, 0.953, 0.937, 1, OC_COLOR_SPACE_SRGB },
-    .orange0 = { 0.333, 0.122, 0.012, 1, OC_COLOR_SPACE_SRGB },
-    .orange1 = { 0.502, 0.208, 0.024, 1, OC_COLOR_SPACE_SRGB },
-    .orange2 = { 0.667, 0.314, 0.039, 1, OC_COLOR_SPACE_SRGB },
-    .orange3 = { 0.835, 0.435, 0.059, 1, OC_COLOR_SPACE_SRGB },
-    .orange4 = { 1.000, 0.573, 0.078, 1, OC_COLOR_SPACE_SRGB },
-    .orange5 = { 1.000, 0.682, 0.263, 1, OC_COLOR_SPACE_SRGB },
-    .orange6 = { 1.000, 0.780, 0.447, 1, OC_COLOR_SPACE_SRGB },
-    .orange7 = { 1.000, 0.867, 0.631, 1, OC_COLOR_SPACE_SRGB },
-    .orange8 = { 1.000, 0.937, 0.816, 1, OC_COLOR_SPACE_SRGB },
-    .orange9 = { 1.000, 0.976, 0.929, 1, OC_COLOR_SPACE_SRGB },
-    .amber0 = { 0.318, 0.180, 0.035, 1, OC_COLOR_SPACE_SRGB },
-    .amber1 = { 0.475, 0.294, 0.059, 1, OC_COLOR_SPACE_SRGB },
-    .amber2 = { 0.631, 0.420, 0.086, 1, OC_COLOR_SPACE_SRGB },
-    .amber3 = { 0.792, 0.561, 0.118, 1, OC_COLOR_SPACE_SRGB },
-    .amber4 = { 0.949, 0.718, 0.149, 1, OC_COLOR_SPACE_SRGB },
-    .amber5 = { 0.961, 0.792, 0.314, 1, OC_COLOR_SPACE_SRGB },
-    .amber6 = { 0.969, 0.859, 0.478, 1, OC_COLOR_SPACE_SRGB },
-    .amber7 = { 0.980, 0.918, 0.651, 1, OC_COLOR_SPACE_SRGB },
-    .amber8 = { 0.988, 0.965, 0.824, 1, OC_COLOR_SPACE_SRGB },
-    .amber9 = { 0.996, 0.984, 0.929, 1, OC_COLOR_SPACE_SRGB },
-    .yellow0 = { 0.329, 0.286, 0.012, 1, OC_COLOR_SPACE_SRGB },
-    .yellow1 = { 0.494, 0.424, 0.024, 1, OC_COLOR_SPACE_SRGB },
-    .yellow2 = { 0.659, 0.557, 0.039, 1, OC_COLOR_SPACE_SRGB },
-    .yellow3 = { 0.824, 0.686, 0.059, 1, OC_COLOR_SPACE_SRGB },
-    .yellow4 = { 0.988, 0.808, 0.078, 1, OC_COLOR_SPACE_SRGB },
-    .yellow5 = { 0.992, 0.871, 0.263, 1, OC_COLOR_SPACE_SRGB },
-    .yellow6 = { 0.992, 0.922, 0.443, 1, OC_COLOR_SPACE_SRGB },
-    .yellow7 = { 0.996, 0.961, 0.627, 1, OC_COLOR_SPACE_SRGB },
-    .yellow8 = { 0.996, 0.984, 0.816, 1, OC_COLOR_SPACE_SRGB },
-    .yellow9 = { 1.000, 0.996, 0.925, 1, OC_COLOR_SPACE_SRGB },
-    .lime0 = { 0.192, 0.275, 0.012, 1, OC_COLOR_SPACE_SRGB },
-    .lime1 = { 0.294, 0.412, 0.020, 1, OC_COLOR_SPACE_SRGB },
-    .lime2 = { 0.404, 0.553, 0.035, 1, OC_COLOR_SPACE_SRGB },
-    .lime3 = { 0.518, 0.690, 0.047, 1, OC_COLOR_SPACE_SRGB },
-    .lime4 = { 0.635, 0.827, 0.067, 1, OC_COLOR_SPACE_SRGB },
-    .lime5 = { 0.682, 0.863, 0.227, 1, OC_COLOR_SPACE_SRGB },
-    .lime6 = { 0.741, 0.898, 0.400, 1, OC_COLOR_SPACE_SRGB },
-    .lime7 = { 0.812, 0.929, 0.588, 1, OC_COLOR_SPACE_SRGB },
-    .lime8 = { 0.898, 0.965, 0.788, 1, OC_COLOR_SPACE_SRGB },
-    .lime9 = { 0.953, 0.984, 0.914, 1, OC_COLOR_SPACE_SRGB },
-    .lightGreen0 = { 0.149, 0.239, 0.075, 1, OC_COLOR_SPACE_SRGB },
-    .lightGreen1 = { 0.231, 0.361, 0.114, 1, OC_COLOR_SPACE_SRGB },
-    .lightGreen2 = { 0.318, 0.482, 0.157, 1, OC_COLOR_SPACE_SRGB },
-    .lightGreen3 = { 0.404, 0.600, 0.204, 1, OC_COLOR_SPACE_SRGB },
-    .lightGreen4 = { 0.498, 0.722, 0.251, 1, OC_COLOR_SPACE_SRGB },
-    .lightGreen5 = { 0.592, 0.776, 0.373, 1, OC_COLOR_SPACE_SRGB },
-    .lightGreen6 = { 0.690, 0.831, 0.506, 1, OC_COLOR_SPACE_SRGB },
-    .lightGreen7 = { 0.788, 0.890, 0.655, 1, OC_COLOR_SPACE_SRGB },
-    .lightGreen8 = { 0.894, 0.945, 0.820, 1, OC_COLOR_SPACE_SRGB },
-    .lightGreen9 = { 0.953, 0.973, 0.929, 1, OC_COLOR_SPACE_SRGB },
-    .green0 = { 0.071, 0.235, 0.098, 1, OC_COLOR_SPACE_SRGB },
-    .green1 = { 0.110, 0.353, 0.145, 1, OC_COLOR_SPACE_SRGB },
-    .green2 = { 0.153, 0.467, 0.192, 1, OC_COLOR_SPACE_SRGB },
-    .green3 = { 0.196, 0.584, 0.239, 1, OC_COLOR_SPACE_SRGB },
-    .green4 = { 0.243, 0.702, 0.286, 1, OC_COLOR_SPACE_SRGB },
-    .green5 = { 0.365, 0.761, 0.392, 1, OC_COLOR_SPACE_SRGB },
-    .green6 = { 0.498, 0.820, 0.518, 1, OC_COLOR_SPACE_SRGB },
-    .green7 = { 0.651, 0.882, 0.659, 1, OC_COLOR_SPACE_SRGB },
-    .green8 = { 0.816, 0.941, 0.820, 1, OC_COLOR_SPACE_SRGB },
-    .green9 = { 0.925, 0.969, 0.925, 1, OC_COLOR_SPACE_SRGB },
-    .teal0 = { 0.008, 0.235, 0.224, 1, OC_COLOR_SPACE_SRGB },
-    .teal1 = { 0.016, 0.353, 0.333, 1, OC_COLOR_SPACE_SRGB },
-    .teal2 = { 0.027, 0.467, 0.435, 1, OC_COLOR_SPACE_SRGB },
-    .teal3 = { 0.039, 0.584, 0.533, 1, OC_COLOR_SPACE_SRGB },
-    .teal4 = { 0.055, 0.702, 0.631, 1, OC_COLOR_SPACE_SRGB },
-    .teal5 = { 0.200, 0.761, 0.690, 1, OC_COLOR_SPACE_SRGB },
-    .teal6 = { 0.369, 0.820, 0.757, 1, OC_COLOR_SPACE_SRGB },
-    .teal7 = { 0.557, 0.882, 0.827, 1, OC_COLOR_SPACE_SRGB },
-    .teal8 = { 0.769, 0.941, 0.910, 1, OC_COLOR_SPACE_SRGB },
-    .teal9 = { 0.902, 0.969, 0.957, 1, OC_COLOR_SPACE_SRGB },
-    .cyan0 = { 0.016, 0.204, 0.239, 1, OC_COLOR_SPACE_SRGB },
-    .cyan1 = { 0.027, 0.310, 0.361, 1, OC_COLOR_SPACE_SRGB },
-    .cyan2 = { 0.039, 0.424, 0.482, 1, OC_COLOR_SPACE_SRGB },
-    .cyan3 = { 0.055, 0.537, 0.600, 1, OC_COLOR_SPACE_SRGB },
-    .cyan4 = { 0.075, 0.659, 0.722, 1, OC_COLOR_SPACE_SRGB },
-    .cyan5 = { 0.220, 0.733, 0.776, 1, OC_COLOR_SPACE_SRGB },
-    .cyan6 = { 0.384, 0.804, 0.831, 1, OC_COLOR_SPACE_SRGB },
-    .cyan7 = { 0.569, 0.875, 0.890, 1, OC_COLOR_SPACE_SRGB },
-    .cyan8 = { 0.776, 0.937, 0.945, 1, OC_COLOR_SPACE_SRGB },
-    .cyan9 = { 0.906, 0.969, 0.973, 1, OC_COLOR_SPACE_SRGB },
-    .lightBlue0 = { 0.000, 0.216, 0.380, 1, OC_COLOR_SPACE_SRGB },
-    .lightBlue1 = { 0.000, 0.302, 0.522, 1, OC_COLOR_SPACE_SRGB },
-    .lightBlue2 = { 0.012, 0.400, 0.663, 1, OC_COLOR_SPACE_SRGB },
-    .lightBlue3 = { 0.039, 0.506, 0.800, 1, OC_COLOR_SPACE_SRGB },
-    .lightBlue4 = { 0.075, 0.624, 0.941, 1, OC_COLOR_SPACE_SRGB },
-    .lightBlue5 = { 0.251, 0.706, 0.953, 1, OC_COLOR_SPACE_SRGB },
-    .lightBlue6 = { 0.431, 0.784, 0.965, 1, OC_COLOR_SPACE_SRGB },
-    .lightBlue7 = { 0.616, 0.863, 0.976, 1, OC_COLOR_SPACE_SRGB },
-    .lightBlue8 = { 0.808, 0.933, 0.988, 1, OC_COLOR_SPACE_SRGB },
-    .lightBlue9 = { 0.922, 0.973, 0.996, 1, OC_COLOR_SPACE_SRGB },
-    .blue0 = { 0.020, 0.192, 0.439, 1, OC_COLOR_SPACE_SRGB },
-    .blue1 = { 0.039, 0.275, 0.580, 1, OC_COLOR_SPACE_SRGB },
-    .blue2 = { 0.074, 0.361, 0.722, 1, OC_COLOR_SPACE_SRGB },
-    .blue3 = { 0.114, 0.459, 0.859, 1, OC_COLOR_SPACE_SRGB },
-    .blue4 = { 0.161, 0.565, 1.000, 1, OC_COLOR_SPACE_SRGB },
-    .blue5 = { 0.33, 0.66, 1, 1, OC_COLOR_SPACE_SRGB },
-    .blue6 = { 0.5, 0.757, 1, 1, OC_COLOR_SPACE_SRGB },
-    .blue7 = { 0.66, 0.84, 1, 1, OC_COLOR_SPACE_SRGB },
-    .blue8 = { 0.831, 0.925, 1.000, 1, OC_COLOR_SPACE_SRGB },
-    .blue9 = { 0.937, 0.973, 1.000, 1, OC_COLOR_SPACE_SRGB },
-    .indigo0 = { 0.090, 0.118, 0.396, 1, OC_COLOR_SPACE_SRGB },
-    .indigo1 = { 0.125, 0.161, 0.478, 1, OC_COLOR_SPACE_SRGB },
-    .indigo2 = { 0.161, 0.212, 0.557, 1, OC_COLOR_SPACE_SRGB },
-    .indigo3 = { 0.204, 0.267, 0.639, 1, OC_COLOR_SPACE_SRGB },
-    .indigo4 = { 0.251, 0.325, 0.718, 1, OC_COLOR_SPACE_SRGB },
-    .indigo5 = { 0.373, 0.443, 0.773, 1, OC_COLOR_SPACE_SRGB },
-    .indigo6 = { 0.506, 0.569, 0.831, 1, OC_COLOR_SPACE_SRGB },
-    .indigo7 = { 0.655, 0.706, 0.886, 1, OC_COLOR_SPACE_SRGB },
-    .indigo8 = { 0.820, 0.847, 0.945, 1, OC_COLOR_SPACE_SRGB },
-    .indigo9 = { 0.929, 0.937, 0.973, 1, OC_COLOR_SPACE_SRGB },
-    .violet0 = { 0.251, 0.106, 0.467, 1, OC_COLOR_SPACE_SRGB },
-    .violet1 = { 0.298, 0.141, 0.549, 1, OC_COLOR_SPACE_SRGB },
-    .violet2 = { 0.345, 0.180, 0.627, 1, OC_COLOR_SPACE_SRGB },
-    .violet3 = { 0.392, 0.224, 0.710, 1, OC_COLOR_SPACE_SRGB },
-    .violet4 = { 0.447, 0.275, 0.788, 1, OC_COLOR_SPACE_SRGB },
-    .violet5 = { 0.533, 0.396, 0.831, 1, OC_COLOR_SPACE_SRGB },
-    .violet6 = { 0.635, 0.533, 0.875, 1, OC_COLOR_SPACE_SRGB },
-    .violet7 = { 0.745, 0.678, 0.914, 1, OC_COLOR_SPACE_SRGB },
-    .violet8 = { 0.867, 0.831, 0.957, 1, OC_COLOR_SPACE_SRGB },
-    .violet9 = { 0.945, 0.933, 0.980, 1, OC_COLOR_SPACE_SRGB },
-    .purple0 = { 0.290, 0.063, 0.380, 1, OC_COLOR_SPACE_SRGB },
-    .purple1 = { 0.369, 0.090, 0.463, 1, OC_COLOR_SPACE_SRGB },
-    .purple2 = { 0.451, 0.122, 0.541, 1, OC_COLOR_SPACE_SRGB },
-    .purple3 = { 0.537, 0.157, 0.624, 1, OC_COLOR_SPACE_SRGB },
-    .purple4 = { 0.627, 0.200, 0.702, 1, OC_COLOR_SPACE_SRGB },
-    .purple5 = { 0.710, 0.325, 0.761, 1, OC_COLOR_SPACE_SRGB },
-    .purple6 = { 0.792, 0.471, 0.820, 1, OC_COLOR_SPACE_SRGB },
-    .purple7 = { 0.867, 0.627, 0.882, 1, OC_COLOR_SPACE_SRGB },
-    .purple8 = { 0.937, 0.808, 0.941, 1, OC_COLOR_SPACE_SRGB },
-    .purple9 = { 0.969, 0.922, 0.969, 1, OC_COLOR_SPACE_SRGB },
-    .pink0 = { 0.361, 0.027, 0.188, 1, OC_COLOR_SPACE_SRGB },
-    .pink1 = { 0.502, 0.055, 0.255, 1, OC_COLOR_SPACE_SRGB },
-    .pink2 = { 0.643, 0.090, 0.318, 1, OC_COLOR_SPACE_SRGB },
-    .pink3 = { 0.780, 0.133, 0.380, 1, OC_COLOR_SPACE_SRGB },
-    .pink4 = { 0.922, 0.184, 0.443, 1, OC_COLOR_SPACE_SRGB },
-    .pink5 = { 0.937, 0.337, 0.525, 1, OC_COLOR_SPACE_SRGB },
-    .pink6 = { 0.953, 0.494, 0.624, 1, OC_COLOR_SPACE_SRGB },
-    .pink7 = { 0.969, 0.659, 0.737, 1, OC_COLOR_SPACE_SRGB },
-    .pink8 = { 0.984, 0.827, 0.863, 1, OC_COLOR_SPACE_SRGB },
-    .pink9 = { 0.992, 0.933, 0.945, 1, OC_COLOR_SPACE_SRGB },
-    .grey0 = { 0.110, 0.122, 0.137, 1, OC_COLOR_SPACE_SRGB },
-    .grey1 = { 0.180, 0.196, 0.220, 1, OC_COLOR_SPACE_SRGB },
-    .grey2 = { 0.255, 0.275, 0.298, 1, OC_COLOR_SPACE_SRGB },
-    .grey3 = { 0.333, 0.357, 0.380, 1, OC_COLOR_SPACE_SRGB },
-    .grey4 = { 0.420, 0.439, 0.459, 1, OC_COLOR_SPACE_SRGB },
-    .grey5 = { 0.533, 0.553, 0.573, 1, OC_COLOR_SPACE_SRGB },
-    .grey6 = { 0.655, 0.671, 0.690, 1, OC_COLOR_SPACE_SRGB },
-    .grey7 = { 0.786, 0.792, 0.804, 1, OC_COLOR_SPACE_SRGB },
-    .grey8 = { 0.902, 0.910, 0.918, 1, OC_COLOR_SPACE_SRGB },
-    .grey9 = { 0.976, 0.976, 0.976, 1, OC_COLOR_SPACE_SRGB },
-    .black = { 0, 0, 0, 1, OC_COLOR_SPACE_SRGB },
-    .white = { 1, 1, 1, 1, OC_COLOR_SPACE_SRGB }
-};
-
-oc_ui_theme OC_UI_DARK_THEME = {
-    .white = { 0.894, 0.906, 0.961, 1, OC_COLOR_SPACE_SRGB },
-    .primary = { 0.33, 0.66, 1, 1, OC_COLOR_SPACE_SRGB },       // blue5
-    .primaryHover = { 0.5, 0.757, 1, 1, OC_COLOR_SPACE_SRGB },  // blue6
-    .primaryActive = { 0.66, 0.84, 1, 1, OC_COLOR_SPACE_SRGB }, // blue7
-    .border = { 1, 1, 1, 0.018, OC_COLOR_SPACE_SRGB },
-    .fill0 = { 1, 1, 1, 0.033, OC_COLOR_SPACE_SRGB },
-    .fill1 = { 1, 1, 1, 0.045, OC_COLOR_SPACE_SRGB },
-    .fill2 = { 1, 1, 1, 0.063, OC_COLOR_SPACE_SRGB },
-    .bg0 = { 0.086, 0.086, 0.102, 1, OC_COLOR_SPACE_SRGB },
-    .bg1 = { 0.137, 0.141, 0.165, 1, OC_COLOR_SPACE_SRGB },
-    .bg2 = { 0.208, 0.212, 0.231, 1, OC_COLOR_SPACE_SRGB },
-    .bg3 = { 0.263, 0.267, 0.29, 1, OC_COLOR_SPACE_SRGB },
-    .bg4 = { 0.31, 0.318, 0.349, 1, OC_COLOR_SPACE_SRGB },
-    .text0 = { 0.976, 0.976, 0.976, 1, OC_COLOR_SPACE_SRGB },    // grey9
-    .text1 = { 0.976, 0.976, 0.976, 0.64, OC_COLOR_SPACE_SRGB }, // grey9
-    .text2 = { 0.976, 0.976, 0.976, 0.38, OC_COLOR_SPACE_SRGB }, // grey9
-    .text3 = { 0.976, 0.976, 0.976, 0.15, OC_COLOR_SPACE_SRGB }, // grey9
-    .sliderThumbBorder = { 0, 0, 0, 0.17, OC_COLOR_SPACE_SRGB },
-    .elevatedBorder = { 1, 1, 1, 0.1, OC_COLOR_SPACE_SRGB },
-
-    .roundnessSmall = 3,
-    .roundnessMedium = 6,
-    .roundnessLarge = 9
-};
-
-oc_ui_palette OC_UI_LIGHT_PALETTE = {
-    .red0 = { 0.996, 0.949, 0.929, 1, OC_COLOR_SPACE_SRGB },
-    .red1 = { 0.996, 0.867, 0.824, 1, OC_COLOR_SPACE_SRGB },
-    .red2 = { 0.992, 0.718, 0.647, 1, OC_COLOR_SPACE_SRGB },
-    .red3 = { 0.984, 0.565, 0.471, 1, OC_COLOR_SPACE_SRGB },
-    .red4 = { 0.980, 0.400, 0.298, 1, OC_COLOR_SPACE_SRGB },
-    .red5 = { 0.976, 0.224, 0.125, 1, OC_COLOR_SPACE_SRGB },
-    .red6 = { 0.835, 0.145, 0.082, 1, OC_COLOR_SPACE_SRGB },
-    .red7 = { 0.698, 0.078, 0.047, 1, OC_COLOR_SPACE_SRGB },
-    .red8 = { 0.557, 0.031, 0.020, 1, OC_COLOR_SPACE_SRGB },
-    .red9 = { 0.416, 0.004, 0.012, 1, OC_COLOR_SPACE_SRGB },
-    .orange0 = { 1.000, 0.973, 0.918, 1, OC_COLOR_SPACE_SRGB },
-    .orange1 = { 0.996, 0.933, 0.800, 1, OC_COLOR_SPACE_SRGB },
-    .orange2 = { 0.996, 0.851, 0.596, 1, OC_COLOR_SPACE_SRGB },
-    .orange3 = { 0.992, 0.757, 0.396, 1, OC_COLOR_SPACE_SRGB },
-    .orange4 = { 0.992, 0.651, 0.200, 1, OC_COLOR_SPACE_SRGB },
-    .orange5 = { 0.988, 0.533, 0.000, 1, OC_COLOR_SPACE_SRGB },
-    .orange6 = { 0.824, 0.404, 0.000, 1, OC_COLOR_SPACE_SRGB },
-    .orange7 = { 0.659, 0.290, 0.000, 1, OC_COLOR_SPACE_SRGB },
-    .orange8 = { 0.494, 0.192, 0.000, 1, OC_COLOR_SPACE_SRGB },
-    .orange9 = { 0.329, 0.114, 0.000, 1, OC_COLOR_SPACE_SRGB },
-    .amber0 = { 0.996, 0.984, 0.922, 1, OC_COLOR_SPACE_SRGB },
-    .amber1 = { 0.988, 0.961, 0.808, 1, OC_COLOR_SPACE_SRGB },
-    .amber2 = { 0.976, 0.910, 0.620, 1, OC_COLOR_SPACE_SRGB },
-    .amber3 = { 0.965, 0.847, 0.435, 1, OC_COLOR_SPACE_SRGB },
-    .amber4 = { 0.953, 0.776, 0.255, 1, OC_COLOR_SPACE_SRGB },
-    .amber5 = { 0.941, 0.694, 0.078, 1, OC_COLOR_SPACE_SRGB },
-    .amber6 = { 0.784, 0.541, 0.059, 1, OC_COLOR_SPACE_SRGB },
-    .amber7 = { 0.627, 0.400, 0.039, 1, OC_COLOR_SPACE_SRGB },
-    .amber8 = { 0.471, 0.275, 0.024, 1, OC_COLOR_SPACE_SRGB },
-    .amber9 = { 0.314, 0.169, 0.012, 1, OC_COLOR_SPACE_SRGB },
-    .yellow0 = { 1.000, 0.992, 0.918, 1, OC_COLOR_SPACE_SRGB },
-    .yellow1 = { 0.996, 0.984, 0.796, 1, OC_COLOR_SPACE_SRGB },
-    .yellow2 = { 0.992, 0.953, 0.596, 1, OC_COLOR_SPACE_SRGB },
-    .yellow3 = { 0.988, 0.910, 0.396, 1, OC_COLOR_SPACE_SRGB },
-    .yellow4 = { 0.984, 0.855, 0.196, 1, OC_COLOR_SPACE_SRGB },
-    .yellow5 = { 0.980, 0.784, 0.000, 1, OC_COLOR_SPACE_SRGB },
-    .yellow6 = { 0.816, 0.667, 0.000, 1, OC_COLOR_SPACE_SRGB },
-    .yellow7 = { 0.655, 0.545, 0.000, 1, OC_COLOR_SPACE_SRGB },
-    .yellow8 = { 0.490, 0.416, 0.000, 1, OC_COLOR_SPACE_SRGB },
-    .yellow9 = { 0.325, 0.282, 0.000, 1, OC_COLOR_SPACE_SRGB },
-    .lime0 = { 0.949, 0.980, 0.902, 1, OC_COLOR_SPACE_SRGB },
-    .lime1 = { 0.890, 0.965, 0.773, 1, OC_COLOR_SPACE_SRGB },
-    .lime2 = { 0.796, 0.929, 0.557, 1, OC_COLOR_SPACE_SRGB },
-    .lime3 = { 0.718, 0.890, 0.357, 1, OC_COLOR_SPACE_SRGB },
-    .lime4 = { 0.655, 0.855, 0.173, 1, OC_COLOR_SPACE_SRGB },
-    .lime5 = { 0.608, 0.820, 0.000, 1, OC_COLOR_SPACE_SRGB },
-    .lime6 = { 0.494, 0.682, 0.000, 1, OC_COLOR_SPACE_SRGB },
-    .lime7 = { 0.388, 0.545, 0.000, 1, OC_COLOR_SPACE_SRGB },
-    .lime8 = { 0.282, 0.408, 0.000, 1, OC_COLOR_SPACE_SRGB },
-    .lime9 = { 0.184, 0.275, 0.000, 1, OC_COLOR_SPACE_SRGB },
-    .lightGreen0 = { 0.953, 0.973, 0.925, 1, OC_COLOR_SPACE_SRGB },
-    .lightGreen1 = { 0.890, 0.941, 0.816, 1, OC_COLOR_SPACE_SRGB },
-    .lightGreen2 = { 0.784, 0.886, 0.647, 1, OC_COLOR_SPACE_SRGB },
-    .lightGreen3 = { 0.678, 0.827, 0.494, 1, OC_COLOR_SPACE_SRGB },
-    .lightGreen4 = { 0.576, 0.773, 0.357, 1, OC_COLOR_SPACE_SRGB },
-    .lightGreen5 = { 0.482, 0.714, 0.235, 1, OC_COLOR_SPACE_SRGB },
-    .lightGreen6 = { 0.392, 0.596, 0.188, 1, OC_COLOR_SPACE_SRGB },
-    .lightGreen7 = { 0.306, 0.475, 0.149, 1, OC_COLOR_SPACE_SRGB },
-    .lightGreen8 = { 0.224, 0.357, 0.106, 1, OC_COLOR_SPACE_SRGB },
-    .lightGreen9 = { 0.145, 0.239, 0.071, 1, OC_COLOR_SPACE_SRGB },
-    .green0 = { 0.925, 0.969, 0.925, 1, OC_COLOR_SPACE_SRGB },
-    .green1 = { 0.816, 0.941, 0.820, 1, OC_COLOR_SPACE_SRGB },
-    .green2 = { 0.643, 0.878, 0.655, 1, OC_COLOR_SPACE_SRGB },
-    .green3 = { 0.490, 0.820, 0.510, 1, OC_COLOR_SPACE_SRGB },
-    .green4 = { 0.353, 0.761, 0.384, 1, OC_COLOR_SPACE_SRGB },
-    .green5 = { 0.231, 0.702, 0.275, 1, OC_COLOR_SPACE_SRGB },
-    .green6 = { 0.188, 0.584, 0.231, 1, OC_COLOR_SPACE_SRGB },
-    .green7 = { 0.145, 0.467, 0.184, 1, OC_COLOR_SPACE_SRGB },
-    .green8 = { 0.106, 0.349, 0.141, 1, OC_COLOR_SPACE_SRGB },
-    .green9 = { 0.067, 0.235, 0.094, 1, OC_COLOR_SPACE_SRGB },
-    .teal0 = { 0.894, 0.969, 0.957, 1, OC_COLOR_SPACE_SRGB },
-    .teal1 = { 0.753, 0.941, 0.910, 1, OC_COLOR_SPACE_SRGB },
-    .teal2 = { 0.529, 0.878, 0.827, 1, OC_COLOR_SPACE_SRGB },
-    .teal3 = { 0.329, 0.820, 0.757, 1, OC_COLOR_SPACE_SRGB },
-    .teal4 = { 0.153, 0.761, 0.690, 1, OC_COLOR_SPACE_SRGB },
-    .teal5 = { 0.000, 0.702, 0.631, 1, OC_COLOR_SPACE_SRGB },
-    .teal6 = { 0.000, 0.584, 0.537, 1, OC_COLOR_SPACE_SRGB },
-    .teal7 = { 0.000, 0.467, 0.435, 1, OC_COLOR_SPACE_SRGB },
-    .teal8 = { 0.000, 0.349, 0.333, 1, OC_COLOR_SPACE_SRGB },
-    .teal9 = { 0.000, 0.235, 0.227, 1, OC_COLOR_SPACE_SRGB },
-    .cyan0 = { 0.898, 0.969, 0.973, 1, OC_COLOR_SPACE_SRGB },
-    .cyan1 = { 0.761, 0.937, 0.941, 1, OC_COLOR_SPACE_SRGB },
-    .cyan2 = { 0.541, 0.867, 0.886, 1, OC_COLOR_SPACE_SRGB },
-    .cyan3 = { 0.345, 0.796, 0.827, 1, OC_COLOR_SPACE_SRGB },
-    .cyan4 = { 0.173, 0.722, 0.773, 1, OC_COLOR_SPACE_SRGB },
-    .cyan5 = { 0.020, 0.643, 0.714, 1, OC_COLOR_SPACE_SRGB },
-    .cyan6 = { 0.012, 0.525, 0.596, 1, OC_COLOR_SPACE_SRGB },
-    .cyan7 = { 0.004, 0.412, 0.475, 1, OC_COLOR_SPACE_SRGB },
-    .cyan8 = { 0.000, 0.302, 0.357, 1, OC_COLOR_SPACE_SRGB },
-    .cyan9 = { 0.000, 0.196, 0.239, 1, OC_COLOR_SPACE_SRGB },
-    .lightBlue0 = { 0.914, 0.969, 0.992, 1, OC_COLOR_SPACE_SRGB },
-    .lightBlue1 = { 0.788, 0.925, 0.988, 1, OC_COLOR_SPACE_SRGB },
-    .lightBlue2 = { 0.584, 0.847, 0.973, 1, OC_COLOR_SPACE_SRGB },
-    .lightBlue3 = { 0.384, 0.765, 0.961, 1, OC_COLOR_SPACE_SRGB },
-    .lightBlue4 = { 0.188, 0.675, 0.945, 1, OC_COLOR_SPACE_SRGB },
-    .lightBlue5 = { 0.000, 0.584, 0.933, 1, OC_COLOR_SPACE_SRGB },
-    .lightBlue6 = { 0.000, 0.482, 0.792, 1, OC_COLOR_SPACE_SRGB },
-    .lightBlue7 = { 0.000, 0.388, 0.655, 1, OC_COLOR_SPACE_SRGB },
-    .lightBlue8 = { 0.000, 0.294, 0.514, 1, OC_COLOR_SPACE_SRGB },
-    .lightBlue9 = { 0.000, 0.208, 0.373, 1, OC_COLOR_SPACE_SRGB },
-    .blue0 = { 0.918, 0.961, 1.000, 1, OC_COLOR_SPACE_SRGB },
-    .blue1 = { 0.796, 0.906, 0.996, 1, OC_COLOR_SPACE_SRGB },
-    .blue2 = { 0.596, 0.804, 0.992, 1, OC_COLOR_SPACE_SRGB },
-    .blue3 = { 0.396, 0.698, 0.988, 1, OC_COLOR_SPACE_SRGB },
-    .blue4 = { 0.196, 0.584, 0.984, 1, OC_COLOR_SPACE_SRGB },
-    .blue5 = { 0.000, 0.392, 0.980, 1, OC_COLOR_SPACE_SRGB },
-    .blue6 = { 0.000, 0.384, 0.839, 1, OC_COLOR_SPACE_SRGB },
-    .blue7 = { 0.000, 0.310, 0.702, 1, OC_COLOR_SPACE_SRGB },
-    .blue8 = { 0.000, 0.239, 0.561, 1, OC_COLOR_SPACE_SRGB },
-    .blue9 = { 0.000, 0.173, 0.420, 1, OC_COLOR_SPACE_SRGB },
-    .indigo0 = { 0.925, 0.937, 0.973, 1, OC_COLOR_SPACE_SRGB },
-    .indigo1 = { 0.820, 0.847, 0.941, 1, OC_COLOR_SPACE_SRGB },
-    .indigo2 = { 0.655, 0.702, 0.882, 1, OC_COLOR_SPACE_SRGB },
-    .indigo3 = { 0.502, 0.565, 0.827, 1, OC_COLOR_SPACE_SRGB },
-    .indigo4 = { 0.369, 0.435, 0.769, 1, OC_COLOR_SPACE_SRGB },
-    .indigo5 = { 0.247, 0.318, 0.710, 1, OC_COLOR_SPACE_SRGB },
-    .indigo6 = { 0.200, 0.259, 0.631, 1, OC_COLOR_SPACE_SRGB },
-    .indigo7 = { 0.157, 0.204, 0.549, 1, OC_COLOR_SPACE_SRGB },
-    .indigo8 = { 0.122, 0.157, 0.471, 1, OC_COLOR_SPACE_SRGB },
-    .indigo9 = { 0.090, 0.114, 0.388, 1, OC_COLOR_SPACE_SRGB },
-    .violet0 = { 0.953, 0.929, 0.976, 1, OC_COLOR_SPACE_SRGB },
-    .violet1 = { 0.886, 0.820, 0.957, 1, OC_COLOR_SPACE_SRGB },
-    .violet2 = { 0.769, 0.655, 0.914, 1, OC_COLOR_SPACE_SRGB },
-    .violet3 = { 0.651, 0.498, 0.867, 1, OC_COLOR_SPACE_SRGB },
-    .violet4 = { 0.533, 0.357, 0.824, 1, OC_COLOR_SPACE_SRGB },
-    .violet5 = { 0.416, 0.227, 0.780, 1, OC_COLOR_SPACE_SRGB },
-    .violet6 = { 0.341, 0.184, 0.702, 1, OC_COLOR_SPACE_SRGB },
-    .violet7 = { 0.275, 0.145, 0.620, 1, OC_COLOR_SPACE_SRGB },
-    .violet8 = { 0.212, 0.110, 0.541, 1, OC_COLOR_SPACE_SRGB },
-    .violet9 = { 0.157, 0.078, 0.459, 1, OC_COLOR_SPACE_SRGB },
-    .purple0 = { 0.969, 0.914, 0.969, 1, OC_COLOR_SPACE_SRGB },
-    .purple1 = { 0.937, 0.792, 0.941, 1, OC_COLOR_SPACE_SRGB },
-    .purple2 = { 0.867, 0.608, 0.878, 1, OC_COLOR_SPACE_SRGB },
-    .purple3 = { 0.788, 0.435, 0.820, 1, OC_COLOR_SPACE_SRGB },
-    .purple4 = { 0.706, 0.286, 0.761, 1, OC_COLOR_SPACE_SRGB },
-    .purple5 = { 0.620, 0.157, 0.702, 1, OC_COLOR_SPACE_SRGB },
-    .purple6 = { 0.529, 0.118, 0.620, 1, OC_COLOR_SPACE_SRGB },
-    .purple7 = { 0.443, 0.086, 0.541, 1, OC_COLOR_SPACE_SRGB },
-    .purple8 = { 0.361, 0.059, 0.459, 1, OC_COLOR_SPACE_SRGB },
-    .purple9 = { 0.286, 0.039, 0.380, 1, OC_COLOR_SPACE_SRGB },
-    .pink0 = { 0.992, 0.925, 0.937, 1, OC_COLOR_SPACE_SRGB },
-    .pink1 = { 0.984, 0.812, 0.847, 1, OC_COLOR_SPACE_SRGB },
-    .pink2 = { 0.965, 0.627, 0.710, 1, OC_COLOR_SPACE_SRGB },
-    .pink3 = { 0.949, 0.451, 0.588, 1, OC_COLOR_SPACE_SRGB },
-    .pink4 = { 0.929, 0.282, 0.482, 1, OC_COLOR_SPACE_SRGB },
-    .pink5 = { 0.914, 0.118, 0.388, 1, OC_COLOR_SPACE_SRGB },
-    .pink6 = { 0.773, 0.075, 0.337, 1, OC_COLOR_SPACE_SRGB },
-    .pink7 = { 0.635, 0.043, 0.282, 1, OC_COLOR_SPACE_SRGB },
-    .pink8 = { 0.494, 0.020, 0.227, 1, OC_COLOR_SPACE_SRGB },
-    .pink9 = { 0.353, 0.004, 0.169, 1, OC_COLOR_SPACE_SRGB },
-    .grey0 = { 0.976, 0.976, 0.976, 1, OC_COLOR_SPACE_SRGB },
-    .grey1 = { 0.902, 0.910, 0.918, 1, OC_COLOR_SPACE_SRGB },
-    .grey2 = { 0.776, 0.792, 0.804, 1, OC_COLOR_SPACE_SRGB },
-    .grey3 = { 0.655, 0.671, 0.690, 1, OC_COLOR_SPACE_SRGB },
-    .grey4 = { 0.533, 0.553, 0.573, 1, OC_COLOR_SPACE_SRGB },
-    .grey5 = { 0.420, 0.439, 0.459, 1, OC_COLOR_SPACE_SRGB },
-    .grey6 = { 0.333, 0.357, 0.380, 1, OC_COLOR_SPACE_SRGB },
-    .grey7 = { 0.255, 0.275, 0.298, 1, OC_COLOR_SPACE_SRGB },
-    .grey8 = { 0.180, 0.196, 0.220, 1, OC_COLOR_SPACE_SRGB },
-    .grey9 = { 0.110, 0.122, 0.137, 1, OC_COLOR_SPACE_SRGB },
-    .black = { 0, 0, 0, 1, OC_COLOR_SPACE_SRGB },
-    .white = { 1, 1, 1, 1, OC_COLOR_SPACE_SRGB }
-};
 
 oc_ui_theme OC_UI_LIGHT_THEME = {
     .white = { 1, 1, 1, 1, OC_COLOR_SPACE_SRGB },

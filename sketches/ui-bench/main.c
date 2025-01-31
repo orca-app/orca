@@ -78,6 +78,7 @@ i32 ui_runloop(void* user)
                 oc_ui_style_set_size(OC_UI_SIZE_WIDTH, (oc_ui_size){ OC_UI_SIZE_CHILDREN });
                 oc_ui_style_set_size(OC_UI_SIZE_HEIGHT, (oc_ui_size){ OC_UI_SIZE_CHILDREN });
                 oc_ui_style_set_color(OC_UI_BG_COLOR, (oc_color){ 0, 0, 0.1, 1 });
+
                 oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_Y);
                 oc_ui_style_set_f32(OC_UI_MARGIN_X, 10);
                 oc_ui_style_set_f32(OC_UI_MARGIN_Y, 10);

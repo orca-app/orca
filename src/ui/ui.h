@@ -374,8 +374,6 @@ typedef struct oc_ui_palette
 extern oc_ui_palette OC_UI_DARK_PALETTE;
 extern oc_ui_palette OC_UI_LIGHT_PALETTE;
 
-typedef struct oc_ui_theme oc_ui_theme;
-
 /*
 {
     oc_color white;
@@ -706,11 +704,7 @@ typedef struct oc_ui_context
     //TODO: reorganize
     oc_ui_style_var_map styleVariables;
     oc_ui_style_rule* workingRule;
-    oc_ui_theme* workingTheme;
-    oc_list themeStack;
 
-    oc_ui_theme* darkTheme;
-    oc_arena persistentArena;
 } oc_ui_context;
 
 //-------------------------------------------------------------------------------------
@@ -883,29 +877,10 @@ ORCA_API oc_font oc_ui_style_var_get_font(const char* name);
 ORCA_API void oc_ui_style_set_str8(oc_ui_style_attribute attr, oc_str8 var);
 ORCA_API void oc_ui_style_set(oc_ui_style_attribute attr, const char* var);
 
-//Themes
+//NOTE: default themes
 
-typedef struct oc_ui_theme_entry
-{
-    oc_list_elt listElt;
-    oc_str8 name;
-    oc_ui_style_value value;
-} oc_ui_theme_entry;
-
-typedef struct oc_ui_theme
-{
-    oc_arena* arena;
-    oc_list defs;
-} oc_ui_theme;
-
-ORCA_API oc_ui_theme* oc_ui_theme_def_begin(oc_arena* arena);
-ORCA_API void oc_ui_theme_def_end();
-#define oc_ui_theme_def(arena) oc_defer_loop(oc_ui_theme_def_begin(arena), oc_ui_theme_def_end)
-
-ORCA_API void oc_ui_theme_push(oc_ui_theme* theme);
-ORCA_API void oc_ui_theme_pop();
-#define oc_ui_theme(t) oc_defer_loop(oc_ui_theme_push(t), oc_ui_theme_pop())
-
+ORCA_API void oc_ui_style_theme_dark();
+ORCA_API void oc_ui_style_theme_light();
 ///////////////////////////////////////////////////////////////////
 
 //-------------------------------------------------------------------------
