@@ -134,7 +134,7 @@ void oc_ui_box_pop(void)
         oc_ui_clip_pop();
         oc_ui_stack_pop(&ui->boxStack);
 
-        oc_list_for(box->styleVariables, var, oc_ui_style_var, boxElt)
+        oc_list_for(box->styleVariables, var, oc_ui_var, boxElt)
         {
             oc_list_remove(&var->stack->vars, &var->stackElt);
         }
@@ -267,53 +267,6 @@ void oc_ui_pattern_push(oc_arena* arena, oc_ui_pattern* pattern, oc_ui_selector 
     pattern->specificity.s[selector.kind]++;
 }
 
-/*
-oc_ui_pattern oc_ui_pattern_all(void)
-{
-    oc_ui_context* ui = oc_ui_get_context();
-    oc_ui_pattern pattern = { 0 };
-    oc_ui_pattern_push(&ui->frameArena, &pattern, (oc_ui_selector){ .kind = OC_UI_SEL_ANY });
-    return (pattern);
-}
-
-oc_ui_pattern oc_ui_pattern_owner(void)
-{
-    oc_ui_context* ui = oc_ui_get_context();
-    oc_ui_pattern pattern = { 0 };
-    oc_ui_pattern_push(&ui->frameArena, &pattern, (oc_ui_selector){ .kind = OC_UI_SEL_OWNER });
-    return (pattern);
-}
-*/
-/*TODO: remove
-void oc_ui_style_match_before(oc_ui_pattern pattern, oc_ui_style* style, oc_ui_style_mask mask)
-{
-    oc_ui_context* ui = oc_ui_get_context();
-    if(ui)
-    {
-        oc_ui_style_rule* rule = oc_arena_push_type(&ui->frameArena, oc_ui_style_rule);
-        rule->pattern = pattern;
-        rule->mask = mask;
-        rule->style = *style;
-
-        oc_list_push_back(&ui->nextBoxBeforeRules, &rule->boxElt);
-    }
-}
-
-void oc_ui_style_match_after(oc_ui_pattern pattern, oc_ui_style* style, oc_ui_style_mask mask)
-{
-    oc_ui_context* ui = oc_ui_get_context();
-    if(ui)
-    {
-        oc_ui_style_rule* rule = oc_arena_push_type(&ui->frameArena, oc_ui_style_rule);
-        rule->pattern = pattern;
-        rule->mask = mask;
-        rule->style = *style;
-
-        oc_list_push_back(&ui->nextBoxAfterRules, &rule->boxElt);
-    }
-}
-*/
-
 void oc_ui_style_rule_begin(oc_str8 patternString)
 {
     oc_ui_context* ui = oc_ui_get_context();
@@ -436,25 +389,18 @@ void oc_ui_style_rule_end()
     }
 }
 
-/*TODO: remove
-void oc_ui_style_next(oc_ui_style* style, oc_ui_style_mask mask)
-{
-    oc_ui_style_match_before(oc_ui_pattern_owner(), style, mask);
-}
-*/
-
 //[WIP] ///////////////////////////////////////////////////////////
 
-oc_ui_style_mask oc_ui_style_attr_to_mask(oc_ui_style_attribute attr)
+oc_ui_attribute_mask oc_ui_attribute_to_mask(oc_ui_attribute attr)
 {
     //NOTE: for now we have a one to one correspondance between attr and mask,
     //      be in the future we may have combined attr (eg. OC_UI_STYLE_MARGINS to set both margins, etc)
 
-    oc_ui_style_mask mask = 1 << attr;
+    oc_ui_attribute_mask mask = 1 << attr;
     return mask;
 }
 
-void oc_ui_style_set_i32(oc_ui_style_attribute attr, i32 i)
+void oc_ui_attribute_i32(oc_ui_attribute attr, i32 i)
 {
     oc_ui_context* ui = oc_ui_get_context();
     oc_ui_style* style = 0;
@@ -528,11 +474,11 @@ void oc_ui_style_set_i32(oc_ui_style_attribute attr, i32 i)
 
     if(ui->workingRule)
     {
-        ui->workingRule->mask |= oc_ui_style_attr_to_mask(attr);
+        ui->workingRule->mask |= oc_ui_attribute_to_mask(attr);
     }
 }
 
-void oc_ui_style_set_f32(oc_ui_style_attribute attr, f32 f)
+void oc_ui_attribute_f32(oc_ui_attribute attr, f32 f)
 {
     oc_ui_context* ui = oc_ui_get_context();
     oc_ui_style* style = 0;
@@ -598,11 +544,11 @@ void oc_ui_style_set_f32(oc_ui_style_attribute attr, f32 f)
 
     if(ui->workingRule)
     {
-        ui->workingRule->mask |= oc_ui_style_attr_to_mask(attr);
+        ui->workingRule->mask |= oc_ui_attribute_to_mask(attr);
     }
 }
 
-void oc_ui_style_set_color(oc_ui_style_attribute attr, oc_color color)
+void oc_ui_attribute_color(oc_ui_attribute attr, oc_color color)
 {
     oc_ui_context* ui = oc_ui_get_context();
     oc_ui_style* style = 0;
@@ -643,11 +589,11 @@ void oc_ui_style_set_color(oc_ui_style_attribute attr, oc_color color)
 
     if(ui->workingRule)
     {
-        ui->workingRule->mask |= oc_ui_style_attr_to_mask(attr);
+        ui->workingRule->mask |= oc_ui_attribute_to_mask(attr);
     }
 }
 
-void oc_ui_style_set_font(oc_ui_style_attribute attr, oc_font font)
+void oc_ui_attribute_font(oc_ui_attribute attr, oc_font font)
 {
     oc_ui_context* ui = oc_ui_get_context();
     oc_ui_style* style = 0;
@@ -678,11 +624,11 @@ void oc_ui_style_set_font(oc_ui_style_attribute attr, oc_font font)
 
     if(ui->workingRule)
     {
-        ui->workingRule->mask |= oc_ui_style_attr_to_mask(attr);
+        ui->workingRule->mask |= oc_ui_attribute_to_mask(attr);
     }
 }
 
-void oc_ui_style_set_size(oc_ui_style_attribute attr, oc_ui_size size)
+void oc_ui_attribute_size(oc_ui_attribute attr, oc_ui_size size)
 {
     oc_ui_context* ui = oc_ui_get_context();
     oc_ui_style* style = 0;
@@ -719,7 +665,7 @@ void oc_ui_style_set_size(oc_ui_style_attribute attr, oc_ui_size size)
 
     if(ui->workingRule)
     {
-        ui->workingRule->mask |= oc_ui_style_attr_to_mask(attr);
+        ui->workingRule->mask |= oc_ui_attribute_to_mask(attr);
     }
 }
 
@@ -729,16 +675,16 @@ void oc_ui_style_set_size(oc_ui_style_attribute attr, oc_ui_size size)
 //TODO: - each frame, clear vars map
 //      - at end of each object, pop variables
 
-oc_ui_style_var* oc_ui_style_var_find(oc_str8 name)
+oc_ui_var* oc_ui_var_find(oc_str8 name)
 {
     oc_ui_context* ui = oc_ui_get_context();
 
     u64 hash = oc_hash_xx64_string(name);
     u64 index = hash & ui->styleVariables.mask;
     oc_list bucket = ui->styleVariables.buckets[index];
-    oc_ui_style_var_stack* stack = 0;
+    oc_ui_var_stack* stack = 0;
 
-    oc_list_for(bucket, elt, oc_ui_style_var_stack, bucketElt)
+    oc_list_for(bucket, elt, oc_ui_var_stack, bucketElt)
     {
         if(elt->hash == hash)
         {
@@ -747,27 +693,27 @@ oc_ui_style_var* oc_ui_style_var_find(oc_str8 name)
         }
     }
 
-    oc_ui_style_var* var = 0;
+    oc_ui_var* var = 0;
     if(stack)
     {
-        var = oc_list_first_entry(stack->vars, oc_ui_style_var, stackElt);
+        var = oc_list_first_entry(stack->vars, oc_ui_var, stackElt);
     }
 
     return var;
 }
 
-void oc_ui_style_var_push(oc_str8 name, oc_ui_style_value value, bool alwaysSet, oc_list* scopeList)
+void oc_ui_var_push(oc_str8 name, oc_ui_value value, bool alwaysSet, oc_list* scopeList)
 {
     oc_ui_context* ui = oc_ui_get_context();
 
-    oc_ui_style_var* var = oc_arena_push_type(&ui->frameArena, oc_ui_style_var);
+    oc_ui_var* var = oc_arena_push_type(&ui->frameArena, oc_ui_var);
 
     u64 hash = oc_hash_xx64_string(name);
     u64 index = hash & ui->styleVariables.mask;
     oc_list* bucket = &ui->styleVariables.buckets[index];
-    oc_ui_style_var_stack* stack = 0;
+    oc_ui_var_stack* stack = 0;
 
-    oc_list_for(*bucket, elt, oc_ui_style_var_stack, bucketElt)
+    oc_list_for(*bucket, elt, oc_ui_var_stack, bucketElt)
     {
         if(elt->hash == hash)
         {
@@ -777,8 +723,8 @@ void oc_ui_style_var_push(oc_str8 name, oc_ui_style_value value, bool alwaysSet,
     }
     if(!stack)
     {
-        stack = oc_arena_push_type(&ui->frameArena, oc_ui_style_var_stack);
-        memset(stack, 0, sizeof(oc_ui_style_var_stack));
+        stack = oc_arena_push_type(&ui->frameArena, oc_ui_var_stack);
+        memset(stack, 0, sizeof(oc_ui_var_stack));
 
         stack->name = oc_str8_push_copy(&ui->frameArena, name);
         stack->hash = hash;
@@ -799,7 +745,7 @@ void oc_ui_style_var_push(oc_str8 name, oc_ui_style_value value, bool alwaysSet,
 
     oc_list_push_front(scopeList, &var->boxElt);
 
-    oc_ui_style_var* prev = oc_list_next_entry(var, oc_ui_style_var, stackElt);
+    oc_ui_var* prev = oc_list_next_entry(var, oc_ui_var, stackElt);
 
     if(!alwaysSet && prev && prev->value.kind == value.kind)
     {
@@ -811,76 +757,76 @@ void oc_ui_style_var_push(oc_str8 name, oc_ui_style_value value, bool alwaysSet,
     }
 }
 
-void oc_ui_style_var_default_i32_str8(oc_str8 name, i32 i)
+void oc_ui_var_default_i32_str8(oc_str8 name, i32 i)
 {
-    oc_ui_style_var_push(
+    oc_ui_var_push(
         name,
-        (oc_ui_style_value){
-            .kind = OC_UI_STYLE_VAR_I32,
+        (oc_ui_value){
+            .kind = OC_UI_VAR_I32,
             .i = i,
         },
         false,
         0);
 }
 
-void oc_ui_style_var_default_f32_str8(oc_str8 name, f32 f)
+void oc_ui_var_default_f32_str8(oc_str8 name, f32 f)
 {
-    oc_ui_style_var_push(
+    oc_ui_var_push(
         name,
-        (oc_ui_style_value){
-            .kind = OC_UI_STYLE_VAR_F32,
+        (oc_ui_value){
+            .kind = OC_UI_VAR_F32,
             .f = f,
         },
         false,
         0);
 }
 
-void oc_ui_style_var_default_size_str8(oc_str8 name, oc_ui_size size)
+void oc_ui_var_default_size_str8(oc_str8 name, oc_ui_size size)
 {
-    oc_ui_style_var_push(
+    oc_ui_var_push(
         name,
-        (oc_ui_style_value){
-            .kind = OC_UI_STYLE_VAR_SIZE,
+        (oc_ui_value){
+            .kind = OC_UI_VAR_SIZE,
             .size = size,
         },
         false,
         0);
 }
 
-void oc_ui_style_var_default_color_str8(oc_str8 name, oc_color color)
+void oc_ui_var_default_color_str8(oc_str8 name, oc_color color)
 {
-    oc_ui_style_var_push(
+    oc_ui_var_push(
         name,
-        (oc_ui_style_value){
-            .kind = OC_UI_STYLE_VAR_COLOR,
+        (oc_ui_value){
+            .kind = OC_UI_VAR_COLOR,
             .color = color,
         },
         false,
         0);
 }
 
-void oc_ui_style_var_default_font_str8(oc_str8 name, oc_font font)
+void oc_ui_var_default_font_str8(oc_str8 name, oc_font font)
 {
-    oc_ui_style_var_push(
+    oc_ui_var_push(
         name,
-        (oc_ui_style_value){
-            .kind = OC_UI_STYLE_VAR_FONT,
+        (oc_ui_value){
+            .kind = OC_UI_VAR_FONT,
             .font = font,
         },
         false,
         0);
 }
 
-void oc_ui_style_var_default_str8(oc_str8 name, oc_str8 defaultName)
+void oc_ui_var_default_str8(oc_str8 name, oc_str8 defaultName)
 {
-    oc_ui_style_var* var = oc_ui_style_var_find(name);
+    oc_ui_var* var = oc_ui_var_find(name);
     if(!var)
     {
-        oc_ui_style_value value = {
-            .kind = OC_UI_STYLE_VAR_I32,
+        oc_ui_value value = {
+            .kind = OC_UI_VAR_I32,
             .i = 0,
         };
-        oc_ui_style_var* defaultVar = oc_ui_style_var_find(defaultName);
+        oc_ui_var* defaultVar = oc_ui_var_find(defaultName);
         if(defaultVar)
         {
             value = defaultVar->value;
@@ -889,7 +835,7 @@ void oc_ui_style_var_default_str8(oc_str8 name, oc_str8 defaultName)
         {
             //TODO: signal error
         }
-        oc_ui_style_var_push(
+        oc_ui_var_push(
             name,
             value,
             false,
@@ -898,104 +844,104 @@ void oc_ui_style_var_default_str8(oc_str8 name, oc_str8 defaultName)
 }
 
 //C-string versions
-void oc_ui_style_var_default_i32(const char* name, i32 i)
+void oc_ui_var_default_i32(const char* name, i32 i)
 {
-    oc_ui_style_var_default_i32_str8(OC_STR8(name), i);
+    oc_ui_var_default_i32_str8(OC_STR8(name), i);
 }
 
-void oc_ui_style_var_default_f32(const char* name, f32 f)
+void oc_ui_var_default_f32(const char* name, f32 f)
 {
-    oc_ui_style_var_default_f32_str8(OC_STR8(name), f);
+    oc_ui_var_default_f32_str8(OC_STR8(name), f);
 }
 
-void oc_ui_style_var_default_size(const char* name, oc_ui_size size)
+void oc_ui_var_default_size(const char* name, oc_ui_size size)
 {
-    oc_ui_style_var_default_size_str8(OC_STR8(name), size);
+    oc_ui_var_default_size_str8(OC_STR8(name), size);
 }
 
-void oc_ui_style_var_default_color(const char* name, oc_color color)
+void oc_ui_var_default_color(const char* name, oc_color color)
 {
-    oc_ui_style_var_default_color_str8(OC_STR8(name), color);
+    oc_ui_var_default_color_str8(OC_STR8(name), color);
 }
 
-void oc_ui_style_var_default_font(const char* name, oc_font font)
+void oc_ui_var_default_font(const char* name, oc_font font)
 {
-    oc_ui_style_var_default_font_str8(OC_STR8(name), font);
+    oc_ui_var_default_font_str8(OC_STR8(name), font);
 }
 
-void oc_ui_style_var_default(const char* name, const char* src)
+void oc_ui_var_default(const char* name, const char* src)
 {
-    oc_ui_style_var_default_str8(OC_STR8(name), OC_STR8(src));
+    oc_ui_var_default_str8(OC_STR8(name), OC_STR8(src));
 }
 
 //NOTE: setting variable value
-void oc_ui_style_var_set_i32_str8(oc_str8 name, i32 i)
+void oc_ui_var_set_i32_str8(oc_str8 name, i32 i)
 {
-    oc_ui_style_var_push(
+    oc_ui_var_push(
         name,
-        (oc_ui_style_value){
-            .kind = OC_UI_STYLE_VAR_I32,
+        (oc_ui_value){
+            .kind = OC_UI_VAR_I32,
             .i = i,
         },
         true,
         0);
 }
 
-void oc_ui_style_var_set_f32_str8(oc_str8 name, f32 f)
+void oc_ui_var_set_f32_str8(oc_str8 name, f32 f)
 {
-    oc_ui_style_var_push(
+    oc_ui_var_push(
         name,
-        (oc_ui_style_value){
-            .kind = OC_UI_STYLE_VAR_F32,
+        (oc_ui_value){
+            .kind = OC_UI_VAR_F32,
             .f = f,
         },
         true,
         0);
 }
 
-void oc_ui_style_var_set_size_str8(oc_str8 name, oc_ui_size size)
+void oc_ui_var_set_size_str8(oc_str8 name, oc_ui_size size)
 {
-    oc_ui_style_var_push(
+    oc_ui_var_push(
         name,
-        (oc_ui_style_value){
-            .kind = OC_UI_STYLE_VAR_SIZE,
+        (oc_ui_value){
+            .kind = OC_UI_VAR_SIZE,
             .size = size,
         },
         true,
         0);
 }
 
-void oc_ui_style_var_set_color_str8(oc_str8 name, oc_color color)
+void oc_ui_var_set_color_str8(oc_str8 name, oc_color color)
 {
-    oc_ui_style_var_push(
+    oc_ui_var_push(
         name,
-        (oc_ui_style_value){
-            .kind = OC_UI_STYLE_VAR_COLOR,
+        (oc_ui_value){
+            .kind = OC_UI_VAR_COLOR,
             .color = color,
         },
         true,
         0);
 }
 
-void oc_ui_style_var_set_font_str8(oc_str8 name, oc_font font)
+void oc_ui_var_set_font_str8(oc_str8 name, oc_font font)
 {
-    oc_ui_style_var_push(
+    oc_ui_var_push(
         name,
-        (oc_ui_style_value){
-            .kind = OC_UI_STYLE_VAR_FONT,
+        (oc_ui_value){
+            .kind = OC_UI_VAR_FONT,
             .font = font,
         },
         true,
         0);
 }
 
-void oc_ui_style_var_set_str8(oc_str8 name, oc_str8 defaultName)
+void oc_ui_var_set_str8(oc_str8 name, oc_str8 defaultName)
 {
-    oc_ui_style_value value = {
-        .kind = OC_UI_STYLE_VAR_I32,
+    oc_ui_value value = {
+        .kind = OC_UI_VAR_I32,
         .i = 0,
     };
-    oc_ui_style_var* defaultVar = oc_ui_style_var_find(defaultName);
+    oc_ui_var* defaultVar = oc_ui_var_find(defaultName);
     if(defaultVar)
     {
         value = defaultVar->value;
@@ -1004,46 +950,46 @@ void oc_ui_style_var_set_str8(oc_str8 name, oc_str8 defaultName)
     {
         //TODO: signal error
     }
-    oc_ui_style_var_push(name, value, true, 0);
+    oc_ui_var_push(name, value, true, 0);
 }
 
 //C-string versions
-void oc_ui_style_var_set_i32(const char* name, i32 i)
+void oc_ui_var_set_i32(const char* name, i32 i)
 {
-    oc_ui_style_var_set_i32_str8(OC_STR8(name), i);
+    oc_ui_var_set_i32_str8(OC_STR8(name), i);
 }
 
-void oc_ui_style_var_set_f32(const char* name, f32 f)
+void oc_ui_var_set_f32(const char* name, f32 f)
 {
-    oc_ui_style_var_set_f32_str8(OC_STR8(name), f);
+    oc_ui_var_set_f32_str8(OC_STR8(name), f);
 }
 
-void oc_ui_style_var_set_size(const char* name, oc_ui_size size)
+void oc_ui_var_set_size(const char* name, oc_ui_size size)
 {
-    oc_ui_style_var_set_size_str8(OC_STR8(name), size);
+    oc_ui_var_set_size_str8(OC_STR8(name), size);
 }
 
-void oc_ui_style_var_set_color(const char* name, oc_color color)
+void oc_ui_var_set_color(const char* name, oc_color color)
 {
-    oc_ui_style_var_set_color_str8(OC_STR8(name), color);
+    oc_ui_var_set_color_str8(OC_STR8(name), color);
 }
 
-void oc_ui_style_var_set_font(const char* name, oc_font font)
+void oc_ui_var_set_font(const char* name, oc_font font)
 {
-    oc_ui_style_var_set_font_str8(OC_STR8(name), font);
+    oc_ui_var_set_font_str8(OC_STR8(name), font);
 }
 
-void oc_ui_style_var_set(const char* name, const char* src)
+void oc_ui_var_set(const char* name, const char* src)
 {
-    oc_ui_style_var_set_str8(OC_STR8(name), OC_STR8(src));
+    oc_ui_var_set_str8(OC_STR8(name), OC_STR8(src));
 }
 
 //NOTE: getting variable value
-oc_ui_style_value oc_ui_style_var_get_typed(oc_str8 name, oc_ui_style_var_kind kind)
+oc_ui_value oc_ui_var_get_typed(oc_str8 name, oc_ui_var_kind kind)
 {
-    oc_ui_style_value value;
+    oc_ui_value value;
 
-    oc_ui_style_var* var = oc_ui_style_var_find(name);
+    oc_ui_var* var = oc_ui_var_find(name);
     if(var && var->value.kind == kind)
     {
         value = var->value;
@@ -1051,73 +997,73 @@ oc_ui_style_value oc_ui_style_var_get_typed(oc_str8 name, oc_ui_style_var_kind k
     else
     {
         //NOTE memset because designated initializer could wrongly init the union if we change fields in the future
-        memset(&value, 0, sizeof(oc_ui_style_value));
+        memset(&value, 0, sizeof(oc_ui_value));
         value.kind = kind;
     }
     return value;
 }
 
-i32 oc_ui_style_var_get_i32_str8(oc_str8 name)
+i32 oc_ui_var_get_i32_str8(oc_str8 name)
 {
-    oc_ui_style_value val = oc_ui_style_var_get_typed(name, OC_UI_STYLE_VAR_I32);
+    oc_ui_value val = oc_ui_var_get_typed(name, OC_UI_VAR_I32);
     return val.i;
 }
 
-f32 oc_ui_style_var_get_f32_str8(oc_str8 name)
+f32 oc_ui_var_get_f32_str8(oc_str8 name)
 {
-    oc_ui_style_value val = oc_ui_style_var_get_typed(name, OC_UI_STYLE_VAR_F32);
+    oc_ui_value val = oc_ui_var_get_typed(name, OC_UI_VAR_F32);
     return val.f;
 }
 
-oc_ui_size oc_ui_style_var_get_size_str8(oc_str8 name)
+oc_ui_size oc_ui_var_get_size_str8(oc_str8 name)
 {
-    oc_ui_style_value val = oc_ui_style_var_get_typed(name, OC_UI_STYLE_VAR_SIZE);
+    oc_ui_value val = oc_ui_var_get_typed(name, OC_UI_VAR_SIZE);
     return val.size;
 }
 
-oc_color oc_ui_style_var_get_color_str8(oc_str8 name)
+oc_color oc_ui_var_get_color_str8(oc_str8 name)
 {
-    oc_ui_style_value val = oc_ui_style_var_get_typed(name, OC_UI_STYLE_VAR_COLOR);
+    oc_ui_value val = oc_ui_var_get_typed(name, OC_UI_VAR_COLOR);
     return val.color;
 }
 
-oc_font oc_ui_style_var_get_font_str8(oc_str8 name)
+oc_font oc_ui_var_get_font_str8(oc_str8 name)
 {
-    oc_ui_style_value val = oc_ui_style_var_get_typed(name, OC_UI_STYLE_VAR_FONT);
+    oc_ui_value val = oc_ui_var_get_typed(name, OC_UI_VAR_FONT);
     return val.font;
 }
 
 //C-string versions
-i32 oc_ui_style_var_get_i32(const char* name)
+i32 oc_ui_var_get_i32(const char* name)
 {
-    return oc_ui_style_var_get_i32_str8(OC_STR8(name));
+    return oc_ui_var_get_i32_str8(OC_STR8(name));
 }
 
-f32 oc_ui_style_var_get_f32(const char* name)
+f32 oc_ui_var_get_f32(const char* name)
 {
-    return oc_ui_style_var_get_f32_str8(OC_STR8(name));
+    return oc_ui_var_get_f32_str8(OC_STR8(name));
 }
 
-oc_ui_size oc_ui_style_var_get_size(const char* name)
+oc_ui_size oc_ui_var_get_size(const char* name)
 {
-    return oc_ui_style_var_get_size_str8(OC_STR8(name));
+    return oc_ui_var_get_size_str8(OC_STR8(name));
 }
 
-oc_color oc_ui_style_var_get_color(const char* name)
+oc_color oc_ui_var_get_color(const char* name)
 {
-    return oc_ui_style_var_get_color_str8(OC_STR8(name));
+    return oc_ui_var_get_color_str8(OC_STR8(name));
 }
 
-oc_font oc_ui_style_var_get_font(const char* name)
+oc_font oc_ui_var_get_font(const char* name)
 {
-    return oc_ui_style_var_get_font_str8(OC_STR8(name));
+    return oc_ui_var_get_font_str8(OC_STR8(name));
 }
 
 //NOTE: setting a style attribute from a variable
-void oc_ui_style_set_str8(oc_ui_style_attribute attr, oc_str8 name)
+void oc_ui_attribute_variable_str8(oc_ui_attribute attr, oc_str8 name)
 {
-    oc_ui_style_value value = { 0 };
-    oc_ui_style_var* var = oc_ui_style_var_find(name);
+    oc_ui_value value = { 0 };
+    oc_ui_var* var = oc_ui_var_find(name);
     if(var)
     {
         value = var->value;
@@ -1128,7 +1074,7 @@ void oc_ui_style_set_str8(oc_ui_style_attribute attr, oc_str8 name)
         {
             case OC_UI_WIDTH:
             case OC_UI_HEIGHT:
-                value.kind = OC_UI_STYLE_VAR_SIZE;
+                value.kind = OC_UI_VAR_SIZE;
                 break;
 
             case OC_UI_AXIS:
@@ -1142,7 +1088,7 @@ void oc_ui_style_set_str8(oc_ui_style_attribute attr, oc_str8 name)
             case OC_UI_CONSTRAIN_Y:
             case OC_UI_ANIMATION_MASK:
             case OC_UI_CLICK_THROUGH:
-                value.kind = OC_UI_STYLE_VAR_I32;
+                value.kind = OC_UI_VAR_I32;
                 break;
 
             case OC_UI_MARGIN_X:
@@ -1154,47 +1100,47 @@ void oc_ui_style_set_str8(oc_ui_style_attribute attr, oc_str8 name)
             case OC_UI_BORDER_SIZE:
             case OC_UI_ROUNDNESS:
             case OC_UI_ANIMATION_TIME:
-                value.kind = OC_UI_STYLE_VAR_F32;
+                value.kind = OC_UI_VAR_F32;
                 break;
 
             case OC_UI_COLOR:
             case OC_UI_BG_COLOR:
             case OC_UI_BORDER_COLOR:
-                value.kind = OC_UI_STYLE_VAR_COLOR;
+                value.kind = OC_UI_VAR_COLOR;
                 break;
 
             case OC_UI_FONT:
-                value.kind = OC_UI_STYLE_VAR_FONT;
+                value.kind = OC_UI_VAR_FONT;
                 break;
 
-            case OC_UI_STYLE_ATTR_COUNT:
+            case OC_UI_ATTRIBUTE_COUNT:
                 OC_ASSERT(0, "unreachable");
                 break;
         }
     }
     switch(value.kind)
     {
-        case OC_UI_STYLE_VAR_I32:
-            oc_ui_style_set_i32(attr, value.i);
+        case OC_UI_VAR_I32:
+            oc_ui_attribute_i32(attr, value.i);
             break;
-        case OC_UI_STYLE_VAR_F32:
-            oc_ui_style_set_f32(attr, value.f);
+        case OC_UI_VAR_F32:
+            oc_ui_attribute_f32(attr, value.f);
             break;
-        case OC_UI_STYLE_VAR_SIZE:
-            oc_ui_style_set_size(attr, value.size);
+        case OC_UI_VAR_SIZE:
+            oc_ui_attribute_size(attr, value.size);
             break;
-        case OC_UI_STYLE_VAR_COLOR:
-            oc_ui_style_set_color(attr, value.color);
+        case OC_UI_VAR_COLOR:
+            oc_ui_attribute_color(attr, value.color);
             break;
-        case OC_UI_STYLE_VAR_FONT:
-            oc_ui_style_set_font(attr, value.font);
+        case OC_UI_VAR_FONT:
+            oc_ui_attribute_font(attr, value.font);
             break;
     }
 }
 
-void oc_ui_style_set(oc_ui_style_attribute attr, const char* name)
+void oc_ui_attribute_variable(oc_ui_attribute attr, const char* name)
 {
-    oc_ui_style_set_str8(attr, OC_STR8(name));
+    oc_ui_attribute_variable_str8(attr, OC_STR8(name));
 }
 
 // Themes
@@ -1205,106 +1151,106 @@ void oc_ui_style_theme_light()
 {
     //TODO: push these vars using precomputed name hashes
 
-    oc_ui_style_var_set_color_str8(OC_UI_THEME_PRIMARY, (oc_color){ 0.000, 0.392, 0.980, 1, OC_COLOR_SPACE_SRGB });
-    oc_ui_style_var_set_color_str8(OC_UI_THEME_PRIMARY_HOVER, (oc_color){ 0.000, 0.384, 0.839, 1, OC_COLOR_SPACE_SRGB });
-    oc_ui_style_var_set_color_str8(OC_UI_THEME_PRIMARY_ACTIVE, (oc_color){ 0.000, 0.310, 0.702, 1, OC_COLOR_SPACE_SRGB });
-    oc_ui_style_var_set_color_str8(OC_UI_THEME_PRIMARY_DISABLED, (oc_color){ 0.596, 0.804, 0.992, 1, OC_COLOR_SPACE_SRGB });
+    oc_ui_var_set_color_str8(OC_UI_THEME_PRIMARY, (oc_color){ 0.000, 0.392, 0.980, 1, OC_COLOR_SPACE_SRGB });
+    oc_ui_var_set_color_str8(OC_UI_THEME_PRIMARY_HOVER, (oc_color){ 0.000, 0.384, 0.839, 1, OC_COLOR_SPACE_SRGB });
+    oc_ui_var_set_color_str8(OC_UI_THEME_PRIMARY_ACTIVE, (oc_color){ 0.000, 0.310, 0.702, 1, OC_COLOR_SPACE_SRGB });
+    oc_ui_var_set_color_str8(OC_UI_THEME_PRIMARY_DISABLED, (oc_color){ 0.596, 0.804, 0.992, 1, OC_COLOR_SPACE_SRGB });
 
-    oc_ui_style_var_set_color_str8(OC_UI_THEME_TEXT_0, (oc_color){ 0.110, 0.122, 0.137, 1, OC_COLOR_SPACE_SRGB });
-    oc_ui_style_var_set_color_str8(OC_UI_THEME_TEXT_1, (oc_color){ 0.110, 0.122, 0.137, .942, OC_COLOR_SPACE_SRGB });
-    oc_ui_style_var_set_color_str8(OC_UI_THEME_TEXT_2, (oc_color){ 0.110, 0.122, 0.137, .834, OC_COLOR_SPACE_SRGB });
-    oc_ui_style_var_set_color_str8(OC_UI_THEME_TEXT_3, (oc_color){ 0.110, 0.122, 0.137, .57, OC_COLOR_SPACE_SRGB });
+    oc_ui_var_set_color_str8(OC_UI_THEME_TEXT_0, (oc_color){ 0.110, 0.122, 0.137, 1, OC_COLOR_SPACE_SRGB });
+    oc_ui_var_set_color_str8(OC_UI_THEME_TEXT_1, (oc_color){ 0.110, 0.122, 0.137, .942, OC_COLOR_SPACE_SRGB });
+    oc_ui_var_set_color_str8(OC_UI_THEME_TEXT_2, (oc_color){ 0.110, 0.122, 0.137, .834, OC_COLOR_SPACE_SRGB });
+    oc_ui_var_set_color_str8(OC_UI_THEME_TEXT_3, (oc_color){ 0.110, 0.122, 0.137, .57, OC_COLOR_SPACE_SRGB });
 
-    oc_ui_style_var_set_color_str8(OC_UI_THEME_BG_0, (oc_color){ 1, 1, 1, 1, OC_COLOR_SPACE_SRGB });
-    oc_ui_style_var_set_color_str8(OC_UI_THEME_BG_1, (oc_color){ 1, 1, 1, 1, OC_COLOR_SPACE_SRGB });
-    oc_ui_style_var_set_color_str8(OC_UI_THEME_BG_2, (oc_color){ 1, 1, 1, 1, OC_COLOR_SPACE_SRGB });
-    oc_ui_style_var_set_color_str8(OC_UI_THEME_BG_3, (oc_color){ 1, 1, 1, 1, OC_COLOR_SPACE_SRGB });
-    oc_ui_style_var_set_color_str8(OC_UI_THEME_BG_4, (oc_color){ 1, 1, 1, 1, OC_COLOR_SPACE_SRGB });
+    oc_ui_var_set_color_str8(OC_UI_THEME_BG_0, (oc_color){ 1, 1, 1, 1, OC_COLOR_SPACE_SRGB });
+    oc_ui_var_set_color_str8(OC_UI_THEME_BG_1, (oc_color){ 1, 1, 1, 1, OC_COLOR_SPACE_SRGB });
+    oc_ui_var_set_color_str8(OC_UI_THEME_BG_2, (oc_color){ 1, 1, 1, 1, OC_COLOR_SPACE_SRGB });
+    oc_ui_var_set_color_str8(OC_UI_THEME_BG_3, (oc_color){ 1, 1, 1, 1, OC_COLOR_SPACE_SRGB });
+    oc_ui_var_set_color_str8(OC_UI_THEME_BG_4, (oc_color){ 1, 1, 1, 1, OC_COLOR_SPACE_SRGB });
 
-    oc_ui_style_var_set_color_str8(OC_UI_THEME_FILL_0, (oc_color){ 0.180, 0.196, 0.220, .1, OC_COLOR_SPACE_SRGB });
-    oc_ui_style_var_set_color_str8(OC_UI_THEME_FILL_1, (oc_color){ 0.180, 0.196, 0.220, .17, OC_COLOR_SPACE_SRGB });
-    oc_ui_style_var_set_color_str8(OC_UI_THEME_FILL_2, (oc_color){ 0.180, 0.196, 0.220, .23, OC_COLOR_SPACE_SRGB });
+    oc_ui_var_set_color_str8(OC_UI_THEME_FILL_0, (oc_color){ 0.180, 0.196, 0.220, .1, OC_COLOR_SPACE_SRGB });
+    oc_ui_var_set_color_str8(OC_UI_THEME_FILL_1, (oc_color){ 0.180, 0.196, 0.220, .17, OC_COLOR_SPACE_SRGB });
+    oc_ui_var_set_color_str8(OC_UI_THEME_FILL_2, (oc_color){ 0.180, 0.196, 0.220, .23, OC_COLOR_SPACE_SRGB });
 
-    oc_ui_style_var_set_color_str8(OC_UI_THEME_BORDER, (oc_color){ 0.110, 0.122, 0.137, .16, OC_COLOR_SPACE_SRGB });
+    oc_ui_var_set_color_str8(OC_UI_THEME_BORDER, (oc_color){ 0.110, 0.122, 0.137, .16, OC_COLOR_SPACE_SRGB });
 
-    oc_ui_style_var_set_f32_str8(OC_UI_THEME_ROUNDNESS_SMALL, 3);
-    oc_ui_style_var_set_f32_str8(OC_UI_THEME_ROUNDNESS_REGULAR, 6);
-    oc_ui_style_var_set_f32_str8(OC_UI_THEME_ROUNDNESS_LARGE, 12);
+    oc_ui_var_set_f32_str8(OC_UI_THEME_ROUNDNESS_SMALL, 3);
+    oc_ui_var_set_f32_str8(OC_UI_THEME_ROUNDNESS_REGULAR, 6);
+    oc_ui_var_set_f32_str8(OC_UI_THEME_ROUNDNESS_LARGE, 12);
 
-    oc_ui_style_var_set_f32_str8(OC_UI_THEME_CONTROL_HEIGHT_SMALL, 24);
-    oc_ui_style_var_set_f32_str8(OC_UI_THEME_CONTROL_HEIGHT_DEFAULT, 32);
-    oc_ui_style_var_set_f32_str8(OC_UI_THEME_CONTROL_HEIGHT_LARGE, 40);
+    oc_ui_var_set_f32_str8(OC_UI_THEME_CONTROL_HEIGHT_SMALL, 24);
+    oc_ui_var_set_f32_str8(OC_UI_THEME_CONTROL_HEIGHT_DEFAULT, 32);
+    oc_ui_var_set_f32_str8(OC_UI_THEME_CONTROL_HEIGHT_LARGE, 40);
 
-    oc_ui_style_var_set_f32_str8(OC_UI_THEME_SPACING_EXTRA_TIGHT, 4);
-    oc_ui_style_var_set_f32_str8(OC_UI_THEME_SPACING_TIGHT, 8);
-    oc_ui_style_var_set_f32_str8(OC_UI_THEME_SPACING_REGULAR_TIGHT, 12);
-    oc_ui_style_var_set_f32_str8(OC_UI_THEME_SPACING_REGULAR, 16);
-    oc_ui_style_var_set_f32_str8(OC_UI_THEME_SPACING_REGULAR_LOOSE, 20);
-    oc_ui_style_var_set_f32_str8(OC_UI_THEME_SPACING_LOOSE, 24);
-    oc_ui_style_var_set_f32_str8(OC_UI_THEME_SPACING_EXTRA_LOOSE, 32);
+    oc_ui_var_set_f32_str8(OC_UI_THEME_SPACING_EXTRA_TIGHT, 4);
+    oc_ui_var_set_f32_str8(OC_UI_THEME_SPACING_TIGHT, 8);
+    oc_ui_var_set_f32_str8(OC_UI_THEME_SPACING_REGULAR_TIGHT, 12);
+    oc_ui_var_set_f32_str8(OC_UI_THEME_SPACING_REGULAR, 16);
+    oc_ui_var_set_f32_str8(OC_UI_THEME_SPACING_REGULAR_LOOSE, 20);
+    oc_ui_var_set_f32_str8(OC_UI_THEME_SPACING_LOOSE, 24);
+    oc_ui_var_set_f32_str8(OC_UI_THEME_SPACING_EXTRA_LOOSE, 32);
 
-    oc_ui_style_var_set_f32_str8(OC_UI_THEME_TEXT_SIZE_SMALL, 12);
-    oc_ui_style_var_set_f32_str8(OC_UI_THEME_TEXT_SIZE_REGULAR, 14);
-    oc_ui_style_var_set_f32_str8(OC_UI_THEME_TEXT_SIZE_HEADER_0, 32);
-    oc_ui_style_var_set_f32_str8(OC_UI_THEME_TEXT_SIZE_HEADER_1, 28);
-    oc_ui_style_var_set_f32_str8(OC_UI_THEME_TEXT_SIZE_HEADER_2, 24);
-    oc_ui_style_var_set_f32_str8(OC_UI_THEME_TEXT_SIZE_HEADER_3, 20);
-    oc_ui_style_var_set_f32_str8(OC_UI_THEME_TEXT_SIZE_HEADER_4, 18);
+    oc_ui_var_set_f32_str8(OC_UI_THEME_TEXT_SIZE_SMALL, 12);
+    oc_ui_var_set_f32_str8(OC_UI_THEME_TEXT_SIZE_REGULAR, 14);
+    oc_ui_var_set_f32_str8(OC_UI_THEME_TEXT_SIZE_HEADER_0, 32);
+    oc_ui_var_set_f32_str8(OC_UI_THEME_TEXT_SIZE_HEADER_1, 28);
+    oc_ui_var_set_f32_str8(OC_UI_THEME_TEXT_SIZE_HEADER_2, 24);
+    oc_ui_var_set_f32_str8(OC_UI_THEME_TEXT_SIZE_HEADER_3, 20);
+    oc_ui_var_set_f32_str8(OC_UI_THEME_TEXT_SIZE_HEADER_4, 18);
 
     oc_ui_context* ui = oc_ui_get_context();
-    oc_ui_style_var_set_font_str8(OC_UI_THEME_FONT_REGULAR, ui->defaultFont);
+    oc_ui_var_set_font_str8(OC_UI_THEME_FONT_REGULAR, ui->defaultFont);
 }
 
 void oc_ui_style_theme_dark()
 {
-    oc_ui_style_var_set_color_str8(OC_UI_THEME_PRIMARY, (oc_color){ 0.33, 0.66, 1, 1, OC_COLOR_SPACE_SRGB });
-    oc_ui_style_var_set_color_str8(OC_UI_THEME_PRIMARY_HOVER, (oc_color){ 0.5, 0.757, 1, 1, OC_COLOR_SPACE_SRGB });
-    oc_ui_style_var_set_color_str8(OC_UI_THEME_PRIMARY_ACTIVE, (oc_color){ 0.66, 0.84, 1, 1, OC_COLOR_SPACE_SRGB });
-    oc_ui_style_var_set_color_str8(OC_UI_THEME_PRIMARY_DISABLED, (oc_color){ 0.074, 0.361, 0.722, 1, OC_COLOR_SPACE_SRGB });
+    oc_ui_var_set_color_str8(OC_UI_THEME_PRIMARY, (oc_color){ 0.33, 0.66, 1, 1, OC_COLOR_SPACE_SRGB });
+    oc_ui_var_set_color_str8(OC_UI_THEME_PRIMARY_HOVER, (oc_color){ 0.5, 0.757, 1, 1, OC_COLOR_SPACE_SRGB });
+    oc_ui_var_set_color_str8(OC_UI_THEME_PRIMARY_ACTIVE, (oc_color){ 0.66, 0.84, 1, 1, OC_COLOR_SPACE_SRGB });
+    oc_ui_var_set_color_str8(OC_UI_THEME_PRIMARY_DISABLED, (oc_color){ 0.074, 0.361, 0.722, 1, OC_COLOR_SPACE_SRGB });
 
-    oc_ui_style_var_set_color_str8(OC_UI_THEME_TEXT_0, (oc_color){ 0.976, 0.976, 0.976, 1, OC_COLOR_SPACE_SRGB });
-    oc_ui_style_var_set_color_str8(OC_UI_THEME_TEXT_1, (oc_color){ 0.976, 0.976, 0.976, .64, OC_COLOR_SPACE_SRGB });
-    oc_ui_style_var_set_color_str8(OC_UI_THEME_TEXT_2, (oc_color){ 0.976, 0.976, 0.976, .38, OC_COLOR_SPACE_SRGB });
-    oc_ui_style_var_set_color_str8(OC_UI_THEME_TEXT_3, (oc_color){ 0.976, 0.976, 0.976, .15, OC_COLOR_SPACE_SRGB });
+    oc_ui_var_set_color_str8(OC_UI_THEME_TEXT_0, (oc_color){ 0.976, 0.976, 0.976, 1, OC_COLOR_SPACE_SRGB });
+    oc_ui_var_set_color_str8(OC_UI_THEME_TEXT_1, (oc_color){ 0.976, 0.976, 0.976, .64, OC_COLOR_SPACE_SRGB });
+    oc_ui_var_set_color_str8(OC_UI_THEME_TEXT_2, (oc_color){ 0.976, 0.976, 0.976, .38, OC_COLOR_SPACE_SRGB });
+    oc_ui_var_set_color_str8(OC_UI_THEME_TEXT_3, (oc_color){ 0.976, 0.976, 0.976, .15, OC_COLOR_SPACE_SRGB });
 
-    oc_ui_style_var_set_color_str8(OC_UI_THEME_BG_0, (oc_color){ 0.086, 0.086, 0.102, 1, OC_COLOR_SPACE_SRGB });
-    oc_ui_style_var_set_color_str8(OC_UI_THEME_BG_1, (oc_color){ 0.137, 0.141, 0.165, 1, OC_COLOR_SPACE_SRGB });
-    oc_ui_style_var_set_color_str8(OC_UI_THEME_BG_2, (oc_color){ 0.208, 0.212, 0.231, 1, OC_COLOR_SPACE_SRGB });
-    oc_ui_style_var_set_color_str8(OC_UI_THEME_BG_3, (oc_color){ 0.263, 0.267, 0.29, 1, OC_COLOR_SPACE_SRGB });
-    oc_ui_style_var_set_color_str8(OC_UI_THEME_BG_4, (oc_color){ 0.31, 0.318, 0.349, 1, OC_COLOR_SPACE_SRGB });
+    oc_ui_var_set_color_str8(OC_UI_THEME_BG_0, (oc_color){ 0.086, 0.086, 0.102, 1, OC_COLOR_SPACE_SRGB });
+    oc_ui_var_set_color_str8(OC_UI_THEME_BG_1, (oc_color){ 0.137, 0.141, 0.165, 1, OC_COLOR_SPACE_SRGB });
+    oc_ui_var_set_color_str8(OC_UI_THEME_BG_2, (oc_color){ 0.208, 0.212, 0.231, 1, OC_COLOR_SPACE_SRGB });
+    oc_ui_var_set_color_str8(OC_UI_THEME_BG_3, (oc_color){ 0.263, 0.267, 0.29, 1, OC_COLOR_SPACE_SRGB });
+    oc_ui_var_set_color_str8(OC_UI_THEME_BG_4, (oc_color){ 0.31, 0.318, 0.349, 1, OC_COLOR_SPACE_SRGB });
 
-    oc_ui_style_var_set_color_str8(OC_UI_THEME_FILL_0, (oc_color){ 1, 1, 1, .033, OC_COLOR_SPACE_SRGB });
-    oc_ui_style_var_set_color_str8(OC_UI_THEME_FILL_1, (oc_color){ 1, 1, 1, .045, OC_COLOR_SPACE_SRGB });
-    oc_ui_style_var_set_color_str8(OC_UI_THEME_FILL_2, (oc_color){ 1, 1, 1, 0.063, OC_COLOR_SPACE_SRGB });
+    oc_ui_var_set_color_str8(OC_UI_THEME_FILL_0, (oc_color){ 1, 1, 1, .033, OC_COLOR_SPACE_SRGB });
+    oc_ui_var_set_color_str8(OC_UI_THEME_FILL_1, (oc_color){ 1, 1, 1, .045, OC_COLOR_SPACE_SRGB });
+    oc_ui_var_set_color_str8(OC_UI_THEME_FILL_2, (oc_color){ 1, 1, 1, 0.063, OC_COLOR_SPACE_SRGB });
 
-    oc_ui_style_var_set_color_str8(OC_UI_THEME_BORDER, (oc_color){ 1, 1, 1, 0.018, OC_COLOR_SPACE_SRGB });
+    oc_ui_var_set_color_str8(OC_UI_THEME_BORDER, (oc_color){ 1, 1, 1, 0.018, OC_COLOR_SPACE_SRGB });
 
-    oc_ui_style_var_set_f32_str8(OC_UI_THEME_ROUNDNESS_SMALL, 3);
-    oc_ui_style_var_set_f32_str8(OC_UI_THEME_ROUNDNESS_REGULAR, 6);
-    oc_ui_style_var_set_f32_str8(OC_UI_THEME_ROUNDNESS_LARGE, 12);
+    oc_ui_var_set_f32_str8(OC_UI_THEME_ROUNDNESS_SMALL, 3);
+    oc_ui_var_set_f32_str8(OC_UI_THEME_ROUNDNESS_REGULAR, 6);
+    oc_ui_var_set_f32_str8(OC_UI_THEME_ROUNDNESS_LARGE, 12);
 
-    oc_ui_style_var_set_f32_str8(OC_UI_THEME_CONTROL_HEIGHT_SMALL, 24);
-    oc_ui_style_var_set_f32_str8(OC_UI_THEME_CONTROL_HEIGHT_DEFAULT, 32);
-    oc_ui_style_var_set_f32_str8(OC_UI_THEME_CONTROL_HEIGHT_LARGE, 40);
+    oc_ui_var_set_f32_str8(OC_UI_THEME_CONTROL_HEIGHT_SMALL, 24);
+    oc_ui_var_set_f32_str8(OC_UI_THEME_CONTROL_HEIGHT_DEFAULT, 32);
+    oc_ui_var_set_f32_str8(OC_UI_THEME_CONTROL_HEIGHT_LARGE, 40);
 
-    oc_ui_style_var_set_f32_str8(OC_UI_THEME_SPACING_EXTRA_TIGHT, 4);
-    oc_ui_style_var_set_f32_str8(OC_UI_THEME_SPACING_TIGHT, 8);
-    oc_ui_style_var_set_f32_str8(OC_UI_THEME_SPACING_REGULAR_TIGHT, 12);
-    oc_ui_style_var_set_f32_str8(OC_UI_THEME_SPACING_REGULAR, 16);
-    oc_ui_style_var_set_f32_str8(OC_UI_THEME_SPACING_REGULAR_LOOSE, 20);
-    oc_ui_style_var_set_f32_str8(OC_UI_THEME_SPACING_LOOSE, 24);
-    oc_ui_style_var_set_f32_str8(OC_UI_THEME_SPACING_EXTRA_LOOSE, 32);
+    oc_ui_var_set_f32_str8(OC_UI_THEME_SPACING_EXTRA_TIGHT, 4);
+    oc_ui_var_set_f32_str8(OC_UI_THEME_SPACING_TIGHT, 8);
+    oc_ui_var_set_f32_str8(OC_UI_THEME_SPACING_REGULAR_TIGHT, 12);
+    oc_ui_var_set_f32_str8(OC_UI_THEME_SPACING_REGULAR, 16);
+    oc_ui_var_set_f32_str8(OC_UI_THEME_SPACING_REGULAR_LOOSE, 20);
+    oc_ui_var_set_f32_str8(OC_UI_THEME_SPACING_LOOSE, 24);
+    oc_ui_var_set_f32_str8(OC_UI_THEME_SPACING_EXTRA_LOOSE, 32);
 
-    oc_ui_style_var_set_f32_str8(OC_UI_THEME_TEXT_SIZE_SMALL, 12);
-    oc_ui_style_var_set_f32_str8(OC_UI_THEME_TEXT_SIZE_REGULAR, 14);
-    oc_ui_style_var_set_f32_str8(OC_UI_THEME_TEXT_SIZE_HEADER_0, 32);
-    oc_ui_style_var_set_f32_str8(OC_UI_THEME_TEXT_SIZE_HEADER_1, 28);
-    oc_ui_style_var_set_f32_str8(OC_UI_THEME_TEXT_SIZE_HEADER_2, 24);
-    oc_ui_style_var_set_f32_str8(OC_UI_THEME_TEXT_SIZE_HEADER_3, 20);
-    oc_ui_style_var_set_f32_str8(OC_UI_THEME_TEXT_SIZE_HEADER_4, 18);
+    oc_ui_var_set_f32_str8(OC_UI_THEME_TEXT_SIZE_SMALL, 12);
+    oc_ui_var_set_f32_str8(OC_UI_THEME_TEXT_SIZE_REGULAR, 14);
+    oc_ui_var_set_f32_str8(OC_UI_THEME_TEXT_SIZE_HEADER_0, 32);
+    oc_ui_var_set_f32_str8(OC_UI_THEME_TEXT_SIZE_HEADER_1, 28);
+    oc_ui_var_set_f32_str8(OC_UI_THEME_TEXT_SIZE_HEADER_2, 24);
+    oc_ui_var_set_f32_str8(OC_UI_THEME_TEXT_SIZE_HEADER_3, 20);
+    oc_ui_var_set_f32_str8(OC_UI_THEME_TEXT_SIZE_HEADER_4, 18);
 
     oc_ui_context* ui = oc_ui_get_context();
-    oc_ui_style_var_set_font_str8(OC_UI_THEME_FONT_REGULAR, ui->defaultFont);
+    oc_ui_var_set_font_str8(OC_UI_THEME_FONT_REGULAR, ui->defaultFont);
 }
 
 //-----------------------------------------------------------------------------
@@ -1700,7 +1646,7 @@ void oc_ui_box_animate_style(oc_ui_context* ui, oc_ui_box* box)
     f32 animationTime = targetStyle->animationTime;
 
     //NOTE: interpolate based on transition values
-    oc_ui_style_mask mask = box->targetStyle->animationMask;
+    oc_ui_attribute_mask mask = box->targetStyle->animationMask;
 
     if(box->fresh)
     {
@@ -1789,12 +1735,12 @@ void oc_ui_box_animate_style(oc_ui_context* ui, oc_ui_box* box)
     }
 }
 
-bool oc_ui_style_apply_check(oc_ui_style_attribute attr,
-                             oc_ui_style_mask mask,
+bool oc_ui_style_apply_check(oc_ui_attribute attr,
+                             oc_ui_attribute_mask mask,
                              oc_ui_pattern_specificity specificity,
                              oc_ui_pattern_specificity* specArray)
 {
-    bool result = (mask & oc_ui_style_attr_to_mask(attr))
+    bool result = (mask & oc_ui_attribute_to_mask(attr))
                && (specificity.id >= specArray[attr].id
                    || (specificity.id == specArray[attr].id && specificity.tag >= specArray[attr].tag));
     if(result)
@@ -1806,7 +1752,7 @@ bool oc_ui_style_apply_check(oc_ui_style_attribute attr,
 
 void oc_ui_style_apply(oc_ui_style* dst,
                        oc_ui_style* src,
-                       oc_ui_style_mask mask,
+                       oc_ui_attribute_mask mask,
                        oc_ui_pattern_specificity specificity,
                        oc_ui_pattern_specificity* specArray)
 {
@@ -2022,8 +1968,8 @@ void oc_ui_styling_prepass(oc_ui_context* ui, oc_ui_box* box, oc_list* ruleset)
 
     oc_arena_scope scratch = oc_scratch_begin();
 
-    oc_ui_pattern_specificity* specArray = oc_arena_push_array(scratch.arena, oc_ui_pattern_specificity, OC_UI_STYLE_ATTR_COUNT);
-    memset(specArray, 0, sizeof(oc_ui_pattern_specificity) * OC_UI_STYLE_ATTR_COUNT);
+    oc_ui_pattern_specificity* specArray = oc_arena_push_array(scratch.arena, oc_ui_pattern_specificity, OC_UI_ATTRIBUTE_COUNT);
+    memset(specArray, 0, sizeof(oc_ui_pattern_specificity) * OC_UI_ATTRIBUTE_COUNT);
 
     oc_list derivedRules = { 0 };
     oc_list_for(*ruleset, rule, oc_ui_style_rule, rulesetElt)
@@ -2738,21 +2684,21 @@ void oc_ui_begin_frame(oc_vec2 size)
 
     oc_ui_style_theme_dark();
 
-    oc_ui_style_set_str8(OC_UI_BG_COLOR, OC_UI_THEME_BG_0);
-    oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PIXELS, size.x });
-    oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PIXELS, size.y });
+    oc_ui_attribute_variable_str8(OC_UI_BG_COLOR, OC_UI_THEME_BG_0);
+    oc_ui_attribute_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PIXELS, size.x });
+    oc_ui_attribute_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PIXELS, size.y });
 
     oc_ui_box* contents = oc_ui_box_begin("_contents_");
 
-    oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
-    oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
-    oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_Y);
-    oc_ui_style_set_i32(OC_UI_ALIGN_X, OC_UI_ALIGN_START);
-    oc_ui_style_set_i32(OC_UI_ALIGN_Y, OC_UI_ALIGN_START);
-    oc_ui_style_set_i32(OC_UI_FLOATING_X, 1);
-    oc_ui_style_set_i32(OC_UI_FLOATING_Y, 1);
-    oc_ui_style_set_f32(OC_UI_FLOAT_TARGET_X, 0);
-    oc_ui_style_set_f32(OC_UI_FLOAT_TARGET_Y, 0);
+    oc_ui_attribute_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
+    oc_ui_attribute_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
+    oc_ui_attribute_i32(OC_UI_AXIS, OC_UI_AXIS_Y);
+    oc_ui_attribute_i32(OC_UI_ALIGN_X, OC_UI_ALIGN_START);
+    oc_ui_attribute_i32(OC_UI_ALIGN_Y, OC_UI_ALIGN_START);
+    oc_ui_attribute_i32(OC_UI_FLOATING_X, 1);
+    oc_ui_attribute_i32(OC_UI_FLOATING_Y, 1);
+    oc_ui_attribute_f32(OC_UI_FLOAT_TARGET_X, 0);
+    oc_ui_attribute_f32(OC_UI_FLOAT_TARGET_Y, 0);
 }
 
 void oc_ui_end_frame(void)
@@ -2762,15 +2708,15 @@ void oc_ui_end_frame(void)
     ui->overlay = oc_ui_box_make("_overlay_");
     oc_ui_box_push(ui->overlay);
     {
-        oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
-        oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
-        oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_Y);
-        oc_ui_style_set_i32(OC_UI_ALIGN_X, OC_UI_ALIGN_START);
-        oc_ui_style_set_i32(OC_UI_ALIGN_Y, OC_UI_ALIGN_START);
-        oc_ui_style_set_i32(OC_UI_FLOATING_X, 1);
-        oc_ui_style_set_i32(OC_UI_FLOATING_Y, 1);
-        oc_ui_style_set_f32(OC_UI_FLOAT_TARGET_X, 0);
-        oc_ui_style_set_f32(OC_UI_FLOAT_TARGET_Y, 0);
+        oc_ui_attribute_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
+        oc_ui_attribute_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
+        oc_ui_attribute_i32(OC_UI_AXIS, OC_UI_AXIS_Y);
+        oc_ui_attribute_i32(OC_UI_ALIGN_X, OC_UI_ALIGN_START);
+        oc_ui_attribute_i32(OC_UI_ALIGN_Y, OC_UI_ALIGN_START);
+        oc_ui_attribute_i32(OC_UI_FLOATING_X, 1);
+        oc_ui_attribute_i32(OC_UI_FLOATING_Y, 1);
+        oc_ui_attribute_f32(OC_UI_FLOAT_TARGET_X, 0);
+        oc_ui_attribute_f32(OC_UI_FLOAT_TARGET_Y, 0);
     }
     oc_ui_box_pop();
 
@@ -2838,11 +2784,11 @@ oc_ui_sig oc_ui_label_str8(oc_str8 key, oc_str8 label)
         oc_ui_tag("label");
         oc_ui_set_text(label);
 
-        oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_TEXT, 0, 0 });
-        oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_TEXT, 0, 0 });
-        oc_ui_style_set_str8(OC_UI_COLOR, OC_UI_THEME_TEXT_0);
-        oc_ui_style_set_str8(OC_UI_FONT, OC_UI_THEME_FONT_REGULAR);
-        oc_ui_style_set_str8(OC_UI_TEXT_SIZE, OC_UI_THEME_TEXT_SIZE_REGULAR);
+        oc_ui_attribute_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_TEXT, 0, 0 });
+        oc_ui_attribute_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_TEXT, 0, 0 });
+        oc_ui_attribute_variable_str8(OC_UI_COLOR, OC_UI_THEME_TEXT_0);
+        oc_ui_attribute_variable_str8(OC_UI_FONT, OC_UI_THEME_FONT_REGULAR);
+        oc_ui_attribute_variable_str8(OC_UI_TEXT_SIZE, OC_UI_THEME_TEXT_SIZE_REGULAR);
     }
 
     oc_ui_sig sig = oc_ui_box_sig(box);
@@ -2888,27 +2834,27 @@ oc_ui_sig oc_ui_button_str8(oc_str8 key, oc_str8 text)
         oc_ui_set_text(text);
         oc_ui_tag("button");
 
-        oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_TEXT });
-        oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_TEXT });
-        oc_ui_style_set_i32(OC_UI_ALIGN_X, OC_UI_ALIGN_CENTER);
-        oc_ui_style_set_i32(OC_UI_ALIGN_Y, OC_UI_ALIGN_CENTER);
-        oc_ui_style_set_str8(OC_UI_MARGIN_X, OC_UI_THEME_SPACING_TIGHT);
-        oc_ui_style_set_str8(OC_UI_MARGIN_Y, OC_UI_THEME_SPACING_EXTRA_TIGHT);
+        oc_ui_attribute_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_TEXT });
+        oc_ui_attribute_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_TEXT });
+        oc_ui_attribute_i32(OC_UI_ALIGN_X, OC_UI_ALIGN_CENTER);
+        oc_ui_attribute_i32(OC_UI_ALIGN_Y, OC_UI_ALIGN_CENTER);
+        oc_ui_attribute_variable_str8(OC_UI_MARGIN_X, OC_UI_THEME_SPACING_TIGHT);
+        oc_ui_attribute_variable_str8(OC_UI_MARGIN_Y, OC_UI_THEME_SPACING_EXTRA_TIGHT);
 
-        oc_ui_style_set_str8(OC_UI_COLOR, OC_UI_THEME_PRIMARY);
-        oc_ui_style_set_str8(OC_UI_FONT, OC_UI_THEME_FONT_REGULAR);
-        oc_ui_style_set_str8(OC_UI_TEXT_SIZE, OC_UI_THEME_TEXT_SIZE_REGULAR);
+        oc_ui_attribute_variable_str8(OC_UI_COLOR, OC_UI_THEME_PRIMARY);
+        oc_ui_attribute_variable_str8(OC_UI_FONT, OC_UI_THEME_FONT_REGULAR);
+        oc_ui_attribute_variable_str8(OC_UI_TEXT_SIZE, OC_UI_THEME_TEXT_SIZE_REGULAR);
 
-        oc_ui_style_set_str8(OC_UI_BG_COLOR, OC_UI_THEME_FILL_0);
-        oc_ui_style_set_str8(OC_UI_ROUNDNESS, OC_UI_THEME_ROUNDNESS_SMALL);
+        oc_ui_attribute_variable_str8(OC_UI_BG_COLOR, OC_UI_THEME_FILL_0);
+        oc_ui_attribute_variable_str8(OC_UI_ROUNDNESS, OC_UI_THEME_ROUNDNESS_SMALL);
 
         oc_ui_style_rule(".hover")
         {
-            oc_ui_style_set_str8(OC_UI_BG_COLOR, OC_UI_THEME_FILL_1);
+            oc_ui_attribute_variable_str8(OC_UI_BG_COLOR, OC_UI_THEME_FILL_1);
         }
         oc_ui_style_rule(".hover.active")
         {
-            oc_ui_style_set_str8(OC_UI_BG_COLOR, OC_UI_THEME_FILL_2);
+            oc_ui_attribute_variable_str8(OC_UI_BG_COLOR, OC_UI_THEME_FILL_2);
         }
     }
 
@@ -2929,20 +2875,20 @@ oc_ui_box* oc_ui_scrollbar_str8(oc_str8 name, oc_rect rect, f32 thumbRatio, f32*
 {
     oc_ui_box* track = oc_ui_box_str8(name)
     {
-        oc_ui_style_set_i32(OC_UI_FLOATING_X, 1);
-        oc_ui_style_set_i32(OC_UI_FLOATING_Y, 1);
-        oc_ui_style_set_f32(OC_UI_FLOAT_TARGET_X, rect.x);
-        oc_ui_style_set_f32(OC_UI_FLOAT_TARGET_Y, rect.y);
-        oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PIXELS, rect.w });
-        oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PIXELS, rect.h });
+        oc_ui_attribute_i32(OC_UI_FLOATING_X, 1);
+        oc_ui_attribute_i32(OC_UI_FLOATING_Y, 1);
+        oc_ui_attribute_f32(OC_UI_FLOAT_TARGET_X, rect.x);
+        oc_ui_attribute_f32(OC_UI_FLOAT_TARGET_Y, rect.y);
+        oc_ui_attribute_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PIXELS, rect.w });
+        oc_ui_attribute_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PIXELS, rect.h });
 
         if(horizontal)
         {
-            oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_X);
+            oc_ui_attribute_i32(OC_UI_AXIS, OC_UI_AXIS_X);
         }
         else
         {
-            oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_Y);
+            oc_ui_attribute_i32(OC_UI_AXIS, OC_UI_AXIS_Y);
         }
         oc_ui_axis trackAxis = horizontal ? OC_UI_AXIS_X : OC_UI_AXIS_Y;
         oc_ui_axis secondAxis = (trackAxis == OC_UI_AXIS_Y) ? OC_UI_AXIS_X : OC_UI_AXIS_Y;
@@ -2954,34 +2900,34 @@ oc_ui_box* oc_ui_scrollbar_str8(oc_str8 name, oc_rect rect, f32 thumbRatio, f32*
 
         oc_ui_box("before-spacer")
         {
-            oc_ui_style_set_size(OC_UI_WIDTH + trackAxis, (oc_ui_size){ OC_UI_SIZE_PARENT, beforeRatio });
-            oc_ui_style_set_size(OC_UI_WIDTH + secondAxis, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
+            oc_ui_attribute_size(OC_UI_WIDTH + trackAxis, (oc_ui_size){ OC_UI_SIZE_PARENT, beforeRatio });
+            oc_ui_attribute_size(OC_UI_WIDTH + secondAxis, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
         }
 
         oc_ui_box* thumb = oc_ui_box("thumb")
         {
-            oc_ui_style_set_size(OC_UI_WIDTH + trackAxis, (oc_ui_size){ OC_UI_SIZE_PARENT, thumbRatio });
-            oc_ui_style_set_size(OC_UI_WIDTH + secondAxis, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
+            oc_ui_attribute_size(OC_UI_WIDTH + trackAxis, (oc_ui_size){ OC_UI_SIZE_PARENT, thumbRatio });
+            oc_ui_attribute_size(OC_UI_WIDTH + secondAxis, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
 
             f32 roundness = 0.5 * rect.c[2 + secondAxis];
-            oc_ui_style_set_f32(OC_UI_ROUNDNESS, roundness);
+            oc_ui_attribute_f32(OC_UI_ROUNDNESS, roundness);
 
-            oc_ui_style_set_str8(OC_UI_BG_COLOR, OC_UI_THEME_FILL_2);
+            oc_ui_attribute_variable_str8(OC_UI_BG_COLOR, OC_UI_THEME_FILL_2);
 
             oc_ui_style_rule(".hover")
             {
-                oc_ui_style_set_str8(OC_UI_BG_COLOR, OC_UI_THEME_FILL_1);
+                oc_ui_attribute_variable_str8(OC_UI_BG_COLOR, OC_UI_THEME_FILL_1);
             }
             oc_ui_style_rule(".active")
             {
-                oc_ui_style_set_str8(OC_UI_BG_COLOR, OC_UI_THEME_FILL_1);
+                oc_ui_attribute_variable_str8(OC_UI_BG_COLOR, OC_UI_THEME_FILL_1);
             }
         }
 
         oc_ui_box("after-spacer")
         {
-            oc_ui_style_set_size(OC_UI_WIDTH + trackAxis, (oc_ui_size){ OC_UI_SIZE_PARENT, afterRatio });
-            oc_ui_style_set_size(OC_UI_WIDTH + secondAxis, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
+            oc_ui_attribute_size(OC_UI_WIDTH + trackAxis, (oc_ui_size){ OC_UI_SIZE_PARENT, afterRatio });
+            oc_ui_attribute_size(OC_UI_WIDTH + secondAxis, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
         }
 
         //NOTE: interaction
@@ -3076,7 +3022,7 @@ oc_ui_sig oc_ui_checkbox_str8(oc_str8 name, bool* checked)
                                      .color = theme->white,
                                      .roundness = theme->roundnessSmall };
 
-        oc_ui_style_mask defaultMask = OC_UI_MASK_SIZE_WIDTH
+        oc_ui_attribute_mask defaultMask = OC_UI_MASK_SIZE_WIDTH
                                      | OC_UI_MASK_SIZE_HEIGHT
                                      | OC_UI_MASK_BG_COLOR
                                      | OC_UI_MASK_COLOR
@@ -3119,7 +3065,7 @@ else
                                  .borderSize = 1,
                                  .roundness = theme->roundnessSmall };
 
-    oc_ui_style_mask defaultMask = OC_UI_MASK_SIZE_WIDTH
+    oc_ui_attribute_mask defaultMask = OC_UI_MASK_SIZE_WIDTH
                                  | OC_UI_MASK_SIZE_HEIGHT
                                  | OC_UI_MASK_BG_COLOR
                                  | OC_UI_MASK_BORDER_COLOR
@@ -3224,10 +3170,10 @@ oc_ui_box* oc_ui_slider_str8(oc_str8 name, f32* value)
         trackStyle.floatTarget.c[trackAxis] = 0;
         trackStyle.floatTarget.c[secondAxis] = (thumbSize - trackThickness) / 2;
 
-        oc_ui_style_mask styleMask = OC_UI_MASK_SIZE
+        oc_ui_attribute_mask styleMask = OC_UI_MASK_SIZE
                                    | OC_UI_MASK_BG_COLOR
                                    | OC_UI_MASK_ROUNDNESS;
-        oc_ui_style_mask styleFloatMask = styleMask | OC_UI_MASK_FLOAT;
+        oc_ui_attribute_mask styleFloatMask = styleMask | OC_UI_MASK_FLOAT;
 
         oc_ui_style_next(&trackStyle, styleFloatMask);
         oc_ui_box* track = oc_ui_box_make("track", OC_UI_FLAG_NONE);
@@ -3273,7 +3219,7 @@ oc_ui_box* oc_ui_slider_str8(oc_str8 name, f32* value)
                                    .borderColor = theme->sliderThumbBorder,
                                    .borderSize = 1,
                                    .roundness = thumbSize / 2 };
-        oc_ui_style_mask thumbMask = OC_UI_MASK_SIZE
+        oc_ui_attribute_mask thumbMask = OC_UI_MASK_SIZE
                                    | OC_UI_MASK_BG_COLOR
                                    | OC_UI_MASK_BORDER_COLOR
                                    | OC_UI_MASK_BORDER_SIZE
@@ -3400,7 +3346,7 @@ void oc_ui_tooltip_str8(oc_str8 label)
                                    .floating.y = true,
                                    .floatTarget = { 0, 5 },
                                    .bgColor = theme->palette->grey7 };
-        oc_ui_style_mask arrowMask = OC_UI_MASK_SIZE
+        oc_ui_attribute_mask arrowMask = OC_UI_MASK_SIZE
                                    | OC_UI_MASK_FLOAT
                                    | OC_UI_MASK_BG_COLOR;
         oc_ui_style_next(&arrowStyle, arrowMask);
@@ -3418,7 +3364,7 @@ void oc_ui_tooltip_str8(oc_str8 label)
                                       .bgColor = theme->palette->grey7,
                                       .color = theme->bg0,
                                       .roundness = theme->roundnessMedium };
-        oc_ui_style_mask contentsMask = OC_UI_MASK_SIZE
+        oc_ui_attribute_mask contentsMask = OC_UI_MASK_SIZE
                                       | OC_UI_MASK_LAYOUT_MARGINS
                                       | OC_UI_MASK_FLOAT
                                       | OC_UI_MASK_COLOR
@@ -3450,7 +3396,7 @@ void oc_ui_menu_bar_begin_str8(oc_str8 name)
         .size.height = { OC_UI_SIZE_CHILDREN },
         .layout.axis = OC_UI_AXIS_X,
     };
-    oc_ui_style_mask mask = OC_UI_MASK_SIZE
+    oc_ui_attribute_mask mask = OC_UI_MASK_SIZE
                           | OC_UI_MASK_LAYOUT_AXIS;
 
     oc_ui_style_next(&style, mask);
@@ -3525,7 +3471,7 @@ void oc_ui_menu_begin_str8(oc_str8 label)
                           .borderColor = theme->elevatedBorder,
                           .borderSize = 1 };
 
-    oc_ui_style_mask mask = OC_UI_MASK_SIZE
+    oc_ui_attribute_mask mask = OC_UI_MASK_SIZE
                           | OC_UI_MASK_FLOAT
                           | OC_UI_MASK_LAYOUT
                           | OC_UI_MASK_BG_COLOR
@@ -3955,7 +3901,7 @@ oc_ui_radio_group_info oc_ui_radio_group_str8(oc_str8 name, oc_ui_radio_group_in
                                       .size.height = { OC_UI_SIZE_PIXELS, 16 },
                                       .color = { 0, 0, 0, 0 },
                                       .roundness = 8 };
-            oc_ui_style_mask baseMask = OC_UI_MASK_SIZE
+            oc_ui_attribute_mask baseMask = OC_UI_MASK_SIZE
                                       | OC_UI_MASK_ROUNDNESS
                                       | OC_UI_MASK_COLOR;
             oc_ui_style_box_before(radio, oc_ui_pattern_owner(), &baseStyle, baseMask);
@@ -3965,7 +3911,7 @@ oc_ui_radio_group_info oc_ui_radio_group_str8(oc_str8 name, oc_ui_radio_group_in
             oc_ui_pattern_push(&ui->frameArena, &defaultPattern, (oc_ui_selector){ .kind = OC_UI_SEL_TAG, .tag = defaultTag });
             oc_ui_style defaultStyle = { .borderColor = theme->text3,
                                          .borderSize = 1 };
-            oc_ui_style_mask defaultMask = OC_UI_MASK_BORDER_COLOR
+            oc_ui_attribute_mask defaultMask = OC_UI_MASK_BORDER_COLOR
                                          | OC_UI_MASK_BORDER_SIZE;
             oc_ui_style_box_before(radio, defaultPattern, &defaultStyle, defaultMask);
 
@@ -3974,7 +3920,7 @@ oc_ui_radio_group_info oc_ui_radio_group_str8(oc_str8 name, oc_ui_radio_group_in
             oc_ui_pattern_push(&ui->frameArena, &hotPattern, (oc_ui_selector){ .op = OC_UI_SEL_AND, .kind = OC_UI_SEL_STATUS, .status = OC_UI_HOT });
             oc_ui_style hotStyle = { .bgColor = theme->fill0,
                                      .borderColor = theme->primary };
-            oc_ui_style_mask hotMask = OC_UI_MASK_BG_COLOR
+            oc_ui_attribute_mask hotMask = OC_UI_MASK_BG_COLOR
                                      | OC_UI_MASK_BORDER_COLOR;
             oc_ui_style_box_after(radio, hotPattern, &hotStyle, hotMask);
 
@@ -3983,7 +3929,7 @@ oc_ui_radio_group_info oc_ui_radio_group_str8(oc_str8 name, oc_ui_radio_group_in
             oc_ui_pattern_push(&ui->frameArena, &activePattern, (oc_ui_selector){ .op = OC_UI_SEL_AND, .kind = OC_UI_SEL_STATUS, .status = OC_UI_ACTIVE });
             oc_ui_style activeStyle = { .bgColor = theme->fill1,
                                         .borderColor = theme->primary };
-            oc_ui_style_mask activeMask = OC_UI_MASK_BG_COLOR
+            oc_ui_attribute_mask activeMask = OC_UI_MASK_BG_COLOR
                                         | OC_UI_MASK_BORDER_COLOR;
             oc_ui_style_box_after(radio, activePattern, &activeStyle, activeMask);
 
@@ -3992,7 +3938,7 @@ oc_ui_radio_group_info oc_ui_radio_group_str8(oc_str8 name, oc_ui_radio_group_in
             oc_ui_pattern_push(&ui->frameArena, &selectedPattern, (oc_ui_selector){ .kind = OC_UI_SEL_TAG, .tag = selectedTag });
             oc_ui_style selectedStyle = { .color = theme->palette->white,
                                           .bgColor = theme->primary };
-            oc_ui_style_mask selectedMask = OC_UI_MASK_COLOR
+            oc_ui_attribute_mask selectedMask = OC_UI_MASK_COLOR
                                           | OC_UI_MASK_BG_COLOR;
             oc_ui_style_box_before(radio, selectedPattern, &selectedStyle, selectedMask);
 
@@ -4818,7 +4764,7 @@ oc_ui_text_box_result oc_ui_text_box_str8(oc_str8 name, oc_arena* arena, oc_str8
                                .layout.margin.y = 6,
                                .bgColor = theme->fill0,
                                .roundness = theme->roundnessSmall };
-    oc_ui_style_mask frameMask = OC_UI_MASK_LAYOUT_MARGIN_X
+    oc_ui_attribute_mask frameMask = OC_UI_MASK_LAYOUT_MARGIN_X
                                | OC_UI_MASK_LAYOUT_MARGIN_Y
                                | OC_UI_MASK_BG_COLOR
                                | OC_UI_MASK_ROUNDNESS;
