@@ -391,16 +391,16 @@ void oc_ui_style_rule_end()
 
 //[WIP] ///////////////////////////////////////////////////////////
 
-oc_ui_attribute_mask oc_ui_attribute_to_mask(oc_ui_attribute attr)
+oc_ui_attr_mask oc_ui_attr_to_mask(oc_ui_attr attr)
 {
     //NOTE: for now we have a one to one correspondance between attr and mask,
     //      be in the future we may have combined attr (eg. OC_UI_STYLE_MARGINS to set both margins, etc)
 
-    oc_ui_attribute_mask mask = 1 << attr;
+    oc_ui_attr_mask mask = 1 << attr;
     return mask;
 }
 
-void oc_ui_attribute_i32(oc_ui_attribute attr, i32 i)
+void oc_ui_style_set_i32(oc_ui_attr attr, i32 i)
 {
     oc_ui_context* ui = oc_ui_get_context();
     oc_ui_style* style = 0;
@@ -474,11 +474,11 @@ void oc_ui_attribute_i32(oc_ui_attribute attr, i32 i)
 
     if(ui->workingRule)
     {
-        ui->workingRule->mask |= oc_ui_attribute_to_mask(attr);
+        ui->workingRule->mask |= oc_ui_attr_to_mask(attr);
     }
 }
 
-void oc_ui_attribute_f32(oc_ui_attribute attr, f32 f)
+void oc_ui_style_set_f32(oc_ui_attr attr, f32 f)
 {
     oc_ui_context* ui = oc_ui_get_context();
     oc_ui_style* style = 0;
@@ -544,11 +544,11 @@ void oc_ui_attribute_f32(oc_ui_attribute attr, f32 f)
 
     if(ui->workingRule)
     {
-        ui->workingRule->mask |= oc_ui_attribute_to_mask(attr);
+        ui->workingRule->mask |= oc_ui_attr_to_mask(attr);
     }
 }
 
-void oc_ui_attribute_color(oc_ui_attribute attr, oc_color color)
+void oc_ui_style_set_color(oc_ui_attr attr, oc_color color)
 {
     oc_ui_context* ui = oc_ui_get_context();
     oc_ui_style* style = 0;
@@ -589,11 +589,11 @@ void oc_ui_attribute_color(oc_ui_attribute attr, oc_color color)
 
     if(ui->workingRule)
     {
-        ui->workingRule->mask |= oc_ui_attribute_to_mask(attr);
+        ui->workingRule->mask |= oc_ui_attr_to_mask(attr);
     }
 }
 
-void oc_ui_attribute_font(oc_ui_attribute attr, oc_font font)
+void oc_ui_style_set_font(oc_ui_attr attr, oc_font font)
 {
     oc_ui_context* ui = oc_ui_get_context();
     oc_ui_style* style = 0;
@@ -624,11 +624,11 @@ void oc_ui_attribute_font(oc_ui_attribute attr, oc_font font)
 
     if(ui->workingRule)
     {
-        ui->workingRule->mask |= oc_ui_attribute_to_mask(attr);
+        ui->workingRule->mask |= oc_ui_attr_to_mask(attr);
     }
 }
 
-void oc_ui_attribute_size(oc_ui_attribute attr, oc_ui_size size)
+void oc_ui_style_set_size(oc_ui_attr attr, oc_ui_size size)
 {
     oc_ui_context* ui = oc_ui_get_context();
     oc_ui_style* style = 0;
@@ -665,7 +665,7 @@ void oc_ui_attribute_size(oc_ui_attribute attr, oc_ui_size size)
 
     if(ui->workingRule)
     {
-        ui->workingRule->mask |= oc_ui_attribute_to_mask(attr);
+        ui->workingRule->mask |= oc_ui_attr_to_mask(attr);
     }
 }
 
@@ -1060,7 +1060,7 @@ oc_font oc_ui_var_get_font(const char* name)
 }
 
 //NOTE: setting a style attribute from a variable
-void oc_ui_attribute_variable_str8(oc_ui_attribute attr, oc_str8 name)
+void oc_ui_style_set_var_str8(oc_ui_attr attr, oc_str8 name)
 {
     oc_ui_value value = { 0 };
     oc_ui_var* var = oc_ui_var_find(name);
@@ -1113,7 +1113,7 @@ void oc_ui_attribute_variable_str8(oc_ui_attribute attr, oc_str8 name)
                 value.kind = OC_UI_VAR_FONT;
                 break;
 
-            case OC_UI_ATTRIBUTE_COUNT:
+            case OC_UI_ATTR_COUNT:
                 OC_ASSERT(0, "unreachable");
                 break;
         }
@@ -1121,26 +1121,26 @@ void oc_ui_attribute_variable_str8(oc_ui_attribute attr, oc_str8 name)
     switch(value.kind)
     {
         case OC_UI_VAR_I32:
-            oc_ui_attribute_i32(attr, value.i);
+            oc_ui_style_set_i32(attr, value.i);
             break;
         case OC_UI_VAR_F32:
-            oc_ui_attribute_f32(attr, value.f);
+            oc_ui_style_set_f32(attr, value.f);
             break;
         case OC_UI_VAR_SIZE:
-            oc_ui_attribute_size(attr, value.size);
+            oc_ui_style_set_size(attr, value.size);
             break;
         case OC_UI_VAR_COLOR:
-            oc_ui_attribute_color(attr, value.color);
+            oc_ui_style_set_color(attr, value.color);
             break;
         case OC_UI_VAR_FONT:
-            oc_ui_attribute_font(attr, value.font);
+            oc_ui_style_set_font(attr, value.font);
             break;
     }
 }
 
-void oc_ui_attribute_variable(oc_ui_attribute attr, const char* name)
+void oc_ui_style_set_var(oc_ui_attr attr, const char* name)
 {
-    oc_ui_attribute_variable_str8(attr, OC_STR8(name));
+    oc_ui_style_set_var_str8(attr, OC_STR8(name));
 }
 
 // Themes
@@ -1176,10 +1176,6 @@ void oc_ui_style_theme_light()
     oc_ui_var_set_f32_str8(OC_UI_THEME_ROUNDNESS_SMALL, 3);
     oc_ui_var_set_f32_str8(OC_UI_THEME_ROUNDNESS_REGULAR, 6);
     oc_ui_var_set_f32_str8(OC_UI_THEME_ROUNDNESS_LARGE, 12);
-
-    oc_ui_var_set_f32_str8(OC_UI_THEME_CONTROL_HEIGHT_SMALL, 24);
-    oc_ui_var_set_f32_str8(OC_UI_THEME_CONTROL_HEIGHT_DEFAULT, 32);
-    oc_ui_var_set_f32_str8(OC_UI_THEME_CONTROL_HEIGHT_LARGE, 40);
 
     oc_ui_var_set_f32_str8(OC_UI_THEME_SPACING_EXTRA_TIGHT, 4);
     oc_ui_var_set_f32_str8(OC_UI_THEME_SPACING_TIGHT, 8);
@@ -1228,10 +1224,6 @@ void oc_ui_style_theme_dark()
     oc_ui_var_set_f32_str8(OC_UI_THEME_ROUNDNESS_SMALL, 3);
     oc_ui_var_set_f32_str8(OC_UI_THEME_ROUNDNESS_REGULAR, 6);
     oc_ui_var_set_f32_str8(OC_UI_THEME_ROUNDNESS_LARGE, 12);
-
-    oc_ui_var_set_f32_str8(OC_UI_THEME_CONTROL_HEIGHT_SMALL, 24);
-    oc_ui_var_set_f32_str8(OC_UI_THEME_CONTROL_HEIGHT_DEFAULT, 32);
-    oc_ui_var_set_f32_str8(OC_UI_THEME_CONTROL_HEIGHT_LARGE, 40);
 
     oc_ui_var_set_f32_str8(OC_UI_THEME_SPACING_EXTRA_TIGHT, 4);
     oc_ui_var_set_f32_str8(OC_UI_THEME_SPACING_TIGHT, 8);
@@ -1646,7 +1638,7 @@ void oc_ui_box_animate_style(oc_ui_context* ui, oc_ui_box* box)
     f32 animationTime = targetStyle->animationTime;
 
     //NOTE: interpolate based on transition values
-    oc_ui_attribute_mask mask = box->targetStyle->animationMask;
+    oc_ui_attr_mask mask = box->targetStyle->animationMask;
 
     if(box->fresh)
     {
@@ -1735,12 +1727,12 @@ void oc_ui_box_animate_style(oc_ui_context* ui, oc_ui_box* box)
     }
 }
 
-bool oc_ui_style_apply_check(oc_ui_attribute attr,
-                             oc_ui_attribute_mask mask,
+bool oc_ui_style_apply_check(oc_ui_attr attr,
+                             oc_ui_attr_mask mask,
                              oc_ui_pattern_specificity specificity,
                              oc_ui_pattern_specificity* specArray)
 {
-    bool result = (mask & oc_ui_attribute_to_mask(attr))
+    bool result = (mask & oc_ui_attr_to_mask(attr))
                && (specificity.id >= specArray[attr].id
                    || (specificity.id == specArray[attr].id && specificity.tag >= specArray[attr].tag));
     if(result)
@@ -1752,7 +1744,7 @@ bool oc_ui_style_apply_check(oc_ui_attribute attr,
 
 void oc_ui_style_apply(oc_ui_style* dst,
                        oc_ui_style* src,
-                       oc_ui_attribute_mask mask,
+                       oc_ui_attr_mask mask,
                        oc_ui_pattern_specificity specificity,
                        oc_ui_pattern_specificity* specArray)
 {
@@ -1968,8 +1960,8 @@ void oc_ui_styling_prepass(oc_ui_context* ui, oc_ui_box* box, oc_list* ruleset)
 
     oc_arena_scope scratch = oc_scratch_begin();
 
-    oc_ui_pattern_specificity* specArray = oc_arena_push_array(scratch.arena, oc_ui_pattern_specificity, OC_UI_ATTRIBUTE_COUNT);
-    memset(specArray, 0, sizeof(oc_ui_pattern_specificity) * OC_UI_ATTRIBUTE_COUNT);
+    oc_ui_pattern_specificity* specArray = oc_arena_push_array(scratch.arena, oc_ui_pattern_specificity, OC_UI_ATTR_COUNT);
+    memset(specArray, 0, sizeof(oc_ui_pattern_specificity) * OC_UI_ATTR_COUNT);
 
     oc_list derivedRules = { 0 };
     oc_list_for(*ruleset, rule, oc_ui_style_rule, rulesetElt)
@@ -2684,21 +2676,21 @@ void oc_ui_begin_frame(oc_vec2 size)
 
     oc_ui_style_theme_dark();
 
-    oc_ui_attribute_variable_str8(OC_UI_BG_COLOR, OC_UI_THEME_BG_0);
-    oc_ui_attribute_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PIXELS, size.x });
-    oc_ui_attribute_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PIXELS, size.y });
+    oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_BG_0);
+    oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PIXELS, size.x });
+    oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PIXELS, size.y });
 
     oc_ui_box* contents = oc_ui_box_begin("_contents_");
 
-    oc_ui_attribute_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
-    oc_ui_attribute_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
-    oc_ui_attribute_i32(OC_UI_AXIS, OC_UI_AXIS_Y);
-    oc_ui_attribute_i32(OC_UI_ALIGN_X, OC_UI_ALIGN_START);
-    oc_ui_attribute_i32(OC_UI_ALIGN_Y, OC_UI_ALIGN_START);
-    oc_ui_attribute_i32(OC_UI_FLOATING_X, 1);
-    oc_ui_attribute_i32(OC_UI_FLOATING_Y, 1);
-    oc_ui_attribute_f32(OC_UI_FLOAT_TARGET_X, 0);
-    oc_ui_attribute_f32(OC_UI_FLOAT_TARGET_Y, 0);
+    oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
+    oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
+    oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_Y);
+    oc_ui_style_set_i32(OC_UI_ALIGN_X, OC_UI_ALIGN_START);
+    oc_ui_style_set_i32(OC_UI_ALIGN_Y, OC_UI_ALIGN_START);
+    oc_ui_style_set_i32(OC_UI_FLOATING_X, 1);
+    oc_ui_style_set_i32(OC_UI_FLOATING_Y, 1);
+    oc_ui_style_set_f32(OC_UI_FLOAT_TARGET_X, 0);
+    oc_ui_style_set_f32(OC_UI_FLOAT_TARGET_Y, 0);
 }
 
 void oc_ui_end_frame(void)
@@ -2708,15 +2700,17 @@ void oc_ui_end_frame(void)
     ui->overlay = oc_ui_box_make("_overlay_");
     oc_ui_box_push(ui->overlay);
     {
-        oc_ui_attribute_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
-        oc_ui_attribute_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
-        oc_ui_attribute_i32(OC_UI_AXIS, OC_UI_AXIS_Y);
-        oc_ui_attribute_i32(OC_UI_ALIGN_X, OC_UI_ALIGN_START);
-        oc_ui_attribute_i32(OC_UI_ALIGN_Y, OC_UI_ALIGN_START);
-        oc_ui_attribute_i32(OC_UI_FLOATING_X, 1);
-        oc_ui_attribute_i32(OC_UI_FLOATING_Y, 1);
-        oc_ui_attribute_f32(OC_UI_FLOAT_TARGET_X, 0);
-        oc_ui_attribute_f32(OC_UI_FLOAT_TARGET_Y, 0);
+        oc_ui_style_set_i32(OC_UI_CLICK_THROUGH, 1);
+
+        oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
+        oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
+        oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_Y);
+        oc_ui_style_set_i32(OC_UI_ALIGN_X, OC_UI_ALIGN_START);
+        oc_ui_style_set_i32(OC_UI_ALIGN_Y, OC_UI_ALIGN_START);
+        oc_ui_style_set_i32(OC_UI_FLOATING_X, 1);
+        oc_ui_style_set_i32(OC_UI_FLOATING_Y, 1);
+        oc_ui_style_set_f32(OC_UI_FLOAT_TARGET_X, 0);
+        oc_ui_style_set_f32(OC_UI_FLOAT_TARGET_Y, 0);
     }
     oc_ui_box_pop();
 
@@ -2784,11 +2778,11 @@ oc_ui_sig oc_ui_label_str8(oc_str8 key, oc_str8 label)
         oc_ui_tag("label");
         oc_ui_set_text(label);
 
-        oc_ui_attribute_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_TEXT, 0, 0 });
-        oc_ui_attribute_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_TEXT, 0, 0 });
-        oc_ui_attribute_variable_str8(OC_UI_COLOR, OC_UI_THEME_TEXT_0);
-        oc_ui_attribute_variable_str8(OC_UI_FONT, OC_UI_THEME_FONT_REGULAR);
-        oc_ui_attribute_variable_str8(OC_UI_TEXT_SIZE, OC_UI_THEME_TEXT_SIZE_REGULAR);
+        oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_TEXT, 0, 0 });
+        oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_TEXT, 0, 0 });
+        oc_ui_style_set_var_str8(OC_UI_COLOR, OC_UI_THEME_TEXT_0);
+        oc_ui_style_set_var_str8(OC_UI_FONT, OC_UI_THEME_FONT_REGULAR);
+        oc_ui_style_set_var_str8(OC_UI_TEXT_SIZE, OC_UI_THEME_TEXT_SIZE_REGULAR);
     }
 
     oc_ui_sig sig = oc_ui_box_sig(box);
@@ -2834,27 +2828,27 @@ oc_ui_sig oc_ui_button_str8(oc_str8 key, oc_str8 text)
         oc_ui_set_text(text);
         oc_ui_tag("button");
 
-        oc_ui_attribute_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_TEXT });
-        oc_ui_attribute_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_TEXT });
-        oc_ui_attribute_i32(OC_UI_ALIGN_X, OC_UI_ALIGN_CENTER);
-        oc_ui_attribute_i32(OC_UI_ALIGN_Y, OC_UI_ALIGN_CENTER);
-        oc_ui_attribute_variable_str8(OC_UI_MARGIN_X, OC_UI_THEME_SPACING_TIGHT);
-        oc_ui_attribute_variable_str8(OC_UI_MARGIN_Y, OC_UI_THEME_SPACING_EXTRA_TIGHT);
+        oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_TEXT });
+        oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_TEXT });
+        oc_ui_style_set_i32(OC_UI_ALIGN_X, OC_UI_ALIGN_CENTER);
+        oc_ui_style_set_i32(OC_UI_ALIGN_Y, OC_UI_ALIGN_CENTER);
+        oc_ui_style_set_var_str8(OC_UI_MARGIN_X, OC_UI_THEME_SPACING_TIGHT);
+        oc_ui_style_set_var_str8(OC_UI_MARGIN_Y, OC_UI_THEME_SPACING_EXTRA_TIGHT);
 
-        oc_ui_attribute_variable_str8(OC_UI_COLOR, OC_UI_THEME_PRIMARY);
-        oc_ui_attribute_variable_str8(OC_UI_FONT, OC_UI_THEME_FONT_REGULAR);
-        oc_ui_attribute_variable_str8(OC_UI_TEXT_SIZE, OC_UI_THEME_TEXT_SIZE_REGULAR);
+        oc_ui_style_set_var_str8(OC_UI_COLOR, OC_UI_THEME_PRIMARY);
+        oc_ui_style_set_var_str8(OC_UI_FONT, OC_UI_THEME_FONT_REGULAR);
+        oc_ui_style_set_var_str8(OC_UI_TEXT_SIZE, OC_UI_THEME_TEXT_SIZE_REGULAR);
 
-        oc_ui_attribute_variable_str8(OC_UI_BG_COLOR, OC_UI_THEME_FILL_0);
-        oc_ui_attribute_variable_str8(OC_UI_ROUNDNESS, OC_UI_THEME_ROUNDNESS_SMALL);
+        oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_FILL_0);
+        oc_ui_style_set_var_str8(OC_UI_ROUNDNESS, OC_UI_THEME_ROUNDNESS_SMALL);
 
         oc_ui_style_rule(".hover")
         {
-            oc_ui_attribute_variable_str8(OC_UI_BG_COLOR, OC_UI_THEME_FILL_1);
+            oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_FILL_1);
         }
         oc_ui_style_rule(".hover.active")
         {
-            oc_ui_attribute_variable_str8(OC_UI_BG_COLOR, OC_UI_THEME_FILL_2);
+            oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_FILL_2);
         }
     }
 
@@ -2875,20 +2869,20 @@ oc_ui_box* oc_ui_scrollbar_str8(oc_str8 name, oc_rect rect, f32 thumbRatio, f32*
 {
     oc_ui_box* track = oc_ui_box_str8(name)
     {
-        oc_ui_attribute_i32(OC_UI_FLOATING_X, 1);
-        oc_ui_attribute_i32(OC_UI_FLOATING_Y, 1);
-        oc_ui_attribute_f32(OC_UI_FLOAT_TARGET_X, rect.x);
-        oc_ui_attribute_f32(OC_UI_FLOAT_TARGET_Y, rect.y);
-        oc_ui_attribute_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PIXELS, rect.w });
-        oc_ui_attribute_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PIXELS, rect.h });
+        oc_ui_style_set_i32(OC_UI_FLOATING_X, 1);
+        oc_ui_style_set_i32(OC_UI_FLOATING_Y, 1);
+        oc_ui_style_set_f32(OC_UI_FLOAT_TARGET_X, rect.x);
+        oc_ui_style_set_f32(OC_UI_FLOAT_TARGET_Y, rect.y);
+        oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PIXELS, rect.w });
+        oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PIXELS, rect.h });
 
         if(horizontal)
         {
-            oc_ui_attribute_i32(OC_UI_AXIS, OC_UI_AXIS_X);
+            oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_X);
         }
         else
         {
-            oc_ui_attribute_i32(OC_UI_AXIS, OC_UI_AXIS_Y);
+            oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_Y);
         }
         oc_ui_axis trackAxis = horizontal ? OC_UI_AXIS_X : OC_UI_AXIS_Y;
         oc_ui_axis secondAxis = (trackAxis == OC_UI_AXIS_Y) ? OC_UI_AXIS_X : OC_UI_AXIS_Y;
@@ -2900,34 +2894,34 @@ oc_ui_box* oc_ui_scrollbar_str8(oc_str8 name, oc_rect rect, f32 thumbRatio, f32*
 
         oc_ui_box("before-spacer")
         {
-            oc_ui_attribute_size(OC_UI_WIDTH + trackAxis, (oc_ui_size){ OC_UI_SIZE_PARENT, beforeRatio });
-            oc_ui_attribute_size(OC_UI_WIDTH + secondAxis, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
+            oc_ui_style_set_size(OC_UI_WIDTH + trackAxis, (oc_ui_size){ OC_UI_SIZE_PARENT, beforeRatio });
+            oc_ui_style_set_size(OC_UI_WIDTH + secondAxis, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
         }
 
         oc_ui_box* thumb = oc_ui_box("thumb")
         {
-            oc_ui_attribute_size(OC_UI_WIDTH + trackAxis, (oc_ui_size){ OC_UI_SIZE_PARENT, thumbRatio });
-            oc_ui_attribute_size(OC_UI_WIDTH + secondAxis, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
+            oc_ui_style_set_size(OC_UI_WIDTH + trackAxis, (oc_ui_size){ OC_UI_SIZE_PARENT, thumbRatio });
+            oc_ui_style_set_size(OC_UI_WIDTH + secondAxis, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
 
             f32 roundness = 0.5 * rect.c[2 + secondAxis];
-            oc_ui_attribute_f32(OC_UI_ROUNDNESS, roundness);
+            oc_ui_style_set_f32(OC_UI_ROUNDNESS, roundness);
 
-            oc_ui_attribute_variable_str8(OC_UI_BG_COLOR, OC_UI_THEME_FILL_2);
+            oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_FILL_2);
 
             oc_ui_style_rule(".hover")
             {
-                oc_ui_attribute_variable_str8(OC_UI_BG_COLOR, OC_UI_THEME_FILL_1);
+                oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_FILL_1);
             }
             oc_ui_style_rule(".active")
             {
-                oc_ui_attribute_variable_str8(OC_UI_BG_COLOR, OC_UI_THEME_FILL_1);
+                oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_FILL_1);
             }
         }
 
         oc_ui_box("after-spacer")
         {
-            oc_ui_attribute_size(OC_UI_WIDTH + trackAxis, (oc_ui_size){ OC_UI_SIZE_PARENT, afterRatio });
-            oc_ui_attribute_size(OC_UI_WIDTH + secondAxis, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
+            oc_ui_style_set_size(OC_UI_WIDTH + trackAxis, (oc_ui_size){ OC_UI_SIZE_PARENT, afterRatio });
+            oc_ui_style_set_size(OC_UI_WIDTH + secondAxis, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
         }
 
         //NOTE: interaction
@@ -2980,8 +2974,9 @@ oc_ui_box* oc_ui_scrollbar(const char* name, oc_rect rect, f32 thumbRatio, f32* 
     return oc_ui_scrollbar_str8(OC_STR8(name), rect, thumbRatio, scrollValue, horizontal);
 }
 
-#if 0
-
+//-----------------------------------------------------------
+// checkbox
+//-----------------------------------------------------------
 void oc_ui_checkbox_draw(oc_ui_box* box, void* data)
 {
     oc_mat2x3 matrix = {
@@ -3010,106 +3005,55 @@ void oc_ui_checkbox_draw(oc_ui_box* box, void* data)
 
 oc_ui_sig oc_ui_checkbox_str8(oc_str8 name, bool* checked)
 {
-    oc_ui_context* ui = oc_ui_get_context();
-    oc_ui_theme* theme = ui->theme;
-
-    oc_ui_box* box;
-    if(*checked)
+    oc_ui_box* box = oc_ui_box_str8(name)
     {
-        oc_ui_style defaultStyle = { .size.width = { OC_UI_SIZE_PIXELS, 16 },
-                                     .size.height = { OC_UI_SIZE_PIXELS, 16 },
-                                     .bgColor = theme->primary,
-                                     .color = theme->white,
-                                     .roundness = theme->roundnessSmall };
+        oc_ui_tag("checkbox");
 
-        oc_ui_attribute_mask defaultMask = OC_UI_MASK_SIZE_WIDTH
-                                     | OC_UI_MASK_SIZE_HEIGHT
-                                     | OC_UI_MASK_BG_COLOR
-                                     | OC_UI_MASK_COLOR
-                                     | OC_UI_MASK_ROUNDNESS;
+        oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PIXELS, 16 });
+        oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PIXELS, 16 });
+        oc_ui_style_set_var_str8(OC_UI_ROUNDNESS, OC_UI_THEME_ROUNDNESS_SMALL);
 
-        oc_ui_style_next(&defaultStyle, defaultMask);
+        if(*checked)
+        {
+            oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_PRIMARY);
+            oc_ui_style_set_color(OC_UI_COLOR, (oc_color){ 1, 1, 1, 1 });
 
-        oc_ui_pattern hoverPattern = { 0 };
-        oc_ui_pattern_push(&ui->frameArena, &hoverPattern, (oc_ui_selector){ .kind = OC_UI_SEL_STATUS, .status = OC_UI_HOVER });
-        oc_ui_style hoverStyle = { .bgColor = theme->primaryHover };
-        oc_ui_style_match_before(hoverPattern, &hoverStyle, OC_UI_MASK_BG_COLOR);
-        /*
-        oc_ui_pattern activePattern = { 0 };
-        oc_ui_pattern_push(&ui->frameArena, &activePattern, (oc_ui_selector){ .kind = OC_UI_SEL_STATUS, .status = OC_UI_ACTIVE });
-        oc_ui_style activeStyle = { .bgColor = theme->primaryHover };
-        oc_ui_style_match_before(activePattern, &activeStyle, OC_UI_MASK_BG_COLOR);
-*/
-oc_ui_pattern activeAndHoverPattern = { 0 };
-oc_ui_pattern_push(&ui->frameArena, &activeAndHoverPattern, (oc_ui_selector){ .kind = OC_UI_SEL_STATUS, .status = OC_UI_ACTIVE });
-oc_ui_pattern_push(&ui->frameArena, &activeAndHoverPattern, (oc_ui_selector){ .op = OC_UI_SEL_AND, .kind = OC_UI_SEL_STATUS, .status = OC_UI_HOVER });
-oc_ui_style activeAndHoverStyle = { .bgColor = theme->primaryActive };
-oc_ui_style_match_before(activeAndHoverPattern, &activeAndHoverStyle, OC_UI_MASK_BG_COLOR);
+            oc_ui_style_rule(".hover")
+            {
+                oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_PRIMARY_HOVER);
+            }
+            oc_ui_style_rule(".hover.active")
+            {
+                oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_PRIMARY_ACTIVE);
+            }
+        }
+        else
+        {
+            oc_ui_style_set_var_str8(OC_UI_BORDER_COLOR, OC_UI_THEME_TEXT_3);
+            oc_ui_style_set_f32(OC_UI_BORDER_SIZE, 1.);
 
-oc_ui_flags flags = OC_UI_FLAG_CLICKABLE
-                  | OC_UI_FLAG_CLIP
-                  | OC_UI_FLAG_HOT_ANIMATION
-                  | OC_UI_FLAG_ACTIVE_ANIMATION;
+            oc_ui_style_rule(".hover")
+            {
+                oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_FILL_0);
+                oc_ui_style_set_var_str8(OC_UI_BORDER_COLOR, OC_UI_THEME_PRIMARY);
+            }
+            oc_ui_style_rule(".hover.active")
+            {
+                oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_FILL_1);
+                oc_ui_style_set_var_str8(OC_UI_BORDER_COLOR, OC_UI_THEME_PRIMARY);
+            }
+        }
 
-box = oc_ui_box_make_str8(name, flags);
-oc_ui_tag_box(box, "checkbox");
+        oc_ui_box_set_draw_proc(box, oc_ui_checkbox_draw, 0);
+    }
 
-oc_ui_box_set_draw_proc(box, oc_ui_checkbox_draw, 0);
-}
-else
-{
-    oc_ui_style defaultStyle = { .size.width = { OC_UI_SIZE_PIXELS, 16 },
-                                 .size.height = { OC_UI_SIZE_PIXELS, 16 },
-                                 .bgColor = { 0 },
-                                 .borderColor = theme->text3,
-                                 .borderSize = 1,
-                                 .roundness = theme->roundnessSmall };
+    oc_ui_sig sig = oc_ui_button_behavior(box);
+    if(sig.clicked)
+    {
+        *checked = !*checked;
+    }
 
-    oc_ui_attribute_mask defaultMask = OC_UI_MASK_SIZE_WIDTH
-                                 | OC_UI_MASK_SIZE_HEIGHT
-                                 | OC_UI_MASK_BG_COLOR
-                                 | OC_UI_MASK_BORDER_COLOR
-                                 | OC_UI_MASK_BORDER_SIZE
-                                 | OC_UI_MASK_ROUNDNESS;
-
-    oc_ui_style_next(&defaultStyle, defaultMask);
-
-    oc_ui_pattern hoverPattern = { 0 };
-    oc_ui_pattern_push(&ui->frameArena, &hoverPattern, (oc_ui_selector){ .kind = OC_UI_SEL_STATUS, .status = OC_UI_HOVER });
-    oc_ui_style hoverStyle = { .bgColor = theme->fill0,
-                               .borderColor = theme->primary };
-    oc_ui_style_match_before(hoverPattern, &hoverStyle, OC_UI_MASK_BG_COLOR | OC_UI_MASK_BORDER_COLOR);
-
-    /*
-        oc_ui_pattern activePattern = { 0 };
-        oc_ui_pattern_push(&ui->frameArena, &activePattern, (oc_ui_selector){ .kind = OC_UI_SEL_STATUS, .status = OC_UI_ACTIVE });
-        oc_ui_style activeStyle = { .bgColor = theme->fill0,
-                                    .borderColor = theme->primary };
-        oc_ui_style_match_before(activePattern, &activeStyle, OC_UI_MASK_BG_COLOR | OC_UI_MASK_BORDER_COLOR);
-*/
-    oc_ui_pattern activeAndHoverPattern = { 0 };
-    oc_ui_pattern_push(&ui->frameArena, &activeAndHoverPattern, (oc_ui_selector){ .kind = OC_UI_SEL_STATUS, .status = OC_UI_ACTIVE });
-    oc_ui_pattern_push(&ui->frameArena, &activeAndHoverPattern, (oc_ui_selector){ .op = OC_UI_SEL_AND, .kind = OC_UI_SEL_STATUS, .status = OC_UI_HOVER });
-    oc_ui_style activeAndHoverStyle = { .bgColor = theme->fill1,
-                                        .borderColor = theme->primary };
-    oc_ui_style_match_before(activeAndHoverPattern, &activeAndHoverStyle, OC_UI_MASK_BG_COLOR);
-
-    oc_ui_flags flags = OC_UI_FLAG_CLICKABLE
-                      | OC_UI_FLAG_CLIP
-                      | OC_UI_FLAG_HOT_ANIMATION
-                      | OC_UI_FLAG_ACTIVE_ANIMATION;
-
-    box = oc_ui_box_make_str8(name, flags);
-    oc_ui_tag_box(box, "checkbox");
-}
-
-oc_ui_sig sig = oc_ui_button_behavior(box);
-if(sig.clicked)
-{
-    *checked = !*checked;
-}
-
-return (sig);
+    return (sig);
 }
 
 oc_ui_sig oc_ui_checkbox(const char* name, bool* checked)
@@ -3118,18 +3062,21 @@ oc_ui_sig oc_ui_checkbox(const char* name, bool* checked)
 }
 
 //------------------------------------------------------------------------------
-// slider / scrollbar
+// slider
 //------------------------------------------------------------------------------
 oc_ui_box* oc_ui_slider_str8(oc_str8 name, f32* value)
 {
-    oc_ui_context* ui = oc_ui_get_context();
-    oc_ui_theme* theme = ui->theme;
-
-    oc_ui_style_match_before(oc_ui_pattern_all(), &(oc_ui_style){ 0 }, OC_UI_MASK_LAYOUT);
-    oc_ui_box* frame = oc_ui_box_begin_str8(name, 0);
+    oc_ui_box* frame = oc_ui_box_str8(name)
     {
+        oc_ui_tag("slider");
+
+        //NOTE: default size:
+        oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PIXELS, 100 });
+        oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PIXELS, 24 });
+
         oc_ui_axis trackAxis = (frame->rect.w > frame->rect.h) ? OC_UI_AXIS_X : OC_UI_AXIS_Y;
         oc_ui_axis secondAxis = (trackAxis == OC_UI_AXIS_Y) ? OC_UI_AXIS_X : OC_UI_AXIS_Y;
+
         f32 trackThickness = 4;
         f32 thumbSize = 24;
 
@@ -3149,100 +3096,62 @@ oc_ui_box* oc_ui_slider_str8(oc_str8 name, f32* value)
             trackFillRatio = thumbRatio / 2 + afterRatio;
         }
 
-        if(frame->rect.w > 0 || frame->rect.h > 0)
+        oc_ui_style_set_i32(OC_UI_AXIS, trackAxis);
+
+        oc_ui_box* track = oc_ui_box("track")
         {
-            oc_ui_style frameStyle = { .layout.axis = trackAxis,
-                                       .layout.align.x = OC_UI_ALIGN_START,
-                                       .layout.align.y = OC_UI_ALIGN_START };
-            frameStyle.size.c[secondAxis] = (oc_ui_size){ OC_UI_SIZE_PIXELS, thumbSize };
-            oc_ui_style_box_before(frame,
-                                   oc_ui_pattern_owner(),
-                                   &frameStyle,
-                                   (OC_UI_MASK_SIZE_WIDTH << secondAxis) | OC_UI_MASK_LAYOUT);
+            oc_ui_style_set_i32(OC_UI_FLOATING_X, 1);
+            oc_ui_style_set_i32(OC_UI_FLOATING_Y, 1);
+            oc_ui_style_set_f32(OC_UI_FLOAT_TARGET_X + trackAxis, 0);
+            oc_ui_style_set_f32(OC_UI_FLOAT_TARGET_X + secondAxis, 0.5 * (thumbSize - trackThickness));
+
+            oc_ui_style_set_size(OC_UI_WIDTH + trackAxis, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
+            oc_ui_style_set_size(OC_UI_WIDTH + secondAxis, (oc_ui_size){ OC_UI_SIZE_PIXELS, trackThickness });
+
+            oc_ui_style_set_f32(OC_UI_ROUNDNESS, trackThickness / 2);
+
+            oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_FILL_0);
+
+            oc_ui_style_set_i32(OC_UI_AXIS, trackAxis);
+            if(trackAxis == OC_UI_AXIS_Y)
+            {
+                oc_ui_style_set_i32(OC_UI_ALIGN_Y, OC_UI_ALIGN_END);
+            }
+
+            oc_ui_box("fill")
+            {
+                oc_ui_style_set_size(OC_UI_WIDTH + trackAxis, (oc_ui_size){ OC_UI_SIZE_PARENT, trackFillRatio });
+                oc_ui_style_set_size(OC_UI_WIDTH + secondAxis, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
+
+                oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_PRIMARY);
+                oc_ui_style_set_f32(OC_UI_ROUNDNESS, trackThickness / 2);
+            }
         }
 
-        oc_ui_style trackStyle = { .floating.x = true,
-                                   .floating.y = true,
-                                   .bgColor = theme->fill0,
-                                   .roundness = trackThickness / 2 };
-        trackStyle.size.c[trackAxis] = (oc_ui_size){ OC_UI_SIZE_PARENT, 1 };
-        trackStyle.size.c[secondAxis] = (oc_ui_size){ OC_UI_SIZE_PIXELS, trackThickness };
-        trackStyle.floatTarget.c[trackAxis] = 0;
-        trackStyle.floatTarget.c[secondAxis] = (thumbSize - trackThickness) / 2;
-
-        oc_ui_attribute_mask styleMask = OC_UI_MASK_SIZE
-                                   | OC_UI_MASK_BG_COLOR
-                                   | OC_UI_MASK_ROUNDNESS;
-        oc_ui_attribute_mask styleFloatMask = styleMask | OC_UI_MASK_FLOAT;
-
-        oc_ui_style_next(&trackStyle, styleFloatMask);
-        oc_ui_box* track = oc_ui_box_make("track", OC_UI_FLAG_NONE);
-        oc_ui_tag_box(track, "track");
-
-        if(trackAxis == OC_UI_AXIS_X)
+        oc_ui_box("before-spacer")
         {
-            oc_ui_style trackFillStyle = { .size.width = (oc_ui_size){ OC_UI_SIZE_PARENT, trackFillRatio },
-                                           .size.height = (oc_ui_size){ OC_UI_SIZE_PIXELS, trackThickness },
-                                           .floating.x = true,
-                                           .floating.y = true,
-                                           .floatTarget.x = 0,
-                                           .floatTarget.y = (thumbSize - trackThickness) / 2,
-                                           .bgColor = theme->primary,
-                                           .roundness = trackThickness / 2 };
-            oc_ui_style_next(&trackFillStyle, styleFloatMask);
-            oc_ui_box* trackFill = oc_ui_box_make("track_fill", OC_UI_FLAG_NONE);
-            oc_ui_tag_box(trackFill, "track_fill");
-        }
-        else
-        {
-            oc_ui_style trackFillStyle = { .size.width = (oc_ui_size){ OC_UI_SIZE_PIXELS, trackThickness },
-                                           .size.height = (oc_ui_size){ OC_UI_SIZE_PARENT, trackFillRatio },
-                                           .floating.x = true,
-                                           .floating.y = true,
-                                           .floatTarget.x = (thumbSize - trackThickness) / 2,
-                                           .floatTarget.y = frame->rect.h * (1 - trackFillRatio),
-                                           .bgColor = theme->primary,
-                                           .roundness = trackThickness / 2 };
-            oc_ui_style_next(&trackFillStyle, styleFloatMask);
-            oc_ui_box* trackFill = oc_ui_box_make("track_fill", OC_UI_FLAG_NONE);
-            oc_ui_tag_box(trackFill, "track_fill");
+            oc_ui_style_set_size(OC_UI_WIDTH + trackAxis, (oc_ui_size){ OC_UI_SIZE_PARENT, beforeRatio });
         }
 
-        oc_ui_style beforeSpacerStyle = { 0 };
-        beforeSpacerStyle.size.c[trackAxis] = (oc_ui_size){ OC_UI_SIZE_PARENT, beforeRatio };
-        oc_ui_style_next(&beforeSpacerStyle, OC_UI_MASK_SIZE);
-        oc_ui_box* beforeSpacer = oc_ui_box_make("before_spacer", 0);
+        oc_ui_box* thumb = oc_ui_box("thumb")
+        {
+            oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PIXELS, thumbSize });
+            oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PIXELS, thumbSize });
+            oc_ui_style_set_f32(OC_UI_ROUNDNESS, thumbSize / 2);
+            oc_ui_style_set_color(OC_UI_BG_COLOR, (oc_color){ 1, 1, 1, 1 });
+            oc_ui_style_set_var_str8(OC_UI_BORDER_COLOR, OC_UI_THEME_BORDER);
+            oc_ui_style_set_f32(OC_UI_BORDER_SIZE, 1);
 
-        oc_ui_style thumbStyle = { .size.width = (oc_ui_size){ OC_UI_SIZE_PIXELS, thumbSize },
-                                   .size.height = (oc_ui_size){ OC_UI_SIZE_PIXELS, thumbSize },
-                                   .bgColor = theme->white,
-                                   .borderColor = theme->sliderThumbBorder,
-                                   .borderSize = 1,
-                                   .roundness = thumbSize / 2 };
-        oc_ui_attribute_mask thumbMask = OC_UI_MASK_SIZE
-                                   | OC_UI_MASK_BG_COLOR
-                                   | OC_UI_MASK_BORDER_COLOR
-                                   | OC_UI_MASK_BORDER_SIZE
-                                   | OC_UI_MASK_ROUNDNESS;
-        oc_ui_style_next(&thumbStyle, thumbMask);
+            oc_ui_style_rule(".active")
+            {
+                oc_ui_style_set_var_str8(OC_UI_BORDER_COLOR, OC_UI_THEME_PRIMARY);
+            }
+        }
 
-        oc_ui_style thumbActiveStyle = { .borderColor = theme->primary,
-                                         .borderSize = 1 };
-        oc_ui_pattern thumbActivePattern = { 0 };
-        oc_ui_pattern_push(&ui->frameArena,
-                           &thumbActivePattern,
-                           (oc_ui_selector){ .kind = OC_UI_SEL_STATUS,
-                                             .status = OC_UI_ACTIVE });
-        oc_ui_style_match_after(thumbActivePattern, &thumbActiveStyle, OC_UI_MASK_BORDER_COLOR | OC_UI_MASK_BORDER_SIZE);
-
-        oc_ui_flags thumbFlags = OC_UI_FLAG_CLICKABLE;
-        oc_ui_box* thumb = oc_ui_box_make("thumb", thumbFlags);
-        oc_ui_tag_box(thumb, "thumb");
-
-        oc_ui_style afterSpacerStyle = { 0 };
-        afterSpacerStyle.size.c[trackAxis] = (oc_ui_size){ OC_UI_SIZE_PARENT, afterRatio };
-        oc_ui_style_next(&afterSpacerStyle, OC_UI_MASK_SIZE);
-        oc_ui_box* afterSpacer = oc_ui_box_make("after_spacer", 0);
+        oc_ui_box("after-spacer")
+        {
+            oc_ui_style_set_size(OC_UI_WIDTH + trackAxis, (oc_ui_size){ OC_UI_SIZE_PARENT, afterRatio });
+        }
 
         //NOTE: interaction
         oc_ui_sig thumbSig = oc_ui_box_sig(thumb);
@@ -3290,8 +3199,6 @@ oc_ui_box* oc_ui_slider_str8(oc_str8 name, f32* value)
             oc_ui_box_deactivate(frame);
         }
     }
-    oc_ui_box_end();
-
     return (frame);
 }
 
@@ -3299,6 +3206,9 @@ oc_ui_box* oc_ui_slider(const char* name, f32* value)
 {
     return oc_ui_slider_str8(OC_STR8(name), value);
 }
+
+#if 0
+
 
 //------------------------------------------------------------------------------
 // tooltips
@@ -3346,7 +3256,7 @@ void oc_ui_tooltip_str8(oc_str8 label)
                                    .floating.y = true,
                                    .floatTarget = { 0, 5 },
                                    .bgColor = theme->palette->grey7 };
-        oc_ui_attribute_mask arrowMask = OC_UI_MASK_SIZE
+        oc_ui_attr_mask arrowMask = OC_UI_MASK_SIZE
                                    | OC_UI_MASK_FLOAT
                                    | OC_UI_MASK_BG_COLOR;
         oc_ui_style_next(&arrowStyle, arrowMask);
@@ -3364,7 +3274,7 @@ void oc_ui_tooltip_str8(oc_str8 label)
                                       .bgColor = theme->palette->grey7,
                                       .color = theme->bg0,
                                       .roundness = theme->roundnessMedium };
-        oc_ui_attribute_mask contentsMask = OC_UI_MASK_SIZE
+        oc_ui_attr_mask contentsMask = OC_UI_MASK_SIZE
                                       | OC_UI_MASK_LAYOUT_MARGINS
                                       | OC_UI_MASK_FLOAT
                                       | OC_UI_MASK_COLOR
@@ -3396,7 +3306,7 @@ void oc_ui_menu_bar_begin_str8(oc_str8 name)
         .size.height = { OC_UI_SIZE_CHILDREN },
         .layout.axis = OC_UI_AXIS_X,
     };
-    oc_ui_attribute_mask mask = OC_UI_MASK_SIZE
+    oc_ui_attr_mask mask = OC_UI_MASK_SIZE
                           | OC_UI_MASK_LAYOUT_AXIS;
 
     oc_ui_style_next(&style, mask);
@@ -3471,7 +3381,7 @@ void oc_ui_menu_begin_str8(oc_str8 label)
                           .borderColor = theme->elevatedBorder,
                           .borderSize = 1 };
 
-    oc_ui_attribute_mask mask = OC_UI_MASK_SIZE
+    oc_ui_attr_mask mask = OC_UI_MASK_SIZE
                           | OC_UI_MASK_FLOAT
                           | OC_UI_MASK_LAYOUT
                           | OC_UI_MASK_BG_COLOR
@@ -3901,7 +3811,7 @@ oc_ui_radio_group_info oc_ui_radio_group_str8(oc_str8 name, oc_ui_radio_group_in
                                       .size.height = { OC_UI_SIZE_PIXELS, 16 },
                                       .color = { 0, 0, 0, 0 },
                                       .roundness = 8 };
-            oc_ui_attribute_mask baseMask = OC_UI_MASK_SIZE
+            oc_ui_attr_mask baseMask = OC_UI_MASK_SIZE
                                       | OC_UI_MASK_ROUNDNESS
                                       | OC_UI_MASK_COLOR;
             oc_ui_style_box_before(radio, oc_ui_pattern_owner(), &baseStyle, baseMask);
@@ -3911,7 +3821,7 @@ oc_ui_radio_group_info oc_ui_radio_group_str8(oc_str8 name, oc_ui_radio_group_in
             oc_ui_pattern_push(&ui->frameArena, &defaultPattern, (oc_ui_selector){ .kind = OC_UI_SEL_TAG, .tag = defaultTag });
             oc_ui_style defaultStyle = { .borderColor = theme->text3,
                                          .borderSize = 1 };
-            oc_ui_attribute_mask defaultMask = OC_UI_MASK_BORDER_COLOR
+            oc_ui_attr_mask defaultMask = OC_UI_MASK_BORDER_COLOR
                                          | OC_UI_MASK_BORDER_SIZE;
             oc_ui_style_box_before(radio, defaultPattern, &defaultStyle, defaultMask);
 
@@ -3920,7 +3830,7 @@ oc_ui_radio_group_info oc_ui_radio_group_str8(oc_str8 name, oc_ui_radio_group_in
             oc_ui_pattern_push(&ui->frameArena, &hotPattern, (oc_ui_selector){ .op = OC_UI_SEL_AND, .kind = OC_UI_SEL_STATUS, .status = OC_UI_HOT });
             oc_ui_style hotStyle = { .bgColor = theme->fill0,
                                      .borderColor = theme->primary };
-            oc_ui_attribute_mask hotMask = OC_UI_MASK_BG_COLOR
+            oc_ui_attr_mask hotMask = OC_UI_MASK_BG_COLOR
                                      | OC_UI_MASK_BORDER_COLOR;
             oc_ui_style_box_after(radio, hotPattern, &hotStyle, hotMask);
 
@@ -3929,7 +3839,7 @@ oc_ui_radio_group_info oc_ui_radio_group_str8(oc_str8 name, oc_ui_radio_group_in
             oc_ui_pattern_push(&ui->frameArena, &activePattern, (oc_ui_selector){ .op = OC_UI_SEL_AND, .kind = OC_UI_SEL_STATUS, .status = OC_UI_ACTIVE });
             oc_ui_style activeStyle = { .bgColor = theme->fill1,
                                         .borderColor = theme->primary };
-            oc_ui_attribute_mask activeMask = OC_UI_MASK_BG_COLOR
+            oc_ui_attr_mask activeMask = OC_UI_MASK_BG_COLOR
                                         | OC_UI_MASK_BORDER_COLOR;
             oc_ui_style_box_after(radio, activePattern, &activeStyle, activeMask);
 
@@ -3938,7 +3848,7 @@ oc_ui_radio_group_info oc_ui_radio_group_str8(oc_str8 name, oc_ui_radio_group_in
             oc_ui_pattern_push(&ui->frameArena, &selectedPattern, (oc_ui_selector){ .kind = OC_UI_SEL_TAG, .tag = selectedTag });
             oc_ui_style selectedStyle = { .color = theme->palette->white,
                                           .bgColor = theme->primary };
-            oc_ui_attribute_mask selectedMask = OC_UI_MASK_COLOR
+            oc_ui_attr_mask selectedMask = OC_UI_MASK_COLOR
                                           | OC_UI_MASK_BG_COLOR;
             oc_ui_style_box_before(radio, selectedPattern, &selectedStyle, selectedMask);
 
@@ -4764,7 +4674,7 @@ oc_ui_text_box_result oc_ui_text_box_str8(oc_str8 name, oc_arena* arena, oc_str8
                                .layout.margin.y = 6,
                                .bgColor = theme->fill0,
                                .roundness = theme->roundnessSmall };
-    oc_ui_attribute_mask frameMask = OC_UI_MASK_LAYOUT_MARGIN_X
+    oc_ui_attr_mask frameMask = OC_UI_MASK_LAYOUT_MARGIN_X
                                | OC_UI_MASK_LAYOUT_MARGIN_Y
                                | OC_UI_MASK_BG_COLOR
                                | OC_UI_MASK_ROUNDNESS;

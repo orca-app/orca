@@ -135,7 +135,7 @@ typedef union oc_ui_box_floating
     bool c[OC_UI_AXIS_COUNT];
 } oc_ui_box_floating;
 
-typedef enum
+typedef enum oc_ui_attr
 {
     OC_UI_WIDTH,  // WIDTH?
     OC_UI_HEIGHT, // HEIGHT?
@@ -164,13 +164,13 @@ typedef enum
     OC_UI_ANIMATION_MASK,
     OC_UI_CLICK_THROUGH,
 
-    OC_UI_ATTRIBUTE_COUNT,
-} oc_ui_attribute;
+    OC_UI_ATTR_COUNT,
+} oc_ui_attr;
 
 //NOTE: flags for axis-dependent properties (e.g. OC_UI_STYLE_FLOAT_X/Y) need to be consecutive bits
 //      in order to play well with axis agnostic functions
 
-typedef enum oc_ui_attribute_mask
+typedef enum oc_ui_attr_mask
 {
     OC_UI_MASK_NONE = 0,
     OC_UI_MASK_SIZE_WIDTH = 1 << OC_UI_WIDTH,
@@ -224,7 +224,7 @@ typedef enum oc_ui_attribute_mask
                               | OC_UI_MASK_FONT_SIZE
                               | OC_UI_MASK_ANIMATION_TIME
                               | OC_UI_MASK_ANIMATION_MASK,
-} oc_ui_attribute_mask;
+} oc_ui_attr_mask;
 
 typedef struct oc_ui_style
 {
@@ -240,7 +240,7 @@ typedef struct oc_ui_style
     f32 borderSize;
     f32 roundness;
     f32 animationTime;
-    oc_ui_attribute_mask animationMask;
+    oc_ui_attr_mask animationMask;
     bool clickThrough;
 } oc_ui_style;
 
@@ -300,7 +300,7 @@ typedef struct oc_ui_style_rule
 
     oc_ui_box* owner;
     oc_ui_pattern pattern;
-    oc_ui_attribute_mask mask;
+    oc_ui_attr_mask mask;
     oc_ui_style style;
 } oc_ui_style_rule;
 
@@ -622,18 +622,16 @@ ORCA_API void oc_ui_style_rule_end();
 #define oc_ui_style_rule(p) oc_defer_loop(oc_ui_style_rule_begin(OC_STR8(p)), oc_ui_style_rule_end())
 #define oc_ui_style_rule_str8(p) oc_defer_loop(oc_ui_style_rule_begin(p), oc_ui_style_rule_end())
 
-ORCA_API void oc_ui_attribute_i32(oc_ui_attribute attr, i32 i);
-ORCA_API void oc_ui_attribute_f32(oc_ui_attribute attr, f32 f);
-ORCA_API void oc_ui_attribute_color(oc_ui_attribute attr, oc_color color);
-ORCA_API void oc_ui_attribute_font(oc_ui_attribute attr, oc_font font);
-ORCA_API void oc_ui_attribute_size(oc_ui_attribute attr, oc_ui_size size);
-ORCA_API void oc_ui_attribute_variable_str8(oc_ui_attribute attr, oc_str8 var);
-ORCA_API void oc_ui_attribute_variable(oc_ui_attribute attr, const char* var);
+ORCA_API void oc_ui_style_set_i32(oc_ui_attr attr, i32 i);
+ORCA_API void oc_ui_style_set_f32(oc_ui_attr attr, f32 f);
+ORCA_API void oc_ui_style_set_color(oc_ui_attr attr, oc_color color);
+ORCA_API void oc_ui_style_set_font(oc_ui_attr attr, oc_font font);
+ORCA_API void oc_ui_style_set_size(oc_ui_attr attr, oc_ui_size size);
+ORCA_API void oc_ui_style_set_var_str8(oc_ui_attr attr, oc_str8 var);
+ORCA_API void oc_ui_style_set_var(oc_ui_attr attr, const char* var);
 
 ///////////////////////////////////////////////////////////////////
 // style varibles
-
-//TODO: rename oc_ui_syle_var_default_xxx?
 
 //NOTE: declaring variable with default value
 ORCA_API void oc_ui_var_default_i32_str8(oc_str8 name, i32 i);
@@ -682,44 +680,41 @@ ORCA_API oc_color oc_ui_var_get_color(const char* name);
 ORCA_API oc_font oc_ui_var_get_font(const char* name);
 
 //NOTE: default themes
-#define OC_UI_DEFAULT_THEME_DATA(_)                                 \
-    _(OC_UI_THEME_PRIMARY, "primary")                               \
-    _(OC_UI_THEME_PRIMARY_HOVER, "primary-hover")                   \
-    _(OC_UI_THEME_PRIMARY_ACTIVE, "primary-active")                 \
-    _(OC_UI_THEME_PRIMARY_DISABLED, "primary-disabled")             \
-    _(OC_UI_THEME_TEXT_0, "text-0")                                 \
-    _(OC_UI_THEME_TEXT_1, "text-1")                                 \
-    _(OC_UI_THEME_TEXT_2, "text-2")                                 \
-    _(OC_UI_THEME_TEXT_3, "text-3")                                 \
-    _(OC_UI_THEME_BG_0, "bg-0")                                     \
-    _(OC_UI_THEME_BG_1, "bg-1")                                     \
-    _(OC_UI_THEME_BG_2, "bg-2")                                     \
-    _(OC_UI_THEME_BG_3, "bg-3")                                     \
-    _(OC_UI_THEME_BG_4, "bg-4")                                     \
-    _(OC_UI_THEME_FILL_0, "fill-0")                                 \
-    _(OC_UI_THEME_FILL_1, "fill-1")                                 \
-    _(OC_UI_THEME_FILL_2, "fill-2")                                 \
-    _(OC_UI_THEME_BORDER, "border")                                 \
-    _(OC_UI_THEME_ROUNDNESS_SMALL, "roundness-small")               \
-    _(OC_UI_THEME_ROUNDNESS_REGULAR, "roundness-regular")           \
-    _(OC_UI_THEME_ROUNDNESS_LARGE, "roundness-large")               \
-    _(OC_UI_THEME_TEXT_SIZE_SMALL, "text-size-small")               \
-    _(OC_UI_THEME_TEXT_SIZE_REGULAR, "text-size-regular")           \
-    _(OC_UI_THEME_TEXT_SIZE_HEADER_0, "text-size-header-0")         \
-    _(OC_UI_THEME_TEXT_SIZE_HEADER_1, "text-size-header-1")         \
-    _(OC_UI_THEME_TEXT_SIZE_HEADER_2, "text-size-header-2")         \
-    _(OC_UI_THEME_TEXT_SIZE_HEADER_3, "text-size-header-3")         \
-    _(OC_UI_THEME_TEXT_SIZE_HEADER_4, "text-size-header-4")         \
-    _(OC_UI_THEME_FONT_REGULAR, "font-regular")                     \
-    _(OC_UI_THEME_CONTROL_HEIGHT_SMALL, "control-height-small")     \
-    _(OC_UI_THEME_CONTROL_HEIGHT_DEFAULT, "control-height-default") \
-    _(OC_UI_THEME_CONTROL_HEIGHT_LARGE, "control-height-large")     \
-    _(OC_UI_THEME_SPACING_EXTRA_TIGHT, "spacing-extra-tight")       \
-    _(OC_UI_THEME_SPACING_TIGHT, "spacing-tight")                   \
-    _(OC_UI_THEME_SPACING_REGULAR_TIGHT, "spacing-regular-tight")   \
-    _(OC_UI_THEME_SPACING_REGULAR, "spacing-regular")               \
-    _(OC_UI_THEME_SPACING_REGULAR_LOOSE, "spacing-regular-loose")   \
-    _(OC_UI_THEME_SPACING_LOOSE, "spacing-loose")                   \
+#define OC_UI_DEFAULT_THEME_DATA(_)                               \
+    _(OC_UI_THEME_PRIMARY, "primary")                             \
+    _(OC_UI_THEME_PRIMARY_HOVER, "primary-hover")                 \
+    _(OC_UI_THEME_PRIMARY_ACTIVE, "primary-active")               \
+    _(OC_UI_THEME_PRIMARY_DISABLED, "primary-disabled")           \
+    _(OC_UI_THEME_TEXT_0, "text-0")                               \
+    _(OC_UI_THEME_TEXT_1, "text-1")                               \
+    _(OC_UI_THEME_TEXT_2, "text-2")                               \
+    _(OC_UI_THEME_TEXT_3, "text-3")                               \
+    _(OC_UI_THEME_BG_0, "bg-0")                                   \
+    _(OC_UI_THEME_BG_1, "bg-1")                                   \
+    _(OC_UI_THEME_BG_2, "bg-2")                                   \
+    _(OC_UI_THEME_BG_3, "bg-3")                                   \
+    _(OC_UI_THEME_BG_4, "bg-4")                                   \
+    _(OC_UI_THEME_FILL_0, "fill-0")                               \
+    _(OC_UI_THEME_FILL_1, "fill-1")                               \
+    _(OC_UI_THEME_FILL_2, "fill-2")                               \
+    _(OC_UI_THEME_BORDER, "border")                               \
+    _(OC_UI_THEME_ROUNDNESS_SMALL, "roundness-small")             \
+    _(OC_UI_THEME_ROUNDNESS_REGULAR, "roundness-regular")         \
+    _(OC_UI_THEME_ROUNDNESS_LARGE, "roundness-large")             \
+    _(OC_UI_THEME_TEXT_SIZE_SMALL, "text-size-small")             \
+    _(OC_UI_THEME_TEXT_SIZE_REGULAR, "text-size-regular")         \
+    _(OC_UI_THEME_TEXT_SIZE_HEADER_0, "text-size-header-0")       \
+    _(OC_UI_THEME_TEXT_SIZE_HEADER_1, "text-size-header-1")       \
+    _(OC_UI_THEME_TEXT_SIZE_HEADER_2, "text-size-header-2")       \
+    _(OC_UI_THEME_TEXT_SIZE_HEADER_3, "text-size-header-3")       \
+    _(OC_UI_THEME_TEXT_SIZE_HEADER_4, "text-size-header-4")       \
+    _(OC_UI_THEME_FONT_REGULAR, "font-regular")                   \
+    _(OC_UI_THEME_SPACING_EXTRA_TIGHT, "spacing-extra-tight")     \
+    _(OC_UI_THEME_SPACING_TIGHT, "spacing-tight")                 \
+    _(OC_UI_THEME_SPACING_REGULAR_TIGHT, "spacing-regular-tight") \
+    _(OC_UI_THEME_SPACING_REGULAR, "spacing-regular")             \
+    _(OC_UI_THEME_SPACING_REGULAR_LOOSE, "spacing-regular-loose") \
+    _(OC_UI_THEME_SPACING_LOOSE, "spacing-loose")                 \
     _(OC_UI_THEME_SPACING_EXTRA_LOOSE, "spacing-extra-loose")
 
 #define OC_UI_THEME_NAME(n, s) static const oc_str8 n = OC_STR8_LIT(s);

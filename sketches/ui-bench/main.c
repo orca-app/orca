@@ -62,28 +62,28 @@ i32 ui_runloop(void* user)
         {
             oc_ui_style_rule("inner lb")
             {
-                oc_ui_attribute_color(OC_UI_BG_COLOR, (oc_color){ 0, 1, 0, 1 });
+                oc_ui_style_set_color(OC_UI_BG_COLOR, (oc_color){ 0, 1, 0, 1 });
             }
 
             oc_ui_style_rule("inner .label")
             {
-                oc_ui_attribute_color(OC_UI_BG_COLOR, (oc_color){ 1, 0, 0, 1 });
+                oc_ui_style_set_color(OC_UI_BG_COLOR, (oc_color){ 1, 0, 0, 1 });
             }
 
             oc_ui_box("container")
             {
-                oc_ui_attribute_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_CHILDREN });
-                oc_ui_attribute_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_CHILDREN });
-                oc_ui_attribute_variable(OC_UI_BG_COLOR, "bg-1");
+                oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_CHILDREN });
+                oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_CHILDREN });
+                oc_ui_style_set_var(OC_UI_BG_COLOR, "bg-1");
 
-                oc_ui_attribute_i32(OC_UI_AXIS, OC_UI_AXIS_Y);
-                oc_ui_attribute_f32(OC_UI_MARGIN_X, 10);
-                oc_ui_attribute_f32(OC_UI_MARGIN_Y, 10);
-                oc_ui_attribute_f32(OC_UI_SPACING, 10);
+                oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_Y);
+                oc_ui_style_set_f32(OC_UI_MARGIN_X, 10);
+                oc_ui_style_set_f32(OC_UI_MARGIN_Y, 10);
+                oc_ui_style_set_f32(OC_UI_SPACING, 10);
 
                 oc_ui_style_rule(".label.hover")
                 {
-                    oc_ui_attribute_color(OC_UI_BG_COLOR, (oc_color){ 1, 0, 1, 1 });
+                    oc_ui_style_set_color(OC_UI_BG_COLOR, (oc_color){ 1, 0, 1, 1 });
                 }
 
                 oc_ui_label("la", "Label A");
@@ -96,13 +96,13 @@ i32 ui_runloop(void* user)
 
                 oc_ui_box("inner")
                 {
-                    oc_ui_attribute_color(OC_UI_BG_COLOR, (oc_color){ 0, 0, 1, 1 });
+                    oc_ui_style_set_color(OC_UI_BG_COLOR, (oc_color){ 0, 0, 1, 1 });
 
-                    oc_ui_attribute_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_CHILDREN });
-                    oc_ui_attribute_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_CHILDREN });
-                    oc_ui_attribute_f32(OC_UI_MARGIN_X, 10);
-                    oc_ui_attribute_f32(OC_UI_MARGIN_Y, 10);
-                    oc_ui_attribute_f32(OC_UI_SPACING, 10);
+                    oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_CHILDREN });
+                    oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_CHILDREN });
+                    oc_ui_style_set_f32(OC_UI_MARGIN_X, 10);
+                    oc_ui_style_set_f32(OC_UI_MARGIN_Y, 10);
+                    oc_ui_style_set_f32(OC_UI_SPACING, 10);
 
                     oc_ui_label("la", "label A");
                     oc_ui_label("lb", "label B");
@@ -111,27 +111,33 @@ i32 ui_runloop(void* user)
 
             oc_ui_box("panel")
             {
-                oc_ui_attribute_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PIXELS, 300 });
-                oc_ui_attribute_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PIXELS, 200 });
-                oc_ui_attribute_variable_str8(OC_UI_BG_COLOR, OC_UI_THEME_BG_1);
+                oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PIXELS, 300 });
+                oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PIXELS, 200 });
+                oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_BG_1);
 
-                oc_ui_attribute_i32(OC_UI_OVERFLOW_X, OC_UI_OVERFLOW_CLIP);
-                oc_ui_attribute_i32(OC_UI_OVERFLOW_Y, OC_UI_OVERFLOW_ALLOW);
+                oc_ui_style_set_i32(OC_UI_OVERFLOW_X, OC_UI_OVERFLOW_CLIP);
+                oc_ui_style_set_i32(OC_UI_OVERFLOW_Y, OC_UI_OVERFLOW_ALLOW);
 
                 /*
-                oc_ui_attribute_i32(OC_UI_AXIS, OC_UI_AXIS_Y);
-                oc_ui_attribute_f32(OC_UI_SPACING, 10);
+                oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_Y);
+                oc_ui_style_set_f32(OC_UI_SPACING, 10);
                 */
-                oc_ui_attribute_f32(OC_UI_MARGIN_X, 20);
-                oc_ui_attribute_f32(OC_UI_MARGIN_Y, 20);
+                oc_ui_style_set_f32(OC_UI_MARGIN_X, 20);
+                oc_ui_style_set_f32(OC_UI_MARGIN_Y, 20);
 
                 oc_ui_box("box")
                 {
-                    //                    oc_ui_attribute_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
-                    oc_ui_attribute_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PIXELS, 250 });
-                    oc_ui_attribute_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PIXELS, 400 });
+                    //                    oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
+                    oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PIXELS, 250 });
+                    oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PIXELS, 400 });
 
-                    oc_ui_attribute_color(OC_UI_BG_COLOR, (oc_color){ 0, 0, 0, 1 });
+                    oc_ui_style_set_color(OC_UI_BG_COLOR, (oc_color){ 0, 0, 0, 1 });
+
+                    static bool check = true;
+                    oc_ui_checkbox("check", &check);
+
+                    static f32 slider = 0;
+                    oc_ui_slider("slider", &slider);
                 }
                 oc_ui_button("mybutton", "clickMe");
             }
@@ -140,9 +146,9 @@ i32 ui_runloop(void* user)
             {
                 oc_ui_set_overlay(true);
 
-                oc_ui_attribute_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PIXELS, 100 });
-                oc_ui_attribute_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PIXELS, 50 });
-                oc_ui_attribute_color(OC_UI_BG_COLOR, (oc_color){ 1, 0, 0, 1 });
+                oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PIXELS, 100 });
+                oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PIXELS, 50 });
+                oc_ui_style_set_color(OC_UI_BG_COLOR, (oc_color){ 1, 0, 0, 1 });
             }
         }
 
