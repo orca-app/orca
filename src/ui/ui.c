@@ -2783,6 +2783,7 @@ oc_ui_sig oc_ui_label_str8(oc_str8 key, oc_str8 label)
         oc_ui_style_set_var_str8(OC_UI_COLOR, OC_UI_THEME_TEXT_0);
         oc_ui_style_set_var_str8(OC_UI_FONT, OC_UI_THEME_FONT_REGULAR);
         oc_ui_style_set_var_str8(OC_UI_TEXT_SIZE, OC_UI_THEME_TEXT_SIZE_REGULAR);
+        oc_ui_style_set_i32(OC_UI_CLICK_THROUGH, 1);
     }
 
     oc_ui_sig sig = oc_ui_box_sig(box);
@@ -3205,6 +3206,118 @@ oc_ui_box* oc_ui_slider_str8(oc_str8 name, f32* value)
 oc_ui_box* oc_ui_slider(const char* name, f32* value)
 {
     return oc_ui_slider_str8(OC_STR8(name), value);
+}
+
+//------------------------------------------------------------------------------
+// Radio group
+//------------------------------------------------------------------------------
+
+void oc_ui_radio_indicator_draw(oc_ui_box* box, void* data)
+{
+    oc_mat2x3 matrix = {
+        box->rect.w, 0, box->rect.x,
+        0, box->rect.h, box->rect.y
+    };
+    oc_matrix_multiply_push(matrix);
+
+    oc_set_color(box->style.color);
+    oc_circle_fill(0.5, 0.5, 35.0 / 192);
+
+    oc_matrix_pop();
+}
+
+oc_ui_radio_group_info oc_ui_radio_group_str8(oc_str8 name, oc_ui_radio_group_info* info)
+{
+    oc_ui_radio_group_info result = *info;
+
+    oc_ui_box_str8(name)
+    {
+        oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_CHILDREN });
+        oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_CHILDREN });
+
+        oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_Y);
+        oc_ui_style_set_var_str8(OC_UI_SPACING, OC_UI_THEME_SPACING_REGULAR_TIGHT);
+
+        for(int i = 0; i < info->optionCount; i++)
+        {
+            oc_ui_box* row = oc_ui_box_str8(info->options[i])
+            {
+                oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_CHILDREN });
+                oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_CHILDREN });
+
+                oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_X);
+                oc_ui_style_set_var_str8(OC_UI_SPACING, OC_UI_THEME_SPACING_TIGHT);
+                oc_ui_style_set_f32(OC_UI_MARGIN_X, 1);
+                oc_ui_style_set_f32(OC_UI_MARGIN_Y, 1);
+                oc_ui_style_set_i32(OC_UI_ALIGN_Y, OC_UI_ALIGN_CENTER);
+
+                oc_ui_box* radio = oc_ui_box("radio")
+                {
+                    oc_ui_box_set_draw_proc(radio, oc_ui_radio_indicator_draw, 0);
+
+                    oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PIXELS, 16 });
+                    oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PIXELS, 16 });
+                    oc_ui_style_set_f32(OC_UI_ROUNDNESS, 8);
+
+                    oc_ui_style_set_i32(OC_UI_CLICK_THROUGH, 1);
+
+                    oc_ui_sig sig = oc_ui_box_sig(row);
+                    if(sig.clicked)
+                    {
+                        result.selectedIndex = i;
+                    }
+                    oc_ui_box_set_hot(radio, sig.hovering);
+                    oc_ui_box_set_active(radio, sig.hovering && sig.dragging);
+
+                    if(result.selectedIndex == i)
+                    {
+                        oc_ui_style_set_color(OC_UI_COLOR, (oc_color){ 1, 1, 1, 1 });
+                        oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_PRIMARY);
+
+                        if(oc_ui_box_hot(radio))
+                        {
+                            oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_PRIMARY_HOVER);
+                        }
+                        if(oc_ui_box_active(radio))
+                        {
+                            oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_PRIMARY_ACTIVE);
+                        }
+                    }
+                    else
+                    {
+                        oc_ui_style_set_var_str8(OC_UI_BORDER_COLOR, OC_UI_THEME_TEXT_3);
+                        oc_ui_style_set_f32(OC_UI_BORDER_SIZE, 1);
+
+                        if(oc_ui_box_hot(radio))
+                        {
+                            oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_FILL_0);
+                            oc_ui_style_set_var_str8(OC_UI_BORDER_COLOR, OC_UI_THEME_PRIMARY);
+                        }
+                        if(oc_ui_box_active(radio))
+                        {
+                            oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_FILL_1);
+                            oc_ui_style_set_var_str8(OC_UI_BORDER_COLOR, OC_UI_THEME_PRIMARY);
+                        }
+                    }
+
+                    //TODO: change to "radio" and "selected"?
+                    const char* defaultTagStr = "radio";
+                    const char* selectedTagStr = "radio_selected";
+                    const char* radioTagStr = result.selectedIndex == i ? selectedTagStr : defaultTagStr;
+                    oc_ui_tag(radioTagStr);
+                }
+
+                oc_ui_label_str8(OC_STR8("label"), info->options[i]);
+            }
+        }
+    }
+    result.changed = result.selectedIndex != info->selectedIndex;
+    return (result);
+}
+
+oc_ui_radio_group_info oc_ui_radio_group(const char* name, oc_ui_radio_group_info* info)
+{
+    return oc_ui_radio_group_str8(OC_STR8(name), info);
 }
 
 #if 0
@@ -3747,139 +3860,6 @@ oc_ui_select_popup_info oc_ui_select_popup_str8(oc_str8 name, oc_ui_select_popup
 oc_ui_select_popup_info oc_ui_select_popup(const char* name, oc_ui_select_popup_info* info)
 {
     return oc_ui_select_popup_str8(OC_STR8(name), info);
-}
-
-//------------------------------------------------------------------------------
-// Radio group
-//------------------------------------------------------------------------------
-
-void oc_ui_radio_indicator_draw(oc_ui_box* box, void* data)
-{
-    oc_mat2x3 matrix = {
-        box->rect.w, 0, box->rect.x,
-        0, box->rect.h, box->rect.y
-    };
-    oc_matrix_multiply_push(matrix);
-
-    oc_set_color(box->style.color);
-    oc_circle_fill(0.5, 0.5, 35.0 / 192);
-
-    oc_matrix_pop();
-}
-
-oc_ui_radio_group_info oc_ui_radio_group_str8(oc_str8 name, oc_ui_radio_group_info* info)
-{
-    oc_ui_radio_group_info result = *info;
-
-    oc_ui_context* ui = oc_ui_get_context();
-    oc_ui_theme* theme = ui->theme;
-
-    oc_ui_style_next(&(oc_ui_style){ .layout.axis = OC_UI_AXIS_Y,
-                                     .layout.spacing = 12 },
-                     OC_UI_MASK_LAYOUT_AXIS
-                         | OC_UI_MASK_LAYOUT_SPACING);
-    oc_ui_container_str8(name, 0)
-    {
-        for(int i = 0; i < info->optionCount; i++)
-        {
-            oc_ui_style_next(&(oc_ui_style){ .layout.axis = OC_UI_AXIS_X,
-                                             .layout.spacing = 8,
-                                             .layout.align.y = OC_UI_ALIGN_CENTER },
-                             OC_UI_MASK_LAYOUT_AXIS
-                                 | OC_UI_MASK_LAYOUT_SPACING
-                                 | OC_UI_MASK_LAYOUT_ALIGN_Y);
-            oc_ui_box* row = oc_ui_box_begin_str8(info->options[i], OC_UI_FLAG_CLICKABLE);
-            oc_ui_flags flags = OC_UI_FLAG_NONE;
-            oc_ui_box* radio = oc_ui_box_make("radio", flags);
-            oc_ui_box_set_draw_proc(radio, oc_ui_radio_indicator_draw, 0);
-
-            oc_ui_sig sig = oc_ui_box_sig(row);
-            if(sig.clicked)
-            {
-                result.selectedIndex = i;
-            }
-
-            oc_ui_box_set_hot(radio, sig.hovering);
-            oc_ui_box_set_active(radio, sig.hovering && sig.dragging);
-
-            const char* defaultTagStr = "radio";
-            const char* selectedTagStr = "radio_selected";
-            const char* radioTagStr = result.selectedIndex == i ? selectedTagStr : defaultTagStr;
-            oc_ui_tag_box(radio, radioTagStr);
-
-            oc_ui_style baseStyle = { .size.width = { OC_UI_SIZE_PIXELS, 16 },
-                                      .size.height = { OC_UI_SIZE_PIXELS, 16 },
-                                      .color = { 0, 0, 0, 0 },
-                                      .roundness = 8 };
-            oc_ui_attr_mask baseMask = OC_UI_MASK_SIZE
-                                      | OC_UI_MASK_ROUNDNESS
-                                      | OC_UI_MASK_COLOR;
-            oc_ui_style_box_before(radio, oc_ui_pattern_owner(), &baseStyle, baseMask);
-
-            oc_ui_tag defaultTag = oc_ui_tag_make(defaultTagStr);
-            oc_ui_pattern defaultPattern = { 0 };
-            oc_ui_pattern_push(&ui->frameArena, &defaultPattern, (oc_ui_selector){ .kind = OC_UI_SEL_TAG, .tag = defaultTag });
-            oc_ui_style defaultStyle = { .borderColor = theme->text3,
-                                         .borderSize = 1 };
-            oc_ui_attr_mask defaultMask = OC_UI_MASK_BORDER_COLOR
-                                         | OC_UI_MASK_BORDER_SIZE;
-            oc_ui_style_box_before(radio, defaultPattern, &defaultStyle, defaultMask);
-
-            oc_ui_pattern hotPattern = { 0 };
-            oc_ui_pattern_push(&ui->frameArena, &hotPattern, (oc_ui_selector){ .kind = OC_UI_SEL_TAG, .tag = defaultTag });
-            oc_ui_pattern_push(&ui->frameArena, &hotPattern, (oc_ui_selector){ .op = OC_UI_SEL_AND, .kind = OC_UI_SEL_STATUS, .status = OC_UI_HOT });
-            oc_ui_style hotStyle = { .bgColor = theme->fill0,
-                                     .borderColor = theme->primary };
-            oc_ui_attr_mask hotMask = OC_UI_MASK_BG_COLOR
-                                     | OC_UI_MASK_BORDER_COLOR;
-            oc_ui_style_box_after(radio, hotPattern, &hotStyle, hotMask);
-
-            oc_ui_pattern activePattern = { 0 };
-            oc_ui_pattern_push(&ui->frameArena, &activePattern, (oc_ui_selector){ .kind = OC_UI_SEL_TAG, .tag = defaultTag });
-            oc_ui_pattern_push(&ui->frameArena, &activePattern, (oc_ui_selector){ .op = OC_UI_SEL_AND, .kind = OC_UI_SEL_STATUS, .status = OC_UI_ACTIVE });
-            oc_ui_style activeStyle = { .bgColor = theme->fill1,
-                                        .borderColor = theme->primary };
-            oc_ui_attr_mask activeMask = OC_UI_MASK_BG_COLOR
-                                        | OC_UI_MASK_BORDER_COLOR;
-            oc_ui_style_box_after(radio, activePattern, &activeStyle, activeMask);
-
-            oc_ui_tag selectedTag = oc_ui_tag_make(selectedTagStr);
-            oc_ui_pattern selectedPattern = { 0 };
-            oc_ui_pattern_push(&ui->frameArena, &selectedPattern, (oc_ui_selector){ .kind = OC_UI_SEL_TAG, .tag = selectedTag });
-            oc_ui_style selectedStyle = { .color = theme->palette->white,
-                                          .bgColor = theme->primary };
-            oc_ui_attr_mask selectedMask = OC_UI_MASK_COLOR
-                                          | OC_UI_MASK_BG_COLOR;
-            oc_ui_style_box_before(radio, selectedPattern, &selectedStyle, selectedMask);
-
-            oc_ui_pattern selectedHotPattern = { 0 };
-            oc_ui_pattern_push(&ui->frameArena, &selectedHotPattern, (oc_ui_selector){ .kind = OC_UI_SEL_TAG, .tag = selectedTag });
-            oc_ui_pattern_push(&ui->frameArena, &selectedHotPattern, (oc_ui_selector){ .op = OC_UI_SEL_AND, .kind = OC_UI_SEL_STATUS, .status = OC_UI_HOT });
-            oc_ui_style selectedHotStyle = { .bgColor = theme->primaryHover };
-            oc_ui_style_box_after(radio, selectedHotPattern, &selectedHotStyle, OC_UI_MASK_BG_COLOR);
-
-            oc_ui_pattern selectedActivePattern = { 0 };
-            oc_ui_pattern_push(&ui->frameArena, &selectedActivePattern, (oc_ui_selector){ .kind = OC_UI_SEL_TAG, .tag = selectedTag });
-            oc_ui_pattern_push(&ui->frameArena, &selectedActivePattern, (oc_ui_selector){ .op = OC_UI_SEL_AND, .kind = OC_UI_SEL_STATUS, .status = OC_UI_ACTIVE });
-            oc_ui_style selectedActiveStyle = { .bgColor = theme->primaryActive };
-            oc_ui_style_box_after(radio, selectedActivePattern, &selectedActiveStyle, OC_UI_MASK_BG_COLOR);
-
-            oc_ui_container("label", 0)
-            {
-                oc_ui_tag_next("label");
-                oc_ui_label_str8(info->options[i]);
-            }
-
-            oc_ui_box_end(); // row
-        }
-    }
-    result.changed = result.selectedIndex != info->selectedIndex;
-    return (result);
-}
-
-oc_ui_radio_group_info oc_ui_radio_group(const char* name, oc_ui_radio_group_info* info)
-{
-    return oc_ui_radio_group_str8(OC_STR8(name), info);
 }
 
 //------------------------------------------------------------------------------

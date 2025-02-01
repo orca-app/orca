@@ -30,6 +30,16 @@ i32 ui_runloop(void* user)
 
     oc_ui_init(&ui, fontRegular);
 
+    oc_ui_radio_group_info radioInfo = {
+        .optionCount = 4,
+        .options = (oc_str8[]){
+            OC_STR8("Option One"),
+            OC_STR8("Option Two"),
+            OC_STR8("Option Three"),
+            OC_STR8("Option Four"),
+        },
+    };
+
     while(!oc_should_quit())
     {
         oc_arena_scope scratch = oc_scratch_begin();
@@ -138,6 +148,8 @@ i32 ui_runloop(void* user)
 
                     static f32 slider = 0;
                     oc_ui_slider("slider", &slider);
+
+                    radioInfo = oc_ui_radio_group("radio", &radioInfo);
                 }
                 oc_ui_button("mybutton", "clickMe");
             }
