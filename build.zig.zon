@@ -39,10 +39,12 @@
         .@"cmake-win64" = .{
             .url = "https://github.com/Kitware/CMake/releases/download/v3.31.0-rc2/cmake-3.31.0-rc2-windows-x86_64.zip",
             .hash = "1220965b619795414210eaaf0e84493ace28fb839dd72874492ca63455cbb425e9b9",
+            .lazy = true,
         },
         .@"cmake-macos" = .{
             .url = "https://github.com/Kitware/CMake/releases/download/v3.31.4/cmake-3.31.4-macos-universal.tar.gz",
             .hash = "1220f1f14a2f29ee35eb788474180a81f3175e88b5d1760a3625643cbf654eb176d4",
+            .lazy = true,
         },
     },
     .paths = .{
