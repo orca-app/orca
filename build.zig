@@ -438,6 +438,7 @@ pub fn build(b: *Build) !void {
     defer orca_platform_compile_flags.deinit();
     try orca_platform_compile_flags.append("-std=c11");
     try orca_platform_compile_flags.append("-DOC_BUILD_DLL");
+    try orca_platform_compile_flags.append("-D_USE_MATH_DEFINES");
     try orca_platform_compile_flags.append("-fno-sanitize=undefined");
     if (optimize == .Debug) {
         try orca_platform_compile_flags.append("-DOC_DEBUG");
@@ -1275,9 +1276,15 @@ fn buildCurl(b: *Build, target: Build.ResolvedTarget, optimize: std.builtin.Opti
     lib.root_module.addCMacro("CURL_DISABLE_SMTP", "1");
     lib.root_module.addCMacro("CURL_DISABLE_TELNET", "1");
     lib.root_module.addCMacro("CURL_DISABLE_TFTP", "1");
-    lib.root_module.addCMacro("HAVE_LIBZ", "1");
-    lib.root_module.addCMacro("HAVE_ZLIB_H", "1");
+    // lib.root_module.addCMacro("HAVE_LIBZ", "1");
+    // lib.root_module.addCMacro("HAVE_ZLIB_H", "1");
     if (target.result.os.tag == .windows) {
+        lib.linkSystemLibrary("ws2_32");
+        lib.linkSystemLibrary("wldap32");
+        lib.linkSystemLibrary("advapi32");
+        lib.linkSystemLibrary("crypt32");
+        lib.linkSystemLibrary("gdi32");
+        lib.linkSystemLibrary("user32");
         lib.linkSystemLibrary("bcrypt");
         return lib;
     }
