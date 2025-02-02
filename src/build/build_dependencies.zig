@@ -27,7 +27,6 @@ const Options = struct {
     paths: struct {
         python: []const u8,
         cmake: []const u8,
-        src_dir: []const u8,
         intermediate_dir: []const u8,
         output_dir: []const u8,
     },
@@ -40,7 +39,6 @@ const Options = struct {
 
         var python: ?[]const u8 = null;
         var cmake: ?[]const u8 = null;
-        var src_dir: ?[]const u8 = null;
         var intermediate_dir: ?[]const u8 = null;
 
         for (args, 0..) |raw_arg, i| {
@@ -72,8 +70,6 @@ const Options = struct {
                 python = splitIter.next();
             } else if (std.mem.eql(u8, arg, "--cmake")) {
                 cmake = splitIter.next();
-            } else if (std.mem.eql(u8, arg, "--src")) {
-                src_dir = splitIter.next();
             } else if (std.mem.eql(u8, arg, "--intermediate")) {
                 intermediate_dir = splitIter.next();
             }
@@ -98,8 +94,6 @@ const Options = struct {
             }
         } else if (cmake == null) {
             missing_arg = "cmake";
-        } else if (src_dir == null) {
-            missing_arg = "src";
         } else if (intermediate_dir == null) {
             missing_arg = "intermediate";
         }
@@ -110,9 +104,7 @@ const Options = struct {
         }
 
         var bad_absolute_path: ?[]const u8 = null;
-        if (std.fs.path.isAbsolute(src_dir.?) == false) {
-            bad_absolute_path = src_dir;
-        } else if (std.fs.path.isAbsolute(intermediate_dir.?) == false) {
+        if (std.fs.path.isAbsolute(intermediate_dir.?) == false) {
             bad_absolute_path = intermediate_dir;
         }
 
@@ -132,7 +124,6 @@ const Options = struct {
             .paths = .{
                 .python = python.?,
                 .cmake = cmake.?,
-                .src_dir = src_dir.?,
                 .intermediate_dir = intermediate_dir.?,
                 .output_dir = output_dir,
             },
@@ -373,10 +364,7 @@ fn buildAngle(opts: *const Options) !void {
     var env: std.process.EnvMap = try ensureDepotTools(opts);
     defer env.deinit();
 
-    // try exec(opts.arena, &.{ "which", "python3" }, opts.paths.intermediate_dir, &env);
-
     const src_path = try std.fs.path.join(opts.arena, &.{ opts.paths.intermediate_dir, opts.lib.toStr() });
-    // try copyFolder(opts.arena, src_path, opts.paths.src_dir);
 
     if (try pathExists(std.fs.cwd(), src_path) == false) {
         try execShell(
@@ -574,8 +562,6 @@ fn buildDawn(opts: *const Options) !void {
     try execShell(opts.arena, &.{ "git", "restore", "." }, src_path, &env);
     try execShell(opts.arena, &.{ "git", "pull", "--force", "--no-tags" }, src_path, &env);
     try execShell(opts.arena, &.{ "git", "checkout", "--force", opts.commit_sha }, src_path, &env);
-
-    // try copyFolder(opts.arena, src_path, opts.paths.src_dir);
 
     const src_dir = try cwd.openDir(src_path, .{});
     _ = try src_dir.updateFile("scripts/standalone.gclient", src_dir, ".gclient", .{});

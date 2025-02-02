@@ -127,9 +127,9 @@ const RunHelpers = struct {
                 run.addPrefixedFileArg("--python=", python_path);
             }
         } else {
-            // run.addArg("--python=python3");
-            // run.addArg("--python=/usr/local/bin/python3");
-            run.addArg("--python=/usr/bin/python3");
+            // Unfortunately there don't seem to be any public archives of python binaries for python3 so
+            // we have to depend on a system install available in the PATH :(
+            run.addArg("--python=python3");
         }
     }
 
@@ -205,9 +205,9 @@ pub fn build(b: *Build) !void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    const compile_flag_min_macos_version = b.fmt("-mmacos-version-min={s}", .{MACOS_VERSION_MIN});
+    const compile_flag_min_macos_version: []const u8 = b.fmt("-mmacos-version-min={s}", .{MACOS_VERSION_MIN});
 
-    const shas = try LibShas.find(cwd, b.allocator);
+    const shas: LibShas = try LibShas.find(cwd, b.allocator);
 
     /////////////////////////////////////////////////////////
     // build_dependencies helper program
@@ -225,13 +225,10 @@ pub fn build(b: *Build) !void {
     /////////////////////////////////////////////////////////
     // angle build + check
 
-    var angle_dep: *Build.Dependency = b.dependency("angle", .{});
-
     var run_angle_build: *Build.Step.Run = b.addRunArtifact(build_deps_exe);
     run_angle_build.addArg("--lib=angle");
     run_angle_build.addArg(b.fmt("--sha={s}", .{shas.angle}));
     run_angle_build.addArg(b.fmt("--intermediate={s}", .{deps_intermediate_path}));
-    run_angle_build.addPrefixedFileArg("--src=", angle_dep.path(""));
     RunHelpers.addPythonArg(run_angle_build, target, b);
     RunHelpers.addCmakeArg(run_angle_build, target, b);
 
@@ -243,20 +240,16 @@ pub fn build(b: *Build) !void {
     run_angle_uptodate.addArg("--lib=angle");
     run_angle_uptodate.addArg(b.fmt("--sha={s}", .{shas.angle}));
     run_angle_uptodate.addArg(b.fmt("--intermediate={s}", .{deps_intermediate_path}));
-    run_angle_uptodate.addPrefixedFileArg("--src=", angle_dep.path(""));
     RunHelpers.addPythonArg(run_angle_uptodate, target, b);
     RunHelpers.addCmakeArg(run_angle_uptodate, target, b);
 
     /////////////////////////////////////////////////////////
     // dawn build + check
 
-    var dawn_dep: *Build.Dependency = b.dependency("dawn", .{});
-
     var run_dawn_build: *Build.Step.Run = b.addRunArtifact(build_deps_exe);
     run_dawn_build.addArg("--lib=dawn");
     run_dawn_build.addArg(b.fmt("--sha={s}", .{shas.dawn}));
     run_dawn_build.addArg(b.fmt("--intermediate={s}", .{deps_intermediate_path}));
-    run_dawn_build.addPrefixedFileArg("--src=", dawn_dep.path(""));
     RunHelpers.addPythonArg(run_dawn_build, target, b);
     RunHelpers.addCmakeArg(run_dawn_build, target, b);
 
@@ -268,7 +261,6 @@ pub fn build(b: *Build) !void {
     run_dawn_uptodate.addArg("--lib=dawn");
     run_dawn_uptodate.addArg(b.fmt("--sha={s}", .{shas.dawn}));
     run_dawn_uptodate.addArg(b.fmt("--intermediate={s}", .{deps_intermediate_path}));
-    run_dawn_uptodate.addPrefixedFileArg("--src=", dawn_dep.path(""));
     RunHelpers.addPythonArg(run_dawn_uptodate, target, b);
     RunHelpers.addCmakeArg(run_dawn_uptodate, target, b);
 
@@ -452,7 +444,6 @@ pub fn build(b: *Build) !void {
     //     try orca_platform_compile_flags.append("-Wl,--delayload=libGLESv2.dll");
     //     try orca_platform_compile_flags.append("-Wl,--delayload=webgpu.dll");
     // }
-    // if (target.result.os.tag.isDarwin()) {}
 
     var orca_platform_lib = b.addSharedLibrary(.{
         .name = "orca_platform",
