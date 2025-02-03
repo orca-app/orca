@@ -286,8 +286,6 @@ ORCA_API void oc_ui_box_set_closed(oc_ui_box* box, bool closed);
 
 ORCA_API bool oc_ui_box_active(oc_ui_box* box);
 ORCA_API void oc_ui_box_set_active(oc_ui_box* box, bool active);
-ORCA_API void oc_ui_box_activate(oc_ui_box* box);
-ORCA_API void oc_ui_box_deactivate(oc_ui_box* box);
 
 ORCA_API bool oc_ui_box_hot(oc_ui_box* box);
 ORCA_API void oc_ui_box_set_hot(oc_ui_box* box, bool hot);

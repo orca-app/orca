@@ -1813,8 +1813,8 @@ oc_ui_box* oc_ui_scrollbar_str8(oc_str8 name, oc_rect rect, f32 thumbRatio, f32*
             //NOTE: activated from outside
             oc_ui_box_set_hot(track, true);
             oc_ui_box_set_hot(thumb, true);
-            oc_ui_box_activate(track);
-            oc_ui_box_activate(thumb);
+            oc_ui_box_set_active(track, true);
+            oc_ui_box_set_active(thumb, true);
         }
 
         if(trackSig.hovering)
@@ -1830,13 +1830,13 @@ oc_ui_box* oc_ui_scrollbar_str8(oc_str8 name, oc_rect rect, f32 thumbRatio, f32*
 
         if(thumbSig.dragging)
         {
-            oc_ui_box_activate(track);
-            oc_ui_box_activate(thumb);
+            oc_ui_box_set_active(track, true);
+            oc_ui_box_set_active(thumb, true);
         }
         else if(thumbSig.wheel.c[trackAxis] == 0)
         {
-            oc_ui_box_deactivate(track);
-            oc_ui_box_deactivate(thumb);
+            oc_ui_box_set_active(track, false);
+            oc_ui_box_set_active(thumb, false);
         }
     }
     return (track);
@@ -1931,17 +1931,6 @@ void oc_ui_box_set_closed(oc_ui_box* box, bool closed)
 bool oc_ui_box_closed(oc_ui_box* box)
 {
     return (box->closed);
-}
-
-void oc_ui_box_activate(oc_ui_box* box)
-{
-    box->active = true;
-    oc_ui_tag_box_str8(box, OC_STR8_LIT("active"));
-}
-
-void oc_ui_box_deactivate(oc_ui_box* box)
-{
-    box->active = false;
 }
 
 void oc_ui_box_set_active(oc_ui_box* box, bool active)

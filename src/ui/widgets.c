@@ -48,7 +48,7 @@ oc_ui_sig oc_ui_button_behavior(oc_ui_box* box)
         oc_ui_box_set_hot(box, true);
         if(sig.dragging)
         {
-            oc_ui_box_activate(box);
+            oc_ui_box_set_active(box, true);
         }
     }
     else
@@ -57,7 +57,7 @@ oc_ui_sig oc_ui_button_behavior(oc_ui_box* box)
     }
     if(!sig.hovering || !sig.dragging)
     {
-        oc_ui_box_deactivate(box);
+        oc_ui_box_set_active(box, false);
     }
     return (sig);
 }
@@ -307,8 +307,8 @@ oc_ui_box* oc_ui_slider_str8(oc_str8 name, f32* value)
             //NOTE: activated from outside
             oc_ui_box_set_hot(track, true);
             oc_ui_box_set_hot(thumb, true);
-            oc_ui_box_activate(track);
-            oc_ui_box_activate(thumb);
+            oc_ui_box_set_active(track, true);
+            oc_ui_box_set_active(thumb, true);
         }
 
         if(trackSig.hovering)
@@ -324,14 +324,14 @@ oc_ui_box* oc_ui_slider_str8(oc_str8 name, f32* value)
 
         if(thumbSig.dragging)
         {
-            oc_ui_box_activate(track);
-            oc_ui_box_activate(thumb);
+            oc_ui_box_set_active(track, true);
+            oc_ui_box_set_active(thumb, true);
         }
         else if(thumbSig.wheel.c[trackAxis] == 0)
         {
-            oc_ui_box_deactivate(track);
-            oc_ui_box_deactivate(thumb);
-            oc_ui_box_deactivate(frame);
+            oc_ui_box_set_active(track, false);
+            oc_ui_box_set_active(thumb, false);
+            oc_ui_box_set_active(frame, false);
         }
     }
     return (frame);
@@ -566,7 +566,7 @@ void oc_ui_menu_bar_begin_str8(oc_str8 name)
     oc_ui_context* ui = oc_ui_get_context();
     if(!sig.hovering && oc_mouse_released(&ui->input, OC_MOUSE_LEFT))
     {
-        oc_ui_box_deactivate(bar);
+        oc_ui_box_set_active(bar, false);
     }
 }
 
@@ -647,26 +647,26 @@ void oc_ui_menu_begin_str8(oc_str8 label)
     {
         if(sig.hovering)
         {
-            oc_ui_box_activate(button);
+            oc_ui_box_set_active(button, true);
         }
         else if(barSig.hovering)
         {
-            oc_ui_box_deactivate(button);
+            oc_ui_box_set_active(button, false);
         }
 
         if(sig.clicked)
         {
-            oc_ui_box_deactivate(bar);
-            oc_ui_box_deactivate(button);
+            oc_ui_box_set_active(bar, false);
+            oc_ui_box_set_active(button, false);
         }
     }
     else
     {
-        oc_ui_box_deactivate(button);
+        oc_ui_box_set_active(button, false);
         if(sig.clicked)
         {
-            oc_ui_box_activate(bar);
-            oc_ui_box_activate(button);
+            oc_ui_box_set_active(bar, true);
+            oc_ui_box_set_active(button, true);
         }
     }
 
@@ -975,19 +975,19 @@ oc_ui_select_popup_info oc_ui_select_popup_str8(oc_str8 name, oc_ui_select_popup
         oc_ui_context* ui = oc_ui_get_context();
         if(oc_ui_box_active(panel) && oc_mouse_released(&ui->input, OC_MOUSE_LEFT))
         {
-            oc_ui_box_deactivate(button);
-            oc_ui_box_deactivate(panel);
+            oc_ui_box_set_active(button, false);
+            oc_ui_box_set_active(panel, false);
         }
         else
         {
             oc_ui_sig sig = oc_ui_box_sig(button);
             if(sig.pressed)
             {
-                oc_ui_box_activate(button);
+                oc_ui_box_set_active(button, true);
             }
             if(sig.clicked)
             {
-                oc_ui_box_activate(panel);
+                oc_ui_box_set_active(panel, true);
             }
         }
         oc_ui_box_set_closed(panel, !oc_ui_box_active(panel));
@@ -1839,8 +1839,8 @@ oc_ui_text_box_result oc_ui_text_box_str8(oc_str8 name, oc_arena* arena, oc_str8
     {
         if(!oc_ui_box_active(frame))
         {
-            oc_ui_box_activate(frame);
-            oc_ui_box_activate(textBox);
+            oc_ui_box_set_active(frame, true);
+            oc_ui_box_set_active(textBox, true);
 
             //NOTE: focus
             ui->focus = frame;
@@ -1983,8 +1983,8 @@ oc_ui_text_box_result oc_ui_text_box_str8(oc_str8 name, oc_arena* arena, oc_str8
         {
             if(oc_ui_box_active(frame))
             {
-                oc_ui_box_deactivate(frame);
-                oc_ui_box_deactivate(textBox);
+                oc_ui_box_set_active(frame, false);
+                oc_ui_box_set_active(textBox, false);
 
                 //NOTE loose focus
                 ui->focus = 0;
@@ -2057,8 +2057,8 @@ oc_ui_text_box_result oc_ui_text_box_str8(oc_str8 name, oc_arena* arena, oc_str8
         {
             //TODO(martin): extract in gui_edit_complete() (and use below)
             result.accepted = true;
-            oc_ui_box_deactivate(frame);
-            oc_ui_box_deactivate(textBox);
+            oc_ui_box_set_active(frame, false);
+            oc_ui_box_set_active(textBox, false);
             ui->focus = 0;
         }
 
