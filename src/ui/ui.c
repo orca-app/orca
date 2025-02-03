@@ -14,8 +14,397 @@
 #include "util/hash.h"
 #include "util/memory.h"
 
-oc_thread_local oc_ui_context oc_uiThreadContext = { 0 };
+//-----------------------------------------------------------------------------
+// style
+//-----------------------------------------------------------------------------
+
+typedef union oc_ui_layout_align
+{
+    struct
+    {
+        oc_ui_align x;
+        oc_ui_align y;
+    };
+
+    oc_ui_align c[OC_UI_AXIS_COUNT];
+} oc_ui_layout_align;
+
+typedef struct oc_ui_layout
+{
+    oc_ui_axis axis;
+    f32 spacing;
+
+    union
+    {
+        struct
+        {
+            f32 x;
+            f32 y;
+        };
+
+        f32 c[OC_UI_AXIS_COUNT];
+    } margin;
+
+    oc_ui_layout_align align;
+
+    union
+    {
+        struct
+        {
+            oc_ui_overflow x;
+            oc_ui_overflow y;
+        };
+
+        oc_ui_overflow c[OC_UI_AXIS_COUNT];
+    } overflow;
+
+    union
+    {
+        struct
+        {
+            bool x;
+            bool y;
+        };
+
+        bool c[OC_UI_AXIS_COUNT];
+    } constrain;
+
+} oc_ui_layout;
+
+typedef union oc_ui_box_size
+{
+    struct
+    {
+        oc_ui_size width;
+        oc_ui_size height;
+    };
+
+    oc_ui_size c[OC_UI_AXIS_COUNT];
+} oc_ui_box_size;
+
+typedef union oc_ui_box_floating
+{
+    struct
+    {
+        bool x;
+        bool y;
+    };
+
+    bool c[OC_UI_AXIS_COUNT];
+} oc_ui_box_floating;
+
+typedef struct oc_ui_style
+{
+    oc_ui_box_size size;
+    oc_ui_layout layout;
+    oc_ui_box_floating floating;
+    oc_vec2 floatTarget;
+    oc_color color;
+    oc_color bgColor;
+    oc_color borderColor;
+    oc_font font;
+    f32 fontSize;
+    f32 borderSize;
+    f32 roundness;
+    f32 animationTime;
+    oc_ui_attr_mask animationMask;
+    bool clickThrough;
+} oc_ui_style;
+
+//-----------------------------------------------------------------------------
+// style rules
+//-----------------------------------------------------------------------------
+
+typedef struct oc_ui_tag
+{
+    u64 hash;
+} oc_ui_tag;
+
+typedef struct oc_ui_tag_elt
+{
+    oc_list_elt listElt;
+    oc_ui_tag tag;
+} oc_ui_tag_elt;
+
+typedef enum
+{
+    OC_UI_SEL_ID = 0,
+    OC_UI_SEL_TAG,
+
+} oc_ui_selector_kind;
+
+typedef enum
+{
+    OC_UI_SEL_DESCENDANT = 0,
+    OC_UI_SEL_AND = 1,
+    //...
+} oc_ui_selector_op;
+
+typedef struct oc_ui_selector
+{
+    oc_list_elt listElt;
+    oc_ui_selector_kind kind;
+    oc_ui_selector_op op;
+
+    oc_str8 string;
+    u64 hash;
+
+} oc_ui_selector;
+
+typedef union oc_ui_pattern_specificity
+{
+    struct
+    {
+        u32 id;
+        u32 tag;
+    };
+
+    u32 s[2];
+} oc_ui_pattern_specificity;
+
+typedef struct oc_ui_pattern
+{
+    oc_list l;
+    oc_ui_pattern_specificity specificity;
+} oc_ui_pattern;
+
+typedef struct oc_ui_style_rule
+{
+    oc_list_elt boxElt;
+    oc_list_elt rulesetElt;
+
+    oc_ui_box* owner;
+    oc_ui_pattern pattern;
+    oc_ui_attr_mask mask;
+    oc_ui_style style;
+} oc_ui_style_rule;
+
+//-----------------------------------------------------------------------------
+// style variables structs
+//-----------------------------------------------------------------------------
+
+typedef struct oc_ui_var_stack
+{
+    oc_list_elt bucketElt;
+    oc_str8 name;
+    u64 hash;
+    oc_list vars;
+} oc_ui_var_stack;
+
+typedef enum oc_ui_var_kind
+{
+    OC_UI_VAR_I32,
+    OC_UI_VAR_F32,
+    OC_UI_VAR_SIZE,
+    OC_UI_VAR_COLOR,
+    OC_UI_VAR_FONT,
+} oc_ui_var_kind;
+
+typedef struct oc_ui_value
+{
+    oc_ui_var_kind kind;
+
+    union
+    {
+        oc_ui_size size;
+        oc_color color;
+        oc_font font;
+        f32 f;
+        i32 i;
+    };
+} oc_ui_value;
+
+typedef struct oc_ui_var
+{
+    oc_list_elt boxElt;
+    oc_list_elt stackElt;
+    oc_ui_var_stack* stack;
+    oc_ui_value value;
+
+} oc_ui_var;
+
+typedef struct oc_ui_var_map
+{
+    u64 mask;
+    oc_list* buckets;
+} oc_ui_var_map;
+
+//-----------------------------------------------------------------------------
+// ui box and  context structs
+//-----------------------------------------------------------------------------
+
+typedef struct oc_ui_key
+{
+    u64 hash;
+} oc_ui_key;
+
+struct oc_ui_box
+{
+    // hierarchy
+    oc_list_elt listElt;
+    oc_list children;
+    oc_ui_box* parent;
+
+    oc_list_elt overlayElt;
+    bool overlay;
+
+    // keying and caching
+    oc_list_elt bucketElt;
+    oc_ui_key key;
+    u64 frameCounter;
+
+    // builder-provided info
+    oc_str8 keyString;
+    oc_str8 text;
+    oc_list tags;
+
+    oc_ui_box_draw_proc drawProc;
+    void* drawData;
+
+    // styling
+    oc_list rules;
+
+    oc_ui_style* targetStyle;
+    oc_ui_style style;
+    u32 z;
+
+    oc_vec2 floatPos;
+    f32 childrenSum[2];
+    f32 spacing[2];
+    f32 minSize[2];
+    oc_rect rect;
+
+    oc_list styleVariables;
+
+    // signals
+    oc_ui_sig sig;
+
+    // stateful behaviour
+    bool fresh;
+    bool closed;
+    bool parentClosed;
+    bool dragging;
+    bool hot;
+    bool active;
+    oc_vec2 scroll;
+    oc_vec2 pressedMouse;
+
+    // animation data
+    f32 hotTransition;
+    f32 activeTransition;
+};
+
+enum
+{
+    OC_UI_MAX_INPUT_CHAR_PER_FRAME = 64
+};
+
+typedef struct oc_ui_input_text
+{
+    u8 count;
+    oc_utf32 codePoints[OC_UI_MAX_INPUT_CHAR_PER_FRAME];
+
+} oc_ui_input_text;
+
+typedef struct oc_ui_stack_elt oc_ui_stack_elt;
+
+struct oc_ui_stack_elt
+{
+    oc_ui_stack_elt* parent;
+
+    union
+    {
+        oc_ui_box* box;
+        oc_rect clip;
+    };
+};
+
+enum
+{
+    OC_UI_BOX_MAP_BUCKET_COUNT = 1024
+};
+
+typedef enum
+{
+    OC_UI_EDIT_MOVE_NONE = 0,
+    OC_UI_EDIT_MOVE_CHAR,
+    OC_UI_EDIT_MOVE_WORD,
+    OC_UI_EDIT_MOVE_LINE
+} oc_ui_edit_move;
+
+typedef struct oc_ui_context
+{
+    bool init;
+
+    oc_input_state input;
+
+    u64 frameCounter;
+    f64 frameTime;
+    f64 lastFrameDuration;
+
+    oc_arena frameArena;
+    oc_pool boxPool;
+    oc_list boxMap[OC_UI_BOX_MAP_BUCKET_COUNT];
+
+    oc_ui_box* root;
+    oc_ui_box* overlay;
+    oc_list overlayList;
+    oc_ui_stack_elt* boxStack;
+    oc_ui_stack_elt* clipStack;
+
+    oc_list nextBoxTags;
+
+    u32 z;
+    oc_ui_box* hovered;
+
+    oc_ui_box* focus;
+    i32 editCursor;
+    i32 editMark;
+    i32 editFirstDisplayedChar;
+    f64 editCursorBlinkStart;
+    oc_ui_edit_move editSelectionMode;
+    i32 editWordSelectionInitialCursor;
+    i32 editWordSelectionInitialMark;
+
+    //TODO: reorganize
+    oc_ui_var_map styleVariables;
+    oc_ui_style_rule* workingRule;
+    oc_font defaultFont;
+
+} oc_ui_context;
+
 oc_thread_local oc_ui_context* oc_uiCurrentContext = 0;
+
+//-----------------------------------------------------------------------------
+// Context init/cleanup and thread local context
+//-----------------------------------------------------------------------------
+
+oc_ui_context* oc_ui_context_create(oc_font defaultFont)
+{
+    oc_ui_context* ui = oc_malloc_type(oc_ui_context);
+
+    memset(ui, 0, sizeof(oc_ui_context));
+    oc_arena_init(&ui->frameArena);
+    oc_pool_init(&ui->boxPool, sizeof(oc_ui_box));
+    ui->defaultFont = defaultFont;
+    ui->editSelectionMode = OC_UI_EDIT_MOVE_CHAR;
+    ui->init = true;
+
+    oc_ui_set_context(ui);
+
+    return (ui);
+}
+
+void oc_ui_context_destroy(oc_ui_context* context)
+{
+    if(context == oc_ui_get_context())
+    {
+        oc_ui_set_context(0);
+    }
+    oc_arena_cleanup(&context->frameArena);
+    oc_pool_cleanup(&context->boxPool);
+    memset(context, 0, sizeof(oc_ui_context));
+}
 
 oc_ui_context* oc_ui_get_context(void)
 {
@@ -1445,6 +1834,115 @@ void oc_ui_set_overlay(bool overlay)
     }
 }
 
+oc_ui_box* oc_ui_scrollbar_str8(oc_str8 name, oc_rect rect, f32 thumbRatio, f32* scrollValue, bool horizontal)
+{
+    oc_ui_box* track = oc_ui_box_str8(name)
+    {
+        oc_ui_style_set_i32(OC_UI_FLOATING_X, 1);
+        oc_ui_style_set_i32(OC_UI_FLOATING_Y, 1);
+        oc_ui_style_set_f32(OC_UI_FLOAT_TARGET_X, rect.x);
+        oc_ui_style_set_f32(OC_UI_FLOAT_TARGET_Y, rect.y);
+        oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PIXELS, rect.w });
+        oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PIXELS, rect.h });
+
+        if(horizontal)
+        {
+            oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_X);
+        }
+        else
+        {
+            oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_Y);
+        }
+        oc_ui_axis trackAxis = horizontal ? OC_UI_AXIS_X : OC_UI_AXIS_Y;
+        oc_ui_axis secondAxis = (trackAxis == OC_UI_AXIS_Y) ? OC_UI_AXIS_X : OC_UI_AXIS_Y;
+
+        f32 minThumbRatio = 17. / oc_max(rect.w, rect.h);
+        thumbRatio = oc_min(oc_max(thumbRatio, minThumbRatio), 1.);
+        f32 beforeRatio = (*scrollValue) * (1. - thumbRatio);
+        f32 afterRatio = (1. - *scrollValue) * (1. - thumbRatio);
+
+        oc_ui_box("before-spacer")
+        {
+            oc_ui_style_set_size(OC_UI_WIDTH + trackAxis, (oc_ui_size){ OC_UI_SIZE_PARENT, beforeRatio });
+            oc_ui_style_set_size(OC_UI_WIDTH + secondAxis, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
+        }
+
+        oc_ui_box* thumb = oc_ui_box("thumb")
+        {
+            oc_ui_style_set_size(OC_UI_WIDTH + trackAxis, (oc_ui_size){ OC_UI_SIZE_PARENT, thumbRatio });
+            oc_ui_style_set_size(OC_UI_WIDTH + secondAxis, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
+
+            f32 roundness = 0.5 * rect.c[2 + secondAxis];
+            oc_ui_style_set_f32(OC_UI_ROUNDNESS, roundness);
+
+            oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_FILL_2);
+
+            oc_ui_style_rule(".hover")
+            {
+                oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_FILL_1);
+            }
+            oc_ui_style_rule(".active")
+            {
+                oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_FILL_1);
+            }
+        }
+
+        oc_ui_box("after-spacer")
+        {
+            oc_ui_style_set_size(OC_UI_WIDTH + trackAxis, (oc_ui_size){ OC_UI_SIZE_PARENT, afterRatio });
+            oc_ui_style_set_size(OC_UI_WIDTH + secondAxis, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
+        }
+
+        //NOTE: interaction
+        oc_ui_sig thumbSig = oc_ui_box_sig(thumb);
+        oc_ui_sig trackSig = oc_ui_box_sig(track);
+
+        if(thumbSig.dragging)
+        {
+            f32 trackExtents = rect.c[2 + trackAxis] * (1. - thumbRatio);
+            *scrollValue = (trackSig.mouse.c[trackAxis] - thumb->pressedMouse.c[trackAxis]) / trackExtents;
+            *scrollValue = oc_clamp(*scrollValue, 0, 1);
+        }
+
+        if(oc_ui_box_active(track))
+        {
+            //NOTE: activated from outside
+            oc_ui_box_set_hot(track, true);
+            oc_ui_box_set_hot(thumb, true);
+            oc_ui_box_activate(track);
+            oc_ui_box_activate(thumb);
+        }
+
+        if(trackSig.hovering)
+        {
+            oc_ui_box_set_hot(track, true);
+            oc_ui_box_set_hot(thumb, true);
+        }
+        else if(thumbSig.wheel.c[trackAxis] == 0)
+        {
+            oc_ui_box_set_hot(track, false);
+            oc_ui_box_set_hot(thumb, false);
+        }
+
+        if(thumbSig.dragging)
+        {
+            oc_ui_box_activate(track);
+            oc_ui_box_activate(thumb);
+        }
+        else if(thumbSig.wheel.c[trackAxis] == 0)
+        {
+            oc_ui_box_deactivate(track);
+            oc_ui_box_deactivate(thumb);
+        }
+    }
+    return (track);
+}
+
+oc_ui_box* oc_ui_scrollbar(const char* name, oc_rect rect, f32 thumbRatio, f32* scrollValue, bool horizontal)
+{
+    return oc_ui_scrollbar_str8(OC_STR8(name), rect, thumbRatio, scrollValue, horizontal);
+}
+
 oc_ui_box* oc_ui_box_end(void)
 {
     oc_ui_context* ui = oc_ui_get_context();
@@ -2680,7 +3178,7 @@ void oc_ui_begin_frame(oc_vec2 size)
     oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PIXELS, size.x });
     oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PIXELS, size.y });
 
-    oc_ui_box* contents = oc_ui_box_begin("_contents_");
+    oc_ui_box_begin("_contents_");
 
     oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
     oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
@@ -2697,8 +3195,9 @@ void oc_ui_end_frame(void)
 {
     oc_ui_context* ui = oc_ui_get_context();
 
-    ui->overlay = oc_ui_box_make("_overlay_");
-    oc_ui_box_push(ui->overlay);
+    oc_ui_box_pop(); // _contents_
+
+    ui->overlay = oc_ui_box("_overlay_")
     {
         oc_ui_style_set_i32(OC_UI_CLICK_THROUGH, 1);
 
@@ -2712,10 +3211,6 @@ void oc_ui_end_frame(void)
         oc_ui_style_set_f32(OC_UI_FLOAT_TARGET_X, 0);
         oc_ui_style_set_f32(OC_UI_FLOAT_TARGET_Y, 0);
     }
-    oc_ui_box_pop();
-
-    oc_ui_box_pop();
-
     oc_ui_box* box = oc_ui_box_end();
     OC_DEBUG_ASSERT(box == ui->root, "unbalanced box stack");
 
@@ -2738,33 +3233,6 @@ void oc_ui_end_frame(void)
 
     oc_arena_clear(&ui->frameArena);
     oc_input_next_frame(&ui->input);
-}
-
-//-----------------------------------------------------------------------------
-// Init / cleanup
-//-----------------------------------------------------------------------------
-
-void oc_ui_init(oc_ui_context* ui, oc_font defaultFont)
-{
-    oc_uiCurrentContext = &oc_uiThreadContext;
-
-    memset(ui, 0, sizeof(oc_ui_context));
-    oc_arena_init(&ui->frameArena);
-    oc_pool_init(&ui->boxPool, sizeof(oc_ui_box));
-    ui->defaultFont = defaultFont;
-    ui->init = true;
-
-    oc_ui_set_context(ui);
-
-    ui->editSelectionMode = OC_UI_EDIT_MOVE_CHAR;
-}
-
-void oc_ui_cleanup(void)
-{
-    oc_ui_context* ui = oc_ui_get_context();
-    oc_arena_cleanup(&ui->frameArena);
-    oc_pool_cleanup(&ui->boxPool);
-    ui->init = false;
 }
 
 //-----------------------------------------------------------------------------
@@ -2860,119 +3328,6 @@ oc_ui_sig oc_ui_button_str8(oc_str8 key, oc_str8 text)
 oc_ui_sig oc_ui_button(const char* key, const char* text)
 {
     return (oc_ui_button_str8(OC_STR8((char*)key), OC_STR8((char*)text)));
-}
-
-//------------------------------------------------------------------------------
-// panels
-//------------------------------------------------------------------------------
-
-oc_ui_box* oc_ui_scrollbar_str8(oc_str8 name, oc_rect rect, f32 thumbRatio, f32* scrollValue, bool horizontal)
-{
-    oc_ui_box* track = oc_ui_box_str8(name)
-    {
-        oc_ui_style_set_i32(OC_UI_FLOATING_X, 1);
-        oc_ui_style_set_i32(OC_UI_FLOATING_Y, 1);
-        oc_ui_style_set_f32(OC_UI_FLOAT_TARGET_X, rect.x);
-        oc_ui_style_set_f32(OC_UI_FLOAT_TARGET_Y, rect.y);
-        oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PIXELS, rect.w });
-        oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PIXELS, rect.h });
-
-        if(horizontal)
-        {
-            oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_X);
-        }
-        else
-        {
-            oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_Y);
-        }
-        oc_ui_axis trackAxis = horizontal ? OC_UI_AXIS_X : OC_UI_AXIS_Y;
-        oc_ui_axis secondAxis = (trackAxis == OC_UI_AXIS_Y) ? OC_UI_AXIS_X : OC_UI_AXIS_Y;
-
-        f32 minThumbRatio = 17. / oc_max(rect.w, rect.h);
-        thumbRatio = oc_min(oc_max(thumbRatio, minThumbRatio), 1.);
-        f32 beforeRatio = (*scrollValue) * (1. - thumbRatio);
-        f32 afterRatio = (1. - *scrollValue) * (1. - thumbRatio);
-
-        oc_ui_box("before-spacer")
-        {
-            oc_ui_style_set_size(OC_UI_WIDTH + trackAxis, (oc_ui_size){ OC_UI_SIZE_PARENT, beforeRatio });
-            oc_ui_style_set_size(OC_UI_WIDTH + secondAxis, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
-        }
-
-        oc_ui_box* thumb = oc_ui_box("thumb")
-        {
-            oc_ui_style_set_size(OC_UI_WIDTH + trackAxis, (oc_ui_size){ OC_UI_SIZE_PARENT, thumbRatio });
-            oc_ui_style_set_size(OC_UI_WIDTH + secondAxis, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
-
-            f32 roundness = 0.5 * rect.c[2 + secondAxis];
-            oc_ui_style_set_f32(OC_UI_ROUNDNESS, roundness);
-
-            oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_FILL_2);
-
-            oc_ui_style_rule(".hover")
-            {
-                oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_FILL_1);
-            }
-            oc_ui_style_rule(".active")
-            {
-                oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_FILL_1);
-            }
-        }
-
-        oc_ui_box("after-spacer")
-        {
-            oc_ui_style_set_size(OC_UI_WIDTH + trackAxis, (oc_ui_size){ OC_UI_SIZE_PARENT, afterRatio });
-            oc_ui_style_set_size(OC_UI_WIDTH + secondAxis, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
-        }
-
-        //NOTE: interaction
-        oc_ui_sig thumbSig = oc_ui_box_sig(thumb);
-        oc_ui_sig trackSig = oc_ui_box_sig(track);
-
-        if(thumbSig.dragging)
-        {
-            f32 trackExtents = rect.c[2 + trackAxis] * (1. - thumbRatio);
-            *scrollValue = (trackSig.mouse.c[trackAxis] - thumb->pressedMouse.c[trackAxis]) / trackExtents;
-            *scrollValue = oc_clamp(*scrollValue, 0, 1);
-        }
-
-        if(oc_ui_box_active(track))
-        {
-            //NOTE: activated from outside
-            oc_ui_box_set_hot(track, true);
-            oc_ui_box_set_hot(thumb, true);
-            oc_ui_box_activate(track);
-            oc_ui_box_activate(thumb);
-        }
-
-        if(trackSig.hovering)
-        {
-            oc_ui_box_set_hot(track, true);
-            oc_ui_box_set_hot(thumb, true);
-        }
-        else if(thumbSig.wheel.c[trackAxis] == 0)
-        {
-            oc_ui_box_set_hot(track, false);
-            oc_ui_box_set_hot(thumb, false);
-        }
-
-        if(thumbSig.dragging)
-        {
-            oc_ui_box_activate(track);
-            oc_ui_box_activate(thumb);
-        }
-        else if(thumbSig.wheel.c[trackAxis] == 0)
-        {
-            oc_ui_box_deactivate(track);
-            oc_ui_box_deactivate(thumb);
-        }
-    }
-    return (track);
-}
-
-oc_ui_box* oc_ui_scrollbar(const char* name, oc_rect rect, f32 thumbRatio, f32* scrollValue, bool horizontal)
-{
-    return oc_ui_scrollbar_str8(OC_STR8(name), rect, thumbRatio, scrollValue, horizontal);
 }
 
 //-----------------------------------------------------------

@@ -22,13 +22,12 @@ oc_canvas_renderer renderer;
 oc_canvas_context context;
 oc_font fontRegular;
 oc_font fontBold;
-oc_ui_context ui;
 
 i32 ui_runloop(void* user)
 {
     context = oc_canvas_context_create();
 
-    oc_ui_init(&ui, fontRegular);
+    oc_ui_context* ui = oc_ui_context_create(fontRegular);
 
     oc_ui_radio_group_info radioInfo = {
         .optionCount = 4,
