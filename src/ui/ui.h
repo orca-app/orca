@@ -279,6 +279,13 @@ ORCA_API void oc_ui_set_text(oc_str8 text);
 ORCA_API void oc_ui_set_overlay(bool overlay);
 
 //-------------------------------------------------------------------------------------
+// Mouse input
+//-------------------------------------------------------------------------------------
+ORCA_API oc_vec2 oc_ui_mouse_position(void);
+ORCA_API oc_vec2 oc_ui_mouse_delta(void);
+ORCA_API oc_vec2 oc_ui_mouse_wheel(void);
+
+//-------------------------------------------------------------------------------------
 // Box status and signals
 //-------------------------------------------------------------------------------------
 ORCA_API bool oc_ui_box_closed(oc_ui_box* box);
@@ -392,6 +399,7 @@ ORCA_API oc_font oc_ui_var_get_font(const char* name);
     _(OC_UI_THEME_FILL_1, "fill-1")                               \
     _(OC_UI_THEME_FILL_2, "fill-2")                               \
     _(OC_UI_THEME_BORDER, "border")                               \
+    _(OC_UI_THEME_TOOLTIP, "tooltip")                             \
     _(OC_UI_THEME_ROUNDNESS_SMALL, "roundness-small")             \
     _(OC_UI_THEME_ROUNDNESS_REGULAR, "roundness-regular")         \
     _(OC_UI_THEME_ROUNDNESS_LARGE, "roundness-large")             \

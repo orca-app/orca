@@ -134,7 +134,7 @@ i32 ui_runloop(void* user)
                 oc_ui_style_set_f32(OC_UI_MARGIN_X, 20);
                 oc_ui_style_set_f32(OC_UI_MARGIN_Y, 20);
 
-                oc_ui_box("box")
+                oc_ui_box* box = oc_ui_box("box")
                 {
                     //                    oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
                     oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PIXELS, 250 });
@@ -149,6 +149,11 @@ i32 ui_runloop(void* user)
                     oc_ui_slider("slider", &slider);
 
                     radioInfo = oc_ui_radio_group("radio", &radioInfo);
+
+                    if(oc_ui_box_sig(box).hovering)
+                    {
+                        oc_ui_tooltip("tooltip", "This is a black box");
+                    }
                 }
                 oc_ui_button("mybutton", "clickMe");
             }

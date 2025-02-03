@@ -456,19 +456,16 @@ oc_ui_radio_group_info oc_ui_radio_group(const char* name, oc_ui_radio_group_inf
     return oc_ui_radio_group_str8(OC_STR8(name), info);
 }
 
-#if 0
-
-
 //------------------------------------------------------------------------------
 // tooltips
 //------------------------------------------------------------------------------
 
 void oc_ui_tooltip_arrow_draw(oc_ui_box* box, void* data)
 {
-oc_rect rect = oc_ui_box_rect(box);
+    oc_rect rect = oc_ui_box_rect(box);
     oc_mat2x3 matrix = {
-        -rect.w, 0, rect.x + rect.w + 1,
-        0, rect.h, rect.y
+        -rect.w, 0, rect.x + rect.w + 2,
+        0, rect.h, rect.y + 5
     };
     oc_matrix_multiply_push(matrix);
 
@@ -481,69 +478,59 @@ oc_rect rect = oc_ui_box_rect(box);
     oc_line_to(0, 1);
     oc_line_to(0, 0);
 
-    oc_set_color(box->style.bgColor);
+    oc_ui_style style = oc_ui_box_style(box);
+    //    oc_set_color(style.bgColor);
+    oc_set_color((oc_color){ 0.786, 0.792, 0.804, 1, OC_COLOR_SPACE_SRGB });
+
     oc_fill();
 
     oc_matrix_pop();
 }
 
-void oc_ui_tooltip_str8(oc_str8 label)
+void oc_ui_tooltip_str8(oc_str8 key, oc_str8 text)
 {
-    oc_ui_context* ui = oc_ui_get_context();
-    oc_ui_theme* theme = ui->theme;
-
     oc_vec2 p = oc_ui_mouse_position();
-    oc_ui_style containerStyle = { .floating.x = true,
-                                   .floating.y = true,
-                                   .floatTarget.x = p.x,
-                                   .floatTarget.y = p.y - 10 }; //TODO: quick fix for aliging single line tooltips arrow to mouse, fix that!
-    oc_ui_style_next(&containerStyle, OC_UI_MASK_FLOAT);
-    oc_ui_container_str8(label, OC_UI_FLAG_OVERLAY)
+
+    oc_ui_box_str8(key)
     {
-        oc_ui_style arrowStyle = { .size.width = { OC_UI_SIZE_PIXELS, 24 },
-                                   .size.height = { OC_UI_SIZE_PIXELS, 24 },
-                                   .floating.x = true,
-                                   .floating.y = true,
-                                   .floatTarget = { 0, 5 },
-                                   .bgColor = theme->palette->grey7 };
-        oc_ui_attr_mask arrowMask = OC_UI_MASK_SIZE
-                                   | OC_UI_MASK_FLOAT
-                                   | OC_UI_MASK_BG_COLOR;
-        oc_ui_style_next(&arrowStyle, arrowMask);
+        oc_ui_set_overlay(true);
 
-        oc_ui_box* arrow = oc_ui_box_make("arrow", OC_UI_FLAG_NONE);
-        oc_ui_box_set_draw_proc(arrow, oc_ui_tooltip_arrow_draw, 0);
+        oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_CHILDREN });
+        oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_CHILDREN });
+        oc_ui_style_set_i32(OC_UI_FLOATING_X, true);
+        oc_ui_style_set_i32(OC_UI_FLOATING_Y, true);
+        oc_ui_style_set_f32(OC_UI_FLOAT_TARGET_X, p.x);
+        oc_ui_style_set_f32(OC_UI_FLOAT_TARGET_Y, p.y - 10); //TODO: quick fix for aliging single line tooltips arrow to mouse, fix that!
 
-        oc_ui_style contentsStyle = { .size.width = { OC_UI_SIZE_CHILDREN },
-                                      .size.height = { OC_UI_SIZE_CHILDREN },
-                                      .layout.margin.x = 12,
-                                      .layout.margin.y = 8,
-                                      .floating.x = true,
-                                      .floating.y = true,
-                                      .floatTarget = { 24, 0 },
-                                      .bgColor = theme->palette->grey7,
-                                      .color = theme->bg0,
-                                      .roundness = theme->roundnessMedium };
-        oc_ui_attr_mask contentsMask = OC_UI_MASK_SIZE
-                                      | OC_UI_MASK_LAYOUT_MARGINS
-                                      | OC_UI_MASK_FLOAT
-                                      | OC_UI_MASK_COLOR
-                                      | OC_UI_MASK_BG_COLOR
-                                      | OC_UI_MASK_ROUNDNESS;
-        oc_ui_style_next(&contentsStyle, contentsMask);
+        oc_ui_box* arrow = oc_ui_box("arrow")
+        {
+            oc_ui_box_set_draw_proc(arrow, oc_ui_tooltip_arrow_draw, 0);
 
-        oc_ui_box* contents = oc_ui_box_begin("contents", OC_UI_FLAG_NONE);
+            oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PIXELS, 24 });
+            oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PIXELS, 24 });
+            //            oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_TOOLTIP);
+        }
 
-        oc_ui_label_str8(label);
+        oc_ui_box("contents")
+        {
+            oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_CHILDREN });
+            oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_CHILDREN });
+            oc_ui_style_set_f32(OC_UI_MARGIN_X, 12);
+            oc_ui_style_set_f32(OC_UI_MARGIN_Y, 8);
+            oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_TOOLTIP);
+            oc_ui_style_set_var_str8(OC_UI_ROUNDNESS, OC_UI_THEME_ROUNDNESS_REGULAR);
 
-        oc_ui_box_end();
+            oc_ui_label_str8(OC_STR8_LIT("label"), text);
+        }
     }
 }
 
-void oc_ui_tooltip(const char* label)
+void oc_ui_tooltip(const char* key, const char* text)
 {
-    oc_ui_tooltip_str8(OC_STR8(label));
+    oc_ui_tooltip_str8(OC_STR8(key), OC_STR8(text));
 }
+
+#if 0
 
 //------------------------------------------------------------------------------
 // Menus

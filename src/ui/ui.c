@@ -1465,6 +1465,8 @@ void oc_ui_style_theme_light()
 
     oc_ui_var_set_color_str8(OC_UI_THEME_BORDER, (oc_color){ 0.110, 0.122, 0.137, .16, OC_COLOR_SPACE_SRGB });
 
+    oc_ui_var_set_color_str8(OC_UI_THEME_TOOLTIP, (oc_color){ 0.255, 0.275, 0.298, 1, OC_COLOR_SPACE_SRGB });
+
     oc_ui_var_set_f32_str8(OC_UI_THEME_ROUNDNESS_SMALL, 3);
     oc_ui_var_set_f32_str8(OC_UI_THEME_ROUNDNESS_REGULAR, 6);
     oc_ui_var_set_f32_str8(OC_UI_THEME_ROUNDNESS_LARGE, 12);
@@ -1512,6 +1514,8 @@ void oc_ui_style_theme_dark()
     oc_ui_var_set_color_str8(OC_UI_THEME_FILL_2, (oc_color){ 1, 1, 1, 0.063, OC_COLOR_SPACE_SRGB });
 
     oc_ui_var_set_color_str8(OC_UI_THEME_BORDER, (oc_color){ 1, 1, 1, 0.018, OC_COLOR_SPACE_SRGB });
+
+    oc_ui_var_set_color_str8(OC_UI_THEME_TOOLTIP, (oc_color){ 0.786, 0.792, 0.804, 1, OC_COLOR_SPACE_SRGB });
 
     oc_ui_var_set_f32_str8(OC_UI_THEME_ROUNDNESS_SMALL, 3);
     oc_ui_var_set_f32_str8(OC_UI_THEME_ROUNDNESS_REGULAR, 6);
