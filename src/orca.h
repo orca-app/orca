@@ -70,5 +70,6 @@
     //----------------------------------------------------------------
     #include "ui/input_state.h"
     #include "ui/ui.h"
+    #include "ui/widgets.h"
 
 #endif // defined(OC_NO_APP_LAYER)

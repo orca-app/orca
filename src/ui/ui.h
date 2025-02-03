@@ -122,6 +122,99 @@ typedef enum oc_ui_attr_mask
 
 } oc_ui_attr_mask;
 
+typedef union oc_ui_layout_align
+{
+    struct
+    {
+        oc_ui_align x;
+        oc_ui_align y;
+    };
+
+    oc_ui_align c[OC_UI_AXIS_COUNT];
+} oc_ui_layout_align;
+
+typedef struct oc_ui_layout
+{
+    oc_ui_axis axis;
+    f32 spacing;
+
+    union
+    {
+        struct
+        {
+            f32 x;
+            f32 y;
+        };
+
+        f32 c[OC_UI_AXIS_COUNT];
+    } margin;
+
+    oc_ui_layout_align align;
+
+    union
+    {
+        struct
+        {
+            oc_ui_overflow x;
+            oc_ui_overflow y;
+        };
+
+        oc_ui_overflow c[OC_UI_AXIS_COUNT];
+    } overflow;
+
+    union
+    {
+        struct
+        {
+            bool x;
+            bool y;
+        };
+
+        bool c[OC_UI_AXIS_COUNT];
+    } constrain;
+
+} oc_ui_layout;
+
+typedef union oc_ui_box_size
+{
+    struct
+    {
+        oc_ui_size width;
+        oc_ui_size height;
+    };
+
+    oc_ui_size c[OC_UI_AXIS_COUNT];
+} oc_ui_box_size;
+
+typedef union oc_ui_box_floating
+{
+    struct
+    {
+        bool x;
+        bool y;
+    };
+
+    bool c[OC_UI_AXIS_COUNT];
+} oc_ui_box_floating;
+
+typedef struct oc_ui_style
+{
+    oc_ui_box_size size;
+    oc_ui_layout layout;
+    oc_ui_box_floating floating;
+    oc_vec2 floatTarget;
+    oc_color color;
+    oc_color bgColor;
+    oc_color borderColor;
+    oc_font font;
+    f32 fontSize;
+    f32 borderSize;
+    f32 roundness;
+    f32 animationTime;
+    oc_ui_attr_mask animationMask;
+    bool clickThrough;
+} oc_ui_style;
+
 typedef struct oc_ui_box oc_ui_box;
 typedef struct oc_ui_context oc_ui_context;
 
@@ -132,6 +225,7 @@ typedef struct oc_ui_sig
     oc_vec2 mouse;
     oc_vec2 delta;
     oc_vec2 wheel;
+    oc_vec2 lastPressedMouse;
 
     bool pressed;
     bool released;
@@ -191,6 +285,7 @@ ORCA_API bool oc_ui_box_closed(oc_ui_box* box);
 ORCA_API void oc_ui_box_set_closed(oc_ui_box* box, bool closed);
 
 ORCA_API bool oc_ui_box_active(oc_ui_box* box);
+ORCA_API void oc_ui_box_set_active(oc_ui_box* box, bool active);
 ORCA_API void oc_ui_box_activate(oc_ui_box* box);
 ORCA_API void oc_ui_box_deactivate(oc_ui_box* box);
 
@@ -199,6 +294,8 @@ ORCA_API void oc_ui_box_set_hot(oc_ui_box* box, bool hot);
 
 ORCA_API oc_ui_sig oc_ui_box_sig(oc_ui_box* box);
 
+ORCA_API oc_rect oc_ui_box_rect(oc_ui_box* box);
+ORCA_API oc_ui_style oc_ui_box_style(oc_ui_box* box);
 //-------------------------------------------------------------------------------------
 // Tagging
 //-------------------------------------------------------------------------------------
@@ -322,81 +419,6 @@ OC_UI_DEFAULT_THEME_DATA(OC_UI_THEME_NAME)
 
 ORCA_API void oc_ui_theme_dark();
 ORCA_API void oc_ui_theme_light();
-
-//-------------------------------------------------------------------------
-// Basic widget helpers
-//-------------------------------------------------------------------------
-// Label
-ORCA_API oc_ui_sig oc_ui_label(const char* key, const char* label);
-ORCA_API oc_ui_sig oc_ui_label_str8(oc_str8 key, oc_str8 label);
-
-// Button
-ORCA_API oc_ui_sig oc_ui_button(const char* key, const char* text);
-ORCA_API oc_ui_sig oc_ui_button_str8(oc_str8 key, oc_str8 text);
-
-// Checkbox
-ORCA_API oc_ui_sig oc_ui_checkbox(const char* key, bool* checked);
-ORCA_API oc_ui_sig oc_ui_checkbox_str8(oc_str8 key, bool* checked);
-
-// Slider
-ORCA_API oc_ui_box* oc_ui_slider(const char* name, f32* value);
-ORCA_API oc_ui_box* oc_ui_slider_str8(oc_str8 name, f32* value);
-
-// Tooltip
-ORCA_API void oc_ui_tooltip(const char* key, const char* text);
-ORCA_API void oc_ui_tooltip_str8(oc_str8 key, oc_str8 text);
-
-// Menus
-ORCA_API void oc_ui_menu_bar_begin(const char* key, const char* name);
-ORCA_API void oc_ui_menu_bar_begin_str8(oc_str8 key, oc_str8 name);
-ORCA_API void oc_ui_menu_bar_end(void);
-#define oc_ui_menu_bar(name) oc_defer_loop(oc_ui_menu_bar_begin(name), oc_ui_menu_bar_end())
-
-ORCA_API void oc_ui_menu_begin(const char* key, const char* name);
-ORCA_API void oc_ui_menu_begin_str8(oc_str8 key, oc_str8 name);
-ORCA_API void oc_ui_menu_end(void);
-#define oc_ui_menu(label) oc_defer_loop(oc_ui_menu_begin(label), oc_ui_menu_end())
-
-ORCA_API oc_ui_sig oc_ui_menu_button(const char* key, const char* text);
-ORCA_API oc_ui_sig oc_ui_menu_button_str8(oc_str8 key, oc_str8 text);
-
-// Text Box
-typedef struct oc_ui_text_box_result
-{
-    bool changed;
-    bool accepted;
-    oc_str8 text;
-    oc_ui_box* frame;
-    oc_ui_box* textBox;
-} oc_ui_text_box_result;
-
-ORCA_API oc_ui_text_box_result oc_ui_text_box(const char* key, oc_arena* arena, oc_str8 text);
-ORCA_API oc_ui_text_box_result oc_ui_text_box_str8(oc_str8 key, oc_arena* arena, oc_str8 text);
-
-// Select Popup
-typedef struct oc_ui_select_popup_info
-{
-    bool changed;
-    int selectedIndex; // -1 if nothing is selected
-    int optionCount;
-    oc_str8* options;
-    oc_str8 placeholder;
-} oc_ui_select_popup_info;
-
-ORCA_API oc_ui_select_popup_info oc_ui_select_popup(const char* key, oc_ui_select_popup_info* info);
-ORCA_API oc_ui_select_popup_info oc_ui_select_popup_str8(const char* key, oc_ui_select_popup_info* info);
-
-// Radio Group
-typedef struct oc_ui_radio_group_info
-{
-    bool changed;
-    int selectedIndex; // -1 if nothing is selected
-    int optionCount;
-    oc_str8* options;
-} oc_ui_radio_group_info;
-
-ORCA_API oc_ui_radio_group_info oc_ui_radio_group(const char* key, oc_ui_radio_group_info* info);
-ORCA_API oc_ui_radio_group_info oc_ui_radio_group_str8(oc_str8 key, oc_ui_radio_group_info* info);
 
 #ifdef __cplusplus
 } // extern "C"
