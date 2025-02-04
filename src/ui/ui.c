@@ -133,69 +133,8 @@ typedef struct oc_ui_var_map
 } oc_ui_var_map;
 
 //-----------------------------------------------------------------------------
-// ui box and  context structs
+// context structs
 //-----------------------------------------------------------------------------
-
-typedef struct oc_ui_key
-{
-    u64 hash;
-} oc_ui_key;
-
-struct oc_ui_box
-{
-    // hierarchy
-    oc_list_elt listElt;
-    oc_list children;
-    oc_ui_box* parent;
-
-    oc_list_elt overlayElt;
-    bool overlay;
-
-    // keying and caching
-    oc_list_elt bucketElt;
-    oc_ui_key key;
-    u64 frameCounter;
-
-    // builder-provided info
-    oc_str8 keyString;
-    oc_str8 text;
-    oc_list tags;
-
-    oc_ui_box_draw_proc drawProc;
-    void* drawData;
-
-    // styling
-    oc_list rules;
-
-    oc_ui_style* targetStyle;
-    oc_ui_style style;
-    u32 z;
-
-    oc_vec2 floatPos;
-    f32 childrenSum[2];
-    f32 spacing[2];
-    f32 minSize[2];
-    oc_rect rect;
-
-    oc_list styleVariables;
-
-    // signals
-    oc_ui_sig sig;
-
-    // stateful behaviour
-    bool fresh;
-    bool closed;
-    bool parentClosed;
-    bool dragging;
-    bool hot;
-    bool active;
-    oc_vec2 scroll;
-    oc_vec2 pressedMouse;
-
-    // animation data
-    f32 hotTransition;
-    f32 activeTransition;
-};
 
 enum
 {
@@ -748,6 +687,10 @@ void oc_ui_style_set_i32(oc_ui_attr attr, i32 i)
 
         case OC_UI_CONSTRAIN_Y:
             style->layout.constrain.y = i;
+            break;
+
+        case OC_UI_DRAW_MASK:
+            style->drawMask = i;
             break;
 
         case OC_UI_ANIMATION_MASK:
@@ -1378,6 +1321,7 @@ void oc_ui_style_set_var_str8(oc_ui_attr attr, oc_str8 name)
             case OC_UI_OVERFLOW_Y:
             case OC_UI_CONSTRAIN_X:
             case OC_UI_CONSTRAIN_Y:
+            case OC_UI_DRAW_MASK:
             case OC_UI_ANIMATION_MASK:
             case OC_UI_CLICK_THROUGH:
                 value.kind = OC_UI_VAR_I32;
@@ -1570,6 +1514,12 @@ oc_vec2 oc_ui_mouse_wheel(void)
     oc_ui_context* ui = oc_ui_get_context();
     oc_vec2 delta = oc_mouse_wheel(&ui->input);
     return (delta);
+}
+
+oc_input_state* oc_ui_input()
+{
+    oc_ui_context* ui = oc_ui_get_context();
+    return &ui->input;
 }
 
 //-----------------------------------------------------------------------------
@@ -1980,16 +1930,6 @@ void oc_ui_set_text(oc_str8 text)
         box->text = oc_str8_push_copy(&ui->frameArena, text);
     }
     //TODO: else error?
-}
-
-oc_rect oc_ui_box_rect(oc_ui_box* box)
-{
-    return box->rect;
-}
-
-oc_ui_style oc_ui_box_style(oc_ui_box* box)
-{
-    return box->style;
 }
 
 //-----------------------------------------------------------------------------
@@ -2922,8 +2862,8 @@ void oc_ui_draw_box(oc_ui_box* box)
 
     oc_ui_style* style = &box->style;
 
+    //NOTE: detect if box is completely outside parent clip
     bool draw = true;
-
     {
         oc_rect clipRect = oc_clip_top();
         oc_rect expRect = {
@@ -2943,6 +2883,7 @@ void oc_ui_draw_box(oc_ui_box* box)
     }
 
     {
+        //NOTE: push clip rect
         oc_rect clipRect = oc_ui_box_clip_rect(box);
 
         if(box->style.layout.overflow.x != OC_UI_OVERFLOW_ALLOW
@@ -2952,24 +2893,33 @@ void oc_ui_draw_box(oc_ui_box* box)
         }
     }
 
-    if(draw && style->bgColor.a != 0)
+    if(draw)
     {
-        oc_set_color(style->bgColor);
-        oc_ui_rectangle_fill(box->rect, style->roundness);
+        //NOTE: background
+        if(!(style->drawMask & OC_UI_DRAW_MASK_BACKGROUND)
+           && style->bgColor.a != 0)
+        {
+            oc_set_color(style->bgColor);
+            oc_ui_rectangle_fill(box->rect, style->roundness);
+        }
+
+        //NOTE: custom proc
+        if(!(style->drawMask & OC_UI_DRAW_MASK_PROC)
+           && box->drawProc)
+        {
+            box->drawProc(box, box->drawData);
+        }
     }
 
-    if(draw
-       && box->drawProc)
-    {
-        box->drawProc(box, box->drawData);
-    }
-
+    //NOTE: draw children
     oc_list_for(box->children, child, oc_ui_box, listElt)
     {
         oc_ui_draw_box(child);
     }
 
+    //NOTE: draw text
     if(draw
+       && !(style->drawMask & OC_UI_DRAW_MASK_TEXT)
        && box->text.len
        && !oc_font_is_nil(style->font)
        && style->fontSize > 0)
@@ -3023,21 +2973,16 @@ void oc_ui_draw_box(oc_ui_box* box)
         oc_clip_pop();
     }
 
-    if(draw && style->borderSize != 0 && style->borderColor.a != 0)
+    //NOTE: draw border
+    if(draw
+       && !(style->drawMask & OC_UI_DRAW_MASK_BORDER)
+       && style->borderSize != 0
+       && style->borderColor.a != 0)
     {
         oc_set_width(style->borderSize);
         oc_set_color(style->borderColor);
         oc_ui_rectangle_stroke(box->rect, style->roundness);
     }
-
-#if 0
-    if(box->rect.w && box->rect.h)
-    {
-        oc_set_width(1);
-        oc_set_color_rgba(1, 0, 0, 1);
-        oc_ui_rectangle_stroke(box->rect, 0);
-    }
-#endif
 }
 
 void oc_ui_draw()

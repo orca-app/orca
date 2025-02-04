@@ -46,15 +46,15 @@ ORCA_API void oc_ui_tooltip_str8(oc_str8 key, oc_str8 text);
 //------------------------------------------------------------------------
 // Menus
 //------------------------------------------------------------------------
-ORCA_API void oc_ui_menu_bar_begin(const char* key, const char* name);
-ORCA_API void oc_ui_menu_bar_begin_str8(oc_str8 key, oc_str8 name);
+ORCA_API void oc_ui_menu_bar_begin(const char* key);
+ORCA_API void oc_ui_menu_bar_begin_str8(oc_str8 key);
 ORCA_API void oc_ui_menu_bar_end(void);
-#define oc_ui_menu_bar(name) oc_defer_loop(oc_ui_menu_bar_begin(name), oc_ui_menu_bar_end())
+#define oc_ui_menu_bar(key) oc_defer_loop(oc_ui_menu_bar_begin(key), oc_ui_menu_bar_end())
 
 ORCA_API void oc_ui_menu_begin(const char* key, const char* name);
 ORCA_API void oc_ui_menu_begin_str8(oc_str8 key, oc_str8 name);
 ORCA_API void oc_ui_menu_end(void);
-#define oc_ui_menu(label) oc_defer_loop(oc_ui_menu_begin(label), oc_ui_menu_end())
+#define oc_ui_menu(key, text) oc_defer_loop(oc_ui_menu_begin(key, text), oc_ui_menu_end())
 
 ORCA_API oc_ui_sig oc_ui_menu_button(const char* key, const char* text);
 ORCA_API oc_ui_sig oc_ui_menu_button_str8(oc_str8 key, oc_str8 text);

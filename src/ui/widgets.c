@@ -107,7 +107,7 @@ oc_ui_sig oc_ui_button(const char* key, const char* text)
 //-----------------------------------------------------------
 void oc_ui_checkbox_draw(oc_ui_box* box, void* data)
 {
-    oc_rect rect = oc_ui_box_rect(box);
+    oc_rect rect = box->rect;
 
     oc_mat2x3 matrix = {
         rect.w, 0, rect.x,
@@ -127,8 +127,7 @@ void oc_ui_checkbox_draw(oc_ui_box* box, void* data)
     oc_line_to(0.6379, 0.3162);
     oc_cubic_to(0.6588, 0.2888, 0.698, 0.2836, 0.7255, 0.3045);
 
-    oc_ui_style style = oc_ui_box_style(box);
-    oc_set_color(style.color);
+    oc_set_color(box->style.color);
     oc_fill();
 
     oc_matrix_pop();
@@ -205,7 +204,7 @@ oc_ui_box* oc_ui_slider_str8(oc_str8 name, f32* value)
         oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PIXELS, 100 });
         oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PIXELS, 24 });
 
-        oc_rect frameRect = oc_ui_box_rect(frame);
+        oc_rect frameRect = frame->rect;
         oc_ui_axis trackAxis = (frameRect.w > frameRect.h) ? OC_UI_AXIS_X : OC_UI_AXIS_Y;
         oc_ui_axis secondAxis = (trackAxis == OC_UI_AXIS_Y) ? OC_UI_AXIS_X : OC_UI_AXIS_Y;
 
@@ -290,8 +289,8 @@ oc_ui_box* oc_ui_slider_str8(oc_str8 name, f32* value)
         oc_ui_sig trackSig = oc_ui_box_sig(track);
         if(thumbSig.dragging)
         {
-            oc_rect trackRect = oc_ui_box_rect(track);
-            oc_rect thumbRect = oc_ui_box_rect(thumb);
+            oc_rect trackRect = track->rect;
+            oc_rect thumbRect = thumb->rect;
 
             f32 trackExtents = trackRect.c[2 + trackAxis] - thumbRect.c[2 + trackAxis];
             *value = (trackSig.mouse.c[trackAxis] - thumbSig.lastPressedMouse.c[trackAxis]) / trackExtents;
@@ -348,15 +347,14 @@ oc_ui_box* oc_ui_slider(const char* name, f32* value)
 
 void oc_ui_radio_indicator_draw(oc_ui_box* box, void* data)
 {
-    oc_rect rect = oc_ui_box_rect(box);
+    oc_rect rect = box->rect;
     oc_mat2x3 matrix = {
         rect.w, 0, rect.x,
         0, rect.h, rect.y
     };
     oc_matrix_multiply_push(matrix);
 
-    oc_ui_style style = oc_ui_box_style(box);
-    oc_set_color(style.color);
+    oc_set_color(box->style.color);
     oc_circle_fill(0.5, 0.5, 35.0 / 192);
 
     oc_matrix_pop();
@@ -462,7 +460,7 @@ oc_ui_radio_group_info oc_ui_radio_group(const char* name, oc_ui_radio_group_inf
 
 void oc_ui_tooltip_arrow_draw(oc_ui_box* box, void* data)
 {
-    oc_rect rect = oc_ui_box_rect(box);
+    oc_rect rect = box->rect;
     oc_mat2x3 matrix = {
         -rect.w, 0, rect.x + rect.w + 2,
         0, rect.h, rect.y + 5
@@ -478,10 +476,7 @@ void oc_ui_tooltip_arrow_draw(oc_ui_box* box, void* data)
     oc_line_to(0, 1);
     oc_line_to(0, 0);
 
-    oc_ui_style style = oc_ui_box_style(box);
-    //    oc_set_color(style.bgColor);
-    oc_set_color((oc_color){ 0.786, 0.792, 0.804, 1, OC_COLOR_SPACE_SRGB });
-
+    oc_set_color(box->style.bgColor);
     oc_fill();
 
     oc_matrix_pop();
@@ -489,7 +484,7 @@ void oc_ui_tooltip_arrow_draw(oc_ui_box* box, void* data)
 
 void oc_ui_tooltip_str8(oc_str8 key, oc_str8 text)
 {
-    oc_vec2 p = oc_ui_mouse_position();
+    oc_vec2 p = oc_mouse_position(oc_ui_input());
 
     oc_ui_box_str8(key)
     {
@@ -508,7 +503,8 @@ void oc_ui_tooltip_str8(oc_str8 key, oc_str8 text)
 
             oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PIXELS, 24 });
             oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PIXELS, 24 });
-            //            oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_TOOLTIP);
+            oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_TOOLTIP);
+            oc_ui_style_set_i32(OC_UI_DRAW_MASK, OC_UI_DRAW_MASK_BACKGROUND);
         }
 
         oc_ui_box("contents")
@@ -530,36 +526,26 @@ void oc_ui_tooltip(const char* key, const char* text)
     oc_ui_tooltip_str8(OC_STR8(key), OC_STR8(text));
 }
 
-#if 0
-
 //------------------------------------------------------------------------------
 // Menus
 //------------------------------------------------------------------------------
 
-void oc_ui_menu_bar_begin_str8(oc_str8 name)
+void oc_ui_menu_bar_begin_str8(oc_str8 key)
 {
-    oc_ui_style style = {
-        .size.width = { OC_UI_SIZE_PARENT, 1, 0 },
-        .size.height = { OC_UI_SIZE_CHILDREN },
-        .layout.axis = OC_UI_AXIS_X,
-    };
-    oc_ui_attr_mask mask = OC_UI_MASK_SIZE
-                          | OC_UI_MASK_LAYOUT_AXIS;
-
-    oc_ui_style_next(&style, mask);
-    oc_ui_box* bar = oc_ui_box_begin_str8(name, OC_UI_FLAG_NONE);
+    oc_ui_box* bar = oc_ui_box_begin_str8(key);
+    oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
+    oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_CHILDREN, 1, 0 });
 
     oc_ui_sig sig = oc_ui_box_sig(bar);
-    oc_ui_context* ui = oc_ui_get_context();
-    if(!sig.hovering && oc_mouse_released(&ui->input, OC_MOUSE_LEFT))
+    if(!sig.hovering && oc_mouse_released(oc_ui_input(), OC_MOUSE_LEFT))
     {
         oc_ui_box_set_active(bar, false);
     }
 }
 
-void oc_ui_menu_bar_begin(const char* name)
+void oc_ui_menu_bar_begin(const char* key)
 {
-    oc_ui_menu_bar_begin_str8(OC_STR8(name));
+    oc_ui_menu_bar_begin_str8(OC_STR8(key));
 }
 
 void oc_ui_menu_bar_end(void)
@@ -567,68 +553,59 @@ void oc_ui_menu_bar_end(void)
     oc_ui_box_end(); // menu bar
 }
 
-void oc_ui_menu_begin_str8(oc_str8 label)
+void oc_ui_menu_begin_str8(oc_str8 key, oc_str8 text)
 {
-    oc_ui_context* ui = oc_ui_get_context();
-    oc_ui_theme* theme = ui->theme;
-    oc_ui_box* container = oc_ui_box_make_str8(label, 0);
-    oc_ui_box_push(container);
+    oc_ui_box* container = oc_ui_box_begin_str8(key);
 
-    oc_ui_style_next(&(oc_ui_style){ .size.width = { OC_UI_SIZE_CHILDREN },
-                                     .size.height = { OC_UI_SIZE_CHILDREN },
-                                     .layout.margin.x = 8,
-                                     .layout.margin.y = 4,
-                                     .bgColor = { 0, 0, 0, 0 } },
-                     OC_UI_MASK_SIZE | OC_UI_MASK_LAYOUT_MARGINS | OC_UI_MASK_BG_COLOR);
+    oc_ui_box* button = oc_ui_box("button")
+    {
+        oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_CHILDREN });
+        oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_CHILDREN });
+        oc_ui_style_set_f32(OC_UI_MARGIN_X, 8);
+        oc_ui_style_set_f32(OC_UI_MARGIN_X, 4);
 
-    oc_ui_pattern hoverPattern = { 0 };
-    oc_ui_pattern_push(&ui->frameArena, &hoverPattern, (oc_ui_selector){ .kind = OC_UI_SEL_STATUS, .status = OC_UI_HOVER });
-    oc_ui_style hoverStyle = { .bgColor = theme->fill0 };
-    oc_ui_style_match_before(hoverPattern, &hoverStyle, OC_UI_MASK_BG_COLOR);
+        oc_ui_style_rule(".hover")
+        {
+            oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_FILL_0);
+        }
+        oc_ui_style_rule(".active")
+        {
+            oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_FILL_2);
+        }
 
-    oc_ui_pattern activePattern = { 0 };
-    oc_ui_pattern_push(&ui->frameArena, &activePattern, (oc_ui_selector){ .kind = OC_UI_SEL_STATUS, .status = OC_UI_ACTIVE });
-    oc_ui_style activeStyle = { .bgColor = theme->fill2 };
-    oc_ui_style_match_before(activePattern, &activeStyle, OC_UI_MASK_BG_COLOR);
+        oc_ui_box("label")
+        {
+            oc_ui_style_set_var_str8(OC_UI_COLOR, OC_UI_THEME_TEXT_0);
+            oc_ui_style_set_var_str8(OC_UI_TEXT_SIZE, OC_UI_THEME_TEXT_SIZE_REGULAR);
+            oc_ui_style_set_var_str8(OC_UI_FONT, OC_UI_THEME_FONT_REGULAR);
 
-    oc_ui_box* button = oc_ui_box_begin("button", OC_UI_FLAG_CLICKABLE);
-
-    oc_ui_style_next(&(oc_ui_style){ .size.width = { OC_UI_SIZE_TEXT },
-                                     .size.height = { OC_UI_SIZE_TEXT } },
-                     OC_UI_MASK_SIZE);
-    oc_ui_box* buttonLabel = oc_ui_box_make_str8(label);
-
-    oc_ui_box_end(); // button
+            oc_ui_set_text(text);
+        }
+    }
 
     oc_ui_box* bar = container->parent;
 
+    oc_ui_box* menu = oc_ui_box_begin("panel");
+
+    oc_ui_set_overlay(true);
+
+    oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_CHILDREN });
+    oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_CHILDREN });
+    oc_ui_style_set_i32(OC_UI_FLOATING_X, 1);
+    oc_ui_style_set_i32(OC_UI_FLOATING_Y, true);
+
+    oc_rect buttonRect = button->rect;
+    oc_ui_style_set_f32(OC_UI_FLOAT_TARGET_X, buttonRect.x);
+    oc_ui_style_set_f32(OC_UI_FLOAT_TARGET_Y, buttonRect.y + buttonRect.h);
+
+    oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_Y);
+    oc_ui_style_set_f32(OC_UI_MARGIN_Y, 4);
+    oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_BG_1);
+    oc_ui_style_set_var_str8(OC_UI_BORDER_COLOR, OC_UI_THEME_BORDER);
+    oc_ui_style_set_f32(OC_UI_BORDER_SIZE, 1);
+
     oc_ui_sig sig = oc_ui_box_sig(button);
     oc_ui_sig barSig = oc_ui_box_sig(bar);
-
-    oc_ui_style style = { .size.width = { OC_UI_SIZE_CHILDREN },
-                          .size.height = { OC_UI_SIZE_CHILDREN },
-                          .floating.x = true,
-                          .floating.y = true,
-                          .floatTarget = { button->rect.x,
-                                           button->rect.y + button->rect.h },
-                          .layout.axis = OC_UI_AXIS_Y,
-                          .layout.margin.x = 0,
-                          .layout.margin.y = 4,
-                          .bgColor = theme->bg1,
-                          .borderColor = theme->elevatedBorder,
-                          .borderSize = 1 };
-
-    oc_ui_attr_mask mask = OC_UI_MASK_SIZE
-                          | OC_UI_MASK_FLOAT
-                          | OC_UI_MASK_LAYOUT
-                          | OC_UI_MASK_BG_COLOR
-                          | OC_UI_MASK_BORDER_COLOR
-                          | OC_UI_MASK_BORDER_SIZE;
-
-    oc_ui_flags flags = OC_UI_FLAG_OVERLAY;
-
-    oc_ui_style_next(&style, mask);
-    oc_ui_box* menu = oc_ui_box_make("panel", flags);
 
     if(oc_ui_box_active(bar))
     {
@@ -658,13 +635,14 @@ void oc_ui_menu_begin_str8(oc_str8 label)
     }
 
     oc_ui_box_set_closed(menu, !oc_ui_box_active(button));
-    oc_ui_box_push(menu);
 }
 
-void oc_ui_menu_begin(const char* label)
+void oc_ui_menu_begin(const char* key, const char* text)
 {
-    oc_ui_menu_begin_str8(OC_STR8(label));
+    oc_ui_menu_begin_str8(OC_STR8(key), OC_STR8(text));
 }
+
+#if 0
 
 void oc_ui_menu_end(void)
 {
@@ -715,7 +693,7 @@ oc_ui_sig oc_ui_menu_button(const char* label)
 
 void oc_ui_select_popup_draw_arrow(oc_ui_box* box, void* data)
 {
-    oc_rect rect = oc_ui_box_rect(box);
+    oc_rect rect = box->rect;
     oc_mat2x3 matrix = {
         rect.w / 2, 0, rect.x + rect.w / 4,
         0, rect.h / 2, rect.y + rect.h / 4
@@ -742,7 +720,7 @@ void oc_ui_select_popup_draw_arrow(oc_ui_box* box, void* data)
 
 void oc_ui_select_popup_draw_checkmark(oc_ui_box* box, void* data)
 {
-    oc_rect rect = oc_ui_box_rect(box);
+    oc_rect rect = box->rect;
     oc_mat2x3 matrix = {
         rect.w, 0, rect.x,
         0, rect.h, rect.y
@@ -1696,7 +1674,7 @@ void oc_ui_text_box_render(oc_ui_box* box, void* data)
     oc_str32 before = oc_str32_slice(codepoints, 0, firstDisplayedChar);
     oc_rect beforeBox = oc_font_text_metrics_utf32(style->font, style->fontSize, before).logical;
 
-    oc_rect rect = oc_ui_box_rect(box);
+    oc_rect rect = box->rect;
     f32 textX = rect.x - beforeBox.w;
     f32 textTop = rect.y + 0.5 * (rect.h - lineHeight);
     f32 textY = textTop + extents.ascent;

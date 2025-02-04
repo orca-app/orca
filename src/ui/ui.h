@@ -83,6 +83,7 @@ typedef enum oc_ui_attr
     OC_UI_TEXT_SIZE,
     OC_UI_BORDER_SIZE,
     OC_UI_ROUNDNESS,
+    OC_UI_DRAW_MASK,
     OC_UI_ANIMATION_TIME,
     OC_UI_ANIMATION_MASK,
     OC_UI_CLICK_THROUGH,
@@ -116,6 +117,7 @@ typedef enum oc_ui_attr_mask
     OC_UI_MASK_ROUNDNESS = 1 << OC_UI_ROUNDNESS,
     OC_UI_MASK_FONT = 1 << OC_UI_FONT,
     OC_UI_MASK_FONT_SIZE = 1 << OC_UI_TEXT_SIZE,
+    OC_UI_MASK_DRAW_MASK = 1 << OC_UI_DRAW_MASK,
     OC_UI_MASK_ANIMATION_TIME = 1 << OC_UI_ANIMATION_TIME,
     OC_UI_MASK_ANIMATION_MASK = 1 << OC_UI_ANIMATION_MASK,
     OC_UI_MASK_CLICK_THROUGH = 1 << OC_UI_CLICK_THROUGH,
@@ -197,6 +199,15 @@ typedef union oc_ui_box_floating
     bool c[OC_UI_AXIS_COUNT];
 } oc_ui_box_floating;
 
+typedef enum oc_ui_draw_mask
+{
+    //NOTE: these bits _disable_ the corresponding element when they're set.
+    OC_UI_DRAW_MASK_BACKGROUND = 1 << 0,
+    OC_UI_DRAW_MASK_BORDER = 1 << 1,
+    OC_UI_DRAW_MASK_TEXT = 1 << 2,
+    OC_UI_DRAW_MASK_PROC = 1 << 3,
+} oc_ui_draw_mask;
+
 typedef struct oc_ui_style
 {
     oc_ui_box_size size;
@@ -210,6 +221,7 @@ typedef struct oc_ui_style
     f32 fontSize;
     f32 borderSize;
     f32 roundness;
+    u32 drawMask;
     f32 animationTime;
     oc_ui_attr_mask animationMask;
     bool clickThrough;
@@ -241,6 +253,67 @@ typedef struct oc_ui_sig
 
 typedef void (*oc_ui_box_draw_proc)(oc_ui_box* box, void* data);
 
+typedef struct oc_ui_key
+{
+    u64 hash;
+} oc_ui_key;
+
+struct oc_ui_box
+{
+    // hierarchy
+    oc_list_elt listElt;
+    oc_list children;
+    oc_ui_box* parent;
+
+    oc_list_elt overlayElt;
+    bool overlay;
+
+    // keying and caching
+    oc_list_elt bucketElt;
+    oc_ui_key key;
+    u64 frameCounter;
+
+    // builder-provided info
+    oc_str8 keyString;
+    oc_str8 text;
+    oc_list tags;
+
+    oc_ui_box_draw_proc drawProc;
+    void* drawData;
+
+    // styling
+    oc_list rules;
+
+    oc_ui_style* targetStyle;
+    oc_ui_style style;
+    u32 z;
+
+    oc_vec2 floatPos;
+    f32 childrenSum[2];
+    f32 spacing[2];
+    f32 minSize[2];
+    oc_rect rect;
+
+    oc_list styleVariables;
+
+    // signals
+    oc_ui_sig sig;
+
+    // stateful behaviour
+    bool fresh;
+    bool closed;
+    bool parentClosed;
+    bool dragging;
+    bool hot;
+    bool active;
+    oc_vec2 scroll;
+    oc_vec2 pressedMouse;
+
+    // animation data
+    f32 hotTransition;
+    f32 activeTransition;
+};
+
 //-------------------------------------------------------------------------------------
 // UI context creation/destruction and thread-local context
 //-------------------------------------------------------------------------------------
@@ -260,6 +333,7 @@ ORCA_API void oc_ui_draw(void);
 
 #define oc_ui_frame(size) oc_defer_loop(oc_ui_begin_frame(size), oc_ui_end_frame())
 
+ORCA_API oc_input_state* oc_ui_input();
 //-------------------------------------------------------------------------------------
 // Box hierarchy building
 //-------------------------------------------------------------------------------------
@@ -279,13 +353,6 @@ ORCA_API void oc_ui_set_text(oc_str8 text);
 ORCA_API void oc_ui_set_overlay(bool overlay);
 
 //-------------------------------------------------------------------------------------
-// Mouse input
-//-------------------------------------------------------------------------------------
-ORCA_API oc_vec2 oc_ui_mouse_position(void);
-ORCA_API oc_vec2 oc_ui_mouse_delta(void);
-ORCA_API oc_vec2 oc_ui_mouse_wheel(void);
-
-//-------------------------------------------------------------------------------------
 // Box status and signals
 //-------------------------------------------------------------------------------------
 ORCA_API bool oc_ui_box_closed(oc_ui_box* box);
@@ -299,8 +366,6 @@ ORCA_API void oc_ui_box_set_hot(oc_ui_box* box, bool hot);
 
 ORCA_API oc_ui_sig oc_ui_box_sig(oc_ui_box* box);
 
-ORCA_API oc_rect oc_ui_box_rect(oc_ui_box* box);
-ORCA_API oc_ui_style oc_ui_box_style(oc_ui_box* box);
 //-------------------------------------------------------------------------------------
 // Tagging
 //-------------------------------------------------------------------------------------
