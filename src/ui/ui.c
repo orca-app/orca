@@ -305,20 +305,6 @@ oc_rect oc_ui_clip_top(void)
     return (r);
 }
 
-void oc_ui_clip_push(oc_rect clip)
-{
-    oc_ui_context* ui = oc_ui_get_context();
-    oc_rect current = oc_ui_clip_top();
-    oc_ui_stack_elt* elt = oc_ui_stack_push(ui, &ui->clipStack);
-    elt->clip = oc_ui_intersect_rects(current, clip);
-}
-
-void oc_ui_clip_pop(void)
-{
-    oc_ui_context* ui = oc_ui_get_context();
-    oc_ui_stack_pop(&ui->clipStack);
-}
-
 oc_rect oc_ui_box_clip_rect(oc_ui_box* box)
 {
     oc_rect clipRect = { -FLT_MAX / 2., -FLT_MAX / 2., FLT_MAX, FLT_MAX };
@@ -344,25 +330,13 @@ oc_ui_box* oc_ui_box_top(void)
     return (box);
 }
 
-void oc_ui_box_push(oc_ui_box* box)
-{
-    oc_ui_context* ui = oc_ui_get_context();
-    oc_ui_stack_elt* elt = oc_ui_stack_push(ui, &ui->boxStack);
-    elt->box = box;
-
-    oc_rect clipRect = oc_ui_box_clip_rect(box);
-    oc_ui_clip_push(clipRect);
-
-    box->styleVariables = (oc_list){ 0 };
-}
-
 void oc_ui_box_pop(void)
 {
     oc_ui_context* ui = oc_ui_get_context();
     oc_ui_box* box = oc_ui_box_top();
     if(box)
     {
-        oc_ui_clip_pop();
+        oc_ui_stack_pop(&ui->clipStack);
         oc_ui_stack_pop(&ui->boxStack);
 
         oc_list_for(box->styleVariables, var, oc_ui_var, boxElt)
@@ -1603,7 +1577,7 @@ oc_ui_sig oc_ui_box_compute_signals(oc_ui_box* box)
     return (sig);
 }
 
-oc_ui_box* oc_ui_box_make_str8(oc_str8 string)
+oc_ui_box* oc_ui_box_begin_str8(oc_str8 string)
 {
     oc_ui_context* ui = oc_ui_get_context();
 
@@ -1637,9 +1611,6 @@ oc_ui_box* oc_ui_box_make_str8(oc_str8 string)
             oc_list_push_back(&box->parent->children, &box->listElt);
             box->parentClosed = box->parent->closed || box->parent->parentClosed;
         }
-
-        box->overlayElt = (oc_list_elt){ 0 };
-        box->overlay = false;
     }
     else
     {
@@ -1653,25 +1624,48 @@ oc_ui_box* oc_ui_box_make_str8(oc_str8 string)
     box->targetStyle = oc_arena_push_type(&ui->frameArena, oc_ui_style);
     memset(box->targetStyle, 0, sizeof(oc_ui_style));
 
-    //NOTE: set tags, rules and last box
+    //NOTE: set tags, rules and variables
     box->rules = (oc_list){ 0 };
     box->tags = ui->nextBoxTags;
     ui->nextBoxTags = (oc_list){ 0 };
+    box->styleVariables = (oc_list){ 0 };
 
+    //NOTE: compute box signals
     box->sig = oc_ui_box_compute_signals(box);
     if(box->sig.hovering)
     {
         oc_ui_tag_box_str8(box, OC_STR8_LIT("hover"));
     }
 
-    return (box);
-}
+    //NOTE push box
+    {
+        oc_ui_stack_elt* elt = oc_ui_stack_push(ui, &ui->boxStack);
+        elt->box = box;
+    }
 
-oc_ui_box* oc_ui_box_begin_str8(oc_str8 string)
-{
-    oc_ui_context* ui = oc_ui_get_context();
-    oc_ui_box* box = oc_ui_box_make_str8(string);
-    oc_ui_box_push(box);
+    //NOTE push mouse clip
+    {
+        oc_rect currentClip = oc_ui_clip_top();
+        oc_rect clipRect = oc_ui_box_clip_rect(box);
+
+        oc_ui_stack_elt* elt = oc_ui_stack_push(ui, &ui->clipStack);
+
+        if(box->overlay)
+        {
+            elt->clip = clipRect;
+        }
+        else
+        {
+
+            elt->clip = oc_ui_intersect_rects(currentClip, clipRect);
+        }
+    }
+
+    //NOTE: clear overlay. This must be done _after_ mouse clip is computed, since it depends
+    //      on last frame's value of overlay.
+    box->overlayElt = (oc_list_elt){ 0 };
+    box->overlay = false;
+
     return (box);
 }
 
@@ -2862,7 +2856,7 @@ void oc_ui_draw_box(oc_ui_box* box)
 
     oc_ui_style* style = &box->style;
 
-    //NOTE: detect if box is completely outside parent clip
+    //NOTE: detect if box is completely outside current graphics clip
     bool draw = true;
     {
         oc_rect clipRect = oc_clip_top();
@@ -3063,7 +3057,8 @@ void oc_ui_end_frame(void)
         oc_ui_style_set_f32(OC_UI_FLOAT_TARGET_X, 0);
         oc_ui_style_set_f32(OC_UI_FLOAT_TARGET_Y, 0);
     }
-    oc_ui_box* box = oc_ui_box_end();
+
+    oc_ui_box* box = oc_ui_box_end(); // root
     OC_DEBUG_ASSERT(box == ui->root, "unbalanced box stack");
 
     //TODO: check balancing of style stacks

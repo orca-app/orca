@@ -39,6 +39,17 @@ i32 ui_runloop(void* user)
         },
     };
 
+    oc_ui_select_popup_info popupInfo = {
+        .selectedIndex = -1,
+        .optionCount = 3,
+        .options = (oc_str8[]){
+            OC_STR8("Option One"),
+            OC_STR8("Option Two"),
+            OC_STR8("Options Three"),
+        },
+        .placeholder = OC_STR8("None"),
+    };
+
     while(!oc_should_quit())
     {
         oc_arena_scope scratch = oc_scratch_begin();
@@ -69,6 +80,25 @@ i32 ui_runloop(void* user)
 
         oc_ui_frame(frameSize)
         {
+            oc_ui_menu_bar("menu")
+            {
+                oc_ui_menu("file-menu", "File")
+                {
+                    oc_ui_menu_button("quit", "Quit");
+                }
+                oc_ui_menu("theme-menu", "Theme")
+                {
+                    if(oc_ui_menu_button("dark", "Dark").pressed)
+                    {
+                        oc_log_info("selected dark theme\n");
+                    }
+                    if(oc_ui_menu_button("ligth", "Light").pressed)
+                    {
+                        oc_log_info("selected light theme\n");
+                    }
+                }
+            }
+
             oc_ui_style_rule("inner lb")
             {
                 oc_ui_style_set_color(OC_UI_BG_COLOR, (oc_color){ 0, 1, 0, 1 });
@@ -116,6 +146,7 @@ i32 ui_runloop(void* user)
                     oc_ui_label("la", "label A");
                     oc_ui_label("lb", "label B");
                 }
+                popupInfo = oc_ui_select_popup("popup", &popupInfo);
             }
 
             oc_ui_box("panel")
@@ -158,6 +189,7 @@ i32 ui_runloop(void* user)
                 oc_ui_button("mybutton", "clickMe");
             }
 
+            /*
             oc_ui_box("note")
             {
                 oc_ui_set_overlay(true);
@@ -166,6 +198,7 @@ i32 ui_runloop(void* user)
                 oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PIXELS, 50 });
                 oc_ui_style_set_color(OC_UI_BG_COLOR, (oc_color){ 1, 0, 0, 1 });
             }
+            */
         }
 
         oc_ui_draw();

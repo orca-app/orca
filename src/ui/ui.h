@@ -32,9 +32,9 @@ typedef enum
 
 typedef enum oc_ui_size_kind
 {
-    OC_UI_SIZE_TEXT = 0,
+    OC_UI_SIZE_CHILDREN = 0,
+    OC_UI_SIZE_TEXT,
     OC_UI_SIZE_PIXELS,
-    OC_UI_SIZE_CHILDREN,
     OC_UI_SIZE_PARENT,
     OC_UI_SIZE_PARENT_MINUS_PIXELS,
 

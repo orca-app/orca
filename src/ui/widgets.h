@@ -87,7 +87,7 @@ typedef struct oc_ui_select_popup_info
 } oc_ui_select_popup_info;
 
 ORCA_API oc_ui_select_popup_info oc_ui_select_popup(const char* key, oc_ui_select_popup_info* info);
-ORCA_API oc_ui_select_popup_info oc_ui_select_popup_str8(const char* key, oc_ui_select_popup_info* info);
+ORCA_API oc_ui_select_popup_info oc_ui_select_popup_str8(oc_str8 key, oc_ui_select_popup_info* info);
 
 //------------------------------------------------------------------------
 // Radio Group
