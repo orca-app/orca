@@ -546,7 +546,6 @@ void oc_ui_menu_bar_begin_str8(oc_str8 key)
     oc_ui_sig sig = oc_ui_box_sig(bar);
     if(!sig.hovering && oc_mouse_released(oc_ui_input(), OC_MOUSE_LEFT))
     {
-        oc_log_info("deactivated bar!\n");
         oc_ui_box_set_active(bar, false);
     }
 }
@@ -640,7 +639,6 @@ void oc_ui_menu_begin_str8(oc_str8 key, oc_str8 text)
 
         if(sig.clicked)
         {
-            oc_log_info("deactivated bar!\n");
             oc_ui_box_set_active(bar, false);
             oc_ui_box_set_active(button, false);
         }
@@ -811,19 +809,27 @@ oc_ui_select_popup_info oc_ui_select_popup_str8(oc_str8 key, oc_ui_select_popup_
                 oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_FILL_2);
             }
 
-            if(info->selectedIndex == -1)
+            oc_ui_box("label")
             {
-                oc_ui_style_rule(".label")
+                oc_ui_style_set_i32(OC_UI_CLICK_THROUGH, 1);
+
+                oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_TEXT });
+                oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_TEXT });
+
+                oc_ui_style_set_var_str8(OC_UI_COLOR, OC_UI_THEME_TEXT_0);
+                oc_ui_style_set_var_str8(OC_UI_TEXT_SIZE, OC_UI_THEME_TEXT_SIZE_REGULAR);
+                oc_ui_style_set_var_str8(OC_UI_FONT, OC_UI_THEME_FONT_REGULAR);
+
+                if(info->selectedIndex == -1)
                 {
                     oc_ui_style_set_var_str8(OC_UI_COLOR, OC_UI_THEME_TEXT_2);
+                    oc_ui_set_text(info->placeholder);
                 }
-                oc_ui_label_str8(OC_STR8("placeholder_label"), info->placeholder);
+                else
+                {
+                    oc_ui_set_text(info->options[info->selectedIndex]);
+                }
             }
-            else
-            {
-                oc_ui_label_str8(OC_STR8("selected_label"), info->options[info->selectedIndex]);
-            }
-
             oc_ui_box* arrow = oc_ui_box("arrow")
             {
                 oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PIXELS, button->rect.h });
@@ -837,14 +843,6 @@ oc_ui_select_popup_info oc_ui_select_popup_str8(oc_str8 key, oc_ui_select_popup_
                 oc_ui_box_set_draw_proc(arrow, oc_ui_select_popup_draw_arrow, 0);
             }
         }
-        /*
-        oc_ui_box* button = oc_ui_box_make("button",
-                                           OC_UI_FLAG_CLICKABLE
-                                               | OC_UI_FLAG_OVERFLOW_ALLOW_X
-                                               | OC_UI_FLAG_CLIP);
-        */
-
-        //panel
 
         oc_ui_box* panel = oc_ui_box("panel")
         {
@@ -883,20 +881,15 @@ oc_ui_select_popup_info oc_ui_select_popup_str8(oc_str8 key, oc_ui_select_popup_
                     oc_ui_style_set_f32(OC_UI_SPACING, checkmarkSpacing);
                     oc_ui_style_set_f32(OC_UI_MARGIN_X, 12);
                     oc_ui_style_set_f32(OC_UI_MARGIN_Y, 8);
-                    /*
-                    oc_ui_style_rule(".hover")
+
+                    oc_ui_tag("^");
+                    oc_ui_style_rule(".^.hover")
                     {
                         oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_FILL_0);
                     }
-                    oc_ui_style_rule(".active")
+                    oc_ui_style_rule(".^.active")
                     {
                         oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_FILL_2);
-                    }
-*/
-                    //DEBUG
-                    oc_ui_style_rule(".hover")
-                    {
-                        oc_ui_style_set_color(OC_UI_BG_COLOR, (oc_color){ 0.7, 0.1, 0, 1 });
                     }
 
                     if(i == info->selectedIndex)
