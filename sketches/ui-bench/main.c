@@ -50,6 +50,13 @@ i32 ui_runloop(void* user)
         .placeholder = OC_STR8("None"),
     };
 
+    oc_arena textArena = { 0 };
+    oc_arena_init(&textArena);
+
+    oc_ui_text_box_info textBoxInfo = {
+        .text = OC_STR8_LIT("type here"),
+    };
+
     while(!oc_should_quit())
     {
         oc_arena_scope scratch = oc_scratch_begin();
@@ -147,6 +154,13 @@ i32 ui_runloop(void* user)
                     oc_ui_label("lb", "label B");
                 }
                 popupInfo = oc_ui_select_popup("popup", &popupInfo);
+
+                oc_ui_text_box_result result = oc_ui_text_box("textbox", scratch.arena, &textBoxInfo);
+                if(result.changed)
+                {
+                    oc_arena_clear(&textArena);
+                    textBoxInfo.text = oc_str8_push_copy(&textArena, result.text);
+                }
             }
 
             oc_ui_box("panel")

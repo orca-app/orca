@@ -71,8 +71,32 @@ typedef struct oc_ui_text_box_result
     oc_ui_box* textBox;
 } oc_ui_text_box_result;
 
-ORCA_API oc_ui_text_box_result oc_ui_text_box(const char* key, oc_arena* arena, oc_str8 text);
-ORCA_API oc_ui_text_box_result oc_ui_text_box_str8(oc_str8 key, oc_arena* arena, oc_str8 text);
+typedef enum
+{
+    OC_UI_EDIT_MOVE_NONE = 0,
+    OC_UI_EDIT_MOVE_CHAR,
+    OC_UI_EDIT_MOVE_WORD,
+    OC_UI_EDIT_MOVE_LINE
+} oc_ui_edit_move;
+
+typedef struct oc_ui_text_box_info
+{
+    oc_str8 text;
+
+    i32 cursor;
+    i32 mark;
+
+    oc_ui_edit_move selectionMode;
+    i32 wordSelectionInitialCursor;
+    i32 wordSelectionInitialMark;
+
+    i32 firstDisplayedChar;
+    f64 cursorBlinkStart;
+
+} oc_ui_text_box_info;
+
+ORCA_API oc_ui_text_box_result oc_ui_text_box(const char* key, oc_arena* arena, oc_ui_text_box_info* info);
+ORCA_API oc_ui_text_box_result oc_ui_text_box_str8(oc_str8 key, oc_arena* arena, oc_ui_text_box_info* info);
 
 //------------------------------------------------------------------------
 // Select Popup

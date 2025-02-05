@@ -166,14 +166,6 @@ enum
     OC_UI_BOX_MAP_BUCKET_COUNT = 1024
 };
 
-typedef enum
-{
-    OC_UI_EDIT_MOVE_NONE = 0,
-    OC_UI_EDIT_MOVE_CHAR,
-    OC_UI_EDIT_MOVE_WORD,
-    OC_UI_EDIT_MOVE_LINE
-} oc_ui_edit_move;
-
 typedef struct oc_ui_context
 {
     bool init;
@@ -198,15 +190,7 @@ typedef struct oc_ui_context
 
     u32 z;
     oc_ui_box* hovered;
-
     oc_ui_box* focus;
-    i32 editCursor;
-    i32 editMark;
-    i32 editFirstDisplayedChar;
-    f64 editCursorBlinkStart;
-    oc_ui_edit_move editSelectionMode;
-    i32 editWordSelectionInitialCursor;
-    i32 editWordSelectionInitialMark;
 
     //TODO: reorganize
     oc_ui_var_map styleVariables;
@@ -229,7 +213,6 @@ oc_ui_context* oc_ui_context_create(oc_font defaultFont)
     oc_arena_init(&ui->frameArena);
     oc_pool_init(&ui->boxPool, sizeof(oc_ui_box));
     ui->defaultFont = defaultFont;
-    ui->editSelectionMode = OC_UI_EDIT_MOVE_CHAR;
     ui->init = true;
 
     oc_ui_set_context(ui);
@@ -1496,6 +1479,18 @@ oc_input_state* oc_ui_input()
     return &ui->input;
 }
 
+f64 oc_ui_frame_time()
+{
+    oc_ui_context* ui = oc_ui_get_context();
+    return ui->frameTime;
+}
+
+oc_arena* oc_ui_frame_arena()
+{
+    oc_ui_context* ui = oc_ui_get_context();
+    return &ui->frameArena;
+}
+
 //-----------------------------------------------------------------------------
 // ui boxes
 //-----------------------------------------------------------------------------
@@ -1903,6 +1898,24 @@ void oc_ui_box_set_hot(oc_ui_box* box, bool hot)
 bool oc_ui_box_hot(oc_ui_box* box)
 {
     return (box->hot);
+}
+
+bool oc_ui_box_focus(oc_ui_box* box)
+{
+    return box == oc_ui_get_context()->focus;
+}
+
+void oc_ui_box_set_focus(oc_ui_box* box, bool focus)
+{
+    oc_ui_context* ui = oc_ui_get_context();
+    if(focus)
+    {
+        ui->focus = box;
+    }
+    else if(ui->focus == box)
+    {
+        ui->focus = 0;
+    }
 }
 
 oc_ui_sig oc_ui_box_sig(oc_ui_box* box)

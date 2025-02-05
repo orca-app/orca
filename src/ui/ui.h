@@ -334,6 +334,8 @@ ORCA_API void oc_ui_draw(void);
 #define oc_ui_frame(size) oc_defer_loop(oc_ui_begin_frame(size), oc_ui_end_frame())
 
 ORCA_API oc_input_state* oc_ui_input();
+ORCA_API oc_arena* oc_ui_frame_arena();
+ORCA_API f64 oc_ui_frame_time();
 //-------------------------------------------------------------------------------------
 // Box hierarchy building
 //-------------------------------------------------------------------------------------
@@ -363,6 +365,9 @@ ORCA_API void oc_ui_box_set_active(oc_ui_box* box, bool active);
 
 ORCA_API bool oc_ui_box_hot(oc_ui_box* box);
 ORCA_API void oc_ui_box_set_hot(oc_ui_box* box, bool hot);
+
+ORCA_API bool oc_ui_box_focus(oc_ui_box* box);
+ORCA_API void oc_ui_box_set_focus(oc_ui_box* box, bool focus);
 
 ORCA_API oc_ui_sig oc_ui_box_sig(oc_ui_box* box);
 

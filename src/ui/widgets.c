@@ -967,58 +967,63 @@ oc_ui_select_popup_info oc_ui_select_popup(const char* name, oc_ui_select_popup_
     return oc_ui_select_popup_str8(OC_STR8(name), info);
 }
 
-#if 0
 //------------------------------------------------------------------------------
 // text box
 //------------------------------------------------------------------------------
-oc_str32 oc_ui_edit_replace_selection_with_codepoints(oc_ui_context* ui, oc_str32 codepoints, oc_str32 input)
+
+oc_str32 oc_ui_edit_replace_selection_with_codepoints(oc_ui_text_box_info* info, oc_str32 codepoints, oc_str32 input)
 {
-    u32 start = oc_min(ui->editCursor, ui->editMark);
-    u32 end = oc_max(ui->editCursor, ui->editMark);
+    u32 start = oc_min(info->cursor, info->mark);
+    u32 end = oc_max(info->cursor, info->mark);
 
     oc_str32 before = oc_str32_slice(codepoints, 0, start);
     oc_str32 after = oc_str32_slice(codepoints, end, codepoints.len);
 
+    oc_arena_scope scratch = oc_scratch_begin();
+
     oc_str32_list list = { 0 };
-    oc_str32_list_push(&ui->frameArena, &list, before);
-    oc_str32_list_push(&ui->frameArena, &list, input);
-    oc_str32_list_push(&ui->frameArena, &list, after);
+    oc_str32_list_push(scratch.arena, &list, before);
+    oc_str32_list_push(scratch.arena, &list, input);
+    oc_str32_list_push(scratch.arena, &list, after);
 
-    codepoints = oc_str32_list_join(&ui->frameArena, list);
+    codepoints = oc_str32_list_join(oc_ui_frame_arena(), list);
 
-    ui->editCursor = start + input.len;
-    ui->editMark = ui->editCursor;
+    oc_scratch_end(scratch);
+
+    info->cursor = start + input.len;
+    info->mark = info->cursor;
     return (codepoints);
 }
 
-oc_str32 oc_ui_edit_delete_selection(oc_ui_context* ui, oc_str32 codepoints)
+oc_str32 oc_ui_edit_delete_selection(oc_ui_text_box_info* info, oc_str32 codepoints)
 {
-    return (oc_ui_edit_replace_selection_with_codepoints(ui, codepoints, (oc_str32){ 0 }));
+    return (oc_ui_edit_replace_selection_with_codepoints(info, codepoints, (oc_str32){ 0 }));
 }
 
-void oc_ui_edit_copy_selection_to_clipboard(oc_ui_context* ui, oc_str32 codepoints)
+void oc_ui_edit_copy_selection_to_clipboard(oc_ui_text_box_info* info, oc_str32 codepoints)
 {
-    if(ui->editCursor == ui->editMark)
+    if(info->cursor == info->mark)
     {
         return;
     }
-    u32 start = oc_min(ui->editCursor, ui->editMark);
-    u32 end = oc_max(ui->editCursor, ui->editMark);
+    u32 start = oc_min(info->cursor, info->mark);
+    u32 end = oc_max(info->cursor, info->mark);
     oc_str32 selection = oc_str32_slice(codepoints, start, end);
-    oc_str8 string = oc_utf8_push_from_codepoints(&ui->frameArena, selection);
+    oc_str8 string = oc_utf8_push_from_codepoints(oc_ui_frame_arena(), selection);
 
     oc_clipboard_set_string(string);
 }
 
-oc_str32 oc_ui_edit_replace_selection_with_clipboard(oc_ui_context* ui, oc_str32 codepoints)
+oc_str32 oc_ui_edit_replace_selection_with_clipboard(oc_ui_text_box_info* info, oc_str32 codepoints)
 {
-    #if OC_PLATFORM_ORCA
+#if OC_PLATFORM_ORCA
     oc_str32 result = codepoints;
-    #else
-    oc_str8 string = oc_clipboard_get_string(&ui->frameArena);
-    oc_str32 input = oc_utf8_push_to_codepoints(&ui->frameArena, string);
-    oc_str32 result = oc_ui_edit_replace_selection_with_codepoints(ui, codepoints, input);
-    #endif
+#else
+    oc_arena* frameArena = oc_ui_frame_arena();
+    oc_str8 string = oc_clipboard_get_string(frameArena);
+    oc_str32 input = oc_utf8_push_to_codepoints(frameArena, string);
+    oc_str32 result = oc_ui_edit_replace_selection_with_codepoints(info, codepoints, input);
+#endif
     return (result);
 }
 
@@ -1442,7 +1447,7 @@ bool oc_ui_edit_is_whitespace(u32 codepoint)
             || codepoint == 0x3000);
 }
 
-void oc_ui_edit_perform_move(oc_ui_context* ui, oc_ui_edit_move move, int direction, oc_str32 codepoints)
+void oc_ui_edit_perform_move(oc_ui_text_box_info* info, oc_ui_edit_move move, int direction, oc_str32 codepoints)
 {
     switch(move)
     {
@@ -1451,13 +1456,13 @@ void oc_ui_edit_perform_move(oc_ui_context* ui, oc_ui_edit_move move, int direct
 
         case OC_UI_EDIT_MOVE_CHAR:
         {
-            if(direction < 0 && ui->editCursor > 0)
+            if(direction < 0 && info->cursor > 0)
             {
-                ui->editCursor--;
+                info->cursor--;
             }
-            else if(direction > 0 && ui->editCursor < codepoints.len)
+            else if(direction > 0 && info->cursor < codepoints.len)
             {
-                ui->editCursor++;
+                info->cursor++;
             }
         }
         break;
@@ -1466,11 +1471,11 @@ void oc_ui_edit_perform_move(oc_ui_context* ui, oc_ui_edit_move move, int direct
         {
             if(direction < 0)
             {
-                ui->editCursor = 0;
+                info->cursor = 0;
             }
             else if(direction > 0)
             {
-                ui->editCursor = codepoints.len;
+                info->cursor = codepoints.len;
             }
         }
         break;
@@ -1482,52 +1487,52 @@ void oc_ui_edit_perform_move(oc_ui_context* ui, oc_ui_edit_move move, int direct
             //            proper implementation would involve bringing in ICU or querying unicode ranges and parsing ICU rules
             if(direction < 0)
             {
-                while(ui->editCursor > 0 && oc_ui_edit_is_whitespace(codepoints.ptr[ui->editCursor - 1]))
+                while(info->cursor > 0 && oc_ui_edit_is_whitespace(codepoints.ptr[info->cursor - 1]))
                 {
-                    ui->editCursor--;
+                    info->cursor--;
                 }
 
-                if(ui->editCursor > 0 && oc_ui_edit_is_word_separator(codepoints.ptr[ui->editCursor - 1]))
+                if(info->cursor > 0 && oc_ui_edit_is_word_separator(codepoints.ptr[info->cursor - 1]))
                 {
-                    ui->editCursor--;
-                    while(ui->editCursor > 0 && oc_ui_edit_is_word_separator(codepoints.ptr[ui->editCursor - 1]))
+                    info->cursor--;
+                    while(info->cursor > 0 && oc_ui_edit_is_word_separator(codepoints.ptr[info->cursor - 1]))
                     {
-                        ui->editCursor--;
+                        info->cursor--;
                     }
                 }
                 else
                 {
-                    while(ui->editCursor > 0
-                          && !oc_ui_edit_is_whitespace(codepoints.ptr[ui->editCursor - 1])
-                          && !oc_ui_edit_is_word_separator(codepoints.ptr[ui->editCursor - 1]))
+                    while(info->cursor > 0
+                          && !oc_ui_edit_is_whitespace(codepoints.ptr[info->cursor - 1])
+                          && !oc_ui_edit_is_word_separator(codepoints.ptr[info->cursor - 1]))
                     {
-                        ui->editCursor--;
+                        info->cursor--;
                     }
                 }
             }
             else if(direction > 0)
             {
-                if(ui->editCursor < codepoints.len && oc_ui_edit_is_word_separator(codepoints.ptr[ui->editCursor]))
+                if(info->cursor < codepoints.len && oc_ui_edit_is_word_separator(codepoints.ptr[info->cursor]))
                 {
-                    ui->editCursor++;
-                    while(ui->editCursor < codepoints.len && oc_ui_edit_is_word_separator(codepoints.ptr[ui->editCursor]))
+                    info->cursor++;
+                    while(info->cursor < codepoints.len && oc_ui_edit_is_word_separator(codepoints.ptr[info->cursor]))
                     {
-                        ui->editCursor++;
+                        info->cursor++;
                     }
                 }
                 else
                 {
-                    while(ui->editCursor < codepoints.len
-                          && !oc_ui_edit_is_whitespace(codepoints.ptr[ui->editCursor])
-                          && !oc_ui_edit_is_word_separator(codepoints.ptr[ui->editCursor]))
+                    while(info->cursor < codepoints.len
+                          && !oc_ui_edit_is_whitespace(codepoints.ptr[info->cursor])
+                          && !oc_ui_edit_is_word_separator(codepoints.ptr[info->cursor]))
                     {
-                        ui->editCursor++;
+                        info->cursor++;
                     }
                 }
 
-                while(ui->editCursor < codepoints.len && oc_ui_edit_is_whitespace(codepoints.ptr[ui->editCursor]))
+                while(info->cursor < codepoints.len && oc_ui_edit_is_whitespace(codepoints.ptr[info->cursor]))
                 {
-                    ui->editCursor++;
+                    info->cursor++;
                 }
             }
             break;
@@ -1535,90 +1540,90 @@ void oc_ui_edit_perform_move(oc_ui_context* ui, oc_ui_edit_move move, int direct
     }
 }
 
-oc_str32 oc_ui_edit_perform_operation(oc_ui_context* ui, oc_ui_edit_op operation, oc_ui_edit_move move, int direction, oc_str32 codepoints)
+oc_str32 oc_ui_edit_perform_operation(oc_ui_text_box_info* info, oc_ui_edit_op operation, oc_ui_edit_move move, int direction, oc_str32 codepoints)
 {
     switch(operation)
     {
         case OC_UI_EDIT_MOVE:
         {
-            bool wasSelectionEmpty = ui->editCursor == ui->editMark;
+            bool wasSelectionEmpty = info->cursor == info->mark;
 
             //NOTE(martin): we place the cursor on the direction-most side of the selection
             //              before performing the move
-            u32 cursor = direction < 0 ? oc_min(ui->editCursor, ui->editMark) : oc_max(ui->editCursor, ui->editMark);
-            ui->editCursor = cursor;
+            u32 cursor = direction < 0 ? oc_min(info->cursor, info->mark) : oc_max(info->cursor, info->mark);
+            info->cursor = cursor;
 
             if(wasSelectionEmpty || move != OC_UI_EDIT_MOVE_CHAR)
             {
                 //NOTE: we special case move-one when there is a selection
                 //      (just place the cursor at begining/end of selection)
-                oc_ui_edit_perform_move(ui, move, direction, codepoints);
+                oc_ui_edit_perform_move(info, move, direction, codepoints);
             }
-            ui->editMark = ui->editCursor;
+            info->mark = info->cursor;
         }
         break;
 
         case OC_UI_EDIT_SELECT:
         {
-            oc_ui_edit_perform_move(ui, move, direction, codepoints);
+            oc_ui_edit_perform_move(info, move, direction, codepoints);
         }
         break;
 
         case OC_UI_EDIT_SELECT_EXTEND:
         {
-            if((direction > 0) != (ui->editCursor > ui->editMark))
+            if((direction > 0) != (info->cursor > info->mark))
             {
-                u32 tmp = ui->editCursor;
-                ui->editCursor = ui->editMark;
-                ui->editMark = tmp;
+                u32 tmp = info->cursor;
+                info->cursor = info->mark;
+                info->mark = tmp;
             }
-            oc_ui_edit_perform_move(ui, move, direction, codepoints);
+            oc_ui_edit_perform_move(info, move, direction, codepoints);
         }
         break;
 
         case OC_UI_EDIT_DELETE:
         {
-            if(ui->editCursor == ui->editMark)
+            if(info->cursor == info->mark)
             {
-                oc_ui_edit_perform_move(ui, move, direction, codepoints);
+                oc_ui_edit_perform_move(info, move, direction, codepoints);
             }
-            codepoints = oc_ui_edit_delete_selection(ui, codepoints);
-            ui->editMark = ui->editCursor;
+            codepoints = oc_ui_edit_delete_selection(info, codepoints);
+            info->mark = info->cursor;
         }
         break;
 
         case OC_UI_EDIT_CUT:
         {
-            oc_ui_edit_copy_selection_to_clipboard(ui, codepoints);
-            codepoints = oc_ui_edit_delete_selection(ui, codepoints);
+            oc_ui_edit_copy_selection_to_clipboard(info, codepoints);
+            codepoints = oc_ui_edit_delete_selection(info, codepoints);
         }
         break;
 
         case OC_UI_EDIT_COPY:
         {
-            oc_ui_edit_copy_selection_to_clipboard(ui, codepoints);
+            oc_ui_edit_copy_selection_to_clipboard(info, codepoints);
         }
         break;
 
         case OC_UI_EDIT_PASTE:
         {
-            codepoints = oc_ui_edit_replace_selection_with_clipboard(ui, codepoints);
+            codepoints = oc_ui_edit_replace_selection_with_clipboard(info, codepoints);
         }
         break;
 
         case OC_UI_EDIT_SELECT_ALL:
         {
-            ui->editCursor = 0;
-            ui->editMark = codepoints.len;
+            info->cursor = 0;
+            info->mark = codepoints.len;
         }
         break;
     }
-    ui->editCursorBlinkStart = ui->frameTime;
+    info->cursorBlinkStart = oc_ui_frame_time();
 
     return (codepoints);
 }
 
-i32 oc_ui_edit_find_word_start(oc_ui_context* ui, oc_str32 codepoints, i32 startChar)
+i32 oc_ui_edit_find_word_start(oc_ui_text_box_info* info, oc_str32 codepoints, i32 startChar)
 {
     i32 c = startChar;
     if(oc_ui_edit_is_whitespace(codepoints.ptr[startChar]))
@@ -1638,7 +1643,7 @@ i32 oc_ui_edit_find_word_start(oc_ui_context* ui, oc_str32 codepoints, i32 start
     return c;
 }
 
-i32 oc_ui_edit_find_word_end(oc_ui_context* ui, oc_str32 codepoints, i32 startChar)
+i32 oc_ui_edit_find_word_end(oc_ui_text_box_info* info, oc_str32 codepoints, i32 startChar)
 {
     i32 c = oc_min(startChar + 1, codepoints.len);
     if(startChar < codepoints.len && oc_ui_edit_is_whitespace(codepoints.ptr[startChar]))
@@ -1658,15 +1663,26 @@ i32 oc_ui_edit_find_word_end(oc_ui_context* ui, oc_str32 codepoints, i32 startCh
     return c;
 }
 
+typedef struct oc_ui_text_box_render_data
+{
+    oc_str32 codepoints;
+    u32 firstDisplayedChar;
+    i32 cursor;
+    i32 mark;
+    f64 frameTime;
+    f64 cursorBlinkStart;
+
+} oc_ui_text_box_render_data;
+
 void oc_ui_text_box_render(oc_ui_box* box, void* data)
 {
-    oc_str32 codepoints = *(oc_str32*)data;
-    oc_ui_context* ui = oc_ui_get_context();
+    oc_ui_text_box_render_data* renderData = (oc_ui_text_box_render_data*)data;
+    oc_str32 codepoints = renderData->codepoints;
 
     u32 firstDisplayedChar = 0;
     if(oc_ui_box_active(box))
     {
-        firstDisplayedChar = ui->editFirstDisplayedChar;
+        firstDisplayedChar = renderData->firstDisplayedChar;
     }
 
     oc_ui_style* style = &box->style;
@@ -1683,8 +1699,8 @@ void oc_ui_text_box_render(oc_ui_box* box, void* data)
 
     if(box->active)
     {
-        u32 selectStart = oc_min(ui->editCursor, ui->editMark);
-        u32 selectEnd = oc_max(ui->editCursor, ui->editMark);
+        u32 selectStart = oc_min(renderData->cursor, renderData->mark);
+        u32 selectEnd = oc_max(renderData->cursor, renderData->mark);
 
         oc_str32 beforeSelect = oc_str32_slice(codepoints, 0, selectStart);
         oc_rect beforeSelectBox = oc_font_text_metrics_utf32(style->font, style->fontSize, beforeSelect).logical;
@@ -1701,7 +1717,10 @@ void oc_ui_text_box_render(oc_ui_box* box, void* data)
             selectBox.x += beforeSelectBox.x + beforeSelectBox.w;
             selectBox.y += textY;
 
-            oc_set_color(ui->theme->palette->blue2);
+            /////////////////////////////////////////////////////////////////
+            //TODO: use style oc_set_color(ui->theme->palette->blue2);
+            /////////////////////////////////////////////////////////////////
+            oc_set_color_rgba(0.074, 0.361, 0.722, 1);
             oc_rectangle_fill(selectBox.x, selectBox.y, selectBox.w, lineHeight);
 
             oc_set_font(style->font);
@@ -1722,7 +1741,7 @@ void oc_ui_text_box_render(oc_ui_box* box, void* data)
         }
         else
         {
-            if(!((u64)(2 * (ui->frameTime - ui->editCursorBlinkStart)) & 1))
+            if(!((u64)(2 * (renderData->frameTime - renderData->cursorBlinkStart)) & 1))
             {
                 f32 caretX = rect.x - beforeBox.w + beforeSelectBox.w;
                 f32 caretY = textTop;
@@ -1750,329 +1769,337 @@ void oc_ui_text_box_render(oc_ui_box* box, void* data)
     }
 }
 
-oc_ui_text_box_result oc_ui_text_box_str8(oc_str8 name, oc_arena* arena, oc_str8 text)
+oc_ui_text_box_result oc_ui_text_box_str8(oc_str8 key, oc_arena* arena, oc_ui_text_box_info* info)
 {
-    oc_ui_context* ui = oc_ui_get_context();
-    oc_ui_theme* theme = ui->theme;
+    oc_ui_text_box_result result = { .text = info->text };
 
-    oc_ui_text_box_result result = { .text = text };
+    oc_arena* frameArena = oc_ui_frame_arena();
+    oc_input_state* input = oc_ui_input();
 
-    oc_ui_style frameStyle = { .layout.margin.x = 12,
-                               .layout.margin.y = 6,
-                               .bgColor = theme->fill0,
-                               .roundness = theme->roundnessSmall };
-    oc_ui_attr_mask frameMask = OC_UI_MASK_LAYOUT_MARGIN_X
-                               | OC_UI_MASK_LAYOUT_MARGIN_Y
-                               | OC_UI_MASK_BG_COLOR
-                               | OC_UI_MASK_ROUNDNESS;
-    oc_ui_style_next(&frameStyle, frameMask);
-
-    oc_ui_pattern hoverPattern = { 0 };
-    oc_ui_pattern_push(&ui->frameArena, &hoverPattern, (oc_ui_selector){ .kind = OC_UI_SEL_STATUS, .status = OC_UI_HOVER });
-    oc_ui_style hoverStyle = { .bgColor = theme->fill1 };
-    oc_ui_style_match_after(hoverPattern, &hoverStyle, OC_UI_MASK_BG_COLOR);
-
-    oc_ui_pattern activePattern = { 0 };
-    oc_ui_pattern_push(&ui->frameArena, &activePattern, (oc_ui_selector){ .kind = OC_UI_SEL_STATUS, .status = OC_UI_ACTIVE });
-    oc_ui_style activeStyle = { .borderColor = theme->primary,
-                                .borderSize = 1 };
-    oc_ui_style_match_after(activePattern, &activeStyle, OC_UI_MASK_BORDER_COLOR | OC_UI_MASK_BORDER_SIZE);
-
-    oc_ui_pattern draggingPattern = { 0 };
-    oc_ui_pattern_push(&ui->frameArena, &draggingPattern, (oc_ui_selector){ .kind = OC_UI_SEL_STATUS, .status = OC_UI_DRAGGING });
-    oc_ui_style draggingStyle = { .bgColor = theme->fill2 };
-    oc_ui_style_match_after(draggingPattern, &draggingStyle, OC_UI_MASK_BG_COLOR);
-
-    oc_ui_flags frameFlags = OC_UI_FLAG_CLICKABLE;
-    oc_ui_box* frame = oc_ui_box_begin_str8(name, frameFlags);
-    result.frame = frame;
-    oc_ui_tag_box(frame, "frame");
-    oc_font font = frame->style.font;
-    f32 fontSize = frame->style.fontSize;
-
-    oc_ui_style textStyle = { .size.width = (oc_ui_size){ OC_UI_SIZE_PARENT, 1 },
-                              .size.height = (oc_ui_size){ OC_UI_SIZE_PARENT, 1 } };
-    oc_ui_style_next(&textStyle, OC_UI_MASK_SIZE);
-
-    oc_ui_box* textBox = oc_ui_box_make("text", OC_UI_FLAG_CLIP);
-    result.textBox = textBox;
-    oc_ui_tag_box(textBox, "text");
-
-    oc_font_metrics extents = oc_font_get_metrics(font, fontSize);
-
-    oc_ui_sig sig = oc_ui_box_sig(frame);
-
-    if(sig.pressed)
+    oc_ui_box* frame = oc_ui_box_str8(key)
     {
-        if(!oc_ui_box_active(frame))
-        {
-            oc_ui_box_set_active(frame, true);
-            oc_ui_box_set_active(textBox, true);
+        result.frame = frame;
 
-            //NOTE: focus
-            ui->focus = frame;
-            ui->editFirstDisplayedChar = 0;
-            ui->editCursor = 0;
-            ui->editMark = 0;
+        oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PIXELS, 200 });
+        oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PIXELS, 32 });
+
+        oc_ui_style_set_f32(OC_UI_MARGIN_X, 12);
+        oc_ui_style_set_f32(OC_UI_MARGIN_Y, 6);
+        oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_FILL_0);
+        oc_ui_style_set_var_str8(OC_UI_ROUNDNESS, OC_UI_THEME_ROUNDNESS_SMALL);
+
+        oc_ui_tag("frame");
+        oc_ui_style_rule(".frame.hover")
+        {
+            oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_FILL_1);
         }
-        ui->editCursorBlinkStart = ui->frameTime;
-    }
-
-    if(sig.pressed || sig.dragging)
-    {
-        //NOTE: set cursor/extend selection on mouse press or drag
-        oc_vec2 pos = oc_ui_mouse_position();
-        f32 cursorX = pos.x - textBox->rect.x;
-
-        oc_str32 codepoints = oc_utf8_push_to_codepoints(&ui->frameArena, text);
-        i32 newCursor = 0;
-        i32 hoveredChar = 0;
-        f32 x = 0;
-        for(int i = ui->editFirstDisplayedChar; i < codepoints.len; i++)
+        oc_ui_style_rule(".frame.active")
         {
-            oc_rect bbox = oc_font_text_metrics_utf32(font, fontSize, oc_str32_slice(codepoints, i, i + 1)).logical;
-            if(x < cursorX)
-            {
-                hoveredChar = i;
-            }
-            if(x + 0.5 * bbox.w > cursorX)
-            {
-                newCursor = i;
-                break;
-            }
-            if(i == codepoints.len - 1)
-            {
-                newCursor = codepoints.len;
-            }
-            x += bbox.w;
+            oc_ui_style_set_var_str8(OC_UI_BORDER_COLOR, OC_UI_THEME_PRIMARY);
+            oc_ui_style_set_f32(OC_UI_BORDER_SIZE, 1);
+        }
+        oc_ui_style_rule(".frame.dragging")
+        {
+            oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_FILL_2);
         }
 
-        if(sig.doubleClicked)
+        oc_ui_box* textBox = oc_ui_box("text")
         {
-            ui->editCursor = oc_ui_edit_find_word_end(ui, codepoints, hoveredChar);
-            ui->editMark = oc_ui_edit_find_word_start(ui, codepoints, hoveredChar);
-            ui->editSelectionMode = OC_UI_EDIT_MOVE_WORD;
-            ui->editWordSelectionInitialCursor = ui->editCursor;
-            ui->editWordSelectionInitialMark = ui->editMark;
+            result.textBox = textBox;
+
+            oc_ui_tag("text");
+
+            oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
+            oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
+            oc_ui_style_set_i32(OC_UI_CLICK_THROUGH, 1);
+
+            oc_ui_style_set_var_str8(OC_UI_COLOR, OC_UI_THEME_TEXT_0);
+            oc_ui_style_set_var_str8(OC_UI_TEXT_SIZE, OC_UI_THEME_TEXT_SIZE_REGULAR);
+            oc_ui_style_set_var_str8(OC_UI_FONT, OC_UI_THEME_FONT_REGULAR);
         }
-        else if(sig.tripleClicked)
+
+        oc_ui_sig sig = oc_ui_box_sig(frame);
+
+        if(sig.pressed)
         {
-            ui->editCursor = codepoints.len;
-            ui->editMark = 0;
-            ui->editSelectionMode = OC_UI_EDIT_MOVE_LINE;
-        }
-        else if(sig.pressed
-                && (oc_key_mods(&ui->input) & OC_KEYMOD_SHIFT)
-                && !(newCursor >= oc_min(ui->editCursor, ui->editMark) && newCursor <= oc_max(ui->editCursor, ui->editMark)))
-        {
-            //NOTE: put cursor the closest to new cursor (this maximizes the resulting selection,
-            //      and seems to be the standard behaviour across a number of text editor)
-            if(abs(newCursor - ui->editCursor) > abs(newCursor - ui->editMark))
+            if(!oc_ui_box_active(frame))
             {
-                ui->editMark = ui->editCursor;
-                ui->editCursor = newCursor;
+                oc_ui_box_set_active(frame, true);
+                oc_ui_box_set_active(textBox, true);
+
+                //NOTE: focus
+                oc_ui_box_set_focus(frame, true);
+                info->firstDisplayedChar = 0;
+                info->cursor = 0;
+                info->mark = 0;
             }
-            else
-            {
-                ui->editCursor = newCursor;
-            }
-            ui->editSelectionMode = OC_UI_EDIT_MOVE_CHAR;
+            info->cursorBlinkStart = oc_ui_frame_time();
         }
-        else if(sig.pressed)
+
+        oc_font font = frame->style.font;
+        f32 fontSize = frame->style.fontSize;
+        oc_font_metrics extents = oc_font_get_metrics(font, fontSize);
+
+        if(sig.pressed || sig.dragging)
         {
-            ui->editCursor = newCursor;
-            ui->editMark = newCursor;
-            ui->editSelectionMode = OC_UI_EDIT_MOVE_CHAR;
-        }
-        else if(ui->editSelectionMode == OC_UI_EDIT_MOVE_LINE)
-        {
-            oc_rect bbox = oc_font_text_metrics_utf32(font, fontSize, codepoints).logical;
-            if(fabsf(bbox.w - cursorX) < fabsf(cursorX))
+            //NOTE: set cursor/extend selection on mouse press or drag
+            oc_vec2 pos = oc_mouse_position(oc_ui_input());
+            f32 cursorX = pos.x - textBox->rect.x;
+
+            oc_str32 codepoints = oc_utf8_push_to_codepoints(frameArena, info->text); //TODO: need to get frame arena
+            i32 newCursor = 0;
+            i32 hoveredChar = 0;
+            f32 x = 0;
+            for(int i = info->firstDisplayedChar; i < codepoints.len; i++)
             {
-                ui->editCursor = codepoints.len;
-                ui->editMark = 0;
-            }
-            else
-            {
-                ui->editCursor = 0;
-                ui->editMark = codepoints.len;
-            }
-        }
-        else if(ui->editSelectionMode == OC_UI_EDIT_MOVE_WORD)
-        {
-            if(oc_min(ui->editCursor, ui->editMark) == oc_min(ui->editWordSelectionInitialCursor, ui->editWordSelectionInitialMark)
-               && oc_max(ui->editCursor, ui->editMark) == oc_max(ui->editWordSelectionInitialCursor, ui->editWordSelectionInitialMark))
-            {
-                oc_rect editCursorPrefixBbox = oc_font_text_metrics_utf32(font, fontSize, oc_str32_slice(codepoints, 0, ui->editCursor)).logical;
-                oc_rect editMarkPrefixBbox = oc_font_text_metrics_utf32(font, fontSize, oc_str32_slice(codepoints, 0, ui->editMark)).logical;
-                f32 editCursorX = editCursorPrefixBbox.w;
-                f32 editMarkX = editMarkPrefixBbox.w;
-                if(fabsf(cursorX - editMarkX) < fabsf(cursorX - editCursorX))
+                oc_rect bbox = oc_font_text_metrics_utf32(font, fontSize, oc_str32_slice(codepoints, i, i + 1)).logical;
+                if(x < cursorX)
                 {
-                    i32 tmp = ui->editMark;
-                    ui->editMark = ui->editCursor;
-                    ui->editCursor = tmp;
+                    hoveredChar = i;
+                }
+                if(x + 0.5 * bbox.w > cursorX)
+                {
+                    newCursor = i;
+                    break;
+                }
+                if(i == codepoints.len - 1)
+                {
+                    newCursor = codepoints.len;
+                }
+                x += bbox.w;
+            }
+
+            if(sig.doubleClicked)
+            {
+                info->cursor = oc_ui_edit_find_word_end(info, codepoints, hoveredChar);
+                info->mark = oc_ui_edit_find_word_start(info, codepoints, hoveredChar);
+                info->selectionMode = OC_UI_EDIT_MOVE_WORD;
+                info->wordSelectionInitialCursor = info->cursor;
+                info->wordSelectionInitialMark = info->mark;
+            }
+            else if(sig.tripleClicked)
+            {
+                info->cursor = codepoints.len;
+                info->mark = 0;
+                info->selectionMode = OC_UI_EDIT_MOVE_LINE;
+            }
+            else if(sig.pressed
+                    && (oc_key_mods(oc_ui_input()) & OC_KEYMOD_SHIFT)
+                    && !(newCursor >= oc_min(info->cursor, info->mark) && newCursor <= oc_max(info->cursor, info->mark)))
+            {
+                //NOTE: put cursor the closest to new cursor (this maximizes the resulting selection,
+                //      and seems to be the standard behaviour across a number of text editor)
+                if(abs(newCursor - info->cursor) > abs(newCursor - info->mark))
+                {
+                    info->mark = info->cursor;
+                    info->cursor = newCursor;
+                }
+                else
+                {
+                    info->cursor = newCursor;
+                }
+                info->selectionMode = OC_UI_EDIT_MOVE_CHAR;
+            }
+            else if(sig.pressed)
+            {
+                info->cursor = newCursor;
+                info->mark = newCursor;
+                info->selectionMode = OC_UI_EDIT_MOVE_CHAR;
+            }
+            else if(info->selectionMode == OC_UI_EDIT_MOVE_LINE)
+            {
+                oc_rect bbox = oc_font_text_metrics_utf32(font, fontSize, codepoints).logical;
+                if(fabsf(bbox.w - cursorX) < fabsf(cursorX))
+                {
+                    info->cursor = codepoints.len;
+                    info->mark = 0;
+                }
+                else
+                {
+                    info->cursor = 0;
+                    info->mark = codepoints.len;
                 }
             }
-
-            if(ui->editCursor >= ui->editMark)
+            else if(info->selectionMode == OC_UI_EDIT_MOVE_WORD)
             {
-                ui->editCursor = oc_ui_edit_find_word_end(ui, codepoints, hoveredChar);
+                if(oc_min(info->cursor, info->mark) == oc_min(info->wordSelectionInitialCursor, info->wordSelectionInitialMark)
+                   && oc_max(info->cursor, info->mark) == oc_max(info->wordSelectionInitialCursor, info->wordSelectionInitialMark))
+                {
+                    oc_rect cursorPrefixBbox = oc_font_text_metrics_utf32(font, fontSize, oc_str32_slice(codepoints, 0, info->cursor)).logical;
+                    oc_rect markPrefixBbox = oc_font_text_metrics_utf32(font, fontSize, oc_str32_slice(codepoints, 0, info->mark)).logical;
+                    f32 cursorX = cursorPrefixBbox.w;
+                    f32 markX = markPrefixBbox.w;
+                    if(fabsf(cursorX - markX) < fabsf(cursorX - cursorX))
+                    {
+                        i32 tmp = info->mark;
+                        info->mark = info->cursor;
+                        info->cursor = tmp;
+                    }
+                }
+
+                if(info->cursor >= info->mark)
+                {
+                    info->cursor = oc_ui_edit_find_word_end(info, codepoints, hoveredChar);
+                }
+                else
+                {
+                    info->cursor = oc_ui_edit_find_word_start(info, codepoints, hoveredChar);
+                }
+            }
+            else if(info->selectionMode == OC_UI_EDIT_MOVE_CHAR)
+            {
+                info->cursor = newCursor;
             }
             else
             {
-                ui->editCursor = oc_ui_edit_find_word_start(ui, codepoints, hoveredChar);
+                OC_DEBUG_ASSERT("Unexpected textbox branch");
             }
-        }
-        else if(ui->editSelectionMode == OC_UI_EDIT_MOVE_CHAR)
-        {
-            ui->editCursor = newCursor;
         }
         else
         {
-            OC_DEBUG_ASSERT("Unexpected textbox branch");
+            info->selectionMode = OC_UI_EDIT_MOVE_CHAR;
         }
-    }
-    else
-    {
-        ui->editSelectionMode = OC_UI_EDIT_MOVE_CHAR;
-    }
 
-    if(sig.hovering)
-    {
-        oc_ui_box_set_hot(frame, true);
-    }
-    else
-    {
-        oc_ui_box_set_hot(frame, false);
-
-        if(oc_mouse_pressed(&ui->input, OC_MOUSE_LEFT) || oc_mouse_pressed(&ui->input, OC_MOUSE_RIGHT) || oc_mouse_pressed(&ui->input, OC_MOUSE_MIDDLE))
+        if(sig.hovering)
         {
-            if(oc_ui_box_active(frame))
+            oc_ui_box_set_hot(frame, true);
+        }
+        else
+        {
+            oc_ui_box_set_hot(frame, false);
+
+            if(oc_mouse_pressed(input, OC_MOUSE_LEFT) || oc_mouse_pressed(input, OC_MOUSE_RIGHT) || oc_mouse_pressed(input, OC_MOUSE_MIDDLE))
             {
+                if(oc_ui_box_active(frame))
+                {
+                    oc_ui_box_set_active(frame, false);
+                    oc_ui_box_set_active(textBox, false);
+
+                    //NOTE loose focus
+                    oc_ui_box_set_focus(frame, 0);
+                }
+            }
+        }
+
+        if(oc_ui_box_active(frame))
+        {
+            oc_str32 oldCodepoints = oc_utf8_push_to_codepoints(frameArena, info->text);
+            oc_str32 codepoints = oldCodepoints;
+            //TODO(martin): check conversion here. Is there a way for cursor or mark to be negative at this point?
+            info->cursor = oc_clamp(info->cursor, 0, (i32)codepoints.len);
+            info->mark = oc_clamp(info->mark, 0, (i32)codepoints.len);
+
+            //NOTE replace selection with input codepoints
+            oc_str32 inputCodepoints = oc_input_text_utf32(frameArena, input);
+            if(inputCodepoints.len)
+            {
+                codepoints = oc_ui_edit_replace_selection_with_codepoints(info, codepoints, inputCodepoints);
+                info->cursorBlinkStart = oc_ui_frame_time();
+            }
+
+            //NOTE handle shortcuts
+            oc_keymod_flags mods = oc_key_mods(input);
+            const oc_ui_edit_command* editCommands;
+            u32 editCommandCount;
+            oc_host_platform hostPlatform = oc_get_host_platform();
+            switch(hostPlatform)
+            {
+                case OC_HOST_PLATFORM_MACOS:
+                    editCommands = OC_UI_EDIT_COMMANDS_MACOS;
+                    editCommandCount = OC_UI_EDIT_COMMAND_MACOS_COUNT;
+                    break;
+                case OC_HOST_PLATFORM_WINDOWS:
+                    editCommands = OC_UI_EDIT_COMMANDS_WINDOWS;
+                    editCommandCount = OC_UI_EDIT_COMMAND_WINDOWS_COUNT;
+                    break;
+                default:
+                    OC_ASSERT(0, "unknown host platform: %i", hostPlatform);
+            }
+
+            for(int i = 0; i < editCommandCount; i++)
+            {
+                const oc_ui_edit_command* command = &(editCommands[i]);
+
+                if((oc_key_press_count(input, command->key) || oc_key_repeat_count(input, command->key))
+                   && (mods & ~OC_KEYMOD_MAIN_MODIFIER) == command->mods)
+                {
+                    codepoints = oc_ui_edit_perform_operation(info, command->operation, command->move, command->direction, codepoints);
+                    break;
+                }
+            }
+
+            if(sig.pasted)
+            {
+                oc_str8 pastedText = oc_clipboard_pasted_text(input);
+                oc_str32 input = oc_utf8_push_to_codepoints(frameArena, pastedText);
+                codepoints = oc_ui_edit_replace_selection_with_codepoints(info, codepoints, input);
+            }
+
+            //NOTE(martin): check changed/accepted
+            if(oldCodepoints.ptr != codepoints.ptr)
+            {
+                result.changed = true;
+                result.text = oc_utf8_push_from_codepoints(arena, codepoints);
+            }
+
+            if(oc_key_press_count(input, OC_KEY_ENTER))
+            {
+                //TODO(martin): extract in gui_edit_complete() (and use below)
+                result.accepted = true;
                 oc_ui_box_set_active(frame, false);
                 oc_ui_box_set_active(textBox, false);
-
-                //NOTE loose focus
-                ui->focus = 0;
+                oc_ui_box_set_focus(frame, 0);
             }
-        }
-    }
 
-    if(oc_ui_box_active(frame))
-    {
-        oc_str32 oldCodepoints = oc_utf8_push_to_codepoints(&ui->frameArena, text);
-        oc_str32 codepoints = oldCodepoints;
-        //TODO(martin): check conversion here. Is there a way for editCursor or editMark to be negative at this point?
-        ui->editCursor = oc_clamp(ui->editCursor, 0, (i32)codepoints.len);
-        ui->editMark = oc_clamp(ui->editMark, 0, (i32)codepoints.len);
-
-        //NOTE replace selection with input codepoints
-        oc_str32 input = oc_input_text_utf32(&ui->frameArena, &ui->input);
-        if(input.len)
-        {
-            codepoints = oc_ui_edit_replace_selection_with_codepoints(ui, codepoints, input);
-            ui->editCursorBlinkStart = ui->frameTime;
-        }
-
-        //NOTE handle shortcuts
-        oc_keymod_flags mods = oc_key_mods(&ui->input);
-        const oc_ui_edit_command* editCommands;
-        u32 editCommandCount;
-        oc_host_platform hostPlatform = oc_get_host_platform();
-        switch(hostPlatform)
-        {
-            case OC_HOST_PLATFORM_MACOS:
-                editCommands = OC_UI_EDIT_COMMANDS_MACOS;
-                editCommandCount = OC_UI_EDIT_COMMAND_MACOS_COUNT;
-                break;
-            case OC_HOST_PLATFORM_WINDOWS:
-                editCommands = OC_UI_EDIT_COMMANDS_WINDOWS;
-                editCommandCount = OC_UI_EDIT_COMMAND_WINDOWS_COUNT;
-                break;
-            default:
-                OC_ASSERT(0, "unknown host platform: %i", hostPlatform);
-        }
-
-        for(int i = 0; i < editCommandCount; i++)
-        {
-            const oc_ui_edit_command* command = &(editCommands[i]);
-
-            if((oc_key_press_count(&ui->input, command->key) || oc_key_repeat_count(&ui->input, command->key))
-               && (mods & ~OC_KEYMOD_MAIN_MODIFIER) == command->mods)
+            //NOTE slide contents
             {
-                codepoints = oc_ui_edit_perform_operation(ui, command->operation, command->move, command->direction, codepoints);
-                break;
-            }
-        }
-
-        if(sig.pasted)
-        {
-            oc_str8 pastedText = oc_clipboard_pasted_text(&ui->input);
-            oc_str32 input = oc_utf8_push_to_codepoints(&ui->frameArena, pastedText);
-            codepoints = oc_ui_edit_replace_selection_with_codepoints(ui, codepoints, input);
-        }
-
-        //NOTE(martin): check changed/accepted
-        if(oldCodepoints.ptr != codepoints.ptr)
-        {
-            result.changed = true;
-            result.text = oc_utf8_push_from_codepoints(arena, codepoints);
-        }
-
-        if(oc_key_press_count(&ui->input, OC_KEY_ENTER))
-        {
-            //TODO(martin): extract in gui_edit_complete() (and use below)
-            result.accepted = true;
-            oc_ui_box_set_active(frame, false);
-            oc_ui_box_set_active(textBox, false);
-            ui->focus = 0;
-        }
-
-        //NOTE slide contents
-        {
-            if(ui->editCursor < ui->editFirstDisplayedChar)
-            {
-                ui->editFirstDisplayedChar = ui->editCursor;
-            }
-            else
-            {
-                i32 firstDisplayedChar = ui->editFirstDisplayedChar;
-                oc_str32 firstToCursor = oc_str32_slice(codepoints, firstDisplayedChar, ui->editCursor);
-                oc_rect firstToCursorBox = oc_font_text_metrics_utf32(font, fontSize, firstToCursor).logical;
-
-                while(firstToCursorBox.w > textBox->rect.w)
+                if(info->cursor < info->firstDisplayedChar)
                 {
-                    firstDisplayedChar++;
-                    firstToCursor = oc_str32_slice(codepoints, firstDisplayedChar, ui->editCursor);
-                    firstToCursorBox = oc_font_text_metrics_utf32(font, fontSize, firstToCursor).logical;
+                    info->firstDisplayedChar = info->cursor;
                 }
+                else
+                {
+                    i32 firstDisplayedChar = info->firstDisplayedChar;
+                    oc_str32 firstToCursor = oc_str32_slice(codepoints, firstDisplayedChar, info->cursor);
+                    oc_rect firstToCursorBox = oc_font_text_metrics_utf32(font, fontSize, firstToCursor).logical;
 
-                ui->editFirstDisplayedChar = firstDisplayedChar;
+                    while(firstToCursorBox.w > textBox->rect.w)
+                    {
+                        firstDisplayedChar++;
+                        firstToCursor = oc_str32_slice(codepoints, firstDisplayedChar, info->cursor);
+                        firstToCursorBox = oc_font_text_metrics_utf32(font, fontSize, firstToCursor).logical;
+                    }
+
+                    info->firstDisplayedChar = firstDisplayedChar;
+                }
             }
+
+            //NOTE: set renderer
+            oc_ui_text_box_render_data* renderData = oc_arena_push_type(frameArena, oc_ui_text_box_render_data);
+            *renderData = (oc_ui_text_box_render_data){
+                .codepoints = oc_str32_push_copy(frameArena, codepoints),
+                .firstDisplayedChar = info->firstDisplayedChar,
+                .cursor = info->cursor,
+                .mark = info->mark,
+                .frameTime = oc_ui_frame_time(),
+                .cursorBlinkStart = info->cursorBlinkStart,
+            };
+
+            oc_ui_box_set_draw_proc(textBox, oc_ui_text_box_render, renderData);
         }
-
-        //NOTE: set renderer
-        oc_str32* renderCodepoints = oc_arena_push_type(&ui->frameArena, oc_str32);
-        *renderCodepoints = oc_str32_push_copy(&ui->frameArena, codepoints);
-        oc_ui_box_set_draw_proc(textBox, oc_ui_text_box_render, renderCodepoints);
+        else
+        {
+            //NOTE: set renderer
+            oc_str32* renderCodepoints = oc_arena_push_type(frameArena, oc_str32);
+            *renderCodepoints = oc_utf8_push_to_codepoints(frameArena, info->text);
+            oc_ui_box_set_draw_proc(textBox, oc_ui_text_box_render, renderCodepoints);
+        }
     }
-    else
-    {
-        //NOTE: set renderer
-        oc_str32* renderCodepoints = oc_arena_push_type(&ui->frameArena, oc_str32);
-        *renderCodepoints = oc_utf8_push_to_codepoints(&ui->frameArena, text);
-        oc_ui_box_set_draw_proc(textBox, oc_ui_text_box_render, renderCodepoints);
-    }
-
-    oc_ui_box_end(); // frame
 
     return (result);
 }
 
-oc_ui_text_box_result oc_ui_text_box(const char* name, oc_arena* arena, oc_str8 text)
+oc_ui_text_box_result oc_ui_text_box(const char* name, oc_arena* arena, oc_ui_text_box_info* info)
 {
-    return oc_ui_text_box_str8(OC_STR8(name), arena, text);
+    return oc_ui_text_box_str8(OC_STR8(name), arena, info);
 }
-
-#endif // 0
