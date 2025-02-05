@@ -81,6 +81,7 @@ typedef enum
 typedef struct oc_ui_text_box_info
 {
     oc_str8 text;
+    oc_str8 defaultText;
 
     i32 cursor;
     i32 mark;

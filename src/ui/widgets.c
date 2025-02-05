@@ -1824,8 +1824,7 @@ oc_ui_text_box_result oc_ui_text_box_str8(oc_str8 key, oc_arena* arena, oc_ui_te
             {
                 oc_ui_box_set_active(box, true);
 
-                //NOTE: focus
-                oc_ui_box_set_focus(box, true);
+                //NOTE: gain focus
                 info->firstDisplayedChar = 0;
                 info->cursor = 0;
                 info->mark = 0;
@@ -1978,7 +1977,6 @@ oc_ui_text_box_result oc_ui_text_box_str8(oc_str8 key, oc_arena* arena, oc_ui_te
                 {
                     //NOTE loose focus
                     oc_ui_box_set_active(box, false);
-                    oc_ui_box_set_focus(box, 0);
                 }
             }
         }
@@ -2049,7 +2047,6 @@ oc_ui_text_box_result oc_ui_text_box_str8(oc_str8 key, oc_arena* arena, oc_ui_te
                 //TODO(martin): extract in gui_edit_complete() (and use below)
                 result.accepted = true;
                 oc_ui_box_set_active(box, false);
-                oc_ui_box_set_focus(box, 0);
             }
 
             //NOTE slide contents
@@ -2077,6 +2074,7 @@ oc_ui_text_box_result oc_ui_text_box_str8(oc_str8 key, oc_arena* arena, oc_ui_te
 
             //NOTE: set renderer
             oc_ui_text_box_render_data* renderData = oc_arena_push_type(frameArena, oc_ui_text_box_render_data);
+
             *renderData = (oc_ui_text_box_render_data){
                 .codepoints = oc_str32_push_copy(frameArena, codepoints),
                 .firstDisplayedChar = info->firstDisplayedChar,
@@ -2091,9 +2089,27 @@ oc_ui_text_box_result oc_ui_text_box_str8(oc_str8 key, oc_arena* arena, oc_ui_te
         else
         {
             //NOTE: set renderer
-            oc_str32* renderCodepoints = oc_arena_push_type(frameArena, oc_str32);
-            *renderCodepoints = oc_utf8_push_to_codepoints(frameArena, info->text);
-            oc_ui_box_set_draw_proc(box, oc_ui_text_box_render, renderCodepoints);
+            oc_ui_text_box_render_data* renderData = oc_arena_push_type(frameArena, oc_ui_text_box_render_data);
+
+            *renderData = (oc_ui_text_box_render_data){
+                .firstDisplayedChar = info->firstDisplayedChar,
+                .cursor = info->cursor,
+                .mark = info->mark,
+                .frameTime = oc_ui_frame_time(),
+                .cursorBlinkStart = info->cursorBlinkStart,
+            };
+
+            if(info->text.len)
+            {
+                renderData->codepoints = oc_utf8_push_to_codepoints(frameArena, info->text);
+            }
+            else
+            {
+                oc_ui_style_set_var_str8(OC_UI_COLOR, OC_UI_THEME_TEXT_2);
+                renderData->codepoints = oc_utf8_push_to_codepoints(frameArena, info->defaultText);
+            }
+
+            oc_ui_box_set_draw_proc(box, oc_ui_text_box_render, renderData);
         }
     }
 

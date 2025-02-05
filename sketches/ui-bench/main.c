@@ -54,7 +54,7 @@ i32 ui_runloop(void* user)
     oc_arena_init(&textArena);
 
     oc_ui_text_box_info textBoxInfo = {
-        .text = OC_STR8_LIT("type here"),
+        .defaultText = OC_STR8_LIT("type here"),
     };
 
     while(!oc_should_quit())

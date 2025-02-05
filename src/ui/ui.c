@@ -190,7 +190,6 @@ typedef struct oc_ui_context
 
     u32 z;
     oc_ui_box* hovered;
-    oc_ui_box* focus;
 
     //TODO: reorganize
     oc_ui_var_map styleVariables;
@@ -1800,6 +1799,39 @@ oc_ui_box* oc_ui_scrollbar(const char* name, oc_rect rect, f32 thumbRatio, f32* 
     return oc_ui_scrollbar_str8(OC_STR8(name), rect, thumbRatio, scrollValue, horizontal);
 }
 
+bool oc_ui_box_hovering_recursive(oc_ui_box* box, oc_vec2 p)
+{
+    oc_ui_context* ui = oc_ui_get_context();
+
+    oc_rect clip = oc_ui_clip_top();
+    oc_rect rect = oc_ui_intersect_rects(clip, box->rect);
+    bool hit = oc_ui_rect_hit(rect, p);
+
+    bool result = false;
+    if(hit)
+    {
+        if(ui->hovered && box->z < ui->hovered->z)
+        {
+            oc_ui_box* hovered = ui->hovered;
+
+            while(hovered)
+            {
+                if(hovered == box)
+                {
+                    result = true;
+                    break;
+                }
+                hovered = hovered->parent;
+            }
+        }
+        else
+        {
+            result = true;
+        }
+    }
+    return (result);
+}
+
 oc_ui_box* oc_ui_box_end(void)
 {
     oc_ui_context* ui = oc_ui_get_context();
@@ -1830,7 +1862,7 @@ oc_ui_box* oc_ui_box_end(void)
         box->scroll.x = scrollValueX * (contentsW - box->rect.w);
 
         //wheel
-        if(oc_ui_box_hovering(box, oc_ui_mouse_position()))
+        if(oc_ui_box_hovering_recursive(box, oc_ui_mouse_position()))
         {
             oc_vec2 wheel = oc_ui_mouse_wheel();
             box->scroll.x += wheel.x;
@@ -1855,7 +1887,7 @@ oc_ui_box* oc_ui_box_end(void)
         box->scroll.y = scrollValueY * (contentsH - box->rect.h);
 
         //wheel
-        if(oc_ui_box_hovering(box, oc_ui_mouse_position()))
+        if(oc_ui_box_hovering_recursive(box, oc_ui_mouse_position()))
         {
             oc_vec2 wheel = oc_ui_mouse_wheel();
             box->scroll.y += wheel.y;
@@ -1904,24 +1936,6 @@ void oc_ui_box_set_hot(oc_ui_box* box, bool hot)
 bool oc_ui_box_hot(oc_ui_box* box)
 {
     return (box->hot);
-}
-
-bool oc_ui_box_focus(oc_ui_box* box)
-{
-    return box == oc_ui_get_context()->focus;
-}
-
-void oc_ui_box_set_focus(oc_ui_box* box, bool focus)
-{
-    oc_ui_context* ui = oc_ui_get_context();
-    if(focus)
-    {
-        ui->focus = box;
-    }
-    else if(ui->focus == box)
-    {
-        ui->focus = 0;
-    }
 }
 
 oc_ui_sig oc_ui_box_sig(oc_ui_box* box)
@@ -3037,11 +3051,10 @@ void oc_ui_begin_frame(oc_vec2 size)
 
     ui->root = oc_ui_box_begin("_root_");
 
-    oc_ui_style_theme_dark();
-
-    oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_BG_0);
     oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PIXELS, size.x });
     oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PIXELS, size.y });
+
+    oc_ui_style_theme_dark();
 
     oc_ui_box_begin("_contents_");
 
@@ -3054,6 +3067,7 @@ void oc_ui_begin_frame(oc_vec2 size)
     oc_ui_style_set_i32(OC_UI_FLOATING_Y, 1);
     oc_ui_style_set_f32(OC_UI_FLOAT_TARGET_X, 0);
     oc_ui_style_set_f32(OC_UI_FLOAT_TARGET_Y, 0);
+    oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_BG_0);
 }
 
 void oc_ui_end_frame(void)
