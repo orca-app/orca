@@ -1569,6 +1569,7 @@ oc_ui_sig oc_ui_box_compute_signals(oc_ui_box* box)
 
         sig.pasted = oc_clipboard_pasted(input);
     }
+
     return (sig);
 }
 
@@ -1625,11 +1626,20 @@ oc_ui_box* oc_ui_box_begin_str8(oc_str8 string)
     ui->nextBoxTags = (oc_list){ 0 };
     box->styleVariables = (oc_list){ 0 };
 
-    //NOTE: compute box signals
+    //NOTE: compute box signals and set tags
     box->sig = oc_ui_box_compute_signals(box);
+
     if(box->sig.hovering)
     {
         oc_ui_tag_box_str8(box, OC_STR8_LIT("hover"));
+    }
+    if(box->active)
+    {
+        oc_ui_tag_box_str8(box, OC_STR8_LIT("active"));
+    }
+    if(box->dragging)
+    {
+        oc_ui_tag_box_str8(box, OC_STR8_LIT("dragging"));
     }
 
     //NOTE push box
@@ -1879,10 +1889,6 @@ bool oc_ui_box_closed(oc_ui_box* box)
 void oc_ui_box_set_active(oc_ui_box* box, bool active)
 {
     box->active = active;
-    if(active)
-    {
-        oc_ui_tag_box_str8(box, OC_STR8_LIT("active"));
-    }
 }
 
 bool oc_ui_box_active(oc_ui_box* box)

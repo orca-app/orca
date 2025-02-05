@@ -1836,8 +1836,8 @@ oc_ui_text_box_result oc_ui_text_box_str8(oc_str8 key, oc_arena* arena, oc_ui_te
             info->cursorBlinkStart = oc_ui_frame_time();
         }
 
-        oc_font font = frame->style.font;
-        f32 fontSize = frame->style.fontSize;
+        oc_font font = textBox->style.font;
+        f32 fontSize = textBox->style.fontSize;
         oc_font_metrics extents = oc_font_get_metrics(font, fontSize);
 
         if(sig.pressed || sig.dragging)
@@ -1975,6 +1975,7 @@ oc_ui_text_box_result oc_ui_text_box_str8(oc_str8 key, oc_arena* arena, oc_ui_te
                     oc_ui_box_set_active(frame, false);
                     oc_ui_box_set_active(textBox, false);
 
+                    oc_log_info("set inactive\n");
                     //NOTE loose focus
                     oc_ui_box_set_focus(frame, 0);
                 }
