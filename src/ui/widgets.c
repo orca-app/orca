@@ -1692,10 +1692,17 @@ void oc_ui_text_box_render(oc_ui_box* box, void* data)
     oc_str32 before = oc_str32_slice(codepoints, 0, firstDisplayedChar);
     oc_rect beforeBox = oc_font_text_metrics_utf32(style->font, style->fontSize, before).logical;
 
-    oc_rect rect = box->rect;
+    oc_rect rect = {
+        box->rect.x + box->style.layout.margin.x,
+        box->rect.y + box->style.layout.margin.y,
+        box->rect.w - 2 * box->style.layout.margin.x,
+        box->rect.h - 2 * box->style.layout.margin.y,
+    };
     f32 textX = rect.x - beforeBox.w;
     f32 textTop = rect.y + 0.5 * (rect.h - lineHeight);
     f32 textY = textTop + extents.ascent;
+
+    oc_clip_push(rect.x, rect.y, rect.w, rect.h);
 
     if(box->active)
     {
@@ -1767,6 +1774,8 @@ void oc_ui_text_box_render(oc_ui_box* box, void* data)
         oc_codepoints_outlines(codepoints);
         oc_fill();
     }
+
+    oc_clip_pop();
 }
 
 oc_ui_text_box_result oc_ui_text_box_str8(oc_str8 key, oc_arena* arena, oc_ui_text_box_info* info)
@@ -1776,9 +1785,9 @@ oc_ui_text_box_result oc_ui_text_box_str8(oc_str8 key, oc_arena* arena, oc_ui_te
     oc_arena* frameArena = oc_ui_frame_arena();
     oc_input_state* input = oc_ui_input();
 
-    oc_ui_box* frame = oc_ui_box_str8(key)
+    oc_ui_box* box = oc_ui_box_str8(key)
     {
-        result.frame = frame;
+        result.box = box;
 
         oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PIXELS, 200 });
         oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PIXELS, 32 });
@@ -1788,47 +1797,35 @@ oc_ui_text_box_result oc_ui_text_box_str8(oc_str8 key, oc_arena* arena, oc_ui_te
         oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_FILL_0);
         oc_ui_style_set_var_str8(OC_UI_ROUNDNESS, OC_UI_THEME_ROUNDNESS_SMALL);
 
-        oc_ui_tag("frame");
-        oc_ui_style_rule(".frame.hover")
+        oc_ui_style_set_var_str8(OC_UI_COLOR, OC_UI_THEME_TEXT_0);
+        oc_ui_style_set_var_str8(OC_UI_TEXT_SIZE, OC_UI_THEME_TEXT_SIZE_REGULAR);
+        oc_ui_style_set_var_str8(OC_UI_FONT, OC_UI_THEME_FONT_REGULAR);
+
+        oc_ui_tag("text-box");
+        oc_ui_style_rule(".text-box.hover")
         {
             oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_FILL_1);
         }
-        oc_ui_style_rule(".frame.active")
+        oc_ui_style_rule(".text-box.active")
         {
             oc_ui_style_set_var_str8(OC_UI_BORDER_COLOR, OC_UI_THEME_PRIMARY);
             oc_ui_style_set_f32(OC_UI_BORDER_SIZE, 1);
         }
-        oc_ui_style_rule(".frame.dragging")
+        oc_ui_style_rule(".text-box.dragging")
         {
             oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_FILL_2);
         }
 
-        oc_ui_box* textBox = oc_ui_box("text")
-        {
-            result.textBox = textBox;
-
-            oc_ui_tag("text");
-
-            oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
-            oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
-            oc_ui_style_set_i32(OC_UI_CLICK_THROUGH, 1);
-
-            oc_ui_style_set_var_str8(OC_UI_COLOR, OC_UI_THEME_TEXT_0);
-            oc_ui_style_set_var_str8(OC_UI_TEXT_SIZE, OC_UI_THEME_TEXT_SIZE_REGULAR);
-            oc_ui_style_set_var_str8(OC_UI_FONT, OC_UI_THEME_FONT_REGULAR);
-        }
-
-        oc_ui_sig sig = oc_ui_box_sig(frame);
+        oc_ui_sig sig = oc_ui_box_sig(box);
 
         if(sig.pressed)
         {
-            if(!oc_ui_box_active(frame))
+            if(!oc_ui_box_active(box))
             {
-                oc_ui_box_set_active(frame, true);
-                oc_ui_box_set_active(textBox, true);
+                oc_ui_box_set_active(box, true);
 
                 //NOTE: focus
-                oc_ui_box_set_focus(frame, true);
+                oc_ui_box_set_focus(box, true);
                 info->firstDisplayedChar = 0;
                 info->cursor = 0;
                 info->mark = 0;
@@ -1836,15 +1833,22 @@ oc_ui_text_box_result oc_ui_text_box_str8(oc_str8 key, oc_arena* arena, oc_ui_te
             info->cursorBlinkStart = oc_ui_frame_time();
         }
 
-        oc_font font = textBox->style.font;
-        f32 fontSize = textBox->style.fontSize;
+        oc_font font = box->style.font;
+        f32 fontSize = box->style.fontSize;
         oc_font_metrics extents = oc_font_get_metrics(font, fontSize);
+
+        oc_rect textRect = {
+            box->rect.x + box->style.layout.margin.x,
+            box->rect.y + box->style.layout.margin.y,
+            box->rect.w - 2 * box->style.layout.margin.x,
+            box->rect.h - 2 * box->style.layout.margin.y,
+        };
 
         if(sig.pressed || sig.dragging)
         {
             //NOTE: set cursor/extend selection on mouse press or drag
             oc_vec2 pos = oc_mouse_position(oc_ui_input());
-            f32 cursorX = pos.x - textBox->rect.x;
+            f32 cursorX = pos.x - textRect.x;
 
             oc_str32 codepoints = oc_utf8_push_to_codepoints(frameArena, info->text); //TODO: need to get frame arena
             i32 newCursor = 0;
@@ -1962,27 +1966,24 @@ oc_ui_text_box_result oc_ui_text_box_str8(oc_str8 key, oc_arena* arena, oc_ui_te
 
         if(sig.hovering)
         {
-            oc_ui_box_set_hot(frame, true);
+            oc_ui_box_set_hot(box, true);
         }
         else
         {
-            oc_ui_box_set_hot(frame, false);
+            oc_ui_box_set_hot(box, false);
 
             if(oc_mouse_pressed(input, OC_MOUSE_LEFT) || oc_mouse_pressed(input, OC_MOUSE_RIGHT) || oc_mouse_pressed(input, OC_MOUSE_MIDDLE))
             {
-                if(oc_ui_box_active(frame))
+                if(oc_ui_box_active(box))
                 {
-                    oc_ui_box_set_active(frame, false);
-                    oc_ui_box_set_active(textBox, false);
-
-                    oc_log_info("set inactive\n");
                     //NOTE loose focus
-                    oc_ui_box_set_focus(frame, 0);
+                    oc_ui_box_set_active(box, false);
+                    oc_ui_box_set_focus(box, 0);
                 }
             }
         }
 
-        if(oc_ui_box_active(frame))
+        if(oc_ui_box_active(box))
         {
             oc_str32 oldCodepoints = oc_utf8_push_to_codepoints(frameArena, info->text);
             oc_str32 codepoints = oldCodepoints;
@@ -2047,9 +2048,8 @@ oc_ui_text_box_result oc_ui_text_box_str8(oc_str8 key, oc_arena* arena, oc_ui_te
             {
                 //TODO(martin): extract in gui_edit_complete() (and use below)
                 result.accepted = true;
-                oc_ui_box_set_active(frame, false);
-                oc_ui_box_set_active(textBox, false);
-                oc_ui_box_set_focus(frame, 0);
+                oc_ui_box_set_active(box, false);
+                oc_ui_box_set_focus(box, 0);
             }
 
             //NOTE slide contents
@@ -2064,7 +2064,7 @@ oc_ui_text_box_result oc_ui_text_box_str8(oc_str8 key, oc_arena* arena, oc_ui_te
                     oc_str32 firstToCursor = oc_str32_slice(codepoints, firstDisplayedChar, info->cursor);
                     oc_rect firstToCursorBox = oc_font_text_metrics_utf32(font, fontSize, firstToCursor).logical;
 
-                    while(firstToCursorBox.w > textBox->rect.w)
+                    while(firstToCursorBox.w > textRect.w)
                     {
                         firstDisplayedChar++;
                         firstToCursor = oc_str32_slice(codepoints, firstDisplayedChar, info->cursor);
@@ -2086,14 +2086,14 @@ oc_ui_text_box_result oc_ui_text_box_str8(oc_str8 key, oc_arena* arena, oc_ui_te
                 .cursorBlinkStart = info->cursorBlinkStart,
             };
 
-            oc_ui_box_set_draw_proc(textBox, oc_ui_text_box_render, renderData);
+            oc_ui_box_set_draw_proc(box, oc_ui_text_box_render, renderData);
         }
         else
         {
             //NOTE: set renderer
             oc_str32* renderCodepoints = oc_arena_push_type(frameArena, oc_str32);
             *renderCodepoints = oc_utf8_push_to_codepoints(frameArena, info->text);
-            oc_ui_box_set_draw_proc(textBox, oc_ui_text_box_render, renderCodepoints);
+            oc_ui_box_set_draw_proc(box, oc_ui_text_box_render, renderCodepoints);
         }
     }
 

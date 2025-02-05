@@ -67,8 +67,7 @@ typedef struct oc_ui_text_box_result
     bool changed;
     bool accepted;
     oc_str8 text;
-    oc_ui_box* frame;
-    oc_ui_box* textBox;
+    oc_ui_box* box;
 } oc_ui_text_box_result;
 
 typedef enum
