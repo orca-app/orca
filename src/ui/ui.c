@@ -3067,7 +3067,6 @@ void oc_ui_begin_frame(oc_vec2 size)
     oc_ui_style_set_i32(OC_UI_FLOATING_Y, 1);
     oc_ui_style_set_f32(OC_UI_FLOAT_TARGET_X, 0);
     oc_ui_style_set_f32(OC_UI_FLOAT_TARGET_Y, 0);
-    oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_BG_0);
 }
 
 void oc_ui_end_frame(void)

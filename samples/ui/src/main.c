@@ -143,26 +143,27 @@ void column_end()
 
 #define column(h, w) oc_defer_loop(column_begin(h, w), column_end())
 
-/*
 void labeled_slider(const char* label, f32* value)
 {
-    oc_ui_style_next(&(oc_ui_style){ .layout.axis = OC_UI_AXIS_X,
-                                     .layout.spacing = 8 },
-                     OC_UI_STYLE_LAYOUT_AXIS
-                         | OC_UI_STYLE_LAYOUT_SPACING);
-    oc_ui_container(label, OC_UI_FLAG_NONE)
+    oc_ui_box(label)
     {
-        oc_ui_style_match_after(oc_ui_pattern_owner(),
-                                &(oc_ui_style){ .size.width = { OC_UI_SIZE_PIXELS, 100 } },
-                                OC_UI_STYLE_SIZE_WIDTH);
-        oc_ui_label(label);
+        oc_ui_style_set_f32(OC_UI_SPACING, 8);
 
-        oc_ui_style_next(&(oc_ui_style){ .size.width = { OC_UI_SIZE_PIXELS, 100 } },
-                         OC_UI_STYLE_SIZE_WIDTH);
+        oc_ui_style_rule("label")
+        {
+            oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PIXELS, 100 });
+        }
+        oc_ui_label("label", label);
+
+        oc_ui_style_rule("slider")
+        {
+            oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PIXELS, 100 });
+        }
         oc_ui_slider("slider", value);
     }
 }
 
+/*
 void reset_next_radio_group_to_dark_theme(oc_arena* arena);
 
 */
@@ -197,6 +198,7 @@ ORCA_EXPORT void oc_on_frame_refresh(void)
             oc_ui_theme_light();
         }
 
+        oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_BG_0);
         oc_ui_style_set_i32(OC_UI_CONSTRAIN_Y, 1);
 
         //--------------------------------------------------------------------------------------------
@@ -574,27 +576,27 @@ ORCA_EXPORT void oc_on_frame_refresh(void)
                         selectedIndex = result.selectedIndex;
                     }
 
-                    /*
-                    oc_ui_style_next(&(oc_ui_style){ .layout.axis = OC_UI_AXIS_X,
-                                                     .layout.spacing = 32 },
-                                     OC_UI_STYLE_LAYOUT_AXIS
-                                         | OC_UI_STYLE_LAYOUT_SPACING);
-                    oc_ui_container("controls", OC_UI_FLAG_NONE)
+                    oc_ui_box("controls")
                     {
-                        oc_ui_style_next(&(oc_ui_style){ .layout.axis = OC_UI_AXIS_Y,
-                                                         .layout.spacing = 16 },
-                                         OC_UI_STYLE_LAYOUT_AXIS
-                                             | OC_UI_STYLE_LAYOUT_SPACING);
-                        oc_ui_container("unselected", OC_UI_FLAG_NONE)
-                        {
-                            oc_ui_style_next(&(oc_ui_style){ .fontSize = 16 },
-                                             OC_UI_STYLE_FONT_SIZE);
-                            oc_ui_label("Radio style");
+                        oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_X);
+                        oc_ui_style_set_f32(OC_UI_SPACING, 32);
 
-                            oc_ui_style_next(&(oc_ui_style){ .layout.spacing = 4 },
-                                             OC_UI_STYLE_LAYOUT_SPACING);
-                            oc_ui_container("size", OC_UI_FLAG_NONE)
+                        oc_ui_box("unselected")
+                        {
+                            oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_Y);
+                            oc_ui_style_set_f32(OC_UI_SPACING, 16);
+
+                            oc_ui_style_rule("label")
                             {
+                                oc_ui_style_set_f32(OC_UI_TEXT_SIZE, 16);
+                            }
+                            oc_ui_label("label", "Radio style");
+
+                            oc_ui_box("size")
+                            {
+                                oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_Y);
+                                oc_ui_style_set_f32(OC_UI_SPACING, 4);
+
                                 f32 widthSlider = (unselectedWidth - 8) / 16;
                                 labeled_slider("Width", &widthSlider);
                                 unselectedWidth = 8 + widthSlider * 16;
@@ -608,6 +610,7 @@ ORCA_EXPORT void oc_on_frame_refresh(void)
                                 unselectedRoundness = 4 + roundnessSlider * 8;
                             }
 
+                            /*
                             oc_ui_style_next(&(oc_ui_style){ .layout.spacing = 4 },
                                              OC_UI_STYLE_LAYOUT_SPACING);
                             oc_ui_container("background", OC_UI_FLAG_NONE)
@@ -660,10 +663,13 @@ ORCA_EXPORT void oc_on_frame_refresh(void)
                                         break;
                                     default:
                                         break;
+
                                 }
                             }
+                            */
                         }
 
+                        /*
                         oc_ui_style_next(&(oc_ui_style){ .layout.axis = OC_UI_AXIS_Y,
                                                          .layout.spacing = 16 },
                                          OC_UI_STYLE_LAYOUT_AXIS
@@ -821,8 +827,8 @@ ORCA_EXPORT void oc_on_frame_refresh(void)
                             labeled_slider("Font size", &fontSizeSlider);
                             labelFontSize = 8 + fontSizeSlider * 16;
                         }
+                        */
                     }
-                    */
                 }
             }
         } // main panel
