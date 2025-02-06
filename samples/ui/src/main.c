@@ -429,10 +429,13 @@ ORCA_EXPORT void oc_on_frame_refresh(void)
                         oc_ui_style_set_f32(OC_UI_BORDER_SIZE, 1);
                         oc_ui_style_set_var_str8(OC_UI_ROUNDNESS, OC_UI_THEME_ROUNDNESS_SMALL);
 
+                        oc_ui_style_set_i32(OC_UI_OVERFLOW_Y, OC_UI_OVERFLOW_SCROLL);
+
                         oc_ui_box("contents")
                         {
                             oc_ui_style_set_f32(OC_UI_MARGIN_X, 16);
                             oc_ui_style_set_f32(OC_UI_MARGIN_Y, 16);
+                            oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_Y);
 
                             if(oc_list_empty(logLines.list))
                             {
@@ -460,38 +463,35 @@ ORCA_EXPORT void oc_on_frame_refresh(void)
                 //-----------------------------------------------------------------------------------------
                 column("Styling", 2.0 / 3)
                 {
-                    /*
                     static f32 unselectedWidth = 16;
                     static f32 unselectedHeight = 16;
                     static f32 unselectedRoundness = 8;
                     static oc_color unselectedBgColor = { 0.086, 0.086, 0.102, 1 };
                     static oc_color unselectedBorderColor = { 0.976, 0.976, 0.976, 0.35 };
                     static f32 unselectedBorderSize = 1;
-                    static oc_ui_status unselectedWhenStatus = OC_UI_NONE;
+                    //                    static oc_ui_status unselectedWhenStatus = OC_UI_NONE;
 
                     static f32 selectedWidth = 16;
                     static f32 selectedHeight = 16;
                     static f32 selectedRoundness = 8;
                     static oc_color selectedCenterColor = { 1, 1, 1, 1 };
                     static oc_color selectedBgColor = { 0.33, 0.66, 1, 1 };
-                    static oc_ui_status selectedWhenStatus = OC_UI_NONE;
+                    //static oc_ui_status selectedWhenStatus = OC_UI_NONE;
 
                     static oc_color labelFontColor = { 0.976, 0.976, 0.976, 1 };
                     static oc_font* labelFont = &fontRegular;
                     static f32 labelFontSize = 14;
 
-                    oc_ui_style_next(&(oc_ui_style){ .size.width = { OC_UI_SIZE_PARENT, 1 },
-                                                     .size.height = { OC_UI_SIZE_PIXELS, 152 },
-                                                     .layout.margin.x = 310,
-                                                     .layout.margin.y = 16,
-                                                     .bgColor = OC_UI_DARK_THEME.bg0,
-                                                     .roundness = OC_UI_DARK_THEME.roundnessSmall },
-                                     OC_UI_STYLE_SIZE
-                                         | OC_UI_STYLE_LAYOUT_MARGINS
-                                         | OC_UI_STYLE_BG_COLOR
-                                         | OC_UI_STYLE_ROUNDNESS);
-                    oc_ui_container("styled_radios", OC_UI_FLAG_NONE)
+                    oc_ui_box("styled_radios")
                     {
+                        oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
+                        oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PIXELS, 152 });
+                        oc_ui_style_set_f32(OC_UI_MARGIN_X, 310);
+                        oc_ui_style_set_f32(OC_UI_MARGIN_Y, 16);
+                        oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_BG_0);
+                        oc_ui_style_set_var_str8(OC_UI_ROUNDNESS, OC_UI_THEME_ROUNDNESS_SMALL);
+
+                        /*
                         reset_next_radio_group_to_dark_theme(scratch.arena);
 
                         oc_ui_pattern unselectedPattern = { 0 };
@@ -544,7 +544,11 @@ ORCA_EXPORT void oc_on_frame_refresh(void)
                                                     | OC_UI_STYLE_BG_COLOR
                                                     | OC_UI_STYLE_ROUNDNESS);
 
+
+
                         oc_ui_tag labelTag = oc_ui_tag_make("label");
+
+
                         oc_ui_pattern labelPattern = { 0 };
                         oc_ui_pattern_push(scratch.arena, &labelPattern, (oc_ui_selector){ .kind = OC_UI_SEL_TAG, .tag = labelTag });
                         oc_ui_style_match_after(labelPattern,
@@ -554,18 +558,23 @@ ORCA_EXPORT void oc_on_frame_refresh(void)
                                                 OC_UI_STYLE_COLOR
                                                     | OC_UI_STYLE_FONT
                                                     | OC_UI_STYLE_FONT_SIZE);
-
+                        */
                         static int selectedIndex = 0;
-                        oc_str8 options[] = { OC_STR8("I"),
-                                              OC_STR8("Am"),
-                                              OC_STR8("Stylish") };
-                        oc_ui_radio_group_info radioGroupInfo = { .selectedIndex = selectedIndex,
-                                                                  .optionCount = oc_array_size(options),
-                                                                  .options = options };
+                        oc_str8 options[] = {
+                            OC_STR8("I"),
+                            OC_STR8("Am"),
+                            OC_STR8("Stylish"),
+                        };
+                        oc_ui_radio_group_info radioGroupInfo = {
+                            .selectedIndex = selectedIndex,
+                            .optionCount = oc_array_size(options),
+                            .options = options,
+                        };
                         oc_ui_radio_group_info result = oc_ui_radio_group("radio_group", &radioGroupInfo);
                         selectedIndex = result.selectedIndex;
                     }
 
+                    /*
                     oc_ui_style_next(&(oc_ui_style){ .layout.axis = OC_UI_AXIS_X,
                                                      .layout.spacing = 32 },
                                      OC_UI_STYLE_LAYOUT_AXIS
