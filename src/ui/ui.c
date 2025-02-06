@@ -1339,7 +1339,7 @@ void oc_ui_style_set_var(oc_ui_attr attr, const char* name)
 
 //TODO: define pre-computed theme name hashes
 
-void oc_ui_style_theme_light()
+void oc_ui_theme_light()
 {
     //TODO: push these vars using precomputed name hashes
 
@@ -1391,7 +1391,7 @@ void oc_ui_style_theme_light()
     oc_ui_var_set_font_str8(OC_UI_THEME_FONT_REGULAR, ui->defaultFont);
 }
 
-void oc_ui_style_theme_dark()
+void oc_ui_theme_dark()
 {
     oc_ui_var_set_color_str8(OC_UI_THEME_PRIMARY, (oc_color){ 0.33, 0.66, 1, 1, OC_COLOR_SPACE_SRGB });
     oc_ui_var_set_color_str8(OC_UI_THEME_PRIMARY_HOVER, (oc_color){ 0.5, 0.757, 1, 1, OC_COLOR_SPACE_SRGB });
@@ -3054,7 +3054,7 @@ void oc_ui_begin_frame(oc_vec2 size)
     oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PIXELS, size.x });
     oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PIXELS, size.y });
 
-    oc_ui_style_theme_dark();
+    oc_ui_theme_dark();
 
     oc_ui_box_begin("_contents_");
 
