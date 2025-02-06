@@ -172,33 +172,23 @@ ORCA_EXPORT void oc_on_frame_refresh(void)
 {
     oc_arena_scope scratch = oc_scratch_begin();
 
-    static bool darkTheme = true;
+    static oc_ui_theme_proc theme = oc_ui_theme_dark;
 
     switch(command)
     {
         case CMD_SET_DARK_THEME:
-            darkTheme = true;
+            theme = oc_ui_theme_dark;
             break;
         case CMD_SET_LIGHT_THEME:
-            darkTheme = false;
+            theme = oc_ui_theme_light;
             break;
         default:
             break;
     }
     command = CMD_NONE;
 
-    oc_ui_frame(frameSize)
+    oc_ui_frame(frameSize, theme)
     {
-        if(darkTheme)
-        {
-            oc_ui_theme_dark();
-        }
-        else
-        {
-            oc_ui_theme_light();
-        }
-
-        oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_BG_0);
         oc_ui_style_set_i32(OC_UI_CONSTRAIN_Y, 1);
 
         //--------------------------------------------------------------------------------------------

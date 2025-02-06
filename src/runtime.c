@@ -866,7 +866,7 @@ i32 orca_runloop(void* user)
 
             oc_vec2 frameSize = oc_surface_get_size(app->debugOverlay.surface);
 
-            oc_ui_frame(frameSize)
+            oc_ui_frame(frameSize, 0)
             {
                 oc_ui_style_set_color(OC_UI_BG_COLOR, (oc_color){ 0 });
                 oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_Y);

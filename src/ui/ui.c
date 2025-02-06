@@ -207,8 +207,8 @@ oc_thread_local oc_ui_context* oc_uiCurrentContext = 0;
 oc_ui_context* oc_ui_context_create(oc_font defaultFont)
 {
     oc_ui_context* ui = oc_malloc_type(oc_ui_context);
-
     memset(ui, 0, sizeof(oc_ui_context));
+
     oc_arena_init(&ui->frameArena);
     oc_pool_init(&ui->boxPool, sizeof(oc_ui_box));
     ui->defaultFont = defaultFont;
@@ -3029,7 +3029,7 @@ void oc_ui_draw()
 // frame begin/end
 //-----------------------------------------------------------------------------
 
-void oc_ui_begin_frame(oc_vec2 size)
+void oc_ui_frame_begin(oc_vec2 size, oc_ui_theme_proc theme)
 {
     oc_ui_context* ui = oc_ui_get_context();
 
@@ -3054,7 +3054,12 @@ void oc_ui_begin_frame(oc_vec2 size)
     oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PIXELS, size.x });
     oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PIXELS, size.y });
 
+    //NOTE: we first setup all the default variables, then call user theme that can override them
     oc_ui_theme_dark();
+    if(theme)
+    {
+        theme();
+    }
 
     oc_ui_box_begin("_contents_");
 
@@ -3067,9 +3072,10 @@ void oc_ui_begin_frame(oc_vec2 size)
     oc_ui_style_set_i32(OC_UI_FLOATING_Y, 1);
     oc_ui_style_set_f32(OC_UI_FLOAT_TARGET_X, 0);
     oc_ui_style_set_f32(OC_UI_FLOAT_TARGET_Y, 0);
+    oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_BG_0);
 }
 
-void oc_ui_end_frame(void)
+void oc_ui_frame_end(void)
 {
     oc_ui_context* ui = oc_ui_get_context();
 
