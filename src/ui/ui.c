@@ -1354,21 +1354,24 @@ void oc_ui_theme_light()
     oc_ui_var_set_color_str8(OC_UI_THEME_PRIMARY_ACTIVE, (oc_color){ 0.000, 0.310, 0.702, 1, OC_COLOR_SPACE_SRGB });
     oc_ui_var_set_color_str8(OC_UI_THEME_PRIMARY_DISABLED, (oc_color){ 0.596, 0.804, 0.992, 1, OC_COLOR_SPACE_SRGB });
 
+    //TODO: maybe darken this (esp lighter levels)
     oc_ui_var_set_color_str8(OC_UI_THEME_TEXT_0, (oc_color){ 0.110, 0.122, 0.137, 1, OC_COLOR_SPACE_SRGB });
     oc_ui_var_set_color_str8(OC_UI_THEME_TEXT_1, (oc_color){ 0.110, 0.122, 0.137, .942, OC_COLOR_SPACE_SRGB });
     oc_ui_var_set_color_str8(OC_UI_THEME_TEXT_2, (oc_color){ 0.110, 0.122, 0.137, .834, OC_COLOR_SPACE_SRGB });
     oc_ui_var_set_color_str8(OC_UI_THEME_TEXT_3, (oc_color){ 0.110, 0.122, 0.137, .57, OC_COLOR_SPACE_SRGB });
 
-    oc_ui_var_set_color_str8(OC_UI_THEME_BG_0, (oc_color){ 1, 1, 1, 1, OC_COLOR_SPACE_SRGB });
-    oc_ui_var_set_color_str8(OC_UI_THEME_BG_1, (oc_color){ 1, 1, 1, 1, OC_COLOR_SPACE_SRGB });
-    oc_ui_var_set_color_str8(OC_UI_THEME_BG_2, (oc_color){ 1, 1, 1, 1, OC_COLOR_SPACE_SRGB });
-    oc_ui_var_set_color_str8(OC_UI_THEME_BG_3, (oc_color){ 1, 1, 1, 1, OC_COLOR_SPACE_SRGB });
-    oc_ui_var_set_color_str8(OC_UI_THEME_BG_4, (oc_color){ 1, 1, 1, 1, OC_COLOR_SPACE_SRGB });
+    oc_ui_var_set_color_str8(OC_UI_THEME_BG_0, (oc_color){ 0.96, 0.96, 0.96, 1, OC_COLOR_SPACE_SRGB });
+    oc_ui_var_set_color_str8(OC_UI_THEME_BG_1, (oc_color){ 0.96, 0.96, 0.96, 1, OC_COLOR_SPACE_SRGB });
+    oc_ui_var_set_color_str8(OC_UI_THEME_BG_2, (oc_color){ 0.96, 0.96, 0.96, 1, OC_COLOR_SPACE_SRGB });
+    oc_ui_var_set_color_str8(OC_UI_THEME_BG_3, (oc_color){ 0.96, 0.96, 0.96, 1, OC_COLOR_SPACE_SRGB });
+    oc_ui_var_set_color_str8(OC_UI_THEME_BG_4, (oc_color){ 0.96, 0.96, 0.96, 1, OC_COLOR_SPACE_SRGB });
 
+    //TODO: maybe darken this
     oc_ui_var_set_color_str8(OC_UI_THEME_FILL_0, (oc_color){ 0.180, 0.196, 0.220, .1, OC_COLOR_SPACE_SRGB });
     oc_ui_var_set_color_str8(OC_UI_THEME_FILL_1, (oc_color){ 0.180, 0.196, 0.220, .17, OC_COLOR_SPACE_SRGB });
     oc_ui_var_set_color_str8(OC_UI_THEME_FILL_2, (oc_color){ 0.180, 0.196, 0.220, .23, OC_COLOR_SPACE_SRGB });
 
+    //TODO: maybe darken this
     oc_ui_var_set_color_str8(OC_UI_THEME_BORDER, (oc_color){ 0.110, 0.122, 0.137, .16, OC_COLOR_SPACE_SRGB });
 
     oc_ui_var_set_color_str8(OC_UI_THEME_TOOLTIP, (oc_color){ 0.255, 0.275, 0.298, 1, OC_COLOR_SPACE_SRGB });
