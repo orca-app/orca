@@ -326,15 +326,12 @@ ORCA_API void oc_ui_set_context(oc_ui_context* context);
 //-------------------------------------------------------------------------------------
 // UI frame cycle
 //-------------------------------------------------------------------------------------
-
-typedef void (*oc_ui_theme_proc)(void);
-
 ORCA_API void oc_ui_process_event(oc_event* event);
-ORCA_API void oc_ui_frame_begin(oc_vec2 size, oc_ui_theme_proc theme);
+ORCA_API void oc_ui_frame_begin(oc_vec2 size);
 ORCA_API void oc_ui_frame_end(void);
 ORCA_API void oc_ui_draw(void);
 
-#define oc_ui_frame(size, theme) oc_defer_loop(oc_ui_frame_begin(size, theme), oc_ui_frame_end())
+#define oc_ui_frame(size) oc_defer_loop(oc_ui_frame_begin(size), oc_ui_frame_end())
 
 ORCA_API oc_input_state* oc_ui_input();
 ORCA_API oc_arena* oc_ui_frame_arena();

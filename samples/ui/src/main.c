@@ -172,23 +172,33 @@ ORCA_EXPORT void oc_on_frame_refresh(void)
 {
     oc_arena_scope scratch = oc_scratch_begin();
 
-    static oc_ui_theme_proc theme = oc_ui_theme_dark;
+    static bool darkTheme = true;
 
     switch(command)
     {
         case CMD_SET_DARK_THEME:
-            theme = oc_ui_theme_dark;
+            darkTheme = true;
             break;
         case CMD_SET_LIGHT_THEME:
-            theme = oc_ui_theme_light;
+            darkTheme = false;
             break;
         default:
             break;
     }
     command = CMD_NONE;
 
-    oc_ui_frame(frameSize, theme)
+    oc_ui_frame(frameSize)
     {
+        if(darkTheme)
+        {
+            oc_ui_theme_dark();
+        }
+        else
+        {
+            oc_ui_theme_light();
+        }
+
+        oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_BG_0);
         oc_ui_style_set_i32(OC_UI_CONSTRAIN_Y, 1);
 
         //--------------------------------------------------------------------------------------------
@@ -461,14 +471,14 @@ ORCA_EXPORT void oc_on_frame_refresh(void)
                     static oc_color unselectedBgColor = { 0.086, 0.086, 0.102, 1 };
                     static oc_color unselectedBorderColor = { 0.976, 0.976, 0.976, 0.35 };
                     static f32 unselectedBorderSize = 1;
-                    //                    static oc_ui_status unselectedWhenStatus = OC_UI_NONE;
+                    static oc_str8 unselectedWhenStatus = OC_STR8("");
 
                     static f32 selectedWidth = 16;
                     static f32 selectedHeight = 16;
                     static f32 selectedRoundness = 8;
                     static oc_color selectedCenterColor = { 1, 1, 1, 1 };
                     static oc_color selectedBgColor = { 0.33, 0.66, 1, 1 };
-                    //static oc_ui_status selectedWhenStatus = OC_UI_NONE;
+                    static oc_str8 selectedWhenStatus = OC_STR8("");
 
                     static oc_color labelFontColor = { 0.976, 0.976, 0.976, 1 };
                     static oc_font* labelFont = &fontRegular;
@@ -483,74 +493,48 @@ ORCA_EXPORT void oc_on_frame_refresh(void)
                         oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_BG_0);
                         oc_ui_style_set_var_str8(OC_UI_ROUNDNESS, OC_UI_THEME_ROUNDNESS_SMALL);
 
-                        /*
-                        reset_next_radio_group_to_dark_theme(scratch.arena);
+                        // reset_next_radio_group_to_dark_theme(scratch.arena);
 
-                        oc_ui_pattern unselectedPattern = { 0 };
-                        oc_ui_pattern_push(scratch.arena,
-                                           &unselectedPattern,
-                                           (oc_ui_selector){ .kind = OC_UI_SEL_TAG,
-                                                             .tag = oc_ui_tag_make("radio") });
-                        if(unselectedWhenStatus != OC_UI_NONE)
                         {
-                            oc_ui_pattern_push(scratch.arena,
-                                               &unselectedPattern,
-                                               (oc_ui_selector){ .op = OC_UI_SEL_AND,
-                                                                 .kind = OC_UI_SEL_STATUS,
-                                                                 .status = unselectedWhenStatus });
-                        }
-                        oc_ui_style_match_after(unselectedPattern,
-                                                &(oc_ui_style){ .size.width = { OC_UI_SIZE_PIXELS, unselectedWidth },
-                                                                .size.height = { OC_UI_SIZE_PIXELS, unselectedHeight },
-                                                                .bgColor = unselectedBgColor,
-                                                                .borderColor = unselectedBorderColor,
-                                                                .borderSize = unselectedBorderSize,
-                                                                .roundness = unselectedRoundness },
-                                                OC_UI_STYLE_SIZE
-                                                    | OC_UI_STYLE_BG_COLOR
-                                                    | OC_UI_STYLE_BORDER_COLOR
-                                                    | OC_UI_STYLE_BORDER_SIZE
-                                                    | OC_UI_STYLE_ROUNDNESS);
+                            oc_str8_list list = { 0 };
+                            oc_str8_list_push(scratch.arena, &list, OC_STR8(".radio"));
+                            oc_str8_list_push(scratch.arena, &list, unselectedWhenStatus);
+                            oc_str8 unselectedPattern = oc_str8_list_join(scratch.arena, list);
 
-                        oc_ui_pattern selectedPattern = { 0 };
-                        oc_ui_pattern_push(scratch.arena,
-                                           &selectedPattern,
-                                           (oc_ui_selector){ .kind = OC_UI_SEL_TAG,
-                                                             .tag = oc_ui_tag_make("radio_selected") });
-                        if(selectedWhenStatus != OC_UI_NONE)
+                            oc_ui_style_rule_str8(unselectedPattern)
+                            {
+                                oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PIXELS, unselectedWidth });
+                                oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PIXELS, unselectedHeight });
+                                oc_ui_style_set_color(OC_UI_BG_COLOR, unselectedBgColor);
+                                oc_ui_style_set_color(OC_UI_BORDER_COLOR, unselectedBorderColor);
+                                oc_ui_style_set_f32(OC_UI_BORDER_SIZE, unselectedBorderSize);
+                                oc_ui_style_set_f32(OC_UI_ROUNDNESS, unselectedRoundness);
+                            }
+                        }
+
                         {
-                            oc_ui_pattern_push(scratch.arena,
-                                               &selectedPattern,
-                                               (oc_ui_selector){ .op = OC_UI_SEL_AND,
-                                                                 .kind = OC_UI_SEL_STATUS,
-                                                                 .status = selectedWhenStatus });
+                            oc_str8_list list = { 0 };
+                            oc_str8_list_push(scratch.arena, &list, OC_STR8(".radio_selected"));
+                            oc_str8_list_push(scratch.arena, &list, selectedWhenStatus);
+                            oc_str8 selectedPattern = oc_str8_list_join(scratch.arena, list);
+
+                            oc_ui_style_rule_str8(selectedPattern)
+                            {
+                                oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PIXELS, selectedWidth });
+                                oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PIXELS, selectedHeight });
+                                oc_ui_style_set_color(OC_UI_BG_COLOR, selectedBgColor);
+                                oc_ui_style_set_color(OC_UI_COLOR, selectedCenterColor);
+                                oc_ui_style_set_f32(OC_UI_ROUNDNESS, selectedRoundness);
+                            }
                         }
-                        oc_ui_style_match_after(selectedPattern,
-                                                &(oc_ui_style){ .size.width = { OC_UI_SIZE_PIXELS, selectedWidth },
-                                                                .size.height = { OC_UI_SIZE_PIXELS, selectedHeight },
-                                                                .color = selectedCenterColor,
-                                                                .bgColor = selectedBgColor,
-                                                                .roundness = selectedRoundness },
-                                                OC_UI_STYLE_SIZE
-                                                    | OC_UI_STYLE_COLOR
-                                                    | OC_UI_STYLE_BG_COLOR
-                                                    | OC_UI_STYLE_ROUNDNESS);
 
+                        oc_ui_style_rule("radio_group label")
+                        {
+                            oc_ui_style_set_color(OC_UI_COLOR, labelFontColor);
+                            oc_ui_style_set_font(OC_UI_FONT, *labelFont);
+                            oc_ui_style_set_f32(OC_UI_TEXT_SIZE, labelFontSize);
+                        }
 
-
-                        oc_ui_tag labelTag = oc_ui_tag_make("label");
-
-
-                        oc_ui_pattern labelPattern = { 0 };
-                        oc_ui_pattern_push(scratch.arena, &labelPattern, (oc_ui_selector){ .kind = OC_UI_SEL_TAG, .tag = labelTag });
-                        oc_ui_style_match_after(labelPattern,
-                                                &(oc_ui_style){ .color = labelFontColor,
-                                                                .font = *labelFont,
-                                                                .fontSize = labelFontSize },
-                                                OC_UI_STYLE_COLOR
-                                                    | OC_UI_STYLE_FONT
-                                                    | OC_UI_STYLE_FONT_SIZE);
-                        */
                         static int selectedIndex = 0;
                         oc_str8 options[] = {
                             OC_STR8("I"),
@@ -576,11 +560,11 @@ ORCA_EXPORT void oc_on_frame_refresh(void)
                             oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_Y);
                             oc_ui_style_set_f32(OC_UI_SPACING, 16);
 
-                            oc_ui_style_rule("label")
+                            oc_ui_style_rule("radio-label")
                             {
                                 oc_ui_style_set_f32(OC_UI_TEXT_SIZE, 16);
                             }
-                            oc_ui_label("label", "Radio style");
+                            oc_ui_label("radio-label", "Radio style");
 
                             oc_ui_box("size")
                             {
@@ -600,21 +584,20 @@ ORCA_EXPORT void oc_on_frame_refresh(void)
                                 unselectedRoundness = 4 + roundnessSlider * 8;
                             }
 
-                            /*
-                            oc_ui_style_next(&(oc_ui_style){ .layout.spacing = 4 },
-                                             OC_UI_STYLE_LAYOUT_SPACING);
-                            oc_ui_container("background", OC_UI_FLAG_NONE)
+                            oc_ui_box("background")
                             {
+                                oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_Y);
+                                oc_ui_style_set_f32(OC_UI_SPACING, 4);
                                 labeled_slider("Background R", &unselectedBgColor.r);
                                 labeled_slider("Background G", &unselectedBgColor.g);
                                 labeled_slider("Background B", &unselectedBgColor.b);
                                 labeled_slider("Background A", &unselectedBgColor.a);
                             }
 
-                            oc_ui_style_next(&(oc_ui_style){ .layout.spacing = 4 },
-                                             OC_UI_STYLE_LAYOUT_SPACING);
-                            oc_ui_container("border", OC_UI_FLAG_NONE)
+                            oc_ui_box("border")
                             {
+                                oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_Y);
+                                oc_ui_style_set_f32(OC_UI_SPACING, 4);
                                 labeled_slider("Border R", &unselectedBorderColor.r);
                                 labeled_slider("Border G", &unselectedBorderColor.g);
                                 labeled_slider("Border B", &unselectedBorderColor.b);
@@ -625,55 +608,58 @@ ORCA_EXPORT void oc_on_frame_refresh(void)
                             labeled_slider("Border size", &borderSizeSlider);
                             unselectedBorderSize = borderSizeSlider * 5;
 
-                            oc_ui_style_next(&(oc_ui_style){ .layout.spacing = 10 },
-                                             OC_UI_STYLE_LAYOUT_SPACING);
-                            oc_ui_container("status_override", OC_UI_FLAG_NONE)
+                            oc_ui_box("status_override")
                             {
-                                oc_ui_label("Override");
+                                oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_Y);
+                                oc_ui_style_set_f32(OC_UI_SPACING, 10);
+                                oc_ui_label("label", "Override");
 
                                 static int statusIndex = 0;
-                                oc_str8 statusOptions[] = { OC_STR8("Always"),
-                                                            OC_STR8("When hovering"),
-                                                            OC_STR8("When active") };
-                                oc_ui_radio_group_info statusInfo = { .selectedIndex = statusIndex,
-                                                                      .optionCount = oc_array_size(statusOptions),
-                                                                      .options = statusOptions };
+                                oc_str8 statusOptions[] = {
+                                    OC_STR8("Always"),
+                                    OC_STR8("When hovering"),
+                                    OC_STR8("When active"),
+                                };
+                                oc_ui_radio_group_info statusInfo = {
+                                    .selectedIndex = statusIndex,
+                                    .optionCount = oc_array_size(statusOptions),
+                                    .options = statusOptions,
+                                };
                                 oc_ui_radio_group_info result = oc_ui_radio_group("status", &statusInfo);
                                 statusIndex = result.selectedIndex;
                                 switch(statusIndex)
                                 {
                                     case 0:
-                                        unselectedWhenStatus = OC_UI_NONE;
+                                        unselectedWhenStatus = OC_STR8("");
                                         break;
                                     case 1:
-                                        unselectedWhenStatus = OC_UI_HOVER;
+                                        unselectedWhenStatus = OC_STR8(".hover");
                                         break;
                                     case 2:
-                                        unselectedWhenStatus = OC_UI_ACTIVE;
+                                        unselectedWhenStatus = OC_STR8(".active");
                                         break;
                                     default:
                                         break;
-
                                 }
                             }
-                            */
                         }
 
-                        /*
-                        oc_ui_style_next(&(oc_ui_style){ .layout.axis = OC_UI_AXIS_Y,
-                                                         .layout.spacing = 16 },
-                                         OC_UI_STYLE_LAYOUT_AXIS
-                                             | OC_UI_STYLE_LAYOUT_SPACING);
-                        oc_ui_container("selected", OC_UI_FLAG_NONE)
+                        oc_ui_box("selected")
                         {
-                            oc_ui_style_next(&(oc_ui_style){ .fontSize = 16 },
-                                             OC_UI_STYLE_FONT_SIZE);
-                            oc_ui_label("Radio selected style");
+                            oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_Y);
+                            oc_ui_style_set_f32(OC_UI_SPACING, 16);
 
-                            oc_ui_style_next(&(oc_ui_style){ .layout.spacing = 4 },
-                                             OC_UI_STYLE_LAYOUT_SPACING);
-                            oc_ui_container("size", OC_UI_FLAG_NONE)
+                            oc_ui_style_rule("radio-label")
                             {
+                                oc_ui_style_set_f32(OC_UI_TEXT_SIZE, 16);
+                            }
+                            oc_ui_label("radio-label", "Radio style");
+
+                            oc_ui_box("size")
+                            {
+                                oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_Y);
+                                oc_ui_style_set_f32(OC_UI_SPACING, 4);
+
                                 f32 widthSlider = (selectedWidth - 8) / 16;
                                 labeled_slider("Width", &widthSlider);
                                 selectedWidth = 8 + widthSlider * 16;
@@ -687,55 +673,60 @@ ORCA_EXPORT void oc_on_frame_refresh(void)
                                 selectedRoundness = 4 + roundnessSlider * 8;
                             }
 
-                            oc_ui_style_next(&(oc_ui_style){ .layout.spacing = 4 },
-                                             OC_UI_STYLE_LAYOUT_SPACING);
-                            oc_ui_container("color", OC_UI_FLAG_NONE)
+                            oc_ui_box("background")
                             {
-                                labeled_slider("Center R", &selectedCenterColor.r);
-                                labeled_slider("Center G", &selectedCenterColor.g);
-                                labeled_slider("Center B", &selectedCenterColor.b);
-                                labeled_slider("Center A", &selectedCenterColor.a);
-                            }
-
-                            oc_ui_style_next(&(oc_ui_style){ .layout.spacing = 4 },
-                                             OC_UI_STYLE_LAYOUT_SPACING);
-                            oc_ui_container("background", OC_UI_FLAG_NONE)
-                            {
+                                oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_Y);
+                                oc_ui_style_set_f32(OC_UI_SPACING, 4);
                                 labeled_slider("Background R", &selectedBgColor.r);
                                 labeled_slider("Background G", &selectedBgColor.g);
                                 labeled_slider("Background B", &selectedBgColor.b);
                                 labeled_slider("Background A", &selectedBgColor.a);
                             }
 
-                            oc_ui_style_next(&(oc_ui_style){ .layout.spacing = 10 },
-                                             OC_UI_STYLE_LAYOUT_SPACING);
-                            oc_ui_container("status_override", OC_UI_FLAG_NONE)
+                            oc_ui_box("center")
                             {
-                                oc_ui_style_next(&(oc_ui_style){ .size.height = { OC_UI_SIZE_PIXELS, 30 } },
-                                                 OC_UI_STYLE_SIZE_HEIGHT);
-                                oc_ui_box_make("spacer", OC_UI_FLAG_NONE);
+                                oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_Y);
+                                oc_ui_style_set_f32(OC_UI_SPACING, 4);
+                                labeled_slider("Center R", &selectedCenterColor.r);
+                                labeled_slider("Center G", &selectedCenterColor.g);
+                                labeled_slider("Center B", &selectedCenterColor.b);
+                                labeled_slider("Center A", &selectedCenterColor.a);
+                            }
 
-                                oc_ui_label("Override");
+                            oc_ui_box("spacer")
+                            {
+                                oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PIXELS, 24 });
+                            }
+
+                            oc_ui_box("status_override")
+                            {
+                                oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_Y);
+                                oc_ui_style_set_f32(OC_UI_SPACING, 10);
+                                oc_ui_label("label", "Override");
 
                                 static int statusIndex = 0;
-                                oc_str8 statusOptions[] = { OC_STR8("Always"),
-                                                            OC_STR8("When hovering"),
-                                                            OC_STR8("When active") };
-                                oc_ui_radio_group_info statusInfo = { .selectedIndex = statusIndex,
-                                                                      .optionCount = oc_array_size(statusOptions),
-                                                                      .options = statusOptions };
+                                oc_str8 statusOptions[] = {
+                                    OC_STR8("Always"),
+                                    OC_STR8("When hovering"),
+                                    OC_STR8("When active"),
+                                };
+                                oc_ui_radio_group_info statusInfo = {
+                                    .selectedIndex = statusIndex,
+                                    .optionCount = oc_array_size(statusOptions),
+                                    .options = statusOptions,
+                                };
                                 oc_ui_radio_group_info result = oc_ui_radio_group("status", &statusInfo);
                                 statusIndex = result.selectedIndex;
                                 switch(statusIndex)
                                 {
                                     case 0:
-                                        selectedWhenStatus = OC_UI_NONE;
+                                        selectedWhenStatus = OC_STR8("");
                                         break;
                                     case 1:
-                                        selectedWhenStatus = OC_UI_HOVER;
+                                        selectedWhenStatus = OC_STR8(".hover");
                                         break;
                                     case 2:
-                                        selectedWhenStatus = OC_UI_ACTIVE;
+                                        selectedWhenStatus = OC_STR8(".active");
                                         break;
                                     default:
                                         break;
@@ -743,71 +734,82 @@ ORCA_EXPORT void oc_on_frame_refresh(void)
                             }
                         }
 
-                        oc_ui_style_next(&(oc_ui_style){ .layout.axis = OC_UI_AXIS_Y,
-                                                         .layout.spacing = 16 },
-                                         OC_UI_STYLE_LAYOUT_AXIS
-                                             | OC_UI_STYLE_LAYOUT_SPACING);
-                        oc_ui_container("label", OC_UI_FLAG_NONE)
+                        oc_ui_box("label")
                         {
-                            oc_ui_style_next(&(oc_ui_style){ .fontSize = 16 },
-                                             OC_UI_STYLE_FONT_SIZE);
-                            oc_ui_label("Label style");
+                            oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_Y);
+                            oc_ui_style_set_f32(OC_UI_SPACING, 16);
 
-                            oc_ui_style_next(&(oc_ui_style){ .layout.axis = OC_UI_AXIS_X,
-                                                             .layout.spacing = 8 },
-                                             OC_UI_STYLE_LAYOUT_AXIS
-                                                 | OC_UI_STYLE_LAYOUT_SPACING);
-                            oc_ui_container("font_color", OC_UI_FLAG_NONE)
+                            oc_ui_style_rule("label-style")
                             {
-                                oc_ui_style_match_after(oc_ui_pattern_owner(),
-                                                        &(oc_ui_style){ .size.width = { OC_UI_SIZE_PIXELS, 100 } },
-                                                        OC_UI_STYLE_SIZE_WIDTH);
-                                oc_ui_label("Font color");
+                                oc_ui_style_set_f32(OC_UI_TEXT_SIZE, 16);
+                            }
+                            oc_ui_label("label-style", "Label style");
+
+                            oc_ui_box("font_color")
+                            {
+                                oc_ui_style_set_f32(OC_UI_SPACING, 8);
+
+                                oc_ui_style_rule("font-color")
+                                {
+                                    oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PIXELS, 100 });
+                                }
+                                oc_ui_label("font-color", "Font color");
 
                                 static int colorSelected = 0;
-                                oc_str8 colorNames[] = { OC_STR8("Default"),
-                                                         OC_STR8("Red"),
-                                                         OC_STR8("Orange"),
-                                                         OC_STR8("Amber"),
-                                                         OC_STR8("Yellow"),
-                                                         OC_STR8("Lime"),
-                                                         OC_STR8("Light Green"),
-                                                         OC_STR8("Green") };
-                                oc_color colors[] = { OC_UI_DARK_THEME.text0,
-                                                      OC_UI_DARK_THEME.palette->red5,
-                                                      OC_UI_DARK_THEME.palette->orange5,
-                                                      OC_UI_DARK_THEME.palette->amber5,
-                                                      OC_UI_DARK_THEME.palette->yellow5,
-                                                      OC_UI_DARK_THEME.palette->lime5,
-                                                      OC_UI_DARK_THEME.palette->lightGreen5,
-                                                      OC_UI_DARK_THEME.palette->green5 };
-                                oc_ui_select_popup_info colorInfo = { .selectedIndex = colorSelected,
-                                                                      .optionCount = oc_array_size(colorNames),
-                                                                      .options = colorNames };
+                                oc_str8 colorNames[] = {
+                                    OC_STR8("Default"),
+                                    OC_STR8("Red"),
+                                    OC_STR8("Orange"),
+                                    OC_STR8("Amber"),
+                                    OC_STR8("Yellow"),
+                                    OC_STR8("Lime"),
+                                    OC_STR8("Light Green"),
+                                    OC_STR8("Green"),
+                                };
+                                oc_color colors[] = {
+                                    { 1, 1, 1, 1, OC_COLOR_SPACE_SRGB },
+                                    { 0.988, 0.447, 0.353, 1, OC_COLOR_SPACE_SRGB },
+                                    { 1.000, 0.682, 0.263, 1, OC_COLOR_SPACE_SRGB },
+                                    { 0.961, 0.792, 0.314, 1, OC_COLOR_SPACE_SRGB },
+                                    { 0.992, 0.871, 0.263, 1, OC_COLOR_SPACE_SRGB },
+                                    { 0.682, 0.863, 0.227, 1, OC_COLOR_SPACE_SRGB },
+                                    { 0.592, 0.776, 0.373, 1, OC_COLOR_SPACE_SRGB },
+                                    { 0.365, 0.761, 0.392, 1, OC_COLOR_SPACE_SRGB },
+                                };
+                                oc_ui_select_popup_info colorInfo = {
+                                    .selectedIndex = colorSelected,
+                                    .optionCount = oc_array_size(colorNames),
+                                    .options = colorNames,
+                                };
                                 oc_ui_select_popup_info colorResult = oc_ui_select_popup("color", &colorInfo);
                                 colorSelected = colorResult.selectedIndex;
                                 labelFontColor = colors[colorSelected];
                             }
 
-                            oc_ui_style_next(&(oc_ui_style){ .layout.axis = OC_UI_AXIS_X,
-                                                             .layout.spacing = 8 },
-                                             OC_UI_STYLE_LAYOUT_AXIS
-                                                 | OC_UI_STYLE_LAYOUT_SPACING);
-                            oc_ui_container("font", OC_UI_FLAG_NONE)
+                            oc_ui_box("font")
                             {
-                                oc_ui_style_match_after(oc_ui_pattern_owner(),
-                                                        &(oc_ui_style){ .size.width = { OC_UI_SIZE_PIXELS, 100 } },
-                                                        OC_UI_STYLE_SIZE_WIDTH);
-                                oc_ui_label("Font");
+                                oc_ui_style_set_f32(OC_UI_SPACING, 8);
+
+                                oc_ui_style_rule("font-label")
+                                {
+                                    oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PIXELS, 100 });
+                                }
+                                oc_ui_label("font-label", "Font");
 
                                 static int fontSelected = 0;
-                                oc_str8 fontNames[] = { OC_STR8("Regular"),
-                                                        OC_STR8("Bold") };
-                                oc_font* fonts[] = { &fontRegular,
-                                                     &fontBold };
-                                oc_ui_select_popup_info fontInfo = { .selectedIndex = fontSelected,
-                                                                     .optionCount = oc_array_size(fontNames),
-                                                                     .options = fontNames };
+                                oc_str8 fontNames[] = {
+                                    OC_STR8("Regular"),
+                                    OC_STR8("Bold"),
+                                };
+                                oc_font* fonts[] = {
+                                    &fontRegular,
+                                    &fontBold,
+                                };
+                                oc_ui_select_popup_info fontInfo = {
+                                    .selectedIndex = fontSelected,
+                                    .optionCount = oc_array_size(fontNames),
+                                    .options = fontNames,
+                                };
                                 oc_ui_select_popup_info fontResult = oc_ui_select_popup("font_style", &fontInfo);
                                 fontSelected = fontResult.selectedIndex;
                                 labelFont = fonts[fontSelected];
@@ -817,7 +819,6 @@ ORCA_EXPORT void oc_on_frame_refresh(void)
                             labeled_slider("Font size", &fontSizeSlider);
                             labelFontSize = 8 + fontSizeSlider * 16;
                         }
-                        */
                     }
                 }
             }

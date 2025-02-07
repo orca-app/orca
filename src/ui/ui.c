@@ -212,6 +212,12 @@ oc_ui_context* oc_ui_context_create(oc_font defaultFont)
     oc_arena_init(&ui->frameArena);
     oc_pool_init(&ui->boxPool, sizeof(oc_ui_box));
     ui->defaultFont = defaultFont;
+
+    ui->styleVariables.mask = (4 << 10) - 1;
+    ui->styleVariables.buckets = oc_arena_push_array(&ui->frameArena, oc_list, 4 << 10);
+    //TODO: we could avoid this with a framecounter for each bucket
+    memset(ui->styleVariables.buckets, 0, sizeof(oc_list) * (4 << 10));
+
     ui->init = true;
 
     oc_ui_set_context(ui);
@@ -3029,7 +3035,7 @@ void oc_ui_draw()
 // frame begin/end
 //-----------------------------------------------------------------------------
 
-void oc_ui_frame_begin(oc_vec2 size, oc_ui_theme_proc theme)
+void oc_ui_frame_begin(oc_vec2 size)
 {
     oc_ui_context* ui = oc_ui_get_context();
 
@@ -3044,22 +3050,66 @@ void oc_ui_frame_begin(oc_vec2 size, oc_ui_theme_proc theme)
     ui->nextBoxTags = (oc_list){ 0 };
     ui->overlayList = (oc_list){ 0 };
 
-    ui->styleVariables.mask = (4 << 10) - 1;
-    ui->styleVariables.buckets = oc_arena_push_array(&ui->frameArena, oc_list, 4 << 10);
-    //TODO: we could avoid this with a framecounter for each bucket
-    memset(ui->styleVariables.buckets, 0, sizeof(oc_list) * (4 << 10));
-
     ui->root = oc_ui_box_begin("_root_");
 
     oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PIXELS, size.x });
     oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PIXELS, size.y });
 
+    /*
     //NOTE: we first setup all the default variables, then call user theme that can override them
     oc_ui_theme_dark();
     if(theme)
     {
         theme();
     }
+    */
+
+    //NOTE: set default theme variables. User can overwrite by setting those values outside oc_ui_frame.
+    oc_ui_var_default_color_str8(OC_UI_THEME_PRIMARY, (oc_color){ 0.33, 0.66, 1, 1, OC_COLOR_SPACE_SRGB });
+    oc_ui_var_default_color_str8(OC_UI_THEME_PRIMARY_HOVER, (oc_color){ 0.5, 0.757, 1, 1, OC_COLOR_SPACE_SRGB });
+    oc_ui_var_default_color_str8(OC_UI_THEME_PRIMARY_ACTIVE, (oc_color){ 0.66, 0.84, 1, 1, OC_COLOR_SPACE_SRGB });
+    oc_ui_var_default_color_str8(OC_UI_THEME_PRIMARY_DISABLED, (oc_color){ 0.074, 0.361, 0.722, 1, OC_COLOR_SPACE_SRGB });
+
+    oc_ui_var_default_color_str8(OC_UI_THEME_TEXT_0, (oc_color){ 0.976, 0.976, 0.976, 1, OC_COLOR_SPACE_SRGB });
+    oc_ui_var_default_color_str8(OC_UI_THEME_TEXT_1, (oc_color){ 0.976, 0.976, 0.976, .64, OC_COLOR_SPACE_SRGB });
+    oc_ui_var_default_color_str8(OC_UI_THEME_TEXT_2, (oc_color){ 0.976, 0.976, 0.976, .38, OC_COLOR_SPACE_SRGB });
+    oc_ui_var_default_color_str8(OC_UI_THEME_TEXT_3, (oc_color){ 0.976, 0.976, 0.976, .15, OC_COLOR_SPACE_SRGB });
+
+    oc_ui_var_default_color_str8(OC_UI_THEME_BG_0, (oc_color){ 0.086, 0.086, 0.102, 1, OC_COLOR_SPACE_SRGB });
+    oc_ui_var_default_color_str8(OC_UI_THEME_BG_1, (oc_color){ 0.137, 0.141, 0.165, 1, OC_COLOR_SPACE_SRGB });
+    oc_ui_var_default_color_str8(OC_UI_THEME_BG_2, (oc_color){ 0.208, 0.212, 0.231, 1, OC_COLOR_SPACE_SRGB });
+    oc_ui_var_default_color_str8(OC_UI_THEME_BG_3, (oc_color){ 0.263, 0.267, 0.29, 1, OC_COLOR_SPACE_SRGB });
+    oc_ui_var_default_color_str8(OC_UI_THEME_BG_4, (oc_color){ 0.31, 0.318, 0.349, 1, OC_COLOR_SPACE_SRGB });
+
+    oc_ui_var_default_color_str8(OC_UI_THEME_FILL_0, (oc_color){ 1, 1, 1, .033, OC_COLOR_SPACE_SRGB });
+    oc_ui_var_default_color_str8(OC_UI_THEME_FILL_1, (oc_color){ 1, 1, 1, .045, OC_COLOR_SPACE_SRGB });
+    oc_ui_var_default_color_str8(OC_UI_THEME_FILL_2, (oc_color){ 1, 1, 1, 0.063, OC_COLOR_SPACE_SRGB });
+
+    oc_ui_var_default_color_str8(OC_UI_THEME_BORDER, (oc_color){ 1, 1, 1, 0.018, OC_COLOR_SPACE_SRGB });
+
+    oc_ui_var_default_color_str8(OC_UI_THEME_TOOLTIP, (oc_color){ 0.786, 0.792, 0.804, 1, OC_COLOR_SPACE_SRGB });
+
+    oc_ui_var_default_f32_str8(OC_UI_THEME_ROUNDNESS_SMALL, 3);
+    oc_ui_var_default_f32_str8(OC_UI_THEME_ROUNDNESS_REGULAR, 6);
+    oc_ui_var_default_f32_str8(OC_UI_THEME_ROUNDNESS_LARGE, 12);
+
+    oc_ui_var_default_f32_str8(OC_UI_THEME_SPACING_EXTRA_TIGHT, 4);
+    oc_ui_var_default_f32_str8(OC_UI_THEME_SPACING_TIGHT, 8);
+    oc_ui_var_default_f32_str8(OC_UI_THEME_SPACING_REGULAR_TIGHT, 12);
+    oc_ui_var_default_f32_str8(OC_UI_THEME_SPACING_REGULAR, 16);
+    oc_ui_var_default_f32_str8(OC_UI_THEME_SPACING_REGULAR_LOOSE, 20);
+    oc_ui_var_default_f32_str8(OC_UI_THEME_SPACING_LOOSE, 24);
+    oc_ui_var_default_f32_str8(OC_UI_THEME_SPACING_EXTRA_LOOSE, 32);
+
+    oc_ui_var_default_f32_str8(OC_UI_THEME_TEXT_SIZE_SMALL, 12);
+    oc_ui_var_default_f32_str8(OC_UI_THEME_TEXT_SIZE_REGULAR, 14);
+    oc_ui_var_default_f32_str8(OC_UI_THEME_TEXT_SIZE_HEADER_0, 32);
+    oc_ui_var_default_f32_str8(OC_UI_THEME_TEXT_SIZE_HEADER_1, 28);
+    oc_ui_var_default_f32_str8(OC_UI_THEME_TEXT_SIZE_HEADER_2, 24);
+    oc_ui_var_default_f32_str8(OC_UI_THEME_TEXT_SIZE_HEADER_3, 20);
+    oc_ui_var_default_f32_str8(OC_UI_THEME_TEXT_SIZE_HEADER_4, 18);
+
+    oc_ui_var_default_font_str8(OC_UI_THEME_FONT_REGULAR, ui->defaultFont);
 
     oc_ui_box_begin("_contents_");
 
@@ -3118,4 +3168,9 @@ void oc_ui_frame_end(void)
 
     oc_arena_clear(&ui->frameArena);
     oc_input_next_frame(&ui->input);
+
+    //NOTE: we allocate variables map here so that we can push vars from outside frame
+    ui->styleVariables.buckets = oc_arena_push_array(&ui->frameArena, oc_list, 4 << 10);
+    //TODO: we could avoid this with a framecounter for each bucket
+    memset(ui->styleVariables.buckets, 0, sizeof(oc_list) * (4 << 10));
 }
