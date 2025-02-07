@@ -287,6 +287,7 @@ oc_ui_box* oc_ui_slider_str8(oc_str8 name, f32* value)
         //NOTE: interaction
         oc_ui_sig thumbSig = oc_ui_box_sig(thumb);
         oc_ui_sig trackSig = oc_ui_box_sig(track);
+
         if(thumbSig.dragging)
         {
             oc_rect trackRect = track->rect;

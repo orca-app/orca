@@ -1537,7 +1537,6 @@ oc_ui_sig oc_ui_box_compute_signals(oc_ui_box* box)
         sig.delta = oc_ui_mouse_delta();
         sig.wheel = oc_ui_mouse_wheel();
         sig.hovering = oc_ui_box_hovering(box, mousePos);
-        sig.lastPressedMouse = box->pressedMouse;
 
         //TODO: we might want to restrict that only to clickable boxes?
         if(sig.hovering)
@@ -1555,6 +1554,9 @@ oc_ui_sig oc_ui_box_compute_signals(oc_ui_box* box)
             sig.tripleClicked = oc_mouse_triple_clicked(input, OC_MOUSE_LEFT);
             sig.rightPressed = oc_mouse_pressed(input, OC_MOUSE_RIGHT);
         }
+        //NOTE: we need to keep that after (potentially) setting box->pressedMouse above, to avoid
+        //      a 1 frame delay
+        sig.lastPressedMouse = box->pressedMouse;
 
         sig.released = oc_mouse_released(input, OC_MOUSE_LEFT);
         if(sig.released)
