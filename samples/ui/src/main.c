@@ -468,7 +468,7 @@ ORCA_EXPORT void oc_on_frame_refresh(void)
                     static f32 unselectedWidth = 16;
                     static f32 unselectedHeight = 16;
                     static f32 unselectedRoundness = 8;
-                    static oc_color unselectedBgColor = { 0.086, 0.086, 0.102, 1 };
+                    static oc_color unselectedBgColor = { 0 };
                     static oc_color unselectedBorderColor = { 0.976, 0.976, 0.976, 0.35 };
                     static f32 unselectedBorderSize = 1;
                     static oc_str8 unselectedWhenStatus = OC_STR8("");
@@ -488,11 +488,11 @@ ORCA_EXPORT void oc_on_frame_refresh(void)
                     {
                         oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
                         oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PIXELS, 152 });
-                        oc_ui_style_set_f32(OC_UI_MARGIN_X, 310);
-                        oc_ui_style_set_f32(OC_UI_MARGIN_Y, 16);
-                        oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_BG_0);
+                        oc_ui_style_set_color(OC_UI_BG_COLOR, (oc_color){ 0.086, 0.086, 0.102, 1 });
                         oc_ui_style_set_var_str8(OC_UI_ROUNDNESS, OC_UI_THEME_ROUNDNESS_SMALL);
 
+                        oc_ui_style_set_i32(OC_UI_ALIGN_X, OC_UI_ALIGN_CENTER);
+                        oc_ui_style_set_i32(OC_UI_ALIGN_Y, OC_UI_ALIGN_CENTER);
                         // reset_next_radio_group_to_dark_theme(scratch.arena);
 
                         {

@@ -356,6 +356,7 @@ def generate_type_entry(entries, ast, tu):
     }
 
     if ast.kind == cindex.CursorKind.TYPEDEF_DECL:
+
         underlying = ast.underlying_typedef_type
 
         if underlying.kind == cindex.TypeKind.RECORD or underlying.kind == cindex.TypeKind.ENUM:

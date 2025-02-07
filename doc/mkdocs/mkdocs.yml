@@ -37,6 +37,8 @@ nav:
         - Canvas API: 'api/Graphics/Canvas API.md'
         - GLES Surface: 'api/Graphics/GLES Surface.md'
       - UI: 'api/UI.md'
+      - UI Core: 'api/UI Core.md'
+      - UI Core: 'api/UI Core.md'
 
   - Developer Guide:
     - Building: 'building.md'
