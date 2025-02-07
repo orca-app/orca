@@ -14447,8 +14447,8 @@
 },
 {
     "kind": "module",
-    "name": "UI Core",
-    "brief": "Graphical User Interface Core API.",
+    "name": "UI Widgets",
+    "brief": "Graphical User Interface Widgets.",
     "contents": [
         {
             "kind": "proc",
