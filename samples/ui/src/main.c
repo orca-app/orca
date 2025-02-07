@@ -497,8 +497,9 @@ ORCA_EXPORT void oc_on_frame_refresh(void)
 
                         {
                             oc_str8_list list = { 0 };
-                            oc_str8_list_push(scratch.arena, &list, OC_STR8(".radio"));
+                            oc_str8_list_push(scratch.arena, &list, OC_STR8("radio_group .radio-row"));
                             oc_str8_list_push(scratch.arena, &list, unselectedWhenStatus);
+                            oc_str8_list_push(scratch.arena, &list, OC_STR8(" .radio"));
                             oc_str8 unselectedPattern = oc_str8_list_join(scratch.arena, list);
 
                             oc_ui_style_rule_str8(unselectedPattern)
@@ -514,8 +515,9 @@ ORCA_EXPORT void oc_on_frame_refresh(void)
 
                         {
                             oc_str8_list list = { 0 };
-                            oc_str8_list_push(scratch.arena, &list, OC_STR8(".radio_selected"));
+                            oc_str8_list_push(scratch.arena, &list, OC_STR8("radio_group .radio-row"));
                             oc_str8_list_push(scratch.arena, &list, selectedWhenStatus);
+                            oc_str8_list_push(scratch.arena, &list, OC_STR8(" .radio_selected"));
                             oc_str8 selectedPattern = oc_str8_list_join(scratch.arena, list);
 
                             oc_ui_style_rule_str8(selectedPattern)

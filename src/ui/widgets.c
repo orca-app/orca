@@ -204,6 +204,10 @@ oc_ui_box* oc_ui_slider_str8(oc_str8 name, f32* value)
         oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PIXELS, 100 });
         oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PIXELS, 24 });
 
+        //NOTE: don't clip thumb's borders
+        oc_ui_style_set_i32(OC_UI_OVERFLOW_X, OC_UI_OVERFLOW_ALLOW);
+        oc_ui_style_set_i32(OC_UI_OVERFLOW_Y, OC_UI_OVERFLOW_ALLOW);
+
         oc_rect frameRect = frame->rect;
         oc_ui_axis trackAxis = (frameRect.w > frameRect.h) ? OC_UI_AXIS_X : OC_UI_AXIS_Y;
         oc_ui_axis secondAxis = (trackAxis == OC_UI_AXIS_Y) ? OC_UI_AXIS_X : OC_UI_AXIS_Y;
@@ -373,10 +377,16 @@ oc_ui_radio_group_info oc_ui_radio_group_str8(oc_str8 name, oc_ui_radio_group_in
         oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_Y);
         oc_ui_style_set_var_str8(OC_UI_SPACING, OC_UI_THEME_SPACING_REGULAR_TIGHT);
 
+        //NOTE: don't clip children borders
+        oc_ui_style_set_i32(OC_UI_OVERFLOW_X, OC_UI_OVERFLOW_ALLOW);
+        oc_ui_style_set_i32(OC_UI_OVERFLOW_Y, OC_UI_OVERFLOW_ALLOW);
+
         for(int i = 0; i < info->optionCount; i++)
         {
             oc_ui_box* row = oc_ui_box_str8(info->options[i])
             {
+                oc_ui_tag("radio-row");
+
                 oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_CHILDREN });
                 oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_CHILDREN });
 
@@ -385,6 +395,10 @@ oc_ui_radio_group_info oc_ui_radio_group_str8(oc_str8 name, oc_ui_radio_group_in
                 oc_ui_style_set_f32(OC_UI_MARGIN_X, 1);
                 oc_ui_style_set_f32(OC_UI_MARGIN_Y, 1);
                 oc_ui_style_set_i32(OC_UI_ALIGN_Y, OC_UI_ALIGN_CENTER);
+
+                //NOTE: don't clip children borders
+                oc_ui_style_set_i32(OC_UI_OVERFLOW_X, OC_UI_OVERFLOW_ALLOW);
+                oc_ui_style_set_i32(OC_UI_OVERFLOW_Y, OC_UI_OVERFLOW_ALLOW);
 
                 oc_ui_box* radio = oc_ui_box("radio")
                 {
@@ -403,6 +417,7 @@ oc_ui_radio_group_info oc_ui_radio_group_str8(oc_str8 name, oc_ui_radio_group_in
                     }
                     oc_ui_box_set_hot(radio, sig.hovering);
                     oc_ui_box_set_active(radio, sig.hovering && sig.dragging);
+                    oc_ui_box_set_active(row, sig.hovering && sig.dragging);
 
                     if(result.selectedIndex == i)
                     {
