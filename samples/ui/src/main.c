@@ -163,11 +163,6 @@ void labeled_slider(const char* label, f32* value)
     }
 }
 
-/*
-void reset_next_radio_group_to_dark_theme(oc_arena* arena);
-
-*/
-
 ORCA_EXPORT void oc_on_frame_refresh(void)
 {
     oc_arena_scope scratch = oc_scratch_begin();
@@ -493,7 +488,6 @@ ORCA_EXPORT void oc_on_frame_refresh(void)
 
                         oc_ui_style_set_i32(OC_UI_ALIGN_X, OC_UI_ALIGN_CENTER);
                         oc_ui_style_set_i32(OC_UI_ALIGN_Y, OC_UI_ALIGN_CENTER);
-                        // reset_next_radio_group_to_dark_theme(scratch.arena);
 
                         {
                             oc_str8_list list = { 0 };
@@ -835,58 +829,3 @@ ORCA_EXPORT void oc_on_frame_refresh(void)
 
     oc_scratch_end(scratch);
 }
-
-/*
-// This makes sure the light theme doesn't break the styling overrides
-// You won't need it in a real program as long as your colors come from ui.theme or ui.theme->palette
-void reset_next_radio_group_to_dark_theme(oc_arena* arena)
-{
-    oc_ui_tag unselectedTag = oc_ui_tag_make("radio");
-    oc_ui_pattern unselectedPattern = { 0 };
-    oc_ui_pattern_push(arena, &unselectedPattern, (oc_ui_selector){ .kind = OC_UI_SEL_TAG, .tag = unselectedTag });
-    oc_ui_style unselectedStyle = { .borderColor = OC_UI_DARK_THEME.text3,
-                                    .borderSize = 1 };
-    oc_ui_style_mask unselectedMask = OC_UI_STYLE_BORDER_COLOR
-                                    | OC_UI_STYLE_BORDER_SIZE;
-    oc_ui_style_match_after(unselectedPattern, &unselectedStyle, unselectedMask);
-
-    oc_ui_pattern unselectedHoverPattern = { 0 };
-    oc_ui_pattern_push(arena, &unselectedHoverPattern, (oc_ui_selector){ .kind = OC_UI_SEL_TAG, .tag = unselectedTag });
-    oc_ui_pattern_push(arena, &unselectedHoverPattern, (oc_ui_selector){ .op = OC_UI_SEL_AND, .kind = OC_UI_SEL_STATUS, .status = OC_UI_HOVER });
-    oc_ui_style hoverStyle = { .bgColor = OC_UI_DARK_THEME.fill0,
-                               .borderColor = OC_UI_DARK_THEME.primary };
-    oc_ui_style_mask hoverMask = OC_UI_STYLE_BG_COLOR
-                               | OC_UI_STYLE_BORDER_COLOR;
-    oc_ui_style_match_after(unselectedHoverPattern, &hoverStyle, hoverMask);
-
-    oc_ui_pattern unselectedActivePattern = { 0 };
-    oc_ui_pattern_push(arena, &unselectedActivePattern, (oc_ui_selector){ .kind = OC_UI_SEL_TAG, .tag = unselectedTag });
-    oc_ui_pattern_push(arena, &unselectedActivePattern, (oc_ui_selector){ .op = OC_UI_SEL_AND, .kind = OC_UI_SEL_STATUS, .status = OC_UI_ACTIVE });
-    oc_ui_style activeStyle = { .bgColor = OC_UI_DARK_THEME.fill1,
-                                .borderColor = OC_UI_DARK_THEME.primary };
-    oc_ui_style_mask activeMask = OC_UI_STYLE_BG_COLOR
-                                | OC_UI_STYLE_BORDER_COLOR;
-    oc_ui_style_match_after(unselectedActivePattern, &activeStyle, activeMask);
-
-    oc_ui_tag selectedTag = oc_ui_tag_make("radio_selected");
-    oc_ui_pattern selectedPattern = { 0 };
-    oc_ui_pattern_push(arena, &selectedPattern, (oc_ui_selector){ .kind = OC_UI_SEL_TAG, .tag = selectedTag });
-    oc_ui_style selectedStyle = { .color = OC_UI_DARK_THEME.palette->white,
-                                  .bgColor = OC_UI_DARK_THEME.primary };
-    oc_ui_style_mask selectedMask = OC_UI_STYLE_COLOR
-                                  | OC_UI_STYLE_BG_COLOR;
-    oc_ui_style_match_after(selectedPattern, &selectedStyle, selectedMask);
-
-    oc_ui_pattern selectedHoverPattern = { 0 };
-    oc_ui_pattern_push(arena, &selectedHoverPattern, (oc_ui_selector){ .kind = OC_UI_SEL_TAG, .tag = selectedTag });
-    oc_ui_pattern_push(arena, &selectedHoverPattern, (oc_ui_selector){ .op = OC_UI_SEL_AND, .kind = OC_UI_SEL_STATUS, .status = OC_UI_HOVER });
-    oc_ui_style selectedHoverStyle = { .bgColor = OC_UI_DARK_THEME.primaryHover };
-    oc_ui_style_match_after(selectedHoverPattern, &selectedHoverStyle, OC_UI_STYLE_BG_COLOR);
-
-    oc_ui_pattern selectedActivePattern = { 0 };
-    oc_ui_pattern_push(arena, &selectedActivePattern, (oc_ui_selector){ .kind = OC_UI_SEL_TAG, .tag = selectedTag });
-    oc_ui_pattern_push(arena, &selectedActivePattern, (oc_ui_selector){ .op = OC_UI_SEL_AND, .kind = OC_UI_SEL_STATUS, .status = OC_UI_ACTIVE });
-    oc_ui_style selectedActiveStyle = { .bgColor = OC_UI_DARK_THEME.primaryActive };
-    oc_ui_style_match_after(selectedActivePattern, &selectedActiveStyle, OC_UI_STYLE_BG_COLOR);
-}
-*/
