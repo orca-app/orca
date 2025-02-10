@@ -28,7 +28,7 @@ jobs:
           cd ./doc/mkdocs
           mkdocs build
       - name: Upload Artifact
-        uses: actions/upload-pages-artifact@v1
+        uses: actions/upload-pages-artifact@v3
         with:
           # location of the coverage artifacts
           path: "./doc/mkdocs/site"
