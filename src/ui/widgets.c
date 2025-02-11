@@ -200,9 +200,14 @@ oc_ui_box* oc_ui_slider_str8(oc_str8 name, f32* value)
     {
         oc_ui_tag("slider");
 
+        oc_ui_style_set_f32(OC_UI_BORDER_SIZE, 1);
+        oc_ui_style_set_color(OC_UI_BORDER_COLOR, (oc_color){ 1, 0, 0, 1 });
+
         //NOTE: default size:
         oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PIXELS, 100 });
         oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PIXELS, 24 });
+        oc_ui_style_set_f32(OC_UI_MARGIN_X, 1);
+        oc_ui_style_set_f32(OC_UI_MARGIN_Y, 1);
 
         oc_rect frameRect = frame->rect;
         oc_ui_axis trackAxis = (frameRect.w > frameRect.h) ? OC_UI_AXIS_X : OC_UI_AXIS_Y;
@@ -210,24 +215,20 @@ oc_ui_box* oc_ui_slider_str8(oc_str8 name, f32* value)
 
         oc_ui_style_set_i32(OC_UI_ALIGN_X + secondAxis, OC_UI_ALIGN_CENTER);
 
-        //NOTE: don't clip thumb border
-        oc_ui_style_set_i32(OC_UI_OVERFLOW_X, OC_UI_OVERFLOW_ALLOW);
-        oc_ui_style_set_i32(OC_UI_OVERFLOW_Y, OC_UI_OVERFLOW_ALLOW);
-
         f32 trackThickness = 4;
         f32 thumbSize = 24;
 
         f32 beforeRatio, afterRatio, thumbRatio, trackFillRatio;
         if(trackAxis == OC_UI_AXIS_X)
         {
-            thumbRatio = oc_min(thumbSize / frameRect.w, 1.);
+            thumbRatio = oc_min((thumbSize + 2) / (frameRect.w - 2), 1.);
             beforeRatio = (*value) * (1. - thumbRatio);
             afterRatio = (1. - *value) * (1. - thumbRatio);
             trackFillRatio = beforeRatio + thumbRatio / 2;
         }
         else
         {
-            thumbRatio = oc_min(thumbSize / frameRect.h, 1.);
+            thumbRatio = oc_min((thumbSize + 2) / (frameRect.h - 2), 1.);
             beforeRatio = (1. - *value) * (1. - thumbRatio);
             afterRatio = (*value) * (1. - thumbRatio);
             trackFillRatio = thumbRatio / 2 + afterRatio;
@@ -239,10 +240,16 @@ oc_ui_box* oc_ui_slider_str8(oc_str8 name, f32* value)
         {
             oc_ui_style_set_i32(OC_UI_FLOATING_X, 1);
             oc_ui_style_set_i32(OC_UI_FLOATING_Y, 1);
-            oc_ui_style_set_f32(OC_UI_FLOAT_TARGET_X + trackAxis, 0);
-            oc_ui_style_set_f32(OC_UI_FLOAT_TARGET_X + secondAxis, 0.5 * (thumbSize - trackThickness));
+            oc_ui_style_set_f32(OC_UI_FLOAT_TARGET_X + trackAxis, 2);
 
-            oc_ui_style_set_size(OC_UI_WIDTH + trackAxis, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
+            f32 frameThickness = frameRect.c[2 + secondAxis];
+            if(!frameThickness)
+            {
+                frameThickness = thumbSize;
+            }
+            oc_ui_style_set_f32(OC_UI_FLOAT_TARGET_X + secondAxis, 0.5 * (frameThickness - trackThickness));
+
+            oc_ui_style_set_size(OC_UI_WIDTH + trackAxis, (oc_ui_size){ OC_UI_SIZE_PARENT_MINUS_PIXELS, 2 });
             oc_ui_style_set_size(OC_UI_WIDTH + secondAxis, (oc_ui_size){ OC_UI_SIZE_PIXELS, trackThickness });
 
             oc_ui_style_set_f32(OC_UI_ROUNDNESS, trackThickness / 2);

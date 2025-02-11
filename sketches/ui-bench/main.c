@@ -217,7 +217,7 @@ i32 ui_runloop(void* user)
 
                     radioInfo = oc_ui_radio_group("radio", &radioInfo);
 
-                    if(oc_ui_box_sig(box).hovering)
+                    if(oc_ui_box_get_sig(box).hovering)
                     {
                         oc_ui_tooltip("tooltip", "This is a black box");
                     }
