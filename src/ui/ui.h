@@ -351,35 +351,49 @@ ORCA_API oc_ui_box* oc_ui_box_end(void);
 #define oc_ui_box(name) oc_ui_box_str8(OC_STR8(name))
 
 ORCA_API void oc_ui_box_set_draw_proc(oc_ui_box* box, oc_ui_box_draw_proc proc, void* data);
+ORCA_API void oc_ui_box_set_text(oc_ui_box* box, oc_str8 text);
+ORCA_API void oc_ui_box_set_overlay(oc_ui_box* box, bool overlay);
+
+// implicit top box helpers
+ORCA_API void oc_ui_set_draw_proc(oc_ui_box_draw_proc proc, void* data);
 ORCA_API void oc_ui_set_text(oc_str8 text);
 ORCA_API void oc_ui_set_overlay(bool overlay);
 
 //-------------------------------------------------------------------------------------
 // Box status and signals
 //-------------------------------------------------------------------------------------
-ORCA_API bool oc_ui_box_closed(oc_ui_box* box);
+ORCA_API bool oc_ui_box_is_closed(oc_ui_box* box);
 ORCA_API void oc_ui_box_set_closed(oc_ui_box* box, bool closed);
 
-ORCA_API bool oc_ui_box_active(oc_ui_box* box);
+ORCA_API bool oc_ui_box_is_active(oc_ui_box* box);
 ORCA_API void oc_ui_box_set_active(oc_ui_box* box, bool active);
 
-ORCA_API bool oc_ui_box_hot(oc_ui_box* box);
+ORCA_API bool oc_ui_box_is_hot(oc_ui_box* box);
 ORCA_API void oc_ui_box_set_hot(oc_ui_box* box, bool hot);
 
-ORCA_API bool oc_ui_box_focus(oc_ui_box* box);
-ORCA_API void oc_ui_box_set_focus(oc_ui_box* box, bool focus);
+ORCA_API oc_ui_sig oc_ui_box_get_sig(oc_ui_box* box);
 
-ORCA_API oc_ui_sig oc_ui_box_sig(oc_ui_box* box);
+// implicit top box helpers
+ORCA_API bool oc_ui_is_closed(void);
+ORCA_API void oc_ui_set_closed(bool closed);
+
+ORCA_API bool oc_ui_is_active(void);
+ORCA_API void oc_ui_set_active(bool active);
+
+ORCA_API bool oc_ui_is_hot(void);
+ORCA_API void oc_ui_set_hot(bool hot);
+
+ORCA_API oc_ui_sig oc_ui_get_sig(void);
 
 //-------------------------------------------------------------------------------------
 // Tagging
 //-------------------------------------------------------------------------------------
-ORCA_API void oc_ui_tag_box_str8(oc_ui_box* box, oc_str8 string);
+ORCA_API void oc_ui_box_tag_str8(oc_ui_box* box, oc_str8 string);
 ORCA_API void oc_ui_tag_str8(oc_str8 string);
 ORCA_API void oc_ui_tag_next_str8(oc_str8 string);
 
 // C-string helpers
-#define oc_ui_tag_box(b, s) oc_ui_tag_box_str8(b, OC_STR8(s))
+#define oc_ui_box_tag(b, s) oc_ui_tag_box_str8(b, OC_STR8(s))
 #define oc_ui_tag(s) oc_ui_tag_str8(OC_STR8(s));
 #define oc_ui_tag_next(s) oc_ui_tag_next_str8(OC_STR8(s))
 

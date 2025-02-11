@@ -26,7 +26,7 @@ oc_ui_sig oc_ui_label_str8(oc_str8 key, oc_str8 label)
         oc_ui_style_set_i32(OC_UI_CLICK_THROUGH, 1);
     }
 
-    oc_ui_sig sig = oc_ui_box_sig(box);
+    oc_ui_sig sig = oc_ui_box_get_sig(box);
     return (sig);
 }
 
@@ -41,7 +41,7 @@ oc_ui_sig oc_ui_label(const char* key, const char* label)
 
 oc_ui_sig oc_ui_button_behavior(oc_ui_box* box)
 {
-    oc_ui_sig sig = oc_ui_box_sig(box);
+    oc_ui_sig sig = oc_ui_box_get_sig(box);
 
     if(sig.hovering)
     {
@@ -174,7 +174,7 @@ oc_ui_sig oc_ui_checkbox_str8(oc_str8 name, bool* checked)
             }
         }
 
-        oc_ui_box_set_draw_proc(box, oc_ui_checkbox_draw, 0);
+        oc_ui_set_draw_proc(oc_ui_checkbox_draw, 0);
     }
 
     oc_ui_sig sig = oc_ui_button_behavior(box);
@@ -291,8 +291,8 @@ oc_ui_box* oc_ui_slider_str8(oc_str8 name, f32* value)
         }
 
         //NOTE: interaction
-        oc_ui_sig thumbSig = oc_ui_box_sig(thumb);
-        oc_ui_sig trackSig = oc_ui_box_sig(track);
+        oc_ui_sig thumbSig = oc_ui_box_get_sig(thumb);
+        oc_ui_sig trackSig = oc_ui_box_get_sig(track);
 
         if(thumbSig.dragging)
         {
@@ -308,7 +308,7 @@ oc_ui_box* oc_ui_slider_str8(oc_str8 name, f32* value)
             }
         }
 
-        if(oc_ui_box_active(frame))
+        if(oc_ui_box_is_active(frame))
         {
             //NOTE: activated from outside
             oc_ui_box_set_hot(track, true);
@@ -394,7 +394,7 @@ oc_ui_radio_group_info oc_ui_radio_group_str8(oc_str8 name, oc_ui_radio_group_in
 
                 oc_ui_box* radio = oc_ui_box("radio")
                 {
-                    oc_ui_box_set_draw_proc(radio, oc_ui_radio_indicator_draw, 0);
+                    oc_ui_set_draw_proc(oc_ui_radio_indicator_draw, 0);
 
                     oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PIXELS, 16 });
                     oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PIXELS, 16 });
@@ -403,7 +403,7 @@ oc_ui_radio_group_info oc_ui_radio_group_str8(oc_str8 name, oc_ui_radio_group_in
 
                     oc_ui_style_set_i32(OC_UI_CLICK_THROUGH, 1);
 
-                    oc_ui_sig sig = oc_ui_box_sig(row);
+                    oc_ui_sig sig = oc_ui_box_get_sig(row);
                     if(sig.clicked)
                     {
                         result.selectedIndex = i;
@@ -417,11 +417,11 @@ oc_ui_radio_group_info oc_ui_radio_group_str8(oc_str8 name, oc_ui_radio_group_in
                         oc_ui_style_set_color(OC_UI_COLOR, (oc_color){ 1, 1, 1, 1 });
                         oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_PRIMARY);
 
-                        if(oc_ui_box_hot(radio))
+                        if(oc_ui_box_is_hot(radio))
                         {
                             oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_PRIMARY_HOVER);
                         }
-                        if(oc_ui_box_active(radio))
+                        if(oc_ui_box_is_active(radio))
                         {
                             oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_PRIMARY_ACTIVE);
                         }
@@ -430,12 +430,12 @@ oc_ui_radio_group_info oc_ui_radio_group_str8(oc_str8 name, oc_ui_radio_group_in
                     {
                         oc_ui_style_set_var_str8(OC_UI_BORDER_COLOR, OC_UI_THEME_TEXT_3);
 
-                        if(oc_ui_box_hot(radio))
+                        if(oc_ui_box_is_hot(radio))
                         {
                             oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_FILL_0);
                             oc_ui_style_set_var_str8(OC_UI_BORDER_COLOR, OC_UI_THEME_PRIMARY);
                         }
-                        if(oc_ui_box_active(radio))
+                        if(oc_ui_box_is_active(radio))
                         {
                             oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_FILL_1);
                             oc_ui_style_set_var_str8(OC_UI_BORDER_COLOR, OC_UI_THEME_PRIMARY);
@@ -507,7 +507,7 @@ void oc_ui_tooltip_str8(oc_str8 key, oc_str8 text)
 
         oc_ui_box* arrow = oc_ui_box("arrow")
         {
-            oc_ui_box_set_draw_proc(arrow, oc_ui_tooltip_arrow_draw, 0);
+            oc_ui_set_draw_proc(oc_ui_tooltip_arrow_draw, 0);
 
             oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PIXELS, 24 });
             oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PIXELS, 24 });
@@ -551,7 +551,7 @@ void oc_ui_menu_bar_begin_str8(oc_str8 key)
     oc_ui_style_set_i32(OC_UI_OVERFLOW_X, OC_UI_OVERFLOW_ALLOW);
     oc_ui_style_set_i32(OC_UI_OVERFLOW_Y, OC_UI_OVERFLOW_ALLOW);
 
-    oc_ui_sig sig = oc_ui_box_sig(bar);
+    oc_ui_sig sig = oc_ui_box_get_sig(bar);
     if(!sig.hovering && oc_mouse_released(oc_ui_input(), OC_MOUSE_LEFT))
     {
         oc_ui_box_set_active(bar, false);
@@ -631,10 +631,10 @@ void oc_ui_menu_begin_str8(oc_str8 key, oc_str8 text)
     oc_ui_style_set_var_str8(OC_UI_BORDER_COLOR, OC_UI_THEME_BORDER);
     oc_ui_style_set_f32(OC_UI_BORDER_SIZE, 1);
 
-    oc_ui_sig sig = oc_ui_box_sig(button);
-    oc_ui_sig barSig = oc_ui_box_sig(bar);
+    oc_ui_sig sig = oc_ui_box_get_sig(button);
+    oc_ui_sig barSig = oc_ui_box_get_sig(bar);
 
-    if(oc_ui_box_active(bar))
+    if(oc_ui_box_is_active(bar))
     {
         if(sig.hovering)
         {
@@ -661,7 +661,7 @@ void oc_ui_menu_begin_str8(oc_str8 key, oc_str8 text)
         }
     }
 
-    oc_ui_box_set_closed(menu, !oc_ui_box_active(button));
+    oc_ui_box_set_closed(menu, !oc_ui_box_is_active(button));
 }
 
 void oc_ui_menu_begin(const char* key, const char* text)
@@ -700,7 +700,7 @@ oc_ui_sig oc_ui_menu_button_str8(oc_str8 key, oc_str8 text)
         }
     }
 
-    oc_ui_sig sig = oc_ui_box_sig(box);
+    oc_ui_sig sig = oc_ui_box_get_sig(box);
     return (sig);
 }
 
@@ -848,7 +848,7 @@ oc_ui_select_popup_info oc_ui_select_popup_str8(oc_str8 key, oc_ui_select_popup_
                 oc_ui_style_set_var_str8(OC_UI_COLOR, OC_UI_THEME_TEXT_2);
                 oc_ui_style_set_i32(OC_UI_CLICK_THROUGH, 1);
 
-                oc_ui_box_set_draw_proc(arrow, oc_ui_select_popup_draw_arrow, 0);
+                oc_ui_set_draw_proc(oc_ui_select_popup_draw_arrow, 0);
             }
         }
 
@@ -902,7 +902,7 @@ oc_ui_select_popup_info oc_ui_select_popup_str8(oc_str8 key, oc_ui_select_popup_
 
                     if(i == info->selectedIndex)
                     {
-                        oc_ui_box* checkmark = oc_ui_box("checkmark")
+                        oc_ui_box("checkmark")
                         {
                             oc_ui_style_set_i32(OC_UI_CLICK_THROUGH, 1);
 
@@ -910,7 +910,7 @@ oc_ui_select_popup_info oc_ui_select_popup_str8(oc_str8 key, oc_ui_select_popup_
                             oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PIXELS, checkmarkSize });
                             oc_ui_style_set_var_str8(OC_UI_COLOR, OC_UI_THEME_TEXT_2);
 
-                            oc_ui_box_set_draw_proc(checkmark, oc_ui_select_popup_draw_checkmark, 0);
+                            oc_ui_set_draw_proc(oc_ui_select_popup_draw_checkmark, 0);
                         }
                     }
                     else
@@ -938,7 +938,7 @@ oc_ui_select_popup_info oc_ui_select_popup_str8(oc_str8 key, oc_ui_select_popup_
                         oc_ui_set_text(info->options[i]);
                     }
 
-                    oc_ui_sig sig = oc_ui_box_sig(wrapper);
+                    oc_ui_sig sig = oc_ui_box_get_sig(wrapper);
                     if(sig.clicked)
                     {
                         result.selectedIndex = i;
@@ -947,14 +947,14 @@ oc_ui_select_popup_info oc_ui_select_popup_str8(oc_str8 key, oc_ui_select_popup_
             }
         }
 
-        if(oc_ui_box_active(panel) && oc_mouse_released(oc_ui_input(), OC_MOUSE_LEFT))
+        if(oc_ui_box_is_active(panel) && oc_mouse_released(oc_ui_input(), OC_MOUSE_LEFT))
         {
             oc_ui_box_set_active(button, false);
             oc_ui_box_set_active(panel, false);
         }
         else
         {
-            oc_ui_sig sig = oc_ui_box_sig(button);
+            oc_ui_sig sig = oc_ui_box_get_sig(button);
             if(sig.pressed)
             {
                 oc_ui_box_set_active(button, true);
@@ -964,7 +964,7 @@ oc_ui_select_popup_info oc_ui_select_popup_str8(oc_str8 key, oc_ui_select_popup_
                 oc_ui_box_set_active(panel, true);
             }
         }
-        oc_ui_box_set_closed(panel, !oc_ui_box_active(panel));
+        oc_ui_box_set_closed(panel, !oc_ui_box_is_active(panel));
     }
     result.changed = result.selectedIndex != info->selectedIndex;
     return (result);
@@ -1688,7 +1688,7 @@ void oc_ui_text_box_render(oc_ui_box* box, void* data)
     oc_str32 codepoints = renderData->codepoints;
 
     u32 firstDisplayedChar = 0;
-    if(oc_ui_box_active(box))
+    if(oc_ui_box_is_active(box))
     {
         firstDisplayedChar = renderData->firstDisplayedChar;
     }
@@ -1824,11 +1824,11 @@ oc_ui_text_box_result oc_ui_text_box_str8(oc_str8 key, oc_arena* arena, oc_ui_te
             oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_FILL_2);
         }
 
-        oc_ui_sig sig = oc_ui_box_sig(box);
+        oc_ui_sig sig = oc_ui_box_get_sig(box);
 
         if(sig.pressed)
         {
-            if(!oc_ui_box_active(box))
+            if(!oc_ui_box_is_active(box))
             {
                 oc_ui_box_set_active(box, true);
 
@@ -1981,7 +1981,7 @@ oc_ui_text_box_result oc_ui_text_box_str8(oc_str8 key, oc_arena* arena, oc_ui_te
 
             if(oc_mouse_pressed(input, OC_MOUSE_LEFT) || oc_mouse_pressed(input, OC_MOUSE_RIGHT) || oc_mouse_pressed(input, OC_MOUSE_MIDDLE))
             {
-                if(oc_ui_box_active(box))
+                if(oc_ui_box_is_active(box))
                 {
                     //NOTE loose focus
                     oc_ui_box_set_active(box, false);
@@ -1989,7 +1989,7 @@ oc_ui_text_box_result oc_ui_text_box_str8(oc_str8 key, oc_arena* arena, oc_ui_te
             }
         }
 
-        if(oc_ui_box_active(box))
+        if(oc_ui_box_is_active(box))
         {
             oc_str32 oldCodepoints = oc_utf8_push_to_codepoints(frameArena, info->text);
             oc_str32 codepoints = oldCodepoints;
@@ -2092,7 +2092,7 @@ oc_ui_text_box_result oc_ui_text_box_str8(oc_str8 key, oc_arena* arena, oc_ui_te
                 .cursorBlinkStart = info->cursorBlinkStart,
             };
 
-            oc_ui_box_set_draw_proc(box, oc_ui_text_box_render, renderData);
+            oc_ui_set_draw_proc(oc_ui_text_box_render, renderData);
         }
         else
         {
@@ -2117,7 +2117,7 @@ oc_ui_text_box_result oc_ui_text_box_str8(oc_str8 key, oc_arena* arena, oc_ui_te
                 renderData->codepoints = oc_utf8_push_to_codepoints(frameArena, info->defaultText);
             }
 
-            oc_ui_box_set_draw_proc(box, oc_ui_text_box_render, renderData);
+            oc_ui_set_draw_proc(oc_ui_text_box_render, renderData);
         }
     }
 

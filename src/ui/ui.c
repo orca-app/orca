@@ -1707,23 +1707,6 @@ oc_ui_box* oc_ui_box_begin_str8(oc_str8 string)
     return (box);
 }
 
-void oc_ui_set_overlay(bool overlay)
-{
-    oc_ui_context* ui = oc_ui_get_context();
-    oc_ui_box* box = oc_ui_box_top();
-
-    if(overlay && !box->overlay)
-    {
-        oc_list_push_back(&ui->overlayList, &box->overlayElt);
-        box->overlay = true;
-    }
-    else if(!overlay && box->overlay)
-    {
-        oc_list_remove(&ui->overlayList, &box->overlayElt);
-        box->overlay = false;
-    }
-}
-
 oc_ui_box* oc_ui_scrollbar_str8(oc_str8 name, oc_rect rect, f32 thumbRatio, f32* scrollValue, bool horizontal)
 {
     oc_ui_box* track = oc_ui_box_str8(name)
@@ -1784,8 +1767,8 @@ oc_ui_box* oc_ui_scrollbar_str8(oc_str8 name, oc_rect rect, f32 thumbRatio, f32*
         }
 
         //NOTE: interaction
-        oc_ui_sig thumbSig = oc_ui_box_sig(thumb);
-        oc_ui_sig trackSig = oc_ui_box_sig(track);
+        oc_ui_sig thumbSig = oc_ui_box_get_sig(thumb);
+        oc_ui_sig trackSig = oc_ui_box_get_sig(track);
 
         if(thumbSig.dragging)
         {
@@ -1794,7 +1777,7 @@ oc_ui_box* oc_ui_scrollbar_str8(oc_str8 name, oc_rect rect, f32 thumbRatio, f32*
             *scrollValue = oc_clamp(*scrollValue, 0, 1);
         }
 
-        if(oc_ui_box_active(track))
+        if(oc_ui_box_is_active(track))
         {
             //NOTE: activated from outside
             oc_ui_box_set_hot(track, true);
@@ -1839,7 +1822,7 @@ oc_ui_box* oc_ui_box_end(void)
     oc_ui_box* box = oc_ui_box_top();
     OC_DEBUG_ASSERT(box, "box stack underflow");
 
-    oc_ui_sig sig = oc_ui_box_sig(box);
+    oc_ui_sig sig = oc_ui_box_get_sig(box);
 
     f32 contentsW = oc_clamp_low(box->childrenSum[0] + 2 * box->style.layout.margin.x, box->rect.w);
     contentsW = oc_clamp_low(contentsW, 1);
@@ -1909,12 +1892,52 @@ void oc_ui_box_set_draw_proc(oc_ui_box* box, oc_ui_box_draw_proc proc, void* dat
     box->drawData = data;
 }
 
+void oc_ui_box_set_text(oc_ui_box* box, oc_str8 text)
+{
+    oc_ui_context* ui = oc_ui_get_context();
+    if(ui && box)
+    {
+        box->text = oc_str8_push_copy(&ui->frameArena, text);
+    }
+}
+
+void oc_ui_box_set_overlay(oc_ui_box* box, bool overlay)
+{
+    oc_ui_context* ui = oc_ui_get_context();
+
+    if(overlay && !box->overlay)
+    {
+        oc_list_push_back(&ui->overlayList, &box->overlayElt);
+        box->overlay = true;
+    }
+    else if(!overlay && box->overlay)
+    {
+        oc_list_remove(&ui->overlayList, &box->overlayElt);
+        box->overlay = false;
+    }
+}
+
+void oc_ui_set_draw_proc(oc_ui_box_draw_proc proc, void* data)
+{
+    oc_ui_box_set_draw_proc(oc_ui_box_top(), proc, data);
+}
+
+void oc_ui_set_text(oc_str8 text)
+{
+    oc_ui_box_set_text(oc_ui_box_top(), text);
+}
+
+void oc_ui_set_overlay(bool overlay)
+{
+    oc_ui_box_set_overlay(oc_ui_box_top(), overlay);
+}
+
 void oc_ui_box_set_closed(oc_ui_box* box, bool closed)
 {
     box->closed = closed;
 }
 
-bool oc_ui_box_closed(oc_ui_box* box)
+bool oc_ui_box_is_closed(oc_ui_box* box)
 {
     return (box->closed);
 }
@@ -1924,7 +1947,7 @@ void oc_ui_box_set_active(oc_ui_box* box, bool active)
     box->active = active;
 }
 
-bool oc_ui_box_active(oc_ui_box* box)
+bool oc_ui_box_is_active(oc_ui_box* box)
 {
     return (box->active);
 }
@@ -1934,12 +1957,12 @@ void oc_ui_box_set_hot(oc_ui_box* box, bool hot)
     box->hot = hot;
 }
 
-bool oc_ui_box_hot(oc_ui_box* box)
+bool oc_ui_box_is_hot(oc_ui_box* box)
 {
     return (box->hot);
 }
 
-oc_ui_sig oc_ui_box_sig(oc_ui_box* box)
+oc_ui_sig oc_ui_box_get_sig(oc_ui_box* box)
 {
     return box->sig;
 }
@@ -1949,15 +1972,40 @@ bool oc_ui_box_hidden(oc_ui_box* box)
     return (box->closed || box->parentClosed);
 }
 
-void oc_ui_set_text(oc_str8 text)
+// implicit top box helpers
+bool oc_ui_is_closed(void)
 {
-    oc_ui_context* ui = oc_ui_get_context();
-    oc_ui_box* box = oc_ui_box_top();
-    if(box)
-    {
-        box->text = oc_str8_push_copy(&ui->frameArena, text);
-    }
-    //TODO: else error?
+    return oc_ui_box_is_closed(oc_ui_box_top());
+}
+
+void oc_ui_set_closed(bool closed)
+{
+    oc_ui_box_set_closed(oc_ui_box_top(), closed);
+}
+
+bool oc_ui_is_active(void)
+{
+    return oc_ui_box_is_active(oc_ui_box_top());
+}
+
+void oc_ui_set_active(bool active)
+{
+    oc_ui_box_set_active(oc_ui_box_top(), active);
+}
+
+bool oc_ui_is_hot(void)
+{
+    return oc_ui_box_is_hot(oc_ui_box_top());
+}
+
+void oc_ui_set_hot(bool hot)
+{
+    oc_ui_box_set_hot(oc_ui_box_top(), hot);
+}
+
+oc_ui_sig oc_ui_get_sig(void)
+{
+    return oc_ui_box_get_sig(oc_ui_box_top());
 }
 
 //-----------------------------------------------------------------------------
