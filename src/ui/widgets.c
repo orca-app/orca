@@ -524,7 +524,7 @@ void oc_ui_tooltip_str8(oc_str8 key, oc_str8 text)
             oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_TOOLTIP);
             oc_ui_style_set_var_str8(OC_UI_ROUNDNESS, OC_UI_THEME_ROUNDNESS_REGULAR);
 
-            oc_ui_label_str8(OC_STR8_LIT("label"), text);
+            oc_ui_label_str8(OC_STR8("label"), text);
         }
     }
 }

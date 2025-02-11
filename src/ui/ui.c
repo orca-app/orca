@@ -1664,15 +1664,15 @@ oc_ui_box* oc_ui_box_begin_str8(oc_str8 string)
 
     if(box->sig.hovering)
     {
-        oc_ui_tag_box_str8(box, OC_STR8_LIT("hover"));
+        oc_ui_tag_box_str8(box, OC_STR8("hover"));
     }
     if(box->active)
     {
-        oc_ui_tag_box_str8(box, OC_STR8_LIT("active"));
+        oc_ui_tag_box_str8(box, OC_STR8("active"));
     }
     if(box->dragging)
     {
-        oc_ui_tag_box_str8(box, OC_STR8_LIT("dragging"));
+        oc_ui_tag_box_str8(box, OC_STR8("dragging"));
     }
 
     //NOTE push box
