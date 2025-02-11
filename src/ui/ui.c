@@ -2435,11 +2435,11 @@ void oc_ui_layout_downward_dependent_size(oc_ui_context* ui, oc_ui_box* box, int
                 if(box->style.layout.axis == axis)
                 {
                     count++;
-                    minSum += child->minSize[axis];
+                    minSum += child->minSize[axis] + 2 * child->style.borderSize;
                 }
                 else
                 {
-                    minSum = oc_max(minSum, child->minSize[axis]);
+                    minSum = oc_max(minSum, child->minSize[axis] + 2 * child->style.borderSize);
                 }
             }
         }
@@ -2480,7 +2480,7 @@ void oc_ui_layout_downward_dependent_size(oc_ui_context* ui, oc_ui_box* box, int
             {
                 if(oc_ui_layout_downward_dependency(child, axis))
                 {
-                    sum += child->rect.c[2 + axis];
+                    sum += child->rect.c[2 + axis] + 2 * child->style.borderSize;
                 }
             }
         }
@@ -2490,12 +2490,11 @@ void oc_ui_layout_downward_dependent_size(oc_ui_context* ui, oc_ui_box* box, int
             {
                 if(oc_ui_layout_downward_dependency(child, axis))
                 {
-                    sum = oc_max(sum, child->rect.c[2 + axis]);
+                    sum = oc_max(sum, child->rect.c[2 + axis] + 2 * child->style.borderSize);
                 }
             }
         }
-        f32 margin = box->style.layout.margin.c[axis];
-        box->rect.c[2 + axis] = sum + box->spacing[axis] + 2 * margin;
+        box->rect.c[2 + axis] = sum + box->spacing[axis] + 2 * box->style.layout.margin.c[axis];
     }
 }
 
@@ -2511,11 +2510,11 @@ void oc_ui_layout_upward_dependent_size(oc_ui_context* ui, oc_ui_box* box, int a
         oc_ui_size* size = &child->style.size.c[axis];
         if(size->kind == OC_UI_SIZE_PARENT)
         {
-            child->rect.c[2 + axis] = oc_max(child->minSize[axis], availableSize * size->value);
+            child->rect.c[2 + axis] = oc_max(child->minSize[axis], availableSize * size->value) - 2 * child->style.borderSize;
         }
         else if(size->kind == OC_UI_SIZE_PARENT_MINUS_PIXELS)
         {
-            child->rect.c[2 + axis] = oc_max(child->minSize[axis], oc_max(0, availableSize - size->value));
+            child->rect.c[2 + axis] = oc_max(child->minSize[axis], oc_max(0, availableSize - size->value)) - 2 * child->style.borderSize;
         }
     }
 
@@ -2552,7 +2551,7 @@ void oc_ui_layout_upward_dependent_size(oc_ui_context* ui, oc_ui_box* box, int a
                     if(!oc_ui_box_hidden(child)
                        && !child->style.floating.c[axis])
                     {
-                        sum += child->rect.c[2 + axis];
+                        sum += child->rect.c[2 + axis] + 2 * child->style.borderSize;
                         slack += oc_min(child->rect.c[2 + axis] * child->style.size.c[axis].relax,
                                         child->rect.c[2 + axis] - child->minSize[axis]);
                     }
@@ -2615,11 +2614,11 @@ void oc_ui_layout_upward_dependent_size(oc_ui_context* ui, oc_ui_box* box, int a
         {
             if(box->style.layout.axis == axis)
             {
-                sum += child->rect.c[2 + axis];
+                sum += child->rect.c[2 + axis] + 2 * child->style.borderSize;
             }
             else
             {
-                sum = oc_max(sum, child->rect.c[2 + axis]);
+                sum = oc_max(sum, child->rect.c[2 + axis] + 2 * child->style.borderSize);
             }
         }
     }
@@ -2634,6 +2633,7 @@ void oc_ui_layout_upward_dependent_size(oc_ui_context* ui, oc_ui_box* box, int a
               box->minSize[axis]);
 }
 
+/*
 void oc_ui_layout_upward_dependent_fixup(oc_ui_context* ui, oc_ui_box* box, int axis)
 {
     f32 margin = box->style.layout.margin.c[axis];
@@ -2710,6 +2710,7 @@ void oc_ui_layout_upward_dependent_fixup(oc_ui_context* ui, oc_ui_box* box, int 
         oc_ui_layout_upward_dependent_fixup(ui, child, axis);
     }
 }
+*/
 
 void oc_ui_layout_compute_rect(oc_ui_context* ui, oc_ui_box* box, oc_vec2 pos)
 {
@@ -2718,8 +2719,8 @@ void oc_ui_layout_compute_rect(oc_ui_context* ui, oc_ui_box* box, oc_vec2 pos)
         return;
     }
 
-    box->rect.x = pos.x;
-    box->rect.y = pos.y;
+    box->rect.x = pos.x + box->style.borderSize;
+    box->rect.y = pos.y + box->style.borderSize;
     box->z = ui->z;
     ui->z++;
 
@@ -2729,12 +2730,16 @@ void oc_ui_layout_compute_rect(oc_ui_context* ui, oc_ui_box* box, oc_vec2 pos)
 
     oc_ui_align* align = box->style.layout.align.c;
 
-    oc_vec2 origin = { box->rect.x,
-                       box->rect.y };
+    oc_vec2 origin = {
+        box->rect.x,
+        box->rect.y,
+    };
     oc_vec2 currentPos = origin;
 
-    oc_vec2 margin = { box->style.layout.margin.x,
-                       box->style.layout.margin.y };
+    oc_vec2 margin = {
+        box->style.layout.margin.x,
+        box->style.layout.margin.y,
+    };
 
     currentPos.x += margin.x;
     currentPos.y += margin.y;
@@ -2759,7 +2764,7 @@ void oc_ui_layout_compute_rect(oc_ui_context* ui, oc_ui_box* box, oc_vec2 pos)
     {
         if(align[secondAxis] == OC_UI_ALIGN_CENTER)
         {
-            currentPos.c[secondAxis] = origin.c[secondAxis] + 0.5 * (box->rect.c[2 + secondAxis] - child->rect.c[2 + secondAxis]);
+            currentPos.c[secondAxis] = origin.c[secondAxis] + 0.5 * (box->rect.c[2 + secondAxis] - child->rect.c[2 + secondAxis] - 2 * child->style.borderSize);
         }
 
         oc_vec2 childPos = currentPos;
@@ -2785,7 +2790,7 @@ void oc_ui_layout_compute_rect(oc_ui_context* ui, oc_ui_box* box, oc_vec2 pos)
 
         if(!child->style.floating.c[layoutAxis])
         {
-            currentPos.c[layoutAxis] += child->rect.c[2 + layoutAxis] + spacing;
+            currentPos.c[layoutAxis] += child->rect.c[2 + layoutAxis] + 2 * child->style.borderSize + spacing;
         }
     }
     if(isnan(box->rect.w) || isnan(box->rect.h))
@@ -2895,10 +2900,10 @@ void oc_ui_draw_box(oc_ui_box* box)
     {
         oc_rect clipRect = oc_clip_top();
         oc_rect expRect = {
-            box->rect.x - 0.5 * style->borderSize,
-            box->rect.y - 0.5 * style->borderSize,
-            box->rect.w + style->borderSize,
-            box->rect.h + style->borderSize
+            box->rect.x - style->borderSize,
+            box->rect.y - style->borderSize,
+            box->rect.w + 2 * style->borderSize,
+            box->rect.h + 2 * style->borderSize
         };
 
         if((expRect.x + expRect.w < clipRect.x)
@@ -3009,7 +3014,16 @@ void oc_ui_draw_box(oc_ui_box* box)
     {
         oc_set_width(style->borderSize);
         oc_set_color(style->borderColor);
-        oc_ui_rectangle_stroke(box->rect, style->roundness);
+
+        oc_rect rect = {
+            box->rect.x - 0.5 * style->borderSize,
+            box->rect.y - 0.5 * style->borderSize,
+            box->rect.w + style->borderSize,
+            box->rect.h + style->borderSize,
+        };
+        f32 roundness = style->roundness ? style->roundness + style->borderSize : 0;
+
+        oc_ui_rectangle_stroke(rect, roundness);
     }
 }
 

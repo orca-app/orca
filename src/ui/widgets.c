@@ -142,6 +142,7 @@ oc_ui_sig oc_ui_checkbox_str8(oc_str8 name, bool* checked)
         oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PIXELS, 16 });
         oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PIXELS, 16 });
         oc_ui_style_set_var_str8(OC_UI_ROUNDNESS, OC_UI_THEME_ROUNDNESS_SMALL);
+        oc_ui_style_set_f32(OC_UI_BORDER_SIZE, 1.);
 
         if(*checked)
         {
@@ -160,7 +161,6 @@ oc_ui_sig oc_ui_checkbox_str8(oc_str8 name, bool* checked)
         else
         {
             oc_ui_style_set_var_str8(OC_UI_BORDER_COLOR, OC_UI_THEME_TEXT_3);
-            oc_ui_style_set_f32(OC_UI_BORDER_SIZE, 1.);
 
             oc_ui_style_rule(".hover")
             {
@@ -204,13 +204,15 @@ oc_ui_box* oc_ui_slider_str8(oc_str8 name, f32* value)
         oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PIXELS, 100 });
         oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PIXELS, 24 });
 
-        //NOTE: don't clip thumb's borders
-        oc_ui_style_set_i32(OC_UI_OVERFLOW_X, OC_UI_OVERFLOW_ALLOW);
-        oc_ui_style_set_i32(OC_UI_OVERFLOW_Y, OC_UI_OVERFLOW_ALLOW);
-
         oc_rect frameRect = frame->rect;
         oc_ui_axis trackAxis = (frameRect.w > frameRect.h) ? OC_UI_AXIS_X : OC_UI_AXIS_Y;
         oc_ui_axis secondAxis = (trackAxis == OC_UI_AXIS_Y) ? OC_UI_AXIS_X : OC_UI_AXIS_Y;
+
+        oc_ui_style_set_i32(OC_UI_ALIGN_X + secondAxis, OC_UI_ALIGN_CENTER);
+
+        //NOTE: don't clip thumb border
+        oc_ui_style_set_i32(OC_UI_OVERFLOW_X, OC_UI_OVERFLOW_ALLOW);
+        oc_ui_style_set_i32(OC_UI_OVERFLOW_Y, OC_UI_OVERFLOW_ALLOW);
 
         f32 trackThickness = 4;
         f32 thumbSize = 24;
@@ -377,10 +379,6 @@ oc_ui_radio_group_info oc_ui_radio_group_str8(oc_str8 name, oc_ui_radio_group_in
         oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_Y);
         oc_ui_style_set_var_str8(OC_UI_SPACING, OC_UI_THEME_SPACING_REGULAR_TIGHT);
 
-        //NOTE: don't clip children borders
-        oc_ui_style_set_i32(OC_UI_OVERFLOW_X, OC_UI_OVERFLOW_ALLOW);
-        oc_ui_style_set_i32(OC_UI_OVERFLOW_Y, OC_UI_OVERFLOW_ALLOW);
-
         for(int i = 0; i < info->optionCount; i++)
         {
             oc_ui_box* row = oc_ui_box_str8(info->options[i])
@@ -392,13 +390,7 @@ oc_ui_radio_group_info oc_ui_radio_group_str8(oc_str8 name, oc_ui_radio_group_in
 
                 oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_X);
                 oc_ui_style_set_var_str8(OC_UI_SPACING, OC_UI_THEME_SPACING_TIGHT);
-                oc_ui_style_set_f32(OC_UI_MARGIN_X, 1);
-                oc_ui_style_set_f32(OC_UI_MARGIN_Y, 1);
                 oc_ui_style_set_i32(OC_UI_ALIGN_Y, OC_UI_ALIGN_CENTER);
-
-                //NOTE: don't clip children borders
-                oc_ui_style_set_i32(OC_UI_OVERFLOW_X, OC_UI_OVERFLOW_ALLOW);
-                oc_ui_style_set_i32(OC_UI_OVERFLOW_Y, OC_UI_OVERFLOW_ALLOW);
 
                 oc_ui_box* radio = oc_ui_box("radio")
                 {
@@ -407,6 +399,7 @@ oc_ui_radio_group_info oc_ui_radio_group_str8(oc_str8 name, oc_ui_radio_group_in
                     oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PIXELS, 16 });
                     oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PIXELS, 16 });
                     oc_ui_style_set_f32(OC_UI_ROUNDNESS, 8);
+                    oc_ui_style_set_f32(OC_UI_BORDER_SIZE, 1);
 
                     oc_ui_style_set_i32(OC_UI_CLICK_THROUGH, 1);
 
@@ -436,7 +429,6 @@ oc_ui_radio_group_info oc_ui_radio_group_str8(oc_str8 name, oc_ui_radio_group_in
                     else
                     {
                         oc_ui_style_set_var_str8(OC_UI_BORDER_COLOR, OC_UI_THEME_TEXT_3);
-                        oc_ui_style_set_f32(OC_UI_BORDER_SIZE, 1);
 
                         if(oc_ui_box_hot(radio))
                         {
@@ -810,6 +802,7 @@ oc_ui_select_popup_info oc_ui_select_popup_str8(oc_str8 key, oc_ui_select_popup_
             oc_ui_style_set_f32(OC_UI_MARGIN_Y, 6);
             oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_FILL_0);
             oc_ui_style_set_var_str8(OC_UI_ROUNDNESS, OC_UI_THEME_ROUNDNESS_SMALL);
+            oc_ui_style_set_f32(OC_UI_BORDER_SIZE, 1);
 
             oc_ui_style_rule("button.hover")
             {
@@ -818,7 +811,6 @@ oc_ui_select_popup_info oc_ui_select_popup_str8(oc_str8 key, oc_ui_select_popup_
             oc_ui_style_rule("button.active")
             {
                 oc_ui_style_set_var_str8(OC_UI_BORDER_COLOR, OC_UI_THEME_PRIMARY);
-                oc_ui_style_set_f32(OC_UI_BORDER_SIZE, 1);
             }
             oc_ui_style_rule("button.hover.active")
             {
@@ -1812,6 +1804,7 @@ oc_ui_text_box_result oc_ui_text_box_str8(oc_str8 key, oc_arena* arena, oc_ui_te
         oc_ui_style_set_f32(OC_UI_MARGIN_Y, 6);
         oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_FILL_0);
         oc_ui_style_set_var_str8(OC_UI_ROUNDNESS, OC_UI_THEME_ROUNDNESS_SMALL);
+        oc_ui_style_set_f32(OC_UI_BORDER_SIZE, 1);
 
         oc_ui_style_set_var_str8(OC_UI_COLOR, OC_UI_THEME_TEXT_0);
         oc_ui_style_set_var_str8(OC_UI_TEXT_SIZE, OC_UI_THEME_TEXT_SIZE_REGULAR);
@@ -1825,7 +1818,6 @@ oc_ui_text_box_result oc_ui_text_box_str8(oc_str8 key, oc_arena* arena, oc_ui_te
         oc_ui_style_rule(".text-box.active")
         {
             oc_ui_style_set_var_str8(OC_UI_BORDER_COLOR, OC_UI_THEME_PRIMARY);
-            oc_ui_style_set_f32(OC_UI_BORDER_SIZE, 1);
         }
         oc_ui_style_rule(".text-box.dragging")
         {

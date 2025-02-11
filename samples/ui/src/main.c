@@ -267,6 +267,7 @@ ORCA_EXPORT void oc_on_frame_refresh(void)
                                 oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_X);
                                 oc_ui_style_set_i32(OC_UI_ALIGN_Y, OC_UI_ALIGN_CENTER);
                                 oc_ui_style_set_f32(OC_UI_SPACING, 8);
+                                oc_ui_style_set_f32(OC_UI_MARGIN_X, 2);
 
                                 //-------------------------------------------------------------------------
                                 // Checkbox
