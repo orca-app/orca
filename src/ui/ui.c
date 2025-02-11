@@ -1518,7 +1518,30 @@ bool oc_ui_box_hovering(oc_ui_box* box, oc_vec2 p)
     oc_rect clip = oc_ui_clip_top();
     oc_rect rect = oc_ui_intersect_rects(clip, box->rect);
     bool hit = oc_ui_rect_hit(rect, p);
-    bool result = hit && (!ui->hovered || box->z >= ui->hovered->z);
+
+    bool result = false;
+    if(hit)
+    {
+        if(ui->hovered && box->z < ui->hovered->z)
+        {
+            oc_ui_box* hovered = ui->hovered;
+
+            //NOTE: children don't block parent's hover
+            while(hovered)
+            {
+                if(hovered == box)
+                {
+                    result = true;
+                    break;
+                }
+                hovered = hovered->parent;
+            }
+        }
+        else
+        {
+            result = true;
+        }
+    }
     return (result);
 }
 
@@ -1810,39 +1833,6 @@ oc_ui_box* oc_ui_scrollbar(const char* name, oc_rect rect, f32 thumbRatio, f32* 
     return oc_ui_scrollbar_str8(OC_STR8(name), rect, thumbRatio, scrollValue, horizontal);
 }
 
-bool oc_ui_box_hovering_recursive(oc_ui_box* box, oc_vec2 p)
-{
-    oc_ui_context* ui = oc_ui_get_context();
-
-    oc_rect clip = oc_ui_clip_top();
-    oc_rect rect = oc_ui_intersect_rects(clip, box->rect);
-    bool hit = oc_ui_rect_hit(rect, p);
-
-    bool result = false;
-    if(hit)
-    {
-        if(ui->hovered && box->z < ui->hovered->z)
-        {
-            oc_ui_box* hovered = ui->hovered;
-
-            while(hovered)
-            {
-                if(hovered == box)
-                {
-                    result = true;
-                    break;
-                }
-                hovered = hovered->parent;
-            }
-        }
-        else
-        {
-            result = true;
-        }
-    }
-    return (result);
-}
-
 oc_ui_box* oc_ui_box_end(void)
 {
     oc_ui_context* ui = oc_ui_get_context();
@@ -1873,7 +1863,7 @@ oc_ui_box* oc_ui_box_end(void)
         box->scroll.x = scrollValueX * (contentsW - box->rect.w);
 
         //wheel
-        if(oc_ui_box_hovering_recursive(box, oc_ui_mouse_position()))
+        if(oc_ui_box_hovering(box, oc_ui_mouse_position()))
         {
             oc_vec2 wheel = oc_ui_mouse_wheel();
             box->scroll.x += wheel.x;
@@ -1898,7 +1888,7 @@ oc_ui_box* oc_ui_box_end(void)
         box->scroll.y = scrollValueY * (contentsH - box->rect.h);
 
         //wheel
-        if(oc_ui_box_hovering_recursive(box, oc_ui_mouse_position()))
+        if(oc_ui_box_hovering(box, oc_ui_mouse_position()))
         {
             oc_vec2 wheel = oc_ui_mouse_wheel();
             box->scroll.y += wheel.y;
