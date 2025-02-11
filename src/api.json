@@ -13211,6 +13211,57 @@
         },
         {
             "kind": "proc",
+            "name": "oc_ui_set_draw_proc",
+            "return": {
+                "kind": "void"
+            },
+            "params": [
+                {
+                    "name": "proc",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_ui_box_draw_proc"
+                    }
+                },
+                {
+                    "name": "data",
+                    "type": {
+                        "kind": "pointer",
+                        "type": {
+                            "kind": "void"
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "kind": "proc",
+            "name": "oc_ui_box_set_text",
+            "return": {
+                "kind": "void"
+            },
+            "params": [
+                {
+                    "name": "box",
+                    "type": {
+                        "kind": "pointer",
+                        "type": {
+                            "kind": "namedType",
+                            "name": "oc_ui_box"
+                        }
+                    }
+                },
+                {
+                    "name": "text",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_str8"
+                    }
+                }
+            ]
+        },
+        {
+            "kind": "proc",
             "name": "oc_ui_set_text",
             "return": {
                 "kind": "void"
@@ -13221,6 +13272,31 @@
                     "type": {
                         "kind": "namedType",
                         "name": "oc_str8"
+                    }
+                }
+            ]
+        },
+        {
+            "kind": "proc",
+            "name": "oc_ui_box_set_overlay",
+            "return": {
+                "kind": "void"
+            },
+            "params": [
+                {
+                    "name": "box",
+                    "type": {
+                        "kind": "pointer",
+                        "type": {
+                            "kind": "namedType",
+                            "name": "oc_ui_box"
+                        }
+                    }
+                },
+                {
+                    "name": "overlay",
+                    "type": {
+                        "kind": "bool"
                     }
                 }
             ]
@@ -13242,7 +13318,7 @@
         },
         {
             "kind": "proc",
-            "name": "oc_ui_box_closed",
+            "name": "oc_ui_box_is_closed",
             "return": {
                 "kind": "bool"
             },
@@ -13286,7 +13362,7 @@
         },
         {
             "kind": "proc",
-            "name": "oc_ui_box_active",
+            "name": "oc_ui_box_is_active",
             "return": {
                 "kind": "bool"
             },
@@ -13330,7 +13406,7 @@
         },
         {
             "kind": "proc",
-            "name": "oc_ui_box_hot",
+            "name": "oc_ui_box_is_hot",
             "return": {
                 "kind": "bool"
             },
@@ -13374,51 +13450,7 @@
         },
         {
             "kind": "proc",
-            "name": "oc_ui_box_focus",
-            "return": {
-                "kind": "bool"
-            },
-            "params": [
-                {
-                    "name": "box",
-                    "type": {
-                        "kind": "pointer",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_ui_box"
-                        }
-                    }
-                }
-            ]
-        },
-        {
-            "kind": "proc",
-            "name": "oc_ui_box_set_focus",
-            "return": {
-                "kind": "void"
-            },
-            "params": [
-                {
-                    "name": "box",
-                    "type": {
-                        "kind": "pointer",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_ui_box"
-                        }
-                    }
-                },
-                {
-                    "name": "focus",
-                    "type": {
-                        "kind": "bool"
-                    }
-                }
-            ]
-        },
-        {
-            "kind": "proc",
-            "name": "oc_ui_box_sig",
+            "name": "oc_ui_box_get_sig",
             "return": {
                 "kind": "namedType",
                 "name": "oc_ui_sig"
@@ -13438,7 +13470,85 @@
         },
         {
             "kind": "proc",
-            "name": "oc_ui_tag_box_str8",
+            "name": "oc_ui_is_closed",
+            "return": {
+                "kind": "bool"
+            },
+            "params": []
+        },
+        {
+            "kind": "proc",
+            "name": "oc_ui_set_closed",
+            "return": {
+                "kind": "void"
+            },
+            "params": [
+                {
+                    "name": "closed",
+                    "type": {
+                        "kind": "bool"
+                    }
+                }
+            ]
+        },
+        {
+            "kind": "proc",
+            "name": "oc_ui_is_active",
+            "return": {
+                "kind": "bool"
+            },
+            "params": []
+        },
+        {
+            "kind": "proc",
+            "name": "oc_ui_set_active",
+            "return": {
+                "kind": "void"
+            },
+            "params": [
+                {
+                    "name": "active",
+                    "type": {
+                        "kind": "bool"
+                    }
+                }
+            ]
+        },
+        {
+            "kind": "proc",
+            "name": "oc_ui_is_hot",
+            "return": {
+                "kind": "bool"
+            },
+            "params": []
+        },
+        {
+            "kind": "proc",
+            "name": "oc_ui_set_hot",
+            "return": {
+                "kind": "void"
+            },
+            "params": [
+                {
+                    "name": "hot",
+                    "type": {
+                        "kind": "bool"
+                    }
+                }
+            ]
+        },
+        {
+            "kind": "proc",
+            "name": "oc_ui_get_sig",
+            "return": {
+                "kind": "namedType",
+                "name": "oc_ui_sig"
+            },
+            "params": []
+        },
+        {
+            "kind": "proc",
+            "name": "oc_ui_box_tag_str8",
             "return": {
                 "kind": "void"
             },

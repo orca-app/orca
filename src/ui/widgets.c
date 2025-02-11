@@ -200,9 +200,6 @@ oc_ui_box* oc_ui_slider_str8(oc_str8 name, f32* value)
     {
         oc_ui_tag("slider");
 
-        oc_ui_style_set_f32(OC_UI_BORDER_SIZE, 1);
-        oc_ui_style_set_color(OC_UI_BORDER_COLOR, (oc_color){ 1, 0, 0, 1 });
-
         //NOTE: default size:
         oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PIXELS, 100 });
         oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PIXELS, 24 });
