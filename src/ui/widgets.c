@@ -39,30 +39,11 @@ oc_ui_sig oc_ui_label(const char* key, const char* label)
 // button
 //------------------------------------------------------------------------------
 
-oc_ui_sig oc_ui_button_behavior(oc_ui_box* box)
-{
-    oc_ui_sig sig = oc_ui_box_get_sig(box);
-
-    if(sig.hovering)
-    {
-        if(sig.dragging)
-        {
-            oc_ui_box_set_active(box, true);
-        }
-    }
-
-    if(!sig.hovering || !sig.dragging)
-    {
-        oc_ui_box_set_active(box, false);
-    }
-    return (sig);
-}
-
 oc_ui_sig oc_ui_button_str8(oc_str8 key, oc_str8 text)
 {
     oc_ui_box* box = oc_ui_box_str8(key)
     {
-        oc_ui_set_text(text);
+        oc_ui_box_set_text(box, text);
         oc_ui_tag("button");
 
         oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_TEXT });
@@ -89,7 +70,7 @@ oc_ui_sig oc_ui_button_str8(oc_str8 key, oc_str8 text)
         }
     }
 
-    oc_ui_sig sig = oc_ui_button_behavior(box);
+    oc_ui_sig sig = oc_ui_box_get_sig(box);
     return (sig);
 }
 
@@ -173,7 +154,7 @@ oc_ui_sig oc_ui_checkbox_str8(oc_str8 name, bool* checked)
         oc_ui_set_draw_proc(oc_ui_checkbox_draw, 0);
     }
 
-    oc_ui_sig sig = oc_ui_button_behavior(box);
+    oc_ui_sig sig = oc_ui_box_get_sig(box);
     if(sig.clicked)
     {
         *checked = !*checked;
@@ -294,7 +275,7 @@ oc_ui_box* oc_ui_slider_str8(oc_str8 name, f32* value)
         oc_ui_sig thumbSig = oc_ui_box_get_sig(thumb);
         oc_ui_sig trackSig = oc_ui_box_get_sig(track);
 
-        if(thumbSig.dragging)
+        if(thumbSig.active)
         {
             oc_rect trackRect = track->rect;
             oc_rect thumbRect = thumb->rect;
@@ -306,25 +287,6 @@ oc_ui_box* oc_ui_slider_str8(oc_str8 name, f32* value)
             {
                 *value = 1 - *value;
             }
-        }
-
-        if(oc_ui_box_is_active(frame))
-        {
-            //NOTE: activated from outside
-            oc_ui_box_set_active(track, true);
-            oc_ui_box_set_active(thumb, true);
-        }
-
-        if(thumbSig.dragging)
-        {
-            oc_ui_box_set_active(track, true);
-            oc_ui_box_set_active(thumb, true);
-        }
-        else if(thumbSig.wheel.c[trackAxis] == 0)
-        {
-            oc_ui_box_set_active(track, false);
-            oc_ui_box_set_active(thumb, false);
-            oc_ui_box_set_active(frame, false);
         }
     }
     return (frame);
@@ -395,19 +357,17 @@ oc_ui_radio_group_info oc_ui_radio_group_str8(oc_str8 name, oc_ui_radio_group_in
                     {
                         result.selectedIndex = i;
                     }
-                    oc_ui_box_set_active(radio, sig.hovering && sig.dragging);
-                    oc_ui_box_set_active(row, sig.hovering && sig.dragging);
 
                     if(result.selectedIndex == i)
                     {
                         oc_ui_style_set_color(OC_UI_COLOR, (oc_color){ 1, 1, 1, 1 });
                         oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_PRIMARY);
 
-                        if(sig.hovering)
+                        if(sig.hover)
                         {
                             oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_PRIMARY_HOVER);
                         }
-                        if(oc_ui_box_is_active(radio))
+                        if(sig.hover && sig.active)
                         {
                             oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_PRIMARY_ACTIVE);
                         }
@@ -416,12 +376,12 @@ oc_ui_radio_group_info oc_ui_radio_group_str8(oc_str8 name, oc_ui_radio_group_in
                     {
                         oc_ui_style_set_var_str8(OC_UI_BORDER_COLOR, OC_UI_THEME_TEXT_3);
 
-                        if(sig.hovering)
+                        if(sig.hover)
                         {
                             oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_FILL_0);
                             oc_ui_style_set_var_str8(OC_UI_BORDER_COLOR, OC_UI_THEME_PRIMARY);
                         }
-                        if(oc_ui_box_is_active(radio))
+                        if(sig.hover && sig.active)
                         {
                             oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_FILL_1);
                             oc_ui_style_set_var_str8(OC_UI_BORDER_COLOR, OC_UI_THEME_PRIMARY);
@@ -527,7 +487,6 @@ void oc_ui_tooltip(const char* key, const char* text)
 typedef struct oc_ui_menu_info
 {
     bool active;
-    oc_ui_box* activeMenu;
 
 } oc_ui_menu_info;
 
@@ -562,7 +521,7 @@ void oc_ui_menu_bar_begin_str8(oc_str8 key)
     }
 
     oc_ui_sig sig = oc_ui_box_get_sig(bar);
-    if(!sig.hovering && oc_mouse_released(oc_ui_input(), OC_MOUSE_LEFT))
+    if(!sig.hover && oc_mouse_released(oc_ui_input(), OC_MOUSE_LEFT))
     {
         menuInfo->active = false;
     }
@@ -649,11 +608,11 @@ void oc_ui_menu_begin_str8(oc_str8 key, oc_str8 text)
 
     if(menuInfo->active)
     {
-        if(sig.hovering)
+        if(sig.hover)
         {
             oc_ui_box_set_closed(menu, false);
         }
-        else if(barSig.hovering)
+        else if(barSig.hover)
         {
             oc_ui_box_set_closed(menu, true);
         }
@@ -959,24 +918,24 @@ oc_ui_select_popup_info oc_ui_select_popup_str8(oc_str8 key, oc_ui_select_popup_
             }
         }
 
-        if(oc_ui_box_is_active(panel) && oc_mouse_released(oc_ui_input(), OC_MOUSE_LEFT))
+        oc_ui_sig panelSig = oc_ui_box_get_sig(panel);
+        if(panel->fresh)
         {
-            oc_ui_box_set_active(button, false);
-            oc_ui_box_set_active(panel, false);
+            oc_ui_box_set_closed(panel, true);
+        }
+        if(!panelSig.closed && oc_mouse_released(oc_ui_input(), OC_MOUSE_LEFT))
+        {
+            oc_ui_box_set_closed(panel, true);
         }
         else
         {
             oc_ui_sig sig = oc_ui_box_get_sig(button);
-            if(sig.pressed)
-            {
-                oc_ui_box_set_active(button, true);
-            }
+
             if(sig.clicked)
             {
-                oc_ui_box_set_active(panel, true);
+                oc_ui_box_set_closed(panel, false);
             }
         }
-        oc_ui_box_set_closed(panel, !oc_ui_box_is_active(panel));
     }
     result.changed = result.selectedIndex != info->selectedIndex;
     return (result);
@@ -1700,7 +1659,9 @@ void oc_ui_text_box_render(oc_ui_box* box, void* data)
     oc_str32 codepoints = renderData->codepoints;
 
     u32 firstDisplayedChar = 0;
-    if(oc_ui_box_is_active(box))
+
+    oc_ui_sig sig = oc_ui_box_get_sig(box);
+    if(sig.focus)
     {
         firstDisplayedChar = renderData->firstDisplayedChar;
     }
@@ -1724,7 +1685,7 @@ void oc_ui_text_box_render(oc_ui_box* box, void* data)
 
     oc_clip_push(rect.x, rect.y, rect.w, rect.h);
 
-    if(box->active)
+    if(sig.focus)
     {
         u32 selectStart = oc_min(renderData->cursor, renderData->mark);
         u32 selectEnd = oc_max(renderData->cursor, renderData->mark);
@@ -1827,11 +1788,11 @@ oc_ui_text_box_result oc_ui_text_box_str8(oc_str8 key, oc_arena* arena, oc_ui_te
         {
             oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_FILL_1);
         }
-        oc_ui_style_rule(".text-box.active")
+        oc_ui_style_rule(".text-box.focus")
         {
             oc_ui_style_set_var_str8(OC_UI_BORDER_COLOR, OC_UI_THEME_PRIMARY);
         }
-        oc_ui_style_rule(".text-box.dragging")
+        oc_ui_style_rule(".text-box.active")
         {
             oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_FILL_2);
         }
@@ -1840,9 +1801,9 @@ oc_ui_text_box_result oc_ui_text_box_str8(oc_str8 key, oc_arena* arena, oc_ui_te
 
         if(sig.pressed)
         {
-            if(!oc_ui_box_is_active(box))
+            if(!sig.focus)
             {
-                oc_ui_box_set_active(box, true);
+                oc_ui_box_request_focus(box);
 
                 //NOTE: gain focus
                 info->firstDisplayedChar = 0;
@@ -1863,7 +1824,7 @@ oc_ui_text_box_result oc_ui_text_box_str8(oc_str8 key, oc_arena* arena, oc_ui_te
             box->rect.h - 2 * box->style.layout.margin.y,
         };
 
-        if(sig.pressed || sig.dragging)
+        if(sig.pressed || sig.active)
         {
             //NOTE: set cursor/extend selection on mouse press or drag
             oc_vec2 pos = oc_mouse_position(oc_ui_input());
@@ -1983,19 +1944,19 @@ oc_ui_text_box_result oc_ui_text_box_str8(oc_str8 key, oc_arena* arena, oc_ui_te
             info->selectionMode = OC_UI_EDIT_MOVE_CHAR;
         }
 
-        if(!sig.hovering)
+        if(!sig.hover)
         {
             if(oc_mouse_pressed(input, OC_MOUSE_LEFT) || oc_mouse_pressed(input, OC_MOUSE_RIGHT) || oc_mouse_pressed(input, OC_MOUSE_MIDDLE))
             {
-                if(oc_ui_box_is_active(box))
+                if(sig.focus)
                 {
                     //NOTE loose focus
-                    oc_ui_box_set_active(box, false);
+                    oc_ui_box_release_focus(box);
                 }
             }
         }
 
-        if(oc_ui_box_is_active(box))
+        if(sig.focus)
         {
             oc_str32 oldCodepoints = oc_utf8_push_to_codepoints(frameArena, info->text);
             oc_str32 codepoints = oldCodepoints;
@@ -2060,7 +2021,7 @@ oc_ui_text_box_result oc_ui_text_box_str8(oc_str8 key, oc_arena* arena, oc_ui_te
             {
                 //TODO(martin): extract in gui_edit_complete() (and use below)
                 result.accepted = true;
-                oc_ui_box_set_active(box, false);
+                oc_ui_box_release_focus(box);
             }
 
             //NOTE slide contents

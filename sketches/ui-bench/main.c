@@ -57,6 +57,13 @@ i32 ui_runloop(void* user)
         .defaultText = OC_STR8_LIT("type here"),
     };
 
+    oc_arena textArena2 = { 0 };
+    oc_arena_init(&textArena2);
+
+    oc_ui_text_box_info textBoxInfo2 = {
+        .defaultText = OC_STR8_LIT("type here"),
+    };
+
     while(!oc_should_quit())
     {
         oc_arena_scope scratch = oc_scratch_begin();
@@ -173,11 +180,22 @@ i32 ui_runloop(void* user)
                 }
                 popupInfo = oc_ui_select_popup("popup", &popupInfo);
 
-                oc_ui_text_box_result result = oc_ui_text_box("textbox", scratch.arena, &textBoxInfo);
-                if(result.changed)
                 {
-                    oc_arena_clear(&textArena);
-                    textBoxInfo.text = oc_str8_push_copy(&textArena, result.text);
+                    oc_ui_text_box_result result = oc_ui_text_box("textbox", scratch.arena, &textBoxInfo);
+                    if(result.changed)
+                    {
+                        oc_arena_clear(&textArena);
+                        textBoxInfo.text = oc_str8_push_copy(&textArena, result.text);
+                    }
+                }
+
+                {
+                    oc_ui_text_box_result result = oc_ui_text_box("textbox2", scratch.arena, &textBoxInfo2);
+                    if(result.changed)
+                    {
+                        oc_arena_clear(&textArena2);
+                        textBoxInfo2.text = oc_str8_push_copy(&textArena2, result.text);
+                    }
                 }
             }
 
@@ -217,7 +235,7 @@ i32 ui_runloop(void* user)
 
                     radioInfo = oc_ui_radio_group("radio", &radioInfo);
 
-                    if(oc_ui_box_get_sig(box).hovering)
+                    if(oc_ui_box_get_sig(box).hover)
                     {
                         oc_ui_tooltip("tooltip", "This is a black box");
                     }

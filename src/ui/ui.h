@@ -245,8 +245,10 @@ typedef struct oc_ui_sig
     bool doubleClicked;
     bool tripleClicked;
     bool rightPressed;
-    bool dragging;
-    bool hovering;
+    bool closed;
+    bool active;
+    bool hover;
+    bool focus;
     bool pasted;
 
 } oc_ui_sig;
@@ -303,8 +305,8 @@ struct oc_ui_box
     bool fresh;
     bool closed;
     bool parentClosed;
-    bool dragging;
     bool active;
+
     oc_vec2 scroll;
     oc_vec2 pressedMouse;
 
@@ -353,35 +355,32 @@ ORCA_API oc_ui_box* oc_ui_box_end(void);
 
 #define oc_ui_box(name) oc_ui_box_str8(OC_STR8(name))
 
+ORCA_API oc_ui_box* oc_ui_box_top();
+
 ORCA_API void oc_ui_box_set_draw_proc(oc_ui_box* box, oc_ui_box_draw_proc proc, void* data);
 ORCA_API void oc_ui_box_set_text(oc_ui_box* box, oc_str8 text);
 ORCA_API void oc_ui_box_set_overlay(oc_ui_box* box, bool overlay);
-
-// implicit top box helpers
-ORCA_API void oc_ui_set_draw_proc(oc_ui_box_draw_proc proc, void* data);
-ORCA_API void oc_ui_set_text(oc_str8 text);
-ORCA_API void oc_ui_set_overlay(bool overlay);
-
-// box user data
-ORCA_API char* oc_ui_box_user_data_get(oc_ui_box* box);
-ORCA_API char* oc_ui_box_user_data_push(oc_ui_box* box, u64 size);
-//-------------------------------------------------------------------------------------
-// Box status and signals
-//-------------------------------------------------------------------------------------
-ORCA_API bool oc_ui_box_is_closed(oc_ui_box* box);
 ORCA_API void oc_ui_box_set_closed(oc_ui_box* box, bool closed);
 
-ORCA_API bool oc_ui_box_is_active(oc_ui_box* box);
-ORCA_API void oc_ui_box_set_active(oc_ui_box* box, bool active);
+ORCA_API char* oc_ui_box_user_data_get(oc_ui_box* box);
+ORCA_API char* oc_ui_box_user_data_push(oc_ui_box* box, u64 size);
+
+ORCA_API void oc_ui_box_request_focus(oc_ui_box* box);
+ORCA_API void oc_ui_box_release_focus(oc_ui_box* box);
 
 ORCA_API oc_ui_sig oc_ui_box_get_sig(oc_ui_box* box);
 
-// implicit top box helpers
-ORCA_API bool oc_ui_is_closed(void);
+//NOTE: implicit box helpers
+ORCA_API void oc_ui_set_draw_proc(oc_ui_box_draw_proc proc, void* data);
+ORCA_API void oc_ui_set_text(oc_str8 text);
+ORCA_API void oc_ui_set_overlay(bool overlay);
 ORCA_API void oc_ui_set_closed(bool closed);
 
-ORCA_API bool oc_ui_is_active(void);
-ORCA_API void oc_ui_set_active(bool active);
+ORCA_API char* oc_ui_user_data_get(void);
+ORCA_API char* oc_ui_user_data_push(u64 size);
+
+ORCA_API void oc_ui_request_focus(void);
+ORCA_API void oc_ui_release_focus(void);
 
 ORCA_API oc_ui_sig oc_ui_get_sig(void);
 

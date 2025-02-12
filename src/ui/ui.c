@@ -193,6 +193,9 @@ typedef struct oc_ui_context
     u32 z;
     oc_ui_box* hovered;
 
+    oc_ui_box* focus;
+    oc_ui_box* nextFocus;
+
     //TODO: reorganize
     oc_ui_var_map styleVariables;
     oc_ui_style_rule* workingRule;
@@ -1565,6 +1568,7 @@ oc_ui_sig oc_ui_box_compute_signals(oc_ui_box* box)
     oc_input_state* input = &ui->input;
 
     sig.box = box;
+    sig.closed = box->closed;
 
     if(!box->closed && !box->parentClosed)
     {
@@ -1573,19 +1577,20 @@ oc_ui_sig oc_ui_box_compute_signals(oc_ui_box* box)
         sig.mouse = (oc_vec2){ mousePos.x - box->rect.x, mousePos.y - box->rect.y };
         sig.delta = oc_ui_mouse_delta();
         sig.wheel = oc_ui_mouse_wheel();
-        sig.hovering = oc_ui_box_hovering(box, mousePos);
+        sig.hover = oc_ui_box_hovering(box, mousePos);
+        sig.focus = (box == ui->focus);
 
         //TODO: we might want to restrict that only to clickable boxes?
-        if(sig.hovering)
+        if(sig.hover)
         {
             sig.pressed = oc_mouse_pressed(input, OC_MOUSE_LEFT);
             if(sig.pressed)
             {
-                if(!box->dragging)
+                if(!box->active)
                 {
                     box->pressedMouse = sig.mouse;
                 }
-                box->dragging = true;
+                box->active = true;
             }
             sig.doubleClicked = oc_mouse_double_clicked(input, OC_MOUSE_LEFT);
             sig.tripleClicked = oc_mouse_triple_clicked(input, OC_MOUSE_LEFT);
@@ -1598,7 +1603,7 @@ oc_ui_sig oc_ui_box_compute_signals(oc_ui_box* box)
         sig.released = oc_mouse_released(input, OC_MOUSE_LEFT);
         if(sig.released)
         {
-            if(box->dragging && sig.hovering)
+            if(box->active && sig.hover)
             {
                 sig.clicked = true;
             }
@@ -1606,11 +1611,10 @@ oc_ui_sig oc_ui_box_compute_signals(oc_ui_box* box)
 
         if(!oc_mouse_down(input, OC_MOUSE_LEFT))
         {
-            box->dragging = false;
+            box->active = false;
         }
 
-        sig.dragging = box->dragging;
-
+        sig.active = box->active;
         sig.pasted = oc_clipboard_pasted(input);
     }
 
@@ -1673,17 +1677,17 @@ oc_ui_box* oc_ui_box_begin_str8(oc_str8 string)
     //NOTE: compute box signals and set tags
     box->sig = oc_ui_box_compute_signals(box);
 
-    if(box->sig.hovering)
+    if(box->sig.hover)
     {
         oc_ui_tag_box_str8(box, OC_STR8("hover"));
     }
-    if(box->active)
+    if(box->sig.active)
     {
         oc_ui_tag_box_str8(box, OC_STR8("active"));
     }
-    if(box->dragging)
+    if(box->sig.focus)
     {
-        oc_ui_tag_box_str8(box, OC_STR8("dragging"));
+        oc_ui_tag_box_str8(box, OC_STR8("focus"));
     }
 
     //NOTE push box
@@ -1781,29 +1785,11 @@ oc_ui_box* oc_ui_scrollbar_str8(oc_str8 name, oc_rect rect, f32 thumbRatio, f32*
         oc_ui_sig thumbSig = oc_ui_box_get_sig(thumb);
         oc_ui_sig trackSig = oc_ui_box_get_sig(track);
 
-        if(thumbSig.dragging)
+        if(thumbSig.active)
         {
             f32 trackExtents = rect.c[2 + trackAxis] * (1. - thumbRatio);
             *scrollValue = (trackSig.mouse.c[trackAxis] - thumb->pressedMouse.c[trackAxis]) / trackExtents;
             *scrollValue = oc_clamp(*scrollValue, 0, 1);
-        }
-
-        if(oc_ui_box_is_active(track))
-        {
-            //NOTE: activated from outside
-            oc_ui_box_set_active(track, true);
-            oc_ui_box_set_active(thumb, true);
-        }
-
-        if(thumbSig.dragging)
-        {
-            oc_ui_box_set_active(track, true);
-            oc_ui_box_set_active(thumb, true);
-        }
-        else if(thumbSig.wheel.c[trackAxis] == 0)
-        {
-            oc_ui_box_set_active(track, false);
-            oc_ui_box_set_active(thumb, false);
         }
     }
     return (track);
@@ -1884,6 +1870,13 @@ oc_ui_box* oc_ui_box_end(void)
     return (box);
 }
 
+bool oc_ui_box_hidden(oc_ui_box* box)
+{
+    return (box->closed || box->parentClosed);
+}
+
+//NOTE: box setters
+
 void oc_ui_box_set_draw_proc(oc_ui_box* box, oc_ui_box_draw_proc proc, void* data)
 {
     box->drawProc = proc;
@@ -1915,75 +1908,9 @@ void oc_ui_box_set_overlay(oc_ui_box* box, bool overlay)
     }
 }
 
-void oc_ui_set_draw_proc(oc_ui_box_draw_proc proc, void* data)
-{
-    oc_ui_box_set_draw_proc(oc_ui_box_top(), proc, data);
-}
-
-void oc_ui_set_text(oc_str8 text)
-{
-    oc_ui_box_set_text(oc_ui_box_top(), text);
-}
-
-void oc_ui_set_overlay(bool overlay)
-{
-    oc_ui_box_set_overlay(oc_ui_box_top(), overlay);
-}
-
 void oc_ui_box_set_closed(oc_ui_box* box, bool closed)
 {
     box->closed = closed;
-}
-
-bool oc_ui_box_is_closed(oc_ui_box* box)
-{
-    return (box->closed);
-}
-
-void oc_ui_box_set_active(oc_ui_box* box, bool active)
-{
-    box->active = active;
-}
-
-bool oc_ui_box_is_active(oc_ui_box* box)
-{
-    return (box->active);
-}
-
-oc_ui_sig oc_ui_box_get_sig(oc_ui_box* box)
-{
-    return box->sig;
-}
-
-bool oc_ui_box_hidden(oc_ui_box* box)
-{
-    return (box->closed || box->parentClosed);
-}
-
-// implicit top box helpers
-bool oc_ui_is_closed(void)
-{
-    return oc_ui_box_is_closed(oc_ui_box_top());
-}
-
-void oc_ui_set_closed(bool closed)
-{
-    oc_ui_box_set_closed(oc_ui_box_top(), closed);
-}
-
-bool oc_ui_is_active(void)
-{
-    return oc_ui_box_is_active(oc_ui_box_top());
-}
-
-void oc_ui_set_active(bool active)
-{
-    oc_ui_box_set_active(oc_ui_box_top(), active);
-}
-
-oc_ui_sig oc_ui_get_sig(void)
-{
-    return oc_ui_box_get_sig(oc_ui_box_top());
 }
 
 char* oc_ui_box_user_data_get(oc_ui_box* box)
@@ -2003,6 +1930,77 @@ char* oc_ui_box_user_data_push(oc_ui_box* box, u64 size)
     box->userFrameCounter = ui->frameCounter;
     box->user = oc_arena_push(ui->frameArena, size);
     return box->user;
+}
+
+void oc_ui_box_request_focus(oc_ui_box* box)
+{
+    oc_ui_context* ui = oc_ui_get_context();
+    ui->nextFocus = box;
+}
+
+void oc_ui_box_release_focus(oc_ui_box* box)
+{
+    oc_ui_context* ui = oc_ui_get_context();
+    if(ui->focus == box)
+    {
+        ui->focus = 0;
+    }
+    if(ui->nextFocus == box)
+    {
+        ui->nextFocus = 0;
+    }
+}
+
+oc_ui_sig oc_ui_box_get_sig(oc_ui_box* box)
+{
+    return box->sig;
+}
+
+//NOTE: implicit box helpers
+
+void oc_ui_set_draw_proc(oc_ui_box_draw_proc proc, void* data)
+{
+    oc_ui_box_set_draw_proc(oc_ui_box_top(), proc, data);
+}
+
+void oc_ui_set_text(oc_str8 text)
+{
+    oc_ui_box_set_text(oc_ui_box_top(), text);
+}
+
+void oc_ui_set_overlay(bool overlay)
+{
+    oc_ui_box_set_overlay(oc_ui_box_top(), overlay);
+}
+
+void oc_ui_set_closed(bool closed)
+{
+    oc_ui_box_set_closed(oc_ui_box_top(), closed);
+}
+
+char* oc_ui_user_data_get(void)
+{
+    return oc_ui_box_user_data_get(oc_ui_box_top());
+}
+
+char* oc_ui_user_data_push(u64 size)
+{
+    return oc_ui_box_user_data_push(oc_ui_box_top(), size);
+}
+
+void oc_ui_request_focus(void)
+{
+    oc_ui_box_request_focus(oc_ui_box_top());
+}
+
+void oc_ui_release_focus(void)
+{
+    oc_ui_box_release_focus(oc_ui_box_top());
+}
+
+oc_ui_sig oc_ui_get_sig(void)
+{
+    return oc_ui_box_get_sig(oc_ui_box_top());
 }
 
 //-----------------------------------------------------------------------------
@@ -3103,6 +3101,12 @@ void oc_ui_frame_begin(oc_vec2 size)
 
     ui->nextBoxTags = (oc_list){ 0 };
     ui->overlayList = (oc_list){ 0 };
+
+    if(ui->nextFocus)
+    {
+        ui->focus = ui->nextFocus;
+    }
+    ui->nextFocus = 0;
 
     ui->root = oc_ui_box_begin("_root_");
 

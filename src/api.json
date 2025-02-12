@@ -12670,13 +12670,25 @@
                         }
                     },
                     {
-                        "name": "dragging",
+                        "name": "closed",
                         "type": {
                             "kind": "bool"
                         }
                     },
                     {
-                        "name": "hovering",
+                        "name": "active",
+                        "type": {
+                            "kind": "bool"
+                        }
+                    },
+                    {
+                        "name": "hover",
+                        "type": {
+                            "kind": "bool"
+                        }
+                    },
+                    {
+                        "name": "focus",
                         "type": {
                             "kind": "bool"
                         }
@@ -13211,31 +13223,6 @@
         },
         {
             "kind": "proc",
-            "name": "oc_ui_set_draw_proc",
-            "return": {
-                "kind": "void"
-            },
-            "params": [
-                {
-                    "name": "proc",
-                    "type": {
-                        "kind": "namedType",
-                        "name": "oc_ui_box_draw_proc"
-                    }
-                },
-                {
-                    "name": "data",
-                    "type": {
-                        "kind": "pointer",
-                        "type": {
-                            "kind": "void"
-                        }
-                    }
-                }
-            ]
-        },
-        {
-            "kind": "proc",
             "name": "oc_ui_box_set_text",
             "return": {
                 "kind": "void"
@@ -13251,22 +13238,6 @@
                         }
                     }
                 },
-                {
-                    "name": "text",
-                    "type": {
-                        "kind": "namedType",
-                        "name": "oc_str8"
-                    }
-                }
-            ]
-        },
-        {
-            "kind": "proc",
-            "name": "oc_ui_set_text",
-            "return": {
-                "kind": "void"
-            },
-            "params": [
                 {
                     "name": "text",
                     "type": {
@@ -13303,40 +13274,6 @@
         },
         {
             "kind": "proc",
-            "name": "oc_ui_set_overlay",
-            "return": {
-                "kind": "void"
-            },
-            "params": [
-                {
-                    "name": "overlay",
-                    "type": {
-                        "kind": "bool"
-                    }
-                }
-            ]
-        },
-        {
-            "kind": "proc",
-            "name": "oc_ui_box_is_closed",
-            "return": {
-                "kind": "bool"
-            },
-            "params": [
-                {
-                    "name": "box",
-                    "type": {
-                        "kind": "pointer",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_ui_box"
-                        }
-                    }
-                }
-            ]
-        },
-        {
-            "kind": "proc",
             "name": "oc_ui_box_set_closed",
             "return": {
                 "kind": "void"
@@ -13362,9 +13299,12 @@
         },
         {
             "kind": "proc",
-            "name": "oc_ui_box_is_active",
+            "name": "oc_ui_box_user_data_get",
             "return": {
-                "kind": "bool"
+                "kind": "pointer",
+                "type": {
+                    "kind": "char"
+                }
             },
             "params": [
                 {
@@ -13381,9 +13321,12 @@
         },
         {
             "kind": "proc",
-            "name": "oc_ui_box_set_active",
+            "name": "oc_ui_box_user_data_push",
             "return": {
-                "kind": "void"
+                "kind": "pointer",
+                "type": {
+                    "kind": "char"
+                }
             },
             "params": [
                 {
@@ -13397,35 +13340,16 @@
                     }
                 },
                 {
-                    "name": "active",
+                    "name": "size",
                     "type": {
-                        "kind": "bool"
+                        "kind": "u64"
                     }
                 }
             ]
         },
         {
             "kind": "proc",
-            "name": "oc_ui_box_is_hot",
-            "return": {
-                "kind": "bool"
-            },
-            "params": [
-                {
-                    "name": "box",
-                    "type": {
-                        "kind": "pointer",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_ui_box"
-                        }
-                    }
-                }
-            ]
-        },
-        {
-            "kind": "proc",
-            "name": "oc_ui_box_set_hot",
+            "name": "oc_ui_box_request_focus",
             "return": {
                 "kind": "void"
             },
@@ -13439,11 +13363,24 @@
                             "name": "oc_ui_box"
                         }
                     }
-                },
+                }
+            ]
+        },
+        {
+            "kind": "proc",
+            "name": "oc_ui_box_release_focus",
+            "return": {
+                "kind": "void"
+            },
+            "params": [
                 {
-                    "name": "hot",
+                    "name": "box",
                     "type": {
-                        "kind": "bool"
+                        "kind": "pointer",
+                        "type": {
+                            "kind": "namedType",
+                            "name": "oc_ui_box"
+                        }
                     }
                 }
             ]
@@ -13470,11 +13407,59 @@
         },
         {
             "kind": "proc",
-            "name": "oc_ui_is_closed",
+            "name": "oc_ui_set_draw_proc",
             "return": {
-                "kind": "bool"
+                "kind": "void"
             },
-            "params": []
+            "params": [
+                {
+                    "name": "proc",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_ui_box_draw_proc"
+                    }
+                },
+                {
+                    "name": "data",
+                    "type": {
+                        "kind": "pointer",
+                        "type": {
+                            "kind": "void"
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "kind": "proc",
+            "name": "oc_ui_set_text",
+            "return": {
+                "kind": "void"
+            },
+            "params": [
+                {
+                    "name": "text",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_str8"
+                    }
+                }
+            ]
+        },
+        {
+            "kind": "proc",
+            "name": "oc_ui_set_overlay",
+            "return": {
+                "kind": "void"
+            },
+            "params": [
+                {
+                    "name": "overlay",
+                    "type": {
+                        "kind": "bool"
+                    }
+                }
+            ]
         },
         {
             "kind": "proc",
@@ -13493,49 +13478,48 @@
         },
         {
             "kind": "proc",
-            "name": "oc_ui_is_active",
+            "name": "oc_ui_user_data_get",
             "return": {
-                "kind": "bool"
+                "kind": "pointer",
+                "type": {
+                    "kind": "char"
+                }
             },
             "params": []
         },
         {
             "kind": "proc",
-            "name": "oc_ui_set_active",
+            "name": "oc_ui_user_data_push",
             "return": {
-                "kind": "void"
+                "kind": "pointer",
+                "type": {
+                    "kind": "char"
+                }
             },
             "params": [
                 {
-                    "name": "active",
+                    "name": "size",
                     "type": {
-                        "kind": "bool"
+                        "kind": "u64"
                     }
                 }
             ]
         },
         {
             "kind": "proc",
-            "name": "oc_ui_is_hot",
+            "name": "oc_ui_request_focus",
             "return": {
-                "kind": "bool"
+                "kind": "void"
             },
             "params": []
         },
         {
             "kind": "proc",
-            "name": "oc_ui_set_hot",
+            "name": "oc_ui_release_focus",
             "return": {
                 "kind": "void"
             },
-            "params": [
-                {
-                    "name": "hot",
-                    "type": {
-                        "kind": "bool"
-                    }
-                }
-            ]
+            "params": []
         },
         {
             "kind": "proc",
