@@ -1780,21 +1780,8 @@ oc_ui_box* oc_ui_scrollbar_str8(oc_str8 name, oc_rect rect, f32 thumbRatio, f32*
         if(oc_ui_box_is_active(track))
         {
             //NOTE: activated from outside
-            oc_ui_box_set_hot(track, true);
-            oc_ui_box_set_hot(thumb, true);
             oc_ui_box_set_active(track, true);
             oc_ui_box_set_active(thumb, true);
-        }
-
-        if(trackSig.hovering)
-        {
-            oc_ui_box_set_hot(track, true);
-            oc_ui_box_set_hot(thumb, true);
-        }
-        else if(thumbSig.wheel.c[trackAxis] == 0)
-        {
-            oc_ui_box_set_hot(track, false);
-            oc_ui_box_set_hot(thumb, false);
         }
 
         if(thumbSig.dragging)
@@ -1952,16 +1939,6 @@ bool oc_ui_box_is_active(oc_ui_box* box)
     return (box->active);
 }
 
-void oc_ui_box_set_hot(oc_ui_box* box, bool hot)
-{
-    box->hot = hot;
-}
-
-bool oc_ui_box_is_hot(oc_ui_box* box)
-{
-    return (box->hot);
-}
-
 oc_ui_sig oc_ui_box_get_sig(oc_ui_box* box)
 {
     return box->sig;
@@ -1991,16 +1968,6 @@ bool oc_ui_is_active(void)
 void oc_ui_set_active(bool active)
 {
     oc_ui_box_set_active(oc_ui_box_top(), active);
-}
-
-bool oc_ui_is_hot(void)
-{
-    return oc_ui_box_is_hot(oc_ui_box_top());
-}
-
-void oc_ui_set_hot(bool hot)
-{
-    oc_ui_box_set_hot(oc_ui_box_top(), hot);
 }
 
 oc_ui_sig oc_ui_get_sig(void)

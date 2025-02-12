@@ -304,7 +304,6 @@ struct oc_ui_box
     bool closed;
     bool parentClosed;
     bool dragging;
-    bool hot;
     bool active;
     oc_vec2 scroll;
     oc_vec2 pressedMouse;
@@ -368,9 +367,6 @@ ORCA_API void oc_ui_box_set_closed(oc_ui_box* box, bool closed);
 ORCA_API bool oc_ui_box_is_active(oc_ui_box* box);
 ORCA_API void oc_ui_box_set_active(oc_ui_box* box, bool active);
 
-ORCA_API bool oc_ui_box_is_hot(oc_ui_box* box);
-ORCA_API void oc_ui_box_set_hot(oc_ui_box* box, bool hot);
-
 ORCA_API oc_ui_sig oc_ui_box_get_sig(oc_ui_box* box);
 
 // implicit top box helpers
@@ -379,9 +375,6 @@ ORCA_API void oc_ui_set_closed(bool closed);
 
 ORCA_API bool oc_ui_is_active(void);
 ORCA_API void oc_ui_set_active(bool active);
-
-ORCA_API bool oc_ui_is_hot(void);
-ORCA_API void oc_ui_set_hot(bool hot);
 
 ORCA_API oc_ui_sig oc_ui_get_sig(void);
 

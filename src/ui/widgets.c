@@ -45,16 +45,12 @@ oc_ui_sig oc_ui_button_behavior(oc_ui_box* box)
 
     if(sig.hovering)
     {
-        oc_ui_box_set_hot(box, true);
         if(sig.dragging)
         {
             oc_ui_box_set_active(box, true);
         }
     }
-    else
-    {
-        oc_ui_box_set_hot(box, false);
-    }
+
     if(!sig.hovering || !sig.dragging)
     {
         oc_ui_box_set_active(box, false);
@@ -315,21 +311,8 @@ oc_ui_box* oc_ui_slider_str8(oc_str8 name, f32* value)
         if(oc_ui_box_is_active(frame))
         {
             //NOTE: activated from outside
-            oc_ui_box_set_hot(track, true);
-            oc_ui_box_set_hot(thumb, true);
             oc_ui_box_set_active(track, true);
             oc_ui_box_set_active(thumb, true);
-        }
-
-        if(trackSig.hovering)
-        {
-            oc_ui_box_set_hot(track, true);
-            oc_ui_box_set_hot(thumb, true);
-        }
-        else if(thumbSig.wheel.c[trackAxis] == 0)
-        {
-            oc_ui_box_set_hot(track, false);
-            oc_ui_box_set_hot(thumb, false);
         }
 
         if(thumbSig.dragging)
@@ -412,7 +395,6 @@ oc_ui_radio_group_info oc_ui_radio_group_str8(oc_str8 name, oc_ui_radio_group_in
                     {
                         result.selectedIndex = i;
                     }
-                    oc_ui_box_set_hot(radio, sig.hovering);
                     oc_ui_box_set_active(radio, sig.hovering && sig.dragging);
                     oc_ui_box_set_active(row, sig.hovering && sig.dragging);
 
@@ -421,7 +403,7 @@ oc_ui_radio_group_info oc_ui_radio_group_str8(oc_str8 name, oc_ui_radio_group_in
                         oc_ui_style_set_color(OC_UI_COLOR, (oc_color){ 1, 1, 1, 1 });
                         oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_PRIMARY);
 
-                        if(oc_ui_box_is_hot(radio))
+                        if(sig.hovering)
                         {
                             oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_PRIMARY_HOVER);
                         }
@@ -434,7 +416,7 @@ oc_ui_radio_group_info oc_ui_radio_group_str8(oc_str8 name, oc_ui_radio_group_in
                     {
                         oc_ui_style_set_var_str8(OC_UI_BORDER_COLOR, OC_UI_THEME_TEXT_3);
 
-                        if(oc_ui_box_is_hot(radio))
+                        if(sig.hovering)
                         {
                             oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_FILL_0);
                             oc_ui_style_set_var_str8(OC_UI_BORDER_COLOR, OC_UI_THEME_PRIMARY);
@@ -1975,14 +1957,8 @@ oc_ui_text_box_result oc_ui_text_box_str8(oc_str8 key, oc_arena* arena, oc_ui_te
             info->selectionMode = OC_UI_EDIT_MOVE_CHAR;
         }
 
-        if(sig.hovering)
+        if(!sig.hovering)
         {
-            oc_ui_box_set_hot(box, true);
-        }
-        else
-        {
-            oc_ui_box_set_hot(box, false);
-
             if(oc_mouse_pressed(input, OC_MOUSE_LEFT) || oc_mouse_pressed(input, OC_MOUSE_RIGHT) || oc_mouse_pressed(input, OC_MOUSE_MIDDLE))
             {
                 if(oc_ui_box_is_active(box))
