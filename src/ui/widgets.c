@@ -524,9 +524,16 @@ void oc_ui_tooltip(const char* key, const char* text)
 // Menus
 //------------------------------------------------------------------------------
 
+typedef struct oc_ui_menu_info
+{
+    bool active;
+    oc_ui_box* activeMenu;
+
+} oc_ui_menu_info;
+
 void oc_ui_menu_bar_begin_str8(oc_str8 key)
 {
-    oc_ui_box* bar = oc_ui_box_begin_str8(key);
+    oc_ui_box* container = oc_ui_box_begin_str8(key);
     oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
     oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_CHILDREN, 1, 0 });
 
@@ -537,10 +544,27 @@ void oc_ui_menu_bar_begin_str8(oc_str8 key)
     oc_ui_style_set_i32(OC_UI_OVERFLOW_X, OC_UI_OVERFLOW_ALLOW);
     oc_ui_style_set_i32(OC_UI_OVERFLOW_Y, OC_UI_OVERFLOW_ALLOW);
 
+    oc_ui_box* bar = oc_ui_box_begin("menus");
+    oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_CHILDREN, 1 });
+    oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_CHILDREN, 1, 0 });
+    oc_ui_style_set_i32(OC_UI_OVERFLOW_X, OC_UI_OVERFLOW_ALLOW);
+    oc_ui_style_set_i32(OC_UI_OVERFLOW_Y, OC_UI_OVERFLOW_ALLOW);
+
+    oc_ui_menu_info* oldMenuInfo = (oc_ui_menu_info*)oc_ui_box_user_data_get(bar);
+    oc_ui_menu_info* menuInfo = (oc_ui_menu_info*)oc_ui_box_user_data_push(bar, sizeof(oc_ui_menu_info));
+    if(!oldMenuInfo)
+    {
+        memset(menuInfo, 0, sizeof(oc_ui_menu_info));
+    }
+    else
+    {
+        memcpy(menuInfo, oldMenuInfo, sizeof(oc_ui_menu_info));
+    }
+
     oc_ui_sig sig = oc_ui_box_get_sig(bar);
     if(!sig.hovering && oc_mouse_released(oc_ui_input(), OC_MOUSE_LEFT))
     {
-        oc_ui_box_set_active(bar, false);
+        menuInfo->active = false;
     }
 }
 
@@ -551,7 +575,8 @@ void oc_ui_menu_bar_begin(const char* key)
 
 void oc_ui_menu_bar_end(void)
 {
-    oc_ui_box_end(); // menu bar
+    oc_ui_box_end(); // bar
+    oc_ui_box_end(); // container
 }
 
 void oc_ui_menu_begin_str8(oc_str8 key, oc_str8 text)
@@ -597,6 +622,8 @@ void oc_ui_menu_begin_str8(oc_str8 key, oc_str8 text)
     }
 
     oc_ui_box* bar = container->parent;
+    oc_ui_menu_info* menuInfo = (oc_ui_menu_info*)oc_ui_box_user_data_get(bar);
+    OC_DEBUG_ASSERT(menuInfo);
 
     oc_ui_box* menu = oc_ui_box_begin("panel");
 
@@ -620,34 +647,33 @@ void oc_ui_menu_begin_str8(oc_str8 key, oc_str8 text)
     oc_ui_sig sig = oc_ui_box_get_sig(button);
     oc_ui_sig barSig = oc_ui_box_get_sig(bar);
 
-    if(oc_ui_box_is_active(bar))
+    if(menuInfo->active)
     {
         if(sig.hovering)
         {
-            oc_ui_box_set_active(button, true);
+            oc_ui_box_set_closed(menu, false);
         }
         else if(barSig.hovering)
         {
-            oc_ui_box_set_active(button, false);
+            oc_ui_box_set_closed(menu, true);
         }
 
         if(sig.clicked)
         {
-            oc_ui_box_set_active(bar, false);
-            oc_ui_box_set_active(button, false);
+            menuInfo->active = false;
+            oc_ui_box_set_closed(menu, true);
         }
     }
     else
     {
-        oc_ui_box_set_active(button, false);
+        oc_ui_box_set_closed(menu, true);
+
         if(sig.clicked)
         {
-            oc_ui_box_set_active(bar, true);
-            oc_ui_box_set_active(button, true);
+            menuInfo->active = true;
+            oc_ui_box_set_closed(menu, false);
         }
     }
-
-    oc_ui_box_set_closed(menu, !oc_ui_box_is_active(button));
 }
 
 void oc_ui_menu_begin(const char* key, const char* text)

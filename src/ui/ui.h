@@ -311,6 +311,10 @@ struct oc_ui_box
     // animation data
     f32 hotTransition;
     f32 activeTransition;
+
+    // user data
+    u64 userFrameCounter;
+    void* user;
 };
 
 //-------------------------------------------------------------------------------------
@@ -358,6 +362,9 @@ ORCA_API void oc_ui_set_draw_proc(oc_ui_box_draw_proc proc, void* data);
 ORCA_API void oc_ui_set_text(oc_str8 text);
 ORCA_API void oc_ui_set_overlay(bool overlay);
 
+// box user data
+ORCA_API char* oc_ui_box_user_data_get(oc_ui_box* box);
+ORCA_API char* oc_ui_box_user_data_push(oc_ui_box* box, u64 size);
 //-------------------------------------------------------------------------------------
 // Box status and signals
 //-------------------------------------------------------------------------------------

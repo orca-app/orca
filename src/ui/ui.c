@@ -176,7 +176,9 @@ typedef struct oc_ui_context
     f64 frameTime;
     f64 lastFrameDuration;
 
-    oc_arena frameArena;
+    oc_arena frameArenas[2];
+    oc_arena* frameArena;
+
     oc_pool boxPool;
     oc_list boxMap[OC_UI_BOX_MAP_BUCKET_COUNT];
 
@@ -209,12 +211,17 @@ oc_ui_context* oc_ui_context_create(oc_font defaultFont)
     oc_ui_context* ui = oc_malloc_type(oc_ui_context);
     memset(ui, 0, sizeof(oc_ui_context));
 
-    oc_arena_init(&ui->frameArena);
+    for(int i = 0; i < 2; i++)
+    {
+        oc_arena_init(&ui->frameArenas[i]);
+    }
+    ui->frameArena = &ui->frameArenas[0];
+
     oc_pool_init(&ui->boxPool, sizeof(oc_ui_box));
     ui->defaultFont = defaultFont;
 
     ui->styleVariables.mask = (4 << 10) - 1;
-    ui->styleVariables.buckets = oc_arena_push_array(&ui->frameArena, oc_list, 4 << 10);
+    ui->styleVariables.buckets = oc_arena_push_array(ui->frameArena, oc_list, 4 << 10);
     //TODO: we could avoid this with a framecounter for each bucket
     memset(ui->styleVariables.buckets, 0, sizeof(oc_list) * (4 << 10));
 
@@ -231,7 +238,11 @@ void oc_ui_context_destroy(oc_ui_context* context)
     {
         oc_ui_set_context(0);
     }
-    oc_arena_cleanup(&context->frameArena);
+
+    for(int i = 0; i < 2; i++)
+    {
+        oc_arena_cleanup(&context->frameArenas[i]);
+    }
     oc_pool_cleanup(&context->boxPool);
     memset(context, 0, sizeof(oc_ui_context));
 }
@@ -251,7 +262,7 @@ void oc_ui_set_context(oc_ui_context* context)
 //-----------------------------------------------------------------------------
 oc_ui_stack_elt* oc_ui_stack_push(oc_ui_context* ui, oc_ui_stack_elt** stack)
 {
-    oc_ui_stack_elt* elt = oc_arena_push_type(&ui->frameArena, oc_ui_stack_elt);
+    oc_ui_stack_elt* elt = oc_arena_push_type(ui->frameArena, oc_ui_stack_elt);
     memset(elt, 0, sizeof(oc_ui_stack_elt));
     elt->parent = *stack;
     *stack = elt;
@@ -347,7 +358,7 @@ oc_ui_tag oc_ui_tag_make_str8(oc_str8 string)
 void oc_ui_tag_box_str8(oc_ui_box* box, oc_str8 string)
 {
     oc_ui_context* ui = oc_ui_get_context();
-    oc_ui_tag_elt* elt = oc_arena_push_type(&ui->frameArena, oc_ui_tag_elt);
+    oc_ui_tag_elt* elt = oc_arena_push_type(ui->frameArena, oc_ui_tag_elt);
     elt->tag = oc_ui_tag_make_str8(string);
     oc_list_push_back(&box->tags, &elt->listElt);
 }
@@ -355,7 +366,7 @@ void oc_ui_tag_box_str8(oc_ui_box* box, oc_str8 string)
 void oc_ui_tag_next_str8(oc_str8 string)
 {
     oc_ui_context* ui = oc_ui_get_context();
-    oc_ui_tag_elt* elt = oc_arena_push_type(&ui->frameArena, oc_ui_tag_elt);
+    oc_ui_tag_elt* elt = oc_arena_push_type(ui->frameArena, oc_ui_tag_elt);
     elt->tag = oc_ui_tag_make_str8(string);
     oc_list_push_back(&ui->nextBoxTags, &elt->listElt);
 }
@@ -372,7 +383,7 @@ void oc_ui_tag_str8(oc_str8 string)
     }
     else
     {
-        oc_ui_tag_elt* elt = oc_arena_push_type(&ui->frameArena, oc_ui_tag_elt);
+        oc_ui_tag_elt* elt = oc_arena_push_type(ui->frameArena, oc_ui_tag_elt);
         elt->tag = oc_ui_tag_make_str8(string); //TODO: should we copy string?
         oc_list_push_back(&box->tags, &elt->listElt);
     }
@@ -489,7 +500,7 @@ void oc_ui_style_rule_begin(oc_str8 patternString)
                         {
                             oc_str8 string = oc_str8_slice(patternString, selectorStart, index);
                             oc_ui_pattern_push(
-                                &ui->frameArena,
+                                ui->frameArena,
                                 &pattern,
                                 (oc_ui_selector){
                                     .op = nextOp,
@@ -516,7 +527,7 @@ void oc_ui_style_rule_begin(oc_str8 patternString)
                         {
                             oc_str8 string = oc_str8_slice(patternString, selectorStart, index);
                             oc_ui_pattern_push(
-                                &ui->frameArena,
+                                ui->frameArena,
                                 &pattern,
                                 (oc_ui_selector){
                                     .op = nextOp,
@@ -545,7 +556,7 @@ void oc_ui_style_rule_begin(oc_str8 patternString)
                 oc_str8 string = oc_str8_slice(patternString, selectorStart, patternString.len);
 
                 oc_ui_pattern_push(
-                    &ui->frameArena,
+                    ui->frameArena,
                     &pattern,
                     (oc_ui_selector){
                         .op = nextOp,
@@ -555,7 +566,7 @@ void oc_ui_style_rule_begin(oc_str8 patternString)
             }
 
             //NOTE: create the rule and put it on the workbench
-            oc_ui_style_rule* rule = oc_arena_push_type(&ui->frameArena, oc_ui_style_rule);
+            oc_ui_style_rule* rule = oc_arena_push_type(ui->frameArena, oc_ui_style_rule);
             memset(rule, 0, sizeof(oc_ui_style_rule));
             rule->pattern = pattern;
 
@@ -903,7 +914,7 @@ void oc_ui_var_push(oc_str8 name, oc_ui_value value, bool alwaysSet, oc_list* sc
 {
     oc_ui_context* ui = oc_ui_get_context();
 
-    oc_ui_var* var = oc_arena_push_type(&ui->frameArena, oc_ui_var);
+    oc_ui_var* var = oc_arena_push_type(ui->frameArena, oc_ui_var);
 
     u64 hash = oc_hash_xx64_string(name);
     u64 index = hash & ui->styleVariables.mask;
@@ -920,10 +931,10 @@ void oc_ui_var_push(oc_str8 name, oc_ui_value value, bool alwaysSet, oc_list* sc
     }
     if(!stack)
     {
-        stack = oc_arena_push_type(&ui->frameArena, oc_ui_var_stack);
+        stack = oc_arena_push_type(ui->frameArena, oc_ui_var_stack);
         memset(stack, 0, sizeof(oc_ui_var_stack));
 
-        stack->name = oc_str8_push_copy(&ui->frameArena, name);
+        stack->name = oc_str8_push_copy(ui->frameArena, name);
         stack->hash = hash;
         oc_list_push_back(bucket, &stack->bucketElt);
     }
@@ -1457,7 +1468,7 @@ void oc_ui_theme_dark()
 void oc_ui_process_event(oc_event* event)
 {
     oc_ui_context* ui = oc_ui_get_context();
-    oc_input_process_event(&ui->frameArena, &ui->input, event);
+    oc_input_process_event(ui->frameArena, &ui->input, event);
 }
 
 oc_vec2 oc_ui_mouse_position(void)
@@ -1496,7 +1507,7 @@ f64 oc_ui_frame_time()
 oc_arena* oc_ui_frame_arena()
 {
     oc_ui_context* ui = oc_ui_get_context();
-    return &ui->frameArena;
+    return ui->frameArena;
 }
 
 //-----------------------------------------------------------------------------
@@ -1627,7 +1638,7 @@ oc_ui_box* oc_ui_box_begin_str8(oc_str8 string)
         box->fresh = false;
     }
 
-    box->keyString = oc_str8_push_copy(&ui->frameArena, string);
+    box->keyString = oc_str8_push_copy(ui->frameArena, string);
     box->text = (oc_str8){ 0 };
 
     //NOTE: setup hierarchy
@@ -1650,7 +1661,7 @@ oc_ui_box* oc_ui_box_begin_str8(oc_str8 string)
     box->frameCounter = ui->frameCounter;
 
     //NOTE: create style
-    box->targetStyle = oc_arena_push_type(&ui->frameArena, oc_ui_style);
+    box->targetStyle = oc_arena_push_type(ui->frameArena, oc_ui_style);
     memset(box->targetStyle, 0, sizeof(oc_ui_style));
 
     //NOTE: set tags, rules and variables
@@ -1884,7 +1895,7 @@ void oc_ui_box_set_text(oc_ui_box* box, oc_str8 text)
     oc_ui_context* ui = oc_ui_get_context();
     if(ui && box)
     {
-        box->text = oc_str8_push_copy(&ui->frameArena, text);
+        box->text = oc_str8_push_copy(ui->frameArena, text);
     }
 }
 
@@ -1973,6 +1984,25 @@ void oc_ui_set_active(bool active)
 oc_ui_sig oc_ui_get_sig(void)
 {
     return oc_ui_box_get_sig(oc_ui_box_top());
+}
+
+char* oc_ui_box_user_data_get(oc_ui_box* box)
+{
+    char* result = 0;
+    oc_ui_context* ui = oc_ui_get_context();
+    if(box->userFrameCounter == ui->frameCounter || box->userFrameCounter == ui->frameCounter - 1)
+    {
+        result = box->user;
+    }
+    return result;
+}
+
+char* oc_ui_box_user_data_push(oc_ui_box* box, u64 size)
+{
+    oc_ui_context* ui = oc_ui_get_context();
+    box->userFrameCounter = ui->frameCounter;
+    box->user = oc_arena_push(ui->frameArena, size);
+    return box->user;
 }
 
 //-----------------------------------------------------------------------------
@@ -2272,7 +2302,7 @@ oc_ui_style_rule* oc_ui_style_rule_match(oc_ui_context* ui, oc_ui_box* box, oc_u
         else
         {
             //NOTE create derived rule if there's more than one selector
-            derived = oc_arena_push_type(&ui->frameArena, oc_ui_style_rule);
+            derived = oc_arena_push_type(ui->frameArena, oc_ui_style_rule);
             derived->mask = rule->mask;
             derived->style = rule->style;
             derived->pattern.l = (oc_list){ &selector->listElt, rule->pattern.l.last };
@@ -3190,11 +3220,13 @@ void oc_ui_frame_end(void)
         }
     }
 
-    oc_arena_clear(&ui->frameArena);
+    ui->frameArena = (ui->frameArena == &ui->frameArenas[0]) ? &ui->frameArenas[1] : &ui->frameArenas[0];
+    oc_arena_clear(ui->frameArena);
+
     oc_input_next_frame(&ui->input);
 
     //NOTE: we allocate variables map here so that we can push vars from outside frame
-    ui->styleVariables.buckets = oc_arena_push_array(&ui->frameArena, oc_list, 4 << 10);
+    ui->styleVariables.buckets = oc_arena_push_array(ui->frameArena, oc_list, 4 << 10);
     //TODO: we could avoid this with a framecounter for each bucket
     memset(ui->styleVariables.buckets, 0, sizeof(oc_list) * (4 << 10));
 }
