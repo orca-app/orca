@@ -320,7 +320,7 @@ ORCA_EXPORT void oc_on_frame_refresh(void)
                             //-----------------------------------------------------------------------------
                             // Tooltip
                             //-----------------------------------------------------------------------------
-                            if(oc_ui_label("label", "Tooltip").hovering)
+                            if(oc_ui_label("label", "Tooltip").hover)
                             {
                                 oc_ui_tooltip("tooltip", "Hi");
                             }
