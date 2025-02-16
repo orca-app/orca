@@ -188,18 +188,15 @@ typedef struct oc_ui_context
     oc_ui_stack_elt* boxStack;
     oc_ui_stack_elt* clipStack;
 
-    oc_list nextBoxTags;
-
     u32 z;
     oc_ui_box* hovered;
-
     oc_ui_box* focus;
     oc_ui_box* nextFocus;
 
-    //TODO: reorganize
+    oc_font defaultFont;
+    oc_list nextBoxTags;
     oc_ui_var_map styleVariables;
     oc_ui_style_rule* workingRule;
-    oc_font defaultFont;
 
 } oc_ui_context;
 
@@ -387,7 +384,7 @@ void oc_ui_tag_str8(oc_str8 string)
     else
     {
         oc_ui_tag_elt* elt = oc_arena_push_type(ui->frameArena, oc_ui_tag_elt);
-        elt->tag = oc_ui_tag_make_str8(string); //TODO: should we copy string?
+        elt->tag = oc_ui_tag_make_str8(string);
         oc_list_push_back(&box->tags, &elt->listElt);
     }
 }
@@ -880,12 +877,6 @@ void oc_ui_style_set_size(oc_ui_attribute attr, oc_ui_size size)
     }
 }
 
-////////////////////////////////////////////////////////
-// style vars
-
-//TODO: - each frame, clear vars map
-//      - at end of each object, pop variables
-
 oc_ui_var* oc_ui_var_find(oc_str8 name)
 {
     oc_ui_context* ui = oc_ui_get_context();
@@ -1356,7 +1347,6 @@ void oc_ui_style_set_var(oc_ui_attribute attr, const char* name)
 }
 
 // Themes
-
 //TODO: define pre-computed theme name hashes
 
 void oc_ui_theme_light()
@@ -1380,12 +1370,10 @@ void oc_ui_theme_light()
     oc_ui_var_set_color_str8(OC_UI_THEME_BG_3, (oc_color){ 0.96, 0.96, 0.96, 1, OC_COLOR_SPACE_SRGB });
     oc_ui_var_set_color_str8(OC_UI_THEME_BG_4, (oc_color){ 0.96, 0.96, 0.96, 1, OC_COLOR_SPACE_SRGB });
 
-    //TODO: maybe darken this
     oc_ui_var_set_color_str8(OC_UI_THEME_FILL_0, (oc_color){ 0.180, 0.196, 0.220, .1, OC_COLOR_SPACE_SRGB });
     oc_ui_var_set_color_str8(OC_UI_THEME_FILL_1, (oc_color){ 0.180, 0.196, 0.220, .17, OC_COLOR_SPACE_SRGB });
     oc_ui_var_set_color_str8(OC_UI_THEME_FILL_2, (oc_color){ 0.180, 0.196, 0.220, .23, OC_COLOR_SPACE_SRGB });
 
-    //TODO: maybe darken this
     oc_ui_var_set_color_str8(OC_UI_THEME_BORDER, (oc_color){ 0.110, 0.122, 0.137, .16, OC_COLOR_SPACE_SRGB });
 
     oc_ui_var_set_color_str8(OC_UI_THEME_TOOLTIP, (oc_color){ 0.255, 0.275, 0.298, 1, OC_COLOR_SPACE_SRGB });
@@ -3154,8 +3142,6 @@ void oc_ui_frame_end(void)
 
     oc_ui_box* box = oc_ui_box_end(); // root
     OC_DEBUG_ASSERT(box == ui->root, "unbalanced box stack");
-
-    //TODO: check balancing of style stacks
 
     //NOTE: layout
     oc_ui_solve_layout(ui);
