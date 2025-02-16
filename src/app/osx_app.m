@@ -862,6 +862,16 @@ static void oc_process_mouse_button(NSEvent* nsEvent, oc_window_data* window, oc
     [self mouseMoved:nsEvent];
 }
 
+- (void)rightMouseDragged:(NSEvent*)nsEvent
+{
+    [self mouseMoved:nsEvent];
+}
+
+- (void)otherMouseDragged:(NSEvent*)nsEvent
+{
+    [self mouseMoved:nsEvent];
+}
+
 - (void)mouseMoved:(NSEvent*)nsEvent
 {
     NSPoint p = [self convertPoint:[nsEvent locationInWindow] fromView:nil];
