@@ -78,7 +78,7 @@ typedef struct oc_ui_style_rule
 
     oc_ui_box* owner;
     oc_ui_pattern pattern;
-    oc_ui_attr_mask mask;
+    oc_ui_attribute_mask mask;
     oc_ui_style style;
 } oc_ui_style_rule;
 
@@ -598,16 +598,16 @@ void oc_ui_style_rule_end()
 
 //[WIP] ///////////////////////////////////////////////////////////
 
-oc_ui_attr_mask oc_ui_attr_to_mask(oc_ui_attr attr)
+oc_ui_attribute_mask oc_ui_attribute_to_mask(oc_ui_attribute attr)
 {
     //NOTE: for now we have a one to one correspondance between attr and mask,
     //      be in the future we may have combined attr (eg. OC_UI_STYLE_MARGINS to set both margins, etc)
 
-    oc_ui_attr_mask mask = 1 << attr;
+    oc_ui_attribute_mask mask = 1 << attr;
     return mask;
 }
 
-void oc_ui_style_set_i32(oc_ui_attr attr, i32 i)
+void oc_ui_style_set_i32(oc_ui_attribute attr, i32 i)
 {
     oc_ui_context* ui = oc_ui_get_context();
     oc_ui_style* style = 0;
@@ -685,11 +685,11 @@ void oc_ui_style_set_i32(oc_ui_attr attr, i32 i)
 
     if(ui->workingRule)
     {
-        ui->workingRule->mask |= oc_ui_attr_to_mask(attr);
+        ui->workingRule->mask |= oc_ui_attribute_to_mask(attr);
     }
 }
 
-void oc_ui_style_set_f32(oc_ui_attr attr, f32 f)
+void oc_ui_style_set_f32(oc_ui_attribute attr, f32 f)
 {
     oc_ui_context* ui = oc_ui_get_context();
     oc_ui_style* style = 0;
@@ -755,11 +755,11 @@ void oc_ui_style_set_f32(oc_ui_attr attr, f32 f)
 
     if(ui->workingRule)
     {
-        ui->workingRule->mask |= oc_ui_attr_to_mask(attr);
+        ui->workingRule->mask |= oc_ui_attribute_to_mask(attr);
     }
 }
 
-void oc_ui_style_set_color(oc_ui_attr attr, oc_color color)
+void oc_ui_style_set_color(oc_ui_attribute attr, oc_color color)
 {
     oc_ui_context* ui = oc_ui_get_context();
     oc_ui_style* style = 0;
@@ -800,11 +800,11 @@ void oc_ui_style_set_color(oc_ui_attr attr, oc_color color)
 
     if(ui->workingRule)
     {
-        ui->workingRule->mask |= oc_ui_attr_to_mask(attr);
+        ui->workingRule->mask |= oc_ui_attribute_to_mask(attr);
     }
 }
 
-void oc_ui_style_set_font(oc_ui_attr attr, oc_font font)
+void oc_ui_style_set_font(oc_ui_attribute attr, oc_font font)
 {
     oc_ui_context* ui = oc_ui_get_context();
     oc_ui_style* style = 0;
@@ -835,11 +835,11 @@ void oc_ui_style_set_font(oc_ui_attr attr, oc_font font)
 
     if(ui->workingRule)
     {
-        ui->workingRule->mask |= oc_ui_attr_to_mask(attr);
+        ui->workingRule->mask |= oc_ui_attribute_to_mask(attr);
     }
 }
 
-void oc_ui_style_set_size(oc_ui_attr attr, oc_ui_size size)
+void oc_ui_style_set_size(oc_ui_attribute attr, oc_ui_size size)
 {
     oc_ui_context* ui = oc_ui_get_context();
     oc_ui_style* style = 0;
@@ -876,7 +876,7 @@ void oc_ui_style_set_size(oc_ui_attr attr, oc_ui_size size)
 
     if(ui->workingRule)
     {
-        ui->workingRule->mask |= oc_ui_attr_to_mask(attr);
+        ui->workingRule->mask |= oc_ui_attribute_to_mask(attr);
     }
 }
 
@@ -1271,7 +1271,7 @@ oc_font oc_ui_var_get_font(const char* name)
 }
 
 //NOTE: setting a style attribute from a variable
-void oc_ui_style_set_var_str8(oc_ui_attr attr, oc_str8 name)
+void oc_ui_style_set_var_str8(oc_ui_attribute attr, oc_str8 name)
 {
     oc_ui_value value = { 0 };
     oc_ui_var* var = oc_ui_var_find(name);
@@ -1325,7 +1325,7 @@ void oc_ui_style_set_var_str8(oc_ui_attr attr, oc_str8 name)
                 value.kind = OC_UI_VAR_FONT;
                 break;
 
-            case OC_UI_ATTR_COUNT:
+            case OC_UI_ATTRIBUTE_COUNT:
                 OC_ASSERT(0, "unreachable");
                 break;
         }
@@ -1350,7 +1350,7 @@ void oc_ui_style_set_var_str8(oc_ui_attr attr, oc_str8 name)
     }
 }
 
-void oc_ui_style_set_var(oc_ui_attr attr, const char* name)
+void oc_ui_style_set_var(oc_ui_attribute attr, const char* name)
 {
     oc_ui_style_set_var_str8(attr, OC_STR8(name));
 }
@@ -2054,7 +2054,7 @@ void oc_ui_box_animate_style(oc_ui_context* ui, oc_ui_box* box)
     f32 animationTime = targetStyle->animationTime;
 
     //NOTE: interpolate based on transition values
-    oc_ui_attr_mask mask = box->targetStyle->animationMask;
+    oc_ui_attribute_mask mask = box->targetStyle->animationMask;
 
     if(box->fresh)
     {
@@ -2143,12 +2143,12 @@ void oc_ui_box_animate_style(oc_ui_context* ui, oc_ui_box* box)
     }
 }
 
-bool oc_ui_style_apply_check(oc_ui_attr attr,
-                             oc_ui_attr_mask mask,
+bool oc_ui_style_apply_check(oc_ui_attribute attr,
+                             oc_ui_attribute_mask mask,
                              oc_ui_pattern_specificity specificity,
                              oc_ui_pattern_specificity* specArray)
 {
-    bool result = (mask & oc_ui_attr_to_mask(attr))
+    bool result = (mask & oc_ui_attribute_to_mask(attr))
                && (specificity.id >= specArray[attr].id
                    || (specificity.id == specArray[attr].id && specificity.tag >= specArray[attr].tag));
     if(result)
@@ -2160,7 +2160,7 @@ bool oc_ui_style_apply_check(oc_ui_attr attr,
 
 void oc_ui_style_apply(oc_ui_style* dst,
                        oc_ui_style* src,
-                       oc_ui_attr_mask mask,
+                       oc_ui_attribute_mask mask,
                        oc_ui_pattern_specificity specificity,
                        oc_ui_pattern_specificity* specArray)
 {
@@ -2310,58 +2310,6 @@ oc_ui_style_rule* oc_ui_style_rule_match(oc_ui_context* ui, oc_ui_box* box, oc_u
     return derived;
 }
 
-/*
-void oc_ui_styling_prepass(oc_ui_context* ui,
-                           oc_ui_box* box,
-                           u32 rulesetCount,
-                           oc_ui_style_rule** ruleset,
-                           u32 derivedCount,
-                           oc_ui_style_rule** derivedRules)
-{
-    oc_arena_scope scratch = oc_scratch_begin();
-
-    //NOTE: form local ruleset from parent ruleset, derivedRules, and box rules
-    u32 localRuleCount = rulesetCount + derivedCount + box->ruleCount;
-    oc_ui_style_rule** localRules = oc_arena_push_array(scratch.arena, oc_ui_style_rule*, localRuleCount);
-
-    memcpy(localRules, ruleset, rulesetCount * sizeof(oc_ui_style_rule*));
-    memcpy(localRules + rulesetCount * sizeof(oc_ui_style_rule*), derivedRules, derivedCount * sizeof(oc_ui_style_rule*));
-
-    u32 index = rulesetCount + derivedCount;
-    oc_list_for(box->rules, rule, oc_ui_style_rule, boxElt)
-    {
-        localRules[index] = rule;
-        index++;
-    }
-
-    //NOTE: match ruleset, applying style and producing at most as many derived rules
-    oc_ui_style_rule** localDerived = oc_arena_push_array(scratch.arena, oc_ui_style_rule*, localRuleCount);
-    u32 localDerivedCount = 0;
-    for(u32 i = 0; i < localRuleCount; i++)
-    {
-        oc_ui_style_rule* derived = oc_ui_style_match(scratch.arena, box, rule);
-        if(derived)
-        {
-            localDerived[localDerivedCount] = derived;
-            localDerivedCount++;
-        }
-    }
-
-    //NOTE: recurse in children
-    oc_list_for(box->children, child, oc_ui_box, parentElt)
-    {
-        oc_ui_styling_prepass(ui,
-                              child,
-                              localRuleCount,
-                              localRuleset,
-                              localDerivedCount,
-                              localRerived);
-    }
-
-    oc_scratch_end();
-}
-*/
-
 void oc_ui_styling_prepass(oc_ui_context* ui, oc_ui_box* box, oc_list* ruleset)
 {
     oc_list saveParent = *ruleset;
@@ -2376,8 +2324,8 @@ void oc_ui_styling_prepass(oc_ui_context* ui, oc_ui_box* box, oc_list* ruleset)
 
     oc_arena_scope scratch = oc_scratch_begin();
 
-    oc_ui_pattern_specificity* specArray = oc_arena_push_array(scratch.arena, oc_ui_pattern_specificity, OC_UI_ATTR_COUNT);
-    memset(specArray, 0, sizeof(oc_ui_pattern_specificity) * OC_UI_ATTR_COUNT);
+    oc_ui_pattern_specificity* specArray = oc_arena_push_array(scratch.arena, oc_ui_pattern_specificity, OC_UI_ATTRIBUTE_COUNT);
+    memset(specArray, 0, sizeof(oc_ui_pattern_specificity) * OC_UI_ATTRIBUTE_COUNT);
 
     oc_list derivedRules = { 0 };
     oc_list_for(*ruleset, rule, oc_ui_style_rule, rulesetElt)

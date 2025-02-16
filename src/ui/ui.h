@@ -55,7 +55,7 @@ typedef enum oc_ui_overflow
     OC_UI_OVERFLOW_SCROLL,
 } oc_ui_overflow;
 
-typedef enum oc_ui_attr
+typedef enum oc_ui_attribute
 {
     //WARN: flags for axis-dependent properties (e.g. OC_UI_STYLE_FLOAT_X/Y) need to stay consecutive bits
     //      in order to play well with axis agnostic functions
@@ -88,10 +88,10 @@ typedef enum oc_ui_attr
     OC_UI_ANIMATION_MASK,
     OC_UI_CLICK_THROUGH,
 
-    OC_UI_ATTR_COUNT,
-} oc_ui_attr;
+    OC_UI_ATTRIBUTE_COUNT,
+} oc_ui_attribute;
 
-typedef enum oc_ui_attr_mask
+typedef enum oc_ui_attribute_mask
 {
     OC_UI_MASK_NONE = 0,
     OC_UI_MASK_SIZE_WIDTH = 1 << OC_UI_WIDTH,
@@ -122,7 +122,7 @@ typedef enum oc_ui_attr_mask
     OC_UI_MASK_ANIMATION_MASK = 1 << OC_UI_ANIMATION_MASK,
     OC_UI_MASK_CLICK_THROUGH = 1 << OC_UI_CLICK_THROUGH,
 
-} oc_ui_attr_mask;
+} oc_ui_attribute_mask;
 
 typedef union oc_ui_layout_align
 {
@@ -223,7 +223,7 @@ typedef struct oc_ui_style
     f32 roundness;
     u32 drawMask;
     f32 animationTime;
-    oc_ui_attr_mask animationMask;
+    oc_ui_attribute_mask animationMask;
     bool clickThrough;
 } oc_ui_style;
 
@@ -302,6 +302,7 @@ struct oc_ui_box
     oc_ui_sig sig;
 
     // stateful behaviour
+    //TODO: collapse some of them into sig.
     bool fresh;
     bool closed;
     bool parentClosed;
@@ -406,13 +407,13 @@ ORCA_API void oc_ui_style_rule_end();
 #define oc_ui_style_rule(p) oc_defer_loop(oc_ui_style_rule_begin(OC_STR8(p)), oc_ui_style_rule_end())
 #define oc_ui_style_rule_str8(p) oc_defer_loop(oc_ui_style_rule_begin(p), oc_ui_style_rule_end())
 
-ORCA_API void oc_ui_style_set_i32(oc_ui_attr attr, i32 i);
-ORCA_API void oc_ui_style_set_f32(oc_ui_attr attr, f32 f);
-ORCA_API void oc_ui_style_set_color(oc_ui_attr attr, oc_color color);
-ORCA_API void oc_ui_style_set_font(oc_ui_attr attr, oc_font font);
-ORCA_API void oc_ui_style_set_size(oc_ui_attr attr, oc_ui_size size);
-ORCA_API void oc_ui_style_set_var_str8(oc_ui_attr attr, oc_str8 var);
-ORCA_API void oc_ui_style_set_var(oc_ui_attr attr, const char* var);
+ORCA_API void oc_ui_style_set_i32(oc_ui_attribute attr, i32 i);
+ORCA_API void oc_ui_style_set_f32(oc_ui_attribute attr, f32 f);
+ORCA_API void oc_ui_style_set_color(oc_ui_attribute attr, oc_color color);
+ORCA_API void oc_ui_style_set_font(oc_ui_attribute attr, oc_font font);
+ORCA_API void oc_ui_style_set_size(oc_ui_attribute attr, oc_ui_size size);
+ORCA_API void oc_ui_style_set_var_str8(oc_ui_attribute attr, oc_str8 var);
+ORCA_API void oc_ui_style_set_var(oc_ui_attribute attr, const char* var);
 
 //-------------------------------------------------------------------------------------
 // Style variables

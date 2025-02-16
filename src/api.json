@@ -11864,7 +11864,7 @@
         },
         {
             "kind": "typename",
-            "name": "oc_ui_attr",
+            "name": "oc_ui_attribute",
             "type": {
                 "kind": "enum",
                 "type": {
@@ -12008,7 +12008,7 @@
                     },
                     {
                         "kind": "enum-constant",
-                        "name": "OC_UI_ATTR_COUNT",
+                        "name": "OC_UI_ATTRIBUTE_COUNT",
                         "value": 27
                     }
                 ]
@@ -12016,7 +12016,7 @@
         },
         {
             "kind": "typename",
-            "name": "oc_ui_attr_mask",
+            "name": "oc_ui_attribute_mask",
             "type": {
                 "kind": "enum",
                 "type": {
@@ -12563,7 +12563,7 @@
                         "name": "animationMask",
                         "type": {
                             "kind": "namedType",
-                            "name": "oc_ui_attr_mask"
+                            "name": "oc_ui_attribute_mask"
                         }
                     },
                     {
@@ -13623,7 +13623,7 @@
                     "name": "attr",
                     "type": {
                         "kind": "namedType",
-                        "name": "oc_ui_attr"
+                        "name": "oc_ui_attribute"
                     }
                 },
                 {
@@ -13645,7 +13645,7 @@
                     "name": "attr",
                     "type": {
                         "kind": "namedType",
-                        "name": "oc_ui_attr"
+                        "name": "oc_ui_attribute"
                     }
                 },
                 {
@@ -13667,7 +13667,7 @@
                     "name": "attr",
                     "type": {
                         "kind": "namedType",
-                        "name": "oc_ui_attr"
+                        "name": "oc_ui_attribute"
                     }
                 },
                 {
@@ -13690,7 +13690,7 @@
                     "name": "attr",
                     "type": {
                         "kind": "namedType",
-                        "name": "oc_ui_attr"
+                        "name": "oc_ui_attribute"
                     }
                 },
                 {
@@ -13713,7 +13713,7 @@
                     "name": "attr",
                     "type": {
                         "kind": "namedType",
-                        "name": "oc_ui_attr"
+                        "name": "oc_ui_attribute"
                     }
                 },
                 {
@@ -13736,7 +13736,7 @@
                     "name": "attr",
                     "type": {
                         "kind": "namedType",
-                        "name": "oc_ui_attr"
+                        "name": "oc_ui_attribute"
                     }
                 },
                 {
@@ -13759,7 +13759,7 @@
                     "name": "attr",
                     "type": {
                         "kind": "namedType",
-                        "name": "oc_ui_attr"
+                        "name": "oc_ui_attribute"
                     }
                 },
                 {
