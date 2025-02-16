@@ -190,7 +190,7 @@ oc_ui_box* oc_ui_slider_str8(oc_str8 name, f32* value)
         oc_ui_style_set_i32(OC_UI_ALIGN_X + secondAxis, OC_UI_ALIGN_CENTER);
 
         f32 trackThickness = 4;
-        f32 thumbSize = 24;
+        f32 thumbSize = oc_min(frame->rect.w, frame->rect.h) - 2;
 
         f32 beforeRatio, afterRatio, thumbRatio, trackFillRatio;
         if(trackAxis == OC_UI_AXIS_X)

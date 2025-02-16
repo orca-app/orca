@@ -298,7 +298,7 @@ ORCA_EXPORT void oc_on_frame_refresh(void)
 
                         oc_ui_style_rule("v_slider")
                         {
-                            oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PIXELS, 32 });
+                            oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PIXELS, 24 });
                             oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PIXELS, 130 });
                         }
 
@@ -355,7 +355,7 @@ ORCA_EXPORT void oc_on_frame_refresh(void)
                             oc_ui_style_rule("h_slider")
                             {
                                 oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PIXELS, 130 });
-                                oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PIXELS, 32 });
+                                oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PIXELS, 24 });
                             }
 
                             oc_ui_slider("h_slider", &hSliderValue);
