@@ -95,7 +95,7 @@ typedef struct oc_debug_overlay
 
     oc_font fontReg;
     oc_font fontBold;
-    oc_ui_context ui;
+    oc_ui_context* ui;
 
     oc_arena logArena;
     oc_list logEntries;
@@ -114,7 +114,7 @@ typedef struct oc_debugger_ui
     oc_canvas_renderer renderer;
     oc_surface surface;
     oc_canvas_context canvas;
-    oc_ui_context ui;
+    oc_ui_context* ui;
 
 } oc_debugger_ui;
 

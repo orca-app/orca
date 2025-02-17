@@ -11702,22 +11702,14 @@
                     }
                 }
             ]
-        },
-        {
-            "kind": "typename",
-            "name": "oc_ui_key",
-            "type": {
-                "kind": "struct",
-                "fields": [
-                    {
-                        "name": "hash",
-                        "type": {
-                            "kind": "u64"
-                        }
-                    }
-                ]
-            }
-        },
+        }
+    ]
+},
+{
+    "kind": "module",
+    "name": "UI Core",
+    "brief": "Graphical User Interface Core API.",
+    "contents": [
         {
             "kind": "typename",
             "name": "oc_ui_axis",
@@ -11768,6 +11760,408 @@
                         "kind": "enum-constant",
                         "name": "OC_UI_ALIGN_CENTER",
                         "value": 2
+                    }
+                ]
+            }
+        },
+        {
+            "kind": "typename",
+            "name": "oc_ui_size_kind",
+            "type": {
+                "kind": "enum",
+                "type": {
+                    "kind": "u32"
+                },
+                "constants": [
+                    {
+                        "kind": "enum-constant",
+                        "name": "OC_UI_SIZE_CHILDREN",
+                        "value": 0
+                    },
+                    {
+                        "kind": "enum-constant",
+                        "name": "OC_UI_SIZE_TEXT",
+                        "value": 1
+                    },
+                    {
+                        "kind": "enum-constant",
+                        "name": "OC_UI_SIZE_PIXELS",
+                        "value": 2
+                    },
+                    {
+                        "kind": "enum-constant",
+                        "name": "OC_UI_SIZE_PARENT",
+                        "value": 3
+                    },
+                    {
+                        "kind": "enum-constant",
+                        "name": "OC_UI_SIZE_PARENT_MINUS_PIXELS",
+                        "value": 4
+                    }
+                ]
+            }
+        },
+        {
+            "kind": "typename",
+            "name": "oc_ui_size",
+            "type": {
+                "kind": "struct",
+                "fields": [
+                    {
+                        "name": "kind",
+                        "type": {
+                            "kind": "namedType",
+                            "name": "oc_ui_size_kind"
+                        }
+                    },
+                    {
+                        "name": "value",
+                        "type": {
+                            "kind": "f32"
+                        }
+                    },
+                    {
+                        "name": "relax",
+                        "type": {
+                            "kind": "f32"
+                        }
+                    },
+                    {
+                        "name": "minSize",
+                        "type": {
+                            "kind": "f32"
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "kind": "typename",
+            "name": "oc_ui_overflow",
+            "type": {
+                "kind": "enum",
+                "type": {
+                    "kind": "u32"
+                },
+                "constants": [
+                    {
+                        "kind": "enum-constant",
+                        "name": "OC_UI_OVERFLOW_CLIP",
+                        "value": 0
+                    },
+                    {
+                        "kind": "enum-constant",
+                        "name": "OC_UI_OVERFLOW_ALLOW",
+                        "value": 1
+                    },
+                    {
+                        "kind": "enum-constant",
+                        "name": "OC_UI_OVERFLOW_SCROLL",
+                        "value": 2
+                    }
+                ]
+            }
+        },
+        {
+            "kind": "typename",
+            "name": "oc_ui_attribute",
+            "type": {
+                "kind": "enum",
+                "type": {
+                    "kind": "u32"
+                },
+                "constants": [
+                    {
+                        "kind": "enum-constant",
+                        "name": "OC_UI_WIDTH",
+                        "value": 0
+                    },
+                    {
+                        "kind": "enum-constant",
+                        "name": "OC_UI_HEIGHT",
+                        "value": 1
+                    },
+                    {
+                        "kind": "enum-constant",
+                        "name": "OC_UI_AXIS",
+                        "value": 2
+                    },
+                    {
+                        "kind": "enum-constant",
+                        "name": "OC_UI_MARGIN_X",
+                        "value": 3
+                    },
+                    {
+                        "kind": "enum-constant",
+                        "name": "OC_UI_MARGIN_Y",
+                        "value": 4
+                    },
+                    {
+                        "kind": "enum-constant",
+                        "name": "OC_UI_SPACING",
+                        "value": 5
+                    },
+                    {
+                        "kind": "enum-constant",
+                        "name": "OC_UI_ALIGN_X",
+                        "value": 6
+                    },
+                    {
+                        "kind": "enum-constant",
+                        "name": "OC_UI_ALIGN_Y",
+                        "value": 7
+                    },
+                    {
+                        "kind": "enum-constant",
+                        "name": "OC_UI_FLOATING_X",
+                        "value": 8
+                    },
+                    {
+                        "kind": "enum-constant",
+                        "name": "OC_UI_FLOATING_Y",
+                        "value": 9
+                    },
+                    {
+                        "kind": "enum-constant",
+                        "name": "OC_UI_FLOAT_TARGET_X",
+                        "value": 10
+                    },
+                    {
+                        "kind": "enum-constant",
+                        "name": "OC_UI_FLOAT_TARGET_Y",
+                        "value": 11
+                    },
+                    {
+                        "kind": "enum-constant",
+                        "name": "OC_UI_OVERFLOW_X",
+                        "value": 12
+                    },
+                    {
+                        "kind": "enum-constant",
+                        "name": "OC_UI_OVERFLOW_Y",
+                        "value": 13
+                    },
+                    {
+                        "kind": "enum-constant",
+                        "name": "OC_UI_CONSTRAIN_X",
+                        "value": 14
+                    },
+                    {
+                        "kind": "enum-constant",
+                        "name": "OC_UI_CONSTRAIN_Y",
+                        "value": 15
+                    },
+                    {
+                        "kind": "enum-constant",
+                        "name": "OC_UI_COLOR",
+                        "value": 16
+                    },
+                    {
+                        "kind": "enum-constant",
+                        "name": "OC_UI_BG_COLOR",
+                        "value": 17
+                    },
+                    {
+                        "kind": "enum-constant",
+                        "name": "OC_UI_BORDER_COLOR",
+                        "value": 18
+                    },
+                    {
+                        "kind": "enum-constant",
+                        "name": "OC_UI_FONT",
+                        "value": 19
+                    },
+                    {
+                        "kind": "enum-constant",
+                        "name": "OC_UI_TEXT_SIZE",
+                        "value": 20
+                    },
+                    {
+                        "kind": "enum-constant",
+                        "name": "OC_UI_BORDER_SIZE",
+                        "value": 21
+                    },
+                    {
+                        "kind": "enum-constant",
+                        "name": "OC_UI_ROUNDNESS",
+                        "value": 22
+                    },
+                    {
+                        "kind": "enum-constant",
+                        "name": "OC_UI_DRAW_MASK",
+                        "value": 23
+                    },
+                    {
+                        "kind": "enum-constant",
+                        "name": "OC_UI_ANIMATION_TIME",
+                        "value": 24
+                    },
+                    {
+                        "kind": "enum-constant",
+                        "name": "OC_UI_ANIMATION_MASK",
+                        "value": 25
+                    },
+                    {
+                        "kind": "enum-constant",
+                        "name": "OC_UI_CLICK_THROUGH",
+                        "value": 26
+                    },
+                    {
+                        "kind": "enum-constant",
+                        "name": "OC_UI_ATTRIBUTE_COUNT",
+                        "value": 27
+                    }
+                ]
+            }
+        },
+        {
+            "kind": "typename",
+            "name": "oc_ui_attribute_mask",
+            "type": {
+                "kind": "enum",
+                "type": {
+                    "kind": "u32"
+                },
+                "constants": [
+                    {
+                        "kind": "enum-constant",
+                        "name": "OC_UI_MASK_NONE",
+                        "value": 0
+                    },
+                    {
+                        "kind": "enum-constant",
+                        "name": "OC_UI_MASK_SIZE_WIDTH",
+                        "value": 1
+                    },
+                    {
+                        "kind": "enum-constant",
+                        "name": "OC_UI_MASK_SIZE_HEIGHT",
+                        "value": 2
+                    },
+                    {
+                        "kind": "enum-constant",
+                        "name": "OC_UI_MASK_LAYOUT_AXIS",
+                        "value": 4
+                    },
+                    {
+                        "kind": "enum-constant",
+                        "name": "OC_UI_MASK_LAYOUT_ALIGN_X",
+                        "value": 64
+                    },
+                    {
+                        "kind": "enum-constant",
+                        "name": "OC_UI_MASK_LAYOUT_ALIGN_Y",
+                        "value": 128
+                    },
+                    {
+                        "kind": "enum-constant",
+                        "name": "OC_UI_MASK_LAYOUT_SPACING",
+                        "value": 32
+                    },
+                    {
+                        "kind": "enum-constant",
+                        "name": "OC_UI_MASK_LAYOUT_MARGIN_X",
+                        "value": 8
+                    },
+                    {
+                        "kind": "enum-constant",
+                        "name": "OC_UI_MASK_LAYOUT_MARGIN_Y",
+                        "value": 16
+                    },
+                    {
+                        "kind": "enum-constant",
+                        "name": "OC_UI_MASK_FLOATING_X",
+                        "value": 256
+                    },
+                    {
+                        "kind": "enum-constant",
+                        "name": "OC_UI_MASK_FLOATING_Y",
+                        "value": 512
+                    },
+                    {
+                        "kind": "enum-constant",
+                        "name": "OC_UI_MASK_FLOAT_TARGET_X",
+                        "value": 1024
+                    },
+                    {
+                        "kind": "enum-constant",
+                        "name": "OC_UI_MASK_FLOAT_TARGET_Y",
+                        "value": 2048
+                    },
+                    {
+                        "kind": "enum-constant",
+                        "name": "OC_UI_MASK_OVERFLOW_X",
+                        "value": 4096
+                    },
+                    {
+                        "kind": "enum-constant",
+                        "name": "OC_UI_MASK_OVERFLOW_Y",
+                        "value": 8192
+                    },
+                    {
+                        "kind": "enum-constant",
+                        "name": "OC_UI_MASK_CONSTRAIN_X",
+                        "value": 16384
+                    },
+                    {
+                        "kind": "enum-constant",
+                        "name": "OC_UI_MASK_CONSTRAIN_Y",
+                        "value": 32768
+                    },
+                    {
+                        "kind": "enum-constant",
+                        "name": "OC_UI_MASK_COLOR",
+                        "value": 65536
+                    },
+                    {
+                        "kind": "enum-constant",
+                        "name": "OC_UI_MASK_BG_COLOR",
+                        "value": 131072
+                    },
+                    {
+                        "kind": "enum-constant",
+                        "name": "OC_UI_MASK_BORDER_COLOR",
+                        "value": 262144
+                    },
+                    {
+                        "kind": "enum-constant",
+                        "name": "OC_UI_MASK_BORDER_SIZE",
+                        "value": 2097152
+                    },
+                    {
+                        "kind": "enum-constant",
+                        "name": "OC_UI_MASK_ROUNDNESS",
+                        "value": 4194304
+                    },
+                    {
+                        "kind": "enum-constant",
+                        "name": "OC_UI_MASK_FONT",
+                        "value": 524288
+                    },
+                    {
+                        "kind": "enum-constant",
+                        "name": "OC_UI_MASK_FONT_SIZE",
+                        "value": 1048576
+                    },
+                    {
+                        "kind": "enum-constant",
+                        "name": "OC_UI_MASK_DRAW_MASK",
+                        "value": 8388608
+                    },
+                    {
+                        "kind": "enum-constant",
+                        "name": "OC_UI_MASK_ANIMATION_TIME",
+                        "value": 16777216
+                    },
+                    {
+                        "kind": "enum-constant",
+                        "name": "OC_UI_MASK_ANIMATION_MASK",
+                        "value": 33554432
+                    },
+                    {
+                        "kind": "enum-constant",
+                        "name": "OC_UI_MASK_CLICK_THROUGH",
+                        "value": 67108864
                     }
                 ]
             }
@@ -11877,76 +12271,84 @@
                             "kind": "namedType",
                             "name": "oc_ui_layout_align"
                         }
-                    }
-                ]
-            }
-        },
-        {
-            "kind": "typename",
-            "name": "oc_ui_size_kind",
-            "type": {
-                "kind": "enum",
-                "type": {
-                    "kind": "u32"
-                },
-                "constants": [
-                    {
-                        "kind": "enum-constant",
-                        "name": "OC_UI_SIZE_TEXT",
-                        "value": 0
                     },
                     {
-                        "kind": "enum-constant",
-                        "name": "OC_UI_SIZE_PIXELS",
-                        "value": 1
-                    },
-                    {
-                        "kind": "enum-constant",
-                        "name": "OC_UI_SIZE_CHILDREN",
-                        "value": 2
-                    },
-                    {
-                        "kind": "enum-constant",
-                        "name": "OC_UI_SIZE_PARENT",
-                        "value": 3
-                    },
-                    {
-                        "kind": "enum-constant",
-                        "name": "OC_UI_SIZE_PARENT_MINUS_PIXELS",
-                        "value": 4
-                    }
-                ]
-            }
-        },
-        {
-            "kind": "typename",
-            "name": "oc_ui_size",
-            "type": {
-                "kind": "struct",
-                "fields": [
-                    {
-                        "name": "kind",
+                        "name": "overflow",
                         "type": {
-                            "kind": "namedType",
-                            "name": "oc_ui_size_kind"
+                            "kind": "union",
+                            "fields": [
+                                {
+                                    "name": "",
+                                    "type": {
+                                        "kind": "struct",
+                                        "fields": [
+                                            {
+                                                "name": "x",
+                                                "type": {
+                                                    "kind": "namedType",
+                                                    "name": "oc_ui_overflow"
+                                                }
+                                            },
+                                            {
+                                                "name": "y",
+                                                "type": {
+                                                    "kind": "namedType",
+                                                    "name": "oc_ui_overflow"
+                                                }
+                                            }
+                                        ]
+                                    }
+                                },
+                                {
+                                    "name": "c",
+                                    "type": {
+                                        "kind": "array",
+                                        "type": {
+                                            "kind": "namedType",
+                                            "name": "oc_ui_overflow"
+                                        },
+                                        "count": 2
+                                    }
+                                }
+                            ]
                         }
                     },
                     {
-                        "name": "value",
+                        "name": "constrain",
                         "type": {
-                            "kind": "f32"
-                        }
-                    },
-                    {
-                        "name": "relax",
-                        "type": {
-                            "kind": "f32"
-                        }
-                    },
-                    {
-                        "name": "minSize",
-                        "type": {
-                            "kind": "f32"
+                            "kind": "union",
+                            "fields": [
+                                {
+                                    "name": "",
+                                    "type": {
+                                        "kind": "struct",
+                                        "fields": [
+                                            {
+                                                "name": "x",
+                                                "type": {
+                                                    "kind": "bool"
+                                                }
+                                            },
+                                            {
+                                                "name": "y",
+                                                "type": {
+                                                    "kind": "bool"
+                                                }
+                                            }
+                                        ]
+                                    }
+                                },
+                                {
+                                    "name": "c",
+                                    "type": {
+                                        "kind": "array",
+                                        "type": {
+                                            "kind": "bool"
+                                        },
+                                        "count": 2
+                                    }
+                                }
+                            ]
                         }
                     }
                 ]
@@ -12035,14 +12437,7 @@
         },
         {
             "kind": "typename",
-            "name": "oc_ui_style_mask",
-            "type": {
-                "kind": "u64"
-            }
-        },
-        {
-            "kind": "typename",
-            "name": "",
+            "name": "oc_ui_draw_mask",
             "type": {
                 "kind": "enum",
                 "type": {
@@ -12051,128 +12446,23 @@
                 "constants": [
                     {
                         "kind": "enum-constant",
-                        "name": "OC_UI_STYLE_NONE",
-                        "value": 0
+                        "name": "OC_UI_DRAW_MASK_BACKGROUND",
+                        "value": 1
                     },
                     {
                         "kind": "enum-constant",
-                        "name": "OC_UI_STYLE_SIZE_WIDTH",
+                        "name": "OC_UI_DRAW_MASK_BORDER",
                         "value": 2
                     },
                     {
                         "kind": "enum-constant",
-                        "name": "OC_UI_STYLE_SIZE_HEIGHT",
+                        "name": "OC_UI_DRAW_MASK_TEXT",
                         "value": 4
                     },
                     {
                         "kind": "enum-constant",
-                        "name": "OC_UI_STYLE_LAYOUT_AXIS",
+                        "name": "OC_UI_DRAW_MASK_PROC",
                         "value": 8
-                    },
-                    {
-                        "kind": "enum-constant",
-                        "name": "OC_UI_STYLE_LAYOUT_ALIGN_X",
-                        "value": 16
-                    },
-                    {
-                        "kind": "enum-constant",
-                        "name": "OC_UI_STYLE_LAYOUT_ALIGN_Y",
-                        "value": 32
-                    },
-                    {
-                        "kind": "enum-constant",
-                        "name": "OC_UI_STYLE_LAYOUT_SPACING",
-                        "value": 64
-                    },
-                    {
-                        "kind": "enum-constant",
-                        "name": "OC_UI_STYLE_LAYOUT_MARGIN_X",
-                        "value": 128
-                    },
-                    {
-                        "kind": "enum-constant",
-                        "name": "OC_UI_STYLE_LAYOUT_MARGIN_Y",
-                        "value": 256
-                    },
-                    {
-                        "kind": "enum-constant",
-                        "name": "OC_UI_STYLE_FLOAT_X",
-                        "value": 512
-                    },
-                    {
-                        "kind": "enum-constant",
-                        "name": "OC_UI_STYLE_FLOAT_Y",
-                        "value": 1024
-                    },
-                    {
-                        "kind": "enum-constant",
-                        "name": "OC_UI_STYLE_COLOR",
-                        "value": 2048
-                    },
-                    {
-                        "kind": "enum-constant",
-                        "name": "OC_UI_STYLE_BG_COLOR",
-                        "value": 4096
-                    },
-                    {
-                        "kind": "enum-constant",
-                        "name": "OC_UI_STYLE_BORDER_COLOR",
-                        "value": 8192
-                    },
-                    {
-                        "kind": "enum-constant",
-                        "name": "OC_UI_STYLE_BORDER_SIZE",
-                        "value": 16384
-                    },
-                    {
-                        "kind": "enum-constant",
-                        "name": "OC_UI_STYLE_ROUNDNESS",
-                        "value": 32768
-                    },
-                    {
-                        "kind": "enum-constant",
-                        "name": "OC_UI_STYLE_FONT",
-                        "value": 65536
-                    },
-                    {
-                        "kind": "enum-constant",
-                        "name": "OC_UI_STYLE_FONT_SIZE",
-                        "value": 131072
-                    },
-                    {
-                        "kind": "enum-constant",
-                        "name": "OC_UI_STYLE_ANIMATION_TIME",
-                        "value": 262144
-                    },
-                    {
-                        "kind": "enum-constant",
-                        "name": "OC_UI_STYLE_ANIMATION_MASK",
-                        "value": 524288
-                    },
-                    {
-                        "kind": "enum-constant",
-                        "name": "OC_UI_STYLE_SIZE",
-                        "value": 6
-                    },
-                    {
-                        "kind": "enum-constant",
-                        "name": "OC_UI_STYLE_LAYOUT_MARGINS",
-                        "value": 384
-                    },
-                    {
-                        "kind": "enum-constant",
-                        "name": "OC_UI_STYLE_LAYOUT",
-                        "value": 504
-                    },
-                    {
-                        "kind": "enum-constant",
-                        "name": "OC_UI_STYLE_FLOAT",
-                        "value": 1536
-                    },
-                    {
-                        "kind": "enum-constant",
-                        "name": "OC_UI_STYLE_MASK_INHERITED",
-                        "value": 985088
                     }
                 ]
             }
@@ -12258,6 +12548,12 @@
                         }
                     },
                     {
+                        "name": "drawMask",
+                        "type": {
+                            "kind": "u32"
+                        }
+                    },
+                    {
                         "name": "animationTime",
                         "type": {
                             "kind": "f32"
@@ -12267,7 +12563,13 @@
                         "name": "animationMask",
                         "type": {
                             "kind": "namedType",
-                            "name": "oc_ui_style_mask"
+                            "name": "oc_ui_attribute_mask"
+                        }
+                    },
+                    {
+                        "name": "clickThrough",
+                        "type": {
+                            "kind": "bool"
                         }
                     }
                 ]
@@ -12275,1311 +12577,156 @@
         },
         {
             "kind": "typename",
-            "name": "oc_ui_palette",
+            "name": "oc_ui_box",
             "type": {
-                "kind": "struct",
-                "fields": [
-                    {
-                        "name": "red0",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "red1",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "red2",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "red3",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "red4",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "red5",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "red6",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "red7",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "red8",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "red9",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "orange0",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "orange1",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "orange2",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "orange3",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "orange4",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "orange5",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "orange6",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "orange7",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "orange8",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "orange9",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "amber0",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "amber1",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "amber2",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "amber3",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "amber4",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "amber5",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "amber6",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "amber7",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "amber8",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "amber9",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "yellow0",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "yellow1",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "yellow2",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "yellow3",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "yellow4",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "yellow5",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "yellow6",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "yellow7",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "yellow8",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "yellow9",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "lime0",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "lime1",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "lime2",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "lime3",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "lime4",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "lime5",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "lime6",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "lime7",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "lime8",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "lime9",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "lightGreen0",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "lightGreen1",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "lightGreen2",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "lightGreen3",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "lightGreen4",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "lightGreen5",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "lightGreen6",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "lightGreen7",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "lightGreen8",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "lightGreen9",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "green0",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "green1",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "green2",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "green3",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "green4",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "green5",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "green6",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "green7",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "green8",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "green9",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "teal0",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "teal1",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "teal2",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "teal3",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "teal4",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "teal5",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "teal6",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "teal7",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "teal8",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "teal9",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "cyan0",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "cyan1",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "cyan2",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "cyan3",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "cyan4",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "cyan5",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "cyan6",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "cyan7",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "cyan8",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "cyan9",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "lightBlue0",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "lightBlue1",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "lightBlue2",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "lightBlue3",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "lightBlue4",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "lightBlue5",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "lightBlue6",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "lightBlue7",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "lightBlue8",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "lightBlue9",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "blue0",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "blue1",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "blue2",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "blue3",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "blue4",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "blue5",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "blue6",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "blue7",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "blue8",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "blue9",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "indigo0",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "indigo1",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "indigo2",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "indigo3",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "indigo4",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "indigo5",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "indigo6",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "indigo7",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "indigo8",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "indigo9",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "violet0",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "violet1",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "violet2",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "violet3",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "violet4",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "violet5",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "violet6",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "violet7",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "violet8",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "violet9",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "purple0",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "purple1",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "purple2",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "purple3",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "purple4",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "purple5",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "purple6",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "purple7",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "purple8",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "purple9",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "pink0",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "pink1",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "pink2",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "pink3",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "pink4",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "pink5",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "pink6",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "pink7",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "pink8",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "pink9",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "grey0",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "grey1",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "grey2",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "grey3",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "grey4",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "grey5",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "grey6",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "grey7",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "grey8",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "grey9",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "black",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "white",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    }
-                ]
+                "kind": "struct"
             }
         },
         {
             "kind": "typename",
-            "name": "oc_ui_theme",
+            "name": "oc_ui_context",
+            "type": {
+                "kind": "struct"
+            }
+        },
+        {
+            "kind": "typename",
+            "name": "oc_ui_sig",
             "type": {
                 "kind": "struct",
                 "fields": [
                     {
-                        "name": "white",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "primary",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "primaryHover",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "primaryActive",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "border",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "fill0",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "fill1",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "fill2",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "bg0",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "bg1",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "bg2",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "bg3",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "bg4",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "text0",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "text1",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "text2",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "text3",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "sliderThumbBorder",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "elevatedBorder",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_color"
-                        }
-                    },
-                    {
-                        "name": "roundnessSmall",
-                        "type": {
-                            "kind": "f32"
-                        }
-                    },
-                    {
-                        "name": "roundnessMedium",
-                        "type": {
-                            "kind": "f32"
-                        }
-                    },
-                    {
-                        "name": "roundnessLarge",
-                        "type": {
-                            "kind": "f32"
-                        }
-                    },
-                    {
-                        "name": "palette",
+                        "name": "box",
                         "type": {
                             "kind": "pointer",
                             "type": {
                                 "kind": "namedType",
-                                "name": "oc_ui_palette"
+                                "name": "oc_ui_box"
+                            }
+                        }
+                    },
+                    {
+                        "name": "mouse",
+                        "type": {
+                            "kind": "namedType",
+                            "name": "oc_vec2"
+                        }
+                    },
+                    {
+                        "name": "delta",
+                        "type": {
+                            "kind": "namedType",
+                            "name": "oc_vec2"
+                        }
+                    },
+                    {
+                        "name": "wheel",
+                        "type": {
+                            "kind": "namedType",
+                            "name": "oc_vec2"
+                        }
+                    },
+                    {
+                        "name": "lastPressedMouse",
+                        "type": {
+                            "kind": "namedType",
+                            "name": "oc_vec2"
+                        }
+                    },
+                    {
+                        "name": "pressed",
+                        "type": {
+                            "kind": "bool"
+                        }
+                    },
+                    {
+                        "name": "released",
+                        "type": {
+                            "kind": "bool"
+                        }
+                    },
+                    {
+                        "name": "clicked",
+                        "type": {
+                            "kind": "bool"
+                        }
+                    },
+                    {
+                        "name": "doubleClicked",
+                        "type": {
+                            "kind": "bool"
+                        }
+                    },
+                    {
+                        "name": "tripleClicked",
+                        "type": {
+                            "kind": "bool"
+                        }
+                    },
+                    {
+                        "name": "rightPressed",
+                        "type": {
+                            "kind": "bool"
+                        }
+                    },
+                    {
+                        "name": "closed",
+                        "type": {
+                            "kind": "bool"
+                        }
+                    },
+                    {
+                        "name": "active",
+                        "type": {
+                            "kind": "bool"
+                        }
+                    },
+                    {
+                        "name": "hover",
+                        "type": {
+                            "kind": "bool"
+                        }
+                    },
+                    {
+                        "name": "focus",
+                        "type": {
+                            "kind": "bool"
+                        }
+                    },
+                    {
+                        "name": "pasted",
+                        "type": {
+                            "kind": "bool"
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "kind": "typename",
+            "name": "oc_ui_box_draw_proc",
+            "type": {
+                "kind": "proc",
+                "return": {
+                    "kind": "void"
+                },
+                "params": [
+                    {
+                        "name": "arg0",
+                        "type": {
+                            "kind": "pointer",
+                            "type": {
+                                "kind": "namedType",
+                                "name": "oc_ui_box"
+                            }
+                        }
+                    },
+                    {
+                        "name": "arg1",
+                        "type": {
+                            "kind": "pointer",
+                            "type": {
+                                "kind": "void"
                             }
                         }
                     }
@@ -13588,7 +12735,7 @@
         },
         {
             "kind": "typename",
-            "name": "oc_ui_tag",
+            "name": "oc_ui_key",
             "type": {
                 "kind": "struct",
                 "fields": [
@@ -13603,198 +12750,8 @@
         },
         {
             "kind": "typename",
-            "name": "oc_ui_selector_kind",
-            "type": {
-                "kind": "enum",
-                "type": {
-                    "kind": "u32"
-                },
-                "constants": [
-                    {
-                        "kind": "enum-constant",
-                        "name": "OC_UI_SEL_ANY",
-                        "value": 0
-                    },
-                    {
-                        "kind": "enum-constant",
-                        "name": "OC_UI_SEL_OWNER",
-                        "value": 1
-                    },
-                    {
-                        "kind": "enum-constant",
-                        "name": "OC_UI_SEL_TEXT",
-                        "value": 2
-                    },
-                    {
-                        "kind": "enum-constant",
-                        "name": "OC_UI_SEL_TAG",
-                        "value": 3
-                    },
-                    {
-                        "kind": "enum-constant",
-                        "name": "OC_UI_SEL_STATUS",
-                        "value": 4
-                    },
-                    {
-                        "kind": "enum-constant",
-                        "name": "OC_UI_SEL_KEY",
-                        "value": 5
-                    }
-                ]
-            }
-        },
-        {
-            "kind": "typename",
-            "name": "oc_ui_status",
-            "type": {
-                "kind": "u8"
-            }
-        },
-        {
-            "kind": "typename",
-            "name": "oc_ui_status_enum",
-            "type": {
-                "kind": "enum",
-                "type": {
-                    "kind": "u32"
-                },
-                "constants": [
-                    {
-                        "kind": "enum-constant",
-                        "name": "OC_UI_NONE",
-                        "value": 0
-                    },
-                    {
-                        "kind": "enum-constant",
-                        "name": "OC_UI_HOVER",
-                        "value": 2
-                    },
-                    {
-                        "kind": "enum-constant",
-                        "name": "OC_UI_HOT",
-                        "value": 4
-                    },
-                    {
-                        "kind": "enum-constant",
-                        "name": "OC_UI_ACTIVE",
-                        "value": 8
-                    },
-                    {
-                        "kind": "enum-constant",
-                        "name": "OC_UI_DRAGGING",
-                        "value": 16
-                    }
-                ]
-            }
-        },
-        {
-            "kind": "typename",
-            "name": "oc_ui_selector_op",
-            "type": {
-                "kind": "enum",
-                "type": {
-                    "kind": "u32"
-                },
-                "constants": [
-                    {
-                        "kind": "enum-constant",
-                        "name": "OC_UI_SEL_DESCENDANT",
-                        "value": 0
-                    },
-                    {
-                        "kind": "enum-constant",
-                        "name": "OC_UI_SEL_AND",
-                        "value": 1
-                    }
-                ]
-            }
-        },
-        {
-            "kind": "typename",
-            "name": "oc_ui_selector",
-            "type": {
-                "kind": "struct",
-                "fields": [
-                    {
-                        "name": "listElt",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_list_elt"
-                        }
-                    },
-                    {
-                        "name": "kind",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_ui_selector_kind"
-                        }
-                    },
-                    {
-                        "name": "op",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_ui_selector_op"
-                        }
-                    },
-                    {
-                        "name": "",
-                        "type": {
-                            "kind": "union",
-                            "fields": [
-                                {
-                                    "name": "text",
-                                    "type": {
-                                        "kind": "namedType",
-                                        "name": "oc_str8"
-                                    }
-                                },
-                                {
-                                    "name": "key",
-                                    "type": {
-                                        "kind": "namedType",
-                                        "name": "oc_ui_key"
-                                    }
-                                },
-                                {
-                                    "name": "tag",
-                                    "type": {
-                                        "kind": "namedType",
-                                        "name": "oc_ui_tag"
-                                    }
-                                },
-                                {
-                                    "name": "status",
-                                    "type": {
-                                        "kind": "namedType",
-                                        "name": "oc_ui_status"
-                                    }
-                                }
-                            ]
-                        }
-                    }
-                ]
-            }
-        },
-        {
-            "kind": "typename",
-            "name": "oc_ui_pattern",
-            "type": {
-                "kind": "struct",
-                "fields": [
-                    {
-                        "name": "l",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_list"
-                        }
-                    }
-                ]
-            }
-        },
-        {
-            "kind": "typename",
             "name": "oc_ui_box",
-            "type":  {
+            "type": {
                 "kind": "struct",
                 "fields": [
                     {
@@ -13829,6 +12786,12 @@
                         }
                     },
                     {
+                        "name": "overlay",
+                        "type": {
+                            "kind": "bool"
+                        }
+                    },
+                    {
                         "name": "bucketElt",
                         "type": {
                             "kind": "namedType",
@@ -13849,14 +12812,14 @@
                         }
                     },
                     {
-                        "name": "flags",
+                        "name": "keyString",
                         "type": {
                             "kind": "namedType",
-                            "name": "oc_ui_flags"
+                            "name": "oc_str8"
                         }
                     },
                     {
-                        "name": "string",
+                        "name": "text",
                         "type": {
                             "kind": "namedType",
                             "name": "oc_str8"
@@ -13886,14 +12849,7 @@
                         }
                     },
                     {
-                        "name": "beforeRules",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_list"
-                        }
-                    },
-                    {
-                        "name": "afterRules",
+                        "name": "rules",
                         "type": {
                             "kind": "namedType",
                             "name": "oc_list"
@@ -13967,13 +12923,17 @@
                         }
                     },
                     {
+                        "name": "styleVariables",
+                        "type": {
+                            "kind": "namedType",
+                            "name": "oc_list"
+                        }
+                    },
+                    {
                         "name": "sig",
                         "type": {
-                            "kind": "pointer",
-                            "type": {
-                                "kind": "namedType",
-                                "name": "oc_ui_sig"
-                            }
+                            "kind": "namedType",
+                            "name": "oc_ui_sig"
                         }
                     },
                     {
@@ -14042,667 +13002,28 @@
             }
         },
         {
-            "kind": "typename",
-            "name": "oc_ui_style_rule",
-            "type": {
-                "kind": "struct",
-                "fields": [
-                    {
-                        "name": "boxElt",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_list_elt"
-                        }
-                    },
-                    {
-                        "name": "buildElt",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_list_elt"
-                        }
-                    },
-                    {
-                        "name": "tmpElt",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_list_elt"
-                        }
-                    },
-                    {
-                        "name": "owner",
-                        "type": {
-                            "kind": "pointer",
-                            "type": {
-                                "kind": "namedType",
-                                "name": "oc_ui_box"
-                            }
-                        }
-                    },
-                    {
-                        "name": "pattern",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_ui_pattern"
-                        }
-                    },
-                    {
-                        "name": "mask",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_ui_style_mask"
-                        }
-                    },
-                    {
-                        "name": "style",
-                        "type": {
-                            "kind": "pointer",
-                            "type": {
-                                "kind": "namedType",
-                                "name": "oc_ui_style"
-                            }
-                        }
-                    }
-                ]
-            }
-        },
-        {
-            "kind": "typename",
-            "name": "oc_ui_sig",
-            "type": {
-                "kind": "struct",
-                "fields": [
-                    {
-                        "name": "box",
-                        "type": {
-                            "kind": "pointer",
-                            "type": {
-                                "kind": "namedType",
-                                "name": "oc_ui_box"
-                            }
-                        }
-                    },
-                    {
-                        "name": "mouse",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_vec2"
-                        }
-                    },
-                    {
-                        "name": "delta",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_vec2"
-                        }
-                    },
-                    {
-                        "name": "wheel",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_vec2"
-                        }
-                    },
-                    {
-                        "name": "pressed",
-                        "type": {
-                            "kind": "bool"
-                        }
-                    },
-                    {
-                        "name": "released",
-                        "type": {
-                            "kind": "bool"
-                        }
-                    },
-                    {
-                        "name": "clicked",
-                        "type": {
-                            "kind": "bool"
-                        }
-                    },
-                    {
-                        "name": "doubleClicked",
-                        "type": {
-                            "kind": "bool"
-                        }
-                    },
-                    {
-                        "name": "tripleClicked",
-                        "type": {
-                            "kind": "bool"
-                        }
-                    },
-                    {
-                        "name": "rightPressed",
-                        "type": {
-                            "kind": "bool"
-                        }
-                    },
-                    {
-                        "name": "dragging",
-                        "type": {
-                            "kind": "bool"
-                        }
-                    },
-                    {
-                        "name": "hovering",
-                        "type": {
-                            "kind": "bool"
-                        }
-                    },
-                    {
-                        "name": "pasted",
-                        "type": {
-                            "kind": "bool"
-                        }
-                    }
-                ]
-            }
-        },
-        {
-            "kind": "typename",
-            "name": "oc_ui_box_draw_proc",
-            "type": {
-                "kind": "proc",
-                "return": {
-                    "kind": "void"
-                },
-                "params": [
-                    {
-                        "name": "arg0",
-                        "type": {
-                            "kind": "pointer",
-                            "type": {
-                                "kind": "namedType",
-                                "name": "oc_ui_box"
-                            }
-                        }
-                    },
-                    {
-                        "name": "arg1",
-                        "type": {
-                            "kind": "pointer",
-                            "type": {
-                                "kind": "void"
-                            }
-                        }
-                    }
-                ]
-            }
-        },
-        {
-            "kind": "typename",
-            "name": "oc_ui_flags",
-            "type": {
-                "kind": "enum",
+            "kind": "proc",
+            "name": "oc_ui_context_create",
+            "return": {
+                "kind": "pointer",
                 "type": {
-                    "kind": "u32"
-                },
-                "constants": [
-                    {
-                        "kind": "enum-constant",
-                        "name": "OC_UI_FLAG_NONE",
-                        "value": 0
-                    },
-                    {
-                        "kind": "enum-constant",
-                        "name": "OC_UI_FLAG_CLICKABLE",
-                        "value": 1
-                    },
-                    {
-                        "kind": "enum-constant",
-                        "name": "OC_UI_FLAG_SCROLL_WHEEL_X",
-                        "value": 2
-                    },
-                    {
-                        "kind": "enum-constant",
-                        "name": "OC_UI_FLAG_SCROLL_WHEEL_Y",
-                        "value": 4
-                    },
-                    {
-                        "kind": "enum-constant",
-                        "name": "OC_UI_FLAG_BLOCK_MOUSE",
-                        "value": 8
-                    },
-                    {
-                        "kind": "enum-constant",
-                        "name": "OC_UI_FLAG_HOT_ANIMATION",
-                        "value": 16
-                    },
-                    {
-                        "kind": "enum-constant",
-                        "name": "OC_UI_FLAG_ACTIVE_ANIMATION",
-                        "value": 32
-                    },
-                    {
-                        "kind": "enum-constant",
-                        "name": "OC_UI_FLAG_OVERFLOW_ALLOW_X",
-                        "value": 64
-                    },
-                    {
-                        "kind": "enum-constant",
-                        "name": "OC_UI_FLAG_OVERFLOW_ALLOW_Y",
-                        "value": 128
-                    },
-                    {
-                        "kind": "enum-constant",
-                        "name": "OC_UI_FLAG_CLIP",
-                        "value": 256
-                    },
-                    {
-                        "kind": "enum-constant",
-                        "name": "OC_UI_FLAG_DRAW_BACKGROUND",
-                        "value": 512
-                    },
-                    {
-                        "kind": "enum-constant",
-                        "name": "OC_UI_FLAG_DRAW_FOREGROUND",
-                        "value": 1024
-                    },
-                    {
-                        "kind": "enum-constant",
-                        "name": "OC_UI_FLAG_DRAW_BORDER",
-                        "value": 2048
-                    },
-                    {
-                        "kind": "enum-constant",
-                        "name": "OC_UI_FLAG_DRAW_TEXT",
-                        "value": 4096
-                    },
-                    {
-                        "kind": "enum-constant",
-                        "name": "OC_UI_FLAG_DRAW_PROC",
-                        "value": 8192
-                    },
-                    {
-                        "kind": "enum-constant",
-                        "name": "OC_UI_FLAG_OVERLAY",
-                        "value": 65536
+                    "kind": "namedType",
+                    "name": "oc_ui_context"
+                }
+            },
+            "params": [
+                {
+                    "name": "defaultFont",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_font"
                     }
-                ]
-            }
-        },
-        {
-            "kind": "typename",
-            "name": "",
-            "type": {
-                "kind": "enum",
-                "type": {
-                    "kind": "u32"
-                },
-                "constants": [
-                    {
-                        "kind": "enum-constant",
-                        "name": "OC_UI_MAX_INPUT_CHAR_PER_FRAME",
-                        "value": 64
-                    }
-                ]
-            }
-        },
-        {
-            "kind": "typename",
-            "name": "oc_ui_input_text",
-            "type": {
-                "kind": "struct",
-                "fields": [
-                    {
-                        "name": "count",
-                        "type": {
-                            "kind": "u8"
-                        }
-                    },
-                    {
-                        "name": "codePoints",
-                        "type": {
-                            "kind": "array",
-                            "type": {
-                                "kind": "namedType",
-                                "name": "oc_utf32"
-                            },
-                            "count": 64
-                        }
-                    }
-                ]
-            }
-        },
-        {
-            "kind": "typename",
-            "name": "oc_ui_stack_elt",
-            "type": {
-                "kind": "struct",
-                "fields": [
-                    {
-                        "name": "parent",
-                        "type": {
-                            "kind": "pointer",
-                            "type": {
-                                "kind": "namedType",
-                                "name": "oc_ui_stack_elt"
-                            }
-                        }
-                    },
-                    {
-                        "name": "",
-                        "type": {
-                            "kind": "union",
-                            "fields": [
-                                {
-                                    "name": "box",
-                                    "type": {
-                                        "kind": "pointer",
-                                        "type": {
-                                            "kind": "namedType",
-                                            "name": "oc_ui_box"
-                                        }
-                                    }
-                                },
-                                {
-                                    "name": "size",
-                                    "type": {
-                                        "kind": "namedType",
-                                        "name": "oc_ui_size"
-                                    }
-                                },
-                                {
-                                    "name": "clip",
-                                    "type": {
-                                        "kind": "namedType",
-                                        "name": "oc_rect"
-                                    }
-                                }
-                            ]
-                        }
-                    }
-                ]
-            }
-        },
-        {
-            "kind": "typename",
-            "name": "oc_ui_tag_elt",
-            "type": {
-                "kind": "struct",
-                "fields": [
-                    {
-                        "name": "listElt",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_list_elt"
-                        }
-                    },
-                    {
-                        "name": "tag",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_ui_tag"
-                        }
-                    }
-                ]
-            }
-        },
-        {
-            "kind": "typename",
-            "name": "",
-            "type": {
-                "kind": "enum",
-                "type": {
-                    "kind": "u32"
-                },
-                "constants": [
-                    {
-                        "kind": "enum-constant",
-                        "name": "OC_UI_BOX_MAP_BUCKET_COUNT",
-                        "value": 1024
-                    }
-                ]
-            }
-        },
-        {
-            "kind": "typename",
-            "name": "oc_ui_edit_move",
-            "type": {
-                "kind": "enum",
-                "type": {
-                    "kind": "u32"
-                },
-                "constants": [
-                    {
-                        "kind": "enum-constant",
-                        "name": "OC_UI_EDIT_MOVE_NONE",
-                        "value": 0
-                    },
-                    {
-                        "kind": "enum-constant",
-                        "name": "OC_UI_EDIT_MOVE_CHAR",
-                        "value": 1
-                    },
-                    {
-                        "kind": "enum-constant",
-                        "name": "OC_UI_EDIT_MOVE_WORD",
-                        "value": 2
-                    },
-                    {
-                        "kind": "enum-constant",
-                        "name": "OC_UI_EDIT_MOVE_LINE",
-                        "value": 3
-                    }
-                ]
-            }
-        },
-        {
-            "kind": "typename",
-            "name": "oc_ui_context",
-            "type": {
-                "kind": "struct",
-                "fields": [
-                    {
-                        "name": "init",
-                        "type": {
-                            "kind": "bool"
-                        }
-                    },
-                    {
-                        "name": "input",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_input_state"
-                        }
-                    },
-                    {
-                        "name": "frameCounter",
-                        "type": {
-                            "kind": "u64"
-                        }
-                    },
-                    {
-                        "name": "frameTime",
-                        "type": {
-                            "kind": "f64"
-                        }
-                    },
-                    {
-                        "name": "lastFrameDuration",
-                        "type": {
-                            "kind": "f64"
-                        }
-                    },
-                    {
-                        "name": "frameArena",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_arena"
-                        }
-                    },
-                    {
-                        "name": "boxPool",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_pool"
-                        }
-                    },
-                    {
-                        "name": "boxMap",
-                        "type": {
-                            "kind": "array",
-                            "type": {
-                                "kind": "namedType",
-                                "name": "oc_list"
-                            },
-                            "count": 1024
-                        }
-                    },
-                    {
-                        "name": "root",
-                        "type": {
-                            "kind": "pointer",
-                            "type": {
-                                "kind": "namedType",
-                                "name": "oc_ui_box"
-                            }
-                        }
-                    },
-                    {
-                        "name": "overlay",
-                        "type": {
-                            "kind": "pointer",
-                            "type": {
-                                "kind": "namedType",
-                                "name": "oc_ui_box"
-                            }
-                        }
-                    },
-                    {
-                        "name": "overlayList",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_list"
-                        }
-                    },
-                    {
-                        "name": "boxStack",
-                        "type": {
-                            "kind": "pointer",
-                            "type": {
-                                "kind": "namedType",
-                                "name": "oc_ui_stack_elt"
-                            }
-                        }
-                    },
-                    {
-                        "name": "clipStack",
-                        "type": {
-                            "kind": "pointer",
-                            "type": {
-                                "kind": "namedType",
-                                "name": "oc_ui_stack_elt"
-                            }
-                        }
-                    },
-                    {
-                        "name": "nextBoxBeforeRules",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_list"
-                        }
-                    },
-                    {
-                        "name": "nextBoxAfterRules",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_list"
-                        }
-                    },
-                    {
-                        "name": "nextBoxTags",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_list"
-                        }
-                    },
-                    {
-                        "name": "z",
-                        "type": {
-                            "kind": "u32"
-                        }
-                    },
-                    {
-                        "name": "hovered",
-                        "type": {
-                            "kind": "pointer",
-                            "type": {
-                                "kind": "namedType",
-                                "name": "oc_ui_box"
-                            }
-                        }
-                    },
-                    {
-                        "name": "focus",
-                        "type": {
-                            "kind": "pointer",
-                            "type": {
-                                "kind": "namedType",
-                                "name": "oc_ui_box"
-                            }
-                        }
-                    },
-                    {
-                        "name": "editCursor",
-                        "type": {
-                            "kind": "i32"
-                        }
-                    },
-                    {
-                        "name": "editMark",
-                        "type": {
-                            "kind": "i32"
-                        }
-                    },
-                    {
-                        "name": "editFirstDisplayedChar",
-                        "type": {
-                            "kind": "i32"
-                        }
-                    },
-                    {
-                        "name": "editCursorBlinkStart",
-                        "type": {
-                            "kind": "f64"
-                        }
-                    },
-                    {
-                        "name": "editSelectionMode",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_ui_edit_move"
-                        }
-                    },
-                    {
-                        "name": "editWordSelectionInitialCursor",
-                        "type": {
-                            "kind": "i32"
-                        }
-                    },
-                    {
-                        "name": "editWordSelectionInitialMark",
-                        "type": {
-                            "kind": "i32"
-                        }
-                    },
-                    {
-                        "name": "theme",
-                        "type": {
-                            "kind": "pointer",
-                            "type": {
-                                "kind": "namedType",
-                                "name": "oc_ui_theme"
-                            }
-                        }
-                    }
-                ]
-            }
+                }
+            ]
         },
         {
             "kind": "proc",
-            "name": "oc_ui_init",
+            "name": "oc_ui_context_destroy",
             "return": {
                 "kind": "void"
             },
@@ -14771,7 +13092,7 @@
         },
         {
             "kind": "proc",
-            "name": "oc_ui_begin_frame",
+            "name": "oc_ui_frame_begin",
             "return": {
                 "kind": "void"
             },
@@ -14782,29 +13103,12 @@
                         "kind": "namedType",
                         "name": "oc_vec2"
                     }
-                },
-                {
-                    "name": "defaultStyle",
-                    "type": {
-                        "kind": "pointer",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_ui_style"
-                        }
-                    }
-                },
-                {
-                    "name": "mask",
-                    "type": {
-                        "kind": "namedType",
-                        "name": "oc_ui_style_mask"
-                    }
                 }
             ]
         },
         {
             "kind": "proc",
-            "name": "oc_ui_end_frame",
+            "name": "oc_ui_frame_end",
             "return": {
                 "kind": "void"
             },
@@ -14820,83 +13124,35 @@
         },
         {
             "kind": "proc",
-            "name": "oc_ui_set_theme",
-            "return": {
-                "kind": "void"
-            },
-            "params": [
-                {
-                    "name": "theme",
-                    "type": {
-                        "kind": "pointer",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_ui_theme"
-                        }
-                    }
-                }
-            ]
-        },
-        {
-            "kind": "proc",
-            "name": "oc_ui_key_make_str8",
-            "return": {
-                "kind": "namedType",
-                "name": "oc_ui_key"
-            },
-            "params": [
-                {
-                    "name": "string",
-                    "type": {
-                        "kind": "namedType",
-                        "name": "oc_str8"
-                    }
-                }
-            ]
-        },
-        {
-            "kind": "proc",
-            "name": "oc_ui_key_make_path",
-            "return": {
-                "kind": "namedType",
-                "name": "oc_ui_key"
-            },
-            "params": [
-                {
-                    "name": "path",
-                    "type": {
-                        "kind": "namedType",
-                        "name": "oc_str8_list"
-                    }
-                }
-            ]
-        },
-        {
-            "kind": "proc",
-            "name": "oc_ui_box_make_str8",
+            "name": "oc_ui_input",
             "return": {
                 "kind": "pointer",
                 "type": {
                     "kind": "namedType",
-                    "name": "oc_ui_box"
+                    "name": "oc_input_state"
                 }
             },
-            "params": [
-                {
-                    "name": "string",
-                    "type": {
-                        "kind": "namedType",
-                        "name": "oc_str8"
-                    }
-                },
-                {
-                    "name": "flags",
-                    "type": {
-                        "kind": "namedType",
-                        "name": "oc_ui_flags"
-                    }
+            "params": []
+        },
+        {
+            "kind": "proc",
+            "name": "oc_ui_frame_arena",
+            "return": {
+                "kind": "pointer",
+                "type": {
+                    "kind": "namedType",
+                    "name": "oc_arena"
                 }
-            ]
+            },
+            "params": []
+        },
+        {
+            "kind": "proc",
+            "name": "oc_ui_frame_time",
+            "return": {
+                "kind": "f64"
+            },
+            "params": []
         },
         {
             "kind": "proc",
@@ -14915,13 +13171,6 @@
                         "kind": "namedType",
                         "name": "oc_str8"
                     }
-                },
-                {
-                    "name": "flags",
-                    "type": {
-                        "kind": "namedType",
-                        "name": "oc_ui_flags"
-                    }
                 }
             ]
         },
@@ -14936,85 +13185,6 @@
                 }
             },
             "params": []
-        },
-        {
-            "kind": "proc",
-            "name": "oc_ui_box_push",
-            "return": {
-                "kind": "void"
-            },
-            "params": [
-                {
-                    "name": "box",
-                    "type": {
-                        "kind": "pointer",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_ui_box"
-                        }
-                    }
-                }
-            ]
-        },
-        {
-            "kind": "proc",
-            "name": "oc_ui_box_pop",
-            "return": {
-                "kind": "void"
-            },
-            "params": []
-        },
-        {
-            "kind": "proc",
-            "name": "oc_ui_box_top",
-            "return": {
-                "kind": "pointer",
-                "type": {
-                    "kind": "namedType",
-                    "name": "oc_ui_box"
-                }
-            },
-            "params": []
-        },
-        {
-            "kind": "proc",
-            "name": "oc_ui_box_lookup_key",
-            "return": {
-                "kind": "pointer",
-                "type": {
-                    "kind": "namedType",
-                    "name": "oc_ui_box"
-                }
-            },
-            "params": [
-                {
-                    "name": "key",
-                    "type": {
-                        "kind": "namedType",
-                        "name": "oc_ui_key"
-                    }
-                }
-            ]
-        },
-        {
-            "kind": "proc",
-            "name": "oc_ui_box_lookup_str8",
-            "return": {
-                "kind": "pointer",
-                "type": {
-                    "kind": "namedType",
-                    "name": "oc_ui_box"
-                }
-            },
-            "params": [
-                {
-                    "name": "string",
-                    "type": {
-                        "kind": "namedType",
-                        "name": "oc_str8"
-                    }
-                }
-            ]
         },
         {
             "kind": "proc",
@@ -15053,9 +13223,9 @@
         },
         {
             "kind": "proc",
-            "name": "oc_ui_box_closed",
+            "name": "oc_ui_box_set_text",
             "return": {
-                "kind": "bool"
+                "kind": "void"
             },
             "params": [
                 {
@@ -15066,6 +13236,38 @@
                             "kind": "namedType",
                             "name": "oc_ui_box"
                         }
+                    }
+                },
+                {
+                    "name": "text",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_str8"
+                    }
+                }
+            ]
+        },
+        {
+            "kind": "proc",
+            "name": "oc_ui_box_set_overlay",
+            "return": {
+                "kind": "void"
+            },
+            "params": [
+                {
+                    "name": "box",
+                    "type": {
+                        "kind": "pointer",
+                        "type": {
+                            "kind": "namedType",
+                            "name": "oc_ui_box"
+                        }
+                    }
+                },
+                {
+                    "name": "overlay",
+                    "type": {
+                        "kind": "bool"
                     }
                 }
             ]
@@ -15097,9 +13299,12 @@
         },
         {
             "kind": "proc",
-            "name": "oc_ui_box_active",
+            "name": "oc_ui_box_user_data_get",
             "return": {
-                "kind": "bool"
+                "kind": "pointer",
+                "type": {
+                    "kind": "char"
+                }
             },
             "params": [
                 {
@@ -15116,66 +13321,12 @@
         },
         {
             "kind": "proc",
-            "name": "oc_ui_box_activate",
+            "name": "oc_ui_box_user_data_push",
             "return": {
-                "kind": "void"
-            },
-            "params": [
-                {
-                    "name": "box",
-                    "type": {
-                        "kind": "pointer",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_ui_box"
-                        }
-                    }
+                "kind": "pointer",
+                "type": {
+                    "kind": "char"
                 }
-            ]
-        },
-        {
-            "kind": "proc",
-            "name": "oc_ui_box_deactivate",
-            "return": {
-                "kind": "void"
-            },
-            "params": [
-                {
-                    "name": "box",
-                    "type": {
-                        "kind": "pointer",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_ui_box"
-                        }
-                    }
-                }
-            ]
-        },
-        {
-            "kind": "proc",
-            "name": "oc_ui_box_hot",
-            "return": {
-                "kind": "bool"
-            },
-            "params": [
-                {
-                    "name": "box",
-                    "type": {
-                        "kind": "pointer",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_ui_box"
-                        }
-                    }
-                }
-            ]
-        },
-        {
-            "kind": "proc",
-            "name": "oc_ui_box_set_hot",
-            "return": {
-                "kind": "void"
             },
             "params": [
                 {
@@ -15189,16 +13340,54 @@
                     }
                 },
                 {
-                    "name": "hot",
+                    "name": "size",
                     "type": {
-                        "kind": "bool"
+                        "kind": "u64"
                     }
                 }
             ]
         },
         {
             "kind": "proc",
-            "name": "oc_ui_box_sig",
+            "name": "oc_ui_box_request_focus",
+            "return": {
+                "kind": "void"
+            },
+            "params": [
+                {
+                    "name": "box",
+                    "type": {
+                        "kind": "pointer",
+                        "type": {
+                            "kind": "namedType",
+                            "name": "oc_ui_box"
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "kind": "proc",
+            "name": "oc_ui_box_release_focus",
+            "return": {
+                "kind": "void"
+            },
+            "params": [
+                {
+                    "name": "box",
+                    "type": {
+                        "kind": "pointer",
+                        "type": {
+                            "kind": "namedType",
+                            "name": "oc_ui_box"
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "kind": "proc",
+            "name": "oc_ui_box_get_sig",
             "return": {
                 "kind": "namedType",
                 "name": "oc_ui_sig"
@@ -15218,14 +13407,38 @@
         },
         {
             "kind": "proc",
-            "name": "oc_ui_tag_make_str8",
+            "name": "oc_ui_set_draw_proc",
             "return": {
-                "kind": "namedType",
-                "name": "oc_ui_tag"
+                "kind": "void"
             },
             "params": [
                 {
-                    "name": "string",
+                    "name": "proc",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_ui_box_draw_proc"
+                    }
+                },
+                {
+                    "name": "data",
+                    "type": {
+                        "kind": "pointer",
+                        "type": {
+                            "kind": "void"
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "kind": "proc",
+            "name": "oc_ui_set_text",
+            "return": {
+                "kind": "void"
+            },
+            "params": [
+                {
+                    "name": "text",
                     "type": {
                         "kind": "namedType",
                         "name": "oc_str8"
@@ -15235,7 +13448,91 @@
         },
         {
             "kind": "proc",
-            "name": "oc_ui_tag_box_str8",
+            "name": "oc_ui_set_overlay",
+            "return": {
+                "kind": "void"
+            },
+            "params": [
+                {
+                    "name": "overlay",
+                    "type": {
+                        "kind": "bool"
+                    }
+                }
+            ]
+        },
+        {
+            "kind": "proc",
+            "name": "oc_ui_set_closed",
+            "return": {
+                "kind": "void"
+            },
+            "params": [
+                {
+                    "name": "closed",
+                    "type": {
+                        "kind": "bool"
+                    }
+                }
+            ]
+        },
+        {
+            "kind": "proc",
+            "name": "oc_ui_user_data_get",
+            "return": {
+                "kind": "pointer",
+                "type": {
+                    "kind": "char"
+                }
+            },
+            "params": []
+        },
+        {
+            "kind": "proc",
+            "name": "oc_ui_user_data_push",
+            "return": {
+                "kind": "pointer",
+                "type": {
+                    "kind": "char"
+                }
+            },
+            "params": [
+                {
+                    "name": "size",
+                    "type": {
+                        "kind": "u64"
+                    }
+                }
+            ]
+        },
+        {
+            "kind": "proc",
+            "name": "oc_ui_request_focus",
+            "return": {
+                "kind": "void"
+            },
+            "params": []
+        },
+        {
+            "kind": "proc",
+            "name": "oc_ui_release_focus",
+            "return": {
+                "kind": "void"
+            },
+            "params": []
+        },
+        {
+            "kind": "proc",
+            "name": "oc_ui_get_sig",
+            "return": {
+                "kind": "namedType",
+                "name": "oc_ui_sig"
+            },
+            "params": []
+        },
+        {
+            "kind": "proc",
+            "name": "oc_ui_box_tag_str8",
             "return": {
                 "kind": "void"
             },
@@ -15250,6 +13547,22 @@
                         }
                     }
                 },
+                {
+                    "name": "string",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_str8"
+                    }
+                }
+            ]
+        },
+        {
+            "kind": "proc",
+            "name": "oc_ui_tag_str8",
+            "return": {
+                "kind": "void"
+            },
+            "params": [
                 {
                     "name": "string",
                     "type": {
@@ -15277,18 +13590,461 @@
         },
         {
             "kind": "proc",
-            "name": "oc_ui_apply_style_with_mask",
+            "name": "oc_ui_style_rule_begin",
             "return": {
                 "kind": "void"
             },
             "params": [
                 {
-                    "name": "dst",
+                    "name": "pattern",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_str8"
+                    }
+                }
+            ]
+        },
+        {
+            "kind": "proc",
+            "name": "oc_ui_style_rule_end",
+            "return": {
+                "kind": "void"
+            },
+            "params": []
+        },
+        {
+            "kind": "proc",
+            "name": "oc_ui_style_set_i32",
+            "return": {
+                "kind": "void"
+            },
+            "params": [
+                {
+                    "name": "attr",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_ui_attribute"
+                    }
+                },
+                {
+                    "name": "i",
+                    "type": {
+                        "kind": "i32"
+                    }
+                }
+            ]
+        },
+        {
+            "kind": "proc",
+            "name": "oc_ui_style_set_f32",
+            "return": {
+                "kind": "void"
+            },
+            "params": [
+                {
+                    "name": "attr",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_ui_attribute"
+                    }
+                },
+                {
+                    "name": "f",
+                    "type": {
+                        "kind": "f32"
+                    }
+                }
+            ]
+        },
+        {
+            "kind": "proc",
+            "name": "oc_ui_style_set_color",
+            "return": {
+                "kind": "void"
+            },
+            "params": [
+                {
+                    "name": "attr",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_ui_attribute"
+                    }
+                },
+                {
+                    "name": "color",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_color"
+                    }
+                }
+            ]
+        },
+        {
+            "kind": "proc",
+            "name": "oc_ui_style_set_font",
+            "return": {
+                "kind": "void"
+            },
+            "params": [
+                {
+                    "name": "attr",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_ui_attribute"
+                    }
+                },
+                {
+                    "name": "font",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_font"
+                    }
+                }
+            ]
+        },
+        {
+            "kind": "proc",
+            "name": "oc_ui_style_set_size",
+            "return": {
+                "kind": "void"
+            },
+            "params": [
+                {
+                    "name": "attr",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_ui_attribute"
+                    }
+                },
+                {
+                    "name": "size",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_ui_size"
+                    }
+                }
+            ]
+        },
+        {
+            "kind": "proc",
+            "name": "oc_ui_style_set_var_str8",
+            "return": {
+                "kind": "void"
+            },
+            "params": [
+                {
+                    "name": "attr",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_ui_attribute"
+                    }
+                },
+                {
+                    "name": "var",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_str8"
+                    }
+                }
+            ]
+        },
+        {
+            "kind": "proc",
+            "name": "oc_ui_style_set_var",
+            "return": {
+                "kind": "void"
+            },
+            "params": [
+                {
+                    "name": "attr",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_ui_attribute"
+                    }
+                },
+                {
+                    "name": "var",
                     "type": {
                         "kind": "pointer",
                         "type": {
-                            "kind": "namedType",
-                            "name": "oc_ui_style"
+                            "kind": "char"
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "kind": "proc",
+            "name": "oc_ui_var_default_i32_str8",
+            "return": {
+                "kind": "void"
+            },
+            "params": [
+                {
+                    "name": "name",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_str8"
+                    }
+                },
+                {
+                    "name": "i",
+                    "type": {
+                        "kind": "i32"
+                    }
+                }
+            ]
+        },
+        {
+            "kind": "proc",
+            "name": "oc_ui_var_default_f32_str8",
+            "return": {
+                "kind": "void"
+            },
+            "params": [
+                {
+                    "name": "name",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_str8"
+                    }
+                },
+                {
+                    "name": "f",
+                    "type": {
+                        "kind": "f32"
+                    }
+                }
+            ]
+        },
+        {
+            "kind": "proc",
+            "name": "oc_ui_var_default_size_str8",
+            "return": {
+                "kind": "void"
+            },
+            "params": [
+                {
+                    "name": "name",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_str8"
+                    }
+                },
+                {
+                    "name": "size",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_ui_size"
+                    }
+                }
+            ]
+        },
+        {
+            "kind": "proc",
+            "name": "oc_ui_var_default_color_str8",
+            "return": {
+                "kind": "void"
+            },
+            "params": [
+                {
+                    "name": "name",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_str8"
+                    }
+                },
+                {
+                    "name": "color",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_color"
+                    }
+                }
+            ]
+        },
+        {
+            "kind": "proc",
+            "name": "oc_ui_var_default_font_str8",
+            "return": {
+                "kind": "void"
+            },
+            "params": [
+                {
+                    "name": "name",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_str8"
+                    }
+                },
+                {
+                    "name": "font",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_font"
+                    }
+                }
+            ]
+        },
+        {
+            "kind": "proc",
+            "name": "oc_ui_var_default_str8",
+            "return": {
+                "kind": "void"
+            },
+            "params": [
+                {
+                    "name": "name",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_str8"
+                    }
+                },
+                {
+                    "name": "src",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_str8"
+                    }
+                }
+            ]
+        },
+        {
+            "kind": "proc",
+            "name": "oc_ui_var_default_i32",
+            "return": {
+                "kind": "void"
+            },
+            "params": [
+                {
+                    "name": "name",
+                    "type": {
+                        "kind": "pointer",
+                        "type": {
+                            "kind": "char"
+                        }
+                    }
+                },
+                {
+                    "name": "i",
+                    "type": {
+                        "kind": "i32"
+                    }
+                }
+            ]
+        },
+        {
+            "kind": "proc",
+            "name": "oc_ui_var_default_f32",
+            "return": {
+                "kind": "void"
+            },
+            "params": [
+                {
+                    "name": "name",
+                    "type": {
+                        "kind": "pointer",
+                        "type": {
+                            "kind": "char"
+                        }
+                    }
+                },
+                {
+                    "name": "f",
+                    "type": {
+                        "kind": "f32"
+                    }
+                }
+            ]
+        },
+        {
+            "kind": "proc",
+            "name": "oc_ui_var_default_size",
+            "return": {
+                "kind": "void"
+            },
+            "params": [
+                {
+                    "name": "name",
+                    "type": {
+                        "kind": "pointer",
+                        "type": {
+                            "kind": "char"
+                        }
+                    }
+                },
+                {
+                    "name": "size",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_ui_size"
+                    }
+                }
+            ]
+        },
+        {
+            "kind": "proc",
+            "name": "oc_ui_var_default_color",
+            "return": {
+                "kind": "void"
+            },
+            "params": [
+                {
+                    "name": "name",
+                    "type": {
+                        "kind": "pointer",
+                        "type": {
+                            "kind": "char"
+                        }
+                    }
+                },
+                {
+                    "name": "color",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_color"
+                    }
+                }
+            ]
+        },
+        {
+            "kind": "proc",
+            "name": "oc_ui_var_default_font",
+            "return": {
+                "kind": "void"
+            },
+            "params": [
+                {
+                    "name": "name",
+                    "type": {
+                        "kind": "pointer",
+                        "type": {
+                            "kind": "char"
+                        }
+                    }
+                },
+                {
+                    "name": "font",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_font"
+                    }
+                }
+            ]
+        },
+        {
+            "kind": "proc",
+            "name": "oc_ui_var_default",
+            "return": {
+                "kind": "void"
+            },
+            "params": [
+                {
+                    "name": "name",
+                    "type": {
+                        "kind": "pointer",
+                        "type": {
+                            "kind": "char"
                         }
                     }
                 },
@@ -15297,166 +14053,497 @@
                     "type": {
                         "kind": "pointer",
                         "type": {
-                            "kind": "namedType",
-                            "name": "oc_ui_style"
+                            "kind": "char"
                         }
-                    }
-                },
-                {
-                    "name": "mask",
-                    "type": {
-                        "kind": "namedType",
-                        "name": "oc_ui_style_mask"
                     }
                 }
             ]
         },
         {
             "kind": "proc",
-            "name": "oc_ui_pattern_push",
+            "name": "oc_ui_var_set_i32_str8",
             "return": {
                 "kind": "void"
             },
             "params": [
                 {
-                    "name": "arena",
-                    "type": {
-                        "kind": "pointer",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_arena"
-                        }
-                    }
-                },
-                {
-                    "name": "pattern",
-                    "type": {
-                        "kind": "pointer",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_ui_pattern"
-                        }
-                    }
-                },
-                {
-                    "name": "selector",
+                    "name": "name",
                     "type": {
                         "kind": "namedType",
-                        "name": "oc_ui_selector"
+                        "name": "oc_str8"
+                    }
+                },
+                {
+                    "name": "i",
+                    "type": {
+                        "kind": "i32"
                     }
                 }
             ]
         },
         {
             "kind": "proc",
-            "name": "oc_ui_pattern_all",
+            "name": "oc_ui_var_set_f32_str8",
+            "return": {
+                "kind": "void"
+            },
+            "params": [
+                {
+                    "name": "name",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_str8"
+                    }
+                },
+                {
+                    "name": "f",
+                    "type": {
+                        "kind": "f32"
+                    }
+                }
+            ]
+        },
+        {
+            "kind": "proc",
+            "name": "oc_ui_var_set_size_str8",
+            "return": {
+                "kind": "void"
+            },
+            "params": [
+                {
+                    "name": "name",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_str8"
+                    }
+                },
+                {
+                    "name": "size",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_ui_size"
+                    }
+                }
+            ]
+        },
+        {
+            "kind": "proc",
+            "name": "oc_ui_var_set_color_str8",
+            "return": {
+                "kind": "void"
+            },
+            "params": [
+                {
+                    "name": "name",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_str8"
+                    }
+                },
+                {
+                    "name": "color",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_color"
+                    }
+                }
+            ]
+        },
+        {
+            "kind": "proc",
+            "name": "oc_ui_var_set_font_str8",
+            "return": {
+                "kind": "void"
+            },
+            "params": [
+                {
+                    "name": "name",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_str8"
+                    }
+                },
+                {
+                    "name": "font",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_font"
+                    }
+                }
+            ]
+        },
+        {
+            "kind": "proc",
+            "name": "oc_ui_var_set_str8",
+            "return": {
+                "kind": "void"
+            },
+            "params": [
+                {
+                    "name": "name",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_str8"
+                    }
+                },
+                {
+                    "name": "src",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_str8"
+                    }
+                }
+            ]
+        },
+        {
+            "kind": "proc",
+            "name": "oc_ui_var_set_i32",
+            "return": {
+                "kind": "void"
+            },
+            "params": [
+                {
+                    "name": "name",
+                    "type": {
+                        "kind": "pointer",
+                        "type": {
+                            "kind": "char"
+                        }
+                    }
+                },
+                {
+                    "name": "i",
+                    "type": {
+                        "kind": "i32"
+                    }
+                }
+            ]
+        },
+        {
+            "kind": "proc",
+            "name": "oc_ui_var_set_f32",
+            "return": {
+                "kind": "void"
+            },
+            "params": [
+                {
+                    "name": "name",
+                    "type": {
+                        "kind": "pointer",
+                        "type": {
+                            "kind": "char"
+                        }
+                    }
+                },
+                {
+                    "name": "f",
+                    "type": {
+                        "kind": "f32"
+                    }
+                }
+            ]
+        },
+        {
+            "kind": "proc",
+            "name": "oc_ui_var_set_size",
+            "return": {
+                "kind": "void"
+            },
+            "params": [
+                {
+                    "name": "name",
+                    "type": {
+                        "kind": "pointer",
+                        "type": {
+                            "kind": "char"
+                        }
+                    }
+                },
+                {
+                    "name": "size",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_ui_size"
+                    }
+                }
+            ]
+        },
+        {
+            "kind": "proc",
+            "name": "oc_ui_var_set_color",
+            "return": {
+                "kind": "void"
+            },
+            "params": [
+                {
+                    "name": "name",
+                    "type": {
+                        "kind": "pointer",
+                        "type": {
+                            "kind": "char"
+                        }
+                    }
+                },
+                {
+                    "name": "color",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_color"
+                    }
+                }
+            ]
+        },
+        {
+            "kind": "proc",
+            "name": "oc_ui_var_set_font",
+            "return": {
+                "kind": "void"
+            },
+            "params": [
+                {
+                    "name": "name",
+                    "type": {
+                        "kind": "pointer",
+                        "type": {
+                            "kind": "char"
+                        }
+                    }
+                },
+                {
+                    "name": "font",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_font"
+                    }
+                }
+            ]
+        },
+        {
+            "kind": "proc",
+            "name": "oc_ui_var_set",
+            "return": {
+                "kind": "void"
+            },
+            "params": [
+                {
+                    "name": "name",
+                    "type": {
+                        "kind": "pointer",
+                        "type": {
+                            "kind": "char"
+                        }
+                    }
+                },
+                {
+                    "name": "src",
+                    "type": {
+                        "kind": "pointer",
+                        "type": {
+                            "kind": "char"
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "kind": "proc",
+            "name": "oc_ui_var_get_i32_str8",
+            "return": {
+                "kind": "i32"
+            },
+            "params": [
+                {
+                    "name": "name",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_str8"
+                    }
+                }
+            ]
+        },
+        {
+            "kind": "proc",
+            "name": "oc_ui_var_get_f32_str8",
+            "return": {
+                "kind": "f32"
+            },
+            "params": [
+                {
+                    "name": "name",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_str8"
+                    }
+                }
+            ]
+        },
+        {
+            "kind": "proc",
+            "name": "oc_ui_var_get_size_str8",
             "return": {
                 "kind": "namedType",
-                "name": "oc_ui_pattern"
+                "name": "oc_ui_size"
+            },
+            "params": [
+                {
+                    "name": "name",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_str8"
+                    }
+                }
+            ]
+        },
+        {
+            "kind": "proc",
+            "name": "oc_ui_var_get_color_str8",
+            "return": {
+                "kind": "namedType",
+                "name": "oc_color"
+            },
+            "params": [
+                {
+                    "name": "name",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_str8"
+                    }
+                }
+            ]
+        },
+        {
+            "kind": "proc",
+            "name": "oc_ui_var_get_font_str8",
+            "return": {
+                "kind": "namedType",
+                "name": "oc_font"
+            },
+            "params": [
+                {
+                    "name": "name",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_str8"
+                    }
+                }
+            ]
+        },
+        {
+            "kind": "proc",
+            "name": "oc_ui_var_get_i32",
+            "return": {
+                "kind": "i32"
+            },
+            "params": [
+                {
+                    "name": "name",
+                    "type": {
+                        "kind": "pointer",
+                        "type": {
+                            "kind": "char"
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "kind": "proc",
+            "name": "oc_ui_var_get_f32",
+            "return": {
+                "kind": "f32"
+            },
+            "params": [
+                {
+                    "name": "name",
+                    "type": {
+                        "kind": "pointer",
+                        "type": {
+                            "kind": "char"
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "kind": "proc",
+            "name": "oc_ui_var_get_size",
+            "return": {
+                "kind": "namedType",
+                "name": "oc_ui_size"
+            },
+            "params": [
+                {
+                    "name": "name",
+                    "type": {
+                        "kind": "pointer",
+                        "type": {
+                            "kind": "char"
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "kind": "proc",
+            "name": "oc_ui_var_get_color",
+            "return": {
+                "kind": "namedType",
+                "name": "oc_color"
+            },
+            "params": [
+                {
+                    "name": "name",
+                    "type": {
+                        "kind": "pointer",
+                        "type": {
+                            "kind": "char"
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "kind": "proc",
+            "name": "oc_ui_var_get_font",
+            "return": {
+                "kind": "namedType",
+                "name": "oc_font"
+            },
+            "params": [
+                {
+                    "name": "name",
+                    "type": {
+                        "kind": "pointer",
+                        "type": {
+                            "kind": "char"
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "kind": "proc",
+            "name": "oc_ui_theme_dark",
+            "return": {
+                "kind": "void"
             },
             "params": []
         },
         {
             "kind": "proc",
-            "name": "oc_ui_pattern_owner",
+            "name": "oc_ui_theme_light",
             "return": {
-                "kind": "namedType",
-                "name": "oc_ui_pattern"
+                "kind": "void"
             },
             "params": []
-        },
-        {
-            "kind": "proc",
-            "name": "oc_ui_style_next",
-            "return": {
-                "kind": "void"
-            },
-            "params": [
-                {
-                    "name": "style",
-                    "type": {
-                        "kind": "pointer",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_ui_style"
-                        }
-                    }
-                },
-                {
-                    "name": "mask",
-                    "type": {
-                        "kind": "namedType",
-                        "name": "oc_ui_style_mask"
-                    }
-                }
-            ]
-        },
-        {
-            "kind": "proc",
-            "name": "oc_ui_style_match_before",
-            "return": {
-                "kind": "void"
-            },
-            "params": [
-                {
-                    "name": "pattern",
-                    "type": {
-                        "kind": "namedType",
-                        "name": "oc_ui_pattern"
-                    }
-                },
-                {
-                    "name": "style",
-                    "type": {
-                        "kind": "pointer",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_ui_style"
-                        }
-                    }
-                },
-                {
-                    "name": "mask",
-                    "type": {
-                        "kind": "namedType",
-                        "name": "oc_ui_style_mask"
-                    }
-                }
-            ]
-        },
-        {
-            "kind": "proc",
-            "name": "oc_ui_style_match_after",
-            "return": {
-                "kind": "void"
-            },
-            "params": [
-                {
-                    "name": "pattern",
-                    "type": {
-                        "kind": "namedType",
-                        "name": "oc_ui_pattern"
-                    }
-                },
-                {
-                    "name": "style",
-                    "type": {
-                        "kind": "pointer",
-                        "type": {
-                            "kind": "namedType",
-                            "name": "oc_ui_style"
-                        }
-                    }
-                },
-                {
-                    "name": "mask",
-                    "type": {
-                        "kind": "namedType",
-                        "name": "oc_ui_style_mask"
-                    }
-                }
-            ]
-        },
+        }
+    ]
+},
+{
+    "kind": "module",
+    "name": "UI Widgets",
+    "brief": "Graphical User Interface Widgets.",
+    "contents": [
         {
             "kind": "proc",
             "name": "oc_ui_label",
@@ -15465,6 +14552,15 @@
                 "name": "oc_ui_sig"
             },
             "params": [
+                {
+                    "name": "key",
+                    "type": {
+                        "kind": "pointer",
+                        "type": {
+                            "kind": "char"
+                        }
+                    }
+                },
                 {
                     "name": "label",
                     "type": {
@@ -15485,6 +14581,13 @@
             },
             "params": [
                 {
+                    "name": "key",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_str8"
+                    }
+                },
+                {
                     "name": "label",
                     "type": {
                         "kind": "namedType",
@@ -15502,12 +14605,45 @@
             },
             "params": [
                 {
-                    "name": "label",
+                    "name": "key",
                     "type": {
                         "kind": "pointer",
                         "type": {
                             "kind": "char"
                         }
+                    }
+                },
+                {
+                    "name": "text",
+                    "type": {
+                        "kind": "pointer",
+                        "type": {
+                            "kind": "char"
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "kind": "proc",
+            "name": "oc_ui_button_str8",
+            "return": {
+                "kind": "namedType",
+                "name": "oc_ui_sig"
+            },
+            "params": [
+                {
+                    "name": "key",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_str8"
+                    }
+                },
+                {
+                    "name": "text",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_str8"
                     }
                 }
             ]
@@ -15521,12 +14657,38 @@
             },
             "params": [
                 {
-                    "name": "name",
+                    "name": "key",
                     "type": {
                         "kind": "pointer",
                         "type": {
                             "kind": "char"
                         }
+                    }
+                },
+                {
+                    "name": "checked",
+                    "type": {
+                        "kind": "pointer",
+                        "type": {
+                            "kind": "bool"
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "kind": "proc",
+            "name": "oc_ui_checkbox_str8",
+            "return": {
+                "kind": "namedType",
+                "name": "oc_ui_sig"
+            },
+            "params": [
+                {
+                    "name": "key",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_str8"
                     }
                 },
                 {
@@ -15573,7 +14735,7 @@
         },
         {
             "kind": "proc",
-            "name": "oc_ui_scrollbar",
+            "name": "oc_ui_slider_str8",
             "return": {
                 "kind": "pointer",
                 "type": {
@@ -15585,20 +14747,12 @@
                 {
                     "name": "name",
                     "type": {
-                        "kind": "pointer",
-                        "type": {
-                            "kind": "char"
-                        }
+                        "kind": "namedType",
+                        "name": "oc_str8"
                     }
                 },
                 {
-                    "name": "thumbRatio",
-                    "type": {
-                        "kind": "f32"
-                    }
-                },
-                {
-                    "name": "scrollValue",
+                    "name": "value",
                     "type": {
                         "kind": "pointer",
                         "type": {
@@ -15616,25 +14770,7 @@
             },
             "params": [
                 {
-                    "name": "label",
-                    "type": {
-                        "kind": "pointer",
-                        "type": {
-                            "kind": "char"
-                        }
-                    }
-                }
-            ]
-        },
-        {
-            "kind": "proc",
-            "name": "oc_ui_panel_begin",
-            "return": {
-                "kind": "void"
-            },
-            "params": [
-                {
-                    "name": "name",
+                    "name": "key",
                     "type": {
                         "kind": "pointer",
                         "type": {
@@ -15643,21 +14779,38 @@
                     }
                 },
                 {
-                    "name": "flags",
+                    "name": "text",
                     "type": {
-                        "kind": "namedType",
-                        "name": "oc_ui_flags"
+                        "kind": "pointer",
+                        "type": {
+                            "kind": "char"
+                        }
                     }
                 }
             ]
         },
         {
             "kind": "proc",
-            "name": "oc_ui_panel_end",
+            "name": "oc_ui_tooltip_str8",
             "return": {
                 "kind": "void"
             },
-            "params": []
+            "params": [
+                {
+                    "name": "key",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_str8"
+                    }
+                },
+                {
+                    "name": "text",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_str8"
+                    }
+                }
+            ]
         },
         {
             "kind": "proc",
@@ -15667,12 +14820,28 @@
             },
             "params": [
                 {
-                    "name": "name",
+                    "name": "key",
                     "type": {
                         "kind": "pointer",
                         "type": {
                             "kind": "char"
                         }
+                    }
+                }
+            ]
+        },
+        {
+            "kind": "proc",
+            "name": "oc_ui_menu_bar_begin_str8",
+            "return": {
+                "kind": "void"
+            },
+            "params": [
+                {
+                    "name": "key",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_str8"
                     }
                 }
             ]
@@ -15693,12 +14862,44 @@
             },
             "params": [
                 {
-                    "name": "label",
+                    "name": "key",
                     "type": {
                         "kind": "pointer",
                         "type": {
                             "kind": "char"
                         }
+                    }
+                },
+                {
+                    "name": "name",
+                    "type": {
+                        "kind": "pointer",
+                        "type": {
+                            "kind": "char"
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "kind": "proc",
+            "name": "oc_ui_menu_begin_str8",
+            "return": {
+                "kind": "void"
+            },
+            "params": [
+                {
+                    "name": "key",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_str8"
+                    }
+                },
+                {
+                    "name": "name",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_str8"
                     }
                 }
             ]
@@ -15720,12 +14921,45 @@
             },
             "params": [
                 {
-                    "name": "label",
+                    "name": "key",
                     "type": {
                         "kind": "pointer",
                         "type": {
                             "kind": "char"
                         }
+                    }
+                },
+                {
+                    "name": "text",
+                    "type": {
+                        "kind": "pointer",
+                        "type": {
+                            "kind": "char"
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "kind": "proc",
+            "name": "oc_ui_menu_button_str8",
+            "return": {
+                "kind": "namedType",
+                "name": "oc_ui_sig"
+            },
+            "params": [
+                {
+                    "name": "key",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_str8"
+                    }
+                },
+                {
+                    "name": "text",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_str8"
                     }
                 }
             ]
@@ -15756,7 +14990,7 @@
                         }
                     },
                     {
-                        "name": "frame",
+                        "name": "box",
                         "type": {
                             "kind": "pointer",
                             "type": {
@@ -15764,15 +14998,103 @@
                                 "name": "oc_ui_box"
                             }
                         }
+                    }
+                ]
+            }
+        },
+        {
+            "kind": "typename",
+            "name": "oc_ui_edit_move",
+            "type": {
+                "kind": "enum",
+                "type": {
+                    "kind": "u32"
+                },
+                "constants": [
+                    {
+                        "kind": "enum-constant",
+                        "name": "OC_UI_EDIT_MOVE_NONE",
+                        "value": 0
                     },
                     {
-                        "name": "textBox",
+                        "kind": "enum-constant",
+                        "name": "OC_UI_EDIT_MOVE_CHAR",
+                        "value": 1
+                    },
+                    {
+                        "kind": "enum-constant",
+                        "name": "OC_UI_EDIT_MOVE_WORD",
+                        "value": 2
+                    },
+                    {
+                        "kind": "enum-constant",
+                        "name": "OC_UI_EDIT_MOVE_LINE",
+                        "value": 3
+                    }
+                ]
+            }
+        },
+        {
+            "kind": "typename",
+            "name": "oc_ui_text_box_info",
+            "type": {
+                "kind": "struct",
+                "fields": [
+                    {
+                        "name": "text",
                         "type": {
-                            "kind": "pointer",
-                            "type": {
-                                "kind": "namedType",
-                                "name": "oc_ui_box"
-                            }
+                            "kind": "namedType",
+                            "name": "oc_str8"
+                        }
+                    },
+                    {
+                        "name": "defaultText",
+                        "type": {
+                            "kind": "namedType",
+                            "name": "oc_str8"
+                        }
+                    },
+                    {
+                        "name": "cursor",
+                        "type": {
+                            "kind": "i32"
+                        }
+                    },
+                    {
+                        "name": "mark",
+                        "type": {
+                            "kind": "i32"
+                        }
+                    },
+                    {
+                        "name": "selectionMode",
+                        "type": {
+                            "kind": "namedType",
+                            "name": "oc_ui_edit_move"
+                        }
+                    },
+                    {
+                        "name": "wordSelectionInitialCursor",
+                        "type": {
+                            "kind": "i32"
+                        }
+                    },
+                    {
+                        "name": "wordSelectionInitialMark",
+                        "type": {
+                            "kind": "i32"
+                        }
+                    },
+                    {
+                        "name": "firstDisplayedChar",
+                        "type": {
+                            "kind": "i32"
+                        }
+                    },
+                    {
+                        "name": "cursorBlinkStart",
+                        "type": {
+                            "kind": "f64"
                         }
                     }
                 ]
@@ -15787,7 +15109,7 @@
             },
             "params": [
                 {
-                    "name": "name",
+                    "name": "key",
                     "type": {
                         "kind": "pointer",
                         "type": {
@@ -15806,10 +15128,50 @@
                     }
                 },
                 {
-                    "name": "text",
+                    "name": "info",
+                    "type": {
+                        "kind": "pointer",
+                        "type": {
+                            "kind": "namedType",
+                            "name": "oc_ui_text_box_info"
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "kind": "proc",
+            "name": "oc_ui_text_box_str8",
+            "return": {
+                "kind": "namedType",
+                "name": "oc_ui_text_box_result"
+            },
+            "params": [
+                {
+                    "name": "key",
                     "type": {
                         "kind": "namedType",
                         "name": "oc_str8"
+                    }
+                },
+                {
+                    "name": "arena",
+                    "type": {
+                        "kind": "pointer",
+                        "type": {
+                            "kind": "namedType",
+                            "name": "oc_arena"
+                        }
+                    }
+                },
+                {
+                    "name": "info",
+                    "type": {
+                        "kind": "pointer",
+                        "type": {
+                            "kind": "namedType",
+                            "name": "oc_ui_text_box_info"
+                        }
                     }
                 }
             ]
@@ -15867,12 +15229,39 @@
             },
             "params": [
                 {
-                    "name": "name",
+                    "name": "key",
                     "type": {
                         "kind": "pointer",
                         "type": {
                             "kind": "char"
                         }
+                    }
+                },
+                {
+                    "name": "info",
+                    "type": {
+                        "kind": "pointer",
+                        "type": {
+                            "kind": "namedType",
+                            "name": "oc_ui_select_popup_info"
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "kind": "proc",
+            "name": "oc_ui_select_popup_str8",
+            "return": {
+                "kind": "namedType",
+                "name": "oc_ui_select_popup_info"
+            },
+            "params": [
+                {
+                    "name": "key",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_str8"
                     }
                 },
                 {
@@ -15933,7 +15322,7 @@
             },
             "params": [
                 {
-                    "name": "name",
+                    "name": "key",
                     "type": {
                         "kind": "pointer",
                         "type": {
@@ -15952,8 +15341,34 @@
                     }
                 }
             ]
+        },
+        {
+            "kind": "proc",
+            "name": "oc_ui_radio_group_str8",
+            "return": {
+                "kind": "namedType",
+                "name": "oc_ui_radio_group_info"
+            },
+            "params": [
+                {
+                    "name": "key",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_str8"
+                    }
+                },
+                {
+                    "name": "info",
+                    "type": {
+                        "kind": "pointer",
+                        "type": {
+                            "kind": "namedType",
+                            "name": "oc_ui_radio_group_info"
+                        }
+                    }
+                }
+            ]
         }
     ]
-
 }
 ]

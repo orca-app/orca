@@ -1743,8 +1743,16 @@ void oc_rectangle_fill(f32 x, f32 y, f32 w, f32 h)
 
 void oc_rectangle_stroke(f32 x, f32 y, f32 w, f32 h)
 {
-    oc_rectangle_path(x, y, w, h);
-    oc_stroke();
+    oc_canvas_context_data* context = oc_currentCanvasContext;
+    if(context)
+    {
+        f32 oldExcursion = context->attributes.maxJointExcursion;
+        context->attributes.maxJointExcursion = 2 * context->attributes.width;
+        oc_rectangle_path(x, y, w, h);
+        oc_stroke();
+
+        context->attributes.maxJointExcursion = oldExcursion;
+    }
 }
 
 void oc_rounded_rectangle_path(f32 x, f32 y, f32 w, f32 h, f32 r)

@@ -233,15 +233,6 @@ wa_status wa_instance_status(wa_instance* instance);
 wa_func* wa_instance_find_function(wa_instance* instance, oc_str8 name);
 wa_func_type wa_func_get_type(oc_arena* arena, wa_instance* instance, wa_func* func);
 
-/*
-wa_status wa_instance_invoke(wa_instance* instance,
-                             wa_func* func,
-                             u32 argCount,
-                             wa_value* args,
-                             u32 retCount,
-                             wa_value* returns);
-*/
-
 wa_global* wa_instance_find_global(wa_instance* instance, oc_str8 name);
 wa_value wa_global_get(wa_instance* instance, wa_global* global);
 void wa_global_set(wa_instance* instance, wa_global* global, wa_value value);

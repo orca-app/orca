@@ -110,6 +110,7 @@
     #endif
 
     #include "ui/input_state.c"
+    #include "ui/widgets.c"
     #include "ui/ui.c"
 
 #endif // !defined(OC_NO_APP_LAYER)
