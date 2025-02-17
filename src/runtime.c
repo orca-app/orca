@@ -1163,9 +1163,11 @@ void debugger_ui_update(oc_runtime* app)
 
     oc_ui_frame(frameSize)
     {
-        static i64 selectedFunction = -1;
+        oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_X);
+        oc_ui_style_set_i32(OC_UI_CONSTRAIN_X, 1);
 
-        f32 procPanelSize = 300;
+        static i64 selectedFunction = -1;
+        static f32 procPanelSize = 300;
 
         oc_ui_box("proc-list")
         {
@@ -1214,35 +1216,20 @@ void debugger_ui_update(oc_runtime* app)
             }
         }
 
-#if 0
-        oc_ui_style_next(
-            &(oc_ui_style){
-                .size = {
-                    .width = { OC_UI_SIZE_PARENT_MINUS_PIXELS, functionPanelSize },
-                    .height = { OC_UI_SIZE_PARENT, 1 },
-                },
-                .bgColor = OC_UI_DARK_THEME.bg2,
-            },
-            OC_UI_STYLE_SIZE | OC_UI_STYLE_BG_COLOR);
-
-        oc_ui_container("code panel", OC_UI_FLAG_DRAW_BACKGROUND)
+        oc_ui_box("code-panel")
         {
+            oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PARENT, 1, 1 });
+            oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
+            oc_ui_style_set_i32(OC_UI_OVERFLOW_Y, OC_UI_OVERFLOW_SCROLL);
+
             const i32 BOX_MARGIN_H = 2;
             const i32 BOX_MARGIN_W = 2;
 
             if(selectedFunction >= 0)
             {
-                oc_ui_style_next(&(oc_ui_style){
-                                     .size.width = { OC_UI_SIZE_PARENT, 1 },
-                                 },
-                                 OC_UI_STYLE_SIZE_WIDTH);
-
-                oc_ui_container("bytecode-view", 0)
-                {
-
-                    wa_func* func = &app->env.instance->functions[selectedFunction];
-                    oc_str8 funcName = wa_module_get_function_name(app->env.module, selectedFunction);
-                    /*
+                wa_func* func = &app->env.instance->functions[selectedFunction];
+                oc_str8 funcName = wa_module_get_function_name(app->env.module, selectedFunction);
+                /*
                     if(funcName.len)
                     {
                         oc_str8_list_push(scratch.arena, &list, funcName);
@@ -1257,31 +1244,25 @@ void debugger_ui_update(oc_runtime* app)
 
 
                     oc_str8 funcText = oc_str8_list_join(scratch.arena, list);
-                    */
-                    oc_ui_style_next(&(oc_ui_style){
-                                         .size.width = { OC_UI_SIZE_PARENT, 1 },
-                                         .layout = {
-                                             .axis = OC_UI_AXIS_Y,
-                                             .spacing = BOX_MARGIN_H,
-                                             .margin.x = BOX_MARGIN_W,
-                                             .margin.y = BOX_MARGIN_H,
-                                             .align = OC_UI_ALIGN_START,
-                                         },
-                                     },
-                                     OC_UI_STYLE_SIZE_WIDTH | OC_UI_STYLE_LAYOUT);
+                */
 
-                    oc_ui_container_str8(funcName, 0)
+                oc_ui_box_str8(funcName)
+                {
+                    oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
+                    oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_Y);
+                    oc_ui_style_set_f32(OC_UI_MARGIN_X, 5);
+                    oc_ui_style_set_f32(OC_UI_MARGIN_Y, 5);
+
+                    oc_ui_label_str8(OC_STR8("func-label"), funcName);
+
+                    for(u64 codeIndex = 0; codeIndex < func->codeLen; codeIndex++)
                     {
-                        oc_ui_label_str8(funcName);
+                        u64 startIndex = codeIndex;
 
-                        for(u64 codeIndex = 0; codeIndex < func->codeLen; codeIndex++)
-                        {
-                            u64 startIndex = codeIndex;
+                        wa_code* c = &func->code[codeIndex];
+                        wa_instr_op opcode = c->opcode;
 
-                            wa_code* c = &func->code[codeIndex];
-                            wa_instr_op opcode = c->opcode;
-
-                            /*
+                        /*
                         wa_breakpoint* breakpoint = wa_debugger_find_breakpoint(&app->debugger,
                                                                                 &(wa_bytecode_loc){
                                                                                     .instance = app->debugger.interpreter->instance,
@@ -1294,20 +1275,15 @@ void debugger_ui_update(oc_runtime* app)
                         }
                         */
 
-                            const wa_instr_info* info = &wa_instr_infos[opcode];
+                        const wa_instr_info* info = &wa_instr_infos[opcode];
 
-                            oc_str8 key = oc_str8_pushf(scratch.arena, "0x%08llx", codeIndex);
+                        oc_str8 key = oc_str8_pushf(scratch.arena, "0x%08llx", codeIndex);
 
-                            oc_ui_style_next(&(oc_ui_style){
-                                                 .size.width = { OC_UI_SIZE_PARENT, 1 },
-                                                 .layout = {
-                                                     .axis = OC_UI_AXIS_X,
-                                                     .spacing = BOX_MARGIN_W * 5,
-                                                     .margin.y = BOX_MARGIN_H,
-                                                     .align = OC_UI_ALIGN_START,
-                                                 },
-                                             },
-                                             OC_UI_STYLE_SIZE_WIDTH | OC_UI_STYLE_LAYOUT);
+                        oc_ui_box_str8(key)
+                        {
+                            oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
+                            oc_ui_style_set_f32(OC_UI_SPACING, 25);
+                            oc_ui_style_set_f32(OC_UI_MARGIN_Y, 2);
 
                             bool makeExecCursor = false;
                             if(app->env.instance)
@@ -1323,23 +1299,18 @@ void debugger_ui_update(oc_runtime* app)
 
                             if(makeExecCursor)
                             {
-                                oc_ui_style_next(&(oc_ui_style){
-                                                     .bgColor = { 0.4, 1, 0.4, 1 },
-                                                 },
-                                                 OC_UI_STYLE_BG_COLOR);
+                                oc_ui_style_set_color(OC_UI_BG_COLOR, (oc_color){ 0.4, 1, 0.4, 1 });
                             }
 
-                            oc_ui_container_str8(key, 0)
-                            {
-                                // address
-                                oc_ui_box* label = oc_ui_label_str8(key).box;
+                            // address
+                            oc_ui_box* label = oc_ui_label_str8(OC_STR8("address"), key).box;
 
-                                if(makeExecCursor)
-                                {
-                                    //NOTE: we compute auto-scroll on label box instead of cursor box, because the cursor box is not permanent,
-                                    //      so its rect might not be set every frame, resulting in brief jumps.
-                                    //      Maybe the cursor box shouldnt be parented to the function UI namespace and be floating to begin with...
-                                    /*
+                            if(makeExecCursor)
+                            {
+                                //NOTE: we compute auto-scroll on label box instead of cursor box, because the cursor box is not permanent,
+                                //      so its rect might not be set every frame, resulting in brief jumps.
+                                //      Maybe the cursor box shouldnt be parented to the function UI namespace and be floating to begin with...
+                                /*
                                     if(app->autoScroll)
                                     {
                                         f32 targetScroll = scrollPanel->scroll.y;
@@ -1367,16 +1338,11 @@ void debugger_ui_update(oc_runtime* app)
                                         scrollPanel->scroll.y += 0.1 * (targetScroll - scrollPanel->scroll.y);
                                     }
                                     */
-                                }
+                            }
 
-                                // spacer or exec cursor
-                                oc_ui_style_next(&(oc_ui_style){
-                                                     .size.width = { OC_UI_SIZE_PIXELS, 10 * BOX_MARGIN_W },
-                                                     .size.height = { OC_UI_SIZE_PARENT, 1 },
-                                                 },
-                                                 OC_UI_STYLE_SIZE);
+                            // spacer or exec cursor
 
-                                /*
+                            /*
                             if(breakpoint)
                             {
                                 oc_ui_box* box = oc_ui_box_make("bp", OC_UI_FLAG_DRAW_PROC | OC_UI_FLAG_CLICKABLE);
@@ -1388,8 +1354,12 @@ void debugger_ui_update(oc_runtime* app)
                                 }
                             }
                             else*/
+                            {
+                                oc_ui_box("spacer")
                                 {
-                                    oc_ui_box* box = oc_ui_box_make("spacer", OC_UI_FLAG_CLICKABLE);
+                                    oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PIXELS, 50 });
+                                    oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
+
                                     /*
                                     if(oc_ui_box_sig(box).clicked)
                                     {
@@ -1402,68 +1372,67 @@ void debugger_ui_update(oc_runtime* app)
                                     }
                                     */
                                 }
-                                // opcode
-                                oc_ui_label(wa_instr_strings[opcode]);
-
-                                // operands
-                                for(u32 opdIndex = 0; opdIndex < info->opdCount; opdIndex++)
-                                {
-                                    wa_code* opd = &func->code[codeIndex + opdIndex + 1];
-                                    oc_str8 opdKey = oc_str8_pushf(scratch.arena, "opd%u", opdIndex);
-
-                                    oc_ui_container_str8(opdKey, 0)
-                                    {
-                                        oc_str8 s = { 0 };
-
-                                        switch(info->opd[opdIndex])
-                                        {
-                                            case WA_OPD_CONST_I32:
-                                                s = oc_str8_pushf(scratch.arena, "%i", opd->valI32);
-                                                break;
-                                            case WA_OPD_CONST_I64:
-                                                s = oc_str8_pushf(scratch.arena, "%lli", opd->valI64);
-                                                break;
-                                            case WA_OPD_CONST_F32:
-                                                s = oc_str8_pushf(scratch.arena, "%f", opd->valF32);
-                                                break;
-                                            case WA_OPD_CONST_F64:
-                                                s = oc_str8_pushf(scratch.arena, "%f", opd->valF64);
-                                                break;
-
-                                            case WA_OPD_LOCAL_INDEX:
-                                                s = oc_str8_pushf(scratch.arena, "r%u", opd->valU32);
-                                                break;
-                                            case WA_OPD_GLOBAL_INDEX:
-                                                s = oc_str8_pushf(scratch.arena, "g%u", opd->valU32);
-                                                break;
-
-                                            case WA_OPD_FUNC_INDEX:
-                                                s = wa_module_get_function_name(app->env.module, opd->valU32);
-                                                if(s.len == 0)
-                                                {
-                                                    s = oc_str8_pushf(scratch.arena, "%u", opd->valU32);
-                                                }
-                                                break;
-
-                                            case WA_OPD_JUMP_TARGET:
-                                                s = oc_str8_pushf(scratch.arena, "%+lli", opd->valI64);
-                                                break;
-
-                                            case WA_OPD_MEM_ARG:
-                                                s = oc_str8_pushf(scratch.arena, "a%u:+%u", opd->memArg.align, opd->memArg.offset);
-                                                break;
-
-                                            default:
-                                                s = oc_str8_pushf(scratch.arena, "0x%08llx", opd->valU64);
-                                                break;
-                                        }
-                                        oc_ui_label_str8(s);
-                                    }
-                                }
                             }
+                            // opcode
+                            oc_ui_label("opcode", wa_instr_strings[opcode]);
 
-                            codeIndex += info->opdCount;
-                            /*
+                            // operands
+                            for(u32 opdIndex = 0; opdIndex < info->opdCount; opdIndex++)
+                            {
+                                wa_code* opd = &func->code[codeIndex + opdIndex + 1];
+                                oc_str8 opdKey = oc_str8_pushf(scratch.arena, "opd%u", opdIndex);
+
+                                oc_str8 s = { 0 };
+
+                                switch(info->opd[opdIndex])
+                                {
+                                    case WA_OPD_CONST_I32:
+                                        s = oc_str8_pushf(scratch.arena, "%i", opd->valI32);
+                                        break;
+                                    case WA_OPD_CONST_I64:
+                                        s = oc_str8_pushf(scratch.arena, "%lli", opd->valI64);
+                                        break;
+                                    case WA_OPD_CONST_F32:
+                                        s = oc_str8_pushf(scratch.arena, "%f", opd->valF32);
+                                        break;
+                                    case WA_OPD_CONST_F64:
+                                        s = oc_str8_pushf(scratch.arena, "%f", opd->valF64);
+                                        break;
+
+                                    case WA_OPD_LOCAL_INDEX:
+                                        s = oc_str8_pushf(scratch.arena, "r%u", opd->valU32);
+                                        break;
+                                    case WA_OPD_GLOBAL_INDEX:
+                                        s = oc_str8_pushf(scratch.arena, "g%u", opd->valU32);
+                                        break;
+
+                                    case WA_OPD_FUNC_INDEX:
+                                        s = wa_module_get_function_name(app->env.module, opd->valU32);
+                                        if(s.len == 0)
+                                        {
+                                            s = oc_str8_pushf(scratch.arena, "%u", opd->valU32);
+                                        }
+                                        break;
+
+                                    case WA_OPD_JUMP_TARGET:
+                                        s = oc_str8_pushf(scratch.arena, "%+lli", opd->valI64);
+                                        break;
+
+                                    case WA_OPD_MEM_ARG:
+                                        s = oc_str8_pushf(scratch.arena, "a%u:+%u", opd->memArg.align, opd->memArg.offset);
+                                        break;
+
+                                    default:
+                                        s = oc_str8_pushf(scratch.arena, "0x%08llx", opd->valU64);
+                                        break;
+                                }
+
+                                oc_ui_label_str8(opdKey, s);
+                            }
+                        }
+
+                        codeIndex += info->opdCount;
+                        /*
                         if(c->opcode == WA_INSTR_jump_table)
                         {
                             printf("\n\t");
@@ -1475,15 +1444,15 @@ void debugger_ui_update(oc_runtime* app)
                             }
                         }
                         */
-                        }
-                        oc_ui_style_next(&(oc_ui_style){ .size.height = { OC_UI_SIZE_PIXELS, 10 * BOX_MARGIN_H } },
-                                         OC_UI_STYLE_SIZE_HEIGHT);
-                        oc_ui_box_make("vspacer", 0);
+                    }
+
+                    oc_ui_box("vspacer")
+                    {
+                        oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PIXELS, 20 });
                     }
                 }
             }
         }
-#endif
     }
 
     oc_ui_draw();
