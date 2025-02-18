@@ -1824,9 +1824,8 @@ oc_ui_box* oc_ui_box_end(void)
             box->scroll.x += wheel.x;
             box->scroll.x = oc_clamp(box->scroll.x, 0, contentsW - box->rect.w);
         }
-
-        box->scroll.x = oc_clamp(box->scroll.x, 0, contentsW - box->rect.w);
     }
+    box->scroll.x = oc_clamp(box->scroll.x, 0, contentsW - box->rect.w);
 
     if(needsScrollY && box->style.layout.overflow.y == OC_UI_OVERFLOW_SCROLL)
     {
@@ -1849,9 +1848,8 @@ oc_ui_box* oc_ui_box_end(void)
             box->scroll.y += wheel.y;
             box->scroll.y = oc_clamp(box->scroll.y, 0, contentsH - box->rect.h);
         }
-
-        box->scroll.y = oc_clamp(box->scroll.y, 0, contentsH - box->rect.h);
     }
+    box->scroll.y = oc_clamp(box->scroll.y, 0, contentsH - box->rect.h);
 
     oc_ui_box_pop();
 
