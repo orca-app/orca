@@ -55,7 +55,7 @@ int main()
     //NOTE: create image
     oc_arena_scope scratch = oc_scratch_begin();
 
-    oc_str8 imagePath = oc_path_executable_relative(scratch.arena, OC_STR8("../../resources/square_small.png"));
+    oc_str8 imagePath = oc_path_executable_relative(scratch.arena, OC_STR8("resources/square_small.png"));
     oc_image image = oc_image_create_from_path(renderer, imagePath, false);
     oc_vec2 imageSize = oc_image_size(image);
 

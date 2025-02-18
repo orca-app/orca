@@ -81,7 +81,7 @@ bool icon_from_image(oc_arena* a, oc_str8 image_path, oc_str8 ico_path)
     //-----------------------------------------------------------------------------
     // Write .ico header
     //-----------------------------------------------------------------------------
-    oc_file_write(ico_file, sizeof(header), (u8*)&header);
+    oc_file_write(ico_file, sizeof(header), (char*)&header);
     if(oc_file_last_error(ico_file) != OC_IO_OK)
     {
         result = false;
@@ -132,7 +132,7 @@ bool icon_from_image(oc_arena* a, oc_str8 image_path, oc_str8 ico_path)
             .image_size_in_bytes = image_sizes_bytes[i],
             .offset = data_offset,
         };
-        oc_file_write(ico_file, sizeof(entry), (u8*)&entry);
+        oc_file_write(ico_file, sizeof(entry), (char*)&entry);
         if(oc_file_last_error(ico_file) != OC_IO_OK)
         {
             result = false;
@@ -146,7 +146,7 @@ bool icon_from_image(oc_arena* a, oc_str8 image_path, oc_str8 ico_path)
     //-----------------------------------------------------------------------------
     for(i32 i = 0; i < num_sizes; ++i)
     {
-        oc_file_write(ico_file, image_sizes_bytes[i], images[i]);
+        oc_file_write(ico_file, image_sizes_bytes[i], (char*)images[i]);
         if(oc_file_last_error(ico_file) != OC_IO_OK)
         {
             result = false;
@@ -179,7 +179,7 @@ bool embed_icon_into_exe(oc_arena* a, oc_str8 exe_path, oc_str8 ico_path)
 
     u64 ico_file_size = oc_file_size(ico_file);
     u8* ico_file_data = oc_arena_push_array(a, u8, ico_file_size);
-    u64 total_read = oc_file_read(ico_file, ico_file_size, ico_file_data);
+    u64 total_read = oc_file_read(ico_file, ico_file_size, (char*)ico_file_data);
     if (total_read < ico_file_size)
     {
         result = false;
@@ -198,7 +198,7 @@ bool embed_icon_into_exe(oc_arena* a, oc_str8 exe_path, oc_str8 ico_path)
     ico_header->image_type = ico_header_disk->image_type;
     ico_header->num_images = ico_header_disk->num_images;
 
-    void** images = oc_arena_push_array(a, u8*, ico_header->num_images);
+    void** images = (void**)oc_arena_push_array(a, u8*, ico_header->num_images);
 
     for (int i = 0; i < ico_header->num_images; ++i)
     {
