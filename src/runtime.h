@@ -69,6 +69,7 @@ typedef struct oc_wasm_env
     oc_mutex* suspendMutex;
 
     bool pause;
+
 } oc_wasm_env;
 
 typedef struct log_entry
