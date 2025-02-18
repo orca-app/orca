@@ -5730,6 +5730,11 @@ typedef struct wa_interpreter
 
     _Atomic(bool) suspend;
     bool terminated;
+
+    oc_arena arena;
+    oc_list breakpoints;
+    oc_list breakpointFreeList;
+
 } wa_interpreter;
 
 wa_status wa_interpreter_init(wa_interpreter* interpreter,
@@ -5759,6 +5764,7 @@ wa_status wa_interpreter_init(wa_interpreter* interpreter,
 
     interpreter->locals = interpreter->localsBuffer;
     memcpy(interpreter->locals, args, argCount * sizeof(wa_value));
+
     return WA_OK;
 }
 
@@ -7941,6 +7947,8 @@ wa_interpreter* wa_interpreter_create(oc_arena* arena)
     interpreter->localsBuffer = oc_base_reserve(alloc, WA_LOCALS_BUFFER_SIZE * sizeof(wa_value));
     oc_base_commit(alloc, interpreter->localsBuffer, WA_LOCALS_BUFFER_SIZE * sizeof(wa_value));
 
+    oc_arena_init(&interpreter->arena);
+
     return (interpreter);
 }
 
@@ -7948,6 +7956,8 @@ void wa_interpreter_destroy(wa_interpreter* interpreter)
 {
     oc_base_allocator* alloc = oc_base_allocator_default();
     oc_base_release(alloc, interpreter->localsBuffer, WA_LOCALS_BUFFER_SIZE * sizeof(wa_value));
+
+    oc_arena_init(&interpreter->arena);
 }
 
 wa_instance* wa_interpreter_current_instance(wa_interpreter* interpreter)
@@ -8044,13 +8054,6 @@ void wa_print_stack_trace(wa_interpreter* interpreter)
 //-------------------------------------------------------------------------
 //TODO: move this in its own place
 
-typedef struct wa_bytecode_loc
-{
-    wa_instance* instance;
-    wa_func* func;
-    u32 index;
-} wa_bytecode_loc;
-
 typedef struct wa_breakpoint
 {
     oc_list_elt listElt;
@@ -8059,47 +8062,11 @@ typedef struct wa_breakpoint
 
 } wa_breakpoint;
 
-typedef struct wa_debugger
-{
-    wa_interpreter* interpreter;
-
-    wa_func* lastFunc;
-    wa_value cachedRegs[WA_MAX_SLOT_COUNT];
-
-    oc_arena arena;
-
-    oc_list breakpoints;
-    oc_list breakpointFreeList;
-
-    wa_bytecode_loc nextLoc;
-
-} wa_debugger;
-
-void wa_debugger_init(wa_debugger* debugger, wa_interpreter* interpreter)
-{
-    debugger->interpreter = interpreter;
-    oc_arena_init(&debugger->arena);
-    debugger->breakpoints = (oc_list){ 0 };
-    debugger->breakpointFreeList = (oc_list){ 0 };
-
-    //TODO: maybe extract and pull same code from single step etc.
-    debugger->lastFunc = interpreter->controlStack[interpreter->controlStackTop].func;
-    u32 regCount = debugger->lastFunc->maxRegCount;
-    memcpy(&debugger->cachedRegs, interpreter->locals, regCount * sizeof(wa_value));
-
-    u32 funcIndex = debugger->lastFunc - interpreter->instance->functions;
-    debugger->nextLoc = (wa_bytecode_loc){
-        .instance = interpreter->instance,
-        .func = debugger->lastFunc,
-        .index = 0,
-    };
-}
-
-wa_breakpoint* wa_debugger_find_breakpoint(wa_debugger* debugger, wa_bytecode_loc* loc)
+wa_breakpoint* wa_interpreter_find_breakpoint(wa_interpreter* interpreter, wa_bytecode_loc* loc)
 {
     wa_breakpoint* result = 0;
 
-    oc_list_for(debugger->breakpoints, bp, wa_breakpoint, listElt)
+    oc_list_for(interpreter->breakpoints, bp, wa_breakpoint, listElt)
     {
         if(bp->loc.instance == loc->instance
            && bp->loc.func == loc->func
@@ -8113,18 +8080,18 @@ wa_breakpoint* wa_debugger_find_breakpoint(wa_debugger* debugger, wa_bytecode_lo
     return result;
 }
 
-wa_breakpoint* wa_debugger_add_breakpoint(wa_debugger* debugger, wa_bytecode_loc* loc)
+wa_breakpoint* wa_interpreter_add_breakpoint(wa_interpreter* interpreter, wa_bytecode_loc* loc)
 {
-    wa_breakpoint* bp = wa_debugger_find_breakpoint(debugger, loc);
+    wa_breakpoint* bp = wa_interpreter_find_breakpoint(interpreter, loc);
     if(bp == 0)
     {
-        bp = oc_list_pop_front_entry(&debugger->breakpointFreeList, wa_breakpoint, listElt);
+        bp = oc_list_pop_front_entry(&interpreter->breakpointFreeList, wa_breakpoint, listElt);
         if(!bp)
         {
-            bp = oc_arena_push_type(&debugger->arena, wa_breakpoint);
+            bp = oc_arena_push_type(&interpreter->arena, wa_breakpoint);
         }
         bp->loc = *loc;
-        oc_list_push_back(&debugger->breakpoints, &bp->listElt);
+        oc_list_push_back(&interpreter->breakpoints, &bp->listElt);
 
         bp->savedOpcode = bp->loc.func->code[bp->loc.index];
         bp->loc.func->code[bp->loc.index].opcode = WA_INSTR_breakpoint;
@@ -8132,117 +8099,15 @@ wa_breakpoint* wa_debugger_add_breakpoint(wa_debugger* debugger, wa_bytecode_loc
     return bp;
 }
 
-void wa_debugger_remove_breakpoint(wa_debugger* debugger, wa_breakpoint* bp)
+void wa_interpreter_remove_breakpoint(wa_interpreter* interpreter, wa_breakpoint* bp)
 {
     bp->loc.func->code[bp->loc.index] = bp->savedOpcode;
 
-    oc_list_remove(&debugger->breakpoints, &bp->listElt);
-    oc_list_push_back(&debugger->breakpointFreeList, &bp->listElt);
+    oc_list_remove(&interpreter->breakpoints, &bp->listElt);
+    oc_list_push_back(&interpreter->breakpointFreeList, &bp->listElt);
 }
 
-/* wa_status wa_debugger_single_step(wa_debugger* debugger) */
-/* { */
-/*     wa_interpreter* interpreter = debugger->interpreter; */
-/*     wa_func* func = interpreter->controlStack[interpreter->controlStackTop].func; */
-/*     u32 codeIndex = interpreter->pc - func->code; */
-
-/*     debugger->lastFunc = func; */
-/*     memcpy(debugger->cachedRegs, interpreter->locals, func->maxRegCount * sizeof(wa_value)); */
-
-/*     //NOTE: if we start on a breakpoint, temporarily deactivate it. */
-/*     wa_breakpoint* bp = wa_debugger_find_breakpoint(debugger, &debugger->nextLoc); */
-/*     if(bp) */
-/*     { */
-/*         bp->loc.func->code[bp->loc.index] = bp->savedOpcode; */
-/*     } */
-
-/*     // single step */
-/*     wa_status status = wa_interpreter_run(interpreter, true); */
-
-/*     //TODO check if program terminated? */
-
-/*     //NOTE: re-enable breakpoint */
-/*     if(bp) */
-/*     { */
-/*         bp->loc.func->code[bp->loc.index].opcode = WA_INSTR_breakpoint; */
-/*     } */
-
-/*     //NOTE: store next location */
-/*     wa_func* nextFunc = interpreter->controlStack[interpreter->controlStackTop].func; */
-/*     u32 nextCodeIndex = interpreter->pc - nextFunc->code; */
-
-/*     debugger->nextLoc = (wa_bytecode_loc){ */
-/*         .instance = interpreter->controlStack[interpreter->controlStackTop].instance, */
-/*         .func = nextFunc, */
-/*         .index = nextCodeIndex, */
-/*     }; */
-
-/*     return status; */
-/* } */
-
-bool wa_instr_is_silent(wa_instr* instr)
+wa_instr_op wa_breakpoint_saved_opcode(wa_breakpoint* bp)
 {
-    return (instr->op == WA_INSTR_nop || instr->op == WA_INSTR_local_get);
+    return bp->savedOpcode.opcode;
 }
-
-/* wa_status wa_debugger_single_step_wasm(wa_debugger* debugger) */
-/* { */
-/*     /\* */
-/*         Some wasm instr generate multiple bytecode instr, so we need to step through the bytecode */
-/*         until we hit a _new_ instruction. */
-
-/*         Some wasm instructions are "silent", ie they don't generate bytecode at all, and bytecode-stepping */
-/*         skips those. This is the case of `nop` and `local.get`. */
-
-/*         We could "fake" stepping through these instructions, but this could be confusing (e.g. register contents */
-/*         wouldn't change), and complicates stepping code a fair bit. So for now, we only allow stepping or setting */
-/*         breakpoints at real bytecode locations. */
-/*     *\/ */
-/*     wa_bytecode_loc startLoc = debugger->nextLoc; */
-/*     wa_instr* startInstr = wa_bytecode_to_instr(startLoc.instance->module, */
-/*                                                 startLoc.func - startLoc.instance->functions, */
-/*                                                 startLoc.index); */
-
-/*     wa_status status = WA_OK; */
-/*     while((status = wa_debugger_single_step(debugger)) == WA_TRAP_STEP) */
-/*     { */
-/*         wa_bytecode_loc nextLoc = debugger->nextLoc; */
-/*         wa_instr* instr = wa_bytecode_to_instr(nextLoc.instance->module, */
-/*                                                nextLoc.func - nextLoc.instance->functions, */
-/*                                                nextLoc.index); */
-/*         if(instr != startInstr) */
-/*         { */
-/*             break; */
-/*         } */
-/*     } */
-/*     return status; */
-/* } */
-
-/* wa_status wa_debugger_continue(wa_debugger* debugger) */
-/* { */
-/*     wa_interpreter* interpreter = debugger->interpreter; */
-/*     wa_func* func = interpreter->controlStack[interpreter->controlStackTop].func; */
-/*     u32 codeIndex = interpreter->pc - func->code; */
-
-/*     debugger->lastFunc = func; */
-/*     memcpy(debugger->cachedRegs, interpreter->locals, func->maxRegCount * sizeof(wa_value)); */
-
-/*     //NOTE: if we start on a "real" breakpoint, step over it (step takes care of disabling/reenabling breakpoints) */
-/*     wa_breakpoint* breakpoint = wa_debugger_find_breakpoint(debugger, &debugger->nextLoc); */
-/*     if(breakpoint) */
-/*     { */
-/*         wa_debugger_single_step(debugger); */
-/*     } */
-
-/*     wa_status status = wa_interpreter_run(interpreter, false); */
-
-/*     wa_func* nextFunc = interpreter->controlStack[interpreter->controlStackTop].func; */
-/*     u32 nextCodeIndex = interpreter->pc - nextFunc->code; */
-
-/*     debugger->nextLoc = (wa_bytecode_loc){ */
-/*         .instance = interpreter->controlStack[interpreter->controlStackTop].instance, */
-/*         .func = nextFunc, */
-/*         .index = nextCodeIndex, */
-/*     }; */
-/*     return (status); */
-/* } */
