@@ -2892,6 +2892,15 @@ void oc_ui_draw_box(oc_ui_box* box)
         }
     }
 
+    if(!draw
+       && box->style.layout.overflow.x != OC_UI_OVERFLOW_ALLOW
+       && box->style.layout.overflow.y != OC_UI_OVERFLOW_ALLOW)
+    {
+        //NOTE: box is outside current clip and clips its children, so we can clip the
+        //      whole subtree
+        return;
+    }
+
     {
         //NOTE: push clip rect
         oc_rect clipRect = oc_ui_box_clip_rect(box);
