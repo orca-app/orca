@@ -1359,7 +1359,6 @@ void debugger_ui_update(oc_runtime* app)
                             oc_ui_box("line")
                             {
                                 oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
-                                oc_ui_style_set_f32(OC_UI_SPACING, 10);
 
                                 bool makeExecCursor = false;
                                 if(app->env.instance)
@@ -1375,7 +1374,7 @@ void debugger_ui_update(oc_runtime* app)
 
                                 if(makeExecCursor)
                                 {
-                                    oc_ui_style_set_color(OC_UI_BG_COLOR, (oc_color){ 0.4, 1, 0.4, 1 });
+                                    oc_ui_style_set_color(OC_UI_BG_COLOR, (oc_color){ 0.4, 0.7, 0.1, 1, OC_COLOR_SPACE_SRGB });
                                 }
 
                                 // address
@@ -1451,61 +1450,67 @@ void debugger_ui_update(oc_runtime* app)
                                         }
                                     }
                                 }
-                                // opcode
-                                oc_ui_label("opcode", wa_instr_strings[opcode]);
 
-                                // operands
-                                for(u32 opdIndex = 0; opdIndex < info->opdCount; opdIndex++)
+                                oc_ui_box("instruction")
                                 {
-                                    wa_code* opd = &func->code[codeIndex + opdIndex + 1];
-                                    oc_str8 opdKey = oc_str8_pushf(scratch.arena, "opd%u", opdIndex);
+                                    oc_ui_style_set_f32(OC_UI_SPACING, 10);
 
-                                    oc_str8 s = { 0 };
+                                    // opcode
+                                    oc_ui_label("opcode", wa_instr_strings[opcode]);
 
-                                    switch(info->opd[opdIndex])
+                                    // operands
+                                    for(u32 opdIndex = 0; opdIndex < info->opdCount; opdIndex++)
                                     {
-                                        case WA_OPD_CONST_I32:
-                                            s = oc_str8_pushf(scratch.arena, "%i", opd->valI32);
-                                            break;
-                                        case WA_OPD_CONST_I64:
-                                            s = oc_str8_pushf(scratch.arena, "%lli", opd->valI64);
-                                            break;
-                                        case WA_OPD_CONST_F32:
-                                            s = oc_str8_pushf(scratch.arena, "%f", opd->valF32);
-                                            break;
-                                        case WA_OPD_CONST_F64:
-                                            s = oc_str8_pushf(scratch.arena, "%f", opd->valF64);
-                                            break;
+                                        wa_code* opd = &func->code[codeIndex + opdIndex + 1];
+                                        oc_str8 opdKey = oc_str8_pushf(scratch.arena, "opd%u", opdIndex);
 
-                                        case WA_OPD_LOCAL_INDEX:
-                                            s = oc_str8_pushf(scratch.arena, "r%u", opd->valU32);
-                                            break;
-                                        case WA_OPD_GLOBAL_INDEX:
-                                            s = oc_str8_pushf(scratch.arena, "g%u", opd->valU32);
-                                            break;
+                                        oc_str8 s = { 0 };
 
-                                        case WA_OPD_FUNC_INDEX:
-                                            s = wa_module_get_function_name(app->env.module, opd->valU32);
-                                            if(s.len == 0)
-                                            {
-                                                s = oc_str8_pushf(scratch.arena, "%u", opd->valU32);
-                                            }
-                                            break;
+                                        switch(info->opd[opdIndex])
+                                        {
+                                            case WA_OPD_CONST_I32:
+                                                s = oc_str8_pushf(scratch.arena, "%i", opd->valI32);
+                                                break;
+                                            case WA_OPD_CONST_I64:
+                                                s = oc_str8_pushf(scratch.arena, "%lli", opd->valI64);
+                                                break;
+                                            case WA_OPD_CONST_F32:
+                                                s = oc_str8_pushf(scratch.arena, "%f", opd->valF32);
+                                                break;
+                                            case WA_OPD_CONST_F64:
+                                                s = oc_str8_pushf(scratch.arena, "%f", opd->valF64);
+                                                break;
 
-                                        case WA_OPD_JUMP_TARGET:
-                                            s = oc_str8_pushf(scratch.arena, "%+lli", opd->valI64);
-                                            break;
+                                            case WA_OPD_LOCAL_INDEX:
+                                                s = oc_str8_pushf(scratch.arena, "r%u", opd->valU32);
+                                                break;
+                                            case WA_OPD_GLOBAL_INDEX:
+                                                s = oc_str8_pushf(scratch.arena, "g%u", opd->valU32);
+                                                break;
 
-                                        case WA_OPD_MEM_ARG:
-                                            s = oc_str8_pushf(scratch.arena, "a%u:+%u", opd->memArg.align, opd->memArg.offset);
-                                            break;
+                                            case WA_OPD_FUNC_INDEX:
+                                                s = wa_module_get_function_name(app->env.module, opd->valU32);
+                                                if(s.len == 0)
+                                                {
+                                                    s = oc_str8_pushf(scratch.arena, "%u", opd->valU32);
+                                                }
+                                                break;
 
-                                        default:
-                                            s = oc_str8_pushf(scratch.arena, "0x%08llx", opd->valU64);
-                                            break;
+                                            case WA_OPD_JUMP_TARGET:
+                                                s = oc_str8_pushf(scratch.arena, "%+lli", opd->valI64);
+                                                break;
+
+                                            case WA_OPD_MEM_ARG:
+                                                s = oc_str8_pushf(scratch.arena, "a%u:+%u", opd->memArg.align, opd->memArg.offset);
+                                                break;
+
+                                            default:
+                                                s = oc_str8_pushf(scratch.arena, "0x%08llx", opd->valU64);
+                                                break;
+                                        }
+
+                                        oc_ui_label_str8(opdKey, s);
                                     }
-
-                                    oc_ui_label_str8(opdKey, s);
                                 }
                             }
                             codeIndex += info->opdCount;
