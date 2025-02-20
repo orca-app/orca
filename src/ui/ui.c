@@ -1822,10 +1822,8 @@ oc_ui_box* oc_ui_box_end(void)
         {
             oc_vec2 wheel = oc_ui_mouse_wheel();
             box->scroll.x += wheel.x;
-            box->scroll.x = oc_clamp(box->scroll.x, 0, contentsW - box->rect.w);
         }
     }
-    box->scroll.x = oc_clamp(box->scroll.x, 0, contentsW - box->rect.w);
 
     if(needsScrollY && box->style.layout.overflow.y == OC_UI_OVERFLOW_SCROLL)
     {
@@ -1846,10 +1844,8 @@ oc_ui_box* oc_ui_box_end(void)
         {
             oc_vec2 wheel = oc_ui_mouse_wheel();
             box->scroll.y += wheel.y;
-            box->scroll.y = oc_clamp(box->scroll.y, 0, contentsH - box->rect.h);
         }
     }
-    box->scroll.y = oc_clamp(box->scroll.y, 0, contentsH - box->rect.h);
 
     oc_ui_box_pop();
 
@@ -2734,6 +2730,9 @@ void oc_ui_layout_compute_rect(oc_ui_context* ui, oc_ui_box* box, oc_vec2 pos)
                                  + 0.5 * (box->rect.c[2 + layoutAxis] - (box->childrenSum[layoutAxis] + box->spacing[layoutAxis]));
     }
 
+    //NOTE: clamp scroll to max contents and offset current position by it
+    box->scroll.x = oc_clamp(box->scroll.x, 0, box->childrenSum[0] - box->rect.w);
+    box->scroll.y = oc_clamp(box->scroll.y, 0, box->childrenSum[1] - box->rect.h);
     currentPos.x -= box->scroll.x;
     currentPos.y -= box->scroll.y;
 

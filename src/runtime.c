@@ -587,13 +587,34 @@ wa_status orca_invoke(wa_interpreter* interpreter, wa_instance* instance, wa_fun
 
     wa_status status = wa_interpreter_invoke(interpreter, instance, function, argCount, args, retCount, returns);
 
-    while(status == WA_TRAP_SUSPENDED || status == WA_TRAP_BREAKPOINT)
+    while(status == WA_TRAP_SUSPENDED || status == WA_TRAP_BREAKPOINT || status == WA_TRAP_STEP)
     {
         oc_mutex_lock(env->suspendMutex);
-        oc_condition_wait(env->suspendCond, env->suspendMutex);
+        {
+            env->paused = true;
+            while(env->paused)
+            {
+                oc_condition_wait(env->suspendCond, env->suspendMutex);
+            }
+        }
         oc_mutex_unlock(env->suspendMutex);
 
-        status = wa_interpreter_continue(interpreter);
+        OC_DEBUG_ASSERT(env->paused == false);
+
+        switch(env->debuggerCommand)
+        {
+            case OC_DEBUGGER_CONTINUE:
+            {
+                status = wa_interpreter_continue(interpreter);
+            }
+            break;
+
+            case OC_DEBUGGER_STEP:
+            {
+                status = wa_interpreter_step(interpreter);
+            }
+            break;
+        }
     }
 
     return status;
@@ -1233,6 +1254,31 @@ void debugger_ui_update(oc_runtime* app)
         oc_ui_style_set_i32(OC_UI_CONSTRAIN_X, 1);
 
         static i64 selectedFunction = -1;
+        f32 scrollSpeed = 0.3;
+        bool freshScroll = false;
+
+        //NOTE: if paused == true here, vm thread can not unpause until next frame.
+        //      if paused == false, vm thread can become paused during the frame, but we
+        //      don't really care (we render cached state for this frame and will update next frame)
+        bool paused = atomic_load(&app->env.paused);
+        if(paused != app->env.prevPaused)
+        {
+            if(paused == true)
+            {
+                //NOTE: vm thread has become paused since last frame. We set autoscroll and autoselect the function
+                app->env.autoScroll = true;
+
+                u32 newIndex = app->env.interpreter->controlStack[app->env.interpreter->controlStackTop].func - app->env.instance->functions;
+                if(selectedFunction != newIndex)
+                {
+                    scrollSpeed = 1;
+                    freshScroll = true;
+                }
+                selectedFunction = newIndex;
+            }
+            app->env.prevPaused = paused;
+        }
+
         static f32 procPanelSize = 300;
 
         oc_ui_box("proc-list")
@@ -1269,24 +1315,27 @@ void debugger_ui_update(oc_runtime* app)
                         {
                             oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_PRIMARY);
                         }
-
-                        oc_ui_style_rule(".hover")
+                        else
                         {
-                            oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_BG_3);
+                            oc_ui_style_rule(".hover")
+                            {
+                                oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_BG_3);
+                            }
                         }
 
                         oc_ui_sig sig = oc_ui_get_sig();
                         if(sig.pressed)
                         {
                             selectedFunction = funcIndex;
-                            oc_log_info("Select function %.*s\n", oc_str8_ip(name));
+                            app->env.autoScroll = false;
+                            freshScroll = true;
                         }
                     }
                 }
             }
         }
 
-        oc_ui_box("code-panel")
+        oc_ui_box* codePanel = oc_ui_box("code-panel")
         {
             oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PARENT, 1, 1 });
             oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
@@ -1294,6 +1343,12 @@ void debugger_ui_update(oc_runtime* app)
 
             const i32 BOX_MARGIN_H = 2;
             const i32 BOX_MARGIN_W = 2;
+
+            if(freshScroll)
+            {
+                oc_log_info("[%f] freshScroll, set scroll to 0\n", oc_ui_frame_time());
+                codePanel->scroll.y = 0;
+            }
 
             if(selectedFunction >= 0)
             {
@@ -1315,6 +1370,16 @@ void debugger_ui_update(oc_runtime* app)
 
                     oc_str8 funcText = oc_str8_list_join(scratch.arena, list);
                 */
+                oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_Y);
+                oc_ui_style_set_f32(OC_UI_MARGIN_X, 5);
+                oc_ui_style_set_f32(OC_UI_MARGIN_Y, 5);
+
+                oc_ui_box* funcLabel = oc_ui_label_str8(OC_STR8("func-label"), funcName).box;
+
+                //TODO: compute line height from font.
+                f32 lineH = funcLabel->rect.h;
+                f32 lineY = funcLabel->rect.h + 10;
+                f32 lineMargin = 2;
 
                 oc_ui_box_str8(funcName)
                 {
@@ -1322,8 +1387,6 @@ void debugger_ui_update(oc_runtime* app)
                     oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_Y);
                     oc_ui_style_set_f32(OC_UI_MARGIN_X, 5);
                     oc_ui_style_set_f32(OC_UI_MARGIN_Y, 5);
-
-                    oc_ui_label_str8(OC_STR8("func-label"), funcName);
 
                     for(u64 codeIndex = 0; codeIndex < func->codeLen; codeIndex++)
                     {
@@ -1353,7 +1416,7 @@ void debugger_ui_update(oc_runtime* app)
                         oc_ui_box_str8(key)
                         {
                             oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
-                            oc_ui_style_set_f32(OC_UI_MARGIN_Y, 2);
+                            oc_ui_style_set_f32(OC_UI_MARGIN_Y, lineMargin);
                             oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_Y);
 
                             oc_ui_box("line")
@@ -1385,34 +1448,23 @@ void debugger_ui_update(oc_runtime* app)
                                     //NOTE: we compute auto-scroll on label box instead of cursor box, because the cursor box is not permanent,
                                     //      so its rect might not be set every frame, resulting in brief jumps.
                                     //      Maybe the cursor box shouldnt be parented to the function UI namespace and be floating to begin with...
-                                    /*
-                                    if(app->autoScroll)
-                                    {
-                                        f32 targetScroll = scrollPanel->scroll.y;
 
+                                    f32 targetScroll = codePanel->scroll.y;
+
+                                    if(app->env.autoScroll)
+                                    {
                                         f32 scrollMargin = 60;
 
-                                        if(label->rect.y < scrollPanel->rect.y + scrollMargin)
+                                        if(lineY - targetScroll < scrollMargin)
                                         {
-                                            targetScroll = scrollPanel->scroll.y
-                                                         - scrollPanel->rect.y
-                                                         + label->rect.y
-                                                         - scrollMargin;
+                                            targetScroll = lineY - scrollMargin;
                                         }
-                                        else if(label->rect.y + label->rect.h + scrollMargin > scrollPanel->rect.y + scrollPanel->rect.h)
+                                        else if(lineY + lineH - targetScroll > codePanel->rect.h - scrollMargin)
                                         {
-                                            targetScroll = scrollPanel->scroll.y
-                                                         + label->rect.y
-                                                         + label->rect.h
-                                                         + scrollMargin
-                                                         - scrollPanel->rect.y
-                                                         - scrollPanel->rect.h;
+                                            targetScroll = lineY + lineH - codePanel->rect.h + scrollMargin;
                                         }
-                                        targetScroll = oc_clamp(targetScroll, 0, scrollPanel->childrenSum[1] - scrollPanel->rect.h);
-
-                                        scrollPanel->scroll.y += 0.1 * (targetScroll - scrollPanel->scroll.y);
                                     }
-                                    */
+                                    codePanel->scroll.y += scrollSpeed * (targetScroll - codePanel->scroll.y);
                                 }
 
                                 // spacer or breakpoint
@@ -1513,6 +1565,7 @@ void debugger_ui_update(oc_runtime* app)
                                     }
                                 }
                             }
+                            lineY += lineH;
                             codeIndex += info->opdCount;
 
                             if(opcode == WA_INSTR_jump_table)
@@ -1527,8 +1580,10 @@ void debugger_ui_update(oc_runtime* app)
                                         oc_ui_label_str8(s, s);
                                     }
                                 }
+                                lineY += lineH;
                             }
                         }
+                        lineY += 2 * lineMargin;
                     }
 
                     oc_ui_box("vspacer")
@@ -1537,6 +1592,15 @@ void debugger_ui_update(oc_runtime* app)
                     }
                 }
             }
+            app->env.lastScroll = codePanel->scroll.y;
+            //NOTE: scroll might change (as a result of user action) at the end of the block
+        }
+
+        if(!freshScroll && fabs(app->env.lastScroll - codePanel->scroll.y) > 1)
+        {
+            //NOTE: if user has adjusted scroll manually, deactivate auto-scroll
+            OC_ASSERT(oc_ui_box_get_sig(codePanel).wheel.y != 0);
+            app->env.autoScroll = false;
         }
     }
 
@@ -1592,27 +1656,18 @@ i32 control_runloop(void* user)
                         if(event->key.action == OC_KEY_PRESS)
                         {
                             if(event->key.keyCode == OC_KEY_D
-                               && (event->key.mods & OC_KEYMOD_SHIFT)
                                && (event->key.mods & OC_KEYMOD_MAIN_MODIFIER))
                             {
-                                debug_overlay_toggle(&app->debugOverlay);
-                            }
-                            else if(event->key.keyCode == OC_KEY_P)
-                            {
-#ifdef OC_WASM_DEBUGGER //---------------------------------------------------------------------------------------------
-                                app->env.pause = !app->env.pause;
-
-                                if(app->env.pause)
+                                if(event->key.mods & OC_KEYMOD_SHIFT)
                                 {
-                                    wa_interpreter_suspend(app->env.interpreter);
-
+#ifdef OC_WASM_DEBUGGER //---------------------------------------------------------------------------------------------
                                     oc_debugger_ui_open(app);
+#endif // OC_WASM_DEBUGGER ---------------------------------------------------------------------------------------------
                                 }
                                 else
                                 {
-                                    oc_condition_signal(app->env.suspendCond);
+                                    debug_overlay_toggle(&app->debugOverlay);
                                 }
-#endif // OC_WASM_DEBUGGER ---------------------------------------------------------------------------------------------
                             }
                         }
                     }
@@ -1621,7 +1676,7 @@ i32 control_runloop(void* user)
                     default:
                         break;
                 }
-                if(!app->env.pause)
+                if(!app->env.paused)
                 {
                     queue_event(&app->eventBuffer, event);
                 }
@@ -1642,7 +1697,48 @@ i32 control_runloop(void* user)
 
                     case OC_EVENT_QUIT:
                     {
+                        //TODO: we should also unblock vm thread and abort interpreter here
                         app->quit = true;
+                    }
+                    break;
+
+                    case OC_EVENT_KEYBOARD_KEY:
+                    {
+                        if(event->key.action == OC_KEY_PRESS)
+                        {
+                            if(event->key.keyCode == OC_KEY_C)
+                            {
+                                //NOTE: signal vm thread to continue
+                                app->env.debuggerCommand = OC_DEBUGGER_CONTINUE;
+
+                                oc_mutex_lock(app->env.suspendMutex);
+                                {
+                                    app->env.paused = false;
+                                    app->env.prevPaused = false;
+                                    oc_condition_signal(app->env.suspendCond);
+                                }
+                                oc_mutex_unlock(app->env.suspendMutex);
+                            }
+                            else if(event->key.keyCode == OC_KEY_N)
+                            {
+                                //NOTE: signal vm thread to step
+                                app->env.debuggerCommand = OC_DEBUGGER_STEP;
+
+                                oc_mutex_lock(app->env.suspendMutex);
+                                {
+                                    app->env.paused = false;
+                                    app->env.prevPaused = false;
+                                    oc_condition_signal(app->env.suspendCond);
+                                }
+                                oc_mutex_unlock(app->env.suspendMutex);
+                            }
+                            else if(event->key.keyCode == OC_KEY_P
+                                    && (event->key.mods & OC_KEYMOD_MAIN_MODIFIER))
+                            {
+                                //TODO: if we're running, signal vm thread to suspend
+                                wa_interpreter_suspend(app->env.interpreter);
+                            }
+                        }
                     }
                     break;
 

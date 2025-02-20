@@ -53,6 +53,12 @@ const oc_export_desc OC_EXPORT_DESC[] = {
 #undef OC_EXPORT_DESC_ENTRY
 };
 
+typedef enum oc_debugger_command
+{
+    OC_DEBUGGER_CONTINUE,
+    OC_DEBUGGER_STEP,
+} oc_debugger_command;
+
 typedef struct oc_wasm_env
 {
     oc_str8 wasmBytecode;
@@ -67,8 +73,12 @@ typedef struct oc_wasm_env
 
     oc_condition* suspendCond;
     oc_mutex* suspendMutex;
+    _Atomic(bool) paused;
+    bool prevPaused;
 
-    bool pause;
+    bool autoScroll;
+    f32 lastScroll;
+    oc_debugger_command debuggerCommand;
 
 } oc_wasm_env;
 

@@ -5774,6 +5774,7 @@ wa_status wa_interpreter_run(wa_interpreter* interpreter, bool step)
     {
         return WA_TRAP_TERMINATED;
     }
+    interpreter->suspend = false;
 
     wa_instance* instance = interpreter->instance;
     wa_memory* memory = 0;
@@ -7850,6 +7851,11 @@ wa_status wa_interpreter_run(wa_interpreter* interpreter, bool step)
                 oc_log_error("invalid opcode %s\n", wa_instr_strings[opcode]);
                 return WA_TRAP_INVALID_OP;
         }
+
+        if(step)
+        {
+            break;
+        }
     }
 
     if(step)
@@ -7858,8 +7864,6 @@ wa_status wa_interpreter_run(wa_interpreter* interpreter, bool step)
     }
     else
     {
-        //NOTE: reset suspend for next call
-        interpreter->suspend = false;
         return WA_TRAP_SUSPENDED;
     }
 
@@ -7999,17 +8003,6 @@ wa_status wa_interpreter_invoke(wa_interpreter* interpreter,
     }
 }
 
-//TODO
-wa_status wa_interpreter_continue(wa_interpreter* interpreter)
-{
-    return wa_interpreter_run(interpreter, false);
-}
-
-void wa_interpreter_suspend(wa_interpreter* interpreter)
-{
-    interpreter->suspend = true;
-}
-
 //-------------------------------------------------------------------------
 // debug helpers
 //-------------------------------------------------------------------------
@@ -8110,4 +8103,63 @@ void wa_interpreter_remove_breakpoint(wa_interpreter* interpreter, wa_breakpoint
 wa_instr_op wa_breakpoint_saved_opcode(wa_breakpoint* bp)
 {
     return bp->savedOpcode.opcode;
+}
+
+wa_status wa_interpreter_continue(wa_interpreter* interpreter)
+{
+    //TODO: if we're on a breakpoint, deactivate it, step, reactivate, continue
+
+    wa_func* func = interpreter->controlStack[interpreter->controlStackTop].func;
+
+    wa_breakpoint* bp = wa_interpreter_find_breakpoint(
+        interpreter,
+        &(wa_bytecode_loc){
+            .instance = interpreter->instance,
+            .func = func,
+            .index = interpreter->pc - func->code,
+        });
+
+    if(bp)
+    {
+        bp->loc.func->code[bp->loc.index] = bp->savedOpcode;
+
+        wa_status status = wa_interpreter_run(interpreter, true);
+        //TODO: check if program terminated
+
+        bp->loc.func->code[bp->loc.index].opcode = WA_INSTR_breakpoint;
+    }
+
+    return wa_interpreter_run(interpreter, false);
+}
+
+wa_status wa_interpreter_step(wa_interpreter* interpreter)
+{
+    wa_func* func = interpreter->controlStack[interpreter->controlStackTop].func;
+
+    wa_breakpoint* bp = wa_interpreter_find_breakpoint(
+        interpreter,
+        &(wa_bytecode_loc){
+            .instance = interpreter->instance,
+            .func = func,
+            .index = interpreter->pc - func->code,
+        });
+
+    if(bp)
+    {
+        bp->loc.func->code[bp->loc.index] = bp->savedOpcode;
+    }
+
+    wa_status status = wa_interpreter_run(interpreter, true);
+
+    if(bp)
+    {
+        bp->loc.func->code[bp->loc.index].opcode = WA_INSTR_breakpoint;
+    }
+
+    return status;
+}
+
+void wa_interpreter_suspend(wa_interpreter* interpreter)
+{
+    interpreter->suspend = true;
 }
