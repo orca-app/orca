@@ -117,6 +117,7 @@ void oc_surface_base_cleanup(oc_surface_base* surface)
         if(window)
         {
             oc_list_remove(&window->osx.surfaces, &surface->view.listElt);
+            [surface->view.layer removeFromSuperlayer];
             oc_osx_update_surfaces(window);
         }
         [surface->view.layer release];
