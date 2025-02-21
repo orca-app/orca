@@ -797,7 +797,7 @@ def build_platform_layer_lib_win(release):
         *includes,
         "src/orca.c", "/Fo:build/bin/orca.o",
         "/LD", "/link",
-        "/MANIFEST:EMBED", "/MANIFESTINPUT:src/app/win32_manifest.xml",
+        "/MANIFEST:EMBED", "/MANIFESTINPUT:src/app/win32_manifest.manifest",
         *libs,
         "/OUT:build/bin/orca.dll",
         "/IMPLIB:build/bin/orca.dll.lib",
@@ -965,7 +965,7 @@ def build_sdk_internal(release):
 #------------------------------------------------------
 def build_libc(args):
     ensure_programs()
-    build_lib_internal(args.release)
+    build_libc_internal(args.release)
 
 def build_libc_internal(release):
     print("Building orca-libc...")

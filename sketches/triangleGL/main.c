@@ -11,7 +11,7 @@
 #define _USE_MATH_DEFINES //NOTE: necessary for MSVC
 #include <math.h>
 
-#define OC_INCLUDE_GL_API
+#define OC_GRAPHICS_INCLUDE_GL_API 1
 #include "orca.h"
 #include "graphics/gl_surface.h"
 
