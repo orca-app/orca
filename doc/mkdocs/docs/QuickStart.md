@@ -226,12 +226,12 @@ You can unconditionally abort the application with a message box using `OC_ABORT
 
 ## Where to go next?
 
-For more examples of how to use Orca APIs, you can look at the other [sample apps](https://github.com/orca-app/orca/samples):
+For more examples of how to use Orca APIs, you can look at the other [sample apps](https://github.com/orca-app/orca/tree/main/samples):
 
-- [breakout](https://github.com/orca-app/orca/samples/breakout) is a mini breakout game making use of the vector graphics API. It demonstrates using input and drawing images.
-- [triangle](https://github.com/orca-app/orca/samples/triangle) shows how to draw a spining triangle using the GLES API.
-- [fluid](https://github.com/orca-app/orca/samples/fluid) is a fluid simulation using a more complex GLES setup.
-- [ui](https://github.com/orca-app/orca/samples/ui) showcases the UI API and Orca's default UI widgets.
+- [breakout](https://github.com/orca-app/orca/tree/main/samples/breakout) is a mini breakout game making use of the vector graphics API. It demonstrates using input and drawing images.
+- [triangle](https://github.com/orca-app/orca/tree/main/samples/triangle) shows how to draw a spining triangle using the GLES API.
+- [fluid](https://github.com/orca-app/orca/tree/main/samples/fluid) is a fluid simulation using a more complex GLES setup.
+- [ui](https://github.com/orca-app/orca/tree/main/samples/ui) showcases the UI API and Orca's default UI widgets.
 
 For a list of Orca APIs, you can look at the [API cheatsheets](https://github.com/orca-app/orca/doc/cheatsheets).
 
