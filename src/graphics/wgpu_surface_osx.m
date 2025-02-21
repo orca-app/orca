@@ -37,8 +37,9 @@ void oc_wgpu_surface_destroy(oc_surface_base* base)
         {
             wgpuDeviceRelease(surface->device);
         }
+        [surface->mtlLayer removeFromSuperlayer];
+        //NOTE: mtlLayer is only retained by wgpuSurface and its superlayer, so it is now deallocated.
 
-        [surface->mtlLayer release];
         oc_surface_base_cleanup(base);
         free(surface);
     }

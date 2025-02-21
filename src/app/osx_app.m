@@ -1453,14 +1453,19 @@ void oc_window_destroy(oc_window window)
         {
             [windowData->osx.nsWindow orderOut:nil];
 
+            //            [windowData->osx.nsView setWantsLayer:NO];
+            //            [windowData->osx.nsView setLayer:nil];
+            [windowData->osx.nsView removeFromSuperview];
+            [windowData->osx.nsView release];
+            windowData->osx.nsView = nil;
+
             [windowData->osx.nsWindow setDelegate:nil];
             [windowData->osx.nsWindowDelegate release];
             windowData->osx.nsWindowDelegate = nil;
 
-            [windowData->osx.nsView release];
-            windowData->osx.nsView = nil;
+            [windowData->osx.nsWindow close]; //also autoreleases the window
 
-            [windowData->osx.nsWindow close]; //also release the window
+            //TODO: we should invalidate the window surfaces still attached here
 
             oc_window_recycle_ptr(windowData);
         }
