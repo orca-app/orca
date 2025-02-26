@@ -12577,13 +12577,6 @@
         },
         {
             "kind": "typename",
-            "name": "oc_ui_box",
-            "type": {
-                "kind": "struct"
-            }
-        },
-        {
-            "kind": "typename",
             "name": "oc_ui_context",
             "type": {
                 "kind": "struct"
