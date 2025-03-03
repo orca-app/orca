@@ -2730,8 +2730,8 @@ void oc_ui_layout_compute_rect(oc_ui_context* ui, oc_ui_box* box, oc_vec2 pos)
     }
 
     //NOTE: clamp scroll to max contents and offset current position by it
-    box->scroll.x = oc_clamp(box->scroll.x, 0, box->childrenSum[0] - box->rect.w);
-    box->scroll.y = oc_clamp(box->scroll.y, 0, box->childrenSum[1] - box->rect.h);
+    box->scroll.x = oc_clamp(box->scroll.x, 0, box->childrenSum[0] + 2 * margin.x - box->rect.w);
+    box->scroll.y = oc_clamp(box->scroll.y, 0, box->childrenSum[1] + 2 * margin.y - box->rect.h);
     currentPos.x -= box->scroll.x;
     currentPos.y -= box->scroll.y;
 
