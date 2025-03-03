@@ -1630,9 +1630,6 @@ oc_ui_box* oc_ui_box_begin_str8(oc_str8 string)
         box->fresh = false;
     }
 
-    box->keyString = oc_str8_push_copy(ui->frameArena, string);
-    box->text = (oc_str8){ 0 };
-
     //NOTE: setup hierarchy
     if(box->frameCounter != ui->frameCounter)
     {
@@ -1647,8 +1644,10 @@ oc_ui_box* oc_ui_box_begin_str8(oc_str8 string)
     else
     {
         //maybe this should be a warning that we're trying to make the box twice in the same frame?
-        oc_log_warning("trying to make ui box '%.*s' multiple times in the same frame\n", (int)string.len, string.ptr);
+        oc_log_warning("trying to make ui box '%.*s' (%llx) multiple times in the same frame (prev is %.*s)\n", (int)string.len, string.ptr, box->key.hash, oc_str8_ip(box->keyString));
     }
+    box->keyString = oc_str8_push_copy(ui->frameArena, string);
+    box->text = (oc_str8){ 0 };
 
     box->frameCounter = ui->frameCounter;
 

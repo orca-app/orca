@@ -923,6 +923,7 @@ typedef struct wa_module
     oc_list* bytecodeToInstrMap;
 
     dw_info* debugInfo;
+    wa_source_node sourceTree;
 
 } wa_module;
 
@@ -3081,6 +3082,58 @@ void wa_parse_code(wa_parser* parser, wa_module* module)
 
 #include "dwarf.c"
 
+void wa_source_tree_insert_path(oc_arena* arena, wa_source_node* root, oc_str8 path)
+{
+    oc_arena_scope scratch = oc_scratch_begin_next(arena);
+    oc_str8_list pathElements = oc_path_split(scratch.arena, path);
+
+    wa_source_node* currentNode = root;
+
+    oc_str8_list_for(pathElements, eltName)
+    {
+        wa_source_node* found = 0;
+        oc_list_for(currentNode->children, child, wa_source_node, listElt)
+        {
+            if(!oc_str8_cmp(child->name, eltName->string))
+            {
+                found = child;
+                break;
+            }
+        }
+        if(!found)
+        {
+            //add the element
+            found = oc_arena_push_type(arena, wa_source_node);
+            memset(found, 0, sizeof(wa_source_node));
+            found->name = oc_str8_push_copy(arena, eltName->string);
+            found->path = oc_path_append(arena, currentNode->path, eltName->string);
+            //TODO: accumulate fullPath
+
+            oc_list_push_back(&currentNode->children, &found->listElt);
+        }
+        else
+        {
+            //just continue
+        }
+        currentNode = found;
+    }
+
+    oc_scratch_end(scratch);
+}
+
+void wa_print_source_tree(wa_source_node* node, int indent)
+{
+    for(int i = 0; i < indent; i++)
+    {
+        printf("  ");
+    }
+    printf("%.*s\n", oc_str8_ip(node->path));
+    oc_list_for(node->children, child, wa_source_node, listElt)
+    {
+        wa_print_source_tree(child, indent + 1);
+    }
+}
+
 void wa_parse_dwarf(wa_parser* parser, wa_module* module)
 {
     /////////////////////////////////////////////////////////////////////////
@@ -3089,6 +3142,8 @@ void wa_parse_dwarf(wa_parser* parser, wa_module* module)
     //NOTE: load dwarf sections
     //TODO: - put all that in its own wa_load_debug_info function
     //      ? split dw_xxx struct (for parsing dwarf specific stuff) from wa_debug_xxx (for internal representation)
+
+    oc_arena_scope scratch = oc_scratch_begin();
 
     dw_sections dwarfSections = { 0 };
 
@@ -3146,7 +3201,105 @@ void wa_parse_dwarf(wa_parser* parser, wa_module* module)
     {
         dw_line_info lineInfo = dw_load_line_info(module->arena, &dwarfSections);
         dw_print_line_info(&lineInfo);
+
+        //TODO: assemble file tree
+
+        for(u64 tableIndex = 0; tableIndex < lineInfo.tableCount; tableIndex++)
+        {
+            dw_line_table* table = &lineInfo.tables[tableIndex];
+            for(u64 fileIndex = 0; fileIndex < table->fileEntryCount; fileIndex++)
+            {
+                dw_file_entry* fileEntry = &table->fileEntries[fileIndex];
+
+                oc_str8 absPath = { 0 };
+                oc_str8 rootName = { 0 };
+                oc_str8 filePath = fileEntry->path;
+
+                if(filePath.len && filePath.ptr[0] == '/')
+                {
+                    //NOTE: absolute file path. This will be shown as a single file name at the root of the tree
+                    absPath = filePath;
+                    filePath = oc_path_slice_filename(absPath);
+                }
+                else
+                {
+                    //NOTE: relative file path. This will be shown in a subtree whose root it either the name of the
+                    // dir path (in case of an absolute dir path), or the name of the CU path (in case of a relative dir path)
+
+                    if(table->version == 5)
+                    {
+                        dw_file_entry* dirEntry = &table->dirEntries[fileEntry->dirIndex];
+                        oc_str8 dirPath = dirEntry->path;
+
+                        if(dirPath.len && dirPath.ptr[0] == '/')
+                        {
+                            // absolute dir path
+                            rootName = oc_path_slice_filename(dirEntry->path);
+                            absPath = oc_path_append(module->arena, dirPath, filePath);
+                        }
+                        else
+                        {
+                            // relative dir path
+                            oc_str8 rootPath = table->dirEntries[0].path;
+                            oc_str8 absDirPath = oc_path_append(scratch.arena, rootPath, dirEntry->path);
+
+                            rootName = oc_path_slice_filename(rootPath);
+                            absPath = oc_path_append(module->arena, absDirPath, filePath);
+                            filePath = oc_path_append(module->arena, dirPath, filePath);
+                        }
+                    }
+                    else
+                    {
+                        if(fileEntry->dirIndex)
+                        {
+                            dw_file_entry* dirEntry = &table->dirEntries[fileEntry->dirIndex - 1];
+
+                            if(dirEntry->path.len && dirEntry->path.ptr[0] == '/')
+                            {
+                                // absolute dir path
+                                oc_str8 dirPath = dirEntry->path;
+
+                                rootName = oc_path_slice_filename(dirEntry->path);
+                                absPath = oc_path_append(module->arena, dirPath, filePath);
+                            }
+                            else
+                            {
+                                //TODO: get root path from CU info if available
+                            }
+                        }
+                    }
+                }
+
+                if(absPath.len)
+                {
+                    /*
+                    if(rootName.len)
+                    {
+                        printf("%.*s/", oc_str8_ip(rootName));
+                    }
+                    printf("%.*s\n", oc_str8_ip(filePath));
+                    */
+
+                    ///////////////////////////////////////////////////////////////////////////
+                    //TODO insert path in the source tree. If a node doesn't exist in the tree,
+                    //     check if the dir/file exists, and if not insert "dead nodes"
+                    //     if node is already in the tree, ignore (remove duplicates)
+                    ///////////////////////////////////////////////////////////////////////////
+
+                    oc_str8 presentationPath = oc_path_append(scratch.arena, rootName, filePath);
+                    wa_source_tree_insert_path(module->arena, &module->sourceTree, presentationPath);
+                }
+            }
+        }
+        wa_print_source_tree(&module->sourceTree, 0);
     }
+
+    oc_scratch_end(scratch);
+}
+
+wa_source_node* wa_module_get_source_tree(wa_module* module)
+{
+    return &module->sourceTree;
 }
 
 //-------------------------------------------------------------------------

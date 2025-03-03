@@ -1240,6 +1240,30 @@ wa_instr_op wa_breakpoint_saved_opcode(wa_breakpoint* bp);
 
 /////////////////////////////////////////////////////////////////////////////
 
+void source_tree_ui(oc_runtime* app, wa_source_node* node, int indent)
+{
+    //TODO: use full path to disambiguate similarly named root dirs
+    oc_ui_box_str8(node->path)
+    {
+        oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
+        oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_CHILDREN });
+        oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_X);
+
+        oc_ui_box("indent")
+        {
+            oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PIXELS, 10 * indent });
+            oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
+        }
+
+        oc_ui_label_str8(OC_STR8("label"), node->name);
+    }
+
+    oc_list_for(node->children, child, wa_source_node, listElt)
+    {
+        source_tree_ui(app, child, indent + 1);
+    }
+}
+
 void debugger_ui_update(oc_runtime* app)
 {
     oc_arena_scope scratch = oc_scratch_begin();
@@ -1403,7 +1427,11 @@ void debugger_ui_update(oc_runtime* app)
                 }
                 else
                 {
-                    //TODO: show files list
+                    wa_source_node* sourceTree = wa_module_get_source_tree(app->env.module);
+                    oc_list_for(sourceTree->children, child, wa_source_node, listElt)
+                    {
+                        source_tree_ui(app, child, 0);
+                    }
                 }
             }
         }

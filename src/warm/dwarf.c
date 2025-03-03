@@ -721,6 +721,8 @@ typedef struct dw_line_entry
 
 typedef struct dw_line_table
 {
+    u32 version;
+
     u64 dirEntryCount;
     dw_file_entry* dirEntries;
 
@@ -740,6 +742,7 @@ typedef struct dw_line_info
 typedef struct dw_info
 {
     dw_line_info* line;
+
 } dw_info;
 
 typedef struct dw_file_entry_elt
@@ -1260,6 +1263,7 @@ dw_line_info dw_load_line_info(oc_arena* arena, dw_sections* sections)
         dw_line_table_elt* table = oc_arena_push_type(scratch.arena, dw_line_table_elt);
         oc_list_push_back(&tablesList, &table->listElt);
 
+        table->table.version = header.version;
         table->table.dirEntryCount = header.dirEntryCount;
         table->table.dirEntries = header.dirEntries;
 

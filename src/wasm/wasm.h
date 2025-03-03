@@ -280,3 +280,14 @@ typedef struct wa_bytecode_loc
 wa_breakpoint* wa_interpreter_find_breakpoint(wa_interpreter* interpreter, wa_bytecode_loc* loc);
 wa_breakpoint* wa_interpreter_add_breakpoint(wa_interpreter* interpreter, wa_bytecode_loc* loc);
 void wa_interpreter_remove_breakpoint(wa_interpreter* interpreter, wa_breakpoint* bp);
+
+typedef struct wa_source_node
+{
+    oc_list_elt listElt;
+    oc_list children;
+    oc_str8 name;
+    oc_str8 path;
+
+} wa_source_node;
+
+wa_source_node* wa_module_get_source_tree(wa_module* module);
